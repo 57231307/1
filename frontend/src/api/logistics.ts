@@ -40,14 +40,12 @@ export const logisticsApi = {
     request.post<ApiResponse<LogisticsWaybill>>('/logistics', data),
 
   // 获取运单详情
-  getById: (id: number) =>
-    request.get<ApiResponse<LogisticsWaybill>>(`/logistics/${id}`),
+  getById: (id: number) => request.get<ApiResponse<LogisticsWaybill>>(`/logistics/${id}`),
 
   // 更新运单状态
   update: (id: number, data: Partial<LogisticsWaybill>) =>
     request.put<ApiResponse<LogisticsWaybill>>(`/logistics/${id}`, data),
 
   // 删除运单
-  delete: (id: number) =>
-    request.delete<ApiResponse<void>>(`/logistics/${id}`),
+  delete: (id: number) => request.delete<ApiResponse<void>>(`/logistics/${id}`),
 }

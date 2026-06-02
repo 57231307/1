@@ -57,7 +57,12 @@
         </el-card>
       </el-col>
       <el-col :xs="24" :sm="12" :lg="6">
-        <el-card shadow="hover" class="stat-card warning" style="cursor: pointer" @click="showCategoryDialog">
+        <el-card
+          shadow="hover"
+          class="stat-card warning"
+          style="cursor: pointer"
+          @click="showCategoryDialog"
+        >
           <div class="stat-content">
             <div class="stat-icon category-icon">
               <el-icon><Collection /></el-icon>
@@ -356,6 +361,7 @@ import {
   Money,
 } from '@element-plus/icons-vue'
 import { productApi, type Product, type ProductCategory } from '@/api/product'
+import { loadIfNot, createLazyLoader } from '@/utils/lazy-loader'
 
 const loading = ref(false)
 const submitLoading = ref(false)

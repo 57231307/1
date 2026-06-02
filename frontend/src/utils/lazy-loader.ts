@@ -1,19 +1,19 @@
 /**
  * 懒加载助手 - 用于优化页面并发请求
- * 
+ *
  * 使用场景：页面有多个 Tab 或多个数据块时，按需加载而非同时并发
- * 
+ *
  * @example
  * // 基本用法
  * const hasLoaded = createLazyLoader()
  * onMounted(() => loadIfNot('key', fetchData))
- * 
+ *
  * @example
  * // Tab 场景
  * const activeTab = ref('tab1')
  * const hasLoaded = createLazyLoader()
  * <el-tabs @tab-change="(tab) => loadTab(tab, hasLoaded)">
- * 
+ *
  * const loadTab = (tabName: string, loader: Record<string, () => void>) => {
  *   loadIfNot(tabName, loader[tabName], hasLoaded)
  * }

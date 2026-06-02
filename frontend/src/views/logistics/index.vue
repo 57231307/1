@@ -86,7 +86,7 @@
 
     <!-- 数据表格 -->
     <el-card class="table-card">
-      <el-table :data="tableData" v-loading="loading" border stripe>
+      <el-table v-loading="loading" :data="tableData" border stripe>
         <el-table-column prop="waybill_no" label="运单号" min-width="140" />
         <el-table-column prop="order_no" label="关联订单" min-width="140" />
         <el-table-column prop="logistics_company" label="物流公司" min-width="120" />
@@ -157,12 +157,8 @@
     </el-card>
 
     <!-- 新建/编辑对话框 -->
-    <el-dialog
-      v-model="dialogVisible"
-      :title="isEdit ? '编辑运单' : '新建运单'"
-      width="600px"
-    >
-      <el-form :model="formData" :rules="formRules" ref="formRef" label-width="100px">
+    <el-dialog v-model="dialogVisible" :title="isEdit ? '编辑运单' : '新建运单'" width="600px">
+      <el-form ref="formRef" :model="formData" :rules="formRules" label-width="100px">
         <el-form-item label="关联订单" prop="order_id">
           <el-select v-model="formData.order_id" placeholder="选择关联订单" filterable>
             <el-option
@@ -220,7 +216,7 @@
       </el-form>
       <template #footer>
         <el-button @click="dialogVisible = false">取消</el-button>
-        <el-button type="primary" @click="handleSubmit" :loading="submitLoading">确定</el-button>
+        <el-button type="primary" :loading="submitLoading" @click="handleSubmit">确定</el-button>
       </template>
     </el-dialog>
 
@@ -229,19 +225,33 @@
       <el-descriptions :column="2" border>
         <el-descriptions-item label="运单号">{{ detailData.waybill_no }}</el-descriptions-item>
         <el-descriptions-item label="关联订单">{{ detailData.order_no }}</el-descriptions-item>
-        <el-descriptions-item label="物流公司">{{ detailData.logistics_company }}</el-descriptions-item>
-        <el-descriptions-item label="快递单号">{{ detailData.tracking_number }}</el-descriptions-item>
-        <el-descriptions-item label="司机姓名">{{ detailData.driver_name || '-' }}</el-descriptions-item>
-        <el-descriptions-item label="司机电话">{{ detailData.driver_phone || '-' }}</el-descriptions-item>
+        <el-descriptions-item label="物流公司">{{
+          detailData.logistics_company
+        }}</el-descriptions-item>
+        <el-descriptions-item label="快递单号">{{
+          detailData.tracking_number
+        }}</el-descriptions-item>
+        <el-descriptions-item label="司机姓名">{{
+          detailData.driver_name || '-'
+        }}</el-descriptions-item>
+        <el-descriptions-item label="司机电话">{{
+          detailData.driver_phone || '-'
+        }}</el-descriptions-item>
         <el-descriptions-item label="运费">¥{{ detailData.freight_fee || 0 }}</el-descriptions-item>
         <el-descriptions-item label="状态">
           <el-tag :type="getStatusType(detailData.status)">
             {{ getStatusText(detailData.status) }}
           </el-tag>
         </el-descriptions-item>
-        <el-descriptions-item label="预计到达">{{ detailData.expected_arrival || '-' }}</el-descriptions-item>
-        <el-descriptions-item label="实际到达">{{ detailData.actual_arrival || '-' }}</el-descriptions-item>
-        <el-descriptions-item label="备注" :span="2">{{ detailData.notes || '-' }}</el-descriptions-item>
+        <el-descriptions-item label="预计到达">{{
+          detailData.expected_arrival || '-'
+        }}</el-descriptions-item>
+        <el-descriptions-item label="实际到达">{{
+          detailData.actual_arrival || '-'
+        }}</el-descriptions-item>
+        <el-descriptions-item label="备注" :span="2">{{
+          detailData.notes || '-'
+        }}</el-descriptions-item>
       </el-descriptions>
     </el-dialog>
 
@@ -344,9 +354,7 @@ const availableStatuses = computed(() => {
       { label: '运输中', value: 'in_transit' },
       { label: '已签收', value: 'delivered' },
     ],
-    in_transit: [
-      { label: '已签收', value: 'delivered' },
-    ],
+    in_transit: [{ label: '已签收', value: 'delivered' }],
   }
   return map[statusForm.currentStatus] || []
 })

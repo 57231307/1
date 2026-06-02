@@ -47,7 +47,10 @@ export interface PurchaseInspectionQueryParams {
 export const purchaseInspectionApi = {
   // 检验单列表
   list: (params?: PurchaseInspectionQueryParams) =>
-    request.get<ApiResponse<{ list: PurchaseInspection[]; total: number }>>('/purchases/inspections', { params }),
+    request.get<ApiResponse<{ list: PurchaseInspection[]; total: number }>>(
+      '/purchases/inspections',
+      { params }
+    ),
 
   // 创建检验单
   create: (data: Partial<PurchaseInspection>) =>
@@ -67,7 +70,9 @@ export const purchaseInspectionApi = {
 
   // 获取检验明细
   getItems: (id: number) =>
-    request.get<ApiResponse<{ items: PurchaseInspectionItem[] }>>(`/purchases/inspections/${id}/items`),
+    request.get<ApiResponse<{ items: PurchaseInspectionItem[] }>>(
+      `/purchases/inspections/${id}/items`
+    ),
 
   // 创建检验明细
   createItem: (id: number, data: Partial<PurchaseInspectionItem>) =>
@@ -75,7 +80,10 @@ export const purchaseInspectionApi = {
 
   // 更新检验明细
   updateItem: (id: number, itemId: number, data: Partial<PurchaseInspectionItem>) =>
-    request.put<ApiResponse<PurchaseInspectionItem>>(`/purchases/inspections/${id}/items/${itemId}`, data),
+    request.put<ApiResponse<PurchaseInspectionItem>>(
+      `/purchases/inspections/${id}/items/${itemId}`,
+      data
+    ),
 
   // 删除检验明细
   deleteItem: (id: number, itemId: number) =>

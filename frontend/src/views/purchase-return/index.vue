@@ -87,7 +87,7 @@
 
     <!-- 数据表格 -->
     <el-card class="table-card">
-      <el-table :data="tableData" v-loading="loading" border stripe>
+      <el-table v-loading="loading" :data="tableData" border stripe>
         <el-table-column prop="returnNo" label="退货单号" min-width="140" />
         <el-table-column prop="purchaseOrderNo" label="采购单号" min-width="140" />
         <el-table-column prop="supplierName" label="供应商" min-width="150" />
@@ -156,12 +156,8 @@
     </el-card>
 
     <!-- 新建/编辑对话框 -->
-    <el-dialog
-      v-model="dialogVisible"
-      :title="isEdit ? '编辑退货单' : '新建退货单'"
-      width="900px"
-    >
-      <el-form :model="formData" :rules="formRules" ref="formRef" label-width="100px">
+    <el-dialog v-model="dialogVisible" :title="isEdit ? '编辑退货单' : '新建退货单'" width="900px">
+      <el-form ref="formRef" :model="formData" :rules="formRules" label-width="100px">
         <el-row :gutter="20">
           <el-col :span="12">
             <el-form-item label="采购订单" prop="purchaseOrderId">
@@ -192,7 +188,12 @@
           </el-col>
         </el-row>
         <el-form-item label="退货原因" prop="reason">
-          <el-input v-model="formData.reason" type="textarea" :rows="3" placeholder="请输入退货原因" />
+          <el-input
+            v-model="formData.reason"
+            type="textarea"
+            :rows="3"
+            placeholder="请输入退货原因"
+          />
         </el-form-item>
         <el-form-item label="备注">
           <el-input v-model="formData.remarks" type="textarea" :rows="2" placeholder="请输入备注" />
@@ -200,13 +201,18 @@
 
         <!-- 退货明细 -->
         <el-divider content-position="left">退货明细</el-divider>
-        <el-button type="primary" size="small" @click="handleAddItem" class="mb-10">
+        <el-button type="primary" size="small" class="mb-10" @click="handleAddItem">
           添加明细
         </el-button>
         <el-table :data="formData.items" border>
           <el-table-column prop="productName" label="产品名称" min-width="150">
             <template #default="{ row }">
-              <el-select v-model="row.productId" filterable placeholder="选择产品" @change="(v: number) => handleProductChange(row, v)">
+              <el-select
+                v-model="row.productId"
+                filterable
+                placeholder="选择产品"
+                @change="(v: number) => handleProductChange(row, v)"
+              >
                 <el-option
                   v-for="product in products"
                   :key="product.id"
@@ -238,14 +244,18 @@
           </el-table-column>
           <el-table-column label="操作" width="80">
             <template #default="{ $index }">
-              <el-button size="small" type="danger" @click="handleRemoveItem($index)">删除</el-button>
+              <el-button size="small" type="danger" @click="handleRemoveItem($index)"
+                >删除</el-button
+              >
             </template>
           </el-table-column>
         </el-table>
       </el-form>
       <template #footer>
         <el-button @click="dialogVisible = false">取消</el-button>
-        <el-button type="primary" @click="handleFormSubmit" :loading="submitLoading">确定</el-button>
+        <el-button type="primary" :loading="submitLoading" @click="handleFormSubmit"
+          >确定</el-button
+        >
       </template>
     </el-dialog>
 
@@ -253,7 +263,9 @@
     <el-dialog v-model="detailDialogVisible" title="退货单详情" width="900px">
       <el-descriptions :column="2" border>
         <el-descriptions-item label="退货单号">{{ detailData.returnNo }}</el-descriptions-item>
-        <el-descriptions-item label="采购单号">{{ detailData.purchaseOrderNo }}</el-descriptions-item>
+        <el-descriptions-item label="采购单号">{{
+          detailData.purchaseOrderNo
+        }}</el-descriptions-item>
         <el-descriptions-item label="供应商">{{ detailData.supplierName }}</el-descriptions-item>
         <el-descriptions-item label="退货日期">{{ detailData.returnDate }}</el-descriptions-item>
         <el-descriptions-item label="退货金额">
@@ -264,8 +276,12 @@
             {{ getStatusText(detailData.status) }}
           </el-tag>
         </el-descriptions-item>
-        <el-descriptions-item label="退货原因" :span="2">{{ detailData.reason || '-' }}</el-descriptions-item>
-        <el-descriptions-item label="备注" :span="2">{{ detailData.remarks || '-' }}</el-descriptions-item>
+        <el-descriptions-item label="退货原因" :span="2">{{
+          detailData.reason || '-'
+        }}</el-descriptions-item>
+        <el-descriptions-item label="备注" :span="2">{{
+          detailData.remarks || '-'
+        }}</el-descriptions-item>
       </el-descriptions>
 
       <el-divider content-position="left">退货明细</el-divider>
@@ -282,7 +298,12 @@
     <el-dialog v-model="approveDialogVisible" title="审批退货单" width="500px">
       <el-form :model="approveForm" label-width="80px">
         <el-form-item label="审批意见">
-          <el-input v-model="approveForm.remark" type="textarea" :rows="3" placeholder="请输入审批意见" />
+          <el-input
+            v-model="approveForm.remark"
+            type="textarea"
+            :rows="3"
+            placeholder="请输入审批意见"
+          />
         </el-form-item>
       </el-form>
       <template #footer>
@@ -298,7 +319,12 @@
 import { ref, reactive, onMounted, computed } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Plus } from '@element-plus/icons-vue'
-import { purchaseReturnApi, type PurchaseReturn, type PurchaseReturnItem } from '@/api/purchase-return'
+import { loadIfNot, createLazyLoader } from '@/utils/lazy-loader'
+import {
+  purchaseReturnApi,
+  type PurchaseReturn,
+  type PurchaseReturnItem,
+} from '@/api/purchase-return'
 
 // 统计数据
 const stats = reactive({

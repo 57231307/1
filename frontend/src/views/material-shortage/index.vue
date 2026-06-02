@@ -195,6 +195,7 @@
 import { ref, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Warning, CircleClose, WarningFilled, Clock, Refresh } from '@element-plus/icons-vue'
+import { loadIfNot, createLazyLoader } from '@/utils/lazy-loader'
 import {
   materialShortageApi,
   type MaterialShortageSummary,

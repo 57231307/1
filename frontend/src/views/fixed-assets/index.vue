@@ -194,6 +194,7 @@ import { ElMessage } from 'element-plus'
 import type { FormInstance, FormRules } from 'element-plus'
 import { listAssets, createAsset, updateAsset, deleteAsset } from '@/api/asset'
 import { listDepartments } from '@/api/department'
+import { loadIfNot, createLazyLoader } from '@/utils/lazy-loader'
 
 const loading = ref(false)
 const submitLoading = ref(false)

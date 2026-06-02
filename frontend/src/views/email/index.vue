@@ -4,7 +4,7 @@
       <h2>邮件管理</h2>
     </div>
 
-    <el-tabs v-model="activeTab" @tab-change="(tab) => loadTab(tab, hasLoaded)" type="border-card">
+    <el-tabs v-model="activeTab" type="border-card" @tab-change="(tab) => loadTab(tab, hasLoaded)">
       <!-- 邮件模板 Tab -->
       <el-tab-pane label="邮件模板" name="templates">
         <div class="tab-header">
@@ -14,7 +14,7 @@
           </el-button>
         </div>
 
-        <el-table :data="templates" v-loading="templatesLoading" border stripe>
+        <el-table v-loading="templatesLoading" :data="templates" border stripe>
           <el-table-column prop="name" label="模板名称" min-width="150" />
           <el-table-column prop="code" label="模板编码" min-width="120" />
           <el-table-column prop="template_type" label="模板类型" min-width="100">
@@ -33,7 +33,9 @@
           <el-table-column label="操作" width="200" fixed="right">
             <template #default="{ row }">
               <el-button size="small" @click="handleEditTemplate(row)">编辑</el-button>
-              <el-button size="small" type="danger" @click="handleDeleteTemplate(row)">删除</el-button>
+              <el-button size="small" type="danger" @click="handleDeleteTemplate(row)"
+                >删除</el-button
+              >
             </template>
           </el-table-column>
         </el-table>
@@ -76,7 +78,7 @@
           </el-form>
         </div>
 
-        <el-table :data="records" v-loading="recordsLoading" border stripe>
+        <el-table v-loading="recordsLoading" :data="records" border stripe>
           <el-table-column prop="to" label="收件人" min-width="150" />
           <el-table-column prop="subject" label="主题" min-width="200" show-overflow-tooltip />
           <el-table-column prop="status" label="状态" width="80" align="center">
@@ -87,7 +89,12 @@
             </template>
           </el-table-column>
           <el-table-column prop="sent_at" label="发送时间" min-width="160" />
-          <el-table-column prop="error_message" label="错误信息" min-width="200" show-overflow-tooltip />
+          <el-table-column
+            prop="error_message"
+            label="错误信息"
+            min-width="200"
+            show-overflow-tooltip
+          />
         </el-table>
 
         <el-pagination
@@ -138,12 +145,21 @@
       :title="isEditTemplate ? '编辑模板' : '新建模板'"
       width="600px"
     >
-      <el-form :model="templateForm" :rules="templateRules" ref="templateFormRef" label-width="100px">
+      <el-form
+        ref="templateFormRef"
+        :model="templateForm"
+        :rules="templateRules"
+        label-width="100px"
+      >
         <el-form-item label="模板名称" prop="name">
           <el-input v-model="templateForm.name" placeholder="请输入模板名称" />
         </el-form-item>
         <el-form-item label="模板编码" prop="code">
-          <el-input v-model="templateForm.code" placeholder="请输入模板编码" :disabled="isEditTemplate" />
+          <el-input
+            v-model="templateForm.code"
+            placeholder="请输入模板编码"
+            :disabled="isEditTemplate"
+          />
         </el-form-item>
         <el-form-item label="模板类型" prop="template_type">
           <el-select v-model="templateForm.template_type" placeholder="选择模板类型">
@@ -166,12 +182,19 @@
           />
         </el-form-item>
         <el-form-item label="描述">
-          <el-input v-model="templateForm.description" type="textarea" :rows="3" placeholder="请输入描述" />
+          <el-input
+            v-model="templateForm.description"
+            type="textarea"
+            :rows="3"
+            placeholder="请输入描述"
+          />
         </el-form-item>
       </el-form>
       <template #footer>
         <el-button @click="templateDialogVisible = false">取消</el-button>
-        <el-button type="primary" @click="handleSubmitTemplate" :loading="submitLoading">确定</el-button>
+        <el-button type="primary" :loading="submitLoading" @click="handleSubmitTemplate"
+          >确定</el-button
+        >
       </template>
     </el-dialog>
   </div>

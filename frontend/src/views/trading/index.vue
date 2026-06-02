@@ -504,6 +504,7 @@
 import { ref, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Plus } from '@element-plus/icons-vue'
+import { loadIfNot, createLazyLoader } from '@/utils/lazy-loader'
 import {
   listTradingPurchaseContracts,
   createTradingPurchaseContract,

@@ -31,6 +31,7 @@ import {
   type ReceiptItem,
 } from '@/api/purchaseReceipt'
 import { request } from '@/api/request'
+import { loadIfNot, createLazyLoader } from '@/utils/lazy-loader'
 
 const tableData = ref<PurchaseReceiptEntity[]>([])
 const total = ref(0)

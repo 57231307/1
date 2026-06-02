@@ -61,27 +61,25 @@ export interface TenantConfig {
 
 export const tenantBillingApi = {
   // 套餐管理
-  getCurrentPlan: () =>
-    request.get<ApiResponse<CurrentPlanInfo>>('/tenant/billing/plan'),
+  getCurrentPlan: () => request.get<ApiResponse<CurrentPlanInfo>>('/tenant/billing/plan'),
 
   upgradePlan: (data: { plan_id: number; billing_cycle: string }) =>
     request.post<ApiResponse<CurrentPlanInfo>>('/tenant/billing/upgrade', data),
 
-  getUsage: () =>
-    request.get<ApiResponse<UsageStats>>('/tenant/billing/usage'),
+  getUsage: () => request.get<ApiResponse<UsageStats>>('/tenant/billing/usage'),
 
   getInvoices: (params?: { page?: number; page_size?: number }) =>
-    request.get<ApiResponse<{ list: Invoice[]; total: number }>>('/tenant/billing/invoices', { params }),
+    request.get<ApiResponse<{ list: Invoice[]; total: number }>>('/tenant/billing/invoices', {
+      params,
+    }),
 
   renew: (data: { billing_cycle: string }) =>
     request.post<ApiResponse<CurrentPlanInfo>>('/tenant/billing/renew', data),
 
   // 套餐列表
-  getPlans: () =>
-    request.get<ApiResponse<BillingPlan[]>>('/tenant/config/plans'),
+  getPlans: () => request.get<ApiResponse<BillingPlan[]>>('/tenant/config/plans'),
 
-  getPlanById: (id: number) =>
-    request.get<ApiResponse<BillingPlan>>(`/tenant/config/plans/${id}`),
+  getPlanById: (id: number) => request.get<ApiResponse<BillingPlan>>(`/tenant/config/plans/${id}`),
 
   createPlan: (data: Partial<BillingPlan>) =>
     request.post<ApiResponse<BillingPlan>>('/tenant/config/plans', data),
@@ -97,6 +95,5 @@ export const tenantBillingApi = {
     request.delete<ApiResponse<void>>(`/tenant/config/settings/${key}`),
 
   // 使用统计
-  getUsageStatistics: () =>
-    request.get<ApiResponse<UsageStats>>('/tenant/config/usage'),
+  getUsageStatistics: () => request.get<ApiResponse<UsageStats>>('/tenant/config/usage'),
 }

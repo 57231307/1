@@ -15,12 +15,22 @@
             </div>
           </template>
           <el-descriptions :column="2" border>
-            <el-descriptions-item label="套餐名称">{{ currentPlan.plan_name || '-' }}</el-descriptions-item>
-            <el-descriptions-item label="套餐编码">{{ currentPlan.plan_code || '-' }}</el-descriptions-item>
-            <el-descriptions-item label="计费周期">{{ currentPlan.billing_cycle || '-' }}</el-descriptions-item>
+            <el-descriptions-item label="套餐名称">{{
+              currentPlan.plan_name || '-'
+            }}</el-descriptions-item>
+            <el-descriptions-item label="套餐编码">{{
+              currentPlan.plan_code || '-'
+            }}</el-descriptions-item>
+            <el-descriptions-item label="计费周期">{{
+              currentPlan.billing_cycle || '-'
+            }}</el-descriptions-item>
             <el-descriptions-item label="金额">¥{{ currentPlan.amount || 0 }}</el-descriptions-item>
-            <el-descriptions-item label="开始日期">{{ currentPlan.start_date || '-' }}</el-descriptions-item>
-            <el-descriptions-item label="结束日期">{{ currentPlan.end_date || '-' }}</el-descriptions-item>
+            <el-descriptions-item label="开始日期">{{
+              currentPlan.start_date || '-'
+            }}</el-descriptions-item>
+            <el-descriptions-item label="结束日期">{{
+              currentPlan.end_date || '-'
+            }}</el-descriptions-item>
             <el-descriptions-item label="自动续费">
               <el-tag :type="currentPlan.auto_renew ? 'success' : 'info'">
                 {{ currentPlan.auto_renew ? '是' : '否' }}
@@ -30,7 +40,7 @@
         </el-card>
 
         <!-- 使用情况 -->
-        <el-card class="mt-20" v-loading="usageLoading">
+        <el-card v-loading="usageLoading" class="mt-20">
           <template #header>使用情况</template>
           <el-row :gutter="20">
             <el-col :span="8">
@@ -47,7 +57,9 @@
                 <div class="usage-label">存储空间</div>
                 <el-progress
                   :percentage="usage.storage_usage_percent || 0"
-                  :format="(p: number) => `${usage.storage_used_mb || 0}/${usage.max_storage_mb || 0} MB`"
+                  :format="
+                    (p: number) => `${usage.storage_used_mb || 0}/${usage.max_storage_mb || 0} MB`
+                  "
                 />
               </div>
             </el-col>
@@ -56,7 +68,10 @@
                 <div class="usage-label">今日API调用</div>
                 <el-progress
                   :percentage="usage.api_usage_percent || 0"
-                  :format="(p: number) => `${usage.api_calls_today || 0}/${usage.max_api_calls_per_day || 0}`"
+                  :format="
+                    (p: number) =>
+                      `${usage.api_calls_today || 0}/${usage.max_api_calls_per_day || 0}`
+                  "
                 />
               </div>
             </el-col>
@@ -67,7 +82,7 @@
       <!-- 套餐列表 Tab -->
       <el-tab-pane label="套餐列表" name="plans">
         <el-row :gutter="20">
-          <el-col :span="8" v-for="plan in plans" :key="plan.id">
+          <el-col v-for="plan in plans" :key="plan.id" :span="8">
             <el-card class="plan-card" :class="{ 'is-current': plan.id === currentPlan.plan_id }">
               <template #header>
                 <div class="plan-header">
@@ -110,7 +125,7 @@
 
       <!-- 账单列表 Tab -->
       <el-tab-pane label="账单列表" name="invoices">
-        <el-table :data="invoices" v-loading="invoicesLoading" border stripe>
+        <el-table v-loading="invoicesLoading" :data="invoices" border stripe>
           <el-table-column prop="invoice_no" label="账单编号" min-width="150" />
           <el-table-column prop="amount" label="金额" min-width="100">
             <template #default="{ row }">
@@ -156,7 +171,9 @@
       </el-form>
       <template #footer>
         <el-button @click="upgradeDialogVisible = false">取消</el-button>
-        <el-button type="primary" @click="handleConfirmUpgrade" :loading="upgradeLoading">确认升级</el-button>
+        <el-button type="primary" :loading="upgradeLoading" @click="handleConfirmUpgrade"
+          >确认升级</el-button
+        >
       </template>
     </el-dialog>
 
@@ -172,7 +189,9 @@
       </el-form>
       <template #footer>
         <el-button @click="renewDialogVisible = false">取消</el-button>
-        <el-button type="primary" @click="handleConfirmRenew" :loading="renewLoading">确认续费</el-button>
+        <el-button type="primary" :loading="renewLoading" @click="handleConfirmRenew"
+          >确认续费</el-button
+        >
       </template>
     </el-dialog>
   </div>

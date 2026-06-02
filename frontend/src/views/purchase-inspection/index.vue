@@ -51,7 +51,12 @@
           <el-input v-model="queryParams.keyword" placeholder="请输入检验单号" clearable />
         </el-form-item>
         <el-form-item label="供应商">
-          <el-select v-model="queryParams.supplier_id" placeholder="选择供应商" clearable filterable>
+          <el-select
+            v-model="queryParams.supplier_id"
+            placeholder="选择供应商"
+            clearable
+            filterable
+          >
             <el-option
               v-for="supplier in suppliers"
               :key="supplier.id"
@@ -93,7 +98,7 @@
 
     <!-- 数据表格 -->
     <el-card class="table-card">
-      <el-table :data="tableData" v-loading="loading" border stripe>
+      <el-table v-loading="loading" :data="tableData" border stripe>
         <el-table-column prop="inspection_no" label="检验单号" min-width="140" />
         <el-table-column prop="receipt_no" label="入库单号" min-width="140" />
         <el-table-column prop="supplier_name" label="供应商" min-width="150" />
@@ -150,12 +155,8 @@
     </el-card>
 
     <!-- 新建/编辑对话框 -->
-    <el-dialog
-      v-model="dialogVisible"
-      :title="isEdit ? '编辑检验单' : '新建检验单'"
-      width="800px"
-    >
-      <el-form :model="formData" :rules="formRules" ref="formRef" label-width="100px">
+    <el-dialog v-model="dialogVisible" :title="isEdit ? '编辑检验单' : '新建检验单'" width="800px">
+      <el-form ref="formRef" :model="formData" :rules="formRules" label-width="100px">
         <el-row :gutter="20">
           <el-col :span="12">
             <el-form-item label="入库单号" prop="receipt_id">
@@ -218,7 +219,7 @@
       </el-form>
       <template #footer>
         <el-button @click="dialogVisible = false">取消</el-button>
-        <el-button type="primary" @click="handleSubmit" :loading="submitLoading">确定</el-button>
+        <el-button type="primary" :loading="submitLoading" @click="handleSubmit">确定</el-button>
       </template>
     </el-dialog>
 
@@ -228,7 +229,9 @@
         <el-descriptions-item label="检验单号">{{ detailData.inspection_no }}</el-descriptions-item>
         <el-descriptions-item label="入库单号">{{ detailData.receipt_no }}</el-descriptions-item>
         <el-descriptions-item label="供应商">{{ detailData.supplier_name }}</el-descriptions-item>
-        <el-descriptions-item label="检验日期">{{ detailData.inspection_date }}</el-descriptions-item>
+        <el-descriptions-item label="检验日期">{{
+          detailData.inspection_date
+        }}</el-descriptions-item>
         <el-descriptions-item label="检验员">{{ detailData.inspector_name }}</el-descriptions-item>
         <el-descriptions-item label="状态">
           <el-tag :type="getStatusType(detailData.status)">
@@ -421,7 +424,14 @@ const handleReceiptChange = (receiptId: number) => {
   if (receipt) {
     // TODO: 从API获取入库单明细
     formData.items = [
-      { product_id: 1, product_name: '产品A', expected_quantity: 100, inspected_quantity: 0, passed_quantity: 0, failed_quantity: 0 },
+      {
+        product_id: 1,
+        product_name: '产品A',
+        expected_quantity: 100,
+        inspected_quantity: 0,
+        passed_quantity: 0,
+        failed_quantity: 0,
+      },
     ]
   }
 }

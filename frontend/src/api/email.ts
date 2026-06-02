@@ -55,11 +55,16 @@ export interface SendEmailRequest {
 export const emailApi = {
   // 发送邮件
   send: (data: SendEmailRequest) =>
-    request.post<ApiResponse<{ message_id: string; status: string; sent_at: string }>>('/emails/send', data),
+    request.post<ApiResponse<{ message_id: string; status: string; sent_at: string }>>(
+      '/emails/send',
+      data
+    ),
 
   // 邮件模板
   getTemplates: (params?: { page?: number; page_size?: number }) =>
-    request.get<ApiResponse<{ list: EmailTemplate[]; total: number }>>('/emails/templates', { params }),
+    request.get<ApiResponse<{ list: EmailTemplate[]; total: number }>>('/emails/templates', {
+      params,
+    }),
 
   getTemplateById: (id: number) =>
     request.get<ApiResponse<EmailTemplate>>(`/emails/templates/${id}`),
@@ -70,14 +75,12 @@ export const emailApi = {
   updateTemplate: (id: number, data: Partial<EmailTemplate>) =>
     request.put<ApiResponse<EmailTemplate>>(`/emails/templates/${id}`, data),
 
-  deleteTemplate: (id: number) =>
-    request.delete<ApiResponse<void>>(`/emails/templates/${id}`),
+  deleteTemplate: (id: number) => request.delete<ApiResponse<void>>(`/emails/templates/${id}`),
 
   // 发送记录
   getRecords: (params?: EmailQueryParams) =>
     request.get<ApiResponse<{ list: EmailLog[]; total: number }>>('/emails/records', { params }),
 
   // 发送统计
-  getStatistics: () =>
-    request.get<ApiResponse<EmailStatistics>>('/emails/statistics'),
+  getStatistics: () => request.get<ApiResponse<EmailStatistics>>('/emails/statistics'),
 }

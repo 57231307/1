@@ -133,6 +133,7 @@
 <script setup lang="ts">
 import { ref, reactive, onMounted, computed } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
+import { loadIfNot, createLazyLoader } from '@/utils/lazy-loader'
 import {
   listRoleDataPermissions,
   setDataPermission,

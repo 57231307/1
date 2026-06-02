@@ -392,7 +392,14 @@ import {
   deleteSubject as deleteSubjectApi,
   type AccountSubject,
 } from '@/api/finance'
-import { listVouchers, createVoucher, submitVoucher as submitVoucherApi, reviewVoucher as reviewVoucherApi, postVoucher as postVoucherApi, type Voucher } from '@/api/finance'
+import {
+  listVouchers,
+  createVoucher,
+  submitVoucher as submitVoucherApi,
+  reviewVoucher as reviewVoucherApi,
+  postVoucher as postVoucherApi,
+  type Voucher,
+} from '@/api/finance'
 import { loadIfNot, createLazyLoader } from '@/utils/lazy-loader'
 
 const activeTab = ref('subject')

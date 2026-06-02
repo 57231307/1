@@ -7,7 +7,7 @@
       </div>
     </el-card>
 
-    <el-tabs v-model="activeTab" @tab-change="(tab) => loadTab(tab, hasLoaded)" class="fund-tabs">
+    <el-tabs v-model="activeTab" class="fund-tabs" @tab-change="(tab) => loadTab(tab, hasLoaded)">
       <el-tab-pane label="账户管理" name="account">
         <el-card class="table-card">
           <template #header>
