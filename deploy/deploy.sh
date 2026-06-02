@@ -148,6 +148,25 @@ generate_config() {
         local JWT="${JWT_SECRET:-}"
         local COOKIE="${COOKIE_SECRET:-}"
         
+        # 自动生成 AUDIT_SECRET_KEY（基于服务器硬件信息 + 随机盐）
+        if [ -z "$AUDIT_SECRET_KEY" ]; then
+            # 收集硬件信息
+            local HW_INFO=""
+            HW_INFO+=$(cat /etc/machine-id 2>/dev/null || echo "no-machine-id")
+            HW_INFO+=$(dmidecode -s system-serial-number 2>/dev/null || echo "no-serial")
+            HW_INFO+=$(dmidecode -s baseboard-serial-number 2>/dev/null || echo "no-board-serial")
+            HW_INFO+=$(cat /sys/class/dmi/id/product_uuid 2>/dev/null || echo "no-uuid")
+            
+            # 生成 256 字节密钥（硬件信息 + 随机盐 + 时间戳）
+            local SALT=$(openssl rand -hex 32)
+            local TIMESTAMP=$(date +%s%N)
+            AUDIT_SECRET_KEY=$(echo -n "${HW_INFO}${SALT}${TIMESTAMP}" | sha512sum | awk '{print $1}')
+            
+            # 追加到 .env 文件
+            echo "AUDIT_SECRET_KEY=${AUDIT_SECRET_KEY}" >> "$ENV_FILE"
+            log "已自动生成 AUDIT_SECRET_KEY（基于服务器硬件信息）"
+        fi
+        
         # 验证必需的环境变量
         if [ -z "$DB_PASS" ]; then
             error "DATABASE__PASSWORD 环境变量未设置"
