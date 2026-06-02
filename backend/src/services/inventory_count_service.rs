@@ -1,8 +1,8 @@
 #![allow(dead_code)]
 
 use sea_orm::{
-    ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, Order, PaginatorTrait,
-    QueryFilter, QueryOrder, TransactionTrait,
+    ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, ExprTrait, Order,
+    PaginatorTrait, QueryFilter, QueryOrder, TransactionTrait,
 };
 use std::sync::Arc;
 

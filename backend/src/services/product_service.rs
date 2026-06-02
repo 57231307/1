@@ -4,8 +4,8 @@ use chrono::Utc;
 use rust_decimal::Decimal;
 use sea_orm::prelude::*;
 use sea_orm::{
-    ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, NotSet, Order, QueryFilter,
-    QueryOrder, Set,
+    ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, ExprTrait, NotSet, Order,
+    QueryFilter, QueryOrder, Set,
 };
 use std::sync::Arc;
 

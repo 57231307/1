@@ -174,7 +174,7 @@ impl Default for AppState {
         let random_cookie_secret =
             uuid::Uuid::new_v4().to_string() + &uuid::Uuid::new_v4().to_string();
         let cookie_key = Key::derive_from(random_cookie_secret.as_bytes());
-        let db = Arc::new(DatabaseConnection::Disconnected);
+        let db = Arc::new(DatabaseConnection::default());
         let omni_audit = Arc::new(
             OmniAuditEngine::new(db.clone())
                 .expect("Failed to create OmniAuditEngine: AUDIT_SECRET_KEY must be set"),

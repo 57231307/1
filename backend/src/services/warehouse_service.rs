@@ -2,8 +2,8 @@
 use chrono::Utc;
 use rand;
 use sea_orm::{
-    ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, NotSet, Order, PaginatorTrait,
-    QueryFilter, QueryOrder, QuerySelect, Set,
+    ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, ExprTrait, NotSet, Order,
+    PaginatorTrait, QueryFilter, QueryOrder, QuerySelect, Set,
 };
 use std::sync::Arc;
 

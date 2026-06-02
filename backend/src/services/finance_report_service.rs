@@ -8,7 +8,8 @@ use crate::models::{
 use crate::utils::error::AppError;
 use rust_decimal::Decimal;
 use sea_orm::{
-    sea_query::Expr, ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter, QuerySelect,
+    sea_query::Expr, ColumnTrait, DatabaseConnection, EntityTrait, ExprTrait, QueryFilter,
+    QuerySelect,
 };
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;

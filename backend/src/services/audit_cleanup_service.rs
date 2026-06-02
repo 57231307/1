@@ -37,7 +37,7 @@ impl AuditCleanupService {
         let result = self
             .db
             .as_ref()
-            .execute(Statement::from_string(
+            .execute_raw(Statement::from_string(
                 sea_orm::DatabaseBackend::Postgres,
                 sql,
             ))
@@ -62,7 +62,7 @@ impl AuditCleanupService {
         let result = self
             .db
             .as_ref()
-            .execute(Statement::from_string(
+            .execute_raw(Statement::from_string(
                 sea_orm::DatabaseBackend::Postgres,
                 sql,
             ))
@@ -93,7 +93,7 @@ impl AuditCleanupService {
         let result = self
             .db
             .as_ref()
-            .query_one(Statement::from_string(
+            .query_one_raw(Statement::from_string(
                 sea_orm::DatabaseBackend::Postgres,
                 sql.to_string(),
             ))

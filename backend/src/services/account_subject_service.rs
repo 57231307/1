@@ -4,8 +4,8 @@
 #![allow(dead_code)]
 
 use sea_orm::{
-    ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, IntoActiveModel, ModelTrait,
-    Order, PaginatorTrait, QueryFilter, QueryOrder,
+    ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, ExprTrait, IntoActiveModel,
+    ModelTrait, Order, PaginatorTrait, QueryFilter, QueryOrder,
 };
 use std::sync::Arc;
 use tracing::{info, warn};

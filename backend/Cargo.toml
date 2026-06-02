@@ -16,7 +16,7 @@ http = "1"
 tokio = { version = "1.0", features = ["full"] }
 
 # 数据库
-sea-orm = { version = "1.0", features = ["sqlx-postgres", "runtime-tokio", "macros", "with-bigdecimal"] }
+sea-orm = { version = "2.0.0-rc.40", features = ["sqlx-postgres", "runtime-tokio", "macros", "with-bigdecimal"] }
 sqlx = { version = "0.8", features = ["postgres", "runtime-tokio", "chrono", "uuid", "json", "macros", "tls-rustls"] }
 
 # 序列化

@@ -6,8 +6,8 @@ use crate::utils::sql_escape::safe_like_pattern;
 use chrono::NaiveDate;
 use rust_decimal::Decimal;
 use sea_orm::{
-    ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, Order, PaginatorTrait,
-    QueryFilter, QueryOrder, QuerySelect, Set, TransactionTrait,
+    ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, ExprTrait, Order,
+    PaginatorTrait, QueryFilter, QueryOrder, QuerySelect, Set, TransactionTrait,
 };
 use std::sync::Arc;
 use tracing::{error, info};
@@ -397,7 +397,7 @@ impl FixedAssetService {
             depreciable_amount / rust_decimal::Decimal::from(useful_life_months);
 
         // 总应计折旧 = 月折旧额 * min(已用月数, 总月数)
-        let applicable_months = months_used.min(useful_life_months);
+        let applicable_months = Ord::min(months_used, useful_life_months);
         let total_depreciation =
             monthly_depreciation * rust_decimal::Decimal::from(applicable_months);
 

@@ -4,7 +4,8 @@
 
 use chrono::Utc;
 use sea_orm::{
-    ActiveModelTrait, ColumnTrait, EntityTrait, PaginatorTrait, QueryFilter, QueryOrder, Set,
+    ActiveModelTrait, ColumnTrait, EntityTrait, ExprTrait, PaginatorTrait, QueryFilter, QueryOrder,
+    Set,
 };
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
@@ -305,7 +306,7 @@ impl ReportTemplateService {
         let result = self
             .db
             .as_ref()
-            .query_all(stmt)
+            .query_all_raw(stmt)
             .await
             .map_err(|e| AppError::DatabaseError(format!("SQL执行失败: {}", e)))?;
 
