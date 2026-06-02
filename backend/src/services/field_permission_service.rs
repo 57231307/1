@@ -6,7 +6,7 @@ use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 
 use crate::models::field_permission::{self, Entity as FieldPermissionEntity};
-use crate::models::role;
+use crate::utils::admin_checker;
 use crate::utils::error::AppError;
 
 /// 字段权限详情
@@ -224,13 +224,9 @@ impl FieldPermissionService {
         Ok(())
     }
 
-    /// 检查角色是否为管理员角色（从数据库查询角色编码）
+    /// 检查角色是否为管理员角色（带缓存）
     async fn is_admin_role(&self, role_id: i32) -> Result<bool, AppError> {
-        use sea_orm::EntityTrait;
-        match role::Entity::find_by_id(role_id).one(&*self.db).await? {
-            Some(r) => Ok(r.code == "admin"),
-            None => Ok(false),
-        }
+        Ok(admin_checker::is_admin_role(&self.db, role_id).await)
     }
 
     /// 检查角色对某资源的字段读权限

@@ -3,7 +3,7 @@
 //! 提供数据范围控制和字段级权限管理功能
 
 use crate::models::data_permission::{self, Entity as DataPermissionEntity};
-use crate::models::role;
+use crate::utils::admin_checker;
 use crate::utils::error::AppError;
 use chrono::Utc;
 use sea_orm::{
@@ -111,13 +111,9 @@ impl DataPermissionService {
         Ok(count > 0)
     }
 
-    /// 检查角色是否为管理员角色（从数据库查询角色编码）
+    /// 检查角色是否为管理员角色（带缓存）
     async fn is_admin_role(&self, role_id: i32) -> Result<bool, AppError> {
-        use sea_orm::EntityTrait;
-        match role::Entity::find_by_id(role_id).one(&*self.db).await? {
-            Some(r) => Ok(r.code == "admin"),
-            None => Ok(false),
-        }
+        Ok(admin_checker::is_admin_role(&self.db, role_id).await)
     }
 
     /// 设置数据权限

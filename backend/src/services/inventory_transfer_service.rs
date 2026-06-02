@@ -545,11 +545,11 @@ impl InventoryTransferService {
                     )
                     .col_expr(
                         inventory_stock::Column::QuantityMeters,
-                        sea_orm::sea_query::Expr::val(new_quantity_meters).into(),
+                        sea_orm::sea_query::Expr::val(new_quantity_meters),
                     )
                     .col_expr(
                         inventory_stock::Column::QuantityKg,
-                        sea_orm::sea_query::Expr::val(new_quantity_kg).into(),
+                        sea_orm::sea_query::Expr::val(new_quantity_kg),
                     )
                     .col_expr(
                         inventory_stock::Column::Version,
@@ -557,7 +557,7 @@ impl InventoryTransferService {
                     )
                     .col_expr(
                         inventory_stock::Column::UpdatedAt,
-                        sea_orm::sea_query::Expr::val(chrono::Utc::now()).into(),
+                        sea_orm::sea_query::Expr::val(chrono::Utc::now()),
                     )
                     .filter(inventory_stock::Column::Id.eq(stock_id))
                     .filter(inventory_stock::Column::Version.eq(expected_version))
@@ -737,11 +737,11 @@ impl InventoryTransferService {
                     )
                     .col_expr(
                         inventory_stock::Column::QuantityMeters,
-                        sea_orm::sea_query::Expr::val(new_quantity_meters).into(),
+                        sea_orm::sea_query::Expr::val(new_quantity_meters),
                     )
                     .col_expr(
                         inventory_stock::Column::QuantityKg,
-                        sea_orm::sea_query::Expr::val(new_quantity_kg).into(),
+                        sea_orm::sea_query::Expr::val(new_quantity_kg),
                     )
                     .col_expr(
                         inventory_stock::Column::Version,
@@ -749,7 +749,7 @@ impl InventoryTransferService {
                     )
                     .col_expr(
                         inventory_stock::Column::UpdatedAt,
-                        sea_orm::sea_query::Expr::val(chrono::Utc::now()).into(),
+                        sea_orm::sea_query::Expr::val(chrono::Utc::now()),
                     )
                     .filter(inventory_stock::Column::Id.eq(stock_id))
                     .filter(inventory_stock::Column::Version.eq(expected_version))

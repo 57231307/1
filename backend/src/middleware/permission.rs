@@ -2,9 +2,10 @@
 
 use crate::middleware::auth_context::AuthContext;
 use crate::middleware::public_routes::is_public_path;
-use crate::models::role;
 use crate::models::role_permission;
+use crate::utils::admin_checker;
 use crate::utils::app_state::AppState;
+use crate::utils::path_utils::is_module_prefix;
 use axum::{
     body::Body,
     extract::State,
@@ -16,6 +17,7 @@ use axum::{
 use chrono::{DateTime, Duration, Utc};
 use sea_orm::{ColumnTrait, EntityTrait, QueryFilter};
 use serde_json::json;
+use std::sync::Arc;
 use tracing::warn;
 
 fn forbidden_response(message: &str) -> Response {
@@ -126,39 +128,6 @@ fn extract_resource_info(path: &str) -> (String, Option<i32>) {
     }
 }
 
-/// 判断是否为模块前缀（如 sales, purchases, finance 等）
-fn is_module_prefix(part: &str) -> bool {
-    matches!(
-        part,
-        "sales"
-            | "purchases"
-            | "finance"
-            | "inventory"
-            | "gl"
-            | "ap"
-            | "ar"
-            | "bpm"
-            | "crm"
-            | "ai"
-            | "reports"
-            | "tenants"
-            | "webhooks"
-            | "api-keys"
-            | "supplier-evaluation"
-            | "customer-credits"
-            | "financial-analysis"
-            | "fund-management"
-            | "quality-inspection"
-            | "cost-collections"
-            | "sales-analysis"
-            | "sales-prices"
-            | "purchase-prices"
-            | "sales-returns"
-            | "ar-reconciliations"
-            | "exchange-rates"
-    )
-}
-
 fn method_to_action(method: &Method) -> String {
     match *method {
         Method::GET => "read",
@@ -194,8 +163,9 @@ impl<T: Clone> CacheEntry<T> {
     }
 }
 
-// Cache: role_id -> CacheEntry<Vec<role_permission::Model>>
-static PERMISSION_CACHE: Lazy<DashMap<i32, CacheEntry<Vec<role_permission::Model>>>> =
+// Cache: role_id -> CacheEntry<Arc<Vec<role_permission::Model>>>
+// 使用 Arc 包装，克隆时只增加引用计数，不复制数据
+static PERMISSION_CACHE: Lazy<DashMap<i32, CacheEntry<Arc<Vec<role_permission::Model>>>>> =
     Lazy::new(DashMap::new);
 
 /// 权限缓存TTL（5分钟）
@@ -213,26 +183,8 @@ pub fn clear_permission_cache(role_id: Option<i32>) {
 /// 建议定期调用此函数以避免内存泄漏
 pub fn cleanup_expired_permission_cache() {
     PERMISSION_CACHE.retain(|_, entry| !entry.is_expired());
-}
-
-/// 检查角色是否是管理员角色
-async fn is_admin_role(db: &sea_orm::DatabaseConnection, role_id: i32) -> bool {
-    // 从数据库查询角色，检查code是否为"admin"
-    match role::Entity::find_by_id(role_id).one(db).await {
-        Ok(Some(role)) => role.code == "admin",
-        Ok(None) => false,
-        Err(e) => {
-            // 如果是表不存在的错误，说明系统还未初始化，允许访问
-            let err_msg = format!("{}", e);
-            if err_msg.contains("does not exist") || err_msg.contains("relation") {
-                warn!("数据库表不存在，系统可能未初始化，允许访问: {}", e);
-                true // 系统未初始化时允许所有操作
-            } else {
-                warn!("查询角色失败: {}", e);
-                false
-            }
-        }
-    }
+    // 同时清理管理员角色缓存
+    admin_checker::cleanup_expired_admin_cache();
 }
 
 async fn check_permission(
@@ -242,8 +194,8 @@ async fn check_permission(
     resource_id: Option<i32>,
     action: &str,
 ) -> bool {
-    // 检查是否是管理员角色（从数据库查询，而非硬编码）
-    if is_admin_role(db, role_id).await {
+    // 检查是否是管理员角色（带缓存）
+    if admin_checker::is_admin_role(db, role_id).await {
         return true;
     }
 
@@ -273,15 +225,16 @@ async fn check_permission(
                 .await
                 .unwrap_or_default();
 
-            // 插入缓存，设置TTL
+            // 使用 Arc 包装，插入缓存，设置TTL
+            let arc_perms = Arc::new(db_perms);
             let ttl = Duration::minutes(PERMISSION_CACHE_TTL);
-            PERMISSION_CACHE.insert(role_id, CacheEntry::new(db_perms.clone(), ttl));
-            db_perms
+            PERMISSION_CACHE.insert(role_id, CacheEntry::new(arc_perms.clone(), ttl));
+            arc_perms
         }
     };
 
     // 检查是否有匹配的权限
-    permissions.into_iter().any(|p| {
+    permissions.iter().any(|p| {
         p.resource_type == resource_type
             && p.action == action
             && (p.resource_id == resource_id || p.resource_id.is_none())

@@ -120,30 +120,24 @@ where
     V: Clone,
 {
     fn get(&self, key: &K) -> Option<V> {
-        let is_expired = if let Some(entry) = self.storage.get(key) {
-            if let Some(expires_at) = entry.expires_at {
-                Instant::now() > expires_at
-            } else {
-                false
+        let entry = match self.storage.get(key) {
+            Some(e) => e,
+            None => {
+                self.misses.fetch_add(1, Ordering::Relaxed);
+                return None;
             }
-        } else {
-            self.misses.fetch_add(1, Ordering::Relaxed);
-            return None;
         };
 
-        if is_expired {
+        let expired = entry.expires_at.is_some_and(|exp| Instant::now() > exp);
+        if expired {
+            drop(entry);
             self.storage.remove(key);
             self.misses.fetch_add(1, Ordering::Relaxed);
             return None;
         }
 
-        if let Some(entry) = self.storage.get(key) {
-            self.hits.fetch_add(1, Ordering::Relaxed);
-            Some(entry.value.clone())
-        } else {
-            self.misses.fetch_add(1, Ordering::Relaxed);
-            None
-        }
+        self.hits.fetch_add(1, Ordering::Relaxed);
+        Some(entry.value.clone())
     }
 
     fn set(&self, key: K, value: V, ttl: Option<Duration>) {

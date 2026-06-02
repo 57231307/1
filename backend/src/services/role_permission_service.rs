@@ -6,6 +6,7 @@ use std::sync::Arc;
 
 use crate::models::role::{self, Entity as RoleEntity};
 use crate::models::role_permission::{self, Entity as RolePermissionEntity};
+use crate::utils::admin_checker;
 use crate::utils::error::AppError;
 use serde::{Deserialize, Serialize};
 
@@ -380,12 +381,9 @@ impl RolePermissionService {
         Ok(())
     }
 
-    /// 检查角色是否为管理员角色（从数据库查询角色编码，而非硬编码 ID）
+    /// 检查角色是否为管理员角色（带缓存）
     async fn is_admin_role(&self, role_id: i32) -> Result<bool, AppError> {
-        match RoleEntity::find_by_id(role_id).one(&*self.db).await? {
-            Some(role) => Ok(role.code == "admin"),
-            None => Ok(false),
-        }
+        Ok(admin_checker::is_admin_role(&self.db, role_id).await)
     }
 
     /// 获取角色的所有权限

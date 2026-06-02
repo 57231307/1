@@ -1,36 +1,15 @@
 use crate::middleware::auth_context::AuthContext;
-use crate::models::role;
 use crate::services::field_permission_service::FieldPermissionService;
+use crate::utils::admin_checker;
 use crate::utils::app_state::AppState;
+use crate::utils::path_utils::is_module_prefix;
 use axum::{
     body::Body,
     extract::State,
     http::{Request, Response},
     middleware::Next,
 };
-use sea_orm::EntityTrait;
 use serde_json::Value;
-
-/// 检查角色是否是管理员角色
-#[allow(dead_code)]
-async fn is_admin_role(db: &sea_orm::DatabaseConnection, role_id: i32) -> bool {
-    // 从数据库查询角色，检查code是否为"admin"
-    match role::Entity::find_by_id(role_id).one(db).await {
-        Ok(Some(role)) => role.code == "admin",
-        Ok(None) => false,
-        Err(e) => {
-            // 如果是表不存在的错误，说明系统还未初始化，允许访问
-            let err_msg = format!("{}", e);
-            if err_msg.contains("does not exist") || err_msg.contains("relation") {
-                tracing::warn!("数据库表不存在，系统可能未初始化，允许访问: {}", e);
-                true // 系统未初始化时允许所有操作
-            } else {
-                tracing::warn!("查询角色失败: {}", e);
-                false
-            }
-        }
-    }
-}
 
 /// 字段权限中间件
 ///
@@ -55,8 +34,8 @@ pub async fn field_permission_middleware(
         None => return next.run(request).await,
     };
 
-    // 检查是否是管理员角色（从数据库查询，而非硬编码）
-    if is_admin_role(&state.db, role_id).await {
+    // 检查是否是管理员角色（带缓存）
+    if admin_checker::is_admin_role(&state.db, role_id).await {
         return next.run(request).await;
     }
 
@@ -180,39 +159,6 @@ fn extract_resource_type(path: &str) -> Option<String> {
     } else {
         None
     }
-}
-
-/// 判断是否为模块前缀
-#[allow(dead_code)]
-fn is_module_prefix(part: &str) -> bool {
-    matches!(
-        part,
-        "sales"
-            | "purchases"
-            | "finance"
-            | "inventory"
-            | "gl"
-            | "ap"
-            | "ar"
-            | "bpm"
-            | "crm"
-            | "ai"
-            | "reports"
-            | "tenants"
-            | "webhooks"
-            | "supplier-evaluation"
-            | "customer-credits"
-            | "financial-analysis"
-            | "fund-management"
-            | "quality-inspection"
-            | "cost-collections"
-            | "sales-analysis"
-            | "sales-prices"
-            | "purchase-prices"
-            | "sales-returns"
-            | "ar-reconciliations"
-            | "exchange-rates"
-    )
 }
 
 /// 处理响应 JSON，应用字段过滤和掩码

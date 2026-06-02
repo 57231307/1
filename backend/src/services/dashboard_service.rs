@@ -6,6 +6,7 @@ use sea_orm::{
     QueryOrder, QuerySelect,
 };
 use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::Duration;
 
@@ -127,60 +128,69 @@ impl DashboardService {
             }
         }
 
-        // 缓存未命中，从数据库获取
-        let total_products = product::Entity::find().count(&*self.db).await? as i64;
-
-        let pending_orders = sales_order::Entity::find()
-            .filter(sales_order::Column::Status.eq("pending"))
-            .count(&*self.db)
-            .await? as i64;
-
-        let low_stock_count = inventory_stock::Entity::find()
-            .filter(
-                Expr::col(inventory_stock::Column::QuantityMeters)
-                    .lt(Expr::col(inventory_stock::Column::ReorderPoint)),
-            )
-            .filter(inventory_stock::Column::StockStatus.eq("active"))
-            .count(self.db.as_ref())
-            .await? as i64;
-
-        // 本月销售额
+        // 缓存未命中，从数据库并行获取
         let now = Utc::now();
         use chrono::Datelike;
         let start_of_month = chrono::NaiveDate::from_ymd_opt(now.year(), now.month(), 1)
             .unwrap_or_else(|| {
                 chrono::NaiveDate::from_ymd_opt(2020, 1, 1).expect("valid fallback date")
             });
-        let monthly_sales_dec = sales_order::Entity::find()
+
+        let db = self.db.as_ref();
+
+        let total_products_fut = product::Entity::find().count(db);
+        let total_warehouses_fut = warehouse::Entity::find().count(db);
+        let total_orders_fut = sales_order::Entity::find().count(db);
+        let pending_orders_fut = sales_order::Entity::find()
+            .filter(sales_order::Column::Status.eq("pending"))
+            .count(db);
+        let low_stock_count_fut = inventory_stock::Entity::find()
+            .filter(
+                Expr::col(inventory_stock::Column::QuantityMeters)
+                    .lt(Expr::col(inventory_stock::Column::ReorderPoint)),
+            )
+            .filter(inventory_stock::Column::StockStatus.eq("active"))
+            .count(db);
+        let monthly_sales_fut = sales_order::Entity::find()
             .filter(sales_order::Column::OrderDate.gte(start_of_month))
             .select_only()
             .column_as(Expr::col(sales_order::Column::TotalAmount).sum(), "total")
             .into_tuple::<Option<Decimal>>()
-            .one(self.db.as_ref())
-            .await?
-            .flatten()
-            .unwrap_or(Decimal::ZERO);
-
-        // 总销售额
-        let total_sales_dec = sales_order::Entity::find()
+            .one(db);
+        let total_sales_fut = sales_order::Entity::find()
             .select_only()
             .column_as(Expr::col(sales_order::Column::TotalAmount).sum(), "total")
             .into_tuple::<Option<Decimal>>()
-            .one(self.db.as_ref())
-            .await?
-            .flatten()
-            .unwrap_or(Decimal::ZERO);
+            .one(db);
 
-        let total_warehouses = warehouse::Entity::find().count(&*self.db).await? as i64;
-        let total_orders = sales_order::Entity::find().count(&*self.db).await? as i64;
-
-        let overview = DashboardOverview {
+        let (
             total_products,
             total_warehouses,
             total_orders,
-            total_sales: total_sales_dec.to_string(),
-            low_stock_count,
             pending_orders,
+            low_stock_count,
+            monthly_sales_opt,
+            total_sales_opt,
+        ) = tokio::try_join!(
+            total_products_fut,
+            total_warehouses_fut,
+            total_orders_fut,
+            pending_orders_fut,
+            low_stock_count_fut,
+            monthly_sales_fut,
+            total_sales_fut,
+        )?;
+
+        let monthly_sales_dec = monthly_sales_opt.flatten().unwrap_or(Decimal::ZERO);
+        let total_sales_dec = total_sales_opt.flatten().unwrap_or(Decimal::ZERO);
+
+        let overview = DashboardOverview {
+            total_products: total_products as i64,
+            total_warehouses: total_warehouses as i64,
+            total_orders: total_orders as i64,
+            total_sales: total_sales_dec.to_string(),
+            low_stock_count: low_stock_count as i64,
+            pending_orders: pending_orders as i64,
             monthly_sales: monthly_sales_dec.to_string(),
         };
 
@@ -333,15 +343,22 @@ impl DashboardService {
             .all(self.db.as_ref())
             .await?;
 
+        let warehouse_ids: Vec<i32> = warehouse_distribution
+            .iter()
+            .map(|(wh_id, _)| *wh_id)
+            .collect();
+        let warehouses = warehouse::Entity::find()
+            .filter(warehouse::Column::Id.is_in(warehouse_ids))
+            .all(self.db.as_ref())
+            .await?;
+        let warehouse_map: HashMap<i32, warehouse::Model> =
+            warehouses.into_iter().map(|w| (w.id, w)).collect();
+
         let mut warehouse_stats = Vec::new();
         for (wh_id, qty) in warehouse_distribution {
-            // 获取仓库名称
-            let wh = warehouse::Entity::find_by_id(wh_id)
-                .one(self.db.as_ref())
-                .await?;
-            if let Some(warehouse_model) = wh {
+            if let Some(warehouse_model) = warehouse_map.get(&wh_id) {
                 warehouse_stats.push(InventoryByWarehouse {
-                    warehouse_name: warehouse_model.name,
+                    warehouse_name: warehouse_model.name.clone(),
                     quantity: qty.unwrap_or(Decimal::ZERO).to_string(),
                     value: "0.0".to_string(),
                 });
@@ -389,24 +406,38 @@ impl DashboardService {
             .all(&*self.db)
             .await?;
 
+        let product_ids: Vec<i32> = low_stock_items.iter().map(|item| item.product_id).collect();
+        let warehouse_ids: Vec<i32> = low_stock_items
+            .iter()
+            .map(|item| item.warehouse_id)
+            .collect();
+
+        let products = product::Entity::find()
+            .filter(product::Column::Id.is_in(product_ids))
+            .all(&*self.db)
+            .await?;
+        let warehouses = warehouse::Entity::find()
+            .filter(warehouse::Column::Id.is_in(warehouse_ids))
+            .all(&*self.db)
+            .await?;
+
+        let product_map: HashMap<i32, product::Model> =
+            products.into_iter().map(|p| (p.id, p)).collect();
+        let warehouse_map: HashMap<i32, warehouse::Model> =
+            warehouses.into_iter().map(|w| (w.id, w)).collect();
+
         let mut alerts = Vec::new();
         for item in low_stock_items {
-            // 获取产品信息
-            let product = product::Entity::find_by_id(item.product_id)
-                .one(&*self.db)
-                .await?;
-            // 获取仓库信息
-            let wh = warehouse::Entity::find_by_id(item.warehouse_id)
-                .one(&*self.db)
-                .await?;
+            let product = product_map.get(&item.product_id);
+            let wh = warehouse_map.get(&item.warehouse_id);
 
             if let (Some(p), Some(w)) = (product, wh) {
                 let shortage = item.reorder_point - item.quantity_available;
                 alerts.push(LowStockAlert {
                     product_id: item.product_id,
-                    product_name: p.name,
+                    product_name: p.name.clone(),
                     warehouse_id: item.warehouse_id,
-                    warehouse_name: w.name,
+                    warehouse_name: w.name.clone(),
                     current_quantity: item.quantity_available.to_string(),
                     min_stock: item.reorder_point.to_string(),
                     shortage: shortage.to_string(),

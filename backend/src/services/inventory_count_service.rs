@@ -496,15 +496,15 @@ impl InventoryCountService {
                     let update_result = inventory_stock::Entity::update_many()
                         .col_expr(
                             inventory_stock::Column::QuantityOnHand,
-                            sea_orm::sea_query::Expr::val(item.quantity_actual).into(),
+                            sea_orm::sea_query::Expr::val(item.quantity_actual),
                         )
                         .col_expr(
                             inventory_stock::Column::QuantityAvailable,
-                            sea_orm::sea_query::Expr::val(item.quantity_actual).into(),
+                            sea_orm::sea_query::Expr::val(item.quantity_actual),
                         )
                         .col_expr(
                             inventory_stock::Column::QuantityMeters,
-                            sea_orm::sea_query::Expr::val(item.quantity_actual).into(),
+                            sea_orm::sea_query::Expr::val(item.quantity_actual),
                         )
                         .col_expr(
                             inventory_stock::Column::QuantityKg,
@@ -516,8 +516,7 @@ impl InventoryCountService {
                                 } else {
                                     stock_model.quantity_kg
                                 },
-                            )
-                            .into(),
+                            ),
                         )
                         .col_expr(
                             inventory_stock::Column::Version,
@@ -525,7 +524,7 @@ impl InventoryCountService {
                         )
                         .col_expr(
                             inventory_stock::Column::UpdatedAt,
-                            sea_orm::sea_query::Expr::val(chrono::Utc::now()).into(),
+                            sea_orm::sea_query::Expr::val(chrono::Utc::now()),
                         )
                         .filter(inventory_stock::Column::Id.eq(stock_model.id))
                         .filter(inventory_stock::Column::Version.eq(expected_version))
