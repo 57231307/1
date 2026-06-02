@@ -339,7 +339,7 @@ impl InventoryAdjustmentService {
         Ok(AdjustmentDetail { adjustment, items })
     }
 
-    /// 生成调整单号
+    // 生成调整单号
     crate::impl_generate_no!(
         generate_adjustment_no,
         "ADJ",

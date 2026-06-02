@@ -28,8 +28,8 @@ impl ApReconciliationService {
         Self { db }
     }
 
-    /// 生成对账单号
-    /// 格式：REC + 年月日 + 三位序号（REC20260315001）
+    // 生成对账单号
+    // 格式：REC + 年月日 + 三位序号（REC20260315001）
     crate::impl_generate_no!(
         generate_reconciliation_no,
         "REC",

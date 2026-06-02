@@ -24,8 +24,8 @@ impl PurchaseReturnService {
         Self { db }
     }
 
-    /// 生成退货单号
-    /// 格式：RT + 年月日 + 三位序号（RT20260315001）
+    // 生成退货单号
+    // 格式：RT + 年月日 + 三位序号（RT20260315001）
     crate::impl_generate_no!(
         generate_return_no,
         "RT",

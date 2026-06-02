@@ -26,8 +26,8 @@ impl PurchaseInspectionService {
         Self { db }
     }
 
-    /// 生质检单号
-    /// 格式：IQ + 年月日 + 三位序号（IQ20260315001）
+    // 生成质检单号
+    // 格式：IQ + 年月日 + 三位序号（IQ20260315001）
     crate::impl_generate_no!(
         generate_inspection_no,
         "PI",

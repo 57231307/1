@@ -719,7 +719,7 @@ impl InventoryCountService {
         self.get_count_detail(count_id).await
     }
 
-    /// 生成盘点单号
+    // 生成盘点单号
     crate::impl_generate_no!(
         generate_count_no,
         "IC",

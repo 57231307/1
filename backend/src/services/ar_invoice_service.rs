@@ -231,7 +231,7 @@ impl ArInvoiceService {
         Ok(invoice)
     }
 
-    /// 生成应收单编号
+    // 生成应收单编号
     crate::impl_generate_no!(
         generate_invoice_no,
         "AR",

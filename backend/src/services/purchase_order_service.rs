@@ -84,8 +84,8 @@ impl PurchaseOrderService {
         Self { db }
     }
 
-    /// 生成采购订单号
-    /// 格式：PO + 年月日 + 三位序号（PO20260315001）
+    // 生成采购订单号
+    // 格式：PO + 年月日 + 三位序号（PO20260315001）
     crate::impl_generate_no!(
         generate_order_no,
         "PO",
@@ -93,8 +93,8 @@ impl PurchaseOrderService {
         purchase_order::Column::OrderNo
     );
 
-    /// 生成采购订单号（使用事务连接）
-    /// 格式：PO + 年月日 + 三位序号（PO20260315001）
+    // 生成采购订单号（使用事务连接）
+    // 格式：PO + 年月日 + 三位序号（PO20260315001）
     crate::impl_generate_no!(
         generate_order_no_with_txn,
         "PO",
@@ -103,8 +103,8 @@ impl PurchaseOrderService {
         txn
     );
 
-    /// 生成入库单号
-    /// 格式：PR + 年月日 + 三位序号（PR20260315001）
+    // 生成入库单号
+    // 格式：PR + 年月日 + 三位序号（PR20260315001）
     crate::impl_generate_no!(
         generate_receipt_no,
         "PR",

@@ -11,14 +11,12 @@ use crate::utils::response::{forbidden_response, unauthorized_response};
 use axum::{
     body::Body,
     extract::State,
-    http::{Method, Request, StatusCode},
+    http::{Method, Request},
     middleware::Next,
-    response::{IntoResponse, Response},
-    Json,
+    response::Response,
 };
 use chrono::{DateTime, Duration, Utc};
 use sea_orm::{ColumnTrait, EntityTrait, QueryFilter};
-use serde_json::json;
 use std::sync::Arc;
 use tracing::warn;
 

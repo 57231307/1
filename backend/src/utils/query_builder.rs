@@ -2,6 +2,7 @@ use crate::utils::error::AppError;
 use crate::utils::response::PaginatedResponse;
 use sea_orm::{DatabaseConnection, EntityTrait, PaginatorTrait, QueryOrder, Select};
 
+#[allow(dead_code)]
 /// 分页查询结果
 pub struct PaginatedResult<T> {
     pub items: Vec<T>,
@@ -10,6 +11,7 @@ pub struct PaginatedResult<T> {
     pub page_size: u64,
 }
 
+#[allow(dead_code)]
 /// 执行分页查询
 ///
 /// # 参数
@@ -42,6 +44,7 @@ where
     })
 }
 
+#[allow(dead_code)]
 /// 执行分页查询并返回 PaginatedResponse
 ///
 /// # 参数
@@ -71,6 +74,7 @@ where
     ))
 }
 
+#[allow(dead_code)]
 /// 执行带排序的分页查询
 ///
 /// # 参数
@@ -100,6 +104,7 @@ where
     execute_paginated_query(ordered_query, db, page, page_size).await
 }
 
+#[allow(dead_code)]
 /// 执行带排序的分页查询并返回 PaginatedResponse
 ///
 /// # 参数
@@ -135,6 +140,7 @@ where
     ))
 }
 
+#[allow(dead_code)]
 /// 应用可选的过滤条件
 ///
 /// # 参数

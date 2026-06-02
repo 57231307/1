@@ -5,16 +5,8 @@ use crate::utils::app_state::AppState;
 use crate::utils::cache::Cache;
 use crate::utils::request_ext::PublicPathCache;
 use crate::utils::response::unauthorized_response;
-use axum::{
-    body::Body,
-    extract::State,
-    http::{Request, StatusCode},
-    middleware::Next,
-    response::{IntoResponse, Response},
-    Json,
-};
+use axum::{body::Body, extract::State, http::Request, middleware::Next, response::Response};
 use axum_extra::extract::cookie::{Key, PrivateCookieJar};
-use serde_json::json;
 use tracing::{info, warn};
 
 pub async fn auth_middleware(

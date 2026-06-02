@@ -812,7 +812,7 @@ impl SalesService {
         Ok(())
     }
 
-    /// 生成订单号
+    // 生成订单号
     crate::impl_generate_no!(
         generate_order_no,
         "SO",

@@ -240,7 +240,7 @@ pub async fn get_login_statistics(
     use chrono::Utc;
     use sea_orm::{ColumnTrait, EntityTrait, PaginatorTrait, QueryFilter};
 
-    let today = Utc::now().date_naive();
+    let _today = Utc::now().date_naive();
     let today_start = crate::utils::date_utils::today_start_utc();
 
     let total_today = log_login::Entity::find()

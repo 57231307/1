@@ -920,7 +920,7 @@ impl InventoryTransferService {
         self.get_transfer_detail(transfer_id).await
     }
 
-    /// 生成调拨单号
+    // 生成调拨单号
     crate::impl_generate_no!(
         generate_transfer_no,
         "TRF",

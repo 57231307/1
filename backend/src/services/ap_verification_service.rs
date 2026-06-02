@@ -26,8 +26,8 @@ impl ApVerificationService {
         Self { db }
     }
 
-    /// 生成核销单号
-    /// 格式：VER + 年月日 + 三位序号（VER20260315001）
+    // 生成核销单号
+    // 格式：VER + 年月日 + 三位序号（VER20260315001）
     crate::impl_generate_no!(
         generate_verification_no,
         "VER",

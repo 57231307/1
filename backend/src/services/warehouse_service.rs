@@ -2,8 +2,8 @@
 use chrono::Utc;
 use rand;
 use sea_orm::{
-    ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, ExprTrait, NotSet, Order,
-    PaginatorTrait, QueryFilter, QueryOrder, QuerySelect, Set,
+    ActiveModelTrait, ColumnTrait, EntityTrait, ExprTrait, NotSet, Order, PaginatorTrait,
+    QueryFilter, QueryOrder, QuerySelect, Set,
 };
 
 use crate::models::warehouse::{self, Entity as WarehouseEntity};

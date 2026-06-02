@@ -26,8 +26,8 @@ impl PurchaseReceiptService {
         Self { db }
     }
 
-    /// 生成入库单号
-    /// 格式：GR + 年月日 + 三位序号（GR20260315001）
+    // 生成入库单号
+    // 格式：GR + 年月日 + 三位序号（GR20260315001）
     crate::impl_generate_no!(
         generate_receipt_no,
         "PR",

@@ -194,7 +194,7 @@ impl TenantBillingService {
             .map(|c| c.plan.max_api_calls_per_day)
             .unwrap_or(1000);
 
-        let now = Utc::now();
+        let _now = Utc::now();
         let today_start = crate::utils::date_utils::today_start_utc();
 
         let today_usage = TenantUsage::find()

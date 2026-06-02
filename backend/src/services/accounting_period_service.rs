@@ -2,8 +2,7 @@ use crate::models::accounting_period;
 use crate::utils::error::AppError;
 use chrono::{TimeZone, Utc};
 use sea_orm::{
-    ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, PaginatorTrait, QueryFilter,
-    QueryOrder, Set,
+    ActiveModelTrait, ColumnTrait, EntityTrait, PaginatorTrait, QueryFilter, QueryOrder, Set,
 };
 
 crate::define_service!(AccountingPeriodService);

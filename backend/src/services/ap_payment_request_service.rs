@@ -26,8 +26,8 @@ impl ApPaymentRequestService {
         Self { db }
     }
 
-    /// 生成付款申请单号
-    /// 格式：PR + 年月日 + 三位序号（PR20260315001）
+    // 生成付款申请单号
+    // 格式：PR + 年月日 + 三位序号（PR20260315001）
     crate::impl_generate_no!(
         generate_request_no,
         "PRQ",

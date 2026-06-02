@@ -99,8 +99,8 @@ impl SalesReturnService {
         Ok(())
     }
 
-    /// 生成退货单号
-    /// 格式：SR + 年月日 + 三位序号（SR20260315001）
+    // 生成退货单号
+    // 格式：SR + 年月日 + 三位序号（SR20260315001）
     crate::impl_generate_no!(
         generate_return_no,
         "SR",

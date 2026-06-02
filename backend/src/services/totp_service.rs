@@ -1,6 +1,6 @@
 use crate::models::user;
 use crate::utils::error::AppError;
-use sea_orm::{ActiveModelTrait, DatabaseConnection, EntityTrait, Set};
+use sea_orm::{ActiveModelTrait, EntityTrait, Set};
 use totp_rs::{Algorithm, Secret, TOTP};
 
 crate::define_service!(TotpService);

@@ -27,8 +27,8 @@ impl ApPaymentService {
         Self { db }
     }
 
-    /// 生成付款单号
-    /// 格式：PAY + 年月日 + 三位序号（PAY20260315001）
+    // 生成付款单号
+    // 格式：PAY + 年月日 + 三位序号（PAY20260315001）
     crate::impl_generate_no!(
         generate_payment_no,
         "PAY",

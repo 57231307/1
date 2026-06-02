@@ -169,7 +169,7 @@ impl CostCollectionService {
         Ok(collection)
     }
 
-    /// 生成成本归集单编号
+    // 生成成本归集单编号
     crate::impl_generate_no!(
         generate_collection_no,
         "COST",

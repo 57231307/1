@@ -27,8 +27,8 @@ impl ApInvoiceService {
         Self { db }
     }
 
-    /// 生成应付单号
-    /// 格式：AP + 年月日 + 三位序号（AP20260315001）
+    // 生成应付单号
+    // 格式：AP + 年月日 + 三位序号（AP20260315001）
     crate::impl_generate_no!(
         generate_invoice_no,
         "API",
