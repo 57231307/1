@@ -116,7 +116,7 @@ pub async fn check_lock_status(
 ) -> Result<Json<ApiResponse<LockStatus>>, AppError> {
     let username = params
         .get("username")
-        .ok_or_else(|| AppError::BadRequest("缺少 username 参数".to_string()))?;
+        .ok_or_else(|| AppError::bad_request("缺少 username 参数"))?;
 
     use crate::models::log_login;
     use chrono::{Duration, Utc};
@@ -162,7 +162,7 @@ pub async fn unlock_account(
     let username = params
         .get("username")
         .and_then(|v| v.as_str())
-        .ok_or_else(|| AppError::BadRequest("缺少 username 参数".to_string()))?;
+        .ok_or_else(|| AppError::bad_request("缺少 username 参数"))?;
 
     use crate::models::log_login;
     use sea_orm::{ColumnTrait, EntityTrait, QueryFilter};
@@ -241,7 +241,7 @@ pub async fn get_login_statistics(
     use sea_orm::{ColumnTrait, EntityTrait, PaginatorTrait, QueryFilter};
 
     let today = Utc::now().date_naive();
-    let today_start = today.and_hms_opt(0, 0, 0).unwrap().and_utc();
+    let today_start = crate::utils::date_utils::today_start_utc();
 
     let total_today = log_login::Entity::find()
         .filter(log_login::Column::LoginTime.gte(today_start))

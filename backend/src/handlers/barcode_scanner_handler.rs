@@ -47,10 +47,10 @@ async fn scan_to_ship_impl(
         .filter(inventory_piece::Column::Barcode.eq(&barcode))
         .one(&txn)
         .await?
-        .ok_or_else(|| AppError::NotFound("未找到该条码对应的布卷".to_string()))?;
+        .ok_or_else(|| AppError::not_found("未找到该条码对应的布卷"))?;
 
     if piece.status == "SHIPPED" {
-        return Err(AppError::BadRequest("该布卷已发货".to_string()));
+        return Err(AppError::bad_request("该布卷已发货"));
     }
 
     let mut active_piece: inventory_piece::ActiveModel = piece.clone().into();

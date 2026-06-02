@@ -5,7 +5,6 @@
 
 use crate::models::{ap_invoice, ap_payment_request, ap_payment_request_item};
 use crate::utils::error::AppError;
-use crate::utils::number_generator::DocumentNumberGenerator;
 use chrono::{NaiveDate, Utc};
 use rust_decimal::Decimal;
 use sea_orm::{
@@ -29,15 +28,12 @@ impl ApPaymentRequestService {
 
     /// 生成付款申请单号
     /// 格式：PR + 年月日 + 三位序号（PR20260315001）
-    pub async fn generate_request_no(&self) -> Result<String, AppError> {
-        DocumentNumberGenerator::generate_no(
-            &*self.db,
-            "PRQ",
-            ap_payment_request::Entity,
-            ap_payment_request::Column::RequestNo,
-        )
-        .await
-    }
+    crate::impl_generate_no!(
+        generate_request_no,
+        "PRQ",
+        ap_payment_request::Entity,
+        ap_payment_request::Column::RequestNo
+    );
 
     /// 创建付款申请
     pub async fn create(
@@ -55,14 +51,11 @@ impl ApPaymentRequestService {
             let invoice = ap_invoice::Entity::find_by_id(item.invoice_id)
                 .one(&txn)
                 .await?
-                .ok_or(AppError::NotFound(format!(
-                    "应付单 ID: {}",
-                    item.invoice_id
-                )))?;
+                .ok_or_else(|| AppError::not_found(format!("应付单 ID: {}", item.invoice_id)))?;
 
             // 检查应付单状态
             if invoice.invoice_status == "DRAFT" || invoice.invoice_status == "CANCELLED" {
-                return Err(AppError::BusinessError(format!(
+                return Err(AppError::business(format!(
                     "应付单{}状态为{}，不可申请付款",
                     invoice.invoice_no, invoice.invoice_status
                 )));
@@ -71,7 +64,7 @@ impl ApPaymentRequestService {
             // 检查申请金额是否超过未付金额
             let unpaid = invoice.unpaid_amount;
             if item.apply_amount > unpaid {
-                return Err(AppError::BusinessError(format!(
+                return Err(AppError::business(format!(
                     "应付单{}未付金额为{}，申请金额{}超过未付金额",
                     invoice.invoice_no, unpaid, item.apply_amount
                 )));
@@ -132,11 +125,11 @@ impl ApPaymentRequestService {
         let request = ap_payment_request::Entity::find_by_id(id)
             .one(&txn)
             .await?
-            .ok_or(AppError::NotFound(format!("付款申请 {}", id)))?;
+            .ok_or_else(|| AppError::not_found(format!("付款申请 {}", id)))?;
 
         // 2. 检查状态（仅草稿可修改）
         if request.approval_status != "DRAFT" {
-            return Err(AppError::BusinessError(format!(
+            return Err(AppError::business(format!(
                 "付款申请状态为{}，不可修改",
                 request.approval_status
             )));
@@ -199,11 +192,11 @@ impl ApPaymentRequestService {
         let request = ap_payment_request::Entity::find_by_id(id)
             .one(&txn)
             .await?
-            .ok_or(AppError::NotFound(format!("付款申请 {}", id)))?;
+            .ok_or_else(|| AppError::not_found(format!("付款申请 {}", id)))?;
 
         // 2. 检查状态（仅草稿或被拒可删除）
         if !["DRAFT", "REJECTED"].contains(&request.approval_status.as_str()) {
-            return Err(AppError::BusinessError(format!(
+            return Err(AppError::business(format!(
                 "付款申请状态为{}，不可删除",
                 request.approval_status
             )));
@@ -231,11 +224,11 @@ impl ApPaymentRequestService {
         let request = ap_payment_request::Entity::find_by_id(id)
             .one(&txn)
             .await?
-            .ok_or(AppError::NotFound(format!("付款申请 ID: {}", id)))?;
+            .ok_or_else(|| AppError::not_found(format!("付款申请 ID: {}", id)))?;
 
         // 2. 检查状态（仅草稿可提交）
         if request.approval_status != "DRAFT" {
-            return Err(AppError::BusinessError(format!(
+            return Err(AppError::business(format!(
                 "付款申请状态为{}，不可提交",
                 request.approval_status
             )));
@@ -248,9 +241,7 @@ impl ApPaymentRequestService {
             .await?;
 
         if items.is_empty() {
-            return Err(AppError::BusinessError(
-                "付款申请没有明细，不可提交".to_string(),
-            ));
+            return Err(AppError::business("付款申请没有明细，不可提交".to_string()));
         }
 
         // 4. 提交付款申请
@@ -286,11 +277,11 @@ impl ApPaymentRequestService {
         let request = ap_payment_request::Entity::find_by_id(id)
             .one(&txn)
             .await?
-            .ok_or(AppError::NotFound(format!("付款申请 {}", id)))?;
+            .ok_or_else(|| AppError::not_found(format!("付款申请 {}", id)))?;
 
         // 2. 检查状态
         if request.approval_status != "APPROVING" {
-            return Err(AppError::BusinessError(format!(
+            return Err(AppError::business(format!(
                 "付款申请状态为{}，不可审批",
                 request.approval_status
             )));
@@ -334,11 +325,11 @@ impl ApPaymentRequestService {
         let request = ap_payment_request::Entity::find_by_id(id)
             .one(&txn)
             .await?
-            .ok_or(AppError::NotFound(format!("付款申请 {}", id)))?;
+            .ok_or_else(|| AppError::not_found(format!("付款申请 {}", id)))?;
 
         // 2. 检查状态
         if request.approval_status != "APPROVING" {
-            return Err(AppError::BusinessError(format!(
+            return Err(AppError::business(format!(
                 "付款申请状态为{}，不可拒绝",
                 request.approval_status
             )));
@@ -371,7 +362,7 @@ impl ApPaymentRequestService {
         let request = ap_payment_request::Entity::find_by_id(id)
             .one(&*self.db)
             .await?
-            .ok_or(AppError::NotFound(format!("付款申请 ID: {}", id)))?;
+            .ok_or_else(|| AppError::not_found(format!("付款申请 ID: {}", id)))?;
 
         Ok(request)
     }
@@ -428,7 +419,7 @@ impl ApPaymentRequestService {
         let user = crate::models::user::Entity::find_by_id(user_id)
             .one(&*self.db)
             .await?
-            .ok_or(AppError::NotFound(format!("用户 {}", user_id)))?;
+            .ok_or_else(|| AppError::not_found(format!("用户 {}", user_id)))?;
 
         // 获取用户角色（简化处理，使用 role_id 判断）
         // 这里假设 role_id 不为空则有审批权限
@@ -438,21 +429,21 @@ impl ApPaymentRequestService {
         if amount <= &Decimal::new(100000, 0) {
             // 10 万以下：财务经理审批
             if !has_role {
-                return Err(AppError::PermissionDenied(
+                return Err(AppError::permission_denied(
                     "财务经理才能审批 10 万元以下的付款".to_string(),
                 ));
             }
         } else if amount <= &Decimal::new(500000, 0) {
             // 10-50 万：总经理审批
             if !has_role {
-                return Err(AppError::PermissionDenied(
+                return Err(AppError::permission_denied(
                     "总经理才能审批 50 万元以下的付款".to_string(),
                 ));
             }
         } else {
             // 50 万以上：董事长审批
             if !has_role {
-                return Err(AppError::PermissionDenied(
+                return Err(AppError::permission_denied(
                     "董事长才能审批 50 万元以上的付款".to_string(),
                 ));
             }

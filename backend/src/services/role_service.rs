@@ -20,7 +20,7 @@ impl RoleService {
         role::Entity::find_by_id(id)
             .one(&*self.db)
             .await?
-            .ok_or_else(|| AppError::NotFound(format!("角色 ID {} 不存在", id)))
+            .ok_or_else(|| AppError::not_found(format!("角色 ID {} 不存在", id)))
     }
 
     /// 根据编码查找角色
@@ -29,7 +29,7 @@ impl RoleService {
             .filter(role::Column::Code.eq(code))
             .one(&*self.db)
             .await?
-            .ok_or_else(|| AppError::NotFound(format!("角色编码 {} 不存在", code)))
+            .ok_or_else(|| AppError::not_found(format!("角色编码 {} 不存在", code)))
     }
 
     /// 创建角色
@@ -68,11 +68,11 @@ impl RoleService {
         let role_model = role::Entity::find_by_id(role_id)
             .one(&*self.db)
             .await?
-            .ok_or_else(|| AppError::NotFound(format!("角色 ID {} 不存在", role_id)))?;
+            .ok_or_else(|| AppError::not_found(format!("角色 ID {} 不存在", role_id)))?;
 
         // 系统角色不允许修改
         if role_model.is_system {
-            return Err(AppError::BusinessError("系统角色不允许修改".to_string()));
+            return Err(AppError::business("系统角色不允许修改"));
         }
 
         let mut role_active: role::ActiveModel = role_model.into();
@@ -102,11 +102,11 @@ impl RoleService {
         let role_model = role::Entity::find_by_id(role_id)
             .one(&*self.db)
             .await?
-            .ok_or_else(|| AppError::NotFound(format!("角色 ID {} 不存在", role_id)))?;
+            .ok_or_else(|| AppError::not_found(format!("角色 ID {} 不存在", role_id)))?;
 
         // 系统角色不允许删除
         if role_model.is_system {
-            return Err(AppError::BusinessError("系统角色不允许删除".to_string()));
+            return Err(AppError::business("系统角色不允许删除"));
         }
 
         let role_active: role::ActiveModel = role_model.into();

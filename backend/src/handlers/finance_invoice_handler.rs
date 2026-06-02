@@ -39,7 +39,7 @@ pub async fn list_finance_invoices(
     let invoices = service
         .list_invoices()
         .await
-        .map_err(|e| AppError::InternalError(e.to_string()))?;
+        .map_err(|e| AppError::internal(e.to_string()))?;
 
     let invoice_responses: Vec<InvoiceResponse> = invoices
         .into_iter()
@@ -90,8 +90,8 @@ pub async fn get_finance_invoice(
             created_at: invoice.created_at,
             updated_at: invoice.updated_at,
         }))),
-        Ok(None) => Err(AppError::NotFound("发票不存在".to_string())),
-        Err(e) => Err(AppError::InternalError(e.to_string())),
+        Ok(None) => Err(AppError::not_found("发票不存在")),
+        Err(e) => Err(AppError::internal(e.to_string())),
     }
 }
 
@@ -128,7 +128,7 @@ pub async fn create_finance_invoice(
     let invoice = service
         .create_invoice(invoice_no, amount, tax_amount, total_amount)
         .await
-        .map_err(|e| AppError::InternalError(e.to_string()))?;
+        .map_err(|e| AppError::internal(e.to_string()))?;
 
     Ok(Json(ApiResponse::success(InvoiceResponse {
         id: invoice.id,
@@ -170,8 +170,8 @@ pub async fn update_finance_invoice(
             created_at: invoice.created_at,
             updated_at: invoice.updated_at,
         }))),
-        Ok(None) => Err(AppError::NotFound("发票不存在".to_string())),
-        Err(e) => Err(AppError::InternalError(e.to_string())),
+        Ok(None) => Err(AppError::not_found("发票不存在")),
+        Err(e) => Err(AppError::internal(e.to_string())),
     }
 }
 
@@ -184,7 +184,7 @@ pub async fn delete_finance_invoice(
     service
         .delete_invoice(id)
         .await
-        .map_err(|e| AppError::InternalError(e.to_string()))?;
+        .map_err(|e| AppError::internal(e.to_string()))?;
 
     Ok(Json(ApiResponse::success(())))
 }
@@ -211,8 +211,8 @@ pub async fn approve_finance_invoice(
             created_at: invoice.created_at,
             updated_at: invoice.updated_at,
         }))),
-        Ok(None) => Err(AppError::NotFound("发票不存在".to_string())),
-        Err(e) => Err(AppError::InternalError(e.to_string())),
+        Ok(None) => Err(AppError::not_found("发票不存在")),
+        Err(e) => Err(AppError::internal(e.to_string())),
     }
 }
 
@@ -238,7 +238,7 @@ pub async fn verify_invoice(
             created_at: invoice.created_at,
             updated_at: invoice.updated_at,
         }))),
-        Ok(None) => Err(AppError::NotFound("发票不存在".to_string())),
-        Err(e) => Err(AppError::InternalError(e.to_string())),
+        Ok(None) => Err(AppError::not_found("发票不存在")),
+        Err(e) => Err(AppError::internal(e.to_string())),
     }
 }

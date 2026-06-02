@@ -61,7 +61,7 @@ pub async fn list_reconciliations(
         params.page.unwrap_or(1),
         params.page_size.unwrap_or(20),
     ))
-    .map_err(|e| AppError::InternalError(e.to_string()))?;
+    .map_err(|e| AppError::internal(e.to_string()))?;
 
     Ok(Json(ApiResponse::success(result)))
 }
@@ -101,7 +101,7 @@ pub async fn generate_reconciliation(
 
     req.validate().map_err(|e| {
         warn!("用户 {} 生成对账单验证失败：{}", auth.username, e);
-        AppError::ValidationError(e.to_string())
+        AppError::validation(e.to_string())
     })?;
 
     let service = ApReconciliationService::new(state.db.clone());

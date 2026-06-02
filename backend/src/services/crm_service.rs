@@ -33,7 +33,7 @@ impl CrmService {
         let owner_name = user::Entity::find_by_id(user_id)
             .one(&*self.db)
             .await?
-            .ok_or_else(|| AppError::NotFound("用户不存在".to_string()))?
+            .ok_or_else(|| AppError::not_found("用户不存在"))?
             .username;
 
         let model = crm_lead::ActiveModel {
@@ -66,7 +66,7 @@ impl CrmService {
         model
             .insert(&*self.db)
             .await
-            .map_err(|e| AppError::DatabaseError(e.to_string()))
+            .map_err(|e| AppError::database(e.to_string()))
     }
 
     pub async fn list_leads(
@@ -93,7 +93,7 @@ impl CrmService {
         crm_lead::Entity::find_by_id(id)
             .one(&*self.db)
             .await?
-            .ok_or_else(|| AppError::NotFound("线索不存在".to_string()))
+            .ok_or_else(|| AppError::not_found("线索不存在"))
     }
 
     pub async fn update_lead(
@@ -104,7 +104,7 @@ impl CrmService {
         let lead = crm_lead::Entity::find_by_id(id)
             .one(&*self.db)
             .await?
-            .ok_or_else(|| AppError::NotFound("线索不存在".to_string()))?;
+            .ok_or_else(|| AppError::not_found("线索不存在"))?;
 
         let mut active: crm_lead::ActiveModel = lead.into();
 
@@ -170,20 +170,18 @@ impl CrmService {
         active
             .update(&*self.db)
             .await
-            .map_err(|e| AppError::DatabaseError(e.to_string()))
+            .map_err(|e| AppError::database(e.to_string()))
     }
 
     pub async fn delete_lead(&self, id: i32) -> Result<(), AppError> {
         let lead = crm_lead::Entity::find_by_id(id)
             .one(&*self.db)
             .await?
-            .ok_or_else(|| AppError::NotFound("线索不存在".to_string()))?;
+            .ok_or_else(|| AppError::not_found("线索不存在"))?;
 
         // 已转化的线索不允许删除，防止破坏关联数据
         if lead.lead_status.as_deref() == Some("converted") {
-            return Err(AppError::BusinessError(
-                "已转化的线索不允许删除".to_string(),
-            ));
+            return Err(AppError::business("已转化的线索不允许删除".to_string()));
         }
 
         // 软删除：标记为已删除状态
@@ -198,7 +196,7 @@ impl CrmService {
         let lead = crm_lead::Entity::find_by_id(id)
             .one(&*self.db)
             .await?
-            .ok_or_else(|| AppError::NotFound("线索不存在".to_string()))?;
+            .ok_or_else(|| AppError::not_found("线索不存在"))?;
 
         let mut active: crm_lead::ActiveModel = lead.into();
         active.lead_status = Set(Some(status.to_string()));
@@ -220,10 +218,10 @@ impl CrmService {
             .lock(sea_orm::sea_query::LockType::Update)
             .one(&txn)
             .await?
-            .ok_or_else(|| AppError::NotFound("线索不存在".to_string()))?;
+            .ok_or_else(|| AppError::not_found("线索不存在"))?;
 
         if lead.lead_status.as_deref() == Some("converted") {
-            return Err(AppError::BusinessError("该线索已转化".to_string()));
+            return Err(AppError::business("该线索已转化"));
         }
 
         let lead_no = lead.lead_no.clone();
@@ -381,13 +379,13 @@ impl CrmService {
         let customer = customer::Entity::find_by_id(req.customer_id)
             .one(&txn)
             .await?
-            .ok_or_else(|| AppError::NotFound("客户不存在".to_string()))?;
+            .ok_or_else(|| AppError::not_found("客户不存在"))?;
 
         // 查询用户真实姓名
         let owner_name = user::Entity::find_by_id(user_id)
             .one(&txn)
             .await?
-            .ok_or_else(|| AppError::NotFound("用户不存在".to_string()))?
+            .ok_or_else(|| AppError::not_found("用户不存在"))?
             .username;
 
         let model = crm_opportunity::ActiveModel {
@@ -460,7 +458,7 @@ impl CrmService {
         crm_opportunity::Entity::find_by_id(id)
             .one(&*self.db)
             .await?
-            .ok_or_else(|| AppError::NotFound("商机不存在".to_string()))
+            .ok_or_else(|| AppError::not_found("商机不存在"))
     }
 
     /// 验证商机阶段流转是否合法
@@ -495,16 +493,13 @@ impl CrmService {
             if allowed.contains(&new_stage) {
                 Ok(())
             } else {
-                Err(AppError::BusinessError(format!(
+                Err(AppError::business(format!(
                     "商机阶段不允许从 {} 转换到 {}",
                     current, new_stage
                 )))
             }
         } else {
-            Err(AppError::BusinessError(format!(
-                "未知的商机阶段: {}",
-                current
-            )))
+            Err(AppError::business(format!("未知的商机阶段: {}", current)))
         }
     }
 
@@ -516,7 +511,7 @@ impl CrmService {
         let opp = crm_opportunity::Entity::find_by_id(id)
             .one(&*self.db)
             .await?
-            .ok_or_else(|| AppError::NotFound("商机不存在".to_string()))?;
+            .ok_or_else(|| AppError::not_found("商机不存在"))?;
 
         // 验证阶段流转合法性
         if let Some(ref new_stage) = req.opportunity_stage {
@@ -584,14 +579,14 @@ impl CrmService {
         active
             .update(&*self.db)
             .await
-            .map_err(|e| AppError::DatabaseError(e.to_string()))
+            .map_err(|e| AppError::database(e.to_string()))
     }
 
     pub async fn delete_opportunity(&self, id: i32) -> Result<(), AppError> {
         let opp = crm_opportunity::Entity::find_by_id(id)
             .one(&*self.db)
             .await?
-            .ok_or_else(|| AppError::NotFound("商机不存在".to_string()))?;
+            .ok_or_else(|| AppError::not_found("商机不存在"))?;
 
         let active: crm_opportunity::ActiveModel = opp.into();
         active.delete(&*self.db).await?;
@@ -611,13 +606,13 @@ impl CrmService {
             .lock(sea_orm::sea_query::LockType::Update)
             .one(&txn)
             .await?
-            .ok_or_else(|| AppError::NotFound("商机不存在".to_string()))?;
+            .ok_or_else(|| AppError::not_found("商机不存在"))?;
 
         // 检查商机状态
         if opportunity.opportunity_stage.as_deref() == Some("closed_won")
             || opportunity.opportunity_stage.as_deref() == Some("closed_lost")
         {
-            return Err(AppError::BusinessError("商机已关闭，无法转化".to_string()));
+            return Err(AppError::business("商机已关闭，无法转化"));
         }
 
         // 2. 创建销售订单
@@ -670,7 +665,7 @@ impl CrmService {
                 .await
                 .map_err(|e| {
                     tracing::error!("批量查询产品失败: {}", e);
-                    AppError::DatabaseError(e.to_string())
+                    AppError::database(e.to_string())
                 })?;
             let product_map: std::collections::HashMap<i32, product::Model> =
                 products.into_iter().map(|p| (p.id, p)).collect();
@@ -679,7 +674,7 @@ impl CrmService {
                 // 查询产品信息获取标准价格
                 let product = product_map
                     .get(product_id)
-                    .ok_or_else(|| AppError::NotFound(format!("产品 {} 不存在", product_id)))?;
+                    .ok_or_else(|| AppError::not_found(format!("产品 {} 不存在", product_id)))?;
 
                 let unit_price = product
                     .standard_price
@@ -801,7 +796,7 @@ impl CrmService {
             .lock(sea_orm::sea_query::LockType::Update)
             .one(&txn)
             .await?
-            .ok_or_else(|| AppError::NotFound("商机不存在".to_string()))?;
+            .ok_or_else(|| AppError::not_found("商机不存在"))?;
 
         let mut opp_active: crm_opportunity::ActiveModel = opportunity.into();
         opp_active.opportunity_stage = Set(Some("closed_won".to_string()));
@@ -829,7 +824,7 @@ impl CrmService {
         let lead = crm_lead::Entity::find_by_id(lead_id)
             .one(&*self.db)
             .await?
-            .ok_or_else(|| AppError::NotFound("线索不存在".to_string()))?;
+            .ok_or_else(|| AppError::not_found("线索不存在"))?;
 
         let opportunities = crm_opportunity::Entity::find()
             .filter(crm_opportunity::Column::LeadId.eq(lead_id))

@@ -197,7 +197,7 @@ pub async fn update_contract(
 
     // 检查状态
     if contract.status != "draft" {
-        return Err(AppError::ValidationError(
+        return Err(AppError::validation(
             "只有草稿状态的合同才能修改".to_string(),
         ));
     }
@@ -238,7 +238,7 @@ pub async fn delete_contract(
 
     // 检查状态
     if contract.status != "draft" {
-        return Err(AppError::ValidationError(
+        return Err(AppError::validation(
             "只有草稿状态的合同才能删除".to_string(),
         ));
     }

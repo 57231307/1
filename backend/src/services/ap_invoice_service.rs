@@ -6,7 +6,6 @@
 
 use crate::models::{ap_invoice, purchase_receipt, purchase_return};
 use crate::utils::error::AppError;
-use crate::utils::number_generator::DocumentNumberGenerator;
 use chrono::{Duration, NaiveDate, Utc};
 use rust_decimal::Decimal;
 use sea_orm::{
@@ -30,15 +29,12 @@ impl ApInvoiceService {
 
     /// 生成应付单号
     /// 格式：AP + 年月日 + 三位序号（AP20260315001）
-    pub async fn generate_invoice_no(&self) -> Result<String, AppError> {
-        DocumentNumberGenerator::generate_no(
-            &*self.db,
-            "API",
-            ap_invoice::Entity,
-            ap_invoice::Column::InvoiceNo,
-        )
-        .await
-    }
+    crate::impl_generate_no!(
+        generate_invoice_no,
+        "API",
+        ap_invoice::Entity,
+        ap_invoice::Column::InvoiceNo
+    );
 
     /// 从采购入库单自动生成应付单
     pub async fn auto_generate_from_receipt(
@@ -52,7 +48,7 @@ impl ApInvoiceService {
         let receipt = purchase_receipt::Entity::find_by_id(receipt_id)
             .one(&txn)
             .await?
-            .ok_or(AppError::NotFound(format!("采购入库单 {}", receipt_id)))?;
+            .ok_or_else(|| AppError::not_found(format!("采购入库单 {}", receipt_id)))?;
 
         // 2. 检查是否已生成应付
         let exists = ap_invoice::Entity::find()
@@ -62,17 +58,14 @@ impl ApInvoiceService {
             .await?;
 
         if exists.is_some() {
-            return Err(AppError::BusinessError("该入库单已生成应付单".to_string()));
+            return Err(AppError::business("该入库单已生成应付单"));
         }
 
         // 3. 获取供应商信息
         let _supplier = crate::models::supplier::Entity::find_by_id(receipt.supplier_id)
             .one(&txn)
             .await?
-            .ok_or(AppError::NotFound(format!(
-                "供应商 {}",
-                receipt.supplier_id
-            )))?;
+            .ok_or_else(|| AppError::not_found(format!("供应商 {}", receipt.supplier_id)))?;
 
         // 使用默认账期 30 天
         let payment_terms = 30;
@@ -121,7 +114,7 @@ impl ApInvoiceService {
         let return_doc = purchase_return::Entity::find_by_id(return_id)
             .one(&txn)
             .await?
-            .ok_or(AppError::NotFound(format!("采购退货单 {}", return_id)))?;
+            .ok_or_else(|| AppError::not_found(format!("采购退货单 {}", return_id)))?;
 
         // 2. 检查是否已生成应付
         let exists = ap_invoice::Entity::find()
@@ -131,7 +124,7 @@ impl ApInvoiceService {
             .await?;
 
         if exists.is_some() {
-            return Err(AppError::BusinessError(
+            return Err(AppError::business(
                 "该退货单已生成应付单（红字）".to_string(),
             ));
         }
@@ -230,11 +223,11 @@ impl ApInvoiceService {
         let invoice = ap_invoice::Entity::find_by_id(id)
             .one(&txn)
             .await?
-            .ok_or(AppError::NotFound(format!("应付单 {}", id)))?;
+            .ok_or_else(|| AppError::not_found(format!("应付单 {}", id)))?;
 
         // 2. 检查状态（仅草稿可修改）
         if invoice.invoice_status != "DRAFT" {
-            return Err(AppError::BusinessError(format!(
+            return Err(AppError::business(format!(
                 "应付单状态为{}，不可修改",
                 invoice.invoice_status
             )));
@@ -290,11 +283,11 @@ impl ApInvoiceService {
         let invoice = ap_invoice::Entity::find_by_id(id)
             .one(&txn)
             .await?
-            .ok_or(AppError::NotFound(format!("应付单 {}", id)))?;
+            .ok_or_else(|| AppError::not_found(format!("应付单 {}", id)))?;
 
         // 2. 检查状态（仅草稿可删除）
         if invoice.invoice_status != "DRAFT" {
-            return Err(AppError::BusinessError(format!(
+            return Err(AppError::business(format!(
                 "应付单状态为{}，不可删除",
                 invoice.invoice_status
             )));
@@ -318,11 +311,11 @@ impl ApInvoiceService {
         let invoice = ap_invoice::Entity::find_by_id(id)
             .one(&txn)
             .await?
-            .ok_or(AppError::NotFound(format!("应付单 {}", id)))?;
+            .ok_or_else(|| AppError::not_found(format!("应付单 {}", id)))?;
 
         // 2. 检查状态
         if invoice.invoice_status != "DRAFT" {
-            return Err(AppError::BusinessError(format!(
+            return Err(AppError::business(format!(
                 "应付单状态为{}，不可审核",
                 invoice.invoice_status
             )));
@@ -355,11 +348,11 @@ impl ApInvoiceService {
         let invoice = ap_invoice::Entity::find_by_id(id)
             .one(&*self.db)
             .await?
-            .ok_or(AppError::NotFound(format!("应付单 {}", id)))?;
+            .ok_or_else(|| AppError::not_found(format!("应付单 {}", id)))?;
 
         // 2. 检查状态
         if invoice.invoice_status == "PAID" || invoice.invoice_status == "CANCELLED" {
-            return Err(AppError::BusinessError(format!(
+            return Err(AppError::business(format!(
                 "应付单状态为{}，不可标记为已付清",
                 invoice.invoice_status
             )));
@@ -395,11 +388,11 @@ impl ApInvoiceService {
         let invoice = ap_invoice::Entity::find_by_id(id)
             .one(&txn)
             .await?
-            .ok_or(AppError::NotFound(format!("应付单 {}", id)))?;
+            .ok_or_else(|| AppError::not_found(format!("应付单 {}", id)))?;
 
         // 2. 检查状态（已审核或部分付款可取消）
         if !["AUDITED", "PARTIAL_PAID"].contains(&invoice.invoice_status.as_str()) {
-            return Err(AppError::BusinessError(format!(
+            return Err(AppError::business(format!(
                 "应付单状态为{}，不可取消",
                 invoice.invoice_status
             )));
@@ -407,7 +400,7 @@ impl ApInvoiceService {
 
         // 3. 检查是否已付款
         if invoice.paid_amount > Decimal::ZERO {
-            return Err(AppError::BusinessError(
+            return Err(AppError::business(
                 "应付单已有付款记录，不可取消".to_string(),
             ));
         }
@@ -439,7 +432,7 @@ impl ApInvoiceService {
         let invoice = ap_invoice::Entity::find_by_id(id)
             .one(&*self.db)
             .await?
-            .ok_or(AppError::NotFound(format!("应付单 {}", id)))?;
+            .ok_or_else(|| AppError::not_found(format!("应付单 {}", id)))?;
 
         Ok(invoice)
     }

@@ -15,7 +15,6 @@ use crate::services::inventory_adjustment_service::{
     AdjustmentItemRequest, CreateAdjustmentRequest, InventoryAdjustmentService,
 };
 use crate::utils::error::AppError;
-use crate::utils::number_generator::DocumentNumberGenerator;
 use crate::utils::PaginatedResponse;
 use serde::{Deserialize, Serialize};
 
@@ -160,7 +159,7 @@ impl InventoryCountService {
         let count = InventoryCountEntity::find_by_id(count_id)
             .one(&*self.db)
             .await?
-            .ok_or_else(|| AppError::NotFound(format!("库存盘点单 {} 未找到", count_id)))?;
+            .ok_or_else(|| AppError::not_found(format!("库存盘点单 {} 未找到", count_id)))?;
 
         // 获取盘点明细项
         let items = InventoryCountItemEntity::find()
@@ -229,9 +228,7 @@ impl InventoryCountService {
         if existing_count.is_some() {
             tracing::error!("Transaction rolled back: 盘点单号 {} 已存在", count_no);
             txn.rollback().await?;
-            return Err(AppError::BusinessError(
-                "盘点单号已存在，请重试".to_string(),
-            ));
+            return Err(AppError::business("盘点单号已存在，请重试".to_string()));
         }
 
         // 创建盘点主表
@@ -322,13 +319,11 @@ impl InventoryCountService {
         let count = InventoryCountEntity::find_by_id(count_id)
             .one(&*self.db)
             .await?
-            .ok_or_else(|| AppError::NotFound(format!("库存盘点单 {} 未找到", count_id)))?;
+            .ok_or_else(|| AppError::not_found(format!("库存盘点单 {} 未找到", count_id)))?;
 
         // 检查状态，已完成的盘点单不允许修改
         if count.status == "completed" {
-            return Err(AppError::BusinessError(
-                "盘点单已完成，不允许修改".to_string(),
-            ));
+            return Err(AppError::business("盘点单已完成，不允许修改".to_string()));
         }
 
         // 开启事务
@@ -369,11 +364,11 @@ impl InventoryCountService {
         let count = InventoryCountEntity::find_by_id(count_id)
             .one(&*self.db)
             .await?
-            .ok_or_else(|| AppError::NotFound(format!("库存盘点单 {} 未找到", count_id)))?;
+            .ok_or_else(|| AppError::not_found(format!("库存盘点单 {} 未找到", count_id)))?;
 
         // 检查状态，只有待审核的盘点单可以审核
         if count.status != "pending" {
-            return Err(AppError::BusinessError(
+            return Err(AppError::business(
                 "只有待审核状态的盘点单可以审核".to_string(),
             ));
         }
@@ -415,11 +410,11 @@ impl InventoryCountService {
         let count = InventoryCountEntity::find_by_id(count_id)
             .one(&*self.db)
             .await?
-            .ok_or_else(|| AppError::NotFound(format!("库存盘点单 {} 未找到", count_id)))?;
+            .ok_or_else(|| AppError::not_found(format!("库存盘点单 {} 未找到", count_id)))?;
 
         // 检查状态，只有已审核的盘点单可以完成
         if count.status != "approved" {
-            return Err(AppError::BusinessError(
+            return Err(AppError::business(
                 "只有已审核状态的盘点单可以完成".to_string(),
             ));
         }
@@ -538,7 +533,7 @@ impl InventoryCountService {
                             item.product_id
                         );
                         txn.rollback().await?;
-                        return Err(AppError::BusinessError(format!(
+                        return Err(AppError::business(format!(
                             "产品 {} 库存记录已被其他用户修改，请重试",
                             item.product_id
                         )));
@@ -725,14 +720,10 @@ impl InventoryCountService {
     }
 
     /// 生成盘点单号
-    async fn generate_count_no(&self) -> Result<String, AppError> {
-        DocumentNumberGenerator::generate_no(
-            &*self.db,
-            "IC",
-            inventory_count::Entity,
-            inventory_count::Column::CountNo,
-        )
-        .await
-        .map_err(|e| AppError::BusinessError(e.to_string()))
-    }
+    crate::impl_generate_no!(
+        generate_count_no,
+        "IC",
+        inventory_count::Entity,
+        inventory_count::Column::CountNo
+    );
 }

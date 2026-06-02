@@ -145,9 +145,9 @@ pub async fn get_available_capacity(
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     let service = CapacityService::new(state.db.clone());
     let date_from = chrono::NaiveDate::parse_from_str(&query.date_from, "%Y-%m-%d")
-        .map_err(|_| AppError::BadRequest("date_from 格式无效，应为 YYYY-MM-DD".to_string()))?;
+        .map_err(|_| AppError::bad_request("date_from 格式无效，应为 YYYY-MM-DD"))?;
     let date_to = chrono::NaiveDate::parse_from_str(&query.date_to, "%Y-%m-%d")
-        .map_err(|_| AppError::BadRequest("date_to 格式无效，应为 YYYY-MM-DD".to_string()))?;
+        .map_err(|_| AppError::bad_request("date_to 格式无效，应为 YYYY-MM-DD"))?;
     let available = service
         .get_available_capacity(id, date_from, date_to)
         .await?;

@@ -10,7 +10,6 @@ use crate::models::inventory_transaction;
 use crate::models::inventory_transfer::{self, Entity as InventoryTransferEntity};
 use crate::models::inventory_transfer_item::{self, Entity as InventoryTransferItemEntity};
 use crate::utils::error::AppError;
-use crate::utils::number_generator::DocumentNumberGenerator;
 use crate::utils::PaginatedResponse;
 use serde::{Deserialize, Serialize};
 
@@ -158,7 +157,7 @@ impl InventoryTransferService {
         let transfer = InventoryTransferEntity::find_by_id(transfer_id)
             .one(&*self.db)
             .await?
-            .ok_or_else(|| AppError::NotFound(format!("库存调拨单 {} 未找到", transfer_id)))?;
+            .ok_or_else(|| AppError::not_found(format!("库存调拨单 {} 未找到", transfer_id)))?;
 
         // 获取调拨明细项
         let items = InventoryTransferItemEntity::find()
@@ -224,9 +223,7 @@ impl InventoryTransferService {
         if existing_transfer.is_some() {
             tracing::error!("Transaction rolled back: 调拨单号 {} 已存在", transfer_no);
             txn.rollback().await?;
-            return Err(AppError::BusinessError(
-                "调拨单号已存在，请重试".to_string(),
-            ));
+            return Err(AppError::business("调拨单号已存在，请重试".to_string()));
         }
 
         // 创建调拨主表
@@ -314,13 +311,11 @@ impl InventoryTransferService {
         let transfer = InventoryTransferEntity::find_by_id(transfer_id)
             .one(&*self.db)
             .await?
-            .ok_or_else(|| AppError::NotFound(format!("库存调拨单 {} 未找到", transfer_id)))?;
+            .ok_or_else(|| AppError::not_found(format!("库存调拨单 {} 未找到", transfer_id)))?;
 
         // 检查状态，已完成的调拨单不允许修改
         if transfer.status == "completed" {
-            return Err(AppError::BusinessError(
-                "调拨单已完成，不允许修改".to_string(),
-            ));
+            return Err(AppError::business("调拨单已完成，不允许修改".to_string()));
         }
 
         // 开启事务
@@ -378,7 +373,7 @@ impl InventoryTransferService {
             let transfer_entity = InventoryTransferEntity::find_by_id(transfer_id)
                 .one(&txn)
                 .await?
-                .ok_or_else(|| AppError::BusinessError("调拨单不存在".to_string()))?;
+                .ok_or_else(|| AppError::business("调拨单不存在"))?;
             let mut transfer_update: inventory_transfer::ActiveModel = transfer_entity.into();
             transfer_update.total_quantity = sea_orm::ActiveValue::Set(total_quantity);
             transfer_update.updated_at = sea_orm::ActiveValue::Set(chrono::Utc::now());
@@ -409,11 +404,11 @@ impl InventoryTransferService {
         let transfer = InventoryTransferEntity::find_by_id(transfer_id)
             .one(&*self.db)
             .await?
-            .ok_or_else(|| AppError::NotFound(format!("库存调拨单 {} 未找到", transfer_id)))?;
+            .ok_or_else(|| AppError::not_found(format!("库存调拨单 {} 未找到", transfer_id)))?;
 
         // 检查状态，只有待审核的调拨单可以审核
         if transfer.status != "pending" {
-            return Err(AppError::BusinessError(
+            return Err(AppError::business(
                 "只有待审核状态的调拨单可以审核".to_string(),
             ));
         }
@@ -458,11 +453,11 @@ impl InventoryTransferService {
         let transfer = InventoryTransferEntity::find_by_id(transfer_id)
             .one(&*self.db)
             .await?
-            .ok_or_else(|| AppError::NotFound(format!("库存调拨单 {} 未找到", transfer_id)))?;
+            .ok_or_else(|| AppError::not_found(format!("库存调拨单 {} 未找到", transfer_id)))?;
 
         // 检查状态，只有已审核的调拨单可以发出
         if transfer.status != "approved" {
-            return Err(AppError::BusinessError(
+            return Err(AppError::business(
                 "只有已审核状态的调拨单可以发出".to_string(),
             ));
         }
@@ -496,7 +491,7 @@ impl InventoryTransferService {
                 if stock_model.quantity_on_hand < item.quantity {
                     tracing::error!("Transaction rolled back: 产品 {} 库存不足", item.product_id);
                     txn.rollback().await?;
-                    return Err(AppError::BusinessError(format!(
+                    return Err(AppError::business(format!(
                         "产品 {} 库存不足",
                         item.product_id
                     )));
@@ -560,7 +555,7 @@ impl InventoryTransferService {
                 if update_result.rows_affected == 0 {
                     tracing::error!("Transaction rolled back: 产品 {} 并发冲突", item.product_id);
                     txn.rollback().await?;
-                    return Err(AppError::BusinessError(format!(
+                    return Err(AppError::business(format!(
                         "产品 {} 库存记录已被其他用户修改，请重试",
                         item.product_id
                     )));
@@ -612,7 +607,7 @@ impl InventoryTransferService {
                     item.product_id
                 );
                 txn.rollback().await?;
-                return Err(AppError::BusinessError(format!(
+                return Err(AppError::business(format!(
                     "产品 {} 在源仓库无库存记录",
                     item.product_id
                 )));
@@ -648,11 +643,11 @@ impl InventoryTransferService {
         let transfer = InventoryTransferEntity::find_by_id(transfer_id)
             .one(&*self.db)
             .await?
-            .ok_or_else(|| AppError::NotFound(format!("库存调拨单 {} 未找到", transfer_id)))?;
+            .ok_or_else(|| AppError::not_found(format!("库存调拨单 {} 未找到", transfer_id)))?;
 
         // 检查状态，只有已发出的调拨单可以接收
         if transfer.status != "shipped" {
-            return Err(AppError::BusinessError(
+            return Err(AppError::business(
                 "只有已发出状态的调拨单可以接收".to_string(),
             ));
         }
@@ -750,7 +745,7 @@ impl InventoryTransferService {
                 if update_result.rows_affected == 0 {
                     tracing::error!("Transaction rolled back: 产品 {} 并发冲突", item.product_id);
                     txn.rollback().await?;
-                    return Err(AppError::BusinessError(format!(
+                    return Err(AppError::business(format!(
                         "产品 {} 库存记录已被其他用户修改，请重试",
                         item.product_id
                     )));
@@ -926,16 +921,12 @@ impl InventoryTransferService {
     }
 
     /// 生成调拨单号
-    async fn generate_transfer_no(&self) -> Result<String, AppError> {
-        DocumentNumberGenerator::generate_no(
-            &*self.db,
-            "TRF",
-            inventory_transfer::Entity,
-            inventory_transfer::Column::TransferNo,
-        )
-        .await
-        .map_err(|e| AppError::BusinessError(e.to_string()))
-    }
+    crate::impl_generate_no!(
+        generate_transfer_no,
+        "TRF",
+        inventory_transfer::Entity,
+        inventory_transfer::Column::TransferNo
+    );
 
     /// 检查调出仓库库存是否充足
     async fn check_from_warehouse_inventory(
@@ -970,13 +961,13 @@ impl InventoryTransferService {
                     continue;
                 }
                 Some(s) => {
-                    return Err(AppError::BusinessError(format!(
+                    return Err(AppError::business(format!(
                         "调出仓库库存不足，产品 {}，当前库存：{}，需要调拨：{}",
                         product_id, s.quantity_available, quantity
                     )));
                 }
                 None => {
-                    return Err(AppError::BusinessError(format!(
+                    return Err(AppError::business(format!(
                         "产品 {} 在调出仓库没有库存记录",
                         product_id
                     )));

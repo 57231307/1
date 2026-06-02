@@ -152,7 +152,7 @@ pub async fn calculate_mrp(
 ) -> Result<Json<ApiResponse<MrpCalculationSummaryResponse>>, AppError> {
     payload
         .validate()
-        .map_err(|e| AppError::ValidationError(e.to_string()))?;
+        .map_err(|e| AppError::validation(e.to_string()))?;
 
     let service = MrpEngineService::new(state.db.clone());
 
@@ -252,10 +252,10 @@ pub async fn convert_to_orders(
 ) -> Result<Json<ApiResponse<Vec<MrpResultResponse>>>, AppError> {
     payload
         .validate()
-        .map_err(|e| AppError::ValidationError(e.to_string()))?;
+        .map_err(|e| AppError::validation(e.to_string()))?;
 
     if payload.order_type != "PURCHASE" && payload.order_type != "PRODUCTION" {
-        return Err(AppError::ValidationError(
+        return Err(AppError::validation(
             "订单类型必须是 PURCHASE 或 PRODUCTION".to_string(),
         ));
     }

@@ -195,7 +195,7 @@ impl TenantBillingService {
             .unwrap_or(1000);
 
         let now = Utc::now();
-        let today_start = now.date_naive().and_hms_opt(0, 0, 0).unwrap().and_utc();
+        let today_start = crate::utils::date_utils::today_start_utc();
 
         let today_usage = TenantUsage::find()
             .filter(tenant_usage::Column::TenantId.eq(tenant_id))
@@ -298,14 +298,14 @@ impl TenantBillingService {
         let plan = TenantPlan::find_by_id(req.plan_id)
             .one(self.db.as_ref())
             .await?
-            .ok_or_else(|| AppError::NotFound("套餐不存在".to_string()))?;
+            .ok_or_else(|| AppError::not_found("套餐不存在"))?;
 
         if !plan.is_active {
-            return Err(AppError::BusinessError("该套餐已停用".to_string()));
+            return Err(AppError::business("该套餐已停用"));
         }
 
         if req.billing_cycle != "MONTHLY" && req.billing_cycle != "YEARLY" {
-            return Err(AppError::BadRequest(
+            return Err(AppError::bad_request(
                 "计费周期必须为 MONTHLY 或 YEARLY".to_string(),
             ));
         }
@@ -359,7 +359,7 @@ impl TenantBillingService {
         let mut tenant_active: tenant::ActiveModel = Tenant::find_by_id(tenant_id)
             .one(self.db.as_ref())
             .await?
-            .ok_or_else(|| AppError::NotFound("租户不存在".to_string()))?
+            .ok_or_else(|| AppError::not_found("租户不存在"))?
             .into();
         tenant_active.plan_id = Set(Some(plan.id));
         tenant_active.expired_at = Set(Some(end_date));
@@ -410,7 +410,7 @@ impl TenantBillingService {
         let current_plan = self
             .get_current_plan(tenant_id)
             .await?
-            .ok_or_else(|| AppError::NotFound("当前无有效订阅".to_string()))?;
+            .ok_or_else(|| AppError::not_found("当前无有效订阅"))?;
 
         let billing_cycle = req
             .billing_cycle
@@ -433,7 +433,7 @@ impl TenantBillingService {
             .filter(tenant_subscription::Column::Status.eq("ACTIVE"))
             .one(self.db.as_ref())
             .await?
-            .ok_or_else(|| AppError::NotFound("当前无有效订阅".to_string()))?;
+            .ok_or_else(|| AppError::not_found("当前无有效订阅"))?;
 
         let mut active: tenant_subscription::ActiveModel = subscription.into();
         active.billing_cycle = Set(billing_cycle.clone());
@@ -446,7 +446,7 @@ impl TenantBillingService {
         let mut tenant_active: tenant::ActiveModel = Tenant::find_by_id(tenant_id)
             .one(self.db.as_ref())
             .await?
-            .ok_or_else(|| AppError::NotFound("租户不存在".to_string()))?
+            .ok_or_else(|| AppError::not_found("租户不存在"))?
             .into();
         tenant_active.expired_at = Set(Some(end_date));
         tenant_active.updated_at = Set(now);
@@ -511,7 +511,7 @@ impl TenantBillingService {
 
     pub async fn record_api_call(&self, tenant_id: i32) -> Result<(), AppError> {
         let now = Utc::now();
-        let today_start = now.date_naive().and_hms_opt(0, 0, 0).unwrap().and_utc();
+        let today_start = crate::utils::date_utils::today_start_utc();
 
         let existing = TenantUsage::find()
             .filter(tenant_usage::Column::TenantId.eq(tenant_id))
@@ -548,7 +548,7 @@ impl TenantBillingService {
         storage_mb: i64,
     ) -> Result<(), AppError> {
         let now = Utc::now();
-        let today_start = now.date_naive().and_hms_opt(0, 0, 0).unwrap().and_utc();
+        let today_start = crate::utils::date_utils::today_start_utc();
 
         let existing = TenantUsage::find()
             .filter(tenant_usage::Column::TenantId.eq(tenant_id))
@@ -580,7 +580,7 @@ impl TenantBillingService {
 
     pub async fn update_user_count(&self, tenant_id: i32, count: i32) -> Result<(), AppError> {
         let now = Utc::now();
-        let today_start = now.date_naive().and_hms_opt(0, 0, 0).unwrap().and_utc();
+        let today_start = crate::utils::date_utils::today_start_utc();
 
         let existing = TenantUsage::find()
             .filter(tenant_usage::Column::TenantId.eq(tenant_id))
@@ -651,7 +651,7 @@ impl TenantBillingService {
                 let tenant_record = Tenant::find_by_id(sub.tenant_id)
                     .one(self.db.as_ref())
                     .await?
-                    .ok_or_else(|| AppError::NotFound(format!("租户 {} 不存在", sub.tenant_id)))?;
+                    .ok_or_else(|| AppError::not_found(format!("租户 {} 不存在", sub.tenant_id)))?;
                 let mut tenant_active: tenant::ActiveModel = tenant_record.into();
                 tenant_active.expired_at = Set(Some(new_end_date));
                 tenant_active.updated_at = Set(now);

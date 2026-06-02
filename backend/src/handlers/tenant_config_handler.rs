@@ -134,7 +134,7 @@ pub async fn set_config(
 ) -> Result<Json<ApiResponse<()>>, AppError> {
     let tenant_id = auth
         .tenant_id
-        .ok_or_else(|| AppError::BadRequest("缺少租户信息".to_string()))?;
+        .ok_or_else(|| AppError::bad_request("缺少租户信息"))?;
 
     let service = TenantService::new(state.db);
     let config_type = req.config_type.as_deref().unwrap_or("STRING");
@@ -158,7 +158,7 @@ pub async fn delete_config(
 
     let tenant_id = auth
         .tenant_id
-        .ok_or_else(|| AppError::BadRequest("缺少租户信息".to_string()))?;
+        .ok_or_else(|| AppError::bad_request("缺少租户信息"))?;
 
     // 删除租户配置
     let result = tenant_config::Entity::delete_many()
@@ -168,7 +168,7 @@ pub async fn delete_config(
         .await?;
 
     if result.rows_affected == 0 {
-        return Err(AppError::NotFound("配置不存在".to_string()));
+        return Err(AppError::not_found("配置不存在"));
     }
 
     tracing::info!("用户 {} 删除租户配置: key={}", auth.username, key);
@@ -222,11 +222,11 @@ pub async fn create_plan(
     let price_monthly: Decimal = req
         .price_monthly
         .parse()
-        .map_err(|_| AppError::BadRequest("月度价格格式错误".to_string()))?;
+        .map_err(|_| AppError::bad_request("月度价格格式错误"))?;
     let price_yearly: Decimal = req
         .price_yearly
         .parse()
-        .map_err(|_| AppError::BadRequest("年度价格格式错误".to_string()))?;
+        .map_err(|_| AppError::bad_request("年度价格格式错误"))?;
 
     let now = Utc::now();
     let active_model = tenant_plan::ActiveModel {
@@ -277,7 +277,7 @@ pub async fn get_plan(
     let plan = tenant_plan::Entity::find_by_id(id)
         .one(state.db.as_ref())
         .await?
-        .ok_or_else(|| AppError::NotFound("套餐不存在".to_string()))?;
+        .ok_or_else(|| AppError::not_found("套餐不存在"))?;
 
     Ok(Json(ApiResponse::success(BillingPlanItem {
         id: plan.id,
@@ -301,7 +301,7 @@ pub async fn get_usage_statistics(
 ) -> Result<Json<ApiResponse<UsageStatistics>>, AppError> {
     let tenant_id = auth
         .tenant_id
-        .ok_or_else(|| AppError::BadRequest("缺少租户信息".to_string()))?;
+        .ok_or_else(|| AppError::bad_request("缺少租户信息"))?;
 
     let service = TenantService::new(state.db.clone());
     let billing_service = TenantBillingService::new(state.db);
@@ -309,7 +309,7 @@ pub async fn get_usage_statistics(
     let tenant = service
         .get_tenant(tenant_id)
         .await?
-        .ok_or_else(|| AppError::NotFound("租户不存在".to_string()))?;
+        .ok_or_else(|| AppError::not_found("租户不存在"))?;
 
     let users = service
         .get_tenant_users(tenant_id)

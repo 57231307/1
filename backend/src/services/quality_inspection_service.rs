@@ -131,7 +131,7 @@ impl QualityInspectionService {
         let standard = quality_inspection::Entity::find_by_id(id)
             .one(&*self.db)
             .await?
-            .ok_or_else(|| AppError::NotFound(format!("质量检验标准不存在：{}", id)))?;
+            .ok_or_else(|| AppError::not_found(format!("质量检验标准不存在：{}", id)))?;
         Ok(standard)
     }
 
@@ -142,7 +142,7 @@ impl QualityInspectionService {
         let record = quality_inspection_record::Entity::find_by_id(id)
             .one(&*self.db)
             .await?
-            .ok_or_else(|| AppError::NotFound(format!("质量检验记录不存在：{}", id)))?;
+            .ok_or_else(|| AppError::not_found(format!("质量检验记录不存在：{}", id)))?;
         Ok(record)
     }
 
@@ -291,7 +291,7 @@ impl QualityInspectionService {
             unqualified_product::Entity::find_by_id(id)
                 .one(&*self.db)
                 .await?
-                .ok_or_else(|| AppError::NotFound(format!("不合格品记录不存在：{}", id)))?
+                .ok_or_else(|| AppError::not_found(format!("不合格品记录不存在：{}", id)))?
                 .into();
 
         unqualified.handling_status = Set(handling_status.to_string());

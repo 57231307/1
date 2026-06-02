@@ -146,7 +146,7 @@ pub async fn delete_integration(
     let webhook = webhook::Entity::find_by_id(id)
         .one(state.db.as_ref())
         .await?
-        .ok_or_else(|| AppError::NotFound("Webhook 集成不存在".to_string()))?;
+        .ok_or_else(|| AppError::not_found("Webhook 集成不存在"))?;
 
     let mut active_model: webhook::ActiveModel = webhook.into();
     active_model.is_active = Set(false);
@@ -165,7 +165,7 @@ pub async fn send_wechat_message(
     Json(req): Json<SendWebhookMessageRequest>,
 ) -> Result<Json<ApiResponse<WebhookSendResult>>, AppError> {
     if req.content.is_empty() {
-        return Err(AppError::BadRequest("消息内容不能为空".to_string()));
+        return Err(AppError::bad_request("消息内容不能为空"));
     }
 
     // 构建企业微信消息格式
@@ -196,7 +196,7 @@ pub async fn send_wechat_message(
             "企业微信消息发送成功",
         )))
     } else {
-        Err(AppError::InternalError(
+        Err(AppError::internal(
             delivery.error.unwrap_or_else(|| "发送失败".to_string()),
         ))
     }
@@ -208,7 +208,7 @@ pub async fn send_dingtalk_message(
     Json(req): Json<SendWebhookMessageRequest>,
 ) -> Result<Json<ApiResponse<WebhookSendResult>>, AppError> {
     if req.content.is_empty() {
-        return Err(AppError::BadRequest("消息内容不能为空".to_string()));
+        return Err(AppError::bad_request("消息内容不能为空"));
     }
 
     // 构建钉钉消息格式
@@ -239,7 +239,7 @@ pub async fn send_dingtalk_message(
             "钉钉消息发送成功",
         )))
     } else {
-        Err(AppError::InternalError(
+        Err(AppError::internal(
             delivery.error.unwrap_or_else(|| "发送失败".to_string()),
         ))
     }

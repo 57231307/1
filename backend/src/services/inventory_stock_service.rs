@@ -60,7 +60,7 @@ impl InventoryStockService {
         inventory_stock::Entity::find_by_id(id)
             .one(&*self.db)
             .await?
-            .ok_or_else(|| AppError::NotFound(format!("库存记录 ID {} 不存在", id)))
+            .ok_or_else(|| AppError::not_found(format!("库存记录 ID {} 不存在", id)))
     }
 
     pub async fn find_by_product_and_warehouse(
@@ -170,7 +170,7 @@ impl InventoryStockService {
 
         // 检查乐观锁是否成功
         if update_result.rows_affected == 0 {
-            return Err(AppError::BusinessError(format!(
+            return Err(AppError::business(format!(
                 "并发冲突：库存记录 ID {} 已被其他用户修改，期望版本 {}",
                 id, expected_version
             )));
@@ -180,7 +180,7 @@ impl InventoryStockService {
         inventory_stock::Entity::find_by_id(id)
             .one(&*self.db)
             .await?
-            .ok_or_else(|| AppError::NotFound(format!("库存记录 ID {} 不存在", id)))
+            .ok_or_else(|| AppError::not_found(format!("库存记录 ID {} 不存在", id)))
     }
 
     pub async fn list_stock(
@@ -457,7 +457,7 @@ impl InventoryStockService {
             .await?;
 
         if update_result.rows_affected == 0 {
-            return Err(AppError::BusinessError(format!(
+            return Err(AppError::business(format!(
                 "并发冲突：库存记录 ID {} 已被其他用户修改，期望版本 {}",
                 id, expected_version
             )));
@@ -466,7 +466,7 @@ impl InventoryStockService {
         inventory_stock::Entity::find_by_id(id)
             .one(txn)
             .await?
-            .ok_or_else(|| AppError::NotFound(format!("库存记录 ID {} 不存在", id)))
+            .ok_or_else(|| AppError::not_found(format!("库存记录 ID {} 不存在", id)))
     }
 
     /// 创建面料库存记录（事务版本）

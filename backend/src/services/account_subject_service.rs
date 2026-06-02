@@ -77,7 +77,7 @@ impl AccountSubjectService {
 
         if existing.is_some() {
             warn!("科目编码已存在：{}", req.code);
-            return Err(AppError::BadRequest(format!(
+            return Err(AppError::bad_request(format!(
                 "科目编码 {} 已存在",
                 req.code
             )));
@@ -90,7 +90,7 @@ impl AccountSubjectService {
                 .await?;
             if parent.is_none() {
                 warn!("父科目不存在：{}", parent_id);
-                return Err(AppError::BadRequest("父科目不存在".to_string()));
+                return Err(AppError::bad_request("父科目不存在"));
             }
         }
 
@@ -99,7 +99,7 @@ impl AccountSubjectService {
             let parent = account_subject::Entity::find_by_id(parent_id)
                 .one(&*self.db)
                 .await?
-                .ok_or_else(|| AppError::BadRequest("父科目不存在".to_string()))?;
+                .ok_or_else(|| AppError::bad_request("父科目不存在"))?;
             format!("{}.{}", parent.full_code.unwrap_or(parent.code), req.code)
         } else {
             req.code.clone()
@@ -220,7 +220,7 @@ impl AccountSubjectService {
         let subject = account_subject::Entity::find_by_id(id)
             .one(&*self.db)
             .await?
-            .ok_or_else(|| AppError::NotFound(format!("会计科目不存在：{}", id)))?;
+            .ok_or_else(|| AppError::not_found(format!("会计科目不存在：{}", id)))?;
 
         Ok(subject)
     }
@@ -276,7 +276,7 @@ impl AccountSubjectService {
 
         if children_count > 0 {
             warn!("不能删除有子科目的科目：{}", id);
-            return Err(AppError::BadRequest("不能删除有子科目的科目".to_string()));
+            return Err(AppError::bad_request("不能删除有子科目的科目"));
         }
 
         // 检查是否已被凭证分录使用
@@ -293,7 +293,7 @@ impl AccountSubjectService {
                 "不能删除已被凭证使用的科目：{}，被引用次数：{}",
                 id, used_in_vouchers
             );
-            return Err(AppError::BadRequest(format!(
+            return Err(AppError::bad_request(format!(
                 "科目已被 {} 张凭证使用，不能删除",
                 used_in_vouchers
             )));
@@ -307,7 +307,7 @@ impl AccountSubjectService {
 
         if balance_count > 0 {
             warn!("不能删除有余额记录的科目：{}", id);
-            return Err(AppError::BadRequest(format!(
+            return Err(AppError::bad_request(format!(
                 "科目有 {} 条余额记录，不能删除",
                 balance_count
             )));
@@ -332,7 +332,7 @@ impl AccountSubjectService {
             .filter(account_balance::Column::Period.eq(period))
             .one(&*self.db)
             .await
-            .map_err(|e| AppError::InternalError(e.to_string()))?;
+            .map_err(|e| AppError::internal(e.to_string()))?;
 
         if let Some(b) = balance {
             Ok(SubjectBalance {

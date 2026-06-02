@@ -53,7 +53,7 @@ pub async fn get_payment(
     let payment = service
         .find_by_id(id)
         .await
-        .map_err(|e| AppError::NotFound(e.to_string()))?;
+        .map_err(|e| AppError::not_found(e.to_string()))?;
 
     Ok(Json(ApiResponse::success(PaymentResponse {
         id: payment.id,
@@ -90,7 +90,7 @@ pub async fn create_payment(
             Some(auth.user_id),
         )
         .await
-        .map_err(|e| AppError::InternalError(e.to_string()))?;
+        .map_err(|e| AppError::internal(e.to_string()))?;
 
     Ok(Json(ApiResponse::success(PaymentResponse {
         id: payment.id,
@@ -115,7 +115,7 @@ pub async fn list_payments(
             params.status,
         )
         .await
-        .map_err(|e| AppError::InternalError(e.to_string()))?;
+        .map_err(|e| AppError::internal(e.to_string()))?;
 
     let payment_responses: Vec<PaymentResponse> = payments
         .into_iter()

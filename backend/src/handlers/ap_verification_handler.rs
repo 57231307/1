@@ -59,7 +59,7 @@ pub async fn list_verifications(
         params.page.unwrap_or(1),
         params.page_size.unwrap_or(20),
     ))
-    .map_err(|e| AppError::InternalError(e.to_string()))?;
+    .map_err(|e| AppError::internal(e.to_string()))?;
 
     Ok(Json(ApiResponse::success(result)))
 }
@@ -129,7 +129,7 @@ pub async fn manual_verify(
 
     req.validate().map_err(|e| {
         warn!("用户 {} 手工核销验证失败：{}", auth.username, e);
-        AppError::ValidationError(e.to_string())
+        AppError::validation(e.to_string())
     })?;
 
     let service = ApVerificationService::new(state.db.clone());
@@ -185,7 +185,7 @@ pub async fn get_unverified_invoices(
 ) -> Result<Json<ApiResponse<JsonValue>>, AppError> {
     let supplier_id = params.supplier_id.ok_or_else(|| {
         warn!("用户 {} 查询未核销应付单列表未提供供应商 ID", auth.username);
-        AppError::BadRequest("必须提供供应商 ID".to_string())
+        AppError::bad_request("必须提供供应商 ID")
     })?;
 
     info!(
@@ -213,7 +213,7 @@ pub async fn get_unverified_payments(
 ) -> Result<Json<ApiResponse<JsonValue>>, AppError> {
     let supplier_id = params.supplier_id.ok_or_else(|| {
         warn!("用户 {} 查询未核销付款单列表未提供供应商 ID", auth.username);
-        AppError::BadRequest("必须提供供应商 ID".to_string())
+        AppError::bad_request("必须提供供应商 ID")
     })?;
 
     info!(

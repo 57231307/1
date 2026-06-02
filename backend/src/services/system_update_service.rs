@@ -102,13 +102,13 @@ pub enum UpdateError {
 impl From<UpdateError> for AppError {
     fn from(err: UpdateError) -> Self {
         match err {
-            UpdateError::IoError(e) => AppError::InternalError(format!("IO错误: {}", e)),
-            UpdateError::UnzipError(e) => AppError::InternalError(format!("解压错误: {}", e)),
-            UpdateError::BackupError(e) => AppError::InternalError(format!("备份错误: {}", e)),
-            UpdateError::ValidationError(e) => AppError::ValidationError(e),
-            UpdateError::VersionError(e) => AppError::BadRequest(format!("版本错误: {}", e)),
-            UpdateError::AlreadyUpdating => AppError::BusinessError("更新正在进行中".to_string()),
-            UpdateError::NetworkError(e) => AppError::InternalError(format!("网络错误: {}", e)),
+            UpdateError::IoError(e) => AppError::internal(format!("IO错误: {}", e)),
+            UpdateError::UnzipError(e) => AppError::internal(format!("解压错误: {}", e)),
+            UpdateError::BackupError(e) => AppError::internal(format!("备份错误: {}", e)),
+            UpdateError::ValidationError(e) => AppError::validation(e),
+            UpdateError::VersionError(e) => AppError::bad_request(format!("版本错误: {}", e)),
+            UpdateError::AlreadyUpdating => AppError::business("更新正在进行中"),
+            UpdateError::NetworkError(e) => AppError::internal(format!("网络错误: {}", e)),
         }
     }
 }

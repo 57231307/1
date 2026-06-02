@@ -102,7 +102,7 @@ pub async fn update_price(
             id,
             req.price
                 .parse()
-                .map_err(|e| AppError::ValidationError(format!("价格格式错误：{}", e)))?,
+                .map_err(|e| AppError::validation(format!("价格格式错误：{}", e)))?,
             req.expiry_date,
             req.status,
         )

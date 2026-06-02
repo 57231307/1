@@ -33,14 +33,14 @@ pub async fn get_current_plan(
 ) -> Result<Json<ApiResponse<crate::services::tenant_billing_service::CurrentPlanInfo>>, AppError> {
     let tenant_id = auth
         .tenant_id
-        .ok_or_else(|| AppError::BadRequest("缺少租户信息".to_string()))?;
+        .ok_or_else(|| AppError::bad_request("缺少租户信息"))?;
 
     let service = TenantBillingService::new(state.db);
 
     let current_plan = service
         .get_current_plan(tenant_id)
         .await?
-        .ok_or_else(|| AppError::NotFound("当前无有效套餐".to_string()))?;
+        .ok_or_else(|| AppError::not_found("当前无有效套餐"))?;
 
     Ok(Json(ApiResponse::success(current_plan)))
 }
@@ -52,7 +52,7 @@ pub async fn upgrade_plan(
 ) -> Result<Json<ApiResponse<crate::services::tenant_billing_service::CurrentPlanInfo>>, AppError> {
     let tenant_id = auth
         .tenant_id
-        .ok_or_else(|| AppError::BadRequest("缺少租户信息".to_string()))?;
+        .ok_or_else(|| AppError::bad_request("缺少租户信息"))?;
 
     let service = TenantBillingService::new(state.db);
 
@@ -75,14 +75,14 @@ pub async fn get_usage(
 ) -> Result<Json<ApiResponse<crate::services::tenant_billing_service::UsageStats>>, AppError> {
     let tenant_id = auth
         .tenant_id
-        .ok_or_else(|| AppError::BadRequest("缺少租户信息".to_string()))?;
+        .ok_or_else(|| AppError::bad_request("缺少租户信息"))?;
 
     let service = TenantBillingService::new(state.db);
 
     let usage = service
         .get_usage_stats(tenant_id)
         .await?
-        .ok_or_else(|| AppError::NotFound("租户不存在".to_string()))?;
+        .ok_or_else(|| AppError::not_found("租户不存在"))?;
 
     Ok(Json(ApiResponse::success(usage)))
 }
@@ -97,7 +97,7 @@ pub async fn list_invoices(
 > {
     let tenant_id = auth
         .tenant_id
-        .ok_or_else(|| AppError::BadRequest("缺少租户信息".to_string()))?;
+        .ok_or_else(|| AppError::bad_request("缺少租户信息"))?;
 
     let page = query.page.unwrap_or(1);
     let page_size = query.page_size.unwrap_or(20);
@@ -117,7 +117,7 @@ pub async fn renew_subscription(
 ) -> Result<Json<ApiResponse<crate::services::tenant_billing_service::CurrentPlanInfo>>, AppError> {
     let tenant_id = auth
         .tenant_id
-        .ok_or_else(|| AppError::BadRequest("缺少租户信息".to_string()))?;
+        .ok_or_else(|| AppError::bad_request("缺少租户信息"))?;
 
     let service = TenantBillingService::new(state.db);
 

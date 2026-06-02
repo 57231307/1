@@ -16,7 +16,6 @@ use std::sync::Arc;
 
 use super::ar_invoice_service::{ArInvoiceService, CreateArInvoiceRequest};
 use super::inventory_stock_service::InventoryStockService;
-use crate::utils::number_generator::DocumentNumberGenerator;
 
 /// 创建销售退货请求
 #[derive(Deserialize)]
@@ -86,7 +85,7 @@ impl SalesReturnService {
         let return_order = crate::models::sales_return::Entity::find_by_id(return_id)
             .one(txn)
             .await?
-            .ok_or(AppError::NotFound(format!("退货单 {}", return_id)))?;
+            .ok_or_else(|| AppError::not_found(format!("退货单 {}", return_id)))?;
 
         let mut return_active: crate::models::sales_return::ActiveModel = return_order.into();
         return_active.total_amount = sea_orm::ActiveValue::Set(total);
@@ -102,15 +101,12 @@ impl SalesReturnService {
 
     /// 生成退货单号
     /// 格式：SR + 年月日 + 三位序号（SR20260315001）
-    pub async fn generate_return_no(&self) -> Result<String, AppError> {
-        DocumentNumberGenerator::generate_no(
-            &*self.db,
-            "SR",
-            sales_return::Entity,
-            sales_return::Column::ReturnNo,
-        )
-        .await
-    }
+    crate::impl_generate_no!(
+        generate_return_no,
+        "SR",
+        sales_return::Entity,
+        sales_return::Column::ReturnNo
+    );
 
     /// 创建销售退货单
     pub async fn create_return(
@@ -160,10 +156,10 @@ impl SalesReturnService {
         let return_order = sales_return::Entity::find_by_id(return_id)
             .one(&*self.db)
             .await?
-            .ok_or(AppError::NotFound(format!("销售退货单 {}", return_id)))?;
+            .ok_or_else(|| AppError::not_found(format!("销售退货单 {}", return_id)))?;
 
         if return_order.status != "DRAFT" {
-            return Err(AppError::BusinessError(format!(
+            return Err(AppError::business(format!(
                 "退货单状态不允许添加明细，当前状态：{}",
                 return_order.status
             )));
@@ -201,10 +197,10 @@ impl SalesReturnService {
         let return_order = sales_return::Entity::find_by_id(return_id)
             .one(&*self.db)
             .await?
-            .ok_or(AppError::NotFound(format!("销售退货单 {}", return_id)))?;
+            .ok_or_else(|| AppError::not_found(format!("销售退货单 {}", return_id)))?;
 
         if return_order.status != "DRAFT" {
-            return Err(AppError::BusinessError(format!(
+            return Err(AppError::business(format!(
                 "退货单状态不允许修改，当前状态：{}",
                 return_order.status
             )));
@@ -257,10 +253,10 @@ impl SalesReturnService {
         let return_order = sales_return::Entity::find_by_id(return_id)
             .one(&*self.db)
             .await?
-            .ok_or(AppError::NotFound(format!("销售退货单 {}", return_id)))?;
+            .ok_or_else(|| AppError::not_found(format!("销售退货单 {}", return_id)))?;
 
         if return_order.status != "DRAFT" {
-            return Err(AppError::BusinessError(format!(
+            return Err(AppError::business(format!(
                 "退货单状态不允许提交，当前状态：{}",
                 return_order.status
             )));
@@ -273,9 +269,7 @@ impl SalesReturnService {
             .await?;
 
         if items_count == 0 {
-            return Err(AppError::BusinessError(
-                "退货单没有明细，无法提交".to_string(),
-            ));
+            return Err(AppError::business("退货单没有明细，无法提交".to_string()));
         }
 
         // 开启事务，更新退货单总金额和状态
@@ -288,7 +282,7 @@ impl SalesReturnService {
         let return_order = sales_return::Entity::find_by_id(return_id)
             .one(&txn)
             .await?
-            .ok_or(AppError::NotFound(format!("销售退货单 {}", return_id)))?;
+            .ok_or_else(|| AppError::not_found(format!("销售退货单 {}", return_id)))?;
 
         let mut active_model: sales_return::ActiveModel = return_order.into();
         active_model.status = Set("SUBMITTED".to_string());
@@ -318,10 +312,10 @@ impl SalesReturnService {
         let return_order = sales_return::Entity::find_by_id(return_id)
             .one(&txn)
             .await?
-            .ok_or(AppError::NotFound(format!("销售退货单 {}", return_id)))?;
+            .ok_or_else(|| AppError::not_found(format!("销售退货单 {}", return_id)))?;
 
         if return_order.status != "SUBMITTED" {
-            return Err(AppError::BusinessError(format!(
+            return Err(AppError::business(format!(
                 "退货单状态不允许审批，当前状态：{}",
                 return_order.status
             )));
@@ -357,13 +351,9 @@ impl SalesReturnService {
 
         for item in &items {
             // 获取商品信息
-            let _product_info =
-                product_map
-                    .get(&item.product_id)
-                    .ok_or(AppError::NotFound(format!(
-                        "商品 {} 不存在",
-                        item.product_id
-                    )))?;
+            let _product_info = product_map
+                .get(&item.product_id)
+                .ok_or_else(|| AppError::not_found(format!("商品 {} 不存在", item.product_id)))?;
 
             // 查找是否已有库存记录
             let stock = stock_map.get(&item.product_id);

@@ -101,7 +101,7 @@ pub async fn create_bom(
 ) -> Result<Json<ApiResponse<BomDetailResponse>>, AppError> {
     payload
         .validate()
-        .map_err(|e| AppError::ValidationError(e.to_string()))?;
+        .map_err(|e| AppError::validation(e.to_string()))?;
 
     let service = BomService::new(state.db.clone());
 
@@ -168,7 +168,7 @@ pub async fn get_bom(
     let detail = service
         .get_by_id(id)
         .await?
-        .ok_or_else(|| AppError::NotFound("BOM不存在".to_string()))?;
+        .ok_or_else(|| AppError::not_found("BOM不存在"))?;
 
     Ok(Json(ApiResponse::success(BomDetailResponse {
         bom: BomResponse {

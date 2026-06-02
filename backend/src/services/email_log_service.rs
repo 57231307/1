@@ -91,7 +91,7 @@ impl EmailLogService {
         let model = EmailLogEntity::find_by_id(id)
             .one(&*self.db)
             .await?
-            .ok_or_else(|| AppError::NotFound("邮件记录不存在".to_string()))?;
+            .ok_or_else(|| AppError::not_found("邮件记录不存在"))?;
 
         let mut active_model: ActiveModel = model.into();
         active_model.status = Set(status.to_string());
@@ -114,7 +114,7 @@ impl EmailLogService {
         let model = EmailLogEntity::find_by_id(id)
             .one(&*self.db)
             .await?
-            .ok_or_else(|| AppError::NotFound("邮件记录不存在".to_string()))?;
+            .ok_or_else(|| AppError::not_found("邮件记录不存在"))?;
 
         let retry_count = model.retry_count + 1;
         let mut active_model: ActiveModel = model.into();

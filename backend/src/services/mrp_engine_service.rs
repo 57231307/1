@@ -550,10 +550,10 @@ impl MrpEngineService {
             let result = MrpResultEntity::find_by_id(id)
                 .one(&*self.db)
                 .await?
-                .ok_or_else(|| AppError::NotFound("MRP结果不存在".to_string()))?;
+                .ok_or_else(|| AppError::not_found("MRP结果不存在"))?;
 
             if result.status != "PLANNED" {
-                return Err(AppError::ValidationError(format!(
+                return Err(AppError::validation(format!(
                     "MRP结果 {} 状态不是PLANNED，无法转换",
                     id
                 )));
@@ -563,7 +563,7 @@ impl MrpEngineService {
             let new_status = match order_type.as_str() {
                 "PURCHASE" => "CONFIRMED",
                 "PRODUCTION" => "RELEASED",
-                _ => return Err(AppError::ValidationError("无效的订单类型".to_string())),
+                _ => return Err(AppError::validation("无效的订单类型")),
             };
 
             active_model.status = Set(new_status.to_string());

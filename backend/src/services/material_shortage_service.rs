@@ -443,7 +443,7 @@ impl MaterialShortageService {
         use sea_orm::Set;
 
         let config_json = serde_json::to_string(config)
-            .map_err(|e| AppError::ValidationError(format!("配置序列化失败: {}", e)))?;
+            .map_err(|e| AppError::validation(format!("配置序列化失败: {}", e)))?;
 
         // 查找现有配置
         let existing = TenantConfigEntity::find()
@@ -489,7 +489,7 @@ impl MaterialShortageService {
 
         match config {
             Some(model) => serde_json::from_str(&model.config_value)
-                .map_err(|e| AppError::ValidationError(format!("配置解析失败: {}", e))),
+                .map_err(|e| AppError::validation(format!("配置解析失败: {}", e))),
             None => Ok(ShortageThresholdConfig::default()),
         }
     }

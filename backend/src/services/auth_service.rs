@@ -304,18 +304,18 @@ pub enum AuthError {
 impl From<AuthError> for AppError {
     fn from(err: AuthError) -> Self {
         match err {
-            AuthError::InvalidCredentials => AppError::Unauthorized("用户名或密码错误".to_string()),
-            AuthError::UserInactive => AppError::Unauthorized("用户未激活".to_string()),
-            AuthError::DatabaseError(e) => AppError::DatabaseError(e.to_string()),
-            AuthError::JwtError(e) => AppError::InternalError(format!("JWT 错误: {}", e)),
-            AuthError::HashingError(e) => AppError::InternalError(format!("密码哈希错误: {}", e)),
-            AuthError::UserNotFound => AppError::NotFound("用户不存在".to_string()),
-            AuthError::InvalidPassword => AppError::Unauthorized("无效的密码".to_string()),
+            AuthError::InvalidCredentials => AppError::unauthorized("用户名或密码错误"),
+            AuthError::UserInactive => AppError::unauthorized("用户未激活"),
+            AuthError::DatabaseError(e) => AppError::database(e.to_string()),
+            AuthError::JwtError(e) => AppError::internal(format!("JWT 错误: {}", e)),
+            AuthError::HashingError(e) => AppError::internal(format!("密码哈希错误: {}", e)),
+            AuthError::UserNotFound => AppError::not_found("用户不存在"),
+            AuthError::InvalidPassword => AppError::unauthorized("无效的密码"),
             AuthError::TokenGenerationError(e) => {
-                AppError::InternalError(format!("Token 生成失败: {}", e))
+                AppError::internal(format!("Token 生成失败: {}", e))
             }
-            AuthError::InvalidToken(e) => AppError::Unauthorized(format!("无效的 Token: {}", e)),
-            AuthError::TokenRevoked => AppError::Unauthorized("Token 已被撤销".to_string()),
+            AuthError::InvalidToken(e) => AppError::unauthorized(format!("无效的 Token: {}", e)),
+            AuthError::TokenRevoked => AppError::unauthorized("Token 已被撤销"),
         }
     }
 }

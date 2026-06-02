@@ -91,7 +91,7 @@ pub async fn list_roles(
     let roles = service
         .list_roles()
         .await
-        .map_err(|e| AppError::InternalError(e.to_string()))?;
+        .map_err(|e| AppError::internal(e.to_string()))?;
 
     let role_responses: Vec<RoleResponse> = roles
         .into_iter()
@@ -125,7 +125,7 @@ pub async fn get_role(
     let role = service
         .get_role_detail(id)
         .await
-        .map_err(|e| AppError::NotFound(e.to_string()))?;
+        .map_err(|e| AppError::not_found(e.to_string()))?;
 
     let permissions = role.permission_list.map(|perms| {
         perms
@@ -170,7 +170,7 @@ pub async fn create_role(
     let role = service
         .create_role(request)
         .await
-        .map_err(|e| AppError::InternalError(e.to_string()))?;
+        .map_err(|e| AppError::internal(e.to_string()))?;
 
     let permissions = role.permission_list.map(|perms| {
         perms
@@ -216,7 +216,7 @@ pub async fn update_role(
     let role = service
         .update_role(id, request)
         .await
-        .map_err(|e| AppError::InternalError(e.to_string()))?;
+        .map_err(|e| AppError::internal(e.to_string()))?;
 
     let permissions = role.permission_list.map(|perms| {
         perms
@@ -254,7 +254,7 @@ pub async fn delete_role(
     service
         .delete_role(id)
         .await
-        .map_err(|e| AppError::InternalError(e.to_string()))?;
+        .map_err(|e| AppError::internal(e.to_string()))?;
 
     Ok(Json(ApiResponse::success(())))
 }
@@ -279,7 +279,7 @@ pub async fn assign_permission(
     let perm = service
         .assign_permission(request)
         .await
-        .map_err(|e| AppError::InternalError(e.to_string()))?;
+        .map_err(|e| AppError::internal(e.to_string()))?;
 
     // 记录权限变更日志
     tracing::warn!(
@@ -313,7 +313,7 @@ pub async fn remove_permission(
     service
         .remove_permission(id)
         .await
-        .map_err(|e| AppError::InternalError(e.to_string()))?;
+        .map_err(|e| AppError::internal(e.to_string()))?;
 
     // 记录权限移除日志
     tracing::warn!(
@@ -338,7 +338,7 @@ pub async fn get_role_permissions(
     let permissions = service
         .get_role_permissions(role_id)
         .await
-        .map_err(|e| AppError::InternalError(e.to_string()))?;
+        .map_err(|e| AppError::internal(e.to_string()))?;
 
     let perm_responses: Vec<PermissionResponse> = permissions
         .into_iter()

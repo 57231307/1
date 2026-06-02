@@ -46,7 +46,7 @@ impl AccountingPeriodService {
             .with_ymd_and_hms(year, month, 1, 0, 0, 0)
             .single()
             .ok_or_else(|| {
-                AppError::BadRequest(format!("Invalid date: {}-{:02}-01", year, month))
+                AppError::bad_request(format!("Invalid date: {}-{:02}-01", year, month))
             })?;
 
         let next_month = if month == 12 { 1 } else { month + 1 };
@@ -55,7 +55,7 @@ impl AccountingPeriodService {
             .with_ymd_and_hms(next_month_year, next_month, 1, 0, 0, 0)
             .single()
             .ok_or_else(|| {
-                AppError::BadRequest(format!(
+                AppError::bad_request(format!(
                     "Invalid date: {}-{:02}-01",
                     next_month_year, next_month
                 ))
@@ -87,13 +87,11 @@ impl AccountingPeriodService {
             .one(self.db.as_ref())
             .await?
             .ok_or_else(|| {
-                AppError::NotFound(format!("Accounting period {} not found", period_id))
+                AppError::not_found(format!("Accounting period {} not found", period_id))
             })?;
 
         if period.status == "CLOSED" {
-            return Err(AppError::BusinessError(
-                "期间已经结账，不能重复结账".to_string(),
-            ));
+            return Err(AppError::business("期间已经结账，不能重复结账".to_string()));
         }
 
         // 检查该期间内是否有未过账的凭证
@@ -108,7 +106,7 @@ impl AccountingPeriodService {
             .await?;
 
         if unposted_vouchers > 0 {
-            return Err(AppError::BusinessError(format!(
+            return Err(AppError::business(format!(
                 "该期间有 {} 张凭证未过账，请先完成所有凭证的过账操作",
                 unposted_vouchers
             )));
@@ -142,7 +140,7 @@ impl AccountingPeriodService {
         let dt = Utc.from_utc_datetime(
             &date
                 .and_hms_opt(0, 0, 0)
-                .ok_or_else(|| AppError::BadRequest(format!("Invalid date: {:?}", date)))?,
+                .ok_or_else(|| AppError::bad_request(format!("Invalid date: {:?}", date)))?,
         );
 
         let period = accounting_period::Entity::find()
@@ -153,14 +151,14 @@ impl AccountingPeriodService {
 
         if let Some(p) = period {
             if p.status == "CLOSED" {
-                return Err(AppError::BusinessError(format!(
+                return Err(AppError::business(format!(
                     "日期 {} 属于已结账的财务期间 ({})，该期间的数据已被锁定，不可修改或新增。",
                     date.format("%Y-%m-%d"),
                     p.period_name
                 )));
             }
         } else {
-            return Err(AppError::BusinessError(format!(
+            return Err(AppError::business(format!(
                 "日期 {} 不在任何已设置的会计期间内，请先创建对应的会计期间。",
                 date.format("%Y-%m-%d")
             )));

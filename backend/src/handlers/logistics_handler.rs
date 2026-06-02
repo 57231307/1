@@ -35,7 +35,7 @@ pub async fn create_waybill(
     let order = sales_order::Entity::find_by_id(req.order_id)
         .one(&txn)
         .await?
-        .ok_or_else(|| AppError::NotFound("订单不存在".to_string()))?;
+        .ok_or_else(|| AppError::not_found("订单不存在"))?;
 
     // Create waybill
     let freight = req
@@ -96,7 +96,7 @@ pub async fn update_waybill_status(
     let waybill = logistics_waybill::Entity::find_by_id(id)
         .one(&*state.db)
         .await?
-        .ok_or_else(|| AppError::NotFound("运单不存在".to_string()))?;
+        .ok_or_else(|| AppError::not_found("运单不存在"))?;
 
     let mut active_waybill: logistics_waybill::ActiveModel = waybill.into();
     active_waybill.status = Set(Some(req.status.clone()));
@@ -118,7 +118,7 @@ pub async fn get_waybill(
     let waybill = logistics_waybill::Entity::find_by_id(id)
         .one(&*state.db)
         .await?
-        .ok_or_else(|| AppError::NotFound("运单不存在".to_string()))?;
+        .ok_or_else(|| AppError::not_found("运单不存在"))?;
 
     Ok(Json(ApiResponse::success(waybill)))
 }
@@ -130,13 +130,13 @@ pub async fn delete_waybill(
     let waybill = logistics_waybill::Entity::find_by_id(id)
         .one(&*state.db)
         .await?
-        .ok_or_else(|| AppError::NotFound("运单不存在".to_string()))?;
+        .ok_or_else(|| AppError::not_found("运单不存在"))?;
 
     // 检查是否可以删除（例如：未发货的运单才能删除）
     if waybill.status == Some("IN_TRANSIT".to_string())
         || waybill.status == Some("DELIVERED".to_string())
     {
-        return Err(AppError::BadRequest(
+        return Err(AppError::bad_request(
             "运输中或已送达的运单不能删除".to_string(),
         ));
     }

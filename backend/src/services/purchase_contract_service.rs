@@ -124,7 +124,7 @@ impl PurchaseContractService {
         let contract = purchase_contract::Entity::find_by_id(id)
             .one(&*self.db)
             .await?
-            .ok_or_else(|| AppError::NotFound(format!("采购合同不存在：{}", id)))?;
+            .ok_or_else(|| AppError::not_found(format!("采购合同不存在：{}", id)))?;
         Ok(contract)
     }
 
@@ -145,14 +145,14 @@ impl PurchaseContractService {
 
         // 检查合同状态
         if contract.status != "active" {
-            return Err(AppError::ValidationError(
+            return Err(AppError::validation(
                 "只有活跃状态的合同才能执行".to_string(),
             ));
         }
 
         // 验证执行金额为正数
         if req.execution_amount <= Decimal::ZERO {
-            return Err(AppError::ValidationError("执行金额必须大于零".to_string()));
+            return Err(AppError::validation("执行金额必须大于零"));
         }
 
         // 计算已执行金额并验证不超过合同总额
@@ -170,7 +170,7 @@ impl PurchaseContractService {
 
             let remaining = total_amount - executed_amount;
             if req.execution_amount > remaining {
-                return Err(AppError::ValidationError(format!(
+                return Err(AppError::validation(format!(
                     "执行金额 {} 超过合同剩余可执行金额 {}（合同总额 {}，已执行 {}）",
                     req.execution_amount, remaining, total_amount, executed_amount
                 )));
@@ -225,7 +225,7 @@ impl PurchaseContractService {
         let contract = self.get_by_id(contract_id).await?;
 
         if contract.status != "draft" {
-            return Err(AppError::ValidationError(
+            return Err(AppError::validation(
                 "只有草稿状态的合同才能审核".to_string(),
             ));
         }
@@ -255,7 +255,7 @@ impl PurchaseContractService {
         let contract = self.get_by_id(contract_id).await?;
 
         if contract.status != "active" && contract.status != "draft" {
-            return Err(AppError::ValidationError(
+            return Err(AppError::validation(
                 "只能取消活跃或草稿状态的合同".to_string(),
             ));
         }

@@ -88,7 +88,7 @@ pub async fn get_credit(
     let credit = service
         .get_by_customer_id(customer_id)
         .await?
-        .ok_or_else(|| AppError::NotFound(format!("客户 {} 的信用评级不存在", customer_id)))?;
+        .ok_or_else(|| AppError::not_found(format!("客户 {} 的信用评级不存在", customer_id)))?;
     info!(
         "客户 {} 信用详情查询成功，等级：{}",
         customer_id,

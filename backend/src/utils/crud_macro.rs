@@ -16,6 +16,37 @@ macro_rules! define_service {
     };
 }
 
+/// 通用单号生成函数宏
+/// 用于减少各个 service 中重复的 generate_*_no 函数模板代码
+#[macro_export]
+macro_rules! impl_generate_no {
+    ($fn_name:ident, $prefix:expr, $entity:ty, $column:expr) => {
+        pub async fn $fn_name(&self) -> Result<String, $crate::utils::error::AppError> {
+            $crate::utils::number_generator::DocumentNumberGenerator::generate_no(
+                &*self.db,
+                $prefix,
+                <$entity>::default(),
+                $column,
+            )
+            .await
+        }
+    };
+    ($fn_name:ident, $prefix:expr, $entity:ty, $column:expr, $conn:ident) => {
+        pub async fn $fn_name(
+            &self,
+            $conn: &sea_orm::DatabaseTransaction,
+        ) -> Result<String, $crate::utils::error::AppError> {
+            $crate::utils::number_generator::DocumentNumberGenerator::generate_no(
+                $conn,
+                $prefix,
+                <$entity>::default(),
+                $column,
+            )
+            .await
+        }
+    };
+}
+
 /// 通用 CRUD Handler 生成宏
 /// 用于减少各个实体基础增删改查路由的模板代码
 #[macro_export]
@@ -36,9 +67,7 @@ macro_rules! define_crud_handlers {
             $crate::utils::error::AppError,
         > {
             if let Err(e) = validator::Validate::validate(&params) {
-                return Err($crate::utils::error::AppError::ValidationError(
-                    e.to_string(),
-                ));
+                return Err($crate::utils::error::AppError::validation(e.to_string()));
             }
             let service = <$service_ty>::new(state.db.clone());
             let result = service.list(params).await?;
@@ -71,9 +100,7 @@ macro_rules! define_crud_handlers {
             $crate::utils::error::AppError,
         > {
             if let Err(e) = validator::Validate::validate(&req) {
-                return Err($crate::utils::error::AppError::ValidationError(
-                    e.to_string(),
-                ));
+                return Err($crate::utils::error::AppError::validation(e.to_string()));
             }
             let service = <$service_ty>::new(state.db.clone());
             let item = service.create(req).await?;
@@ -95,9 +122,7 @@ macro_rules! define_crud_handlers {
             $crate::utils::error::AppError,
         > {
             if let Err(e) = validator::Validate::validate(&req) {
-                return Err($crate::utils::error::AppError::ValidationError(
-                    e.to_string(),
-                ));
+                return Err($crate::utils::error::AppError::validation(e.to_string()));
             }
             let service = <$service_ty>::new(state.db.clone());
             let item = service.update(id, req).await?;

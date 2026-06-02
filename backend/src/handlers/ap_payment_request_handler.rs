@@ -98,7 +98,7 @@ pub async fn list_requests(
         params.page.unwrap_or(1),
         params.page_size.unwrap_or(20),
     ))
-    .map_err(|e| AppError::InternalError(e.to_string()))?;
+    .map_err(|e| AppError::internal(e.to_string()))?;
 
     Ok(Json(ApiResponse::success(result)))
 }
@@ -161,7 +161,7 @@ pub async fn create_request(
 
     req.validate().map_err(|e| {
         warn!("用户 {} 创建付款申请验证失败：{}", auth.username, e);
-        AppError::ValidationError(e.to_string())
+        AppError::validation(e.to_string())
     })?;
 
     let service = ApPaymentRequestService::new(state.db.clone());
@@ -190,7 +190,7 @@ pub async fn update_request(
 
     req.validate().map_err(|e| {
         warn!("用户 {} 更新付款申请验证失败：{}", auth.username, e);
-        AppError::ValidationError(e.to_string())
+        AppError::validation(e.to_string())
     })?;
 
     let service = ApPaymentRequestService::new(state.db.clone());

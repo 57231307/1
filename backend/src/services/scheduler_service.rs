@@ -28,7 +28,7 @@ impl SchedulerService {
     pub async fn new(db: Arc<DatabaseConnection>) -> Result<Self, AppError> {
         let scheduler = JobScheduler::new()
             .await
-            .map_err(|e| AppError::BusinessError(format!("创建调度器失败: {}", e)))?;
+            .map_err(|e| AppError::business(format!("创建调度器失败: {}", e)))?;
 
         Ok(Self { db, scheduler })
     }
@@ -45,7 +45,7 @@ impl SchedulerService {
         self.scheduler
             .start()
             .await
-            .map_err(|e| AppError::BusinessError(format!("启动调度器失败: {}", e)))?;
+            .map_err(|e| AppError::business(format!("启动调度器失败: {}", e)))?;
 
         tracing::info!("定时任务调度器已启动");
         Ok(())
@@ -56,7 +56,7 @@ impl SchedulerService {
         self.scheduler
             .shutdown()
             .await
-            .map_err(|e| AppError::BusinessError(format!("停止调度器失败: {}", e)))?;
+            .map_err(|e| AppError::business(format!("停止调度器失败: {}", e)))?;
 
         tracing::info!("定时任务调度器已停止");
         Ok(())
@@ -75,12 +75,12 @@ impl SchedulerService {
                 }
             });
         })
-        .map_err(|e| AppError::BusinessError(format!("创建定时任务失败: {}", e)))?;
+        .map_err(|e| AppError::business(format!("创建定时任务失败: {}", e)))?;
 
         self.scheduler
             .add(job)
             .await
-            .map_err(|e| AppError::BusinessError(format!("添加定时任务失败: {}", e)))?;
+            .map_err(|e| AppError::business(format!("添加定时任务失败: {}", e)))?;
 
         tracing::info!("已添加报表订阅定时任务");
         Ok(())
@@ -101,12 +101,12 @@ impl SchedulerService {
                 }
             });
         })
-        .map_err(|e| AppError::BusinessError(format!("创建财务指标计算任务失败: {}", e)))?;
+        .map_err(|e| AppError::business(format!("创建财务指标计算任务失败: {}", e)))?;
 
         self.scheduler
             .add(job)
             .await
-            .map_err(|e| AppError::BusinessError(format!("添加财务指标计算任务失败: {}", e)))?;
+            .map_err(|e| AppError::business(format!("添加财务指标计算任务失败: {}", e)))?;
 
         tracing::info!("已添加每日财务指标计算任务（每天凌晨 00:05 执行）");
         Ok(())
@@ -203,7 +203,7 @@ impl SchedulerService {
         let template = template_service
             .get_by_id(subscription.template_id)
             .await?
-            .ok_or_else(|| AppError::NotFound("报表模板不存在".to_string()))?;
+            .ok_or_else(|| AppError::not_found("报表模板不存在"))?;
 
         // 执行报表
         let (headers, data, _total) = template_service
@@ -228,7 +228,7 @@ impl SchedulerService {
                 (format!("report_{}.xlsx", template.code), csv.into_bytes())
             }
             _ => {
-                return Err(AppError::BusinessError(format!(
+                return Err(AppError::business(format!(
                     "不支持的导出格式: {}",
                     subscription.export_format
                 )));
@@ -284,7 +284,7 @@ impl SchedulerService {
         let model = ReportSubscriptionEntity::find_by_id(subscription_id)
             .one(db.as_ref())
             .await?
-            .ok_or_else(|| AppError::NotFound("订阅不存在".to_string()))?;
+            .ok_or_else(|| AppError::not_found("订阅不存在"))?;
 
         let mut active_model: crate::models::report_subscription::ActiveModel = model.into();
         active_model.last_run_status = Set(Some(status.to_string()));
@@ -307,7 +307,7 @@ impl SchedulerService {
         let model = ReportSubscriptionEntity::find_by_id(subscription_id)
             .one(db.as_ref())
             .await?
-            .ok_or_else(|| AppError::NotFound("订阅不存在".to_string()))?;
+            .ok_or_else(|| AppError::not_found("订阅不存在"))?;
 
         let run_count = model.run_count + 1;
         let mut active_model: crate::models::report_subscription::ActiveModel = model.into();

@@ -69,7 +69,7 @@ impl AuditLogService {
         // 获取主键
         let pk_col = E::PrimaryKey::iter()
             .next()
-            .ok_or_else(|| AppError::BusinessError("Entity has no primary key".to_string()))?
+            .ok_or_else(|| AppError::business("Entity has no primary key"))?
             .into_column();
 
         let pk_val = active_model.get(pk_col);

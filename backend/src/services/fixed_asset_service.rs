@@ -153,7 +153,7 @@ impl FixedAssetService {
         let asset = fixed_asset::Entity::find_by_id(id)
             .one(&*self.db)
             .await?
-            .ok_or_else(|| AppError::NotFound(format!("固定资产不存在：{}", id)))?;
+            .ok_or_else(|| AppError::not_found(format!("固定资产不存在：{}", id)))?;
         Ok(asset)
     }
 
@@ -175,7 +175,7 @@ impl FixedAssetService {
             }
             Some(method) => {
                 error!("不支持的折旧方法：{}", method);
-                return Err(AppError::ValidationError(format!(
+                return Err(AppError::validation(format!(
                     "不支持的折旧方法：{}",
                     method
                 )));
@@ -202,7 +202,7 @@ impl FixedAssetService {
 
         // 检查资产状态
         if asset.status != "active" {
-            return Err(AppError::ValidationError(
+            return Err(AppError::validation(
                 "只有活跃状态的资产才能计提折旧".to_string(),
             ));
         }
@@ -211,7 +211,7 @@ impl FixedAssetService {
         let monthly_depreciation = self.calculate_monthly_depreciation(asset_id).await?;
 
         if monthly_depreciation <= Decimal::ZERO {
-            return Err(AppError::ValidationError("月折旧额不能为零".to_string()));
+            return Err(AppError::validation("月折旧额不能为零"));
         }
 
         // 开启事务
@@ -256,7 +256,7 @@ impl FixedAssetService {
 
         // 检查资产状态
         if asset.status != "active" {
-            return Err(AppError::ValidationError(
+            return Err(AppError::validation(
                 "只有活跃状态的资产才能处置".to_string(),
             ));
         }
@@ -312,9 +312,7 @@ impl FixedAssetService {
         let asset = self.get_by_id(asset_id).await?;
 
         if asset.status != "inactive" {
-            return Err(AppError::ValidationError(
-                "只能删除未使用状态的资产".to_string(),
-            ));
+            return Err(AppError::validation("只能删除未使用状态的资产".to_string()));
         }
 
         fixed_asset::Entity::delete_many()
@@ -337,7 +335,7 @@ impl FixedAssetService {
 
         let calc_date = calculation_date
             .parse::<NaiveDate>()
-            .map_err(|_| AppError::ValidationError("日期格式错误".to_string()))?;
+            .map_err(|_| AppError::validation("日期格式错误"))?;
 
         // 批量查询所有固定资产
         let assets = fixed_asset::Entity::find()
@@ -352,7 +350,7 @@ impl FixedAssetService {
         for asset_id in asset_ids {
             let asset = asset_map
                 .get(&asset_id)
-                .ok_or_else(|| AppError::NotFound("固定资产".to_string()))?;
+                .ok_or_else(|| AppError::not_found("固定资产"))?;
 
             // 计算折旧
             let depreciation = self.calculate_asset_depreciation(asset, calc_date)?;

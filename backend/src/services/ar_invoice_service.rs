@@ -13,7 +13,6 @@ use tracing::info;
 use crate::models::ar_invoice;
 use crate::models::sales_delivery;
 use crate::utils::error::AppError;
-use crate::utils::number_generator::DocumentNumberGenerator;
 use chrono::{Duration, Utc};
 use rust_decimal::Decimal;
 use sea_orm::ActiveValue::Set;
@@ -66,10 +65,7 @@ impl ArInvoiceService {
         let delivery = sales_delivery::Entity::find_by_id(delivery_id)
             .one(&txn)
             .await?
-            .ok_or(AppError::NotFound(format!(
-                "销售出库单 {} 不存在",
-                delivery_id
-            )))?;
+            .ok_or_else(|| AppError::not_found(format!("销售出库单 {} 不存在", delivery_id)))?;
 
         // 2. 检查是否已生成应收单
         let exists = ar_invoice::Entity::find()
@@ -79,17 +75,14 @@ impl ArInvoiceService {
             .await?;
 
         if exists.is_some() {
-            return Err(AppError::BadRequest("该出库单已生成应收单".to_string()));
+            return Err(AppError::bad_request("该出库单已生成应收单"));
         }
 
         // 3. 获取客户信息
         let customer = crate::models::customer::Entity::find_by_id(delivery.customer_id)
             .one(&txn)
             .await?
-            .ok_or(AppError::NotFound(format!(
-                "客户 {} 不存在",
-                delivery.customer_id
-            )))?;
+            .ok_or_else(|| AppError::not_found(format!("客户 {} 不存在", delivery.customer_id)))?;
 
         // 使用默认账期 30 天
         let payment_terms = 30;
@@ -140,17 +133,17 @@ impl ArInvoiceService {
         // 验证客户ID
         let customer_id = req
             .customer_id
-            .ok_or_else(|| AppError::ValidationError("客户ID不能为空".to_string()))?;
+            .ok_or_else(|| AppError::validation("客户ID不能为空"))?;
         if customer_id <= 0 {
-            return Err(AppError::ValidationError("客户ID无效".to_string()));
+            return Err(AppError::validation("客户ID无效"));
         }
 
         // 验证发票金额
         let invoice_amount = req
             .invoice_amount
-            .ok_or_else(|| AppError::ValidationError("发票金额不能为空".to_string()))?;
+            .ok_or_else(|| AppError::validation("发票金额不能为空"))?;
         if invoice_amount <= Decimal::ZERO {
-            return Err(AppError::ValidationError("发票金额必须大于零".to_string()));
+            return Err(AppError::validation("发票金额必须大于零"));
         }
 
         info!(
@@ -233,21 +226,18 @@ impl ArInvoiceService {
         let invoice = ar_invoice::Entity::find_by_id(id)
             .one(&*self.db)
             .await?
-            .ok_or_else(|| AppError::NotFound(format!("应收单不存在：{}", id)))?;
+            .ok_or_else(|| AppError::not_found(format!("应收单不存在：{}", id)))?;
 
         Ok(invoice)
     }
 
     /// 生成应收单编号
-    async fn generate_invoice_no(&self) -> Result<String, AppError> {
-        DocumentNumberGenerator::generate_no(
-            &*self.db,
-            "AR",
-            ar_invoice::Entity,
-            ar_invoice::Column::InvoiceNo,
-        )
-        .await
-    }
+    crate::impl_generate_no!(
+        generate_invoice_no,
+        "AR",
+        ar_invoice::Entity,
+        ar_invoice::Column::InvoiceNo
+    );
 
     pub async fn update(
         &self,
@@ -258,10 +248,10 @@ impl ArInvoiceService {
         let invoice = ar_invoice::Entity::find_by_id(id)
             .one(&*self.db)
             .await?
-            .ok_or_else(|| AppError::NotFound("应收单不存在".to_string()))?;
+            .ok_or_else(|| AppError::not_found("应收单不存在"))?;
 
         if invoice.status != "DRAFT" {
-            return Err(AppError::BadRequest(
+            return Err(AppError::bad_request(
                 "非草稿状态的应收单无法修改".to_string(),
             ));
         }
@@ -297,10 +287,10 @@ impl ArInvoiceService {
         let invoice = ar_invoice::Entity::find_by_id(id)
             .one(&*self.db)
             .await?
-            .ok_or_else(|| AppError::NotFound("应收单不存在".to_string()))?;
+            .ok_or_else(|| AppError::not_found("应收单不存在"))?;
 
         if invoice.status != "DRAFT" {
-            return Err(AppError::BadRequest(
+            return Err(AppError::bad_request(
                 "非草稿状态的应收单无法删除".to_string(),
             ));
         }
@@ -314,10 +304,10 @@ impl ArInvoiceService {
         let invoice = ar_invoice::Entity::find_by_id(id)
             .one(&*self.db)
             .await?
-            .ok_or_else(|| AppError::NotFound("应收单不存在".to_string()))?;
+            .ok_or_else(|| AppError::not_found("应收单不存在"))?;
 
         if invoice.status != "DRAFT" {
-            return Err(AppError::BadRequest("只能审批草稿状态的应收单".to_string()));
+            return Err(AppError::bad_request("只能审批草稿状态的应收单"));
         }
 
         let mut active_invoice: ar_invoice::ActiveModel = invoice.into();
@@ -337,10 +327,10 @@ impl ArInvoiceService {
         let invoice = ar_invoice::Entity::find_by_id(id)
             .one(&*self.db)
             .await?
-            .ok_or_else(|| AppError::NotFound("应收单不存在".to_string()))?;
+            .ok_or_else(|| AppError::not_found("应收单不存在"))?;
 
         if invoice.status == "PAID" || invoice.status == "CANCELLED" {
-            return Err(AppError::BadRequest(format!(
+            return Err(AppError::bad_request(format!(
                 "应收单状态为{}，不可标记为已收讫",
                 invoice.status
             )));
@@ -372,10 +362,10 @@ impl ArInvoiceService {
         let invoice = ar_invoice::Entity::find_by_id(id)
             .one(&*self.db)
             .await?
-            .ok_or_else(|| AppError::NotFound("应收单不存在".to_string()))?;
+            .ok_or_else(|| AppError::not_found("应收单不存在"))?;
 
         if invoice.status == "CANCELLED" {
-            return Err(AppError::BadRequest("单据已取消".to_string()));
+            return Err(AppError::bad_request("单据已取消"));
         }
 
         let mut active_invoice: ar_invoice::ActiveModel = invoice.into();

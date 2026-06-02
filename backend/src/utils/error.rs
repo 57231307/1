@@ -22,6 +22,33 @@ pub enum AppError {
     },
 }
 
+impl AppError {
+    pub fn not_found(msg: impl Into<String>) -> Self {
+        Self::NotFound(msg.into())
+    }
+    pub fn business(msg: impl Into<String>) -> Self {
+        Self::BusinessError(msg.into())
+    }
+    pub fn validation(msg: impl Into<String>) -> Self {
+        Self::ValidationError(msg.into())
+    }
+    pub fn unauthorized(msg: impl Into<String>) -> Self {
+        Self::Unauthorized(msg.into())
+    }
+    pub fn internal(msg: impl Into<String>) -> Self {
+        Self::InternalError(msg.into())
+    }
+    pub fn bad_request(msg: impl Into<String>) -> Self {
+        Self::BadRequest(msg.into())
+    }
+    pub fn permission_denied(msg: impl Into<String>) -> Self {
+        Self::PermissionDenied(msg.into())
+    }
+    pub fn database(msg: impl Into<String>) -> Self {
+        Self::DatabaseError(msg.into())
+    }
+}
+
 impl fmt::Display for AppError {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
@@ -245,7 +272,7 @@ impl From<sea_orm::DbErr> for AppError {
         match &err {
             sea_orm::DbErr::Conn(_) => {
                 tracing::error!("数据库连接失败：{}", err);
-                AppError::DatabaseError("数据库连接失败".to_string())
+                AppError::database("数据库连接失败")
             }
             sea_orm::DbErr::Exec(_) => {
                 let error_kind =
@@ -259,7 +286,7 @@ impl From<sea_orm::DbErr> for AppError {
                         "数据库执行错误"
                     };
                 tracing::error!("数据库执行错误 [{}]: {}", error_kind, err);
-                AppError::DatabaseError(error_kind.to_string())
+                AppError::database(error_kind.to_string())
             }
             sea_orm::DbErr::Query(_) => {
                 let error_kind = if err_str.contains("syntax error") {
@@ -268,11 +295,11 @@ impl From<sea_orm::DbErr> for AppError {
                     "数据库查询错误"
                 };
                 tracing::error!("数据库查询错误 [{}]: {}", error_kind, err);
-                AppError::DatabaseError(error_kind.to_string())
+                AppError::database(error_kind.to_string())
             }
             sea_orm::DbErr::RecordNotFound(msg) => {
                 tracing::warn!("记录不存在：{}", msg);
-                AppError::NotFound(msg.clone())
+                AppError::not_found(msg.clone())
             }
             sea_orm::DbErr::Custom(_) => {
                 let error_kind = if err_str.contains("timeout") {
@@ -281,23 +308,23 @@ impl From<sea_orm::DbErr> for AppError {
                     "数据库自定义错误"
                 };
                 tracing::error!("数据库自定义错误 [{}]: {}", error_kind, err);
-                AppError::DatabaseError(error_kind.to_string())
+                AppError::database(error_kind.to_string())
             }
             sea_orm::DbErr::Type(msg) => {
                 tracing::error!("数据库类型错误：{:?}", msg);
-                AppError::DatabaseError(format!("数据库类型错误: {}", msg))
+                AppError::database(format!("数据库类型错误: {}", msg))
             }
             sea_orm::DbErr::Json(msg) => {
                 tracing::error!("数据库 JSON 错误：{}", msg);
-                AppError::DatabaseError("数据库 JSON 处理错误".to_string())
+                AppError::database("数据库 JSON 处理错误")
             }
             sea_orm::DbErr::Migration(msg) => {
                 tracing::error!("数据库迁移错误：{}", msg);
-                AppError::DatabaseError("数据库迁移错误".to_string())
+                AppError::database("数据库迁移错误")
             }
             _ => {
                 tracing::error!("数据库操作失败：{}", err);
-                AppError::DatabaseError("数据库操作失败".to_string())
+                AppError::database("数据库操作失败")
             }
         }
     }
@@ -305,25 +332,25 @@ impl From<sea_orm::DbErr> for AppError {
 
 impl From<serde_json::Error> for AppError {
     fn from(err: serde_json::Error) -> Self {
-        AppError::InternalError(format!("JSON 序列化错误：{}", err))
+        AppError::internal(format!("JSON 序列化错误：{}", err))
     }
 }
 
 impl From<(StatusCode, String)> for AppError {
     fn from((status, msg): (StatusCode, String)) -> Self {
         match status {
-            StatusCode::NOT_FOUND => AppError::NotFound(msg),
-            StatusCode::BAD_REQUEST => AppError::BadRequest(msg),
-            StatusCode::UNAUTHORIZED => AppError::Unauthorized(msg),
-            StatusCode::FORBIDDEN => AppError::PermissionDenied(msg),
-            StatusCode::INTERNAL_SERVER_ERROR => AppError::InternalError(msg),
-            _ => AppError::BadRequest(msg),
+            StatusCode::NOT_FOUND => AppError::not_found(msg),
+            StatusCode::BAD_REQUEST => AppError::bad_request(msg),
+            StatusCode::UNAUTHORIZED => AppError::unauthorized(msg),
+            StatusCode::FORBIDDEN => AppError::permission_denied(msg),
+            StatusCode::INTERNAL_SERVER_ERROR => AppError::internal(msg),
+            _ => AppError::bad_request(msg),
         }
     }
 }
 
 impl From<validator::ValidationErrors> for AppError {
     fn from(err: validator::ValidationErrors) -> Self {
-        AppError::ValidationError(err.to_string())
+        AppError::validation(err.to_string())
     }
 }

@@ -38,18 +38,18 @@ pub async fn split_fabric_piece(
     let parent = inventory_piece::Entity::find_by_id(req.parent_piece_id)
         .one(&txn)
         .await?
-        .ok_or_else(|| AppError::NotFound("未找到母卷(原始布卷)".to_string()))?;
+        .ok_or_else(|| AppError::not_found("未找到母卷(原始布卷)"))?;
 
     // 状态检查
     if parent.status == "SHIPPED" || parent.status == "UNAVAILABLE" {
-        return Err(AppError::BadRequest(
+        return Err(AppError::bad_request(
             "当前布卷已发货或不可用，无法进行剪裁拆分".to_string(),
         ));
     }
 
     // 长度校验
     if parent.length < req.cut_length {
-        return Err(AppError::BadRequest(format!(
+        return Err(AppError::bad_request(format!(
             "剪裁长度 ({}) 超过母卷可用长度 ({})",
             req.cut_length, parent.length
         )));
@@ -65,7 +65,7 @@ pub async fn split_fabric_piece(
         if pw >= cw {
             active_parent.weight = Set(Some(pw - cw));
         } else {
-            return Err(AppError::BadRequest(
+            return Err(AppError::bad_request(
                 "剪裁重量不能大于母卷总重量".to_string(),
             ));
         }

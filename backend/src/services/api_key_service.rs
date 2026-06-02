@@ -109,7 +109,7 @@ impl ApiKeyService {
         let key = ApiKey::find_by_id(id)
             .one(self.db.as_ref())
             .await?
-            .ok_or(AppError::BusinessError("API 密钥不存在".to_string()))?;
+            .ok_or_else(|| AppError::business("API 密钥不存在"))?;
 
         let mut active_model: ApiKeyActiveModel = key.into();
         active_model.is_active = Set(false);

@@ -14,7 +14,7 @@ impl TotpService {
     ) -> Result<(String, String), AppError> {
         let secret = Secret::generate_secret()
             .to_bytes()
-            .map_err(|e| AppError::InternalError(format!("TOTP密钥生成失败: {}", e)))?;
+            .map_err(|e| AppError::internal(format!("TOTP密钥生成失败: {}", e)))?;
 
         let totp = TOTP::new(
             Algorithm::SHA256,
@@ -25,18 +25,18 @@ impl TotpService {
             Some("Bingxi ERP".to_string()),
             username.to_string(),
         )
-        .map_err(|e| AppError::InternalError(format!("TOTP 生成失败: {}", e)))?;
+        .map_err(|e| AppError::internal(format!("TOTP 生成失败: {}", e)))?;
 
         let secret_base32 = totp.get_secret_base32();
         let qr_code = totp
             .get_qr_base64()
-            .map_err(|e| AppError::InternalError(format!("QR 生成失败: {}", e)))?;
+            .map_err(|e| AppError::internal(format!("QR 生成失败: {}", e)))?;
 
         // 临时保存在数据库中，但不开启
         let user = user::Entity::find_by_id(user_id)
             .one(&*self.db)
             .await?
-            .ok_or_else(|| AppError::NotFound("User".to_string()))?;
+            .ok_or_else(|| AppError::not_found("User"))?;
 
         let mut active_user: user::ActiveModel = user.into();
         active_user.totp_secret = Set(Some(secret_base32.clone()));
@@ -51,16 +51,16 @@ impl TotpService {
         let user = user::Entity::find_by_id(user_id)
             .one(&*self.db)
             .await?
-            .ok_or_else(|| AppError::NotFound("User".to_string()))?;
+            .ok_or_else(|| AppError::not_found("User"))?;
 
         let secret_base32 = user
             .totp_secret
             .clone()
-            .ok_or_else(|| AppError::BadRequest("未生成 TOTP Secret".to_string()))?;
+            .ok_or_else(|| AppError::bad_request("未生成 TOTP Secret"))?;
 
         let secret = Secret::Encoded(secret_base32)
             .to_bytes()
-            .map_err(|e| AppError::InternalError(format!("TOTP密钥解析失败: {}", e)))?;
+            .map_err(|e| AppError::internal(format!("TOTP密钥解析失败: {}", e)))?;
         let totp = TOTP::new(
             Algorithm::SHA256,
             6,
@@ -70,7 +70,7 @@ impl TotpService {
             None,
             "".to_string(),
         )
-        .map_err(|e| AppError::InternalError(format!("TOTP实例创建失败: {}", e)))?;
+        .map_err(|e| AppError::internal(format!("TOTP实例创建失败: {}", e)))?;
 
         let is_valid = match totp.check_current(token) {
             Ok(valid) => valid,
@@ -96,7 +96,7 @@ impl TotpService {
         let user = user::Entity::find_by_id(user_id)
             .one(&*self.db)
             .await?
-            .ok_or_else(|| AppError::NotFound("User".to_string()))?;
+            .ok_or_else(|| AppError::not_found("User"))?;
 
         if !user.is_totp_enabled {
             // 如果没开启 TOTP，则无需验证
@@ -105,10 +105,10 @@ impl TotpService {
 
         let secret_base32 = user
             .totp_secret
-            .ok_or_else(|| AppError::InternalError("TOTP Secret未找到".to_string()))?;
+            .ok_or_else(|| AppError::internal("TOTP Secret未找到"))?;
         let secret = Secret::Encoded(secret_base32)
             .to_bytes()
-            .map_err(|e| AppError::InternalError(format!("TOTP密钥解析失败: {}", e)))?;
+            .map_err(|e| AppError::internal(format!("TOTP密钥解析失败: {}", e)))?;
         let totp = TOTP::new(
             Algorithm::SHA256,
             6,
@@ -118,7 +118,7 @@ impl TotpService {
             None,
             "".to_string(),
         )
-        .map_err(|e| AppError::InternalError(format!("TOTP实例创建失败: {}", e)))?;
+        .map_err(|e| AppError::internal(format!("TOTP实例创建失败: {}", e)))?;
 
         let is_valid = match totp.check_current(token) {
             Ok(valid) => valid,

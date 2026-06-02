@@ -250,16 +250,10 @@ impl From<TenantIsolationError> for axum::http::StatusCode {
 impl From<TenantIsolationError> for AppError {
     fn from(err: TenantIsolationError) -> Self {
         match err {
-            TenantIsolationError::DatabaseError(e) => AppError::DatabaseError(e),
-            TenantIsolationError::AccessDenied => {
-                AppError::PermissionDenied("租户访问被拒绝".to_string())
-            }
-            TenantIsolationError::TenantInactive => {
-                AppError::BusinessError("租户不存在或已禁用".to_string())
-            }
-            TenantIsolationError::MissingTenantId => {
-                AppError::BadRequest("缺少租户标识".to_string())
-            }
+            TenantIsolationError::DatabaseError(e) => AppError::database(e),
+            TenantIsolationError::AccessDenied => AppError::permission_denied("租户访问被拒绝"),
+            TenantIsolationError::TenantInactive => AppError::business("租户不存在或已禁用"),
+            TenantIsolationError::MissingTenantId => AppError::bad_request("缺少租户标识"),
         }
     }
 }

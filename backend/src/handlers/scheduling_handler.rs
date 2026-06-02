@@ -438,7 +438,7 @@ pub async fn get_schedule_result(
     let result = service.get_schedule_result(id).await?;
     match result {
         Some(model) => Ok(Json(ApiResponse::success(serde_json::to_value(model)?))),
-        None => Err(AppError::NotFound("排程结果不存在".to_string())),
+        None => Err(AppError::not_found("排程结果不存在")),
     }
 }
 

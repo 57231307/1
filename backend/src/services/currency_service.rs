@@ -218,14 +218,14 @@ impl CurrencyService {
                         match (from_to_base, base_to_target) {
                             (Some(f2b), Some(b2t)) => f2b.rate * b2t.rate,
                             _ => {
-                                return Err(AppError::BusinessError(format!(
+                                return Err(AppError::business(format!(
                                     "无法找到 {} 到 {} 的汇率",
                                     from_currency, to_currency
                                 )))
                             }
                         }
                     }
-                    None => return Err(AppError::BusinessError("未配置本位币".to_string())),
+                    None => return Err(AppError::business("未配置本位币")),
                 }
             }
         };
@@ -252,7 +252,7 @@ impl CurrencyService {
         let base_currency = self.get_base_currency().await?;
         let base_code = match base_currency {
             Some(base) => base.code,
-            None => return Err(AppError::BusinessError("未配置本位币".to_string())),
+            None => return Err(AppError::business("未配置本位币")),
         };
 
         let mut results = Vec::new();
@@ -286,10 +286,10 @@ impl CurrencyService {
             .timeout(std::time::Duration::from_secs(10))
             .send()
             .await
-            .map_err(|e| AppError::BusinessError(format!("汇率API请求失败: {}", e)))?;
+            .map_err(|e| AppError::business(format!("汇率API请求失败: {}", e)))?;
 
         if !response.status().is_success() {
-            return Err(AppError::BusinessError(format!(
+            return Err(AppError::business(format!(
                 "汇率API返回错误: {}",
                 response.status()
             )));
@@ -298,21 +298,21 @@ impl CurrencyService {
         let body = response
             .text()
             .await
-            .map_err(|e| AppError::BusinessError(format!("读取汇率API响应失败: {}", e)))?;
+            .map_err(|e| AppError::business(format!("读取汇率API响应失败: {}", e)))?;
 
         let api_response: serde_json::Value = serde_json::from_str(&body)
-            .map_err(|e| AppError::BusinessError(format!("解析汇率API响应失败: {}", e)))?;
+            .map_err(|e| AppError::business(format!("解析汇率API响应失败: {}", e)))?;
 
         let rates = api_response
             .get("rates")
             .and_then(|r| r.as_object())
-            .ok_or_else(|| AppError::BusinessError("汇率API响应格式错误".to_string()))?;
+            .ok_or_else(|| AppError::business("汇率API响应格式错误"))?;
 
         let rate = rates
             .get(to_currency)
             .and_then(|r| r.as_f64())
             .ok_or_else(|| {
-                AppError::BusinessError(format!("未找到汇率: {} -> {}", from_currency, to_currency))
+                AppError::business(format!("未找到汇率: {} -> {}", from_currency, to_currency))
             })?;
 
         let decimal_rate = Decimal::from_f64_retain(rate).unwrap_or(Decimal::ZERO);
@@ -359,7 +359,7 @@ impl CurrencyService {
         let base_currency = self.get_base_currency().await?;
         let base_code = match base_currency {
             Some(base) => base.code,
-            None => return Err(AppError::BusinessError("未配置本位币".to_string())),
+            None => return Err(AppError::business("未配置本位币")),
         };
 
         if currency_code == base_code {
@@ -377,7 +377,7 @@ impl CurrencyService {
         let base_currency = self.get_base_currency().await?;
         let base_code = match base_currency {
             Some(base) => base.code,
-            None => return Err(AppError::BusinessError("未配置本位币".to_string())),
+            None => return Err(AppError::business("未配置本位币")),
         };
 
         let currencies = self.list_currencies().await?;

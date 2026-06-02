@@ -46,7 +46,7 @@ impl SupplierService {
             .one(&*self.db)
             .await?;
         if existing.is_some() {
-            return Err(AppError::ValidationError(format!(
+            return Err(AppError::validation(format!(
                 "供应商名称 '{}' 已存在",
                 req.supplier_name
             )));
@@ -221,7 +221,7 @@ impl SupplierService {
         supplier::Entity::find_by_id(id)
             .one(&*self.db)
             .await?
-            .ok_or(AppError::NotFound(format!("供应商 {} 不存在", id)))
+            .ok_or_else(|| AppError::not_found(format!("供应商 {} 不存在", id)))
     }
 
     /// 更新供应商信息
@@ -335,7 +335,7 @@ impl SupplierService {
         // 检查是否有交易记录
         let can_delete = self.can_delete_supplier(id).await?;
         if !can_delete {
-            return Err(AppError::ValidationError(
+            return Err(AppError::validation(
                 "供应商有交易记录，无法删除".to_string(),
             ));
         }
@@ -524,7 +524,7 @@ impl SupplierService {
         supplier_contact::Entity::find_by_id(contact_id)
             .one(&*self.db)
             .await?
-            .ok_or(AppError::NotFound(format!("联系人 {} 不存在", contact_id)))
+            .ok_or_else(|| AppError::not_found(format!("联系人 {} 不存在", contact_id)))
     }
 
     /// 取消所有主要联系人
@@ -644,10 +644,7 @@ impl SupplierService {
         supplier_qualification::Entity::find_by_id(qualification_id)
             .one(&*self.db)
             .await?
-            .ok_or(AppError::NotFound(format!(
-                "资质 {} 不存在",
-                qualification_id
-            )))
+            .ok_or_else(|| AppError::not_found(format!("资质 {} 不存在", qualification_id)))
     }
 }
 

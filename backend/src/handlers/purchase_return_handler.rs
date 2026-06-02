@@ -38,7 +38,7 @@ pub async fn list_purchase_returns(
         params.page.unwrap_or(1),
         params.page_size.unwrap_or(20),
     ))
-    .map_err(|e| AppError::InternalError(e.to_string()))?;
+    .map_err(|e| AppError::internal(e.to_string()))?;
 
     Ok(Json(ApiResponse::success(result)))
 }

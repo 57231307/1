@@ -90,7 +90,7 @@ impl SalesPriceService {
                 .effective_date
                 .unwrap_or_else(|| chrono::Utc::now().format("%Y-%m-%d").to_string())
                 .parse()
-                .map_err(|e| AppError::ValidationError(format!("日期格式错误：{}", e)))?),
+                .map_err(|e| AppError::validation(format!("日期格式错误：{}", e)))?),
             expiry_date: Set(req.expiry_date.and_then(|d| d.parse().ok())),
             status: Set("pending".to_string()),
             created_by: Set(Some(user_id)),
@@ -108,7 +108,7 @@ impl SalesPriceService {
         let price = sales_price::Entity::find_by_id(id)
             .one(&*self.db)
             .await?
-            .ok_or_else(|| AppError::NotFound(format!("销售价格 {} 未找到", id)))?;
+            .ok_or_else(|| AppError::not_found(format!("销售价格 {} 未找到", id)))?;
 
         Ok(price)
     }
@@ -119,11 +119,11 @@ impl SalesPriceService {
         let price_model = sales_price::Entity::find_by_id(id)
             .one(&*self.db)
             .await?
-            .ok_or_else(|| AppError::NotFound(format!("销售价格 {} 未找到", id)))?;
+            .ok_or_else(|| AppError::not_found(format!("销售价格 {} 未找到", id)))?;
 
         // 检查状态，只有待审批状态可以批准
         if price_model.status != "pending" {
-            return Err(AppError::ValidationError(format!(
+            return Err(AppError::validation(format!(
                 "只有待审批状态的价格可以批准，当前状态：{}",
                 price_model.status
             )));
@@ -147,10 +147,10 @@ impl SalesPriceService {
         let price_model = sales_price::Entity::find_by_id(id)
             .one(&*self.db)
             .await?
-            .ok_or_else(|| AppError::NotFound(format!("销售价格 {} 未找到", id)))?;
+            .ok_or_else(|| AppError::not_found(format!("销售价格 {} 未找到", id)))?;
 
         if price_model.status != "approved" {
-            return Err(AppError::ValidationError(format!(
+            return Err(AppError::validation(format!(
                 "只有已批准的价格才能激活，当前状态：{}",
                 price_model.status
             )));
@@ -160,9 +160,7 @@ impl SalesPriceService {
         let today = chrono::Utc::now().date_naive();
         if let Some(expiry_date) = price_model.expiry_date {
             if expiry_date < today {
-                return Err(AppError::ValidationError(
-                    "价格已过期，无法激活".to_string(),
-                ));
+                return Err(AppError::validation("价格已过期，无法激活".to_string()));
             }
         }
 

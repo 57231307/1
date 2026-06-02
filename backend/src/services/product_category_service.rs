@@ -64,7 +64,7 @@ impl ProductCategoryService {
         ProductCategoryEntity::find_by_id(id)
             .one(&*self.db)
             .await?
-            .ok_or_else(|| AppError::NotFound(format!("产品类别 ID {} 不存在", id)))
+            .ok_or_else(|| AppError::not_found(format!("产品类别 ID {} 不存在", id)))
     }
 
     /// 创建产品类别
@@ -77,7 +77,7 @@ impl ProductCategoryService {
             let _ = ProductCategoryEntity::find_by_id(pid)
                 .one(&*self.db)
                 .await?
-                .ok_or_else(|| AppError::NotFound(format!("父类别 ID {} 不存在", pid)))?;
+                .ok_or_else(|| AppError::not_found(format!("父类别 ID {} 不存在", pid)))?;
         }
 
         let active_model = product_category::ActiveModel {
@@ -102,7 +102,7 @@ impl ProductCategoryService {
         let mut category: product_category::ActiveModel = ProductCategoryEntity::find_by_id(id)
             .one(&*self.db)
             .await?
-            .ok_or_else(|| AppError::NotFound(format!("产品类别 ID {} 不存在", id)))?
+            .ok_or_else(|| AppError::not_found(format!("产品类别 ID {} 不存在", id)))?
             .into();
 
         if let Some(n) = req.name {
@@ -114,7 +114,7 @@ impl ProductCategoryService {
                 .await?;
 
             if existing.is_some() {
-                return Err(AppError::BusinessError(format!("类别名称 '{}' 已存在", n)));
+                return Err(AppError::business(format!("类别名称 '{}' 已存在", n)));
             }
             category.name = Set(n);
         }
@@ -124,7 +124,7 @@ impl ProductCategoryService {
             let _ = ProductCategoryEntity::find_by_id(pid)
                 .one(&*self.db)
                 .await?
-                .ok_or_else(|| AppError::NotFound(format!("父类别 ID {} 不存在", pid)))?;
+                .ok_or_else(|| AppError::not_found(format!("父类别 ID {} 不存在", pid)))?;
             category.parent_id = Set(Some(pid));
         }
 
@@ -153,16 +153,14 @@ impl ProductCategoryService {
             .await?;
 
         if children_count > 0 {
-            return Err(AppError::BusinessError(
-                "该类别存在子类别，无法删除".to_string(),
-            ));
+            return Err(AppError::business("该类别存在子类别，无法删除".to_string()));
         }
 
         let result = ProductCategoryEntity::delete_by_id(id)
             .exec(&*self.db)
             .await?;
         if result.rows_affected == 0 {
-            return Err(AppError::NotFound(format!("产品类别 ID {} 不存在", id)));
+            return Err(AppError::not_found(format!("产品类别 ID {} 不存在", id)));
         }
         Ok(())
     }
@@ -173,7 +171,7 @@ impl ProductCategoryService {
             .filter(product_category::Column::Name.eq(name))
             .one(&*self.db)
             .await?
-            .ok_or_else(|| AppError::NotFound(format!("产品类别名称 {} 不存在", name)))
+            .ok_or_else(|| AppError::not_found(format!("产品类别名称 {} 不存在", name)))
     }
 
     /// 获取产品类别树形结构

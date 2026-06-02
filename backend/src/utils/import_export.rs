@@ -136,12 +136,12 @@ impl CsvImporter {
     /// - `Err(AppError)`: 解析失败
     pub fn parse(data: &[u8]) -> Result<Vec<HashMap<String, String>>, AppError> {
         let content = String::from_utf8(data.to_vec())
-            .map_err(|e| AppError::ValidationError(format!("无效的 UTF-8 数据: {}", e)))?;
+            .map_err(|e| AppError::validation(format!("无效的 UTF-8 数据: {}", e)))?;
 
         let mut reader = csv::Reader::from_reader(content.as_bytes());
         let headers = reader
             .headers()
-            .map_err(|e| AppError::ValidationError(format!("CSV 头解析失败: {}", e)))?
+            .map_err(|e| AppError::validation(format!("CSV 头解析失败: {}", e)))?
             .iter()
             .map(|h| h.to_string())
             .collect::<Vec<String>>();
@@ -150,7 +150,7 @@ impl CsvImporter {
 
         for (row_idx, result) in reader.records().enumerate() {
             let record = result.map_err(|e| {
-                AppError::ValidationError(format!("第 {} 行解析失败: {}", row_idx + 2, e))
+                AppError::validation(format!("第 {} 行解析失败: {}", row_idx + 2, e))
             })?;
 
             let mut row = HashMap::new();
@@ -183,7 +183,7 @@ impl CsvImporter {
         // 写入表头
         writer
             .write_record(headers)
-            .map_err(|e| AppError::InternalError(format!("CSV 头写入失败: {}", e)))?;
+            .map_err(|e| AppError::internal(format!("CSV 头写入失败: {}", e)))?;
 
         // 写入数据
         for row in rows {
@@ -193,12 +193,12 @@ impl CsvImporter {
                 .collect();
             writer
                 .write_record(&record)
-                .map_err(|e| AppError::InternalError(format!("CSV 数据写入失败: {}", e)))?;
+                .map_err(|e| AppError::internal(format!("CSV 数据写入失败: {}", e)))?;
         }
 
         writer
             .into_inner()
-            .map_err(|e| AppError::InternalError(format!("CSV 生成失败: {}", e)))
+            .map_err(|e| AppError::internal(format!("CSV 生成失败: {}", e)))
     }
 
     /// 生成 CSV 模板
@@ -218,7 +218,7 @@ impl CsvImporter {
         // 写入表头
         writer
             .write_record(headers)
-            .map_err(|e| AppError::InternalError(format!("CSV 头写入失败: {}", e)))?;
+            .map_err(|e| AppError::internal(format!("CSV 头写入失败: {}", e)))?;
 
         // 写入示例数据
         if let Some(examples) = examples {
@@ -229,13 +229,13 @@ impl CsvImporter {
                     .collect();
                 writer
                     .write_record(&record)
-                    .map_err(|e| AppError::InternalError(format!("CSV 示例写入失败: {}", e)))?;
+                    .map_err(|e| AppError::internal(format!("CSV 示例写入失败: {}", e)))?;
             }
         }
 
         writer
             .into_inner()
-            .map_err(|e| AppError::InternalError(format!("CSV 模板生成失败: {}", e)))
+            .map_err(|e| AppError::internal(format!("CSV 模板生成失败: {}", e)))
     }
 }
 

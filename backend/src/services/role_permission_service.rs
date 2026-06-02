@@ -105,7 +105,7 @@ impl RolePermissionService {
         let role = RoleEntity::find_by_id(role_id)
             .one(&*self.db)
             .await?
-            .ok_or_else(|| AppError::NotFound(format!("角色 {} 未找到", role_id)))?;
+            .ok_or_else(|| AppError::not_found(format!("角色 {} 未找到", role_id)))?;
 
         // 获取角色权限列表
         let permissions = RolePermissionEntity::find()
@@ -150,7 +150,7 @@ impl RolePermissionService {
             .await?;
 
         if existing.is_some() {
-            return Err(AppError::BusinessError("角色编码已存在".to_string()));
+            return Err(AppError::business("角色编码已存在"));
         }
 
         let role = role::ActiveModel {
@@ -178,11 +178,11 @@ impl RolePermissionService {
         let role = RoleEntity::find_by_id(role_id)
             .one(&*self.db)
             .await?
-            .ok_or_else(|| AppError::NotFound(format!("角色 {} 未找到", role_id)))?;
+            .ok_or_else(|| AppError::not_found(format!("角色 {} 未找到", role_id)))?;
 
         // 系统角色不允许修改
         if role.is_system {
-            return Err(AppError::BusinessError("系统角色不允许修改".to_string()));
+            return Err(AppError::business("系统角色不允许修改"));
         }
 
         // 如果修改了编码，检查新编码是否已存在
@@ -194,7 +194,7 @@ impl RolePermissionService {
                     .await?;
 
                 if existing.is_some() {
-                    return Err(AppError::BusinessError("角色编码已存在".to_string()));
+                    return Err(AppError::business("角色编码已存在"));
                 }
             }
         }
@@ -230,11 +230,11 @@ impl RolePermissionService {
         let role = RoleEntity::find_by_id(role_id)
             .one(&*self.db)
             .await?
-            .ok_or_else(|| AppError::NotFound(format!("角色 {} 未找到", role_id)))?;
+            .ok_or_else(|| AppError::not_found(format!("角色 {} 未找到", role_id)))?;
 
         // 系统角色不允许删除
         if role.is_system {
-            return Err(AppError::BusinessError("系统角色不允许删除".to_string()));
+            return Err(AppError::business("系统角色不允许删除"));
         }
 
         // 检查是否有用户关联此角色
@@ -244,7 +244,7 @@ impl RolePermissionService {
             .await?;
 
         if user_count > 0 {
-            return Err(AppError::BusinessError(format!(
+            return Err(AppError::business(format!(
                 "该角色下有 {} 个用户，请先移除用户的角色关联后再删除",
                 user_count
             )));
@@ -277,13 +277,11 @@ impl RolePermissionService {
         let role = RoleEntity::find_by_id(request.role_id)
             .one(&*self.db)
             .await?
-            .ok_or_else(|| AppError::NotFound(format!("角色 {} 未找到", request.role_id)))?;
+            .ok_or_else(|| AppError::not_found(format!("角色 {} 未找到", request.role_id)))?;
 
         // 系统角色不允许修改权限
         if role.is_system {
-            return Err(AppError::BusinessError(
-                "系统角色不允许修改权限".to_string(),
-            ));
+            return Err(AppError::business("系统角色不允许修改权限".to_string()));
         }
 
         // 检查权限是否已存在
@@ -357,7 +355,7 @@ impl RolePermissionService {
         let permission = RolePermissionEntity::find_by_id(permission_id)
             .one(&*self.db)
             .await?
-            .ok_or_else(|| AppError::NotFound(format!("权限 {} 未找到", permission_id)))?;
+            .ok_or_else(|| AppError::not_found(format!("权限 {} 未找到", permission_id)))?;
 
         // 检查是否为系统角色的权限
         let role = RoleEntity::find_by_id(permission.role_id)
@@ -366,9 +364,7 @@ impl RolePermissionService {
 
         if let Some(r) = role {
             if r.is_system {
-                return Err(AppError::BusinessError(
-                    "系统角色的权限不允许删除".to_string(),
-                ));
+                return Err(AppError::business("系统角色的权限不允许删除".to_string()));
             }
         }
 

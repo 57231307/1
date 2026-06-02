@@ -12,7 +12,6 @@ use tracing::info;
 
 use crate::models::cost_collection;
 use crate::utils::error::AppError;
-use crate::utils::number_generator::DocumentNumberGenerator;
 use rust_decimal::Decimal;
 use sea_orm::ActiveValue::Set;
 
@@ -165,21 +164,18 @@ impl CostCollectionService {
         let collection = cost_collection::Entity::find_by_id(id)
             .one(&*self.db)
             .await?
-            .ok_or_else(|| AppError::NotFound(format!("成本归集单不存在：{}", id)))?;
+            .ok_or_else(|| AppError::not_found(format!("成本归集单不存在：{}", id)))?;
 
         Ok(collection)
     }
 
     /// 生成成本归集单编号
-    async fn generate_collection_no(&self) -> Result<String, AppError> {
-        DocumentNumberGenerator::generate_no(
-            &*self.db,
-            "COST",
-            cost_collection::Entity,
-            cost_collection::Column::CollectionNo,
-        )
-        .await
-    }
+    crate::impl_generate_no!(
+        generate_collection_no,
+        "COST",
+        cost_collection::Entity,
+        cost_collection::Column::CollectionNo
+    );
 
     pub async fn update(
         &self,
@@ -190,7 +186,7 @@ impl CostCollectionService {
         let collection = cost_collection::Entity::find_by_id(id)
             .one(&*self.db)
             .await?
-            .ok_or_else(|| AppError::NotFound("成本归集记录不存在".to_string()))?;
+            .ok_or_else(|| AppError::not_found("成本归集记录不存在"))?;
 
         let mut active_collection: cost_collection::ActiveModel = collection.clone().into();
 
@@ -257,7 +253,7 @@ impl CostCollectionService {
         let _collection = cost_collection::Entity::find_by_id(id)
             .one(&*self.db)
             .await?
-            .ok_or_else(|| AppError::NotFound("成本归集记录不存在".to_string()))?;
+            .ok_or_else(|| AppError::not_found("成本归集记录不存在"))?;
 
         cost_collection::Entity::delete_by_id(id)
             .exec(&*self.db)
@@ -402,11 +398,11 @@ impl CostCollectionService {
         let collection = cost_collection::Entity::find_by_id(id)
             .one(&*self.db)
             .await?
-            .ok_or_else(|| AppError::NotFound("成本归集".to_string()))?;
+            .ok_or_else(|| AppError::not_found("成本归集"))?;
 
         // 只有草稿状态才能审核
         if collection.status != "draft" {
-            return Err(AppError::ValidationError(
+            return Err(AppError::validation(
                 "只有草稿状态的成本归集才能审核".to_string(),
             ));
         }

@@ -49,7 +49,7 @@ pub async fn create_recycle_rule(
     State(_state): State<AppState>,
     _auth: AuthContext,
 ) -> Result<Json<ApiResponse<RecycleRule>>, AppError> {
-    Err(AppError::BadRequest("功能暂未实现".to_string()))
+    Err(AppError::bad_request("功能暂未实现"))
 }
 
 /// 更新回收规则
@@ -58,7 +58,7 @@ pub async fn update_recycle_rule(
     State(_state): State<AppState>,
     _auth: AuthContext,
 ) -> Result<Json<ApiResponse<RecycleRule>>, AppError> {
-    Err(AppError::BadRequest("功能暂未实现".to_string()))
+    Err(AppError::bad_request("功能暂未实现"))
 }
 
 /// 删除回收规则
@@ -67,7 +67,7 @@ pub async fn delete_recycle_rule(
     State(_state): State<AppState>,
     _auth: AuthContext,
 ) -> Result<Json<ApiResponse<()>>, AppError> {
-    Err(AppError::BadRequest("功能暂未实现".to_string()))
+    Err(AppError::bad_request("功能暂未实现"))
 }
 
 /// MRP 历史记录
@@ -92,7 +92,7 @@ pub async fn get_mrp_history_detail(
     State(_state): State<AppState>,
     _auth: AuthContext,
 ) -> Result<Json<ApiResponse<MrpHistory>>, AppError> {
-    Err(AppError::BadRequest("功能暂未实现".to_string()))
+    Err(AppError::bad_request("功能暂未实现"))
 }
 
 /// 会计期间
@@ -119,7 +119,7 @@ pub async fn get_accounting_period_detail(
     State(_state): State<AppState>,
     _auth: AuthContext,
 ) -> Result<Json<ApiResponse<AccountingPeriod>>, AppError> {
-    Err(AppError::BadRequest("功能暂未实现".to_string()))
+    Err(AppError::bad_request("功能暂未实现"))
 }
 
 /// 创建会计期间
@@ -127,7 +127,7 @@ pub async fn create_accounting_period(
     State(_state): State<AppState>,
     _auth: AuthContext,
 ) -> Result<Json<ApiResponse<AccountingPeriod>>, AppError> {
-    Err(AppError::BadRequest("功能暂未实现".to_string()))
+    Err(AppError::bad_request("功能暂未实现"))
 }
 
 /// 更新会计期间
@@ -136,7 +136,7 @@ pub async fn update_accounting_period(
     State(_state): State<AppState>,
     _auth: AuthContext,
 ) -> Result<Json<ApiResponse<AccountingPeriod>>, AppError> {
-    Err(AppError::BadRequest("功能暂未实现".to_string()))
+    Err(AppError::bad_request("功能暂未实现"))
 }
 
 /// 删除会计期间
@@ -145,5 +145,5 @@ pub async fn delete_accounting_period(
     State(_state): State<AppState>,
     _auth: AuthContext,
 ) -> Result<Json<ApiResponse<()>>, AppError> {
-    Err(AppError::BadRequest("功能暂未实现".to_string()))
+    Err(AppError::bad_request("功能暂未实现"))
 }

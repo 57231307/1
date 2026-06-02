@@ -82,7 +82,7 @@ pub async fn create_production_order(
 ) -> Result<Json<ApiResponse<ProductionOrderResponse>>, AppError> {
     payload
         .validate()
-        .map_err(|e| AppError::ValidationError(e.to_string()))?;
+        .map_err(|e| AppError::validation(e.to_string()))?;
 
     let service = ProductionOrderService::new(state.db.clone());
 
@@ -132,7 +132,7 @@ pub async fn get_production_order(
     let model = service
         .get_by_id(id)
         .await?
-        .ok_or_else(|| AppError::NotFound("生产订单不存在".to_string()))?;
+        .ok_or_else(|| AppError::not_found("生产订单不存在"))?;
 
     let response = ProductionOrderResponse {
         id: model.id,
@@ -329,7 +329,7 @@ pub async fn update_production_order_status(
     let status = payload
         .get("status")
         .and_then(|v| v.as_str())
-        .ok_or_else(|| AppError::ValidationError("状态不能为空".to_string()))?;
+        .ok_or_else(|| AppError::validation("状态不能为空"))?;
 
     let actual_quantity = payload
         .get("actual_quantity")

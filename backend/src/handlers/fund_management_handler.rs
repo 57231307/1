@@ -238,8 +238,7 @@ pub async fn transfer(
     let service = FundManagementService::new(state.db.clone());
     let res = service.transfer_fund(req, auth.user_id).await?;
     Ok(Json(ApiResponse::success(
-        serde_json::to_value(res)
-            .map_err(|e| AppError::InternalError(format!("序列化失败: {}", e)))?,
+        serde_json::to_value(res).map_err(|e| AppError::internal(format!("序列化失败: {}", e)))?,
     )))
 }
 

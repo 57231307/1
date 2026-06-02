@@ -169,7 +169,7 @@ impl ImportExportService {
                     },
                 ],
             }),
-            _ => Err(AppError::ValidationError(format!(
+            _ => Err(AppError::validation(format!(
                 "不支持的导入类型: {}",
                 import_type
             ))),
@@ -184,8 +184,7 @@ impl ImportExportService {
 
         let mut rows = Vec::new();
         for result in reader.records() {
-            let record =
-                result.map_err(|e| AppError::ValidationError(format!("CSV解析错误: {}", e)))?;
+            let record = result.map_err(|e| AppError::validation(format!("CSV解析错误: {}", e)))?;
             let row: Vec<String> = record.iter().map(|s| s.to_string()).collect();
             rows.push(row);
         }
@@ -199,20 +198,19 @@ impl ImportExportService {
 
         // 写入表头
         wtr.write_record(headers)
-            .map_err(|e| AppError::ValidationError(format!("CSV写入错误: {}", e)))?;
+            .map_err(|e| AppError::validation(format!("CSV写入错误: {}", e)))?;
 
         // 写入数据行
         for row in data {
             wtr.write_record(row)
-                .map_err(|e| AppError::ValidationError(format!("CSV写入错误: {}", e)))?;
+                .map_err(|e| AppError::validation(format!("CSV写入错误: {}", e)))?;
         }
 
         let data = wtr
             .into_inner()
-            .map_err(|e| AppError::ValidationError(format!("CSV序列化错误: {}", e)))?;
+            .map_err(|e| AppError::validation(format!("CSV序列化错误: {}", e)))?;
 
-        String::from_utf8(data)
-            .map_err(|e| AppError::ValidationError(format!("CSV编码错误: {}", e)))
+        String::from_utf8(data).map_err(|e| AppError::validation(format!("CSV编码错误: {}", e)))
     }
 
     /// 验证导入数据
@@ -307,7 +305,7 @@ impl ImportExportService {
                 }
             }
             _ => {
-                return Err(AppError::ValidationError(format!(
+                return Err(AppError::validation(format!(
                     "不支持的导入类型: {}",
                     import_type
                 )));
@@ -342,9 +340,7 @@ impl ImportExportService {
             .unwrap_or(0.0);
 
         if code.is_empty() || name.is_empty() {
-            return Err(AppError::ValidationError(
-                "产品编码和名称不能为空".to_string(),
-            ));
+            return Err(AppError::validation("产品编码和名称不能为空".to_string()));
         }
 
         // 检查编码是否已存在
@@ -354,7 +350,7 @@ impl ImportExportService {
             .await?;
 
         if existing.is_some() {
-            return Err(AppError::BusinessError(format!("产品编码 {} 已存在", code)));
+            return Err(AppError::business(format!("产品编码 {} 已存在", code)));
         }
 
         let now = chrono::Utc::now();
@@ -411,9 +407,7 @@ impl ImportExportService {
         let phone = row.get(3).map(|s| s.trim().to_string()).unwrap_or_default();
 
         if code.is_empty() || name.is_empty() {
-            return Err(AppError::ValidationError(
-                "客户编码和名称不能为空".to_string(),
-            ));
+            return Err(AppError::validation("客户编码和名称不能为空".to_string()));
         }
 
         // 检查编码是否已存在
@@ -423,7 +417,7 @@ impl ImportExportService {
             .await?;
 
         if existing.is_some() {
-            return Err(AppError::BusinessError(format!("客户编码 {} 已存在", code)));
+            return Err(AppError::business(format!("客户编码 {} 已存在", code)));
         }
 
         let now = chrono::Utc::now();
@@ -472,7 +466,7 @@ impl ImportExportService {
             "products" => self.export_products(query).await,
             "customers" => self.export_customers(query).await,
             "inventory" => self.export_inventory(query).await,
-            _ => Err(AppError::ValidationError(format!(
+            _ => Err(AppError::validation(format!(
                 "不支持的导出类型: {}",
                 export_type
             ))),

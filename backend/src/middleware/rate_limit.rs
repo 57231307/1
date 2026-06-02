@@ -39,18 +39,18 @@ impl RedisRateLimiter {
             .pool
             .get()
             .await
-            .map_err(|e| AppError::InternalError(format!("Redis 连接获取失败: {}", e)))?;
+            .map_err(|e| AppError::internal(format!("Redis 连接获取失败: {}", e)))?;
 
         let redis_key = format!("rate_limit:{}", key);
         let count: i64 = redis::AsyncCommands::incr(&mut conn, &redis_key, 1)
             .await
-            .map_err(|e| AppError::InternalError(format!("Redis 操作失败: {}", e)))?;
+            .map_err(|e| AppError::internal(format!("Redis 操作失败: {}", e)))?;
 
         if count == 1 {
             let _: () =
                 redis::AsyncCommands::expire(&mut conn, &redis_key, self.window_secs as i64)
                     .await
-                    .map_err(|e| AppError::InternalError(format!("Redis 过期设置失败: {}", e)))?;
+                    .map_err(|e| AppError::internal(format!("Redis 过期设置失败: {}", e)))?;
         }
 
         Ok(count <= self.max_requests as i64)

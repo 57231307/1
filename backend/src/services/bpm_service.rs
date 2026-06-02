@@ -96,9 +96,7 @@ impl BpmService {
             .filter(bpm_process_definition::Column::Status.eq("ACTIVE"))
             .one(&txn)
             .await?
-            .ok_or_else(|| {
-                AppError::NotFound("Process definition not found or inactive".to_string())
-            })?;
+            .ok_or_else(|| AppError::not_found("Process definition not found or inactive"))?;
 
         let instance_no = format!(
             "BPM{}{}",
@@ -219,22 +217,22 @@ impl BpmService {
         let task = bpm_task::Entity::find_by_id(req.task_id)
             .one(&txn)
             .await?
-            .ok_or_else(|| AppError::NotFound("Task not found".to_string()))?;
+            .ok_or_else(|| AppError::not_found("Task not found"))?;
 
         if task.status.as_deref() != Some("pending") {
-            return Err(AppError::ValidationError("Task is not pending".to_string()));
+            return Err(AppError::validation("Task is not pending"));
         }
 
         let process_instance_id = task.instance_id;
         let instance = bpm_process_instance::Entity::find_by_id(process_instance_id)
             .one(&txn)
             .await?
-            .ok_or_else(|| AppError::NotFound("Process instance not found".into()))?;
+            .ok_or_else(|| AppError::not_found("Process instance not found"))?;
 
         let definition = bpm_process_definition::Entity::find_by_id(instance.process_definition_id)
             .one(&txn)
             .await?
-            .ok_or_else(|| AppError::NotFound("Definition not found".into()))?;
+            .ok_or_else(|| AppError::not_found("Definition not found"))?;
 
         // 1. Update current task status
         let mut task_active: bpm_task::ActiveModel = task.clone().into();
@@ -468,7 +466,7 @@ impl BpmService {
             .order_by_desc(bpm_process_instance::Column::CreatedAt)
             .one(&*self.db)
             .await
-            .map_err(|e| AppError::DatabaseError(e.to_string()))
+            .map_err(|e| AppError::database(e.to_string()))
     }
 
     // ========== 审批链功能 ==========
@@ -481,12 +479,12 @@ impl BpmService {
         let instance = bpm_process_instance::Entity::find_by_id(instance_id)
             .one(&*self.db)
             .await?
-            .ok_or_else(|| AppError::NotFound("流程实例不存在".to_string()))?;
+            .ok_or_else(|| AppError::not_found("流程实例不存在"))?;
 
         let definition = bpm_process_definition::Entity::find_by_id(instance.process_definition_id)
             .one(&*self.db)
             .await?
-            .ok_or_else(|| AppError::NotFound("流程定义不存在".to_string()))?;
+            .ok_or_else(|| AppError::not_found("流程定义不存在"))?;
 
         let tasks = bpm_task::Entity::find()
             .filter(bpm_task::Column::InstanceId.eq(instance_id))
@@ -547,7 +545,7 @@ impl BpmService {
         let instance = bpm_process_instance::Entity::find_by_id(instance_id)
             .one(&*self.db)
             .await?
-            .ok_or_else(|| AppError::NotFound("流程实例不存在".to_string()))?;
+            .ok_or_else(|| AppError::not_found("流程实例不存在"))?;
 
         let definition = bpm_process_definition::Entity::find_by_id(instance.process_definition_id)
             .one(&*self.db)
@@ -711,10 +709,10 @@ impl BpmService {
         let task = bpm_task::Entity::find_by_id(task_id)
             .one(&txn)
             .await?
-            .ok_or_else(|| AppError::NotFound("任务不存在".to_string()))?;
+            .ok_or_else(|| AppError::not_found("任务不存在"))?;
 
         if task.status.as_deref() != Some("pending") {
-            return Err(AppError::ValidationError("只能转办待处理任务".to_string()));
+            return Err(AppError::validation("只能转办待处理任务"));
         }
 
         let mut task_active: bpm_task::ActiveModel = task.into();
@@ -732,10 +730,10 @@ impl BpmService {
         let task = bpm_task::Entity::find_by_id(task_id)
             .one(&*self.db)
             .await?
-            .ok_or_else(|| AppError::NotFound("任务不存在".to_string()))?;
+            .ok_or_else(|| AppError::not_found("任务不存在"))?;
 
         if task.status.as_deref() != Some("pending") {
-            return Err(AppError::ValidationError("只能催办待处理任务".to_string()));
+            return Err(AppError::validation("只能催办待处理任务"));
         }
 
         // 记录催办日志，可以通过事件总线发送通知
@@ -832,13 +830,13 @@ impl BpmService {
         &self,
         _req: CreateProcessDefinitionRequest,
     ) -> Result<bpm_process_definition::Model, AppError> {
-        Err(AppError::BadRequest("Not implemented".to_string()))
+        Err(AppError::bad_request("Not implemented"))
     }
     pub async fn get_process_definition(
         &self,
         _id: i32,
     ) -> Result<Option<bpm_process_definition::Model>, AppError> {
-        Err(AppError::NotFound(format!(
+        Err(AppError::not_found(format!(
             "Process definition not found: {}",
             _id
         )))
@@ -848,10 +846,10 @@ impl BpmService {
         _id: i32,
         _req: UpdateProcessDefinitionRequest,
     ) -> Result<bpm_process_definition::Model, AppError> {
-        Err(AppError::BadRequest("Not implemented".to_string()))
+        Err(AppError::bad_request("Not implemented"))
     }
     pub async fn delete_process_definition(&self, _id: i32) -> Result<(), AppError> {
-        Err(AppError::BadRequest("Not implemented".to_string()))
+        Err(AppError::bad_request("Not implemented"))
     }
     pub async fn list_process_definitions(
         &self,
@@ -869,7 +867,7 @@ impl BpmService {
         &self,
         _req: CreateVersionRequest,
     ) -> Result<bpm_process_definition::Model, AppError> {
-        Err(AppError::BadRequest("Not implemented".to_string()))
+        Err(AppError::bad_request("Not implemented"))
     }
     pub async fn list_process_versions(
         &self,
@@ -881,10 +879,10 @@ impl BpmService {
         &self,
         _id: i32,
     ) -> Result<bpm_process_definition::Model, AppError> {
-        Err(AppError::BadRequest("Not implemented".to_string()))
+        Err(AppError::bad_request("Not implemented"))
     }
     pub async fn save_as_template(&self, _id: i32, _name: String) -> Result<(), AppError> {
-        Err(AppError::BadRequest("Not implemented".to_string()))
+        Err(AppError::bad_request("Not implemented"))
     }
     pub async fn list_templates(
         &self,
@@ -902,6 +900,6 @@ impl BpmService {
         &self,
         _template_id: i32,
     ) -> Result<bpm_process_definition::Model, AppError> {
-        Err(AppError::BadRequest("Not implemented".to_string()))
+        Err(AppError::bad_request("Not implemented"))
     }
 }

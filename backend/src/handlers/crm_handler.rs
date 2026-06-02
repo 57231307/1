@@ -19,8 +19,8 @@ pub async fn create_lead(
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     let service = CrmService::new(state.db.clone());
     let res = service.create_lead(req, auth.user_id).await?;
-    let value = serde_json::to_value(res)
-        .map_err(|e| AppError::InternalError(format!("序列化失败: {}", e)))?;
+    let value =
+        serde_json::to_value(res).map_err(|e| AppError::internal(format!("序列化失败: {}", e)))?;
     Ok(Json(ApiResponse::success(value)))
 }
 
@@ -31,8 +31,8 @@ pub async fn list_leads(
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     let service = CrmService::new(state.db.clone());
     let res = service.list_leads(query).await?;
-    let mut value = serde_json::to_value(res)
-        .map_err(|e| AppError::InternalError(format!("序列化失败: {}", e)))?;
+    let mut value =
+        serde_json::to_value(res).map_err(|e| AppError::internal(format!("序列化失败: {}", e)))?;
 
     // 数据权限控制：获取角色数据权限并应用字段过滤
     if let Some(role_id) = auth.role_id {
@@ -80,8 +80,8 @@ pub async fn get_lead(
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     let service = CrmService::new(state.db.clone());
     let res = service.get_lead(id).await?;
-    let mut value = serde_json::to_value(res)
-        .map_err(|e| AppError::InternalError(format!("序列化失败: {}", e)))?;
+    let mut value =
+        serde_json::to_value(res).map_err(|e| AppError::internal(format!("序列化失败: {}", e)))?;
 
     // 数据权限控制：获取角色数据权限并应用字段过滤
     if let Some(role_id) = auth.role_id {
@@ -115,8 +115,8 @@ pub async fn update_lead(
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     let service = CrmService::new(state.db.clone());
     let res = service.update_lead(id, req).await?;
-    let value = serde_json::to_value(res)
-        .map_err(|e| AppError::InternalError(format!("序列化失败: {}", e)))?;
+    let value =
+        serde_json::to_value(res).map_err(|e| AppError::internal(format!("序列化失败: {}", e)))?;
     Ok(Json(ApiResponse::success(value)))
 }
 
@@ -151,8 +151,8 @@ pub async fn create_opportunity(
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     let service = CrmService::new(state.db.clone());
     let res = service.create_opportunity(req, auth.user_id).await?;
-    let value = serde_json::to_value(res)
-        .map_err(|e| AppError::InternalError(format!("序列化失败: {}", e)))?;
+    let value =
+        serde_json::to_value(res).map_err(|e| AppError::internal(format!("序列化失败: {}", e)))?;
     Ok(Json(ApiResponse::success(value)))
 }
 
@@ -163,8 +163,8 @@ pub async fn list_opportunities(
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     let service = CrmService::new(state.db.clone());
     let res = service.list_opportunities(query).await?;
-    let mut value = serde_json::to_value(res)
-        .map_err(|e| AppError::InternalError(format!("序列化失败: {}", e)))?;
+    let mut value =
+        serde_json::to_value(res).map_err(|e| AppError::internal(format!("序列化失败: {}", e)))?;
 
     // 数据权限控制：获取角色数据权限并应用字段过滤
     if let Some(role_id) = auth.role_id {
@@ -210,8 +210,8 @@ pub async fn get_opportunity(
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     let service = CrmService::new(state.db.clone());
     let res = service.get_opportunity(id).await?;
-    let mut value = serde_json::to_value(res)
-        .map_err(|e| AppError::InternalError(format!("序列化失败: {}", e)))?;
+    let mut value =
+        serde_json::to_value(res).map_err(|e| AppError::internal(format!("序列化失败: {}", e)))?;
 
     // 数据权限控制：获取角色数据权限并应用字段过滤
     if let Some(role_id) = auth.role_id {
@@ -243,8 +243,8 @@ pub async fn update_opportunity(
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     let service = CrmService::new(state.db.clone());
     let res = service.update_opportunity(id, req).await?;
-    let value = serde_json::to_value(res)
-        .map_err(|e| AppError::InternalError(format!("序列化失败: {}", e)))?;
+    let value =
+        serde_json::to_value(res).map_err(|e| AppError::internal(format!("序列化失败: {}", e)))?;
     Ok(Json(ApiResponse::success(value)))
 }
 
@@ -268,7 +268,7 @@ pub async fn convert_opportunity_to_order(
         .convert_opportunity_to_order(id, auth.user_id)
         .await?;
     let value = serde_json::to_value(order)
-        .map_err(|e| AppError::InternalError(format!("序列化失败: {}", e)))?;
+        .map_err(|e| AppError::internal(format!("序列化失败: {}", e)))?;
     Ok(Json(ApiResponse::success(value)))
 }
 
@@ -280,7 +280,7 @@ pub async fn get_lead_relation(
     let service = CrmService::new(state.db.clone());
     let relation = service.get_lead_relation(lead_id).await?;
     let value = serde_json::to_value(relation)
-        .map_err(|e| AppError::InternalError(format!("序列化失败: {}", e)))?;
+        .map_err(|e| AppError::internal(format!("序列化失败: {}", e)))?;
     Ok(Json(ApiResponse::success(value)))
 }
 
@@ -296,7 +296,7 @@ pub async fn convert_lead(
         .convert_lead_to_customer(id, req, auth.user_id)
         .await?;
     let value = serde_json::to_value(customer)
-        .map_err(|e| AppError::InternalError(format!("序列化失败: {}", e)))?;
+        .map_err(|e| AppError::internal(format!("序列化失败: {}", e)))?;
     Ok(Json(ApiResponse::success(value)))
 }
 
@@ -308,6 +308,6 @@ pub async fn get_customer_relation_summary(
     let service = CrmService::new(state.db.clone());
     let summary = service.get_customer_relation_summary(customer_id).await?;
     let value = serde_json::to_value(summary)
-        .map_err(|e| AppError::InternalError(format!("序列化失败: {}", e)))?;
+        .map_err(|e| AppError::internal(format!("序列化失败: {}", e)))?;
     Ok(Json(ApiResponse::success(value)))
 }

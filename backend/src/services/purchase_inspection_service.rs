@@ -5,7 +5,6 @@
 
 use crate::models::purchase_inspection;
 use crate::utils::error::AppError;
-use crate::utils::number_generator::DocumentNumberGenerator;
 use chrono::Utc;
 use rust_decimal::Decimal;
 use sea_orm::{
@@ -29,15 +28,12 @@ impl PurchaseInspectionService {
 
     /// 生质检单号
     /// 格式：IQ + 年月日 + 三位序号（IQ20260315001）
-    pub async fn generate_inspection_no(&self) -> Result<String, AppError> {
-        DocumentNumberGenerator::generate_no(
-            &*self.db,
-            "PI",
-            purchase_inspection::Entity,
-            purchase_inspection::Column::InspectionNo,
-        )
-        .await
-    }
+    crate::impl_generate_no!(
+        generate_inspection_no,
+        "PI",
+        purchase_inspection::Entity,
+        purchase_inspection::Column::InspectionNo
+    );
 
     /// 创建采购质检单
     pub async fn create_inspection(
@@ -89,10 +85,10 @@ impl PurchaseInspectionService {
         let inspection = purchase_inspection::Entity::find_by_id(inspection_id)
             .one(&*self.db)
             .await?
-            .ok_or(AppError::NotFound(format!("采购质检单 {}", inspection_id)))?;
+            .ok_or_else(|| AppError::not_found(format!("采购质检单 {}", inspection_id)))?;
 
         if inspection.inspection_status.as_deref() != Some("pending") {
-            return Err(AppError::BusinessError(format!(
+            return Err(AppError::business(format!(
                 "质检单状态不允许修改，当前状态：{:?}",
                 inspection.inspection_status
             )));
@@ -134,10 +130,10 @@ impl PurchaseInspectionService {
         let inspection = purchase_inspection::Entity::find_by_id(inspection_id)
             .one(&txn)
             .await?
-            .ok_or(AppError::NotFound(format!("采购质检单 {}", inspection_id)))?;
+            .ok_or_else(|| AppError::not_found(format!("采购质检单 {}", inspection_id)))?;
 
         if inspection.inspection_status.as_deref() != Some("pending") {
-            return Err(AppError::BusinessError(format!(
+            return Err(AppError::business(format!(
                 "质检单状态不允许完成，当前状态：{:?}",
                 inspection.inspection_status
             )));
@@ -223,7 +219,7 @@ impl PurchaseInspectionService {
         let inspection = purchase_inspection::Entity::find_by_id(inspection_id)
             .one(&*self.db)
             .await?
-            .ok_or(AppError::NotFound(format!("采购质检单 {}", inspection_id)))?;
+            .ok_or_else(|| AppError::not_found(format!("采购质检单 {}", inspection_id)))?;
 
         Ok(inspection)
     }

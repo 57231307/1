@@ -59,7 +59,7 @@ impl WarehouseService {
         WarehouseEntity::find_by_id(id)
             .one(&*self.db)
             .await?
-            .ok_or_else(|| AppError::NotFound(format!("仓库 ID {} 不存在", id)))
+            .ok_or_else(|| AppError::not_found(format!("仓库 ID {} 不存在", id)))
     }
 
     /// 创建仓库
@@ -110,7 +110,7 @@ impl WarehouseService {
         let mut wh: warehouse::ActiveModel = WarehouseEntity::find_by_id(id)
             .one(&*self.db)
             .await?
-            .ok_or_else(|| AppError::NotFound(format!("仓库 ID {} 不存在", id)))?
+            .ok_or_else(|| AppError::not_found(format!("仓库 ID {} 不存在", id)))?
             .into();
 
         if let Some(n) = req.name {
@@ -145,7 +145,7 @@ impl WarehouseService {
     pub async fn delete(&self, id: i32) -> Result<(), AppError> {
         let result = WarehouseEntity::delete_by_id(id).exec(&*self.db).await?;
         if result.rows_affected == 0 {
-            return Err(AppError::NotFound(format!("仓库 ID {} 不存在", id)));
+            return Err(AppError::not_found(format!("仓库 ID {} 不存在", id)));
         }
         Ok(())
     }
@@ -156,6 +156,6 @@ impl WarehouseService {
             .filter(warehouse::Column::WarehouseCode.eq(code))
             .one(&*self.db)
             .await?
-            .ok_or_else(|| AppError::NotFound(format!("仓库编码 {} 不存在", code)))
+            .ok_or_else(|| AppError::not_found(format!("仓库编码 {} 不存在", code)))
     }
 }

@@ -194,7 +194,7 @@ impl BomService {
         let bom_model = BomEntity::find_by_id(id)
             .one(&*self.db)
             .await?
-            .ok_or_else(|| AppError::NotFound("BOM不存在".to_string()))?;
+            .ok_or_else(|| AppError::not_found("BOM不存在"))?;
 
         let mut bom_active: ActiveModel = bom_model.into();
 
@@ -245,7 +245,7 @@ impl BomService {
         // 返回更新后的详情
         self.get_by_id(id)
             .await?
-            .ok_or_else(|| AppError::NotFound("BOM不存在".to_string()))
+            .ok_or_else(|| AppError::not_found("BOM不存在"))
     }
 
     /// 删除BOM（软删除）
@@ -253,7 +253,7 @@ impl BomService {
         let bom_model = BomEntity::find_by_id(id)
             .one(&*self.db)
             .await?
-            .ok_or_else(|| AppError::NotFound("BOM不存在".to_string()))?;
+            .ok_or_else(|| AppError::not_found("BOM不存在"))?;
 
         let mut bom_active: ActiveModel = bom_model.into();
         bom_active.status = Set(BomStatus::Inactive.to_string());
@@ -280,7 +280,7 @@ impl BomService {
         let source = self
             .get_by_id(id)
             .await?
-            .ok_or_else(|| AppError::NotFound("源BOM不存在".to_string()))?;
+            .ok_or_else(|| AppError::not_found("源BOM不存在"))?;
 
         let new_version = self.get_next_version(source.bom.product_id).await?;
 
@@ -326,7 +326,7 @@ impl BomService {
         let bom_model = BomEntity::find_by_id(id)
             .one(&*self.db)
             .await?
-            .ok_or_else(|| AppError::NotFound("BOM不存在".to_string()))?;
+            .ok_or_else(|| AppError::not_found("BOM不存在"))?;
 
         // 使用事务保护取消旧默认和设置新默认操作
         let txn = self.db.begin().await?;
@@ -367,7 +367,7 @@ impl BomService {
             let bom = BomEntity::find_by_id(bom_id)
                 .one(&*self.db)
                 .await?
-                .ok_or_else(|| AppError::NotFound("BOM不存在".to_string()))?;
+                .ok_or_else(|| AppError::not_found("BOM不存在"))?;
 
             let items = BomItemEntity::find()
                 .filter(BomItemColumn::BomId.eq(bom_id))

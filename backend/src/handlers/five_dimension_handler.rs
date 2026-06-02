@@ -79,7 +79,7 @@ pub async fn get_stats_by_five_dimension_id(
 
     match stats {
         Some(stats) => Ok(Json(ApiResponse::success(serde_json::to_value(stats)?))),
-        None => Err(AppError::NotFound("未找到五维统计数据".to_string())),
+        None => Err(AppError::not_found("未找到五维统计数据")),
     }
 }
 
@@ -156,7 +156,7 @@ pub async fn parse_five_dimension_id(
     let five_dimension_id = req
         .get("five_dimension_id")
         .and_then(|v| v.as_str())
-        .ok_or_else(|| AppError::ValidationError("缺少five_dimension_id参数".to_string()))?;
+        .ok_or_else(|| AppError::validation("缺少five_dimension_id参数"))?;
 
     let stats = service.get_stats_by_id(five_dimension_id).await?;
 

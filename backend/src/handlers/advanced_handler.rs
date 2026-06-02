@@ -1146,7 +1146,7 @@ async fn get_product_name(
     match ProductEntity::find_by_id(product_id).one(&**db).await {
         Ok(Some(product)) => Ok(product.name),
         Ok(None) => Ok(format!("产品 #{}", product_id)),
-        Err(e) => Err(AppError::DatabaseError(e.to_string())),
+        Err(e) => Err(AppError::database(e.to_string())),
     }
 }
 

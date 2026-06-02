@@ -42,7 +42,7 @@ pub async fn list_orders(
         .await?;
 
     let mut orders_json = serde_json::to_value(orders)
-        .map_err(|e| AppError::InternalError(format!("序列化失败: {}", e)))?;
+        .map_err(|e| AppError::internal(format!("序列化失败: {}", e)))?;
 
     // 数据权限控制：获取角色数据权限并应用字段过滤
     if let Some(role_id) = auth.role_id {
@@ -107,7 +107,7 @@ pub async fn get_order(
     let sales_service = SalesService::new(state.db.clone());
     let order = sales_service.get_order_detail(id).await?;
     let mut order_json = serde_json::to_value(order)
-        .map_err(|e| AppError::InternalError(format!("序列化失败: {}", e)))?;
+        .map_err(|e| AppError::internal(format!("序列化失败: {}", e)))?;
 
     // 数据权限控制：获取角色数据权限并应用字段过滤
     if let Some(role_id) = auth.role_id {
@@ -158,7 +158,7 @@ pub async fn create_order(
     // 输入验证
     use validator::Validate;
     if let Err(e) = request.validate() {
-        return Err(AppError::ValidationError(e.to_string()));
+        return Err(AppError::validation(e.to_string()));
     }
 
     let sales_service = SalesService::new(state.db.clone());
@@ -174,7 +174,7 @@ pub async fn create_order(
     }
 
     let order_json = serde_json::to_value(order)
-        .map_err(|e| AppError::InternalError(format!("序列化失败: {}", e)))?;
+        .map_err(|e| AppError::internal(format!("序列化失败: {}", e)))?;
     Ok(Json(ApiResponse::success_with_message(
         order_json,
         "销售订单创建成功",
@@ -192,7 +192,7 @@ pub async fn update_order(
     let sales_service = SalesService::new(state.db.clone());
     let order = sales_service.update_order(id, request).await?;
     let order_json = serde_json::to_value(order)
-        .map_err(|e| AppError::InternalError(format!("序列化失败: {}", e)))?;
+        .map_err(|e| AppError::internal(format!("序列化失败: {}", e)))?;
     Ok(Json(ApiResponse::success_with_message(
         order_json,
         "销售订单更新成功",
@@ -235,7 +235,7 @@ pub async fn submit_order(
     }
 
     let order_json = serde_json::to_value(order)
-        .map_err(|e| AppError::InternalError(format!("序列化失败: {}", e)))?;
+        .map_err(|e| AppError::internal(format!("序列化失败: {}", e)))?;
     Ok(Json(ApiResponse::success_with_message(
         order_json,
         "销售订单已提交审批",
@@ -262,7 +262,7 @@ pub async fn approve_order(
     }
 
     let order_json = serde_json::to_value(order)
-        .map_err(|e| AppError::InternalError(format!("序列化失败: {}", e)))?;
+        .map_err(|e| AppError::internal(format!("序列化失败: {}", e)))?;
     Ok(Json(ApiResponse::success_with_message(
         order_json,
         "销售订单审核成功",
@@ -290,7 +290,7 @@ pub async fn ship_order(
     }
 
     let order_json = serde_json::to_value(order)
-        .map_err(|e| AppError::InternalError(format!("序列化失败: {}", e)))?;
+        .map_err(|e| AppError::internal(format!("序列化失败: {}", e)))?;
     Ok(Json(ApiResponse::success_with_message(
         order_json,
         "销售订单发货成功",
@@ -316,7 +316,7 @@ pub async fn complete_order(
     }
 
     let order_json = serde_json::to_value(order)
-        .map_err(|e| AppError::InternalError(format!("序列化失败: {}", e)))?;
+        .map_err(|e| AppError::internal(format!("序列化失败: {}", e)))?;
     Ok(Json(ApiResponse::success_with_message(
         order_json,
         "销售订单完成成功",
@@ -371,7 +371,7 @@ pub async fn export_orders(
     let csv_data = sales_service
         .export_orders_to_csv(query.status, query.customer_id, query.order_no)
         .await
-        .map_err(|e| AppError::InternalError(format!("导出失败: {}", e)))?;
+        .map_err(|e| AppError::internal(format!("导出失败: {}", e)))?;
 
     let filename = format!(
         "sales_orders_export_{}.csv",
@@ -386,7 +386,7 @@ pub async fn export_orders(
             format!("attachment; filename=\"{}\"", filename),
         )
         .body(axum::body::Body::from(csv_data))
-        .map_err(|e| AppError::InternalError(format!("响应构建失败: {}", e)))?;
+        .map_err(|e| AppError::internal(format!("响应构建失败: {}", e)))?;
 
     Ok(response)
 }

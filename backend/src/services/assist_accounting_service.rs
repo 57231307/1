@@ -171,13 +171,13 @@ impl AssistAccountingService {
         info!("正在生成 {} 的辅助核算月度汇总", accounting_period);
 
         let start_date = chrono::NaiveDate::from_ymd_opt(year, month, 1)
-            .ok_or_else(|| AppError::BusinessError("无效的日期".to_string()))?;
+            .ok_or_else(|| AppError::business("无效的日期"))?;
         let end_date = if month == 12 {
             chrono::NaiveDate::from_ymd_opt(year + 1, 1, 1)
         } else {
             chrono::NaiveDate::from_ymd_opt(year, month + 1, 1)
         }
-        .ok_or_else(|| AppError::BusinessError("无效的日期".to_string()))
+        .ok_or_else(|| AppError::business("无效的日期"))
         .map(|d| d - chrono::Duration::days(1));
 
         if let Ok(end_date) = end_date {
@@ -420,18 +420,18 @@ impl AssistAccountingService {
 fn parse_period(period: &str) -> Result<(i32, u32), AppError> {
     let parts: Vec<&str> = period.split('-').collect();
     if parts.len() != 2 {
-        return Err(AppError::ValidationError(
+        return Err(AppError::validation(
             "期间格式错误，应为 YYYY-MM".to_string(),
         ));
     }
     let year: i32 = parts[0]
         .parse()
-        .map_err(|_| AppError::ValidationError("年份解析错误".to_string()))?;
+        .map_err(|_| AppError::validation("年份解析错误"))?;
     let month: u32 = parts[1]
         .parse()
-        .map_err(|_| AppError::ValidationError("月份解析错误".to_string()))?;
+        .map_err(|_| AppError::validation("月份解析错误"))?;
     if !(1..=12).contains(&month) {
-        return Err(AppError::ValidationError("月份必须在1-12之间".to_string()));
+        return Err(AppError::validation("月份必须在1-12之间"));
     }
     Ok((year, month))
 }

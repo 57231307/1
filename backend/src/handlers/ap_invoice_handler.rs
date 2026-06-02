@@ -63,7 +63,7 @@ pub async fn list_ap_invoices(
         params.page.unwrap_or(1),
         params.page_size.unwrap_or(20),
     ))
-    .map_err(|e| AppError::InternalError(e.to_string()))?;
+    .map_err(|e| AppError::internal(e.to_string()))?;
 
     Ok(Json(ApiResponse::success(result)))
 }
@@ -99,7 +99,7 @@ pub async fn create_ap_invoice(
     // 验证请求
     req.validate().map_err(|e| {
         warn!("用户 {} 创建应付单验证失败：{}", auth.username, e);
-        AppError::ValidationError(e.to_string())
+        AppError::validation(e.to_string())
     })?;
 
     let service = ApInvoiceService::new(state.db.clone());

@@ -123,7 +123,7 @@ impl SalesContractService {
         let contract = sales_contract::Entity::find_by_id(id)
             .one(&*self.db)
             .await?
-            .ok_or_else(|| AppError::NotFound(format!("销售合同不存在：{}", id)))?;
+            .ok_or_else(|| AppError::not_found(format!("销售合同不存在：{}", id)))?;
         Ok(contract)
     }
 
@@ -144,7 +144,7 @@ impl SalesContractService {
 
         // 检查合同状态
         if contract.status != "active" {
-            return Err(AppError::ValidationError(
+            return Err(AppError::validation(
                 "只有活跃状态的合同才能执行".to_string(),
             ));
         }
@@ -153,7 +153,7 @@ impl SalesContractService {
         match req.execution_type.as_str() {
             "delivery" | "payment" => {}
             _ => {
-                return Err(AppError::ValidationError(
+                return Err(AppError::validation(
                     "无效的执行类型，支持：delivery（出库）、payment（收款）".to_string(),
                 ))
             }
@@ -195,7 +195,7 @@ impl SalesContractService {
         let contract = self.get_by_id(contract_id).await?;
 
         if contract.status != "draft" {
-            return Err(AppError::ValidationError(
+            return Err(AppError::validation(
                 "只有草稿状态的合同才能审核".to_string(),
             ));
         }
@@ -225,7 +225,7 @@ impl SalesContractService {
         let contract = self.get_by_id(contract_id).await?;
 
         if contract.status != "active" && contract.status != "draft" {
-            return Err(AppError::ValidationError(
+            return Err(AppError::validation(
                 "只能取消活跃或草稿状态的合同".to_string(),
             ));
         }

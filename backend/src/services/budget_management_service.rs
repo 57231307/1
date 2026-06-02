@@ -127,7 +127,7 @@ impl BudgetManagementService {
         let item = budget_management::Entity::find_by_id(id)
             .one(&*self.db)
             .await?
-            .ok_or_else(|| AppError::NotFound(format!("预算科目不存在：{}", id)))?;
+            .ok_or_else(|| AppError::not_found(format!("预算科目不存在：{}", id)))?;
         Ok(item)
     }
 
@@ -198,9 +198,7 @@ impl BudgetManagementService {
         let children_count = 0;
 
         if children_count > 0 {
-            return Err(AppError::ValidationError(
-                "存在子科目，无法删除".to_string(),
-            ));
+            return Err(AppError::validation("存在子科目，无法删除".to_string()));
         }
 
         budget_management::Entity::delete_many()
@@ -279,7 +277,7 @@ impl BudgetManagementService {
         let plan = budget_plan::Entity::find_by_id(id)
             .one(&*self.db)
             .await?
-            .ok_or_else(|| AppError::NotFound(format!("预算方案不存在：{}", id)))?;
+            .ok_or_else(|| AppError::not_found(format!("预算方案不存在：{}", id)))?;
         Ok(plan)
     }
 
@@ -295,9 +293,7 @@ impl BudgetManagementService {
         let plan = self.get_plan_by_id(plan_id).await?;
 
         if plan.status.as_deref() != Some("draft") && plan.status.as_deref() != Some("rejected") {
-            return Err(AppError::ValidationError(
-                "预算方案状态不允许审批".to_string(),
-            ));
+            return Err(AppError::validation("预算方案状态不允许审批".to_string()));
         }
 
         let mut plan_active: budget_plan::ActiveModel = plan.into();
@@ -319,9 +315,7 @@ impl BudgetManagementService {
         let plan = self.get_plan_by_id(req.plan_id).await?;
 
         if plan.status.as_deref() != Some("approved") {
-            return Err(AppError::ValidationError(
-                "预算方案未审批，无法执行".to_string(),
-            ));
+            return Err(AppError::validation("预算方案未审批，无法执行".to_string()));
         }
 
         info!("预算方案执行成功：{}", req.plan_id);
@@ -362,7 +356,7 @@ impl BudgetManagementService {
 
         // 验证执行类型
         if !["下达", "调整", "使用"].contains(&execution_type.as_str()) {
-            return Err(AppError::ValidationError(
+            return Err(AppError::validation(
                 "执行类型无效，必须为：下达、调整、使用".to_string(),
             ));
         }
@@ -471,7 +465,7 @@ impl BudgetManagementService {
         let plan = crate::models::budget_plan::Entity::find_by_id(req.item_id)
             .one(&txn)
             .await?
-            .ok_or_else(|| AppError::NotFound("预算方案不存在".into()))?;
+            .ok_or_else(|| AppError::not_found("预算方案不存在"))?;
 
         // 记录调整单
         let adjust_no = format!("BA{}", chrono::Local::now().format("%Y%m%d%H%M%S"));
@@ -522,22 +516,18 @@ impl BudgetManagementService {
         let plan = budget_plan::Entity::find_by_id(plan_id)
             .one(&*self.db)
             .await?
-            .ok_or_else(|| AppError::NotFound(format!("预算方案不存在：{}", plan_id)))?;
+            .ok_or_else(|| AppError::not_found(format!("预算方案不存在：{}", plan_id)))?;
 
         // 验证部门匹配
         if let Some(plan_dept_id) = plan.department_id {
             if plan_dept_id != department_id {
-                return Err(AppError::ValidationError(
-                    "预算方案与部门不匹配".to_string(),
-                ));
+                return Err(AppError::validation("预算方案与部门不匹配".to_string()));
             }
         }
 
         // 验证方案状态
         if plan.status.as_deref() != Some("approved") && plan.status.as_deref() != Some("active") {
-            return Err(AppError::ValidationError(
-                "预算方案未审批或未激活".to_string(),
-            ));
+            return Err(AppError::validation("预算方案未审批或未激活".to_string()));
         }
 
         // 计算已执行金额
@@ -592,9 +582,7 @@ impl BudgetManagementService {
             .check_budget_available(department_id, plan_id, amount)
             .await?;
         if !available {
-            return Err(AppError::ValidationError(
-                "预算余额不足，无法占用".to_string(),
-            ));
+            return Err(AppError::validation("预算余额不足，无法占用".to_string()));
         }
 
         // 创建预算执行记录

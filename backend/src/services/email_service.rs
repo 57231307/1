@@ -96,7 +96,7 @@ impl EmailService {
             "sendgrid" => self.send_via_sendgrid(message).await,
             "aliyun" => self.send_via_aliyun(message).await,
             "tencent" => self.send_via_tencent(message).await,
-            _ => Err(AppError::BusinessError(format!(
+            _ => Err(AppError::business(format!(
                 "不支持的邮件服务提供商: {}",
                 self.config.provider
             ))),
@@ -213,7 +213,7 @@ impl EmailService {
             .json(&sendgrid_message)
             .send()
             .await
-            .map_err(|e| AppError::InternalError(format!("邮件发送请求失败: {}", e)))?;
+            .map_err(|e| AppError::internal(format!("邮件发送请求失败: {}", e)))?;
 
         if response.status().is_success() {
             Ok(())
@@ -223,7 +223,7 @@ impl EmailService {
                 .text()
                 .await
                 .unwrap_or_else(|_| "未知错误".to_string());
-            Err(AppError::InternalError(format!(
+            Err(AppError::internal(format!(
                 "SendGrid 邮件发送失败: HTTP {} - {}",
                 status, body
             )))
@@ -236,16 +236,14 @@ impl EmailService {
         // 参考文档：https://help.aliyun.com/document_detail/29434.html
         // 由于需要签名算法，这里提供框架，具体实现根据实际需求补充
         tracing::info!("阿里云邮件推送功能待实现，请先配置 SendGrid 或其他邮件服务");
-        Err(AppError::BusinessError(
-            "阿里云邮件推送功能待实现".to_string(),
-        ))
+        Err(AppError::business("阿里云邮件推送功能待实现".to_string()))
     }
 
     /// 通过腾讯云邮件发送
     async fn send_via_tencent(&self, _message: EmailMessage) -> Result<(), AppError> {
         // 腾讯云邮件服务实现
         tracing::info!("腾讯云邮件功能待实现，请先配置 SendGrid 或其他邮件服务");
-        Err(AppError::BusinessError("腾讯云邮件功能待实现".to_string()))
+        Err(AppError::business("腾讯云邮件功能待实现"))
     }
 
     /// 检查邮件服务是否可用
@@ -258,7 +256,7 @@ impl EmailService {
                     .header("Authorization", format!("Bearer {}", self.config.api_key))
                     .send()
                     .await
-                    .map_err(|e| AppError::InternalError(format!("健康检查请求失败: {}", e)))?;
+                    .map_err(|e| AppError::internal(format!("健康检查请求失败: {}", e)))?;
                 Ok(response.status().is_success())
             }
             _ => Ok(true),

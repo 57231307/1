@@ -53,7 +53,7 @@ pub async fn send_email(
     let email_service = state
         .email_service
         .as_ref()
-        .ok_or_else(|| AppError::BusinessError("邮件服务未配置".to_string()))?;
+        .ok_or_else(|| AppError::business("邮件服务未配置"))?;
 
     let log_service = EmailLogService::new(state.db.clone());
     let tenant_id = auth.tenant_id.unwrap_or(0);
@@ -176,7 +176,7 @@ pub async fn get_template(
     let template = service
         .get_by_id(id)
         .await?
-        .ok_or_else(|| AppError::NotFound("邮件模板不存在".to_string()))?;
+        .ok_or_else(|| AppError::not_found("邮件模板不存在"))?;
 
     Ok(Json(ApiResponse::success(serde_json::to_value(template)?)))
 }

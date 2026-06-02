@@ -467,11 +467,11 @@ pub enum InitError {
 impl From<InitError> for AppError {
     fn from(err: InitError) -> Self {
         match err {
-            InitError::AlreadyInitialized => AppError::BusinessError("系统已经初始化".to_string()),
-            InitError::HashError(e) => AppError::InternalError(format!("密码哈希错误: {}", e)),
-            InitError::DatabaseError(e) => AppError::DatabaseError(e),
-            InitError::UserNotFound => AppError::NotFound("用户不存在".to_string()),
-            InitError::ConfigError(e) => AppError::BadRequest(format!("配置错误: {}", e)),
+            InitError::AlreadyInitialized => AppError::business("系统已经初始化"),
+            InitError::HashError(e) => AppError::internal(format!("密码哈希错误: {}", e)),
+            InitError::DatabaseError(e) => AppError::database(e),
+            InitError::UserNotFound => AppError::not_found("用户不存在"),
+            InitError::ConfigError(e) => AppError::bad_request(format!("配置错误: {}", e)),
         }
     }
 }

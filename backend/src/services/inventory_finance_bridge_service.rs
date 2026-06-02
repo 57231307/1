@@ -664,7 +664,7 @@ impl InventoryFinanceBridgeService {
         let product = product::Entity::find_by_id(product_id)
             .one(&*self.db)
             .await?
-            .ok_or_else(|| AppError::NotFound(format!("产品不存在: {}", product_id)))?;
+            .ok_or_else(|| AppError::not_found(format!("产品不存在: {}", product_id)))?;
 
         Ok(product.name)
     }
@@ -677,7 +677,7 @@ impl InventoryFinanceBridgeService {
         let warehouse = warehouse::Entity::find_by_id(warehouse_id)
             .one(&*self.db)
             .await?
-            .ok_or_else(|| AppError::NotFound(format!("仓库不存在: {}", warehouse_id)))?;
+            .ok_or_else(|| AppError::not_found(format!("仓库不存在: {}", warehouse_id)))?;
 
         Ok(warehouse.name)
     }
@@ -700,7 +700,7 @@ impl InventoryFinanceBridgeService {
         let product = product::Entity::find_by_id(product_id)
             .one(&*self.db)
             .await?
-            .ok_or_else(|| AppError::NotFound(format!("产品不存在: {}", product_id)))?;
+            .ok_or_else(|| AppError::not_found(format!("产品不存在: {}", product_id)))?;
 
         Ok(product.cost_price.unwrap_or(Decimal::ZERO))
     }

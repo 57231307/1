@@ -103,7 +103,7 @@ pub async fn get_stock(
     let stock = service
         .find_by_id(id)
         .await
-        .map_err(|e| AppError::NotFound(e.to_string()))?;
+        .map_err(|e| AppError::not_found(e.to_string()))?;
 
     let response = StockResponse {
         id: stock.id,
@@ -170,7 +170,7 @@ pub async fn create_stock(
             "qualified".to_string(),
         )
         .await
-        .map_err(|e| AppError::InternalError(e.to_string()))?;
+        .map_err(|e| AppError::internal(e.to_string()))?;
 
     Ok(Json(ApiResponse::success(StockResponse {
         id: stock.id,
@@ -208,11 +208,11 @@ pub async fn update_stock(
     let stock = service
         .find_by_id(id)
         .await
-        .map_err(|e| AppError::NotFound(e.to_string()))?;
+        .map_err(|e| AppError::not_found(e.to_string()))?;
 
     // Optimistic lock check
     if stock.version != payload.version {
-        return Err(AppError::BusinessError(
+        return Err(AppError::business(
             "库存记录已被其他用户修改，请刷新后重试".to_string(),
         ));
     }
@@ -244,7 +244,7 @@ pub async fn update_stock(
     let updated = active_model
         .update(&*state.db)
         .await
-        .map_err(|e| AppError::InternalError(e.to_string()))?;
+        .map_err(|e| AppError::internal(e.to_string()))?;
 
     Ok(Json(ApiResponse::success(StockResponse {
         id: updated.id,
@@ -270,12 +270,12 @@ pub async fn delete_stock(
     service
         .find_by_id(id)
         .await
-        .map_err(|e| AppError::NotFound(e.to_string()))?;
+        .map_err(|e| AppError::not_found(e.to_string()))?;
 
     service
         .delete_stock(id)
         .await
-        .map_err(|e| AppError::InternalError(e.to_string()))?;
+        .map_err(|e| AppError::internal(e.to_string()))?;
 
     Ok(Json(ApiResponse::success(())))
 }
@@ -286,7 +286,7 @@ pub async fn list_stock(
     Query(params): Query<ListStockParams>,
 ) -> Result<Json<crate::utils::response::ApiResponse<Vec<serde_json::Value>>>, AppError> {
     if let Err(e) = params.validate() {
-        return Err(AppError::ValidationError(e.to_string()));
+        return Err(AppError::validation(e.to_string()));
     }
 
     let service = InventoryStockService::new(state.db.clone());
@@ -711,7 +711,7 @@ pub async fn create_stock_fabric(
 ) -> Result<Json<ApiResponse<StockFabricResponse>>, AppError> {
     // 输入验证
     if let Err(e) = payload.validate() {
-        return Err(AppError::ValidationError(e.to_string()));
+        return Err(AppError::validation(e.to_string()));
     }
 
     let service = InventoryStockService::new(state.db.clone());
@@ -720,7 +720,7 @@ pub async fn create_stock_fabric(
     let quantity_kg = if let (Some(gram_weight), Some(width)) = (payload.gram_weight, payload.width)
     {
         DualUnitConverter::meters_to_kg(payload.quantity_meters, gram_weight, width)
-            .map_err(|e| AppError::ValidationError(format!("双计量单位换算失败：{}", e)))?
+            .map_err(|e| AppError::validation(format!("双计量单位换算失败：{}", e)))?
     } else {
         // 如果没有提供克重和幅宽，使用传入的公斤数或默认为 0
         payload.quantity_kg.unwrap_or(Decimal::ZERO)
@@ -743,7 +743,7 @@ pub async fn create_stock_fabric(
             payload.layer_no,
         )
         .await
-        .map_err(|e| AppError::InternalError(e.to_string()))?;
+        .map_err(|e| AppError::internal(e.to_string()))?;
 
     Ok(Json(ApiResponse::success(StockFabricResponse {
         id: stock.id,

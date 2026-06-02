@@ -5,7 +5,6 @@
 
 use crate::models::{ap_invoice, ap_payment, ap_reconciliation};
 use crate::utils::error::AppError;
-use crate::utils::number_generator::DocumentNumberGenerator;
 use chrono::{NaiveDate, Utc};
 use futures::stream::{self, StreamExt};
 use rust_decimal::Decimal;
@@ -31,15 +30,12 @@ impl ApReconciliationService {
 
     /// 生成对账单号
     /// 格式：REC + 年月日 + 三位序号（REC20260315001）
-    pub async fn generate_reconciliation_no(&self) -> Result<String, AppError> {
-        DocumentNumberGenerator::generate_no(
-            &*self.db,
-            "REC",
-            ap_reconciliation::Entity,
-            ap_reconciliation::Column::ReconciliationNo,
-        )
-        .await
-    }
+    crate::impl_generate_no!(
+        generate_reconciliation_no,
+        "REC",
+        ap_reconciliation::Entity,
+        ap_reconciliation::Column::ReconciliationNo
+    );
 
     /// 生成供应商对账单
     pub async fn generate_reconciliation(
@@ -125,11 +121,11 @@ impl ApReconciliationService {
         let reconciliation = ap_reconciliation::Entity::find_by_id(id)
             .one(&txn)
             .await?
-            .ok_or(AppError::NotFound(format!("对账单 {}", id)))?;
+            .ok_or_else(|| AppError::not_found(format!("对账单 {}", id)))?;
 
         // 2. 检查状态
         if reconciliation.reconciliation_status != "PENDING" {
-            return Err(AppError::BusinessError(format!(
+            return Err(AppError::business(format!(
                 "对账单状态为{}，不可确认",
                 reconciliation.reconciliation_status
             )));
@@ -169,13 +165,11 @@ impl ApReconciliationService {
         let reconciliation = ap_reconciliation::Entity::find_by_id(id)
             .one(&txn)
             .await?
-            .ok_or(AppError::NotFound(format!("对账单 {}", id)))?;
+            .ok_or_else(|| AppError::not_found(format!("对账单 {}", id)))?;
 
         // 2. 检查状态
         if reconciliation.reconciliation_status == "CONFIRMED" {
-            return Err(AppError::BusinessError(
-                "对账单已确认，不可提出争议".to_string(),
-            ));
+            return Err(AppError::business("对账单已确认，不可提出争议".to_string()));
         }
 
         // 3. 提出争议
@@ -205,7 +199,7 @@ impl ApReconciliationService {
         let reconciliation = ap_reconciliation::Entity::find_by_id(id)
             .one(&*self.db)
             .await?
-            .ok_or(AppError::NotFound(format!("对账单 {}", id)))?;
+            .ok_or_else(|| AppError::not_found(format!("对账单 {}", id)))?;
 
         Ok(reconciliation)
     }
@@ -428,7 +422,7 @@ impl ApReconciliationService {
         let invoice = ap_invoice::Entity::find_by_id(invoice_id)
             .one(&*self.db)
             .await?
-            .ok_or(AppError::NotFound(format!("应付单 {}", invoice_id)))?;
+            .ok_or_else(|| AppError::not_found(format!("应付单 {}", invoice_id)))?;
 
         let mut relations = Vec::new();
 

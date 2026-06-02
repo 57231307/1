@@ -184,12 +184,8 @@ pub async fn create_dye_recipe(
         approved_at: Set(None),
         remarks: Set(req.remarks),
         created_by: Set(req.created_by),
-        created_at: Set(
-            chrono::Utc::now().with_timezone(&chrono::FixedOffset::east_opt(0).unwrap())
-        ),
-        updated_at: Set(
-            chrono::Utc::now().with_timezone(&chrono::FixedOffset::east_opt(0).unwrap())
-        ),
+        created_at: Set(crate::utils::date_utils::utc_now_fixed()),
+        updated_at: Set(crate::utils::date_utils::utc_now_fixed()),
     };
 
     match recipe.insert(&*state.db).await {
@@ -289,8 +285,7 @@ pub async fn update_dye_recipe(
         recipe.remarks = Set(Some(remarks));
     }
 
-    recipe.updated_at =
-        Set(chrono::Utc::now().with_timezone(&chrono::FixedOffset::east_opt(0).unwrap()));
+    recipe.updated_at = Set(crate::utils::date_utils::utc_now_fixed());
 
     match recipe.update(&*state.db).await {
         Ok(updated) => (
@@ -340,8 +335,7 @@ pub async fn delete_dye_recipe(
     // 软删除
     let mut active: dye_recipe::ActiveModel = recipe.into();
     active.is_deleted = Set(Some(true));
-    active.updated_at =
-        Set(chrono::Utc::now().with_timezone(&chrono::FixedOffset::east_opt(0).unwrap()));
+    active.updated_at = Set(crate::utils::date_utils::utc_now_fixed());
 
     match active.update(&*state.db).await {
         Ok(_) => (
@@ -400,11 +394,8 @@ pub async fn approve_recipe(
 
     recipe.status = Set(Some("已审核".to_string()));
     recipe.approved_by = Set(Some(req.approved_by));
-    recipe.approved_at = Set(Some(
-        chrono::Utc::now().with_timezone(&chrono::FixedOffset::east_opt(0).unwrap()),
-    ));
-    recipe.updated_at =
-        Set(chrono::Utc::now().with_timezone(&chrono::FixedOffset::east_opt(0).unwrap()));
+    recipe.approved_at = Set(Some(crate::utils::date_utils::utc_now_fixed()));
+    recipe.updated_at = Set(crate::utils::date_utils::utc_now_fixed());
 
     match recipe.update(&*state.db).await {
         Ok(updated) => (
@@ -483,12 +474,8 @@ pub async fn create_new_version(
         approved_at: Set(None),
         remarks: Set(req.remarks),
         created_by: Set(req.created_by),
-        created_at: Set(
-            chrono::Utc::now().with_timezone(&chrono::FixedOffset::east_opt(0).unwrap())
-        ),
-        updated_at: Set(
-            chrono::Utc::now().with_timezone(&chrono::FixedOffset::east_opt(0).unwrap())
-        ),
+        created_at: Set(crate::utils::date_utils::utc_now_fixed()),
+        updated_at: Set(crate::utils::date_utils::utc_now_fixed()),
     };
 
     match new_recipe.insert(&*state.db).await {

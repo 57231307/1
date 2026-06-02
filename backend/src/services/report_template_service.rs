@@ -83,7 +83,7 @@ impl ReportTemplateService {
             .await?;
 
         if existing.is_some() {
-            return Err(AppError::BusinessError(format!(
+            return Err(AppError::business(format!(
                 "报表模板编码 {} 已存在",
                 req.code
             )));
@@ -130,7 +130,7 @@ impl ReportTemplateService {
         let model = ReportTemplateEntity::find_by_id(id)
             .one(&*self.db)
             .await?
-            .ok_or_else(|| AppError::NotFound("报表模板不存在".to_string()))?;
+            .ok_or_else(|| AppError::not_found("报表模板不存在"))?;
 
         let mut active_model: ActiveModel = model.into();
 
@@ -177,7 +177,7 @@ impl ReportTemplateService {
         let model = ReportTemplateEntity::find_by_id(id)
             .one(&*self.db)
             .await?
-            .ok_or_else(|| AppError::NotFound("报表模板不存在".to_string()))?;
+            .ok_or_else(|| AppError::not_found("报表模板不存在"))?;
 
         let mut active_model: ActiveModel = model.into();
         active_model.status = Set("INACTIVE".to_string());
@@ -243,7 +243,7 @@ impl ReportTemplateService {
         let template = self
             .get_by_id(template_id)
             .await?
-            .ok_or_else(|| AppError::NotFound("报表模板不存在".to_string()))?;
+            .ok_or_else(|| AppError::not_found("报表模板不存在"))?;
 
         // 如果有自定义SQL，使用SQL执行
         if let Some(sql) = &template.data_source_sql {
@@ -251,7 +251,7 @@ impl ReportTemplateService {
         }
 
         // 否则使用预定义的报表类型
-        Err(AppError::BusinessError(
+        Err(AppError::business(
             "自定义报表需要配置数据源SQL".to_string(),
         ))
     }
@@ -268,9 +268,7 @@ impl ReportTemplateService {
         // 安全检查：只允许SELECT语句
         let sql_upper = sql.trim().to_uppercase();
         if !sql_upper.starts_with("SELECT") {
-            return Err(AppError::ValidationError(
-                "只允许SELECT查询语句".to_string(),
-            ));
+            return Err(AppError::validation("只允许SELECT查询语句".to_string()));
         }
 
         // 添加分页
@@ -288,7 +286,7 @@ impl ReportTemplateService {
             .as_ref()
             .query_all_raw(stmt)
             .await
-            .map_err(|e| AppError::DatabaseError(format!("SQL执行失败: {}", e)))?;
+            .map_err(|e| AppError::database(format!("SQL执行失败: {}", e)))?;
 
         if result.is_empty() {
             return Ok((vec![], vec![], 0));

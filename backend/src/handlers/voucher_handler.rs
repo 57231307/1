@@ -94,7 +94,7 @@ pub async fn list_vouchers(
     let (vouchers, total) = service
         .get_list(query_params)
         .await
-        .map_err(|e| AppError::InternalError(e.to_string()))?;
+        .map_err(|e| AppError::internal(e.to_string()))?;
     info!("用户 {} 查询凭证成功，共 {} 条", auth.username, total);
 
     Ok(Json(ApiResponse::success(vouchers)))
@@ -112,7 +112,7 @@ pub async fn get_voucher(
     let detail = service
         .get_by_id(id)
         .await
-        .map_err(|e| AppError::NotFound(e.to_string()))?;
+        .map_err(|e| AppError::not_found(e.to_string()))?;
     info!(
         "用户 {} 查询凭证成功：{}",
         auth.username, detail.voucher.voucher_no
@@ -132,7 +132,7 @@ pub async fn create_voucher(
 
     let voucher_date = req.voucher_date.parse().map_err(|e| {
         warn!("用户 {} 凭证日期格式错误：{}", auth.username, e);
-        AppError::ValidationError(format!("凭证日期格式错误：{}", e))
+        AppError::validation(format!("凭证日期格式错误：{}", e))
     })?;
 
     let items: Vec<VoucherItemRequest> = req
@@ -198,7 +198,7 @@ pub async fn submit_voucher(
     let voucher = service
         .submit(id, auth.user_id)
         .await
-        .map_err(|e| AppError::BadRequest(e.to_string()))?;
+        .map_err(|e| AppError::bad_request(e.to_string()))?;
     info!(
         "用户 {} 提交凭证成功：{}",
         auth.username, voucher.voucher_no
@@ -222,7 +222,7 @@ pub async fn review_voucher(
     let voucher = service
         .review(id, auth.user_id)
         .await
-        .map_err(|e| AppError::BadRequest(e.to_string()))?;
+        .map_err(|e| AppError::bad_request(e.to_string()))?;
     info!(
         "用户 {} 审核凭证成功：{}",
         auth.username, voucher.voucher_no
@@ -246,7 +246,7 @@ pub async fn post_voucher(
     let voucher = service
         .post(id, auth.user_id)
         .await
-        .map_err(|e| AppError::BadRequest(e.to_string()))?;
+        .map_err(|e| AppError::bad_request(e.to_string()))?;
     info!(
         "用户 {} 凭证过账成功：{}",
         auth.username, voucher.voucher_no

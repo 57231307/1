@@ -209,12 +209,8 @@ pub async fn create_greige_fabric(
         purchase_date: Set(req.purchase_date),
         remarks: Set(req.remarks),
         created_by: Set(req.created_by),
-        created_at: Set(
-            chrono::Utc::now().with_timezone(&chrono::FixedOffset::east_opt(0).unwrap())
-        ),
-        updated_at: Set(
-            chrono::Utc::now().with_timezone(&chrono::FixedOffset::east_opt(0).unwrap())
-        ),
+        created_at: Set(crate::utils::date_utils::utc_now_fixed()),
+        updated_at: Set(crate::utils::date_utils::utc_now_fixed()),
     };
 
     match fabric.insert(&*state.db).await {
@@ -296,8 +292,7 @@ pub async fn update_greige_fabric(
         fabric.remarks = Set(Some(remarks));
     }
 
-    fabric.updated_at =
-        Set(chrono::Utc::now().with_timezone(&chrono::FixedOffset::east_opt(0).unwrap()));
+    fabric.updated_at = Set(crate::utils::date_utils::utc_now_fixed());
 
     match fabric.update(&*state.db).await {
         Ok(updated) => (
@@ -347,8 +342,7 @@ pub async fn delete_greige_fabric(
     // 软删除
     let mut active: greige_fabric::ActiveModel = fabric.into();
     active.is_deleted = Set(Some(true));
-    active.updated_at =
-        Set(chrono::Utc::now().with_timezone(&chrono::FixedOffset::east_opt(0).unwrap()));
+    active.updated_at = Set(crate::utils::date_utils::utc_now_fixed());
 
     match active.update(&*state.db).await {
         Ok(_) => (
@@ -427,8 +421,7 @@ pub async fn stock_in(
     if let Some(remarks) = req.remarks {
         fabric.remarks = Set(Some(remarks));
     }
-    fabric.updated_at =
-        Set(chrono::Utc::now().with_timezone(&chrono::FixedOffset::east_opt(0).unwrap()));
+    fabric.updated_at = Set(crate::utils::date_utils::utc_now_fixed());
 
     match fabric.update(&*state.db).await {
         Ok(updated) => (
@@ -527,8 +520,7 @@ pub async fn stock_out(
     };
 
     update_fabric.status = Set(Some(new_status));
-    update_fabric.updated_at =
-        Set(chrono::Utc::now().with_timezone(&chrono::FixedOffset::east_opt(0).unwrap()));
+    update_fabric.updated_at = Set(crate::utils::date_utils::utc_now_fixed());
 
     match update_fabric.update(&*state.db).await {
         Ok(updated) => (

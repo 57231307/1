@@ -99,7 +99,7 @@ impl FieldPermissionService {
         let perm = FieldPermissionEntity::find_by_id(id)
             .one(&*self.db)
             .await?
-            .ok_or_else(|| AppError::NotFound(format!("字段权限 {} 未找到", id)))?;
+            .ok_or_else(|| AppError::not_found(format!("字段权限 {} 未找到", id)))?;
 
         Ok(FieldPermissionDetail {
             id: perm.id,
@@ -129,7 +129,7 @@ impl FieldPermissionService {
             .await?;
 
         if existing.is_some() {
-            return Err(AppError::BusinessError(
+            return Err(AppError::business(
                 "该角色对该资源类型的字段权限已存在".to_string(),
             ));
         }
@@ -174,7 +174,7 @@ impl FieldPermissionService {
         let perm = FieldPermissionEntity::find_by_id(id)
             .one(&*self.db)
             .await?
-            .ok_or_else(|| AppError::NotFound(format!("字段权限 {} 未找到", id)))?;
+            .ok_or_else(|| AppError::not_found(format!("字段权限 {} 未找到", id)))?;
 
         let mut active: field_permission::ActiveModel = perm.into();
 
@@ -213,7 +213,7 @@ impl FieldPermissionService {
         let perm = FieldPermissionEntity::find_by_id(id)
             .one(&*self.db)
             .await?
-            .ok_or_else(|| AppError::NotFound(format!("字段权限 {} 未找到", id)))?;
+            .ok_or_else(|| AppError::not_found(format!("字段权限 {} 未找到", id)))?;
 
         // 软删除：禁用而不是真正删除
         let mut active: field_permission::ActiveModel = perm.into();

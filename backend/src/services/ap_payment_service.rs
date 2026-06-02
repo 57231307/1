@@ -6,7 +6,6 @@
 
 use crate::models::{ap_invoice, ap_payment, ap_payment_request, ap_payment_request_item};
 use crate::utils::error::AppError;
-use crate::utils::number_generator::DocumentNumberGenerator;
 use chrono::{Datelike, NaiveDate};
 use rust_decimal::Decimal;
 use sea_orm::{
@@ -30,15 +29,12 @@ impl ApPaymentService {
 
     /// 生成付款单号
     /// 格式：PAY + 年月日 + 三位序号（PAY20260315001）
-    pub async fn generate_payment_no(&self) -> Result<String, AppError> {
-        DocumentNumberGenerator::generate_no(
-            &*self.db,
-            "PAY",
-            ap_payment::Entity,
-            ap_payment::Column::PaymentNo,
-        )
-        .await
-    }
+    crate::impl_generate_no!(
+        generate_payment_no,
+        "PAY",
+        ap_payment::Entity,
+        ap_payment::Column::PaymentNo
+    );
 
     /// 创建付款单（从审批通过的付款申请）
     pub async fn create(
@@ -55,10 +51,10 @@ impl ApPaymentService {
         let request = ap_payment_request::Entity::find_by_id(req.request_id)
             .one(&txn)
             .await?
-            .ok_or(AppError::NotFound(format!("付款申请 {}", req.request_id)))?;
+            .ok_or_else(|| AppError::not_found(format!("付款申请 {}", req.request_id)))?;
 
         if request.approval_status != "APPROVED" {
-            return Err(AppError::BusinessError(format!(
+            return Err(AppError::business(format!(
                 "付款申请状态为{}，未审批通过不可创建付款单",
                 request.approval_status
             )));
@@ -71,9 +67,7 @@ impl ApPaymentService {
             .await?;
 
         if exists.is_some() {
-            return Err(AppError::BusinessError(
-                "该付款申请已创建过付款单".to_string(),
-            ));
+            return Err(AppError::business("该付款申请已创建过付款单".to_string()));
         }
 
         // 4. 创建付款单
@@ -115,11 +109,11 @@ impl ApPaymentService {
         let payment = ap_payment::Entity::find_by_id(id)
             .one(&txn)
             .await?
-            .ok_or(AppError::NotFound(format!("付款单 {}", id)))?;
+            .ok_or_else(|| AppError::not_found(format!("付款单 {}", id)))?;
 
         // 2. 检查状态（仅已登记可修改）
         if payment.payment_status != "REGISTERED" {
-            return Err(AppError::BusinessError(format!(
+            return Err(AppError::business(format!(
                 "付款单状态为{}，不可修改",
                 payment.payment_status
             )));
@@ -173,11 +167,11 @@ impl ApPaymentService {
         let payment = ap_payment::Entity::find_by_id(id)
             .one(&txn)
             .await?
-            .ok_or(AppError::NotFound(format!("付款单 ID: {}", id)))?;
+            .ok_or_else(|| AppError::not_found(format!("付款单 ID: {}", id)))?;
 
         // 2. 检查状态
         if payment.payment_status != "REGISTERED" {
-            return Err(AppError::BusinessError(format!(
+            return Err(AppError::business(format!(
                 "付款单状态为{}，不可确认",
                 payment.payment_status
             )));
@@ -189,7 +183,7 @@ impl ApPaymentService {
             .as_deref()
             .is_none_or(|t| t.is_empty())
         {
-            return Err(AppError::BusinessError(
+            return Err(AppError::business(
                 "付款单必须填写交易流水号才能确认".to_string(),
             ));
         }
@@ -387,7 +381,7 @@ impl ApPaymentService {
         let payment = ap_payment::Entity::find_by_id(id)
             .one(&*self.db)
             .await?
-            .ok_or(AppError::NotFound(format!("付款单 {}", id)))?;
+            .ok_or_else(|| AppError::not_found(format!("付款单 {}", id)))?;
 
         Ok(payment)
     }

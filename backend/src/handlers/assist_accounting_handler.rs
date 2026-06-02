@@ -284,7 +284,7 @@ pub async fn get_assist_summary(
         service
             .find_summary_by_period_and_dimension(&params.accounting_period, dimension_code)
             .await
-            .map_err(|e| AppError::InternalError(e.to_string()))?
+            .map_err(|e| AppError::internal(e.to_string()))?
             .into_iter()
             .map(|s| AssistSummaryResponse {
                 id: s.id,

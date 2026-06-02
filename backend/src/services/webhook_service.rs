@@ -84,7 +84,7 @@ impl WebhookService {
         let webhook = Webhook::find_by_id(webhook_id)
             .one(self.db.as_ref())
             .await?
-            .ok_or(AppError::BusinessError("Webhook 不存在".to_string()))?;
+            .ok_or_else(|| AppError::business("Webhook 不存在"))?;
 
         if !webhook.is_active {
             return Ok(WebhookDeliveryResult {
@@ -236,10 +236,10 @@ impl WebhookService {
         let webhook = Webhook::find_by_id(id)
             .one(self.db.as_ref())
             .await?
-            .ok_or(AppError::BusinessError("Webhook 不存在".to_string()))?;
+            .ok_or_else(|| AppError::business("Webhook 不存在"))?;
 
         if webhook.tenant_id != tenant_id {
-            return Err(AppError::PermissionDenied("无权删除此Webhook".to_string()));
+            return Err(AppError::permission_denied("无权删除此Webhook"));
         }
 
         let mut active_model: WebhookActiveModel = webhook.into();
@@ -255,10 +255,10 @@ impl WebhookService {
         let webhook = Webhook::find_by_id(id)
             .one(self.db.as_ref())
             .await?
-            .ok_or(AppError::BusinessError("Webhook 不存在".to_string()))?;
+            .ok_or_else(|| AppError::business("Webhook 不存在"))?;
 
         if webhook.tenant_id != tenant_id {
-            return Err(AppError::PermissionDenied("无权查看此Webhook".to_string()));
+            return Err(AppError::permission_denied("无权查看此Webhook"));
         }
 
         Ok(webhook)
@@ -277,10 +277,10 @@ impl WebhookService {
         let webhook = Webhook::find_by_id(id)
             .one(self.db.as_ref())
             .await?
-            .ok_or(AppError::BusinessError("Webhook 不存在".to_string()))?;
+            .ok_or_else(|| AppError::business("Webhook 不存在"))?;
 
         if webhook.tenant_id != tenant_id {
-            return Err(AppError::PermissionDenied("无权修改此Webhook".to_string()));
+            return Err(AppError::permission_denied("无权修改此Webhook"));
         }
 
         let mut active_model: WebhookActiveModel = webhook.into();

@@ -186,12 +186,8 @@ pub async fn create_dye_batch(
         started_at: Set(None),
         completed_at: Set(None),
         is_deleted: Set(Some(false)),
-        created_at: Set(
-            chrono::Utc::now().with_timezone(&chrono::FixedOffset::east_opt(0).unwrap())
-        ),
-        updated_at: Set(
-            chrono::Utc::now().with_timezone(&chrono::FixedOffset::east_opt(0).unwrap())
-        ),
+        created_at: Set(crate::utils::date_utils::utc_now_fixed()),
+        updated_at: Set(crate::utils::date_utils::utc_now_fixed()),
     };
 
     match batch.insert(&*state.db).await {
@@ -277,20 +273,15 @@ pub async fn update_dye_batch(
         if status == "生产中" {
             let needs_start_time = batch.started_at.as_ref().is_none();
             if needs_start_time {
-                batch.started_at = Set(Some(
-                    chrono::Utc::now().with_timezone(&chrono::FixedOffset::east_opt(0).unwrap()),
-                ));
+                batch.started_at = Set(Some(crate::utils::date_utils::utc_now_fixed()));
             }
         }
         if status == "已完成" {
-            batch.completed_at = Set(Some(
-                chrono::Utc::now().with_timezone(&chrono::FixedOffset::east_opt(0).unwrap()),
-            ));
+            batch.completed_at = Set(Some(crate::utils::date_utils::utc_now_fixed()));
         }
     }
 
-    batch.updated_at =
-        Set(chrono::Utc::now().with_timezone(&chrono::FixedOffset::east_opt(0).unwrap()));
+    batch.updated_at = Set(crate::utils::date_utils::utc_now_fixed());
 
     match batch.update(&*state.db).await {
         Ok(updated) => (
@@ -343,8 +334,7 @@ pub async fn delete_dye_batch(
     // 软删除
     let mut active: dye_batch::ActiveModel = batch.into();
     active.is_deleted = Set(Some(true));
-    active.updated_at =
-        Set(chrono::Utc::now().with_timezone(&chrono::FixedOffset::east_opt(0).unwrap()));
+    active.updated_at = Set(crate::utils::date_utils::utc_now_fixed());
 
     match active.update(&*state.db).await {
         Ok(_) => (
@@ -404,11 +394,8 @@ pub async fn complete_dye_batch(
     }
 
     batch.status = Set(Some("已完成".to_string()));
-    batch.completed_at = Set(Some(
-        chrono::Utc::now().with_timezone(&chrono::FixedOffset::east_opt(0).unwrap()),
-    ));
-    batch.updated_at =
-        Set(chrono::Utc::now().with_timezone(&chrono::FixedOffset::east_opt(0).unwrap()));
+    batch.completed_at = Set(Some(crate::utils::date_utils::utc_now_fixed()));
+    batch.updated_at = Set(crate::utils::date_utils::utc_now_fixed());
 
     match batch.update(&*state.db).await {
         Ok(updated) => (

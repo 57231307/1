@@ -259,7 +259,7 @@ impl SalesService {
             .into_model::<SalesOrderDetail>()
             .one(&*self.db)
             .await?
-            .ok_or_else(|| AppError::NotFound(format!("销售订单 {} 未找到", order_id)))?;
+            .ok_or_else(|| AppError::not_found(format!("销售订单 {} 未找到", order_id)))?;
 
         // 获取订单明细项
         use crate::models::product;
@@ -292,10 +292,7 @@ impl SalesService {
         let customer = crate::models::customer::Entity::find_by_id(request.customer_id)
             .one(&txn)
             .await?
-            .ok_or(AppError::BusinessError(format!(
-                "客户 {} 不存在",
-                request.customer_id
-            )))?;
+            .ok_or_else(|| AppError::business(format!("客户 {} 不存在", request.customer_id)))?;
 
         // 业务逻辑验证：日期合理性检查
         let required_date = request
@@ -306,7 +303,7 @@ impl SalesService {
             if let Err(e) = txn.rollback().await {
                 tracing::error!("事务回滚失败: {}", e);
             }
-            return Err(AppError::BusinessError(
+            return Err(AppError::business(
                 "创建面料订单失败: 交付日期不能早于当前时间".to_string(),
             ));
         }
@@ -365,12 +362,12 @@ impl SalesService {
         let credit_available = credit_service
             .check_credit_available(request.customer_id, order_amount_bigdecimal.clone())
             .await
-            .map_err(|e| AppError::BusinessError(format!("信用检查失败: {}", e)))?;
+            .map_err(|e| AppError::business(format!("信用检查失败: {}", e)))?;
 
         if !credit_available {
             tracing::error!("Transaction rolled back: 信用额度不足");
             txn.rollback().await?;
-            return Err(AppError::BusinessError(format!(
+            return Err(AppError::business(format!(
                 "信用额度不足：订单金额 {} 超出可用信用额度",
                 order_amount
             )));
@@ -388,7 +385,7 @@ impl SalesService {
         if existing_order.is_some() {
             tracing::error!("Transaction rolled back: 订单号 {} 已存在", order_no);
             txn.rollback().await?;
-            return Err(AppError::BusinessError("订单号已存在，请重试".to_string()));
+            return Err(AppError::business("订单号已存在，请重试"));
         }
 
         // 创建订单主表
@@ -454,10 +451,7 @@ impl SalesService {
                         if let Err(e) = txn.rollback().await {
                             tracing::error!("事务回滚失败: {}", e);
                         }
-                        return Err(AppError::BusinessError(format!(
-                            "产品 ID {} 不存在",
-                            product_id
-                        )));
+                        return Err(AppError::business(format!("产品 ID {} 不存在", product_id)));
                     }
                 }
             }
@@ -570,7 +564,7 @@ impl SalesService {
             .await
             .map_err(|e| {
                 tracing::error!("信用额度占用失败，事务回滚: {}", e);
-                AppError::BusinessError(format!("信用额度占用失败: {}", e))
+                AppError::business(format!("信用额度占用失败: {}", e))
             })?;
         tracing::info!(
             "客户 {} 信用额度占用成功，金额: {}",
@@ -592,9 +586,7 @@ impl SalesService {
             let opportunity = crm_opportunity::Entity::find_by_id(opportunity_id)
                 .one(&txn)
                 .await?
-                .ok_or_else(|| {
-                    AppError::BusinessError(format!("商机 {} 不存在", opportunity_id))
-                })?;
+                .ok_or_else(|| AppError::business(format!("商机 {} 不存在", opportunity_id)))?;
 
             let mut opp_active: crm_opportunity::ActiveModel = opportunity.into();
             opp_active.actual_amount = sea_orm::ActiveValue::Set(Some(total_amount));
@@ -631,11 +623,11 @@ impl SalesService {
         let order = SalesOrderEntity::find_by_id(order_id)
             .one(&*self.db)
             .await?
-            .ok_or_else(|| AppError::NotFound(format!("销售订单 {} 未找到", order_id)))?;
+            .ok_or_else(|| AppError::not_found(format!("销售订单 {} 未找到", order_id)))?;
 
         // 检查订单状态，已发货或已完成的订单不允许修改
         if order.status == "shipped" || order.status == "completed" {
-            return Err(AppError::BusinessError(format!(
+            return Err(AppError::business(format!(
                 "订单状态为{}，不允许修改",
                 order.status
             )));
@@ -759,7 +751,7 @@ impl SalesService {
             let order_entity = SalesOrderEntity::find_by_id(order_id)
                 .one(&txn)
                 .await?
-                .ok_or_else(|| AppError::BusinessError("销售订单不存在".to_string()))?;
+                .ok_or_else(|| AppError::business("销售订单不存在"))?;
             let mut order_update: sales_order::ActiveModel = order_entity.into();
             order_update.subtotal = sea_orm::ActiveValue::Set(subtotal);
             order_update.tax_amount = sea_orm::ActiveValue::Set(tax_amount);
@@ -789,11 +781,11 @@ impl SalesService {
         let order = SalesOrderEntity::find_by_id(order_id)
             .one(&*self.db)
             .await?
-            .ok_or_else(|| AppError::NotFound(format!("销售订单 {} 未找到", order_id)))?;
+            .ok_or_else(|| AppError::not_found(format!("销售订单 {} 未找到", order_id)))?;
 
         // 检查订单状态，已发货或已完成的订单不允许删除
         if order.status == "shipped" || order.status == "completed" {
-            return Err(AppError::BusinessError(format!(
+            return Err(AppError::business(format!(
                 "订单状态为{}，不允许删除",
                 order.status
             )));
@@ -821,16 +813,12 @@ impl SalesService {
     }
 
     /// 生成订单号
-    async fn generate_order_no(&self) -> Result<String, AppError> {
-        DocumentNumberGenerator::generate_no(
-            &*self.db,
-            "SO",
-            SalesOrderEntity,
-            sales_order::Column::OrderNo,
-        )
-        .await
-        .map_err(|e| AppError::BusinessError(e.to_string()))
-    }
+    crate::impl_generate_no!(
+        generate_order_no,
+        "SO",
+        SalesOrderEntity,
+        sales_order::Column::OrderNo
+    );
 
     /// 检查库存是否充足
     async fn check_inventory(
@@ -851,13 +839,13 @@ impl SalesService {
                     continue;
                 }
                 Some(s) => {
-                    return Err(AppError::BusinessError(format!(
+                    return Err(AppError::business(format!(
                         "产品 {} 库存不足，当前库存：{}，需要：{}",
                         item.product_id, s.quantity_available, item.quantity
                     )));
                 }
                 None => {
-                    return Err(AppError::BusinessError(format!(
+                    return Err(AppError::business(format!(
                         "产品 {} 没有库存记录",
                         item.product_id
                     )));
@@ -899,7 +887,7 @@ impl SalesService {
 
             if let Some(s) = stock {
                 if s.quantity_available < item.quantity {
-                    return Err(AppError::BusinessError(format!(
+                    return Err(AppError::business(format!(
                         "产品 {} 库存不足，无法锁定",
                         item.product_id
                     )));
@@ -938,7 +926,7 @@ impl SalesService {
                 )
                 .await?;
             } else {
-                return Err(AppError::BusinessError(format!(
+                return Err(AppError::business(format!(
                     "产品 {} 没有库存记录，无法锁定",
                     item.product_id
                 )));
@@ -968,7 +956,7 @@ impl SalesService {
             if let Some(s) = stock {
                 // 检查库存是否充足
                 if s.quantity_on_hand < item.quantity {
-                    return Err(AppError::BusinessError(format!(
+                    return Err(AppError::business(format!(
                         "产品 {} 在仓库 {} (批次 {}) 库存不足，当前可用 {}，需要 {}",
                         item.product_id,
                         item.warehouse_id,
@@ -1018,7 +1006,7 @@ impl SalesService {
                     .await?;
                 }
             } else {
-                return Err(AppError::BusinessError(format!(
+                return Err(AppError::business(format!(
                     "产品 {} 在仓库 {} (批次 {}) 没有库存记录，无法扣减",
                     item.product_id, item.warehouse_id, item.batch_no
                 )));
@@ -1107,11 +1095,11 @@ impl SalesService {
         let order = SalesOrderEntity::find_by_id(order_id)
             .one(&*self.db)
             .await?
-            .ok_or_else(|| AppError::NotFound(format!("销售订单 {} 未找到", order_id)))?;
+            .ok_or_else(|| AppError::not_found(format!("销售订单 {} 未找到", order_id)))?;
 
         // 2. 检查状态 - 只有草稿状态可以提交
         if order.status != "draft" {
-            return Err(AppError::BusinessError(format!(
+            return Err(AppError::business(format!(
                 "订单状态为{}，只有草稿状态的订单可以提交",
                 order.status
             )));
@@ -1171,11 +1159,11 @@ impl SalesService {
         let order = SalesOrderEntity::find_by_id(order_id)
             .one(&*self.db)
             .await?
-            .ok_or_else(|| AppError::NotFound(format!("销售订单 {} 未找到", order_id)))?;
+            .ok_or_else(|| AppError::not_found(format!("销售订单 {} 未找到", order_id)))?;
 
         // 检查订单状态，只有待审批状态可以审核
         if order.status != "pending_approval" {
-            return Err(AppError::BusinessError(format!(
+            return Err(AppError::business(format!(
                 "订单状态为{}，只有待审批状态的订单可以审核",
                 order.status
             )));
@@ -1253,11 +1241,11 @@ impl SalesService {
         let order = SalesOrderEntity::find_by_id(order_id)
             .one(&*self.db)
             .await?
-            .ok_or_else(|| AppError::NotFound(format!("销售订单 {} 未找到", order_id)))?;
+            .ok_or_else(|| AppError::not_found(format!("销售订单 {} 未找到", order_id)))?;
 
         // 检查订单状态，只有已审核状态可以发货
         if order.status != "approved" {
-            return Err(AppError::BusinessError(format!(
+            return Err(AppError::business(format!(
                 "订单状态为{}，只有已审核状态的订单可以发货",
                 order.status
             )));
@@ -1294,13 +1282,13 @@ impl SalesService {
             ArInvoiceColumn::InvoiceNo,
         )
         .await
-        .map_err(|e| AppError::BusinessError(e.to_string()))?;
+        .map_err(|e| AppError::business(e.to_string()))?;
 
         // 查询客户信息
         let customer = customer::Entity::find_by_id(order.customer_id)
             .one(&txn)
             .await?
-            .ok_or_else(|| AppError::BusinessError(format!("客户 {} 不存在", order.customer_id)))?;
+            .ok_or_else(|| AppError::business(format!("客户 {} 不存在", order.customer_id)))?;
 
         let invoice_date = chrono::Utc::now().date_naive();
         let due_date = invoice_date + chrono::Duration::days(30);
@@ -1338,11 +1326,11 @@ impl SalesService {
         let order = SalesOrderEntity::find_by_id(order_id)
             .one(&*self.db)
             .await?
-            .ok_or_else(|| AppError::NotFound(format!("销售订单 {} 未找到", order_id)))?;
+            .ok_or_else(|| AppError::not_found(format!("销售订单 {} 未找到", order_id)))?;
 
         // 检查订单状态，只有已发货状态可以完成
         if order.status != "shipped" {
-            return Err(AppError::BusinessError(format!(
+            return Err(AppError::business(format!(
                 "订单状态为{}，只有已发货状态的订单可以完成",
                 order.status
             )));
@@ -1398,11 +1386,11 @@ impl SalesService {
         let order = SalesOrderEntity::find_by_id(order_id)
             .one(&*self.db)
             .await?
-            .ok_or_else(|| AppError::NotFound(format!("销售订单 {} 未找到", order_id)))?;
+            .ok_or_else(|| AppError::not_found(format!("销售订单 {} 未找到", order_id)))?;
 
         // 2. 检查状态
         if order.status != "draft" && order.status != "pending_approval" {
-            return Err(AppError::BusinessError(format!(
+            return Err(AppError::business(format!(
                 "订单状态为{}，只有草稿或待审批状态的订单可以拒绝",
                 order.status
             )));
@@ -1549,6 +1537,6 @@ impl SalesService {
             .collect();
 
         crate::utils::import_export::CsvImporter::generate(&headers, &rows)
-            .map_err(|e| AppError::BusinessError(format!("CSV 生成失败: {}", e)))
+            .map_err(|e| AppError::business(format!("CSV 生成失败: {}", e)))
     }
 }

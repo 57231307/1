@@ -91,7 +91,7 @@ impl QualityStandardService {
         let standard = quality_standard::Entity::find_by_id(id)
             .one(&*self.db)
             .await?
-            .ok_or_else(|| AppError::NotFound(format!("质量标准不存在：{}", id)))?;
+            .ok_or_else(|| AppError::not_found(format!("质量标准不存在：{}", id)))?;
         Ok(standard)
     }
 
@@ -170,9 +170,7 @@ impl QualityStandardService {
         let referenced_count = 0;
 
         if referenced_count > 0 {
-            return Err(AppError::ValidationError(
-                "质量标准被引用，无法删除".to_string(),
-            ));
+            return Err(AppError::validation("质量标准被引用，无法删除".to_string()));
         }
 
         quality_standard::Entity::delete_many()
@@ -249,9 +247,7 @@ impl QualityStandardService {
         let standard = self.get_standard_by_id(standard_id).await?;
 
         if standard.status != "draft" && standard.status != "rejected" {
-            return Err(AppError::ValidationError(
-                "质量标准状态不允许审批".to_string(),
-            ));
+            return Err(AppError::validation("质量标准状态不允许审批".to_string()));
         }
 
         let mut standard_active: quality_standard::ActiveModel = standard.into();
@@ -269,9 +265,7 @@ impl QualityStandardService {
         let standard = self.get_standard_by_id(standard_id).await?;
 
         if standard.status != "approved" {
-            return Err(AppError::ValidationError(
-                "质量标准未审批，无法发布".to_string(),
-            ));
+            return Err(AppError::validation("质量标准未审批，无法发布".to_string()));
         }
 
         let mut standard_active: quality_standard::ActiveModel = standard.into();

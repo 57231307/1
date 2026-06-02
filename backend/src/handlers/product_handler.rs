@@ -203,7 +203,7 @@ pub async fn create_product(
 ) -> Result<Json<ApiResponse<product::Model>>, AppError> {
     // 输入验证
     if let Err(e) = req.validate() {
-        return Err(AppError::ValidationError(e.to_string()));
+        return Err(AppError::validation(e.to_string()));
     }
 
     let product_service = ProductService::new(state.db.clone());
@@ -254,7 +254,7 @@ pub async fn update_product(
 ) -> Result<Json<ApiResponse<product::Model>>, AppError> {
     // 输入验证
     if let Err(e) = req.validate() {
-        return Err(AppError::ValidationError(e.to_string()));
+        return Err(AppError::validation(e.to_string()));
     }
 
     let product_service = ProductService::new(state.db.clone());
@@ -423,7 +423,7 @@ pub async fn export_products(
     let csv_data = product_service
         .export_products_to_csv(query.category_id, query.status, query.search)
         .await
-        .map_err(|e| AppError::InternalError(format!("导出失败: {}", e)))?;
+        .map_err(|e| AppError::internal(format!("导出失败: {}", e)))?;
 
     let filename = format!(
         "products_export_{}.csv",
@@ -438,7 +438,7 @@ pub async fn export_products(
             format!("attachment; filename=\"{}\"", filename),
         )
         .body(axum::body::Body::from(csv_data))
-        .map_err(|e| AppError::InternalError(format!("响应构建失败: {}", e)))?;
+        .map_err(|e| AppError::internal(format!("响应构建失败: {}", e)))?;
 
     Ok(response)
 }
@@ -474,7 +474,7 @@ pub async fn get_product_import_template(
     _auth: AuthContext,
 ) -> Result<axum::response::Response, AppError> {
     let template_data = ProductService::generate_product_import_template()
-        .map_err(|e| AppError::InternalError(format!("模板生成失败: {}", e)))?;
+        .map_err(|e| AppError::internal(format!("模板生成失败: {}", e)))?;
 
     let response = axum::response::Response::builder()
         .status(axum::http::StatusCode::OK)
@@ -484,7 +484,7 @@ pub async fn get_product_import_template(
             "attachment; filename=\"product_import_template.csv\"",
         )
         .body(axum::body::Body::from(template_data))
-        .map_err(|e| AppError::InternalError(format!("响应构建失败: {}", e)))?;
+        .map_err(|e| AppError::internal(format!("响应构建失败: {}", e)))?;
 
     Ok(response)
 }

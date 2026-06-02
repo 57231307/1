@@ -539,7 +539,7 @@ impl SchedulingService {
         let order = ProductionOrderEntity::find_by_id(order_id)
             .one(&*self.db)
             .await?
-            .ok_or_else(|| AppError::NotFound("生产订单不存在".to_string()))?;
+            .ok_or_else(|| AppError::not_found("生产订单不存在"))?;
 
         use crate::models::production_order::ActiveModel;
         let mut active: ActiveModel = order.clone().into();
@@ -656,7 +656,7 @@ impl SchedulingService {
             .order_by_asc(crate::models::work_center::Column::Code)
             .all(&*self.db)
             .await
-            .map_err(|e| AppError::DatabaseError(e.to_string()))
+            .map_err(|e| AppError::database(e.to_string()))
     }
 
     /// 加载待排程工单
@@ -666,7 +666,7 @@ impl SchedulingService {
             .order_by_asc(crate::models::production_order::Column::Priority)
             .all(&*self.db)
             .await
-            .map_err(|e| AppError::DatabaseError(e.to_string()))
+            .map_err(|e| AppError::database(e.to_string()))
     }
 
     /// 查找最早可用时间槽
@@ -898,10 +898,10 @@ impl SchedulingService {
         let model = SchedulingResultEntity::find_by_id(id)
             .one(&*self.db)
             .await?
-            .ok_or_else(|| AppError::NotFound("排程结果不存在".to_string()))?;
+            .ok_or_else(|| AppError::not_found("排程结果不存在"))?;
 
         if model.status != "DRAFT" {
-            return Err(AppError::BusinessError(
+            return Err(AppError::business(
                 "只有草稿状态的排程结果可以确认".to_string(),
             ));
         }
@@ -917,7 +917,7 @@ impl SchedulingService {
                     if let Ok(Some(order)) = ProductionOrderEntity::find_by_id(detail.order_id)
                         .one(&txn)
                         .await
-                        .map_err(|e| AppError::DatabaseError(e.to_string()))
+                        .map_err(|e| AppError::database(e.to_string()))
                     {
                         use crate::models::production_order::ActiveModel;
                         let mut active: ActiveModel = order.into();

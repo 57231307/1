@@ -61,7 +61,7 @@ pub async fn set_data_permission(
 
     let valid_scope_types = ["ALL", "DEPT", "DEPT_AND_BELOW", "SELF", "CUSTOM"];
     if !valid_scope_types.contains(&req.scope_type.as_str()) {
-        return Err(AppError::ValidationError("无效的数据范围类型".to_string()));
+        return Err(AppError::validation("无效的数据范围类型"));
     }
 
     let permission = service

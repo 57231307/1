@@ -85,7 +85,7 @@ pub async fn create_collection(
 
     let collection_date = req.collection_date.parse().map_err(|e| {
         warn!("用户 {} 成本日期格式错误：{}", auth.username, e);
-        AppError::ValidationError("成本日期格式错误".to_string())
+        AppError::validation("成本日期格式错误")
     })?;
 
     let create_req = CreateCostCollectionRequest {
@@ -131,8 +131,7 @@ pub async fn get_collection(
     let service = CostCollectionService::new(state.db.clone());
     let collection = service.get_by_id(id).await?;
     Ok(Json(ApiResponse::success(
-        serde_json::to_value(collection)
-            .map_err(|_| AppError::InternalError("序列化失败".into()))?,
+        serde_json::to_value(collection).map_err(|_| AppError::internal("序列化失败"))?,
     )))
 }
 
@@ -146,8 +145,7 @@ pub async fn update_collection(
     let service = CostCollectionService::new(state.db.clone());
     let collection = service.update(id, req, auth.user_id).await?;
     Ok(Json(ApiResponse::success_with_message(
-        serde_json::to_value(collection)
-            .map_err(|_| AppError::InternalError("序列化失败".into()))?,
+        serde_json::to_value(collection).map_err(|_| AppError::internal("序列化失败"))?,
         "成本归集更新成功",
     )))
 }
@@ -188,7 +186,7 @@ pub async fn get_cost_analysis_summary(
         .await?;
 
     Ok(Json(ApiResponse::success(
-        serde_json::to_value(summary).map_err(|_| AppError::InternalError("序列化失败".into()))?,
+        serde_json::to_value(summary).map_err(|_| AppError::internal("序列化失败"))?,
     )))
 }
 
@@ -226,8 +224,7 @@ pub async fn audit_collection(
         .await?;
 
     Ok(Json(ApiResponse::success_with_message(
-        serde_json::to_value(collection)
-            .map_err(|_| AppError::InternalError("序列化失败".into()))?,
+        serde_json::to_value(collection).map_err(|_| AppError::internal("序列化失败"))?,
         if req.approved {
             "成本归集审核通过"
         } else {

@@ -89,7 +89,7 @@ pub async fn create_ar_invoice(
         .map(|d| {
             d.parse().map_err(|e| {
                 warn!("用户 {} 应收单日期格式错误：{}", auth.username, e);
-                AppError::ValidationError("应收单日期格式错误".to_string())
+                AppError::validation("应收单日期格式错误")
             })
         })
         .transpose()?;
@@ -99,7 +99,7 @@ pub async fn create_ar_invoice(
         .map(|d| {
             d.parse().map_err(|e| {
                 warn!("用户 {} 到期日格式错误：{}", auth.username, e);
-                AppError::ValidationError("到期日格式错误".to_string())
+                AppError::validation("到期日格式错误")
             })
         })
         .transpose()?;
@@ -144,7 +144,7 @@ pub async fn get_ar_invoice(
     let service = ArInvoiceService::new(state.db.clone());
     let invoice = service.get_by_id(id).await?;
     Ok(Json(ApiResponse::success(
-        serde_json::to_value(invoice).map_err(|_| AppError::InternalError("序列化失败".into()))?,
+        serde_json::to_value(invoice).map_err(|_| AppError::internal("序列化失败"))?,
     )))
 }
 
@@ -158,7 +158,7 @@ pub async fn update_ar_invoice(
     let service = ArInvoiceService::new(state.db.clone());
     let invoice = service.update(id, req, auth.user_id).await?;
     Ok(Json(ApiResponse::success_with_message(
-        serde_json::to_value(invoice).map_err(|_| AppError::InternalError("序列化失败".into()))?,
+        serde_json::to_value(invoice).map_err(|_| AppError::internal("序列化失败"))?,
         "应收发票更新成功",
     )))
 }
@@ -186,7 +186,7 @@ pub async fn approve_ar_invoice(
     let service = ArInvoiceService::new(state.db.clone());
     let invoice = service.approve(id, auth.user_id).await?;
     Ok(Json(ApiResponse::success_with_message(
-        serde_json::to_value(invoice).map_err(|_| AppError::InternalError("序列化失败".into()))?,
+        serde_json::to_value(invoice).map_err(|_| AppError::internal("序列化失败"))?,
         "应收发票审批成功",
     )))
 }
@@ -201,7 +201,7 @@ pub async fn cancel_ar_invoice(
     let service = ArInvoiceService::new(state.db.clone());
     let invoice = service.cancel(id, req.reason, auth.user_id).await?;
     Ok(Json(ApiResponse::success_with_message(
-        serde_json::to_value(invoice).map_err(|_| AppError::InternalError("序列化失败".into()))?,
+        serde_json::to_value(invoice).map_err(|_| AppError::internal("序列化失败"))?,
         "应收发票取消成功",
     )))
 }

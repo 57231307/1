@@ -122,7 +122,7 @@ impl PurchaseDeliveryCalculator {
                 vec![supplier_id.into()],
             ))
             .await
-            .map_err(|e| AppError::InternalError(format!("查询供应商交货周期失败: {}", e)))?;
+            .map_err(|e| AppError::internal(format!("查询供应商交货周期失败: {}", e)))?;
 
         if let Some(row) = result {
             let avg_days: Option<i32> = row.try_get_by_index(0).ok();

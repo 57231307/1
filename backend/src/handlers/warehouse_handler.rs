@@ -113,8 +113,7 @@ pub async fn list_locations(
     let locations_json: Vec<serde_json::Value> = locations
         .into_iter()
         .map(|l| {
-            serde_json::to_value(l)
-                .map_err(|e| AppError::InternalError(format!("序列化失败: {}", e)))
+            serde_json::to_value(l).map_err(|e| AppError::internal(format!("序列化失败: {}", e)))
         })
         .collect::<Result<Vec<_>, _>>()?;
 
@@ -153,7 +152,7 @@ pub async fn create_location(
 
     let location = active_location.insert(&*state.db).await?;
     let location_json = serde_json::to_value(location)
-        .map_err(|e| AppError::InternalError(format!("序列化失败: {}", e)))?;
+        .map_err(|e| AppError::internal(format!("序列化失败: {}", e)))?;
     Ok(Json(ApiResponse::success_with_message(
         location_json,
         "库位创建成功",
@@ -169,9 +168,9 @@ pub async fn get_location(
     let location = LocationEntity::find_by_id(id)
         .one(&*state.db)
         .await?
-        .ok_or_else(|| AppError::NotFound("库位不存在".to_string()))?;
+        .ok_or_else(|| AppError::not_found("库位不存在"))?;
     let location_json = serde_json::to_value(location)
-        .map_err(|e| AppError::InternalError(format!("序列化失败: {}", e)))?;
+        .map_err(|e| AppError::internal(format!("序列化失败: {}", e)))?;
     Ok(Json(ApiResponse::success(location_json)))
 }
 
@@ -186,9 +185,9 @@ pub async fn update_location(
     let location = LocationEntity::find_by_id(id)
         .one(&*state.db)
         .await?
-        .ok_or_else(|| AppError::NotFound("库位不存在".to_string()))?;
+        .ok_or_else(|| AppError::not_found("库位不存在"))?;
     let location_json = serde_json::to_value(location)
-        .map_err(|e| AppError::InternalError(format!("序列化失败: {}", e)))?;
+        .map_err(|e| AppError::internal(format!("序列化失败: {}", e)))?;
     Ok(Json(ApiResponse::success_with_message(
         location_json,
         "库位更新成功",

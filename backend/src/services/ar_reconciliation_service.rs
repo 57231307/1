@@ -231,7 +231,7 @@ impl ArReconciliationService {
         let model = ReconciliationEntity::find_by_id(id)
             .one(&*self.db)
             .await?
-            .ok_or_else(|| AppError::NotFound("对账单不存在".to_string()))?;
+            .ok_or_else(|| AppError::not_found("对账单不存在"))?;
 
         let mut active_model: ActiveModel = model.into();
 
@@ -262,11 +262,11 @@ impl ArReconciliationService {
         let model = ReconciliationEntity::find_by_id(id)
             .one(&*self.db)
             .await?
-            .ok_or_else(|| AppError::NotFound("对账单不存在".to_string()))?;
+            .ok_or_else(|| AppError::not_found("对账单不存在"))?;
 
         // 只有草稿状态的对账单可以删除
         if model.reconciliation_status.as_deref() != Some("draft") {
-            return Err(AppError::BusinessError(
+            return Err(AppError::business(
                 "只有草稿状态的对账单可以删除".to_string(),
             ));
         }
@@ -283,10 +283,10 @@ impl ArReconciliationService {
         let model = ReconciliationEntity::find_by_id(id)
             .one(&*self.db)
             .await?
-            .ok_or_else(|| AppError::NotFound("对账单不存在".to_string()))?;
+            .ok_or_else(|| AppError::not_found("对账单不存在"))?;
 
         if model.reconciliation_status.as_deref() != Some("draft") {
-            return Err(AppError::BusinessError(
+            return Err(AppError::business(
                 "只有草稿状态的对账单可以发送".to_string(),
             ));
         }
@@ -309,7 +309,7 @@ impl ArReconciliationService {
         let model = ReconciliationEntity::find_by_id(id)
             .one(&*self.db)
             .await?
-            .ok_or_else(|| AppError::NotFound("对账单不存在".to_string()))?;
+            .ok_or_else(|| AppError::not_found("对账单不存在"))?;
 
         let mut active_model: ActiveModel = model.into();
         active_model.reconciliation_status = Set(Some("confirmed".to_string()));
@@ -328,7 +328,7 @@ impl ArReconciliationService {
         let model = ReconciliationEntity::find_by_id(id)
             .one(&*self.db)
             .await?
-            .ok_or_else(|| AppError::NotFound("对账单不存在".to_string()))?;
+            .ok_or_else(|| AppError::not_found("对账单不存在"))?;
 
         let mut active_model: ActiveModel = model.into();
         active_model.reconciliation_status = Set(Some("disputed".to_string()));
@@ -345,11 +345,11 @@ impl ArReconciliationService {
         let model = ReconciliationEntity::find_by_id(id)
             .one(&*self.db)
             .await?
-            .ok_or_else(|| AppError::NotFound("对账单不存在".to_string()))?;
+            .ok_or_else(|| AppError::not_found("对账单不存在"))?;
 
         let status = model.reconciliation_status.as_deref().unwrap_or("draft");
         if status != "confirmed" && status != "disputed" {
-            return Err(AppError::BusinessError(
+            return Err(AppError::business(
                 "只有已确认或有争议的对账单可以关闭".to_string(),
             ));
         }
@@ -372,7 +372,7 @@ impl ArReconciliationService {
         let model = ReconciliationEntity::find_by_id(id)
             .one(&*self.db)
             .await?
-            .ok_or_else(|| AppError::NotFound("对账单不存在".to_string()))?;
+            .ok_or_else(|| AppError::not_found("对账单不存在"))?;
 
         let mut active_model: ActiveModel = model.into();
         active_model.reconciliation_status = Set(Some(status.to_string()));
@@ -404,7 +404,7 @@ impl ArReconciliationService {
             vec![customer::Entity::find_by_id(cid)
                 .one(&txn)
                 .await?
-                .ok_or_else(|| AppError::NotFound(format!("客户 {} 不存在", cid)))?]
+                .ok_or_else(|| AppError::not_found(format!("客户 {} 不存在", cid)))?]
         } else {
             customer::Entity::find().all(&txn).await?
         };
@@ -830,7 +830,7 @@ impl ArReconciliationService {
         let cust = customer::Entity::find_by_id(req.customer_id)
             .one(&txn)
             .await?
-            .ok_or_else(|| AppError::NotFound(format!("客户 {} 不存在", req.customer_id)))?;
+            .ok_or_else(|| AppError::not_found(format!("客户 {} 不存在", req.customer_id)))?;
 
         let reconciliation_no = DocumentNumberGenerator::generate_no(
             &*self.db,
@@ -956,7 +956,7 @@ impl ArReconciliationService {
         let reconciliation = ReconciliationEntity::find_by_id(id)
             .one(&*self.db)
             .await?
-            .ok_or_else(|| AppError::NotFound("对账单不存在".to_string()))?;
+            .ok_or_else(|| AppError::not_found("对账单不存在"))?;
 
         let items = crate::models::ar_reconciliation_item::Entity::find()
             .filter(crate::models::ar_reconciliation_item::Column::ReconciliationId.eq(id))
@@ -1004,16 +1004,14 @@ impl ArReconciliationService {
         let model = ReconciliationEntity::find_by_id(id)
             .one(&*self.db)
             .await?
-            .ok_or_else(|| AppError::NotFound("对账单不存在".to_string()))?;
+            .ok_or_else(|| AppError::not_found("对账单不存在"))?;
 
         let status = model.reconciliation_status.as_deref().unwrap_or("draft");
         if status == "confirmed" {
-            return Err(AppError::BusinessError(
-                "对账单已确认，不可重复确认".to_string(),
-            ));
+            return Err(AppError::business("对账单已确认，不可重复确认".to_string()));
         }
         if status == "disputed" {
-            return Err(AppError::BusinessError(
+            return Err(AppError::business(
                 "对账单存在争议，请先解决争议后再确认".to_string(),
             ));
         }
@@ -1041,18 +1039,14 @@ impl ArReconciliationService {
         let model = ReconciliationEntity::find_by_id(id)
             .one(&*self.db)
             .await?
-            .ok_or_else(|| AppError::NotFound("对账单不存在".to_string()))?;
+            .ok_or_else(|| AppError::not_found("对账单不存在"))?;
 
         let status = model.reconciliation_status.as_deref().unwrap_or("draft");
         if status == "confirmed" {
-            return Err(AppError::BusinessError(
-                "对账单已确认，不可提出争议".to_string(),
-            ));
+            return Err(AppError::business("对账单已确认，不可提出争议".to_string()));
         }
         if status == "closed" {
-            return Err(AppError::BusinessError(
-                "对账单已关闭，不可提出争议".to_string(),
-            ));
+            return Err(AppError::business("对账单已关闭，不可提出争议".to_string()));
         }
 
         let mut active_model: ActiveModel = model.into();
@@ -1071,7 +1065,7 @@ impl ArReconciliationService {
         let model = ReconciliationEntity::find_by_id(id)
             .one(&*self.db)
             .await?
-            .ok_or_else(|| AppError::NotFound("对账单不存在".to_string()))?;
+            .ok_or_else(|| AppError::not_found("对账单不存在"))?;
 
         // 获取对账明细
         let items = ReconciliationItemEntity::find()

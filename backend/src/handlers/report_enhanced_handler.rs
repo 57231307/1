@@ -86,7 +86,7 @@ pub async fn get_report_template(
     let template = service
         .get_by_id(id)
         .await?
-        .ok_or_else(|| AppError::NotFound("报表模板不存在".to_string()))?;
+        .ok_or_else(|| AppError::not_found("报表模板不存在"))?;
 
     Ok(Json(ApiResponse::success(serde_json::to_value(template)?)))
 }
@@ -164,7 +164,7 @@ pub async fn export_pdf(
     let template_id: i32 = req
         .template_id
         .parse()
-        .map_err(|_| AppError::ValidationError("无效的模板ID".to_string()))?;
+        .map_err(|_| AppError::validation("无效的模板ID"))?;
 
     // 执行报表获取数据
     let (headers, data, _total) = service.execute_custom_report(template_id, 1, 10000).await?;
@@ -208,7 +208,7 @@ pub async fn export_excel(
     let template_id: i32 = req
         .template_id
         .parse()
-        .map_err(|_| AppError::ValidationError("无效的模板ID".to_string()))?;
+        .map_err(|_| AppError::validation("无效的模板ID"))?;
 
     // 执行报表获取数据
     let (headers, data, _total) = service.execute_custom_report(template_id, 1, 10000).await?;
@@ -288,7 +288,7 @@ pub async fn get_subscription(
     let subscription = service
         .get_by_id(id)
         .await?
-        .ok_or_else(|| AppError::NotFound("订阅不存在".to_string()))?;
+        .ok_or_else(|| AppError::not_found("订阅不存在"))?;
 
     Ok(Json(ApiResponse::success(serde_json::to_value(
         subscription,

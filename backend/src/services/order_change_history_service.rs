@@ -53,7 +53,7 @@ impl OrderChangeHistoryService {
         sales_order_change_history::Entity::insert(history)
             .exec(self.db.as_ref())
             .await
-            .map_err(|e| AppError::InternalError(format!("记录变更历史失败: {}", e)))?;
+            .map_err(|e| AppError::internal(format!("记录变更历史失败: {}", e)))?;
 
         Ok(())
     }
@@ -74,13 +74,13 @@ impl OrderChangeHistoryService {
             .limit(page_size)
             .all(self.db.as_ref())
             .await
-            .map_err(|e| AppError::InternalError(format!("查询变更历史失败: {}", e)))?;
+            .map_err(|e| AppError::internal(format!("查询变更历史失败: {}", e)))?;
 
         let total = sales_order_change_history::Entity::find()
             .filter(sales_order_change_history::Column::OrderId.eq(order_id))
             .count(self.db.as_ref())
             .await
-            .map_err(|e| AppError::InternalError(format!("查询变更历史总数失败: {}", e)))?;
+            .map_err(|e| AppError::internal(format!("查询变更历史总数失败: {}", e)))?;
 
         Ok((histories, total))
     }

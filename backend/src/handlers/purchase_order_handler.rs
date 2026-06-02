@@ -477,7 +477,7 @@ pub async fn export_orders(
             format!("attachment; filename=\"{}\"", filename),
         )
         .body(axum::body::Body::from(csv_data))
-        .map_err(|e| AppError::InternalError(format!("响应构建失败: {}", e)))?;
+        .map_err(|e| AppError::internal(format!("响应构建失败: {}", e)))?;
 
     Ok(response)
 }

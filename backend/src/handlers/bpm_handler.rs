@@ -68,7 +68,7 @@ pub async fn get_process_visualization(
     let instance = bpm_process_instance::Entity::find_by_id(instance_id)
         .one(state.db.as_ref())
         .await?
-        .ok_or_else(|| AppError::NotFound("流程实例不存在".to_string()))?;
+        .ok_or_else(|| AppError::not_found("流程实例不存在"))?;
 
     let definition = bpm_process_definition::Entity::find_by_id(instance.process_definition_id)
         .one(state.db.as_ref())

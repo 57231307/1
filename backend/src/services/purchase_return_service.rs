@@ -19,8 +19,6 @@ pub struct PurchaseReturnService {
     db: Arc<DatabaseConnection>,
 }
 
-use crate::utils::number_generator::DocumentNumberGenerator;
-
 impl PurchaseReturnService {
     pub fn new(db: Arc<DatabaseConnection>) -> Self {
         Self { db }
@@ -28,15 +26,12 @@ impl PurchaseReturnService {
 
     /// 生成退货单号
     /// 格式：RT + 年月日 + 三位序号（RT20260315001）
-    pub async fn generate_return_no(&self) -> Result<String, AppError> {
-        DocumentNumberGenerator::generate_no(
-            &*self.db,
-            "RT",
-            purchase_return::Entity,
-            purchase_return::Column::ReturnNo,
-        )
-        .await
-    }
+    crate::impl_generate_no!(
+        generate_return_no,
+        "RT",
+        purchase_return::Entity,
+        purchase_return::Column::ReturnNo
+    );
 
     /// 创建采购退货单
     pub async fn create_return(
@@ -90,10 +85,10 @@ impl PurchaseReturnService {
         let return_order = purchase_return::Entity::find_by_id(return_id)
             .one(&*self.db)
             .await?
-            .ok_or(AppError::NotFound(format!("采购退货单 {}", return_id)))?;
+            .ok_or_else(|| AppError::not_found(format!("采购退货单 {}", return_id)))?;
 
         if return_order.return_status.as_deref() != Some("draft") {
-            return Err(AppError::BusinessError(format!(
+            return Err(AppError::business(format!(
                 "退货单状态不允许修改，当前状态：{:?}",
                 return_order.return_status
             )));
@@ -132,10 +127,10 @@ impl PurchaseReturnService {
         let return_order = purchase_return::Entity::find_by_id(return_id)
             .one(&*self.db)
             .await?
-            .ok_or(AppError::NotFound(format!("采购退货单 {}", return_id)))?;
+            .ok_or_else(|| AppError::not_found(format!("采购退货单 {}", return_id)))?;
 
         if return_order.return_status.as_deref() != Some("draft") {
-            return Err(AppError::BusinessError(format!(
+            return Err(AppError::business(format!(
                 "退货单状态不允许提交，当前状态：{:?}",
                 return_order.return_status
             )));
@@ -165,10 +160,10 @@ impl PurchaseReturnService {
         let return_order = purchase_return::Entity::find_by_id(return_id)
             .one(&*self.db)
             .await?
-            .ok_or(AppError::NotFound(format!("采购退货单 {}", return_id)))?;
+            .ok_or_else(|| AppError::not_found(format!("采购退货单 {}", return_id)))?;
 
         if return_order.return_status.as_deref() != Some("submitted") {
-            return Err(AppError::BusinessError(format!(
+            return Err(AppError::business(format!(
                 "退货单状态不允许审批，当前状态：{:?}",
                 return_order.return_status
             )));
@@ -181,9 +176,7 @@ impl PurchaseReturnService {
             .await?;
 
         if item_count == 0 {
-            return Err(AppError::BusinessError(
-                "退货单至少需要一行明细".to_string(),
-            ));
+            return Err(AppError::business("退货单至少需要一行明细".to_string()));
         }
 
         // 开启事务
@@ -219,7 +212,7 @@ impl PurchaseReturnService {
 
             if let Some(s) = existing_stock {
                 if s.quantity_meters < item.quantity {
-                    return Err(AppError::BusinessError(format!(
+                    return Err(AppError::business(format!(
                         "产品 {} 库存不足，当前库存：{}，需要退货：{}",
                         item.product_id, s.quantity_meters, item.quantity
                     )));
@@ -254,7 +247,7 @@ impl PurchaseReturnService {
                     Some(user_id),
                 ).await?;
             } else {
-                return Err(AppError::BusinessError(format!(
+                return Err(AppError::business(format!(
                     "产品 {} 在仓库 {} 没有库存记录，无法退货",
                     item.product_id, warehouse_id
                 )));
@@ -294,10 +287,10 @@ impl PurchaseReturnService {
         let return_order = purchase_return::Entity::find_by_id(return_id)
             .one(&*self.db)
             .await?
-            .ok_or(AppError::NotFound(format!("采购退货单 {}", return_id)))?;
+            .ok_or_else(|| AppError::not_found(format!("采购退货单 {}", return_id)))?;
 
         if return_order.return_status.as_deref() != Some("submitted") {
-            return Err(AppError::BusinessError(format!(
+            return Err(AppError::business(format!(
                 "退货单状态不允许拒绝，当前状态：{:?}",
                 return_order.return_status
             )));
@@ -353,7 +346,7 @@ impl PurchaseReturnService {
         let return_order = purchase_return::Entity::find_by_id(return_id)
             .one(&*self.db)
             .await?
-            .ok_or(AppError::NotFound(format!("采购退货单 {}", return_id)))?;
+            .ok_or_else(|| AppError::not_found(format!("采购退货单 {}", return_id)))?;
 
         Ok(return_order)
     }
@@ -479,10 +472,10 @@ impl PurchaseReturnService {
         let return_record = purchase_return::Entity::find_by_id(return_id)
             .one(&txn)
             .await?
-            .ok_or(AppError::NotFound(format!("退货单 {}", return_id)))?;
+            .ok_or_else(|| AppError::not_found(format!("退货单 {}", return_id)))?;
 
         if return_record.return_status.as_deref() != Some("draft") {
-            return Err(AppError::BusinessError(
+            return Err(AppError::business(
                 "只有草稿状态的退货单可以修改明细".to_string(),
             ));
         }
@@ -537,15 +530,15 @@ impl PurchaseReturnService {
         let item = purchase_return_item::Entity::find_by_id(item_id)
             .one(&txn)
             .await?
-            .ok_or(AppError::NotFound(format!("退货明细 {}", item_id)))?;
+            .ok_or_else(|| AppError::not_found(format!("退货明细 {}", item_id)))?;
 
         let return_record = purchase_return::Entity::find_by_id(item.return_id)
             .one(&txn)
             .await?
-            .ok_or(AppError::NotFound(format!("退货单 {}", item.return_id)))?;
+            .ok_or_else(|| AppError::not_found(format!("退货单 {}", item.return_id)))?;
 
         if return_record.return_status.as_deref() != Some("draft") {
-            return Err(AppError::BusinessError(
+            return Err(AppError::business(
                 "只有草稿状态的退货单可以修改明细".to_string(),
             ));
         }
@@ -609,15 +602,15 @@ impl PurchaseReturnService {
         let item = purchase_return_item::Entity::find_by_id(item_id)
             .one(&txn)
             .await?
-            .ok_or(AppError::NotFound(format!("退货明细 {}", item_id)))?;
+            .ok_or_else(|| AppError::not_found(format!("退货明细 {}", item_id)))?;
 
         let return_record = purchase_return::Entity::find_by_id(item.return_id)
             .one(&txn)
             .await?
-            .ok_or(AppError::NotFound(format!("退货单 {}", item.return_id)))?;
+            .ok_or_else(|| AppError::not_found(format!("退货单 {}", item.return_id)))?;
 
         if return_record.return_status.as_deref() != Some("draft") {
-            return Err(AppError::BusinessError(
+            return Err(AppError::business(
                 "只有草稿状态的退货单可以修改明细".to_string(),
             ));
         }
@@ -638,9 +631,9 @@ impl PurchaseReturnService {
         let ret = purchase_return::Entity::find_by_id(id)
             .one(&txn)
             .await?
-            .ok_or(AppError::NotFound("Return not found".to_string()))?;
+            .ok_or_else(|| AppError::not_found("Return not found"))?;
         if ret.return_status.as_deref() != Some("draft") {
-            return Err(AppError::BusinessError(
+            return Err(AppError::business(
                 "Only DRAFT returns can be deleted".to_string(),
             ));
         }
@@ -680,7 +673,7 @@ impl PurchaseReturnService {
         let return_record = purchase_return::Entity::find_by_id(return_id)
             .one(txn)
             .await?
-            .ok_or(AppError::NotFound(format!("退货单 {}", return_id)))?;
+            .ok_or_else(|| AppError::not_found(format!("退货单 {}", return_id)))?;
 
         let mut active_return: purchase_return::ActiveModel = return_record.into();
         active_return.total_quantity = Set(Some(total_quantity));

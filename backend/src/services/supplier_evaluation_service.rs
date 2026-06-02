@@ -103,7 +103,7 @@ impl SupplierEvaluationService {
             .one(&*self.db)
             .await?;
         if existing.is_some() {
-            return Err(AppError::ValidationError(format!(
+            return Err(AppError::validation(format!(
                 "评估指标编码 '{}' 已存在",
                 req.indicator_code
             )));
@@ -136,7 +136,7 @@ impl SupplierEvaluationService {
         let indicator = supplier_evaluation::Entity::find_by_id(id)
             .one(&*self.db)
             .await?
-            .ok_or_else(|| AppError::NotFound(format!("评估指标不存在，ID：{}", id)))?;
+            .ok_or_else(|| AppError::not_found(format!("评估指标不存在，ID：{}", id)))?;
 
         // 检查指标编码是否重复（排除自身）
         let existing = supplier_evaluation::Entity::find()
@@ -145,7 +145,7 @@ impl SupplierEvaluationService {
             .one(&*self.db)
             .await?;
         if existing.is_some() {
-            return Err(AppError::ValidationError(format!(
+            return Err(AppError::validation(format!(
                 "评估指标编码 '{}' 已存在",
                 req.indicator_code
             )));
@@ -174,7 +174,7 @@ impl SupplierEvaluationService {
             .count(&*self.db)
             .await?;
         if has_records > 0 {
-            return Err(AppError::ValidationError(
+            return Err(AppError::validation(
                 "该评估指标已被使用，无法删除".to_string(),
             ));
         }
@@ -182,7 +182,7 @@ impl SupplierEvaluationService {
         let indicator = supplier_evaluation::Entity::find_by_id(id)
             .one(&*self.db)
             .await?
-            .ok_or_else(|| AppError::NotFound(format!("评估指标不存在，ID：{}", id)))?;
+            .ok_or_else(|| AppError::not_found(format!("评估指标不存在，ID：{}", id)))?;
 
         indicator.delete(&*self.db).await?;
         info!("评估指标删除成功：{}", id);
@@ -205,7 +205,7 @@ impl SupplierEvaluationService {
             .one(&*self.db)
             .await?;
         if supplier_exists.is_none() {
-            return Err(AppError::NotFound(format!(
+            return Err(AppError::not_found(format!(
                 "供应商不存在，ID：{}",
                 req.supplier_id
             )));
@@ -216,7 +216,7 @@ impl SupplierEvaluationService {
             .one(&*self.db)
             .await?
             .ok_or_else(|| {
-                AppError::NotFound(format!("评估指标不存在，ID：{}", req.indicator_id))
+                AppError::not_found(format!("评估指标不存在，ID：{}", req.indicator_id))
             })?;
 
         // 计算加权得分
@@ -228,7 +228,7 @@ impl SupplierEvaluationService {
 
         // 校验得分范围
         if req.score < Decimal::ZERO || req.score > Decimal::from(indicator.max_score) {
-            return Err(AppError::ValidationError(format!(
+            return Err(AppError::validation(format!(
                 "得分 {} 超出有效范围 [0, {}]",
                 req.score, indicator.max_score
             )));
@@ -267,7 +267,7 @@ impl SupplierEvaluationService {
             .await?;
 
         if records.is_empty() {
-            return Err(AppError::NotFound(format!(
+            return Err(AppError::not_found(format!(
                 "供应商 {} 暂无评估记录",
                 supplier_id
             )));
@@ -472,7 +472,7 @@ impl SupplierEvaluationService {
         let record = supplier_evaluation_record::Entity::find_by_id(id)
             .one(&*self.db)
             .await?
-            .ok_or_else(|| AppError::NotFound(format!("评估记录不存在：{}", id)))?;
+            .ok_or_else(|| AppError::not_found(format!("评估记录不存在：{}", id)))?;
 
         Ok(record)
     }
@@ -488,7 +488,7 @@ impl SupplierEvaluationService {
         let record = supplier_evaluation_record::Entity::find_by_id(id)
             .one(&*self.db)
             .await?
-            .ok_or_else(|| AppError::NotFound(format!("评估记录不存在：{}", id)))?;
+            .ok_or_else(|| AppError::not_found(format!("评估记录不存在：{}", id)))?;
 
         // 检查供应商是否存在
         use crate::models::supplier;
@@ -496,7 +496,7 @@ impl SupplierEvaluationService {
             .one(&*self.db)
             .await?;
         if supplier_exists.is_none() {
-            return Err(AppError::NotFound(format!(
+            return Err(AppError::not_found(format!(
                 "供应商不存在，ID：{}",
                 req.supplier_id
             )));
@@ -507,12 +507,12 @@ impl SupplierEvaluationService {
             .one(&*self.db)
             .await?
             .ok_or_else(|| {
-                AppError::NotFound(format!("评估指标不存在，ID：{}", req.indicator_id))
+                AppError::not_found(format!("评估指标不存在，ID：{}", req.indicator_id))
             })?;
 
         // 校验得分范围
         if req.score < Decimal::ZERO || req.score > Decimal::from(indicator.max_score) {
-            return Err(AppError::ValidationError(format!(
+            return Err(AppError::validation(format!(
                 "得分 {} 超出有效范围 [0, {}]",
                 req.score, indicator.max_score
             )));
@@ -547,7 +547,7 @@ impl SupplierEvaluationService {
         let record = supplier_evaluation_record::Entity::find_by_id(id)
             .one(&*self.db)
             .await?
-            .ok_or_else(|| AppError::NotFound(format!("评估记录不存在：{}", id)))?;
+            .ok_or_else(|| AppError::not_found(format!("评估记录不存在：{}", id)))?;
 
         record.delete(&*self.db).await?;
         info!("评估记录删除成功：{}", id);

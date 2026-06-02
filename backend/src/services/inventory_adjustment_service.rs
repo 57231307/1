@@ -1,7 +1,6 @@
 use crate::models::{inventory_adjustment, inventory_adjustment_item, inventory_stock};
 use crate::services::event_bus::{BusinessEvent, EVENT_BUS};
 use crate::utils::error::AppError;
-use crate::utils::number_generator::DocumentNumberGenerator;
 use chrono::{DateTime, Utc};
 use rust_decimal::Decimal;
 use sea_orm::DatabaseConnection;
@@ -102,7 +101,7 @@ impl InventoryAdjustmentService {
         for item_req in request.items {
             // 获取当前库存数量
             let stock = stock_map.get(&item_req.stock_id).ok_or_else(|| {
-                AppError::NotFound(format!("库存 ID {} 不存在", item_req.stock_id))
+                AppError::not_found(format!("库存 ID {} 不存在", item_req.stock_id))
             })?;
 
             // 计算调整前后的数量（使用 quantity_on_hand 字段）
@@ -156,11 +155,11 @@ impl InventoryAdjustmentService {
         let adjustment_model = inventory_adjustment::Entity::find_by_id(adjustment_id)
             .one(&txn)
             .await?
-            .ok_or_else(|| AppError::NotFound(format!("调整单 {} 不存在", adjustment_id)))?;
+            .ok_or_else(|| AppError::not_found(format!("调整单 {} 不存在", adjustment_id)))?;
 
         // 检查状态
         if adjustment_model.status != "pending" {
-            return Err(AppError::BusinessError(
+            return Err(AppError::business(
                 "只有待审核状态的调整单可以审核".to_string(),
             ));
         }
@@ -195,7 +194,7 @@ impl InventoryAdjustmentService {
             let stock_model = inventory_stock::Entity::find_by_id(item.stock_id)
                 .one(&txn)
                 .await?
-                .ok_or_else(|| AppError::NotFound(format!("库存 ID {} 不存在", item.stock_id)))?;
+                .ok_or_else(|| AppError::not_found(format!("库存 ID {} 不存在", item.stock_id)))?;
 
             let quantity_before = stock_model.quantity_on_hand;
             let expected_version = stock_model.version;
@@ -239,7 +238,7 @@ impl InventoryAdjustmentService {
 
             // 检查乐观锁是否成功
             if update_result.rows_affected == 0 {
-                return Err(AppError::BusinessError(format!(
+                return Err(AppError::business(format!(
                     "库存 ID {} 已被其他用户修改，请重试",
                     item.stock_id
                 )));
@@ -249,7 +248,7 @@ impl InventoryAdjustmentService {
             let updated_stock = inventory_stock::Entity::find_by_id(item.stock_id)
                 .one(&txn)
                 .await?
-                .ok_or_else(|| AppError::NotFound(format!("库存 ID {} 不存在", item.stock_id)))?;
+                .ok_or_else(|| AppError::not_found(format!("库存 ID {} 不存在", item.stock_id)))?;
 
             // 收集库存交易事件数据，供审核通过后发布
             let quantity_change = item.quantity_after - quantity_before;
@@ -292,11 +291,11 @@ impl InventoryAdjustmentService {
         let adjustment_model = inventory_adjustment::Entity::find_by_id(adjustment_id)
             .one(&*self.db)
             .await?
-            .ok_or_else(|| AppError::NotFound(format!("调整单 {} 不存在", adjustment_id)))?;
+            .ok_or_else(|| AppError::not_found(format!("调整单 {} 不存在", adjustment_id)))?;
 
         // 检查状态
         if adjustment_model.status != "pending" {
-            return Err(AppError::BusinessError(
+            return Err(AppError::business(
                 "只有待审核状态的调整单可以驳回".to_string(),
             ));
         }
@@ -330,7 +329,7 @@ impl InventoryAdjustmentService {
         let adjustment = inventory_adjustment::Entity::find_by_id(adjustment_id)
             .one(&*self.db)
             .await?
-            .ok_or_else(|| AppError::NotFound(format!("调整单 {} 不存在", adjustment_id)))?;
+            .ok_or_else(|| AppError::not_found(format!("调整单 {} 不存在", adjustment_id)))?;
 
         let items = inventory_adjustment_item::Entity::find()
             .filter(inventory_adjustment_item::Column::AdjustmentId.eq(adjustment_id))
@@ -341,16 +340,12 @@ impl InventoryAdjustmentService {
     }
 
     /// 生成调整单号
-    async fn generate_adjustment_no(&self) -> Result<String, AppError> {
-        DocumentNumberGenerator::generate_no(
-            &*self.db,
-            "ADJ",
-            inventory_adjustment::Entity,
-            inventory_adjustment::Column::AdjustmentNo,
-        )
-        .await
-        .map_err(|e| AppError::BusinessError(e.to_string()))
-    }
+    crate::impl_generate_no!(
+        generate_adjustment_no,
+        "ADJ",
+        inventory_adjustment::Entity,
+        inventory_adjustment::Column::AdjustmentNo
+    );
 }
 
 #[cfg(test)]
@@ -459,7 +454,7 @@ mod tests {
         let result = service.get_adjustment(99999).await;
 
         assert!(result.is_err());
-        assert!(matches!(result.unwrap_err(), AppError::NotFound(_)));
+        assert!(matches!(result.unwrap_err(), AppError::not_found(_)));
     }
 
     #[tokio::test]
@@ -471,7 +466,7 @@ mod tests {
         let result = service.approve_adjustment(99999, 1).await;
 
         assert!(result.is_err());
-        assert!(matches!(result.unwrap_err(), AppError::NotFound(_)));
+        assert!(matches!(result.unwrap_err(), AppError::not_found(_)));
     }
 
     #[tokio::test]
@@ -483,7 +478,7 @@ mod tests {
         let result = service.reject_adjustment(99999).await;
 
         assert!(result.is_err());
-        assert!(matches!(result.unwrap_err(), AppError::NotFound(_)));
+        assert!(matches!(result.unwrap_err(), AppError::not_found(_)));
     }
 
     #[test]

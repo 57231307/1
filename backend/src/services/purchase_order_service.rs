@@ -86,42 +86,31 @@ impl PurchaseOrderService {
 
     /// 生成采购订单号
     /// 格式：PO + 年月日 + 三位序号（PO20260315001）
-    pub async fn generate_order_no(&self) -> Result<String, AppError> {
-        DocumentNumberGenerator::generate_no(
-            &*self.db,
-            "PO",
-            purchase_order::Entity,
-            purchase_order::Column::OrderNo,
-        )
-        .await
-    }
+    crate::impl_generate_no!(
+        generate_order_no,
+        "PO",
+        purchase_order::Entity,
+        purchase_order::Column::OrderNo
+    );
 
     /// 生成采购订单号（使用事务连接）
     /// 格式：PO + 年月日 + 三位序号（PO20260315001）
-    pub async fn generate_order_no_with_txn(
-        &self,
-        txn: &sea_orm::DatabaseTransaction,
-    ) -> Result<String, AppError> {
-        DocumentNumberGenerator::generate_no(
-            txn,
-            "PO",
-            purchase_order::Entity,
-            purchase_order::Column::OrderNo,
-        )
-        .await
-    }
+    crate::impl_generate_no!(
+        generate_order_no_with_txn,
+        "PO",
+        purchase_order::Entity,
+        purchase_order::Column::OrderNo,
+        txn
+    );
 
     /// 生成入库单号
     /// 格式：PR + 年月日 + 三位序号（PR20260315001）
-    pub async fn generate_receipt_no(&self) -> Result<String, AppError> {
-        DocumentNumberGenerator::generate_no(
-            &*self.db,
-            "PR",
-            purchase_receipt::Entity,
-            purchase_receipt::Column::ReceiptNo,
-        )
-        .await
-    }
+    crate::impl_generate_no!(
+        generate_receipt_no,
+        "PR",
+        purchase_receipt::Entity,
+        purchase_receipt::Column::ReceiptNo
+    );
 
     /// 创建采购订单（含明细）
     pub async fn create_order(
@@ -179,7 +168,7 @@ impl PurchaseOrderService {
             .await?;
         if supplier_exists.is_none() {
             tracing::error!("供应商 ID {} 不存在", req.supplier_id);
-            return Err(AppError::BadRequest(format!(
+            return Err(AppError::bad_request(format!(
                 "供应商 ID {} 不存在",
                 req.supplier_id
             )));
@@ -188,11 +177,11 @@ impl PurchaseOrderService {
         // 检查仓库是否存在
         let warehouse_id = req
             .warehouse_id
-            .ok_or_else(|| AppError::BadRequest("仓库 ID 不能为空".to_string()))?;
+            .ok_or_else(|| AppError::bad_request("仓库 ID 不能为空"))?;
         let warehouse_exists = warehouse::Entity::find_by_id(warehouse_id).one(txn).await?;
         if warehouse_exists.is_none() {
             tracing::error!("仓库 ID {} 不存在", warehouse_id);
-            return Err(AppError::BadRequest(format!(
+            return Err(AppError::bad_request(format!(
                 "仓库 ID {} 不存在",
                 warehouse_id
             )));
@@ -201,13 +190,13 @@ impl PurchaseOrderService {
         // 检查部门是否存在
         let department_id = req
             .department_id
-            .ok_or_else(|| AppError::BadRequest("部门 ID 不能为空".to_string()))?;
+            .ok_or_else(|| AppError::bad_request("部门 ID 不能为空"))?;
         let department_exists = department::Entity::find_by_id(department_id)
             .one(txn)
             .await?;
         if department_exists.is_none() {
             tracing::error!("Transaction rolled back: 部门 ID {} 不存在", department_id);
-            return Err(AppError::BadRequest(format!(
+            return Err(AppError::bad_request(format!(
                 "部门 ID {} 不存在",
                 department_id
             )));
@@ -217,7 +206,7 @@ impl PurchaseOrderService {
         if let Some(expected_date) = req.expected_delivery_date {
             if expected_date < req.order_date {
                 tracing::error!("预计交货日期不能早于订单日期");
-                return Err(AppError::BadRequest(
+                return Err(AppError::bad_request(
                     "预计交货日期不能早于订单日期".to_string(),
                 ));
             }
@@ -304,7 +293,7 @@ impl PurchaseOrderService {
                 for product_id in product_ids {
                     if !existing_product_ids.contains(&product_id) {
                         tracing::error!("产品 ID {} 不存在", product_id);
-                        return Err(AppError::BadRequest(format!(
+                        return Err(AppError::bad_request(format!(
                             "产品 ID {} 不存在",
                             product_id
                         )));
@@ -461,13 +450,13 @@ impl PurchaseOrderService {
         let order = purchase_order::Entity::find_by_id(order_id)
             .one(&*self.db)
             .await?
-            .ok_or(AppError::NotFound(format!("采购订单 {}", order_id)))?;
+            .ok_or_else(|| AppError::not_found(format!("采购订单 {}", order_id)))?;
 
         // 2. 检查状态
         if order.order_status != status::purchase_order::DRAFT
             && order.order_status != status::purchase_order::REJECTED
         {
-            return Err(AppError::BusinessError(format!(
+            return Err(AppError::business(format!(
                 "订单状态不允许修改，当前状态：{}",
                 order.order_status
             )));
@@ -475,7 +464,7 @@ impl PurchaseOrderService {
 
         // 3. 检查权限
         if order.created_by != user_id {
-            return Err(AppError::PermissionDenied(
+            return Err(AppError::permission_denied(
                 "只能修改自己创建的订单".to_string(),
             ));
         }
@@ -536,11 +525,11 @@ impl PurchaseOrderService {
         let order = purchase_order::Entity::find_by_id(order_id)
             .one(&*self.db)
             .await?
-            .ok_or(AppError::NotFound(format!("采购订单 {}", order_id)))?;
+            .ok_or_else(|| AppError::not_found(format!("采购订单 {}", order_id)))?;
 
         // 2. 检查状态
         if order.order_status != status::purchase_order::DRAFT {
-            return Err(AppError::BusinessError(format!(
+            return Err(AppError::business(format!(
                 "订单状态不允许删除，当前状态：{}",
                 order.order_status
             )));
@@ -548,7 +537,7 @@ impl PurchaseOrderService {
 
         // 3. 检查权限
         if order.created_by != user_id {
-            return Err(AppError::PermissionDenied(
+            return Err(AppError::permission_denied(
                 "只能删除自己创建的订单".to_string(),
             ));
         }
@@ -571,13 +560,13 @@ impl PurchaseOrderService {
         let order = purchase_order::Entity::find_by_id(order_id)
             .one(&*self.db)
             .await?
-            .ok_or(AppError::NotFound(format!("采购订单 {}", order_id)))?;
+            .ok_or_else(|| AppError::not_found(format!("采购订单 {}", order_id)))?;
 
         // 2. 检查状态
         if order.order_status != status::purchase_order::DRAFT
             && order.order_status != status::purchase_order::REJECTED
         {
-            return Err(AppError::BusinessError(format!(
+            return Err(AppError::business(format!(
                 "订单状态不允许提交，当前状态：{}",
                 order.order_status
             )));
@@ -585,7 +574,7 @@ impl PurchaseOrderService {
 
         // 3. 检查权限
         if order.created_by != user_id {
-            return Err(AppError::PermissionDenied(
+            return Err(AppError::permission_denied(
                 "只能提交自己创建的订单".to_string(),
             ));
         }
@@ -597,7 +586,7 @@ impl PurchaseOrderService {
             .await?;
 
         if item_count == 0 {
-            return Err(AppError::BusinessError("订单至少需要一行明细".to_string()));
+            return Err(AppError::business("订单至少需要一行明细"));
         }
 
         // 5. 更新状态为 PENDING_APPROVAL
@@ -644,11 +633,11 @@ impl PurchaseOrderService {
         let order = purchase_order::Entity::find_by_id(order_id)
             .one(&*self.db)
             .await?
-            .ok_or(AppError::NotFound(format!("采购订单 {}", order_id)))?;
+            .ok_or_else(|| AppError::not_found(format!("采购订单 {}", order_id)))?;
 
         // 2. 检查状态 - 只有待审批状态的订单才能审批
         if order.order_status != status::purchase_order::PENDING_APPROVAL {
-            return Err(AppError::BusinessError(format!(
+            return Err(AppError::business(format!(
                 "订单状态不允许审批，当前状态：{}，需要状态：PENDING_APPROVAL",
                 order.order_status
             )));
@@ -685,11 +674,11 @@ impl PurchaseOrderService {
         let order = purchase_order::Entity::find_by_id(order_id)
             .one(&*self.db)
             .await?
-            .ok_or(AppError::NotFound(format!("采购订单 {}", order_id)))?;
+            .ok_or_else(|| AppError::not_found(format!("采购订单 {}", order_id)))?;
 
         // 2. 检查状态 - 只有待审批状态的订单才能拒绝
         if order.order_status != status::purchase_order::PENDING_APPROVAL {
-            return Err(AppError::BusinessError(format!(
+            return Err(AppError::business(format!(
                 "订单状态不允许拒绝，当前状态：{}，需要状态：PENDING_APPROVAL",
                 order.order_status
             )));
@@ -723,13 +712,13 @@ impl PurchaseOrderService {
         let order = purchase_order::Entity::find_by_id(order_id)
             .one(&txn)
             .await?
-            .ok_or(AppError::NotFound(format!("采购订单 {}", order_id)))?;
+            .ok_or_else(|| AppError::not_found(format!("采购订单 {}", order_id)))?;
 
         // 3. 检查状态 - 只有已审批的订单才能收货
         if order.order_status != status::purchase_order::APPROVED
             && order.order_status != status::purchase_order::PARTIAL_RECEIVED
         {
-            return Err(AppError::BusinessError(format!(
+            return Err(AppError::business(format!(
                 "订单状态不允许收货，当前状态：{}，需要状态：APPROVED 或 PARTIAL_RECEIVED",
                 order.order_status
             )));
@@ -748,10 +737,9 @@ impl PurchaseOrderService {
             let product = product::Entity::find_by_id(item.product_id)
                 .one(&txn)
                 .await?
-                .ok_or(AppError::NotFound(format!(
-                    "产品 ID {} 不存在",
-                    item.product_id
-                )))?;
+                .ok_or_else(|| {
+                    AppError::not_found(format!("产品 ID {} 不存在", item.product_id))
+                })?;
 
             // 计算入库数量
             let receive_quantity_meters = item.quantity - item.received_quantity;
@@ -766,7 +754,7 @@ impl PurchaseOrderService {
                 .await
                 .map_err(|e| {
                     tracing::error!("查询库存失败: 产品ID={}, 仓库ID={}, 错误: {}", item.product_id, order.warehouse_id, e);
-                    AppError::InternalError(format!("查询库存失败: {}", e))
+                    AppError::internal(format!("查询库存失败: {}", e))
                 })?;
 
                 let before_quantity_meters;
@@ -791,7 +779,7 @@ impl PurchaseOrderService {
                         .await
                         .map_err(|e| {
                             tracing::error!("更新库存失败: 库存ID={}, 错误: {}", stock.id, e);
-                            AppError::InternalError(format!("更新库存失败: {}", e))
+                            AppError::internal(format!("更新库存失败: {}", e))
                         })?;
                     }
                     None => {
@@ -818,7 +806,7 @@ impl PurchaseOrderService {
                         .await
                         .map_err(|e| {
                             tracing::error!("创建库存记录失败: 产品ID={}, 仓库ID={}, 错误: {}", item.product_id, order.warehouse_id, e);
-                            AppError::InternalError(format!("创建库存记录失败: {}", e))
+                            AppError::internal(format!("创建库存记录失败: {}", e))
                         })?;
                     }
                 };
@@ -848,7 +836,7 @@ impl PurchaseOrderService {
                 .await
                 .map_err(|e| {
                     tracing::error!("记录库存流水失败: 产品ID={}, 仓库ID={}, 错误: {}", item.product_id, order.warehouse_id, e);
-                    AppError::InternalError(format!("记录库存流水失败: {}", e))
+                    AppError::internal(format!("记录库存流水失败: {}", e))
                 })?;
 
                 // 更新订单明细已入库数量（累加而非覆盖）
@@ -915,7 +903,7 @@ impl PurchaseOrderService {
         let order = purchase_order::Entity::find_by_id(order_id)
             .one(&*self.db)
             .await?
-            .ok_or(AppError::NotFound(format!("采购订单 {}", order_id)))?;
+            .ok_or_else(|| AppError::not_found(format!("采购订单 {}", order_id)))?;
 
         // 2. 检查状态（已完成或部分入库的订单才能关闭）
         if ![
@@ -924,7 +912,7 @@ impl PurchaseOrderService {
         ]
         .contains(&order.order_status.as_str())
         {
-            return Err(AppError::BusinessError(format!(
+            return Err(AppError::business(format!(
                 "订单状态不允许关闭，当前状态：{}",
                 order.order_status
             )));
@@ -956,7 +944,7 @@ impl PurchaseOrderService {
         let order = purchase_order::Entity::find_by_id(order_id)
             .one(&*self.db)
             .await?
-            .ok_or(AppError::NotFound(format!("采购订单 {}", order_id)))?;
+            .ok_or_else(|| AppError::not_found(format!("采购订单 {}", order_id)))?;
 
         // 2. 检查状态（只有草稿、待审批、已拒绝的订单可以取消）
         if ![
@@ -966,7 +954,7 @@ impl PurchaseOrderService {
         ]
         .contains(&order.order_status.as_str())
         {
-            return Err(AppError::BusinessError(format!(
+            return Err(AppError::business(format!(
                 "订单状态不允许取消，当前状态：{}",
                 order.order_status
             )));
@@ -1000,11 +988,11 @@ impl PurchaseOrderService {
         let order = purchase_order::Entity::find_by_id(order_id)
             .one(&*self.db)
             .await?
-            .ok_or(AppError::NotFound(format!("采购订单 {}", order_id)))?;
+            .ok_or_else(|| AppError::not_found(format!("采购订单 {}", order_id)))?;
 
         // 2. 检查状态
         if order.order_status != status::purchase_order::DRAFT {
-            return Err(AppError::BusinessError(format!(
+            return Err(AppError::business(format!(
                 "订单状态不允许添加明细，当前状态：{}",
                 order.order_status
             )));
@@ -1012,7 +1000,7 @@ impl PurchaseOrderService {
 
         // 3. 检查权限
         if order.created_by != user_id {
-            return Err(AppError::PermissionDenied(
+            return Err(AppError::permission_denied(
                 "只能为自己创建的订单添加明细".to_string(),
             ));
         }
@@ -1068,17 +1056,17 @@ impl PurchaseOrderService {
         let item = purchase_order_item::Entity::find_by_id(item_id)
             .one(&*self.db)
             .await?
-            .ok_or(AppError::NotFound(format!("订单明细 {}", item_id)))?;
+            .ok_or_else(|| AppError::not_found(format!("订单明细 {}", item_id)))?;
 
         // 2. 查询订单
         let order = purchase_order::Entity::find_by_id(item.order_id)
             .one(&*self.db)
             .await?
-            .ok_or(AppError::NotFound(format!("采购订单 {}", item.order_id)))?;
+            .ok_or_else(|| AppError::not_found(format!("采购订单 {}", item.order_id)))?;
 
         // 3. 检查状态
         if order.order_status != "DRAFT" {
-            return Err(AppError::BusinessError(format!(
+            return Err(AppError::business(format!(
                 "订单状态不允许修改明细，当前状态：{}",
                 order.order_status
             )));
@@ -1086,7 +1074,7 @@ impl PurchaseOrderService {
 
         // 4. 检查权限
         if order.created_by != user_id {
-            return Err(AppError::PermissionDenied(
+            return Err(AppError::permission_denied(
                 "只能修改自己创建的订单明细".to_string(),
             ));
         }
@@ -1130,17 +1118,17 @@ impl PurchaseOrderService {
         let item = purchase_order_item::Entity::find_by_id(item_id)
             .one(&*self.db)
             .await?
-            .ok_or(AppError::NotFound(format!("订单明细 {}", item_id)))?;
+            .ok_or_else(|| AppError::not_found(format!("订单明细 {}", item_id)))?;
 
         // 2. 查询订单
         let order = purchase_order::Entity::find_by_id(item.order_id)
             .one(&*self.db)
             .await?
-            .ok_or(AppError::NotFound(format!("采购订单 {}", item.order_id)))?;
+            .ok_or_else(|| AppError::not_found(format!("采购订单 {}", item.order_id)))?;
 
         // 3. 检查状态
         if order.order_status != "DRAFT" {
-            return Err(AppError::BusinessError(format!(
+            return Err(AppError::business(format!(
                 "订单状态不允许删除明细，当前状态：{}",
                 order.order_status
             )));
@@ -1148,7 +1136,7 @@ impl PurchaseOrderService {
 
         // 4. 检查权限
         if order.created_by != user_id {
-            return Err(AppError::PermissionDenied(
+            return Err(AppError::permission_denied(
                 "只能删除自己创建的订单明细".to_string(),
             ));
         }
@@ -1187,7 +1175,7 @@ impl PurchaseOrderService {
         let order = purchase_order::Entity::find_by_id(order_id)
             .one(&*self.db)
             .await?
-            .ok_or(AppError::NotFound(format!("采购订单 {}", order_id)))?;
+            .ok_or_else(|| AppError::not_found(format!("采购订单 {}", order_id)))?;
 
         let mut order_active: purchase_order::ActiveModel = order.into();
         order_active.total_amount = Set(total_amount);
@@ -1267,7 +1255,7 @@ impl PurchaseOrderService {
             .into_model::<PurchaseOrderDto>()
             .one(&*self.db)
             .await?
-            .ok_or(AppError::NotFound(format!("采购订单 {}", order_id)))?;
+            .ok_or_else(|| AppError::not_found(format!("采购订单 {}", order_id)))?;
 
         Ok(order)
     }
@@ -1373,7 +1361,7 @@ impl PurchaseOrderService {
             .collect();
 
         crate::utils::import_export::CsvImporter::generate(&headers, &rows)
-            .map_err(|e| AppError::InternalError(format!("CSV 生成失败: {}", e)))
+            .map_err(|e| AppError::internal(format!("CSV 生成失败: {}", e)))
     }
 
     /// 根据缺料预警创建采购建议
@@ -1396,17 +1384,14 @@ impl PurchaseOrderService {
         let product = product::Entity::find_by_id(material_id)
             .one(&txn)
             .await?
-            .ok_or(AppError::NotFound(format!(
-                "物料 ID {} 不存在",
-                material_id
-            )))?;
+            .ok_or_else(|| AppError::not_found(format!("物料 ID {} 不存在", material_id)))?;
 
         // 2. 查找默认供应商
         let supplier = supplier::Entity::find()
             .filter(supplier::Column::Status.eq("active"))
             .one(&txn)
             .await?
-            .ok_or(AppError::NotFound("没有可用的活跃供应商".to_string()))?;
+            .ok_or_else(|| AppError::not_found("没有可用的活跃供应商"))?;
 
         // 3. 计算建议采购量（缺口数量 * 1.2，20%余量）
         let suggested_quantity = shortage_quantity * Decimal::new(12, 1);
@@ -1508,23 +1493,20 @@ impl PurchaseOrderService {
         let product = product::Entity::find_by_id(product_id)
             .one(&txn)
             .await?
-            .ok_or(AppError::NotFound(format!("产品 ID {} 不存在", product_id)))?;
+            .ok_or_else(|| AppError::not_found(format!("产品 ID {} 不存在", product_id)))?;
 
         // 2. 获取仓库信息
         let warehouse = warehouse::Entity::find_by_id(warehouse_id)
             .one(&txn)
             .await?
-            .ok_or(AppError::NotFound(format!(
-                "仓库 ID {} 不存在",
-                warehouse_id
-            )))?;
+            .ok_or_else(|| AppError::not_found(format!("仓库 ID {} 不存在", warehouse_id)))?;
 
         // 3. 查找默认供应商（这里简化处理，实际可能需要更复杂的供应商选择逻辑）
         let supplier = supplier::Entity::find()
             .filter(supplier::Column::Status.eq("active"))
             .one(&txn)
             .await?
-            .ok_or(AppError::NotFound("没有可用的活跃供应商".to_string()))?;
+            .ok_or_else(|| AppError::not_found("没有可用的活跃供应商"))?;
 
         // 4. 生成采购订单号（使用事务连接）
         let order_no = self.generate_order_no_with_txn(&txn).await?;

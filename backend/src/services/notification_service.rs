@@ -157,13 +157,10 @@ impl NotificationService {
         let notification = NotificationEntity::find_by_id(notification_id)
             .one(&*self.db)
             .await?
-            .ok_or(AppError::NotFound(format!(
-                "通知 {} 不存在",
-                notification_id
-            )))?;
+            .ok_or_else(|| AppError::not_found(format!("通知 {} 不存在", notification_id)))?;
 
         if notification.user_id != user_id {
-            return Err(AppError::PermissionDenied("无权操作此通知".to_string()));
+            return Err(AppError::permission_denied("无权操作此通知"));
         }
 
         let mut active_model: notification::ActiveModel = notification.into();
@@ -219,13 +216,10 @@ impl NotificationService {
         let notification = NotificationEntity::find_by_id(notification_id)
             .one(&*self.db)
             .await?
-            .ok_or(AppError::NotFound(format!(
-                "通知 {} 不存在",
-                notification_id
-            )))?;
+            .ok_or_else(|| AppError::not_found(format!("通知 {} 不存在", notification_id)))?;
 
         if notification.user_id != user_id {
-            return Err(AppError::PermissionDenied("无权删除此通知".to_string()));
+            return Err(AppError::permission_denied("无权删除此通知"));
         }
 
         let mut active_model: notification::ActiveModel = notification.into();
@@ -245,13 +239,10 @@ impl NotificationService {
         let notification = NotificationEntity::find_by_id(notification_id)
             .one(&*self.db)
             .await?
-            .ok_or(AppError::NotFound(format!(
-                "通知 {} 不存在",
-                notification_id
-            )))?;
+            .ok_or_else(|| AppError::not_found(format!("通知 {} 不存在", notification_id)))?;
 
         if notification.user_id != user_id {
-            return Err(AppError::PermissionDenied("无权查看此通知".to_string()));
+            return Err(AppError::permission_denied("无权查看此通知"));
         }
 
         Ok(notification)

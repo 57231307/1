@@ -309,7 +309,7 @@ pub async fn get_report(
     let indicator = financial_analysis::Entity::find_by_id(id)
         .one(state.db.as_ref())
         .await?
-        .ok_or_else(|| AppError::NotFound("财务分析报告不存在".to_string()))?;
+        .ok_or_else(|| AppError::not_found("财务分析报告不存在"))?;
 
     info!("获取财务分析报告详情: ID={}", id);
 
@@ -338,7 +338,7 @@ pub async fn execute_report(
     let indicator = financial_analysis::Entity::find_by_id(id)
         .one(state.db.as_ref())
         .await?
-        .ok_or_else(|| AppError::NotFound("财务分析报告不存在".to_string()))?;
+        .ok_or_else(|| AppError::not_found("财务分析报告不存在"))?;
 
     // 查询该指标的最新分析结果
     let latest_result = financial_analysis_result::Entity::find()

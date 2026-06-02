@@ -1277,10 +1277,10 @@ impl ReportEngineService {
     /// 创建自定义报表模板
     pub fn create_custom_template(req: CreateTemplateRequest) -> Result<ReportTemplate, AppError> {
         if req.name.trim().is_empty() {
-            return Err(AppError::ValidationError("模板名称不能为空".to_string()));
+            return Err(AppError::validation("模板名称不能为空"));
         }
         if req.columns.is_empty() {
-            return Err(AppError::ValidationError("至少需要定义一个列".to_string()));
+            return Err(AppError::validation("至少需要定义一个列"));
         }
 
         let report_type = match req.report_type.as_str() {
@@ -1374,10 +1374,10 @@ impl ReportEngineService {
                 self.query_purchase_report(custom_filters, page, page_size)
                     .await
             }
-            id if id.starts_with("custom_") => Err(AppError::BadRequest(
+            id if id.starts_with("custom_") => Err(AppError::bad_request(
                 "自定义模板需要通过 aggregate_data 接口执行".to_string(),
             )),
-            _ => Err(AppError::NotFound(format!(
+            _ => Err(AppError::not_found(format!(
                 "报表模板 {} 不存在",
                 template_id
             ))),
@@ -1824,50 +1824,50 @@ impl ReportEngineService {
 
             // [Content_Types].xml
             zip.start_file("[Content_Types].xml", options)
-                .map_err(|e| AppError::InternalError(e.to_string()))?;
+                .map_err(|e| AppError::internal(e.to_string()))?;
             zip.write_all(CONTENT_TYPES_XML.as_bytes())
-                .map_err(|e| AppError::InternalError(e.to_string()))?;
+                .map_err(|e| AppError::internal(e.to_string()))?;
 
             // _rels/.rels
             zip.start_file("_rels/.rels", options)
-                .map_err(|e| AppError::InternalError(e.to_string()))?;
+                .map_err(|e| AppError::internal(e.to_string()))?;
             zip.write_all(RELS_XML.as_bytes())
-                .map_err(|e| AppError::InternalError(e.to_string()))?;
+                .map_err(|e| AppError::internal(e.to_string()))?;
 
             // xl/workbook.xml
             zip.start_file("xl/workbook.xml", options)
-                .map_err(|e| AppError::InternalError(e.to_string()))?;
+                .map_err(|e| AppError::internal(e.to_string()))?;
             zip.write_all(WORKBOOK_XML.as_bytes())
-                .map_err(|e| AppError::InternalError(e.to_string()))?;
+                .map_err(|e| AppError::internal(e.to_string()))?;
 
             // xl/_rels/workbook.xml.rels
             zip.start_file("xl/_rels/workbook.xml.rels", options)
-                .map_err(|e| AppError::InternalError(e.to_string()))?;
+                .map_err(|e| AppError::internal(e.to_string()))?;
             zip.write_all(WORKBOOK_RELS_XML.as_bytes())
-                .map_err(|e| AppError::InternalError(e.to_string()))?;
+                .map_err(|e| AppError::internal(e.to_string()))?;
 
             // xl/styles.xml
             zip.start_file("xl/styles.xml", options)
-                .map_err(|e| AppError::InternalError(e.to_string()))?;
+                .map_err(|e| AppError::internal(e.to_string()))?;
             zip.write_all(STYLES_XML.as_bytes())
-                .map_err(|e| AppError::InternalError(e.to_string()))?;
+                .map_err(|e| AppError::internal(e.to_string()))?;
 
             // xl/worksheets/sheet1.xml
             zip.start_file("xl/worksheets/sheet1.xml", options)
-                .map_err(|e| AppError::InternalError(e.to_string()))?;
+                .map_err(|e| AppError::internal(e.to_string()))?;
             let sheet_xml = self.build_sheet_xml(data, title);
             zip.write_all(sheet_xml.as_bytes())
-                .map_err(|e| AppError::InternalError(e.to_string()))?;
+                .map_err(|e| AppError::internal(e.to_string()))?;
 
             // xl/sharedStrings.xml
             zip.start_file("xl/sharedStrings.xml", options)
-                .map_err(|e| AppError::InternalError(e.to_string()))?;
+                .map_err(|e| AppError::internal(e.to_string()))?;
             let strings_xml = self.build_shared_strings_xml(data, title);
             zip.write_all(strings_xml.as_bytes())
-                .map_err(|e| AppError::InternalError(e.to_string()))?;
+                .map_err(|e| AppError::internal(e.to_string()))?;
 
             zip.finish()
-                .map_err(|e| AppError::InternalError(e.to_string()))?;
+                .map_err(|e| AppError::internal(e.to_string()))?;
         }
         Ok(buf)
     }
@@ -1964,13 +1964,13 @@ impl ReportEngineService {
     fn export_csv(&self, data: &ReportData) -> Result<Vec<u8>, AppError> {
         let mut wtr = csv::Writer::from_writer(Vec::new());
         wtr.write_record(&data.columns)
-            .map_err(|e| AppError::InternalError(e.to_string()))?;
+            .map_err(|e| AppError::internal(e.to_string()))?;
         for row in &data.rows {
             wtr.write_record(row)
-                .map_err(|e| AppError::InternalError(e.to_string()))?;
+                .map_err(|e| AppError::internal(e.to_string()))?;
         }
         wtr.into_inner()
-            .map_err(|e| AppError::InternalError(e.to_string()))
+            .map_err(|e| AppError::internal(e.to_string()))
     }
 
     /// 导出JSON格式
@@ -1989,8 +1989,8 @@ impl ReportEngineService {
             })
             .collect();
 
-        let json = serde_json::to_string(&json_data)
-            .map_err(|e| AppError::InternalError(e.to_string()))?;
+        let json =
+            serde_json::to_string(&json_data).map_err(|e| AppError::internal(e.to_string()))?;
         Ok(json.into_bytes())
     }
 
@@ -2010,18 +2010,18 @@ impl ReportEngineService {
         req: CreateSubscriptionRequest,
     ) -> Result<ReportSubscription, AppError> {
         if req.name.trim().is_empty() {
-            return Err(AppError::ValidationError("订阅名称不能为空".to_string()));
+            return Err(AppError::validation("订阅名称不能为空"));
         }
         if req.template_id.trim().is_empty() {
-            return Err(AppError::ValidationError("模板ID不能为空".to_string()));
+            return Err(AppError::validation("模板ID不能为空"));
         }
         if req.recipients.is_empty() {
-            return Err(AppError::ValidationError("至少需要一个收件人".to_string()));
+            return Err(AppError::validation("至少需要一个收件人"));
         }
 
         let valid_frequencies = ["daily", "weekly", "monthly", "quarterly"];
         if !valid_frequencies.contains(&req.frequency.as_str()) {
-            return Err(AppError::ValidationError(format!(
+            return Err(AppError::validation(format!(
                 "频率必须是以下之一: {:?}",
                 valid_frequencies
             )));

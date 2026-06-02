@@ -24,10 +24,7 @@ impl TenantService {
             .one(self.db.as_ref())
             .await?;
         if existing.is_some() {
-            return Err(AppError::BusinessError(format!(
-                "租户编码 '{}' 已存在",
-                code
-            )));
+            return Err(AppError::business(format!("租户编码 '{}' 已存在", code)));
         }
 
         let now = Utc::now();
@@ -76,7 +73,7 @@ impl TenantService {
         let tenant = Tenant::find_by_id(id)
             .one(self.db.as_ref())
             .await?
-            .ok_or(AppError::BusinessError("租户不存在".to_string()))?;
+            .ok_or_else(|| AppError::business("租户不存在"))?;
 
         let mut active_model: TenantActiveModel = tenant.into();
         active_model.status = Set(status.to_string());
@@ -206,7 +203,7 @@ impl TenantService {
         let tenant = Tenant::find_by_id(id)
             .one(self.db.as_ref())
             .await?
-            .ok_or(AppError::BusinessError("租户不存在".to_string()))?;
+            .ok_or_else(|| AppError::business("租户不存在"))?;
 
         let mut active_model: TenantActiveModel = tenant.into();
         if let Some(n) = name {
@@ -231,7 +228,7 @@ impl TenantService {
         let tenant = Tenant::find_by_id(id)
             .one(self.db.as_ref())
             .await?
-            .ok_or(AppError::BusinessError("租户不存在".to_string()))?;
+            .ok_or_else(|| AppError::business("租户不存在"))?;
 
         let mut active_model: TenantActiveModel = tenant.into();
         active_model.status = Set("DELETED".to_string());
@@ -254,7 +251,7 @@ impl TenantService {
             .await?;
 
         if result.rows_affected == 0 {
-            return Err(AppError::NotFound("用户不在此租户中".to_string()));
+            return Err(AppError::not_found("用户不在此租户中"));
         }
         Ok(())
     }
@@ -271,7 +268,7 @@ impl TenantService {
             .filter(tenant_user::Column::UserId.eq(user_id))
             .one(self.db.as_ref())
             .await?
-            .ok_or(AppError::NotFound("用户不在此租户中".to_string()))?;
+            .ok_or_else(|| AppError::not_found("用户不在此租户中"))?;
 
         let mut active_model: tenant_user::ActiveModel = tenant_user.into();
         active_model.role_in_tenant = Set(role.to_string());

@@ -6,7 +6,6 @@
 
 use crate::models::{purchase_receipt, purchase_receipt_item};
 use crate::utils::error::AppError;
-use crate::utils::number_generator::DocumentNumberGenerator;
 use rust_decimal::Decimal;
 use sea_orm::{
     ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, Order, PaginatorTrait,
@@ -29,15 +28,12 @@ impl PurchaseReceiptService {
 
     /// 生成入库单号
     /// 格式：GR + 年月日 + 三位序号（GR20260315001）
-    pub async fn generate_receipt_no(&self) -> Result<String, AppError> {
-        DocumentNumberGenerator::generate_no(
-            &*self.db,
-            "PR",
-            purchase_receipt::Entity,
-            purchase_receipt::Column::ReceiptNo,
-        )
-        .await
-    }
+    crate::impl_generate_no!(
+        generate_receipt_no,
+        "PR",
+        purchase_receipt::Entity,
+        purchase_receipt::Column::ReceiptNo
+    );
 
     /// 创建采购入库单（含明细）
     pub async fn create_receipt(
@@ -130,11 +126,11 @@ impl PurchaseReceiptService {
         let receipt = purchase_receipt::Entity::find_by_id(receipt_id)
             .one(&*self.db)
             .await?
-            .ok_or(AppError::NotFound(format!("采购入库单 {}", receipt_id)))?;
+            .ok_or_else(|| AppError::not_found(format!("采购入库单 {}", receipt_id)))?;
 
         // 2. 检查状态
         if receipt.receipt_status != "DRAFT" {
-            return Err(AppError::BusinessError(format!(
+            return Err(AppError::business(format!(
                 "入库单状态不允许修改，当前状态：{}",
                 receipt.receipt_status
             )));
@@ -142,7 +138,7 @@ impl PurchaseReceiptService {
 
         // 3. 检查权限
         if receipt.created_by != user_id {
-            return Err(AppError::PermissionDenied(
+            return Err(AppError::permission_denied(
                 "只能修改自己创建的入库单".to_string(),
             ));
         }
@@ -194,11 +190,11 @@ impl PurchaseReceiptService {
         let receipt = purchase_receipt::Entity::find_by_id(receipt_id)
             .one(&txn)
             .await?
-            .ok_or(AppError::NotFound(format!("采购入库单 {}", receipt_id)))?;
+            .ok_or_else(|| AppError::not_found(format!("采购入库单 {}", receipt_id)))?;
 
         // 2. 检查状态
         if receipt.receipt_status != "DRAFT" {
-            return Err(AppError::BusinessError(format!(
+            return Err(AppError::business(format!(
                 "入库单状态不允许确认，当前状态：{}",
                 receipt.receipt_status
             )));
@@ -211,9 +207,7 @@ impl PurchaseReceiptService {
             .await?;
 
         if item_count == 0 {
-            return Err(AppError::BusinessError(
-                "入库单至少需要一行明细".to_string(),
-            ));
+            return Err(AppError::business("入库单至少需要一行明细".to_string()));
         }
 
         // 4. 检查是否有关联的采购订单
@@ -276,11 +270,11 @@ impl PurchaseReceiptService {
         let receipt = purchase_receipt::Entity::find_by_id(receipt_id)
             .one(&*self.db)
             .await?
-            .ok_or(AppError::NotFound(format!("采购入库单 {}", receipt_id)))?;
+            .ok_or_else(|| AppError::not_found(format!("采购入库单 {}", receipt_id)))?;
 
         // 2. 检查状态
         if receipt.receipt_status != "DRAFT" {
-            return Err(AppError::BusinessError(format!(
+            return Err(AppError::business(format!(
                 "入库单状态不允许添加明细，当前状态：{}",
                 receipt.receipt_status
             )));
@@ -288,7 +282,7 @@ impl PurchaseReceiptService {
 
         // 3. 检查权限
         if receipt.created_by != user_id {
-            return Err(AppError::PermissionDenied(
+            return Err(AppError::permission_denied(
                 "只能为自己创建的入库单添加明细".to_string(),
             ));
         }
@@ -326,20 +320,17 @@ impl PurchaseReceiptService {
         let item = purchase_receipt_item::Entity::find_by_id(item_id)
             .one(&*self.db)
             .await?
-            .ok_or(AppError::NotFound(format!("入库明细 {}", item_id)))?;
+            .ok_or_else(|| AppError::not_found(format!("入库明细 {}", item_id)))?;
 
         // 2. 查询入库单
         let receipt = purchase_receipt::Entity::find_by_id(item.receipt_id)
             .one(&*self.db)
             .await?
-            .ok_or(AppError::NotFound(format!(
-                "采购入库单 {}",
-                item.receipt_id
-            )))?;
+            .ok_or_else(|| AppError::not_found(format!("采购入库单 {}", item.receipt_id)))?;
 
         // 3. 检查状态
         if receipt.receipt_status != "DRAFT" {
-            return Err(AppError::BusinessError(format!(
+            return Err(AppError::business(format!(
                 "入库单状态不允许修改明细，当前状态：{}",
                 receipt.receipt_status
             )));
@@ -347,7 +338,7 @@ impl PurchaseReceiptService {
 
         // 4. 检查权限
         if receipt.created_by != user_id {
-            return Err(AppError::PermissionDenied(
+            return Err(AppError::permission_denied(
                 "只能修改自己创建的入库明细".to_string(),
             ));
         }
@@ -388,20 +379,17 @@ impl PurchaseReceiptService {
         let item = purchase_receipt_item::Entity::find_by_id(item_id)
             .one(&*self.db)
             .await?
-            .ok_or(AppError::NotFound(format!("入库明细 {}", item_id)))?;
+            .ok_or_else(|| AppError::not_found(format!("入库明细 {}", item_id)))?;
 
         // 2. 查询入库单
         let receipt = purchase_receipt::Entity::find_by_id(item.receipt_id)
             .one(&*self.db)
             .await?
-            .ok_or(AppError::NotFound(format!(
-                "采购入库单 {}",
-                item.receipt_id
-            )))?;
+            .ok_or_else(|| AppError::not_found(format!("采购入库单 {}", item.receipt_id)))?;
 
         // 3. 检查状态
         if receipt.receipt_status != "DRAFT" {
-            return Err(AppError::BusinessError(format!(
+            return Err(AppError::business(format!(
                 "入库单状态不允许删除明细，当前状态：{}",
                 receipt.receipt_status
             )));
@@ -409,7 +397,7 @@ impl PurchaseReceiptService {
 
         // 4. 检查权限
         if receipt.created_by != user_id {
-            return Err(AppError::PermissionDenied(
+            return Err(AppError::permission_denied(
                 "只能删除自己创建的入库明细".to_string(),
             ));
         }
@@ -448,7 +436,7 @@ impl PurchaseReceiptService {
         let receipt = purchase_receipt::Entity::find_by_id(receipt_id)
             .one(&*self.db)
             .await?
-            .ok_or(AppError::NotFound(format!("采购入库单 {}", receipt_id)))?;
+            .ok_or_else(|| AppError::not_found(format!("采购入库单 {}", receipt_id)))?;
 
         let mut receipt_active: purchase_receipt::ActiveModel = receipt.into();
         receipt_active.total_quantity = Set(total_quantity);
@@ -506,7 +494,7 @@ impl PurchaseReceiptService {
         let receipt = purchase_receipt::Entity::find_by_id(receipt_id)
             .one(&*self.db)
             .await?
-            .ok_or(AppError::NotFound(format!("采购入库单 {}", receipt_id)))?;
+            .ok_or_else(|| AppError::not_found(format!("采购入库单 {}", receipt_id)))?;
 
         Ok(receipt)
     }
@@ -545,7 +533,9 @@ impl PurchaseReceiptService {
                     crate::models::purchase_order_item::Entity::find_by_id(order_item_id)
                         .one(txn)
                         .await?
-                        .ok_or(AppError::NotFound(format!("订单明细 {}", order_item_id)))?;
+                        .ok_or_else(|| {
+                            AppError::not_found(format!("订单明细 {}", order_item_id))
+                        })?;
 
                 // 累加已入库数量
                 let new_received = order_item.received_quantity + item.quantity;
@@ -599,7 +589,7 @@ impl PurchaseReceiptService {
         let order = crate::models::purchase_order::Entity::find_by_id(order_id)
             .one(txn)
             .await?
-            .ok_or(AppError::NotFound(format!("采购订单 {}", order_id)))?;
+            .ok_or_else(|| AppError::not_found(format!("采购订单 {}", order_id)))?;
 
         let mut active_order: crate::models::purchase_order::ActiveModel = order.into();
         active_order.order_status = Set(new_status.to_string());

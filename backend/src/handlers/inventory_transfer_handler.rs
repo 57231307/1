@@ -56,8 +56,7 @@ pub async fn list_transfers(
         .items
         .into_iter()
         .map(|t| {
-            serde_json::to_value(t)
-                .map_err(|e| AppError::InternalError(format!("序列化失败: {}", e)))
+            serde_json::to_value(t).map_err(|e| AppError::internal(format!("序列化失败: {}", e)))
         })
         .collect::<Result<Vec<_>, _>>()?;
 
@@ -72,7 +71,7 @@ pub async fn get_transfer(
     let transfer_service = InventoryTransferService::new(state.db.clone());
     let transfer = transfer_service.get_transfer_detail(id).await?;
     let transfer_json = serde_json::to_value(transfer)
-        .map_err(|e| AppError::InternalError(format!("序列化失败: {}", e)))?;
+        .map_err(|e| AppError::internal(format!("序列化失败: {}", e)))?;
     Ok(Json(ApiResponse::success(transfer_json)))
 }
 
@@ -84,7 +83,7 @@ pub async fn create_transfer(
     let transfer_service = InventoryTransferService::new(state.db.clone());
     let transfer = transfer_service.create_transfer(request).await?;
     let transfer_json = serde_json::to_value(transfer)
-        .map_err(|e| AppError::InternalError(format!("序列化失败: {}", e)))?;
+        .map_err(|e| AppError::internal(format!("序列化失败: {}", e)))?;
     Ok(Json(ApiResponse::success_with_message(
         transfer_json,
         "库存调拨单创建成功",
@@ -100,7 +99,7 @@ pub async fn update_transfer(
     let transfer_service = InventoryTransferService::new(state.db.clone());
     let transfer = transfer_service.update_transfer(id, request).await?;
     let transfer_json = serde_json::to_value(transfer)
-        .map_err(|e| AppError::InternalError(format!("序列化失败: {}", e)))?;
+        .map_err(|e| AppError::internal(format!("序列化失败: {}", e)))?;
     Ok(Json(ApiResponse::success_with_message(
         transfer_json,
         "库存调拨单更新成功",
@@ -118,7 +117,7 @@ pub async fn approve_transfer(
         .approve_transfer(id, request.approved, request.notes)
         .await?;
     let transfer_json = serde_json::to_value(transfer)
-        .map_err(|e| AppError::InternalError(format!("序列化失败: {}", e)))?;
+        .map_err(|e| AppError::internal(format!("序列化失败: {}", e)))?;
     let message = if request.approved {
         "库存调拨单已审核"
     } else {
@@ -138,7 +137,7 @@ pub async fn ship_transfer(
     let transfer_service = InventoryTransferService::new(state.db.clone());
     let transfer = transfer_service.ship_transfer(id).await?;
     let transfer_json = serde_json::to_value(transfer)
-        .map_err(|e| AppError::InternalError(format!("序列化失败: {}", e)))?;
+        .map_err(|e| AppError::internal(format!("序列化失败: {}", e)))?;
     Ok(Json(ApiResponse::success_with_message(
         transfer_json,
         "库存调拨单已发出",
@@ -153,7 +152,7 @@ pub async fn receive_transfer(
     let transfer_service = InventoryTransferService::new(state.db.clone());
     let transfer = transfer_service.receive_transfer(id).await?;
     let transfer_json = serde_json::to_value(transfer)
-        .map_err(|e| AppError::InternalError(format!("序列化失败: {}", e)))?;
+        .map_err(|e| AppError::internal(format!("序列化失败: {}", e)))?;
     Ok(Json(ApiResponse::success_with_message(
         transfer_json,
         "库存调拨单已接收",

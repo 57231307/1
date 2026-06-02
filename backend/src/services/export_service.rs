@@ -35,27 +35,27 @@ impl ExportService {
 
         // 写入标题行
         wtr.write_record(&data.headers)
-            .map_err(|e| AppError::ValidationError(format!("CSV写入错误: {}", e)))?;
+            .map_err(|e| AppError::validation(format!("CSV写入错误: {}", e)))?;
 
         // 写入数据行
         for row in &data.rows {
             wtr.write_record(row)
-                .map_err(|e| AppError::ValidationError(format!("CSV写入错误: {}", e)))?;
+                .map_err(|e| AppError::validation(format!("CSV写入错误: {}", e)))?;
         }
 
         // 写入汇总
         if let Some(summary) = &data.summary {
             wtr.write_record(Vec::<String>::new())
-                .map_err(|e| AppError::ValidationError(format!("CSV写入错误: {}", e)))?;
+                .map_err(|e| AppError::validation(format!("CSV写入错误: {}", e)))?;
             for (key, value) in summary {
                 wtr.write_record(vec![key.clone(), value.clone()])
-                    .map_err(|e| AppError::ValidationError(format!("CSV写入错误: {}", e)))?;
+                    .map_err(|e| AppError::validation(format!("CSV写入错误: {}", e)))?;
             }
         }
 
         let bytes = wtr
             .into_inner()
-            .map_err(|e| AppError::ValidationError(format!("CSV序列化错误: {}", e)))?;
+            .map_err(|e| AppError::validation(format!("CSV序列化错误: {}", e)))?;
 
         Ok(bytes)
     }

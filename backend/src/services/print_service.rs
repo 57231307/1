@@ -36,7 +36,7 @@ impl PrintService {
             "inventory_transfer" => self.get_inventory_transfer_print_data(doc_id).await,
             "inventory_count" => self.get_inventory_count_print_data(doc_id).await,
             "voucher" => self.get_voucher_print_data(doc_id).await,
-            _ => Err(AppError::NotFound(format!(
+            _ => Err(AppError::not_found(format!(
                 "Unknown document type: {}",
                 doc_type
             ))),

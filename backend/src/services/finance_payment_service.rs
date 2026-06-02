@@ -22,7 +22,7 @@ impl FinancePaymentService {
         finance_payment::Entity::find_by_id(id)
             .one(&*self.db)
             .await?
-            .ok_or_else(|| AppError::NotFound(format!("付款 ID {} 不存在", id)))
+            .ok_or_else(|| AppError::not_found(format!("付款 ID {} 不存在", id)))
     }
 
     pub async fn find_by_payment_no(
@@ -48,7 +48,7 @@ impl FinancePaymentService {
         created_by: Option<i32>,
     ) -> Result<finance_payment::Model, AppError> {
         if amount <= Decimal::ZERO {
-            return Err(AppError::BusinessError("付款金额必须大于零".to_string()));
+            return Err(AppError::business("付款金额必须大于零"));
         }
 
         let period_svc = crate::services::accounting_period_service::AccountingPeriodService::new(
@@ -57,7 +57,7 @@ impl FinancePaymentService {
         period_svc
             .check_date_locked(payment_date.date_naive())
             .await
-            .map_err(|e| AppError::BusinessError(e.to_string()))?;
+            .map_err(|e| AppError::business(e.to_string()))?;
 
         // 验证关联单据是否存在
         if let Some(inv_id) = invoice_id {
@@ -66,10 +66,7 @@ impl FinancePaymentService {
                 .await?
                 .is_some();
             if !invoice_exists {
-                return Err(AppError::BusinessError(format!(
-                    "关联发票 ID {} 不存在",
-                    inv_id
-                )));
+                return Err(AppError::business(format!("关联发票 ID {} 不存在", inv_id)));
             }
         }
 
@@ -101,7 +98,7 @@ impl FinancePaymentService {
         let payment_model = finance_payment::Entity::find_by_id(id)
             .one(&*self.db)
             .await?
-            .ok_or_else(|| AppError::NotFound(format!("付款 ID {} 不存在", id)))?;
+            .ok_or_else(|| AppError::not_found(format!("付款 ID {} 不存在", id)))?;
 
         let current_status = payment_model.status.as_str();
         let valid_transitions: std::collections::HashMap<&str, Vec<&str>> = [
@@ -117,7 +114,7 @@ impl FinancePaymentService {
         let empty_vec = vec![];
         let allowed = valid_transitions.get(current_status).unwrap_or(&empty_vec);
         if !allowed.contains(&status.as_str()) {
-            return Err(AppError::BusinessError(format!(
+            return Err(AppError::business(format!(
                 "付款状态不允许从 {} 变更为 {}",
                 current_status, status
             )));
@@ -154,10 +151,10 @@ impl FinancePaymentService {
         let payment = finance_payment::Entity::find_by_id(id)
             .one(&*self.db)
             .await?
-            .ok_or_else(|| AppError::NotFound(format!("付款 ID {} 不存在", id)))?;
+            .ok_or_else(|| AppError::not_found(format!("付款 ID {} 不存在", id)))?;
 
         if payment.status != "pending" {
-            return Err(AppError::BusinessError(format!(
+            return Err(AppError::business(format!(
                 "付款状态为{}，只有待处理的付款可以删除",
                 payment.status
             )));

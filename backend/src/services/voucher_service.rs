@@ -109,7 +109,7 @@ impl VoucherService {
 
         if total_debit != total_credit {
             warn!("凭证借贷不平衡：借={}, 贷={}", total_debit, total_credit);
-            return Err(AppError::BadRequest(format!(
+            return Err(AppError::bad_request(format!(
                 "凭证借贷不平衡：借方 {} != 贷方 {}",
                 total_debit, total_credit
             )));
@@ -125,7 +125,7 @@ impl VoucherService {
             .db
             .begin()
             .await
-            .map_err(|e| AppError::InternalError(e.to_string()))?;
+            .map_err(|e| AppError::internal(e.to_string()))?;
 
         // 创建凭证主表
         let active_model = voucher::ActiveModel {
@@ -146,7 +146,7 @@ impl VoucherService {
         let voucher = active_model
             .insert(&txn)
             .await
-            .map_err(|e| AppError::InternalError(e.to_string()))?;
+            .map_err(|e| AppError::internal(e.to_string()))?;
         info!("凭证创建成功：no={}", voucher.voucher_no);
 
         // 批量校验科目是否存在（优化N+1查询）
@@ -170,13 +170,13 @@ impl VoucherService {
                     .await
                     .map_err(|e| {
                         tracing::error!("批量查询科目失败: {}", e);
-                        AppError::InternalError(format!("批量查询科目失败: {}", e))
+                        AppError::internal(format!("批量查询科目失败: {}", e))
                     })?;
                 let existing_codes: std::collections::HashSet<String> =
                     existing_subjects.into_iter().map(|s| s.code).collect();
                 for code in subject_codes {
                     if !existing_codes.contains(&code) {
-                        return Err(AppError::BadRequest(format!(
+                        return Err(AppError::bad_request(format!(
                             "科目不存在或已停用：{}",
                             code
                         )));
@@ -214,13 +214,13 @@ impl VoucherService {
             item_active_model
                 .insert(&txn)
                 .await
-                .map_err(|e| AppError::InternalError(e.to_string()))?;
+                .map_err(|e| AppError::internal(e.to_string()))?;
         }
 
         // 提交事务
         txn.commit()
             .await
-            .map_err(|e| AppError::InternalError(e.to_string()))?;
+            .map_err(|e| AppError::internal(e.to_string()))?;
 
         info!("凭证分录创建成功，共 {} 条", req.items.len());
 
@@ -273,7 +273,7 @@ impl VoucherService {
         let voucher = voucher::Entity::find_by_id(id)
             .one(&*self.db)
             .await?
-            .ok_or_else(|| AppError::NotFound(format!("凭证不存在：{}", id)))?;
+            .ok_or_else(|| AppError::not_found(format!("凭证不存在：{}", id)))?;
 
         let items = voucher_item::Entity::find()
             .filter(voucher_item::Column::VoucherId.eq(id))
@@ -298,7 +298,7 @@ impl VoucherService {
 
         if voucher_model.status != "draft" {
             warn!("只有草稿状态的凭证可以更新：{}", voucher_model.voucher_no);
-            return Err(AppError::BadRequest(
+            return Err(AppError::bad_request(
                 "只有草稿状态的凭证可以更新".to_string(),
             ));
         }
@@ -307,7 +307,7 @@ impl VoucherService {
             .db
             .begin()
             .await
-            .map_err(|e| AppError::InternalError(e.to_string()))?;
+            .map_err(|e| AppError::internal(e.to_string()))?;
 
         let mut active_model: voucher::ActiveModel = voucher_model.clone().into_active_model();
 
@@ -333,7 +333,7 @@ impl VoucherService {
             let total_debit: Decimal = items.iter().map(|i| i.debit).sum();
             let total_credit: Decimal = items.iter().map(|i| i.credit).sum();
             if total_debit != total_credit {
-                return Err(AppError::BadRequest(format!(
+                return Err(AppError::bad_request(format!(
                     "凭证借贷不平衡：借方 {} != 贷方 {}",
                     total_debit, total_credit
                 )));
@@ -343,7 +343,7 @@ impl VoucherService {
                 .filter(vi::Column::VoucherId.eq(id))
                 .exec(&txn)
                 .await
-                .map_err(|e| AppError::InternalError(e.to_string()))?;
+                .map_err(|e| AppError::internal(e.to_string()))?;
 
             for (index, item_req) in items.iter().enumerate() {
                 let item_active = vi::ActiveModel {
@@ -373,13 +373,13 @@ impl VoucherService {
                 item_active
                     .insert(&txn)
                     .await
-                    .map_err(|e| AppError::InternalError(e.to_string()))?;
+                    .map_err(|e| AppError::internal(e.to_string()))?;
             }
         }
 
         txn.commit()
             .await
-            .map_err(|e| AppError::InternalError(e.to_string()))?;
+            .map_err(|e| AppError::internal(e.to_string()))?;
 
         info!("凭证更新成功：no={}", updated_voucher.voucher_no);
         Ok(updated_voucher)
@@ -394,7 +394,7 @@ impl VoucherService {
         // 只有草稿状态可以删除
         if voucher.status != "draft" {
             warn!("只有草稿状态的凭证可以删除：{}", voucher.voucher_no);
-            return Err(AppError::BadRequest(
+            return Err(AppError::bad_request(
                 "只有草稿状态的凭证可以删除".to_string(),
             ));
         }
@@ -416,7 +416,7 @@ impl VoucherService {
         let voucher = self.get_by_id(id).await?.voucher;
 
         if voucher.status != "draft" {
-            return Err(AppError::BadRequest(
+            return Err(AppError::bad_request(
                 "只有草稿状态的凭证可以提交".to_string(),
             ));
         }
@@ -445,7 +445,7 @@ impl VoucherService {
         let voucher = self.get_by_id(id).await?.voucher;
 
         if voucher.status != "submitted" {
-            return Err(AppError::BadRequest("只有已提交的凭证可以审核".to_string()));
+            return Err(AppError::bad_request("只有已提交的凭证可以审核"));
         }
 
         // 验证借贷平衡
@@ -474,7 +474,7 @@ impl VoucherService {
         let voucher = self.get_by_id(id).await?.voucher;
 
         if voucher.status != "reviewed" {
-            return Err(AppError::BadRequest("只有已审核的凭证可以过账".to_string()));
+            return Err(AppError::bad_request("只有已审核的凭证可以过账"));
         }
 
         // 检查期间锁定
@@ -537,7 +537,7 @@ impl VoucherService {
         let total_credit: Decimal = items.iter().map(|i| i.credit).sum();
 
         if total_debit != total_credit {
-            return Err(AppError::BadRequest(format!(
+            return Err(AppError::bad_request(format!(
                 "凭证借贷不平衡：借方 {} != 贷方 {}",
                 total_debit, total_credit
             )));
@@ -561,7 +561,7 @@ impl VoucherService {
         let total_credit: Decimal = items.iter().map(|i| i.credit).sum();
 
         if total_debit != total_credit {
-            return Err(AppError::BadRequest("凭证借贷不平衡".to_string()));
+            return Err(AppError::bad_request("凭证借贷不平衡"));
         }
 
         Ok(())
@@ -582,7 +582,7 @@ impl VoucherService {
         let voucher = voucher::Entity::find_by_id(voucher_id)
             .one(txn)
             .await?
-            .ok_or_else(|| AppError::NotFound("凭证不存在".to_string()))?;
+            .ok_or_else(|| AppError::not_found("凭证不存在"))?;
 
         // 获取凭证分录
         let items = voucher_item::Entity::find()
@@ -609,7 +609,7 @@ impl VoucherService {
                 .filter(account_subject::Column::Code.eq(subject_code))
                 .one(txn)
                 .await?
-                .ok_or_else(|| AppError::BadRequest(format!("科目不存在：{}", subject_code)))?;
+                .ok_or_else(|| AppError::bad_request(format!("科目不存在：{}", subject_code)))?;
 
             let entry = balance_map
                 .entry(subject.id)
@@ -631,7 +631,7 @@ impl VoucherService {
             let subject = account_subject::Entity::find_by_id(subject_id)
                 .one(txn)
                 .await?
-                .ok_or_else(|| AppError::BadRequest(format!("科目不存在：{}", subject_id)))?;
+                .ok_or_else(|| AppError::bad_request(format!("科目不存在：{}", subject_id)))?;
 
             let balance_direction = subject.balance_direction.as_deref().unwrap_or("借");
 

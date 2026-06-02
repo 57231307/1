@@ -26,13 +26,13 @@ impl ArCollectionService {
         user_id: i32,
     ) -> Result<ar_collection::Model, AppError> {
         if amount <= Decimal::ZERO {
-            return Err(AppError::BadRequest("收款金额必须大于零".to_string()));
+            return Err(AppError::bad_request("收款金额必须大于零"));
         }
 
         // 检查期间锁定
         let period_svc = crate::services::accounting_period_service::AccountingPeriodService::new(self.db.clone());
         let now_date = Utc::now().date_naive();
-        period_svc.check_date_locked(now_date).await.map_err(|e| AppError::BusinessError(e.to_string()))?;
+        period_svc.check_date_locked(now_date).await.map_err(|e| AppError::business(e.to_string()))?;
 
         let txn = (*self.db).begin().await?;
 
@@ -70,21 +70,21 @@ impl ArCollectionService {
             let invoice = ar_invoice::Entity::find_by_id(inv_id)
                 .one(&txn)
                 .await?
-                .ok_or_else(|| AppError::NotFound(format!("应收单 {} 不存在", inv_id)))?;
+                .ok_or_else(|| AppError::not_found(format!("应收单 {} 不存在", inv_id)))?;
 
             // 检查发票状态
             if invoice.status == "CANCELLED" {
-                return Err(AppError::BadRequest("发票已取消，无法关联收款".to_string()));
+                return Err(AppError::bad_request("发票已取消，无法关联收款"));
             }
 
             // 检查客户一致性
             if invoice.customer_id != customer_id {
-                return Err(AppError::BadRequest("发票客户与收款客户不一致".to_string()));
+                return Err(AppError::bad_request("发票客户与收款客户不一致"));
             }
 
             // 检查收款金额不超过未收金额
             if amount > invoice.unpaid_amount {
-                return Err(AppError::BadRequest(format!(
+                return Err(AppError::bad_request(format!(
                     "收款金额 {} 超过发票未收金额 {}",
                     amount, invoice.unpaid_amount
                 )));
@@ -131,10 +131,10 @@ impl ArCollectionService {
         let collection = ar_collection::Entity::find_by_id(id)
             .one(&*self.db)
             .await?
-            .ok_or_else(|| AppError::NotFound(format!("收款单 {} 不存在", id)))?;
+            .ok_or_else(|| AppError::not_found(format!("收款单 {} 不存在", id)))?;
 
         if collection.status != "pending" {
-            return Err(AppError::BusinessError(format!(
+            return Err(AppError::business(format!(
                 "收款单状态为 {}，只有待确认的收款可以确认",
                 collection.status
             )));
@@ -158,10 +158,10 @@ impl ArCollectionService {
         let collection = ar_collection::Entity::find_by_id(id)
             .one(&*self.db)
             .await?
-            .ok_or_else(|| AppError::NotFound(format!("收款单 {} 不存在", id)))?;
+            .ok_or_else(|| AppError::not_found(format!("收款单 {} 不存在", id)))?;
 
         if collection.status != "pending" {
-            return Err(AppError::BusinessError(format!(
+            return Err(AppError::business(format!(
                 "收款单状态为 {}，只有待确认的收款可以取消",
                 collection.status
             )));

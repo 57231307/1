@@ -60,7 +60,7 @@ pub async fn create_tenant(
             req.plan_id,
         )
         .await
-        .map_err(|e| AppError::InternalError(format!("创建租户失败: {}", e)))?;
+        .map_err(|e| AppError::internal(format!("创建租户失败: {}", e)))?;
 
     Ok(Json(ApiResponse::success(TenantResponse::from(tenant))))
 }
@@ -88,7 +88,7 @@ pub async fn list_tenants(
     let (tenants, total) = service
         .list_tenants(page, page_size)
         .await
-        .map_err(|e| AppError::InternalError(format!("获取租户列表失败: {}", e)))?;
+        .map_err(|e| AppError::internal(format!("获取租户列表失败: {}", e)))?;
 
     let responses: Vec<TenantResponse> = tenants.into_iter().map(TenantResponse::from).collect();
     Ok(Json(ApiResponse::success_paginated(
@@ -107,8 +107,8 @@ pub async fn get_tenant(
     let tenant = service
         .get_tenant(id)
         .await
-        .map_err(|e| AppError::InternalError(format!("获取租户失败: {}", e)))?
-        .ok_or_else(|| AppError::NotFound("租户不存在".to_string()))?;
+        .map_err(|e| AppError::internal(format!("获取租户失败: {}", e)))?
+        .ok_or_else(|| AppError::not_found("租户不存在"))?;
 
     Ok(Json(ApiResponse::success(TenantResponse::from(tenant))))
 }
@@ -133,7 +133,7 @@ pub async fn update_tenant_status(
     let tenant = service
         .update_tenant_status(id, &req.status)
         .await
-        .map_err(|e| AppError::InternalError(format!("更新租户状态失败: {}", e)))?;
+        .map_err(|e| AppError::internal(format!("更新租户状态失败: {}", e)))?;
 
     Ok(Json(ApiResponse::success(TenantResponse::from(tenant))))
 }

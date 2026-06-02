@@ -150,7 +150,7 @@ impl CapacityService {
         let wc = WorkCenterEntity::find_by_id(id)
             .one(&*self.db)
             .await?
-            .ok_or_else(|| AppError::NotFound(format!("工作中心 ID {} 不存在", id)))?;
+            .ok_or_else(|| AppError::not_found(format!("工作中心 ID {} 不存在", id)))?;
 
         let shifts = Self::default_shifts_for_type(&wc.work_center_type);
         Ok(WorkCenterCapacity {
@@ -381,7 +381,7 @@ impl CapacityService {
         let existing = WorkCenterEntity::find_by_id(id)
             .one(&*self.db)
             .await?
-            .ok_or_else(|| AppError::NotFound(format!("工作中心 ID {} 不存在", id)))?;
+            .ok_or_else(|| AppError::not_found(format!("工作中心 ID {} 不存在", id)))?;
 
         let mut active_model: WorkCenterActiveModel = existing.into();
 
@@ -418,7 +418,7 @@ impl CapacityService {
         let existing = WorkCenterEntity::find_by_id(id)
             .one(&*self.db)
             .await?
-            .ok_or_else(|| AppError::NotFound(format!("工作中心 ID {} 不存在", id)))?;
+            .ok_or_else(|| AppError::not_found(format!("工作中心 ID {} 不存在", id)))?;
 
         let mut active_model: WorkCenterActiveModel = existing.into();
         active_model.status = Set("INACTIVE".to_string());
@@ -438,7 +438,7 @@ impl CapacityService {
         let wc = WorkCenterEntity::find_by_id(work_center_id)
             .one(&*self.db)
             .await?
-            .ok_or_else(|| AppError::NotFound(format!("工作中心 ID {} 不存在", work_center_id)))?;
+            .ok_or_else(|| AppError::not_found(format!("工作中心 ID {} 不存在", work_center_id)))?;
 
         let daily_capacity = wc.daily_capacity.unwrap_or(Decimal::ZERO);
 
@@ -484,7 +484,7 @@ impl CapacityService {
         let wc = WorkCenterEntity::find_by_id(work_center_id)
             .one(&*self.db)
             .await?
-            .ok_or_else(|| AppError::NotFound(format!("工作中心 ID {} 不存在", work_center_id)))?;
+            .ok_or_else(|| AppError::not_found(format!("工作中心 ID {} 不存在", work_center_id)))?;
 
         let daily_capacity = wc.daily_capacity.unwrap_or(Decimal::ZERO);
         let days = (date_to - date_from).num_days() + 1;

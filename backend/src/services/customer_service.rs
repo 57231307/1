@@ -64,7 +64,7 @@ impl CustomerService {
             .await?;
 
         if existing.is_some() {
-            return Err(AppError::BusinessError("客户编码已存在".to_string()));
+            return Err(AppError::business("客户编码已存在"));
         }
 
         let customer = customer::ActiveModel {
@@ -105,7 +105,7 @@ impl CustomerService {
         CustomerEntity::find_by_id(customer_id)
             .one(&*self.db)
             .await?
-            .ok_or_else(|| AppError::NotFound(format!("客户 {} 未找到", customer_id)))
+            .ok_or_else(|| AppError::not_found(format!("客户 {} 未找到", customer_id)))
     }
 
     /// 获取客户列表
@@ -182,7 +182,7 @@ impl CustomerService {
         let customer = CustomerEntity::find_by_id(customer_id)
             .one(&*self.db)
             .await?
-            .ok_or_else(|| AppError::NotFound(format!("客户 {} 未找到", customer_id)))?;
+            .ok_or_else(|| AppError::not_found(format!("客户 {} 未找到", customer_id)))?;
 
         let mut customer_update: customer::ActiveModel = customer.into();
 
@@ -248,7 +248,7 @@ impl CustomerService {
         let customer = CustomerEntity::find_by_id(customer_id)
             .one(&*self.db)
             .await?
-            .ok_or_else(|| AppError::NotFound(format!("客户 {} 未找到", customer_id)))?;
+            .ok_or_else(|| AppError::not_found(format!("客户 {} 未找到", customer_id)))?;
 
         let mut customer_update: customer::ActiveModel = customer.into();
         customer_update.status = sea_orm::ActiveValue::Set("inactive".to_string());

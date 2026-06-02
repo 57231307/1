@@ -99,7 +99,7 @@ impl FundManagementService {
         let account = fund_management::Entity::find_by_id(id)
             .one(&*self.db)
             .await?
-            .ok_or_else(|| AppError::NotFound(format!("资金账户不存在：{}", id)))?;
+            .ok_or_else(|| AppError::not_found(format!("资金账户不存在：{}", id)))?;
         Ok(account)
     }
 
@@ -119,7 +119,7 @@ impl FundManagementService {
         let account = self.get_account_by_id(account_id).await?;
 
         if account.status != "active" {
-            return Err(AppError::ValidationError("账户状态非活跃".to_string()));
+            return Err(AppError::validation("账户状态非活跃"));
         }
 
         let new_balance = account.balance + amount;
@@ -150,11 +150,11 @@ impl FundManagementService {
         let account = self.get_account_by_id(account_id).await?;
 
         if account.status != "active" {
-            return Err(AppError::ValidationError("账户状态非活跃".to_string()));
+            return Err(AppError::validation("账户状态非活跃"));
         }
 
         if amount > account.available_balance {
-            return Err(AppError::ValidationError("可用余额不足".to_string()));
+            return Err(AppError::validation("可用余额不足"));
         }
 
         let new_balance = account.balance - amount;
@@ -185,7 +185,7 @@ impl FundManagementService {
         let account = self.get_account_by_id(account_id).await?;
 
         if amount > account.available_balance {
-            return Err(AppError::ValidationError("可用余额不足".to_string()));
+            return Err(AppError::validation("可用余额不足"));
         }
 
         let new_available_balance = account.available_balance - amount;
@@ -215,7 +215,7 @@ impl FundManagementService {
         let account = self.get_account_by_id(account_id).await?;
 
         if amount > account.frozen_balance {
-            return Err(AppError::ValidationError("冻结余额不足".to_string()));
+            return Err(AppError::validation("冻结余额不足"));
         }
 
         let new_available_balance = account.available_balance + amount;
@@ -237,9 +237,7 @@ impl FundManagementService {
         let account = self.get_account_by_id(account_id).await?;
 
         if account.balance != Decimal::ZERO {
-            return Err(AppError::ValidationError(
-                "账户余额不为零，无法删除".to_string(),
-            ));
+            return Err(AppError::validation("账户余额不为零，无法删除".to_string()));
         }
 
         fund_management::Entity::delete_many()
@@ -263,10 +261,10 @@ impl FundManagementService {
         let from_acc = crate::models::fund_management::Entity::find_by_id(req.from_account_id)
             .one(&txn)
             .await?
-            .ok_or_else(|| AppError::NotFound("From account not found".into()))?;
+            .ok_or_else(|| AppError::not_found("From account not found"))?;
         let total_deduct = req.amount + req.fee.unwrap_or_default();
         if from_acc.available_balance < total_deduct {
-            return Err(AppError::ValidationError("Insufficient balance".into()));
+            return Err(AppError::validation("Insufficient balance"));
         }
         let mut from_active: crate::models::fund_management::ActiveModel = from_acc.clone().into();
 
@@ -281,7 +279,7 @@ impl FundManagementService {
         let to_acc = crate::models::fund_management::Entity::find_by_id(req.to_account_id)
             .one(&txn)
             .await?
-            .ok_or_else(|| AppError::NotFound("To account not found".into()))?;
+            .ok_or_else(|| AppError::not_found("To account not found"))?;
         let mut to_active: crate::models::fund_management::ActiveModel = to_acc.clone().into();
 
         let to_balance = to_acc.balance;
@@ -350,6 +348,6 @@ impl FundManagementService {
         fund_transfer_record::Entity::find_by_id(id)
             .one(&*self.db)
             .await?
-            .ok_or_else(|| AppError::NotFound("资金转账记录".to_string()))
+            .ok_or_else(|| AppError::not_found("资金转账记录"))
     }
 }

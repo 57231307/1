@@ -92,7 +92,7 @@ impl PurchasePriceService {
                 .effective_date
                 .unwrap_or_else(|| chrono::Utc::now().format("%Y-%m-%d").to_string())
                 .parse()
-                .map_err(|e| AppError::ValidationError(format!("日期格式错误：{}", e)))?),
+                .map_err(|e| AppError::validation(format!("日期格式错误：{}", e)))?),
             expiry_date: Set(req.expiry_date.and_then(|d| d.parse().ok())),
             status: Set("pending".to_string()),
             created_by: Set(Some(user_id)),
@@ -111,7 +111,7 @@ impl PurchasePriceService {
         let price = purchase_price::Entity::find_by_id(id)
             .one(&*self.db)
             .await?
-            .ok_or_else(|| AppError::NotFound(format!("采购价格 {} 未找到", id)))?;
+            .ok_or_else(|| AppError::not_found(format!("采购价格 {} 未找到", id)))?;
 
         Ok(price)
     }
@@ -123,7 +123,7 @@ impl PurchasePriceService {
         let mut price: purchase_price::ActiveModel = purchase_price::Entity::find_by_id(id)
             .one(&*self.db)
             .await?
-            .ok_or_else(|| AppError::NotFound(format!("采购价格 {} 未找到", id)))?
+            .ok_or_else(|| AppError::not_found(format!("采购价格 {} 未找到", id)))?
             .into();
 
         price.status = Set("approved".to_string());
@@ -162,14 +162,14 @@ impl PurchasePriceService {
         let mut price_model: purchase_price::ActiveModel = purchase_price::Entity::find_by_id(id)
             .one(&*self.db)
             .await?
-            .ok_or_else(|| AppError::NotFound(format!("采购价格 {} 未找到", id)))?
+            .ok_or_else(|| AppError::not_found(format!("采购价格 {} 未找到", id)))?
             .into();
 
         price_model.price = Set(price);
         if let Some(ed) = expiry_date {
             price_model.expiry_date =
                 Set(Some(ed.parse().map_err(|e| {
-                    AppError::ValidationError(format!("日期格式错误：{}", e))
+                    AppError::validation(format!("日期格式错误：{}", e))
                 })?));
         }
         if let Some(s) = status {
@@ -187,7 +187,7 @@ impl PurchasePriceService {
         let price = purchase_price::Entity::find_by_id(id)
             .one(&*self.db)
             .await?
-            .ok_or_else(|| AppError::NotFound(format!("采购价格 {} 未找到", id)))?;
+            .ok_or_else(|| AppError::not_found(format!("采购价格 {} 未找到", id)))?;
 
         price.delete(&*self.db).await?;
         info!("采购价格删除成功，ID: {}", id);

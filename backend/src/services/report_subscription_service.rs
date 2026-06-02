@@ -71,11 +71,11 @@ impl ReportSubscriptionService {
             "DAILY" => Some(now + chrono::Duration::days(1)),
             "WEEKLY" => Some(now + chrono::Duration::weeks(1)),
             "MONTHLY" => Some(now + chrono::Duration::days(30)),
-            _ => return Err(AppError::ValidationError("无效的订阅频率".to_string())),
+            _ => return Err(AppError::validation("无效的订阅频率")),
         };
 
         let recipients_json = serde_json::to_value(&req.recipients)
-            .map_err(|e| AppError::ValidationError(format!("收件人格式错误: {}", e)))?;
+            .map_err(|e| AppError::validation(format!("收件人格式错误: {}", e)))?;
 
         let active_model = ActiveModel {
             id: Default::default(),
@@ -120,7 +120,7 @@ impl ReportSubscriptionService {
         let model = ReportSubscriptionEntity::find_by_id(id)
             .one(&*self.db)
             .await?
-            .ok_or_else(|| AppError::NotFound("订阅不存在".to_string()))?;
+            .ok_or_else(|| AppError::not_found("订阅不存在"))?;
 
         let mut active_model: ActiveModel = model.into();
 
@@ -132,7 +132,7 @@ impl ReportSubscriptionService {
         }
         if let Some(recipients) = req.recipients {
             let recipients_json = serde_json::to_value(&recipients)
-                .map_err(|e| AppError::ValidationError(format!("收件人格式错误: {}", e)))?;
+                .map_err(|e| AppError::validation(format!("收件人格式错误: {}", e)))?;
             active_model.recipients = Set(recipients_json);
         }
         if let Some(export_format) = req.export_format {
@@ -154,7 +154,7 @@ impl ReportSubscriptionService {
         let model = ReportSubscriptionEntity::find_by_id(id)
             .one(&*self.db)
             .await?
-            .ok_or_else(|| AppError::NotFound("订阅不存在".to_string()))?;
+            .ok_or_else(|| AppError::not_found("订阅不存在"))?;
 
         let mut active_model: ActiveModel = model.into();
         active_model.status = Set("INACTIVE".to_string());
@@ -175,7 +175,7 @@ impl ReportSubscriptionService {
         let model = ReportSubscriptionEntity::find_by_id(id)
             .one(&*self.db)
             .await?
-            .ok_or_else(|| AppError::NotFound("订阅不存在".to_string()))?;
+            .ok_or_else(|| AppError::not_found("订阅不存在"))?;
 
         let mut active_model: ActiveModel = model.into();
         active_model.is_enabled = Set(enabled);
@@ -187,7 +187,7 @@ impl ReportSubscriptionService {
             let frequency = if let sea_orm::ActiveValue::Set(ref v) = active_model.frequency {
                 v.clone()
             } else {
-                return Err(AppError::BadRequest("frequency is required".to_string()));
+                return Err(AppError::bad_request("frequency is required"));
             };
             let next_run = match frequency.as_str() {
                 "DAILY" => Some(now + chrono::Duration::days(1)),
@@ -265,7 +265,7 @@ impl ReportSubscriptionService {
         let model = ReportSubscriptionEntity::find_by_id(id)
             .one(&*self.db)
             .await?
-            .ok_or_else(|| AppError::NotFound("订阅不存在".to_string()))?;
+            .ok_or_else(|| AppError::not_found("订阅不存在"))?;
 
         // 立即将下次执行时间设为现在
         let mut active_model: ActiveModel = model.into();

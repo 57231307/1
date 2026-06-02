@@ -146,8 +146,7 @@ pub async fn list_customers(
         .items
         .into_iter()
         .map(|c| {
-            serde_json::to_value(c)
-                .map_err(|e| AppError::InternalError(format!("序列化失败: {}", e)))
+            serde_json::to_value(c).map_err(|e| AppError::internal(format!("序列化失败: {}", e)))
         })
         .collect::<Result<Vec<_>, _>>()?;
 
@@ -199,7 +198,7 @@ pub async fn get_customer(
     let customer_service = CustomerService::new(state.db.clone());
     let customer = customer_service.get_customer(id).await?;
     let mut customer_json = serde_json::to_value(customer)
-        .map_err(|e| AppError::InternalError(format!("序列化失败: {}", e)))?;
+        .map_err(|e| AppError::internal(format!("序列化失败: {}", e)))?;
 
     // 数据权限控制：获取角色数据权限并应用字段过滤
     if let Some(role_id) = auth.role_id {
@@ -280,7 +279,7 @@ pub async fn create_customer(
         .await?;
 
     let customer_json = serde_json::to_value(customer)
-        .map_err(|e| AppError::InternalError(format!("序列化失败: {}", e)))?;
+        .map_err(|e| AppError::internal(format!("序列化失败: {}", e)))?;
     Ok(Json(ApiResponse::success_with_message(
         customer_json,
         "客户创建成功",
@@ -325,7 +324,7 @@ pub async fn update_customer(
         .await?;
 
     let customer_json = serde_json::to_value(customer)
-        .map_err(|e| AppError::InternalError(format!("序列化失败: {}", e)))?;
+        .map_err(|e| AppError::internal(format!("序列化失败: {}", e)))?;
     Ok(Json(ApiResponse::success_with_message(
         customer_json,
         "客户更新成功",

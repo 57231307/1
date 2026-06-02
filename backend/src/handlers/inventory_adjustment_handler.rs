@@ -95,14 +95,14 @@ pub async fn create_adjustment(
     let adjustment_date: DateTime<Utc> = payload
         .adjustment_date
         .parse::<DateTime<Utc>>()
-        .map_err(|e| AppError::ValidationError(format!("日期格式错误：{}", e)))?;
+        .map_err(|e| AppError::validation(format!("日期格式错误：{}", e)))?;
 
     let mut items = Vec::with_capacity(payload.items.len());
     for item in payload.items {
         let quantity = item
             .quantity
             .parse::<Decimal>()
-            .map_err(|e| AppError::ValidationError(format!("数量格式错误：{}", e)))?;
+            .map_err(|e| AppError::validation(format!("数量格式错误：{}", e)))?;
 
         items.push(AdjustmentItemRequest {
             stock_id: item.stock_id,
@@ -127,7 +127,7 @@ pub async fn create_adjustment(
     let detail = service
         .create_adjustment(request)
         .await
-        .map_err(|e| AppError::InternalError(e.to_string()))?;
+        .map_err(|e| AppError::internal(e.to_string()))?;
 
     Ok(Json(ApiResponse::success(AdjustmentResponse {
         id: detail.adjustment.id,
@@ -170,12 +170,12 @@ pub async fn approve_adjustment(
     service
         .approve_adjustment(id, user_id)
         .await
-        .map_err(|e| AppError::BadRequest(e.to_string()))?;
+        .map_err(|e| AppError::bad_request(e.to_string()))?;
 
     let detail = service
         .get_adjustment(id)
         .await
-        .map_err(|e| AppError::InternalError(e.to_string()))?;
+        .map_err(|e| AppError::internal(e.to_string()))?;
 
     Ok(Json(ApiResponse::success(AdjustmentResponse {
         id: detail.adjustment.id,
@@ -217,12 +217,12 @@ pub async fn reject_adjustment(
     service
         .reject_adjustment(id)
         .await
-        .map_err(|e| AppError::BadRequest(e.to_string()))?;
+        .map_err(|e| AppError::bad_request(e.to_string()))?;
 
     let detail = service
         .get_adjustment(id)
         .await
-        .map_err(|e| AppError::InternalError(e.to_string()))?;
+        .map_err(|e| AppError::internal(e.to_string()))?;
 
     // 发送审批拒绝通知
     if let Some(ref event_service) = state.event_notification_service {
@@ -278,7 +278,7 @@ pub async fn list_adjustments(
     let (adjustments, total) = service
         .list_adjustments(params.page.unwrap_or(0), params.page_size.unwrap_or(20))
         .await
-        .map_err(|e| AppError::InternalError(e.to_string()))?;
+        .map_err(|e| AppError::internal(e.to_string()))?;
 
     Ok(Json(ApiResponse::success(AdjustmentListResponse {
         adjustments: adjustments
@@ -316,7 +316,7 @@ pub async fn get_adjustment(
     let detail = service
         .get_adjustment(id)
         .await
-        .map_err(|e| AppError::NotFound(e.to_string()))?;
+        .map_err(|e| AppError::not_found(e.to_string()))?;
 
     Ok(Json(ApiResponse::success(AdjustmentResponse {
         id: detail.adjustment.id,

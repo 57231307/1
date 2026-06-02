@@ -76,7 +76,7 @@ impl EmailTemplateService {
             .await?;
 
         if existing.is_some() {
-            return Err(AppError::BusinessError(format!(
+            return Err(AppError::business(format!(
                 "邮件模板编码 {} 已存在",
                 req.code
             )));
@@ -138,7 +138,7 @@ impl EmailTemplateService {
         let model = EmailTemplateEntity::find_by_id(id)
             .one(&*self.db)
             .await?
-            .ok_or_else(|| AppError::NotFound("邮件模板不存在".to_string()))?;
+            .ok_or_else(|| AppError::not_found("邮件模板不存在"))?;
 
         let mut active_model: ActiveModel = model.into();
 
@@ -176,7 +176,7 @@ impl EmailTemplateService {
         let model = EmailTemplateEntity::find_by_id(id)
             .one(&*self.db)
             .await?
-            .ok_or_else(|| AppError::NotFound("邮件模板不存在".to_string()))?;
+            .ok_or_else(|| AppError::not_found("邮件模板不存在"))?;
 
         let mut active_model: ActiveModel = model.into();
         active_model.is_active = Set(false);

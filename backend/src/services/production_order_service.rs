@@ -73,7 +73,7 @@ impl ProductionOrderService {
         let product = ProductEntity::find_by_id(product_id).one(&*self.db).await?;
 
         if product.is_none() {
-            return Err(AppError::ValidationError(format!(
+            return Err(AppError::validation(format!(
                 "产品ID {} 不存在",
                 product_id
             )));
@@ -88,7 +88,7 @@ impl ProductionOrderService {
             .await?;
 
         if sales_order.is_none() {
-            return Err(AppError::ValidationError(format!(
+            return Err(AppError::validation(format!(
                 "销售订单ID {} 不存在",
                 sales_order_id
             )));
@@ -103,7 +103,7 @@ impl ProductionOrderService {
             .await?;
 
         if work_center.is_none() {
-            return Err(AppError::ValidationError(format!(
+            return Err(AppError::validation(format!(
                 "工作中心ID {} 不存在",
                 work_center_id
             )));
@@ -129,7 +129,7 @@ impl ProductionOrderService {
                 return Ok(order_no);
             }
         }
-        Err(AppError::InternalError(
+        Err(AppError::internal(
             "无法生成唯一订单号，请稍后重试".to_string(),
         ))
     }
@@ -151,13 +151,13 @@ impl ProductionOrderService {
             if allowed.contains(&new_status) {
                 Ok(())
             } else {
-                Err(AppError::BusinessError(format!(
+                Err(AppError::business(format!(
                     "不允许从 {} 状态转换到 {} 状态",
                     current_status, new_status
                 )))
             }
         } else {
-            Err(AppError::BusinessError(format!(
+            Err(AppError::business(format!(
                 "未知的状态: {}",
                 current_status
             )))
@@ -208,7 +208,7 @@ impl ProductionOrderService {
                     .await?;
 
                 if existing.is_some() {
-                    return Err(AppError::ValidationError(format!("订单号 {} 已存在", no)));
+                    return Err(AppError::validation(format!("订单号 {} 已存在", no)));
                 }
                 no
             }
@@ -236,9 +236,9 @@ impl ProductionOrderService {
             // 处理唯一约束冲突
             let err_str = e.to_string();
             if err_str.contains("unique constraint") || err_str.contains("duplicate") {
-                AppError::ValidationError("订单号已存在，请稍后重试".to_string())
+                AppError::validation("订单号已存在，请稍后重试")
             } else {
-                AppError::DatabaseError(e.to_string())
+                AppError::database(e.to_string())
             }
         })?;
 
@@ -288,11 +288,11 @@ impl ProductionOrderService {
         let model = ProductionOrderEntity::find_by_id(id)
             .one(&*self.db)
             .await?
-            .ok_or_else(|| AppError::NotFound("生产订单不存在".to_string()))?;
+            .ok_or_else(|| AppError::not_found("生产订单不存在"))?;
 
         // 只允许编辑草稿和已排产状态的订单
         if !matches!(model.status.as_str(), "DRAFT" | "SCHEDULED") {
-            return Err(AppError::BusinessError(format!(
+            return Err(AppError::business(format!(
                 "不允许编辑 {} 状态的生产订单",
                 model.status
             )));
@@ -332,7 +332,7 @@ impl ProductionOrderService {
         let model = ProductionOrderEntity::find_by_id(id)
             .one(&*self.db)
             .await?
-            .ok_or_else(|| AppError::NotFound("生产订单不存在".to_string()))?;
+            .ok_or_else(|| AppError::not_found("生产订单不存在"))?;
 
         // 验证是否可以取消
         Self::validate_status_transition(&model.status, "CANCELLED")?;
@@ -356,7 +356,7 @@ impl ProductionOrderService {
         let model = ProductionOrderEntity::find_by_id(id)
             .one(&*self.db)
             .await?
-            .ok_or_else(|| AppError::NotFound("生产订单不存在".to_string()))?;
+            .ok_or_else(|| AppError::not_found("生产订单不存在"))?;
 
         // 验证状态转换是否合法
         Self::validate_status_transition(&model.status, &status)?;
@@ -406,14 +406,12 @@ impl ProductionOrderService {
             .filter(crate::models::warehouse::Column::IsActive.eq(true))
             .one(&*self.db)
             .await?
-            .ok_or_else(|| {
-                AppError::BusinessError("未找到可用仓库，无法执行库存联动".to_string())
-            })?;
+            .ok_or_else(|| AppError::business("未找到可用仓库，无法执行库存联动"))?;
 
         // 优先使用实际完成数量，否则使用计划数量
         let production_qty = order.actual_quantity.unwrap_or(order.planned_quantity);
         if production_qty.is_zero() {
-            return Err(AppError::BusinessError(
+            return Err(AppError::business(
                 "生产数量为零，无法执行库存联动".to_string(),
             ));
         }
@@ -449,7 +447,7 @@ impl ProductionOrderService {
                     .one(&*self.db)
                     .await?
                     .ok_or_else(|| {
-                        AppError::BusinessError(format!(
+                        AppError::business(format!(
                             "原材料(ID={})在默认仓库中无库存记录，无法扣减",
                             bom_item.material_id
                         ))
@@ -460,7 +458,7 @@ impl ProductionOrderService {
 
                 // 检查库存是否充足
                 if qty_before_meters < consumption_qty {
-                    return Err(AppError::BusinessError(format!(
+                    return Err(AppError::business(format!(
                         "原材料(ID={})库存不足，需要 {}，当前库存 {}",
                         bom_item.material_id, consumption_qty, qty_before_meters
                     )));
@@ -516,9 +514,7 @@ impl ProductionOrderService {
         let product = ProductEntity::find_by_id(order.product_id)
             .one(&*self.db)
             .await?
-            .ok_or_else(|| {
-                AppError::BusinessError(format!("产品ID {} 不存在", order.product_id))
-            })?;
+            .ok_or_else(|| AppError::business(format!("产品ID {} 不存在", order.product_id)))?;
 
         // 查找成品在默认仓库的已有库存记录
         let existing_stock = InventoryStockEntity::find()
@@ -646,7 +642,7 @@ impl ProductionOrderService {
         let model = ProductionOrderEntity::find_by_id(id)
             .one(&*self.db)
             .await?
-            .ok_or_else(|| AppError::NotFound("生产订单不存在".to_string()))?;
+            .ok_or_else(|| AppError::not_found("生产订单不存在"))?;
 
         // 验证状态转换是否合法
         Self::validate_status_transition(&model.status, "PENDING_APPROVAL")?;
@@ -696,7 +692,7 @@ impl ProductionOrderService {
         let model = ProductionOrderEntity::find_by_id(id)
             .one(&*self.db)
             .await?
-            .ok_or_else(|| AppError::NotFound("生产订单不存在".to_string()))?;
+            .ok_or_else(|| AppError::not_found("生产订单不存在"))?;
 
         // 验证状态转换是否合法
         let new_status = if approved { "APPROVED" } else { "REJECTED" };

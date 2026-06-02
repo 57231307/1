@@ -5,7 +5,6 @@
 
 use crate::models::{ap_invoice, ap_payment, ap_verification, ap_verification_item};
 use crate::utils::error::AppError;
-use crate::utils::number_generator::DocumentNumberGenerator;
 use chrono::{NaiveDate, Utc};
 use rust_decimal::Decimal;
 use sea_orm::{
@@ -29,15 +28,12 @@ impl ApVerificationService {
 
     /// 生成核销单号
     /// 格式：VER + 年月日 + 三位序号（VER20260315001）
-    pub async fn generate_verification_no(&self) -> Result<String, AppError> {
-        DocumentNumberGenerator::generate_no(
-            &*self.db,
-            "VER",
-            ap_verification::Entity,
-            ap_verification::Column::VerificationNo,
-        )
-        .await
-    }
+    crate::impl_generate_no!(
+        generate_verification_no,
+        "VER",
+        ap_verification::Entity,
+        ap_verification::Column::VerificationNo
+    );
 
     /// 自动核销（按到期日优先匹配）
     pub async fn auto_verify(
@@ -133,9 +129,7 @@ impl ApVerificationService {
         }
 
         if verification_items.is_empty() {
-            return Err(AppError::BusinessError(
-                "没有可核销的应付单和付款单".to_string(),
-            ));
+            return Err(AppError::business("没有可核销的应付单和付款单".to_string()));
         }
 
         // 5. 创建核销单
@@ -172,10 +166,7 @@ impl ApVerificationService {
             let mut invoice = ap_invoice::Entity::find_by_id(item_dto.invoice_id)
                 .one(&txn)
                 .await?
-                .ok_or(AppError::NotFound(format!(
-                    "应付单 {}",
-                    item_dto.invoice_id
-                )))?;
+                .ok_or_else(|| AppError::not_found(format!("应付单 {}", item_dto.invoice_id)))?;
 
             invoice.paid_amount += item_dto.verify_amount;
             invoice.unpaid_amount = invoice.amount - invoice.paid_amount;
@@ -217,10 +208,10 @@ impl ApVerificationService {
             let invoice = ap_invoice::Entity::find_by_id(item.invoice_id)
                 .one(&txn)
                 .await?
-                .ok_or(AppError::NotFound(format!("应付单 {}", item.invoice_id)))?;
+                .ok_or_else(|| AppError::not_found(format!("应付单 {}", item.invoice_id)))?;
 
             if invoice.unpaid_amount < item.verify_amount {
-                return Err(AppError::BusinessError(format!(
+                return Err(AppError::business(format!(
                     "应付单{}未付金额{}小于核销金额{}",
                     invoice.invoice_no, invoice.unpaid_amount, item.verify_amount
                 )));
@@ -230,13 +221,10 @@ impl ApVerificationService {
             let payment = ap_payment::Entity::find_by_id(item.payment_id)
                 .one(&txn)
                 .await?
-                .ok_or(AppError::NotFound(format!(
-                    "付款单 ID: {}",
-                    item.payment_id
-                )))?;
+                .ok_or_else(|| AppError::not_found(format!("付款单 ID: {}", item.payment_id)))?;
 
             if payment.payment_status != "CONFIRMED" {
-                return Err(AppError::BusinessError(format!(
+                return Err(AppError::business(format!(
                     "付款单{}状态为{}，未确认不可核销",
                     payment.payment_no, payment.payment_status
                 )));
@@ -280,7 +268,7 @@ impl ApVerificationService {
             let mut invoice = ap_invoice::Entity::find_by_id(item.invoice_id)
                 .one(&txn)
                 .await?
-                .ok_or(AppError::NotFound(format!("应付单 {}", item.invoice_id)))?;
+                .ok_or_else(|| AppError::not_found(format!("应付单 {}", item.invoice_id)))?;
 
             invoice.paid_amount += item.verify_amount;
             invoice.unpaid_amount = invoice.amount - invoice.paid_amount;
@@ -319,11 +307,11 @@ impl ApVerificationService {
         let verification = ap_verification::Entity::find_by_id(id)
             .one(&txn)
             .await?
-            .ok_or(AppError::NotFound(format!("核销单 ID: {}", id)))?;
+            .ok_or_else(|| AppError::not_found(format!("核销单 ID: {}", id)))?;
 
         // 2. 检查状态
         if verification.verification_status == "CANCELLED" {
-            return Err(AppError::BusinessError("核销单已取消".to_string()));
+            return Err(AppError::business("核销单已取消"));
         }
 
         // 3. 查询核销明细
@@ -337,7 +325,7 @@ impl ApVerificationService {
             let mut invoice = ap_invoice::Entity::find_by_id(item.invoice_id)
                 .one(&txn)
                 .await?
-                .ok_or(AppError::NotFound(format!("应付单 {}", item.invoice_id)))?;
+                .ok_or_else(|| AppError::not_found(format!("应付单 {}", item.invoice_id)))?;
 
             invoice.paid_amount -= item.verify_amount;
             invoice.unpaid_amount = invoice.amount - invoice.paid_amount;
@@ -385,7 +373,7 @@ impl ApVerificationService {
         let verification = ap_verification::Entity::find_by_id(id)
             .one(&*self.db)
             .await?
-            .ok_or(AppError::NotFound(format!("核销单 {}", id)))?;
+            .ok_or_else(|| AppError::not_found(format!("核销单 {}", id)))?;
 
         Ok(verification)
     }

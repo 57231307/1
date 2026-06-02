@@ -194,16 +194,16 @@ impl CustomerCreditService {
             .lock(sea_orm::sea_query::LockType::Update)
             .one(&txn)
             .await?
-            .ok_or_else(|| AppError::NotFound(format!("客户 {} 的信用评级不存在", customer_id)))?;
+            .ok_or_else(|| AppError::not_found(format!("客户 {} 的信用评级不存在", customer_id)))?;
 
         if credit.status != "active" {
             txn.rollback().await?;
-            return Err(AppError::ValidationError("客户信用状态非活跃".to_string()));
+            return Err(AppError::validation("客户信用状态非活跃"));
         }
 
         if amount > credit.available_credit {
             txn.rollback().await?;
-            return Err(AppError::ValidationError(format!(
+            return Err(AppError::validation(format!(
                 "可用额度不足：请求 {}，可用 {}",
                 amount, credit.available_credit
             )));
@@ -244,13 +244,11 @@ impl CustomerCreditService {
             .lock(sea_orm::sea_query::LockType::Update)
             .one(&txn)
             .await?
-            .ok_or_else(|| AppError::NotFound(format!("客户 {} 的信用评级不存在", customer_id)))?;
+            .ok_or_else(|| AppError::not_found(format!("客户 {} 的信用评级不存在", customer_id)))?;
 
         if amount > credit.used_credit {
             txn.rollback().await?;
-            return Err(AppError::ValidationError(
-                "释放额度超过已占用额度".to_string(),
-            ));
+            return Err(AppError::validation("释放额度超过已占用额度".to_string()));
         }
 
         let mut credit_active: customer_credit::ActiveModel = credit.clone().into();
@@ -288,7 +286,7 @@ impl CustomerCreditService {
             .one(&txn)
             .await?
             .ok_or_else(|| {
-                AppError::NotFound(format!("客户 {} 的信用评级不存在", req.customer_id))
+                AppError::not_found(format!("客户 {} 的信用评级不存在", req.customer_id))
             })?;
 
         let new_limit = match req.adjustment_type.as_str() {
@@ -298,7 +296,7 @@ impl CustomerCreditService {
                 // 确保降低后的额度不低于已使用额度
                 if decreased < credit.used_credit {
                     txn.rollback().await?;
-                    return Err(AppError::ValidationError(
+                    return Err(AppError::validation(
                         "降低后的额度不能低于已使用额度".to_string(),
                     ));
                 }
@@ -306,7 +304,7 @@ impl CustomerCreditService {
             }
             _ => {
                 txn.rollback().await?;
-                return Err(AppError::ValidationError("无效的额度调整类型".to_string()));
+                return Err(AppError::validation("无效的额度调整类型"));
             }
         };
 
@@ -384,10 +382,10 @@ impl CustomerCreditService {
         let credit = self
             .get_by_customer_id(customer_id)
             .await?
-            .ok_or_else(|| AppError::NotFound(format!("客户 {} 的信用评级不存在", customer_id)))?;
+            .ok_or_else(|| AppError::not_found(format!("客户 {} 的信用评级不存在", customer_id)))?;
 
         if credit.used_credit > 0 {
-            return Err(AppError::ValidationError(
+            return Err(AppError::validation(
                 "客户仍有占用额度，无法停用".to_string(),
             ));
         }
@@ -413,14 +411,14 @@ impl CustomerCreditService {
 
         let eval_date = evaluation_date
             .parse::<NaiveDate>()
-            .map_err(|_| AppError::ValidationError("日期格式错误".to_string()))?;
+            .map_err(|_| AppError::validation("日期格式错误"))?;
 
         // 获取客户信用信息（通过 customer_id 过滤）
         let customer = customer_credit::Entity::find()
             .filter(customer_credit::Column::CustomerId.eq(customer_id))
             .one(&*self.db)
             .await?
-            .ok_or_else(|| AppError::NotFound(format!("客户 {} 的信用评级不存在", customer_id)))?;
+            .ok_or_else(|| AppError::not_found(format!("客户 {} 的信用评级不存在", customer_id)))?;
 
         // 获取客户名称
         let customer_name = crate::models::customer::Entity::find_by_id(customer_id)
