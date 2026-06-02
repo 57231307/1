@@ -44,86 +44,196 @@ impl std::error::Error for AppError {}
 
 impl IntoResponse for AppError {
     fn into_response(self) -> Response {
-        let (status, _error_type, error_message) = match &self {
+        let (status, error_type, error_message, log_detail) = match &self {
             AppError::DatabaseError(msg) => {
-                tracing::error!("数据库错误: {}", msg);
+                let detail = serde_json::json!({
+                    "error_type": "DatabaseError",
+                    "message": msg,
+                    "severity": "HIGH",
+                    "action_required": "检查数据库连接和查询"
+                });
+                tracing::error!(
+                    "【数据库错误】{} | 详情: {} | 建议: 检查数据库连接状态和 SQL 查询",
+                    msg,
+                    detail
+                );
                 (
                     StatusCode::INTERNAL_SERVER_ERROR,
                     "DatabaseError",
                     msg.clone(),
+                    detail,
                 )
             }
             AppError::ValidationError(msg) => {
-                tracing::warn!("验证错误: {}", msg);
+                let detail = serde_json::json!({
+                    "error_type": "ValidationError",
+                    "message": msg,
+                    "severity": "LOW",
+                    "action_required": "检查请求参数"
+                });
+                tracing::warn!(
+                    "【验证错误】{} | 详情: {} | 建议: 检查请求参数格式和必填项",
+                    msg,
+                    detail
+                );
                 (
                     StatusCode::BAD_REQUEST,
                     "ValidationError",
                     "请求参数验证失败".to_string(),
+                    detail,
                 )
             }
             AppError::NotFound(msg) => {
-                tracing::warn!("资源未找到: {}", msg);
-                (StatusCode::NOT_FOUND, "NotFound", "未找到".to_string())
+                let detail = serde_json::json!({
+                    "error_type": "NotFound",
+                    "message": msg,
+                    "severity": "MEDIUM",
+                    "action_required": "检查资源是否存在"
+                });
+                tracing::warn!(
+                    "【资源未找到】{} | 详情: {} | 建议: 检查资源 ID 是否正确或资源是否已被删除",
+                    msg,
+                    detail
+                );
+                (StatusCode::NOT_FOUND, "NotFound", "未找到".to_string(), detail)
             }
             AppError::ResourceNotFound(msg) => {
-                tracing::warn!("资源不存在: {}", msg);
+                let detail = serde_json::json!({
+                    "error_type": "ResourceNotFound",
+                    "message": msg,
+                    "severity": "MEDIUM",
+                    "action_required": "检查资源是否存在"
+                });
+                tracing::warn!(
+                    "【资源不存在】{} | 详情: {} | 建议: 检查资源 ID 是否正确或资源是否已被删除",
+                    msg,
+                    detail
+                );
                 (
                     StatusCode::NOT_FOUND,
                     "ResourceNotFound",
                     "资源不存在".to_string(),
+                    detail,
                 )
             }
             AppError::BusinessError(msg) => {
-                tracing::warn!("业务错误: {}", msg);
+                let detail = serde_json::json!({
+                    "error_type": "BusinessError",
+                    "message": msg,
+                    "severity": "MEDIUM",
+                    "action_required": "检查业务规则"
+                });
+                tracing::warn!(
+                    "【业务错误】{} | 详情: {} | 建议: 检查业务规则和前置条件",
+                    msg,
+                    detail
+                );
                 (
                     StatusCode::BAD_REQUEST,
                     "BusinessError",
                     "业务错误".to_string(),
+                    detail,
                 )
             }
             AppError::Unauthorized(msg) => {
-                tracing::warn!("未授权访问: {}", msg);
+                let detail = serde_json::json!({
+                    "error_type": "Unauthorized",
+                    "message": msg,
+                    "severity": "HIGH",
+                    "action_required": "检查认证信息"
+                });
+                tracing::warn!(
+                    "【未授权访问】{} | 详情: {} | 建议: 检查 Token 是否有效或是否已过期",
+                    msg,
+                    detail
+                );
                 (
                     StatusCode::UNAUTHORIZED,
                     "Unauthorized",
                     "未授权访问".to_string(),
+                    detail,
                 )
             }
             AppError::InternalError(msg) => {
-                tracing::error!("内部错误: {}", msg);
+                let detail = serde_json::json!({
+                    "error_type": "InternalError",
+                    "message": msg,
+                    "severity": "CRITICAL",
+                    "action_required": "联系系统管理员"
+                });
+                tracing::error!(
+                    "【内部错误】{} | 详情: {} | 建议: 检查系统日志或联系管理员",
+                    msg,
+                    detail
+                );
                 (
                     StatusCode::INTERNAL_SERVER_ERROR,
                     "InternalError",
                     "系统内部错误".to_string(),
+                    detail,
                 )
             }
             AppError::PermissionDenied(msg) => {
-                tracing::warn!("权限不足: {}", msg);
+                let detail = serde_json::json!({
+                    "error_type": "PermissionDenied",
+                    "message": msg,
+                    "severity": "HIGH",
+                    "action_required": "检查用户权限"
+                });
+                tracing::warn!(
+                    "【权限不足】{} | 详情: {} | 建议: 检查用户角色和权限配置",
+                    msg,
+                    detail
+                );
                 (
                     StatusCode::FORBIDDEN,
                     "PermissionDenied",
                     "权限不足".to_string(),
+                    detail,
                 )
             }
             AppError::BadRequest(msg) => {
-                tracing::warn!("请求错误: {}", msg);
+                let detail = serde_json::json!({
+                    "error_type": "BadRequest",
+                    "message": msg,
+                    "severity": "LOW",
+                    "action_required": "检查请求格式"
+                });
+                tracing::warn!(
+                    "【请求错误】{} | 详情: {} | 建议: 检查请求格式和参数",
+                    msg,
+                    detail
+                );
                 (
                     StatusCode::BAD_REQUEST,
                     "BadRequest",
                     "请求错误".to_string(),
+                    detail,
                 )
             }
             AppError::TooManyRequests {
                 retry_after,
                 message,
             } => {
-                tracing::warn!("请求过多: {}", message);
+                let detail = serde_json::json!({
+                    "error_type": "TooManyRequests",
+                    "message": message,
+                    "retry_after": retry_after,
+                    "severity": "MEDIUM",
+                    "action_required": "稍后重试"
+                });
+                tracing::warn!(
+                    "【请求过多】{} | 详情: {} | 建议: 等待 {:?} 秒后重试",
+                    message,
+                    detail,
+                    retry_after
+                );
                 let retry_msg = if let Some(seconds) = retry_after {
                     format!("{}，请{}秒后再试", message, seconds)
                 } else {
                     message.clone()
                 };
-                (StatusCode::TOO_MANY_REQUESTS, "TooManyRequests", retry_msg)
+                (StatusCode::TOO_MANY_REQUESTS, "TooManyRequests", retry_msg, detail)
             }
         };
 
@@ -131,7 +241,9 @@ impl IntoResponse for AppError {
         let body = serde_json::json!({
             "code": status.as_u16(),
             "data": null,
-            "message": error_message
+            "message": error_message,
+            "error_type": error_type,
+            "detail": log_detail
         });
 
         (status, Json(body)).into_response()
