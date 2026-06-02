@@ -6,6 +6,7 @@ use serde::{Deserialize, Serialize};
 pub struct Model {
     #[sea_orm(primary_key)]
     pub id: i32,
+    pub tenant_id: Option<i32>,
     pub user_id: Option<i32>,
     pub username: Option<String>,
     pub action: String,
@@ -15,6 +16,11 @@ pub struct Model {
     pub description: Option<String>,
     pub ip_address: Option<String>,
     pub user_agent: Option<String>,
+    pub request_method: Option<String>,
+    pub request_path: Option<String>,
+    pub request_body: Option<String>,
+    pub response_status: Option<i32>,
+    pub duration_ms: Option<i32>,
     pub old_value: Option<serde_json::Value>,
     pub new_value: Option<serde_json::Value>,
     pub created_at: Option<DateTimeUtc>,

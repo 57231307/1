@@ -15,16 +15,26 @@ type HmacSha256 = Hmac<Sha256>;
 pub struct OmniAuditMessage {
     pub trace_id: String,
     pub user_id: i32,
+    pub username: Option<String>,
     pub event_type: String,
     pub event_name: String,
     pub resource: String,
     pub action: String,
+    pub resource_type: Option<String>,
+    pub resource_id: Option<String>,
+    pub resource_name: Option<String>,
+    pub description: Option<String>,
     pub payload: Option<Value>,
     pub ip_address: Option<String>,
     pub user_agent: Option<String>,
+    pub request_method: Option<String>,
+    pub request_path: Option<String>,
+    pub request_body: Option<String>,
     pub duration_ms: i32,
     pub status: String,
     pub error_msg: Option<String>,
+    pub old_value: Option<Value>,
+    pub new_value: Option<Value>,
 }
 
 pub struct OmniAuditEngine {
@@ -83,10 +93,24 @@ impl OmniAuditEngine {
                 }
 
                 let log = omni_audit_log::ActiveModel {
+                    id: ActiveValue::NotSet,
+                    tenant_id: ActiveValue::Set(Some(1)), // 默认租户
                     trace_id: ActiveValue::Set(Some(msg.trace_id)),
+                    span_id: ActiveValue::Set(None),
+                    parent_span_id: ActiveValue::Set(None),
                     user_id: ActiveValue::Set(Some(msg.user_id)),
+                    username: ActiveValue::Set(msg.username),
                     module: ActiveValue::Set(Some(msg.event_type)),
                     action: ActiveValue::Set(Some(msg.event_name)),
+                    resource_type: ActiveValue::Set(msg.resource_type),
+                    resource_id: ActiveValue::Set(msg.resource_id),
+                    resource_name: ActiveValue::Set(msg.resource_name),
+                    description: ActiveValue::Set(msg.description),
+                    ip_address: ActiveValue::Set(msg.ip_address),
+                    user_agent: ActiveValue::Set(msg.user_agent),
+                    request_method: ActiveValue::Set(msg.request_method),
+                    request_path: ActiveValue::Set(msg.request_path),
+                    request_body: ActiveValue::Set(msg.request_body),
                     response_status: ActiveValue::Set(Some(msg.status.parse::<i32>().unwrap_or(
                         match msg.status.as_str() {
                             "SUCCESS" => 200,
@@ -96,10 +120,11 @@ impl OmniAuditEngine {
                         },
                     ))),
                     duration_ms: ActiveValue::Set(Some(msg.duration_ms)),
+                    old_value: ActiveValue::Set(msg.old_value),
+                    new_value: ActiveValue::Set(msg.new_value),
                     created_at: ActiveValue::Set(Some(Utc::now().with_timezone(
                         &chrono::FixedOffset::east_opt(0).expect("UTC offset 0 is always valid"),
                     ))),
-                    ..Default::default()
                 };
 
                 if let Err(e) = omni_audit_log::Entity::insert(log)
