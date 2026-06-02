@@ -95,7 +95,12 @@ impl IntoResponse for AppError {
                     msg,
                     detail
                 );
-                (StatusCode::NOT_FOUND, "NotFound", "未找到".to_string(), detail)
+                (
+                    StatusCode::NOT_FOUND,
+                    "NotFound",
+                    "未找到".to_string(),
+                    detail,
+                )
             }
             AppError::ResourceNotFound(msg) => {
                 let detail = serde_json::json!({
@@ -233,7 +238,12 @@ impl IntoResponse for AppError {
                 } else {
                     message.clone()
                 };
-                (StatusCode::TOO_MANY_REQUESTS, "TooManyRequests", retry_msg, detail)
+                (
+                    StatusCode::TOO_MANY_REQUESTS,
+                    "TooManyRequests",
+                    retry_msg,
+                    detail,
+                )
             }
         };
 

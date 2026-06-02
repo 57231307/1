@@ -1,8 +1,8 @@
 use axum::extract::ConnectInfo;
 use axum::{
-    body::{Body, to_bytes},
+    body::{to_bytes, Body},
     extract::State,
-    http::{Request, StatusCode, header},
+    http::{header, Request, StatusCode},
     middleware::Next,
     response::Response,
 };
@@ -57,13 +57,11 @@ pub async fn omni_audit_middleware(
         .map(|s| s.to_string());
 
     // IP 地址提取（优先级：X-Real-IP > X-Forwarded-For > 连接地址）
-    let ip_address = x_real_ip
-        .or(x_forwarded_for)
-        .or_else(|| {
-            req.extensions()
-                .get::<ConnectInfo<SocketAddr>>()
-                .map(|ConnectInfo(addr)| addr.ip().to_string())
-        });
+    let ip_address = x_real_ip.or(x_forwarded_for).or_else(|| {
+        req.extensions()
+            .get::<ConnectInfo<SocketAddr>>()
+            .map(|ConnectInfo(addr)| addr.ip().to_string())
+    });
 
     // 获取用户信息
     let user_id = req
@@ -86,17 +84,17 @@ pub async fn omni_audit_middleware(
         let (parts, body) = req.into_parts();
         let body_bytes = to_bytes(body, 100 * 1024).await.unwrap_or_default();
         let body_str = String::from_utf8_lossy(&body_bytes).to_string();
-        
+
         // 重新构建请求
         let req = Request::from_parts(parts, Body::from(body_bytes.clone()));
-        
+
         // 截断过长的请求体
         let truncated_body = if body_str.len() > 5000 {
             format!("{}...", &body_str[..5000])
         } else {
             body_str
         };
-        
+
         (req, Some(truncated_body))
     } else {
         (req, None)
@@ -136,10 +134,12 @@ pub async fn omni_audit_middleware(
     let (parts, body) = response.into_parts();
     let body_bytes = to_bytes(body, 10 * 1024).await.unwrap_or_default();
     let response_body = String::from_utf8_lossy(&body_bytes).to_string();
-    let response_content_type = parts.headers.get(header::CONTENT_TYPE)
+    let response_content_type = parts
+        .headers
+        .get(header::CONTENT_TYPE)
         .and_then(|v| v.to_str().ok())
         .map(|s| s.to_string());
-    
+
     // 重新构建响应
     let response = Response::from_parts(parts, Body::from(body_bytes));
 
@@ -162,7 +162,11 @@ pub async fn omni_audit_middleware(
             uri,
             status_code.as_u16(),
             duration_secs,
-            if response_body.len() > 500 { &response_body[..500] } else { &response_body }
+            if response_body.len() > 500 {
+                &response_body[..500]
+            } else {
+                &response_body
+            }
         );
     }
 
@@ -171,7 +175,7 @@ pub async fn omni_audit_middleware(
     if !uri.starts_with("/metrics") && !uri.starts_with("/health") {
         // 根据 URI 推断模块
         let module = infer_module_from_path(&uri);
-        
+
         // 检查是否为敏感操作
         let _sensitive_action = SensitiveActionAlert::check_and_alert(
             &method,

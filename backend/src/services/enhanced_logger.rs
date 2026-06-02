@@ -1,8 +1,8 @@
 #![allow(dead_code)]
 
+use chrono::Utc;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
-use chrono::Utc;
 
 /// 增强日志服务 - 提供详细的业务日志记录
 pub struct EnhancedLogger;
@@ -22,7 +22,7 @@ pub struct OperationContext {
 /// 数据库操作日志
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct DatabaseOperationLog {
-    pub operation: String,           // INSERT, UPDATE, DELETE, SELECT
+    pub operation: String, // INSERT, UPDATE, DELETE, SELECT
     pub table: String,
     pub schema: Option<String>,
     pub sql: Option<String>,
@@ -50,8 +50,8 @@ pub struct DatabaseError {
 /// 资金操作日志
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct FinancialOperationLog {
-    pub operation: String,           // APPROVE, REJECT, CANCEL, CREATE
-    pub financial_type: String,      // PAYMENT, INVOICE, VOUCHER, FUND
+    pub operation: String,      // APPROVE, REJECT, CANCEL, CREATE
+    pub financial_type: String, // PAYMENT, INVOICE, VOUCHER, FUND
     pub financial_id: i32,
     pub financial_no: String,
     pub amount: f64,
@@ -74,9 +74,9 @@ pub struct OperatorInfo {
 /// 资金详情
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct FinancialDetails {
-    pub related_type: Option<String>,    // 关联类型（采购订单、销售订单等）
-    pub related_id: Option<i32>,         // 关联ID
-    pub related_no: Option<String>,      // 关联单号
+    pub related_type: Option<String>, // 关联类型（采购订单、销售订单等）
+    pub related_id: Option<i32>,      // 关联ID
+    pub related_no: Option<String>,   // 关联单号
     pub supplier_id: Option<i32>,
     pub supplier_name: Option<String>,
     pub customer_id: Option<i32>,
@@ -100,7 +100,7 @@ pub struct ApprovalInfo {
 /// 权限变更日志
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PermissionChangeLog {
-    pub operation: String,           // ASSIGN, REVOKE, UPDATE
+    pub operation: String, // ASSIGN, REVOKE, UPDATE
     pub operator: OperatorInfo,
     pub target_user: TargetUser,
     pub permission_change: PermissionChange,
@@ -150,7 +150,7 @@ pub struct PermissionItem {
 /// 登录安全日志
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct LoginSecurityLog {
-    pub event: String,               // LOGIN_SUCCESS, LOGIN_FAILURE, LOGOUT
+    pub event: String, // LOGIN_SUCCESS, LOGIN_FAILURE, LOGOUT
     pub attempt: LoginAttempt,
     pub failure_info: Option<FailureInfo>,
     pub security_info: SecurityInfo,
@@ -165,8 +165,8 @@ pub struct LoginAttempt {
     pub ip_address: String,
     pub user_agent: String,
     pub timestamp: String,
-    pub method: String,              // password, sso, api_key
-    pub login_type: String,          // web, mobile, api
+    pub method: String,     // password, sso, api_key
+    pub login_type: String, // web, mobile, api
 }
 
 /// 失败信息
@@ -182,7 +182,7 @@ pub struct FailureInfo {
 /// 安全信息
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SecurityInfo {
-    pub risk_level: String,          // LOW, MEDIUM, HIGH, CRITICAL
+    pub risk_level: String, // LOW, MEDIUM, HIGH, CRITICAL
     pub risk_factors: Vec<String>,
     pub blocked: bool,
     pub block_reason: Option<String>,
@@ -206,7 +206,7 @@ pub struct GeoInfo {
 pub struct DeviceInfo {
     pub os: Option<String>,
     pub browser: Option<String>,
-    pub device_type: String,         // desktop, mobile, tablet
+    pub device_type: String, // desktop, mobile, tablet
     pub is_mobile: bool,
 }
 

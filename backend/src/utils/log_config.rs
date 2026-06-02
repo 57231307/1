@@ -24,67 +24,38 @@ pub fn init_enhanced_logging(config: &LogConfig) -> Result<(), Box<dyn std::erro
     fs::create_dir_all(&performance_dir)?;
 
     // 主日志文件
-    let main_appender = RollingFileAppender::new(
-        Rotation::DAILY,
-        log_dir,
-        "bingxi_backend.log",
-    );
+    let main_appender = RollingFileAppender::new(Rotation::DAILY, log_dir, "bingxi_backend.log");
 
     // 资金操作日志
-    let financial_appender = RollingFileAppender::new(
-        Rotation::DAILY,
-        &audit_dir,
-        "financial_audit.log",
-    );
+    let financial_appender =
+        RollingFileAppender::new(Rotation::DAILY, &audit_dir, "financial_audit.log");
 
     // 权限变更日志
-    let permission_appender = RollingFileAppender::new(
-        Rotation::DAILY,
-        &audit_dir,
-        "permission_audit.log",
-    );
+    let permission_appender =
+        RollingFileAppender::new(Rotation::DAILY, &audit_dir, "permission_audit.log");
 
     // 安全事件日志
-    let security_appender = RollingFileAppender::new(
-        Rotation::DAILY,
-        &security_dir,
-        "security_audit.log",
-    );
+    let security_appender =
+        RollingFileAppender::new(Rotation::DAILY, &security_dir, "security_audit.log");
 
     // 数据库操作日志
-    let database_appender = RollingFileAppender::new(
-        Rotation::DAILY,
-        &audit_dir,
-        "database_audit.log",
-    );
+    let database_appender =
+        RollingFileAppender::new(Rotation::DAILY, &audit_dir, "database_audit.log");
 
     // 性能监控日志
-    let performance_appender = RollingFileAppender::new(
-        Rotation::DAILY,
-        &performance_dir,
-        "performance_audit.log",
-    );
+    let performance_appender =
+        RollingFileAppender::new(Rotation::DAILY, &performance_dir, "performance_audit.log");
 
     // 业务操作日志
-    let business_appender = RollingFileAppender::new(
-        Rotation::DAILY,
-        &audit_dir,
-        "business_audit.log",
-    );
+    let business_appender =
+        RollingFileAppender::new(Rotation::DAILY, &audit_dir, "business_audit.log");
 
     // 系统健康日志
-    let health_appender = RollingFileAppender::new(
-        Rotation::DAILY,
-        &performance_dir,
-        "system_health.log",
-    );
+    let health_appender =
+        RollingFileAppender::new(Rotation::DAILY, &performance_dir, "system_health.log");
 
     // 错误日志
-    let error_appender = RollingFileAppender::new(
-        Rotation::DAILY,
-        log_dir,
-        "error.log",
-    );
+    let error_appender = RollingFileAppender::new(Rotation::DAILY, log_dir, "error.log");
 
     // 主日志层 - 排除所有审计日志 target
     let main_layer = tracing_subscriber::fmt::layer()
@@ -151,9 +122,11 @@ pub fn init_enhanced_logging(config: &LogConfig) -> Result<(), Box<dyn std::erro
 
     // 初始化订阅者
     tracing_subscriber::registry()
-        .with(tracing_subscriber::EnvFilter::try_from_default_env().unwrap_or_else(|_| {
-            format!("bingxi_backend={},tower_http=debug", config.log_level).into()
-        }))
+        .with(
+            tracing_subscriber::EnvFilter::try_from_default_env().unwrap_or_else(|_| {
+                format!("bingxi_backend={},tower_http=debug", config.log_level).into()
+            }),
+        )
         .with(main_layer)
         .with(financial_layer)
         .with(permission_layer)

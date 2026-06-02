@@ -1,4 +1,4 @@
-use sea_orm::{DatabaseConnection, Statement, ConnectionTrait};
+use sea_orm::{ConnectionTrait, DatabaseConnection, Statement};
 use std::sync::Arc;
 use tokio::time::{interval, Duration};
 
@@ -33,8 +33,9 @@ impl AuditCleanupService {
             "DELETE FROM omni_audit_logs WHERE created_at < NOW() - INTERVAL '{} days'",
             self.retention_days
         );
-        
-        let result = self.db
+
+        let result = self
+            .db
             .as_ref()
             .execute(Statement::from_string(
                 sea_orm::DatabaseBackend::Postgres,
@@ -43,9 +44,13 @@ impl AuditCleanupService {
             .await?;
 
         let deleted_count = result.rows_affected();
-        
+
         if deleted_count > 0 {
-            tracing::info!("已清理 {} 条过期审计日志（保留 {} 天）", deleted_count, self.retention_days);
+            tracing::info!(
+                "已清理 {} 条过期审计日志（保留 {} 天）",
+                deleted_count,
+                self.retention_days
+            );
         }
 
         // 同时清理 audit_logs 表
@@ -53,8 +58,9 @@ impl AuditCleanupService {
             "DELETE FROM audit_logs WHERE created_at < NOW() - INTERVAL '{} days'",
             self.retention_days
         );
-        
-        let result = self.db
+
+        let result = self
+            .db
             .as_ref()
             .execute(Statement::from_string(
                 sea_orm::DatabaseBackend::Postgres,
@@ -64,7 +70,11 @@ impl AuditCleanupService {
 
         let deleted_count2 = result.rows_affected();
         if deleted_count2 > 0 {
-            tracing::info!("已清理 {} 条过期操作日志（保留 {} 天）", deleted_count2, self.retention_days);
+            tracing::info!(
+                "已清理 {} 条过期操作日志（保留 {} 天）",
+                deleted_count2,
+                self.retention_days
+            );
         }
 
         Ok(deleted_count + deleted_count2)
@@ -80,7 +90,8 @@ impl AuditCleanupService {
             (SELECT MIN(created_at) FROM omni_audit_logs) as oldest_omni_log,
             (SELECT MAX(created_at) FROM omni_audit_logs) as newest_omni_log";
 
-        let result = self.db
+        let result = self
+            .db
             .as_ref()
             .query_one(Statement::from_string(
                 sea_orm::DatabaseBackend::Postgres,

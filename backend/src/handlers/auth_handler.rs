@@ -1,6 +1,8 @@
 use crate::middleware::auth_context::AuthContext;
 use crate::services::auth_service::AuthService;
-use crate::services::enhanced_logger::{self, DeviceInfo, FailureInfo, LoginAttempt, LoginSecurityLog, SecurityInfo};
+use crate::services::enhanced_logger::{
+    self, DeviceInfo, FailureInfo, LoginAttempt, LoginSecurityLog, SecurityInfo,
+};
 use crate::services::totp_service::TotpService;
 use crate::utils::app_state::AppState;
 use crate::utils::cache::Cache;
@@ -362,14 +364,24 @@ pub async fn login(
                     last_failure: Some(Utc::now().to_rfc3339()),
                 }),
                 security_info: SecurityInfo {
-                    risk_level: if recent_user_failures >= 3 { "HIGH".to_string() } else { "MEDIUM".to_string() },
+                    risk_level: if recent_user_failures >= 3 {
+                        "HIGH".to_string()
+                    } else {
+                        "MEDIUM".to_string()
+                    },
                     risk_factors: {
                         let mut factors = Vec::new();
-                        if recent_user_failures >= 3 { factors.push("多次失败".to_string()); }
+                        if recent_user_failures >= 3 {
+                            factors.push("多次失败".to_string());
+                        }
                         factors
                     },
                     blocked: recent_ip_failures >= MAX_FAILED_ATTEMPTS as u64,
-                    block_reason: if recent_ip_failures >= MAX_FAILED_ATTEMPTS as u64 { Some("登录失败次数过多".to_string()) } else { None },
+                    block_reason: if recent_ip_failures >= MAX_FAILED_ATTEMPTS as u64 {
+                        Some("登录失败次数过多".to_string())
+                    } else {
+                        None
+                    },
                     require_captcha: recent_user_failures >= 2,
                     notify_user: false,
                 },

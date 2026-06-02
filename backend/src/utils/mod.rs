@@ -13,6 +13,6 @@ pub use response::PaginatedResponse;
 pub mod crud_macro;
 pub mod field_mask;
 pub mod import_export;
+pub mod log_config;
 pub mod number_generator;
 pub mod sql_escape;
-pub mod log_config;

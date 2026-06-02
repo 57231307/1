@@ -117,11 +117,11 @@ impl SensitiveActionAlert {
         ip_address: Option<&str>,
     ) -> Option<SensitiveAction> {
         let sensitive_action = Self::classify_action(action, resource_type);
-        
+
         if let Some(ref sa) = sensitive_action {
             let level = sa.alert_level();
             let timestamp = chrono::Utc::now().format("%Y-%m-%d %H:%M:%S").to_string();
-            
+
             // 记录告警日志
             match level {
                 AlertLevel::Critical => {
@@ -184,7 +184,7 @@ impl SensitiveActionAlert {
             "resource_name": resource_name,
             "deleted_data": deleted_data,
         });
-        
+
         tracing::warn!(
             "【删除操作】用户: {}({}), IP: {}, 删除了 {} [ID: {}, 名称: {:?}]",
             username,
@@ -223,7 +223,7 @@ impl SensitiveActionAlert {
             "old_permissions": old_permissions,
             "new_permissions": new_permissions,
         });
-        
+
         tracing::error!(
             "【权限变更】用户: {}({}), IP: {}, 修改了 {} 的权限\n变更前: {}\n变更后: {}",
             username,
@@ -263,7 +263,7 @@ impl SensitiveActionAlert {
             "target_username": target_username,
             "user_data": user_data,
         });
-        
+
         let action_desc = match action {
             "CREATE" => "创建了新用户",
             "UPDATE" => "修改了用户信息",
@@ -313,7 +313,7 @@ impl SensitiveActionAlert {
             "role_name": role_name,
             "role_data": role_data,
         });
-        
+
         let action_desc = match action {
             "CREATE" => "创建了新角色",
             "UPDATE" => "修改了角色信息",
@@ -361,7 +361,7 @@ impl SensitiveActionAlert {
             "old_value": old_value,
             "new_value": new_value,
         });
-        
+
         tracing::error!(
             "【系统配置变更】用户: {}({}), IP: {}, 修改了配置 {}\n变更前: {}\n变更后: {}",
             username,
@@ -402,7 +402,7 @@ impl SensitiveActionAlert {
             "file_name": file_name,
             "query_params": query_params,
         });
-        
+
         tracing::info!(
             "【数据导出】用户: {}({}), IP: {}, 导出了 {} 条 {} 数据，文件: {}",
             username,
@@ -443,7 +443,7 @@ impl SensitiveActionAlert {
             "affected_count": affected_count,
             "resource_ids": resource_ids,
         });
-        
+
         tracing::info!(
             "【批量操作】用户: {}({}), IP: {}, 对 {} 条 {} 执行了 {} 操作",
             username,
@@ -457,7 +457,10 @@ impl SensitiveActionAlert {
         SensitiveActionDetail {
             action_type: SensitiveAction::BatchOperation,
             alert_level: AlertLevel::Medium,
-            description: format!("对 {} 条 {} 执行了 {} 操作", affected_count, resource_type, operation_type),
+            description: format!(
+                "对 {} 条 {} 执行了 {} 操作",
+                affected_count, resource_type, operation_type
+            ),
             user_id,
             username: username.to_string(),
             ip_address: ip_address.map(|s| s.to_string()),
@@ -480,7 +483,7 @@ impl SensitiveActionAlert {
             "failure_reason": failure_reason,
             "user_agent": user_agent,
         });
-        
+
         tracing::warn!(
             "【登录失败】用户名: {}, IP: {}, 原因: {}, 时间: {}",
             attempted_username,
@@ -513,7 +516,7 @@ impl SensitiveActionAlert {
         let detail = serde_json::json!({
             "changed_by": changed_by,
         });
-        
+
         tracing::warn!(
             "【密码变更】用户: {}({}), IP: {}, 操作人: {}, 时间: {}",
             username,
@@ -555,9 +558,11 @@ impl SensitiveActionAlert {
             "amount": amount,
             "operation_data": operation_data,
         });
-        
-        let amount_str = amount.map(|a| format!("，金额: {:.2}", a)).unwrap_or_default();
-        
+
+        let amount_str = amount
+            .map(|a| format!("，金额: {:.2}", a))
+            .unwrap_or_default();
+
         tracing::error!(
             "【资金操作】用户: {}({}), IP: {}, {} 了 {} [ID: {}]{}",
             username,
@@ -572,7 +577,10 @@ impl SensitiveActionAlert {
         SensitiveActionDetail {
             action_type: SensitiveAction::FinancialOperation,
             alert_level: AlertLevel::Critical,
-            description: format!("{} 了 {} [ID: {}]{}", operation_type, resource_type, resource_id, amount_str),
+            description: format!(
+                "{} 了 {} [ID: {}]{}",
+                operation_type, resource_type, resource_id, amount_str
+            ),
             user_id,
             username: username.to_string(),
             ip_address: ip_address.map(|s| s.to_string()),
@@ -602,7 +610,10 @@ impl SensitiveActionAlert {
 
         // 用户管理
         if resource_lower.contains("user") {
-            if action_lower.contains("create") || action_lower.contains("update") || action_lower.contains("delete") {
+            if action_lower.contains("create")
+                || action_lower.contains("update")
+                || action_lower.contains("delete")
+            {
                 return Some(SensitiveAction::UserManagement);
             }
         }
@@ -633,8 +644,8 @@ impl SensitiveActionAlert {
         }
 
         // 资金操作
-        if resource_lower.contains("payment") 
-            || resource_lower.contains("invoice") 
+        if resource_lower.contains("payment")
+            || resource_lower.contains("invoice")
             || resource_lower.contains("voucher")
             || resource_lower.contains("fund")
         {
