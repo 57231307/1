@@ -1299,7 +1299,8 @@ pub fn create_router(state: AppState) -> Router {
     // 扫码出库路由
     let scanner_routes = Router::new().route(
         "/scan-to-ship",
-        get(barcode_scanner_handler::scan_to_ship).post(barcode_scanner_handler::scan_to_ship),
+        get(barcode_scanner_handler::scan_to_ship_get)
+            .post(barcode_scanner_handler::scan_to_ship_post),
     );
 
     // 物流管理路由
