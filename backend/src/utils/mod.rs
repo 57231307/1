@@ -15,3 +15,4 @@ pub mod field_mask;
 pub mod import_export;
 pub mod number_generator;
 pub mod sql_escape;
+pub mod log_config;

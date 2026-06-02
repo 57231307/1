@@ -32,6 +32,7 @@ use crate::middleware::permission::permission_middleware;
 use crate::middleware::request_validator::request_validator_middleware;
 use crate::routes::create_router;
 use crate::services::init_service::{DatabaseConfig, InitService};
+use crate::utils::log_config::{self, LogConfig};
 
 #[derive(Debug, serde::Serialize)]
 struct InitStatusResponse {
@@ -166,28 +167,15 @@ async fn shutdown_signal() {
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let settings = AppSettings::new()?;
 
-    let _log_level = settings.log.level.parse::<Level>()?;
-    let log_dir = &settings.log.dir;
-    std::fs::create_dir_all(log_dir)?;
+    let log_level = settings.log.level.clone();
+    let log_dir = settings.log.dir.clone();
 
-    let file_appender = RollingFileAppender::new(Rotation::DAILY, log_dir, "bingxi_backend.log");
-
-    tracing_subscriber::registry()
-        .with(
-            tracing_subscriber::EnvFilter::try_from_default_env().unwrap_or_else(|_| {
-                format!("bingxi_backend={},tower_http=debug", settings.log.level).into()
-            }),
-        )
-        .with(
-            tracing_subscriber::fmt::layer()
-                .with_writer(file_appender)
-                .with_ansi(false)
-                .with_target(true)
-                .with_thread_ids(false)
-                .with_file(false)
-                .with_line_number(false),
-        )
-        .init();
+    // 初始化增强日志系统
+    let log_config = LogConfig {
+        log_dir: log_dir.clone(),
+        log_level: log_level.clone(),
+    };
+    log_config::init_enhanced_logging(&log_config)?;
 
     info!("===========================================");
     info!("启动面料管理 Rust 版");
