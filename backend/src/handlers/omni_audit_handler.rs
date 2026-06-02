@@ -33,16 +33,26 @@ pub async fn track_event(
     state.omni_audit.log(OmniAuditMessage {
         trace_id,
         user_id,
+        username: None,
         event_type: req.event_type,
         event_name: req.event_name,
         resource: req.resource,
         action: req.action,
+        resource_type: None,
+        resource_id: None,
+        resource_name: None,
+        description: None,
         payload: req.payload,
-        ip_address: None, // 可以在中间件中获取并注入，这里简化
+        ip_address: None,
         user_agent: None,
+        request_method: None,
+        request_path: None,
+        request_body: None,
         duration_ms: req.duration_ms.unwrap_or(0),
         status: req.status.unwrap_or_else(|| "SUCCESS".to_string()),
         error_msg: None,
+        old_value: None,
+        new_value: None,
     });
 
     Ok(Json(ApiResponse::success(())))

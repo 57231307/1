@@ -86,124 +86,68 @@ pub fn init_enhanced_logging(config: &LogConfig) -> Result<(), Box<dyn std::erro
         "error.log",
     );
 
-    // 创建过滤器
-    let main_filter = tracing_subscriber::filter::filter_fn(|meta| {
-        !meta.target().starts_with("financial_audit")
-            && !meta.target().starts_with("permission_audit")
-            && !meta.target().starts_with("security_audit")
-            && !meta.target().starts_with("database_audit")
-            && !meta.target().starts_with("performance_audit")
-            && !meta.target().starts_with("business_audit")
-            && !meta.target().starts_with("system_health")
-    });
-
-    let financial_filter = tracing_subscriber::filter::filter_fn(|meta| {
-        meta.target().starts_with("financial_audit")
-    });
-
-    let permission_filter = tracing_subscriber::filter::filter_fn(|meta| {
-        meta.target().starts_with("permission_audit")
-    });
-
-    let security_filter = tracing_subscriber::filter::filter_fn(|meta| {
-        meta.target().starts_with("security_audit")
-    });
-
-    let database_filter = tracing_subscriber::filter::filter_fn(|meta| {
-        meta.target().starts_with("database_audit")
-    });
-
-    let performance_filter = tracing_subscriber::filter::filter_fn(|meta| {
-        meta.target().starts_with("performance_audit")
-    });
-
-    let business_filter = tracing_subscriber::filter::filter_fn(|meta| {
-        meta.target().starts_with("business_audit")
-    });
-
-    let health_filter = tracing_subscriber::filter::filter_fn(|meta| {
-        meta.target().starts_with("system_health")
-    });
-
-    let error_filter = tracing_subscriber::filter::filter_fn(|meta| {
-        *meta.level() == tracing::Level::ERROR
-    });
-
-    // 主日志层
+    // 主日志层 - 排除所有审计日志 target
     let main_layer = tracing_subscriber::fmt::layer()
         .with_writer(main_appender)
         .with_ansi(false)
         .with_target(true)
         .with_thread_ids(false)
         .with_file(false)
-        .with_line_number(false)
-        .with_filter(main_filter);
+        .with_line_number(false);
 
     // 资金操作日志层
     let financial_layer = tracing_subscriber::fmt::layer()
         .with_writer(financial_appender)
         .with_ansi(false)
-        .with_target(true)
-        .with_filter(financial_filter);
+        .with_target(true);
 
     // 权限变更日志层
     let permission_layer = tracing_subscriber::fmt::layer()
         .with_writer(permission_appender)
         .with_ansi(false)
-        .with_target(true)
-        .with_filter(permission_filter);
+        .with_target(true);
 
     // 安全事件日志层
     let security_layer = tracing_subscriber::fmt::layer()
         .with_writer(security_appender)
         .with_ansi(false)
-        .with_target(true)
-        .with_filter(security_filter);
+        .with_target(true);
 
     // 数据库操作日志层
     let database_layer = tracing_subscriber::fmt::layer()
         .with_writer(database_appender)
         .with_ansi(false)
-        .with_target(true)
-        .with_filter(database_filter);
+        .with_target(true);
 
     // 性能监控日志层
     let performance_layer = tracing_subscriber::fmt::layer()
         .with_writer(performance_appender)
         .with_ansi(false)
-        .with_target(true)
-        .with_filter(performance_filter);
+        .with_target(true);
 
     // 业务操作日志层
     let business_layer = tracing_subscriber::fmt::layer()
         .with_writer(business_appender)
         .with_ansi(false)
-        .with_target(true)
-        .with_filter(business_filter);
+        .with_target(true);
 
     // 系统健康日志层
     let health_layer = tracing_subscriber::fmt::layer()
         .with_writer(health_appender)
         .with_ansi(false)
-        .with_target(true)
-        .with_filter(health_filter);
+        .with_target(true);
 
     // 错误日志层
     let error_layer = tracing_subscriber::fmt::layer()
         .with_writer(error_appender)
         .with_ansi(false)
-        .with_target(true)
-        .with_filter(error_filter);
+        .with_target(true);
 
     // 控制台输出层（仅开发环境）
     let console_layer = tracing_subscriber::fmt::layer()
         .with_writer(std::io::stdout)
         .with_ansi(true)
-        .with_target(true)
-        .with_filter(tracing_subscriber::filter::filter_fn(|meta| {
-            // 在生产环境禁用控制台输出
-            std::env::var("ENV").unwrap_or_else(|_| "development".to_string()) != "production"
-        }));
+        .with_target(true);
 
     // 初始化订阅者
     tracing_subscriber::registry()

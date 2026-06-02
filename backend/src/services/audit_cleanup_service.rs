@@ -1,4 +1,4 @@
-use sea_orm::{DatabaseConnection, Statement};
+use sea_orm::{DatabaseConnection, Statement, ConnectionTrait};
 use std::sync::Arc;
 use tokio::time::{interval, Duration};
 
@@ -35,6 +35,7 @@ impl AuditCleanupService {
         );
         
         let result = self.db
+            .as_ref()
             .execute(Statement::from_string(
                 sea_orm::DatabaseBackend::Postgres,
                 sql,
@@ -54,6 +55,7 @@ impl AuditCleanupService {
         );
         
         let result = self.db
+            .as_ref()
             .execute(Statement::from_string(
                 sea_orm::DatabaseBackend::Postgres,
                 sql,
@@ -79,6 +81,7 @@ impl AuditCleanupService {
             (SELECT MAX(created_at) FROM omni_audit_logs) as newest_omni_log";
 
         let result = self.db
+            .as_ref()
             .query_one(Statement::from_string(
                 sea_orm::DatabaseBackend::Postgres,
                 sql.to_string(),
