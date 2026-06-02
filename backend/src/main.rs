@@ -239,9 +239,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 ALTER TABLE users ADD COLUMN IF NOT EXISTS totp_secret VARCHAR(255); 
                 ALTER TABLE users ADD COLUMN IF NOT EXISTS is_totp_enabled BOOLEAN NOT NULL DEFAULT FALSE;
                 
-                -- 为常用查询添加索引
+                -- 为常用查询添加索引 (注意：在底层表上创建，而非视图)
                 CREATE INDEX IF NOT EXISTS idx_sales_order_customer ON sales_orders(customer_id); 
-                CREATE INDEX IF NOT EXISTS idx_purchase_order_supplier ON purchase_orders(supplier_id); 
+                CREATE INDEX IF NOT EXISTS idx_purchase_order_supplier ON purchase_order(supplier_id); 
                 CREATE INDEX IF NOT EXISTS idx_inventory_product ON inventory_stocks(product_id, warehouse_id);
             ";
             if let Err(e) = db.execute_unprepared(sql).await {
