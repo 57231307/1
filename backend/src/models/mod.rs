@@ -204,3 +204,5 @@ pub mod business_trace_assist_link;
 pub mod business_trace_view;
 // 字段权限模块
 pub mod report_definition;
+// 增强审计日志模块
+pub mod enhanced_audit_log;
