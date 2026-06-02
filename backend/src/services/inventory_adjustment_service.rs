@@ -454,7 +454,7 @@ mod tests {
         let result = service.get_adjustment(99999).await;
 
         assert!(result.is_err());
-        assert!(matches!(result.unwrap_err(), AppError::not_found(_)));
+        assert!(matches!(result.unwrap_err(), AppError::NotFound(_)));
     }
 
     #[tokio::test]
@@ -466,7 +466,7 @@ mod tests {
         let result = service.approve_adjustment(99999, 1).await;
 
         assert!(result.is_err());
-        assert!(matches!(result.unwrap_err(), AppError::not_found(_)));
+        assert!(matches!(result.unwrap_err(), AppError::NotFound(_)));
     }
 
     #[tokio::test]
@@ -478,7 +478,7 @@ mod tests {
         let result = service.reject_adjustment(99999).await;
 
         assert!(result.is_err());
-        assert!(matches!(result.unwrap_err(), AppError::not_found(_)));
+        assert!(matches!(result.unwrap_err(), AppError::NotFound(_)));
     }
 
     #[test]

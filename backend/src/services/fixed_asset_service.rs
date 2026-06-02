@@ -515,7 +515,8 @@ mod tests {
 
         // 折旧不能超过可折旧金额
         let max_depreciation = depreciable_amount;
-        let calculated = monthly_depreciation * Decimal::from(months_used.min(useful_life));
+        let calculated =
+            monthly_depreciation * Decimal::from(std::cmp::Ord::min(months_used, useful_life));
 
         assert_eq!(calculated, max_depreciation);
     }
@@ -555,7 +556,7 @@ mod tests {
             let salvage_value = Decimal::from(salvage);
             let depreciable = original_value - salvage_value;
             let monthly = depreciable / Decimal::from(life);
-            let total = monthly * Decimal::from(months.min(life));
+            let total = monthly * Decimal::from(std::cmp::Ord::min(months, life));
 
             assert_eq!(
                 total,

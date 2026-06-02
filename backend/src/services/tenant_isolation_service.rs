@@ -267,8 +267,8 @@ mod tests {
         let state = Arc::new(TenantIsolationState::new(
             crate::middleware::tenant_isolation::TenantIsolationConfig::default(),
         ));
-        let service =
-            TenantIsolationService::new(Arc::new(DatabaseConnection::Disconnected), state);
+        // 使用 default() 创建空连接（仅用于测试）
+        let service = TenantIsolationService::new(Arc::new(DatabaseConnection::default()), state);
 
         // 白名单表不应生成过滤条件
         let condition = service.build_tenant_condition(1, "tenants");
@@ -283,8 +283,8 @@ mod tests {
         let state = Arc::new(TenantIsolationState::new(
             crate::middleware::tenant_isolation::TenantIsolationConfig::default(),
         ));
-        let service =
-            TenantIsolationService::new(Arc::new(DatabaseConnection::Disconnected), state);
+        // 使用 default() 创建空连接（仅用于测试）
+        let service = TenantIsolationService::new(Arc::new(DatabaseConnection::default()), state);
 
         // 非白名单表应生成过滤条件
         let condition = service.build_tenant_condition(1, "products");
