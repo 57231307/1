@@ -16,8 +16,7 @@ fn get_install_dir() -> String {
 
 /// 获取日志目录 (支持环境变量覆盖)
 fn get_log_dir() -> String {
-    std::env::var("BINGXI_LOG_DIR")
-        .unwrap_or_else(|_| format!("{}/logs", get_install_dir()))
+    std::env::var("BINGXI_LOG_DIR").unwrap_or_else(|_| format!("{}/logs", get_install_dir()))
 }
 
 /// 获取备份目录 (支持环境变量覆盖)
