@@ -18,7 +18,7 @@ BACKEND_DIR="$DEPLOY_DIR/backend"
 FRONTEND_DIR="/opt/bingxi-erp/frontend/dist"
 CONFIG_DIR="/etc/bingxi-erp"
 BACKUP_DIR="$DEPLOY_DIR/backups"
-LOG_DIR="$DEPLOY_DIR/backend/logs"
+LOG_DIR="$DEPLOY_DIR/logs"
 ENV_FILE="$CONFIG_DIR/.env"
 CONFIG_FILE="$BACKEND_DIR/config.yaml"
 
