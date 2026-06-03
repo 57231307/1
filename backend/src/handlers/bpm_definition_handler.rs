@@ -93,6 +93,17 @@ pub async fn activate_version(
     Ok(Json(ApiResponse::success("版本激活成功".to_string())))
 }
 
+/// 通过版本 ID 激活版本（简化路径别名）
+/// 前端调用：`POST /bpm/versions/:version/activate`
+pub async fn activate_version_by_id(
+    State(state): State<AppState>,
+    Path(version): Path<i32>,
+) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
+    let service = BpmService::new(state.db.clone());
+    let res = service.activate_process_version(version).await?;
+    Ok(Json(ApiResponse::success(serde_json::to_value(res)?)))
+}
+
 /// 保存为模板
 pub async fn save_as_template(
     State(state): State<AppState>,

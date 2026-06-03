@@ -1472,6 +1472,10 @@ pub fn create_router(state: AppState) -> Router {
             "/definitions/:id/versions/:version/activate",
             post(bpm_definition_handler::activate_version),
         )
+        .route(
+            "/versions/:version/activate",
+            post(bpm_definition_handler::activate_version_by_id),
+        )
         // 流程模板路由
         .route("/templates", get(bpm_definition_handler::list_templates))
         .route(
