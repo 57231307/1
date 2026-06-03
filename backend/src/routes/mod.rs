@@ -1567,7 +1567,8 @@ pub fn create_router(state: AppState) -> Router {
                     get(crm_customer_handler::list_customers)
                         .post(crm_customer_handler::create_customer),
                 )
-                .route("/enhanced", get(crm_customer_handler::list_customers))
+                .route("/enhanced", get(crm_customer_handler::list_customers)
+                    .post(crm_customer_handler::create_customer))
                 .route(
                     "/:id",
                     get(crm_customer_handler::get_customer)
