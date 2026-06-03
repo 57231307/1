@@ -158,3 +158,86 @@ pub async fn receive_transfer(
         "库存调拨单已接收",
     )))
 }
+
+/// 删除库存调拨
+pub async fn delete_transfer(
+    State(state): State<AppState>,
+    Path(id): Path<i32>,
+) -> Result<Json<ApiResponse<()>>, AppError> {
+    let transfer_service = InventoryTransferService::new(state.db.clone());
+    transfer_service
+        .delete_transfer(id)
+        .await
+        .map_err(|e| AppError::bad_request(e.to_string()))?;
+    Ok(Json(ApiResponse::success_with_message((), "库存调拨单已删除")))
+}
+
+/// 列出调拨单的所有明细项
+pub async fn list_items(
+    State(state): State<AppState>,
+    Path(id): Path<i32>,
+) -> Result<Json<ApiResponse<Vec<serde_json::Value>>>, AppError> {
+    let transfer_service = InventoryTransferService::new(state.db.clone());
+    let items = transfer_service
+        .list_items(id)
+        .await
+        .map_err(|e| AppError::internal(e.to_string()))?;
+    let items_json: Vec<serde_json::Value> = items
+        .into_iter()
+        .map(|item| {
+            serde_json::to_value(item).map_err(|e| AppError::internal(format!("序列化失败: {}", e)))
+        })
+        .collect::<Result<Vec<_>, _>>()?;
+    Ok(Json(ApiResponse::success(items_json)))
+}
+
+/// 向调拨单添加明细
+pub async fn add_item(
+    State(state): State<AppState>,
+    Path(id): Path<i32>,
+    Json(request): Json<InventoryTransferItemRequest>,
+) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
+    let transfer_service = InventoryTransferService::new(state.db.clone());
+    let item = transfer_service
+        .add_item(id, request)
+        .await
+        .map_err(|e| AppError::bad_request(e.to_string()))?;
+    let item_json = serde_json::to_value(item)
+        .map_err(|e| AppError::internal(format!("序列化失败: {}", e)))?;
+    Ok(Json(ApiResponse::success_with_message(
+        item_json,
+        "调拨明细添加成功",
+    )))
+}
+
+/// 更新调拨单明细
+pub async fn update_item(
+    State(state): State<AppState>,
+    Path(item_id): Path<i32>,
+    Json(request): Json<InventoryTransferItemRequest>,
+) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
+    let transfer_service = InventoryTransferService::new(state.db.clone());
+    let item = transfer_service
+        .update_item(item_id, request)
+        .await
+        .map_err(|e| AppError::bad_request(e.to_string()))?;
+    let item_json = serde_json::to_value(item)
+        .map_err(|e| AppError::internal(format!("序列化失败: {}", e)))?;
+    Ok(Json(ApiResponse::success_with_message(
+        item_json,
+        "调拨明细更新成功",
+    )))
+}
+
+/// 删除调拨单明细
+pub async fn delete_item(
+    State(state): State<AppState>,
+    Path(item_id): Path<i32>,
+) -> Result<Json<ApiResponse<()>>, AppError> {
+    let transfer_service = InventoryTransferService::new(state.db.clone());
+    transfer_service
+        .delete_item(item_id)
+        .await
+        .map_err(|e| AppError::bad_request(e.to_string()))?;
+    Ok(Json(ApiResponse::success_with_message((), "调拨明细已删除")))
+}

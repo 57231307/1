@@ -384,11 +384,9 @@ pub fn create_router(state: AppState) -> Router {
         )
         .route(
             "/transfers/:id",
-            get(inventory_transfer_handler::get_transfer),
-        )
-        .route(
-            "/transfers/:id",
-            put(inventory_transfer_handler::update_transfer),
+            get(inventory_transfer_handler::get_transfer)
+                .put(inventory_transfer_handler::update_transfer)
+                .delete(inventory_transfer_handler::delete_transfer),
         )
         .route(
             "/transfers/:id/approve",
@@ -401,6 +399,16 @@ pub fn create_router(state: AppState) -> Router {
         .route(
             "/transfers/:id/receive",
             post(inventory_transfer_handler::receive_transfer),
+        )
+        .route(
+            "/transfers/:id/items",
+            get(inventory_transfer_handler::list_items)
+                .post(inventory_transfer_handler::add_item),
+        )
+        .route(
+            "/transfers/items/:item_id",
+            put(inventory_transfer_handler::update_item)
+                .delete(inventory_transfer_handler::delete_item),
         )
         .route(
             "/transfers/:id/print",

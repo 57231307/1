@@ -1,6 +1,6 @@
 use sea_orm::{
-    ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, ExprTrait, Order,
-    PaginatorTrait, QueryFilter, QueryOrder, TransactionTrait,
+    ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, ExprTrait, IntoActiveModel,
+    Order, PaginatorTrait, QueryFilter, QueryOrder, Set, TransactionTrait,
 };
 use std::sync::Arc;
 
@@ -11,6 +11,7 @@ use crate::models::inventory_transfer::{self, Entity as InventoryTransferEntity}
 use crate::models::inventory_transfer_item::{self, Entity as InventoryTransferItemEntity};
 use crate::utils::error::AppError;
 use crate::utils::PaginatedResponse;
+use rust_decimal::Decimal;
 use serde::{Deserialize, Serialize};
 
 /// 库存调拨详情响应
@@ -927,6 +928,225 @@ impl InventoryTransferService {
         inventory_transfer::Entity,
         inventory_transfer::Column::TransferNo
     );
+
+    /// 删除调拨单（仅 pending/rejected 状态）
+    pub async fn delete_transfer(&self, transfer_id: i32) -> Result<(), AppError> {
+        let transfer = InventoryTransferEntity::find_by_id(transfer_id)
+            .one(&*self.db)
+            .await?
+            .ok_or_else(|| AppError::not_found(format!("库存调拨单 {} 未找到", transfer_id)))?;
+
+        if transfer.status == "approved" || transfer.status == "shipped" || transfer.status == "completed" {
+            return Err(AppError::business(format!(
+                "调拨单状态 {} 不允许删除",
+                transfer.status
+            )));
+        }
+
+        let txn = (*self.db).begin().await?;
+        InventoryTransferItemEntity::delete_many()
+            .filter(inventory_transfer_item::Column::TransferId.eq(transfer_id))
+            .exec(&txn)
+            .await?;
+        InventoryTransferEntity::delete_by_id(transfer_id)
+            .exec(&txn)
+            .await?;
+        txn.commit().await?;
+        Ok(())
+    }
+
+    /// 列出调拨单的所有明细项
+    pub async fn list_items(
+        &self,
+        transfer_id: i32,
+    ) -> Result<Vec<InventoryTransferItemDetail>, AppError> {
+        let _ = self.get_transfer_detail(transfer_id).await?;
+        let items = InventoryTransferItemEntity::find()
+            .filter(inventory_transfer_item::Column::TransferId.eq(transfer_id))
+            .order_by(inventory_transfer_item::Column::Id, Order::Asc)
+            .all(&*self.db)
+            .await?;
+        Ok(items
+            .into_iter()
+            .map(|item| InventoryTransferItemDetail {
+                id: item.id,
+                transfer_id: item.transfer_id,
+                product_id: item.product_id,
+                quantity: item.quantity,
+                shipped_quantity: item.shipped_quantity,
+                received_quantity: item.received_quantity,
+                unit_cost: item.unit_cost,
+                notes: item.notes,
+                created_at: item.created_at,
+                updated_at: item.updated_at,
+            })
+            .collect())
+    }
+
+    /// 向调拨单添加明细
+    pub async fn add_item(
+        &self,
+        transfer_id: i32,
+        req: InventoryTransferItemRequest,
+    ) -> Result<InventoryTransferItemDetail, AppError> {
+        let transfer = InventoryTransferEntity::find_by_id(transfer_id)
+            .one(&*self.db)
+            .await?
+            .ok_or_else(|| AppError::not_found(format!("库存调拨单 {} 未找到", transfer_id)))?;
+
+        if transfer.status == "shipped" || transfer.status == "completed" {
+            return Err(AppError::business(format!(
+                "调拨单状态 {} 不允许添加明细",
+                transfer.status
+            )));
+        }
+
+        let txn = (*self.db).begin().await?;
+
+        let product_id = req.product_id.unwrap_or(0);
+        let quantity = req.quantity.unwrap_or(Decimal::ZERO);
+
+        let item = inventory_transfer_item::ActiveModel {
+            id: Default::default(),
+            transfer_id: sea_orm::ActiveValue::Set(transfer_id),
+            product_id: sea_orm::ActiveValue::Set(product_id),
+            quantity: sea_orm::ActiveValue::Set(quantity),
+            shipped_quantity: sea_orm::ActiveValue::Set(Decimal::ZERO),
+            received_quantity: sea_orm::ActiveValue::Set(Decimal::ZERO),
+            unit_cost: sea_orm::ActiveValue::NotSet,
+            notes: sea_orm::ActiveValue::Set(req.notes),
+            created_at: sea_orm::ActiveValue::Set(chrono::Utc::now()),
+            updated_at: sea_orm::ActiveValue::Set(chrono::Utc::now()),
+        };
+        let item_model = item.insert(&txn).await?;
+
+        // 重新计算总数量
+        let items = InventoryTransferItemEntity::find()
+            .filter(inventory_transfer_item::Column::TransferId.eq(transfer_id))
+            .all(&txn)
+            .await?;
+        let total_quantity: Decimal = items.iter().map(|i| i.quantity).sum();
+
+        let mut transfer_update: inventory_transfer::ActiveModel = transfer.into();
+        transfer_update.total_quantity = sea_orm::ActiveValue::Set(total_quantity);
+        transfer_update.updated_at = sea_orm::ActiveValue::Set(chrono::Utc::now());
+        transfer_update.update(&txn).await?;
+
+        txn.commit().await?;
+
+        Ok(InventoryTransferItemDetail {
+            id: item_model.id,
+            transfer_id: item_model.transfer_id,
+            product_id: item_model.product_id,
+            quantity: item_model.quantity,
+            shipped_quantity: item_model.shipped_quantity,
+            received_quantity: item_model.received_quantity,
+            unit_cost: item_model.unit_cost,
+            notes: item_model.notes,
+            created_at: item_model.created_at,
+            updated_at: item_model.updated_at,
+        })
+    }
+
+    /// 更新调拨单明细
+    pub async fn update_item(
+        &self,
+        item_id: i32,
+        req: InventoryTransferItemRequest,
+    ) -> Result<InventoryTransferItemDetail, AppError> {
+        let item_model = InventoryTransferItemEntity::find_by_id(item_id)
+            .one(&*self.db)
+            .await?
+            .ok_or_else(|| AppError::not_found(format!("调拨明细 {} 未找到", item_id)))?;
+
+        let transfer = InventoryTransferEntity::find_by_id(item_model.transfer_id)
+            .one(&*self.db)
+            .await?
+            .ok_or_else(|| AppError::not_found("调拨单不存在"))?;
+
+        if transfer.status == "shipped" || transfer.status == "completed" {
+            return Err(AppError::business(format!(
+                "调拨单状态 {} 不允许修改明细",
+                transfer.status
+            )));
+        }
+
+        let mut active: inventory_transfer_item::ActiveModel = item_model.into_active_model();
+        if let Some(product_id) = req.product_id {
+            active.product_id = sea_orm::ActiveValue::Set(product_id);
+        }
+        if let Some(quantity) = req.quantity {
+            active.quantity = sea_orm::ActiveValue::Set(quantity);
+        }
+        if let Some(notes) = req.notes {
+            active.notes = sea_orm::ActiveValue::Set(Some(notes));
+        }
+        active.updated_at = sea_orm::ActiveValue::Set(chrono::Utc::now());
+        let updated = active.update(&*self.db).await?;
+
+        // 重新计算总数量
+        let items = InventoryTransferItemEntity::find()
+            .filter(inventory_transfer_item::Column::TransferId.eq(updated.transfer_id))
+            .all(&*self.db)
+            .await?;
+        let total_quantity: Decimal = items.iter().map(|i| i.quantity).sum();
+
+        let mut transfer_update: inventory_transfer::ActiveModel = transfer.into();
+        transfer_update.total_quantity = sea_orm::ActiveValue::Set(total_quantity);
+        transfer_update.updated_at = sea_orm::ActiveValue::Set(chrono::Utc::now());
+        transfer_update.update(&*self.db).await?;
+
+        Ok(InventoryTransferItemDetail {
+            id: updated.id,
+            transfer_id: updated.transfer_id,
+            product_id: updated.product_id,
+            quantity: updated.quantity,
+            shipped_quantity: updated.shipped_quantity,
+            received_quantity: updated.received_quantity,
+            unit_cost: updated.unit_cost,
+            notes: updated.notes,
+            created_at: updated.created_at,
+            updated_at: updated.updated_at,
+        })
+    }
+
+    /// 删除调拨单明细
+    pub async fn delete_item(&self, item_id: i32) -> Result<(), AppError> {
+        let item_model = InventoryTransferItemEntity::find_by_id(item_id)
+            .one(&*self.db)
+            .await?
+            .ok_or_else(|| AppError::not_found(format!("调拨明细 {} 未找到", item_id)))?;
+
+        let transfer = InventoryTransferEntity::find_by_id(item_model.transfer_id)
+            .one(&*self.db)
+            .await?
+            .ok_or_else(|| AppError::not_found("调拨单不存在"))?;
+
+        if transfer.status == "shipped" || transfer.status == "completed" {
+            return Err(AppError::business(format!(
+                "调拨单状态 {} 不允许删除明细",
+                transfer.status
+            )));
+        }
+
+        let txn = (*self.db).begin().await?;
+        InventoryTransferItemEntity::delete_by_id(item_id)
+            .exec(&txn)
+            .await?;
+
+        let items = InventoryTransferItemEntity::find()
+            .filter(inventory_transfer_item::Column::TransferId.eq(item_model.transfer_id))
+            .all(&txn)
+            .await?;
+        let total_quantity: Decimal = items.iter().map(|i| i.quantity).sum();
+
+        let mut transfer_update: inventory_transfer::ActiveModel = transfer.into();
+        transfer_update.total_quantity = sea_orm::ActiveValue::Set(total_quantity);
+        transfer_update.updated_at = sea_orm::ActiveValue::Set(chrono::Utc::now());
+        transfer_update.update(&txn).await?;
+        txn.commit().await?;
+        Ok(())
+    }
 
     /// 检查调出仓库库存是否充足
     async fn check_from_warehouse_inventory(
