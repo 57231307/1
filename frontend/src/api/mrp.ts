@@ -82,7 +82,7 @@ export function getMrpResult(id: number): Promise<ApiResponse<MrpCalculationResu
 export function convertToOrder(
   data: ConvertToOrderParams
 ): Promise<ApiResponse<{ order_ids: number[] }>> {
-  return request.post('/mrp/convert', data)
+  return request.post('/mrp/convert-orders', data)
 }
 
 export function getProductsForMrp(params?: {
