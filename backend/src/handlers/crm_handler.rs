@@ -1,8 +1,7 @@
 use crate::middleware::auth_context::AuthContext;
 use crate::models::dto::crm_dto::{
-    ConvertLeadRequest, CreateLeadRequest, CreateOpportunityRequest, FollowUpRequest,
-    LeadQuery, OpportunityQuery, UpdateCustomerEnhancedRequest, UpdateLeadRequest,
-    UpdateOpportunityRequest,
+    ConvertLeadRequest, CreateLeadRequest, CreateOpportunityRequest, FollowUpRequest, LeadQuery,
+    OpportunityQuery, UpdateCustomerEnhancedRequest, UpdateLeadRequest, UpdateOpportunityRequest,
 };
 use crate::services::crm_service::CrmService;
 use crate::utils::app_state::AppState;

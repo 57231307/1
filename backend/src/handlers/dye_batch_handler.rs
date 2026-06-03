@@ -501,10 +501,7 @@ pub async fn export_dye_batches(
 
     (
         StatusCode::OK,
-        [(
-            axum::http::header::CONTENT_TYPE,
-            "text/csv; charset=utf-8",
-        )],
+        [(axum::http::header::CONTENT_TYPE, "text/csv; charset=utf-8")],
         buf,
     )
         .into_response()

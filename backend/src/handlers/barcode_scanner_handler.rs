@@ -2,7 +2,10 @@
 
 use axum::{extract::Query, extract::State, Json};
 use chrono::Utc;
-use sea_orm::{ActiveModelTrait, ColumnTrait, EntityTrait, PaginatorTrait, QueryFilter, QueryOrder, Set, TransactionTrait};
+use sea_orm::{
+    ActiveModelTrait, ColumnTrait, EntityTrait, PaginatorTrait, QueryFilter, QueryOrder, Set,
+    TransactionTrait,
+};
 use serde::Deserialize;
 use tracing::info;
 
@@ -164,7 +167,10 @@ pub async fn scan_history(
     let total = paginator.num_items().await?;
     let items = paginator.fetch_page(page).await?;
 
-    info!("扫码历史查询 page={} page_size={} total={}", page, page_size, total);
+    info!(
+        "扫码历史查询 page={} page_size={} total={}",
+        page, page_size, total
+    );
 
     Ok(Json(ApiResponse::success(serde_json::json!({
         "items": items,

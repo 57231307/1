@@ -6,8 +6,8 @@ use chrono::{Duration, NaiveDate, Utc};
 use rust_decimal::Decimal;
 use sea_orm::DatabaseConnection;
 use sea_orm::{
-    ActiveModelTrait, ColumnTrait, EntityTrait, ExprTrait, PaginatorTrait, QueryFilter,
-    QueryOrder, Set,
+    ActiveModelTrait, ColumnTrait, EntityTrait, ExprTrait, PaginatorTrait, QueryFilter, QueryOrder,
+    Set,
 };
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
@@ -665,7 +665,10 @@ impl MrpEngineService {
     }
 
     /// 取消 MRP 计算：仅将状态从 PLANNED 置为 CANCELLED
-    pub async fn cancel_calculation(&self, calculation_id: i32) -> Result<MrpResultModel, AppError> {
+    pub async fn cancel_calculation(
+        &self,
+        calculation_id: i32,
+    ) -> Result<MrpResultModel, AppError> {
         let result = MrpResultEntity::find_by_id(calculation_id)
             .one(&*self.db)
             .await?
@@ -683,10 +686,7 @@ impl MrpEngineService {
     }
 
     /// 导出指定 MRP 计算编号下的所有结果为 CSV
-    pub async fn export_calculation(
-        &self,
-        calculation_id: i32,
-    ) -> Result<Vec<u8>, AppError> {
+    pub async fn export_calculation(&self, calculation_id: i32) -> Result<Vec<u8>, AppError> {
         // 兼容前端传入 id 形如 "MRP12345" 的计算编号
         let calculation_no = if calculation_id > 0 {
             format!("MRP{}", calculation_id)
@@ -733,9 +733,7 @@ impl MrpEngineService {
                 r.calculation_no.clone(),
                 r.product_id.to_string(),
                 r.required_quantity.to_string(),
-                r.required_date
-                    .map(|d| d.to_string())
-                    .unwrap_or_default(),
+                r.required_date.map(|d| d.to_string()).unwrap_or_default(),
                 r.source_type.clone(),
                 r.source_id.map(|i| i.to_string()).unwrap_or_default(),
                 r.planned_order_quantity

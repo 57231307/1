@@ -188,10 +188,7 @@ pub async fn export_analysis(
     let service = SalesAnalysisService::new(state.db.clone());
     let bytes = service.export_report(params).await?;
     Ok((
-        [(
-            axum::http::header::CONTENT_TYPE,
-            "text/csv; charset=utf-8",
-        )],
+        [(axum::http::header::CONTENT_TYPE, "text/csv; charset=utf-8")],
         bytes,
     ))
 }

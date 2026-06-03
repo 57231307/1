@@ -500,7 +500,8 @@ impl InventoryAdjustmentService {
             .await?;
         let total_quantity: Decimal = items.iter().map(|i| i.quantity).sum();
 
-        let mut adjustment: inventory_adjustment::ActiveModel = detail.adjustment.into_active_model();
+        let mut adjustment: inventory_adjustment::ActiveModel =
+            detail.adjustment.into_active_model();
         adjustment.total_quantity = Set(total_quantity);
         adjustment.updated_at = Set(Utc::now());
         adjustment.update(&txn).await?;
@@ -582,7 +583,8 @@ impl InventoryAdjustmentService {
             .await?;
         let total_quantity: Decimal = items.iter().map(|i| i.quantity).sum();
 
-        let mut adjustment: inventory_adjustment::ActiveModel = detail.adjustment.into_active_model();
+        let mut adjustment: inventory_adjustment::ActiveModel =
+            detail.adjustment.into_active_model();
         adjustment.total_quantity = Set(total_quantity);
         adjustment.updated_at = Set(Utc::now());
         adjustment.update(&txn).await?;

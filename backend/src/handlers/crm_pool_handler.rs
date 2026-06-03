@@ -196,11 +196,7 @@ pub async fn claim_specific(
         return Err(AppError::business("该客户不在公海中或领取失败"));
     }
 
-    tracing::info!(
-        "用户 {} 从公海领取客户 {}",
-        auth.username,
-        customer_id
-    );
+    tracing::info!("用户 {} 从公海领取客户 {}", auth.username, customer_id);
 
     Ok(Json(ApiResponse::success_with_message(
         serde_json::json!({ "claimed": claimed }),

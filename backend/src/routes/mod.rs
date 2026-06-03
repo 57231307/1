@@ -402,8 +402,7 @@ pub fn create_router(state: AppState) -> Router {
         )
         .route(
             "/transfers/:id/items",
-            get(inventory_transfer_handler::list_items)
-                .post(inventory_transfer_handler::add_item),
+            get(inventory_transfer_handler::list_items).post(inventory_transfer_handler::add_item),
         )
         .route(
             "/transfers/items/:item_id",
@@ -432,13 +431,11 @@ pub fn create_router(state: AppState) -> Router {
         )
         .route(
             "/counts/:id/items",
-            get(inventory_count_handler::list_items)
-                .post(inventory_count_handler::add_item),
+            get(inventory_count_handler::list_items).post(inventory_count_handler::add_item),
         )
         .route(
             "/counts/items/:item_id",
-            put(inventory_count_handler::update_item)
-                .delete(inventory_count_handler::delete_item),
+            put(inventory_count_handler::update_item).delete(inventory_count_handler::delete_item),
         )
         .route(
             "/counts/:id/print",
@@ -1172,14 +1169,8 @@ pub fn create_router(state: AppState) -> Router {
             "/customer-ranking",
             get(sales_analysis_handler::get_customer_ranking),
         )
-        .route(
-            "/trend",
-            get(sales_analysis_handler::get_trends),
-        )
-        .route(
-            "/export",
-            get(sales_analysis_handler::export_analysis),
-        )
+        .route("/trend", get(sales_analysis_handler::get_trends))
+        .route("/export", get(sales_analysis_handler::export_analysis))
         .route("/targets", get(sales_analysis_handler::get_targets))
         .route("/targets", post(sales_analysis_handler::create_target))
         .route(
@@ -1547,10 +1538,7 @@ pub fn create_router(state: AppState) -> Router {
             get(barcode_scanner_handler::scan_inventory),
         )
         .route("/history", get(barcode_scanner_handler::scan_history))
-        .route(
-            "/statistics",
-            get(barcode_scanner_handler::scan_statistics),
-        );
+        .route("/statistics", get(barcode_scanner_handler::scan_statistics));
 
     // 物流管理路由
     let logistics_routes = Router::new()
@@ -1842,10 +1830,7 @@ pub fn create_router(state: AppState) -> Router {
                 .route("/", get(crm_pool_handler::list_pool))
                 .route("/claim", post(crm_pool_handler::claim_from_pool))
                 .route("/recycle", post(crm_pool_handler::recycle_to_pool))
-                .route(
-                    "/batch-claim",
-                    post(crm_pool_handler::batch_claim),
-                )
+                .route("/batch-claim", post(crm_pool_handler::batch_claim))
                 .route(
                     "/:customer_id/claim",
                     post(crm_pool_handler::claim_specific),

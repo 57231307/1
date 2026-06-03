@@ -1,6 +1,6 @@
 use crate::models::dto::crm_dto::{
-    ConvertLeadRequest, CreateLeadRequest, CreateOpportunityRequest, FollowUpRequest,
-    LeadQuery, OpportunityQuery, RfmScoreResponse, UpdateCustomerEnhancedRequest, UpdateLeadRequest,
+    ConvertLeadRequest, CreateLeadRequest, CreateOpportunityRequest, FollowUpRequest, LeadQuery,
+    OpportunityQuery, RfmScoreResponse, UpdateCustomerEnhancedRequest, UpdateLeadRequest,
     UpdateOpportunityRequest,
 };
 use crate::models::dto::PageResponse;
@@ -906,10 +906,7 @@ impl CrmService {
     // --- Customer 360 / Enhanced methods (Task 13) ---
 
     /// 获取客户 360 全景视图：基础信息、联系人、商机、订单、跟进、RFM 等
-    pub async fn get_customer_360(
-        &self,
-        customer_id: i32,
-    ) -> Result<serde_json::Value, AppError> {
+    pub async fn get_customer_360(&self, customer_id: i32) -> Result<serde_json::Value, AppError> {
         // 1. 基础客户信息
         let customer = customer::Entity::find_by_id(customer_id)
             .one(&*self.db)
@@ -1228,11 +1225,7 @@ impl CrmService {
             if let Some(last_date) = lead_ref.last_follow_up_date {
                 let created_at = last_date
                     .and_hms_opt(0, 0, 0)
-                    .map(|t| {
-                        chrono::Utc
-                            .from_utc_datetime(&t)
-                            .to_rfc3339()
-                    })
+                    .map(|t| chrono::Utc.from_utc_datetime(&t).to_rfc3339())
                     .or_else(|| lead_ref.updated_at.map(|t| t.to_rfc3339()))
                     .unwrap_or_default();
                 items.push(serde_json::json!({
@@ -1330,10 +1323,7 @@ impl CrmService {
     // --- RFM methods (Task 14) ---
 
     /// 计算单个客户的 RFM 评分
-    pub async fn compute_rfm_score(
-        &self,
-        customer_id: i32,
-    ) -> Result<RfmScoreResponse, AppError> {
+    pub async fn compute_rfm_score(&self, customer_id: i32) -> Result<RfmScoreResponse, AppError> {
         // 仅考虑非草稿/非作废状态的订单
         let orders = sales_order::Entity::find()
             .filter(sales_order::Column::CustomerId.eq(customer_id))
@@ -1390,9 +1380,7 @@ impl CrmService {
         &self,
     ) -> Result<std::collections::HashMap<String, i32>, AppError> {
         // 获取所有客户
-        let customers = customer::Entity::find()
-            .all(&*self.db)
-            .await?;
+        let customers = customer::Entity::find().all(&*self.db).await?;
 
         let mut distribution = std::collections::HashMap::new();
         for cust in customers {

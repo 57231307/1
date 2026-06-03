@@ -667,16 +667,10 @@ pub async fn export_dye_recipes(
             r.color_name.clone().unwrap_or_default(),
             r.fabric_type.clone().unwrap_or_default(),
             r.dye_type.clone().unwrap_or_default(),
-            r.temperature
-                .map(|d| d.to_string())
-                .unwrap_or_default(),
-            r.time_minutes
-                .map(|i| i.to_string())
-                .unwrap_or_default(),
+            r.temperature.map(|d| d.to_string()).unwrap_or_default(),
+            r.time_minutes.map(|i| i.to_string()).unwrap_or_default(),
             r.ph_value.map(|d| d.to_string()).unwrap_or_default(),
-            r.liquor_ratio
-                .map(|d| d.to_string())
-                .unwrap_or_default(),
+            r.liquor_ratio.map(|d| d.to_string()).unwrap_or_default(),
             r.status.clone().unwrap_or_default(),
             r.version.map(|i| i.to_string()).unwrap_or_default(),
         );
@@ -685,10 +679,7 @@ pub async fn export_dye_recipes(
 
     (
         StatusCode::OK,
-        [(
-            axum::http::header::CONTENT_TYPE,
-            "text/csv; charset=utf-8",
-        )],
+        [(axum::http::header::CONTENT_TYPE, "text/csv; charset=utf-8")],
         buf,
     )
         .into_response()

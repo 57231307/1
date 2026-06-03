@@ -90,7 +90,9 @@ pub async fn get_cash_flow_statement(
     let end_date = query
         .end_date
         .unwrap_or_else(|| chrono::Utc::now().date_naive());
-    let stmt = service.get_cash_flow_statement(start_date, end_date).await?;
+    let stmt = service
+        .get_cash_flow_statement(start_date, end_date)
+        .await?;
     Ok(Json(ApiResponse::success(stmt)))
 }
 
@@ -127,7 +129,9 @@ pub async fn get_general_ledger(
     let end_date = query
         .end_date
         .unwrap_or_else(|| chrono::Utc::now().date_naive());
-    let ledger = service.get_general_ledger(code, start_date, end_date).await?;
+    let ledger = service
+        .get_general_ledger(code, start_date, end_date)
+        .await?;
     Ok(Json(ApiResponse::success(ledger)))
 }
 
@@ -154,7 +158,12 @@ pub async fn get_subsidiary_ledger(
         .end_date
         .unwrap_or_else(|| chrono::Utc::now().date_naive());
     let ledger = service
-        .get_subsidiary_ledger(query.dimension_type, query.dimension_value, start_date, end_date)
+        .get_subsidiary_ledger(
+            query.dimension_type,
+            query.dimension_value,
+            start_date,
+            end_date,
+        )
         .await?;
     Ok(Json(ApiResponse::success(ledger)))
 }

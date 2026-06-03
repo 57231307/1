@@ -936,7 +936,10 @@ impl InventoryTransferService {
             .await?
             .ok_or_else(|| AppError::not_found(format!("库存调拨单 {} 未找到", transfer_id)))?;
 
-        if transfer.status == "approved" || transfer.status == "shipped" || transfer.status == "completed" {
+        if transfer.status == "approved"
+            || transfer.status == "shipped"
+            || transfer.status == "completed"
+        {
             return Err(AppError::business(format!(
                 "调拨单状态 {} 不允许删除",
                 transfer.status

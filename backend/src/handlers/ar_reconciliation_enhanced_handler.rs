@@ -11,8 +11,7 @@ use serde::Deserialize;
 
 use crate::middleware::auth_context::AuthContext;
 use crate::services::ar_reconciliation_service::{
-    ArReconciliationService, AutoMatchRequest, GenerateReconciliationRequest,
-    ReconciliationQuery,
+    ArReconciliationService, AutoMatchRequest, GenerateReconciliationRequest, ReconciliationQuery,
 };
 use crate::utils::app_state::AppState;
 use crate::utils::error::AppError;
@@ -463,9 +462,9 @@ pub async fn create_dispute(
     auth: AuthContext,
     Json(req): Json<CreateDisputeApiRequest>,
 ) -> Result<Json<ApiResponse<JsonValue>>, AppError> {
-    let reconciliation_id = req.reconciliation_id.ok_or_else(|| {
-        AppError::bad_request("reconciliation_id 不能为空".to_string())
-    })?;
+    let reconciliation_id = req
+        .reconciliation_id
+        .ok_or_else(|| AppError::bad_request("reconciliation_id 不能为空".to_string()))?;
     let reason = req
         .description
         .clone()

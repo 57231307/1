@@ -179,11 +179,7 @@ impl PurchaseReceiptService {
     }
 
     /// 删除采购入库单（仅 DRAFT 状态）
-    pub async fn delete_receipt(
-        &self,
-        receipt_id: i32,
-        user_id: i32,
-    ) -> Result<(), AppError> {
+    pub async fn delete_receipt(&self, receipt_id: i32, user_id: i32) -> Result<(), AppError> {
         // 1. 查询入库单
         let receipt = purchase_receipt::Entity::find_by_id(receipt_id)
             .one(&*self.db)

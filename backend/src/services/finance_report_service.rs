@@ -461,9 +461,7 @@ impl FinanceReportService {
         &self,
         period: Option<String>,
     ) -> Result<TrialBalance, AppError> {
-        let period_str = period.unwrap_or_else(|| {
-            chrono::Utc::now().format("%Y-%m").to_string()
-        });
+        let period_str = period.unwrap_or_else(|| chrono::Utc::now().format("%Y-%m").to_string());
 
         let subjects = account_subject::Entity::find()
             .filter(account_subject::Column::Status.eq("ACTIVE"))
@@ -531,22 +529,28 @@ impl FinanceReportService {
         };
 
         // 联表查询凭证分录
-        let rows: Vec<(chrono::NaiveDate, String, i32, Option<String>, Decimal, Decimal)> =
-            voucher_item::Entity::find()
-                .join(JoinType::InnerJoin, voucher_item::Relation::Voucher.def())
-                .filter(voucher_item::Column::SubjectCode.eq(&subject_code))
-                .filter(voucher::Column::VoucherDate.gte(start_date))
-                .filter(voucher::Column::VoucherDate.lte(end_date))
-                .select_only()
-                .column_as(voucher::Column::VoucherDate, "voucher_date")
-                .column_as(voucher::Column::VoucherNo, "voucher_no")
-                .column_as(voucher_item::Column::LineNo, "line_no")
-                .column_as(voucher_item::Column::Summary, "summary")
-                .column_as(voucher_item::Column::Debit, "debit")
-                .column_as(voucher_item::Column::Credit, "credit")
-                .into_tuple()
-                .all(self.db.as_ref())
-                .await?;
+        let rows: Vec<(
+            chrono::NaiveDate,
+            String,
+            i32,
+            Option<String>,
+            Decimal,
+            Decimal,
+        )> = voucher_item::Entity::find()
+            .join(JoinType::InnerJoin, voucher_item::Relation::Voucher.def())
+            .filter(voucher_item::Column::SubjectCode.eq(&subject_code))
+            .filter(voucher::Column::VoucherDate.gte(start_date))
+            .filter(voucher::Column::VoucherDate.lte(end_date))
+            .select_only()
+            .column_as(voucher::Column::VoucherDate, "voucher_date")
+            .column_as(voucher::Column::VoucherNo, "voucher_no")
+            .column_as(voucher_item::Column::LineNo, "line_no")
+            .column_as(voucher_item::Column::Summary, "summary")
+            .column_as(voucher_item::Column::Debit, "debit")
+            .column_as(voucher_item::Column::Credit, "credit")
+            .into_tuple()
+            .all(self.db.as_ref())
+            .await?;
 
         let mut entries: Vec<GeneralLedgerEntry> = Vec::with_capacity(rows.len());
         let mut running_balance = opening_balance;
@@ -605,17 +609,20 @@ impl FinanceReportService {
         match dimension_type.as_str() {
             "CUSTOMER" => {
                 if let Ok(customer_id) = dimension_value.parse::<i32>() {
-                    query = query.filter(assist_accounting_record::Column::CustomerId.eq(customer_id));
+                    query =
+                        query.filter(assist_accounting_record::Column::CustomerId.eq(customer_id));
                 }
             }
             "SUPPLIER" => {
                 if let Ok(supplier_id) = dimension_value.parse::<i32>() {
-                    query = query.filter(assist_accounting_record::Column::SupplierId.eq(supplier_id));
+                    query =
+                        query.filter(assist_accounting_record::Column::SupplierId.eq(supplier_id));
                 }
             }
             "DEPARTMENT" => {
                 if let Ok(department_id) = dimension_value.parse::<i32>() {
-                    query = query.filter(assist_accounting_record::Column::WorkshopId.eq(department_id));
+                    query = query
+                        .filter(assist_accounting_record::Column::WorkshopId.eq(department_id));
                 }
             }
             _ => {

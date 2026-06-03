@@ -809,9 +809,7 @@ impl InventoryCountService {
             count_id: sea_orm::ActiveValue::Set(count_id),
             product_id: sea_orm::ActiveValue::Set(req.product_id),
             stock_id: sea_orm::ActiveValue::Set(req.stock_id.unwrap_or(0)),
-            warehouse_id: sea_orm::ActiveValue::Set(
-                req.warehouse_id.unwrap_or(count.warehouse_id),
-            ),
+            warehouse_id: sea_orm::ActiveValue::Set(req.warehouse_id.unwrap_or(count.warehouse_id)),
             quantity_before: sea_orm::ActiveValue::Set(rust_decimal::Decimal::ZERO),
             quantity_actual: sea_orm::ActiveValue::Set(req.quantity_actual),
             quantity_difference: sea_orm::ActiveValue::Set(rust_decimal::Decimal::ZERO),
@@ -887,9 +885,8 @@ impl InventoryCountService {
             active.warehouse_id = sea_orm::ActiveValue::Set(warehouse_id);
         }
         active.quantity_actual = sea_orm::ActiveValue::Set(req.quantity_actual);
-        active.unit_cost = sea_orm::ActiveValue::Set(
-            req.unit_cost.unwrap_or(rust_decimal::Decimal::ZERO),
-        );
+        active.unit_cost =
+            sea_orm::ActiveValue::Set(req.unit_cost.unwrap_or(rust_decimal::Decimal::ZERO));
         active.notes = sea_orm::ActiveValue::Set(req.notes);
         active.updated_at = sea_orm::ActiveValue::Set(chrono::Utc::now());
         let updated = active.update(&*self.db).await?;

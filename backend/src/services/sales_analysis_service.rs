@@ -212,13 +212,12 @@ impl SalesAnalysisService {
     }
 
     /// 获取销售概览统计
+    #[allow(clippy::needless_late_init)]
     pub async fn get_overview_stats(&self) -> Result<SalesOverviewStats, AppError> {
         info!("获取销售概览统计");
 
         // 汇总所有销售统计数据
-        let stats = sales_analysis::Entity::find()
-            .all(&*self.db)
-            .await?;
+        let stats = sales_analysis::Entity::find().all(&*self.db).await?;
 
         let mut month_orders: i64 = 0;
         let mut month_amount = Decimal::ZERO;
@@ -395,10 +394,8 @@ impl SalesAnalysisService {
 
         let actual_amount = updated.total_amount;
         let completion_rate = if updated.total_amount > Decimal::ZERO {
-            (actual_amount / updated.total_amount * Decimal::from(100)).round_dp_with_strategy(
-                2,
-                rust_decimal::RoundingStrategy::MidpointAwayFromZero,
-            )
+            (actual_amount / updated.total_amount * Decimal::from(100))
+                .round_dp_with_strategy(2, rust_decimal::RoundingStrategy::MidpointAwayFromZero)
         } else {
             Decimal::ZERO
         };

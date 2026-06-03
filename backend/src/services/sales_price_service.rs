@@ -233,18 +233,15 @@ impl SalesPriceService {
             active.min_order_qty = Set(min_order_qty);
         }
         if let Some(effective_date) = req.effective_date {
-            active.effective_date = Set(
-                effective_date
-                    .parse()
-                    .map_err(|e| AppError::validation(format!("日期格式错误：{}", e)))?,
-            );
+            active.effective_date = Set(effective_date
+                .parse()
+                .map_err(|e| AppError::validation(format!("日期格式错误：{}", e)))?);
         }
         if let Some(expiry_date) = req.expiry_date {
-            active.expiry_date = Set(Some(
-                expiry_date
-                    .parse()
-                    .map_err(|e| AppError::validation(format!("日期格式错误：{}", e)))?,
-            ));
+            active.expiry_date =
+                Set(Some(expiry_date.parse().map_err(|e| {
+                    AppError::validation(format!("日期格式错误：{}", e))
+                })?));
         }
 
         let updated = active.update(&*self.db).await?;

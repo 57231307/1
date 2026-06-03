@@ -308,10 +308,7 @@ pub async fn export_calculation(
     let service = MrpEngineService::new(state.db.clone());
     let bytes = service.export_calculation(id).await?;
     Ok((
-        [(
-            axum::http::header::CONTENT_TYPE,
-            "text/csv; charset=utf-8",
-        )],
+        [(axum::http::header::CONTENT_TYPE, "text/csv; charset=utf-8")],
         bytes,
     ))
 }

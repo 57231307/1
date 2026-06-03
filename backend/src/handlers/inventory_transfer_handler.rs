@@ -170,7 +170,10 @@ pub async fn delete_transfer(
         .delete_transfer(id)
         .await
         .map_err(|e| AppError::bad_request(e.to_string()))?;
-    Ok(Json(ApiResponse::success_with_message((), "库存调拨单已删除")))
+    Ok(Json(ApiResponse::success_with_message(
+        (),
+        "库存调拨单已删除",
+    )))
 }
 
 /// 列出调拨单的所有明细项
@@ -203,8 +206,8 @@ pub async fn add_item(
         .add_item(id, request)
         .await
         .map_err(|e| AppError::bad_request(e.to_string()))?;
-    let item_json = serde_json::to_value(item)
-        .map_err(|e| AppError::internal(format!("序列化失败: {}", e)))?;
+    let item_json =
+        serde_json::to_value(item).map_err(|e| AppError::internal(format!("序列化失败: {}", e)))?;
     Ok(Json(ApiResponse::success_with_message(
         item_json,
         "调拨明细添加成功",
@@ -222,8 +225,8 @@ pub async fn update_item(
         .update_item(item_id, request)
         .await
         .map_err(|e| AppError::bad_request(e.to_string()))?;
-    let item_json = serde_json::to_value(item)
-        .map_err(|e| AppError::internal(format!("序列化失败: {}", e)))?;
+    let item_json =
+        serde_json::to_value(item).map_err(|e| AppError::internal(format!("序列化失败: {}", e)))?;
     Ok(Json(ApiResponse::success_with_message(
         item_json,
         "调拨明细更新成功",
@@ -240,5 +243,8 @@ pub async fn delete_item(
         .delete_item(item_id)
         .await
         .map_err(|e| AppError::bad_request(e.to_string()))?;
-    Ok(Json(ApiResponse::success_with_message((), "调拨明细已删除")))
+    Ok(Json(ApiResponse::success_with_message(
+        (),
+        "调拨明细已删除",
+    )))
 }

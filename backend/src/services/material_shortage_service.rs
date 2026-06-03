@@ -539,11 +539,7 @@ impl MaterialShortageService {
     }
 
     /// 更新缺料预警状态（将状态持久化到 tenant_config，key 包含物料 ID）
-    pub async fn update_status(
-        &self,
-        material_id: i32,
-        status: &str,
-    ) -> Result<String, AppError> {
+    pub async fn update_status(&self, material_id: i32, status: &str) -> Result<String, AppError> {
         use sea_orm::Set;
 
         // 复用现有检测得到当前严重程度

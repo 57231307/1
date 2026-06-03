@@ -216,10 +216,7 @@ pub async fn complete_count(
 
 /// 删除库存盘点
 /// DELETE /api/v1/erp/inventory/counts/:id
-pub async fn delete_count(
-    State(state): State<AppState>,
-    Path(id): Path<i32>,
-) -> impl IntoResponse {
+pub async fn delete_count(State(state): State<AppState>, Path(id): Path<i32>) -> impl IntoResponse {
     let count_service = InventoryCountService::new(state.db.clone());
 
     match count_service.delete_count(id).await {
@@ -244,10 +241,7 @@ pub async fn delete_count(
 
 /// 列出盘点单的所有明细项
 /// GET /api/v1/erp/inventory/counts/:id/items
-pub async fn list_items(
-    State(state): State<AppState>,
-    Path(id): Path<i32>,
-) -> impl IntoResponse {
+pub async fn list_items(State(state): State<AppState>, Path(id): Path<i32>) -> impl IntoResponse {
     let count_service = InventoryCountService::new(state.db.clone());
     match count_service.list_items(id).await {
         Ok(items) => ApiResponse::success(items).into_response(),

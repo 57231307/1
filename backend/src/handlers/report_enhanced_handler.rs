@@ -426,9 +426,7 @@ pub async fn get_available_fields(
             serde_json::json!({"field": "name", "title": "名称", "data_type": "string"}),
             serde_json::json!({"field": "created_at", "title": "创建时间", "data_type": "datetime"}),
         ],
-        _ => vec![
-            serde_json::json!({"field": "*", "title": "全部字段", "data_type": "string"}),
-        ],
+        _ => vec![serde_json::json!({"field": "*", "title": "全部字段", "data_type": "string"})],
     };
 
     Ok(Json(ApiResponse::success(serde_json::json!({
@@ -465,9 +463,9 @@ pub async fn export_template(
             (ct, bytes, "pdf")
         }
         "excel" | "xlsx" => {
-            let bytes =
-                crate::services::export_service::ExportService::export_excel(&export_data)?;
-            let ct = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet".to_string();
+            let bytes = crate::services::export_service::ExportService::export_excel(&export_data)?;
+            let ct =
+                "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet".to_string();
             (ct, bytes, "xlsx")
         }
         _ => {
@@ -480,7 +478,12 @@ pub async fn export_template(
     use base64::Engine;
     let encoded_content = base64::engine::general_purpose::STANDARD.encode(&encoded);
 
-    tracing::info!("用户 {} 导出报表模板: ID={}, 格式={}", auth.username, id, format);
+    tracing::info!(
+        "用户 {} 导出报表模板: ID={}, 格式={}",
+        auth.username,
+        id,
+        format
+    );
 
     Ok(Json(ApiResponse::success(serde_json::json!({
         "template_id": id,
