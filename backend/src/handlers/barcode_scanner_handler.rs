@@ -18,8 +18,30 @@ pub struct ScanToShipRequest {
 
 #[derive(Deserialize)]
 pub struct ScanToShipQuery {
-    pub barcode: String,
-    pub order_id: i32,
+    pub barcode: Option<String>,
+    pub order_id: Option<i32>,
+    pub page: Option<u64>,
+    pub page_size: Option<u64>,
+}
+
+pub async fn scan_to_ship_get(
+    State(state): State<AppState>,
+    Query(query): Query<ScanToShipQuery>,
+) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
+    // 如果没有 barcode 参数，返回扫码记录列表
+    let barcode = match query.barcode {
+        Some(b) => b,
+        None => {
+            // 返回空列表或扫码历史记录
+            return Ok(Json(ApiResponse::success(serde_json::json!({
+                "items": [],
+                "total": 0,
+                "page": query.page.unwrap_or(1),
+                "page_size": query.page_size.unwrap_or(20)
+            }))));
+        }
+    };
+    scan_to_ship_impl(state, barcode, query.order_id.unwrap_or(0)).await
 }
 
 pub async fn scan_to_ship_post(
@@ -27,13 +49,6 @@ pub async fn scan_to_ship_post(
     Json(req): Json<ScanToShipRequest>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     scan_to_ship_impl(state, req.barcode, req.order_id).await
-}
-
-pub async fn scan_to_ship_get(
-    State(state): State<AppState>,
-    Query(query): Query<ScanToShipQuery>,
-) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
-    scan_to_ship_impl(state, query.barcode, query.order_id).await
 }
 
 async fn scan_to_ship_impl(

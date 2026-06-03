@@ -127,8 +127,9 @@ impl OmniAuditEngine {
                     ))),
                 };
 
+                // 使用 exec_without_returning 避免 last_insert_id 解析问题
                 if let Err(e) = omni_audit_log::Entity::insert(log)
-                    .exec(db_clone.as_ref())
+                    .exec_without_returning(db_clone.as_ref())
                     .await
                 {
                     tracing::error!("写入综合审计日志失败: {}", e);
