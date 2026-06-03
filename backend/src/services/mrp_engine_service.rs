@@ -17,6 +17,7 @@ use crate::models::inventory_stock::Entity as InventoryStockEntity;
 use crate::models::mrp_result::{
     ActiveModel as MrpResultActiveModel, Entity as MrpResultEntity, Model as MrpResultModel,
 };
+use crate::models::product::Entity as ProductEntity;
 use crate::utils::error::AppError;
 
 /// MRP计算请求
@@ -631,5 +632,164 @@ impl MrpEngineService {
             .await?;
 
         Ok(result.rows_affected)
+    }
+
+    /// 列出可用于 MRP 计算的产品
+    pub async fn list_products_for_mrp(
+        &self,
+        keyword: Option<String>,
+    ) -> Result<Vec<crate::models::product::Model>, AppError> {
+        let mut query = ProductEntity::find()
+            .filter(crate::models::product::Column::IsDeleted.eq(false))
+            .filter(crate::models::product::Column::Status.eq("active"));
+
+        if let Some(kw) = keyword {
+            let trimmed = kw.trim();
+            if !trimmed.is_empty() {
+                let pattern = format!("%{}%", trimmed);
+                query = query.filter(
+                    crate::models::product::Column::Name
+                        .like(&pattern)
+                        .or(crate::models::product::Column::Code.like(&pattern)),
+                );
+            }
+        }
+
+        let products = query
+            .order_by_asc(crate::models::product::Column::Code)
+            .all(&*self.db)
+            .await?;
+
+        Ok(products)
+    }
+
+    /// 取消 MRP 计算：仅将状态从 PLANNED 置为 CANCELLED
+    pub async fn cancel_calculation(&self, calculation_id: i32) -> Result<MrpResultModel, AppError> {
+        let result = MrpResultEntity::find_by_id(calculation_id)
+            .one(&*self.db)
+            .await?
+            .ok_or_else(|| AppError::not_found("MRP结果不存在"))?;
+
+        if result.status == "CANCELLED" {
+            return Ok(result);
+        }
+
+        let mut active_model: MrpResultActiveModel = result.into();
+        active_model.status = Set("CANCELLED".to_string());
+        active_model.updated_at = Set(Utc::now());
+        let updated = active_model.update(&*self.db).await?;
+        Ok(updated)
+    }
+
+    /// 导出指定 MRP 计算编号下的所有结果为 CSV
+    pub async fn export_calculation(
+        &self,
+        calculation_id: i32,
+    ) -> Result<Vec<u8>, AppError> {
+        // 兼容前端传入 id 形如 "MRP12345" 的计算编号
+        let calculation_no = if calculation_id > 0 {
+            format!("MRP{}", calculation_id)
+        } else {
+            String::new()
+        };
+
+        // 先按 ID 精确查询
+        let results = MrpResultEntity::find_by_id(calculation_id)
+            .all(&*self.db)
+            .await?;
+
+        let results = if !results.is_empty() {
+            results
+        } else if !calculation_no.is_empty() {
+            MrpResultEntity::find()
+                .filter(crate::models::mrp_result::Column::CalculationNo.eq(&calculation_no))
+                .all(&*self.db)
+                .await?
+        } else {
+            Vec::new()
+        };
+
+        let mut wtr = csv::WriterBuilder::new().from_writer(vec![]);
+        wtr.write_record([
+            "ID",
+            "计算编号",
+            "产品ID",
+            "需求数量",
+            "需求日期",
+            "来源类型",
+            "来源ID",
+            "计划订单数量",
+            "计划订单日期",
+            "状态",
+            "备注",
+            "创建时间",
+        ])
+        .map_err(|e| AppError::validation(format!("CSV写入错误: {}", e)))?;
+
+        for r in &results {
+            wtr.write_record([
+                r.id.to_string(),
+                r.calculation_no.clone(),
+                r.product_id.to_string(),
+                r.required_quantity.to_string(),
+                r.required_date
+                    .map(|d| d.to_string())
+                    .unwrap_or_default(),
+                r.source_type.clone(),
+                r.source_id.map(|i| i.to_string()).unwrap_or_default(),
+                r.planned_order_quantity
+                    .map(|q| q.to_string())
+                    .unwrap_or_default(),
+                r.planned_order_date
+                    .map(|d| d.to_string())
+                    .unwrap_or_default(),
+                r.status.clone(),
+                r.remarks.clone().unwrap_or_default(),
+                r.created_at.to_rfc3339(),
+            ])
+            .map_err(|e| AppError::validation(format!("CSV写入错误: {}", e)))?;
+        }
+
+        let bytes = wtr
+            .into_inner()
+            .map_err(|e| AppError::validation(format!("CSV序列化错误: {}", e)))?;
+        Ok(bytes)
+    }
+
+    /// 获取指定 MRP 计算中某物料的需求明细
+    pub async fn get_material_detail(
+        &self,
+        calculation_id: i32,
+        material_id: i32,
+    ) -> Result<serde_json::Value, AppError> {
+        let result = MrpResultEntity::find_by_id(calculation_id)
+            .one(&*self.db)
+            .await?
+            .ok_or_else(|| AppError::not_found("MRP结果不存在"))?;
+
+        if result.product_id != material_id {
+            return Err(AppError::not_found("该计算结果中不包含此物料"));
+        }
+
+        let stock_info = self.get_stock_info(material_id).await?;
+
+        Ok(serde_json::json!({
+            "calculation_id": result.id,
+            "calculation_no": result.calculation_no,
+            "material_id": result.product_id,
+            "required_quantity": result.required_quantity,
+            "required_date": result.required_date,
+            "on_hand_quantity": stock_info.on_hand,
+            "in_transit_quantity": stock_info.in_transit,
+            "safety_stock": stock_info.safety_stock,
+            "available_quantity": stock_info.available,
+            "shortage_quantity": result.planned_order_quantity,
+            "planned_order_date": result.planned_order_date,
+            "source_type": result.source_type,
+            "source_id": result.source_id,
+            "status": result.status,
+            "remarks": result.remarks,
+            "supply_details": [],
+        }))
     }
 }

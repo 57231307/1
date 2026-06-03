@@ -3,7 +3,7 @@
 //! MRP物料需求计划API端点
 
 use axum::{
-    extract::{Query, State},
+    extract::{Path, Query, State},
     Json,
 };
 use chrono::NaiveDate;
@@ -99,6 +99,12 @@ pub struct MrpRequirementQuery {
     pub date_from: Option<NaiveDate>,
     pub date_to: Option<NaiveDate>,
     pub only_shortage: Option<bool>,
+}
+
+/// MRP产品查询参数
+#[derive(Debug, Deserialize)]
+pub struct MrpProductQuery {
+    pub keyword: Option<String>,
 }
 
 /// 订单转换请求
@@ -269,4 +275,56 @@ pub async fn convert_to_orders(
     let responses: Vec<MrpResultResponse> = results.iter().map(to_result_response).collect();
 
     Ok(Json(ApiResponse::success(responses)))
+}
+
+/// 列出可用于 MRP 计算的产品
+pub async fn list_products_for_mrp(
+    State(state): State<AppState>,
+    _auth: AuthContext,
+    Query(query): Query<MrpProductQuery>,
+) -> Result<Json<ApiResponse<Vec<crate::models::product::Model>>>, AppError> {
+    let service = MrpEngineService::new(state.db.clone());
+    let products = service.list_products_for_mrp(query.keyword).await?;
+    Ok(Json(ApiResponse::success(products)))
+}
+
+/// 取消 MRP 计算
+pub async fn cancel_calculation(
+    State(state): State<AppState>,
+    _auth: AuthContext,
+    Path(id): Path<i32>,
+) -> Result<Json<ApiResponse<MrpResultResponse>>, AppError> {
+    let service = MrpEngineService::new(state.db.clone());
+    let result = service.cancel_calculation(id).await?;
+    Ok(Json(ApiResponse::success(to_result_response(&result))))
+}
+
+/// 导出 MRP 计算结果为 CSV
+pub async fn export_calculation(
+    State(state): State<AppState>,
+    _auth: AuthContext,
+    Path(id): Path<i32>,
+) -> Result<impl axum::response::IntoResponse, AppError> {
+    let service = MrpEngineService::new(state.db.clone());
+    let bytes = service.export_calculation(id).await?;
+    Ok((
+        [(
+            axum::http::header::CONTENT_TYPE,
+            "text/csv; charset=utf-8",
+        )],
+        bytes,
+    ))
+}
+
+/// 获取 MRP 计算中某物料的明细
+pub async fn get_material_detail(
+    State(state): State<AppState>,
+    _auth: AuthContext,
+    Path((calculation_id, material_id)): Path<(i32, i32)>,
+) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
+    let service = MrpEngineService::new(state.db.clone());
+    let detail = service
+        .get_material_detail(calculation_id, material_id)
+        .await?;
+    Ok(Json(ApiResponse::success(detail)))
 }
