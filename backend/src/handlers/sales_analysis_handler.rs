@@ -1,11 +1,15 @@
 use crate::middleware::auth_context::AuthContext;
 use crate::models::sales_analysis;
-use crate::services::sales_analysis_service::{CreateSalesTargetInput, SalesAnalysisService};
+use crate::services::sales_analysis_service::{
+    CreateSalesTargetInput, CustomerRankingParams, ExportParams, ProductRankingParams,
+    SalesAnalysisService, SalesTargetDto, UpdateSalesTargetRequest,
+};
 use crate::utils::app_state::AppState;
 use crate::utils::error::AppError;
 use crate::utils::ApiResponse;
 use axum::{
-    extract::{Query, State},
+    extract::{Path, Query, State},
+    response::IntoResponse,
     Json,
 };
 use serde::Deserialize;
@@ -118,4 +122,76 @@ pub async fn create_target(
     info!("销售目标创建成功，ID: {}", target.id);
 
     Ok(Json(ApiResponse::success(target)))
+}
+
+/// GET /api/v1/erp/sales-analysis/stats - 销售概览统计
+pub async fn get_stats(
+    State(state): State<AppState>,
+    _auth: AuthContext,
+) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
+    info!("正在获取销售概览统计");
+    let service = SalesAnalysisService::new(state.db.clone());
+    let stats = service.get_overview_stats().await?;
+    Ok(Json(ApiResponse::success(serde_json::to_value(stats)?)))
+}
+
+/// GET /api/v1/erp/sales-analysis/product-ranking - 产品销售排名
+pub async fn get_product_ranking(
+    State(state): State<AppState>,
+    _auth: AuthContext,
+    Query(params): Query<ProductRankingParams>,
+) -> Result<
+    Json<ApiResponse<Vec<crate::services::sales_analysis_service::ProductRankingItem>>>,
+    AppError,
+> {
+    info!("正在获取产品销售排名");
+    let service = SalesAnalysisService::new(state.db.clone());
+    let list = service.product_ranking(params).await?;
+    Ok(Json(ApiResponse::success(list)))
+}
+
+/// GET /api/v1/erp/sales-analysis/customer-ranking - 客户销售排名
+pub async fn get_customer_ranking(
+    State(state): State<AppState>,
+    _auth: AuthContext,
+    Query(params): Query<CustomerRankingParams>,
+) -> Result<
+    Json<ApiResponse<Vec<crate::services::sales_analysis_service::CustomerRankingItem>>>,
+    AppError,
+> {
+    info!("正在获取客户销售排名");
+    let service = SalesAnalysisService::new(state.db.clone());
+    let list = service.customer_ranking(params).await?;
+    Ok(Json(ApiResponse::success(list)))
+}
+
+/// PUT /api/v1/erp/sales-analysis/targets/:period - 更新销售目标
+pub async fn update_sales_target(
+    State(state): State<AppState>,
+    _auth: AuthContext,
+    Path(period): Path<String>,
+    Json(req): Json<UpdateSalesTargetRequest>,
+) -> Result<Json<ApiResponse<SalesTargetDto>>, AppError> {
+    info!("正在更新销售目标，周期：{}", period);
+    let service = SalesAnalysisService::new(state.db.clone());
+    let target = service.update_target(&period, req).await?;
+    Ok(Json(ApiResponse::success(target)))
+}
+
+/// GET /api/v1/erp/sales-analysis/export - 导出销售分析报告
+pub async fn export_analysis(
+    State(state): State<AppState>,
+    _auth: AuthContext,
+    Query(params): Query<ExportParams>,
+) -> Result<impl IntoResponse, AppError> {
+    info!("正在导出销售分析报告");
+    let service = SalesAnalysisService::new(state.db.clone());
+    let bytes = service.export_report(params).await?;
+    Ok((
+        [(
+            axum::http::header::CONTENT_TYPE,
+            "text/csv; charset=utf-8",
+        )],
+        bytes,
+    ))
 }
