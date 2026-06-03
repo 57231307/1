@@ -1640,14 +1640,21 @@ pub fn create_router(state: AppState) -> Router {
                 .route("/calculate", post(mrp_handler::calculate_mrp))
                 .route("/results", get(mrp_handler::get_mrp_results))
                 .route("/requirements", get(mrp_handler::get_mrp_requirements))
-                .route("/convert-orders", post(mrp_handler::convert_to_orders)),
+                .route("/convert-orders", post(mrp_handler::convert_to_orders))
+                .route("/products", get(mrp_handler::list_products_for_mrp)),
         )
         // MRP历史记录路由
         .nest(
             "/api/v1/erp/mrp/history",
             Router::new()
                 .route("/", get(missing_handlers::get_mrp_history))
-                .route("/:id", get(missing_handlers::get_mrp_history_detail)),
+                .route("/:id", get(missing_handlers::get_mrp_history_detail))
+                .route("/:id/cancel", put(mrp_handler::cancel_calculation))
+                .route("/:id/export", get(mrp_handler::export_calculation))
+                .route(
+                    "/:calculation_id/materials/:material_id",
+                    get(mrp_handler::get_material_detail),
+                ),
         )
         // 生产排程路由
         .nest(
