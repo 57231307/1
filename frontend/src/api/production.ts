@@ -71,17 +71,17 @@ export function updateProductionOrderStatus(
   return request.put(`/production/orders/${id}/status`, { status })
 }
 
-// 提交生产订单审核
+// 提交生产订单审核（后端: POST /production/orders/:id/submit-approval）
 export function submitProductionOrder(id: number): Promise<ApiResponse<void>> {
-  return request.put(`/production/orders/${id}/submit`)
+  return request.post(`/production/orders/${id}/submit-approval`)
 }
 
-// 审核生产订单
+// 审核生产订单（后端: POST /production/orders/:id/approve）
 export function approveProductionOrder(
   id: number,
   data: { approved: boolean; remark?: string }
 ): Promise<ApiResponse<void>> {
-  return request.put(`/production/orders/${id}/approve`, data)
+  return request.post(`/production/orders/${id}/approve`, data)
 }
 
 // 汇报生产进度
