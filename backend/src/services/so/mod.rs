@@ -15,10 +15,10 @@ use sea_orm::FromQueryResult;
 use serde::{Deserialize, Serialize};
 use validator::Validate;
 
+pub mod contract;
 pub mod delivery;
 pub mod order;
 pub mod price;
-pub mod contract;
 pub mod return_rs;
 
 // =====================================================

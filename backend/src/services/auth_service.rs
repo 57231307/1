@@ -343,8 +343,7 @@ impl From<AppError> for AuthError {
 // - 每次受保护请求在 middleware 中调用 `is_jti_revoked` 检查
 
 /// JWT JTI 黑名单（已吊销的 Token ID）
-static JTI_BLACKLIST: Lazy<RwLock<HashSet<String>>> =
-    Lazy::new(|| RwLock::new(HashSet::new()));
+static JTI_BLACKLIST: Lazy<RwLock<HashSet<String>>> = Lazy::new(|| RwLock::new(HashSet::new()));
 
 /// 吊销指定 JTI
 ///

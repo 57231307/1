@@ -20,9 +20,7 @@ use super::{CreateTemplateRequest, ReportEngineService, ReportTemplate};
 impl ReportEngineService {
     /// 获取预定义报表模板
     pub fn get_predefined_templates(&self) -> Vec<ReportTemplate> {
-        use super::{
-            ReportColumn as Rc, ReportFilter as Rf, ReportParameter as Rp,
-        };
+        use super::{ReportColumn as Rc, ReportFilter as Rf, ReportParameter as Rp};
 
         vec![
             ReportTemplate {
@@ -731,11 +729,14 @@ impl ReportEngineService {
 
         for ct in custom_templates {
             // 反序列化 JSON
-            let columns: Vec<crate::services::report::ReportColumn> = serde_json::from_str(&ct.columns).unwrap_or_default();
-            let filters: Vec<crate::services::report::ReportFilter> = serde_json::from_str(&ct.filters).unwrap_or_default();
+            let columns: Vec<crate::services::report::ReportColumn> =
+                serde_json::from_str(&ct.columns).unwrap_or_default();
+            let filters: Vec<crate::services::report::ReportFilter> =
+                serde_json::from_str(&ct.filters).unwrap_or_default();
             let parameters: Vec<crate::services::report::ReportParameter> =
                 serde_json::from_str(&ct.parameters).unwrap_or_default();
-            let formats: Vec<String> = serde_json::from_str(&ct.supported_formats).unwrap_or_default();
+            let formats: Vec<String> =
+                serde_json::from_str(&ct.supported_formats).unwrap_or_default();
 
             templates.push(ReportTemplate {
                 id: ct.template_id,
@@ -766,11 +767,14 @@ impl ReportEngineService {
             .await?;
 
         if let Some(ct) = ct {
-            let columns: Vec<crate::services::report::ReportColumn> = serde_json::from_str(&ct.columns).unwrap_or_default();
-            let filters: Vec<crate::services::report::ReportFilter> = serde_json::from_str(&ct.filters).unwrap_or_default();
+            let columns: Vec<crate::services::report::ReportColumn> =
+                serde_json::from_str(&ct.columns).unwrap_or_default();
+            let filters: Vec<crate::services::report::ReportFilter> =
+                serde_json::from_str(&ct.filters).unwrap_or_default();
             let parameters: Vec<crate::services::report::ReportParameter> =
                 serde_json::from_str(&ct.parameters).unwrap_or_default();
-            let formats: Vec<String> = serde_json::from_str(&ct.supported_formats).unwrap_or_default();
+            let formats: Vec<String> =
+                serde_json::from_str(&ct.supported_formats).unwrap_or_default();
 
             Ok(ReportTemplate {
                 id: ct.template_id,

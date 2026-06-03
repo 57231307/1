@@ -9,18 +9,20 @@
 //! 拆分自原 `crm_service.rs`。
 
 use crate::models::{
-    customer, customer_followup,
-    customer_followup::{Entity as CustomerFollowupEntity},
-    crm_lead, crm_opportunity,
-    crm_lead::{Entity as CrmLeadEntity},
-    crm_opportunity::{Entity as CrmOpportunityEntity},
-    customer::{Entity as CustomerEntity},
-    sales_order::{Entity as SalesOrderEntity, Column as SalesOrderColumn},
+    crm_lead,
+    crm_lead::Entity as CrmLeadEntity,
+    crm_opportunity,
+    crm_opportunity::Entity as CrmOpportunityEntity,
+    customer,
+    customer::Entity as CustomerEntity,
+    customer_followup,
+    customer_followup::Entity as CustomerFollowupEntity,
+    sales_order::{Column as SalesOrderColumn, Entity as SalesOrderEntity},
 };
 use crate::utils::error::AppError;
 use sea_orm::{
-    ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, PaginatorTrait,
-    QueryFilter, QueryOrder, QuerySelect, Set,
+    ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, PaginatorTrait, QueryFilter,
+    QueryOrder, QuerySelect, Set,
 };
 use std::sync::Arc;
 use uuid::Uuid;
@@ -97,10 +99,7 @@ impl CrmService {
     }
 
     /// 获取客户 360 视图（基本信息 + 关联数据 + 商机简报）
-    pub async fn get_customer_360(
-        &self,
-        customer_id: i32,
-    ) -> Result<serde_json::Value, AppError> {
+    pub async fn get_customer_360(&self, customer_id: i32) -> Result<serde_json::Value, AppError> {
         // 客户基本信息
         let customer_info = CustomerEntity::find_by_id(customer_id)
             .one(&*self.db)
@@ -260,7 +259,9 @@ impl CrmService {
         }
 
         // 3. 删除客户
-        CustomerEntity::delete_by_id(customer_id).exec(&*self.db).await?;
+        CustomerEntity::delete_by_id(customer_id)
+            .exec(&*self.db)
+            .await?;
 
         Ok(())
     }

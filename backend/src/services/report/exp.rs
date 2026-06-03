@@ -112,8 +112,7 @@ impl ReportEngineService {
 
             // 分页
             if y_pos < 20.0 {
-                let (new_page, new_layer) =
-                    doc.add_page(Mm(297.0), Mm(210.0), "Layer 1");
+                let (new_page, new_layer) = doc.add_page(Mm(297.0), Mm(210.0), "Layer 1");
                 let _layer = doc.get_page(new_page).get_layer(new_layer);
                 y_pos = 280.0;
                 let _ = new_layer;
@@ -274,7 +273,10 @@ impl ReportEngineService {
     }
 
     /// 构建 sharedStrings.xml
-    fn build_shared_strings_xml(&self, data: &ReportData) -> (String, std::collections::HashMap<String, usize>) {
+    fn build_shared_strings_xml(
+        &self,
+        data: &ReportData,
+    ) -> (String, std::collections::HashMap<String, usize>) {
         let mut strings = Vec::new();
         let mut lookup = std::collections::HashMap::new();
 
@@ -302,8 +304,10 @@ impl ReportEngineService {
             }
         }
 
-        let mut xml = String::from(r#"<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
-<sst xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" count=""#);
+        let mut xml = String::from(
+            r#"<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<sst xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" count=""#,
+        );
         xml.push_str(&strings.len().to_string());
         xml.push_str(r#"" uniqueCount=""#);
         xml.push_str(&strings.len().to_string());
@@ -311,7 +315,11 @@ impl ReportEngineService {
 
         for s in strings {
             xml.push_str("<si><t xml:space=\"preserve\">");
-            xml.push_str(&s.replace('&', "&amp;").replace('<', "&lt;").replace('>', "&gt;"));
+            xml.push_str(
+                &s.replace('&', "&amp;")
+                    .replace('<', "&lt;")
+                    .replace('>', "&gt;"),
+            );
             xml.push_str("</t></si>");
         }
 
@@ -325,9 +333,11 @@ impl ReportEngineService {
         data: &ReportData,
         string_lookup: &std::collections::HashMap<String, usize>,
     ) -> String {
-        let mut xml = String::from(r#"<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+        let mut xml = String::from(
+            r#"<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">
-<sheetData>"#);
+<sheetData>"#,
+        );
 
         // 表头
         xml.push_str("<row r=\"1\">");
@@ -363,10 +373,7 @@ impl ReportEngineService {
                         cell_ref, string_idx
                     ));
                 } else {
-                    xml.push_str(&format!(
-                        r#"<c r="{}"><v>{}</v></c>"#,
-                        cell_ref, value
-                    ));
+                    xml.push_str(&format!(r#"<c r="{}"><v>{}</v></c>"#, cell_ref, value));
                 }
             }
             xml.push_str("</row>");
@@ -418,7 +425,11 @@ impl ReportEngineService {
                 .map_err(|e| AppError::internal(format!("CSV 写入失败: {}", e)))?;
         }
 
-        info!("CSV 导出成功: rows={}, size={}", data.total_rows, output.len());
+        info!(
+            "CSV 导出成功: rows={}, size={}",
+            data.total_rows,
+            output.len()
+        );
         Ok(output)
     }
 
@@ -458,7 +469,9 @@ impl ReportEngineService {
         data: &ReportData,
         template_name: &str,
     ) -> Result<Vec<u8>, AppError> {
-        self.export_excel(data, template_name).await.map(|r| r.content)
+        self.export_excel(data, template_name)
+            .await
+            .map(|r| r.content)
     }
 
     /// 导出 PDF 字节流
@@ -467,7 +480,9 @@ impl ReportEngineService {
         data: &ReportData,
         template_name: &str,
     ) -> Result<Vec<u8>, AppError> {
-        self.export_pdf(data, template_name).await.map(|r| r.content)
+        self.export_pdf(data, template_name)
+            .await
+            .map(|r| r.content)
     }
 }
 

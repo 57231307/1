@@ -33,8 +33,6 @@ use crate::utils::app_state::AppState;
 
 // 14 个业务域子模块
 // 注：源文件名为 static.rs，但 `static` 是 Rust 关键字，用 #[path] 重映射为 static_routes 模块名
-#[path = "static.rs"]
-pub mod static_routes;
 pub mod analytics;
 pub mod auth;
 pub mod catalog;
@@ -45,6 +43,8 @@ pub mod inventory;
 pub mod production;
 pub mod purchase;
 pub mod sales;
+#[path = "static.rs"]
+pub mod static_routes;
 pub mod system;
 pub mod tenant;
 pub mod v1;

@@ -3,11 +3,11 @@
 //! 包含商机 CRUD、阶段流转、商机转订单等。
 //! 拆分自原 `crm_service.rs`。
 
-use crate::models::{customer, crm_opportunity, sales_order};
+use crate::models::{crm_opportunity, customer, sales_order};
 use crate::utils::error::AppError;
 use sea_orm::{
-    ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, PaginatorTrait,
-    QueryFilter, QueryOrder, Set,
+    ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, PaginatorTrait, QueryFilter,
+    QueryOrder, Set,
 };
 use std::sync::Arc;
 use uuid::Uuid;
@@ -92,7 +92,11 @@ impl CrmService {
     }
 
     /// 校验商机阶段流转合法性
-    fn validate_opportunity_stage_transition(&self, current: &str, next: &str) -> Result<(), AppError> {
+    fn validate_opportunity_stage_transition(
+        &self,
+        current: &str,
+        next: &str,
+    ) -> Result<(), AppError> {
         let valid_next = match current {
             "QUALIFICATION" => vec!["NEEDS_ANALYSIS", "PROPOSAL"],
             "NEEDS_ANALYSIS" => vec!["PROPOSAL", "QUALIFICATION"],

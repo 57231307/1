@@ -26,10 +26,7 @@ impl PurchaseOrderService {
     );
 
     /// 标记采购订单为已收货（含库存入库联动）
-    pub async fn receive_order(
-        &self,
-        order_id: i32,
-    ) -> Result<purchase_order::Model, AppError> {
+    pub async fn receive_order(&self, order_id: i32) -> Result<purchase_order::Model, AppError> {
         // 1. 开启事务保证数据一致性
         let txn = (*self.db).begin().await?;
 

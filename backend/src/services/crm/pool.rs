@@ -24,9 +24,7 @@ impl CrmService {
         let mut claimed = 0;
         for cid in customer_ids {
             // 验证客户存在且在公海（owner_id 为空）
-            let customer = customer::Entity::find_by_id(cid)
-                .one(&*self.db)
-                .await?;
+            let customer = customer::Entity::find_by_id(cid).one(&*self.db).await?;
 
             if let Some(c) = customer {
                 if c.owner_id.is_some() {
@@ -69,11 +67,7 @@ impl CrmService {
     }
 
     /// 释放客户到公海
-    pub async fn release_to_pool(
-        &self,
-        customer_id: i32,
-        user_id: i32,
-    ) -> Result<(), AppError> {
+    pub async fn release_to_pool(&self, customer_id: i32, user_id: i32) -> Result<(), AppError> {
         let customer = customer::Entity::find_by_id(customer_id)
             .one(&*self.db)
             .await?

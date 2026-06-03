@@ -115,9 +115,21 @@ impl ReportEngineService {
                 .unwrap()
                 .and_utc();
 
-            let m = candidate_date.format("%m").to_string().parse::<u32>().unwrap_or(0);
-            let d = candidate_date.format("%d").to_string().parse::<u32>().unwrap_or(0);
-            let dow = candidate_date.format("%w").to_string().parse::<u32>().unwrap_or(0);
+            let m = candidate_date
+                .format("%m")
+                .to_string()
+                .parse::<u32>()
+                .unwrap_or(0);
+            let d = candidate_date
+                .format("%d")
+                .to_string()
+                .parse::<u32>()
+                .unwrap_or(0);
+            let dow = candidate_date
+                .format("%w")
+                .to_string()
+                .parse::<u32>()
+                .unwrap_or(0);
 
             if !month.contains(&m) {
                 continue;
@@ -177,15 +189,15 @@ impl ReportEngineService {
                 if step_parts.len() != 2 {
                     return Err(AppError::bad_request(format!("无效的cron步长: {}", part)));
                 }
-                let step: u32 = step_parts[1]
-                    .parse()
-                    .map_err(|_| AppError::bad_request(format!("无效的步长值: {}", step_parts[1])))?;
+                let step: u32 = step_parts[1].parse().map_err(|_| {
+                    AppError::bad_request(format!("无效的步长值: {}", step_parts[1]))
+                })?;
                 let range_start = if step_parts[0] == "*" {
                     min
                 } else {
-                    step_parts[0]
-                        .parse()
-                        .map_err(|_| AppError::bad_request(format!("无效的起始值: {}", step_parts[0])))?
+                    step_parts[0].parse().map_err(|_| {
+                        AppError::bad_request(format!("无效的起始值: {}", step_parts[0]))
+                    })?
                 };
                 let mut v = range_start;
                 while v <= max {
@@ -198,12 +210,12 @@ impl ReportEngineService {
                 if range_parts.len() != 2 {
                     return Err(AppError::bad_request(format!("无效的cron范围: {}", part)));
                 }
-                let start: u32 = range_parts[0]
-                    .parse()
-                    .map_err(|_| AppError::bad_request(format!("无效的起始值: {}", range_parts[0])))?;
-                let end: u32 = range_parts[1]
-                    .parse()
-                    .map_err(|_| AppError::bad_request(format!("无效的结束值: {}", range_parts[1])))?;
+                let start: u32 = range_parts[0].parse().map_err(|_| {
+                    AppError::bad_request(format!("无效的起始值: {}", range_parts[0]))
+                })?;
+                let end: u32 = range_parts[1].parse().map_err(|_| {
+                    AppError::bad_request(format!("无效的结束值: {}", range_parts[1]))
+                })?;
                 if start > end || start < min || end > max {
                     return Err(AppError::bad_request(format!("无效的范围: {}", part)));
                 }

@@ -112,13 +112,11 @@ pub fn crm_customers() -> Router {
     Router::new()
         .route(
             "/",
-            get(crm_customer_handler::list_customers)
-                .post(crm_customer_handler::create_customer),
+            get(crm_customer_handler::list_customers).post(crm_customer_handler::create_customer),
         )
         .route(
             "/enhanced",
-            get(crm_customer_handler::list_customers)
-                .post(crm_customer_handler::create_customer),
+            get(crm_customer_handler::list_customers).post(crm_customer_handler::create_customer),
         )
         .route(
             "/:id",
@@ -178,8 +176,7 @@ pub fn crm_recycle_rules() -> Router {
     Router::new()
         .route(
             "/",
-            get(missing_handlers::get_recycle_rules)
-                .post(missing_handlers::create_recycle_rule),
+            get(missing_handlers::get_recycle_rules).post(missing_handlers::create_recycle_rule),
         )
         .route(
             "/:id",

@@ -3,11 +3,11 @@
 //! 包含线索 CRUD、状态更新、线索转客户等。
 //! 拆分自原 `crm_service.rs`。
 
-use crate::models::{customer, crm_lead, crm_opportunity};
+use crate::models::{crm_lead, crm_opportunity, customer};
 use crate::utils::error::AppError;
 use sea_orm::{
-    ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, PaginatorTrait,
-    QueryFilter, QueryOrder, Set,
+    ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, PaginatorTrait, QueryFilter,
+    QueryOrder, Set,
 };
 use std::sync::Arc;
 use uuid::Uuid;

@@ -25,8 +25,7 @@ pub fn tenant_config() -> Router {
     Router::new()
         .route(
             "/settings",
-            get(tenant_config_handler::list_configs)
-                .post(tenant_config_handler::set_config),
+            get(tenant_config_handler::list_configs).post(tenant_config_handler::set_config),
         )
         .route(
             "/settings/:key",

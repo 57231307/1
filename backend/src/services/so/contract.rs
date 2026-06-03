@@ -11,11 +11,7 @@ use std::sync::Arc;
 
 impl SalesService {
     /// 提交销售订单
-    pub async fn submit_order(
-        &self,
-        order_id: i32,
-        user_id: i32,
-    ) -> Result<(), AppError> {
+    pub async fn submit_order(&self, order_id: i32, user_id: i32) -> Result<(), AppError> {
         let order = sales_order::Entity::find_by_id(order_id)
             .one(&*self.db)
             .await?
@@ -84,11 +80,7 @@ impl SalesService {
     }
 
     /// 审批销售订单
-    pub async fn approve_order(
-        &self,
-        order_id: i32,
-        user_id: i32,
-    ) -> Result<(), AppError> {
+    pub async fn approve_order(&self, order_id: i32, user_id: i32) -> Result<(), AppError> {
         let order = sales_order::Entity::find_by_id(order_id)
             .one(&*self.db)
             .await?
@@ -124,11 +116,7 @@ impl SalesService {
     }
 
     /// 完成销售订单
-    pub async fn complete_order(
-        &self,
-        order_id: i32,
-        _user_id: i32,
-    ) -> Result<(), AppError> {
+    pub async fn complete_order(&self, order_id: i32, _user_id: i32) -> Result<(), AppError> {
         let order = sales_order::Entity::find_by_id(order_id)
             .one(&*self.db)
             .await?

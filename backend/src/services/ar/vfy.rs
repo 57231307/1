@@ -20,8 +20,8 @@ use crate::models::customer;
 use crate::utils::error::AppError;
 
 use super::{
-    generate_reconciliation_no, AgingBucket, AgingReport, ArReconciliationService, AutoMatchRequest,
-    AutoMatchResult, CustomerAgingSummary, GenerateReconciliationRequest,
+    generate_reconciliation_no, AgingBucket, AgingReport, ArReconciliationService,
+    AutoMatchRequest, AutoMatchResult, CustomerAgingSummary, GenerateReconciliationRequest,
 };
 
 impl ArReconciliationService {

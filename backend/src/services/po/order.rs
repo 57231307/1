@@ -4,15 +4,16 @@
 //! 拆分自原 `purchase_order_service.rs`。
 
 use crate::models::{
-    department, product, purchase_order, purchase_order_item, status, supplier,
-    warehouse,
+    department, product, purchase_order, purchase_order_item, status, supplier, warehouse,
 };
 use crate::services::po::UpdatePurchaseOrderRequest;
 use crate::utils::error::AppError;
 use crate::utils::number_generator::DocumentNumberGenerator;
 use chrono::Utc;
 use rust_decimal::Decimal;
-use sea_orm::{DatabaseConnection, FromQueryResult, QueryFilter, QueryOrder, Set, TransactionTrait};
+use sea_orm::{
+    DatabaseConnection, FromQueryResult, QueryFilter, QueryOrder, Set, TransactionTrait,
+};
 use serde::Serialize;
 use std::sync::Arc;
 use validator::Validate;

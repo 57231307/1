@@ -8,9 +8,9 @@ use axum::{
 };
 
 use crate::handlers::{
-    print_handler, purchase_contract_handler, purchase_inspection_handler,
-    purchase_order_handler, purchase_price_handler, purchase_receipt_handler,
-    purchase_return_handler, supplier_evaluation_handler, supplier_handler,
+    print_handler, purchase_contract_handler, purchase_inspection_handler, purchase_order_handler,
+    purchase_price_handler, purchase_receipt_handler, purchase_return_handler,
+    supplier_evaluation_handler, supplier_handler,
 };
 
 /// 采购订单路由（nest 到 /api/v1/erp/purchases）

@@ -8,7 +8,7 @@ use axum::{
     Router,
 };
 
-use crate::handlers::{auth_handler};
+use crate::handlers::auth_handler;
 use crate::middleware::rate_limit;
 
 pub fn routes() -> Router {

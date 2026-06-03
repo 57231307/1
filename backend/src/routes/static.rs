@@ -26,10 +26,8 @@ pub fn static_assets_handler() -> Router {
                     if let Ok(content) = tokio::fs::read(&static_path).await {
                         let body = Body::from(content);
                         let mut res = response::Response::new(body);
-                        res.headers_mut().insert(
-                            header::CONTENT_TYPE,
-                            HeaderValue::from_static("text/css"),
-                        );
+                        res.headers_mut()
+                            .insert(header::CONTENT_TYPE, HeaderValue::from_static("text/css"));
                         return Ok::<_, Infallible>(res);
                     }
                     let fallback = format!(
@@ -41,10 +39,8 @@ pub fn static_assets_handler() -> Router {
                     if let Ok(content) = tokio::fs::read(&fallback).await {
                         let body = Body::from(content);
                         let mut res = response::Response::new(body);
-                        res.headers_mut().insert(
-                            header::CONTENT_TYPE,
-                            HeaderValue::from_static("text/css"),
-                        );
+                        res.headers_mut()
+                            .insert(header::CONTENT_TYPE, HeaderValue::from_static("text/css"));
                         return Ok(res);
                     }
                     let body = Body::from("/* File not found */");

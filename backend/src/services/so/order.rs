@@ -3,16 +3,17 @@
 //! 包含销售订单的 CRUD、生命周期、查询、统计等。
 //! 拆分自原 `sales_service.rs`。
 
+use crate::models::dto::PageRequest;
 use crate::models::{
     ar_invoice::{self, Column as ArInvoiceColumn, Entity as ArInvoiceEntity},
     customer,
     inventory_reservation::{self, Entity as InventoryReservationEntity},
     inventory_stock::{self, Entity as InventoryStockEntity},
-    product, sales_order, sales_order_item,
-    sales_order::{Entity as SalesOrderEntity},
-    sales_order_item::{Entity as SalesOrderItemEntity},
+    product, sales_order,
+    sales_order::Entity as SalesOrderEntity,
+    sales_order_item,
+    sales_order_item::Entity as SalesOrderItemEntity,
 };
-use crate::models::dto::PageRequest;
 use crate::services::so::{
     CreateSalesOrderRequest, SalesOrderDetail, SalesOrderItemDetail, SalesOrderItemRequest,
     UpdateSalesOrderRequest,
@@ -50,7 +51,10 @@ impl SalesService {
                 crate::models::customer::Column::CustomerName,
                 "customer_name",
             )
-            .join(sea_orm::JoinType::LeftJoin, sales_order::Relation::Customer.def());
+            .join(
+                sea_orm::JoinType::LeftJoin,
+                sales_order::Relation::Customer.def(),
+            );
 
         if let Some(s) = status {
             query = query.filter(sales_order::Column::Status.eq(s));
@@ -90,7 +94,10 @@ impl SalesService {
                 crate::models::customer::Column::CustomerName,
                 "customer_name",
             )
-            .join(sea_orm::JoinType::LeftJoin, sales_order::Relation::Customer.def())
+            .join(
+                sea_orm::JoinType::LeftJoin,
+                sales_order::Relation::Customer.def(),
+            )
             .into_model::<SalesOrderDetail>()
             .one(&*self.db)
             .await?

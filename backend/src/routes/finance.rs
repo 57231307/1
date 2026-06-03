@@ -13,10 +13,10 @@ use crate::handlers::{
     ap_payment_request_handler, ap_reconciliation_handler, ap_report_handler,
     ap_verification_handler, ar_invoice_handler, ar_payment_handler,
     ar_reconciliation_enhanced_handler, ar_reconciliation_handler, ar_report_handler,
-    ar_verification_handler, currency_enhanced_handler, currency_handler,
-    finance_invoice_handler, finance_payment_handler, finance_report_handler,
-    financial_analysis_handler, fixed_asset_handler, fund_management_handler,
-    budget_management_handler, missing_handlers, omni_audit_handler, voucher_handler,
+    ar_verification_handler, budget_management_handler, currency_enhanced_handler,
+    currency_handler, finance_invoice_handler, finance_payment_handler, finance_report_handler,
+    financial_analysis_handler, fixed_asset_handler, fund_management_handler, missing_handlers,
+    omni_audit_handler, voucher_handler,
 };
 use crate::utils::app_state::AppState;
 
@@ -611,8 +611,7 @@ pub fn exchange_rates() -> Router {
     Router::new()
         .route(
             "/",
-            get(currency_handler::list_exchange_rates)
-                .post(currency_handler::create_exchange_rate),
+            get(currency_handler::list_exchange_rates).post(currency_handler::create_exchange_rate),
         )
         .route("/query", get(currency_handler::get_exchange_rate))
 }
@@ -634,5 +633,7 @@ pub fn routes(state: AppState) -> Router {
         .merge(currencies())
         .merge(exchange_rates())
         // 显式使用 middleware 抑制未使用警告
-        .layer(middleware::from_fn(crate::middleware::rate_limit::rate_limit_by_ip))
+        .layer(middleware::from_fn(
+            crate::middleware::rate_limit::rate_limit_by_ip,
+        ))
 }

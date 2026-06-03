@@ -21,8 +21,8 @@ use crate::models::sales_order_item::Entity as SalesOrderItemEntity;
 use crate::utils::error::AppError;
 
 use super::{
-    AggregateRequest, AggregateResult, AggregationType, DEFAULT_CACHE_TTL_SECONDS,
-    ExecuteReportRequest, ReportColumn, ReportData, ReportEngineService, ReportMetadata,
+    AggregateRequest, AggregateResult, AggregationType, ExecuteReportRequest, ReportColumn,
+    ReportData, ReportEngineService, ReportMetadata, DEFAULT_CACHE_TTL_SECONDS,
 };
 
 impl ReportEngineService {
@@ -55,10 +55,8 @@ impl ReportEngineService {
 
         if let Some(date_range) = &req.date_range {
             select = select.filter(
-                crate::models::sales_order::Column::OrderDate.between(
-                    date_range.start,
-                    date_range.end,
-                ),
+                crate::models::sales_order::Column::OrderDate
+                    .between(date_range.start, date_range.end),
             );
         }
 
@@ -84,10 +82,12 @@ impl ReportEngineService {
             };
 
             let entry = aggregation.entry(group_key).or_default();
-            *entry.entry("total_amount".to_string()).or_insert(rust_decimal::Decimal::ZERO) +=
-                order.total_amount;
-            *entry.entry("order_count".to_string()).or_insert(rust_decimal::Decimal::ZERO) +=
-                rust_decimal::Decimal::ONE;
+            *entry
+                .entry("total_amount".to_string())
+                .or_insert(rust_decimal::Decimal::ZERO) += order.total_amount;
+            *entry
+                .entry("order_count".to_string())
+                .or_insert(rust_decimal::Decimal::ZERO) += rust_decimal::Decimal::ONE;
         }
 
         for (group_key, values) in aggregation {
@@ -148,10 +148,7 @@ impl ReportEngineService {
 
         for (warehouse_id, total) in group_by_warehouse {
             results.push(AggregateResult {
-                groups: vec![(
-                    "warehouse".to_string(),
-                    serde_json::json!(warehouse_id),
-                )],
+                groups: vec![("warehouse".to_string(), serde_json::json!(warehouse_id))],
                 aggregations: vec![(
                     "total_quantity".to_string(),
                     serde_json::json!(total.to_string()),
@@ -184,10 +181,7 @@ impl ReportEngineService {
     }
 
     /// 执行报表（统一入口：缓存 + 数据加载 + 元数据）
-    pub async fn execute_report(
-        &self,
-        req: ExecuteReportRequest,
-    ) -> Result<ReportData, AppError> {
+    pub async fn execute_report(&self, req: ExecuteReportRequest) -> Result<ReportData, AppError> {
         let start_time = Instant::now();
 
         let cache_key = self.generate_cache_key(&req);
@@ -368,10 +362,7 @@ impl ReportEngineService {
     }
 
     /// 获取缓存数据
-    pub(crate) async fn get_cached_data(
-        &self,
-        key: &str,
-    ) -> Result<Option<ReportData>, AppError> {
+    pub(crate) async fn get_cached_data(&self, key: &str) -> Result<Option<ReportData>, AppError> {
         let cache = self.cache.read().await;
         if let Some(entry) = cache.get(key) {
             if entry.expires_at > Utc::now() {

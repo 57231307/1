@@ -7,7 +7,9 @@ use axum::{
     Router,
 };
 
-use crate::handlers::{bom_handler, bulk_product_handler, product_category_handler, product_handler, warehouse_handler};
+use crate::handlers::{
+    bom_handler, bulk_product_handler, product_category_handler, product_handler, warehouse_handler,
+};
 
 /// 产品路由（nest 到 /api/v1/erp/products）
 pub fn products() -> Router {

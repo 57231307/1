@@ -8,7 +8,9 @@ use axum::{
     Router,
 };
 
-use crate::handlers::{department_handler, field_permission_handler, init_handler, role_handler, user_handler};
+use crate::handlers::{
+    department_handler, field_permission_handler, init_handler, role_handler, user_handler,
+};
 
 /// 用户管理路由（nest 到 /api/v1/erp/users）
 pub fn users() -> Router {

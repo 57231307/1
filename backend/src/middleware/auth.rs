@@ -87,7 +87,8 @@ pub async fn auth_middleware(
     match claims {
         Ok(claims) => {
             // 检查 JTI 黑名单（已吊销的 session_id 立即拒绝）
-            let is_revoked = crate::services::auth_service::is_jti_revoked(&claims.session_id).await;
+            let is_revoked =
+                crate::services::auth_service::is_jti_revoked(&claims.session_id).await;
             if is_revoked {
                 warn!(path = %path, method = %method, client_ip = %client_ip, jti = %claims.session_id, "认证失败: JTI 已被吊销");
                 return Err(unauthorized_response("令牌已被吊销，请重新登录"));

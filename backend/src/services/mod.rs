@@ -12,12 +12,12 @@ pub mod finance_report_service;
 pub mod five_dimension_query_service;
 pub mod five_dimension_service;
 pub mod init_service;
+pub mod inv;
 pub mod inventory_adjustment_service;
 pub mod inventory_count_service;
 pub mod inventory_finance_bridge_service;
 pub mod inventory_reservation_service;
 pub mod inventory_stock_service;
-pub mod inv;
 pub mod product_category_service;
 pub mod product_service;
 pub mod role_permission_service;
@@ -142,7 +142,7 @@ pub mod purchase_order_service {
     pub use super::po::order::PurchaseOrderService;
     pub use super::po::order::{
         CreatePurchaseOrderRequest, PurchaseOrderDto, PurchaseOrderItemDto,
-        UpdatePurchaseOrderRequest, PurchaseOrderItemRequest, PurchaseOrderWithItemsDto,
+        PurchaseOrderItemRequest, PurchaseOrderWithItemsDto, UpdatePurchaseOrderRequest,
     };
 }
 
@@ -150,8 +150,8 @@ pub mod purchase_order_service {
 pub mod sales_service {
     pub use super::so::order::SalesService;
     pub use super::so::order::{
-        CreateSalesOrderRequest, UpdateSalesOrderRequest, SalesOrderDetail,
-        SalesOrderItemDetail, SalesOrderItemRequest, ShipOrderRequest,
+        CreateSalesOrderRequest, SalesOrderDetail, SalesOrderItemDetail, SalesOrderItemRequest,
+        ShipOrderRequest, UpdateSalesOrderRequest,
     };
 }
 
@@ -162,36 +162,36 @@ pub mod crm_service {
 
 /// 兼容旧路径 `crate::services::inventory_transfer_service::*`
 pub mod inventory_transfer_service {
-    pub use super::inv::InventoryTransferService;
     pub use super::inv::move_rs::{
-        CreateInventoryTransferRequest, UpdateInventoryTransferRequest,
-        InventoryTransferDto, InventoryTransferDetailDto, InventoryTransferWithDetailsDto,
+        CreateInventoryTransferRequest, InventoryTransferDetailDto, InventoryTransferDto,
+        InventoryTransferWithDetailsDto, UpdateInventoryTransferRequest,
     };
+    pub use super::inv::InventoryTransferService;
 }
 
 /// 兼容旧路径 `crate::services::ar_reconciliation_service::*`
 pub mod ar_reconciliation_service {
-    pub use super::ar::ArReconciliationService;
     pub use super::ar::recon::{
-        CreateReconciliationRequest, UpdateReconciliationRequest, ReconciliationDto,
-        ReconciliationStatus, AgingBucket, AgingReportDto,
+        AgingBucket, AgingReportDto, CreateReconciliationRequest, ReconciliationDto,
+        ReconciliationStatus, UpdateReconciliationRequest,
     };
+    pub use super::ar::ArReconciliationService;
 }
 
 /// 兼容旧路径 `crate::services::ai_analysis_service::*`
 pub mod ai_analysis_service {
-    pub use super::ai::AiAnalysisService;
     pub use super::ai::pred::{
-        SalesForecastRequest, SalesForecastResult, AnomalyDetectionRequest,
-        AnomalyDetectionResult, RecommendationRequest, RecommendationResult,
+        AnomalyDetectionRequest, AnomalyDetectionResult, RecommendationRequest,
+        RecommendationResult, SalesForecastRequest, SalesForecastResult,
     };
+    pub use super::ai::AiAnalysisService;
 }
 
 /// 兼容旧路径 `crate::services::report_engine_service::*`
 pub mod report_engine_service {
-    pub use super::report::ReportEngineService;
     pub use super::report::tpl::{
-        ReportType, ExportFormat, ReportRequest, ReportResult, ReportTemplate,
-        ReportFilter, ReportExecution,
+        ExportFormat, ReportExecution, ReportFilter, ReportRequest, ReportResult, ReportTemplate,
+        ReportType,
     };
+    pub use super::report::ReportEngineService;
 }

@@ -8,7 +8,9 @@
 //! - `inv` PDF 导出
 
 use chrono::Utc;
-use sea_orm::{ActiveModelTrait, ColumnTrait, EntityTrait, PaginatorTrait, QueryFilter, QueryOrder, Set};
+use sea_orm::{
+    ActiveModelTrait, ColumnTrait, EntityTrait, PaginatorTrait, QueryFilter, QueryOrder, Set,
+};
 
 use crate::models::ar_reconciliation::{
     ActiveModel, Entity as ReconciliationEntity, Model as ReconciliationModel,
@@ -261,7 +263,10 @@ impl ArReconciliationService {
 
         let items = ar_reconciliation_item::Entity::find()
             .filter(ar_reconciliation_item::Column::ReconciliationId.eq(id))
-            .order_by(ar_reconciliation_item::Column::CreatedAt, crate::services::ar::SharedOrder::Asc)
+            .order_by(
+                ar_reconciliation_item::Column::CreatedAt,
+                crate::services::ar::SharedOrder::Asc,
+            )
             .all(&*self.db)
             .await?;
 

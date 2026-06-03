@@ -11,10 +11,11 @@ use axum::{
 
 use crate::handlers::{
     advanced_handler, ai_analysis_handler, api_key_handler, assist_accounting_handler,
-    audit_enhanced_handler, barcode_scanner_handler, business_trace_handler, data_permission_handler,
-    dual_unit_converter_handler, email_handler, import_export_handler,
-    login_security_handler, notification_handler, report_enhanced_handler, report_engine_handler,
-    tracking_handler, user_notification_setting_handler, webhook_handler, webhook_integration_handler,
+    audit_enhanced_handler, barcode_scanner_handler, business_trace_handler,
+    data_permission_handler, dual_unit_converter_handler, email_handler, import_export_handler,
+    login_security_handler, notification_handler, report_engine_handler, report_enhanced_handler,
+    tracking_handler, user_notification_setting_handler, webhook_handler,
+    webhook_integration_handler,
 };
 
 /// 双计量单位路由（nest 到 /api/v1/erp/dual-unit）
@@ -346,8 +347,7 @@ pub fn notifications() -> Router {
         )
         .route(
             "/settings",
-            get(notification_handler::get_settings)
-                .put(notification_handler::update_setting),
+            get(notification_handler::get_settings).put(notification_handler::update_setting),
         )
         .route("/:id", get(notification_handler::get_notification))
         .route("/:id/read", post(notification_handler::mark_as_read))
@@ -416,13 +416,11 @@ pub fn trading() -> Router {
         )
         .route(
             "/sales-prices",
-            get(advanced_handler::list_sales_prices)
-                .post(advanced_handler::create_sales_price),
+            get(advanced_handler::list_sales_prices).post(advanced_handler::create_sales_price),
         )
         .route(
             "/sales-prices/:id",
-            put(advanced_handler::update_sales_price)
-                .delete(advanced_handler::delete_sales_price),
+            put(advanced_handler::update_sales_price).delete(advanced_handler::delete_sales_price),
         )
         .route(
             "/sales-prices/:id/approve",
@@ -430,8 +428,7 @@ pub fn trading() -> Router {
         )
         .route(
             "/sales-returns",
-            get(advanced_handler::list_sales_returns)
-                .post(advanced_handler::create_sales_return),
+            get(advanced_handler::list_sales_returns).post(advanced_handler::create_sales_return),
         )
         .route(
             "/sales-returns/:id",

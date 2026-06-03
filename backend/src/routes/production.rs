@@ -234,13 +234,11 @@ pub fn capacity() -> Router {
         .route("/trend", get(capacity_handler::get_load_analysis))
         .route(
             "/work-centers",
-            get(capacity_handler::list_work_centers)
-                .post(capacity_handler::create_work_center),
+            get(capacity_handler::list_work_centers).post(capacity_handler::create_work_center),
         )
         .route(
             "/work-centers/:id",
-            put(capacity_handler::update_work_center)
-                .delete(capacity_handler::delete_work_center),
+            put(capacity_handler::update_work_center).delete(capacity_handler::delete_work_center),
         )
         .route(
             "/work-centers/:id/forecast",
