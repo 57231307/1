@@ -2,7 +2,7 @@
 
 use axum::{extract::Query, extract::State, Json};
 use chrono::Utc;
-use sea_orm::{ActiveModelTrait, ColumnTrait, EntityTrait, PaginatorTrait, QueryFilter, QueryOrder, QuerySelect, Set, TransactionTrait};
+use sea_orm::{ActiveModelTrait, ColumnTrait, EntityTrait, PaginatorTrait, QueryFilter, QueryOrder, Set, TransactionTrait};
 use serde::Deserialize;
 use tracing::info;
 
