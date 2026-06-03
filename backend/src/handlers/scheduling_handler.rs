@@ -310,6 +310,64 @@ pub async fn adjust_schedule(
     Ok(Json(ApiResponse::success(response)))
 }
 
+/// 前端排程任务调整请求体
+/// 字段语义对齐前端的 start_time / end_time（ISO 字符串），后端解析为日期。
+#[derive(Debug, Deserialize)]
+pub struct AdjustScheduleTaskPayload {
+    pub start_time: Option<String>,
+    pub end_time: Option<String>,
+    pub work_center_id: Option<i32>,
+    pub priority: Option<i32>,
+}
+
+/// 调整排程任务（前端 PUT /scheduling/tasks/:id/adjust）
+pub async fn adjust_schedule_task(
+    State(state): State<AppState>,
+    _auth: AuthContext,
+    Path(task_id): Path<i32>,
+    Json(payload): Json<AdjustScheduleTaskPayload>,
+) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
+    let service = SchedulingService::new(
+        state.db.clone(),
+        Arc::new(CapacityService::new(state.db.clone())),
+    );
+
+    // 解析 start_time / end_time：兼容纯日期 (YYYY-MM-DD) 与 ISO 日期时间字符串
+    fn parse_date(value: Option<String>) -> Option<NaiveDate> {
+        value.and_then(|v| {
+            let trimmed = v.split('T').next().unwrap_or(&v).to_string();
+            NaiveDate::parse_from_str(&trimmed, "%Y-%m-%d").ok()
+        })
+    }
+
+    let req = AdjustScheduleRequest {
+        work_center_id: payload.work_center_id,
+        start_date: parse_date(payload.start_time),
+        end_date: parse_date(payload.end_time),
+        priority: payload.priority,
+    };
+
+    let detail = service.adjust_schedule(task_id, req).await?;
+
+    // 返回前端期望的 ScheduleTask 形态（id/order_no/start_time/end_time）
+    let response = serde_json::json!({
+        "id": detail.order_id,
+        "order_id": detail.order_id,
+        "order_no": detail.order_no,
+        "work_center_id": detail.work_center_id,
+        "work_center_name": detail.work_center_name,
+        "start_time": detail.start_date.and_then(|d| {
+            chrono::NaiveDateTime::new(d, chrono::NaiveTime::from_hms_opt(0, 0, 0).unwrap()).and_utc().to_rfc3339()
+        }),
+        "end_time": detail.end_date.and_then(|d| {
+            chrono::NaiveDateTime::new(d, chrono::NaiveTime::from_hms_opt(0, 0, 0).unwrap()).and_utc().to_rfc3339()
+        }),
+        "status": detail.status,
+    });
+
+    Ok(Json(ApiResponse::success(response)))
+}
+
 /// 排程工单列表
 pub async fn list_scheduled_orders(
     State(state): State<AppState>,

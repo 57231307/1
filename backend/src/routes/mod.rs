@@ -237,6 +237,22 @@ pub fn create_router(state: AppState) -> Router {
             "/reports/income-statement",
             get(finance_report_handler::get_income_statement),
         )
+        .route(
+            "/reports/cash-flow",
+            get(finance_report_handler::get_cash_flow_statement),
+        )
+        .route(
+            "/reports/trial-balance",
+            get(finance_report_handler::get_trial_balance),
+        )
+        .route(
+            "/reports/general-ledger/:code",
+            get(finance_report_handler::get_general_ledger),
+        )
+        .route(
+            "/reports/subsidiary-ledger",
+            get(finance_report_handler::get_subsidiary_ledger),
+        )
         // Finance Audit Routes
         .route("/audit/track", post(omni_audit_handler::track_event))
         .route("/audit/stats", get(omni_audit_handler::get_dashboard_stats))
@@ -1099,8 +1115,29 @@ pub fn create_router(state: AppState) -> Router {
         .route("/statistics", get(sales_analysis_handler::list_statistics))
         .route("/trends", get(sales_analysis_handler::get_trends))
         .route("/rankings", get(sales_analysis_handler::get_rankings))
+        .route("/stats", get(sales_analysis_handler::get_stats))
+        .route(
+            "/product-ranking",
+            get(sales_analysis_handler::get_product_ranking),
+        )
+        .route(
+            "/customer-ranking",
+            get(sales_analysis_handler::get_customer_ranking),
+        )
+        .route(
+            "/trend",
+            get(sales_analysis_handler::get_trends),
+        )
+        .route(
+            "/export",
+            get(sales_analysis_handler::export_analysis),
+        )
         .route("/targets", get(sales_analysis_handler::get_targets))
-        .route("/targets", post(sales_analysis_handler::create_target));
+        .route("/targets", post(sales_analysis_handler::create_target))
+        .route(
+            "/targets/:period",
+            put(sales_analysis_handler::update_sales_target),
+        );
 
     // 销售价格路由
     let sales_price_routes = Router::new()
@@ -1607,6 +1644,10 @@ pub fn create_router(state: AppState) -> Router {
                 .route("/gantt", get(scheduling_handler::get_gantt_data))
                 .route("/conflicts", get(scheduling_handler::detect_conflicts))
                 .route("/tasks", get(scheduling_handler::list_scheduled_orders))
+                .route(
+                    "/tasks/:id/adjust",
+                    put(scheduling_handler::adjust_schedule_task),
+                )
                 .route("/:id", put(scheduling_handler::adjust_schedule))
                 .route(
                     "/work-orders",
