@@ -1,4 +1,12 @@
 #![allow(dead_code)]
+//! 本模块已废弃（无对应 migration + 0 业务引用）
+//!
+//! 原始文件：`models/enhanced_audit_log.rs`
+//! 移动时间：2026-06-03
+//! 移动原因：6 个子模块实体（financial/permission/security/performance/health/business）
+//!   在所有 migration 中均无对应表名，业务代码中 0 引用。
+//! 保留原因：作为参考，防止误删。
+//! 不应在生产代码中引用。
 
 use sea_orm::entity::prelude::*;
 use serde::{Deserialize, Serialize};

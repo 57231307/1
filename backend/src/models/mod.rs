@@ -205,4 +205,5 @@ pub mod business_trace_view;
 // 字段权限模块
 pub mod report_definition;
 // 增强审计日志模块
-pub mod enhanced_audit_log;
+// 增强审计日志已废弃（无对应 migration + 0 业务引用）→ _legacy/ 隔离
+// pub mod enhanced_audit_log;
