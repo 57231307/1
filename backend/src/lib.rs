@@ -3,6 +3,7 @@
 //! 本项目使用 SeaORM 1.0 + Axum + Tokio 技术栈
 //! 数据库：PostgreSQL 18
 
+pub mod cli;
 pub mod config;
 pub mod database;
 pub mod grpc;
