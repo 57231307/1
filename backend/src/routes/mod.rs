@@ -1155,7 +1155,12 @@ pub fn create_router(state: AppState) -> Router {
     let sales_price_routes = Router::new()
         .route("/", get(sales_price_handler::list_prices))
         .route("/", post(sales_price_handler::create_price))
-        .route("/:id", get(sales_price_handler::get_price))
+        .route(
+            "/:id",
+            get(sales_price_handler::get_price)
+                .put(sales_price_handler::update_price)
+                .delete(sales_price_handler::delete_price),
+        )
         .route("/:id/approve", post(sales_price_handler::approve_price))
         .route(
             "/history/:product_id",
@@ -1495,11 +1500,21 @@ pub fn create_router(state: AppState) -> Router {
 
     // 健康检查路由
     // 扫码出库路由
-    let scanner_routes = Router::new().route(
-        "/scan-to-ship",
-        get(barcode_scanner_handler::scan_to_ship_get)
-            .post(barcode_scanner_handler::scan_to_ship_post),
-    );
+    let scanner_routes = Router::new()
+        .route(
+            "/scan-to-ship",
+            get(barcode_scanner_handler::scan_to_ship_get)
+                .post(barcode_scanner_handler::scan_to_ship_post),
+        )
+        .route(
+            "/scan-inventory",
+            get(barcode_scanner_handler::scan_inventory),
+        )
+        .route("/history", get(barcode_scanner_handler::scan_history))
+        .route(
+            "/statistics",
+            get(barcode_scanner_handler::scan_statistics),
+        );
 
     // 物流管理路由
     let logistics_routes = Router::new()

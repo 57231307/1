@@ -2,8 +2,8 @@ use crate::models::sales_price;
 use crate::utils::error::AppError;
 use rust_decimal::Decimal;
 use sea_orm::{
-    ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, ExprTrait, Order,
-    PaginatorTrait, QueryFilter, QueryOrder, QuerySelect, Set,
+    ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, ExprTrait, IntoActiveModel,
+    Order, PaginatorTrait, QueryFilter, QueryOrder, QuerySelect, Set,
 };
 use serde::Deserialize;
 use std::sync::Arc;
@@ -24,6 +24,18 @@ pub struct CreateSalesPriceInput {
     pub customer_id: Option<i32>,
     pub customer_type: Option<String>,
     pub price: Decimal,
+    pub currency: Option<String>,
+    pub min_order_qty: Option<Decimal>,
+    pub effective_date: Option<String>,
+    pub expiry_date: Option<String>,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct UpdateSalesPriceInput {
+    pub product_id: Option<i32>,
+    pub customer_id: Option<i32>,
+    pub customer_type: Option<String>,
+    pub price: Option<Decimal>,
     pub currency: Option<String>,
     pub min_order_qty: Option<Decimal>,
     pub effective_date: Option<String>,
@@ -185,6 +197,75 @@ impl SalesPriceService {
             .await?;
 
         Ok(history)
+    }
+
+    /// 更新销售价格
+    pub async fn update_price(
+        &self,
+        id: i32,
+        req: UpdateSalesPriceInput,
+    ) -> Result<sales_price::Model, AppError> {
+        info!("更新销售价格，ID: {}", id);
+
+        let price_model = sales_price::Entity::find_by_id(id)
+            .one(&*self.db)
+            .await?
+            .ok_or_else(|| AppError::not_found(format!("销售价格 {} 未找到", id)))?;
+
+        let mut active: sales_price::ActiveModel = price_model.into_active_model();
+
+        if let Some(product_id) = req.product_id {
+            active.product_id = Set(product_id);
+        }
+        if let Some(customer_id) = req.customer_id {
+            active.customer_id = Set(Some(customer_id));
+        }
+        if let Some(customer_type) = req.customer_type {
+            active.customer_type = Set(Some(customer_type));
+        }
+        if let Some(price) = req.price {
+            active.price = Set(price);
+        }
+        if let Some(currency) = req.currency {
+            active.currency = Set(currency);
+        }
+        if let Some(min_order_qty) = req.min_order_qty {
+            active.min_order_qty = Set(min_order_qty);
+        }
+        if let Some(effective_date) = req.effective_date {
+            active.effective_date = Set(
+                effective_date
+                    .parse()
+                    .map_err(|e| AppError::validation(format!("日期格式错误：{}", e)))?,
+            );
+        }
+        if let Some(expiry_date) = req.expiry_date {
+            active.expiry_date = Set(Some(
+                expiry_date
+                    .parse()
+                    .map_err(|e| AppError::validation(format!("日期格式错误：{}", e)))?,
+            ));
+        }
+
+        let updated = active.update(&*self.db).await?;
+        info!("销售价格更新成功，ID: {}", updated.id);
+        Ok(updated)
+    }
+
+    /// 删除销售价格
+    pub async fn delete_price(&self, id: i32) -> Result<(), AppError> {
+        info!("删除销售价格，ID: {}", id);
+
+        let result = sales_price::Entity::delete_by_id(id)
+            .exec(&*self.db)
+            .await?;
+
+        if result.rows_affected == 0 {
+            return Err(AppError::not_found(format!("销售价格 {} 未找到", id)));
+        }
+
+        info!("销售价格删除成功，ID: {}", id);
+        Ok(())
     }
 
     pub async fn list_strategies(&self) -> Result<Vec<sales_price::Model>, AppError> {

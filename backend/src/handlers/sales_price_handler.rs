@@ -2,7 +2,9 @@
 
 use crate::middleware::auth_context::AuthContext;
 use crate::models::sales_price;
-use crate::services::sales_price_service::{CreateSalesPriceInput, SalesPriceService};
+use crate::services::sales_price_service::{
+    CreateSalesPriceInput, SalesPriceService, UpdateSalesPriceInput,
+};
 use crate::utils::app_state::AppState;
 use crate::utils::error::AppError;
 use crate::utils::ApiResponse;
@@ -124,4 +126,33 @@ pub async fn list_strategies(
     info!("销售价格策略查询成功，共 {} 条记录", strategies.len());
 
     Ok(Json(ApiResponse::success(strategies)))
+}
+
+pub async fn update_price(
+    State(state): State<AppState>,
+    Path(id): Path<i32>,
+    auth: AuthContext,
+    Json(req): Json<UpdateSalesPriceInput>,
+) -> Result<Json<ApiResponse<sales_price::Model>>, AppError> {
+    info!("用户 {} 正在更新销售价格，ID: {}", auth.user_id, id);
+
+    let service = SalesPriceService::new(state.db.clone());
+    let price = service.update_price(id, req).await?;
+    info!("销售价格更新成功，ID: {}", price.id);
+
+    Ok(Json(ApiResponse::success(price)))
+}
+
+pub async fn delete_price(
+    State(state): State<AppState>,
+    Path(id): Path<i32>,
+    auth: AuthContext,
+) -> Result<Json<ApiResponse<()>>, AppError> {
+    info!("用户 {} 正在删除销售价格，ID: {}", auth.user_id, id);
+
+    let service = SalesPriceService::new(state.db.clone());
+    service.delete_price(id).await?;
+    info!("销售价格删除成功，ID: {}", id);
+
+    Ok(Json(ApiResponse::success(())))
 }
