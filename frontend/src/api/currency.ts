@@ -56,5 +56,5 @@ export function getExchangeRate(params: {
   toCurrency: string
   date?: string
 }) {
-  return request.get('/exchange-rates', { params })
+  return request.get('/exchange-rates/query', { params })
 }
