@@ -41,22 +41,6 @@ pub struct UpdateArPaymentRequest {
     pub remark: Option<String>,
 }
 
-/// 收款响应
-#[derive(Debug, Serialize)]
-pub struct ArPaymentResponse {
-    pub id: i32,
-    pub payment_no: String,
-    pub customer_id: i32,
-    pub amount: rust_decimal::Decimal,
-    pub payment_method: String,
-    pub payment_date: chrono::NaiveDate,
-    pub status: String,
-    pub bank_account: Option<String>,
-    pub remark: Option<String>,
-    pub created_at: chrono::NaiveDateTime,
-    pub updated_at: chrono::NaiveDateTime,
-}
-
 /// 获取收款列表
 /// GET /api/v1/erp/ar/payments
 pub async fn list_payments(

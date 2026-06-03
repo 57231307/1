@@ -1546,7 +1546,7 @@ impl SalesService {
     pub async fn cancel_order(
         &self,
         order_id: i32,
-        user_id: i32,
+        _user_id: i32,
     ) -> Result<SalesOrderDetail, AppError> {
         // 获取订单
         let order = SalesOrderEntity::find_by_id(order_id)
@@ -1573,7 +1573,7 @@ impl SalesService {
     /// 获取订单发货记录
     pub async fn get_order_deliveries(
         &self,
-        order_id: i32,
+        _order_id: i32,
         _page: u64,
         _page_size: u64,
     ) -> Result<(Vec<serde_json::Value>, i64), AppError> {
@@ -1618,12 +1618,12 @@ impl SalesService {
     ) -> Result<serde_json::Value, AppError> {
         use sea_orm::QuerySelect;
 
-        let start_date = query
+        let _start_date = query
             .get("start_date")
             .and_then(|v| v.as_str())
             .unwrap_or("2020-01-01");
 
-        let end_date = query
+        let _end_date = query
             .get("end_date")
             .and_then(|v| v.as_str())
             .unwrap_or("2099-12-31");

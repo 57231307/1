@@ -4,7 +4,7 @@ use axum::{
     extract::{Path, Query, State},
     Json,
 };
-use serde::{Deserialize, Serialize};
+use serde::Deserialize;
 
 use crate::utils::error::AppError;
 use crate::utils::response::ApiResponse;
@@ -26,20 +26,6 @@ pub struct ManualVerifyRequest {
     pub payment_id: i32,
     pub amount: rust_decimal::Decimal,
     pub remark: Option<String>,
-}
-
-/// 核销响应
-#[derive(Debug, Serialize)]
-pub struct ArVerificationResponse {
-    pub id: i32,
-    pub invoice_id: i32,
-    pub payment_id: i32,
-    pub amount: rust_decimal::Decimal,
-    pub status: String,
-    pub verified_by: i32,
-    pub verified_at: chrono::NaiveDateTime,
-    pub remark: Option<String>,
-    pub created_at: chrono::NaiveDateTime,
 }
 
 /// 获取核销列表

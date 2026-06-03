@@ -4,7 +4,7 @@ use axum::{
     extract::{Query, State},
     Json,
 };
-use serde::{Deserialize, Serialize};
+use serde::Deserialize;
 
 use crate::utils::error::AppError;
 use crate::utils::response::ApiResponse;
@@ -15,18 +15,6 @@ pub struct ArReportQuery {
     pub start_date: Option<chrono::NaiveDate>,
     pub end_date: Option<chrono::NaiveDate>,
     pub customer_id: Option<i32>,
-    pub period: Option<String>,
-}
-
-/// 统计报表响应
-#[derive(Debug, Serialize)]
-pub struct StatisticsReportResponse {
-    pub total_invoices: i64,
-    pub total_amount: rust_decimal::Decimal,
-    pub paid_amount: rust_decimal::Decimal,
-    pub unpaid_amount: rust_decimal::Decimal,
-    pub overdue_amount: rust_decimal::Decimal,
-    pub collection_rate: f64,
 }
 
 /// 获取统计报表

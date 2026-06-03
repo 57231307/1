@@ -333,7 +333,6 @@ pub async fn delete_production_order(
 /// 更新生产进度请求
 #[derive(Debug, Deserialize)]
 pub struct UpdateProgressRequest {
-    pub progress_percent: Option<Decimal>,
     pub actual_quantity: Option<Decimal>,
     pub remarks: Option<String>,
 }

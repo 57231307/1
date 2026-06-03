@@ -1,9 +1,6 @@
 #![allow(dead_code)]
 use chrono::Utc;
-use sea_orm::{
-    ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter, QueryOrder,
-    QuerySelect,
-};
+use sea_orm::DatabaseConnection;
 use std::sync::Arc;
 
 use crate::utils::error::AppError;
@@ -23,11 +20,11 @@ impl ArService {
     /// 获取收款列表
     pub async fn list_payments(
         &self,
-        page: u64,
-        page_size: u64,
-        status: Option<String>,
-        customer_id: Option<i32>,
-        payment_no: Option<String>,
+        _page: u64,
+        _page_size: u64,
+        _status: Option<String>,
+        _customer_id: Option<i32>,
+        _payment_no: Option<String>,
     ) -> Result<(Vec<serde_json::Value>, i64), AppError> {
         // 简化实现：返回空列表
         Ok((vec![], 0))
@@ -49,6 +46,7 @@ impl ArService {
         }))
     }
 
+    #[allow(clippy::too_many_arguments)]
     /// 创建收款
     pub async fn create_payment(
         &self,
@@ -58,8 +56,8 @@ impl ArService {
         payment_date: chrono::NaiveDate,
         bank_account: Option<String>,
         remark: Option<String>,
-        invoice_ids: Option<Vec<i32>>,
-        user_id: i32,
+        _invoice_ids: Option<Vec<i32>>,
+        _user_id: i32,
     ) -> Result<serde_json::Value, AppError> {
         let payment_no = format!("PAY{}", Utc::now().format("%Y%m%d%H%M%S"));
 
@@ -81,8 +79,8 @@ impl ArService {
     pub async fn update_payment(
         &self,
         payment_id: i32,
-        payload: serde_json::Value,
-        user_id: i32,
+        _payload: serde_json::Value,
+        _user_id: i32,
     ) -> Result<serde_json::Value, AppError> {
         // 简化实现：返回模拟数据
         Ok(serde_json::json!({
@@ -95,7 +93,7 @@ impl ArService {
     pub async fn confirm_payment(
         &self,
         payment_id: i32,
-        user_id: i32,
+        _user_id: i32,
     ) -> Result<serde_json::Value, AppError> {
         // 简化实现：返回模拟数据
         Ok(serde_json::json!({
@@ -109,11 +107,11 @@ impl ArService {
     /// 获取核销列表
     pub async fn list_verifications(
         &self,
-        page: u64,
-        page_size: u64,
-        invoice_id: Option<i32>,
-        payment_id: Option<i32>,
-        status: Option<String>,
+        _page: u64,
+        _page_size: u64,
+        _invoice_id: Option<i32>,
+        _payment_id: Option<i32>,
+        _status: Option<String>,
     ) -> Result<(Vec<serde_json::Value>, i64), AppError> {
         // 简化实现：返回空列表
         Ok((vec![], 0))
@@ -138,7 +136,7 @@ impl ArService {
     }
 
     /// 自动核销
-    pub async fn auto_verify(&self, user_id: i32) -> Result<serde_json::Value, AppError> {
+    pub async fn auto_verify(&self, _user_id: i32) -> Result<serde_json::Value, AppError> {
         // 简化实现：返回模拟数据
         Ok(serde_json::json!({
             "verified_count": 0,
@@ -172,7 +170,7 @@ impl ArService {
     pub async fn cancel_verification(
         &self,
         verification_id: i32,
-        user_id: i32,
+        _user_id: i32,
     ) -> Result<serde_json::Value, AppError> {
         // 简化实现：返回模拟数据
         Ok(serde_json::json!({
@@ -204,9 +202,9 @@ impl ArService {
     /// 获取统计报表
     pub async fn get_statistics_report(
         &self,
-        start_date: Option<chrono::NaiveDate>,
-        end_date: Option<chrono::NaiveDate>,
-        customer_id: Option<i32>,
+        _start_date: Option<chrono::NaiveDate>,
+        _end_date: Option<chrono::NaiveDate>,
+        _customer_id: Option<i32>,
     ) -> Result<serde_json::Value, AppError> {
         // 简化实现：返回模拟数据
         Ok(serde_json::json!({
@@ -223,9 +221,9 @@ impl ArService {
     /// 获取日报表
     pub async fn get_daily_report(
         &self,
-        start_date: Option<chrono::NaiveDate>,
-        end_date: Option<chrono::NaiveDate>,
-        customer_id: Option<i32>,
+        _start_date: Option<chrono::NaiveDate>,
+        _end_date: Option<chrono::NaiveDate>,
+        _customer_id: Option<i32>,
     ) -> Result<serde_json::Value, AppError> {
         // 简化实现：返回空列表
         Ok(serde_json::json!([]))
@@ -234,9 +232,9 @@ impl ArService {
     /// 获取月报表
     pub async fn get_monthly_report(
         &self,
-        start_date: Option<chrono::NaiveDate>,
-        end_date: Option<chrono::NaiveDate>,
-        customer_id: Option<i32>,
+        _start_date: Option<chrono::NaiveDate>,
+        _end_date: Option<chrono::NaiveDate>,
+        _customer_id: Option<i32>,
     ) -> Result<serde_json::Value, AppError> {
         // 简化实现：返回空列表
         Ok(serde_json::json!([]))
@@ -245,7 +243,7 @@ impl ArService {
     /// 获取账龄报表
     pub async fn get_aging_report(
         &self,
-        customer_id: Option<i32>,
+        _customer_id: Option<i32>,
     ) -> Result<serde_json::Value, AppError> {
         // 简化实现：返回空列表
         Ok(serde_json::json!([]))
