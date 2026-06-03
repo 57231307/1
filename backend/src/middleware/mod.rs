@@ -10,6 +10,8 @@ pub mod permission;
 pub mod public_routes;
 pub mod rate_limit;
 pub mod request_validator;
+pub mod sql_injection_audit;
 pub mod tenant;
 pub mod tenant_isolation;
 pub mod timeout;
+pub mod validation;

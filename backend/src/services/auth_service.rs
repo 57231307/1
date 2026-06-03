@@ -25,9 +25,12 @@ use argon2::{
 };
 use chrono::{DateTime, Duration, Utc};
 use jsonwebtoken::{decode, encode, DecodingKey, EncodingKey, Header, Validation};
+use once_cell::sync::Lazy;
 use sea_orm::DatabaseConnection;
 use serde::{Deserialize, Serialize};
+use std::collections::HashSet;
 use std::sync::Arc;
+use tokio::sync::RwLock;
 
 /// JWT 令牌声明
 ///
@@ -328,6 +331,58 @@ impl From<AppError> for AuthError {
             _ => AuthError::DatabaseError(sea_orm::DbErr::Custom(err.to_string())),
         }
     }
+}
+
+// =====================================================================
+// JTI 黑名单（已吊销的 JWT ID）
+// =====================================================================
+//
+// 用于实现 Refresh Token 轮换场景下的旧 Token 立即失效：
+// - 登出时调用 `revoke_jti` 吊销当前 Token 的 JTI（session_id）
+// - Refresh Token 旋转时调用 `revoke_jti` 吊销旧 Token 的 JTI
+// - 每次受保护请求在 middleware 中调用 `is_jti_revoked` 检查
+
+/// JWT JTI 黑名单（已吊销的 Token ID）
+static JTI_BLACKLIST: Lazy<RwLock<HashSet<String>>> =
+    Lazy::new(|| RwLock::new(HashSet::new()));
+
+/// 吊销指定 JTI
+///
+/// 将给定 JTI 加入内存黑名单，后续请求将拒绝持有该 JTI 的 Token。
+///
+/// # 参数
+/// - `jti`: 待吊销的 Token 唯一标识（当前实现取自 `AppClaims::session_id`）
+pub async fn revoke_jti(jti: &str) {
+    let mut blacklist = JTI_BLACKLIST.write().await;
+    blacklist.insert(jti.to_string());
+    tracing::info!("JTI 已吊销：{}", jti);
+}
+
+/// 检查 JTI 是否在黑名单
+///
+/// # 参数
+/// - `jti`: 待检查的 Token 唯一标识
+///
+/// # 返回
+/// - `true`: 该 JTI 已被吊销
+/// - `false`: 该 JTI 仍然有效
+pub async fn is_jti_revoked(jti: &str) -> bool {
+    let blacklist = JTI_BLACKLIST.read().await;
+    blacklist.contains(jti)
+}
+
+/// 清理过期 JTI（建议定期调用，如每小时）
+///
+/// 简化实现：清空整个黑名单。
+/// 生产环境建议改为带时间戳追踪的 HashMap，仅清理已超过 Token 剩余生命周期的项。
+///
+/// # 参数
+/// - `_max_age_secs`: 允许的最大存活时间（秒），当前实现忽略该参数
+pub async fn cleanup_expired_jti(_max_age_secs: i64) {
+    let mut blacklist = JTI_BLACKLIST.write().await;
+    let before = blacklist.len();
+    blacklist.clear();
+    tracing::info!("清理 JTI 黑名单：移除 {} 条", before);
 }
 
 #[cfg(test)]

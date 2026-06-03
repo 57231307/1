@@ -1,6 +1,6 @@
 #![allow(dead_code)]
 use config::{Config, ConfigError, File};
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Deserialize)]
 pub struct AppSettings {
@@ -53,9 +53,60 @@ pub struct LogConfig {
     pub dir: String,
 }
 
-#[derive(Debug, Clone, Deserialize)]
+/// CORS 跨域配置
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CorsConfig {
+    /// 允许的来源列表（默认仅本地开发）
     pub allowed_origins: Vec<String>,
+    /// 是否允许携带凭证
+    pub allow_credentials: bool,
+    /// 允许的 HTTP 方法
+    pub allowed_methods: Vec<String>,
+    /// 允许的请求头
+    pub allowed_headers: Vec<String>,
+    /// 预检请求缓存秒数
+    pub max_age_secs: u64,
+}
+
+impl Default for CorsConfig {
+    fn default() -> Self {
+        Self {
+            allowed_origins: vec![
+                "http://localhost:3000".to_string(),
+                "http://localhost:5173".to_string(),
+            ],
+            allow_credentials: true,
+            allowed_methods: vec![
+                "GET".to_string(),
+                "POST".to_string(),
+                "PUT".to_string(),
+                "DELETE".to_string(),
+                "OPTIONS".to_string(),
+            ],
+            allowed_headers: vec![
+                "Content-Type".to_string(),
+                "Authorization".to_string(),
+                "X-Requested-With".to_string(),
+            ],
+            max_age_secs: 3600,
+        }
+    }
+}
+
+impl CorsConfig {
+    /// 从环境变量加载（使用 CORS_ALLOWED_ORIGINS 单下划线环境变量，
+    /// 用于在无法读取 config 文件时直接构造 CORS 配置的兜底场景）
+    pub fn from_env() -> Self {
+        let mut config = Self::default();
+        if let Ok(origins) = std::env::var("CORS_ALLOWED_ORIGINS") {
+            config.allowed_origins = origins
+                .split(',')
+                .map(|s| s.trim().to_string())
+                .filter(|s| !s.is_empty())
+                .collect();
+        }
+        config
+    }
 }
 
 #[derive(Debug, Clone, Deserialize)]

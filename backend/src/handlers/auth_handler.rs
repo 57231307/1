@@ -557,6 +557,9 @@ pub async fn refresh_token(
             )
         })?;
 
+    // Refresh Token 轮换：先将旧 Token 的 JTI（session_id）加入黑名单
+    crate::services::auth_service::revoke_jti(&claims.session_id).await;
+
     // Blacklist the old token after successful refresh
     let now_ts = chrono::Utc::now().timestamp() as usize;
     let exp = claims.exp.timestamp() as usize;

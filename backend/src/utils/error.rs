@@ -354,3 +354,88 @@ impl From<validator::ValidationErrors> for AppError {
         AppError::validation(err.to_string())
     }
 }
+
+// ============================================================================
+// 后端安全增强：错误响应统一化 & 生产环境脱敏
+// ----------------------------------------------------------------------------
+// 本段仅在文件末尾追加，不修改现有 AppError / Display / IntoResponse / From
+// 实现，确保对外 API 完全向后兼容。
+// ============================================================================
+
+use chrono::Utc;
+use uuid::Uuid;
+
+/// 对外暴露的统一错误响应体
+///
+/// 字段说明：
+/// - `code`      业务错误码（字符串枚举，便于多端/多语言统一处理）
+/// - `message`   错误消息：开发环境保留 `Display` 详细描述；生产环境脱敏为通用文案
+/// - `trace_id`  本次请求的链路追踪 ID，可用于服务端日志关联
+/// - `timestamp` 错误发生时的 Unix 时间戳（秒）
+#[derive(Debug, Clone, Serialize)]
+pub struct ErrorResponse {
+    pub code: String,
+    pub message: String,
+    pub trace_id: String,
+    pub timestamp: i64,
+}
+
+/// 为已有 `AppError` 追加响应序列化能力（不修改任何现有方法）
+impl AppError {
+    /// 转换为对外统一的 [`ErrorResponse`]
+    ///
+    /// 行为：
+    /// - `cfg!(debug_assertions)` 为 true（即 `cargo run` / `cargo test`）→ 返回 `Display` 详细描述
+    /// - release 构建 → 返回脱敏的通用文案，敏感信息（SQL 片段、内部堆栈等）不再外泄
+    pub fn to_response(&self) -> ErrorResponse {
+        let trace_id = Uuid::new_v4().to_string();
+        let timestamp = Utc::now().timestamp();
+
+        let code = self.error_code();
+        let message = if cfg!(debug_assertions) {
+            // 开发环境：暴露 Display 的完整内容，便于排查
+            self.to_string()
+        } else {
+            // 生产环境：脱敏为通用文案
+            self.public_message()
+        };
+
+        ErrorResponse {
+            code,
+            message,
+            trace_id,
+            timestamp,
+        }
+    }
+
+    /// 业务错误码（稳定的字符串枚举）
+    pub fn error_code(&self) -> String {
+        match self {
+            AppError::NotFound(_) => "NOT_FOUND",
+            AppError::BadRequest(_) => "BAD_REQUEST",
+            AppError::Unauthorized(_) => "UNAUTHORIZED",
+            AppError::PermissionDenied(_) => "FORBIDDEN",
+            AppError::ValidationError(_) => "VALIDATION_ERROR",
+            AppError::BusinessError(_) => "BUSINESS_ERROR",
+            AppError::DatabaseError(_) => "DATABASE_ERROR",
+            AppError::InternalError(_) => "INTERNAL_ERROR",
+            AppError::TooManyRequests { .. } => "TOO_MANY_REQUESTS",
+        }
+        .to_string()
+    }
+
+    /// 生产环境对外暴露的脱敏文案
+    fn public_message(&self) -> String {
+        match self {
+            AppError::DatabaseError(_) => "数据库错误".to_string(),
+            AppError::ValidationError(_) => "请求参数验证失败".to_string(),
+            AppError::NotFound(_) => "资源未找到".to_string(),
+            AppError::BusinessError(_) => "业务处理失败".to_string(),
+            AppError::Unauthorized(_) => "未授权".to_string(),
+            AppError::InternalError(_) => "服务器内部错误".to_string(),
+            AppError::BadRequest(_) => "请求参数错误".to_string(),
+            AppError::PermissionDenied(_) => "无权限".to_string(),
+            AppError::TooManyRequests { .. } => "请求过于频繁，请稍后重试".to_string(),
+        }
+    }
+}
