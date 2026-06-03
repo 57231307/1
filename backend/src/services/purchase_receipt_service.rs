@@ -178,6 +178,50 @@ impl PurchaseReceiptService {
         Ok(receipt)
     }
 
+    /// 删除采购入库单（仅 DRAFT 状态）
+    pub async fn delete_receipt(
+        &self,
+        receipt_id: i32,
+        user_id: i32,
+    ) -> Result<(), AppError> {
+        // 1. 查询入库单
+        let receipt = purchase_receipt::Entity::find_by_id(receipt_id)
+            .one(&*self.db)
+            .await?
+            .ok_or_else(|| AppError::not_found(format!("采购入库单 {}", receipt_id)))?;
+
+        // 2. 检查状态
+        if receipt.receipt_status != "DRAFT" {
+            return Err(AppError::business(format!(
+                "入库单状态不允许删除，当前状态：{}",
+                receipt.receipt_status
+            )));
+        }
+
+        // 3. 检查权限
+        if receipt.created_by != user_id {
+            return Err(AppError::permission_denied(
+                "只能删除自己创建的入库单".to_string(),
+            ));
+        }
+
+        let txn = (*self.db).begin().await?;
+
+        // 4. 先删除明细
+        purchase_receipt_item::Entity::delete_many()
+            .filter(purchase_receipt_item::Column::ReceiptId.eq(receipt_id))
+            .exec(&txn)
+            .await?;
+
+        // 5. 删除入库单
+        purchase_receipt::Entity::delete_by_id(receipt_id)
+            .exec(&txn)
+            .await?;
+
+        txn.commit().await?;
+        Ok(())
+    }
+
     /// 确认采购入库单
     pub async fn confirm_receipt(
         &self,

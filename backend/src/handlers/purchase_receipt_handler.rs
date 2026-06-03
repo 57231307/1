@@ -205,6 +205,20 @@ pub async fn confirm_receipt(
     )))
 }
 
+/// 删除采购入库单
+pub async fn delete_receipt(
+    auth: AuthContext,
+    Path(id): Path<i32>,
+    State(state): State<AppState>,
+) -> Result<StatusCode, AppError> {
+    let service = PurchaseReceiptService::new(state.db.clone());
+    let user_id = auth.user_id;
+
+    service.delete_receipt(id, user_id).await?;
+
+    Ok(StatusCode::NO_CONTENT)
+}
+
 /// 获取入库明细列表
 pub async fn list_receipt_items(
     auth: AuthContext,

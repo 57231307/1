@@ -801,7 +801,8 @@ pub fn create_router(state: AppState) -> Router {
         .route("/receipts/:id", get(purchase_receipt_handler::get_receipt))
         .route(
             "/receipts/:id",
-            put(purchase_receipt_handler::update_receipt),
+            put(purchase_receipt_handler::update_receipt)
+                .delete(purchase_receipt_handler::delete_receipt),
         )
         .route(
             "/receipts/:id/confirm",
