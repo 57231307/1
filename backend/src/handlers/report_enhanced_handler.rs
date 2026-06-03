@@ -376,3 +376,174 @@ pub async fn trigger_subscription(
         "报表订阅已触发",
     )))
 }
+
+/// 报表模板导出请求
+#[allow(dead_code)]
+#[derive(Debug, Deserialize)]
+pub struct TemplateExportRequest {
+    pub format: Option<String>,
+    pub title: Option<String>,
+}
+
+/// GET /api/v1/erp/reports-enhanced/fields/:template_type - 获取指定模板类型可用的字段定义
+pub async fn get_available_fields(
+    State(_state): State<AppState>,
+    _auth: AuthContext,
+    Path(template_type): Path<String>,
+) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
+    // 基于模板类型返回预定义的可用字段列表
+    let fields: Vec<serde_json::Value> = match template_type.to_lowercase().as_str() {
+        "sales" | "sales_daily" | "销售" => vec![
+            serde_json::json!({"field": "order_no", "title": "订单编号", "data_type": "string"}),
+            serde_json::json!({"field": "customer_name", "title": "客户名称", "data_type": "string"}),
+            serde_json::json!({"field": "order_date", "title": "订单日期", "data_type": "date"}),
+            serde_json::json!({"field": "total_amount", "title": "订单金额", "data_type": "decimal"}),
+            serde_json::json!({"field": "status", "title": "状态", "data_type": "string"}),
+        ],
+        "purchase" | "purchase_summary" | "采购" => vec![
+            serde_json::json!({"field": "order_no", "title": "采购单号", "data_type": "string"}),
+            serde_json::json!({"field": "supplier_name", "title": "供应商", "data_type": "string"}),
+            serde_json::json!({"field": "order_date", "title": "下单日期", "data_type": "date"}),
+            serde_json::json!({"field": "total_amount", "title": "采购金额", "data_type": "decimal"}),
+            serde_json::json!({"field": "delivery_date", "title": "交期", "data_type": "date"}),
+        ],
+        "inventory" | "inventory_status" | "库存" => vec![
+            serde_json::json!({"field": "product_code", "title": "产品编码", "data_type": "string"}),
+            serde_json::json!({"field": "product_name", "title": "产品名称", "data_type": "string"}),
+            serde_json::json!({"field": "quantity_available", "title": "可用库存", "data_type": "decimal"}),
+            serde_json::json!({"field": "quantity_reserved", "title": "预留库存", "data_type": "decimal"}),
+            serde_json::json!({"field": "warehouse", "title": "仓库", "data_type": "string"}),
+        ],
+        "financial" | "finance" | "财务" => vec![
+            serde_json::json!({"field": "payment_no", "title": "付款单号", "data_type": "string"}),
+            serde_json::json!({"field": "amount", "title": "金额", "data_type": "decimal"}),
+            serde_json::json!({"field": "payment_method", "title": "付款方式", "data_type": "string"}),
+            serde_json::json!({"field": "status", "title": "状态", "data_type": "string"}),
+            serde_json::json!({"field": "created_at", "title": "创建时间", "data_type": "datetime"}),
+        ],
+        "custom" | "自定义" => vec![
+            serde_json::json!({"field": "id", "title": "ID", "data_type": "string"}),
+            serde_json::json!({"field": "name", "title": "名称", "data_type": "string"}),
+            serde_json::json!({"field": "created_at", "title": "创建时间", "data_type": "datetime"}),
+        ],
+        _ => vec![
+            serde_json::json!({"field": "*", "title": "全部字段", "data_type": "string"}),
+        ],
+    };
+
+    Ok(Json(ApiResponse::success(serde_json::json!({
+        "template_type": template_type,
+        "fields": fields,
+    }))))
+}
+
+/// POST /api/v1/erp/reports-enhanced/templates/:id/export - 导出指定模板
+pub async fn export_template(
+    State(state): State<AppState>,
+    auth: AuthContext,
+    Path(id): Path<i32>,
+    Json(req): Json<TemplateExportRequest>,
+) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
+    let service = ReportTemplateService::new(state.db.clone());
+
+    let (headers, data, _total) = service.execute_custom_report(id, 1, 10000).await?;
+
+    let format = req.format.unwrap_or_else(|| "csv".to_string());
+    let title = req.title.unwrap_or_else(|| format!("报表模板 {}", id));
+
+    let export_data = crate::services::export_service::ExportData {
+        title: title.clone(),
+        headers,
+        rows: data,
+        summary: None,
+    };
+
+    let (content_type, encoded, ext) = match format.to_lowercase().as_str() {
+        "pdf" => {
+            let bytes = crate::services::export_service::ExportService::export_pdf(&export_data)?;
+            let ct = "application/pdf".to_string();
+            (ct, bytes, "pdf")
+        }
+        "excel" | "xlsx" => {
+            let bytes =
+                crate::services::export_service::ExportService::export_excel(&export_data)?;
+            let ct = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet".to_string();
+            (ct, bytes, "xlsx")
+        }
+        _ => {
+            let bytes = crate::services::export_service::ExportService::export_csv(&export_data)?;
+            let ct = "text/csv".to_string();
+            (ct, bytes, "csv")
+        }
+    };
+
+    use base64::Engine;
+    let encoded_content = base64::engine::general_purpose::STANDARD.encode(&encoded);
+
+    tracing::info!("用户 {} 导出报表模板: ID={}, 格式={}", auth.username, id, format);
+
+    Ok(Json(ApiResponse::success(serde_json::json!({
+        "template_id": id,
+        "filename": format!("{}.{}", title, ext),
+        "size": encoded.len(),
+        "content_type": content_type,
+        "content": encoded_content,
+        "message": "模板导出成功"
+    }))))
+}
+
+/// GET /api/v1/erp/reports-enhanced/templates/:id/preview - 预览报表模板数据
+pub async fn preview_template(
+    State(state): State<AppState>,
+    auth: AuthContext,
+    Path(id): Path<i32>,
+) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
+    let service = ReportTemplateService::new(state.db.clone());
+
+    let (columns, data, total) = service.execute_custom_report(id, 1, 50).await?;
+
+    tracing::info!("用户 {} 预览报表模板: ID={}", auth.username, id);
+
+    Ok(Json(ApiResponse::success(serde_json::json!({
+        "template_id": id,
+        "columns": columns,
+        "data": data,
+        "total": total,
+        "preview_rows": data.len(),
+    }))))
+}
+
+/// POST /api/v1/erp/reports-enhanced/subscriptions/:id/send - 立即发送报表订阅
+pub async fn send_subscription_now(
+    State(state): State<AppState>,
+    auth: AuthContext,
+    Path(id): Path<i32>,
+) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
+    let service = ReportSubscriptionService::new(state.db.clone());
+
+    // 验证订阅存在
+    let subscription = service
+        .get_by_id(id)
+        .await?
+        .ok_or_else(|| AppError::not_found("订阅不存在"))?;
+
+    // 立即触发该订阅
+    service.trigger(id).await?;
+
+    tracing::info!(
+        "用户 {} 立即发送报表订阅: ID={}, 名称={}",
+        auth.username,
+        id,
+        subscription.name
+    );
+
+    Ok(Json(ApiResponse::success_with_message(
+        serde_json::json!({
+            "subscription_id": id,
+            "name": subscription.name,
+            "recipients": subscription.recipients,
+            "export_format": subscription.export_format,
+        }),
+        "报表订阅已立即发送",
+    )))
+}
