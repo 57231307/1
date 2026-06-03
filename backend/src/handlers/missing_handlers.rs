@@ -8,6 +8,11 @@
 //! 3. 销售用户列表 — 复用 `user` 模型 + role 过滤
 //! 4. CRM 公海回收规则 — 内存存储（对应数据库表 `crm_recycle_rules` 后续可平滑迁移）
 
+#[allow(dead_code)]
+#[allow(clippy::too_many_arguments)]
+#[allow(clippy::missing_errors_doc)]
+#[allow(clippy::missing_panics_doc)]
+
 use axum::{
     extract::{Path, State},
     Json,
@@ -322,14 +327,6 @@ pub async fn get_mrp_history_detail(
     Path(id): Path<i32>,
     _auth: AuthContext,
 ) -> Result<Json<ApiResponse<MrpHistoryDetailDto>>, AppError> {
-    let mrp_service = MrpEngineService::new(state.db.clone());
-    let (results, _total) = mrp_service
-        .get_results(None, None, None, 1, 1)
-        .await
-        .ok()
-        .unwrap_or_default();
-    let _ = results; // 避免未使用警告
-
     // 直接查询 mrp_result 模型
     let result = crate::models::mrp_result::Entity::find_by_id(id)
         .one(state.db.as_ref())
