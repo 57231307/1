@@ -105,6 +105,7 @@ pub async fn activate_version_by_id(
 }
 
 /// 保存为模板
+#[allow(dead_code)]
 pub async fn save_as_template(
     State(state): State<AppState>,
     Path(id): Path<i32>,

@@ -38,6 +38,7 @@ pub struct CustomerRankingItem {
 }
 
 #[derive(Debug, Clone, Deserialize)]
+#[allow(dead_code)]
 pub struct ProductRankingParams {
     #[serde(rename = "type")]
     pub dimension_type: Option<String>,
@@ -46,6 +47,7 @@ pub struct ProductRankingParams {
 }
 
 #[derive(Debug, Clone, Deserialize)]
+#[allow(dead_code)]
 pub struct CustomerRankingParams {
     #[serde(rename = "type")]
     pub dimension_type: Option<String>,
@@ -54,6 +56,7 @@ pub struct CustomerRankingParams {
 }
 
 #[derive(Debug, Clone, Deserialize)]
+#[allow(dead_code)]
 pub struct UpdateSalesTargetRequest {
     pub target_amount: Option<Decimal>,
     pub status: Option<String>,
@@ -72,6 +75,7 @@ pub struct SalesTargetDto {
 }
 
 #[derive(Debug, Clone, Default, Deserialize)]
+#[allow(dead_code)]
 pub struct ExportParams {
     pub period: Option<String>,
     pub format: Option<String>,
