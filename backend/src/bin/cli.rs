@@ -24,6 +24,19 @@ fn get_backup_dir() -> String {
     std::env::var("BINGXI_BACKUP_DIR").unwrap_or_else(|_| format!("{}/backups", get_install_dir()))
 }
 
+/// 必需的环境变量读取助手：缺失或为空时打印明确错误并退出
+fn require_env(key: &str, hint: &str) -> String {
+    match std::env::var(key) {
+        Ok(v) if !v.trim().is_empty() => v,
+        _ => {
+            eprintln!("❌ 错误：缺少必需的环境变量 {}", key);
+            eprintln!("提示：{}", hint);
+            eprintln!("请在 /etc/bingxi/.env 或当前 shell 中设置后重试。");
+            std::process::exit(1);
+        }
+    }
+}
+
 /// GitHub 仓库
 const GITHUB_REPO: &str = "57231307/1";
 
@@ -492,10 +505,18 @@ fn cmd_backup(backup_type: &str) {
     if backup_type == "database" || backup_type == "all" {
         println!("\n备份数据库...");
         let db_file = format!("{}/database.sql", backup_dir);
-        let db_host =
-            std::env::var("DATABASE__HOST").unwrap_or_else(|_| "39.99.34.194".to_string());
-        let db_user = std::env::var("DATABASE__USERNAME").unwrap_or_else(|_| "bingxi".to_string());
-        let db_name = std::env::var("DATABASE__NAME").unwrap_or_else(|_| "bingxi".to_string());
+        let db_host = require_env(
+            "DATABASE__HOST",
+            "请设置数据库主机地址，例如 export DATABASE__HOST=127.0.0.1",
+        );
+        let db_user = require_env(
+            "DATABASE__USERNAME",
+            "请设置数据库用户名，例如 export DATABASE__USERNAME=postgres",
+        );
+        let db_name = require_env(
+            "DATABASE__NAME",
+            "请设置数据库名称，例如 export DATABASE__NAME=bingxi_erp",
+        );
 
         match run_cmd(
             "pg_dump",
@@ -557,10 +578,18 @@ fn cmd_restore(file: &str) {
     let db_file = format!("{}/database.sql", temp_dir);
     if std::path::Path::new(&db_file).exists() {
         println!("\n恢复数据库...");
-        let db_host =
-            std::env::var("DATABASE__HOST").unwrap_or_else(|_| "39.99.34.194".to_string());
-        let db_user = std::env::var("DATABASE__USERNAME").unwrap_or_else(|_| "bingxi".to_string());
-        let db_name = std::env::var("DATABASE__NAME").unwrap_or_else(|_| "bingxi".to_string());
+        let db_host = require_env(
+            "DATABASE__HOST",
+            "请设置数据库主机地址，例如 export DATABASE__HOST=127.0.0.1",
+        );
+        let db_user = require_env(
+            "DATABASE__USERNAME",
+            "请设置数据库用户名，例如 export DATABASE__USERNAME=postgres",
+        );
+        let db_name = require_env(
+            "DATABASE__NAME",
+            "请设置数据库名称，例如 export DATABASE__NAME=bingxi_erp",
+        );
 
         match run_cmd(
             "psql",
@@ -623,9 +652,18 @@ fn cmd_health() {
 
     // 数据库检查
     println!("\n检查数据库...");
-    let db_host = std::env::var("DATABASE__HOST").unwrap_or_else(|_| "39.99.34.194".to_string());
-    let db_user = std::env::var("DATABASE__USERNAME").unwrap_or_else(|_| "bingxi".to_string());
-    let db_name = std::env::var("DATABASE__NAME").unwrap_or_else(|_| "bingxi".to_string());
+    let db_host = require_env(
+        "DATABASE__HOST",
+        "请设置数据库主机地址，例如 export DATABASE__HOST=127.0.0.1",
+    );
+    let db_user = require_env(
+        "DATABASE__USERNAME",
+        "请设置数据库用户名，例如 export DATABASE__USERNAME=postgres",
+    );
+    let db_name = require_env(
+        "DATABASE__NAME",
+        "请设置数据库名称，例如 export DATABASE__NAME=bingxi_erp",
+    );
 
     match run_cmd(
         "psql",

@@ -537,9 +537,13 @@ const openStockInDialog = (row: GreigeFabric) => {
         await stockInGreigeFabric(row.id, { quantity: qty })
         ElMessage.success('入库成功')
         fetchGreigeFabrics()
+      } else {
+        ElMessage.error('入库数量必须为正数')
       }
     })
-    .catch(() => {})
+    .catch((e: any) => {
+      if (e !== 'cancel') ElMessage.error(e?.message || '坯布入库失败')
+    })
 }
 
 const openStockOutDialog = (row: GreigeFabric) => {
@@ -550,9 +554,13 @@ const openStockOutDialog = (row: GreigeFabric) => {
         await stockOutGreigeFabric(row.id, { quantity: qty })
         ElMessage.success('出库成功')
         fetchGreigeFabrics()
+      } else {
+        ElMessage.error('出库数量必须为正数')
       }
     })
-    .catch(() => {})
+    .catch((e: any) => {
+      if (e !== 'cancel') ElMessage.error(e?.message || '坯布出库失败')
+    })
 }
 
 const recipeDialogVisible = ref(false)
