@@ -2,9 +2,11 @@
 
 use axum::{extract::Query, extract::State, Json};
 use chrono::Utc;
-use sea_orm::{ActiveModelTrait, ColumnTrait, EntityTrait, QueryFilter, Set, TransactionTrait};
+use sea_orm::{ActiveModelTrait, ColumnTrait, EntityTrait, PaginatorTrait, QueryFilter, Set, TransactionTrait};
 use serde::Deserialize;
+use tracing::info;
 
+use crate::middleware::auth_context::AuthContext;
 use crate::models::inventory_piece;
 use crate::utils::app_state::AppState;
 use crate::utils::error::AppError;
@@ -22,6 +24,21 @@ pub struct ScanToShipQuery {
     pub order_id: Option<i32>,
     pub page: Option<u64>,
     pub page_size: Option<u64>,
+}
+
+/// 扫码盘库请求参数
+#[derive(Debug, Deserialize)]
+pub struct ScanInventoryParams {
+    pub barcode: Option<String>,
+}
+
+/// 扫码历史查询参数
+#[derive(Debug, Deserialize)]
+pub struct ScanHistoryQuery {
+    pub page: Option<u64>,
+    pub page_size: Option<u64>,
+    pub scan_type: Option<String>,
+    pub result: Option<String>,
 }
 
 pub async fn scan_to_ship_get(
@@ -80,4 +97,129 @@ async fn scan_to_ship_impl(
         "barcode": barcode,
         "piece_no": piece.piece_no
     }))))
+}
+
+/// 扫码盘库：按条码查询库存布卷详情
+pub async fn scan_inventory(
+    State(state): State<AppState>,
+    Query(params): Query<ScanInventoryParams>,
+    _auth: AuthContext,
+) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
+    let barcode = params
+        .barcode
+        .ok_or_else(|| AppError::bad_request("缺少 barcode 参数"))?;
+
+    let piece = inventory_piece::Entity::find()
+        .filter(inventory_piece::Column::Barcode.eq(&barcode))
+        .one(&*state.db)
+        .await?
+        .ok_or_else(|| AppError::not_found("未找到该条码对应的布卷"))?;
+
+    Ok(Json(ApiResponse::success(serde_json::json!({
+        "barcode": piece.barcode,
+        "piece_no": piece.piece_no,
+        "product_id": piece.product_id,
+        "batch_no": piece.batch_no,
+        "warehouse_id": piece.warehouse_id,
+        "location_id": piece.location_id,
+        "length": piece.length,
+        "weight": piece.weight,
+        "status": piece.status,
+        "remarks": piece.remarks,
+    }))))
+}
+
+/// 扫码历史记录：分页查询已扫码的布卷
+pub async fn scan_history(
+    State(state): State<AppState>,
+    Query(params): Query<ScanHistoryQuery>,
+    _auth: AuthContext,
+) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
+    let page = params.page.unwrap_or(0);
+    let page_size = params.page_size.unwrap_or(20);
+
+    let mut query = inventory_piece::Entity::find();
+
+    if let Some(scan_type) = &params.scan_type {
+        let _ = scan_type; // 占位符，保留过滤字段以便后续扩展
+    }
+
+    if let Some(result) = &params.result {
+        match result.as_str() {
+            "SUCCESS" => {
+                query = query.filter(inventory_piece::Column::Status.eq("SHIPPED"));
+            }
+            "FAILED" => {
+                query = query.filter(inventory_piece::Column::Status.eq("DEFECT"));
+            }
+            _ => {}
+        }
+    }
+
+    let paginator = query
+        .clone()
+        .order_by_desc(inventory_piece::Column::UpdatedAt)
+        .paginate(&*state.db, page_size);
+
+    let total = paginator.num_items().await?;
+    let items = paginator.fetch_page(page).await?;
+
+    info!("扫码历史查询 page={} page_size={} total={}", page, page_size, total);
+
+    Ok(Json(ApiResponse::success(serde_json::json!({
+        "items": items,
+        "total": total,
+        "page": page,
+        "page_size": page_size,
+    }))))
+}
+
+/// 扫码统计：按状态统计库存匹数
+pub async fn scan_statistics(
+    State(state): State<AppState>,
+    _auth: AuthContext,
+) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
+    use sea_orm::sea_query::Expr;
+    use sea_orm::{ColumnTrait, QuerySelect};
+
+    let row = inventory_piece::Entity::find()
+        .select_only()
+        .column_as(
+            Expr::cust("COUNT(*) FILTER (WHERE status = 'AVAILABLE')"),
+            "available_count",
+        )
+        .column_as(
+            Expr::cust("COUNT(*) FILTER (WHERE status = 'SHIPPED')"),
+            "shipped_count",
+        )
+        .column_as(
+            Expr::cust("COUNT(*) FILTER (WHERE status = 'DEFECT')"),
+            "defect_count",
+        )
+        .column_as(
+            Expr::cust("COUNT(*) FILTER (WHERE status = 'RESERVED')"),
+            "reserved_count",
+        )
+        .column_as(Expr::cust("COUNT(*)"), "total_count")
+        .into_model::<ScanStatisticsRow>()
+        .one(&*state.db)
+        .await?
+        .ok_or_else(|| AppError::internal("扫码统计查询失败"))?;
+
+    Ok(Json(ApiResponse::success(serde_json::json!({
+        "available_count": row.available_count,
+        "shipped_count": row.shipped_count,
+        "defect_count": row.defect_count,
+        "reserved_count": row.reserved_count,
+        "total_count": row.total_count,
+    }))))
+}
+
+#[derive(serde::Serialize, sea_orm::FromQueryResult)]
+struct ScanStatisticsRow {
+    pub available_count: i64,
+    pub shipped_count: i64,
+    pub defect_count: i64,
+    pub reserved_count: i64,
+    pub total_count: i64,
 }

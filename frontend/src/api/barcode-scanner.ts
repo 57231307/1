@@ -53,11 +53,11 @@ export function scanToShip(data: ScanToShipRequest) {
 }
 
 export function scanInventory(barcode: string) {
-  return request.get('/scanner/scan-to-ship', { params: { barcode } })
+  return request.get('/scanner/scan-inventory', { params: { barcode } })
 }
 
 export function getScanHistory(page?: number, pageSize?: number) {
-  return request.get('/scanner/scan-to-ship', {
+  return request.get('/scanner/history', {
     params: {
       page: page || 0,
       page_size: pageSize || 20,
@@ -66,5 +66,5 @@ export function getScanHistory(page?: number, pageSize?: number) {
 }
 
 export function getScanStatistics() {
-  return request.get('/scanner/scan-to-ship')
+  return request.get('/scanner/statistics')
 }
