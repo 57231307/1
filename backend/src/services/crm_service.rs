@@ -1352,7 +1352,7 @@ impl CrmService {
         let recency = match orders.iter().map(|o| o.order_date).max() {
             Some(latest) => {
                 let now = chrono::Utc::now();
-                now.signed_duration_since(latest).num_days().max(0) as i32
+                i64::max(now.signed_duration_since(latest).num_days(), 0) as i32
             }
             None => 9999,
         };

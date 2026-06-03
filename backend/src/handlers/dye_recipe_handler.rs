@@ -655,9 +655,8 @@ pub async fn export_dye_recipes(
 
     let mut buf: Vec<u8> = Vec::new();
     buf.extend_from_slice(b"\xEF\xBB\xBF");
-    buf.extend_from_slice(
-        b"ID,配方编号,配方名称,色号,颜色名称,布种,染料类型,温度,时间,PH值,浴比,状态,版本\n",
-    );
+    let header = "ID,配方编号,配方名称,色号,颜色名称,布种,染料类型,温度,时间,PH值,浴比,状态,版本\n";
+    buf.extend_from_slice(header.as_bytes());
     for r in &recipes {
         let line = format!(
             "{},{},{},{},{},{},{},{},{},{},{},{},{}\n",

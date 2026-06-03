@@ -7,7 +7,8 @@ use serde::Deserialize;
 
 use crate::models::dto::PageRequest;
 use crate::services::inventory_transfer_service::{
-    CreateInventoryTransferRequest, InventoryTransferService, UpdateInventoryTransferRequest,
+    CreateInventoryTransferRequest, InventoryTransferItemRequest, InventoryTransferService,
+    UpdateInventoryTransferRequest,
 };
 use crate::utils::error::AppError;
 use crate::utils::response::ApiResponse;

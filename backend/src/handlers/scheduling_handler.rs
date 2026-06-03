@@ -350,18 +350,19 @@ pub async fn adjust_schedule_task(
     let detail = service.adjust_schedule(task_id, req).await?;
 
     // 返回前端期望的 ScheduleTask 形态（id/order_no/start_time/end_time）
+    let format_date = |d: chrono::NaiveDate| -> String {
+        chrono::NaiveDateTime::new(d, chrono::NaiveTime::from_hms_opt(0, 0, 0).unwrap())
+            .and_utc()
+            .to_rfc3339()
+    };
     let response = serde_json::json!({
         "id": detail.order_id,
         "order_id": detail.order_id,
         "order_no": detail.order_no,
         "work_center_id": detail.work_center_id,
         "work_center_name": detail.work_center_name,
-        "start_time": detail.start_date.and_then(|d| {
-            chrono::NaiveDateTime::new(d, chrono::NaiveTime::from_hms_opt(0, 0, 0).unwrap()).and_utc().to_rfc3339()
-        }),
-        "end_time": detail.end_date.and_then(|d| {
-            chrono::NaiveDateTime::new(d, chrono::NaiveTime::from_hms_opt(0, 0, 0).unwrap()).and_utc().to_rfc3339()
-        }),
+        "start_time": format_date(detail.start_date),
+        "end_time": format_date(detail.end_date),
         "status": detail.status,
     });
 

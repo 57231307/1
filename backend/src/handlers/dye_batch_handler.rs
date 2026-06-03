@@ -479,7 +479,8 @@ pub async fn export_dye_batches(
 
     let mut buf: Vec<u8> = Vec::new();
     buf.extend_from_slice(b"\xEF\xBB\xBF");
-    buf.extend_from_slice(b"ID,缸号,色号,坯布ID,计划数量,状态,创建时间\n");
+    let header = "ID,缸号,色号,坯布ID,计划数量,状态,创建时间\n";
+    buf.extend_from_slice(header.as_bytes());
     for b in &batches {
         let line = format!(
             "{},{},{},{},{},{},{}\n",

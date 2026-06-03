@@ -225,8 +225,9 @@ pub async fn batch_claim(
         claimed
     );
 
+    let msg = format!("成功领取 {} 个客户", claimed);
     Ok(Json(ApiResponse::success_with_message(
         serde_json::json!({ "claimed": claimed }),
-        format!("成功领取 {} 个客户", claimed),
+        &msg,
     )))
 }

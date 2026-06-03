@@ -2,7 +2,7 @@
 
 use sea_orm::{
     ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, ExprTrait, IntoActiveModel,
-    Order, PaginatorTrait, QueryFilter, QueryOrder, Set, TransactionTrait,
+    Order, PaginatorTrait, QueryFilter, QueryOrder, TransactionTrait,
 };
 use std::sync::Arc;
 

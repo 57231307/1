@@ -2,7 +2,7 @@
 
 use axum::{extract::Query, extract::State, Json};
 use chrono::Utc;
-use sea_orm::{ActiveModelTrait, ColumnTrait, EntityTrait, PaginatorTrait, QueryFilter, Set, TransactionTrait};
+use sea_orm::{ActiveModelTrait, ColumnTrait, EntityTrait, PaginatorTrait, QueryFilter, QueryOrder, QuerySelect, Set, TransactionTrait};
 use serde::Deserialize;
 use tracing::info;
 
@@ -180,7 +180,7 @@ pub async fn scan_statistics(
     _auth: AuthContext,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     use sea_orm::sea_query::Expr;
-    use sea_orm::{ColumnTrait, QuerySelect};
+    use sea_orm::QuerySelect;
 
     let row = inventory_piece::Entity::find()
         .select_only()

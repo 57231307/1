@@ -225,7 +225,7 @@ impl SalesAnalysisService {
         let mut total_profit = Decimal::ZERO;
         let mut total_amount = Decimal::ZERO;
         let mut gross_profit_rate = Decimal::ZERO;
-        let mut active_customers = 0i64;
+        let active_customers: i64;
 
         for s in &stats {
             if s.statistic_type == "order" {
@@ -428,9 +428,8 @@ impl SalesAnalysisService {
         // 简单生成 CSV 格式（UTF-8 BOM），前端/Excel 打开可直接识别
         let mut buf: Vec<u8> = Vec::new();
         buf.extend_from_slice(b"\xEF\xBB\xBF");
-        buf.extend_from_slice(
-            b"ID,统计类型,周期,维度类型,维度ID,维度名称,订单数,总金额,总数量,毛利率\n",
-        );
+        let header = "ID,统计类型,周期,维度类型,维度ID,维度名称,订单数,总金额,总数量,毛利率\n";
+        buf.extend_from_slice(header.as_bytes());
         for r in &records {
             let line = format!(
                 "{},{},{},{},{},{},{},{},{},{}\n",

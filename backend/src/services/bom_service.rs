@@ -10,6 +10,7 @@ use sea_orm::{
     QuerySelect, Set, TransactionTrait,
 };
 use std::sync::Arc;
+use tracing::info;
 
 use crate::models::bom::{
     ActiveModel, BomStatus, Column as BomColumn, Entity as BomEntity, Model as BomModel,
