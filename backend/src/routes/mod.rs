@@ -1677,37 +1677,6 @@ pub fn create_router(state: AppState) -> Router {
                     get(material_shortage_handler::get_replenishment_suggestions),
                 ),
         )
-        // BPM流程定义路由
-        .nest(
-            "/api/v1/erp/bpm/definitions",
-            Router::new()
-                .route(
-                    "/",
-                    get(bpm_definition_handler::list_process_definitions)
-                        .post(bpm_definition_handler::create_process_definition),
-                )
-                .route(
-                    "/:id",
-                    get(bpm_definition_handler::get_process_definition)
-                        .put(bpm_definition_handler::update_process_definition)
-                        .delete(bpm_definition_handler::delete_process_definition),
-                )
-                .route("/:id/copy", post(bpm_definition_handler::create_version))
-                .route("/:id/versions", get(bpm_definition_handler::list_versions))
-                .route(
-                    "/:id/versions/:version/activate",
-                    post(bpm_definition_handler::activate_version),
-                )
-                .route(
-                    "/:id/template",
-                    post(bpm_definition_handler::save_as_template),
-                )
-                .route("/templates", get(bpm_definition_handler::list_templates))
-                .route(
-                    "/templates/:template_id",
-                    post(bpm_definition_handler::create_from_template),
-                ),
-        )
         // CRM客户管理路由
         .nest(
             "/api/v1/erp/crm/customers",
