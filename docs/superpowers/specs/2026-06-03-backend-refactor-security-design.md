@@ -92,27 +92,27 @@ backend/src/
 │   │   ├── mod.rs
 │   │   ├── forecast.rs           # 销售预测
 │   │   ├── analytics.rs          # 五维分析
-│   │   ├── recommendation.rs     # 智能推荐
+│   │   ├── rec.rs                # 智能推荐（rec = recommendation 截短）
 │   │   ├── reorder.rs            # 补货建议
-│   │   └── decision.rs           # 智能决策
+│   │   └── decide.rs             # 智能决策（decide = decision 截短）
 │   └── (trading_handler.rs 删除)
 ├── services/
 │   ├── mod.rs
 │   ├── ...
 │   ├── report/                   # 【新】从 report_engine_service 拆分
 │   │   ├── mod.rs
-│   │   ├── template.rs
-│   │   ├── datasource.rs
-│   │   ├── exporter.rs
-│   │   └── scheduler.rs
-│   ├── purchase/                 # 【新】
+│   │   ├── tpl.rs                # 模板（tpl = template）
+│   │   ├── ds.rs                 # 数据源（ds = datasource）
+│   │   ├── exp.rs                # 导出器（exp = exporter）
+│   │   └── job.rs                # 调度器（job = scheduler）
+│   ├── po/                       # 【新】po = purchase 截短
 │   │   ├── mod.rs
 │   │   ├── order.rs              # 原 purchase_order_service
 │   │   ├── contract.rs
 │   │   ├── receipt.rs
 │   │   ├── price.rs
 │   │   └── return.rs
-│   ├── sales/                    # 【新】
+│   ├── so/                       # 【新】so = sales 截短
 │   │   ├── mod.rs
 │   │   ├── order.rs
 │   │   ├── contract.rs
@@ -121,30 +121,30 @@ backend/src/
 │   │   └── return.rs
 │   ├── crm/                      # 【新】
 │   │   ├── mod.rs
-│   │   ├── customer.rs
+│   │   ├── cust.rs               # 客户（cust = customer 截短）
 │   │   ├── lead.rs
-│   │   ├── opportunity.rs
+│   │   ├── opp.rs                # 商机（opp = opportunity 截短）
 │   │   ├── pool.rs
-│   │   └── assignment.rs
-│   ├── inventory/                # 【新】
+│   │   └── assign.rs             # 分配（assign = assignment 截短）
+│   ├── inv/                      # 【新】inv = inventory 截短
 │   │   ├── mod.rs
-│   │   ├── transfer.rs
-│   │   ├── adjustment.rs
+│   │   ├── move.rs               # 调拨（move = transfer 截短）
+│   │   ├── adjust.rs             # 调整（adjust = adjustment 截短）
 │   │   ├── count.rs
 │   │   ├── stock.rs
-│   │   ├── reservation.rs
+│   │   ├── hold.rs               # 预留（hold = reservation 截短）
 │   │   └── batch.rs
 │   ├── ai/                       # 【新】
 │   │   ├── mod.rs
-│   │   ├── forecast.rs
-│   │   ├── anomaly.rs
-│   │   └── recommendation.rs
+│   │   ├── pred.rs               # 预测（pred = forecast 截短）
+│   │   ├── detect.rs             # 异常检测（detect = anomaly 截短）
+│   │   └── rec.rs                # 推荐（rec = recommendation 截短）
 │   ├── ar/                       # 【新】
 │   │   ├── mod.rs
-│   │   ├── reconciliation.rs
-│   │   ├── invoice.rs
-│   │   ├── payment.rs
-│   │   └── verification.rs
+│   │   ├── recon.rs              # 对账（recon = reconciliation 截短）
+│   │   ├── inv.rs                # 发票（inv = invoice 截短）
+│   │   ├── pay.rs                # 付款（pay = payment 截短）
+│   │   └── vfy.rs                # 核销（vfy = verification 截短）
 │   └── cli/                      # 【新】从 bin/cli.rs 拆分
 │       ├── mod.rs
 │       ├── admin.rs              # 管理员子命令
@@ -152,20 +152,23 @@ backend/src/
 │       └── util.rs               # 工具子命令
 ├── routes/                       # 【重做】从 1 个 2659 行 → 15 个
 │   ├── mod.rs                    # < 200 行：仅 nest + Swagger
-│   ├── auth_routes.rs
-│   ├── identity_routes.rs
-│   ├── catalog_routes.rs
-│   ├── inventory_routes.rs
-│   ├── sales_routes.rs
-│   ├── purchase_routes.rs
-│   ├── finance_routes.rs
-│   ├── production_routes.rs
-│   ├── crm_routes.rs
-│   ├── analytics_routes.rs
-│   ├── system_routes.rs
-│   ├── tenant_routes.rs
-│   ├── static_assets.rs
-│   └── api_v1.rs                 # 统一前缀
+│   ├── auth.rs                   # /auth/* (auth_handler)
+│   ├── iam.rs                    # /users/*, /roles/*, /permissions/*, /departments/*
+│   ├── catalog.rs                # /products/*, /warehouses/*, /categories/*, /bom/*
+│   ├── inventory.rs              # /inventory/*, /transfers/*, /adjustments/*
+│   ├── sales.rs                  # /sales/*, /sales-orders/*, /sales-returns/*
+│   ├── purchase.rs               # /purchase/*, /purchase-orders/*
+│   ├── finance.rs                # /finance/*, /ap/*, /ar/*
+│   ├── production.rs             # /production/*, /mrp/*, /scheduling/*
+│   ├── crm.rs                    # /crm/*, /customers/*
+│   ├── analytics.rs              # /advanced/*, /report/*
+│   ├── system.rs                 # /health, /metrics, /system/*
+│   ├── tenant.rs                 # /tenants/*, /billing/*
+│   ├── static.rs                 # /static/*, /wasm/* （独立模块）
+│   └── v1.rs                     # 统一前缀 /api/v1/erp/* nest 总入口
+```
+
+**命名精简原则**：去 `_routes` 后缀（路由文件本身就是路由），用业务对象名而非业务动作名。
 ├── models/
 │   ├── mod.rs
 │   ├── ...
@@ -207,9 +210,9 @@ backend/src/
 | --- | --- | --- |
 | `advanced/forecast.rs` | ~300 | sales_forecast, demand_forecast, time_series |
 | `advanced/analytics.rs` | ~280 | five_dimension, kpi, statistical |
-| `advanced/recommendation.rs` | ~260 | product_recommend, customer_recommend, supplier_recommend |
+| `advanced/rec.rs` | ~260 | product/customer/supplier recommendation（rec = recommendation 截短） |
 | `advanced/reorder.rs` | ~240 | reorder_point, safety_stock, eoq |
-| `advanced/decision.rs` | ~200 | smart_decision, anomaly_detection |
+| `advanced/decide.rs` | ~200 | smart_decision, anomaly_detection（decide = decision 截短） |
 
 ### 5.2 trading_handler.rs 删除
 
@@ -229,13 +232,13 @@ backend/src/
 
 | 原 service | 行数 | 拆为 | 行数预估 |
 | --- | --- | --- | --- |
-| report_engine_service | 2122 | report/{template, datasource, exporter, scheduler} | 400~600/个 |
-| purchase_order_service | 1752 | purchase/{order, contract, receipt, price, return} | 300~500/个 |
-| sales_service | 1661 | sales/{order, contract, delivery, price, return} | 300~500/个 |
-| crm_service | 1469 | crm/{customer, lead, opportunity, pool, assignment} | 250~400/个 |
-| inventory_transfer_service | 1202 | inventory/{transfer, adjustment, count, stock, reservation, batch} | 200~400/个 |
-| ai_analysis_service | 1202 | ai/{forecast, anomaly, recommendation} | 350~500/个 |
-| ar_reconciliation_service | 1121 | ar/{reconciliation, invoice, payment, verification} | 250~350/个 |
+| `report_engine` | 2122 | `report/{tpl, ds, exp, job}.rs`（tpl=template, ds=datasource, exp=exporter, job=scheduler 截短） | 400~600/个 |
+| `purchase_order` | 1752 | `po/{order, contract, receipt, price, return}.rs`（po=purchase 截短） | 300~500/个 |
+| `sales` | 1661 | `so/{order, contract, delivery, price, return}.rs`（so=sales 截短） | 300~500/个 |
+| `crm` | 1469 | `crm/{cust, lead, opp, pool, assign}.rs`（cust=customer, opp=opportunity, assign=assignment 截短） | 250~400/个 |
+| `inventory_transfer` | 1202 | `inv/{move, adjust, count, stock, hold, batch}.rs`（inv=inventory, move=transfer, adjust=adjustment, hold=reservation 截短） | 200~400/个 |
+| `ai_analysis` | 1202 | `ai/{pred, detect, rec}.rs`（pred=forecast, detect=anomaly, rec=recommendation 截短） | 350~500/个 |
+| `ar_reconciliation` | 1121 | `ar/{recon, inv, pay, vfy}.rs`（recon=reconciliation, inv=invoice, pay=payment, vfy=verification 截短） | 250~350/个 |
 
 ### 6.3 兼容性保证
 
@@ -271,12 +274,16 @@ pub mod purchase {
 
 ### 7.3 bin/cli.rs 拆分
 
-| 子命令 | 拆为 | 行数预估 |
-| --- | --- | --- |
-| 管理员（密码重置、用户管理） | `cli/admin.rs` | 350 |
-| 迁移相关 | `cli/migrate.rs` | 300 |
-| 工具（清理、备份） | `cli/util.rs` | 250 |
-| 入口 | `cli/mod.rs` | 200 |
+```
+backend/src/
+├── cli/
+│   ├── mod.rs                  # 子命令分发入口（< 100 行）
+│   ├── admin.rs                # 管理员子命令
+│   ├── migrate.rs              # 迁移子命令
+│   └── util.rs                 # 工具子命令（清理、备份）
+└── bin/
+    └── cli.rs                  # CLI 入口（仅调用 src/cli）
+```
 
 ## 8. 阶段 5：安全增强（4 维度）
 
