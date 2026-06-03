@@ -69,10 +69,10 @@ export function addReceiptItem(id: number, data: Partial<ReceiptItem>) {
   return request.post(`/purchases/receipts/${id}/items`, data)
 }
 
-export function updateReceiptItem(itemId: number, data: Partial<ReceiptItem>) {
-  return request.put(`/purchases/receipts/items/${itemId}`, data)
+export function updateReceiptItem(id: number, itemId: number, data: Partial<ReceiptItem>) {
+  return request.put(`/purchases/receipts/${id}/items/${itemId}`, data)
 }
 
-export function deleteReceiptItem(itemId: number) {
-  return request.delete(`/purchases/receipts/items/${itemId}`)
+export function deleteReceiptItem(id: number, itemId: number) {
+  return request.delete(`/purchases/receipts/${id}/items/${itemId}`)
 }
