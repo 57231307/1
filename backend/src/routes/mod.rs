@@ -1118,6 +1118,10 @@ pub fn create_router(state: AppState) -> Router {
     let purchase_price_routes = Router::new()
         .route("/", get(purchase_price_handler::list_prices))
         .route("/", post(purchase_price_handler::create_price))
+        .route(
+            "/history/:product_id",
+            get(purchase_price_handler::get_price_history_by_product),
+        )
         .route("/:id", get(purchase_price_handler::get_price))
         .route("/:id", put(purchase_price_handler::update_price))
         .route("/:id", delete(purchase_price_handler::delete_price))
@@ -1791,6 +1795,10 @@ pub fn create_router(state: AppState) -> Router {
             "/api/v1/erp/reports/enhanced",
             Router::new()
                 .route(
+                    "/fields/:template_type",
+                    get(report_enhanced_handler::get_available_fields),
+                )
+                .route(
                     "/templates",
                     get(report_enhanced_handler::list_report_templates)
                         .post(report_enhanced_handler::create_report_template),
@@ -1804,6 +1812,14 @@ pub fn create_router(state: AppState) -> Router {
                 .route(
                     "/templates/:id/execute",
                     post(report_enhanced_handler::execute_custom_report),
+                )
+                .route(
+                    "/templates/:id/export",
+                    post(report_enhanced_handler::export_template),
+                )
+                .route(
+                    "/templates/:id/preview",
+                    get(report_enhanced_handler::preview_template),
                 )
                 .route("/export/pdf", post(report_enhanced_handler::export_pdf))
                 .route("/export/excel", post(report_enhanced_handler::export_excel))
@@ -1825,6 +1841,10 @@ pub fn create_router(state: AppState) -> Router {
                 .route(
                     "/subscriptions/:id/trigger",
                     post(report_enhanced_handler::trigger_subscription),
+                )
+                .route(
+                    "/subscriptions/:id/send",
+                    post(report_enhanced_handler::send_subscription_now),
                 ),
         )
         // 导入导出路由

@@ -157,3 +157,19 @@ pub async fn get_price_history(
 
     Ok(Json(ApiResponse::success(history)))
 }
+
+/// 按产品 ID 查询采购价格历史
+/// 前端调用: GET /purchase-prices/history/:product_id
+pub async fn get_price_history_by_product(
+    State(state): State<AppState>,
+    Path(product_id): Path<i32>,
+    _auth: AuthContext,
+) -> Result<Json<ApiResponse<Vec<purchase_price::Model>>>, AppError> {
+    info!("正在按产品 ID {} 查询采购价格历史", product_id);
+
+    let service = PurchasePriceService::new(state.db.clone());
+    let history = service.get_price_history(product_id).await?;
+    info!("按产品 ID 的价格历史查询成功，共 {} 条记录", history.len());
+
+    Ok(Json(ApiResponse::success(history)))
+}
