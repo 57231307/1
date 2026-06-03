@@ -98,9 +98,9 @@ pub mod notification_handler;
 pub mod user_notification_setting_handler;
 // 数据权限模块
 pub mod data_permission_handler;
-// 交易管理模块
-pub mod trading_handler;
 // AI 高级分析模块
+// 注意：保留 advanced_handler 作为兼容层名（实际模块在 advanced/ 子目录）
+// routes 中的 `advanced_handler::xxx` 引用通过 advanced_handler.rs 的 `pub use` 转发
 pub mod advanced_handler;
 // 多币种增强模块
 pub mod currency_enhanced_handler;
