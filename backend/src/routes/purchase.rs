@@ -1,0 +1,295 @@
+//! 采购域路由
+//!
+//! 处理采购订单、采购合同、采购价格、采购收货、采购检验、采购退货、供应商、供应商评估等采购相关接口。
+
+use axum::{
+    routing::{delete, get, post, put},
+    Router,
+};
+
+use crate::handlers::{
+    print_handler, purchase_contract_handler, purchase_inspection_handler,
+    purchase_order_handler, purchase_price_handler, purchase_receipt_handler,
+    purchase_return_handler, supplier_evaluation_handler, supplier_handler,
+};
+
+/// 采购订单路由（nest 到 /api/v1/erp/purchases）
+pub fn purchases() -> Router {
+    Router::new()
+        .route(
+            "/orders/delivery-date",
+            post(purchase_order_handler::calculate_delivery_date),
+        )
+        .route("/orders", get(purchase_order_handler::list_orders))
+        .route("/orders", post(purchase_order_handler::create_order))
+        .route("/orders/:id", get(purchase_order_handler::get_order))
+        .route("/orders/:id", put(purchase_order_handler::update_order))
+        .route("/orders/:id", delete(purchase_order_handler::delete_order))
+        .route(
+            "/orders/:id/approve",
+            post(purchase_order_handler::approve_order),
+        )
+        .route(
+            "/orders/:id/submit",
+            post(purchase_order_handler::submit_order),
+        )
+        .route(
+            "/orders/:id/reject",
+            post(purchase_order_handler::reject_order),
+        )
+        .route(
+            "/orders/:id/close",
+            post(purchase_order_handler::close_order),
+        )
+        .route("/orders/export", get(purchase_order_handler::export_orders))
+        .route(
+            "/orders/:id/items",
+            get(purchase_order_handler::list_order_items)
+                .post(purchase_order_handler::create_order_item),
+        )
+        .route(
+            "/orders/:id/items/:item_id",
+            put(purchase_order_handler::update_order_item)
+                .delete(purchase_order_handler::delete_order_item),
+        )
+        .route(
+            "/orders/:id/print",
+            get(print_handler::purchase_order_print_html),
+        )
+        .route("/receipts", get(purchase_receipt_handler::list_receipts))
+        .route(
+            "/receipts/:id/print",
+            get(print_handler::purchase_receipt_print_html),
+        )
+        .route("/receipts", post(purchase_receipt_handler::create_receipt))
+        .route("/receipts/:id", get(purchase_receipt_handler::get_receipt))
+        .route(
+            "/receipts/:id",
+            put(purchase_receipt_handler::update_receipt)
+                .delete(purchase_receipt_handler::delete_receipt),
+        )
+        .route(
+            "/receipts/:id/confirm",
+            post(purchase_receipt_handler::confirm_receipt),
+        )
+        .route(
+            "/receipts/:id/items",
+            get(purchase_receipt_handler::list_receipt_items)
+                .post(purchase_receipt_handler::create_receipt_item),
+        )
+        .route(
+            "/receipts/:id/items/:item_id",
+            put(purchase_receipt_handler::update_receipt_item)
+                .delete(purchase_receipt_handler::delete_receipt_item),
+        )
+        .route(
+            "/inspections",
+            get(purchase_inspection_handler::list_inspections),
+        )
+        .route(
+            "/inspections",
+            post(purchase_inspection_handler::create_inspection),
+        )
+        .route(
+            "/inspections/:id",
+            get(purchase_inspection_handler::get_inspection),
+        )
+        .route(
+            "/inspections/:id",
+            put(purchase_inspection_handler::update_inspection),
+        )
+        .route(
+            "/inspections/:id/complete",
+            post(purchase_inspection_handler::complete_inspection),
+        )
+        .route(
+            "/inspections/:id/items",
+            get(purchase_inspection_handler::list_inspection_items)
+                .post(purchase_inspection_handler::create_inspection_item),
+        )
+        .route(
+            "/inspections/:id/items/:item_id",
+            put(purchase_inspection_handler::update_inspection_item)
+                .delete(purchase_inspection_handler::delete_inspection_item),
+        )
+        .route(
+            "/returns",
+            get(purchase_return_handler::list_purchase_returns),
+        )
+        .route(
+            "/returns",
+            post(purchase_return_handler::create_purchase_return),
+        )
+        .route(
+            "/returns/:id",
+            get(purchase_return_handler::get_purchase_return),
+        )
+        .route(
+            "/returns/:id",
+            put(purchase_return_handler::update_purchase_return),
+        )
+        .route(
+            "/returns/:id",
+            delete(purchase_return_handler::delete_purchase_return),
+        )
+        .route(
+            "/returns/:id/submit",
+            post(purchase_return_handler::submit_purchase_return),
+        )
+        .route(
+            "/returns/:id/approve",
+            post(purchase_return_handler::approve_purchase_return),
+        )
+        .route(
+            "/returns/:id/reject",
+            post(purchase_return_handler::reject_purchase_return),
+        )
+        .route(
+            "/returns/:id/items",
+            get(purchase_return_handler::list_purchase_return_items),
+        )
+        .route(
+            "/returns/:id/items",
+            post(purchase_return_handler::create_purchase_return_item),
+        )
+        .route(
+            "/returns/:id/items/:item_id",
+            put(purchase_return_handler::update_purchase_return_item),
+        )
+        .route(
+            "/returns/:id/items/:item_id",
+            delete(purchase_return_handler::delete_purchase_return_item),
+        )
+}
+
+/// 采购合同路由（nest 到 /api/v1/erp/purchase-contracts）
+pub fn purchase_contracts() -> Router {
+    Router::new()
+        .route("/", get(purchase_contract_handler::list_contracts))
+        .route("/", post(purchase_contract_handler::create_contract))
+        .route("/:id", get(purchase_contract_handler::get_contract))
+        .route("/:id", put(purchase_contract_handler::update_contract))
+        .route("/:id", delete(purchase_contract_handler::delete_contract))
+        .route(
+            "/:id/approve",
+            post(purchase_contract_handler::approve_contract),
+        )
+        .route(
+            "/:id/execute",
+            put(purchase_contract_handler::execute_contract),
+        )
+        .route(
+            "/:id/cancel",
+            put(purchase_contract_handler::cancel_contract),
+        )
+}
+
+/// 采购价格路由（nest 到 /api/v1/erp/purchase-prices）
+pub fn purchase_prices() -> Router {
+    Router::new()
+        .route("/", get(purchase_price_handler::list_prices))
+        .route("/", post(purchase_price_handler::create_price))
+        .route(
+            "/history/:product_id",
+            get(purchase_price_handler::get_price_history_by_product),
+        )
+        .route("/:id", get(purchase_price_handler::get_price))
+        .route("/:id", put(purchase_price_handler::update_price))
+        .route("/:id", delete(purchase_price_handler::delete_price))
+        .route("/:id/approve", post(purchase_price_handler::approve_price))
+        .route(
+            "/:id/history",
+            get(purchase_price_handler::get_price_history),
+        )
+}
+
+/// 供应商路由（nest 到 /api/v1/erp/suppliers）
+pub fn suppliers() -> Router {
+    Router::new()
+        .route("/", get(supplier_handler::list_suppliers))
+        .route("/", post(supplier_handler::create_supplier))
+        .route("/select", get(supplier_handler::list_suppliers))
+        .route("/:id", get(supplier_handler::get_supplier))
+        .route("/:id", put(supplier_handler::update_supplier))
+        .route("/:id", delete(supplier_handler::delete_supplier))
+        .route(
+            "/:id/status",
+            post(supplier_handler::toggle_supplier_status),
+        )
+        .route(
+            "/:id/contacts",
+            get(supplier_handler::list_supplier_contacts)
+                .post(supplier_handler::create_supplier_contact),
+        )
+        .route(
+            "/:id/contacts/:contact_id",
+            put(supplier_handler::update_supplier_contact)
+                .delete(supplier_handler::delete_supplier_contact),
+        )
+        .route(
+            "/:id/qualifications",
+            get(supplier_handler::list_supplier_qualifications)
+                .post(supplier_handler::create_supplier_qualification),
+        )
+        .route(
+            "/:id/evaluate",
+            post(supplier_evaluation_handler::create_evaluation_record),
+        )
+        .route(
+            "/:id/evaluations",
+            get(supplier_evaluation_handler::list_evaluation_records),
+        )
+}
+
+/// 供应商评估路由（nest 到 /api/v1/erp/supplier-evaluation/evaluations）
+pub fn supplier_evaluations() -> Router {
+    Router::new()
+        .route("/", get(supplier_evaluation_handler::list_evaluations))
+        .route("/", post(supplier_evaluation_handler::create_evaluation))
+        .route(
+            "/suppliers/:supplier_id/score",
+            get(supplier_evaluation_handler::get_supplier_score_by_path),
+        )
+        .route("/:id", get(supplier_evaluation_handler::get_evaluation))
+        .route("/:id", put(supplier_evaluation_handler::update_evaluation))
+        .route(
+            "/:id",
+            delete(supplier_evaluation_handler::delete_evaluation),
+        )
+        .route(
+            "/indicators",
+            get(supplier_evaluation_handler::list_indicators),
+        )
+        .route(
+            "/indicators",
+            post(supplier_evaluation_handler::create_indicator),
+        )
+        .route("/rankings", get(supplier_evaluation_handler::get_rankings))
+        .route(
+            "/records",
+            get(supplier_evaluation_handler::list_evaluation_records),
+        )
+        .route(
+            "/records",
+            post(supplier_evaluation_handler::create_evaluation_record),
+        )
+        .route(
+            "/records/:id",
+            get(supplier_evaluation_handler::get_evaluation_record),
+        )
+        .route(
+            "/scores/:supplier_id",
+            get(supplier_evaluation_handler::get_supplier_score),
+        )
+        .route("/ratings", get(supplier_evaluation_handler::list_ratings))
+}
+
+/// 采购域统一入口
+pub fn routes() -> Router {
+    Router::new()
+        .merge(purchases())
+        .merge(purchase_contracts())
+        .merge(purchase_prices())
+        .merge(suppliers())
+        .merge(supplier_evaluations())
+}
