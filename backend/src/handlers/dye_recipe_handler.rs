@@ -188,12 +188,28 @@ pub async fn create_dye_recipe(
         updated_at: Set(crate::utils::date_utils::utc_now_fixed()),
     };
 
-    match recipe.insert(&*state.db).await {
-        Ok(created) => (
-            StatusCode::CREATED,
-            Json(ApiResponse::success_with_message(created, "配方创建成功")),
-        )
-            .into_response(),
+    // 使用 insert 获取返回的 Model
+    match dye_recipe::Entity::insert(recipe)
+        .exec_without_returning(&*state.db)
+        .await
+    {
+        Ok(_) => {
+            // 重新查询获取创建的记录
+            let created = dye_recipe::Entity::find()
+                .order_by_desc(dye_recipe::Column::Id)
+                .one(&*state.db)
+                .await
+                .ok()
+                .flatten();
+            (
+                StatusCode::CREATED,
+                Json(ApiResponse::success_with_message(
+                    created.unwrap_or_default(),
+                    "配方创建成功",
+                )),
+            )
+                .into_response()
+        }
         Err(e) => (
             StatusCode::BAD_REQUEST,
             Json(ApiResponse::<()>::error(format!("创建配方失败：{}", e))),

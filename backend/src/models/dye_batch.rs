@@ -6,7 +6,7 @@ use rust_decimal::Decimal;
 use sea_orm::entity::prelude::*;
 use serde::{Deserialize, Serialize};
 
-#[derive(Clone, Debug, PartialEq, DeriveEntityModel, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, DeriveEntityModel, Serialize, Deserialize, Default)]
 #[sea_orm(table_name = "dye_batch")]
 pub struct Model {
     #[sea_orm(primary_key)]

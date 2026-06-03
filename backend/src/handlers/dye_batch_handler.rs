@@ -190,12 +190,28 @@ pub async fn create_dye_batch(
         updated_at: Set(crate::utils::date_utils::utc_now_fixed()),
     };
 
-    match batch.insert(&*state.db).await {
-        Ok(created) => (
-            StatusCode::CREATED,
-            Json(ApiResponse::success_with_message(created, "缸号创建成功")),
-        )
-            .into_response(),
+    // 使用 insert 获取返回的 Model
+    match dye_batch::Entity::insert(batch)
+        .exec_without_returning(&*state.db)
+        .await
+    {
+        Ok(_) => {
+            // 重新查询获取创建的记录
+            let created = dye_batch::Entity::find()
+                .order_by_desc(dye_batch::Column::Id)
+                .one(&*state.db)
+                .await
+                .ok()
+                .flatten();
+            (
+                StatusCode::CREATED,
+                Json(ApiResponse::success_with_message(
+                    created.unwrap_or_default(),
+                    "缸号创建成功",
+                )),
+            )
+                .into_response()
+        }
         Err(e) => (
             StatusCode::BAD_REQUEST,
             Json(ApiResponse::<()>::error(format!("创建缸号失败：{}", e))),
