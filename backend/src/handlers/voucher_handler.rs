@@ -12,7 +12,8 @@ use tracing::{info, warn};
 use crate::middleware::auth_context::AuthContext;
 use crate::models::voucher;
 use crate::services::voucher_service::{
-    CreateVoucherRequest, VoucherItemRequest, VoucherQueryParams, VoucherService,
+    CreateVoucherRequest, UpdateVoucherRequest, VoucherItemRequest, VoucherQueryParams,
+    VoucherService,
 };
 use crate::utils::app_state::AppState;
 use crate::utils::error::AppError;
@@ -267,4 +268,89 @@ pub async fn get_voucher_types() -> Json<ApiResponse<Vec<serde_json::Value>>> {
         serde_json::json!({"code": "转", "name": "转账凭证"}),
     ];
     Json(ApiResponse::success(types))
+}
+
+/// 更新凭证请求 DTO
+#[derive(Debug, serde::Deserialize)]
+pub struct UpdateVoucherRequestDto {
+    pub voucher_type: Option<String>,
+    pub voucher_date: Option<String>,
+    pub items: Option<Vec<VoucherItemDto>>,
+}
+
+/// 更新凭证
+pub async fn update_voucher(
+    Path(id): Path<i32>,
+    State(state): State<AppState>,
+    auth: AuthContext,
+    Json(req): Json<UpdateVoucherRequestDto>,
+) -> Result<Json<ApiResponse<voucher::Model>>, AppError> {
+    info!("用户 {} 更新凭证 ID: {}", auth.username, id);
+
+    let voucher_date = match req.voucher_date {
+        Some(d) => Some(
+            d.parse()
+                .map_err(|e| AppError::validation(format!("凭证日期格式错误：{}", e)))?,
+        ),
+        None => None,
+    };
+
+    let items = req.items.map(|v| {
+        v.into_iter()
+            .map(|item| VoucherItemRequest {
+                line_no: item.line_no,
+                subject_code: item.subject_code,
+                subject_name: item.subject_name,
+                debit: item.debit,
+                credit: item.credit,
+                summary: item.summary,
+                assist_customer_id: item.assist_customer_id,
+                assist_supplier_id: item.assist_supplier_id,
+                assist_department_id: item.assist_department_id,
+                assist_employee_id: item.assist_employee_id,
+                assist_project_id: item.assist_project_id,
+                assist_batch_id: item.assist_batch_id,
+                assist_color_no_id: item.assist_color_no_id,
+                assist_dye_lot_id: item.assist_dye_lot_id,
+                assist_grade: item.assist_grade,
+                assist_workshop_id: item.assist_workshop_id,
+                quantity_meters: item.quantity_meters,
+                quantity_kg: item.quantity_kg,
+                unit_price: item.unit_price,
+            })
+            .collect::<Vec<_>>()
+    });
+
+    let update_req = UpdateVoucherRequest {
+        voucher_type: req.voucher_type,
+        voucher_date,
+        items,
+    };
+
+    let service = VoucherService::new(state.db.clone());
+    let voucher = service.update(id, update_req, auth.user_id).await?;
+    info!(
+        "用户 {} 更新凭证成功：{}",
+        auth.username, voucher.voucher_no
+    );
+
+    Ok(Json(ApiResponse::success_with_message(
+        voucher,
+        "凭证更新成功",
+    )))
+}
+
+/// 删除凭证
+pub async fn delete_voucher(
+    Path(id): Path<i32>,
+    State(state): State<AppState>,
+    auth: AuthContext,
+) -> Result<Json<ApiResponse<()>>, AppError> {
+    info!("用户 {} 删除凭证 ID: {}", auth.username, id);
+
+    let service = VoucherService::new(state.db.clone());
+    service.delete(id).await?;
+    info!("用户 {} 删除凭证成功", auth.username);
+
+    Ok(Json(ApiResponse::success_with_message((), "凭证删除成功")))
 }

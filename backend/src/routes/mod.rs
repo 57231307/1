@@ -544,7 +544,12 @@ pub fn create_router(state: AppState) -> Router {
         // 凭证管理
         .route("/vouchers/types", get(voucher_handler::get_voucher_types))
         .route("/vouchers", get(voucher_handler::list_vouchers))
-        .route("/vouchers/:id", get(voucher_handler::get_voucher))
+        .route(
+            "/vouchers/:id",
+            get(voucher_handler::get_voucher)
+                .put(voucher_handler::update_voucher)
+                .delete(voucher_handler::delete_voucher),
+        )
         .route("/vouchers", post(voucher_handler::create_voucher))
         .route(
             "/vouchers/:id/submit",
