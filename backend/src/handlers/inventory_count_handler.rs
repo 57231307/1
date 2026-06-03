@@ -9,7 +9,8 @@ use serde::Deserialize;
 
 use crate::models::dto::PageRequest;
 use crate::services::inventory_count_service::{
-    CreateInventoryCountRequest, InventoryCountService, UpdateInventoryCountRequest,
+    CreateInventoryCountRequest, InventoryCountItemRequest, InventoryCountService,
+    UpdateInventoryCountRequest,
 };
 use crate::utils::response::ApiResponse;
 use crate::utils::response::PaginatedResponse;
@@ -210,5 +211,103 @@ pub async fn complete_count(
                     .into_response()
             }
         }
+    }
+}
+
+/// 删除库存盘点
+/// DELETE /api/v1/erp/inventory/counts/:id
+pub async fn delete_count(
+    State(state): State<AppState>,
+    Path(id): Path<i32>,
+) -> impl IntoResponse {
+    let count_service = InventoryCountService::new(state.db.clone());
+
+    match count_service.delete_count(id).await {
+        Ok(_) => ApiResponse::success_with_message((), "库存盘点单已删除").into_response(),
+        Err(e) => {
+            if e.to_string().contains("未找到") {
+                (
+                    StatusCode::NOT_FOUND,
+                    Json(ApiResponse::<()>::error(e.to_string())),
+                )
+                    .into_response()
+            } else {
+                (
+                    StatusCode::BAD_REQUEST,
+                    Json(ApiResponse::<()>::error(e.to_string())),
+                )
+                    .into_response()
+            }
+        }
+    }
+}
+
+/// 列出盘点单的所有明细项
+/// GET /api/v1/erp/inventory/counts/:id/items
+pub async fn list_items(
+    State(state): State<AppState>,
+    Path(id): Path<i32>,
+) -> impl IntoResponse {
+    let count_service = InventoryCountService::new(state.db.clone());
+    match count_service.list_items(id).await {
+        Ok(items) => ApiResponse::success(items).into_response(),
+        Err(e) => (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(ApiResponse::<()>::error(e.to_string())),
+        )
+            .into_response(),
+    }
+}
+
+/// 向盘点单添加明细
+/// POST /api/v1/erp/inventory/counts/:id/items
+pub async fn add_item(
+    State(state): State<AppState>,
+    Path(id): Path<i32>,
+    Json(request): Json<InventoryCountItemRequest>,
+) -> impl IntoResponse {
+    let count_service = InventoryCountService::new(state.db.clone());
+    match count_service.add_item(id, request).await {
+        Ok(item) => ApiResponse::success_with_message(item, "盘点明细添加成功").into_response(),
+        Err(e) => (
+            StatusCode::BAD_REQUEST,
+            Json(ApiResponse::<()>::error(e.to_string())),
+        )
+            .into_response(),
+    }
+}
+
+/// 更新盘点单明细
+/// PUT /api/v1/erp/inventory/counts/items/:item_id
+pub async fn update_item(
+    State(state): State<AppState>,
+    Path(item_id): Path<i32>,
+    Json(request): Json<InventoryCountItemRequest>,
+) -> impl IntoResponse {
+    let count_service = InventoryCountService::new(state.db.clone());
+    match count_service.update_item(item_id, request).await {
+        Ok(item) => ApiResponse::success_with_message(item, "盘点明细更新成功").into_response(),
+        Err(e) => (
+            StatusCode::BAD_REQUEST,
+            Json(ApiResponse::<()>::error(e.to_string())),
+        )
+            .into_response(),
+    }
+}
+
+/// 删除盘点单明细
+/// DELETE /api/v1/erp/inventory/counts/items/:item_id
+pub async fn delete_item(
+    State(state): State<AppState>,
+    Path(item_id): Path<i32>,
+) -> impl IntoResponse {
+    let count_service = InventoryCountService::new(state.db.clone());
+    match count_service.delete_item(item_id).await {
+        Ok(_) => ApiResponse::success_with_message((), "盘点明细已删除").into_response(),
+        Err(e) => (
+            StatusCode::BAD_REQUEST,
+            Json(ApiResponse::<()>::error(e.to_string())),
+        )
+            .into_response(),
     }
 }

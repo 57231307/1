@@ -1,8 +1,8 @@
 #![allow(dead_code)]
 
 use sea_orm::{
-    ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, ExprTrait, Order,
-    PaginatorTrait, QueryFilter, QueryOrder, TransactionTrait,
+    ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, ExprTrait, IntoActiveModel,
+    Order, PaginatorTrait, QueryFilter, QueryOrder, Set, TransactionTrait,
 };
 use std::sync::Arc;
 
@@ -726,4 +726,226 @@ impl InventoryCountService {
         inventory_count::Entity,
         inventory_count::Column::CountNo
     );
+
+    /// 删除盘点单（仅 pending/rejected 状态）
+    pub async fn delete_count(&self, count_id: i32) -> Result<(), AppError> {
+        let count = InventoryCountEntity::find_by_id(count_id)
+            .one(&*self.db)
+            .await?
+            .ok_or_else(|| AppError::not_found(format!("库存盘点单 {} 未找到", count_id)))?;
+
+        if count.status == "approved" || count.status == "completed" {
+            return Err(AppError::business(format!(
+                "盘点单状态 {} 不允许删除",
+                count.status
+            )));
+        }
+
+        let txn = (*self.db).begin().await?;
+        InventoryCountItemEntity::delete_many()
+            .filter(inventory_count_item::Column::CountId.eq(count_id))
+            .exec(&txn)
+            .await?;
+        InventoryCountEntity::delete_by_id(count_id)
+            .exec(&txn)
+            .await?;
+        txn.commit().await?;
+        Ok(())
+    }
+
+    /// 列出盘点单的所有明细项
+    pub async fn list_items(
+        &self,
+        count_id: i32,
+    ) -> Result<Vec<InventoryCountItemDetail>, AppError> {
+        let _ = self.get_count_detail(count_id).await?;
+        let items = InventoryCountItemEntity::find()
+            .filter(inventory_count_item::Column::CountId.eq(count_id))
+            .order_by(inventory_count_item::Column::Id, Order::Asc)
+            .all(&*self.db)
+            .await?;
+        Ok(items
+            .into_iter()
+            .map(|item| InventoryCountItemDetail {
+                id: item.id,
+                count_id: item.count_id,
+                product_id: item.product_id,
+                stock_id: item.stock_id,
+                warehouse_id: item.warehouse_id,
+                quantity_before: item.quantity_before,
+                quantity_actual: item.quantity_actual,
+                quantity_difference: item.quantity_difference,
+                unit_cost: item.unit_cost,
+                total_cost: item.total_cost,
+                notes: item.notes,
+                created_at: item.created_at,
+                updated_at: item.updated_at,
+            })
+            .collect())
+    }
+
+    /// 向盘点单添加明细
+    pub async fn add_item(
+        &self,
+        count_id: i32,
+        req: InventoryCountItemRequest,
+    ) -> Result<InventoryCountItemDetail, AppError> {
+        let count = InventoryCountEntity::find_by_id(count_id)
+            .one(&*self.db)
+            .await?
+            .ok_or_else(|| AppError::not_found(format!("库存盘点单 {} 未找到", count_id)))?;
+
+        if count.status == "approved" || count.status == "completed" {
+            return Err(AppError::business(format!(
+                "盘点单状态 {} 不允许添加明细",
+                count.status
+            )));
+        }
+
+        let txn = (*self.db).begin().await?;
+
+        let item = inventory_count_item::ActiveModel {
+            id: Default::default(),
+            count_id: sea_orm::ActiveValue::Set(count_id),
+            product_id: sea_orm::ActiveValue::Set(req.product_id),
+            stock_id: sea_orm::ActiveValue::Set(req.stock_id.unwrap_or(0)),
+            warehouse_id: sea_orm::ActiveValue::Set(
+                req.warehouse_id.unwrap_or(count.warehouse_id),
+            ),
+            quantity_before: sea_orm::ActiveValue::Set(rust_decimal::Decimal::ZERO),
+            quantity_actual: sea_orm::ActiveValue::Set(req.quantity_actual),
+            quantity_difference: sea_orm::ActiveValue::Set(rust_decimal::Decimal::ZERO),
+            unit_cost: sea_orm::ActiveValue::Set(
+                req.unit_cost.unwrap_or(rust_decimal::Decimal::ZERO),
+            ),
+            total_cost: sea_orm::ActiveValue::Set(rust_decimal::Decimal::ZERO),
+            notes: sea_orm::ActiveValue::Set(req.notes),
+            created_at: sea_orm::ActiveValue::Set(chrono::Utc::now()),
+            updated_at: sea_orm::ActiveValue::Set(chrono::Utc::now()),
+        };
+        let item_model = item.insert(&txn).await?;
+
+        // 更新统计
+        let total_items = InventoryCountItemEntity::find()
+            .filter(inventory_count_item::Column::CountId.eq(count_id))
+            .count(&txn)
+            .await? as i32;
+
+        let mut count_update: inventory_count::ActiveModel = count.into();
+        count_update.total_items = sea_orm::ActiveValue::Set(total_items);
+        count_update.counted_items = sea_orm::ActiveValue::Set(total_items);
+        count_update.updated_at = sea_orm::ActiveValue::Set(chrono::Utc::now());
+        count_update.update(&txn).await?;
+        txn.commit().await?;
+
+        Ok(InventoryCountItemDetail {
+            id: item_model.id,
+            count_id: item_model.count_id,
+            product_id: item_model.product_id,
+            stock_id: item_model.stock_id,
+            warehouse_id: item_model.warehouse_id,
+            quantity_before: item_model.quantity_before,
+            quantity_actual: item_model.quantity_actual,
+            quantity_difference: item_model.quantity_difference,
+            unit_cost: item_model.unit_cost,
+            total_cost: item_model.total_cost,
+            notes: item_model.notes,
+            created_at: item_model.created_at,
+            updated_at: item_model.updated_at,
+        })
+    }
+
+    /// 更新盘点单明细
+    pub async fn update_item(
+        &self,
+        item_id: i32,
+        req: InventoryCountItemRequest,
+    ) -> Result<InventoryCountItemDetail, AppError> {
+        let item_model = InventoryCountItemEntity::find_by_id(item_id)
+            .one(&*self.db)
+            .await?
+            .ok_or_else(|| AppError::not_found(format!("盘点明细 {} 未找到", item_id)))?;
+
+        let count = InventoryCountEntity::find_by_id(item_model.count_id)
+            .one(&*self.db)
+            .await?
+            .ok_or_else(|| AppError::not_found("盘点单不存在"))?;
+
+        if count.status == "approved" || count.status == "completed" {
+            return Err(AppError::business(format!(
+                "盘点单状态 {} 不允许修改明细",
+                count.status
+            )));
+        }
+
+        let mut active: inventory_count_item::ActiveModel = item_model.into_active_model();
+        active.product_id = sea_orm::ActiveValue::Set(req.product_id);
+        if let Some(stock_id) = req.stock_id {
+            active.stock_id = sea_orm::ActiveValue::Set(stock_id);
+        }
+        if let Some(warehouse_id) = req.warehouse_id {
+            active.warehouse_id = sea_orm::ActiveValue::Set(warehouse_id);
+        }
+        active.quantity_actual = sea_orm::ActiveValue::Set(req.quantity_actual);
+        active.unit_cost = sea_orm::ActiveValue::Set(
+            req.unit_cost.unwrap_or(rust_decimal::Decimal::ZERO),
+        );
+        active.notes = sea_orm::ActiveValue::Set(req.notes);
+        active.updated_at = sea_orm::ActiveValue::Set(chrono::Utc::now());
+        let updated = active.update(&*self.db).await?;
+
+        Ok(InventoryCountItemDetail {
+            id: updated.id,
+            count_id: updated.count_id,
+            product_id: updated.product_id,
+            stock_id: updated.stock_id,
+            warehouse_id: updated.warehouse_id,
+            quantity_before: updated.quantity_before,
+            quantity_actual: updated.quantity_actual,
+            quantity_difference: updated.quantity_difference,
+            unit_cost: updated.unit_cost,
+            total_cost: updated.total_cost,
+            notes: updated.notes,
+            created_at: updated.created_at,
+            updated_at: updated.updated_at,
+        })
+    }
+
+    /// 删除盘点单明细
+    pub async fn delete_item(&self, item_id: i32) -> Result<(), AppError> {
+        let item_model = InventoryCountItemEntity::find_by_id(item_id)
+            .one(&*self.db)
+            .await?
+            .ok_or_else(|| AppError::not_found(format!("盘点明细 {} 未找到", item_id)))?;
+
+        let count = InventoryCountEntity::find_by_id(item_model.count_id)
+            .one(&*self.db)
+            .await?
+            .ok_or_else(|| AppError::not_found("盘点单不存在"))?;
+
+        if count.status == "approved" || count.status == "completed" {
+            return Err(AppError::business(format!(
+                "盘点单状态 {} 不允许删除明细",
+                count.status
+            )));
+        }
+
+        let txn = (*self.db).begin().await?;
+        InventoryCountItemEntity::delete_by_id(item_id)
+            .exec(&txn)
+            .await?;
+
+        let total_items = InventoryCountItemEntity::find()
+            .filter(inventory_count_item::Column::CountId.eq(item_model.count_id))
+            .count(&txn)
+            .await? as i32;
+
+        let mut count_update: inventory_count::ActiveModel = count.into();
+        count_update.total_items = sea_orm::ActiveValue::Set(total_items);
+        count_update.counted_items = sea_orm::ActiveValue::Set(total_items);
+        count_update.updated_at = sea_orm::ActiveValue::Set(chrono::Utc::now());
+        count_update.update(&txn).await?;
+        txn.commit().await?;
+        Ok(())
+    }
 }

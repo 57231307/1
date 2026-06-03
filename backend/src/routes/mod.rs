@@ -416,8 +416,12 @@ pub fn create_router(state: AppState) -> Router {
         )
         .route("/counts", get(inventory_count_handler::list_counts))
         .route("/counts", post(inventory_count_handler::create_count))
-        .route("/counts/:id", get(inventory_count_handler::get_count))
-        .route("/counts/:id", put(inventory_count_handler::update_count))
+        .route(
+            "/counts/:id",
+            get(inventory_count_handler::get_count)
+                .put(inventory_count_handler::update_count)
+                .delete(inventory_count_handler::delete_count),
+        )
         .route(
             "/counts/:id/approve",
             post(inventory_count_handler::approve_count),
@@ -425,6 +429,16 @@ pub fn create_router(state: AppState) -> Router {
         .route(
             "/counts/:id/complete",
             post(inventory_count_handler::complete_count),
+        )
+        .route(
+            "/counts/:id/items",
+            get(inventory_count_handler::list_items)
+                .post(inventory_count_handler::add_item),
+        )
+        .route(
+            "/counts/items/:item_id",
+            put(inventory_count_handler::update_item)
+                .delete(inventory_count_handler::delete_item),
         )
         .route(
             "/counts/:id/print",
