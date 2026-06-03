@@ -486,7 +486,8 @@ pub fn create_router(state: AppState) -> Router {
         .route(
             "/by-color/:color_code",
             get(dye_batch_handler::get_dye_batches_by_color),
-        );
+        )
+        .route("/export", get(dye_batch_handler::export_dye_batches));
 
     // 坯布管理路由（原料布匹管理）
     let greige_fabric_routes = Router::new()
@@ -510,6 +511,7 @@ pub fn create_router(state: AppState) -> Router {
         .route("/:id", put(dye_recipe_handler::update_dye_recipe))
         .route("/:id", delete(dye_recipe_handler::delete_dye_recipe))
         .route("/:id/approve", post(dye_recipe_handler::approve_recipe))
+        .route("/:id/submit", post(dye_recipe_handler::submit_dye_recipe))
         .route("/:id/version", post(dye_recipe_handler::create_new_version))
         .route(
             "/by-color/:color_code",
@@ -518,7 +520,8 @@ pub fn create_router(state: AppState) -> Router {
         .route(
             "/:id/versions",
             get(dye_recipe_handler::get_recipe_versions),
-        );
+        )
+        .route("/export", get(dye_recipe_handler::export_dye_recipes));
 
     // 总账管理路由
     let gl_routes = Router::new()
@@ -1617,6 +1620,8 @@ pub fn create_router(state: AppState) -> Router {
                 )
                 .route("/:id/copy", post(bom_handler::copy_bom))
                 .route("/:id/default", put(bom_handler::set_default_bom))
+                .route("/:id/submit", put(bom_handler::submit_bom))
+                .route("/:id/approve", put(bom_handler::approve_bom))
                 .route("/:id/tree", get(bom_handler::get_bom_tree))
                 .route(
                     "/:id/requirements",
@@ -1724,6 +1729,10 @@ pub fn create_router(state: AppState) -> Router {
                 .route(
                     "/replenishment",
                     get(material_shortage_handler::get_replenishment_suggestions),
+                )
+                .route(
+                    "/:id/status",
+                    put(material_shortage_handler::update_shortage_status),
                 ),
         )
         // CRM客户管理路由

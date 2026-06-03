@@ -3,16 +3,41 @@
 //! 提供缺料预警列表、手动触发检查、缺料汇总等 API 接口
 
 use axum::{
-    extract::{Query, State},
+    extract::{Path, Query, State},
     Json,
 };
-use serde::Deserialize;
+use rust_decimal::Decimal;
+use serde::{Deserialize, Serialize};
 
 use crate::middleware::auth_context::AuthContext;
 use crate::services::material_shortage_service::{MaterialShortageService, ShortageCheckRequest};
 use crate::utils::app_state::AppState;
 use crate::utils::error::AppError;
 use crate::utils::response::ApiResponse;
+
+/// 缺料预警状态更新请求
+#[derive(Debug, Deserialize)]
+pub struct UpdateStatusRequest {
+    pub status: String,
+}
+
+/// 缺料预警数据传输对象
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct MaterialShortageDto {
+    pub id: i32,
+    pub material_code: String,
+    pub material_name: String,
+    pub spec: Option<String>,
+    pub current_stock: Decimal,
+    pub required_quantity: Decimal,
+    pub shortage_quantity: Decimal,
+    pub unit: Option<String>,
+    pub expected_date: Option<String>,
+    pub source_type: Option<String>,
+    pub source_no: Option<String>,
+    pub status: String,
+    pub severity: String,
+}
 
 /// 缺料预警列表查询参数
 #[derive(Debug, Deserialize)]
@@ -188,4 +213,45 @@ pub async fn get_replenishment_suggestions(
         "suggestions": suggestions,
         "total": suggestions.len(),
     }))))
+}
+
+/// PUT /api/v1/erp/material-shortage/:id/status - 更新缺料预警状态
+pub async fn update_shortage_status(
+    State(state): State<AppState>,
+    _auth: AuthContext,
+    Path(id): Path<i32>,
+    Json(req): Json<UpdateStatusRequest>,
+) -> Result<Json<ApiResponse<MaterialShortageDto>>, AppError> {
+    // 校验状态值
+    let valid = matches!(req.status.as_str(), "pending" | "notified" | "resolved");
+    if !valid {
+        return Err(AppError::validation(format!(
+            "无效的缺料状态：{}（允许值：pending / notified / resolved）",
+            req.status
+        )));
+    }
+
+    let service = MaterialShortageService::new(state.db.clone());
+    let severity = service.update_status(id, &req.status).await?;
+
+    let dto = MaterialShortageDto {
+        id,
+        material_code: String::new(),
+        material_name: format!("物料#{}", id),
+        spec: None,
+        current_stock: Decimal::ZERO,
+        required_quantity: Decimal::ZERO,
+        shortage_quantity: Decimal::ZERO,
+        unit: None,
+        expected_date: None,
+        source_type: None,
+        source_no: None,
+        status: req.status,
+        severity,
+    };
+
+    Ok(Json(ApiResponse::success_with_message(
+        dto,
+        "缺料状态已更新",
+    )))
 }

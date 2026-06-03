@@ -537,6 +537,75 @@ impl MaterialShortageService {
 
         Ok(suggestions)
     }
+
+    /// 更新缺料预警状态（将状态持久化到 tenant_config，key 包含物料 ID）
+    pub async fn update_status(
+        &self,
+        material_id: i32,
+        status: &str,
+    ) -> Result<String, AppError> {
+        use sea_orm::Set;
+
+        // 复用现有检测得到当前严重程度
+        let summary = self
+            .detect_shortages(ShortageCheckRequest {
+                product_ids: None,
+                date_from: None,
+                date_to: None,
+                threshold: None,
+            })
+            .await?;
+
+        let severity = summary
+            .items
+            .iter()
+            .find(|i| i.material_id == material_id)
+            .map(|i| match i.level {
+                ShortageLevel::Critical => "critical",
+                ShortageLevel::Severe => "high",
+                ShortageLevel::Warning => "medium",
+                ShortageLevel::Normal => "low",
+            })
+            .unwrap_or("low")
+            .to_string();
+
+        let payload = serde_json::json!({
+            "material_id": material_id,
+            "status": status,
+            "severity": severity,
+            "updated_at": Utc::now().to_rfc3339(),
+        });
+        let payload_str = serde_json::to_string(&payload)
+            .map_err(|e| AppError::validation(format!("状态序列化失败: {}", e)))?;
+
+        let key = format!("shortage_status:{}", material_id);
+
+        let existing = TenantConfigEntity::find()
+            .filter(crate::models::tenant_config::Column::ConfigKey.eq(&key))
+            .one(&*self.db)
+            .await?;
+
+        if let Some(model) = existing {
+            let mut active: TenantConfigActiveModel = model.into();
+            active.config_value = Set(payload_str);
+            active.updated_at = Set(Utc::now());
+            active.update(&*self.db).await?;
+        } else {
+            let active = TenantConfigActiveModel {
+                id: Default::default(),
+                tenant_id: Set(0),
+                config_key: Set(key),
+                config_value: Set(payload_str),
+                config_type: Set("json".to_string()),
+                description: Set(Some("缺料预警状态".to_string())),
+                created_at: Set(Utc::now()),
+                updated_at: Set(Utc::now()),
+            };
+            active.insert(&*self.db).await?;
+        }
+
+        Ok(severity)
+    }
 }
 
 /// 补货建议
