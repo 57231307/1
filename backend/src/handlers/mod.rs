@@ -18,6 +18,7 @@ pub mod init_handler;
 pub mod inventory_adjustment_handler;
 pub mod inventory_batch_handler;
 pub mod inventory_count_handler;
+pub mod inventory_reservation_handler;
 pub mod inventory_stock_handler;
 pub mod inventory_transfer_handler;
 pub mod omni_audit_handler;
@@ -45,6 +46,9 @@ pub mod ap_report_handler;
 pub mod ap_verification_handler;
 // 应收管理模块
 pub mod ar_invoice_handler;
+pub mod ar_payment_handler;
+pub mod ar_report_handler;
+pub mod ar_verification_handler;
 // 总账管理模块
 pub mod voucher_handler;
 // 成本管理模块

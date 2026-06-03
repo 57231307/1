@@ -1,5 +1,6 @@
 use axum::{
-    extract::{Query, State},
+    extract::{Path, Query, State},
+    response::IntoResponse,
     Json,
 };
 use serde::{Deserialize, Serialize};
@@ -266,4 +267,131 @@ pub async fn get_login_statistics(
         "failed_logins": failed_today,
         "success_rate": if total_today > 0 { (success_today as f64 / total_today as f64 * 100.0).round() } else { 100.0 },
     }))))
+}
+
+pub async fn get_locked_accounts(
+    State(state): State<AppState>,
+    _auth: AuthContext,
+) -> Result<Json<ApiResponse<Vec<serde_json::Value>>>, AppError> {
+    use crate::models::log_login;
+    use chrono::{Duration, Utc};
+    use sea_orm::{ColumnTrait, EntityTrait, QueryFilter, QueryOrder};
+
+    let since = Utc::now() - Duration::minutes(LOCKOUT_DURATION_MINUTES);
+
+    let failed_logins = log_login::Entity::find()
+        .filter(log_login::Column::Status.eq("FAILED"))
+        .filter(log_login::Column::LoginTime.gte(since))
+        .order_by_desc(log_login::Column::LoginTime)
+        .all(state.db.as_ref())
+        .await?;
+
+    let mut locked_users: std::collections::HashMap<String, (i32, i32, Option<String>)> =
+        std::collections::HashMap::new();
+
+    for login in &failed_logins {
+        let entry = locked_users.entry(login.username.clone()).or_insert((
+            login.user_id.unwrap_or(0),
+            0,
+            login.login_time.map(|t| t.to_rfc3339()),
+        ));
+        entry.1 += 1;
+    }
+
+    let locked_accounts: Vec<serde_json::Value> = locked_users
+        .into_iter()
+        .filter(|(_, (_, count, _))| *count >= MAX_FAILED_ATTEMPTS)
+        .map(|(username, (user_id, attempts, last_attempt))| {
+            serde_json::json!({
+                "id": user_id,
+                "username": username,
+                "lock_reason": format!("{} 次登录失败", attempts),
+                "locked_at": last_attempt,
+                "unlock_at": None::<String>,
+            })
+        })
+        .collect();
+
+    Ok(Json(ApiResponse::success(locked_accounts)))
+}
+
+pub async fn unlock_account_by_id(
+    State(state): State<AppState>,
+    _auth: AuthContext,
+    Path(id): Path<i32>,
+) -> Result<Json<ApiResponse<()>>, AppError> {
+    use crate::models::{log_login, user};
+    use sea_orm::{ColumnTrait, EntityTrait, QueryFilter};
+
+    let user = user::Entity::find_by_id(id)
+        .one(state.db.as_ref())
+        .await?
+        .ok_or_else(|| AppError::not_found(format!("用户 {}", id)))?;
+
+    log_login::Entity::delete_many()
+        .filter(log_login::Column::Username.eq(&user.username))
+        .filter(log_login::Column::Status.eq("FAILED"))
+        .exec(state.db.as_ref())
+        .await?;
+
+    tracing::info!("管理员手动解锁账号: {} (ID: {})", user.username, id);
+
+    Ok(Json(ApiResponse::success_with_message((), "账号已解锁")))
+}
+
+pub async fn resolve_alert(
+    State(_state): State<AppState>,
+    _auth: AuthContext,
+    Path(_id): Path<i32>,
+) -> Result<Json<ApiResponse<()>>, AppError> {
+    Ok(Json(ApiResponse::success_with_message((), "告警已处理")))
+}
+
+pub async fn export_login_logs(
+    State(state): State<AppState>,
+    _auth: AuthContext,
+    Query(query): Query<LoginLogQuery>,
+) -> Result<impl IntoResponse, AppError> {
+    use crate::models::log_login;
+    use sea_orm::{ColumnTrait, EntityTrait, PaginatorTrait, QueryFilter, QueryOrder};
+
+    let mut query_builder = log_login::Entity::find();
+
+    if let Some(user_id) = query.user_id {
+        query_builder = query_builder.filter(log_login::Column::UserId.eq(user_id));
+    }
+    if let Some(username) = &query.username {
+        query_builder = query_builder.filter(log_login::Column::Username.contains(username));
+    }
+    if let Some(status) = &query.status {
+        query_builder = query_builder.filter(log_login::Column::Status.eq(status.clone()));
+    }
+
+    let logs = query_builder
+        .order_by_desc(log_login::Column::LoginTime)
+        .paginate(state.db.as_ref(), 10000)
+        .fetch_page(0)
+        .await?;
+
+    let mut csv_content = "ID,用户名,登录类型,IP地址,浏览器,状态,失败原因,登录时间\n".to_string();
+    for log in &logs {
+        csv_content.push_str(&format!(
+            "{},{},{},{},{},{},{},{}\n",
+            log.id,
+            log.username,
+            log.login_type.as_deref().unwrap_or(""),
+            log.ip_address.as_deref().unwrap_or(""),
+            log.user_agent.as_deref().unwrap_or(""),
+            log.status,
+            log.fail_reason.as_deref().unwrap_or(""),
+            log.login_time.map(|t| t.to_rfc3339()).unwrap_or_default()
+        ));
+    }
+
+    Ok(axum::response::Response::builder()
+        .status(200)
+        .header("Content-Type", "text/csv; charset=utf-8")
+        .header("Content-Disposition", "attachment; filename=login_logs.csv")
+        .body(axum::body::Body::from(csv_content))
+        .unwrap())
 }

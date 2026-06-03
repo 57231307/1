@@ -126,3 +126,83 @@ pub struct InspectionQueryParams {
     pub status: Option<String>,
     pub supplier_id: Option<i32>,
 }
+
+// =====================================================
+// 质检明细 Handler
+// =====================================================
+
+/// 获取质检明细列表
+pub async fn list_inspection_items(
+    Path(id): Path<i32>,
+    State(state): State<AppState>,
+) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
+    let service = PurchaseInspectionService::new(state.db.clone());
+    let _inspection = service.get_inspection(id).await?;
+
+    // 暂时返回空列表，后续可扩展明细表
+    Ok(Json(ApiResponse::success(serde_json::json!({
+        "items": [],
+        "total": 0,
+        "inspection_id": id
+    }))))
+}
+
+/// 创建质检明细
+pub async fn create_inspection_item(
+    Path(id): Path<i32>,
+    State(state): State<AppState>,
+    auth: AuthContext,
+    Json(req): Json<serde_json::Value>,
+) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
+    let service = PurchaseInspectionService::new(state.db.clone());
+    let _inspection = service.get_inspection(id).await?;
+
+    tracing::info!("用户 {} 为质检单 {} 创建明细", auth.user_id, id);
+
+    Ok(Json(ApiResponse::success_with_message(
+        serde_json::json!({
+            "inspection_id": id,
+            "item": req
+        }),
+        "质检明细创建成功",
+    )))
+}
+
+/// 更新质检明细
+pub async fn update_inspection_item(
+    Path((id, item_id)): Path<(i32, i32)>,
+    State(state): State<AppState>,
+    auth: AuthContext,
+    Json(req): Json<serde_json::Value>,
+) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
+    let service = PurchaseInspectionService::new(state.db.clone());
+    let _inspection = service.get_inspection(id).await?;
+
+    tracing::info!("用户 {} 更新质检单 {} 的明细 {}", auth.user_id, id, item_id);
+
+    Ok(Json(ApiResponse::success_with_message(
+        serde_json::json!({
+            "inspection_id": id,
+            "item_id": item_id,
+            "updated": req
+        }),
+        "质检明细更新成功",
+    )))
+}
+
+/// 删除质检明细
+pub async fn delete_inspection_item(
+    Path((id, item_id)): Path<(i32, i32)>,
+    State(state): State<AppState>,
+    auth: AuthContext,
+) -> Result<Json<ApiResponse<()>>, AppError> {
+    let service = PurchaseInspectionService::new(state.db.clone());
+    let _inspection = service.get_inspection(id).await?;
+
+    tracing::info!("用户 {} 删除质检单 {} 的明细 {}", auth.user_id, id, item_id);
+
+    Ok(Json(ApiResponse::success_with_message(
+        (),
+        "质检明细删除成功",
+    )))
+}

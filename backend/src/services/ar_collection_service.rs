@@ -1,12 +1,15 @@
-use sea_orm::{ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter, Set, TransactionTrait};
+use sea_orm::{
+    ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter, Set,
+    TransactionTrait,
+};
 use std::sync::Arc;
 
 use crate::models::ar_collection;
 use crate::models::ar_invoice;
 use crate::utils::error::AppError;
 use crate::utils::number_generator::DocumentNumberGenerator;
-use rust_decimal::Decimal;
 use chrono::{Datelike, Utc};
+use rust_decimal::Decimal;
 use tracing::info;
 
 pub struct ArCollectionService {
@@ -30,9 +33,14 @@ impl ArCollectionService {
         }
 
         // 检查期间锁定
-        let period_svc = crate::services::accounting_period_service::AccountingPeriodService::new(self.db.clone());
+        let period_svc = crate::services::accounting_period_service::AccountingPeriodService::new(
+            self.db.clone(),
+        );
         let now_date = Utc::now().date_naive();
-        period_svc.check_date_locked(now_date).await.map_err(|e| AppError::business(e.to_string()))?;
+        period_svc
+            .check_date_locked(now_date)
+            .await
+            .map_err(|e| AppError::business(e.to_string()))?;
 
         let txn = (*self.db).begin().await?;
 
@@ -92,16 +100,23 @@ impl ArCollectionService {
 
             let new_received = invoice.received_amount + amount;
             let new_unpaid = (invoice.invoice_amount - new_received).max(Decimal::ZERO);
-            let new_status = if new_unpaid == Decimal::ZERO { "PAID" } else { &invoice.status };
+            let new_status = if new_unpaid == Decimal::ZERO {
+                "PAID".to_string()
+            } else {
+                invoice.status.clone()
+            };
 
             let mut active_invoice: ar_invoice::ActiveModel = invoice.into();
             active_invoice.received_amount = Set(new_received);
             active_invoice.unpaid_amount = Set(new_unpaid);
-            active_invoice.status = Set(new_status.to_string());
+            active_invoice.status = Set(new_status);
             active_invoice.updated_at = Set(Utc::now());
             active_invoice.update(&txn).await?;
 
-            info!("收款关联应收单成功：invoice_id={}, 收款金额={}, 已收={}, 未收={}", inv_id, amount, new_received, new_unpaid);
+            info!(
+                "收款关联应收单成功：invoice_id={}, 收款金额={}, 已收={}, 未收={}",
+                inv_id, amount, new_received, new_unpaid
+            );
         }
 
         txn.commit().await?;
@@ -151,10 +166,7 @@ impl ArCollectionService {
     }
 
     /// 取消收款
-    pub async fn cancel_collection(
-        &self,
-        id: i32,
-    ) -> Result<ar_collection::Model, AppError> {
+    pub async fn cancel_collection(&self, id: i32) -> Result<ar_collection::Model, AppError> {
         let collection = ar_collection::Entity::find_by_id(id)
             .one(&*self.db)
             .await?

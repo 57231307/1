@@ -11,6 +11,8 @@ use rust_decimal::Decimal;
 use serde::{Deserialize, Serialize};
 use validator::Validate;
 
+use sea_orm::{ActiveModelTrait, Set};
+
 use crate::middleware::auth_context::AuthContext;
 use crate::services::production_order_service::{
     CreateProductionOrderRequest, ProductionOrderQuery, ProductionOrderService,
@@ -315,6 +317,83 @@ pub async fn approve_production_order(
         "审批拒绝"
     };
     Ok(Json(ApiResponse::success_with_message(response, message)))
+}
+
+/// 删除生产订单（软删除）
+pub async fn delete_production_order(
+    State(state): State<AppState>,
+    _auth: AuthContext,
+    Path(id): Path<i32>,
+) -> Result<Json<ApiResponse<String>>, AppError> {
+    let service = ProductionOrderService::new(state.db.clone());
+    service.delete(id).await?;
+    Ok(Json(ApiResponse::success("生产订单已取消".to_string())))
+}
+
+/// 更新生产进度请求
+#[derive(Debug, Deserialize)]
+pub struct UpdateProgressRequest {
+    pub progress_percent: Option<Decimal>,
+    pub actual_quantity: Option<Decimal>,
+    pub remarks: Option<String>,
+}
+
+/// 更新生产订单进度
+pub async fn update_production_progress(
+    State(state): State<AppState>,
+    _auth: AuthContext,
+    Path(id): Path<i32>,
+    Json(payload): Json<UpdateProgressRequest>,
+) -> Result<Json<ApiResponse<ProductionOrderResponse>>, AppError> {
+    let service = ProductionOrderService::new(state.db.clone());
+    let model = service
+        .get_by_id(id)
+        .await?
+        .ok_or_else(|| AppError::not_found("生产订单不存在"))?;
+
+    let mut active_model: crate::models::production_order::ActiveModel = model.into();
+    if let Some(qty) = payload.actual_quantity {
+        active_model.actual_quantity = Set(Some(qty));
+    }
+    if let Some(remarks) = payload.remarks {
+        active_model.remarks = Set(Some(remarks));
+    }
+    active_model.updated_at = Set(Utc::now());
+
+    let updated = active_model.update(&*state.db).await?;
+
+    let response = ProductionOrderResponse {
+        id: updated.id,
+        order_no: updated.order_no,
+        sales_order_id: updated.sales_order_id,
+        product_id: updated.product_id,
+        planned_quantity: updated.planned_quantity,
+        actual_quantity: updated.actual_quantity,
+        planned_start_date: updated.planned_start_date,
+        planned_end_date: updated.planned_end_date,
+        status: updated.status,
+        priority: updated.priority,
+        work_center_id: updated.work_center_id,
+        remarks: updated.remarks,
+        created_at: updated.created_at,
+        updated_at: updated.updated_at,
+    };
+
+    Ok(Json(ApiResponse::success(response)))
+}
+
+/// 获取生产订单操作日志
+pub async fn get_production_order_logs(
+    State(state): State<AppState>,
+    _auth: AuthContext,
+    Path(id): Path<i32>,
+) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
+    let _service = ProductionOrderService::new(state.db.clone());
+    // 返回空日志列表，后续可扩展为从审计日志表查询
+    Ok(Json(ApiResponse::success(serde_json::json!({
+        "order_id": id,
+        "logs": []
+    }))))
 }
 
 /// 更新生产订单状态

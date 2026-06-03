@@ -40,7 +40,9 @@ pub mod ap_reconciliation_service;
 pub mod ap_report_service;
 pub mod ap_verification_service;
 // 应收管理模块
+pub mod ar_collection_service;
 pub mod ar_invoice_service;
+pub mod ar_service;
 // 总账管理模块
 pub mod account_subject_service;
 pub mod accounting_period_service;

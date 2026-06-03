@@ -390,3 +390,107 @@ pub async fn export_orders(
 
     Ok(response)
 }
+
+// ========== 订单状态操作接口 ==========
+
+/// 拒绝订单
+/// POST /api/v1/erp/sales/orders/:id/reject
+pub async fn reject_order(
+    _auth: AuthContext,
+    State(state): State<AppState>,
+    Path(id): Path<i32>,
+) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
+    let sales_service = SalesService::new(state.db.clone());
+
+    let _order = sales_service
+        .reject_order(id, "订单被拒绝".to_string())
+        .await
+        .map_err(|e| AppError::internal(format!("拒绝订单失败: {}", e)))?;
+
+    Ok(Json(ApiResponse::success(serde_json::json!({
+        "message": "订单已拒绝"
+    }))))
+}
+
+/// 取消订单
+/// POST /api/v1/erp/sales/orders/:id/cancel
+pub async fn cancel_order(
+    auth: AuthContext,
+    State(state): State<AppState>,
+    Path(id): Path<i32>,
+) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
+    let sales_service = SalesService::new(state.db.clone());
+
+    let _order = sales_service
+        .cancel_order(id, auth.user_id)
+        .await
+        .map_err(|e| AppError::internal(format!("取消订单失败: {}", e)))?;
+
+    Ok(Json(ApiResponse::success(serde_json::json!({
+        "message": "订单已取消"
+    }))))
+}
+
+// ========== 发货记录接口 ==========
+
+/// 获取订单发货记录
+/// GET /api/v1/erp/sales/orders/:id/deliveries
+pub async fn get_order_deliveries(
+    _auth: AuthContext,
+    State(state): State<AppState>,
+    Path(id): Path<i32>,
+    Query(query): Query<PageRequest>,
+) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
+    let sales_service = SalesService::new(state.db.clone());
+
+    let (deliveries, total) = sales_service
+        .get_order_deliveries(id, query.page, query.page_size)
+        .await
+        .map_err(|e| AppError::internal(format!("获取发货记录失败: {}", e)))?;
+
+    let result = serde_json::json!({
+        "list": deliveries,
+        "total": total,
+        "page": query.page,
+        "page_size": query.page_size,
+    });
+
+    Ok(Json(ApiResponse::success(result)))
+}
+
+/// 创建发货
+/// POST /api/v1/erp/sales/orders/:id/deliveries
+pub async fn create_delivery(
+    auth: AuthContext,
+    State(state): State<AppState>,
+    Path(id): Path<i32>,
+    Json(payload): Json<serde_json::Value>,
+) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
+    let sales_service = SalesService::new(state.db.clone());
+
+    let delivery = sales_service
+        .create_delivery(id, payload, auth.user_id)
+        .await
+        .map_err(|e| AppError::internal(format!("创建发货失败: {}", e)))?;
+
+    Ok(Json(ApiResponse::success(delivery)))
+}
+
+// ========== 统计接口 ==========
+
+/// 获取订单统计
+/// GET /api/v1/erp/sales/orders/statistics
+pub async fn get_order_statistics(
+    _auth: AuthContext,
+    State(state): State<AppState>,
+    Query(query): Query<serde_json::Value>,
+) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
+    let sales_service = SalesService::new(state.db.clone());
+
+    let statistics = sales_service
+        .get_order_statistics(query)
+        .await
+        .map_err(|e| AppError::internal(format!("获取订单统计失败: {}", e)))?;
+
+    Ok(Json(ApiResponse::success(statistics)))
+}

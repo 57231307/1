@@ -657,6 +657,39 @@ pub struct CsrfTokenResponse {
     pub csrf_token: String,
 }
 
+/// 获取当前登录用户信息
+pub async fn get_current_user(
+    State(state): State<AppState>,
+    Extension(auth): Extension<AuthContext>,
+) -> Result<Json<ApiResponse<UserInfo>>, (StatusCode, Json<ApiResponse<()>>)> {
+    use crate::models::user;
+    use sea_orm::EntityTrait;
+
+    let user = user::Entity::find_by_id(auth.user_id)
+        .one(state.db.as_ref())
+        .await
+        .map_err(|e| {
+            tracing::error!("Failed to query user: {}", e);
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(ApiResponse::error("Internal server error".to_string())),
+            )
+        })?;
+
+    match user {
+        Some(u) => Ok(Json(ApiResponse::success(UserInfo {
+            id: u.id,
+            username: u.username,
+            email: u.email,
+            role_id: u.role_id,
+        }))),
+        None => Err((
+            StatusCode::NOT_FOUND,
+            Json(ApiResponse::error("用户不存在".to_string())),
+        )),
+    }
+}
+
 /// 获取 CSRF Token（公开接口，无需认证）
 /// 前端在登录前或需要时调用此接口获取 CSRF Token
 #[utoipa::path(

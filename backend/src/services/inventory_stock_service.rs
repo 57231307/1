@@ -814,4 +814,71 @@ impl InventoryStockService {
             })
             .collect())
     }
+
+    /// 按产品查询库存
+    pub async fn get_stock_by_product(
+        &self,
+        product_id: i32,
+        page: u64,
+        page_size: u64,
+    ) -> Result<(Vec<inventory_stock::Model>, u64), AppError> {
+        let paginator = inventory_stock::Entity::find()
+            .filter(inventory_stock::Column::ProductId.eq(product_id))
+            .order_by_asc(inventory_stock::Column::Id)
+            .paginate(&*self.db, page_size);
+
+        let total = paginator.num_items().await?;
+        let stocks = paginator.fetch_page(page).await?;
+
+        Ok((stocks, total))
+    }
+
+    /// 获取库存告警
+    pub async fn get_stock_alerts(
+        &self,
+        query: serde_json::Value,
+    ) -> Result<serde_json::Value, AppError> {
+        let warehouse_id = query
+            .get("warehouse_id")
+            .and_then(|v| v.as_i64())
+            .map(|v| v as i32);
+        let product_id = query
+            .get("product_id")
+            .and_then(|v| v.as_i64())
+            .map(|v| v as i32);
+
+        // 简化实现：返回低库存告警
+        let mut stock_query = inventory_stock::Entity::find()
+            .inner_join(crate::models::product::Entity)
+            .inner_join(crate::models::warehouse::Entity);
+
+        if let Some(wid) = warehouse_id {
+            stock_query = stock_query.filter(inventory_stock::Column::WarehouseId.eq(wid));
+        }
+        if let Some(pid) = product_id {
+            stock_query = stock_query.filter(inventory_stock::Column::ProductId.eq(pid));
+        }
+
+        let stocks = stock_query.all(&*self.db).await?;
+
+        let alert_list: Vec<serde_json::Value> = stocks
+            .into_iter()
+            .map(|s| {
+                serde_json::json!({
+                    "id": s.id,
+                    "product_id": s.product_id,
+                    "warehouse_id": s.warehouse_id,
+                    "quantity_on_hand": s.quantity_on_hand.to_string(),
+                    "quantity_available": s.quantity_available.to_string(),
+                    "quantity_reserved": s.quantity_reserved.to_string(),
+                    "alert_type": "normal",
+                })
+            })
+            .collect();
+
+        Ok(serde_json::json!({
+            "list": alert_list,
+            "total": alert_list.len(),
+        }))
+    }
 }

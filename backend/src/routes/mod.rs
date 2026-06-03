@@ -12,18 +12,19 @@ use crate::handlers::{
     account_subject_handler, accounting_period_handler, advanced_handler, ai_analysis_handler,
     ap_invoice_handler, ap_payment_handler, ap_payment_request_handler, ap_reconciliation_handler,
     ap_report_handler, ap_verification_handler, api_key_handler, ar_invoice_handler,
-    ar_reconciliation_enhanced_handler, ar_reconciliation_handler, assist_accounting_handler,
-    audit_enhanced_handler, auth_handler, barcode_scanner_handler, bom_handler,
-    bpm_definition_handler, bpm_handler, budget_management_handler, bulk_product_handler,
-    business_trace_handler, capacity_handler, cost_collection_handler, crm_assignment_handler,
-    crm_customer_handler, crm_pool_handler, currency_enhanced_handler, currency_handler,
-    customer_credit_handler, customer_handler, dashboard_handler, data_permission_handler,
-    department_handler, dual_unit_converter_handler, dye_batch_handler, dye_recipe_handler,
-    email_handler, field_permission_handler, finance_invoice_handler, finance_payment_handler,
-    finance_report_handler, financial_analysis_handler, five_dimension_handler,
-    fixed_asset_handler, fund_management_handler, greige_fabric_handler, health_handler,
-    import_export_handler, init_handler, inventory_adjustment_handler, inventory_batch_handler,
-    inventory_count_handler, inventory_stock_handler, inventory_transfer_handler,
+    ar_payment_handler, ar_reconciliation_enhanced_handler, ar_reconciliation_handler,
+    ar_report_handler, ar_verification_handler, assist_accounting_handler, audit_enhanced_handler,
+    auth_handler, barcode_scanner_handler, bom_handler, bpm_definition_handler, bpm_handler,
+    budget_management_handler, bulk_product_handler, business_trace_handler, capacity_handler,
+    cost_collection_handler, crm_assignment_handler, crm_customer_handler, crm_pool_handler,
+    currency_enhanced_handler, currency_handler, customer_credit_handler, customer_handler,
+    dashboard_handler, data_permission_handler, department_handler, dual_unit_converter_handler,
+    dye_batch_handler, dye_recipe_handler, email_handler, field_permission_handler,
+    finance_invoice_handler, finance_payment_handler, finance_report_handler,
+    financial_analysis_handler, five_dimension_handler, fixed_asset_handler,
+    fund_management_handler, greige_fabric_handler, health_handler, import_export_handler,
+    init_handler, inventory_adjustment_handler, inventory_batch_handler, inventory_count_handler,
+    inventory_reservation_handler, inventory_stock_handler, inventory_transfer_handler,
     login_security_handler, logistics_handler, material_shortage_handler, missing_handlers,
     mrp_handler, notification_handler, omni_audit_handler, print_handler, product_category_handler,
     product_handler, production_order_handler, purchase_contract_handler,
@@ -54,6 +55,7 @@ pub fn create_router(state: AppState) -> Router {
         .route("/csrf-token", get(auth_handler::get_csrf_token))
         .route("/totp/setup", get(auth_handler::setup_totp))
         .route("/totp/enable", post(auth_handler::enable_totp))
+        .route("/me", get(auth_handler::get_current_user))
         .layer(middleware::from_fn(rate_limit::anti_brute_force));
 
     // 用户管理路由
@@ -265,6 +267,23 @@ pub fn create_router(state: AppState) -> Router {
             post(sales_order_handler::complete_order),
         )
         .route(
+            "/orders/:id/reject",
+            post(sales_order_handler::reject_order),
+        )
+        .route(
+            "/orders/:id/cancel",
+            post(sales_order_handler::cancel_order),
+        )
+        .route(
+            "/orders/:id/deliveries",
+            get(sales_order_handler::get_order_deliveries)
+                .post(sales_order_handler::create_delivery),
+        )
+        .route(
+            "/orders/statistics",
+            get(sales_order_handler::get_order_statistics),
+        )
+        .route(
             "/orders/:id/history",
             get(sales_order_handler::get_order_history),
         )
@@ -330,6 +349,14 @@ pub fn create_router(state: AppState) -> Router {
         .route(
             "/stock/low-stock",
             get(inventory_stock_handler::check_low_stock),
+        )
+        .route(
+            "/stock/product/:productId",
+            get(inventory_stock_handler::get_stock_by_product),
+        )
+        .route(
+            "/stock/alerts",
+            get(inventory_stock_handler::get_stock_alerts),
         )
         .route(
             "/transfers",
@@ -398,6 +425,16 @@ pub fn create_router(state: AppState) -> Router {
         .route(
             "/adjustments/:id/reject",
             post(inventory_adjustment_handler::reject_adjustment),
+        )
+        // 预留管理路由
+        .route(
+            "/reservations",
+            get(inventory_reservation_handler::list_reservations)
+                .post(inventory_reservation_handler::create_reservation),
+        )
+        .route(
+            "/reservations/:id",
+            delete(inventory_reservation_handler::delete_reservation),
         );
 
     // 客户管理路由
@@ -407,7 +444,8 @@ pub fn create_router(state: AppState) -> Router {
         .route("/select", get(customer_handler::list_customers))
         .route("/:id", get(customer_handler::get_customer))
         .route("/:id", put(customer_handler::update_customer))
-        .route("/:id", delete(customer_handler::delete_customer));
+        .route("/:id", delete(customer_handler::delete_customer))
+        .route("/:id/credit", get(customer_credit_handler::get_credit));
 
     // 批次管理路由（面料行业核心）
     let batch_routes = Router::new()
@@ -603,6 +641,14 @@ pub fn create_router(state: AppState) -> Router {
             "/:id/qualifications",
             get(supplier_handler::list_supplier_qualifications)
                 .post(supplier_handler::create_supplier_qualification),
+        )
+        .route(
+            "/:id/evaluate",
+            post(supplier_evaluation_handler::create_evaluation_record),
+        )
+        .route(
+            "/:id/evaluations",
+            get(supplier_evaluation_handler::list_evaluation_records),
         );
 
     // 供应商评估路由
@@ -728,6 +774,16 @@ pub fn create_router(state: AppState) -> Router {
         .route(
             "/inspections/:id/complete",
             post(purchase_inspection_handler::complete_inspection),
+        )
+        .route(
+            "/inspections/:id/items",
+            get(purchase_inspection_handler::list_inspection_items)
+                .post(purchase_inspection_handler::create_inspection_item),
+        )
+        .route(
+            "/inspections/:id/items/:item_id",
+            put(purchase_inspection_handler::update_inspection_item)
+                .delete(purchase_inspection_handler::delete_inspection_item),
         )
         .route(
             "/returns",
@@ -1235,7 +1291,56 @@ pub fn create_router(state: AppState) -> Router {
         .route(
             "/invoices/:id/cancel",
             post(ar_invoice_handler::cancel_ar_invoice),
-        );
+        )
+        // AR收款路由
+        .route("/payments", get(ar_payment_handler::list_payments))
+        .route("/payments", post(ar_payment_handler::create_payment))
+        .route("/payments/:id", get(ar_payment_handler::get_payment))
+        .route("/payments/:id", put(ar_payment_handler::update_payment))
+        .route(
+            "/payments/:id/confirm",
+            post(ar_payment_handler::confirm_payment),
+        )
+        // AR核销路由
+        .route(
+            "/verifications",
+            get(ar_verification_handler::list_verifications),
+        )
+        .route(
+            "/verifications/:id",
+            get(ar_verification_handler::get_verification),
+        )
+        .route(
+            "/verifications/auto",
+            post(ar_verification_handler::auto_verify),
+        )
+        .route(
+            "/verifications/manual",
+            post(ar_verification_handler::manual_verify),
+        )
+        .route(
+            "/verifications/:id/cancel",
+            post(ar_verification_handler::cancel_verification),
+        )
+        .route(
+            "/verifications/unverified/invoices",
+            get(ar_verification_handler::get_unverified_invoices),
+        )
+        .route(
+            "/verifications/unverified/payments",
+            get(ar_verification_handler::get_unverified_payments),
+        )
+        // AR报表路由
+        .route(
+            "/reports/statistics",
+            get(ar_report_handler::get_statistics_report),
+        )
+        .route("/reports/daily", get(ar_report_handler::get_daily_report))
+        .route(
+            "/reports/monthly",
+            get(ar_report_handler::get_monthly_report),
+        )
+        .route("/reports/aging", get(ar_report_handler::get_aging_report));
 
     // 系统更新路由
     let system_update_routes = Router::new()
@@ -1264,6 +1369,8 @@ pub fn create_router(state: AppState) -> Router {
         .route("/process/start", post(bpm_handler::start_process))
         .route("/tasks/approve", post(bpm_handler::approve_task))
         .route("/tasks", get(bpm_handler::query_tasks))
+        .route("/tasks/pending", get(bpm_handler::get_pending_tasks))
+        .route("/tasks/completed", get(bpm_handler::get_completed_tasks))
         .route(
             "/business-relation",
             get(bpm_handler::get_business_relation),
@@ -1275,6 +1382,10 @@ pub fn create_router(state: AppState) -> Router {
         // 审批链和监控接口
         .route(
             "/instances/:instance_id/approval-chain",
+            get(bpm_handler::get_approval_chain),
+        )
+        .route(
+            "/instances/:instance_id/chain",
             get(bpm_handler::get_approval_chain),
         )
         .route(
@@ -1292,8 +1403,38 @@ pub fn create_router(state: AppState) -> Router {
         )
         .route("/tasks/:task_id/transfer", post(bpm_handler::transfer_task))
         .route("/tasks/:task_id/urge", post(bpm_handler::urge_task))
-        // 流程模板路由（前端期望 /bpm/templates）
-        .route("/templates", get(bpm_definition_handler::list_templates));
+        .route("/approval/execute", post(bpm_handler::execute_approval))
+        // 流程定义路由
+        .route(
+            "/definitions",
+            get(bpm_definition_handler::list_process_definitions)
+                .post(bpm_definition_handler::create_process_definition),
+        )
+        .route(
+            "/definitions/:id",
+            get(bpm_definition_handler::get_process_definition)
+                .put(bpm_definition_handler::update_process_definition)
+                .delete(bpm_definition_handler::delete_process_definition),
+        )
+        .route(
+            "/definitions/:id/versions",
+            get(bpm_definition_handler::list_versions).post(bpm_definition_handler::create_version),
+        )
+        .route(
+            "/definitions/:id/versions/:version/activate",
+            post(bpm_definition_handler::activate_version),
+        )
+        // 流程模板路由
+        .route("/templates", get(bpm_definition_handler::list_templates))
+        .route(
+            "/templates/:template_id",
+            get(bpm_definition_handler::list_templates)
+                .delete(bpm_definition_handler::delete_process_definition),
+        )
+        .route(
+            "/templates/:template_id/create",
+            post(bpm_definition_handler::create_from_template),
+        );
 
     // 健康检查路由
     // 扫码出库路由
@@ -1391,7 +1532,8 @@ pub fn create_router(state: AppState) -> Router {
                 .route(
                     "/orders/:id",
                     get(production_order_handler::get_production_order)
-                        .put(production_order_handler::update_production_order),
+                        .put(production_order_handler::update_production_order)
+                        .delete(production_order_handler::delete_production_order),
                 )
                 .route(
                     "/orders/:id/status",
@@ -1404,6 +1546,14 @@ pub fn create_router(state: AppState) -> Router {
                 .route(
                     "/orders/:id/approve",
                     post(production_order_handler::approve_production_order),
+                )
+                .route(
+                    "/orders/:id/progress",
+                    post(production_order_handler::update_production_progress),
+                )
+                .route(
+                    "/orders/:id/logs",
+                    get(production_order_handler::get_production_order_logs),
                 ),
         )
         // BOM物料清单路由
@@ -1567,8 +1717,11 @@ pub fn create_router(state: AppState) -> Router {
                     get(crm_customer_handler::list_customers)
                         .post(crm_customer_handler::create_customer),
                 )
-                .route("/enhanced", get(crm_customer_handler::list_customers)
-                    .post(crm_customer_handler::create_customer))
+                .route(
+                    "/enhanced",
+                    get(crm_customer_handler::list_customers)
+                        .post(crm_customer_handler::create_customer),
+                )
                 .route(
                     "/:id",
                     get(crm_customer_handler::get_customer)
@@ -1749,9 +1902,27 @@ pub fn create_router(state: AppState) -> Router {
                     "/statistics",
                     get(login_security_handler::get_login_statistics),
                 )
+                .route("/stats", get(login_security_handler::get_login_statistics))
                 .route(
                     "/security-alerts",
                     get(login_security_handler::get_security_alerts),
+                )
+                .route("/alerts", get(login_security_handler::get_security_alerts))
+                .route(
+                    "/alerts/:id/resolve",
+                    post(login_security_handler::resolve_alert),
+                )
+                .route(
+                    "/locked-accounts",
+                    get(login_security_handler::get_locked_accounts),
+                )
+                .route(
+                    "/locked-accounts/:id/unlock",
+                    post(login_security_handler::unlock_account_by_id),
+                )
+                .route(
+                    "/login-logs/export",
+                    get(login_security_handler::export_login_logs),
                 ),
         )
         // 邮件路由

@@ -229,3 +229,59 @@ pub async fn urge_task(
         "催办通知已发送",
     )))
 }
+
+/// 获取待办任务列表
+pub async fn get_pending_tasks(
+    State(state): State<AppState>,
+    Query(query): Query<TaskQuery>,
+) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
+    let service = BpmService::new(state.db.clone());
+    let query = TaskQuery {
+        status: Some("PENDING".to_string()),
+        ..query
+    };
+    let res = service.query_user_tasks(query).await?;
+    Ok(Json(ApiResponse::success(serde_json::to_value(res)?)))
+}
+
+/// 获取已完成任务列表
+pub async fn get_completed_tasks(
+    State(state): State<AppState>,
+    Query(query): Query<TaskQuery>,
+) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
+    let service = BpmService::new(state.db.clone());
+    let query = TaskQuery {
+        status: Some("COMPLETED".to_string()),
+        ..query
+    };
+    let res = service.query_user_tasks(query).await?;
+    Ok(Json(ApiResponse::success(serde_json::to_value(res)?)))
+}
+
+/// 执行审批请求
+#[derive(Debug, Deserialize)]
+pub struct ExecuteApprovalRequest {
+    pub task_id: i32,
+    pub handler_id: i32,
+    pub handler_name: String,
+    pub action: String,
+    pub approval_opinion: Option<String>,
+}
+
+/// 执行审批
+pub async fn execute_approval(
+    State(state): State<AppState>,
+    Json(req): Json<ExecuteApprovalRequest>,
+) -> Result<Json<ApiResponse<String>>, AppError> {
+    let service = BpmService::new(state.db.clone());
+    let approve_req = crate::models::dto::bpm_dto::ApproveTaskRequest {
+        task_id: req.task_id,
+        handler_id: req.handler_id,
+        handler_name: req.handler_name,
+        action: req.action,
+        approval_opinion: req.approval_opinion,
+        attachment_urls: None,
+    };
+    service.approve_task(approve_req).await?;
+    Ok(Json(ApiResponse::success("审批执行成功".to_string())))
+}

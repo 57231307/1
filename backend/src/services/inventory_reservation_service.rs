@@ -210,4 +210,60 @@ impl InventoryReservationService {
 
         Ok(released)
     }
+
+    /// 获取预留列表
+    pub async fn list_reservations(
+        &self,
+        page: u64,
+        page_size: u64,
+        product_id: Option<i32>,
+        warehouse_id: Option<i32>,
+        status: Option<String>,
+    ) -> Result<(Vec<inventory_reservation::Model>, i64), AppError> {
+        use sea_orm::PaginatorTrait;
+
+        let mut query = InventoryReservationEntity::find();
+
+        if let Some(pid) = product_id {
+            query = query.filter(inventory_reservation::Column::ProductId.eq(pid));
+        }
+        if let Some(wid) = warehouse_id {
+            query = query.filter(inventory_reservation::Column::WarehouseId.eq(wid));
+        }
+        if let Some(s) = status {
+            query = query.filter(inventory_reservation::Column::Status.eq(s));
+        }
+
+        let paginator = query.paginate(&*self.db, page_size);
+        let total = paginator.num_items().await? as i64;
+        let reservations = paginator.fetch_page(page).await?;
+
+        Ok((reservations, total))
+    }
+
+    /// 删除预留
+    pub async fn delete_reservation(
+        &self,
+        reservation_id: i32,
+        _user_id: i32,
+    ) -> Result<(), AppError> {
+        let reservation = InventoryReservationEntity::find_by_id(reservation_id)
+            .one(&*self.db)
+            .await?
+            .ok_or_else(|| AppError::not_found(format!("库存预留 {} 未找到", reservation_id)))?;
+
+        // 只有 pending 状态的预留可以删除
+        if reservation.status != "pending" {
+            return Err(AppError::business(format!(
+                "预留状态为{}，只有待处理状态的预留可以删除",
+                reservation.status
+            )));
+        }
+
+        InventoryReservationEntity::delete_by_id(reservation_id)
+            .exec(&*self.db)
+            .await?;
+
+        Ok(())
+    }
 }

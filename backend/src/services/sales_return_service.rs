@@ -468,6 +468,182 @@ impl SalesReturnService {
         Ok(return_order)
     }
 
+    /// 获取退货单详情
+    pub async fn get_return(&self, return_id: i32) -> Result<sales_return::Model, AppError> {
+        sales_return::Entity::find_by_id(return_id)
+            .one(&*self.db)
+            .await?
+            .ok_or_else(|| AppError::not_found(format!("销售退货单 {}", return_id)))
+    }
+
+    /// 删除退货单
+    pub async fn delete_return(&self, return_id: i32) -> Result<(), AppError> {
+        let return_order = sales_return::Entity::find_by_id(return_id)
+            .one(&*self.db)
+            .await?
+            .ok_or_else(|| AppError::not_found(format!("销售退货单 {}", return_id)))?;
+
+        if return_order.status != "DRAFT" {
+            return Err(AppError::business(format!(
+                "退货单状态不允许删除，当前状态：{}",
+                return_order.status
+            )));
+        }
+
+        let txn = (*self.db).begin().await?;
+
+        // 先删除明细
+        sales_return_item::Entity::delete_many()
+            .filter(sales_return_item::Column::ReturnId.eq(return_id))
+            .exec(&txn)
+            .await?;
+
+        // 再删除退货单
+        sales_return::Entity::delete_by_id(return_id)
+            .exec(&txn)
+            .await?;
+
+        txn.commit().await?;
+        Ok(())
+    }
+
+    /// 拒绝退货单
+    pub async fn reject_return(
+        &self,
+        return_id: i32,
+        reason: String,
+        _user_id: i32,
+    ) -> Result<sales_return::Model, AppError> {
+        let return_order = sales_return::Entity::find_by_id(return_id)
+            .one(&*self.db)
+            .await?
+            .ok_or_else(|| AppError::not_found(format!("销售退货单 {}", return_id)))?;
+
+        if return_order.status != "SUBMITTED" {
+            return Err(AppError::business(format!(
+                "退货单状态不允许拒绝，当前状态：{}",
+                return_order.status
+            )));
+        }
+
+        let mut active_model: sales_return::ActiveModel = return_order.into();
+        active_model.status = Set("REJECTED".to_string());
+        active_model.rejected_reason = Set(Some(reason));
+        active_model.updated_at = Set(Utc::now());
+
+        let return_order = crate::services::audit_log_service::AuditLogService::update_with_audit(
+            &*self.db,
+            "auto_audit",
+            active_model,
+            Some(0),
+        )
+        .await?;
+
+        Ok(return_order)
+    }
+
+    /// 执行退货单（完成退货流程）
+    pub async fn execute_return(
+        &self,
+        return_id: i32,
+        _user_id: i32,
+    ) -> Result<sales_return::Model, AppError> {
+        let return_order = sales_return::Entity::find_by_id(return_id)
+            .one(&*self.db)
+            .await?
+            .ok_or_else(|| AppError::not_found(format!("销售退货单 {}", return_id)))?;
+
+        if return_order.status != "APPROVED" {
+            return Err(AppError::business(format!(
+                "退货单状态不允许执行，当前状态：{}",
+                return_order.status
+            )));
+        }
+
+        let mut active_model: sales_return::ActiveModel = return_order.into();
+        active_model.status = Set("COMPLETED".to_string());
+        active_model.updated_at = Set(Utc::now());
+
+        let return_order = crate::services::audit_log_service::AuditLogService::update_with_audit(
+            &*self.db,
+            "auto_audit",
+            active_model,
+            Some(0),
+        )
+        .await?;
+
+        Ok(return_order)
+    }
+
+    /// 获取退货单明细列表
+    pub async fn list_return_items(
+        &self,
+        return_id: i32,
+    ) -> Result<Vec<sales_return_item::Model>, AppError> {
+        let items = sales_return_item::Entity::find()
+            .filter(sales_return_item::Column::ReturnId.eq(return_id))
+            .order_by_asc(sales_return_item::Column::LineNo)
+            .all(&*self.db)
+            .await?;
+        Ok(items)
+    }
+
+    /// 更新退货单明细
+    pub async fn update_return_item(
+        &self,
+        item_id: i32,
+        quantity: Option<Decimal>,
+        unit_price: Option<Decimal>,
+        reason: Option<String>,
+    ) -> Result<sales_return_item::Model, AppError> {
+        let item = sales_return_item::Entity::find_by_id(item_id)
+            .one(&*self.db)
+            .await?
+            .ok_or_else(|| AppError::not_found(format!("退货明细 {}", item_id)))?;
+
+        let txn = (*self.db).begin().await?;
+
+        let mut active_model: sales_return_item::ActiveModel = item.into();
+        if let Some(qty) = quantity {
+            active_model.quantity = Set(qty);
+        }
+        if let Some(price) = unit_price {
+            active_model.unit_price = Set(price);
+        }
+        if let Some(r) = reason {
+            active_model.notes = Set(Some(r));
+        }
+        active_model.updated_at = Set(Utc::now());
+
+        let item = active_model.insert(&txn).await?;
+
+        // 更新退货单总金额
+        self.update_return_totals(item.return_id, &txn).await?;
+
+        txn.commit().await?;
+        Ok(item)
+    }
+
+    /// 删除退货单明细
+    pub async fn delete_return_item(&self, item_id: i32) -> Result<(), AppError> {
+        let item = sales_return_item::Entity::find_by_id(item_id)
+            .one(&*self.db)
+            .await?
+            .ok_or_else(|| AppError::not_found(format!("退货明细 {}", item_id)))?;
+
+        let txn = (*self.db).begin().await?;
+
+        sales_return_item::Entity::delete_by_id(item_id)
+            .exec(&txn)
+            .await?;
+
+        // 更新退货单总金额
+        self.update_return_totals(item.return_id, &txn).await?;
+
+        txn.commit().await?;
+        Ok(())
+    }
+
     /// 获取列表
     pub async fn list_returns(
         &self,

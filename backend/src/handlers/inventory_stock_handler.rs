@@ -1,6 +1,7 @@
 #![allow(dead_code)]
 
 use crate::middleware::auth_context::AuthContext;
+use crate::models::dto::PageRequest;
 use crate::models::product;
 use crate::services::inventory_stock_service::InventoryStockService;
 use crate::utils::app_state::AppState;
@@ -764,6 +765,50 @@ pub async fn create_stock_fabric(
         created_at: stock.created_at,
         updated_at: stock.updated_at,
     })))
+}
+
+// ========== 库存查询增强接口 ==========
+
+/// 按产品查询库存
+/// GET /api/v1/erp/inventory/stock/product/:productId
+pub async fn get_stock_by_product(
+    _auth: AuthContext,
+    State(state): State<AppState>,
+    Path(product_id): Path<i32>,
+    Query(query): Query<PageRequest>,
+) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
+    let service = InventoryStockService::new(state.db.clone());
+
+    let (stocks, total) = service
+        .get_stock_by_product(product_id, query.page, query.page_size)
+        .await
+        .map_err(|e| AppError::internal(format!("查询产品库存失败: {}", e)))?;
+
+    let result = serde_json::json!({
+        "list": stocks,
+        "total": total,
+        "page": query.page,
+        "page_size": query.page_size,
+    });
+
+    Ok(Json(ApiResponse::success(result)))
+}
+
+/// 获取库存告警
+/// GET /api/v1/erp/inventory/stock/alerts
+pub async fn get_stock_alerts(
+    _auth: AuthContext,
+    State(state): State<AppState>,
+    Query(query): Query<serde_json::Value>,
+) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
+    let service = InventoryStockService::new(state.db.clone());
+
+    let alerts = service
+        .get_stock_alerts(query)
+        .await
+        .map_err(|e| AppError::internal(format!("获取库存告警失败: {}", e)))?;
+
+    Ok(Json(ApiResponse::success(alerts)))
 }
 
 #[cfg(test)]
