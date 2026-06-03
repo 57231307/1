@@ -1,6 +1,8 @@
 use crate::middleware::auth_context::AuthContext;
+use crate::models::inventory_adjustment_item;
 use crate::services::inventory_adjustment_service::{
     AdjustmentItemRequest, CreateAdjustmentRequest, InventoryAdjustmentService,
+    UpdateAdjustmentRequest,
 };
 use crate::utils::app_state::AppState;
 use crate::utils::error::AppError;
@@ -345,4 +347,198 @@ pub async fn get_adjustment(
             })
             .collect(),
     })))
+}
+
+/// 更新调整单请求 DTO
+#[derive(Debug, Deserialize)]
+pub struct UpdateAdjustmentRequestPayload {
+    pub warehouse_id: Option<i32>,
+    pub adjustment_date: Option<String>,
+    pub adjustment_type: Option<String>,
+    pub reason_type: Option<String>,
+    pub reason_description: Option<String>,
+    pub notes: Option<String>,
+}
+
+/// 更新调整单
+pub async fn update_adjustment(
+    State(state): State<AppState>,
+    Path(id): Path<i32>,
+    Json(payload): Json<UpdateAdjustmentRequestPayload>,
+) -> Result<Json<ApiResponse<AdjustmentResponse>>, AppError> {
+    let service = InventoryAdjustmentService::new(state.db.clone());
+
+    let adjustment_date = match payload.adjustment_date {
+        Some(s) => Some(
+            s.parse::<DateTime<Utc>>()
+                .map_err(|e| AppError::validation(format!("日期格式错误：{}", e)))?,
+        ),
+        None => None,
+    };
+
+    let req = UpdateAdjustmentRequest {
+        warehouse_id: payload.warehouse_id,
+        adjustment_date,
+        adjustment_type: payload.adjustment_type,
+        reason_type: payload.reason_type,
+        reason_description: payload.reason_description,
+        notes: payload.notes,
+    };
+
+    service
+        .update_adjustment(id, req)
+        .await
+        .map_err(|e| AppError::bad_request(e.to_string()))?;
+
+    let detail = service
+        .get_adjustment(id)
+        .await
+        .map_err(|e| AppError::internal(e.to_string()))?;
+
+    Ok(Json(ApiResponse::success(AdjustmentResponse {
+        id: detail.adjustment.id,
+        adjustment_no: detail.adjustment.adjustment_no,
+        warehouse_id: detail.adjustment.warehouse_id,
+        adjustment_date: detail.adjustment.adjustment_date,
+        adjustment_type: detail.adjustment.adjustment_type,
+        reason_type: detail.adjustment.reason_type,
+        reason_description: detail.adjustment.reason_description,
+        total_quantity: detail.adjustment.total_quantity,
+        notes: detail.adjustment.notes,
+        status: detail.adjustment.status,
+        created_at: detail.adjustment.created_at,
+        items: detail
+            .items
+            .into_iter()
+            .map(|item| AdjustmentItemResponse {
+                id: item.id,
+                stock_id: item.stock_id,
+                quantity: item.quantity,
+                quantity_before: item.quantity_before,
+                quantity_after: item.quantity_after,
+                unit_cost: item.unit_cost,
+                amount: item.amount,
+                notes: item.notes,
+            })
+            .collect(),
+    })))
+}
+
+/// 删除调整单
+pub async fn delete_adjustment(
+    State(state): State<AppState>,
+    Path(id): Path<i32>,
+) -> Result<Json<ApiResponse<()>>, AppError> {
+    let service = InventoryAdjustmentService::new(state.db.clone());
+    service
+        .delete_adjustment(id)
+        .await
+        .map_err(|e| AppError::bad_request(e.to_string()))?;
+    Ok(Json(ApiResponse::success(())))
+}
+
+/// 列出调整单的所有明细项
+pub async fn list_items(
+    State(state): State<AppState>,
+    Path(id): Path<i32>,
+) -> Result<Json<ApiResponse<Vec<AdjustmentItemResponse>>>, AppError> {
+    let service = InventoryAdjustmentService::new(state.db.clone());
+    let items = service
+        .list_items(id)
+        .await
+        .map_err(|e| AppError::internal(e.to_string()))?;
+    Ok(Json(ApiResponse::success(
+        items
+            .into_iter()
+            .map(|item| AdjustmentItemResponse {
+                id: item.id,
+                stock_id: item.stock_id,
+                quantity: item.quantity,
+                quantity_before: item.quantity_before,
+                quantity_after: item.quantity_after,
+                unit_cost: item.unit_cost,
+                amount: item.amount,
+                notes: item.notes,
+            })
+            .collect(),
+    )))
+}
+
+/// 向调整单添加明细
+pub async fn add_item(
+    State(state): State<AppState>,
+    Path(id): Path<i32>,
+    Json(payload): Json<AdjustmentItemPayload>,
+) -> Result<Json<ApiResponse<AdjustmentItemResponse>>, AppError> {
+    let service = InventoryAdjustmentService::new(state.db.clone());
+    let quantity = payload
+        .quantity
+        .parse::<Decimal>()
+        .map_err(|e| AppError::validation(format!("数量格式错误：{}", e)))?;
+    let req = AdjustmentItemRequest {
+        stock_id: payload.stock_id,
+        quantity,
+        unit_cost: payload.unit_cost.and_then(|s| s.parse::<Decimal>().ok()),
+        notes: payload.notes,
+    };
+    let item = service
+        .add_item(id, req)
+        .await
+        .map_err(|e| AppError::bad_request(e.to_string()))?;
+    Ok(Json(ApiResponse::success(AdjustmentItemResponse {
+        id: item.id,
+        stock_id: item.stock_id,
+        quantity: item.quantity,
+        quantity_before: item.quantity_before,
+        quantity_after: item.quantity_after,
+        unit_cost: item.unit_cost,
+        amount: item.amount,
+        notes: item.notes,
+    })))
+}
+
+/// 更新调整单明细
+pub async fn update_item(
+    State(state): State<AppState>,
+    Path(item_id): Path<i32>,
+    Json(payload): Json<AdjustmentItemPayload>,
+) -> Result<Json<ApiResponse<AdjustmentItemResponse>>, AppError> {
+    let service = InventoryAdjustmentService::new(state.db.clone());
+    let quantity = payload
+        .quantity
+        .parse::<Decimal>()
+        .map_err(|e| AppError::validation(format!("数量格式错误：{}", e)))?;
+    let req = AdjustmentItemRequest {
+        stock_id: payload.stock_id,
+        quantity,
+        unit_cost: payload.unit_cost.and_then(|s| s.parse::<Decimal>().ok()),
+        notes: payload.notes,
+    };
+    let item: inventory_adjustment_item::Model = service
+        .update_item(item_id, req)
+        .await
+        .map_err(|e| AppError::bad_request(e.to_string()))?;
+    Ok(Json(ApiResponse::success(AdjustmentItemResponse {
+        id: item.id,
+        stock_id: item.stock_id,
+        quantity: item.quantity,
+        quantity_before: item.quantity_before,
+        quantity_after: item.quantity_after,
+        unit_cost: item.unit_cost,
+        amount: item.amount,
+        notes: item.notes,
+    })))
+}
+
+/// 删除调整单明细
+pub async fn delete_item(
+    State(state): State<AppState>,
+    Path(item_id): Path<i32>,
+) -> Result<Json<ApiResponse<()>>, AppError> {
+    let service = InventoryAdjustmentService::new(state.db.clone());
+    service
+        .delete_item(item_id)
+        .await
+        .map_err(|e| AppError::bad_request(e.to_string()))?;
+    Ok(Json(ApiResponse::success(())))
 }

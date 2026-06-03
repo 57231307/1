@@ -5,8 +5,8 @@ use chrono::{DateTime, Utc};
 use rust_decimal::Decimal;
 use sea_orm::DatabaseConnection;
 use sea_orm::{
-    ActiveModelTrait, ColumnTrait, EntityTrait, ExprTrait, Order, PaginatorTrait, QueryFilter,
-    QueryOrder, Set, TransactionTrait,
+    ActiveModelTrait, ColumnTrait, EntityTrait, ExprTrait, IntoActiveModel, Order, PaginatorTrait,
+    QueryFilter, QueryOrder, Set, TransactionTrait,
 };
 use std::sync::Arc;
 
@@ -21,6 +21,17 @@ pub struct CreateAdjustmentRequest {
     pub notes: Option<String>,
     pub created_by: Option<i32>,
     pub items: Vec<AdjustmentItemRequest>,
+}
+
+/// 更新库存调整单请求
+#[derive(Debug, Clone, Default)]
+pub struct UpdateAdjustmentRequest {
+    pub warehouse_id: Option<i32>,
+    pub adjustment_date: Option<DateTime<Utc>>,
+    pub adjustment_type: Option<String>,
+    pub reason_type: Option<String>,
+    pub reason_description: Option<String>,
+    pub notes: Option<String>,
 }
 
 /// 调整明细项请求
@@ -346,6 +357,239 @@ impl InventoryAdjustmentService {
         inventory_adjustment::Entity,
         inventory_adjustment::Column::AdjustmentNo
     );
+
+    /// 更新调整单（仅 pending 状态可更新）
+    pub async fn update_adjustment(
+        &self,
+        adjustment_id: i32,
+        req: UpdateAdjustmentRequest,
+    ) -> Result<inventory_adjustment::Model, AppError> {
+        let adjustment_model = inventory_adjustment::Entity::find_by_id(adjustment_id)
+            .one(&*self.db)
+            .await?
+            .ok_or_else(|| AppError::not_found(format!("调整单 {} 不存在", adjustment_id)))?;
+
+        if adjustment_model.status != "pending" {
+            return Err(AppError::business(
+                "只有待审核状态的调整单可以更新".to_string(),
+            ));
+        }
+
+        let mut active: inventory_adjustment::ActiveModel = adjustment_model.into_active_model();
+
+        if let Some(warehouse_id) = req.warehouse_id {
+            active.warehouse_id = Set(warehouse_id);
+        }
+        if let Some(adjustment_date) = req.adjustment_date {
+            active.adjustment_date = Set(adjustment_date);
+        }
+        if let Some(adjustment_type) = req.adjustment_type {
+            active.adjustment_type = Set(adjustment_type);
+        }
+        if let Some(reason_type) = req.reason_type {
+            active.reason_type = Set(reason_type);
+        }
+        if let Some(reason_description) = req.reason_description {
+            active.reason_description = Set(Some(reason_description));
+        }
+        if let Some(notes) = req.notes {
+            active.notes = Set(Some(notes));
+        }
+        active.updated_at = Set(Utc::now());
+
+        let updated = active.update(&*self.db).await?;
+        Ok(updated)
+    }
+
+    /// 删除调整单（仅 pending 状态）
+    pub async fn delete_adjustment(&self, adjustment_id: i32) -> Result<(), AppError> {
+        let adjustment_model = inventory_adjustment::Entity::find_by_id(adjustment_id)
+            .one(&*self.db)
+            .await?
+            .ok_or_else(|| AppError::not_found(format!("调整单 {} 不存在", adjustment_id)))?;
+
+        if adjustment_model.status != "pending" {
+            return Err(AppError::business(
+                "只有待审核状态的调整单可以删除".to_string(),
+            ));
+        }
+
+        let txn = (*self.db).begin().await?;
+
+        // 先删除明细
+        inventory_adjustment_item::Entity::delete_many()
+            .filter(inventory_adjustment_item::Column::AdjustmentId.eq(adjustment_id))
+            .exec(&txn)
+            .await?;
+
+        // 再删除主表
+        inventory_adjustment::Entity::delete_by_id(adjustment_id)
+            .exec(&txn)
+            .await?;
+
+        txn.commit().await?;
+        Ok(())
+    }
+
+    /// 列出调整单的所有明细项
+    pub async fn list_items(
+        &self,
+        adjustment_id: i32,
+    ) -> Result<Vec<inventory_adjustment_item::Model>, AppError> {
+        // 确认主单存在
+        let _ = self.get_adjustment(adjustment_id).await?;
+
+        let items = inventory_adjustment_item::Entity::find()
+            .filter(inventory_adjustment_item::Column::AdjustmentId.eq(adjustment_id))
+            .order_by(inventory_adjustment_item::Column::Id, Order::Asc)
+            .all(&*self.db)
+            .await?;
+
+        Ok(items)
+    }
+
+    /// 向调整单添加明细
+    pub async fn add_item(
+        &self,
+        adjustment_id: i32,
+        req: AdjustmentItemRequest,
+    ) -> Result<inventory_adjustment_item::Model, AppError> {
+        let detail = self.get_adjustment(adjustment_id).await?;
+
+        if detail.adjustment.status != "pending" {
+            return Err(AppError::business(
+                "只有待审核状态的调整单可以添加明细".to_string(),
+            ));
+        }
+
+        let stock = inventory_stock::Entity::find_by_id(req.stock_id)
+            .one(&*self.db)
+            .await?
+            .ok_or_else(|| AppError::not_found(format!("库存 ID {} 不存在", req.stock_id)))?;
+
+        let quantity_before = stock.quantity_on_hand;
+        let quantity_after = if detail.adjustment.adjustment_type == "increase" {
+            quantity_before + req.quantity
+        } else {
+            quantity_before - req.quantity
+        };
+        let amount = req.unit_cost.map(|cost| cost * req.quantity);
+
+        let txn = (*self.db).begin().await?;
+
+        let item = inventory_adjustment_item::ActiveModel {
+            id: Set(0),
+            adjustment_id: Set(adjustment_id),
+            stock_id: Set(req.stock_id),
+            quantity: Set(req.quantity),
+            quantity_before: Set(quantity_before),
+            quantity_after: Set(quantity_after),
+            unit_cost: Set(req.unit_cost),
+            amount: Set(amount),
+            notes: Set(req.notes),
+            created_at: Set(Utc::now()),
+            updated_at: Set(Utc::now()),
+        };
+
+        let item_model = item.insert(&txn).await?;
+
+        // 重新计算总数量
+        let items = inventory_adjustment_item::Entity::find()
+            .filter(inventory_adjustment_item::Column::AdjustmentId.eq(adjustment_id))
+            .all(&txn)
+            .await?;
+        let total_quantity: Decimal = items.iter().map(|i| i.quantity).sum();
+
+        let mut adjustment: inventory_adjustment::ActiveModel = detail.adjustment.into_active_model();
+        adjustment.total_quantity = Set(total_quantity);
+        adjustment.updated_at = Set(Utc::now());
+        adjustment.update(&txn).await?;
+
+        txn.commit().await?;
+
+        Ok(item_model)
+    }
+
+    /// 更新调整单明细
+    pub async fn update_item(
+        &self,
+        item_id: i32,
+        req: AdjustmentItemRequest,
+    ) -> Result<inventory_adjustment_item::Model, AppError> {
+        let item_model = inventory_adjustment_item::Entity::find_by_id(item_id)
+            .one(&*self.db)
+            .await?
+            .ok_or_else(|| AppError::not_found(format!("调整单明细 {} 不存在", item_id)))?;
+
+        let detail = self.get_adjustment(item_model.adjustment_id).await?;
+        if detail.adjustment.status != "pending" {
+            return Err(AppError::business(
+                "只有待审核状态的调整单可以修改明细".to_string(),
+            ));
+        }
+
+        let stock = inventory_stock::Entity::find_by_id(req.stock_id)
+            .one(&*self.db)
+            .await?
+            .ok_or_else(|| AppError::not_found(format!("库存 ID {} 不存在", req.stock_id)))?;
+
+        let quantity_before = stock.quantity_on_hand;
+        let quantity_after = if detail.adjustment.adjustment_type == "increase" {
+            quantity_before + req.quantity
+        } else {
+            quantity_before - req.quantity
+        };
+        let amount = req.unit_cost.map(|cost| cost * req.quantity);
+
+        let mut active: inventory_adjustment_item::ActiveModel = item_model.into_active_model();
+        active.stock_id = Set(req.stock_id);
+        active.quantity = Set(req.quantity);
+        active.quantity_before = Set(quantity_before);
+        active.quantity_after = Set(quantity_after);
+        active.unit_cost = Set(req.unit_cost);
+        active.amount = Set(amount);
+        active.notes = Set(req.notes);
+        active.updated_at = Set(Utc::now());
+
+        let updated = active.update(&*self.db).await?;
+        Ok(updated)
+    }
+
+    /// 删除调整单明细
+    pub async fn delete_item(&self, item_id: i32) -> Result<(), AppError> {
+        let item_model = inventory_adjustment_item::Entity::find_by_id(item_id)
+            .one(&*self.db)
+            .await?
+            .ok_or_else(|| AppError::not_found(format!("调整单明细 {} 不存在", item_id)))?;
+
+        let detail = self.get_adjustment(item_model.adjustment_id).await?;
+        if detail.adjustment.status != "pending" {
+            return Err(AppError::business(
+                "只有待审核状态的调整单可以删除明细".to_string(),
+            ));
+        }
+
+        let txn = (*self.db).begin().await?;
+
+        inventory_adjustment_item::Entity::delete_by_id(item_id)
+            .exec(&txn)
+            .await?;
+
+        // 重新计算总数量
+        let items = inventory_adjustment_item::Entity::find()
+            .filter(inventory_adjustment_item::Column::AdjustmentId.eq(item_model.adjustment_id))
+            .all(&txn)
+            .await?;
+        let total_quantity: Decimal = items.iter().map(|i| i.quantity).sum();
+
+        let mut adjustment: inventory_adjustment::ActiveModel = detail.adjustment.into_active_model();
+        adjustment.total_quantity = Set(total_quantity);
+        adjustment.updated_at = Set(Utc::now());
+        adjustment.update(&txn).await?;
+
+        txn.commit().await?;
+        Ok(())
+    }
 }
 
 #[cfg(test)]

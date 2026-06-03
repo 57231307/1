@@ -432,7 +432,9 @@ pub fn create_router(state: AppState) -> Router {
         )
         .route(
             "/adjustments/:id",
-            get(inventory_adjustment_handler::get_adjustment),
+            get(inventory_adjustment_handler::get_adjustment)
+                .put(inventory_adjustment_handler::update_adjustment)
+                .delete(inventory_adjustment_handler::delete_adjustment),
         )
         .route(
             "/adjustments/:id/approve",
@@ -441,6 +443,16 @@ pub fn create_router(state: AppState) -> Router {
         .route(
             "/adjustments/:id/reject",
             post(inventory_adjustment_handler::reject_adjustment),
+        )
+        .route(
+            "/adjustments/:id/items",
+            get(inventory_adjustment_handler::list_items)
+                .post(inventory_adjustment_handler::add_item),
+        )
+        .route(
+            "/adjustments/items/:item_id",
+            put(inventory_adjustment_handler::update_item)
+                .delete(inventory_adjustment_handler::delete_item),
         )
         // 预留管理路由
         .route(
