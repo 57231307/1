@@ -432,6 +432,62 @@ impl BomService {
         Ok(requirements)
     }
 
+    /// 提交BOM审核：将状态由 DRAFT/INACTIVE 流转为 PENDING
+    pub async fn submit(&self, id: i32) -> Result<BomModel, AppError> {
+        info!("提交BOM审核，ID：{}", id);
+
+        let bom = BomEntity::find_by_id(id)
+            .one(&*self.db)
+            .await?
+            .ok_or_else(|| AppError::not_found("BOM不存在"))?;
+
+        // 仅允许从草稿/失效状态提交
+        if bom.status == BomStatus::Pending.to_string() {
+            return Err(AppError::validation("BOM已处于审核中状态"));
+        }
+
+        let mut active: ActiveModel = bom.into();
+        active.status = Set(BomStatus::Pending.to_string());
+        active.updated_at = Set(Utc::now());
+
+        let updated = active.update(&*self.db).await?;
+        Ok(updated)
+    }
+
+    /// 审核BOM：通过 approved 决定最终状态（ACTIVE/INACTIVE）
+    pub async fn approve(
+        &self,
+        id: i32,
+        approved: bool,
+        remark: Option<String>,
+    ) -> Result<BomModel, AppError> {
+        info!("审核BOM，ID：{}，通过：{}", id, approved);
+
+        let bom = BomEntity::find_by_id(id)
+            .one(&*self.db)
+            .await?
+            .ok_or_else(|| AppError::not_found("BOM不存在"))?;
+
+        if bom.status != BomStatus::Pending.to_string() {
+            return Err(AppError::validation("仅审核中状态的BOM可以审批"));
+        }
+
+        let mut active: ActiveModel = bom.into();
+        let new_status = if approved {
+            BomStatus::Active
+        } else {
+            BomStatus::Inactive
+        };
+        active.status = Set(new_status.to_string());
+        if let Some(r) = remark {
+            active.remarks = Set(Some(r));
+        }
+        active.updated_at = Set(Utc::now());
+
+        let updated = active.update(&*self.db).await?;
+        Ok(updated)
+    }
+
     /// 递归收集BOM需求
     fn collect_requirements(
         &self,

@@ -436,3 +436,65 @@ pub async fn calculate_bom_requirements(
         "total_items": requirements.len(),
     }))))
 }
+
+/// PUT /api/v1/erp/boms/:id/submit - 提交BOM审核
+pub async fn submit_bom(
+    State(state): State<AppState>,
+    _auth: AuthContext,
+    Path(id): Path<i32>,
+) -> Result<Json<ApiResponse<BomResponse>>, AppError> {
+    let service = BomService::new(state.db.clone());
+    let bom = service.submit(id).await?;
+
+    Ok(Json(ApiResponse::success_with_message(
+        BomResponse {
+            id: bom.id,
+            product_id: bom.product_id,
+            version: bom.version,
+            is_default: bom.is_default,
+            status: bom.status,
+            remarks: bom.remarks,
+            created_by: bom.created_by,
+            created_at: bom.created_at,
+            updated_at: bom.updated_at,
+        },
+        "BOM已提交审核",
+    )))
+}
+
+/// 审核BOM请求
+#[derive(Debug, Deserialize)]
+pub struct ApproveBomRequest {
+    pub approved: bool,
+    pub remark: Option<String>,
+}
+
+/// PUT /api/v1/erp/boms/:id/approve - 审核BOM
+pub async fn approve_bom(
+    State(state): State<AppState>,
+    _auth: AuthContext,
+    Path(id): Path<i32>,
+    Json(req): Json<ApproveBomRequest>,
+) -> Result<Json<ApiResponse<BomResponse>>, AppError> {
+    let service = BomService::new(state.db.clone());
+    let bom = service.approve(id, req.approved, req.remark).await?;
+
+    Ok(Json(ApiResponse::success_with_message(
+        BomResponse {
+            id: bom.id,
+            product_id: bom.product_id,
+            version: bom.version,
+            is_default: bom.is_default,
+            status: bom.status,
+            remarks: bom.remarks,
+            created_by: bom.created_by,
+            created_at: bom.created_at,
+            updated_at: bom.updated_at,
+        },
+        if req.approved {
+            "BOM已审核通过"
+        } else {
+            "BOM已驳回"
+        },
+    )))
+}
