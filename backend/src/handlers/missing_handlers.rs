@@ -12,7 +12,6 @@
 #[allow(clippy::too_many_arguments)]
 #[allow(clippy::missing_errors_doc)]
 #[allow(clippy::missing_panics_doc)]
-
 use axum::{
     extract::{Path, State},
     Json,
