@@ -3,12 +3,13 @@
 //! 提供客户公海池的列表查询、领取和回收功能
 
 use axum::{
-    extract::{Query, State},
+    extract::{Path, Query, State},
     Json,
 };
 use serde::{Deserialize, Serialize};
 
 use crate::middleware::auth_context::AuthContext;
+use crate::models::dto::crm_dto::BatchClaimRequest;
 use crate::services::crm_service::CrmService;
 use crate::utils::app_state::AppState;
 use crate::utils::error::AppError;
@@ -177,5 +178,55 @@ pub async fn recycle_to_pool(
     Ok(Json(ApiResponse::success_with_message(
         serde_json::to_value(updated_lead)?,
         "客户已回收到公海",
+    )))
+}
+
+/// POST /api/v1/erp/crm/pool/:customer_id/claim - 领取指定公海客户
+pub async fn claim_specific(
+    State(state): State<AppState>,
+    auth: AuthContext,
+    Path(customer_id): Path<i32>,
+) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
+    let service = CrmService::new(state.db.clone());
+    let claimed = service
+        .claim_pool_customers(vec![customer_id], auth.user_id, &auth.username)
+        .await?;
+
+    if claimed == 0 {
+        return Err(AppError::business("该客户不在公海中或领取失败"));
+    }
+
+    tracing::info!(
+        "用户 {} 从公海领取客户 {}",
+        auth.username,
+        customer_id
+    );
+
+    Ok(Json(ApiResponse::success_with_message(
+        serde_json::json!({ "claimed": claimed }),
+        "客户领取成功",
+    )))
+}
+
+/// POST /api/v1/erp/crm/pool/batch-claim - 批量领取公海客户
+pub async fn batch_claim(
+    State(state): State<AppState>,
+    auth: AuthContext,
+    Json(req): Json<BatchClaimRequest>,
+) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
+    let service = CrmService::new(state.db.clone());
+    let claimed = service
+        .claim_pool_customers(req.customer_ids, auth.user_id, &auth.username)
+        .await?;
+
+    tracing::info!(
+        "用户 {} 批量领取公海客户，成功 {} 条",
+        auth.username,
+        claimed
+    );
+
+    Ok(Json(ApiResponse::success_with_message(
+        serde_json::json!({ "claimed": claimed }),
+        format!("成功领取 {} 个客户", claimed),
     )))
 }
