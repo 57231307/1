@@ -2,7 +2,7 @@ pub mod assist_accounting_service;
 pub mod auth_service;
 pub mod batch_service;
 pub mod business_trace_service;
-pub mod crm_service;
+pub mod crm;
 pub mod customer_service;
 pub mod dashboard_service;
 pub mod department_service;
@@ -17,19 +17,19 @@ pub mod inventory_count_service;
 pub mod inventory_finance_bridge_service;
 pub mod inventory_reservation_service;
 pub mod inventory_stock_service;
-pub mod inventory_transfer_service;
+pub mod inv;
 pub mod product_category_service;
 pub mod product_service;
 pub mod role_permission_service;
-pub mod sales_service;
+pub mod so;
 pub mod user_service;
 pub mod warehouse_service;
 // 供应商管理模块
 pub mod supplier_evaluation_service;
 pub mod supplier_service;
 // 采购管理模块
+pub mod po;
 pub mod purchase_inspection_service;
-pub mod purchase_order_service;
 pub mod purchase_receipt_service;
 pub mod purchase_return_service;
 // 应付管理模块
@@ -81,11 +81,11 @@ pub mod bom_service;
 pub mod mrp_engine_service;
 pub mod production_order_service;
 // 应收对账与多币种模块
-pub mod ar_reconciliation_service;
+pub mod ar;
 pub mod currency_service;
 // AI智能分析与报表模块
-pub mod ai_analysis_service;
-pub mod report_engine_service;
+pub mod ai;
+pub mod report;
 // 多租户SaaS模块
 pub mod api_key_service;
 pub mod tenant_isolation_service;
@@ -131,3 +131,67 @@ pub mod audit_cleanup_service;
 pub mod sensitive_action_alert;
 // 增强日志服务
 pub mod enhanced_logger;
+
+// =====================================================
+// 兼容层：为已删除的旧 service 路径提供别名
+// 旧 handler / event_bus 中的 import 仍可工作
+// =====================================================
+
+/// 兼容旧路径 `crate::services::purchase_order_service::*`
+pub mod purchase_order_service {
+    pub use super::po::order::PurchaseOrderService;
+    pub use super::po::order::{
+        CreatePurchaseOrderRequest, PurchaseOrderDto, PurchaseOrderItemDto,
+        UpdatePurchaseOrderRequest, PurchaseOrderItemRequest, PurchaseOrderWithItemsDto,
+    };
+}
+
+/// 兼容旧路径 `crate::services::sales_service::*`
+pub mod sales_service {
+    pub use super::so::order::SalesService;
+    pub use super::so::order::{
+        CreateSalesOrderRequest, UpdateSalesOrderRequest, SalesOrderDetail,
+        SalesOrderItemDetail, SalesOrderItemRequest, ShipOrderRequest,
+    };
+}
+
+/// 兼容旧路径 `crate::services::crm_service::*`
+pub mod crm_service {
+    pub use super::crm::cust::CrmService;
+}
+
+/// 兼容旧路径 `crate::services::inventory_transfer_service::*`
+pub mod inventory_transfer_service {
+    pub use super::inv::InventoryTransferService;
+    pub use super::inv::move_rs::{
+        CreateInventoryTransferRequest, UpdateInventoryTransferRequest,
+        InventoryTransferDto, InventoryTransferDetailDto, InventoryTransferWithDetailsDto,
+    };
+}
+
+/// 兼容旧路径 `crate::services::ar_reconciliation_service::*`
+pub mod ar_reconciliation_service {
+    pub use super::ar::ArReconciliationService;
+    pub use super::ar::recon::{
+        CreateReconciliationRequest, UpdateReconciliationRequest, ReconciliationDto,
+        ReconciliationStatus, AgingBucket, AgingReportDto,
+    };
+}
+
+/// 兼容旧路径 `crate::services::ai_analysis_service::*`
+pub mod ai_analysis_service {
+    pub use super::ai::AiAnalysisService;
+    pub use super::ai::pred::{
+        SalesForecastRequest, SalesForecastResult, AnomalyDetectionRequest,
+        AnomalyDetectionResult, RecommendationRequest, RecommendationResult,
+    };
+}
+
+/// 兼容旧路径 `crate::services::report_engine_service::*`
+pub mod report_engine_service {
+    pub use super::report::ReportEngineService;
+    pub use super::report::tpl::{
+        ReportType, ExportFormat, ReportRequest, ReportResult, ReportTemplate,
+        ReportFilter, ReportExecution,
+    };
+}

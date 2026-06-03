@@ -1,392 +1,30 @@
-//! 应收对账 Service
+//! 应收对账 - 核销服务（ar/vfy）
 //!
-//! 提供客户应收对账单的生成、发送、确认和争议处理
-//! 增强功能：自动对账、账龄分桶、对账单自动生成、客户确认/争议处理
+//! 包含高级对账算法：
+//! - `auto_match`         自动对账：精确金额 + 日期顺序 + 客户汇总三种策略
+//! - `get_aging_report`   账龄分桶分析（5 档：当期 / 1-30 / 31-60 / 61-90 / 90+）
+//! - `generate_reconciliation` 自动生成对账单（含明细行）
+//! - `customer_confirm` / `customer_dispute` 带状态校验的客户操作
+//!
+//! 拆分自原 `ar_reconciliation_service.rs` 的 `// 增强功能` 段。
 
-#![allow(dead_code)]
-
-use chrono::{NaiveDate, Utc};
+use chrono::Utc;
 use rust_decimal::Decimal;
-use sea_orm::{
-    ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, Order, PaginatorTrait,
-    QueryFilter, QueryOrder, Set, TransactionTrait,
-};
-use serde::{Deserialize, Serialize};
-use std::sync::Arc;
+use sea_orm::{ActiveModelTrait, ColumnTrait, EntityTrait, QueryFilter, Set, TransactionTrait};
 use tracing::info;
 
 use crate::models::ar_collection;
 use crate::models::ar_invoice;
-use crate::models::ar_reconciliation::{
-    ActiveModel, Entity as ReconciliationEntity, Model as ReconciliationModel,
-};
-use crate::models::ar_reconciliation_item::{
-    Entity as ReconciliationItemEntity, Model as ReconciliationItemModel,
-};
+use crate::models::ar_reconciliation::{ActiveModel, Entity as ReconciliationEntity};
 use crate::models::customer;
 use crate::utils::error::AppError;
-use crate::utils::number_generator::DocumentNumberGenerator;
 
-/// 创建对账单请求
-#[derive(Debug, Clone)]
-pub struct CreateReconciliationRequest {
-    pub reconciliation_no: String,
-    pub customer_id: i32,
-    pub customer_name: Option<String>,
-    pub period_start: NaiveDate,
-    pub period_end: NaiveDate,
-    pub opening_balance: Decimal,
-    pub total_invoices: Decimal,
-    pub total_collections: Decimal,
-    pub notes: Option<String>,
-}
-
-/// 更新对账单请求
-#[derive(Debug, Clone)]
-pub struct UpdateReconciliationRequest {
-    pub opening_balance: Option<Decimal>,
-    pub total_invoices: Option<Decimal>,
-    pub total_collections: Option<Decimal>,
-    pub notes: Option<String>,
-}
-
-/// 对账单查询参数
-#[derive(Debug, Clone)]
-pub struct ReconciliationQuery {
-    pub status: Option<String>,
-    pub customer_id: Option<i32>,
-    pub page: u64,
-    pub page_size: u64,
-}
-
-/// 自动对账请求
-#[derive(Debug, Clone, Deserialize)]
-pub struct AutoMatchRequest {
-    pub customer_id: Option<i32>,
-    pub start_date: NaiveDate,
-    pub end_date: NaiveDate,
-    pub match_strategy: Option<String>,
-}
-
-/// 自动对账结果
-#[derive(Debug, Serialize)]
-pub struct AutoMatchResult {
-    pub reconciliation_id: i32,
-    pub reconciliation_no: String,
-    pub customer_id: i32,
-    pub customer_name: String,
-    pub total_invoices: Decimal,
-    pub total_collections: Decimal,
-    pub matched_count: usize,
-    pub unmatched_count: usize,
-    pub status: String,
-}
-
-/// 账龄分桶
-#[derive(Debug, Serialize, Clone)]
-pub struct AgingBucket {
-    pub label: String,
-    pub min_days: i64,
-    pub max_days: Option<i64>,
-    pub amount: Decimal,
-    pub count: usize,
-}
-
-/// 客户账龄汇总
-#[derive(Debug, Serialize)]
-pub struct CustomerAgingSummary {
-    pub customer_id: i32,
-    pub customer_name: String,
-    pub total_amount: Decimal,
-    pub buckets: Vec<AgingBucket>,
-}
-
-/// 账龄报告
-#[derive(Debug, Serialize)]
-pub struct AgingReport {
-    pub analysis_date: NaiveDate,
-    pub total_receivable: Decimal,
-    pub customer_summaries: Vec<CustomerAgingSummary>,
-    pub overall_buckets: Vec<AgingBucket>,
-}
-
-/// 对账明细行
-#[derive(Debug, Serialize)]
-pub struct ReconciliationDetail {
-    pub id: i32,
-    pub reconciliation_id: i32,
-    pub item_type: String,
-    pub document_type: Option<String>,
-    pub document_id: Option<i32>,
-    pub document_no: Option<String>,
-    pub document_date: Option<NaiveDate>,
-    pub amount: Decimal,
-    pub matched_amount: Option<Decimal>,
-    pub match_status: String,
-    pub matched_item_id: Option<i32>,
-    pub remarks: Option<String>,
-}
-
-/// 对账单详情（含明细）
-#[derive(Debug, Serialize)]
-pub struct ReconciliationWithDetails {
-    pub reconciliation: ReconciliationModel,
-    pub details: Vec<ReconciliationDetail>,
-}
-
-/// 自动生成对账单请求
-#[derive(Debug, Clone, Deserialize)]
-pub struct GenerateReconciliationRequest {
-    pub customer_id: i32,
-    pub start_date: NaiveDate,
-    pub end_date: NaiveDate,
-    pub notes: Option<String>,
-}
-
-/// 应收对账 Service
-pub struct ArReconciliationService {
-    db: Arc<DatabaseConnection>,
-}
+use super::{
+    generate_reconciliation_no, AgingBucket, AgingReport, ArReconciliationService, AutoMatchRequest,
+    AutoMatchResult, CustomerAgingSummary, GenerateReconciliationRequest,
+};
 
 impl ArReconciliationService {
-    pub fn new(db: Arc<DatabaseConnection>) -> Self {
-        Self { db }
-    }
-
-    /// 创建对账单
-    pub async fn create(
-        &self,
-        req: CreateReconciliationRequest,
-    ) -> Result<ReconciliationModel, AppError> {
-        let closing_balance = req.opening_balance + req.total_invoices - req.total_collections;
-
-        let active_model = ActiveModel {
-            id: Set(0),
-            reconciliation_no: Set(req.reconciliation_no),
-            reconciliation_date: Set(Utc::now().date_naive()),
-            period_start: Set(req.period_start),
-            period_end: Set(req.period_end),
-            customer_id: Set(req.customer_id),
-            customer_name: Set(req.customer_name),
-            opening_balance: Set(req.opening_balance),
-            total_invoices: Set(req.total_invoices),
-            total_collections: Set(req.total_collections),
-            closing_balance: Set(closing_balance),
-            reconciliation_status: Set(Some("draft".to_string())),
-            confirmed_by_customer: Set(None),
-            dispute_reason: Set(None),
-            confirmed_by: Set(None),
-            confirmed_at: Set(None),
-            created_by: Set(None),
-            created_at: Set(Utc::now()),
-            updated_at: Set(Utc::now()),
-        };
-
-        let model = active_model.insert(&*self.db).await?;
-
-        Ok(model)
-    }
-
-    /// 根据ID获取对账单
-    pub async fn get_by_id(&self, id: i32) -> Result<Option<ReconciliationModel>, AppError> {
-        let model = ReconciliationEntity::find_by_id(id).one(&*self.db).await?;
-
-        Ok(model)
-    }
-
-    /// 获取对账单列表
-    pub async fn list(
-        &self,
-        query: ReconciliationQuery,
-    ) -> Result<(Vec<ReconciliationModel>, u64), AppError> {
-        let mut select = ReconciliationEntity::find();
-
-        if let Some(status) = query.status {
-            select = select
-                .filter(crate::models::ar_reconciliation::Column::ReconciliationStatus.eq(status));
-        }
-
-        if let Some(customer_id) = query.customer_id {
-            select =
-                select.filter(crate::models::ar_reconciliation::Column::CustomerId.eq(customer_id));
-        }
-
-        let total = select.clone().count(&*self.db).await?;
-
-        let paginator = select
-            .order_by_desc(crate::models::ar_reconciliation::Column::CreatedAt)
-            .paginate(&*self.db, query.page_size);
-
-        let models = paginator.fetch_page(query.page - 1).await?;
-
-        Ok((models, total))
-    }
-
-    /// 更新对账单
-    pub async fn update(
-        &self,
-        id: i32,
-        req: UpdateReconciliationRequest,
-    ) -> Result<ReconciliationModel, AppError> {
-        let model = ReconciliationEntity::find_by_id(id)
-            .one(&*self.db)
-            .await?
-            .ok_or_else(|| AppError::not_found("对账单不存在"))?;
-
-        let mut active_model: ActiveModel = model.into();
-
-        if let Some(opening_balance) = req.opening_balance {
-            active_model.opening_balance = Set(opening_balance);
-        }
-        if let Some(total_invoices) = req.total_invoices {
-            active_model.total_invoices = Set(total_invoices);
-        }
-        if let Some(total_collections) = req.total_collections {
-            active_model.total_collections = Set(total_collections);
-        }
-
-        let opening = *active_model.opening_balance.as_ref();
-        let invoices = *active_model.total_invoices.as_ref();
-        let collections = *active_model.total_collections.as_ref();
-        active_model.closing_balance = Set(opening + invoices - collections);
-
-        active_model.updated_at = Set(Utc::now());
-
-        let updated = active_model.update(&*self.db).await?;
-
-        Ok(updated)
-    }
-
-    /// 删除对账单
-    pub async fn delete(&self, id: i32) -> Result<(), AppError> {
-        let model = ReconciliationEntity::find_by_id(id)
-            .one(&*self.db)
-            .await?
-            .ok_or_else(|| AppError::not_found("对账单不存在"))?;
-
-        // 只有草稿状态的对账单可以删除
-        if model.reconciliation_status.as_deref() != Some("draft") {
-            return Err(AppError::business(
-                "只有草稿状态的对账单可以删除".to_string(),
-            ));
-        }
-
-        ReconciliationEntity::delete_by_id(id)
-            .exec(&*self.db)
-            .await?;
-
-        Ok(())
-    }
-
-    /// 发送对账单
-    pub async fn send(&self, id: i32) -> Result<ReconciliationModel, AppError> {
-        let model = ReconciliationEntity::find_by_id(id)
-            .one(&*self.db)
-            .await?
-            .ok_or_else(|| AppError::not_found("对账单不存在"))?;
-
-        if model.reconciliation_status.as_deref() != Some("draft") {
-            return Err(AppError::business(
-                "只有草稿状态的对账单可以发送".to_string(),
-            ));
-        }
-
-        let mut active_model: ActiveModel = model.into();
-        active_model.reconciliation_status = Set(Some("sent".to_string()));
-        active_model.updated_at = Set(Utc::now());
-
-        let updated = active_model.update(&*self.db).await?;
-
-        Ok(updated)
-    }
-
-    /// 客户确认对账单
-    pub async fn confirm(
-        &self,
-        id: i32,
-        confirmed_by: Option<i32>,
-    ) -> Result<ReconciliationModel, AppError> {
-        let model = ReconciliationEntity::find_by_id(id)
-            .one(&*self.db)
-            .await?
-            .ok_or_else(|| AppError::not_found("对账单不存在"))?;
-
-        let mut active_model: ActiveModel = model.into();
-        active_model.reconciliation_status = Set(Some("confirmed".to_string()));
-        active_model.confirmed_by_customer = Set(Some(true));
-        active_model.confirmed_by = Set(confirmed_by);
-        active_model.confirmed_at = Set(Some(Utc::now()));
-        active_model.updated_at = Set(Utc::now());
-
-        let updated = active_model.update(&*self.db).await?;
-
-        Ok(updated)
-    }
-
-    /// 客户提出争议
-    pub async fn dispute(&self, id: i32, reason: String) -> Result<ReconciliationModel, AppError> {
-        let model = ReconciliationEntity::find_by_id(id)
-            .one(&*self.db)
-            .await?
-            .ok_or_else(|| AppError::not_found("对账单不存在"))?;
-
-        let mut active_model: ActiveModel = model.into();
-        active_model.reconciliation_status = Set(Some("disputed".to_string()));
-        active_model.dispute_reason = Set(Some(reason));
-        active_model.updated_at = Set(Utc::now());
-
-        let updated = active_model.update(&*self.db).await?;
-
-        Ok(updated)
-    }
-
-    /// 关闭对账单
-    pub async fn close(&self, id: i32) -> Result<ReconciliationModel, AppError> {
-        let model = ReconciliationEntity::find_by_id(id)
-            .one(&*self.db)
-            .await?
-            .ok_or_else(|| AppError::not_found("对账单不存在"))?;
-
-        let status = model.reconciliation_status.as_deref().unwrap_or("draft");
-        if status != "confirmed" && status != "disputed" {
-            return Err(AppError::business(
-                "只有已确认或有争议的对账单可以关闭".to_string(),
-            ));
-        }
-
-        let mut active_model: ActiveModel = model.into();
-        active_model.reconciliation_status = Set(Some("closed".to_string()));
-        active_model.updated_at = Set(Utc::now());
-
-        let updated = active_model.update(&*self.db).await?;
-
-        Ok(updated)
-    }
-
-    /// 更新对账单状态（通用）
-    pub async fn update_status(
-        &self,
-        id: i32,
-        status: &str,
-    ) -> Result<ReconciliationModel, AppError> {
-        let model = ReconciliationEntity::find_by_id(id)
-            .one(&*self.db)
-            .await?
-            .ok_or_else(|| AppError::not_found("对账单不存在"))?;
-
-        let mut active_model: ActiveModel = model.into();
-        active_model.reconciliation_status = Set(Some(status.to_string()));
-        active_model.updated_at = Set(Utc::now());
-
-        let updated = active_model.update(&*self.db).await?;
-
-        Ok(updated)
-    }
-
-    // ================================================================
-    // 增强功能：自动对账算法
-    // ================================================================
-
     /// 自动对账 - 按客户批量匹配发票和收款
     ///
     /// 匹配策略：
@@ -441,14 +79,7 @@ impl ArReconciliationService {
             let total_invoices: Decimal = invoices.iter().map(|inv| inv.invoice_amount).sum();
             let total_collections: Decimal = collections.iter().map(|c| c.collection_amount).sum();
 
-            let reconciliation_no = DocumentNumberGenerator::generate_no(
-                &*self.db,
-                "RC",
-                ReconciliationEntity,
-                crate::models::ar_reconciliation::Column::ReconciliationNo,
-            )
-            .await?;
-
+            let reconciliation_no = generate_reconciliation_no(&self.db).await?;
             let closing_balance = opening_balance + total_invoices - total_collections;
 
             let reconciliation = ActiveModel {
@@ -652,10 +283,6 @@ impl ArReconciliationService {
         Ok(results)
     }
 
-    // ================================================================
-    // 增强功能：账龄分桶计算
-    // ================================================================
-
     /// 计算账龄分析报告
     ///
     /// 分桶规则：
@@ -815,16 +442,12 @@ impl ArReconciliationService {
         })
     }
 
-    // ================================================================
-    // 增强功能：对账单自动生成
-    // ================================================================
-
     /// 为指定客户自动生成对账单（从发票/收款汇总）
     pub async fn generate_reconciliation(
         &self,
         req: GenerateReconciliationRequest,
         user_id: i32,
-    ) -> Result<ReconciliationModel, AppError> {
+    ) -> Result<crate::models::ar_reconciliation::Model, AppError> {
         let txn = (*self.db).begin().await?;
 
         let cust = customer::Entity::find_by_id(req.customer_id)
@@ -832,13 +455,7 @@ impl ArReconciliationService {
             .await?
             .ok_or_else(|| AppError::not_found(format!("客户 {} 不存在", req.customer_id)))?;
 
-        let reconciliation_no = DocumentNumberGenerator::generate_no(
-            &*self.db,
-            "RC",
-            ReconciliationEntity,
-            crate::models::ar_reconciliation::Column::ReconciliationNo,
-        )
-        .await?;
+        let reconciliation_no = generate_reconciliation_no(&self.db).await?;
 
         let invoices = ar_invoice::Entity::find()
             .filter(ar_invoice::Column::CustomerId.eq(req.customer_id))
@@ -947,60 +564,12 @@ impl ArReconciliationService {
         Ok(rec_model)
     }
 
-    // ================================================================
-    // 增强功能：对账明细查询
-    // ================================================================
-
-    /// 获取对账单及其明细
-    pub async fn get_with_details(&self, id: i32) -> Result<ReconciliationWithDetails, AppError> {
-        let reconciliation = ReconciliationEntity::find_by_id(id)
-            .one(&*self.db)
-            .await?
-            .ok_or_else(|| AppError::not_found("对账单不存在"))?;
-
-        let items = crate::models::ar_reconciliation_item::Entity::find()
-            .filter(crate::models::ar_reconciliation_item::Column::ReconciliationId.eq(id))
-            .order_by(
-                crate::models::ar_reconciliation_item::Column::CreatedAt,
-                Order::Asc,
-            )
-            .all(&*self.db)
-            .await?;
-
-        let details: Vec<ReconciliationDetail> = items
-            .into_iter()
-            .map(|item| ReconciliationDetail {
-                id: item.id,
-                reconciliation_id: item.reconciliation_id,
-                item_type: item.item_type,
-                document_type: item.document_type,
-                document_id: item.document_id,
-                document_no: item.document_no,
-                document_date: item.document_date,
-                amount: item.amount,
-                matched_amount: item.matched_amount,
-                match_status: item.match_status,
-                matched_item_id: item.matched_item_id,
-                remarks: item.remarks,
-            })
-            .collect();
-
-        Ok(ReconciliationWithDetails {
-            reconciliation,
-            details,
-        })
-    }
-
-    // ================================================================
-    // 增强功能：客户确认/争议处理流程
-    // ================================================================
-
     /// 客户确认对账单（带状态校验）
     pub async fn customer_confirm(
         &self,
         id: i32,
         user_id: i32,
-    ) -> Result<ReconciliationModel, AppError> {
+    ) -> Result<crate::models::ar_reconciliation::Model, AppError> {
         let model = ReconciliationEntity::find_by_id(id)
             .one(&*self.db)
             .await?
@@ -1035,7 +604,7 @@ impl ArReconciliationService {
         id: i32,
         reason: String,
         _user_id: i32,
-    ) -> Result<ReconciliationModel, AppError> {
+    ) -> Result<crate::models::ar_reconciliation::Model, AppError> {
         let model = ReconciliationEntity::find_by_id(id)
             .one(&*self.db)
             .await?
@@ -1058,64 +627,5 @@ impl ArReconciliationService {
 
         info!("客户对账单提出争议：id={}, reason={}", id, reason);
         Ok(updated)
-    }
-
-    /// 导出对账单PDF
-    pub async fn export_pdf(&self, id: i32) -> Result<Vec<u8>, AppError> {
-        let model = ReconciliationEntity::find_by_id(id)
-            .one(&*self.db)
-            .await?
-            .ok_or_else(|| AppError::not_found("对账单不存在"))?;
-
-        // 获取对账明细
-        let items = ReconciliationItemEntity::find()
-            .filter(crate::models::ar_reconciliation_item::Column::ReconciliationId.eq(id))
-            .all(&*self.db)
-            .await?;
-
-        // 生成PDF内容
-        let pdf_content = self.generate_reconciliation_pdf(&model, &items)?;
-
-        Ok(pdf_content)
-    }
-
-    /// 生成对账单PDF
-    fn generate_reconciliation_pdf(
-        &self,
-        reconciliation: &ReconciliationModel,
-        items: &[ReconciliationItemModel],
-    ) -> Result<Vec<u8>, AppError> {
-        use crate::services::export_service::{ExportService, ReconciliationPdfItem};
-
-        // 构建明细项
-        let pdf_items: Vec<ReconciliationPdfItem> = items
-            .iter()
-            .map(|item| ReconciliationPdfItem {
-                item_type: item.item_type.clone(),
-                document_no: item.document_no.as_deref().unwrap_or("").to_string(),
-                amount: item.amount.to_string(),
-                date: item
-                    .document_date
-                    .map(|d| d.format("%Y-%m-%d").to_string())
-                    .unwrap_or_default(),
-            })
-            .collect();
-
-        // 获取客户名称
-        let customer_name = format!("客户#{}", reconciliation.customer_id);
-
-        // 生成PDF
-        ExportService::generate_reconciliation_pdf(
-            &reconciliation.reconciliation_no,
-            &customer_name,
-            &reconciliation.period_start.format("%Y-%m-%d").to_string(),
-            &reconciliation.period_end.format("%Y-%m-%d").to_string(),
-            reconciliation
-                .reconciliation_status
-                .as_deref()
-                .unwrap_or("draft"),
-            pdf_items,
-            &reconciliation.closing_balance.to_string(),
-        )
     }
 }
