@@ -671,6 +671,10 @@ pub fn create_router(state: AppState) -> Router {
     let supplier_evaluation_routes = Router::new()
         .route("/", get(supplier_evaluation_handler::list_evaluations))
         .route("/", post(supplier_evaluation_handler::create_evaluation))
+        .route(
+            "/suppliers/:supplier_id/score",
+            get(supplier_evaluation_handler::get_supplier_score_by_path),
+        )
         .route("/:id", get(supplier_evaluation_handler::get_evaluation))
         .route("/:id", put(supplier_evaluation_handler::update_evaluation))
         .route(

@@ -97,6 +97,22 @@ pub async fn get_supplier_score(
     Ok(Json(ApiResponse::success(score)))
 }
 
+/// 通过 `suppliers/:supplier_id/score` 路径查询供应商评分
+/// 前端调用: GET /supplier-evaluation/evaluations/suppliers/:supplier_id/score
+pub async fn get_supplier_score_by_path(
+    State(state): State<AppState>,
+    Path(supplier_id): Path<i32>,
+    _auth: AuthContext,
+) -> Result<Json<ApiResponse<SupplierScoreResponse>>, AppError> {
+    info!("正在按新路径查询供应商 {} 的评分", supplier_id);
+
+    let service = SupplierEvaluationService::new(state.db.clone());
+    let score = service.get_supplier_score(supplier_id).await?;
+    info!("按新路径查询供应商评分成功");
+
+    Ok(Json(ApiResponse::success(score)))
+}
+
 pub async fn list_ratings(
     State(state): State<AppState>,
     auth: AuthContext,
