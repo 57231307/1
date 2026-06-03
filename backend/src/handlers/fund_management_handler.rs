@@ -1,6 +1,8 @@
 use crate::middleware::auth_context::AuthContext;
 use crate::models::fund_management;
-use crate::services::fund_management_service::FundManagementService;
+use crate::services::fund_management_service::{
+    FundManagementService, UpdateFundAccountRequest,
+};
 use crate::utils::app_state::AppState;
 use crate::utils::error::AppError;
 use crate::utils::ApiResponse;
@@ -125,6 +127,38 @@ pub async fn get_account(
     let account = service.get_account_by_id(id).await?;
 
     info!("资金账户详情查询成功：{}", account.account_no);
+    Ok(Json(ApiResponse::success(account)))
+}
+
+/// 更新资金账户请求 DTO
+#[derive(Debug, Deserialize)]
+pub struct UpdateFundAccountRequestDto {
+    pub account_name: Option<String>,
+    pub bank_name: Option<String>,
+    pub currency: Option<String>,
+    pub status: Option<String>,
+    pub remark: Option<String>,
+}
+
+/// 更新资金账户
+pub async fn update_account(
+    Path(id): Path<i32>,
+    State(state): State<AppState>,
+    auth: AuthContext,
+    Json(req): Json<UpdateFundAccountRequestDto>,
+) -> Result<Json<ApiResponse<fund_management::Model>>, AppError> {
+    info!("用户 {} 正在更新资金账户：{}", auth.username, id);
+
+    let service = FundManagementService::new(state.db.clone());
+    let update_req = UpdateFundAccountRequest {
+        account_name: req.account_name,
+        bank_name: req.bank_name,
+        currency: req.currency,
+        status: req.status,
+        remark: req.remark,
+    };
+    let account = service.update_account(id, update_req).await?;
+    info!("资金账户更新成功：{}", account.account_no);
     Ok(Json(ApiResponse::success(account)))
 }
 

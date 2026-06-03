@@ -3,8 +3,8 @@ use crate::models::fund_transfer_record;
 use crate::utils::error::AppError;
 use rust_decimal::Decimal;
 use sea_orm::{
-    ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, Order, PaginatorTrait,
-    QueryFilter, QueryOrder, QuerySelect, Set,
+    ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, IntoActiveModel, Order,
+    PaginatorTrait, QueryFilter, QueryOrder, QuerySelect, Set,
 };
 use std::sync::Arc;
 use tracing::info;
@@ -27,6 +27,16 @@ pub struct CreateFundAccountRequest {
     pub bank_name: Option<String>,
     pub currency: String,
     pub opened_date: Option<chrono::NaiveDate>,
+    pub remark: Option<String>,
+}
+
+/// 更新资金账户请求
+#[derive(Debug, Clone)]
+pub struct UpdateFundAccountRequest {
+    pub account_name: Option<String>,
+    pub bank_name: Option<String>,
+    pub currency: Option<String>,
+    pub status: Option<String>,
     pub remark: Option<String>,
 }
 
@@ -101,6 +111,38 @@ impl FundManagementService {
             .await?
             .ok_or_else(|| AppError::not_found(format!("资金账户不存在：{}", id)))?;
         Ok(account)
+    }
+
+    /// 更新资金账户
+    pub async fn update_account(
+        &self,
+        id: i32,
+        req: UpdateFundAccountRequest,
+    ) -> Result<fund_management::Model, AppError> {
+        info!("更新资金账户 ID: {}", id);
+
+        let account = self.get_account_by_id(id).await?;
+        let mut active: fund_management::ActiveModel = account.into_active_model();
+
+        if let Some(account_name) = req.account_name {
+            active.account_name = Set(account_name);
+        }
+        if let Some(bank_name) = req.bank_name {
+            active.bank_name = Set(Some(bank_name));
+        }
+        if let Some(currency) = req.currency {
+            active.currency = Set(currency);
+        }
+        if let Some(status) = req.status {
+            active.status = Set(status);
+        }
+        if let Some(remark) = req.remark {
+            active.remark = Set(Some(remark));
+        }
+
+        let updated = active.update(&*self.db).await?;
+        info!("资金账户更新成功：{}", updated.account_no);
+        Ok(updated)
     }
 
     /// 账户存款

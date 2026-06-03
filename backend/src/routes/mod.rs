@@ -1024,7 +1024,12 @@ pub fn create_router(state: AppState) -> Router {
     let fund_management_routes = Router::new()
         .route("/accounts", get(fund_management_handler::list_accounts))
         .route("/accounts", post(fund_management_handler::create_account))
-        .route("/accounts/:id", get(fund_management_handler::get_account))
+        .route(
+            "/accounts/:id",
+            get(fund_management_handler::get_account)
+                .put(fund_management_handler::update_account)
+                .delete(fund_management_handler::delete_account),
+        )
         .route(
             "/accounts/:id/deposit",
             post(fund_management_handler::deposit),
@@ -1040,10 +1045,6 @@ pub fn create_router(state: AppState) -> Router {
         .route(
             "/accounts/:id/unfreeze",
             post(fund_management_handler::unfreeze_funds),
-        )
-        .route(
-            "/accounts/:id",
-            delete(fund_management_handler::delete_account),
         )
         .route("/transfer", post(fund_management_handler::transfer))
         .route(
