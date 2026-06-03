@@ -1,12 +1,14 @@
 use crate::models::dto::crm_dto::{
-    ConvertLeadRequest, CreateLeadRequest, CreateOpportunityRequest, LeadQuery, OpportunityQuery,
-    UpdateLeadRequest, UpdateOpportunityRequest,
+    ConvertLeadRequest, CreateLeadRequest, CreateOpportunityRequest, FollowUpRequest,
+    LeadQuery, OpportunityQuery, RfmScoreResponse, UpdateCustomerEnhancedRequest, UpdateLeadRequest,
+    UpdateOpportunityRequest,
 };
 use crate::models::dto::PageResponse;
 use crate::models::{
     crm_lead, crm_opportunity, customer, product, sales_order, sales_order_item, user,
 };
 use crate::utils::error::AppError;
+use chrono::TimeZone;
 use sea_orm::*;
 use std::sync::Arc;
 
@@ -899,6 +901,547 @@ impl CrmService {
                 })
                 .count() as i32,
         })
+    }
+
+    // --- Customer 360 / Enhanced methods (Task 13) ---
+
+    /// 获取客户 360 全景视图：基础信息、联系人、商机、订单、跟进、RFM 等
+    pub async fn get_customer_360(
+        &self,
+        customer_id: i32,
+    ) -> Result<serde_json::Value, AppError> {
+        // 1. 基础客户信息
+        let customer = customer::Entity::find_by_id(customer_id)
+            .one(&*self.db)
+            .await?
+            .ok_or_else(|| AppError::not_found(format!("客户 {} 不存在", customer_id)))?;
+
+        // 2. 关联的转化线索（用于查询跟进记录等）
+        let lead = crm_lead::Entity::find()
+            .filter(crm_lead::Column::ConvertedCustomerId.eq(customer_id))
+            .one(&*self.db)
+            .await?;
+
+        // 3. 关联商机
+        let opportunities = crm_opportunity::Entity::find()
+            .filter(crm_opportunity::Column::CustomerId.eq(customer_id))
+            .all(&*self.db)
+            .await?;
+
+        // 4. 关联销售订单
+        let orders = sales_order::Entity::find()
+            .filter(sales_order::Column::CustomerId.eq(customer_id))
+            .order_by_desc(sales_order::Column::CreatedAt)
+            .all(&*self.db)
+            .await?;
+
+        let total_orders = orders.len() as i32;
+        let total_amount: rust_decimal::Decimal = orders
+            .iter()
+            .map(|o| o.total_amount)
+            .fold(rust_decimal::Decimal::ZERO, |acc, x| acc + x);
+        let last_order_date = orders.first().map(|o| o.order_date.to_rfc3339());
+
+        // 5. RFM 评分
+        let rfm_score = self.compute_rfm_score(customer_id).await?;
+
+        // 6. 跟进记录（基于线索的 follow_up_plan/next_follow_up_date 字段派生）
+        let follow_ups: Vec<serde_json::Value> = if let Some(lead_ref) = &lead {
+            let mut items = Vec::new();
+            if let Some(plan) = &lead_ref.follow_up_plan {
+                items.push(serde_json::json!({
+                    "id": format!("lead-{}-plan", lead_ref.id),
+                    "customer_id": customer_id,
+                    "operator_id": lead_ref.owner_id,
+                    "operator_name": lead_ref.owner_name,
+                    "type": "plan",
+                    "content": plan,
+                    "next_follow_date": lead_ref.next_follow_up_date.map(|d| d.to_string()),
+                    "last_follow_date": lead_ref.last_follow_up_date.map(|d| d.to_string()),
+                    "created_at": lead_ref.updated_at.map(|t| t.to_rfc3339()),
+                }));
+            }
+            items
+        } else {
+            Vec::new()
+        };
+
+        // 7. 联系人/收货地址：基础客户只支持单联系人，包装为数组以与前端契约对齐
+        let contacts: Vec<serde_json::Value> = if let (Some(name), Some(phone)) =
+            (&customer.contact_person, &customer.contact_phone)
+        {
+            vec![serde_json::json!({
+                "id": 1,
+                "customer_id": customer_id,
+                "name": name,
+                "title": customer.contact_person.clone().unwrap_or_default(),
+                "phone": phone,
+                "email": customer.contact_email.clone().unwrap_or_default(),
+                "is_primary": true,
+                "created_at": customer.created_at.to_rfc3339(),
+            })]
+        } else {
+            Vec::new()
+        };
+
+        // 8. 标签：基础客户暂不存储标签，返回空数组
+        let tags: Vec<serde_json::Value> = Vec::new();
+
+        // 9. 收货地址：基础客户暂不存储多地址，使用主地址
+        let shipping_addresses: Vec<serde_json::Value> = if let Some(addr) = &customer.address {
+            vec![serde_json::json!({
+                "id": 1,
+                "customer_id": customer_id,
+                "name": customer.contact_person.clone().unwrap_or_default(),
+                "phone": customer.contact_phone.clone().unwrap_or_default(),
+                "province": customer.province.clone().unwrap_or_default(),
+                "city": customer.city.clone().unwrap_or_default(),
+                "district": "",
+                "detail": addr,
+                "is_default": true,
+            })]
+        } else {
+            Vec::new()
+        };
+
+        Ok(serde_json::json!({
+            "id": customer.id,
+            "customer_code": customer.customer_code,
+            "customer_name": customer.customer_name,
+            "contact_person": customer.contact_person,
+            "phone": customer.contact_phone,
+            "email": customer.contact_email,
+            "address": customer.address,
+            "customer_type": customer.customer_type,
+            "status": customer.status,
+            "tax_number": customer.tax_id,
+            "bank_name": customer.bank_name,
+            "bank_account": customer.bank_account,
+            "credit_limit": customer.credit_limit,
+            "owner_id": customer.created_by,
+            "owner_name": lead.as_ref().map(|l| l.owner_name.clone()),
+            "tags": tags,
+            "contacts": contacts,
+            "shipping_addresses": shipping_addresses,
+            "follow_ups": follow_ups,
+            "rfm_score": rfm_score,
+            "opportunities": opportunities.iter().map(|o| serde_json::json!({
+                "id": o.id,
+                "opportunity_no": o.opportunity_no,
+                "opportunity_name": o.opportunity_name,
+                "opportunity_stage": o.opportunity_stage,
+                "estimated_amount": o.estimated_amount,
+                "actual_amount": o.actual_amount,
+                "expected_close_date": o.expected_close_date,
+            })).collect::<Vec<_>>(),
+            "orders": orders.iter().map(|o| serde_json::json!({
+                "id": o.id,
+                "order_no": o.order_no,
+                "status": o.status,
+                "total_amount": o.total_amount,
+                "order_date": o.order_date,
+                "required_date": o.required_date,
+            })).collect::<Vec<_>>(),
+            "total_orders": total_orders,
+            "total_amount": total_amount,
+            "last_order_date": last_order_date,
+            "created_at": customer.created_at.to_rfc3339(),
+            "updated_at": customer.updated_at.to_rfc3339(),
+        }))
+    }
+
+    /// 获取客户增强详情（基于 customers 表）
+    pub async fn get_customer_enhanced(
+        &self,
+        customer_id: i32,
+    ) -> Result<serde_json::Value, AppError> {
+        let customer = customer::Entity::find_by_id(customer_id)
+            .one(&*self.db)
+            .await?
+            .ok_or_else(|| AppError::not_found(format!("客户 {} 不存在", customer_id)))?;
+
+        Ok(serde_json::json!({
+            "id": customer.id,
+            "customer_code": customer.customer_code,
+            "customer_name": customer.customer_name,
+            "contact_person": customer.contact_person,
+            "phone": customer.contact_phone,
+            "email": customer.contact_email,
+            "address": customer.address,
+            "city": customer.city,
+            "province": customer.province,
+            "country": customer.country,
+            "postal_code": customer.postal_code,
+            "credit_limit": customer.credit_limit,
+            "payment_terms": customer.payment_terms,
+            "tax_id": customer.tax_id,
+            "bank_name": customer.bank_name,
+            "bank_account": customer.bank_account,
+            "status": customer.status,
+            "customer_type": customer.customer_type,
+            "notes": customer.notes,
+            "customer_industry": customer.customer_industry,
+            "main_products": customer.main_products,
+            "annual_purchase": customer.annual_purchase,
+            "quality_requirement": customer.quality_requirement,
+            "inspection_standard": customer.inspection_standard,
+            "created_by": customer.created_by,
+            "created_at": customer.created_at.to_rfc3339(),
+            "updated_at": customer.updated_at.to_rfc3339(),
+        }))
+    }
+
+    /// 更新客户增强信息
+    pub async fn update_customer_enhanced(
+        &self,
+        customer_id: i32,
+        req: UpdateCustomerEnhancedRequest,
+    ) -> Result<serde_json::Value, AppError> {
+        let cust = customer::Entity::find_by_id(customer_id)
+            .one(&*self.db)
+            .await?
+            .ok_or_else(|| AppError::not_found(format!("客户 {} 不存在", customer_id)))?;
+
+        let mut active: customer::ActiveModel = cust.into();
+
+        if let Some(name) = req.customer_name {
+            active.customer_name = Set(name);
+        }
+        if let Some(contact_person) = req.contact_person {
+            active.contact_person = Set(Some(contact_person));
+        }
+        if let Some(contact_phone) = req.contact_phone {
+            active.contact_phone = Set(Some(contact_phone));
+        }
+        if let Some(contact_email) = req.contact_email {
+            active.contact_email = Set(Some(contact_email));
+        }
+        if let Some(address) = req.address {
+            active.address = Set(Some(address));
+        }
+        if let Some(city) = req.city {
+            active.city = Set(Some(city));
+        }
+        if let Some(province) = req.province {
+            active.province = Set(Some(province));
+        }
+        if let Some(country) = req.country {
+            active.country = Set(Some(country));
+        }
+        if let Some(postal_code) = req.postal_code {
+            active.postal_code = Set(Some(postal_code));
+        }
+        if let Some(credit_limit) = req.credit_limit {
+            active.credit_limit = Set(credit_limit);
+        }
+        if let Some(payment_terms) = req.payment_terms {
+            active.payment_terms = Set(payment_terms);
+        }
+        if let Some(tax_id) = req.tax_id {
+            active.tax_id = Set(Some(tax_id));
+        }
+        if let Some(bank_name) = req.bank_name {
+            active.bank_name = Set(Some(bank_name));
+        }
+        if let Some(bank_account) = req.bank_account {
+            active.bank_account = Set(Some(bank_account));
+        }
+        if let Some(status) = req.status {
+            active.status = Set(status);
+        }
+        if let Some(customer_type) = req.customer_type {
+            active.customer_type = Set(customer_type);
+        }
+        if let Some(notes) = req.notes {
+            active.notes = Set(Some(notes));
+        }
+        if let Some(industry) = req.customer_industry {
+            active.customer_industry = Set(Some(industry));
+        }
+        if let Some(main_products) = req.main_products {
+            active.main_products = Set(Some(main_products));
+        }
+        if let Some(annual_purchase) = req.annual_purchase {
+            active.annual_purchase = Set(Some(annual_purchase));
+        }
+        if let Some(quality_requirement) = req.quality_requirement {
+            active.quality_requirement = Set(Some(quality_requirement));
+        }
+        if let Some(inspection_standard) = req.inspection_standard {
+            active.inspection_standard = Set(Some(inspection_standard));
+        }
+
+        active.updated_at = Set(chrono::Utc::now());
+        let updated = active
+            .update(&*self.db)
+            .await
+            .map_err(|e| AppError::database(e.to_string()))?;
+
+        self.get_customer_enhanced(updated.id).await
+    }
+
+    /// 删除客户（软删除：标记为 inactive）
+    pub async fn delete_customer_enhanced(&self, customer_id: i32) -> Result<(), AppError> {
+        let cust = customer::Entity::find_by_id(customer_id)
+            .one(&*self.db)
+            .await?
+            .ok_or_else(|| AppError::not_found(format!("客户 {} 不存在", customer_id)))?;
+
+        let mut active: customer::ActiveModel = cust.into();
+        active.status = Set("inactive".to_string());
+        active.updated_at = Set(chrono::Utc::now());
+        active
+            .update(&*self.db)
+            .await
+            .map_err(|e| AppError::database(e.to_string()))?;
+        Ok(())
+    }
+
+    // --- Follow-up methods (Task 14) ---
+
+    /// 列出指定客户的跟进记录（基于转化线索的跟进字段）
+    pub async fn list_follow_ups(
+        &self,
+        customer_id: i32,
+        page: u64,
+        page_size: u64,
+    ) -> Result<PageResponse<serde_json::Value>, AppError> {
+        let lead = crm_lead::Entity::find()
+            .filter(crm_lead::Column::ConvertedCustomerId.eq(customer_id))
+            .one(&*self.db)
+            .await?;
+
+        let mut items: Vec<serde_json::Value> = Vec::new();
+        if let Some(lead_ref) = lead {
+            if let Some(plan) = &lead_ref.follow_up_plan {
+                items.push(serde_json::json!({
+                    "id": format!("{}-plan", lead_ref.id),
+                    "customer_id": customer_id,
+                    "operator_id": lead_ref.owner_id,
+                    "operator_name": lead_ref.owner_name,
+                    "type": "plan",
+                    "content": plan,
+                    "next_follow_date": lead_ref.next_follow_up_date.map(|d| d.to_string()),
+                    "created_at": lead_ref.updated_at.map(|t| t.to_rfc3339()),
+                }));
+            }
+            if let Some(last_date) = lead_ref.last_follow_up_date {
+                let created_at = last_date
+                    .and_hms_opt(0, 0, 0)
+                    .map(|t| {
+                        chrono::Utc
+                            .from_utc_datetime(&t)
+                            .to_rfc3339()
+                    })
+                    .or_else(|| lead_ref.updated_at.map(|t| t.to_rfc3339()))
+                    .unwrap_or_default();
+                items.push(serde_json::json!({
+                    "id": format!("{}-last", lead_ref.id),
+                    "customer_id": customer_id,
+                    "operator_id": lead_ref.owner_id,
+                    "operator_name": lead_ref.owner_name,
+                    "type": "last",
+                    "content": "最近跟进记录",
+                    "next_follow_date": lead_ref.next_follow_up_date.map(|d| d.to_string()),
+                    "created_at": created_at,
+                }));
+            }
+        }
+
+        let total = items.len() as u64;
+        let start = ((page.saturating_sub(1)) * page_size) as usize;
+        let end = (start + page_size as usize).min(items.len());
+        let page_items = if start >= items.len() {
+            Vec::new()
+        } else {
+            items[start..end].to_vec()
+        };
+
+        Ok(PageResponse::new(page_items, total, page, page_size))
+    }
+
+    /// 创建跟进记录（写入到客户对应的转化线索）
+    pub async fn create_follow_up(
+        &self,
+        customer_id: i32,
+        operator_id: i32,
+        operator_name: String,
+        req: FollowUpRequest,
+    ) -> Result<serde_json::Value, AppError> {
+        // 查找该客户对应的转化线索
+        let lead = crm_lead::Entity::find()
+            .filter(crm_lead::Column::ConvertedCustomerId.eq(customer_id))
+            .one(&*self.db)
+            .await?;
+
+        let mut lead_model = match lead {
+            Some(l) => l,
+            None => {
+                // 若客户没有对应的转化线索，则直接返回前端记录
+                return Ok(serde_json::json!({
+                    "id": format!("adhoc-{}", chrono::Utc::now().timestamp()),
+                    "customer_id": customer_id,
+                    "operator_id": operator_id,
+                    "operator_name": operator_name,
+                    "type": req.r#type,
+                    "content": req.content,
+                    "next_follow_date": req.next_follow_date,
+                    "created_at": chrono::Utc::now().to_rfc3339(),
+                }));
+            }
+        };
+
+        let next_follow_date = req
+            .next_follow_date
+            .as_deref()
+            .and_then(|s| chrono::NaiveDate::parse_from_str(s, "%Y-%m-%d").ok());
+
+        let mut active: crm_lead::ActiveModel = lead_model.clone().into();
+        active.last_follow_up_date = Set(Some(chrono::Utc::now().date_naive()));
+        if let Some(date) = next_follow_date {
+            active.next_follow_up_date = Set(Some(date));
+        }
+        if let Some(content) = &req.content {
+            active.follow_up_plan = Set(Some(content.clone()));
+        }
+        active.updated_at = Set(Some(chrono::Utc::now()));
+        active
+            .update(&*self.db)
+            .await
+            .map_err(|e| AppError::database(e.to_string()))?;
+
+        lead_model = crm_lead::Entity::find_by_id(lead_model.id)
+            .one(&*self.db)
+            .await?
+            .ok_or_else(|| AppError::not_found("线索不存在"))?;
+
+        Ok(serde_json::json!({
+            "id": format!("{}-{}", lead_model.id, chrono::Utc::now().timestamp()),
+            "customer_id": customer_id,
+            "operator_id": operator_id,
+            "operator_name": operator_name,
+            "type": req.r#type,
+            "content": req.content,
+            "next_follow_date": lead_model.next_follow_up_date.map(|d| d.to_string()),
+            "created_at": chrono::Utc::now().to_rfc3339(),
+        }))
+    }
+
+    // --- RFM methods (Task 14) ---
+
+    /// 计算单个客户的 RFM 评分
+    pub async fn compute_rfm_score(
+        &self,
+        customer_id: i32,
+    ) -> Result<RfmScoreResponse, AppError> {
+        // 仅考虑非草稿/非作废状态的订单
+        let orders = sales_order::Entity::find()
+            .filter(sales_order::Column::CustomerId.eq(customer_id))
+            .filter(sales_order::Column::Status.ne("draft"))
+            .filter(sales_order::Column::Status.ne("cancelled"))
+            .all(&*self.db)
+            .await?;
+
+        let frequency = orders.len() as i32;
+        let monetary: rust_decimal::Decimal = orders
+            .iter()
+            .map(|o| o.total_amount)
+            .fold(rust_decimal::Decimal::ZERO, |acc, x| acc + x);
+
+        // 距最近一次订单的天数
+        let recency = match orders.iter().map(|o| o.order_date).max() {
+            Some(latest) => {
+                let now = chrono::Utc::now();
+                now.signed_duration_since(latest).num_days().max(0) as i32
+            }
+            None => 9999,
+        };
+
+        // RFM 等级判定
+        let level = match (recency, frequency, monetary) {
+            (r, _, _) if r > 365 => 'E',
+            (r, f, _) if r <= 30 && f >= 10 => 'A',
+            (r, f, _) if r <= 60 && f >= 5 => 'B',
+            (r, f, _) if r <= 90 && f >= 3 => 'C',
+            (r, _, _) if r <= 180 => 'D',
+            _ => 'E',
+        };
+
+        let label = match level {
+            'A' => "高价值客户",
+            'B' => "重点保持客户",
+            'C' => "一般价值客户",
+            'D' => "低价值客户",
+            _ => "流失风险客户",
+        }
+        .to_string();
+
+        Ok(RfmScoreResponse {
+            recency,
+            frequency,
+            monetary,
+            level,
+            label,
+        })
+    }
+
+    /// 获取客户群体的 RFM 分布（仅统计有过订单的客户）
+    pub async fn get_rfm_distribution(
+        &self,
+    ) -> Result<std::collections::HashMap<String, i32>, AppError> {
+        // 获取所有客户
+        let customers = customer::Entity::find()
+            .all(&*self.db)
+            .await?;
+
+        let mut distribution = std::collections::HashMap::new();
+        for cust in customers {
+            let score = self.compute_rfm_score(cust.id).await?;
+            if score.frequency == 0 && score.monetary == rust_decimal::Decimal::ZERO {
+                continue;
+            }
+            let level_str = score.level.to_string();
+            *distribution.entry(level_str).or_insert(0) += 1;
+        }
+
+        Ok(distribution)
+    }
+
+    // --- Pool claim methods (Task 14) ---
+
+    /// 批量领取公海客户（由单条和批量接口共用）
+    pub async fn claim_pool_customers(
+        &self,
+        customer_ids: Vec<i32>,
+        operator_id: i32,
+        operator_name: &str,
+    ) -> Result<usize, AppError> {
+        if customer_ids.is_empty() {
+            return Ok(0);
+        }
+
+        let mut claimed = 0usize;
+        for lead_id in customer_ids {
+            let lead = match crm_lead::Entity::find_by_id(lead_id).one(&*self.db).await? {
+                Some(l) => l,
+                None => continue,
+            };
+            if lead.lead_status.as_deref() != Some("pool") {
+                continue;
+            }
+            let mut active: crm_lead::ActiveModel = lead.into();
+            active.lead_status = Set(Some("new".to_string()));
+            active.owner_id = Set(operator_id);
+            active.owner_name = Set(operator_name.to_string());
+            active.updated_at = Set(Some(chrono::Utc::now()));
+            match active.update(&*self.db).await {
+                Ok(_) => claimed += 1,
+                Err(e) => {
+                    tracing::warn!("领取公海客户 {} 失败: {}", lead_id, e);
+                }
+            }
+        }
+        Ok(claimed)
     }
 }
 

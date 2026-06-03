@@ -1,7 +1,8 @@
 use crate::middleware::auth_context::AuthContext;
 use crate::models::dto::crm_dto::{
-    ConvertLeadRequest, CreateLeadRequest, CreateOpportunityRequest, LeadQuery, OpportunityQuery,
-    UpdateLeadRequest, UpdateOpportunityRequest,
+    ConvertLeadRequest, CreateLeadRequest, CreateOpportunityRequest, FollowUpRequest,
+    LeadQuery, OpportunityQuery, UpdateCustomerEnhancedRequest, UpdateLeadRequest,
+    UpdateOpportunityRequest,
 };
 use crate::services::crm_service::CrmService;
 use crate::utils::app_state::AppState;
@@ -11,6 +12,7 @@ use axum::{
     extract::{Path, Query, State},
     Json,
 };
+use serde::Deserialize;
 
 pub async fn create_lead(
     State(state): State<AppState>,
@@ -310,4 +312,112 @@ pub async fn get_customer_relation_summary(
     let value = serde_json::to_value(summary)
         .map_err(|e| AppError::internal(format!("序列化失败: {}", e)))?;
     Ok(Json(ApiResponse::success(value)))
+}
+
+// ===== Task 13: CRM 360 视图与客户增强详情 =====
+
+/// 分页参数（跟进记录等使用）
+#[derive(Debug, Deserialize)]
+pub struct FollowUpQuery {
+    pub page: Option<u64>,
+    pub page_size: Option<u64>,
+}
+
+/// GET /api/v1/erp/crm/customers/:id/360 - 客户 360 全景视图
+pub async fn get_customer_360(
+    Path(id): Path<i32>,
+    State(state): State<AppState>,
+    _auth: AuthContext,
+) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
+    let service = CrmService::new(state.db.clone());
+    let value = service.get_customer_360(id).await?;
+    Ok(Json(ApiResponse::success(value)))
+}
+
+/// GET /api/v1/erp/crm/customers/enhanced/:id - 客户增强详情
+pub async fn get_customer_enhanced_detail(
+    Path(id): Path<i32>,
+    State(state): State<AppState>,
+    _auth: AuthContext,
+) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
+    let service = CrmService::new(state.db.clone());
+    let value = service.get_customer_enhanced(id).await?;
+    Ok(Json(ApiResponse::success(value)))
+}
+
+/// PUT /api/v1/erp/crm/customers/enhanced/:id - 更新客户增强信息
+pub async fn update_customer_enhanced(
+    Path(id): Path<i32>,
+    State(state): State<AppState>,
+    _auth: AuthContext,
+    Json(req): Json<UpdateCustomerEnhancedRequest>,
+) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
+    let service = CrmService::new(state.db.clone());
+    let value = service.update_customer_enhanced(id, req).await?;
+    Ok(Json(ApiResponse::success(value)))
+}
+
+/// DELETE /api/v1/erp/crm/customers/enhanced/:id - 删除客户（软删除）
+pub async fn delete_customer_enhanced(
+    Path(id): Path<i32>,
+    State(state): State<AppState>,
+    _auth: AuthContext,
+) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
+    let service = CrmService::new(state.db.clone());
+    service.delete_customer_enhanced(id).await?;
+    Ok(Json(ApiResponse::success(
+        serde_json::json!({ "deleted": true }),
+    )))
+}
+
+// ===== Task 14: 跟进记录与 RFM =====
+
+/// GET /api/v1/erp/crm/customers/:id/follow-ups - 列出跟进记录
+pub async fn list_follow_ups(
+    Path(id): Path<i32>,
+    State(state): State<AppState>,
+    _auth: AuthContext,
+    Query(params): Query<FollowUpQuery>,
+) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
+    let service = CrmService::new(state.db.clone());
+    let page = params.page.unwrap_or(1);
+    let page_size = params.page_size.unwrap_or(20);
+    let page_resp = service.list_follow_ups(id, page, page_size).await?;
+    Ok(Json(ApiResponse::success(serde_json::to_value(page_resp)?)))
+}
+
+/// POST /api/v1/erp/crm/customers/:id/follow-ups - 创建跟进记录
+pub async fn create_follow_up(
+    Path(id): Path<i32>,
+    State(state): State<AppState>,
+    auth: AuthContext,
+    Json(req): Json<FollowUpRequest>,
+) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
+    let service = CrmService::new(state.db.clone());
+    let operator_name = auth.username.clone();
+    let value = service
+        .create_follow_up(id, auth.user_id, operator_name, req)
+        .await?;
+    Ok(Json(ApiResponse::success(value)))
+}
+
+/// GET /api/v1/erp/crm/customers/:id/rfm - 获取单个客户 RFM 评分
+pub async fn get_rfm_score(
+    Path(id): Path<i32>,
+    State(state): State<AppState>,
+    _auth: AuthContext,
+) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
+    let service = CrmService::new(state.db.clone());
+    let score = service.compute_rfm_score(id).await?;
+    Ok(Json(ApiResponse::success(serde_json::to_value(score)?)))
+}
+
+/// GET /api/v1/erp/crm/rfm/distribution - 客户群体 RFM 分布
+pub async fn get_rfm_distribution(
+    State(state): State<AppState>,
+    _auth: AuthContext,
+) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
+    let service = CrmService::new(state.db.clone());
+    let dist = service.get_rfm_distribution().await?;
+    Ok(Json(ApiResponse::success(serde_json::to_value(dist)?)))
 }

@@ -1778,7 +1778,15 @@ pub fn create_router(state: AppState) -> Router {
             Router::new()
                 .route("/", get(crm_pool_handler::list_pool))
                 .route("/claim", post(crm_pool_handler::claim_from_pool))
-                .route("/recycle", post(crm_pool_handler::recycle_to_pool)),
+                .route("/recycle", post(crm_pool_handler::recycle_to_pool))
+                .route(
+                    "/batch-claim",
+                    post(crm_pool_handler::batch_claim),
+                )
+                .route(
+                    "/:customer_id/claim",
+                    post(crm_pool_handler::claim_specific),
+                ),
         )
         // CRM分配路由
         .nest(
@@ -1846,6 +1854,53 @@ pub fn create_router(state: AppState) -> Router {
                 .route(
                     "/generate",
                     post(ar_reconciliation_enhanced_handler::generate_reconciliation),
+                ),
+        )
+        // 应收对账增强别名路由（与前端 /ar-reconciliation/... 路径对齐）
+        .nest(
+            "/api/v1/erp/ar-reconciliation",
+            Router::new()
+                .route(
+                    "/auto-reconcile",
+                    post(ar_reconciliation_enhanced_handler::auto_match),
+                )
+                .route(
+                    "/auto-reconcile/results",
+                    get(ar_reconciliation_enhanced_handler::list_results),
+                )
+                .route(
+                    "/aging-analysis",
+                    get(ar_reconciliation_enhanced_handler::aging_report),
+                )
+                .route(
+                    "/:id/details",
+                    get(ar_reconciliation_enhanced_handler::get_reconciliation_details),
+                )
+                .route(
+                    "/:id/confirm/send",
+                    post(ar_reconciliation_enhanced_handler::send_confirmation),
+                )
+                .route(
+                    "/confirmations",
+                    get(ar_reconciliation_enhanced_handler::list_confirmations)
+                        .post(ar_reconciliation_enhanced_handler::create_confirmation),
+                )
+                .route(
+                    "/confirmations/:id/status",
+                    put(ar_reconciliation_enhanced_handler::update_confirmation_status),
+                )
+                .route(
+                    "/disputes",
+                    get(ar_reconciliation_enhanced_handler::list_disputes)
+                        .post(ar_reconciliation_enhanced_handler::create_dispute),
+                )
+                .route(
+                    "/disputes/:id",
+                    get(ar_reconciliation_enhanced_handler::get_dispute),
+                )
+                .route(
+                    "/disputes/:id/resolve",
+                    put(ar_reconciliation_enhanced_handler::resolve_dispute),
                 ),
         )
         // 报表增强路由
@@ -2098,6 +2153,29 @@ pub fn create_router(state: AppState) -> Router {
                 .route(
                     "/customers/:id/summary",
                     get(crate::handlers::crm_handler::get_customer_relation_summary),
+                )
+                .route(
+                    "/customers/:id/360",
+                    get(crate::handlers::crm_handler::get_customer_360),
+                )
+                .route(
+                    "/customers/:id/follow-ups",
+                    get(crate::handlers::crm_handler::list_follow_ups)
+                        .post(crate::handlers::crm_handler::create_follow_up),
+                )
+                .route(
+                    "/customers/:id/rfm",
+                    get(crate::handlers::crm_handler::get_rfm_score),
+                )
+                .route(
+                    "/rfm/distribution",
+                    get(crate::handlers::crm_handler::get_rfm_distribution),
+                )
+                .route(
+                    "/customers/enhanced/:id",
+                    get(crate::handlers::crm_handler::get_customer_enhanced_detail)
+                        .put(crate::handlers::crm_handler::update_customer_enhanced)
+                        .delete(crate::handlers::crm_handler::delete_customer_enhanced),
                 ),
         )
         .nest("/api/v1/erp/init", init_routes)
