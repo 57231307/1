@@ -558,3 +558,139 @@ pub async fn get_recipe_versions(
             .into_response(),
     }
 }
+
+/// POST /api/v1/erp/dye-recipes/:id/submit - 提交配方审核
+pub async fn submit_dye_recipe(
+    State(state): State<AppState>,
+    _auth: AuthContext,
+    Path(id): Path<i32>,
+) -> impl IntoResponse {
+    let mut recipe: dye_recipe::ActiveModel =
+        match dye_recipe::Entity::find_by_id(id).one(&*state.db).await {
+            Ok(Some(r)) => r.into(),
+            Ok(None) => {
+                return (
+                    StatusCode::NOT_FOUND,
+                    Json(ApiResponse::<()>::error("配方不存在")),
+                )
+                    .into_response();
+            }
+            Err(e) => {
+                return (
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    Json(ApiResponse::<()>::error(format!("获取配方失败：{}", e))),
+                )
+                    .into_response();
+            }
+        };
+
+    let current_status = match &recipe.status {
+        sea_orm::ActiveValue::Set(Some(s)) => s.as_str(),
+        _ => "草稿",
+    };
+    if current_status != "草稿" {
+        return (
+            StatusCode::BAD_REQUEST,
+            Json(ApiResponse::<()>::error(format!(
+                "只有草稿状态的配方可以提交审核，当前状态：{}",
+                current_status
+            ))),
+        )
+            .into_response();
+    }
+
+    // 提交时设置占位的 approved_by 标识为提交动作
+    recipe.approved_by = Set(Some(-1));
+    recipe.updated_at = Set(crate::utils::date_utils::utc_now_fixed());
+
+    match recipe.update(&*state.db).await {
+        Ok(updated) => (
+            StatusCode::OK,
+            Json(ApiResponse::success_with_message(updated, "配方已提交审核")),
+        )
+            .into_response(),
+        Err(e) => (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(ApiResponse::<()>::error(format!("提交配方失败：{}", e))),
+        )
+            .into_response(),
+    }
+}
+
+/// GET /api/v1/erp/dye-recipes/export - 导出配方列表（CSV）
+pub async fn export_dye_recipes(
+    State(state): State<AppState>,
+    Query(query): Query<DyeRecipeListQuery>,
+) -> impl IntoResponse {
+    let mut q = dye_recipe::Entity::find().filter(dye_recipe::Column::IsDeleted.eq(false));
+
+    if let Some(recipe_no) = &query.recipe_no {
+        q = q.filter(dye_recipe::Column::RecipeNo.contains(recipe_no));
+    }
+    if let Some(color_code) = &query.color_code {
+        q = q.filter(dye_recipe::Column::ColorCode.contains(color_code));
+    }
+    if let Some(color_name) = &query.color_name {
+        q = q.filter(dye_recipe::Column::ColorName.contains(color_name));
+    }
+    if let Some(dye_type) = &query.dye_type {
+        q = q.filter(dye_recipe::Column::DyeType.eq(dye_type));
+    }
+    if let Some(status) = &query.status {
+        q = q.filter(dye_recipe::Column::Status.eq(status));
+    }
+
+    q = q.order_by_desc(dye_recipe::Column::CreatedAt);
+
+    let recipes = match q.all(&*state.db).await {
+        Ok(r) => r,
+        Err(e) => {
+            return (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(ApiResponse::<()>::error(format!("获取配方列表失败：{}", e))),
+            )
+                .into_response();
+        }
+    };
+
+    let mut buf: Vec<u8> = Vec::new();
+    buf.extend_from_slice(b"\xEF\xBB\xBF");
+    buf.extend_from_slice(
+        b"ID,配方编号,配方名称,色号,颜色名称,布种,染料类型,温度,时间,PH值,浴比,状态,版本\n",
+    );
+    for r in &recipes {
+        let line = format!(
+            "{},{},{},{},{},{},{},{},{},{},{},{},{}\n",
+            r.id,
+            r.recipe_no,
+            r.recipe_name.clone().unwrap_or_default(),
+            r.color_code.clone().unwrap_or_default(),
+            r.color_name.clone().unwrap_or_default(),
+            r.fabric_type.clone().unwrap_or_default(),
+            r.dye_type.clone().unwrap_or_default(),
+            r.temperature
+                .map(|d| d.to_string())
+                .unwrap_or_default(),
+            r.time_minutes
+                .map(|i| i.to_string())
+                .unwrap_or_default(),
+            r.ph_value.map(|d| d.to_string()).unwrap_or_default(),
+            r.liquor_ratio
+                .map(|d| d.to_string())
+                .unwrap_or_default(),
+            r.status.clone().unwrap_or_default(),
+            r.version.map(|i| i.to_string()).unwrap_or_default(),
+        );
+        buf.extend_from_slice(line.as_bytes());
+    }
+
+    (
+        StatusCode::OK,
+        [(
+            axum::http::header::CONTENT_TYPE,
+            "text/csv; charset=utf-8",
+        )],
+        buf,
+    )
+        .into_response()
+}

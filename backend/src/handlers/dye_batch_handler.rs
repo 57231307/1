@@ -446,3 +446,65 @@ pub async fn get_dye_batches_by_color(
             .into_response(),
     }
 }
+
+/// GET /api/v1/erp/dye-batches/export - 导出缸号列表（CSV）
+pub async fn export_dye_batches(
+    State(state): State<AppState>,
+    Query(query): Query<DyeBatchListQuery>,
+) -> impl IntoResponse {
+    let mut q = dye_batch::Entity::find().filter(dye_batch::Column::IsDeleted.eq(false));
+
+    if let Some(batch_no) = &query.batch_no {
+        q = q.filter(dye_batch::Column::BatchNo.contains(batch_no));
+    }
+    if let Some(color_no) = &query.color_no {
+        q = q.filter(dye_batch::Column::ColorNo.contains(color_no));
+    }
+    if let Some(status) = &query.status {
+        q = q.filter(dye_batch::Column::Status.eq(status));
+    }
+
+    q = q.order_by_desc(dye_batch::Column::CreatedAt);
+
+    let batches = match q.all(&*state.db).await {
+        Ok(b) => b,
+        Err(e) => {
+            return (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(ApiResponse::<()>::error(format!("获取缸号列表失败：{}", e))),
+            )
+                .into_response();
+        }
+    };
+
+    let mut buf: Vec<u8> = Vec::new();
+    buf.extend_from_slice(b"\xEF\xBB\xBF");
+    buf.extend_from_slice(b"ID,缸号,色号,坯布ID,计划数量,状态,创建时间\n");
+    for b in &batches {
+        let line = format!(
+            "{},{},{},{},{},{},{}\n",
+            b.id,
+            b.batch_no,
+            b.color_no.clone().unwrap_or_default(),
+            b.greige_fabric_id
+                .map(|i| i.to_string())
+                .unwrap_or_default(),
+            b.planned_quantity
+                .map(|d| d.to_string())
+                .unwrap_or_default(),
+            b.status.clone().unwrap_or_default(),
+            b.created_at.format("%Y-%m-%d %H:%M:%S"),
+        );
+        buf.extend_from_slice(line.as_bytes());
+    }
+
+    (
+        StatusCode::OK,
+        [(
+            axum::http::header::CONTENT_TYPE,
+            "text/csv; charset=utf-8",
+        )],
+        buf,
+    )
+        .into_response()
+}
