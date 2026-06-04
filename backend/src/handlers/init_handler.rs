@@ -29,9 +29,7 @@ pub struct InitWithDbRequest {
     pub admin_password: String,
 }
 
-pub async fn get_init_status(
-    State(state): State<AppState>,
-) -> Json<ApiResponse<InitStatus>> {
+pub async fn get_init_status(State(state): State<AppState>) -> Json<ApiResponse<InitStatus>> {
     let init_service = InitService::new(state.db.clone());
     let (initialized, message) = init_service.check_initialized().await;
     Json(ApiResponse::success(InitStatus {
@@ -59,52 +57,33 @@ pub async fn test_database_connection(
             },
             "数据库连接测试成功",
         ))),
-        Err(e) => Err(AppError::bad_request(format!(
-            "数据库连接失败: {}",
-            e
-        ))),
+        Err(e) => Err(AppError::bad_request(format!("数据库连接失败: {}", e))),
     }
 }
 
 pub async fn initialize_system(
     State(state): State<AppState>,
     Json(payload): Json<InitRequest>,
-) -> Result<
-    Json<ApiResponse<crate::services::init_service::InitializationResult>>,
-    AppError,
-> {
+) -> Result<Json<ApiResponse<crate::services::init_service::InitializationResult>>, AppError> {
     let init_service = InitService::new(state.db.clone());
 
     init_service
         .initialize(&payload.admin_username, &payload.admin_password)
         .await
-        .map(|result| {
-            Json(ApiResponse::success_with_message(
-                result,
-                "系统初始化成功",
-            ))
-        })
+        .map(|result| Json(ApiResponse::success_with_message(result, "系统初始化成功")))
         .map_err(map_init_error)
 }
 
 pub async fn initialize_system_with_db(
     Json(payload): Json<InitWithDbRequest>,
-) -> Result<
-    Json<ApiResponse<crate::services::init_service::InitializationResult>>,
-    AppError,
-> {
+) -> Result<Json<ApiResponse<crate::services::init_service::InitializationResult>>, AppError> {
     InitService::initialize_with_db(
         &payload.db_config,
         &payload.admin_username,
         &payload.admin_password,
     )
     .await
-    .map(|result| {
-        Json(ApiResponse::success_with_message(
-            result,
-            "系统初始化成功",
-        ))
-    })
+    .map(|result| Json(ApiResponse::success_with_message(result, "系统初始化成功")))
     .map_err(map_init_error)
 }
 

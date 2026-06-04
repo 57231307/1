@@ -56,8 +56,10 @@ async fn get_init_status() -> Json<InitStatusResponse> {
 
 async fn test_database_connection(
     Json(payload): Json<DatabaseConfig>,
-) -> Result<Json<crate::handlers::init_handler::TestDatabaseResponse>, (axum::http::StatusCode, Json<InitErrorResponse>)>
-{
+) -> Result<
+    Json<crate::handlers::init_handler::TestDatabaseResponse>,
+    (axum::http::StatusCode, Json<InitErrorResponse>),
+> {
     match InitService::test_database(&payload).await {
         Ok(_) => Ok(Json(crate::handlers::init_handler::TestDatabaseResponse {
             success: true,
@@ -75,8 +77,10 @@ async fn test_database_connection(
 
 async fn initialize_with_db(
     Json(payload): Json<crate::handlers::init_handler::InitWithDbRequest>,
-) -> Result<Json<crate::services::init_service::InitializationResult>, (axum::http::StatusCode, Json<InitErrorResponse>)>
-{
+) -> Result<
+    Json<crate::services::init_service::InitializationResult>,
+    (axum::http::StatusCode, Json<InitErrorResponse>),
+> {
     match InitService::initialize_with_db(
         &payload.db_config,
         &payload.admin_username,

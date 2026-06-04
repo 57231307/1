@@ -6,9 +6,7 @@
 
 use crate::models::crm_lead;
 use crate::utils::error::AppError;
-use sea_orm::{
-    ColumnTrait, DatabaseConnection, EntityTrait, PaginatorTrait, QueryFilter, Set,
-};
+use sea_orm::{ColumnTrait, DatabaseConnection, EntityTrait, PaginatorTrait, QueryFilter, Set};
 use std::sync::Arc;
 
 use super::cust::CrmService;
@@ -29,9 +27,7 @@ impl CrmService {
         let mut claimed = 0;
         for lid in lead_ids {
             // 验证线索存在且在公海
-            let lead = crm_lead::Entity::find_by_id(lid)
-                .one(&*self.db)
-                .await?;
+            let lead = crm_lead::Entity::find_by_id(lid).one(&*self.db).await?;
 
             if let Some(l) = lead {
                 if l.lead_status.as_deref() != Some("pool") {

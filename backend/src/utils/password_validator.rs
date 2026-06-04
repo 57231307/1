@@ -143,19 +143,13 @@ pub fn validate_password_with_policy(
     let mut score = 0u8;
 
     if password.len() < policy.min_length {
-        errors.push(format!(
-            "密码长度至少为 {} 个字符",
-            policy.min_length
-        ));
+        errors.push(format!("密码长度至少为 {} 个字符", policy.min_length));
     } else {
         score += 20;
     }
 
     if password.len() > policy.max_length {
-        errors.push(format!(
-            "密码长度不能超过 {} 个字符",
-            policy.max_length
-        ));
+        errors.push(format!("密码长度不能超过 {} 个字符", policy.max_length));
     }
 
     let has_uppercase = RE_UPPERCASE.is_match(password);

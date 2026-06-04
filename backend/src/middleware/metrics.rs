@@ -22,13 +22,7 @@
 //! 维护 Prometheus 指标。如需关闭可注释掉相关 `.layer()`。
 
 use crate::services::metrics_service::{Metrics, MetricsService};
-use axum::{
-    body::Body,
-    extract::State,
-    http::Request,
-    middleware::Next,
-    response::Response,
-};
+use axum::{body::Body, extract::State, http::Request, middleware::Next, response::Response};
 use std::sync::Arc;
 use std::time::Instant;
 

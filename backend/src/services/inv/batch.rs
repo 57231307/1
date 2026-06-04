@@ -7,11 +7,11 @@
 //!
 //! 原 `inventory_transfer_service.rs` 拆分而来。
 
+use sea_orm::sea_query::{BinOper, Expr};
 use sea_orm::{
     ActiveModelTrait, ColumnTrait, EntityTrait, IntoActiveModel, Order, QueryFilter, QueryOrder,
     TransactionTrait,
 };
-use sea_orm::sea_query::{BinOper, Expr};
 
 use crate::models::inventory_stock::{self, Entity as InventoryStockEntity};
 use crate::models::inventory_transaction;

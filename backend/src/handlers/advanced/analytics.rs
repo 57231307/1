@@ -9,9 +9,7 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
 use crate::middleware::auth_context::AuthContext;
-use crate::services::report::{
-    ExecuteReportRequest, ReportEngineService, ReportFilter,
-};
+use crate::services::report::{ExecuteReportRequest, ReportEngineService, ReportFilter};
 use crate::utils::app_state::AppState;
 use crate::utils::response::ApiResponse;
 
@@ -20,9 +18,7 @@ use crate::utils::response::ApiResponse;
 // ============================================================================
 
 /// 报表模板列表
-pub async fn list_report_templates(
-    State(state): State<AppState>,
-) -> impl IntoResponse {
+pub async fn list_report_templates(State(state): State<AppState>) -> impl IntoResponse {
     let service = ReportEngineService::new(state.db);
     let templates = service.get_predefined_templates();
 
@@ -204,8 +200,8 @@ pub async fn sales_analytics(
     _auth: AuthContext,
     Json(payload): Json<AnalyticsRequest>,
 ) -> impl IntoResponse {
-    use sea_orm::{EntityTrait, QueryFilter, ColumnTrait, PaginatorTrait};
     use crate::models::sales_order;
+    use sea_orm::{ColumnTrait, EntityTrait, PaginatorTrait, QueryFilter};
 
     let query = sales_order::Entity::find()
         .filter(sales_order::Column::OrderDate.between(payload.start_date, payload.end_date));
@@ -216,7 +212,11 @@ pub async fn sales_analytics(
 
     let total_sales = total as f64 * 1000.0; // 示例数据
     let order_count = total;
-    let avg_order_value = if order_count > 0 { total_sales / order_count as f64 } else { 0.0 };
+    let avg_order_value = if order_count > 0 {
+        total_sales / order_count as f64
+    } else {
+        0.0
+    };
 
     Json(ApiResponse::success(SalesAnalyticsResponse {
         total_sales,

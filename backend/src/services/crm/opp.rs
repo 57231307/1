@@ -300,11 +300,10 @@ impl CrmService {
         opp_active.opportunity_status = Set(Some("CLOSED_WON".to_string()));
         opp_active.opportunity_stage = Set(Some("CLOSED_WON".to_string()));
         // 估算金额 -> 实际金额：解包 ActiveValue
-        let estimated: Option<rust_decimal::Decimal> =
-            match opp_active.estimated_amount {
-                sea_orm::ActiveValue::Set(v) => v,
-                _ => None,
-            };
+        let estimated: Option<rust_decimal::Decimal> = match opp_active.estimated_amount {
+            sea_orm::ActiveValue::Set(v) => v,
+            _ => None,
+        };
         opp_active.estimated_amount = Set(None);
         opp_active.actual_amount = Set(estimated);
         opp_active.actual_close_date = Set(Some(chrono::Utc::now().date_naive()));

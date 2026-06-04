@@ -6,15 +6,13 @@
 use crate::models::dto::PageRequest;
 use crate::models::{
     ar_invoice::{self, Column as ArInvoiceColumn, Entity as ArInvoiceEntity},
-    customer,
-    product, sales_order,
+    customer, product, sales_order,
     sales_order::Entity as SalesOrderEntity,
     sales_order_item,
     sales_order_item::Entity as SalesOrderItemEntity,
 };
 use crate::services::so::{
-    CreateSalesOrderRequest, SalesOrderDetail, SalesOrderItemDetail,
-    UpdateSalesOrderRequest,
+    CreateSalesOrderRequest, SalesOrderDetail, SalesOrderItemDetail, UpdateSalesOrderRequest,
 };
 use crate::utils::error::AppError;
 use crate::utils::PaginatedResponse;
@@ -742,9 +740,8 @@ impl SalesService {
         }
 
         // 客户信用度复检
-        let credit_service = crate::services::customer_credit_service::CustomerCreditService::new(
-            self.db.clone(),
-        );
+        let credit_service =
+            crate::services::customer_credit_service::CustomerCreditService::new(self.db.clone());
         let total_amount_bigdecimal = {
             use bigdecimal::BigDecimal;
             BigDecimal::parse_bytes(order.total_amount.to_string().as_bytes(), 10)
@@ -783,8 +780,7 @@ impl SalesService {
         .await?;
 
         // 启动审批工作流（BPM）
-        let bpm_service =
-            crate::services::bpm_service::BpmService::new(self.db.clone());
+        let bpm_service = crate::services::bpm_service::BpmService::new(self.db.clone());
         let _ = bpm_service
             .start_process(crate::models::dto::bpm_dto::StartProcessRequest {
                 process_key: "sales_order_approval".to_string(),
@@ -839,10 +835,7 @@ impl SalesService {
     }
 
     /// 完成订单
-    pub async fn complete_order(
-        &self,
-        order_id: i32,
-    ) -> Result<sales_order::Model, AppError> {
+    pub async fn complete_order(&self, order_id: i32) -> Result<sales_order::Model, AppError> {
         let order = SalesOrderEntity::find_by_id(order_id)
             .one(&*self.db)
             .await?

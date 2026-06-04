@@ -121,13 +121,10 @@ pub async fn detect_anomalies(
     let service = AiAnalysisService::new(state.db);
     let days = query.days.unwrap_or(7);
 
-    let anomalies = service
-        .detect_anomalies(days)
-        .await
-        .map_err(|e| {
-            tracing::error!("异常检测失败: {}", e);
-            AppError::internal(format!("异常检测失败: {}", e))
-        })?;
+    let anomalies = service.detect_anomalies(days).await.map_err(|e| {
+        tracing::error!("异常检测失败: {}", e);
+        AppError::internal(format!("异常检测失败: {}", e))
+    })?;
 
     let responses: Vec<AnomalyDetectionResponse> = anomalies
         .into_iter()

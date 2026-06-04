@@ -160,10 +160,7 @@ pub async fn export_report(
 ) -> Result<Json<ApiResponse<ExportReportResponse>>, AppError> {
     let service = ReportEngineService::new(state.db);
 
-    let _export_format: ExportFormat = query
-        .format
-        .parse()
-        .unwrap_or(ExportFormat::Csv);
+    let _export_format: ExportFormat = query.format.parse().unwrap_or(ExportFormat::Csv);
 
     // 先执行报表获取数据
     let req = crate::services::report_engine_service::ExecuteReportRequest {
@@ -179,7 +176,10 @@ pub async fn export_report(
         Ok(data) => {
             let template_name = query.template_id.clone();
             let format_str = query.format.clone();
-            match service.export_report(&data, &format_str, &template_name).await {
+            match service
+                .export_report(&data, &format_str, &template_name)
+                .await
+            {
                 Ok(bytes) => {
                     let data_str = String::from_utf8_lossy(&bytes).to_string();
                     let response = ExportReportResponse {

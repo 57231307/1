@@ -201,5 +201,8 @@ pub async fn delete_item(
 ) -> Result<Json<ApiResponse<()>>, AppError> {
     let count_service = InventoryCountService::new(state.db.clone());
     count_service.delete_item(item_id).await?;
-    Ok(Json(ApiResponse::success_with_message((), "盘点明细已删除")))
+    Ok(Json(ApiResponse::success_with_message(
+        (),
+        "盘点明细已删除",
+    )))
 }

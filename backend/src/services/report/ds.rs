@@ -94,7 +94,10 @@ impl ReportEngineService {
                     serde_json::Value::String(parts[1].to_string()),
                 )]
             } else {
-                vec![(group_key.clone(), serde_json::Value::String(group_key.clone()))]
+                vec![(
+                    group_key.clone(),
+                    serde_json::Value::String(group_key.clone()),
+                )]
             };
 
             let aggregations: Vec<(String, serde_json::Value)> = values

@@ -215,7 +215,10 @@ pub async fn delete_receipt(
 
     service.delete_receipt(id, user_id).await?;
 
-    Ok(Json(ApiResponse::success_with_message((), "采购入库单删除成功")))
+    Ok(Json(ApiResponse::success_with_message(
+        (),
+        "采购入库单删除成功",
+    )))
 }
 
 /// 获取入库明细列表
@@ -310,7 +313,10 @@ pub async fn delete_receipt_item(
     let service = PurchaseReceiptService::new(state.db.clone());
     service.delete_receipt_item(item_id, auth.user_id).await?;
 
-    Ok(Json(ApiResponse::success_with_message((), "入库明细删除成功")))
+    Ok(Json(ApiResponse::success_with_message(
+        (),
+        "入库明细删除成功",
+    )))
 }
 
 // =====================================================

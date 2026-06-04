@@ -112,10 +112,7 @@ impl ReportTemplateService {
             data_source_sql: Set(req.data_source_sql),
             description: Set(req.description),
             is_public: Set(req.is_public.unwrap_or(false)),
-            supported_formats: Set(
-                req.supported_formats
-                    .map(sea_orm::JsonValue::from),
-            ),
+            supported_formats: Set(req.supported_formats.map(sea_orm::JsonValue::from)),
             status: Set("ACTIVE".to_string()),
             created_by: Set(user_id),
             created_at: Set(now),

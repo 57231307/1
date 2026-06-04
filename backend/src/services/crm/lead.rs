@@ -21,18 +21,17 @@ impl CrmService {
         user_id: i32,
     ) -> Result<crm_lead::Model, AppError> {
         // 生成线索编号（如果未提供）
-        let lead_no = req.lead_no.unwrap_or_else(|| {
-            format!(
-                "LD{}",
-                chrono::Utc::now().format("%Y%m%d%H%M%S")
-            )
-        });
+        let lead_no = req
+            .lead_no
+            .unwrap_or_else(|| format!("LD{}", chrono::Utc::now().format("%Y%m%d%H%M%S")));
         let lead_source = req.lead_source.unwrap_or_else(|| "OTHER".to_string());
         let owner_id = user_id;
         let owner_name = format!("用户{}", user_id);
-        let contact_name = req
-            .contact_name
-            .unwrap_or_else(|| req.company_name.clone().unwrap_or_else(|| "未知".to_string()));
+        let contact_name = req.contact_name.unwrap_or_else(|| {
+            req.company_name
+                .clone()
+                .unwrap_or_else(|| "未知".to_string())
+        });
         let lead_status = req.lead_status.clone();
         let now = chrono::Utc::now();
 
@@ -197,11 +196,7 @@ impl CrmService {
     }
 
     /// 更新线索状态
-    pub async fn update_lead_status(
-        &self,
-        lead_id: i32,
-        status: &str,
-    ) -> Result<(), AppError> {
+    pub async fn update_lead_status(&self, lead_id: i32, status: &str) -> Result<(), AppError> {
         let lead = self.get_lead(lead_id).await?;
         let mut lead_active: crm_lead::ActiveModel = lead.into();
         lead_active.lead_status = Set(Some(status.to_string()));
@@ -292,10 +287,7 @@ impl CrmService {
         .await?;
 
         // 4. 创建初步商机
-        let opportunity_no = format!(
-            "OPP{}",
-            chrono::Utc::now().format("%Y%m%d%H%M%S")
-        );
+        let opportunity_no = format!("OPP{}", chrono::Utc::now().format("%Y%m%d%H%M%S"));
         let opportunity_name = format!("{} - 初步接洽", customer_name);
         let _opportunity = crm_opportunity::ActiveModel {
             id: Default::default(),

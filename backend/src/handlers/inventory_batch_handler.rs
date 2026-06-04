@@ -168,7 +168,10 @@ pub async fn create_batch(
         .insert(&*state.db)
         .await
         .map_err(|e| AppError::bad_request(format!("创建批次失败：{}", e)))?;
-    Ok(Json(ApiResponse::success_with_message(created, "批次创建成功")))
+    Ok(Json(ApiResponse::success_with_message(
+        created,
+        "批次创建成功",
+    )))
 }
 
 /// 更新批次
@@ -227,7 +230,10 @@ pub async fn update_batch(
         .update(&*state.db)
         .await
         .map_err(|e| AppError::database(format!("更新批次失败：{}", e)))?;
-    Ok(Json(ApiResponse::success_with_message(updated, "批次更新成功")))
+    Ok(Json(ApiResponse::success_with_message(
+        updated,
+        "批次更新成功",
+    )))
 }
 
 /// 删除批次

@@ -75,7 +75,10 @@ pub async fn list_pool(
     let result = service.list_leads(query).await?;
 
     // 转换分页结果为列表
-    let data = result.get("data").cloned().unwrap_or(serde_json::Value::Null);
+    let data = result
+        .get("data")
+        .cloned()
+        .unwrap_or(serde_json::Value::Null);
     let total = result.get("total").and_then(|v| v.as_u64()).unwrap_or(0);
 
     // 转换为响应格式

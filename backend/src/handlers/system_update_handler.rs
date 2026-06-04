@@ -176,13 +176,11 @@ pub async fn upload_and_update(
                 .map_err(|e| AppError::internal(format!("文件保存失败：{}", e)))?;
 
             // 路径遍历防护：验证保存路径在预期目录内
-            let canonical_save_path = save_path
-                .canonicalize()
-                .map_err(|e| {
-                    // 清理已写入的文件
-                    let _ = std::fs::remove_file(&save_path);
-                    AppError::bad_request(format!("无效的文件路径：{}", e))
-                })?;
+            let canonical_save_path = save_path.canonicalize().map_err(|e| {
+                // 清理已写入的文件
+                let _ = std::fs::remove_file(&save_path);
+                AppError::bad_request(format!("无效的文件路径：{}", e))
+            })?;
 
             let canonical_temp_dir = temp_dir.canonicalize().map_err(|e| {
                 // 清理已写入的文件
@@ -200,8 +198,8 @@ pub async fn upload_and_update(
         }
     }
 
-    let update_file = update_file_path
-        .ok_or_else(|| AppError::bad_request("未找到更新包文件".to_string()))?;
+    let update_file =
+        update_file_path.ok_or_else(|| AppError::bad_request("未找到更新包文件".to_string()))?;
 
     let service = SystemUpdateService::new();
 
@@ -288,8 +286,7 @@ pub async fn check_for_local_updates(
     })))
 }
 
-pub async fn list_local_releases(
-) -> Result<Json<ApiResponse<LocalReleasesResponse>>, AppError> {
+pub async fn list_local_releases() -> Result<Json<ApiResponse<LocalReleasesResponse>>, AppError> {
     let service = SystemUpdateService::new();
 
     match service.list_local_releases() {

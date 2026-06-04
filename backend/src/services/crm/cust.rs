@@ -244,15 +244,11 @@ impl CrmService {
         )
         .await?;
 
-        serde_json::to_value(customer)
-            .map_err(|e| AppError::internal(format!("序列化失败: {}", e)))
+        serde_json::to_value(customer).map_err(|e| AppError::internal(format!("序列化失败: {}", e)))
     }
 
     /// 删除客户（增强版，含关联数据检查）
-    pub async fn delete_customer_enhanced(
-        &self,
-        customer_id: i32,
-    ) -> Result<(), AppError> {
+    pub async fn delete_customer_enhanced(&self, customer_id: i32) -> Result<(), AppError> {
         // 1. 检查是否有关联订单
         let order_count = SalesOrderEntity::find()
             .filter(SalesOrderColumn::CustomerId.eq(customer_id))

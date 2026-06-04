@@ -32,8 +32,7 @@ impl ReportEngineService {
                 report_type: "sales".to_string(),
                 columns: vec![
                     Rc {
-
-                    field_alias: None,
+                        field_alias: None,
                         key: "period".to_string(),
                         label: "期间".to_string(),
                         data_type: "string".to_string(),
@@ -45,8 +44,7 @@ impl ReportEngineService {
                         alignment: Some("left".to_string()),
                     },
                     Rc {
-
-                    field_alias: None,
+                        field_alias: None,
                         key: "total_amount".to_string(),
                         label: "销售总额".to_string(),
                         data_type: "decimal".to_string(),
@@ -58,8 +56,7 @@ impl ReportEngineService {
                         alignment: Some("right".to_string()),
                     },
                     Rc {
-
-                    field_alias: None,
+                        field_alias: None,
                         key: "order_count".to_string(),
                         label: "订单数".to_string(),
                         data_type: "integer".to_string(),
@@ -71,8 +68,7 @@ impl ReportEngineService {
                         alignment: Some("right".to_string()),
                     },
                     Rc {
-
-                    field_alias: None,
+                        field_alias: None,
                         key: "customer_count".to_string(),
                         label: "客户数".to_string(),
                         data_type: "integer".to_string(),
@@ -85,9 +81,9 @@ impl ReportEngineService {
                     },
                 ],
                 filters: vec![Rf {
-field_alias: None,
-operator: None,
-value: None,
+                    field_alias: None,
+                    operator: None,
+                    value: None,
                     key: "date_range".to_string(),
                     label: "统计期间".to_string(),
                     filter_type: "date_range".to_string(),
@@ -113,8 +109,7 @@ value: None,
                 report_type: "sales".to_string(),
                 columns: vec![
                     Rc {
-
-                    field_alias: None,
+                        field_alias: None,
                         key: "order_no".to_string(),
                         label: "订单号".to_string(),
                         data_type: "string".to_string(),
@@ -126,8 +121,7 @@ value: None,
                         alignment: Some("left".to_string()),
                     },
                     Rc {
-
-                    field_alias: None,
+                        field_alias: None,
                         key: "customer_name".to_string(),
                         label: "客户".to_string(),
                         data_type: "string".to_string(),
@@ -139,8 +133,7 @@ value: None,
                         alignment: Some("left".to_string()),
                     },
                     Rc {
-
-                    field_alias: None,
+                        field_alias: None,
                         key: "product_name".to_string(),
                         label: "产品".to_string(),
                         data_type: "string".to_string(),
@@ -152,8 +145,7 @@ value: None,
                         alignment: Some("left".to_string()),
                     },
                     Rc {
-
-                    field_alias: None,
+                        field_alias: None,
                         key: "quantity".to_string(),
                         label: "数量".to_string(),
                         data_type: "decimal".to_string(),
@@ -165,8 +157,7 @@ value: None,
                         alignment: Some("right".to_string()),
                     },
                     Rc {
-
-                    field_alias: None,
+                        field_alias: None,
                         key: "amount".to_string(),
                         label: "金额".to_string(),
                         data_type: "decimal".to_string(),
@@ -219,8 +210,7 @@ value: None,
                 report_type: "inventory".to_string(),
                 columns: vec![
                     Rc {
-
-                    field_alias: None,
+                        field_alias: None,
                         key: "warehouse_name".to_string(),
                         label: "仓库".to_string(),
                         data_type: "string".to_string(),
@@ -232,8 +222,7 @@ value: None,
                         alignment: Some("left".to_string()),
                     },
                     Rc {
-
-                    field_alias: None,
+                        field_alias: None,
                         key: "product_code".to_string(),
                         label: "产品编码".to_string(),
                         data_type: "string".to_string(),
@@ -245,8 +234,7 @@ value: None,
                         alignment: Some("left".to_string()),
                     },
                     Rc {
-
-                    field_alias: None,
+                        field_alias: None,
                         key: "product_name".to_string(),
                         label: "产品名称".to_string(),
                         data_type: "string".to_string(),
@@ -258,8 +246,7 @@ value: None,
                         alignment: Some("left".to_string()),
                     },
                     Rc {
-
-                    field_alias: None,
+                        field_alias: None,
                         key: "quantity_on_hand".to_string(),
                         label: "在库数量".to_string(),
                         data_type: "decimal".to_string(),
@@ -271,8 +258,7 @@ value: None,
                         alignment: Some("right".to_string()),
                     },
                     Rc {
-
-                    field_alias: None,
+                        field_alias: None,
                         key: "quantity_available".to_string(),
                         label: "可用数量".to_string(),
                         data_type: "decimal".to_string(),
@@ -285,9 +271,9 @@ value: None,
                     },
                 ],
                 filters: vec![Rf {
-field_alias: None,
-operator: None,
-value: None,
+                    field_alias: None,
+                    operator: None,
+                    value: None,
                     key: "warehouse_id".to_string(),
                     label: "仓库".to_string(),
                     filter_type: "select".to_string(),
@@ -307,8 +293,7 @@ value: None,
                 report_type: "purchase".to_string(),
                 columns: vec![
                     Rc {
-
-                    field_alias: None,
+                        field_alias: None,
                         key: "supplier_name".to_string(),
                         label: "供应商".to_string(),
                         data_type: "string".to_string(),
@@ -320,8 +305,7 @@ value: None,
                         alignment: Some("left".to_string()),
                     },
                     Rc {
-
-                    field_alias: None,
+                        field_alias: None,
                         key: "total_amount".to_string(),
                         label: "采购总额".to_string(),
                         data_type: "decimal".to_string(),
@@ -333,8 +317,7 @@ value: None,
                         alignment: Some("right".to_string()),
                     },
                     Rc {
-
-                    field_alias: None,
+                        field_alias: None,
                         key: "order_count".to_string(),
                         label: "订单数".to_string(),
                         data_type: "integer".to_string(),
@@ -347,9 +330,9 @@ value: None,
                     },
                 ],
                 filters: vec![Rf {
-field_alias: None,
-operator: None,
-value: None,
+                    field_alias: None,
+                    operator: None,
+                    value: None,
                     key: "date_range".to_string(),
                     label: "采购期间".to_string(),
                     filter_type: "date_range".to_string(),
@@ -369,8 +352,7 @@ value: None,
                 report_type: "ar_aging".to_string(),
                 columns: vec![
                     Rc {
-
-                    field_alias: None,
+                        field_alias: None,
                         key: "customer_name".to_string(),
                         label: "客户".to_string(),
                         data_type: "string".to_string(),
@@ -382,8 +364,7 @@ value: None,
                         alignment: Some("left".to_string()),
                     },
                     Rc {
-
-                    field_alias: None,
+                        field_alias: None,
                         key: "current".to_string(),
                         label: "当期".to_string(),
                         data_type: "decimal".to_string(),
@@ -395,8 +376,7 @@ value: None,
                         alignment: Some("right".to_string()),
                     },
                     Rc {
-
-                    field_alias: None,
+                        field_alias: None,
                         key: "1_30_days".to_string(),
                         label: "1-30天".to_string(),
                         data_type: "decimal".to_string(),
@@ -408,8 +388,7 @@ value: None,
                         alignment: Some("right".to_string()),
                     },
                     Rc {
-
-                    field_alias: None,
+                        field_alias: None,
                         key: "31_60_days".to_string(),
                         label: "31-60天".to_string(),
                         data_type: "decimal".to_string(),
@@ -421,8 +400,7 @@ value: None,
                         alignment: Some("right".to_string()),
                     },
                     Rc {
-
-                    field_alias: None,
+                        field_alias: None,
                         key: "over_60_days".to_string(),
                         label: "60天以上".to_string(),
                         data_type: "decimal".to_string(),
@@ -447,8 +425,7 @@ value: None,
                 report_type: "sales".to_string(),
                 columns: vec![
                     Rc {
-
-                    field_alias: None,
+                        field_alias: None,
                         key: "product_code".to_string(),
                         label: "产品编码".to_string(),
                         data_type: "string".to_string(),
@@ -460,8 +437,7 @@ value: None,
                         alignment: Some("left".to_string()),
                     },
                     Rc {
-
-                    field_alias: None,
+                        field_alias: None,
                         key: "product_name".to_string(),
                         label: "产品名称".to_string(),
                         data_type: "string".to_string(),
@@ -473,8 +449,7 @@ value: None,
                         alignment: Some("left".to_string()),
                     },
                     Rc {
-
-                    field_alias: None,
+                        field_alias: None,
                         key: "total_quantity".to_string(),
                         label: "销售数量".to_string(),
                         data_type: "decimal".to_string(),
@@ -486,8 +461,7 @@ value: None,
                         alignment: Some("right".to_string()),
                     },
                     Rc {
-
-                    field_alias: None,
+                        field_alias: None,
                         key: "total_amount".to_string(),
                         label: "销售金额".to_string(),
                         data_type: "decimal".to_string(),
@@ -500,9 +474,9 @@ value: None,
                     },
                 ],
                 filters: vec![Rf {
-field_alias: None,
-operator: None,
-value: None,
+                    field_alias: None,
+                    operator: None,
+                    value: None,
                     key: "date_range".to_string(),
                     label: "统计期间".to_string(),
                     filter_type: "date_range".to_string(),
@@ -528,8 +502,7 @@ value: None,
                 report_type: "sales".to_string(),
                 columns: vec![
                     Rc {
-
-                    field_alias: None,
+                        field_alias: None,
                         key: "customer_name".to_string(),
                         label: "客户".to_string(),
                         data_type: "string".to_string(),
@@ -541,8 +514,7 @@ value: None,
                         alignment: Some("left".to_string()),
                     },
                     Rc {
-
-                    field_alias: None,
+                        field_alias: None,
                         key: "order_count".to_string(),
                         label: "订单数".to_string(),
                         data_type: "integer".to_string(),
@@ -554,8 +526,7 @@ value: None,
                         alignment: Some("right".to_string()),
                     },
                     Rc {
-
-                    field_alias: None,
+                        field_alias: None,
                         key: "total_amount".to_string(),
                         label: "销售总额".to_string(),
                         data_type: "decimal".to_string(),
@@ -567,8 +538,7 @@ value: None,
                         alignment: Some("right".to_string()),
                     },
                     Rc {
-
-                    field_alias: None,
+                        field_alias: None,
                         key: "avg_order_amount".to_string(),
                         label: "客单价".to_string(),
                         data_type: "decimal".to_string(),
@@ -581,9 +551,9 @@ value: None,
                     },
                 ],
                 filters: vec![Rf {
-field_alias: None,
-operator: None,
-value: None,
+                    field_alias: None,
+                    operator: None,
+                    value: None,
                     key: "date_range".to_string(),
                     label: "统计期间".to_string(),
                     filter_type: "date_range".to_string(),
@@ -603,8 +573,7 @@ value: None,
                 report_type: "sales".to_string(),
                 columns: vec![
                     Rc {
-
-                    field_alias: None,
+                        field_alias: None,
                         key: "product_name".to_string(),
                         label: "产品".to_string(),
                         data_type: "string".to_string(),
@@ -616,8 +585,7 @@ value: None,
                         alignment: Some("left".to_string()),
                     },
                     Rc {
-
-                    field_alias: None,
+                        field_alias: None,
                         key: "revenue".to_string(),
                         label: "收入".to_string(),
                         data_type: "decimal".to_string(),
@@ -629,8 +597,7 @@ value: None,
                         alignment: Some("right".to_string()),
                     },
                     Rc {
-
-                    field_alias: None,
+                        field_alias: None,
                         key: "cost".to_string(),
                         label: "成本".to_string(),
                         data_type: "decimal".to_string(),
@@ -642,8 +609,7 @@ value: None,
                         alignment: Some("right".to_string()),
                     },
                     Rc {
-
-                    field_alias: None,
+                        field_alias: None,
                         key: "profit".to_string(),
                         label: "毛利".to_string(),
                         data_type: "decimal".to_string(),
@@ -655,8 +621,7 @@ value: None,
                         alignment: Some("right".to_string()),
                     },
                     Rc {
-
-                    field_alias: None,
+                        field_alias: None,
                         key: "profit_margin".to_string(),
                         label: "毛利率".to_string(),
                         data_type: "decimal".to_string(),
@@ -669,9 +634,9 @@ value: None,
                     },
                 ],
                 filters: vec![Rf {
-field_alias: None,
-operator: None,
-value: None,
+                    field_alias: None,
+                    operator: None,
+                    value: None,
                     key: "date_range".to_string(),
                     label: "统计期间".to_string(),
                     filter_type: "date_range".to_string(),
@@ -691,8 +656,7 @@ value: None,
                 report_type: "inventory".to_string(),
                 columns: vec![
                     Rc {
-
-                    field_alias: None,
+                        field_alias: None,
                         key: "product_name".to_string(),
                         label: "产品".to_string(),
                         data_type: "string".to_string(),
@@ -704,8 +668,7 @@ value: None,
                         alignment: Some("left".to_string()),
                     },
                     Rc {
-
-                    field_alias: None,
+                        field_alias: None,
                         key: "avg_stock".to_string(),
                         label: "平均库存".to_string(),
                         data_type: "decimal".to_string(),
@@ -717,8 +680,7 @@ value: None,
                         alignment: Some("right".to_string()),
                     },
                     Rc {
-
-                    field_alias: None,
+                        field_alias: None,
                         key: "outbound".to_string(),
                         label: "出库量".to_string(),
                         data_type: "decimal".to_string(),
@@ -730,8 +692,7 @@ value: None,
                         alignment: Some("right".to_string()),
                     },
                     Rc {
-
-                    field_alias: None,
+                        field_alias: None,
                         key: "turnover_rate".to_string(),
                         label: "周转率".to_string(),
                         data_type: "decimal".to_string(),
@@ -744,9 +705,9 @@ value: None,
                     },
                 ],
                 filters: vec![Rf {
-field_alias: None,
-operator: None,
-value: None,
+                    field_alias: None,
+                    operator: None,
+                    value: None,
                     key: "date_range".to_string(),
                     label: "统计期间".to_string(),
                     filter_type: "date_range".to_string(),
