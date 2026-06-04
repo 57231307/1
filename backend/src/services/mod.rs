@@ -144,6 +144,7 @@ pub mod purchase_order_service {
         CreatePurchaseOrderRequest, PurchaseOrderDto, PurchaseOrderItemDto,
         PurchaseOrderItemRequest, PurchaseOrderWithItemsDto, UpdatePurchaseOrderRequest,
     };
+    pub use super::po::{CreateOrderItemRequest, UpdateOrderItemRequest};
 }
 
 /// 兼容旧路径 `crate::services::sales_service::*`
@@ -162,36 +163,34 @@ pub mod crm_service {
 
 /// 兼容旧路径 `crate::services::inventory_transfer_service::*`
 pub mod inventory_transfer_service {
-    pub use super::inv::move_rs::{
-        CreateInventoryTransferRequest, InventoryTransferDetailDto, InventoryTransferDto,
-        InventoryTransferWithDetailsDto, UpdateInventoryTransferRequest,
+    pub use super::inv::{
+        CreateInventoryTransferRequest, InventoryTransferDetail, InventoryTransferItemDetail,
+        InventoryTransferItemRequest, InventoryTransferService, UpdateInventoryTransferRequest,
     };
-    pub use super::inv::InventoryTransferService;
 }
 
 /// 兼容旧路径 `crate::services::ar_reconciliation_service::*`
 pub mod ar_reconciliation_service {
-    pub use super::ar::recon::{
-        AgingBucket, AgingReportDto, CreateReconciliationRequest, ReconciliationDto,
-        ReconciliationStatus, UpdateReconciliationRequest,
+    pub use super::ar::{
+        AgingBucket, ArReconciliationService, AutoMatchRequest, CreateReconciliationRequest,
+        GenerateReconciliationRequest, ReconciliationDetail, ReconciliationQuery,
+        ReconciliationWithDetails, UpdateReconciliationRequest,
     };
-    pub use super::ar::ArReconciliationService;
 }
 
 /// 兼容旧路径 `crate::services::ai_analysis_service::*`
 pub mod ai_analysis_service {
-    pub use super::ai::pred::{
-        AnomalyDetectionRequest, AnomalyDetectionResult, RecommendationRequest,
-        RecommendationResult, SalesForecastRequest, SalesForecastResult,
+    pub use super::ai::{
+        AbcClassification, AiAnalysisService, AnomalyDetection, InventorySuggestion,
+        InventoryTurnover, SalesForecast, SmartRecommendation,
     };
-    pub use super::ai::AiAnalysisService;
 }
 
 /// 兼容旧路径 `crate::services::report_engine_service::*`
 pub mod report_engine_service {
-    pub use super::report::tpl::{
-        ExportFormat, ReportExecution, ReportFilter, ReportRequest, ReportResult, ReportTemplate,
-        ReportType,
+    pub use super::report::{
+        AggregateRequest, AggregateResult, AggregationType, DataSource, ExportFormat,
+        ExecuteReportRequest, ReportColumn, ReportData, ReportEngineService, ReportFilter,
+        ReportMetadata, ReportParameter, ReportTemplate,
     };
-    pub use super::report::ReportEngineService;
 }

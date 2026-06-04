@@ -6,8 +6,8 @@
 //! 这四个方法与发货/库存操作紧密相关，统一在 delivery.rs 中实现。
 
 use crate::models::{
-    inventory_reservation, inventory_stock, product, sales_order, sales_order_delivery,
-    sales_order_delivery_item, sales_order_item, warehouse,
+    inventory_reservation, inventory_stock, product, sales_delivery, sales_delivery_item,
+    sales_order, sales_order_item, warehouse,
 };
 use crate::utils::error::AppError;
 use rust_decimal::Decimal;
@@ -93,14 +93,18 @@ impl SalesService {
             .await?;
 
         // 创建发货单
-        let delivery = sales_order_delivery::ActiveModel {
+        let delivery = sales_delivery::ActiveModel {
             id: Default::default(),
+            delivery_no: Set(format!("DN{}", chrono::Utc::now().format("%Y%m%d%H%M%S"))),
             order_id: Set(request.order_id),
+            customer_id: Set(order.customer_id),
             warehouse_id: Set(warehouse.id),
             delivery_date: Set(chrono::Utc::now().date_naive()),
             status: Set("shipped".to_string()),
+            total_quantity: Set(request.items.iter().map(|i| i.quantity).sum()),
+            total_amount: Set(Decimal::ZERO),
             remarks: Set(request.remarks),
-            created_by: Set(Some(user_id)),
+            created_by: Set(user_id),
             created_at: Set(chrono::Utc::now()),
             updated_at: Set(chrono::Utc::now()),
         };
@@ -109,14 +113,15 @@ impl SalesService {
         // 创建发货单明细并扣减库存
         for item in request.items {
             // 创建发货明细
-            let delivery_item = sales_order_delivery_item::ActiveModel {
+            let delivery_item = sales_delivery_item::ActiveModel {
                 id: Default::default(),
                 delivery_id: Set(delivery.id),
                 product_id: Set(item.product_id),
                 quantity: Set(item.quantity),
                 batch_no: Set(item.batch_no),
+                unit_price: Set(Decimal::ZERO),
+                amount: Set(Decimal::ZERO),
                 created_at: Set(chrono::Utc::now()),
-                updated_at: Set(chrono::Utc::now()),
             };
             delivery_item.insert(&txn).await?;
 
@@ -190,9 +195,9 @@ impl SalesService {
     pub async fn get_order_deliveries(
         &self,
         order_id: i32,
-    ) -> Result<Vec<sales_order_delivery::Model>, AppError> {
-        let deliveries = sales_order_delivery::Entity::find()
-            .filter(sales_order_delivery::Column::OrderId.eq(order_id))
+    ) -> Result<Vec<sales_delivery::Model>, AppError> {
+        let deliveries = sales_delivery::Entity::find()
+            .filter(sales_delivery::Column::OrderId.eq(order_id))
             .all(&*self.db)
             .await?;
         Ok(deliveries)
@@ -204,15 +209,19 @@ impl SalesService {
         order_id: i32,
         warehouse_id: i32,
         user_id: i32,
-    ) -> Result<sales_order_delivery::Model, AppError> {
-        let delivery = sales_order_delivery::ActiveModel {
+    ) -> Result<sales_delivery::Model, AppError> {
+        let delivery = sales_delivery::ActiveModel {
             id: Default::default(),
+            delivery_no: Set(format!("DN{}", chrono::Utc::now().format("%Y%m%d%H%M%S"))),
             order_id: Set(order_id),
+            customer_id: Set(0),
             warehouse_id: Set(warehouse_id),
             delivery_date: Set(chrono::Utc::now().date_naive()),
             status: Set("pending".to_string()),
+            total_quantity: Set(Decimal::ZERO),
+            total_amount: Set(Decimal::ZERO),
             remarks: Set(None),
-            created_by: Set(Some(user_id)),
+            created_by: Set(user_id),
             created_at: Set(chrono::Utc::now()),
             updated_at: Set(chrono::Utc::now()),
         };

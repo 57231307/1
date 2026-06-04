@@ -7,7 +7,7 @@
 //! 拆分自原 `report_engine_service.rs` 的"报表订阅管理"段。
 
 use chrono::Utc;
-use sea_orm::{ActiveModelTrait, Set};
+use sea_orm::{ActiveModelTrait, EntityTrait, Set};
 use tracing::info;
 
 use crate::models::report_subscription::{self, Entity as ReportSubscriptionEntity};

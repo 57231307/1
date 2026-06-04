@@ -112,6 +112,7 @@ mod tests {
     use axum::middleware::from_fn;
     use axum::routing::get;
     use axum::Router;
+    use tower::ServiceExt; // for oneshot()
 
     async fn hello() -> &'static str {
         "world"
