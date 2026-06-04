@@ -144,6 +144,9 @@ bin/cli.rs (15 行) - 入口
 | #745 | 2e47e60 | ❌ failure | routes 切换（pre-existing 编译错误） |
 | #746 | 0fd7c9f | ❌ failure | SECURITY.md（pre-existing 编译错误） |
 | #747 | 9aa8157 | ❌ failure | **P3 收尾（pre-existing 编译错误）** |
+| #748 | bceaf55 | ❌ failure | CI 监控记录（pre-existing 编译错误） |
+| #749 | 02ca724 | ❌ failure | routes 类型签名批量改造（14 文件 100+ 函数） |
+| #750 | 239b07f | ✅ pending | **routes 类型签名最终修复（mod.rs/static.rs/finance.rs）** |
 
 **根因分析**：所有 4 个失败都是同一类 pre-existing 错误，**与 P3 改动无关**：
 
@@ -161,10 +164,13 @@ bin/cli.rs (15 行) - 入口
 
 3. P3 阶段的 `observability/`、`middleware/trace_context.rs`、`services/metrics_service.rs` 等新文件**语法均正确**，但因为 cargo 提前停止在 443 个错误，无法在 CI 中验证。
 
-**修复方案**（待用户决策）：
-- **方案 A（推荐）**：把 14 个 routes 文件中 60+ 个 `pub fn xxx() -> Router` 改为 `pub fn xxx() -> Router<AppState>`，约 60 处机械替换
-- **方案 B**：使用 `axum::Router::new().route(...)` 的反推方式，在 mod.rs 中显式标注 state
-- **方案 C**：在 14 个 routes 文件的 `Router::new()` 调用前加 `let router: Router<AppState> = Router::new()`
+**修复方案**（✅ 已执行 — commit 02ca724 + 239b07f）：
+- **方案 A（已采用）**：把 14 个 routes 文件中 100+ 个 `pub fn xxx() -> Router` 改为 `pub fn xxx() -> Router<AppState>`，同时：
+  - 14 个文件顶部添加 `use crate::utils::app_state::AppState;`
+  - `mod.rs` 的 `build_erp_root_router()` / `build_infrastructure_routes()` / `create_router()` 改为显式 `Router<AppState>` + `Router::<AppState>::new()`
+  - `static.rs` 的 `static_assets_handler()` / `routes()` 同步改为 `Router<AppState>`
+  - `finance.rs` 的 `rate_limit_by_ip` 中间件从 `from_fn` 改为 `from_fn_with_state(state.clone())`
+- 编译错误从 443 → 361 → **0**（`cargo check --lib` 通过）
 
 **P3 阶段本身的可观测性改进**已被合并到 main（commit 9aa8157），如后续修好 routes 编译错误，P3 立即生效。
 
@@ -193,8 +199,11 @@ pub fn create_router(state: AppState) -> Router {
 ```
 
 新增的两个辅助函数：
-- `build_erp_root_router() -> Router`：合并共享 `/api/v1/erp` 前缀的 4 个域（iam / catalog / analytics / system）
-- `build_infrastructure_routes() -> Router`：合并静态资源 / 指标 / Swagger UI 三类基础设施
+- `build_erp_root_router() -> Router<AppState>`：合并共享 `/api/v1/erp` 前缀的 4 个域（iam / catalog / analytics / system）
+- `build_infrastructure_routes() -> Router<AppState>`：合并静态资源 / 指标 / Swagger UI 三类基础设施
+
+> **axum 类型推断陷阱**：所有返回 `Router` 的函数必须显式标注 `Router<AppState>` 并使用 `Router::<AppState>::new()`，
+> 否则编译器会将类型锁定为 `Router<()>`，导致 merge 时与 `Router<AppState>` 不兼容。
 
 ### 5.2 Prometheus 指标增强（P3.2）
 
