@@ -9,7 +9,10 @@
 //!
 //! 注意：文件名 `move_rs.rs`（非 `move.rs`），因为 `move` 是 Rust 关键字。
 
-use sea_orm::{ColumnTrait, EntityTrait, Order, PaginatorTrait, QueryFilter, QueryOrder};
+use sea_orm::{
+    ActiveModelTrait, ColumnTrait, EntityTrait, Order, PaginatorTrait, QueryFilter, QueryOrder,
+    TransactionTrait,
+};
 
 use crate::models::dto::PageRequest;
 use crate::models::inventory_transfer::{self, Entity as InventoryTransferEntity};

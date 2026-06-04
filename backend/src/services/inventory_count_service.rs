@@ -606,6 +606,7 @@ impl InventoryCountService {
                     stock_status: sea_orm::ActiveValue::Set("正常".to_string()),
                     quality_status: sea_orm::ActiveValue::Set("合格".to_string()),
                     version: sea_orm::ActiveValue::Set(0),
+                    quantity_shipped: sea_orm::ActiveValue::Set(rust_decimal::Decimal::ZERO),
                 };
                 new_stock.insert(&txn).await?;
 

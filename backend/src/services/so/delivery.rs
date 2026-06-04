@@ -11,13 +11,15 @@ use crate::models::{
 };
 use crate::utils::error::AppError;
 use rust_decimal::Decimal;
-use sea_orm::{ColumnTrait, EntityTrait, PaginatorTrait, QueryFilter, Set};
+use sea_orm::{
+    ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, PaginatorTrait, QueryFilter, Set,
+    TransactionTrait,
+};
 use serde::Deserialize;
 use std::sync::Arc;
 use validator::Validate;
 
 use super::order::SalesService;
-use sea_orm::DatabaseConnection;
 
 // =====================================================
 // 发货请求 DTO
@@ -83,7 +85,7 @@ impl SalesService {
 
         // 查询仓库
         let warehouse = warehouse::Entity::find()
-            .filter(warehouse::Column::Code.eq(&request.warehouse_code))
+            .filter(warehouse::Column::WarehouseCode.eq(&request.warehouse_code))
             .one(&txn)
             .await?
             .ok_or_else(|| AppError::not_found("仓库不存在"))?;
@@ -119,6 +121,8 @@ impl SalesService {
                 product_id: Set(item.product_id),
                 quantity: Set(item.quantity),
                 batch_no: Set(item.batch_no),
+                color_no: Set(None),
+                remarks: Set(None),
                 unit_price: Set(Decimal::ZERO),
                 amount: Set(Decimal::ZERO),
                 created_at: Set(chrono::Utc::now()),
@@ -593,5 +597,3 @@ pub(crate) type DbArc = Arc<DatabaseConnection>;
 // 解决未使用导入告警
 #[allow(dead_code)]
 type _ProductModel = product::Model;
-#[allow(dead_code)]
-type _Paginated = PaginatorTrait;

@@ -7,10 +7,9 @@ use crate::models::{crm_opportunity, customer, sales_order};
 use crate::utils::error::AppError;
 use sea_orm::{
     ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, PaginatorTrait, QueryFilter,
-    QueryOrder, Set,
+    QueryOrder, Set, TransactionTrait,
 };
 use std::sync::Arc;
-use uuid::Uuid;
 
 use super::cust::CrmService;
 
@@ -18,33 +17,53 @@ impl CrmService {
     /// 创建商机
     pub async fn create_opportunity(
         &self,
-        req: super::CreateOpportunityRequest,
+        req: crate::models::dto::crm_dto::CreateOpportunityRequest,
         user_id: i32,
     ) -> Result<crm_opportunity::Model, AppError> {
         // 验证客户存在
-        if let Some(cid) = req.customer_id {
-            let _ = customer::Entity::find_by_id(cid)
-                .one(&*self.db)
-                .await?
-                .ok_or_else(|| AppError::not_found(format!("客户 {} 不存在", cid)))?;
-        }
+        let _ = customer::Entity::find_by_id(req.customer_id)
+            .one(&*self.db)
+            .await?
+            .ok_or_else(|| AppError::not_found(format!("客户 {} 不存在", req.customer_id)))?;
+
+        let opportunity_no = req
+            .opportunity_no
+            .unwrap_or_else(|| format!("OPP{}", chrono::Utc::now().format("%Y%m%d%H%M%S")));
+        let opportunity_name = req.opportunity_name.clone();
+        let opportunity_stage = req
+            .opportunity_stage
+            .clone()
+            .unwrap_or_else(|| "QUALIFICATION".to_string());
+        let owner_id = user_id;
+        let owner_name = format!("用户{}", user_id);
+        let now = chrono::Utc::now();
 
         let opportunity = crm_opportunity::ActiveModel {
-            id: Set(Uuid::new_v4().to_string()),
+            id: Default::default(),
+            opportunity_no: Set(opportunity_no),
+            opportunity_name: Set(opportunity_name),
             customer_id: Set(req.customer_id),
-            name: Set(req.name),
-            amount: Set(req.amount),
-            stage: Set(req.stage.unwrap_or_else(|| "QUALIFICATION".to_string())),
-            probability: Set(req.probability),
-            expected_close_date: Set(req.expected_close_date),
-            owner_id: Set(req.owner_id.or(Some(user_id))),
-            source: Set(req.source),
-            description: Set(req.description),
             lead_id: Set(req.lead_id),
+            opportunity_type: Set(req.opportunity_type),
+            opportunity_stage: Set(Some(opportunity_stage)),
+            win_probability: Set(req.win_probability),
+            estimated_amount: Set(req.estimated_amount),
+            actual_amount: Set(req.actual_amount),
+            currency: Set(req.currency),
+            expected_close_date: Set(req.expected_close_date),
+            actual_close_date: Set(req.actual_close_date),
+            product_ids: Set(req.product_ids),
+            product_names: Set(req.product_names),
+            product_desc: Set(req.product_desc),
+            owner_id: Set(owner_id),
+            owner_name: Set(owner_name),
             opportunity_status: Set(Some("OPEN".to_string())),
+            priority: Set(req.priority),
+            rating: Set(req.rating),
+            tags: Set(req.tags),
             created_by: Set(Some(user_id)),
-            created_at: Set(chrono::Utc::now()),
-            updated_at: Set(chrono::Utc::now()),
+            created_at: Set(Some(now)),
+            updated_at: Set(Some(now)),
             ..Default::default()
         }
         .insert(&*self.db)
@@ -53,36 +72,39 @@ impl CrmService {
         Ok(opportunity)
     }
 
-    /// 列出商机
+    /// 列出商机（返回分页结果）
     pub async fn list_opportunities(
         &self,
-        page: u64,
-        page_size: u64,
-        stage: Option<String>,
-        customer_id: Option<i32>,
-    ) -> Result<(Vec<crm_opportunity::Model>, u64), AppError> {
-        let mut query = crm_opportunity::Entity::find();
+        query: crate::models::dto::crm_dto::OpportunityQuery,
+    ) -> Result<serde_json::Value, AppError> {
+        let page = query.page.unwrap_or(1).max(1);
+        let page_size = query.page_size.unwrap_or(20).max(1);
 
-        if let Some(s) = stage {
-            query = query.filter(crm_opportunity::Column::Stage.eq(s));
-        }
-        if let Some(cid) = customer_id {
-            query = query.filter(crm_opportunity::Column::CustomerId.eq(cid));
+        let mut q = crm_opportunity::Entity::find();
+
+        if let Some(s) = query.opportunity_stage {
+            q = q.filter(crm_opportunity::Column::OpportunityStage.eq(s));
         }
 
-        let paginator = query
+        let paginator = q
             .order_by(crm_opportunity::Column::CreatedAt, sea_orm::Order::Desc)
             .paginate(&*self.db, page_size);
 
         let total = paginator.num_items().await?;
-        let items = paginator.fetch_page(page - 1).await?;
-        Ok((items, total))
+        let items: Vec<crm_opportunity::Model> = paginator.fetch_page(page - 1).await?;
+
+        Ok(serde_json::json!({
+            "data": items,
+            "total": total,
+            "page": page,
+            "page_size": page_size,
+        }))
     }
 
     /// 获取商机详情
     pub async fn get_opportunity(
         &self,
-        opportunity_id: &str,
+        opportunity_id: i32,
     ) -> Result<crm_opportunity::Model, AppError> {
         let opportunity = crm_opportunity::Entity::find_by_id(opportunity_id)
             .one(&*self.db)
@@ -94,10 +116,11 @@ impl CrmService {
     /// 校验商机阶段流转合法性
     fn validate_opportunity_stage_transition(
         &self,
-        current: &str,
+        current: &Option<String>,
         next: &str,
     ) -> Result<(), AppError> {
-        let valid_next = match current {
+        let current_str = current.clone().unwrap_or_default();
+        let valid_next = match current_str.as_str() {
             "QUALIFICATION" => vec!["NEEDS_ANALYSIS", "PROPOSAL"],
             "NEEDS_ANALYSIS" => vec!["PROPOSAL", "QUALIFICATION"],
             "PROPOSAL" => vec!["NEGOTIATION", "NEEDS_ANALYSIS"],
@@ -105,10 +128,10 @@ impl CrmService {
             _ => vec![],
         };
 
-        if !valid_next.contains(&next) && current != next {
+        if !valid_next.contains(&next) && current_str != next {
             return Err(AppError::business(format!(
                 "商机阶段不允许从 {} 流转到 {}",
-                current, next
+                current_str, next
             )));
         }
         Ok(())
@@ -117,9 +140,8 @@ impl CrmService {
     /// 更新商机
     pub async fn update_opportunity(
         &self,
-        opportunity_id: &str,
-        req: super::UpdateOpportunityRequest,
-        user_id: i32,
+        opportunity_id: i32,
+        req: crate::models::dto::crm_dto::UpdateOpportunityRequest,
     ) -> Result<crm_opportunity::Model, AppError> {
         let opportunity = self.get_opportunity(opportunity_id).await?;
 
@@ -130,41 +152,65 @@ impl CrmService {
             }
         }
 
-        // 权限检查
-        if let Some(owner) = opportunity.owner_id {
-            if owner != user_id {
-                return Err(AppError::permission_denied(
-                    "只能修改自己负责的商机".to_string(),
-                ));
-            }
+        let mut opportunity_active: crm_opportunity::ActiveModel = opportunity.into();
+
+        if let Some(v) = req.opportunity_name {
+            opportunity_active.opportunity_name = Set(v);
+        }
+        if let Some(v) = req.customer_id {
+            opportunity_active.customer_id = Set(v);
+        }
+        if let Some(v) = req.lead_id {
+            opportunity_active.lead_id = Set(Some(v));
+        }
+        if let Some(v) = req.opportunity_type {
+            opportunity_active.opportunity_type = Set(Some(v));
+        }
+        if let Some(v) = req.opportunity_stage.clone() {
+            self.validate_opportunity_stage_transition(
+                &opportunity_active.opportunity_stage.as_ref(),
+                &v,
+            )?;
+            opportunity_active.opportunity_stage = Set(Some(v));
+        }
+        if let Some(v) = req.win_probability {
+            opportunity_active.win_probability = Set(Some(v));
+        }
+        if let Some(v) = req.estimated_amount {
+            opportunity_active.estimated_amount = Set(Some(v));
+        }
+        if let Some(v) = req.actual_amount {
+            opportunity_active.actual_amount = Set(Some(v));
+        }
+        if let Some(v) = req.currency {
+            opportunity_active.currency = Set(Some(v));
+        }
+        if let Some(v) = req.expected_close_date {
+            opportunity_active.expected_close_date = Set(Some(v));
+        }
+        if let Some(v) = req.actual_close_date {
+            opportunity_active.actual_close_date = Set(Some(v));
+        }
+        if let Some(v) = req.product_ids {
+            opportunity_active.product_ids = Set(Some(v));
+        }
+        if let Some(v) = req.product_names {
+            opportunity_active.product_names = Set(Some(v));
+        }
+        if let Some(v) = req.product_desc {
+            opportunity_active.product_desc = Set(Some(v));
+        }
+        if let Some(v) = req.priority {
+            opportunity_active.priority = Set(Some(v));
+        }
+        if let Some(v) = req.rating {
+            opportunity_active.rating = Set(Some(v));
+        }
+        if let Some(v) = req.tags {
+            opportunity_active.tags = Set(Some(v));
         }
 
-        let mut opportunity_active: crm_opportunity::ActiveModel = opportunity.clone().into();
-
-        if let Some(name) = req.name {
-            opportunity_active.name = Set(name);
-        }
-        if let Some(amount) = req.amount {
-            opportunity_active.amount = Set(Some(amount));
-        }
-        if let Some(stage) = req.stage.clone() {
-            self.validate_opportunity_stage_transition(&opportunity.stage, &stage)?;
-            opportunity_active.stage = Set(stage);
-        }
-        if let Some(probability) = req.probability {
-            opportunity_active.probability = Set(Some(probability));
-        }
-        if let Some(expected_close_date) = req.expected_close_date {
-            opportunity_active.expected_close_date = Set(Some(expected_close_date));
-        }
-        if let Some(owner_id) = req.owner_id {
-            opportunity_active.owner_id = Set(Some(owner_id));
-        }
-        if let Some(description) = req.description {
-            opportunity_active.description = Set(Some(description));
-        }
-
-        opportunity_active.updated_at = Set(chrono::Utc::now());
+        opportunity_active.updated_at = Set(Some(chrono::Utc::now()));
 
         let opportunity = crate::services::audit_log_service::AuditLogService::update_with_audit(
             &*self.db,
@@ -178,22 +224,9 @@ impl CrmService {
     }
 
     /// 删除商机
-    pub async fn delete_opportunity(
-        &self,
-        opportunity_id: &str,
-        user_id: i32,
-    ) -> Result<(), AppError> {
+    pub async fn delete_opportunity(&self, opportunity_id: i32) -> Result<(), AppError> {
         let opportunity = self.get_opportunity(opportunity_id).await?;
 
-        if let Some(owner) = opportunity.owner_id {
-            if owner != user_id {
-                return Err(AppError::permission_denied(
-                    "只能删除自己负责的商机".to_string(),
-                ));
-            }
-        }
-
-        // 已赢单的商机不能删除
         if let Some(status) = &opportunity.opportunity_status {
             if status == "CLOSED_WON" {
                 return Err(AppError::business("已赢单的商机不能删除".to_string()));
@@ -210,9 +243,9 @@ impl CrmService {
     /// 商机转订单（赢单流程）
     pub async fn convert_opportunity_to_order(
         &self,
-        opportunity_id: &str,
+        opportunity_id: i32,
         user_id: i32,
-    ) -> Result<i32, AppError> {
+    ) -> Result<serde_json::Value, AppError> {
         let opportunity = self.get_opportunity(opportunity_id).await?;
 
         if let Some(status) = &opportunity.opportunity_status {
@@ -222,36 +255,42 @@ impl CrmService {
         }
 
         // 校验：商机必须有关联客户
-        let customer_id = opportunity
-            .customer_id
-            .ok_or_else(|| AppError::business("商机必须关联客户才能转订单".to_string()))?;
+        let customer_id = opportunity.customer_id;
 
-        let txn = (*self.db).begin().await?;
+        let txn = self.db.begin().await?;
 
         // 1. 创建销售订单（草稿状态）
+        let order_no = format!("SO-TEMP-{}", chrono::Utc::now().timestamp());
+        let total_amount = opportunity
+            .estimated_amount
+            .unwrap_or(rust_decimal::Decimal::ZERO);
         let order = sales_order::ActiveModel {
             id: Default::default(),
-            order_no: Set(format!("SO-TEMP-{}", chrono::Utc::now().timestamp())),
+            order_no: Set(order_no.clone()),
             customer_id: Set(customer_id),
-            opportunity_id: Set(Some(opportunity_id.to_string())),
+            opportunity_id: Set(Some(opportunity_id)),
             order_date: Set(chrono::Utc::now()),
             required_date: Set(chrono::Utc::now() + chrono::Duration::days(30)),
+            ship_date: Set(None),
             status: Set("draft".to_string()),
             subtotal: Set(rust_decimal::Decimal::ZERO),
             tax_amount: Set(rust_decimal::Decimal::ZERO),
             discount_amount: Set(rust_decimal::Decimal::ZERO),
             shipping_cost: Set(rust_decimal::Decimal::ZERO),
-            total_amount: Set(opportunity.amount.unwrap_or(rust_decimal::Decimal::ZERO)),
+            total_amount: Set(total_amount),
             paid_amount: Set(rust_decimal::Decimal::ZERO),
-            balance_amount: Set(opportunity.amount.unwrap_or(rust_decimal::Decimal::ZERO)),
+            balance_amount: Set(total_amount),
+            shipping_address: Set(None),
+            billing_address: Set(None),
             notes: Set(Some(format!(
                 "从商机自动创建: {} - 预期金额: {:?}",
-                opportunity.name, opportunity.amount
+                opportunity.opportunity_name, opportunity.estimated_amount
             ))),
             created_by: Set(Some(user_id)),
+            approved_by: Set(None),
+            approved_at: Set(None),
             created_at: Set(chrono::Utc::now()),
             updated_at: Set(chrono::Utc::now()),
-            ..Default::default()
         }
         .insert(&txn)
         .await?;
@@ -259,10 +298,16 @@ impl CrmService {
         // 2. 更新商机状态
         let mut opp_active: crm_opportunity::ActiveModel = opportunity.into();
         opp_active.opportunity_status = Set(Some("CLOSED_WON".to_string()));
-        opp_active.stage = Set("CLOSED_WON".to_string());
-        opp_active.actual_amount = Set(opp_active.amount.clone().take());
+        opp_active.opportunity_stage = Set(Some("CLOSED_WON".to_string()));
+        // 估算金额 -> 实际金额：解包 ActiveValue
+        let estimated: Option<rust_decimal::Decimal> =
+            match opp_active.estimated_amount.take() {
+                sea_orm::ActiveValue::Set(v) => v,
+                _ => None,
+            };
+        opp_active.actual_amount = Set(estimated);
         opp_active.actual_close_date = Set(Some(chrono::Utc::now().date_naive()));
-        opp_active.updated_at = Set(chrono::Utc::now());
+        opp_active.updated_at = Set(Some(chrono::Utc::now()));
         crate::services::audit_log_service::AuditLogService::update_with_audit(
             &txn,
             "auto_audit",
@@ -274,13 +319,16 @@ impl CrmService {
         // 3. 提交事务
         txn.commit().await?;
 
-        Ok(order.id)
+        Ok(serde_json::json!({
+            "order_id": order.id,
+            "order_no": order.order_no,
+        }))
     }
 
     /// 订单完成后回调商机（更新实际金额、关单）
     pub async fn update_opportunity_on_order_complete(
         &self,
-        opportunity_id: &str,
+        opportunity_id: i32,
         actual_amount: rust_decimal::Decimal,
     ) -> Result<(), AppError> {
         let opportunity = self.get_opportunity(opportunity_id).await?;
@@ -288,9 +336,9 @@ impl CrmService {
         let mut opp_active: crm_opportunity::ActiveModel = opportunity.into();
         opp_active.actual_amount = Set(Some(actual_amount));
         opp_active.opportunity_status = Set(Some("CLOSED_WON".to_string()));
-        opp_active.stage = Set("CLOSED_WON".to_string());
+        opp_active.opportunity_stage = Set(Some("CLOSED_WON".to_string()));
         opp_active.actual_close_date = Set(Some(chrono::Utc::now().date_naive()));
-        opp_active.updated_at = Set(chrono::Utc::now());
+        opp_active.updated_at = Set(Some(chrono::Utc::now()));
 
         crate::services::audit_log_service::AuditLogService::update_with_audit(
             &*self.db,

@@ -74,24 +74,41 @@ pub async fn list_pool(
 
     let result = service.list_leads(query).await?;
 
+    // 转换分页结果为列表
+    let data = result.get("data").cloned().unwrap_or(serde_json::Value::Null);
+    let total = result.get("total").and_then(|v| v.as_u64()).unwrap_or(0);
+
     // 转换为响应格式
-    let items: Vec<serde_json::Value> = result
-        .data
+    let items: Vec<serde_json::Value> = data
+        .as_array()
+        .cloned()
+        .unwrap_or_default()
         .into_iter()
         .map(|lead| {
-            let days_in_pool = chrono::Utc::now()
-                .signed_duration_since(lead.created_at.unwrap_or_else(chrono::Utc::now))
-                .num_days();
+            // lead 是 serde_json::Value，使用 .get("field") 访问
+            let created_at_str = lead
+                .get("created_at")
+                .and_then(|v| v.as_str())
+                .map(|s| s.to_string());
+            let days_in_pool = created_at_str
+                .as_deref()
+                .and_then(|s| chrono::DateTime::parse_from_rfc3339(s).ok())
+                .map(|dt| {
+                    chrono::Utc::now()
+                        .signed_duration_since(dt.with_timezone(&chrono::Utc))
+                        .num_days()
+                })
+                .unwrap_or(0);
 
             serde_json::json!({
-                "id": lead.id,
-                "lead_no": lead.lead_no,
-                "company_name": lead.company_name,
-                "contact_name": lead.contact_name,
-                "mobile_phone": lead.mobile_phone,
-                "email": lead.email,
-                "lead_source": lead.lead_source,
-                "created_at": lead.created_at.map(|t| t.to_rfc3339()),
+                "id": lead.get("id").cloned().unwrap_or(serde_json::Value::Null),
+                "lead_no": lead.get("lead_no").cloned().unwrap_or(serde_json::Value::Null),
+                "company_name": lead.get("company_name").cloned().unwrap_or(serde_json::Value::Null),
+                "contact_name": lead.get("contact_name").cloned().unwrap_or(serde_json::Value::Null),
+                "mobile_phone": lead.get("mobile_phone").cloned().unwrap_or(serde_json::Value::Null),
+                "email": lead.get("email").cloned().unwrap_or(serde_json::Value::Null),
+                "lead_source": lead.get("lead_source").cloned().unwrap_or(serde_json::Value::Null),
+                "created_at": created_at_str,
                 "days_in_pool": days_in_pool,
             })
         })
@@ -99,7 +116,7 @@ pub async fn list_pool(
 
     Ok(Json(ApiResponse::success(serde_json::json!({
         "items": items,
-        "total": result.total,
+        "total": total,
         "page": page,
         "page_size": page_size,
     }))))

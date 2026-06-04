@@ -7,10 +7,9 @@ use crate::models::{crm_lead, crm_opportunity, customer};
 use crate::utils::error::AppError;
 use sea_orm::{
     ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, PaginatorTrait, QueryFilter,
-    QueryOrder, Set,
+    QueryOrder, Set, TransactionTrait,
 };
 use std::sync::Arc;
-use uuid::Uuid;
 
 use super::cust::CrmService;
 
@@ -18,26 +17,51 @@ impl CrmService {
     /// 创建线索
     pub async fn create_lead(
         &self,
-        req: super::CreateLeadRequest,
+        req: crate::models::dto::crm_dto::CreateLeadRequest,
         user_id: i32,
     ) -> Result<crm_lead::Model, AppError> {
+        // 生成线索编号（如果未提供）
+        let lead_no = req.lead_no.unwrap_or_else(|| {
+            format!(
+                "LD{}",
+                chrono::Utc::now().format("%Y%m%d%H%M%S")
+            )
+        });
+        let lead_source = req.lead_source.unwrap_or_else(|| "OTHER".to_string());
+        let owner_id = user_id;
+        let owner_name = format!("用户{}", user_id);
+        let contact_name = req
+            .contact_name
+            .unwrap_or_else(|| req.company_name.clone().unwrap_or_else(|| "未知".to_string()));
+        let lead_status = req.lead_status.clone();
+        let now = chrono::Utc::now();
+
         let lead = crm_lead::ActiveModel {
-            id: Set(Uuid::new_v4().to_string()),
-            name: Set(req.name),
-            contact_name: Set(req.contact_name),
-            contact_phone: Set(req.contact_phone),
-            contact_email: Set(req.contact_email),
-            company: Set(req.company),
-            source: Set(req.source),
-            industry: Set(req.industry),
-            expected_amount: Set(req.expected_amount),
-            notes: Set(req.notes),
-            status: Set("NEW".to_string()),
-            owner_id: Set(req.owner_id.or(Some(user_id))),
-            customer_id: Set(None),
-            created_by: Set(Some(user_id)),
-            created_at: Set(chrono::Utc::now()),
-            updated_at: Set(chrono::Utc::now()),
+            id: Default::default(),
+            lead_no: Set(lead_no),
+            lead_source: Set(lead_source),
+            lead_status: Set(lead_status),
+            company_name: Set(req.company_name),
+            contact_name: Set(contact_name),
+            contact_title: Set(req.contact_title),
+            mobile_phone: Set(req.mobile_phone),
+            tel_phone: Set(req.tel_phone),
+            email: Set(req.email),
+            wechat: Set(req.wechat),
+            qq: Set(req.qq),
+            address: Set(req.address),
+            product_interest: Set(req.product_interest),
+            estimated_quantity: Set(req.estimated_quantity),
+            estimated_amount: Set(req.estimated_amount),
+            expected_delivery_date: Set(req.expected_delivery_date),
+            requirement_desc: Set(req.requirement_desc),
+            owner_id: Set(owner_id),
+            owner_name: Set(owner_name),
+            priority: Set(req.priority),
+            rating: Set(req.rating),
+            tags: Set(req.tags),
+            created_at: Set(Some(now)),
+            updated_at: Set(Some(now)),
             ..Default::default()
         }
         .insert(&*self.db)
@@ -46,34 +70,37 @@ impl CrmService {
         Ok(lead)
     }
 
-    /// 列出线索（分页 + 过滤）
+    /// 列出线索（返回分页结果）
     pub async fn list_leads(
         &self,
-        page: u64,
-        page_size: u64,
-        status: Option<String>,
-        owner_id: Option<i32>,
-    ) -> Result<(Vec<crm_lead::Model>, u64), AppError> {
-        let mut query = crm_lead::Entity::find();
+        query: crate::models::dto::crm_dto::LeadQuery,
+    ) -> Result<serde_json::Value, AppError> {
+        let page = query.page.unwrap_or(1).max(1);
+        let page_size = query.page_size.unwrap_or(20).max(1);
 
-        if let Some(s) = status {
-            query = query.filter(crm_lead::Column::Status.eq(s));
-        }
-        if let Some(oid) = owner_id {
-            query = query.filter(crm_lead::Column::OwnerId.eq(oid));
+        let mut q = crm_lead::Entity::find();
+
+        if let Some(s) = query.lead_status {
+            q = q.filter(crm_lead::Column::LeadStatus.eq(s));
         }
 
-        let paginator = query
+        let paginator = q
             .order_by(crm_lead::Column::CreatedAt, sea_orm::Order::Desc)
             .paginate(&*self.db, page_size);
 
         let total = paginator.num_items().await?;
-        let items = paginator.fetch_page(page - 1).await?;
-        Ok((items, total))
+        let items: Vec<crm_lead::Model> = paginator.fetch_page(page - 1).await?;
+
+        Ok(serde_json::json!({
+            "data": items,
+            "total": total,
+            "page": page,
+            "page_size": page_size,
+        }))
     }
 
     /// 获取线索详情
-    pub async fn get_lead(&self, lead_id: &str) -> Result<crm_lead::Model, AppError> {
+    pub async fn get_lead(&self, lead_id: i32) -> Result<crm_lead::Model, AppError> {
         let lead = crm_lead::Entity::find_by_id(lead_id)
             .one(&*self.db)
             .await?
@@ -84,55 +111,71 @@ impl CrmService {
     /// 更新线索
     pub async fn update_lead(
         &self,
-        lead_id: &str,
-        req: super::UpdateLeadRequest,
-        user_id: i32,
+        lead_id: i32,
+        req: crate::models::dto::crm_dto::UpdateLeadRequest,
     ) -> Result<crm_lead::Model, AppError> {
         let lead = self.get_lead(lead_id).await?;
-
-        // 权限检查
-        if let Some(owner) = lead.owner_id {
-            if owner != user_id {
-                return Err(AppError::permission_denied(
-                    "只能修改自己负责的线索".to_string(),
-                ));
-            }
-        }
-
         let mut lead_active: crm_lead::ActiveModel = lead.into();
 
-        if let Some(name) = req.name {
-            lead_active.name = Set(name);
+        if let Some(v) = req.lead_source {
+            lead_active.lead_source = Set(v);
         }
-        if let Some(contact_name) = req.contact_name {
-            lead_active.contact_name = Set(Some(contact_name));
+        if let Some(v) = req.lead_status {
+            lead_active.lead_status = Set(Some(v));
         }
-        if let Some(contact_phone) = req.contact_phone {
-            lead_active.contact_phone = Set(Some(contact_phone));
+        if let Some(v) = req.company_name {
+            lead_active.company_name = Set(Some(v));
         }
-        if let Some(contact_email) = req.contact_email {
-            lead_active.contact_email = Set(Some(contact_email));
+        if let Some(v) = req.contact_name {
+            lead_active.contact_name = Set(v);
         }
-        if let Some(company) = req.company {
-            lead_active.company = Set(Some(company));
+        if let Some(v) = req.contact_title {
+            lead_active.contact_title = Set(Some(v));
         }
-        if let Some(source) = req.source {
-            lead_active.source = Set(Some(source));
+        if let Some(v) = req.mobile_phone {
+            lead_active.mobile_phone = Set(Some(v));
         }
-        if let Some(industry) = req.industry {
-            lead_active.industry = Set(Some(industry));
+        if let Some(v) = req.tel_phone {
+            lead_active.tel_phone = Set(Some(v));
         }
-        if let Some(expected_amount) = req.expected_amount {
-            lead_active.expected_amount = Set(Some(expected_amount));
+        if let Some(v) = req.email {
+            lead_active.email = Set(Some(v));
         }
-        if let Some(notes) = req.notes {
-            lead_active.notes = Set(Some(notes));
+        if let Some(v) = req.wechat {
+            lead_active.wechat = Set(Some(v));
         }
-        if let Some(owner_id) = req.owner_id {
-            lead_active.owner_id = Set(Some(owner_id));
+        if let Some(v) = req.qq {
+            lead_active.qq = Set(Some(v));
+        }
+        if let Some(v) = req.address {
+            lead_active.address = Set(Some(v));
+        }
+        if let Some(v) = req.product_interest {
+            lead_active.product_interest = Set(Some(v));
+        }
+        if let Some(v) = req.estimated_quantity {
+            lead_active.estimated_quantity = Set(Some(v));
+        }
+        if let Some(v) = req.estimated_amount {
+            lead_active.estimated_amount = Set(Some(v));
+        }
+        if let Some(v) = req.expected_delivery_date {
+            lead_active.expected_delivery_date = Set(Some(v));
+        }
+        if let Some(v) = req.requirement_desc {
+            lead_active.requirement_desc = Set(Some(v));
+        }
+        if let Some(v) = req.priority {
+            lead_active.priority = Set(Some(v));
+        }
+        if let Some(v) = req.rating {
+            lead_active.rating = Set(Some(v));
+        }
+        if let Some(v) = req.tags {
+            lead_active.tags = Set(Some(v));
         }
 
-        lead_active.updated_at = Set(chrono::Utc::now());
+        lead_active.updated_at = Set(Some(chrono::Utc::now()));
 
         let lead = crate::services::audit_log_service::AuditLogService::update_with_audit(
             &*self.db,
@@ -146,52 +189,25 @@ impl CrmService {
     }
 
     /// 删除线索
-    pub async fn delete_lead(&self, lead_id: &str, user_id: i32) -> Result<(), AppError> {
-        let lead = self.get_lead(lead_id).await?;
-
-        if let Some(owner) = lead.owner_id {
-            if owner != user_id {
-                return Err(AppError::permission_denied(
-                    "只能删除自己负责的线索".to_string(),
-                ));
-            }
-        }
-
-        // 已转换的线索不能删除
-        if lead.status == "CONVERTED" {
-            return Err(AppError::business("已转换的线索不能删除".to_string()));
-        }
-
+    pub async fn delete_lead(&self, lead_id: i32) -> Result<(), AppError> {
         crm_lead::Entity::delete_by_id(lead_id)
             .exec(&*self.db)
             .await?;
-
         Ok(())
     }
 
     /// 更新线索状态
     pub async fn update_lead_status(
         &self,
-        lead_id: &str,
-        req: super::UpdateLeadStatusRequest,
-        user_id: i32,
-    ) -> Result<crm_lead::Model, AppError> {
+        lead_id: i32,
+        status: &str,
+    ) -> Result<(), AppError> {
         let lead = self.get_lead(lead_id).await?;
-
-        if let Some(owner) = lead.owner_id {
-            if owner != user_id {
-                return Err(AppError::permission_denied(
-                    "只能修改自己负责的线索".to_string(),
-                ));
-            }
-        }
-
         let mut lead_active: crm_lead::ActiveModel = lead.into();
-        lead_active.status = Set(req.status);
-        lead_active.notes = Set(req.reason.or(lead_active.notes.take().unwrap_or(None)));
-        lead_active.updated_at = Set(chrono::Utc::now());
+        lead_active.lead_status = Set(Some(status.to_string()));
+        lead_active.updated_at = Set(Some(chrono::Utc::now()));
 
-        let lead = crate::services::audit_log_service::AuditLogService::update_with_audit(
+        crate::services::audit_log_service::AuditLogService::update_with_audit(
             &*self.db,
             "auto_audit",
             lead_active,
@@ -199,50 +215,74 @@ impl CrmService {
         )
         .await?;
 
-        Ok(lead)
+        Ok(())
     }
 
     /// 将线索转换为客户（同时创建一条对应的"初步接洽"商机）
     pub async fn convert_lead_to_customer(
         &self,
-        lead_id: &str,
+        lead_id: i32,
+        req: crate::models::dto::crm_dto::ConvertLeadRequest,
         user_id: i32,
-    ) -> Result<i32, AppError> {
+    ) -> Result<serde_json::Value, AppError> {
         // 1. 查询线索
         let lead = self.get_lead(lead_id).await?;
 
-        if lead.status == "CONVERTED" {
+        if lead.lead_status.as_deref() == Some("converted") {
             return Err(AppError::business("线索已转换为客户".to_string()));
         }
 
-        let txn = (*self.db).begin().await?;
+        let txn = self.db.begin().await?;
 
         // 2. 创建客户
+        let customer_code = format!("C{}", chrono::Utc::now().timestamp());
+        let customer_name = lead
+            .company_name
+            .clone()
+            .unwrap_or_else(|| lead.contact_name.clone());
+        let contact_person = Some(lead.contact_name.clone());
+        let contact_phone = lead.mobile_phone.clone().or(lead.tel_phone.clone());
+        let customer_industry: Option<String> = None;
+        let customer_type = req.customer_type.unwrap_or_else(|| "POTENTIAL".to_string());
+
         let new_customer = customer::ActiveModel {
-            customer_code: Set(format!("C{}", chrono::Utc::now().timestamp())),
-            customer_name: Set(lead.company.clone().unwrap_or_else(|| lead.name.clone())),
-            contact_person: Set(lead.contact_name.clone()),
-            contact_phone: Set(lead.contact_phone.clone()),
-            contact_email: Set(lead.contact_email.clone()),
-            industry: Set(lead.industry.clone()),
-            source: Set(lead.source.clone()),
-            customer_type: Set("POTENTIAL".to_string()),
-            status: Set("ACTIVE".to_string()),
-            owner_id: Set(lead.owner_id),
-            notes: Set(lead.notes.clone()),
+            id: Default::default(),
+            customer_code: Set(customer_code.clone()),
+            customer_name: Set(customer_name.clone()),
+            contact_person: Set(contact_person),
+            contact_phone: Set(contact_phone),
+            contact_email: Set(lead.email.clone()),
+            address: Set(lead.address.clone()),
+            city: Set(None),
+            province: Set(None),
+            country: Set(None),
+            postal_code: Set(None),
+            credit_limit: Set(rust_decimal::Decimal::ZERO),
+            payment_terms: Set(30),
+            tax_id: Set(None),
+            bank_name: Set(None),
+            bank_account: Set(None),
+            status: Set("active".to_string()),
+            customer_type: Set(customer_type),
+            notes: Set(req.notes.clone().or(lead.requirement_desc.clone())),
             created_by: Set(Some(user_id)),
             created_at: Set(chrono::Utc::now()),
             updated_at: Set(chrono::Utc::now()),
-            ..Default::default()
+            customer_industry: Set(customer_industry),
+            main_products: Set(None),
+            annual_purchase: Set(None),
+            quality_requirement: Set(None),
+            inspection_standard: Set(None),
         }
         .insert(&txn)
         .await?;
 
         // 3. 更新线索状态
         let mut lead_active: crm_lead::ActiveModel = lead.clone().into();
-        lead_active.status = Set("CONVERTED".to_string());
-        lead_active.customer_id = Set(Some(new_customer.id));
-        lead_active.updated_at = Set(chrono::Utc::now());
+        lead_active.lead_status = Set(Some("converted".to_string()));
+        lead_active.converted_customer_id = Set(Some(new_customer.id));
+        lead_active.converted_at = Set(Some(chrono::Utc::now()));
+        lead_active.updated_at = Set(Some(chrono::Utc::now()));
         crate::services::audit_log_service::AuditLogService::update_with_audit(
             &txn,
             "auto_audit",
@@ -252,20 +292,34 @@ impl CrmService {
         .await?;
 
         // 4. 创建初步商机
+        let opportunity_no = format!(
+            "OPP{}",
+            chrono::Utc::now().format("%Y%m%d%H%M%S")
+        );
+        let opportunity_name = format!("{} - 初步接洽", customer_name);
         let _opportunity = crm_opportunity::ActiveModel {
-            id: Set(Uuid::new_v4().to_string()),
-            customer_id: Set(Some(new_customer.id)),
-            lead_id: Set(Some(lead_id.to_string())),
-            name: Set(format!("{} - 初步接洽", lead.name)),
-            amount: Set(lead.expected_amount),
-            stage: Set("QUALIFICATION".to_string()),
-            probability: Set(Some(rust_decimal::Decimal::new(20, 0))),
-            expected_close_date: Set(None),
+            id: Default::default(),
+            opportunity_no: Set(opportunity_no),
+            opportunity_name: Set(opportunity_name),
+            customer_id: Set(new_customer.id),
+            lead_id: Set(Some(lead_id)),
+            opportunity_type: Set(Some("NEW".to_string())),
+            opportunity_stage: Set(Some("QUALIFICATION".to_string())),
+            win_probability: Set(Some(rust_decimal::Decimal::new(20, 0))),
+            estimated_amount: Set(lead.estimated_amount),
+            actual_amount: Set(None),
+            currency: Set(Some("CNY".to_string())),
+            expected_close_date: Set(lead.expected_delivery_date),
+            actual_close_date: Set(None),
+            product_ids: Set(None),
+            product_names: Set(None),
+            product_desc: Set(lead.product_interest),
             owner_id: Set(lead.owner_id),
+            owner_name: Set(lead.owner_name.clone()),
             opportunity_status: Set(Some("OPEN".to_string())),
             created_by: Set(Some(user_id)),
-            created_at: Set(chrono::Utc::now()),
-            updated_at: Set(chrono::Utc::now()),
+            created_at: Set(Some(chrono::Utc::now())),
+            updated_at: Set(Some(chrono::Utc::now())),
             ..Default::default()
         }
         .insert(&txn)
@@ -274,7 +328,11 @@ impl CrmService {
         // 5. 提交事务
         txn.commit().await?;
 
-        Ok(new_customer.id)
+        Ok(serde_json::json!({
+            "customer_id": new_customer.id,
+            "customer_code": new_customer.customer_code,
+            "customer_name": new_customer.customer_name,
+        }))
     }
 }
 

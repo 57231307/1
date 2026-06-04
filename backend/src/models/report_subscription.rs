@@ -61,6 +61,9 @@ pub struct Model {
     /// 收件人邮箱列表（JSON数组格式）
     pub recipients: Json,
 
+    /// 报表参数（JSON 格式）
+    pub parameters: Option<Json>,
+
     /// 导出格式（pdf/excel/csv）
     pub export_format: String,
 

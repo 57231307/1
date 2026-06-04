@@ -23,6 +23,7 @@ pub struct CreateSubscriptionRequest {
     pub template_id: i32,
     pub frequency: String,
     pub recipients: Vec<String>,
+    pub parameters: Option<serde_json::Value>,
     pub export_format: Option<String>,
     pub is_enabled: Option<bool>,
 }
@@ -83,7 +84,8 @@ impl ReportSubscriptionService {
             name: Set(req.name),
             template_id: Set(req.template_id),
             frequency: Set(req.frequency),
-            recipients: Set(recipients_json),
+            parameters: Set(req.parameters.map(sea_orm::JsonValue::from)),
+            recipients: Set(sea_orm::JsonValue::from(recipients_json)),
             export_format: Set(req.export_format.unwrap_or_else(|| "pdf".to_string())),
             is_enabled: Set(req.is_enabled.unwrap_or(true)),
             status: Set("ACTIVE".to_string()),

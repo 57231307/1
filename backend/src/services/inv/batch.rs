@@ -7,7 +7,11 @@
 //!
 //! 原 `inventory_transfer_service.rs` 拆分而来。
 
-use sea_orm::{ColumnTrait, EntityTrait, IntoActiveModel, Order, QueryFilter};
+use sea_orm::{
+    ActiveModelTrait, ColumnTrait, EntityTrait, IntoActiveModel, Order, QueryFilter, QueryOrder,
+    TransactionTrait,
+};
+use sea_orm::sea_query::{BinOper, Expr};
 
 use crate::models::inventory_stock::{self, Entity as InventoryStockEntity};
 use crate::models::inventory_transaction;
@@ -99,25 +103,35 @@ impl InventoryTransferService {
                 let update_result = inventory_stock::Entity::update_many()
                     .col_expr(
                         inventory_stock::Column::QuantityOnHand,
-                        sea_orm::sea_query::Expr::col(inventory_stock::Column::QuantityOnHand)
-                            .sub(sea_orm::sea_query::Expr::val(item.quantity)),
+                        Expr::Binary(
+                            Box::new(Expr::Column(inventory_stock::Column::QuantityOnHand.into_column_ref())),
+                            BinOper::Sub,
+                            Box::new(Expr::val(item.quantity)),
+                        ),
                     )
                     .col_expr(
                         inventory_stock::Column::QuantityAvailable,
-                        sea_orm::sea_query::Expr::col(inventory_stock::Column::QuantityAvailable)
-                            .sub(sea_orm::sea_query::Expr::val(item.quantity)),
+                        Expr::Binary(
+                            Box::new(Expr::Column(inventory_stock::Column::QuantityAvailable.into_column_ref())),
+                            BinOper::Sub,
+                            Box::new(Expr::val(item.quantity)),
+                        ),
                     )
                     .col_expr(
                         inventory_stock::Column::QuantityMeters,
-                        sea_orm::sea_query::Expr::val(new_quantity_meters),
+                        Expr::val(new_quantity_meters),
                     )
                     .col_expr(
                         inventory_stock::Column::QuantityKg,
-                        sea_orm::sea_query::Expr::val(new_quantity_kg),
+                        Expr::val(new_quantity_kg),
                     )
                     .col_expr(
                         inventory_stock::Column::Version,
-                        sea_orm::sea_query::Expr::col(inventory_stock::Column::Version).add(1),
+                        Expr::Binary(
+                            Box::new(Expr::Column(inventory_stock::Column::Version.into_column_ref())),
+                            BinOper::Add,
+                            Box::new(Expr::val(1)),
+                        ),
                     )
                     .col_expr(
                         inventory_stock::Column::UpdatedAt,
@@ -289,25 +303,35 @@ impl InventoryTransferService {
                 let update_result = inventory_stock::Entity::update_many()
                     .col_expr(
                         inventory_stock::Column::QuantityOnHand,
-                        sea_orm::sea_query::Expr::col(inventory_stock::Column::QuantityOnHand)
-                            .add(sea_orm::sea_query::Expr::val(item.quantity)),
+                        Expr::Binary(
+                            Box::new(Expr::Column(inventory_stock::Column::QuantityOnHand.into_column_ref())),
+                            BinOper::Add,
+                            Box::new(Expr::val(item.quantity)),
+                        ),
                     )
                     .col_expr(
                         inventory_stock::Column::QuantityAvailable,
-                        sea_orm::sea_query::Expr::col(inventory_stock::Column::QuantityAvailable)
-                            .add(sea_orm::sea_query::Expr::val(item.quantity)),
+                        Expr::Binary(
+                            Box::new(Expr::Column(inventory_stock::Column::QuantityAvailable.into_column_ref())),
+                            BinOper::Add,
+                            Box::new(Expr::val(item.quantity)),
+                        ),
                     )
                     .col_expr(
                         inventory_stock::Column::QuantityMeters,
-                        sea_orm::sea_query::Expr::val(new_quantity_meters),
+                        Expr::val(new_quantity_meters),
                     )
                     .col_expr(
                         inventory_stock::Column::QuantityKg,
-                        sea_orm::sea_query::Expr::val(new_quantity_kg),
+                        Expr::val(new_quantity_kg),
                     )
                     .col_expr(
                         inventory_stock::Column::Version,
-                        sea_orm::sea_query::Expr::col(inventory_stock::Column::Version).add(1),
+                        Expr::Binary(
+                            Box::new(Expr::Column(inventory_stock::Column::Version.into_column_ref())),
+                            BinOper::Add,
+                            Box::new(Expr::val(1)),
+                        ),
                     )
                     .col_expr(
                         inventory_stock::Column::UpdatedAt,
@@ -438,6 +462,7 @@ impl InventoryTransferService {
                     stock_status: sea_orm::ActiveValue::Set("正常".to_string()),
                     quality_status: sea_orm::ActiveValue::Set("合格".to_string()),
                     version: sea_orm::ActiveValue::Set(0),
+                    quantity_shipped: sea_orm::ActiveValue::Set(rust_decimal::Decimal::ZERO),
                 };
                 new_stock.insert(&txn).await?;
 

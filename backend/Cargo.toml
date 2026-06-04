@@ -65,6 +65,9 @@ base64 = "0.22"
 # ZIP 压缩
 zip = "2.2"
 
+# PDF 生成
+printpdf = "0.7"
+
 # 监控
 prometheus = "0.13"
 sysinfo = "0.32"

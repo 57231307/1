@@ -7,7 +7,7 @@ use crate::models::{product, purchase_order, purchase_order_item, supplier, ware
 use crate::utils::error::AppError;
 use chrono::Utc;
 use rust_decimal::Decimal;
-use sea_orm::{EntityTrait, QueryFilter, Set, TransactionTrait};
+use sea_orm::{ActiveModelTrait, ColumnTrait, EntityTrait, QueryFilter, Set, TransactionTrait};
 use std::sync::Arc;
 
 use super::order::PurchaseOrderService;

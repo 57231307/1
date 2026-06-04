@@ -25,7 +25,6 @@ use sea_orm::{
     QueryOrder, QuerySelect, Set,
 };
 use std::sync::Arc;
-use uuid::Uuid;
 
 /// CRM 服务
 pub struct CrmService {
@@ -54,13 +53,7 @@ impl CrmService {
         &self,
         customer_id: i32,
     ) -> Result<super::CustomerRelationSummary, AppError> {
-        // 统计线索数（线索表中有 customer_id 字段的）
-        let total_leads = CrmLeadEntity::find()
-            .filter(crm_lead::Column::CustomerId.eq(customer_id))
-            .count(&*self.db)
-            .await? as i64;
-
-        // 统计商机数
+        // 统计商机数（线索不直接关联 customer_id，商机关联）
         let total_opportunities = CrmOpportunityEntity::find()
             .filter(crm_opportunity::Column::CustomerId.eq(customer_id))
             .count(&*self.db)
@@ -89,7 +82,7 @@ impl CrmService {
 
         Ok(super::CustomerRelationSummary {
             customer_id,
-            total_leads,
+            total_leads: 0,
             total_opportunities,
             total_orders,
             total_order_amount,
@@ -114,13 +107,6 @@ impl CrmService {
             .all(&*self.db)
             .await?;
 
-        // 关联线索
-        let leads: Vec<super::LeadRelationInfo> = CrmLeadEntity::find()
-            .filter(crm_lead::Column::CustomerId.eq(customer_id))
-            .into_model::<super::LeadRelationInfo>()
-            .all(&*self.db)
-            .await?;
-
         // 关联摘要
         let summary = self.get_customer_relation_summary(customer_id).await?;
 
@@ -136,7 +122,7 @@ impl CrmService {
             "customer": customer_info,
             "summary": summary,
             "opportunities": opportunities,
-            "leads": leads,
+            "leads": [],
             "recent_orders": recent_orders,
         }))
     }
@@ -173,9 +159,8 @@ impl CrmService {
     pub async fn update_customer_enhanced(
         &self,
         customer_id: i32,
-        req: super::UpdateCustomerEnhancedRequest,
-        user_id: i32,
-    ) -> Result<customer::Model, AppError> {
+        req: crate::models::dto::crm_dto::UpdateCustomerEnhancedRequest,
+    ) -> Result<serde_json::Value, AppError> {
         let customer = CustomerEntity::find_by_id(customer_id)
             .one(&*self.db)
             .await?
@@ -198,23 +183,58 @@ impl CrmService {
         if let Some(address) = req.address {
             customer_active.address = Set(Some(address));
         }
-        if let Some(industry) = req.industry {
-            customer_active.industry = Set(Some(industry));
+        if let Some(city) = req.city {
+            customer_active.city = Set(Some(city));
         }
-        if let Some(level) = req.level {
-            customer_active.level = Set(Some(level));
+        if let Some(province) = req.province {
+            customer_active.province = Set(Some(province));
+        }
+        if let Some(country) = req.country {
+            customer_active.country = Set(Some(country));
+        }
+        if let Some(postal_code) = req.postal_code {
+            customer_active.postal_code = Set(Some(postal_code));
+        }
+        if let Some(credit_limit) = req.credit_limit {
+            customer_active.credit_limit = Set(credit_limit);
+        }
+        if let Some(payment_terms) = req.payment_terms {
+            customer_active.payment_terms = Set(payment_terms);
+        }
+        if let Some(tax_id) = req.tax_id {
+            customer_active.tax_id = Set(Some(tax_id));
+        }
+        if let Some(bank_name) = req.bank_name {
+            customer_active.bank_name = Set(Some(bank_name));
+        }
+        if let Some(bank_account) = req.bank_account {
+            customer_active.bank_account = Set(Some(bank_account));
         }
         if let Some(status) = req.status {
             customer_active.status = Set(status);
         }
+        if let Some(customer_type) = req.customer_type {
+            customer_active.customer_type = Set(customer_type);
+        }
         if let Some(notes) = req.notes {
             customer_active.notes = Set(Some(notes));
         }
-        if let Some(owner_id) = req.owner_id {
-            customer_active.owner_id = Set(Some(owner_id));
+        if let Some(industry) = req.customer_industry {
+            customer_active.customer_industry = Set(Some(industry));
+        }
+        if let Some(main_products) = req.main_products {
+            customer_active.main_products = Set(Some(main_products));
+        }
+        if let Some(annual_purchase) = req.annual_purchase {
+            customer_active.annual_purchase = Set(Some(annual_purchase));
+        }
+        if let Some(quality_requirement) = req.quality_requirement {
+            customer_active.quality_requirement = Set(Some(quality_requirement));
+        }
+        if let Some(inspection_standard) = req.inspection_standard {
+            customer_active.inspection_standard = Set(Some(inspection_standard));
         }
 
-        customer_active.updated_by = Set(Some(user_id));
         customer_active.updated_at = Set(chrono::Utc::now());
 
         let customer = crate::services::audit_log_service::AuditLogService::update_with_audit(
@@ -225,14 +245,14 @@ impl CrmService {
         )
         .await?;
 
-        Ok(customer)
+        Ok(serde_json::to_value(customer)
+            .map_err(|e| AppError::internal(format!("序列化失败: {}", e)))?)
     }
 
     /// 删除客户（增强版，含关联数据检查）
     pub async fn delete_customer_enhanced(
         &self,
         customer_id: i32,
-        _user_id: i32,
     ) -> Result<(), AppError> {
         // 1. 检查是否有关联订单
         let order_count = SalesOrderEntity::find()
@@ -272,38 +292,54 @@ impl CrmService {
         customer_id: i32,
         page: u64,
         page_size: u64,
-    ) -> Result<(Vec<customer_followup::Model>, u64), AppError> {
+    ) -> Result<serde_json::Value, AppError> {
         let paginator = CustomerFollowupEntity::find()
             .filter(customer_followup::Column::CustomerId.eq(customer_id))
             .order_by(customer_followup::Column::FollowUpAt, sea_orm::Order::Desc)
             .paginate(&*self.db, page_size);
 
         let total = paginator.num_items().await?;
-        let items = paginator.fetch_page(page - 1).await?;
-        Ok((items, total))
+        let items: Vec<customer_followup::Model> = paginator.fetch_page(page - 1).await?;
+        Ok(serde_json::json!({
+            "items": items,
+            "total": total,
+            "page": page,
+            "page_size": page_size,
+        }))
     }
 
     /// 创建跟进记录
     pub async fn create_follow_up(
         &self,
-        req: super::CreateFollowUpRequest,
+        customer_id: i32,
         user_id: i32,
-    ) -> Result<customer_followup::Model, AppError> {
+        operator_name: String,
+        req: crate::models::dto::crm_dto::FollowUpRequest,
+    ) -> Result<serde_json::Value, AppError> {
         // 1. 验证客户存在
-        let customer = CustomerEntity::find_by_id(req.customer_id)
+        let _customer = CustomerEntity::find_by_id(customer_id)
             .one(&*self.db)
             .await?
-            .ok_or_else(|| AppError::not_found(format!("客户 {} 不存在", req.customer_id)))?;
+            .ok_or_else(|| AppError::not_found(format!("客户 {} 不存在", customer_id)))?;
 
         // 2. 创建跟进记录
+        let follow_up_type = req.r#type.clone().unwrap_or_else(|| "general".to_string());
+        let content = req.content.clone().unwrap_or_default();
+        let follow_up_at = chrono::Utc::now();
+        let next_follow_up_at: Option<chrono::DateTime<chrono::Utc>> = req
+            .next_follow_date
+            .as_ref()
+            .and_then(|s| chrono::NaiveDate::parse_from_str(s, "%Y-%m-%d").ok())
+            .map(|d| d.and_hms_opt(0, 0, 0).unwrap().and_utc());
+
         let follow_up = customer_followup::ActiveModel {
-            id: Set(Uuid::new_v4().to_string()),
-            customer_id: Set(req.customer_id),
-            follow_up_type: Set(req.follow_up_type),
-            content: Set(req.content),
-            follow_up_at: Set(req.follow_up_at),
-            next_follow_up_at: Set(req.next_follow_up_at),
-            notes: Set(req.notes),
+            id: Set(uuid::Uuid::new_v4().to_string()),
+            customer_id: Set(customer_id),
+            follow_up_type: Set(follow_up_type),
+            content: Set(content),
+            follow_up_at: Set(follow_up_at),
+            next_follow_up_at: Set(next_follow_up_at),
+            notes: Set(Some(operator_name)),
             created_by: Set(Some(user_id)),
             created_at: Set(chrono::Utc::now()),
             updated_at: Set(chrono::Utc::now()),
@@ -311,10 +347,8 @@ impl CrmService {
         .insert(&*self.db)
         .await?;
 
-        // 3. 更新客户最后交互时间（如果模型有该字段）
-        let _ = customer; // suppress unused warning
-
-        Ok(follow_up)
+        Ok(serde_json::to_value(follow_up)
+            .map_err(|e| AppError::internal(format!("序列化失败: {}", e)))?)
     }
 
     /// 计算 RFM 评分（R: 最近一次消费, F: 消费频率, M: 消费金额）

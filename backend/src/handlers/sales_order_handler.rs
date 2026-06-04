@@ -272,13 +272,16 @@ pub async fn approve_order(
 /// 发货处理
 /// POST /api/v1/erp/sales/orders/:id/ship
 pub async fn ship_order(
-    _auth: AuthContext,
+    auth: AuthContext,
     State(state): State<AppState>,
     Path(id): Path<i32>,
     Json(payload): Json<crate::services::sales_service::ShipOrderRequest>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     let sales_service = SalesService::new(state.db.clone());
-    let order = sales_service.ship_order(id, payload).await?;
+    // 调用原有 ship_order(request, user_id)
+    sales_service.ship_order(payload, auth.user_id).await?;
+    // 重新获取订单详情用于通知
+    let order = sales_service.get_order_detail(id).await?;
 
     // 订单发货成功后发送通知给申请人
     if let Some(event_service) = &state.event_notification_service {
@@ -403,7 +406,7 @@ pub async fn reject_order(
     let sales_service = SalesService::new(state.db.clone());
 
     let _order = sales_service
-        .reject_order(id, "订单被拒绝".to_string())
+        .reject_order(id, "订单被拒绝".to_string(), _auth.user_id)
         .await
         .map_err(|e| AppError::internal(format!("拒绝订单失败: {}", e)))?;
 
@@ -439,20 +442,17 @@ pub async fn get_order_deliveries(
     _auth: AuthContext,
     State(state): State<AppState>,
     Path(id): Path<i32>,
-    Query(query): Query<PageRequest>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     let sales_service = SalesService::new(state.db.clone());
 
-    let (deliveries, total) = sales_service
-        .get_order_deliveries(id, query.page, query.page_size)
+    let deliveries = sales_service
+        .get_order_deliveries(id)
         .await
         .map_err(|e| AppError::internal(format!("获取发货记录失败: {}", e)))?;
 
     let result = serde_json::json!({
         "list": deliveries,
-        "total": total,
-        "page": query.page,
-        "page_size": query.page_size,
+        "total": deliveries.len(),
     });
 
     Ok(Json(ApiResponse::success(result)))

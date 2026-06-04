@@ -36,6 +36,8 @@ pub struct ReportTemplate {
     pub description: String,
     pub category: String,
     pub data_source: String,
+    /// 报表类型（sales/purchase/inventory/financial/custom）
+    pub report_type: String,
     pub columns: Vec<ReportColumn>,
     pub filters: Vec<ReportFilter>,
     pub supported_formats: Vec<String>,
@@ -45,8 +47,14 @@ pub struct ReportTemplate {
 /// 报表列定义
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ReportColumn {
+    /// 字段名（数据中 key）
     pub key: String,
+    /// 显示名（handler 使用 title 字段名时通过 alias 反序列化）
+    #[serde(alias = "title")]
     pub label: String,
+    /// 字段别名 - 兼容 handler 使用的 field/title
+    #[serde(alias = "field")]
+    pub field_alias: Option<String>,
     pub data_type: String,
     pub format: Option<String>,
     pub aggregation: Option<String>,
@@ -60,7 +68,16 @@ pub struct ReportColumn {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ReportFilter {
     pub key: String,
+    /// 字段名（兼容 handler）
+    #[serde(alias = "field")]
+    pub field_alias: Option<String>,
     pub label: String,
+    /// 算子（兼容 handler）
+    #[serde(default)]
+    pub operator: Option<String>,
+    /// 值（兼容 handler）
+    #[serde(default)]
+    pub value: Option<String>,
     pub filter_type: String,
     pub default_value: Option<serde_json::Value>,
     pub options: Option<Vec<serde_json::Value>>,
@@ -84,46 +101,102 @@ pub struct CreateTemplateRequest {
     pub description: String,
     pub category: String,
     pub data_source: String,
+    pub report_type: Option<String>,
     pub columns: Vec<ReportColumn>,
     pub filters: Vec<ReportFilter>,
     pub parameters: Vec<ReportParameter>,
     pub supported_formats: Vec<String>,
 }
 
-/// 数据源
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct DataSource {
-    pub id: String,
-    pub name: String,
-    pub description: String,
-    pub source_type: String,
-    pub query_template: String,
-    pub required_permissions: Vec<String>,
+/// 数据源（业务枚举，handler 直接使用字符串变体名）
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, Hash)]
+#[serde(rename_all = "lowercase")]
+pub enum DataSource {
+    Sales,
+    Purchase,
+    Inventory,
+    Finance,
+}
+
+impl DataSource {
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            DataSource::Sales => "sales",
+            DataSource::Purchase => "purchase",
+            DataSource::Inventory => "inventory",
+            DataSource::Finance => "finance",
+        }
+    }
+}
+
+impl std::str::FromStr for DataSource {
+    type Err = String;
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s.to_lowercase().as_str() {
+            "sales" => Ok(DataSource::Sales),
+            "purchase" => Ok(DataSource::Purchase),
+            "inventory" => Ok(DataSource::Inventory),
+            "finance" => Ok(DataSource::Finance),
+            _ => Err(format!("不支持的数据源: {}", s)),
+        }
+    }
 }
 
 /// 聚合类型
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "lowercase")]
 pub enum AggregationType {
     Sum,
-    Avg,
+    Average,
     Count,
     Min,
     Max,
-    Group,
+    GroupBy,
     None,
+}
+
+impl AggregationType {
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            AggregationType::Sum => "sum",
+            AggregationType::Average => "average",
+            AggregationType::Count => "count",
+            AggregationType::Min => "min",
+            AggregationType::Max => "max",
+            AggregationType::GroupBy => "group_by",
+            AggregationType::None => "none",
+        }
+    }
+}
+
+impl std::str::FromStr for AggregationType {
+    type Err = String;
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s.to_lowercase().as_str() {
+            "sum" => Ok(AggregationType::Sum),
+            "average" | "avg" => Ok(AggregationType::Average),
+            "count" => Ok(AggregationType::Count),
+            "min" => Ok(AggregationType::Min),
+            "max" => Ok(AggregationType::Max),
+            "group_by" | "group" => Ok(AggregationType::GroupBy),
+            _ => Err(format!("不支持的聚合类型: {}", s)),
+        }
+    }
 }
 
 /// 聚合请求
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AggregateRequest {
-    pub data_source: String,
+    pub data_source: DataSource,
     pub aggregation_type: AggregationType,
+    /// 兼容字符串调用方
+    pub data_source_str: Option<String>,
     pub group_by: Vec<String>,
     pub filters: Vec<ReportFilter>,
     pub date_range: Option<DateRange>,
     pub parameters: Option<serde_json::Value>,
     pub limit: Option<u32>,
+    pub aggregation_field: Option<String>,
 }
 
 /// 日期范围
@@ -133,11 +206,18 @@ pub struct DateRange {
     pub end: NaiveDate,
 }
 
-/// 聚合结果行
+/// 聚合结果（业务字段：columns/rows/total_count，方便 handler 直接序列化）
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AggregateResult {
+    pub columns: Vec<String>,
+    pub rows: Vec<Vec<String>>,
+    pub total_count: u64,
+    /// 兼容旧版的 groups/aggregations/count 字段
+    #[serde(default)]
     pub groups: Vec<(String, serde_json::Value)>,
+    #[serde(default)]
     pub aggregations: Vec<(String, serde_json::Value)>,
+    #[serde(default)]
     pub count: u64,
 }
 
@@ -146,6 +226,8 @@ pub struct AggregateResult {
 pub struct ReportData {
     pub columns: Vec<ReportColumn>,
     pub rows: Vec<serde_json::Value>,
+    /// handler 使用 total_count
+    #[serde(alias = "total_count")]
     pub total_rows: u64,
     pub generated_at: DateTime<Utc>,
     pub summary: Option<serde_json::Value>,
@@ -181,8 +263,9 @@ pub struct ExecuteReportRequest {
     pub use_cache: Option<bool>,
 }
 
-/// 导出格式
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+/// 导出格式（兼容 csv/csv 字符串）
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "lowercase")]
 pub enum ExportFormat {
     Pdf,
     Excel,

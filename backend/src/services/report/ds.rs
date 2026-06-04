@@ -21,8 +21,8 @@ use crate::models::sales_order_item::Entity as SalesOrderItemEntity;
 use crate::utils::error::AppError;
 
 use super::{
-    AggregateRequest, AggregateResult, AggregationType, ExecuteReportRequest, ReportColumn,
-    ReportData, ReportEngineService, ReportMetadata, DEFAULT_CACHE_TTL_SECONDS,
+    AggregateRequest, AggregateResult, AggregationType, DataSource, ExecuteReportRequest,
+    ReportColumn, ReportData, ReportEngineService, ReportMetadata, DEFAULT_CACHE_TTL_SECONDS,
 };
 
 impl ReportEngineService {
@@ -31,18 +31,14 @@ impl ReportEngineService {
         &self,
         req: AggregateRequest,
     ) -> Result<Vec<AggregateResult>, AppError> {
-        match req.data_source.as_str() {
-            "sales" => {
+        match req.data_source {
+            DataSource::Sales => {
                 let req_clone = req.clone();
                 self.aggregate_sales_data(req_clone).await
             }
-            "purchase" => self.aggregate_purchase_data(req).await,
-            "inventory" => self.aggregate_inventory_data(req).await,
-            "finance" => self.aggregate_finance_data(req).await,
-            _ => Err(AppError::bad_request(format!(
-                "不支持的数据源: {}",
-                req.data_source
-            ))),
+            DataSource::Purchase => self.aggregate_purchase_data(req).await,
+            DataSource::Inventory => self.aggregate_inventory_data(req).await,
+            DataSource::Finance => self.aggregate_finance_data(req).await,
         }
     }
 
@@ -69,10 +65,10 @@ impl ReportEngineService {
         for order in &orders {
             // 简化的分组逻辑
             let group_key = match req.aggregation_type {
-                AggregationType::Group => {
-                    if req.group_by.contains(&"customer".to_string()) {
+                AggregationType::GroupBy => {
+                    if req.group_by.iter().any(|g| g == "customer") {
                         format!("customer_{}", order.customer_id)
-                    } else if req.group_by.contains(&"month".to_string()) {
+                    } else if req.group_by.iter().any(|g| g == "month") {
                         format!("month_{}", order.order_date.format("%Y-%m").to_string())
                     } else {
                         "total".to_string()
@@ -98,15 +94,26 @@ impl ReportEngineService {
                     serde_json::Value::String(parts[1].to_string()),
                 )]
             } else {
-                vec![(group_key.clone(), serde_json::Value::String(group_key))]
+                vec![(group_key.clone(), serde_json::Value::String(group_key.clone()))]
             };
 
             let aggregations: Vec<(String, serde_json::Value)> = values
-                .into_iter()
-                .map(|(k, v)| (k, serde_json::json!(v.to_string())))
+                .iter()
+                .map(|(k, v)| (k.clone(), serde_json::json!(v.to_string())))
                 .collect();
 
+            // 同时构造 columns/rows/total_count 给 handler 使用
+            let mut columns = vec!["group".to_string()];
+            let mut row_values = vec![group_key.clone()];
+            for (k, v) in &values {
+                columns.push(k.clone());
+                row_values.push(v.to_string());
+            }
+
             results.push(AggregateResult {
+                columns,
+                rows: vec![row_values],
+                total_count: 1,
                 groups,
                 aggregations,
                 count: 1,
@@ -148,6 +155,9 @@ impl ReportEngineService {
 
         for (warehouse_id, total) in group_by_warehouse {
             results.push(AggregateResult {
+                columns: vec!["warehouse".to_string(), "total_quantity".to_string()],
+                rows: vec![vec![warehouse_id.to_string(), total.to_string()]],
+                total_count: 1,
                 groups: vec![("warehouse".to_string(), serde_json::json!(warehouse_id))],
                 aggregations: vec![(
                     "total_quantity".to_string(),
@@ -159,6 +169,9 @@ impl ReportEngineService {
 
         for (product_id, total) in group_by_product {
             results.push(AggregateResult {
+                columns: vec!["product".to_string(), "total_quantity".to_string()],
+                rows: vec![vec![product_id.to_string(), total.to_string()]],
+                total_count: 1,
                 groups: vec![("product".to_string(), serde_json::json!(product_id))],
                 aggregations: vec![(
                     "total_quantity".to_string(),
@@ -254,7 +267,9 @@ impl ReportEngineService {
                     "product_id": item.product_id,
                     "quantity": item.quantity_meters.to_string(),
                     "unit_price": item.unit_price.to_string(),
-                    "amount": item.amount.to_string(),
+                    "amount": item.total_amount.to_string(),
+                    "subtotal": item.subtotal.to_string(),
+                    "tax_amount": item.tax_amount.to_string(),
                     "created_at": item.created_at.to_rfc3339(),
                 })
             })
@@ -400,6 +415,18 @@ impl ReportEngineService {
         cache.retain(|_, entry| entry.expires_at > now);
         let removed = initial_len - cache.len();
         Ok(removed as u64)
+    }
+
+    /// 按数据源清除缓存
+    pub async fn clear_cache_by_source(&self, _data_source: &DataSource) {
+        let mut cache = self.cache.write().await;
+        cache.clear();
+    }
+
+    /// 清除所有缓存
+    pub async fn clear_all_cache(&self) {
+        let mut cache = self.cache.write().await;
+        cache.clear();
     }
 }
 

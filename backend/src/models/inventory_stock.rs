@@ -17,6 +17,8 @@ pub struct Model {
     pub quantity_on_hand: Decimal,
     pub quantity_available: Decimal,
     pub quantity_reserved: Decimal,
+    /// 已发货数量（销售发货时累计）
+    pub quantity_shipped: Decimal,
     pub quantity_incoming: Decimal,
     pub reorder_point: Decimal,
     pub reorder_quantity: Decimal,

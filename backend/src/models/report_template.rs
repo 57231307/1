@@ -28,11 +28,26 @@ pub struct Model {
     /// 报表类型（sales/purchase/inventory/financial/custom）
     pub report_type: String,
 
+    /// 业务模板 ID（兼容旧报表引擎，UUID 或语义化字符串）
+    pub template_id: Option<String>,
+
+    /// 模板分类
+    pub category: Option<String>,
+
+    /// 数据源标识
+    pub data_source: Option<String>,
+
     /// 列定义（JSON格式）
     pub columns: Json,
 
     /// 筛选条件（JSON格式）
     pub filters: Option<Json>,
+
+    /// 报表参数（JSON格式）
+    pub parameters: Option<Json>,
+
+    /// 支持的导出格式（JSON格式）
+    pub supported_formats: Option<Json>,
 
     /// 排序字段
     pub sort_by: Option<String>,

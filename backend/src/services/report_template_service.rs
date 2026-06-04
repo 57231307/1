@@ -23,13 +23,18 @@ pub struct CreateReportTemplateRequest {
     pub name: String,
     pub code: String,
     pub report_type: String,
+    pub template_id: Option<String>,
+    pub category: Option<String>,
+    pub data_source: Option<String>,
     pub columns: serde_json::Value,
     pub filters: Option<serde_json::Value>,
+    pub parameters: Option<serde_json::Value>,
     pub sort_by: Option<String>,
     pub sort_order: Option<String>,
     pub data_source_sql: Option<String>,
     pub description: Option<String>,
     pub is_public: Option<bool>,
+    pub supported_formats: Option<Vec<String>>,
 }
 
 /// 更新报表模板请求
@@ -93,16 +98,24 @@ impl ReportTemplateService {
         let active_model = ActiveModel {
             id: Default::default(),
             tenant_id: Set(tenant_id),
+            template_id: Set(req.template_id),
             name: Set(req.name),
             code: Set(req.code),
             report_type: Set(req.report_type),
+            category: Set(req.category),
+            data_source: Set(req.data_source),
             columns: Set(req.columns),
             filters: Set(req.filters),
+            parameters: Set(req.parameters),
             sort_by: Set(req.sort_by),
             sort_order: Set(req.sort_order.or(Some("asc".to_string()))),
             data_source_sql: Set(req.data_source_sql),
             description: Set(req.description),
             is_public: Set(req.is_public.unwrap_or(false)),
+            supported_formats: Set(
+                req.supported_formats
+                    .map(sea_orm::JsonValue::from),
+            ),
             status: Set("ACTIVE".to_string()),
             created_by: Set(user_id),
             created_at: Set(now),

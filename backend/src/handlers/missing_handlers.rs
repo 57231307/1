@@ -369,7 +369,7 @@ pub async fn get_sales_users(
 ) -> Result<Json<ApiResponse<Vec<SalesUser>>>, AppError> {
     // 查找角色名包含"销售"的 role
     let sales_role_ids: Vec<i32> = crate::models::role::Entity::find()
-        .filter(crate::models::role::Column::RoleName.contains("销售"))
+        .filter(crate::models::role::Column::Name.contains("销售"))
         .all(state.db.as_ref())
         .await?
         .into_iter()

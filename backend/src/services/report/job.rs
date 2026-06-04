@@ -22,36 +22,59 @@ impl ReportEngineService {
         user_id: i32,
         req: CreateSubscriptionRequest,
     ) -> Result<ReportSubscription, AppError> {
-        // 验证 cron 表达式
+        // 验证 cron 表达式并计算 next_run
         let next_run = self.calculate_next_run(&req.cron_expression)?;
 
         // 验证模板存在
         let _template = self.get_template(&req.template_id).await?;
 
+        // 将 template_id 解析为 i32
+        let template_id_int: i32 = req.template_id.parse().map_err(|_| {
+            AppError::bad_request(format!("template_id 必须是数字: {}", req.template_id))
+        })?;
+
         let now = Utc::now();
-        let filters_json = serde_json::to_string(&req.filters)
+        let filters_json = serde_json::to_value(&req.filters)
             .map_err(|e| AppError::internal(format!("序列化筛选条件失败: {}", e)))?;
-        let recipients_json = serde_json::to_string(&req.recipients)
-            .map_err(|e| AppError::internal(format!("序列化收件人失败: {}", e)))?;
+        let recipients_json = sea_orm::JsonValue::from(
+            serde_json::to_value(&req.recipients)
+                .map_err(|e| AppError::internal(format!("序列化收件人失败: {}", e)))?,
+        );
         let parameters_json = match &req.parameters {
-            Some(p) => serde_json::to_string(p)
+            Some(p) => serde_json::to_value(p)
                 .map_err(|e| AppError::internal(format!("序列化参数失败: {}", e)))?,
-            None => "null".to_string(),
+            None => serde_json::Value::Null,
         };
+        let parameters_opt = if parameters_json.is_null() {
+            None
+        } else {
+            Some(sea_orm::JsonValue::from(parameters_json))
+        };
+
+        // 根据 cron 表达式大致推断频率
+        let frequency = Self::infer_frequency(&req.cron_expression);
 
         let active_model = report_subscription::ActiveModel {
             id: Default::default(),
-            user_id: Set(user_id),
-            template_id: Set(req.template_id.clone()),
-            cron_expression: Set(req.cron_expression.clone()),
-            format: Set(req.format.clone()),
-            filters: Set(filters_json),
-            parameters: Set(parameters_json),
+            tenant_id: Set(0),
+            name: Set(format!("订阅_{}", req.template_id)),
+            template_id: Set(template_id_int),
+            frequency: Set(frequency),
+            parameters: Set(parameters_opt),
             recipients: Set(recipients_json),
-            enabled: Set(req.enabled),
+            export_format: Set(req.format.clone()),
+            is_enabled: Set(req.enabled),
+            status: Set(if req.enabled {
+                "ACTIVE".to_string()
+            } else {
+                "INACTIVE".to_string()
+            }),
             next_run_at: Set(next_run),
             last_run_at: Set(None),
-            last_status: Set(None),
+            last_run_status: Set(None),
+            last_run_error: Set(None),
+            run_count: Set(0),
+            created_by: Set(user_id),
             created_at: Set(now),
             updated_at: Set(now),
         };
@@ -59,27 +82,49 @@ impl ReportEngineService {
         let model = active_model.insert(&*self.db).await?;
 
         info!(
-            "创建报表订阅成功：id={}, template={}, cron={}",
-            model.id, model.template_id, model.cron_expression
+            "创建报表订阅成功：id={}, template={}",
+            model.id, model.template_id
         );
 
         Ok(ReportSubscription {
             id: model.id,
-            user_id: model.user_id,
-            template_id: model.template_id,
-            template_name: req.template_id,
-            cron_expression: model.cron_expression,
-            format: model.format,
+            user_id: model.created_by,
+            template_id: model.template_id.to_string(),
+            template_name: model.name,
+            cron_expression: req.cron_expression,
+            format: model.export_format,
             filters: req.filters,
             parameters: req.parameters,
             recipients: req.recipients,
-            enabled: model.enabled,
+            enabled: model.is_enabled,
             next_run_at: model.next_run_at,
             last_run_at: model.last_run_at,
-            last_status: model.last_status,
+            last_status: model.last_run_status,
             created_at: model.created_at,
             updated_at: model.updated_at,
         })
+    }
+
+    /// 根据 cron 表达式推断订阅频率
+    fn infer_frequency(cron: &str) -> String {
+        let parts: Vec<&str> = cron.split_whitespace().collect();
+        if parts.len() != 5 {
+            return "DAILY".to_string();
+        }
+        // 简单判断：
+        // - 每天: 0 0 * * *
+        // - 每周: 0 0 * * 1
+        // - 每月: 0 0 1 * *
+        let day = parts[2];
+        let month = parts[3];
+        let weekday = parts[4];
+        if day == "1" && month == "*" && weekday == "*" {
+            "MONTHLY".to_string()
+        } else if weekday != "*" {
+            "WEEKLY".to_string()
+        } else {
+            "DAILY".to_string()
+        }
     }
 
     /// 计算下次运行时间
@@ -102,7 +147,7 @@ impl ReportEngineService {
         let hour = Self::parse_cron_field(parts[1], 0, 23)?;
         let day = Self::parse_cron_field(parts[2], 1, 31)?;
         let month = Self::parse_cron_field(parts[3], 1, 12)?;
-        let _weekday = Self::parse_cron_field(parts[4], 0, 6)?;
+        let weekday = Self::parse_cron_field(parts[4], 0, 6)?;
 
         // 简化实现: 使用 cron 库或者基础算法
         // 这里采用基础实现：遍历未来 366 天，找到第一个匹配的时间
@@ -137,7 +182,7 @@ impl ReportEngineService {
             if !day.contains(&d) {
                 continue;
             }
-            if !_weekday.contains(&dow) {
+            if !weekday.contains(&dow) {
                 continue;
             }
 
@@ -241,5 +286,5 @@ impl ReportEngineService {
 // 抑制未使用导入
 #[allow(dead_code)]
 fn _unused() {
-    let _ = ReportSubscriptionEntity::find_by_id;
+    let _ = ReportSubscriptionEntity::find_by_id::<i32>;
 }

@@ -181,7 +181,7 @@ pub(crate) async fn generate_reconciliation_no(
     db: &DatabaseConnection,
 ) -> Result<String, AppError> {
     DocumentNumberGenerator::generate_no(
-        &**db,
+        db,
         "RC",
         ReconciliationEntity,
         crate::models::ar_reconciliation::Column::ReconciliationNo,

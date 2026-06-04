@@ -140,19 +140,16 @@ pub mod enhanced_logger;
 /// 兼容旧路径 `crate::services::purchase_order_service::*`
 pub mod purchase_order_service {
     pub use super::po::order::PurchaseOrderService;
-    pub use super::po::order::{
-        CreatePurchaseOrderRequest, PurchaseOrderDto, PurchaseOrderItemDto,
-        PurchaseOrderItemRequest, PurchaseOrderWithItemsDto, UpdatePurchaseOrderRequest,
-    };
-    pub use super::po::{CreateOrderItemRequest, UpdateOrderItemRequest};
+    pub use super::po::order::{PurchaseOrderDto, PurchaseOrderItemDto};
+    pub use super::po::{CreateOrderItemRequest, CreatePurchaseOrderRequest, UpdateOrderItemRequest, UpdatePurchaseOrderRequest};
 }
 
 /// 兼容旧路径 `crate::services::sales_service::*`
 pub mod sales_service {
     pub use super::so::order::SalesService;
-    pub use super::so::order::{
+    pub use super::so::{
         CreateSalesOrderRequest, SalesOrderDetail, SalesOrderItemDetail, SalesOrderItemRequest,
-        ShipOrderRequest, UpdateSalesOrderRequest,
+        UpdateSalesOrderRequest,
     };
 }
 

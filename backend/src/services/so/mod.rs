@@ -180,4 +180,5 @@ pub struct UpdateSalesOrderRequest {
 // 统一对外导出
 // =====================================================
 
+pub use delivery::ShipOrderRequest;
 pub use order::SalesService;

@@ -12,7 +12,8 @@ use crate::utils::number_generator::DocumentNumberGenerator;
 use chrono::Utc;
 use rust_decimal::Decimal;
 use sea_orm::{
-    DatabaseConnection, FromQueryResult, QueryFilter, QueryOrder, Set, TransactionTrait,
+    ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, FromQueryResult, PaginatorTrait,
+    QueryFilter, QueryOrder, QuerySelect, Set, TransactionTrait,
 };
 use serde::Serialize;
 use std::sync::Arc;
@@ -117,14 +118,14 @@ impl PurchaseOrderService {
         req: crate::services::po::CreatePurchaseOrderRequest,
         user_id: i32,
     ) -> Result<purchase_order::Model, AppError> {
-        let txn = (*self.db).begin().await?;
+        let mut txn = (*self.db).begin().await?;
 
         // 1. 验证请求参数
         let (warehouse_id, department_id) = self.validate_order_request(&req, &txn).await?;
 
         // 2. 创建订单主表
         let order = self
-            .create_order_header(&req, warehouse_id, department_id, user_id, &txn)
+            .create_order_header(&req, warehouse_id, department_id, user_id, &mut txn)
             .await?;
 
         // 3. 创建订单明细并计算总金额
@@ -221,7 +222,7 @@ impl PurchaseOrderService {
         warehouse_id: i32,
         department_id: i32,
         user_id: i32,
-        txn: &sea_orm::DatabaseTransaction,
+        txn: &mut sea_orm::DatabaseTransaction,
     ) -> Result<purchase_order::Model, AppError> {
         // 生成订单号
         let order_no = DocumentNumberGenerator::generate_no(

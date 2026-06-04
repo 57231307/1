@@ -273,7 +273,7 @@ pub async fn start_event_listener(db: Arc<DatabaseConnection>) {
                             let sales_service =
                                 crate::services::sales_service::SalesService::new(db.clone());
                             match sales_service
-                                .reject_order(business_id, "BPM审批拒绝".to_string())
+                                .reject_order(business_id, "BPM审批拒绝".to_string(), 0)
                                 .await
                             {
                                 Ok(_) => tracing::info!(

@@ -8,7 +8,6 @@ use serde::{Deserialize, Serialize};
 use crate::middleware::auth_context::AuthContext;
 use crate::services::report_engine_service::{
     AggregateRequest, AggregationType, DataSource, ExportFormat, ReportEngineService, ReportFilter,
-    ReportTemplate,
 };
 use crate::utils::app_state::AppState;
 use crate::utils::response::ApiResponse;
@@ -28,18 +27,18 @@ pub struct ReportColumnResponse {
     pub data_type: String,
 }
 
-impl From<ReportTemplate> for ReportTemplateResponse {
-    fn from(template: ReportTemplate) -> Self {
+impl From<crate::services::report_engine_service::ReportTemplate> for ReportTemplateResponse {
+    fn from(template: crate::services::report_engine_service::ReportTemplate) -> Self {
         Self {
             id: template.id,
             name: template.name,
-            report_type: format!("{:?}", template.report_type),
+            report_type: template.report_type,
             columns: template
                 .columns
                 .into_iter()
                 .map(|c| ReportColumnResponse {
-                    field: c.field,
-                    title: c.title,
+                    field: c.key,
+                    title: c.label,
                     data_type: c.data_type,
                 })
                 .collect(),
@@ -51,7 +50,8 @@ pub async fn list_templates(
     _state: State<AppState>,
     _auth: AuthContext,
 ) -> Result<Json<ApiResponse<Vec<ReportTemplateResponse>>>, StatusCode> {
-    let templates = ReportEngineService::get_predefined_templates();
+    let service = ReportEngineService::new(_state.db.clone());
+    let templates = service.get_predefined_templates();
     let responses: Vec<ReportTemplateResponse> = templates
         .into_iter()
         .map(ReportTemplateResponse::from)
@@ -82,15 +82,54 @@ pub async fn execute_report(
     let page = query.page.unwrap_or(1);
     let page_size = query.page_size.unwrap_or(50);
 
-    match service
-        .execute_report(&query.template_id, vec![], page, page_size)
-        .await
-    {
+    let req = crate::services::report_engine_service::ExecuteReportRequest {
+        template_id: query.template_id.clone(),
+        filters: vec![],
+        parameters: None,
+        date_range: None,
+        format: "json".to_string(),
+        use_cache: Some(false),
+    };
+
+    match service.execute_report(req).await {
         Ok(data) => {
+            // 将 ReportColumn 转换为 String (label)
+            let columns: Vec<String> = data.columns.iter().map(|c| c.label.clone()).collect();
+            // 将 serde_json::Value 行转换为 Vec<String>
+            let rows: Vec<Vec<String>> = data
+                .rows
+                .iter()
+                .map(|row| {
+                    if let Some(arr) = row.as_array() {
+                        arr.iter()
+                            .map(|v| match v {
+                                serde_json::Value::String(s) => s.clone(),
+                                _ => v.to_string().trim_matches('"').to_string(),
+                            })
+                            .collect()
+                    } else if let Some(obj) = row.as_object() {
+                        // 按列顺序提取值
+                        data.columns
+                            .iter()
+                            .map(|c| {
+                                obj.get(&c.key)
+                                    .map(|v| match v {
+                                        serde_json::Value::String(s) => s.clone(),
+                                        _ => v.to_string().trim_matches('"').to_string(),
+                                    })
+                                    .unwrap_or_default()
+                            })
+                            .collect()
+                    } else {
+                        vec![row.to_string()]
+                    }
+                })
+                .collect();
+
             let response = ReportDataResponse {
-                columns: data.columns,
-                rows: data.rows,
-                total_count: data.total_count,
+                columns,
+                rows,
+                total_count: data.total_rows,
             };
             Ok(Json(ApiResponse::success(response)))
         }
@@ -121,32 +160,41 @@ pub async fn export_report(
 ) -> Result<Json<ApiResponse<ExportReportResponse>>, StatusCode> {
     let service = ReportEngineService::new(state.db);
 
-    let export_format = match query.format.as_str() {
-        "csv" => ExportFormat::CSV,
-        "json" => ExportFormat::JSON,
-        _ => ExportFormat::CSV,
-    };
+    let export_format: ExportFormat = query
+        .format
+        .parse()
+        .unwrap_or(ExportFormat::Csv);
 
     // 先执行报表获取数据
-    match service
-        .execute_report(&query.template_id, vec![], 1, 1000)
-        .await
-    {
-        Ok(data) => match service.export_report(&data, export_format) {
-            Ok(bytes) => {
-                let data_str = String::from_utf8_lossy(&bytes).to_string();
-                let response = ExportReportResponse {
-                    data: data_str,
-                    format: query.format.clone(),
-                    filename: format!("{}.{}", query.template_id, query.format),
-                };
-                Ok(Json(ApiResponse::success(response)))
+    let req = crate::services::report_engine_service::ExecuteReportRequest {
+        template_id: query.template_id.clone(),
+        filters: vec![],
+        parameters: None,
+        date_range: None,
+        format: "json".to_string(),
+        use_cache: Some(false),
+    };
+
+    match service.execute_report(req).await {
+        Ok(data) => {
+            let template_name = query.template_id.clone();
+            let format_str = query.format.clone();
+            match service.export_report(&data, &format_str, &template_name).await {
+                Ok(bytes) => {
+                    let data_str = String::from_utf8_lossy(&bytes).to_string();
+                    let response = ExportReportResponse {
+                        data: data_str,
+                        format: query.format.clone(),
+                        filename: format!("{}.{}", query.template_id, query.format),
+                    };
+                    Ok(Json(ApiResponse::success(response)))
+                }
+                Err(e) => {
+                    tracing::error!("导出报表失败: {}", e);
+                    Err(StatusCode::INTERNAL_SERVER_ERROR)
+                }
             }
-            Err(e) => {
-                tracing::error!("导出报表失败: {}", e);
-                Err(StatusCode::INTERNAL_SERVER_ERROR)
-            }
-        },
+        }
         Err(e) => {
             tracing::error!("执行报表失败: {}", e);
             Err(StatusCode::INTERNAL_SERVER_ERROR)
@@ -186,7 +234,7 @@ pub async fn aggregate_report(
 ) -> Result<Json<ApiResponse<AggregateReportResponse>>, StatusCode> {
     let service = ReportEngineService::new(state.db);
 
-    let data_source = match request.data_source.as_str() {
+    let data_source: DataSource = match request.data_source.as_str() {
         "sales" => DataSource::Sales,
         "purchase" => DataSource::Purchase,
         "inventory" => DataSource::Inventory,
@@ -196,13 +244,13 @@ pub async fn aggregate_report(
         }
     };
 
-    let aggregation_type = match request.aggregation_type.as_str() {
+    let aggregation_type: AggregationType = match request.aggregation_type.as_str() {
         "sum" => AggregationType::Sum,
         "count" => AggregationType::Count,
-        "average" => AggregationType::Average,
+        "average" | "avg" => AggregationType::Average,
         "min" => AggregationType::Min,
         "max" => AggregationType::Max,
-        "group_by" => AggregationType::GroupBy,
+        "group_by" | "group" => AggregationType::GroupBy,
         _ => {
             return Err(StatusCode::BAD_REQUEST);
         }
@@ -213,34 +261,50 @@ pub async fn aggregate_report(
         .unwrap_or_default()
         .into_iter()
         .map(|f| ReportFilter {
-            field: f.field,
-            operator: f.operator,
-            value: f.value,
+            key: f.field.clone(),
+            field_alias: Some(f.field),
+            label: String::new(),
+            operator: Some(f.operator),
+            value: Some(f.value),
+            filter_type: "custom".to_string(),
+            default_value: None,
+            options: None,
+            required: false,
         })
         .collect();
 
     let aggregate_request = AggregateRequest {
         data_source,
-        filters,
-        group_by: request.group_by,
+        data_source_str: Some(request.data_source),
         aggregation_type,
+        group_by: request.group_by.unwrap_or_default(),
+        filters,
+        date_range: None,
+        parameters: None,
+        limit: None,
         aggregation_field: request.aggregation_field,
     };
 
     let page = request.page.unwrap_or(1);
     let page_size = request.page_size.unwrap_or(50);
 
-    match service
-        .aggregate_data(aggregate_request, page, page_size)
-        .await
-    {
-        Ok(result) => {
-            let response = AggregateReportResponse {
-                columns: result.columns,
-                rows: result.rows,
-                total_count: result.total_count,
-            };
-            Ok(Json(ApiResponse::success(response)))
+    match service.aggregate_data(aggregate_request).await {
+        Ok(results) => {
+            // 取第一个结果作为响应（如果存在）
+            if let Some(first) = results.into_iter().next() {
+                let response = AggregateReportResponse {
+                    columns: first.columns,
+                    rows: first.rows,
+                    total_count: first.total_count,
+                };
+                Ok(Json(ApiResponse::success(response)))
+            } else {
+                Ok(Json(ApiResponse::success(AggregateReportResponse {
+                    columns: Vec::new(),
+                    rows: Vec::new(),
+                    total_count: 0,
+                })))
+            }
         }
         Err(e) => {
             tracing::error!("数据聚合失败: {}", e);
@@ -268,7 +332,7 @@ pub async fn clear_report_cache(
     let service = ReportEngineService::new(state.db);
 
     if let Some(source) = request.data_source {
-        let data_source = match source.as_str() {
+        let data_source: DataSource = match source.as_str() {
             "sales" => DataSource::Sales,
             "purchase" => DataSource::Purchase,
             "inventory" => DataSource::Inventory,

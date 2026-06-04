@@ -24,7 +24,7 @@ use crate::utils::number_generator::DocumentNumberGenerator;
 use crate::utils::PaginatedResponse;
 use sea_orm::{
     ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, Order, PaginatorTrait,
-    QueryFilter, QueryOrder, QuerySelect, TransactionTrait,
+    QueryFilter, QueryOrder, QuerySelect, RelationTrait, TransactionTrait,
 };
 use std::sync::Arc;
 
@@ -724,6 +724,155 @@ impl SalesService {
 
     // ========== 数据导出方法 ==========
     // 注意：export_orders_to_csv 已迁移到 so/delivery.rs
+
+    // ========== 订单生命周期方法（handler 调用） ==========
+
+    /// 提交订单：草稿 -> 提交审批（含信用检查、BPM 启动）
+    pub async fn submit_order(
+        &self,
+        order_id: i32,
+        user_id: i32,
+    ) -> Result<sales_order::Model, AppError> {
+        let order = SalesOrderEntity::find_by_id(order_id)
+            .one(&*self.db)
+            .await?
+            .ok_or_else(|| AppError::not_found(format!("销售订单 {} 不存在", order_id)))?;
+
+        if order.status != "draft" {
+            return Err(AppError::business(format!(
+                "订单状态为 {}，无法提交",
+                order.status
+            )));
+        }
+
+        // 客户信用度复检
+        let credit_service = crate::services::customer_credit_service::CustomerCreditService::new(
+            self.db.clone(),
+        );
+        let total_amount_bigdecimal = {
+            use bigdecimal::BigDecimal;
+            BigDecimal::parse_bytes(order.total_amount.to_string().as_bytes(), 10)
+                .unwrap_or_else(|| BigDecimal::from(0))
+        };
+        let credit_available = credit_service
+            .check_credit_available(order.customer_id, total_amount_bigdecimal)
+            .await
+            .map_err(|e| AppError::business(format!("信用检查失败: {}", e)))?;
+        if !credit_available {
+            return Err(AppError::business("信用额度不足，无法提交订单"));
+        }
+
+        // 客户状态校验
+        let customer = crate::models::customer::Entity::find_by_id(order.customer_id)
+            .one(&*self.db)
+            .await?
+            .ok_or_else(|| AppError::not_found("客户不存在"))?;
+        if customer.status != "active" {
+            return Err(AppError::business(format!(
+                "客户状态为 {}，不允许提交订单",
+                customer.status
+            )));
+        }
+
+        let mut order_update: sales_order::ActiveModel = order.into();
+        order_update.status = sea_orm::ActiveValue::Set("pending".to_string());
+        order_update.updated_at = sea_orm::ActiveValue::Set(chrono::Utc::now());
+
+        let order = crate::services::audit_log_service::AuditLogService::update_with_audit(
+            &*self.db,
+            "auto_audit",
+            order_update,
+            Some(0),
+        )
+        .await?;
+
+        // 启动审批工作流（BPM）
+        let bpm_service =
+            crate::services::bpm_service::BpmService::new(self.db.clone());
+        let _ = bpm_service
+            .start_process(crate::models::dto::bpm_dto::StartProcessRequest {
+                process_key: "sales_order_approval".to_string(),
+                business_type: "sales_order".to_string(),
+                business_id: order_id,
+                title: format!("销售订单审批 - {}", order.order_no),
+                initiator_id: user_id,
+                initiator_name: String::new(),
+                initiator_department_id: None,
+                priority: None,
+                form_data: None,
+                variables: None,
+            })
+            .await;
+
+        Ok(order)
+    }
+
+    /// 审核订单：通过或拒绝
+    pub async fn approve_order(
+        &self,
+        order_id: i32,
+        user_id: i32,
+    ) -> Result<sales_order::Model, AppError> {
+        let order = SalesOrderEntity::find_by_id(order_id)
+            .one(&*self.db)
+            .await?
+            .ok_or_else(|| AppError::not_found(format!("销售订单 {} 不存在", order_id)))?;
+
+        if order.status != "pending" {
+            return Err(AppError::business(format!(
+                "订单状态为 {}，无法审核",
+                order.status
+            )));
+        }
+
+        let mut order_update: sales_order::ActiveModel = order.into();
+        order_update.status = sea_orm::ActiveValue::Set("approved".to_string());
+        order_update.approved_by = sea_orm::ActiveValue::Set(Some(user_id));
+        order_update.approved_at = sea_orm::ActiveValue::Set(Some(chrono::Utc::now()));
+        order_update.updated_at = sea_orm::ActiveValue::Set(chrono::Utc::now());
+
+        let order = crate::services::audit_log_service::AuditLogService::update_with_audit(
+            &*self.db,
+            "auto_audit",
+            order_update,
+            Some(0),
+        )
+        .await?;
+
+        Ok(order)
+    }
+
+    /// 完成订单
+    pub async fn complete_order(
+        &self,
+        order_id: i32,
+    ) -> Result<sales_order::Model, AppError> {
+        let order = SalesOrderEntity::find_by_id(order_id)
+            .one(&*self.db)
+            .await?
+            .ok_or_else(|| AppError::not_found(format!("销售订单 {} 不存在", order_id)))?;
+
+        if order.status != "shipped" {
+            return Err(AppError::business(format!(
+                "订单状态为 {}，无法完成",
+                order.status
+            )));
+        }
+
+        let mut order_update: sales_order::ActiveModel = order.into();
+        order_update.status = sea_orm::ActiveValue::Set("completed".to_string());
+        order_update.updated_at = sea_orm::ActiveValue::Set(chrono::Utc::now());
+
+        let order = crate::services::audit_log_service::AuditLogService::update_with_audit(
+            &*self.db,
+            "auto_audit",
+            order_update,
+            Some(0),
+        )
+        .await?;
+
+        Ok(order)
+    }
 }
 
 // 解决 ar_invoice 引用告警
