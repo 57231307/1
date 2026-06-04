@@ -70,8 +70,8 @@ fn build_erp_root_router() -> Router<AppState> {
 /// - `/static/*` `/bingxi_frontend.*`
 /// - `/metrics`
 /// - `/swagger-ui` `/api-docs/openapi.json`
-fn build_infrastructure_routes() -> Router {
-    Router::new()
+fn build_infrastructure_routes() -> Router<AppState> {
+    Router::<AppState>::new()
         // 静态资源（CSS / JS / WASM / 字体等）
         .merge(static_routes::static_assets_handler())
         // Prometheus 指标（/metrics）

@@ -633,7 +633,8 @@ pub fn routes(state: AppState) -> Router<AppState> {
         .merge(currencies())
         .merge(exchange_rates())
         // 显式使用 middleware 抑制未使用警告
-        .layer(middleware::from_fn(
+        .layer(middleware::from_fn_with_state(
+            state.clone(),
             crate::middleware::rate_limit::rate_limit_by_ip,
         ))
 }

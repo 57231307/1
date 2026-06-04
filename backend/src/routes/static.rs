@@ -12,9 +12,11 @@ use axum::{
 };
 use std::convert::Infallible;
 
+use crate::utils::app_state::AppState;
+
 /// 静态资源服务（Catch-all 通配路由，需要直接挂到主 Router）
-pub fn static_assets_handler() -> Router {
-    Router::new()
+pub fn static_assets_handler() -> Router<AppState> {
+    Router::<AppState>::new()
         // 静态文件服务 - CSS样式文件
         .route(
             "/static/*path",
@@ -140,6 +142,6 @@ pub fn static_assets_handler() -> Router {
 }
 
 /// 静态资源域统一入口（空 Router，调用方须在主 Router 上调用 static_assets_handler）
-pub fn routes() -> Router {
-    Router::new()
+pub fn routes() -> Router<AppState> {
+    Router::<AppState>::new()
 }
