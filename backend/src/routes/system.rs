@@ -2,6 +2,7 @@
 //!
 //! 处理仪表板、系统更新、BPM 工作流引擎、健康检查、初始化等系统级接口。
 
+use crate::utils::app_state::AppState;
 use axum::{
     routing::{delete, get, post, put},
     Router,
@@ -13,7 +14,7 @@ use crate::handlers::{
 };
 
 /// 仪表板路由（nest 到 /api/v1/erp/dashboard）
-pub fn dashboard() -> Router {
+pub fn dashboard() -> Router<AppState> {
     Router::new()
         .route("/overview", get(dashboard_handler::get_dashboard_overview))
         .route("/sales-stats", get(dashboard_handler::get_sales_statistics))
@@ -28,7 +29,7 @@ pub fn dashboard() -> Router {
 }
 
 /// 系统更新路由（nest 到 /api/v1/erp/system-update）
-pub fn system_update() -> Router {
+pub fn system_update() -> Router<AppState> {
     Router::new()
         .route("/check", get(system_update_handler::check_for_updates))
         .route("/update", post(system_update_handler::download_and_update))
@@ -52,7 +53,7 @@ pub fn system_update() -> Router {
 }
 
 /// BPM 工作流引擎路由（nest 到 /api/v1/erp/bpm）
-pub fn bpm() -> Router {
+pub fn bpm() -> Router<AppState> {
     Router::new()
         .route("/process/start", post(bpm_handler::start_process))
         .route("/tasks/approve", post(bpm_handler::approve_task))
@@ -127,7 +128,7 @@ pub fn bpm() -> Router {
 }
 
 /// 健康检查路由（nest 到 /api/v1/erp/health）
-pub fn health() -> Router {
+pub fn health() -> Router<AppState> {
     Router::new()
         .route("/", get(health_handler::health_check))
         .route("/readiness", get(health_handler::readiness_check))
@@ -135,7 +136,7 @@ pub fn health() -> Router {
 }
 
 /// 初始化路由（nest 到 /api/v1/erp/init）
-pub fn init() -> Router {
+pub fn init() -> Router<AppState> {
     Router::new()
         .route("/status", get(init_handler::get_init_status))
         .route(
@@ -150,7 +151,7 @@ pub fn init() -> Router {
 }
 
 /// 系统域统一入口
-pub fn routes() -> Router {
+pub fn routes() -> Router<AppState> {
     Router::new()
         .merge(dashboard())
         .merge(system_update())

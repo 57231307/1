@@ -3,6 +3,7 @@
 //! 处理客户、客户信用、五维分析、销售分析、CRM 客户/标签/公海池/分配/回收规则、
 //! CRM 线索/商机/客户 360/跟进/RFM 等客户关系管理相关接口。
 
+use crate::utils::app_state::AppState;
 use axum::{
     routing::{delete, get, post, put},
     Router,
@@ -14,7 +15,7 @@ use crate::handlers::{
 };
 
 /// 客户管理路由（nest 到 /api/v1/erp/customers）
-pub fn customers() -> Router {
+pub fn customers() -> Router<AppState> {
     Router::new()
         .route("/", get(customer_handler::list_customers))
         .route("/", post(customer_handler::create_customer))
@@ -26,7 +27,7 @@ pub fn customers() -> Router {
 }
 
 /// 客户信用路由（nest 到 /api/v1/erp/customer-credits）
-pub fn customer_credits() -> Router {
+pub fn customer_credits() -> Router<AppState> {
     Router::new()
         .route("/", get(customer_credit_handler::list_credits))
         .route("/", post(customer_credit_handler::create_credit))
@@ -54,7 +55,7 @@ pub fn customer_credits() -> Router {
 }
 
 /// 五维管理路由（nest 到 /api/v1/erp/five-dimension）
-pub fn five_dimension() -> Router {
+pub fn five_dimension() -> Router<AppState> {
     Router::new()
         .route(
             "/stats",
@@ -83,7 +84,7 @@ pub fn five_dimension() -> Router {
 }
 
 /// 销售分析路由（nest 到 /api/v1/erp/sales-analysis）
-pub fn sales_analysis() -> Router {
+pub fn sales_analysis() -> Router<AppState> {
     Router::new()
         .route("/statistics", get(sales_analysis_handler::list_statistics))
         .route("/trends", get(sales_analysis_handler::get_trends))
@@ -108,7 +109,7 @@ pub fn sales_analysis() -> Router {
 }
 
 /// CRM 客户增强路由（nest 到 /api/v1/erp/crm/customers）
-pub fn crm_customers() -> Router {
+pub fn crm_customers() -> Router<AppState> {
     Router::new()
         .route(
             "/",
@@ -129,7 +130,7 @@ pub fn crm_customers() -> Router {
 }
 
 /// CRM 标签路由（nest 到 /api/v1/erp/crm/tags）
-pub fn crm_tags() -> Router {
+pub fn crm_tags() -> Router<AppState> {
     Router::new()
         .route(
             "/",
@@ -139,7 +140,7 @@ pub fn crm_tags() -> Router {
 }
 
 /// CRM 公海池路由（nest 到 /api/v1/erp/crm/pool）
-pub fn crm_pool() -> Router {
+pub fn crm_pool() -> Router<AppState> {
     Router::new()
         .route("/", get(crm_pool_handler::list_pool))
         .route("/claim", post(crm_pool_handler::claim_from_pool))
@@ -152,7 +153,7 @@ pub fn crm_pool() -> Router {
 }
 
 /// CRM 分配路由（nest 到 /api/v1/erp/crm/assignments）
-pub fn crm_assignments() -> Router {
+pub fn crm_assignments() -> Router<AppState> {
     Router::new()
         .route(
             "/",
@@ -167,12 +168,12 @@ pub fn crm_assignments() -> Router {
 }
 
 /// CRM 销售用户路由（/api/v1/erp/crm/sales-users）
-pub fn crm_sales_users() -> Router {
+pub fn crm_sales_users() -> Router<AppState> {
     Router::new().route("/", get(missing_handlers::get_sales_users))
 }
 
 /// CRM 回收规则路由（nest 到 /api/v1/erp/crm/recycle-rules）
-pub fn crm_recycle_rules() -> Router {
+pub fn crm_recycle_rules() -> Router<AppState> {
     Router::new()
         .route(
             "/",
@@ -186,7 +187,7 @@ pub fn crm_recycle_rules() -> Router {
 }
 
 /// CRM 业务路由（线索/商机/客户 360/跟进/RFM，nest 到 /api/v1/erp/crm）
-pub fn crm_business() -> Router {
+pub fn crm_business() -> Router<AppState> {
     Router::new()
         .route(
             "/leads",
@@ -256,7 +257,7 @@ pub fn crm_business() -> Router {
 }
 
 /// CRM 域统一入口
-pub fn routes() -> Router {
+pub fn routes() -> Router<AppState> {
     Router::new()
         .merge(customers())
         .merge(customer_credits())

@@ -2,6 +2,7 @@
 //!
 //! 处理采购订单、采购合同、采购价格、采购收货、采购检验、采购退货、供应商、供应商评估等采购相关接口。
 
+use crate::utils::app_state::AppState;
 use axum::{
     routing::{delete, get, post, put},
     Router,
@@ -14,7 +15,7 @@ use crate::handlers::{
 };
 
 /// 采购订单路由（nest 到 /api/v1/erp/purchases）
-pub fn purchases() -> Router {
+pub fn purchases() -> Router<AppState> {
     Router::new()
         .route(
             "/orders/delivery-date",
@@ -163,7 +164,7 @@ pub fn purchases() -> Router {
 }
 
 /// 采购合同路由（nest 到 /api/v1/erp/purchase-contracts）
-pub fn purchase_contracts() -> Router {
+pub fn purchase_contracts() -> Router<AppState> {
     Router::new()
         .route("/", get(purchase_contract_handler::list_contracts))
         .route("/", post(purchase_contract_handler::create_contract))
@@ -185,7 +186,7 @@ pub fn purchase_contracts() -> Router {
 }
 
 /// 采购价格路由（nest 到 /api/v1/erp/purchase-prices）
-pub fn purchase_prices() -> Router {
+pub fn purchase_prices() -> Router<AppState> {
     Router::new()
         .route("/", get(purchase_price_handler::list_prices))
         .route("/", post(purchase_price_handler::create_price))
@@ -204,7 +205,7 @@ pub fn purchase_prices() -> Router {
 }
 
 /// 供应商路由（nest 到 /api/v1/erp/suppliers）
-pub fn suppliers() -> Router {
+pub fn suppliers() -> Router<AppState> {
     Router::new()
         .route("/", get(supplier_handler::list_suppliers))
         .route("/", post(supplier_handler::create_supplier))
@@ -242,7 +243,7 @@ pub fn suppliers() -> Router {
 }
 
 /// 供应商评估路由（nest 到 /api/v1/erp/supplier-evaluation/evaluations）
-pub fn supplier_evaluations() -> Router {
+pub fn supplier_evaluations() -> Router<AppState> {
     Router::new()
         .route("/", get(supplier_evaluation_handler::list_evaluations))
         .route("/", post(supplier_evaluation_handler::create_evaluation))
@@ -285,7 +286,7 @@ pub fn supplier_evaluations() -> Router {
 }
 
 /// 采购域统一入口
-pub fn routes() -> Router {
+pub fn routes() -> Router<AppState> {
     Router::new()
         .merge(purchases())
         .merge(purchase_contracts())

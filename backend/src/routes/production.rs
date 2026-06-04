@@ -3,6 +3,7 @@
 //! 处理生产订单、MRP 物料需求计划、生产排程、产能、缺料预警、质量检验/标准、成本归集、
 //! 缸号/染色批次/染色配方、坯布等生产与工艺相关接口。
 
+use crate::utils::app_state::AppState;
 use axum::{
     routing::{delete, get, post, put},
     Router,
@@ -16,7 +17,7 @@ use crate::handlers::{
 };
 
 /// 缸号管理路由（nest 到 /api/v1/erp/dye-batches）
-pub fn dye_batches() -> Router {
+pub fn dye_batches() -> Router<AppState> {
     Router::new()
         .route("/", get(dye_batch_handler::list_dye_batches))
         .route("/", post(dye_batch_handler::create_dye_batch))
@@ -32,7 +33,7 @@ pub fn dye_batches() -> Router {
 }
 
 /// 坯布管理路由（nest 到 /api/v1/erp/greige-fabrics）
-pub fn greige_fabrics() -> Router {
+pub fn greige_fabrics() -> Router<AppState> {
     Router::new()
         .route("/", get(greige_fabric_handler::list_greige_fabrics))
         .route("/", post(greige_fabric_handler::create_greige_fabric))
@@ -48,7 +49,7 @@ pub fn greige_fabrics() -> Router {
 }
 
 /// 染色配方路由（nest 到 /api/v1/erp/dye-recipes）
-pub fn dye_recipes() -> Router {
+pub fn dye_recipes() -> Router<AppState> {
     Router::new()
         .route("/", get(dye_recipe_handler::list_dye_recipes))
         .route("/", post(dye_recipe_handler::create_dye_recipe))
@@ -70,7 +71,7 @@ pub fn dye_recipes() -> Router {
 }
 
 /// 质量检验路由（nest 到 /api/v1/erp/quality-inspection）
-pub fn quality_inspection() -> Router {
+pub fn quality_inspection() -> Router<AppState> {
     Router::new()
         .route(
             "/standards",
@@ -95,7 +96,7 @@ pub fn quality_inspection() -> Router {
 }
 
 /// 质量标准路由（nest 到 /api/v1/erp/quality-standards）
-pub fn quality_standards() -> Router {
+pub fn quality_standards() -> Router<AppState> {
     Router::new()
         .route("/", get(quality_standard_handler::list_standards))
         .route("/", post(quality_standard_handler::create_standard))
@@ -121,7 +122,7 @@ pub fn quality_standards() -> Router {
 }
 
 /// 成本归集路由（nest 到 /api/v1/erp/cost-collections）
-pub fn cost_collections() -> Router {
+pub fn cost_collections() -> Router<AppState> {
     Router::new()
         .route("/", get(cost_collection_handler::list_collections))
         .route("/", post(cost_collection_handler::create_collection))
@@ -143,7 +144,7 @@ pub fn cost_collections() -> Router {
 }
 
 /// 生产订单路由（nest 到 /api/v1/erp/production）
-pub fn production() -> Router {
+pub fn production() -> Router<AppState> {
     Router::new()
         .route(
             "/orders",
@@ -179,7 +180,7 @@ pub fn production() -> Router {
 }
 
 /// MRP 物料需求计划路由（nest 到 /api/v1/erp/mrp）
-pub fn mrp() -> Router {
+pub fn mrp() -> Router<AppState> {
     Router::new()
         .route("/calculate", post(mrp_handler::calculate_mrp))
         .route("/results", get(mrp_handler::get_mrp_results))
@@ -189,7 +190,7 @@ pub fn mrp() -> Router {
 }
 
 /// MRP 历史记录路由（nest 到 /api/v1/erp/mrp/history）
-pub fn mrp_history() -> Router {
+pub fn mrp_history() -> Router<AppState> {
     Router::new()
         .route("/", get(missing_handlers::get_mrp_history))
         .route("/:id", get(missing_handlers::get_mrp_history_detail))
@@ -202,7 +203,7 @@ pub fn mrp_history() -> Router {
 }
 
 /// 生产排程路由（nest 到 /api/v1/erp/scheduling）
-pub fn scheduling() -> Router {
+pub fn scheduling() -> Router<AppState> {
     Router::new()
         .route("/auto-schedule", post(scheduling_handler::auto_schedule))
         .route("/gantt", get(scheduling_handler::get_gantt_data))
@@ -226,7 +227,7 @@ pub fn scheduling() -> Router {
 }
 
 /// 产能分析路由（nest 到 /api/v1/erp/capacity）
-pub fn capacity() -> Router {
+pub fn capacity() -> Router<AppState> {
     Router::new()
         .route("/overview", get(capacity_handler::get_capacity_overview))
         .route("/summary", get(capacity_handler::get_capacity_overview))
@@ -256,7 +257,7 @@ pub fn capacity() -> Router {
 }
 
 /// 缺料预警路由（nest 到 /api/v1/erp/material-shortage）
-pub fn material_shortage() -> Router {
+pub fn material_shortage() -> Router<AppState> {
     Router::new()
         .route(
             "/alerts",
@@ -290,7 +291,7 @@ pub fn material_shortage() -> Router {
 }
 
 /// 生产域统一入口
-pub fn routes() -> Router {
+pub fn routes() -> Router<AppState> {
     Router::new()
         .merge(dye_batches())
         .merge(greige_fabrics())

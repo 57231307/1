@@ -7,6 +7,7 @@
 //! 占位路由：返回 404 + 提示信息。生产环境由主 `mod.rs` 接管，
 //! 不应在最终部署版本中直接 nest 此模块。
 
+use crate::utils::app_state::AppState;
 use axum::{http::StatusCode, response::IntoResponse, routing::get, Router};
 
 async fn v1_placeholder() -> impl IntoResponse {
@@ -17,6 +18,6 @@ async fn v1_placeholder() -> impl IntoResponse {
 }
 
 /// 统一入口（占位）
-pub fn routes() -> Router {
+pub fn routes() -> Router<AppState> {
     Router::new().route("/", get(v1_placeholder))
 }

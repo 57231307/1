@@ -2,6 +2,7 @@
 //!
 //! 处理产品、产品类别、仓库、BOM 物料清单等目录相关接口。
 
+use crate::utils::app_state::AppState;
 use axum::{
     routing::{delete, get, post, put},
     Router,
@@ -12,7 +13,7 @@ use crate::handlers::{
 };
 
 /// 产品路由（nest 到 /api/v1/erp/products）
-pub fn products() -> Router {
+pub fn products() -> Router<AppState> {
     Router::new()
         .route("/", get(product_handler::list_products))
         .route("/", post(product_handler::create_product))
@@ -61,7 +62,7 @@ pub fn products() -> Router {
 }
 
 /// 产品类别路由（nest 到 /api/v1/erp/product-categories）
-pub fn product_categories() -> Router {
+pub fn product_categories() -> Router<AppState> {
     Router::new()
         .route("/", get(product_category_handler::list))
         .route("/", post(product_category_handler::create))
@@ -75,7 +76,7 @@ pub fn product_categories() -> Router {
 }
 
 /// 仓库路由（nest 到 /api/v1/erp/warehouses）
-pub fn warehouses() -> Router {
+pub fn warehouses() -> Router<AppState> {
     Router::new()
         .route("/", get(warehouse_handler::list))
         .route("/", post(warehouse_handler::create))
@@ -91,7 +92,7 @@ pub fn warehouses() -> Router {
 }
 
 /// BOM 物料清单路由（nest 到 /api/v1/erp/boms）
-pub fn boms() -> Router {
+pub fn boms() -> Router<AppState> {
     Router::new()
         .route(
             "/",
@@ -116,7 +117,7 @@ pub fn boms() -> Router {
 }
 
 /// 目录域统一入口
-pub fn routes() -> Router {
+pub fn routes() -> Router<AppState> {
     Router::new()
         .merge(products())
         .merge(product_categories())

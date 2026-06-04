@@ -21,7 +21,7 @@ use crate::handlers::{
 use crate::utils::app_state::AppState;
 
 /// 财务主路由（nest 到 /api/v1/erp/finance）
-pub fn finance(state: AppState) -> Router {
+pub fn finance(state: AppState) -> Router<AppState> {
     Router::new()
         .route("/payments", get(finance_payment_handler::list_payments))
         .route("/payments", post(finance_payment_handler::create_payment))
@@ -105,7 +105,7 @@ pub fn finance(state: AppState) -> Router {
 }
 
 /// 总账路由（nest 到 /api/v1/erp/gl）
-pub fn gl() -> Router {
+pub fn gl() -> Router<AppState> {
     Router::new()
         .route("/subjects", get(account_subject_handler::list_subjects))
         .route(
@@ -143,7 +143,7 @@ pub fn gl() -> Router {
 }
 
 /// 固定资产路由（nest 到 /api/v1/erp/fixed-assets）
-pub fn fixed_assets() -> Router {
+pub fn fixed_assets() -> Router<AppState> {
     Router::new()
         .route("/", get(fixed_asset_handler::list_assets))
         .route("/", post(fixed_asset_handler::create_asset))
@@ -162,7 +162,7 @@ pub fn fixed_assets() -> Router {
 }
 
 /// 预算管理路由（nest 到 /api/v1/erp/budgets）
-pub fn budgets() -> Router {
+pub fn budgets() -> Router<AppState> {
     Router::new()
         .route("/", get(budget_management_handler::list_budgets))
         .route("/", post(budget_management_handler::create_budget))
@@ -221,7 +221,7 @@ pub fn budgets() -> Router {
 }
 
 /// 财务分析路由（nest 到 /api/v1/erp/financial-analysis）
-pub fn financial_analysis() -> Router {
+pub fn financial_analysis() -> Router<AppState> {
     Router::new()
         .route("/reports", get(financial_analysis_handler::list_reports))
         .route("/reports", post(financial_analysis_handler::create_report))
@@ -243,7 +243,7 @@ pub fn financial_analysis() -> Router {
 }
 
 /// 资金管理路由（nest 到 /api/v1/erp/fund-management）
-pub fn fund_management() -> Router {
+pub fn fund_management() -> Router<AppState> {
     Router::new()
         .route("/accounts", get(fund_management_handler::list_accounts))
         .route("/accounts", post(fund_management_handler::create_account))
@@ -281,7 +281,7 @@ pub fn fund_management() -> Router {
 }
 
 /// AP 应付账款路由（nest 到 /api/v1/erp/ap）
-pub fn ap() -> Router {
+pub fn ap() -> Router<AppState> {
     Router::new()
         .route("/invoices", get(ap_invoice_handler::list_ap_invoices))
         .route("/invoices", post(ap_invoice_handler::create_ap_invoice))
@@ -428,7 +428,7 @@ pub fn ap() -> Router {
 }
 
 /// AR 应收账款路由（nest 到 /api/v1/erp/ar）
-pub fn ar() -> Router {
+pub fn ar() -> Router<AppState> {
     Router::new()
         .route("/invoices", get(ar_invoice_handler::list_ar_invoices))
         .route("/invoices", post(ar_invoice_handler::create_ar_invoice))
@@ -495,7 +495,7 @@ pub fn ar() -> Router {
 }
 
 /// 应收对账增强路由（nest 到 /api/v1/erp/ar-reconciliations/enhanced）
-pub fn ar_reconciliations_enhanced() -> Router {
+pub fn ar_reconciliations_enhanced() -> Router<AppState> {
     Router::new()
         .route(
             "/auto-match",
@@ -528,7 +528,7 @@ pub fn ar_reconciliations_enhanced() -> Router {
 }
 
 /// 应收对账别名路由（nest 到 /api/v1/erp/ar-reconciliation）
-pub fn ar_reconciliation_alias() -> Router {
+pub fn ar_reconciliation_alias() -> Router<AppState> {
     Router::new()
         .route(
             "/auto-reconcile",
@@ -575,7 +575,7 @@ pub fn ar_reconciliation_alias() -> Router {
 }
 
 /// 应收对账路由（nest 到 /api/v1/erp/ar-reconciliations）
-pub fn ar_reconciliations() -> Router {
+pub fn ar_reconciliations() -> Router<AppState> {
     Router::new()
         .route(
             "/",
@@ -590,7 +590,7 @@ pub fn ar_reconciliations() -> Router {
 }
 
 /// 多币种路由（nest 到 /api/v1/erp/currencies）
-pub fn currencies() -> Router {
+pub fn currencies() -> Router<AppState> {
     Router::new()
         .route("/", get(currency_handler::list_currencies))
         .route("/base", get(currency_handler::get_base_currency))
@@ -607,7 +607,7 @@ pub fn currencies() -> Router {
 }
 
 /// 汇率路由（nest 到 /api/v1/erp/exchange-rates）
-pub fn exchange_rates() -> Router {
+pub fn exchange_rates() -> Router<AppState> {
     Router::new()
         .route(
             "/",
@@ -617,7 +617,7 @@ pub fn exchange_rates() -> Router {
 }
 
 /// 财务域统一入口
-pub fn routes(state: AppState) -> Router {
+pub fn routes(state: AppState) -> Router<AppState> {
     Router::new()
         .merge(finance(state.clone()))
         .merge(gl())

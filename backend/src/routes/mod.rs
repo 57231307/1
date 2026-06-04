@@ -53,8 +53,12 @@ pub mod v1;
 ///
 /// 共享同一前缀的四个域（iam / catalog / analytics / system）必须先 merge 再整体 nest，
 /// 否则连续 `.nest("/api/v1/erp", ...)` 会因后注册路由被前一个覆盖。
-fn build_erp_root_router() -> Router {
-    iam::routes()
+///
+/// **重要**：返回类型必须显式标注 `Router<AppState>`，否则编译器会把类型
+/// 锁定为 `Router<()>`，导致后续 nest 时类型不匹配。
+fn build_erp_root_router() -> Router<AppState> {
+    Router::<AppState>::new()
+        .merge(iam::routes())
         .merge(catalog::routes())
         .merge(analytics::routes())
         .merge(system::routes())
@@ -83,8 +87,11 @@ fn build_infrastructure_routes() -> Router {
 ///
 /// 将 14 个业务域子路由 + 监控 / 文档 / 静态资源拼装为统一入口。
 /// 顶层只保留路径装配与 SQL 注入审计中间件挂载，所有具体路由定义下沉到子文件。
-pub fn create_router(state: AppState) -> Router {
-    Router::new()
+///
+/// **重要**：返回类型必须显式标注 `Router<AppState>` 并使用 `Router::<AppState>::new()`，
+/// 否则编译器会把类型锁定为 `Router<()>`，导致 `with_state(state)` 失败。
+pub fn create_router(state: AppState) -> Router<AppState> {
+    Router::<AppState>::new()
         // ---- 14 个业务域（合并前缀 + 独立前缀）----
         .nest("/api/v1/erp", build_erp_root_router())
         .nest("/api/v1/erp/auth", auth::routes())

@@ -2,6 +2,7 @@
 //!
 //! 处理登录、登出、刷新、CSRF、TOTP、当前用户等认证相关接口。
 
+use crate::utils::app_state::AppState;
 use axum::{
     middleware,
     routing::{get, post},
@@ -11,7 +12,7 @@ use axum::{
 use crate::handlers::auth_handler;
 use crate::middleware::rate_limit;
 
-pub fn routes() -> Router {
+pub fn routes() -> Router<AppState> {
     Router::new()
         .route("/login", post(auth_handler::login))
         .route("/logout", post(auth_handler::logout))

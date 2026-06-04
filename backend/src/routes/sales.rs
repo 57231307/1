@@ -2,6 +2,7 @@
 //!
 //! 处理销售订单、销售合同、销售价格、销售退货、面料销售订单等销售相关接口。
 
+use crate::utils::app_state::AppState;
 use axum::{
     routing::{delete, get, post, put},
     Router,
@@ -13,7 +14,7 @@ use crate::handlers::{
 };
 
 /// 销售订单路由（nest 到 /api/v1/erp/sales）
-pub fn sales() -> Router {
+pub fn sales() -> Router<AppState> {
     Router::new()
         .route("/orders", get(sales_order_handler::list_orders))
         .route("/orders", post(sales_order_handler::create_order))
@@ -86,7 +87,7 @@ pub fn sales() -> Router {
 }
 
 /// 销售合同路由（nest 到 /api/v1/erp/sales-contracts）
-pub fn sales_contracts() -> Router {
+pub fn sales_contracts() -> Router<AppState> {
     Router::new()
         .route("/", get(sales_contract_handler::list_contracts))
         .route("/", post(sales_contract_handler::create_contract))
@@ -106,7 +107,7 @@ pub fn sales_contracts() -> Router {
 }
 
 /// 销售价格路由（nest 到 /api/v1/erp/sales-prices）
-pub fn sales_prices() -> Router {
+pub fn sales_prices() -> Router<AppState> {
     Router::new()
         .route("/", get(sales_price_handler::list_prices))
         .route("/", post(sales_price_handler::create_price))
@@ -127,12 +128,12 @@ pub fn sales_prices() -> Router {
 /// 销售退货路由（nest 到 /api/v1/erp/sales-returns）
 ///
 /// 由 sales_return_handler 模块内部定义路由（router() 函数返回）
-pub fn sales_returns() -> Router {
+pub fn sales_returns() -> Router<AppState> {
     sales_return_handler::router()
 }
 
 /// 销售域统一入口
-pub fn routes() -> Router {
+pub fn routes() -> Router<AppState> {
     Router::new()
         .merge(sales())
         .merge(sales_contracts())

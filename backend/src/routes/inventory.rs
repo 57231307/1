@@ -2,6 +2,7 @@
 //!
 //! 处理库存、调拨、调整、盘点、预留、批次、物流等库存相关接口。
 
+use crate::utils::app_state::AppState;
 use axum::{
     routing::{delete, get, post, put},
     Router,
@@ -14,7 +15,7 @@ use crate::handlers::{
 };
 
 /// 库存主路由（nest 到 /api/v1/erp/inventory）
-pub fn inventory() -> Router {
+pub fn inventory() -> Router<AppState> {
     Router::new()
         .route(
             "/piece-split",
@@ -164,7 +165,7 @@ pub fn inventory() -> Router {
 }
 
 /// 批次管理路由（nest 到 /api/v1/erp/batches）
-pub fn batches() -> Router {
+pub fn batches() -> Router<AppState> {
     Router::new()
         .route("/", get(inventory_batch_handler::list_batches))
         .route("/", post(inventory_batch_handler::create_batch))
@@ -178,7 +179,7 @@ pub fn batches() -> Router {
 }
 
 /// 物流管理路由（nest 到 /api/v1/erp/logistics）
-pub fn logistics() -> Router {
+pub fn logistics() -> Router<AppState> {
     Router::new()
         .route("/", get(logistics_handler::list_waybills))
         .route("/", post(logistics_handler::create_waybill))
@@ -188,7 +189,7 @@ pub fn logistics() -> Router {
 }
 
 /// 库存域统一入口
-pub fn routes() -> Router {
+pub fn routes() -> Router<AppState> {
     Router::new()
         .merge(inventory())
         .merge(batches())

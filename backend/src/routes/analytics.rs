@@ -4,6 +4,7 @@
 //! 登录安全、邮件、导入导出、Webhook、API 密钥、数据权限、消息通知、用户通知偏好、
 //! 交易管理、Advanced 分析、页面访问统计、跟踪等高级功能与系统级横切接口。
 
+use crate::utils::app_state::AppState;
 use axum::{
     routing::{delete, get, post, put},
     Router,
@@ -19,7 +20,7 @@ use crate::handlers::{
 };
 
 /// 双计量单位路由（nest 到 /api/v1/erp/dual-unit）
-pub fn dual_unit() -> Router {
+pub fn dual_unit() -> Router<AppState> {
     Router::new()
         .route(
             "/convert",
@@ -32,7 +33,7 @@ pub fn dual_unit() -> Router {
 }
 
 /// 辅助核算路由（nest 到 /api/v1/erp/assist-accounting）
-pub fn assist_accounting() -> Router {
+pub fn assist_accounting() -> Router<AppState> {
     Router::new()
         .route(
             "/dimensions",
@@ -57,7 +58,7 @@ pub fn assist_accounting() -> Router {
 }
 
 /// 业务追溯路由（nest 到 /api/v1/erp/business-trace）
-pub fn business_trace() -> Router {
+pub fn business_trace() -> Router<AppState> {
     Router::new()
         .route(
             "/five-dimension/:five_dimension_id",
@@ -72,7 +73,7 @@ pub fn business_trace() -> Router {
 }
 
 /// 扫码出库路由（nest 到 /api/v1/erp/scanner）
-pub fn scanner() -> Router {
+pub fn scanner() -> Router<AppState> {
     Router::new()
         .route(
             "/scan-to-ship",
@@ -88,7 +89,7 @@ pub fn scanner() -> Router {
 }
 
 /// 报表增强路由（nest 到 /api/v1/erp/reports/enhanced）
-pub fn reports_enhanced() -> Router {
+pub fn reports_enhanced() -> Router<AppState> {
     Router::new()
         .route(
             "/fields/:template_type",
@@ -145,7 +146,7 @@ pub fn reports_enhanced() -> Router {
 }
 
 /// 导入路由（nest 到 /api/v1/erp/import）
-pub fn imports() -> Router {
+pub fn imports() -> Router<AppState> {
     Router::new()
         .route("/csv", post(import_export_handler::import_csv))
         .route("/excel", post(import_export_handler::import_excel))
@@ -156,7 +157,7 @@ pub fn imports() -> Router {
 }
 
 /// 导出路由（nest 到 /api/v1/erp/export）
-pub fn exports() -> Router {
+pub fn exports() -> Router<AppState> {
     Router::new()
         .route("/csv/:export_type", get(import_export_handler::export_csv))
         .route(
@@ -166,7 +167,7 @@ pub fn exports() -> Router {
 }
 
 /// 审计日志路由（nest 到 /api/v1/erp/audit）
-pub fn audit() -> Router {
+pub fn audit() -> Router<AppState> {
     Router::new()
         .route("/logs", get(audit_enhanced_handler::list_audit_logs))
         .route(
@@ -176,7 +177,7 @@ pub fn audit() -> Router {
 }
 
 /// 登录安全路由（nest 到 /api/v1/erp/security）
-pub fn security() -> Router {
+pub fn security() -> Router<AppState> {
     Router::new()
         .route("/login-logs", get(login_security_handler::list_login_logs))
         .route(
@@ -213,7 +214,7 @@ pub fn security() -> Router {
 }
 
 /// 邮件路由（nest 到 /api/v1/erp/emails）
-pub fn emails() -> Router {
+pub fn emails() -> Router<AppState> {
     Router::new()
         .route("/send", post(email_handler::send_email))
         .route(
@@ -231,7 +232,7 @@ pub fn emails() -> Router {
 }
 
 /// Webhook 集成路由（nest 到 /api/v1/erp/webhooks/integrations）
-pub fn webhook_integrations() -> Router {
+pub fn webhook_integrations() -> Router<AppState> {
     Router::new()
         .route(
             "/",
@@ -262,7 +263,7 @@ pub fn webhook_integrations() -> Router {
 }
 
 /// AI 智能分析路由（nest 到 /api/v1/erp/ai）
-pub fn ai() -> Router {
+pub fn ai() -> Router<AppState> {
     Router::new()
         .route("/forecast-sales", get(ai_analysis_handler::forecast_sales))
         .route(
@@ -280,7 +281,7 @@ pub fn ai() -> Router {
 }
 
 /// 报表引擎路由（nest 到 /api/v1/erp/reports）
-pub fn reports() -> Router {
+pub fn reports() -> Router<AppState> {
     Router::new()
         .route("/templates", get(report_engine_handler::list_templates))
         .route("/execute", get(report_engine_handler::execute_report))
@@ -293,7 +294,7 @@ pub fn reports() -> Router {
 }
 
 /// Webhook 路由（nest 到 /api/v1/erp/webhooks）
-pub fn webhooks() -> Router {
+pub fn webhooks() -> Router<AppState> {
     Router::new()
         .route(
             "/",
@@ -303,7 +304,7 @@ pub fn webhooks() -> Router {
 }
 
 /// API 密钥路由（nest 到 /api/v1/erp/api-keys）
-pub fn api_keys() -> Router {
+pub fn api_keys() -> Router<AppState> {
     Router::new()
         .route(
             "/",
@@ -313,7 +314,7 @@ pub fn api_keys() -> Router {
 }
 
 /// 数据权限路由（nest 到 /api/v1/erp/data-permissions）
-pub fn data_permissions() -> Router {
+pub fn data_permissions() -> Router<AppState> {
     Router::new()
         .route(
             "/",
@@ -336,7 +337,7 @@ pub fn data_permissions() -> Router {
 }
 
 /// 消息通知路由（nest 到 /api/v1/erp/notifications）
-pub fn notifications() -> Router {
+pub fn notifications() -> Router<AppState> {
     Router::new()
         .route("/", get(notification_handler::list_notifications))
         .route("/unread-count", get(notification_handler::get_unread_count))
@@ -355,7 +356,7 @@ pub fn notifications() -> Router {
 }
 
 /// 用户通知偏好设置路由（nest 到 /api/v1/erp/user/notification-setting）
-pub fn user_notification_settings() -> Router {
+pub fn user_notification_settings() -> Router<AppState> {
     Router::new().route(
         "/",
         get(user_notification_setting_handler::get_setting)
@@ -364,7 +365,7 @@ pub fn user_notification_settings() -> Router {
 }
 
 /// 交易管理路由（nest 到 /api/v1/erp/trading）
-pub fn trading() -> Router {
+pub fn trading() -> Router<AppState> {
     Router::new()
         .route(
             "/purchase-contracts",
@@ -439,7 +440,7 @@ pub fn trading() -> Router {
 }
 
 /// Advanced 分析路由（nest 到 /api/v1/erp/advanced）
-pub fn advanced() -> Router {
+pub fn advanced() -> Router<AppState> {
     Router::new()
         .route("/ai/sales-forecast", post(advanced_handler::sales_forecast))
         .route(
@@ -471,12 +472,12 @@ pub fn advanced() -> Router {
 }
 
 /// 页面访问统计路由（nest 到 /api/tracking）
-pub fn tracking() -> Router {
+pub fn tracking() -> Router<AppState> {
     Router::new().route("/page-view", post(tracking_handler::track_page_view))
 }
 
 /// 分析域统一入口
-pub fn routes() -> Router {
+pub fn routes() -> Router<AppState> {
     Router::new()
         .merge(dual_unit())
         .merge(assist_accounting())

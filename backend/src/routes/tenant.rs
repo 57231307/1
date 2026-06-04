@@ -2,6 +2,7 @@
 //!
 //! 处理租户管理、租户配置、租户计费等 SaaS 多租户相关接口。
 
+use crate::utils::app_state::AppState;
 use axum::{
     routing::{delete, get, post, put},
     Router,
@@ -10,7 +11,7 @@ use axum::{
 use crate::handlers::{tenant_billing_handler, tenant_config_handler, tenant_handler};
 
 /// 租户管理路由（nest 到 /api/v1/erp/tenants）
-pub fn tenants() -> Router {
+pub fn tenants() -> Router<AppState> {
     Router::new()
         .route(
             "/",
@@ -21,7 +22,7 @@ pub fn tenants() -> Router {
 }
 
 /// 租户配置路由（nest 到 /api/v1/erp/tenant/config）
-pub fn tenant_config() -> Router {
+pub fn tenant_config() -> Router<AppState> {
     Router::new()
         .route(
             "/settings",
@@ -40,7 +41,7 @@ pub fn tenant_config() -> Router {
 }
 
 /// 租户计费路由（nest 到 /api/v1/erp/tenant/billing）
-pub fn tenant_billing() -> Router {
+pub fn tenant_billing() -> Router<AppState> {
     Router::new()
         .route("/plan", get(tenant_billing_handler::get_current_plan))
         .route("/upgrade", post(tenant_billing_handler::upgrade_plan))
@@ -50,7 +51,7 @@ pub fn tenant_billing() -> Router {
 }
 
 /// 租户域统一入口
-pub fn routes() -> Router {
+pub fn routes() -> Router<AppState> {
     Router::new()
         .merge(tenants())
         .merge(tenant_config())

@@ -3,6 +3,7 @@
 //! 处理用户、角色、权限、部门等身份与访问管理相关接口。
 //! 提供多个子路由供主 mod.rs 在不同路径下 nest。
 
+use crate::utils::app_state::AppState;
 use axum::{
     routing::{delete, get, post, put},
     Router,
@@ -13,7 +14,7 @@ use crate::handlers::{
 };
 
 /// 用户管理路由（nest 到 /api/v1/erp/users）
-pub fn users() -> Router {
+pub fn users() -> Router<AppState> {
     Router::new()
         .route("/", get(user_handler::list_users))
         .route("/", post(user_handler::create_user))
@@ -25,7 +26,7 @@ pub fn users() -> Router {
 }
 
 /// 角色管理路由（nest 到 /api/v1/erp/roles）
-pub fn roles() -> Router {
+pub fn roles() -> Router<AppState> {
     Router::new()
         .route("/", get(role_handler::list_roles))
         .route("/", post(role_handler::create_role))
@@ -39,7 +40,7 @@ pub fn roles() -> Router {
 }
 
 /// 部门管理路由（nest 到 /api/v1/erp/departments）
-pub fn departments() -> Router {
+pub fn departments() -> Router<AppState> {
     Router::new()
         .route("/", get(department_handler::list))
         .route("/", post(department_handler::create))
@@ -50,12 +51,12 @@ pub fn departments() -> Router {
 }
 
 /// 权限管理路由（nest 到 /api/v1/erp/permissions）
-pub fn permissions() -> Router {
+pub fn permissions() -> Router<AppState> {
     Router::new().route("/", get(role_handler::list_permissions))
 }
 
 /// 字段权限路由（nest 到 /api/v1/erp/permissions/fields）
-pub fn field_permissions() -> Router {
+pub fn field_permissions() -> Router<AppState> {
     Router::new()
         .route(
             "/",
@@ -71,7 +72,7 @@ pub fn field_permissions() -> Router {
 }
 
 /// IAM 域统一入口（合并所有子路由）
-pub fn routes() -> Router {
+pub fn routes() -> Router<AppState> {
     Router::new()
         .merge(users())
         .merge(roles())
