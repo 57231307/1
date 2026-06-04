@@ -2,8 +2,6 @@
 
 use axum::{
     extract::{Path, Query, State},
-    http::StatusCode,
-    response::IntoResponse,
     Json,
 };
 use chrono::{DateTime, Utc};
@@ -11,8 +9,10 @@ use rust_decimal::Decimal;
 use sea_orm::{ColumnTrait, EntityTrait, PaginatorTrait, QueryFilter, TransactionTrait};
 use serde::Deserialize;
 
+use crate::middleware::auth_context::AuthContext;
 use crate::models::inventory_stock;
 use crate::utils::app_state::AppState;
+use crate::utils::error::AppError;
 use crate::utils::response::{ApiResponse, PaginatedResponse};
 
 /// 查询参数 - 批次列表
@@ -78,55 +78,44 @@ pub struct TransferBatchRequest {
 pub async fn list_batches(
     State(state): State<AppState>,
     Query(query): Query<BatchListQuery>,
-) -> impl IntoResponse {
+    _auth: AuthContext,
+) -> Result<Json<ApiResponse<PaginatedResponse<inventory_stock::Model>>>, AppError> {
     let page = query.page.unwrap_or(1);
     let page_size = query.page_size.unwrap_or(20);
 
     // 使用库存服务查询批次
-    match inventory_stock::Entity::find()
+    let batches = inventory_stock::Entity::find()
         .filter(inventory_stock::Column::BatchNo.ne(""))
         .paginate(&*state.db, page_size)
         .fetch_page(page - 1)
         .await
-    {
-        Ok(batches) => {
-            let total = batches.len() as u64;
-            let paginated = PaginatedResponse::new(batches, total, page, page_size);
-            paginated.into_response()
-        }
-        Err(e) => (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            Json(ApiResponse::<()>::error(format!("获取批次列表失败：{}", e))),
-        )
-            .into_response(),
-    }
+        .map_err(|e| AppError::database(format!("获取批次列表失败：{}", e)))?;
+
+    let total = batches.len() as u64;
+    let paginated = PaginatedResponse::new(batches, total, page, page_size);
+    Ok(Json(ApiResponse::success(paginated)))
 }
 
 /// 获取批次详情
-pub async fn get_batch(State(state): State<AppState>, Path(id): Path<i32>) -> impl IntoResponse {
-    match inventory_stock::Entity::find_by_id(id)
+pub async fn get_batch(
+    State(state): State<AppState>,
+    Path(id): Path<i32>,
+    _auth: AuthContext,
+) -> Result<Json<ApiResponse<inventory_stock::Model>>, AppError> {
+    let batch = inventory_stock::Entity::find_by_id(id)
         .one(&*state.db)
         .await
-    {
-        Ok(Some(batch)) => (StatusCode::OK, Json(ApiResponse::success(batch))).into_response(),
-        Ok(None) => (
-            StatusCode::NOT_FOUND,
-            Json(ApiResponse::<()>::error("批次不存在")),
-        )
-            .into_response(),
-        Err(e) => (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            Json(ApiResponse::<()>::error(format!("获取批次失败：{}", e))),
-        )
-            .into_response(),
-    }
+        .map_err(|e| AppError::database(format!("获取批次失败：{}", e)))?
+        .ok_or_else(|| AppError::not_found("批次不存在"))?;
+    Ok(Json(ApiResponse::success(batch)))
 }
 
 /// 创建批次（入库）
 pub async fn create_batch(
     State(state): State<AppState>,
+    _auth: AuthContext,
     Json(req): Json<CreateBatchRequest>,
-) -> impl IntoResponse {
+) -> Result<Json<ApiResponse<inventory_stock::Model>>, AppError> {
     use crate::models::inventory_stock;
     use sea_orm::{ActiveModelTrait, Set};
 
@@ -175,49 +164,30 @@ pub async fn create_batch(
         quantity_shipped: Set(Decimal::ZERO),
     };
 
-    match batch.insert(&*state.db).await {
-        Ok(created) => (
-            StatusCode::CREATED,
-            Json(ApiResponse::success_with_message(created, "批次创建成功")),
-        )
-            .into_response(),
-        Err(e) => (
-            StatusCode::BAD_REQUEST,
-            Json(ApiResponse::<()>::error(format!("创建批次失败：{}", e))),
-        )
-            .into_response(),
-    }
+    let created = batch
+        .insert(&*state.db)
+        .await
+        .map_err(|e| AppError::bad_request(format!("创建批次失败：{}", e)))?;
+    Ok(Json(ApiResponse::success_with_message(created, "批次创建成功")))
 }
 
 /// 更新批次
 pub async fn update_batch(
     State(state): State<AppState>,
     Path(id): Path<i32>,
+    _auth: AuthContext,
     Json(req): Json<UpdateBatchRequest>,
-) -> impl IntoResponse {
+) -> Result<Json<ApiResponse<inventory_stock::Model>>, AppError> {
     use crate::models::inventory_stock;
     use sea_orm::{ActiveModelTrait, EntityTrait, Set};
 
-    let mut batch: inventory_stock::ActiveModel = match inventory_stock::Entity::find_by_id(id)
+    let existing = inventory_stock::Entity::find_by_id(id)
         .one(&*state.db)
         .await
-    {
-        Ok(Some(b)) => b.into(),
-        Ok(None) => {
-            return (
-                StatusCode::NOT_FOUND,
-                Json(ApiResponse::<()>::error("批次不存在")),
-            )
-                .into_response();
-        }
-        Err(e) => {
-            return (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                Json(ApiResponse::<()>::error(format!("获取批次失败：{}", e))),
-            )
-                .into_response();
-        }
-    };
+        .map_err(|e| AppError::database(format!("获取批次失败：{}", e)))?
+        .ok_or_else(|| AppError::not_found("批次不存在"))?;
+
+    let mut batch: inventory_stock::ActiveModel = existing.into();
 
     if let Some(color) = req.color_no {
         batch.color_no = Set(color);
@@ -253,87 +223,58 @@ pub async fn update_batch(
 
     batch.updated_at = Set(Utc::now());
 
-    match batch.update(&*state.db).await {
-        Ok(updated) => (
-            StatusCode::OK,
-            Json(ApiResponse::success_with_message(updated, "批次更新成功")),
-        )
-            .into_response(),
-        Err(e) => (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            Json(ApiResponse::<()>::error(format!("更新批次失败：{}", e))),
-        )
-            .into_response(),
-    }
+    let updated = batch
+        .update(&*state.db)
+        .await
+        .map_err(|e| AppError::database(format!("更新批次失败：{}", e)))?;
+    Ok(Json(ApiResponse::success_with_message(updated, "批次更新成功")))
 }
 
 /// 删除批次
-pub async fn delete_batch(State(state): State<AppState>, Path(id): Path<i32>) -> impl IntoResponse {
+pub async fn delete_batch(
+    State(state): State<AppState>,
+    Path(id): Path<i32>,
+    _auth: AuthContext,
+) -> Result<Json<ApiResponse<()>>, AppError> {
     use sea_orm::EntityTrait;
 
-    match inventory_stock::Entity::delete_by_id(id)
+    inventory_stock::Entity::delete_by_id(id)
         .exec(&*state.db)
         .await
-    {
-        Ok(_) => (
-            StatusCode::OK,
-            Json(ApiResponse::success_with_message((), "批次删除成功")),
-        )
-            .into_response(),
-        Err(e) => (
-            StatusCode::BAD_REQUEST,
-            Json(ApiResponse::<()>::error(format!("删除批次失败：{}", e))),
-        )
-            .into_response(),
-    }
+        .map_err(|e| AppError::bad_request(format!("删除批次失败：{}", e)))?;
+    Ok(Json(ApiResponse::success_with_message((), "批次删除成功")))
 }
 
 /// 批次转移（调拨）
 pub async fn transfer_batch(
     State(state): State<AppState>,
     Path(id): Path<i32>,
+    _auth: AuthContext,
     Json(req): Json<TransferBatchRequest>,
-) -> impl IntoResponse {
+) -> Result<Json<ApiResponse<()>>, AppError> {
     use crate::models::inventory_stock;
     use sea_orm::{ActiveModelTrait, EntityTrait, Set};
 
     // 开启事务
-    let txn = match state.db.begin().await {
-        Ok(t) => t,
-        Err(e) => {
-            return (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                Json(ApiResponse::<()>::error(format!("开启事务失败：{}", e))),
-            );
-        }
-    };
+    let txn = state
+        .db
+        .begin()
+        .await
+        .map_err(|e| AppError::database(format!("开启事务失败：{}", e)))?;
 
     // 查询源批次
-    let source_batch = match inventory_stock::Entity::find_by_id(id).one(&txn).await {
-        Ok(Some(b)) => b,
-        Ok(None) => {
-            return (
-                StatusCode::NOT_FOUND,
-                Json(ApiResponse::<()>::error("源批次不存在")),
-            );
-        }
-        Err(e) => {
-            return (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                Json(ApiResponse::<()>::error(format!("获取批次失败：{}", e))),
-            );
-        }
-    };
+    let source_batch = inventory_stock::Entity::find_by_id(id)
+        .one(&txn)
+        .await
+        .map_err(|e| AppError::database(format!("获取批次失败：{}", e)))?
+        .ok_or_else(|| AppError::not_found("源批次不存在"))?;
 
     let transfer_meters = Decimal::from_f64_retain(req.quantity_meters).unwrap_or(Decimal::ZERO);
     let transfer_kg = Decimal::from_f64_retain(req.quantity_kg).unwrap_or(Decimal::ZERO);
 
     // 检查库存是否足够
     if source_batch.quantity_available < transfer_meters {
-        return (
-            StatusCode::BAD_REQUEST,
-            Json(ApiResponse::<()>::error("库存数量不足")),
-        );
+        return Err(AppError::bad_request("库存数量不足"));
     }
 
     // 更新源批次库存
@@ -353,12 +294,10 @@ pub async fn transfer_batch(
     source.quantity_available = Set(source_quantity_available - transfer_meters);
     source.updated_at = Set(Utc::now());
 
-    if let Err(e) = source.update(&txn).await {
-        return (
-            StatusCode::BAD_REQUEST,
-            Json(ApiResponse::<()>::error(format!("更新源批次失败：{}", e))),
-        );
-    }
+    source
+        .update(&txn)
+        .await
+        .map_err(|e| AppError::bad_request(format!("更新源批次失败：{}", e)))?;
 
     // 查询目标仓库是否已有相同批次
     let target_batch = inventory_stock::Entity::find()
@@ -367,24 +306,23 @@ pub async fn transfer_batch(
         .filter(inventory_stock::Column::BatchNo.eq(source_batch_no.clone()))
         .filter(inventory_stock::Column::ColorNo.eq(source_color_no.clone()))
         .one(&txn)
-        .await;
+        .await
+        .map_err(|e| AppError::database(format!("查询目标批次失败：{}", e)))?;
 
     match target_batch {
-        Ok(Some(existing)) => {
+        Some(existing) => {
             // 更新现有批次
             let mut target: inventory_stock::ActiveModel = existing.clone().into();
             target.quantity_on_hand = Set(existing.quantity_on_hand + transfer_meters);
             target.quantity_available = Set(existing.quantity_available + transfer_meters);
             target.updated_at = Set(Utc::now());
 
-            if let Err(e) = target.update(&txn).await {
-                return (
-                    StatusCode::BAD_REQUEST,
-                    Json(ApiResponse::<()>::error(format!("更新目标批次失败：{}", e))),
-                );
-            }
+            target
+                .update(&txn)
+                .await
+                .map_err(|e| AppError::bad_request(format!("更新目标批次失败：{}", e)))?;
         }
-        Ok(None) => {
+        None => {
             // 创建新批次
             let new_batch = inventory_stock::ActiveModel {
                 id: Set(0),
@@ -420,31 +358,17 @@ pub async fn transfer_batch(
                 quantity_shipped: Set(Decimal::ZERO),
             };
 
-            if let Err(e) = new_batch.insert(&txn).await {
-                return (
-                    StatusCode::BAD_REQUEST,
-                    Json(ApiResponse::<()>::error(format!("创建目标批次失败：{}", e))),
-                );
-            }
-        }
-        Err(e) => {
-            return (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                Json(ApiResponse::<()>::error(format!("查询目标批次失败：{}", e))),
-            );
+            new_batch
+                .insert(&txn)
+                .await
+                .map_err(|e| AppError::bad_request(format!("创建目标批次失败：{}", e)))?;
         }
     }
 
     // 提交事务
-    if let Err(e) = txn.commit().await {
-        return (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            Json(ApiResponse::<()>::error(format!("提交事务失败：{}", e))),
-        );
-    }
+    txn.commit()
+        .await
+        .map_err(|e| AppError::database(format!("提交事务失败：{}", e)))?;
 
-    (
-        StatusCode::OK,
-        Json(ApiResponse::success_with_message((), "批次转移成功")),
-    )
+    Ok(Json(ApiResponse::success_with_message((), "批次转移成功")))
 }

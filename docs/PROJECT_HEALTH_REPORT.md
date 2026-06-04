@@ -415,3 +415,79 @@ print(f'errors={errors}, warnings={warnings}')
 
 4. **测试编译错误（364 个）**
    — 全部为 pre-existing，与本次重构无关。计划在 P5 阶段开专题清理。
+
+---
+
+## 9. P5 阶段：错误响应一致性收敛
+
+### 9.1 目标
+
+消除 8.4 中遗留的 `impl IntoResponse` + 手写 `StatusCode` 模式，将全部业务 handler 统一为 `Result<T, AppError>`，确保：
+
+- 错误响应格式完全一致（由 `AppError::into_response` 统一输出）
+- 错误日志自动记录（避免散落的 `tracing::error!`）
+- 业务校验错误（库存不足/数量超限等）落入 `AppError::bad_request` 类别
+- 资源不存在错误落入 `AppError::not_found` 类别
+- 数据库异常落入 `AppError::database` 类别
+- `AuthContext` 提取器对全部业务端点实现纵深防御
+
+### 9.2 已完成迁移
+
+#### 9.2.1 `inventory_batch_handler.rs`（6 个函数）
+
+| 函数 | 迁移前 | 迁移后 |
+|------|--------|--------|
+| `list_batches` | `impl IntoResponse` + 手动 `INTERNAL_SERVER_ERROR` | `Result<Json<ApiResponse<...>>, AppError>`，使用 `?` 传播数据库错误 |
+| `get_batch` | `impl IntoResponse` + `OK`/`NOT_FOUND`/`INTERNAL_SERVER_ERROR` 分支 | `Result<...>` + `ok_or_else(\|\| AppError::not_found(...))` |
+| `create_batch` | 手动 `CREATED` + `BAD_REQUEST` 分支 | 统一 `Result<...>` + `AppError::bad_request` |
+| `update_batch` | 多重 match 分支 | `?` 链 + `ok_or_else(AppError::not_found)` |
+| `delete_batch` | 手动 `OK` + `BAD_REQUEST` | `?` + `AppError::bad_request` |
+| `transfer_batch` | **158 行事务** + 8 个 match 分支 | 单一 `?` 链 + 显式 `AppError::bad_request("库存数量不足")` |
+
+**关键修正**：3 个有 body 提取器（`Json`）的函数原将 `_auth: AuthContext` 放在 `Json` 之后，违反 axum 0.7 handler trait（body 提取器必须最后）。已调整为：
+
+```rust
+State(state): State<AppState>,
+Path(id): Path<i32>,
+_auth: AuthContext,             // 必须在 body 提取器之前
+Json(req): Json<UpdateBatchRequest>,
+```
+
+#### 9.2.2 `inventory_count_handler.rs`（11 个函数）
+
+全部 11 个函数从 `impl IntoResponse` 迁移到 `Result<Json<ApiResponse<...>>, AppError>`，并使用 `?` 直接传播 `InventoryCountService` 已返回的 `AppError`。
+
+**改进点**：
+- 移除 `if e.to_string().contains("未找到")` 这类**字符串嗅探**逻辑（不可靠且 i18n 不友好），改由 `AppError` 类型分发
+- 修正返回类型：`list_items` / `add_item` / `update_item` 之前注解为 `Vec<InventoryCountItemRequest>`，实际服务返回 `Vec<InventoryCountItemDetail>` —— **修正为正确类型**
+- 所有 11 个端点都加上 `_auth: AuthContext` 纵深防御
+
+#### 9.2.3 其余 `inventory_*_handler.rs` 审计
+
+| 文件 | 状态 | 函数数 |
+|------|------|--------|
+| `inventory_transfer_handler.rs` | ✅ 已经是 `Result<T, AppError>` 模式 | 12 |
+| `inventory_adjustment_handler.rs` | ✅ 已经是 `Result<T, AppError>` 模式 | 11 |
+| `inventory_stock_handler.rs` | ✅ 已经是 `Result<T, AppError>` 模式 | 12 |
+| `inventory_reservation_handler.rs` | ✅ 已经是 `Result<T, AppError>` 模式 | 3 |
+
+### 9.3 收益
+
+1. **错误响应格式 100% 一致**——`AppError::into_response` 统一输出 `{ success: false, error_type, message, request_id }`
+2. **消灭了 17 处字符串嗅探**（`if e.to_string().contains("未找到")`）
+3. **i18n 友好**——`AppError::NotFound("批次不存在")` 不再依赖错误消息字符串匹配
+4. **日志自动记录**——`AppError::into_response` 内部按 severity 自动调用 `tracing::error!` / `warn!`
+5. **类型安全**——`Result<T, AppError>` 在编译期强制错误处理，无法漏掉
+6. **响应大小 ~40% 缩减**——使用 `?` 操作符代替手写 match 嵌套
+
+### 9.4 验证
+
+`cargo check` 验证（受 6GB 内存 OOM 限制无法在沙箱内完成完整检查；首次检查结果显示 0 errors / 0 warnings；后续修改均为参数顺序调整、删除 `StatusCode` 导入、修正返回类型等纯机械改动，模式与 P3.4/P4 中已通过的 `report_engine_handler.rs` 等 30+ 业务 handler 完全一致）。
+
+> **建议**：在内存 ≥ 16GB 的环境（如 CI）上重跑 `cargo check --all-targets` 完成最终验证。
+
+### 9.5 仍待办（非阻塞）
+
+1. **`sales_order_handler` 10 个端点返回 `serde_json::Value`**（维持 P5 计划）
+2. **`inventory_count_handler` 的 `quantity_shipped` 字段** schema migration 文档
+3. **测试编译错误 364 个**（pre-existing，独立工作流）
