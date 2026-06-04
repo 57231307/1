@@ -189,8 +189,8 @@ pub mod ai_analysis_service {
 /// 兼容旧路径 `crate::services::report_engine_service::*`
 pub mod report_engine_service {
     pub use super::report::{
-        AggregateRequest, AggregateResult, AggregationType, DataSource, ExportFormat,
-        ExecuteReportRequest, ReportColumn, ReportData, ReportEngineService, ReportFilter,
-        ReportMetadata, ReportParameter, ReportTemplate,
+        AggregateRequest, AggregateResult, AggregationType, DataSource, ExecuteReportRequest,
+        ExportFormat, ReportColumn, ReportData, ReportEngineService, ReportFilter, ReportMetadata,
+        ReportParameter, ReportTemplate,
     };
 }
