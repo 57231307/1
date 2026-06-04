@@ -304,6 +304,7 @@ pub async fn ship_order(
 /// POST /api/v1/erp/sales/orders/:id/complete
 pub async fn complete_order(
     State(state): State<AppState>,
+    _auth: AuthContext,
     Path(id): Path<i32>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     let sales_service = SalesService::new(state.db.clone());
@@ -336,6 +337,7 @@ pub struct HistoryQuery {
 
 pub async fn get_order_history(
     State(state): State<AppState>,
+    _auth: AuthContext,
     Path(id): Path<i32>,
     Query(query): Query<HistoryQuery>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
@@ -367,6 +369,7 @@ use axum::http::header;
 /// 导出销售订单
 pub async fn export_orders(
     State(state): State<AppState>,
+    _auth: AuthContext,
     Query(query): Query<SalesOrderQuery>,
 ) -> Result<axum::response::Response, AppError> {
     let sales_service = SalesService::new(state.db.clone());

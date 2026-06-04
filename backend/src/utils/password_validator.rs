@@ -13,16 +13,18 @@ pub enum PasswordStrength {
 }
 
 impl PasswordStrength {
+    /// 密码强度等级中文描述
     pub fn description(&self) -> &'static str {
         match self {
-            PasswordStrength::VeryWeak => "Very Weak",
-            PasswordStrength::Weak => "Weak",
-            PasswordStrength::Medium => "Medium",
-            PasswordStrength::Strong => "Strong",
-            PasswordStrength::VeryStrong => "Very Strong",
+            PasswordStrength::VeryWeak => "非常弱",
+            PasswordStrength::Weak => "弱",
+            PasswordStrength::Medium => "中等",
+            PasswordStrength::Strong => "强",
+            PasswordStrength::VeryStrong => "非常强",
         }
     }
 
+    /// 是否达到可接受强度
     pub fn is_acceptable(&self) -> bool {
         matches!(
             self,
@@ -30,6 +32,7 @@ impl PasswordStrength {
         )
     }
 
+    /// 强度分数
     pub fn score(&self) -> u8 {
         match self {
             PasswordStrength::VeryWeak => 0,
@@ -141,7 +144,7 @@ pub fn validate_password_with_policy(
 
     if password.len() < policy.min_length {
         errors.push(format!(
-            "Password must be at least {} chars",
+            "密码长度至少为 {} 个字符",
             policy.min_length
         ));
     } else {
@@ -150,39 +153,39 @@ pub fn validate_password_with_policy(
 
     if password.len() > policy.max_length {
         errors.push(format!(
-            "Password must not exceed {} chars",
+            "密码长度不能超过 {} 个字符",
             policy.max_length
         ));
     }
 
     let has_uppercase = RE_UPPERCASE.is_match(password);
     if policy.require_uppercase && !has_uppercase {
-        errors.push("Password must contain uppercase".to_string());
-        suggestions.push("Add uppercase A-Z".to_string());
+        errors.push("密码必须包含大写字母".to_string());
+        suggestions.push("请添加 A-Z 大写字母".to_string());
     } else if has_uppercase {
         score += 20;
     }
 
     let has_lowercase = RE_LOWERCASE.is_match(password);
     if policy.require_lowercase && !has_lowercase {
-        errors.push("Password must contain lowercase".to_string());
-        suggestions.push("Add lowercase a-z".to_string());
+        errors.push("密码必须包含小写字母".to_string());
+        suggestions.push("请添加 a-z 小写字母".to_string());
     } else if has_lowercase {
         score += 20;
     }
 
     let has_digit = RE_DIGIT.is_match(password);
     if policy.require_digit && !has_digit {
-        errors.push("Password must contain digit".to_string());
-        suggestions.push("Add digits 0-9".to_string());
+        errors.push("密码必须包含数字".to_string());
+        suggestions.push("请添加 0-9 数字".to_string());
     } else if has_digit {
         score += 20;
     }
 
     let has_special = has_special_char(password);
     if policy.require_special && !has_special {
-        errors.push("Password must contain special char".to_string());
-        suggestions.push("Add special chars !@#$$%".to_string());
+        errors.push("密码必须包含特殊字符".to_string());
+        suggestions.push("请添加 !@#$% 等特殊字符".to_string());
     } else if has_special {
         score += 20;
     }
@@ -192,18 +195,18 @@ pub fn validate_password_with_policy(
         .iter()
         .any(|common| lower_password.contains(common))
     {
-        errors.push("Password is too common".to_string());
-        suggestions.push("Use more unique password".to_string());
+        errors.push("密码过于常见，不安全".to_string());
+        suggestions.push("请使用更独特的密码".to_string());
         score = score.saturating_sub(30);
     }
 
     if has_consecutive_chars(password) {
-        suggestions.push("Avoid consecutive abc 123".to_string());
+        suggestions.push("请避免连续字符（如 abc、123）".to_string());
         score = score.saturating_sub(10);
     }
 
     if has_repeated_chars(password) {
-        suggestions.push("Avoid repeated aaa 111".to_string());
+        suggestions.push("请避免重复字符（如 aaa、111）".to_string());
         score = score.saturating_sub(10);
     }
 
@@ -302,14 +305,14 @@ mod tests {
     fn test_weak_password_too_short() {
         let result = validate_password("Ab1!");
         assert!(!result.is_valid);
-        assert!(result.errors.iter().any(|e| e.contains("at least")));
+        assert!(result.errors.iter().any(|e| e.contains("长度")));
     }
 
     #[test]
     fn test_weak_password_common() {
         let result = validate_password("password123!");
         assert!(!result.is_valid);
-        assert!(result.errors.iter().any(|e| e.contains("common")));
+        assert!(result.errors.iter().any(|e| e.contains("常见")));
     }
 
     #[test]

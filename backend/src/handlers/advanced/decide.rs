@@ -8,6 +8,7 @@ use rust_decimal::prelude::ToPrimitive;
 use sea_orm::{EntityTrait, QueryOrder};
 use serde::{Deserialize, Serialize};
 
+use crate::middleware::auth_context::AuthContext;
 use crate::models::sales_contract::Entity as SalesContractEntity;
 use crate::models::sales_price::Entity as SalesPriceEntity;
 use crate::models::tenant::Entity as TenantEntity;
@@ -22,6 +23,7 @@ use crate::utils::response::ApiResponse;
 /// 异常检测
 pub async fn anomaly_detection(
     State(state): State<AppState>,
+    _auth: AuthContext,
     Json(payload): Json<AnomalyDetectionRequest>,
 ) -> impl IntoResponse {
     let service = AiAnalysisService::new(state.db);

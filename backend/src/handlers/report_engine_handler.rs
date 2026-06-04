@@ -1,6 +1,5 @@
 use axum::{
     extract::{Query, State},
-    http::StatusCode,
     Json,
 };
 use serde::{Deserialize, Serialize};
@@ -10,6 +9,7 @@ use crate::services::report_engine_service::{
     AggregateRequest, AggregationType, DataSource, ExportFormat, ReportEngineService, ReportFilter,
 };
 use crate::utils::app_state::AppState;
+use crate::utils::error::AppError;
 use crate::utils::response::ApiResponse;
 
 #[derive(Debug, Serialize)]
@@ -49,7 +49,7 @@ impl From<crate::services::report_engine_service::ReportTemplate> for ReportTemp
 pub async fn list_templates(
     _state: State<AppState>,
     _auth: AuthContext,
-) -> Result<Json<ApiResponse<Vec<ReportTemplateResponse>>>, StatusCode> {
+) -> Result<Json<ApiResponse<Vec<ReportTemplateResponse>>>, AppError> {
     let service = ReportEngineService::new(_state.db.clone());
     let templates = service.get_predefined_templates();
     let responses: Vec<ReportTemplateResponse> = templates
@@ -77,7 +77,7 @@ pub async fn execute_report(
     State(state): State<AppState>,
     _auth: AuthContext,
     Query(query): Query<ExecuteReportQuery>,
-) -> Result<Json<ApiResponse<ReportDataResponse>>, StatusCode> {
+) -> Result<Json<ApiResponse<ReportDataResponse>>, AppError> {
     let service = ReportEngineService::new(state.db);
     let _page = query.page.unwrap_or(1);
     let _page_size = query.page_size.unwrap_or(50);
@@ -135,7 +135,7 @@ pub async fn execute_report(
         }
         Err(e) => {
             tracing::error!("执行报表失败: {}", e);
-            Err(StatusCode::INTERNAL_SERVER_ERROR)
+            Err(AppError::internal(format!("执行报表失败: {}", e)))
         }
     }
 }
@@ -157,7 +157,7 @@ pub async fn export_report(
     State(state): State<AppState>,
     _auth: AuthContext,
     Query(query): Query<ExportReportQuery>,
-) -> Result<Json<ApiResponse<ExportReportResponse>>, StatusCode> {
+) -> Result<Json<ApiResponse<ExportReportResponse>>, AppError> {
     let service = ReportEngineService::new(state.db);
 
     let _export_format: ExportFormat = query
@@ -191,13 +191,13 @@ pub async fn export_report(
                 }
                 Err(e) => {
                     tracing::error!("导出报表失败: {}", e);
-                    Err(StatusCode::INTERNAL_SERVER_ERROR)
+                    Err(AppError::internal(format!("导出报表失败: {}", e)))
                 }
             }
         }
         Err(e) => {
             tracing::error!("执行报表失败: {}", e);
-            Err(StatusCode::INTERNAL_SERVER_ERROR)
+            Err(AppError::internal(format!("执行报表失败: {}", e)))
         }
     }
 }
@@ -231,7 +231,7 @@ pub async fn aggregate_report(
     State(state): State<AppState>,
     _auth: AuthContext,
     Json(request): Json<AggregateReportRequest>,
-) -> Result<Json<ApiResponse<AggregateReportResponse>>, StatusCode> {
+) -> Result<Json<ApiResponse<AggregateReportResponse>>, AppError> {
     let service = ReportEngineService::new(state.db);
 
     let data_source: DataSource = match request.data_source.as_str() {
@@ -240,7 +240,10 @@ pub async fn aggregate_report(
         "inventory" => DataSource::Inventory,
         "finance" => DataSource::Finance,
         _ => {
-            return Err(StatusCode::BAD_REQUEST);
+            return Err(AppError::bad_request(format!(
+                "无效的数据源: {}",
+                request.data_source
+            )));
         }
     };
 
@@ -252,7 +255,10 @@ pub async fn aggregate_report(
         "max" => AggregationType::Max,
         "group_by" | "group" => AggregationType::GroupBy,
         _ => {
-            return Err(StatusCode::BAD_REQUEST);
+            return Err(AppError::bad_request(format!(
+                "无效的聚合类型: {}",
+                request.aggregation_type
+            )));
         }
     };
 
@@ -308,7 +314,7 @@ pub async fn aggregate_report(
         }
         Err(e) => {
             tracing::error!("数据聚合失败: {}", e);
-            Err(StatusCode::INTERNAL_SERVER_ERROR)
+            Err(AppError::internal(format!("数据聚合失败: {}", e)))
         }
     }
 }
@@ -328,7 +334,7 @@ pub async fn clear_report_cache(
     State(state): State<AppState>,
     _auth: AuthContext,
     Json(request): Json<ClearCacheRequest>,
-) -> Result<Json<ApiResponse<ClearCacheResponse>>, StatusCode> {
+) -> Result<Json<ApiResponse<ClearCacheResponse>>, AppError> {
     let service = ReportEngineService::new(state.db);
 
     if let Some(source) = request.data_source {
@@ -338,7 +344,7 @@ pub async fn clear_report_cache(
             "inventory" => DataSource::Inventory,
             "finance" => DataSource::Finance,
             _ => {
-                return Err(StatusCode::BAD_REQUEST);
+                return Err(AppError::bad_request(format!("无效的数据源: {}", source)));
             }
         };
         service.clear_cache_by_source(&data_source).await;

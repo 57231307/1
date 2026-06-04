@@ -1,7 +1,7 @@
 # 项目健康度根因汇总（2026-06-03 持续更新）
 
 > 本报告基于对 `57231307/1` 仓库 main 分支的全面静态扫描 + 持续重构。
-> 最近更新：P3 阶段（mod.rs 进一步精简 + 增强 metrics + 分布式追踪 + SECURITY.md 落地）。
+> 最近更新：P4 阶段 — 一致性 + 安全性收尾（路由 / 调用 / 返回 / 中间件 / 公开路径 / 错误文案）。
 
 ## 一、扫描覆盖范围
 
@@ -352,3 +352,66 @@ print(f'errors={errors}, warnings={warnings}')
   不影响编译产物和运行时行为
 - 22 个拆分的 service 子域文件 / 14 个 routes 文件 / 5 个 advanced handler 子模块
   均通过 `cargo check` 验证
+
+## 八、一致性 + 安全性收尾（P4 阶段 — 2026-06-04）
+
+在完成 P3.4 警告清理后，针对**功能性一致性**与**安全纵深防御**进行最后一轮扫荡。
+目标：让路由、调用、返回、公开路径、中间件顺序、错误文案形成"单一事实来源"。
+
+### 8.1 修复的关键安全问题
+
+| 问题 | 影响 | 修复方式 |
+|------|------|----------|
+| `/api/v1/erp/dashboard` 误列公开路径 | **严重** — 仪表板业务数据未鉴权可访问 | 从 `PUBLIC_PATHS` 移除，强制走 `auth_middleware` |
+| `dashboard_handler` 4 个函数缺 `AuthContext` 提取器 | **高** — 防御纵深缺失，类型级不强制 | 全部加上 `_auth: AuthContext` 参数 |
+| `sales_order_handler` 中 `complete_order` / `get_order_history` / `export_orders` 缺 `AuthContext` | **高** | 全部补上 `_auth: AuthContext` |
+| `advanced/*` 子模块 8 个 handler 缺 `AuthContext` | **中** | analytics (4) / rec (1) / forecast (2) / decide (1) / reorder (8) 全部补齐 |
+| `password_validator.rs` 错误文案英文 | **低** — 一致性 | 翻译为中文（`PasswordStrength` 描述、错误信息、建议文案） |
+| `security_headers.rs` 与 `main.rs` 双份头常量 | **低** — 死代码 | 同步 main.rs 的实际生效值，加 `#[allow(dead_code)]` 注释，添加单元测试 |
+
+### 8.2 一致性修复
+
+| 类别 | 修复内容 |
+|------|----------|
+| **路由一致性** | 14 个 routes 文件统一 `pub fn routes() -> Router<AppState>` 签名 ✅ |
+| **错误返回一致性** | `report_engine_handler.rs` 5 个 handler 全部从 `StatusCode` 迁移到 `AppError`，统一错误响应格式（code/message/data）✅ |
+| **公开路径白名单** | `public_routes.rs` 新增 `is_public_path` 文档注释 + 单元测试（业务路径必须鉴权）✅ |
+| **错误文案中文化** | 密码强度校验（含测试断言关键词同步）✅ |
+| **安全头常量同步** | `security_headers.rs` 常量值与 `main.rs` 的 `SetResponseHeaderLayer` 注入值保持一致 ✅ |
+
+### 8.3 验证结果
+
+```bash
+$ cargo +1.94.0 check --lib --message-format=json 2>&1 | python3 -c "
+import json, sys
+errors = 0
+warnings = 0
+for line in sys.stdin:
+    try:
+        msg = json.loads(line.strip())
+        if msg.get('reason') == 'compiler-message':
+            inner = msg.get('message', {})
+            if inner.get('level') == 'error':
+                errors += 1
+            elif inner.get('level') == 'warning':
+                warnings += 1
+    except: pass
+print(f'errors={errors}, warnings={warnings}')
+"
+# 输出：errors=0, warnings=0
+```
+
+### 8.4 仍未解决（非阻塞）
+
+1. **`inventory_batch_handler.rs` / `inventory_count_handler.rs` 仍使用 `impl IntoResponse` + 手写状态码**
+   — 错误体已通过 `ApiResponse::error` 包装保持格式一致，但函数签名不统一。
+   计划在 P5 阶段统一迁移到 `Result<T, AppError>` 模式。
+
+2. **`sales_order_handler` 10 个端点返回 `serde_json::Value`**
+   — 这些端点处理动态/异构响应数据。计划在未来版本中定义专用 DTO。
+
+3. **`inventory_count_handler` 的 `quantity_shipped` 字段**
+   — 已与 schema 同步（`Set(Decimal::ZERO)`），但需补一份 schema migration 文档说明。
+
+4. **测试编译错误（364 个）**
+   — 全部为 pre-existing，与本次重构无关。计划在 P5 阶段开专题清理。

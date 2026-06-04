@@ -6,6 +6,7 @@ use axum::{extract::State, response::IntoResponse, Json};
 use chrono::Utc;
 use serde::{Deserialize, Serialize};
 
+use crate::middleware::auth_context::AuthContext;
 use crate::services::ai_analysis_service::AiAnalysisService;
 use crate::utils::app_state::AppState;
 use crate::utils::response::ApiResponse;
@@ -17,6 +18,7 @@ use crate::utils::response::ApiResponse;
 /// 智能推荐
 pub async fn recommendations(
     State(state): State<AppState>,
+    _auth: AuthContext,
     payload: Option<Json<RecommendationRequest>>,
 ) -> impl IntoResponse {
     let service = AiAnalysisService::new(state.db);

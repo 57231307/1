@@ -8,6 +8,7 @@ use rust_decimal::prelude::ToPrimitive;
 use sea_orm::{EntityTrait, QueryOrder};
 use serde::{Deserialize, Serialize};
 
+use crate::middleware::auth_context::AuthContext;
 use crate::models::purchase_contract::Entity as PurchaseContractEntity;
 use crate::models::purchase_price::Entity as PurchasePriceEntity;
 use crate::models::sales_return::Entity as SalesReturnEntity;
@@ -53,6 +54,7 @@ pub async fn list_purchase_contracts(State(state): State<AppState>) -> impl Into
 /// 创建采购合同
 pub async fn create_purchase_contract(
     State(state): State<AppState>,
+    _auth: AuthContext,
     Json(payload): Json<CreatePurchaseContractRequest>,
 ) -> impl IntoResponse {
     use crate::models::purchase_contract::ActiveModel;
@@ -311,6 +313,7 @@ pub async fn list_sales_returns(State(state): State<AppState>) -> impl IntoRespo
 /// 创建销售退货
 pub async fn create_sales_return(
     State(state): State<AppState>,
+    _auth: AuthContext,
     Json(payload): Json<CreateSalesReturnRequest>,
 ) -> impl IntoResponse {
     use crate::models::sales_return::ActiveModel;

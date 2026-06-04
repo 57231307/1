@@ -8,6 +8,7 @@ use chrono::Utc;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
+use crate::middleware::auth_context::AuthContext;
 use crate::services::report::{
     ExecuteReportRequest, ReportEngineService, ReportFilter,
 };
@@ -59,6 +60,7 @@ struct ReportTemplateDto {
 /// 执行报表
 pub async fn execute_report(
     State(state): State<AppState>,
+    _auth: AuthContext,
     Json(payload): Json<ReportExecuteRequest>,
 ) -> impl IntoResponse {
     let service = ReportEngineService::new(state.db);
@@ -120,6 +122,7 @@ pub struct ReportExecuteRequest {
 /// 导出报表
 pub async fn export_report(
     State(state): State<AppState>,
+    _auth: AuthContext,
     Json(payload): Json<ReportExportRequest>,
 ) -> impl IntoResponse {
     let service = ReportEngineService::new(state.db.clone());
@@ -198,6 +201,7 @@ pub struct TopProduct {
 /// 销售汇总分析
 pub async fn sales_analytics(
     State(state): State<AppState>,
+    _auth: AuthContext,
     Json(payload): Json<AnalyticsRequest>,
 ) -> impl IntoResponse {
     use sea_orm::{EntityTrait, QueryFilter, ColumnTrait, PaginatorTrait};

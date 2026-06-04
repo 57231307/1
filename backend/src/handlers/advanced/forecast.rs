@@ -8,6 +8,7 @@ use sea_orm::EntityTrait;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 
+use crate::middleware::auth_context::AuthContext;
 use crate::models::product::Entity as ProductEntity;
 use crate::services::ai_analysis_service::AiAnalysisService;
 use crate::utils::app_state::AppState;
@@ -87,6 +88,7 @@ pub async fn sales_forecast(
 /// 库存优化建议
 pub async fn inventory_optimization(
     State(state): State<AppState>,
+    _auth: AuthContext,
     payload: Option<Json<InventoryOptimizationRequest>>,
 ) -> impl IntoResponse {
     let db = state.db.clone();
