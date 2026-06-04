@@ -25,7 +25,7 @@ use crate::services::metrics_service::{Metrics, MetricsService};
 use axum::{
     body::Body,
     extract::State,
-    http::{Request, StatusCode},
+    http::Request,
     middleware::Next,
     response::Response,
 };
@@ -39,7 +39,7 @@ pub async fn metrics_middleware(
     State(metrics_service): State<Arc<MetricsService>>,
     request: Request<Body>,
     next: Next,
-) -> Result<Response, StatusCode> {
+) -> Response {
     let start = Instant::now();
 
     // 方法 + 路径（路径用 URI 的 path 部分，过长时截断到 128 字符避免 label cardinality 爆炸）
@@ -63,7 +63,7 @@ pub async fn metrics_middleware(
     // 基础指标
     metrics_service.metrics.record_http_request(duration_secs);
 
-    // 带标签指标（P3.2 新增）
+    // 带标签指标（按 method / route / status）
     let status = response.status();
     metrics_service
         .metrics
@@ -77,7 +77,7 @@ pub async fn metrics_middleware(
         metrics_service.metrics.record_error();
     }
 
-    Ok(response)
+    response
 }
 
 /// 截断过长的 route 标签，避免 Prometheus cardinality 爆炸

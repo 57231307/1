@@ -44,6 +44,12 @@ impl FromRef<AppState> for Key {
     }
 }
 
+impl FromRef<AppState> for Arc<MetricsService> {
+    fn from_ref(state: &AppState) -> Self {
+        state.metrics.clone()
+    }
+}
+
 impl AppState {
     pub fn new(db: Arc<DatabaseConnection>, jwt_secret: String) -> Result<Self, String> {
         let omni_audit = Arc::new(OmniAuditEngine::new(db.clone())?);

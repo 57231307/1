@@ -138,6 +138,7 @@ pub mod enhanced_logger;
 // =====================================================
 
 /// 兼容旧路径 `crate::services::purchase_order_service::*`
+#[allow(unused_imports)]
 pub mod purchase_order_service {
     pub use super::po::order::PurchaseOrderService;
     pub use super::po::order::{PurchaseOrderDto, PurchaseOrderItemDto};
@@ -145,6 +146,7 @@ pub mod purchase_order_service {
 }
 
 /// 兼容旧路径 `crate::services::sales_service::*`
+#[allow(unused_imports)]
 pub mod sales_service {
     pub use super::so::order::SalesService;
     pub use super::so::{
@@ -154,11 +156,13 @@ pub mod sales_service {
 }
 
 /// 兼容旧路径 `crate::services::crm_service::*`
+#[allow(unused_imports)]
 pub mod crm_service {
     pub use super::crm::cust::CrmService;
 }
 
 /// 兼容旧路径 `crate::services::inventory_transfer_service::*`
+#[allow(unused_imports)]
 pub mod inventory_transfer_service {
     pub use super::inv::{
         CreateInventoryTransferRequest, InventoryTransferDetail, InventoryTransferItemDetail,
@@ -167,6 +171,7 @@ pub mod inventory_transfer_service {
 }
 
 /// 兼容旧路径 `crate::services::ar_reconciliation_service::*`
+#[allow(unused_imports)]
 pub mod ar_reconciliation_service {
     pub use super::ar::{
         AgingBucket, ArReconciliationService, AutoMatchRequest, CreateReconciliationRequest,
@@ -176,6 +181,7 @@ pub mod ar_reconciliation_service {
 }
 
 /// 兼容旧路径 `crate::services::ai_analysis_service::*`
+#[allow(unused_imports)]
 pub mod ai_analysis_service {
     pub use super::ai::{
         AbcClassification, AiAnalysisService, AnomalyDetection, InventorySuggestion,
@@ -184,6 +190,7 @@ pub mod ai_analysis_service {
 }
 
 /// 兼容旧路径 `crate::services::report_engine_service::*`
+#[allow(unused_imports)]
 pub mod report_engine_service {
     pub use super::report::{
         AggregateRequest, AggregateResult, AggregationType, DataSource, ExecuteReportRequest,

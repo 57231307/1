@@ -1,7 +1,7 @@
 # 项目健康度根因汇总（2026-06-03 持续更新）
 
 > 本报告基于对 `57231307/1` 仓库 main 分支的全面静态扫描 + 持续重构。
-> 最近更新：P4 阶段 — 一致性 + 安全性收尾（路由 / 调用 / 返回 / 中间件 / 公开路径 / 错误文案）。
+> 最近更新：P5 阶段 — 错误响应一致性收敛 + bin/server 编译错误修复（0 errors / 25 warnings）
 
 ## 一、扫描覆盖范围
 
@@ -486,7 +486,25 @@ Json(req): Json<UpdateBatchRequest>,
 
 > **建议**：在内存 ≥ 16GB 的环境（如 CI）上重跑 `cargo check --all-targets` 完成最终验证。
 
-### 9.5 仍待办（非阻塞）
+### 9.5 P5 收尾 — bin/server 编译错误修复（2026-06-04）
+
+P5 完成后，`bin/server` 在 4 处产生编译错误（5 个独立 `E0xxx`）。错误全部源自 **axum 0.7.9 中 `Service<IncomingStream>` 仅对 `Router<()>` 实现**这一关键约束未被尊重，与 9.2 中业务层迁移无关。
+
+| # | 错误 | 根因 | 修复 |
+|---|------|------|------|
+| 1 | `E0425` ×3 | `AppState` 未在 main.rs 作用域内 | 新增 `use crate::utils::app_state::AppState;` |
+| 2 | `E0277` (`from_fn_with_state` 不满足 `Service<Request<AxumBody>>`) | `from_fn_with_state(app_state_clone4, metrics_middleware)` 把整个 `AppState` 当状态传，但 middleware 签名是 `State<Arc<MetricsService>>` | 在 `app_state.rs` 新增 `impl FromRef<AppState> for Arc<MetricsService>`，让 axum 自动从 `AppState` 中按需提取 |
+| 3 | `E0277` (`Router<AppState>` 不满足 `Service<IncomingStream>`) | axum 0.7.9 的 `impl Service<IncomingStream<'_>> for Router<()>` 只对 `Router<()>` 实现 | `create_router` 返回类型由 `Router<AppState>` 改为 `Router<()>`（`with_state` 本就把它降为 `Router<()>`，原签名自相矛盾）；`create_init_router` 同步改为 `Router<()>` |
+| 4 | `E0277` ×2 (`WithGracefulShutdown<...>` 不实现 `Future`) | 错误 3 的下游传播 | 随错误 3 自动消失 |
+
+**修改文件**：
+- `backend/src/main.rs` — 新增 `AppState` 导入；`create_init_router()` 返回 `Router<()>`
+- `backend/src/utils/app_state.rs` — 新增 `FromRef<AppState> for Arc<MetricsService>` 实现
+- `backend/src/routes/mod.rs` — `create_router()` 返回类型 `Router<AppState>` → `Router<()>`，文档注释同步修正
+
+**最终验证**：`cargo +1.94.0 check --bin server` → 0 errors / 25 warnings（全部为 pre-existing dead_code 警告，与 P5 工作无关）。
+
+### 9.6 仍待办（非阻塞）
 
 1. **`sales_order_handler` 10 个端点返回 `serde_json::Value`**（维持 P5 计划）
 2. **`inventory_count_handler` 的 `quantity_shipped` 字段** schema migration 文档

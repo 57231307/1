@@ -62,4 +62,5 @@ pub struct CustomerRelationSummary {
 // 统一对外导出
 // =====================================================
 
+#[allow(unused_imports)]
 pub use cust::CrmService;

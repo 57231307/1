@@ -197,6 +197,7 @@ pub struct UpdateOrderItemRequest {
 // 统一对外导出（兼容旧路径 + 子模块直接访问）
 // =====================================================
 
+#[allow(unused_imports)]
 pub use order::{PurchaseOrderDto, PurchaseOrderItemDto, PurchaseOrderService};
 
 /// 重新导出 Arc<DatabaseConnection> 给子模块共用类型

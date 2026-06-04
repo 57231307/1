@@ -88,9 +88,10 @@ fn build_infrastructure_routes() -> Router<AppState> {
 /// 将 14 个业务域子路由 + 监控 / 文档 / 静态资源拼装为统一入口。
 /// 顶层只保留路径装配与 SQL 注入审计中间件挂载，所有具体路由定义下沉到子文件。
 ///
-/// **重要**：返回类型必须显式标注 `Router<AppState>` 并使用 `Router::<AppState>::new()`，
-/// 否则编译器会把类型锁定为 `Router<()>`，导致 `with_state(state)` 失败。
-pub fn create_router(state: AppState) -> Router<AppState> {
+/// **重要**：返回 `Router<()>`，因为函数末尾通过 `with_state(state)` 把状态
+/// 注入到所有内部子路由中；返回 `Router<()>` 是 axum 0.7 中 `axum::serve` 的
+/// 唯一可接受类型（`Service<IncomingStream>` 只为 `Router<()>` 实现）。
+pub fn create_router(state: AppState) -> Router<()> {
     Router::<AppState>::new()
         // ---- 14 个业务域（合并前缀 + 独立前缀）----
         .nest("/api/v1/erp", build_erp_root_router())

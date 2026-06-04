@@ -4,6 +4,7 @@ mod grpc;
 mod handlers;
 mod middleware;
 mod models;
+mod observability;
 mod routes;
 mod services;
 mod utils;
@@ -30,6 +31,7 @@ use crate::middleware::permission::permission_middleware;
 use crate::middleware::request_validator::request_validator_middleware;
 use crate::routes::create_router;
 use crate::services::init_service::{DatabaseConfig, InitService};
+use crate::utils::app_state::AppState;
 use crate::utils::log_config::{self, LogConfig};
 
 #[derive(Debug, serde::Serialize)]
@@ -124,10 +126,10 @@ async fn initialize_with_db(
     }
 }
 
-fn create_init_router() -> Router {
-    Router::new().nest(
+fn create_init_router() -> Router<()> {
+    Router::<()>::new().nest(
         "/api/v1/erp",
-        Router::new()
+        Router::<()>::new()
             .route("/init/status", get(get_init_status))
             .route("/init/test-database", post(test_database_connection))
             .route("/init/initialize-with-db", post(initialize_with_db)), // reset-password路由已在 routes/mod.rs 中配置
