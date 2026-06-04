@@ -559,8 +559,81 @@ P5 完成后扫描发现，仍有 **8 个 handler 文件** 的返回格式与项
 
 **编译验证**：`cargo +1.94.0 check --bin server` → **0 errors / 24 warnings**（warning 数下降 1 个，因去除了 `StatusCode` 导入；剩余全部为 pre-existing dead_code 警告，与 P6 工作无关）。
 
-### 9.7 仍待办（非阻塞）
+### 9.7 CI 全面修复 + rustfmt 收尾（2026-06-04）
+
+#### 9.7.1 问题发现（CI #763）
+
+`feat: 扫描路由和API调用问题`（commit 6406256）推送后，CI #763 状态：
+
+| 任务 | 状态 |
+|------|------|
+| 构建后端（clippy） | ✅ success |
+| 前端测试 | ✅ success |
+| 运行测试 | ❌ **failure** |
+| 构建前端 | ✅ success |
+
+**运行测试失败根因**：`代码格式检查` 步骤（`cargo fmt -- --check`）失败 → `运行后端单元测试` 被跳过。
+
+**clippy 之前累积的 12 个错误**（在 #763 之前的本地修复，未推送）：
+
+| # | 文件:行 | clippy lint | 修复 |
+|---|---------|-------------|------|
+| 1 | `handlers/init_handler.rs:87` | `redundant_closure` | 移除闭包包装 |
+| 2 | `handlers/sales_order_handler.rs:411` | `let_unit_value` | 移除 `let _ =` |
+| 3 | `handlers/missing_handlers.rs:118` | `redundant_pattern_matching` | `if let Some` → `.is_some()` |
+| 4 | `services/crm/cust.rs:247` | `needless_question_mark` | 删除冗余 `Ok(?...)` |
+| 5 | `services/crm/cust.rs:349` | `needless_question_mark` | 删除冗余 `Ok(?...)` |
+| 6 | `services/crm/opp.rs:171` | `needless_borrow` | 移除 `&` |
+| 7 | `services/report/ds.rs:72` | `to_string_in_format_args` | 移除 `.to_string()` |
+| 8 | `services/report/exp.rs:492` | `needless_borrows_for_generic_args` | 移除 `&` |
+| 9 | `services/report/job.rs:39` | `useless_conversion` | 移除 `.into()` |
+| 10 | `services/report/job.rs:51` | `useless_conversion` | 移除 `.into()` |
+| 11 | `services/report_subscription_service.rs:87` | `useless_conversion` | 移除 `.into()` |
+| 12 | `services/report_subscription_service.rs:88` | `useless_conversion` | 移除 `.into()` |
+
+#### 9.7.2 rustfmt 格式修复
+
+CI 失败步骤 `cargo fmt -- --check` 报错 **94 个文件**、**186 处 diff**。运行 `cargo fmt` 自动修复后：
+
+| 项目 | 数量 |
+|------|------|
+| 涉及文件 | 24 个 |
+| 改动行数 | +163 / -242 |
+| 主要修复 | import 分组、函数签名换行、`if-else` 格式、use 排序 |
+
+涉及文件：
+- `handlers/advanced/analytics.rs` / `ai_analysis_handler.rs` / `crm_pool_handler.rs` / `init_handler.rs` / `inventory_batch_handler.rs` / `inventory_count_handler.rs` / `purchase_receipt_handler.rs` / `report_engine_handler.rs` / `system_update_handler.rs`
+- `main.rs` / `middleware/metrics.rs`
+- `services/crm/{cust,lead,opp,pool}.rs` / `inv/batch.rs` / `po/{order,receipt}.rs` / `report/{ds,tpl}.rs` / `report_template_service.rs` / `so/order.rs` / `mod.rs`
+- `utils/password_validator.rs`
+
+**验证**：`cargo +1.94.0 fmt -- --check` → 0 输出（通过）。
+
+#### 9.7.3 最终验证（CI #764）
+
+提交 `a17ba0a style: 修复 rustfmt 格式问题` 推送后：
+
+| 任务 | 状态 |
+|------|------|
+| 构建后端 | ✅ success |
+| 前端测试 | ✅ success |
+| **运行测试** | ✅ **success** |
+| 构建前端 | ✅ success |
+| 创建发布包 | ✅ success |
+| 发布到 GitHub Release | ✅ success |
+| 构建通知 | ✅ success |
+
+**CI 100% 通过**，仓库达到可发布状态。
+
+#### 9.7.4 沙箱环境踩坑
+
+- **rustfmt 1.94.0 组件未实际安装**：`rustup component add rustfmt` 报告 "up to date"，但 `~/.rustup/toolchains/1.94.0/bin/rustfmt` 不存在。**根因**：toolchain 初始安装时 `rustfmt-preview` 未被勾选。**修复**：`rustup component remove rustfmt --toolchain 1.94.0 && rustup component add rustfmt --toolchain 1.94.0` 强制重装后二进制才出现。
+- **本地 cargo clippy 触发 SIGKILL（OOM）**：6GB 沙箱内存上限在 rustc codegen 阶段被击中，`codegen-units=256` 已配置但仍偶发。**应对**：信任 CI 在 7GB runner 上的 clippy 结果（CI #764 已通过）；本地仅跑 `cargo check --lib` 验证语法。
+- **rustfmt 1.92.0 vs 1.94.1 差异风险**：本地无 1.94.1，先用 1.92.0 跑 `cargo fmt`（产出与 1.94.1 兼容的格式），再用 1.94.0 校验通过；最终 CI 1.94.1 实测通过。
+
+### 9.8 仍待办（非阻塞）
 
 1. **`sales_order_handler` 10 个端点返回 `serde_json::Value`**（维持 P5 计划）
 2. **`inventory_count_handler` 的 `quantity_shipped` 字段** schema migration 文档
 3. **测试编译错误 364 个**（pre-existing，独立工作流）
+4. **本地 CI 镜像**：建议将 `rust-toolchain.toml` 固定到 1.94.1，避免本地与 CI 工具链漂移。
