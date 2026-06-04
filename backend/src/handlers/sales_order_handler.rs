@@ -408,7 +408,7 @@ pub async fn reject_order(
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     let sales_service = SalesService::new(state.db.clone());
 
-    let _order = sales_service
+    sales_service
         .reject_order(id, "订单被拒绝".to_string(), _auth.user_id)
         .await
         .map_err(|e| AppError::internal(format!("拒绝订单失败: {}", e)))?;

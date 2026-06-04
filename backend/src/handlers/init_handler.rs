@@ -84,7 +84,7 @@ pub async fn initialize_system(
                 "系统初始化成功",
             ))
         })
-        .map_err(|e| map_init_error(e))
+        .map_err(map_init_error)
 }
 
 pub async fn initialize_system_with_db(

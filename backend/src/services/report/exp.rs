@@ -489,5 +489,5 @@ impl ReportEngineService {
 // 抑制未使用导入
 #[allow(dead_code)]
 fn _unused() {
-    let _ = base64::engine::general_purpose::STANDARD.encode(&[0u8]);
+    let _ = base64::engine::general_purpose::STANDARD.encode([0u8]);
 }

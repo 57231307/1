@@ -69,7 +69,7 @@ impl ReportEngineService {
                     if req.group_by.iter().any(|g| g == "customer") {
                         format!("customer_{}", order.customer_id)
                     } else if req.group_by.iter().any(|g| g == "month") {
-                        format!("month_{}", order.order_date.format("%Y-%m").to_string())
+                        format!("month_{}", order.order_date.format("%Y-%m"))
                     } else {
                         "total".to_string()
                     }

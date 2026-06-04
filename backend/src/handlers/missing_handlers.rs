@@ -115,11 +115,12 @@ pub async fn create_accounting_period(
     payload.validate()?;
 
     // 防止重复创建
-    if let Some(_) = accounting_period::Entity::find()
+    if accounting_period::Entity::find()
         .filter(accounting_period::Column::Year.eq(payload.year))
         .filter(accounting_period::Column::Period.eq(payload.period))
         .one(state.db.as_ref())
         .await?
+        .is_some()
     {
         return Err(AppError::business(format!(
             "{} 年 {:02} 月的会计期间已存在",

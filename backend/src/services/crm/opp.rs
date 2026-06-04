@@ -168,7 +168,7 @@ impl CrmService {
         }
         if let Some(v) = req.opportunity_stage.clone() {
             self.validate_opportunity_stage_transition(
-                &opportunity_active.opportunity_stage.as_ref(),
+                opportunity_active.opportunity_stage.as_ref(),
                 &v,
             )?;
             opportunity_active.opportunity_stage = Set(Some(v));

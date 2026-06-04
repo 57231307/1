@@ -36,10 +36,8 @@ impl ReportEngineService {
         let now = Utc::now();
         let _filters_json = serde_json::to_value(&req.filters)
             .map_err(|e| AppError::internal(format!("序列化筛选条件失败: {}", e)))?;
-        let recipients_json = sea_orm::JsonValue::from(
-            serde_json::to_value(&req.recipients)
-                .map_err(|e| AppError::internal(format!("序列化收件人失败: {}", e)))?,
-        );
+        let recipients_json = serde_json::to_value(&req.recipients)
+            .map_err(|e| AppError::internal(format!("序列化收件人失败: {}", e)))?;
         let parameters_json = match &req.parameters {
             Some(p) => serde_json::to_value(p)
                 .map_err(|e| AppError::internal(format!("序列化参数失败: {}", e)))?,
@@ -48,7 +46,7 @@ impl ReportEngineService {
         let parameters_opt = if parameters_json.is_null() {
             None
         } else {
-            Some(sea_orm::JsonValue::from(parameters_json))
+            Some(parameters_json)
         };
 
         // 根据 cron 表达式大致推断频率

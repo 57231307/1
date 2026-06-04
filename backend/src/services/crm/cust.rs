@@ -244,8 +244,8 @@ impl CrmService {
         )
         .await?;
 
-        Ok(serde_json::to_value(customer)
-            .map_err(|e| AppError::internal(format!("序列化失败: {}", e)))?)
+        serde_json::to_value(customer)
+            .map_err(|e| AppError::internal(format!("序列化失败: {}", e)))
     }
 
     /// 删除客户（增强版，含关联数据检查）
@@ -346,8 +346,8 @@ impl CrmService {
         .insert(&*self.db)
         .await?;
 
-        Ok(serde_json::to_value(follow_up)
-            .map_err(|e| AppError::internal(format!("序列化失败: {}", e)))?)
+        serde_json::to_value(follow_up)
+            .map_err(|e| AppError::internal(format!("序列化失败: {}", e)))
     }
 
     /// 计算 RFM 评分（R: 最近一次消费, F: 消费频率, M: 消费金额）
