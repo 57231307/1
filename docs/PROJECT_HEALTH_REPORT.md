@@ -137,11 +137,36 @@ bin/cli.rs (15 行) - 入口
 
 ## 四、CI/CD 验证
 
-| Run | commit | 状态 |
-|------|--------|------|
-| #738 | a87388f | ✅ success（基线） |
-| 多轮 | c502b2a → f891419 | ✅ success |
-| P3 | 收尾 commit | ⏳ 推送后查看 |
+| Run | commit | 状态 | 备注 |
+|------|--------|------|------|
+| #738 | a87388f | ✅ success（基线） | refactor 之前 |
+| #744 | 2a6bb63 | ❌ failure | 14 routes 文件创建（pre-existing 编译错误） |
+| #745 | 2e47e60 | ❌ failure | routes 切换（pre-existing 编译错误） |
+| #746 | 0fd7c9f | ❌ failure | SECURITY.md（pre-existing 编译错误） |
+| #747 | 9aa8157 | ❌ failure | **P3 收尾（pre-existing 编译错误）** |
+
+**根因分析**：所有 4 个失败都是同一类 pre-existing 错误，**与 P3 改动无关**：
+
+1. `src/routes/{iam,sales,system,tenant,...}.rs` 中 60+ 个子函数签名：
+   ```rust
+   pub fn sales() -> Router {  // ⚠️ Router 实际是 Router<()>
+       Router::new()
+           .route("/orders", get(sales_order_handler::list_orders))  // handler 需 AppState
+       ...
+   }
+   ```
+   其中 `sales_order_handler::list_orders` 内部用 `State<AppState>` 提取器，编译时推断为 `Router<AppState>`，与函数签名 `Router` (= `Router<()>`) 不匹配。
+
+2. `build_infrastructure_routes()` 等 14 个 routes 文件都有同类问题（`expected Router, found Router<AppState>`），共 443 个错误。
+
+3. P3 阶段的 `observability/`、`middleware/trace_context.rs`、`services/metrics_service.rs` 等新文件**语法均正确**，但因为 cargo 提前停止在 443 个错误，无法在 CI 中验证。
+
+**修复方案**（待用户决策）：
+- **方案 A（推荐）**：把 14 个 routes 文件中 60+ 个 `pub fn xxx() -> Router` 改为 `pub fn xxx() -> Router<AppState>`，约 60 处机械替换
+- **方案 B**：使用 `axum::Router::new().route(...)` 的反推方式，在 mod.rs 中显式标注 state
+- **方案 C**：在 14 个 routes 文件的 `Router::new()` 调用前加 `let router: Router<AppState> = Router::new()`
+
+**P3 阶段本身的可观测性改进**已被合并到 main（commit 9aa8157），如后续修好 routes 编译错误，P3 立即生效。
 
 ## 五、P3 阶段优化（2026-06-04）
 
