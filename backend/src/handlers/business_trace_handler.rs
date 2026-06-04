@@ -1,7 +1,8 @@
 use crate::utils::app_state::AppState;
+use crate::utils::error::AppError;
+use crate::utils::response::ApiResponse;
 use axum::{
     extract::{Path, Query, State},
-    http::StatusCode,
     Json,
 };
 use rust_decimal::Decimal;
@@ -89,176 +90,179 @@ pub struct TraceListResponse {
 pub async fn get_trace_by_five_dimension(
     State(state): State<AppState>,
     Path(five_dimension_id): Path<String>,
-) -> Result<Json<FullTraceChainResponse>, (StatusCode, String)> {
+) -> Result<Json<ApiResponse<FullTraceChainResponse>>, AppError> {
     let service = BusinessTraceService::new(state.db.clone());
 
-    match service
+    let traces = service
         .find_trace_chain_by_five_dimension(&five_dimension_id)
         .await
-    {
-        Ok(traces) => {
-            let first_trace = match traces.first() {
-                Some(trace) => trace,
-                None => return Err((StatusCode::NOT_FOUND, "未找到追溯链".to_string())),
-            };
-            let last_trace = match traces.last() {
-                Some(trace) => trace,
-                None => return Err((StatusCode::NOT_FOUND, "未找到追溯链".to_string())),
-            };
-            let total_stages = traces.len();
+        .map_err(|e| AppError::internal(e.to_string()))?;
 
-            // 克隆需要的字段，避免借用冲突
-            let trace_chain_id = first_trace.trace_chain_id.clone();
-            let five_dimension_id_val = first_trace.five_dimension_id.clone();
-            let product_id = first_trace.product_id;
-            let batch_no = first_trace.batch_no.clone();
-            let color_no = first_trace.color_no.clone();
-            let grade = first_trace.grade.clone();
-            let start_time = first_trace.created_at;
-            let end_time = Some(last_trace.created_at);
+    let first_trace = traces
+        .first()
+        .ok_or_else(|| AppError::not_found("未找到追溯链"))?;
+    let last_trace = traces
+        .last()
+        .ok_or_else(|| AppError::not_found("未找到追溯链"))?;
+    let total_stages = traces.len();
 
-            let stages: Vec<TraceStageDetail> = traces
-                .into_iter()
-                .map(|t| TraceStageDetail {
-                    stage_id: t.id,
-                    stage_name: get_stage_name(&t.current_stage),
-                    stage_type: t.current_stage,
-                    bill_type: t.current_bill_type,
-                    bill_no: t.current_bill_no,
-                    quantity_meters: t.quantity_meters,
-                    quantity_kg: t.quantity_kg,
-                    warehouse_id: t.warehouse_id,
-                    warehouse_name: None,
-                    supplier_name: None,
-                    customer_name: None,
-                    created_at: t.created_at,
-                })
-                .collect();
+    // 克隆需要的字段，避免借用冲突
+    let trace_chain_id = first_trace.trace_chain_id.clone();
+    let five_dimension_id_val = first_trace.five_dimension_id.clone();
+    let product_id = first_trace.product_id;
+    let batch_no = first_trace.batch_no.clone();
+    let color_no = first_trace.color_no.clone();
+    let grade = first_trace.grade.clone();
+    let start_time = first_trace.created_at;
+    let end_time = Some(last_trace.created_at);
 
-            let response = FullTraceChainResponse {
-                trace_chain_id,
-                five_dimension_id: five_dimension_id_val,
-                product_id,
-                batch_no,
-                color_no,
-                grade,
-                stages,
-                total_stages,
-                start_time,
-                end_time,
-            };
+    let stages: Vec<TraceStageDetail> = traces
+        .into_iter()
+        .map(|t| TraceStageDetail {
+            stage_id: t.id,
+            stage_name: get_stage_name(&t.current_stage),
+            stage_type: t.current_stage,
+            bill_type: t.current_bill_type,
+            bill_no: t.current_bill_no,
+            quantity_meters: t.quantity_meters,
+            quantity_kg: t.quantity_kg,
+            warehouse_id: t.warehouse_id,
+            warehouse_name: None,
+            supplier_name: None,
+            customer_name: None,
+            created_at: t.created_at,
+        })
+        .collect();
 
-            Ok(Json(response))
-        }
-        Err(e) => Err((StatusCode::INTERNAL_SERVER_ERROR, e.to_string())),
-    }
+    let response = FullTraceChainResponse {
+        trace_chain_id,
+        five_dimension_id: five_dimension_id_val,
+        product_id,
+        batch_no,
+        color_no,
+        grade,
+        stages,
+        total_stages,
+        start_time,
+        end_time,
+    };
+
+    Ok(Json(ApiResponse::success_with_message(
+        response,
+        "追溯链查询成功",
+    )))
 }
 
 /// 正向追溯
 pub async fn forward_trace(
     State(state): State<AppState>,
     Query(params): Query<ForwardTraceParams>,
-) -> Result<Json<TraceListResponse>, (StatusCode, String)> {
+) -> Result<Json<ApiResponse<TraceListResponse>>, AppError> {
     let service = BusinessTraceService::new(state.db.clone());
 
-    match service
+    let traces = service
         .forward_trace(params.supplier_id, &params.batch_no)
         .await
-    {
-        Ok(traces) => {
-            let trace_responses: Vec<TraceChainResponse> = traces
-                .into_iter()
-                .map(|t| TraceChainResponse {
-                    id: t.id,
-                    trace_chain_id: t.trace_chain_id,
-                    five_dimension_id: t.five_dimension_id,
-                    product_id: t.product_id,
-                    batch_no: t.batch_no,
-                    color_no: t.color_no,
-                    dye_lot_no: t.dye_lot_no,
-                    grade: t.grade,
-                    current_stage: t.current_stage,
-                    current_bill_type: t.current_bill_type,
-                    current_bill_no: t.current_bill_no,
-                    quantity_meters: t.quantity_meters,
-                    quantity_kg: t.quantity_kg,
-                    warehouse_id: t.warehouse_id,
-                    supplier_id: t.supplier_id,
-                    customer_id: t.customer_id,
-                    trace_status: t.trace_status,
-                    created_at: t.created_at,
-                })
-                .collect();
+        .map_err(|e| AppError::internal(e.to_string()))?;
 
-            let total = trace_responses.len() as u64;
+    let trace_responses: Vec<TraceChainResponse> = traces
+        .into_iter()
+        .map(|t| TraceChainResponse {
+            id: t.id,
+            trace_chain_id: t.trace_chain_id,
+            five_dimension_id: t.five_dimension_id,
+            product_id: t.product_id,
+            batch_no: t.batch_no,
+            color_no: t.color_no,
+            dye_lot_no: t.dye_lot_no,
+            grade: t.grade,
+            current_stage: t.current_stage,
+            current_bill_type: t.current_bill_type,
+            current_bill_no: t.current_bill_no,
+            quantity_meters: t.quantity_meters,
+            quantity_kg: t.quantity_kg,
+            warehouse_id: t.warehouse_id,
+            supplier_id: t.supplier_id,
+            customer_id: t.customer_id,
+            trace_status: t.trace_status,
+            created_at: t.created_at,
+        })
+        .collect();
 
-            Ok(Json(TraceListResponse {
-                traces: trace_responses,
-                total,
-            }))
-        }
-        Err(e) => Err((StatusCode::INTERNAL_SERVER_ERROR, e.to_string())),
-    }
+    let total = trace_responses.len() as u64;
+
+    Ok(Json(ApiResponse::success_with_message(
+        TraceListResponse {
+            traces: trace_responses,
+            total,
+        },
+        "正向追溯完成",
+    )))
 }
 
 /// 反向追溯
 pub async fn backward_trace(
     State(state): State<AppState>,
     Query(params): Query<BackwardTraceParams>,
-) -> Result<Json<TraceListResponse>, (StatusCode, String)> {
+) -> Result<Json<ApiResponse<TraceListResponse>>, AppError> {
     let service = BusinessTraceService::new(state.db.clone());
 
-    match service
+    let traces = service
         .backward_trace(params.customer_id, &params.batch_no)
         .await
-    {
-        Ok(traces) => {
-            let trace_responses: Vec<TraceChainResponse> = traces
-                .into_iter()
-                .map(|t| TraceChainResponse {
-                    id: t.id,
-                    trace_chain_id: t.trace_chain_id,
-                    five_dimension_id: t.five_dimension_id,
-                    product_id: t.product_id,
-                    batch_no: t.batch_no,
-                    color_no: t.color_no,
-                    dye_lot_no: t.dye_lot_no,
-                    grade: t.grade,
-                    current_stage: t.current_stage,
-                    current_bill_type: t.current_bill_type,
-                    current_bill_no: t.current_bill_no,
-                    quantity_meters: t.quantity_meters,
-                    quantity_kg: t.quantity_kg,
-                    warehouse_id: t.warehouse_id,
-                    supplier_id: t.supplier_id,
-                    customer_id: t.customer_id,
-                    trace_status: t.trace_status,
-                    created_at: t.created_at,
-                })
-                .collect();
+        .map_err(|e| AppError::internal(e.to_string()))?;
 
-            let total = trace_responses.len() as u64;
+    let trace_responses: Vec<TraceChainResponse> = traces
+        .into_iter()
+        .map(|t| TraceChainResponse {
+            id: t.id,
+            trace_chain_id: t.trace_chain_id,
+            five_dimension_id: t.five_dimension_id,
+            product_id: t.product_id,
+            batch_no: t.batch_no,
+            color_no: t.color_no,
+            dye_lot_no: t.dye_lot_no,
+            grade: t.grade,
+            current_stage: t.current_stage,
+            current_bill_type: t.current_bill_type,
+            current_bill_no: t.current_bill_no,
+            quantity_meters: t.quantity_meters,
+            quantity_kg: t.quantity_kg,
+            warehouse_id: t.warehouse_id,
+            supplier_id: t.supplier_id,
+            customer_id: t.customer_id,
+            trace_status: t.trace_status,
+            created_at: t.created_at,
+        })
+        .collect();
 
-            Ok(Json(TraceListResponse {
-                traces: trace_responses,
-                total,
-            }))
-        }
-        Err(e) => Err((StatusCode::INTERNAL_SERVER_ERROR, e.to_string())),
-    }
+    let total = trace_responses.len() as u64;
+
+    Ok(Json(ApiResponse::success_with_message(
+        TraceListResponse {
+            traces: trace_responses,
+            total,
+        },
+        "反向追溯完成",
+    )))
 }
 
 /// 创建追溯快照
 pub async fn create_trace_snapshot(
     State(state): State<AppState>,
     Path(trace_chain_id): Path<String>,
-) -> Result<Json<String>, (StatusCode, String)> {
+) -> Result<Json<ApiResponse<String>>, AppError> {
     let service = BusinessTraceService::new(state.db.clone());
 
-    match service.create_snapshot(&trace_chain_id).await {
-        Ok(snapshot) => Ok(Json(format!("追溯快照创建成功，快照 ID: {}", snapshot.id))),
-        Err(e) => Err((StatusCode::INTERNAL_SERVER_ERROR, e.to_string())),
-    }
+    let snapshot = service
+        .create_snapshot(&trace_chain_id)
+        .await
+        .map_err(|e| AppError::internal(e.to_string()))?;
+
+    Ok(Json(ApiResponse::success_with_message(
+        format!("追溯快照创建成功，快照 ID: {}", snapshot.id),
+        "追溯快照创建成功",
+    )))
 }
 
 /// 获取环节名称

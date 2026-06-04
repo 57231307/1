@@ -1,7 +1,6 @@
 use crate::utils::app_state::AppState;
 use axum::{
     extract::{Path, Query, State},
-    http::StatusCode,
     Json,
 };
 use rust_decimal::Decimal;
@@ -10,7 +9,7 @@ use tracing::info;
 
 use crate::services::assist_accounting_service::AssistAccountingService;
 use crate::utils::error::AppError;
-use crate::utils::ApiResponse;
+use crate::utils::response::ApiResponse;
 
 /// 辅助核算维度响应
 #[derive(Debug, Serialize)]
@@ -114,13 +113,13 @@ pub async fn list_assist_dimensions(
 pub async fn query_assist_records(
     State(state): State<AppState>,
     Query(params): Query<AssistRecordQueryParams>,
-) -> Result<Json<AssistRecordListResponse>, (StatusCode, String)> {
+) -> Result<Json<ApiResponse<AssistRecordListResponse>>, AppError> {
     let service = AssistAccountingService::new(state.db.clone());
 
     let page = params.page.unwrap_or(0);
     let page_size = params.page_size.unwrap_or(20);
 
-    match service
+    let (records, total) = service
         .query_assist_records(
             params.accounting_period.as_deref(),
             params.dimension_code.as_deref(),
@@ -130,89 +129,89 @@ pub async fn query_assist_records(
             page_size,
         )
         .await
-    {
-        Ok((records, total)) => {
-            let record_responses: Vec<AssistRecordResponse> = records
-                .into_iter()
-                .map(|r| AssistRecordResponse {
-                    id: r.id,
-                    business_type: r.business_type,
-                    business_no: r.business_no,
-                    business_id: r.business_id,
-                    account_subject_id: r.account_subject_id,
-                    debit_amount: r.debit_amount,
-                    credit_amount: r.credit_amount,
-                    five_dimension_id: r.five_dimension_id,
-                    product_id: r.product_id,
-                    batch_no: r.batch_no,
-                    color_no: r.color_no,
-                    dye_lot_no: r.dye_lot_no,
-                    grade: r.grade,
-                    warehouse_id: r.warehouse_id,
-                    quantity_meters: r.quantity_meters,
-                    quantity_kg: r.quantity_kg,
-                    workshop_id: r.workshop_id,
-                    customer_id: r.customer_id,
-                    supplier_id: r.supplier_id,
-                    remarks: r.remarks,
-                    created_at: r.created_at,
-                })
-                .collect();
+        .map_err(|e| AppError::internal(e.to_string()))?;
 
-            Ok(Json(AssistRecordListResponse {
-                records: record_responses,
-                total,
-                page,
-                page_size,
-            }))
-        }
-        Err(e) => Err((StatusCode::INTERNAL_SERVER_ERROR, e.to_string())),
-    }
+    let record_responses: Vec<AssistRecordResponse> = records
+        .into_iter()
+        .map(|r| AssistRecordResponse {
+            id: r.id,
+            business_type: r.business_type,
+            business_no: r.business_no,
+            business_id: r.business_id,
+            account_subject_id: r.account_subject_id,
+            debit_amount: r.debit_amount,
+            credit_amount: r.credit_amount,
+            five_dimension_id: r.five_dimension_id,
+            product_id: r.product_id,
+            batch_no: r.batch_no,
+            color_no: r.color_no,
+            dye_lot_no: r.dye_lot_no,
+            grade: r.grade,
+            warehouse_id: r.warehouse_id,
+            quantity_meters: r.quantity_meters,
+            quantity_kg: r.quantity_kg,
+            workshop_id: r.workshop_id,
+            customer_id: r.customer_id,
+            supplier_id: r.supplier_id,
+            remarks: r.remarks,
+            created_at: r.created_at,
+        })
+        .collect();
+
+    Ok(Json(ApiResponse::success_with_message(
+        AssistRecordListResponse {
+            records: record_responses,
+            total,
+            page,
+            page_size,
+        },
+        "辅助核算记录查询成功",
+    )))
 }
 
 /// 按业务单查询辅助核算记录
 pub async fn get_assist_records_by_business(
     State(state): State<AppState>,
     Query(params): Query<BusinessQueryParams>,
-) -> Result<Json<Vec<AssistRecordResponse>>, (StatusCode, String)> {
+) -> Result<Json<ApiResponse<Vec<AssistRecordResponse>>>, AppError> {
     let service = AssistAccountingService::new(state.db.clone());
 
-    match service
+    let records = service
         .find_by_business(&params.business_type, &params.business_no)
         .await
-    {
-        Ok(records) => {
-            let record_responses: Vec<AssistRecordResponse> = records
-                .into_iter()
-                .map(|r| AssistRecordResponse {
-                    id: r.id,
-                    business_type: r.business_type,
-                    business_no: r.business_no,
-                    business_id: r.business_id,
-                    account_subject_id: r.account_subject_id,
-                    debit_amount: r.debit_amount,
-                    credit_amount: r.credit_amount,
-                    five_dimension_id: r.five_dimension_id,
-                    product_id: r.product_id,
-                    batch_no: r.batch_no,
-                    color_no: r.color_no,
-                    dye_lot_no: r.dye_lot_no,
-                    grade: r.grade,
-                    warehouse_id: r.warehouse_id,
-                    quantity_meters: r.quantity_meters,
-                    quantity_kg: r.quantity_kg,
-                    workshop_id: r.workshop_id,
-                    customer_id: r.customer_id,
-                    supplier_id: r.supplier_id,
-                    remarks: r.remarks,
-                    created_at: r.created_at,
-                })
-                .collect();
+        .map_err(|e| AppError::internal(e.to_string()))?;
 
-            Ok(Json(record_responses))
-        }
-        Err(e) => Err((StatusCode::INTERNAL_SERVER_ERROR, e.to_string())),
-    }
+    let record_responses: Vec<AssistRecordResponse> = records
+        .into_iter()
+        .map(|r| AssistRecordResponse {
+            id: r.id,
+            business_type: r.business_type,
+            business_no: r.business_no,
+            business_id: r.business_id,
+            account_subject_id: r.account_subject_id,
+            debit_amount: r.debit_amount,
+            credit_amount: r.credit_amount,
+            five_dimension_id: r.five_dimension_id,
+            product_id: r.product_id,
+            batch_no: r.batch_no,
+            color_no: r.color_no,
+            dye_lot_no: r.dye_lot_no,
+            grade: r.grade,
+            warehouse_id: r.warehouse_id,
+            quantity_meters: r.quantity_meters,
+            quantity_kg: r.quantity_kg,
+            workshop_id: r.workshop_id,
+            customer_id: r.customer_id,
+            supplier_id: r.supplier_id,
+            remarks: r.remarks,
+            created_at: r.created_at,
+        })
+        .collect();
+
+    Ok(Json(ApiResponse::success_with_message(
+        record_responses,
+        "按业务单查询辅助核算记录成功",
+    )))
 }
 
 /// 业务单查询参数
@@ -226,42 +225,45 @@ pub struct BusinessQueryParams {
 pub async fn get_assist_records_by_five_dimension(
     State(state): State<AppState>,
     Path(five_dimension_id): Path<String>,
-) -> Result<Json<Vec<AssistRecordResponse>>, (StatusCode, String)> {
+) -> Result<Json<ApiResponse<Vec<AssistRecordResponse>>>, AppError> {
     let service = AssistAccountingService::new(state.db.clone());
 
-    match service.find_by_five_dimension(&five_dimension_id).await {
-        Ok(records) => {
-            let record_responses: Vec<AssistRecordResponse> = records
-                .into_iter()
-                .map(|r| AssistRecordResponse {
-                    id: r.id,
-                    business_type: r.business_type,
-                    business_no: r.business_no,
-                    business_id: r.business_id,
-                    account_subject_id: r.account_subject_id,
-                    debit_amount: r.debit_amount,
-                    credit_amount: r.credit_amount,
-                    five_dimension_id: r.five_dimension_id,
-                    product_id: r.product_id,
-                    batch_no: r.batch_no,
-                    color_no: r.color_no,
-                    dye_lot_no: r.dye_lot_no,
-                    grade: r.grade,
-                    warehouse_id: r.warehouse_id,
-                    quantity_meters: r.quantity_meters,
-                    quantity_kg: r.quantity_kg,
-                    workshop_id: r.workshop_id,
-                    customer_id: r.customer_id,
-                    supplier_id: r.supplier_id,
-                    remarks: r.remarks,
-                    created_at: r.created_at,
-                })
-                .collect();
+    let records = service
+        .find_by_five_dimension(&five_dimension_id)
+        .await
+        .map_err(|e| AppError::internal(e.to_string()))?;
 
-            Ok(Json(record_responses))
-        }
-        Err(e) => Err((StatusCode::INTERNAL_SERVER_ERROR, e.to_string())),
-    }
+    let record_responses: Vec<AssistRecordResponse> = records
+        .into_iter()
+        .map(|r| AssistRecordResponse {
+            id: r.id,
+            business_type: r.business_type,
+            business_no: r.business_no,
+            business_id: r.business_id,
+            account_subject_id: r.account_subject_id,
+            debit_amount: r.debit_amount,
+            credit_amount: r.credit_amount,
+            five_dimension_id: r.five_dimension_id,
+            product_id: r.product_id,
+            batch_no: r.batch_no,
+            color_no: r.color_no,
+            dye_lot_no: r.dye_lot_no,
+            grade: r.grade,
+            warehouse_id: r.warehouse_id,
+            quantity_meters: r.quantity_meters,
+            quantity_kg: r.quantity_kg,
+            workshop_id: r.workshop_id,
+            customer_id: r.customer_id,
+            supplier_id: r.supplier_id,
+            remarks: r.remarks,
+            created_at: r.created_at,
+        })
+        .collect();
+
+    Ok(Json(ApiResponse::success_with_message(
+        record_responses,
+        "按五维 ID 查询辅助核算记录成功",
+    )))
 }
 
 /// 获取辅助核算汇总
@@ -278,7 +280,7 @@ pub async fn get_assist_summary(
 
     let dimension_code = params.dimension_code.as_deref().unwrap_or("");
 
-    let summaries = if dimension_code.is_empty() {
+    let summaries: Vec<AssistSummaryResponse> = if dimension_code.is_empty() {
         vec![]
     } else {
         service

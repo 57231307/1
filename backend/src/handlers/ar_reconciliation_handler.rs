@@ -1,6 +1,5 @@
 use axum::{
     extract::{Path, Query, State},
-    http::StatusCode,
     Json,
 };
 use chrono::NaiveDate;
@@ -69,7 +68,7 @@ pub async fn create_reconciliation(
     State(state): State<AppState>,
     _auth: AuthContext,
     Json(req): Json<CreateReconciliationApiRequest>,
-) -> Result<Json<ApiResponse<ReconciliationResponse>>, StatusCode> {
+) -> Result<Json<ApiResponse<ReconciliationResponse>>, AppError> {
     let service = ArReconciliationService::new(state.db);
     let create_req = CreateReconciliationRequest {
         reconciliation_no: req.reconciliation_no,
@@ -83,15 +82,14 @@ pub async fn create_reconciliation(
         notes: None,
     };
 
-    match service.create(create_req).await {
-        Ok(model) => Ok(Json(ApiResponse::success(ReconciliationResponse::from(
-            model,
-        )))),
-        Err(e) => {
+    service
+        .create(create_req)
+        .await
+        .map(|model| Json(ApiResponse::success(ReconciliationResponse::from(model))))
+        .map_err(|e| {
             tracing::error!("创建对账单失败: {}", e);
-            Err(StatusCode::INTERNAL_SERVER_ERROR)
-        }
-    }
+            AppError::internal(format!("创建对账单失败: {}", e))
+        })
 }
 
 #[derive(Debug, Deserialize)]
@@ -106,7 +104,7 @@ pub async fn list_reconciliations(
     State(state): State<AppState>,
     _auth: AuthContext,
     Query(query): Query<ListReconciliationsQuery>,
-) -> Result<Json<ApiResponse<Vec<ReconciliationResponse>>>, StatusCode> {
+) -> Result<Json<ApiResponse<Vec<ReconciliationResponse>>>, AppError> {
     let service = ArReconciliationService::new(state.db);
     let req = ReconciliationQuery {
         status: query.status,
@@ -115,38 +113,38 @@ pub async fn list_reconciliations(
         page_size: query.page_size.unwrap_or(20),
     };
 
-    match service.list(req).await {
-        Ok((models, _total)) => {
+    service
+        .list(req)
+        .await
+        .map(|(models, _total)| {
             let responses: Vec<ReconciliationResponse> = models
                 .into_iter()
                 .map(ReconciliationResponse::from)
                 .collect();
-            Ok(Json(ApiResponse::success(responses)))
-        }
-        Err(e) => {
+            Json(ApiResponse::success(responses))
+        })
+        .map_err(|e| {
             tracing::error!("获取对账单列表失败: {}", e);
-            Err(StatusCode::INTERNAL_SERVER_ERROR)
-        }
-    }
+            AppError::internal(format!("获取对账单列表失败: {}", e))
+        })
 }
 
 pub async fn get_reconciliation(
     State(state): State<AppState>,
     _auth: AuthContext,
     Path(id): Path<i32>,
-) -> Result<Json<ApiResponse<ReconciliationResponse>>, StatusCode> {
+) -> Result<Json<ApiResponse<ReconciliationResponse>>, AppError> {
     let service = ArReconciliationService::new(state.db);
 
-    match service.get_by_id(id).await {
-        Ok(Some(model)) => Ok(Json(ApiResponse::success(ReconciliationResponse::from(
-            model,
-        )))),
-        Ok(None) => Err(StatusCode::NOT_FOUND),
-        Err(e) => {
+    service
+        .get_by_id(id)
+        .await
+        .map_err(|e| {
             tracing::error!("获取对账单失败: {}", e);
-            Err(StatusCode::INTERNAL_SERVER_ERROR)
-        }
-    }
+            AppError::internal(format!("获取对账单失败: {}", e))
+        })?
+        .map(|model| Json(ApiResponse::success(ReconciliationResponse::from(model))))
+        .ok_or_else(|| AppError::not_found(format!("对账单 {} 不存在", id)))
 }
 
 #[derive(Debug, Deserialize)]
@@ -159,18 +157,17 @@ pub async fn update_reconciliation_status(
     _auth: AuthContext,
     Path(id): Path<i32>,
     Json(req): Json<UpdateStatusRequest>,
-) -> Result<Json<ApiResponse<ReconciliationResponse>>, StatusCode> {
+) -> Result<Json<ApiResponse<ReconciliationResponse>>, AppError> {
     let service = ArReconciliationService::new(state.db);
 
-    match service.update_status(id, &req.status).await {
-        Ok(model) => Ok(Json(ApiResponse::success(ReconciliationResponse::from(
-            model,
-        )))),
-        Err(e) => {
+    service
+        .update_status(id, &req.status)
+        .await
+        .map(|model| Json(ApiResponse::success(ReconciliationResponse::from(model))))
+        .map_err(|e| {
             tracing::error!("更新对账单状态失败: {}", e);
-            Err(StatusCode::INTERNAL_SERVER_ERROR)
-        }
-    }
+            AppError::internal(format!("更新对账单状态失败: {}", e))
+        })
 }
 
 // ============================================================================

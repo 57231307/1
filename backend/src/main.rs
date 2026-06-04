@@ -31,7 +31,6 @@ use crate::middleware::permission::permission_middleware;
 use crate::middleware::request_validator::request_validator_middleware;
 use crate::routes::create_router;
 use crate::services::init_service::{DatabaseConfig, InitService};
-use crate::utils::app_state::AppState;
 use crate::utils::log_config::{self, LogConfig};
 
 #[derive(Debug, serde::Serialize)]
@@ -39,6 +38,12 @@ struct InitStatusResponse {
     initialized: bool,
     message: String,
     mode: String,
+}
+
+#[derive(Debug, serde::Serialize)]
+struct InitErrorResponse {
+    error: String,
+    message: String,
 }
 
 async fn get_init_status() -> Json<InitStatusResponse> {
@@ -51,13 +56,8 @@ async fn get_init_status() -> Json<InitStatusResponse> {
 
 async fn test_database_connection(
     Json(payload): Json<DatabaseConfig>,
-) -> Result<
-    Json<crate::handlers::init_handler::TestDatabaseResponse>,
-    (
-        axum::http::StatusCode,
-        Json<crate::handlers::init_handler::ErrorResponse>,
-    ),
-> {
+) -> Result<Json<crate::handlers::init_handler::TestDatabaseResponse>, (axum::http::StatusCode, Json<InitErrorResponse>)>
+{
     match InitService::test_database(&payload).await {
         Ok(_) => Ok(Json(crate::handlers::init_handler::TestDatabaseResponse {
             success: true,
@@ -65,7 +65,7 @@ async fn test_database_connection(
         })),
         Err(e) => Err((
             axum::http::StatusCode::BAD_REQUEST,
-            Json(crate::handlers::init_handler::ErrorResponse {
+            Json(InitErrorResponse {
                 error: "database_connection_failed".to_string(),
                 message: e.to_string(),
             }),
@@ -75,13 +75,8 @@ async fn test_database_connection(
 
 async fn initialize_with_db(
     Json(payload): Json<crate::handlers::init_handler::InitWithDbRequest>,
-) -> Result<
-    Json<crate::services::init_service::InitializationResult>,
-    (
-        axum::http::StatusCode,
-        Json<crate::handlers::init_handler::ErrorResponse>,
-    ),
-> {
+) -> Result<Json<crate::services::init_service::InitializationResult>, (axum::http::StatusCode, Json<InitErrorResponse>)>
+{
     match InitService::initialize_with_db(
         &payload.db_config,
         &payload.admin_username,
@@ -117,7 +112,7 @@ async fn initialize_with_db(
 
             Err((
                 axum::http::StatusCode::BAD_REQUEST,
-                Json(crate::handlers::init_handler::ErrorResponse {
+                Json(InitErrorResponse {
                     error: error.to_string(),
                     message,
                 }),

@@ -1,7 +1,7 @@
 # 项目健康度根因汇总（2026-06-03 持续更新）
 
 > 本报告基于对 `57231307/1` 仓库 main 分支的全面静态扫描 + 持续重构。
-> 最近更新：P5 阶段 — 错误响应一致性收敛 + bin/server 编译错误修复（0 errors / 25 warnings）
+> 最近更新：P6 阶段 — 8 个不一致 handler 统一迁移为 ApiResponse+AppError 标准响应格式
 
 ## 一、扫描覆盖范围
 
@@ -504,7 +504,62 @@ P5 完成后，`bin/server` 在 4 处产生编译错误（5 个独立 `E0xxx`）
 
 **最终验证**：`cargo +1.94.0 check --bin server` → 0 errors / 25 warnings（全部为 pre-existing dead_code 警告，与 P5 工作无关）。
 
-### 9.6 仍待办（非阻塞）
+### 9.6 P6 阶段 — API 响应格式全面统一（2026-06-04）
+
+P5 完成后扫描发现，仍有 **8 个 handler 文件** 的返回格式与项目 `ApiResponse<T> + AppError` 标准不一致。前端接收到的 JSON 会出现字段缺失（缺 `code`/`data`），需逐个迁移。
+
+**修改文件清单：**
+
+| # | 文件 | 涉及函数 | 修改前 | 修改后 |
+|---|------|---------|--------|--------|
+| 1 | `system_update_handler.rs` | 10 个 | `(StatusCode, Json<ErrorResponse>)` / 裸 `Json<T>` | `Result<Json<ApiResponse<T>>, AppError>` |
+| 2 | `init_handler.rs` | 5 个 | 裸 `Json<T>` / `(StatusCode, Json<ErrorResponse>)` | `Result<Json<ApiResponse<T>>, AppError>` |
+| 3 | `business_trace_handler.rs` | 4 个 | `(StatusCode, String)` 错误 | `Result<Json<ApiResponse<T>>, AppError>` |
+| 4 | `bulk_product_handler.rs` | 3 个 | 自定义 `BatchResponse<T>` + `(StatusCode, String)` | `Result<Json<ApiResponse<BatchResponse<T>>>, AppError>` |
+| 5 | `assist_accounting_handler.rs` | 3 个 | `(StatusCode, String)` + 裸 `Json<Vec<T>>` | `Result<Json<ApiResponse<T>>, AppError>` |
+| 6 | `ai_analysis_handler.rs` | 4 个 | `Result<..., StatusCode>` | `Result<Json<ApiResponse<T>>, AppError>` |
+| 7 | `ar_reconciliation_handler.rs` | 4 个 | `Result<..., StatusCode>` | `Result<Json<ApiResponse<T>>, AppError>` |
+| 8 | `purchase_receipt_handler.rs` | 2 个 | `Result<StatusCode, AppError>` | `Result<Json<ApiResponse<()>>, AppError>` |
+
+**关键设计决策：**
+
+- **`bulk_product_handler.rs`**：保留 `BatchResponse<T>` 业务结构体（含 success/total/created/updated/deleted/failed/errors 字段，是业务需求），但用 `ApiResponse<BatchResponse<T>>` 包装以统一外层 JSON。
+- **`system_update_handler.rs`**：保留 ZIP 魔数校验、文件大小限制、路径遍历防护等所有安全检查；删除模块内 `ErrorResponse` 自定义结构。
+- **`init_handler.rs`**：提取 `map_init_error` 辅助函数，将 `InitError` 5 个变体分类映射到 `AppError` 各变体。
+- **`purchase_receipt_handler.rs`**：删除 `StatusCode::NO_CONTENT` 直接返回，改为 `ApiResponse::success_with_message((), "...")`。
+- **`main.rs`**：内联的 3 个 init handler 仍使用本地 `InitErrorResponse` 结构（因 `create_init_router` 走 `Router<()>` 路径，简化保留；外层结构兼容）。
+
+**安全性验证：**
+- ✅ 路径遍历防护保留（system_update_handler upload_and_update）
+- ✅ ZIP 魔数校验保留
+- ✅ 文件大小限制保留（100MB）
+- ✅ 错误信息不泄露敏感数据（数据库错误统一 "数据库错误" 文案）
+- ✅ `bulk_product_handler` 错误索引保留（前端可定位失败项）
+
+**兼容性影响：**
+
+前端将 **不再** 看到以下格式的响应（已统一替换）：
+```json
+// 旧 init_handler / system_update_handler / ai_analysis_handler 格式
+{ "success": true, "message": "..." }
+// 旧 business_trace_handler 格式
+{ "...": ... }  // 错误时为 500 + 纯字符串
+// 旧 purchase_receipt_handler 格式
+204 No Content
+```
+
+将统一为：
+```json
+{
+  "code": 200,
+  "data": { ... },
+  "message": "操作成功"
+}
+```
+
+**编译验证**：`cargo +1.94.0 check --bin server` → **0 errors / 24 warnings**（warning 数下降 1 个，因去除了 `StatusCode` 导入；剩余全部为 pre-existing dead_code 警告，与 P6 工作无关）。
+
+### 9.7 仍待办（非阻塞）
 
 1. **`sales_order_handler` 10 个端点返回 `serde_json::Value`**（维持 P5 计划）
 2. **`inventory_count_handler` 的 `quantity_shipped` 字段** schema migration 文档

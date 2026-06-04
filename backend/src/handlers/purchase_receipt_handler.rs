@@ -15,7 +15,6 @@ use crate::utils::error::AppError;
 use crate::utils::response::{ApiResponse, PaginatedResponse};
 use axum::{
     extract::{Path, Query, State},
-    http::StatusCode,
     Json,
 };
 use sea_orm::EntityTrait;
@@ -210,13 +209,13 @@ pub async fn delete_receipt(
     auth: AuthContext,
     Path(id): Path<i32>,
     State(state): State<AppState>,
-) -> Result<StatusCode, AppError> {
+) -> Result<Json<ApiResponse<()>>, AppError> {
     let service = PurchaseReceiptService::new(state.db.clone());
     let user_id = auth.user_id;
 
     service.delete_receipt(id, user_id).await?;
 
-    Ok(StatusCode::NO_CONTENT)
+    Ok(Json(ApiResponse::success_with_message((), "采购入库单删除成功")))
 }
 
 /// 获取入库明细列表
@@ -307,11 +306,11 @@ pub async fn delete_receipt_item(
     auth: AuthContext,
     Path((_receipt_id, item_id)): Path<(i32, i32)>,
     State(state): State<AppState>,
-) -> Result<StatusCode, AppError> {
+) -> Result<Json<ApiResponse<()>>, AppError> {
     let service = PurchaseReceiptService::new(state.db.clone());
     service.delete_receipt_item(item_id, auth.user_id).await?;
 
-    Ok(StatusCode::NO_CONTENT)
+    Ok(Json(ApiResponse::success_with_message((), "入库明细删除成功")))
 }
 
 // =====================================================
