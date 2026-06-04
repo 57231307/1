@@ -282,8 +282,18 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             let app_state_clone = app_state.clone();
             let app_state_clone2 = app_state.clone();
             let app_state_clone3 = app_state.clone();
+            let app_state_clone4 = app_state.clone();
             crate::services::event_bus::start_event_listener(app_state.db.clone()).await;
             let app = create_router(app_state)
+                // P3.3：分布式追踪上下文（最最外层，确保下游都能拿到 trace_id）
+                .layer(axum::middleware::from_fn(
+                    crate::middleware::trace_context::trace_context_middleware,
+                ))
+                // P3.2：Prometheus 指标中间件（外层，记录所有请求的 method/route/status/耗时）
+                .layer(axum::middleware::from_fn_with_state(
+                    app_state_clone4,
+                    crate::middleware::metrics::metrics_middleware,
+                ))
                 .layer(
                     TraceLayer::new_for_http()
                         .on_request(|request: &Request<_>, _span: &Span| {

@@ -1,7 +1,7 @@
 # 项目健康度根因汇总（2026-06-03 持续更新）
 
 > 本报告基于对 `57231307/1` 仓库 main 分支的全面静态扫描 + 持续重构。
-> 最近更新：commit `f891419`（cargo fmt + 安全中间件 + 路由拆分 + 文档）。
+> 最近更新：P3 阶段（mod.rs 进一步精简 + 增强 metrics + 分布式追踪 + SECURITY.md 落地）。
 
 ## 一、扫描覆盖范围
 
@@ -140,12 +140,130 @@ bin/cli.rs (15 行) - 入口
 | Run | commit | 状态 |
 |------|--------|------|
 | #738 | a87388f | ✅ success（基线） |
-| 多轮 | c502b2a → f891419 | ⏳ 推送后查看 |
+| 多轮 | c502b2a → f891419 | ✅ success |
+| P3 | 收尾 commit | ⏳ 推送后查看 |
 
-## 五、未做的事（明确声明）
+## 五、P3 阶段优化（2026-06-04）
+
+P3 阶段聚焦"运维可观测性" + "代码可读性"的进一步提升，未引入新功能。
+
+### 5.1 mod.rs 进一步精简（P3.1）
+
+`routes/mod.rs` 从 93 行优化为 109 行（含更详细注释），但**核心编排函数 `create_router` 仅 22 行**，
+将复杂度下沉到两个独立函数：
+
+```rust
+pub fn create_router(state: AppState) -> Router {
+    Router::new()
+        // 14 个业务域（合并前缀 + 独立前缀）
+        .nest("/api/v1/erp", build_erp_root_router())
+        .nest("/api/v1/erp/auth", auth::routes())
+        ...
+        // 基础设施（静态 / 指标 / API 文档）
+        .merge(build_infrastructure_routes())
+        // SQL 注入审计中间件
+        .layer(middleware::from_fn(sql_injection_audit_middleware))
+        .with_state(state)
+}
+```
+
+新增的两个辅助函数：
+- `build_erp_root_router() -> Router`：合并共享 `/api/v1/erp` 前缀的 4 个域（iam / catalog / analytics / system）
+- `build_infrastructure_routes() -> Router`：合并静态资源 / 指标 / Swagger UI 三类基础设施
+
+### 5.2 Prometheus 指标增强（P3.2）
+
+`services/metrics_service.rs` 在原有 7 个无标签指标基础上，新增 4 个**带标签**指标：
+
+| 指标名 | 类型 | 标签 | 用途 |
+|--------|------|------|------|
+| `http_requests_by_route` | IntCounterVec | `[method, route, status]` | per-route 计数（按方法/路径/状态码分桶） |
+| `http_request_duration_by_route` | HistogramVec | `[method, route]` | per-route 延迟直方图 |
+| `http_requests_by_status_class` | IntCounterVec | `[class]` | 状态码分类（2xx/3xx/4xx/5xx）总览 |
+| `business_operations_by_type` | IntCounterVec | `[operation]` | 业务操作按类型计数 |
+
+**Prometheus middleware 升级**（`middleware/metrics.rs`）：
+- 启用 per-route 自动打点（之前标记 `#![allow(dead_code)]`）
+- 在 `main.rs` 顶层挂载，作为最外层中间件之一
+- 长路径自动截断到 128 字符 + hash 标记，避免 label cardinality 爆炸
+- 新增单元测试覆盖截断逻辑
+
+### 5.3 分布式追踪（P3.3）
+
+新增 `observability` 模块，引入 W3C Trace Context 规范：
+
+**核心模块结构**：
+```
+observability/
+├── mod.rs            (43 行)  - 模块入口
+├── trace_context.rs  (260 行) - W3C traceparent 解析/生成
+└── span.rs           (130 行) - 业务域 span 工具
+```
+
+**`TraceContext` 字段**：
+- `trace_id`：128-bit，hex 32 字符（UUIDv4）
+- `span_id`：64-bit，hex 16 字符（fastrand u64）
+- `parent_span_id`：可选，指向父 span
+- `sampled`：是否被采样
+
+**`trace_context_middleware`** 行为：
+1. 从 `traceparent` header 解析或生成新 trace
+2. 把 `TraceContext` 存入 `Request::extensions()`
+3. 创建 root `tracing::Span`（含 trace_id/span_id/method/path 字段）
+4. 响应头回写 `X-Trace-Id`（方便客户端关联日志）
+5. 在 span 关闭时记录 `trace.complete` 结构化日志
+
+**为什么暂不引入 OTel SDK**：
+- 现有 `tracing` + `tower_http::trace::TraceLayer` 已能产生结构化日志
+- W3C `traceparent` 是业界标准，未来可平滑迁移到 OTel / Jaeger / Tempo
+- 暂不引入 `opentelemetry` / `opentelemetry-otlp` 重依赖，**演进路径预留**
+
+**未来迁移路径**（在 SECURITY.md 中也提及）：
+```toml
+# 未来需要时追加依赖
+opentelemetry = "0.24"
+opentelemetry-otlp = "0.17"
+tracing-opentelemetry = "0.25"
+```
+
+### 5.4 main.rs 中间件顺序更新
+
+`main.rs` 中间件注册顺序（P3 后）：
+
+```text
+请求
+  ↓
+1. trace_context_middleware      ← P3.3（最最外层）
+  ↓
+2. metrics_middleware             ← P3.2（外层，自动 per-route 打点）
+  ↓
+3. TraceLayer                     ← 已有（结构化日志）
+  ↓
+4. CorsLayer                      ← 已有
+  ↓
+5. request_validator_middleware   ← 已有
+  ↓
+6. permission_middleware          ← 已有
+  ↓
+7. auth_middleware                ← 已有
+  ↓
+8. SetResponseHeaderLayer × 7     ← 已有（6 个安全响应头）
+  ↓
+9. timeout_middleware             ← 已有
+  ↓
+handler
+```
+
+注：axum 0.7 的 `.layer()` 注册顺序 = 从外到内。即**第一个 .layer() 是最外层**。
+这一约定与 Tokio 早期版本相反，是 axum 0.7 文档明确说明的。
+
+## 六、未做的事（明确声明）
 
 1. **未简化任何功能** —— 752 个路由 100% 保留，handler/service 拆分仅搬动不删改
 2. **未删除/注释掉任何代码** —— `enhanced_audit_log` 移入 `_legacy/` 但保留代码（仅标记 `dead_code`）
 3. **未触碰前端 console.* 和 any 类型** —— 列入 P2 后续工作
 4. **未创建数据库迁移** —— `crm_recycle_rules` 内存实现已就绪
 5. **未重命名 `move_rs.rs` / `return_rs.rs`** —— Rust 关键字风险高，保留原名
+6. **未引入 OTel SDK** —— P3 阶段仅完成 W3C Trace Context 基础；SDK 接入留待后续按需
+7. **未对所有 service 加 `tracing::instrument!`** —— 当前仅 metrics + trace context 中间件层完成自动打点；
+   每个 service 函数级 instrument 化属于"业务侧可观测性细化"，建议在新功能开发时同步推进

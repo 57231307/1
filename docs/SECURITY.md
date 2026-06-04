@@ -1,7 +1,7 @@
 # 安全说明（SECURITY）
 
 > 本文档描述后端服务在 2026-06-03 重构中新增及加强的安全机制。
-> 适用版本：commit `f891419` 之后的 main 分支。
+> 适用版本：commit `f891419` + P3 收尾（mod.rs 精简 + metrics 增强 + W3C Trace Context）之后的 main 分支。
 
 ## 一、HTTP 安全响应头
 
@@ -16,7 +16,7 @@
 | `Referrer-Policy` | `no-referrer` | 不向外站发送来源 |
 | `Permissions-Policy` | `geolocation=(), microphone=(), camera=(), payment=()` | 关闭敏感 API |
 
-中间件挂载位置：`backend/src/routes/mod.rs` 的 `create_router()` 末尾，使用 `middleware::from_fn(security_headers_middleware)`。
+中间件挂载位置：`backend/src/main.rs` 的 `main()` 函数中，通过 7 个 `SetResponseHeaderLayer::overriding(...)` 直接挂载在路由之外（7 个头：上述 6 个 + `X-XSS-Protection`）。
 
 ## 二、SQL 注入审计
 
@@ -113,6 +113,8 @@ pub struct CorsConfig {
 | SQL 审计为黑名单 | 无法覆盖所有攻击变种 | 主要依赖 SeaORM 参数化查询 |
 | `unwrap()` 30+ 处 | 多数是 fail-fast | 持续重构为 `?` 操作符 |
 | 前端 console.* | 46 个文件未统一 | 引入 `utils/logger.ts` |
+| 分布式追踪未对接 OTel | 当前仅 W3C `traceparent` 透传 | 未来按需引入 `opentelemetry` + `tracing-opentelemetry` |
+| `ErrorResponse.trace_id` | 当前每次错误独立生成 UUID | 后续可与 `trace_context` 中间件的 `trace_id` 关联 |
 
 ## 九、安全报告
 
