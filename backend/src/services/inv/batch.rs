@@ -104,7 +104,7 @@ impl InventoryTransferService {
                     .col_expr(
                         inventory_stock::Column::QuantityOnHand,
                         Expr::Binary(
-                            Box::new(Expr::Column(inventory_stock::Column::QuantityOnHand.into_column_ref())),
+                            Box::new(Expr::col(inventory_stock::Column::QuantityOnHand)),
                             BinOper::Sub,
                             Box::new(Expr::val(item.quantity)),
                         ),
@@ -112,7 +112,7 @@ impl InventoryTransferService {
                     .col_expr(
                         inventory_stock::Column::QuantityAvailable,
                         Expr::Binary(
-                            Box::new(Expr::Column(inventory_stock::Column::QuantityAvailable.into_column_ref())),
+                            Box::new(Expr::col(inventory_stock::Column::QuantityAvailable)),
                             BinOper::Sub,
                             Box::new(Expr::val(item.quantity)),
                         ),
@@ -128,7 +128,7 @@ impl InventoryTransferService {
                     .col_expr(
                         inventory_stock::Column::Version,
                         Expr::Binary(
-                            Box::new(Expr::Column(inventory_stock::Column::Version.into_column_ref())),
+                            Box::new(Expr::col(inventory_stock::Column::Version)),
                             BinOper::Add,
                             Box::new(Expr::val(1)),
                         ),
@@ -304,7 +304,7 @@ impl InventoryTransferService {
                     .col_expr(
                         inventory_stock::Column::QuantityOnHand,
                         Expr::Binary(
-                            Box::new(Expr::Column(inventory_stock::Column::QuantityOnHand.into_column_ref())),
+                            Box::new(Expr::col(inventory_stock::Column::QuantityOnHand)),
                             BinOper::Add,
                             Box::new(Expr::val(item.quantity)),
                         ),
@@ -312,7 +312,7 @@ impl InventoryTransferService {
                     .col_expr(
                         inventory_stock::Column::QuantityAvailable,
                         Expr::Binary(
-                            Box::new(Expr::Column(inventory_stock::Column::QuantityAvailable.into_column_ref())),
+                            Box::new(Expr::col(inventory_stock::Column::QuantityAvailable)),
                             BinOper::Add,
                             Box::new(Expr::val(item.quantity)),
                         ),
@@ -328,7 +328,7 @@ impl InventoryTransferService {
                     .col_expr(
                         inventory_stock::Column::Version,
                         Expr::Binary(
-                            Box::new(Expr::Column(inventory_stock::Column::Version.into_column_ref())),
+                            Box::new(Expr::col(inventory_stock::Column::Version)),
                             BinOper::Add,
                             Box::new(Expr::val(1)),
                         ),

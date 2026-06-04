@@ -13,7 +13,6 @@
 
 use chrono::NaiveDate;
 use rust_decimal::Decimal;
-use sea_orm::FromQueryResult;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use validator::Validate;

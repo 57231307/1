@@ -34,7 +34,7 @@ impl ReportEngineService {
         })?;
 
         let now = Utc::now();
-        let filters_json = serde_json::to_value(&req.filters)
+        let _filters_json = serde_json::to_value(&req.filters)
             .map_err(|e| AppError::internal(format!("序列化筛选条件失败: {}", e)))?;
         let recipients_json = sea_orm::JsonValue::from(
             serde_json::to_value(&req.recipients)

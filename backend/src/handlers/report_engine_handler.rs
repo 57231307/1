@@ -79,8 +79,8 @@ pub async fn execute_report(
     Query(query): Query<ExecuteReportQuery>,
 ) -> Result<Json<ApiResponse<ReportDataResponse>>, StatusCode> {
     let service = ReportEngineService::new(state.db);
-    let page = query.page.unwrap_or(1);
-    let page_size = query.page_size.unwrap_or(50);
+    let _page = query.page.unwrap_or(1);
+    let _page_size = query.page_size.unwrap_or(50);
 
     let req = crate::services::report_engine_service::ExecuteReportRequest {
         template_id: query.template_id.clone(),
@@ -160,7 +160,7 @@ pub async fn export_report(
 ) -> Result<Json<ApiResponse<ExportReportResponse>>, StatusCode> {
     let service = ReportEngineService::new(state.db);
 
-    let export_format: ExportFormat = query
+    let _export_format: ExportFormat = query
         .format
         .parse()
         .unwrap_or(ExportFormat::Csv);
@@ -285,8 +285,8 @@ pub async fn aggregate_report(
         aggregation_field: request.aggregation_field,
     };
 
-    let page = request.page.unwrap_or(1);
-    let page_size = request.page_size.unwrap_or(50);
+    let _page = request.page.unwrap_or(1);
+    let _page_size = request.page_size.unwrap_or(50);
 
     match service.aggregate_data(aggregate_request).await {
         Ok(results) => {

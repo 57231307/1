@@ -13,11 +13,10 @@ use chrono::Utc;
 use rust_decimal::Decimal;
 use sea_orm::{
     ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, FromQueryResult, PaginatorTrait,
-    QueryFilter, QueryOrder, QuerySelect, Set, TransactionTrait,
+    QueryFilter, QueryOrder, Set, TransactionTrait,
 };
 use serde::Serialize;
 use std::sync::Arc;
-use validator::Validate;
 
 // =====================================================
 // 响应 DTO
@@ -118,14 +117,14 @@ impl PurchaseOrderService {
         req: crate::services::po::CreatePurchaseOrderRequest,
         user_id: i32,
     ) -> Result<purchase_order::Model, AppError> {
-        let mut txn = (*self.db).begin().await?;
+        let txn = (*self.db).begin().await?;
 
         // 1. 验证请求参数
         let (warehouse_id, department_id) = self.validate_order_request(&req, &txn).await?;
 
         // 2. 创建订单主表
         let order = self
-            .create_order_header(&req, warehouse_id, department_id, user_id, &mut txn)
+            .create_order_header(&req, warehouse_id, department_id, user_id, &txn)
             .await?;
 
         // 3. 创建订单明细并计算总金额
@@ -222,7 +221,7 @@ impl PurchaseOrderService {
         warehouse_id: i32,
         department_id: i32,
         user_id: i32,
-        txn: &mut sea_orm::DatabaseTransaction,
+        txn: &sea_orm::DatabaseTransaction,
     ) -> Result<purchase_order::Model, AppError> {
         // 生成订单号
         let order_no = DocumentNumberGenerator::generate_no(
@@ -293,9 +292,7 @@ impl PurchaseOrderService {
                 for material_id in &product_ids {
                     if !existing_product_ids.contains(material_id) {
                         tracing::error!("Transaction rolled back: 物料 ID {} 不存在", material_id);
-                        if let Err(e) = txn.rollback().await {
-                            tracing::error!("事务回滚失败: {}", e);
-                        }
+                        // 事务将在 ? 传播 Err 时由 DatabaseTransaction 的 Drop 自动回滚
                         return Err(AppError::bad_request(format!(
                             "物料 ID {} 不存在",
                             material_id

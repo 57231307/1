@@ -13,7 +13,6 @@ use sea_orm::{ColumnTrait, EntityTrait, QueryFilter};
 use std::collections::HashMap;
 
 use crate::models::inventory_stock::Entity as InventoryStockEntity;
-use crate::models::inventory_transaction::Entity as InventoryTransactionEntity;
 use crate::models::sales_order_item::Entity as SalesOrderItemEntity;
 use crate::utils::error::AppError;
 

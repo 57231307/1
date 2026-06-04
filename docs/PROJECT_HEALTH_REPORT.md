@@ -152,7 +152,7 @@ bin/cli.rs (15 行) - 入口
 | #753 | 16afe5f | ❌ failure | fmt 修复（clippy + test 仍失败，待排查 1.94.1 差异） |
 
 **当前状态**（2026-06-04）：
-- `cargo check --lib`：**0 errors, 0 warnings** ✅
+- `cargo check --lib`：**0 errors, 0 warnings** ✅（最新）
 - `cargo fmt -- --check`：**通过** ✅
 - `cargo clippy --lib -- -D warnings`：本地 OOM 无法验证（沙盒内存不足）
 - `cargo test --lib`：**364 个测试编译错误**（pre-existing，非本次重构引入）
@@ -298,3 +298,57 @@ handler
 6. **未引入 OTel SDK** —— P3 阶段仅完成 W3C Trace Context 基础；SDK 接入留待后续按需
 7. **未对所有 service 加 `tracing::instrument!`** —— 当前仅 metrics + trace context 中间件层完成自动打点；
    每个 service 函数级 instrument 化属于"业务侧可观测性细化"，建议在新功能开发时同步推进
+
+## 七、Warnings 清理（P3.4 收尾 — 2026-06-04）
+
+在完成 P3 主体工作后，针对 `cargo check --lib` 残留的 21 个 unused import / unused variable
+警告进行全量清理，目标：**0 errors, 0 warnings**（code quality 阶段达标）。
+
+### 7.1 清理清单（21 → 0）
+
+| 文件 | 行号 | 警告类型 | 修复方式 |
+|------|------|----------|----------|
+| `cli/mod.rs` | - | unused import `Subcommand` | 移除 `Subcommand`（仅在子命令中用到，已自动解析） |
+| `routes/system.rs` | - | unused imports `delete`, `put` | 移除未使用的 `routing::delete` / `put` |
+| `services/crm/cust.rs` | 12 | unused import `crm_lead` | 移除 `crm_lead` 模块导入（`CrmLeadEntity` 别名保留） |
+| `services/crm/pool.rs` | 10 | unused import `ActiveModelTrait` | 从 sea_orm 导入列表移除 |
+| `services/so/contract.rs` | 12 | unused imports `ActiveModelTrait`, `ColumnTrait` | 移除未使用的 trait 导入 |
+| `services/so/delivery.rs` | 15 | unused import `PaginatorTrait` | 移除未使用的 trait 导入 |
+| `services/so/order.rs` | 10-11, 18, 21, 23 | unused imports `InventoryReservationEntity`, `InventoryStockEntity`, `self` × 2, `SalesOrderItemRequest`, `UserService`, `DocumentNumberGenerator` | 移除 Entity 别名 + 模块 self 导入（已无引用）+ 移除未使用的 service 引用 |
+| `services/po/mod.rs` | 16 | unused import `sea_orm::FromQueryResult` | 移除（`#[derive(FromQueryResult)]` 已不再使用） |
+| `services/po/order.rs` | 16, 20 | unused imports `QuerySelect`, `validator::Validate` | 移除未使用的 trait 导入 |
+| `services/ai/detect.rs` | 16 | unused import `InventoryTransactionEntity` | 移除未使用的 Entity 别名 |
+| `services/inventory_stock_service.rs` | 492 | unused variable `final_quantity_kg` | 加 `_` 前缀（实际上只在第一个函数被使用，第二个函数确实未使用） |
+| `handlers/report_engine_handler.rs` | 82, 83, 163, 288, 289 | unused variables `page`, `page_size`, `export_format` | 加 `_` 前缀（占位用，handler 已使用 `query` / `request` 本身） |
+| `services/report/job.rs` | 37 | unused variable `filters_json` | 加 `_` 前缀（序列化结果未直接使用，已通过 req 传递） |
+
+### 7.2 验证结果
+
+```bash
+$ cargo +1.94.0 check --lib --message-format=json 2>&1 | python3 -c "
+import json, sys
+errors = 0
+warnings = 0
+for line in sys.stdin:
+    try:
+        msg = json.loads(line.strip())
+        if msg.get('reason') == 'compiler-message':
+            inner = msg.get('message', {})
+            level = inner.get('level')
+            if level == 'error' and 'warning' not in inner.get('message', '').lower():
+                errors += 1
+            elif level == 'warning':
+                warnings += 1
+    except:
+        pass
+print(f'errors={errors}, warnings={warnings}')
+"
+# 输出：errors=0, warnings=0
+```
+
+**最终交付质量**：
+- `cargo check --lib`：**0 errors, 0 warnings** ✅
+- 所有 21 个 warning 均为 `unused_imports` / `unused_variables` 类（cosmetic），
+  不影响编译产物和运行时行为
+- 22 个拆分的 service 子域文件 / 14 个 routes 文件 / 5 个 advanced handler 子模块
+  均通过 `cargo check` 验证

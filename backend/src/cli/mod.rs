@@ -10,7 +10,7 @@ pub mod admin;
 pub mod migrate;
 pub mod util;
 
-use clap::{Parser, Subcommand};
+use clap::Parser;
 
 /// 顶层 CLI 命令枚举
 ///

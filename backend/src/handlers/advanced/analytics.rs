@@ -206,7 +206,8 @@ pub async fn sales_analytics(
     let query = sales_order::Entity::find()
         .filter(sales_order::Column::OrderDate.between(payload.start_date, payload.end_date));
 
-    let paginator = query.paginate(&*state.db, payload.page_size as u64);
+    let page_size = payload.page_size.unwrap_or(20).max(0) as u64;
+    let paginator = query.paginate(&*state.db, page_size);
     let total = paginator.num_items().await.unwrap_or(0);
 
     let total_sales = total as f64 * 1000.0; // 示例数据

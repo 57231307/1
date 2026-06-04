@@ -7,20 +7,16 @@ use crate::models::dto::PageRequest;
 use crate::models::{
     ar_invoice::{self, Column as ArInvoiceColumn, Entity as ArInvoiceEntity},
     customer,
-    inventory_reservation::{self, Entity as InventoryReservationEntity},
-    inventory_stock::{self, Entity as InventoryStockEntity},
     product, sales_order,
     sales_order::Entity as SalesOrderEntity,
     sales_order_item,
     sales_order_item::Entity as SalesOrderItemEntity,
 };
 use crate::services::so::{
-    CreateSalesOrderRequest, SalesOrderDetail, SalesOrderItemDetail, SalesOrderItemRequest,
+    CreateSalesOrderRequest, SalesOrderDetail, SalesOrderItemDetail,
     UpdateSalesOrderRequest,
 };
-use crate::services::user_service::UserService;
 use crate::utils::error::AppError;
-use crate::utils::number_generator::DocumentNumberGenerator;
 use crate::utils::PaginatedResponse;
 use sea_orm::{
     ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, Order, PaginatorTrait,

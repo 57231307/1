@@ -9,7 +9,7 @@
 use crate::models::{customer, sales_order};
 use crate::services::so::order::SalesService;
 use crate::utils::error::AppError;
-use sea_orm::{ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, Set, TransactionTrait};
+use sea_orm::{DatabaseConnection, EntityTrait, Set, TransactionTrait};
 use std::sync::Arc;
 
 impl SalesService {

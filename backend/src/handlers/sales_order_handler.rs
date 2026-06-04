@@ -275,7 +275,7 @@ pub async fn ship_order(
     auth: AuthContext,
     State(state): State<AppState>,
     Path(id): Path<i32>,
-    Json(payload): Json<crate::services::sales_service::ShipOrderRequest>,
+    Json(payload): Json<crate::services::so::delivery::ShipOrderRequest>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     let sales_service = SalesService::new(state.db.clone());
     // 调用原有 ship_order(request, user_id)
@@ -468,12 +468,21 @@ pub async fn create_delivery(
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     let sales_service = SalesService::new(state.db.clone());
 
+    // 从 payload 中提取 warehouse_id（缺失则默认为 0）
+    let warehouse_id = payload
+        .get("warehouse_id")
+        .and_then(|v| v.as_i64())
+        .map(|v| v as i32)
+        .unwrap_or(0);
+
     let delivery = sales_service
-        .create_delivery(id, payload, auth.user_id)
+        .create_delivery(id, warehouse_id, auth.user_id)
         .await
         .map_err(|e| AppError::internal(format!("创建发货失败: {}", e)))?;
 
-    Ok(Json(ApiResponse::success(delivery)))
+    let delivery_json = serde_json::to_value(delivery)
+        .map_err(|e| AppError::internal(format!("序列化失败: {}", e)))?;
+    Ok(Json(ApiResponse::success(delivery_json)))
 }
 
 // ========== 统计接口 ==========

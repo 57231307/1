@@ -9,7 +9,6 @@
 //! 拆分自原 `crm_service.rs`。
 
 use crate::models::{
-    crm_lead,
     crm_lead::Entity as CrmLeadEntity,
     crm_opportunity,
     crm_opportunity::Entity as CrmOpportunityEntity,

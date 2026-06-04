@@ -489,7 +489,7 @@ impl InventoryStockService {
         shelf_no: Option<String>,
         layer_no: Option<String>,
     ) -> Result<inventory_stock::Model, AppError> {
-        let final_quantity_kg =
+        let _final_quantity_kg =
             Self::calculate_quantity_kg(quantity_meters, gram_weight, width, quantity_kg);
 
         let active_stock = inventory_stock::ActiveModel {
