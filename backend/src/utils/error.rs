@@ -16,6 +16,7 @@ pub enum AppError {
     InternalError(String),
     BadRequest(String),
     PermissionDenied(String),
+    NotImplemented(String),
     TooManyRequests {
         retry_after: Option<u64>,
         message: String,
@@ -47,6 +48,9 @@ impl AppError {
     pub fn database(msg: impl Into<String>) -> Self {
         Self::DatabaseError(msg.into())
     }
+    pub fn not_implemented(msg: impl Into<String>) -> Self {
+        Self::NotImplemented(msg.into())
+    }
 }
 
 impl fmt::Display for AppError {
@@ -60,6 +64,7 @@ impl fmt::Display for AppError {
             AppError::InternalError(msg) => write!(f, "内部错误：{}", msg),
             AppError::BadRequest(msg) => write!(f, "请求错误：{}", msg),
             AppError::PermissionDenied(msg) => write!(f, "权限不足：{}", msg),
+            AppError::NotImplemented(msg) => write!(f, "未实现：{}", msg),
             AppError::TooManyRequests { message, .. } => write!(f, "{}", message),
         }
     }
@@ -251,6 +256,25 @@ impl IntoResponse for AppError {
                     detail,
                 )
             }
+            AppError::NotImplemented(msg) => {
+                let detail = serde_json::json!({
+                    "error_type": "NotImplemented",
+                    "message": msg,
+                    "severity": "MEDIUM",
+                    "action_required": "联系开发团队实现该功能"
+                });
+                tracing::warn!(
+                    "【功能未实现】{} | 详情: {} | 建议: 该功能正在开发中",
+                    msg,
+                    detail
+                );
+                (
+                    StatusCode::NOT_IMPLEMENTED,
+                    "NotImplemented",
+                    "功能未实现".to_string(),
+                    detail,
+                )
+            }
         };
 
         // 返回统一的 ApiResponse 格式 {code, data, message}
@@ -419,6 +443,7 @@ impl AppError {
             AppError::BusinessError(_) => "BUSINESS_ERROR",
             AppError::DatabaseError(_) => "DATABASE_ERROR",
             AppError::InternalError(_) => "INTERNAL_ERROR",
+            AppError::NotImplemented(_) => "NOT_IMPLEMENTED",
             AppError::TooManyRequests { .. } => "TOO_MANY_REQUESTS",
         }
         .to_string()
@@ -435,6 +460,7 @@ impl AppError {
             AppError::InternalError(_) => "服务器内部错误".to_string(),
             AppError::BadRequest(_) => "请求参数错误".to_string(),
             AppError::PermissionDenied(_) => "无权限".to_string(),
+            AppError::NotImplemented(_) => "功能未实现".to_string(),
             AppError::TooManyRequests { .. } => "请求过于频繁，请稍后重试".to_string(),
         }
     }
