@@ -115,6 +115,10 @@ pub fn bpm() -> Router<AppState> {
             "/versions/:version/activate",
             post(bpm_definition_handler::activate_version_by_id),
         )
+        .route(
+            "/definitions/:id/save-as-template",
+            post(bpm_definition_handler::save_as_template),
+        )
         .route("/templates", get(bpm_definition_handler::list_templates))
         .route(
             "/templates/:template_id",
