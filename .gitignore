@@ -51,6 +51,24 @@ deploy.sh
 quick-deploy.sh
 backups/
 *.backup/
+*.backup
+.bak
+*.tmp
+*.log
+logs/
+
+# AI 工具状态目录（monkeycode 等）
+.monkeycode/
+.aider*
+.cursor*
+.continue
+.cody
+
+# 备份文件（YAML/JSON/TOML 等配置备份）
+*.yml.bak
+*.yaml.bak
+*.toml.bak
+*.json.bak
 
 # 日志文件
 *.log
@@ -100,12 +118,14 @@ backend/backend_warnings.txt
 # 前端临时文档
 frontend/docs/frontend-feature-implementation-plan*.md
 frontend/docs/superpowers/
+frontend/.audit-reports/
 
 # 根目录临时文件
 CLI
 CLI_MAINTENANCE.md
 mock-server.js
 
-# 项目报告
+# 项目报告（自动生成）
 docs/project-optimization-report.md
 frontend/coverage/
+.audit-reports/*.json.tmp

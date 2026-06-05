@@ -14,6 +14,8 @@ pub mod five_dimension_service;
 pub mod init_service;
 pub mod inv;
 pub mod inventory_adjustment_service;
+// 库存盘点模块（已拆分）
+pub mod inventory_count;
 pub mod inventory_count_service;
 pub mod inventory_finance_bridge_service;
 pub mod inventory_reservation_service;
@@ -131,73 +133,3 @@ pub mod audit_cleanup_service;
 pub mod sensitive_action_alert;
 // 增强日志服务
 pub mod enhanced_logger;
-
-// =====================================================
-// 兼容层：为已删除的旧 service 路径提供别名
-// 旧 handler / event_bus 中的 import 仍可工作
-// =====================================================
-
-/// 兼容旧路径 `crate::services::purchase_order_service::*`
-#[allow(unused_imports)]
-pub mod purchase_order_service {
-    pub use super::po::order::PurchaseOrderService;
-    pub use super::po::order::{PurchaseOrderDto, PurchaseOrderItemDto};
-    pub use super::po::{
-        CreateOrderItemRequest, CreatePurchaseOrderRequest, UpdateOrderItemRequest,
-        UpdatePurchaseOrderRequest,
-    };
-}
-
-/// 兼容旧路径 `crate::services::sales_service::*`
-#[allow(unused_imports)]
-pub mod sales_service {
-    pub use super::so::order::SalesService;
-    pub use super::so::{
-        CreateSalesOrderRequest, SalesOrderDetail, SalesOrderItemDetail, SalesOrderItemRequest,
-        UpdateSalesOrderRequest,
-    };
-}
-
-/// 兼容旧路径 `crate::services::crm_service::*`
-#[allow(unused_imports)]
-pub mod crm_service {
-    pub use super::crm::cust::CrmService;
-}
-
-/// 兼容旧路径 `crate::services::inventory_transfer_service::*`
-#[allow(unused_imports)]
-pub mod inventory_transfer_service {
-    pub use super::inv::{
-        CreateInventoryTransferRequest, InventoryTransferDetail, InventoryTransferItemDetail,
-        InventoryTransferItemRequest, InventoryTransferService, UpdateInventoryTransferRequest,
-    };
-}
-
-/// 兼容旧路径 `crate::services::ar_reconciliation_service::*`
-#[allow(unused_imports)]
-pub mod ar_reconciliation_service {
-    pub use super::ar::{
-        AgingBucket, ArReconciliationService, AutoMatchRequest, CreateReconciliationRequest,
-        GenerateReconciliationRequest, ReconciliationDetail, ReconciliationQuery,
-        ReconciliationWithDetails, UpdateReconciliationRequest,
-    };
-}
-
-/// 兼容旧路径 `crate::services::ai_analysis_service::*`
-#[allow(unused_imports)]
-pub mod ai_analysis_service {
-    pub use super::ai::{
-        AbcClassification, AiAnalysisService, AnomalyDetection, InventorySuggestion,
-        InventoryTurnover, SalesForecast, SmartRecommendation,
-    };
-}
-
-/// 兼容旧路径 `crate::services::report_engine_service::*`
-#[allow(unused_imports)]
-pub mod report_engine_service {
-    pub use super::report::{
-        AggregateRequest, AggregateResult, AggregationType, DataSource, ExecuteReportRequest,
-        ExportFormat, ReportColumn, ReportData, ReportEngineService, ReportFilter, ReportMetadata,
-        ReportParameter, ReportTemplate,
-    };
-}

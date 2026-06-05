@@ -10,7 +10,7 @@ use serde::Deserialize;
 
 use crate::middleware::auth_context::AuthContext;
 use crate::models::dto::crm_dto::{CreateLeadRequest, LeadQuery, UpdateLeadRequest};
-use crate::services::crm_service::CrmService;
+use crate::services::crm::cust::CrmService;
 use crate::utils::app_state::AppState;
 use crate::utils::error::AppError;
 use crate::utils::response::ApiResponse;

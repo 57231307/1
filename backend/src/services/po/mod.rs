@@ -8,7 +8,7 @@
 //! - `price`    采购价格（采购建议、预算占用）
 //! - `return_rs`采购退货（占位模块，待后续扩展）
 //!
-//! 兼容说明：原 `crate::services::purchase_order_service::*` 路径需要由上层
+//! 兼容说明：原 `crate::services::po::order::*` 路径需要由上层
 //! `services/mod.rs` 通过 `pub use super::po::*;` 重新导出以保持向后兼容。
 
 use chrono::NaiveDate;

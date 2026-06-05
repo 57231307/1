@@ -1,9 +1,10 @@
+use crate::services::audit_log_service::AuditLogService;
 use sea_orm::{
-    ActiveModelTrait, ConnectionTrait, DbErr, EntityTrait, IntoActiveModel, PrimaryKeyTrait, ModelTrait,
+    ActiveModelTrait, ConnectionTrait, DbErr, EntityTrait, IntoActiveModel, ModelTrait,
+    PrimaryKeyTrait,
 };
 use serde::{de::DeserializeOwned, Serialize};
 use std::sync::Arc;
-use crate::services::audit_log_service::AuditLogService;
 
 #[async_trait::async_trait]
 pub trait AuditUpdateTrait<E, M, A>

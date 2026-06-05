@@ -3,7 +3,7 @@ use crate::models::dto::crm_dto::{
     ConvertLeadRequest, CreateLeadRequest, CreateOpportunityRequest, FollowUpRequest, LeadQuery,
     OpportunityQuery, UpdateCustomerEnhancedRequest, UpdateLeadRequest, UpdateOpportunityRequest,
 };
-use crate::services::crm_service::CrmService;
+use crate::services::crm::cust::CrmService;
 use crate::utils::app_state::AppState;
 use crate::utils::error::AppError;
 use crate::utils::response::ApiResponse;

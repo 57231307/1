@@ -132,9 +132,7 @@ pub async fn start_event_listener(db: Arc<DatabaseConnection>) {
                         order_id
                     );
                     let po_service =
-                        crate::services::purchase_order_service::PurchaseOrderService::new(
-                            db.clone(),
-                        );
+                        crate::services::po::order::PurchaseOrderService::new(db.clone());
                     match po_service.receive_order(order_id).await {
                         Ok(_) => tracing::info!(
                             "Successfully updated purchase order {} status to RECEIVED",
@@ -222,9 +220,7 @@ pub async fn start_event_listener(db: Arc<DatabaseConnection>) {
                     if business_type == "purchase_order" {
                         if approved {
                             let po_service =
-                                crate::services::purchase_order_service::PurchaseOrderService::new(
-                                    db.clone(),
-                                );
+                                crate::services::po::order::PurchaseOrderService::new(db.clone());
                             if let Err(e) = po_service.approve_order(business_id, 0).await {
                                 tracing::error!(
                                     "Failed to approve purchase_order {} via BPM: {}",
@@ -239,9 +235,7 @@ pub async fn start_event_listener(db: Arc<DatabaseConnection>) {
                             }
                         } else {
                             let po_service =
-                                crate::services::purchase_order_service::PurchaseOrderService::new(
-                                    db.clone(),
-                                );
+                                crate::services::po::order::PurchaseOrderService::new(db.clone());
                             if let Err(e) = po_service
                                 .reject_order(business_id, "BPM审批拒绝".to_string(), 0)
                                 .await
@@ -256,7 +250,7 @@ pub async fn start_event_listener(db: Arc<DatabaseConnection>) {
                     } else if business_type == "sales_order" {
                         if approved {
                             let sales_service =
-                                crate::services::sales_service::SalesService::new(db.clone());
+                                crate::services::so::order::SalesService::new(db.clone());
                             if let Err(e) = sales_service.approve_order(business_id, 0).await {
                                 tracing::error!(
                                     "Failed to approve sales_order {} via BPM: {}",
@@ -271,7 +265,7 @@ pub async fn start_event_listener(db: Arc<DatabaseConnection>) {
                             }
                         } else {
                             let sales_service =
-                                crate::services::sales_service::SalesService::new(db.clone());
+                                crate::services::so::order::SalesService::new(db.clone());
                             match sales_service
                                 .reject_order(business_id, "BPM审批拒绝".to_string(), 0)
                                 .await
@@ -307,9 +301,7 @@ pub async fn start_event_listener(db: Arc<DatabaseConnection>) {
 
                     // 创建采购建议
                     let po_service =
-                        crate::services::purchase_order_service::PurchaseOrderService::new(
-                            db.clone(),
-                        );
+                        crate::services::po::order::PurchaseOrderService::new(db.clone());
                     match po_service
                         .create_purchase_suggestion(
                             product_id,
@@ -426,9 +418,7 @@ pub async fn start_event_listener(db: Arc<DatabaseConnection>) {
                         affected_orders_count
                     );
                     let po_service =
-                        crate::services::purchase_order_service::PurchaseOrderService::new(
-                            db.clone(),
-                        );
+                        crate::services::po::order::PurchaseOrderService::new(db.clone());
                     match po_service
                         .create_purchase_suggestion_from_shortage(
                             material_id,

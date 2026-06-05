@@ -8,7 +8,7 @@
 //! - `contract` 销售合同（占位模块，待后续扩展）
 //! - `return_rs`销售退货（占位模块，待后续扩展）
 //!
-//! 兼容说明：原 `crate::services::sales_service::*` 路径需要由上层
+//! 兼容说明：原 `crate::services::so::order::*` 路径需要由上层
 //! `services/mod.rs` 通过 `pub use super::so::*;` 重新导出以保持向后兼容。
 
 use sea_orm::FromQueryResult;

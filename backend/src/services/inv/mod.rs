@@ -9,7 +9,7 @@
 //! - `count`  库存盘点（占位模块，详见 `services/inventory_count_service.rs`）
 //! - `hold`   库存预留（占位模块，详见 `services/inventory_reservation_service.rs`）
 //!
-//! 兼容说明：原 `crate::services::inventory_transfer_service::*` 路径需要由上层
+//! 兼容说明：原 `crate::services::inv::*` 路径需要由上层
 //! `services/mod.rs` 通过 `pub use super::inv::*;` 重新导出以保持向后兼容。
 //!
 //! 注意：`move` 与 `return` 同为 Rust 关键字，不能直接作为模块名。

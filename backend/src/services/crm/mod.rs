@@ -8,7 +8,7 @@
 //! - `pool`    公海（客户池）领取
 //! - `assign`  分配（assignment）占位
 //!
-//! 兼容说明：原 `crate::services::crm_service::*` 路径需要由上层
+//! 兼容说明：原 `crate::services::crm::cust::*` 路径需要由上层
 //! `services/mod.rs` 通过 `pub use super::crm::*;` 重新导出以保持向后兼容。
 
 use sea_orm::FromQueryResult;
