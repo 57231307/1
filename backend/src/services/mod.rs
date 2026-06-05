@@ -14,6 +14,8 @@ pub mod five_dimension_service;
 pub mod init_service;
 pub mod inv;
 pub mod inventory_adjustment_service;
+// 库存盘点模块（已拆分）
+pub mod inventory_count;
 pub mod inventory_count_service;
 pub mod inventory_finance_bridge_service;
 pub mod inventory_reservation_service;

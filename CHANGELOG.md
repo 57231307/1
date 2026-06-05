@@ -9,6 +9,16 @@
 
 ## [Unreleased] - 2026-06-05
 
+### 已修复（项目全方位校验、整理与清理 - 第二轮）
+
+#### 代码质量（P1）
+- 后端 `backend/src/services/inventory_count_service.rs` 已拆分为子模块（`inventory_count/`）并完成对外公开 API 兼容
+- 在 `backend/src/services/mod.rs` 新增 `pub mod inventory_count` 声明
+
+#### 前端重构（P1）
+- 完善 `views/system/tabs/RoleTab.vue`：从骨架升级为完整可工作组件（包含 CRUD、权限配置对话框，共 267 行）
+- 修复角色编辑时"角色名称"和"角色编码"在编辑模式下禁用的问题
+
 ### 已修复（项目全方位校验、整理与清理）
 
 #### 安全（P0）
