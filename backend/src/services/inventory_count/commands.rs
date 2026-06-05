@@ -5,7 +5,9 @@
 use sea_orm::DatabaseConnection;
 use std::sync::Arc;
 
-use super::types::{CreateInventoryCountRequest, InventoryCountDetail, UpdateInventoryCountRequest};
+use super::types::{
+    CreateInventoryCountRequest, InventoryCountDetail, UpdateInventoryCountRequest,
+};
 use crate::utils::error::AppError;
 
 pub async fn create_count(

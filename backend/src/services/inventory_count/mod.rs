@@ -13,7 +13,7 @@ pub use types::{
     InventoryCountItemRequest, UpdateInventoryCountRequest,
 };
 
-pub mod query;
 pub mod commands;
-pub mod workflow;
 pub mod items;
+pub mod query;
+pub mod workflow;
