@@ -43,10 +43,7 @@ mod production_orders {
     fn test_production_order_routes_registered() {
         assert_routes_registered(
             "production_orders",
-            &[
-                "/orders/:id/submit-approval",
-                "/orders/:id/approve",
-            ],
+            &["/orders/:id/submit-approval", "/orders/:id/approve"],
         );
     }
 }
@@ -82,34 +79,22 @@ mod currency_purchase_scheduling_supplier {
 
     #[test]
     fn test_currency_routes_registered() {
-        assert_routes_registered(
-            "currency",
-            &["/exchange-rates", "/query"],
-        );
+        assert_routes_registered("currency", &["/exchange-rates", "/query"]);
     }
 
     #[test]
     fn test_purchase_price_routes_registered() {
-        assert_routes_registered(
-            "purchase_price",
-            &["/history/:product_id"],
-        );
+        assert_routes_registered("purchase_price", &["/history/:product_id"]);
     }
 
     #[test]
     fn test_scheduling_routes_registered() {
-        assert_routes_registered(
-            "scheduling",
-            &["/tasks/:id/adjust"],
-        );
+        assert_routes_registered("scheduling", &["/tasks/:id/adjust"]);
     }
 
     #[test]
     fn test_supplier_evaluation_routes_registered() {
-        assert_routes_registered(
-            "supplier_evaluation",
-            &["/suppliers/:supplier_id/score"],
-        );
+        assert_routes_registered("supplier_evaluation", &["/suppliers/:supplier_id/score"]);
     }
 }
 
@@ -144,21 +129,12 @@ mod material_shortage_bom {
 
     #[test]
     fn test_material_shortage_routes_registered() {
-        assert_routes_registered(
-            "material_shortage",
-            &["/:id/status"],
-        );
+        assert_routes_registered("material_shortage", &["/:id/status"]);
     }
 
     #[test]
     fn test_bom_routes_registered() {
-        assert_routes_registered(
-            "bom",
-            &[
-                "/:id/submit",
-                "/:id/approve",
-            ],
-        );
+        assert_routes_registered("bom", &["/:id/submit", "/:id/approve"]);
     }
 }
 
@@ -174,8 +150,8 @@ mod dye_batch_recipe {
         assert_routes_registered(
             "dye_batch_recipe",
             &[
-                "/export",        // 同时存在于 dye-batches 与 dye-recipes
-                "/:id/submit",    // dye-recipes submit
+                "/export",     // 同时存在于 dye-batches 与 dye-recipes
+                "/:id/submit", // dye-recipes submit
             ],
         );
     }
@@ -283,10 +259,7 @@ mod bpm_voucher_salesprice_fund {
 
     #[test]
     fn test_bpm_routes_registered() {
-        assert_routes_registered(
-            "bpm_enhanced",
-            &["/versions/:version/activate"],
-        );
+        assert_routes_registered("bpm_enhanced", &["/versions/:version/activate"]);
     }
 
     #[test]
@@ -315,10 +288,7 @@ mod bpm_voucher_salesprice_fund {
 
     #[test]
     fn test_fund_account_routes_registered() {
-        assert_routes_registered(
-            "fund_account",
-            &["fund_management_handler::update_account"],
-        );
+        assert_routes_registered("fund_account", &["fund_management_handler::update_account"]);
     }
 }
 
@@ -357,11 +327,7 @@ mod inventory {
     fn test_inventory_count_routes_registered() {
         assert_routes_registered(
             "inventory_count",
-            &[
-                "/counts/:id",
-                "/counts/:id/items",
-                "/counts/items/:item_id",
-            ],
+            &["/counts/:id", "/counts/:id/items", "/counts/items/:item_id"],
         );
     }
 }
@@ -383,13 +349,6 @@ mod purchase_receipt_scanner {
 
     #[test]
     fn test_scanner_routes_registered() {
-        assert_routes_registered(
-            "scanner",
-            &[
-                "/scan-inventory",
-                "/history",
-                "/statistics",
-            ],
-        );
+        assert_routes_registered("scanner", &["/scan-inventory", "/history", "/statistics"]);
     }
 }

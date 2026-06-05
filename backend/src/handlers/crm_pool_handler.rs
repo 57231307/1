@@ -10,7 +10,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::middleware::auth_context::AuthContext;
 use crate::models::dto::crm_dto::BatchClaimRequest;
-use crate::services::crm_service::CrmService;
+use crate::services::crm::cust::CrmService;
 use crate::utils::app_state::AppState;
 use crate::utils::error::AppError;
 use crate::utils::response::ApiResponse;

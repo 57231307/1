@@ -6,7 +6,7 @@ use axum::{
 use serde::Deserialize;
 
 use crate::models::dto::PageRequest;
-use crate::services::inventory_transfer_service::{
+use crate::services::inv::{
     CreateInventoryTransferRequest, InventoryTransferItemRequest, InventoryTransferService,
     UpdateInventoryTransferRequest,
 };

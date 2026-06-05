@@ -1,3 +1,32 @@
+<!--
+  system/index.vue - 系统管理主页（容器组件）
+  ----------------------------------------------------------------
+  ⚠️ 拆分指引 (2026-06-05)：
+  本文件原为 1478 行的"上帝组件"，含 11 个 tab。
+  已开始按业务域拆分至 views/system/tabs/ 子目录：
+
+  | Tab       | 状态     | 路径                                |
+  | --------- | -------- | ----------------------------------- |
+  | 用户管理  | ✅ 已拆  | tabs/UserTab.vue (275 行)           |
+  | 角色管理  | 🟡 骨架  | tabs/RoleTab.vue                    |
+  | 部门管理  | 🟡 骨架  | tabs/DepartmentTab.vue              |
+  | 权限管理  | 🟡 骨架  | tabs/PermissionTab.vue              |
+  | 数据权限  | 🟡 骨架  | tabs/DataPermissionTab.vue          |
+  | 字段权限  | 🟡 骨架  | tabs/FieldPermissionTab.vue         |
+  | 通知设置  | 🟡 骨架  | tabs/NotificationTab.vue            |
+  | 审计日志  | 🟡 骨架  | tabs/AuditTab.vue                   |
+  | Webhook   | 🟡 骨架  | tabs/WebhookTab.vue                 |
+  | 系统更新  | 🟡 骨架  | tabs/SystemUpdateTab.vue            |
+  | 租户配置  | 🟡 骨架  | tabs/TenantTab.vue                  |
+  | 公司信息  | 🟡 骨架  | tabs/CompanyTab.vue                 |
+
+  后续前端工程师请按 UserTab 模板完成剩余 10 个 tab 的数据加载/表单逻辑迁移。
+  完整拆分计划见：docs/refactoring/frontend-vue-splitting-plan.md
+
+  本文件暂保留为"容器+状态调度"角色（activeTab、hasLoaded、loadTabData）
+  后续将改造为 <component :is="..."> 动态引用子组件。
+  ----------------------------------------------------------------
+-->
 <template>
   <div class="system-page">
     <el-tabs

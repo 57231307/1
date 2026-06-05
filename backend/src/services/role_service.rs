@@ -1,9 +1,9 @@
-use chrono::Utc;
 use crate::models::role;
 use crate::utils::error::AppError;
-use sea_orm::{EntityTrait, Set, QueryFilter, ColumnTrait, ActiveModelTrait, PaginatorTrait};
-use std::sync::Arc;
+use chrono::Utc;
 use sea_orm::DatabaseConnection;
+use sea_orm::{ActiveModelTrait, ColumnTrait, EntityTrait, PaginatorTrait, QueryFilter, Set};
+use std::sync::Arc;
 
 #[derive(Debug, Clone)]
 pub struct RoleService {
@@ -120,8 +120,7 @@ impl RoleService {
         page: u64,
         page_size: u64,
     ) -> Result<(Vec<role::Model>, u64), AppError> {
-        let paginator = role::Entity::find()
-            .paginate(&*self.db, page_size);
+        let paginator = role::Entity::find().paginate(&*self.db, page_size);
 
         let total = paginator.num_items().await?;
         let roles = paginator.fetch_page(page).await?;
@@ -131,8 +130,6 @@ impl RoleService {
 
     /// 获取所有角色（不分页）
     pub async fn get_all_roles(&self) -> Result<Vec<role::Model>, AppError> {
-        role::Entity::find()
-            .all(&*self.db)
-            .await
+        role::Entity::find().all(&*self.db).await
     }
 }

@@ -7,7 +7,7 @@
 //! - `inv`   发票 PDF 导出（含明细拼装与 ExportService 协作）
 //! - `pay`   付款：占位模块，实际收款业务由 `services/ar_collection_service.rs` 提供
 //!
-//! 兼容说明：原 `crate::services::ar_reconciliation_service::*` 路径需要由上层
+//! 兼容说明：原 `crate::services::ar::*` 路径需要由上层
 //! `services/mod.rs` 通过 `pub use super::ar::*;` 重新导出以保持向后兼容。
 
 #![allow(dead_code)]

@@ -5,7 +5,7 @@ use axum::{
 use serde::{Deserialize, Serialize};
 
 use crate::middleware::auth_context::AuthContext;
-use crate::services::report_engine_service::{
+use crate::services::report::{
     AggregateRequest, AggregationType, DataSource, ExportFormat, ReportEngineService, ReportFilter,
 };
 use crate::utils::app_state::AppState;
@@ -27,8 +27,8 @@ pub struct ReportColumnResponse {
     pub data_type: String,
 }
 
-impl From<crate::services::report_engine_service::ReportTemplate> for ReportTemplateResponse {
-    fn from(template: crate::services::report_engine_service::ReportTemplate) -> Self {
+impl From<crate::services::report::ReportTemplate> for ReportTemplateResponse {
+    fn from(template: crate::services::report::ReportTemplate) -> Self {
         Self {
             id: template.id,
             name: template.name,
@@ -82,7 +82,7 @@ pub async fn execute_report(
     let _page = query.page.unwrap_or(1);
     let _page_size = query.page_size.unwrap_or(50);
 
-    let req = crate::services::report_engine_service::ExecuteReportRequest {
+    let req = crate::services::report::ExecuteReportRequest {
         template_id: query.template_id.clone(),
         filters: vec![],
         parameters: None,
@@ -163,7 +163,7 @@ pub async fn export_report(
     let _export_format: ExportFormat = query.format.parse().unwrap_or(ExportFormat::Csv);
 
     // 先执行报表获取数据
-    let req = crate::services::report_engine_service::ExecuteReportRequest {
+    let req = crate::services::report::ExecuteReportRequest {
         template_id: query.template_id.clone(),
         filters: vec![],
         parameters: None,

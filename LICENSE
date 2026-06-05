@@ -485,3 +485,94 @@ Copyright (c) 2025 Chengdu BingXi Fabric Trading Co.
 (d) 您提供的所有信息真实、准确、完整。
 
 本协议最后更新日期：2025年5月11日
+
+================================================================================
+【附录】第三方组件许可声明
+Appendix: Third-Party Component License Notices
+================================================================================
+
+本软件包含来自第三方的开源组件。这些组件按其各自原始许可证（均为 OSI
+认证的开源许可）授权，与本商业源码许可证并行存在。
+
+This software includes open source components from third parties. These
+components are licensed under their respective original licenses (all OSI-
+approved open source licenses), coexisting with this Business Source License.
+
+------------------------------------------------------------
+1. Rust 后端依赖（/workspace/backend/Cargo.lock）
+------------------------------------------------------------
+
+所有后端依赖均为 MIT/Apache-2.0/BSD-3-Clause 等 OSI 认证的宽松许可证，
+完整许可信息可通过 `cargo tree` 或查看各 crate 的 LICENSE 文件获取。
+
+主要依赖类别（按字母序）：
+
+| 类别 | 代表性 crate | 许可 |
+|------|-------------|------|
+| Web 框架 | axum, tower, tower-http | MIT |
+| 异步运行时 | tokio (含 mio) | MIT |
+| 数据库 ORM/驱动 | sea-orm, sqlx | MIT / Apache-2.0 |
+| 序列化 | serde, serde_json, serde_yaml | MIT / Apache-2.0 |
+| 日志 | tracing, tracing-subscriber | MIT |
+| 错误处理 | thiserror, anyhow | MIT / Apache-2.0 |
+| 时间 | chrono, time | MIT / Apache-2.0 |
+| 加密/认证 | argon2, jsonwebtoken, rand | MIT / Apache-2.0 |
+| HTTP 客户端 | reqwest | MIT / Apache-2.0 |
+| 工具 | anyhow, dotenvy, validator, regex | MIT / Apache-2.0 |
+| gRPC | tonic, prost | MIT / Apache-2.0 |
+| Prometheus | prometheus | MIT / Apache-2.0 |
+| 命令行 | clap | MIT / Apache-2.0 |
+| UUID/Hash | uuid, sha2, blake2, md-5 | MIT / Apache-2.0 |
+| PDF/Excel | printpdf, calamine, rust_xlsxwriter | MIT / Apache-2.0 |
+| OpenAPI 文档 | utoipa | MIT / Apache-2.0 |
+| 数据库迁移 | sea-orm-migration | MIT / Apache-2.0 |
+
+详细列表可通过执行 `cd backend && cargo tree --edges normal` 获取。
+
+------------------------------------------------------------
+2. JavaScript/TypeScript 前端依赖（/workspace/frontend/package.json）
+------------------------------------------------------------
+
+主要依赖类别（按字母序）：
+
+| 类别 | 代表性包 | 许可 |
+|------|---------|------|
+| 核心框架 | vue | MIT |
+| 构建工具 | vite, vite-plugin-vue, @vitejs/plugin-vue-jsx, unplugin-auto-import, unplugin-vue-components | MIT |
+| UI 组件库 | element-plus, @element-plus/icons-vue | MIT |
+| 状态管理 | pinia, pinia-plugin-persistedstate | MIT |
+| 路由 | vue-router | MIT |
+| HTTP 客户端 | axios | MIT |
+| 图表 | echarts, vue-echarts | Apache-2.0 / MIT |
+| 表单验证 | vee-validate, yup, @vee-validate/yup | MIT |
+| 富文本 | @wangeditor/editor, @wangeditor/editor-for-vue | MIT |
+| 工具库 | lodash-es, dayjs, mitt, js-cookie, nanoid | MIT |
+| 测试 | vitest, @vue/test-utils, happy-dom | MIT |
+| 代码质量 | eslint, @typescript-eslint/*, prettier, eslint-plugin-vue | MIT |
+| 类型定义 | @types/* | MIT |
+
+详细许可信息可执行 `cd frontend && npm ls --all` 获取。
+
+------------------------------------------------------------
+3. 商标与图标
+------------------------------------------------------------
+
+- Element Plus 图标遵循 MIT 许可证
+- Element UI 商标归饿了么前端团队所有，本项目仅作技术使用
+- 任何公司名称、产品名称、商标等均属其各自所有者的财产
+
+------------------------------------------------------------
+4. 合规性承诺
+------------------------------------------------------------
+
+本软件的版权所有者（成都布艺商行）声明：
+(a) 已对所有第三方组件的许可证进行审核，未发现与本商业源码许可证的
+    不兼容情况；
+(b) 所有第三方组件的版权与许可信息均在各组件原始位置（LICENSE/Notice
+    文件）保留；
+(c) 任何第三方许可证的更新与变更，以官方上游仓库为准。
+
+如发现潜在的许可证冲突，请通过下列联系方式反馈：
+电子邮箱：57231307@qq.com
+
+================================================================================

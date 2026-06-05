@@ -7,7 +7,7 @@ use chrono::Utc;
 use serde::{Deserialize, Serialize};
 
 use crate::middleware::auth_context::AuthContext;
-use crate::services::ai_analysis_service::AiAnalysisService;
+use crate::services::ai::AiAnalysisService;
 use crate::utils::app_state::AppState;
 use crate::utils::response::ApiResponse;
 

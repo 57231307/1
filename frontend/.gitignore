@@ -1,3 +1,49 @@
+# 依赖
 node_modules/
 dist/
 .cache/
+coverage/
+.vite/
+
+# 环境变量（真实值不应提交，仅提交 .example 模板）
+.env
+.env.local
+.env.*.local
+
+# 日志
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+# 调试与测试残留
+*.swp
+*.swo
+*~
+*.tmp
+.DS_Store
+Thumbs.db
+
+# 编辑器与 IDE
+.vscode/
+!.vscode/settings.json
+!.vscode/extensions.json
+.idea/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+# 构建产物
+*.tsbuildinfo
+.eslintcache
+.prettiercache
+
+# 自动生成的声明文件（Vite 插件生成）
+auto-imports.d.ts
+auto-imports.d.ts.map
+components.d.ts
+components.d.ts.map

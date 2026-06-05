@@ -7,7 +7,7 @@
 //! - `exp`  导出器：PDF / Excel / CSV / JSON 多种格式输出
 //! - `job`  调度器：报表订阅、cron 表达式、next_run 计算
 //!
-//! 兼容说明：原 `crate::services::report_engine_service::*` 路径需要由上层
+//! 兼容说明：原 `crate::services::report::*` 路径需要由上层
 //! `services/mod.rs` 通过 `pub use super::report::*;` 重新导出以保持向后兼容。
 
 #![allow(dead_code)]

@@ -6,7 +6,7 @@
 //! - `detect` 异常检测：销售突增/突降、库存零/积压/滞销（Z-score / IQR）
 //! - `rec`    推荐：智能补货、关联推荐、趋势推荐、价格调整推荐
 //!
-//! 兼容说明：原 `crate::services::ai_analysis_service::*` 路径需要由上层
+//! 兼容说明：原 `crate::services::ai::*` 路径需要由上层
 //! `services/mod.rs` 通过 `pub use super::ai::*;` 重新导出以保持向后兼容。
 
 #![allow(dead_code)]

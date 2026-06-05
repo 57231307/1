@@ -17,8 +17,9 @@ pub struct TestConfig {
 impl Default for TestConfig {
     fn default() -> Self {
         Self {
-            db_url: std::env::var("TEST_DATABASE_URL")
-                .unwrap_or_else(|_| "postgres://postgres:postgres@localhost:5432/bingxi_test".to_string()),
+            db_url: std::env::var("TEST_DATABASE_URL").unwrap_or_else(|_| {
+                "postgres://postgres:postgres@localhost:5432/bingxi_test".to_string()
+            }),
             jwt_secret: "test-jwt-secret-key-for-integration-tests-only-32bytes".to_string(),
             cookie_secret: "test-cookie-secret-key-for-integration-tests-only-32bytes".to_string(),
         }
