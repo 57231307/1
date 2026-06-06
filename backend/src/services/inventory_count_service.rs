@@ -118,7 +118,10 @@ impl InventoryCountService {
     }
 
     /// 列出盘点明细
-    pub async fn list_items(&self, _count_id: i32) -> Result<Vec<InventoryCountItemDetail>, AppError> {
+    pub async fn list_items(
+        &self,
+        _count_id: i32,
+    ) -> Result<Vec<InventoryCountItemDetail>, AppError> {
         Err(AppError::NotImplemented(
             "inventory_count 子模块正在开发中".to_string(),
         ))
