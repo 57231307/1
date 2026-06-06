@@ -238,10 +238,7 @@ pub fn emails() -> Router<AppState> {
                 .put(email_handler::update_template)
                 .delete(email_handler::delete_template),
         )
-        .route(
-            "/email-records",
-            get(email_handler::get_email_records),
-        )
+        .route("/email-records", get(email_handler::get_email_records))
         .route(
             "/email-statistics",
             get(email_handler::get_email_statistics),
@@ -322,22 +319,10 @@ pub fn webhooks() -> Router<AppState> {
             "/",
             get(webhook_handler::list_webhooks).post(webhook_handler::create_webhook),
         )
-        .route(
-            "/:id",
-            delete(webhook_handler::delete_webhook),
-        )
-        .route(
-            "/:id/retry",
-            post(webhook_handler::retry_webhook),
-        )
-        .route(
-            "/:id/logs",
-            get(webhook_handler::get_webhook_logs),
-        )
-        .route(
-            "/test",
-            post(webhook_handler::test_webhook),
-        )
+        .route("/:id", delete(webhook_handler::delete_webhook))
+        .route("/:id/retry", post(webhook_handler::retry_webhook))
+        .route("/:id/logs", get(webhook_handler::get_webhook_logs))
+        .route("/test", post(webhook_handler::test_webhook))
 }
 
 /// API 密钥路由
@@ -347,14 +332,8 @@ pub fn api_keys() -> Router<AppState> {
             "/",
             get(api_key_handler::list_api_keys).post(api_key_handler::create_api_key),
         )
-        .route(
-            "/api-key/:id",
-            delete(api_key_handler::delete_api_key),
-        )
-        .route(
-            "/api-key/:id/revoke",
-            post(api_key_handler::revoke_api_key),
-        )
+        .route("/api-key/:id", delete(api_key_handler::delete_api_key))
+        .route("/api-key/:id/revoke", post(api_key_handler::revoke_api_key))
 }
 
 /// 数据权限路由
@@ -371,14 +350,8 @@ pub fn data_permissions() -> Router<AppState> {
                 .put(data_permission_handler::update_permission)
                 .delete(data_permission_handler::delete_permission),
         )
-        .route(
-            "/:id/scope",
-            put(data_permission_handler::update_scope),
-        )
-        .route(
-            "/:id/assign",
-            post(data_permission_handler::assign_to_user),
-        )
+        .route("/:id/scope", put(data_permission_handler::update_scope))
+        .route("/:id/assign", post(data_permission_handler::assign_to_user))
         .route(
             "/scope-types",
             get(data_permission_handler::list_scope_types),
@@ -427,22 +400,15 @@ pub fn notifications() -> Router<AppState> {
             "/notification/:id/read",
             post(notification_handler::mark_as_read),
         )
-        .route(
-            "/unread-count",
-            get(notification_handler::get_unread_count),
-        )
-        .route(
-            "/read-all",
-            post(notification_handler::mark_all_as_read),
-        )
+        .route("/unread-count", get(notification_handler::get_unread_count))
+        .route("/read-all", post(notification_handler::mark_all_as_read))
         .route(
             "/batch-read",
-            post(notification_handler::batch_read),
+            post(notification_handler::batch_mark_as_read),
         )
         .route(
             "/settings",
-            get(notification_handler::get_settings)
-                .put(notification_handler::update_settings),
+            get(notification_handler::get_settings).put(notification_handler::update_setting),
         )
 }
 
@@ -451,8 +417,8 @@ pub fn user_notification_settings() -> Router<AppState> {
     Router::new()
         .route(
             "/",
-            get(user_notification_setting_handler::get_settings)
-                .put(user_notification_setting_handler::update_settings),
+            get(user_notification_setting_handler::get_setting)
+                .put(user_notification_setting_handler::update_setting),
         )
         .route(
             "/reset",
@@ -508,14 +474,8 @@ pub fn advanced() -> Router<AppState> {
             "/reports/templates",
             get(advanced_handler::list_report_templates),
         )
-        .route(
-            "/reports/execute",
-            post(advanced_handler::execute_report),
-        )
-        .route(
-            "/reports/export",
-            post(advanced_handler::export_report),
-        )
+        .route("/reports/execute", post(advanced_handler::execute_report))
+        .route("/reports/export", post(advanced_handler::export_report))
         .route(
             "/tenants",
             get(advanced_handler::list_tenants).post(advanced_handler::create_tenant),
@@ -529,10 +489,7 @@ pub fn advanced() -> Router<AppState> {
 /// 跟踪路由
 pub fn tracking() -> Router<AppState> {
     Router::new()
-        .route(
-            "/page-view",
-            post(tracking_handler::record_page_view),
-        )
+        .route("/page-view", post(tracking_handler::record_page_view))
         .route(
             "/page-view/stats",
             get(tracking_handler::get_page_view_stats),
@@ -545,18 +502,12 @@ pub fn tracking() -> Router<AppState> {
             "/page-view/popular",
             get(tracking_handler::get_popular_pages),
         )
-        .route(
-            "/behavior",
-            post(tracking_handler::record_behavior),
-        )
+        .route("/behavior", post(tracking_handler::record_behavior))
         .route(
             "/behavior/funnel",
             get(tracking_handler::get_funnel_analysis),
         )
-        .route(
-            "/behavior/path",
-            get(tracking_handler::get_user_path),
-        )
+        .route("/behavior/path", get(tracking_handler::get_user_path))
 }
 
 /// 分析域统一入口
