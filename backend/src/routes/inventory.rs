@@ -176,7 +176,10 @@ pub fn batches() -> Router<AppState> {
         .route("/batches", post(inventory_batch_handler::create_batch))
         .route("/batches/:id", get(inventory_batch_handler::get_batch))
         .route("/batches/:id", put(inventory_batch_handler::update_batch))
-        .route("/batches/:id", delete(inventory_batch_handler::delete_batch))
+        .route(
+            "/batches/:id",
+            delete(inventory_batch_handler::delete_batch),
+        )
         .route(
             "/batches/:id/transfer",
             post(inventory_batch_handler::transfer_batch),
@@ -193,10 +196,7 @@ pub fn logistics() -> Router<AppState> {
             "/logistics/:id",
             put(logistics_handler::update_waybill_status),
         )
-        .route(
-            "/logistics/:id",
-            delete(logistics_handler::delete_waybill),
-        )
+        .route("/logistics/:id", delete(logistics_handler::delete_waybill))
 }
 
 /// 库存域统一入口

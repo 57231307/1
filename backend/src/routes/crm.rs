@@ -44,7 +44,10 @@ pub fn customers() -> Router<AppState> {
 /// 客户信用路由（path 前缀 /customer-credits）
 pub fn customer_credits() -> Router<AppState> {
     Router::new()
-        .route("/customer-credits", get(customer_credit_handler::list_credits))
+        .route(
+            "/customer-credits",
+            get(customer_credit_handler::list_credits),
+        )
         .route(
             "/customer-credits",
             post(customer_credit_handler::create_credit),
@@ -181,10 +184,7 @@ pub fn crm_customers() -> Router<AppState> {
                 .put(crm_customer_handler::update_customer)
                 .delete(crm_customer_handler::delete_customer),
         )
-        .route(
-            "/customers/:id/tags",
-            post(crm_customer_handler::add_tags),
-        )
+        .route("/customers/:id/tags", post(crm_customer_handler::add_tags))
         .route(
             "/customers/:id/contacts",
             get(crm_customer_handler::list_contacts),
@@ -200,10 +200,7 @@ pub fn crm_tags() -> Router<AppState> {
             "/crm-tags",
             get(crm_customer_handler::list_tags).post(crm_customer_handler::create_tag),
         )
-        .route(
-            "/crm-tags/:id",
-            delete(crm_customer_handler::delete_tag),
-        )
+        .route("/crm-tags/:id", delete(crm_customer_handler::delete_tag))
 }
 
 /// CRM 公海池路由（path 前缀 /pool）
@@ -239,10 +236,7 @@ pub fn crm_assignments() -> Router<AppState> {
 
 /// CRM 销售用户路由（path 前缀 /sales-users）
 pub fn crm_sales_users() -> Router<AppState> {
-    Router::new().route(
-        "/sales-users",
-        get(missing_handlers::get_sales_users),
-    )
+    Router::new().route("/sales-users", get(missing_handlers::get_sales_users))
 }
 
 /// CRM 回收规则路由（path 前缀 /recycle-rules）
@@ -254,7 +248,8 @@ pub fn crm_recycle_rules() -> Router<AppState> {
         )
         .route(
             "/recycle-rules/:id",
-            put(missing_handlers::update_recycle_rule).delete(missing_handlers::delete_recycle_rule),
+            put(missing_handlers::update_recycle_rule)
+                .delete(missing_handlers::delete_recycle_rule),
         )
 }
 
@@ -324,8 +319,8 @@ pub fn crm_business() -> Router<AppState> {
             "/rfm/distribution",
             get(crate::handlers::crm_handler::get_rfm_distribution),
         )
-        // `/customers/enhanced/:id` 的 CRUD 已经在 [`crm_customers`] 中提供，
-        // 这里不再重复注册，避免 path+method 冲突。
+    // `/customers/enhanced/:id` 的 CRUD 已经在 [`crm_customers`] 中提供，
+    // 这里不再重复注册，避免 path+method 冲突。
 }
 
 /// CRM 域统一入口

@@ -95,7 +95,10 @@ pub fn bpm() -> Router<AppState> {
         .route("/bpm/tasks/approve", post(bpm_handler::approve_task))
         .route("/bpm/tasks", get(bpm_handler::query_tasks))
         .route("/bpm/tasks/pending", get(bpm_handler::get_pending_tasks))
-        .route("/bpm/tasks/completed", get(bpm_handler::get_completed_tasks))
+        .route(
+            "/bpm/tasks/completed",
+            get(bpm_handler::get_completed_tasks),
+        )
         .route(
             "/bpm/business-relation",
             get(bpm_handler::get_business_relation),
@@ -130,10 +133,7 @@ pub fn bpm() -> Router<AppState> {
             post(bpm_handler::transfer_task),
         )
         .route("/bpm/tasks/:task_id/urge", post(bpm_handler::urge_task))
-        .route(
-            "/bpm/approval/execute",
-            post(bpm_handler::execute_approval),
-        )
+        .route("/bpm/approval/execute", post(bpm_handler::execute_approval))
         .route(
             "/bpm/definitions",
             get(bpm_definition_handler::list_process_definitions)
@@ -147,8 +147,7 @@ pub fn bpm() -> Router<AppState> {
         )
         .route(
             "/bpm/definitions/:id/versions",
-            get(bpm_definition_handler::list_versions)
-                .post(bpm_definition_handler::create_version),
+            get(bpm_definition_handler::list_versions).post(bpm_definition_handler::create_version),
         )
         .route(
             "/bpm/definitions/:id/versions/:version/activate",

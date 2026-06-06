@@ -29,10 +29,7 @@ pub fn dye_batches() -> Router<AppState> {
         .route("/dye-batches", get(dye_batch_handler::list_dye_batches))
         .route("/dye-batches", post(dye_batch_handler::create_dye_batch))
         .route("/dye-batches/:id", get(dye_batch_handler::get_dye_batch))
-        .route(
-            "/dye-batches/:id",
-            put(dye_batch_handler::update_dye_batch),
-        )
+        .route("/dye-batches/:id", put(dye_batch_handler::update_dye_batch))
         .route(
             "/dye-batches/:id",
             delete(dye_batch_handler::delete_dye_batch),
@@ -287,10 +284,7 @@ pub fn mrp() -> Router<AppState> {
         .route("/mrp/calculate", post(mrp_handler::calculate_mrp))
         .route("/mrp/results", get(mrp_handler::get_mrp_results))
         .route("/mrp/requirements", get(mrp_handler::get_mrp_requirements))
-        .route(
-            "/mrp/convert-orders",
-            post(mrp_handler::convert_to_orders),
-        )
+        .route("/mrp/convert-orders", post(mrp_handler::convert_to_orders))
         .route("/mrp/products", get(mrp_handler::list_products_for_mrp))
 }
 
@@ -323,10 +317,7 @@ pub fn scheduling() -> Router<AppState> {
             "/scheduling/auto-schedule",
             post(scheduling_handler::auto_schedule),
         )
-        .route(
-            "/scheduling/gantt",
-            get(scheduling_handler::get_gantt_data),
-        )
+        .route("/scheduling/gantt", get(scheduling_handler::get_gantt_data))
         .route(
             "/scheduling/conflicts",
             get(scheduling_handler::detect_conflicts),
@@ -339,10 +330,7 @@ pub fn scheduling() -> Router<AppState> {
             "/scheduling/tasks/:id/adjust",
             put(scheduling_handler::adjust_schedule_task),
         )
-        .route(
-            "/scheduling/:id",
-            put(scheduling_handler::adjust_schedule),
-        )
+        .route("/scheduling/:id", put(scheduling_handler::adjust_schedule))
         .route(
             "/scheduling/work-orders",
             get(scheduling_handler::list_scheduled_orders),
@@ -376,19 +364,14 @@ pub fn capacity() -> Router<AppState> {
             "/capacity/bottlenecks",
             get(capacity_handler::get_load_analysis),
         )
-        .route(
-            "/capacity/trend",
-            get(capacity_handler::get_load_analysis),
-        )
+        .route("/capacity/trend", get(capacity_handler::get_load_analysis))
         .route(
             "/capacity/work-centers",
-            get(capacity_handler::list_work_centers)
-                .post(capacity_handler::create_work_center),
+            get(capacity_handler::list_work_centers).post(capacity_handler::create_work_center),
         )
         .route(
             "/capacity/work-centers/:id",
-            put(capacity_handler::update_work_center)
-                .delete(capacity_handler::delete_work_center),
+            put(capacity_handler::update_work_center).delete(capacity_handler::delete_work_center),
         )
         .route(
             "/capacity/work-centers/:id/forecast",

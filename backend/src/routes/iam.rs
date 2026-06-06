@@ -21,8 +21,14 @@ pub fn users() -> Router<AppState> {
         .route("/users/:id", get(user_handler::get_user))
         .route("/users/:id", put(user_handler::update_user))
         .route("/users/:id", delete(user_handler::delete_user))
-        .route("/users/change-password", post(user_handler::change_password))
-        .route("/users/reset-password", post(init_handler::reset_admin_password))
+        .route(
+            "/users/change-password",
+            post(user_handler::change_password),
+        )
+        .route(
+            "/users/reset-password",
+            post(init_handler::reset_admin_password),
+        )
 }
 
 /// 角色管理路由（path 前缀 /roles）
@@ -33,8 +39,14 @@ pub fn roles() -> Router<AppState> {
         .route("/roles/:id", get(role_handler::get_role))
         .route("/roles/:id", put(role_handler::update_role))
         .route("/roles/:id", delete(role_handler::delete_role))
-        .route("/roles/:id/permissions", get(role_handler::get_role_permissions))
-        .route("/roles/:id/permissions", post(role_handler::assign_permission))
+        .route(
+            "/roles/:id/permissions",
+            get(role_handler::get_role_permissions),
+        )
+        .route(
+            "/roles/:id/permissions",
+            post(role_handler::assign_permission),
+        )
         .route(
             "/roles/permissions/:id",
             delete(role_handler::remove_permission),
@@ -50,7 +62,10 @@ pub fn departments() -> Router<AppState> {
         .route("/departments/:id", get(department_handler::get))
         .route("/departments/:id", put(department_handler::update))
         .route("/departments/:id", delete(department_handler::delete))
-        .route("/departments/tree", get(department_handler::get_department_tree))
+        .route(
+            "/departments/tree",
+            get(department_handler::get_department_tree),
+        )
 }
 
 /// 权限管理路由（path 前缀 /permissions）

@@ -183,7 +183,10 @@ pub fn budgets() -> Router<AppState> {
         .route("/budgets", get(budget_management_handler::list_budgets))
         .route("/budgets", post(budget_management_handler::create_budget))
         .route("/budgets/:id", get(budget_management_handler::get_budget))
-        .route("/budgets/:id", put(budget_management_handler::update_budget))
+        .route(
+            "/budgets/:id",
+            put(budget_management_handler::update_budget),
+        )
         .route(
             "/budgets/:id",
             delete(budget_management_handler::delete_budget),
@@ -335,7 +338,10 @@ pub fn ap() -> Router<AppState> {
         .route("/ap/invoices", get(ap_invoice_handler::list_ap_invoices))
         .route("/ap/invoices", post(ap_invoice_handler::create_ap_invoice))
         .route("/ap/invoices/:id", get(ap_invoice_handler::get_ap_invoice))
-        .route("/ap/invoices/:id", put(ap_invoice_handler::update_ap_invoice))
+        .route(
+            "/ap/invoices/:id",
+            put(ap_invoice_handler::update_ap_invoice),
+        )
         .route(
             "/ap/invoices/:id",
             delete(ap_invoice_handler::delete_ap_invoice),
@@ -488,7 +494,10 @@ pub fn ar() -> Router<AppState> {
         .route("/ar/invoices", get(ar_invoice_handler::list_ar_invoices))
         .route("/ar/invoices", post(ar_invoice_handler::create_ar_invoice))
         .route("/ar/invoices/:id", get(ar_invoice_handler::get_ar_invoice))
-        .route("/ar/invoices/:id", put(ar_invoice_handler::update_ar_invoice))
+        .route(
+            "/ar/invoices/:id",
+            put(ar_invoice_handler::update_ar_invoice),
+        )
         .route(
             "/ar/invoices/:id",
             delete(ar_invoice_handler::delete_ar_invoice),
@@ -681,8 +690,7 @@ pub fn exchange_rates() -> Router<AppState> {
     Router::new()
         .route(
             "/exchange-rates",
-            get(currency_handler::list_exchange_rates)
-                .post(currency_handler::create_exchange_rate),
+            get(currency_handler::list_exchange_rates).post(currency_handler::create_exchange_rate),
         )
         .route(
             "/exchange-rates/query",

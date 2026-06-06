@@ -242,10 +242,7 @@ pub fn suppliers() -> Router<AppState> {
         .route("/suppliers/select", get(supplier_handler::list_suppliers))
         .route("/suppliers/:id", get(supplier_handler::get_supplier))
         .route("/suppliers/:id", put(supplier_handler::update_supplier))
-        .route(
-            "/suppliers/:id",
-            delete(supplier_handler::delete_supplier),
-        )
+        .route("/suppliers/:id", delete(supplier_handler::delete_supplier))
         .route(
             "/suppliers/:id/status",
             post(supplier_handler::toggle_supplier_status),
