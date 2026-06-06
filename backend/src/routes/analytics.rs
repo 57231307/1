@@ -85,7 +85,10 @@ pub fn scanner() -> Router<AppState> {
             get(barcode_scanner_handler::scan_inventory),
         )
         .route("/history", get(barcode_scanner_handler::scan_history))
-        .route("/statistics", get(barcode_scanner_handler::scan_statistics))
+        .route(
+            "/scan-statistics",
+            get(barcode_scanner_handler::scan_statistics),
+        )
 }
 
 /// 报表增强路由（nest 到 /api/v1/erp/reports/enhanced）
@@ -186,7 +189,7 @@ pub fn security() -> Router<AppState> {
         )
         .route("/unlock", post(login_security_handler::unlock_account))
         .route(
-            "/statistics",
+            "/login-statistics",
             get(login_security_handler::get_login_statistics),
         )
         .route("/stats", get(login_security_handler::get_login_statistics))
@@ -228,7 +231,10 @@ pub fn emails() -> Router<AppState> {
                 .delete(email_handler::delete_template),
         )
         .route("/records", get(email_handler::get_email_records))
-        .route("/statistics", get(email_handler::get_email_statistics))
+        .route(
+            "/email-statistics",
+            get(email_handler::get_email_statistics),
+        )
 }
 
 /// Webhook 集成路由（nest 到 /api/v1/erp/webhooks/integrations）
