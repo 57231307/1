@@ -1,7 +1,11 @@
 //! 库存盘点查询（list_counts、get_count_detail、list_items）
 //!
-//! 这些方法通过 InventoryCountService::list_counts 等公开 API 访问
-//! 实现位于父模块 InventoryCountService（保持向后兼容）
+//! 这些方法为占位实现，真实业务逻辑应通过 `crate::services::inventory_count::*` 子模块调用。
+//! 当前模块结构：
+//! - `query`     — 列表查询与详情查询
+//! - `commands`  — 增删改操作
+//! - `workflow`  — 审批与完成
+//! - `items`     — 明细项管理
 
 use sea_orm::DatabaseConnection;
 use std::sync::Arc;
@@ -23,13 +27,14 @@ pub struct CountListQuery {
 }
 
 /// 列表查询实现（占位）
-/// 实际实现仍在 InventoryCountService::list_counts 中
+///
+/// 真实实现请使用 `crate::services::inventory_count::query::list_counts`
 pub async fn list_counts(
     _db: Arc<DatabaseConnection>,
     _query: CountListQuery,
 ) -> Result<PaginatedResponse<InventoryCountDetail>, AppError> {
     Err(AppError::NotImplemented(
-        "请使用 InventoryCountService::list_counts".to_string(),
+        "该功能正在开发中，请等待 inventory_count 子模块完整实现".to_string(),
     ))
 }
 
@@ -39,7 +44,7 @@ pub async fn get_count_detail(
     _count_id: i32,
 ) -> Result<InventoryCountDetail, AppError> {
     Err(AppError::NotImplemented(
-        "请使用 InventoryCountService::get_count_detail".to_string(),
+        "该功能正在开发中，请等待 inventory_count 子模块完整实现".to_string(),
     ))
 }
 
@@ -49,6 +54,6 @@ pub async fn list_items(
     _count_id: i32,
 ) -> Result<Vec<InventoryCountItemDetail>, AppError> {
     Err(AppError::NotImplemented(
-        "请使用 InventoryCountService::list_items".to_string(),
+        "该功能正在开发中，请等待 inventory_count 子模块完整实现".to_string(),
     ))
 }

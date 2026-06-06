@@ -35,7 +35,7 @@ pub struct SendEmailRequest {
 
 /// 创建模板请求
 #[derive(Debug, Deserialize)]
-pub struct CreateTemplateRequest {
+pub struct CreateEmailTemplateRequest {
     pub name: String,
     pub code: String,
     pub subject_template: String,
@@ -136,7 +136,7 @@ pub async fn list_templates(
 pub async fn create_template(
     State(state): State<AppState>,
     auth: AuthContext,
-    Json(req): Json<CreateTemplateRequest>,
+    Json(req): Json<CreateEmailTemplateRequest>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     let service = EmailTemplateService::new(state.db.clone());
     let tenant_id = auth.tenant_id.unwrap_or(0);

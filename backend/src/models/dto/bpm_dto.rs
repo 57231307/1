@@ -36,7 +36,7 @@ pub struct CreateVersionRequest {
 }
 
 #[derive(Debug, Deserialize, Serialize)]
-pub struct CreateTemplateRequest {
+pub struct CreateBpmTemplateRequest {
     pub template_name: String,
     pub description: Option<String>,
     pub category: Option<String>,

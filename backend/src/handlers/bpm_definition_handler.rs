@@ -1,5 +1,5 @@
 use crate::models::dto::bpm_dto::{
-    CreateProcessDefinitionRequest, CreateTemplateRequest, CreateVersionRequest,
+    CreateBpmTemplateRequest, CreateProcessDefinitionRequest, CreateVersionRequest,
     ProcessDefinitionQuery, TemplateQuery, UpdateProcessDefinitionRequest,
 };
 use crate::services::bpm_service::BpmService;
@@ -109,7 +109,7 @@ pub async fn activate_version_by_id(
 pub async fn save_as_template(
     State(state): State<AppState>,
     Path(id): Path<i32>,
-    Json(req): Json<CreateTemplateRequest>,
+    Json(req): Json<CreateBpmTemplateRequest>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     let service = BpmService::new(state.db.clone());
     service.save_as_template(id, req.template_name).await?;
