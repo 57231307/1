@@ -86,53 +86,83 @@ pub fn sales() -> Router<AppState> {
         )
 }
 
-/// 销售合同路由（nest 到 /api/v1/erp/sales-contracts）
+/// 销售合同路由（path 前缀 /sales-contracts）
 pub fn sales_contracts() -> Router<AppState> {
     Router::new()
-        .route("/", get(sales_contract_handler::list_contracts))
-        .route("/", post(sales_contract_handler::create_contract))
-        .route("/:id", get(sales_contract_handler::get_contract))
-        .route("/:id", put(sales_contract_handler::update_contract))
-        .route("/:id", delete(sales_contract_handler::delete_contract))
         .route(
-            "/:id/approve",
+            "/sales-contracts",
+            get(sales_contract_handler::list_contracts),
+        )
+        .route(
+            "/sales-contracts",
+            post(sales_contract_handler::create_contract),
+        )
+        .route(
+            "/sales-contracts/:id",
+            get(sales_contract_handler::get_contract),
+        )
+        .route(
+            "/sales-contracts/:id",
+            put(sales_contract_handler::update_contract),
+        )
+        .route(
+            "/sales-contracts/:id",
+            delete(sales_contract_handler::delete_contract),
+        )
+        .route(
+            "/sales-contracts/:id/approve",
             post(sales_contract_handler::approve_contract),
         )
         .route(
-            "/:id/execute",
+            "/sales-contracts/:id/execute",
             put(sales_contract_handler::execute_contract),
         )
-        .route("/:id/cancel", put(sales_contract_handler::cancel_contract))
-        .route("/:id/print", get(print_handler::sales_contract_print_html))
+        .route(
+            "/sales-contracts/:id/cancel",
+            put(sales_contract_handler::cancel_contract),
+        )
+        .route(
+            "/sales-contracts/:id/print",
+            get(print_handler::sales_contract_print_html),
+        )
 }
 
-/// 销售价格路由（nest 到 /api/v1/erp/sales-prices）
+/// 销售价格路由（path 前缀 /sales-prices）
 pub fn sales_prices() -> Router<AppState> {
     Router::new()
-        .route("/", get(sales_price_handler::list_prices))
-        .route("/", post(sales_price_handler::create_price))
+        .route("/sales-prices", get(sales_price_handler::list_prices))
+        .route("/sales-prices", post(sales_price_handler::create_price))
         .route(
-            "/:id",
+            "/sales-prices/:id",
             get(sales_price_handler::get_price)
                 .put(sales_price_handler::update_price)
                 .delete(sales_price_handler::delete_price),
         )
-        .route("/:id/approve", post(sales_price_handler::approve_price))
         .route(
-            "/history/:product_id",
+            "/sales-prices/:id/approve",
+            post(sales_price_handler::approve_price),
+        )
+        .route(
+            "/sales-prices/history/:product_id",
             get(sales_price_handler::get_price_history),
         )
-        .route("/strategies", get(sales_price_handler::list_strategies))
+        .route(
+            "/sales-prices/strategies",
+            get(sales_price_handler::list_strategies),
+        )
 }
 
-/// 销售退货路由（nest 到 /api/v1/erp/sales-returns）
+/// 销售退货路由（path 前缀 /sales-returns）
 ///
-/// 由 sales_return_handler 模块内部定义路由（router() 函数返回）
+/// 由 sales_return_handler 模块内部定义路由（router() 函数返回）。
+/// 该模块已自带独立前缀，merge 时不会与其他子 router 冲突。
 pub fn sales_returns() -> Router<AppState> {
     sales_return_handler::router()
 }
 
 /// 销售域统一入口
+///
+/// 子 router path 已加独立前缀，merge 时 path+method 互不重叠。
 pub fn routes() -> Router<AppState> {
     Router::new()
         .merge(sales())

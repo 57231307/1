@@ -7,7 +7,8 @@ use axum::{
 use serde::Deserialize;
 
 use crate::models::dto::PageRequest;
-use crate::services::so::{CreateSalesOrderRequest, SalesService, UpdateSalesOrderRequest};
+use crate::services::so::order::SalesService;
+use crate::services::so::{CreateSalesOrderRequest, UpdateSalesOrderRequest};
 use crate::utils::error::AppError;
 use crate::utils::response::ApiResponse;
 
