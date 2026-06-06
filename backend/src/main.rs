@@ -32,6 +32,7 @@ use crate::middleware::request_validator::request_validator_middleware;
 use crate::routes::create_router;
 use crate::services::init_service::{DatabaseConfig, InitService};
 use crate::utils::log_config::{self, LogConfig};
+use crate::utils::response::ApiResponse;
 
 #[derive(Debug, serde::Serialize)]
 struct InitStatusResponse {
@@ -57,14 +58,17 @@ async fn get_init_status() -> Json<InitStatusResponse> {
 async fn test_database_connection(
     Json(payload): Json<DatabaseConfig>,
 ) -> Result<
-    Json<crate::handlers::init_handler::TestDatabaseResponse>,
+    Json<ApiResponse<crate::handlers::init_handler::TestDatabaseResponse>>,
     (axum::http::StatusCode, Json<InitErrorResponse>),
 > {
     match InitService::test_database(&payload).await {
-        Ok(_) => Ok(Json(crate::handlers::init_handler::TestDatabaseResponse {
-            success: true,
-            message: "数据库连接成功".to_string(),
-        })),
+        Ok(_) => Ok(Json(ApiResponse::success_with_message(
+            crate::handlers::init_handler::TestDatabaseResponse {
+                success: true,
+                message: "数据库连接成功".to_string(),
+            },
+            "数据库连接测试成功",
+        ))),
         Err(e) => Err((
             axum::http::StatusCode::BAD_REQUEST,
             Json(InitErrorResponse {
@@ -78,7 +82,7 @@ async fn test_database_connection(
 async fn initialize_with_db(
     Json(payload): Json<crate::handlers::init_handler::InitWithDbRequest>,
 ) -> Result<
-    Json<crate::services::init_service::InitializationResult>,
+    Json<ApiResponse<crate::services::init_service::InitializationResult>>,
     (axum::http::StatusCode, Json<InitErrorResponse>),
 > {
     match InitService::initialize_with_db(
@@ -88,7 +92,10 @@ async fn initialize_with_db(
     )
     .await
     {
-        Ok(result) => Ok(Json(result)),
+        Ok(result) => Ok(Json(ApiResponse::success_with_message(
+            result,
+            "系统初始化成功",
+        ))),
         Err(e) => {
             let error = match e {
                 crate::services::init_service::InitError::AlreadyInitialized => {
