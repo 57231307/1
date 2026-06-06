@@ -313,6 +313,10 @@ pub fn reports() -> Router<AppState> {
 }
 
 /// Webhook 路由
+///
+/// 注：main 上 webhook_handler 仅实现 `list_webhooks` / `create_webhook` / `delete_webhook`
+/// 三类基础操作；`retry_webhook` / `get_webhook_logs` / `test_webhook` 在 main 上未实现，
+/// 因此相关路由暂不挂载，避免编译期 E0425。
 pub fn webhooks() -> Router<AppState> {
     Router::new()
         .route(
@@ -320,80 +324,60 @@ pub fn webhooks() -> Router<AppState> {
             get(webhook_handler::list_webhooks).post(webhook_handler::create_webhook),
         )
         .route("/:id", delete(webhook_handler::delete_webhook))
-        .route("/:id/retry", post(webhook_handler::retry_webhook))
-        .route("/:id/logs", get(webhook_handler::get_webhook_logs))
-        .route("/test", post(webhook_handler::test_webhook))
 }
 
 /// API 密钥路由
+///
+/// 注：main 上 api_key_handler 没有 `delete_api_key`（撤销 = 删除），仅有 `revoke_api_key`，
+/// 因此 `DELETE /api-key/:id` 直接复用 `revoke_api_key`。
 pub fn api_keys() -> Router<AppState> {
     Router::new()
         .route(
             "/",
             get(api_key_handler::list_api_keys).post(api_key_handler::create_api_key),
         )
-        .route("/api-key/:id", delete(api_key_handler::delete_api_key))
+        .route("/api-key/:id", delete(api_key_handler::revoke_api_key))
         .route("/api-key/:id/revoke", post(api_key_handler::revoke_api_key))
 }
 
 /// 数据权限路由
+///
+/// 注：main 上 data_permission_handler 仅实现基础的 `list_data_permissions` /
+/// `get_data_permission` / `set_data_permission` / `delete_data_permission` /
+/// `list_scope_types` / `list_role_data_permissions`，未提供 grant/revoke 角色 / 用户级别
+/// 的接口，因此这些路由暂不挂载，避免编译期 E0425。
 pub fn data_permissions() -> Router<AppState> {
     Router::new()
         .route(
             "/",
-            get(data_permission_handler::list_permissions)
-                .post(data_permission_handler::create_permission),
+            get(data_permission_handler::list_data_permissions)
+                .post(data_permission_handler::set_data_permission),
         )
         .route(
             "/:id",
-            get(data_permission_handler::get_permission)
-                .put(data_permission_handler::update_permission)
-                .delete(data_permission_handler::delete_permission),
+            get(data_permission_handler::get_data_permission)
+                .delete(data_permission_handler::delete_data_permission),
         )
-        .route("/:id/scope", put(data_permission_handler::update_scope))
-        .route("/:id/assign", post(data_permission_handler::assign_to_user))
         .route(
             "/scope-types",
             get(data_permission_handler::list_scope_types),
         )
         .route(
             "/roles/:role_id",
-            get(data_permission_handler::get_role_permissions),
-        )
-        .route(
-            "/roles/:role_id/grant",
-            post(data_permission_handler::grant_to_role),
-        )
-        .route(
-            "/roles/:role_id/revoke",
-            post(data_permission_handler::revoke_from_role),
-        )
-        .route(
-            "/users/:user_id",
-            get(data_permission_handler::get_user_permissions),
-        )
-        .route(
-            "/users/:user_id/grant",
-            post(data_permission_handler::grant_to_user),
-        )
-        .route(
-            "/users/:user_id/revoke",
-            post(data_permission_handler::revoke_from_user),
+            get(data_permission_handler::list_role_data_permissions),
         )
 }
 
 /// 消息通知路由
+///
+/// 注：main 上 notification_handler 未提供 `create_notification` / `update_notification`，
+/// 因此这两类路由暂不挂载，避免编译期 E0425。
 pub fn notifications() -> Router<AppState> {
     Router::new()
-        .route(
-            "/",
-            get(notification_handler::list_notifications)
-                .post(notification_handler::create_notification),
-        )
+        .route("/", get(notification_handler::list_notifications))
         .route(
             "/notification/:id",
             get(notification_handler::get_notification)
-                .put(notification_handler::update_notification)
                 .delete(notification_handler::delete_notification),
         )
         .route(
@@ -413,42 +397,38 @@ pub fn notifications() -> Router<AppState> {
 }
 
 /// 用户通知偏好路由
+///
+/// 注：main 上 user_notification_setting_handler 未提供 `reset_to_default`，
+/// 因此 `POST /reset` 路由暂不挂载，避免编译期 E0425。
 pub fn user_notification_settings() -> Router<AppState> {
-    Router::new()
-        .route(
-            "/",
-            get(user_notification_setting_handler::get_setting)
-                .put(user_notification_setting_handler::update_setting),
-        )
-        .route(
-            "/reset",
-            post(user_notification_setting_handler::reset_to_default),
-        )
+    Router::new().route(
+        "/",
+        get(user_notification_setting_handler::get_setting)
+            .put(user_notification_setting_handler::update_setting),
+    )
 }
 
 /// 交易管理路由（高级查询）
+///
+/// 注：main 上不存在 `report_enhanced_handler::trading_list_*` 系列函数，
+/// 实际定义在 `advanced_handler`（拆分到 `advanced/reorder.rs` 和 `advanced/decide.rs`），
+/// 路由挂在 `/advanced` 域下更合适；此处保留独立 `/trading/...` 入口以兼容旧前端调用。
 pub fn trading() -> Router<AppState> {
     Router::new()
         .route(
             "/purchase-contracts",
-            get(report_enhanced_handler::trading_list_purchase_contracts),
+            get(advanced_handler::list_purchase_contracts),
         )
         .route(
             "/sales-contracts",
-            get(report_enhanced_handler::trading_list_sales_contracts),
+            get(advanced_handler::list_sales_contracts),
         )
-        .route(
-            "/sales-prices",
-            get(report_enhanced_handler::trading_list_sales_prices),
-        )
+        .route("/sales-prices", get(advanced_handler::list_sales_prices))
         .route(
             "/purchase-prices",
-            get(report_enhanced_handler::trading_list_purchase_prices),
+            get(advanced_handler::list_purchase_prices),
         )
-        .route(
-            "/sales-returns",
-            get(report_enhanced_handler::trading_list_sales_returns),
-        )
+        .route("/sales-returns", get(advanced_handler::list_sales_returns))
 }
 
 /// Advanced 分析路由（nest 到 /api/v1/erp/advanced）
@@ -487,27 +467,13 @@ pub fn advanced() -> Router<AppState> {
 }
 
 /// 跟踪路由
+///
+/// 注：main 上 tracking_handler 仅提供 `track_page_view` 基础接口（用于 POST /page-view），
+/// 其余 `get_page_view_stats` / `get_page_view_stats_by_day` / `get_popular_pages` /
+/// `record_behavior` / `get_funnel_analysis` / `get_user_path` 在 main 上未实现，
+/// 因此这些统计 / 行为分析路由暂不挂载，避免编译期 E0425。
 pub fn tracking() -> Router<AppState> {
-    Router::new()
-        .route("/page-view", post(tracking_handler::record_page_view))
-        .route(
-            "/page-view/stats",
-            get(tracking_handler::get_page_view_stats),
-        )
-        .route(
-            "/page-view/stats-by-day",
-            get(tracking_handler::get_page_view_stats_by_day),
-        )
-        .route(
-            "/page-view/popular",
-            get(tracking_handler::get_popular_pages),
-        )
-        .route("/behavior", post(tracking_handler::record_behavior))
-        .route(
-            "/behavior/funnel",
-            get(tracking_handler::get_funnel_analysis),
-        )
-        .route("/behavior/path", get(tracking_handler::get_user_path))
+    Router::new().route("/page-view", post(tracking_handler::track_page_view))
 }
 
 /// 分析域统一入口

@@ -45,10 +45,7 @@ pub fn tenant_billing() -> Router<AppState> {
     Router::new()
         .route("/plan", get(tenant_billing_handler::get_current_plan))
         .route("/upgrade", post(tenant_billing_handler::upgrade_plan))
-        .route(
-            "/billing-usage",
-            get(tenant_billing_handler::get_usage),
-        )
+        .route("/billing-usage", get(tenant_billing_handler::get_usage))
         .route("/invoices", get(tenant_billing_handler::list_invoices))
         .route("/renew", post(tenant_billing_handler::renew_subscription))
 }
