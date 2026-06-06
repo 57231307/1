@@ -12,8 +12,8 @@ use crate::middleware::auth_context::AuthContext;
 
 use crate::services::email_log_service::{CreateEmailLogRequest, EmailLogQuery, EmailLogService};
 use crate::services::email_template_service::{
-    CreateEmailTemplateRequest, EmailTemplateQuery, EmailTemplateService,
-    UpdateEmailTemplateRequest,
+    CreateEmailTemplateRequest as ServiceCreateEmailTemplateRequest, EmailTemplateQuery,
+    EmailTemplateService, UpdateEmailTemplateRequest,
 };
 use crate::utils::app_state::AppState;
 use crate::utils::error::AppError;
@@ -33,9 +33,13 @@ pub struct SendEmailRequest {
     pub template_params: Option<serde_json::Value>,
 }
 
-/// 创建模板请求
+/// 创建邮件模板请求（HTTP 输入 DTO）
+///
+/// 与 Service 层的 `CreateEmailTemplateRequest` 字段几乎一致，但语义上
+/// 属于"用户输入"层（HTTP Handler），因此单独命名避免与 Service 内部 DTO
+/// 产生命名冲突。
 #[derive(Debug, Deserialize)]
-pub struct CreateEmailTemplateRequest {
+pub struct CreateEmailTemplateInput {
     pub name: String,
     pub code: String,
     pub subject_template: String,
@@ -136,7 +140,7 @@ pub async fn list_templates(
 pub async fn create_template(
     State(state): State<AppState>,
     auth: AuthContext,
-    Json(req): Json<CreateEmailTemplateRequest>,
+    Json(req): Json<CreateEmailTemplateInput>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     let service = EmailTemplateService::new(state.db.clone());
     let tenant_id = auth.tenant_id.unwrap_or(0);
@@ -145,7 +149,7 @@ pub async fn create_template(
         .create(
             tenant_id,
             auth.user_id,
-            CreateEmailTemplateRequest {
+            ServiceCreateEmailTemplateRequest {
                 name: req.name,
                 code: req.code,
                 subject_template: req.subject_template,
