@@ -62,6 +62,7 @@ pub struct LogConfig {
 /// 启用 `#[serde(default)]` 后，配置文件中：
 /// - `cors` 段整体缺失 → 走 [`CorsConfig::default()`]
 /// - 任意子字段缺失 → 走 [`CorsConfig::default()`]
+///
 /// 保证部署时 CORS 配置的容错性（参见 #27048461019 修复）。
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(default)]
