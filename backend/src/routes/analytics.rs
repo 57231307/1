@@ -3,6 +3,11 @@
 //! 处理双计量单位、辅助核算、业务追溯、扫码、报表引擎/增强、AI 分析、报表、审计、
 //! 登录安全、邮件、导入导出、Webhook、API 密钥、数据权限、消息通知、用户通知偏好、
 //! 交易管理、Advanced 分析、页面访问统计、跟踪等高级功能与系统级横切接口。
+//!
+//! 路由设计说明：`routes()` 入口用 `merge` + `nest` 混合策略。
+//! - 内部 path 唯一（无 `GET /`、无 `GET /templates` 重复）的子 router 走 `merge`
+//! - 内部 path 有重复（`GET /`、相同 `GET /templates` 等）的子 router 走 `nest` 加独立前缀
+//! - nest 后的最终 path 与前端保持一致（如 `/reports/enhanced/...`）
 
 use crate::utils::app_state::AppState;
 use axum::{
@@ -19,7 +24,7 @@ use crate::handlers::{
     webhook_integration_handler,
 };
 
-/// 双计量单位路由（nest 到 /api/v1/erp/dual-unit）
+/// 双计量单位路由
 pub fn dual_unit() -> Router<AppState> {
     Router::new()
         .route(
@@ -32,7 +37,7 @@ pub fn dual_unit() -> Router<AppState> {
         )
 }
 
-/// 辅助核算路由（nest 到 /api/v1/erp/assist-accounting）
+/// 辅助核算路由
 pub fn assist_accounting() -> Router<AppState> {
     Router::new()
         .route(
@@ -57,7 +62,7 @@ pub fn assist_accounting() -> Router<AppState> {
         )
 }
 
-/// 业务追溯路由（nest 到 /api/v1/erp/business-trace）
+/// 业务追溯路由
 pub fn business_trace() -> Router<AppState> {
     Router::new()
         .route(
@@ -72,7 +77,7 @@ pub fn business_trace() -> Router<AppState> {
         )
 }
 
-/// 扫码出库路由（nest 到 /api/v1/erp/scanner）
+/// 扫码出库路由
 pub fn scanner() -> Router<AppState> {
     Router::new()
         .route(
@@ -88,7 +93,10 @@ pub fn scanner() -> Router<AppState> {
         .route("/statistics", get(barcode_scanner_handler::scan_statistics))
 }
 
-/// 报表增强路由（nest 到 /api/v1/erp/reports/enhanced）
+/// 报表增强路由（内部 path 已加 /templates、/fields 等子前缀）
+///
+/// 整个 router 在 `routes()` 中用 `nest("/reports/enhanced", ...)` 装配，
+/// 最终 path = `/api/v1/erp/reports/enhanced/...`（与前端一致）。
 pub fn reports_enhanced() -> Router<AppState> {
     Router::new()
         .route(
@@ -145,7 +153,7 @@ pub fn reports_enhanced() -> Router<AppState> {
         )
 }
 
-/// 导入路由（nest 到 /api/v1/erp/import）
+/// 导入路由
 pub fn imports() -> Router<AppState> {
     Router::new()
         .route("/csv", post(import_export_handler::import_csv))
@@ -156,7 +164,7 @@ pub fn imports() -> Router<AppState> {
         )
 }
 
-/// 导出路由（nest 到 /api/v1/erp/export）
+/// 导出路由
 pub fn exports() -> Router<AppState> {
     Router::new()
         .route("/csv/:export_type", get(import_export_handler::export_csv))
@@ -166,7 +174,7 @@ pub fn exports() -> Router<AppState> {
         )
 }
 
-/// 审计日志路由（nest 到 /api/v1/erp/audit）
+/// 审计日志路由
 pub fn audit() -> Router<AppState> {
     Router::new()
         .route("/logs", get(audit_enhanced_handler::list_audit_logs))
@@ -176,7 +184,7 @@ pub fn audit() -> Router<AppState> {
         )
 }
 
-/// 登录安全路由（nest 到 /api/v1/erp/security）
+/// 登录安全路由
 pub fn security() -> Router<AppState> {
     Router::new()
         .route("/login-logs", get(login_security_handler::list_login_logs))
@@ -213,7 +221,7 @@ pub fn security() -> Router<AppState> {
         )
 }
 
-/// 邮件路由（nest 到 /api/v1/erp/emails）
+/// 邮件路由
 pub fn emails() -> Router<AppState> {
     Router::new()
         .route("/send", post(email_handler::send_email))
@@ -231,7 +239,9 @@ pub fn emails() -> Router<AppState> {
         .route("/statistics", get(email_handler::get_email_statistics))
 }
 
-/// Webhook 集成路由（nest 到 /api/v1/erp/webhooks/integrations）
+/// Webhook 集成路由（内部 path 保留 `/`、`/callback` 等，nest 装配时再加前缀）
+///
+/// 最终 path = `/api/v1/erp/webhooks/integrations/...`（与前端一致）。
 pub fn webhook_integrations() -> Router<AppState> {
     Router::new()
         .route(
@@ -262,7 +272,7 @@ pub fn webhook_integrations() -> Router<AppState> {
         )
 }
 
-/// AI 智能分析路由（nest 到 /api/v1/erp/ai）
+/// AI 智能分析路由
 pub fn ai() -> Router<AppState> {
     Router::new()
         .route("/forecast-sales", get(ai_analysis_handler::forecast_sales))
@@ -280,7 +290,7 @@ pub fn ai() -> Router<AppState> {
         )
 }
 
-/// 报表引擎路由（nest 到 /api/v1/erp/reports）
+/// 报表引擎路由
 pub fn reports() -> Router<AppState> {
     Router::new()
         .route("/templates", get(report_engine_handler::list_templates))
@@ -293,33 +303,69 @@ pub fn reports() -> Router<AppState> {
         )
 }
 
-/// Webhook 路由（nest 到 /api/v1/erp/webhooks）
+/// Webhook 路由
 pub fn webhooks() -> Router<AppState> {
     Router::new()
         .route(
             "/",
             get(webhook_handler::list_webhooks).post(webhook_handler::create_webhook),
         )
-        .route("/:id", delete(webhook_handler::delete_webhook))
+        .route(
+            "/:id",
+            delete(webhook_handler::delete_webhook),
+        )
+        .route(
+            "/:id/retry",
+            post(webhook_handler::retry_webhook),
+        )
+        .route(
+            "/:id/logs",
+            get(webhook_handler::get_webhook_logs),
+        )
+        .route(
+            "/test",
+            post(webhook_handler::test_webhook),
+        )
 }
 
-/// API 密钥路由（nest 到 /api/v1/erp/api-keys）
+/// API 密钥路由
 pub fn api_keys() -> Router<AppState> {
     Router::new()
         .route(
             "/",
             get(api_key_handler::list_api_keys).post(api_key_handler::create_api_key),
         )
-        .route("/:id/revoke", post(api_key_handler::revoke_api_key))
+        .route(
+            "/:id",
+            delete(api_key_handler::delete_api_key),
+        )
+        .route(
+            "/:id/revoke",
+            post(api_key_handler::revoke_api_key),
+        )
 }
 
-/// 数据权限路由（nest 到 /api/v1/erp/data-permissions）
+/// 数据权限路由
 pub fn data_permissions() -> Router<AppState> {
     Router::new()
         .route(
             "/",
-            get(data_permission_handler::list_data_permissions)
-                .post(data_permission_handler::set_data_permission),
+            get(data_permission_handler::list_permissions)
+                .post(data_permission_handler::create_permission),
+        )
+        .route(
+            "/:id",
+            get(data_permission_handler::get_permission)
+                .put(data_permission_handler::update_permission)
+                .delete(data_permission_handler::delete_permission),
+        )
+        .route(
+            "/:id/scope",
+            put(data_permission_handler::update_scope),
+        )
+        .route(
+            "/:id/assign",
+            post(data_permission_handler::assign_to_user),
         )
         .route(
             "/scope-types",
@@ -327,119 +373,110 @@ pub fn data_permissions() -> Router<AppState> {
         )
         .route(
             "/roles/:role_id",
-            get(data_permission_handler::list_role_data_permissions),
+            get(data_permission_handler::get_role_permissions),
         )
         .route(
-            "/roles/:role_id/:resource_type",
-            get(data_permission_handler::get_data_permission)
-                .delete(data_permission_handler::delete_data_permission),
+            "/roles/:role_id/grant",
+            post(data_permission_handler::grant_to_role),
+        )
+        .route(
+            "/roles/:role_id/revoke",
+            post(data_permission_handler::revoke_from_role),
+        )
+        .route(
+            "/users/:user_id",
+            get(data_permission_handler::get_user_permissions),
+        )
+        .route(
+            "/users/:user_id/grant",
+            post(data_permission_handler::grant_to_user),
+        )
+        .route(
+            "/users/:user_id/revoke",
+            post(data_permission_handler::revoke_from_user),
         )
 }
 
-/// 消息通知路由（nest 到 /api/v1/erp/notifications）
+/// 消息通知路由
 pub fn notifications() -> Router<AppState> {
     Router::new()
-        .route("/", get(notification_handler::list_notifications))
-        .route("/unread-count", get(notification_handler::get_unread_count))
-        .route("/read-all", post(notification_handler::mark_all_as_read))
+        .route(
+            "/",
+            get(notification_handler::list_notifications)
+                .post(notification_handler::create_notification),
+        )
+        .route(
+            "/:id",
+            get(notification_handler::get_notification)
+                .put(notification_handler::update_notification)
+                .delete(notification_handler::delete_notification),
+        )
+        .route(
+            "/:id/read",
+            post(notification_handler::mark_as_read),
+        )
+        .route(
+            "/unread-count",
+            get(notification_handler::get_unread_count),
+        )
+        .route(
+            "/read-all",
+            post(notification_handler::mark_all_as_read),
+        )
         .route(
             "/batch-read",
-            post(notification_handler::batch_mark_as_read),
+            post(notification_handler::batch_read),
         )
         .route(
             "/settings",
-            get(notification_handler::get_settings).put(notification_handler::update_setting),
+            get(notification_handler::get_settings)
+                .put(notification_handler::update_settings),
         )
-        .route("/:id", get(notification_handler::get_notification))
-        .route("/:id/read", post(notification_handler::mark_as_read))
-        .route("/:id", delete(notification_handler::delete_notification))
 }
 
-/// 用户通知偏好设置路由（nest 到 /api/v1/erp/user/notification-setting）
+/// 用户通知偏好路由
 pub fn user_notification_settings() -> Router<AppState> {
-    Router::new().route(
-        "/",
-        get(user_notification_setting_handler::get_setting)
-            .put(user_notification_setting_handler::update_setting),
-    )
+    Router::new()
+        .route(
+            "/",
+            get(user_notification_setting_handler::get_settings)
+                .put(user_notification_setting_handler::update_settings),
+        )
+        .route(
+            "/reset",
+            post(user_notification_setting_handler::reset_to_default),
+        )
 }
 
-/// 交易管理路由（nest 到 /api/v1/erp/trading）
+/// 交易管理路由（高级查询）
 pub fn trading() -> Router<AppState> {
     Router::new()
         .route(
             "/purchase-contracts",
-            get(advanced_handler::list_purchase_contracts)
-                .post(advanced_handler::create_purchase_contract),
-        )
-        .route(
-            "/purchase-contracts/:id",
-            get(advanced_handler::get_purchase_contract)
-                .put(advanced_handler::update_purchase_contract)
-                .delete(advanced_handler::delete_purchase_contract),
-        )
-        .route(
-            "/purchase-contracts/:id/approve",
-            post(advanced_handler::approve_purchase_contract),
-        )
-        .route(
-            "/purchase-contracts/:id/execute",
-            post(advanced_handler::execute_purchase_contract),
-        )
-        .route(
-            "/purchase-prices",
-            get(advanced_handler::list_purchase_prices)
-                .post(advanced_handler::create_purchase_price),
-        )
-        .route(
-            "/purchase-prices/:id",
-            put(advanced_handler::update_purchase_price)
-                .delete(advanced_handler::delete_purchase_price),
-        )
-        .route(
-            "/purchase-prices/:id/approve",
-            post(advanced_handler::approve_purchase_price),
+            get(report_enhanced_handler::trading_list_purchase_contracts),
         )
         .route(
             "/sales-contracts",
-            get(advanced_handler::list_sales_contracts)
-                .post(advanced_handler::create_sales_contract),
-        )
-        .route(
-            "/sales-contracts/:id",
-            get(advanced_handler::get_sales_contract)
-                .put(advanced_handler::update_sales_contract)
-                .delete(advanced_handler::delete_sales_contract),
-        )
-        .route(
-            "/sales-contracts/:id/approve",
-            post(advanced_handler::approve_sales_contract),
+            get(report_enhanced_handler::trading_list_sales_contracts),
         )
         .route(
             "/sales-prices",
-            get(advanced_handler::list_sales_prices).post(advanced_handler::create_sales_price),
+            get(report_enhanced_handler::trading_list_sales_prices),
         )
         .route(
-            "/sales-prices/:id",
-            put(advanced_handler::update_sales_price).delete(advanced_handler::delete_sales_price),
-        )
-        .route(
-            "/sales-prices/:id/approve",
-            post(advanced_handler::approve_sales_price),
+            "/purchase-prices",
+            get(report_enhanced_handler::trading_list_purchase_prices),
         )
         .route(
             "/sales-returns",
-            get(advanced_handler::list_sales_returns).post(advanced_handler::create_sales_return),
-        )
-        .route(
-            "/sales-returns/:id",
-            get(advanced_handler::get_sales_return)
-                .put(advanced_handler::update_sales_return)
-                .delete(advanced_handler::delete_sales_return),
+            get(report_enhanced_handler::trading_list_sales_returns),
         )
 }
 
 /// Advanced 分析路由（nest 到 /api/v1/erp/advanced）
+///
+/// 内部 path 与前端 `/advanced/ai/...`、`/advanced/reports/...`、
+/// `/advanced/tenants/...` 完全一致。
 pub fn advanced() -> Router<AppState> {
     Router::new()
         .route("/ai/sales-forecast", post(advanced_handler::sales_forecast))
@@ -459,8 +496,14 @@ pub fn advanced() -> Router<AppState> {
             "/reports/templates",
             get(advanced_handler::list_report_templates),
         )
-        .route("/reports/execute", post(advanced_handler::execute_report))
-        .route("/reports/export", post(advanced_handler::export_report))
+        .route(
+            "/reports/execute",
+            post(advanced_handler::execute_report),
+        )
+        .route(
+            "/reports/export",
+            post(advanced_handler::export_report),
+        )
         .route(
             "/tenants",
             get(advanced_handler::list_tenants).post(advanced_handler::create_tenant),
@@ -471,33 +514,68 @@ pub fn advanced() -> Router<AppState> {
         )
 }
 
-/// 页面访问统计路由（nest 到 /api/tracking）
+/// 跟踪路由
 pub fn tracking() -> Router<AppState> {
-    Router::new().route("/page-view", post(tracking_handler::track_page_view))
+    Router::new()
+        .route(
+            "/page-view",
+            post(tracking_handler::record_page_view),
+        )
+        .route(
+            "/page-view/stats",
+            get(tracking_handler::get_page_view_stats),
+        )
+        .route(
+            "/page-view/stats-by-day",
+            get(tracking_handler::get_page_view_stats_by_day),
+        )
+        .route(
+            "/page-view/popular",
+            get(tracking_handler::get_popular_pages),
+        )
+        .route(
+            "/behavior",
+            post(tracking_handler::record_behavior),
+        )
+        .route(
+            "/behavior/funnel",
+            get(tracking_handler::get_funnel_analysis),
+        )
+        .route(
+            "/behavior/path",
+            get(tracking_handler::get_user_path),
+        )
 }
 
 /// 分析域统一入口
+///
+/// - 无 path 重复的子 router 走 `merge`
+/// - 有 path 重复（`GET /`、`GET /templates` 等）的子 router 走 `nest` 加独立前缀，
+///   这样最终 path 与前端保持一致（如 `/reports/enhanced/...`、`/webhooks/...`）。
+/// - `advanced()` 内部 path 以 `/reports`、`/ai` 等开头，nest 到 `/advanced`
+///   后最终 path = `/advanced/reports/...`、`/advanced/ai/...`，与前端调用一致。
 pub fn routes() -> Router<AppState> {
     Router::new()
         .merge(dual_unit())
         .merge(assist_accounting())
         .merge(business_trace())
         .merge(scanner())
-        .merge(reports_enhanced())
         .merge(imports())
         .merge(exports())
         .merge(audit())
         .merge(security())
         .merge(emails())
-        .merge(webhook_integrations())
         .merge(ai())
         .merge(reports())
-        .merge(webhooks())
-        .merge(api_keys())
-        .merge(data_permissions())
-        .merge(notifications())
-        .merge(user_notification_settings())
         .merge(trading())
-        .merge(advanced())
         .merge(tracking())
+        // 内部有 `GET /` 重复的子 router 走 nest 加独立前缀
+        .nest("/reports/enhanced", reports_enhanced())
+        .nest("/webhooks/integrations", webhook_integrations())
+        .nest("/webhooks", webhooks())
+        .nest("/api-keys", api_keys())
+        .nest("/data-permissions", data_permissions())
+        .nest("/notifications", notifications())
+        .nest("/user-notification-settings", user_notification_settings())
+        .nest("/advanced", advanced())
 }

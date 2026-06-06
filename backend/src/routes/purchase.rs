@@ -163,129 +163,182 @@ pub fn purchases() -> Router<AppState> {
         )
 }
 
-/// 采购合同路由（nest 到 /api/v1/erp/purchase-contracts）
+/// 采购合同路由（path 前缀 /purchase-contracts）
 pub fn purchase_contracts() -> Router<AppState> {
     Router::new()
-        .route("/", get(purchase_contract_handler::list_contracts))
-        .route("/", post(purchase_contract_handler::create_contract))
-        .route("/:id", get(purchase_contract_handler::get_contract))
-        .route("/:id", put(purchase_contract_handler::update_contract))
-        .route("/:id", delete(purchase_contract_handler::delete_contract))
         .route(
-            "/:id/approve",
+            "/purchase-contracts",
+            get(purchase_contract_handler::list_contracts),
+        )
+        .route(
+            "/purchase-contracts",
+            post(purchase_contract_handler::create_contract),
+        )
+        .route(
+            "/purchase-contracts/:id",
+            get(purchase_contract_handler::get_contract),
+        )
+        .route(
+            "/purchase-contracts/:id",
+            put(purchase_contract_handler::update_contract),
+        )
+        .route(
+            "/purchase-contracts/:id",
+            delete(purchase_contract_handler::delete_contract),
+        )
+        .route(
+            "/purchase-contracts/:id/approve",
             post(purchase_contract_handler::approve_contract),
         )
         .route(
-            "/:id/execute",
+            "/purchase-contracts/:id/execute",
             put(purchase_contract_handler::execute_contract),
         )
         .route(
-            "/:id/cancel",
+            "/purchase-contracts/:id/cancel",
             put(purchase_contract_handler::cancel_contract),
         )
 }
 
-/// 采购价格路由（nest 到 /api/v1/erp/purchase-prices）
+/// 采购价格路由（path 前缀 /purchase-prices）
 pub fn purchase_prices() -> Router<AppState> {
     Router::new()
-        .route("/", get(purchase_price_handler::list_prices))
-        .route("/", post(purchase_price_handler::create_price))
+        .route("/purchase-prices", get(purchase_price_handler::list_prices))
         .route(
-            "/history/:product_id",
+            "/purchase-prices",
+            post(purchase_price_handler::create_price),
+        )
+        .route(
+            "/purchase-prices/history/:product_id",
             get(purchase_price_handler::get_price_history_by_product),
         )
-        .route("/:id", get(purchase_price_handler::get_price))
-        .route("/:id", put(purchase_price_handler::update_price))
-        .route("/:id", delete(purchase_price_handler::delete_price))
-        .route("/:id/approve", post(purchase_price_handler::approve_price))
         .route(
-            "/:id/history",
+            "/purchase-prices/:id",
+            get(purchase_price_handler::get_price),
+        )
+        .route(
+            "/purchase-prices/:id",
+            put(purchase_price_handler::update_price),
+        )
+        .route(
+            "/purchase-prices/:id",
+            delete(purchase_price_handler::delete_price),
+        )
+        .route(
+            "/purchase-prices/:id/approve",
+            post(purchase_price_handler::approve_price),
+        )
+        .route(
+            "/purchase-prices/:id/history",
             get(purchase_price_handler::get_price_history),
         )
 }
 
-/// 供应商路由（nest 到 /api/v1/erp/suppliers）
+/// 供应商路由（path 前缀 /suppliers）
 pub fn suppliers() -> Router<AppState> {
     Router::new()
-        .route("/", get(supplier_handler::list_suppliers))
-        .route("/", post(supplier_handler::create_supplier))
-        .route("/select", get(supplier_handler::list_suppliers))
-        .route("/:id", get(supplier_handler::get_supplier))
-        .route("/:id", put(supplier_handler::update_supplier))
-        .route("/:id", delete(supplier_handler::delete_supplier))
+        .route("/suppliers", get(supplier_handler::list_suppliers))
+        .route("/suppliers", post(supplier_handler::create_supplier))
+        .route("/suppliers/select", get(supplier_handler::list_suppliers))
+        .route("/suppliers/:id", get(supplier_handler::get_supplier))
+        .route("/suppliers/:id", put(supplier_handler::update_supplier))
         .route(
-            "/:id/status",
+            "/suppliers/:id",
+            delete(supplier_handler::delete_supplier),
+        )
+        .route(
+            "/suppliers/:id/status",
             post(supplier_handler::toggle_supplier_status),
         )
         .route(
-            "/:id/contacts",
+            "/suppliers/:id/contacts",
             get(supplier_handler::list_supplier_contacts)
                 .post(supplier_handler::create_supplier_contact),
         )
         .route(
-            "/:id/contacts/:contact_id",
+            "/suppliers/:id/contacts/:contact_id",
             put(supplier_handler::update_supplier_contact)
                 .delete(supplier_handler::delete_supplier_contact),
         )
         .route(
-            "/:id/qualifications",
+            "/suppliers/:id/qualifications",
             get(supplier_handler::list_supplier_qualifications)
                 .post(supplier_handler::create_supplier_qualification),
         )
         .route(
-            "/:id/evaluate",
+            "/suppliers/:id/evaluate",
             post(supplier_evaluation_handler::create_evaluation_record),
         )
         .route(
-            "/:id/evaluations",
+            "/suppliers/:id/evaluations",
             get(supplier_evaluation_handler::list_evaluation_records),
         )
 }
 
-/// 供应商评估路由（nest 到 /api/v1/erp/supplier-evaluation/evaluations）
+/// 供应商评估路由（path 前缀 /supplier-evaluations）
 pub fn supplier_evaluations() -> Router<AppState> {
     Router::new()
-        .route("/", get(supplier_evaluation_handler::list_evaluations))
-        .route("/", post(supplier_evaluation_handler::create_evaluation))
         .route(
-            "/suppliers/:supplier_id/score",
+            "/supplier-evaluations",
+            get(supplier_evaluation_handler::list_evaluations),
+        )
+        .route(
+            "/supplier-evaluations",
+            post(supplier_evaluation_handler::create_evaluation),
+        )
+        .route(
+            "/supplier-evaluations/suppliers/:supplier_id/score",
             get(supplier_evaluation_handler::get_supplier_score_by_path),
         )
-        .route("/:id", get(supplier_evaluation_handler::get_evaluation))
-        .route("/:id", put(supplier_evaluation_handler::update_evaluation))
         .route(
-            "/:id",
+            "/supplier-evaluations/:id",
+            get(supplier_evaluation_handler::get_evaluation),
+        )
+        .route(
+            "/supplier-evaluations/:id",
+            put(supplier_evaluation_handler::update_evaluation),
+        )
+        .route(
+            "/supplier-evaluations/:id",
             delete(supplier_evaluation_handler::delete_evaluation),
         )
         .route(
-            "/indicators",
+            "/supplier-evaluations/indicators",
             get(supplier_evaluation_handler::list_indicators),
         )
         .route(
-            "/indicators",
+            "/supplier-evaluations/indicators",
             post(supplier_evaluation_handler::create_indicator),
         )
-        .route("/rankings", get(supplier_evaluation_handler::get_rankings))
         .route(
-            "/records",
+            "/supplier-evaluations/rankings",
+            get(supplier_evaluation_handler::get_rankings),
+        )
+        .route(
+            "/supplier-evaluations/records",
             get(supplier_evaluation_handler::list_evaluation_records),
         )
         .route(
-            "/records",
+            "/supplier-evaluations/records",
             post(supplier_evaluation_handler::create_evaluation_record),
         )
         .route(
-            "/records/:id",
+            "/supplier-evaluations/records/:id",
             get(supplier_evaluation_handler::get_evaluation_record),
         )
         .route(
-            "/scores/:supplier_id",
+            "/supplier-evaluations/scores/:supplier_id",
             get(supplier_evaluation_handler::get_supplier_score),
         )
-        .route("/ratings", get(supplier_evaluation_handler::list_ratings))
+        .route(
+            "/supplier-evaluations/ratings",
+            get(supplier_evaluation_handler::list_ratings),
+        )
 }
 
 /// 采购域统一入口
+///
+/// 子 router path 已加独立前缀，merge 时 path+method 互不重叠。
 pub fn routes() -> Router<AppState> {
     Router::new()
         .merge(purchases())

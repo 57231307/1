@@ -1,6 +1,11 @@
 //! 库存域路由
 //!
 //! 处理库存、调拨、调整、盘点、预留、批次、物流等库存相关接口。
+//!
+//! 路由设计说明：所有子 router 内部 path 都已加上各自独立前缀
+//!（`/stock`、`/transfers`、`/batches`、`/logistics` 等），
+//! 这样 `routes()` 入口用 `merge` 组合时不会出现 path+method 重叠，
+//! 避免 axum 0.7 `Overlapping method route` panic。
 
 use crate::utils::app_state::AppState;
 use axum::{
@@ -164,31 +169,39 @@ pub fn inventory() -> Router<AppState> {
         )
 }
 
-/// 批次管理路由（nest 到 /api/v1/erp/batches）
+/// 批次管理路由（path 前缀 /batches）
 pub fn batches() -> Router<AppState> {
     Router::new()
-        .route("/", get(inventory_batch_handler::list_batches))
-        .route("/", post(inventory_batch_handler::create_batch))
-        .route("/:id", get(inventory_batch_handler::get_batch))
-        .route("/:id", put(inventory_batch_handler::update_batch))
-        .route("/:id", delete(inventory_batch_handler::delete_batch))
+        .route("/batches", get(inventory_batch_handler::list_batches))
+        .route("/batches", post(inventory_batch_handler::create_batch))
+        .route("/batches/:id", get(inventory_batch_handler::get_batch))
+        .route("/batches/:id", put(inventory_batch_handler::update_batch))
+        .route("/batches/:id", delete(inventory_batch_handler::delete_batch))
         .route(
-            "/:id/transfer",
+            "/batches/:id/transfer",
             post(inventory_batch_handler::transfer_batch),
         )
 }
 
-/// 物流管理路由（nest 到 /api/v1/erp/logistics）
+/// 物流管理路由（path 前缀 /logistics）
 pub fn logistics() -> Router<AppState> {
     Router::new()
-        .route("/", get(logistics_handler::list_waybills))
-        .route("/", post(logistics_handler::create_waybill))
-        .route("/:id", get(logistics_handler::get_waybill))
-        .route("/:id", put(logistics_handler::update_waybill_status))
-        .route("/:id", delete(logistics_handler::delete_waybill))
+        .route("/logistics", get(logistics_handler::list_waybills))
+        .route("/logistics", post(logistics_handler::create_waybill))
+        .route("/logistics/:id", get(logistics_handler::get_waybill))
+        .route(
+            "/logistics/:id",
+            put(logistics_handler::update_waybill_status),
+        )
+        .route(
+            "/logistics/:id",
+            delete(logistics_handler::delete_waybill),
+        )
 }
 
 /// 库存域统一入口
+///
+/// 子 router path 已加独立前缀，merge 时 path+method 互不重叠。
 pub fn routes() -> Router<AppState> {
     Router::new()
         .merge(inventory())

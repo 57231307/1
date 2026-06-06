@@ -13,7 +13,7 @@ pub async fn approve_count(
     _count_id: i32,
     _approver: i32,
 ) -> Result<InventoryCountDetail, AppError> {
-    Err(AppError::NotImplemented(
+    Err(AppError::BusinessError(
         "请使用 InventoryCountService::approve_count".to_string(),
     ))
 }
@@ -22,7 +22,7 @@ pub async fn complete_count(
     _db: Arc<DatabaseConnection>,
     _count_id: i32,
 ) -> Result<InventoryCountDetail, AppError> {
-    Err(AppError::NotImplemented(
+    Err(AppError::BusinessError(
         "请使用 InventoryCountService::complete_count".to_string(),
     ))
 }

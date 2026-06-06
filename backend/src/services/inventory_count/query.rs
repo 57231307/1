@@ -28,7 +28,7 @@ pub async fn list_counts(
     _db: Arc<DatabaseConnection>,
     _query: CountListQuery,
 ) -> Result<PaginatedResponse<InventoryCountDetail>, AppError> {
-    Err(AppError::NotImplemented(
+    Err(AppError::BusinessError(
         "请使用 InventoryCountService::list_counts".to_string(),
     ))
 }
@@ -38,7 +38,7 @@ pub async fn get_count_detail(
     _db: Arc<DatabaseConnection>,
     _count_id: i32,
 ) -> Result<InventoryCountDetail, AppError> {
-    Err(AppError::NotImplemented(
+    Err(AppError::BusinessError(
         "请使用 InventoryCountService::get_count_detail".to_string(),
     ))
 }
@@ -48,7 +48,7 @@ pub async fn list_items(
     _db: Arc<DatabaseConnection>,
     _count_id: i32,
 ) -> Result<Vec<InventoryCountItemDetail>, AppError> {
-    Err(AppError::NotImplemented(
+    Err(AppError::BusinessError(
         "请使用 InventoryCountService::list_items".to_string(),
     ))
 }

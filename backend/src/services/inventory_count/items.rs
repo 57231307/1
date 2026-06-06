@@ -11,7 +11,7 @@ pub async fn add_item(
     _count_id: i32,
     _req: InventoryCountItemRequest,
 ) -> Result<InventoryCountDetail, AppError> {
-    Err(AppError::NotImplemented(
+    Err(AppError::BusinessError(
         "请使用 InventoryCountService::add_item".to_string(),
     ))
 }
@@ -21,13 +21,13 @@ pub async fn update_item(
     _item_id: i32,
     _req: InventoryCountItemRequest,
 ) -> Result<InventoryCountDetail, AppError> {
-    Err(AppError::NotImplemented(
+    Err(AppError::BusinessError(
         "请使用 InventoryCountService::update_item".to_string(),
     ))
 }
 
 pub async fn delete_item(_db: Arc<DatabaseConnection>, _item_id: i32) -> Result<(), AppError> {
-    Err(AppError::NotImplemented(
+    Err(AppError::BusinessError(
         "请使用 InventoryCountService::delete_item".to_string(),
     ))
 }

@@ -1,6 +1,16 @@
 //! 财务域路由
 //!
 //! 处理财务、AP/AR 应付应收、凭证/总账、固定资产、预算、资金管理、财务分析、币种等财务相关接口。
+//!
+//! 路由设计说明：所有子 router 内部 path 都已加上各自独立前缀
+//!（`/fixed-assets`、`/budgets`、`/financial-analysis`、
+//!  `/fund-management`、`/ar-reconciliations`、`/ar-reconciliations-enhanced`、
+//!  `/ar-reconciliation-alias`、`/currencies`、`/exchange-rates` 等），
+//! 这样 `routes()` 入口用 `merge` 组合时不会出现 path+method 重叠，
+//! 避免 axum 0.7 `Overlapping method route` panic。
+//!
+//! 注意 `finance()`/`gl()`/`ap()`/`ar()` 子 router 自身已使用
+//! 业务级路径（`/payments`、`/invoices`、`/vouchers` 等），path 不冲突。
 
 use axum::{
     middleware,
@@ -20,7 +30,7 @@ use crate::handlers::{
 };
 use crate::utils::app_state::AppState;
 
-/// 财务主路由（nest 到 /api/v1/erp/finance）
+/// 财务主路由（path 前缀以 /payments、/invoices、/accounting-periods、/reports、/audit 区分）
 pub fn finance(state: AppState) -> Router<AppState> {
     Router::new()
         .route("/payments", get(finance_payment_handler::list_payments))
@@ -104,7 +114,7 @@ pub fn finance(state: AppState) -> Router<AppState> {
         ))
 }
 
-/// 总账路由（nest 到 /api/v1/erp/gl）
+/// 总账路由（path 前缀以 /subjects、/vouchers 区分）
 pub fn gl() -> Router<AppState> {
     Router::new()
         .route("/subjects", get(account_subject_handler::list_subjects))
@@ -142,481 +152,547 @@ pub fn gl() -> Router<AppState> {
         .route("/vouchers/:id/post", post(voucher_handler::post_voucher))
 }
 
-/// 固定资产路由（nest 到 /api/v1/erp/fixed-assets）
+/// 固定资产路由（path 前缀 /fixed-assets）
 pub fn fixed_assets() -> Router<AppState> {
     Router::new()
-        .route("/", get(fixed_asset_handler::list_assets))
-        .route("/", post(fixed_asset_handler::create_asset))
-        .route("/:id", get(fixed_asset_handler::get_asset))
-        .route("/:id", put(fixed_asset_handler::update_asset))
-        .route("/:id", delete(fixed_asset_handler::delete_asset))
+        .route("/fixed-assets", get(fixed_asset_handler::list_assets))
+        .route("/fixed-assets", post(fixed_asset_handler::create_asset))
+        .route("/fixed-assets/:id", get(fixed_asset_handler::get_asset))
+        .route("/fixed-assets/:id", put(fixed_asset_handler::update_asset))
         .route(
-            "/:id/depreciate",
+            "/fixed-assets/:id",
+            delete(fixed_asset_handler::delete_asset),
+        )
+        .route(
+            "/fixed-assets/:id/depreciate",
             post(fixed_asset_handler::depreciate_asset),
         )
-        .route("/:id/dispose", post(fixed_asset_handler::dispose_asset))
         .route(
-            "/batch-depreciate",
+            "/fixed-assets/:id/dispose",
+            post(fixed_asset_handler::dispose_asset),
+        )
+        .route(
+            "/fixed-assets/batch-depreciate",
             post(fixed_asset_handler::batch_depreciate),
         )
 }
 
-/// 预算管理路由（nest 到 /api/v1/erp/budgets）
+/// 预算管理路由（path 前缀 /budgets）
 pub fn budgets() -> Router<AppState> {
     Router::new()
-        .route("/", get(budget_management_handler::list_budgets))
-        .route("/", post(budget_management_handler::create_budget))
-        .route("/:id", get(budget_management_handler::get_budget))
-        .route("/:id", put(budget_management_handler::update_budget))
-        .route("/:id", delete(budget_management_handler::delete_budget))
+        .route("/budgets", get(budget_management_handler::list_budgets))
+        .route("/budgets", post(budget_management_handler::create_budget))
+        .route("/budgets/:id", get(budget_management_handler::get_budget))
+        .route("/budgets/:id", put(budget_management_handler::update_budget))
         .route(
-            "/:id/approve",
+            "/budgets/:id",
+            delete(budget_management_handler::delete_budget),
+        )
+        .route(
+            "/budgets/:id/approve",
             post(budget_management_handler::approve_budget),
         )
-        .route("/adjust", post(budget_management_handler::adjust_budget))
-        .route("/items", get(budget_management_handler::list_budget_items))
         .route(
-            "/items",
+            "/budgets/adjust",
+            post(budget_management_handler::adjust_budget),
+        )
+        .route(
+            "/budgets/items",
+            get(budget_management_handler::list_budget_items),
+        )
+        .route(
+            "/budgets/items",
             post(budget_management_handler::create_budget_item),
         )
         .route(
-            "/items/:id",
+            "/budgets/items/:id",
             get(budget_management_handler::get_budget_item),
         )
         .route(
-            "/items/:id",
+            "/budgets/items/:id",
             put(budget_management_handler::update_budget_item),
         )
         .route(
-            "/items/:id",
+            "/budgets/items/:id",
             delete(budget_management_handler::delete_budget_item),
         )
-        .route("/plans", get(budget_management_handler::list_plans))
-        .route("/plans", post(budget_management_handler::create_plan))
-        .route("/plans/:id", get(budget_management_handler::get_plan))
+        .route("/budgets/plans", get(budget_management_handler::list_plans))
         .route(
-            "/plans/:id/approve",
+            "/budgets/plans",
+            post(budget_management_handler::create_plan),
+        )
+        .route(
+            "/budgets/plans/:id",
+            get(budget_management_handler::get_plan),
+        )
+        .route(
+            "/budgets/plans/:id/approve",
             post(budget_management_handler::approve_plan),
         )
         .route(
-            "/plans/:id/execute",
+            "/budgets/plans/:id/execute",
             post(budget_management_handler::execute_plan),
         )
         .route(
-            "/plans/:id/executions",
+            "/budgets/plans/:id/executions",
             get(budget_management_handler::get_plan_executions),
         )
         .route(
-            "/plans/:id/executions",
+            "/budgets/plans/:id/executions",
             post(budget_management_handler::create_execution),
         )
         .route(
-            "/control/:plan_id",
+            "/budgets/control/:plan_id",
             get(budget_management_handler::get_control),
         )
         .route(
-            "/control/:plan_id/data",
+            "/budgets/control/:plan_id/data",
             get(budget_management_handler::get_budget_control_data),
         )
 }
 
-/// 财务分析路由（nest 到 /api/v1/erp/financial-analysis）
+/// 财务分析路由（path 前缀 /financial-analysis）
 pub fn financial_analysis() -> Router<AppState> {
     Router::new()
-        .route("/reports", get(financial_analysis_handler::list_reports))
-        .route("/reports", post(financial_analysis_handler::create_report))
-        .route("/reports/:id", get(financial_analysis_handler::get_report))
         .route(
-            "/reports/:id/execute",
+            "/financial-analysis/reports",
+            get(financial_analysis_handler::list_reports),
+        )
+        .route(
+            "/financial-analysis/reports",
+            post(financial_analysis_handler::create_report),
+        )
+        .route(
+            "/financial-analysis/reports/:id",
+            get(financial_analysis_handler::get_report),
+        )
+        .route(
+            "/financial-analysis/reports/:id/execute",
             post(financial_analysis_handler::execute_report),
         )
         .route(
-            "/indicators",
+            "/financial-analysis/indicators",
             get(financial_analysis_handler::get_indicators)
                 .post(financial_analysis_handler::create_indicator),
         )
         .route(
-            "/trends",
+            "/financial-analysis/trends",
             get(financial_analysis_handler::get_trends)
                 .post(financial_analysis_handler::create_trend),
         )
 }
 
-/// 资金管理路由（nest 到 /api/v1/erp/fund-management）
+/// 资金管理路由（path 前缀 /fund-management）
 pub fn fund_management() -> Router<AppState> {
     Router::new()
-        .route("/accounts", get(fund_management_handler::list_accounts))
-        .route("/accounts", post(fund_management_handler::create_account))
         .route(
-            "/accounts/:id",
+            "/fund-management/accounts",
+            get(fund_management_handler::list_accounts),
+        )
+        .route(
+            "/fund-management/accounts",
+            post(fund_management_handler::create_account),
+        )
+        .route(
+            "/fund-management/accounts/:id",
             get(fund_management_handler::get_account)
                 .put(fund_management_handler::update_account)
                 .delete(fund_management_handler::delete_account),
         )
         .route(
-            "/accounts/:id/deposit",
+            "/fund-management/accounts/:id/deposit",
             post(fund_management_handler::deposit),
         )
         .route(
-            "/accounts/:id/withdraw",
+            "/fund-management/accounts/:id/withdraw",
             post(fund_management_handler::withdraw),
         )
         .route(
-            "/accounts/:id/freeze",
+            "/fund-management/accounts/:id/freeze",
             post(fund_management_handler::freeze_funds),
         )
         .route(
-            "/accounts/:id/unfreeze",
+            "/fund-management/accounts/:id/unfreeze",
             post(fund_management_handler::unfreeze_funds),
         )
-        .route("/transfer", post(fund_management_handler::transfer))
         .route(
-            "/transfers",
+            "/fund-management/transfer",
+            post(fund_management_handler::transfer),
+        )
+        .route(
+            "/fund-management/transfers",
             get(fund_management_handler::list_transfer_records),
         )
         .route(
-            "/transfers/:id",
+            "/fund-management/transfers/:id",
             get(fund_management_handler::get_transfer_record),
         )
 }
 
-/// AP 应付账款路由（nest 到 /api/v1/erp/ap）
+/// AP 应付账款路由（path 前缀 /ap）
 pub fn ap() -> Router<AppState> {
     Router::new()
-        .route("/invoices", get(ap_invoice_handler::list_ap_invoices))
-        .route("/invoices", post(ap_invoice_handler::create_ap_invoice))
-        .route("/invoices/:id", get(ap_invoice_handler::get_ap_invoice))
-        .route("/invoices/:id", put(ap_invoice_handler::update_ap_invoice))
+        .route("/ap/invoices", get(ap_invoice_handler::list_ap_invoices))
+        .route("/ap/invoices", post(ap_invoice_handler::create_ap_invoice))
+        .route("/ap/invoices/:id", get(ap_invoice_handler::get_ap_invoice))
+        .route("/ap/invoices/:id", put(ap_invoice_handler::update_ap_invoice))
         .route(
-            "/invoices/:id",
+            "/ap/invoices/:id",
             delete(ap_invoice_handler::delete_ap_invoice),
         )
         .route(
-            "/invoices/:id/approve",
+            "/ap/invoices/:id/approve",
             post(ap_invoice_handler::approve_ap_invoice),
         )
         .route(
-            "/invoices/:id/cancel",
+            "/ap/invoices/:id/cancel",
             post(ap_invoice_handler::cancel_ap_invoice),
         )
         .route(
-            "/invoices/auto-generate",
+            "/ap/invoices/auto-generate",
             post(ap_invoice_handler::auto_generate),
         )
         .route(
-            "/invoices/aging",
+            "/ap/invoices/aging",
             get(ap_invoice_handler::get_aging_analysis),
         )
         .route(
-            "/invoices/balance",
+            "/ap/invoices/balance",
             get(ap_invoice_handler::get_balance_summary),
         )
         .route(
-            "/invoices/statistics",
+            "/ap/invoices/statistics",
             get(ap_invoice_handler::get_statistics),
         )
-        .route("/payments", get(ap_payment_handler::list_payments))
-        .route("/payments", post(ap_payment_handler::create_payment))
-        .route("/payments/:id", get(ap_payment_handler::get_payment))
-        .route("/payments/:id", put(ap_payment_handler::update_payment))
+        .route("/ap/payments", get(ap_payment_handler::list_payments))
+        .route("/ap/payments", post(ap_payment_handler::create_payment))
+        .route("/ap/payments/:id", get(ap_payment_handler::get_payment))
+        .route("/ap/payments/:id", put(ap_payment_handler::update_payment))
         .route(
-            "/payments/:id/confirm",
+            "/ap/payments/:id/confirm",
             post(ap_payment_handler::confirm_payment),
         )
         .route(
-            "/payment-requests",
+            "/ap/payment-requests",
             get(ap_payment_request_handler::list_requests),
         )
         .route(
-            "/payment-requests",
+            "/ap/payment-requests",
             post(ap_payment_request_handler::create_request),
         )
         .route(
-            "/payment-requests/:id",
+            "/ap/payment-requests/:id",
             get(ap_payment_request_handler::get_request),
         )
         .route(
-            "/payment-requests/:id",
+            "/ap/payment-requests/:id",
             put(ap_payment_request_handler::update_request),
         )
         .route(
-            "/payment-requests/:id",
+            "/ap/payment-requests/:id",
             delete(ap_payment_request_handler::delete_request),
         )
         .route(
-            "/payment-requests/:id/submit",
+            "/ap/payment-requests/:id/submit",
             post(ap_payment_request_handler::submit_request),
         )
         .route(
-            "/payment-requests/:id/approve",
+            "/ap/payment-requests/:id/approve",
             post(ap_payment_request_handler::approve_request),
         )
         .route(
-            "/payment-requests/:id/reject",
+            "/ap/payment-requests/:id/reject",
             post(ap_payment_request_handler::reject_request),
         )
         .route(
-            "/verifications",
+            "/ap/verifications",
             get(ap_verification_handler::list_verifications),
         )
         .route(
-            "/verifications/:id",
+            "/ap/verifications/:id",
             get(ap_verification_handler::get_verification),
         )
         .route(
-            "/verifications/auto",
+            "/ap/verifications/auto",
             post(ap_verification_handler::auto_verify),
         )
         .route(
-            "/verifications/manual",
+            "/ap/verifications/manual",
             post(ap_verification_handler::manual_verify),
         )
         .route(
-            "/verifications/:id/cancel",
+            "/ap/verifications/:id/cancel",
             post(ap_verification_handler::cancel_verification),
         )
         .route(
-            "/verifications/unverified/invoices",
+            "/ap/verifications/unverified/invoices",
             get(ap_verification_handler::get_unverified_invoices),
         )
         .route(
-            "/verifications/unverified/payments",
+            "/ap/verifications/unverified/payments",
             get(ap_verification_handler::get_unverified_payments),
         )
         .route(
-            "/reconciliations",
+            "/ap/reconciliations",
             get(ap_reconciliation_handler::list_reconciliations),
         )
         .route(
-            "/reconciliations/:id",
+            "/ap/reconciliations/:id",
             get(ap_reconciliation_handler::get_reconciliation),
         )
         .route(
-            "/reconciliations/generate",
+            "/ap/reconciliations/generate",
             post(ap_reconciliation_handler::generate_reconciliation),
         )
         .route(
-            "/reconciliations/:id/confirm",
+            "/ap/reconciliations/:id/confirm",
             post(ap_reconciliation_handler::confirm_reconciliation),
         )
         .route(
-            "/reconciliations/:id/dispute",
+            "/ap/reconciliations/:id/dispute",
             post(ap_reconciliation_handler::dispute_reconciliation),
         )
         .route(
-            "/reconciliations/auto",
+            "/ap/reconciliations/auto",
             post(ap_reconciliation_handler::auto_reconcile_all),
         )
         .route(
-            "/reconciliations/summary",
+            "/ap/reconciliations/summary",
             get(ap_reconciliation_handler::get_supplier_summary),
         )
         .route(
-            "/invoices/:id/relations",
+            "/ap/invoices/:id/relations",
             get(ap_reconciliation_handler::get_invoice_relations),
         )
         .route(
-            "/reports/statistics",
+            "/ap/reports/statistics",
             get(ap_report_handler::get_statistics_report),
         )
-        .route("/reports/daily", get(ap_report_handler::get_daily_report))
         .route(
-            "/reports/monthly",
+            "/ap/reports/daily",
+            get(ap_report_handler::get_daily_report),
+        )
+        .route(
+            "/ap/reports/monthly",
             get(ap_report_handler::get_monthly_report),
         )
-        .route("/reports/aging", get(ap_report_handler::get_aging_report))
+        .route(
+            "/ap/reports/aging",
+            get(ap_report_handler::get_aging_report),
+        )
 }
 
-/// AR 应收账款路由（nest 到 /api/v1/erp/ar）
+/// AR 应收账款路由（path 前缀 /ar）
 pub fn ar() -> Router<AppState> {
     Router::new()
-        .route("/invoices", get(ar_invoice_handler::list_ar_invoices))
-        .route("/invoices", post(ar_invoice_handler::create_ar_invoice))
-        .route("/invoices/:id", get(ar_invoice_handler::get_ar_invoice))
-        .route("/invoices/:id", put(ar_invoice_handler::update_ar_invoice))
+        .route("/ar/invoices", get(ar_invoice_handler::list_ar_invoices))
+        .route("/ar/invoices", post(ar_invoice_handler::create_ar_invoice))
+        .route("/ar/invoices/:id", get(ar_invoice_handler::get_ar_invoice))
+        .route("/ar/invoices/:id", put(ar_invoice_handler::update_ar_invoice))
         .route(
-            "/invoices/:id",
+            "/ar/invoices/:id",
             delete(ar_invoice_handler::delete_ar_invoice),
         )
         .route(
-            "/invoices/:id/approve",
+            "/ar/invoices/:id/approve",
             post(ar_invoice_handler::approve_ar_invoice),
         )
         .route(
-            "/invoices/:id/cancel",
+            "/ar/invoices/:id/cancel",
             post(ar_invoice_handler::cancel_ar_invoice),
         )
-        .route("/payments", get(ar_payment_handler::list_payments))
-        .route("/payments", post(ar_payment_handler::create_payment))
-        .route("/payments/:id", get(ar_payment_handler::get_payment))
-        .route("/payments/:id", put(ar_payment_handler::update_payment))
+        .route("/ar/payments", get(ar_payment_handler::list_payments))
+        .route("/ar/payments", post(ar_payment_handler::create_payment))
+        .route("/ar/payments/:id", get(ar_payment_handler::get_payment))
+        .route("/ar/payments/:id", put(ar_payment_handler::update_payment))
         .route(
-            "/payments/:id/confirm",
+            "/ar/payments/:id/confirm",
             post(ar_payment_handler::confirm_payment),
         )
         .route(
-            "/verifications",
+            "/ar/verifications",
             get(ar_verification_handler::list_verifications),
         )
         .route(
-            "/verifications/:id",
+            "/ar/verifications/:id",
             get(ar_verification_handler::get_verification),
         )
         .route(
-            "/verifications/auto",
+            "/ar/verifications/auto",
             post(ar_verification_handler::auto_verify),
         )
         .route(
-            "/verifications/manual",
+            "/ar/verifications/manual",
             post(ar_verification_handler::manual_verify),
         )
         .route(
-            "/verifications/:id/cancel",
+            "/ar/verifications/:id/cancel",
             post(ar_verification_handler::cancel_verification),
         )
         .route(
-            "/verifications/unverified/invoices",
+            "/ar/verifications/unverified/invoices",
             get(ar_verification_handler::get_unverified_invoices),
         )
         .route(
-            "/verifications/unverified/payments",
+            "/ar/verifications/unverified/payments",
             get(ar_verification_handler::get_unverified_payments),
         )
         .route(
-            "/reports/statistics",
+            "/ar/reports/statistics",
             get(ar_report_handler::get_statistics_report),
         )
-        .route("/reports/daily", get(ar_report_handler::get_daily_report))
         .route(
-            "/reports/monthly",
+            "/ar/reports/daily",
+            get(ar_report_handler::get_daily_report),
+        )
+        .route(
+            "/ar/reports/monthly",
             get(ar_report_handler::get_monthly_report),
         )
-        .route("/reports/aging", get(ar_report_handler::get_aging_report))
+        .route(
+            "/ar/reports/aging",
+            get(ar_report_handler::get_aging_report),
+        )
 }
 
-/// 应收对账增强路由（nest 到 /api/v1/erp/ar-reconciliations/enhanced）
+/// 应收对账增强路由（path 前缀 /ar-reconciliations-enhanced）
 pub fn ar_reconciliations_enhanced() -> Router<AppState> {
     Router::new()
         .route(
-            "/auto-match",
+            "/ar-reconciliations-enhanced/auto-match",
             post(ar_reconciliation_enhanced_handler::auto_match),
         )
         .route(
-            "/aging-report",
+            "/ar-reconciliations-enhanced/aging-report",
             get(ar_reconciliation_enhanced_handler::aging_report),
         )
         .route(
-            "/:id/details",
+            "/ar-reconciliations-enhanced/:id/details",
             get(ar_reconciliation_enhanced_handler::get_reconciliation_details),
         )
         .route(
-            "/:id/confirm",
+            "/ar-reconciliations-enhanced/:id/confirm",
             post(ar_reconciliation_enhanced_handler::confirm_reconciliation),
         )
         .route(
-            "/:id/dispute",
+            "/ar-reconciliations-enhanced/:id/dispute",
             post(ar_reconciliation_enhanced_handler::dispute_reconciliation),
         )
         .route(
-            "/:id/pdf",
+            "/ar-reconciliations-enhanced/:id/pdf",
             get(ar_reconciliation_enhanced_handler::export_reconciliation_pdf),
         )
         .route(
-            "/generate",
+            "/ar-reconciliations-enhanced/generate",
             post(ar_reconciliation_enhanced_handler::generate_reconciliation),
         )
 }
 
-/// 应收对账别名路由（nest 到 /api/v1/erp/ar-reconciliation）
+/// 应收对账别名路由（path 前缀 /ar-reconciliation-alias）
 pub fn ar_reconciliation_alias() -> Router<AppState> {
     Router::new()
         .route(
-            "/auto-reconcile",
+            "/ar-reconciliation-alias/auto-reconcile",
             post(ar_reconciliation_enhanced_handler::auto_match),
         )
         .route(
-            "/auto-reconcile/results",
+            "/ar-reconciliation-alias/auto-reconcile/results",
             get(ar_reconciliation_enhanced_handler::list_results),
         )
         .route(
-            "/aging-analysis",
+            "/ar-reconciliation-alias/aging-analysis",
             get(ar_reconciliation_enhanced_handler::aging_report),
         )
         .route(
-            "/:id/details",
+            "/ar-reconciliation-alias/:id/details",
             get(ar_reconciliation_enhanced_handler::get_reconciliation_details),
         )
         .route(
-            "/:id/confirm/send",
+            "/ar-reconciliation-alias/:id/confirm/send",
             post(ar_reconciliation_enhanced_handler::send_confirmation),
         )
         .route(
-            "/confirmations",
+            "/ar-reconciliation-alias/confirmations",
             get(ar_reconciliation_enhanced_handler::list_confirmations)
                 .post(ar_reconciliation_enhanced_handler::create_confirmation),
         )
         .route(
-            "/confirmations/:id/status",
+            "/ar-reconciliation-alias/confirmations/:id/status",
             put(ar_reconciliation_enhanced_handler::update_confirmation_status),
         )
         .route(
-            "/disputes",
+            "/ar-reconciliation-alias/disputes",
             get(ar_reconciliation_enhanced_handler::list_disputes)
                 .post(ar_reconciliation_enhanced_handler::create_dispute),
         )
         .route(
-            "/disputes/:id",
+            "/ar-reconciliation-alias/disputes/:id",
             get(ar_reconciliation_enhanced_handler::get_dispute),
         )
         .route(
-            "/disputes/:id/resolve",
+            "/ar-reconciliation-alias/disputes/:id/resolve",
             put(ar_reconciliation_enhanced_handler::resolve_dispute),
         )
 }
 
-/// 应收对账路由（nest 到 /api/v1/erp/ar-reconciliations）
+/// 应收对账路由（path 前缀 /ar-reconciliations）
 pub fn ar_reconciliations() -> Router<AppState> {
     Router::new()
         .route(
-            "/",
+            "/ar-reconciliations",
             get(ar_reconciliation_handler::list_reconciliations)
                 .post(ar_reconciliation_handler::create_reconciliation),
         )
-        .route("/:id", get(ar_reconciliation_handler::get_reconciliation))
         .route(
-            "/:id/status",
+            "/ar-reconciliations/:id",
+            get(ar_reconciliation_handler::get_reconciliation),
+        )
+        .route(
+            "/ar-reconciliations/:id/status",
             put(ar_reconciliation_handler::update_reconciliation_status),
         )
 }
 
-/// 多币种路由（nest 到 /api/v1/erp/currencies）
+/// 多币种路由（path 前缀 /currencies）
 pub fn currencies() -> Router<AppState> {
     Router::new()
-        .route("/", get(currency_handler::list_currencies))
-        .route("/base", get(currency_handler::get_base_currency))
+        .route("/currencies", get(currency_handler::list_currencies))
+        .route("/currencies/base", get(currency_handler::get_base_currency))
         .route(
-            "/rates/history",
+            "/currencies/rates/history",
             get(currency_enhanced_handler::get_exchange_rate_history),
         )
-        .route("/convert", post(currency_enhanced_handler::convert_amount))
-        .route("/sync-all", post(currency_enhanced_handler::sync_all_rates))
         .route(
-            "/supported",
+            "/currencies/convert",
+            post(currency_enhanced_handler::convert_amount),
+        )
+        .route(
+            "/currencies/sync-all",
+            post(currency_enhanced_handler::sync_all_rates),
+        )
+        .route(
+            "/currencies/supported",
             get(currency_enhanced_handler::get_supported_currencies),
         )
 }
 
-/// 汇率路由（nest 到 /api/v1/erp/exchange-rates）
+/// 汇率路由（path 前缀 /exchange-rates）
 pub fn exchange_rates() -> Router<AppState> {
     Router::new()
         .route(
-            "/",
-            get(currency_handler::list_exchange_rates).post(currency_handler::create_exchange_rate),
+            "/exchange-rates",
+            get(currency_handler::list_exchange_rates)
+                .post(currency_handler::create_exchange_rate),
         )
-        .route("/query", get(currency_handler::get_exchange_rate))
+        .route(
+            "/exchange-rates/query",
+            get(currency_handler::get_exchange_rate),
+        )
 }
 
 /// 财务域统一入口
+///
+/// 子 router path 已加独立前缀，merge 时 path+method 互不重叠。
 pub fn routes(state: AppState) -> Router<AppState> {
     Router::new()
         .merge(finance(state.clone()))
