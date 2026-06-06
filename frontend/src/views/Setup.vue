@@ -143,6 +143,7 @@ import { ref, computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { CircleCheckFilled, CircleCloseFilled } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
+import { resetInitStatus } from '@/router'
 
 const router = useRouter()
 
@@ -339,6 +340,9 @@ function prevStep() {
 }
 
 function goToLogin() {
+  // 主动重置前端缓存的初始化状态，避免路由守卫在跳转过程中
+  // 由于模块级 initStatus 缓存为 false 而再次拉回 /setup。
+  resetInitStatus(true)
   router.push('/login')
 }
 

@@ -17,7 +17,7 @@ use axum::{
 use sea_orm::Database;
 use std::io::Write;
 use std::net::SocketAddr;
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 use std::time::Duration;
 use tower_http::classify::ServerErrorsFailureClass;
 use tower_http::cors::CorsLayer;
@@ -47,7 +47,34 @@ struct InitErrorResponse {
     message: String,
 }
 
+/// Setup 模式下的初始化成功标志。
+///
+/// 当数据库尚未连接成功时（例如：用户首次部署、或者刚刚迁移到一台新机器），
+/// 后端会进入「Setup 模式」，仅暴露 `/init/*` 系列接口，不连接数据库。
+/// 在该模式下，原始实现的 `get_init_status` 永远返回 `initialized: false`，
+/// 会导致前端在 `initialize_with_db` 成功并跳转到登录页时，被路由守卫判定为
+/// "系统未初始化" 再次拉回 setup 页面，形成跳转循环。
+///
+/// 修复方案：使用一个进程级的可变标志位记录本进程内是否已经成功完成初始化。
+/// 注意：完整模式（数据库已连接）下不走此分支，因此对正常启动流程零影响。
+static SETUP_MODE_INITIALIZED: std::sync::OnceLock<Arc<Mutex<bool>>> = std::sync::OnceLock::new();
+
+fn setup_initialized_flag() -> Arc<Mutex<bool>> {
+    SETUP_MODE_INITIALIZED
+        .get_or_init(|| Arc::new(Mutex::new(false)))
+        .clone()
+}
+
 async fn get_init_status() -> Json<InitStatusResponse> {
+    // 优先使用内存中的初始化成功标志（处理「setup 模式内完成初始化」的场景）
+    let initialized = *setup_initialized_flag().lock().unwrap();
+    if initialized {
+        return Json(InitStatusResponse {
+            initialized: true,
+            message: "系统已初始化".to_string(),
+            mode: "setup".to_string(),
+        });
+    }
     Json(InitStatusResponse {
         initialized: false,
         message: "系统未初始化，请先配置数据库".to_string(),
@@ -92,10 +119,16 @@ async fn initialize_with_db(
     )
     .await
     {
-        Ok(result) => Ok(Json(ApiResponse::success_with_message(
-            result,
-            "系统初始化成功",
-        ))),
+        Ok(result) => {
+            // 标记 setup 模式下的初始化已完成，便于 `get_init_status`
+            // 在同一进程内返回 initialized = true，避免前端在跳转登录页时
+            // 被路由守卫再次拉回 setup 页面。
+            *setup_initialized_flag().lock().unwrap() = true;
+            Ok(Json(ApiResponse::success_with_message(
+                result,
+                "系统初始化成功",
+            )))
+        }
         Err(e) => {
             let error = match e {
                 crate::services::init_service::InitError::AlreadyInitialized => {

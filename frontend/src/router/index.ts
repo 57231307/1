@@ -555,6 +555,18 @@ async function checkInitStatus(): Promise<boolean> {
   return initStatus
 }
 
+/**
+ * 重置前端缓存的初始化状态。
+ *
+ * 场景：用户在 setup 页面完成 `initialize-with-db` 之后，
+ * 路由跳转过程中 `checkInitStatus()` 由于模块级缓存仍为 `false`
+ * 会被路由守卫再次拉回 /setup。此函数用于在 Setup.vue 安装成功后
+ * 主动将缓存置为 `true`，让守卫放行。
+ */
+export function resetInitStatus(initialized: boolean = true) {
+  initStatus = initialized ? true : null
+}
+
 router.beforeEach(async (to, _from, next) => {
   const title = to.meta.title as string
   if (title) {
