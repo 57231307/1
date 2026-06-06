@@ -9,6 +9,10 @@ pub struct AppSettings {
     pub auth: AuthConfig,
     pub grpc: GrpcConfig,
     pub log: LogConfig,
+    /// CORS 配置：使用字段级 `#[serde(default)]`，当 `cors` 段或任意
+    /// 子字段缺失时，自动回退到 [`CorsConfig::default()`]，避免因
+    /// 配置遗漏导致服务启动 panic。
+    #[serde(default)]
     pub cors: CorsConfig,
     pub redis: RedisConfig,
     pub env: String,
@@ -54,7 +58,13 @@ pub struct LogConfig {
 }
 
 /// CORS 跨域配置
+///
+/// 启用 `#[serde(default)]` 后，配置文件中：
+/// - `cors` 段整体缺失 → 走 [`CorsConfig::default()`]
+/// - 任意子字段缺失 → 走 [`CorsConfig::default()`]
+/// 保证部署时 CORS 配置的容错性（参见 #27048461019 修复）。
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(default)]
 pub struct CorsConfig {
     /// 允许的来源列表（默认仅本地开发）
     pub allowed_origins: Vec<String>,
@@ -139,10 +149,20 @@ impl AppSettings {
             }
         };
 
-        let mut app_settings: AppSettings = match settings.try_deserialize() {
+        let mut app_settings: AppSettings = match settings.try_deserialize::<AppSettings>() {
             Ok(s) => s,
             Err(e) => {
-                panic!("配置解析失败：{}", e);
+                eprintln!("═══════════════════════════════════════════════════════════════");
+                eprintln!("配置解析失败：{}", e);
+                eprintln!("═══════════════════════════════════════════════════════════════");
+                eprintln!("可能原因:");
+                eprintln!("  1. config.yaml 中存在未知字段名（拼写错误）");
+                eprintln!("  2. 某个字段类型不匹配（如 port 应该是数字/字符串）");
+                eprintln!("  3. 缺少必填字段（除 cors 外其他段都是必填）");
+                eprintln!("═══════════════════════════════════════════════════════════════");
+                eprintln!("  注意: cors 段已启用 serde(default)，缺失字段会走默认值。");
+                eprintln!("═══════════════════════════════════════════════════════════════");
+                return Err(e);
             }
         };
 

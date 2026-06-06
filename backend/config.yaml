@@ -46,12 +46,27 @@ log:
 
 cors:
   # ⚠️ 生产环境必须配置实际域名，移除所有 localhost
+  # 注意：以下字段全部支持 serde(default) 兜底，缺失时自动使用代码中的默认值
   allowed_origins:
     - "http://localhost:3000"
     - "http://127.0.0.1:3000"
     - "https://3000-6e8e9218ecb12940.monkeycode-ai.online"
     - "http://111.230.99.236"
     - "https://111.230.99.236"
+  allow_credentials: true
+  allowed_methods:
+    - "GET"
+    - "POST"
+    - "PUT"
+    - "DELETE"
+    - "OPTIONS"
+  allowed_headers:
+    - "Content-Type"
+    - "Authorization"
+    - "X-Requested-With"
+    - "Cookie"
+    - "Accept"
+  max_age_secs: 3600
 
 redis:
   url: "redis://127.0.0.1:6379"
