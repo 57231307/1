@@ -151,7 +151,7 @@ pub fn imports() -> Router<AppState> {
         .route("/csv", post(import_export_handler::import_csv))
         .route("/excel", post(import_export_handler::import_excel))
         .route(
-            "/templates/:import_type",
+            "/templates/download/:import_type",
             get(import_export_handler::download_template),
         )
 }
