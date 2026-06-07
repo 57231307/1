@@ -2,7 +2,7 @@
 
 本文档提供了冰溪 ERP 系统的完整技术文档，包括系统架构、接口规范、开发指南和核心概念。文档面向开发人员、系统管理员和运维工程师。
 
-**快速链接**: [架构](./ARCHITECTURE.md) | [接口](./INTERFACES.md) | [开发者指南](./DEVELOPER_GUIDE.md)
+**快速链接**: [架构](./ARCHITECTURE.md) | [接口](./INTERFACES.md) | [开发者指南](./DEVELOPER_GUIDE.md) | [文档同步技能](../skills/sync/SKILL.md)
 
 ---
 
@@ -72,6 +72,19 @@
 1. **[开发者指南](./DEVELOPER_GUIDE.md)** - 搭建和工作流
 2. **[安全起步点](./DEVELOPER_GUIDE.md#常见任务)** - 低风险区域
 3. **[常见任务](./DEVELOPER_GUIDE.md#常见任务)** - 分步指南
+
+### 文档与代码不同步？
+
+请使用 [monkeycode-sync 技能](../skills/sync/SKILL.md) 自动更新本文档：
+
+```bash
+# 首次启用: 在目标文档中插入自动生成标记
+python3 /workspace/.monkeycode/skills/sync/scripts/sync.py --init
+
+# 日常流程: 扫描 → 对比 → 写入
+bash /workspace/.monkeycode/skills/sync/scripts/scan.sh
+python3 /workspace/.monkeycode/skills/sync/scripts/sync.py --apply
+```
 
 ---
 

@@ -577,3 +577,9 @@ async fn test_inventory_operations() {
 1. 检查库存数量
 2. 检查库存状态
 3. 联系系统管理员
+
+## 代码位置(自动维护)
+
+<!-- AUTO-GENERATED-START: concept_inventory -->
+> 本节由 monkeycode-sync 维护,首次启用时为空。
+<!-- AUTO-GENERATED-END: concept_inventory -->

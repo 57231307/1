@@ -566,3 +566,9 @@ async fn test_sales_order_lifecycle() {
 1. 设置审批超时提醒
 2. 检查审批规则配置
 3. 联系系统管理员
+
+## 代码位置(自动维护)
+
+<!-- AUTO-GENERATED-START: concept_sales_order -->
+> 本节由 monkeycode-sync 维护,首次启用时为空。
+<!-- AUTO-GENERATED-END: concept_sales_order -->

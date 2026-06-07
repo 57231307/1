@@ -357,3 +357,9 @@ async fn test_auth_flow() {
 1. 检查用户角色分配
 2. 验证角色权限配置
 3. 检查数据权限设置
+
+## 代码位置(自动维护)
+
+<!-- AUTO-GENERATED-START: concept_user -->
+> 本节由 monkeycode-sync 维护,首次启用时为空。
+<!-- AUTO-GENERATED-END: concept_user -->

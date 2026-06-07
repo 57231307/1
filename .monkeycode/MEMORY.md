@@ -31,6 +31,15 @@ Agent 在任务执行过程中发现的条目应遵循以下格式：
 
 ## 条目
 
+[monkeycode-sync 技能已就绪]
+- Date: 2026-06-07
+- Context: 用户在 /workspace/.monkeycode 创建 monkeycode-sync 技能
+- Category: 工作流协作
+- Instructions:
+  - 技能路径: /workspace/.monkeycode/skills/sync/
+  - 首次使用需执行: python3 sync.py --init
+  - 日常流程: scan.sh → sync.py --diff → sync.py --apply
+
 [语言偏好]
 - Date: 2026-05-22
 - Context: 用户明确要求助手使用中文回复
@@ -220,6 +229,18 @@ Agent 在任务执行过程中发现的条目应遵循以下格式：
   - 不得创建Dockerfile、docker-compose.yml等Docker相关文件
   - 部署方式为：CICD构建 → GitHub Release → 手动部署到生产服务器
   - 使用systemd管理服务，不使用容器化部署
+
+[monkeycode-sync 技能已就绪]
+- Date: 2026-06-07
+- Context: 用户在 /workspace/.monkeycode 创建 monkeycode-sync 技能,让文档随项目变化实时更新
+- Category: 工作流协作
+- Instructions:
+  - 技能路径: /workspace/.monkeycode/skills/sync/
+  - 首次使用需执行: python3 sync.py --init 在目标文档中插入自动生成标记
+  - 日常流程: scan.sh 生成 state.json → sync.py --diff 对比 → sync.py --apply 写入
+  - 自动维护的文档区块用 `<!-- AUTO-GENERATED-START: id -->` 与 `<!-- AUTO-GENERATED-END: id -->` 包裹
+  - 映射规则集中在 mappings.yaml,新增映射只需追加 `- id:` 块
+  - 主代理调度本技能,子代理不得直接编辑 .monkeycode/docs/
 
 [2026年最新编程工作流]
 - Date: 2026-05-28
