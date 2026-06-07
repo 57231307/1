@@ -143,7 +143,6 @@ import { ref, computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { CircleCheckFilled, CircleCloseFilled } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
-import { resetInitStatus } from '@/router'
 
 const router = useRouter()
 
@@ -266,26 +265,12 @@ async function testConnection() {
       body: JSON.stringify(dbConfig.value),
     })
     const data = await res.json()
-    // 后端 init 接口在两种模式下返回结构略有不同：
-    //   完整模式（init_handler.rs）：
-    //     成功: { code: 200, data: { success: true, message }, message }
-    //     失败: { code: 4xx/5xx, message: "..." }（无 data 字段）
-    //   Setup 模式（main.rs，数据库尚未连接时使用）：
-    //     成功: { code: 200, data: { success: true, message }, message }
-    //   错误结构同完整模式
-    // 此处对两种格式均做防御性兼容。
-    const isSuccess =
-      data?.data?.success === true ||
-      data?.success === true ||
-      data?.code === 200
-    const errorMsg =
-      data?.data?.message || data?.message || '数据库连接失败'
-    if (isSuccess) {
+    if (data.code === 200 && data.data?.success) {
       dbConnected.value = true
       ElMessage.success('数据库连接成功')
     } else {
       dbConnected.value = false
-      ElMessage.error(errorMsg)
+      ElMessage.error(data.data?.message || data.message || '数据库连接失败')
     }
   } catch (error) {
     dbConnected.value = false
@@ -310,19 +295,12 @@ async function install() {
       }),
     })
     const data = await res.json()
-    // 同 testConnection() 的双格式兼容：兼容 { code, data, message } 与旧版 { success, message }
-    const isSuccess =
-      data?.code === 200 ||
-      data?.data !== undefined ||
-      data?.success === true
-    const errorMsg =
-      data?.data?.message || data?.message || '安装失败'
-    if (isSuccess) {
+    if (data.success) {
       installed.value = true
       ElMessage.success('系统安装成功')
       currentStep.value = 4
     } else {
-      ElMessage.error(errorMsg)
+      ElMessage.error(data.message || '安装失败')
     }
   } catch (error) {
     ElMessage.error('安装失败')
@@ -340,9 +318,6 @@ function prevStep() {
 }
 
 function goToLogin() {
-  // 主动重置前端缓存的初始化状态，避免路由守卫在跳转过程中
-  // 由于模块级 initStatus 缓存为 false 而再次拉回 /setup。
-  resetInitStatus(true)
   router.push('/login')
 }
 
