@@ -52,5 +52,11 @@ cors:
   allowed_origins:
     - "http://localhost:3000"
     - "http://127.0.0.1:3000"
+    - "http://localhost"
+    - "http://127.0.0.1"
+
+redis:
+  url: "redis://127.0.0.1:6379/0"
+  max_connections: 10
 
 env: "production"

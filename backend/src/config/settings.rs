@@ -209,6 +209,14 @@ impl AppSettings {
             self.database.password = password;
         }
 
+        if let Ok(db_url) = std::env::var("DATABASE_URL") {
+            self.database.connection_string = db_url;
+        }
+
+        if let Ok(redis_url) = std::env::var("REDIS_URL") {
+            self.redis.url = redis_url;
+        }
+
         if let Ok(jwt_secret) = std::env::var("JWT_SECRET") {
             self.auth.jwt_secret = jwt_secret;
         }

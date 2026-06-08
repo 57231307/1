@@ -49,7 +49,7 @@ where
 
     async fn from_request_parts(
         parts: &mut axum::http::request::Parts,
-        _state: &S,
+        state: &S,
     ) -> Result<Self, Self::Rejection> {
         let ctx = parts
             .extensions
