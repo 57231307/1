@@ -1,8 +1,8 @@
 #![allow(dead_code)]
 use crate::models::customer_credit;
 use crate::utils::error::AppError;
-use rust_decimal::Decimal;
 use chrono::NaiveDate;
+use rust_decimal::Decimal;
 use sea_orm::{
     ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, Order, PaginatorTrait,
     QueryFilter, QueryOrder, QuerySelect, Set, TransactionTrait,
@@ -606,7 +606,8 @@ impl CustomerCreditService {
             .iter()
             .map(|o| {
                 let s = o.total_amount.to_string();
-                s.parse::<rust_decimal::Decimal>().unwrap_or_else(|_| rust_decimal::Decimal::from(0))
+                s.parse::<rust_decimal::Decimal>()
+                    .unwrap_or_else(|_| rust_decimal::Decimal::from(0))
             })
             .fold(Decimal::from(0), |acc, x| acc + x);
 

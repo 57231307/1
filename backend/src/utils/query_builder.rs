@@ -1,9 +1,6 @@
 use crate::utils::error::AppError;
 use crate::utils::response::PaginatedResponse;
-use sea_orm::{
-    DatabaseConnection, EntityTrait, PaginatorTrait, QueryOrder,
-    QuerySelect, Select,
-};
+use sea_orm::{DatabaseConnection, EntityTrait, PaginatorTrait, QueryOrder, QuerySelect, Select};
 
 #[allow(dead_code)]
 /// 分页查询结果
@@ -66,7 +63,7 @@ where
     // 这里暂时注释掉未使用的泛型游标实现，以防编译报错。
     /*
     let mut cursor = query.cursor_by(sea_orm::sea_query::Alias::new("id"));
-    if let Some(id) = cursor_id {
+    if let Some(id) = _cursor_id {
         cursor.after(id);
     }
     */
