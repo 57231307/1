@@ -1,6 +1,6 @@
 [Unit]
 Description=Bingxi ERP Backend Service
-After=network.target postgresql.service redis.service
+After=network.target postgresql.service
 Wants=network-online.target
 
 [Service]

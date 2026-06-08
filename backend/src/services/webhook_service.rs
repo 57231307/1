@@ -179,15 +179,17 @@ impl WebhookService {
 
         // 如果有签名密钥，添加签名头
         if let Some(secret) = secret {
-            use sha2::{Digest, Sha256};
-            let mut hasher = Sha256::new();
-            hasher.update(body.as_bytes());
-            hasher.update(secret.as_bytes());
-            let hash = hasher.finalize();
-            let signature = hash
-                .iter()
-                .map(|byte| format!("{:02x}", byte))
-                .collect::<String>();
+            use ring::digest::{Context, SHA256};
+            let mut context = Context::new(&SHA256);
+            context.update(body.as_bytes());
+            context.update(secret.as_bytes());
+            let hash_result = context.finish();
+            
+            let mut signature = String::with_capacity(hash_result.as_ref().len() * 2);
+            for byte in hash_result.as_ref() {
+                use std::fmt::Write;
+                write!(&mut signature, "{:02x}", byte).unwrap();
+            }
             request = request.header("X-Webhook-Signature", format!("sha256={}", signature));
         }
 

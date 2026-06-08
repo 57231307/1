@@ -141,8 +141,6 @@ deploy_remote() {
             DB_PASS=\${DATABASE__PASSWORD:-bingxi123}
             JWT=\${JWT_SECRET:-default_jwt_secret}
             COOKIE=\${COOKIE_SECRET:-default_cookie_secret}
-            REDIS_URL=\${REDIS__URL:-redis://127.0.0.1:6379}
-            REDIS_MAX=\${REDIS__MAX_CONNECTIONS:-10}
             CONN_STR=\"postgres://\${DB_USER}:\${DB_PASS}@\${DB_HOST}:\${DB_PORT}/\${DB_NAME}?sslmode=disable\"
 
             cat > /opt/bingxi-erp/backend/config.yaml << EOF
@@ -178,10 +176,6 @@ cors:
   allowed_origins:
     - \"http://localhost\"
     - \"http://127.0.0.1\"
-
-redis:
-  url: \"\${REDIS_URL}\"
-  max_connections: \${REDIS_MAX}
 
 env: \"production\"
 EOF

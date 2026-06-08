@@ -2,7 +2,6 @@ use sea_orm::DatabaseConnection;
 use std::sync::Arc;
 
 use crate::middleware::api_gateway::RateLimitStore;
-use crate::middleware::rate_limit::RedisRateLimiter;
 use crate::services::audit_cleanup_service::AuditCleanupService;
 use crate::services::data_permission_service::DataPermissionService;
 use crate::services::email_service::EmailService;
@@ -29,7 +28,6 @@ pub struct AppState {
     pub metrics: Arc<MetricsService>,
     pub cookie_key: Key,
     pub rate_limiter: Arc<RateLimitStore>,
-    pub redis_limiter: Option<Arc<RedisRateLimiter>>,
     pub di_container: Arc<DIContainer>,
     pub email_service: Option<Arc<EmailService>>,
     pub event_notification_service: Option<Arc<EventNotificationService>>,
@@ -121,20 +119,6 @@ impl AppState {
         let data_permission_service = Arc::new(DataPermissionService::new(db.clone()));
         let notification_service = Arc::new(NotificationService::new(db.clone()));
 
-        // 尝试创建 Redis 限流器，如失败则设为 None（将回退到内存限流）
-        let redis_limiter = std::env::var("REDIS_URL").ok().and_then(|url| {
-            match RedisRateLimiter::new(&url, 100, 60) {
-                Ok(limiter) => {
-                    tracing::info!("Redis 限流器初始化成功");
-                    Some(Arc::new(limiter))
-                }
-                Err(e) => {
-                    tracing::warn!("Redis 限流器初始化失败: {}，将使用内存限流", e);
-                    None
-                }
-            }
-        });
-
         Self {
             db,
             omni_audit,
@@ -146,7 +130,6 @@ impl AppState {
             metrics: Arc::new(metrics),
             cookie_key,
             rate_limiter: Arc::new(RateLimitStore::new()),
-            redis_limiter,
             di_container,
             email_service,
             event_notification_service,
@@ -202,7 +185,6 @@ impl Default for AppState {
             metrics: Arc::new(metrics),
             cookie_key,
             rate_limiter: Arc::new(RateLimitStore::new()),
-            redis_limiter: None,
             di_container,
             email_service,
             event_notification_service,

@@ -1,15 +1,12 @@
 #![allow(dead_code)]
 use chrono::Utc;
-use hmac::{Hmac, KeyInit, Mac};
 use sea_orm::{ActiveValue, DatabaseConnection, EntityTrait};
 use serde_json::Value;
-use sha2::Sha256;
+use ring::hmac;
 use std::sync::Arc;
 use tokio::sync::mpsc;
 
 use crate::models::omni_audit_log;
-
-type HmacSha256 = Hmac<Sha256>;
 
 #[derive(Debug, Clone)]
 pub struct OmniAuditMessage {
@@ -74,10 +71,9 @@ impl OmniAuditEngine {
                     msg.trace_id, msg.event_type, msg.action, payload_str
                 );
 
-                let mut mac = HmacSha256::new_from_slice(secret_key_clone.as_bytes())
-                    .expect("HMAC can take key of any size");
-                mac.update(sign_material.as_bytes());
-                let _signature = hex::encode(mac.finalize().into_bytes());
+                let key = hmac::Key::new(hmac::HMAC_SHA256, secret_key_clone.as_bytes());
+                let sig = hmac::sign(&key, sign_material.as_bytes());
+                let _signature = hex::encode(sig.as_ref());
 
                 if msg.status == "FAILED"
                     || msg.status == "DENIED"

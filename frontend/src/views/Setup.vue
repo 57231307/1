@@ -156,7 +156,6 @@ const dbConnected = ref(false)
 // 环境检查
 const envChecks = ref([
   { name: '后端API服务', status: false, detail: '检查后端API是否正常响应' },
-  { name: 'Redis缓存服务', status: false, detail: '检查Redis服务是否可用' },
   { name: '磁盘空间', status: false, detail: '检查是否有足够的磁盘空间（至少1GB）' },
   { name: '系统内存', status: false, detail: '检查系统内存是否充足（至少512MB）' },
 ])
@@ -227,26 +226,18 @@ async function checkEnvironment() {
     const healthData = await healthRes.json()
     envChecks.value[0].status = healthRes.ok && healthData.status === 'healthy'
 
-    // 检查Redis缓存（通过健康检查接口的checks）
-    if (healthData.checks && healthData.checks.redis) {
-      envChecks.value[1].status = healthData.checks.redis.status === 'healthy'
-    } else {
-      // 如果健康检查没有Redis信息，标记为通过（可能未配置Redis）
-      envChecks.value[1].status = true
-    }
-
     // 检查磁盘空间（通过健康检查接口的checks）
     if (healthData.checks && healthData.checks.disk) {
-      envChecks.value[2].status = healthData.checks.disk.status === 'healthy'
+      envChecks.value[1].status = healthData.checks.disk.status === 'healthy'
     } else {
-      envChecks.value[2].status = true
+      envChecks.value[1].status = true
     }
 
     // 检查系统内存（通过健康检查接口的checks）
     if (healthData.checks && healthData.checks.memory) {
-      envChecks.value[3].status = healthData.checks.memory.status === 'healthy'
+      envChecks.value[2].status = healthData.checks.memory.status === 'healthy'
     } else {
-      envChecks.value[3].status = true
+      envChecks.value[2].status = true
     }
   } catch (error) {
     console.error('环境检查失败:', error)

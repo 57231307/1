@@ -13,7 +13,6 @@ pub struct AppSettings {
     /// 配置遗漏导致服务启动 panic。
     #[serde(default)]
     pub cors: CorsConfig,
-    pub redis: RedisConfig,
     pub env: String,
 }
 
@@ -114,11 +113,6 @@ impl CorsConfig {
     }
 }
 
-#[derive(Debug, Clone, Deserialize)]
-pub struct RedisConfig {
-    pub url: String,
-    pub max_connections: usize,
-}
 
 impl AppSettings {
     pub fn new() -> Result<Self, ConfigError> {
@@ -217,10 +211,6 @@ impl AppSettings {
 
         if let Ok(db_url) = std::env::var("DATABASE_URL") {
             self.database.connection_string = db_url;
-        }
-
-        if let Ok(redis_url) = std::env::var("REDIS_URL") {
-            self.redis.url = redis_url;
         }
 
         if let Ok(jwt_secret) = std::env::var("JWT_SECRET") {

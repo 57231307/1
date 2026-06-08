@@ -18,10 +18,6 @@ pub(super) fn cmd_status() {
     let nginx_ok = is_service_active("nginx");
     println!("{} Nginx 服务", status_icon(nginx_ok));
 
-    // Redis
-    let redis_ok = is_service_active("redis");
-    println!("{} Redis 服务", status_icon(redis_ok));
-
     // 端口监听
     println!("\n--- 端口监听 ---");
     if let Ok(ss) = run_cmd("ss", &["-tlnp"]) {
@@ -212,21 +208,6 @@ pub(super) fn cmd_health() {
     ) {
         Ok(_) => println!("[OK] 数据库连接正常"),
         Err(e) => println!("[ERROR] 数据库连接失败: {}", e),
-    }
-
-    // Redis 检查
-    println!("\n检查 Redis...");
-    match run_cmd("redis-cli", &["ping"]) {
-        Ok(out) => println!(
-            "{} Redis: {}",
-            if out.contains("PONG") {
-                "[OK]"
-            } else {
-                "[WARN]"
-            },
-            out
-        ),
-        Err(e) => println!("[ERROR] Redis 检查失败: {}", e),
     }
 
     // 磁盘空间

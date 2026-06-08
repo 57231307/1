@@ -4,7 +4,7 @@ use crate::models::api_key::{self, ActiveModel as ApiKeyActiveModel, Entity as A
 use crate::utils::error::AppError;
 use chrono::Utc;
 use sea_orm::*;
-use sha2::{Digest, Sha256};
+use ring::digest::{Context, SHA256};
 
 crate::define_service!(ApiKeyService);
 
@@ -25,12 +25,13 @@ impl ApiKeyService {
 
     /// 哈希 API 密钥
     pub fn hash_api_key(key: &str) -> String {
-        let mut hasher = Sha256::new();
-        hasher.update(key.as_bytes());
-        let result = hasher.finalize();
+        let mut context = Context::new(&SHA256);
+        context.update(key.as_bytes());
+        let hash_result = context.finish();
         let mut hex = String::with_capacity(64);
-        for byte in result.iter() {
-            hex.push_str(&format!("{:02x}", byte));
+        for byte in hash_result.as_ref() {
+            use std::fmt::Write;
+            write!(&mut hex, "{:02x}", byte).unwrap();
         }
         hex
     }

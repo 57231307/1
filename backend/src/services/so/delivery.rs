@@ -12,9 +12,11 @@ use crate::models::{
 use crate::utils::error::AppError;
 use rust_decimal::Decimal;
 use sea_orm::{
-    ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter, Set,
-    TransactionTrait,
+    sea_query::{Expr, IntoCondition},
+    ActiveModelTrait, ColumnTrait, DatabaseConnection, DbErr, EntityTrait, IntoActiveModel,
+    QueryFilter, Set, TransactionTrait,
 };
+use sea_orm::sea_query::ExprTrait;
 use serde::Deserialize;
 use std::sync::Arc;
 use validator::Validate;
@@ -139,23 +141,20 @@ impl SalesService {
             )
             .await?;
 
-            // 更新订单明细已发货数量
-            for order_item in &order_items {
-                if order_item.product_id == item.product_id {
-                    let new_shipped = order_item.shipped_quantity + item.quantity;
-                    let mut order_item_update: sales_order_item::ActiveModel =
-                        order_item.clone().into();
-                    order_item_update.shipped_quantity = Set(new_shipped);
-                    order_item_update.updated_at = Set(chrono::Utc::now());
-                    crate::services::audit_log_service::AuditLogService::update_with_audit(
-                        &txn,
-                        "auto_audit",
-                        order_item_update,
-                        Some(0),
-                    )
-                    .await?;
-                }
-            }
+            // 使用 update_many 批量更新订单明细已发货数量
+            sales_order_item::Entity::update_many()
+                .filter(sales_order_item::Column::OrderId.eq(request.order_id))
+                .filter(sales_order_item::Column::ProductId.eq(item.product_id))
+                .col_expr(
+                    sales_order_item::Column::ShippedQuantity,
+                    sea_orm::sea_query::Expr::col(sales_order_item::Column::ShippedQuantity).add(item.quantity)
+                )
+                .col_expr(
+                    sales_order_item::Column::UpdatedAt,
+                    sea_orm::sea_query::Expr::val(chrono::Utc::now())
+                )
+                .exec(&txn)
+                .await?;
         }
 
         // 更新订单状态
@@ -334,20 +333,18 @@ impl SalesService {
                 };
                 reservation.insert(txn).await?;
 
-                let new_quantity_available = s.quantity_available - item.quantity;
-                let stock_update = inventory_stock::ActiveModel {
-                    id: sea_orm::ActiveValue::Unchanged(s.id),
-                    quantity_available: Set(new_quantity_available),
-                    updated_at: Set(chrono::Utc::now()),
-                    ..Default::default()
-                };
-                crate::services::audit_log_service::AuditLogService::update_with_audit(
-                    txn,
-                    "auto_audit",
-                    stock_update,
-                    Some(0),
-                )
-                .await?;
+                inventory_stock::Entity::update_many()
+                    .filter(inventory_stock::Column::Id.eq(s.id))
+                    .col_expr(
+                        inventory_stock::Column::QuantityAvailable,
+                        sea_orm::sea_query::Expr::col(inventory_stock::Column::QuantityAvailable).sub(item.quantity)
+                    )
+                    .col_expr(
+                        inventory_stock::Column::UpdatedAt,
+                        sea_orm::sea_query::Expr::val(chrono::Utc::now())
+                    )
+                    .exec(txn)
+                    .await?;
             } else {
                 return Err(AppError::business(format!(
                     "产品 {} 没有库存记录，无法锁定",
@@ -381,43 +378,42 @@ impl SalesService {
             )));
         }
 
-        let new_quantity_available = stock.quantity_available - quantity;
-        let stock_update = inventory_stock::ActiveModel {
-            id: sea_orm::ActiveValue::Unchanged(stock.id),
-            quantity_available: Set(new_quantity_available),
-            quantity_shipped: Set(stock.quantity_shipped + quantity),
-            updated_at: Set(chrono::Utc::now()),
-            ..Default::default()
-        };
-        crate::services::audit_log_service::AuditLogService::update_with_audit(
-            txn,
-            "auto_audit",
-            stock_update,
-            Some(0),
-        )
-        .await?;
+        inventory_stock::Entity::update_many()
+            .filter(inventory_stock::Column::Id.eq(stock.id))
+            .col_expr(
+                inventory_stock::Column::QuantityAvailable,
+                sea_orm::sea_query::Expr::col(inventory_stock::Column::QuantityAvailable).sub(quantity)
+            )
+            .col_expr(
+                inventory_stock::Column::QuantityShipped,
+                sea_orm::sea_query::Expr::col(inventory_stock::Column::QuantityShipped).add(quantity)
+            )
+            .col_expr(
+                inventory_stock::Column::UpdatedAt,
+                sea_orm::sea_query::Expr::val(chrono::Utc::now())
+            )
+            .exec(txn)
+            .await?;
 
         // 标记预留为已完成
-        let reservation = inventory_reservation::Entity::find()
+        inventory_reservation::Entity::update_many()
             .filter(inventory_reservation::Column::OrderId.eq(order_id))
             .filter(inventory_reservation::Column::ProductId.eq(product_id))
             .filter(inventory_reservation::Column::Status.eq("pending"))
-            .one(txn)
-            .await?;
-
-        if let Some(res) = reservation {
-            let mut res_update: inventory_reservation::ActiveModel = res.into();
-            res_update.status = Set("consumed".to_string());
-            res_update.released_at = Set(Some(chrono::Utc::now()));
-            res_update.updated_at = Set(chrono::Utc::now());
-            crate::services::audit_log_service::AuditLogService::update_with_audit(
-                txn,
-                "auto_audit",
-                res_update,
-                Some(0),
+            .col_expr(
+                inventory_reservation::Column::Status,
+                sea_orm::sea_query::Expr::val("consumed".to_string())
             )
+            .col_expr(
+                inventory_reservation::Column::ReleasedAt,
+                sea_orm::sea_query::Expr::val(chrono::Utc::now())
+            )
+            .col_expr(
+                inventory_reservation::Column::UpdatedAt,
+                sea_orm::sea_query::Expr::val(chrono::Utc::now())
+            )
+            .exec(txn)
             .await?;
-        }
 
         Ok(())
     }
@@ -435,41 +431,39 @@ impl SalesService {
             .await?;
 
         for res in reservations {
-            let stock = inventory_stock::Entity::find()
+            inventory_stock::Entity::update_many()
                 .filter(inventory_stock::Column::ProductId.eq(res.product_id))
                 .filter(inventory_stock::Column::WarehouseId.eq(res.warehouse_id))
-                .one(txn)
-                .await?;
-
-            if let Some(s) = stock {
-                let new_quantity_available = s.quantity_available + res.quantity;
-                let stock_update = inventory_stock::ActiveModel {
-                    id: sea_orm::ActiveValue::Unchanged(s.id),
-                    quantity_available: Set(new_quantity_available),
-                    updated_at: Set(chrono::Utc::now()),
-                    ..Default::default()
-                };
-                crate::services::audit_log_service::AuditLogService::update_with_audit(
-                    txn,
-                    "auto_audit",
-                    stock_update,
-                    Some(0),
+                .col_expr(
+                    inventory_stock::Column::QuantityAvailable,
+                    sea_orm::sea_query::Expr::col(inventory_stock::Column::QuantityAvailable).add(res.quantity)
                 )
+                .col_expr(
+                    inventory_stock::Column::UpdatedAt,
+                    sea_orm::sea_query::Expr::val(chrono::Utc::now())
+                )
+                .exec(txn)
                 .await?;
-            }
-
-            let mut res_update: inventory_reservation::ActiveModel = res.into();
-            res_update.status = Set("cancelled".to_string());
-            res_update.released_at = Set(Some(chrono::Utc::now()));
-            res_update.updated_at = Set(chrono::Utc::now());
-            crate::services::audit_log_service::AuditLogService::update_with_audit(
-                txn,
-                "auto_audit",
-                res_update,
-                Some(0),
-            )
-            .await?;
         }
+
+        inventory_reservation::Entity::update_many()
+            .filter(inventory_reservation::Column::OrderId.eq(order_id))
+            .filter(inventory_reservation::Column::Status.eq("pending"))
+            .col_expr(
+                inventory_reservation::Column::Status,
+                sea_orm::sea_query::Expr::val("cancelled".to_string())
+            )
+            .col_expr(
+                inventory_reservation::Column::ReleasedAt,
+                sea_orm::sea_query::Expr::val(chrono::Utc::now())
+            )
+            .col_expr(
+                inventory_reservation::Column::UpdatedAt,
+                sea_orm::sea_query::Expr::val(chrono::Utc::now())
+            )
+            .exec(txn)
+            .await?;
+
         Ok(())
     }
 

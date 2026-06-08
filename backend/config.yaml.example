@@ -55,8 +55,4 @@ cors:
     - "http://localhost"
     - "http://127.0.0.1"
 
-redis:
-  url: "redis://127.0.0.1:6379/0"
-  max_connections: 10
-
 env: "production"

@@ -63,12 +63,6 @@ check_required_var "AUDIT_SECRET_KEY" 32
 
 echo ""
 
-# 检查 Redis 配置
-echo "Redis 配置:"
-check_optional_var "REDIS__URL" "redis://127.0.0.1:6379"
-
-echo ""
-
 # 检查 CORS 配置
 echo "CORS 配置:"
 check_optional_var "CORS__ALLOWED_ORIGINS" "http://localhost:3000"

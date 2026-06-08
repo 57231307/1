@@ -88,13 +88,10 @@ totp-rs = { version = "5.5", features = ["qr", "gen_secret"] }
 utoipa-swagger-ui = { version = "8.0.3", features = ["axum"], optional = true }
 percent-encoding = "2.3.1"
 fastrand = "2.4.0"
-hmac = "0.13.0"
-sha2 = "0.11.0"
+ring = "0.17"
 hex = "0.4.3"
 
-# Redis
-redis = { version = "0.25", features = ["tokio-comp", "connection-manager"] }
-deadpool-redis = "0.15"
+
 
 # CSV处理
 csv = "1.3"

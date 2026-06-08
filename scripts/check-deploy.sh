@@ -115,7 +115,6 @@ check_command "docker"
 check_command "docker-compose"
 check_command "nginx"
 check_command "psql"
-check_command "redis-cli"
 
 echo ""
 echo "=========================================="

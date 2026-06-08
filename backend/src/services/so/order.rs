@@ -17,7 +17,7 @@ use crate::services::so::{
 use crate::utils::error::AppError;
 use crate::utils::PaginatedResponse;
 use sea_orm::{
-    ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, Order, PaginatorTrait,
+    ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, LoaderTrait, ModelTrait, Order, PaginatorTrait,
     QueryFilter, QueryOrder, QuerySelect, RelationTrait, TransactionTrait,
 };
 use std::sync::Arc;
@@ -62,15 +62,111 @@ impl SalesService {
 
         let paginator = query
             .order_by(sales_order::Column::CreatedAt, Order::Desc)
-            .into_model::<SalesOrderDetail>()
             .paginate(&*self.db, page_req.page_size);
 
         let total = paginator.num_items().await?;
-        let mut order_details: Vec<SalesOrderDetail> =
-            paginator.fetch_page(page_req.page - 1).await?;
+        let orders: Vec<sales_order::Model> = paginator.fetch_page(page_req.page - 1).await?;
 
-        for order in &mut order_details {
-            order.items = vec![];
+        let mut order_details = Vec::with_capacity(orders.len());
+
+        if !orders.is_empty() {
+            // 使用 LoaderTrait 批量加载 customer
+            let customers = orders
+                .load_one(crate::models::customer::Entity, &*self.db)
+                .await?;
+
+            // 使用 LoaderTrait 批量加载 items
+            let items_vec = orders
+                .load_many(sales_order_item::Entity, &*self.db)
+                .await?;
+
+            // 提取所有 items，用于批量加载 products
+            let all_items_owned: Vec<sales_order_item::Model> = items_vec.iter().flatten().cloned().collect();
+
+            // 使用 LoaderTrait 批量加载 products
+            let products = all_items_owned
+                .load_one(crate::models::product::Entity, &*self.db)
+                .await?;
+
+            let mut global_item_index = 0;
+
+            // 组装数据
+            for (i, order) in orders.into_iter().enumerate() {
+                let customer = customers[i].as_ref();
+                let items = &items_vec[i];
+
+                let mut item_details = Vec::with_capacity(items.len());
+                for item in items.iter() {
+                    let product = products[global_item_index].as_ref();
+                    global_item_index += 1;
+                    
+                    item_details.push(SalesOrderItemDetail {
+                        id: item.id,
+                        order_id: item.order_id,
+                        product_id: item.product_id,
+                        product_code: product.map(|p| p.code.clone()),
+                        product_name: product.map(|p| p.name.clone()),
+                        quantity: item.quantity,
+                        unit_price: item.unit_price,
+                        discount_percent: item.discount_percent,
+                        tax_percent: item.tax_percent,
+                        subtotal: item.subtotal,
+                        tax_amount: item.tax_amount,
+                        discount_amount: item.discount_amount,
+                        total_amount: item.total_amount,
+                        shipped_quantity: item.shipped_quantity,
+                        notes: item.notes.clone(),
+                        created_at: item.created_at,
+                        updated_at: item.updated_at,
+                        color_no: item.color_no.clone(),
+                        color_name: item.color_name.clone(),
+                        pantone_code: item.pantone_code.clone(),
+                        grade_required: item.grade_required.clone(),
+                        quantity_meters: item.quantity_meters,
+                        quantity_kg: item.quantity_kg,
+                        gram_weight: item.gram_weight,
+                        width: item.width,
+                        paper_tube_weight: item.paper_tube_weight,
+                        is_net_weight: item.is_net_weight,
+                        batch_requirement: item.batch_requirement.clone(),
+                        dye_lot_requirement: item.dye_lot_requirement.clone(),
+                        base_price: item.base_price,
+                        color_extra_cost: item.color_extra_cost,
+                        grade_price_diff: item.grade_price_diff,
+                        final_price: item.final_price,
+                        shipped_quantity_meters: item.shipped_quantity_meters,
+                        shipped_quantity_kg: item.shipped_quantity_kg,
+                    });
+                }
+
+                order_details.push(SalesOrderDetail {
+                    id: order.id,
+                    order_no: order.order_no,
+                    customer_id: order.customer_id,
+                    customer_name: customer.map(|c| c.customer_name.clone()),
+                    opportunity_id: order.opportunity_id,
+                    order_date: order.order_date,
+                    required_date: order.required_date,
+                    ship_date: order.ship_date,
+                    status: order.status,
+                    subtotal: order.subtotal,
+                    tax_amount: order.tax_amount,
+                    discount_amount: order.discount_amount,
+                    shipping_cost: order.shipping_cost,
+                    total_amount: order.total_amount,
+                    paid_amount: order.paid_amount,
+                    balance_amount: order.balance_amount,
+                    shipping_address: order.shipping_address,
+                    billing_address: order.billing_address,
+                    notes: order.notes,
+                    created_by: order.created_by,
+                    approved_by: order.approved_by,
+                    approved_at: order.approved_at,
+                    created_at: order.created_at,
+                    updated_at: order.updated_at,
+                    items: item_details,
+                });
+            }
         }
 
         Ok(PaginatedResponse::new(
@@ -83,35 +179,95 @@ impl SalesService {
 
     /// 获取销售订单详情（包含明细项）
     pub async fn get_order_detail(&self, order_id: i32) -> Result<SalesOrderDetail, AppError> {
-        let mut order = SalesOrderEntity::find_by_id(order_id)
-            .column_as(
-                crate::models::customer::Column::CustomerName,
-                "customer_name",
-            )
-            .join(
-                sea_orm::JoinType::LeftJoin,
-                sales_order::Relation::Customer.def(),
-            )
-            .into_model::<SalesOrderDetail>()
+        let order = SalesOrderEntity::find_by_id(order_id)
             .one(&*self.db)
             .await?
             .ok_or_else(|| AppError::not_found(format!("销售订单 {} 未找到", order_id)))?;
 
-        let items = SalesOrderItemEntity::find()
-            .column_as(product::Column::Code, "product_code")
-            .column_as(product::Column::Name, "product_name")
-            .join(
-                sea_orm::JoinType::LeftJoin,
-                sales_order_item::Relation::Product.def(),
-            )
-            .filter(sales_order_item::Column::OrderId.eq(order_id))
+        let customer = order
+            .find_related(crate::models::customer::Entity)
+            .one(&*self.db)
+            .await?;
+
+        let items = order
+            .find_related(sales_order_item::Entity)
             .order_by(sales_order_item::Column::Id, Order::Asc)
-            .into_model::<SalesOrderItemDetail>()
             .all(&*self.db)
             .await?;
 
-        order.items = items;
-        Ok(order)
+        let products = items
+            .load_one(crate::models::product::Entity, &*self.db)
+            .await?;
+
+        let mut item_details = Vec::with_capacity(items.len());
+        for (i, item) in items.into_iter().enumerate() {
+            let product = products[i].as_ref();
+            item_details.push(SalesOrderItemDetail {
+                id: item.id,
+                order_id: item.order_id,
+                product_id: item.product_id,
+                product_code: product.map(|p| p.code.clone()),
+                product_name: product.map(|p| p.name.clone()),
+                quantity: item.quantity,
+                unit_price: item.unit_price,
+                discount_percent: item.discount_percent,
+                tax_percent: item.tax_percent,
+                subtotal: item.subtotal,
+                tax_amount: item.tax_amount,
+                discount_amount: item.discount_amount,
+                total_amount: item.total_amount,
+                shipped_quantity: item.shipped_quantity,
+                notes: item.notes,
+                created_at: item.created_at,
+                updated_at: item.updated_at,
+                color_no: item.color_no,
+                color_name: item.color_name,
+                pantone_code: item.pantone_code,
+                grade_required: item.grade_required,
+                quantity_meters: item.quantity_meters,
+                quantity_kg: item.quantity_kg,
+                gram_weight: item.gram_weight,
+                width: item.width,
+                paper_tube_weight: item.paper_tube_weight,
+                is_net_weight: item.is_net_weight,
+                batch_requirement: item.batch_requirement,
+                dye_lot_requirement: item.dye_lot_requirement,
+                base_price: item.base_price,
+                color_extra_cost: item.color_extra_cost,
+                grade_price_diff: item.grade_price_diff,
+                final_price: item.final_price,
+                shipped_quantity_meters: item.shipped_quantity_meters,
+                shipped_quantity_kg: item.shipped_quantity_kg,
+            });
+        }
+
+        Ok(SalesOrderDetail {
+            id: order.id,
+            order_no: order.order_no,
+            customer_id: order.customer_id,
+            customer_name: customer.map(|c| c.customer_name),
+            opportunity_id: order.opportunity_id,
+            order_date: order.order_date,
+            required_date: order.required_date,
+            ship_date: order.ship_date,
+            status: order.status,
+            subtotal: order.subtotal,
+            tax_amount: order.tax_amount,
+            discount_amount: order.discount_amount,
+            shipping_cost: order.shipping_cost,
+            total_amount: order.total_amount,
+            paid_amount: order.paid_amount,
+            balance_amount: order.balance_amount,
+            shipping_address: order.shipping_address,
+            billing_address: order.billing_address,
+            notes: order.notes,
+            created_by: order.created_by,
+            approved_by: order.approved_by,
+            approved_at: order.approved_at,
+            created_at: order.created_at,
+            updated_at: order.updated_at,
+            items: item_details,
+        })
     }
 
     /// 创建销售订单
