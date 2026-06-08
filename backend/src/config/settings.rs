@@ -7,7 +7,6 @@ pub struct AppSettings {
     pub server: ServerConfig,
     pub database: DatabaseConfig,
     pub auth: AuthConfig,
-    pub grpc: GrpcConfig,
     pub log: LogConfig,
     /// CORS 配置：使用字段级 `#[serde(default)]`，当 `cors` 段或任意
     /// 子字段缺失时，自动回退到 [`CorsConfig::default()`]，避免因
@@ -45,11 +44,6 @@ pub struct AuthConfig {
     pub token_expiry_hours: i64,
 }
 
-#[derive(Debug, Clone, Deserialize)]
-pub struct GrpcConfig {
-    pub host: String,
-    pub port: u16,
-}
 
 #[derive(Debug, Clone, Deserialize)]
 pub struct LogConfig {

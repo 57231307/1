@@ -1,7 +1,7 @@
 use crate::models::role;
 use chrono::{DateTime, Duration, Utc};
 use dashmap::DashMap;
-use once_cell::sync::Lazy;
+use std::sync::LazyLock;
 use sea_orm::{DatabaseConnection, EntityTrait};
 use tracing::warn;
 
@@ -26,7 +26,7 @@ impl AdminCacheEntry {
 }
 
 /// 管理员角色检查缓存：role_id -> (is_admin, expires_at)
-static ADMIN_ROLE_CACHE: Lazy<DashMap<i32, AdminCacheEntry>> = Lazy::new(DashMap::new);
+static ADMIN_ROLE_CACHE: LazyLock<DashMap<i32, AdminCacheEntry>> = LazyLock::new(DashMap::new);
 
 /// 管理员角色缓存TTL（5分钟）
 const ADMIN_CACHE_TTL_MINUTES: i64 = 5;

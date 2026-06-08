@@ -1,0 +1,78 @@
+version: '3.8'
+
+services:
+  db:
+    image: postgres:15-alpine
+    container_name: bingxi-db
+    environment:
+      POSTGRES_USER: bingxi
+      POSTGRES_PASSWORD: bingxi_password
+      POSTGRES_DB: bingxi
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U bingxi -d bingxi"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  redis:
+    image: redis:7-alpine
+    container_name: bingxi-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redisdata:/data
+    restart: unless-stopped
+
+  backend:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    container_name: bingxi-backend
+    environment:
+      # Database Config
+      - DATABASE__HOST=db
+      - DATABASE__PORT=5432
+      - DATABASE__USERNAME=bingxi
+      - DATABASE_PASSWORD=bingxi_password
+      - DATABASE__NAME=bingxi
+      # Redis Config
+      - REDIS__URL=redis://redis:6379/0
+      - REDIS__MAX_CONNECTIONS=10
+      # Auth Config
+      - JWT_SECRET=change-me-to-a-secure-secret-in-production-at-least-32-bytes
+      - COOKIE_SECRET=change-me-to-a-secure-secret-in-production-at-least-32-bytes
+      - AUDIT_SECRET_KEY=change-me-to-a-secure-secret-in-production-at-least-32-bytes
+      # Server Config
+      - SERVER__HOST=0.0.0.0
+      - SERVER__PORT=8082
+      - GRPC__HOST=0.0.0.0
+      - GRPC__PORT=50051
+    ports:
+      - "8082:8082"
+      - "50051:50051"
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_started
+    restart: unless-stopped
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: bingxi-frontend
+    ports:
+      - "80:80"
+    depends_on:
+      - backend
+    restart: unless-stopped
+
+volumes:
+  pgdata:
+  redisdata:

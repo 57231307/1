@@ -3,7 +3,7 @@ use crate::utils::app_state::AppState;
 use crate::utils::error::AppError;
 use axum::{body::Body, extract::State, http::Request, middleware::Next, response::Response};
 use dashmap::DashMap;
-use once_cell::sync::Lazy;
+use std::sync::LazyLock;
 use std::net::SocketAddr;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
@@ -111,10 +111,10 @@ impl MemoryRateLimiter {
 }
 
 // 全局内存限流器实例（回退使用）
-static GLOBAL_LIMITER: Lazy<MemoryRateLimiter> =
-    Lazy::new(|| MemoryRateLimiter::new(180, Duration::from_secs(60)));
-static BRUTE_FORCE_LIMITER: Lazy<MemoryRateLimiter> =
-    Lazy::new(|| MemoryRateLimiter::new(5, Duration::from_secs(300)));
+static GLOBAL_LIMITER: LazyLock<MemoryRateLimiter> =
+    LazyLock::new(|| MemoryRateLimiter::new(180, Duration::from_secs(60)));
+static BRUTE_FORCE_LIMITER: LazyLock<MemoryRateLimiter> =
+    LazyLock::new(|| MemoryRateLimiter::new(5, Duration::from_secs(300)));
 
 // =====================================================
 // 中间件

@@ -130,7 +130,7 @@ fn method_to_action(method: &Method) -> String {
 }
 
 use dashmap::DashMap;
-use once_cell::sync::Lazy;
+use std::sync::LazyLock;
 
 /// 缓存项，包含数据和过期时间
 #[derive(Clone)]
@@ -154,8 +154,8 @@ impl<T: Clone> CacheEntry<T> {
 
 // Cache: role_id -> CacheEntry<Arc<Vec<role_permission::Model>>>
 // 使用 Arc 包装，克隆时只增加引用计数，不复制数据
-static PERMISSION_CACHE: Lazy<DashMap<i32, CacheEntry<Arc<Vec<role_permission::Model>>>>> =
-    Lazy::new(DashMap::new);
+static PERMISSION_CACHE: LazyLock<DashMap<i32, CacheEntry<Arc<Vec<role_permission::Model>>>>> =
+    LazyLock::new(DashMap::new);
 
 /// 权限缓存TTL（5分钟）
 const PERMISSION_CACHE_TTL: i64 = 5;

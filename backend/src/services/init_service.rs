@@ -177,71 +177,13 @@ impl InitService {
     }
 
     async fn run_migrations(&self) -> Result<(), InitError> {
-        use sea_orm::ConnectionTrait;
-        use std::path::PathBuf;
-        use tracing::{info, warn};
+        use migration::{Migrator, MigratorTrait};
+        use tracing::info;
 
-        let possible_paths = [
-            PathBuf::from("database/migration"),
-            PathBuf::from("../database/migration"),
-            PathBuf::from(
-                std::env::var("MIGRATION_DIR")
-                    .unwrap_or_else(|_| "/opt/bingxi-erp/database/migration".to_string()),
-            ),
-            PathBuf::from("/opt/bingxi/database/migration"),
-        ];
-
-        let mut migration_dir = None;
-        for path in &possible_paths {
-            if path.exists() && path.is_dir() {
-                migration_dir = Some(path.clone());
-                break;
-            }
-        }
-
-        let migration_dir = match migration_dir {
-            Some(dir) => dir,
-            None => {
-                warn!("未找到数据库迁移脚本目录，跳过自动建表");
-                return Ok(());
-            }
-        };
-
-        info!("找到迁移脚本目录: {:?}", migration_dir);
-        let mut entries: Vec<_> = std::fs::read_dir(&migration_dir)
-            .map_err(|e| InitError::DatabaseError(format!("读取迁移目录失败: {}", e)))?
-            .filter_map(Result::ok)
-            .collect();
-
-        // 确保按文件名排序执行
-        entries.sort_by_key(|e| e.path());
-
-        for entry in entries {
-            let path = entry.path();
-            if path.extension().and_then(|s| s.to_str()) == Some("sql") {
-                let file_name = path.file_name().unwrap_or_default();
-                info!("准备执行数据库迁移脚本: {:?}", file_name);
-                let sql = std::fs::read_to_string(&path).map_err(|e| {
-                    InitError::DatabaseError(format!("读取SQL文件失败 {:?}: {}", path, e))
-                })?;
-
-                // 跳过空的SQL文件
-                if sql.trim().is_empty() {
-                    continue;
-                }
-
-                let _backend = self.db.get_database_backend();
-
-                // sqlx/sea-orm backend with prepared statements doesn't support multiple commands in one query
-                // but we can use execute_unprepared which sends the raw SQL query to the database.
-                // This supports multiple statements separated by semicolons and correctly handles PL/pgSQL functions with $$ quotes.
-                self.db.execute_unprepared(&sql).await.map_err(|e| {
-                    InitError::DatabaseError(format!("执行SQL脚本 {:?} 失败: {}", file_name, e))
-                })?;
-
-                info!("成功执行脚本: {:?}", file_name);
-            }
-        }
+        info!("开始执行数据库迁移...");
+        Migrator::up(self.db.as_ref(), None).await.map_err(|e| {
+            InitError::DatabaseError(format!("执行数据库迁移失败: {}", e))
+        })?;
 
         info!("所有数据库迁移脚本执行完成");
         Ok(())

@@ -186,14 +186,14 @@ impl SalesService {
         // 使用信用服务检查额度
         let credit_service =
             crate::services::customer_credit_service::CustomerCreditService::new(self.db.clone());
-        let order_amount_bigdecimal = {
-            use bigdecimal::BigDecimal;
-            BigDecimal::parse_bytes(order_amount.to_string().as_bytes(), 10)
-                .unwrap_or_else(|| BigDecimal::from(0))
+        let order_amount_decimal = {
+            use rust_decimal::Decimal;
+            order_amount.to_string().parse::<rust_decimal::Decimal>()
+                .unwrap_or_else(|_| Decimal::from(0))
         };
 
         let credit_available = credit_service
-            .check_credit_available(request.customer_id, order_amount_bigdecimal.clone())
+            .check_credit_available(request.customer_id, order_amount_decimal.clone())
             .await
             .map_err(|e| AppError::business(format!("信用检查失败: {}", e)))?;
 
@@ -379,15 +379,15 @@ impl SalesService {
         // 占用信用额度
         let credit_service =
             crate::services::customer_credit_service::CustomerCreditService::new(self.db.clone());
-        let order_amount_bigdecimal = {
-            use bigdecimal::BigDecimal;
-            BigDecimal::parse_bytes(order_amount.to_string().as_bytes(), 10)
-                .unwrap_or_else(|| BigDecimal::from(0))
+        let order_amount_decimal = {
+            use rust_decimal::Decimal;
+            order_amount.to_string().parse::<rust_decimal::Decimal>()
+                .unwrap_or_else(|_| Decimal::from(0))
         };
         credit_service
             .occupy_credit(
                 request.customer_id,
-                order_amount_bigdecimal.clone(),
+                order_amount_decimal.clone(),
                 user_id,
             )
             .await
@@ -742,13 +742,13 @@ impl SalesService {
         // 客户信用度复检
         let credit_service =
             crate::services::customer_credit_service::CustomerCreditService::new(self.db.clone());
-        let total_amount_bigdecimal = {
-            use bigdecimal::BigDecimal;
-            BigDecimal::parse_bytes(order.total_amount.to_string().as_bytes(), 10)
-                .unwrap_or_else(|| BigDecimal::from(0))
+        let total_amount_decimal = {
+            use rust_decimal::Decimal;
+            order.total_amount.to_string().parse::<rust_decimal::Decimal>()
+                .unwrap_or_else(|_| Decimal::from(0))
         };
         let credit_available = credit_service
-            .check_credit_available(order.customer_id, total_amount_bigdecimal)
+            .check_credit_available(order.customer_id, total_amount_decimal)
             .await
             .map_err(|e| AppError::business(format!("信用检查失败: {}", e)))?;
         if !credit_available {

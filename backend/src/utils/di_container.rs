@@ -156,8 +156,8 @@ impl Default for DIContainer {
 }
 
 /// Global DI container instance
-pub static GLOBAL_CONTAINER: once_cell::sync::Lazy<DIContainer> =
-    once_cell::sync::Lazy::new(DIContainer::new);
+pub static GLOBAL_CONTAINER: std::sync::LazyLock<DIContainer> =
+    std::sync::LazyLock::new(DIContainer::new);
 
 /// Register a service in the global container
 pub fn register<T: Any + Send + Sync>(instance: Arc<T>) {

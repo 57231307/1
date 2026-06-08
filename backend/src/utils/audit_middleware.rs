@@ -6,7 +6,6 @@ use sea_orm::{
 use serde::{de::DeserializeOwned, Serialize};
 use std::sync::Arc;
 
-#[async_trait::async_trait]
 pub trait AuditUpdateTrait<E, M, A>
 where
     E: EntityTrait<Model = M>,

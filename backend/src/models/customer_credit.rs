@@ -1,7 +1,7 @@
 #![allow(dead_code)]
 
 //! 客户信用 Entity
-use bigdecimal::BigDecimal;
+use rust_decimal::Decimal;
 use chrono::{DateTime, NaiveDate, Utc};
 use sea_orm::entity::prelude::*;
 use serde::{Deserialize, Serialize};
@@ -15,9 +15,9 @@ pub struct Model {
     pub customer_name: Option<String>,
     pub credit_level: Option<String>,
     pub credit_score: Option<i32>,
-    pub credit_limit: BigDecimal,
-    pub used_credit: BigDecimal,
-    pub available_credit: BigDecimal,
+    pub credit_limit: Decimal,
+    pub used_credit: Decimal,
+    pub available_credit: Decimal,
     pub credit_days: Option<i32>,
     pub last_assessment_date: Option<NaiveDate>,
     pub next_assessment_date: Option<NaiveDate>,

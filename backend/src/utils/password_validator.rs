@@ -1,6 +1,6 @@
 #![allow(dead_code)]
 
-use once_cell::sync::Lazy;
+use std::sync::LazyLock;
 use regex::Regex;
 
 #[derive(Debug, Clone, PartialEq)]
@@ -103,9 +103,9 @@ impl PasswordPolicy {
     }
 }
 
-static RE_UPPERCASE: Lazy<Regex> = Lazy::new(|| Regex::new(r"[A-Z]").unwrap());
-static RE_LOWERCASE: Lazy<Regex> = Lazy::new(|| Regex::new(r"[a-z]").unwrap());
-static RE_DIGIT: Lazy<Regex> = Lazy::new(|| Regex::new(r"[0-9]").unwrap());
+static RE_UPPERCASE: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"[A-Z]").unwrap());
+static RE_LOWERCASE: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"[a-z]").unwrap());
+static RE_DIGIT: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"[0-9]").unwrap());
 
 fn has_special_char(password: &str) -> bool {
     password.chars().any(|c| !c.is_alphanumeric())

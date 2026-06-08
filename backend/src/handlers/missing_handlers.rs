@@ -17,7 +17,7 @@ use axum::{
     Json,
 };
 use chrono::{DateTime, TimeZone, Utc};
-use once_cell::sync::Lazy;
+use std::sync::LazyLock;
 use sea_orm::{
     ActiveModelTrait, ColumnTrait, EntityTrait, PaginatorTrait, QueryFilter, QueryOrder, Set,
 };
@@ -416,7 +416,7 @@ pub struct RecycleRule {
 }
 
 /// 全局内存存储：回收规则。后续可平滑迁移到 `crm_recycle_rules` 表。
-static RECYCLE_RULES: Lazy<RwLock<Vec<RecycleRule>>> = Lazy::new(|| {
+static RECYCLE_RULES: LazyLock<RwLock<Vec<RecycleRule>>> = LazyLock::new(|| {
     let initial = vec![
         RecycleRule {
             id: 1,
@@ -441,7 +441,7 @@ static RECYCLE_RULES: Lazy<RwLock<Vec<RecycleRule>>> = Lazy::new(|| {
 });
 
 /// 全局自增 ID
-static RECYCLE_RULE_NEXT_ID: Lazy<RwLock<i32>> = Lazy::new(|| RwLock::new(4));
+static RECYCLE_RULE_NEXT_ID: LazyLock<RwLock<i32>> = LazyLock::new(|| RwLock::new(4));
 
 /// 获取回收规则列表
 pub async fn get_recycle_rules(

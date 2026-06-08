@@ -1,6 +1,5 @@
 mod config;
 mod docs;
-mod grpc;
 mod handlers;
 mod middleware;
 mod models;
@@ -226,7 +225,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         "服务器地址：{}:{}",
         settings.server.host, settings.server.port
     );
-    info!("gRPC 地址：{}:{}", settings.grpc.host, settings.grpc.port);
     info!("日志目录：{}", settings.log.dir);
 
     let allowed_origins = settings.cors.allowed_origins.clone();
@@ -270,7 +268,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let db_result = Database::connect(db_opts).await;
 
-    let (app, grpc_db_opt) = match db_result {
+    let app = match db_result {
         Ok(db) => {
             info!("数据库连接成功，启动完整模式");
 
@@ -303,7 +301,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 tracing::warn!("配置警告: 用于 Cookie 加密的密钥长度不足 32 字节。系统将自动进行补齐以启动服务，但请在生产环境中配置至少 32 字节的强密钥！");
             }
             let db = Arc::new(db);
-            let grpc_db = db.clone();
+            
             let omni_audit = Arc::new(crate::services::omni_audit_service::OmniAuditEngine::new(
                 db.clone(),
             )?);
@@ -424,14 +422,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                     HeaderValue::from_static("geolocation=(), microphone=(), camera=()"),
                 ))
                 .layer(axum::middleware::from_fn(crate::middleware::timeout::timeout_middleware));
-            (app, Some(grpc_db))
+            app
         }
         Err(e) => {
             info!("数据库连接失败: {}", e);
             info!("启动初始化模式，提供数据库配置API");
 
-            (
-                create_init_router()
+            create_init_router()
                     .layer(
                         TraceLayer::new_for_http()
                             .on_request(|request: &Request<_>, _span: &Span| {
@@ -479,9 +476,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                     .layer(SetResponseHeaderLayer::overriding(
                         axum::http::header::HeaderName::from_static("permissions-policy"),
                         HeaderValue::from_static("geolocation=(), microphone=(), camera=()"),
-                    )),
-                None,
-            )
+                    ))
+                
         }
     };
 
@@ -489,60 +485,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         format!("{}:{}", settings.server.host, settings.server.port).parse()?;
     info!("HTTP 服务器监听地址：{}", http_addr);
 
-    // 启动gRPC服务（如果数据库连接成功）
-    let grpc_handle = if let Some(grpc_db) = grpc_db_opt {
-        let grpc_addr: SocketAddr =
-            format!("{}:{}", settings.grpc.host, settings.grpc.port).parse()?;
-        let grpc_jwt_secret = settings.auth.jwt_secret.clone();
-
-        // 预先检查端口是否可用，提供更清晰的错误信息
-        match tokio::net::TcpListener::bind(grpc_addr).await {
-            Ok(listener) => {
-                let bound_addr = listener.local_addr()?;
-                drop(listener); // 释放端口，让 gRPC 服务器使用
-
-                Some(tokio::spawn(async move {
-                    let user_service = crate::grpc::service::GrpcUserService::new(
-                        grpc_db.clone(),
-                        grpc_jwt_secret.clone(),
-                    );
-                    let management_services =
-                        crate::grpc::management_services::GrpcManagementServices::new(
-                            grpc_db.clone(),
-                        );
-
-                    let grpc_server = tonic::transport::Server::builder()
-                        .add_service(crate::grpc::service::proto::user_service_server::UserServiceServer::new(user_service.clone()))
-                        .add_service(crate::grpc::service::proto::auth_service_server::AuthServiceServer::new(user_service))
-                        .add_service(crate::grpc::service::proto::purchase_contract_service_server::PurchaseContractServiceServer::new(management_services.clone()))
-                        .add_service(crate::grpc::service::proto::sales_contract_service_server::SalesContractServiceServer::new(management_services.clone()))
-                        .add_service(crate::grpc::service::proto::fixed_asset_service_server::FixedAssetServiceServer::new(management_services.clone()))
-                        .add_service(crate::grpc::service::proto::budget_management_service_server::BudgetManagementServiceServer::new(management_services));
-
-                    info!("gRPC 服务器监听地址：{}", bound_addr);
-                    if let Err(e) = grpc_server.serve(bound_addr).await {
-                        warn!("gRPC 服务器运行错误: {} (地址: {})", e, bound_addr);
-                    }
-                }))
-            }
-            Err(e) => {
-                warn!("gRPC 端口 {} 不可用: {}，跳过 gRPC 服务启动", grpc_addr, e);
-                None
-            }
-        }
-    } else {
-        info!("数据库未连接，跳过gRPC服务启动");
-        None
-    };
-
     info!("===========================================");
     info!("系统启动完成，等待请求...");
     info!("HTTP 地址: {}", http_addr);
-    if grpc_handle.is_some() {
-        info!("gRPC 服务: 已启用");
-    } else {
-        info!("gRPC 服务: 未启用");
-    }
     info!("===========================================");
 
     let http_server = axum::serve(tokio::net::TcpListener::bind(http_addr).await?, app)
@@ -550,21 +495,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             shutdown_signal().await;
         });
 
-    if let Some(grpc) = grpc_handle {
-        tokio::select! {
-            result = http_server => {
-                if let Err(e) = result {
-                    warn!("HTTP 服务器错误: {}", e);
-                }
-            }
-            _ = grpc => {
-                info!("gRPC 服务器已关闭");
-            }
-        }
-    } else {
-        if let Err(e) = http_server.await {
-            warn!("HTTP 服务器错误: {}", e);
-        }
+    if let Err(e) = http_server.await {
+        warn!("HTTP 服务器错误: {}", e);
     }
 
     Ok(())

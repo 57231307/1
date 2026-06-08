@@ -1,7 +1,7 @@
 #![allow(dead_code)]
 use crate::models::customer_credit;
 use crate::utils::error::AppError;
-use bigdecimal::BigDecimal;
+use rust_decimal::Decimal;
 use chrono::NaiveDate;
 use sea_orm::{
     ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, Order, PaginatorTrait,
@@ -17,7 +17,7 @@ pub struct CreditEvaluationResult {
     pub customer_name: String,
     pub credit_score: i32,
     pub credit_rating: String,
-    pub recommended_limit: BigDecimal,
+    pub recommended_limit: Decimal,
     pub evaluation_factors: Vec<EvaluationFactor>,
     pub evaluation_date: String,
 }
@@ -47,7 +47,7 @@ pub struct CreditRatingRequest {
     pub customer_id: i32,
     pub credit_level: Option<String>,
     pub credit_score: Option<i32>,
-    pub credit_limit: BigDecimal,
+    pub credit_limit: Decimal,
     pub credit_days: Option<i32>,
     pub remark: Option<String>,
 }
@@ -57,7 +57,7 @@ pub struct CreditRatingRequest {
 pub struct CreditLimitAdjustmentRequest {
     pub customer_id: i32,
     pub adjustment_type: String,
-    pub amount: BigDecimal,
+    pub amount: Decimal,
     pub reason: String,
 }
 
@@ -156,7 +156,7 @@ impl CustomerCreditService {
                     customer_id: Set(req.customer_id),
                     credit_level: Set(req.credit_level.or(Some("B".to_string()))),
                     credit_score: Set(req.credit_score.or(Some(60))),
-                    used_credit: Set(BigDecimal::from(0)),
+                    used_credit: Set(Decimal::from(0)),
                     available_credit: Set(req.credit_limit.clone()),
                     credit_limit: Set(req.credit_limit),
                     credit_days: Set(req.credit_days.or(Some(30))),
@@ -178,7 +178,7 @@ impl CustomerCreditService {
     pub async fn occupy_credit(
         &self,
         customer_id: i32,
-        amount: BigDecimal,
+        amount: Decimal,
         user_id: i32,
     ) -> Result<(), AppError> {
         info!(
@@ -228,7 +228,7 @@ impl CustomerCreditService {
     pub async fn release_credit(
         &self,
         customer_id: i32,
-        amount: BigDecimal,
+        amount: Decimal,
         user_id: i32,
     ) -> Result<(), AppError> {
         info!(
@@ -329,7 +329,7 @@ impl CustomerCreditService {
     pub async fn check_credit_available(
         &self,
         customer_id: i32,
-        order_amount: BigDecimal,
+        order_amount: Decimal,
     ) -> Result<bool, AppError> {
         let credit = match self.get_by_customer_id(customer_id).await? {
             Some(c) => c,
@@ -350,15 +350,15 @@ impl CustomerCreditService {
             None => return Ok(None),
         };
 
-        if credit.credit_limit <= 0 {
+        if credit.credit_limit <= rust_decimal::Decimal::ZERO {
             return Ok(None);
         }
 
         let usage_rate = credit.used_credit.clone() / credit.credit_limit.clone();
-        let warning_threshold = BigDecimal::from(80) / BigDecimal::from(100);
+        let warning_threshold = Decimal::from(80) / Decimal::from(100);
 
         if usage_rate >= warning_threshold {
-            let usage_percent = (usage_rate * BigDecimal::from(100))
+            let usage_percent = (usage_rate * Decimal::from(100))
                 .to_string()
                 .parse::<f64>()
                 .unwrap_or(0.0);
@@ -384,7 +384,7 @@ impl CustomerCreditService {
             .await?
             .ok_or_else(|| AppError::not_found(format!("客户 {} 的信用评级不存在", customer_id)))?;
 
-        if credit.used_credit > 0 {
+        if credit.used_credit > rust_decimal::Decimal::ZERO {
             return Err(AppError::validation(
                 "客户仍有占用额度，无法停用".to_string(),
             ));
@@ -602,26 +602,26 @@ impl CustomerCreditService {
         }
 
         // 计算年度订单总额
-        let total_amount: BigDecimal = orders
+        let total_amount: Decimal = orders
             .iter()
             .map(|o| {
                 let s = o.total_amount.to_string();
-                BigDecimal::parse_bytes(s.as_bytes(), 10).unwrap_or_else(|| BigDecimal::from(0))
+                s.parse::<rust_decimal::Decimal>().unwrap_or_else(|_| rust_decimal::Decimal::from(0))
             })
-            .fold(BigDecimal::from(0), |acc, x| acc + x);
+            .fold(Decimal::from(0), |acc, x| acc + x);
 
         // 根据订单总额计算分数（直接使用 Decimal 比较，避免精度损失）
-        let score = if total_amount >= 1000000 {
+        let score = if total_amount >= rust_decimal::Decimal::from(1000000) {
             95 // 100万以上
-        } else if total_amount >= 500000 {
+        } else if total_amount >= rust_decimal::Decimal::from(500000) {
             90 // 50-100万
-        } else if total_amount >= 200000 {
+        } else if total_amount >= rust_decimal::Decimal::from(200000) {
             85 // 20-50万
-        } else if total_amount >= 100000 {
+        } else if total_amount >= rust_decimal::Decimal::from(100000) {
             80 // 10-20万
-        } else if total_amount >= 50000 {
+        } else if total_amount >= rust_decimal::Decimal::from(50000) {
             75 // 5-10万
-        } else if total_amount >= 10000 {
+        } else if total_amount >= rust_decimal::Decimal::from(10000) {
             65 // 1-5万
         } else {
             55 // 1万以下
@@ -646,9 +646,9 @@ impl CustomerCreditService {
             let limit = credit.credit_limit.clone();
 
             // 使用率超过90%视为高风险
-            if limit > 0 {
+            if limit > rust_decimal::Decimal::ZERO {
                 let usage_rate = used / limit;
-                if usage_rate > BigDecimal::from(90) / BigDecimal::from(100) {
+                if usage_rate > Decimal::from(90) / Decimal::from(100) {
                     has_overdue = true;
                 }
             }
@@ -675,7 +675,7 @@ impl CustomerCreditService {
     }
 
     /// 计算信用等级和推荐额度
-    fn calculate_rating_and_limit(&self, score: i32) -> (String, BigDecimal) {
+    fn calculate_rating_and_limit(&self, score: i32) -> (String, Decimal) {
         let (rating, limit) = if score >= 90 {
             ("AAA", 1000000)
         } else if score >= 80 {
@@ -689,7 +689,7 @@ impl CustomerCreditService {
         } else {
             ("B", 10000)
         };
-        (rating.to_string(), BigDecimal::from(limit))
+        (rating.to_string(), Decimal::from(limit))
     }
 }
 
@@ -710,9 +710,9 @@ mod tests {
             customer_name: Some("测试客户".to_string()),
             credit_level: Some(credit_level.to_string()),
             credit_score: Some(80),
-            credit_limit: BigDecimal::from(100000),
-            used_credit: BigDecimal::from(0),
-            available_credit: BigDecimal::from(100000),
+            credit_limit: Decimal::from(100000),
+            used_credit: Decimal::from(0),
+            available_credit: Decimal::from(100000),
             credit_days: Some(30),
             last_assessment_date: Some(NaiveDate::from_ymd_opt(2024, 1, 1).unwrap()),
             next_assessment_date: Some(NaiveDate::from_ymd_opt(2025, 1, 1).unwrap()),
@@ -903,9 +903,9 @@ mod tests {
         assert_eq!(model.customer_id, 1);
         assert_eq!(model.credit_level, Some("AA".to_string()));
         assert_eq!(model.status, "active");
-        assert_eq!(model.credit_limit, BigDecimal::from(100000));
-        assert_eq!(model.used_credit, BigDecimal::from(0));
-        assert_eq!(model.available_credit, BigDecimal::from(100000));
+        assert_eq!(model.credit_limit, Decimal::from(100000));
+        assert_eq!(model.used_credit, Decimal::from(0));
+        assert_eq!(model.available_credit, Decimal::from(100000));
     }
 
     #[test]
@@ -914,11 +914,11 @@ mod tests {
 
         // 使用率 = 已用额度 / 总额度
         let utilization = model.used_credit.clone() / model.credit_limit.clone();
-        assert_eq!(utilization, BigDecimal::from(0));
+        assert_eq!(utilization, Decimal::from(0));
 
         // 模拟使用 50000
-        let used = BigDecimal::from(50000);
+        let used = Decimal::from(50000);
         let utilization = used / model.credit_limit.clone();
-        assert_eq!(utilization, BigDecimal::try_from(0.5).unwrap());
+        assert_eq!(utilization, Decimal::try_from(0.5).unwrap());
     }
 }

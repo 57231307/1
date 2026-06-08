@@ -1,5 +1,5 @@
 #![allow(dead_code)]
-use once_cell::sync::Lazy;
+use std::sync::LazyLock;
 use sea_orm;
 use sea_orm::{ColumnTrait, EntityTrait, QueryFilter};
 use std::sync::Arc;
@@ -88,7 +88,7 @@ pub enum BusinessEvent {
     },
 }
 
-pub static EVENT_BUS: Lazy<EventBus> = Lazy::new(EventBus::new);
+pub static EVENT_BUS: LazyLock<EventBus> = LazyLock::new(EventBus::new);
 
 pub struct EventBus {
     sender: broadcast::Sender<BusinessEvent>,
