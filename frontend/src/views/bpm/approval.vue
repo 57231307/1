@@ -92,16 +92,16 @@
             </el-table-column>
             <el-table-column label="操作" width="220" fixed="right">
               <template #default="{ row }">
-                <el-button type="primary" link size="small" @click="handleApprove(row)"
+                <el-button type="primary" link size="small" @click="handleApprove(row as any)"
                   >同意</el-button
                 >
-                <el-button type="danger" link size="small" @click="handleReject(row)"
+                <el-button type="danger" link size="small" @click="handleReject(row as any)"
                   >拒绝</el-button
                 >
-                <el-button type="warning" link size="small" @click="handleTransfer(row)"
+                <el-button type="warning" link size="small" @click="handleTransfer(row as any)"
                   >转交</el-button
                 >
-                <el-button type="info" link size="small" @click="handleViewChain(row)"
+                <el-button type="info" link size="small" @click="handleViewChain(row as any)"
                   >审批链</el-button
                 >
               </template>
@@ -144,7 +144,7 @@
             />
             <el-table-column label="操作" width="120">
               <template #default="{ row }">
-                <el-button type="info" link size="small" @click="handleViewChain(row)"
+                <el-button type="info" link size="small" @click="handleViewChain(row as any)"
                   >审批链</el-button
                 >
               </template>

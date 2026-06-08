@@ -107,12 +107,12 @@
         <el-table-column prop="reason" label="退货原因" min-width="150" show-overflow-tooltip />
         <el-table-column label="操作" width="250" fixed="right">
           <template #default="{ row }">
-            <el-button size="small" @click="handleView(row)">查看</el-button>
+            <el-button size="small" @click="handleView(row as any)">查看</el-button>
             <el-button
               v-if="row.status === 'draft'"
               size="small"
               type="primary"
-              @click="handleEdit(row)"
+              @click="handleEdit(row as any)"
             >
               编辑
             </el-button>
@@ -120,7 +120,7 @@
               v-if="row.status === 'draft'"
               size="small"
               type="warning"
-              @click="handleSubmit(row)"
+              @click="handleSubmit(row as any)"
             >
               提交
             </el-button>
@@ -128,7 +128,7 @@
               v-if="row.status === 'pending'"
               size="small"
               type="success"
-              @click="handleApprove(row)"
+              @click="handleApprove(row as any)"
             >
               审批
             </el-button>
@@ -136,7 +136,7 @@
               v-if="row.status === 'draft'"
               size="small"
               type="danger"
-              @click="handleDelete(row)"
+              @click="handleDelete(row as any)"
             >
               删除
             </el-button>
@@ -272,8 +272,8 @@
           <span class="amount">¥{{ detailData.totalAmount || 0 }}</span>
         </el-descriptions-item>
         <el-descriptions-item label="状态">
-          <el-tag :type="getStatusType(detailData.status)">
-            {{ getStatusText(detailData.status) }}
+          <el-tag :type="getStatusType(detailData.status || '')">
+            {{ getStatusText(detailData.status || '') }}
           </el-tag>
         </el-descriptions-item>
         <el-descriptions-item label="退货原因" :span="2">{{
@@ -316,7 +316,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, onMounted, computed } from 'vue'
+import { ref, reactive, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Plus } from '@element-plus/icons-vue'
 import { loadIfNot, createLazyLoader } from '@/utils/lazy-loader'
@@ -379,7 +379,7 @@ const formRules = {
 
 // 详情对话框
 const detailDialogVisible = ref(false)
-const detailData = ref<PurchaseReturn>({})
+const detailData = ref<PurchaseReturn>({} as PurchaseReturn)
 
 // 审批对话框
 const approveDialogVisible = ref(false)
@@ -529,10 +529,10 @@ const handleFormSubmit = async () => {
     await formRef.value?.validate()
     submitLoading.value = true
     if (isEdit.value && formData.id) {
-      await purchaseReturnApi.update(formData.id, formData)
+      await purchaseReturnApi.update(formData.id, formData as any)
       ElMessage.success('更新成功')
     } else {
-      await purchaseReturnApi.create(formData)
+      await purchaseReturnApi.create(formData as any)
       ElMessage.success('创建成功')
     }
     dialogVisible.value = false

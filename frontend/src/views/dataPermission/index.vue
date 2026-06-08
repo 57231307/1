@@ -44,8 +44,8 @@
             </el-table-column>
             <el-table-column label="操作" width="150">
               <template #default="{ row }">
-                <el-button link type="primary" @click="handleEditPermission(row)">编辑</el-button>
-                <el-button link type="danger" @click="handleDeletePermission(row)">删除</el-button>
+                <el-button link type="primary" @click="handleEditPermission(row as any)">编辑</el-button>
+                <el-button link type="danger" @click="handleDeletePermission(row as any)">删除</el-button>
               </template>
             </el-table-column>
           </el-table>

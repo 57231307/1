@@ -4,7 +4,7 @@
       <h2>邮件管理</h2>
     </div>
 
-    <el-tabs v-model="activeTab" type="border-card" @tab-change="(tab) => loadTab(tab, hasLoaded)">
+    <el-tabs v-model="activeTab" type="border-card" @tab-change="(tab: any) => loadTab(tab)">
       <!-- 邮件模板 Tab -->
       <el-tab-pane label="邮件模板" name="templates">
         <div class="tab-header">
@@ -32,8 +32,8 @@
           </el-table-column>
           <el-table-column label="操作" width="200" fixed="right">
             <template #default="{ row }">
-              <el-button size="small" @click="handleEditTemplate(row)">编辑</el-button>
-              <el-button size="small" type="danger" @click="handleDeleteTemplate(row)"
+              <el-button size="small" @click="handleEditTemplate(row as any)">编辑</el-button>
+              <el-button size="small" type="danger" @click="handleDeleteTemplate(row as any)"
                 >删除</el-button
               >
             </template>
@@ -254,16 +254,19 @@ onMounted(() => {
   initPage()
 })
 
-const loadTab = (tabName: string, loader: Record<string, () => void>) => {
-  loadIfNot(tabName, loader[tabName], hasLoaded)
-}
-
-const initPage = () => {
-  loadTab(activeTab.value, {
+const loadTab = (tabName: string) => {
+  const tabLoaders: Record<string, () => void> = {
     templates: fetchTemplates,
     records: fetchRecords,
     statistics: fetchStatistics,
-  })
+  }
+  if (tabLoaders[tabName]) {
+    loadIfNot(tabName, tabLoaders[tabName], hasLoaded)
+  }
+}
+
+const initPage = () => {
+  loadTab(activeTab.value as string)
 }
 
 const fetchTemplates = async () => {

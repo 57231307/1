@@ -151,9 +151,9 @@
         </el-table-column>
         <el-table-column label="操作" width="200" fixed="right">
           <template #default="{ row }">
-            <el-button type="primary" link size="small" @click="handleView(row)">详情</el-button>
-            <el-button type="primary" link size="small" @click="handleEdit(row)">编辑</el-button>
-            <el-button type="danger" link size="small" @click="handleDelete(row)">删除</el-button>
+            <el-button type="primary" link size="small" @click="handleView(row as any)">详情</el-button>
+            <el-button type="primary" link size="small" @click="handleEdit(row as any)">编辑</el-button>
+            <el-button type="danger" link size="small" @click="handleDelete(row as any)">删除</el-button>
           </template>
         </el-table-column>
       </el-table>
@@ -335,7 +335,7 @@
           <el-table-column prop="description" label="描述" />
           <el-table-column label="操作" width="120">
             <template #default="{ row }">
-              <el-button type="danger" link size="small" @click="handleDeleteCategory(row)">
+              <el-button type="danger" link size="small" @click="handleDeleteCategory(row as any)">
                 删除
               </el-button>
             </template>

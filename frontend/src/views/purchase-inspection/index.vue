@@ -122,12 +122,12 @@
         <el-table-column prop="remark" label="备注" min-width="150" show-overflow-tooltip />
         <el-table-column label="操作" width="200" fixed="right">
           <template #default="{ row }">
-            <el-button size="small" @click="handleView(row)">查看</el-button>
+            <el-button size="small" @click="handleView(row as any)">查看</el-button>
             <el-button
               v-if="row.status === 'draft' || row.status === 'pending'"
               size="small"
               type="primary"
-              @click="handleEdit(row)"
+              @click="handleEdit(row as any)"
             >
               编辑
             </el-button>
@@ -135,7 +135,7 @@
               v-if="row.status === 'pending'"
               size="small"
               type="success"
-              @click="handleComplete(row)"
+              @click="handleComplete(row as any)"
             >
               完成
             </el-button>
@@ -319,7 +319,7 @@ const formRules = {
 
 // 详情对话框
 const detailDialogVisible = ref(false)
-const detailData = ref<PurchaseInspection>({})
+const detailData = ref<PurchaseInspection>({} as PurchaseInspection)
 
 const hasLoaded = createLazyLoader()
 
@@ -441,10 +441,10 @@ const handleSubmit = async () => {
     await formRef.value?.validate()
     submitLoading.value = true
     if (isEdit.value && formData.id) {
-      await purchaseInspectionApi.update(formData.id, formData)
+      await purchaseInspectionApi.update(formData.id, formData as any)
       ElMessage.success('更新成功')
     } else {
-      await purchaseInspectionApi.create(formData)
+      await purchaseInspectionApi.create(formData as any)
       ElMessage.success('创建成功')
     }
     dialogVisible.value = false

@@ -108,12 +108,12 @@
         </el-table-column>
         <el-table-column label="操作" width="250" fixed="right">
           <template #default="{ row }">
-            <el-button size="small" @click="handleView(row)">查看</el-button>
+            <el-button size="small" @click="handleView(row as any)">查看</el-button>
             <el-button
               v-if="row.status === 'pending'"
               size="small"
               type="primary"
-              @click="handleEdit(row)"
+              @click="handleEdit(row as any)"
             >
               编辑
             </el-button>
@@ -121,7 +121,7 @@
               v-if="row.status === 'pending'"
               size="small"
               type="success"
-              @click="handleShip(row)"
+              @click="handleShip(row as any)"
             >
               发货
             </el-button>
@@ -129,7 +129,7 @@
               v-if="row.status === 'shipped' || row.status === 'in_transit'"
               size="small"
               type="warning"
-              @click="handleUpdateStatus(row)"
+              @click="handleUpdateStatus(row as any)"
             >
               更新状态
             </el-button>
@@ -137,7 +137,7 @@
               v-if="row.status === 'pending'"
               size="small"
               type="danger"
-              @click="handleDelete(row)"
+              @click="handleDelete(row as any)"
             >
               删除
             </el-button>
@@ -338,7 +338,7 @@ const formRules = {
 
 // 详情对话框
 const detailDialogVisible = ref(false)
-const detailData = ref<LogisticsWaybill>({})
+const detailData = ref<LogisticsWaybill>({} as LogisticsWaybill)
 
 // 状态更新对话框
 const statusDialogVisible = ref(false)

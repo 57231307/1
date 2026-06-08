@@ -163,10 +163,10 @@
             </el-table-column>
             <el-table-column label="操作" width="150" fixed="right">
               <template #default="{ row }">
-                <el-button type="primary" link size="small" @click="handleView(row)"
+                <el-button type="primary" link size="small" @click="handleView(row as any)"
                   >详情</el-button
                 >
-                <el-button type="warning" link size="small" @click="handleAdjust(row)"
+                <el-button type="warning" link size="small" @click="handleAdjust(row as any)"
                   >调整</el-button
                 >
               </template>
@@ -209,7 +209,7 @@
             </el-table-column>
             <el-table-column label="操作" width="100">
               <template #default="{ row }">
-                <el-button type="primary" link size="small" @click="handlePurchase(row)"
+                <el-button type="primary" link size="small" @click="handlePurchase(row as any)"
                   >采购</el-button
                 >
               </template>
@@ -242,7 +242,7 @@
             <el-table-column prop="created_at" label="创建时间" width="160" />
             <el-table-column label="操作" width="150">
               <template #default="{ row }">
-                <el-button type="primary" link size="small" @click="handleViewTransfer(row)"
+                <el-button type="primary" link size="small" @click="handleViewTransfer(row as any)"
                   >详情</el-button
                 >
                 <el-button
@@ -250,7 +250,7 @@
                   type="success"
                   link
                   size="small"
-                  @click="handleApproveTransfer(row)"
+                  @click="handleApproveTransfer(row as any)"
                   >审批</el-button
                 >
               </template>

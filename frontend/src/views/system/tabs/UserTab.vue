@@ -59,8 +59,8 @@
         <el-table-column prop="created_at" label="创建时间" width="160" />
         <el-table-column label="操作" width="150" fixed="right">
           <template #default="{ row }">
-            <el-button size="small" link @click="openUserDialog(row)">编辑</el-button>
-            <el-button size="small" link type="danger" @click="deleteUser(row)">删除</el-button>
+            <el-button size="small" link @click="openUserDialog(row as any)">编辑</el-button>
+            <el-button size="small" link type="danger" @click="deleteUser(row as any)">删除</el-button>
           </template>
         </el-table-column>
       </el-table>
@@ -122,8 +122,6 @@ import {
   type User,
 } from '@/api/user'
 
-defineExpose({ refresh: fetchUsers })
-
 const users = ref<User[]>([])
 const userTotal = ref(0)
 const userLoading = ref(false)
@@ -146,6 +144,8 @@ const fetchUsers = async () => {
     userLoading.value = false
   }
 }
+
+defineExpose({ refresh: fetchUsers })
 
 const resetUserQuery = () => {
   userQuery.keyword = ''

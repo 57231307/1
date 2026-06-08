@@ -1,6 +1,6 @@
 <template>
   <div class="purchase-ext-page">
-    <el-tabs v-model="activeTab" @tab-change="(tab) => loadTab(tab, hasLoaded)">
+    <el-tabs v-model="activeTab" @tab-change="(tab: any) => loadTab(tab)">
       <el-tab-pane label="采购合同" name="contract">
         <div class="page-header">
           <h2 class="page-title">采购合同管理</h2>
@@ -32,7 +32,7 @@
             <el-table-column prop="created_by_name" label="创建人" width="100" />
             <el-table-column label="操作" width="240" fixed="right">
               <template #default="{ row }">
-                <el-button type="primary" link size="small" @click="viewContract(row)"
+                <el-button type="primary" link size="small" @click="viewContract(row as any)"
                   >查看</el-button
                 >
                 <el-button
@@ -40,7 +40,7 @@
                   type="primary"
                   link
                   size="small"
-                  @click="openContractDialog(row)"
+                  @click="openContractDialog(row as any)"
                   >编辑</el-button
                 >
                 <el-button
@@ -48,7 +48,7 @@
                   type="success"
                   link
                   size="small"
-                  @click="approveContract(row)"
+                  @click="approveContract(row as any)"
                   >审批</el-button
                 >
                 <el-button
@@ -56,7 +56,7 @@
                   type="warning"
                   link
                   size="small"
-                  @click="executeContract(row)"
+                  @click="executeContract(row as any)"
                   >执行</el-button
                 >
                 <el-button
@@ -64,7 +64,7 @@
                   type="danger"
                   link
                   size="small"
-                  @click="cancelContract(row)"
+                  @click="cancelContract(row as any)"
                   >取消</el-button
                 >
               </template>
@@ -126,7 +126,7 @@
             </el-table-column>
             <el-table-column label="操作" width="180" fixed="right">
               <template #default="{ row }">
-                <el-button type="primary" link size="small" @click="openPriceDialog(row)"
+                <el-button type="primary" link size="small" @click="openPriceDialog(row as any)"
                   >编辑</el-button
                 >
               </template>
@@ -189,7 +189,7 @@
             <el-table-column prop="createdBy" label="创建人" width="100" />
             <el-table-column label="操作" width="180" fixed="right">
               <template #default="{ row }">
-                <el-button type="primary" link size="small" @click="viewReturn(row)"
+                <el-button type="primary" link size="small" @click="viewReturn(row as any)"
                   >查看</el-button
                 >
                 <el-button
@@ -197,7 +197,7 @@
                   type="primary"
                   link
                   size="small"
-                  @click="openReturnDialog(row)"
+                  @click="openReturnDialog(row as any)"
                   >编辑</el-button
                 >
               </template>
@@ -1106,16 +1106,20 @@ const removeReturnItem = (index: number) => {
 const returnViewVisible = ref(false)
 const currentReturn = ref<PurchaseReturn | null>(null)
 
-const loadTab = (tabName: string, loader: Record<string, () => void>) => {
-  loadIfNot(tabName, loader[tabName], hasLoaded)
+const tabLoaders: Record<string, () => void> = {
+  contract: fetchPurchaseContracts,
+  price: fetchPurchasePrices,
+  return: fetchPurchaseReturns,
+}
+
+const loadTab = (tabName: string) => {
+  if (tabLoaders[tabName]) {
+    loadIfNot(tabName, tabLoaders[tabName], hasLoaded)
+  }
 }
 
 const initPage = () => {
-  loadTab(activeTab.value, {
-    contract: fetchPurchaseContracts,
-    price: fetchPurchasePrices,
-    return: fetchPurchaseReturns,
-  })
+  loadTab(activeTab.value as string)
 }
 
 onMounted(() => {

@@ -1,6 +1,6 @@
 <template>
   <div class="finance-page">
-    <el-tabs v-model="activeTab" @tab-change="(tab) => loadTab(tab, hasLoaded)">
+    <el-tabs v-model="activeTab" @tab-change="(tab: any) => loadTab(tab)">
       <el-tab-pane label="科目管理" name="subject">
         <div class="page-header">
           <h2 class="page-title">会计科目</h2>
@@ -59,10 +59,10 @@
             </el-table-column>
             <el-table-column label="操作" width="150" fixed="right">
               <template #default="{ row }">
-                <el-button type="primary" link size="small" @click="openSubjectDialog(row)"
+                <el-button type="primary" link size="small" @click="openSubjectDialog(row as any)"
                   >编辑</el-button
                 >
-                <el-button type="danger" link size="small" @click="deleteSubject(row)"
+                <el-button type="danger" link size="small" @click="deleteSubject(row as any)"
                   >删除</el-button
                 >
               </template>
@@ -146,7 +146,7 @@
             <el-table-column prop="created_at" label="创建时间" width="160" />
             <el-table-column label="操作" width="200" fixed="right">
               <template #default="{ row }">
-                <el-button type="primary" link size="small" @click="viewVoucher(row)"
+                <el-button type="primary" link size="small" @click="viewVoucher(row as any)"
                   >查看</el-button
                 >
                 <el-button
@@ -154,7 +154,7 @@
                   type="primary"
                   link
                   size="small"
-                  @click="submitVoucher(row)"
+                  @click="submitVoucher(row as any)"
                   >提交</el-button
                 >
                 <el-button
@@ -162,7 +162,7 @@
                   type="success"
                   link
                   size="small"
-                  @click="reviewVoucher(row)"
+                  @click="reviewVoucher(row as any)"
                   >审核</el-button
                 >
                 <el-button
@@ -170,7 +170,7 @@
                   type="warning"
                   link
                   size="small"
-                  @click="postVoucher(row)"
+                  @click="postVoucher(row as any)"
                   >过账</el-button
                 >
               </template>
@@ -813,15 +813,19 @@ onMounted(() => {
   initPage()
 })
 
-const loadTab = (tabName: string, loader: Record<string, () => void>) => {
-  loadIfNot(tabName, loader[tabName], hasLoaded)
+const tabLoaders: Record<string, () => void> = {
+  subject: fetchSubjects,
+  voucher: fetchVouchers,
+}
+
+const loadTab = (tabName: string) => {
+  if (tabLoaders[tabName]) {
+    loadIfNot(tabName, tabLoaders[tabName], hasLoaded)
+  }
 }
 
 const initPage = () => {
-  loadTab(activeTab.value, {
-    subject: fetchSubjects,
-    voucher: fetchVouchers,
-  })
+  loadTab(activeTab.value as string)
 }
 </script>
 

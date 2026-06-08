@@ -108,13 +108,13 @@
         </el-table-column>
         <el-table-column label="操作" width="200" align="center" fixed="right">
           <template #default="{ row }">
-            <el-button type="primary" link size="small" @click="handleView(row)">查看</el-button>
+            <el-button type="primary" link size="small" @click="handleView(row as any)">查看</el-button>
             <el-button
               v-if="row.status === 'active'"
               type="primary"
               link
               size="small"
-              @click="handleEdit(row)"
+              @click="handleEdit(row as any)"
               >编辑</el-button
             >
             <el-button
@@ -122,10 +122,10 @@
               type="warning"
               link
               size="small"
-              @click="handleDisable(row)"
+              @click="handleDisable(row as any)"
               >停用</el-button
             >
-            <el-button type="info" link size="small" @click="handleHistory(row)">历史</el-button>
+            <el-button type="info" link size="small" @click="handleHistory(row as any)">历史</el-button>
           </template>
         </el-table-column>
       </el-table>

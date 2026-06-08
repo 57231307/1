@@ -27,7 +27,7 @@
             </el-table-column>
             <el-table-column label="操作" width="200" fixed="right">
               <template #default="{ row }">
-                <el-button type="primary" link size="small" @click="viewPurchaseContract(row)"
+                <el-button type="primary" link size="small" @click="viewPurchaseContract(row as any)"
                   >查看</el-button
                 >
                 <el-button
@@ -35,7 +35,7 @@
                   type="success"
                   link
                   size="small"
-                  @click="approvePurchaseContract(row)"
+                  @click="approvePurchaseContract(row as any)"
                   >审批</el-button
                 >
                 <el-button
@@ -43,10 +43,10 @@
                   type="warning"
                   link
                   size="small"
-                  @click="executePurchaseContract(row)"
+                  @click="executePurchaseContract(row as any)"
                   >执行</el-button
                 >
-                <el-button type="danger" link size="small" @click="deletePurchaseContract(row)"
+                <el-button type="danger" link size="small" @click="deletePurchaseContract(row as any)"
                   >删除</el-button
                 >
               </template>
@@ -84,10 +84,10 @@
             </el-table-column>
             <el-table-column label="操作" width="120">
               <template #default="{ row }">
-                <el-button type="primary" link size="small" @click="openPurchasePriceDialog(row)"
+                <el-button type="primary" link size="small" @click="openPurchasePriceDialog(row as any)"
                   >编辑</el-button
                 >
-                <el-button type="danger" link size="small" @click="deletePurchasePrice(row)"
+                <el-button type="danger" link size="small" @click="deletePurchasePrice(row as any)"
                   >删除</el-button
                 >
               </template>
@@ -122,7 +122,7 @@
             </el-table-column>
             <el-table-column label="操作" width="200" fixed="right">
               <template #default="{ row }">
-                <el-button type="primary" link size="small" @click="viewSalesContract(row)"
+                <el-button type="primary" link size="small" @click="viewSalesContract(row as any)"
                   >查看</el-button
                 >
                 <el-button
@@ -130,10 +130,10 @@
                   type="success"
                   link
                   size="small"
-                  @click="approveSalesContract(row)"
+                  @click="approveSalesContract(row as any)"
                   >审批</el-button
                 >
-                <el-button type="danger" link size="small" @click="deleteSalesContract(row)"
+                <el-button type="danger" link size="small" @click="deleteSalesContract(row as any)"
                   >删除</el-button
                 >
               </template>
@@ -170,10 +170,10 @@
             </el-table-column>
             <el-table-column label="操作" width="120">
               <template #default="{ row }">
-                <el-button type="primary" link size="small" @click="openSalesPriceDialog(row)"
+                <el-button type="primary" link size="small" @click="openSalesPriceDialog(row as any)"
                   >编辑</el-button
                 >
-                <el-button type="danger" link size="small" @click="deleteSalesPrice(row)"
+                <el-button type="danger" link size="small" @click="deleteSalesPrice(row as any)"
                   >删除</el-button
                 >
               </template>
@@ -210,10 +210,10 @@
             </el-table-column>
             <el-table-column label="操作" width="120">
               <template #default="{ row }">
-                <el-button type="primary" link size="small" @click="openReturnDialog(row)"
+                <el-button type="primary" link size="small" @click="openReturnDialog(row as any)"
                   >编辑</el-button
                 >
-                <el-button type="danger" link size="small" @click="deleteSalesReturn(row)"
+                <el-button type="danger" link size="small" @click="deleteSalesReturn(row as any)"
                   >删除</el-button
                 >
               </template>

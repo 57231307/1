@@ -173,7 +173,7 @@
               type="success"
               link
               size="small"
-              @click.stop="handleApprove(row)"
+              @click.stop="handleApprove(row as any)"
               >审批</el-button
             >
             <el-button
@@ -295,7 +295,7 @@
                   v-model="row.quantity"
                   :min="1"
                   size="small"
-                  @change="calculateSubtotal(row)"
+                  @change="calculateSubtotal(row as any)"
                 />
               </template>
             </el-table-column>
@@ -307,7 +307,7 @@
                   :min="0"
                   :precision="2"
                   size="small"
-                  @change="calculateSubtotal(row)"
+                  @change="calculateSubtotal(row as any)"
                 />
               </template>
             </el-table-column>

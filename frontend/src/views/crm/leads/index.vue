@@ -143,13 +143,13 @@
         <el-table-column prop="next_follow_up_date" label="下次跟进" width="120" align="center" />
         <el-table-column label="操作" width="250" align="center" fixed="right">
           <template #default="{ row }">
-            <el-button type="primary" link size="small" @click="handleView(row)">查看</el-button>
+            <el-button type="primary" link size="small" @click="handleView(row as any)">查看</el-button>
             <el-button
               v-if="row.lead_status !== 'CONVERTED'"
               type="primary"
               link
               size="small"
-              @click="handleEdit(row)"
+              @click="handleEdit(row as any)"
               >编辑</el-button
             >
             <el-button
@@ -157,7 +157,7 @@
               type="warning"
               link
               size="small"
-              @click="handleContact(row)"
+              @click="handleContact(row as any)"
               >联系</el-button
             >
             <el-button
@@ -165,7 +165,7 @@
               type="success"
               link
               size="small"
-              @click="handleConvert(row)"
+              @click="handleConvert(row as any)"
               >转化</el-button
             >
             <el-button
@@ -173,7 +173,7 @@
               type="danger"
               link
               size="small"
-              @click="handleLost(row)"
+              @click="handleLost(row as any)"
               >流失</el-button
             >
           </template>

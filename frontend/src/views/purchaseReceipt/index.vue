@@ -350,14 +350,14 @@ onMounted(() => {
       <ElTableColumn prop="created_at" label="创建时间" width="150" />
       <ElTableColumn label="操作" width="250" align="center">
         <template #default="scope">
-          <ElButton size="small" @click="openViewDialog(scope.row)">
+          <ElButton size="small" @click="openViewDialog(scope.row as any)">
             <View />
           </ElButton>
           <ElButton
             v-if="scope.row.status === 'draft'"
             size="small"
             type="primary"
-            @click="openEditDialog(scope.row)"
+            @click="openEditDialog(scope.row as any)"
           >
             <Edit />
           </ElButton>
@@ -365,7 +365,7 @@ onMounted(() => {
             v-if="scope.row.status === 'draft'"
             size="small"
             type="warning"
-            @click="handleApprove(scope.row)"
+            @click="handleApprove(scope.row as any)"
           >
             <Check /> 审核
           </ElButton>
@@ -373,7 +373,7 @@ onMounted(() => {
             v-if="scope.row.status === 'draft'"
             size="small"
             type="danger"
-            @click="handleDelete(scope.row)"
+            @click="handleDelete(scope.row as any)"
           >
             <Delete />
           </ElButton>

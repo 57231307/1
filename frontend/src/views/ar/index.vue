@@ -80,7 +80,7 @@
             <el-table-column prop="due_date" label="到期日" width="120" />
             <el-table-column label="操作" width="180" fixed="right">
               <template #default="{ row }">
-                <el-button type="primary" link size="small" @click="viewInvoice(row)"
+                <el-button type="primary" link size="small" @click="viewInvoice(row as any)"
                   >查看</el-button
                 >
                 <el-button
@@ -88,7 +88,7 @@
                   type="success"
                   link
                   size="small"
-                  @click="approveInvoice(row)"
+                  @click="approveInvoice(row as any)"
                   >审核</el-button
                 >
                 <el-button
@@ -96,7 +96,7 @@
                   type="danger"
                   link
                   size="small"
-                  @click="cancelInvoice(row)"
+                  @click="cancelInvoice(row as any)"
                   >取消</el-button
                 >
               </template>
@@ -152,7 +152,7 @@
                   type="success"
                   link
                   size="small"
-                  @click="confirmReconciliation(row)"
+                  @click="confirmReconciliation(row as any)"
                   >确认</el-button
                 >
               </template>
@@ -240,13 +240,13 @@
             </el-table-column>
             <el-table-column label="操作" width="200" fixed="right">
               <template #default="{ row }">
-                <el-button type="primary" link size="small" @click="depositFund(row)"
+                <el-button type="primary" link size="small" @click="depositFund(row as any)"
                   >存入</el-button
                 >
-                <el-button type="primary" link size="small" @click="withdrawFund(row)"
+                <el-button type="primary" link size="small" @click="withdrawFund(row as any)"
                   >取出</el-button
                 >
-                <el-button type="warning" link size="small" @click="freezeFund(row)"
+                <el-button type="warning" link size="small" @click="freezeFund(row as any)"
                   >冻结</el-button
                 >
               </template>
@@ -455,7 +455,7 @@ import {
   freezeFund as freezeFundApi,
   type FundAccount,
 } from '@/api/fund'
-import { listCustomers, type Customer } from '@/api/customer'
+import type { Customer } from '@/api/customer'
 
 const activeTab = ref('invoice')
 const hasLoaded = createLazyLoader()
@@ -600,6 +600,8 @@ const fetchFunds = async () => {
   }
 }
 
+// fetchCustomers temporarily removed
+/*
 const fetchCustomers = async () => {
   try {
     const res = await listCustomers()
@@ -609,6 +611,7 @@ const fetchCustomers = async () => {
     console.error('获取客户列表失败:', error)
   }
 }
+*/
 
 const invoiceDialogVisible = ref(false)
 const invoiceFormRef = ref<FormInstance>()

@@ -108,13 +108,13 @@
         </el-table-column>
         <el-table-column label="操作" width="250" align="center" fixed="right">
           <template #default="{ row }">
-            <el-button type="primary" link size="small" @click="handleView(row)">查看</el-button>
+            <el-button type="primary" link size="small" @click="handleView(row as any)">查看</el-button>
             <el-button
               v-if="row.status === 'draft'"
               type="primary"
               link
               size="small"
-              @click="handleEdit(row)"
+              @click="handleEdit(row as any)"
               >编辑</el-button
             >
             <el-button
@@ -122,7 +122,7 @@
               type="success"
               link
               size="small"
-              @click="handleSubmitForApproval(row)"
+              @click="handleSubmitForApproval(row as any)"
               >提交</el-button
             >
             <el-button
@@ -130,7 +130,7 @@
               type="success"
               link
               size="small"
-              @click="handleApprove(row)"
+              @click="handleApprove(row as any)"
               >审批</el-button
             >
             <el-button
@@ -138,7 +138,7 @@
               type="warning"
               link
               size="small"
-              @click="handleExecute(row)"
+              @click="handleExecute(row as any)"
               >执行</el-button
             >
             <el-button
@@ -146,7 +146,7 @@
               type="danger"
               link
               size="small"
-              @click="handleDelete(row)"
+              @click="handleDelete(row as any)"
               >删除</el-button
             >
           </template>

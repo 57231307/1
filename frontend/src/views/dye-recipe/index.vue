@@ -86,13 +86,13 @@
         <el-table-column prop="created_at" label="创建时间" width="180" align="center" />
         <el-table-column label="操作" width="250" align="center" fixed="right">
           <template #default="{ row }">
-            <el-button type="primary" link size="small" @click="handleView(row)">查看</el-button>
+            <el-button type="primary" link size="small" @click="handleView(row as any)">查看</el-button>
             <el-button
               v-if="row.status === 'DRAFT'"
               type="primary"
               link
               size="small"
-              @click="handleEdit(row)"
+              @click="handleEdit(row as any)"
               >编辑</el-button
             >
             <el-button
@@ -100,7 +100,7 @@
               type="success"
               link
               size="small"
-              @click="handleSubmit(row)"
+              @click="handleSubmit(row as any)"
               >提交</el-button
             >
             <el-button
@@ -108,10 +108,10 @@
               type="success"
               link
               size="small"
-              @click="handleApprove(row)"
+              @click="handleApprove(row as any)"
               >审批</el-button
             >
-            <el-button type="info" link size="small" @click="handleVersion(row)">版本</el-button>
+            <el-button type="info" link size="small" @click="handleVersion(row as any)">版本</el-button>
           </template>
         </el-table-column>
       </el-table>
@@ -197,7 +197,7 @@
         <el-table-column prop="created_at" label="创建时间" width="180" align="center" />
         <el-table-column label="操作" width="100" align="center">
           <template #default="{ row }">
-            <el-button type="primary" link size="small" @click="handleViewVersion(row)"
+            <el-button type="primary" link size="small" @click="handleViewVersion(row as any)"
               >查看</el-button
             >
           </template>

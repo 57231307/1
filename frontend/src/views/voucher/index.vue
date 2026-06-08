@@ -474,14 +474,14 @@ loadAccountSubjects()
       <ElTableColumn prop="posted_by_name" label="记账人" width="100" />
       <ElTableColumn label="操作" width="300" align="center">
         <template #default="scope">
-          <ElButton size="small" @click="openViewDialog(scope.row)">
+          <ElButton size="small" @click="openViewDialog(scope.row as any)">
             <View />
           </ElButton>
           <ElButton
             v-if="scope.row.status === 'draft'"
             size="small"
             type="primary"
-            @click="openEditDialog(scope.row)"
+            @click="openEditDialog(scope.row as any)"
           >
             <Edit />
           </ElButton>
@@ -489,7 +489,7 @@ loadAccountSubjects()
             v-if="scope.row.status === 'draft'"
             size="small"
             type="warning"
-            @click="handleApprove(scope.row)"
+            @click="handleApprove(scope.row as any)"
           >
             <Check /> 审核
           </ElButton>
@@ -497,7 +497,7 @@ loadAccountSubjects()
             v-if="scope.row.status === 'approved'"
             size="small"
             type="success"
-            @click="handlePost(scope.row)"
+            @click="handlePost(scope.row as any)"
           >
             <Check /> 记账
           </ElButton>
@@ -505,7 +505,7 @@ loadAccountSubjects()
             v-if="scope.row.status === 'posted'"
             size="small"
             type="info"
-            @click="handleUnpost(scope.row)"
+            @click="handleUnpost(scope.row as any)"
           >
             <Refresh /> 反记账
           </ElButton>
@@ -513,7 +513,7 @@ loadAccountSubjects()
             v-if="scope.row.status !== 'posted'"
             size="small"
             type="danger"
-            @click="handleDelete(scope.row)"
+            @click="handleDelete(scope.row as any)"
           >
             <Delete />
           </ElButton>

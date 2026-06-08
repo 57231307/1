@@ -98,7 +98,7 @@
         </el-table-column>
         <el-table-column label="操作" width="120" fixed="right">
           <template #default="{ row }">
-            <el-button type="primary" link size="small" @click="handleClaim(row)">领取</el-button>
+            <el-button type="primary" link size="small" @click="handleClaim(row as any)">领取</el-button>
           </template>
         </el-table-column>
       </el-table>
@@ -156,10 +156,10 @@
             </el-table-column>
             <el-table-column label="操作" width="150" fixed="right">
               <template #default="{ row }">
-                <el-button type="primary" link size="small" @click="handleEditRule(row)"
+                <el-button type="primary" link size="small" @click="handleEditRule(row as any)"
                   >编辑</el-button
                 >
-                <el-button type="danger" link size="small" @click="handleDeleteRule(row)"
+                <el-button type="danger" link size="small" @click="handleDeleteRule(row as any)"
                   >删除</el-button
                 >
               </template>

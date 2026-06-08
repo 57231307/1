@@ -27,9 +27,9 @@
         <el-table-column prop="created_at" label="创建时间" width="160" />
         <el-table-column label="操作" width="200" fixed="right">
           <template #default="{ row }">
-            <el-button size="small" link @click="openRoleDialog(row)">编辑</el-button>
-            <el-button size="small" link @click="openPermissionDialog(row)">权限</el-button>
-            <el-button size="small" link type="danger" @click="deleteRole(row)">删除</el-button>
+            <el-button size="small" link @click="openRoleDialog(row as any)">编辑</el-button>
+            <el-button size="small" link @click="openPermissionDialog(row as any)">权限</el-button>
+            <el-button size="small" link type="danger" @click="deleteRole(row as any)">删除</el-button>
           </template>
         </el-table-column>
       </el-table>
@@ -103,8 +103,6 @@ import {
   type Permission,
 } from '@/api/role'
 
-defineExpose({ refresh: fetchRoles })
-
 const roles = ref<Role[]>([])
 const roleLoading = ref(false)
 
@@ -120,6 +118,8 @@ const fetchRoles = async () => {
     roleLoading.value = false
   }
 }
+
+defineExpose({ refresh: fetchRoles })
 
 const roleDialogVisible = ref(false)
 const roleFormRef = ref<FormInstance>()

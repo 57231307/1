@@ -171,7 +171,7 @@
         <el-table-column prop="unlock_at" label="解锁时间" width="180" align="center" />
         <el-table-column label="操作" width="120" align="center">
           <template #default="{ row }">
-            <el-button type="primary" link size="small" @click="handleUnlock(row)">解锁</el-button>
+            <el-button type="primary" link size="small" @click="handleUnlock(row as any)">解锁</el-button>
           </template>
         </el-table-column>
       </el-table>

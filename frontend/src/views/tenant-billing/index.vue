@@ -48,7 +48,7 @@
                 <div class="usage-label">用户数</div>
                 <el-progress
                   :percentage="usage.user_usage_percent || 0"
-                  :format="(p: number) => `${usage.current_users || 0}/${usage.max_users || 0}`"
+                  :format="(_p: number) => `${usage.current_users || 0}/${usage.max_users || 0}`"
                 />
               </div>
             </el-col>
@@ -58,7 +58,7 @@
                 <el-progress
                   :percentage="usage.storage_usage_percent || 0"
                   :format="
-                    (p: number) => `${usage.storage_used_mb || 0}/${usage.max_storage_mb || 0} MB`
+                    (_p: number) => `${usage.storage_used_mb || 0}/${usage.max_storage_mb || 0} MB`
                   "
                 />
               </div>
@@ -69,7 +69,7 @@
                 <el-progress
                   :percentage="usage.api_usage_percent || 0"
                   :format="
-                    (p: number) =>
+                    (_p: number) =>
                       `${usage.api_calls_today || 0}/${usage.max_api_calls_per_day || 0}`
                   "
                 />

@@ -252,16 +252,11 @@ loadCustomers()
 
     <ElTable
       :data="tableData"
-      :total="total"
       :loading="loading"
-      :page-size="pagination.pageSize"
-      :current-page="pagination.page"
       border
       fit
       highlight-current-row
       style="width: 100%"
-      @current-change="handlePageChange"
-      @size-change="handlePageSizeChange"
     >
       <ElTableColumn prop="customer_code" label="客户编码" width="120" />
       <ElTableColumn prop="customer_name" label="客户名称" width="150" />
@@ -287,14 +282,14 @@ loadCustomers()
       <ElTableColumn prop="created_at" label="创建时间" width="150" />
       <ElTableColumn label="操作" width="250" align="center">
         <template #default="scope">
-          <ElButton size="small" @click="openViewDialog(scope.row)">
+          <ElButton size="small" @click="openViewDialog(scope.row as any)">
             <View />
           </ElButton>
           <ElButton
             v-if="scope.row.status === 'draft'"
             size="small"
             type="primary"
-            @click="openEditDialog(scope.row)"
+            @click="openEditDialog(scope.row as any)"
           >
             <Edit />
           </ElButton>
@@ -302,7 +297,7 @@ loadCustomers()
             v-if="scope.row.status === 'draft'"
             size="small"
             type="warning"
-            @click="handleConfirm(scope.row)"
+            @click="handleConfirm(scope.row as any)"
           >
             <Check /> 确认
           </ElButton>
@@ -310,13 +305,25 @@ loadCustomers()
             v-if="scope.row.status === 'draft'"
             size="small"
             type="danger"
-            @click="handleDelete(scope.row)"
+            @click="handleDelete(scope.row as any)"
           >
             <Delete />
           </ElButton>
         </template>
       </ElTableColumn>
     </ElTable>
+
+    <div class="pagination-wrapper" style="margin-top: 16px; text-align: right;">
+      <ElPagination
+        v-model:current-page="pagination.page"
+        v-model:page-size="pagination.pageSize"
+        :page-sizes="[10, 20, 50, 100]"
+        :total="total"
+        layout="total, sizes, prev, pager, next, jumper"
+        @size-change="handlePageSizeChange"
+        @current-change="handlePageChange"
+      />
+    </div>
 
     <ElDialog
       :title="dialogTitle"

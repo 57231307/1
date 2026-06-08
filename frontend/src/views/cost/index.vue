@@ -63,7 +63,7 @@
         </el-table-column>
         <el-table-column label="操作" width="220" fixed="right">
           <template #default="{ row }">
-            <el-button type="primary" link size="small" @click="viewDetail(row)">查看</el-button>
+            <el-button type="primary" link size="small" @click="viewDetail(row as any)">查看</el-button>
             <el-button
               v-if="row.status === 'draft'"
               type="success"
@@ -77,7 +77,7 @@
               type="warning"
               link
               size="small"
-              @click="handleSubmit(row)"
+              @click="handleSubmit(row as any)"
               >提交</el-button
             >
             <el-button
@@ -85,7 +85,7 @@
               type="danger"
               link
               size="small"
-              @click="handleDelete(row)"
+              @click="handleDelete(row as any)"
               >删除</el-button
             >
           </template>

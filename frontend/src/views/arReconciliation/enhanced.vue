@@ -512,13 +512,13 @@ onMounted(() => {
         <el-table-column prop="created_at" label="创建时间" width="160" />
         <el-table-column label="操作" width="240" align="center">
           <template #default="scope">
-            <el-button size="small" @click="handleViewDetail(scope.row)">
+            <el-button size="small" @click="handleViewDetail(scope.row as any)">
               <el-icon><View /></el-icon> 明细
             </el-button>
-            <el-button size="small" type="primary" @click="handleSendConfirmation(scope.row)">
+            <el-button size="small" type="primary" @click="handleSendConfirmation(scope.row as any)">
               <el-icon><Send /></el-icon> 确认
             </el-button>
-            <el-button size="small" type="danger" @click="openDisputeDialog(scope.row)">
+            <el-button size="small" type="danger" @click="openDisputeDialog(scope.row as any)">
               <el-icon><CircleClose /></el-icon> 争议
             </el-button>
           </template>
@@ -709,7 +709,7 @@ onMounted(() => {
               v-if="scope.row.status !== 'resolved' && scope.row.status !== 'closed'"
               size="small"
               type="primary"
-              @click="handleResolveDispute(scope.row)"
+              @click="handleResolveDispute(scope.row as any)"
             >
               解决
             </el-button>

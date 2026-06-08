@@ -533,20 +533,20 @@ loadTemplates()
       <el-table-column prop="updated_at" label="更新时间" width="160" />
       <el-table-column label="操作" width="280" align="center">
         <template #default="scope">
-          <el-button size="small" @click="handlePreview(scope.row)">
+          <el-button size="small" @click="handlePreview(scope.row as any)">
             <el-icon><View /></el-icon> 预览
           </el-button>
-          <el-button size="small" type="warning" @click="handleExport(scope.row)">
+          <el-button size="small" type="warning" @click="handleExport(scope.row as any)">
             <el-icon><Download /></el-icon> 导出
           </el-button>
-          <el-button size="small" type="info" @click="handleSubscriptions(scope.row)">
+          <el-button size="small" type="info" @click="handleSubscriptions(scope.row as any)">
             <el-icon><Bell /></el-icon> 订阅
           </el-button>
           <el-button
             v-if="!scope.row.is_system"
             size="small"
             type="primary"
-            @click="openEditDialog(scope.row)"
+            @click="openEditDialog(scope.row as any)"
           >
             <el-icon><Edit /></el-icon>
           </el-button>
@@ -554,7 +554,7 @@ loadTemplates()
             v-if="!scope.row.is_system"
             size="small"
             type="danger"
-            @click="handleDelete(scope.row)"
+            @click="handleDelete(scope.row as any)"
           >
             <el-icon><Delete /></el-icon>
           </el-button>
@@ -830,20 +830,20 @@ loadTemplates()
         <el-table-column prop="last_sent_at" label="最后发送" width="160" />
         <el-table-column label="操作" width="200" align="center">
           <template #default="scope">
-            <el-button size="small" @click="openSubForm(scope.row)">
+            <el-button size="small" @click="openSubForm(scope.row as any)">
               <el-icon><Edit /></el-icon>
             </el-button>
             <el-button
               size="small"
               :type="scope.row.active ? 'warning' : 'success'"
-              @click="handleToggleSubscription(scope.row)"
+              @click="handleToggleSubscription(scope.row as any)"
             >
               {{ scope.row.active ? '禁用' : '启用' }}
             </el-button>
-            <el-button size="small" type="success" @click="handleSendNow(scope.row)"
+            <el-button size="small" type="success" @click="handleSendNow(scope.row as any)"
               >发送</el-button
             >
-            <el-button size="small" type="danger" @click="handleDeleteSubscription(scope.row)">
+            <el-button size="small" type="danger" @click="handleDeleteSubscription(scope.row as any)">
               <el-icon><Delete /></el-icon>
             </el-button>
           </template>

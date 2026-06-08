@@ -285,12 +285,12 @@ loadWarehouses()
       <ElTableColumn prop="completed_at" label="完成时间" width="150" />
       <ElTableColumn label="操作" width="250" align="center">
         <template #default="{ row }">
-          <ElButton size="small" @click="openViewDialog(row)"> <View /> 查看 </ElButton>
+          <ElButton size="small" @click="openViewDialog(row as any)"> <View /> 查看 </ElButton>
           <ElButton
             v-if="row.status === 'draft'"
             size="small"
             type="primary"
-            @click="handleApprove(row)"
+            @click="handleApprove(row as any)"
           >
             <Check /> 审批
           </ElButton>
@@ -298,7 +298,7 @@ loadWarehouses()
             v-if="row.status === 'approved'"
             size="small"
             type="warning"
-            @click="handleComplete(row)"
+            @click="handleComplete(row as any)"
           >
             <Check /> 完成盘点
           </ElButton>
@@ -306,7 +306,7 @@ loadWarehouses()
             v-if="row.status === 'draft'"
             size="small"
             type="danger"
-            @click="handleDelete(row)"
+            @click="handleDelete(row as any)"
             >删除</ElButton
           >
         </template>
@@ -380,7 +380,7 @@ loadWarehouses()
                   v-if="viewData.status === 'draft'"
                   v-model="row.actual_qty"
                   :precision="0"
-                  @change="updateActualQty(row)"
+                  @change="updateActualQty(row as any)"
                 />
                 <span v-else>{{ row.actual_qty }}</span>
               </template>

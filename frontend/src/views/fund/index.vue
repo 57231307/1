@@ -7,7 +7,7 @@
       </div>
     </el-card>
 
-    <el-tabs v-model="activeTab" class="fund-tabs" @tab-change="(tab) => loadTab(tab, hasLoaded)">
+    <el-tabs v-model="activeTab" class="fund-tabs" @tab-change="(tab: any) => loadTab(tab)">
       <el-tab-pane label="账户管理" name="account">
         <el-card class="table-card">
           <template #header>
@@ -54,7 +54,7 @@
             </el-table-column>
             <el-table-column label="操作" width="360" fixed="right">
               <template #default="{ row }">
-                <el-button type="primary" link size="small" @click="viewDetail(row)"
+                <el-button type="primary" link size="small" @click="viewDetail(row as any)"
                   >查看</el-button
                 >
                 <el-button
@@ -62,7 +62,7 @@
                   type="success"
                   link
                   size="small"
-                  @click="handleDeposit(row)"
+                  @click="handleDeposit(row as any)"
                   >存款</el-button
                 >
                 <el-button
@@ -70,7 +70,7 @@
                   type="warning"
                   link
                   size="small"
-                  @click="handleWithdraw(row)"
+                  @click="handleWithdraw(row as any)"
                   >取款</el-button
                 >
                 <el-button
@@ -78,7 +78,7 @@
                   type="info"
                   link
                   size="small"
-                  @click="openTransferDialog(row)"
+                  @click="openTransferDialog(row as any)"
                   >转账</el-button
                 >
                 <el-button
@@ -86,7 +86,7 @@
                   type="danger"
                   link
                   size="small"
-                  @click="handleDelete(row)"
+                  @click="handleDelete(row as any)"
                   >删除</el-button
                 >
               </template>
@@ -138,7 +138,7 @@
             <el-table-column prop="created_at" label="转账时间" width="160" />
             <el-table-column label="操作" width="100" fixed="right">
               <template #default="{ row }">
-                <el-button type="primary" link size="small" @click="viewTransferDetail(row)"
+                <el-button type="primary" link size="small" @click="viewTransferDetail(row as any)"
                   >详情</el-button
                 >
               </template>
@@ -748,15 +748,19 @@ onMounted(() => {
   initPage()
 })
 
-const loadTab = (tabName: string, loader: Record<string, () => void>) => {
-  loadIfNot(tabName, loader[tabName], hasLoaded)
+const tabLoaders: Record<string, () => void> = {
+  account: fetchAccounts,
+  transfer: fetchTransfers,
+}
+
+const loadTab = (tabName: string) => {
+  if (tabLoaders[tabName]) {
+    loadIfNot(tabName, tabLoaders[tabName], hasLoaded)
+  }
 }
 
 const initPage = () => {
-  loadTab(activeTab.value, {
-    account: fetchAccounts,
-    transfer: fetchTransfers,
-  })
+  loadTab(activeTab.value as string)
 }
 </script>
 

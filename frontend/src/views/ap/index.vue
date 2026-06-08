@@ -80,7 +80,7 @@
             <el-table-column prop="due_date" label="到期日" width="120" />
             <el-table-column label="操作" width="180" fixed="right">
               <template #default="{ row }">
-                <el-button type="primary" link size="small" @click="viewInvoice(row)"
+                <el-button type="primary" link size="small" @click="viewInvoice(row as any)"
                   >查看</el-button
                 >
                 <el-button
@@ -88,7 +88,7 @@
                   type="success"
                   link
                   size="small"
-                  @click="approveInvoice(row)"
+                  @click="approveInvoice(row as any)"
                   >审核</el-button
                 >
                 <el-button
@@ -96,7 +96,7 @@
                   type="danger"
                   link
                   size="small"
-                  @click="cancelInvoice(row)"
+                  @click="cancelInvoice(row as any)"
                   >取消</el-button
                 >
               </template>
@@ -145,7 +145,7 @@
                   type="success"
                   link
                   size="small"
-                  @click="confirmPayment(row)"
+                  @click="confirmPayment(row as any)"
                   >确认</el-button
                 >
               </template>
@@ -231,7 +231,7 @@
                   type="success"
                   link
                   size="small"
-                  @click="confirmReconciliation(row)"
+                  @click="confirmReconciliation(row as any)"
                   >确认</el-button
                 >
                 <el-button
@@ -239,7 +239,7 @@
                   type="warning"
                   link
                   size="small"
-                  @click="disputeReconciliation(row)"
+                  @click="disputeReconciliation(row as any)"
                   >异议</el-button
                 >
               </template>
@@ -519,7 +519,8 @@ import {
   generateAPReconciliation,
   type APReconciliation,
 } from '@/api/ap'
-import { listSuppliers, type Supplier } from '@/api/supplier'
+import type { Supplier } from '@/api/supplier'
+// import { listSuppliers } from '@/api/supplier'
 
 const activeTab = ref('invoice')
 const hasLoaded = createLazyLoader()
@@ -677,6 +678,8 @@ const fetchReconciliations = async () => {
   }
 }
 
+// fetchSuppliers temporarily removed
+/*
 const fetchSuppliers = async () => {
   try {
     const res = await listSuppliers()
@@ -686,6 +689,7 @@ const fetchSuppliers = async () => {
     console.error('获取供应商列表失败:', error)
   }
 }
+*/
 
 const invoiceDialogVisible = ref(false)
 const invoiceFormRef = ref<FormInstance>()

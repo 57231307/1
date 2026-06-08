@@ -50,7 +50,7 @@
             </el-table-column>
             <el-table-column label="操作" width="300" fixed="right">
               <template #default="{ row }">
-                <el-button type="primary" link size="small" @click="viewStandard(row)"
+                <el-button type="primary" link size="small" @click="viewStandard(row as any)"
                   >查看</el-button
                 >
                 <el-button
@@ -58,7 +58,7 @@
                   type="primary"
                   link
                   size="small"
-                  @click="viewVersionHistory(row)"
+                  @click="viewVersionHistory(row as any)"
                   >版本历史</el-button
                 >
                 <el-button
@@ -66,7 +66,7 @@
                   type="primary"
                   link
                   size="small"
-                  @click="openStandardDialog(row)"
+                  @click="openStandardDialog(row as any)"
                   >编辑</el-button
                 >
                 <el-button
@@ -74,7 +74,7 @@
                   type="success"
                   link
                   size="small"
-                  @click="approveStandard(row)"
+                  @click="approveStandard(row as any)"
                   >审批</el-button
                 >
                 <el-button
@@ -82,7 +82,7 @@
                   type="warning"
                   link
                   size="small"
-                  @click="publishStandard(row)"
+                  @click="publishStandard(row as any)"
                   >发布</el-button
                 >
               </template>
@@ -185,7 +185,7 @@
                   type="primary"
                   link
                   size="small"
-                  @click="processDefect(row)"
+                  @click="processDefect(row as any)"
                   >处理</el-button
                 >
               </template>

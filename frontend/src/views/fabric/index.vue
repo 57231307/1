@@ -1,6 +1,6 @@
 <template>
   <div class="fabric-page">
-    <el-tabs v-model="activeTab" @tab-change="(tab) => loadTab(tab, hasLoaded)">
+    <el-tabs v-model="activeTab" @tab-change="(tab: any) => loadTab(tab)">
       <el-tab-pane label="染色批次" name="dye">
         <div class="page-header">
           <h2 class="page-title">染色批次管理</h2>
@@ -27,7 +27,7 @@
             <el-table-column prop="start_date" label="开始日期" width="120" />
             <el-table-column label="操作" width="200" fixed="right">
               <template #default="{ row }">
-                <el-button type="primary" link size="small" @click="openDyeDialog(row)"
+                <el-button type="primary" link size="small" @click="openDyeDialog(row as any)"
                   >编辑</el-button
                 >
                 <el-button
@@ -35,7 +35,7 @@
                   type="success"
                   link
                   size="small"
-                  @click="completeDye(row)"
+                  @click="completeDye(row as any)"
                   >完成</el-button
                 >
               </template>
@@ -71,13 +71,13 @@
             </el-table-column>
             <el-table-column label="操作" width="180" fixed="right">
               <template #default="{ row }">
-                <el-button type="primary" link size="small" @click="openGreigeDialog(row)"
+                <el-button type="primary" link size="small" @click="openGreigeDialog(row as any)"
                   >编辑</el-button
                 >
-                <el-button type="success" link size="small" @click="openStockInDialog(row)"
+                <el-button type="success" link size="small" @click="openStockInDialog(row as any)"
                   >入库</el-button
                 >
-                <el-button type="warning" link size="small" @click="openStockOutDialog(row)"
+                <el-button type="warning" link size="small" @click="openStockOutDialog(row as any)"
                   >出库</el-button
                 >
               </template>
@@ -121,7 +121,7 @@
             <el-table-column prop="created_at" label="创建时间" width="160" />
             <el-table-column label="操作" width="200" fixed="right">
               <template #default="{ row }">
-                <el-button type="primary" link size="small" @click="viewRecipe(row)"
+                <el-button type="primary" link size="small" @click="viewRecipe(row as any)"
                   >查看</el-button
                 >
                 <el-button
@@ -129,7 +129,7 @@
                   type="success"
                   link
                   size="small"
-                  @click="approveRecipe(row)"
+                  @click="approveRecipe(row as any)"
                   >审批</el-button
                 >
                 <el-button
@@ -137,7 +137,7 @@
                   type="warning"
                   link
                   size="small"
-                  @click="createNewVersion(row)"
+                  @click="createNewVersion(row as any)"
                   >新版本</el-button
                 >
               </template>
@@ -321,7 +321,7 @@ import {
   createNewVersion as createNewVersionApi,
   type DyeRecipe,
 } from '@/api/dye-recipe'
-import { listSuppliers, type Supplier } from '@/api/supplier'
+import type { Supplier } from '@/api/supplier'
 import { loadIfNot, createLazyLoader } from '@/utils/lazy-loader'
 
 const activeTab = ref('dye')
@@ -364,6 +364,8 @@ const fetchDyeRecipes = async () => {
   }
 }
 
+// fetchSuppliers temporarily removed
+/*
 const fetchSuppliers = async () => {
   try {
     const res = await listSuppliers()
@@ -372,6 +374,7 @@ const fetchSuppliers = async () => {
     console.error(e)
   }
 }
+*/
 
 const getStatusType = (status: string) => {
   const map: Record<string, any> = {
@@ -684,16 +687,20 @@ const removeRecipeItem = (index: number) => {
   }
 }
 
-const loadTab = (tabName: string, loader: Record<string, () => void>) => {
-  loadIfNot(tabName, loader[tabName], hasLoaded)
+const tabLoaders: Record<string, () => void> = {
+  dye: fetchDyeBatches,
+  greige: fetchGreigeFabrics,
+  recipe: fetchDyeRecipes,
+}
+
+const loadTab = (tabName: string) => {
+  if (tabLoaders[tabName]) {
+    loadIfNot(tabName, tabLoaders[tabName], hasLoaded)
+  }
 }
 
 const initPage = () => {
-  loadTab(activeTab.value, {
-    dye: fetchDyeBatches,
-    greige: fetchGreigeFabrics,
-    recipe: fetchDyeRecipes,
-  })
+  loadTab(activeTab.value as string)
 }
 
 onMounted(() => {

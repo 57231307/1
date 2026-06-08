@@ -41,7 +41,7 @@
               link
               size="small"
               :disabled="row.status !== 'completed'"
-              @click="viewResult(row)"
+              @click="viewResult(row as any)"
             >
               查看结果
             </el-button>

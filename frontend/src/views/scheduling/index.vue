@@ -125,7 +125,7 @@
             </el-table-column>
             <el-table-column label="操作" fixed="right" width="160">
               <template #default="{ row }">
-                <el-button type="primary" link size="small" @click="handleAdjust(row)"
+                <el-button type="primary" link size="small" @click="handleAdjust(row as any)"
                   >调整</el-button
                 >
                 <el-button
@@ -133,7 +133,7 @@
                   type="danger"
                   link
                   size="small"
-                  @click="showConflictDetail(row)"
+                  @click="showConflictDetail(row as any)"
                   >详情</el-button
                 >
               </template>

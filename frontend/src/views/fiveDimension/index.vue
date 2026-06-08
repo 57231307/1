@@ -251,17 +251,12 @@ loadData()
     </div>
 
     <ElTable
-      :data="tableData"
-      :total="total"
+    :data="tableData"
       :loading="loading"
-      :page-size="pagination.pageSize"
-      :current-page="pagination.page"
       border
       fit
       highlight-current-row
       style="width: 100%"
-      @current-change="handlePageChange"
-      @size-change="handlePageSizeChange"
     >
       <ElTableColumn prop="dimension.product_id" label="产品ID" width="100" />
       <ElTableColumn prop="dimension.product_name" label="产品名称" width="150" />
@@ -279,12 +274,24 @@ loadData()
       <ElTableColumn prop="dimension.five_dimension_id" label="五维ID" />
       <ElTableColumn label="操作" width="100" align="center">
         <template #default="scope">
-          <ElButton size="small" @click="openViewDialog(scope.row)">
+          <ElButton size="small" @click="openViewDialog(scope.row as any)">
             <View />
           </ElButton>
         </template>
       </ElTableColumn>
     </ElTable>
+
+    <div class="pagination-wrapper" style="margin-top: 16px; text-align: right;">
+      <ElPagination
+        v-model:current-page="pagination.page"
+        v-model:page-size="pagination.pageSize"
+        :page-sizes="[10, 20, 50, 100]"
+        :total="total"
+        layout="total, sizes, prev, pager, next, jumper"
+        @size-change="handlePageSizeChange"
+        @current-change="handlePageChange"
+      />
+    </div>
 
     <ElDialog
       title="五维统计详情"
@@ -358,7 +365,7 @@ loadData()
           <ElTableColumn prop="grade" label="等级" width="80" />
           <ElTableColumn label="操作" width="80">
             <template #default="scope">
-              <ElButton size="small" type="primary" @click="selectFromSearch(scope.row)"
+              <ElButton size="small" type="primary" @click="selectFromSearch(scope.row as any)"
                 >选择</ElButton
               >
             </template>

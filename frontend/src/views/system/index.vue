@@ -92,10 +92,10 @@
             <el-table-column prop="created_at" label="创建时间" width="160" />
             <el-table-column label="操作" width="150" fixed="right">
               <template #default="{ row }">
-                <el-button type="primary" link size="small" @click="openUserDialog(row)"
+                <el-button type="primary" link size="small" @click="openUserDialog(row as any)"
                   >编辑</el-button
                 >
-                <el-button type="danger" link size="small" @click="deleteUser(row)">删除</el-button>
+                <el-button type="danger" link size="small" @click="deleteUser(row as any)">删除</el-button>
               </template>
             </el-table-column>
           </el-table>
@@ -134,13 +134,13 @@
             <el-table-column prop="created_at" label="创建时间" width="160" />
             <el-table-column label="操作" width="200" fixed="right">
               <template #default="{ row }">
-                <el-button type="primary" link size="small" @click="openRoleDialog(row)"
+                <el-button type="primary" link size="small" @click="openRoleDialog(row as any)"
                   >编辑</el-button
                 >
-                <el-button type="primary" link size="small" @click="openPermissionDialog(row)"
+                <el-button type="primary" link size="small" @click="openPermissionDialog(row as any)"
                   >权限</el-button
                 >
-                <el-button type="danger" link size="small" @click="deleteRole(row)">删除</el-button>
+                <el-button type="danger" link size="small" @click="deleteRole(row as any)">删除</el-button>
               </template>
             </el-table-column>
           </el-table>
@@ -176,10 +176,10 @@
             </el-table-column>
             <el-table-column label="操作" width="150" fixed="right">
               <template #default="{ row }">
-                <el-button type="primary" link size="small" @click="openDeptDialog(row)"
+                <el-button type="primary" link size="small" @click="openDeptDialog(row as any)"
                   >编辑</el-button
                 >
-                <el-button type="danger" link size="small" @click="deleteDept(row)">删除</el-button>
+                <el-button type="danger" link size="small" @click="deleteDept(row as any)">删除</el-button>
               </template>
             </el-table-column>
           </el-table>
@@ -361,13 +361,13 @@
             </el-table-column>
             <el-table-column label="操作" width="200" fixed="right">
               <template #default="{ row }">
-                <el-button type="primary" link size="small" @click="openWebhookDialog(row)"
+                <el-button type="primary" link size="small" @click="openWebhookDialog(row as any)"
                   >编辑</el-button
                 >
-                <el-button type="warning" link size="small" @click="testWebhook(row)"
+                <el-button type="warning" link size="small" @click="testWebhook(row as any)"
                   >测试</el-button
                 >
-                <el-button type="danger" link size="small" @click="deleteWebhook(row)"
+                <el-button type="danger" link size="small" @click="deleteWebhook(row as any)"
                   >删除</el-button
                 >
               </template>
@@ -431,10 +431,10 @@
             <el-table-column prop="description" label="描述" width="200" />
             <el-table-column label="操作" width="150" fixed="right">
               <template #default="{ row }">
-                <el-button type="primary" link size="small" @click="openTenantConfigDialog(row)"
+                <el-button type="primary" link size="small" @click="openTenantConfigDialog(row as any)"
                   >编辑</el-button
                 >
-                <el-button type="danger" link size="small" @click="deleteTenantConfig(row)"
+                <el-button type="danger" link size="small" @click="deleteTenantConfig(row as any)"
                   >删除</el-button
                 >
               </template>

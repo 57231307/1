@@ -91,16 +91,16 @@
             </el-table-column>
             <el-table-column label="操作" width="180" fixed="right">
               <template #default="{ row }">
-                <el-button type="primary" link size="small" @click="handleApprove(row)"
+                <el-button type="primary" link size="small" @click="handleApprove(row as any)"
                   >审批</el-button
                 >
-                <el-button type="warning" link size="small" @click="handleDetail(row)"
+                <el-button type="warning" link size="small" @click="handleDetail(row as any)"
                   >详情</el-button
                 >
-                <el-button type="info" link size="small" @click="handleTransfer(row)"
+                <el-button type="info" link size="small" @click="handleTransfer(row as any)"
                   >转交</el-button
                 >
-                <el-button type="danger" link size="small" @click="handleUrge(row)">催办</el-button>
+                <el-button type="danger" link size="small" @click="handleUrge(row as any)">催办</el-button>
               </template>
             </el-table-column>
           </el-table>
@@ -127,10 +127,10 @@
             </el-table-column>
             <el-table-column label="操作" width="150">
               <template #default="{ row }">
-                <el-button type="primary" link size="small" @click="handleTrace(row)"
+                <el-button type="primary" link size="small" @click="handleTrace(row as any)"
                   >追溯</el-button
                 >
-                <el-button type="info" link size="small" @click="handleCancel(row)">撤回</el-button>
+                <el-button type="info" link size="small" @click="handleCancel(row as any)">撤回</el-button>
               </template>
             </el-table-column>
           </el-table>
@@ -182,10 +182,10 @@
             </el-table-column>
             <el-table-column label="操作" width="150">
               <template #default="{ row }">
-                <el-button type="primary" link size="small" @click="handleViewProcess(row)"
+                <el-button type="primary" link size="small" @click="handleViewProcess(row as any)"
                   >查看</el-button
                 >
-                <el-button type="info" link size="small" @click="handleProcessImage(row)"
+                <el-button type="info" link size="small" @click="handleProcessImage(row as any)"
                   >流程图</el-button
                 >
               </template>

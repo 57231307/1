@@ -162,7 +162,7 @@
               type="primary"
               link
               size="small"
-              @click="handleNotify(row)"
+              @click="handleNotify(row as any)"
               >通知</el-button
             >
             <el-button
@@ -170,7 +170,7 @@
               type="success"
               link
               size="small"
-              @click="handleResolve(row)"
+              @click="handleResolve(row as any)"
               >解决</el-button
             >
           </template>

@@ -81,10 +81,10 @@
         <el-table-column prop="productionDate" label="生产日期" width="120" />
         <el-table-column label="操作" fixed="right" width="220">
           <template #default="{ row }">
-            <el-button link type="primary" @click="handleView(row)">查看</el-button>
-            <el-button link type="primary" @click="handleEdit(row)">编辑</el-button>
-            <el-button link type="primary" @click="handleTransfer(row)">调拨</el-button>
-            <el-button link type="danger" @click="handleDelete(row)">删除</el-button>
+            <el-button link type="primary" @click="handleView(row as any)">查看</el-button>
+            <el-button link type="primary" @click="handleEdit(row as any)">编辑</el-button>
+            <el-button link type="primary" @click="handleTransfer(row as any)">调拨</el-button>
+            <el-button link type="danger" @click="handleDelete(row as any)">删除</el-button>
           </template>
         </el-table-column>
       </el-table>

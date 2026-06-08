@@ -114,13 +114,13 @@
         <el-table-column prop="last_follow_up_date" label="最近跟进" width="120" align="center" />
         <el-table-column label="操作" width="250" align="center" fixed="right">
           <template #default="{ row }">
-            <el-button type="primary" link size="small" @click="handleView(row)">查看</el-button>
+            <el-button type="primary" link size="small" @click="handleView(row as any)">查看</el-button>
             <el-button
               v-if="row.opportunity_stage !== 'WON' && row.opportunity_stage !== 'LOST'"
               type="primary"
               link
               size="small"
-              @click="handleEdit(row)"
+              @click="handleEdit(row as any)"
               >编辑</el-button
             >
             <el-button
@@ -128,7 +128,7 @@
               type="warning"
               link
               size="small"
-              @click="handleFollow(row)"
+              @click="handleFollow(row as any)"
               >跟进</el-button
             >
             <el-button
@@ -136,7 +136,7 @@
               type="success"
               link
               size="small"
-              @click="handleWin(row)"
+              @click="handleWin(row as any)"
               >成交</el-button
             >
             <el-button
@@ -144,7 +144,7 @@
               type="danger"
               link
               size="small"
-              @click="handleLost(row)"
+              @click="handleLost(row as any)"
               >流失</el-button
             >
           </template>

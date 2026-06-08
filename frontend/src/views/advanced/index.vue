@@ -1,6 +1,6 @@
 <template>
   <div class="advanced-page">
-    <el-tabs v-model="activeTab" @tab-change="(tab) => loadTab(tab, hasLoaded)">
+    <el-tabs v-model="activeTab" @tab-change="(tab: any) => loadTab(tab)">
       <el-tab-pane label="AI 分析" name="ai">
         <div class="page-header">
           <h2 class="page-title">AI 智能分析</h2>
@@ -157,7 +157,7 @@
             <el-table-column prop="created_at" label="创建时间" width="160" />
             <el-table-column label="操作" width="200" fixed="right">
               <template #default="{ row }">
-                <el-button type="primary" link size="small" @click="executeReport(row)"
+                <el-button type="primary" link size="small" @click="executeReport(row as any)"
                   >执行</el-button
                 >
                 <el-button type="success" link size="small" @click="exportReport(row, 'excel')"
@@ -228,13 +228,13 @@
             <el-table-column prop="subscription_end_date" label="结束日期" width="120" />
             <el-table-column label="操作" width="200" fixed="right">
               <template #default="{ row }">
-                <el-button type="primary" link size="small" @click="openTenantDialog(row)"
+                <el-button type="primary" link size="small" @click="openTenantDialog(row as any)"
                   >编辑</el-button
                 >
-                <el-button type="warning" link size="small" @click="updateTenantStatus(row)"
+                <el-button type="warning" link size="small" @click="updateTenantStatus(row as any)"
                   >更新状态</el-button
                 >
-                <el-button type="danger" link size="small" @click="deleteTenant(row)"
+                <el-button type="danger" link size="small" @click="deleteTenant(row as any)"
                   >删除</el-button
                 >
               </template>
@@ -491,16 +491,20 @@ const deleteTenant = async (row: any) => {
   }
 }
 
-const loadTab = (tabName: string, loader: Record<string, () => void>) => {
-  loadIfNot(tabName, loader[tabName], hasLoaded)
+const tabLoaders: Record<string, () => void> = {
+  ai: () => {},
+  report: fetchReportTemplates,
+  tenant: fetchTenants,
+}
+
+const loadTab = (tabName: string) => {
+  if (tabLoaders[tabName]) {
+    loadIfNot(tabName, tabLoaders[tabName], hasLoaded)
+  }
 }
 
 const initPage = () => {
-  loadTab(activeTab.value, {
-    ai: () => {},
-    report: fetchReportTemplates,
-    tenant: fetchTenants,
-  })
+  loadTab(activeTab.value as string)
 }
 
 onMounted(() => {

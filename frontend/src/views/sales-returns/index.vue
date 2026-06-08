@@ -20,13 +20,13 @@
       </el-table-column>
       <el-table-column label="操作" width="250">
         <template #default="{ row }">
-          <el-button size="small" @click="handleView(row)">详情</el-button>
-          <el-button size="small" @click="handleEdit(row)">编辑</el-button>
+          <el-button size="small" @click="handleView(row as any)">详情</el-button>
+          <el-button size="small" @click="handleEdit(row as any)">编辑</el-button>
           <el-button
             v-if="row.status === 'PENDING'"
             size="small"
             type="primary"
-            @click="handleApprove(row)"
+            @click="handleApprove(row as any)"
             >审核</el-button
           >
         </template>

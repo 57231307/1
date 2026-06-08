@@ -117,10 +117,10 @@
                 <el-button type="primary" link size="small" @click="viewDetail(row.id)"
                   >详情</el-button
                 >
-                <el-button type="primary" link size="small" @click="handleEdit(row)"
+                <el-button type="primary" link size="small" @click="handleEdit(row as any)"
                   >编辑</el-button
                 >
-                <el-button type="danger" link size="small" @click="handleDelete(row)"
+                <el-button type="danger" link size="small" @click="handleDelete(row as any)"
                   >删除</el-button
                 >
               </template>
