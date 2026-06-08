@@ -38,7 +38,4 @@ DROP TABLE IF EXISTS "warehouses" CASCADE;
 DROP TABLE IF EXISTS "product_categories" CASCADE;
 DROP TABLE IF EXISTS "products" CASCADE;
 
--- 系统管理表
-DROP TABLE IF EXISTS "departments" CASCADE;
-DROP TABLE IF EXISTS "roles" CASCADE;
-DROP TABLE IF EXISTS "users" CASCADE;
+-- users, roles, departments are dropped via Fluent API in m0001_initial_schema.rs

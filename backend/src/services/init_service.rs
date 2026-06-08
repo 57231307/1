@@ -226,7 +226,7 @@ impl InitService {
             .await
             .map_err(|e| InitError::DatabaseError(format!("创建管理员角色失败: {}", e)))?;
 
-        // 创建部门经理角色
+        // 创建其他角色
         let manager_role = role::ActiveModel {
             id: Set(0),
             name: Set("部门经理".to_string()),
@@ -239,12 +239,7 @@ impl InitService {
             created_at: Set(chrono::Utc::now()),
             updated_at: Set(chrono::Utc::now()),
         };
-        // 尝试创建，如果失败则记录但不中断初始化
-        if let Err(e) = manager_role.insert(self.db.as_ref()).await {
-            warn!("创建部门经理角色失败: {}, 可能已存在", e);
-        }
 
-        // 创建操作员角色
         let operator_role = role::ActiveModel {
             id: Set(0),
             name: Set("操作员".to_string()),
@@ -257,9 +252,17 @@ impl InitService {
             created_at: Set(chrono::Utc::now()),
             updated_at: Set(chrono::Utc::now()),
         };
-        // 尝试创建，如果失败则记录但不中断初始化
-        if let Err(e) = operator_role.insert(self.db.as_ref()).await {
-            warn!("创建操作员角色失败: {}, 可能已存在", e);
+
+        if let Err(e) = role::Entity::insert_many(vec![manager_role, operator_role])
+            .on_conflict(
+                sea_orm::sea_query::OnConflict::column(role::Column::Code)
+                    .do_nothing()
+                    .to_owned()
+            )
+            .exec(self.db.as_ref())
+            .await
+        {
+            warn!("批量创建角色失败: {}, 可能部分已存在", e);
         }
 
         Ok(admin_role)
@@ -302,8 +305,9 @@ impl InitService {
             ("生产部", "D005", 5),
         ];
 
-        for (name, code, sort) in departments {
-            let dept_model = department::ActiveModel {
+        let dept_models: Vec<department::ActiveModel> = departments
+            .into_iter()
+            .map(|(name, code, sort)| department::ActiveModel {
                 id: Set(0),
                 name: Set(name.to_string()),
                 code: Set(code.to_string()),
@@ -314,15 +318,19 @@ impl InitService {
                 is_active: Set(true),
                 created_at: Set(chrono::Utc::now()),
                 updated_at: Set(chrono::Utc::now()),
-            };
+            })
+            .collect();
 
-            // 尝试创建，如果失败则记录但不中断初始化
-            if let Err(e) = dept_model.insert(self.db.as_ref()).await {
-                warn!(
-                    "创建部门 {} ({}): {} 失败: {}, 可能已存在",
-                    name, code, sort, e
-                );
-            }
+        if let Err(e) = department::Entity::insert_many(dept_models)
+            .on_conflict(
+                sea_orm::sea_query::OnConflict::column(department::Column::Code)
+                    .do_nothing()
+                    .to_owned()
+            )
+            .exec(self.db.as_ref())
+            .await
+        {
+            warn!("批量创建部门失败: {}, 可能部分已存在", e);
         }
 
         Ok(dept.id)

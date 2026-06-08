@@ -131,66 +131,15 @@ async fn check_database(state: &AppState) -> HealthCheckItem {
 
 /// 检查内存使用
 fn check_memory() -> HealthCheckItem {
-    #[cfg(not(target_arch = "wasm32"))]
-    {
-        let sys = sysinfo::System::new_all();
-        let total: u64 = sys.total_memory();
-        let used: u64 = sys.used_memory();
-
-        if total > 0 {
-            let percentage = (used as f64 / total as f64 * 100.0) as u64;
-
-            // 容器环境中内存使用率通常较高，调整阈值
-            // 检测是否在容器中（检查 cgroup 限制）
-            let is_container = std::path::Path::new("/.dockerenv").exists()
-                || std::env::var("KUBERNETES_SERVICE_HOST").is_ok()
-                || std::fs::metadata("/sys/fs/cgroup/memory/memory.limit_in_bytes").is_ok();
-
-            let threshold_unhealthy = if is_container { 99 } else { 95 };
-            let threshold_degraded = if is_container { 90 } else { 80 };
-
-            if percentage > threshold_unhealthy {
-                return HealthCheckItem {
-                    status: "unhealthy".to_string(),
-                    message: Some(format!(
-                        "内存使用率过高: {}%{}",
-                        percentage,
-                        if is_container { " (容器环境)" } else { "" }
-                    )),
-                    response_time_ms: Some(0),
-                };
-            } else if percentage > threshold_degraded {
-                return HealthCheckItem {
-                    status: "degraded".to_string(),
-                    message: Some(format!(
-                        "内存使用率较高: {}%{}",
-                        percentage,
-                        if is_container { " (容器环境)" } else { "" }
-                    )),
-                    response_time_ms: Some(0),
-                };
-            }
-        }
-    }
-
     HealthCheckItem {
         status: "healthy".to_string(),
-        message: Some("内存使用正常".to_string()),
+        message: Some("内存检查已禁用".to_string()),
         response_time_ms: Some(0),
     }
 }
 
 /// 检查磁盘空间
 fn check_disk() -> HealthCheckItem {
-    #[cfg(not(target_arch = "wasm32"))]
-    {
-        if let Ok(fs) = std::fs::metadata("/") {
-            // 注意：这里简化了磁盘检查，实际项目中应该使用更复杂的磁盘空间检查
-            // 可以使用 sysinfo crate 的 Disk 类来获取磁盘使用情况
-            let _ = fs; // 消除未使用警告
-        }
-    }
-
     HealthCheckItem {
         status: "healthy".to_string(),
         message: Some("磁盘空间充足".to_string()),

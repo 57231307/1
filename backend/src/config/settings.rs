@@ -163,8 +163,14 @@ impl AppSettings {
 
         app_settings.load_sensitive_from_env();
 
-        if !Self::validate_jwt_secret(&app_settings.auth.jwt_secret) {
-            panic!("致命错误：JWT 密钥强度不足或使用默认密钥！生产环境必须提供至少 32 字节的安全随机密钥，且不能包含常见弱模式。");
+        if !Self::validate_secret(&app_settings.auth.jwt_secret) {
+            panic!("致命错误：JWT_SECRET 密钥强度不足或使用默认密钥！生产环境必须提供至少 32 字节的安全随机密钥，且不能包含常见弱模式。");
+        }
+
+        if let Some(cookie_secret) = &app_settings.auth.cookie_secret {
+            if !Self::validate_secret(cookie_secret) {
+                panic!("致命错误：COOKIE_SECRET 密钥强度不足或使用默认密钥！生产环境必须提供至少 32 字节的安全随机密钥，且不能包含常见弱模式。");
+            }
         }
 
         let env = app_settings.env.to_lowercase();
@@ -236,7 +242,7 @@ impl AppSettings {
         }
     }
 
-    fn validate_jwt_secret(secret: &str) -> bool {
+    fn validate_secret(secret: &str) -> bool {
         if secret.len() < 32 {
             return false;
         }

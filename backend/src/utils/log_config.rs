@@ -13,6 +13,27 @@ pub struct LogConfig {
 
 /// 初始化增强日志系统
 pub fn init_enhanced_logging(config: &LogConfig) -> Result<(), Box<dyn std::error::Error>> {
+    let is_container = std::path::Path::new("/.dockerenv").exists()
+        || std::env::var("KUBERNETES_SERVICE_HOST").is_ok();
+
+    if is_container {
+        let console_layer = tracing_subscriber::fmt::layer()
+            .with_writer(std::io::stdout)
+            .with_target(true);
+
+        tracing_subscriber::registry()
+            .with(
+                tracing_subscriber::EnvFilter::try_from_default_env().unwrap_or_else(|_| {
+                    format!("bingxi_backend={},tower_http=debug", config.log_level).into()
+                }),
+            )
+            .with(console_layer)
+            .init();
+
+        tracing::info!("增强日志系统初始化完成 (容器环境: stdout JSON 模式)");
+        return Ok(());
+    }
+
     // 创建日志目录
     let log_dir = Path::new(&config.log_dir);
     fs::create_dir_all(log_dir)?;

@@ -25,6 +25,7 @@
 
 use axum::{middleware, Router};
 use utoipa::OpenApi;
+#[cfg(feature = "swagger")]
 use utoipa_swagger_ui::SwaggerUi;
 
 use crate::middleware::sql_injection_audit::sql_injection_audit_middleware;
@@ -71,16 +72,19 @@ fn build_erp_root_router() -> Router<AppState> {
 /// - `/metrics`
 /// - `/swagger-ui` `/api-docs/openapi.json`
 fn build_infrastructure_routes() -> Router<AppState> {
-    Router::<AppState>::new()
+    let router = Router::<AppState>::new()
         // 静态资源（CSS / JS / WASM / 字体等）
         .merge(static_routes::static_assets_handler())
         // Prometheus 指标（/metrics）
-        .merge(create_metrics_router())
-        // Swagger UI（/swagger-ui + /api-docs/openapi.json）
-        .merge(
-            SwaggerUi::new("/swagger-ui")
-                .url("/api-docs/openapi.json", crate::docs::ApiDoc::openapi()),
-        )
+        .merge(create_metrics_router());
+
+    #[cfg(feature = "swagger")]
+    let router = router.merge(
+        SwaggerUi::new("/swagger-ui")
+            .url("/api-docs/openapi.json", crate::docs::ApiDoc::openapi()),
+    );
+
+    router
 }
 
 /// 创建主路由

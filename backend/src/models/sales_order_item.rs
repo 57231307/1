@@ -74,3 +74,18 @@ impl Related<super::product::Entity> for Entity {
 }
 
 impl ActiveModelBehavior for ActiveModel {}
+
+pub struct SalesOrderItemToCustomer;
+
+impl Linked for SalesOrderItemToCustomer {
+    type FromEntity = Entity;
+    type ToEntity = super::customer::Entity;
+
+    fn link(&self) -> Vec<RelationDef> {
+        vec![
+            Relation::Order.def(),
+            super::sales_order::Relation::Customer.def(),
+        ]
+    }
+}
+

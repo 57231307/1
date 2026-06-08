@@ -289,6 +289,7 @@ impl SalesService {
             }
         }
 
+        let mut item_models = Vec::new();
         for item_req in request.items {
             let discount_pct = item_req
                 .discount_percent
@@ -356,7 +357,13 @@ impl SalesService {
                 is_net_weight: sea_orm::ActiveValue::Set(item_req.is_net_weight),
             };
 
-            item.insert(&txn).await?;
+            item_models.push(item);
+        }
+
+        if !item_models.is_empty() {
+            sales_order_item::Entity::insert_many(item_models)
+                .exec(&txn)
+                .await?;
         }
 
         // 更新订单总金额
@@ -502,6 +509,7 @@ impl SalesService {
             let mut discount_amount = rust_decimal::Decimal::ZERO;
             let mut total_amount = rust_decimal::Decimal::ZERO;
 
+            let mut item_models = Vec::new();
             for item_req in items {
                 let discount_pct = item_req
                     .discount_percent
@@ -570,7 +578,13 @@ impl SalesService {
                     is_net_weight: sea_orm::ActiveValue::Set(item_req.is_net_weight),
                 };
 
-                item.insert(&txn).await?;
+                item_models.push(item);
+            }
+
+            if !item_models.is_empty() {
+                sales_order_item::Entity::insert_many(item_models)
+                    .exec(&txn)
+                    .await?;
             }
 
             // 更新订单总金额
