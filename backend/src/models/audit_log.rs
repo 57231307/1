@@ -1,7 +1,11 @@
 use sea_orm::entity::prelude::*;
+use sea_orm::FromJsonQueryResult;
 use serde::{Deserialize, Serialize};
 
-#[derive(Clone, Debug, PartialEq, DeriveEntityModel, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, FromJsonQueryResult)]
+pub struct AuditValue(pub serde_json::Value);
+
+#[derive(Clone, Debug, PartialEq, DeriveEntityModel, Serialize, Deserialize, Default)]
 #[sea_orm(table_name = "audit_logs")]
 pub struct Model {
     #[sea_orm(primary_key)]
@@ -21,8 +25,8 @@ pub struct Model {
     pub request_body: Option<String>,
     pub response_status: Option<i32>,
     pub duration_ms: Option<i32>,
-    pub old_value: Option<serde_json::Value>,
-    pub new_value: Option<serde_json::Value>,
+    pub old_value: Option<AuditValue>,
+    pub new_value: Option<AuditValue>,
     pub created_at: Option<DateTimeUtc>,
 }
 

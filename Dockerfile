@@ -1,86 +1,75 @@
-# ==============================================================================
-# 阶段 1: 构建后端 (Rust)
-# ==============================================================================
-FROM rust:1.80-slim-bookworm as backend-builder
-
-RUN apt-get update && apt-get install -y protobuf-compiler pkg-config libssl-dev && rm -rf /var/lib/apt/lists/*
-
+FROM rust:1.80-slim-bookworm AS chef
+# 使用 cargo-chef 优化依赖构建缓存
+RUN cargo install cargo-chef
 WORKDIR /app
+
+FROM chef AS planner
 COPY backend/ ./backend/
-COPY database/ ./database/
 WORKDIR /app/backend
+RUN cargo chef prepare --recipe-path recipe.json
 
-# 构建后端应用
-RUN cargo build --release --bin server
+FROM chef AS backend-builder
+# 安装编译所需工具和库
+RUN apt-get update && apt-get install -y \
+    pkg-config \
+    libssl-dev \
+    protobuf-compiler \
+    && rm -rf /var/lib/apt/lists/*
+WORKDIR /app/backend
+COPY --from=planner /app/backend/recipe.json recipe.json
+# 仅构建依赖层（能被充分缓存）
+RUN cargo chef cook --release --recipe-path recipe.json
+# 复制源码构建真正的应用
+COPY backend/ .
+RUN cargo build --release
 
-# ==============================================================================
-# 阶段 2: 构建前端 (Vue/Vite)
-# ==============================================================================
-FROM node:20-slim as frontend-builder
-WORKDIR /app
-
-# 安装前端依赖
-COPY frontend/package*.json ./
-RUN npm install
-
-# 复制前端源码并构建
+# 第二阶段：前端构建
+FROM node:20-alpine AS frontend-builder
+WORKDIR /app/frontend
+COPY frontend/package.json frontend/package-lock.json* ./
+RUN npm ci
 COPY frontend/ .
 RUN cp .env.production.example .env.production || true
 RUN npm run build
 
-# ==============================================================================
-# 阶段 3: 最终运行镜像 (All-in-one)
-# ==============================================================================
+# 第三阶段：合并部署环境
 FROM debian:bookworm-slim
+# 最小权限原则：创建普通用户 appuser
+RUN groupadd -r appuser && useradd -r -g appuser -m appuser
 
-# 安装运行环境依赖 (Nginx, Supervisor, OpenSSL 等)
-RUN apt-get update && apt-get install -y libssl3 ca-certificates nginx supervisor && rm -rf /var/lib/apt/lists/*
+# 安装运行环境，包括 nginx, supervisor，并清理 apt 缓存
+RUN apt-get update && apt-get install -y \
+    nginx \
+    supervisor \
+    ca-certificates \
+    && rm -rf /var/lib/apt/lists/*
 
+# 设置运行目录并转移权限给 appuser
 WORKDIR /app
+RUN chown -R appuser:appuser /app \
+    && chown -R appuser:appuser /var/log/nginx \
+    && chown -R appuser:appuser /var/lib/nginx \
+    && chown -R appuser:appuser /run/nginx
 
-# 1. 拷贝后端产物
-COPY --from=backend-builder /app/backend/target/release/server /app/server
-COPY --from=backend-builder /app/backend/config.yaml.example /app/config.yaml
-COPY --from=backend-builder /app/database /app/database
-RUN mkdir -p /app/logs
+# 复制后端产物
+COPY --from=backend-builder --chown=appuser:appuser /app/backend/target/release/server /app/server
+COPY --from=backend-builder --chown=appuser:appuser /app/backend/migration /app/migration
+COPY --from=backend-builder --chown=appuser:appuser /app/backend/config.yaml.example /app/config.yaml.example
 
-# 2. 拷贝前端产物
-COPY --from=frontend-builder /app/dist /usr/share/nginx/html
+# 复制前端产物
+COPY --from=frontend-builder --chown=appuser:appuser /app/frontend/dist /usr/share/nginx/html
+# 复制 nginx 与 supervisor 配置
+COPY frontend/nginx.conf /etc/nginx/nginx.conf
+COPY deploy/supervisord.conf /etc/supervisor/conf.d/supervisord.conf
 
-# 3. 配置 Nginx
-COPY frontend/nginx.conf /etc/nginx/conf.d/default.conf
-# 修改 Nginx 配置中的后端地址为 127.0.0.1，并将监听端口修改为 8080
-RUN sed -i 's/http:\/\/backend:8082/http:\/\/127.0.0.1:8082/g' /etc/nginx/conf.d/default.conf && \
-    sed -i 's/listen 80;/listen 8080;/g' /etc/nginx/conf.d/default.conf
+# 修正部分系统目录权限，确保 nginx/supervisor 可以用非 root 运行
+RUN touch /var/run/nginx.pid && chown appuser:appuser /var/run/nginx.pid \
+    && mkdir -p /var/log/supervisor && chown -R appuser:appuser /var/log/supervisor \
+    && mkdir -p /var/run/supervisor && chown -R appuser:appuser /var/run/supervisor
 
-# 4. 配置 Supervisor (用于同时管理 Nginx 和 Rust 后端)
-RUN echo '[supervisord]\n\
-nodaemon=true\n\
-logfile=/var/log/supervisor/supervisord.log\n\
-pidfile=/var/run/supervisord.pid\n\
-\n\
-[program:backend]\n\
-command=/app/server\n\
-directory=/app\n\
-autostart=true\n\
-autorestart=true\n\
-stdout_logfile=/dev/stdout\n\
-stdout_logfile_maxbytes=0\n\
-stderr_logfile=/dev/stderr\n\
-stderr_logfile_maxbytes=0\n\
-\n\
-[program:nginx]\n\
-command=nginx -g "daemon off;"\n\
-autostart=true\n\
-autorestart=true\n\
-stdout_logfile=/dev/stdout\n\
-stdout_logfile_maxbytes=0\n\
-stderr_logfile=/dev/stderr\n\
-stderr_logfile_maxbytes=0\n\
-' > /etc/supervisor/conf.d/supervisord.conf
+# 切换到非 root 用户
+USER appuser
 
-# 暴露端口 (只需暴露 Nginx 的 8080 端口，外部通过 8080 访问前后端)
-EXPOSE 8080 50051
-
-# 启动 Supervisor
+EXPOSE 8080
+# 使用 supervisor 守护 nginx 与后端的双进程
 CMD ["/usr/bin/supervisord", "-c", "/etc/supervisor/conf.d/supervisord.conf"]

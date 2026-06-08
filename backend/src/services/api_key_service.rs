@@ -14,8 +14,11 @@ impl ApiKeyService {
         let chars: Vec<char> = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789"
             .chars()
             .collect();
+        use rand::Rng;
+        let mut rng = rand::rngs::OsRng;
+        
         let key: String = (0..32)
-            .map(|_| chars[fastrand::usize(..chars.len())])
+            .map(|_| chars[rng.gen_range(0..chars.len())])
             .collect();
         format!("bx_{}", key)
     }

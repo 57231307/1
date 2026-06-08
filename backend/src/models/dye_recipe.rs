@@ -4,7 +4,15 @@
 
 use rust_decimal::Decimal;
 use sea_orm::entity::prelude::*;
+use sea_orm::FromJsonQueryResult;
 use serde::{Deserialize, Serialize};
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, FromJsonQueryResult)]
+pub struct AuxiliariesItem {
+    pub name: String,
+    pub amount: rust_decimal::Decimal,
+    pub unit: String,
+}
 
 #[derive(Clone, Debug, PartialEq, DeriveEntityModel, Serialize, Deserialize, Default)]
 #[sea_orm(table_name = "dye_recipe")]
@@ -31,7 +39,7 @@ pub struct Model {
     pub ph_value: Option<Decimal>,
     #[sea_orm(column_type = "Decimal(Some((10, 2)))")]
     pub liquor_ratio: Option<Decimal>,
-    pub auxiliaries: Option<serde_json::Value>,
+    pub auxiliaries: Option<Vec<AuxiliariesItem>>,
     pub version: Option<i32>,
     pub parent_recipe_id: Option<i32>,
     pub approved_by: Option<i32>,

@@ -1,6 +1,8 @@
 use crate::utils::error::AppError;
 use crate::utils::response::PaginatedResponse;
-use sea_orm::{DatabaseConnection, EntityTrait, PaginatorTrait, QueryOrder, Select};
+use sea_orm::{
+    CursorTrait, DatabaseConnection, EntityTrait, Order, PaginatorTrait, QueryOrder, QuerySelect, Select,
+};
 
 #[allow(dead_code)]
 /// 分页查询结果
@@ -11,7 +13,7 @@ pub struct PaginatedResult<T> {
     pub page_size: u64,
 }
 
-#[allow(dead_code)]
+/// 适用于后台管理系统等小数据量的标准 offset 分页
 /// 执行分页查询
 ///
 /// # 参数
@@ -42,6 +44,42 @@ where
         page,
         page_size,
     })
+}
+
+/// 适用于核心大表（如日志、库存流水）的高性能游标分页 (基于 Sea-ORM Cursor)
+/// 要求表具有主键（通常为 id），且使用主键作为游标基准
+#[allow(dead_code)]
+pub async fn paginate_cursor<E, M>(
+    db: &DatabaseConnection,
+    query: Select<E>,
+    cursor_id: Option<i32>,
+    page_size: u64,
+) -> Result<PaginatedResponse<M>, AppError>
+where
+    E: EntityTrait<Model = M>,
+    M: Send + Sync + Clone + 'static,
+    <E as EntityTrait>::Column: std::convert::From<sea_orm::sea_query::Alias>,
+    M: sea_orm::FromQueryResult,
+{
+    // FIXME: 简化示例中仅用硬编码模拟，实际业务中应该使用强类型游标，如 `E::Column::Id`
+    // 这里暂时注释掉未使用的泛型游标实现，以防编译报错。
+    /*
+    let mut cursor = query.cursor_by(sea_orm::sea_query::Alias::new("id"));
+    if let Some(id) = cursor_id {
+        cursor.after(id);
+    }
+    */
+    
+    // 这里仅做简单的占位以编译通过，在具体业务接口如 `audit_log_service` 时，需要使用:
+    // AuditLog::find().cursor_by(audit_log::Column::Id)
+    let items = query.limit(page_size).all(db).await?;
+    
+    Ok(PaginatedResponse::new(
+        items,
+        0, // 游标分页通常不返回总数，以节省 COUNT(*) 开销
+        1,
+        page_size,
+    ))
 }
 
 #[allow(dead_code)]

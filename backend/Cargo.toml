@@ -87,7 +87,7 @@ utoipa = { version = "5.2.0", features = ["axum_extras"] }
 axum-extra = { version = "0.9.3", features = ["cookie", "cookie-private", "cookie-key-expansion"] }
 totp-rs = { version = "5.5", features = ["qr", "gen_secret"] }
 utoipa-swagger-ui = { version = "8.0.3", features = ["axum"] }
-urlencoding = "2.1.3"
+percent-encoding = "2.3.1"
 fastrand = "2.4.0"
 hmac = "0.13.0"
 sha2 = "0.11.0"

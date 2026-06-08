@@ -25,10 +25,12 @@ pub struct DatabaseConfig {
 
 impl DatabaseConfig {
     pub fn to_connection_string(&self) -> String {
-        let encoded_username = urlencoding::encode(&self.username);
-        let encoded_password = urlencoding::encode(&self.password);
-        let encoded_host = urlencoding::encode(&self.host);
-        let encoded_name = urlencoding::encode(&self.name);
+        // Use axum/http internals or percent_encoding for url encoding instead of a separate crate
+        use percent_encoding::{utf8_percent_encode, NON_ALPHANUMERIC};
+        let encoded_username = utf8_percent_encode(&self.username, NON_ALPHANUMERIC).to_string();
+        let encoded_password = utf8_percent_encode(&self.password, NON_ALPHANUMERIC).to_string();
+        let encoded_host = utf8_percent_encode(&self.host, NON_ALPHANUMERIC).to_string();
+        let encoded_name = utf8_percent_encode(&self.name, NON_ALPHANUMERIC).to_string();
 
         format!(
             "postgres://{}:{}@{}:{}/{}?sslmode=disable",
