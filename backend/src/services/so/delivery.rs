@@ -13,8 +13,8 @@ use crate::utils::error::AppError;
 use rust_decimal::Decimal;
 use sea_orm::sea_query::ExprTrait;
 use sea_orm::{
-    ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait,
-    QueryFilter, Set, TransactionTrait,
+    ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter, Set,
+    TransactionTrait,
 };
 use serde::Deserialize;
 use std::sync::Arc;
