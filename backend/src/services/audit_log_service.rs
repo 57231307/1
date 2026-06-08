@@ -43,8 +43,8 @@ impl AuditLogService {
             request_body: ActiveValue::Set(None),
             response_status: ActiveValue::Set(None),
             duration_ms: ActiveValue::Set(None),
-            old_value: ActiveValue::Set(old_data.map(|v| crate::models::audit_log::AuditValue(v))),
-            new_value: ActiveValue::Set(new_data.map(|v| crate::models::audit_log::AuditValue(v))),
+            old_value: ActiveValue::Set(old_data.map(crate::models::audit_log::AuditValue)),
+            new_value: ActiveValue::Set(new_data.map(crate::models::audit_log::AuditValue)),
             created_at: ActiveValue::Set(Some(Utc::now())),
         };
 

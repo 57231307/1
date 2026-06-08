@@ -175,7 +175,9 @@ pub async fn create_dye_recipe(
         time_minutes: Set(req.time_minutes),
         ph_value: Set(req.ph_value.and_then(Decimal::from_f64_retain)),
         liquor_ratio: Set(req.liquor_ratio.and_then(Decimal::from_f64_retain)),
-        auxiliaries: Set(req.auxiliaries.map(|val| serde_json::from_value(val).unwrap_or_default())),
+        auxiliaries: Set(req
+            .auxiliaries
+            .map(|val| serde_json::from_value(val).unwrap_or_default())),
         status: Set(Some(req.status.unwrap_or_else(|| "草稿".to_string()))),
         is_deleted: Set(Some(false)),
         version: Set(req.version.or(Some(1))),
@@ -271,7 +273,9 @@ pub async fn update_dye_recipe(
         recipe.liquor_ratio = Set(Decimal::from_f64_retain(liquor_ratio));
     }
     if let Some(auxiliaries) = req.auxiliaries {
-        recipe.auxiliaries = Set(Some(serde_json::from_value(auxiliaries).unwrap_or_default()));
+        recipe.auxiliaries = Set(Some(
+            serde_json::from_value(auxiliaries).unwrap_or_default(),
+        ));
     }
     if let Some(status) = req.status {
         // 验证配方状态流转

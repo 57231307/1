@@ -4,7 +4,7 @@
 
 use clap::Subcommand;
 use migration::{Migrator, MigratorTrait};
-use sea_orm::{Database, ConnectOptions};
+use sea_orm::{ConnectOptions, Database};
 use std::time::Duration;
 
 /// 数据库迁移子命令枚举
@@ -26,9 +26,8 @@ pub enum MigrateCommand {
 
 /// 获取数据库连接
 async fn get_db_connection() -> Result<sea_orm::DatabaseConnection, Box<dyn std::error::Error>> {
-    let db_url = std::env::var("DATABASE_URL")
-        .expect("请设置 DATABASE_URL 环境变量");
-    
+    let db_url = std::env::var("DATABASE_URL").expect("请设置 DATABASE_URL 环境变量");
+
     let mut opt = ConnectOptions::new(db_url);
     opt.max_connections(1)
         .min_connections(1)

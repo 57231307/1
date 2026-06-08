@@ -61,10 +61,7 @@ where
 {
     type Rejection = AppError;
 
-    async fn from_request(
-        req: Request,
-        state: &S,
-    ) -> Result<Self, Self::Rejection> {
+    async fn from_request(req: Request, state: &S) -> Result<Self, Self::Rejection> {
         // 1. 反序列化 JSON 请求体
         let Json(value) = Json::<T>::from_request(req, state)
             .await

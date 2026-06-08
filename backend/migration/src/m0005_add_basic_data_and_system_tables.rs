@@ -6,7 +6,8 @@ pub struct Migration;
 #[async_trait::async_trait]
 impl MigrationTrait for Migration {
     async fn up(&self, manager: &SchemaManager) -> Result<(), DbErr> {
-        let sql = include_str!("../../migrations/20260527000001_add_basic_data_and_system_tables/up.sql");
+        let sql =
+            include_str!("../../migrations/20260527000001_add_basic_data_and_system_tables/up.sql");
         if !sql.trim().is_empty() {
             manager.get_connection().execute_unprepared(sql).await?;
         }
@@ -14,7 +15,9 @@ impl MigrationTrait for Migration {
     }
 
     async fn down(&self, manager: &SchemaManager) -> Result<(), DbErr> {
-        let sql = include_str!("../../migrations/20260527000001_add_basic_data_and_system_tables/down.sql");
+        let sql = include_str!(
+            "../../migrations/20260527000001_add_basic_data_and_system_tables/down.sql"
+        );
         if !sql.trim().is_empty() {
             manager.get_connection().execute_unprepared(sql).await?;
         }

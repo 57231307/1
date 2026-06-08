@@ -17,8 +17,8 @@ use crate::services::so::{
 use crate::utils::error::AppError;
 use crate::utils::PaginatedResponse;
 use sea_orm::{
-    ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, LoaderTrait, ModelTrait, Order, PaginatorTrait,
-    QueryFilter, QueryOrder, QuerySelect, RelationTrait, TransactionTrait,
+    ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, LoaderTrait, ModelTrait, Order,
+    PaginatorTrait, QueryFilter, QueryOrder, QuerySelect, RelationTrait, TransactionTrait,
 };
 use std::sync::Arc;
 
@@ -81,7 +81,8 @@ impl SalesService {
                 .await?;
 
             // 提取所有 items，用于批量加载 products
-            let all_items_owned: Vec<sales_order_item::Model> = items_vec.iter().flatten().cloned().collect();
+            let all_items_owned: Vec<sales_order_item::Model> =
+                items_vec.iter().flatten().cloned().collect();
 
             // 使用 LoaderTrait 批量加载 products
             let products = all_items_owned
@@ -99,7 +100,7 @@ impl SalesService {
                 for item in items.iter() {
                     let product = products[global_item_index].as_ref();
                     global_item_index += 1;
-                    
+
                     item_details.push(SalesOrderItemDetail {
                         id: item.id,
                         order_id: item.order_id,
@@ -344,12 +345,14 @@ impl SalesService {
             crate::services::customer_credit_service::CustomerCreditService::new(self.db.clone());
         let order_amount_decimal = {
             use rust_decimal::Decimal;
-            order_amount.to_string().parse::<rust_decimal::Decimal>()
+            order_amount
+                .to_string()
+                .parse::<rust_decimal::Decimal>()
                 .unwrap_or_else(|_| Decimal::from(0))
         };
 
         let credit_available = credit_service
-            .check_credit_available(request.customer_id, order_amount_decimal.clone())
+            .check_credit_available(request.customer_id, order_amount_decimal)
             .await
             .map_err(|e| AppError::business(format!("信用检查失败: {}", e)))?;
 
@@ -544,15 +547,13 @@ impl SalesService {
             crate::services::customer_credit_service::CustomerCreditService::new(self.db.clone());
         let order_amount_decimal = {
             use rust_decimal::Decimal;
-            order_amount.to_string().parse::<rust_decimal::Decimal>()
+            order_amount
+                .to_string()
+                .parse::<rust_decimal::Decimal>()
                 .unwrap_or_else(|_| Decimal::from(0))
         };
         credit_service
-            .occupy_credit(
-                request.customer_id,
-                order_amount_decimal.clone(),
-                user_id,
-            )
+            .occupy_credit(request.customer_id, order_amount_decimal, user_id)
             .await
             .map_err(|e| {
                 tracing::error!("信用额度占用失败，事务回滚: {}", e);
@@ -914,7 +915,10 @@ impl SalesService {
             crate::services::customer_credit_service::CustomerCreditService::new(self.db.clone());
         let total_amount_decimal = {
             use rust_decimal::Decimal;
-            order.total_amount.to_string().parse::<rust_decimal::Decimal>()
+            order
+                .total_amount
+                .to_string()
+                .parse::<rust_decimal::Decimal>()
                 .unwrap_or_else(|_| Decimal::from(0))
         };
         let credit_available = credit_service

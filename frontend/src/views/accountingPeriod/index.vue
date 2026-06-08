@@ -294,7 +294,7 @@ loadCurrentPeriod()
     </div>
 
     <ElTable
-    :data="tableData"
+      :data="tableData"
       :loading="loading"
       border
       fit
@@ -355,7 +355,7 @@ loadCurrentPeriod()
       </ElTableColumn>
     </ElTable>
 
-    <div class="pagination-wrapper" style="margin-top: 16px; text-align: right;">
+    <div class="pagination-wrapper" style="margin-top: 16px; text-align: right">
       <ElPagination
         v-model:current-page="pagination.page"
         v-model:page-size="pagination.pageSize"

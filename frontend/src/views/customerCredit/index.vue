@@ -45,7 +45,9 @@
         </el-table-column>
         <el-table-column label="操作" fixed="right" width="300">
           <template #default="{ row }">
-            <el-button link type="primary" @click="handleAdjustLimit(row as any)">调整额度</el-button>
+            <el-button link type="primary" @click="handleAdjustLimit(row as any)"
+              >调整额度</el-button
+            >
             <el-button link type="primary" @click="handleOccupy(row as any)">占用额度</el-button>
             <el-button link type="primary" @click="handleRelease(row as any)">释放额度</el-button>
             <el-button

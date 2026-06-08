@@ -95,7 +95,9 @@
                 <el-button type="primary" link size="small" @click="openUserDialog(row as any)"
                   >编辑</el-button
                 >
-                <el-button type="danger" link size="small" @click="deleteUser(row as any)">删除</el-button>
+                <el-button type="danger" link size="small" @click="deleteUser(row as any)"
+                  >删除</el-button
+                >
               </template>
             </el-table-column>
           </el-table>
@@ -137,10 +139,16 @@
                 <el-button type="primary" link size="small" @click="openRoleDialog(row as any)"
                   >编辑</el-button
                 >
-                <el-button type="primary" link size="small" @click="openPermissionDialog(row as any)"
+                <el-button
+                  type="primary"
+                  link
+                  size="small"
+                  @click="openPermissionDialog(row as any)"
                   >权限</el-button
                 >
-                <el-button type="danger" link size="small" @click="deleteRole(row as any)">删除</el-button>
+                <el-button type="danger" link size="small" @click="deleteRole(row as any)"
+                  >删除</el-button
+                >
               </template>
             </el-table-column>
           </el-table>
@@ -179,7 +187,9 @@
                 <el-button type="primary" link size="small" @click="openDeptDialog(row as any)"
                   >编辑</el-button
                 >
-                <el-button type="danger" link size="small" @click="deleteDept(row as any)">删除</el-button>
+                <el-button type="danger" link size="small" @click="deleteDept(row as any)"
+                  >删除</el-button
+                >
               </template>
             </el-table-column>
           </el-table>
@@ -431,7 +441,11 @@
             <el-table-column prop="description" label="描述" width="200" />
             <el-table-column label="操作" width="150" fixed="right">
               <template #default="{ row }">
-                <el-button type="primary" link size="small" @click="openTenantConfigDialog(row as any)"
+                <el-button
+                  type="primary"
+                  link
+                  size="small"
+                  @click="openTenantConfigDialog(row as any)"
                   >编辑</el-button
                 >
                 <el-button type="danger" link size="small" @click="deleteTenantConfig(row as any)"

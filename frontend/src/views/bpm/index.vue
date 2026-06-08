@@ -100,7 +100,9 @@
                 <el-button type="info" link size="small" @click="handleTransfer(row as any)"
                   >转交</el-button
                 >
-                <el-button type="danger" link size="small" @click="handleUrge(row as any)">催办</el-button>
+                <el-button type="danger" link size="small" @click="handleUrge(row as any)"
+                  >催办</el-button
+                >
               </template>
             </el-table-column>
           </el-table>
@@ -130,7 +132,9 @@
                 <el-button type="primary" link size="small" @click="handleTrace(row as any)"
                   >追溯</el-button
                 >
-                <el-button type="info" link size="small" @click="handleCancel(row as any)">撤回</el-button>
+                <el-button type="info" link size="small" @click="handleCancel(row as any)"
+                  >撤回</el-button
+                >
               </template>
             </el-table-column>
           </el-table>

@@ -515,7 +515,11 @@ onMounted(() => {
             <el-button size="small" @click="handleViewDetail(scope.row as any)">
               <el-icon><View /></el-icon> 明细
             </el-button>
-            <el-button size="small" type="primary" @click="handleSendConfirmation(scope.row as any)">
+            <el-button
+              size="small"
+              type="primary"
+              @click="handleSendConfirmation(scope.row as any)"
+            >
               <el-icon><Send /></el-icon> 确认
             </el-button>
             <el-button size="small" type="danger" @click="openDisputeDialog(scope.row as any)">

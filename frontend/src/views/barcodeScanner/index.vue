@@ -252,7 +252,7 @@ loadHistory()
         </div>
 
         <ElTable
-    :data="historyData"
+          :data="historyData"
           :loading="loading"
           border
           fit
@@ -267,17 +267,17 @@ loadHistory()
           <ElTableColumn prop="created_at" label="时间" width="180" />
         </ElTable>
 
-    <div class="pagination-wrapper" style="margin-top: 16px; text-align: right;">
-      <ElPagination
-        v-model:current-page="pagination.page"
-        v-model:page-size="pagination.pageSize"
-        :page-sizes="[10, 20, 50, 100]"
-        :total="total"
-        layout="total, sizes, prev, pager, next, jumper"
-        @size-change="handlePageSizeChange"
-        @current-change="handlePageChange"
-      />
-    </div>
+        <div class="pagination-wrapper" style="margin-top: 16px; text-align: right">
+          <ElPagination
+            v-model:current-page="pagination.page"
+            v-model:page-size="pagination.pageSize"
+            :page-sizes="[10, 20, 50, 100]"
+            :total="total"
+            layout="total, sizes, prev, pager, next, jumper"
+            @size-change="handlePageSizeChange"
+            @current-change="handlePageChange"
+          />
+        </div>
       </ElTabPane>
     </ElTabs>
   </div>

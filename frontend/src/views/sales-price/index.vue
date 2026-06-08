@@ -116,7 +116,9 @@
         </el-table-column>
         <el-table-column label="操作" width="200" align="center" fixed="right">
           <template #default="{ row }">
-            <el-button type="primary" link size="small" @click="handleView(row as any)">查看</el-button>
+            <el-button type="primary" link size="small" @click="handleView(row as any)"
+              >查看</el-button
+            >
             <el-button
               v-if="row.status === 'pending'"
               type="primary"
@@ -133,7 +135,9 @@
               @click="handleApprove(row as any)"
               >审批</el-button
             >
-            <el-button type="info" link size="small" @click="handleHistory(row as any)">历史</el-button>
+            <el-button type="info" link size="small" @click="handleHistory(row as any)"
+              >历史</el-button
+            >
           </template>
         </el-table-column>
       </el-table>

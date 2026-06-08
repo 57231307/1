@@ -210,7 +210,7 @@ loadRecords()
     <ElTabs v-model="activeTab" @tab-change="handleTabChange">
       <ElTabPane label="辅助核算记录" name="records">
         <ElTable
-    :data="tableData"
+          :data="tableData"
           :loading="loading"
           border
           fit
@@ -242,17 +242,17 @@ loadRecords()
           </ElTableColumn>
         </ElTable>
 
-    <div class="pagination-wrapper" style="margin-top: 16px; text-align: right;">
-      <ElPagination
-        v-model:current-page="pagination.page"
-        v-model:page-size="pagination.pageSize"
-        :page-sizes="[10, 20, 50, 100]"
-        :total="total"
-        layout="total, sizes, prev, pager, next, jumper"
-        @size-change="handlePageSizeChange"
-        @current-change="handlePageChange"
-      />
-    </div>
+        <div class="pagination-wrapper" style="margin-top: 16px; text-align: right">
+          <ElPagination
+            v-model:current-page="pagination.page"
+            v-model:page-size="pagination.pageSize"
+            :page-sizes="[10, 20, 50, 100]"
+            :total="total"
+            layout="total, sizes, prev, pager, next, jumper"
+            @size-change="handlePageSizeChange"
+            @current-change="handlePageChange"
+          />
+        </div>
       </ElTabPane>
 
       <ElTabPane label="辅助核算汇总" name="summary">

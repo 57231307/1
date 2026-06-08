@@ -183,9 +183,9 @@ impl InitService {
         use tracing::info;
 
         info!("开始执行数据库迁移...");
-        Migrator::up(self.db.as_ref(), None).await.map_err(|e| {
-            InitError::DatabaseError(format!("执行数据库迁移失败: {}", e))
-        })?;
+        Migrator::up(self.db.as_ref(), None)
+            .await
+            .map_err(|e| InitError::DatabaseError(format!("执行数据库迁移失败: {}", e)))?;
 
         info!("所有数据库迁移脚本执行完成");
         Ok(())
@@ -257,7 +257,7 @@ impl InitService {
             .on_conflict(
                 sea_orm::sea_query::OnConflict::column(role::Column::Code)
                     .do_nothing()
-                    .to_owned()
+                    .to_owned(),
             )
             .exec(self.db.as_ref())
             .await
@@ -325,7 +325,7 @@ impl InitService {
             .on_conflict(
                 sea_orm::sea_query::OnConflict::column(department::Column::Code)
                     .do_nothing()
-                    .to_owned()
+                    .to_owned(),
             )
             .exec(self.db.as_ref())
             .await

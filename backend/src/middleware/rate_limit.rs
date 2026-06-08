@@ -3,9 +3,9 @@ use crate::utils::app_state::AppState;
 use crate::utils::error::AppError;
 use axum::{body::Body, extract::State, http::Request, middleware::Next, response::Response};
 use dashmap::DashMap;
-use std::sync::LazyLock;
 use std::net::SocketAddr;
 use std::sync::Arc;
+use std::sync::LazyLock;
 use std::time::{Duration, Instant};
 
 // =====================================================
@@ -48,7 +48,7 @@ impl MemoryRateLimiter {
         if fastrand::usize(..1000) == 0 {
             self.cleanup();
         }
-        
+
         let now = Instant::now();
         if let Some(mut entry) = self.storage.get_mut(key) {
             if now >= entry.reset_at {

@@ -1,7 +1,7 @@
 #![allow(dead_code)]
 
-use std::sync::LazyLock;
 use regex::Regex;
+use std::sync::LazyLock;
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum PasswordStrength {

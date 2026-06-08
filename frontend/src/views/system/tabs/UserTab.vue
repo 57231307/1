@@ -44,7 +44,9 @@
         <el-table-column label="角色" width="150">
           <template #default="{ row }">
             <template v-if="row.role_names?.length">
-              <el-tag v-for="r in row.role_names" :key="r" size="small" class="mr-1">{{ r }}</el-tag>
+              <el-tag v-for="r in row.role_names" :key="r" size="small" class="mr-1">{{
+                r
+              }}</el-tag>
             </template>
             <span v-else class="text-gray">未分配</span>
           </template>
@@ -60,7 +62,9 @@
         <el-table-column label="操作" width="150" fixed="right">
           <template #default="{ row }">
             <el-button size="small" link @click="openUserDialog(row as any)">编辑</el-button>
-            <el-button size="small" link type="danger" @click="deleteUser(row as any)">删除</el-button>
+            <el-button size="small" link type="danger" @click="deleteUser(row as any)"
+              >删除</el-button
+            >
           </template>
         </el-table-column>
       </el-table>
@@ -69,9 +73,9 @@
         v-model:page-size="userQuery.page_size"
         :total="userTotal"
         layout="total, sizes, prev, pager, next, jumper"
+        style="margin-top: 16px; justify-content: flex-end"
         @current-change="fetchUsers"
         @size-change="fetchUsers"
-        style="margin-top: 16px; justify-content: flex-end;"
       />
     </el-card>
 

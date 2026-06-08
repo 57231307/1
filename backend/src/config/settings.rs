@@ -43,7 +43,6 @@ pub struct AuthConfig {
     pub token_expiry_hours: i64,
 }
 
-
 #[derive(Debug, Clone, Deserialize)]
 pub struct LogConfig {
     pub level: String,
@@ -112,7 +111,6 @@ impl CorsConfig {
         config
     }
 }
-
 
 impl AppSettings {
     pub fn new() -> Result<Self, ConfigError> {

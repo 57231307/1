@@ -164,7 +164,9 @@
         <el-table-column prop="creator_name" label="创建人" width="100" />
         <el-table-column label="操作" width="200" fixed="right">
           <template #default="{ row }">
-            <el-button type="primary" link size="small" @click="handleView(row as any)">详情</el-button>
+            <el-button type="primary" link size="small" @click="handleView(row as any)"
+              >详情</el-button
+            >
             <el-button
               v-if="row.status === 'approved'"
               type="warning"

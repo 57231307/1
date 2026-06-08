@@ -1,3 +1,6 @@
+#![allow(dead_code)]
+#![allow(unused_variables)]
+#![allow(unused_imports)]
 mod config;
 mod docs;
 mod handlers;
@@ -301,7 +304,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 tracing::warn!("配置警告: 用于 Cookie 加密的密钥长度不足 32 字节。系统将自动进行补齐以启动服务，但请在生产环境中配置至少 32 字节的强密钥！");
             }
             let db = Arc::new(db);
-            
+
             let omni_audit = Arc::new(crate::services::omni_audit_service::OmniAuditEngine::new(
                 db.clone(),
             )?);
@@ -477,7 +480,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                         axum::http::header::HeaderName::from_static("permissions-policy"),
                         HeaderValue::from_static("geolocation=(), microphone=(), camera=()"),
                     ))
-                
         }
     };
 

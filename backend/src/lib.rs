@@ -1,3 +1,6 @@
+#![allow(dead_code)]
+#![allow(unused_variables)]
+#![allow(unused_imports)]
 //! 面料管理 - Rust 后端服务
 //!
 //! 本项目使用 SeaORM 1.0 + Axum + Tokio 技术栈

@@ -114,7 +114,9 @@
         <el-table-column prop="last_follow_up_date" label="最近跟进" width="120" align="center" />
         <el-table-column label="操作" width="250" align="center" fixed="right">
           <template #default="{ row }">
-            <el-button type="primary" link size="small" @click="handleView(row as any)">查看</el-button>
+            <el-button type="primary" link size="small" @click="handleView(row as any)"
+              >查看</el-button
+            >
             <el-button
               v-if="row.opportunity_stage !== 'WON' && row.opportunity_stage !== 'LOST'"
               type="primary"

@@ -184,7 +184,7 @@ impl WebhookService {
             context.update(body.as_bytes());
             context.update(secret.as_bytes());
             let hash_result = context.finish();
-            
+
             let mut signature = String::with_capacity(hash_result.as_ref().len() * 2);
             for byte in hash_result.as_ref() {
                 use std::fmt::Write;

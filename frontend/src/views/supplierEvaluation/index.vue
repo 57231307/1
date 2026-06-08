@@ -30,7 +30,9 @@
             <el-table-column prop="createdAt" label="创建时间" />
             <el-table-column label="操作" fixed="right" width="200">
               <template #default="{ row }">
-                <el-button link type="primary" @click="handleViewRecord(row as any)">查看</el-button>
+                <el-button link type="primary" @click="handleViewRecord(row as any)"
+                  >查看</el-button
+                >
               </template>
             </el-table-column>
           </el-table>

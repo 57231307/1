@@ -325,7 +325,6 @@ pub async fn login(
                 .http_only(true)
                 .secure(is_production)
                 .same_site(SameSite::Lax)
-                
                 .build();
 
             let jar = jar.add(cookie);
@@ -481,7 +480,6 @@ pub async fn logout(
         .http_only(true)
         .secure(is_production)
         .same_site(SameSite::Lax)
-        
         .build();
 
     let jar = jar.add(removal_cookie);

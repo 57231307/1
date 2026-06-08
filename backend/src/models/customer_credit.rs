@@ -1,8 +1,8 @@
 #![allow(dead_code)]
 
 //! 客户信用 Entity
-use rust_decimal::Decimal;
 use chrono::{DateTime, NaiveDate, Utc};
+use rust_decimal::Decimal;
 use sea_orm::entity::prelude::*;
 use serde::{Deserialize, Serialize};
 

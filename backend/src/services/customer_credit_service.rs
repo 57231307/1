@@ -135,11 +135,11 @@ impl CustomerCreditService {
         let credit = match existing {
             Some(credit) => {
                 // 更新现有评级
-                let used_credit = credit.used_credit.clone();
+                let used_credit = credit.used_credit;
                 let mut credit_active: customer_credit::ActiveModel = credit.into();
                 credit_active.credit_level = Set(req.credit_level.or(Some("B".to_string())));
                 credit_active.credit_score = Set(req.credit_score.or(Some(60)));
-                credit_active.available_credit = Set(req.credit_limit.clone() - used_credit);
+                credit_active.available_credit = Set(req.credit_limit - used_credit);
                 credit_active.credit_limit = Set(req.credit_limit);
                 credit_active.credit_days = Set(req.credit_days.or(Some(30)));
                 crate::services::audit_log_service::AuditLogService::update_with_audit(
@@ -157,7 +157,7 @@ impl CustomerCreditService {
                     credit_level: Set(req.credit_level.or(Some("B".to_string()))),
                     credit_score: Set(req.credit_score.or(Some(60))),
                     used_credit: Set(Decimal::from(0)),
-                    available_credit: Set(req.credit_limit.clone()),
+                    available_credit: Set(req.credit_limit),
                     credit_limit: Set(req.credit_limit),
                     credit_days: Set(req.credit_days.or(Some(30))),
                     status: Set("active".to_string()),
@@ -210,8 +210,8 @@ impl CustomerCreditService {
         }
 
         let mut credit_active: customer_credit::ActiveModel = credit.clone().into();
-        credit_active.used_credit = Set(credit.used_credit.clone() + amount.clone());
-        credit_active.available_credit = Set(credit.available_credit - amount.clone());
+        credit_active.used_credit = Set(credit.used_credit + amount);
+        credit_active.available_credit = Set(credit.available_credit - amount);
         credit_active.save(&txn).await?;
 
         txn.commit().await?;
@@ -252,8 +252,8 @@ impl CustomerCreditService {
         }
 
         let mut credit_active: customer_credit::ActiveModel = credit.clone().into();
-        credit_active.used_credit = Set(credit.used_credit.clone() - amount.clone());
-        credit_active.available_credit = Set(credit.available_credit + amount.clone());
+        credit_active.used_credit = Set(credit.used_credit - amount);
+        credit_active.available_credit = Set(credit.available_credit + amount);
         credit_active.save(&txn).await?;
 
         txn.commit().await?;
@@ -290,9 +290,9 @@ impl CustomerCreditService {
             })?;
 
         let new_limit = match req.adjustment_type.as_str() {
-            "increase" => credit.credit_limit.clone() + req.amount,
+            "increase" => credit.credit_limit + req.amount,
             "decrease" => {
-                let decreased = credit.credit_limit.clone() - req.amount.clone();
+                let decreased = credit.credit_limit - req.amount;
                 // 确保降低后的额度不低于已使用额度
                 if decreased < credit.used_credit {
                     txn.rollback().await?;
@@ -308,11 +308,11 @@ impl CustomerCreditService {
             }
         };
 
-        let new_available = new_limit.clone() - credit.used_credit.clone();
+        let new_available = new_limit - credit.used_credit;
 
         // 更新信用额度
         let mut credit_active: customer_credit::ActiveModel = credit.into();
-        credit_active.credit_limit = Set(new_limit.clone());
+        credit_active.credit_limit = Set(new_limit);
         credit_active.available_credit = Set(new_available);
         credit_active.save(&txn).await?;
 
@@ -354,7 +354,7 @@ impl CustomerCreditService {
             return Ok(None);
         }
 
-        let usage_rate = credit.used_credit.clone() / credit.credit_limit.clone();
+        let usage_rate = credit.used_credit / credit.credit_limit;
         let warning_threshold = Decimal::from(80) / Decimal::from(100);
 
         if usage_rate >= warning_threshold {
@@ -642,8 +642,8 @@ impl CustomerCreditService {
 
         for credit in credit_history {
             // 检查使用率
-            let used = credit.used_credit.clone();
-            let limit = credit.credit_limit.clone();
+            let used = credit.used_credit;
+            let limit = credit.credit_limit;
 
             // 使用率超过90%视为高风险
             if limit > rust_decimal::Decimal::ZERO {

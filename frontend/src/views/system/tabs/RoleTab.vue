@@ -29,7 +29,9 @@
           <template #default="{ row }">
             <el-button size="small" link @click="openRoleDialog(row as any)">编辑</el-button>
             <el-button size="small" link @click="openPermissionDialog(row as any)">权限</el-button>
-            <el-button size="small" link type="danger" @click="deleteRole(row as any)">删除</el-button>
+            <el-button size="small" link type="danger" @click="deleteRole(row as any)"
+              >删除</el-button
+            >
           </template>
         </el-table-column>
       </el-table>
@@ -80,7 +82,9 @@
       </el-card>
       <template #footer>
         <el-button @click="permissionDialogVisible = false">取消</el-button>
-        <el-button type="primary" :loading="permissionSubmitLoading" @click="submitPermissions">保存</el-button>
+        <el-button type="primary" :loading="permissionSubmitLoading" @click="submitPermissions"
+          >保存</el-button
+        >
       </template>
     </el-dialog>
   </div>

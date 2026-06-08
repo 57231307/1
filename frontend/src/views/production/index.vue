@@ -82,7 +82,9 @@
         <el-table-column prop="priority" label="优先级" width="100" />
         <el-table-column label="操作" width="280" fixed="right">
           <template #default="{ row }">
-            <el-button type="primary" link size="small" @click="viewDetail(row as any)">查看</el-button>
+            <el-button type="primary" link size="small" @click="viewDetail(row as any)"
+              >查看</el-button
+            >
             <el-button
               v-if="row.status === 'draft'"
               type="success"

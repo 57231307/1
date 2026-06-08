@@ -169,17 +169,17 @@ loadLogs()
                 <ElTableColumn prop="count" label="访问次数" align="right" />
               </ElTable>
 
-    <div class="pagination-wrapper" style="margin-top: 16px; text-align: right;">
-      <ElPagination
-        v-model:current-page="pagination.page"
-        v-model:page-size="pagination.pageSize"
-        :page-sizes="[10, 20, 50, 100]"
-        :total="total"
-        layout="total, sizes, prev, pager, next, jumper"
-        @size-change="handlePageSizeChange"
-        @current-change="handlePageChange"
-      />
-    </div>
+              <div class="pagination-wrapper" style="margin-top: 16px; text-align: right">
+                <ElPagination
+                  v-model:current-page="pagination.page"
+                  v-model:page-size="pagination.pageSize"
+                  :page-sizes="[10, 20, 50, 100]"
+                  :total="total"
+                  layout="total, sizes, prev, pager, next, jumper"
+                  @size-change="handlePageSizeChange"
+                  @current-change="handlePageChange"
+                />
+              </div>
             </ElCard>
           </ElCol>
           <ElCol :span="12">
@@ -258,7 +258,7 @@ loadLogs()
         </div>
 
         <ElTable
-    :data="logs"
+          :data="logs"
           :loading="loading"
           border
           fit

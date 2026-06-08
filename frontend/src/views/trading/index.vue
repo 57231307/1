@@ -27,7 +27,11 @@
             </el-table-column>
             <el-table-column label="操作" width="200" fixed="right">
               <template #default="{ row }">
-                <el-button type="primary" link size="small" @click="viewPurchaseContract(row as any)"
+                <el-button
+                  type="primary"
+                  link
+                  size="small"
+                  @click="viewPurchaseContract(row as any)"
                   >查看</el-button
                 >
                 <el-button
@@ -46,7 +50,11 @@
                   @click="executePurchaseContract(row as any)"
                   >执行</el-button
                 >
-                <el-button type="danger" link size="small" @click="deletePurchaseContract(row as any)"
+                <el-button
+                  type="danger"
+                  link
+                  size="small"
+                  @click="deletePurchaseContract(row as any)"
                   >删除</el-button
                 >
               </template>
@@ -84,7 +92,11 @@
             </el-table-column>
             <el-table-column label="操作" width="120">
               <template #default="{ row }">
-                <el-button type="primary" link size="small" @click="openPurchasePriceDialog(row as any)"
+                <el-button
+                  type="primary"
+                  link
+                  size="small"
+                  @click="openPurchasePriceDialog(row as any)"
                   >编辑</el-button
                 >
                 <el-button type="danger" link size="small" @click="deletePurchasePrice(row as any)"
@@ -170,7 +182,11 @@
             </el-table-column>
             <el-table-column label="操作" width="120">
               <template #default="{ row }">
-                <el-button type="primary" link size="small" @click="openSalesPriceDialog(row as any)"
+                <el-button
+                  type="primary"
+                  link
+                  size="small"
+                  @click="openSalesPriceDialog(row as any)"
                   >编辑</el-button
                 >
                 <el-button type="danger" link size="small" @click="deleteSalesPrice(row as any)"

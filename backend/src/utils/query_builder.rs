@@ -1,7 +1,8 @@
 use crate::utils::error::AppError;
 use crate::utils::response::PaginatedResponse;
 use sea_orm::{
-    CursorTrait, DatabaseConnection, EntityTrait, Order, PaginatorTrait, QueryOrder, QuerySelect, Select,
+    DatabaseConnection, EntityTrait, PaginatorTrait, QueryOrder,
+    QuerySelect, Select,
 };
 
 #[allow(dead_code)]
@@ -52,7 +53,7 @@ where
 pub async fn paginate_cursor<E, M>(
     db: &DatabaseConnection,
     query: Select<E>,
-    cursor_id: Option<i32>,
+    _cursor_id: Option<i32>,
     page_size: u64,
 ) -> Result<PaginatedResponse<M>, AppError>
 where
@@ -69,16 +70,14 @@ where
         cursor.after(id);
     }
     */
-    
+
     // 这里仅做简单的占位以编译通过，在具体业务接口如 `audit_log_service` 时，需要使用:
     // AuditLog::find().cursor_by(audit_log::Column::Id)
     let items = query.limit(page_size).all(db).await?;
-    
+
     Ok(PaginatedResponse::new(
-        items,
-        0, // 游标分页通常不返回总数，以节省 COUNT(*) 开销
-        1,
-        page_size,
+        items, 0, // 游标分页通常不返回总数，以节省 COUNT(*) 开销
+        1, page_size,
     ))
 }
 

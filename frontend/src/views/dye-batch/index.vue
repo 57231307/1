@@ -101,7 +101,9 @@
         <el-table-column prop="remarks" label="备注" min-width="150" show-overflow-tooltip />
         <el-table-column label="操作" width="200" align="center" fixed="right">
           <template #default="{ row }">
-            <el-button type="primary" link size="small" @click="handleView(row as any)">查看</el-button>
+            <el-button type="primary" link size="small" @click="handleView(row as any)"
+              >查看</el-button
+            >
             <el-button
               v-if="row.status === 'ACTIVE'"
               type="primary"

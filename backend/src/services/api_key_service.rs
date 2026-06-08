@@ -3,8 +3,8 @@
 use crate::models::api_key::{self, ActiveModel as ApiKeyActiveModel, Entity as ApiKey};
 use crate::utils::error::AppError;
 use chrono::Utc;
-use sea_orm::*;
 use ring::digest::{Context, SHA256};
+use sea_orm::*;
 
 crate::define_service!(ApiKeyService);
 
@@ -16,7 +16,7 @@ impl ApiKeyService {
             .collect();
         use rand::Rng;
         let mut rng = rand::rngs::OsRng;
-        
+
         let key: String = (0..32)
             .map(|_| chars[rng.gen_range(0..chars.len())])
             .collect();

@@ -843,7 +843,11 @@ loadTemplates()
             <el-button size="small" type="success" @click="handleSendNow(scope.row as any)"
               >发送</el-button
             >
-            <el-button size="small" type="danger" @click="handleDeleteSubscription(scope.row as any)">
+            <el-button
+              size="small"
+              type="danger"
+              @click="handleDeleteSubscription(scope.row as any)"
+            >
               <el-icon><Delete /></el-icon>
             </el-button>
           </template>

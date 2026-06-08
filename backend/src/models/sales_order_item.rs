@@ -88,4 +88,3 @@ impl Linked for SalesOrderItemToCustomer {
         ]
     }
 }
-

@@ -25,11 +25,11 @@ use argon2::{
 };
 use chrono::{DateTime, Duration, Utc};
 use jsonwebtoken::{decode, encode, DecodingKey, EncodingKey, Header, Validation};
-use std::sync::LazyLock;
 use sea_orm::DatabaseConnection;
 use serde::{Deserialize, Serialize};
 use std::collections::HashSet;
 use std::sync::Arc;
+use std::sync::LazyLock;
 use tokio::sync::RwLock;
 
 /// JWT 令牌声明
@@ -343,7 +343,8 @@ impl From<AppError> for AuthError {
 // - 每次受保护请求在 middleware 中调用 `is_jti_revoked` 检查
 
 /// JWT JTI 黑名单（已吊销的 Token ID）
-static JTI_BLACKLIST: LazyLock<RwLock<HashSet<String>>> = LazyLock::new(|| RwLock::new(HashSet::new()));
+static JTI_BLACKLIST: LazyLock<RwLock<HashSet<String>>> =
+    LazyLock::new(|| RwLock::new(HashSet::new()));
 
 /// 吊销指定 JTI
 ///
