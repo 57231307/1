@@ -54,9 +54,14 @@ download_with_mirror() {
     for MIRROR in "${MIRRORS[@]}"; do
         local full_url="${MIRROR}${url}"
         log "尝试下载: ${full_url:0:80}..."
-        if curl --http1.1 --ipv4 -L -C - --retry 5 --retry-delay 2 --connect-timeout 8 --max-time 1800 -o "$output" "$full_url" 2>/dev/null; then
-            return 0
-        fi
+        # 增加单节点的循环重试，应对断流问题 (curl: 56)
+        for i in {1..3}; do
+            if curl --http1.1 --ipv4 -L -C - --retry 5 --retry-delay 2 --connect-timeout 10 --max-time 1800 -o "$output" "$full_url"; then
+                return 0
+            fi
+            warn "当前节点下载中断，正在进行第 $i 次重试..."
+            sleep 2
+        done
     done
     return 1
 }
@@ -133,9 +138,12 @@ download_with_mirror() {
     local output=$2
     for MIRROR in "${MIRRORS[@]}"; do
         local full_url="${MIRROR}${url}"
-        if curl --http1.1 --ipv4 -L -C - --retry 3 --retry-delay 2 --connect-timeout 8 --max-time 1800 -o "$output" "$full_url" 2>/dev/null; then
-            return 0
-        fi
+        for i in {1..3}; do
+            if curl --http1.1 --ipv4 -L -C - --retry 5 --retry-delay 2 --connect-timeout 10 --max-time 1800 -o "$output" "$full_url" 2>/dev/null; then
+                return 0
+            fi
+            sleep 2
+        done
     done
     return 1
 }

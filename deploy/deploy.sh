@@ -81,19 +81,55 @@ create_dirs() {
 # 部署后端
 deploy_backend() {
     log "部署后端..."
+    # 安全检查
+    if [ -z "$BACKEND_DIR" ]; then
+        error "BACKEND_DIR 变量为空"
+    fi
+    mkdir -p "$BACKEND_DIR"
+    
+    # 查找并复制 server 可执行文件（兼容当前目录及/tmp临时目录）
     if [ -f "/tmp/bingxi-deploy/backend/server" ]; then
         cp /tmp/bingxi-deploy/backend/server "$BACKEND_DIR/"
         cp /tmp/bingxi-deploy/backend/bingxi "$BACKEND_DIR/" 2>/dev/null || true
         chmod +x "$BACKEND_DIR/server" "$BACKEND_DIR/bingxi" 2>/dev/null || true
-        log "后端二进制文件部署完成"
+    elif [ -f "$(dirname "$0")/../backend/server" ]; then
+        cp "$(dirname "$0")/../backend/server" "$BACKEND_DIR/"
+        cp "$(dirname "$0")/../backend/bingxi" "$BACKEND_DIR/" 2>/dev/null || true
+        chmod +x "$BACKEND_DIR/server" "$BACKEND_DIR/bingxi" 2>/dev/null || true
     elif [ -f "backend/server" ]; then
         cp backend/server "$BACKEND_DIR/"
         cp backend/bingxi "$BACKEND_DIR/" 2>/dev/null || true
         chmod +x "$BACKEND_DIR/server" "$BACKEND_DIR/bingxi" 2>/dev/null || true
-        log "后端二进制文件部署完成"
     else
         error "找不到后端可执行文件"
     fi
+
+    # 复制配置文件
+    if [ -f "/tmp/bingxi-deploy/backend/config.yaml.example" ]; then
+        cp /tmp/bingxi-deploy/backend/config.yaml.example "$BACKEND_DIR/config.yaml"
+    elif [ -f "$(dirname "$0")/../backend/config.yaml.example" ]; then
+        cp "$(dirname "$0")/../backend/config.yaml.example" "$BACKEND_DIR/config.yaml"
+    elif [ -f "backend/config.yaml.example" ]; then
+        cp backend/config.yaml.example "$BACKEND_DIR/config.yaml"
+    fi
+
+    # 复制迁移文件
+    mkdir -p "$DEPLOY_DIR/database"
+    if [ -d "/tmp/bingxi-deploy/database/migration" ]; then
+        cp -r /tmp/bingxi-deploy/database/migration "$DEPLOY_DIR/database/"
+    elif [ -d "$(dirname "$0")/../database/migration" ]; then
+        cp -r "$(dirname "$0")/../database/migration" "$DEPLOY_DIR/database/"
+    elif [ -d "database/migration" ]; then
+        cp -r database/migration "$DEPLOY_DIR/database/"
+    fi
+
+    # 修复权限问题：创建 bingxi 用户并将文件赋权
+    if ! id -u bingxi >/dev/null 2>&1; then
+        useradd -m -s /bin/bash bingxi || true
+    fi
+    chown -R bingxi:bingxi "$DEPLOY_DIR"
+
+    log "后端文件部署完成"
 }
 
 # 部署前端
@@ -108,6 +144,9 @@ deploy_frontend() {
     if [ -d "/tmp/bingxi-deploy/frontend/dist" ]; then
         rm -rf "${FRONTEND_DIR:?}"/*
         cp -r /tmp/bingxi-deploy/frontend/dist/* "$FRONTEND_DIR/"
+    elif [ -d "$(dirname "$0")/../frontend/dist" ]; then
+        rm -rf "${FRONTEND_DIR:?}"/*
+        cp -r "$(dirname "$0")/../frontend/dist"/* "$FRONTEND_DIR/"
     elif [ -d "frontend/dist" ]; then
         rm -rf "${FRONTEND_DIR:?}"/*
         cp -r frontend/dist/* "$FRONTEND_DIR/"
@@ -271,6 +310,8 @@ install_service() {
     log "安装 systemd 服务..."
     if [ -f "/tmp/bingxi-deploy/deploy/bingxi-backend.service" ]; then
         cp /tmp/bingxi-deploy/deploy/bingxi-backend.service /etc/systemd/system/
+    elif [ -f "$(dirname "$0")/bingxi-backend.service" ]; then
+        cp "$(dirname "$0")/bingxi-backend.service" /etc/systemd/system/
     elif [ -f "deploy/bingxi-backend.service" ]; then
         cp deploy/bingxi-backend.service /etc/systemd/system/
     fi

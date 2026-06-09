@@ -2,6 +2,7 @@
 Description=Bingxi ERP Backend Service
 After=network.target postgresql.service
 Wants=network-online.target
+StartLimitIntervalSec=60
 
 [Service]
 Type=simple
@@ -14,7 +15,6 @@ ExecStart=/opt/bingxi-erp/backend/server
 Restart=always
 RestartSec=5
 StartLimitBurst=5
-StartLimitIntervalSec=60
 
 LimitNOFILE=65535
 
