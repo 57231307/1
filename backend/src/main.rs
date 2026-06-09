@@ -276,15 +276,25 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             info!("数据库连接成功，启动完整模式");
 
             // 执行 SeaORM Migration 增加 TOTP 字段及性能优化索引
+            // 防御式迁移：使用 IF EXISTS / DO 块确保表不存在时不会阻断服务启动
             use sea_orm::ConnectionTrait;
             let sql = "
-                ALTER TABLE users ADD COLUMN IF NOT EXISTS totp_secret VARCHAR(255); 
-                ALTER TABLE users ADD COLUMN IF NOT EXISTS is_totp_enabled BOOLEAN NOT NULL DEFAULT FALSE;
-                
-                -- 为常用查询添加索引 (注意：在底层表上创建，而非视图)
-                CREATE INDEX IF NOT EXISTS idx_sales_order_customer ON sales_orders(customer_id); 
-                CREATE INDEX IF NOT EXISTS idx_purchase_order_supplier ON purchase_order(supplier_id); 
-                CREATE INDEX IF NOT EXISTS idx_inventory_product ON inventory_stocks(product_id, warehouse_id);
+                DO $$
+                BEGIN
+                    IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'users') THEN
+                        ALTER TABLE users ADD COLUMN IF NOT EXISTS totp_secret VARCHAR(255);
+                        ALTER TABLE users ADD COLUMN IF NOT EXISTS is_totp_enabled BOOLEAN NOT NULL DEFAULT FALSE;
+                    END IF;
+                    IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'sales_orders') THEN
+                        CREATE INDEX IF NOT EXISTS idx_sales_order_customer ON sales_orders(customer_id);
+                    END IF;
+                    IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'purchase_order') THEN
+                        CREATE INDEX IF NOT EXISTS idx_purchase_order_supplier ON purchase_order(supplier_id);
+                    END IF;
+                    IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'inventory_stocks') THEN
+                        CREATE INDEX IF NOT EXISTS idx_inventory_product ON inventory_stocks(product_id, warehouse_id);
+                    END IF;
+                END $$;
             ";
             if let Err(e) = db.execute_unprepared(sql).await {
                 warn!("执行 Migration 失败: {}", e);
