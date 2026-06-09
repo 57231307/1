@@ -25,16 +25,20 @@ pub struct DatabaseConfig {
 
 impl DatabaseConfig {
     pub fn to_connection_string(&self) -> String {
-        // Use axum/http internals or percent_encoding for url encoding instead of a separate crate
+        // Use percent_encoding for url-encoding user/password/name. The host segment
+        // of a postgres connection string lives in the URL "authority" position,
+        // and its character set is already ASCII-safe (alphanumeric, '.', '-', ':',
+        // '[', ']' for IPv6, '%' for already-encoded chars). Encoding '.' or any
+        // alphabetic character in the host would break DNS / IP resolution, so we
+        // pass the host through verbatim.
         use percent_encoding::{utf8_percent_encode, NON_ALPHANUMERIC};
         let encoded_username = utf8_percent_encode(&self.username, NON_ALPHANUMERIC).to_string();
         let encoded_password = utf8_percent_encode(&self.password, NON_ALPHANUMERIC).to_string();
-        let encoded_host = utf8_percent_encode(&self.host, NON_ALPHANUMERIC).to_string();
         let encoded_name = utf8_percent_encode(&self.name, NON_ALPHANUMERIC).to_string();
 
         format!(
             "postgres://{}:{}@{}:{}/{}?sslmode=disable",
-            encoded_username, encoded_password, encoded_host, self.port, encoded_name
+            encoded_username, encoded_password, self.host, self.port, encoded_name
         )
     }
 }
@@ -445,4 +449,64 @@ pub struct InitRequest {
 pub struct InitStatus {
     pub initialized: bool,
     pub message: String,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn to_connection_string_preserves_ip_host() {
+        // 回退测试：确保 host 中合法的 IP 字符（数字、.）不会被错误编码
+        let cfg = DatabaseConfig {
+            host: "39.99.34.194".to_string(),
+            port: "5432".to_string(),
+            name: "bingxi".to_string(),
+            username: "bingxi".to_string(),
+            password: "p@ss word".to_string(),
+        };
+        let s = cfg.to_connection_string();
+        // 关键断言：host 段不应被编码
+        assert!(
+            s.contains("@39.99.34.194:"),
+            "host 不应被 percent-encoding，连接串 = {}",
+            s
+        );
+        // 同时确保 username/password 仍然被正确编码
+        assert!(
+            s.starts_with("postgres://bingxi:p%40ss%20word@"),
+            "s = {}",
+            s
+        );
+        assert!(s.ends_with("/bingxi?sslmode=disable"));
+    }
+
+    #[test]
+    fn to_connection_string_preserves_dns_host() {
+        // DNS 主机名也必须原样保留
+        let cfg = DatabaseConfig {
+            host: "db.example.com".to_string(),
+            port: "5432".to_string(),
+            name: "bingxi".to_string(),
+            username: "u".to_string(),
+            password: "p".to_string(),
+        };
+        let s = cfg.to_connection_string();
+        assert!(s.contains("@db.example.com:5432/"), "s = {}", s);
+    }
+
+    #[test]
+    fn to_connection_string_preserves_ipv6_host() {
+        // IPv6 主机名应保留方括号（注意：这里我们只做 verbatim 透传；
+        // 真正使用 IPv6 时应额外处理）
+        let cfg = DatabaseConfig {
+            host: "[::1]".to_string(),
+            port: "5432".to_string(),
+            name: "bingxi".to_string(),
+            username: "u".to_string(),
+            password: "p".to_string(),
+        };
+        let s = cfg.to_connection_string();
+        assert!(s.contains("@[::1]:5432/"), "s = {}", s);
+    }
 }
