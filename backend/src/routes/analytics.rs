@@ -337,7 +337,6 @@ pub fn api_keys() -> Router<AppState> {
             get(api_key_handler::list_api_keys).post(api_key_handler::create_api_key),
         )
         .route("/api-key/:id", delete(api_key_handler::revoke_api_key))
-        .route("/api-key/:id/revoke", post(api_key_handler::revoke_api_key))
 }
 
 /// 数据权限路由

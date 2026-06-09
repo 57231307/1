@@ -63,12 +63,15 @@ pub struct WebhookCallbackResult {
 
 pub async fn list_integrations(
     State(state): State<AppState>,
-    _auth: AuthContext,
+    auth: AuthContext,
 ) -> Result<Json<ApiResponse<Vec<WebhookIntegrationItem>>>, AppError> {
     use crate::models::webhook;
     use sea_orm::{ColumnTrait, EntityTrait, QueryFilter};
 
+    let tenant_id = auth.tenant_id.unwrap_or(0);
+
     let webhooks = webhook::Entity::find()
+        .filter(webhook::Column::TenantId.eq(tenant_id))
         .filter(webhook::Column::IsActive.eq(true))
         .all(state.db.as_ref())
         .await?;
@@ -136,22 +139,14 @@ pub async fn create_integration(
 
 pub async fn delete_integration(
     State(state): State<AppState>,
-    _auth: AuthContext,
+    auth: AuthContext,
     Path(id): Path<i32>,
 ) -> Result<Json<ApiResponse<()>>, AppError> {
-    use crate::models::webhook;
-    use chrono::Utc;
-    use sea_orm::{ActiveModelTrait, EntityTrait, Set};
+    let tenant_id = auth.tenant_id.unwrap_or(0);
 
-    let webhook = webhook::Entity::find_by_id(id)
-        .one(state.db.as_ref())
-        .await?
-        .ok_or_else(|| AppError::not_found("Webhook 集成不存在"))?;
-
-    let mut active_model: webhook::ActiveModel = webhook.into();
-    active_model.is_active = Set(false);
-    active_model.updated_at = Set(Utc::now());
-    active_model.update(state.db.as_ref()).await?;
+    // 推荐使用服务层处理删除逻辑（它已经包含了权限检查）
+    let service = crate::services::webhook_service::WebhookService::new(state.db.clone());
+    service.delete_webhook(id, tenant_id).await?;
 
     Ok(Json(ApiResponse::success_with_message(
         (),
@@ -161,7 +156,7 @@ pub async fn delete_integration(
 
 pub async fn send_wechat_message(
     State(state): State<AppState>,
-    _auth: AuthContext,
+    auth: AuthContext,
     Json(req): Json<SendWebhookMessageRequest>,
 ) -> Result<Json<ApiResponse<WebhookSendResult>>, AppError> {
     if req.content.is_empty() {
@@ -178,7 +173,19 @@ pub async fn send_wechat_message(
 
     // 通过WebhookService发送
     use crate::services::webhook_service::WebhookService;
+    use sea_orm::EntityTrait;
     let service = WebhookService::new(state.db.clone());
+    
+    // 发送前需要校验归属
+    let webhook = crate::models::webhook::Entity::find_by_id(req.integration_id)
+        .one(state.db.as_ref())
+        .await?
+        .ok_or_else(|| AppError::not_found("Webhook 集成不存在"))?;
+        
+    if webhook.tenant_id != auth.tenant_id.unwrap_or(0) {
+        return Err(AppError::permission_denied("无权操作此Webhook"));
+    }
+
     let delivery = service
         .trigger_webhook(req.integration_id, "wechat_message", &payload.to_string())
         .await?;
@@ -204,7 +211,7 @@ pub async fn send_wechat_message(
 
 pub async fn send_dingtalk_message(
     State(state): State<AppState>,
-    _auth: AuthContext,
+    auth: AuthContext,
     Json(req): Json<SendWebhookMessageRequest>,
 ) -> Result<Json<ApiResponse<WebhookSendResult>>, AppError> {
     if req.content.is_empty() {
@@ -221,7 +228,19 @@ pub async fn send_dingtalk_message(
 
     // 通过WebhookService发送
     use crate::services::webhook_service::WebhookService;
+    use sea_orm::EntityTrait;
     let service = WebhookService::new(state.db.clone());
+
+    // 发送前需要校验归属
+    let webhook = crate::models::webhook::Entity::find_by_id(req.integration_id)
+        .one(state.db.as_ref())
+        .await?
+        .ok_or_else(|| AppError::not_found("Webhook 集成不存在"))?;
+        
+    if webhook.tenant_id != auth.tenant_id.unwrap_or(0) {
+        return Err(AppError::permission_denied("无权操作此Webhook"));
+    }
+
     let delivery = service
         .trigger_webhook(req.integration_id, "dingtalk_message", &payload.to_string())
         .await?;
@@ -262,13 +281,19 @@ pub async fn handle_generic_callback(
 
 pub async fn test_integration(
     State(state): State<AppState>,
-    _auth: AuthContext,
+    auth: AuthContext,
     Path(id): Path<i32>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     use crate::services::webhook_service::WebhookService;
 
     let service = WebhookService::new(state.db.clone());
-    let result = service.test_webhook(id).await?;
+    let tenant_id = auth.tenant_id.unwrap_or(0);
+
+    // 调用 test_webhook 时传入 tenant_id 进行归属校验
+    let mut result = service.test_webhook(id, tenant_id).await?;
+
+    // SSRF 缓解：测试接口不回显目标响应体，防止攻击者读取内网数据
+    result.response_body = Some("出于安全原因，已隐藏响应内容".to_string());
 
     Ok(Json(ApiResponse::success_with_message(
         serde_json::to_value(result).unwrap_or_default(),

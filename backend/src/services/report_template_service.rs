@@ -78,8 +78,14 @@ impl ReportTemplateService {
         &self,
         tenant_id: i32,
         user_id: i32,
+        role_id: Option<i32>,
         req: CreateReportTemplateRequest,
     ) -> Result<ReportTemplateModel, AppError> {
+        // 安全检查：仅允许管理员提交自定义 SQL
+        if req.data_source_sql.is_some() && role_id != Some(1) {
+            return Err(AppError::permission_denied("出于安全原因，仅系统管理员允许提交自定义 SQL 报表"));
+        }
+
         // 检查编码是否已存在
         let existing = ReportTemplateEntity::find()
             .filter(crate::models::report_template::Column::TenantId.eq(tenant_id))
@@ -125,8 +131,24 @@ impl ReportTemplateService {
     }
 
     /// 获取报表模板详情
-    pub async fn get_by_id(&self, id: i32) -> Result<Option<ReportTemplateModel>, AppError> {
-        let model = ReportTemplateEntity::find_by_id(id).one(&*self.db).await?;
+    pub async fn get_by_id(
+        &self,
+        id: i32,
+        tenant_id: i32,
+        user_id: i32,
+    ) -> Result<Option<ReportTemplateModel>, AppError> {
+        let model = ReportTemplateEntity::find()
+            .filter(crate::models::report_template::Column::Id.eq(id))
+            .filter(crate::models::report_template::Column::TenantId.eq(tenant_id))
+            .one(&*self.db)
+            .await?;
+
+        // 检查读取权限：公开或者自己创建的
+        if let Some(ref t) = model {
+            if !t.is_public && t.created_by != user_id {
+                return Err(AppError::permission_denied("无权访问该私有报表模板"));
+            }
+        }
 
         Ok(model)
     }
@@ -135,12 +157,27 @@ impl ReportTemplateService {
     pub async fn update(
         &self,
         id: i32,
+        tenant_id: i32,
+        user_id: i32,
+        role_id: Option<i32>,
         req: UpdateReportTemplateRequest,
     ) -> Result<ReportTemplateModel, AppError> {
-        let model = ReportTemplateEntity::find_by_id(id)
+        let model = ReportTemplateEntity::find()
+            .filter(crate::models::report_template::Column::Id.eq(id))
+            .filter(crate::models::report_template::Column::TenantId.eq(tenant_id))
             .one(&*self.db)
             .await?
             .ok_or_else(|| AppError::not_found("报表模板不存在"))?;
+
+        // 检查更新权限：只能更新自己创建的模板
+        if model.created_by != user_id {
+            return Err(AppError::permission_denied("只有创建者可以更新该报表模板"));
+        }
+
+        // 安全检查：仅允许管理员提交自定义 SQL
+        if req.data_source_sql.is_some() && role_id != Some(1) {
+            return Err(AppError::permission_denied("出于安全原因，仅系统管理员允许提交自定义 SQL 报表"));
+        }
 
         let mut active_model: ActiveModel = model.into();
 
@@ -183,11 +220,17 @@ impl ReportTemplateService {
     }
 
     /// 删除报表模板（软删除）
-    pub async fn delete(&self, id: i32) -> Result<(), AppError> {
-        let model = ReportTemplateEntity::find_by_id(id)
+    pub async fn delete(&self, id: i32, tenant_id: i32, user_id: i32) -> Result<(), AppError> {
+        let model = ReportTemplateEntity::find()
+            .filter(crate::models::report_template::Column::Id.eq(id))
+            .filter(crate::models::report_template::Column::TenantId.eq(tenant_id))
             .one(&*self.db)
             .await?
             .ok_or_else(|| AppError::not_found("报表模板不存在"))?;
+
+        if model.created_by != user_id {
+            return Err(AppError::permission_denied("只有创建者可以删除该报表模板"));
+        }
 
         let mut active_model: ActiveModel = model.into();
         active_model.status = Set("INACTIVE".to_string());
@@ -247,17 +290,20 @@ impl ReportTemplateService {
     pub async fn execute_custom_report(
         &self,
         template_id: i32,
+        tenant_id: i32,
+        user_id: i32,
+        role_id: Option<i32>,
         page: u64,
         page_size: u64,
     ) -> Result<(Vec<String>, Vec<Vec<String>>, u64), AppError> {
         let template = self
-            .get_by_id(template_id)
+            .get_by_id(template_id, tenant_id, user_id)
             .await?
             .ok_or_else(|| AppError::not_found("报表模板不存在"))?;
 
         // 如果有自定义SQL，使用SQL执行
         if let Some(sql) = &template.data_source_sql {
-            return self.execute_sql_report(sql, page, page_size).await;
+            return self.execute_sql_report(sql, role_id, page, page_size).await;
         }
 
         // 否则使用预定义的报表类型
@@ -270,10 +316,15 @@ impl ReportTemplateService {
     async fn execute_sql_report(
         &self,
         sql: &str,
+        role_id: Option<i32>,
         page: u64,
         page_size: u64,
     ) -> Result<(Vec<String>, Vec<Vec<String>>, u64), AppError> {
         use sea_orm::{ConnectionTrait, Statement};
+
+        if role_id != Some(1) {
+            return Err(AppError::permission_denied("出于安全原因，仅系统管理员允许执行原始 SQL 报表"));
+        }
 
         // 安全检查：只允许SELECT语句
         let sql_upper = sql.trim().to_uppercase();

@@ -201,13 +201,13 @@ impl SchedulerService {
 
         // 获取报表模板
         let template = template_service
-            .get_by_id(subscription.template_id)
+            .get_by_id(subscription.template_id, subscription.tenant_id, subscription.created_by)
             .await?
             .ok_or_else(|| AppError::not_found("报表模板不存在"))?;
 
-        // 执行报表
+        // 执行报表 (定时任务以创建者的上下文执行，我们假设定时任务有权限执行已配置的模板)
         let (headers, data, _total) = template_service
-            .execute_custom_report(subscription.template_id, 1, 10000)
+            .execute_custom_report(subscription.template_id, subscription.tenant_id, subscription.created_by, Some(1), 1, 10000)
             .await?;
 
         // 根据导出格式生成文件

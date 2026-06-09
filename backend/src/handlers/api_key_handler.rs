@@ -104,12 +104,13 @@ pub async fn list_api_keys(
 
 pub async fn revoke_api_key(
     State(state): State<AppState>,
-    _auth: AuthContext,
+    auth: AuthContext,
     Path(id): Path<i32>,
 ) -> Result<Json<ApiResponse<()>>, StatusCode> {
     let service = ApiKeyService::new(state.db);
+    let tenant_id = auth.tenant_id.unwrap_or(0);
 
-    match service.revoke_api_key(id).await {
+    match service.revoke_api_key(id, tenant_id).await {
         Ok(()) => Ok(Json(ApiResponse::success_with_message((), "撤销成功"))),
         Err(e) => {
             tracing::error!("撤销 API 密钥失败: {}", e);

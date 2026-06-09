@@ -109,11 +109,15 @@ impl ApiKeyService {
     }
 
     /// 撤销 API 密钥
-    pub async fn revoke_api_key(&self, id: i32) -> Result<(), AppError> {
+    pub async fn revoke_api_key(&self, id: i32, tenant_id: i32) -> Result<(), AppError> {
         let key = ApiKey::find_by_id(id)
             .one(self.db.as_ref())
             .await?
             .ok_or_else(|| AppError::business("API 密钥不存在"))?;
+
+        if key.tenant_id != tenant_id {
+            return Err(AppError::permission_denied("无权操作此API密钥"));
+        }
 
         let mut active_model: ApiKeyActiveModel = key.into();
         active_model.is_active = Set(false);

@@ -48,7 +48,7 @@ pub async fn create_report_template(
     let service = ReportTemplateService::new(state.db.clone());
     let tenant_id = auth.tenant_id.unwrap_or(0);
 
-    let template = service.create(tenant_id, auth.user_id, req).await?;
+    let template = service.create(tenant_id, auth.user_id, auth.role_id, req).await?;
 
     tracing::info!("用户 {} 创建报表模板: {}", auth.username, template.name);
 
@@ -78,13 +78,13 @@ pub async fn list_report_templates(
 /// GET /api/v1/erp/reports-enhanced/templates/:id - 获取报表模板详情
 pub async fn get_report_template(
     State(state): State<AppState>,
-    _auth: AuthContext,
+    auth: AuthContext,
     Path(id): Path<i32>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     let service = ReportTemplateService::new(state.db.clone());
 
     let template = service
-        .get_by_id(id)
+        .get_by_id(id, auth.tenant_id.unwrap_or(0), auth.user_id)
         .await?
         .ok_or_else(|| AppError::not_found("报表模板不存在"))?;
 
@@ -100,7 +100,7 @@ pub async fn update_report_template(
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     let service = ReportTemplateService::new(state.db.clone());
 
-    let template = service.update(id, req).await?;
+    let template = service.update(id, auth.tenant_id.unwrap_or(0), auth.user_id, auth.role_id, req).await?;
 
     tracing::info!("用户 {} 更新报表模板: {}", auth.username, template.name);
 
@@ -118,7 +118,7 @@ pub async fn delete_report_template(
 ) -> Result<Json<ApiResponse<()>>, AppError> {
     let service = ReportTemplateService::new(state.db.clone());
 
-    service.delete(id).await?;
+    service.delete(id, auth.tenant_id.unwrap_or(0), auth.user_id).await?;
 
     tracing::info!("用户 {} 删除报表模板: ID={}", auth.username, id);
 
@@ -140,7 +140,7 @@ pub async fn execute_custom_report(
     let page = params.page.unwrap_or(1);
     let page_size = params.page_size.unwrap_or(20);
 
-    let (headers, data, total) = service.execute_custom_report(id, page, page_size).await?;
+    let (headers, data, total) = service.execute_custom_report(id, auth.tenant_id.unwrap_or(0), auth.user_id, auth.role_id, page, page_size).await?;
 
     tracing::info!("用户 {} 执行自定义报表: ID={}", auth.username, id);
 
@@ -167,7 +167,7 @@ pub async fn export_pdf(
         .map_err(|_| AppError::validation("无效的模板ID"))?;
 
     // 执行报表获取数据
-    let (headers, data, _total) = service.execute_custom_report(template_id, 1, 10000).await?;
+    let (headers, data, _total) = service.execute_custom_report(template_id, auth.tenant_id.unwrap_or(0), auth.user_id, auth.role_id, 1, 10000).await?;
 
     let title = req
         .title
@@ -211,7 +211,7 @@ pub async fn export_excel(
         .map_err(|_| AppError::validation("无效的模板ID"))?;
 
     // 执行报表获取数据
-    let (headers, data, _total) = service.execute_custom_report(template_id, 1, 10000).await?;
+    let (headers, data, _total) = service.execute_custom_report(template_id, auth.tenant_id.unwrap_or(0), auth.user_id, auth.role_id, 1, 10000).await?;
 
     let title = req
         .title
@@ -444,7 +444,7 @@ pub async fn export_template(
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     let service = ReportTemplateService::new(state.db.clone());
 
-    let (headers, data, _total) = service.execute_custom_report(id, 1, 10000).await?;
+    let (headers, data, _total) = service.execute_custom_report(id, auth.tenant_id.unwrap_or(0), auth.user_id, auth.role_id, 1, 10000).await?;
 
     let format = req.format.unwrap_or_else(|| "csv".to_string());
     let title = req.title.unwrap_or_else(|| format!("报表模板 {}", id));
@@ -503,7 +503,7 @@ pub async fn preview_template(
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     let service = ReportTemplateService::new(state.db.clone());
 
-    let (columns, data, total) = service.execute_custom_report(id, 1, 50).await?;
+    let (columns, data, total) = service.execute_custom_report(id, auth.tenant_id.unwrap_or(0), auth.user_id, auth.role_id, 1, 50).await?;
 
     tracing::info!("用户 {} 预览报表模板: ID={}", auth.username, id);
 

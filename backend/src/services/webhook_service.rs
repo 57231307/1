@@ -166,9 +166,42 @@ impl WebhookService {
         body: &str,
         secret: Option<&str>,
     ) -> Result<WebhookDeliveryResult, AppError> {
+        // SSRF 缓解：URL 验证
+        if !url.to_lowercase().starts_with("https://") {
+            return Err(AppError::validation("仅允许 HTTPS 协议"));
+        }
+
+        if let Ok(parsed_url) = reqwest::Url::parse(url) {
+            if let Some(host) = parsed_url.host_str() {
+                // 尝试解析 IP
+                if let Ok(addrs) = std::net::ToSocketAddrs::to_socket_addrs(&(host, 443)) {
+                    for addr in addrs {
+                        let ip = addr.ip();
+                        let is_private = match ip {
+                            std::net::IpAddr::V4(ipv4) => {
+                                ipv4.is_private()
+                                    || ipv4.is_loopback()
+                                    || ipv4.is_link_local()
+                                    || ipv4.is_broadcast()
+                                    || ipv4.is_documentation()
+                                    || ipv4.is_unspecified()
+                            }
+                            std::net::IpAddr::V6(ipv6) => {
+                                ipv6.is_loopback() || ipv6.is_unspecified() || ipv6.is_multicast()
+                            }
+                        };
+                        if is_private {
+                            return Err(AppError::validation("禁止访问内网或私有 IP 地址"));
+                        }
+                    }
+                }
+            }
+        }
+
         let client = reqwest::Client::builder()
             .timeout(std::time::Duration::from_secs(30))
             .connect_timeout(std::time::Duration::from_secs(10))
+            .redirect(reqwest::redirect::Policy::none()) // SSRF 缓解：禁止跟随重定向
             .build()
             .unwrap_or_default();
 
@@ -222,7 +255,16 @@ impl WebhookService {
     }
 
     /// 测试Webhook
-    pub async fn test_webhook(&self, webhook_id: i32) -> Result<WebhookDeliveryResult, AppError> {
+    pub async fn test_webhook(&self, webhook_id: i32, tenant_id: i32) -> Result<WebhookDeliveryResult, AppError> {
+        let webhook = Webhook::find_by_id(webhook_id)
+            .one(self.db.as_ref())
+            .await?
+            .ok_or_else(|| AppError::business("Webhook 不存在"))?;
+
+        if webhook.tenant_id != tenant_id {
+            return Err(AppError::permission_denied("无权测试此Webhook"));
+        }
+
         let test_payload = serde_json::json!({
             "message": "This is a test webhook delivery",
             "test": true
