@@ -216,7 +216,7 @@ jobs:
       - name: 运行后端单元测试
         working-directory: backend
         run: |
-          cargo test --lib --jobs 2
+          cargo test --lib --jobs 1
 
   test-frontend:
     name: 前端测试
