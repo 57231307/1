@@ -45,7 +45,10 @@ services:
       - "8082:8082"
       - "50051:50051"
     healthcheck:
-      test: ["CMD-SHELL", "curl -f http://localhost:8082/api/v1/erp/health || exit 1"]
+      # 针对 Distroless 环境无 curl/shell 的兼容处理。
+      # 使用 nc 或 tcp 探测端口，如果有业务级需求建议后端集成一个专门的 healthcheck binary
+      # 目前通过 ping 8082 端口来验证后端服务是否在监听
+      test: ["CMD", "/usr/bin/nc", "-z", "localhost", "8082"]
       interval: 10s
       timeout: 5s
       retries: 5

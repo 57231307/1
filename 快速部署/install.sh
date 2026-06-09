@@ -40,9 +40,9 @@ install_deps() {
     log "安装依赖..."
     if command -v apt-get >/dev/null; then
         apt-get update -y >/dev/null
-        apt-get install -y curl jq unzip tar nginx >/dev/null
+        apt-get install -y curl jq unzip tar nginx postgresql-client >/dev/null
     elif command -v yum >/dev/null; then
-        yum install -y curl jq unzip tar nginx >/dev/null
+        yum install -y curl jq unzip tar nginx postgresql >/dev/null
     fi
 }
 

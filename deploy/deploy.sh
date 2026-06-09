@@ -114,7 +114,14 @@ deploy_frontend() {
     else
         error "找不到前端构建文件"
     fi
-    chown -R www-data:www-data "$FRONTEND_DIR"
+
+    # 兼容处理 CentOS 和 Ubuntu/Debian 下 Nginx 用户名不同的情况
+    local NGINX_USER="www-data"
+    if id -u nginx >/dev/null 2>&1; then
+        NGINX_USER="nginx"
+    fi
+    chown -R "$NGINX_USER":"$NGINX_USER" "$FRONTEND_DIR"
+
     log "前端文件部署完成"
 }
 
@@ -283,9 +290,19 @@ configure_nginx() {
     fi
 
     if [ -n "$nginx_conf" ]; then
-        cp "$nginx_conf" /etc/nginx/sites-available/bingxi-erp
-        ln -sf /etc/nginx/sites-available/bingxi-erp /etc/nginx/sites-enabled/
-        rm -f /etc/nginx/sites-enabled/default
+        # 判断是 Debian 系还是 RedHat 系来决定配置路径
+        if [ -d "/etc/nginx/sites-available" ]; then
+            cp "$nginx_conf" /etc/nginx/sites-available/bingxi-erp
+            ln -sf /etc/nginx/sites-available/bingxi-erp /etc/nginx/sites-enabled/
+            rm -f /etc/nginx/sites-enabled/default
+        elif [ -d "/etc/nginx/conf.d" ]; then
+            cp "$nginx_conf" /etc/nginx/conf.d/bingxi-erp.conf
+            # 如果默认配置存在且会冲突，可选将其重命名
+            [ -f "/etc/nginx/conf.d/default.conf" ] && mv /etc/nginx/conf.d/default.conf /etc/nginx/conf.d/default.conf.bak || true
+        else
+            warn "找不到标准的 Nginx 配置目录，请手动配置"
+            return
+        fi
 
         if nginx -t 2>/dev/null; then
             systemctl reload nginx
