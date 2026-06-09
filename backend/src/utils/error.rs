@@ -223,7 +223,7 @@ impl IntoResponse for AppError {
                 (
                     StatusCode::BAD_REQUEST,
                     "BadRequest",
-                    "请求错误".to_string(),
+                    msg.clone(),
                     detail,
                 )
             }

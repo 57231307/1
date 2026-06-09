@@ -545,7 +545,14 @@ async function checkInitStatus(): Promise<boolean> {
     clearTimeout(timeout)
     if (response.ok) {
       const data = await response.json()
-      initStatus = !!data.initialized
+      // 兼容两种格式：
+      // 1. setup 模式：返回 { initialized: false, message: "..." }
+      // 2. 正常模式：返回 { code: 200, data: { initialized: true, ... } }
+      if (data.code === 200 && data.data !== undefined) {
+        initStatus = !!data.data.initialized
+      } else {
+        initStatus = !!data.initialized
+      }
       return initStatus
     }
   } catch (error) {
