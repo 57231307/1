@@ -24,7 +24,7 @@ fn test_error_display_not_found() {
 
 #[test]
 fn test_error_display_resource_not_found() {
-    let err = AppError::ResourceNotFound("订单".to_string());
+    let err = AppError::not_found("订单".to_string());
     assert!(err.to_string().contains("资源不存在"));
 }
 

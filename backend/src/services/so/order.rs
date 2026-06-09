@@ -553,11 +553,7 @@ impl SalesService {
                 .unwrap_or_else(|_| Decimal::from(0))
         };
         credit_service
-            .occupy_credit(
-                request.customer_id,
-                order_amount_decimal,
-                user_id,
-            )
+            .occupy_credit(request.customer_id, order_amount_decimal, user_id)
             .await
             .map_err(|e| {
                 tracing::error!("信用额度占用失败，事务回滚: {}", e);

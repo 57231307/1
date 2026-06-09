@@ -1,6 +1,6 @@
 //! MemoryCache 单元测试
 
-use bingxi_backend::utils::cache::{Cache, CacheKey, CacheStats, MemoryCache};
+use bingxi_backend::utils::cache::{Cache, CacheKey, MemoryCache};
 use std::thread;
 use std::time::Duration;
 

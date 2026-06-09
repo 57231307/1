@@ -83,7 +83,9 @@ impl ReportTemplateService {
     ) -> Result<ReportTemplateModel, AppError> {
         // 安全检查：仅允许管理员提交自定义 SQL
         if req.data_source_sql.is_some() && role_id != Some(1) {
-            return Err(AppError::permission_denied("出于安全原因，仅系统管理员允许提交自定义 SQL 报表"));
+            return Err(AppError::permission_denied(
+                "出于安全原因，仅系统管理员允许提交自定义 SQL 报表",
+            ));
         }
 
         // 检查编码是否已存在
@@ -176,7 +178,9 @@ impl ReportTemplateService {
 
         // 安全检查：仅允许管理员提交自定义 SQL
         if req.data_source_sql.is_some() && role_id != Some(1) {
-            return Err(AppError::permission_denied("出于安全原因，仅系统管理员允许提交自定义 SQL 报表"));
+            return Err(AppError::permission_denied(
+                "出于安全原因，仅系统管理员允许提交自定义 SQL 报表",
+            ));
         }
 
         let mut active_model: ActiveModel = model.into();
@@ -323,7 +327,9 @@ impl ReportTemplateService {
         use sea_orm::{ConnectionTrait, Statement};
 
         if role_id != Some(1) {
-            return Err(AppError::permission_denied("出于安全原因，仅系统管理员允许执行原始 SQL 报表"));
+            return Err(AppError::permission_denied(
+                "出于安全原因，仅系统管理员允许执行原始 SQL 报表",
+            ));
         }
 
         // 安全检查：只允许SELECT语句

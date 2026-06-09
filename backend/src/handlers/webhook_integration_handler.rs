@@ -175,13 +175,13 @@ pub async fn send_wechat_message(
     use crate::services::webhook_service::WebhookService;
     use sea_orm::EntityTrait;
     let service = WebhookService::new(state.db.clone());
-    
+
     // 发送前需要校验归属
     let webhook = crate::models::webhook::Entity::find_by_id(req.integration_id)
         .one(state.db.as_ref())
         .await?
         .ok_or_else(|| AppError::not_found("Webhook 集成不存在"))?;
-        
+
     if webhook.tenant_id != auth.tenant_id.unwrap_or(0) {
         return Err(AppError::permission_denied("无权操作此Webhook"));
     }
@@ -236,7 +236,7 @@ pub async fn send_dingtalk_message(
         .one(state.db.as_ref())
         .await?
         .ok_or_else(|| AppError::not_found("Webhook 集成不存在"))?;
-        
+
     if webhook.tenant_id != auth.tenant_id.unwrap_or(0) {
         return Err(AppError::permission_denied("无权操作此Webhook"));
     }

@@ -1,7 +1,5 @@
 //! 资金转账逻辑单元测试
 
-use bingxi_backend::models::fund_account::Model as FundAccount;
-use bingxi_backend::models::fund_transfer_record::Model as FundTransferRecord;
 use rust_decimal::Decimal;
 use std::str::FromStr;
 

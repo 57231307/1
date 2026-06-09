@@ -39,8 +39,8 @@ fn test_net_value_calculation() {
 fn test_fully_depreciated_asset() {
     let original_value = Decimal::new(100000, 2);
     let residual_value = Decimal::new(10000, 2);
-    let useful_life_months = 120;
-    let months_used = 120; // 已用完全部寿命
+    let _useful_life_months = 120;
+    let _months_used = 120; // 已用完全部寿命
 
     let depreciable_amount = original_value - residual_value;
     let total_depreciation = depreciable_amount; // 全部折旧

@@ -3,7 +3,6 @@
 #[cfg(test)]
 mod tests {
     use chrono::NaiveDate;
-    use rust_decimal::Decimal;
 
     #[test]
     fn test_schedule_detail_creation() {

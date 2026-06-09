@@ -220,12 +220,7 @@ impl IntoResponse for AppError {
                     msg,
                     detail
                 );
-                (
-                    StatusCode::BAD_REQUEST,
-                    "BadRequest",
-                    msg.clone(),
-                    detail,
-                )
+                (StatusCode::BAD_REQUEST, "BadRequest", msg.clone(), detail)
             }
             AppError::TooManyRequests {
                 retry_after,

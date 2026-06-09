@@ -255,7 +255,11 @@ impl WebhookService {
     }
 
     /// 测试Webhook
-    pub async fn test_webhook(&self, webhook_id: i32, tenant_id: i32) -> Result<WebhookDeliveryResult, AppError> {
+    pub async fn test_webhook(
+        &self,
+        webhook_id: i32,
+        tenant_id: i32,
+    ) -> Result<WebhookDeliveryResult, AppError> {
         let webhook = Webhook::find_by_id(webhook_id)
             .one(self.db.as_ref())
             .await?
