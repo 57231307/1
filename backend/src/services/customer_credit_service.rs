@@ -156,7 +156,7 @@ impl CustomerCreditService {
                     customer_id: Set(req.customer_id),
                     credit_level: Set(req.credit_level.or(Some("B".to_string()))),
                     credit_score: Set(req.credit_score.or(Some(60))),
-                    used_credit: Set(Decimal::from(0)),
+                    used_credit: Set(Decimal::ZERO),
                     available_credit: Set(req.credit_limit),
                     credit_limit: Set(req.credit_limit),
                     credit_days: Set(req.credit_days.or(Some(30))),
@@ -914,12 +914,12 @@ mod tests {
         let model = create_test_credit_model(1, "AA", "active");
 
         // 使用率 = 已用额度 / 总额度
-        let utilization = model.used_credit.clone() / model.credit_limit.clone();
+        let utilization = model.used_credit / model.credit_limit;
         assert_eq!(utilization, Decimal::from(0));
 
         // 模拟使用 50000
         let used = Decimal::from(50000);
-        let utilization = used / model.credit_limit.clone();
+        let utilization = used / model.credit_limit;
         assert_eq!(utilization, Decimal::try_from(0.5).unwrap());
     }
 }

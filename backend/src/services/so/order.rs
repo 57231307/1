@@ -354,7 +354,7 @@ impl SalesService {
         let credit_available = credit_service
             .check_credit_available(request.customer_id, order_amount_decimal)
             .await
-            .map_err(|e| AppError::business(format!("信用检查失败: {}", e)))?;
+            .map_err(|err| AppError::business(format!("信用检查失败: {}", err)))?;
 
         if !credit_available {
             tracing::error!("Transaction rolled back: 信用额度不足");
@@ -553,7 +553,11 @@ impl SalesService {
                 .unwrap_or_else(|_| Decimal::from(0))
         };
         credit_service
-            .occupy_credit(request.customer_id, order_amount_decimal, user_id)
+            .occupy_credit(
+                request.customer_id,
+                order_amount_decimal,
+                user_id,
+            )
             .await
             .map_err(|e| {
                 tracing::error!("信用额度占用失败，事务回滚: {}", e);
