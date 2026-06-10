@@ -1,5 +1,6 @@
 #![allow(dead_code)]
 
+use chrono::{DateTime, Utc};
 use sea_orm::entity::prelude::*;
 use serde::{Deserialize, Serialize};
 
@@ -42,9 +43,9 @@ pub struct Model {
     pub inspection_result: String,
     pub remark: Option<String>,
     #[sea_orm(column_name = "created_at")]
-    pub created_at: chrono::NaiveDateTime,
+    pub created_at: DateTime<Utc>,
     #[sea_orm(column_name = "updated_at")]
-    pub updated_at: chrono::NaiveDateTime,
+    pub updated_at: DateTime<Utc>,
 }
 
 #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]

@@ -38,11 +38,9 @@ pub struct Model {
     pub ending_balance_credit: Decimal,
 
     /// 创建时间
-    #[sea_orm(column_type = "Timestamp")]
     pub created_at: DateTime<Utc>,
 
     /// 更新时间
-    #[sea_orm(column_type = "Timestamp")]
     pub updated_at: DateTime<Utc>,
 }
 

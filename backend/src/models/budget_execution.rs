@@ -32,7 +32,6 @@ pub struct Model {
     pub remark: Option<String>,
     /// 创建人
     pub created_by: Option<i32>,
-    #[sea_orm(column_type = "Timestamp")]
     /// 创建时间
     pub created_at: DateTime<Utc>,
 }

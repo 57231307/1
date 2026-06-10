@@ -22,9 +22,7 @@ pub struct Model {
     #[sea_orm(column_type = "Date")]
     pub opened_date: Option<NaiveDate>,
     pub remark: Option<String>,
-    #[sea_orm(column_type = "Timestamp")]
     pub created_at: DateTime<Utc>,
-    #[sea_orm(column_type = "Timestamp")]
     pub updated_at: DateTime<Utc>,
 }
 

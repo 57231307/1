@@ -17,9 +17,7 @@ pub struct Model {
     pub max_score: i32,
     pub evaluation_method: Option<String>,
     pub status: String,
-    #[sea_orm(column_type = "Timestamp")]
     pub created_at: DateTime<Utc>,
-    #[sea_orm(column_type = "Timestamp")]
     pub updated_at: DateTime<Utc>,
 }
 

@@ -296,7 +296,7 @@ impl QualityInspectionService {
 
         unqualified.handling_status = Set(handling_status.to_string());
         unqualified.handling_by = Set(Some(handler_id));
-        unqualified.handling_at = Set(Some(chrono::Utc::now().naive_utc()));
+        unqualified.handling_at = Set(Some(chrono::Utc::now()));
 
         let result = crate::services::audit_log_service::AuditLogService::update_with_audit(
             &*self.db,

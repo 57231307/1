@@ -16,9 +16,7 @@ pub struct Model {
     pub unit: Option<String>,
     pub status: String,
     pub remark: Option<String>,
-    #[sea_orm(column_type = "Timestamp")]
     pub created_at: DateTime<Utc>,
-    #[sea_orm(column_type = "Timestamp")]
     pub updated_at: DateTime<Utc>,
 }
 

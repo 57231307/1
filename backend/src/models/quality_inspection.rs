@@ -1,5 +1,6 @@
 #![allow(dead_code)]
 
+use chrono::{DateTime, Utc};
 use sea_orm::entity::prelude::*;
 use serde::{Deserialize, Serialize};
 
@@ -18,10 +19,8 @@ pub struct Model {
     pub sampling_rate: Option<rust_decimal::Decimal>,
     pub acceptance_criteria: Option<String>,
     pub status: String,
-    #[sea_orm(column_type = "Timestamp")]
-    pub created_at: chrono::NaiveDateTime,
-    #[sea_orm(column_type = "Timestamp")]
-    pub updated_at: chrono::NaiveDateTime,
+    pub created_at: DateTime<Utc>,
+    pub updated_at: DateTime<Utc>,
 }
 
 #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]

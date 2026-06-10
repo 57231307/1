@@ -40,7 +40,6 @@ pub struct Model {
     #[sea_orm(column_name = "created_by")]
     pub created_by: Option<i32>,
     /// 创建时间
-    #[sea_orm(column_type = "Timestamp")]
     #[sea_orm(column_name = "created_at")]
     pub created_at: DateTime<Utc>,
 }

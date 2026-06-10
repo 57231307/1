@@ -37,7 +37,6 @@ pub struct Model {
     /// 备注
     pub remark: Option<String>,
     /// 创建时间
-    #[sea_orm(column_type = "Timestamp")]
     #[sea_orm(column_name = "created_at")]
     pub created_at: DateTime<Utc>,
 }

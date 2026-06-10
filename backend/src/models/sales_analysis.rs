@@ -22,7 +22,6 @@ pub struct Model {
     pub gross_profit: Decimal,
     pub gross_profit_rate: Decimal,
     pub avg_order_value: Decimal,
-    #[sea_orm(column_type = "Timestamp")]
     pub created_at: DateTime<Utc>,
 }
 

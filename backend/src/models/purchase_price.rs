@@ -22,12 +22,9 @@ pub struct Model {
     pub expiry_date: Option<NaiveDate>,
     pub status: String,
     pub approved_by: Option<i32>,
-    #[sea_orm(column_type = "Timestamp")]
     pub approved_at: Option<DateTime<Utc>>,
     pub created_by: Option<i32>,
-    #[sea_orm(column_type = "Timestamp")]
     pub created_at: DateTime<Utc>,
-    #[sea_orm(column_type = "Timestamp")]
     pub updated_at: DateTime<Utc>,
 }
 
