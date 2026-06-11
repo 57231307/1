@@ -34,7 +34,7 @@ BEGIN
 
     -- 添加 updated_at 列
     IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'role_permissions' AND column_name = 'updated_at') THEN
-        ALTER TABLE role_permissions ADD COLUMN updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP;
+        ALTER TABLE role_permissions ADD COLUMN updated_at TIMESTAMPTZ WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP;
     END IF;
 END $$;
 

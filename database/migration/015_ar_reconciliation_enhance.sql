@@ -18,7 +18,7 @@ BEGIN
         END IF;
         -- 添加confirmed_at字段
         IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'ar_reconciliations' AND column_name = 'confirmed_at') THEN
-            ALTER TABLE ar_reconciliations ADD COLUMN confirmed_at TIMESTAMP;
+            ALTER TABLE ar_reconciliations ADD COLUMN confirmed_at TIMESTAMPTZ;
         END IF;
     END IF;
 END $$;
@@ -53,8 +53,8 @@ CREATE TABLE IF NOT EXISTS ar_reconciliation_items (
     match_status VARCHAR(20) NOT NULL DEFAULT 'UNMATCHED' CHECK (match_status IN ('UNMATCHED', 'MATCHED', 'PARTIAL')),
     matched_item_id INTEGER,
     remarks TEXT,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
 );
 
 -- 添加外键约束
@@ -85,8 +85,8 @@ CREATE TABLE IF NOT EXISTS ar_aging_analysis (
     days_over_90 DECIMAL(15,2) NOT NULL DEFAULT 0,
     total_amount DECIMAL(15,2) NOT NULL DEFAULT 0,
     salesperson_id INTEGER,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
 );
 
 -- 添加外键约束

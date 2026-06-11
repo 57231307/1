@@ -10,12 +10,12 @@ CREATE TABLE IF NOT EXISTS sales_order_change_history (
     old_value TEXT,                    -- 旧值
     new_value TEXT,                    -- 新值
     changed_by INTEGER NOT NULL REFERENCES users(id),
-    changed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    changed_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
     change_reason TEXT,                -- 变更原因
     ip_address VARCHAR(45),            -- 操作IP
     user_agent TEXT,                   -- 用户代理
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
 );
 
 -- 索引

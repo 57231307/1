@@ -1,8 +1,8 @@
 -- Migration 026: 修复缺失的表和列
 -- 修复以下问题:
--- 1. assignment_histories 表 - TIMESTAMP 改为 TIMESTAMPTZ
+-- 1. assignment_histories 表 - TIMESTAMPTZ 改为 TIMESTAMPTZ
 -- 2. dye_recipe 表 - 添加缺失的列
--- 3. user_notification_setting 表 - TIMESTAMP 改为 TIMESTAMPTZ
+-- 3. user_notification_setting 表 - TIMESTAMPTZ 改为 TIMESTAMPTZ
 -- 4. audit_logs 表 - 重命名列并添加缺失列
 -- 5. omni_audit_logs 表 - 确保存在
 

@@ -111,7 +111,7 @@ CREATE TABLE IF NOT EXISTS role_permissions (
     role_id INTEGER NOT NULL REFERENCES roles(id) ON DELETE CASCADE,
     permission_code VARCHAR(100) NOT NULL,
     permission_name VARCHAR(200) NOT NULL,
-    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
     UNIQUE(role_id, permission_code)
 );
 
@@ -129,8 +129,8 @@ CREATE TABLE IF NOT EXISTS product_categories (
     name VARCHAR(100) NOT NULL UNIQUE,
     parent_id INTEGER REFERENCES product_categories(id),
     description TEXT,
-    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+    created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
 COMMENT ON TABLE product_categories IS '产品类别表';
@@ -152,8 +152,8 @@ CREATE TABLE IF NOT EXISTS products (
     description TEXT,
     status VARCHAR(20) NOT NULL DEFAULT 'active',
     is_deleted BOOLEAN NOT NULL DEFAULT false,
-    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+    created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
 COMMENT ON TABLE products IS '产品信息表';
@@ -1103,8 +1103,8 @@ CREATE TABLE IF NOT EXISTS suppliers (
     assist_supplier BOOLEAN DEFAULT TRUE,                  -- 是否启用供应商核算
     
     -- 系统字段
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    created_at TIMESTAMPTZ WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMPTZ WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     created_by INTEGER,                                    -- 创建人 ID
     updated_by INTEGER,                                    -- 更新人 ID
     remarks TEXT                                           -- 备注
@@ -1151,8 +1151,8 @@ CREATE TABLE IF NOT EXISTS supplier_contacts (
     qq VARCHAR(20),                                    -- QQ
     is_primary BOOLEAN DEFAULT FALSE,                  -- 是否主要联系人
     remarks TEXT,                                      -- 备注
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+    created_at TIMESTAMPTZ WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMPTZ WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
 COMMENT ON TABLE supplier_contacts IS '供应商联系人表';
@@ -1175,8 +1175,8 @@ CREATE TABLE IF NOT EXISTS supplier_categories (
     level INTEGER NOT NULL DEFAULT 1,                  -- 层级
     sort_order INTEGER NOT NULL DEFAULT 0,             -- 排序
     is_enabled BOOLEAN DEFAULT TRUE,                   -- 是否启用
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+    created_at TIMESTAMPTZ WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMPTZ WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
 COMMENT ON TABLE supplier_categories IS '供应商分类表';
@@ -1203,8 +1203,8 @@ CREATE TABLE IF NOT EXISTS supplier_grades (
     color_code VARCHAR(20),                            -- 颜色标识
     permission_desc TEXT,                              -- 权限说明
     is_enabled BOOLEAN DEFAULT TRUE,                   -- 是否启用
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+    created_at TIMESTAMPTZ WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMPTZ WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
 COMMENT ON TABLE supplier_grades IS '供应商等级表';
@@ -1269,8 +1269,8 @@ CREATE TABLE IF NOT EXISTS supplier_evaluations (
     approval_remarks TEXT,                             -- 审批意见
     
     -- 系统字段
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    created_at TIMESTAMPTZ WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMPTZ WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     created_by INTEGER,
     updated_by INTEGER,
     
@@ -1310,8 +1310,8 @@ CREATE TABLE IF NOT EXISTS supplier_qualifications (
     annual_check_record TEXT,                          -- 年检记录
     is_expired BOOLEAN DEFAULT FALSE,                  -- 是否过期
     remarks TEXT,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+    created_at TIMESTAMPTZ WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMPTZ WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
 COMMENT ON TABLE supplier_qualifications IS '供应商资质表';
@@ -1342,8 +1342,8 @@ CREATE TABLE IF NOT EXISTS supplier_blacklists (
     release_status VARCHAR(20) DEFAULT 'blacklisted',  -- 解禁状态
     release_date_actual DATE,                          -- 实际解禁日期
     remarks TEXT,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    created_at TIMESTAMPTZ WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMPTZ WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     created_by INTEGER,
     updated_by INTEGER
 );
@@ -1461,11 +1461,11 @@ CREATE TABLE purchase_order (
     notes TEXT,                                         -- 备注
     attachment_urls TEXT[],                             -- 附件 URL 列表
     created_by INTEGER NOT NULL,                        -- 创建人 ID
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,     -- 创建时间
+    created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,     -- 创建时间
     updated_by INTEGER,                                 -- 更新人 ID
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,     -- 更新时间
+    updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,     -- 更新时间
     approved_by INTEGER,                                -- 审批人 ID
-    approved_at TIMESTAMP,                              -- 审批时间
+    approved_at TIMESTAMPTZ,                              -- 审批时间
     rejected_reason TEXT                                -- 拒绝原因
 );
 
@@ -1525,8 +1525,8 @@ CREATE TABLE purchase_order_item (
     delivery_date DATE,                                 -- 交货日期
     warehouse_id INTEGER,                               -- 仓库 ID
     notes TEXT,                                         -- 备注
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,     -- 创建时间
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP      -- 更新时间
+    created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,     -- 创建时间
+    updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP      -- 更新时间
 );
 
 -- 外键约束
@@ -1598,10 +1598,10 @@ CREATE TABLE purchase_receipt (
     notes TEXT,                                         -- 备注
     attachment_urls TEXT[],                             -- 附件 URL 列表
     created_by INTEGER NOT NULL,                        -- 创建人 ID
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,     -- 创建时间
+    created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,     -- 创建时间
     updated_by INTEGER,                                 -- 更新人 ID
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,     -- 更新时间
-    confirmed_at TIMESTAMP,                             -- 确认时间
+    updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,     -- 更新时间
+    confirmed_at TIMESTAMPTZ,                             -- 确认时间
     confirmed_by INTEGER                                -- 确认人 ID
 );
 
@@ -1658,7 +1658,7 @@ CREATE TABLE purchase_receipt_item (
     production_date DATE,                               -- 生产日期
     shelf_life INTEGER,                                 -- 保质期（天）
     notes TEXT,                                         -- 备注
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP      -- 创建时间
+    created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP      -- 创建时间
 );
 
 -- 外键约束
@@ -1719,11 +1719,11 @@ CREATE TABLE purchase_return (
     total_amount DECIMAL(18,2) DEFAULT 0.00,            -- 总退货金额
     notes TEXT,                                         -- 备注
     created_by INTEGER NOT NULL,                        -- 创建人 ID
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,     -- 创建时间
+    created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,     -- 创建时间
     updated_by INTEGER,                                 -- 更新人 ID
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,     -- 更新时间
+    updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,     -- 更新时间
     approved_by INTEGER,                                -- 审批人 ID
-    approved_at TIMESTAMP,                              -- 审批时间
+    approved_at TIMESTAMPTZ,                              -- 审批时间
     rejected_reason TEXT                                -- 拒绝原因
 );
 
@@ -1773,9 +1773,9 @@ CREATE TABLE purchase_inspection (
     defect_description TEXT,                            -- 缺陷描述
     attachment_urls TEXT[],                             -- 附件 URL 列表
     notes TEXT,                                         -- 备注
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,     -- 创建时间
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,     -- 更新时间
-    completed_at TIMESTAMP,                             -- 完成时间
+    created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,     -- 创建时间
+    updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,     -- 更新时间
+    completed_at TIMESTAMPTZ,                             -- 完成时间
     completed_by INTEGER                                -- 完成人 ID
 );
 
@@ -1810,7 +1810,7 @@ CREATE TABLE purchase_order_status (
     description TEXT,                                   -- 状态描述
     sort_order INTEGER DEFAULT 0,                       -- 排序顺序
     is_enabled BOOLEAN DEFAULT TRUE,                    -- 是否启用
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP      -- 创建时间
+    created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP      -- 创建时间
 );
 
 -- 插入初始数据
@@ -1834,7 +1834,7 @@ CREATE TABLE purchase_receipt_status (
     description TEXT,                                   -- 状态描述
     sort_order INTEGER DEFAULT 0,                       -- 排序顺序
     is_enabled BOOLEAN DEFAULT TRUE,                    -- 是否启用
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP      -- 创建时间
+    created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP      -- 创建时间
 );
 
 -- 插入初始数据
@@ -1854,7 +1854,7 @@ CREATE TABLE purchase_return_reason (
     description TEXT,                                   -- 原因描述
     sort_order INTEGER DEFAULT 0,                       -- 排序顺序
     is_enabled BOOLEAN DEFAULT TRUE,                    -- 是否启用
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP      -- 创建时间
+    created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP      -- 创建时间
 );
 
 -- 插入初始数据
@@ -1931,13 +1931,13 @@ CREATE TABLE ap_invoice (
     notes TEXT,                                         -- 备注
     attachment_urls TEXT[],                             -- 附件 URL 列表
     created_by INTEGER NOT NULL,                        -- 创建人 ID
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,     -- 创建时间
+    created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,     -- 创建时间
     updated_by INTEGER,                                 -- 更新人 ID
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,     -- 更新时间
+    updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,     -- 更新时间
     approved_by INTEGER,                                -- 审核人 ID
-    approved_at TIMESTAMP,                              -- 审核时间
+    approved_at TIMESTAMPTZ,                              -- 审核时间
     cancelled_by INTEGER,                               -- 取消人 ID
-    cancelled_at TIMESTAMP,                             -- 取消时间
+    cancelled_at TIMESTAMPTZ,                             -- 取消时间
     cancelled_reason TEXT                               -- 取消原因
 );
 
@@ -2012,15 +2012,15 @@ CREATE TABLE ap_payment_request (
     notes TEXT,                                         -- 备注
     attachment_urls TEXT[],                             -- 附件 URL 列表
     created_by INTEGER NOT NULL,                        -- 创建人 ID
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,     -- 创建时间
+    created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,     -- 创建时间
     updated_by INTEGER,                                 -- 更新人 ID
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,     -- 更新时间
+    updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,     -- 更新时间
     submitted_by INTEGER,                               -- 提交人 ID
-    submitted_at TIMESTAMP,                             -- 提交时间
+    submitted_at TIMESTAMPTZ,                             -- 提交时间
     approved_by INTEGER,                                -- 审批人 ID
-    approved_at TIMESTAMP,                              -- 审批时间
+    approved_at TIMESTAMPTZ,                              -- 审批时间
     rejected_by INTEGER,                                -- 拒绝人 ID
-    rejected_at TIMESTAMP,                              -- 拒绝时间
+    rejected_at TIMESTAMPTZ,                              -- 拒绝时间
     rejected_reason TEXT                                -- 拒绝原因
 );
 
@@ -2054,7 +2054,7 @@ CREATE TABLE ap_payment_request_item (
     invoice_id INTEGER NOT NULL,                        -- 应付单 ID（外键）
     apply_amount DECIMAL(18,2) NOT NULL,                -- 申请金额
     notes TEXT,                                         -- 备注
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,     -- 创建时间
+    created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,     -- 创建时间
     CONSTRAINT fk_ap_request_item_request
         FOREIGN KEY (request_id) REFERENCES ap_payment_request(id) ON DELETE CASCADE,
     CONSTRAINT fk_ap_request_item_invoice
@@ -2087,11 +2087,11 @@ CREATE TABLE ap_payment (
     notes TEXT,                                         -- 备注
     attachment_urls TEXT[],                             -- 附件 URL 列表（付款凭证）
     created_by INTEGER NOT NULL,                        -- 创建人 ID
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,     -- 创建时间
+    created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,     -- 创建时间
     updated_by INTEGER,                                 -- 更新人 ID
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,     -- 更新时间
+    updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,     -- 更新时间
     confirmed_by INTEGER,                               -- 确认人 ID
-    confirmed_at TIMESTAMP                              -- 确认时间
+    confirmed_at TIMESTAMPTZ                              -- 确认时间
 );
 
 -- 外键约束
@@ -2128,9 +2128,9 @@ CREATE TABLE ap_verification (
     verification_status VARCHAR(20) DEFAULT 'COMPLETED',-- 核销状态：COMPLETED=已完成，CANCELLED=已取消
     notes TEXT,                                         -- 备注
     created_by INTEGER NOT NULL,                        -- 创建人 ID
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,     -- 创建时间
+    created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,     -- 创建时间
     cancelled_by INTEGER,                               -- 取消人 ID
-    cancelled_at TIMESTAMP,                             -- 取消时间
+    cancelled_at TIMESTAMPTZ,                             -- 取消时间
     cancelled_reason TEXT                               -- 取消原因
 );
 
@@ -2162,7 +2162,7 @@ CREATE TABLE ap_verification_item (
     payment_id INTEGER NOT NULL,                        -- 付款单 ID（外键）
     verify_amount DECIMAL(18,2) NOT NULL,               -- 核销金额
     notes TEXT,                                         -- 备注
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,     -- 创建时间
+    created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,     -- 创建时间
     CONSTRAINT fk_ap_verification_item_verification
         FOREIGN KEY (verification_id) REFERENCES ap_verification(id) ON DELETE CASCADE,
     CONSTRAINT fk_ap_verification_item_invoice
@@ -2193,11 +2193,11 @@ CREATE TABLE ap_reconciliation (
     reconciliation_status VARCHAR(20) DEFAULT 'PENDING',-- 对账状态：PENDING=待确认，CONFIRMED=已确认，DISPUTED=有争议
     notes TEXT,                                         -- 备注
     created_by INTEGER NOT NULL,                        -- 创建人 ID
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,     -- 创建时间
+    created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,     -- 创建时间
     confirmed_by INTEGER,                               -- 确认人 ID（供应商确认）
-    confirmed_at TIMESTAMP,                             -- 确认时间
+    confirmed_at TIMESTAMPTZ,                             -- 确认时间
     disputed_by INTEGER,                                -- 争议人 ID
-    disputed_at TIMESTAMP,                              -- 争议时间
+    disputed_at TIMESTAMPTZ,                              -- 争议时间
     disputed_reason TEXT                                -- 争议原因
 );
 
@@ -3777,8 +3777,8 @@ CREATE TABLE financial_indicators (
     unit VARCHAR(20),
     status VARCHAR(20) DEFAULT 'active',
     remark TEXT,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
 );
 
 -- 财务分析结果表
@@ -3794,7 +3794,7 @@ CREATE TABLE financial_analysis_results (
     trend VARCHAR(10),
     analysis_date DATE DEFAULT CURRENT_DATE,
     created_by INTEGER,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
 );
 
 -- 财务趋势分析表
@@ -3807,7 +3807,7 @@ CREATE TABLE financial_trends (
     change_amount DECIMAL(18,4),
     change_rate DECIMAL(5,2),
     trend_direction VARCHAR(10),
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
 );
 
 -- 财务报表配置表
@@ -3818,8 +3818,8 @@ CREATE TABLE financial_report_configs (
     period_type VARCHAR(20) DEFAULT 'monthly',
     template_config JSONB,
     status VARCHAR(20) DEFAULT 'active',
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
 );
 
 -- 创建索引
@@ -3866,8 +3866,8 @@ CREATE TABLE supplier_evaluation_indicators (
     max_score INTEGER DEFAULT 100,
     evaluation_method VARCHAR(50),
     status VARCHAR(20) DEFAULT 'active',
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
 );
 
 -- 供应商评估记录表
@@ -3882,7 +3882,7 @@ CREATE TABLE supplier_evaluation_records (
     evaluator_id INTEGER,
     evaluation_date DATE DEFAULT CURRENT_DATE,
     remark TEXT,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
 );
 
 -- 供应商综合评分表
@@ -3900,7 +3900,7 @@ CREATE TABLE supplier_overall_scores (
     evaluation_status VARCHAR(20) DEFAULT 'pending',
     evaluated_by INTEGER,
     evaluation_date DATE DEFAULT CURRENT_DATE,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
 );
 
 -- 供应商等级表
@@ -3912,7 +3912,7 @@ CREATE TABLE supplier_levels (
     max_score INTEGER NOT NULL,
     benefits TEXT,
     status VARCHAR(20) DEFAULT 'active',
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
 );
 
 -- 创建索引
@@ -3964,8 +3964,8 @@ CREATE TABLE fund_accounts (
     status VARCHAR(20) DEFAULT 'active',
     opened_date DATE,
     remark TEXT,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
 );
 
 -- 资金计划表
@@ -3982,9 +3982,9 @@ CREATE TABLE fund_plans (
     status VARCHAR(20) DEFAULT 'draft',
     prepared_by INTEGER,
     approved_by INTEGER,
-    approved_at TIMESTAMP,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    approved_at TIMESTAMPTZ,
+    created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
 );
 
 -- 资金调拨表
@@ -4000,11 +4000,11 @@ CREATE TABLE fund_transfers (
     status VARCHAR(20) DEFAULT 'pending',
     applied_by INTEGER,
     approved_by INTEGER,
-    approved_at TIMESTAMP,
-    executed_at TIMESTAMP,
+    approved_at TIMESTAMPTZ,
+    executed_at TIMESTAMPTZ,
     remark TEXT,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
 );
 
 -- 资金流水表
@@ -4018,13 +4018,13 @@ CREATE TABLE fund_transactions (
     balance_after DECIMAL(18,2),
     related_type VARCHAR(50),
     related_id INTEGER,
-    transaction_date TIMESTAMP NOT NULL,
+    transaction_date TIMESTAMPTZ NOT NULL,
     direction VARCHAR(10) NOT NULL,
     counterparty_name VARCHAR(200),
     counterparty_account VARCHAR(100),
     remark TEXT,
     created_by INTEGER,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
 );
 
 -- 资金监控表
@@ -4040,7 +4040,7 @@ CREATE TABLE fund_monitoring (
     alert_status VARCHAR(20) DEFAULT 'normal',
     alert_reason TEXT,
     monitored_by INTEGER,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
 );
 
 -- 创建索引
@@ -4088,8 +4088,8 @@ CREATE TABLE budget_items (
     item_type VARCHAR(20) NOT NULL,
     level INTEGER DEFAULT 1,
     status VARCHAR(20) DEFAULT 'active',
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
 );
 
 -- 预算方案表
@@ -4104,10 +4104,10 @@ CREATE TABLE budget_plans (
     status VARCHAR(20) DEFAULT 'draft',
     prepared_by INTEGER,
     approved_by INTEGER,
-    approved_at TIMESTAMP,
+    approved_at TIMESTAMPTZ,
     remark TEXT,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
 );
 
 -- 预算明细表
@@ -4120,8 +4120,8 @@ CREATE TABLE budget_plan_details (
     actual_amount DECIMAL(18,2) DEFAULT 0,
     variance_amount DECIMAL(18,2),
     variance_rate DECIMAL(5,2),
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
 );
 
 -- 预算控制表
@@ -4137,7 +4137,7 @@ CREATE TABLE budget_controls (
     related_id INTEGER,
     amount DECIMAL(18,2),
     controlled_by INTEGER,
-    controlled_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    controlled_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
     remark TEXT
 );
 
@@ -4154,10 +4154,10 @@ CREATE TABLE budget_adjustments (
     reason TEXT NOT NULL,
     applied_by INTEGER,
     approved_by INTEGER,
-    approved_at TIMESTAMP,
+    approved_at TIMESTAMPTZ,
     status VARCHAR(20) DEFAULT 'pending',
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
 );
 
 -- 创建索引
@@ -4207,10 +4207,10 @@ CREATE TABLE purchase_prices (
     expiry_date DATE,
     status VARCHAR(20) DEFAULT 'active',
     approved_by INTEGER,
-    approved_at TIMESTAMP,
+    approved_at TIMESTAMPTZ,
     created_by INTEGER,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
 );
 
 -- 采购价格审批表
@@ -4224,10 +4224,10 @@ CREATE TABLE purchase_price_approvals (
     reason TEXT,
     applied_by INTEGER,
     approved_by INTEGER,
-    approved_at TIMESTAMP,
+    approved_at TIMESTAMPTZ,
     status VARCHAR(20) DEFAULT 'pending',
     remark TEXT,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
 );
 
 -- 采购价格历史表
@@ -4241,7 +4241,7 @@ CREATE TABLE purchase_price_history (
     old_price DECIMAL(14,4),
     change_rate DECIMAL(5,2),
     remark TEXT,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
 );
 
 -- 创建索引
@@ -4281,8 +4281,8 @@ CREATE TABLE purchase_return_item (
     discount_amount DECIMAL(18,2) DEFAULT 0.00,
     total_amount DECIMAL(18,2) DEFAULT 0.00,
     notes TEXT,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
 );
 
 SELECT safe_add_constraint('purchase_return_item', 'fk_pret_item_return', 'FOREIGN KEY (return_id) REFERENCES purchase_return(id) ON DELETE CASCADE');
@@ -4307,10 +4307,10 @@ CREATE TABLE sales_prices (
     expiry_date DATE,
     status VARCHAR(20) DEFAULT 'active',
     approved_by INTEGER,
-    approved_at TIMESTAMP,
+    approved_at TIMESTAMPTZ,
     created_by INTEGER,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
 );
 
 -- 销售价格审批表
@@ -4324,10 +4324,10 @@ CREATE TABLE sales_price_approvals (
     reason TEXT,
     applied_by INTEGER,
     approved_by INTEGER,
-    approved_at TIMESTAMP,
+    approved_at TIMESTAMPTZ,
     status VARCHAR(20) DEFAULT 'pending',
     remark TEXT,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
 );
 
 -- 销售价格历史表
@@ -4341,7 +4341,7 @@ CREATE TABLE sales_price_history (
     old_price DECIMAL(14,4),
     change_rate DECIMAL(5,2),
     remark TEXT,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
 );
 
 -- 价格策略表
@@ -4358,8 +4358,8 @@ CREATE TABLE price_strategies (
     status VARCHAR(20) DEFAULT 'active',
     effective_date DATE NOT NULL,
     expiry_date DATE,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
 );
 
 -- 创建索引
@@ -4405,7 +4405,7 @@ CREATE TABLE sales_statistics (
     gross_profit DECIMAL(18,2) DEFAULT 0,
     gross_profit_rate DECIMAL(5,2),
     avg_order_value DECIMAL(18,2),
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
 );
 
 -- 销售趋势表
@@ -4420,7 +4420,7 @@ CREATE TABLE sales_trends (
     change_rate DECIMAL(5,2),
     trend_direction VARCHAR(10),
     qty DECIMAL(14,4),
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
 );
 
 -- 销售业绩排行表
@@ -4436,7 +4436,7 @@ CREATE TABLE sales_performance_rankings (
     order_count INTEGER DEFAULT 0,
     target_amount DECIMAL(18,2),
     achievement_rate DECIMAL(5,2),
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
 );
 
 -- 销售目标表
@@ -4450,8 +4450,8 @@ CREATE TABLE sales_targets (
     actual_amount DECIMAL(18,2) DEFAULT 0,
     achievement_rate DECIMAL(5,2),
     status VARCHAR(20) DEFAULT 'active',
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
 );
 
 -- 创建索引
@@ -4497,8 +4497,8 @@ CREATE TABLE quality_inspection_standards (
     sampling_rate DECIMAL(5,2),
     acceptance_criteria TEXT,
     status VARCHAR(20) DEFAULT 'active',
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
 );
 
 -- 质量检验记录表
@@ -4521,8 +4521,8 @@ CREATE TABLE quality_inspection_records (
     qualification_rate DECIMAL(5,2),
     inspection_result VARCHAR(20) NOT NULL,
     remark TEXT,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
 );
 
 -- 质量检验明细表
@@ -4534,7 +4534,7 @@ CREATE TABLE quality_inspection_details (
     actual_value VARCHAR(100),
     result VARCHAR(20) NOT NULL,
     remark TEXT,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
 );
 
 -- 不合格品处理表
@@ -4549,10 +4549,10 @@ CREATE TABLE unqualified_products (
     handling_method VARCHAR(20) NOT NULL,
     handling_status VARCHAR(20) DEFAULT 'pending',
     handling_by INTEGER,
-    handling_at TIMESTAMP,
+    handling_at TIMESTAMPTZ,
     remark TEXT,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
 );
 
 -- 质量统计表
@@ -4567,7 +4567,7 @@ CREATE TABLE quality_statistics (
     unqualified_qty DECIMAL(14,4) DEFAULT 0,
     qualification_rate DECIMAL(5,2),
     unqualified_reasons JSONB,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
 );
 
 -- 创建索引
@@ -4620,10 +4620,10 @@ CREATE TABLE quality_standards (
     expiry_date DATE,
     status VARCHAR(20) DEFAULT 'active',
     approved_by INTEGER,
-    approved_at TIMESTAMP,
+    approved_at TIMESTAMPTZ,
     created_by INTEGER,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
 );
 
 -- 质量标准版本历史表
@@ -4636,7 +4636,7 @@ CREATE TABLE quality_standard_versions (
     old_content TEXT,
     new_content TEXT,
     changed_by INTEGER,
-    changed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    changed_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
     remark TEXT
 );
 
@@ -4648,7 +4648,7 @@ CREATE TABLE quality_standard_references (
     reference_name VARCHAR(200) NOT NULL,
     reference_content TEXT,
     is_mandatory BOOLEAN DEFAULT FALSE,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
 );
 
 -- 创建索引
@@ -4703,8 +4703,8 @@ CREATE TABLE batch_dye_lot (
     inspector_id INTEGER,                                -- 质检员 ID
     remarks TEXT,                                        -- 备注
     is_active BOOLEAN DEFAULT TRUE,                      -- 是否启用
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    created_at TIMESTAMPTZ WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMPTZ WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     created_by INTEGER,                                  -- 创建人 ID
     updated_by INTEGER                                   -- 更新人 ID
 );
@@ -4759,8 +4759,8 @@ CREATE TABLE inventory_piece (
     inventory_status VARCHAR(20) DEFAULT 'available',    -- 库存状态（available/reserved/locked/sold）
     warehouse_id INTEGER,                                -- 仓库 ID
     remarks TEXT,                                        -- 备注
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    created_at TIMESTAMPTZ WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMPTZ WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     created_by INTEGER,                                  -- 创建人 ID
     updated_by INTEGER                                   -- 更新人 ID
 );
@@ -4800,11 +4800,11 @@ CREATE TABLE product_code_mapping (
     is_active BOOLEAN DEFAULT TRUE,                      -- 是否启用
     mapping_date DATE NOT NULL,                          -- 映射日期
     validation_status VARCHAR(20) DEFAULT 'pending',     -- 验证状态（pending/validated/failed）
-    validated_at TIMESTAMP,                              -- 验证时间
+    validated_at TIMESTAMPTZ,                              -- 验证时间
     validated_by INTEGER,                                -- 验证人 ID
     remarks TEXT,                                        -- 备注
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    created_at TIMESTAMPTZ WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMPTZ WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     created_by INTEGER,                                  -- 创建人 ID
     updated_by INTEGER                                   -- 更新人 ID
 );
@@ -4839,12 +4839,12 @@ CREATE TABLE color_code_mapping (
     is_active BOOLEAN DEFAULT TRUE,                      -- 是否启用
     mapping_date DATE NOT NULL,                          -- 映射日期
     validation_status VARCHAR(20) DEFAULT 'pending',     -- 验证状态（pending/validated/failed）
-    validated_at TIMESTAMP,                              -- 验证时间
+    validated_at TIMESTAMPTZ,                              -- 验证时间
     validated_by INTEGER,                                -- 验证人 ID
     color_difference_notes TEXT,                         -- 色差说明
     remarks TEXT,                                        -- 备注
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    created_at TIMESTAMPTZ WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMPTZ WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     created_by INTEGER,                                  -- 创建人 ID
     updated_by INTEGER                                   -- 更新人 ID
 );
@@ -4880,11 +4880,11 @@ CREATE TABLE dye_lot_mapping (
     is_active BOOLEAN DEFAULT TRUE,                      -- 是否启用
     mapping_date DATE NOT NULL,                          -- 映射日期
     validation_status VARCHAR(20) DEFAULT 'pending',     -- 验证状态（pending/validated/failed）
-    validated_at TIMESTAMP,                              -- 验证时间
+    validated_at TIMESTAMPTZ,                              -- 验证时间
     validated_by INTEGER,                                -- 验证人 ID
     remarks TEXT,                                        -- 备注
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    created_at TIMESTAMPTZ WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMPTZ WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     created_by INTEGER,                                  -- 创建人 ID
     updated_by INTEGER                                   -- 更新人 ID
 );
@@ -4916,11 +4916,11 @@ CREATE TABLE piece_mapping (
     is_active BOOLEAN DEFAULT TRUE,                      -- 是否启用
     mapping_date DATE NOT NULL,                          -- 映射日期
     validation_status VARCHAR(20) DEFAULT 'pending',     -- 验证状态（pending/validated/failed）
-    validated_at TIMESTAMP,                              -- 验证时间
+    validated_at TIMESTAMPTZ,                              -- 验证时间
     validated_by INTEGER,                                -- 验证人 ID
     remarks TEXT,                                        -- 备注
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    created_at TIMESTAMPTZ WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMPTZ WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     created_by INTEGER,                                  -- 创建人 ID
     updated_by INTEGER                                   -- 更新人 ID
 );
@@ -4972,13 +4972,13 @@ CREATE TABLE batch_trace_log (
     
     -- 操作追踪
     operator_id INTEGER NOT NULL,                        -- 操作人 ID
-    operation_time TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP, -- 操作时间
+    operation_time TIMESTAMPTZ WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP, -- 操作时间
     operation_type VARCHAR(50) NOT NULL,                 -- 操作类型（create/update/convert/validate）
     ip_address VARCHAR(50),                              -- 操作 IP
     device_info VARCHAR(200),                            -- 设备信息
     
     -- 系统字段
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    created_at TIMESTAMPTZ WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     remarks TEXT                                         -- 备注
 );
 
@@ -5222,11 +5222,11 @@ CREATE TABLE IF NOT EXISTS sales_delivery (
     total_quantity DECIMAL(10,2) DEFAULT 0.00,           -- 总数量
     total_amount DECIMAL(10,2) DEFAULT 0.00,             -- 总金额
     delivery_status VARCHAR(20) DEFAULT 'draft',         -- 发货状态
-    shipped_at TIMESTAMP,                                -- 发货时间
-    confirmed_at TIMESTAMP,                              -- 确认时间
+    shipped_at TIMESTAMPTZ,                                -- 发货时间
+    confirmed_at TIMESTAMPTZ,                              -- 确认时间
     notes TEXT,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    created_at TIMESTAMPTZ WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMPTZ WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     created_by INTEGER,
     updated_by INTEGER
 );
@@ -5272,7 +5272,7 @@ CREATE TABLE IF NOT EXISTS sales_delivery_item (
     warehouse_id INTEGER,                                -- 仓库 ID
     location_code VARCHAR(50),                           -- 库位编码
     notes TEXT,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+    created_at TIMESTAMPTZ WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
 COMMENT ON TABLE sales_delivery_item IS '销售发货明细表（含四级批次）';
@@ -5410,7 +5410,7 @@ CREATE TABLE bpm_process_definition (
     -- 状态管理
     status VARCHAR(20) DEFAULT 'draft',                  -- 状态（draft/active/suspended/deprecated）
     is_published BOOLEAN DEFAULT FALSE,                  -- 是否已发布
-    published_at TIMESTAMP,                              -- 发布时间
+    published_at TIMESTAMPTZ,                              -- 发布时间
     published_by INTEGER,                                -- 发布人 ID
     
     -- 权限配置
@@ -5418,8 +5418,8 @@ CREATE TABLE bpm_process_definition (
     initiator_roles INTEGER[],                           -- 发起人角色 ID 列表
     
     -- 系统字段
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    created_at TIMESTAMPTZ WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMPTZ WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     created_by INTEGER,                                  -- 创建人 ID
     updated_by INTEGER,                                  -- 更新人 ID
     remarks TEXT                                         -- 备注
@@ -5473,13 +5473,13 @@ CREATE TABLE bpm_process_instance (
     variables JSONB,                                     -- 流程变量（JSON 格式）
     
     -- 时间信息
-    started_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP, -- 开始时间
-    completed_at TIMESTAMP,                              -- 完成时间
+    started_at TIMESTAMPTZ WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP, -- 开始时间
+    completed_at TIMESTAMPTZ,                              -- 完成时间
     duration_seconds BIGINT,                             -- 耗时（秒）
     
     -- 系统字段
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    created_at TIMESTAMPTZ WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMPTZ WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     remarks TEXT                                         -- 备注
 );
 
@@ -5538,11 +5538,11 @@ CREATE TABLE bpm_task (
     action VARCHAR(20),                                  -- 操作（approve/reject/withdraw/terminate/delegate）
     approval_opinion TEXT,                               -- 审批意见
     attachment_urls TEXT[],                              -- 附件 URL 列表
-    handled_at TIMESTAMP,                                -- 处理时间
+    handled_at TIMESTAMPTZ,                                -- 处理时间
     duration_seconds BIGINT,                             -- 处理耗时（秒）
     
     -- 超时配置
-    due_date TIMESTAMP,                                  -- 预计完成时间
+    due_date TIMESTAMPTZ,                                  -- 预计完成时间
     is_overdue BOOLEAN DEFAULT FALSE,                    -- 是否超时
     overdue_days INTEGER,                                -- 超时天数
     
@@ -5551,8 +5551,8 @@ CREATE TABLE bpm_task (
     task_variables JSONB,                                -- 任务变量
     
     -- 系统字段
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    created_at TIMESTAMPTZ WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMPTZ WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     remarks TEXT                                         -- 备注
 );
 
@@ -5607,7 +5607,7 @@ CREATE TABLE bpm_operation_log (
     attachment_urls TEXT[],                              -- 附件 URL 列表
     
     -- 操作时间
-    operated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    operated_at TIMESTAMPTZ WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     
     -- 系统字段
     ip_address VARCHAR(50),                              -- 操作 IP
@@ -5664,8 +5664,8 @@ CREATE TABLE bpm_node_config (
     -- 系统字段
     sort_order INTEGER DEFAULT 0,                        -- 排序
     is_active BOOLEAN DEFAULT TRUE,                      -- 是否启用
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    created_at TIMESTAMPTZ WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMPTZ WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     created_by INTEGER,                                  -- 创建人 ID
     updated_by INTEGER                                   -- 更新人 ID
 );
@@ -5704,7 +5704,7 @@ CREATE TABLE bpm_transition_condition (
     
     -- 系统字段
     is_active BOOLEAN DEFAULT TRUE,                      -- 是否启用
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    created_at TIMESTAMPTZ WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     created_by INTEGER,                                  -- 创建人 ID
     remarks TEXT                                         -- 备注
 );
@@ -5743,9 +5743,9 @@ CREATE TABLE bpm_task_delegation (
     
     -- 系统字段
     reason TEXT,                                         -- 委托原因
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    created_at TIMESTAMPTZ WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     created_by INTEGER,                                  -- 创建人 ID
-    cancelled_at TIMESTAMP,                              -- 取消时间
+    cancelled_at TIMESTAMPTZ,                              -- 取消时间
     cancelled_by INTEGER                                 -- 取消人 ID
 );
 
@@ -5781,7 +5781,7 @@ CREATE TABLE bpm_task_urge (
     urge_type VARCHAR(20) DEFAULT 'system',              -- 催办类型（system/manual）
     
     -- 系统字段
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    created_at TIMESTAMPTZ WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     notified_user_ids INTEGER[],                         -- 已通知用户 ID 列表
     remarks TEXT                                         -- 备注
 );
@@ -5894,11 +5894,11 @@ CREATE TABLE bpm_task_notification (
     -- 通知状态
     status VARCHAR(20) DEFAULT 'unread',                 -- 状态（unread/read/deleted）
     is_read BOOLEAN DEFAULT FALSE,                       -- 是否已读
-    read_at TIMESTAMP,                                   -- 阅读时间
+    read_at TIMESTAMPTZ,                                   -- 阅读时间
     
     -- 系统字段
-    sent_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP, -- 发送时间
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+    sent_at TIMESTAMPTZ WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP, -- 发送时间
+    created_at TIMESTAMPTZ WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
 COMMENT ON TABLE bpm_task_notification IS '流程通知表';
@@ -5945,8 +5945,8 @@ CREATE TABLE bpm_statistics_daily (
     min_duration_seconds BIGINT DEFAULT 0,               -- 最小耗时（秒）
     
     -- 系统字段
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+    created_at TIMESTAMPTZ WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMPTZ WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
 COMMENT ON TABLE bpm_statistics_daily IS '流程统计表（按天）';
@@ -5986,8 +5986,8 @@ CREATE TABLE bpm_timeout_config (
     -- 系统字段
     is_active BOOLEAN DEFAULT TRUE,                      -- 是否启用
     priority INTEGER DEFAULT 0,                          -- 优先级
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    created_at TIMESTAMPTZ WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMPTZ WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     created_by INTEGER,                                  -- 创建人 ID
     updated_by INTEGER                                   -- 更新人 ID
 );
@@ -6077,11 +6077,11 @@ CREATE TABLE log_operation (
     os VARCHAR(100),                                     -- 操作系统
     
     -- 时间信息
-    operation_time TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP, -- 操作时间
+    operation_time TIMESTAMPTZ WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP, -- 操作时间
     duration_ms INTEGER,                                 -- 耗时（毫秒）
     
     -- 系统字段
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+    created_at TIMESTAMPTZ WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
 COMMENT ON TABLE log_operation IS '操作日志表';
@@ -6130,10 +6130,10 @@ CREATE TABLE log_system (
     line_number INTEGER,                                 -- 行号
     
     -- 时间信息
-    log_time TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP, -- 日志时间
+    log_time TIMESTAMPTZ WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP, -- 日志时间
     
     -- 系统字段
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+    created_at TIMESTAMPTZ WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
 COMMENT ON TABLE log_system IS '系统日志表';
@@ -6176,12 +6176,12 @@ CREATE TABLE log_login (
     os VARCHAR(100),                                     -- 操作系统
     
     -- 时间信息
-    login_time TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP, -- 登录时间
-    logout_time TIMESTAMP,                               -- 登出时间
+    login_time TIMESTAMPTZ WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP, -- 登录时间
+    logout_time TIMESTAMPTZ,                               -- 登出时间
     session_duration_seconds BIGINT,                     -- 会话时长（秒）
     
     -- 系统字段
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+    created_at TIMESTAMPTZ WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
 COMMENT ON TABLE log_login IS '登录日志表';
@@ -6238,10 +6238,10 @@ CREATE TABLE log_api_access (
     auth_type VARCHAR(50),                               -- 认证类型（jwt/session/api_key）
     
     -- 时间信息
-    access_time TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP, -- 访问时间
+    access_time TIMESTAMPTZ WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP, -- 访问时间
     
     -- 系统字段
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+    created_at TIMESTAMPTZ WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
 COMMENT ON TABLE log_api_access IS 'API 访问日志表';
@@ -6341,9 +6341,9 @@ CREATE TABLE log_operation_partitioned (
     device_type VARCHAR(50),
     browser VARCHAR(100),
     os VARCHAR(100),
-    operation_time TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    operation_time TIMESTAMPTZ WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     duration_ms INTEGER,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    created_at TIMESTAMPTZ WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     PRIMARY KEY (id, operation_time)
 ) PARTITION BY RANGE (operation_time);
 
@@ -6441,7 +6441,7 @@ CREATE TABLE crm_lead (
     follow_up_plan TEXT,                                 -- 跟进计划
     
     -- 转化信息
-    converted_at TIMESTAMP,                              -- 转化时间
+    converted_at TIMESTAMPTZ,                              -- 转化时间
     converted_customer_id INTEGER,                       -- 转化后客户 ID
     converted_opportunity_id INTEGER,                    -- 转化后商机 ID
     lost_reason VARCHAR(200),                            -- 丢失原因
@@ -6450,8 +6450,8 @@ CREATE TABLE crm_lead (
     priority VARCHAR(20) DEFAULT 'medium',               -- 优先级（low/medium/high/urgent）
     rating INTEGER DEFAULT 0,                            -- 评级（0-5）
     tags TEXT[],                                         -- 标签列表
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    created_at TIMESTAMPTZ WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMPTZ WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     created_by INTEGER,                                  -- 创建人 ID
     updated_by INTEGER                                   -- 更新人 ID
 );
@@ -6523,8 +6523,8 @@ CREATE TABLE crm_opportunity (
     priority VARCHAR(20) DEFAULT 'medium',               -- 优先级
     rating INTEGER DEFAULT 0,                            -- 评级（0-5）
     tags TEXT[],                                         -- 标签列表
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    created_at TIMESTAMPTZ WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMPTZ WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     created_by INTEGER,                                  -- 创建人 ID
     updated_by INTEGER                                   -- 更新人 ID
 );
@@ -6584,8 +6584,8 @@ CREATE TABLE crm_follow_up (
     -- 系统字段
     owner_id INTEGER NOT NULL,                           -- 负责人 ID
     owner_name VARCHAR(100) NOT NULL,                    -- 负责人姓名
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    created_at TIMESTAMPTZ WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMPTZ WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     created_by INTEGER,                                  -- 创建人 ID
     updated_by INTEGER                                   -- 更新人 ID
 );
@@ -6628,8 +6628,8 @@ CREATE TABLE IF NOT EXISTS crm_contact (
     contact_preference VARCHAR(50),                      -- 联系偏好
     birthday DATE,                                       -- 生日
     remarks TEXT,                                        -- 备注
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    created_at TIMESTAMPTZ WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMPTZ WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     created_by INTEGER,                                  -- 创建人 ID
     updated_by INTEGER                                   -- 更新人 ID
 );
@@ -6657,12 +6657,12 @@ CREATE TABLE crm_customer_sea (
     reason_detail TEXT,                                  -- 原因详情
     
     -- 时间信息
-    released_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP, -- 释放时间
+    released_at TIMESTAMPTZ WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP, -- 释放时间
     released_by INTEGER NOT NULL,                        -- 释放人 ID
     released_by_name VARCHAR(100) NOT NULL UNIQUE,              -- 释放人姓名
     
     -- 领取信息
-    claimed_at TIMESTAMP,                                -- 领取时间
+    claimed_at TIMESTAMPTZ,                                -- 领取时间
     claimed_by INTEGER,                                  -- 领取人 ID
     claimed_by_name VARCHAR(100),                        -- 领取人姓名
     
@@ -6670,7 +6670,7 @@ CREATE TABLE crm_customer_sea (
     is_active BOOLEAN DEFAULT TRUE,                      -- 是否有效
     priority INTEGER DEFAULT 0,                          -- 优先级
     remarks TEXT,                                        -- 备注
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+    created_at TIMESTAMPTZ WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
 COMMENT ON TABLE crm_customer_sea IS '客户公海表';
@@ -6702,8 +6702,8 @@ CREATE TABLE crm_sales_funnel_config (
     -- 系统字段
     is_default BOOLEAN DEFAULT FALSE,                    -- 是否默认漏斗
     is_active BOOLEAN DEFAULT TRUE,                      -- 是否启用
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    created_at TIMESTAMPTZ WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMPTZ WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     created_by INTEGER,                                  -- 创建人 ID
     updated_by INTEGER                                   -- 更新人 ID
 );
@@ -6825,8 +6825,8 @@ CREATE TABLE oa_announcement (
     attachment_urls TEXT[],                              -- 附件 URL 列表
     
     -- 系统字段
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    created_at TIMESTAMPTZ WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMPTZ WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     created_by INTEGER,                                  -- 创建人 ID
     updated_by INTEGER                                   -- 更新人 ID
 );
@@ -6860,12 +6860,12 @@ CREATE TABLE oa_announcement_read (
     
     -- 阅读信息
     is_read BOOLEAN DEFAULT FALSE,                       -- 是否已读
-    read_at TIMESTAMP,                                   -- 阅读时间
+    read_at TIMESTAMPTZ,                                   -- 阅读时间
     read_duration_seconds INTEGER,                       -- 阅读时长（秒）
     
     -- 系统字段
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    created_at TIMESTAMPTZ WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMPTZ WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     CONSTRAINT uk_ann_read UNIQUE (announcement_id, user_id)
 );
 
@@ -6898,7 +6898,7 @@ CREATE TABLE oa_message (
     -- 发送信息
     sender_id INTEGER,                                   -- 发送人 ID（系统消息为 NULL）
     sender_name VARCHAR(100),                            -- 发送人姓名
-    send_time TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP, -- 发送时间
+    send_time TIMESTAMPTZ WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP, -- 发送时间
     
     -- 接收信息
     receiver_type VARCHAR(50) DEFAULT 'user',            -- 接收者类型（user/department/role/all）
@@ -6916,8 +6916,8 @@ CREATE TABLE oa_message (
     action_url VARCHAR(500),                             -- 操作 URL
     
     -- 系统字段
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-    expires_at TIMESTAMP                                 -- 过期时间
+    created_at TIMESTAMPTZ WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    expires_at TIMESTAMPTZ                                 -- 过期时间
 );
 
 COMMENT ON TABLE oa_message IS '站内消息表';
@@ -6947,14 +6947,14 @@ CREATE TABLE oa_user_message_status (
     
     -- 状态信息
     is_read BOOLEAN DEFAULT FALSE,                       -- 是否已读
-    read_at TIMESTAMP,                                   -- 阅读时间
+    read_at TIMESTAMPTZ,                                   -- 阅读时间
     is_starred BOOLEAN DEFAULT FALSE,                    -- 是否星标
     is_deleted BOOLEAN DEFAULT FALSE,                    -- 是否删除
     is_archived BOOLEAN DEFAULT FALSE,                   -- 是否归档
     
     -- 系统字段
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    created_at TIMESTAMPTZ WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMPTZ WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     CONSTRAINT uk_ums_message_user UNIQUE (message_id, user_id)
 );
 
@@ -7043,16 +7043,16 @@ CREATE TABLE report_definition (
     -- 调度配置
     schedule_enabled BOOLEAN DEFAULT FALSE,              -- 是否启用调度
     schedule_config JSONB,                               -- 调度配置（JSON 格式）
-    last_run_at TIMESTAMP,                               -- 最后运行时间
-    next_run_at TIMESTAMP,                               -- 下次运行时间
+    last_run_at TIMESTAMPTZ,                               -- 最后运行时间
+    next_run_at TIMESTAMPTZ,                               -- 下次运行时间
     
     -- 状态管理
     status VARCHAR(20) DEFAULT 'active',                 -- 状态（active/inactive/deprecated）
     is_system BOOLEAN DEFAULT FALSE,                     -- 是否系统报表
     
     -- 系统字段
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    created_at TIMESTAMPTZ WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMPTZ WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     created_by INTEGER,                                  -- 创建人 ID
     updated_by INTEGER                                   -- 更新人 ID
 );
@@ -7095,8 +7095,8 @@ CREATE TABLE report_dashboard (
     is_default BOOLEAN DEFAULT FALSE,                    -- 是否默认仪表板
     
     -- 系统字段
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    created_at TIMESTAMPTZ WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMPTZ WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     created_by INTEGER,                                  -- 创建人 ID
     updated_by INTEGER                                   -- 更新人 ID
 );
@@ -7135,8 +7135,8 @@ CREATE TABLE report_widget (
     is_active BOOLEAN DEFAULT TRUE,                      -- 是否启用
     
     -- 系统字段
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    created_at TIMESTAMPTZ WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMPTZ WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     created_by INTEGER,                                  -- 创建人 ID
     updated_by INTEGER                                   -- 更新人 ID
 );
@@ -7173,12 +7173,12 @@ CREATE TABLE report_subscription (
     
     -- 状态管理
     is_active BOOLEAN DEFAULT TRUE,                      -- 是否启用
-    last_sent_at TIMESTAMP,                              -- 最后发送时间
-    next_send_at TIMESTAMP,                              -- 下次发送时间
+    last_sent_at TIMESTAMPTZ,                              -- 最后发送时间
+    next_send_at TIMESTAMPTZ,                              -- 下次发送时间
     
     -- 系统字段
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    created_at TIMESTAMPTZ WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMPTZ WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     created_by INTEGER,                                  -- 创建人 ID
     updated_by INTEGER                                   -- 更新人 ID
 );
@@ -7224,9 +7224,9 @@ CREATE TABLE report_export_history (
     download_url TEXT,                                   -- 下载 URL
     
     -- 时间信息
-    requested_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP, -- 请求时间
-    completed_at TIMESTAMP,                              -- 完成时间
-    expires_at TIMESTAMP,                                -- 过期时间
+    requested_at TIMESTAMPTZ WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP, -- 请求时间
+    completed_at TIMESTAMPTZ,                              -- 完成时间
+    expires_at TIMESTAMPTZ,                                -- 过期时间
     
     -- 系统字段
     error_message TEXT                                   -- 错误信息
@@ -7259,8 +7259,8 @@ CREATE TABLE report_mv_refresh_log (
     refresh_status VARCHAR(20) DEFAULT 'pending',        -- 刷新状态（pending/running/completed/failed）
     
     -- 时间信息
-    started_at TIMESTAMP,                                -- 开始时间
-    completed_at TIMESTAMP,                              -- 完成时间
+    started_at TIMESTAMPTZ,                                -- 开始时间
+    completed_at TIMESTAMPTZ,                              -- 完成时间
     duration_seconds BIGINT,                             -- 耗时（秒）
     
     -- 统计信息
@@ -7268,7 +7268,7 @@ CREATE TABLE report_mv_refresh_log (
     
     -- 系统字段
     error_message TEXT,                                  -- 错误信息
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+    created_at TIMESTAMPTZ WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
 COMMENT ON TABLE report_mv_refresh_log IS '物化视图刷新日志表';
@@ -7753,8 +7753,8 @@ CREATE TABLE IF NOT EXISTS supplier_products (
     product_description TEXT,                               -- 产品描述
     unit VARCHAR(20) DEFAULT '米',                          -- 计量单位
     is_enabled BOOLEAN DEFAULT TRUE,                        -- 是否启用
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    created_at TIMESTAMPTZ WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMPTZ WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     created_by INTEGER,                                     -- 创建人 ID
     updated_by INTEGER,                                     -- 更新人 ID
     remarks TEXT                                            -- 备注
@@ -7785,8 +7785,8 @@ CREATE TABLE IF NOT EXISTS supplier_product_colors (
     pantone_code VARCHAR(50),                               -- 潘通色号
     extra_cost DECIMAL(10,2) DEFAULT 0.00,                 -- 特殊色号加价
     is_enabled BOOLEAN DEFAULT TRUE,                        -- 是否启用
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    created_at TIMESTAMPTZ WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMPTZ WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     remarks TEXT                                            -- 备注
 );
 
@@ -7819,8 +7819,8 @@ CREATE TABLE IF NOT EXISTS product_supplier_mappings (
     min_order_quantity DECIMAL(12,2),                        -- 最小起订量
     lead_time INTEGER,                                        -- 交货期（天）
     is_enabled BOOLEAN DEFAULT TRUE,                          -- 是否启用
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    created_at TIMESTAMPTZ WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMPTZ WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     created_by INTEGER,                                       -- 创建人 ID
     updated_by INTEGER,                                       -- 更新人 ID
     remarks TEXT                                              -- 备注
@@ -8274,7 +8274,7 @@ CREATE TABLE IF NOT EXISTS business_trace_chain (
     workshop_id INTEGER,
     trace_status VARCHAR(20) NOT NULL DEFAULT 'ACTIVE',
     remarks TEXT,
-    created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
+    created_at TIMESTAMPTZ WITH TIME ZONE NOT NULL DEFAULT NOW(),
     created_by INTEGER,
     
     CONSTRAINT fk_previous_trace FOREIGN KEY (previous_trace_id) REFERENCES business_trace_chain(id),
@@ -8297,7 +8297,7 @@ CREATE TABLE IF NOT EXISTS business_trace_snapshot (
     supplier_name VARCHAR(255),
     customer_name VARCHAR(255),
     trace_path JSONB NOT NULL,
-    snapshot_time TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW()
+    snapshot_time TIMESTAMPTZ WITH TIME ZONE NOT NULL DEFAULT NOW()
 );
 
 -- 3. 为追溯链表添加索引
@@ -8358,7 +8358,7 @@ RETURNS TABLE (
     bill_no VARCHAR,
     quantity_meters DECIMAL,
     warehouse_id INTEGER,
-    created_at TIMESTAMP
+    created_at TIMESTAMPTZ
 ) AS $$
 BEGIN
     RETURN QUERY
@@ -8385,7 +8385,7 @@ RETURNS TABLE (
     five_dimension_id VARCHAR,
     current_stage VARCHAR,
     quantity_meters DECIMAL,
-    created_at TIMESTAMP
+    created_at TIMESTAMPTZ
 ) AS $$
 BEGIN
     RETURN QUERY
@@ -8412,7 +8412,7 @@ RETURNS TABLE (
     five_dimension_id VARCHAR,
     current_stage VARCHAR,
     quantity_meters DECIMAL,
-    created_at TIMESTAMP
+    created_at TIMESTAMPTZ
 ) AS $$
 BEGIN
     RETURN QUERY
@@ -9145,7 +9145,7 @@ RETURNS TABLE (
     bill_no VARCHAR,
     quantity_meters DECIMAL,
     warehouse_id INTEGER,
-    created_at TIMESTAMP
+    created_at TIMESTAMPTZ
 ) AS $$
 BEGIN
     RETURN QUERY
@@ -9172,7 +9172,7 @@ RETURNS TABLE (
     five_dimension_id VARCHAR,
     current_stage VARCHAR,
     quantity_meters DECIMAL,
-    created_at TIMESTAMP
+    created_at TIMESTAMPTZ
 ) AS $$
 BEGIN
     RETURN QUERY
@@ -9199,7 +9199,7 @@ RETURNS TABLE (
     five_dimension_id VARCHAR,
     current_stage VARCHAR,
     quantity_meters DECIMAL,
-    created_at TIMESTAMP
+    created_at TIMESTAMPTZ
 ) AS $$
 BEGIN
     RETURN QUERY

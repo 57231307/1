@@ -52,8 +52,8 @@ CREATE TABLE IF NOT EXISTS exchange_rate_history (
     effective_date DATE NOT NULL,
     end_date DATE,
     source VARCHAR(50) DEFAULT 'manual',
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+    created_at TIMESTAMPTZ WITH TIME ZONE DEFAULT NOW(),
+    updated_at TIMESTAMPTZ WITH TIME ZONE DEFAULT NOW()
 );
 
 COMMENT ON TABLE exchange_rate_history IS '汇率历史记录表';
