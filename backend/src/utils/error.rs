@@ -51,6 +51,12 @@ impl AppError {
     pub fn not_implemented(msg: impl Into<String>) -> Self {
         Self::NotImplemented(msg.into())
     }
+    pub fn too_many_requests(msg: impl Into<String>) -> Self {
+        Self::TooManyRequests {
+            retry_after: None,
+            message: msg.into(),
+        }
+    }
 }
 
 impl fmt::Display for AppError {
@@ -74,6 +80,7 @@ impl std::error::Error for AppError {}
 
 impl IntoResponse for AppError {
     fn into_response(self) -> Response {
+        let is_production = !cfg!(debug_assertions);
         let (status, error_type, error_message, log_detail) = match &self {
             AppError::DatabaseError(msg) => {
                 let detail = serde_json::json!({
@@ -272,13 +279,19 @@ impl IntoResponse for AppError {
             }
         };
 
+        let (final_message, final_detail) = if is_production {
+            (self.public_message(), serde_json::json!(null))
+        } else {
+            (error_message, log_detail)
+        };
+
         // 返回统一的 ApiResponse 格式 {code, data, message}
         let body = serde_json::json!({
             "code": status.as_u16(),
             "data": null,
-            "message": error_message,
+            "message": final_message,
             "error_type": error_type,
-            "detail": log_detail
+            "detail": final_detail
         });
 
         (status, Json(body)).into_response()

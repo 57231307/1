@@ -1,6 +1,6 @@
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
-import { login as loginApi, logout as logoutApi } from '@/api/auth'
+import { login as loginApi, logout as logoutApi, getUserInfo } from '@/api/auth'
 import { setToken, removeToken, setRefreshToken } from '@/utils/storage'
 import type { UserInfo, LoginRequest } from '@/types/api'
 
@@ -31,9 +31,15 @@ export const useUserStore = defineStore('user', () => {
     }
   }
 
+  async function fetchUserInfo() {
+    const info = await getUserInfo()
+    userInfo.value = info
+    return info
+  }
+
   function setUserInfo(info: UserInfo) {
     userInfo.value = info
   }
 
-  return { token, userInfo, login, logout, setUserInfo }
+  return { token, userInfo, login, logout, fetchUserInfo, setUserInfo }
 })

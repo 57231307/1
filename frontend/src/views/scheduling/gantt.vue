@@ -266,6 +266,8 @@ const scheduleForm = ref<SchedulingParams>({
 const ganttChartRef = ref<HTMLElement>()
 let ganttChart: ECharts | null = null
 
+const handleResize = () => ganttChart?.resize()
+
 const dateRangeText = computed(() => {
   if (ganttData.value.date_range.start && ganttData.value.date_range.end) {
     return `${ganttData.value.date_range.start.slice(5)} ~ ${ganttData.value.date_range.end.slice(5)}`
@@ -502,12 +504,13 @@ const confirmAutoSchedule = async () => {
 onMounted(async () => {
   await fetchGanttData()
   await nextTick()
-  window.addEventListener('resize', () => ganttChart?.resize())
+  window.addEventListener('resize', handleResize)
 })
 
 onUnmounted(() => {
   ganttChart?.dispose()
-  window.removeEventListener('resize', () => ganttChart?.resize())
+  ganttChart = null
+  window.removeEventListener('resize', handleResize)
 })
 </script>
 

@@ -6,10 +6,11 @@ use crate::services::enhanced_logger::{
 use crate::services::totp_service::TotpService;
 use crate::utils::app_state::AppState;
 use crate::utils::cache::Cache;
+use crate::utils::error::AppError;
 use crate::utils::response::ApiResponse;
 use axum::{
     extract::{Extension, State},
-    http::{HeaderMap, StatusCode},
+    http::HeaderMap,
     response::IntoResponse,
     Json,
 };
@@ -72,7 +73,7 @@ pub async fn login(
     jar: axum_extra::extract::PrivateCookieJar,
     headers: HeaderMap,
     Json(payload): Json<LoginRequest>,
-) -> Result<impl IntoResponse, (StatusCode, Json<ApiResponse<()>>)> {
+) -> Result<impl IntoResponse, AppError> {
     if let Err(errors) = payload.validate() {
         let error_msgs: Vec<String> = errors
             .field_errors()
@@ -86,13 +87,10 @@ pub async fn login(
             })
             .collect();
 
-        return Err((
-            StatusCode::BAD_REQUEST,
-            Json(ApiResponse::error(format!(
-                "输入验证失败: {}",
-                error_msgs.join("; ")
-            ))),
-        ));
+        return Err(AppError::bad_request(format!(
+            "输入验证失败: {}",
+            error_msgs.join("; ")
+        )));
     }
 
     // Extract client IP for logging
@@ -138,12 +136,7 @@ pub async fn login(
             client_ip,
             payload.username
         );
-        return Err((
-            StatusCode::TOO_MANY_REQUESTS,
-            Json(ApiResponse::error(
-                "登录失败次数过多，请30分钟后再试".to_string(),
-            )),
-        ));
+        return Err(AppError::too_many_requests("登录失败次数过多，请30分钟后再试"));
     }
 
     if recent_user_failures >= (MAX_FAILED_ATTEMPTS * 2) as u64 {
@@ -151,12 +144,7 @@ pub async fn login(
             "Account globally locked due to too many failed attempts: {}",
             payload.username
         );
-        return Err((
-            StatusCode::TOO_MANY_REQUESTS,
-            Json(ApiResponse::error(
-                "账号已被锁定，请30分钟后再试".to_string(),
-            )),
-        ));
+        return Err(AppError::too_many_requests("账号已被锁定，请30分钟后再试"));
     }
 
     let auth_service = AuthService::new(state.db.clone(), state.jwt_secret.clone());
@@ -182,10 +170,7 @@ pub async fn login(
                             Some("TOTP token missing"),
                         )
                         .await;
-                        return Err((
-                            StatusCode::UNAUTHORIZED,
-                            Json(ApiResponse::error("需要提供两步验证码".to_string())),
-                        ));
+                        return Err(AppError::unauthorized("需要提供两步验证码"));
                     }
                 };
 
@@ -203,10 +188,7 @@ pub async fn login(
                             Some("TOTP verification failed"),
                         )
                         .await;
-                        return Err((
-                            StatusCode::UNAUTHORIZED,
-                            Json(ApiResponse::error("两步验证码错误".to_string())),
-                        ));
+                        return Err(AppError::unauthorized("两步验证码错误"));
                     }
                 }
             }
@@ -266,12 +248,7 @@ pub async fn login(
                     .await
                     .map_err(|e| {
                         tracing::error!("Failed to query role permissions: {}", e);
-                        (
-                            StatusCode::INTERNAL_SERVER_ERROR,
-                            Json(ApiResponse::error(
-                                "Failed to query permissions".to_string(),
-                            )),
-                        )
+                        AppError::internal("查询权限失败")
                     })?;
 
                 permissions = role_perms
@@ -295,10 +272,7 @@ pub async fn login(
             let claims =
                 AuthService::validate_token_static(&token, &state.jwt_secret).map_err(|e| {
                     tracing::error!("Failed to decode JWT token: {}", e);
-                    (
-                        StatusCode::INTERNAL_SERVER_ERROR,
-                        Json(ApiResponse::error("Internal server error".to_string())),
-                    )
+                    AppError::unauthorized("无效的认证令牌")
                 })?;
             let _session_id = claims.session_id.clone();
             // CSRF token 不再需要，JWT 已经提供安全保障
@@ -395,7 +369,7 @@ pub async fn login(
             enhanced_logger::EnhancedLogger::log_login_security(&security_log);
 
             let error_response = ApiResponse::<()>::error(e.to_string());
-            Err((StatusCode::UNAUTHORIZED, Json(error_response)))
+            Err(AppError::unauthorized(e.to_string()))
         }
     }
 }
@@ -440,7 +414,7 @@ pub async fn logout(
     State(state): State<AppState>,
     jar: axum_extra::extract::PrivateCookieJar,
     headers: HeaderMap,
-) -> Result<axum::response::Response, (StatusCode, Json<ApiResponse<()>>)> {
+) -> Result<axum::response::Response, AppError> {
     // 提取 Token
     let auth_header = headers
         .get("Authorization")
@@ -501,15 +475,12 @@ pub struct RefreshTokenResponse {
 pub async fn refresh_token(
     State(state): State<AppState>,
     headers: HeaderMap,
-) -> Result<Json<ApiResponse<RefreshTokenResponse>>, (StatusCode, Json<ApiResponse<()>>)> {
+) -> Result<Json<ApiResponse<RefreshTokenResponse>>, AppError> {
     let token = headers
         .get("Authorization")
         .and_then(|value| value.to_str().ok())
         .and_then(|value| value.strip_prefix("Bearer "))
-        .ok_or((
-            StatusCode::UNAUTHORIZED,
-            Json(ApiResponse::error("缺少认证令牌")),
-        ))?;
+        .ok_or(AppError::unauthorized("缺少认证令牌"))?;
 
     // 检查 Token 是否在黑名单中
     let is_blacklisted = state
@@ -518,26 +489,17 @@ pub async fn refresh_token(
         .get(&token.to_string())
         .is_some();
     if is_blacklisted {
-        return Err((
-            StatusCode::UNAUTHORIZED,
-            Json(ApiResponse::error("令牌已被吊销，请重新登录")),
-        ));
+        return Err(AppError::unauthorized("令牌已被吊销，请重新登录"));
     }
 
     let claims = AuthService::validate_token_static(token, &state.jwt_secret).map_err(|_| {
-        (
-            StatusCode::UNAUTHORIZED,
-            Json(ApiResponse::error("无效的令牌")),
-        )
+        AppError::unauthorized("无效的令牌")
     })?;
 
     // 检查是否在刷新期内（7天）
     let now = chrono::Utc::now();
     if now > claims.refresh_exp {
-        return Err((
-            StatusCode::UNAUTHORIZED,
-            Json(ApiResponse::error("刷新令牌已过期，请重新登录")),
-        ));
+        return Err(AppError::unauthorized("刷新令牌已过期，请重新登录"));
     }
 
     let auth_service = AuthService::new(state.db.clone(), state.jwt_secret.clone());
@@ -549,10 +511,7 @@ pub async fn refresh_token(
             claims.tenant_id,
         )
         .map_err(|e| {
-            (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                Json(ApiResponse::error(format!("生成令牌失败：{}", e))),
-            )
+            AppError::internal(format!("生成令牌失败：{}", e))
         })?;
 
     // Refresh Token 轮换：先将旧 Token 的 JTI（session_id）加入黑名单
@@ -577,10 +536,7 @@ pub async fn refresh_token(
     let new_claims =
         AuthService::validate_token_static(&new_token, &state.jwt_secret).map_err(|e| {
             tracing::error!("Failed to decode new JWT token: {}", e);
-            (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                Json(ApiResponse::error("Internal server error".to_string())),
-            )
+            AppError::internal("Internal server error")
         })?;
     let _session_id = new_claims.session_id;
     // CSRF token 不再需要，JWT 已经提供安全保障
@@ -603,7 +559,7 @@ pub struct TotpSetupResponse {
 pub async fn setup_totp(
     State(state): State<AppState>,
     Extension(auth): Extension<AuthContext>,
-) -> Result<Json<ApiResponse<TotpSetupResponse>>, (StatusCode, Json<ApiResponse<()>>)> {
+) -> Result<Json<ApiResponse<TotpSetupResponse>>, AppError> {
     let totp_service = TotpService::new(state.db.clone());
 
     match totp_service
@@ -614,10 +570,7 @@ pub async fn setup_totp(
             secret,
             qr_code,
         }))),
-        Err(e) => Err((
-            StatusCode::INTERNAL_SERVER_ERROR,
-            Json(ApiResponse::error(e.to_string())),
-        )),
+        Err(e) => Err(AppError::internal(e.to_string())),
     }
 }
 
@@ -631,7 +584,7 @@ pub async fn enable_totp(
     State(state): State<AppState>,
     Extension(auth): Extension<AuthContext>,
     Json(payload): Json<TotpVerifyRequest>,
-) -> Result<Json<ApiResponse<bool>>, (StatusCode, Json<ApiResponse<()>>)> {
+) -> Result<Json<ApiResponse<bool>>, AppError> {
     let totp_service = TotpService::new(state.db.clone());
 
     match totp_service
@@ -642,14 +595,8 @@ pub async fn enable_totp(
             true,
             "双因素认证已成功开启",
         ))),
-        Ok(false) => Err((
-            StatusCode::BAD_REQUEST,
-            Json(ApiResponse::error("验证码不正确".to_string())),
-        )),
-        Err(e) => Err((
-            StatusCode::INTERNAL_SERVER_ERROR,
-            Json(ApiResponse::error(e.to_string())),
-        )),
+        Ok(false) => Err(AppError::bad_request("验证码不正确")),
+        Err(e) => Err(AppError::internal(e.to_string())),
     }
 }
 
@@ -662,7 +609,7 @@ pub struct CsrfTokenResponse {
 pub async fn get_current_user(
     State(state): State<AppState>,
     Extension(auth): Extension<AuthContext>,
-) -> Result<Json<ApiResponse<UserInfo>>, (StatusCode, Json<ApiResponse<()>>)> {
+) -> Result<Json<ApiResponse<UserInfo>>, AppError> {
     use crate::models::user;
     use sea_orm::EntityTrait;
 
@@ -671,10 +618,7 @@ pub async fn get_current_user(
         .await
         .map_err(|e| {
             tracing::error!("Failed to query user: {}", e);
-            (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                Json(ApiResponse::error("Internal server error".to_string())),
-            )
+            AppError::internal("Internal server error")
         })?;
 
     match user {
@@ -684,10 +628,7 @@ pub async fn get_current_user(
             email: u.email,
             role_id: u.role_id,
         }))),
-        None => Err((
-            StatusCode::NOT_FOUND,
-            Json(ApiResponse::error("用户不存在".to_string())),
-        )),
+        None => Err(AppError::not_found("用户不存在")),
     }
 }
 

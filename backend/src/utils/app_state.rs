@@ -53,12 +53,6 @@ impl AppState {
         let omni_audit = Arc::new(OmniAuditEngine::new(db.clone())?);
         let audit_cleanup = Arc::new(AuditCleanupService::new(db.clone(), 999)); // 保留 999 天
 
-        // 启动审计日志清理任务
-        let cleanup_clone = audit_cleanup.clone();
-        tokio::spawn(async move {
-            cleanup_clone.start_cleanup_task();
-        });
-
         Ok(Self::with_secrets(
             db,
             omni_audit,
@@ -97,6 +91,12 @@ impl AppState {
         cookie_secret: String,
         allowed_origins: Vec<String>,
     ) -> Self {
+        // 启动审计日志清理任务
+        let cleanup_clone = audit_cleanup.clone();
+        tokio::spawn(async move {
+            cleanup_clone.start_cleanup_task();
+        });
+
         let mut final_cookie_secret = cookie_secret;
         if final_cookie_secret.len() < 32 {
             tracing::warn!(

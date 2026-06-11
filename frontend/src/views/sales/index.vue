@@ -25,7 +25,7 @@
       </div>
     </div>
 
-    <el-row :gutter="20" class="stats-row">
+    <el-row v-loading="statsLoading" :gutter="20" class="stats-row">
       <el-col :xs="24" :sm="12" :lg="6">
         <el-card shadow="hover" class="stat-card">
           <div class="stat-content">
@@ -508,6 +508,7 @@ import { salesApi, type SalesOrder } from '@/api/sales'
 import { customerApi, type Customer } from '@/api/customer'
 import { productApi, type Product } from '@/api/product'
 import { warehouseApi } from '@/api/warehouse'
+import { dashboardApi } from '@/api/dashboard'
 
 const loading = ref(false)
 const orders = ref<SalesOrder[]>([])
@@ -521,11 +522,12 @@ const currentOrder = ref<SalesOrder | null>(null)
 const formRef = ref()
 const isEdit = ref(false)
 
+const statsLoading = ref(false)
 const stats = ref({
-  monthOrders: 89,
-  monthAmount: 1250000,
-  pendingOrders: 23,
-  pendingDeliver: 15,
+  monthOrders: 0,
+  monthAmount: 0,
+  pendingOrders: 0,
+  pendingDeliver: 0,
 })
 
 const dateRange = ref<[Date, Date] | null>(null)
@@ -592,6 +594,24 @@ const getStatusText = (status: string | undefined) => {
     cancelled: '已取消',
   }
   return textMap[status || ''] || status || ''
+}
+
+const fetchStats = async () => {
+  statsLoading.value = true
+  try {
+    const res = await dashboardApi.getSalesStats()
+    const data = res.data
+    stats.value = {
+      monthOrders: data?.orderCount || 0,
+      monthAmount: data?.totalAmount || 0,
+      pendingOrders: 0,
+      pendingDeliver: 0,
+    }
+  } catch (error: any) {
+    console.error('获取销售统计失败:', error)
+  } finally {
+    statsLoading.value = false
+  }
 }
 
 const fetchData = async () => {
@@ -931,6 +951,7 @@ const hasLoaded = createLazyLoader()
 
 onMounted(() => {
   fetchData()
+  fetchStats()
   loadIfNot('customers', fetchCustomers, hasLoaded)
   loadIfNot('products', fetchProducts, hasLoaded)
   loadIfNot('warehouses', fetchWarehouses, hasLoaded)

@@ -181,7 +181,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, nextTick } from 'vue'
+import { ref, onMounted, nextTick, watch } from 'vue'
 import { ElMessage } from 'element-plus'
 import {
   Folder,
@@ -194,6 +194,7 @@ import {
   TrendCharts,
   Refresh,
 } from '@element-plus/icons-vue'
+import * as echarts from 'echarts'
 import { dashboardApi } from '@/api/dashboard'
 
 interface DashboardStats {
@@ -246,6 +247,70 @@ const getActivityTypeColor = (type: string) => {
   return typeMap[type] || 'info'
 }
 
+let trendChart: echarts.ECharts | null = null
+let pieChart: echarts.ECharts | null = null
+
+const initTrendChart = (trends?: { date: string; amount: number; count: number }[]) => {
+  if (!trendChartRef.value) return
+  if (!trendChart) {
+    trendChart = echarts.init(trendChartRef.value)
+  }
+  const dates = trends?.map((t) => t.date) || []
+  const amounts = trends?.map((t) => t.amount) || []
+  const counts = trends?.map((t) => t.count) || []
+  trendChart.setOption({
+    tooltip: { trigger: 'axis' },
+    legend: { data: ['销售额', '订单数'] },
+    grid: { left: '3%', right: '4%', bottom: '3%', containLabel: true },
+    xAxis: { type: 'category', boundaryGap: false, data: dates },
+    yAxis: [
+      { type: 'value', name: '销售额(元)' },
+      { type: 'value', name: '订单数', splitLine: { show: false } },
+    ],
+    series: [
+      {
+        name: '销售额',
+        type: 'line',
+        smooth: true,
+        data: amounts,
+        areaStyle: { color: 'rgba(102,126,234,0.15)' },
+        itemStyle: { color: '#667eea' },
+      },
+      {
+        name: '订单数',
+        type: 'bar',
+        yAxisIndex: 1,
+        data: counts,
+        itemStyle: { color: '#764ba2', borderRadius: [4, 4, 0, 0] },
+      },
+    ],
+  })
+}
+
+const initPieChart = (distribution?: { label: string; value: number }[]) => {
+  if (!pieChartRef.value) return
+  if (!pieChart) {
+    pieChart = echarts.init(pieChartRef.value)
+  }
+  const data = distribution?.length ? distribution : [{ label: '暂无数据', value: 0 }]
+  pieChart.setOption({
+    tooltip: { trigger: 'item', formatter: '{b}: {c} ({d}%)' },
+    legend: { orient: 'vertical', left: 'left' },
+    series: [
+      {
+        type: 'pie',
+        radius: ['40%', '70%'],
+        avoidLabelOverlap: false,
+        itemStyle: { borderRadius: 10, borderColor: '#fff', borderWidth: 2 },
+        label: { show: false, position: 'center' },
+        emphasis: { label: { show: true, fontSize: 16, fontWeight: 'bold' } },
+        labelLine: { show: false },
+        data: data.map((d) => ({ name: d.label, value: d.value })),
+      },
+    ],
+  })
+}
+
 const fetchDashboardData = async () => {
   try {
     const res = await dashboardApi.getOverview()
@@ -253,6 +318,23 @@ const fetchDashboardData = async () => {
   } catch (error: any) {
     ElMessage.error(error.message || '获取仪表盘数据失败')
     stats.value = {}
+  }
+}
+
+const fetchChartData = async () => {
+  try {
+    const [salesRes, inventoryRes] = await Promise.all([
+      dashboardApi.getSalesStats(),
+      dashboardApi.getInventoryStats(),
+    ])
+    await nextTick()
+    initTrendChart(salesRes.data?.trends)
+    initPieChart(inventoryRes.data?.categoryDistribution)
+  } catch (error: any) {
+    console.error('获取图表数据失败:', error)
+    await nextTick()
+    initTrendChart()
+    initPieChart()
   }
 }
 
@@ -265,9 +347,18 @@ const handleDateChange = () => {
   fetchDashboardData()
 }
 
+watch(trendDays, async () => {
+  try {
+    const res = await dashboardApi.getSalesStats()
+    initTrendChart(res.data?.trends)
+  } catch {
+    initTrendChart()
+  }
+})
+
 onMounted(async () => {
   await fetchDashboardData()
-  await nextTick()
+  await fetchChartData()
 })
 </script>
 

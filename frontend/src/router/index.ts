@@ -1,6 +1,7 @@
 import { createRouter, createWebHistory } from 'vue-router'
 import MainLayout from '@/components/Layout/MainLayout.vue'
 import { getToken, removeToken } from '@/utils/storage'
+import { useUserStore } from '@/store/user'
 
 const routes = [
   {
@@ -501,6 +502,42 @@ const routes = [
         component: () => import('@/views/logistics/index.vue'),
         meta: { title: '物流管理', requiresAuth: true },
       },
+      {
+        path: 'quality-standards',
+        name: 'QualityStandards',
+        component: () => import('@/views/quality/index.vue'),
+        meta: { title: '质量标准', requiresAuth: true },
+      },
+      {
+        path: 'data-import',
+        name: 'DataImport',
+        component: () => import('@/views/system/index.vue'),
+        meta: { title: '数据导入', requiresAuth: true },
+      },
+      {
+        path: 'print-templates',
+        name: 'PrintTemplates',
+        component: () => import('@/views/system/index.vue'),
+        meta: { title: '打印模板', requiresAuth: true },
+      },
+      {
+        path: 'api-gateway',
+        name: 'ApiGateway',
+        component: () => import('@/views/system/index.vue'),
+        meta: { title: 'API网关', requiresAuth: true },
+      },
+      {
+        path: 'system-update',
+        name: 'SystemUpdate',
+        component: () => import('@/views/system/tabs/SystemUpdateTab.vue'),
+        meta: { title: '系统更新', requiresAuth: true },
+      },
+      {
+        path: 'system/profile',
+        name: 'UserProfile',
+        component: () => import('@/views/system/index.vue'),
+        meta: { title: '个人信息', requiresAuth: true },
+      },
     ],
   },
   {
@@ -617,6 +654,18 @@ router.beforeEach(async (to, _from, next) => {
       removeToken()
       next({ path: '/login', query: { redirect: to.fullPath } })
       return
+    }
+
+    const userStore = useUserStore()
+    if (!userStore.userInfo) {
+      try {
+        await userStore.fetchUserInfo()
+      } catch (error) {
+        console.error('Failed to fetch user info:', error)
+        removeToken()
+        next({ path: '/login', query: { redirect: to.fullPath } })
+        return
+      }
     }
   }
 

@@ -177,7 +177,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, nextTick } from 'vue'
+import { ref, onMounted, onBeforeUnmount, nextTick } from 'vue'
 import { ElMessage } from 'element-plus'
 import { OfficeBuilding, CircleCheck, Loading, Warning, Refresh } from '@element-plus/icons-vue'
 import * as echarts from 'echarts'
@@ -204,6 +204,8 @@ const bottleneckLoading = ref(false)
 
 const capacityChartRef = ref<HTMLElement>()
 let capacityChart: ECharts | null = null
+
+const handleResize = () => capacityChart?.resize()
 
 const getStatusType = (status: string) => {
   const map: Record<string, string> = { normal: 'success', busy: 'warning', overload: 'danger' }
@@ -336,10 +338,16 @@ const handleTrendDaysChange = () => {
   fetchTrendData()
 }
 
+onBeforeUnmount(() => {
+  capacityChart?.dispose()
+  capacityChart = null
+  window.removeEventListener('resize', handleResize)
+})
+
 onMounted(async () => {
   await Promise.all([fetchSummary(), fetchTrendData(), fetchWorkCenters(), fetchBottlenecks()])
   await nextTick()
-  window.addEventListener('resize', () => capacityChart?.resize())
+  window.addEventListener('resize', handleResize)
 })
 </script>
 

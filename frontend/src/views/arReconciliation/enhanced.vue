@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, onMounted, nextTick } from 'vue'
+import { ref, onMounted, onBeforeUnmount, nextTick } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Refresh, View, CircleCheck, CircleClose } from '@element-plus/icons-vue'
 import * as echarts from 'echarts'
@@ -395,6 +395,13 @@ const getConfirmStatusType = (status: string) => {
 }
 
 const hasLoaded = createLazyLoader()
+
+onBeforeUnmount(() => {
+  barChart?.dispose()
+  barChart = null
+  pieChart?.dispose()
+  pieChart = null
+})
 
 onMounted(() => {
   loadData()
