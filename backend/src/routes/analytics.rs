@@ -485,9 +485,9 @@ pub fn tracking() -> Router<AppState> {
 pub fn routes() -> Router<AppState> {
     Router::new()
         .merge(dual_unit())
-        .merge(assist_accounting())
-        .merge(business_trace())
-        .merge(scanner())
+        .nest("/assist-accounting", assist_accounting())
+        .nest("/business-trace", business_trace())
+        .nest("/scanner", scanner())
         .merge(imports())
         .merge(exports())
         .merge(audit())
@@ -495,7 +495,7 @@ pub fn routes() -> Router<AppState> {
         .merge(emails())
         .merge(ai())
         .merge(reports())
-        .merge(trading())
+        .nest("/trading", trading())
         .merge(tracking())
         // 内部有 `GET /` 重复的子 router 走 nest 加独立前缀
         .nest("/reports/enhanced", reports_enhanced())

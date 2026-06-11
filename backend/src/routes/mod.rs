@@ -102,6 +102,7 @@ pub fn create_router(state: AppState) -> Router<()> {
         .nest("/api/v1/erp/sales", sales::routes())
         .nest("/api/v1/erp/purchase", purchase::routes())
         .nest("/api/v1/erp/finance", finance::routes(state.clone()))
+        .nest("/api/v1/erp", finance::sub_routes())
         .nest("/api/v1/erp/production", production::routes())
         .nest("/api/v1/erp/crm", crm::routes())
         .nest("/api/v1/erp/tenants", tenant::routes())

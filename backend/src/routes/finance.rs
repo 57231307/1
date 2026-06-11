@@ -698,12 +698,26 @@ pub fn exchange_rates() -> Router<AppState> {
         )
 }
 
-/// 财务域统一入口
+/// 财务域统一入口（仅保留 finance 自身路径：/accounting-periods, /reports/... 等）
 ///
-/// 子 router path 已加独立前缀，merge 时 path+method 互不重叠。
+/// 通过 mod.rs `.nest("/api/v1/erp/finance", ...)` 挂载，
+/// 最终 path = `/api/v1/erp/finance/accounting-periods` 等。
 pub fn routes(state: AppState) -> Router<AppState> {
     Router::new()
         .merge(finance(state.clone()))
+        // 显式使用 middleware 抑制未使用警告
+        .layer(middleware::from_fn_with_state(
+            state.clone(),
+            crate::middleware::rate_limit::rate_limit_by_ip,
+        ))
+}
+
+/// 财务子模块路由（ap / ar / gl / fixed_assets / budgets 等）
+///
+/// 通过 mod.rs `.nest("/api/v1/erp", finance::sub_routes())` 直接挂载在 `/api/v1/erp` 层级，
+/// 最终 path = `/api/v1/erp/ap/invoices`、`/api/v1/erp/gl/subjects` 等。
+pub fn sub_routes() -> Router<AppState> {
+    Router::new()
         .merge(gl())
         .merge(fixed_assets())
         .merge(budgets())
@@ -716,9 +730,4 @@ pub fn routes(state: AppState) -> Router<AppState> {
         .merge(ar_reconciliations())
         .merge(currencies())
         .merge(exchange_rates())
-        // 显式使用 middleware 抑制未使用警告
-        .layer(middleware::from_fn_with_state(
-            state.clone(),
-            crate::middleware::rate_limit::rate_limit_by_ip,
-        ))
 }
