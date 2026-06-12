@@ -535,7 +535,7 @@ const routes = [
       {
         path: 'system/profile',
         name: 'UserProfile',
-        component: () => import('@/views/system/index.vue'),
+        component: () => import('@/views/user-profile/index.vue'),
         meta: { title: '个人信息', requiresAuth: true },
       },
     ],
