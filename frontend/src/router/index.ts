@@ -393,8 +393,8 @@ const routes = [
       {
         path: 'report-templates',
         name: 'ReportTemplates',
-        component: () => import('@/views/report/templates.vue'),
-        meta: { title: '报表模板', requiresAuth: true },
+        component: () => import('@/views/report-templates/index.vue'),
+        meta: { title: '报表中心', requiresAuth: true },
       },
       // 新增路由 - BPM流程定义
       {
@@ -505,31 +505,31 @@ const routes = [
       {
         path: 'quality-standards',
         name: 'QualityStandards',
-        component: () => import('@/views/quality/index.vue'),
+        component: () => import('@/views/quality-standards/index.vue'),
         meta: { title: '质量标准', requiresAuth: true },
       },
       {
         path: 'data-import',
         name: 'DataImport',
-        component: () => import('@/views/system/index.vue'),
+        component: () => import('@/views/data-import/index.vue'),
         meta: { title: '数据导入', requiresAuth: true },
       },
       {
         path: 'print-templates',
         name: 'PrintTemplates',
-        component: () => import('@/views/system/index.vue'),
+        component: () => import('@/views/print-templates/index.vue'),
         meta: { title: '打印模板', requiresAuth: true },
       },
       {
         path: 'api-gateway',
         name: 'ApiGateway',
-        component: () => import('@/views/system/index.vue'),
+        component: () => import('@/views/api-gateway/index.vue'),
         meta: { title: 'API网关', requiresAuth: true },
       },
       {
         path: 'system-update',
         name: 'SystemUpdate',
-        component: () => import('@/views/system/tabs/SystemUpdateTab.vue'),
+        component: () => import('@/views/system-update/index.vue'),
         meta: { title: '系统更新', requiresAuth: true },
       },
       {
