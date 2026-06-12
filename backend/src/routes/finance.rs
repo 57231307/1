@@ -133,6 +133,7 @@ pub fn gl() -> Router<AppState> {
             delete(account_subject_handler::delete_subject),
         )
         .route("/vouchers/types", get(voucher_handler::get_voucher_types))
+        .route("/vouchers/generate-no", get(voucher_handler::generate_voucher_no))
         .route("/vouchers", get(voucher_handler::list_vouchers))
         .route(
             "/vouchers/:id",
@@ -594,6 +595,27 @@ pub fn ar_reconciliations_enhanced() -> Router<AppState> {
         .route(
             "/ar-reconciliations-enhanced/generate",
             post(ar_reconciliation_enhanced_handler::generate_reconciliation),
+        )
+        .route(
+            "/ar-reconciliations-enhanced/confirmations",
+            get(ar_reconciliation_enhanced_handler::list_confirmations),
+        )
+        .route(
+            "/ar-reconciliations-enhanced/confirmations/:id/status",
+            put(ar_reconciliation_enhanced_handler::update_confirmation_status),
+        )
+        .route(
+            "/ar-reconciliations-enhanced/disputes",
+            get(ar_reconciliation_enhanced_handler::list_disputes)
+                .post(ar_reconciliation_enhanced_handler::create_dispute),
+        )
+        .route(
+            "/ar-reconciliations-enhanced/disputes/:id",
+            get(ar_reconciliation_enhanced_handler::get_dispute),
+        )
+        .route(
+            "/ar-reconciliations-enhanced/disputes/:id/resolve",
+            put(ar_reconciliation_enhanced_handler::resolve_dispute),
         )
 }
 

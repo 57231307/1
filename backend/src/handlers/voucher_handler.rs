@@ -270,6 +270,26 @@ pub async fn get_voucher_types() -> Json<ApiResponse<Vec<serde_json::Value>>> {
     Json(ApiResponse::success(types))
 }
 
+/// 生成凭证编号
+pub async fn generate_voucher_no(
+    State(state): State<AppState>,
+) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
+    use crate::models::voucher;
+    use crate::utils::number_generator::DocumentNumberGenerator;
+
+    let voucher_no = DocumentNumberGenerator::generate_no(
+        &*state.db,
+        "JZ",
+        voucher::Entity,
+        voucher::Column::VoucherNo,
+    )
+    .await?;
+
+    Ok(Json(ApiResponse::success(serde_json::json!({
+        "voucher_no": voucher_no
+    }))))
+}
+
 /// 更新凭证请求 DTO
 #[derive(Debug, serde::Deserialize)]
 pub struct UpdateVoucherRequestDto {
