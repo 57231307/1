@@ -37,13 +37,13 @@ impl MigrationTrait for Migration {
                     )
                     .col(
                         ColumnDef::new(Roles::CreatedAt)
-                            .timestamp()
+                            .timestamp_with_time_zone()
                             .not_null()
                             .default(Expr::current_timestamp()),
                     )
                     .col(
                         ColumnDef::new(Roles::UpdatedAt)
-                            .timestamp()
+                            .timestamp_with_time_zone()
                             .not_null()
                             .default(Expr::current_timestamp()),
                     )
@@ -88,13 +88,13 @@ impl MigrationTrait for Migration {
                     )
                     .col(
                         ColumnDef::new(Departments::CreatedAt)
-                            .timestamp()
+                            .timestamp_with_time_zone()
                             .not_null()
                             .default(Expr::current_timestamp()),
                     )
                     .col(
                         ColumnDef::new(Departments::UpdatedAt)
-                            .timestamp()
+                            .timestamp_with_time_zone()
                             .not_null()
                             .default(Expr::current_timestamp()),
                     )
@@ -131,7 +131,7 @@ impl MigrationTrait for Migration {
                     .col(ColumnDef::new(Users::RoleId).integer())
                     .col(ColumnDef::new(Users::DepartmentId).integer())
                     .col(ColumnDef::new(Users::IsActive).boolean().default(true))
-                    .col(ColumnDef::new(Users::LastLoginAt).timestamp())
+                    .col(ColumnDef::new(Users::LastLoginAt).timestamp_with_time_zone())
                     .col(
                         ColumnDef::new(Users::IsDeleted)
                             .boolean()
@@ -140,13 +140,13 @@ impl MigrationTrait for Migration {
                     )
                     .col(
                         ColumnDef::new(Users::CreatedAt)
-                            .timestamp()
+                            .timestamp_with_time_zone()
                             .not_null()
                             .default(Expr::current_timestamp()),
                     )
                     .col(
                         ColumnDef::new(Users::UpdatedAt)
-                            .timestamp()
+                            .timestamp_with_time_zone()
                             .not_null()
                             .default(Expr::current_timestamp()),
                     )
