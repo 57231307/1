@@ -41,7 +41,7 @@ export interface Supplier {
 export function listSuppliers(
   params?: SupplierQueryParams
 ): Promise<ApiResponse<{ list: Supplier[]; total: number }>> {
-  return request.get('/suppliers', { params })
+  return request.get('/purchase/suppliers', { params })
 }
 
 export interface SupplierQueryParams {
@@ -78,20 +78,23 @@ export interface SupplierEvaluationResult {
 
 export const supplierApi = {
   list: (params?: SupplierQueryParams) =>
-    request.get<ApiResponse<{ list: Supplier[]; total: number }>>('/suppliers', { params }),
+    request.get<ApiResponse<{ list: Supplier[]; total: number }>>('/purchase/suppliers', {
+      params,
+    }),
 
-  getById: (id: number) => request.get<ApiResponse<Supplier>>(`/suppliers/${id}`),
+  getById: (id: number) => request.get<ApiResponse<Supplier>>(`/purchase/suppliers/${id}`),
 
-  create: (data: Partial<Supplier>) => request.post<ApiResponse<Supplier>>('/suppliers', data),
+  create: (data: Partial<Supplier>) =>
+    request.post<ApiResponse<Supplier>>('/purchase/suppliers', data),
 
   update: (id: number, data: Partial<Supplier>) =>
-    request.put<ApiResponse<Supplier>>(`/suppliers/${id}`, data),
+    request.put<ApiResponse<Supplier>>(`/purchase/suppliers/${id}`, data),
 
-  delete: (id: number) => request.delete<ApiResponse<null>>(`/suppliers/${id}`),
+  delete: (id: number) => request.delete<ApiResponse<null>>(`/purchase/suppliers/${id}`),
 
   evaluate: (id: number, data: SupplierEvaluationData) =>
-    request.post<ApiResponse<SupplierEvaluationResult>>(`/suppliers/${id}/evaluate`, data),
+    request.post<ApiResponse<SupplierEvaluationResult>>(`/purchase/suppliers/${id}/evaluate`, data),
 
   getEvaluationHistory: (id: number) =>
-    request.get<ApiResponse<SupplierEvaluationResult[]>>(`/suppliers/${id}/evaluations`),
+    request.get<ApiResponse<SupplierEvaluationResult[]>>(`/purchase/suppliers/${id}/evaluations`),
 }

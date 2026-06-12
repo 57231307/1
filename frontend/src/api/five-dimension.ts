@@ -24,12 +24,13 @@ export interface FiveDimensionSearchResult {
 }
 
 export const listFiveDimensionStats = (params?: any) =>
-  request.get('/five-dimension/stats', { params })
-export const getStatsByFiveDimensionId = (id: number) => request.get(`/five-dimension/stats/${id}`)
+  request.get('/crm/five-dimension/stats', { params })
+export const getStatsByFiveDimensionId = (id: number) =>
+  request.get(`/crm/five-dimension/stats/${id}`)
 export const parseFiveDimensionId = (id: number | string) =>
-  request.get(`/five-dimension/parse/${id}`)
+  request.get(`/crm/five-dimension/parse/${id}`)
 export const searchFiveDimension = (params?: any) =>
-  request.get('/five-dimension/search', { params })
+  request.get('/crm/five-dimension/search', { params })
 export interface FiveDimensionStatsResponse {
   dimension: any
   list: any[]
@@ -51,18 +52,23 @@ export interface FiveDimensionItem {
 
 export const fiveDimensionApi = {
   getStats: (dimensionId: number, params?: FiveDimensionQuery) =>
-    request.get<ApiResponse<FiveDimensionStats>>(`/five-dimension/stats/${dimensionId}`, {
+    request.get<ApiResponse<FiveDimensionStats>>(`/crm/five-dimension/stats/${dimensionId}`, {
       params,
     }),
 
   listStats: (params?: FiveDimensionQuery) =>
-    request.get<ApiResponse<{ stats: FiveDimensionStats[] }>>('/five-dimension/stats', { params }),
-
-  search: (query: string, params?: FiveDimensionQuery) =>
-    request.get<ApiResponse<{ results: FiveDimensionSearchResult[] }>>('/five-dimension/search', {
-      params: { ...params, q: query },
+    request.get<ApiResponse<{ stats: FiveDimensionStats[] }>>('/crm/five-dimension/stats', {
+      params,
     }),
 
+  search: (query: string, params?: FiveDimensionQuery) =>
+    request.get<ApiResponse<{ results: FiveDimensionSearchResult[] }>>(
+      '/crm/five-dimension/search',
+      {
+        params: { ...params, q: query },
+      }
+    ),
+
   getByDimensionId: (dimensionId: number) =>
-    request.get<ApiResponse<FiveDimensionStats>>(`/five-dimension/${dimensionId}`),
+    request.get<ApiResponse<FiveDimensionStats>>(`/crm/five-dimension/${dimensionId}`),
 }

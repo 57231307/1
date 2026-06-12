@@ -35,44 +35,44 @@ export interface VoucherEntity {
 }
 
 export function listVouchers(params?: QueryParams): Promise<ApiResponse<VoucherEntity[]>> {
-  return request.get('/gl/vouchers', { params })
+  return request.get('/vouchers', { params })
 }
 
 export function getVoucher(id: number): Promise<ApiResponse<VoucherEntity>> {
-  return request.get(`/gl/vouchers/${id}`)
+  return request.get(`/vouchers/${id}`)
 }
 
 export function createVoucher(data: Partial<VoucherEntity>): Promise<ApiResponse<VoucherEntity>> {
-  return request.post('/gl/vouchers', data)
+  return request.post('/vouchers', data)
 }
 
 export function updateVoucher(
   id: number,
   data: Partial<VoucherEntity>
 ): Promise<ApiResponse<VoucherEntity>> {
-  return request.put(`/gl/vouchers/${id}`, data)
+  return request.put(`/vouchers/${id}`, data)
 }
 
 export function deleteVoucher(id: number): Promise<ApiResponse<void>> {
-  return request.delete(`/gl/vouchers/${id}`)
+  return request.delete(`/vouchers/${id}`)
 }
 
 export function approveVoucher(id: number): Promise<ApiResponse<void>> {
-  return request.post(`/gl/vouchers/${id}/review`)
+  return request.post(`/vouchers/${id}/review`)
 }
 
 export function postVoucher(id: number): Promise<ApiResponse<void>> {
-  return request.post(`/gl/vouchers/${id}/post`)
+  return request.post(`/vouchers/${id}/post`)
 }
 
 export function unpostVoucher(id: number): Promise<ApiResponse<void>> {
-  return request.post(`/gl/vouchers/${id}/unpost`)
+  return request.post(`/vouchers/${id}/unpost`)
 }
 
 export function getVoucherTypes(): Promise<ApiResponse<string[]>> {
-  return request.get('/gl/vouchers/types')
+  return request.get('/vouchers/types')
 }
 
 export function generateVoucherNo(): Promise<ApiResponse<{ voucher_no: string }>> {
-  return request.get('/gl/vouchers/generate-no')
+  return request.get('/vouchers/generate-no')
 }

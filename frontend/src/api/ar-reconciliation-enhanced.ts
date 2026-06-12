@@ -77,60 +77,60 @@ export function autoReconcile(params: {
   end_date: string
   customer_id?: number
 }): Promise<ApiResponse<{ task_id: number; message: string }>> {
-  return request.post('/ar-reconciliation/auto-reconcile', params)
+  return request.post('/ar-reconciliations-enhanced/auto-match', params)
 }
 
 export function getAutoReconciliationResults(
   params?: any
 ): Promise<ApiResponse<PageResult<AutoReconciliationResult>>> {
-  return request.get('/ar-reconciliation/auto-reconcile/results', { params })
+  return request.get('/ar-reconciliations-enhanced/auto-match', { params })
 }
 
 export function getAgingAnalysis(params?: {
   customer_id?: number
   as_of_date?: string
 }): Promise<ApiResponse<AgingAnalysisResult[]>> {
-  return request.get('/ar-reconciliation/aging-analysis', { params })
+  return request.get('/ar-reconciliations-enhanced/aging-report', { params })
 }
 
 export function getReconciliationDetailItems(
   id: number
 ): Promise<ApiResponse<ReconciliationDetailItem[]>> {
-  return request.get(`/ar-reconciliation/${id}/details`)
+  return request.get(`/ar-reconciliations-enhanced/${id}/details`)
 }
 
 export function sendCustomerConfirmation(id: number): Promise<ApiResponse<{ message: string }>> {
-  return request.post(`/ar-reconciliation/${id}/confirm/send`)
+  return request.post(`/ar-reconciliations-enhanced/${id}/confirm/send`)
 }
 
 export function getCustomerConfirmations(
   params?: any
 ): Promise<ApiResponse<PageResult<CustomerConfirmation>>> {
-  return request.get('/ar-reconciliation/confirmations', { params })
+  return request.get('/ar-reconciliations-enhanced/confirmations', { params })
 }
 
 export function updateConfirmationStatus(
   id: number,
   data: { status: 'confirmed' | 'disputed'; remark?: string }
 ): Promise<ApiResponse<CustomerConfirmation>> {
-  return request.put(`/ar-reconciliation/confirmations/${id}/status`, data)
+  return request.put(`/ar-reconciliations-enhanced/confirmations/${id}/status`, data)
 }
 
 export function createDispute(data: Partial<DisputeRecord>): Promise<ApiResponse<DisputeRecord>> {
-  return request.post('/ar-reconciliation/disputes', data)
+  return request.post('/ar-reconciliations-enhanced/disputes', data)
 }
 
 export function getDisputes(params?: any): Promise<ApiResponse<PageResult<DisputeRecord>>> {
-  return request.get('/ar-reconciliation/disputes', { params })
+  return request.get('/ar-reconciliations-enhanced/disputes', { params })
 }
 
 export function resolveDispute(
   id: number,
   data: { resolution: string }
 ): Promise<ApiResponse<DisputeRecord>> {
-  return request.put(`/ar-reconciliation/disputes/${id}/resolve`, data)
+  return request.put(`/ar-reconciliations-enhanced/disputes/${id}/resolve`, data)
 }
 
 export function getDisputeDetail(id: number): Promise<ApiResponse<DisputeRecord>> {
-  return request.get(`/ar-reconciliation/disputes/${id}`)
+  return request.get(`/ar-reconciliations-enhanced/disputes/${id}`)
 }

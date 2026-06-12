@@ -26,36 +26,36 @@ export interface DyeBatch {
 }
 
 export function listDyeBatches(params?: QueryParams): Promise<ApiResponse<DyeBatch[]>> {
-  return request.get('/dye-batches', { params })
+  return request.get('/production/dye-batches', { params })
 }
 
 export function getDyeBatch(id: number): Promise<ApiResponse<DyeBatch>> {
-  return request.get(`/dye-batches/${id}`)
+  return request.get(`/production/dye-batches/${id}`)
 }
 
 export function createDyeBatch(data: Partial<DyeBatch>): Promise<ApiResponse<DyeBatch>> {
-  return request.post('/dye-batches', data)
+  return request.post('/production/dye-batches', data)
 }
 
 export function updateDyeBatch(
   id: number,
   data: Partial<DyeBatch>
 ): Promise<ApiResponse<DyeBatch>> {
-  return request.put(`/dye-batches/${id}`, data)
+  return request.put(`/production/dye-batches/${id}`, data)
 }
 
 export function deleteDyeBatch(id: number): Promise<ApiResponse<void>> {
-  return request.delete(`/dye-batches/${id}`)
+  return request.delete(`/production/dye-batches/${id}`)
 }
 
 export function completeDyeBatch(id: number): Promise<ApiResponse<void>> {
-  return request.post(`/dye-batches/${id}/complete`)
+  return request.post(`/production/dye-batches/${id}/complete`)
 }
 
 export function getDyeBatchesByColor(colorCode: string): Promise<ApiResponse<DyeBatch[]>> {
-  return request.get(`/dye-batches/by-color/${colorCode}`)
+  return request.get(`/production/dye-batches/by-color/${colorCode}`)
 }
 
 export function exportDyeBatches(params?: QueryParams): Promise<Blob> {
-  return request.get('/dye-batches/export', { params, responseType: 'blob' })
+  return request.get('/production/dye-batches/export', { params, responseType: 'blob' })
 }

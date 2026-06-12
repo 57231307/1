@@ -52,44 +52,44 @@ export interface CustomerCreditQueryParams {
 export const listCustomerCredits = (
   params?: CustomerCreditQueryParams
 ): Promise<ApiResponse<{ list: CustomerCredit[]; total: number }>> =>
-  request.get('/customer-credits', { params })
+  request.get('/crm/customer-credits', { params })
 
 export const listCredits = listCustomerCredits
 
 export const getCustomerCredit = (id: number): Promise<ApiResponse<CustomerCredit>> =>
-  request.get(`/customer-credits/${id}`)
+  request.get(`/crm/customer-credits/${id}`)
 
 export const createCustomerCredit = (
   data: Partial<CustomerCredit>
-): Promise<ApiResponse<CustomerCredit>> => request.post('/customer-credits', data)
+): Promise<ApiResponse<CustomerCredit>> => request.post('/crm/customer-credits', data)
 
 export const updateCustomerCredit = (
   id: number,
   data: Partial<CustomerCredit>
-): Promise<ApiResponse<CustomerCredit>> => request.put(`/customer-credits/${id}`, data)
+): Promise<ApiResponse<CustomerCredit>> => request.put(`/crm/customer-credits/${id}`, data)
 
 export const deleteCustomerCredit = (id: number): Promise<ApiResponse<void>> =>
-  request.delete(`/customer-credits/${id}`)
+  request.delete(`/crm/customer-credits/${id}`)
 
 export const setCreditRating = (
   id: number,
   data: CreditRating
-): Promise<ApiResponse<CustomerCredit>> => request.post(`/customer-credits/${id}/rating`, data)
+): Promise<ApiResponse<CustomerCredit>> => request.post(`/crm/customer-credits/${id}/rating`, data)
 
 export const occupyCredit = (id: number, data: CreditOccupation): Promise<ApiResponse<void>> =>
-  request.post(`/customer-credits/${id}/occupy`, data)
+  request.post(`/crm/customer-credits/${id}/occupy`, data)
 
 export const releaseCredit = (id: number, occupation_id: number): Promise<ApiResponse<void>> =>
-  request.post(`/customer-credits/${id}/release`, { occupation_id })
+  request.post(`/crm/customer-credits/${id}/release`, { occupation_id })
 
 export const adjustCreditLimit = (
   id: number,
   data: CreditAdjustment
-): Promise<ApiResponse<CustomerCredit>> => request.post(`/customer-credits/${id}/adjust`, data)
+): Promise<ApiResponse<CustomerCredit>> => request.post(`/crm/customer-credits/${id}/adjust`, data)
 
 export const deactivateCredit = (id: number): Promise<ApiResponse<void>> =>
-  request.post(`/customer-credits/${id}/deactivate`)
+  request.post(`/crm/customer-credits/${id}/deactivate`)
 
 export const evaluateCustomerCredit = (
   data: CreditEvaluationRequest & { id?: number }
-): Promise<ApiResponse<CustomerCredit>> => request.post('/customer-credits/evaluate', data)
+): Promise<ApiResponse<CustomerCredit>> => request.post('/crm/customer-credits/evaluate', data)

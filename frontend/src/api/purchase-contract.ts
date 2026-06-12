@@ -37,38 +37,38 @@ export interface ContractItem {
 export function listPurchaseContracts(
   params?: QueryParams
 ): Promise<ApiResponse<{ list: PurchaseContract[]; total: number }>> {
-  return request.get('/purchase-contracts', { params })
+  return request.get('/purchase/purchase-contracts', { params })
 }
 
 export function getPurchaseContract(id: number): Promise<ApiResponse<PurchaseContract>> {
-  return request.get(`/purchase-contracts/${id}`)
+  return request.get(`/purchase/purchase-contracts/${id}`)
 }
 
 export function createPurchaseContract(
   data: Partial<PurchaseContract>
 ): Promise<ApiResponse<PurchaseContract>> {
-  return request.post('/purchase-contracts', data)
+  return request.post('/purchase/purchase-contracts', data)
 }
 
 export function updatePurchaseContract(
   id: number,
   data: Partial<PurchaseContract>
 ): Promise<ApiResponse<PurchaseContract>> {
-  return request.put(`/purchase-contracts/${id}`, data)
+  return request.put(`/purchase/purchase-contracts/${id}`, data)
 }
 
 export function deletePurchaseContract(id: number): Promise<ApiResponse<void>> {
-  return request.delete(`/purchase-contracts/${id}`)
+  return request.delete(`/purchase/purchase-contracts/${id}`)
 }
 
 export function approvePurchaseContract(id: number): Promise<ApiResponse<void>> {
-  return request.post(`/purchase-contracts/${id}/approve`)
+  return request.post(`/purchase/purchase-contracts/${id}/approve`)
 }
 
 export function executePurchaseContract(id: number): Promise<ApiResponse<void>> {
-  return request.put(`/purchase-contracts/${id}/execute`)
+  return request.put(`/purchase/purchase-contracts/${id}/execute`)
 }
 
 export function cancelPurchaseContract(id: number): Promise<ApiResponse<void>> {
-  return request.put(`/purchase-contracts/${id}/cancel`)
+  return request.put(`/purchase/purchase-contracts/${id}/cancel`)
 }

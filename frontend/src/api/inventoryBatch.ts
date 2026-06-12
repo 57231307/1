@@ -70,25 +70,25 @@ export interface TransferBatchRequest {
 }
 
 export function listBatches(params?: any) {
-  return request.get('/batches', { params })
+  return request.get('/inventory/batches', { params })
 }
 
 export function getBatch(id: number) {
-  return request.get(`/batches/${id}`)
+  return request.get(`/inventory/batches/${id}`)
 }
 
 export function createBatch(data: CreateBatchRequest) {
-  return request.post('/batches', data)
+  return request.post('/inventory/batches', data)
 }
 
 export function updateBatch(id: number, data: UpdateBatchRequest) {
-  return request.put(`/batches/${id}`, data)
+  return request.put(`/inventory/batches/${id}`, data)
 }
 
 export function deleteBatch(id: number) {
-  return request.delete(`/batches/${id}`)
+  return request.delete(`/inventory/batches/${id}`)
 }
 
 export function transferBatch(id: number, data: TransferBatchRequest) {
-  return request.post(`/batches/${id}/transfer`, data)
+  return request.post(`/inventory/batches/${id}/transfer`, data)
 }

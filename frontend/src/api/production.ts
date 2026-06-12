@@ -35,19 +35,19 @@ export const PRODUCTION_ORDER_STATUS = {
 export function listProductionOrders(
   params?: QueryParams
 ): Promise<ApiResponse<{ list: ProductionOrder[]; total: number }>> {
-  return request.get('/production/orders', { params })
+  return request.get('/production/production-orders/orders', { params })
 }
 
 // 获取生产订单详情
 export function getProductionOrder(id: number): Promise<ApiResponse<ProductionOrder>> {
-  return request.get(`/production/orders/${id}`)
+  return request.get(`/production/production-orders/orders/${id}`)
 }
 
 // 创建生产订单
 export function createProductionOrder(
   data: Partial<ProductionOrder>
 ): Promise<ApiResponse<ProductionOrder>> {
-  return request.post('/production/orders', data)
+  return request.post('/production/production-orders/orders', data)
 }
 
 // 更新生产订单
@@ -55,12 +55,12 @@ export function updateProductionOrder(
   id: number,
   data: Partial<ProductionOrder>
 ): Promise<ApiResponse<ProductionOrder>> {
-  return request.put(`/production/orders/${id}`, data)
+  return request.put(`/production/production-orders/orders/${id}`, data)
 }
 
 // 删除生产订单
 export function deleteProductionOrder(id: number): Promise<ApiResponse<void>> {
-  return request.delete(`/production/orders/${id}`)
+  return request.delete(`/production/production-orders/orders/${id}`)
 }
 
 // 更新生产订单状态
@@ -68,20 +68,20 @@ export function updateProductionOrderStatus(
   id: number,
   status: string
 ): Promise<ApiResponse<void>> {
-  return request.put(`/production/orders/${id}/status`, { status })
+  return request.put(`/production/production-orders/orders/${id}/status`, { status })
 }
 
-// 提交生产订单审核（后端: POST /production/orders/:id/submit-approval）
+// 提交生产订单审核（后端: POST /production/production-orders/orders/:id/submit-approval）
 export function submitProductionOrder(id: number): Promise<ApiResponse<void>> {
-  return request.post(`/production/orders/${id}/submit-approval`)
+  return request.post(`/production/production-orders/orders/${id}/submit-approval`)
 }
 
-// 审核生产订单（后端: POST /production/orders/:id/approve）
+// 审核生产订单（后端: POST /production/production-orders/orders/:id/approve）
 export function approveProductionOrder(
   id: number,
   data: { approved: boolean; remark?: string }
 ): Promise<ApiResponse<void>> {
-  return request.post(`/production/orders/${id}/approve`, data)
+  return request.post(`/production/production-orders/orders/${id}/approve`, data)
 }
 
 // 汇报生产进度
@@ -93,7 +93,7 @@ export function reportProductionProgress(
     remark?: string
   }
 ): Promise<ApiResponse<void>> {
-  return request.post(`/production/orders/${id}/progress`, data)
+  return request.post(`/production/production-orders/orders/${id}/progress`, data)
 }
 
 // 获取生产订单日志
@@ -104,5 +104,5 @@ export function getProductionOrderLogs(
     { id: number; action: string; operator: string; created_at: string; remark?: string }[]
   >
 > {
-  return request.get(`/production/orders/${id}/logs`)
+  return request.get(`/production/production-orders/orders/${id}/logs`)
 }

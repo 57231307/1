@@ -35,12 +35,12 @@ export interface ScopeType {
   description: string
 }
 
-export const listDataPermissions = (params?: any) => request.get('/data-permissions', { params })
+export const listDataPermissions = (params?: any) => request.get('/data-permissions/', { params })
 
 export const getDataPermission = (id: number) => request.get(`/data-permissions/${id}`)
 
 export const createDataPermission = (data: Partial<DataPermission>) =>
-  request.post('/data-permissions', data)
+  request.post('/data-permissions/', data)
 
 export const updateDataPermission = (id: number, data: Partial<DataPermission>) =>
   request.put(`/data-permissions/${id}`, data)
@@ -48,7 +48,7 @@ export const updateDataPermission = (id: number, data: Partial<DataPermission>) 
 export const deleteDataPermission = (id: number) => request.delete(`/data-permissions/${id}`)
 
 export const setDataPermission = (data: SetDataPermissionRequest) =>
-  request.post('/data-permissions', data)
+  request.post('/data-permissions/', data)
 
 export const listRoleDataPermissions = (roleId: number) =>
   request.get(`/data-permissions/roles/${roleId}`)

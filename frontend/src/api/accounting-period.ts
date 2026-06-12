@@ -46,5 +46,5 @@ export function getCurrentPeriod() {
 }
 
 export function getPeriodByDate(date: string) {
-  return request.get('/finance/accounting-periods/by-date', { params: { date } })
+  return request.get('/finance/accounting-periods/current', { params: { date } })
 }

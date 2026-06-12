@@ -65,40 +65,42 @@ export interface ConvertToOrderParams {
 export function calculateMrp(
   data: MrpCalculationParams
 ): Promise<ApiResponse<MrpCalculationResult>> {
-  return request.post('/mrp/calculate', data)
+  return request.post('/production/mrp/calculate', data)
 }
 
 export function getMrpHistory(params?: {
   page?: number
   page_size?: number
 }): Promise<ApiResponse<PageResult<MrpHistoryRecord>>> {
-  return request.get('/mrp/history', { params })
+  return request.get('/production/mrp-history', { params })
 }
 
 export function getMrpResult(id: number): Promise<ApiResponse<MrpCalculationResult>> {
-  return request.get(`/mrp/history/${id}`)
+  return request.get(`/production/mrp-history/${id}`)
 }
 
 export function convertToOrder(
   data: ConvertToOrderParams
 ): Promise<ApiResponse<{ order_ids: number[] }>> {
-  return request.post('/mrp/convert-orders', data)
+  return request.post('/production/mrp/convert-orders', data)
 }
 
 export function getProductsForMrp(params?: {
   keyword?: string
 }): Promise<ApiResponse<MrpProduct[]>> {
-  return request.get('/mrp/products', { params })
+  return request.get('/production/mrp/products', { params })
 }
 
 // 取消MRP计算
 export function cancelMrpCalculation(id: number): Promise<ApiResponse<void>> {
-  return request.put(`/mrp/history/${id}/cancel`)
+  return request.put(`/production/mrp-history/${id}/cancel`)
 }
 
 // 导出MRP结果
 export function exportMrpResult(id: number): Promise<void> {
-  return request.get(`/mrp/history/${id}/export`, { responseType: 'blob' }) as Promise<void>
+  return request.get(`/production/mrp-history/${id}/export`, {
+    responseType: 'blob',
+  }) as Promise<void>
 }
 
 // 获取物料需求明细
@@ -106,5 +108,5 @@ export function getMaterialRequirementDetail(
   calculationId: number,
   materialId: number
 ): Promise<ApiResponse<MrpMaterialRequirement & { supply_details: any[] }>> {
-  return request.get(`/mrp/history/${calculationId}/materials/${materialId}`)
+  return request.get(`/production/mrp-history/${calculationId}/materials/${materialId}`)
 }

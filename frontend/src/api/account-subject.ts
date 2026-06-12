@@ -29,33 +29,33 @@ export interface AccountSubject {
 }
 
 export function listAccountSubjects(params?: any) {
-  return request.get('/gl/subjects', { params })
+  return request.get('/subjects', { params })
 }
 
 export function getAccountSubject(id: number) {
-  return request.get(`/gl/subjects/${id}`)
+  return request.get(`/subjects/${id}`)
 }
 
 export function createAccountSubject(data: Partial<AccountSubjectEntity>) {
-  return request.post('/gl/subjects', data)
+  return request.post('/subjects', data)
 }
 
 export function updateAccountSubject(id: number, data: Partial<AccountSubjectEntity>) {
-  return request.put(`/gl/subjects/${id}`, data)
+  return request.put(`/subjects/${id}`, data)
 }
 
 export function deleteAccountSubject(id: number) {
-  return request.delete(`/gl/subjects/${id}`)
+  return request.delete(`/subjects/${id}`)
 }
 
 export function enableAccountSubject(id: number) {
-  return request.put(`/gl/subjects/${id}`, { is_enabled: true })
+  return request.put(`/subjects/${id}`, { is_enabled: true })
 }
 
 export function disableAccountSubject(id: number) {
-  return request.put(`/gl/subjects/${id}`, { is_enabled: false })
+  return request.put(`/subjects/${id}`, { is_enabled: false })
 }
 
 export function getAccountSubjectTree() {
-  return request.get('/gl/subjects/tree')
+  return request.get('/subjects/tree')
 }

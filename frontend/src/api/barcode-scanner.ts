@@ -66,5 +66,5 @@ export function getScanHistory(page?: number, pageSize?: number) {
 }
 
 export function getScanStatistics() {
-  return request.get('/scanner/statistics')
+  return request.get('/scanner/scan-statistics')
 }

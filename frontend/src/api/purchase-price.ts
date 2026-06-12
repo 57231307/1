@@ -25,30 +25,30 @@ export interface PurchasePrice {
 export function listPurchasePrices(
   params?: QueryParams
 ): Promise<ApiResponse<{ list: PurchasePrice[]; total: number }>> {
-  return request.get('/purchase-prices', { params })
+  return request.get('/purchase/purchase-prices', { params })
 }
 
 export function getPurchasePrice(id: number): Promise<ApiResponse<PurchasePrice>> {
-  return request.get(`/purchase-prices/${id}`)
+  return request.get(`/purchase/purchase-prices/${id}`)
 }
 
 export function createPurchasePrice(
   data: Partial<PurchasePrice>
 ): Promise<ApiResponse<PurchasePrice>> {
-  return request.post('/purchase-prices', data)
+  return request.post('/purchase/purchase-prices', data)
 }
 
 export function updatePurchasePrice(
   id: number,
   data: Partial<PurchasePrice>
 ): Promise<ApiResponse<PurchasePrice>> {
-  return request.put(`/purchase-prices/${id}`, data)
+  return request.put(`/purchase/purchase-prices/${id}`, data)
 }
 
 export function deletePurchasePrice(id: number): Promise<ApiResponse<void>> {
-  return request.delete(`/purchase-prices/${id}`)
+  return request.delete(`/purchase/purchase-prices/${id}`)
 }
 
 export function getPurchasePriceHistory(productId: number): Promise<ApiResponse<PurchasePrice[]>> {
-  return request.get(`/purchase-prices/history/${productId}`)
+  return request.get(`/purchase/purchase-prices/history/${productId}`)
 }

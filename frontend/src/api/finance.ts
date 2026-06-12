@@ -30,32 +30,32 @@ export interface AccountSubjectUpdateRequest {
 }
 
 export function listSubjects(params?: QueryParams): Promise<ApiResponse<AccountSubject[]>> {
-  return request.get('/gl/subjects', { params })
+  return request.get('/subjects', { params })
 }
 
 export function getSubjectTree(): Promise<ApiResponse<AccountSubject[]>> {
-  return request.get('/gl/subjects/tree')
+  return request.get('/subjects/tree')
 }
 
 export function getSubject(id: number): Promise<ApiResponse<AccountSubject>> {
-  return request.get(`/gl/subjects/${id}`)
+  return request.get(`/subjects/${id}`)
 }
 
 export function createSubject(
   data: AccountSubjectCreateRequest
 ): Promise<ApiResponse<AccountSubject>> {
-  return request.post('/gl/subjects', data)
+  return request.post('/subjects', data)
 }
 
 export function updateSubject(
   id: number,
   data: AccountSubjectUpdateRequest
 ): Promise<ApiResponse<AccountSubject>> {
-  return request.put(`/gl/subjects/${id}`, data)
+  return request.put(`/subjects/${id}`, data)
 }
 
 export function deleteSubject(id: number): Promise<ApiResponse<void>> {
-  return request.delete(`/gl/subjects/${id}`)
+  return request.delete(`/subjects/${id}`)
 }
 
 export interface Voucher {
@@ -109,36 +109,36 @@ export interface VoucherUpdateRequest {
 }
 
 export function listVouchers(params?: QueryParams): Promise<ApiResponse<Voucher[]>> {
-  return request.get('/gl/vouchers', { params })
+  return request.get('/vouchers', { params })
 }
 
 export function getVoucher(id: number): Promise<ApiResponse<Voucher>> {
-  return request.get(`/gl/vouchers/${id}`)
+  return request.get(`/vouchers/${id}`)
 }
 
 export function createVoucher(data: VoucherCreateRequest): Promise<ApiResponse<Voucher>> {
-  return request.post('/gl/vouchers', data)
+  return request.post('/vouchers', data)
 }
 
 export function submitVoucher(id: number): Promise<ApiResponse<void>> {
-  return request.post(`/gl/vouchers/${id}/submit`)
+  return request.post(`/vouchers/${id}/submit`)
 }
 
 export function reviewVoucher(id: number): Promise<ApiResponse<void>> {
-  return request.post(`/gl/vouchers/${id}/review`)
+  return request.post(`/vouchers/${id}/review`)
 }
 
 export function postVoucher(id: number): Promise<ApiResponse<void>> {
-  return request.post(`/gl/vouchers/${id}/post`)
+  return request.post(`/vouchers/${id}/post`)
 }
 
 export function updateVoucher(
   id: number,
   data: VoucherUpdateRequest
 ): Promise<ApiResponse<Voucher>> {
-  return request.put(`/gl/vouchers/${id}`, data)
+  return request.put(`/vouchers/${id}`, data)
 }
 
 export function deleteVoucher(id: number): Promise<ApiResponse<void>> {
-  return request.delete(`/gl/vouchers/${id}`)
+  return request.delete(`/vouchers/${id}`)
 }

@@ -40,7 +40,7 @@ export interface UpdateSettingRequest {
 export function listNotifications(
   params?: NotificationQueryParams
 ): Promise<ApiResponse<{ list: Notification[]; total: number }>> {
-  return request.get('/notifications', { params })
+  return request.get('/notifications/', { params })
 }
 
 export function getNotification(id: number): Promise<ApiResponse<Notification>> {

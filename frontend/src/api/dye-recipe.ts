@@ -33,48 +33,48 @@ export interface RecipeItem {
 }
 
 export function listDyeRecipes(params?: QueryParams): Promise<ApiResponse<DyeRecipe[]>> {
-  return request.get('/dye-recipes', { params })
+  return request.get('/production/dye-recipes', { params })
 }
 
 export function getDyeRecipe(id: number): Promise<ApiResponse<DyeRecipe>> {
-  return request.get(`/dye-recipes/${id}`)
+  return request.get(`/production/dye-recipes/${id}`)
 }
 
 export function createDyeRecipe(data: Partial<DyeRecipe>): Promise<ApiResponse<DyeRecipe>> {
-  return request.post('/dye-recipes', data)
+  return request.post('/production/dye-recipes', data)
 }
 
 export function updateDyeRecipe(
   id: number,
   data: Partial<DyeRecipe>
 ): Promise<ApiResponse<DyeRecipe>> {
-  return request.put(`/dye-recipes/${id}`, data)
+  return request.put(`/production/dye-recipes/${id}`, data)
 }
 
 export function deleteDyeRecipe(id: number): Promise<ApiResponse<void>> {
-  return request.delete(`/dye-recipes/${id}`)
+  return request.delete(`/production/dye-recipes/${id}`)
 }
 
 export function approveDyeRecipe(id: number): Promise<ApiResponse<void>> {
-  return request.post(`/dye-recipes/${id}/approve`)
+  return request.post(`/production/dye-recipes/${id}/approve`)
 }
 
 export function submitDyeRecipe(id: number): Promise<ApiResponse<void>> {
-  return request.post(`/dye-recipes/${id}/submit`)
+  return request.post(`/production/dye-recipes/${id}/submit`)
 }
 
 export function createNewVersion(id: number): Promise<ApiResponse<DyeRecipe>> {
-  return request.post(`/dye-recipes/${id}/version`)
+  return request.post(`/production/dye-recipes/${id}/version`)
 }
 
 export function getRecipesByColor(colorCode: string): Promise<ApiResponse<DyeRecipe[]>> {
-  return request.get(`/dye-recipes/by-color/${colorCode}`)
+  return request.get(`/production/dye-recipes/by-color/${colorCode}`)
 }
 
 export function getRecipeVersions(id: number): Promise<ApiResponse<DyeRecipe[]>> {
-  return request.get(`/dye-recipes/${id}/versions`)
+  return request.get(`/production/dye-recipes/${id}/versions`)
 }
 
 export function exportDyeRecipes(params?: QueryParams): Promise<Blob> {
-  return request.get('/dye-recipes/export', { params, responseType: 'blob' })
+  return request.get('/production/dye-recipes/export', { params, responseType: 'blob' })
 }

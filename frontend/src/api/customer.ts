@@ -41,24 +41,24 @@ export interface CustomerQueryParams {
 export function listCustomers(
   params?: CustomerQueryParams
 ): Promise<ApiResponse<{ list: Customer[]; total: number }>> {
-  return request.get('/customers', { params })
+  return request.get('/crm/customers', { params })
 }
 
 export const customerApi = {
   list: (params?: CustomerQueryParams) =>
-    request.get<ApiResponse<{ list: Customer[]; total: number }>>('/customers', { params }),
+    request.get<ApiResponse<{ list: Customer[]; total: number }>>('/crm/customers', { params }),
 
-  getById: (id: number) => request.get<ApiResponse<Customer>>(`/customers/${id}`),
+  getById: (id: number) => request.get<ApiResponse<Customer>>(`/crm/customers/${id}`),
 
-  create: (data: Partial<Customer>) => request.post<ApiResponse<Customer>>('/customers', data),
+  create: (data: Partial<Customer>) => request.post<ApiResponse<Customer>>('/crm/customers', data),
 
   update: (id: number, data: Partial<Customer>) =>
-    request.put<ApiResponse<Customer>>(`/customers/${id}`, data),
+    request.put<ApiResponse<Customer>>(`/crm/customers/${id}`, data),
 
-  delete: (id: number) => request.delete<ApiResponse<null>>(`/customers/${id}`),
+  delete: (id: number) => request.delete<ApiResponse<null>>(`/crm/customers/${id}`),
 
   getCreditInfo: (id: number) =>
     request.get<ApiResponse<{ credit_limit: number; current_balance: number; available: number }>>(
-      `/customers/${id}/credit`
+      `/crm/customers/${id}/credit`
     ),
 }

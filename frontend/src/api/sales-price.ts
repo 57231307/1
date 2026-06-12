@@ -45,36 +45,36 @@ export interface PricingStrategyRule {
 export function listSalesPrices(
   params?: QueryParams
 ): Promise<ApiResponse<{ list: SalesPrice[]; total: number }>> {
-  return request.get('/sales-prices', { params })
+  return request.get('/sales/sales-prices', { params })
 }
 
 export function getSalesPrice(id: number): Promise<ApiResponse<SalesPrice>> {
-  return request.get(`/sales-prices/${id}`)
+  return request.get(`/sales/sales-prices/${id}`)
 }
 
 export function createSalesPrice(data: Partial<SalesPrice>): Promise<ApiResponse<SalesPrice>> {
-  return request.post('/sales-prices', data)
+  return request.post('/sales/sales-prices', data)
 }
 
 export function updateSalesPrice(
   id: number,
   data: Partial<SalesPrice>
 ): Promise<ApiResponse<SalesPrice>> {
-  return request.put(`/sales-prices/${id}`, data)
+  return request.put(`/sales/sales-prices/${id}`, data)
 }
 
 export function deleteSalesPrice(id: number): Promise<ApiResponse<void>> {
-  return request.delete(`/sales-prices/${id}`)
+  return request.delete(`/sales/sales-prices/${id}`)
 }
 
 export function approveSalesPrice(id: number): Promise<ApiResponse<void>> {
-  return request.post(`/sales-prices/${id}/approve`)
+  return request.post(`/sales/sales-prices/${id}/approve`)
 }
 
 export function getPriceHistory(productId: number): Promise<ApiResponse<SalesPrice[]>> {
-  return request.get(`/sales-prices/history/${productId}`)
+  return request.get(`/sales/sales-prices/history/${productId}`)
 }
 
 export function listPricingStrategies(): Promise<ApiResponse<PricingStrategy[]>> {
-  return request.get('/sales-prices/strategies')
+  return request.get('/sales/sales-prices/strategies')
 }

@@ -21,20 +21,21 @@ export interface CostCollection {
   updated_at?: string
 }
 
-export const listCollections = (params?: any) => request.get('/cost-collections', { params })
+export const listCollections = (params?: any) =>
+  request.get('/production/cost-collections', { params })
 
-export const getCollection = (id: number) => request.get(`/cost-collections/${id}`)
+export const getCollection = (id: number) => request.get(`/production/cost-collections/${id}`)
 
 export const createCollection = (data: Partial<CostCollection>) =>
-  request.post('/cost-collections', data)
+  request.post('/production/cost-collections', data)
 
 export const updateCollection = (id: number, data: Partial<CostCollection>) =>
-  request.put(`/cost-collections/${id}`, data)
+  request.put(`/production/cost-collections/${id}`, data)
 
-export const deleteCollection = (id: number) => request.delete(`/cost-collections/${id}`)
+export const deleteCollection = (id: number) => request.delete(`/production/cost-collections/${id}`)
 
 export const auditCollection = (id: number, approved: boolean, comment?: string) =>
-  request.post(`/cost-collections/${id}/audit`, { approved, comment })
+  request.post(`/production/cost-collections/${id}/audit`, { approved, comment })
 
 export const listCostCollections = listCollections
 export const createCostCollection = createCollection

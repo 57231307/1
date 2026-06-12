@@ -65,64 +65,64 @@ export interface CreateEvaluationRequest {
 export function listIndicators(
   params?: SupplierEvaluationQueryParams
 ): Promise<ApiResponse<{ list: EvaluationIndicator[]; total: number }>> {
-  return request.get('/supplier-evaluation/evaluations/indicators', { params })
+  return request.get('/purchase/supplier-evaluations/indicators', { params })
 }
 
 export function createIndicator(
   data: CreateEvaluationIndicatorRequest
 ): Promise<ApiResponse<EvaluationIndicator>> {
-  return request.post('/supplier-evaluation/evaluations/indicators', data)
+  return request.post('/purchase/supplier-evaluations/indicators', data)
 }
 
 export function listEvaluationRecords(
   params?: SupplierEvaluationQueryParams
 ): Promise<ApiResponse<{ list: EvaluationRecord[]; total: number }>> {
-  return request.get('/supplier-evaluation/evaluations/records', { params })
+  return request.get('/purchase/supplier-evaluations/records', { params })
 }
 
 export function getEvaluationRecord(id: number): Promise<ApiResponse<EvaluationRecord>> {
-  return request.get(`/supplier-evaluation/evaluations/records/${id}`)
+  return request.get(`/purchase/supplier-evaluations/records/${id}`)
 }
 
 export function createEvaluationRecord(
   data: CreateEvaluationRequest
 ): Promise<ApiResponse<EvaluationRecord>> {
-  return request.post('/supplier-evaluation/evaluations/records', data)
+  return request.post('/purchase/supplier-evaluations/records', data)
 }
 
 export function getSupplierScore(supplierId: number): Promise<ApiResponse<SupplierScore>> {
-  return request.get(`/supplier-evaluation/evaluations/suppliers/${supplierId}/score`)
+  return request.get(`/purchase/supplier-evaluations/suppliers/${supplierId}/score`)
 }
 
 export function getSupplierRankings(params?: {
   limit?: number
 }): Promise<ApiResponse<SupplierScore[]>> {
-  return request.get('/supplier-evaluation/evaluations/rankings', { params })
+  return request.get('/purchase/supplier-evaluations/rankings', { params })
 }
 
 export function listEvaluations(
   params?: SupplierEvaluationQueryParams
 ): Promise<ApiResponse<{ list: EvaluationRecord[]; total: number }>> {
-  return request.get('/supplier-evaluation/evaluations', { params })
+  return request.get('/purchase/supplier-evaluations', { params })
 }
 
 export function getEvaluation(id: number): Promise<ApiResponse<EvaluationRecord>> {
-  return request.get(`/supplier-evaluation/evaluations/${id}`)
+  return request.get(`/purchase/supplier-evaluations/${id}`)
 }
 
 export function createEvaluation(
   data: CreateEvaluationRequest
 ): Promise<ApiResponse<EvaluationRecord>> {
-  return request.post('/supplier-evaluation/evaluations', data)
+  return request.post('/purchase/supplier-evaluations', data)
 }
 
 export function updateEvaluation(
   id: number,
   data: Partial<EvaluationRecord>
 ): Promise<ApiResponse<EvaluationRecord>> {
-  return request.put(`/supplier-evaluation/evaluations/${id}`, data)
+  return request.put(`/purchase/supplier-evaluations/${id}`, data)
 }
 
 export function deleteEvaluation(id: number): Promise<ApiResponse<void>> {
-  return request.delete(`/supplier-evaluation/evaluations/${id}`)
+  return request.delete(`/purchase/supplier-evaluations/${id}`)
 }

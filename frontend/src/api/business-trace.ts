@@ -35,4 +35,5 @@ export const forwardTrace = (params?: any) => request.get('/business-trace/forwa
 
 export const backwardTrace = (params?: any) => request.get('/business-trace/backward', { params })
 
-export const createTraceSnapshot = (data: any) => request.post('/business-trace/snapshot', data)
+export const createTraceSnapshot = (traceChainId: string, data?: any) =>
+  request.post(`/business-trace/snapshot/${traceChainId}`, data)
