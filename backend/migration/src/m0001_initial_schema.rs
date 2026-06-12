@@ -131,6 +131,8 @@ impl MigrationTrait for Migration {
                     .col(ColumnDef::new(Users::RoleId).integer())
                     .col(ColumnDef::new(Users::DepartmentId).integer())
                     .col(ColumnDef::new(Users::IsActive).boolean().default(true))
+                    .col(ColumnDef::new(Users::TotpSecret).string_len(255))
+                    .col(ColumnDef::new(Users::IsTotpEnabled).boolean().default(false))
                     .col(ColumnDef::new(Users::LastLoginAt).timestamp_with_time_zone())
                     .col(
                         ColumnDef::new(Users::IsDeleted)
@@ -241,6 +243,8 @@ enum Users {
     RoleId,
     DepartmentId,
     IsActive,
+    TotpSecret,
+    IsTotpEnabled,
     LastLoginAt,
     IsDeleted,
     CreatedAt,
