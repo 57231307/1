@@ -136,7 +136,9 @@ pub async fn login(
             client_ip,
             payload.username
         );
-        return Err(AppError::too_many_requests("登录失败次数过多，请30分钟后再试"));
+        return Err(AppError::too_many_requests(
+            "登录失败次数过多，请30分钟后再试",
+        ));
     }
 
     if recent_user_failures >= (MAX_FAILED_ATTEMPTS * 2) as u64 {
@@ -492,9 +494,8 @@ pub async fn refresh_token(
         return Err(AppError::unauthorized("令牌已被吊销，请重新登录"));
     }
 
-    let claims = AuthService::validate_token_static(token, &state.jwt_secret).map_err(|_| {
-        AppError::unauthorized("无效的令牌")
-    })?;
+    let claims = AuthService::validate_token_static(token, &state.jwt_secret)
+        .map_err(|_| AppError::unauthorized("无效的令牌"))?;
 
     // 检查是否在刷新期内（7天）
     let now = chrono::Utc::now();
@@ -510,9 +511,7 @@ pub async fn refresh_token(
             claims.role_id,
             claims.tenant_id,
         )
-        .map_err(|e| {
-            AppError::internal(format!("生成令牌失败：{}", e))
-        })?;
+        .map_err(|e| AppError::internal(format!("生成令牌失败：{}", e)))?;
 
     // Refresh Token 轮换：先将旧 Token 的 JTI（session_id）加入黑名单
     crate::services::auth_service::revoke_jti(&claims.session_id).await;
