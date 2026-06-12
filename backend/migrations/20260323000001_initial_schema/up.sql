@@ -412,11 +412,6 @@ INSERT INTO "departments" ("name", "code", "parent_id", "description", "sort_ord
 ('仓储部', 'D004', NULL, '库存管理', 4, true),
 ('生产部', 'D005', NULL, '生产管理', 5, true);
 
--- 创建管理员用户 (密码: admin123)
--- 密码哈希使用bcrypt加密
-INSERT INTO "users" ("username", "password_hash", "email", "role_id", "department_id", "is_active") VALUES
-('admin', '$2b$12$LQv3c1yqBWVHxkd0LHAkCOYz6TtxMQJqhN8/LewY5GyYzpLhJ3K2i', 'admin@example.com', 1, 1, true);
-
 -- ============================================
 -- 20. 创建外键约束
 -- ============================================
