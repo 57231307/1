@@ -56,7 +56,10 @@ const loadPeriods = () => {
 const loadBalanceSheet = async () => {
   loading.value = true
   try {
-    const res: any = await getBalanceSheet({ year: selectedYear.value, month: selectedMonth.value })
+    const res: any = await getBalanceSheet({
+      year: selectedYear.value,
+      month: selectedMonth.value,
+    })
     balanceSheetData.value = res.data!
   } catch (error) {
     ElMessage.error('加载资产负债表失败')
@@ -98,7 +101,10 @@ const loadCashFlow = async () => {
 const loadTrialBalance = async () => {
   loading.value = true
   try {
-    const res: any = await getTrialBalance({ year: selectedYear.value, month: selectedMonth.value })
+    const res: any = await getTrialBalance({
+      year: selectedYear.value,
+      month: selectedMonth.value,
+    })
     trialBalanceData.value = res.data!
   } catch (error) {
     ElMessage.error('加载试算平衡表失败')

@@ -48,7 +48,7 @@ const viewDialogVisible = ref(false)
 const viewData = ref<AssistRecordResponse | null>(null)
 
 const dimensionOptions = computed(() => {
-  return dimensions.value.map((d) => ({ label: d.dimension_name, value: d.dimension_code }))
+  return dimensions.value.map(d => ({ label: d.dimension_name, value: d.dimension_code }))
 })
 
 const businessTypeOptions = [
@@ -61,7 +61,7 @@ const businessTypeOptions = [
 ]
 
 const getBusinessTypeLabel = (value: string) => {
-  return businessTypeOptions.find((b) => b.value === value)?.label || value
+  return businessTypeOptions.find(b => b.value === value)?.label || value
 }
 
 const loadDimensions = async () => {

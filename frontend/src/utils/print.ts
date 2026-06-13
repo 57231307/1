@@ -32,15 +32,15 @@ function generatePrintHTML<T extends Record<string, unknown>>(options: PrintOpti
 
   const headerCells = columns
     .map(
-      (col) =>
+      col =>
         `<th style="padding: 8px 12px; border: 1px solid #333; background: #f5f5f5; text-align: ${col.align || 'left'}; ${col.width ? `width: ${col.width}` : ''}">${col.title}</th>`
     )
     .join('')
 
   const bodyRows = data
-    .map((row) => {
+    .map(row => {
       const cells = columns
-        .map((col) => {
+        .map(col => {
           const value = row[col.key]
           const formatted = col.formatter ? col.formatter(value, row) : (value ?? '')
           return `<td style="padding: 6px 12px; border: 1px solid #333; text-align: ${col.align || 'left'}">${formatted}</td>`
@@ -52,7 +52,7 @@ function generatePrintHTML<T extends Record<string, unknown>>(options: PrintOpti
 
   const infoSection = extraInfo
     ? `<div style="margin: 16px 0; display: flex; gap: 32px;">
-        ${extraInfo.map((info) => `<span><strong>${info.label}:</strong> ${info.value}</span>`).join('')}
+        ${extraInfo.map(info => `<span><strong>${info.label}:</strong> ${info.value}</span>`).join('')}
        </div>`
     : ''
 
@@ -140,15 +140,15 @@ export function printSingleDocument<T extends Record<string, unknown>>(options: 
 
   const headerCells = itemColumns
     .map(
-      (col) =>
+      col =>
         `<th style="padding: 8px 12px; border: 1px solid #333; background: #f5f5f5; text-align: ${col.align || 'left'}">${col.title}</th>`
     )
     .join('')
 
   const bodyRows = items
-    .map((row) => {
+    .map(row => {
       const cells = itemColumns
-        .map((col) => {
+        .map(col => {
           const value = row[col.key]
           const formatted = col.formatter ? col.formatter(value, row) : (value ?? '')
           return `<td style="padding: 6px 12px; border: 1px solid #333; text-align: ${col.align || 'left'}">${formatted}</td>`

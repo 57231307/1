@@ -11,16 +11,16 @@ export const usePermissionStore = defineStore('permission', () => {
 
   function hasPermission(resource: string, action: string): boolean {
     return permissions.value.some(
-      (p) => p.resource === resource && (p.action === action || p.action === '*')
+      p => p.resource === resource && (p.action === action || p.action === '*')
     )
   }
 
   function hasAnyPermission(resource: string): boolean {
-    return permissions.value.some((p) => p.resource === resource)
+    return permissions.value.some(p => p.resource === resource)
   }
 
   const userResources = computed(() => {
-    return [...new Set(permissions.value.map((p) => p.resource))]
+    return [...new Set(permissions.value.map(p => p.resource))]
   })
 
   return { permissions, setPermissions, hasPermission, hasAnyPermission, userResources }

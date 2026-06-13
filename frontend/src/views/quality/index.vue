@@ -497,7 +497,7 @@ const viewStandard = async (row: QualityStandard) => {
 
 const submitStandard = async () => {
   if (!standardFormRef.value) return
-  await standardFormRef.value.validate(async (valid) => {
+  await standardFormRef.value.validate(async valid => {
     if (!valid) return
 
     standardSubmitLoading.value = true
@@ -543,7 +543,7 @@ const approveStandard = async (row: QualityStandard) => {
 
 const confirmApprove = async () => {
   if (!approveFormRef.value || !approveStandardItem.value!) return
-  await approveFormRef.value.validate(async (valid) => {
+  await approveFormRef.value.validate(async valid => {
     if (!valid) return
 
     approveSubmitLoading.value = true

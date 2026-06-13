@@ -262,7 +262,7 @@ const openDialog = (row?: QualityStandard) => {
 
 const handleSubmit = async () => {
   if (!formRef.value) return
-  await formRef.value.validate(async (valid) => {
+  await formRef.value.validate(async valid => {
     if (!valid) return
 
     submitLoading.value = true
@@ -339,7 +339,7 @@ const handleArchive = async (row: QualityStandard) => {
 
 const handleExport = () => {
   const headers = ['标准编号,标准名称,类型,版本,状态,创建人,审批人']
-  const rows = list.value.map((item) =>
+  const rows = list.value.map(item =>
     [
       item.standard_code,
       item.standard_name,

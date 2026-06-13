@@ -237,8 +237,8 @@ const fetchRolePermissions = async (roleId: number) => {
 const buildPermissionTree = (perms: Permission[]): any[] => {
   const map = new Map<number, any>()
   const tree: any[] = []
-  perms.forEach((p) => map.set(p.id, { ...p, children: [] }))
-  perms.forEach((p) => {
+  perms.forEach(p => map.set(p.id, { ...p, children: [] }))
+  perms.forEach(p => {
     const node = map.get(p.id)!
     p.parent_id && map.has(p.parent_id)
       ? map.get(p.parent_id)!.children.push(node)

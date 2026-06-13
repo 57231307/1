@@ -255,9 +255,9 @@ const initTrendChart = (trends?: { date: string; amount: number; count: number }
   if (!trendChart) {
     trendChart = echarts.init(trendChartRef.value)
   }
-  const dates = trends?.map((t) => t.date) || []
-  const amounts = trends?.map((t) => t.amount) || []
-  const counts = trends?.map((t) => t.count) || []
+  const dates = trends?.map(t => t.date) || []
+  const amounts = trends?.map(t => t.amount) || []
+  const counts = trends?.map(t => t.count) || []
   trendChart.setOption({
     tooltip: { trigger: 'axis' },
     legend: { data: ['销售额', '订单数'] },
@@ -305,7 +305,7 @@ const initPieChart = (distribution?: { label: string; value: number }[]) => {
         label: { show: false, position: 'center' },
         emphasis: { label: { show: true, fontSize: 16, fontWeight: 'bold' } },
         labelLine: { show: false },
-        data: data.map((d) => ({ name: d.label, value: d.value })),
+        data: data.map(d => ({ name: d.label, value: d.value })),
       },
     ],
   })

@@ -91,17 +91,17 @@ const selectedRows = ref<any[]>([])
 
 const tableData = computed({
   get: () => props.data,
-  set: (val) => emit('update:data', val),
+  set: val => emit('update:data', val),
 })
 
 const currentPage = computed({
   get: () => props.currentPage,
-  set: (val) => emit('update:currentPage', val),
+  set: val => emit('update:currentPage', val),
 })
 
 const pageSize = computed({
   get: () => props.pageSize,
-  set: (val) => emit('update:pageSize', val),
+  set: val => emit('update:pageSize', val),
 })
 
 const handleSelectionChange = (selection: any[]) => {

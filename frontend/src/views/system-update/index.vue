@@ -596,7 +596,7 @@ const openBackupDialog = () => {
 
 const handleBackupSubmit = async () => {
   if (!backupFormRef.value) return
-  await backupFormRef.value.validate(async (valid) => {
+  await backupFormRef.value.validate(async valid => {
     if (!valid) return
 
     backupSubmitLoading.value = true

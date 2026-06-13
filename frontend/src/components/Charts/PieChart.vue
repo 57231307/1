@@ -60,7 +60,7 @@ const chartOption = computed<EChartsOption>(() => {
       orient: 'vertical',
       left: 'left',
       top: 'middle',
-      data: props.data.map((d) => d.name),
+      data: props.data.map(d => d.name),
     },
     series: [
       {

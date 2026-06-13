@@ -138,19 +138,19 @@ const localFormData = ref({
   is_default: props.formData.is_default,
   status: props.formData.status,
   remark: props.formData.remark,
-  items: [...props.formData.items.map((item) => ({ ...item }))],
+  items: [...props.formData.items.map(item => ({ ...item }))],
 })
 
 watch(
   () => props.formData,
-  (newVal) => {
+  newVal => {
     localFormData.value = {
       product_name: newVal.product_name,
       version: newVal.version,
       is_default: newVal.is_default,
       status: newVal.status,
       remark: newVal.remark,
-      items: [...newVal.items.map((item) => ({ ...item }))],
+      items: [...newVal.items.map(item => ({ ...item }))],
     }
   },
   { deep: true }
@@ -178,12 +178,10 @@ const handleRemoveItem = (index: number) => {
 const handleSubmit = async () => {
   if (!formRef.value) return
 
-  await formRef.value.validate(async (valid) => {
+  await formRef.value.validate(async valid => {
     if (!valid) return
 
-    const hasEmptyItems = localFormData.value.items.some(
-      (item) => !item.material_name || !item.unit
-    )
+    const hasEmptyItems = localFormData.value.items.some(item => !item.material_name || !item.unit)
     if (hasEmptyItems) {
       ElMessage.warning('请填写完整的物料明细')
       return

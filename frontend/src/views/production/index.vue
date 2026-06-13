@@ -358,7 +358,7 @@ const resetForm = () => {
 const handleSubmit = async () => {
   if (!orderFormRef.value) return
 
-  await orderFormRef.value.validate(async (valid) => {
+  await orderFormRef.value.validate(async valid => {
     if (!valid) return
 
     submitLoading.value = true
@@ -447,7 +447,7 @@ const handleExport = () => {
       item.priority,
     ]),
   ]
-    .map((row) => row.map((cell) => `"${cell ?? ''}"`).join(','))
+    .map(row => row.map(cell => `"${cell ?? ''}"`).join(','))
     .join('\n')
   const blob = new Blob(['\uFEFF' + csvContent], { type: 'text/csv;charset=utf-8;' })
   const link = document.createElement('a')

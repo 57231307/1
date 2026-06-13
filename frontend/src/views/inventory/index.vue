@@ -718,8 +718,8 @@ const handleSubmitTransfer = async () => {
   }
 
   const validItems = transferForm.value.items
-    .filter((item) => item.product_id && item.quantity > 0)
-    .map((item) => ({
+    .filter(item => item.product_id && item.quantity > 0)
+    .map(item => ({
       product_id: item.product_id!,
       quantity: item.quantity,
     }))

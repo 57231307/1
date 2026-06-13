@@ -112,10 +112,17 @@ export function getTrialBalance(params?: FinanceReportQueryParams) {
 }
 
 export function getGeneralLedger(accountSubjectCode: string, params?: GeneralLedgerQueryParams) {
-  return request.get<ApiResponse<ReportData>>(`/finance/reports/general-ledger/${accountSubjectCode}`, { params })
+  return request.get<ApiResponse<ReportData>>(
+    `/finance/reports/general-ledger/${accountSubjectCode}`,
+    { params }
+  )
 }
 
-export function getSubsidiaryLedger(customerId?: number, supplierId?: number, params?: SubsidiaryLedgerQueryParams) {
+export function getSubsidiaryLedger(
+  customerId?: number,
+  supplierId?: number,
+  params?: SubsidiaryLedgerQueryParams
+) {
   return request.get<ApiResponse<ReportData>>('/finance/reports/subsidiary-ledger', {
     params: { customer_id: customerId, supplier_id: supplierId, ...params },
   })

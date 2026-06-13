@@ -431,7 +431,7 @@ const openTemplateDialog = (row?: ImportTemplate) => {
 
 const handleTemplateSubmit = async () => {
   if (!templateFormRef.value) return
-  await templateFormRef.value.validate(async (valid) => {
+  await templateFormRef.value.validate(async valid => {
     if (!valid) return
 
     templateSubmitLoading.value = true

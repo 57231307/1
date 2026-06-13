@@ -343,9 +343,9 @@ const fetchData = async () => {
 
     // 更新统计
     stats.total = total.value
-    stats.pending = tableData.value.filter((i) => i.status === 'pending').length
-    stats.passed = tableData.value.filter((i) => i.result === 'pass').length
-    stats.failed = tableData.value.filter((i) => i.result === 'fail').length
+    stats.pending = tableData.value.filter(i => i.status === 'pending').length
+    stats.passed = tableData.value.filter(i => i.result === 'pass').length
+    stats.failed = tableData.value.filter(i => i.result === 'fail').length
   } catch (error) {
     console.error('获取数据失败:', error)
   } finally {
@@ -420,7 +420,7 @@ const handleView = async (row: PurchaseInspection) => {
 
 const handleReceiptChange = (receiptId: number) => {
   // 根据选择的入库单加载明细
-  const receipt = receipts.value.find((r) => r.id === receiptId)
+  const receipt = receipts.value.find(r => r.id === receiptId)
   if (receipt) {
     // TODO: 从API获取入库单明细
     formData.items = [

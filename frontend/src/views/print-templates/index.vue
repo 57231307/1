@@ -336,7 +336,7 @@ const openDialog = (row?: PrintTemplate) => {
 
 const handleSubmit = async () => {
   if (!formRef.value) return
-  await formRef.value.validate(async (valid) => {
+  await formRef.value.validate(async valid => {
     if (!valid) return
 
     submitLoading.value = true

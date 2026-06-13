@@ -328,7 +328,9 @@ export function getAPInvoiceRelations(id: number): Promise<ApiResponse<APInvoice
   return request.get(`/ap/invoices/${id}/relations`)
 }
 
-export function getAPStatisticsReport(params?: QueryParams): Promise<ApiResponse<APStatisticsData>> {
+export function getAPStatisticsReport(
+  params?: QueryParams
+): Promise<ApiResponse<APStatisticsData>> {
   return request.get('/ap/reports/statistics', { params })
 }
 
@@ -336,7 +338,10 @@ export function getAPDailyReport(date: string): Promise<ApiResponse<APDailyRepor
   return request.get('/ap/reports/daily', { params: { date } })
 }
 
-export function getAPMonthlyReport(year: number, month: number): Promise<ApiResponse<APMonthlyReportData>> {
+export function getAPMonthlyReport(
+  year: number,
+  month: number
+): Promise<ApiResponse<APMonthlyReportData>> {
   return request.get('/ap/reports/monthly', { params: { year, month } })
 }
 

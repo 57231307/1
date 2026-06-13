@@ -24,11 +24,14 @@ function escapeCSV(value: string): string {
   return str
 }
 
-function generateCSV<T extends Record<string, unknown>>(columns: ExportColumn<T>[], data: T[]): string {
-  const headers = columns.map((col) => escapeCSV(col.title)).join(',')
-  const rows = data.map((row) =>
+function generateCSV<T extends Record<string, unknown>>(
+  columns: ExportColumn<T>[],
+  data: T[]
+): string {
+  const headers = columns.map(col => escapeCSV(col.title)).join(',')
+  const rows = data.map(row =>
     columns
-      .map((col) => {
+      .map(col => {
         const value = row[col.key]
         const formatted = col.formatter ? col.formatter(value, row) : String(value ?? '')
         return escapeCSV(formatted)
@@ -38,12 +41,15 @@ function generateCSV<T extends Record<string, unknown>>(columns: ExportColumn<T>
   return [headers, ...rows].join('\n')
 }
 
-function generateExcelHTML<T extends Record<string, unknown>>(columns: ExportColumn<T>[], data: T[]): string {
-  const headers = columns.map((col) => `<th>${col.title}</th>`).join('')
+function generateExcelHTML<T extends Record<string, unknown>>(
+  columns: ExportColumn<T>[],
+  data: T[]
+): string {
+  const headers = columns.map(col => `<th>${col.title}</th>`).join('')
   const rows = data
-    .map((row) => {
+    .map(row => {
       const cells = columns
-        .map((col) => {
+        .map(col => {
           const value = row[col.key]
           const formatted = col.formatter ? col.formatter(value, row) : String(value ?? '')
           return `<td>${formatted}</td>`

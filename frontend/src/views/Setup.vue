@@ -160,7 +160,7 @@ const envChecks = ref([
   { name: '系统内存', status: false, detail: '检查系统内存是否充足（至少512MB）' },
 ])
 
-const allChecksPassed = computed(() => envChecks.value.every((item) => item.status))
+const allChecksPassed = computed(() => envChecks.value.every(item => item.status))
 
 // 数据库配置
 const dbFormRef = ref()

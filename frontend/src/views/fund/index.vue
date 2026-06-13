@@ -497,17 +497,17 @@ const transferRules: FormRules = {
 }
 
 const activeAccounts = computed(() => {
-  return accountList.value.filter((acc) => acc.status === 'active')
+  return accountList.value.filter(acc => acc.status === 'active')
 })
 
 const otherAccounts = computed(() => {
   return accountList.value.filter(
-    (acc) => acc.id !== transferForm.from_account_id && acc.status === 'active'
+    acc => acc.id !== transferForm.from_account_id && acc.status === 'active'
   )
 })
 
 const selectedFromAccount = computed(() => {
-  return accountList.value.find((acc) => acc.id === transferForm.from_account_id)
+  return accountList.value.find(acc => acc.id === transferForm.from_account_id)
 })
 
 const availableBalance = computed(() => {
@@ -586,7 +586,7 @@ const resetTransferForm = () => {
 const handleSubmitForm = async () => {
   if (!accountFormRef.value) return
 
-  await accountFormRef.value.validate(async (valid) => {
+  await accountFormRef.value.validate(async valid => {
     if (!valid) return
 
     submitLoading.value = true
@@ -635,7 +635,7 @@ const handleWithdraw = (row: FundAccount) => {
 const handleOperationSubmit = async () => {
   if (!operationFormRef.value || !currentAccount.value) return
 
-  await operationFormRef.value.validate(async (valid) => {
+  await operationFormRef.value.validate(async valid => {
     if (!valid) return
 
     submitLoading.value = true
@@ -673,7 +673,7 @@ const handleFromAccountChange = () => {
 const handleTransferSubmit = async () => {
   if (!transferFormRef.value) return
 
-  await transferFormRef.value.validate(async (valid) => {
+  await transferFormRef.value.validate(async valid => {
     if (!valid) return
 
     transferSubmitLoading.value = true

@@ -555,7 +555,7 @@ const fetchData = async () => {
     // 计算统计数据
     stats.value.monthOrders = total.value
     stats.value.monthAmount = orders.value.reduce((sum, o) => sum + (o.total_amount || 0), 0)
-    stats.value.pendingReceipt = orders.value.filter((o) => o.status === 'approved').length
+    stats.value.pendingReceipt = orders.value.filter(o => o.status === 'approved').length
   } catch (error: any) {
     ElMessage.error(error.message || '获取采购单列表失败')
     orders.value = []
@@ -710,7 +710,7 @@ const removeItem = (index: number) => {
 }
 
 const handleProductSelect = (index: number) => {
-  const product = products.value.find((p) => p.id === createForm.value.items[index].product_id)
+  const product = products.value.find(p => p.id === createForm.value.items[index].product_id)
   if (product) {
     createForm.value.items[index].unit_price = product.price || 0
     calculateSubtotal(createForm.value.items[index])
@@ -731,7 +731,7 @@ const submitCreate = async () => {
   } catch {
     return
   }
-  const validItems = createForm.value.items.filter((item) => item.product_id && item.quantity > 0)
+  const validItems = createForm.value.items.filter(item => item.product_id && item.quantity > 0)
   if (validItems.length === 0) {
     ElMessage.warning('请至少添加一条有效的采购明细')
     return
@@ -739,7 +739,7 @@ const submitCreate = async () => {
   try {
     await purchaseApi.createOrder({
       ...createForm.value,
-      items: validItems.map((item) => ({
+      items: validItems.map(item => ({
         id: 0,
         product_id: item.product_id!,
         product_name: '',
@@ -763,7 +763,7 @@ const submitReceive = async () => {
     ElMessage.warning('请选择收货仓库')
     return
   }
-  const validItems = receiveForm.value.items.filter((item) => item.receive_quantity > 0)
+  const validItems = receiveForm.value.items.filter(item => item.receive_quantity > 0)
   if (validItems.length === 0) {
     ElMessage.warning('请填写至少一项收货数量')
     return
@@ -773,7 +773,7 @@ const submitReceive = async () => {
       order_id: receiveForm.value.order_id,
       receipt_date: receiveForm.value.receive_date,
       warehouse_id: receiveForm.value.warehouse_id,
-      items: validItems.map((item) => ({
+      items: validItems.map(item => ({
         product_id: item.product_id,
         received_quantity: item.receive_quantity,
         remark: item.remarks,

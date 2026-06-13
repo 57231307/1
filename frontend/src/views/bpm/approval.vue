@@ -329,7 +329,7 @@ const fetchPendingTasks = async () => {
     pendingPagination.total = res.data.total
     stats.pending = res.data.total
     stats.urgent = res.data.list.filter(
-      (t) => t.priority === 'high' && !isOverdue(t.due_date || '')
+      t => t.priority === 'high' && !isOverdue(t.due_date || '')
     ).length
   } catch (e) {
     console.error(e)
@@ -402,7 +402,7 @@ const handleTransfer = (row: ApprovalTask) => {
 
 const confirmTransfer = async () => {
   if (!currentTask.value || !transferFormRef.value) return
-  await transferFormRef.value.validate(async (valid) => {
+  await transferFormRef.value.validate(async valid => {
     if (!valid) return
     submitLoading.value = true
     try {

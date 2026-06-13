@@ -411,8 +411,8 @@ const fetchData = async () => {
 
     // 更新统计
     stats.total = total.value
-    stats.pending = tableData.value.filter((i) => i.status === 'pending').length
-    stats.approved = tableData.value.filter((i) => i.status === 'approved').length
+    stats.pending = tableData.value.filter(i => i.status === 'pending').length
+    stats.approved = tableData.value.filter(i => i.status === 'approved').length
     stats.amount = tableData.value.reduce((sum, i) => sum + (i.totalAmount || 0), 0)
   } catch (error) {
     console.error('获取数据失败:', error)
@@ -494,7 +494,7 @@ const handleView = async (row: PurchaseReturn) => {
 
 const handleOrderChange = (orderId: number) => {
   // 根据选择的采购订单加载明细
-  const order = purchaseOrders.value.find((o) => o.id === orderId)
+  const order = purchaseOrders.value.find(o => o.id === orderId)
   if (order) {
     formData.items = [
       { productId: 1, productName: '产品A', quantity: 10, unitPrice: 100, reason: '' },
@@ -517,7 +517,7 @@ const handleRemoveItem = (index: number) => {
 }
 
 const handleProductChange = (row: any, productId: number) => {
-  const product = products.value.find((p) => p.id === productId)
+  const product = products.value.find(p => p.id === productId)
   if (product) {
     row.productName = product.name
     row.unitPrice = product.price

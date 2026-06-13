@@ -1,9 +1,4 @@
-export type {
-  ApiResponse,
-  PaginatedResponse,
-  ErrorResponse,
-  EmptyResponse
-} from './api-response';
+export type { ApiResponse, PaginatedResponse, ErrorResponse, EmptyResponse } from './api-response'
 
 export interface LoginRequest {
   username: string

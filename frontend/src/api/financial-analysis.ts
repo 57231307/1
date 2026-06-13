@@ -59,8 +59,10 @@ export interface TrendQueryParams {
   endDate?: string
 }
 
-export const listReports = (params?: ReportQueryParams) => request.get('/financial-analysis/reports', { params })
-export const createReport = (data: Partial<FinancialReport>) => request.post('/financial-analysis/reports', data)
+export const listReports = (params?: ReportQueryParams) =>
+  request.get('/financial-analysis/reports', { params })
+export const createReport = (data: Partial<FinancialReport>) =>
+  request.post('/financial-analysis/reports', data)
 export const updateReport = (id: number, data: Partial<FinancialReport>) =>
   request.put(`/financial-analysis/reports/${id}`, data)
 export const deleteReport = (id: number) => request.delete(`/financial-analysis/reports/${id}`)

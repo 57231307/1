@@ -401,9 +401,9 @@ const fetchTasks = async () => {
 }
 
 const updateStats = () => {
-  stats.value.pending = taskList.value.filter((t) => t.status === 'pending').length
-  stats.value.scheduled = taskList.value.filter((t) => t.status === 'scheduled').length
-  stats.value.running = taskList.value.filter((t) => t.status === 'running').length
+  stats.value.pending = taskList.value.filter(t => t.status === 'pending').length
+  stats.value.scheduled = taskList.value.filter(t => t.status === 'scheduled').length
+  stats.value.running = taskList.value.filter(t => t.status === 'running').length
   stats.value.conflicts = conflictList.value.length
 }
 

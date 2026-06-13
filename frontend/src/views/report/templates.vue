@@ -208,7 +208,7 @@ const handleTypeChange = async () => {
 }
 
 const selectedFields = computed(() => {
-  return availableFields.value.filter((f) => selectedFieldKeys.value.includes(f.key))
+  return availableFields.value.filter(f => selectedFieldKeys.value.includes(f.key))
 })
 
 const handleSubmit = async () => {
@@ -221,8 +221,8 @@ const handleSubmit = async () => {
     return
   }
 
-  const fields: ReportTemplateField[] = selectedFieldKeys.value.map((key) => {
-    const field = availableFields.value.find((f) => f.key === key)
+  const fields: ReportTemplateField[] = selectedFieldKeys.value.map(key => {
+    const field = availableFields.value.find(f => f.key === key)
     const config = fieldConfigs.value[key] || {}
     return {
       field_key: key,
@@ -363,7 +363,7 @@ const handleSubmitSubscription = async () => {
   }
   const recipients = subForm.value.recipients
     .split(',')
-    .map((r) => r.trim())
+    .map(r => r.trim())
     .filter(Boolean)
   const data = {
     template_id: subForm.value.template_id,
@@ -511,7 +511,7 @@ loadTemplates()
       <el-table-column prop="description" label="描述" min-width="180" show-overflow-tooltip />
       <el-table-column label="类型" width="100">
         <template #default="scope">
-          {{ templateTypes.find((t) => t.value === scope.row.type)?.label || scope.row.type }}
+          {{ templateTypes.find(t => t.value === scope.row.type)?.label || scope.row.type }}
         </template>
       </el-table-column>
       <el-table-column label="分类" width="100">

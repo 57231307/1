@@ -194,7 +194,7 @@ const searchProducts = async (query: string) => {
 const handleCalculate = async () => {
   if (!calcFormRef.value) return
 
-  await calcFormRef.value.validate(async (valid) => {
+  await calcFormRef.value.validate(async valid => {
     if (!valid) return
 
     calcLoading.value = true
@@ -245,7 +245,7 @@ const handleConvert = async (orderType: 'purchase' | 'production') => {
       }
     )
 
-    const materialIds = selectedMaterials.value.map((item) => item.id)
+    const materialIds = selectedMaterials.value.map(item => item.id)
     const res = await convertToOrder({
       calculation_id: currentCalculationId.value,
       material_ids: materialIds,

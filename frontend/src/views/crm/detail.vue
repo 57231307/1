@@ -460,7 +460,7 @@ const handleAddTag = async () => {
     return
   }
 
-  const selectedTag = availableTags.value.find((t) => t.name === tagForm.name)
+  const selectedTag = availableTags.value.find(t => t.name === tagForm.name)
   if (!selectedTag) return
 
   try {
