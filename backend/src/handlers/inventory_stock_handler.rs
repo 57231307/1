@@ -19,17 +19,6 @@ use sea_orm::EntityTrait;
 use serde::{Deserialize, Serialize};
 use validator::Validate;
 
-#[derive(Debug, Deserialize, Validate)]
-pub struct UpdateStockRequest {
-    pub quantity_on_hand: Option<Decimal>,
-    pub quantity_available: Option<Decimal>,
-    pub quantity_reserved: Option<Decimal>,
-    pub reorder_point: Option<Decimal>,
-    pub reorder_quantity: Option<Decimal>,
-    #[validate(length(max = 100, message = "库位长度不能超过100个字符"))]
-    pub bin_location: Option<String>,
-}
-
 /// 创建库存请求（面料行业版）
 #[derive(Debug, Deserialize, Validate)]
 pub struct CreateStockFabricRequest {

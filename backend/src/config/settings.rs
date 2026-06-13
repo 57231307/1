@@ -1,5 +1,3 @@
-#![allow(dead_code)]
-// TODO(tech-debt): 业务接入或重评估后逐项移除；rustc 1.94+ 编译时由编译器报告具体死代码位置。
 use config::{Config, ConfigError, File};
 use serde::{Deserialize, Serialize};
 use tracing::{error, warn};
@@ -103,22 +101,6 @@ impl Default for CorsConfig {
             ],
             max_age_secs: 3600,
         }
-    }
-}
-
-impl CorsConfig {
-    /// 从环境变量加载（使用 CORS_ALLOWED_ORIGINS 单下划线环境变量，
-    /// 用于在无法读取 config 文件时直接构造 CORS 配置的兜底场景）
-    pub fn from_env() -> Self {
-        let mut config = Self::default();
-        if let Ok(origins) = std::env::var("CORS_ALLOWED_ORIGINS") {
-            config.allowed_origins = origins
-                .split(',')
-                .map(|s| s.trim().to_string())
-                .filter(|s| !s.is_empty())
-                .collect();
-        }
-        config
     }
 }
 

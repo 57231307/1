@@ -420,10 +420,13 @@ impl SchedulingService {
                     }
                 }
 
-                let wc_name = o
-                    .work_center_id
-                    .map(|_| "未知".to_string())
-                    .unwrap_or_default();
+                // work_center_id 为 None 时表示"未指定"，有 ID 时由于当前闭包无法 await DB 查询，
+                // 暂时 fallback 到"未知"（待后续重构为批量查询）
+                let wc_name = if o.work_center_id.is_none() {
+                    "未指定".to_string()
+                } else {
+                    "未知".to_string()
+                };
 
                 Some(ScheduleDetail {
                     order_id: o.id,

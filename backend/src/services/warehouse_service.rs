@@ -1,5 +1,3 @@
-#![allow(dead_code)]
-// TODO(tech-debt): 业务接入或重评估后逐项移除；rustc 1.94+ 编译时由编译器报告具体死代码位置。
 use chrono::Utc;
 use sea_orm::{
     ActiveModelTrait, ColumnTrait, EntityTrait, ExprTrait, NotSet, Order, PaginatorTrait,
@@ -158,14 +156,5 @@ impl WarehouseService {
             return Err(AppError::not_found(format!("仓库 ID {} 不存在", id)));
         }
         Ok(())
-    }
-
-    /// 根据仓库编码查询仓库
-    pub async fn find_by_code(&self, code: &str) -> Result<warehouse::Model, AppError> {
-        warehouse::Entity::find()
-            .filter(warehouse::Column::WarehouseCode.eq(code))
-            .one(&*self.db)
-            .await?
-            .ok_or_else(|| AppError::not_found(format!("仓库编码 {} 不存在", code)))
     }
 }
