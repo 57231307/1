@@ -222,7 +222,7 @@ impl AppSettings {
         Ok(app_settings)
     }
 
-    fn load_sensitive_from_env(&mut self) {
+    fn load_sensitive_from_env(&mut self) -> Result<(), ConfigError> {
         if let Ok(password) = std::env::var("DATABASE_PASSWORD") {
             self.database.password = password;
         }
@@ -245,9 +245,13 @@ impl AppSettings {
 
         if let Ok(audit_secret) = std::env::var("AUDIT_SECRET_KEY") {
             if audit_secret.len() < 32 {
-                panic!("AUDIT_SECRET_KEY 必须至少 32 字节");
+                return Err(ConfigError::Message(
+                    "AUDIT_SECRET_KEY 必须至少 32 字节".to_string(),
+                ));
             }
         }
+
+        Ok(())
     }
 
     fn validate_secret(secret: &str) -> bool {
