@@ -1,0 +1,10 @@
+# 冰溪 ERP 后端 Clippy 配置
+
+# 禁止使用 println!（除 CLI 工具外）
+disallowed-methods = [
+    { path = "std::println", reason = "使用 tracing::info! 替代" },
+    { path = "std::eprintln", reason = "使用 tracing::error! 替代" },
+]
+
+# 强制使用 Result 处理错误
+avoid-breaking-exported-api = true
