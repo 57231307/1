@@ -1,6 +1,7 @@
 #![allow(dead_code)]
 use config::{Config, ConfigError, File};
 use serde::{Deserialize, Serialize};
+use tracing::{error, warn};
 
 #[derive(Debug, Clone, Deserialize)]
 pub struct AppSettings {
@@ -130,8 +131,8 @@ impl AppSettings {
         let settings = match config_builder.build() {
             Ok(c) => c,
             Err(e) => {
-                eprintln!("警告: 无法加载配置文件: {}", e);
-                eprintln!("将尝试从环境变量加载配置");
+                warn!("无法加载配置文件: {}", e);
+                warn!("将尝试从环境变量加载配置");
                 match Config::builder()
                     .add_source(config::Environment::default().separator("__"))
                     .build()
@@ -147,16 +148,16 @@ impl AppSettings {
         let mut app_settings: AppSettings = match settings.try_deserialize::<AppSettings>() {
             Ok(s) => s,
             Err(e) => {
-                eprintln!("═══════════════════════════════════════════════════════════════");
-                eprintln!("配置解析失败：{}", e);
-                eprintln!("═══════════════════════════════════════════════════════════════");
-                eprintln!("可能原因:");
-                eprintln!("  1. config.yaml 中存在未知字段名（拼写错误）");
-                eprintln!("  2. 某个字段类型不匹配（如 port 应该是数字/字符串）");
-                eprintln!("  3. 缺少必填字段（除 cors 外其他段都是必填）");
-                eprintln!("═══════════════════════════════════════════════════════════════");
-                eprintln!("  注意: cors 段已启用 serde(default)，缺失字段会走默认值。");
-                eprintln!("═══════════════════════════════════════════════════════════════");
+                error!("═══════════════════════════════════════════════════════════════");
+                error!("配置解析失败：{}", e);
+                error!("═══════════════════════════════════════════════════════════════");
+                error!("可能原因:");
+                error!("  1. config.yaml 中存在未知字段名（拼写错误）");
+                error!("  2. 某个字段类型不匹配（如 port 应该是数字/字符串）");
+                error!("  3. 缺少必填字段（除 cors 外其他段都是必填）");
+                error!("═══════════════════════════════════════════════════════════════");
+                error!("  注意: cors 段已启用 serde(default)，缺失字段会走默认值。");
+                error!("═══════════════════════════════════════════════════════════════");
                 return Err(e);
             }
         };

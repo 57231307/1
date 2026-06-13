@@ -16,7 +16,7 @@ use axum::{
 };
 
 use crate::handlers::{
-    advanced_handler, ai_analysis_handler, api_key_handler, assist_accounting_handler,
+    advanced, ai_analysis_handler, api_key_handler, assist_accounting_handler,
     audit_enhanced_handler, barcode_scanner_handler, business_trace_handler,
     data_permission_handler, dual_unit_converter_handler, email_handler, import_export_handler,
     login_security_handler, notification_handler, report_engine_handler, report_enhanced_handler,
@@ -409,25 +409,15 @@ pub fn user_notification_settings() -> Router<AppState> {
 
 /// 交易管理路由（高级查询）
 ///
-/// 注：main 上不存在 `report_enhanced_handler::trading_list_*` 系列函数，
-/// 实际定义在 `advanced_handler`（拆分到 `advanced/reorder.rs` 和 `advanced/decide.rs`），
+/// 注：实际定义在 `advanced/` 子模块（拆分到 `advanced/reorder.rs` 和 `advanced/decide.rs`），
 /// 路由挂在 `/advanced` 域下更合适；此处保留独立 `/trading/...` 入口以兼容旧前端调用。
 pub fn trading() -> Router<AppState> {
     Router::new()
-        .route(
-            "/purchase-contracts",
-            get(advanced_handler::list_purchase_contracts),
-        )
-        .route(
-            "/sales-contracts",
-            get(advanced_handler::list_sales_contracts),
-        )
-        .route("/sales-prices", get(advanced_handler::list_sales_prices))
-        .route(
-            "/purchase-prices",
-            get(advanced_handler::list_purchase_prices),
-        )
-        .route("/sales-returns", get(advanced_handler::list_sales_returns))
+        .route("/purchase-contracts", get(advanced::list_purchase_contracts))
+        .route("/sales-contracts", get(advanced::list_sales_contracts))
+        .route("/sales-prices", get(advanced::list_sales_prices))
+        .route("/purchase-prices", get(advanced::list_purchase_prices))
+        .route("/sales-returns", get(advanced::list_sales_returns))
 }
 
 /// Advanced 分析路由（nest 到 /api/v1/erp/advanced）
@@ -436,32 +426,32 @@ pub fn trading() -> Router<AppState> {
 /// `/advanced/tenants/...` 完全一致。
 pub fn advanced() -> Router<AppState> {
     Router::new()
-        .route("/ai/sales-forecast", post(advanced_handler::sales_forecast))
+        .route("/ai/sales-forecast", post(advanced::sales_forecast))
         .route(
             "/ai/inventory-optimization",
-            post(advanced_handler::inventory_optimization),
+            post(advanced::inventory_optimization),
         )
         .route(
             "/ai/anomaly-detection",
-            post(advanced_handler::anomaly_detection),
+            post(advanced::anomaly_detection),
         )
         .route(
             "/ai/recommendations",
-            post(advanced_handler::recommendations),
+            post(advanced::recommendations),
         )
         .route(
             "/reports/templates",
-            get(advanced_handler::list_report_templates),
+            get(advanced::list_report_templates),
         )
-        .route("/reports/execute", post(advanced_handler::execute_report))
-        .route("/reports/export", post(advanced_handler::export_report))
+        .route("/reports/execute", post(advanced::execute_report))
+        .route("/reports/export", post(advanced::export_report))
         .route(
             "/tenants",
-            get(advanced_handler::list_tenants).post(advanced_handler::create_tenant),
+            get(advanced::list_tenants).post(advanced::create_tenant),
         )
         .route(
             "/tenants/:id",
-            get(advanced_handler::get_tenant).put(advanced_handler::update_tenant),
+            get(advanced::get_tenant).put(advanced::update_tenant),
         )
 }
 
