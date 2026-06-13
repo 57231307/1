@@ -75,7 +75,7 @@ pub async fn create_payment(
     // 自动生成付款单号
     let payment_no = payload.payment_no.unwrap_or_else(|| {
         let timestamp = chrono::Utc::now().format("%Y%m%d%H%M%S");
-        let random = rand::random::<u16>() % 10000;
+        let random = crate::utils::random::random_4_digit();
         format!("PAY-{}-{:04}", timestamp, random)
     });
 

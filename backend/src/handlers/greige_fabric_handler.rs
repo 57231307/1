@@ -176,7 +176,7 @@ pub async fn create_greige_fabric(
     // 自动生成编号
     let fabric_no = req.fabric_no.unwrap_or_else(|| {
         let timestamp = chrono::Utc::now().format("%Y%m%d%H%M%S");
-        let random = rand::random::<u16>() % 10000;
+        let random = crate::utils::random::random_4_digit();
         format!("GF-{}-{:04}", timestamp, random)
     });
 

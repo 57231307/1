@@ -690,7 +690,7 @@ impl TenantBillingService {
         let invoice_number = format!(
             "INV-{}-{}",
             now.format("%Y%m%d"),
-            fastrand::u32(100000..999999)
+            crate::utils::random::random_6_digit()
         );
         let due_date = now + Duration::days(30);
 

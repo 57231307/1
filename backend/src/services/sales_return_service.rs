@@ -5,6 +5,7 @@
 
 use crate::models::{inventory_stock, product, sales_return, sales_return_item};
 use crate::utils::error::AppError;
+use crate::utils::pagination::paginate_with_total;
 use chrono::Utc;
 use rust_decimal::Decimal;
 use sea_orm::{
@@ -671,8 +672,8 @@ impl SalesReturnService {
             .order_by_desc(sales_return::Column::CreatedAt)
             .paginate(&*self.db, page_size);
 
-        let total = paginator.num_items().await?;
-        let items = paginator.fetch_page(page - 1).await?;
+        // 使用统一分页辅助函数，并行执行分页查询与总数统计
+        let (items, total) = paginate_with_total(paginator, page).await?;
 
         Ok((items, total))
     }

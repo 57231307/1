@@ -116,7 +116,7 @@ impl ProductionOrderService {
         let max_retries = 5;
         for _ in 0..max_retries {
             let timestamp = chrono::Utc::now().format("%Y%m%d%H%M%S");
-            let random = rand::random::<u16>() % 10000;
+            let random = crate::utils::random::random_4_digit();
             let order_no = format!("PO-{}-{:04}", timestamp, random);
 
             // 检查订单号是否已存在

@@ -16,7 +16,7 @@
 //! ## 简化约定
 //!
 //! - `trace_id`：32 hex 字符（128 bit），用 `Uuid::new_v4()` 生成后去 `-` 再补 0
-//! - `span_id`：16 hex 字符（64 bit），用 `rand::random::<u64>()` 生成
+//! - `span_id`：16 hex 字符（64 bit），用 `fastrand::u64(..)` 生成
 //! - `sampled`：默认 `true`，可通过环境变量 `OTEL_TRACES_SAMPLER=always_off` 关闭
 
 use std::fmt;

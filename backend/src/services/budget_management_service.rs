@@ -140,7 +140,7 @@ impl BudgetManagementService {
         // 自动生成科目代码
         let item_code = req.item_code.unwrap_or_else(|| {
             let timestamp = chrono::Utc::now().format("%Y%m%d%H%M%S");
-            let random = rand::random::<u16>() % 10000;
+            let random = crate::utils::random::random_4_digit();
             format!("BUD-{}-{:04}", timestamp, random)
         });
 

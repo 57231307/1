@@ -9,6 +9,7 @@ use sea_orm::{
 };
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
+use validator::Validate;
 
 use sea_orm::DatabaseConnection;
 
@@ -18,7 +19,7 @@ use crate::models::email_template::{
 use crate::utils::error::AppError;
 
 /// 创建邮件模板请求
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Validate)]
 pub struct CreateEmailTemplateRequest {
     pub name: String,
     pub code: String,
@@ -30,7 +31,7 @@ pub struct CreateEmailTemplateRequest {
 }
 
 /// 更新邮件模板请求
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Validate)]
 pub struct UpdateEmailTemplateRequest {
     pub name: Option<String>,
     pub subject_template: Option<String>,
@@ -42,7 +43,7 @@ pub struct UpdateEmailTemplateRequest {
 }
 
 /// 邮件模板查询参数
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Deserialize, Validate)]
 pub struct EmailTemplateQuery {
     pub template_type: Option<String>,
     pub is_active: Option<bool>,

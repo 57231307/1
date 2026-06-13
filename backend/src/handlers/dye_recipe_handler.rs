@@ -153,7 +153,7 @@ pub async fn create_dye_recipe(
         Some(no) if !no.is_empty() => no,
         _ => {
             let timestamp = chrono::Utc::now().format("%Y%m%d%H%M%S");
-            let random = rand::random::<u16>() % 10000;
+            let random = crate::utils::random::random_4_digit();
             format!("DR-{}-{:04}", timestamp, random)
         }
     };

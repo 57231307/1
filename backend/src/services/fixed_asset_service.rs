@@ -68,7 +68,7 @@ impl FixedAssetService {
         // 自动生成资产编号
         let asset_no = req.asset_no.unwrap_or_else(|| {
             let timestamp = chrono::Utc::now().format("%Y%m%d%H%M%S");
-            let random = rand::random::<u16>() % 10000;
+            let random = crate::utils::random::random_4_digit();
             format!("FA-{}-{:04}", timestamp, random)
         });
 

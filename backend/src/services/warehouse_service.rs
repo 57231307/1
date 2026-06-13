@@ -1,6 +1,5 @@
 #![allow(dead_code)]
 use chrono::Utc;
-use rand;
 use sea_orm::{
     ActiveModelTrait, ColumnTrait, EntityTrait, ExprTrait, NotSet, Order, PaginatorTrait,
     QueryFilter, QueryOrder, QuerySelect, Set,
@@ -72,7 +71,7 @@ impl WarehouseService {
             Some(c) if !c.is_empty() => c,
             _ => {
                 let timestamp = Utc::now().timestamp_millis();
-                let random_suffix = rand::random::<u16>() % 10000;
+                let random_suffix = crate::utils::random::random_4_digit();
                 format!("WH{:013}{:04}", timestamp, random_suffix)
             }
         };

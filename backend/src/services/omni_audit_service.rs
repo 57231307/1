@@ -1,6 +1,5 @@
 #![allow(dead_code)]
 use chrono::Utc;
-use ring::hmac;
 use sea_orm::{ActiveValue, DatabaseConnection, EntityTrait};
 use serde_json::Value;
 use std::sync::Arc;
@@ -71,10 +70,11 @@ impl OmniAuditEngine {
                     msg.trace_id, msg.event_type, msg.action, payload_str
                 );
 
-                let key = hmac::Key::new(hmac::HMAC_SHA256, secret_key_clone.as_bytes());
-                let sig = hmac::sign(&key, sign_material.as_bytes());
-                let _signature = hex::encode(sig.as_ref());
-
+                // 使用 HMAC-SHA256 对关键字段进行签名
+                let _signature = crate::utils::hash::hmac_sha256_hex(
+                    secret_key_clone.as_bytes(),
+                    sign_material.as_bytes(),
+                );
                 if msg.status == "FAILED"
                     || msg.status == "DENIED"
                     || msg.event_type == "SECURITY_ALERT"

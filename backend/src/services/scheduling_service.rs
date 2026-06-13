@@ -804,7 +804,7 @@ impl SchedulingService {
         let batch_no = format!(
             "SCH-{}-{}",
             now.format("%Y%m%d%H%M%S"),
-            fastrand::u32(100000..999999)
+            crate::utils::random::random_6_digit()
         );
 
         // 计算日期范围

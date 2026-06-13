@@ -133,14 +133,14 @@ pub fn reports_enhanced() -> Router<AppState> {
         .route("/export/excel", post(report_enhanced_handler::export_excel))
         .route(
             "/subscriptions",
-            get(report_enhanced_handler::list_subscriptions)
-                .post(report_enhanced_handler::create_subscription),
+            get(report_enhanced_handler::subscriptions::list)
+                .post(report_enhanced_handler::subscriptions::create),
         )
         .route(
             "/subscriptions/:id",
-            get(report_enhanced_handler::get_subscription)
-                .put(report_enhanced_handler::update_subscription)
-                .delete(report_enhanced_handler::delete_subscription),
+            get(report_enhanced_handler::subscriptions::get)
+                .put(report_enhanced_handler::subscriptions::update)
+                .delete(report_enhanced_handler::subscriptions::delete),
         )
         .route(
             "/subscriptions/:id/toggle",
@@ -230,13 +230,13 @@ pub fn emails() -> Router<AppState> {
         .route("/send", post(email_handler::send_email))
         .route(
             "/email-templates",
-            get(email_handler::list_templates).post(email_handler::create_template),
+            get(email_handler::list).post(email_handler::create),
         )
         .route(
             "/email-templates/:id",
-            get(email_handler::get_template)
-                .put(email_handler::update_template)
-                .delete(email_handler::delete_template),
+            get(email_handler::get)
+                .put(email_handler::update)
+                .delete(email_handler::delete),
         )
         .route("/email-records", get(email_handler::get_email_records))
         .route(

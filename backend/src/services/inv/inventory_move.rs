@@ -18,6 +18,7 @@ use crate::models::dto::PageRequest;
 use crate::models::inventory_transfer::{self, Entity as InventoryTransferEntity};
 use crate::models::inventory_transfer_item::{self, Entity as InventoryTransferItemEntity};
 use crate::utils::error::AppError;
+use crate::utils::pagination::paginate_with_total;
 use crate::utils::PaginatedResponse;
 
 use super::{
@@ -54,9 +55,9 @@ impl InventoryTransferService {
 
         // 分页
         let paginator = query.paginate(&*self.db, page_req.page_size);
-        let total = paginator.num_items().await?;
-        let transfers: Vec<inventory_transfer::Model> =
-            paginator.fetch_page(page_req.page - 1).await?;
+        // 使用统一分页辅助函数，并行执行分页查询与总数统计
+        let (transfers, total): (Vec<inventory_transfer::Model>, u64) =
+            paginate_with_total(paginator, page_req.page).await?;
 
         // 转换为响应格式
         let transfer_details: Vec<InventoryTransferDetail> = transfers
