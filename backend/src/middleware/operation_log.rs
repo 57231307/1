@@ -1,5 +1,3 @@
-#![allow(dead_code)]
-// TODO(tech-debt): 业务接入或重评估后逐项移除；rustc 1.94+ 编译时由编译器报告具体死代码位置。
 use chrono::Utc;
 // 操作日志中间件
 // 自动记录用户的 HTTP 请求操作
