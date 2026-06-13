@@ -18,6 +18,7 @@ pub mod m0015_add_opportunity_id_to_sales_orders;
 pub mod m0016_add_version_to_inventory_stocks;
 pub mod m0017_add_crm_supplier_tables;
 pub mod m0018_add_finance_tables;
+pub mod m0019_fix_schema_model_sync;
 
 pub struct Migrator;
 
@@ -43,6 +44,7 @@ impl MigratorTrait for Migrator {
             Box::new(m0016_add_version_to_inventory_stocks::Migration),
             Box::new(m0017_add_crm_supplier_tables::Migration),
             Box::new(m0018_add_finance_tables::Migration),
+            Box::new(m0019_fix_schema_model_sync::Migration),
         ]
     }
 }

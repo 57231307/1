@@ -109,7 +109,7 @@ impl AuthService {
 
         let is_valid = Self::verify_password(password, &user.password_hash)?;
         if !is_valid {
-            return Err(AuthError::InvalidPassword);
+            return Err(AuthError::InvalidPassword("密码错误".to_string()));
         }
 
         if !user.is_active {
@@ -222,6 +222,11 @@ impl AuthService {
     /// - `Ok(false)`: 密码错误
     /// - `Err(AuthError::HashingError)`: 哈希解析失败
     pub fn verify_password(password: &str, hash: &str) -> Result<bool, AuthError> {
+        // 验证哈希长度，防止异常长的哈希导致性能问题或安全风险
+        if hash.len() > 512 {
+            return Err(AuthError::InvalidPassword("密码哈希长度异常".to_string()));
+        }
+
         let parsed_hash =
             PasswordHash::new(hash).map_err(|e| AuthError::HashingError(e.to_string()))?;
 
@@ -291,8 +296,8 @@ pub enum AuthError {
     #[error("用户不存在")]
     UserNotFound,
     /// 无效的密码
-    #[error("无效的密码")]
-    InvalidPassword,
+    #[error("无效的密码: {0}")]
+    InvalidPassword(String),
     /// 令牌生成失败
     #[error("Token 生成失败: {0}")]
     TokenGenerationError(String),
@@ -313,7 +318,7 @@ impl From<AuthError> for AppError {
             AuthError::JwtError(e) => AppError::internal(format!("JWT 错误: {}", e)),
             AuthError::HashingError(e) => AppError::internal(format!("密码哈希错误: {}", e)),
             AuthError::UserNotFound => AppError::not_found("用户不存在"),
-            AuthError::InvalidPassword => AppError::unauthorized("无效的密码"),
+            AuthError::InvalidPassword(msg) => AppError::unauthorized(format!("无效的密码: {}", msg)),
             AuthError::TokenGenerationError(e) => {
                 AppError::internal(format!("Token 生成失败: {}", e))
             }

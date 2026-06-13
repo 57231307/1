@@ -1,11 +1,13 @@
 //! 系统初始化处理器
 #![allow(dead_code)]
 
-use crate::services::init_service::{DatabaseConfig, InitRequest, InitService, InitStatus};
+use crate::services::init_service::{DatabaseConfig, InitRequest, InitService, InitStatus, InitTaskStatus, get_init_tasks};
 use crate::utils::app_state::AppState;
 use crate::utils::error::AppError;
 use crate::utils::response::ApiResponse;
 use axum::{extract::State, Json};
+use std::collections::HashMap;
+use axum::extract::Query;
 
 #[derive(Debug, serde::Deserialize)]
 pub struct TestDatabaseRequest {
@@ -85,6 +87,50 @@ pub async fn initialize_system_with_db(
     .await
     .map(|result| Json(ApiResponse::success_with_message(result, "系统初始化成功")))
     .map_err(map_init_error)
+}
+
+/// 异步初始化处理器（非阻塞）
+pub async fn initialize_system_with_db_async(
+    Json(payload): Json<InitWithDbRequest>,
+) -> Result<Json<ApiResponse<String>>, AppError> {
+    InitService::initialize_with_db_async(
+        &payload.db_config,
+        &payload.admin_username,
+        &payload.admin_password,
+    )
+    .await
+    .map(|task_id| Json(ApiResponse::success_with_message(task_id, "异步初始化任务已启动")))
+    .map_err(map_init_error)
+}
+
+/// 查询初始化任务状态
+pub async fn get_task_status(
+    Query(params): Query<HashMap<String, String>>,
+) -> Result<Json<serde_json::Value>, AppError> {
+    let task_id = params
+        .get("task_id")
+        .ok_or_else(|| AppError::bad_request("缺少 task_id 参数"))?;
+
+    let status = get_init_tasks()
+        .lock()
+        .await
+        .get(task_id)
+        .cloned()
+        .unwrap_or_else(|| {
+            // 如果任务不存在，返回一个特殊状态
+            InitTaskStatus::Failed
+        });
+
+    let status_str = match status {
+        InitTaskStatus::Running => "running",
+        InitTaskStatus::Completed => "completed",
+        InitTaskStatus::Failed => "failed",
+    };
+
+    Ok(Json(serde_json::json!({
+        "task_id": task_id,
+        "status": status_str,
+    })))
 }
 
 #[derive(Debug, serde::Deserialize)]

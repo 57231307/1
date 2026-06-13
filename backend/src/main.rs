@@ -302,6 +302,15 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 info!("成功执行 Migration (TOTP 字段及性能索引)");
             }
 
+            // 启动时执行核心迁移（m0001-m0005）
+            use migration::{Migrator, MigratorTrait};
+            tracing::info!("启动时执行核心数据库迁移...");
+            if let Err(e) = Migrator::up(&db, Some(5)).await {
+                tracing::warn!("启动时核心迁移失败: {}，将在初始化时重试", e);
+            } else {
+                tracing::info!("核心迁移执行完成");
+            }
+
             std::io::stdout().flush().ok();
             std::io::stderr().flush().ok();
 
