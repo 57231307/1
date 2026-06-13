@@ -6,6 +6,7 @@ import {
   type SalesStatistics,
   type InventoryStatistics,
 } from '@/api/dashboard'
+import { logger } from '@/utils/logger'
 
 export const useDashboardStore = defineStore('dashboard', () => {
   const stats = ref<DashboardOverview>({
@@ -30,7 +31,7 @@ export const useDashboardStore = defineStore('dashboard', () => {
       const res = await dashboardApi.getOverview()
       stats.value = res.data!
     } catch (error) {
-      console.error('Failed to fetch dashboard stats:', error)
+      logger.error('获取仪表盘概览失败:', error)
     } finally {
       loading.value = false
     }
@@ -41,7 +42,7 @@ export const useDashboardStore = defineStore('dashboard', () => {
       const res = await dashboardApi.getSalesStats()
       salesStatistics.value = res.data!
     } catch (error) {
-      console.error('Failed to fetch sales stats:', error)
+      logger.error('获取销售统计失败:', error)
     }
   }
 
@@ -50,7 +51,7 @@ export const useDashboardStore = defineStore('dashboard', () => {
       const res = await dashboardApi.getInventoryStats()
       inventoryStatistics.value = res.data!
     } catch (error) {
-      console.error('Failed to fetch inventory stats:', error)
+      logger.error('获取库存统计失败:', error)
     }
   }
 

@@ -2,6 +2,7 @@ import { defineStore } from 'pinia'
 import { ref } from 'vue'
 import { fabricApi, type Fabric, type FabricCategory, type FabricQueryParams } from '@/api/fabric'
 import type { ApiResponse } from '@/types/api'
+import { logger } from '@/utils/logger'
 
 export const useFabricStore = defineStore('fabric', () => {
   const fabrics = ref<Fabric[]>([])
@@ -17,7 +18,7 @@ export const useFabricStore = defineStore('fabric', () => {
       fabrics.value = res.data!.list
       total.value = res.data!.total
     } catch (error) {
-      console.error('Failed to fetch fabrics:', error)
+      logger.error('获取面料列表失败:', error)
     } finally {
       loading.value = false
     }
@@ -28,7 +29,7 @@ export const useFabricStore = defineStore('fabric', () => {
       const res = await fabricApi.getCategories()
       categories.value = res.data!
     } catch (error) {
-      console.error('Failed to fetch categories:', error)
+      logger.error('获取面料分类失败:', error)
     }
   }
 
@@ -38,7 +39,7 @@ export const useFabricStore = defineStore('fabric', () => {
       currentFabric.value = res.data!
       return res.data!
     } catch (error) {
-      console.error('Failed to fetch fabric:', error)
+      logger.error('获取面料详情失败:', error)
       return null
     }
   }
@@ -49,7 +50,7 @@ export const useFabricStore = defineStore('fabric', () => {
       await fetchFabrics()
       return res
     } catch (error) {
-      console.error('Failed to create fabric:', error)
+      logger.error('创建面料失败:', error)
       return null
     }
   }
@@ -63,7 +64,7 @@ export const useFabricStore = defineStore('fabric', () => {
       await fetchFabrics()
       return res
     } catch (error) {
-      console.error('Failed to update fabric:', error)
+      logger.error('更新面料失败:', error)
       return null
     }
   }
@@ -74,7 +75,7 @@ export const useFabricStore = defineStore('fabric', () => {
       await fetchFabrics()
       return true
     } catch (error) {
-      console.error('Failed to delete fabric:', error)
+      logger.error('删除面料失败:', error)
       return false
     }
   }
