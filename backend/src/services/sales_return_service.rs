@@ -2,6 +2,8 @@
 //!
 //! 销售退货服务层，负责销售退货的核心业务逻辑
 #![allow(dead_code)]
+// TODO(tech-debt): 业务接入或重评估后逐项移除；rustc 1.94+ 编译时由编译器报告具体死代码位置。
+// TODO(tech-debt): 业务接入后逐项移除此标注；rustc 1.94+ 编译时由编译器报告具体死代码位置。
 
 use crate::models::{inventory_stock, product, sales_return, sales_return_item};
 use crate::utils::error::AppError;

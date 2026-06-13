@@ -1,4 +1,6 @@
 #![allow(dead_code)]
+// TODO(tech-debt): 业务接入或重评估后逐项移除；rustc 1.94+ 编译时由编译器报告具体死代码位置。
+// TODO(tech-debt): 业务接入后逐项移除此标注；rustc 1.94+ 编译时由编译器报告具体死代码位置。
 //! 本模块已废弃（无对应 migration + 0 业务引用）
 //!
 //! 原始文件：`models/enhanced_audit_log.rs`

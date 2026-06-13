@@ -2,6 +2,8 @@
 //!
 //! 采购入库 HTTP 接口层，负责处理 HTTP 请求并调用 Service 层
 #![allow(dead_code)]
+// TODO(tech-debt): 业务接入或重评估后逐项移除；rustc 1.94+ 编译时由编译器报告具体死代码位置。
+// TODO(tech-debt): 业务接入后逐项移除此标注；rustc 1.94+ 编译时由编译器报告具体死代码位置。
 
 use crate::middleware::auth_context::AuthContext;
 use crate::models::{purchase_order, warehouse};

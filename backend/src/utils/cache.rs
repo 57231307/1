@@ -1,4 +1,8 @@
 #![allow(dead_code)]
+// TODO(tech-debt): 业务接入或重评估后逐项移除；rustc 1.94+ 编译时由编译器报告具体死代码位置。
+// TODO(tech-debt): 业务接入后逐项移除此标注；rustc 1.94+ 编译时由编译器报告具体死代码位置。
+// 此模块部分 API 当前未被业务直接调用，预留给缓存/CSRF/限流等中间件使用。
+// 待业务接入时移除此标注。
 
 use dashmap::DashMap;
 use std::sync::atomic::{AtomicU64, Ordering};

@@ -11,6 +11,8 @@
 //! `services/mod.rs` 通过 `pub use super::ar::*;` 重新导出以保持向后兼容。
 
 #![allow(dead_code)]
+// TODO(tech-debt): 业务接入或重评估后逐项移除；rustc 1.94+ 编译时由编译器报告具体死代码位置。
+// TODO(tech-debt): 业务接入后逐项移除此标注；rustc 1.94+ 编译时由编译器报告具体死代码位置。
 
 use chrono::NaiveDate;
 use rust_decimal::Decimal;
