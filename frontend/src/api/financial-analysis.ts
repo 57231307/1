@@ -1,18 +1,24 @@
 import { request } from './request'
 import type { ApiResponse } from '@/types/api'
 
+// 报表参数类型
+export type ReportParameters = Record<string, string | number | boolean | null>
+
+// 报表数据类型
+export type ReportData = Record<string, string | number | boolean | null>
+
 export interface FinancialReport {
   id?: number
   reportType: string
   reportName: string
   period?: string
-  parameters?: Record<string, any>
+  parameters?: ReportParameters
   status?: string
   createdBy?: number
   createdAt?: string
   updatedAt?: string
   executedAt?: string
-  data?: Record<string, any>
+  data?: ReportData
 }
 
 export interface FinancialIndicator {
@@ -34,19 +40,35 @@ export interface FinancialTrend {
 
 export interface ReportExecutionRequest {
   reportId: number
-  parameters?: Record<string, any>
+  parameters?: ReportParameters
 }
 
-export const listReports = (params?: any) => request.get('/financial-analysis/reports', { params })
-export const createReport = (data: any) => request.post('/financial-analysis/reports', data)
-export const updateReport = (id: number, data: any) =>
+// 报表查询参数
+export interface ReportQueryParams {
+  page?: number
+  page_size?: number
+  keyword?: string
+  reportType?: string
+  status?: string
+}
+
+// 趋势查询参数
+export interface TrendQueryParams {
+  indicator?: string
+  startDate?: string
+  endDate?: string
+}
+
+export const listReports = (params?: ReportQueryParams) => request.get('/financial-analysis/reports', { params })
+export const createReport = (data: Partial<FinancialReport>) => request.post('/financial-analysis/reports', data)
+export const updateReport = (id: number, data: Partial<FinancialReport>) =>
   request.put(`/financial-analysis/reports/${id}`, data)
 export const deleteReport = (id: number) => request.delete(`/financial-analysis/reports/${id}`)
 export const executeFinancialReport = (id: number) =>
   request.post(`/financial-analysis/reports/${id}/execute`)
 
 export const financialAnalysisApi = {
-  listReports: (params?: any) =>
+  listReports: (params?: ReportQueryParams) =>
     request.get<ApiResponse<{ list: FinancialReport[]; total: number }>>(
       '/financial-analysis/reports',
       { params }
@@ -67,7 +89,7 @@ export const financialAnalysisApi = {
   createIndicator: (data: Partial<FinancialIndicator>) =>
     request.post<ApiResponse<FinancialIndicator>>('/financial-analysis/indicators', data),
 
-  getTrends: (params?: any) =>
+  getTrends: (params?: TrendQueryParams) =>
     request.get<ApiResponse<{ trends: FinancialTrend[] }>>('/financial-analysis/trends', {
       params,
     }),
