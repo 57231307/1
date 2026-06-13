@@ -116,7 +116,7 @@ pub async fn query_assist_records(
 ) -> Result<Json<ApiResponse<AssistRecordListResponse>>, AppError> {
     let service = AssistAccountingService::new(state.db.clone());
 
-    let page = params.page.unwrap_or(0);
+    let page = params.page.unwrap_or_default();
     let page_size = params.page_size.unwrap_or(20);
 
     let (records, total) = service

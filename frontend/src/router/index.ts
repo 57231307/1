@@ -2,6 +2,7 @@ import { createRouter, createWebHistory } from 'vue-router'
 import MainLayout from '@/components/Layout/MainLayout.vue'
 import { getToken, removeToken } from '@/utils/storage'
 import { useUserStore } from '@/store/user'
+import { logger } from '@/utils/logger'
 
 const routes = [
   {
@@ -593,7 +594,7 @@ async function checkInitStatus(): Promise<boolean> {
       return initStatus
     }
   } catch (error) {
-    console.error('检查系统状态失败:', error)
+    logger.error('检查系统初始化状态失败:', error)
   }
   initStatus = true
   return initStatus
@@ -650,7 +651,7 @@ router.beforeEach(async (to, _from, next) => {
         }
       }
     } catch (error) {
-      console.error('Token validation failed:', error)
+      logger.error('Token 验证失败:', error)
       removeToken()
       next({ path: '/login', query: { redirect: to.fullPath } })
       return
@@ -661,7 +662,7 @@ router.beforeEach(async (to, _from, next) => {
       try {
         await userStore.fetchUserInfo()
       } catch (error) {
-        console.error('Failed to fetch user info:', error)
+        logger.error('获取用户信息失败:', error)
         removeToken()
         next({ path: '/login', query: { redirect: to.fullPath } })
         return

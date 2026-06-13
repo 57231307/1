@@ -10,6 +10,7 @@ use rust_decimal::Decimal;
 use serde::{Deserialize, Serialize};
 
 use crate::middleware::auth_context::AuthContext;
+use crate::middleware::tenant::extract_tenant_id;
 use crate::services::material_shortage_service::{MaterialShortageService, ShortageCheckRequest};
 use crate::utils::app_state::AppState;
 use crate::utils::error::AppError;
@@ -138,7 +139,7 @@ pub async fn save_threshold_config(
     Json(payload): Json<SaveThresholdConfigRequest>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     let service = MaterialShortageService::new(state.db.clone());
-    let tenant_id = auth.tenant_id.unwrap_or(0);
+    let tenant_id = extract_tenant_id(&auth)?;
 
     // 加载现有配置
     let mut config = service.load_threshold_config(tenant_id).await?;
@@ -168,7 +169,7 @@ pub async fn get_threshold_config(
     auth: AuthContext,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     let service = MaterialShortageService::new(state.db.clone());
-    let tenant_id = auth.tenant_id.unwrap_or(0);
+    let tenant_id = extract_tenant_id(&auth)?;
 
     let config = service.load_threshold_config(tenant_id).await?;
     Ok(Json(ApiResponse::success(serde_json::to_value(config)?)))

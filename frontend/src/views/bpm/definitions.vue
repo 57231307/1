@@ -434,7 +434,7 @@ const handleRemoveNode = (index: number) => {
 
 const handleSubmit = async () => {
   if (!formRef.value) return
-  await formRef.value.validate(async (valid) => {
+  await formRef.value.validate(async valid => {
     if (!valid) return
     submitLoading.value = true
     try {
@@ -514,7 +514,7 @@ const handleSaveTemplate = (row: ProcessDefinition) => {
 
 const handleConfirmSaveTemplate = async () => {
   if (!templateFormRef.value || !currentDefinition.value) return
-  await templateFormRef.value.validate(async (valid) => {
+  await templateFormRef.value.validate(async valid => {
     if (!valid) return
     submitLoading.value = true
     try {

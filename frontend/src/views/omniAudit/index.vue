@@ -51,7 +51,7 @@ const statusOptions = [
 ]
 
 const getStatusLabel = (value: string) => {
-  return statusOptions.find((s) => s.value === value)?.label || value
+  return statusOptions.find(s => s.value === value)?.label || value
 }
 
 const getStatusClass = (value: string) => {

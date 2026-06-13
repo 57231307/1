@@ -606,7 +606,11 @@ const getPaymentMethodLabel = (method: string) => {
 }
 
 const getReconciliationStatusLabel = (status: string) => {
-  const map: Record<string, string> = { pending: '待确认', confirmed: '已确认', disputed: '有异议' }
+  const map: Record<string, string> = {
+    pending: '待确认',
+    confirmed: '已确认',
+    disputed: '有异议',
+  }
   return map[status] || status
 }
 

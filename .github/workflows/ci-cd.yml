@@ -91,7 +91,7 @@ jobs:
       - name: 代码检查 (Clippy)
         working-directory: backend
         run: |
-          cargo clippy --lib -- -D warnings
+          cargo clippy --all-targets -- -D warnings
 
       - name: 构建后端 (Release模式)
         working-directory: backend

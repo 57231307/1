@@ -1,10 +1,25 @@
 import { request } from './request'
 import type { ApiResponse } from '@/types/api'
 
+// 统计数据类型
+export type StatsData = Record<string, string | number | boolean | null>
+
+// 元数据类型
+export type Metadata = Record<string, string | number | boolean | null>
+
+// 仓库分布项
+export interface WarehouseDistributionItem {
+  warehouse_id: number
+  warehouse_name: string
+  quantity: number
+  meters?: number
+  kg?: number
+}
+
 export interface FiveDimensionStats {
   dimensionId?: number
   dimensionName?: string
-  stats: Record<string, any>
+  stats: StatsData
   period?: string
 }
 
@@ -20,26 +35,19 @@ export interface FiveDimensionSearchResult {
   name: string
   type: string
   score: number
-  metadata: Record<string, any>
+  metadata: Metadata
 }
 
-export const listFiveDimensionStats = (params?: any) =>
-  request.get('/crm/five-dimension/stats', { params })
-export const getStatsByFiveDimensionId = (id: number) =>
-  request.get(`/crm/five-dimension/stats/${id}`)
-export const parseFiveDimensionId = (id: number | string) =>
-  request.get(`/crm/five-dimension/parse/${id}`)
-export const searchFiveDimension = (params?: any) =>
-  request.get('/crm/five-dimension/search', { params })
 export interface FiveDimensionStatsResponse {
-  dimension: any
-  list: any[]
+  dimension: FiveDimensionStats
+  list: FiveDimensionItem[]
   total: number
   total_meters?: number
   total_kg?: number
   stock_count?: number
-  warehouse_distribution?: any[]
+  warehouse_distribution?: WarehouseDistributionItem[]
 }
+
 export interface FiveDimensionItem {
   id: number
   name: string
@@ -49,6 +57,32 @@ export interface FiveDimensionItem {
   dye_lot_no?: string
   grade?: string
 }
+
+// 统计查询参数
+export interface StatsQueryParams {
+  dimensionId?: number
+  period?: string
+  startDate?: string
+  endDate?: string
+}
+
+// 搜索查询参数
+export interface SearchQueryParams {
+  q?: string
+  dimensionId?: number
+  type?: string
+  page?: number
+  page_size?: number
+}
+
+export const listFiveDimensionStats = (params?: StatsQueryParams) =>
+  request.get('/crm/five-dimension/stats', { params })
+export const getStatsByFiveDimensionId = (id: number) =>
+  request.get(`/crm/five-dimension/stats/${id}`)
+export const parseFiveDimensionId = (id: number | string) =>
+  request.get(`/crm/five-dimension/parse/${id}`)
+export const searchFiveDimension = (params?: SearchQueryParams) =>
+  request.get('/crm/five-dimension/search', { params })
 
 export const fiveDimensionApi = {
   getStats: (dimensionId: number, params?: FiveDimensionQuery) =>

@@ -1,5 +1,3 @@
-#![allow(dead_code)]
-
 use crate::models::fixed_asset;
 use crate::utils::error::AppError;
 use crate::utils::sql_escape::safe_like_pattern;
@@ -68,7 +66,7 @@ impl FixedAssetService {
         // 自动生成资产编号
         let asset_no = req.asset_no.unwrap_or_else(|| {
             let timestamp = chrono::Utc::now().format("%Y%m%d%H%M%S");
-            let random = rand::random::<u16>() % 10000;
+            let random = crate::utils::random::random_4_digit();
             format!("FA-{}-{:04}", timestamp, random)
         });
 
@@ -166,7 +164,8 @@ impl FixedAssetService {
         let monthly_depreciation = match asset.depreciation_method.as_deref() {
             Some("straight_line") | None => {
                 // 平均年限法：(原值 - 残值) / (使用年限 * 12)
-                let useful_life_months = asset.useful_life.unwrap_or(0) as u32 * 12;
+                // 使用年限缺失时按 0 处理 → 0 * 12 = 0 → 不折旧（业务接受）
+                let useful_life_months = asset.useful_life.unwrap_or_default() as u32 * 12;
                 if useful_life_months > 0 {
                     (asset.original_value - residual_value) / Decimal::from(useful_life_months)
                 } else {
@@ -380,7 +379,8 @@ impl FixedAssetService {
         let purchase_date = asset.purchase_date.unwrap_or_else(|| {
             chrono::NaiveDate::from_ymd_opt(2020, 1, 1).expect("valid fallback date")
         });
-        let useful_life_years = asset.useful_life.unwrap_or(0);
+        // useful_life 缺失时按 0 年处理 → 不折旧（守卫见下）
+        let useful_life_years = asset.useful_life.unwrap_or_default();
         let original_value = asset.original_value;
         let residual_value = asset.salvage_value.unwrap_or(Decimal::ZERO);
 

@@ -1,13 +1,14 @@
 use axum::{
     extract::{Path, State},
-    http::StatusCode,
     Json,
 };
 use serde::{Deserialize, Serialize};
 
 use crate::middleware::auth_context::AuthContext;
+use crate::middleware::tenant::extract_tenant_id;
 use crate::services::webhook_service::WebhookService;
 use crate::utils::app_state::AppState;
+use crate::utils::error::AppError;
 use crate::utils::response::ApiResponse;
 
 #[derive(Debug, Deserialize)]
@@ -43,8 +44,8 @@ pub async fn create_webhook(
     State(state): State<AppState>,
     auth: AuthContext,
     Json(req): Json<CreateWebhookRequest>,
-) -> Result<Json<ApiResponse<WebhookResponse>>, StatusCode> {
-    let tenant_id = auth.tenant_id.unwrap_or(1);
+) -> Result<Json<ApiResponse<WebhookResponse>>, AppError> {
+    let tenant_id = extract_tenant_id(&auth)?;
     let service = WebhookService::new(state.db);
     let events: Vec<&str> = req.events.iter().map(|s| s.as_str()).collect();
 
@@ -61,7 +62,7 @@ pub async fn create_webhook(
         Ok(webhook) => Ok(Json(ApiResponse::success(WebhookResponse::from(webhook)))),
         Err(e) => {
             tracing::error!("创建 Webhook 失败: {}", e);
-            Err(StatusCode::INTERNAL_SERVER_ERROR)
+            Err(AppError::internal("创建 Webhook 失败"))
         }
     }
 }
@@ -69,8 +70,8 @@ pub async fn create_webhook(
 pub async fn list_webhooks(
     State(state): State<AppState>,
     auth: AuthContext,
-) -> Result<Json<ApiResponse<Vec<WebhookResponse>>>, StatusCode> {
-    let tenant_id = auth.tenant_id.unwrap_or(1);
+) -> Result<Json<ApiResponse<Vec<WebhookResponse>>>, AppError> {
+    let tenant_id = extract_tenant_id(&auth)?;
     let service = WebhookService::new(state.db);
 
     match service.list_webhooks(tenant_id).await {
@@ -81,7 +82,7 @@ pub async fn list_webhooks(
         }
         Err(e) => {
             tracing::error!("获取 Webhook 列表失败: {}", e);
-            Err(StatusCode::INTERNAL_SERVER_ERROR)
+            Err(AppError::internal("获取 Webhook 列表失败"))
         }
     }
 }
@@ -90,15 +91,15 @@ pub async fn delete_webhook(
     State(state): State<AppState>,
     auth: AuthContext,
     Path(id): Path<i32>,
-) -> Result<Json<ApiResponse<()>>, StatusCode> {
+) -> Result<Json<ApiResponse<()>>, AppError> {
     let service = WebhookService::new(state.db);
-    let tenant_id = auth.tenant_id.unwrap_or(0);
+    let tenant_id = extract_tenant_id(&auth)?;
 
     match service.delete_webhook(id, tenant_id).await {
         Ok(()) => Ok(Json(ApiResponse::success_with_message((), "删除成功"))),
         Err(e) => {
             tracing::error!("删除 Webhook 失败: {}", e);
-            Err(StatusCode::INTERNAL_SERVER_ERROR)
+            Err(AppError::internal("删除 Webhook 失败"))
         }
     }
 }

@@ -75,7 +75,7 @@ pub async fn create_payment(
     // 自动生成付款单号
     let payment_no = payload.payment_no.unwrap_or_else(|| {
         let timestamp = chrono::Utc::now().format("%Y%m%d%H%M%S");
-        let random = rand::random::<u16>() % 10000;
+        let random = crate::utils::random::random_4_digit();
         format!("PAY-{}-{:04}", timestamp, random)
     });
 
@@ -110,7 +110,7 @@ pub async fn list_payments(
 
     let (payments, total) = service
         .list_payments(
-            params.page.unwrap_or(0),
+            params.page.unwrap_or_default(),
             params.page_size.unwrap_or(20),
             params.status,
         )
@@ -132,7 +132,7 @@ pub async fn list_payments(
     Ok(Json(ApiResponse::success(PaymentListResponse {
         payments: payment_responses,
         total,
-        page: params.page.unwrap_or(0),
+        page: params.page.unwrap_or_default(),
         page_size: params.page_size.unwrap_or(20),
     })))
 }

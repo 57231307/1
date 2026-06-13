@@ -1,4 +1,5 @@
 #![allow(dead_code)]
+// TODO(tech-debt): 业务接入或重评估后逐项移除；rustc 1.94+ 编译时由编译器报告具体死代码位置。
 use crate::models::{budget_execution, budget_management, budget_plan};
 use crate::utils::error::AppError;
 use chrono::NaiveDate;
@@ -140,7 +141,7 @@ impl BudgetManagementService {
         // 自动生成科目代码
         let item_code = req.item_code.unwrap_or_else(|| {
             let timestamp = chrono::Utc::now().format("%Y%m%d%H%M%S");
-            let random = rand::random::<u16>() % 10000;
+            let random = crate::utils::random::random_4_digit();
             format!("BUD-{}-{:04}", timestamp, random)
         });
 

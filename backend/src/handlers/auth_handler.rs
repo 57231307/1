@@ -119,7 +119,7 @@ pub async fn login(
         .filter(log_login::Column::IpAddress.eq(client_ip.as_str()))
         .count(state.db.as_ref())
         .await
-        .unwrap_or(0);
+        .unwrap_or_default();
 
     // Per-username global lockout with higher threshold (10 attempts from any IP)
     let recent_user_failures = log_login::Entity::find()
@@ -128,7 +128,7 @@ pub async fn login(
         .filter(log_login::Column::LoginTime.gte(since))
         .count(state.db.as_ref())
         .await
-        .unwrap_or(0);
+        .unwrap_or_default();
 
     if recent_ip_failures >= MAX_FAILED_ATTEMPTS as u64 {
         tracing::warn!(
@@ -265,8 +265,8 @@ pub async fn login(
 
             let user_info = UserInfo {
                 id: user.id,
-                username: user.username.clone(),
-                email: user.email.clone(),
+                username: user.username,
+                email: user.email,
                 role_id: user.role_id,
             };
 
@@ -276,16 +276,21 @@ pub async fn login(
                     tracing::error!("Failed to decode JWT token: {}", e);
                     AppError::unauthorized("无效的认证令牌")
                 })?;
-            let _session_id = claims.session_id.clone();
-            // CSRF token 不再需要，JWT 已经提供安全保障
-            let csrf_token = "".to_string();
+            let _session_id = claims.session_id;
+            // 生成随机 CSRF Token 并存储到缓存中（使用 token 本身作为 key，允许同一会话多个有效 token）
+            let csrf_token = uuid::Uuid::new_v4().to_string();
+            let csrf_ttl = std::time::Duration::from_secs(7200); // 2小时，与 JWT 有效期一致
+            state
+                .cache
+                .get_csrf_token_cache()
+                .set(csrf_token.clone(), _session_id, Some(csrf_ttl));
 
             // 生成 refresh_token (简单的随机字符串)
             let refresh_token = uuid::Uuid::new_v4().to_string();
 
             let response = LoginResponse {
                 token: token.clone(),
-                refresh_token: refresh_token.clone(),
+                refresh_token,
                 csrf_token,
                 user: user_info,
                 permissions,
@@ -514,7 +519,8 @@ pub async fn refresh_token(
         .map_err(|e| AppError::internal(format!("生成令牌失败：{}", e)))?;
 
     // Refresh Token 轮换：先将旧 Token 的 JTI（session_id）加入黑名单
-    crate::services::auth_service::revoke_jti(&claims.session_id).await;
+    let expires_at = claims.exp.timestamp();
+    crate::services::auth_service::revoke_jti(&claims.session_id, expires_at).await;
 
     // Blacklist the old token after successful refresh
     let now_ts = chrono::Utc::now().timestamp() as usize;
@@ -538,8 +544,13 @@ pub async fn refresh_token(
             AppError::internal("Internal server error")
         })?;
     let _session_id = new_claims.session_id;
-    // CSRF token 不再需要，JWT 已经提供安全保障
-    let csrf_token = "".to_string();
+    // 生成随机 CSRF Token 并存储到缓存中（使用 token 本身作为 key，允许同一会话多个有效 token）
+    let csrf_token = uuid::Uuid::new_v4().to_string();
+    let csrf_ttl = std::time::Duration::from_secs(7200); // 2小时，与 JWT 有效期一致
+    state
+        .cache
+        .get_csrf_token_cache()
+        .set(csrf_token.clone(), _session_id, Some(csrf_ttl));
 
     Ok(Json(ApiResponse::success(RefreshTokenResponse {
         token: new_token,
@@ -642,11 +653,47 @@ pub async fn get_current_user(
     tags = ["Auth"]
 )]
 pub async fn get_csrf_token(
-    State(_state): State<AppState>,
-    _headers: HeaderMap,
-) -> Json<ApiResponse<CsrfTokenResponse>> {
-    // CSRF token 不再需要，JWT 已经提供安全保障
-    let csrf_token = "".to_string();
+    State(state): State<AppState>,
+    headers: HeaderMap,
+) -> Result<Json<ApiResponse<CsrfTokenResponse>>, AppError> {
+    // 从 Authorization 头或 Cookie 中提取 JWT
+    let token = headers
+        .get("Authorization")
+        .and_then(|value| value.to_str().ok())
+        .and_then(|value| value.strip_prefix("Bearer "))
+        .map(|s| s.to_string())
+        .or_else(|| {
+            headers
+                .get(axum::http::header::COOKIE)
+                .and_then(|value| value.to_str().ok())
+                .and_then(|cookie_str| {
+                    cookie_str
+                        .split(';')
+                        .find_map(|cookie| {
+                            let cookie = cookie.trim();
+                            if cookie.starts_with("jwt=") {
+                                Some(cookie[4..].to_string())
+                            } else {
+                                None
+                            }
+                        })
+                })
+        })
+        .ok_or_else(|| AppError::unauthorized("缺少认证令牌"))?;
 
-    Json(ApiResponse::success(CsrfTokenResponse { csrf_token }))
+    // 解析 JWT 获取 session_id
+    let claims = AuthService::validate_token_static(&token, &state.jwt_secret)
+        .map_err(|e| AppError::unauthorized(format!("无效的认证令牌：{}", e)))?;
+    
+    let session_id = claims.session_id;
+    
+    // 生成随机 CSRF Token 并存储到缓存中（使用 token 本身作为 key，允许同一会话多个有效 token）
+    let csrf_token = uuid::Uuid::new_v4().to_string();
+    let csrf_ttl = std::time::Duration::from_secs(7200); // 2小时
+    state
+        .cache
+        .get_csrf_token_cache()
+        .set(csrf_token.clone(), session_id, Some(csrf_ttl));
+
+    Ok(Json(ApiResponse::success(CsrfTokenResponse { csrf_token })))
 }

@@ -13,13 +13,13 @@
 //! - `items`     — 明细项管理
 
 #![allow(dead_code)]
+// TODO(tech-debt): 业务接入或重评估后逐项移除；rustc 1.94+ 编译时由编译器报告具体死代码位置。
 
 use sea_orm::DatabaseConnection;
 use std::sync::Arc;
 
 use crate::models::dto::PageRequest;
 use crate::utils::error::AppError;
-use crate::utils::PaginatedResponse;
 
 pub use super::inventory_count::types::{
     CreateInventoryCountRequest, InventoryCountDetail, InventoryCountItemDetail,
@@ -155,10 +155,4 @@ impl InventoryCountService {
             "inventory_count 子模块正在开发中".to_string(),
         ))
     }
-}
-
-// 显式避免未使用导入告警
-#[allow(dead_code)]
-fn _ensure_paginated_used() -> Option<PaginatedResponse<()>> {
-    None
 }

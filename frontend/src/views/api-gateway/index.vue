@@ -557,13 +557,13 @@ const openEndpointDialog = (row?: ApiEndpoint) => {
 
 const handleEndpointSubmit = async () => {
   if (!endpointFormRef.value) return
-  await endpointFormRef.value.validate(async (valid) => {
+  await endpointFormRef.value.validate(async valid => {
     if (!valid) return
 
     endpointSubmitLoading.value = true
     try {
       endpointForm.authorization = authorizationText.value
-        ? authorizationText.value.split(',').map((s) => s.trim())
+        ? authorizationText.value.split(',').map(s => s.trim())
         : []
       if (requestSchemaText.value) {
         try {
@@ -695,13 +695,13 @@ const openKeyDialog = (row?: ApiKey) => {
 
 const handleKeySubmit = async () => {
   if (!keyFormRef.value) return
-  await keyFormRef.value.validate(async (valid) => {
+  await keyFormRef.value.validate(async valid => {
     if (!valid) return
 
     keySubmitLoading.value = true
     try {
       keyForm.permissions = permissionsText.value
-        ? permissionsText.value.split(',').map((s) => s.trim())
+        ? permissionsText.value.split(',').map(s => s.trim())
         : []
       if (keyForm.id) {
         await updateApiKey(keyForm.id, keyForm)

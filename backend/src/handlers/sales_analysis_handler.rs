@@ -51,7 +51,7 @@ pub async fn list_statistics(
     let query_params = crate::services::sales_analysis_service::SalesStatisticQueryParams {
         statistic_type: params.statistic_type,
         period: params.period,
-        page: params.page.unwrap_or(0),
+        page: params.page.unwrap_or_default(),
         page_size: params.page_size.unwrap_or(10),
     };
 
@@ -103,7 +103,7 @@ pub async fn get_targets(
 
     let service = SalesAnalysisService::new(state.db.clone());
     let (targets, _total) = service
-        .get_targets(params.page.unwrap_or(0), params.page_size.unwrap_or(10))
+        .get_targets(params.page.unwrap_or_default(), params.page_size.unwrap_or(10))
         .await?;
     info!("销售目标查询成功，共 {} 条记录", targets.len());
 

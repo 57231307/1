@@ -14,7 +14,7 @@ function subscribeTokenRefresh(cb: (token: string) => void) {
 }
 
 function onTokenRefreshed(token: string) {
-  refreshSubscribers.forEach((cb) => cb(token))
+  refreshSubscribers.forEach(cb => cb(token))
   refreshSubscribers = []
 }
 
@@ -36,14 +36,14 @@ class Request {
 
   private setupInterceptors() {
     this.instance.interceptors.request.use(
-      (config) => {
+      config => {
         const token = getToken()
         if (token) {
           config.headers.Authorization = `Bearer ${token}`
         }
         return config
       },
-      (error) => {
+      error => {
         return Promise.reject(error)
       }
     )
@@ -62,13 +62,13 @@ class Request {
         }
         return res as any
       },
-      async (error) => {
+      async error => {
         const originalRequest = error.config
 
         if (error.response?.status === 401 && !originalRequest?._retry) {
           if (isRefreshing) {
-            return new Promise((resolve) => {
-              subscribeTokenRefresh((token) => {
+            return new Promise(resolve => {
+              subscribeTokenRefresh(token => {
                 originalRequest.headers.Authorization = `Bearer ${token}`
                 resolve(this.instance(originalRequest))
               })
@@ -104,7 +104,7 @@ class Request {
           if (originalRequest._retryCount < 3) {
             originalRequest._retryCount++
             const delay = Math.min(1000 * originalRequest._retryCount + Math.random() * 1000, 5000)
-            await new Promise((resolve) => setTimeout(resolve, delay))
+            await new Promise(resolve => setTimeout(resolve, delay))
             return this.instance(originalRequest)
           }
         }
@@ -122,23 +122,23 @@ class Request {
   }
 
   public get<T = unknown>(url: string, config?: AxiosRequestConfig): Promise<T> {
-    return this.instance.get(url, config).then((res) => res.data!)
+    return this.instance.get(url, config).then(res => res.data!)
   }
 
   public post<T = unknown>(url: string, data?: any, config?: AxiosRequestConfig): Promise<T> {
-    return this.instance.post(url, data, config).then((res) => res.data!)
+    return this.instance.post(url, data, config).then(res => res.data!)
   }
 
   public put<T = unknown>(url: string, data?: any, config?: AxiosRequestConfig): Promise<T> {
-    return this.instance.put(url, data, config).then((res) => res.data!)
+    return this.instance.put(url, data, config).then(res => res.data!)
   }
 
   public delete<T = unknown>(url: string, config?: AxiosRequestConfig): Promise<T> {
-    return this.instance.delete(url, config).then((res) => res.data!)
+    return this.instance.delete(url, config).then(res => res.data!)
   }
 
   public patch<T = unknown>(url: string, data?: any, config?: AxiosRequestConfig): Promise<T> {
-    return this.instance.patch(url, data, config).then((res) => res.data!)
+    return this.instance.patch(url, data, config).then(res => res.data!)
   }
 }
 

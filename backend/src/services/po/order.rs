@@ -317,7 +317,10 @@ impl PurchaseOrderService {
                 id: Set(0),
                 order_id: Set(order_id),
                 line_no: Set(item.line_no.unwrap_or((index + 1) as i32)),
-                product_id: Set(item.material_id.unwrap_or(0)),
+                // material_id 缺失时拒绝创建订单行项，避免脏 product_id=0 记录
+                product_id: Set(item.material_id.ok_or_else(|| {
+                    AppError::validation(format!("订单行 {} 缺少物料ID", index + 1))
+                })?),
                 quantity: Set(quantity_ordered),
                 quantity_alt: Set(quantity_alt_ordered),
                 unit_price: Set(unit_price),

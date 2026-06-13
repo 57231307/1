@@ -380,9 +380,9 @@ const fetchData = async () => {
 
     // 更新统计
     stats.total = total.value
-    stats.pending = tableData.value.filter((i) => i.status === 'pending').length
-    stats.inTransit = tableData.value.filter((i) => i.status === 'in_transit').length
-    stats.delivered = tableData.value.filter((i) => i.status === 'delivered').length
+    stats.pending = tableData.value.filter(i => i.status === 'pending').length
+    stats.inTransit = tableData.value.filter(i => i.status === 'in_transit').length
+    stats.delivered = tableData.value.filter(i => i.status === 'delivered').length
   } catch (error) {
     console.error('获取数据失败:', error)
   } finally {

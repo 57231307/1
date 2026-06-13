@@ -257,7 +257,7 @@ const renderCapacityChart = (data: CapacityTrend[]) => {
     grid: { left: '3%', right: '4%', bottom: '15%', top: '10%', containLabel: true },
     xAxis: {
       type: 'category',
-      data: data.map((d) => d.date),
+      data: data.map(d => d.date),
       axisLine: { lineStyle: { color: '#909399' } },
     },
     yAxis: {
@@ -270,7 +270,7 @@ const renderCapacityChart = (data: CapacityTrend[]) => {
       {
         name: '计划工时',
         type: 'line',
-        data: data.map((d) => d.planned_hours),
+        data: data.map(d => d.planned_hours),
         smooth: true,
         itemStyle: { color: '#409eff' },
         areaStyle: { color: 'rgba(64, 158, 255, 0.1)' },
@@ -278,14 +278,14 @@ const renderCapacityChart = (data: CapacityTrend[]) => {
       {
         name: '实际工时',
         type: 'line',
-        data: data.map((d) => d.actual_hours),
+        data: data.map(d => d.actual_hours),
         smooth: true,
         itemStyle: { color: '#67c23a' },
       },
       {
         name: '产能工时',
         type: 'line',
-        data: data.map((d) => d.capacity_hours),
+        data: data.map(d => d.capacity_hours),
         smooth: true,
         itemStyle: { color: '#e6a23c' },
         lineStyle: { type: 'dashed' },

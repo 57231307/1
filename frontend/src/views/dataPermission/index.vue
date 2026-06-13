@@ -179,7 +179,7 @@ const permissionRules = {
 }
 
 const currentRoleName = computed(() => {
-  const role = roleList.value.find((r) => String(r.id) === selectedRoleId.value)
+  const role = roleList.value.find(r => String(r.id) === selectedRoleId.value)
   return role ? role.name : ''
 })
 

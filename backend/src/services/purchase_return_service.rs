@@ -203,7 +203,15 @@ impl PurchaseReturnService {
             .await?;
 
         for item in items {
-            let warehouse_id = return_order.warehouse_id.unwrap_or(0);
+            // return_order.warehouse_id 在采购退货单创建时应必填；缺失时跳过该项
+            let Some(warehouse_id) = return_order.warehouse_id else {
+                tracing::warn!(
+                    "采购退货单 {} 缺少调入仓库ID，跳过行项 {}",
+                    return_id,
+                    item.id
+                );
+                continue;
+            };
             let existing_stock = crate::services::inventory_stock_service::InventoryStockService::find_by_product_and_warehouse_txn(
                 &txn, item.product_id, warehouse_id,
             )

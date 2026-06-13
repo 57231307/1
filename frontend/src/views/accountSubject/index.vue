@@ -88,15 +88,15 @@ const balanceTypes = [
 ]
 
 const getCategoryLabel = (value: string) => {
-  return categories.find((c) => c.value === value)?.label || value
+  return categories.find(c => c.value === value)?.label || value
 }
 
 const getTypeLabel = (value: string) => {
-  return types.find((t) => t.value === value)?.label || value
+  return types.find(t => t.value === value)?.label || value
 }
 
 const getBalanceTypeLabel = (value: string) => {
-  return balanceTypes.find((b) => b.value === value)?.label || value
+  return balanceTypes.find(b => b.value === value)?.label || value
 }
 
 const loadData = async () => {

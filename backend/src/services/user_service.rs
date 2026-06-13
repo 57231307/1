@@ -13,9 +13,11 @@
 //! - 密码哈希由调用方处理，本模块不处理明文密码
 
 #![allow(dead_code)]
+// TODO(tech-debt): 业务接入或重评估后逐项移除；rustc 1.94+ 编译时由编译器报告具体死代码位置。
 
 use crate::models::user;
 use crate::utils::error::AppError;
+use crate::utils::pagination::paginate_with_total;
 use sea_orm::DatabaseConnection;
 use sea_orm::{ActiveModelTrait, ColumnTrait, EntityTrait, QueryFilter, Set};
 use std::sync::Arc;
@@ -162,10 +164,8 @@ impl UserService {
 
         let paginator = user::Entity::find().paginate(self.db.as_ref(), page_size);
 
-        let total = paginator.num_items().await?;
-        let users = paginator
-            .fetch_page(if page > 0 { page - 1 } else { 0 })
-            .await?;
+        // 使用统一分页辅助函数，并行执行分页查询与总数统计
+        let (users, total) = paginate_with_total(paginator, page).await?;
 
         Ok((users, total))
     }

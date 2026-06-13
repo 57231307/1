@@ -8,6 +8,7 @@ use sea_orm::{
 };
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
+use validator::Validate;
 
 use sea_orm::DatabaseConnection;
 
@@ -17,7 +18,7 @@ use crate::models::report_subscription::{
 use crate::utils::error::AppError;
 
 /// 创建订阅请求
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Validate)]
 pub struct CreateSubscriptionRequest {
     pub name: String,
     pub template_id: i32,
@@ -29,7 +30,7 @@ pub struct CreateSubscriptionRequest {
 }
 
 /// 更新订阅请求
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Validate)]
 pub struct UpdateSubscriptionRequest {
     pub name: Option<String>,
     pub frequency: Option<String>,
@@ -39,7 +40,7 @@ pub struct UpdateSubscriptionRequest {
 }
 
 /// 订阅查询参数
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Deserialize, Validate)]
 pub struct SubscriptionQuery {
     pub template_id: Option<i32>,
     pub frequency: Option<String>,

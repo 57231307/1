@@ -1,4 +1,5 @@
 #![allow(dead_code)]
+// TODO(tech-debt): 业务接入或重评估后逐项移除；rustc 1.94+ 编译时由编译器报告具体死代码位置。
 
 use crate::models::tenant::{self, Entity as Tenant};
 use crate::models::tenant_invoice::{self, Entity as TenantInvoice};
@@ -203,12 +204,13 @@ impl TenantBillingService {
             .one(self.db.as_ref())
             .await?;
 
-        let api_calls_today = today_usage.as_ref().map(|u| u.api_calls).unwrap_or(0);
-        let storage_used_mb = today_usage.as_ref().map(|u| u.storage_used_mb).unwrap_or(0);
+        // 用量统计无记录时默认为 0
+        let api_calls_today = today_usage.as_ref().map(|u| u.api_calls).unwrap_or_default();
+        let storage_used_mb = today_usage.as_ref().map(|u| u.storage_used_mb).unwrap_or_default();
         let current_users = today_usage
             .as_ref()
             .map(|u| u.user_count as i64)
-            .unwrap_or(0);
+            .unwrap_or_default();
 
         let user_pct = if max_users > 0 {
             (current_users as f64 / max_users as f64) * 100.0
@@ -690,7 +692,7 @@ impl TenantBillingService {
         let invoice_number = format!(
             "INV-{}-{}",
             now.format("%Y%m%d"),
-            fastrand::u32(100000..999999)
+            crate::utils::random::random_6_digit()
         );
         let due_date = now + Duration::days(30);
 

@@ -262,7 +262,10 @@ impl PurchaseOrderService {
             id: Set(0),
             order_id: Set(order_id),
             line_no: Set(1),
-            product_id: Set(req.material_id.unwrap_or(0)),
+            // material_id 缺失时拒绝创建收货行项，避免脏 product_id=0 记录
+            product_id: Set(req.material_id.ok_or_else(|| {
+                AppError::validation("收货单缺少物料ID")
+            })?),
             quantity: Set(quantity_ordered),
             quantity_alt: Set(quantity_alt_ordered),
             unit_price: Set(unit_price),

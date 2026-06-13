@@ -3,17 +3,18 @@
 //! 提供邮件发送、模板管理和发送记录查询功能
 
 use axum::{
-    extract::{Path, Query, State},
+    extract::{Query, State},
     Json,
 };
 use serde::Deserialize;
 
 use crate::middleware::auth_context::AuthContext;
+use crate::middleware::tenant::extract_tenant_id;
 
 use crate::services::email_log_service::{CreateEmailLogRequest, EmailLogQuery, EmailLogService};
 use crate::services::email_template_service::{
-    CreateEmailTemplateRequest as ServiceCreateEmailTemplateRequest, EmailTemplateQuery,
-    EmailTemplateService, UpdateEmailTemplateRequest,
+    CreateEmailTemplateRequest, EmailTemplateQuery, EmailTemplateService,
+    UpdateEmailTemplateRequest,
 };
 use crate::utils::app_state::AppState;
 use crate::utils::error::AppError;
@@ -33,20 +34,15 @@ pub struct SendEmailRequest {
     pub template_params: Option<serde_json::Value>,
 }
 
-/// 创建邮件模板请求（HTTP 输入 DTO）
-///
-/// 与 Service 层的 `CreateEmailTemplateRequest` 字段几乎一致，但语义上
-/// 属于"用户输入"层（HTTP Handler），因此单独命名避免与 Service 内部 DTO
-/// 产生命名冲突。
-#[derive(Debug, Deserialize)]
-pub struct CreateEmailTemplateInput {
-    pub name: String,
-    pub code: String,
-    pub subject_template: String,
-    pub body_template: String,
-    pub template_type: String,
-    pub description: Option<String>,
-}
+/// 邮件模板 CRUD Handler（带租户隔离）
+crate::define_tenant_crud_handlers!(
+    EmailTemplateService,
+    CreateEmailTemplateRequest,
+    UpdateEmailTemplateRequest,
+    EmailTemplateQuery,
+    i32,
+    "邮件模板不存在"
+);
 
 /// POST /api/v1/erp/email/send - 发送邮件
 pub async fn send_email(
@@ -60,7 +56,7 @@ pub async fn send_email(
         .ok_or_else(|| AppError::business("邮件服务未配置"))?;
 
     let log_service = EmailLogService::new(state.db.clone());
-    let tenant_id = auth.tenant_id.unwrap_or(0);
+    let tenant_id = extract_tenant_id(&auth)?;
 
     // 创建邮件发送记录
     let log = log_service
@@ -119,109 +115,6 @@ pub async fn send_email(
     }
 }
 
-/// GET /api/v1/erp/email/templates - 获取邮件模板列表
-pub async fn list_templates(
-    State(state): State<AppState>,
-    auth: AuthContext,
-    Query(query): Query<EmailTemplateQuery>,
-) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
-    let service = EmailTemplateService::new(state.db.clone());
-    let tenant_id = auth.tenant_id.unwrap_or(0);
-
-    let (items, total) = service.list(tenant_id, query).await?;
-
-    Ok(Json(ApiResponse::success(serde_json::json!({
-        "list": items,
-        "total": total,
-    }))))
-}
-
-/// POST /api/v1/erp/email/templates - 创建邮件模板
-pub async fn create_template(
-    State(state): State<AppState>,
-    auth: AuthContext,
-    Json(req): Json<CreateEmailTemplateInput>,
-) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
-    let service = EmailTemplateService::new(state.db.clone());
-    let tenant_id = auth.tenant_id.unwrap_or(0);
-
-    let template = service
-        .create(
-            tenant_id,
-            auth.user_id,
-            ServiceCreateEmailTemplateRequest {
-                name: req.name,
-                code: req.code,
-                subject_template: req.subject_template,
-                body_template: req.body_template,
-                template_type: req.template_type,
-                variables: None,
-                description: req.description,
-            },
-        )
-        .await?;
-
-    tracing::info!("用户 {} 创建邮件模板: {}", auth.username, template.name);
-
-    Ok(Json(ApiResponse::success_with_message(
-        serde_json::to_value(template)?,
-        "邮件模板创建成功",
-    )))
-}
-
-/// GET /api/v1/erp/email/templates/:id - 获取邮件模板详情
-pub async fn get_template(
-    State(state): State<AppState>,
-    _auth: AuthContext,
-    Path(id): Path<i32>,
-) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
-    let service = EmailTemplateService::new(state.db.clone());
-
-    let template = service
-        .get_by_id(id)
-        .await?
-        .ok_or_else(|| AppError::not_found("邮件模板不存在"))?;
-
-    Ok(Json(ApiResponse::success(serde_json::to_value(template)?)))
-}
-
-/// PUT /api/v1/erp/email/templates/:id - 更新邮件模板
-pub async fn update_template(
-    State(state): State<AppState>,
-    auth: AuthContext,
-    Path(id): Path<i32>,
-    Json(req): Json<UpdateEmailTemplateRequest>,
-) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
-    let service = EmailTemplateService::new(state.db.clone());
-
-    let template = service.update(id, req).await?;
-
-    tracing::info!("用户 {} 更新邮件模板: {}", auth.username, template.name);
-
-    Ok(Json(ApiResponse::success_with_message(
-        serde_json::to_value(template)?,
-        "邮件模板更新成功",
-    )))
-}
-
-/// DELETE /api/v1/erp/email/templates/:id - 删除邮件模板
-pub async fn delete_template(
-    State(state): State<AppState>,
-    auth: AuthContext,
-    Path(id): Path<i32>,
-) -> Result<Json<ApiResponse<()>>, AppError> {
-    let service = EmailTemplateService::new(state.db.clone());
-
-    service.delete(id).await?;
-
-    tracing::info!("用户 {} 删除邮件模板: ID={}", auth.username, id);
-
-    Ok(Json(ApiResponse::success_with_message(
-        (),
-        "邮件模板已删除",
-    )))
-}
-
 /// GET /api/v1/erp/email/records - 获取邮件发送记录
 pub async fn get_email_records(
     State(state): State<AppState>,
@@ -229,7 +122,7 @@ pub async fn get_email_records(
     Query(query): Query<EmailLogQuery>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     let service = EmailLogService::new(state.db.clone());
-    let tenant_id = auth.tenant_id.unwrap_or(0);
+    let tenant_id = extract_tenant_id(&auth)?;
 
     let (items, total) = service.list(tenant_id, query).await?;
 
@@ -245,7 +138,7 @@ pub async fn get_email_statistics(
     auth: AuthContext,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     let service = EmailLogService::new(state.db.clone());
-    let tenant_id = auth.tenant_id.unwrap_or(0);
+    let tenant_id = extract_tenant_id(&auth)?;
 
     let statistics = service.get_statistics(tenant_id).await?;
 

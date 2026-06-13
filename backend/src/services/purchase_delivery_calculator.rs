@@ -2,6 +2,7 @@
 //!
 //! 根据供应商历史交货数据自动计算建议交货日期
 #![allow(dead_code)]
+// TODO(tech-debt): 业务接入或重评估后逐项移除；rustc 1.94+ 编译时由编译器报告具体死代码位置。
 
 use chrono::{Datelike, NaiveDate};
 use rust_decimal::Decimal;
@@ -127,7 +128,8 @@ impl PurchaseDeliveryCalculator {
         if let Some(row) = result {
             let avg_days: Option<i32> = row.try_get_by_index(0).ok();
             let order_count: Option<i64> = row.try_get_by_index(1).ok();
-            Ok((avg_days.unwrap_or(7), order_count.unwrap_or(0)))
+            // 缺记录时默认 7 天交货 + 0 单（业务接受估算）
+            Ok((avg_days.unwrap_or(7), order_count.unwrap_or_default()))
         } else {
             Ok((7, 0))
         }
@@ -141,11 +143,12 @@ impl PurchaseDeliveryCalculator {
 
         for item in items {
             // 查询产品的BOM复杂度
+            // BOM 数量查询失败时默认为 0
             let bom_count = BomEntity::find()
                 .filter(BomColumn::ProductId.eq(item.product_id))
                 .count(&*self.db)
                 .await
-                .unwrap_or(0);
+                .unwrap_or_default();
 
             // 基础生产天数
             let base_days = if bom_count > 0 {

@@ -1,4 +1,5 @@
 #![allow(dead_code)]
+// TODO(tech-debt): 业务接入或重评估后逐项移除；rustc 1.94+ 编译时由编译器报告具体死代码位置。
 
 use crate::services::event_bus::{BusinessEvent, EVENT_BUS};
 use crate::services::voucher_service::{CreateVoucherRequest, VoucherItemRequest, VoucherService};
@@ -286,7 +287,10 @@ impl InventoryFinanceBridgeService {
         };
 
         let voucher_service = VoucherService::new(self.db.clone());
-        let user_id = created_by.unwrap_or(0);
+        // created_by 缺失时拒绝生成凭证，避免财务记录归到 user_id=0 系统用户
+        let user_id = created_by.ok_or_else(|| {
+            AppError::validation("缺少创建用户ID，无法生成财务凭证")
+        })?;
         let voucher = voucher_service.create(voucher_request, user_id).await?;
 
         info!(
@@ -367,7 +371,10 @@ impl InventoryFinanceBridgeService {
         };
 
         let voucher_service = VoucherService::new(self.db.clone());
-        let user_id = created_by.unwrap_or(0);
+        // created_by 缺失时拒绝生成凭证，避免财务记录归到 user_id=0 系统用户
+        let user_id = created_by.ok_or_else(|| {
+            AppError::validation("缺少创建用户ID，无法生成财务凭证")
+        })?;
         let voucher = voucher_service.create(voucher_request, user_id).await?;
 
         info!(
@@ -485,7 +492,10 @@ impl InventoryFinanceBridgeService {
         };
 
         let voucher_service = VoucherService::new(self.db.clone());
-        let user_id = created_by.unwrap_or(0);
+        // created_by 缺失时拒绝生成凭证，避免财务记录归到 user_id=0 系统用户
+        let user_id = created_by.ok_or_else(|| {
+            AppError::validation("缺少创建用户ID，无法生成财务凭证")
+        })?;
         let voucher = voucher_service.create(voucher_request, user_id).await?;
 
         info!(
@@ -565,7 +575,10 @@ impl InventoryFinanceBridgeService {
         };
 
         let voucher_service = VoucherService::new(self.db.clone());
-        let user_id = created_by.unwrap_or(0);
+        // created_by 缺失时拒绝生成凭证，避免财务记录归到 user_id=0 系统用户
+        let user_id = created_by.ok_or_else(|| {
+            AppError::validation("缺少创建用户ID，无法生成财务凭证")
+        })?;
         let voucher = voucher_service.create(voucher_request, user_id).await?;
 
         info!(
@@ -645,7 +658,10 @@ impl InventoryFinanceBridgeService {
         };
 
         let voucher_service = VoucherService::new(self.db.clone());
-        let user_id = created_by.unwrap_or(0);
+        // created_by 缺失时拒绝生成凭证，避免财务记录归到 user_id=0 系统用户
+        let user_id = created_by.ok_or_else(|| {
+            AppError::validation("缺少创建用户ID，无法生成财务凭证")
+        })?;
         let voucher = voucher_service.create(voucher_request, user_id).await?;
 
         info!(

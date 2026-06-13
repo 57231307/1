@@ -1,4 +1,5 @@
 #![allow(dead_code)]
+// TODO(tech-debt): 业务接入或重评估后逐项移除；rustc 1.94+ 编译时由编译器报告具体死代码位置。
 
 use crate::middleware::auth_context::AuthContext;
 use crate::models::dto::PageRequest;
@@ -17,17 +18,6 @@ use rust_decimal::Decimal;
 use sea_orm::EntityTrait;
 use serde::{Deserialize, Serialize};
 use validator::Validate;
-
-#[derive(Debug, Deserialize, Validate)]
-pub struct UpdateStockRequest {
-    pub quantity_on_hand: Option<Decimal>,
-    pub quantity_available: Option<Decimal>,
-    pub quantity_reserved: Option<Decimal>,
-    pub reorder_point: Option<Decimal>,
-    pub reorder_quantity: Option<Decimal>,
-    #[validate(length(max = 100, message = "库位长度不能超过100个字符"))]
-    pub bin_location: Option<String>,
-}
 
 /// 创建库存请求（面料行业版）
 #[derive(Debug, Deserialize, Validate)]
@@ -294,7 +284,7 @@ pub async fn list_stock(
 
     let (stock_list, _total) = service
         .list_stock(
-            params.page.unwrap_or(0),
+            params.page.unwrap_or_default(),
             params.page_size.unwrap_or(20),
             params.warehouse_id,
             params.product_id,
@@ -500,7 +490,7 @@ pub async fn list_transactions(
 ) -> Result<Json<crate::utils::response::ApiResponse<Vec<TransactionResponse>>>, AppError> {
     let service = InventoryStockService::new(state.db.clone());
 
-    let page = params.page.unwrap_or(0);
+    let page = params.page.unwrap_or_default();
     let page_size = params.page_size.unwrap_or(20);
 
     let (transactions, _total) = service
@@ -545,20 +535,34 @@ pub async fn list_transactions(
 }
 
 /// 获取库存汇总（按批次 + 色号）
+///
+/// # 查询参数
+/// - `page`: 页码，默认为1
+/// - `page_size`: 每页大小，默认为20
+/// - `warehouse_id`: 仓库ID筛选
+/// - `product_id`: 产品ID筛选
+/// - `batch_no`: 批次号筛选
+/// - `color_no`: 色号筛选
+/// - `grade`: 等级筛选
 pub async fn get_inventory_summary(
     State(state): State<AppState>,
     _auth: AuthContext,
     Query(params): Query<ListStockFabricParams>,
-) -> Result<Json<crate::utils::response::ApiResponse<Vec<InventorySummaryItem>>>, AppError> {
+) -> Result<Json<crate::utils::response::ApiResponse<crate::utils::response::PaginatedResponse<InventorySummaryItem>>>, AppError> {
     let service = InventoryStockService::new(state.db.clone());
 
-    let summary_items = service
+    let page = params.page.unwrap_or(1);
+    let page_size = params.page_size.unwrap_or(20).min(100);
+
+    let (summary_items, total) = service
         .get_inventory_summary(
             params.warehouse_id,
             params.product_id,
             params.batch_no,
             params.color_no,
             params.grade,
+            page,
+            page_size,
         )
         .await?;
 
@@ -576,7 +580,18 @@ pub async fn get_inventory_summary(
         })
         .collect();
 
-    Ok(Json(crate::utils::response::ApiResponse::success(summary)))
+    let total_pages = (total + page_size - 1) / page_size;
+    let paginated_response = crate::utils::response::PaginatedResponse {
+        data: summary,
+        total,
+        page,
+        page_size,
+        total_pages,
+    };
+
+    Ok(Json(crate::utils::response::ApiResponse::success(
+        paginated_response,
+    )))
 }
 
 #[derive(Debug, Deserialize)]

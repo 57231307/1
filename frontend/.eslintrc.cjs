@@ -29,7 +29,9 @@ module.exports = {
     'vue/require-explicit-emits': 'off',
 
     // TypeScript 相关规则
-    '@typescript-eslint/no-explicit-any': 'off',
+    // 禁止使用 any 类型，强制类型安全
+    '@typescript-eslint/no-explicit-any': 'error',
+    '@typescript-eslint/consistent-type-assertions': 'error',
     '@typescript-eslint/no-unused-vars': ['warn', { argsIgnorePattern: '^_' }],
     '@typescript-eslint/ban-ts-comment': 'off',
     '@typescript-eslint/no-non-null-assertion': 'off',
@@ -51,6 +53,16 @@ module.exports = {
       },
     ],
   },
+  // 测试文件例外配置
+  overrides: [
+    {
+      // 允许测试文件使用 any 类型
+      files: ['**/*.test.ts', '**/*.spec.ts'],
+      rules: {
+        '@typescript-eslint/no-explicit-any': 'off',
+      },
+    },
+  ],
   globals: {
     defineProps: 'readonly',
     defineEmits: 'readonly',

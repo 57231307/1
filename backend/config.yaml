@@ -18,8 +18,8 @@ database:
   port: 5432
   name: "bingxi"
   username: "bingxi"
-  # ⚠️ 安全警告：生产环境必须通过环境变量 DATABASE_PASSWORD 设置
-  password: "bingxi123"
+  # 生产环境必须通过环境变量 DATABASE_PASSWORD 设置
+  password: "${DATABASE_PASSWORD}"
   max_connections: 50
   min_connections: 5
   acquire_timeout_ms: 30000
@@ -29,10 +29,10 @@ database:
   ssl_ca: null
 
 auth:
-  # ⚠️ 安全警告：生产环境必须通过环境变量 JWT_SECRET 设置至少 32 字节的强随机密钥
-  jwt_secret: "A8/JFcyFN27CcKSwGK2PnJeuIwMso+KE0UW+aq+ffww="
-  # ⚠️ 安全警告：生产环境必须通过环境变量 COOKIE_SECRET 设置至少 32 字节的强随机密钥
-  cookie_secret: "fHPI3zurmq6s9WGLeOFunfEUjg0HDdWwwzvRXspqahU="
+  # 生产环境必须通过环境变量 JWT_SECRET 设置（至少32字节随机值）
+  jwt_secret: "${JWT_SECRET}"
+  # 生产环境必须通过环境变量 COOKIE_SECRET 设置（至少32字节随机值）
+  cookie_secret: "${COOKIE_SECRET}"
   token_expiry_hours: 24
 
 grpc:

@@ -1,4 +1,5 @@
 #![allow(dead_code)]
+// TODO(tech-debt): 业务接入或重评估后逐项移除；rustc 1.94+ 编译时由编译器报告具体死代码位置。
 
 use crate::middleware::auth_context::AuthContext;
 use crate::models::fixed_asset;
@@ -71,7 +72,7 @@ pub async fn list_assets(
         keyword: params.keyword,
         status: params.status,
         asset_category: params.asset_category,
-        page: params.page.unwrap_or(0),
+        page: params.page.unwrap_or_default(),
         page_size: params.page_size.unwrap_or(10),
     };
 

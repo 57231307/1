@@ -100,11 +100,12 @@ impl AuditCleanupService {
             .await?;
 
         if let Some(row) = result {
+            // DB 查询失败应传播错误而非吞掉为 0，避免审计统计与实际不符
             Ok(AuditStats {
-                total_omni_logs: row.try_get::<i64>("", "total_omni_logs").unwrap_or(0),
-                total_audit_logs: row.try_get::<i64>("", "total_audit_logs").unwrap_or(0),
-                today_omni_logs: row.try_get::<i64>("", "today_omni_logs").unwrap_or(0),
-                today_audit_logs: row.try_get::<i64>("", "today_audit_logs").unwrap_or(0),
+                total_omni_logs: row.try_get::<i64>("", "total_omni_logs")?,
+                total_audit_logs: row.try_get::<i64>("", "total_audit_logs")?,
+                today_omni_logs: row.try_get::<i64>("", "today_omni_logs")?,
+                today_audit_logs: row.try_get::<i64>("", "today_audit_logs")?,
                 oldest_log: row.try_get::<String>("", "oldest_omni_log").ok(),
                 newest_log: row.try_get::<String>("", "newest_omni_log").ok(),
             })

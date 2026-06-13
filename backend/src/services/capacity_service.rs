@@ -346,7 +346,7 @@ impl CapacityService {
         // 自动生成代码
         let code = input.code.unwrap_or_else(|| {
             let timestamp = now.format("%Y%m%d%H%M%S");
-            let random = rand::random::<u16>() % 10000;
+            let random = crate::utils::random::random_4_digit();
             format!("WC-{}-{:04}", timestamp, random)
         });
 

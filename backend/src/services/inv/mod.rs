@@ -13,7 +13,7 @@
 //! `services/mod.rs` 通过 `pub use super::inv::*;` 重新导出以保持向后兼容。
 //!
 //! 注意：`move` 与 `return` 同为 Rust 关键字，不能直接作为模块名。
-//! 实际文件名为 `move_rs.rs`（参考 `return_rs.rs` 的命名约定），通过 `as` 别名对外暴露。
+//! 实际文件名为 `inventory_move.rs`（参考 `return_rs.rs` 的命名约定），通过 `as` 别名对外暴露。
 
 use sea_orm::DatabaseConnection;
 use serde::{Deserialize, Serialize};
@@ -23,7 +23,7 @@ pub mod adjust;
 pub mod batch;
 pub mod count;
 pub mod hold;
-pub mod move_rs;
+pub mod inventory_move;
 pub mod stock;
 
 // =====================================================

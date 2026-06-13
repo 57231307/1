@@ -420,15 +420,18 @@ impl SchedulingService {
                     }
                 }
 
-                let wc_name = o
-                    .work_center_id
-                    .map(|_| "未知".to_string())
-                    .unwrap_or_default();
+                // work_center_id 为 None 时表示"未指定"，有 ID 时由于当前闭包无法 await DB 查询，
+                // 暂时 fallback 到"未知"（待后续重构为批量查询）
+                let wc_name = if o.work_center_id.is_none() {
+                    "未指定".to_string()
+                } else {
+                    "未知".to_string()
+                };
 
                 Some(ScheduleDetail {
                     order_id: o.id,
                     order_no: o.order_no.clone(),
-                    work_center_id: o.work_center_id.unwrap_or(0),
+                    work_center_id: o.work_center_id,
                     work_center_name: wc_name,
                     start_date: start,
                     end_date: end,
@@ -569,7 +572,7 @@ impl SchedulingService {
         Ok(ScheduleDetail {
             order_id: updated.id,
             order_no: updated.order_no.clone(),
-            work_center_id: updated.work_center_id.unwrap_or(0),
+            work_center_id: updated.work_center_id,
             work_center_name: wc_name,
             start_date: updated
                 .planned_start_date
@@ -625,7 +628,7 @@ impl SchedulingService {
                 order_no: order.order_no,
                 product_id: order.product_id,
                 quantity: order.planned_quantity,
-                work_center_id: order.work_center_id.unwrap_or(0),
+                work_center_id: order.work_center_id,
                 work_center_name: wc_name,
                 start_time: order.planned_start_date.unwrap_or(Utc::now().date_naive()),
                 end_time: order.planned_end_date.unwrap_or(Utc::now().date_naive()),
@@ -804,7 +807,7 @@ impl SchedulingService {
         let batch_no = format!(
             "SCH-{}-{}",
             now.format("%Y%m%d%H%M%S"),
-            fastrand::u32(100000..999999)
+            crate::utils::random::random_6_digit()
         );
 
         // 计算日期范围

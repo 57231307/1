@@ -1,6 +1,4 @@
-#![allow(dead_code)]
 use chrono::Utc;
-use ring::hmac;
 use sea_orm::{ActiveValue, DatabaseConnection, EntityTrait};
 use serde_json::Value;
 use std::sync::Arc;
@@ -11,7 +9,8 @@ use crate::models::omni_audit_log;
 #[derive(Debug, Clone)]
 pub struct OmniAuditMessage {
     pub trace_id: String,
-    pub user_id: i32,
+    /// 用户 ID；未登录/匿名场景下为 None（避免脏数据归到 user_id=0 系统用户）
+    pub user_id: Option<i32>,
     pub username: Option<String>,
     pub event_type: String,
     pub event_name: String,
@@ -71,10 +70,11 @@ impl OmniAuditEngine {
                     msg.trace_id, msg.event_type, msg.action, payload_str
                 );
 
-                let key = hmac::Key::new(hmac::HMAC_SHA256, secret_key_clone.as_bytes());
-                let sig = hmac::sign(&key, sign_material.as_bytes());
-                let _signature = hex::encode(sig.as_ref());
-
+                // 使用 HMAC-SHA256 对关键字段进行签名
+                let _signature = crate::utils::hash::hmac_sha256_hex(
+                    secret_key_clone.as_bytes(),
+                    sign_material.as_bytes(),
+                );
                 if msg.status == "FAILED"
                     || msg.status == "DENIED"
                     || msg.event_type == "SECURITY_ALERT"

@@ -193,6 +193,11 @@ pub fn init() -> Router<AppState> {
             "/init/initialize-with-db",
             post(init_handler::initialize_system_with_db),
         )
+        .route(
+            "/init/initialize-with-db-async",
+            post(init_handler::initialize_system_with_db_async),
+        )
+        .route("/init/task-status", get(init_handler::get_task_status))
 }
 
 /// 系统域统一入口

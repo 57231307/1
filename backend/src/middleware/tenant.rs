@@ -2,9 +2,11 @@
 //!
 //! 从请求头或子域名中提取租户标识，并注入租户上下文
 #![allow(dead_code)]
+// TODO(tech-debt): 业务接入或重评估后逐项移除；rustc 1.94+ 编译时由编译器报告具体死代码位置。
 
 use crate::middleware::auth_context::AuthContext;
 use crate::utils::app_state::AppState;
+use crate::utils::error::AppError;
 use axum::{
     body::Body,
     extract::State,
@@ -12,6 +14,15 @@ use axum::{
     middleware::Next,
     response::Response,
 };
+
+/// 从认证上下文中安全提取租户 ID
+///
+/// 若 `tenant_id` 为 `None`，返回未授权错误，防止跨租户访问。
+pub fn extract_tenant_id(auth: &AuthContext) -> Result<i32, AppError> {
+    auth.tenant_id.ok_or_else(|| {
+        AppError::unauthorized("缺少租户 ID，请重新登录")
+    })
+}
 
 /// 租户上下文
 #[derive(Debug, Clone)]

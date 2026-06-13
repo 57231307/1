@@ -359,7 +359,7 @@ impl ApReconciliationService {
                                 .filter(ap_invoice::Column::InvoiceDate.lte(end_date))
                                 .count(&*db)
                                 .await
-                                .unwrap_or(0)
+                                .unwrap_or_default()
                                 as usize;
 
                             let payment_count = ap_payment::Entity::find()
@@ -368,7 +368,7 @@ impl ApReconciliationService {
                                 .filter(ap_payment::Column::PaymentDate.lte(end_date))
                                 .count(&*db)
                                 .await
-                                .unwrap_or(0)
+                                .unwrap_or_default()
                                 as usize;
 
                             AutoReconciliationResult {

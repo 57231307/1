@@ -158,21 +158,22 @@ impl ReportEngineService {
                 .unwrap()
                 .and_utc();
 
+            // 解析时间字段（chrono 不会失败，0 仅为防御默认值）
             let m = candidate_date
                 .format("%m")
                 .to_string()
                 .parse::<u32>()
-                .unwrap_or(0);
+                .unwrap_or_default();
             let d = candidate_date
                 .format("%d")
                 .to_string()
                 .parse::<u32>()
-                .unwrap_or(0);
+                .unwrap_or_default();
             let dow = candidate_date
                 .format("%w")
                 .to_string()
                 .parse::<u32>()
-                .unwrap_or(0);
+                .unwrap_or_default();
 
             if !month.contains(&m) {
                 continue;

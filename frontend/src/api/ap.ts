@@ -112,10 +112,22 @@ export function autoGenerateAPInvoices(data: {
   return request.post('/ap/invoices/auto-generate', data)
 }
 
+// 账龄分析项
+export interface APAgingItem {
+  supplier_id: number
+  supplier_name: string
+  total_amount: number
+  current: number
+  days_30: number
+  days_60: number
+  days_90: number
+  over_90: number
+}
+
 export function getAPAgingAnalysis(params?: {
   supplier_id?: number
   date?: string
-}): Promise<ApiResponse<any[]>> {
+}): Promise<ApiResponse<APAgingItem[]>> {
   return request.get('/ap/invoices/aging', { params })
 }
 
@@ -246,26 +258,93 @@ export function autoReconcileAllAP(): Promise<ApiResponse<void>> {
   return request.post('/ap/reconciliations/auto')
 }
 
-export function getAPSupplierSummary(supplierId: number): Promise<ApiResponse<any>> {
+// 供应商汇总
+export interface APSupplierSummary {
+  supplier_id: number
+  supplier_name: string
+  total_invoice_amount: number
+  total_payment_amount: number
+  balance: number
+  unverified_amount: number
+}
+
+export function getAPSupplierSummary(supplierId: number): Promise<ApiResponse<APSupplierSummary>> {
   return request.get(`/ap/reconciliations/summary`, { params: { supplier_id: supplierId } })
 }
 
-export function getAPInvoiceRelations(id: number): Promise<ApiResponse<any>> {
+// 发票关联数据
+export interface APInvoiceRelations {
+  invoice_id: number
+  invoice_no: string
+  payments: APPayment[]
+  verifications: APVerification[]
+  reconciliations: APReconciliation[]
+}
+
+// 统计报表数据
+export interface APStatisticsData {
+  total_invoices: number
+  total_amount: number
+  paid_amount: number
+  unpaid_amount: number
+  overdue_amount: number
+  period: string
+}
+
+// 日报数据
+export interface APDailyReportData {
+  date: string
+  invoice_count: number
+  invoice_amount: number
+  payment_count: number
+  payment_amount: number
+  verification_count: number
+  verification_amount: number
+}
+
+// 月报数据
+export interface APMonthlyReportData {
+  year: number
+  month: number
+  invoice_count: number
+  invoice_amount: number
+  payment_count: number
+  payment_amount: number
+  verification_count: number
+  verification_amount: number
+}
+
+// 账龄报表数据
+export interface APAgingReportData {
+  current: number
+  days_30: number
+  days_60: number
+  days_90: number
+  over_90: number
+  total: number
+}
+
+export function getAPInvoiceRelations(id: number): Promise<ApiResponse<APInvoiceRelations>> {
   return request.get(`/ap/invoices/${id}/relations`)
 }
 
-export function getAPStatisticsReport(params?: QueryParams): Promise<ApiResponse<any>> {
+export function getAPStatisticsReport(
+  params?: QueryParams
+): Promise<ApiResponse<APStatisticsData>> {
   return request.get('/ap/reports/statistics', { params })
 }
 
-export function getAPDailyReport(date: string): Promise<ApiResponse<any>> {
+export function getAPDailyReport(date: string): Promise<ApiResponse<APDailyReportData>> {
   return request.get('/ap/reports/daily', { params: { date } })
 }
 
-export function getAPMonthlyReport(year: number, month: number): Promise<ApiResponse<any>> {
+export function getAPMonthlyReport(
+  year: number,
+  month: number
+): Promise<ApiResponse<APMonthlyReportData>> {
   return request.get('/ap/reports/monthly', { params: { year, month } })
 }
 
-export function getAPAgingReport(): Promise<ApiResponse<any>> {
+export function getAPAgingReport(): Promise<ApiResponse<APAgingReportData>> {
   return request.get('/ap/reports/aging')
 }

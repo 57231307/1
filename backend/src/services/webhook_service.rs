@@ -1,4 +1,5 @@
 #![allow(dead_code)]
+// TODO(tech-debt): 业务接入或重评估后逐项移除；rustc 1.94+ 编译时由编译器报告具体死代码位置。
 
 use crate::models::webhook::{self, ActiveModel as WebhookActiveModel, Entity as Webhook};
 use crate::utils::error::AppError;
@@ -212,17 +213,12 @@ impl WebhookService {
 
         // 如果有签名密钥，添加签名头
         if let Some(secret) = secret {
-            use ring::digest::{Context, SHA256};
-            let mut context = Context::new(&SHA256);
-            context.update(body.as_bytes());
-            context.update(secret.as_bytes());
-            let hash_result = context.finish();
-
-            let mut signature = String::with_capacity(hash_result.as_ref().len() * 2);
-            for byte in hash_result.as_ref() {
-                use std::fmt::Write;
-                write!(&mut signature, "{:02x}", byte).unwrap();
-            }
+            // 计算 SHA256(body || secret) 摘要作为签名
+            // 注意：保留与原 `ring::digest::SHA256` 等价的拼接摘要行为
+            let signature = crate::utils::hash::sha256_hex_multi(&[
+                body.as_bytes(),
+                secret.as_bytes(),
+            ]);
             request = request.header("X-Webhook-Signature", format!("sha256={}", signature));
         }
 

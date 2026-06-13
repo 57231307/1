@@ -63,7 +63,7 @@ pub async fn list_credits(
         customer_id: params.customer_id,
         credit_level: params.credit_level,
         status: params.status,
-        page: params.page.unwrap_or(0),
+        page: params.page.unwrap_or_default(),
         page_size: params.page_size.unwrap_or(10),
     };
 
@@ -232,7 +232,12 @@ pub async fn create_credit(
 
     let service = CustomerCreditService::new(state.db.clone());
 
-    let customer_id = req.get("customer_id").and_then(|v| v.as_i64()).unwrap_or(0) as i32;
+    // 客户 ID 缺失时返回 4xx 错误，避免静默写入 customer_id=0 记录
+    let customer_id: i32 = req
+        .get("customer_id")
+        .and_then(|v| v.as_i64())
+        .and_then(|v| i32::try_from(v).ok())
+        .ok_or_else(|| AppError::validation("信用调整请求缺少客户ID"))?;
 
     let credit_limit = req
         .get("credit_limit")

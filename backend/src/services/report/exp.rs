@@ -343,7 +343,8 @@ impl ReportEngineService {
         xml.push_str("<row r=\"1\">");
         for (idx, column) in data.columns.iter().enumerate() {
             let cell_ref = format!("{}{}", Self::column_letter(idx + 1), 1);
-            let string_idx = string_lookup.get(&column.label).copied().unwrap_or(0);
+            // 字符串共享表索引未命中时默认 0（Excel 共享字符串索引）
+            let string_idx = string_lookup.get(&column.label).copied().unwrap_or_default();
             xml.push_str(&format!(
                 r#"<c r="{}" t="s" s="1"><v>{}</v></c>"#,
                 cell_ref, string_idx

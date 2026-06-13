@@ -5,6 +5,7 @@ use axum::{
 use serde::{Deserialize, Serialize};
 
 use crate::middleware::auth_context::AuthContext;
+use crate::middleware::tenant::extract_tenant_id;
 use crate::utils::app_state::AppState;
 use crate::utils::error::AppError;
 use crate::utils::response::ApiResponse;
@@ -68,7 +69,7 @@ pub async fn list_integrations(
     use crate::models::webhook;
     use sea_orm::{ColumnTrait, EntityTrait, QueryFilter};
 
-    let tenant_id = auth.tenant_id.unwrap_or(0);
+    let tenant_id = extract_tenant_id(&auth)?;
 
     let webhooks = webhook::Entity::find()
         .filter(webhook::Column::TenantId.eq(tenant_id))
@@ -98,7 +99,7 @@ pub async fn create_integration(
     auth: AuthContext,
     Json(req): Json<CreateWebhookIntegrationRequest>,
 ) -> Result<Json<ApiResponse<WebhookIntegrationItem>>, AppError> {
-    let tenant_id = auth.tenant_id.unwrap_or(0);
+    let tenant_id = extract_tenant_id(&auth)?;
 
     use crate::models::webhook;
     use chrono::Utc;
@@ -107,8 +108,8 @@ pub async fn create_integration(
     let now = Utc::now();
     let active_model = webhook::ActiveModel {
         tenant_id: Set(tenant_id),
-        name: Set(req.name.clone()),
-        url: Set(req.webhook_url.clone()),
+        name: Set(req.name),
+        url: Set(req.webhook_url),
         events: Set("*".to_string()),
         secret: Set(req.secret),
         is_active: Set(req.is_active.unwrap_or(true)),
@@ -142,7 +143,7 @@ pub async fn delete_integration(
     auth: AuthContext,
     Path(id): Path<i32>,
 ) -> Result<Json<ApiResponse<()>>, AppError> {
-    let tenant_id = auth.tenant_id.unwrap_or(0);
+    let tenant_id = extract_tenant_id(&auth)?;
 
     // 推荐使用服务层处理删除逻辑（它已经包含了权限检查）
     let service = crate::services::webhook_service::WebhookService::new(state.db.clone());
@@ -182,7 +183,7 @@ pub async fn send_wechat_message(
         .await?
         .ok_or_else(|| AppError::not_found("Webhook 集成不存在"))?;
 
-    if webhook.tenant_id != auth.tenant_id.unwrap_or(0) {
+    if webhook.tenant_id != extract_tenant_id(&auth)? {
         return Err(AppError::permission_denied("无权操作此Webhook"));
     }
 
@@ -237,8 +238,8 @@ pub async fn send_dingtalk_message(
         .await?
         .ok_or_else(|| AppError::not_found("Webhook 集成不存在"))?;
 
-    if webhook.tenant_id != auth.tenant_id.unwrap_or(0) {
-        return Err(AppError::permission_denied("无权操作此Webhook"));
+    if webhook.tenant_id != extract_tenant_id(&auth)? {
+        return Err(AppError::permission_denied("无权操作此 Webhook"));
     }
 
     let delivery = service
@@ -265,10 +266,31 @@ pub async fn send_dingtalk_message(
 }
 
 pub async fn handle_generic_callback(
-    State(_state): State<AppState>,
-    Json(req): Json<WebhookCallbackRequest>,
+    State(state): State<AppState>,
+    headers: axum::http::HeaderMap,
+    body: String,
 ) -> Result<Json<ApiResponse<WebhookCallbackResult>>, AppError> {
-    tracing::info!("收到通用 Webhook 回调: event_type={}", req.event_type);
+    // 1. 提取签名头
+    let signature = headers
+        .get("X-Webhook-Signature")
+        .and_then(|v| v.to_str().ok())
+        .ok_or_else(|| AppError::unauthorized("缺少签名头 X-Webhook-Signature"))?;
+
+    // 2. 获取 Webhook 密钥
+    let webhook_secret = &state.jwt_secret;
+
+    // 3. 验证签名
+    crate::utils::webhook_signature::verify_webhook_signature(
+        &body,
+        webhook_secret,
+        signature,
+    )?;
+
+    // 4. 解析 payload
+    let req: WebhookCallbackRequest = serde_json::from_str(&body)
+        .map_err(|e| AppError::validation(format!("无效的 JSON 格式：{}", e)))?;
+
+    tracing::info!("Webhook 签名验证通过：event_type={}", req.event_type);
 
     let result = WebhookCallbackResult {
         received: true,
@@ -287,7 +309,7 @@ pub async fn test_integration(
     use crate::services::webhook_service::WebhookService;
 
     let service = WebhookService::new(state.db.clone());
-    let tenant_id = auth.tenant_id.unwrap_or(0);
+    let tenant_id = extract_tenant_id(&auth)?;
 
     // 调用 test_webhook 时传入 tenant_id 进行归属校验
     let mut result = service.test_webhook(id, tenant_id).await?;

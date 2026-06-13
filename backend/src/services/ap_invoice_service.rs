@@ -3,6 +3,7 @@
 //! 应付单服务层，负责应付单的核心业务逻辑
 //! 包含应付单自动生成、手工创建、审核、核销等全流程管理
 #![allow(dead_code)]
+// TODO(tech-debt): 业务接入或重评估后逐项移除；rustc 1.94+ 编译时由编译器报告具体死代码位置。
 
 use crate::models::{ap_invoice, purchase_receipt, purchase_return};
 use crate::utils::error::AppError;
@@ -177,9 +178,12 @@ impl ApInvoiceService {
         let invoice_no = self.generate_invoice_no().await?;
 
         // 2. 创建应付单
+        // 供应商 ID 缺失时拒绝创建，避免脏 supplier_id=0 记录
         let invoice = ap_invoice::ActiveModel {
             invoice_no: Set(invoice_no),
-            supplier_id: Set(req.supplier_id.unwrap_or(0)),
+            supplier_id: Set(req.supplier_id.ok_or_else(|| {
+                AppError::validation("应付单缺少供应商ID")
+            })?),
             invoice_type: Set(req.invoice_type.unwrap_or_else(|| "PURCHASE".to_string())),
             source_type: Set(Some("MANUAL".to_string())),
             source_id: Set(None),

@@ -53,7 +53,7 @@ const emit = defineEmits<{
 const chartRef = ref()
 
 const chartOption = computed<EChartsOption>(() => {
-  const seriesConfig = props.series.map((item) => ({
+  const seriesConfig = props.series.map(item => ({
     name: item.name,
     type: 'bar' as const,
     data: item.data,
@@ -66,7 +66,7 @@ const chartOption = computed<EChartsOption>(() => {
     return {
       title: props.title ? { text: props.title, left: 'center' } : undefined,
       tooltip: { trigger: 'axis', axisPointer: { type: 'shadow' } },
-      legend: { data: props.series.map((s) => s.name), top: props.title ? 30 : 0 },
+      legend: { data: props.series.map(s => s.name), top: props.title ? 30 : 0 },
       grid: { left: '3%', right: '4%', bottom: '3%', containLabel: true },
       xAxis: { type: 'value' },
       yAxis: { type: 'category', data: props.xAxisData },
@@ -77,7 +77,7 @@ const chartOption = computed<EChartsOption>(() => {
   return {
     title: props.title ? { text: props.title, left: 'center' } : undefined,
     tooltip: { trigger: 'axis', axisPointer: { type: 'shadow' } },
-    legend: { data: props.series.map((s) => s.name), top: props.title ? 30 : 0 },
+    legend: { data: props.series.map(s => s.name), top: props.title ? 30 : 0 },
     grid: { left: '3%', right: '4%', bottom: '3%', containLabel: true },
     xAxis: { type: 'category', data: props.xAxisData, axisTick: { alignWithLabel: true } },
     yAxis: { type: 'value' },

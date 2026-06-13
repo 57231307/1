@@ -1,4 +1,5 @@
 #![allow(dead_code)]
+// TODO(tech-debt): 业务接入或重评估后逐项移除；rustc 1.94+ 编译时由编译器报告具体死代码位置。
 
 use chrono::Utc;
 use sea_orm::{
@@ -9,8 +10,62 @@ use std::sync::Arc;
 
 use crate::models::customer::{self, Entity as CustomerEntity};
 use crate::models::dto::PageRequest;
+use crate::utils::data_permission::{CUSTOMER_ALL_FIELDS, DataPermissionFilter};
 use crate::utils::error::AppError;
 use crate::utils::PaginatedResponse;
+
+/// 将字段名映射到客户实体的列枚举
+///
+/// 用于数据库层面的字段选择，将字符串字段名转换为 SeaORM 的 Column 枚举
+fn select_customer_column(
+    query: sea_orm::Select<CustomerEntity>,
+    field: &str,
+) -> sea_orm::Select<CustomerEntity> {
+    use customer::Column;
+    match field {
+        "id" => query.column(Column::Id),
+        "customer_code" => query.column(Column::CustomerCode),
+        "customer_name" => query.column(Column::CustomerName),
+        "contact_person" => query.column(Column::ContactPerson),
+        "contact_phone" => query.column(Column::ContactPhone),
+        "contact_email" => query.column(Column::ContactEmail),
+        "address" => query.column(Column::Address),
+        "city" => query.column(Column::City),
+        "province" => query.column(Column::Province),
+        "country" => query.column(Column::Country),
+        "postal_code" => query.column(Column::PostalCode),
+        "credit_limit" => query.column(Column::CreditLimit),
+        "payment_terms" => query.column(Column::PaymentTerms),
+        "tax_id" => query.column(Column::TaxId),
+        "bank_name" => query.column(Column::BankName),
+        "bank_account" => query.column(Column::BankAccount),
+        "status" => query.column(Column::Status),
+        "customer_type" => query.column(Column::CustomerType),
+        "notes" => query.column(Column::Notes),
+        "created_by" => query.column(Column::CreatedBy),
+        "created_at" => query.column(Column::CreatedAt),
+        "updated_at" => query.column(Column::UpdatedAt),
+        "customer_industry" => query.column(Column::CustomerIndustry),
+        "main_products" => query.column(Column::MainProducts),
+        "annual_purchase" => query.column(Column::AnnualPurchase),
+        "quality_requirement" => query.column(Column::QualityRequirement),
+        "inspection_standard" => query.column(Column::InspectionStandard),
+        _ => query,
+    }
+}
+
+/// 根据数据权限过滤器构建只选择指定字段的查询
+fn build_select_only_query(
+    query: sea_orm::Select<CustomerEntity>,
+    filter: &DataPermissionFilter,
+) -> sea_orm::Select<CustomerEntity> {
+    let select_fields = filter.get_select_fields(CUSTOMER_ALL_FIELDS);
+    let mut select_query = query.select_only();
+    for field in &select_fields {
+        select_query = select_customer_column(select_query, field);
+    }
+    select_query
+}
 
 /// 客户服务
 pub struct CustomerService {
@@ -155,6 +210,124 @@ impl CustomerService {
             page_req.page,
             page_req.page_size,
         ))
+    }
+
+    /// 获取客户列表（带数据权限过滤）
+    ///
+    /// # 参数
+    /// - `page_req`: 分页参数
+    /// - `status`: 状态筛选
+    /// - `customer_type`: 客户类型筛选
+    /// - `keyword`: 关键词搜索
+    /// - `permission_filter`: 数据权限过滤器，用于在数据库层面过滤字段
+    pub async fn list_customers_with_filter(
+        &self,
+        page_req: PageRequest,
+        status: Option<String>,
+        customer_type: Option<String>,
+        keyword: Option<String>,
+        permission_filter: Option<DataPermissionFilter>,
+    ) -> Result<PaginatedResponse<serde_json::Value>, AppError> {
+        let mut query = CustomerEntity::find();
+
+        // 状态筛选
+        if let Some(status) = status {
+            query = query.filter(customer::Column::Status.eq(status));
+        }
+
+        // 客户类型筛选
+        if let Some(customer_type) = customer_type {
+            query = query.filter(customer::Column::CustomerType.eq(customer_type));
+        }
+
+        // 关键词搜索
+        if let Some(keyword) = keyword {
+            query = query.filter(
+                customer::Column::CustomerName
+                    .contains(&keyword)
+                    .or(customer::Column::CustomerCode.contains(&keyword)),
+            );
+        }
+
+        // 总数
+        let total = query.clone().count(&*self.db).await?;
+
+        // 分页排序
+        let offset = (page_req.page - 1) * page_req.page_size;
+
+        // 根据数据权限过滤字段
+        let customers = if let Some(filter) = permission_filter {
+            // 使用辅助函数构建只选择指定字段的查询
+            let select_query = build_select_only_query(query, &filter);
+
+            let rows = select_query
+                .order_by(customer::Column::CreatedAt, Order::Desc)
+                .offset(offset)
+                .limit(page_req.page_size)
+                .into_json()
+                .all(&*self.db)
+                .await?;
+
+            rows
+        } else {
+            // 没有过滤器，查询所有字段
+            let rows = query
+                .order_by(customer::Column::CreatedAt, Order::Desc)
+                .offset(offset)
+                .limit(page_req.page_size)
+                .all(&*self.db)
+                .await?;
+
+            // 转换为 JSON 值
+            rows.into_iter()
+                .map(|c| {
+                    serde_json::to_value(c)
+                        .map_err(|e| AppError::internal(format!("序列化失败: {}", e)))
+                })
+                .collect::<Result<Vec<_>, _>>()?
+        };
+
+        Ok(PaginatedResponse::new(
+            customers,
+            total,
+            page_req.page,
+            page_req.page_size,
+        ))
+    }
+
+    /// 获取客户详情（带数据权限过滤）
+    ///
+    /// # 参数
+    /// - `customer_id`: 客户ID
+    /// - `permission_filter`: 数据权限过滤器，用于在数据库层面过滤字段
+    pub async fn get_customer_with_filter(
+        &self,
+        customer_id: i32,
+        permission_filter: Option<DataPermissionFilter>,
+    ) -> Result<serde_json::Value, AppError> {
+        let query = CustomerEntity::find_by_id(customer_id);
+
+        let customer = if let Some(filter) = permission_filter {
+            // 使用辅助函数构建只选择指定字段的查询
+            let select_query = build_select_only_query(query, &filter);
+
+            select_query
+                .into_json()
+                .one(&*self.db)
+                .await?
+                .ok_or_else(|| AppError::not_found(format!("客户 {} 未找到", customer_id)))?
+        } else {
+            // 没有过滤器，查询所有字段
+            let model = query
+                .one(&*self.db)
+                .await?
+                .ok_or_else(|| AppError::not_found(format!("客户 {} 未找到", customer_id)))?;
+
+            serde_json::to_value(model)
+                .map_err(|e| AppError::internal(format!("序列化失败: {}", e)))?
+        };
+
+        Ok(customer)
     }
 
     /// 更新客户信息

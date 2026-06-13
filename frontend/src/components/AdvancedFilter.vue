@@ -226,15 +226,15 @@ const showSaveDialog = ref(false)
 const newSchemeName = ref('')
 
 const isValid = computed(() => {
-  return conditions.value.every((group) => group.items.every((item) => item.field && item.operator))
+  return conditions.value.every(group => group.items.every(item => item.field && item.operator))
 })
 
 const getAvailableOperators = (fieldKey: string): FilterOperator[] => {
   if (props.operators.length > 0) return props.operators
-  const field = props.fields.find((f) => f.key === fieldKey)
+  const field = props.fields.find(f => f.key === fieldKey)
   if (!field) return defaultOperators
   return defaultOperators.filter(
-    (op) => !op.applicableTypes || op.applicableTypes.includes(field.type || 'text')
+    op => !op.applicableTypes || op.applicableTypes.includes(field.type || 'text')
   )
 }
 
@@ -249,7 +249,7 @@ const getValueInput = (condition: FilterCondition) => {
   if (['null', 'notNull'].includes(condition.operator)) {
     return 'span'
   }
-  const field = props.fields.find((f) => f.key === condition.field)
+  const field = props.fields.find(f => f.key === condition.field)
   if (!field) return 'el-input'
 
   switch (field.type) {

@@ -1,6 +1,3 @@
-#![allow(dead_code)]
-#![allow(unused_variables)]
-#![allow(unused_imports)]
 mod config;
 mod docs;
 mod handlers;
@@ -302,6 +299,15 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 info!("成功执行 Migration (TOTP 字段及性能索引)");
             }
 
+            // 启动时执行核心迁移（m0001-m0005）
+            use migration::{Migrator, MigratorTrait};
+            tracing::info!("启动时执行核心数据库迁移...");
+            if let Err(e) = Migrator::up(&db, Some(5)).await {
+                tracing::warn!("启动时核心迁移失败: {}，将在初始化时重试", e);
+            } else {
+                tracing::info!("核心迁移执行完成");
+            }
+
             std::io::stdout().flush().ok();
             std::io::stderr().flush().ok();
 
@@ -322,7 +328,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 crate::services::audit_cleanup_service::AuditCleanupService::new(db.clone(), 999),
             );
 
-            let app_state = crate::utils::app_state::AppState::with_secrets_and_cors(
+            let app_state = match crate::utils::app_state::AppState::with_secrets_and_cors(
                 db,
                 omni_audit,
                 audit_cleanup,
@@ -330,7 +336,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 settings.auth.previous_jwt_secret.clone(),
                 cookie_secret,
                 settings.cors.allowed_origins.clone(),
-            );
+            ) {
+                Ok(state) => state,
+                Err(e) => {
+                    return Err(format!("初始化应用全局状态失败: {}", e).into());
+                }
+            };
             let app_state_clone = app_state.clone();
             let app_state_clone2 = app_state.clone();
             let app_state_clone3 = app_state.clone();

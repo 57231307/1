@@ -45,7 +45,7 @@ const initChart = () => {
     textColor: '#000',
     maskColor: 'rgba(255, 255, 255, 0.8)',
   })
-  chartInstance.on('click', (params) => emit('click', params))
+  chartInstance.on('click', params => emit('click', params))
   emit('ready', chartInstance)
 }
 

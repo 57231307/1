@@ -502,7 +502,7 @@ const handleDelete = async (row: CustomerWithTags) => {
 const handleSubmit = async () => {
   if (!formRef.value) return
 
-  await formRef.value.validate(async (valid) => {
+  await formRef.value.validate(async valid => {
     if (!valid) return
 
     submitLoading.value = true
@@ -536,10 +536,10 @@ const handleExport = () => {
       { key: 'customer_name', title: '客户名称' },
       { key: 'contact_person', title: '联系人' },
       { key: 'phone', title: '电话' },
-      { key: 'customer_type', title: '类型', formatter: (v) => getCustomerTypeLabel(v) },
+      { key: 'customer_type', title: '类型', formatter: v => getCustomerTypeLabel(v) },
       { key: 'owner_name', title: '负责人' },
       { key: 'total_amount', title: '累计金额' },
-      { key: 'status', title: '状态', formatter: (v) => (v === 'active' ? '启用' : '禁用') },
+      { key: 'status', title: '状态', formatter: v => (v === 'active' ? '启用' : '禁用') },
     ],
     data: customers.value,
   })

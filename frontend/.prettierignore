@@ -1,7 +1,12 @@
-# 构建输出
+# 依赖和构建输出
+node_modules/
 dist/
 build/
-node_modules/
+coverage/
+
+# 压缩文件
+*.min.js
+*.min.css
 
 # 自动生成的文件
 auto-imports.d.ts
@@ -12,8 +17,4 @@ components.d.ts
 *.config.ts
 
 # 其他
-*.md
-*.json
-*.yaml
-*.yml
 package-lock.json

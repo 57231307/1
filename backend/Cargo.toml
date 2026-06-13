@@ -8,9 +8,7 @@ description = "面料管理 - Rust 后端服务"
 [dependencies]
 # Web 框架
 axum = { version = "0.7", features = ["json", "multipart", "macros"] }
-tower = "0.5"
 tower-http = { version = "0.6", features = ["cors", "trace", "fs", "set-header"] }
-http = "1"
 
 # 异步运行时
 tokio = { version = "1.0", features = ["full"] }
@@ -79,7 +77,6 @@ tokio-cron-scheduler = "0.10"
 
 # CLI 工具
 clap = { version = "4.4", features = ["derive"] }
-rand = "0.8"
 
 # API 文档
 utoipa = { version = "5.2.0", features = ["axum_extras"] }
@@ -88,8 +85,10 @@ totp-rs = { version = "5.5", features = ["qr", "gen_secret"] }
 utoipa-swagger-ui = { version = "8.0.3", features = ["axum"], optional = true }
 percent-encoding = "2.3.1"
 fastrand = "2.4.0"
-ring = "0.17"
 hex = "0.4.3"
+hmac = "0.12"
+sha2 = "0.10"
+subtle = "2.6"
 
 
 
@@ -100,10 +99,12 @@ csv = "1.3"
 migration = { version = "0.1.0", path = "migration" }
 
 [dev-dependencies]
+# 开发测试相关依赖
 tokio-test = "0.4"
 mockall = "0.12"
+tower = "0.5"
+# 测试环境使用 SQLite
 sea-orm = { version = "2.0.0-rc.40", features = ["sqlx-sqlite", "runtime-tokio"] }
-prost = "0.14.4"
 
 [build-dependencies]
 

@@ -407,7 +407,7 @@ const handleApprove = async (row: any) => {
 }
 
 const handleSalesOrderChange = (orderId: number) => {
-  const order = salesOrderList.value.find((o) => o.id === orderId)
+  const order = salesOrderList.value.find(o => o.id === orderId)
   if (order) {
     formData.salesOrderNo = order.order_no
     formData.customerId = order.customer_id

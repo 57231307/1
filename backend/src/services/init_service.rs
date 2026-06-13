@@ -1,5 +1,6 @@
 //! 系统初始化服务
 #![allow(dead_code)]
+// TODO(tech-debt): 业务接入或重评估后逐项移除；rustc 1.94+ 编译时由编译器报告具体死代码位置。
 
 use crate::models::department;
 use crate::models::role;
@@ -10,9 +11,31 @@ use sea_orm::{
     ActiveModelTrait, ColumnTrait, ConnectOptions, ConnectionTrait, Database, DatabaseConnection,
     EntityTrait, PaginatorTrait, QueryFilter, Set,
 };
+use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::Duration;
+use tokio::sync::Mutex;
 use tracing::warn;
+
+/// 初始化任务状态
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum InitTaskStatus {
+    /// 正在运行
+    Running,
+    /// 已完成
+    Completed,
+    /// 失败
+    Failed,
+}
+
+/// 全局初始化任务状态存储（内存存储，生产环境应改用 Redis）
+static INIT_TASKS: std::sync::OnceLock<Arc<Mutex<HashMap<String, InitTaskStatus>>>> =
+    std::sync::OnceLock::new();
+
+/// 获取全局初始化任务状态存储
+pub fn get_init_tasks() -> &'static Arc<Mutex<HashMap<String, InitTaskStatus>>> {
+    INIT_TASKS.get_or_init(|| Arc::new(Mutex::new(HashMap::new())))
+}
 
 #[derive(Debug, Clone, serde::Deserialize, serde::Serialize)]
 pub struct DatabaseConfig {
@@ -99,7 +122,7 @@ impl InitService {
                         v.as_ref()
                             .map(|row| row.try_get::<i32>("", "test").unwrap_or(1))
                     })
-                    .map(|opt| opt.unwrap_or(0));
+                    .map(|opt| opt.unwrap_or_default());
 
                 query_result
                     .map(|_| ())
@@ -125,8 +148,16 @@ impl InitService {
         let password_hash = AuthService::hash_password(admin_password)
             .map_err(|e| InitError::HashError(e.to_string()))?;
 
-        let admin_role = self.create_default_roles().await?;
-        let department_id = self.create_default_departments().await?;
+        // 验证生成的密码哈希长度，确保符合预期
+        if password_hash.len() > 512 {
+            tracing::warn!("生成的密码哈希长度 {} 超过限制，可能存在问题", password_hash.len());
+        }
+
+        // 并行执行独立的初始化操作：创建默认角色和默认部门
+        let (admin_role, department_id) = tokio::try_join!(
+            self.create_default_roles(),
+            self.create_default_departments()
+        )?;
 
         self.create_admin_user(admin_username, &password_hash, admin_role.id, department_id)
             .await?;
@@ -180,6 +211,80 @@ impl InitService {
                 .map(|e| e.to_string())
                 .unwrap_or_else(|| "未知错误".to_string())
         )))
+    }
+
+    /// 异步初始化方法（非阻塞）
+    ///
+    /// 该方法会立即返回任务 ID，然后在后台执行剩余的数据库迁移和默认数据创建。
+    /// 可以通过 `get_task_status` 查询任务状态。
+    pub async fn initialize_with_db_async(
+        db_config: &DatabaseConfig,
+        admin_username: &str,
+        admin_password: &str,
+    ) -> Result<String, InitError> {
+        Self::test_database(db_config).await?;
+
+        let conn_str = db_config.to_connection_string();
+
+        let mut opt = ConnectOptions::new(&conn_str);
+        opt.max_connections(10)
+            .min_connections(1)
+            .connect_timeout(Duration::from_secs(10))
+            .acquire_timeout(Duration::from_secs(10));
+
+        let db = Database::connect(opt)
+            .await
+            .map_err(|e| InitError::DatabaseError(format!("数据库连接失败: {}", e)))?;
+
+        let db = Arc::new(db);
+        let task_id = uuid::Uuid::new_v4().to_string();
+
+        // 存储任务状态
+        get_init_tasks()
+            .lock()
+            .await
+            .insert(task_id.clone(), InitTaskStatus::Running);
+
+        // 后台执行剩余迁移
+        let db_clone = db.clone();
+        let task_id_clone = task_id.clone();
+        let admin_username = admin_username.to_string();
+        let admin_password = admin_password.to_string();
+
+        tokio::spawn(async move {
+            use migration::{Migrator, MigratorTrait};
+
+            // 执行剩余迁移（从第 6 个开始）
+            if let Err(e) = Migrator::up(db_clone.as_ref(), None).await {
+                tracing::error!("后台迁移失败: {}", e);
+                get_init_tasks()
+                    .lock()
+                    .await
+                    .insert(task_id_clone, InitTaskStatus::Failed);
+                return;
+            }
+
+            // 创建默认数据
+            let service = InitService::new(db_clone);
+            if let Err(e) = service
+                .initialize(&admin_username, &admin_password)
+                .await
+            {
+                tracing::error!("创建默认数据失败: {}", e);
+                get_init_tasks()
+                    .lock()
+                    .await
+                    .insert(task_id_clone, InitTaskStatus::Failed);
+                return;
+            }
+
+            get_init_tasks()
+                .lock()
+                .await
+                .insert(task_id_clone, InitTaskStatus::Completed);
+        });
+
+        Ok(task_id)
     }
 
     async fn run_migrations(&self) -> Result<(), InitError> {

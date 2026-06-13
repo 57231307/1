@@ -351,7 +351,7 @@ const handleBatchClaim = async () => {
       '批量领取确认',
       { type: 'info' }
     )
-    const ids = selectedRows.value.map((r) => r.id)
+    const ids = selectedRows.value.map(r => r.id)
     await crmEnhancedApi.batchClaimFromPool(ids)
     ElMessage.success('批量领取成功')
     selectedRows.value = []

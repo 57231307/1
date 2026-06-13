@@ -1,4 +1,5 @@
 #![allow(dead_code)]
+// TODO(tech-debt): 业务接入或重评估后逐项移除；rustc 1.94+ 编译时由编译器报告具体死代码位置。
 
 use axum::{extract::Query, extract::State, Json};
 use chrono::Utc;
@@ -61,7 +62,7 @@ pub async fn scan_to_ship_get(
             }))));
         }
     };
-    scan_to_ship_impl(state, barcode, query.order_id.unwrap_or(0)).await
+    scan_to_ship_impl(state, barcode, query.order_id.unwrap_or_default()).await
 }
 
 pub async fn scan_to_ship_post(
@@ -138,7 +139,7 @@ pub async fn scan_history(
     Query(params): Query<ScanHistoryQuery>,
     _auth: AuthContext,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
-    let page = params.page.unwrap_or(0);
+    let page = params.page.unwrap_or_default();
     let page_size = params.page_size.unwrap_or(20);
 
     let mut query = inventory_piece::Entity::find();

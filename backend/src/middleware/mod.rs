@@ -1,7 +1,7 @@
 pub mod api_gateway;
 pub mod auth;
 pub mod auth_context;
-pub mod field_permission;
+pub mod data_permission;
 pub mod logger_middleware;
 pub mod metrics;
 pub mod omni_audit;
@@ -13,7 +13,6 @@ pub mod request_validator;
 pub mod security_headers;
 pub mod sql_injection_audit;
 pub mod tenant;
-pub mod tenant_isolation;
 pub mod timeout;
 pub mod trace_context;
 pub mod validation;

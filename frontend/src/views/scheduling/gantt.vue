@@ -335,11 +335,11 @@ const renderGanttChart = (data: GanttData) => {
     dates.push(`${d.getMonth() + 1}/${d.getDate()}`)
   }
 
-  const categories = data.work_centers.map((wc) => wc.name)
+  const categories = data.work_centers.map(wc => wc.name)
 
   const seriesData: any[] = []
-  data.work_centers.forEach((wc) => {
-    wc.tasks.forEach((task) => {
+  data.work_centers.forEach(wc => {
+    wc.tasks.forEach(task => {
       const start = new Date(task.start_time).getTime()
       const end = new Date(task.end_time).getTime()
       const color = task.has_conflict ? statusColorMap.conflict : statusColorMap[task.status]

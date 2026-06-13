@@ -650,8 +650,8 @@ const submitVoucherForm = async () => {
       voucher_date: voucherForm.voucher_date,
       voucher_type: voucherForm.voucher_type,
       entries: voucherForm.entries
-        .filter((e) => e.subject_id)
-        .map((e) => ({
+        .filter(e => e.subject_id)
+        .map(e => ({
           subject_id: e.subject_id!,
           debit: e.debit || 0,
           credit: e.credit || 0,
@@ -749,7 +749,7 @@ const handleExportSubjects = () => {
       `L${item.level}`,
     ]),
   ]
-    .map((row) => row.map((cell) => `"${cell}"`).join(','))
+    .map(row => row.map(cell => `"${cell}"`).join(','))
     .join('\n')
   const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' })
   const link = document.createElement('a')
@@ -773,7 +773,7 @@ const handleExportVouchers = () => {
       item.created_at,
     ]),
   ]
-    .map((row) => row.map((cell) => `"${cell ?? ''}"`).join(','))
+    .map(row => row.map(cell => `"${cell ?? ''}"`).join(','))
     .join('\n')
   const blob = new Blob(['\uFEFF' + csvContent], { type: 'text/csv;charset=utf-8;' })
   const link = document.createElement('a')

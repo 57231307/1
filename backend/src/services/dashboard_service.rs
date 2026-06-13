@@ -298,8 +298,11 @@ impl DashboardService {
             }
         }
 
-        // 总库存数量 - 暂时使用简单查询
-        let total_quantity = inventory_stock::Entity::find()
+        // 并行执行 4 个独立的库存聚合查询，提升性能
+        let db = self.db.as_ref();
+
+        // 总库存数量查询
+        let total_quantity_fut = inventory_stock::Entity::find()
             .filter(inventory_stock::Column::StockStatus.eq("active"))
             .select_only()
             .column_as(
@@ -307,30 +310,25 @@ impl DashboardService {
                 "total",
             )
             .into_tuple::<Option<Decimal>>()
-            .one(self.db.as_ref())
-            .await?
-            .flatten()
-            .unwrap_or(Decimal::ZERO);
+            .one(db);
 
-        // 低库存产品数
-        let _low_stock_count = inventory_stock::Entity::find()
+        // 低库存产品数查询
+        let low_stock_count_fut = inventory_stock::Entity::find()
             .filter(
                 Expr::col(inventory_stock::Column::QuantityMeters)
                     .lt(Expr::col(inventory_stock::Column::ReorderPoint)),
             )
             .filter(inventory_stock::Column::StockStatus.eq("active"))
-            .count(self.db.as_ref())
-            .await? as i64;
+            .count(db);
 
-        // 零库存产品数
-        let _zero_stock_count = inventory_stock::Entity::find()
+        // 零库存产品数查询
+        let zero_stock_count_fut = inventory_stock::Entity::find()
             .filter(inventory_stock::Column::QuantityMeters.eq(Decimal::ZERO))
             .filter(inventory_stock::Column::StockStatus.eq("active"))
-            .count(self.db.as_ref())
-            .await? as i64;
+            .count(db);
 
-        // 仓库分布统计 - 暂时简化处理
-        let warehouse_distribution = inventory_stock::Entity::find()
+        // 仓库分布统计查询
+        let warehouse_distribution_fut = inventory_stock::Entity::find()
             .filter(inventory_stock::Column::StockStatus.eq("active"))
             .select_only()
             .column(inventory_stock::Column::WarehouseId)
@@ -340,8 +338,21 @@ impl DashboardService {
             )
             .group_by(inventory_stock::Column::WarehouseId)
             .into_tuple::<(i32, Option<Decimal>)>()
-            .all(self.db.as_ref())
-            .await?;
+            .all(db);
+
+        let (
+            total_quantity_opt,
+            _low_stock_count,
+            _zero_stock_count,
+            warehouse_distribution,
+        ) = tokio::try_join!(
+            total_quantity_fut,
+            low_stock_count_fut,
+            zero_stock_count_fut,
+            warehouse_distribution_fut,
+        )?;
+
+        let total_quantity = total_quantity_opt.flatten().unwrap_or(Decimal::ZERO);
 
         let warehouse_ids: Vec<i32> = warehouse_distribution
             .iter()
@@ -412,14 +423,15 @@ impl DashboardService {
             .map(|item| item.warehouse_id)
             .collect();
 
-        let products = product::Entity::find()
-            .filter(product::Column::Id.is_in(product_ids))
-            .all(&*self.db)
-            .await?;
-        let warehouses = warehouse::Entity::find()
-            .filter(warehouse::Column::Id.is_in(warehouse_ids))
-            .all(&*self.db)
-            .await?;
+        // 并行查询产品和仓库信息，提升性能
+        let (products, warehouses) = tokio::try_join!(
+            product::Entity::find()
+                .filter(product::Column::Id.is_in(product_ids))
+                .all(&*self.db),
+            warehouse::Entity::find()
+                .filter(warehouse::Column::Id.is_in(warehouse_ids))
+                .all(&*self.db)
+        )?;
 
         let product_map: HashMap<i32, product::Model> =
             products.into_iter().map(|p| (p.id, p)).collect();

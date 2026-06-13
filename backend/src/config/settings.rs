@@ -1,6 +1,6 @@
-#![allow(dead_code)]
 use config::{Config, ConfigError, File};
 use serde::{Deserialize, Serialize};
+use tracing::{error, warn};
 
 #[derive(Debug, Clone, Deserialize)]
 pub struct AppSettings {
@@ -31,6 +31,14 @@ pub struct DatabaseConfig {
     pub username: String,
     pub password: String,
     pub max_connections: u32,
+    /// 最小连接数，连接池会始终保持的活跃连接数量
+    pub min_connections: Option<u32>,
+    /// 获取连接超时时间（毫秒），默认 10000ms
+    pub acquire_timeout_ms: Option<u64>,
+    /// 连接空闲超时时间（毫秒），默认 300000ms（5分钟）
+    pub idle_timeout_ms: Option<u64>,
+    /// 连接最大生命周期（毫秒），默认 1800000ms（30分钟）
+    pub max_lifetime_ms: Option<u64>,
     pub ssl_mode: String,
     pub ssl_ca: Option<String>,
 }
@@ -96,22 +104,6 @@ impl Default for CorsConfig {
     }
 }
 
-impl CorsConfig {
-    /// 从环境变量加载（使用 CORS_ALLOWED_ORIGINS 单下划线环境变量，
-    /// 用于在无法读取 config 文件时直接构造 CORS 配置的兜底场景）
-    pub fn from_env() -> Self {
-        let mut config = Self::default();
-        if let Ok(origins) = std::env::var("CORS_ALLOWED_ORIGINS") {
-            config.allowed_origins = origins
-                .split(',')
-                .map(|s| s.trim().to_string())
-                .filter(|s| !s.is_empty())
-                .collect();
-        }
-        config
-    }
-}
-
 impl AppSettings {
     pub fn new() -> Result<Self, ConfigError> {
         let config_builder = Config::builder()
@@ -122,15 +114,19 @@ impl AppSettings {
         let settings = match config_builder.build() {
             Ok(c) => c,
             Err(e) => {
-                eprintln!("警告: 无法加载配置文件: {}", e);
-                eprintln!("将尝试从环境变量加载配置");
+                warn!("无法加载配置文件: {}", e);
+                warn!("将尝试从环境变量加载配置");
                 match Config::builder()
                     .add_source(config::Environment::default().separator("__"))
                     .build()
                 {
                     Ok(c) => c,
-                    Err(_) => {
-                        panic!("无法加载配置，系统启动失败");
+                    Err(e) => {
+                        // 配置加载是启动前置条件，加载失败必须快速失败；返回 Result 让调用方处理
+                        return Err(ConfigError::Message(format!(
+                            "无法加载配置（配置文件 + 环境变量均失败）：{}",
+                            e
+                        )));
                     }
                 }
             }
@@ -139,35 +135,41 @@ impl AppSettings {
         let mut app_settings: AppSettings = match settings.try_deserialize::<AppSettings>() {
             Ok(s) => s,
             Err(e) => {
-                eprintln!("═══════════════════════════════════════════════════════════════");
-                eprintln!("配置解析失败：{}", e);
-                eprintln!("═══════════════════════════════════════════════════════════════");
-                eprintln!("可能原因:");
-                eprintln!("  1. config.yaml 中存在未知字段名（拼写错误）");
-                eprintln!("  2. 某个字段类型不匹配（如 port 应该是数字/字符串）");
-                eprintln!("  3. 缺少必填字段（除 cors 外其他段都是必填）");
-                eprintln!("═══════════════════════════════════════════════════════════════");
-                eprintln!("  注意: cors 段已启用 serde(default)，缺失字段会走默认值。");
-                eprintln!("═══════════════════════════════════════════════════════════════");
+                error!("═══════════════════════════════════════════════════════════════");
+                error!("配置解析失败：{}", e);
+                error!("═══════════════════════════════════════════════════════════════");
+                error!("可能原因:");
+                error!("  1. config.yaml 中存在未知字段名（拼写错误）");
+                error!("  2. 某个字段类型不匹配（如 port 应该是数字/字符串）");
+                error!("  3. 缺少必填字段（除 cors 外其他段都是必填）");
+                error!("═══════════════════════════════════════════════════════════════");
+                error!("  注意: cors 段已启用 serde(default)，缺失字段会走默认值。");
+                error!("═══════════════════════════════════════════════════════════════");
                 return Err(e);
             }
         };
 
-        app_settings.load_sensitive_from_env();
+        app_settings.load_sensitive_from_env()?;
 
         if !Self::validate_secret(&app_settings.auth.jwt_secret) {
-            panic!("致命错误：JWT_SECRET 密钥强度不足或使用默认密钥！生产环境必须提供至少 32 字节的安全随机密钥，且不能包含常见弱模式。");
+            return Err(ConfigError::Message(
+                "致命错误：JWT_SECRET 密钥强度不足或使用默认密钥！生产环境必须提供至少 32 字节的安全随机密钥，且不能包含常见弱模式。".to_string(),
+            ));
         }
 
         if let Some(cookie_secret) = &app_settings.auth.cookie_secret {
             if !Self::validate_secret(cookie_secret) {
-                panic!("致命错误：COOKIE_SECRET 密钥强度不足或使用默认密钥！生产环境必须提供至少 32 字节的安全随机密钥，且不能包含常见弱模式。");
+                return Err(ConfigError::Message(
+                    "致命错误：COOKIE_SECRET 密钥强度不足或使用默认密钥！生产环境必须提供至少 32 字节的安全随机密钥，且不能包含常见弱模式。".to_string(),
+                ));
             }
         }
 
         let env = app_settings.env.to_lowercase();
         if env == "production" && app_settings.auth.cookie_secret.is_none() {
-            panic!("生产环境必须配置独立的 auth.cookie_secret，不能降级使用 jwt_secret");
+            return Err(ConfigError::Message(
+                "生产环境必须配置独立的 auth.cookie_secret，不能降级使用 jwt_secret".to_string(),
+            ));
         }
 
         if let Ok(origins_str) = std::env::var("CORS__ALLOWED_ORIGINS") {
@@ -202,7 +204,7 @@ impl AppSettings {
         Ok(app_settings)
     }
 
-    fn load_sensitive_from_env(&mut self) {
+    fn load_sensitive_from_env(&mut self) -> Result<(), ConfigError> {
         if let Ok(password) = std::env::var("DATABASE_PASSWORD") {
             self.database.password = password;
         }
@@ -225,9 +227,13 @@ impl AppSettings {
 
         if let Ok(audit_secret) = std::env::var("AUDIT_SECRET_KEY") {
             if audit_secret.len() < 32 {
-                panic!("AUDIT_SECRET_KEY 必须至少 32 字节");
+                return Err(ConfigError::Message(
+                    "AUDIT_SECRET_KEY 必须至少 32 字节".to_string(),
+                ));
             }
         }
+
+        Ok(())
     }
 
     fn validate_secret(secret: &str) -> bool {

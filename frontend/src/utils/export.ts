@@ -1,15 +1,17 @@
 import { ElMessage } from 'element-plus'
 
-export interface ExportColumn {
-  key: string
+/** 导出列定义，使用泛型支持类型安全的字段访问 */
+export interface ExportColumn<T extends Record<string, unknown> = Record<string, unknown>> {
+  key: keyof T & string
   title: string
-  formatter?: (value: any, row: any) => string
+  formatter?: (value: unknown, row: T) => string
 }
 
-export interface ExportOptions {
+/** 导出选项，使用泛型约束数据类型 */
+export interface ExportOptions<T extends Record<string, unknown> = Record<string, unknown>> {
   filename: string
-  columns: ExportColumn[]
-  data: any[]
+  columns: ExportColumn<T>[]
+  data: T[]
   format?: 'csv' | 'excel'
 }
 
@@ -22,29 +24,35 @@ function escapeCSV(value: string): string {
   return str
 }
 
-function generateCSV(columns: ExportColumn[], data: any[]): string {
-  const headers = columns.map((col) => escapeCSV(col.title)).join(',')
-  const rows = data.map((row) =>
+function generateCSV<T extends Record<string, unknown>>(
+  columns: ExportColumn<T>[],
+  data: T[]
+): string {
+  const headers = columns.map(col => escapeCSV(col.title)).join(',')
+  const rows = data.map(row =>
     columns
-      .map((col) => {
+      .map(col => {
         const value = row[col.key]
-        const formatted = col.formatter ? col.formatter(value, row) : value
-        return escapeCSV(formatted ?? '')
+        const formatted = col.formatter ? col.formatter(value, row) : String(value ?? '')
+        return escapeCSV(formatted)
       })
       .join(',')
   )
   return [headers, ...rows].join('\n')
 }
 
-function generateExcelHTML(columns: ExportColumn[], data: any[]): string {
-  const headers = columns.map((col) => `<th>${col.title}</th>`).join('')
+function generateExcelHTML<T extends Record<string, unknown>>(
+  columns: ExportColumn<T>[],
+  data: T[]
+): string {
+  const headers = columns.map(col => `<th>${col.title}</th>`).join('')
   const rows = data
-    .map((row) => {
+    .map(row => {
       const cells = columns
-        .map((col) => {
+        .map(col => {
           const value = row[col.key]
-          const formatted = col.formatter ? col.formatter(value, row) : value
-          return `<td>${formatted ?? ''}</td>`
+          const formatted = col.formatter ? col.formatter(value, row) : String(value ?? '')
+          return `<td>${formatted}</td>`
         })
         .join('')
       return `<tr>${cells}</tr>`
@@ -93,7 +101,7 @@ function downloadFile(content: string, filename: string, mimeType: string) {
   URL.revokeObjectURL(link.href)
 }
 
-export function exportToCSV(options: ExportOptions) {
+export function exportToCSV<T extends Record<string, unknown>>(options: ExportOptions<T>) {
   const { filename, columns, data } = options
   if (!data || data.length === 0) {
     ElMessage.warning('没有可导出的数据')
@@ -105,7 +113,7 @@ export function exportToCSV(options: ExportOptions) {
   ElMessage.success('导出成功')
 }
 
-export function exportToExcel(options: ExportOptions) {
+export function exportToExcel<T extends Record<string, unknown>>(options: ExportOptions<T>) {
   const { filename, columns, data } = options
   if (!data || data.length === 0) {
     ElMessage.warning('没有可导出的数据')
@@ -117,7 +125,7 @@ export function exportToExcel(options: ExportOptions) {
   ElMessage.success('导出成功')
 }
 
-export function exportData(options: ExportOptions) {
+export function exportData<T extends Record<string, unknown>>(options: ExportOptions<T>) {
   const format = options.format || 'csv'
   if (format === 'excel') {
     exportToExcel(options)

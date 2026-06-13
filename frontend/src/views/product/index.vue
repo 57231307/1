@@ -446,7 +446,7 @@ const fetchData = async () => {
 
     // 计算统计数据
     stats.value.totalProducts = total.value
-    stats.value.activeProducts = products.value.filter((p) => p.is_active).length
+    stats.value.activeProducts = products.value.filter(p => p.is_active).length
     stats.value.avgPrice =
       products.value.length > 0
         ? products.value.reduce((sum, p) => sum + (p.price || 0), 0) / products.value.length
@@ -476,11 +476,11 @@ const buildTree = (items: ProductCategory[]): ProductCategory[] => {
   const map = new Map<number, ProductCategory>()
   const tree: ProductCategory[] = []
 
-  items.forEach((item) => {
+  items.forEach(item => {
     map.set(item.id, { ...item, children: [] })
   })
 
-  items.forEach((item) => {
+  items.forEach(item => {
     const node = map.get(item.id)!
     if (item.parent_id && map.has(item.parent_id)) {
       map.get(item.parent_id)!.children!.push(node)
@@ -557,7 +557,7 @@ const handleDelete = async (row: Product) => {
 const handleSubmit = async () => {
   if (!formRef.value) return
 
-  await formRef.value.validate(async (valid) => {
+  await formRef.value.validate(async valid => {
     if (!valid) return
 
     submitLoading.value = true

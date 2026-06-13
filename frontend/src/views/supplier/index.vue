@@ -409,7 +409,7 @@ const handleDelete = async (row: Supplier) => {
 const handleSubmit = async () => {
   if (!formRef.value) return
 
-  await formRef.value.validate(async (valid) => {
+  await formRef.value.validate(async valid => {
     if (!valid) return
 
     submitLoading.value = true
@@ -442,7 +442,7 @@ const handleExport = () => {
       { key: 'email', title: '邮箱' },
       { key: 'grade', title: '等级' },
       { key: 'supplier_type', title: '类型' },
-      { key: 'status', title: '状态', formatter: (v) => (v === 'active' ? '启用' : '禁用') },
+      { key: 'status', title: '状态', formatter: v => (v === 'active' ? '启用' : '禁用') },
     ],
     data: suppliers.value,
   })
@@ -461,7 +461,7 @@ const handlePrint = () => {
         key: 'status',
         title: '状态',
         width: '60px',
-        formatter: (v) => (v === 'active' ? '启用' : '禁用'),
+        formatter: v => (v === 'active' ? '启用' : '禁用'),
       },
     ],
     data: suppliers.value,

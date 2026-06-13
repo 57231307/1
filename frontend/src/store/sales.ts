@@ -1,6 +1,7 @@
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
 import { salesApi, type SalesOrder, type SalesOrderQueryParams } from '@/api/sales'
+import { logger } from '@/utils/logger'
 
 export const useSalesStore = defineStore('sales', () => {
   const orders = ref<SalesOrder[]>([])
@@ -15,7 +16,7 @@ export const useSalesStore = defineStore('sales', () => {
       orders.value = res.data!.list
       total.value = res.data!.total
     } catch (error) {
-      console.error('Failed to fetch orders:', error)
+      logger.error('获取订单列表失败:', error)
     } finally {
       loading.value = false
     }
@@ -27,7 +28,7 @@ export const useSalesStore = defineStore('sales', () => {
       currentOrder.value = res.data!
       return res.data!
     } catch (error) {
-      console.error('Failed to fetch order:', error)
+      logger.error('获取订单详情失败:', error)
       return null
     }
   }
@@ -38,7 +39,7 @@ export const useSalesStore = defineStore('sales', () => {
       await fetchOrders()
       return res
     } catch (error) {
-      console.error('Failed to create order:', error)
+      logger.error('创建订单失败:', error)
       return null
     }
   }
@@ -49,7 +50,7 @@ export const useSalesStore = defineStore('sales', () => {
       await fetchOrders()
       return res
     } catch (error) {
-      console.error('Failed to update order:', error)
+      logger.error('更新订单失败:', error)
       return null
     }
   }
@@ -60,7 +61,7 @@ export const useSalesStore = defineStore('sales', () => {
       await fetchOrders()
       return true
     } catch (error) {
-      console.error('Failed to submit order:', error)
+      logger.error('提交订单失败:', error)
       return false
     }
   }
@@ -71,7 +72,7 @@ export const useSalesStore = defineStore('sales', () => {
       await fetchOrders()
       return true
     } catch (error) {
-      console.error('Failed to approve order:', error)
+      logger.error('审批订单失败:', error)
       return false
     }
   }

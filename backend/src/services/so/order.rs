@@ -15,6 +15,7 @@ use crate::services::so::{
     CreateSalesOrderRequest, SalesOrderDetail, SalesOrderItemDetail, UpdateSalesOrderRequest,
 };
 use crate::utils::error::AppError;
+use crate::utils::pagination::paginate_with_total;
 use crate::utils::PaginatedResponse;
 use sea_orm::{
     ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, LoaderTrait, ModelTrait, Order,
@@ -64,8 +65,9 @@ impl SalesService {
             .order_by(sales_order::Column::CreatedAt, Order::Desc)
             .paginate(&*self.db, page_req.page_size);
 
-        let total = paginator.num_items().await?;
-        let orders: Vec<sales_order::Model> = paginator.fetch_page(page_req.page - 1).await?;
+        // 使用统一分页辅助函数，并行执行分页查询与总数统计
+        let (orders, total): (Vec<sales_order::Model>, u64) =
+            paginate_with_total(paginator, page_req.page).await?;
 
         let mut order_details = Vec::with_capacity(orders.len());
 

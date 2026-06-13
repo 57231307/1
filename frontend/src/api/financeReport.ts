@@ -1,4 +1,5 @@
 import { request } from './request'
+import type { ApiResponse } from '@/types/api'
 
 export interface BalanceSheetItem {
   code: string
@@ -28,35 +29,101 @@ export interface CashFlowItem {
   net_flow: number
 }
 
+export interface TrialBalanceItem {
+  code: string
+  name: string
+  debit_amount: number
+  credit_amount: number
+  balance: number
+}
+
+export interface GeneralLedgerItem {
+  date: string
+  voucher_no: string
+  summary: string
+  debit_amount: number
+  credit_amount: number
+  balance: number
+  direction: string
+}
+
+export interface SubsidiaryLedgerItem {
+  date: string
+  voucher_no: string
+  summary: string
+  debit_amount: number
+  credit_amount: number
+  balance: number
+  direction: string
+  counterpart: string
+}
+
+// 报表项联合类型
+export type ReportItem =
+  | BalanceSheetItem
+  | ProfitStatementItem
+  | CashFlowItem
+  | TrialBalanceItem
+  | GeneralLedgerItem
+  | SubsidiaryLedgerItem
+
 export interface ReportData {
   period: string
   period_name: string
-  items: any[]
+  items: ReportItem[]
   total?: number
 }
 
-export function getBalanceSheet(params?: any) {
-  return request.get('/finance/reports/balance-sheet', { params })
+// 财务报表查询参数
+export interface FinanceReportQueryParams {
+  period?: string
+  start_date?: string
+  end_date?: string
+  company_id?: number
+  department_id?: number
 }
 
-export function getProfitStatement(params?: any) {
-  return request.get('/finance/reports/income-statement', { params })
+// 总账查询参数
+export interface GeneralLedgerQueryParams extends FinanceReportQueryParams {
+  subject_code?: string
 }
 
-export function getCashFlowStatement(params?: any) {
-  return request.get('/finance/reports/cash-flow', { params })
+// 明细账查询参数
+export interface SubsidiaryLedgerQueryParams extends FinanceReportQueryParams {
+  customer_id?: number
+  supplier_id?: number
+  subject_code?: string
 }
 
-export function getTrialBalance(params?: any) {
-  return request.get('/finance/reports/trial-balance', { params })
+export function getBalanceSheet(params?: FinanceReportQueryParams) {
+  return request.get<ApiResponse<ReportData>>('/finance/reports/balance-sheet', { params })
 }
 
-export function getGeneralLedger(accountSubjectCode: string, params?: any) {
-  return request.get(`/finance/reports/general-ledger/${accountSubjectCode}`, { params })
+export function getProfitStatement(params?: FinanceReportQueryParams) {
+  return request.get<ApiResponse<ReportData>>('/finance/reports/income-statement', { params })
 }
 
-export function getSubsidiaryLedger(customerId?: number, supplierId?: number, params?: any) {
-  return request.get('/finance/reports/subsidiary-ledger', {
+export function getCashFlowStatement(params?: FinanceReportQueryParams) {
+  return request.get<ApiResponse<ReportData>>('/finance/reports/cash-flow', { params })
+}
+
+export function getTrialBalance(params?: FinanceReportQueryParams) {
+  return request.get<ApiResponse<ReportData>>('/finance/reports/trial-balance', { params })
+}
+
+export function getGeneralLedger(accountSubjectCode: string, params?: GeneralLedgerQueryParams) {
+  return request.get<ApiResponse<ReportData>>(
+    `/finance/reports/general-ledger/${accountSubjectCode}`,
+    { params }
+  )
+}
+
+export function getSubsidiaryLedger(
+  customerId?: number,
+  supplierId?: number,
+  params?: SubsidiaryLedgerQueryParams
+) {
+  return request.get<ApiResponse<ReportData>>('/finance/reports/subsidiary-ledger', {
     params: { customer_id: customerId, supplier_id: supplierId, ...params },
   })
 }

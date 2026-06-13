@@ -80,7 +80,7 @@ const statusOptions = [
 ]
 
 const getStatusLabel = (value: string) => {
-  return statusOptions.find((s) => s.value === value)?.label || value
+  return statusOptions.find(s => s.value === value)?.label || value
 }
 
 const getStatusClass = (value: string) => {
@@ -215,7 +215,7 @@ const handleSubmit = async () => {
   } catch {
     return
   }
-  const validItems = (form.value.items || []).filter((e) => e.product_id > 0 && e.quantity !== 0)
+  const validItems = (form.value.items || []).filter(e => e.product_id > 0 && e.quantity !== 0)
   if (validItems.length === 0) {
     ElMessage.warning('请至少添加一条有效的入库明细')
     return

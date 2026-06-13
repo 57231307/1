@@ -85,7 +85,7 @@ const statusOptions = [
 ]
 
 const getStatusLabel = (value: string) => {
-  return statusOptions.find((s) => s.value === value)?.label || value
+  return statusOptions.find(s => s.value === value)?.label || value
 }
 
 const getStatusClass = (value: string) => {
@@ -137,7 +137,7 @@ const handleExport = () => {
       getStatusLabel(item.status),
     ]),
   ]
-    .map((row) => row.map((cell) => `"${cell}"`).join(','))
+    .map(row => row.map(cell => `"${cell}"`).join(','))
     .join('\n')
   const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' })
   const link = document.createElement('a')
@@ -197,7 +197,7 @@ const handleSubmit = async () => {
     return
   }
   const validEntries = (form.value.entries || []).filter(
-    (e) => e.account_subject_id > 0 && (e.debit_amount > 0 || e.credit_amount > 0)
+    e => e.account_subject_id > 0 && (e.debit_amount > 0 || e.credit_amount > 0)
   )
   if (validEntries.length === 0) {
     ElMessage.warning('请至少添加一条有效的分录')
@@ -279,7 +279,7 @@ const calculateTotals = () => {
   if (!form.value.entries) return
   let totalDebit = 0
   let totalCredit = 0
-  form.value.entries.forEach((entry) => {
+  form.value.entries.forEach(entry => {
     totalDebit += entry.debit_amount || 0
     totalCredit += entry.credit_amount || 0
   })
@@ -326,7 +326,7 @@ const loadAccountSubjects = async () => {
     const flattenOptions = (items: any[]): { label: string; value: number }[] => {
       const result: { label: string; value: number }[] = []
       const traverse = (nodes: any[]) => {
-        nodes.forEach((node) => {
+        nodes.forEach(node => {
           result.push({ label: node.name, value: node.id })
           if (node.children && node.children.length > 0) {
             traverse(node.children)
@@ -370,7 +370,7 @@ const handlePageSizeChange = (pageSize: number) => {
 }
 
 const getTypeLabel = (type: string) => {
-  return voucherTypes.value.find((t) => t.value === type)?.label || type
+  return voucherTypes.value.find(t => t.value === type)?.label || type
 }
 
 const addEntry = () => {

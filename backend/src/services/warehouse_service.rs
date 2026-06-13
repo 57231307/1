@@ -1,6 +1,4 @@
-#![allow(dead_code)]
 use chrono::Utc;
-use rand;
 use sea_orm::{
     ActiveModelTrait, ColumnTrait, EntityTrait, ExprTrait, NotSet, Order, PaginatorTrait,
     QueryFilter, QueryOrder, QuerySelect, Set,
@@ -72,7 +70,7 @@ impl WarehouseService {
             Some(c) if !c.is_empty() => c,
             _ => {
                 let timestamp = Utc::now().timestamp_millis();
-                let random_suffix = rand::random::<u16>() % 10000;
+                let random_suffix = crate::utils::random::random_4_digit();
                 format!("WH{:013}{:04}", timestamp, random_suffix)
             }
         };
@@ -120,7 +118,17 @@ impl WarehouseService {
             wh.address = Set(Some(a));
         }
         if let Some(m) = req.manager {
-            wh.manager_id = Set(Some(m.parse::<i32>().unwrap_or(0)));
+            // 仓库经理 ID 解析失败时记录 warn 并跳过更新，避免脏数据
+            match m.parse::<i32>() {
+                Ok(parsed) => wh.manager_id = Set(Some(parsed)),
+                Err(e) => {
+                    tracing::warn!("仓库经理ID解析失败: {} ({})", m, e);
+                    return Err(AppError::bad_request(format!(
+                        "仓库经理ID格式错误：{}",
+                        m
+                    )));
+                }
+            }
         }
         if let Some(p) = req.phone {
             wh.phone = Set(Some(p));
@@ -148,14 +156,5 @@ impl WarehouseService {
             return Err(AppError::not_found(format!("仓库 ID {} 不存在", id)));
         }
         Ok(())
-    }
-
-    /// 根据仓库编码查询仓库
-    pub async fn find_by_code(&self, code: &str) -> Result<warehouse::Model, AppError> {
-        warehouse::Entity::find()
-            .filter(warehouse::Column::WarehouseCode.eq(code))
-            .one(&*self.db)
-            .await?
-            .ok_or_else(|| AppError::not_found(format!("仓库编码 {} 不存在", code)))
     }
 }

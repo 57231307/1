@@ -68,7 +68,7 @@ async function handleLogin() {
   const form = formRef.value
   if (!form) return
 
-  await form.validate(async (valid) => {
+  await form.validate(async valid => {
     if (!valid) return
 
     loading.value = true

@@ -570,7 +570,10 @@ impl InventoryTransferService {
 
         let txn = (*self.db).begin().await?;
 
-        let product_id = req.product_id.unwrap_or(0);
+        // 物料 ID 缺失时拒绝创建批次库存，避免脏 product_id=0 记录
+        let product_id = req
+            .product_id
+            .ok_or_else(|| AppError::validation("批次缺少物料ID"))?;
         let quantity = req.quantity.unwrap_or(rust_decimal::Decimal::ZERO);
 
         let item = inventory_transfer_item::ActiveModel {

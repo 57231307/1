@@ -2,8 +2,6 @@
 //!
 //! Provides a simple DI container for managing service lifecycle and dependencies
 
-#![allow(dead_code)]
-
 use std::any::{Any, TypeId};
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
@@ -153,25 +151,6 @@ impl Default for DIContainer {
     fn default() -> Self {
         Self::new()
     }
-}
-
-/// Global DI container instance
-pub static GLOBAL_CONTAINER: std::sync::LazyLock<DIContainer> =
-    std::sync::LazyLock::new(DIContainer::new);
-
-/// Register a service in the global container
-pub fn register<T: Any + Send + Sync>(instance: Arc<T>) {
-    GLOBAL_CONTAINER.register_singleton(instance);
-}
-
-/// Get a service from the global container
-pub fn resolve<T: Any + Send + Sync>() -> Option<Arc<T>> {
-    GLOBAL_CONTAINER.get::<T>()
-}
-
-/// Check if a service exists in the global container
-pub fn is_registered<T: Any + Send + Sync>() -> bool {
-    GLOBAL_CONTAINER.has::<T>()
 }
 
 #[cfg(test)]

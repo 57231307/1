@@ -739,7 +739,9 @@ const handleDeliver = (row: SalesOrder) => {
 
 const handleCancel = async (row: SalesOrder) => {
   try {
-    await ElMessageBox.confirm(`确定取消订单 ${row.order_no} 吗？`, '取消确认', { type: 'warning' })
+    await ElMessageBox.confirm(`确定取消订单 ${row.order_no} 吗？`, '取消确认', {
+      type: 'warning',
+    })
     await salesApi.cancelOrder(row.id)
     ElMessage.success(`订单 ${row.order_no} 已取消`)
     fetchData()
@@ -755,14 +757,14 @@ const handleRowClick = (row: any) => {
 }
 
 const handleCustomerChange = (customerId: number) => {
-  const customer = customers.value.find((c) => c.id === customerId)
+  const customer = customers.value.find(c => c.id === customerId)
   if (customer) {
     formData.customer_name = customer.customer_name
   }
 }
 
 const handleProductSelect = (index: number) => {
-  const product = products.value.find((p) => p.id === formData.items[index].product_id)
+  const product = products.value.find(p => p.id === formData.items[index].product_id)
   if (product) {
     formData.items[index].product_name = product.product_name
     formData.items[index].product_code = product.product_code
@@ -924,7 +926,7 @@ const submitDelivery = async () => {
     ElMessage.warning('请选择发货仓库')
     return
   }
-  const validItems = deliveryForm.value.items.filter((item) => item.deliver_quantity > 0)
+  const validItems = deliveryForm.value.items.filter(item => item.deliver_quantity > 0)
   if (validItems.length === 0) {
     ElMessage.warning('请填写至少一项发货数量')
     return
@@ -933,7 +935,7 @@ const submitDelivery = async () => {
     await salesApi.createDelivery(deliveryForm.value.order_id, {
       delivery_date: deliveryForm.value.delivery_date,
       warehouse_id: deliveryForm.value.warehouse_id,
-      items: validItems.map((item) => ({
+      items: validItems.map(item => ({
         product_id: item.product_id,
         quantity: item.deliver_quantity,
         remark: item.remarks,

@@ -170,12 +170,12 @@ const renderCharts = () => {
   const barOption = {
     title: { text: '账龄分析柱状图', left: 'center' },
     tooltip: { trigger: 'axis', formatter: '{b}: {c} 元' },
-    xAxis: { type: 'category', data: buckets.map((b) => b.label) },
+    xAxis: { type: 'category', data: buckets.map(b => b.label) },
     yAxis: { type: 'value', name: '金额（元）' },
     series: [
       {
         type: 'bar',
-        data: buckets.map((b) => b.amount),
+        data: buckets.map(b => b.amount),
         itemStyle: {
           color: (params: any) => {
             const colors = ['#67c23a', '#e6a23c', '#f56c6c', '#909399']
@@ -332,7 +332,7 @@ const handleResolveDispute = async (row: DisputeRecord) => {
   try {
     const { value } = await ElMessageBox.prompt('请输入解决方案', '解决争议', {
       inputType: 'textarea',
-      inputValidator: (v) => (!v ? '解决方案不能为空' : true),
+      inputValidator: v => (!v ? '解决方案不能为空' : true),
     })
     await resolveDispute(row.id, { resolution: value })
     ElMessage.success('争议已解决')
@@ -363,11 +363,11 @@ const getMatchStatusLabel = (status: string) => {
 }
 
 const getDisputeTypeLabel = (type: string) => {
-  return disputeTypeOptions.find((o) => o.value === type)?.label || type
+  return disputeTypeOptions.find(o => o.value === type)?.label || type
 }
 
 const getDisputeStatusLabel = (status: string) => {
-  return disputeStatusOptions.find((o) => o.value === status)?.label || status
+  return disputeStatusOptions.find(o => o.value === status)?.label || status
 }
 
 const getDisputeStatusType = (status: string) => {
@@ -381,7 +381,11 @@ const getDisputeStatusType = (status: string) => {
 }
 
 const getConfirmStatusLabel = (status: string) => {
-  const map: Record<string, string> = { pending: '待确认', confirmed: '已确认', disputed: '有争议' }
+  const map: Record<string, string> = {
+    pending: '待确认',
+    confirmed: '已确认',
+    disputed: '有争议',
+  }
   return map[status] || status
 }
 

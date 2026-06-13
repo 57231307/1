@@ -172,7 +172,7 @@ pub async fn create_dye_batch(
     // 自动生成缸号
     let batch_no = req.batch_no.unwrap_or_else(|| {
         let timestamp = chrono::Utc::now().format("%Y%m%d%H%M%S");
-        let random = rand::random::<u16>() % 10000;
+        let random = crate::utils::random::random_4_digit();
         format!("DB-{}-{:04}", timestamp, random)
     });
 

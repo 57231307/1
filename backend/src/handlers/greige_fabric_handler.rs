@@ -1,5 +1,6 @@
 //! 坯布管理Handler（原料布匹管理）
 #![allow(dead_code)]
+// TODO(tech-debt): 业务接入或重评估后逐项移除；rustc 1.94+ 编译时由编译器报告具体死代码位置。
 
 use axum::{
     extract::{Path, Query, State},
@@ -176,7 +177,7 @@ pub async fn create_greige_fabric(
     // 自动生成编号
     let fabric_no = req.fabric_no.unwrap_or_else(|| {
         let timestamp = chrono::Utc::now().format("%Y%m%d%H%M%S");
-        let random = rand::random::<u16>() % 10000;
+        let random = crate::utils::random::random_4_digit();
         format!("GF-{}-{:04}", timestamp, random)
     });
 

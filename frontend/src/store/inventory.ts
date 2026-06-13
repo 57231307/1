@@ -6,6 +6,7 @@ import {
   type StockAlert,
   type InventoryQueryParams,
 } from '@/api/inventory'
+import { logger } from '@/utils/logger'
 
 export const useInventoryStore = defineStore('inventory', () => {
   const stocks = ref<InventoryStock[]>([])
@@ -20,7 +21,7 @@ export const useInventoryStore = defineStore('inventory', () => {
       stocks.value = res.data!.list
       total.value = res.data!.total
     } catch (error) {
-      console.error('Failed to fetch stocks:', error)
+      logger.error('获取库存列表失败:', error)
     } finally {
       loading.value = false
     }
@@ -31,7 +32,7 @@ export const useInventoryStore = defineStore('inventory', () => {
       const res = await inventoryApi.getStockAlerts()
       alerts.value = res.data!
     } catch (error) {
-      console.error('Failed to fetch alerts:', error)
+      logger.error('获取库存预警失败:', error)
     }
   }
 
@@ -41,7 +42,7 @@ export const useInventoryStore = defineStore('inventory', () => {
       await fetchStocks()
       return true
     } catch (error) {
-      console.error('Failed to create adjustment:', error)
+      logger.error('创建库存调整失败:', error)
       return false
     }
   }

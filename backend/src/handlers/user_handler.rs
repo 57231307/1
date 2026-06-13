@@ -145,7 +145,7 @@ pub async fn list_users(
     let user_service = UserService::new(state.db.clone());
 
     let (users, total) = user_service
-        .list_users(params.page.unwrap_or(0), params.page_size.unwrap_or(20))
+        .list_users(params.page.unwrap_or_default(), params.page_size.unwrap_or(20))
         .await?;
 
     let user_responses: Vec<UserResponse> = users.into_iter().map(|user| user.into()).collect();
@@ -153,7 +153,7 @@ pub async fn list_users(
     Ok(Json(ApiResponse::success(UserListResponse {
         users: user_responses,
         total,
-        page: params.page.unwrap_or(0),
+        page: params.page.unwrap_or_default(),
         page_size: params.page_size.unwrap_or(20),
     })))
 }
@@ -201,9 +201,14 @@ pub async fn delete_user(
         // 非自己账户需要权限检查
         let role_permission_service = RolePermissionService::new(state.db.clone());
 
+        // 缺角色时直接拒绝（避免 role_id=0 误匹配"超级管理员"角色）
+        let role_id = auth
+            .role_id
+            .ok_or_else(|| AppError::permission_denied("用户未分配角色，无法执行删除操作"))?;
+
         // 检查是否有权限删除用户
         let has_permission = role_permission_service
-            .check_permission(auth.role_id.unwrap_or(0), "user", "delete", Some(id))
+            .check_permission(role_id, "user", "delete", Some(id))
             .await
             .map_err(|e| AppError::internal(e.to_string()))?;
 

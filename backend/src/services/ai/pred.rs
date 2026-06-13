@@ -22,7 +22,7 @@ use crate::models::sales_order::Entity as SalesOrderEntity;
 use crate::models::sales_order_item::Entity as SalesOrderItemEntity;
 use crate::utils::error::AppError;
 
-use super::{iqr_quartiles, mean, std_deviation, AiAnalysisService, SalesForecast};
+use super::{mean, std_deviation, AiAnalysisService, SalesForecast};
 
 impl AiAnalysisService {
     /// 销售预测 - 基于历史销售数据预测未来销量
@@ -236,10 +236,4 @@ impl AiAnalysisService {
         }
         factors
     }
-}
-
-// 抑制未使用导入警告（供后续扩展使用）
-#[allow(dead_code)]
-fn _unused_imports() {
-    let _ = iqr_quartiles(&[]);
 }

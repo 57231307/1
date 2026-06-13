@@ -9,6 +9,7 @@ use axum::{
 use serde::Deserialize;
 
 use crate::middleware::auth_context::AuthContext;
+use crate::middleware::tenant::extract_tenant_id;
 use crate::services::report_subscription_service::{
     CreateSubscriptionRequest, ReportSubscriptionService, SubscriptionQuery,
     UpdateSubscriptionRequest,
@@ -46,7 +47,7 @@ pub async fn create_report_template(
     Json(req): Json<CreateReportTemplateRequest>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     let service = ReportTemplateService::new(state.db.clone());
-    let tenant_id = auth.tenant_id.unwrap_or(0);
+    let tenant_id = extract_tenant_id(&auth)?;
 
     let template = service
         .create(tenant_id, auth.user_id, auth.role_id, req)
@@ -67,7 +68,7 @@ pub async fn list_report_templates(
     Query(query): Query<ReportTemplateQuery>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     let service = ReportTemplateService::new(state.db.clone());
-    let tenant_id = auth.tenant_id.unwrap_or(0);
+    let tenant_id = extract_tenant_id(&auth)?;
 
     let (items, total) = service.list(tenant_id, auth.user_id, query).await?;
 
@@ -86,7 +87,7 @@ pub async fn get_report_template(
     let service = ReportTemplateService::new(state.db.clone());
 
     let template = service
-        .get_by_id(id, auth.tenant_id.unwrap_or(0), auth.user_id)
+        .get_by_id(id, extract_tenant_id(&auth)?, auth.user_id)
         .await?
         .ok_or_else(|| AppError::not_found("报表模板不存在"))?;
 
@@ -105,7 +106,7 @@ pub async fn update_report_template(
     let template = service
         .update(
             id,
-            auth.tenant_id.unwrap_or(0),
+            extract_tenant_id(&auth)?,
             auth.user_id,
             auth.role_id,
             req,
@@ -129,7 +130,7 @@ pub async fn delete_report_template(
     let service = ReportTemplateService::new(state.db.clone());
 
     service
-        .delete(id, auth.tenant_id.unwrap_or(0), auth.user_id)
+        .delete(id, extract_tenant_id(&auth)?, auth.user_id)
         .await?;
 
     tracing::info!("用户 {} 删除报表模板: ID={}", auth.username, id);
@@ -155,7 +156,7 @@ pub async fn execute_custom_report(
     let (headers, data, total) = service
         .execute_custom_report(
             id,
-            auth.tenant_id.unwrap_or(0),
+            extract_tenant_id(&auth)?,
             auth.user_id,
             auth.role_id,
             page,
@@ -191,7 +192,7 @@ pub async fn export_pdf(
     let (headers, data, _total) = service
         .execute_custom_report(
             template_id,
-            auth.tenant_id.unwrap_or(0),
+            extract_tenant_id(&auth)?,
             auth.user_id,
             auth.role_id,
             1,
@@ -244,7 +245,7 @@ pub async fn export_excel(
     let (headers, data, _total) = service
         .execute_custom_report(
             template_id,
-            auth.tenant_id.unwrap_or(0),
+            extract_tenant_id(&auth)?,
             auth.user_id,
             auth.role_id,
             1,
@@ -280,95 +281,22 @@ pub async fn export_excel(
     }))))
 }
 
-/// POST /api/v1/erp/reports-enhanced/subscriptions - 创建报表订阅
-pub async fn create_subscription(
-    State(state): State<AppState>,
-    auth: AuthContext,
-    Json(req): Json<CreateSubscriptionRequest>,
-) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
-    let service = ReportSubscriptionService::new(state.db.clone());
-    let tenant_id = auth.tenant_id.unwrap_or(0);
+/// 报表订阅 CRUD Handler（通过宏生成）
+///
+/// 基础增删改查由 `define_tenant_crud_handlers!` 宏生成，自定义接口
+/// （toggle/trigger/send）保留在文件下方以保持可读性。
+pub mod subscriptions {
+    use super::*;
+    use crate::define_tenant_crud_handlers;
 
-    let subscription = service.create(tenant_id, auth.user_id, req).await?;
-
-    tracing::info!("用户 {} 创建报表订阅: {}", auth.username, subscription.name);
-
-    Ok(Json(ApiResponse::success_with_message(
-        serde_json::to_value(subscription)?,
-        "报表订阅创建成功",
-    )))
-}
-
-/// GET /api/v1/erp/reports-enhanced/subscriptions - 获取报表订阅列表
-pub async fn list_subscriptions(
-    State(state): State<AppState>,
-    auth: AuthContext,
-    Query(query): Query<SubscriptionQuery>,
-) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
-    let service = ReportSubscriptionService::new(state.db.clone());
-    let tenant_id = auth.tenant_id.unwrap_or(0);
-
-    let (items, total) = service.list(tenant_id, query).await?;
-
-    Ok(Json(ApiResponse::success(serde_json::json!({
-        "items": items,
-        "total": total,
-    }))))
-}
-
-/// GET /api/v1/erp/reports-enhanced/subscriptions/:id - 获取报表订阅详情
-pub async fn get_subscription(
-    State(state): State<AppState>,
-    _auth: AuthContext,
-    Path(id): Path<i32>,
-) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
-    let service = ReportSubscriptionService::new(state.db.clone());
-
-    let subscription = service
-        .get_by_id(id)
-        .await?
-        .ok_or_else(|| AppError::not_found("订阅不存在"))?;
-
-    Ok(Json(ApiResponse::success(serde_json::to_value(
-        subscription,
-    )?)))
-}
-
-/// PUT /api/v1/erp/reports-enhanced/subscriptions/:id - 更新报表订阅
-pub async fn update_subscription(
-    State(state): State<AppState>,
-    auth: AuthContext,
-    Path(id): Path<i32>,
-    Json(req): Json<UpdateSubscriptionRequest>,
-) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
-    let service = ReportSubscriptionService::new(state.db.clone());
-
-    let subscription = service.update(id, req).await?;
-
-    tracing::info!("用户 {} 更新报表订阅: {}", auth.username, subscription.name);
-
-    Ok(Json(ApiResponse::success_with_message(
-        serde_json::to_value(subscription)?,
-        "报表订阅更新成功",
-    )))
-}
-
-/// DELETE /api/v1/erp/reports-enhanced/subscriptions/:id - 删除报表订阅
-pub async fn delete_subscription(
-    State(state): State<AppState>,
-    auth: AuthContext,
-    Path(id): Path<i32>,
-) -> Result<Json<ApiResponse<()>>, AppError> {
-    let service = ReportSubscriptionService::new(state.db.clone());
-
-    service.delete(id).await?;
-
-    tracing::info!("用户 {} 删除报表订阅: ID={}", auth.username, id);
-
-    Ok(Json(ApiResponse::success_with_message(
-        (),
-        "报表订阅已删除",
-    )))
+    define_tenant_crud_handlers!(
+        ReportSubscriptionService,
+        CreateSubscriptionRequest,
+        UpdateSubscriptionRequest,
+        SubscriptionQuery,
+        i32,
+        "订阅不存在"
+    );
 }
 
 /// POST /api/v1/erp/reports-enhanced/subscriptions/:id/toggle - 启用/禁用报表订阅
@@ -486,7 +414,7 @@ pub async fn export_template(
     let (headers, data, _total) = service
         .execute_custom_report(
             id,
-            auth.tenant_id.unwrap_or(0),
+            extract_tenant_id(&auth)?,
             auth.user_id,
             auth.role_id,
             1,
@@ -554,7 +482,7 @@ pub async fn preview_template(
     let (columns, data, total) = service
         .execute_custom_report(
             id,
-            auth.tenant_id.unwrap_or(0),
+            extract_tenant_id(&auth)?,
             auth.user_id,
             auth.role_id,
             1,

@@ -70,7 +70,7 @@ const statusOptions = [
 ]
 
 const getStatusLabel = (value: string) => {
-  return statusOptions.find((s) => s.value === value)?.label || value
+  return statusOptions.find(s => s.value === value)?.label || value
 }
 
 const getStatusClass = (value: string) => {
@@ -201,7 +201,7 @@ const handleSubmit = async () => {
     ElMessage.warning('请选择调整日期')
     return
   }
-  const validItems = (form.value.items || []).filter((e) => e.product_id > 0 && e.quantity !== 0)
+  const validItems = (form.value.items || []).filter(e => e.product_id > 0 && e.quantity !== 0)
   if (validItems.length === 0) {
     ElMessage.warning('请至少添加一条有效的调整明细')
     return

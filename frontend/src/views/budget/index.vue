@@ -233,7 +233,7 @@ const resetForm = () => {
 const handleSubmitForm = async () => {
   if (!budgetFormRef.value) return
 
-  await budgetFormRef.value.validate(async (valid) => {
+  await budgetFormRef.value.validate(async valid => {
     if (!valid) return
 
     submitLoading.value = true
