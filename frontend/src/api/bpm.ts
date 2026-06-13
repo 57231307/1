@@ -1,5 +1,16 @@
 import { request } from './request'
-import type { ApiResponse } from '@/types/api'
+import type { ApiResponse } from '@/types/api-response'
+import type {
+  StartProcessRequest,
+  StartProcessResponse,
+  ApproveTaskRequest,
+  BusinessRelationResponse,
+  ProcessVisualizationResponse,
+  InstanceDetailResponse,
+  MonitorStatsResponse,
+  MonitorPendingTasksParams,
+  MonitorInstancesParams,
+} from '@/types/bpm'
 
 export interface BPMProcess {
   id: number
@@ -50,10 +61,10 @@ export interface ApprovalChainItem {
 }
 
 export const bpmApi = {
-  startProcess: (data: { process_key: string; business_key?: string; variables?: any }) =>
-    request.post<ApiResponse<any>>('/bpm/process/start', data),
+  startProcess: (data: StartProcessRequest) =>
+    request.post<ApiResponse<StartProcessResponse>>('/bpm/process/start', data),
 
-  approveTask: (data: { task_id: string; comment?: string; variables?: any }) =>
+  approveTask: (data: ApproveTaskRequest) =>
     request.post<ApiResponse<null>>('/bpm/tasks/approve', data),
 
   queryTasks: (params?: {
@@ -72,27 +83,27 @@ export const bpmApi = {
   urgeTask: (taskId: string) => request.post<ApiResponse<null>>(`/bpm/tasks/${taskId}/urge`),
 
   getBusinessRelation: (businessType: string, businessId: number) =>
-    request.get<ApiResponse<any>>('/bpm/business-relation', {
+    request.get<ApiResponse<BusinessRelationResponse>>('/bpm/business-relation', {
       params: { business_type: businessType, business_id: businessId },
     }),
 
   getProcessVisualization: (instanceId: string) =>
-    request.get<ApiResponse<any>>(`/bpm/visualization/${instanceId}`),
+    request.get<ApiResponse<ProcessVisualizationResponse>>(`/bpm/visualization/${instanceId}`),
 
   getApprovalChain: (instanceId: string) =>
     request.get<ApiResponse<ApprovalChainItem[]>>(`/bpm/instances/${instanceId}/approval-chain`),
 
   getInstanceDetail: (instanceId: string) =>
-    request.get<ApiResponse<any>>(`/bpm/instances/${instanceId}/detail`),
+    request.get<ApiResponse<InstanceDetailResponse>>(`/bpm/instances/${instanceId}/detail`),
 
-  getMonitorStats: () => request.get<ApiResponse<any>>('/bpm/monitor/stats'),
+  getMonitorStats: () => request.get<ApiResponse<MonitorStatsResponse>>('/bpm/monitor/stats'),
 
-  getPendingTasksForMonitor: (params?: any) =>
+  getPendingTasksForMonitor: (params?: MonitorPendingTasksParams) =>
     request.get<ApiResponse<{ list: BPMTask[]; total: number }>>('/bpm/monitor/pending-tasks', {
       params,
     }),
 
-  listInstancesForMonitor: (params?: any) =>
+  listInstancesForMonitor: (params?: MonitorInstancesParams) =>
     request.get<ApiResponse<{ list: BPMInstance[]; total: number }>>('/bpm/monitor/instances', {
       params,
     }),
