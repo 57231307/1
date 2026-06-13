@@ -1,6 +1,6 @@
-//! 采购退货服务（po/return_rs）
+//! 采购退货服务（po/purchase_return）
 //!
-//! 占位模块。`return` 是 Rust 关键字，文件/模块名使用 `return_rs`。
+//! 占位模块。`return` 是 Rust 关键字，文件/模块名使用 `purchase_return`。
 //! 实际采购退货业务已由 `services/purchase_return_service.rs` 提供。
 //! 本模块仅作为按业务子领域拆分的目录占位，保留扩展空间。
 //!

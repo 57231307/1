@@ -6,7 +6,7 @@
 //! - `contract` 采购合同（审批工作流：提交、审批、拒绝）
 //! - `receipt`  采购收货（含库存联动）
 //! - `price`    采购价格（采购建议、预算占用）
-//! - `return_rs`采购退货（占位模块，待后续扩展）
+//! - `purchase_return`采购退货（占位模块，待后续扩展）
 //!
 //! 兼容说明：原 `crate::services::po::order::*` 路径需要由上层
 //! `services/mod.rs` 通过 `pub use super::po::*;` 重新导出以保持向后兼容。
@@ -21,7 +21,7 @@ pub mod contract;
 pub mod order;
 pub mod price;
 pub mod receipt;
-pub mod return_rs;
+pub mod purchase_return;
 
 // =====================================================
 // 请求 DTO（与原 purchase_order_service.rs 末尾保持一致）
