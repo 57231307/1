@@ -11,8 +11,29 @@ pub struct CacheStats {
     pub hits: u64,
     pub misses: u64,
     pub evictions: u64,
+    pub writes: u64,
     pub size: usize,
     pub max_size: Option<usize>,
+}
+
+impl CacheStats {
+    /// 获取命中率（百分比）
+    pub fn hit_rate(&self) -> f64 {
+        let total = self.hits + self.misses;
+        if total == 0 {
+            0.0
+        } else {
+            (self.hits as f64 / total as f64) * 100.0
+        }
+    }
+
+    /// 获取统计摘要
+    pub fn summary(&self) -> String {
+        format!(
+            "命中: {}, 未命中: {}, 淘汰: {}, 写入: {}, 命中率: {:.1}%",
+            self.hits, self.misses, self.evictions, self.writes, self.hit_rate()
+        )
+    }
 }
 
 /// 缓存值结构体，包含值和过期时间
@@ -44,6 +65,7 @@ where
     hits: AtomicU64,
     misses: AtomicU64,
     evictions: AtomicU64,
+    writes: AtomicU64,
     max_size: Option<usize>,
 }
 
@@ -68,6 +90,7 @@ where
             hits: AtomicU64::new(0),
             misses: AtomicU64::new(0),
             evictions: AtomicU64::new(0),
+            writes: AtomicU64::new(0),
             max_size: None,
         }
     }
@@ -78,6 +101,7 @@ where
             hits: AtomicU64::new(0),
             misses: AtomicU64::new(0),
             evictions: AtomicU64::new(0),
+            writes: AtomicU64::new(0),
             max_size: Some(max_size),
         }
     }
@@ -95,9 +119,18 @@ where
             hits: self.hits.load(Ordering::Relaxed),
             misses: self.misses.load(Ordering::Relaxed),
             evictions: self.evictions.load(Ordering::Relaxed),
+            writes: self.writes.load(Ordering::Relaxed),
             size: self.storage.len(),
             max_size: self.max_size,
         }
+    }
+
+    /// 重置统计信息
+    pub fn reset_stats(&self) {
+        self.hits.store(0, Ordering::Relaxed);
+        self.misses.store(0, Ordering::Relaxed);
+        self.evictions.store(0, Ordering::Relaxed);
+        self.writes.store(0, Ordering::Relaxed);
     }
 
     pub fn cleanup(&self) {
@@ -149,6 +182,7 @@ where
         };
 
         self.storage.insert(key.clone(), cached_value);
+        self.writes.fetch_add(1, Ordering::Relaxed);
 
         if let Some(max_size) = self.max_size {
             let current_size = self.storage.len();
@@ -182,6 +216,7 @@ where
         self.hits.store(0, Ordering::Relaxed);
         self.misses.store(0, Ordering::Relaxed);
         self.evictions.store(0, Ordering::Relaxed);
+        self.writes.store(0, Ordering::Relaxed);
     }
 
     fn contains_key(&self, key: &K) -> bool {
@@ -193,6 +228,7 @@ where
             hits: self.hits.load(Ordering::Relaxed),
             misses: self.misses.load(Ordering::Relaxed),
             evictions: self.evictions.load(Ordering::Relaxed),
+            writes: self.writes.load(Ordering::Relaxed),
             size: self.storage.len(),
             max_size: self.max_size,
         }
@@ -379,5 +415,63 @@ impl AppCache {
         self.supplier_cache.clear();
         self.warehouse_cache.clear();
         // Do not clear token blacklist on general clear_all
+    }
+
+    /// 获取所有缓存的全局统计信息
+    pub fn global_stats(&self) -> CacheStats {
+        let mut total_hits = 0u64;
+        let mut total_misses = 0u64;
+        let mut total_evictions = 0u64;
+        let mut total_writes = 0u64;
+        let mut total_size = 0usize;
+
+        // 统计所有业务缓存
+        let caches: Vec<&Arc<MemoryCache<String, serde_json::Value>>> = vec![
+            &self.dashboard_cache,
+            &self.product_cache,
+            &self.inventory_cache,
+            &self.sales_cache,
+            &self.purchase_cache,
+            &self.customer_cache,
+            &self.supplier_cache,
+            &self.warehouse_cache,
+        ];
+
+        for cache in caches {
+            let stats = cache.get_stats();
+            total_hits += stats.hits;
+            total_misses += stats.misses;
+            total_evictions += stats.evictions;
+            total_writes += stats.writes;
+            total_size += stats.size;
+        }
+
+        CacheStats {
+            hits: total_hits,
+            misses: total_misses,
+            evictions: total_evictions,
+            writes: total_writes,
+            size: total_size,
+            max_size: None,
+        }
+    }
+
+    /// 获取所有缓存的统计摘要
+    pub fn global_summary(&self) -> String {
+        self.global_stats().summary()
+    }
+
+    /// 重置所有缓存的统计信息
+    pub fn reset_all_stats(&self) {
+        self.dashboard_cache.reset_stats();
+        self.product_cache.reset_stats();
+        self.inventory_cache.reset_stats();
+        self.sales_cache.reset_stats();
+        self.purchase_cache.reset_stats();
+        self.customer_cache.reset_stats();
+        self.supplier_cache.reset_stats();
+        self.warehouse_cache.reset_stats();
+        self.token_blacklist.reset_stats();
+        self.csrf_token_cache.reset_stats();
     }
 }

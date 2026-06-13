@@ -31,6 +31,14 @@ pub struct DatabaseConfig {
     pub username: String,
     pub password: String,
     pub max_connections: u32,
+    /// 最小连接数，连接池会始终保持的活跃连接数量
+    pub min_connections: Option<u32>,
+    /// 获取连接超时时间（毫秒），默认 10000ms
+    pub acquire_timeout_ms: Option<u64>,
+    /// 连接空闲超时时间（毫秒），默认 300000ms（5分钟）
+    pub idle_timeout_ms: Option<u64>,
+    /// 连接最大生命周期（毫秒），默认 1800000ms（30分钟）
+    pub max_lifetime_ms: Option<u64>,
     pub ssl_mode: String,
     pub ssl_ca: Option<String>,
 }

@@ -265,8 +265,8 @@ pub async fn login(
 
             let user_info = UserInfo {
                 id: user.id,
-                username: user.username.clone(),
-                email: user.email.clone(),
+                username: user.username,
+                email: user.email,
                 role_id: user.role_id,
             };
 
@@ -276,7 +276,7 @@ pub async fn login(
                     tracing::error!("Failed to decode JWT token: {}", e);
                     AppError::unauthorized("无效的认证令牌")
                 })?;
-            let _session_id = claims.session_id.clone();
+            let _session_id = claims.session_id;
             // 生成随机 CSRF Token 并存储到缓存中（使用 token 本身作为 key，允许同一会话多个有效 token）
             let csrf_token = uuid::Uuid::new_v4().to_string();
             let csrf_ttl = std::time::Duration::from_secs(7200); // 2小时，与 JWT 有效期一致
@@ -290,7 +290,7 @@ pub async fn login(
 
             let response = LoginResponse {
                 token: token.clone(),
-                refresh_token: refresh_token.clone(),
+                refresh_token,
                 csrf_token,
                 user: user_info,
                 permissions,

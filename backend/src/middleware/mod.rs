@@ -1,6 +1,7 @@
 pub mod api_gateway;
 pub mod auth;
 pub mod auth_context;
+pub mod data_permission;
 pub mod field_permission;
 pub mod logger_middleware;
 pub mod metrics;

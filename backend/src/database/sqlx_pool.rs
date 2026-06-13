@@ -9,6 +9,17 @@ use std::sync::Arc;
 use tracing::info;
 use tracing::warn;
 
+/// 连接池状态信息，用于监控连接池健康状况
+#[derive(Debug, Clone)]
+pub struct PoolStats {
+    /// 当前连接池总连接数
+    pub size: u32,
+    /// 当前空闲连接数
+    pub num_idle: u32,
+    /// 连接池最大连接数配置
+    pub max_connections: u32,
+}
+
 /// SQLx 数据库连接池包装
 #[derive(Clone)]
 pub struct SqlxDatabase {
@@ -58,12 +69,25 @@ impl SqlxDatabase {
             settings.database.ssl_mode
         );
 
-        // 配置连接池选项
+        // 配置连接池选项，支持从配置文件读取各项参数
         let pool_options = PgPoolOptions::new()
             .max_connections(settings.database.max_connections)
-            .min_connections(5)
-            .idle_timeout(std::time::Duration::from_secs(300))
-            .acquire_timeout(std::time::Duration::from_secs(5));
+            // 最小连接数，默认 5
+            .min_connections(settings.database.min_connections.unwrap_or(5))
+            // 连接空闲超时时间，默认 300 秒（5 分钟）
+            .idle_timeout(std::time::Duration::from_millis(
+                settings.database.idle_timeout_ms.unwrap_or(300_000),
+            ))
+            // 获取连接超时时间，从 5 秒增加到 10 秒以提升并发稳定性
+            .acquire_timeout(std::time::Duration::from_millis(
+                settings.database.acquire_timeout_ms.unwrap_or(10_000),
+            ))
+            // 连接最大生命周期，默认 1800 秒（30 分钟）
+            .max_lifetime(std::time::Duration::from_millis(
+                settings.database.max_lifetime_ms.unwrap_or(1_800_000),
+            ))
+            // 获取连接前测试可用性，确保连接健康
+            .test_before_acquire(true);
 
         // 添加重试机制
         let max_retries = 3;
@@ -113,5 +137,15 @@ impl SqlxDatabase {
     pub async fn test_connection(&self) -> Result<(), sqlx::Error> {
         sqlx::query("SELECT 1").execute(self.pool()).await?;
         Ok(())
+    }
+
+    /// 获取连接池状态信息，用于监控连接池健康状况
+    pub fn pool_stats(&self) -> PoolStats {
+        let pool = self.pool();
+        PoolStats {
+            size: pool.size(),
+            num_idle: pool.num_idle(),
+            max_connections: pool.options().get_max_connections(),
+        }
     }
 }

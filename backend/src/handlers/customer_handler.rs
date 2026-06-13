@@ -10,6 +10,7 @@ use validator::Validate;
 use crate::middleware::auth_context::AuthContext;
 use crate::models::dto::PageRequest;
 use crate::services::customer_service::CustomerService;
+use crate::utils::data_permission::{DataPermissionFilter, DEFAULT_HIDDEN_FIELDS};
 use crate::utils::app_state::AppState;
 use crate::utils::error::AppError;
 use crate::utils::response::ApiResponse;
@@ -137,51 +138,17 @@ pub async fn list_customers(
         page_size: query.page_size.unwrap_or(20),
     };
 
+    // 获取数据权限过滤器
+    let permission_filter = get_permission_filter(&state, &auth, "customer").await;
+
     let customer_service = CustomerService::new(state.db.clone());
     let result = customer_service
-        .list_customers(page_req, query.status, query.customer_type, query.keyword)
+        .list_customers_with_filter(page_req, query.status, query.customer_type, query.keyword, permission_filter)
         .await?;
-
-    let mut customers_json: Vec<serde_json::Value> = result
-        .items
-        .into_iter()
-        .map(|c| {
-            serde_json::to_value(c).map_err(|e| AppError::internal(format!("序列化失败: {}", e)))
-        })
-        .collect::<Result<Vec<_>, _>>()?;
-
-    // 数据权限控制：获取角色数据权限并应用字段过滤
-    if let Some(role_id) = auth.role_id {
-        if let Ok(Some(permission)) = state
-            .data_permission_service
-            .get_role_data_permission(role_id, "customer")
-            .await
-        {
-            state.data_permission_service.filter_fields_batch(
-                &mut customers_json,
-                &permission.allowed_fields,
-                &permission.hidden_fields,
-            );
-        } else if role_id != 1 {
-            // 如果没有配置数据权限且不是管理员，使用默认字段隐藏
-            for customer in &mut customers_json {
-                if let Some(obj) = customer.as_object_mut() {
-                    obj.remove("credit_limit");
-                    obj.remove("payment_terms");
-                    obj.remove("tax_id");
-                    obj.remove("bank_name");
-                    obj.remove("bank_account");
-                    obj.remove("contact_phone");
-                    obj.remove("contact_email");
-                    obj.remove("address");
-                }
-            }
-        }
-    }
 
     Ok(Json(ApiResponse::success(
         crate::utils::response::PaginatedResponse::new(
-            customers_json,
+            result.items,
             result.total,
             result.page,
             result.page_size,
@@ -195,37 +162,13 @@ pub async fn get_customer(
     Path(id): Path<i32>,
     auth: AuthContext,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
-    let customer_service = CustomerService::new(state.db.clone());
-    let customer = customer_service.get_customer(id).await?;
-    let mut customer_json = serde_json::to_value(customer)
-        .map_err(|e| AppError::internal(format!("序列化失败: {}", e)))?;
+    // 获取数据权限过滤器
+    let permission_filter = get_permission_filter(&state, &auth, "customer").await;
 
-    // 数据权限控制：获取角色数据权限并应用字段过滤
-    if let Some(role_id) = auth.role_id {
-        if let Ok(Some(permission)) = state
-            .data_permission_service
-            .get_role_data_permission(role_id, "customer")
-            .await
-        {
-            state.data_permission_service.filter_fields(
-                &mut customer_json,
-                &permission.allowed_fields,
-                &permission.hidden_fields,
-            );
-        } else if role_id != 1 {
-            // 如果没有配置数据权限且不是管理员，使用默认字段隐藏
-            if let Some(obj) = customer_json.as_object_mut() {
-                obj.remove("credit_limit");
-                obj.remove("payment_terms");
-                obj.remove("tax_id");
-                obj.remove("bank_name");
-                obj.remove("bank_account");
-                obj.remove("contact_phone");
-                obj.remove("contact_email");
-                obj.remove("address");
-            }
-        }
-    }
+    let customer_service = CustomerService::new(state.db.clone());
+    let customer_json = customer_service
+        .get_customer_with_filter(id, permission_filter)
+        .await?;
 
     Ok(Json(ApiResponse::success(customer_json)))
 }
@@ -350,4 +293,57 @@ pub struct CustomerListQuery {
     pub status: Option<String>,
     pub customer_type: Option<String>,
     pub keyword: Option<String>,
+}
+
+/// 获取数据权限过滤器
+///
+/// 根据角色权限构建数据库层面的字段过滤器，将数据权限过滤下推到数据库层
+///
+/// # 参数
+/// - `state`: 应用状态
+/// - `auth`: 认证上下文
+/// - `resource_type`: 资源类型（如 "customer"）
+///
+/// # 返回
+/// 返回数据权限过滤器，如果管理员或无需过滤则返回 None
+async fn get_permission_filter(
+    state: &AppState,
+    auth: &AuthContext,
+    resource_type: &str,
+) -> Option<DataPermissionFilter> {
+    let role_id = auth.role_id?;
+
+    // 管理员角色不过滤
+    if role_id == 1 {
+        return None;
+    }
+
+    // 获取角色的数据权限配置
+    match state
+        .data_permission_service
+        .get_role_data_permission(role_id, resource_type)
+        .await
+    {
+        Ok(Some(permission)) => {
+            // 有配置权限，使用配置的字段
+            Some(DataPermissionFilter::new(
+                permission.allowed_fields.unwrap_or_default(),
+                permission.hidden_fields.unwrap_or_default(),
+            ))
+        }
+        Ok(None) => {
+            // 没有配置权限，使用默认隐藏字段
+            Some(DataPermissionFilter::new(
+                vec![],
+                DEFAULT_HIDDEN_FIELDS.iter().map(|s| s.to_string()).collect(),
+            ))
+        }
+        Err(_) => {
+            // 查询出错，使用默认隐藏字段
+            Some(DataPermissionFilter::new(
+                vec![],
+                DEFAULT_HIDDEN_FIELDS.iter().map(|s| s.to_string()).collect(),
+            ))
+        }
+    }
 }

@@ -201,9 +201,12 @@ impl InventoryStockService {
             query = query.filter(inventory_stock::Column::ProductId.eq(pid));
         }
 
+        // 并行执行分页查询：同时获取总数和当前页数据，提升性能
         let paginator = query.paginate(&*self.db, page_size);
-        let total = paginator.num_items().await?;
-        let stock_list = paginator.fetch_page(page).await?;
+        let (total, stock_list) = tokio::try_join!(
+            paginator.num_items(),
+            paginator.fetch_page(page)
+        )?;
 
         Ok((stock_list, total))
     }
@@ -328,9 +331,12 @@ impl InventoryStockService {
             query = query.filter(inventory_stock::Column::Grade.eq(g));
         }
 
+        // 并行执行分页查询：同时获取总数和当前页数据，提升性能
         let paginator = query.paginate(&*self.db, page_size);
-        let total = paginator.num_items().await?;
-        let stock_list = paginator.fetch_page(page).await?;
+        let (total, stock_list) = tokio::try_join!(
+            paginator.num_items(),
+            paginator.fetch_page(page)
+        )?;
 
         Ok((stock_list, total))
     }
@@ -724,14 +730,29 @@ impl InventoryStockService {
             query = query.filter(inventory_transaction::Column::CreatedAt.lte(end_date));
         }
 
+        // 并行执行分页查询：同时获取总数和当前页数据，提升性能
         let paginator = query.paginate(&*self.db, page_size);
-        let total = paginator.num_items().await?;
-        let transactions = paginator.fetch_page(page).await?;
+        let (total, transactions) = tokio::try_join!(
+            paginator.num_items(),
+            paginator.fetch_page(page)
+        )?;
 
         Ok((transactions, total))
     }
 
     /// 获取库存汇总（按批次 + 色号）
+    ///
+    /// # 参数
+    /// - `warehouse_id`: 仓库ID筛选
+    /// - `product_id`: 产品ID筛选
+    /// - `batch_no`: 批次号筛选
+    /// - `color_no`: 色号筛选
+    /// - `grade`: 等级筛选
+    /// - `page`: 页码（从1开始）
+    /// - `page_size`: 每页大小
+    ///
+    /// # 返回
+    /// 返回分页结果，包含数据列表和总记录数
     pub async fn get_inventory_summary(
         &self,
         warehouse_id: Option<i32>,
@@ -739,7 +760,9 @@ impl InventoryStockService {
         batch_no: Option<String>,
         color_no: Option<String>,
         grade: Option<String>,
-    ) -> Result<Vec<InventorySummaryItem>, AppError> {
+        page: u64,
+        page_size: u64,
+    ) -> Result<(Vec<InventorySummaryItem>, u64), AppError> {
         use sea_orm::QuerySelect;
 
         let mut query = inventory_stock::Entity::find()
@@ -793,12 +816,17 @@ impl InventoryStockService {
             .filter(inventory_stock::Column::StockStatus.eq("正常"))
             .filter(inventory_stock::Column::QualityStatus.eq("合格"));
 
+        // 查询总记录数
+        let total = query.clone().count(&*self.db).await?;
+
+        // 查询分页数据
         let result = query
             .into_model::<InventorySummaryQueryResult>()
-            .all(&*self.db)
+            .paginate(&*self.db, page_size)
+            .fetch_page(page.saturating_sub(1))
             .await?;
 
-        Ok(result
+        let items = result
             .into_iter()
             .map(|r| InventorySummaryItem {
                 product_id: r.product_id,
@@ -815,7 +843,9 @@ impl InventoryStockService {
                 total_quantity_meters: r.total_quantity_meters,
                 total_quantity_kg: r.total_quantity_kg,
             })
-            .collect())
+            .collect();
+
+        Ok((items, total))
     }
 
     /// 按产品查询库存

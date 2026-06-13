@@ -152,8 +152,11 @@ impl InitService {
             tracing::warn!("生成的密码哈希长度 {} 超过限制，可能存在问题", password_hash.len());
         }
 
-        let admin_role = self.create_default_roles().await?;
-        let department_id = self.create_default_departments().await?;
+        // 并行执行独立的初始化操作：创建默认角色和默认部门
+        let (admin_role, department_id) = tokio::try_join!(
+            self.create_default_roles(),
+            self.create_default_departments()
+        )?;
 
         self.create_admin_user(admin_username, &password_hash, admin_role.id, department_id)
             .await?;

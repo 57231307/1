@@ -108,8 +108,8 @@ pub async fn create_integration(
     let now = Utc::now();
     let active_model = webhook::ActiveModel {
         tenant_id: Set(tenant_id),
-        name: Set(req.name.clone()),
-        url: Set(req.webhook_url.clone()),
+        name: Set(req.name),
+        url: Set(req.webhook_url),
         events: Set("*".to_string()),
         secret: Set(req.secret),
         is_active: Set(req.is_active.unwrap_or(true)),

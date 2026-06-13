@@ -122,7 +122,7 @@ impl SalesReturnService {
         let reason = if let Some(detail) = &req.reason_detail {
             format!("{}: {}", req.reason_type, detail)
         } else {
-            req.reason_type.clone()
+            req.reason_type
         };
 
         let return_order = sales_return::ActiveModel {
