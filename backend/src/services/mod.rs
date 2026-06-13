@@ -87,7 +87,6 @@ pub mod ai;
 pub mod report;
 // 多租户SaaS模块
 pub mod api_key_service;
-pub mod tenant_isolation_service;
 pub mod tenant_service;
 pub mod webhook_service;
 // 消息通知模块
