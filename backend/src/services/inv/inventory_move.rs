@@ -23,7 +23,7 @@ use crate::utils::PaginatedResponse;
 
 use super::{
     CreateInventoryTransferRequest, InventoryTransferDetail, InventoryTransferItemDetail,
-    InventoryTransferItemRequest, InventoryTransferService, UpdateInventoryTransferRequest,
+    InventoryTransferService, UpdateInventoryTransferRequest,
 };
 
 impl InventoryTransferService {
@@ -422,10 +422,4 @@ impl InventoryTransferService {
         txn.commit().await?;
         Ok(())
     }
-}
-
-// 内部使用：避免未使用的导入警告
-#[allow(dead_code)]
-fn _unused_imports() {
-    let _: Option<InventoryTransferItemRequest> = None;
 }

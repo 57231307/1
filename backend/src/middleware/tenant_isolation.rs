@@ -4,7 +4,7 @@
 //! 在所有数据库查询中注入 tenant_id 条件，确保数据隔离。
 #![allow(dead_code)]
 // TODO(tech-debt): 业务接入或重评估后逐项移除；rustc 1.94+ 编译时由编译器报告具体死代码位置。
-// TODO(tech-debt): 业务接入后逐项移除此标注；rustc 1.94+ 编译时由编译器报告具体死代码位置。
+// 说明：本文件全部 pub API 当前未被业务直接使用，保留是为多租户行级隔离服务做准备。
 
 use std::collections::HashSet;
 use std::sync::Arc;
@@ -110,7 +110,11 @@ impl AppState {
 
 /// 从请求中提取租户 ID
 /// 优先级：TenantContext > AuthContext.tenant_id > Header X-Tenant-ID
-fn extract_tenant_id(request: &Request<Body>) -> Option<i32> {
+///
+/// 命名注意：与 [`crate::middleware::tenant::extract_tenant_id`] 区分。
+/// 本函数作用于 `Request<Body>`（中间件内部），返回 `Option<i32>`；
+/// 规范函数作用于 `&AuthContext`，返回 `Result<i32, AppError>`。
+fn extract_tenant_id_from_request(request: &Request<Body>) -> Option<i32> {
     // 1. 从 TenantContext 提取
     if let Some(tenant_ctx) = request.extensions().get::<TenantContext>() {
         return Some(tenant_ctx.tenant_id);
@@ -157,7 +161,7 @@ pub async fn tenant_isolation_middleware(
     };
 
     // 提取租户 ID
-    let tenant_id = extract_tenant_id(&request);
+    let tenant_id = extract_tenant_id_from_request(&request);
 
     // 严格模式下，缺少租户ID则拒绝
     if isolation_state.config.strict_mode && tenant_id.is_none() {

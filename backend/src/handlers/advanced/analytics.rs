@@ -232,8 +232,3 @@ pub struct AnalyticsRequest {
     pub end_date: chrono::NaiveDate,
     pub page_size: Option<i32>,
 }
-
-#[allow(dead_code)]
-fn _ensure_date_range_used() -> Option<()> {
-    None
-}

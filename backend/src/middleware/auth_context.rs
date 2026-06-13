@@ -3,7 +3,6 @@
 //! 提供从 JWT Token 提取用户信息的功能
 #![allow(dead_code)]
 // TODO(tech-debt): 业务接入或重评估后逐项移除；rustc 1.94+ 编译时由编译器报告具体死代码位置。
-// TODO(tech-debt): 业务接入后逐项移除此标注；rustc 1.94+ 编译时由编译器报告具体死代码位置。
 
 use crate::services::auth_service::AppClaims;
 use axum::{

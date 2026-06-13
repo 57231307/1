@@ -14,7 +14,6 @@ pub mod five_dimension_service;
 pub mod init_service;
 pub mod inv;
 pub mod inventory_adjustment_service;
-// 库存盘点模块（已拆分）
 pub mod inventory_count;
 pub mod inventory_count_service;
 pub mod inventory_finance_bridge_service;
@@ -51,7 +50,6 @@ pub mod accounting_period_service;
 pub mod voucher_service;
 // 成本管理模块
 pub mod cost_collection_service;
-// P1 模块
 pub mod budget_management_service;
 pub mod customer_credit_service;
 pub mod fixed_asset_service;
@@ -59,7 +57,6 @@ pub mod fund_management_service;
 pub mod purchase_contract_service;
 pub mod quality_standard_service;
 pub mod sales_contract_service;
-// P2 模块
 pub mod audit_log_service;
 pub mod bpm_service;
 pub mod event_bus;
