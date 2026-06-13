@@ -5,22 +5,12 @@
 # - 业务模块若个别 API 当前未被使用，应使用项级 `#[allow(dead_code)]` + TODO 注释，
 #   并在后续接入业务时移除。
 # - utils/ 等核心工具模块的 `#![allow(dead_code)]` 已全部移除，由编译器直接报告。
+#
+# 注意：lint 级别配置已迁移到 Cargo.toml 的 [lints] 表
+# （clippy 1.94+ 不支持顶层 warn/allow/deny 字段）
 
 # 禁止使用 println!（除 CLI 工具外）
 disallowed-methods = [
     { path = "std::println", reason = "使用 tracing::info! 替代" },
     { path = "std::eprintln", reason = "使用 tracing::error! 替代" },
-]
-
-# 强制使用 Result 处理错误
-avoid-breaking-exported-api = true
-
-# 死代码相关 lint 升级为错误（CI 必失败）
-# - dead_code: 移除未被引用的函数/结构体/字段
-# - unused_imports/unused_variables: 清理无用导入和变量
-# - clippy::needless_pass_by_value: 函数签名优化
-warn = [
-    "dead_code",
-    "unused_imports",
-    "unused_variables",
 ]

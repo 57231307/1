@@ -5,6 +5,16 @@ edition = "2021"
 authors = ["BingXi Team"]
 description = "面料管理 - Rust 后端服务"
 
+# Lint 配置（clippy 1.94+ 迁移自 .clippy.toml）
+# workspace.lints 定义继承给所有 workspace 成员（包括 migration 子 crate）
+[workspace.lints.rust]
+dead_code = "warn"
+unused_imports = "warn"
+unused_variables = "warn"
+
+[lints]
+workspace = true
+
 [dependencies]
 # Web 框架
 axum = { version = "0.7", features = ["json", "multipart", "macros"] }
