@@ -196,10 +196,7 @@ fn system_update_extra_routes() -> Router<AppState> {
 /// 打印模板路由（path 前缀 /print-templates）
 fn print_templates_routes() -> Router<AppState> {
     Router::new()
-        .route(
-            "/print-templates",
-            get(print_handler::list_print_templates),
-        )
+        .route("/print-templates", get(print_handler::list_print_templates))
         .route(
             "/print-templates/:id",
             get(print_handler::get_print_template),

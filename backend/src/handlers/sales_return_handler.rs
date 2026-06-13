@@ -47,22 +47,10 @@ pub fn router() -> Router<AppState> {
                 .put(update_sales_return)
                 .delete(delete_sales_return),
         )
-        .route(
-            "/sales-returns/:id/submit",
-            post(submit_sales_return),
-        )
-        .route(
-            "/sales-returns/:id/approve",
-            post(approve_sales_return),
-        )
-        .route(
-            "/sales-returns/:id/reject",
-            post(reject_sales_return),
-        )
-        .route(
-            "/sales-returns/:id/execute",
-            post(execute_sales_return),
-        )
+        .route("/sales-returns/:id/submit", post(submit_sales_return))
+        .route("/sales-returns/:id/approve", post(approve_sales_return))
+        .route("/sales-returns/:id/reject", post(reject_sales_return))
+        .route("/sales-returns/:id/execute", post(execute_sales_return))
         .route(
             "/sales-returns/:id/items",
             get(list_return_items).post(create_return_item),
