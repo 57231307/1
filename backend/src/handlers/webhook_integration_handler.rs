@@ -183,7 +183,7 @@ pub async fn send_wechat_message(
         .await?
         .ok_or_else(|| AppError::not_found("Webhook 集成不存在"))?;
 
-    if webhook.tenant_id != auth.tenant_id.unwrap_or(0) {
+    if webhook.tenant_id != extract_tenant_id(&auth)? {
         return Err(AppError::permission_denied("无权操作此Webhook"));
     }
 
@@ -266,10 +266,31 @@ pub async fn send_dingtalk_message(
 }
 
 pub async fn handle_generic_callback(
-    State(_state): State<AppState>,
-    Json(req): Json<WebhookCallbackRequest>,
+    State(state): State<AppState>,
+    headers: axum::http::HeaderMap,
+    body: String,
 ) -> Result<Json<ApiResponse<WebhookCallbackResult>>, AppError> {
-    tracing::info!("收到通用 Webhook 回调: event_type={}", req.event_type);
+    // 1. 提取签名头
+    let signature = headers
+        .get("X-Webhook-Signature")
+        .and_then(|v| v.to_str().ok())
+        .ok_or_else(|| AppError::unauthorized("缺少签名头 X-Webhook-Signature"))?;
+
+    // 2. 获取 Webhook 密钥
+    let webhook_secret = &state.jwt_secret;
+
+    // 3. 验证签名
+    crate::utils::webhook_signature::verify_webhook_signature(
+        &body,
+        webhook_secret,
+        signature,
+    )?;
+
+    // 4. 解析 payload
+    let req: WebhookCallbackRequest = serde_json::from_str(&body)
+        .map_err(|e| AppError::validation(format!("无效的 JSON 格式：{}", e)))?;
+
+    tracing::info!("Webhook 签名验证通过：event_type={}", req.event_type);
 
     let result = WebhookCallbackResult {
         received: true,

@@ -6,6 +6,7 @@ use axum::{
 use serde::{Deserialize, Serialize};
 
 use crate::middleware::auth_context::AuthContext;
+use crate::middleware::tenant::extract_tenant_id;
 use crate::services::api_key_service::ApiKeyService;
 use crate::utils::app_state::AppState;
 use crate::utils::response::ApiResponse;
@@ -108,7 +109,7 @@ pub async fn revoke_api_key(
     Path(id): Path<i32>,
 ) -> Result<Json<ApiResponse<()>>, StatusCode> {
     let service = ApiKeyService::new(state.db);
-    let tenant_id = auth.tenant_id.unwrap_or(0);
+    let tenant_id = extract_tenant_id(&auth)?;
 
     match service.revoke_api_key(id, tenant_id).await {
         Ok(()) => Ok(Json(ApiResponse::success_with_message((), "撤销成功"))),

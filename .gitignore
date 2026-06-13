@@ -24,6 +24,10 @@ deploy/server2/
 .env.local
 .env.production
 
+# 生产配置文件（含敏感信息）
+config.local.yaml
+config.production.yaml
+
 # 忽略系统文件
 .DS_Store
 Thumbs.db
@@ -129,12 +133,3 @@ mock-server.js
 docs/project-optimization-report.md
 frontend/coverage/
 .audit-reports/*.json.tmp
-
-# 生产服务器日志
-生产服务器日志/
-*.log
-*.log.*
-
-# 临时文件
-*.tmp
-*.bak

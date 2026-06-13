@@ -288,6 +288,8 @@ pub struct AppCache {
     pub supplier_cache: Arc<MemoryCache<String, serde_json::Value>>,
     pub warehouse_cache: Arc<MemoryCache<String, serde_json::Value>>,
     pub token_blacklist: Arc<MemoryCache<String, bool>>,
+    /// CSRF Token 缓存：key 为 session_id，value 为 csrf_token
+    pub csrf_token_cache: Arc<MemoryCache<String, String>>,
 }
 
 impl Default for AppCache {
@@ -308,6 +310,7 @@ impl AppCache {
             supplier_cache: MemoryCache::arc(),
             warehouse_cache: MemoryCache::arc(),
             token_blacklist: MemoryCache::arc(),
+            csrf_token_cache: MemoryCache::arc(),
         }
     }
 
@@ -358,6 +361,11 @@ impl AppCache {
     /// 获取 Token 黑名单缓存
     pub fn get_token_blacklist(&self) -> Arc<MemoryCache<String, bool>> {
         self.token_blacklist.clone()
+    }
+
+    /// 获取 CSRF Token 缓存
+    pub fn get_csrf_token_cache(&self) -> Arc<MemoryCache<String, String>> {
+        self.csrf_token_cache.clone()
     }
 
     /// 清除所有缓存

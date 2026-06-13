@@ -9,6 +9,7 @@ use axum::{
 use serde::Deserialize;
 
 use crate::middleware::auth_context::AuthContext;
+use crate::middleware::tenant::extract_tenant_id;
 
 use crate::services::email_log_service::{CreateEmailLogRequest, EmailLogQuery, EmailLogService};
 use crate::services::email_template_service::{
@@ -60,7 +61,7 @@ pub async fn send_email(
         .ok_or_else(|| AppError::business("邮件服务未配置"))?;
 
     let log_service = EmailLogService::new(state.db.clone());
-    let tenant_id = auth.tenant_id.unwrap_or(0);
+    let tenant_id = extract_tenant_id(&auth)?;
 
     // 创建邮件发送记录
     let log = log_service
@@ -126,7 +127,7 @@ pub async fn list_templates(
     Query(query): Query<EmailTemplateQuery>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     let service = EmailTemplateService::new(state.db.clone());
-    let tenant_id = auth.tenant_id.unwrap_or(0);
+    let tenant_id = extract_tenant_id(&auth)?;
 
     let (items, total) = service.list(tenant_id, query).await?;
 
@@ -143,7 +144,7 @@ pub async fn create_template(
     Json(req): Json<CreateEmailTemplateInput>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     let service = EmailTemplateService::new(state.db.clone());
-    let tenant_id = auth.tenant_id.unwrap_or(0);
+    let tenant_id = extract_tenant_id(&auth)?;
 
     let template = service
         .create(
@@ -229,7 +230,7 @@ pub async fn get_email_records(
     Query(query): Query<EmailLogQuery>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     let service = EmailLogService::new(state.db.clone());
-    let tenant_id = auth.tenant_id.unwrap_or(0);
+    let tenant_id = extract_tenant_id(&auth)?;
 
     let (items, total) = service.list(tenant_id, query).await?;
 
@@ -245,7 +246,7 @@ pub async fn get_email_statistics(
     auth: AuthContext,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     let service = EmailLogService::new(state.db.clone());
-    let tenant_id = auth.tenant_id.unwrap_or(0);
+    let tenant_id = extract_tenant_id(&auth)?;
 
     let statistics = service.get_statistics(tenant_id).await?;
 

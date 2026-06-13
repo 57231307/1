@@ -27,7 +27,7 @@ use chrono::{DateTime, Duration, Utc};
 use jsonwebtoken::{decode, encode, DecodingKey, EncodingKey, Header, Validation};
 use sea_orm::DatabaseConnection;
 use serde::{Deserialize, Serialize};
-use std::collections::HashSet;
+use std::collections::HashMap;
 use std::sync::Arc;
 use std::sync::LazyLock;
 use tokio::sync::RwLock;
@@ -347,9 +347,9 @@ impl From<AppError> for AuthError {
 // - Refresh Token 旋转时调用 `revoke_jti` 吊销旧 Token 的 JTI
 // - 每次受保护请求在 middleware 中调用 `is_jti_revoked` 检查
 
-/// JWT JTI 黑名单（已吊销的 Token ID）
-static JTI_BLACKLIST: LazyLock<RwLock<HashSet<String>>> =
-    LazyLock::new(|| RwLock::new(HashSet::new()));
+/// JWT JTI 黑名单（已吊销的 Token ID -> 过期时间戳）
+static JTI_BLACKLIST: LazyLock<RwLock<HashMap<String, i64>>> =
+    LazyLock::new(|| RwLock::new(HashMap::new()));
 
 /// 吊销指定 JTI
 ///
@@ -357,10 +357,11 @@ static JTI_BLACKLIST: LazyLock<RwLock<HashSet<String>>> =
 ///
 /// # 参数
 /// - `jti`: 待吊销的 Token 唯一标识（当前实现取自 `AppClaims::session_id`）
-pub async fn revoke_jti(jti: &str) {
+/// - `expires_at`: Token 的过期时间戳（Unix 秒）
+pub async fn revoke_jti(jti: &str, expires_at: i64) {
     let mut blacklist = JTI_BLACKLIST.write().await;
-    blacklist.insert(jti.to_string());
-    tracing::info!("JTI 已吊销：{}", jti);
+    blacklist.insert(jti.to_string(), expires_at);
+    tracing::info!("JTI 已吊销：{}，过期时间：{}", jti, expires_at);
 }
 
 /// 检查 JTI 是否在黑名单
@@ -373,21 +374,22 @@ pub async fn revoke_jti(jti: &str) {
 /// - `false`: 该 JTI 仍然有效
 pub async fn is_jti_revoked(jti: &str) -> bool {
     let blacklist = JTI_BLACKLIST.read().await;
-    blacklist.contains(jti)
+    blacklist.contains_key(jti)
 }
 
 /// 清理过期 JTI（建议定期调用，如每小时）
 ///
-/// 简化实现：清空整个黑名单。
-/// 生产环境建议改为带时间戳追踪的 HashMap，仅清理已超过 Token 剩余生命周期的项。
+/// 仅清理已超过过期时间的记录，避免内存泄漏。
 ///
 /// # 参数
 /// - `_max_age_secs`: 允许的最大存活时间（秒），当前实现忽略该参数
 pub async fn cleanup_expired_jti(_max_age_secs: i64) {
     let mut blacklist = JTI_BLACKLIST.write().await;
+    let now = chrono::Utc::now().timestamp();
     let before = blacklist.len();
-    blacklist.clear();
-    tracing::info!("清理 JTI 黑名单：移除 {} 条", before);
+    blacklist.retain(|_, expires_at| *expires_at > now);
+    let removed = before - blacklist.len();
+    tracing::info!("清理 JTI 黑名单：移除 {} 条过期记录，剩余 {} 条", removed, blacklist.len());
 }
 
 #[cfg(test)]
