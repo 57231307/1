@@ -7,7 +7,7 @@
 //! - 调拨明细与发出/接收的批次处理：batch.rs
 //! - 调出仓库库存预检：stock.rs
 //!
-//! 注意：文件名 `move_rs.rs`（非 `move.rs`），因为 `move` 是 Rust 关键字。
+//! 注意：文件名 `inventory_move.rs`（非 `move.rs`），因为 `move` 是 Rust 关键字。
 
 use sea_orm::{
     ActiveModelTrait, ColumnTrait, EntityTrait, Order, PaginatorTrait, QueryFilter, QueryOrder,
