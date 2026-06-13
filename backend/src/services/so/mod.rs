@@ -6,7 +6,7 @@
 //! - `delivery` 销售发货（发货、库存扣减/释放、订单号生成）
 //! - `price`    销售价格（占位模块，待后续扩展）
 //! - `contract` 销售合同（占位模块，待后续扩展）
-//! - `return_rs`销售退货（占位模块，待后续扩展）
+//! - `sales_return` 销售退货（占位模块，待后续扩展）
 //!
 //! 兼容说明：原 `crate::services::so::order::*` 路径需要由上层
 //! `services/mod.rs` 通过 `pub use super::so::*;` 重新导出以保持向后兼容。
@@ -19,7 +19,7 @@ pub mod contract;
 pub mod delivery;
 pub mod order;
 pub mod price;
-pub mod return_rs;
+pub mod sales_return;
 
 // =====================================================
 // DTO 数据结构
