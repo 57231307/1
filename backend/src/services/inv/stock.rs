@@ -25,9 +25,10 @@ impl InventoryTransferService {
         txn: &sea_orm::DatabaseTransaction,
     ) -> Result<(), AppError> {
         // 批量获取库存记录（优化N+1查询）
+        // 跳过 product_id 为 None 的项，避免脏 product_id=0 污染查询
         let product_ids: Vec<i32> = items
             .iter()
-            .map(|item| item.product_id.unwrap_or(0))
+            .filter_map(|item| item.product_id)
             .collect();
         let stocks = InventoryStockEntity::find()
             .filter(inventory_stock::Column::WarehouseId.eq(*from_warehouse_id))
@@ -38,7 +39,10 @@ impl InventoryTransferService {
             stocks.into_iter().map(|s| (s.product_id, s)).collect();
 
         for item in items {
-            let product_id = item.product_id.unwrap_or(0);
+            // 上游已校验 product_id 必填；None 项直接跳过
+            let Some(product_id) = item.product_id else {
+                continue;
+            };
             let quantity = item.quantity.unwrap_or(rust_decimal::Decimal::ZERO);
 
             // 查询调出仓库的库存

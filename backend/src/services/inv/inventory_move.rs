@@ -168,12 +168,20 @@ impl InventoryTransferService {
             return Err(AppError::business("调拨单号已存在，请重试".to_string()));
         }
 
+        // 调出/调入仓库缺失时拒绝创建调拨单，避免脏仓库 ID=0 记录
+        let from_warehouse_id = request
+            .from_warehouse_id
+            .ok_or_else(|| AppError::validation("调拨单缺少调出仓库ID"))?;
+        let to_warehouse_id = request
+            .to_warehouse_id
+            .ok_or_else(|| AppError::validation("调拨单缺少调入仓库ID"))?;
+
         // 创建调拨主表
         let transfer = inventory_transfer::ActiveModel {
             id: Default::default(),
             transfer_no: sea_orm::ActiveValue::Set(transfer_no),
-            from_warehouse_id: sea_orm::ActiveValue::Set(request.from_warehouse_id.unwrap_or(0)),
-            to_warehouse_id: sea_orm::ActiveValue::Set(request.to_warehouse_id.unwrap_or(0)),
+            from_warehouse_id: sea_orm::ActiveValue::Set(from_warehouse_id),
+            to_warehouse_id: sea_orm::ActiveValue::Set(to_warehouse_id),
             transfer_date: sea_orm::ActiveValue::Set(
                 request.transfer_date.unwrap_or_else(chrono::Utc::now),
             ),
@@ -194,7 +202,6 @@ impl InventoryTransferService {
         let transfer_entity = transfer.insert(&txn).await?;
 
         // 检查调出仓库库存是否充足（详见 stock.rs）
-        let from_warehouse_id = request.from_warehouse_id.unwrap_or(0);
         let items = request.items.unwrap_or_default();
         self.check_from_warehouse_inventory(&from_warehouse_id, &items, &txn)
             .await?;
@@ -206,11 +213,13 @@ impl InventoryTransferService {
             let quantity = item_req.quantity.unwrap_or(rust_decimal::Decimal::ZERO);
             total_quantity += quantity;
 
-            // 创建明细项
+            // 物料 ID 缺失时拒绝创建调拨明细，避免脏 product_id=0 记录
             let item = inventory_transfer_item::ActiveModel {
                 id: Default::default(),
                 transfer_id: sea_orm::ActiveValue::Set(transfer_entity.id),
-                product_id: sea_orm::ActiveValue::Set(item_req.product_id.unwrap_or(0)),
+                product_id: sea_orm::ActiveValue::Set(item_req.product_id.ok_or_else(|| {
+                    AppError::validation("调拨明细缺少物料ID")
+                })?),
                 quantity: sea_orm::ActiveValue::Set(quantity),
                 shipped_quantity: sea_orm::ActiveValue::Set(rust_decimal::Decimal::ZERO),
                 received_quantity: sea_orm::ActiveValue::Set(rust_decimal::Decimal::ZERO),
@@ -295,10 +304,13 @@ impl InventoryTransferService {
                 let quantity = item_req.quantity.unwrap_or(rust_decimal::Decimal::ZERO);
                 total_quantity += quantity;
 
+                // 物料 ID 缺失时拒绝创建调拨明细，避免脏 product_id=0 记录
                 let item = inventory_transfer_item::ActiveModel {
                     id: Default::default(),
                     transfer_id: sea_orm::ActiveValue::Set(transfer_id),
-                    product_id: sea_orm::ActiveValue::Set(item_req.product_id.unwrap_or(0)),
+                    product_id: sea_orm::ActiveValue::Set(item_req.product_id.ok_or_else(
+                        || AppError::validation("调拨明细缺少物料ID"),
+                    )?),
                     quantity: sea_orm::ActiveValue::Set(quantity),
                     shipped_quantity: sea_orm::ActiveValue::Set(rust_decimal::Decimal::ZERO),
                     received_quantity: sea_orm::ActiveValue::Set(rust_decimal::Decimal::ZERO),

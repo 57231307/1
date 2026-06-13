@@ -64,11 +64,11 @@ pub async fn omni_audit_middleware(
     });
 
     // 获取用户信息
+    // 未认证请求的 user_id 为 None，避免与系统用户（id=0）混淆
     let user_id = req
         .extensions()
         .get::<AuthContext>()
-        .map(|ctx| ctx.user_id)
-        .unwrap_or(0);
+        .map(|ctx| ctx.user_id);
     let username = req
         .extensions()
         .get::<AuthContext>()

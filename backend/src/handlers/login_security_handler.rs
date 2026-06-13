@@ -286,12 +286,14 @@ pub async fn get_locked_accounts(
         .all(state.db.as_ref())
         .await?;
 
-    let mut locked_users: std::collections::HashMap<String, (i32, i32, Option<String>)> =
+    let mut locked_users: std::collections::HashMap<String, (Option<i32>, i32, Option<String>)> =
         std::collections::HashMap::new();
 
     for login in &failed_logins {
+        // log_login.user_id 在用户不存在时为 None；保留 None 而非用 0 占位，
+        // 避免与"系统用户 id=0"在审计中混淆
         let entry = locked_users.entry(login.username.clone()).or_insert((
-            login.user_id.unwrap_or(0),
+            login.user_id,
             0,
             login.login_time.map(|t| t.to_rfc3339()),
         ));

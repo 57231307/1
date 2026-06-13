@@ -27,7 +27,8 @@ pub async fn track_event(
     State(state): State<AppState>,
     Json(req): Json<TrackEventRequest>,
 ) -> Result<Json<ApiResponse<()>>, AppError> {
-    let user_id = auth.map(|a| a.user_id).unwrap_or(0);
+    // 未登录场景下 user_id 为 None，避免与系统用户（id=0）混淆
+    let user_id = auth.map(|a| a.user_id);
     let trace_id = uuid::Uuid::new_v4().to_string();
 
     state.omni_audit.log(OmniAuditMessage {

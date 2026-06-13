@@ -11,7 +11,8 @@ use crate::models::omni_audit_log;
 #[derive(Debug, Clone)]
 pub struct OmniAuditMessage {
     pub trace_id: String,
-    pub user_id: i32,
+    /// 用户 ID；未登录/匿名场景下为 None（避免脏数据归到 user_id=0 系统用户）
+    pub user_id: Option<i32>,
     pub username: Option<String>,
     pub event_type: String,
     pub event_name: String,
