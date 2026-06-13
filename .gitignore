@@ -129,3 +129,12 @@ mock-server.js
 docs/project-optimization-report.md
 frontend/coverage/
 .audit-reports/*.json.tmp
+
+# 生产服务器日志
+生产服务器日志/
+*.log
+*.log.*
+
+# 临时文件
+*.tmp
+*.bak
