@@ -228,8 +228,21 @@ impl AssistAccountingService {
             {
                 let parts: Vec<&str> = key.split('_').collect();
                 if parts.len() >= 2 {
-                    let dimension_id: i32 = parts[0].parse().unwrap_or(0);
-                    let subject_id: i32 = parts[1].parse().unwrap_or(0);
+                    // 维度/科目 ID 解析失败时跳过该聚合项，避免脏 ID=0 污染
+                    let dimension_id: i32 = match parts[0].parse() {
+                        Ok(id) => id,
+                        Err(e) => {
+                            tracing::warn!("辅助核算维度ID解析失败: {} ({})", parts[0], e);
+                            continue;
+                        }
+                    };
+                    let subject_id: i32 = match parts[1].parse() {
+                        Ok(id) => id,
+                        Err(e) => {
+                            tracing::warn!("辅助核算科目ID解析失败: {} ({})", parts[1], e);
+                            continue;
+                        }
+                    };
 
                     let dimension_name = dimensions
                         .iter()
@@ -260,7 +273,7 @@ impl AssistAccountingService {
                         let new_credit = current_credit.unwrap_or(Decimal::ZERO) + total_credit;
                         let new_meters = current_meters.unwrap_or(Decimal::ZERO) + total_meters;
                         let new_kg = current_kg.unwrap_or(Decimal::ZERO) + total_kg;
-                        let new_count = current_count.unwrap_or(0) + record_count;
+                        let new_count = current_count.unwrap_or_default() + record_count;
                         active.total_debit = sea_orm::Set(new_debit);
                         active.total_credit = sea_orm::Set(new_credit);
                         active.total_quantity_meters = sea_orm::Set(new_meters);

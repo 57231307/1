@@ -204,12 +204,13 @@ impl TenantBillingService {
             .one(self.db.as_ref())
             .await?;
 
-        let api_calls_today = today_usage.as_ref().map(|u| u.api_calls).unwrap_or(0);
-        let storage_used_mb = today_usage.as_ref().map(|u| u.storage_used_mb).unwrap_or(0);
+        // 用量统计无记录时默认为 0
+        let api_calls_today = today_usage.as_ref().map(|u| u.api_calls).unwrap_or_default();
+        let storage_used_mb = today_usage.as_ref().map(|u| u.storage_used_mb).unwrap_or_default();
         let current_users = today_usage
             .as_ref()
             .map(|u| u.user_count as i64)
-            .unwrap_or(0);
+            .unwrap_or_default();
 
         let user_pct = if max_users > 0 {
             (current_users as f64 / max_users as f64) * 100.0

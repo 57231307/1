@@ -34,7 +34,11 @@ pub async fn sales_forecast(
         _ => 30,
     };
 
-    let product_id = payload.product_id.unwrap_or(0) as i32;
+    // 物料 ID 缺失时拒绝预测，避免脏 product_id=0 污染
+    let product_id: i32 = match payload.product_id {
+        Some(id) => id,
+        None => return Err(AppError::validation("预测请求缺少物料ID")),
+    };
 
     match service.forecast_sales(product_id, days).await {
         Ok(forecasts) => {

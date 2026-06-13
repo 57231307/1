@@ -143,7 +143,10 @@ pub async fn get_trends(
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     let service = FinancialAnalysisService::new(state.db.clone());
 
-    let indicator_id = params.indicator_id.unwrap_or(0);
+    // 指标 ID 缺失时返回 4xx 错误，避免脏 indicator_id=0 污染
+    let indicator_id: i32 = params.indicator_id.ok_or_else(|| {
+        AppError::validation("财务分析请求缺少指标ID")
+    })?;
     let limit = params.page_size.unwrap_or(50);
 
     let trends = service.get_trends(indicator_id, limit).await?;
@@ -176,10 +179,12 @@ pub async fn create_trend(
         .unwrap_or("")
         .to_string();
 
+    // indicator_id 必填，缺失或非整数时直接拒绝（避免静默用 0 写入脏数据）
     let indicator_id = req
         .get("indicator_id")
         .and_then(|v| v.as_i64())
-        .unwrap_or(0) as i32;
+        .ok_or_else(|| AppError::validation("创建财务趋势数据时必须提供 indicator_id"))?
+        as i32;
 
     let indicator_value = req
         .get("value")

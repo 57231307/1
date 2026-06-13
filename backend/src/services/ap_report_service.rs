@@ -205,10 +205,14 @@ impl ApReportService {
             .await?;
 
         // 查询月初余额
-        let opening_balance = ap_invoice::Entity::find()
-            .filter(ap_invoice::Column::SupplierId.eq(supplier_id.unwrap_or(0)))
+        // supplier_id 缺失时不过滤（即汇总所有供应商）；不能静默用 0 匹配空 supplier
+        let mut opening_query = ap_invoice::Entity::find()
             .filter(ap_invoice::Column::InvoiceStatus.ne("CANCELLED"))
-            .filter(ap_invoice::Column::InvoiceDate.lt(start_date))
+            .filter(ap_invoice::Column::InvoiceDate.lt(start_date));
+        if let Some(sid) = supplier_id {
+            opening_query = opening_query.filter(ap_invoice::Column::SupplierId.eq(sid));
+        }
+        let opening_balance = opening_query
             .all(&*self.db)
             .await?
             .iter()
@@ -216,10 +220,13 @@ impl ApReportService {
             .sum::<Decimal>();
 
         // 查询月末余额
-        let closing_balance = ap_invoice::Entity::find()
-            .filter(ap_invoice::Column::SupplierId.eq(supplier_id.unwrap_or(0)))
+        let mut closing_query = ap_invoice::Entity::find()
             .filter(ap_invoice::Column::InvoiceStatus.ne("CANCELLED"))
-            .filter(ap_invoice::Column::InvoiceDate.lte(end_date))
+            .filter(ap_invoice::Column::InvoiceDate.lte(end_date));
+        if let Some(sid) = supplier_id {
+            closing_query = closing_query.filter(ap_invoice::Column::SupplierId.eq(sid));
+        }
+        let closing_balance = closing_query
             .all(&*self.db)
             .await?
             .iter()

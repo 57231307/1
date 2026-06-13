@@ -120,7 +120,17 @@ impl WarehouseService {
             wh.address = Set(Some(a));
         }
         if let Some(m) = req.manager {
-            wh.manager_id = Set(Some(m.parse::<i32>().unwrap_or(0)));
+            // 仓库经理 ID 解析失败时记录 warn 并跳过更新，避免脏数据
+            match m.parse::<i32>() {
+                Ok(parsed) => wh.manager_id = Set(Some(parsed)),
+                Err(e) => {
+                    tracing::warn!("仓库经理ID解析失败: {} ({})", m, e);
+                    return Err(AppError::bad_request(format!(
+                        "仓库经理ID格式错误：{}",
+                        m
+                    )));
+                }
+            }
         }
         if let Some(p) = req.phone {
             wh.phone = Set(Some(p));

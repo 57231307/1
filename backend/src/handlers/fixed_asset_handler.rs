@@ -72,7 +72,7 @@ pub async fn list_assets(
         keyword: params.keyword,
         status: params.status,
         asset_category: params.asset_category,
-        page: params.page.unwrap_or(0),
+        page: params.page.unwrap_or_default(),
         page_size: params.page_size.unwrap_or(10),
     };
 

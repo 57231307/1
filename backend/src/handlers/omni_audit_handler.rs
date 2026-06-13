@@ -49,7 +49,8 @@ pub async fn track_event(
         request_method: None,
         request_path: None,
         request_body: None,
-        duration_ms: req.duration_ms.unwrap_or(0),
+        // 持续时间字段（毫秒）；无值时记 0
+        duration_ms: req.duration_ms.unwrap_or_default(),
         status: req.status.unwrap_or_else(|| "SUCCESS".to_string()),
         error_msg: None,
         old_value: None,
@@ -73,9 +74,11 @@ pub async fn get_dashboard_stats(
             sql,
         ))
         .await?;
-    let total = result
-        .map(|r| r.try_get::<i64>("", "total").unwrap_or(0))
-        .unwrap_or(0);
+    // DB 查询失败应传播错误而非吞掉为 0，避免大屏数据失真
+    let total: i64 = match result {
+        Some(r) => r.try_get("", "total")?,
+        None => 0,
+    };
 
     Ok(Json(ApiResponse::success(AuditStats {
         total_events_today: total,
@@ -108,14 +111,15 @@ pub async fn search_logs(
 
     let mut items = Vec::new();
     for row in rows {
+        // DB 字段读取失败应传播错误而非吞掉，避免审计数据失真
         let item = serde_json::json!({
-            "id": row.try_get::<i64>("", "id").unwrap_or(0),
+            "id": row.try_get::<i64>("", "id")?,
             "trace_id": row.try_get::<String>("", "trace_id").unwrap_or_default(),
-            "user_id": row.try_get::<i32>("", "user_id").unwrap_or(0),
+            "user_id": row.try_get::<i32>("", "user_id")?,
             "module": row.try_get::<String>("", "module").unwrap_or_default(),
             "action": row.try_get::<String>("", "action").unwrap_or_default(),
-            "response_status": row.try_get::<i32>("", "response_status").unwrap_or(0),
-            "duration_ms": row.try_get::<i32>("", "duration_ms").unwrap_or(0),
+            "response_status": row.try_get::<i32>("", "response_status")?,
+            "duration_ms": row.try_get::<i32>("", "duration_ms")?,
             "created_at": row.try_get::<String>("", "created_at").unwrap_or_default(),
         });
         items.push(item);

@@ -37,7 +37,7 @@ pub async fn list_indicators(
         crate::services::supplier_evaluation_service::EvaluationIndicatorQueryParams {
             category: params.category,
             status: params.status,
-            page: params.page.unwrap_or(0),
+            page: params.page.unwrap_or_default(),
             page_size: params.page_size.unwrap_or(10),
         };
 

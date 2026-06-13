@@ -92,7 +92,7 @@ pub async fn list_standards(
     let query_params = crate::services::quality_standard_service::QualityStandardQueryParams {
         standard_type: params.standard_type,
         status: params.status,
-        page: params.page.unwrap_or(0),
+        page: params.page.unwrap_or_default(),
         page_size: params.page_size.unwrap_or(10),
     };
 

@@ -48,7 +48,7 @@ pub async fn list_prices(
         product_id: params.product_id,
         supplier_id: params.supplier_id,
         status: params.status,
-        page: params.page.unwrap_or(0),
+        page: params.page.unwrap_or_default(),
         page_size: params.page_size.unwrap_or(10),
     };
 

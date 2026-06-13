@@ -139,8 +139,12 @@ impl AppSettings {
                     .build()
                 {
                     Ok(c) => c,
-                    Err(_) => {
-                        panic!("无法加载配置，系统启动失败");
+                    Err(e) => {
+                        // 配置加载是启动前置条件，加载失败必须快速失败；返回 Result 让调用方处理
+                        return Err(ConfigError::Message(format!(
+                            "无法加载配置（配置文件 + 环境变量均失败）：{}",
+                            e
+                        )));
                     }
                 }
             }
@@ -163,21 +167,27 @@ impl AppSettings {
             }
         };
 
-        app_settings.load_sensitive_from_env();
+        app_settings.load_sensitive_from_env()?;
 
         if !Self::validate_secret(&app_settings.auth.jwt_secret) {
-            panic!("致命错误：JWT_SECRET 密钥强度不足或使用默认密钥！生产环境必须提供至少 32 字节的安全随机密钥，且不能包含常见弱模式。");
+            return Err(ConfigError::Message(
+                "致命错误：JWT_SECRET 密钥强度不足或使用默认密钥！生产环境必须提供至少 32 字节的安全随机密钥，且不能包含常见弱模式。".to_string(),
+            ));
         }
 
         if let Some(cookie_secret) = &app_settings.auth.cookie_secret {
             if !Self::validate_secret(cookie_secret) {
-                panic!("致命错误：COOKIE_SECRET 密钥强度不足或使用默认密钥！生产环境必须提供至少 32 字节的安全随机密钥，且不能包含常见弱模式。");
+                return Err(ConfigError::Message(
+                    "致命错误：COOKIE_SECRET 密钥强度不足或使用默认密钥！生产环境必须提供至少 32 字节的安全随机密钥，且不能包含常见弱模式。".to_string(),
+                ));
             }
         }
 
         let env = app_settings.env.to_lowercase();
         if env == "production" && app_settings.auth.cookie_secret.is_none() {
-            panic!("生产环境必须配置独立的 auth.cookie_secret，不能降级使用 jwt_secret");
+            return Err(ConfigError::Message(
+                "生产环境必须配置独立的 auth.cookie_secret，不能降级使用 jwt_secret".to_string(),
+            ));
         }
 
         if let Ok(origins_str) = std::env::var("CORS__ALLOWED_ORIGINS") {

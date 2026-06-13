@@ -295,7 +295,7 @@ pub async fn list_stock(
 
     let (stock_list, _total) = service
         .list_stock(
-            params.page.unwrap_or(0),
+            params.page.unwrap_or_default(),
             params.page_size.unwrap_or(20),
             params.warehouse_id,
             params.product_id,
@@ -501,7 +501,7 @@ pub async fn list_transactions(
 ) -> Result<Json<crate::utils::response::ApiResponse<Vec<TransactionResponse>>>, AppError> {
     let service = InventoryStockService::new(state.db.clone());
 
-    let page = params.page.unwrap_or(0);
+    let page = params.page.unwrap_or_default();
     let page_size = params.page_size.unwrap_or(20);
 
     let (transactions, _total) = service

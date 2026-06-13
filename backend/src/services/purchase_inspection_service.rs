@@ -49,7 +49,10 @@ impl PurchaseInspectionService {
             inspection_no: Set(inspection_no),
             receipt_id: Set(req.receipt_id),
             order_id: Set(req.order_id),
-            supplier_id: Set(req.supplier_id.unwrap_or(0)),
+            // 供应商 ID 缺失时拒绝创建，避免脏 supplier_id=0 记录
+            supplier_id: Set(req.supplier_id.ok_or_else(|| {
+                AppError::validation("采购验收单缺少供应商ID")
+            })?),
             inspection_date: Set(req
                 .inspection_date
                 .unwrap_or_else(|| Utc::now().date_naive())),

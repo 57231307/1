@@ -122,7 +122,7 @@ impl InitService {
                         v.as_ref()
                             .map(|row| row.try_get::<i32>("", "test").unwrap_or(1))
                     })
-                    .map(|opt| opt.unwrap_or(0));
+                    .map(|opt| opt.unwrap_or_default());
 
                 query_result
                     .map(|_| ())

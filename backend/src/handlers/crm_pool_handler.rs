@@ -79,7 +79,10 @@ pub async fn list_pool(
         .get("data")
         .cloned()
         .unwrap_or(serde_json::Value::Null);
-    let total = result.get("total").and_then(|v| v.as_u64()).unwrap_or(0);
+    let total = result
+        .get("total")
+        .and_then(|v| v.as_u64())
+        .unwrap_or_default();
 
     // 转换为响应格式
     let items: Vec<serde_json::Value> = data
@@ -101,7 +104,7 @@ pub async fn list_pool(
                         .signed_duration_since(dt.with_timezone(&chrono::Utc))
                         .num_days()
                 })
-                .unwrap_or(0);
+                .unwrap_or_default();
 
             serde_json::json!({
                 "id": lead.get("id").cloned().unwrap_or(serde_json::Value::Null),

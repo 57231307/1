@@ -119,7 +119,7 @@ pub async fn login(
         .filter(log_login::Column::IpAddress.eq(client_ip.as_str()))
         .count(state.db.as_ref())
         .await
-        .unwrap_or(0);
+        .unwrap_or_default();
 
     // Per-username global lockout with higher threshold (10 attempts from any IP)
     let recent_user_failures = log_login::Entity::find()
@@ -128,7 +128,7 @@ pub async fn login(
         .filter(log_login::Column::LoginTime.gte(since))
         .count(state.db.as_ref())
         .await
-        .unwrap_or(0);
+        .unwrap_or_default();
 
     if recent_ip_failures >= MAX_FAILED_ATTEMPTS as u64 {
         tracing::warn!(

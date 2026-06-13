@@ -470,12 +470,12 @@ pub async fn create_delivery(
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     let sales_service = SalesService::new(state.db.clone());
 
-    // 从 payload 中提取 warehouse_id（缺失则默认为 0）
+    // 从 payload 中提取 warehouse_id；缺失时默认为 0（向后兼容）
     let warehouse_id = payload
         .get("warehouse_id")
         .and_then(|v| v.as_i64())
         .map(|v| v as i32)
-        .unwrap_or(0);
+        .unwrap_or_default();
 
     let delivery = sales_service
         .create_delivery(id, warehouse_id, auth.user_id)

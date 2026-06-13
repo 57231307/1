@@ -223,7 +223,8 @@ impl ProductionOrderService {
             planned_start_date: Set(req.planned_start_date),
             planned_end_date: Set(req.planned_end_date),
             status: Set("DRAFT".to_string()),
-            priority: Set(req.priority.unwrap_or(0)),
+            // 优先级可选项；0 = 最低优先级（业务接受默认值）
+            priority: Set(req.priority.unwrap_or_default()),
             work_center_id: Set(req.work_center_id),
             remarks: Set(req.remarks),
             created_by: Set(req.created_by),

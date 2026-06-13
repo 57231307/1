@@ -64,7 +64,7 @@ pub async fn list_contracts(
         keyword: params.keyword,
         status: params.status,
         customer_id: params.customer_id,
-        page: params.page.unwrap_or(0),
+        page: params.page.unwrap_or_default(),
         page_size: params.page_size.unwrap_or(10),
     };
 

@@ -208,7 +208,7 @@ pub async fn sales_analytics(
 
     let page_size = payload.page_size.unwrap_or(20).max(0) as u64;
     let paginator = query.paginate(&*state.db, page_size);
-    let total = paginator.num_items().await.unwrap_or(0);
+    let total = paginator.num_items().await.unwrap_or_default();
 
     let total_sales = total as f64 * 1000.0; // 示例数据
     let order_count = total;

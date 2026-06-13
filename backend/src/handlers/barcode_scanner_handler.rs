@@ -62,7 +62,7 @@ pub async fn scan_to_ship_get(
             }))));
         }
     };
-    scan_to_ship_impl(state, barcode, query.order_id.unwrap_or(0)).await
+    scan_to_ship_impl(state, barcode, query.order_id.unwrap_or_default()).await
 }
 
 pub async fn scan_to_ship_post(
@@ -139,7 +139,7 @@ pub async fn scan_history(
     Query(params): Query<ScanHistoryQuery>,
     _auth: AuthContext,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
-    let page = params.page.unwrap_or(0);
+    let page = params.page.unwrap_or_default();
     let page_size = params.page_size.unwrap_or(20);
 
     let mut query = inventory_piece::Entity::find();

@@ -145,7 +145,7 @@ pub async fn list_users(
     let user_service = UserService::new(state.db.clone());
 
     let (users, total) = user_service
-        .list_users(params.page.unwrap_or(0), params.page_size.unwrap_or(20))
+        .list_users(params.page.unwrap_or_default(), params.page_size.unwrap_or(20))
         .await?;
 
     let user_responses: Vec<UserResponse> = users.into_iter().map(|user| user.into()).collect();
@@ -153,7 +153,7 @@ pub async fn list_users(
     Ok(Json(ApiResponse::success(UserListResponse {
         users: user_responses,
         total,
-        page: params.page.unwrap_or(0),
+        page: params.page.unwrap_or_default(),
         page_size: params.page_size.unwrap_or(20),
     })))
 }

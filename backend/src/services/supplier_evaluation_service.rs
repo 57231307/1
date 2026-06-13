@@ -295,8 +295,15 @@ impl SupplierEvaluationService {
             Decimal::ZERO
         };
 
-        // 计算等级
-        let rating = match average_score.to_string().parse::<i32>().unwrap_or(0) {
+        // 计算等级（解析失败时记 warn 并按 0 分处理）
+        let rating = match average_score.to_string().parse::<i32>() {
+            Ok(r) => r,
+            Err(e) => {
+                tracing::warn!("供应商评分解析失败: {} ({})", average_score, e);
+                0
+            }
+        };
+        let rating_label = match rating {
             90..=100 => "A".to_string(),
             80..=89 => "B".to_string(),
             70..=79 => "C".to_string(),
@@ -325,7 +332,7 @@ impl SupplierEvaluationService {
             supplier_id,
             average_score,
             total_records: records.len() as i64,
-            rating,
+            rating: rating_label,
             latest_evaluation_date,
         })
     }
@@ -396,7 +403,15 @@ impl SupplierEvaluationService {
                 Decimal::ZERO
             };
 
-            let rating = match average_score.to_string().parse::<i32>().unwrap_or(0) {
+            // 计算等级（解析失败时记 warn 并按 0 分处理）
+            let rating = match average_score.to_string().parse::<i32>() {
+                Ok(r) => r,
+                Err(e) => {
+                    tracing::warn!("供应商评分解析失败: {} ({})", average_score, e);
+                    0
+                }
+            };
+            let rating_label = match rating {
                 90..=100 => "A".to_string(),
                 80..=89 => "B".to_string(),
                 70..=79 => "C".to_string(),
@@ -418,7 +433,7 @@ impl SupplierEvaluationService {
                 supplier_id: *supplier_id,
                 average_score,
                 total_records,
-                rating,
+                rating: rating_label,
                 latest_evaluation_date,
             });
         }

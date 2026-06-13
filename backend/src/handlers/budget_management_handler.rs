@@ -105,7 +105,7 @@ pub async fn list_budget_items(
     let query_params = crate::services::budget_management_service::BudgetItemQueryParams {
         item_type: params.item_type,
         status: params.status,
-        page: params.page.unwrap_or(0),
+        page: params.page.unwrap_or_default(),
         page_size: params.page_size.unwrap_or(10),
     };
 
@@ -220,7 +220,7 @@ pub async fn list_plans(
         .get_plans_list(
             None,
             None,
-            params.page.unwrap_or(0),
+            params.page.unwrap_or_default(),
             params.page_size.unwrap_or(10),
         )
         .await?;
@@ -250,7 +250,10 @@ pub async fn create_plan(
                     chrono::Utc::now().naive_utc().year()
                 }),
                 budget_type: req.budget_type.unwrap_or_else(|| "年度预算".to_string()),
-                department_id: req.department_id.unwrap_or(0),
+                // 部门 ID 缺失时返回 4xx 错误，避免脏 department_id=0 记录
+                department_id: req.department_id.ok_or_else(|| {
+                    AppError::validation("预算编制请求缺少部门ID")
+                })?,
                 total_amount: req.total_amount.unwrap_or(Decimal::ZERO),
                 items: vec![],
                 remark: req.remark,
