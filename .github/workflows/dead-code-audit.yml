@@ -1,0 +1,340 @@
+# ==============================================================================
+# 死代码全量审计 workflow
+#
+# 用途：定期审计 backend/src 下所有 #![allow(dead_code)] 抑制项，
+#      确认每条抑制都"必要"且"接入业务或带 TODO"。
+#
+# 触发：
+#   - 定时：每周一 UTC 01:00（北京时间 09:00）
+#   - 手动：Actions 页面 "Run workflow"
+#   - PR：PR 关闭/合并时跑一次
+#
+# 不阻塞主 CI/CD 流程（独立 workflow）
+# ==============================================================================
+name: 死代码全量审计
+
+on:
+  # 定时任务：每周一 UTC 01:00（北京时间 09:00）
+  schedule:
+    - cron: '0 1 * * 1'
+  # 手动触发
+  workflow_dispatch:
+    inputs:
+      strict:
+        description: '严格模式：警告数未降低则失败'
+        required: false
+        type: boolean
+        default: false
+  # PR 关闭时跑一次（reviewers 可手动 review 报告）
+  pull_request:
+    types: [closed]
+    branches:
+      - main
+      - master
+
+# 关闭默认并发限制：审计任务可并行跑多次
+concurrency:
+  group: dead-code-audit-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  RUST_VERSION: 1.94.1
+  CARGO_TERM_COLOR: always
+
+jobs:
+  audit:
+    name: 死代码审计
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      issues: write  # 失败时创建 issue
+    steps:
+      - name: 检出代码
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: 缓存 Rustup 工具链
+        uses: actions/cache@v5
+        with:
+          path: |
+            ~/.rustup
+          key: audit-rustup-${{ env.RUST_VERSION }}
+
+      - name: 安装 Rust 工具链
+        uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: ${{ env.RUST_VERSION }}
+          components: clippy
+
+      - name: 缓存 Cargo 依赖
+        uses: actions/cache@v5
+        with:
+          path: |
+            ~/.cargo/bin
+            ~/.cargo/registry
+            ~/.cargo/git
+            backend/target
+          key: audit-cargo-${{ env.RUST_VERSION }}-${{ hashFiles('backend/Cargo.lock') }}
+          restore-keys: |
+            audit-cargo-${{ env.RUST_VERSION }}-
+
+      - name: 安装系统依赖
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y pkg-config libssl-dev protobuf-compiler
+
+      - name: 统计当前 #![allow(dead_code)] 文件数（审计前）
+        id: before
+        run: |
+          BEFORE=$(grep -rln '#!\[allow(dead_code)\]' backend/src 2>/dev/null | wc -l)
+          echo "before_count=$BEFORE" >> $GITHUB_OUTPUT
+          echo "审计前 file-level allow 数: $BEFORE"
+
+      - name: 备份源代码
+        run: |
+          rm -rf /tmp/src-backup
+          cp -r backend/src /tmp/src-backup
+          echo "源代码已备份到 /tmp/src-backup"
+
+      - name: 剥离 #![allow(dead_code)] 与 TODO 注释（仅审计）
+        run: |
+          # 剥离 file-level #![allow(dead_code)] 抑制
+          find backend/src -name '*.rs' -exec sed -i \
+            -e '/^#!\[allow(dead_code)\]$/d' \
+            -e '/^\/\/ TODO(tech-debt):.*$/d' \
+            {} \;
+          
+          # 验证剥离成功
+          REMAINING=$(grep -rln '#!\[allow(dead_code)\]' backend/src 2>/dev/null | wc -l)
+          echo "剥离后剩余 file-level allow: $REMAINING（应为 0）"
+          if [ "$REMAINING" -ne "0" ]; then
+            echo "警告：仍有 $REMAINING 个 file-level allow 未被剥离"
+            grep -rln '#!\[allow(dead_code)\]' backend/src 2>/dev/null | head -5
+          fi
+          
+          # 列出项级 allow（这些保留）
+          echo "=== 保留的项级 allow（应保留） ==="
+          grep -rn '#\[allow(dead_code)\]' backend/src 2>/dev/null | wc -l
+          echo "项级 allow 总数（保留不动）"
+
+      - name: 跑 cargo check 收集 dead_code 警告
+        id: check
+        working-directory: backend
+        # cargo check 失败也继续（因为 dead_code 警告不影响编译）
+        run: |
+          set +e
+          cargo check --all-targets --message-format=short 2>&1 | \
+            tee /tmp/cargo-check-output.txt | \
+            grep -E 'warning.*dead_code|error.*dead_code' > /tmp/dead-code-warnings.txt
+          EXIT_CODE=$?
+          set -e
+          
+          # 即便 cargo check 完全成功，也要生成报告
+          WARNING_COUNT=$(wc -l < /tmp/dead-code-warnings.txt 2>/dev/null || echo "0")
+          echo "warning_count=$WARNING_COUNT" >> $GITHUB_OUTPUT
+          echo "dead_code 警告数: $WARNING_COUNT"
+          
+          # 列出受影响文件
+          AFFECTED=$(grep -oE 'src/[^:]+\.rs' /tmp/dead-code-warnings.txt 2>/dev/null | sort -u | wc -l)
+          echo "affected_files=$AFFECTED" >> $GITHUB_OUTPUT
+          echo "受影响文件数: $AFFECTED"
+          
+          echo "warning_count=$WARNING_COUNT" >> $GITHUB_STEP_SUMMARY
+          echo "affected_files=$AFFECTED" >> $GITHUB_STEP_SUMMARY
+
+      - name: 恢复源代码
+        if: always()
+        run: |
+          rm -rf backend/src
+          cp -r /tmp/src-backup backend/src
+          echo "源代码已恢复"
+          # 验证恢复
+          RESTORED=$(grep -rln '#!\[allow(dead_code)\]' backend/src 2>/dev/null | wc -l)
+          echo "恢复后 file-level allow 数: $RESTORED（应与审计前一致）"
+
+      - name: 生成 Markdown 审计报告
+        if: always()
+        env:
+          BEFORE_COUNT: ${{ steps.before.outputs.before_count }}
+          WARNING_COUNT: ${{ steps.check.outputs.warning_count }}
+          AFFECTED_FILES: ${{ steps.check.outputs.affected_files }}
+        run: |
+          {
+            echo "# 死代码全量审计报告"
+            echo ""
+            echo "**生成时间**: $(date -u +'%Y-%m-%d %H:%M:%S UTC')  "
+            echo "**审计模式**: 临时剥离所有 file-level \`#![allow(dead_code)]\` 与对应 TODO 注释后跑 \`cargo check --all-targets\`"
+            echo ""
+            echo "## 概览"
+            echo ""
+            echo "| 指标 | 数值 |"
+            echo "|------|------|"
+            echo "| 审计前 file-level allow 文件数 | $BEFORE_COUNT |"
+            echo "| 剥离后真实 dead_code 警告数 | $WARNING_COUNT |"
+            echo "| 受影响源文件数 | $AFFECTED_FILES |"
+            echo ""
+            
+            if [ "$WARNING_COUNT" -eq "0" ]; then
+              echo "## ✅ 结果：无死代码"
+              echo ""
+              echo "剥离所有 file-level \`#![allow(dead_code)]\` 后，编译器未报告任何 dead_code 警告。"
+              echo "这意味着 **所有 \`#![allow(dead_code)]\` 都是冗余的，可以全部移除**。"
+              echo ""
+              echo "### 建议下一步"
+              echo ""
+              echo "1. 手动删除所有 file-level \`#![allow(dead_code)]\` 抑制"
+              echo "2. 验证 cargo check 仍通过"
+              echo "3. 提 PR 一次性清理"
+              exit 0
+            fi
+            
+            echo "## 按文件统计（前 30）"
+            echo ""
+            echo "| 文件 | 警告数 |"
+            echo "|------|--------|"
+            if [ -f /tmp/dead-code-warnings.txt ] && [ -s /tmp/dead-code-warnings.txt ]; then
+              grep -oE 'src/[^:]+\.rs' /tmp/dead-code-warnings.txt | \
+                sort | uniq -c | sort -rn | head -30 | \
+                awk '{printf "| `backend/%s` | %s |\n", $2, $1}'
+            else
+              echo "| (无数据) | 0 |"
+            fi
+            echo ""
+            
+            echo "## 完整警告列表"
+            echo ""
+            echo '```'
+            if [ -f /tmp/dead-code-warnings.txt ] && [ -s /tmp/dead-code-warnings.txt ]; then
+              cat /tmp/dead-code-warnings.txt
+            else
+              echo "(无警告)"
+            fi
+            echo '```'
+            echo ""
+            
+            echo "## 处理建议"
+            echo ""
+            echo "每条警告分两种情况处理："
+            echo ""
+            echo "### 情况 A：真死代码（推荐删除）"
+            echo ""
+            echo "1. 打开对应文件"
+            echo "2. 删除未使用的 pub 项（fn / struct / enum / const / static）"
+            echo "3. 如果项级 \`#[allow(dead_code)]\` 已无作用，一并删除"
+            echo "4. 重新跑本 workflow 验证"
+            echo ""
+            echo "### 情况 B：误报（pub 但未被跨 crate 引用）"
+            echo ""
+            echo "1. 在该项上加 \`#[allow(dead_code)] // TODO(tech-debt): 业务接入后移除\`"
+            echo "2. **禁止**再用 file-level \`#![allow(dead_code)]\` 抑制整文件"
+            echo ""
+            echo "## 进度跟踪"
+            echo ""
+            echo "在 issue 中回复处理情况，附 commit 链接。"
+            echo "本 workflow 每周一自动跑一次，可手动触发 review。"
+          } > /tmp/audit-report.md
+          
+          echo "=== 报告预览 ==="
+          head -50 /tmp/audit-report.md
+          echo "..."
+          echo "=== (报告共 $(wc -l < /tmp/audit-report.md) 行) ==="
+
+      - name: 上传审计报告
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: dead-code-audit-report-${{ github.run_id }}
+          path: /tmp/audit-report.md
+          retention-days: 90
+        # 兼容旧 GitHub 实例
+        continue-on-error: true
+
+      - name: 写报告到 job summary
+        if: always()
+        run: |
+          if [ -f /tmp/audit-report.md ]; then
+            cat /tmp/audit-report.md >> $GITHUB_STEP_SUMMARY
+          fi
+
+      - name: 严格模式：警告数未降低则失败
+        if: >-
+          github.event_name == 'workflow_dispatch' &&
+          github.event.inputs.strict == 'true' &&
+          steps.check.outputs.warning_count != '0'
+        run: |
+          echo "❌ 严格模式：发现 ${{ steps.check.outputs.warning_count }} 处 dead_code，请处理后再跑"
+          exit 1
+
+      - name: 自动创建 issue（仅定时任务）
+        if: >-
+          github.event_name == 'schedule' &&
+          steps.check.outputs.warning_count != '0' &&
+          steps.check.outputs.warning_count != ''
+        uses: actions/github-script@v7
+        env:
+          WARNING_COUNT: ${{ steps.check.outputs.warning_count }}
+          AFFECTED_FILES: ${{ steps.check.outputs.affected_files }}
+          BEFORE_COUNT: ${{ steps.before.outputs.before_count }}
+        with:
+          script: |
+            const fs = require('fs');
+            const report = fs.readFileSync('/tmp/audit-report.md', 'utf8');
+            
+            // 检查今天是否已创建过 issue（避免重复刷屏）
+            const today = new Date().toISOString().slice(0, 10);
+            const { data: issues } = await github.rest.issues.listForRepo({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              state: 'open',
+              labels: 'tech-debt,dead-code-audit',
+              per_page: 10
+            });
+            const todayIssues = issues.filter(i => 
+              i.title.includes(today) || 
+              (i.body && i.body.includes(`## 概览`) && i.created_at.startsWith(today))
+            );
+            
+            if (todayIssues.length > 0) {
+              // 今日已有 issue，改为评论
+              const existing = todayIssues[0];
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: existing.number,
+                body: `## 再次审计（${today}）\n\n${report}\n\n---\n本次警告数: ${process.env.WARNING_COUNT}，受影响文件: ${process.env.AFFECTED_FILES}`
+              });
+              console.log(`已更新 issue #${existing.number}`);
+              return;
+            }
+            
+            // 创建新 issue
+            const title = `死代码审计 - ${today}（${process.env.WARNING_COUNT} 条警告）`;
+            await github.rest.issues.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              title: title,
+              body: report + `\n\n---\n*本 issue 由 CI 自动创建。每周一自动更新。*`,
+              labels: ['tech-debt', 'dead-code-audit']
+            });
+            console.log(`已创建 issue: ${title}`);
+
+      - name: 完成
+        if: always()
+        run: |
+          echo "=========================================="
+          echo "  死代码审计完成"
+          echo "=========================================="
+          echo ""
+          echo "审计前 file-level allow: ${{ steps.before.outputs.before_count }}"
+          echo "审计后 dead_code 警告: ${{ steps.check.outputs.warning_count }}"
+          echo "受影响文件: ${{ steps.check.outputs.affected_files }}"
+          echo ""
+          if [ "${{ steps.check.outputs.warning_count }}" -eq "0" ]; then
+            echo "✅ 无死代码，可考虑删除所有 file-level allow"
+          else
+            echo "⚠️  发现 ${{ steps.check.outputs.warning_count }} 处死代码，请查看报告"
+          fi
+          echo "=========================================="
