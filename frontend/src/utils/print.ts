@@ -1,22 +1,33 @@
 import { ElMessage } from 'element-plus'
 
-export interface PrintColumn {
-  key: string
+/**
+ * 打印列定义接口
+ * @template T - 数据行类型
+ */
+export interface PrintColumn<T extends Record<string, unknown> = Record<string, unknown>> {
+  key: keyof T & string
   title: string
   width?: string
   align?: 'left' | 'center' | 'right'
-  formatter?: (value: any, row: any) => string
+  formatter?: (value: unknown, row: T) => string
 }
 
-export interface PrintOptions {
+/**
+ * 打印选项接口
+ * @template T - 数据行类型
+ */
+export interface PrintOptions<T extends Record<string, unknown> = Record<string, unknown>> {
   title: string
-  columns: PrintColumn[]
-  data: any[]
+  columns: PrintColumn<T>[]
+  data: T[]
   extraInfo?: { label: string; value: string }[]
   orientation?: 'portrait' | 'landscape'
 }
 
-function generatePrintHTML(options: PrintOptions): string {
+/**
+ * 生成打印 HTML 内容
+ */
+function generatePrintHTML<T extends Record<string, unknown>>(options: PrintOptions<T>): string {
   const { title, columns, data, extraInfo, orientation = 'portrait' } = options
 
   const headerCells = columns
@@ -85,7 +96,10 @@ function generatePrintHTML(options: PrintOptions): string {
   `
 }
 
-export function printData(options: PrintOptions) {
+/**
+ * 打印数据表格
+ */
+export function printData<T extends Record<string, unknown>>(options: PrintOptions<T>) {
   if (!options.data || options.data.length === 0) {
     ElMessage.warning('没有可打印的数据')
     return
@@ -106,11 +120,14 @@ export function printData(options: PrintOptions) {
   ElMessage.success('打印窗口已打开')
 }
 
-export function printSingleDocument(options: {
+/**
+ * 打印单个单据（含表头信息、明细行、页脚）
+ */
+export function printSingleDocument<T extends Record<string, unknown>>(options: {
   title: string
   info: Record<string, string>
-  items: any[]
-  itemColumns: PrintColumn[]
+  items: T[]
+  itemColumns: PrintColumn<T>[]
   footer?: Record<string, string>
 }) {
   const { title, info, items, itemColumns, footer } = options
