@@ -5,6 +5,7 @@ use axum::{
 use serde::{Deserialize, Serialize};
 
 use crate::middleware::auth_context::AuthContext;
+use crate::middleware::tenant::extract_tenant_id;
 use crate::utils::app_state::AppState;
 use crate::utils::error::AppError;
 use crate::utils::response::ApiResponse;
@@ -68,7 +69,7 @@ pub async fn list_integrations(
     use crate::models::webhook;
     use sea_orm::{ColumnTrait, EntityTrait, QueryFilter};
 
-    let tenant_id = auth.tenant_id.unwrap_or(0);
+    let tenant_id = extract_tenant_id(&auth)?;
 
     let webhooks = webhook::Entity::find()
         .filter(webhook::Column::TenantId.eq(tenant_id))
@@ -98,7 +99,7 @@ pub async fn create_integration(
     auth: AuthContext,
     Json(req): Json<CreateWebhookIntegrationRequest>,
 ) -> Result<Json<ApiResponse<WebhookIntegrationItem>>, AppError> {
-    let tenant_id = auth.tenant_id.unwrap_or(0);
+    let tenant_id = extract_tenant_id(&auth)?;
 
     use crate::models::webhook;
     use chrono::Utc;
@@ -142,7 +143,7 @@ pub async fn delete_integration(
     auth: AuthContext,
     Path(id): Path<i32>,
 ) -> Result<Json<ApiResponse<()>>, AppError> {
-    let tenant_id = auth.tenant_id.unwrap_or(0);
+    let tenant_id = extract_tenant_id(&auth)?;
 
     // 推荐使用服务层处理删除逻辑（它已经包含了权限检查）
     let service = crate::services::webhook_service::WebhookService::new(state.db.clone());
@@ -237,8 +238,8 @@ pub async fn send_dingtalk_message(
         .await?
         .ok_or_else(|| AppError::not_found("Webhook 集成不存在"))?;
 
-    if webhook.tenant_id != auth.tenant_id.unwrap_or(0) {
-        return Err(AppError::permission_denied("无权操作此Webhook"));
+    if webhook.tenant_id != extract_tenant_id(&auth)? {
+        return Err(AppError::permission_denied("无权操作此 Webhook"));
     }
 
     let delivery = service
@@ -287,7 +288,7 @@ pub async fn test_integration(
     use crate::services::webhook_service::WebhookService;
 
     let service = WebhookService::new(state.db.clone());
-    let tenant_id = auth.tenant_id.unwrap_or(0);
+    let tenant_id = extract_tenant_id(&auth)?;
 
     // 调用 test_webhook 时传入 tenant_id 进行归属校验
     let mut result = service.test_webhook(id, tenant_id).await?;
