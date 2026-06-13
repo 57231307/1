@@ -2,8 +2,6 @@
 //!
 //! 付款服务层，负责付款执行的核心业务逻辑
 //! 包含付款单创建、确认、付款计划等管理
-#![allow(dead_code)]
-// TODO(tech-debt): 业务接入或重评估后逐项移除；rustc 1.94+ 编译时由编译器报告具体死代码位置。
 
 use crate::models::{ap_invoice, ap_payment, ap_payment_request, ap_payment_request_item};
 use crate::utils::error::AppError;

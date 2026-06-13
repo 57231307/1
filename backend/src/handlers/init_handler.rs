@@ -1,6 +1,4 @@
 //! 系统初始化处理器
-#![allow(dead_code)]
-// TODO(tech-debt): 业务接入或重评估后逐项移除；rustc 1.94+ 编译时由编译器报告具体死代码位置。
 
 use crate::services::init_service::{DatabaseConfig, InitRequest, InitService, InitStatus, InitTaskStatus, get_init_tasks};
 use crate::utils::app_state::AppState;

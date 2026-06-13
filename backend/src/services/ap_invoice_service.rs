@@ -2,8 +2,6 @@
 //!
 //! 应付单服务层，负责应付单的核心业务逻辑
 //! 包含应付单自动生成、手工创建、审核、核销等全流程管理
-#![allow(dead_code)]
-// TODO(tech-debt): 业务接入或重评估后逐项移除；rustc 1.94+ 编译时由编译器报告具体死代码位置。
 
 use crate::models::{ap_invoice, purchase_receipt, purchase_return};
 use crate::utils::error::AppError;

@@ -12,8 +12,6 @@
 //! - 软删除机制（不物理删除数据）
 //! - 密码哈希由调用方处理，本模块不处理明文密码
 
-#![allow(dead_code)]
-// TODO(tech-debt): 业务接入或重评估后逐项移除；rustc 1.94+ 编译时由编译器报告具体死代码位置。
 
 use crate::models::user;
 use crate::utils::error::AppError;
