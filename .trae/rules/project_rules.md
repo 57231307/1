@@ -162,23 +162,39 @@ pub struct ProductFullDto { ... }
 
 任何死代码警告都会让 CI 失败，开发者必须立即处理。
 
-### 5. utils/ 模板（已建立）
+### 5. 全项目死代码清理（已建立，2026-06-13 PR #80）
 
-`backend/src/utils/` 下的 8 个核心文件已**全部**开启死代码检查（移除文件级 `#![allow(dead_code)]`），
-作为全项目的死代码处理模板：
+**审计基线**：[dead-code-audit workflow run 27469902556](https://github.com/57231307/1/actions/runs/27469902556)
+- 临时剥离全部 222 个文件级 `#![allow(dead_code)]` 与 TODO 注释
+- 跑 `cargo check --all-targets`
+- **结果：dead_code 警告数 = 0**
+- 结论：所有这些抑制都是冗余的
 
-| 文件 | 处理方式 |
-|------|----------|
-| [fabric_five_dimension.rs](file:///workspace/backend/src/utils/fabric_five_dimension.rs) | 删除 `FiveDimensionStatistics`、`FiveDimensionQueryBuilder` 及对应测试 |
-| [di_container.rs](file:///workspace/backend/src/utils/di_container.rs) | 删除 `GLOBAL_CONTAINER`、`register`/`resolve`/`is_registered` 自由函数 |
-| [cache.rs](file:///workspace/backend/src/utils/cache.rs) | 删除 `CacheKey` 枚举及 Display 实现 |
-| [response.rs](file:///workspace/backend/src/utils/response.rs) | 全部已使用，无需变更 |
-| [password_validator.rs](file:///workspace/backend/src/utils/password_validator.rs) | 全部已使用，无需变更 |
-| [log_config.rs](file:///workspace/backend/src/utils/log_config.rs) | 全部已使用，无需变更 |
-| [dual_unit_converter.rs](file:///workspace/backend/src/utils/dual_unit_converter.rs) | 全部已使用，无需变更 |
-| tree_builder.rs | 整个文件已删除（无业务引用） |
+**清理结果（PR #80）**：
+- 删除 83 个非 models/ 业务文件的 `#![allow(dead_code)]` + 紧邻 TODO 注释（共 166 行）
+- 保留 `backend/src/models/` 下 139 个 SeaORM 生成的合法例外
+- 工具脚本：[scripts/cleanup-redundant-allow.sh](file:///workspace/scripts/cleanup-redundant-allow.sh)（v2 动态行号定位）
 
-后续 services/、handlers/、models/ 等模块按相同模板处理：评估 → 删除真实死代码或项级 `#[allow(dead_code)]` + TODO。
+**清理覆盖范围**（与 utils/ 模板同样的评估 → 删除标准）：
+
+| 目录 | 清理文件数 | 验证状态 |
+|------|----------|---------|
+| `backend/src/services/` | 44 | ✅ dead_code 警告 = 0 |
+| `backend/src/handlers/` | 22 | ✅ dead_code 警告 = 0 |
+| `backend/src/middleware/` | 6 | ✅ dead_code 警告 = 0 |
+| `backend/src/services/{inv,so,ar,report,po,crm,ai}/` | 11 | ✅ dead_code 警告 = 0 |
+| `backend/src/models/` | 0（保留，SeaORM 例外） | - |
+
+**持续监控**：
+- 周度自动审计：[.github/workflows/dead-code-audit.yml](file:///workspace/.github/workflows/dead-code-audit.yml)
+  - 每周一 UTC 01:00（北京时间 09:00）自动跑全量审计
+  - 发现新死代码自动创建/更新 `tech-debt,dead-code-audit` 标签的 issue
+- PR 关闭时也会跑一次
+- 手动触发：Actions → "死代码全量审计" → Run workflow（支持 `strict=true` 严格模式）
+
+**新增死代码的拦截**：
+- CI clippy `dead_code = warn` 强制 → 任何 PR 新增的死代码立即在 CI 阶段失败
+- 周度审计双保险
 
 ## 七、版本控制规范
 
