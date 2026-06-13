@@ -102,6 +102,16 @@ pub async fn get_user(
     Ok(Json(ApiResponse::success(user.into())))
 }
 
+/// 获取当前登录用户个人信息
+pub async fn get_current_user_profile(
+    auth: AuthContext,
+    State(state): State<AppState>,
+) -> Result<Json<ApiResponse<UserResponse>>, AppError> {
+    let user_service = UserService::new(state.db.clone());
+    let user = user_service.find_by_id(auth.user_id).await?;
+    Ok(Json(ApiResponse::success(user.into())))
+}
+
 pub async fn create_user(
     State(state): State<AppState>,
     _auth: AuthContext,

@@ -167,3 +167,55 @@ pub async fn export_excel_type(
         "exported_at": chrono::Utc::now().to_rfc3339(),
     }))))
 }
+
+/// 导入模板列表项
+#[derive(Debug, serde::Serialize)]
+pub struct ImportTemplateListItem {
+    pub import_type: String,
+    pub name: String,
+    pub description: String,
+}
+
+/// 导入任务列表项
+#[derive(Debug, serde::Serialize)]
+pub struct ImportTaskItem {
+    pub id: i32,
+    pub import_type: String,
+    pub status: String,
+    pub total_rows: u64,
+    pub imported_rows: u64,
+    pub failed_rows: u64,
+    pub created_at: String,
+}
+
+/// GET /api/v1/erp/data-import/templates - 获取导入模板列表
+pub async fn list_import_templates(
+    State(_state): State<AppState>,
+) -> Result<Json<ApiResponse<Vec<ImportTemplateListItem>>>, AppError> {
+    let templates = vec![
+        ImportTemplateListItem {
+            import_type: "products".to_string(),
+            name: "产品导入模板".to_string(),
+            description: "用于批量导入产品信息".to_string(),
+        },
+        ImportTemplateListItem {
+            import_type: "customers".to_string(),
+            name: "客户导入模板".to_string(),
+            description: "用于批量导入客户信息".to_string(),
+        },
+        ImportTemplateListItem {
+            import_type: "inventory".to_string(),
+            name: "库存导入模板".to_string(),
+            description: "用于批量导入库存信息".to_string(),
+        },
+    ];
+    Ok(Json(ApiResponse::success(templates)))
+}
+
+/// GET /api/v1/erp/data-import/tasks - 获取导入任务列表
+pub async fn list_import_tasks(
+    State(_state): State<AppState>,
+) -> Result<Json<ApiResponse<Vec<ImportTaskItem>>>, AppError> {
+    // 导入任务功能暂返回空列表，后续可接入数据库任务记录
+    Ok(Json(ApiResponse::success(vec![])))
+}

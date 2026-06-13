@@ -18,9 +18,8 @@ use axum::{
 
 use crate::handlers::{
     capacity_handler, cost_collection_handler, dye_batch_handler, dye_recipe_handler,
-    greige_fabric_handler, material_shortage_handler, missing_handlers, mrp_handler,
-    production_order_handler, quality_inspection_handler, quality_standard_handler,
-    scheduling_handler,
+    greige_fabric_handler, missing_handlers, mrp_handler, production_order_handler,
+    quality_inspection_handler,
 };
 
 /// 缸号管理路由（path 前缀 /dye-batches）
@@ -164,47 +163,6 @@ pub fn quality_inspection() -> Router<AppState> {
         )
 }
 
-/// 质量标准路由（path 前缀 /quality-standards）
-pub fn quality_standards() -> Router<AppState> {
-    Router::new()
-        .route(
-            "/quality-standards",
-            get(quality_standard_handler::list_standards),
-        )
-        .route(
-            "/quality-standards",
-            post(quality_standard_handler::create_standard),
-        )
-        .route(
-            "/quality-standards/:id",
-            get(quality_standard_handler::get_standard),
-        )
-        .route(
-            "/quality-standards/:id",
-            put(quality_standard_handler::update_standard),
-        )
-        .route(
-            "/quality-standards/:id",
-            delete(quality_standard_handler::delete_standard),
-        )
-        .route(
-            "/quality-standards/:id/versions",
-            get(quality_standard_handler::list_versions),
-        )
-        .route(
-            "/quality-standards/:id/versions",
-            post(quality_standard_handler::create_version_history),
-        )
-        .route(
-            "/quality-standards/:id/approve",
-            post(quality_standard_handler::approve_standard),
-        )
-        .route(
-            "/quality-standards/:id/publish",
-            post(quality_standard_handler::publish_standard),
-        )
-}
-
 /// 成本归集路由（path 前缀 /cost-collections）
 pub fn cost_collections() -> Router<AppState> {
     Router::new()
@@ -310,45 +268,6 @@ pub fn mrp_history() -> Router<AppState> {
         )
 }
 
-/// 生产排程路由（path 前缀 /scheduling）
-pub fn scheduling() -> Router<AppState> {
-    Router::new()
-        .route(
-            "/scheduling/auto-schedule",
-            post(scheduling_handler::auto_schedule),
-        )
-        .route("/scheduling/gantt", get(scheduling_handler::get_gantt_data))
-        .route(
-            "/scheduling/conflicts",
-            get(scheduling_handler::detect_conflicts),
-        )
-        .route(
-            "/scheduling/tasks",
-            get(scheduling_handler::list_scheduled_orders),
-        )
-        .route(
-            "/scheduling/tasks/:id/adjust",
-            put(scheduling_handler::adjust_schedule_task),
-        )
-        .route("/scheduling/:id", put(scheduling_handler::adjust_schedule))
-        .route(
-            "/scheduling/work-orders",
-            get(scheduling_handler::list_scheduled_orders),
-        )
-        .route(
-            "/scheduling/history",
-            get(scheduling_handler::get_schedule_history),
-        )
-        .route(
-            "/scheduling/results/:id",
-            get(scheduling_handler::get_schedule_result),
-        )
-        .route(
-            "/scheduling/results/:id/confirm",
-            post(scheduling_handler::confirm_schedule_result),
-        )
-}
-
 /// 产能分析路由（path 前缀 /capacity）
 pub fn capacity() -> Router<AppState> {
     Router::new()
@@ -391,40 +310,6 @@ pub fn capacity() -> Router<AppState> {
         )
 }
 
-/// 缺料预警路由（path 前缀 /material-shortage）
-pub fn material_shortage() -> Router<AppState> {
-    Router::new()
-        .route(
-            "/material-shortage/alerts",
-            get(material_shortage_handler::list_shortage_alerts),
-        )
-        .route(
-            "/material-shortage/list",
-            get(material_shortage_handler::list_shortage_alerts),
-        )
-        .route(
-            "/material-shortage/check",
-            post(material_shortage_handler::check_material_shortage),
-        )
-        .route(
-            "/material-shortage/summary",
-            get(material_shortage_handler::get_shortage_summary),
-        )
-        .route(
-            "/material-shortage/threshold",
-            get(material_shortage_handler::get_threshold_config)
-                .post(material_shortage_handler::save_threshold_config),
-        )
-        .route(
-            "/material-shortage/replenishment",
-            get(material_shortage_handler::get_replenishment_suggestions),
-        )
-        .route(
-            "/material-shortage/:id/status",
-            put(material_shortage_handler::update_shortage_status),
-        )
-}
-
 /// 生产域统一入口
 ///
 /// 子 router path 已加独立前缀，merge 时 path+method 互不重叠。
@@ -434,12 +319,9 @@ pub fn routes() -> Router<AppState> {
         .merge(greige_fabrics())
         .merge(dye_recipes())
         .merge(quality_inspection())
-        .merge(quality_standards())
         .merge(cost_collections())
         .merge(production())
         .merge(mrp())
         .merge(mrp_history())
-        .merge(scheduling())
         .merge(capacity())
-        .merge(material_shortage())
 }

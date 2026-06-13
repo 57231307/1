@@ -37,23 +37,38 @@ pub struct RejectSalesReturnRequest {
 /// 路由注册
 pub fn router() -> Router<AppState> {
     Router::new()
-        .route("/", get(list_sales_returns).post(create_sales_return))
         .route(
-            "/:id",
+            "/sales-returns",
+            get(list_sales_returns).post(create_sales_return),
+        )
+        .route(
+            "/sales-returns/:id",
             get(get_sales_return)
                 .put(update_sales_return)
                 .delete(delete_sales_return),
         )
-        .route("/:id/submit", post(submit_sales_return))
-        .route("/:id/approve", post(approve_sales_return))
-        .route("/:id/reject", post(reject_sales_return))
-        .route("/:id/execute", post(execute_sales_return))
         .route(
-            "/:id/items",
+            "/sales-returns/:id/submit",
+            post(submit_sales_return),
+        )
+        .route(
+            "/sales-returns/:id/approve",
+            post(approve_sales_return),
+        )
+        .route(
+            "/sales-returns/:id/reject",
+            post(reject_sales_return),
+        )
+        .route(
+            "/sales-returns/:id/execute",
+            post(execute_sales_return),
+        )
+        .route(
+            "/sales-returns/:id/items",
             get(list_return_items).post(create_return_item),
         )
         .route(
-            "/:id/items/:item_id",
+            "/sales-returns/:id/items/:item_id",
             put(update_return_item).delete(delete_return_item),
         )
 }

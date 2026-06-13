@@ -75,3 +75,30 @@ pub async fn voucher_print_html(
 ) -> Result<Html<String>, AppError> {
     render_print_html("voucher", doc_id).await
 }
+
+/// 打印模板列表响应
+#[derive(serde::Serialize)]
+pub struct PrintTemplateDto {
+    pub id: i32,
+    pub name: String,
+    pub doc_type: String,
+    pub template_content: String,
+    pub is_default: bool,
+    pub created_at: String,
+}
+
+/// 获取打印模板列表
+pub async fn list_print_templates(
+    State(_): State<AppState>,
+) -> Result<axum::Json<ApiResponse<Vec<PrintTemplateDto>>>, AppError> {
+    // 打印模板功能暂返回空列表，后续可接入数据库
+    Ok(axum::Json(ApiResponse::success(vec![])))
+}
+
+/// 获取单个打印模板详情
+pub async fn get_print_template(
+    Path(_id): Path<i32>,
+    State(_): State<AppState>,
+) -> Result<axum::Json<ApiResponse<PrintTemplateDto>>, AppError> {
+    Err(AppError::not_found("打印模板不存在"))
+}

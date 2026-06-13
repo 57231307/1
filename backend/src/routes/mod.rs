@@ -23,10 +23,18 @@
 //!     不在本文件重复挂载（避免重复 layer 导致 header 覆盖异常）。
 //!   - sql_injection_audit_middleware（新）挂载在 Router 链最外层（axum 后注册 = 外层）。
 
-use axum::{middleware, Router};
+use axum::{
+    middleware,
+    routing::{delete, get, post, put},
+    Router,
+};
 #[cfg(feature = "swagger")]
 use utoipa_swagger_ui::SwaggerUi;
 
+use crate::handlers::{
+    import_export_handler, material_shortage_handler, print_handler, quality_standard_handler,
+    scheduling_handler, system_update_handler, user_handler,
+};
 use crate::middleware::sql_injection_audit::sql_injection_audit_middleware;
 use crate::services::metrics_service::create_metrics_router;
 use crate::utils::app_state::AppState;
@@ -49,6 +57,205 @@ pub mod system;
 pub mod tenant;
 pub mod v1;
 
+/// 缺料预警路由（从 production 域提升到根级，path 前缀 /material-shortage）
+fn material_shortage_routes() -> Router<AppState> {
+    Router::new()
+        .route(
+            "/material-shortage/alerts",
+            get(material_shortage_handler::list_shortage_alerts),
+        )
+        .route(
+            "/material-shortage/list",
+            get(material_shortage_handler::list_shortage_alerts),
+        )
+        .route(
+            "/material-shortage/check",
+            post(material_shortage_handler::check_material_shortage),
+        )
+        .route(
+            "/material-shortage/summary",
+            get(material_shortage_handler::get_shortage_summary),
+        )
+        .route(
+            "/material-shortage/threshold",
+            get(material_shortage_handler::get_threshold_config)
+                .post(material_shortage_handler::save_threshold_config),
+        )
+        .route(
+            "/material-shortage/replenishment",
+            get(material_shortage_handler::get_replenishment_suggestions),
+        )
+        .route(
+            "/material-shortage/:id/status",
+            put(material_shortage_handler::update_shortage_status),
+        )
+}
+
+/// 生产排程路由（从 production 域提升到根级，path 前缀 /scheduling）
+fn scheduling_routes() -> Router<AppState> {
+    Router::new()
+        .route(
+            "/scheduling/auto-schedule",
+            post(scheduling_handler::auto_schedule),
+        )
+        .route("/scheduling/gantt", get(scheduling_handler::get_gantt_data))
+        .route(
+            "/scheduling/conflicts",
+            get(scheduling_handler::detect_conflicts),
+        )
+        .route(
+            "/scheduling/tasks",
+            get(scheduling_handler::list_scheduled_orders),
+        )
+        .route(
+            "/scheduling/tasks/:id/adjust",
+            put(scheduling_handler::adjust_schedule_task),
+        )
+        .route("/scheduling/:id", put(scheduling_handler::adjust_schedule))
+        .route(
+            "/scheduling/work-orders",
+            get(scheduling_handler::list_scheduled_orders),
+        )
+        .route(
+            "/scheduling/history",
+            get(scheduling_handler::get_schedule_history),
+        )
+        .route(
+            "/scheduling/results/:id",
+            get(scheduling_handler::get_schedule_result),
+        )
+        .route(
+            "/scheduling/results/:id/confirm",
+            post(scheduling_handler::confirm_schedule_result),
+        )
+}
+
+/// 质量标准路由（从 production 域提升到根级，path 前缀 /quality-standards）
+fn quality_standards_routes() -> Router<AppState> {
+    Router::new()
+        .route(
+            "/quality-standards",
+            get(quality_standard_handler::list_standards),
+        )
+        .route(
+            "/quality-standards",
+            post(quality_standard_handler::create_standard),
+        )
+        .route(
+            "/quality-standards/:id",
+            get(quality_standard_handler::get_standard),
+        )
+        .route(
+            "/quality-standards/:id",
+            put(quality_standard_handler::update_standard),
+        )
+        .route(
+            "/quality-standards/:id",
+            delete(quality_standard_handler::delete_standard),
+        )
+        .route(
+            "/quality-standards/:id/versions",
+            get(quality_standard_handler::list_versions),
+        )
+        .route(
+            "/quality-standards/:id/versions",
+            post(quality_standard_handler::create_version_history),
+        )
+        .route(
+            "/quality-standards/:id/approve",
+            post(quality_standard_handler::approve_standard),
+        )
+        .route(
+            "/quality-standards/:id/publish",
+            post(quality_standard_handler::publish_standard),
+        )
+}
+
+/// 用户中心路由（path 前缀 /user）
+fn user_profile_routes() -> Router<AppState> {
+    Router::new().route("/user/profile", get(user_handler::get_current_user_profile))
+}
+
+/// 系统更新补充路由（path 前缀 /system-update）
+fn system_update_extra_routes() -> Router<AppState> {
+    Router::new()
+        .route(
+            "/system-update/current-version",
+            get(system_update_handler::get_version),
+        )
+        .route(
+            "/system-update/tasks",
+            get(system_update_handler::get_update_status),
+        )
+        .route(
+            "/system-update/backups",
+            get(system_update_handler::get_backup_versions),
+        )
+}
+
+/// 打印模板路由（path 前缀 /print-templates）
+fn print_templates_routes() -> Router<AppState> {
+    Router::new()
+        .route(
+            "/print-templates",
+            get(print_handler::list_print_templates),
+        )
+        .route(
+            "/print-templates/:id",
+            get(print_handler::get_print_template),
+        )
+}
+
+/// 数据导入路由（path 前缀 /data-import）
+fn data_import_routes() -> Router<AppState> {
+    Router::new()
+        .route(
+            "/data-import/templates",
+            get(import_export_handler::list_import_templates),
+        )
+        .route(
+            "/data-import/tasks",
+            get(import_export_handler::list_import_tasks),
+        )
+}
+
+/// 产品分类路由别名（path 前缀 /product-categories，指向 categories handler）
+fn product_categories_alias() -> Router<AppState> {
+    Router::new()
+        .route(
+            "/product-categories",
+            get(crate::handlers::product_category_handler::list),
+        )
+        .route(
+            "/product-categories",
+            post(crate::handlers::product_category_handler::create),
+        )
+        .route(
+            "/product-categories/tree",
+            get(crate::handlers::product_category_handler::get_product_category_tree),
+        )
+        .route(
+            "/product-categories/:id",
+            get(crate::handlers::product_category_handler::get),
+        )
+        .route(
+            "/product-categories/:id",
+            put(crate::handlers::product_category_handler::update),
+        )
+        .route(
+            "/product-categories/:id",
+            delete(crate::handlers::product_category_handler::delete),
+        )
+}
+
+/// 供应商选择路由别名（path 前缀 /suppliers/select）
+fn suppliers_select_alias() -> Router<AppState> {
+    Router::new().route(
+        "/suppliers/select",
+        get(crate::handlers::supplier_handler::list_suppliers),
+    )
+}
+
 /// 构建 ERP 根域子路由（共享 `/api/v1/erp` 前缀）
 ///
 /// 共享同一前缀的四个域（iam / catalog / analytics / system）必须先 merge 再整体 nest，
@@ -62,6 +269,17 @@ fn build_erp_root_router() -> Router<AppState> {
         .merge(catalog::routes())
         .merge(analytics::routes())
         .merge(system::routes())
+        // 从 production 域提升的路由
+        .merge(material_shortage_routes())
+        .merge(scheduling_routes())
+        .merge(quality_standards_routes())
+        // 新增的路由
+        .merge(user_profile_routes())
+        .merge(system_update_extra_routes())
+        .merge(print_templates_routes())
+        .merge(data_import_routes())
+        .merge(product_categories_alias())
+        .merge(suppliers_select_alias())
 }
 
 /// 构建基础设施路由（静态资源 + 指标 + API 文档）
