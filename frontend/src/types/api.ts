@@ -1,3 +1,10 @@
+export type {
+  ApiResponse,
+  PaginatedResponse,
+  ErrorResponse,
+  EmptyResponse
+} from './api-response';
+
 export interface LoginRequest {
   username: string
   password: string
@@ -33,13 +40,6 @@ export interface UserPermission {
   type: string
   resource?: string
   action?: string
-}
-
-export interface ApiResponse<T = any> {
-  code: number
-  message: string
-  data: T
-  total?: number
 }
 
 export interface PageResult<T = any> {
