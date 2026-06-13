@@ -1,4 +1,3 @@
-use rust_decimal::Decimal;
 use serde::{Deserialize, Serialize};
 
 /// 面料五维管理结构体
@@ -171,128 +170,6 @@ impl FabricFiveDimension {
     }
 }
 
-/// 五维查询条件构建器
-#[derive(Debug, Clone, Default)]
-pub struct FiveDimensionQueryBuilder {
-    product_id: Option<i32>,
-    batch_no: Option<String>,
-    color_no: Option<String>,
-    dye_lot_no: Option<String>,
-    grade: Option<String>,
-}
-
-impl FiveDimensionQueryBuilder {
-    pub fn new() -> Self {
-        Self::default()
-    }
-
-    pub fn product_id(mut self, product_id: i32) -> Self {
-        self.product_id = Some(product_id);
-        self
-    }
-
-    pub fn batch_no(mut self, batch_no: String) -> Self {
-        self.batch_no = Some(batch_no);
-        self
-    }
-
-    pub fn color_no(mut self, color_no: String) -> Self {
-        self.color_no = Some(color_no);
-        self
-    }
-
-    pub fn dye_lot_no(mut self, dye_lot_no: String) -> Self {
-        self.dye_lot_no = Some(dye_lot_no);
-        self
-    }
-
-    pub fn grade(mut self, grade: String) -> Self {
-        self.grade = Some(grade);
-        self
-    }
-
-    /// 生成 WHERE 子句
-    pub fn build_where_clause(&self) -> (String, Vec<String>) {
-        let mut conditions = Vec::new();
-        let mut params = Vec::new();
-
-        if let Some(pid) = self.product_id {
-            conditions.push("product_id = ?");
-            params.push(pid.to_string());
-        }
-
-        if let Some(ref batch) = self.batch_no {
-            conditions.push("batch_no = ?");
-            params.push(batch.clone());
-        }
-
-        if let Some(ref color) = self.color_no {
-            conditions.push("color_no = ?");
-            params.push(color.clone());
-        }
-
-        if let Some(ref dye_lot) = self.dye_lot_no {
-            conditions.push("dye_lot_no = ?");
-            params.push(dye_lot.clone());
-        }
-
-        if let Some(ref grade) = self.grade {
-            conditions.push("grade = ?");
-            params.push(grade.clone());
-        }
-
-        let where_clause = if conditions.is_empty() {
-            String::new()
-        } else {
-            format!("WHERE {}", conditions.join(" AND "))
-        };
-
-        (where_clause, params)
-    }
-
-    /// 生成五维 ID 前缀（用于模糊查询）
-    pub fn build_id_prefix(&self) -> String {
-        let mut prefix = String::new();
-
-        if let Some(pid) = self.product_id {
-            prefix.push_str(&format!("P{}|", pid));
-        }
-
-        if let Some(batch) = &self.batch_no {
-            prefix.push_str(&format!("B{}|", batch));
-        }
-
-        if let Some(color) = &self.color_no {
-            prefix.push_str(&format!("C{}|", color));
-        }
-
-        if let Some(dye_lot) = &self.dye_lot_no {
-            prefix.push_str(&format!("D{}|", dye_lot));
-        }
-
-        if let Some(grade) = &self.grade {
-            prefix.push_str(&format!("G{}", grade));
-        }
-
-        prefix
-    }
-}
-
-/// 五维统计数据
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct FiveDimensionStatistics {
-    /// 五维对象
-    pub dimension: FabricFiveDimension,
-    /// 总米数
-    pub total_meters: Decimal,
-    /// 总公斤数
-    pub total_kg: Decimal,
-    /// 库存记录数
-    pub stock_count: i64,
-    /// 最后更新时间
-    pub last_updated: chrono::DateTime<chrono::Utc>,
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -404,19 +281,5 @@ mod tests {
 
         let key = dim.generate_key();
         assert_eq!(key, "100:B20240101:C001:*:一等品");
-    }
-
-    #[test]
-    fn test_query_builder() {
-        let builder = FiveDimensionQueryBuilder::new()
-            .product_id(100)
-            .batch_no("B20240101".to_string())
-            .grade("一等品".to_string());
-
-        let (where_clause, params) = builder.build_where_clause();
-        assert!(where_clause.contains("product_id = ?"));
-        assert!(where_clause.contains("batch_no = ?"));
-        assert!(where_clause.contains("grade = ?"));
-        assert_eq!(params.len(), 3);
     }
 }

@@ -1,8 +1,6 @@
-#![allow(dead_code)]
-// TODO(tech-debt): 业务接入或重评估后逐项移除；rustc 1.94+ 编译时由编译器报告具体死代码位置。
-// TODO(tech-debt): 业务接入后逐项移除此标注；rustc 1.94+ 编译时由编译器报告具体死代码位置。
-// 此模块部分 API 当前未被业务直接调用，预留给缓存/CSRF/限流等中间件使用。
-// 待业务接入时移除此标注。
+// TODO(tech-debt): 此文件已开启 dead_code 检查；后续接入时如出现未使用项，应按模板逐项评估。
+// 当前所有 pub API 均已被业务引用（AppCache/MemoryCache/Cache trait/CacheStats）。
+// 私有项 CachedValue<T> 内部使用。如未来新增 API 暂时未接入，应使用项级 #[allow(dead_code)] + TODO 标注。
 
 use dashmap::DashMap;
 use std::sync::atomic::{AtomicU64, Ordering};
@@ -240,80 +238,6 @@ where
 
     fn cleanup_expired(&self) {
         self.cleanup();
-    }
-}
-
-/// 缓存键类型
-pub enum CacheKey {
-    // 仪表板数据
-    DashboardOverview(String),   // 时间范围
-    SalesStatistics(String),     // 时间范围
-    InventoryStatistics(String), // 时间范围
-    LowStockAlerts,
-
-    // 产品相关
-    ProductsList(String), // 查询参数
-    ProductDetails(i32),  // 产品ID
-    ProductColors(i32),   // 产品ID
-    ProductCategories,
-    ProductCategoryTree,
-
-    // 库存相关
-    InventoryStock(String),        // 查询参数
-    InventorySummary(String),      // 查询参数
-    InventoryTransactions(String), // 查询参数
-
-    // 销售相关
-    SalesOrders(String),    // 查询参数
-    SalesOrderDetails(i32), // 订单ID
-
-    // 采购相关
-    PurchaseOrders(String),    // 查询参数
-    PurchaseOrderDetails(i32), // 订单ID
-
-    // 客户相关
-    CustomersList(String), // 查询参数
-    CustomerDetails(i32),  // 客户ID
-
-    // 供应商相关
-    SuppliersList(String), // 查询参数
-    SupplierDetails(i32),  // 供应商ID
-
-    // 仓库相关
-    WarehousesList,
-    WarehouseDetails(i32),   // 仓库ID
-    WarehouseLocations(i32), // 仓库ID
-}
-
-impl std::fmt::Display for CacheKey {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            CacheKey::DashboardOverview(range) => write!(f, "dashboard:overview:{}", range),
-            CacheKey::SalesStatistics(range) => write!(f, "dashboard:sales:{}", range),
-            CacheKey::InventoryStatistics(range) => write!(f, "dashboard:inventory:{}", range),
-            CacheKey::LowStockAlerts => write!(f, "inventory:low_stock"),
-            CacheKey::ProductsList(params) => write!(f, "products:list:{}", params),
-            CacheKey::ProductDetails(id) => write!(f, "products:details:{}", id),
-            CacheKey::ProductColors(id) => write!(f, "products:colors:{}", id),
-            CacheKey::ProductCategories => write!(f, "products:categories"),
-            CacheKey::ProductCategoryTree => write!(f, "products:category_tree"),
-            CacheKey::InventoryStock(params) => write!(f, "inventory:stock:{}", params),
-            CacheKey::InventorySummary(params) => write!(f, "inventory:summary:{}", params),
-            CacheKey::InventoryTransactions(params) => {
-                write!(f, "inventory:transactions:{}", params)
-            }
-            CacheKey::SalesOrders(params) => write!(f, "sales:orders:{}", params),
-            CacheKey::SalesOrderDetails(id) => write!(f, "sales:order:{}", id),
-            CacheKey::PurchaseOrders(params) => write!(f, "purchase:orders:{}", params),
-            CacheKey::PurchaseOrderDetails(id) => write!(f, "purchase:order:{}", id),
-            CacheKey::CustomersList(params) => write!(f, "customers:list:{}", params),
-            CacheKey::CustomerDetails(id) => write!(f, "customers:details:{}", id),
-            CacheKey::SuppliersList(params) => write!(f, "suppliers:list:{}", params),
-            CacheKey::SupplierDetails(id) => write!(f, "suppliers:details:{}", id),
-            CacheKey::WarehousesList => write!(f, "warehouses:list"),
-            CacheKey::WarehouseDetails(id) => write!(f, "warehouses:details:{}", id),
-            CacheKey::WarehouseLocations(id) => write!(f, "warehouses:locations:{}", id),
-        }
     }
 }
 

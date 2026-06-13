@@ -118,7 +118,69 @@
 - 测试函数名应该清晰描述测试的场景
 - 使用中文描述测试目的
 
-## 六、版本控制规范
+## 六、死代码处理规范
+
+### 1. 总体原则
+
+- **禁止**使用文件级 `#![allow(dead_code)]` 全局抑制；CI 会在 clippy 检查中失败。
+- **禁止**使用 crate 级 `#![allow(unused_imports)]` / `#![allow(unused_variables)]`。
+- 真正未使用的项应**显式删除**；保留的项应接入业务或加 `pub` 修饰以表明意图。
+- **例外**：[backend/src/models/](file:///workspace/backend/src/models/) 下的 SeaORM 自动生成模型可保留文件级 `#![allow(dead_code)]`，
+  原因是模型字段由 SeaORM 派生宏使用，不能手工逐字段标注。**禁止**用此项例外绕过 utils/ 等核心模块的清理。
+
+### 2. 处理流程
+
+1. 编译器/clippy 报告具体 `dead_code` 位置
+2. 评估该项是否仍需要：
+   - 需要保留：接入业务、添加 `pub` 或 `pub(crate)` 修饰
+   - 不再需要：立即删除（git 会保留历史）
+3. 个别 `pub` API 当前未被业务引用时：
+   - 在该项上加 `#[allow(dead_code)]` + TODO 注释
+   - 编写计划任务在下一个迭代接入
+
+### 3. TODO 注释标准模板
+
+文件级抑制（仅限业务文件，不再用于 utils/ 等核心模块）：
+
+```rust
+#![allow(dead_code)]
+// TODO(tech-debt): 业务接入或重评估后逐项移除；rustc 1.94+ 编译时由编译器报告具体死代码位置。
+```
+
+项级抑制（推荐）：
+
+```rust
+/// 商品全字段查询 DTO（预留 API）
+#[allow(dead_code)] // TODO(tech-debt): 报表模块接入后移除
+pub struct ProductFullDto { ... }
+```
+
+### 4. CI 强制
+
+- 配置：[backend/.clippy.toml](file:///workspace/backend/.clippy.toml) `warn` 段开启 `dead_code`/`unused_imports`/`unused_variables`
+- 工作流：[.github/workflows/ci-cd.yml](file:///workspace/.github/workflows/ci-cd.yml) `cargo clippy --all-targets -- -D warnings`
+
+任何死代码警告都会让 CI 失败，开发者必须立即处理。
+
+### 5. utils/ 模板（已建立）
+
+`backend/src/utils/` 下的 8 个核心文件已**全部**开启死代码检查（移除文件级 `#![allow(dead_code)]`），
+作为全项目的死代码处理模板：
+
+| 文件 | 处理方式 |
+|------|----------|
+| [fabric_five_dimension.rs](file:///workspace/backend/src/utils/fabric_five_dimension.rs) | 删除 `FiveDimensionStatistics`、`FiveDimensionQueryBuilder` 及对应测试 |
+| [di_container.rs](file:///workspace/backend/src/utils/di_container.rs) | 删除 `GLOBAL_CONTAINER`、`register`/`resolve`/`is_registered` 自由函数 |
+| [cache.rs](file:///workspace/backend/src/utils/cache.rs) | 删除 `CacheKey` 枚举及 Display 实现 |
+| [response.rs](file:///workspace/backend/src/utils/response.rs) | 全部已使用，无需变更 |
+| [password_validator.rs](file:///workspace/backend/src/utils/password_validator.rs) | 全部已使用，无需变更 |
+| [log_config.rs](file:///workspace/backend/src/utils/log_config.rs) | 全部已使用，无需变更 |
+| [dual_unit_converter.rs](file:///workspace/backend/src/utils/dual_unit_converter.rs) | 全部已使用，无需变更 |
+| tree_builder.rs | 整个文件已删除（无业务引用） |
+
+后续 services/、handlers/、models/ 等模块按相同模板处理：评估 → 删除真实死代码或项级 `#[allow(dead_code)]` + TODO。
+
+## 七、版本控制规范
 
 ### 1. 提交信息
 
@@ -137,7 +199,7 @@
 - 所有代码变更需要经过审查
 - 审查重点包括：代码质量、安全性、性能、测试覆盖
 
-## 七、性能规范
+## 八、性能规范
 
 ### 1. 数据库查询
 
@@ -157,7 +219,7 @@
 - 避免内存泄漏
 - 合理控制并发数量
 
-## 八、错误处理规范
+## 九、错误处理规范
 
 ### 1. 错误处理原则
 
@@ -177,7 +239,7 @@
 - 提供重试机制
 - 保持系统稳定性
 
-## 九、文档规范
+## 十、文档规范
 
 ### 1. API文档
 
@@ -196,7 +258,7 @@
 - 包含常见问题解答
 - 定期更新文档内容
 
-## 十、持续改进
+## 十一、持续改进
 
 ### 1. 代码重构
 

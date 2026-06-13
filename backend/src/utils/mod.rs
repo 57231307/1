@@ -13,7 +13,6 @@ pub mod error;
 pub mod fabric_five_dimension;
 pub mod password_validator;
 pub mod response;
-pub mod tree_builder;
 
 pub use response::ApiResponse;
 pub use response::PaginatedResponse;
