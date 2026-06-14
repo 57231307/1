@@ -204,10 +204,8 @@ impl InventoryStockService {
 
         // 并行执行分页查询：同时获取总数和当前页数据，提升性能
         let paginator = query.paginate(&*self.db, page_size);
-        let (total, stock_list) = tokio::try_join!(
-            paginator.num_items(),
-            paginator.fetch_page(page)
-        )?;
+        let (total, stock_list) =
+            tokio::try_join!(paginator.num_items(), paginator.fetch_page(page))?;
 
         Ok((stock_list, total))
     }
@@ -334,10 +332,8 @@ impl InventoryStockService {
 
         // 并行执行分页查询：同时获取总数和当前页数据，提升性能
         let paginator = query.paginate(&*self.db, page_size);
-        let (total, stock_list) = tokio::try_join!(
-            paginator.num_items(),
-            paginator.fetch_page(page)
-        )?;
+        let (total, stock_list) =
+            tokio::try_join!(paginator.num_items(), paginator.fetch_page(page))?;
 
         Ok((stock_list, total))
     }
@@ -733,10 +729,8 @@ impl InventoryStockService {
 
         // 并行执行分页查询：同时获取总数和当前页数据，提升性能
         let paginator = query.paginate(&*self.db, page_size);
-        let (total, transactions) = tokio::try_join!(
-            paginator.num_items(),
-            paginator.fetch_page(page)
-        )?;
+        let (total, transactions) =
+            tokio::try_join!(paginator.num_items(), paginator.fetch_page(page))?;
 
         Ok((transactions, total))
     }

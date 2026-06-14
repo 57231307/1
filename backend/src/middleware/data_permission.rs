@@ -103,8 +103,11 @@ impl DataPermissionContext {
             return;
         }
 
-        self.permission_service
-            .filter_fields_batch(items, &self.allowed_fields, &self.hidden_fields);
+        self.permission_service.filter_fields_batch(
+            items,
+            &self.allowed_fields,
+            &self.hidden_fields,
+        );
     }
 
     /// 对嵌套结构中的列表应用字段过滤
@@ -166,11 +169,7 @@ impl DataPermissionContext {
     /// # 参数
     /// - `items`: 需要过滤的 JSON 数组
     /// - `default_hidden_fields`: 默认需要隐藏的字段列表
-    pub fn apply_default_hidden_batch(
-        &self,
-        items: &mut [Value],
-        default_hidden_fields: &[&str],
-    ) {
+    pub fn apply_default_hidden_batch(&self, items: &mut [Value], default_hidden_fields: &[&str]) {
         if self.should_apply_default_hidden() {
             for item in items {
                 self.apply_default_hidden(item, default_hidden_fields);

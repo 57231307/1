@@ -319,7 +319,9 @@ impl From<AuthError> for AppError {
             AuthError::JwtError(e) => AppError::internal(format!("JWT 错误: {}", e)),
             AuthError::HashingError(e) => AppError::internal(format!("密码哈希错误: {}", e)),
             AuthError::UserNotFound => AppError::not_found("用户不存在"),
-            AuthError::InvalidPassword(msg) => AppError::unauthorized(format!("无效的密码: {}", msg)),
+            AuthError::InvalidPassword(msg) => {
+                AppError::unauthorized(format!("无效的密码: {}", msg))
+            }
             AuthError::TokenGenerationError(e) => {
                 AppError::internal(format!("Token 生成失败: {}", e))
             }
@@ -390,7 +392,11 @@ pub async fn cleanup_expired_jti(_max_age_secs: i64) {
     let before = blacklist.len();
     blacklist.retain(|_, expires_at| *expires_at > now);
     let removed = before - blacklist.len();
-    tracing::info!("清理 JTI 黑名单：移除 {} 条过期记录，剩余 {} 条", removed, blacklist.len());
+    tracing::info!(
+        "清理 JTI 黑名单：移除 {} 条过期记录，剩余 {} 条",
+        removed,
+        blacklist.len()
+    );
 }
 
 #[cfg(test)]

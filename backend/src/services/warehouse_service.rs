@@ -123,10 +123,7 @@ impl WarehouseService {
                 Ok(parsed) => wh.manager_id = Set(Some(parsed)),
                 Err(e) => {
                     tracing::warn!("仓库经理ID解析失败: {} ({})", m, e);
-                    return Err(AppError::bad_request(format!(
-                        "仓库经理ID格式错误：{}",
-                        m
-                    )));
+                    return Err(AppError::bad_request(format!("仓库经理ID格式错误：{}", m)));
                 }
             }
         }

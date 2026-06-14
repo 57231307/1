@@ -103,7 +103,10 @@ pub async fn get_targets(
 
     let service = SalesAnalysisService::new(state.db.clone());
     let (targets, _total) = service
-        .get_targets(params.page.unwrap_or_default(), params.page_size.unwrap_or(10))
+        .get_targets(
+            params.page.unwrap_or_default(),
+            params.page_size.unwrap_or(10),
+        )
         .await?;
     info!("销售目标查询成功，共 {} 条记录", targets.len());
 

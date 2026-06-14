@@ -2,13 +2,15 @@
 #![allow(dead_code)]
 // TODO(tech-debt): 业务接入或重评估后逐项移除；rustc 1.94+ 编译时由编译器报告具体死代码位置。
 
-use crate::services::init_service::{DatabaseConfig, InitRequest, InitService, InitStatus, InitTaskStatus, get_init_tasks};
+use crate::services::init_service::{
+    get_init_tasks, DatabaseConfig, InitRequest, InitService, InitStatus, InitTaskStatus,
+};
 use crate::utils::app_state::AppState;
 use crate::utils::error::AppError;
 use crate::utils::response::ApiResponse;
+use axum::extract::Query;
 use axum::{extract::State, Json};
 use std::collections::HashMap;
-use axum::extract::Query;
 
 #[derive(Debug, serde::Deserialize)]
 pub struct TestDatabaseRequest {
@@ -100,7 +102,12 @@ pub async fn initialize_system_with_db_async(
         &payload.admin_password,
     )
     .await
-    .map(|task_id| Json(ApiResponse::success_with_message(task_id, "异步初始化任务已启动")))
+    .map(|task_id| {
+        Json(ApiResponse::success_with_message(
+            task_id,
+            "异步初始化任务已启动",
+        ))
+    })
     .map_err(map_init_error)
 }
 

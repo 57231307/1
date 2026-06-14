@@ -1,10 +1,10 @@
 //! 通用分页查询辅助模块
 //!
 //! 提供统一的分页查询方法，避免各 service 中重复实现相同的分页逻辑
-use sea_orm::ConnectionTrait;
+use crate::utils::error::AppError;
 use sea_orm::entity::ModelTrait;
 use sea_orm::query::Paginator;
-use crate::utils::error::AppError;
+use sea_orm::ConnectionTrait;
 
 /// 通用分页查询辅助函数
 ///
@@ -28,10 +28,7 @@ where
     let page_index = page.saturating_sub(1);
 
     // 并行执行总数查询和分页查询
-    let (items, total) = try_join!(
-        paginator.fetch_page(page_index),
-        paginator.num_items()
-    )?;
+    let (items, total) = try_join!(paginator.fetch_page(page_index), paginator.num_items())?;
 
     Ok((items, total))
 }

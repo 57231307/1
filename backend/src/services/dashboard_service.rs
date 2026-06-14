@@ -340,12 +340,7 @@ impl DashboardService {
             .into_tuple::<(i32, Option<Decimal>)>()
             .all(db);
 
-        let (
-            total_quantity_opt,
-            _low_stock_count,
-            _zero_stock_count,
-            warehouse_distribution,
-        ) = tokio::try_join!(
+        let (total_quantity_opt, _low_stock_count, _zero_stock_count, warehouse_distribution) = tokio::try_join!(
             total_quantity_fut,
             low_stock_count_fut,
             zero_stock_count_fut,

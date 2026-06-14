@@ -280,11 +280,7 @@ pub async fn handle_generic_callback(
     let webhook_secret = &state.jwt_secret;
 
     // 3. 验证签名
-    crate::utils::webhook_signature::verify_webhook_signature(
-        &body,
-        webhook_secret,
-        signature,
-    )?;
+    crate::utils::webhook_signature::verify_webhook_signature(&body, webhook_secret, signature)?;
 
     // 4. 解析 payload
     let req: WebhookCallbackRequest = serde_json::from_str(&body)

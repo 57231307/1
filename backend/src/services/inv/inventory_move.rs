@@ -217,9 +217,11 @@ impl InventoryTransferService {
             let item = inventory_transfer_item::ActiveModel {
                 id: Default::default(),
                 transfer_id: sea_orm::ActiveValue::Set(transfer_entity.id),
-                product_id: sea_orm::ActiveValue::Set(item_req.product_id.ok_or_else(|| {
-                    AppError::validation("调拨明细缺少物料ID")
-                })?),
+                product_id: sea_orm::ActiveValue::Set(
+                    item_req
+                        .product_id
+                        .ok_or_else(|| AppError::validation("调拨明细缺少物料ID"))?,
+                ),
                 quantity: sea_orm::ActiveValue::Set(quantity),
                 shipped_quantity: sea_orm::ActiveValue::Set(rust_decimal::Decimal::ZERO),
                 received_quantity: sea_orm::ActiveValue::Set(rust_decimal::Decimal::ZERO),
@@ -308,9 +310,11 @@ impl InventoryTransferService {
                 let item = inventory_transfer_item::ActiveModel {
                     id: Default::default(),
                     transfer_id: sea_orm::ActiveValue::Set(transfer_id),
-                    product_id: sea_orm::ActiveValue::Set(item_req.product_id.ok_or_else(
-                        || AppError::validation("调拨明细缺少物料ID"),
-                    )?),
+                    product_id: sea_orm::ActiveValue::Set(
+                        item_req
+                            .product_id
+                            .ok_or_else(|| AppError::validation("调拨明细缺少物料ID"))?,
+                    ),
                     quantity: sea_orm::ActiveValue::Set(quantity),
                     shipped_quantity: sea_orm::ActiveValue::Set(rust_decimal::Decimal::ZERO),
                     received_quantity: sea_orm::ActiveValue::Set(rust_decimal::Decimal::ZERO),
