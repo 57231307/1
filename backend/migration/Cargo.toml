@@ -19,3 +19,10 @@ features = [
   # "runtime-tokio-rustls",  # `ASYNC_RUNTIME` feature
   # "sqlx-postgres",         # `DATABASE_DRIVER` feature
 ]
+
+# Lint 配置（与主 crate 保持一致；workspace 段不传递给子 crate）
+[lints.rust]
+dead_code = "warn"
+unused_imports = "warn"
+unused_variables = "warn"
+
