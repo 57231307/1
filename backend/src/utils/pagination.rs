@@ -19,7 +19,7 @@ use sea_orm::SelectorTrait;
 pub async fn paginate_with_total<M>(
     paginator: Paginator<'_, impl ConnectionTrait, M>,
     page: u64,
-) -> Result<(Vec<M>, u64), AppError>
+) -> Result<(Vec<M::Item>, u64), AppError>
 where
     M: SelectorTrait,
 {
@@ -27,8 +27,7 @@ where
 
     // 顺序执行：先取当前页数据，再统计总数（避免 Paginator 在并行调用时的借用冲突）
     let items = paginator.fetch_page(page_index).await?;
-    let total = paginator.num_items().await?;
-    let total = total as u64;
+    let total = paginator.num_items().await? as u64;
 
     Ok((items, total))
 }

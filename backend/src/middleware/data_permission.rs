@@ -125,23 +125,15 @@ impl DataPermissionContext {
         }
 
         // 尝试从可能的键名中获取列表
-        // 显式指定 Option<&mut Vec<Value>> 类型，帮助 NLL 分析借用关系
-        let mut list_opt: Option<&mut Vec<Value>> = None;
+        // 在循环内完成借用到 filter_batch 调用的全生命周期，避免外层 NLL 误判
         for key in list_keys {
-            // 每次循环重新借 data，避免跨迭代借用冲突
-            let arr_opt = data.get_mut(*key).and_then(|v| v.as_array_mut());
-            if let Some(arr) = arr_opt {
-                list_opt = Some(arr);
-                break;
+            if let Some(arr) = data.get_mut(*key).and_then(|v| v.as_array_mut()) {
+                self.filter_batch(arr);
+                return true;
             }
         }
 
-        if let Some(list) = list_opt {
-            self.filter_batch(list);
-            true
-        } else {
-            false
-        }
+        false
     }
 
     /// 检查是否应该应用默认字段隐藏
