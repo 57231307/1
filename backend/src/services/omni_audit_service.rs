@@ -80,7 +80,7 @@ impl OmniAuditEngine {
                     || msg.event_type == "SECURITY_ALERT"
                 {
                     tracing::warn!(
-                        "【审计告警】触发告警规则! 用户ID: {}, 事件: {}, 资源: {}, 状态: {}",
+                        "【审计告警】触发告警规则! 用户ID: {:?}, 事件: {}, 资源: {}, 状态: {}",
                         msg.user_id,
                         msg.event_name,
                         msg.resource,
@@ -94,7 +94,7 @@ impl OmniAuditEngine {
                     trace_id: ActiveValue::Set(Some(msg.trace_id)),
                     span_id: ActiveValue::Set(None),
                     parent_span_id: ActiveValue::Set(None),
-                    user_id: ActiveValue::Set(Some(msg.user_id)),
+                    user_id: ActiveValue::Set(msg.user_id),
                     username: ActiveValue::Set(msg.username),
                     module: ActiveValue::Set(Some(msg.event_type)),
                     action: ActiveValue::Set(Some(msg.event_name)),

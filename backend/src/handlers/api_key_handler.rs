@@ -109,7 +109,13 @@ pub async fn revoke_api_key(
     Path(id): Path<i32>,
 ) -> Result<Json<ApiResponse<()>>, StatusCode> {
     let service = ApiKeyService::new(state.db);
-    let tenant_id = extract_tenant_id(&auth)?;
+    let tenant_id = match extract_tenant_id(&auth) {
+        Ok(id) => id,
+        Err(e) => {
+            tracing::error!("获取租户ID失败: {}", e);
+            return Err(StatusCode::UNAUTHORIZED);
+        }
+    };
 
     match service.revoke_api_key(id, tenant_id).await {
         Ok(()) => Ok(Json(ApiResponse::success_with_message((), "撤销成功"))),
