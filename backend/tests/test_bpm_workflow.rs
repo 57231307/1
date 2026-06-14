@@ -22,7 +22,8 @@ fn test_task_urge_permission() {
 
 #[test]
 fn test_approval_chain_validation() {
-    let approval_chain = vec!["user1", "user2", "user3"];
+    // 改用数组字面量，避免 clippy::useless_vec 警告
+    let approval_chain = ["user1", "user2", "user3"];
     let current_step = 1;
 
     assert!(

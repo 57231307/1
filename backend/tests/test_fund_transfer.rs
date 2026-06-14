@@ -42,7 +42,8 @@ fn test_account_balance_calculation() {
 #[test]
 fn test_fund_transfer_status_enum() {
     // 测试转账状态的逻辑
-    let statuses = vec!["pending", "processing", "success", "failed"];
+    // 改用数组字面量，避免 clippy::useless_vec 警告
+    let statuses = ["pending", "processing", "success", "failed"];
 
     // 验证状态的合理顺序
     assert_eq!(statuses[0], "pending");
@@ -89,7 +90,9 @@ fn test_fund_transfer_remark_handling() {
 
     assert!(empty_remark.is_none());
     assert!(short_remark.is_some());
-    assert!(long_remark.unwrap().len() > 20);
+    // 直接在 Some 字面量上调用方法，避免 Some(...).unwrap() 触发
+    // clippy::unnecessary_literal_unwrap
+    assert!(long_remark.as_ref().is_some_and(|s| s.len() > 20));
 }
 
 #[test]
