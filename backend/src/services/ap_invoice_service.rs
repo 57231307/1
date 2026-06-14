@@ -181,9 +181,9 @@ impl ApInvoiceService {
         // 供应商 ID 缺失时拒绝创建，避免脏 supplier_id=0 记录
         let invoice = ap_invoice::ActiveModel {
             invoice_no: Set(invoice_no),
-            supplier_id: Set(req.supplier_id.ok_or_else(|| {
-                AppError::validation("应付单缺少供应商ID")
-            })?),
+            supplier_id: Set(req
+                .supplier_id
+                .ok_or_else(|| AppError::validation("应付单缺少供应商ID"))?),
             invoice_type: Set(req.invoice_type.unwrap_or_else(|| "PURCHASE".to_string())),
             source_type: Set(Some("MANUAL".to_string())),
             source_id: Set(None),

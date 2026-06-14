@@ -6,7 +6,7 @@
 
 use crate::models::crm_lead;
 use crate::utils::error::AppError;
-use sea_orm::{ColumnTrait, DatabaseConnection, EntityTrait, PaginatorTrait, QueryFilter, Set};
+use sea_orm::{DatabaseConnection, EntityTrait, Set};
 use std::sync::Arc;
 
 use super::cust::CrmService;
@@ -55,47 +55,6 @@ impl CrmService {
         }
 
         Ok(claimed)
-    }
-
-    /// 列出公海线索（status="pool"）
-    pub async fn list_pool_customers(
-        &self,
-        page: u64,
-        page_size: u64,
-    ) -> Result<(Vec<crm_lead::Model>, u64), AppError> {
-        let paginator = crm_lead::Entity::find()
-            .filter(crm_lead::Column::LeadStatus.eq("pool"))
-            .paginate(&*self.db, page_size);
-        let total = paginator.num_items().await?;
-        let items = paginator.fetch_page(page - 1).await?;
-        Ok((items, total))
-    }
-
-    /// 释放线索到公海
-    pub async fn release_to_pool(&self, lead_id: i32, user_id: i32) -> Result<(), AppError> {
-        let lead = crm_lead::Entity::find_by_id(lead_id)
-            .one(&*self.db)
-            .await?
-            .ok_or_else(|| AppError::not_found(format!("线索 {} 不存在", lead_id)))?;
-
-        // 只能释放自己的线索
-        if lead.owner_id != user_id {
-            return Err(AppError::permission_denied(
-                "只能释放自己的线索到公海".to_string(),
-            ));
-        }
-
-        let mut lead_active: crm_lead::ActiveModel = lead.into();
-        lead_active.lead_status = Set(Some("pool".to_string()));
-        lead_active.updated_at = Set(Some(chrono::Utc::now()));
-        crate::services::audit_log_service::AuditLogService::update_with_audit(
-            &*self.db,
-            "auto_audit",
-            lead_active,
-            Some(0),
-        )
-        .await?;
-        Ok(())
     }
 }
 

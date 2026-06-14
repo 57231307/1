@@ -22,14 +22,6 @@ impl PasswordStrength {
         }
     }
 
-    /// 是否达到可接受强度
-    pub fn is_acceptable(&self) -> bool {
-        matches!(
-            self,
-            PasswordStrength::Medium | PasswordStrength::Strong | PasswordStrength::VeryStrong
-        )
-    }
-
     /// 强度分数
     pub fn score(&self) -> u8 {
         match self {
@@ -47,7 +39,6 @@ pub struct PasswordValidationResult {
     pub strength: PasswordStrength,
     pub is_valid: bool,
     pub errors: Vec<String>,
-    pub suggestions: Vec<String>,
 }
 
 #[derive(Debug, Clone)]
@@ -71,32 +62,6 @@ impl Default for PasswordPolicy {
             require_digit: true,
             require_special: true,
             min_strength: PasswordStrength::Medium,
-        }
-    }
-}
-
-impl PasswordPolicy {
-    pub fn lenient() -> Self {
-        Self {
-            min_length: 6,
-            max_length: 128,
-            require_uppercase: false,
-            require_lowercase: true,
-            require_digit: true,
-            require_special: false,
-            min_strength: PasswordStrength::Weak,
-        }
-    }
-
-    pub fn strict() -> Self {
-        Self {
-            min_length: 12,
-            max_length: 128,
-            require_uppercase: true,
-            require_lowercase: true,
-            require_digit: true,
-            require_special: true,
-            min_strength: PasswordStrength::Strong,
         }
     }
 }
@@ -137,7 +102,6 @@ pub fn validate_password_with_policy(
     policy: &PasswordPolicy,
 ) -> PasswordValidationResult {
     let mut errors = Vec::new();
-    let mut suggestions = Vec::new();
     let mut score = 0u8;
 
     if password.len() < policy.min_length {
@@ -153,7 +117,6 @@ pub fn validate_password_with_policy(
     let has_uppercase = RE_UPPERCASE.is_match(password);
     if policy.require_uppercase && !has_uppercase {
         errors.push("密码必须包含大写字母".to_string());
-        suggestions.push("请添加 A-Z 大写字母".to_string());
     } else if has_uppercase {
         score += 20;
     }
@@ -161,7 +124,6 @@ pub fn validate_password_with_policy(
     let has_lowercase = RE_LOWERCASE.is_match(password);
     if policy.require_lowercase && !has_lowercase {
         errors.push("密码必须包含小写字母".to_string());
-        suggestions.push("请添加 a-z 小写字母".to_string());
     } else if has_lowercase {
         score += 20;
     }
@@ -169,7 +131,6 @@ pub fn validate_password_with_policy(
     let has_digit = RE_DIGIT.is_match(password);
     if policy.require_digit && !has_digit {
         errors.push("密码必须包含数字".to_string());
-        suggestions.push("请添加 0-9 数字".to_string());
     } else if has_digit {
         score += 20;
     }
@@ -177,7 +138,6 @@ pub fn validate_password_with_policy(
     let has_special = has_special_char(password);
     if policy.require_special && !has_special {
         errors.push("密码必须包含特殊字符".to_string());
-        suggestions.push("请添加 !@#$% 等特殊字符".to_string());
     } else if has_special {
         score += 20;
     }
@@ -188,17 +148,14 @@ pub fn validate_password_with_policy(
         .any(|common| lower_password.contains(common))
     {
         errors.push("密码过于常见，不安全".to_string());
-        suggestions.push("请使用更独特的密码".to_string());
         score = score.saturating_sub(30);
     }
 
     if has_consecutive_chars(password) {
-        suggestions.push("请避免连续字符（如 abc、123）".to_string());
         score = score.saturating_sub(10);
     }
 
     if has_repeated_chars(password) {
-        suggestions.push("请避免重复字符（如 aaa、111）".to_string());
         score = score.saturating_sub(10);
     }
 
@@ -233,7 +190,6 @@ pub fn validate_password_with_policy(
         strength,
         is_valid,
         errors,
-        suggestions,
     }
 }
 

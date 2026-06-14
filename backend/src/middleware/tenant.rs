@@ -19,9 +19,8 @@ use axum::{
 ///
 /// 若 `tenant_id` 为 `None`，返回未授权错误，防止跨租户访问。
 pub fn extract_tenant_id(auth: &AuthContext) -> Result<i32, AppError> {
-    auth.tenant_id.ok_or_else(|| {
-        AppError::unauthorized("缺少租户 ID，请重新登录")
-    })
+    auth.tenant_id
+        .ok_or_else(|| AppError::unauthorized("缺少租户 ID，请重新登录"))
 }
 
 /// 租户上下文

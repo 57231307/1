@@ -35,6 +35,9 @@ pub struct OmniAuditMessage {
 
 pub struct OmniAuditEngine {
     sender: mpsc::Sender<OmniAuditMessage>,
+    // TODO(tech-debt): 当前异步任务内联使用 secret_key 字符串，未通过 self 字段读取；
+    // 后续如切换为可注入签名密钥，应改为 self.secret_key.as_slice() 调用并移除此标注。
+    #[allow(dead_code)]
     secret_key: Vec<u8>,
 }
 
@@ -80,7 +83,7 @@ impl OmniAuditEngine {
                     || msg.event_type == "SECURITY_ALERT"
                 {
                     tracing::warn!(
-                        "【审计告警】触发告警规则! 用户ID: {}, 事件: {}, 资源: {}, 状态: {}",
+                        "【审计告警】触发告警规则! 用户ID: {:?}, 事件: {}, 资源: {}, 状态: {}",
                         msg.user_id,
                         msg.event_name,
                         msg.resource,
@@ -94,7 +97,7 @@ impl OmniAuditEngine {
                     trace_id: ActiveValue::Set(Some(msg.trace_id)),
                     span_id: ActiveValue::Set(None),
                     parent_span_id: ActiveValue::Set(None),
-                    user_id: ActiveValue::Set(Some(msg.user_id)),
+                    user_id: ActiveValue::Set(msg.user_id),
                     username: ActiveValue::Set(msg.username),
                     module: ActiveValue::Set(Some(msg.event_type)),
                     action: ActiveValue::Set(Some(msg.event_name)),

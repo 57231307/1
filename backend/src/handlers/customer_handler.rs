@@ -11,8 +11,8 @@ use validator::Validate;
 use crate::middleware::auth_context::AuthContext;
 use crate::models::dto::PageRequest;
 use crate::services::customer_service::CustomerService;
-use crate::utils::data_permission::{DataPermissionFilter, DEFAULT_HIDDEN_FIELDS};
 use crate::utils::app_state::AppState;
+use crate::utils::data_permission::{DataPermissionFilter, DEFAULT_HIDDEN_FIELDS};
 use crate::utils::error::AppError;
 use crate::utils::response::ApiResponse;
 
@@ -144,7 +144,13 @@ pub async fn list_customers(
 
     let customer_service = CustomerService::new(state.db.clone());
     let result = customer_service
-        .list_customers_with_filter(page_req, query.status, query.customer_type, query.keyword, permission_filter)
+        .list_customers_with_filter(
+            page_req,
+            query.status,
+            query.customer_type,
+            query.keyword,
+            permission_filter,
+        )
         .await?;
 
     Ok(Json(ApiResponse::success(
@@ -336,14 +342,20 @@ async fn get_permission_filter(
             // 没有配置权限，使用默认隐藏字段
             Some(DataPermissionFilter::new(
                 vec![],
-                DEFAULT_HIDDEN_FIELDS.iter().map(|s| s.to_string()).collect(),
+                DEFAULT_HIDDEN_FIELDS
+                    .iter()
+                    .map(|s| s.to_string())
+                    .collect(),
             ))
         }
         Err(_) => {
             // 查询出错，使用默认隐藏字段
             Some(DataPermissionFilter::new(
                 vec![],
-                DEFAULT_HIDDEN_FIELDS.iter().map(|s| s.to_string()).collect(),
+                DEFAULT_HIDDEN_FIELDS
+                    .iter()
+                    .map(|s| s.to_string())
+                    .collect(),
             ))
         }
     }

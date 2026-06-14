@@ -47,40 +47,15 @@ fn test_kg_to_meters_small_quantity() {
 }
 
 #[test]
-fn test_auto_convert_meters() {
-    let quantity = Decimal::from_str("500").unwrap();
-    let gram_weight = Decimal::from_str("170").unwrap();
-    let width = Decimal::from_str("180").unwrap();
-
-    let result = DualUnitConverter::auto_convert(quantity, "米", gram_weight, width).unwrap();
-    assert_eq!(result.original_unit, "米");
-    assert_eq!(result.converted_unit, "公斤");
-    assert_eq!(
-        result.converted_quantity,
-        Decimal::from_str("153.000").unwrap()
-    );
-}
-
-#[test]
-fn test_auto_convert_kg() {
-    let quantity = Decimal::from_str("153").unwrap();
-    let gram_weight = Decimal::from_str("170").unwrap();
-    let width = Decimal::from_str("180").unwrap();
-
-    let result = DualUnitConverter::auto_convert(quantity, "公斤", gram_weight, width).unwrap();
-    assert_eq!(result.original_unit, "公斤");
-    assert_eq!(result.converted_unit, "米");
-}
-
-#[test]
-fn test_auto_convert_unsupported_unit() {
+fn test_basic_meters_to_kg_works() {
     let quantity = Decimal::from_str("100").unwrap();
     let gram_weight = Decimal::from_str("170").unwrap();
     let width = Decimal::from_str("180").unwrap();
 
-    let result = DualUnitConverter::auto_convert(quantity, "厘米", gram_weight, width);
-    assert!(result.is_err());
-    assert!(result.unwrap_err().contains("不支持的单位"));
+    // 业务调用 auto_convert 已删除，验证 DualUnitConverter::meters_to_kg
+    // 仍可被业务调用的基本路径即可
+    let result = DualUnitConverter::meters_to_kg(quantity, gram_weight, width);
+    assert!(result.is_ok());
 }
 
 #[test]

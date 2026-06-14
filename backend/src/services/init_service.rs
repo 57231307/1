@@ -150,7 +150,10 @@ impl InitService {
 
         // 验证生成的密码哈希长度，确保符合预期
         if password_hash.len() > 512 {
-            tracing::warn!("生成的密码哈希长度 {} 超过限制，可能存在问题", password_hash.len());
+            tracing::warn!(
+                "生成的密码哈希长度 {} 超过限制，可能存在问题",
+                password_hash.len()
+            );
         }
 
         // 并行执行独立的初始化操作：创建默认角色和默认部门
@@ -266,10 +269,7 @@ impl InitService {
 
             // 创建默认数据
             let service = InitService::new(db_clone);
-            if let Err(e) = service
-                .initialize(&admin_username, &admin_password)
-                .await
-            {
+            if let Err(e) = service.initialize(&admin_username, &admin_password).await {
                 tracing::error!("创建默认数据失败: {}", e);
                 get_init_tasks()
                     .lock()

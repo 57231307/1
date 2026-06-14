@@ -92,15 +92,6 @@ impl PurchaseOrderService {
         Self { db }
     }
 
-    // 生成采购订单号
-    // 格式：PO + 年月日 + 三位序号（PO20260315001）
-    crate::impl_generate_no!(
-        generate_order_no,
-        "PO",
-        purchase_order::Entity,
-        purchase_order::Column::OrderNo
-    );
-
     // 生成采购订单号（使用事务连接）
     // 格式：PO + 年月日 + 三位序号（PO20260315001）
     crate::impl_generate_no!(
@@ -488,49 +479,6 @@ impl PurchaseOrderService {
         let mut order_active: purchase_order::ActiveModel = order.into();
         order_active.order_status = Set(status::purchase_order::CLOSED.to_string());
         order_active.updated_by = Set(Some(user_id));
-
-        let order = crate::services::audit_log_service::AuditLogService::update_with_audit(
-            &*self.db,
-            "auto_audit",
-            order_active,
-            Some(0),
-        )
-        .await?;
-
-        Ok(order)
-    }
-
-    /// 取消采购订单
-    pub async fn cancel_order(
-        &self,
-        order_id: i32,
-        user_id: i32,
-    ) -> Result<purchase_order::Model, AppError> {
-        // 1. 查询订单
-        let order = purchase_order::Entity::find_by_id(order_id)
-            .one(&*self.db)
-            .await?
-            .ok_or_else(|| AppError::not_found(format!("采购订单 {}", order_id)))?;
-
-        // 2. 检查状态（只有草稿、待审批、已拒绝的订单可以取消）
-        if ![
-            status::purchase_order::DRAFT,
-            status::purchase_order::PENDING_APPROVAL,
-            status::purchase_order::REJECTED,
-        ]
-        .contains(&order.order_status.as_str())
-        {
-            return Err(AppError::business(format!(
-                "订单状态不允许取消，当前状态：{}",
-                order.order_status
-            )));
-        }
-
-        // 3. 更新状态
-        let mut order_active: purchase_order::ActiveModel = order.into();
-        order_active.order_status = Set(status::purchase_order::CANCELLED.to_string());
-        order_active.updated_by = Set(Some(user_id));
-        order_active.updated_at = Set(Utc::now());
 
         let order = crate::services::audit_log_service::AuditLogService::update_with_audit(
             &*self.db,

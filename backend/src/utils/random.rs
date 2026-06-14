@@ -16,11 +16,7 @@ pub fn random_6_digit() -> u32 {
 /// 生成指定长度的字母数字随机字符串
 pub fn random_alphanumeric(length: usize) -> String {
     (0..length)
-        .map(|_| fastrand::alphanumeric() as char)
+        // fastrand::alphanumeric() 已直接返回 char，无需再 cast
+        .map(|_| fastrand::alphanumeric())
         .collect()
-}
-
-/// 生成 API Key
-pub fn generate_api_key() -> String {
-    random_alphanumeric(32)
 }

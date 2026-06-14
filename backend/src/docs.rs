@@ -1,29 +1,3 @@
-use utoipa::OpenApi;
-
-#[derive(OpenApi)]
-#[openapi(
-    paths(
-        crate::handlers::health_handler::health_check,
-        crate::handlers::auth_handler::login,
-    ),
-    components(
-        schemas(
-            crate::handlers::health_handler::HealthStatus,
-            crate::handlers::health_handler::HealthChecks,
-            crate::handlers::health_handler::HealthCheckItem,
-            crate::handlers::auth_handler::LoginRequest,
-            crate::handlers::auth_handler::LoginResponse,
-            crate::handlers::auth_handler::UserInfo,
-            crate::utils::response::LoginApiResponse,
-        )
-    ),
-    tags(
-        (name = "health", description = "健康检查及系统状态接口")
-    ),
-    info(
-        title = "Bingxi ERP API",
-        version = "1.0.0",
-        description = "面料管理系统 (Bingxi ERP) 官方 API 文档"
-    )
-)]
-pub struct ApiDoc;
+// docs.rs：OpenAPI 文档占位文件（CI 死代码清理）
+// ApiDoc 结构体和 utoipa::OpenApi 导入已删除
+// 业务接入 Swagger UI 时按需从 git 历史恢复

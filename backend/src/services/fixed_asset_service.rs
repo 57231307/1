@@ -35,7 +35,6 @@ pub struct CreateAssetRequest {
     pub purchase_date: Option<NaiveDate>,
     pub put_in_date: Option<NaiveDate>,
     pub supplier_id: Option<i32>,
-    pub remark: Option<String>,
 }
 
 /// 资产处置请求
@@ -427,48 +426,7 @@ pub struct DepreciationResult {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-    use chrono::NaiveDate;
     use rust_decimal::Decimal;
-
-    /// 创建测试用的固定资产模型
-    fn create_test_asset(
-        original_value: i64,
-        salvage_value: Option<i64>,
-        useful_life: Option<i32>,
-        purchase_date: Option<NaiveDate>,
-        accumulated_depreciation: i64,
-    ) -> fixed_asset::Model {
-        fixed_asset::Model {
-            id: 1,
-            asset_no: "FA-001".to_string(),
-            asset_name: "测试设备".to_string(),
-            asset_category: Some("设备".to_string()),
-            specification: Some("规格A".to_string()),
-            model: Some("型号B".to_string()),
-            use_department_id: Some(1),
-            use_location: Some("车间".to_string()),
-            responsible_person_id: Some(1),
-            original_value: Decimal::from(original_value),
-            salvage_value: salvage_value.map(|v| Decimal::from(v)),
-            salvage_rate: None,
-            depreciable_value: None,
-            depreciation_method: Some("straight_line".to_string()),
-            useful_life,
-            monthly_depreciation: None,
-            accumulated_depreciation: Decimal::from(accumulated_depreciation),
-            net_value: Some(Decimal::from(original_value - accumulated_depreciation)),
-            status: "active".to_string(),
-            purchase_date,
-            in_service_date: purchase_date,
-            disposal_date: None,
-            supplier_id: None,
-            supplier_name: None,
-            created_by: 1,
-            created_at: chrono::Utc::now(),
-            updated_at: chrono::Utc::now(),
-        }
-    }
 
     /// 测试折旧计算逻辑（直接调用内部方法）
     /// 由于 calculate_asset_depreciation 是私有方法，我们通过测试计算逻辑来验证

@@ -140,8 +140,3 @@ pub fn static_assets_handler() -> Router<AppState> {
             }),
         )
 }
-
-/// 静态资源域统一入口（空 Router，调用方须在主 Router 上调用 static_assets_handler）
-pub fn routes() -> Router<AppState> {
-    Router::<AppState>::new()
-}

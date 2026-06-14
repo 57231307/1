@@ -70,14 +70,18 @@ pub struct ReportTemplateService {
 
 /// 敏感表列表 - 禁止通过自定义 SQL 访问
 const SENSITIVE_TABLES: &[&str] = &[
-    "users", "roles", "permissions", "audit_logs",
-    "jti_blacklist", "system_config"
+    "users",
+    "roles",
+    "permissions",
+    "audit_logs",
+    "jti_blacklist",
+    "system_config",
 ];
 
 /// 危险 SQL 关键词 - 禁止在 SELECT 查询中使用
 const DANGEROUS_KEYWORDS: &[&str] = &[
-    "DELETE", "UPDATE", "INSERT", "DROP", "TRUNCATE",
-    "ALTER", "CREATE", "EXEC", "EXECUTE", "GRANT", "REVOKE"
+    "DELETE", "UPDATE", "INSERT", "DROP", "TRUNCATE", "ALTER", "CREATE", "EXEC", "EXECUTE",
+    "GRANT", "REVOKE",
 ];
 
 impl ReportTemplateService {
@@ -423,24 +427,6 @@ impl ReportTemplateService {
         Ok((headers, data, total))
     }
 
-    /// 验证 SQL 语句安全性（供 validate-sql 路由调用）
-    pub fn validate_sql(sql: &str) -> Result<(), AppError> {
-        let sql_trimmed = sql.trim();
-        if sql_trimmed.is_empty() {
-            return Err(AppError::validation("SQL 语句不能为空"));
-        }
-
-        let sql_upper = sql_trimmed.to_uppercase();
-        if !sql_upper.starts_with("SELECT") {
-            return Err(AppError::validation("只允许 SELECT 查询语句"));
-        }
-
-        Self::check_dangerous_keywords(&sql_upper)?;
-        Self::check_sensitive_tables(sql_trimmed)?;
-
-        Ok(())
-    }
-
     /// 检查 SQL 中是否包含危险关键词
     fn check_dangerous_keywords(sql_upper: &str) -> Result<(), AppError> {
         for keyword in DANGEROUS_KEYWORDS {
@@ -453,9 +439,10 @@ impl ReportTemplateService {
                 || sql_upper.ends_with(&pattern_end)
                 || sql_upper == *keyword
             {
-                return Err(AppError::validation(
-                    format!("禁止使用危险关键词：{}", keyword),
-                ));
+                return Err(AppError::validation(format!(
+                    "禁止使用危险关键词：{}",
+                    keyword
+                )));
             }
         }
         Ok(())
@@ -476,9 +463,10 @@ impl ReportTemplateService {
 
             for pattern in &patterns {
                 if sql_lower.contains(pattern.as_str()) {
-                    return Err(AppError::permission_denied(
-                        format!("禁止访问敏感表：{}", table),
-                    ));
+                    return Err(AppError::permission_denied(format!(
+                        "禁止访问敏感表：{}",
+                        table
+                    )));
                 }
             }
         }
@@ -496,10 +484,7 @@ impl ReportTemplateService {
         if sql_upper.contains(" WHERE ") {
             // 在已有 WHERE 基础上追加 AND 条件
             // 需要找到最后一个 WHERE 后面的位置来追加
-            Ok(format!(
-                "{} AND tenant_id = {}",
-                sql, tenant_id
-            ))
+            Ok(format!("{} AND tenant_id = {}", sql, tenant_id))
         } else {
             // 没有 WHERE 子句，在 FROM 子句后添加 WHERE
             // 查找可能的插入点：ORDER BY / GROUP BY / LIMIT / OFFSET / 末尾

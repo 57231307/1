@@ -16,8 +16,6 @@ pub struct ApiResponse<T> {
     pub message: Option<String>,
 }
 
-pub type LoginApiResponse = ApiResponse<crate::handlers::auth_handler::LoginResponse>;
-
 impl<T> Default for ApiResponse<T> {
     fn default() -> Self {
         Self {
@@ -105,14 +103,6 @@ impl<T: Serialize> ApiResponse<T> {
             code: Some(200),
             data: Some(data),
             message: Some(format!("共 {} 条记录，第 {}/{} 页", total, page, page_size)),
-        }
-    }
-
-    pub fn success_opt(data: T, message: Option<String>) -> Self {
-        Self {
-            code: Some(200),
-            data: Some(data),
-            message,
         }
     }
 

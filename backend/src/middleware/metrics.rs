@@ -21,7 +21,7 @@
 //! 注：当前 main.rs 已使用 `TraceLayer` 输出结构化日志，本中间件在挂载后会同时
 //! 维护 Prometheus 指标。如需关闭可注释掉相关 `.layer()`。
 
-use crate::services::metrics_service::{Metrics, MetricsService};
+use crate::services::metrics_service::MetricsService;
 use axum::{body::Body, extract::State, http::Request, middleware::Next, response::Response};
 use std::sync::Arc;
 use std::time::Instant;
@@ -88,30 +88,6 @@ fn truncate_route(path: &str) -> String {
     let hash: u32 = path.bytes().map(|b| b as u32).sum::<u32>() % 0xFFFF;
     let prefix = &path[..MAX_LEN];
     format!("{}_trunc_{:04x}", prefix, hash)
-}
-
-/// 数据库查询监控包装器
-///
-/// 在 Drop 时自动记录 `db_query_duration_seconds`。
-pub struct DbQueryMonitor<'a> {
-    start: Instant,
-    metrics: &'a Metrics,
-}
-
-impl<'a> DbQueryMonitor<'a> {
-    pub fn new(metrics: &'a Metrics) -> Self {
-        Self {
-            start: Instant::now(),
-            metrics,
-        }
-    }
-}
-
-impl<'a> Drop for DbQueryMonitor<'a> {
-    fn drop(&mut self) {
-        let duration = self.start.elapsed();
-        self.metrics.record_db_query(duration.as_secs_f64());
-    }
 }
 
 #[cfg(test)]

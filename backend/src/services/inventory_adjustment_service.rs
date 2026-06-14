@@ -684,7 +684,6 @@ mod tests {
         let (adjustments, total) = service
             .list_adjustments(0, 20)
             .await
-            .map_err(AppError::from)
             .expect("list_adjustments should succeed");
 
         assert!(adjustments.is_empty());
@@ -783,7 +782,8 @@ mod tests {
 
     #[test]
     fn test_decimal_sum() {
-        let quantities = vec![
+        // 使用数组字面量即可，无需堆分配 vec!
+        let quantities = [
             Decimal::new(100, 2),
             Decimal::new(200, 2),
             Decimal::new(300, 2),

@@ -251,9 +251,9 @@ pub async fn create_plan(
                 }),
                 budget_type: req.budget_type.unwrap_or_else(|| "年度预算".to_string()),
                 // 部门 ID 缺失时返回 4xx 错误，避免脏 department_id=0 记录
-                department_id: req.department_id.ok_or_else(|| {
-                    AppError::validation("预算编制请求缺少部门ID")
-                })?,
+                department_id: req
+                    .department_id
+                    .ok_or_else(|| AppError::validation("预算编制请求缺少部门ID"))?,
                 total_amount: req.total_amount.unwrap_or(Decimal::ZERO),
                 items: vec![],
                 remark: req.remark,

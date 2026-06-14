@@ -8,17 +8,6 @@ use std::str::FromStr;
 /// 双计量单位换算器
 pub struct DualUnitConverter;
 
-/// 换算结果
-#[derive(Debug, Clone)]
-pub struct ConversionResult {
-    pub original_quantity: Decimal,
-    pub original_unit: String,
-    pub converted_quantity: Decimal,
-    pub converted_unit: String,
-    pub conversion_rate: Decimal,
-    pub formula: String,
-}
-
 impl DualUnitConverter {
     /// 米数转公斤数（精确版）
     ///
@@ -92,68 +81,6 @@ impl DualUnitConverter {
         Ok(quantity_meters.round_dp(2))
     }
 
-    /// 自动换算（根据输入单位智能判断）
-    ///
-    /// # Arguments
-    /// * `quantity` - 数量
-    /// * `unit` - 单位（"米" 或 "公斤"）
-    /// * `gram_weight` - 克重（g/m²）
-    /// * `width_cm` - 幅宽（cm）
-    ///
-    /// # Returns
-    /// * `Ok(ConversionResult)` - 换算结果
-    /// * `Err(String)` - 错误信息
-    pub fn auto_convert(
-        quantity: Decimal,
-        unit: &str,
-        gram_weight: Decimal,
-        width_cm: Decimal,
-    ) -> Result<ConversionResult, String> {
-        match unit {
-            "米" | "M" | "meters" | "meter" => {
-                let kg = Self::meters_to_kg(quantity, gram_weight, width_cm)?;
-                let rate = kg / quantity;
-                let formula = format!(
-                    "{}米 × {}g/m² × {}m ÷ 1000 = {}公斤",
-                    quantity,
-                    gram_weight,
-                    width_m_str(&width_cm),
-                    kg
-                );
-
-                Ok(ConversionResult {
-                    original_quantity: quantity,
-                    original_unit: "米".to_string(),
-                    converted_quantity: kg,
-                    converted_unit: "公斤".to_string(),
-                    conversion_rate: rate,
-                    formula,
-                })
-            }
-            "公斤" | "KG" | "kg" | "kilogram" => {
-                let meters = Self::kg_to_meters(quantity, gram_weight, width_cm)?;
-                let rate = quantity / meters;
-                let formula = format!(
-                    "{}公斤 × 1000 ÷ {}g/m² ÷ {}m = {}米",
-                    quantity,
-                    gram_weight,
-                    width_m_str(&width_cm),
-                    meters
-                );
-
-                Ok(ConversionResult {
-                    original_quantity: quantity,
-                    original_unit: "公斤".to_string(),
-                    converted_quantity: meters,
-                    converted_unit: "米".to_string(),
-                    conversion_rate: rate,
-                    formula,
-                })
-            }
-            _ => Err(format!("不支持的单位：{}（支持的单位：米、公斤）", unit)),
-        }
-    }
-
     /// 验证双计量单位一致性
     ///
     /// # Arguments
@@ -204,12 +131,6 @@ impl DualUnitConverter {
     }
 }
 
-/// 辅助函数：将幅宽从 cm 转换为 m 并格式化为字符串
-fn width_m_str(width_cm: &Decimal) -> String {
-    let width_m = width_cm / Decimal::from(100);
-    width_m.to_string()
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -243,23 +164,6 @@ mod tests {
         assert_eq!(
             result,
             Decimal::from_f64_retain(1000.0).expect("decimal should parse")
-        );
-    }
-
-    #[test]
-    fn test_auto_convert_meters_to_kg() {
-        let quantity = Decimal::from_f64_retain(5000.0).expect("decimal should parse");
-        let gram_weight = Decimal::from_f64_retain(170.0).expect("decimal should parse");
-        let width = Decimal::from_f64_retain(180.0).expect("decimal should parse");
-
-        let result = DualUnitConverter::auto_convert(quantity, "米", gram_weight, width)
-            .expect("conversion should succeed");
-
-        assert_eq!(result.converted_unit, "公斤");
-        // 5000 × 170 × 1.8 ÷ 1000 = 1530 公斤
-        assert_eq!(
-            result.converted_quantity,
-            Decimal::from_f64_retain(1530.0).expect("decimal should parse")
         );
     }
 

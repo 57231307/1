@@ -54,12 +54,6 @@ fn test_common_password() {
 }
 
 #[test]
-fn test_sequential_chars() {
-    let result = validate_password("Abcdefg123!");
-    assert!(result.suggestions.iter().any(|e| e.contains("consecutive")));
-}
-
-#[test]
 fn test_feedback_generation() {
     let result = PasswordValidationResult {
         strength: PasswordStrength::Weak,
@@ -68,7 +62,6 @@ fn test_feedback_generation() {
             "Password must be at least 8 chars".to_string(),
             "Password must contain uppercase".to_string(),
         ],
-        suggestions: vec!["Add uppercase A-Z".to_string()],
     };
     let feedback = get_password_feedback(&result);
     assert!(feedback.contains("failed"));

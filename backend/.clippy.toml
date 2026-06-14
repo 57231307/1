@@ -5,6 +5,9 @@
 # - 业务模块若个别 API 当前未被使用，应使用项级 `#[allow(dead_code)]` + TODO 注释，
 #   并在后续接入业务时移除。
 # - utils/ 等核心工具模块的 `#![allow(dead_code)]` 已全部移除，由编译器直接报告。
+#
+# rustc 标准 lint（dead_code / unused_imports / unused_variables）配置在
+# backend/Cargo.toml 的 [lints.rust] 段（clippy 1.81+ 已弃用顶层 warn 数组）。
 
 # 禁止使用 println!（除 CLI 工具外）
 disallowed-methods = [
@@ -14,13 +17,3 @@ disallowed-methods = [
 
 # 强制使用 Result 处理错误
 avoid-breaking-exported-api = true
-
-# 死代码相关 lint 升级为错误（CI 必失败）
-# - dead_code: 移除未被引用的函数/结构体/字段
-# - unused_imports/unused_variables: 清理无用导入和变量
-# - clippy::needless_pass_by_value: 函数签名优化
-warn = [
-    "dead_code",
-    "unused_imports",
-    "unused_variables",
-]

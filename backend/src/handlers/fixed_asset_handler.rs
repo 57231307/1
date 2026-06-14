@@ -123,7 +123,6 @@ pub async fn create_asset(
         purchase_date: req.purchase_date,
         put_in_date: req.put_in_date,
         supplier_id: req.supplier_id,
-        remark: req.remark,
     };
 
     let asset = service.create(create_req, auth.user_id).await?;

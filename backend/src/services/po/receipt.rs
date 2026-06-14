@@ -3,7 +3,7 @@
 //! 包含采购订单的收货确认（含库存入库联动）、收货单号生成等。
 //! 拆分自原 `purchase_order_service.rs`。
 
-use crate::models::{product, purchase_order, purchase_order_item, purchase_receipt, status};
+use crate::models::{product, purchase_order, purchase_order_item, status};
 use crate::services::po::CreateOrderItemRequest;
 use crate::services::po::UpdateOrderItemRequest;
 use crate::utils::error::AppError;
@@ -16,15 +16,6 @@ use super::order::PurchaseOrderService;
 use sea_orm::DatabaseConnection;
 
 impl PurchaseOrderService {
-    // 生成入库单号
-    // 格式：PR + 年月日 + 三位序号（PR20260315001）
-    crate::impl_generate_no!(
-        generate_receipt_no,
-        "PR",
-        purchase_receipt::Entity,
-        purchase_receipt::Column::ReceiptNo
-    );
-
     /// 标记采购订单为已收货（含库存入库联动）
     pub async fn receive_order(&self, order_id: i32) -> Result<purchase_order::Model, AppError> {
         // 1. 开启事务保证数据一致性
@@ -263,9 +254,9 @@ impl PurchaseOrderService {
             order_id: Set(order_id),
             line_no: Set(1),
             // material_id 缺失时拒绝创建收货行项，避免脏 product_id=0 记录
-            product_id: Set(req.material_id.ok_or_else(|| {
-                AppError::validation("收货单缺少物料ID")
-            })?),
+            product_id: Set(req
+                .material_id
+                .ok_or_else(|| AppError::validation("收货单缺少物料ID"))?),
             quantity: Set(quantity_ordered),
             quantity_alt: Set(quantity_alt_ordered),
             unit_price: Set(unit_price),

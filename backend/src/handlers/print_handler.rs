@@ -69,13 +69,6 @@ pub async fn inventory_count_print_html(
     render_print_html("inventory_count", doc_id).await
 }
 
-pub async fn voucher_print_html(
-    Path(doc_id): Path<i32>,
-    State(_): State<AppState>,
-) -> Result<Html<String>, AppError> {
-    render_print_html("voucher", doc_id).await
-}
-
 /// 打印模板列表响应
 #[derive(serde::Serialize)]
 pub struct PrintTemplateDto {

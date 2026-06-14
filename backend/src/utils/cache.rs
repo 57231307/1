@@ -33,7 +33,11 @@ impl CacheStats {
     pub fn summary(&self) -> String {
         format!(
             "命中: {}, 未命中: {}, 淘汰: {}, 写入: {}, 命中率: {:.1}%",
-            self.hits, self.misses, self.evictions, self.writes, self.hit_rate()
+            self.hits,
+            self.misses,
+            self.evictions,
+            self.writes,
+            self.hit_rate()
         )
     }
 }
@@ -42,6 +46,9 @@ impl CacheStats {
 struct CachedValue<T> {
     value: T,
     expires_at: Option<Instant>,
+    // TODO(tech-debt): 当前仅在写入时填充但未在淘汰/统计路径中读取；后续接入缓存
+    // 过期分析或缓存命中率时间维度统计时再消费此字段并移除标注。
+    #[allow(dead_code)]
     created_at: Instant,
 }
 
@@ -49,11 +56,7 @@ struct CachedValue<T> {
 pub trait Cache<K, V> {
     fn get(&self, key: &K) -> Option<V>;
     fn set(&self, key: K, value: V, ttl: Option<Duration>);
-    fn remove(&self, key: &K);
     fn clear(&self);
-    fn contains_key(&self, key: &K) -> bool;
-    fn stats(&self) -> CacheStats;
-    fn cleanup_expired(&self);
     fn evict_oldest(&self, target_size: usize);
 }
 
@@ -209,35 +212,12 @@ where
         self.evictions.fetch_add(removed, Ordering::Relaxed);
     }
 
-    fn remove(&self, key: &K) {
-        self.storage.remove(key);
-    }
-
     fn clear(&self) {
         self.storage.clear();
         self.hits.store(0, Ordering::Relaxed);
         self.misses.store(0, Ordering::Relaxed);
         self.evictions.store(0, Ordering::Relaxed);
         self.writes.store(0, Ordering::Relaxed);
-    }
-
-    fn contains_key(&self, key: &K) -> bool {
-        self.storage.contains_key(key)
-    }
-
-    fn stats(&self) -> CacheStats {
-        CacheStats {
-            hits: self.hits.load(Ordering::Relaxed),
-            misses: self.misses.load(Ordering::Relaxed),
-            evictions: self.evictions.load(Ordering::Relaxed),
-            writes: self.writes.load(Ordering::Relaxed),
-            size: self.storage.len(),
-            max_size: self.max_size,
-        }
-    }
-
-    fn cleanup_expired(&self) {
-        self.cleanup();
     }
 }
 

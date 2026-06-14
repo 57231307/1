@@ -37,11 +37,6 @@ impl DataPermissionFilter {
 
         all_fields.iter().map(|f| f.to_string()).collect()
     }
-
-    /// 检查是否为空过滤器（不需要过滤）
-    pub fn is_empty(&self) -> bool {
-        self.allowed_fields.is_empty() && self.hidden_fields.is_empty()
-    }
 }
 
 /// 客户实体所有字段列表

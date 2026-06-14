@@ -65,10 +65,7 @@ pub async fn omni_audit_middleware(
 
     // 获取用户信息
     // 未认证请求的 user_id 为 None，避免与系统用户（id=0）混淆
-    let user_id = req
-        .extensions()
-        .get::<AuthContext>()
-        .map(|ctx| ctx.user_id);
+    let user_id = req.extensions().get::<AuthContext>().map(|ctx| ctx.user_id);
     let username = req
         .extensions()
         .get::<AuthContext>()
@@ -110,7 +107,9 @@ pub async fn omni_audit_middleware(
         method,
         uri,
         username,
-        user_id,
+        user_id
+            .map(|u| u.to_string())
+            .unwrap_or_else(|| "anonymous".to_string()),
         ip_address.as_deref().unwrap_or("unknown"),
         query_string,
         content_type.as_deref().unwrap_or("-")
@@ -180,7 +179,7 @@ pub async fn omni_audit_middleware(
         let _sensitive_action = SensitiveActionAlert::check_and_alert(
             &method,
             &module,
-            user_id,
+            user_id.unwrap_or(0),
             &username,
             ip_address.as_deref(),
         );

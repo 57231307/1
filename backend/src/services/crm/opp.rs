@@ -324,32 +324,6 @@ impl CrmService {
             "order_no": order.order_no,
         }))
     }
-
-    /// 订单完成后回调商机（更新实际金额、关单）
-    pub async fn update_opportunity_on_order_complete(
-        &self,
-        opportunity_id: i32,
-        actual_amount: rust_decimal::Decimal,
-    ) -> Result<(), AppError> {
-        let opportunity = self.get_opportunity(opportunity_id).await?;
-
-        let mut opp_active: crm_opportunity::ActiveModel = opportunity.into();
-        opp_active.actual_amount = Set(Some(actual_amount));
-        opp_active.opportunity_status = Set(Some("CLOSED_WON".to_string()));
-        opp_active.opportunity_stage = Set(Some("CLOSED_WON".to_string()));
-        opp_active.actual_close_date = Set(Some(chrono::Utc::now().date_naive()));
-        opp_active.updated_at = Set(Some(chrono::Utc::now()));
-
-        crate::services::audit_log_service::AuditLogService::update_with_audit(
-            &*self.db,
-            "auto_audit",
-            opp_active,
-            Some(0),
-        )
-        .await?;
-
-        Ok(())
-    }
 }
 
 /// 引用 Arc 别名
