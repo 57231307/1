@@ -450,7 +450,7 @@ mod tests {
             use_location: Some("车间".to_string()),
             responsible_person_id: Some(1),
             original_value: Decimal::from(original_value),
-            salvage_value: salvage_value.map(|v| Decimal::from(v)),
+            salvage_value: salvage_value.map(Decimal::from),
             salvage_rate: None,
             depreciable_value: None,
             depreciation_method: Some("straight_line".to_string()),

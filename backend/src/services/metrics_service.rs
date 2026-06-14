@@ -490,8 +490,7 @@ mod tests {
     fn test_create_metrics_router() {
         let _router = create_metrics_router();
 
-        // 验证路由创建成功
-        assert!(true);
+        // 路由创建成功即视为通过（无需再断言常量）
     }
 
     // ===== P3.2 新增指标测试 =====

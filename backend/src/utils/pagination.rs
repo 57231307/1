@@ -3,7 +3,6 @@
 //! 提供统一的分页查询方法，避免各 service 中重复实现相同的分页逻辑
 use sea_orm::ConnectionTrait;
 use sea_orm::Paginator;
-use sea_orm::SelectorTrait;
 
 use crate::utils::error::AppError;
 
@@ -21,6 +20,8 @@ use crate::utils::error::AppError;
 /// # 说明
 /// sea-orm 2.0 起 Paginator 的元素类型约束从 `ModelTrait` 改为 `SelectorTrait`。
 /// 本函数直接约束 `S = SelectModel<M>`，返回 `Vec<M>`，与调用方期望一致。
+///
+/// `num_items()` 在 sea-orm 2.0 中返回 `u64`，与函数签名一致，不需要重复转换。
 pub async fn paginate_with_total<M>(
     paginator: Paginator<'_, impl ConnectionTrait, sea_orm::SelectModel<M>>,
     page: u64,

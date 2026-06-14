@@ -35,6 +35,9 @@ pub struct OmniAuditMessage {
 
 pub struct OmniAuditEngine {
     sender: mpsc::Sender<OmniAuditMessage>,
+    // TODO(tech-debt): 当前异步任务内联使用 secret_key 字符串，未通过 self 字段读取；
+    // 后续如切换为可注入签名密钥，应改为 self.secret_key.as_slice() 调用并移除此标注。
+    #[allow(dead_code)]
     secret_key: Vec<u8>,
 }
 

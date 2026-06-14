@@ -46,6 +46,9 @@ impl CacheStats {
 struct CachedValue<T> {
     value: T,
     expires_at: Option<Instant>,
+    // TODO(tech-debt): 当前仅在写入时填充但未在淘汰/统计路径中读取；后续接入缓存
+    // 过期分析或缓存命中率时间维度统计时再消费此字段并移除标注。
+    #[allow(dead_code)]
     created_at: Instant,
 }
 

@@ -124,10 +124,8 @@ pub async fn get_task_status(
         .await
         .get(task_id)
         .cloned()
-        .unwrap_or_else(|| {
-            // 如果任务不存在，返回一个特殊状态
-            InitTaskStatus::Failed
-        });
+        // 任务不存在时直接返回失败状态，使用 unwrap_or 避免不必要的闭包分配
+        .unwrap_or(InitTaskStatus::Failed);
 
     let status_str = match status {
         InitTaskStatus::Running => "running",

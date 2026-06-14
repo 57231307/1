@@ -668,11 +668,10 @@ pub async fn get_csrf_token(
                 .and_then(|cookie_str| {
                     cookie_str.split(';').find_map(|cookie| {
                         let cookie = cookie.trim();
-                        if cookie.starts_with("jwt=") {
-                            Some(cookie[4..].to_string())
-                        } else {
-                            None
-                        }
+                        // 使用 strip_prefix 避免手工切片，clippy::manual_strip
+                        cookie
+                            .strip_prefix("jwt=")
+                            .map(|stripped| stripped.to_string())
                     })
                 })
         })
