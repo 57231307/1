@@ -427,8 +427,6 @@ pub struct DepreciationResult {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-    use chrono::NaiveDate;
     use rust_decimal::Decimal;
 
     /// 测试折旧计算逻辑（直接调用内部方法）
