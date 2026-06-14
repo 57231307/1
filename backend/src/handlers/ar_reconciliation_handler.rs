@@ -192,9 +192,7 @@ pub struct AgingReportQueryParams {
 
 /// 确认对账单请求
 #[derive(Debug, Deserialize)]
-pub struct ConfirmRequest {
-    pub notes: Option<String>,
-}
+pub struct ConfirmRequest {}
 
 /// 争议处理请求
 #[derive(Debug, Deserialize)]

@@ -7,8 +7,8 @@ use chrono::{NaiveDate, Utc};
 #[test]
 fn test_quality_standard_status_flow() {
     // 测试状态流转逻辑：draft -> approved -> published
-    let valid_status_flow = vec!["draft", "approved", "published"];
-    let invalid_status_flow = vec!["draft", "published", "approved"];
+    let valid_status_flow = ["draft", "approved", "published"];
+    let invalid_status_flow = ["draft", "published", "approved"];
 
     // 验证状态顺序
     assert_eq!(valid_status_flow[0], "draft");
@@ -24,8 +24,8 @@ fn test_quality_standard_status_flow() {
 #[test]
 fn test_quality_standard_validation() {
     // 测试标准编码格式验证
-    let valid_code = "QS2024001";
-    let invalid_code = "";
+    let valid_code = "QS2024001".to_string();
+    let invalid_code = String::new();
 
     assert!(!valid_code.is_empty());
     assert!(invalid_code.is_empty());
@@ -67,7 +67,7 @@ fn test_effective_date_validation() {
 #[test]
 fn test_standard_type_validation() {
     // 测试标准类型验证
-    let valid_types = vec!["product", "process"];
+    let valid_types = ["product", "process"];
     let invalid_type = "service";
 
     assert!(valid_types.contains(&"product"));
@@ -116,8 +116,8 @@ fn can_publish(status: &str) -> bool {
 fn test_attachments_handling() {
     // 测试附件处理逻辑
     let no_attachments: Vec<String> = vec![];
-    let single_attachment = vec!["document.pdf".to_string()];
-    let multiple_attachments = vec![
+    let single_attachment = ["document.pdf".to_string()];
+    let multiple_attachments = [
         "specification.pdf".to_string(),
         "image.jpg".to_string(),
         "manual.docx".to_string(),

@@ -48,25 +48,6 @@ impl TraceContext {
         }
     }
 
-    /// 基于当前 span 生成子 span（保留 trace_id，parent_span_id 指向当前 span_id）
-    pub fn new_child(&self) -> Self {
-        let child_span_id = generate_span_id();
-        Self {
-            trace_id: self.trace_id.clone(),
-            span_id: child_span_id,
-            parent_span_id: Some(self.span_id.clone()),
-            sampled: self.sampled,
-        }
-    }
-
-    /// 序列化到 W3C `traceparent` header
-    pub fn to_traceparent(&self) -> String {
-        // 格式：00-{trace_id}-{span_id}-{flags}
-        // flags: 01 表示 sampled，00 表示未采样
-        let flags = if self.sampled { "01" } else { "00" };
-        format!("00-{}-{}-{}", self.trace_id, self.span_id, flags)
-    }
-
     /// 从 W3C `traceparent` header 解析
     ///
     /// 解析失败或字段不合法时返回 `None`，调用方应 fallback 到生成新 trace。
@@ -146,11 +127,6 @@ fn is_hex(s: &str) -> bool {
     s.chars().all(|c| c.is_ascii_hexdigit())
 }
 
-/// 给 reqwest HTTP 客户端构造 traceparent header（用于出站调用）
-pub fn build_traceparent_for_outbound(ctx: &TraceContext) -> String {
-    ctx.to_traceparent()
-}
-
 /// 解析入站 `traceparent` header，失败则返回新 root
 ///
 /// 行为策略（fail-open）：
@@ -180,51 +156,6 @@ mod tests {
         assert_eq!(ctx.span_id.len(), 16);
         assert!(ctx.parent_span_id.is_none());
         assert!(ctx.sampled);
-    }
-
-    #[test]
-    fn test_new_child_inherits_trace_id() {
-        let root = TraceContext::new_root();
-        let child = root.new_child();
-        assert_eq!(child.trace_id, root.trace_id);
-        assert_eq!(child.parent_span_id.as_deref(), Some(root.span_id.as_str()));
-        assert_ne!(child.span_id, root.span_id);
-    }
-
-    #[test]
-    fn test_traceparent_round_trip() {
-        let ctx = TraceContext::new_root();
-        let header = ctx.to_traceparent();
-        let parsed = TraceContext::from_traceparent(&header).expect("should parse");
-        // 注意：round_trip 后 span_id 变成 parent_id 字段，trace_id 保持一致
-        assert_eq!(parsed.trace_id, ctx.trace_id);
-        assert!(parsed.sampled);
-    }
-
-    #[test]
-    fn test_traceparent_format() {
-        let ctx = TraceContext {
-            trace_id: "0af7651916cd43dd8448eb211c80319c".to_string(),
-            span_id: "b7ad6b7169203331".to_string(),
-            parent_span_id: None,
-            sampled: true,
-        };
-        assert_eq!(
-            ctx.to_traceparent(),
-            "00-0af7651916cd43dd8448eb211c80319c-b7ad6b7169203331-01"
-        );
-    }
-
-    #[test]
-    fn test_traceparent_unsampled() {
-        let ctx = TraceContext {
-            trace_id: "0af7651916cd43dd8448eb211c80319c".to_string(),
-            span_id: "b7ad6b7169203331".to_string(),
-            parent_span_id: None,
-            sampled: false,
-        };
-        let header = ctx.to_traceparent();
-        assert!(header.ends_with("-00"));
     }
 
     #[test]

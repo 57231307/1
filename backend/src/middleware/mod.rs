@@ -15,4 +15,3 @@ pub mod sql_injection_audit;
 pub mod tenant;
 pub mod timeout;
 pub mod trace_context;
-pub mod validation;

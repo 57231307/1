@@ -45,29 +45,12 @@ pub struct InventoryCountItemDetail {
 }
 
 /// 创建库存盘点请求
-#[derive(Debug, Deserialize)]
-pub struct CreateInventoryCountRequest {
-    pub warehouse_id: i32,
-    pub count_date: Option<chrono::DateTime<chrono::Utc>>,
-    pub status: Option<String>,
-    pub notes: Option<String>,
-    pub items: Option<Vec<InventoryCountItemRequest>>,
-}
+#[derive(Debug, Deserialize, Default)]
+pub struct CreateInventoryCountRequest;
 
-#[derive(Debug, Deserialize)]
-pub struct InventoryCountItemRequest {
-    pub product_id: i32,
-    pub stock_id: Option<i32>,
-    pub warehouse_id: Option<i32>,
-    pub quantity_actual: Decimal,
-    pub unit_cost: Option<Decimal>,
-    pub notes: Option<String>,
-}
+#[derive(Debug, Deserialize, Default)]
+pub struct InventoryCountItemRequest;
 
 /// 更新库存盘点请求
-#[derive(Debug, Deserialize)]
-pub struct UpdateInventoryCountRequest {
-    pub status: Option<String>,
-    pub notes: Option<String>,
-    pub items: Option<Vec<InventoryCountItemRequest>>,
-}
+#[derive(Debug, Deserialize, Default)]
+pub struct UpdateInventoryCountRequest;

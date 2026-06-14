@@ -8,10 +8,6 @@
 //! - `items`     — 明细项管理（add_item, update_item, delete_item）
 
 pub mod types;
-pub use types::{
-    CreateInventoryCountRequest, InventoryCountDetail, InventoryCountItemDetail,
-    InventoryCountItemRequest, UpdateInventoryCountRequest,
-};
 
 pub mod commands;
 pub mod items;

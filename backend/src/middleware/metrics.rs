@@ -90,30 +90,6 @@ fn truncate_route(path: &str) -> String {
     format!("{}_trunc_{:04x}", prefix, hash)
 }
 
-/// 数据库查询监控包装器
-///
-/// 在 Drop 时自动记录 `db_query_duration_seconds`。
-pub struct DbQueryMonitor<'a> {
-    start: Instant,
-    metrics: &'a Metrics,
-}
-
-impl<'a> DbQueryMonitor<'a> {
-    pub fn new(metrics: &'a Metrics) -> Self {
-        Self {
-            start: Instant::now(),
-            metrics,
-        }
-    }
-}
-
-impl<'a> Drop for DbQueryMonitor<'a> {
-    fn drop(&mut self) {
-        let duration = self.start.elapsed();
-        self.metrics.record_db_query(duration.as_secs_f64());
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;

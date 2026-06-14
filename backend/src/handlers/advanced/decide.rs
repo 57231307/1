@@ -124,111 +124,6 @@ pub async fn list_sales_contracts(State(state): State<AppState>) -> impl IntoRes
     }
 }
 
-/// 创建销售合同
-pub async fn create_sales_contract(
-    State(state): State<AppState>,
-    Json(payload): Json<CreateSalesContractRequest>,
-) -> impl IntoResponse {
-    use crate::models::sales_contract::ActiveModel;
-    use sea_orm::ActiveModelTrait;
-
-    let now = Utc::now();
-    let contract_no = format!("SC{}", now.format("%Y%m%d%H%M%S"));
-
-    let active = ActiveModel {
-        contract_no: sea_orm::ActiveValue::Set(contract_no.clone()),
-        contract_name: sea_orm::ActiveValue::Set(payload.contract_name.clone()),
-        contract_type: sea_orm::ActiveValue::Set(None),
-        customer_id: sea_orm::ActiveValue::Set(payload.customer_id),
-        customer_name: sea_orm::ActiveValue::Set(None),
-        total_amount: sea_orm::ActiveValue::Set(
-            rust_decimal::Decimal::try_from(payload.total_amount).ok(),
-        ),
-        signed_date: sea_orm::ActiveValue::Set(Some(now.naive_utc().date())),
-        effective_date: sea_orm::ActiveValue::Set(None),
-        expiry_date: sea_orm::ActiveValue::Set(None),
-        payment_terms: sea_orm::ActiveValue::Set(None),
-        payment_method: sea_orm::ActiveValue::Set(None),
-        delivery_date: sea_orm::ActiveValue::Set(None),
-        delivery_location: sea_orm::ActiveValue::Set(None),
-        status: sea_orm::ActiveValue::Set("pending".to_string()),
-        created_by: sea_orm::ActiveValue::Set(0),
-        created_at: sea_orm::ActiveValue::Set(now),
-        updated_at: sea_orm::ActiveValue::Set(now),
-        id: sea_orm::ActiveValue::NotSet,
-    };
-
-    match active.insert(&*state.db).await {
-        Ok(inserted) => Json(ApiResponse::success(SalesContract {
-            id: inserted.id as u32,
-            contract_no: inserted.contract_no,
-            customer_name: inserted
-                .customer_name
-                .unwrap_or_else(|| format!("客户 #{}", inserted.customer_id)),
-            contract_date: inserted
-                .signed_date
-                .map_or_else(|| "".to_string(), |d| d.to_string()),
-            total_amount: inserted
-                .total_amount
-                .and_then(|d| d.to_f64())
-                .unwrap_or(0.0),
-            status: inserted.status,
-        })),
-        Err(e) => {
-            tracing::error!("创建销售合同失败: {}", e);
-            Json(ApiResponse::error(format!("创建销售合同失败: {}", e)))
-        }
-    }
-}
-
-/// 获取销售合同
-pub async fn get_sales_contract() -> impl IntoResponse {
-    Json(ApiResponse::<serde_json::Value>::error(
-        "请提供合同ID".to_string(),
-    ))
-}
-
-/// 更新销售合同
-pub async fn update_sales_contract() -> impl IntoResponse {
-    Json(ApiResponse::<serde_json::Value>::error(
-        "请提供合同ID和更新数据".to_string(),
-    ))
-}
-
-/// 删除销售合同
-pub async fn delete_sales_contract() -> impl IntoResponse {
-    Json(ApiResponse::<serde_json::Value>::error(
-        "请提供合同ID".to_string(),
-    ))
-}
-
-/// 审批销售合同
-pub async fn approve_sales_contract(State(state): State<AppState>) -> impl IntoResponse {
-    use sea_orm::{ActiveModelTrait, ColumnTrait, QueryFilter};
-
-    match SalesContractEntity::find()
-        .filter(crate::models::sales_contract::Column::Status.eq("pending"))
-        .one(&*state.db)
-        .await
-    {
-        Ok(Some(contract)) => {
-            let mut active: crate::models::sales_contract::ActiveModel = contract.into();
-            active.status = sea_orm::ActiveValue::Set("approved".to_string());
-            active.updated_at = sea_orm::ActiveValue::Set(Utc::now());
-
-            match active.update(&*state.db).await {
-                Ok(updated) => Json(ApiResponse::<String>::success(format!(
-                    "合同 {} 已审批",
-                    updated.contract_no
-                ))),
-                Err(e) => Json(ApiResponse::<String>::error(format!("审批失败: {}", e))),
-            }
-        }
-        Ok(None) => Json(ApiResponse::<String>::error("没有待审批的合同".to_string())),
-        Err(e) => Json(ApiResponse::<String>::error(format!("查询失败: {}", e))),
-    }
-}
-
 // ============================================================================
 // 销售价格相关 - 使用真实数据库查询
 // ============================================================================
@@ -263,80 +158,6 @@ pub async fn list_sales_prices(State(state): State<AppState>) -> impl IntoRespon
             Json(ApiResponse::error(format!("查询销售价格失败: {}", e)))
         }
     }
-}
-
-/// 创建销售价格
-pub async fn create_sales_price(
-    State(state): State<AppState>,
-    Json(payload): Json<CreateSalesPriceRequest>,
-) -> impl IntoResponse {
-    use crate::models::sales_price::ActiveModel;
-    use sea_orm::ActiveModelTrait;
-
-    let now = Utc::now();
-
-    let active = ActiveModel {
-        product_id: sea_orm::ActiveValue::Set(payload.product_id),
-        customer_id: sea_orm::ActiveValue::Set(payload.customer_id),
-        customer_type: sea_orm::ActiveValue::Set(None),
-        price: sea_orm::ActiveValue::Set(
-            rust_decimal::Decimal::try_from(payload.price).unwrap_or(rust_decimal::Decimal::ZERO),
-        ),
-        currency: sea_orm::ActiveValue::Set(payload.currency),
-        unit: sea_orm::ActiveValue::Set(payload.unit),
-        min_order_qty: sea_orm::ActiveValue::Set(rust_decimal::Decimal::ONE),
-        price_type: sea_orm::ActiveValue::Set("fixed".to_string()),
-        price_level: sea_orm::ActiveValue::Set(None),
-        effective_date: sea_orm::ActiveValue::Set(now.naive_utc().date()),
-        expiry_date: sea_orm::ActiveValue::Set(None),
-        status: sea_orm::ActiveValue::Set("active".to_string()),
-        approved_by: sea_orm::ActiveValue::Set(None),
-        approved_at: sea_orm::ActiveValue::Set(None),
-        created_by: sea_orm::ActiveValue::Set(None),
-        created_at: sea_orm::ActiveValue::Set(now),
-        updated_at: sea_orm::ActiveValue::Set(now),
-        id: sea_orm::ActiveValue::NotSet,
-    };
-
-    match active.insert(&*state.db).await {
-        Ok(inserted) => Json(ApiResponse::success(SalesPrice {
-            id: inserted.id as u32,
-            product_name: format!("产品 #{}", inserted.product_id),
-            customer_name: inserted
-                .customer_id
-                .map_or_else(|| "全部客户".to_string(), |cid| format!("客户 #{}", cid)),
-            price: inserted.price.to_f64().unwrap_or(0.0),
-            currency: inserted.currency,
-            unit: inserted.unit,
-            effective_date: inserted.effective_date.to_string(),
-            status: inserted.status,
-        })),
-        Err(e) => {
-            tracing::error!("创建销售价格失败: {}", e);
-            Json(ApiResponse::error(format!("创建销售价格失败: {}", e)))
-        }
-    }
-}
-
-/// 更新销售价格
-pub async fn update_sales_price() -> impl IntoResponse {
-    Json(ApiResponse::<serde_json::Value>::error(
-        "请提供价格ID和更新数据".to_string(),
-    ))
-}
-
-/// 删除销售价格
-pub async fn delete_sales_price() -> impl IntoResponse {
-    Json(ApiResponse::<serde_json::Value>::error(
-        "请提供价格ID".to_string(),
-    ))
-}
-
-/// 审批销售价格
-pub async fn approve_sales_price() -> impl IntoResponse {
-    Json(ApiResponse::<serde_json::Value>::error(
-        "请提供价格ID".to_string(),
-    ))
 }
 
 // ============================================================================
@@ -462,13 +283,6 @@ pub struct AnomalyItem {
 }
 
 #[derive(Debug, Serialize, Deserialize)]
-pub struct CreateSalesContractRequest {
-    pub contract_name: String,
-    pub customer_id: i32,
-    pub total_amount: f64,
-}
-
-#[derive(Debug, Serialize, Deserialize)]
 pub struct SalesContract {
     pub id: u32,
     pub contract_no: String,
@@ -476,15 +290,6 @@ pub struct SalesContract {
     pub contract_date: String,
     pub total_amount: f64,
     pub status: String,
-}
-
-#[derive(Debug, Serialize, Deserialize)]
-pub struct CreateSalesPriceRequest {
-    pub product_id: i32,
-    pub customer_id: Option<i32>,
-    pub price: f64,
-    pub currency: String,
-    pub unit: String,
 }
 
 #[derive(Debug, Serialize, Deserialize)]

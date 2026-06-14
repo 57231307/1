@@ -427,24 +427,6 @@ impl ReportTemplateService {
         Ok((headers, data, total))
     }
 
-    /// 验证 SQL 语句安全性（供 validate-sql 路由调用）
-    pub fn validate_sql(sql: &str) -> Result<(), AppError> {
-        let sql_trimmed = sql.trim();
-        if sql_trimmed.is_empty() {
-            return Err(AppError::validation("SQL 语句不能为空"));
-        }
-
-        let sql_upper = sql_trimmed.to_uppercase();
-        if !sql_upper.starts_with("SELECT") {
-            return Err(AppError::validation("只允许 SELECT 查询语句"));
-        }
-
-        Self::check_dangerous_keywords(&sql_upper)?;
-        Self::check_sensitive_tables(sql_trimmed)?;
-
-        Ok(())
-    }
-
     /// 检查 SQL 中是否包含危险关键词
     fn check_dangerous_keywords(sql_upper: &str) -> Result<(), AppError> {
         for keyword in DANGEROUS_KEYWORDS {

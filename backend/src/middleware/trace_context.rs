@@ -6,56 +6,22 @@
 //! 3. 创建 root `tracing::Span`，把 trace_id / span_id 等写入 span 字段
 //! 4. 在响应头回写 `X-Trace-Id`，便于客户端关联日志
 //!
-//! ## 设计
-//!
-//! 中间件返回 `(TraceContext, Request)` 元组的扩展提取器：
-//! ```rust,ignore
-//! use crate::middleware::trace_context::TraceContextExt;
-//! async fn my_handler(TraceContext(ctx): TraceContextExt, ...) {
-//!     tracing::info!(trace_id = %ctx.trace_id, "...");
-//! }
-//! ```
-//!
-//! 注：当前 `TraceContextExt` 仅作为占位（typed extractor），主要使用场景是
-//! 通过 `Request::extensions()` 取出 ctx。
+//! 注：handler 主要通过 `Request::extensions()` 取出 ctx。
 
 use axum::{
     body::Body,
     extract::Request,
-    http::{request::Parts, HeaderName, HeaderValue},
+    http::{HeaderName, HeaderValue},
     middleware::Next,
     response::Response,
 };
 use std::time::Instant;
 
 use crate::observability::span::root_span;
-use crate::observability::trace_context::{extract_or_new, TraceContext};
+use crate::observability::trace_context::extract_or_new;
 
 /// 用于在响应头回写 `X-Trace-Id`，方便客户端日志关联
 const X_TRACE_ID_HEADER: &str = "x-trace-id";
-
-/// trace context 提取器（typed extractor）
-///
-/// 在 handler 中通过 `TraceContext(ctx): TraceContext` 拿到本次请求的 trace context。
-#[derive(Debug, Clone)]
-pub struct TraceContextExt(pub TraceContext);
-
-#[axum::async_trait]
-impl<S> axum::extract::FromRequestParts<S> for TraceContextExt
-where
-    S: Send + Sync,
-{
-    type Rejection = std::convert::Infallible;
-
-    async fn from_request_parts(parts: &mut Parts, _state: &S) -> Result<Self, Self::Rejection> {
-        let ctx = parts
-            .extensions
-            .get::<TraceContext>()
-            .cloned()
-            .unwrap_or_else(TraceContext::new_root);
-        Ok(TraceContextExt(ctx))
-    }
-}
 
 /// 追踪上下文中间件
 pub async fn trace_context_middleware(mut request: Request<Body>, next: Next) -> Response {

@@ -37,19 +37,3 @@ where
 
     Ok((items, total))
 }
-
-/// 创建标准分页响应
-///
-/// # 参数
-/// - `items`: 数据列表
-/// - `total`: 总记录数
-/// - `page`: 当前页
-/// - `page_size`: 每页大小
-pub fn create_paginated_response<T: Clone>(
-    items: Vec<T>,
-    total: u64,
-    page: u64,
-    page_size: u64,
-) -> crate::utils::response::PaginatedResponse<T> {
-    crate::utils::response::PaginatedResponse::new(items, total, page, page_size)
-}

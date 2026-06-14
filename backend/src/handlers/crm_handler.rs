@@ -1,7 +1,7 @@
 use crate::middleware::auth_context::AuthContext;
 use crate::models::dto::crm_dto::{
     ConvertLeadRequest, CreateLeadRequest, CreateOpportunityRequest, FollowUpRequest, LeadQuery,
-    OpportunityQuery, UpdateCustomerEnhancedRequest, UpdateLeadRequest, UpdateOpportunityRequest,
+    OpportunityQuery, UpdateLeadRequest, UpdateOpportunityRequest,
 };
 use crate::services::crm::cust::CrmService;
 use crate::utils::app_state::AppState;
@@ -331,42 +331,6 @@ pub async fn get_customer_360(
     let service = CrmService::new(state.db.clone());
     let value = service.get_customer_360(id).await?;
     Ok(Json(ApiResponse::success(value)))
-}
-
-/// GET /api/v1/erp/crm/customers/enhanced/:id - 客户增强详情
-pub async fn get_customer_enhanced_detail(
-    Path(id): Path<i32>,
-    State(state): State<AppState>,
-    _auth: AuthContext,
-) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
-    let service = CrmService::new(state.db.clone());
-    let value = service.get_customer_enhanced(id).await?;
-    Ok(Json(ApiResponse::success(value)))
-}
-
-/// PUT /api/v1/erp/crm/customers/enhanced/:id - 更新客户增强信息
-pub async fn update_customer_enhanced(
-    Path(id): Path<i32>,
-    State(state): State<AppState>,
-    _auth: AuthContext,
-    Json(req): Json<UpdateCustomerEnhancedRequest>,
-) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
-    let service = CrmService::new(state.db.clone());
-    let value = service.update_customer_enhanced(id, req).await?;
-    Ok(Json(ApiResponse::success(value)))
-}
-
-/// DELETE /api/v1/erp/crm/customers/enhanced/:id - 删除客户（软删除）
-pub async fn delete_customer_enhanced(
-    Path(id): Path<i32>,
-    State(state): State<AppState>,
-    _auth: AuthContext,
-) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
-    let service = CrmService::new(state.db.clone());
-    service.delete_customer_enhanced(id).await?;
-    Ok(Json(ApiResponse::success(
-        serde_json::json!({ "deleted": true }),
-    )))
 }
 
 // ===== Task 14: 跟进记录与 RFM =====
