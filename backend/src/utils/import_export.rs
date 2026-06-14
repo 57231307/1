@@ -366,9 +366,9 @@ mod tests {
 
     #[test]
     fn test_field_validator_boolean() {
-        assert_eq!(FieldValidator::boolean("true", "启用").unwrap(), true);
-        assert_eq!(FieldValidator::boolean("0", "启用").unwrap(), false);
-        assert_eq!(FieldValidator::boolean("是", "启用").unwrap(), true);
+        assert!(FieldValidator::boolean("true", "启用").unwrap());
+        assert!(!FieldValidator::boolean("0", "启用").unwrap());
+        assert!(FieldValidator::boolean("是", "启用").unwrap());
         assert!(FieldValidator::boolean("maybe", "启用").is_err());
     }
 

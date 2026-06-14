@@ -668,11 +668,7 @@ pub async fn get_csrf_token(
                 .and_then(|cookie_str| {
                     cookie_str.split(';').find_map(|cookie| {
                         let cookie = cookie.trim();
-                        if cookie.starts_with("jwt=") {
-                            Some(cookie[4..].to_string())
-                        } else {
-                            None
-                        }
+                        cookie.strip_prefix("jwt=").map(str::to_string)
                     })
                 })
         })

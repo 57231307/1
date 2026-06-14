@@ -35,6 +35,8 @@ pub struct OmniAuditMessage {
 
 pub struct OmniAuditEngine {
     sender: mpsc::Sender<OmniAuditMessage>,
+    /// 审计签名密钥（当前通过 secret_key_clone 在异步任务中使用，字段保留用于将来外部签名接口）
+    #[allow(dead_code)] // TODO(tech-debt): 接入外部签名 API 后清理
     secret_key: Vec<u8>,
 }
 

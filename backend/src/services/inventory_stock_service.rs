@@ -748,6 +748,7 @@ impl InventoryStockService {
     ///
     /// # 返回
     /// 返回分页结果，包含数据列表和总记录数
+    #[allow(clippy::too_many_arguments)] // TODO(tech-debt): 改用 InventorySummaryQuery 结构体参数后移除
     pub async fn get_inventory_summary(
         &self,
         warehouse_id: Option<i32>,

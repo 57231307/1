@@ -46,6 +46,8 @@ impl CacheStats {
 struct CachedValue<T> {
     value: T,
     expires_at: Option<Instant>,
+    /// 缓存项创建时间（用于未来 LRU 策略接入）
+    #[allow(dead_code)] // TODO(tech-debt): 接入 LRU 淘汰策略后开始使用
     created_at: Instant,
 }
 

@@ -27,7 +27,7 @@ where
 
     // 顺序执行：先取当前页数据，再统计总数（避免 Paginator 在并行调用时的借用冲突）
     let items = paginator.fetch_page(page_index).await?;
-    let total = paginator.num_items().await? as u64;
+    let total = paginator.num_items().await?;
 
     Ok((items, total))
 }
