@@ -56,11 +56,7 @@ struct CachedValue<T> {
 pub trait Cache<K, V> {
     fn get(&self, key: &K) -> Option<V>;
     fn set(&self, key: K, value: V, ttl: Option<Duration>);
-    fn remove(&self, key: &K);
     fn clear(&self);
-    fn contains_key(&self, key: &K) -> bool;
-    fn stats(&self) -> CacheStats;
-    fn cleanup_expired(&self);
     fn evict_oldest(&self, target_size: usize);
 }
 

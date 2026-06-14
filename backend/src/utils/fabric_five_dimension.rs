@@ -138,20 +138,6 @@ impl FabricFiveDimension {
         Ok(())
     }
 
-    /// 生成五维描述文本
-    pub fn to_description(&self) -> String {
-        let dye_lot_desc = self
-            .dye_lot_no
-            .as_ref()
-            .map(|dl| format!("缸号：{}", dl))
-            .unwrap_or_else(|| "缸号：无".to_string());
-
-        format!(
-            "成品 {} | 批次 {} | 色号 {} | {} | 等级 {}",
-            self.product_id, self.batch_no, self.color_no, dye_lot_desc, self.grade
-        )
-    }
-
     /// 比较两个五维对象是否相同（忽略缸号）
     pub fn equals_ignore_dye_lot(&self, other: &Self) -> bool {
         self.product_id == other.product_id

@@ -35,7 +35,6 @@ pub struct CreateAssetRequest {
     pub purchase_date: Option<NaiveDate>,
     pub put_in_date: Option<NaiveDate>,
     pub supplier_id: Option<i32>,
-    pub remark: Option<String>,
 }
 
 /// 资产处置请求

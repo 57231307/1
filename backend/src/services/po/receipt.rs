@@ -16,15 +16,6 @@ use super::order::PurchaseOrderService;
 use sea_orm::DatabaseConnection;
 
 impl PurchaseOrderService {
-    // 生成入库单号
-    // 格式：PR + 年月日 + 三位序号（PR20260315001）
-    crate::impl_generate_no!(
-        generate_receipt_no,
-        "PR",
-        purchase_receipt::Entity,
-        purchase_receipt::Column::ReceiptNo
-    );
-
     /// 标记采购订单为已收货（含库存入库联动）
     pub async fn receive_order(&self, order_id: i32) -> Result<purchase_order::Model, AppError> {
         // 1. 开启事务保证数据一致性

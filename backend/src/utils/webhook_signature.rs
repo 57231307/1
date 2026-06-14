@@ -43,15 +43,3 @@ pub fn verify_webhook_signature(
         ))
     }
 }
-
-/// 生成 Webhook 签名（用于发送 Webhook 时）
-pub fn generate_webhook_signature(
-    payload: &str,
-    secret: &str,
-) -> Result<String, crate::utils::error::AppError> {
-    let mut mac = HmacSha256::new_from_slice(secret.as_bytes())
-        .map_err(|e| crate::utils::error::AppError::internal(format!("HMAC 初始化失败：{}", e)))?;
-    mac.update(payload.as_bytes());
-    let result = mac.finalize();
-    Ok(hex::encode(result.into_bytes()))
-}

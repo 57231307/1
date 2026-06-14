@@ -22,14 +22,6 @@ impl PasswordStrength {
         }
     }
 
-    /// 是否达到可接受强度
-    pub fn is_acceptable(&self) -> bool {
-        matches!(
-            self,
-            PasswordStrength::Medium | PasswordStrength::Strong | PasswordStrength::VeryStrong
-        )
-    }
-
     /// 强度分数
     pub fn score(&self) -> u8 {
         match self {
@@ -47,7 +39,6 @@ pub struct PasswordValidationResult {
     pub strength: PasswordStrength,
     pub is_valid: bool,
     pub errors: Vec<String>,
-    pub suggestions: Vec<String>,
 }
 
 #[derive(Debug, Clone)]
@@ -71,32 +62,6 @@ impl Default for PasswordPolicy {
             require_digit: true,
             require_special: true,
             min_strength: PasswordStrength::Medium,
-        }
-    }
-}
-
-impl PasswordPolicy {
-    pub fn lenient() -> Self {
-        Self {
-            min_length: 6,
-            max_length: 128,
-            require_uppercase: false,
-            require_lowercase: true,
-            require_digit: true,
-            require_special: false,
-            min_strength: PasswordStrength::Weak,
-        }
-    }
-
-    pub fn strict() -> Self {
-        Self {
-            min_length: 12,
-            max_length: 128,
-            require_uppercase: true,
-            require_lowercase: true,
-            require_digit: true,
-            require_special: true,
-            min_strength: PasswordStrength::Strong,
         }
     }
 }

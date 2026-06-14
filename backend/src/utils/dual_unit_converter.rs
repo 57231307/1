@@ -11,12 +11,8 @@ pub struct DualUnitConverter;
 /// 换算结果
 #[derive(Debug, Clone)]
 pub struct ConversionResult {
-    pub original_quantity: Decimal,
-    pub original_unit: String,
     pub converted_quantity: Decimal,
     pub converted_unit: String,
-    pub conversion_rate: Decimal,
-    pub formula: String,
 }
 
 impl DualUnitConverter {

@@ -70,17 +70,6 @@ pub enum AlertLevel {
     Critical,
 }
 
-impl AlertLevel {
-    pub fn as_str(&self) -> &str {
-        match self {
-            AlertLevel::Low => "LOW",
-            AlertLevel::Medium => "MEDIUM",
-            AlertLevel::High => "HIGH",
-            AlertLevel::Critical => "CRITICAL",
-        }
-    }
-}
-
 /// 敏感操作告警服务
 pub struct SensitiveActionAlert;
 

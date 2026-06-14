@@ -42,23 +42,6 @@ pub fn hmac_sha256_hex(key: &[u8], data: &[u8]) -> String {
     hex::encode(result)
 }
 
-/// 计算 HMAC-SHA256 并返回原始字节
-///
-/// # 参数
-/// - `key`: HMAC 密钥字节切片
-/// - `data`: 待签名的数据字节切片
-///
-/// # 返回
-/// - 长度为 32 的字节数组
-///
-/// # Panics
-/// - 当 HMAC 内部初始化失败时（理论上不会发生，因为 SHA256 接受任意长度密钥）
-pub fn hmac_sha256_bytes(key: &[u8], data: &[u8]) -> Vec<u8> {
-    let mut mac = HmacSha256::new_from_slice(key).expect("HMAC 初始化失败");
-    mac.update(data);
-    mac.finalize().into_bytes().to_vec()
-}
-
 /// 计算多段数据拼接后的 SHA256 摘要并以小写 hex 字符串返回
 ///
 /// 与 `sha256_hex` 等价，但支持按顺序拼接多段数据后统一摘要。

@@ -107,7 +107,7 @@ fn test_credit_history_scoring() {
         };
 
         assert!(
-            score >= 40 && score <= 100,
+            (40..=100).contains(&score),
             "信用记录评分应该在 40-100 之间"
         );
     }

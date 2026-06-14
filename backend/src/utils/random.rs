@@ -20,8 +20,3 @@ pub fn random_alphanumeric(length: usize) -> String {
         .map(|_| fastrand::alphanumeric())
         .collect()
 }
-
-/// 生成 API Key
-pub fn generate_api_key() -> String {
-    random_alphanumeric(32)
-}
