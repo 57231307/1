@@ -2,9 +2,9 @@
 //!
 //! 提供统一的分页查询方法，避免各 service 中重复实现相同的分页逻辑
 use crate::utils::error::AppError;
-use sea_orm::entity::ModelTrait;
 use sea_orm::ConnectionTrait;
 use sea_orm::Paginator;
+use sea_orm::SelectorTrait;
 
 /// 通用分页查询辅助函数
 ///
@@ -21,7 +21,7 @@ pub async fn paginate_with_total<M>(
     page: u64,
 ) -> Result<(Vec<M>, u64), AppError>
 where
-    M: ModelTrait,
+    M: SelectorTrait,
 {
     let page_index = page.saturating_sub(1);
 
