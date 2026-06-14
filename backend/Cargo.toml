@@ -142,3 +142,13 @@ members = [".", "migration"]
 [features]
 default = []
 swagger = ["utoipa-swagger-ui"]
+
+# Lint 配置（clippy 1.81+ 顶层 warn 数组已弃用，改用 Cargo.toml [lints] 段）
+# - [lints.rust]    段配置标准 rustc lint（如 dead_code、unused_*）
+# - [lints.clippy]  段配置 clippy 自有 lint
+# 死代码策略：CI 强制（见 .clippy.toml 注释与项目规则）
+[lints.rust]
+dead_code = "warn"
+unused_imports = "warn"
+unused_variables = "warn"
+
