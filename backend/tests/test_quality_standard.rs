@@ -7,8 +7,8 @@ use chrono::{NaiveDate, Utc};
 #[test]
 fn test_quality_standard_status_flow() {
     // 测试状态流转逻辑：draft -> approved -> published
-    let valid_status_flow = vec!["draft", "approved", "published"];
-    let invalid_status_flow = vec!["draft", "published", "approved"];
+    let valid_status_flow = ["draft", "approved", "published"];
+    let invalid_status_flow = ["draft", "published", "approved"];
 
     // 验证状态顺序
     assert_eq!(valid_status_flow[0], "draft");
@@ -22,13 +22,15 @@ fn test_quality_standard_status_flow() {
 }
 
 #[test]
+#[allow(clippy::assertions_on_constants)] // 验证 mock 数据形态，确保测试 fixture 期望
 fn test_quality_standard_validation() {
     // 测试标准编码格式验证
     let valid_code = "QS2024001";
     let invalid_code = "";
 
-    assert!(!valid_code.is_empty());
-    assert!(invalid_code.is_empty());
+    // 验证 mock 数据形态（无业务逻辑）
+    assert!(!valid_code.is_empty(), "valid_code 不应为空");
+    assert!(invalid_code.is_empty(), "invalid_code 应为空");
 
     // 版本格式验证
     let valid_version = "1.0";
