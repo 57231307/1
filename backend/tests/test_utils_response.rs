@@ -68,11 +68,11 @@ fn test_collection_operations() {
 
 #[test]
 fn test_option_handling() {
-    let some_value = Some(42);
+    let some_value: Option<i32> = Some(42);
     let none_value: Option<i32> = None;
 
     assert!(some_value.is_some());
-    assert_eq!(some_value.unwrap(), 42);
+    assert_eq!(some_value, Some(42));
     assert!(none_value.is_none());
 
     let mapped = some_value.map(|x| x * 2);
@@ -85,12 +85,12 @@ fn test_result_handling() {
     let err_result: Result<i32, &str> = Err("error");
 
     assert!(ok_result.is_ok());
-    assert_eq!(ok_result.unwrap(), 42);
+    assert_eq!(ok_result, Ok(42));
     assert!(err_result.is_err());
-    assert_eq!(err_result.unwrap_err(), "error");
+    assert_eq!(err_result, Err("error"));
 
     let converted = err_result.map_err(|e| e.to_uppercase());
-    assert_eq!(converted.unwrap_err(), "ERROR");
+    assert_eq!(converted, Err("ERROR".to_string()));
 }
 
 #[test]

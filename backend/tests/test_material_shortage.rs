@@ -83,7 +83,7 @@ mod tests {
     #[test]
     fn test_replenishment_suggestion_priority_order() {
         // 测试补货建议优先级排序
-        let mut suggestions = vec![
+        let mut suggestions = [
             bingxi_backend::services::material_shortage_service::ReplenishmentSuggestion {
                 material_id: 1,
                 material_name: "材料A".to_string(),
