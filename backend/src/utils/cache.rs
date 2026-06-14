@@ -212,35 +212,12 @@ where
         self.evictions.fetch_add(removed, Ordering::Relaxed);
     }
 
-    fn remove(&self, key: &K) {
-        self.storage.remove(key);
-    }
-
     fn clear(&self) {
         self.storage.clear();
         self.hits.store(0, Ordering::Relaxed);
         self.misses.store(0, Ordering::Relaxed);
         self.evictions.store(0, Ordering::Relaxed);
         self.writes.store(0, Ordering::Relaxed);
-    }
-
-    fn contains_key(&self, key: &K) -> bool {
-        self.storage.contains_key(key)
-    }
-
-    fn stats(&self) -> CacheStats {
-        CacheStats {
-            hits: self.hits.load(Ordering::Relaxed),
-            misses: self.misses.load(Ordering::Relaxed),
-            evictions: self.evictions.load(Ordering::Relaxed),
-            writes: self.writes.load(Ordering::Relaxed),
-            size: self.storage.len(),
-            max_size: self.max_size,
-        }
-    }
-
-    fn cleanup_expired(&self) {
-        self.cleanup();
     }
 }
 

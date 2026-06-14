@@ -3,7 +3,7 @@
 //! 包含采购订单的收货确认（含库存入库联动）、收货单号生成等。
 //! 拆分自原 `purchase_order_service.rs`。
 
-use crate::models::{product, purchase_order, purchase_order_item, purchase_receipt, status};
+use crate::models::{product, purchase_order, purchase_order_item, status};
 use crate::services::po::CreateOrderItemRequest;
 use crate::services::po::UpdateOrderItemRequest;
 use crate::utils::error::AppError;

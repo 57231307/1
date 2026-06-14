@@ -108,42 +108,18 @@ impl DualUnitConverter {
         match unit {
             "米" | "M" | "meters" | "meter" => {
                 let kg = Self::meters_to_kg(quantity, gram_weight, width_cm)?;
-                let rate = kg / quantity;
-                let formula = format!(
-                    "{}米 × {}g/m² × {}m ÷ 1000 = {}公斤",
-                    quantity,
-                    gram_weight,
-                    width_m_str(&width_cm),
-                    kg
-                );
 
                 Ok(ConversionResult {
-                    original_quantity: quantity,
-                    original_unit: "米".to_string(),
                     converted_quantity: kg,
                     converted_unit: "公斤".to_string(),
-                    conversion_rate: rate,
-                    formula,
                 })
             }
             "公斤" | "KG" | "kg" | "kilogram" => {
                 let meters = Self::kg_to_meters(quantity, gram_weight, width_cm)?;
-                let rate = quantity / meters;
-                let formula = format!(
-                    "{}公斤 × 1000 ÷ {}g/m² ÷ {}m = {}米",
-                    quantity,
-                    gram_weight,
-                    width_m_str(&width_cm),
-                    meters
-                );
 
                 Ok(ConversionResult {
-                    original_quantity: quantity,
-                    original_unit: "公斤".to_string(),
                     converted_quantity: meters,
                     converted_unit: "米".to_string(),
-                    conversion_rate: rate,
-                    formula,
                 })
             }
             _ => Err(format!("不支持的单位：{}（支持的单位：米、公斤）", unit)),
@@ -198,12 +174,6 @@ impl DualUnitConverter {
 
         Ok(rate.round_dp(4))
     }
-}
-
-/// 辅助函数：将幅宽从 cm 转换为 m 并格式化为字符串
-fn width_m_str(width_cm: &Decimal) -> String {
-    let width_m = width_cm / Decimal::from(100);
-    width_m.to_string()
 }
 
 #[cfg(test)]

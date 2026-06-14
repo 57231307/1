@@ -53,7 +53,6 @@ fn test_auto_convert_meters() {
     let width = Decimal::from_str("180").unwrap();
 
     let result = DualUnitConverter::auto_convert(quantity, "米", gram_weight, width).unwrap();
-    assert_eq!(result.original_unit, "米");
     assert_eq!(result.converted_unit, "公斤");
     assert_eq!(
         result.converted_quantity,
@@ -68,7 +67,6 @@ fn test_auto_convert_kg() {
     let width = Decimal::from_str("180").unwrap();
 
     let result = DualUnitConverter::auto_convert(quantity, "公斤", gram_weight, width).unwrap();
-    assert_eq!(result.original_unit, "公斤");
     assert_eq!(result.converted_unit, "米");
 }
 
