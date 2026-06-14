@@ -548,7 +548,14 @@ pub async fn get_inventory_summary(
     State(state): State<AppState>,
     _auth: AuthContext,
     Query(params): Query<ListStockFabricParams>,
-) -> Result<Json<crate::utils::response::ApiResponse<crate::utils::response::PaginatedResponse<InventorySummaryItem>>>, AppError> {
+) -> Result<
+    Json<
+        crate::utils::response::ApiResponse<
+            crate::utils::response::PaginatedResponse<InventorySummaryItem>,
+        >,
+    >,
+    AppError,
+> {
     let service = InventoryStockService::new(state.db.clone());
 
     let page = params.page.unwrap_or(1);

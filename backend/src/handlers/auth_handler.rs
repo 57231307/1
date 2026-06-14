@@ -666,16 +666,14 @@ pub async fn get_csrf_token(
                 .get(axum::http::header::COOKIE)
                 .and_then(|value| value.to_str().ok())
                 .and_then(|cookie_str| {
-                    cookie_str
-                        .split(';')
-                        .find_map(|cookie| {
-                            let cookie = cookie.trim();
-                            if cookie.starts_with("jwt=") {
-                                Some(cookie[4..].to_string())
-                            } else {
-                                None
-                            }
-                        })
+                    cookie_str.split(';').find_map(|cookie| {
+                        let cookie = cookie.trim();
+                        if cookie.starts_with("jwt=") {
+                            Some(cookie[4..].to_string())
+                        } else {
+                            None
+                        }
+                    })
                 })
         })
         .ok_or_else(|| AppError::unauthorized("缺少认证令牌"))?;
@@ -683,9 +681,9 @@ pub async fn get_csrf_token(
     // 解析 JWT 获取 session_id
     let claims = AuthService::validate_token_static(&token, &state.jwt_secret)
         .map_err(|e| AppError::unauthorized(format!("无效的认证令牌：{}", e)))?;
-    
+
     let session_id = claims.session_id;
-    
+
     // 生成随机 CSRF Token 并存储到缓存中（使用 token 本身作为 key，允许同一会话多个有效 token）
     let csrf_token = uuid::Uuid::new_v4().to_string();
     let csrf_ttl = std::time::Duration::from_secs(7200); // 2小时

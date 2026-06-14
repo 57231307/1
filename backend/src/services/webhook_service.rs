@@ -215,10 +215,8 @@ impl WebhookService {
         if let Some(secret) = secret {
             // 计算 SHA256(body || secret) 摘要作为签名
             // 注意：保留与原 `ring::digest::SHA256` 等价的拼接摘要行为
-            let signature = crate::utils::hash::sha256_hex_multi(&[
-                body.as_bytes(),
-                secret.as_bytes(),
-            ]);
+            let signature =
+                crate::utils::hash::sha256_hex_multi(&[body.as_bytes(), secret.as_bytes()]);
             request = request.header("X-Webhook-Signature", format!("sha256={}", signature));
         }
 

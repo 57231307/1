@@ -20,8 +20,8 @@ use validator::Validate;
 pub mod contract;
 pub mod order;
 pub mod price;
-pub mod receipt;
 pub mod purchase_return;
+pub mod receipt;
 
 // =====================================================
 // 请求 DTO（与原 purchase_order_service.rs 末尾保持一致）

@@ -205,8 +205,14 @@ impl TenantBillingService {
             .await?;
 
         // 用量统计无记录时默认为 0
-        let api_calls_today = today_usage.as_ref().map(|u| u.api_calls).unwrap_or_default();
-        let storage_used_mb = today_usage.as_ref().map(|u| u.storage_used_mb).unwrap_or_default();
+        let api_calls_today = today_usage
+            .as_ref()
+            .map(|u| u.api_calls)
+            .unwrap_or_default();
+        let storage_used_mb = today_usage
+            .as_ref()
+            .map(|u| u.storage_used_mb)
+            .unwrap_or_default();
         let current_users = today_usage
             .as_ref()
             .map(|u| u.user_count as i64)

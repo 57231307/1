@@ -33,7 +33,11 @@ impl CacheStats {
     pub fn summary(&self) -> String {
         format!(
             "命中: {}, 未命中: {}, 淘汰: {}, 写入: {}, 命中率: {:.1}%",
-            self.hits, self.misses, self.evictions, self.writes, self.hit_rate()
+            self.hits,
+            self.misses,
+            self.evictions,
+            self.writes,
+            self.hit_rate()
         )
     }
 }

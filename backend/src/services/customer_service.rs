@@ -10,7 +10,7 @@ use std::sync::Arc;
 
 use crate::models::customer::{self, Entity as CustomerEntity};
 use crate::models::dto::PageRequest;
-use crate::utils::data_permission::{CUSTOMER_ALL_FIELDS, DataPermissionFilter};
+use crate::utils::data_permission::{DataPermissionFilter, CUSTOMER_ALL_FIELDS};
 use crate::utils::error::AppError;
 use crate::utils::PaginatedResponse;
 

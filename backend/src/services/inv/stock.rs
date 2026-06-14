@@ -26,10 +26,7 @@ impl InventoryTransferService {
     ) -> Result<(), AppError> {
         // 批量获取库存记录（优化N+1查询）
         // 跳过 product_id 为 None 的项，避免脏 product_id=0 污染查询
-        let product_ids: Vec<i32> = items
-            .iter()
-            .filter_map(|item| item.product_id)
-            .collect();
+        let product_ids: Vec<i32> = items.iter().filter_map(|item| item.product_id).collect();
         let stocks = InventoryStockEntity::find()
             .filter(inventory_stock::Column::WarehouseId.eq(*from_warehouse_id))
             .filter(inventory_stock::Column::ProductId.is_in(product_ids))

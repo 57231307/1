@@ -413,7 +413,10 @@ pub fn user_notification_settings() -> Router<AppState> {
 /// 路由挂在 `/advanced` 域下更合适；此处保留独立 `/trading/...` 入口以兼容旧前端调用。
 pub fn trading() -> Router<AppState> {
     Router::new()
-        .route("/purchase-contracts", get(advanced::list_purchase_contracts))
+        .route(
+            "/purchase-contracts",
+            get(advanced::list_purchase_contracts),
+        )
         .route("/sales-contracts", get(advanced::list_sales_contracts))
         .route("/sales-prices", get(advanced::list_sales_prices))
         .route("/purchase-prices", get(advanced::list_purchase_prices))
@@ -431,18 +434,9 @@ pub fn advanced() -> Router<AppState> {
             "/ai/inventory-optimization",
             post(advanced::inventory_optimization),
         )
-        .route(
-            "/ai/anomaly-detection",
-            post(advanced::anomaly_detection),
-        )
-        .route(
-            "/ai/recommendations",
-            post(advanced::recommendations),
-        )
-        .route(
-            "/reports/templates",
-            get(advanced::list_report_templates),
-        )
+        .route("/ai/anomaly-detection", post(advanced::anomaly_detection))
+        .route("/ai/recommendations", post(advanced::recommendations))
+        .route("/reports/templates", get(advanced::list_report_templates))
         .route("/reports/execute", post(advanced::execute_report))
         .route("/reports/export", post(advanced::export_report))
         .route(

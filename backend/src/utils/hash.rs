@@ -77,4 +77,3 @@ pub fn sha256_hex_multi(parts: &[&[u8]]) -> String {
     let result = hasher.finalize();
     hex::encode(result)
 }
-

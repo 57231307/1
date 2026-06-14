@@ -144,9 +144,9 @@ pub async fn get_trends(
     let service = FinancialAnalysisService::new(state.db.clone());
 
     // 指标 ID 缺失时返回 4xx 错误，避免脏 indicator_id=0 污染
-    let indicator_id: i32 = params.indicator_id.ok_or_else(|| {
-        AppError::validation("财务分析请求缺少指标ID")
-    })?;
+    let indicator_id: i32 = params
+        .indicator_id
+        .ok_or_else(|| AppError::validation("财务分析请求缺少指标ID"))?;
     let limit = params.page_size.unwrap_or(50);
 
     let trends = service.get_trends(indicator_id, limit).await?;

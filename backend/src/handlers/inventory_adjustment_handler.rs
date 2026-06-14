@@ -278,7 +278,10 @@ pub async fn list_adjustments(
     let service = InventoryAdjustmentService::new(state.db.clone());
 
     let (adjustments, total) = service
-        .list_adjustments(params.page.unwrap_or_default(), params.page_size.unwrap_or(20))
+        .list_adjustments(
+            params.page.unwrap_or_default(),
+            params.page_size.unwrap_or(20),
+        )
         .await
         .map_err(|e| AppError::internal(e.to_string()))?;
 

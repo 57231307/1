@@ -76,7 +76,10 @@ impl AppState {
 
         // 指标服务构造失败时显式返回错误（之前是 .expect() panic，违背 Result 语义）
         let metrics = MetricsService::new().map_err(|e| {
-            format!("创建 Prometheus 指标服务失败（指标名称冲突或注册表初始化错误）: {}", e)
+            format!(
+                "创建 Prometheus 指标服务失败（指标名称冲突或注册表初始化错误）: {}",
+                e
+            )
         })?;
         let cookie_key = Key::derive_from(final_cookie_secret.as_bytes());
         let di_container = Arc::new(DIContainer::new());
