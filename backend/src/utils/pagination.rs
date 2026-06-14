@@ -3,13 +3,13 @@
 //! 提供统一的分页查询方法，避免各 service 中重复实现相同的分页逻辑
 use sea_orm::ConnectionTrait;
 use sea_orm::Paginator;
-use sea_orm::entity::ModelTrait;
+use sea_orm::SelectorTrait;
 
 use crate::utils::error::AppError;
 
 /// 通用分页查询辅助函数
 ///
-/// 自动处理 num_items() 和 fetch_page() 调用，并行执行以提升性能
+/// 自动处理 num_items() 和 fetch_page() 调用，避免在每个 service 中重复实现
 ///
 /// # 参数
 /// - `paginator`: SeaORM 分页器
@@ -17,17 +17,21 @@ use crate::utils::error::AppError;
 ///
 /// # 返回
 /// - `(items, total)`: 包含当前页数据和总记录数
+///
+/// # 说明
+/// sea-orm 2.0 起 Paginator 的元素类型约束从 `ModelTrait` 改为 `SelectorTrait`。
+/// 本函数直接约束 `S = SelectModel<M>`，返回 `Vec<M>`，与调用方期望一致。
 pub async fn paginate_with_total<M>(
-    paginator: Paginator<'_, impl ConnectionTrait, M>,
+    paginator: Paginator<'_, impl ConnectionTrait, sea_orm::SelectModel<M>>,
     page: u64,
 ) -> Result<(Vec<M>, u64), AppError>
 where
-    M: ModelTrait,
+    M: sea_orm::FromQueryResult + Sized + Send + Sync + 'static,
 {
     let page_index = page.saturating_sub(1);
 
     // 顺序执行：先取当前页数据，再统计总数（避免 Paginator 在并行调用时的借用冲突）
-    let items = paginator.fetch_page(page_index).await?;
+    let items: Vec<M> = paginator.fetch_page(page_index).await?;
     let total = paginator.num_items().await?;
     let total = total as u64;
 
