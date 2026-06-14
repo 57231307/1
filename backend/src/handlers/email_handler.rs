@@ -34,7 +34,7 @@ pub struct SendEmailRequest {
     pub template_params: Option<serde_json::Value>,
 }
 
-/// 邮件模板 CRUD Handler（带租户隔离）
+// 邮件模板 CRUD Handler（带租户隔离）
 crate::define_tenant_crud_handlers!(
     EmailTemplateService,
     CreateEmailTemplateRequest,

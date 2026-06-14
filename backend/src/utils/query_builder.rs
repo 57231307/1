@@ -1,6 +1,6 @@
 use crate::utils::error::AppError;
 use crate::utils::response::PaginatedResponse;
-use sea_orm::{DatabaseConnection, EntityTrait, PaginatorTrait, QueryOrder, QuerySelect, Select};
+use sea_orm::{DatabaseConnection, EntityTrait, PaginatorTrait, QueryOrder, Select};
 
 #[allow(dead_code)]
 /// 分页查询结果

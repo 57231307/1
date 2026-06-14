@@ -375,7 +375,6 @@ pub async fn login(
             };
             enhanced_logger::EnhancedLogger::log_login_security(&security_log);
 
-            let error_response = ApiResponse::<()>::error(e.to_string());
             Err(AppError::unauthorized(e.to_string()))
         }
     }

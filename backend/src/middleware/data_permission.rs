@@ -122,10 +122,10 @@ impl DataPermissionContext {
         }
 
         // 尝试从可能的键名中获取列表
-        let mut list_opt = None;
+        let mut list_opt: Option<&mut Vec<Value>> = None;
         for key in list_keys {
-            if let Some(list) = data.get_mut(*key).and_then(|v| v.as_array_mut()) {
-                list_opt = Some(list);
+            if let Some(arr) = data.get_mut(*key).and_then(|v| v.as_array_mut()) {
+                list_opt = Some(arr);
                 break;
             }
         }
