@@ -25,23 +25,6 @@ pub struct FabricFiveDimension {
 }
 
 impl FabricFiveDimension {
-    /// 创建五维对象
-    pub fn new(
-        product_id: i32,
-        batch_no: String,
-        color_no: String,
-        dye_lot_no: Option<String>,
-        grade: String,
-    ) -> Self {
-        Self {
-            product_id,
-            batch_no,
-            color_no,
-            dye_lot_no,
-            grade,
-        }
-    }
-
     /// 生成全局唯一 ID
     /// 格式：`P{id}|B{batch}|C{color}|D{dye_lot}|G{grade}`
     pub fn generate_unique_id(&self) -> String {
@@ -107,53 +90,6 @@ impl FabricFiveDimension {
             grade,
         })
     }
-
-    /// 验证五维数据的完整性
-    pub fn validate(&self) -> Result<(), String> {
-        if self.product_id <= 0 {
-            return Err("成品 ID 必须大于 0".to_string());
-        }
-
-        if self.batch_no.trim().is_empty() {
-            return Err("批次号不能为空".to_string());
-        }
-
-        if self.color_no.trim().is_empty() {
-            return Err("色号不能为空".to_string());
-        }
-
-        if self.grade.trim().is_empty() {
-            return Err("等级不能为空".to_string());
-        }
-
-        // 验证等级合法性
-        let valid_grades = ["一等品", "二等品", "等外品", "优等品", "合格品", "不合格"];
-        if !valid_grades.contains(&self.grade.as_str()) {
-            return Err(format!(
-                "无效的等级：{}，有效值为：{:?}",
-                self.grade, valid_grades
-            ));
-        }
-
-        Ok(())
-    }
-
-    /// 比较两个五维对象是否相同（忽略缸号）
-    pub fn equals_ignore_dye_lot(&self, other: &Self) -> bool {
-        self.product_id == other.product_id
-            && self.batch_no == other.batch_no
-            && self.color_no == other.color_no
-            && self.grade == other.grade
-    }
-
-    /// 生成五维键（用于缓存或哈希表）
-    pub fn generate_key(&self) -> String {
-        let dye_lot = self.dye_lot_no.as_deref().unwrap_or("*");
-        format!(
-            "{}:{}:{}:{}:{}",
-            self.product_id, self.batch_no, self.color_no, dye_lot, self.grade
-        )
-    }
 }
 
 #[cfg(test)]
@@ -193,79 +129,5 @@ mod tests {
 
         assert_eq!(dim.product_id, 100);
         assert_eq!(dim.dye_lot_no, None);
-    }
-
-    #[test]
-    fn test_validate_success() {
-        let dim = FabricFiveDimension::new(
-            100,
-            "B20240101".to_string(),
-            "C001".to_string(),
-            Some("D20240101001".to_string()),
-            "一等品".to_string(),
-        );
-
-        assert!(dim.validate().is_ok());
-    }
-
-    #[test]
-    fn test_validate_invalid_product_id() {
-        let dim = FabricFiveDimension::new(
-            0,
-            "B20240101".to_string(),
-            "C001".to_string(),
-            Some("D20240101001".to_string()),
-            "一等品".to_string(),
-        );
-
-        assert!(dim.validate().is_err());
-    }
-
-    #[test]
-    fn test_validate_invalid_grade() {
-        let dim = FabricFiveDimension::new(
-            100,
-            "B20240101".to_string(),
-            "C001".to_string(),
-            Some("D20240101001".to_string()),
-            "次品".to_string(),
-        );
-
-        assert!(dim.validate().is_err());
-    }
-
-    #[test]
-    fn test_equals_ignore_dye_lot() {
-        let dim1 = FabricFiveDimension::new(
-            100,
-            "B20240101".to_string(),
-            "C001".to_string(),
-            Some("D20240101001".to_string()),
-            "一等品".to_string(),
-        );
-
-        let dim2 = FabricFiveDimension::new(
-            100,
-            "B20240101".to_string(),
-            "C001".to_string(),
-            Some("D20240101002".to_string()),
-            "一等品".to_string(),
-        );
-
-        assert!(dim1.equals_ignore_dye_lot(&dim2));
-    }
-
-    #[test]
-    fn test_generate_key() {
-        let dim = FabricFiveDimension::new(
-            100,
-            "B20240101".to_string(),
-            "C001".to_string(),
-            None,
-            "一等品".to_string(),
-        );
-
-        let key = dim.generate_key();
-        assert_eq!(key, "100:B20240101:C001:*:一等品");
     }
 }
