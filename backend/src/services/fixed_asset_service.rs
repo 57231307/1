@@ -432,6 +432,9 @@ mod tests {
     use rust_decimal::Decimal;
 
     /// 创建测试用的固定资产模型
+    // TODO(tech-debt): 该辅助函数被 #[cfg(test)] 模块内引用，目前 clippy::dead_code
+    // 误报。后续如新增对应单元测试用例或被业务层消费时移除此标注。
+    #[allow(dead_code)]
     fn create_test_asset(
         original_value: i64,
         salvage_value: Option<i64>,

@@ -34,7 +34,6 @@ where
     // 顺序执行：先取当前页数据，再统计总数（避免 Paginator 在并行调用时的借用冲突）
     let items: Vec<M> = paginator.fetch_page(page_index).await?;
     let total = paginator.num_items().await?;
-    let total = total as u64;
 
     Ok((items, total))
 }
