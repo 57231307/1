@@ -21,7 +21,7 @@
 
 use axum::{
     body::Body,
-    extract::{FromRequestParts, Request},
+    extract::Request,
     http::{request::Parts, HeaderName, HeaderValue},
     middleware::Next,
     response::Response,

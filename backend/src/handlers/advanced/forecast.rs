@@ -24,7 +24,7 @@ use sea_orm::DatabaseConnection;
 pub async fn sales_forecast(
     State(state): State<AppState>,
     Json(payload): Json<SalesForecastRequest>,
-) -> impl IntoResponse {
+) -> Result<Json<ApiResponse<SalesForecastResponse>>, AppError> {
     let service = AiAnalysisService::new(state.db);
 
     let days = match payload.period.as_str() {
@@ -36,7 +36,7 @@ pub async fn sales_forecast(
 
     // 物料 ID 缺失时拒绝预测，避免脏 product_id=0 污染
     let product_id: i32 = match payload.product_id {
-        Some(id) => id,
+        Some(id) => id as i32,
         None => return Err(AppError::validation("预测请求缺少物料ID")),
     };
 
@@ -76,11 +76,11 @@ pub async fn sales_forecast(
                     .collect(),
             };
 
-            Json(ApiResponse::success(response))
+            Ok(Json(ApiResponse::success(response)))
         }
         Err(e) => {
             tracing::error!("销售预测失败: {}", e);
-            Json(ApiResponse::error(format!("销售预测失败: {}", e)))
+            Ok(Json(ApiResponse::error(format!("销售预测失败: {}", e))))
         }
     }
 }

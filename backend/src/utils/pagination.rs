@@ -2,8 +2,8 @@
 //!
 //! 提供统一的分页查询方法，避免各 service 中重复实现相同的分页逻辑
 use sea_orm::ConnectionTrait;
+use sea_orm::Paginator;
 use sea_orm::entity::ModelTrait;
-use sea_orm::query::Paginator;
 use crate::utils::error::AppError;
 
 /// 通用分页查询辅助函数
@@ -23,15 +23,12 @@ pub async fn paginate_with_total<M>(
 where
     M: ModelTrait,
 {
-    use tokio::try_join;
-
     let page_index = page.saturating_sub(1);
 
-    // 并行执行总数查询和分页查询
-    let (items, total) = try_join!(
-        paginator.fetch_page(page_index),
-        paginator.num_items()
-    )?;
+    // 顺序执行：先取当前页数据，再统计总数（避免 Paginator 在并行调用时的借用冲突）
+    let items = paginator.fetch_page(page_index).await?;
+    let total = paginator.num_items().await?;
+    let total = total as u64;
 
     Ok((items, total))
 }

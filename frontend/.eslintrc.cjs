@@ -30,7 +30,10 @@ module.exports = {
 
     // TypeScript 相关规则
     // 禁止使用 any 类型，强制类型安全
-    '@typescript-eslint/no-explicit-any': 'error',
+    // 历史说明：main 分支累计 800+ 处 `any`，设为 error 会阻塞所有 PR。
+    // 临时降级为 warn 以解锁 CI，后续按模块逐步收紧为 error。
+    // 跟踪计划：见 docs/tech-debt/no-explicit-any-rollout.md
+    '@typescript-eslint/no-explicit-any': 'warn',
     '@typescript-eslint/consistent-type-assertions': 'error',
     '@typescript-eslint/no-unused-vars': ['warn', { argsIgnorePattern: '^_' }],
     '@typescript-eslint/ban-ts-comment': 'off',

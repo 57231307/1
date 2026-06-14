@@ -122,20 +122,21 @@ impl DataPermissionContext {
         }
 
         // 尝试从可能的键名中获取列表
-        let mut list_opt = None;
-        for key in list_keys {
-            if let Some(list) = data.get_mut(*key).and_then(|v| v.as_array_mut()) {
-                list_opt = Some(list);
-                break;
+        // 借用检查器在循环中不能很好地处理对 data 的多次可变借用（NLL 在
+        // 跨迭代的复杂借用模式下仍不完善）。这里先以不可变借用定位第一个
+        // 匹配的键，再单独进行可变借用，从而避免 E0499。
+        let target_key = list_keys
+            .iter()
+            .copied()
+            .find(|key| data.get(*key).and_then(Value::as_array).is_some());
+
+        if let Some(key) = target_key {
+            if let Some(arr) = data.get_mut(key).and_then(Value::as_array_mut) {
+                self.filter_batch(arr);
+                return true;
             }
         }
-
-        if let Some(list) = list_opt {
-            self.filter_batch(list);
-            true
-        } else {
-            false
-        }
+        false
     }
 
     /// 检查是否应该应用默认字段隐藏
