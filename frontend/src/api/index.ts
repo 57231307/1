@@ -46,7 +46,28 @@ export * from './dye-recipe'
 export * from './dye-batch'
 export * from './greige-fabric'
 export * from './mrp'
-export * from './financeReport'
+// 修复：financeReport 中的 ReportData 与 financial-analysis 中的 ReportData 同名冲突
+// 业务代码均通过 '@/api/financeReport' 直接导入，不依赖此处的重新导出
+export type {
+  BalanceSheetItem,
+  ProfitStatementItem,
+  CashFlowItem,
+  TrialBalanceItem,
+  GeneralLedgerItem,
+  SubsidiaryLedgerItem,
+  ReportItem,
+  FinanceReportQueryParams,
+  GeneralLedgerQueryParams,
+  SubsidiaryLedgerQueryParams,
+} from './financeReport'
+export {
+  getBalanceSheet,
+  getProfitStatement,
+  getCashFlowStatement,
+  getTrialBalance,
+  getGeneralLedger,
+  getSubsidiaryLedger,
+} from './financeReport'
 export * from './sales-analysis'
 export * from './supplier-evaluation'
 export * from './security'

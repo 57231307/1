@@ -197,9 +197,9 @@ import { ref, reactive, computed, onMounted } from 'vue'
 import { ElMessage, ElMessageBox, type FormInstance, type FormRules } from 'element-plus'
 import { Plus, Download } from '@element-plus/icons-vue'
 import {
-  listCollections,
-  createCollection,
-  updateCollection,
+  listCostCollections,
+  createCostCollection,
+  updateCostCollection,
   deleteCollection as deleteCollectionApi,
   auditCollection as auditCollectionApi,
   COST_STATUS,
@@ -268,7 +268,7 @@ const getStatusType = (status: string) => {
 const fetchCollections = async () => {
   loading.value = true
   try {
-    const res = await listCollections(queryForm)
+    const res = await listCostCollections(queryForm)
     const d = (res as { data?: unknown }).data as
       | {
           list?: CostCollection[]
@@ -333,10 +333,10 @@ const handleSubmit = async () => {
         total_cost: totalCost.value,
       }
       if (form.id) {
-        await updateCollection(form.id, data)
+        await updateCostCollection(form.id, data)
         ElMessage.success('更新成功')
       } else {
-        await createCollection(data)
+        await createCostCollection(data)
         ElMessage.success('创建成功')
       }
       dialogVisible.value = false
