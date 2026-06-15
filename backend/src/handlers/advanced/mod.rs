@@ -11,6 +11,7 @@ pub mod analytics;
 pub mod decide;
 pub mod forecast;
 pub mod rec;
+pub mod recipe_opt;
 pub mod reorder;
 
 // 重新导出所有 pub 项，保持 `crate::handlers::advanced::xxx` 的访问路径可用
@@ -18,4 +19,5 @@ pub use analytics::*;
 pub use decide::*;
 pub use forecast::*;
 pub use rec::*;
+pub use recipe_opt::*;
 pub use reorder::*;

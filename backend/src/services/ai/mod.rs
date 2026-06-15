@@ -2,9 +2,10 @@
 //!
 //! 由原 `services/ai_analysis_service.rs`（1202 行）按业务子领域拆分而来。
 //! 子模块：
-//! - `pred`   预测：销售预测（移动平均 + 指数平滑 + 季节性因子）
-//! - `detect` 异常检测：销售突增/突降、库存零/积压/滞销（Z-score / IQR）
-//! - `rec`    推荐：智能补货、关联推荐、趋势推荐、价格调整推荐
+//! - `pred`       预测：销售预测（移动平均 + 指数平滑 + 季节性因子）
+//! - `detect`     异常检测：销售突增/突降、库存零/积压/滞销（Z-score / IQR）
+//! - `rec`        推荐：智能补货、关联推荐、趋势推荐、价格调整推荐
+//! - `recipe_opt` 工艺优化：染色配方 k-NN 相似度推荐（温度/时间/pH/浴比）
 //!
 //! 兼容说明：原 `crate::services::ai::*` 路径需要由上层
 //! `services/mod.rs` 通过 `pub use super::ai::*;` 重新导出以保持向后兼容。
@@ -18,6 +19,7 @@ use std::sync::Arc;
 pub mod detect;
 pub mod pred;
 pub mod rec;
+pub mod recipe_opt;
 
 // =====================================================
 // 共享 DTO（与原 ai_analysis_service.rs 保持一致）
