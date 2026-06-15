@@ -5,7 +5,13 @@ export interface ApiResponse<T = unknown> {
   code: number
   message: string
   data: T
-  timestamp: string
+  timestamp?: string
+  /**
+   * 分页总数（可选，仅列表分页接口由后端顶层返回）。
+   * 后端 PaginatedResponse<T> 的 total 字段在 data 内部，
+   * 部分历史接口也可能在顶层冗余返回 total 用于前端快速读取。
+   */
+  total?: number
 }
 
 /**
