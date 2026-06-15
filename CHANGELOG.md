@@ -58,6 +58,32 @@
 - 启动条件：Wave 3（el-table-v2 POC 通过）✅ 可启动
 - 启动条件：Wave 4（≥ 1 个 P3 任务完成 PoC）🔵 待启动
 
+### Wave 3 合并汇总（2026-06-15）
+
+| 任务 | 子代理 | 提交 | 状态 |
+|------|--------|------|------|
+| B7 spec 编写 | 主代理 | [fee7507](https://github.com/57231307/1/commit/fee7507) | ✅ 已合并 |
+| B7-1 替换 purchase+inventory 域 console.* 为 logger (8 文件 37 处) | 1 B | [313084e](https://github.com/57231307/1/commit/313084e) | ✅ 已合并 ([#91](https://github.com/57231307/1/pull/91)) |
+| B7-2 替换 crm+sales 域 console.* 为 logger (4 文件 11 处) | 1 B | [c641239](https://github.com/57231307/1/commit/c641239) | ✅ 已合并 ([#92](https://github.com/57231307/1/pull/92)) |
+| B7-3 替换 bpm+report+arReconciliation 域 console.* 为 logger (7 文件 22 处) | 1 B | [374a3af](https://github.com/57231307/1/commit/374a3af) | ✅ 已合并 ([#93](https://github.com/57231307/1/pull/93)) |
+| B7-4 替换 dye/logistics/security/email/tenant 等域 console.* 为 logger (12 文件 42 处) | 1 B | [979feca](https://github.com/57231307/1/commit/979feca) | ✅ 已合并 ([#94](https://github.com/57231307/1/pull/94)) |
+
+#### B7 替换成果
+- **console.* 总数**：112 → **0**（-100%，除 logger.ts 自身 4 处）
+- **涉及文件数**：31 个 .vue / .ts 文件
+- **PR 数**：4 个（#91-#94）
+- **替换映射**：log/info/debug → logger.info/debug、warn → logger.warn、error → logger.error
+- **特殊处理**：catch 块中 `e:unknown` 用 `String(e)` 转换（消除 TS2345 错误）
+
+#### 已知遗留
+- 基线存在 32 个预存 type-check 错误（来自 Wave 2 合并），分布在 fiveDimension/print-templates/quality-standards/data-import/dataPermission/dye-batch/dye-recipe/warehouse/system-update/user-profile 等模块
+- B7 4 批均**无新增错误**（基线 = 当前 = 32）
+- 清理预存错误属于 Wave 4 启动前置 P 任务，不在 B7 范围
+
+#### 远端工作分支清理
+- 4 个临时 B7 特性分支已由 GitHub squash merge 自动删除
+- 主分支 main 始终保持可发布
+
 ### 已新增（P1-1 generate-no 4 端点补齐）
 
 #### 后端 Handler
