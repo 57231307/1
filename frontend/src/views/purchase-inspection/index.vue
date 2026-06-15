@@ -418,21 +418,39 @@ const handleView = async (row: PurchaseInspection) => {
   }
 }
 
-const handleReceiptChange = (receiptId: number) => {
-  // 根据选择的入库单加载明细
-  const receipt = receipts.value.find(r => r.id === receiptId)
-  if (receipt) {
-    // TODO: 从API获取入库单明细
-    formData.items = [
-      {
-        product_id: 1,
-        product_name: '产品A',
-        expected_quantity: 100,
-        inspected_quantity: 0,
-        passed_quantity: 0,
-        failed_quantity: 0,
-      },
-    ]
+const handleReceiptChange = async (receiptId: number) => {
+  if (!receiptId) {
+    formData.items = []
+    return
+  }
+  receiptItemsLoading.value = true
+  try {
+    const res = await getReceiptItems(receiptId)
+    // 类型已在 purchaseReceipt.ts 中声明，可直接解构
+    const items: ReceiptItem[] = res.data?.items || []
+    if (items.length === 0) {
+      ElMessage.info('该入库单暂无明细')
+      formData.items = []
+      return
+    }
+    // 将入库单明细映射为检验单明细，初始化各数量字段
+    formData.items = items.map(item => ({
+      product_id: item.product_id,
+      product_name: item.product_name,
+      product_code: item.product_code,
+      expected_quantity: item.quantity,
+      inspected_quantity: 0,
+      passed_quantity: 0,
+      failed_quantity: 0,
+      defect_reason: '',
+    }))
+  } catch (error) {
+    const errMsg = error instanceof Error ? error.message : '获取入库单明细失败，请稍后重试'
+    ElMessage.error(errMsg)
+    console.error('获取入库单明细失败:', error)
+    formData.items = []
+  } finally {
+    receiptItemsLoading.value = false
   }
 }
 
