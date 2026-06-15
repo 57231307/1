@@ -5,7 +5,7 @@
 // TODO(tech-debt): 业务接入或重评估后逐项移除；rustc 1.94+ 编译时由编译器报告具体死代码位置。
 
 use crate::middleware::auth_context::AuthContext;
-use crate::models::{purchase_order, warehouse};
+use crate::models::{purchase_order, purchase_receipt, warehouse};
 use crate::services::event_bus::{BusinessEvent, EVENT_BUS};
 use crate::services::purchase_receipt_service::{
     CreatePurchaseReceiptRequest, CreateReceiptItemRequest, PurchaseReceiptService,
@@ -13,6 +13,7 @@ use crate::services::purchase_receipt_service::{
 };
 use crate::utils::app_state::AppState;
 use crate::utils::error::AppError;
+use crate::utils::number_generator::DocumentNumberGenerator;
 use crate::utils::response::{ApiResponse, PaginatedResponse};
 use axum::{
     extract::{Path, Query, State},
@@ -318,6 +319,27 @@ pub async fn delete_receipt_item(
         (),
         "入库明细删除成功",
     )))
+}
+
+/// 生成采购入库单号
+/// GET /api/v1/erp/purchase/receipts/generate-no
+///
+/// 单据号格式：`RK{yyyyMMdd}{4 位流水}`，例如 `RK202605140001`。
+/// 依赖数据库 `purchase_receipt.receipt_no` 列上的 `UNIQUE` 约束保证最终唯一性。
+pub async fn generate_no(
+    State(state): State<AppState>,
+) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
+    let receipt_no = DocumentNumberGenerator::generate_no_with_width(
+        &*state.db,
+        "RK",
+        purchase_receipt::Entity,
+        purchase_receipt::Column::ReceiptNo,
+        4,
+    )
+    .await?;
+    Ok(Json(ApiResponse::success(serde_json::json!({
+        "receipt_no": receipt_no
+    }))))
 }
 
 // =====================================================

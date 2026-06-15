@@ -12,6 +12,7 @@ use crate::services::inventory_count_service::{
     InventoryCountItemRequest, InventoryCountService, UpdateInventoryCountRequest,
 };
 use crate::utils::error::AppError;
+use crate::utils::number_generator::DocumentNumberGenerator;
 use crate::utils::response::ApiResponse;
 use crate::utils::response::PaginatedResponse;
 
@@ -205,4 +206,26 @@ pub async fn delete_item(
         (),
         "盘点明细已删除",
     )))
+}
+
+/// 生成盘点单号
+/// GET /api/v1/erp/inventory/counts/generate-no
+///
+/// 单据号格式：`IC{yyyyMMdd}{4 位流水}`，例如 `IC202605140001`。
+/// 流水部分通过 `DocumentNumberGenerator` 统计当日同前缀已存在的单据数量 + 1 计算得到。
+/// 注意：此方法为无锁"读后写"，业务侧应在事务内创建单据时校验唯一性以避免并发冲突。
+pub async fn generate_no(
+    State(state): State<AppState>,
+) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
+    let count_no = DocumentNumberGenerator::generate_no_with_width(
+        &*state.db,
+        "IC",
+        inventory_count::Entity,
+        inventory_count::Column::CountNo,
+        4,
+    )
+    .await?;
+    Ok(Json(ApiResponse::success(serde_json::json!({
+        "count_no": count_no
+    }))))
 }
