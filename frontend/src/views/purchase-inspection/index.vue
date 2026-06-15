@@ -270,6 +270,7 @@ import {
   type PurchaseInspectionItem,
 } from '@/api/purchase-inspection'
 import { getReceiptItems, type ReceiptItem } from '@/api/purchaseReceipt'
+import { logger } from '@/utils/logger'
 
 // 统计数据
 const stats = reactive({
@@ -350,7 +351,7 @@ const fetchData = async () => {
     stats.passed = tableData.value.filter(i => i.result === 'pass').length
     stats.failed = tableData.value.filter(i => i.result === 'fail').length
   } catch (error) {
-    console.error('获取数据失败:', error)
+    logger.error('获取数据失败:', error)
   } finally {
     loading.value = false
   }
@@ -417,7 +418,7 @@ const handleView = async (row: PurchaseInspection) => {
     detailData.value = res.data
     detailDialogVisible.value = true
   } catch (error) {
-    console.error('获取详情失败:', error)
+    logger.error('获取详情失败:', error)
   }
 }
 
@@ -450,7 +451,7 @@ const handleReceiptChange = async (receiptId: number) => {
   } catch (error) {
     const errMsg = error instanceof Error ? error.message : '获取入库单明细失败，请稍后重试'
     ElMessage.error(errMsg)
-    console.error('获取入库单明细失败:', error)
+    logger.error('获取入库单明细失败:', error)
     formData.items = []
   } finally {
     receiptItemsLoading.value = false
@@ -471,7 +472,7 @@ const handleSubmit = async () => {
     dialogVisible.value = false
     fetchData()
   } catch (error) {
-    console.error('提交失败:', error)
+    logger.error('提交失败:', error)
   } finally {
     submitLoading.value = false
   }
@@ -485,7 +486,7 @@ const handleComplete = async (row: PurchaseInspection) => {
     fetchData()
   } catch (error) {
     if (error !== 'cancel') {
-      console.error('操作失败:', error)
+      logger.error('操作失败:', error)
     }
   }
 }

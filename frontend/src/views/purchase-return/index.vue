@@ -325,6 +325,7 @@ import {
   type PurchaseReturn,
   type PurchaseReturnItem,
 } from '@/api/purchase-return'
+import { logger } from '@/utils/logger'
 
 // 统计数据
 const stats = reactive({
@@ -415,7 +416,7 @@ const fetchData = async () => {
     stats.approved = tableData.value.filter(i => i.status === 'approved').length
     stats.amount = tableData.value.reduce((sum, i) => sum + (i.totalAmount || 0), 0)
   } catch (error) {
-    console.error('获取数据失败:', error)
+    logger.error('获取数据失败:', error)
   } finally {
     loading.value = false
   }
@@ -488,7 +489,7 @@ const handleView = async (row: PurchaseReturn) => {
     detailData.value = res.data
     detailDialogVisible.value = true
   } catch (error) {
-    console.error('获取详情失败:', error)
+    logger.error('获取详情失败:', error)
   }
 }
 
@@ -538,7 +539,7 @@ const handleFormSubmit = async () => {
     dialogVisible.value = false
     fetchData()
   } catch (error) {
-    console.error('提交失败:', error)
+    logger.error('提交失败:', error)
   } finally {
     submitLoading.value = false
   }
@@ -552,7 +553,7 @@ const handleSubmit = async (row: PurchaseReturn) => {
     fetchData()
   } catch (error) {
     if (error !== 'cancel') {
-      console.error('提交失败:', error)
+      logger.error('提交失败:', error)
     }
   }
 }
@@ -570,7 +571,7 @@ const handleApproveConfirm = async () => {
     approveDialogVisible.value = false
     fetchData()
   } catch (error) {
-    console.error('审批失败:', error)
+    logger.error('审批失败:', error)
   }
 }
 
@@ -581,7 +582,7 @@ const handleReject = async () => {
     approveDialogVisible.value = false
     fetchData()
   } catch (error) {
-    console.error('拒绝失败:', error)
+    logger.error('拒绝失败:', error)
   }
 }
 
@@ -593,7 +594,7 @@ const handleDelete = async (row: PurchaseReturn) => {
     fetchData()
   } catch (error) {
     if (error !== 'cancel') {
-      console.error('删除失败:', error)
+      logger.error('删除失败:', error)
     }
   }
 }

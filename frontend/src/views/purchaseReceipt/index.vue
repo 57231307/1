@@ -32,6 +32,7 @@ import {
 } from '@/api/purchaseReceipt'
 import { request } from '@/api/request'
 import { loadIfNot, createLazyLoader } from '@/utils/lazy-loader'
+import { logger } from '@/utils/logger'
 
 const tableData = ref<PurchaseReceiptEntity[]>([])
 const total = ref(0)
@@ -114,7 +115,7 @@ const loadSuppliers = async () => {
     const res: any = await request.get('/suppliers/select')
     supplierOptions.value = res.data!
   } catch (error) {
-    console.warn('加载供应商失败')
+    logger.warn('加载供应商失败')
   }
 }
 
@@ -123,7 +124,7 @@ const loadWarehouses = async () => {
     const res: any = await request.get('/warehouses/select')
     warehouseOptions.value = res.data!
   } catch (error) {
-    console.warn('加载仓库失败')
+    logger.warn('加载仓库失败')
   }
 }
 
@@ -132,7 +133,7 @@ const loadProducts = async () => {
     const res: any = await request.get('/products/select')
     productOptions.value = res.data!
   } catch (error) {
-    console.warn('加载产品失败')
+    logger.warn('加载产品失败')
   }
 }
 

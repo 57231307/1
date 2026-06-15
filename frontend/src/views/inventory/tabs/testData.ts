@@ -6,6 +6,7 @@
  *
  * 生成 1 万行与原表格列结构一致的库存台账测试数据。
  */
+import { logger } from '@/utils/logger'
 
 export interface StockRow {
   id: number
@@ -136,8 +137,7 @@ export function generateStocks(count = 10000, seed = 42): StockRow[] {
   }
 
   const cost = performance.now() - startTime
-  // eslint-disable-next-line no-console
-  console.info(`[gen-test-data] 已生成 ${count} 行测试数据,耗时 ${cost.toFixed(1)}ms`)
+  logger.info(`[gen-test-data] 已生成 ${count} 行测试数据,耗时 ${cost.toFixed(1)}ms`)
   return result
 }
 
@@ -148,11 +148,9 @@ export function persistStocks(count = 10000, seed = 42): StockRow[] {
   const data = generateStocks(count, seed)
   try {
     localStorage.setItem('__poc_stock_test_data', JSON.stringify(data))
-    // eslint-disable-next-line no-console
-    console.info(`[gen-test-data] 已写入 localStorage.__poc_stock_test_data, ${data.length} 行`)
+    logger.info(`[gen-test-data] 已写入 localStorage.__poc_stock_test_data, ${data.length} 行`)
   } catch (e) {
-    // eslint-disable-next-line no-console
-    console.warn('[gen-test-data] localStorage 写入失败,改用 sessionStorage', e)
+    logger.warn('[gen-test-data] localStorage 写入失败,改用 sessionStorage', e)
     sessionStorage.setItem('__poc_stock_test_data', JSON.stringify(data))
   }
   return data
