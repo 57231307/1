@@ -428,3 +428,26 @@ Agent 在任务执行过程中发现的条目应遵循以下格式：
   - **现有 ar_invoice_service**：顶层 `backend/src/services/ar_invoice_service.rs` 仍保留 `auto_generate_from_delivery` 等方法，但销售发货流已统一走 `ar::inv::create_receivable`，避免双入口数据不一致
   - **历史现象**：`delivery.rs` 在前一轮提交中已写入 AR 集成代码（含事件发布、resolve_customer_payment_terms 等），但 `ar_service.create_receivable` 方法本体缺失导致 `cargo build` 失败，本任务实际是补全缺失方法而非新增业务流
   - **回归测试**：CICD 端到端测试应覆盖：① 正常发货→AR 单生成 ② 二次发货幂等 ③ 客户账期=0 时 AR 单到日期 +30 天
+
+[Wave 1 合并清理总结]
+- Date: 2026-06-15
+- Context: Agent 在执行"合并并清理"指令时完成
+- Category: 工作流协作
+- Instructions:
+  - **合并结果**：Wave 1 全部 4 PR 已以 Squash 策略合入 main
+    - #89 [.clippy.toml 宏路径修复] → a779078（先入）
+    - #90 [B2 P1-5 入库单明细类型强化] → 2974c6d
+    - #87 [A1 P0-2 销售→AR] → 042d123（cherry-pick 重构后）
+    - #88 [B1 P1-1 generate-no 4 端点] → 5f28212（rebase 后）
+  - **冲突解决经验**：
+    - #87 使用 `git reset origin/main + cherry-pick 0373a73 4c0888b` 解决 MEMORY.md / CHANGELOG.md / inv.rs 冲突
+    - #88 使用 `git rebase origin/main` 后解决 CHANGELOG.md (3 处) + frontend/src/api/purchaseReceipt.ts (1 处) 冲突
+    - P0-2 业务流补齐 6 单元测试 保留 HEAD 版本（覆盖应收单号格式连续）
+  - **清理范围**：
+    - 远端源分支：4 个 `feature/*` `fix/*` 分支已由 GitHub squash merge 自动删除
+    - 远端跟踪 ref：`git branch -rd origin/<branch>` 清理 4 个过时 ref
+    - 本地分支：`git branch -D` 删除 5 个本地工作分支
+    - 定时任务：`NLIZU5YY.FK660`（cron 0 * * * *）已删除，无需继续轮询
+  - **CHANGELOG 更新**：在 [Unreleased] - 2026-06-15 顶部增加"Wave 1 合并汇总"表格，4 PR + 提交 SHA + 状态
+  - **当前 main 状态**：5f28212 + a2df8f8（changelog），共 6 commit
+  - **下一步**：可启动 Wave 2（B3 P1-3 嵌套 4 并行 / B4 P1-4 / B5 P2-1）
