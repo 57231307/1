@@ -8,15 +8,16 @@
 //!   "color_no": "BL-301",
 //!   "fabric_type": "棉",
 //!   "dye_type": "活性染料",
-//!   "color_name": "宝蓝"
+//!   "color_name": "宝蓝",
+//!   "k": 5
 //! }
 //! ```
 //!
 //! 响应：基于历史染配的 k-NN 相似度匹配结果；当历史不足 3 条时退化到
-//! 内置典型参数表（棉 / 涤纶 / 丝绸 / 羊毛）。
+//! 内置典型参数表（80°C / 45min / pH 6.0 / 浴比 1:8）。
 
 use axum::{extract::State, Json};
-use serde::{Deserialize, Serialize};
+use serde::Deserialize;
 
 use crate::services::ai::recipe_opt::{RecipeOptRequest, RecipeOptResponse};
 use crate::services::ai::AiAnalysisService;
@@ -27,14 +28,16 @@ use crate::utils::response::ApiResponse;
 /// 工艺优化请求体
 #[derive(Debug, Clone, Deserialize)]
 pub struct RecipeOptimizationRequest {
-    /// 色号（如 "BL-301"）
+    /// 色号（如 "BL-301"），必填
     pub color_no: String,
-    /// 布类（棉 / 涤纶 / 丝绸 / 羊毛 等）
+    /// 布类（棉 / 涤纶 / 丝绸 / 羊毛 等），必填
     pub fabric_type: String,
     /// 染料类型（可选）
     pub dye_type: Option<String>,
     /// 颜色名称（可选）
     pub color_name: Option<String>,
+    /// k-NN 近邻数（可选，默认 5；传 0 时强制走退化路径）
+    pub k: Option<usize>,
 }
 
 /// 工艺优化 API 响应（直接复用 service 层 DTO）
@@ -71,6 +74,7 @@ pub async fn optimize_recipe(
             .as_ref()
             .map(|s| s.trim().to_string())
             .filter(|s| !s.is_empty()),
+        k: payload.k,
     };
 
     let response = service.optimize_recipe(request).await?;
@@ -82,7 +86,7 @@ pub async fn optimize_recipe(
 mod tests {
     use super::*;
 
-    /// 校验：空色号应返回 validation 错误
+    /// 校验：请求体结构正确构造
     #[test]
     fn test_request_struct_construction() {
         let req = RecipeOptimizationRequest {
@@ -90,8 +94,10 @@ mod tests {
             fabric_type: "棉".to_string(),
             dye_type: Some("活性染料".to_string()),
             color_name: Some("宝蓝".to_string()),
+            k: Some(5),
         };
         assert!(!req.color_no.is_empty());
         assert!(!req.fabric_type.is_empty());
+        assert_eq!(req.k, Some(5));
     }
 }

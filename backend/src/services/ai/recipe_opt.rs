@@ -1,7 +1,7 @@
 //! AI 染色工艺优化服务（ai/recipe_opt）
 //!
 //! 基于 `dye_recipe` 历史数据 + k-NN 相似度算法，向现场工艺员推荐
-//! 染色参数（温度 / 时间 / pH / 浴比 / 染料类型 / 助剂）。
+//! 染色参数（温度 / 时间 / pH / 浴比）。
 //!
 //! 算法概要：
 //! 1. 取近 6 个月内、未删除的 `dye_recipe` 历史数据作为候选集
@@ -10,11 +10,11 @@
 //!    - `color_no` 精确匹配得 1.0；前缀 3 位相同得 0.7；否则 0.0
 //!    - `fabric_type` 完全相同 +0.2
 //!    - `dye_type` 完全相同 +0.1
-//! 3. 取相似度 Top 5，按相似度加权平均得到推荐参数
+//! 3. 取相似度 Top K（默认 K=5），按相似度加权平均得到推荐参数
 //! 4. 当有效历史数据 < 3 条时，回退到内置典型参数表
 //!
 //! 模块内拆出多个纯函数（`compute_similarity` / `weighted_average_params` /
-//! `find_typical_params`），单元测试可直接调用，避免依赖数据库。
+//! `find_typical_params` / `build_candidates`），单元测试可直接调用，避免依赖数据库。
 
 use rust_decimal::prelude::ToPrimitive;
 use rust_decimal::Decimal;
@@ -33,30 +33,21 @@ use super::AiAnalysisService;
 /// 工艺优化推荐请求
 #[derive(Debug, Clone, Deserialize)]
 pub struct RecipeOptRequest {
-    /// 色号（如 "BL-301"）
+    /// 色号（如 "BL-301"），必填
     pub color_no: String,
-    /// 布类（棉 / 涤纶 / 丝绸 / 羊毛 等）
+    /// 布类（棉 / 涤纶 / 丝绸 / 羊毛 等），必填
     pub fabric_type: String,
-    /// 染料类型（活性 / 分散 / 酸性 / 还原 等，可选）
-    pub dye_type: Option<String>,
     /// 颜色名称（可选，仅用于展示与日志）
     pub color_name: Option<String>,
+    /// 染料类型（活性 / 分散 / 酸性 / 还原 等，可选）
+    pub dye_type: Option<String>,
+    /// k-NN 近邻数（可选，默认 5；传 0 时强制走退化路径）
+    pub k: Option<usize>,
 }
 
-/// 单条助剂 DTO
+/// 工艺推荐主参数
 #[derive(Debug, Clone, Serialize)]
-pub struct AuxiliaryDto {
-    /// 助剂名称
-    pub name: String,
-    /// 用量
-    pub amount: String,
-    /// 单位（如 g/L、% owf）
-    pub unit: String,
-}
-
-/// 推荐参数主 DTO
-#[derive(Debug, Clone, Serialize)]
-pub struct RecommendedParams {
+pub struct RecipeParams {
     /// 染色温度（°C）
     pub temperature: f64,
     /// 染色时间（分钟）
@@ -65,28 +56,55 @@ pub struct RecommendedParams {
     pub ph_value: f64,
     /// 浴比
     pub liquor_ratio: f64,
-    /// 染料类型
-    pub dye_type: String,
-    /// 助剂清单
-    pub auxiliaries: Vec<AuxiliaryDto>,
+}
+
+/// 相似候选案例（命中 TopK 后的前 10 条）
+#[derive(Debug, Serialize)]
+pub struct RecipeCandidate {
+    pub recipe_no: String,
+    pub color_no: Option<String>,
+    pub color_name: Option<String>,
+    pub fabric_type: Option<String>,
+    pub dye_type: Option<String>,
+    pub temperature: Option<f64>,
+    pub time_minutes: Option<i32>,
+    pub ph_value: Option<f64>,
+    pub liquor_ratio: Option<f64>,
+    /// 相似度（0.0 - 1.0 归一化值）
+    pub similarity: f64,
 }
 
 /// 工艺优化推荐响应
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Serialize)]
 pub struct RecipeOptResponse {
     /// 推荐参数
-    pub recommended_params: RecommendedParams,
+    pub recommended_params: RecipeParams,
     /// 命中的相似历史配方数量
-    pub similar_cases: i32,
+    pub similar_cases: usize,
     /// 置信度（0.0 - 1.0）
     pub confidence: f64,
-    /// 来源说明（"k-NN 历史匹配" / "典型参数表"）
+    /// 来源标识："knn" | "fallback"
     pub source: String,
+    /// 人类可读原因说明
+    pub reason: String,
+    /// 候选案例（最多 10 条）
+    pub candidates: Vec<RecipeCandidate>,
 }
 
 // =====================================================
-// 相似度 / 聚合 / 典型参数表（纯函数，可直接单测）
+// 内部纯函数（不依赖数据库，可直接单测）
 // =====================================================
+
+/// 相似度评分最大理论值（颜色 1.0 + 布类 0.2 + 染料 0.1 = 1.3）
+pub(crate) const MAX_SIMILARITY: f64 = 1.3;
+/// 典型参数回退的温度默认值（°C）
+pub(crate) const TYPICAL_TEMPERATURE: f64 = 80.0;
+/// 典型参数回退的时间默认值（分钟）
+pub(crate) const TYPICAL_TIME_MINUTES: i32 = 45;
+/// 典型参数回退的 pH 默认值
+pub(crate) const TYPICAL_PH: f64 = 6.0;
+/// 典型参数回退的浴比默认值
+pub(crate) const TYPICAL_LIQUOR_RATIO: f64 = 8.0;
 
 /// 计算两条配方的相似度（0.0 - 1.3）
 ///
@@ -111,9 +129,7 @@ pub(crate) fn compute_similarity(
 
     let mut score = color_score;
     if let Some(c_fabric) = &candidate.fabric_type {
-        if !target_fabric.is_empty()
-            && c_fabric.eq_ignore_ascii_case(target_fabric)
-        {
+        if !target_fabric.is_empty() && c_fabric.eq_ignore_ascii_case(target_fabric) {
             score += 0.2;
         }
     }
@@ -158,15 +174,10 @@ pub(crate) struct AggregatedParams {
     pub time_minutes: f64,
     pub ph_value: f64,
     pub liquor_ratio: f64,
-    pub dye_type: String,
-    pub auxiliaries: Vec<AuxiliaryDto>,
     pub total_weight: f64,
 }
 
 /// 按相似度加权聚合多条命中配方的参数
-///
-/// 返回的 `AggregatedParams.auxiliaries` 取第一条命中的助剂列表（k-NN
-/// 场景下助剂通常高度一致；多源差异聚合留待后续版本处理）。
 pub(crate) fn weighted_average_params(
     hits: &[(f64, &DyeRecipeModel)],
 ) -> Option<AggregatedParams> {
@@ -179,8 +190,6 @@ pub(crate) fn weighted_average_params(
     let mut ph_sum = 0.0_f64;
     let mut liquor_sum = 0.0_f64;
     let mut weight_sum = 0.0_f64;
-    let mut first_aux: Vec<AuxiliaryDto> = Vec::new();
-    let mut picked_dye_type: String = String::new();
 
     for (score, model) in hits {
         let w = *score;
@@ -200,21 +209,6 @@ pub(crate) fn weighted_average_params(
             liquor_sum += l.to_f64().unwrap_or(0.0) * w;
         }
         weight_sum += w;
-        if picked_dye_type.is_empty() {
-            picked_dye_type = model.dye_type.clone().unwrap_or_default();
-        }
-        if first_aux.is_empty() {
-            if let Some(auxs) = &model.auxiliaries {
-                first_aux = auxs
-                    .iter()
-                    .map(|a| AuxiliaryDto {
-                        name: a.name.clone(),
-                        amount: a.amount.to_string(),
-                        unit: a.unit.clone(),
-                    })
-                    .collect();
-            }
-        }
     }
 
     if weight_sum <= 0.0 {
@@ -226,106 +220,78 @@ pub(crate) fn weighted_average_params(
         time_minutes: time_sum / weight_sum,
         ph_value: ph_sum / weight_sum,
         liquor_ratio: liquor_sum / weight_sum,
-        dye_type: picked_dye_type,
-        auxiliaries: first_aux,
         total_weight: weight_sum,
     })
 }
 
-/// 内置典型参数表（按 fabric_type 关键字匹配）
+/// 内置典型参数表（退化兜底，固定 4 字段）
 ///
-/// 当历史命中 < 3 条时，退化到此表，保证新色号也能给出合理推荐。
-pub(crate) fn find_typical_params(fabric_type: &str) -> Option<AggregatedParams> {
-    let ft = fabric_type.trim();
-    let key = match ft {
-        s if s.contains("棉") || s.eq_ignore_ascii_case("cotton") => "cotton",
-        s if s.contains("涤") || s.eq_ignore_ascii_case("polyester") => "polyester",
-        s if s.contains("丝") || s.eq_ignore_ascii_case("silk") => "silk",
-        s if s.contains("羊毛") || s.contains("毛")
-            || s.eq_ignore_ascii_case("wool")
-            || s.eq_ignore_ascii_case("cashmere") => "wool",
-        _ => return None,
-    };
-
-    // 典型配方数据：温度(°C) / 时间(min) / pH / 浴比 / 染料类型 / 默认助剂
-    let (temp, time, ph, liquor, dye, auxs): (f64, i32, f64, f64, &str, Vec<AuxiliaryDto>) =
-        match key {
-            "cotton" => (
-                60.0,
-                45,
-                7.0,
-                10.0,
-                "活性染料",
-                vec![AuxiliaryDto {
-                    name: "元明粉".to_string(),
-                    amount: "50".to_string(),
-                    unit: "g/L".to_string(),
-                }],
-            ),
-            "polyester" => (
-                130.0,
-                30,
-                5.5,
-                8.0,
-                "分散染料",
-                vec![AuxiliaryDto {
-                    name: "分散剂".to_string(),
-                    amount: "1.0".to_string(),
-                    unit: "g/L".to_string(),
-                }],
-            ),
-            "silk" => (
-                90.0,
-                40,
-                6.0,
-                20.0,
-                "酸性染料",
-                vec![AuxiliaryDto {
-                    name: "匀染剂".to_string(),
-                    amount: "0.5".to_string(),
-                    unit: "% owf".to_string(),
-                }],
-            ),
-            "wool" => (
-                80.0,
-                60,
-                4.5,
-                15.0,
-                "酸性染料",
-                vec![AuxiliaryDto {
-                    name: "醋酸".to_string(),
-                    amount: "2.0".to_string(),
-                    unit: "% owf".to_string(),
-                }],
-            ),
-            _ => unreachable!(),
-        };
-
-    Some(AggregatedParams {
-        temperature: temp,
-        time_minutes: time as f64,
-        ph_value: ph,
-        liquor_ratio: liquor,
-        dye_type: dye.to_string(),
-        auxiliaries: auxs,
+/// 典型值（兜底，参考规格）：
+/// - 温度：80°C ± 10°C → 默认 80
+/// - 时间：45min ± 15min → 默认 45
+/// - pH：6.0 ± 1.0 → 默认 6.0
+/// - 浴比：1:8 ± 2 → 默认 8.0
+pub(crate) fn find_typical_params() -> AggregatedParams {
+    AggregatedParams {
+        temperature: TYPICAL_TEMPERATURE,
+        time_minutes: TYPICAL_TIME_MINUTES as f64,
+        ph_value: TYPICAL_PH,
+        liquor_ratio: TYPICAL_LIQUOR_RATIO,
         total_weight: 0.0,
-    })
+    }
 }
 
-/// 计算最终置信度
+/// 计算最终置信度（0.0 - 1.0 归一化）
 ///
-/// - k-NN 命中：min(命中条数 / 5, 1.0) * 平均相似度
+/// - k-NN 命中：min(命中条数 / K, 1.0) * 平均相似度归一化
 /// - 退化路径：固定 0.6
-pub(crate) fn compute_confidence(hits: &[(f64, &DyeRecipeModel)]) -> f64 {
+pub(crate) fn compute_confidence(hits: &[(f64, &DyeRecipeModel)], k: usize) -> f64 {
     if hits.is_empty() {
         return 0.6;
     }
     let n = hits.len() as f64;
-    let coverage = (n / 5.0).min(1.0);
+    let k = k.max(1) as f64;
+    let coverage = (n / k).min(1.0);
     let avg_score = hits.iter().map(|(s, _)| *s).sum::<f64>() / n;
     // 归一化相似度（最大理论值 1.3）
-    let normalized = (avg_score / 1.3).clamp(0.0, 1.0);
+    let normalized = (avg_score / MAX_SIMILARITY).clamp(0.0, 1.0);
     (coverage * normalized * 100.0).round() / 100.0
+}
+
+/// 将候选集合转换为响应中 `candidates` 字段
+///
+/// 取相似度 > 0 的前 10 条，并把原始分数归一化到 0.0-1.0。
+pub(crate) fn build_candidates(
+    scored: &[(f64, &DyeRecipeModel)],
+    max_n: usize,
+) -> Vec<RecipeCandidate> {
+    scored
+        .iter()
+        .filter(|(s, _)| *s > 0.0)
+        .take(max_n)
+        .map(|(score, m)| RecipeCandidate {
+            recipe_no: m.recipe_no.clone(),
+            color_no: m.color_no.clone(),
+            color_name: m.color_name.clone(),
+            fabric_type: m.fabric_type.clone(),
+            dye_type: m.dye_type.clone(),
+            temperature: m.temperature.and_then(|d| d.to_f64()),
+            time_minutes: m.time_minutes,
+            ph_value: m.ph_value.and_then(|d| d.to_f64()),
+            liquor_ratio: m.liquor_ratio.and_then(|d| d.to_f64()),
+            similarity: ((*score / MAX_SIMILARITY) * 100.0).round() / 100.0,
+        })
+        .collect()
+}
+
+/// 保留 1 位小数
+fn round1(v: f64) -> f64 {
+    (v * 10.0).round() / 10.0
+}
+
+/// 判断是否需要走 k-NN 路径（命中条数 ≥ 3 才走 k-NN，否则退化）
+pub(crate) fn should_use_knn(hit_count: usize) -> bool {
+    hit_count >= 3
 }
 
 // =====================================================
@@ -335,11 +301,33 @@ pub(crate) fn compute_confidence(hits: &[(f64, &DyeRecipeModel)]) -> f64 {
 impl AiAnalysisService {
     /// 染色工艺参数智能推荐
     ///
-    /// 优先使用 k-NN 历史匹配；命中 < 3 条时回退到典型参数表。
+    /// 优先使用 k-NN 历史匹配（取 TopK，按相似度加权平均）；
+    /// 命中 < 3 条或 k=0 时回退到典型参数表。
     pub async fn optimize_recipe(
         &self,
         request: RecipeOptRequest,
     ) -> Result<RecipeOptResponse, AppError> {
+        // k 默认 5；k=0 时强制走退化路径
+        let k = request.k.unwrap_or(5);
+
+        // k=0 → 强制退化
+        if k == 0 {
+            let typical = find_typical_params();
+            return Ok(RecipeOptResponse {
+                recommended_params: RecipeParams {
+                    temperature: typical.temperature,
+                    time_minutes: typical.time_minutes as i32,
+                    ph_value: typical.ph_value,
+                    liquor_ratio: typical.liquor_ratio,
+                },
+                similar_cases: 0,
+                confidence: 0.6,
+                source: "fallback".to_string(),
+                reason: "k=0，已强制走典型参数表".to_string(),
+                candidates: Vec::new(),
+            });
+        }
+
         // 查询最近 6 个月、未删除的染色配方作为候选集
         let six_months_ago = chrono::Utc::now() - chrono::Duration::days(180);
         let six_months_ago_dt = six_months_ago.naive_utc();
@@ -371,58 +359,62 @@ impl AiAnalysisService {
             .collect();
         scored.sort_by(|a, b| b.0.partial_cmp(&a.0).unwrap_or(std::cmp::Ordering::Equal));
 
-        // 取 Top 5
-        let top: Vec<(f64, &DyeRecipeModel)> = scored.into_iter().take(5).collect();
+        // 取 TopK
+        let top: Vec<(f64, &DyeRecipeModel)> = scored.iter().take(k).copied().collect();
 
-        if top.len() >= 3 {
+        // 候选案例（取前 10 条），无论走哪条路径都返回，便于 UI 展示
+        let resp_candidates = build_candidates(&scored, 10);
+
+        if should_use_knn(top.len()) {
             // 走 k-NN 路径
             let agg = weighted_average_params(&top).ok_or_else(|| {
                 AppError::internal("工艺推荐：k-NN 加权聚合失败")
             })?;
-            let confidence = compute_confidence(&top);
+            let confidence = compute_confidence(&top, k);
 
             Ok(RecipeOptResponse {
-                recommended_params: RecommendedParams {
+                recommended_params: RecipeParams {
                     temperature: round1(agg.temperature),
                     time_minutes: agg.time_minutes.round() as i32,
                     ph_value: round1(agg.ph_value),
                     liquor_ratio: round1(agg.liquor_ratio),
-                    dye_type: agg.dye_type,
-                    auxiliaries: agg.auxiliaries,
                 },
-                similar_cases: top.len() as i32,
+                similar_cases: top.len(),
                 confidence,
-                source: "k-NN 历史匹配".to_string(),
+                source: "knn".to_string(),
+                reason: format!(
+                    "基于 {} 条相似历史配方（k={}）的加权平均推荐",
+                    top.len(),
+                    k
+                ),
+                candidates: resp_candidates,
             })
         } else {
-            // 退化：典型参数表
-            let typical = find_typical_params(&request.fabric_type).ok_or_else(|| {
-                AppError::validation(format!(
-                    "工艺推荐：布类 '{}' 缺少典型参数表，无法推荐",
-                    request.fabric_type
-                ))
-            })?;
+            // 退化：典型参数表（兜底）
+            let typical = find_typical_params();
 
             Ok(RecipeOptResponse {
-                recommended_params: RecommendedParams {
+                recommended_params: RecipeParams {
                     temperature: typical.temperature,
                     time_minutes: typical.time_minutes as i32,
                     ph_value: typical.ph_value,
                     liquor_ratio: typical.liquor_ratio,
-                    dye_type: typical.dye_type,
-                    auxiliaries: typical.auxiliaries,
                 },
-                similar_cases: 0,
+                similar_cases: top.len(),
                 confidence: 0.6,
-                source: "典型参数表".to_string(),
+                source: "fallback".to_string(),
+                reason: format!(
+                    "命中相似案例 {} 条（< 3），已回退到典型参数表（温度{}°C ±10、时间{}min ±15、pH{} ±1、浴比1:{} ±2）",
+                    top.len(),
+                    TYPICAL_TEMPERATURE,
+                    TYPICAL_TIME_MINUTES,
+                    TYPICAL_PH,
+                    TYPICAL_LIQUOR_RATIO
+                ),
+                candidates: resp_candidates,
             })
         }
     }
-}
-
-/// 保留 1 位小数
-fn round1(v: f64) -> f64 {
-    (v * 10.0).round() / 10.0
 }
 
 // =====================================================
@@ -438,6 +430,7 @@ mod tests {
     /// 构造一条 `DyeRecipeModel` 测试夹具
     #[allow(clippy::too_many_arguments)]
     fn make_recipe(
+        recipe_no: &str,
         color_no: &str,
         fabric_type: &str,
         dye_type: &str,
@@ -448,7 +441,7 @@ mod tests {
     ) -> DyeRecipeModel {
         DyeRecipeModel {
             id: 0,
-            recipe_no: "R-TEST".to_string(),
+            recipe_no: recipe_no.to_string(),
             recipe_name: None,
             color_no: Some(color_no.to_string()),
             formula: None,
@@ -459,7 +452,7 @@ mod tests {
             created_at: chrono::Utc::now().into(),
             updated_at: chrono::Utc::now().into(),
             color_code: None,
-            color_name: None,
+            color_name: Some("蓝色".to_string()),
             fabric_type: Some(fabric_type.to_string()),
             dye_type: Some(dye_type.to_string()),
             chemical_formula: None,
@@ -479,25 +472,73 @@ mod tests {
         }
     }
 
-    /// 测试 1：典型棉配方 — 入参棉 + 蓝色，断言推荐温度 60±2、pH 7.0±0.2
+    /// 测试 1：典型参数退化路径
+    /// 当数据库无匹配（或命中 < 3 条）时，返回内置典型参数表
+    /// 温度 80°C ± 10、时间 45min ± 15、pH 6.0 ± 1、浴比 1:8 ± 2
     #[test]
-    fn test_typical_cotton_recipe() {
-        // 历史库准备 5 条棉 + 蓝/活性
+    fn test_typical_params_fallback() {
+        let typical = find_typical_params();
+
+        // 温度：80°C（±10）
+        assert!(
+            (typical.temperature - 80.0).abs() < 0.001,
+            "典型温度应为 80.0，实际 {}",
+            typical.temperature
+        );
+        assert!((typical.temperature - 80.0).abs() <= 10.0);
+
+        // 时间：45min（±15）
+        assert_eq!(typical.time_minutes as i32, 45);
+
+        // pH：6.0（±1）
+        assert!(
+            (typical.ph_value - 6.0).abs() < 0.001,
+            "典型 pH 应为 6.0，实际 {}",
+            typical.ph_value
+        );
+        assert!((typical.ph_value - 6.0).abs() <= 1.0);
+
+        // 浴比：1:8（±2）
+        assert!(
+            (typical.liquor_ratio - 8.0).abs() < 0.001,
+            "典型浴比应为 8.0，实际 {}",
+            typical.liquor_ratio
+        );
+        assert!((typical.liquor_ratio - 8.0).abs() <= 2.0);
+
+        // 退化路径置信度固定 0.6
+        let empty: Vec<(f64, &DyeRecipeModel)> = vec![];
+        let conf = compute_confidence(&empty, 5);
+        assert!((conf - 0.6).abs() < 0.001, "退化置信度应为 0.6，实际 {}", conf);
+
+        // should_use_knn 边界
+        assert!(!should_use_knn(0));
+        assert!(!should_use_knn(2));
+        assert!(should_use_knn(3));
+        assert!(should_use_knn(5));
+    }
+
+    /// 测试 2：颜色完全匹配时使用 k-NN 加权平均
+    /// 5 条完全匹配的配方 → 加权平均 = 各参数算术平均
+    #[test]
+    fn test_color_match_knn() {
+        // 5 条全匹配：颜色 BL-301 + 棉 + 活性染料 → 相似度 1.3
         let history: Vec<DyeRecipeModel> = (0..5)
             .map(|i| {
                 make_recipe(
+                    &format!("R-BL301-{}", i),
                     "BL-301",
                     "棉",
                     "活性染料",
-                    58.0 + i as f64,
-                    40 + i as i32 * 2,
-                    6.8 + (i as f64) * 0.1,
+                    60.0 + i as f64,  // 60, 61, 62, 63, 64
+                    40 + i as i32 * 2, // 40, 42, 44, 46, 48
+                    6.0 + (i as f64) * 0.1, // 6.0, 6.1, 6.2, 6.3, 6.4
                     10.0,
                 )
             })
             .collect();
 
-        // 走 k-NN：颜色精确匹配 + 棉 + 活性 → 全部命中
+        // 走 k-NN 评分
         let mut scored: Vec<(f64, &DyeRecipeModel)> = history
             .iter()
             .map(|c| {
@@ -512,93 +553,134 @@ mod tests {
         let top: Vec<(f64, &DyeRecipeModel)> = scored.into_iter().take(5).collect();
         assert_eq!(top.len(), 5);
 
+        // 颜色完全匹配的相似度应为 1.0 + 0.2 + 0.1 = 1.3
+        for (score, _) in &top {
+            assert!(
+                (*score - MAX_SIMILARITY).abs() < 0.001,
+                "完全匹配相似度应为 {}，实际 {}",
+                MAX_SIMILARITY,
+                score
+            );
+        }
+
+        // 加权平均：因为所有权重相同，等价于算术平均
         let agg = weighted_average_params(&top).expect("应当能聚合");
-        // 温度均值 = (58+59+60+61+62)/5 = 60.0
+        // 温度均值 = (60+61+62+63+64)/5 = 62.0
         assert!(
-            (agg.temperature - 60.0).abs() < 0.001,
-            "温度均值应为 60.0，实际 {}",
+            (agg.temperature - 62.0).abs() < 0.001,
+            "温度均值应为 62.0，实际 {}",
             agg.temperature
         );
-        // pH 均值 = (6.8+6.9+7.0+7.1+7.2)/5 = 7.0
+        // 时间均值 = (40+42+44+46+48)/5 = 44.0
         assert!(
-            (agg.ph_value - 7.0).abs() < 0.001,
-            "pH 均值应为 7.0，实际 {}",
+            (agg.time_minutes - 44.0).abs() < 0.001,
+            "时间均值应为 44.0，实际 {}",
+            agg.time_minutes
+        );
+        // pH 均值 = (6.0+6.1+6.2+6.3+6.4)/5 = 6.2
+        assert!(
+            (agg.ph_value - 6.2).abs() < 0.001,
+            "pH 均值应为 6.2，实际 {}",
             agg.ph_value
         );
-        // 断言规格 60±2 / 7.0±0.2
-        assert!((agg.temperature - 60.0).abs() <= 2.0);
-        assert!((agg.ph_value - 7.0).abs() <= 0.2);
+        // 置信度：5/5 * 1.0（1.3 归一化） = 1.0
+        let conf = compute_confidence(&top, 5);
+        assert!((conf - 1.0).abs() < 0.001, "5 条全匹配置信度应为 1.0，实际 {}", conf);
+
+        // candidates 转换
+        let cands = build_candidates(&top, 10);
+        assert_eq!(cands.len(), 5);
+        assert!((cands[0].similarity - 1.0).abs() < 0.001);
     }
 
-    /// 测试 2：颜色完全匹配时相似度为 1.0（基础分）
-    #[test]
-    fn test_color_match_similarity() {
-        let r = make_recipe("BL-301", "棉", "活性染料", 60.0, 45, 7.0, 10.0);
-        let s = compute_similarity("BL-301", "棉", Some("活性染料"), &r);
-        // 1.0 (color) + 0.2 (fabric) + 0.1 (dye) = 1.3
-        assert!(
-            (s - 1.3).abs() < 0.001,
-            "完全匹配相似度应为 1.3，实际 {}",
-            s
-        );
-    }
-
-    /// 测试 3：温度推荐 — 多条历史数据加权平均
+    /// 测试 3：温度推荐 — 加权平均温度落在合理范围
+    /// 验证不同权重的加权平均算法正确性
     #[test]
     fn test_temperature_recommendation() {
-        // 构造 3 条历史，温度分别为 50 / 60 / 70，权重由相似度分配
-        let r1 = make_recipe("BL-301", "棉", "活性染料", 50.0, 30, 7.0, 10.0);
-        let r2 = make_recipe("BL-301", "棉", "活性染料", 60.0, 40, 7.0, 10.0);
-        let r3 = make_recipe("BL-301", "棉", "活性染料", 70.0, 50, 7.0, 10.0);
-        // 手动指定权重：1.0, 1.3, 0.5（模拟 k-NN 评分）
-        let hits: Vec<(f64, &DyeRecipeModel)> =
-            vec![(1.0, &r1), (1.3, &r2), (0.5, &r3)];
+        // 3 条历史：50 / 60 / 70，权重 1.0 / 1.3 / 0.5
+        let r1 = make_recipe("R-1", "BL-301", "棉", "活性染料", 50.0, 30, 7.0, 10.0);
+        let r2 = make_recipe("R-2", "BL-301", "棉", "活性染料", 60.0, 40, 7.0, 10.0);
+        let r3 = make_recipe("R-3", "BL-301", "棉", "活性染料", 70.0, 50, 7.0, 10.0);
+        let hits: Vec<(f64, &DyeRecipeModel)> = vec![(1.0, &r1), (1.3, &r2), (0.5, &r3)];
 
         let agg = weighted_average_params(&hits).expect("应当能聚合");
-        // 期望：(50*1.0 + 60*1.3 + 70*0.5) / (1.0+1.3+0.5)
-        //     = (50 + 78 + 35) / 2.8 = 163/2.8 = 58.214...
-        let expected = 163.0_f64 / 2.8_f64;
+        // 期望温度 = (50*1.0 + 60*1.3 + 70*0.5) / (1.0+1.3+0.5) = 163/2.8 ≈ 58.21
+        let expected_temp = 163.0_f64 / 2.8_f64;
         assert!(
-            (agg.temperature - expected).abs() < 0.01,
+            (agg.temperature - expected_temp).abs() < 0.01,
             "加权平均温度应为 {:.2}，实际 {:.2}",
-            expected,
+            expected_temp,
             agg.temperature
         );
+
+        // 温度应在合理范围（30-100°C）
+        assert!(
+            agg.temperature >= 30.0 && agg.temperature <= 100.0,
+            "温度应在 30-100°C 之间，实际 {}",
+            agg.temperature
+        );
+
+        // 期望时间 = (30*1.0 + 40*1.3 + 50*0.5) / 2.8 = 129/2.8 ≈ 46.07
+        let expected_time = 129.0_f64 / 2.8_f64;
+        assert!(
+            (agg.time_minutes - expected_time).abs() < 0.01,
+            "加权平均时间应为 {:.2}，实际 {:.2}",
+            expected_time,
+            agg.time_minutes
+        );
+
+        // 时间应在 10-120 min
+        assert!(
+            agg.time_minutes >= 10.0 && agg.time_minutes <= 120.0,
+            "时间应在 10-120 min 之间，实际 {}",
+            agg.time_minutes
+        );
+
         // 置信度
-        let conf = compute_confidence(&hits);
-        assert!(conf > 0.0 && conf <= 1.0, "置信度应在 0~1 之间");
+        let conf = compute_confidence(&hits, 5);
+        assert!(conf > 0.0 && conf <= 1.0, "置信度应在 0-1 之间，实际 {}", conf);
     }
 
-    /// 测试 4：退化路径 — 颜色无历史时返回典型参数表
+    /// 测试 4：退化路径 — k=0 / 输入异常 / 命中 < 3 时
+    /// 全部回退到典型参数表
     #[test]
-    fn test_fallback_typical_params() {
-        // 没有任何历史命中，走典型参数表
-        let typical = find_typical_params("棉").expect("棉必须有典型参数");
-        assert!((typical.temperature - 60.0).abs() < 0.001);
-        assert_eq!(typical.time_minutes as i32, 45);
-        assert!((typical.ph_value - 7.0).abs() < 0.001);
-        assert!((typical.liquor_ratio - 10.0).abs() < 0.001);
-        assert_eq!(typical.dye_type, "活性染料");
+    fn test_fallback_path() {
+        // 4.1 k=0 强制退化
+        //   无 hits → 应返回 0.6 置信度
+        let empty: Vec<(f64, &DyeRecipeModel)> = vec![];
+        let conf_zero = compute_confidence(&empty, 0);
+        assert!((conf_zero - 0.6).abs() < 0.001, "空命中置信度应为 0.6");
 
-        // 涤纶
-        let poly = find_typical_params("涤纶").expect("涤纶必须有典型参数");
-        assert!((poly.temperature - 130.0).abs() < 0.001);
-        assert_eq!(poly.dye_type, "分散染料");
+        // 4.2 命中 < 3 条时
+        //   should_use_knn 边界
+        assert!(!should_use_knn(0), "0 条应退化");
+        assert!(!should_use_knn(1), "1 条应退化");
+        assert!(!should_use_knn(2), "2 条应退化");
+        assert!(should_use_knn(3), "3 条应走 k-NN");
 
-        // 丝绸
-        let silk = find_typical_params("丝绸").expect("丝绸必须有典型参数");
-        assert!((silk.temperature - 90.0).abs() < 0.001);
+        // 4.3 输入异常（color_no 全空字符串）
+        let r = make_recipe("R-1", "", "棉", "活性染料", 60.0, 45, 7.0, 10.0);
+        let s = compute_similarity("BL-301", "棉", Some("活性染料"), &r);
+        assert!((s - 0.0).abs() < 0.001, "候选 color 为空时相似度应为 0.0");
 
-        // 羊毛
-        let wool = find_typical_params("羊毛").expect("羊毛必须有典型参数");
-        assert!((wool.temperature - 80.0).abs() < 0.001);
+        // 4.4 完全不同 color_no → 相似度为 0
+        let r2 = make_recipe("R-2", "RD-999", "涤纶", "分散染料", 130.0, 30, 5.5, 8.0);
+        let s2 = compute_similarity("BL-301", "棉", Some("活性染料"), &r2);
+        assert!((s2 - 0.0).abs() < 0.001, "完全无关候选相似度应为 0.0");
 
-        // 未知布类 → None
-        assert!(find_typical_params("未知纤维").is_none());
+        // 4.5 颜色前缀 3 位匹配 → 0.7
+        let r3 = make_recipe("R-3", "BL-999", "棉", "活性染料", 60.0, 45, 7.0, 10.0);
+        let s3 = compute_similarity("BL-301", "棉", Some("活性染料"), &r3);
+        // 0.7 (color 前缀) + 0.2 (fabric) + 0.1 (dye) = 1.0
+        assert!(
+            (s3 - 1.0).abs() < 0.001,
+            "BL 前缀匹配应为 1.0，实际 {}",
+            s3
+        );
 
-        // 退化场景下 source 文本
-        let empty_hits: Vec<(f64, &DyeRecipeModel)> = vec![];
-        let conf_empty = compute_confidence(&empty_hits);
-        assert!((conf_empty - 0.6).abs() < 0.001, "退化置信度应为 0.6");
+        // 4.6 典型参数表兜底
+        let typical = find_typical_params();
+        assert_eq!(typical.time_minutes as i32, TYPICAL_TIME_MINUTES);
+        assert!((typical.temperature - TYPICAL_TEMPERATURE).abs() < 0.001);
     }
 }
