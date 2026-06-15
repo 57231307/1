@@ -365,7 +365,7 @@ const handleExport = () => {
     columns: [
       { key: 'warehouse_code', title: '仓库编码' },
       { key: 'warehouse_name', title: '仓库名称' },
-      { key: 'warehouse_type', title: '类型', formatter: v => getWarehouseTypeLabel(v) },
+      { key: 'warehouse_type', title: '类型', formatter: v => getWarehouseTypeLabel(String(v)) },
       { key: 'address', title: '地址' },
       { key: 'contact_person', title: '负责人' },
       { key: 'phone', title: '电话' },
@@ -386,7 +386,7 @@ const handlePrint = () => {
         key: 'warehouse_type',
         title: '类型',
         width: '80px',
-        formatter: v => getWarehouseTypeLabel(v),
+        formatter: v => getWarehouseTypeLabel(String(v)),
       },
       { key: 'contact_person', title: '负责人', width: '80px' },
       { key: 'phone', title: '电话', width: '120px' },
