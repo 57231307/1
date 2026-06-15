@@ -316,6 +316,7 @@ import {
 import type { SalesContract } from '@/api/sales-contract'
 import { customerApi } from '@/api/customer'
 import type { Customer } from '@/api/customer'
+import { logger } from '@/utils/logger'
 
 // 查询参数
 const queryParams = reactive({
@@ -402,7 +403,7 @@ const getCustomers = async () => {
     const res = await customerApi.list()
     customers.value = res.data?.list || []
   } catch (error) {
-    console.error('获取客户列表失败:', error)
+    logger.error('获取客户列表失败:', error)
   }
 }
 

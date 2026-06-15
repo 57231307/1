@@ -247,6 +247,7 @@ import { ElMessage } from 'element-plus'
 import { Download, Edit, TrendCharts, PieChart } from '@element-plus/icons-vue'
 import { salesAnalysisApi } from '@/api/sales-analysis'
 import type { ProductRanking, CustomerRanking, SalesTarget } from '@/api/sales-analysis'
+import { logger } from '@/utils/logger'
 
 // 统计数据
 const stats = reactive({
@@ -284,7 +285,7 @@ const getStats = async () => {
       Object.assign(stats, res.data)
     }
   } catch (error) {
-    console.error('获取统计数据失败:', error)
+    logger.error('获取统计数据失败:', error)
   }
 }
 
@@ -294,7 +295,7 @@ const getProductRanking = async () => {
     const res = await salesAnalysisApi.getProductRanking({ type: productRankType.value })
     productRanking.value = res.data || []
   } catch (error) {
-    console.error('获取产品排名失败:', error)
+    logger.error('获取产品排名失败:', error)
   }
 }
 
@@ -304,7 +305,7 @@ const getCustomerRanking = async () => {
     const res = await salesAnalysisApi.getCustomerRanking({ type: customerRankType.value })
     customerRanking.value = res.data || []
   } catch (error) {
-    console.error('获取客户排名失败:', error)
+    logger.error('获取客户排名失败:', error)
   }
 }
 
@@ -314,7 +315,7 @@ const getSalesTargets = async () => {
     const res = await salesAnalysisApi.getSalesTargets()
     salesTargets.value = res.data || []
   } catch (error) {
-    console.error('获取销售目标失败:', error)
+    logger.error('获取销售目标失败:', error)
   }
 }
 
@@ -371,7 +372,7 @@ const handleExport = async () => {
     window.URL.revokeObjectURL(url)
     ElMessage.success('导出成功')
   } catch (error) {
-    console.error('导出失败:', error)
+    logger.error('导出失败:', error)
   }
 }
 
