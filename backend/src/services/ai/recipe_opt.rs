@@ -17,7 +17,6 @@
 //! `find_typical_params` / `build_candidates`），单元测试可直接调用，避免依赖数据库。
 
 use rust_decimal::prelude::ToPrimitive;
-use rust_decimal::Decimal;
 use sea_orm::{ColumnTrait, EntityTrait, QueryFilter};
 use serde::{Deserialize, Serialize};
 
@@ -178,9 +177,7 @@ pub(crate) struct AggregatedParams {
 }
 
 /// 按相似度加权聚合多条命中配方的参数
-pub(crate) fn weighted_average_params(
-    hits: &[(f64, &DyeRecipeModel)],
-) -> Option<AggregatedParams> {
+pub(crate) fn weighted_average_params(hits: &[(f64, &DyeRecipeModel)]) -> Option<AggregatedParams> {
     if hits.is_empty() {
         return None;
     }
@@ -334,10 +331,7 @@ impl AiAnalysisService {
 
         let candidates = DyeRecipeEntity::find()
             .filter(crate::models::dye_recipe::Column::IsDeleted.eq(false))
-            .filter(
-                crate::models::dye_recipe::Column::UpdatedAt
-                    .gte(six_months_ago_dt),
-            )
+            .filter(crate::models::dye_recipe::Column::UpdatedAt.gte(six_months_ago_dt))
             .all(&*self.db)
             .await?;
 
@@ -367,9 +361,8 @@ impl AiAnalysisService {
 
         if should_use_knn(top.len()) {
             // 走 k-NN 路径
-            let agg = weighted_average_params(&top).ok_or_else(|| {
-                AppError::internal("工艺推荐：k-NN 加权聚合失败")
-            })?;
+            let agg = weighted_average_params(&top)
+                .ok_or_else(|| AppError::internal("工艺推荐：k-NN 加权聚合失败"))?;
             let confidence = compute_confidence(&top, k);
 
             Ok(RecipeOptResponse {
@@ -382,11 +375,7 @@ impl AiAnalysisService {
                 similar_cases: top.len(),
                 confidence,
                 source: "knn".to_string(),
-                reason: format!(
-                    "基于 {} 条相似历史配方（k={}）的加权平均推荐",
-                    top.len(),
-                    k
-                ),
+                reason: format!("基于 {} 条相似历史配方（k={}）的加权平均推荐", top.len(), k),
                 candidates: resp_candidates,
             })
         } else {
@@ -425,7 +414,7 @@ impl AiAnalysisService {
 mod tests {
     use super::*;
     use crate::models::dye_recipe::AuxiliariesItem;
-    use rust_decimal_macros::dec;
+    use rust_decimal::Decimal;
 
     /// 构造一条 `DyeRecipeModel` 测试夹具
     #[allow(clippy::too_many_arguments)]
@@ -460,7 +449,7 @@ mod tests {
             liquor_ratio: Some(Decimal::try_from(liquor).unwrap_or(Decimal::ZERO)),
             auxiliaries: Some(vec![AuxiliariesItem {
                 name: "助剂A".to_string(),
-                amount: dec!(1.5),
+                amount: Decimal::try_from(1.5_f64).unwrap_or(Decimal::ZERO),
                 unit: "g/L".to_string(),
             }]),
             version: Some(1),
@@ -509,7 +498,11 @@ mod tests {
         // 退化路径置信度固定 0.6
         let empty: Vec<(f64, &DyeRecipeModel)> = vec![];
         let conf = compute_confidence(&empty, 5);
-        assert!((conf - 0.6).abs() < 0.001, "退化置信度应为 0.6，实际 {}", conf);
+        assert!(
+            (conf - 0.6).abs() < 0.001,
+            "退化置信度应为 0.6，实际 {}",
+            conf
+        );
 
         // should_use_knn 边界
         assert!(!should_use_knn(0));
@@ -530,8 +523,8 @@ mod tests {
                     "BL-301",
                     "棉",
                     "活性染料",
-                    60.0 + i as f64,  // 60, 61, 62, 63, 64
-                    40 + i as i32 * 2, // 40, 42, 44, 46, 48
+                    60.0 + i as f64,        // 60, 61, 62, 63, 64
+                    40 + i as i32 * 2,      // 40, 42, 44, 46, 48
                     6.0 + (i as f64) * 0.1, // 6.0, 6.1, 6.2, 6.3, 6.4
                     10.0,
                 )
@@ -541,12 +534,7 @@ mod tests {
         // 走 k-NN 评分
         let mut scored: Vec<(f64, &DyeRecipeModel)> = history
             .iter()
-            .map(|c| {
-                (
-                    compute_similarity("BL-301", "棉", Some("活性染料"), c),
-                    c,
-                )
-            })
+            .map(|c| (compute_similarity("BL-301", "棉", Some("活性染料"), c), c))
             .filter(|(s, _)| *s > 0.0)
             .collect();
         scored.sort_by(|a, b| b.0.partial_cmp(&a.0).unwrap_or(std::cmp::Ordering::Equal));
@@ -585,7 +573,11 @@ mod tests {
         );
         // 置信度：5/5 * 1.0（1.3 归一化） = 1.0
         let conf = compute_confidence(&top, 5);
-        assert!((conf - 1.0).abs() < 0.001, "5 条全匹配置信度应为 1.0，实际 {}", conf);
+        assert!(
+            (conf - 1.0).abs() < 0.001,
+            "5 条全匹配置信度应为 1.0，实际 {}",
+            conf
+        );
 
         // candidates 转换
         let cands = build_candidates(&top, 10);
@@ -638,7 +630,11 @@ mod tests {
 
         // 置信度
         let conf = compute_confidence(&hits, 5);
-        assert!(conf > 0.0 && conf <= 1.0, "置信度应在 0-1 之间，实际 {}", conf);
+        assert!(
+            conf > 0.0 && conf <= 1.0,
+            "置信度应在 0-1 之间，实际 {}",
+            conf
+        );
     }
 
     /// 测试 4：退化路径 — k=0 / 输入异常 / 命中 < 3 时
@@ -672,11 +668,7 @@ mod tests {
         let r3 = make_recipe("R-3", "BL-999", "棉", "活性染料", 60.0, 45, 7.0, 10.0);
         let s3 = compute_similarity("BL-301", "棉", Some("活性染料"), &r3);
         // 0.7 (color 前缀) + 0.2 (fabric) + 0.1 (dye) = 1.0
-        assert!(
-            (s3 - 1.0).abs() < 0.001,
-            "BL 前缀匹配应为 1.0，实际 {}",
-            s3
-        );
+        assert!((s3 - 1.0).abs() < 0.001, "BL 前缀匹配应为 1.0，实际 {}", s3);
 
         // 4.6 典型参数表兜底
         let typical = find_typical_params();

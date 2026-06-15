@@ -65,7 +65,22 @@ module.exports = {
         '@typescript-eslint/no-explicit-any': 'off',
       },
     },
+    {
+      // scripts/ 下的 .cjs / CommonJS 脚本，关闭 require/console 规则
+      // 原因：这些是 Node CLI 脚本，非前端代码
+      files: ['scripts/**/*.cjs', 'scripts/**/*.js'],
+      parserOptions: {
+        sourceType: 'script',
+        ecmaVersion: 2022,
+      },
+      rules: {
+        '@typescript-eslint/no-require': 'off',
+        '@typescript-eslint/no-var-requires': 'off',
+        'no-console': 'off',
+      },
+    },
   ],
+  ignorePatterns: ['node_modules/', 'dist/', 'scripts/'],
   globals: {
     defineProps: 'readonly',
     defineEmits: 'readonly',

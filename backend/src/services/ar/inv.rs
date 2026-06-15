@@ -16,7 +16,10 @@ use chrono::{Duration, Utc};
 use rust_decimal::Decimal;
 use sea_orm::{ActiveModelTrait, ColumnTrait, DatabaseTransaction, EntityTrait, QueryFilter, Set};
 
-use crate::models::ar_invoice::{ActiveModel as ArInvoiceActive, Column as ArInvoiceColumn, Entity as ArInvoiceEntity, Model as ArInvoiceModel};
+use crate::models::ar_invoice::{
+    ActiveModel as ArInvoiceActive, Column as ArInvoiceColumn, Entity as ArInvoiceEntity,
+    Model as ArInvoiceModel,
+};
 use crate::models::ar_reconciliation::{
     Entity as ReconciliationEntity, Model as ReconciliationModel,
 };
@@ -155,7 +158,11 @@ impl ArReconciliationService {
             .ok_or_else(|| AppError::not_found(format!("客户 {} 不存在", customer_id)))?;
 
         // 5. 账期校验：<= 0 时统一回退为 30 天，避免脏数据导致应收单到期日异常
-        let terms = if payment_terms_days <= 0 { 30 } else { payment_terms_days };
+        let terms = if payment_terms_days <= 0 {
+            30
+        } else {
+            payment_terms_days
+        };
 
         // 6. 计算日期：发票日期 = 今日；到期日 = 发票日期 + 账期天数
         let invoice_date = Utc::now().date_naive();
@@ -229,7 +236,11 @@ mod tests {
     /// 复刻 create_receivable 中的"账期回退 + 到期日"计算，
     /// 避免在单元测试中启动数据库。
     fn compute_due_date(payment_terms_days: i32) -> chrono::NaiveDate {
-        let terms = if payment_terms_days <= 0 { 30 } else { payment_terms_days };
+        let terms = if payment_terms_days <= 0 {
+            30
+        } else {
+            payment_terms_days
+        };
         Utc::now().date_naive() + Duration::days(terms as i64)
     }
 
