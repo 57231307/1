@@ -269,6 +269,7 @@ import {
   type PurchaseInspection,
   type PurchaseInspectionItem,
 } from '@/api/purchase-inspection'
+import { getReceiptItems, type ReceiptItem } from '@/api/purchaseReceipt'
 
 // 统计数据
 const stats = reactive({
@@ -283,6 +284,8 @@ const tableData = ref<PurchaseInspection[]>([])
 const loading = ref(false)
 const total = ref(0)
 const dateRange = ref<[Date, Date] | null>(null)
+// 入库单明细加载状态（P1-5 B2 子任务引入）
+const receiptItemsLoading = ref(false)
 
 // 查询参数
 const queryParams = reactive({
