@@ -59,6 +59,10 @@ pub fn purchases() -> Router<AppState> {
         )
         .route("/receipts", get(purchase_receipt_handler::list_receipts))
         .route(
+            "/receipts/generate-no",
+            get(purchase_receipt_handler::generate_no),
+        )
+        .route(
             "/receipts/:id/print",
             get(print_handler::purchase_receipt_print_html),
         )

@@ -9,8 +9,40 @@
 
 ## [Unreleased] - 2026-06-15
 
-### 已修复（P0-2 销售→AR 业务流补齐）
+### 已新增（P1-1 generate-no 4 端点补齐）
 
+#### 后端 Handler
+- 在 `backend/src/handlers/inventory_transfer_handler.rs` 新增 `generate_no` 端点（前缀 `IT`）
+- `inventory_count_handler.generate_no`（前缀 `IC`）、`purchase_receipt_handler.generate_no`（前缀 `RK`）、`inventory_adjustment_handler.generate_no`（前缀 `IA`）已在 P1-1 任务中确认存在
+- 全部 4 个 Handler 调用 `DocumentNumberGenerator::generate_no_with_width`，流水位宽 4 位
+- 单据号格式：`{前缀}{yyyyMMdd}{4 位流水}`，例如 `IC202605140001`
+
+#### 路由注册
+- 在 `backend/src/routes/inventory.rs` 注册 3 个新路由：
+  - `GET /api/v1/erp/inventory/counts/generate-no`
+  - `GET /api/v1/erp/inventory/adjustments/generate-no`
+  - `GET /api/v1/erp/inventory/transfers/generate-no`
+- 在 `backend/src/routes/purchase.rs` 注册 1 个新路由：
+  - `GET /api/v1/erp/purchase/receipts/generate-no`
+- 路径与 `backend/src/routes/finance.rs` 现有 `/vouchers/generate-no` 保持一致风格
+
+#### 前端 API 函数
+- `frontend/src/api/inventoryCount.ts` 新增 `generateInventoryCountNo`（返回 `{ count_no }`）
+- `frontend/src/api/purchaseReceipt.ts` 新增 `generatePurchaseReceiptNo`（返回 `{ receipt_no }`）
+- `frontend/src/api/inventoryAdjustment.ts` 新增 `generateInventoryAdjustmentNo`（返回 `{ adjustment_no }`）
+- `frontend/src/api/inventoryTransfer.ts` 新增 `generateInventoryTransferNo`（返回 `{ transfer_no }`）
+- 全部函数返回 `Promise<ApiResponse<...>>`，TypeScript 类型完整
+
+#### 测试
+- 新增 `backend/tests/test_generate_no_endpoints.rs`，包含 4 个单据号格式单元测试
+- 覆盖 4 个前缀（`IC` / `RK` / `IA` / `IT`）与 4 位流水宽度的契约
+- 防止后续误将流水宽度回退为 3 位
+
+#### 并发安全说明
+- 沿用 `DocumentNumberGenerator` 的"读当日数量 + 1"策略，业务侧依赖数据库 `UNIQUE` 约束最终去重
+- 文档已说明后续可接入 PostgreSQL `SEQUENCE` 升级为真正无锁实现
+
+### 已修复（P0-2 销售→AR 业务流）
 #### 业务流补齐（P0）
 - 在 `backend/src/services/ar/inv.rs` 的 `impl ArReconciliationService` 块中新增 `create_receivable` 方法，作为销售发货→AR 应收的业务流入口
 - 方法接收调用方事务引用（`&DatabaseTransaction`），与库存扣减、订单状态更新共用同一事务，保证三阶段原子提交
@@ -105,6 +137,7 @@
 ---
 
 ## [2026.614.1353] - 2026-06-14
+
 
 ### 已修复（项目全方位校验、整理与清理 - 第二轮）
 

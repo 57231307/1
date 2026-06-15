@@ -39,41 +39,65 @@ export interface ReceiptItem {
 }
 
 export function listPurchaseReceipts(params?: any) {
-  return request.get('/purchase/receipts', { params })
+  return request.get<ApiResponse<{ list: PurchaseReceiptEntity[]; total: number }>>(
+    '/purchase/receipts',
+    { params }
+  )
 }
 
 export function getPurchaseReceipt(id: number) {
-  return request.get(`/purchase/receipts/${id}`)
+  return request.get<ApiResponse<PurchaseReceiptEntity>>(`/purchase/receipts/${id}`)
 }
 
 export function createPurchaseReceipt(data: Partial<PurchaseReceiptEntity>) {
-  return request.post('/purchase/receipts', data)
+  return request.post<ApiResponse<PurchaseReceiptEntity>>('/purchase/receipts', data)
 }
 
 export function updatePurchaseReceipt(id: number, data: Partial<PurchaseReceiptEntity>) {
-  return request.put(`/purchase/receipts/${id}`, data)
+  return request.put<ApiResponse<PurchaseReceiptEntity>>(`/purchase/receipts/${id}`, data)
 }
 
 export function deletePurchaseReceipt(id: number) {
-  return request.delete(`/purchase/receipts/${id}`)
+  return request.delete<ApiResponse<void>>(`/purchase/receipts/${id}`)
 }
 
 export function approvePurchaseReceipt(id: number) {
-  return request.patch(`/purchase/receipts/${id}/approve`)
+  return request.patch<ApiResponse<PurchaseReceiptEntity>>(`/purchase/receipts/${id}/approve`)
 }
 
+// 入库单明细响应载荷
+export interface ReceiptItemsResponse {
+  items: ReceiptItem[]
+  total?: number
+}
+
+/**
+ * 获取入库单明细
+ * 修复前返回 Promise<any>，导致调用方需要做大量类型断言；
+ * 修复后返回明确的 ApiResponse<ReceiptItemsResponse>，调用方可直接 res.data?.items 解构。
+ */
 export function getReceiptItems(id: number) {
-  return request.get<ApiResponse<{ items: ReceiptItem[] }>>(`/purchase/receipts/${id}/items`)
+  return request.get<ApiResponse<ReceiptItemsResponse>>(`/purchase/receipts/${id}/items`)
 }
 
 export function addReceiptItem(id: number, data: Partial<ReceiptItem>) {
-  return request.post(`/purchase/receipts/${id}/items`, data)
+  return request.post<ApiResponse<ReceiptItem>>(`/purchase/receipts/${id}/items`, data)
 }
 
 export function updateReceiptItem(id: number, itemId: number, data: Partial<ReceiptItem>) {
-  return request.put(`/purchase/receipts/${id}/items/${itemId}`, data)
+  return request.put<ApiResponse<ReceiptItem>>(`/purchase/receipts/${id}/items/${itemId}`, data)
 }
 
 export function deleteReceiptItem(id: number, itemId: number) {
-  return request.delete(`/purchase/receipts/${id}/items/${itemId}`)
+  return request.delete<ApiResponse<void>>(`/purchase/receipts/${id}/items/${itemId}`)
 }
+
+/**
+ * 生成采购入库单号
+ * GET /purchase/receipts/generate-no
+ *
+ * 单据号格式：`RK{yyyyMMdd}{4 位流水}`，例如 `RK202605140001`。
+ * 后端通过 DocumentNumberGenerator 统计当日同前缀单据数量 + 1 计算流水。
+ */
+export const generatePurchaseReceiptNo = (): Promise<ApiResponse<{ receipt_no: string }>> =>
+  request.get('/purchase/receipts/generate-no')

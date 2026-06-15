@@ -1,4 +1,5 @@
 import { request } from './request'
+import type { ApiResponse } from '@/types/api'
 
 export interface InventoryAdjustmentEntity {
   id?: number
@@ -76,3 +77,13 @@ export function updateAdjustmentItem(itemId: number, data: Partial<AdjustmentIte
 export function deleteAdjustmentItem(itemId: number) {
   return request.delete(`/inventory/adjustments/items/${itemId}`)
 }
+
+/**
+ * 生成库存调整单号
+ * GET /inventory/adjustments/generate-no
+ *
+ * 单据号格式：`IA{yyyyMMdd}{4 位流水}`，例如 `IA202605140001`。
+ * 后端通过 DocumentNumberGenerator 统计当日同前缀单据数量 + 1 计算流水。
+ */
+export const generateInventoryAdjustmentNo = (): Promise<ApiResponse<{ adjustment_no: string }>> =>
+  request.get('/inventory/adjustments/generate-no')

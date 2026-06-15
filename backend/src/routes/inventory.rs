@@ -64,6 +64,10 @@ pub fn inventory() -> Router<AppState> {
             get(inventory_transfer_handler::list_transfers),
         )
         .route(
+            "/transfers/generate-no",
+            get(inventory_transfer_handler::generate_no),
+        )
+        .route(
             "/transfers",
             post(inventory_transfer_handler::create_transfer),
         )
@@ -99,6 +103,10 @@ pub fn inventory() -> Router<AppState> {
             get(print_handler::inventory_transfer_print_html),
         )
         .route("/counts", get(inventory_count_handler::list_counts))
+        .route(
+            "/counts/generate-no",
+            get(inventory_count_handler::generate_no),
+        )
         .route("/counts", post(inventory_count_handler::create_count))
         .route(
             "/counts/:id",
@@ -129,6 +137,10 @@ pub fn inventory() -> Router<AppState> {
         .route(
             "/adjustments",
             get(inventory_adjustment_handler::list_adjustments),
+        )
+        .route(
+            "/adjustments/generate-no",
+            get(inventory_adjustment_handler::generate_no),
         )
         .route(
             "/adjustments",
