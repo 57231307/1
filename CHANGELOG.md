@@ -23,6 +23,41 @@
 - 定时轮询任务 `NLIZU5YY.FK660` 已停止
 - Wave 1 全部子代理成果已合入 main，可以启动 Wave 2
 
+### Wave 2 合并汇总（2026-06-15）
+
+| 任务 | 提交 | 状态 |
+|------|------|------|
+| B6 清理 budget.ts / cost.ts 中 8 个未用 API 函数 | [9f832a8](https://github.com/57231307/1/commit/9f832a8) | ✅ 已合并 |
+| B5 P2-1 el-table-v2 虚拟列表 POC 通过 | [7a1d27f](https://github.com/57231307/1/commit/7a1d27f) | ✅ 已合并 |
+| B3-1 拆分 6 个 > 1000 行巨型 .vue 文件 | [9864b38](https://github.com/57231307/1/commit/9864b38) | ✅ 已合并 |
+| B3-2 拆分财务/会计域 12 个 .vue 文件 | [5749d65](https://github.com/57231307/1/commit/5749d65) | ✅ 已合并 |
+| B3-3 拆分 CRM/客户域 8 个 .vue 文件 | [aa7b8f9](https://github.com/57231307/1/commit/aa7b8f9) | ✅ 已合并 |
+| B3-4 拆分库存/产品域 8 个 .vue 文件 | [bdcc67b](https://github.com/57231307/1/commit/bdcc67b) | ✅ 已合并 |
+
+#### 拆分成果
+- **> 1000 行 .vue 文件**：6 → **0**（100% 消除）
+- **> 500 行 .vue 文件**：60 → **32**（-47%）
+- **新建子组件**：80+ 个（system/tabs/ + 各业务域 tabs/）
+- **B4 任务意外完成**：10 Tab 骨架升级为完整实现（顺手在 B3-1 中完成）
+
+#### B5 POC 通过标准
+- 1 万行数据生成：13.2ms
+- Type-check / Vite build / 单测：全部通过
+- 真实性能数据（FPS/内存/渲染）：需本地复现 `frontend/scripts/poc-perf-test.cjs`
+
+#### 远端工作分支清理
+- 6 个临时 feature 分支（feature/B3-1~4 / B5 / B6）已从远端删除
+- 定时轮询任务保持停用状态
+- Wave 3 启动条件已达成（el-table-v2 POC 通过）
+
+### Wave 2 状态汇总
+- Wave 2 进度：6/6 完成 ✅
+- B3-1 ~ B3-4 + B5 + B6 全部以 Squash 策略合并入 main
+- 主入口 < 100 行（除 inventory 292 行因含统计卡片）
+- 调度策略：单子代理串行执行，避免云端卡死
+- 启动条件：Wave 3（el-table-v2 POC 通过）✅ 可启动
+- 启动条件：Wave 4（≥ 1 个 P3 任务完成 PoC）🔵 待启动
+
 ### 已新增（P1-1 generate-no 4 端点补齐）
 
 #### 后端 Handler
