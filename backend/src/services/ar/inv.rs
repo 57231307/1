@@ -231,7 +231,6 @@ impl ArReconciliationService {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use rust_decimal_macros::dec;
 
     /// 复刻 create_receivable 中的"账期回退 + 到期日"计算，
     /// 避免在单元测试中启动数据库。
@@ -253,14 +252,14 @@ mod tests {
     /// 用例 1：正常发货生成 AR（金额、账期、编号）
     #[test]
     fn test_create_receivable_normal() {
-        let amount = dec!(11800.00);
+        let amount = Decimal::try_from(11800.00_f64).unwrap_or(Decimal::ZERO);
         let terms = 45_i32;
         let due = compute_due_date(terms);
         let invoice_no = format_invoice_no("AR", 1);
 
         // 断言金额按含税值写入，未付金额初始等于应收金额
         assert!(amount > Decimal::ZERO);
-        assert_eq!(amount, dec!(11800.00));
+        assert_eq!(amount, Decimal::try_from(11800.00_f64).unwrap_or(Decimal::ZERO));
 
         // 断言到日期 = 今日 + 45 天
         let expected_due = Utc::now().date_naive() + Duration::days(45);
@@ -279,11 +278,11 @@ mod tests {
     #[test]
     fn test_create_receivable_rollback_on_invalid_amount() {
         // 模拟金额为 0 的非法输入
-        let invalid_amount = dec!(0);
+        let invalid_amount = Decimal::try_from(0_f64).unwrap_or(Decimal::ZERO);
         assert!(invalid_amount <= Decimal::ZERO);
 
         // 模拟金额为负的非法输入
-        let negative_amount = dec!(-100);
+        let negative_amount = Decimal::try_from(-100_i32).unwrap_or(Decimal::ZERO);
         assert!(negative_amount <= Decimal::ZERO);
 
         // 业务约束：以上两种场景在 create_receivable 入口应返回 Err，
@@ -294,14 +293,14 @@ mod tests {
     #[test]
     fn test_create_receivable_partial_shipment() {
         // 订单总金额 100,000，已发货 60,000，本次部分发货 25,000
-        let order_total = dec!(100000);
-        let already_shipped = dec!(60000);
-        let this_shipment = dec!(25000);
+        let order_total = Decimal::try_from(100000_i32).unwrap_or(Decimal::ZERO);
+        let already_shipped = Decimal::try_from(60000_i32).unwrap_or(Decimal::ZERO);
+        let this_shipment = Decimal::try_from(25000_i32).unwrap_or(Decimal::ZERO);
         let remaining = order_total - already_shipped - this_shipment;
 
         // 本次应收金额 = 本次发货金额（不包含已发货或剩余未发部分）
         let ar_amount = this_shipment;
-        assert_eq!(ar_amount, dec!(25000));
+        assert_eq!(ar_amount, Decimal::try_from(25000_i32).unwrap_or(Decimal::ZERO));
         assert!(remaining > Decimal::ZERO);
 
         // 断言本次 AR 金额仅反映本次发货，不会自动合并历史或未来发货
