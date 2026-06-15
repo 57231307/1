@@ -503,7 +503,7 @@ mod tests {
         qualification_rate: Option<f64>,
         remark: Option<&str>,
     ) -> QualityInspectionModel {
-        let rate_dec = qualification_rate.and_then(|v| rust_decimal::Decimal::from_f64_retain(v));
+        let rate_dec = qualification_rate.and_then(rust_decimal::Decimal::from_f64_retain);
         let is_pass = qualification_rate.unwrap_or(100.0) >= 100.0;
         QualityInspectionModel {
             id: 0,
@@ -619,11 +619,11 @@ mod tests {
             conf
         );
 
-        // 置信度 - 5 条
+        // 置信度 - 5 条：5/30 = 0.1667，四舍五入到 0.17
         let conf5 = compute_confidence(5);
         assert!(
-            conf5 > FALLBACK_CONFIDENCE && conf5 < 0.5,
-            "5 条记录置信度应在 0.3~0.5，实际 {}",
+            (conf5 - 0.17).abs() < 0.01,
+            "5 条记录置信度应约为 0.17，实际 {}",
             conf5
         );
 
@@ -642,7 +642,7 @@ mod tests {
         // 风险评分
         let mid_score = compute_risk_score(95.0, false);
         assert!(
-            mid_score >= 0.0 && mid_score <= 30.0,
+            (0.0..=30.0).contains(&mid_score),
             "95% 合格率无下降趋势应得低分，实际 {}",
             mid_score
         );
