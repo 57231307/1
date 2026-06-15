@@ -75,6 +75,7 @@
 import { ref, computed } from 'vue'
 import { ElMessage } from 'element-plus'
 import { Delete, Check, Edit } from '@element-plus/icons-vue'
+import { logger } from '@/utils/logger'
 
 export interface BatchActionItem {
   key: string
@@ -183,7 +184,7 @@ const executeAction = async () => {
         try {
           await currentAction.value.handler?.([item])
         } catch (e) {
-          console.error(`处理项失败:`, e)
+          logger.error(`处理项失败:`, String(e))
         }
         completed++
         progressPercent.value = Math.round((completed / total) * 100)

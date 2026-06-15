@@ -144,6 +144,7 @@ import {
   type EvaluationRecord,
 } from '@/api/supplier-evaluation'
 import { supplierApi, type Supplier } from '@/api/supplier'
+import { logger } from '@/utils/logger'
 
 const activeTab = ref('records')
 const recordList = ref<EvaluationRecord[]>([])
@@ -179,7 +180,7 @@ const fetchSuppliers = async () => {
     const res = await supplierApi.list({ page: 1, page_size: 1000 })
     supplierList.value = res.data?.list || []
   } catch (e) {
-    console.error('获取供应商列表失败', e)
+    logger.error('获取供应商列表失败', String(e))
   }
 }
 

@@ -357,6 +357,7 @@ import {
   type UpdateTask,
   type SystemBackup,
 } from '@/api/system-update'
+import { logger } from '@/utils/logger'
 
 const activeTab = ref('versions')
 
@@ -373,7 +374,7 @@ const fetchCurrentVersion = async () => {
     const res = await getCurrentVersion()
     currentVersion.value = res.data
   } catch (error: any) {
-    console.error('获取当前版本失败:', error)
+    logger.error('获取当前版本失败:', error)
   }
 }
 

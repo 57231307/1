@@ -143,6 +143,7 @@ import { ref, computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { CircleCheckFilled, CircleCloseFilled } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
+import { logger } from '@/utils/logger'
 
 const router = useRouter()
 
@@ -240,7 +241,7 @@ async function checkEnvironment() {
       envChecks.value[2].status = true
     }
   } catch (error) {
-    console.error('环境检查失败:', error)
+    logger.error('环境检查失败:', error)
   } finally {
     checking.value = false
   }
