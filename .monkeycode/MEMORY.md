@@ -384,3 +384,29 @@ Agent 在任务执行过程中发现的条目应遵循以下格式：
     - P3-2 WebSocket 实时通信（通知/看板）（D）
     - P3-3 移动端原生（React Native 配套）（D）
     - P3-4 数据仓库/BI 建设（D）
+
+[13 任务重新规划]
+- Date: 2026-06-14
+- Context: 实时代码扫描发现原 19 任务中 5 个已完成、1 个需拆分（12 TODO 实际仅 2 处独立），用户要求对剩余 13 任务重新规划
+- Category: 工作流协作
+- Instructions:
+  - **修订原因**：实时代码扫描纠正了 5 项误判（P0-1/3/4/5、P1-2 实际已完成）
+  - **修订后 13 任务清单**：
+    - 业务流：P0-2 销售发货→AR（60%→100%）
+    - 基础设施：P2-3 rustc 升级（CI 编译失败修复）
+    - 前端重构：P1-3 拆分 52 大 .vue、P1-4 完成 10 Tab、P1-5 完成 2 TODO、P2-1 虚拟列表、P2-2 console 替换
+    - 端点：P1-1 generate-no 4 端点
+    - AI：P2-4 工艺优化 + 质量预测
+    - 长期：P3-1 微服务、P3-2 WebSocket、P3-3 React Native、P3-4 BI
+  - **5 波调度**：
+    - Wave 1（4 子代理，1 周）：A1 P0-2 / C1 P2-3 / B1 P1-1 / B2 P1-5
+    - Wave 2（6 子代理，2 周）：B3 P1-3 嵌套 4 并行 / B4 P1-4 / B5 P2-1
+    - Wave 3（2 子代理，1 周）：A2 P2-4 / B6 P2-2
+    - Wave 4（4 子代理，4 周）：D1 P3-1 / D2 P3-2 / D3 P3-3 / D4 P3-4
+    - Wave 5：复查子代理审查所有 P0/P1
+  - **总资源**：13 执行子代理 + 1 复查；同时运行峰值 6；总周期约 8 周
+  - **关键发现**：
+    - P0 业务流已通过事件驱动架构实现（event_bus.rs:121-123 InventoryFinanceBridgeService.start_listener）
+    - 449 个 API 函数 / 108 .vue 页面；P1-6 范围需在 Wave 1 前重新核对
+    - 12 个 TODO 中 10 个与 P1-4 system/tabs 骨架重合，实际 P1-5 仅 2 处
+  - **规划文档**：[规划-重新规划-13tasks-2026-06-14.md](file:///workspace/.monkeycode/docs/规划-重新规划-13tasks-2026-06-14.md)
