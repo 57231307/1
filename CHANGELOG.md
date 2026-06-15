@@ -7,6 +7,22 @@
 
 ---
 
+## [Unreleased] - 2026-06-15
+
+### 已修复（P0-2 销售→AR 业务流补齐）
+
+#### 业务流补齐（P0）
+- 在 `backend/src/services/ar/inv.rs` 的 `impl ArReconciliationService` 块中新增 `create_receivable` 方法，作为销售发货→AR 应收的业务流入口
+- 方法接收调用方事务引用（`&DatabaseTransaction`），与库存扣减、订单状态更新共用同一事务，保证三阶段原子提交
+- 幂等保证：按 `source_type=SALES_ORDER` + `source_bill_id=order_id` 联合判定，重复调用返回 `BusinessError`
+- 客户账期处理：调用方传入 `payment_terms_days`，<= 0 时回退为 30 天默认值
+- 应收单号连续：复用 `DocumentNumberGenerator`（`AR + YYYYMMDD + 3 位流水号`），与销售订单/采购订单/对账单共用流水生成器
+- 配套单元测试 6 个：正常发货、取消回滚、部分发货、账期默认值、幂等性、应收单号格式连续
+- 业务事件 `ReceivableCreated` 在事务 commit 成功后再发布，避免订阅方在事务回滚时误处理
+- 影响范围：`backend/src/services/so/delivery.rs::ship_order` 第 192-224 行的 AR 集成代码原本调用了不存在的 `ar_service.create_receivable`，本次实现补全该方法，使现有调用可编译
+
+---
+
 ## [Unreleased] - 2026-06-14
 
 ### 已规划（16 任务总规划 - 阶段一）
