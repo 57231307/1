@@ -7,6 +7,7 @@ use serde::Deserialize;
 
 use crate::middleware::auth_context::AuthContext;
 use crate::models::dto::PageRequest;
+use crate::models::inventory_count;
 use crate::services::inventory_count_service::{
     CreateInventoryCountRequest, InventoryCountDetail, InventoryCountItemDetail,
     InventoryCountItemRequest, InventoryCountService, UpdateInventoryCountRequest,
