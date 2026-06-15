@@ -1,15 +1,15 @@
 # 冰溪 ERP 后端 rustfmt 配置
+# 注意：以下 nightly-only 配置项（imports_layout / group_imports /
+# format_code_in_doc_comments / format_strings / normalize_comments）
+# 在 stable Rust 1.94.1 不可用（"unstable features are only available in
+# nightly channel"警告），会导致 cargo fmt --check 在 stable 下失败。
+# 留白使用 stable 1.94.1 默认行为。
 edition = "2021"
 max_width = 100
 tab_spaces = 4
 newline_style = "Unix"
 use_small_heuristics = "Default"
-imports_layout = "Vertical"
 reorder_imports = true
 reorder_modules = true
-group_imports = "StdExternalCrate"
-format_code_in_doc_comments = true
-format_strings = true
-normalize_comments = true
 use_field_init_shorthand = true
 use_try_shorthand = true
