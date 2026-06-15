@@ -1,4 +1,5 @@
 import { request } from './request'
+import type { ApiResponse } from '@/types/api'
 
 export interface PurchaseReceiptEntity {
   id?: number
@@ -62,7 +63,7 @@ export function approvePurchaseReceipt(id: number) {
 }
 
 export function getReceiptItems(id: number) {
-  return request.get(`/purchase/receipts/${id}/items`)
+  return request.get<ApiResponse<{ items: ReceiptItem[] }>>(`/purchase/receipts/${id}/items`)
 }
 
 export function addReceiptItem(id: number, data: Partial<ReceiptItem>) {
