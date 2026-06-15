@@ -84,6 +84,64 @@
 - 4 个临时 B7 特性分支已由 GitHub squash merge 自动删除
 - 主分支 main 始终保持可发布
 
+### Wave 3 收尾汇总（2026-06-15）
+
+| 任务 | 子代理 | 提交 | 状态 |
+|------|--------|------|------|
+| B 任务 5 批 4 PR：清理 32 个预存 type-check 错误 → 0 | 主代理串行 | [7de8b0d](https://github.com/57231307/1/commit/7de8b0d) | ✅ 已合并 |
+| A2-1 工艺优化（recipe_opt）后端+前端+4 单测 | AI 实施子代理 | [f157f56](https://github.com/57231307/1/commit/f157f56) | ✅ 已合并 ([#99](https://github.com/57231307/1/pull/99)) |
+| A2-2 质量预测（quality_pred）后端+前端+4 单测 | AI 实施子代理 | [dd9faa4](https://github.com/57231307/1/commit/dd9faa4) | ✅ 已合并 ([#100](https://github.com/57231307/1/pull/100)) |
+
+#### B 任务（type-check 清理 32 → 0）
+- **B-批 1** ([#95](https://github.com/57231307/1/pull/95))：修复 `cost.ts` B6 重命名引用 + `index.ts` ReportData 重复导出（4 错误）
+- **B-批 2** ([#96](https://github.com/57231307/1/pull/96))：`ApiResponse<T>` 扩展可选 `total` / `timestamp` 字段（13 错误）
+- **B-批 3** ([#97](https://github.com/57231307/1/pull/97))：`five-dimension.ts` 扩展 `StatsQueryParams` / `SearchQueryParams` / `FiveDimensionStats` 字段（9 错误）
+- **B-批 4** ([#98](https://github.com/57231307/1/pull/98))：`dataPermission` 类型守卫 + `user-profile` 删 rule + `warehouse` `String()` 转换（6 错误）
+- 4 批均按文件细粒度划分，主代理串行调度避免云端卡死
+
+#### A2-1 工艺优化（recipe_opt）
+- **后端 service**：`backend/src/services/ai/recipe_opt.rs`（680 行，含 4 单测）
+- **后端 handler**：`backend/src/handlers/advanced/recipe_opt.rs`（100 行）
+- **路由**：`POST /api/v1/erp/advanced/ai/recipe-optimization`
+- **前端 API**：`optimizeRecipe(params)` + `RecipeOptParams` 类型
+- **前端 Tab**："工艺优化"（表单 + 4 字段描述 + candidates 表格）
+- **算法核心**：k-NN 相似度（color_no 1.0 / 前缀 0.7 / fabric 0.2 / dye 0.1，最大 1.3）+ 退化兜底（80°C/45min/pH6.0/浴比1:8）
+- **冷启动**：命中 ≥ 3 条走 k-NN，否则退化；k=0 强制退化
+- **4 单测**：`test_typical_params_fallback` / `test_color_match_knn` / `test_temperature_recommendation` / `test_fallback_path`
+- **CI 验证**：run 27555546133，4 job 全绿，143 单测全过
+
+#### A2-2 质量预测（quality_pred）
+- **后端 service**：`backend/src/services/ai/quality_pred.rs`（681 行，含 4 单测）
+- **后端 handler**：`backend/src/handlers/advanced/quality_pred.rs`（89 行）
+- **路由**：`POST /api/v1/erp/advanced/ai/quality-prediction`
+- **前端 API**：`predictQuality(params)` + `QualityPredParams` 类型
+- **前端 Tab**："质量预测"（表单 + 4 统计卡片 + 问题表格 + 建议列表 + 周期明细）
+- **算法核心**：基于 `quality_inspection_records` 历史合格率 + 时间窗口趋势 + 风险评分（0-100）
+- **风险评分**：`risk = (100 - avg_rate) * 0.6 + 下降趋势惩罚 * 0.4`
+- **趋势判定**：(recent - previous) / previous，超过 ±5% 视为上升/下降
+- **退化兜底**：数据 < 5 条 → 默认 95% + confidence 0.3
+- **4 单测**：`test_risk_score_low` / `test_risk_score_high` / `test_trend_calculation` / `test_fallback_low_data`
+- **CI 验证**：PR #100 squash merge 后 4 job 全绿，CI 自动发布 tag v2026.615.2350
+
+#### Wave 3 收尾总成果
+- 实施总文件数：约 23 个（5 新增 + 18 修改）
+- 新增 8 个单元测试（4 recipe_opt + 4 quality_pred），全部覆盖核心算法
+- type-check 错误：32 → 0（-100%）
+- AI 智能分析服务：新增 recipe_opt + quality_pred 两个子模块
+- 前端 Advanced 页面：Tab 数 3 → 5（新增工艺优化 + 质量预测）
+- CI 流水线：所有任务均以 Squash 策略合并，4 job 全绿，自动发布
+- 远端 3 个临时特性分支（A2-1 / A2-2 / B-批 1-4）已全部清理
+
+#### 关键经验（Wave 3 收尾新沉淀）
+- **CI/CD 验证优先**：项目全程仅在 CI/CD 构建验证，本地禁止任何 cargo / npm / vue-tsc / tsc / vite 命令
+- **代码质量护栏**：PR 触发 CI → 4 job 全绿 → squash merge → 远端分支自动删除 → 本地手动清理
+- **多语言化推进**：所有 UI 文本 / 注释 / 日志强制中文；API 路径仍保持英文 snake_case
+- **基线修复边界**：A2-1 子代理顺手修复了 ar/inv.rs、accounting-period.ts 等 main 预存错误（必要以让 CI 通过），A2-2 子代理严格限制边界，未做超出范围的修复
+
+#### 待启动
+- **Wave 4**：el-table-v2 已通过 POC（B5），Wave 3 收尾已完成 AI 深化，Wave 4 启动条件已就绪
+- **Wave 5+**：高级 P2/P3 任务（移动端 / 性能优化 / 安全加固）待规划
+
 ### 已新增（P1-1 generate-no 4 端点补齐）
 
 #### 后端 Handler
