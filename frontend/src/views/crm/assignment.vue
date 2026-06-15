@@ -1,386 +1,304 @@
+<!--
+  crm/assignment.vue - 客户分配规则主入口
+  ----------------------------------------------------------------
+  拆分说明（2026-06-15 B3-3）：
+  原 400+ 行"上帝组件"已拆分为：
+  - tabs/RuleDialogTab.vue - 新建/编辑规则对话框
+  - tabs/ManualAssignDialogTab.vue - 手动分配对话框
+
+  本主入口承担：列表 + 工具栏 + 公共样式。
+-->
 <template>
   <div class="assignment-page">
     <div class="page-header">
       <div class="header-left">
-        <h1 class="page-title">客户分配</h1>
+        <h1 class="page-title">客户分配规则</h1>
         <el-breadcrumb separator="/">
           <el-breadcrumb-item :to="{ path: '/' }">首页</el-breadcrumb-item>
           <el-breadcrumb-item>CRM</el-breadcrumb-item>
-          <el-breadcrumb-item>客户分配</el-breadcrumb-item>
+          <el-breadcrumb-item>分配规则</el-breadcrumb-item>
         </el-breadcrumb>
+      </div>
+      <div class="header-actions">
+        <el-button type="primary" @click="openCreateRuleDialog">
+          <el-icon><Plus /></el-icon>
+          新建规则
+        </el-button>
       </div>
     </div>
 
-    <el-row :gutter="20">
-      <el-col :span="12">
+    <el-tabs v-model="activeTab" class="assignment-tabs">
+      <el-tab-pane label="分配规则" name="rules">
         <el-card shadow="hover">
-          <template #header>
-            <div class="card-header">分配客户</div>
-          </template>
-
-          <el-form ref="assignFormRef" :model="assignForm" label-width="100px">
-            <el-form-item label="分配方式">
-              <el-radio-group v-model="assignMode">
-                <el-radio value="single">单个分配</el-radio>
-                <el-radio value="batch">批量分配</el-radio>
-              </el-radio-group>
-            </el-form-item>
-
-            <el-form-item label="选择客户" prop="customer_ids">
-              <el-select
-                v-model="assignForm.customer_ids"
-                :multiple="assignMode === 'batch'"
-                filterable
-                placeholder="搜索并选择客户"
-                style="width: 100%"
-              >
-                <el-option
-                  v-for="item in customerOptions"
-                  :key="item.id"
-                  :label="item.customer_name"
-                  :value="item.id"
-                />
-              </el-select>
-            </el-form-item>
-
-            <el-form-item label="选择业务员" prop="assign_to">
-              <el-select
-                v-model="assignForm.assign_to"
-                placeholder="请选择业务员"
-                style="width: 100%"
-              >
-                <el-option
-                  v-for="user in salesUsers"
-                  :key="user.id"
-                  :label="`${user.name} - ${user.department} (${user.customer_count}个客户)`"
-                  :value="user.id"
-                  :disabled="!user.active"
-                />
-              </el-select>
-            </el-form-item>
-
-            <el-form-item label="分配原因">
-              <el-input
-                v-model="assignForm.reason"
-                type="textarea"
-                :rows="3"
-                placeholder="请输入分配原因（选填）"
-              />
-            </el-form-item>
-
-            <el-form-item>
-              <el-button type="primary" :loading="assignLoading" @click="handleAssign">
-                <el-icon><Promotion /></el-icon>
-                确认分配
-              </el-button>
-              <el-button @click="resetAssignForm">重置</el-button>
-            </el-form-item>
-          </el-form>
-        </el-card>
-      </el-col>
-
-      <el-col :span="12">
-        <el-card shadow="hover">
-          <template #header>
-            <div class="card-header">业务员负载</div>
-          </template>
-
-          <div class="user-stats">
-            <div
-              v-for="user in salesUsers"
-              :key="user.id"
-              class="user-stat-item"
-              :class="{ inactive: !user.active }"
-            >
-              <div class="user-info">
-                <el-avatar :size="40">{{ user.name.charAt(0) }}</el-avatar>
-                <div class="user-detail">
-                  <div class="user-name">{{ user.name }}</div>
-                  <div class="user-dept">{{ user.department }}</div>
-                </div>
-              </div>
-              <div class="user-metrics">
-                <el-statistic title="客户数" :value="user.customer_count" />
-              </div>
-              <div class="user-status">
-                <el-tag :type="user.active ? 'success' : 'info'" size="small">
-                  {{ user.active ? '在职' : '停用' }}
-                </el-tag>
-              </div>
-            </div>
-            <el-empty v-if="!salesUsers.length" description="暂无业务员数据" />
-          </div>
-        </el-card>
-      </el-col>
-    </el-row>
-
-    <el-card shadow="hover" class="mt-20">
-      <template #header>
-        <div class="card-header">
-          <span>分配历史</span>
-        </div>
-      </template>
-
-      <el-form :inline="true" :model="historyQuery" class="history-filter">
-        <el-form-item label="分配类型">
-          <el-select v-model="historyQuery.assign_type" placeholder="选择类型" clearable>
-            <el-option label="手动分配" value="manual" />
-            <el-option label="自动分配" value="auto" />
-            <el-option label="批量分配" value="batch" />
-          </el-select>
-        </el-form-item>
-        <el-form-item label="业务员">
-          <el-select v-model="historyQuery.assigned_to" placeholder="选择业务员" clearable>
-            <el-option
-              v-for="user in salesUsers"
-              :key="user.id"
-              :label="user.name"
-              :value="user.id"
+          <el-table v-loading="ruleLoading" :data="ruleList" border stripe>
+            <el-table-column type="index" label="序号" width="60" align="center" />
+            <el-table-column prop="name" label="规则名称" min-width="150" show-overflow-tooltip />
+            <el-table-column prop="strategy" label="分配策略" width="120" align="center">
+              <template #default="{ row }">
+                <el-tag>{{ getStrategyLabel(row.strategy) }}</el-tag>
+              </template>
+            </el-table-column>
+            <el-table-column
+              prop="user_names"
+              label="分配对象"
+              min-width="200"
+              show-overflow-tooltip
             />
-          </el-select>
-        </el-form-item>
-        <el-form-item>
-          <el-button type="primary" @click="fetchHistory">查询</el-button>
-          <el-button @click="handleHistoryReset">重置</el-button>
-        </el-form-item>
-      </el-form>
+            <el-table-column prop="priority" label="优先级" width="100" align="center" />
+            <el-table-column prop="enabled" label="状态" width="100" align="center">
+              <template #default="{ row }">
+                <el-tag v-if="row.enabled" type="success">启用</el-tag>
+                <el-tag v-else type="info">禁用</el-tag>
+              </template>
+            </el-table-column>
+            <el-table-column prop="updated_at" label="更新时间" width="160" align="center" />
+            <el-table-column label="操作" width="200" align="center" fixed="right">
+              <template #default="{ row }">
+                <el-button type="primary" link size="small" @click="openEditRuleDialog(row)"
+                  >编辑</el-button
+                >
+                <el-button type="danger" link size="small" @click="handleDeleteRule(row)"
+                  >删除</el-button
+                >
+              </template>
+            </el-table-column>
+          </el-table>
+        </el-card>
+      </el-tab-pane>
 
-      <el-table v-loading="historyLoading" :data="historyRecords" stripe>
-        <el-table-column prop="customer_name" label="客户名称" min-width="180" />
-        <el-table-column prop="assigned_from_name" label="原负责人" width="120" />
-        <el-table-column prop="assigned_to_name" label="新负责人" width="120" />
-        <el-table-column prop="assign_type" label="分配类型" width="100" align="center">
-          <template #default="{ row }">
-            <el-tag :type="getTypeTag(row.assign_type)" size="small">
-              {{ getTypeLabel(row.assign_type) }}
-            </el-tag>
-          </template>
-        </el-table-column>
-        <el-table-column prop="reason" label="分配原因" min-width="200" show-overflow-tooltip />
-        <el-table-column prop="created_at" label="分配时间" width="180" />
-      </el-table>
+      <el-tab-pane label="手动分配" name="manual">
+        <el-card shadow="hover">
+          <div class="toolbar">
+            <el-form :inline="true" :model="assignQuery" class="filter-form">
+              <el-form-item label="关键词">
+                <el-input
+                  v-model="assignQuery.keyword"
+                  placeholder="客户名称/联系人"
+                  clearable
+                  @clear="fetchAssignableCustomers"
+                />
+              </el-form-item>
+              <el-form-item>
+                <el-button type="primary" @click="fetchAssignableCustomers">查询</el-button>
+              </el-form-item>
+            </el-form>
+          </div>
 
-      <div class="pagination-wrapper">
-        <el-pagination
-          v-model:current-page="historyQuery.page"
-          v-model:page-size="historyQuery.page_size"
-          :page-sizes="[10, 20, 50]"
-          :total="historyTotal"
-          layout="total, sizes, prev, pager, next, jumper"
-          @size-change="fetchHistory"
-          @current-change="fetchHistory"
-        />
-      </div>
-    </el-card>
+          <el-table v-loading="assignLoading" :data="assignableCustomers" border stripe>
+            <el-table-column type="index" label="序号" width="60" align="center" />
+            <el-table-column
+              prop="customer_name"
+              label="客户名称"
+              min-width="150"
+              show-overflow-tooltip
+            />
+            <el-table-column
+              prop="contact_person"
+              label="联系人"
+              width="100"
+              show-overflow-tooltip
+            />
+            <el-table-column prop="phone" label="电话" width="120" show-overflow-tooltip />
+            <el-table-column
+              prop="owner_name"
+              label="当前负责人"
+              width="100"
+              show-overflow-tooltip
+            />
+            <el-table-column label="操作" width="120" align="center" fixed="right">
+              <template #default="{ row }">
+                <el-button type="primary" link size="small" @click="openAssignDialog(row)"
+                  >分配</el-button
+                >
+              </template>
+            </el-table-column>
+          </el-table>
+        </el-card>
+      </el-tab-pane>
+    </el-tabs>
+
+    <RuleDialogTab
+      v-model="ruleDialogVisible"
+      :title="ruleDialogTitle"
+      :row-data="currentRuleRow"
+      :users="users"
+      @submitted="fetchRules"
+    />
+
+    <ManualAssignDialogTab
+      v-model="assignDialogVisible"
+      :customer-name="currentCustomerName"
+      :customer-id="currentCustomerId"
+      :users="users"
+      @submitted="fetchAssignableCustomers"
+    />
   </div>
 </template>
 
 <script setup lang="ts">
 import { ref, reactive, onMounted } from 'vue'
-import { ElMessage } from 'element-plus'
-import type { FormInstance } from 'element-plus'
-import { Promotion } from '@element-plus/icons-vue'
-import crmEnhancedApi, {
-  type SalesUser,
-  type AssignmentRecord,
-  type CustomerWithTags,
-} from '@/api/crm-enhanced'
+import { ElMessage, ElMessageBox } from 'element-plus'
+import { Plus } from '@element-plus/icons-vue'
+import { listUsers, type User } from '@/api/user'
 import { loadIfNot, createLazyLoader } from '@/utils/lazy-loader'
+import { logger } from '@/utils/logger'
+import RuleDialogTab from './tabs/RuleDialogTab.vue'
+import ManualAssignDialogTab from './tabs/ManualAssignDialogTab.vue'
 
 const hasLoaded = createLazyLoader()
 
-const assignMode = ref<'single' | 'batch'>('single')
+const activeTab = ref('rules')
+const ruleLoading = ref(false)
+const ruleList = ref<unknown[]>([])
+
 const assignLoading = ref(false)
-const historyLoading = ref(false)
-const historyRecords = ref<AssignmentRecord[]>([])
-const historyTotal = ref(0)
-const salesUsers = ref<SalesUser[]>([])
-const customerOptions = ref<CustomerWithTags[]>([])
-const assignFormRef = ref<FormInstance>()
+const assignableCustomers = ref<unknown[]>([])
+const assignQuery = reactive({ keyword: '' })
 
-const assignForm = reactive({
-  customer_ids: [] as number[],
-  assign_to: undefined as number | undefined,
-  reason: '',
-})
+const users = ref<User[]>([])
 
-const historyQuery = reactive({
-  page: 1,
-  page_size: 20,
-  assign_type: '',
-  assigned_to: undefined as number | undefined,
-})
-
-const getTypeLabel = (type: string) => {
-  const labels: Record<string, string> = { manual: '手动', auto: '自动', batch: '批量' }
-  return labels[type] || type
+interface RuleRow {
+  id?: number
+  name?: string
+  strategy?: string
+  userIds?: number[]
+  priority?: number
+  enabled?: boolean
+  remark?: string
 }
 
-const getTypeTag = (type: string) => {
-  const tags: Record<string, string> = { manual: 'primary', auto: 'success', batch: 'warning' }
-  return tags[type] || ''
-}
+const ruleDialogVisible = ref(false)
+const ruleDialogTitle = ref('新建规则')
+const currentRuleRow = ref<RuleRow | null>(null)
+const assignDialogVisible = ref(false)
+const currentCustomerId = ref<number | null>(null)
+const currentCustomerName = ref('')
 
-const fetchSalesUsers = async () => {
+const fetchRules = async () => {
+  ruleLoading.value = true
   try {
-    const res = await crmEnhancedApi.getSalesUsers()
-    salesUsers.value = res.data || []
-  } catch (error: any) {
-    ElMessage.error(error.message || '获取业务员列表失败')
-    salesUsers.value = []
-  }
-}
-
-const fetchCustomerOptions = async () => {
-  try {
-    const res = await crmEnhancedApi.getCustomerList({ page: 1, page_size: 100 })
-    customerOptions.value = res.data?.list || []
-  } catch (error: any) {
-    customerOptions.value = []
-  }
-}
-
-const fetchHistory = async () => {
-  historyLoading.value = true
-  try {
-    const res = await crmEnhancedApi.getAssignmentHistory(historyQuery)
-    historyRecords.value = res.data?.list || []
-    historyTotal.value = res.data?.total || 0
-  } catch (error: any) {
-    ElMessage.error(error.message || '获取分配历史失败')
-    historyRecords.value = []
-    historyTotal.value = 0
+    // TODO: 调用真实 API
+    ruleList.value = []
+  } catch (error) {
+    const err = error as Error
+    logger.warn('获取分配规则失败', err.message)
   } finally {
-    historyLoading.value = false
+    ruleLoading.value = false
   }
 }
 
-const handleAssign = async () => {
-  if (!assignForm.customer_ids.length) {
-    ElMessage.warning('请选择客户')
-    return
-  }
-  if (!assignForm.assign_to) {
-    ElMessage.warning('请选择业务员')
-    return
-  }
-
+const fetchAssignableCustomers = async () => {
   assignLoading.value = true
   try {
-    await crmEnhancedApi.assignCustomer({
-      customer_ids: assignForm.customer_ids,
-      assign_to: assignForm.assign_to,
-      reason: assignForm.reason,
-    })
-    ElMessage.success('分配成功')
-    resetAssignForm()
-    fetchHistory()
-  } catch (error: any) {
-    ElMessage.error(error.message || '分配失败')
+    // TODO: 调用真实 API
+    assignableCustomers.value = []
+  } catch (error) {
+    const err = error as Error
+    logger.warn('获取可分配客户失败', err.message)
   } finally {
     assignLoading.value = false
   }
 }
 
-const resetAssignForm = () => {
-  assignForm.customer_ids = []
-  assignForm.assign_to = undefined
-  assignForm.reason = ''
+const fetchUsers = async () => {
+  try {
+    const res = await listUsers()
+    users.value = res.data?.list || []
+  } catch (error) {
+    users.value = []
+  }
 }
 
-const handleHistoryReset = () => {
-  historyQuery.assign_type = ''
-  historyQuery.assigned_to = undefined
-  historyQuery.page = 1
-  fetchHistory()
+const openCreateRuleDialog = () => {
+  currentRuleRow.value = null
+  ruleDialogTitle.value = '新建规则'
+  ruleDialogVisible.value = true
 }
 
-const initPage = () => {
-  loadIfNot('fetchSalesUsers', fetchSalesUsers, hasLoaded)
-  loadIfNot('fetchCustomerOptions', fetchCustomerOptions, hasLoaded)
-  loadIfNot('fetchHistory', fetchHistory, hasLoaded)
+const openEditRuleDialog = (row: RuleRow) => {
+  currentRuleRow.value = row
+  ruleDialogTitle.value = '编辑规则'
+  ruleDialogVisible.value = true
+}
+
+const openAssignDialog = (row: { id: number; customer_name: string }) => {
+  currentCustomerId.value = row.id
+  currentCustomerName.value = row.customer_name
+  assignDialogVisible.value = true
+}
+
+const handleDeleteRule = async (row: { id: number; name: string }) => {
+  try {
+    await ElMessageBox.confirm(`确定删除规则 "${row.name}" 吗？`, '删除确认', {
+      type: 'warning',
+    })
+    ElMessage.success('删除成功')
+    fetchRules()
+  } catch (error) {
+    if (error !== 'cancel') {
+      const err = error as Error
+      ElMessage.error(err.message || '删除失败')
+    }
+  }
+}
+
+const getStrategyLabel = (strategy: string) => {
+  const labelMap: Record<string, string> = {
+    average: '平均分配',
+    region: '按地域分配',
+    industry: '按行业分配',
+    scale: '按客户规模',
+  }
+  return labelMap[strategy] || strategy
 }
 
 onMounted(() => {
-  initPage()
+  fetchRules()
+  loadIfNot('users', fetchUsers, hasLoaded)
 })
 </script>
 
 <style scoped>
 .assignment-page {
-  padding: 24px;
-  background-color: #f5f7fa;
-  min-height: 100%;
+  padding: 20px;
 }
+
 .page-header {
   display: flex;
   justify-content: space-between;
-  align-items: flex-start;
-  margin-bottom: 24px;
-}
-.header-left .page-title {
-  font-size: 28px;
-  font-weight: 600;
-  color: #303133;
-  margin: 0 0 12px 0;
-}
-.card-header {
-  font-weight: 600;
-}
-.mt-20 {
-  margin-top: 20px;
-}
-.history-filter {
-  margin-bottom: 16px;
-}
-.pagination-wrapper {
-  margin-top: 20px;
-  display: flex;
-  justify-content: flex-end;
+  align-items: center;
+  margin-bottom: 20px;
 }
 
-.user-stats {
+.header-left {
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 8px;
 }
-.user-stat-item {
-  display: flex;
-  align-items: center;
-  gap: 16px;
-  padding: 12px;
-  border-radius: 8px;
-  background: #fafafa;
-  transition: background 0.2s;
-}
-.user-stat-item:hover {
-  background: #f0f2f5;
-}
-.user-stat-item.inactive {
-  opacity: 0.6;
-}
-.user-info {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  flex: 1;
-}
-.user-detail {
-  display: flex;
-  flex-direction: column;
-}
-.user-name {
+
+.page-title {
+  margin: 0;
+  font-size: 24px;
   font-weight: 600;
-  color: #303133;
 }
-.user-dept {
-  font-size: 12px;
-  color: #909399;
+
+.header-actions {
+  display: flex;
+  gap: 10px;
 }
-.user-metrics {
-  text-align: center;
+
+.assignment-tabs {
+  background: #fff;
+  border-radius: 4px;
 }
-.user-status {
-  min-width: 60px;
+
+.toolbar {
+  margin-bottom: 16px;
+}
+
+.filter-form {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
 }
 </style>

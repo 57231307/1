@@ -1,3 +1,12 @@
+<!--
+  crm/leads/index.vue - 线索管理主入口
+  ----------------------------------------------------------------
+  拆分说明（2026-06-15 B3-3）：
+  原 595 行"上帝组件"已拆分为：
+  - tabs/LeadFormTab.vue - 新建/编辑线索对话框
+
+  本主入口承担：页面布局 + 列表数据 + 公共样式。
+-->
 <template>
   <div class="crm-leads-page">
     <div class="page-header">
@@ -10,7 +19,7 @@
         </el-breadcrumb>
       </div>
       <div class="header-actions">
-        <el-button type="primary" @click="handleCreate">
+        <el-button type="primary" @click="openCreateDialog">
           <el-icon><Plus /></el-icon>
           新建线索
         </el-button>
@@ -143,15 +152,13 @@
         <el-table-column prop="next_follow_up_date" label="下次跟进" width="120" align="center" />
         <el-table-column label="操作" width="250" align="center" fixed="right">
           <template #default="{ row }">
-            <el-button type="primary" link size="small" @click="handleView(row as any)"
-              >查看</el-button
-            >
+            <el-button type="primary" link size="small" @click="handleView(row)">查看</el-button>
             <el-button
               v-if="row.lead_status !== 'CONVERTED'"
               type="primary"
               link
               size="small"
-              @click="handleEdit(row as any)"
+              @click="openEditDialog(row)"
               >编辑</el-button
             >
             <el-button
@@ -159,7 +166,7 @@
               type="warning"
               link
               size="small"
-              @click="handleContact(row as any)"
+              @click="handleContact(row)"
               >联系</el-button
             >
             <el-button
@@ -167,7 +174,7 @@
               type="success"
               link
               size="small"
-              @click="handleConvert(row as any)"
+              @click="handleConvert(row)"
               >转化</el-button
             >
             <el-button
@@ -175,7 +182,7 @@
               type="danger"
               link
               size="small"
-              @click="handleLost(row as any)"
+              @click="handleLost(row)"
               >流失</el-button
             >
           </template>
@@ -195,92 +202,13 @@
       </div>
     </el-card>
 
-    <!-- 新建/编辑对话框 -->
-    <el-dialog
-      v-model="dialogVisible"
-      :title="dialogTitle"
-      width="800px"
-      :close-on-click-modal="false"
-    >
-      <el-form ref="formRef" :model="formData" :rules="formRules" label-width="100px">
-        <el-row :gutter="20">
-          <el-col :span="12">
-            <el-form-item label="线索来源" prop="lead_source">
-              <el-select v-model="formData.lead_source" placeholder="请选择线索来源">
-                <el-option label="网站" value="WEBSITE" />
-                <el-option label="电话" value="PHONE" />
-                <el-option label="展会" value="EXHIBITION" />
-                <el-option label="推荐" value="REFERRAL" />
-                <el-option label="其他" value="OTHER" />
-              </el-select>
-            </el-form-item>
-          </el-col>
-          <el-col :span="12">
-            <el-form-item label="优先级" prop="priority">
-              <el-select v-model="formData.priority" placeholder="请选择优先级">
-                <el-option label="低" value="LOW" />
-                <el-option label="中" value="MEDIUM" />
-                <el-option label="高" value="HIGH" />
-                <el-option label="紧急" value="URGENT" />
-              </el-select>
-            </el-form-item>
-          </el-col>
-        </el-row>
-        <el-row :gutter="20">
-          <el-col :span="12">
-            <el-form-item label="公司名称" prop="company_name">
-              <el-input v-model="formData.company_name" placeholder="请输入公司名称" />
-            </el-form-item>
-          </el-col>
-          <el-col :span="12">
-            <el-form-item label="联系人" prop="contact_name">
-              <el-input v-model="formData.contact_name" placeholder="请输入联系人姓名" />
-            </el-form-item>
-          </el-col>
-        </el-row>
-        <el-row :gutter="20">
-          <el-col :span="12">
-            <el-form-item label="手机号" prop="mobile_phone">
-              <el-input v-model="formData.mobile_phone" placeholder="请输入手机号" />
-            </el-form-item>
-          </el-col>
-          <el-col :span="12">
-            <el-form-item label="邮箱" prop="email">
-              <el-input v-model="formData.email" placeholder="请输入邮箱" />
-            </el-form-item>
-          </el-col>
-        </el-row>
-        <el-row :gutter="20">
-          <el-col :span="12">
-            <el-form-item label="职位" prop="contact_title">
-              <el-input v-model="formData.contact_title" placeholder="请输入职位" />
-            </el-form-item>
-          </el-col>
-          <el-col :span="12">
-            <el-form-item label="负责人" prop="owner_id">
-              <el-select v-model="formData.owner_id" placeholder="请选择负责人" filterable>
-                <el-option v-for="u in users" :key="u.id" :label="u.real_name" :value="u.id" />
-              </el-select>
-            </el-form-item>
-          </el-col>
-        </el-row>
-        <el-form-item label="需求描述" prop="requirement_desc">
-          <el-input
-            v-model="formData.requirement_desc"
-            type="textarea"
-            :rows="3"
-            placeholder="请输入需求描述"
-          />
-        </el-form-item>
-        <el-form-item label="备注" prop="remarks">
-          <el-input v-model="formData.remarks" type="textarea" :rows="2" placeholder="请输入备注" />
-        </el-form-item>
-      </el-form>
-      <template #footer>
-        <el-button @click="dialogVisible = false">取消</el-button>
-        <el-button type="primary" @click="handleSubmitForm">确定</el-button>
-      </template>
-    </el-dialog>
+    <LeadFormTab
+      v-model="formDialogVisible"
+      :title="formDialogTitle"
+      :row-data="currentRow"
+      :users="users"
+      @submitted="handleFormSubmitted"
+    />
   </div>
 </template>
 
@@ -288,12 +216,27 @@
 import { ref, reactive, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Plus, Upload, Download, Search, Refresh } from '@element-plus/icons-vue'
-import { listLeads } from '@/api/crm'
-import type { Lead } from '@/api/crm'
-import { listUsers } from '@/api/user'
-import type { User } from '@/api/user'
+import { listLeads, type Lead } from '@/api/crm'
+import { listUsers, type User } from '@/api/user'
+import type { ApiResponse, PageResult } from '@/types/api'
+import { logger } from '@/utils/logger'
+import LeadFormTab from './tabs/LeadFormTab.vue'
 
-// 查询参数
+// 实际接口字段名与类型定义不完全一致，扩展包含 UI 展示所需字段
+interface LeadRow extends Lead {
+  contact_name?: string
+  company_name?: string
+  mobile_phone?: string
+  lead_source?: string
+  lead_status?: string
+  owner_name?: string
+  last_follow_up_date?: string
+  next_follow_up_date?: string
+  priority?: string
+  requirement_desc?: string
+  remarks?: string
+}
+
 const queryParams = reactive({
   page: 1,
   page_size: 20,
@@ -304,73 +247,44 @@ const queryParams = reactive({
   priority: '',
 })
 
-// 列表数据
 const loading = ref(false)
-const leadList = ref<Lead[]>([])
+const leadList = ref<LeadRow[]>([])
 const total = ref(0)
-const selectedRows = ref<any[]>([])
-
-// 用户列表
 const users = ref<User[]>([])
 
-// 对话框
-const dialogVisible = ref(false)
-const dialogTitle = ref('')
-const formRef = ref()
+const formDialogVisible = ref(false)
+const formDialogTitle = ref('新建线索')
+const currentRow = ref<LeadRow | null>(null)
 
-// 表单数据
-const formData = reactive({
-  id: null,
-  lead_source: '',
-  company_name: '',
-  contact_name: '',
-  contact_title: '',
-  mobile_phone: '',
-  email: '',
-  priority: 'MEDIUM',
-  owner_id: '',
-  requirement_desc: '',
-  remarks: '',
-})
-
-// 表单验证规则
-const formRules = {
-  lead_source: [{ required: true, message: '请选择线索来源', trigger: 'change' }],
-  contact_name: [{ required: true, message: '请输入联系人姓名', trigger: 'blur' }],
-  owner_id: [{ required: true, message: '请选择负责人', trigger: 'change' }],
-}
-
-// 获取列表数据
 const getList = async () => {
   loading.value = true
   try {
-    const res = await listLeads(queryParams)
-    leadList.value = res.data || []
-    total.value = res.total || 0
+    // 后端 listLeads 实际返回 PageResult<T> 包装，但类型定义为 ApiResponse<Lead[]>，此处显式声明
+    const res = (await listLeads(queryParams)) as unknown as ApiResponse<PageResult<LeadRow>>
+    leadList.value = res.data?.list || []
+    total.value = res.data?.total || 0
   } catch (error) {
-    console.error('获取线索列表失败:', error)
+    const err = error as Error
+    logger.warn('获取线索列表失败', err.message)
   } finally {
     loading.value = false
   }
 }
 
-// 获取用户列表
-const getUsers = async () => {
+const fetchUsers = async () => {
   try {
     const res = await listUsers()
     users.value = res.data?.list || []
   } catch (error) {
-    console.error('获取用户列表失败:', error)
+    users.value = []
   }
 }
 
-// 查询
 const handleQuery = () => {
   queryParams.page = 1
   getList()
 }
 
-// 重置
 const handleReset = () => {
   queryParams.keyword = ''
   queryParams.lead_source = ''
@@ -380,96 +294,82 @@ const handleReset = () => {
   handleQuery()
 }
 
-// 新建
-const handleCreate = () => {
-  dialogTitle.value = '新建线索'
-  Object.assign(formData, {
-    id: null,
-    lead_source: '',
-    company_name: '',
-    contact_name: '',
-    contact_title: '',
-    mobile_phone: '',
-    email: '',
-    priority: 'MEDIUM',
-    owner_id: '',
-    requirement_desc: '',
-    remarks: '',
-  })
-  dialogVisible.value = true
+const openCreateDialog = () => {
+  currentRow.value = null
+  formDialogTitle.value = '新建线索'
+  formDialogVisible.value = true
 }
 
-// 查看
-const handleView = (_row: any) => {}
-
-// 编辑
-const handleEdit = (row: any) => {
-  dialogTitle.value = '编辑线索'
-  Object.assign(formData, row)
-  dialogVisible.value = true
+const openEditDialog = (row: LeadRow) => {
+  currentRow.value = row
+  formDialogTitle.value = '编辑线索'
+  formDialogVisible.value = true
 }
 
-// 联系
-const handleContact = async (_row: any) => {
+const handleFormSubmitted = () => {
+  formDialogVisible.value = false
+  getList()
+}
+
+const handleView = (_row: LeadRow) => {
+  // 查看详情（占位）
+}
+
+const handleContact = async (row: LeadRow) => {
   try {
-    await ElMessageBox.confirm('确认标记为已联系？', '提示', { type: 'warning' })
+    await ElMessageBox.confirm(`确认标记线索 "${row.contact_name}" 为已联系？`, '提示', {
+      type: 'warning',
+    })
     ElMessage.success('操作成功')
     getList()
   } catch (error) {
-    console.error('操作失败:', error)
+    if (error !== 'cancel') {
+      logger.warn('操作失败', (error as Error).message)
+    }
   }
 }
 
-// 转化
-const handleConvert = async (_row: any) => {
+const handleConvert = async (row: LeadRow) => {
   try {
-    await ElMessageBox.confirm('确认将该线索转化为客户？', '提示', { type: 'warning' })
+    await ElMessageBox.confirm(`确认将线索 "${row.contact_name}" 转化为客户？`, '提示', {
+      type: 'warning',
+    })
     ElMessage.success('转化成功')
     getList()
   } catch (error) {
-    console.error('转化失败:', error)
+    if (error !== 'cancel') {
+      logger.warn('转化失败', (error as Error).message)
+    }
   }
 }
 
-// 流失
-const handleLost = async (_row: any) => {
+const handleLost = async (row: LeadRow) => {
   try {
-    await ElMessageBox.confirm('确认标记该线索为流失？', '提示', { type: 'warning' })
+    await ElMessageBox.confirm(`确认标记线索 "${row.contact_name}" 为流失？`, '提示', {
+      type: 'warning',
+    })
     ElMessage.success('操作成功')
     getList()
   } catch (error) {
-    console.error('操作失败:', error)
+    if (error !== 'cancel') {
+      logger.warn('操作失败', (error as Error).message)
+    }
   }
 }
 
-// 导入
 const handleImport = () => {
   ElMessage.info('导入功能开发中')
 }
 
-// 导出
 const handleExport = () => {
   ElMessage.success('导出成功')
 }
 
-// 选择变化
-const handleSelectionChange = (selection: any[]) => {
-  selectedRows.value = selection
+const handleSelectionChange = (selection: LeadRow[]) => {
+  // 选择变化（占位）
+  logger.debug('选中了线索', selection.length)
 }
 
-// 提交表单
-const handleSubmitForm = async () => {
-  try {
-    await formRef.value?.validate()
-    ElMessage.success('保存成功')
-    dialogVisible.value = false
-    getList()
-  } catch (error) {
-    console.error('表单验证失败:', error)
-  }
-}
-
-// 分页
 const handleSizeChange = (val: number) => {
   queryParams.page_size = val
   getList()
@@ -480,67 +380,62 @@ const handleCurrentChange = (val: number) => {
   getList()
 }
 
-// 获取来源标签
 const getSourceLabel = (source: string) => {
-  const map: Record<string, string> = {
+  const labelMap: Record<string, string> = {
     WEBSITE: '网站',
     PHONE: '电话',
     EXHIBITION: '展会',
     REFERRAL: '推荐',
     OTHER: '其他',
   }
-  return map[source] || source
+  return labelMap[source] || source
 }
 
-// 获取状态类型
 const getStatusType = (status: string) => {
-  const map: Record<string, string> = {
+  const typeMap: Record<string, string> = {
     NEW: 'info',
     CONTACTED: 'warning',
     QUALIFIED: 'primary',
     CONVERTED: 'success',
     LOST: 'danger',
   }
-  return map[status] || 'info'
+  return typeMap[status] || 'info'
 }
 
-// 获取状态标签
 const getStatusLabel = (status: string) => {
-  const map: Record<string, string> = {
+  const labelMap: Record<string, string> = {
     NEW: '新线索',
     CONTACTED: '已联系',
     QUALIFIED: '已qualified',
     CONVERTED: '已转化',
     LOST: '已流失',
   }
-  return map[status] || status
+  return labelMap[status] || status
 }
 
-// 获取优先级类型
 const getPriorityType = (priority: string) => {
-  const map: Record<string, string> = {
+  const typeMap: Record<string, string> = {
     LOW: 'info',
     MEDIUM: '',
     HIGH: 'warning',
     URGENT: 'danger',
   }
-  return map[priority] || ''
+  return typeMap[priority] || ''
 }
 
-// 获取优先级标签
 const getPriorityLabel = (priority: string) => {
-  const map: Record<string, string> = {
+  const labelMap: Record<string, string> = {
     LOW: '低',
     MEDIUM: '中',
     HIGH: '高',
     URGENT: '紧急',
   }
-  return map[priority] || priority
+  return labelMap[priority] || priority
 }
 
 onMounted(() => {
   getList()
-  getUsers()
+  fetchUsers()
 })
 </script>
 
