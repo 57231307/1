@@ -9,6 +9,20 @@
 
 ## [Unreleased] - 2026-06-15
 
+### Wave 1 合并汇总（2026-06-15）
+
+| PR | 任务 | 子代理 | 提交 | 状态 |
+|------|------|--------|------|------|
+| [#89](https://github.com/57231307/1/pull/89) | .clippy.toml 宏路径警告 | C | [a779078](https://github.com/57231307/1/commit/a779078) | ✅ 已合并 |
+| [#90](https://github.com/57231307/1/pull/90) | P1-5 入库单明细类型强化 | B2 | [2974c6d](https://github.com/57231307/1/commit/2974c6d) | ✅ 已合并 |
+| [#87](https://github.com/57231307/1/pull/87) | P0-2 销售→AR 应收账款 | A1 | [042d123](https://github.com/57231307/1/commit/042d123) | ✅ 已合并 |
+| [#88](https://github.com/57231307/1/pull/88) | P1-1 generate-no 4 端点 | B1 | [5f28212](https://github.com/57231307/1/commit/5f28212) | ✅ 已合并 |
+
+- 4 个 PR 全部以 Squash 策略合并入 main
+- 远端源分支（feature/p0-2-sales-ar* / feature/p1-1-generate-no / fix/clippy-toml-warnings / feature/P1-5-completed-2-todos）已由 GitHub 自动删除
+- 定时轮询任务 `NLIZU5YY.FK660` 已停止
+- Wave 1 全部子代理成果已合入 main，可以启动 Wave 2
+
 ### 已新增（P1-1 generate-no 4 端点补齐）
 
 #### 后端 Handler
@@ -130,8 +144,8 @@
 
 #### 状态汇总
 - Wave 1 进度：4/4 完成 ✅
-- 待用户操作：推送 `feature/p0-2-sales-ar`（A1）、`feature/p1-1-generate-no`（B1）触发 CICD
-- B2 已推送待 CICD 结果
+- 4 PR 全部合并入 main（#87 / #88 / #89 / #90，2026-06-15）
+- 远端源分支 + 本地工作分支 + 定时轮询任务已全部清理
 - 更新用户记忆（MEMORY.md）：[Wave 1 执行结果]、[沙箱与CICD验证策略] 条目
 
 ---
