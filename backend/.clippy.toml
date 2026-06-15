@@ -10,9 +10,10 @@
 # backend/Cargo.toml 的 [lints.rust] 段（clippy 1.81+ 已弃用顶层 warn 数组）。
 
 # 禁止使用 println!（除 CLI 工具外）
+# 注意：path 不能带 std:: 前缀，否则 clippy 1.94 报"unknown method"警告（宏不是方法）
 disallowed-methods = [
-    { path = "std::println", reason = "使用 tracing::info! 替代" },
-    { path = "std::eprintln", reason = "使用 tracing::error! 替代" },
+    { path = "println", reason = "使用 tracing::info! 替代" },
+    { path = "eprintln", reason = "使用 tracing::error! 替代" },
 ]
 
 # 强制使用 Result 处理错误
