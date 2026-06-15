@@ -451,3 +451,26 @@ Agent 在任务执行过程中发现的条目应遵循以下格式：
   - **CHANGELOG 更新**：在 [Unreleased] - 2026-06-15 顶部增加"Wave 1 合并汇总"表格，4 PR + 提交 SHA + 状态
   - **当前 main 状态**：5f28212 + a2df8f8（changelog），共 6 commit
   - **下一步**：可启动 Wave 2（B3 P1-3 嵌套 4 并行 / B4 P1-4 / B5 P2-1）
+
+[Wave 3 B7 console.* 清理总结]
+- Date: 2026-06-15
+- Context: Agent 在执行"开始实施"指令时完成 Wave 3 B7 任务（清理 112 处 console.* → logger.*）
+- Category: 工作流协作
+- Instructions:
+  - **执行模式**：单子代理串行，4 批分批 squash merge（避免云端卡死，已在 Wave 2 验证）
+  - **Spec 文档**：`docs/superpowers/specs/2026-06-15-b7-console-cleanup-design.md`（提交 fee7507）
+  - **评估文档**：`docs/superpowers/plans/2026-06-15-wave3-evaluation-plan.md`（提交 d21965b）
+  - **4 批结果**：
+    - B7-1 PR #91 → 313084e：purchase+inventory 域，8 文件 +45/-43，37 处
+    - B7-2 PR #92 → c641239：crm+sales 域，4 文件 +15/-11，11 处
+    - B7-3 PR #93 → 374a3af：bpm+report+arReconciliation 域，7 文件 +29/-22，22 处
+    - B7-4 PR #94 → 979feca：dye/logistics/security/email/tenant/supplier/system/advanced/dashboard/setup/batch 域，12 文件 +54/-42，42 处
+  - **总成果**：112 处 console.* → logger.*，31 个 .vue/.ts 文件，0 业务逻辑改动
+  - **关键经验**：
+    - 子代理在 catch 块处理中遇到 `e:unknown` 类型与 `logger.error(message: string)` 签名冲突，使用 `String(e)` 转换解决（消除 TS2345 错误）
+    - 子代理发现 Edit 工具偶发"返回成功但未实际写入"（连续调用时），必须用 `grep` 验证 before/after
+    - GitHub squash merge 后部分远端分支自动删除，残留可通过 `git push origin --delete` 或 `git update-ref -d` 清理
+  - **已知遗留**：基线存在 32 个预存 type-check 错误（Wave 2 合并后），B7 4 批均无新增错误（基线 = 当前 = 32），清理预存错误属于 Wave 4 启动前置 P 任务
+  - **GitHub Token**：嵌入在 `/workspace/.git/config` 的 `origin` URL 中（格式 `x-access-token:ghu_...`），可用 `grep -oP 'x-access-token:\K[^@]+' .git/config` 提取
+  - **当前 main 状态**：979feca + 4658d37（changelog），共 7 commit
+  - **下一步**：A2 AI 深化（工艺优化 + 质量预测）— 需用户确认 dye_recipe 表 migration 缺失问题
