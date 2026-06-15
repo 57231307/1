@@ -177,6 +177,7 @@ import {
   loadOrGenerateStocks,
   type StockRow,
 } from './testData'
+import { logger } from '@/utils/logger'
 
 /* ========== 数据源 ========== */
 
@@ -416,13 +417,11 @@ const rowKeyGetter = (row: StockRow) => row.id
 
 const handleView = (row: StockRow) => {
   // POC 阶段不实现具体业务,仅占位
-  // eslint-disable-next-line no-console
-  console.info('[POC] 查看详情', row.id)
+  logger.info('[POC] 查看详情', row.id)
 }
 
 const handleAdjust = (row: StockRow) => {
-  // eslint-disable-next-line no-console
-  console.info('[POC] 库存调整', row.id)
+  logger.info('[POC] 库存调整', row.id)
 }
 
 /* ========== 测试数据生成 ========== */
@@ -434,8 +433,7 @@ const generateAndLoad = () => {
     stocks.value = generateStocks(TEST_DATA_COUNT)
     handleReset()
     loading.value = false
-    // eslint-disable-next-line no-console
-    console.info('[POC] 重新生成', stocks.value.length, '行')
+    logger.info('[POC] 重新生成', stocks.value.length, '行')
   }, 0)
 }
 

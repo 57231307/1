@@ -348,6 +348,7 @@ import {
 import type { PurchaseContract } from '@/api/purchase-contract'
 import { supplierApi } from '@/api/supplier'
 import type { Supplier } from '@/api/supplier'
+import { logger } from '@/utils/logger'
 
 // 查询参数
 const queryParams = reactive({
@@ -405,7 +406,7 @@ const getList = async () => {
     contractList.value = res.data?.list || []
     total.value = res.data?.total || 0
   } catch (error) {
-    console.error('获取采购合同列表失败:', error)
+    logger.error('获取采购合同列表失败:', error)
   } finally {
     loading.value = false
   }
@@ -417,7 +418,7 @@ const getSuppliers = async () => {
     const res = await supplierApi.list()
     suppliers.value = res.data?.list || []
   } catch (error) {
-    console.error('获取供应商列表失败:', error)
+    logger.error('获取供应商列表失败:', error)
   }
 }
 
@@ -482,7 +483,7 @@ const handleSubmit = async (row: any) => {
     ElMessage.success('提交成功')
     getList()
   } catch (error) {
-    console.error('提交失败:', error)
+    logger.error('提交失败:', error)
   }
 }
 
@@ -494,7 +495,7 @@ const handleApprove = async (row: any) => {
     ElMessage.success('审批成功')
     getList()
   } catch (error) {
-    console.error('审批失败:', error)
+    logger.error('审批失败:', error)
   }
 }
 
@@ -506,7 +507,7 @@ const handleExecute = async (row: any) => {
     ElMessage.success('执行成功')
     getList()
   } catch (error) {
-    console.error('执行失败:', error)
+    logger.error('执行失败:', error)
   }
 }
 
@@ -518,7 +519,7 @@ const handleDelete = async (row: any) => {
     ElMessage.success('删除成功')
     getList()
   } catch (error) {
-    console.error('删除失败:', error)
+    logger.error('删除失败:', error)
   }
 }
 
@@ -540,7 +541,7 @@ const handleSubmitForm = async () => {
     dialogVisible.value = false
     getList()
   } catch (error) {
-    console.error('表单验证失败:', error)
+    logger.error('表单验证失败:', error)
   }
 }
 
