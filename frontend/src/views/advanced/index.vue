@@ -242,6 +242,114 @@
           </el-table>
         </el-card>
       </el-tab-pane>
+
+      <el-tab-pane label="工艺优化" name="recipe">
+        <div class="page-header">
+          <h2 class="page-title">染色工艺参数智能推荐</h2>
+        </div>
+
+        <el-row :gutter="20">
+          <el-col :span="8">
+            <el-card shadow="hover" class="mb-20">
+              <template #header><div class="card-header">推荐条件</div></template>
+              <el-form :model="recipeForm" label-width="100px">
+                <el-form-item label="色号" required>
+                  <el-input v-model="recipeForm.color_no" placeholder="如 BL-301" />
+                </el-form-item>
+                <el-form-item label="布类" required>
+                  <el-select v-model="recipeForm.fabric_type" placeholder="请选择布类" style="width: 100%">
+                    <el-option label="棉" value="棉" />
+                    <el-option label="涤纶" value="涤纶" />
+                    <el-option label="丝绸" value="丝绸" />
+                    <el-option label="羊毛" value="羊毛" />
+                  </el-select>
+                </el-form-item>
+                <el-form-item label="染料类型">
+                  <el-select v-model="recipeForm.dye_type" placeholder="可选" clearable style="width: 100%">
+                    <el-option label="活性染料" value="活性染料" />
+                    <el-option label="分散染料" value="分散染料" />
+                    <el-option label="酸性染料" value="酸性染料" />
+                    <el-option label="还原染料" value="还原染料" />
+                  </el-select>
+                </el-form-item>
+                <el-form-item label="颜色名称">
+                  <el-input v-model="recipeForm.color_name" placeholder="可选,如宝蓝" />
+                </el-form-item>
+                <el-form-item>
+                  <el-button
+                    type="primary"
+                    :loading="recipeLoading"
+                    @click="runRecipeOptimization"
+                    >生成推荐</el-button
+                  >
+                </el-form-item>
+              </el-form>
+            </el-card>
+          </el-col>
+
+          <el-col :span="16">
+            <el-card shadow="hover" class="mb-20">
+              <template #header>
+                <div class="card-header">推荐结果</div>
+              </template>
+              <el-empty v-if="!recipeResult" description="请填写色号与布类后生成推荐" />
+              <div v-else>
+                <el-descriptions :column="2" border>
+                  <el-descriptions-item label="推荐温度">
+                    {{ recipeResult.recommended_params.temperature }} °C
+                  </el-descriptions-item>
+                  <el-descriptions-item label="推荐时间">
+                    {{ recipeResult.recommended_params.time_minutes }} 分钟
+                  </el-descriptions-item>
+                  <el-descriptions-item label="推荐 pH">
+                    {{ recipeResult.recommended_params.ph_value }}
+                  </el-descriptions-item>
+                  <el-descriptions-item label="推荐浴比">
+                    1 : {{ recipeResult.recommended_params.liquor_ratio }}
+                  </el-descriptions-item>
+                  <el-descriptions-item label="染料类型">
+                    {{ recipeResult.recommended_params.dye_type || '未指定' }}
+                  </el-descriptions-item>
+                  <el-descriptions-item label="置信度">
+                    {{ Math.round(recipeResult.confidence * 100) }}%
+                  </el-descriptions-item>
+                  <el-descriptions-item label="相似案例数">
+                    {{ recipeResult.similar_cases }}
+                  </el-descriptions-item>
+                  <el-descriptions-item label="推荐来源">
+                    <el-tag
+                      :type="recipeResult.source === 'k-NN 历史匹配' ? 'success' : 'info'"
+                      size="small"
+                    >
+                      {{ recipeResult.source }}
+                    </el-tag>
+                  </el-descriptions-item>
+                </el-descriptions>
+
+                <h4 class="mb-10" style="margin-top: 16px">助剂清单</h4>
+                <el-table
+                  v-if="
+                    recipeResult.recommended_params.auxiliaries &&
+                    recipeResult.recommended_params.auxiliaries.length > 0
+                  "
+                  :data="recipeResult.recommended_params.auxiliaries"
+                  stripe
+                  size="small"
+                >
+                  <el-table-column prop="name" label="名称" width="180" />
+                  <el-table-column prop="amount" label="用量" width="120" />
+                  <el-table-column prop="unit" label="单位" width="120" />
+                </el-table>
+                <el-empty
+                  v-else
+                  description="无助剂信息"
+                  :image-size="60"
+                />
+              </div>
+            </el-card>
+          </el-col>
+        </el-row>
+      </el-tab-pane>
     </el-tabs>
 
     <!-- 租户对话框 -->
@@ -292,6 +400,7 @@ import {
   optimizeInventory,
   detectAnomalies,
   getRecommendations as getRecommendationsApi,
+  optimizeRecipe,
   listReportTemplates,
   executeReport as executeReportApi,
   listTenants,
@@ -321,6 +430,43 @@ const reportData = ref<any[]>([])
 const reportColumns = ref<any[]>([])
 const tenants = ref<any[]>([])
 const tenantLoading = ref(false)
+
+// 工艺优化（A2-1）状态
+const recipeForm = ref({
+  color_no: '',
+  fabric_type: '棉',
+  dye_type: '',
+  color_name: '',
+})
+const recipeLoading = ref(false)
+const recipeResult = ref<any>(null)
+
+const runRecipeOptimization = async () => {
+  if (!recipeForm.value.color_no.trim()) {
+    ElMessage.warning('请输入色号')
+    return
+  }
+  if (!recipeForm.value.fabric_type) {
+    ElMessage.warning('请选择布类')
+    return
+  }
+  recipeLoading.value = true
+  try {
+    const payload: any = {
+      color_no: recipeForm.value.color_no.trim(),
+      fabric_type: recipeForm.value.fabric_type,
+    }
+    if (recipeForm.value.dye_type) payload.dye_type = recipeForm.value.dye_type
+    if (recipeForm.value.color_name) payload.color_name = recipeForm.value.color_name
+    const res: any = await optimizeRecipe(payload)
+    recipeResult.value = res.data!
+    ElMessage.success('推荐生成完成')
+  } catch (e: any) {
+    ElMessage.error(e.message || '推荐失败')
+  } finally {
+    recipeLoading.value = false
+  }
+}
 
 const formatMoney = (amount: number) =>
   '¥' + (amount?.toLocaleString('zh-CN', { minimumFractionDigits: 2 }) || '0.00')
@@ -496,6 +642,7 @@ const tabLoaders: Record<string, () => void> = {
   ai: () => {},
   report: fetchReportTemplates,
   tenant: fetchTenants,
+  recipe: () => {},
 }
 
 const loadTab = (tabName: string) => {

@@ -13,6 +13,14 @@ export const detectAnomalies = (data: { data_type: string; date_range?: any }) =
 export const getRecommendations = (data?: { type?: string }) =>
   request.post('/advanced/ai/recommendations', data)
 
+// 染色工艺参数智能推荐（A2-1 工艺优化）
+export const optimizeRecipe = (data: {
+  color_no: string
+  fabric_type: string
+  dye_type?: string
+  color_name?: string
+}) => request.post('/advanced/ai/recipe-optimization', data)
+
 export const listReportTemplates = () => request.get('/advanced/reports/templates')
 
 export const executeReport = (template_code: string) =>

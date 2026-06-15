@@ -18,6 +18,7 @@ use std::sync::Arc;
 pub mod detect;
 pub mod pred;
 pub mod rec;
+pub mod recipe_opt;
 
 // =====================================================
 // 共享 DTO（与原 ai_analysis_service.rs 保持一致）
