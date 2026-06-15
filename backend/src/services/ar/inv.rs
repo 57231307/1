@@ -259,7 +259,10 @@ mod tests {
 
         // 断言金额按含税值写入，未付金额初始等于应收金额
         assert!(amount > Decimal::ZERO);
-        assert_eq!(amount, Decimal::try_from(11800.00_f64).unwrap_or(Decimal::ZERO));
+        assert_eq!(
+            amount,
+            Decimal::try_from(11800.00_f64).unwrap_or(Decimal::ZERO)
+        );
 
         // 断言到日期 = 今日 + 45 天
         let expected_due = Utc::now().date_naive() + Duration::days(45);
@@ -300,7 +303,10 @@ mod tests {
 
         // 本次应收金额 = 本次发货金额（不包含已发货或剩余未发部分）
         let ar_amount = this_shipment;
-        assert_eq!(ar_amount, Decimal::try_from(25000_i32).unwrap_or(Decimal::ZERO));
+        assert_eq!(
+            ar_amount,
+            Decimal::try_from(25000_i32).unwrap_or(Decimal::ZERO)
+        );
         assert!(remaining > Decimal::ZERO);
 
         // 断言本次 AR 金额仅反映本次发货，不会自动合并历史或未来发货
