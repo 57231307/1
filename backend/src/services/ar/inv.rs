@@ -285,7 +285,7 @@ mod tests {
         assert!(invalid_amount <= Decimal::ZERO);
 
         // 模拟金额为负的非法输入
-        let negative_amount = Decimal::try_from(-100_i32).unwrap_or(Decimal::ZERO);
+        let negative_amount = Decimal::from(-100_i32);
         assert!(negative_amount <= Decimal::ZERO);
 
         // 业务约束：以上两种场景在 create_receivable 入口应返回 Err，
@@ -296,17 +296,14 @@ mod tests {
     #[test]
     fn test_create_receivable_partial_shipment() {
         // 订单总金额 100,000，已发货 60,000，本次部分发货 25,000
-        let order_total = Decimal::try_from(100000_i32).unwrap_or(Decimal::ZERO);
-        let already_shipped = Decimal::try_from(60000_i32).unwrap_or(Decimal::ZERO);
-        let this_shipment = Decimal::try_from(25000_i32).unwrap_or(Decimal::ZERO);
+        let order_total = Decimal::from(100000_i32);
+        let already_shipped = Decimal::from(60000_i32);
+        let this_shipment = Decimal::from(25000_i32);
         let remaining = order_total - already_shipped - this_shipment;
 
         // 本次应收金额 = 本次发货金额（不包含已发货或剩余未发部分）
         let ar_amount = this_shipment;
-        assert_eq!(
-            ar_amount,
-            Decimal::try_from(25000_i32).unwrap_or(Decimal::ZERO)
-        );
+        assert_eq!(ar_amount, Decimal::from(25000_i32));
         assert!(remaining > Decimal::ZERO);
 
         // 断言本次 AR 金额仅反映本次发货，不会自动合并历史或未来发货
