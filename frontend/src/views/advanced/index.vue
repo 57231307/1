@@ -300,6 +300,7 @@ import {
   deleteTenant as deleteTenantApi,
 } from '@/api/advanced'
 import { loadIfNot, createLazyLoader } from '@/utils/lazy-loader'
+import { logger } from '@/utils/logger'
 
 const activeTab = ref('ai')
 const hasLoaded = createLazyLoader()
@@ -447,7 +448,7 @@ const updateTenantStatus = async (row: any) => {
     ElMessage.success('状态更新成功')
     fetchTenants()
   } catch (e) {
-    if (e !== 'cancel') console.error(e)
+    if (e !== 'cancel') logger.error(String(e))
   }
 }
 
@@ -487,7 +488,7 @@ const deleteTenant = async (row: any) => {
     ElMessage.success('删除成功')
     fetchTenants()
   } catch (e) {
-    if (e !== 'cancel') console.error(e)
+    if (e !== 'cancel') logger.error(String(e))
   }
 }
 

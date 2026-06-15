@@ -225,6 +225,7 @@ import {
   exportDyeRecipes,
 } from '@/api/dye-recipe'
 import type { DyeRecipe } from '@/api/dye-recipe'
+import { logger } from '@/utils/logger'
 
 // 查询参数
 const queryParams = reactive({
@@ -277,7 +278,7 @@ const getList = async () => {
     recipeList.value = res.data || []
     total.value = res.total || 0
   } catch (error) {
-    console.error('获取染色配方列表失败:', error)
+    logger.error('获取染色配方列表失败:', error)
   } finally {
     loading.value = false
   }
@@ -330,7 +331,7 @@ const handleSubmit = async (row: any) => {
     ElMessage.success('提交成功')
     getList()
   } catch (error) {
-    console.error('提交失败:', error)
+    logger.error('提交失败:', error)
   }
 }
 
@@ -342,7 +343,7 @@ const handleApprove = async (row: any) => {
     ElMessage.success('审批成功')
     getList()
   } catch (error) {
-    console.error('审批失败:', error)
+    logger.error('审批失败:', error)
   }
 }
 
@@ -353,7 +354,7 @@ const handleVersion = async (row: any) => {
     versionList.value = res.data || []
     versionVisible.value = true
   } catch (error) {
-    console.error('获取版本历史失败:', error)
+    logger.error('获取版本历史失败:', error)
   }
 }
 
@@ -374,7 +375,7 @@ const handleExport = async () => {
     window.URL.revokeObjectURL(url)
     ElMessage.success('导出成功')
   } catch (error) {
-    console.error('导出失败:', error)
+    logger.error('导出失败:', error)
   }
 }
 
@@ -391,7 +392,7 @@ const handleSubmitForm = async () => {
     dialogVisible.value = false
     getList()
   } catch (error) {
-    console.error('表单验证失败:', error)
+    logger.error('表单验证失败:', error)
   }
 }
 

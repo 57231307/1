@@ -234,6 +234,7 @@ import {
 import type { DyeBatch } from '@/api/dye-batch'
 import { productApi } from '@/api/product'
 import type { Product } from '@/api/product'
+import { logger } from '@/utils/logger'
 
 // 查询参数
 const queryParams = reactive({
@@ -288,7 +289,7 @@ const getList = async () => {
     dyeBatchList.value = res.data || []
     total.value = res.total || 0
   } catch (error) {
-    console.error('获取缸号列表失败:', error)
+    logger.error('获取缸号列表失败:', error)
   } finally {
     loading.value = false
   }
@@ -300,7 +301,7 @@ const getProducts = async () => {
     const res = await productApi.list({ page: 1, page_size: 1000 })
     products.value = res.data?.list || []
   } catch (error) {
-    console.error('获取产品列表失败:', error)
+    logger.error('获取产品列表失败:', error)
   }
 }
 
@@ -354,7 +355,7 @@ const handleComplete = async (row: any) => {
     ElMessage.success('操作成功')
     getList()
   } catch (error) {
-    console.error('操作失败:', error)
+    logger.error('操作失败:', error)
   }
 }
 
@@ -366,7 +367,7 @@ const handleDelete = async (row: any) => {
     ElMessage.success('删除成功')
     getList()
   } catch (error) {
-    console.error('删除失败:', error)
+    logger.error('删除失败:', error)
   }
 }
 
@@ -384,7 +385,7 @@ const handleExport = async () => {
     window.URL.revokeObjectURL(url)
     ElMessage.success('导出成功')
   } catch (error) {
-    console.error('导出失败:', error)
+    logger.error('导出失败:', error)
   }
 }
 
@@ -401,7 +402,7 @@ const handleSubmitForm = async () => {
     dialogVisible.value = false
     getList()
   } catch (error) {
-    console.error('表单验证失败:', error)
+    logger.error('表单验证失败:', error)
   }
 }
 

@@ -288,6 +288,7 @@ import { loadIfNot, createLazyLoader } from '@/utils/lazy-loader'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Plus } from '@element-plus/icons-vue'
 import { logisticsApi, type LogisticsWaybill } from '@/api/logistics'
+import { logger } from '@/utils/logger'
 
 // 统计数据
 const stats = reactive({
@@ -384,7 +385,7 @@ const fetchData = async () => {
     stats.inTransit = tableData.value.filter(i => i.status === 'in_transit').length
     stats.delivered = tableData.value.filter(i => i.status === 'delivered').length
   } catch (error) {
-    console.error('获取数据失败:', error)
+    logger.error('获取数据失败:', error)
   } finally {
     loading.value = false
   }
@@ -449,7 +450,7 @@ const handleView = async (row: LogisticsWaybill) => {
     detailData.value = res.data
     detailDialogVisible.value = true
   } catch (error) {
-    console.error('获取详情失败:', error)
+    logger.error('获取详情失败:', error)
   }
 }
 
@@ -467,7 +468,7 @@ const handleSubmit = async () => {
     dialogVisible.value = false
     fetchData()
   } catch (error) {
-    console.error('提交失败:', error)
+    logger.error('提交失败:', error)
   } finally {
     submitLoading.value = false
   }
@@ -481,7 +482,7 @@ const handleShip = async (row: LogisticsWaybill) => {
     fetchData()
   } catch (error) {
     if (error !== 'cancel') {
-      console.error('发货失败:', error)
+      logger.error('发货失败:', error)
     }
   }
 }
@@ -500,7 +501,7 @@ const handleStatusSubmit = async () => {
     statusDialogVisible.value = false
     fetchData()
   } catch (error) {
-    console.error('状态更新失败:', error)
+    logger.error('状态更新失败:', error)
   }
 }
 
@@ -512,7 +513,7 @@ const handleDelete = async (row: LogisticsWaybill) => {
     fetchData()
   } catch (error) {
     if (error !== 'cancel') {
-      console.error('删除失败:', error)
+      logger.error('删除失败:', error)
     }
   }
 }
