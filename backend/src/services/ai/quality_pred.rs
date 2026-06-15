@@ -35,7 +35,7 @@ use crate::models::quality_inspection_record::{
 };
 use crate::utils::error::AppError;
 
-use super::AiAnalysisService;
+use super::{mean, AiAnalysisService};
 
 // =====================================================
 // 输入 / 输出 DTO
@@ -278,7 +278,11 @@ pub(crate) fn mean_qualification_rate(records: &[QualityInspectionModel]) -> f64
             .and_then(|d| d.to_f64())
             .or_else(|| {
                 let inspected = r.inspected_qty.to_f64().unwrap_or(0.0);
-                let qualified = r.qualified_qty.as_ref().and_then(|d| d.to_f64()).unwrap_or(0.0);
+                let qualified = r
+                    .qualified_qty
+                    .as_ref()
+                    .and_then(|d| d.to_f64())
+                    .unwrap_or(0.0);
                 if inspected > 0.0 {
                     Some((qualified / inspected) * 100.0)
                 } else {
@@ -328,12 +332,11 @@ impl AiAnalysisService {
         // 2. 拉取窗口内的全部检验记录
         let cutoff = chrono::Utc::now().date_naive() - chrono::Duration::days(window_days as i64);
 
-        let mut select = QualityInspectionEntity::find().filter(
-            crate::models::quality_inspection_record::Column::InspectionDate.gte(cutoff),
-        );
+        let mut select = QualityInspectionEntity::find()
+            .filter(crate::models::quality_inspection_record::Column::InspectionDate.gte(cutoff));
         if let Some(pid) = product_id {
-            select = select
-                .filter(crate::models::quality_inspection_record::Column::ProductId.eq(pid));
+            select =
+                select.filter(crate::models::quality_inspection_record::Column::ProductId.eq(pid));
         }
         if let Some(ref t) = inspection_type {
             select = select
@@ -401,7 +404,9 @@ impl AiAnalysisService {
         let previous_avg = mean_qualification_rate(
             &records
                 .iter()
-                .filter(|r| r.inspection_date >= previous_cutoff && r.inspection_date < recent_cutoff)
+                .filter(|r| {
+                    r.inspection_date >= previous_cutoff && r.inspection_date < recent_cutoff
+                })
                 .cloned()
                 .collect::<Vec<_>>(),
         );
@@ -575,7 +580,11 @@ mod tests {
     fn test_trend_calculation() {
         // 上升：recent 90, previous 80 → (90-80)/80 = 0.125 = 12.5% > 5%
         let rate = compute_trend_rate(90.0, 80.0);
-        assert!((rate - 0.125).abs() < 0.0001, "变化率应为 0.125，实际 {}", rate);
+        assert!(
+            (rate - 0.125).abs() < 0.0001,
+            "变化率应为 0.125，实际 {}",
+            rate
+        );
         let label = classify_trend(rate);
         assert_eq!(label, "上升", "趋势应判定为上升，实际 {}", label);
 
