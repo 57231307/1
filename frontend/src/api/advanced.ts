@@ -27,6 +27,16 @@ export interface RecipeOptParams {
 export const optimizeRecipe = (data: RecipeOptParams) =>
   request.post('/advanced/ai/recipe-optimization', data)
 
+// 质量预测（A2-2 质量预测）
+export interface QualityPredParams {
+  product_id?: number
+  inspection_type?: string
+  window_days?: number
+}
+
+export const predictQuality = (data: QualityPredParams) =>
+  request.post('/advanced/ai/quality-prediction', data)
+
 export const listReportTemplates = () => request.get('/advanced/reports/templates')
 
 export const executeReport = (template_code: string) =>
