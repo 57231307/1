@@ -29,6 +29,7 @@ import {
   type ReconciliationDetail,
 } from '@/api/ar-reconciliation'
 import { request } from '@/api/request'
+import { logger } from '@/utils/logger'
 
 const tableData = ref<ArReconciliationEntity[]>([])
 const total = ref(0)
@@ -96,7 +97,7 @@ const loadCustomers = async () => {
     const res: any = await request.get('/customers/select')
     customerOptions.value = res.data!
   } catch (error) {
-    console.warn('加载客户失败')
+    logger.warn('加载客户失败')
   }
 }
 
