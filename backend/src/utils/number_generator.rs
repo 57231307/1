@@ -60,6 +60,11 @@ impl DocumentNumberGenerator {
 
         // 防御：当 width == 0 时退化为 1 位，至少保留流水号
         let width = width.max(1);
-        Ok(format!("{}{:0width$}", date_prefix, count + 1, width = width))
+        Ok(format!(
+            "{}{:0width$}",
+            date_prefix,
+            count + 1,
+            width = width
+        ))
     }
 }
