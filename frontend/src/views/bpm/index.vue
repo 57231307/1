@@ -206,6 +206,7 @@ import { ref, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Clock, CircleCheck, Warning, Timer } from '@element-plus/icons-vue'
 import { bpmApi } from '@/api/bpm'
+import { logger } from '@/utils/logger'
 
 const activeTab = ref('pending')
 
@@ -314,7 +315,7 @@ const handleApprove = async (row: any) => {
     ElMessage.success('审批成功')
     fetchPendingTasks()
   } catch (e) {
-    if (e !== 'cancel') console.error(e)
+    if (e !== 'cancel') logger.error(String(e))
   }
 }
 
@@ -333,7 +334,7 @@ const handleTransfer = async (row: any) => {
     ElMessage.success('任务转交成功')
     fetchPendingTasks()
   } catch (e) {
-    if (e !== 'cancel') console.error(e)
+    if (e !== 'cancel') logger.error(String(e))
   }
 }
 
@@ -343,7 +344,7 @@ const handleUrge = async (row: any) => {
     await bpmApi.urgeTask(row.task_id)
     ElMessage.success('催办成功')
   } catch (e) {
-    if (e !== 'cancel') console.error(e)
+    if (e !== 'cancel') logger.error(String(e))
   }
 }
 

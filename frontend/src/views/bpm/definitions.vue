@@ -277,6 +277,7 @@ import { ElMessage, ElMessageBox, type FormInstance, type FormRules } from 'elem
 import { Plus } from '@element-plus/icons-vue'
 import { bpmEnhancedApi } from '@/api/bpm-enhanced'
 import type { ProcessDefinition, ProcessVersion } from '@/api/bpm-enhanced'
+import { logger } from '@/utils/logger'
 
 const loading = ref(false)
 const submitLoading = ref(false)
@@ -376,7 +377,7 @@ const fetchData = async () => {
     definitions.value = res.data.list
     pagination.total = res.data.total
   } catch (e) {
-    console.error(e)
+    logger.error(String(e))
   } finally {
     loading.value = false
   }
@@ -448,7 +449,7 @@ const handleSubmit = async () => {
       dialogVisible.value = false
       fetchData()
     } catch (e) {
-      console.error(e)
+      logger.error(String(e))
     } finally {
       submitLoading.value = false
     }
@@ -464,7 +465,7 @@ const handleDelete = async (row: ProcessDefinition) => {
     ElMessage.success('删除成功')
     fetchData()
   } catch (e) {
-    if (e !== 'cancel') console.error(e)
+    if (e !== 'cancel') logger.error(String(e))
   }
 }
 
@@ -475,7 +476,7 @@ const handleVersions = async (row: ProcessDefinition) => {
     const res = await bpmEnhancedApi.listVersions(row.id)
     versions.value = res.data
   } catch (e) {
-    console.error(e)
+    logger.error(String(e))
   }
 }
 
@@ -489,7 +490,7 @@ const handleCreateVersion = async () => {
     ElMessage.success('新版本创建成功')
     handleVersions(currentDefinition.value)
   } catch (e) {
-    if (e !== 'cancel') console.error(e)
+    if (e !== 'cancel') logger.error(String(e))
   }
 }
 
@@ -500,7 +501,7 @@ const handleActivateVersion = async (row: ProcessVersion) => {
     ElMessage.success('版本激活成功')
     if (currentDefinition.value) handleVersions(currentDefinition.value)
   } catch (e) {
-    if (e !== 'cancel') console.error(e)
+    if (e !== 'cancel') logger.error(String(e))
   }
 }
 
@@ -522,7 +523,7 @@ const handleConfirmSaveTemplate = async () => {
       ElMessage.success('保存为模板成功')
       templateDialogVisible.value = false
     } catch (e) {
-      console.error(e)
+      logger.error(String(e))
     } finally {
       submitLoading.value = false
     }
