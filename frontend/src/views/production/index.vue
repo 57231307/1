@@ -54,21 +54,13 @@
         :columns="productionColumns"
         :estimated-row-height="48"
         :loading="loading"
+        :total="total"
+        :page="queryForm.page"
+        :page-size="queryForm.page_size"
         @row-click="handleProductionRowClick"
+        @page-change="handlePageChange"
+        @size-change="handleSizeChange"
       />
-
-      <!-- 分页 -->
-      <div class="pagination-container">
-        <el-pagination
-          v-model:current-page="queryForm.page"
-          v-model:page-size="queryForm.page_size"
-          :page-sizes="[10, 20, 50, 100]"
-          :total="total"
-          layout="total, sizes, prev, pager, next, jumper"
-          @size-change="fetchOrders"
-          @current-change="fetchOrders"
-        />
-      </div>
     </el-card>
 
     <!-- 新建/编辑对话框 -->
@@ -193,35 +185,49 @@ import { useTableColumns } from '@/composables/useTableColumns'
 
 // 生产订单列表列定义（V2Table 渲染）
 const { columns: productionColumns } = useTableColumns([
-  { key: 'order_no', label: '工单编号', width: 160, sortable: true },
-  { key: 'product_name', label: '产品', width: 200 },
-  { key: 'planned_quantity', label: '计划数量', width: 120, align: 'right' },
+  { key: 'order_no', title: '工单编号', width: 160, sortable: true },
+  { key: 'product_name', title: '产品', width: 200 },
+  { key: 'planned_quantity', title: '计划数量', width: 120, align: 'right' },
   {
     key: 'actual_quantity',
-    label: '完成数量',
+    title: '完成数量',
     width: 120,
     align: 'right',
-    formatter: (v: any, row: any) => `${v ?? 0} / ${row.planned_quantity ?? 0}`,
+    formatter: (row: any) => `${row.actual_quantity ?? 0} / ${row.planned_quantity ?? 0}`,
   },
   {
     key: 'scheduled_start_date',
-    label: '开始日期',
+    title: '开始日期',
     width: 120,
-    formatter: (v: any) => (v ? v.substring(0, 10) : '-'),
+    formatter: (row: any) =>
+      row.scheduled_start_date ? String(row.scheduled_start_date).substring(0, 10) : '-',
   },
   {
     key: 'scheduled_end_date',
-    label: '结束日期',
+    title: '结束日期',
     width: 120,
-    formatter: (v: any) => (v ? v.substring(0, 10) : '-'),
+    formatter: (row: any) =>
+      row.scheduled_end_date ? String(row.scheduled_end_date).substring(0, 10) : '-',
   },
-  { key: 'status', label: '状态', width: 100, align: 'center' },
-  { key: 'priority', label: '优先级', width: 100 },
+  { key: 'status', title: '状态', width: 100, align: 'center' },
+  { key: 'priority', title: '优先级', width: 100 },
 ])
 
 // 行点击：触发查看详情
 const handleProductionRowClick = (row: ProductionOrder) => {
   viewDetail(row)
+}
+
+// V2Table 内置分页事件处理
+const handlePageChange = (newPage: number) => {
+  queryForm.page = newPage
+  fetchOrders()
+}
+
+const handleSizeChange = (newSize: number) => {
+  queryForm.page_size = newSize
+  queryForm.page = 1
+  fetchOrders()
 }
 
 // 响应式数据
