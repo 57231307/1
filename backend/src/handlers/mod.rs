@@ -132,3 +132,5 @@ pub mod field_permission_handler;
 pub mod print_handler;
 // 缺失的 handler 补充
 pub mod missing_handlers;
+// P0-2 主备隔离 handler
+pub mod failover_handler;

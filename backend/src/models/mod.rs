@@ -215,3 +215,7 @@ pub mod business_trace_view;
 // 字段权限模块
 pub mod report_definition;
 // 增强审计日志已废弃（无对应 migration + 0 业务引用）→ 整个 _legacy/ 目录已清理
+// P0-2 主备隔离模块
+pub mod failover_config;
+pub mod failover_event;
+pub mod failover_status;
