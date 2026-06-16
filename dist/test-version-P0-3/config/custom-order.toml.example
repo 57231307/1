@@ -1,0 +1,46 @@
+# 冰溪 ERP 定制订单全流程跟踪配置
+# 复制为 custom-order.toml 并修改实际值
+
+[server]
+host = "0.0.0.0"
+port = 8080
+
+[database]
+url = "postgres://bingxi:bingxi123@localhost:5432/bingxi_erp"
+max_connections = 32
+min_connections = 4
+acquire_timeout_seconds = 30
+
+[cache]
+redis_url = "redis://localhost:6379"
+ttl_seconds = 3600
+
+[auth]
+jwt_secret = "your-jwt-secret-change-in-production"
+jwt_expiration_hours = 24
+
+[custom_order]
+# 5 阶段工艺节点是否自动创建（创建订单时）
+auto_create_process_nodes = true
+
+# 质量异常色差 ΔE 警告阈值（GB/T 26377-2022）
+color_delta_e_warning_threshold = 5.0
+
+# ISO 105 色牢度等级校验（1-5）
+color_fastness_min_grade = 3
+color_fastness_max_grade = 5
+
+# 售后工单超时（小时）
+after_sales_timeout_hours = 72
+
+# 多租户隔离严格模式
+strict_tenant_isolation = true
+
+[logging]
+level = "info"
+format = "json"
+file = "/var/log/bingxi-erp/custom-order.log"
+
+[monitoring]
+prometheus_enabled = true
+metrics_path = "/metrics"

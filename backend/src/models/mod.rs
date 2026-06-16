@@ -219,3 +219,15 @@ pub mod report_definition;
 pub mod failover_config;
 pub mod failover_event;
 pub mod failover_status;
+// P0-3 定制订单全流程跟踪模块
+pub mod custom_order;
+pub mod process_node;
+pub mod process_log;
+pub mod quality_issue;
+pub mod after_sales;
+// P0-3 定制订单 DTO
+pub mod custom_order_create_dto;
+pub mod custom_order_update_dto;
+pub mod custom_order_response_dto;
+pub mod process_node_dto;
+pub mod quality_issue_dto;

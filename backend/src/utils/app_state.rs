@@ -13,6 +13,11 @@ use crate::services::quotation_service::QuotationService;
 use crate::services::quotation_pricing_service::QuotationPricingService;
 use crate::services::quotation_approval_service::QuotationApprovalService;
 use crate::services::quotation_convert_service::QuotationConvertService;
+use crate::services::custom_order_crud_service::CustomOrderCrudService;
+use crate::services::custom_order_state_service::CustomOrderStateService;
+use crate::services::custom_order_process_service::CustomOrderProcessService;
+use crate::services::custom_order_quality_service::CustomOrderQualityService;
+use crate::services::custom_order_aftersales_service::CustomOrderAfterSalesService;
 use crate::utils::cache::AppCache;
 use crate::utils::di_container::DIContainer;
 
@@ -46,6 +51,12 @@ pub struct AppState {
     pub quotation_approval_service: Arc<QuotationApprovalService>,
     // 销售报价单转订单服务（Week 2 Task 8）
     pub quotation_convert_service: Arc<QuotationConvertService>,
+    // P0-3 定制订单全流程跟踪服务
+    pub custom_order_crud: Arc<CustomOrderCrudService>,
+    pub custom_order_state: Arc<CustomOrderStateService>,
+    pub custom_order_process: Arc<CustomOrderProcessService>,
+    pub custom_order_quality: Arc<CustomOrderQualityService>,
+    pub custom_order_aftersales: Arc<CustomOrderAfterSalesService>,
 }
 
 impl FromRef<AppState> for Key {
@@ -130,6 +141,12 @@ impl AppState {
             quotation_pricing_service,
             quotation_approval_service,
             quotation_convert_service,
+            // P0-3 定制订单服务（延迟构造以避免影响启动）
+            custom_order_crud: Arc::new(CustomOrderCrudService::new(db.clone())),
+            custom_order_state: Arc::new(CustomOrderStateService::new(db.clone())),
+            custom_order_process: Arc::new(CustomOrderProcessService::new(db.clone())),
+            custom_order_quality: Arc::new(CustomOrderQualityService::new(db.clone())),
+            custom_order_aftersales: Arc::new(CustomOrderAfterSalesService::new(db.clone())),
         })
     }
 }
@@ -163,6 +180,12 @@ impl Default for AppState {
         let quotation_pricing_service = Arc::new(QuotationPricingService::new(db.clone()));
         let quotation_approval_service = Arc::new(QuotationApprovalService::new(db.clone()));
         let quotation_convert_service = Arc::new(QuotationConvertService::new(db.clone()));
+        // P0-3 定制订单服务（测试环境）
+        let custom_order_crud = Arc::new(CustomOrderCrudService::new(db.clone()));
+        let custom_order_state = Arc::new(CustomOrderStateService::new(db.clone()));
+        let custom_order_process = Arc::new(CustomOrderProcessService::new(db.clone()));
+        let custom_order_quality = Arc::new(CustomOrderQualityService::new(db.clone()));
+        let custom_order_aftersales = Arc::new(CustomOrderAfterSalesService::new(db.clone()));
         Self {
             db: db.clone(),
             omni_audit,
@@ -184,6 +207,11 @@ impl Default for AppState {
             quotation_pricing_service,
             quotation_approval_service,
             quotation_convert_service,
+            custom_order_crud,
+            custom_order_state,
+            custom_order_process,
+            custom_order_quality,
+            custom_order_aftersales,
         }
     }
 }

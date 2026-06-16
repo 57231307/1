@@ -139,3 +139,9 @@ pub mod quotation_approval_service;
 pub mod quotation_convert_service;
 // P0-2 主备隔离服务
 pub mod failover_service;
+// P0-3 定制订单全流程跟踪服务
+pub mod custom_order_crud_service;
+pub mod custom_order_state_service;
+pub mod custom_order_process_service;
+pub mod custom_order_quality_service;
+pub mod custom_order_aftersales_service;

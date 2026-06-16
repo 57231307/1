@@ -570,6 +570,31 @@ const routes = [
         component: () => import('@/views/quotations/approval.vue'),
         meta: { title: '报价单审批', requiresAuth: true },
       },
+      // 定制订单模块 - 列表 + 新建 + 详情 + 跟踪
+      {
+        path: 'custom-orders',
+        name: 'CustomOrderList',
+        component: () => import('@/views/custom-orders/list.vue'),
+        meta: { title: '定制订单管理', requiresAuth: true },
+      },
+      {
+        path: 'custom-orders/new',
+        name: 'CustomOrderCreate',
+        component: () => import('@/views/custom-orders/create.vue'),
+        meta: { title: '新建定制订单', requiresAuth: true },
+      },
+      {
+        path: 'custom-orders/:id',
+        name: 'CustomOrderDetail',
+        component: () => import('@/views/custom-orders/detail.vue'),
+        meta: { title: '定制订单详情', requiresAuth: true },
+      },
+      {
+        path: 'custom-orders/:id/track',
+        name: 'CustomOrderTracking',
+        component: () => import('@/views/custom-orders/tracking.vue'),
+        meta: { title: '工艺跟踪', requiresAuth: true },
+      },
     ],
   },
   {
