@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, ref } from 'vue'
 import { ElTableV2, ElAutoResizer } from 'element-plus'
 
 export interface ColumnDef {
@@ -31,6 +31,13 @@ const emit = defineEmits<{
   (e: 'selection-change', selection: any[]): void
 }>()
 
+// renderCell 计数器（暴露到 window 供性能测试采集）
+const renderCellCount = ref(0)
+
+if (typeof window !== 'undefined') {
+  ;(window as any).__renderCellTotal = renderCellCount
+}
+
 // renderCell WeakMap 缓存
 const cellCache = new WeakMap<object, Map<string, any>>()
 
@@ -41,6 +48,8 @@ function getCachedCell(row: any, col: ColumnDef): any {
     cellCache.set(row, rowCache)
   }
   if (rowCache.has(col.key)) return rowCache.get(col.key)
+  // 未命中：计数 + 计算 + 缓存
+  renderCellCount.value++
   const value = col.formatter ? col.formatter(row[col.key], row) : row[col.key]
   rowCache.set(col.key, value)
   return value

@@ -94,4 +94,22 @@ describe('V2Table', () => {
     // 第一行不应重新 render
     expect(callCount).toBe(2)
   })
+
+  it('暴露 window.__renderCellTotal 供性能测试采集', () => {
+    const columns: ColumnDef[] = [
+      {
+        key: 'value',
+        label: '值',
+        width: 100,
+        formatter: (v: any) => `f-${v}`
+      }
+    ]
+    const data = [{ id: 1, value: 'A' }]
+
+    mount(V2Table, { props: { data, columns } })
+
+    // 验证 window 上有计数器
+    expect((window as any).__renderCellTotal).toBeDefined()
+    expect((window as any).__renderCellTotal.value).toBe(1)
+  })
 })
