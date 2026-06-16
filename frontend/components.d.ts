@@ -74,6 +74,7 @@ declare module 'vue' {
     PieChart: typeof import('./src/components/Charts/PieChart.vue')['default']
     RouterLink: typeof import('vue-router')['RouterLink']
     RouterView: typeof import('vue-router')['RouterView']
+    V2Table: typeof import('./src/components/V2Table/index.vue')['default']
   }
   export interface ComponentCustomProperties {
     vLoading: typeof import('element-plus/es')['ElLoadingDirective']
