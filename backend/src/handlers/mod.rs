@@ -30,6 +30,8 @@ pub mod sales_order_handler;
 // 销售报价单 handler（Week 1）
 pub mod quotation_handler;
 pub mod tracking_handler;
+// 定制订单全流程跟踪 handler（P0-3）
+pub mod custom_order_handler;
 pub mod user_handler;
 pub mod warehouse_handler;
 // 供应商管理模块

@@ -54,6 +54,8 @@ pub mod purchase;
 pub mod sales;
 // 销售报价单模块（Week 1）
 pub mod quotations;
+// 定制订单全流程跟踪模块（P0-3）
+pub mod custom_order;
 #[path = "static.rs"]
 pub mod static_routes;
 pub mod system;
