@@ -143,20 +143,13 @@
         :columns="orderColumns"
         :estimated-row-height="56"
         :loading="loading"
+        :total="total"
+        :page="queryParams.page"
+        :page-size="queryParams.page_size"
         @row-click="handleRowClick"
+        @page-change="handlePageChange"
+        @size-change="handleSizeChange"
       />
-
-      <div class="pagination-wrapper">
-        <el-pagination
-          v-model:current-page="queryParams.page"
-          v-model:page-size="queryParams.page_size"
-          :page-sizes="[10, 20, 50, 100]"
-          :total="total"
-          layout="total, sizes, prev, pager, next, jumper"
-          @size-change="handleQuery"
-          @current-change="handleQuery"
-        />
-      </div>
     </el-card>
 
     <el-dialog v-model="dialogVisible" :title="dialogTitle" width="900px" destroy-on-close>
@@ -464,36 +457,49 @@ import { useTableColumns } from '@/composables/useTableColumns'
 
 // 销售订单列表列定义（V2Table 渲染）
 const { columns: orderColumns } = useTableColumns([
-  { key: 'order_no', label: '订单编号', width: 160, sortable: true },
-  { key: 'customer_name', label: '客户', width: 180 },
+  { key: 'order_no', title: '订单编号', width: 160, sortable: true },
+  { key: 'customer_name', title: '客户', width: 180 },
   {
     key: 'order_date',
-    label: '订单日期',
+    title: '订单日期',
     width: 120,
-    formatter: (v: any) => (v ? new Date(v).toLocaleDateString() : '-'),
+    formatter: (row: any) => (row.order_date ? new Date(row.order_date).toLocaleDateString() : '-'),
   },
   {
     key: 'total_amount',
-    label: '金额',
+    title: '金额',
     width: 140,
     align: 'right',
-    formatter: (v: any) => (v != null ? `¥${v.toLocaleString()}` : '-'),
+    formatter: (row: any) =>
+      row.total_amount != null ? `¥${row.total_amount.toLocaleString()}` : '-',
   },
   {
     key: 'status',
-    label: '状态',
+    title: '状态',
     width: 100,
     align: 'center',
-    formatter: (v: any) => getStatusText(v),
+    formatter: (row: any) => getStatusText(row.status),
   },
-  { key: 'creator_name', label: '创建人', width: 100 },
+  { key: 'creator_name', title: '创建人', width: 100 },
   {
     key: 'created_at',
-    label: '创建时间',
+    title: '创建时间',
     width: 160,
-    formatter: (v: any) => (v ? new Date(v).toLocaleString() : '-'),
+    formatter: (row: any) => (row.created_at ? new Date(row.created_at).toLocaleString() : '-'),
   },
 ])
+
+// V2Table 内置分页事件处理
+const handlePageChange = (newPage: number) => {
+  queryParams.page = newPage
+  fetchData()
+}
+
+const handleSizeChange = (newSize: number) => {
+  queryParams.page_size = newSize
+  queryParams.page = 1
+  fetchData()
+}
 
 const loading = ref(false)
 const orders = ref<SalesOrder[]>([])
