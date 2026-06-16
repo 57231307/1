@@ -29,3 +29,5 @@ pub mod process_state_machine;
 pub mod random;
 pub mod sql_escape;
 pub mod webhook_signature;
+// P0-4 色卡仓储管理 - 色彩空间转换工具
+pub mod color_space_converter;
