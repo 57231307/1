@@ -133,3 +133,5 @@ pub mod enhanced_logger;
 pub mod quotation_service;
 // 销售报价单定价服务（Week 2 Task 6）
 pub mod quotation_pricing_service;
+// 销售报价单审批服务（Week 2 Task 7）
+pub mod quotation_approval_service;

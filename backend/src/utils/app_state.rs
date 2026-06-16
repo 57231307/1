@@ -11,6 +11,7 @@ use crate::services::notification_service::NotificationService;
 use crate::services::omni_audit_service::OmniAuditEngine;
 use crate::services::quotation_service::QuotationService;
 use crate::services::quotation_pricing_service::QuotationPricingService;
+use crate::services::quotation_approval_service::QuotationApprovalService;
 use crate::utils::cache::AppCache;
 use crate::utils::di_container::DIContainer;
 
@@ -40,6 +41,8 @@ pub struct AppState {
     pub quotation_service: Arc<QuotationService>,
     // 销售报价单定价服务（Week 2 Task 6）
     pub quotation_pricing_service: Arc<QuotationPricingService>,
+    // 销售报价单审批服务（Week 2 Task 7）
+    pub quotation_approval_service: Arc<QuotationApprovalService>,
 }
 
 impl FromRef<AppState> for Key {
@@ -100,6 +103,7 @@ impl AppState {
         let notification_service = Arc::new(NotificationService::new(db.clone()));
         let quotation_service = Arc::new(QuotationService::new(db.clone()));
         let quotation_pricing_service = Arc::new(QuotationPricingService::new(db.clone()));
+        let quotation_approval_service = Arc::new(QuotationApprovalService::new(db.clone()));
 
         Ok(Self {
             db,
@@ -120,6 +124,7 @@ impl AppState {
             allowed_origins,
             quotation_service,
             quotation_pricing_service,
+            quotation_approval_service,
         })
     }
 }
@@ -151,6 +156,7 @@ impl Default for AppState {
         let notification_service = Arc::new(NotificationService::new(db.clone()));
         let quotation_service = Arc::new(QuotationService::new(db.clone()));
         let quotation_pricing_service = Arc::new(QuotationPricingService::new(db.clone()));
+        let quotation_approval_service = Arc::new(QuotationApprovalService::new(db.clone()));
         Self {
             db: db.clone(),
             omni_audit,
@@ -170,6 +176,7 @@ impl Default for AppState {
             allowed_origins: vec![],
             quotation_service,
             quotation_pricing_service,
+            quotation_approval_service,
         }
     }
 }
