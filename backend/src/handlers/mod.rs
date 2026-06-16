@@ -136,3 +136,5 @@ pub mod print_handler;
 pub mod missing_handlers;
 // P0-2 主备隔离 handler
 pub mod failover_handler;
+// P0-4 色卡仓储管理 handler
+pub mod color_card_handler;

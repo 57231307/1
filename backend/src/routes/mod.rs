@@ -56,6 +56,8 @@ pub mod sales;
 pub mod quotations;
 // 定制订单全流程跟踪模块（P0-3）
 pub mod custom_order;
+// 色卡仓储管理模块（P0-4）
+pub mod color_card;
 #[path = "static.rs"]
 pub mod static_routes;
 pub mod system;
@@ -324,6 +326,8 @@ pub fn create_router(state: AppState) -> Router<()> {
         .nest("/api/v1/erp/quotations", quotations::routes())
         // 主备隔离路由（P0-2）
         .merge(failover::failover_routes())
+        // 色卡仓储管理路由（P0-4）
+        .nest("/api/v1/erp/color-cards", color_card::routes())
         .nest("/api/v1/erp/purchase", purchase::routes())
         .nest("/api/v1/erp/finance", finance::routes(state.clone()))
         .nest("/api/v1/erp", finance::sub_routes())
