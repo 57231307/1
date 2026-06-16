@@ -69,12 +69,6 @@ const routes = [
         meta: { title: '库存管理', requiresAuth: true },
       },
       {
-        path: 'inventory-poc',
-        name: 'InventoryPoc',
-        component: () => import('@/views/inventory/index-poc.vue'),
-        meta: { title: '虚拟列表 POC (B5 P2-1)', requiresAuth: true },
-      },
-      {
         path: 'sales',
         name: 'Sales',
         component: () => import('@/views/sales/index.vue'),

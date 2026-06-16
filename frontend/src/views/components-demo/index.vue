@@ -10,9 +10,6 @@
       <el-tab-pane label="高级筛选" name="filter">
         <AdvancedFilterDemo />
       </el-tab-pane>
-      <el-tab-pane label="拖拽表格" name="draggable">
-        <DraggableTableDemo />
-      </el-tab-pane>
     </el-tabs>
   </div>
 </template>
@@ -22,7 +19,6 @@ import { ref } from 'vue'
 import ChartsDemo from './ChartsDemo.vue'
 import BatchActionsDemo from './BatchActionsDemo.vue'
 import AdvancedFilterDemo from './AdvancedFilterDemo.vue'
-import DraggableTableDemo from './DraggableTableDemo.vue'
 
 const activeTab = ref('charts')
 </script>
