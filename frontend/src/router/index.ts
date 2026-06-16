@@ -539,6 +539,19 @@ const routes = [
         component: () => import('@/views/user-profile/index.vue'),
         meta: { title: '个人信息', requiresAuth: true },
       },
+      // 报价单模块 - 列表 + 新建
+      {
+        path: 'quotations',
+        name: 'QuotationList',
+        component: () => import('@/views/quotations/list.vue'),
+        meta: { title: '报价单管理', requiresAuth: true },
+      },
+      {
+        path: 'quotations/new',
+        name: 'QuotationCreate',
+        component: () => import('@/views/quotations/create.vue'),
+        meta: { title: '新建报价单', requiresAuth: true },
+      },
     ],
   },
   {
