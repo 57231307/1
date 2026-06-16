@@ -239,3 +239,8 @@ pub mod color_card_create_dto;
 pub mod color_card_item_dto;
 pub mod color_card_borrow_dto;
 pub mod color_card_response_dto;
+// P0-5 面料多色号定价扩展模型
+pub mod color_price_history;
+pub mod color_price_tier;
+pub mod customer_color_price;
+pub mod seasonal_price_rule;
