@@ -63,4 +63,35 @@ describe('V2Table', () => {
       expect.any(MouseEvent)
     ])
   })
+
+  it('renderCell 连续访问同 row+col 返回相同引用（WeakMap 缓存命中）', async () => {
+    let callCount = 0
+    const columns: ColumnDef[] = [
+      {
+        key: 'value',
+        label: '值',
+        width: 100,
+        formatter: (v: any) => {
+          callCount++
+          return `formatted-${v}`
+        }
+      }
+    ]
+    const data = [{ id: 1, value: 'A' }]
+
+    // 第一次 mount 触发 render
+    const wrapper = mount(V2Table, { props: { data, columns } })
+    const initialCount = callCount  // 应该是 1
+    expect(initialCount).toBe(1)
+
+    // 触发 el-table-v2 重新渲染（模拟滚动）
+    await wrapper.setProps({ data: [...data, { id: 2, value: 'B' }] })
+    // 新行触发 1 次 render，但第一行不会重复
+    expect(callCount).toBe(2)
+
+    // 恢复原数据
+    await wrapper.setProps({ data })
+    // 第一行不应重新 render
+    expect(callCount).toBe(2)
+  })
 })

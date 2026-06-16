@@ -31,6 +31,21 @@ const emit = defineEmits<{
   (e: 'selection-change', selection: any[]): void
 }>()
 
+// renderCell WeakMap 缓存
+const cellCache = new WeakMap<object, Map<string, any>>()
+
+function getCachedCell(row: any, col: ColumnDef): any {
+  let rowCache = cellCache.get(row)
+  if (!rowCache) {
+    rowCache = new Map()
+    cellCache.set(row, rowCache)
+  }
+  if (rowCache.has(col.key)) return rowCache.get(col.key)
+  const value = col.formatter ? col.formatter(row[col.key], row) : row[col.key]
+  rowCache.set(col.key, value)
+  return value
+}
+
 // 列定义转 el-table-v2 columns
 const v2Columns = computed(() =>
   props.columns.map(col => ({
@@ -41,10 +56,7 @@ const v2Columns = computed(() =>
     align: col.align,
     fixed: col.fixed,
     sortable: col.sortable,
-    cellRenderer: ({ rowData }: any) => {
-      const value = col.formatter ? col.formatter(rowData[col.key], rowData) : rowData[col.key]
-      return value
-    }
+    cellRenderer: ({ rowData }: any) => getCachedCell(rowData, col)
   }))
 )
 </script>

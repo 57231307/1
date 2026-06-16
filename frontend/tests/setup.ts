@@ -9,11 +9,15 @@ vi.mock('element-plus', async () => {
       name: 'ElTableV2',
       props: ['columns', 'data', 'width', 'height', 'estimatedRowHeight', 'loading', 'emptyText', 'rowKey'],
       emits: ['row-click', 'selection-change', 'scroll', 'column-sort'],
-      // 测试桩：空数据时显示 emptyText，便于断言「暂无数据」
+      // 测试桩：调用 cellRenderer 以便验证 V2Table 的 renderCell 缓存逻辑
       template: `<div class="el-table-v2">
         <div v-if="!data || data.length === 0" class="el-table-v2__empty">{{ emptyText }}</div>
         <div v-else class="el-table-v2__rows">
-          <div v-for="(row, i) in data" :key="i" class="el-table-v2__row">{{ JSON.stringify(row) }}</div>
+          <div v-for="(row, i) in data" :key="i" class="el-table-v2__row">
+            <div v-for="col in columns" :key="col.key" class="el-table-v2__cell" :data-key="col.key">
+              {{ col.cellRenderer ? col.cellRenderer({ rowData: row, rowIndex: i, column: col }) : '' }}
+            </div>
+          </div>
         </div>
       </div>`,
     },
