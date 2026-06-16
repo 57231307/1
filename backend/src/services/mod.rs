@@ -150,3 +150,9 @@ pub mod color_card_crud_service;
 pub mod color_card_item_service;
 pub mod color_card_borrow_service;
 pub mod color_card_scan_service;
+// P0-5 面料多色号定价扩展服务
+pub mod color_price_crud_service;
+pub mod color_price_batch_service;
+pub mod color_price_history_service;
+pub mod color_price_seasonal_service;
+pub mod color_price_tier_service;

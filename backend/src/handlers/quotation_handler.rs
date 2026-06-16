@@ -464,6 +464,17 @@ pub async fn set_color_price(
         customer_level: payload.customer_level.clone(),
         min_quantity: payload.min_quantity,
         notes: payload.notes.clone(),
+        // P0-5 扩展字段（默认值以兼容旧 API）
+        max_quantity: None,
+        customer_id: None,
+        season: None,
+        is_active: true,
+        priority: 0,
+        created_by: None,
+        approved_by: None,
+        approved_at: None,
+        approval_status: "APPROVED".to_string(),
+        tenant_id: 1,
         created_at: Utc::now(),
         updated_at: Utc::now(),
     }

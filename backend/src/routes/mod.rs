@@ -58,6 +58,8 @@ pub mod quotations;
 pub mod custom_order;
 // 色卡仓储管理模块（P0-4）
 pub mod color_card;
+// 面料多色号定价扩展路由（P0-5）
+pub mod color_price;
 #[path = "static.rs"]
 pub mod static_routes;
 pub mod system;
@@ -328,6 +330,8 @@ pub fn create_router(state: AppState) -> Router<()> {
         .merge(failover::failover_routes())
         // 色卡仓储管理路由（P0-4）
         .nest("/api/v1/erp/color-cards", color_card::routes())
+        // 面料多色号定价扩展路由（P0-5）
+        .nest("/api/v1/erp/color-prices", color_price::routes())
         .nest("/api/v1/erp/purchase", purchase::routes())
         .nest("/api/v1/erp/finance", finance::routes(state.clone()))
         .nest("/api/v1/erp", finance::sub_routes())
