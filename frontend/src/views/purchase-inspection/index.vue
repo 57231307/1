@@ -269,6 +269,8 @@ import {
   type PurchaseInspection,
   type PurchaseInspectionItem,
 } from '@/api/purchase-inspection'
+import { getReceiptItems, type ReceiptItem } from '@/api/purchaseReceipt'
+import { logger } from '@/utils/logger'
 
 // 统计数据
 const stats = reactive({
@@ -283,6 +285,8 @@ const tableData = ref<PurchaseInspection[]>([])
 const loading = ref(false)
 const total = ref(0)
 const dateRange = ref<[Date, Date] | null>(null)
+// 入库单明细加载状态（P1-5 B2 子任务引入）
+const receiptItemsLoading = ref(false)
 
 // 查询参数
 const queryParams = reactive({
@@ -347,7 +351,7 @@ const fetchData = async () => {
     stats.passed = tableData.value.filter(i => i.result === 'pass').length
     stats.failed = tableData.value.filter(i => i.result === 'fail').length
   } catch (error) {
-    console.error('获取数据失败:', error)
+    logger.error('获取数据失败:', error)
   } finally {
     loading.value = false
   }
@@ -414,25 +418,43 @@ const handleView = async (row: PurchaseInspection) => {
     detailData.value = res.data
     detailDialogVisible.value = true
   } catch (error) {
-    console.error('获取详情失败:', error)
+    logger.error('获取详情失败:', error)
   }
 }
 
-const handleReceiptChange = (receiptId: number) => {
-  // 根据选择的入库单加载明细
-  const receipt = receipts.value.find(r => r.id === receiptId)
-  if (receipt) {
-    // TODO: 从API获取入库单明细
-    formData.items = [
-      {
-        product_id: 1,
-        product_name: '产品A',
-        expected_quantity: 100,
-        inspected_quantity: 0,
-        passed_quantity: 0,
-        failed_quantity: 0,
-      },
-    ]
+const handleReceiptChange = async (receiptId: number) => {
+  if (!receiptId) {
+    formData.items = []
+    return
+  }
+  receiptItemsLoading.value = true
+  try {
+    const res = await getReceiptItems(receiptId)
+    // 类型已在 purchaseReceipt.ts 中声明，可直接解构
+    const items: ReceiptItem[] = res.data?.items || []
+    if (items.length === 0) {
+      ElMessage.info('该入库单暂无明细')
+      formData.items = []
+      return
+    }
+    // 将入库单明细映射为检验单明细，初始化各数量字段
+    formData.items = items.map(item => ({
+      product_id: item.product_id,
+      product_name: item.product_name,
+      product_code: item.product_code,
+      expected_quantity: item.quantity,
+      inspected_quantity: 0,
+      passed_quantity: 0,
+      failed_quantity: 0,
+      defect_reason: '',
+    }))
+  } catch (error) {
+    const errMsg = error instanceof Error ? error.message : '获取入库单明细失败，请稍后重试'
+    ElMessage.error(errMsg)
+    logger.error('获取入库单明细失败:', error)
+    formData.items = []
+  } finally {
+    receiptItemsLoading.value = false
   }
 }
 
@@ -450,7 +472,7 @@ const handleSubmit = async () => {
     dialogVisible.value = false
     fetchData()
   } catch (error) {
-    console.error('提交失败:', error)
+    logger.error('提交失败:', error)
   } finally {
     submitLoading.value = false
   }
@@ -464,7 +486,7 @@ const handleComplete = async (row: PurchaseInspection) => {
     fetchData()
   } catch (error) {
     if (error !== 'cancel') {
-      console.error('操作失败:', error)
+      logger.error('操作失败:', error)
     }
   }
 }

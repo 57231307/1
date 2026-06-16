@@ -187,6 +187,7 @@ import {
 } from '@element-plus/icons-vue'
 import { bpmEnhancedApi } from '@/api/bpm-enhanced'
 import type { ProcessTemplate } from '@/api/bpm-enhanced'
+import { logger } from '@/utils/logger'
 
 const loading = ref(false)
 const submitLoading = ref(false)
@@ -256,7 +257,7 @@ const fetchData = async () => {
     templates.value = res.data.list
     pagination.total = res.data.total
   } catch (e) {
-    console.error(e)
+    logger.error(String(e))
   } finally {
     loading.value = false
   }
@@ -298,7 +299,7 @@ const confirmCreateFromTemplate = async () => {
     ElMessage.success('创建成功')
     createDialogVisible.value = false
   } catch (e) {
-    console.error(e)
+    logger.error(String(e))
   } finally {
     submitLoading.value = false
   }
@@ -313,7 +314,7 @@ const handleDeleteTemplate = async (row: ProcessTemplate) => {
     ElMessage.success('删除成功')
     fetchData()
   } catch (e) {
-    if (e !== 'cancel') console.error(e)
+    if (e !== 'cancel') logger.error(String(e))
   }
 }
 

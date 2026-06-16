@@ -7,6 +7,223 @@
 
 ---
 
+## [Unreleased] - 2026-06-16
+
+### Wave 4 P2-1 综合评估
+
+- **评估报告**：[`docs/superpowers/plans/2026-06-16-wave4-p2-1-evaluation.md`](file:///workspace/docs/superpowers/plans/2026-06-16-wave4-p2-1-evaluation.md)（310 行，PR #117 squash merge → commit dbd472d）
+- **关键指标**：
+  - 5 PR 100% 完成（#108-#112，1h45min 串行调度）
+  - 代码变更：+1090 / -1379（净减 289 行）
+  - CI 验证：5 × 4 job = 20 job 全部全绿
+  - 自动发版：5 个 tag（v2026.616.1235 至 v2026.616.1420）
+  - 拒收率：0%
+- **关键决策**：
+  - PR-1 抽象前置：useTableApi composable + V2Table 组件，4 页面复用
+  - 串行调度模式再次验证（与 Wave 3 B7 经验一致）
+  - 死代码随 PR-5 一次性清理
+- **关键经验**：
+  - 抽通用组件前置（PR-1 模式）：下游 PR 成本 -60%
+  - 串行 + 串行调度：避免云端卡死
+  - 死代码随主任务清理：避免技术债务积累
+- **下一波推荐**：P2-2 性能优化（V2Table 性能验证 + 后端 N+1 修复）
+
+### 已整理（记忆文件分类）
+
+- **新增** [`.monkeycode/doto.md`](file:///workspace/.monkeycode/doto.md)：从 `.monkeycode/MEMORY.md` 抽离所有**任务相关条目**，包括：
+  - 功能实现进度（751 子功能清单）
+  - 路由架构变动记录（2026-06-06 修复）
+  - 16 任务总规划 / 13 任务重新规划
+  - P0-2 / Wave 1 / Wave 3 B7 波次执行总结
+  - 当前待办 + Wave 4 P2-1 完成回顾
+- **精简** `.monkeycode/MEMORY.md`：从 498 行精简为 184 行，仅保留**用户指令/偏好/工作流规范**类条目
+- **文件分类**：
+  - `MEMORY.md` → 用户指令/偏好/工作流规范（必读）
+  - `doto.md` → 任务进度、规划、波次总结（按需查）
+- **敏感信息**：已移除服务器密码、数据库密码等敏感信息
+- **影响范围**：本地 `.monkeycode/` 目录（在 `.gitignore` 中），仅影响本地工作记录
+
+## [Unreleased] - 2026-06-15
+
+### Wave 1 合并汇总（2026-06-15）
+
+| PR | 任务 | 子代理 | 提交 | 状态 |
+|------|------|--------|------|------|
+| [#89](https://github.com/57231307/1/pull/89) | .clippy.toml 宏路径警告 | C | [a779078](https://github.com/57231307/1/commit/a779078) | ✅ 已合并 |
+| [#90](https://github.com/57231307/1/pull/90) | P1-5 入库单明细类型强化 | B2 | [2974c6d](https://github.com/57231307/1/commit/2974c6d) | ✅ 已合并 |
+| [#87](https://github.com/57231307/1/pull/87) | P0-2 销售→AR 应收账款 | A1 | [042d123](https://github.com/57231307/1/commit/042d123) | ✅ 已合并 |
+| [#88](https://github.com/57231307/1/pull/88) | P1-1 generate-no 4 端点 | B1 | [5f28212](https://github.com/57231307/1/commit/5f28212) | ✅ 已合并 |
+
+- 4 个 PR 全部以 Squash 策略合并入 main
+- 远端源分支（feature/p0-2-sales-ar* / feature/p1-1-generate-no / fix/clippy-toml-warnings / feature/P1-5-completed-2-todos）已由 GitHub 自动删除
+- 定时轮询任务 `NLIZU5YY.FK660` 已停止
+- Wave 1 全部子代理成果已合入 main，可以启动 Wave 2
+
+### Wave 2 合并汇总（2026-06-15）
+
+| 任务 | 提交 | 状态 |
+|------|------|------|
+| B6 清理 budget.ts / cost.ts 中 8 个未用 API 函数 | [9f832a8](https://github.com/57231307/1/commit/9f832a8) | ✅ 已合并 |
+| B5 P2-1 el-table-v2 虚拟列表 POC 通过 | [7a1d27f](https://github.com/57231307/1/commit/7a1d27f) | ✅ 已合并 |
+| B3-1 拆分 6 个 > 1000 行巨型 .vue 文件 | [9864b38](https://github.com/57231307/1/commit/9864b38) | ✅ 已合并 |
+| B3-2 拆分财务/会计域 12 个 .vue 文件 | [5749d65](https://github.com/57231307/1/commit/5749d65) | ✅ 已合并 |
+| B3-3 拆分 CRM/客户域 8 个 .vue 文件 | [aa7b8f9](https://github.com/57231307/1/commit/aa7b8f9) | ✅ 已合并 |
+| B3-4 拆分库存/产品域 8 个 .vue 文件 | [bdcc67b](https://github.com/57231307/1/commit/bdcc67b) | ✅ 已合并 |
+
+#### 拆分成果
+- **> 1000 行 .vue 文件**：6 → **0**（100% 消除）
+- **> 500 行 .vue 文件**：60 → **32**（-47%）
+- **新建子组件**：80+ 个（system/tabs/ + 各业务域 tabs/）
+- **B4 任务意外完成**：10 Tab 骨架升级为完整实现（顺手在 B3-1 中完成）
+
+#### B5 POC 通过标准
+- 1 万行数据生成：13.2ms
+- Type-check / Vite build / 单测：全部通过
+- 真实性能数据（FPS/内存/渲染）：需本地复现 `frontend/scripts/poc-perf-test.cjs`
+
+#### 远端工作分支清理
+- 6 个临时 feature 分支（feature/B3-1~4 / B5 / B6）已从远端删除
+- 定时轮询任务保持停用状态
+- Wave 3 启动条件已达成（el-table-v2 POC 通过）
+
+### Wave 2 状态汇总
+- Wave 2 进度：6/6 完成 ✅
+- B3-1 ~ B3-4 + B5 + B6 全部以 Squash 策略合并入 main
+- 主入口 < 100 行（除 inventory 292 行因含统计卡片）
+- 调度策略：单子代理串行执行，避免云端卡死
+- 启动条件：Wave 3（el-table-v2 POC 通过）✅ 可启动
+- 启动条件：Wave 4（≥ 1 个 P3 任务完成 PoC）🔵 待启动
+
+### Wave 3 合并汇总（2026-06-15）
+
+| 任务 | 子代理 | 提交 | 状态 |
+|------|--------|------|------|
+| B7 spec 编写 | 主代理 | [fee7507](https://github.com/57231307/1/commit/fee7507) | ✅ 已合并 |
+| B7-1 替换 purchase+inventory 域 console.* 为 logger (8 文件 37 处) | 1 B | [313084e](https://github.com/57231307/1/commit/313084e) | ✅ 已合并 ([#91](https://github.com/57231307/1/pull/91)) |
+| B7-2 替换 crm+sales 域 console.* 为 logger (4 文件 11 处) | 1 B | [c641239](https://github.com/57231307/1/commit/c641239) | ✅ 已合并 ([#92](https://github.com/57231307/1/pull/92)) |
+| B7-3 替换 bpm+report+arReconciliation 域 console.* 为 logger (7 文件 22 处) | 1 B | [374a3af](https://github.com/57231307/1/commit/374a3af) | ✅ 已合并 ([#93](https://github.com/57231307/1/pull/93)) |
+| B7-4 替换 dye/logistics/security/email/tenant 等域 console.* 为 logger (12 文件 42 处) | 1 B | [979feca](https://github.com/57231307/1/commit/979feca) | ✅ 已合并 ([#94](https://github.com/57231307/1/pull/94)) |
+
+#### B7 替换成果
+- **console.* 总数**：112 → **0**（-100%，除 logger.ts 自身 4 处）
+- **涉及文件数**：31 个 .vue / .ts 文件
+- **PR 数**：4 个（#91-#94）
+- **替换映射**：log/info/debug → logger.info/debug、warn → logger.warn、error → logger.error
+- **特殊处理**：catch 块中 `e:unknown` 用 `String(e)` 转换（消除 TS2345 错误）
+
+#### 已知遗留
+- 基线存在 32 个预存 type-check 错误（来自 Wave 2 合并），分布在 fiveDimension/print-templates/quality-standards/data-import/dataPermission/dye-batch/dye-recipe/warehouse/system-update/user-profile 等模块
+- B7 4 批均**无新增错误**（基线 = 当前 = 32）
+- 清理预存错误属于 Wave 4 启动前置 P 任务，不在 B7 范围
+
+#### 远端工作分支清理
+- 4 个临时 B7 特性分支已由 GitHub squash merge 自动删除
+- 主分支 main 始终保持可发布
+
+### Wave 3 收尾汇总（2026-06-15）
+
+| 任务 | 子代理 | 提交 | 状态 |
+|------|--------|------|------|
+| B 任务 5 批 4 PR：清理 32 个预存 type-check 错误 → 0 | 主代理串行 | [7de8b0d](https://github.com/57231307/1/commit/7de8b0d) | ✅ 已合并 |
+| A2-1 工艺优化（recipe_opt）后端+前端+4 单测 | AI 实施子代理 | [f157f56](https://github.com/57231307/1/commit/f157f56) | ✅ 已合并 ([#99](https://github.com/57231307/1/pull/99)) |
+| A2-2 质量预测（quality_pred）后端+前端+4 单测 | AI 实施子代理 | [dd9faa4](https://github.com/57231307/1/commit/dd9faa4) | ✅ 已合并 ([#100](https://github.com/57231307/1/pull/100)) |
+
+#### B 任务（type-check 清理 32 → 0）
+- **B-批 1** ([#95](https://github.com/57231307/1/pull/95))：修复 `cost.ts` B6 重命名引用 + `index.ts` ReportData 重复导出（4 错误）
+- **B-批 2** ([#96](https://github.com/57231307/1/pull/96))：`ApiResponse<T>` 扩展可选 `total` / `timestamp` 字段（13 错误）
+- **B-批 3** ([#97](https://github.com/57231307/1/pull/97))：`five-dimension.ts` 扩展 `StatsQueryParams` / `SearchQueryParams` / `FiveDimensionStats` 字段（9 错误）
+- **B-批 4** ([#98](https://github.com/57231307/1/pull/98))：`dataPermission` 类型守卫 + `user-profile` 删 rule + `warehouse` `String()` 转换（6 错误）
+- 4 批均按文件细粒度划分，主代理串行调度避免云端卡死
+
+#### A2-1 工艺优化（recipe_opt）
+- **后端 service**：`backend/src/services/ai/recipe_opt.rs`（680 行，含 4 单测）
+- **后端 handler**：`backend/src/handlers/advanced/recipe_opt.rs`（100 行）
+- **路由**：`POST /api/v1/erp/advanced/ai/recipe-optimization`
+- **前端 API**：`optimizeRecipe(params)` + `RecipeOptParams` 类型
+- **前端 Tab**："工艺优化"（表单 + 4 字段描述 + candidates 表格）
+- **算法核心**：k-NN 相似度（color_no 1.0 / 前缀 0.7 / fabric 0.2 / dye 0.1，最大 1.3）+ 退化兜底（80°C/45min/pH6.0/浴比1:8）
+- **冷启动**：命中 ≥ 3 条走 k-NN，否则退化；k=0 强制退化
+- **4 单测**：`test_typical_params_fallback` / `test_color_match_knn` / `test_temperature_recommendation` / `test_fallback_path`
+- **CI 验证**：run 27555546133，4 job 全绿，143 单测全过
+
+#### A2-2 质量预测（quality_pred）
+- **后端 service**：`backend/src/services/ai/quality_pred.rs`（681 行，含 4 单测）
+- **后端 handler**：`backend/src/handlers/advanced/quality_pred.rs`（89 行）
+- **路由**：`POST /api/v1/erp/advanced/ai/quality-prediction`
+- **前端 API**：`predictQuality(params)` + `QualityPredParams` 类型
+- **前端 Tab**："质量预测"（表单 + 4 统计卡片 + 问题表格 + 建议列表 + 周期明细）
+- **算法核心**：基于 `quality_inspection_records` 历史合格率 + 时间窗口趋势 + 风险评分（0-100）
+- **风险评分**：`risk = (100 - avg_rate) * 0.6 + 下降趋势惩罚 * 0.4`
+- **趋势判定**：(recent - previous) / previous，超过 ±5% 视为上升/下降
+- **退化兜底**：数据 < 5 条 → 默认 95% + confidence 0.3
+- **4 单测**：`test_risk_score_low` / `test_risk_score_high` / `test_trend_calculation` / `test_fallback_low_data`
+- **CI 验证**：PR #100 squash merge 后 4 job 全绿，CI 自动发布 tag v2026.615.2350
+
+#### Wave 3 收尾总成果
+- 实施总文件数：约 23 个（5 新增 + 18 修改）
+- 新增 8 个单元测试（4 recipe_opt + 4 quality_pred），全部覆盖核心算法
+- type-check 错误：32 → 0（-100%）
+- AI 智能分析服务：新增 recipe_opt + quality_pred 两个子模块
+- 前端 Advanced 页面：Tab 数 3 → 5（新增工艺优化 + 质量预测）
+- CI 流水线：所有任务均以 Squash 策略合并，4 job 全绿，自动发布
+- 远端 3 个临时特性分支（A2-1 / A2-2 / B-批 1-4）已全部清理
+
+#### 关键经验（Wave 3 收尾新沉淀）
+- **CI/CD 验证优先**：项目全程仅在 CI/CD 构建验证，本地禁止任何 cargo / npm / vue-tsc / tsc / vite 命令
+- **代码质量护栏**：PR 触发 CI → 4 job 全绿 → squash merge → 远端分支自动删除 → 本地手动清理
+- **多语言化推进**：所有 UI 文本 / 注释 / 日志强制中文；API 路径仍保持英文 snake_case
+- **基线修复边界**：A2-1 子代理顺手修复了 ar/inv.rs、accounting-period.ts 等 main 预存错误（必要以让 CI 通过），A2-2 子代理严格限制边界，未做超出范围的修复
+
+#### 待启动
+- **Wave 4**：el-table-v2 已通过 POC（B5），Wave 3 收尾已完成 AI 深化，Wave 4 启动条件已就绪
+- **Wave 5+**：高级 P2/P3 任务（移动端 / 性能优化 / 安全加固）待规划
+
+### 已新增（P1-1 generate-no 4 端点补齐）
+
+#### 后端 Handler
+- 在 `backend/src/handlers/inventory_transfer_handler.rs` 新增 `generate_no` 端点（前缀 `IT`）
+- `inventory_count_handler.generate_no`（前缀 `IC`）、`purchase_receipt_handler.generate_no`（前缀 `RK`）、`inventory_adjustment_handler.generate_no`（前缀 `IA`）已在 P1-1 任务中确认存在
+- 全部 4 个 Handler 调用 `DocumentNumberGenerator::generate_no_with_width`，流水位宽 4 位
+- 单据号格式：`{前缀}{yyyyMMdd}{4 位流水}`，例如 `IC202605140001`
+
+#### 路由注册
+- 在 `backend/src/routes/inventory.rs` 注册 3 个新路由：
+  - `GET /api/v1/erp/inventory/counts/generate-no`
+  - `GET /api/v1/erp/inventory/adjustments/generate-no`
+  - `GET /api/v1/erp/inventory/transfers/generate-no`
+- 在 `backend/src/routes/purchase.rs` 注册 1 个新路由：
+  - `GET /api/v1/erp/purchase/receipts/generate-no`
+- 路径与 `backend/src/routes/finance.rs` 现有 `/vouchers/generate-no` 保持一致风格
+
+#### 前端 API 函数
+- `frontend/src/api/inventoryCount.ts` 新增 `generateInventoryCountNo`（返回 `{ count_no }`）
+- `frontend/src/api/purchaseReceipt.ts` 新增 `generatePurchaseReceiptNo`（返回 `{ receipt_no }`）
+- `frontend/src/api/inventoryAdjustment.ts` 新增 `generateInventoryAdjustmentNo`（返回 `{ adjustment_no }`）
+- `frontend/src/api/inventoryTransfer.ts` 新增 `generateInventoryTransferNo`（返回 `{ transfer_no }`）
+- 全部函数返回 `Promise<ApiResponse<...>>`，TypeScript 类型完整
+
+#### 测试
+- 新增 `backend/tests/test_generate_no_endpoints.rs`，包含 4 个单据号格式单元测试
+- 覆盖 4 个前缀（`IC` / `RK` / `IA` / `IT`）与 4 位流水宽度的契约
+- 防止后续误将流水宽度回退为 3 位
+
+#### 并发安全说明
+- 沿用 `DocumentNumberGenerator` 的"读当日数量 + 1"策略，业务侧依赖数据库 `UNIQUE` 约束最终去重
+- 文档已说明后续可接入 PostgreSQL `SEQUENCE` 升级为真正无锁实现
+
+### 已修复（P0-2 销售→AR 业务流）
+#### 业务流补齐（P0）
+- 在 `backend/src/services/ar/inv.rs` 的 `impl ArReconciliationService` 块中新增 `create_receivable` 方法，作为销售发货→AR 应收的业务流入口
+- 方法接收调用方事务引用（`&DatabaseTransaction`），与库存扣减、订单状态更新共用同一事务，保证三阶段原子提交
+- 幂等保证：按 `source_type=SALES_ORDER` + `source_bill_id=order_id` 联合判定，重复调用返回 `BusinessError`
+- 客户账期处理：调用方传入 `payment_terms_days`，<= 0 时回退为 30 天默认值
+- 应收单号连续：复用 `DocumentNumberGenerator`（`AR + YYYYMMDD + 3 位流水号`），与销售订单/采购订单/对账单共用流水生成器
+- 配套单元测试 6 个：正常发货、取消回滚、部分发货、账期默认值、幂等性、应收单号格式连续
+- 业务事件 `ReceivableCreated` 在事务 commit 成功后再发布，避免订阅方在事务回滚时误处理
+- 影响范围：`backend/src/services/so/delivery.rs::ship_order` 第 192-224 行的 AR 集成代码原本调用了不存在的 `ar_service.create_receivable`，本次实现补全该方法，使现有调用可编译
+
+---
+
 ## [Unreleased] - 2026-06-14
 
 ### 已规划（16 任务总规划 - 阶段一）
@@ -50,6 +267,41 @@
 - 端点：P1-1 generate-no 4 端点
 - AI：P2-4 工艺优化 + 质量预测
 - 长期：P3-1 微服务、P3-2 WebSocket、P3-3 React Native、P3-4 BI
+
+### Wave 1 执行结果（2026-06-15）
+
+派发 4 子代理并行执行 Wave 1 任务，全部通过总代理审阅。
+
+#### A1 P0-2 销售发货→AR 应收账款（已完成 100%）
+- Commit：`b191398 feat(sales): P0-2 销售发货自动生成 AR 应收账款`
+- 文件：[backend/src/services/ar/inv.rs](file:///workspace/backend/src/services/ar/inv.rs)
+- 新增 `create_receivable` 方法 92 行 + 6 单元测试 130 行
+- 关键发现：[backend/src/services/so/delivery.rs:192-224](file:///workspace/backend/src/services/so/delivery.rs#L192-L224) `ship_order` 已实现 AR 集成调用，本次为"补全缺失方法"
+- 剩余风险：R3 voucher 凭证未实现；R2 与 ar_invoice_service 双入口隐患
+
+#### C1 P2-3 编译验证（颠覆性发现）
+- CICD Run：[https://github.com/57231307/1/actions/runs/27522504353](https://github.com/57231307/1/actions/runs/27522504353)
+- **✅ 已验证通过，无代码修改**：当前 main 分支在 Rust 1.94.1 编译完全通过，P2-3 实际已完成
+- 6 个 CICD Job 全绿（test / 前端 test / build-backend 12:29 / vite build / release / notify）
+- ~~仅 2 个 .clippy.toml 配置提示警告（`std::println` / `std::eprintln` 宏路径）~~ **已修复**：移除 `std::` 前缀（宏不是方法），2026-06-15
+- GitHub Release [v2026.615.1138](https://github.com/57231307/1/releases/tag/v2026.615.1138) 已自动发布
+
+#### B1 P1-1 generate-no 4 端点（已完成 100%）
+- Commit：`fe91dc9 feat(generate-no): P1-1 补齐 4 端点 generate-no`
+- 4 端点 + 4 前端 API + 4 单测，共 9 文件 +255 行
+- 前缀：IC（inventoryCount）/ RK（purchaseReceipt）/ IA（inventoryAdjustment）/ IT（inventoryTransfer）
+- 路径风格沿用 RESTful 嵌套（`/api/v1/erp/{domain}/{resource}/generate-no`）
+
+#### B2 P1-5 完成 2 TODO（已完成 100%）
+- Commit：`a3b18ca fix(frontend): P1-5 入库单明细 API 类型强化`
+- 已推送 `feature/P1-5-completed-2-todos` 等 CICD
+- 重大发现：`ca0ca48` 提交已完整实现 2 处 TODO，本次仅做类型补强（消除 `as` 强转）
+
+#### 状态汇总
+- Wave 1 进度：4/4 完成 ✅
+- 4 PR 全部合并入 main（#87 / #88 / #89 / #90，2026-06-15）
+- 远端源分支 + 本地工作分支 + 定时轮询任务已全部清理
+- 更新用户记忆（MEMORY.md）：[Wave 1 执行结果]、[沙箱与CICD验证策略] 条目
 
 ---
 

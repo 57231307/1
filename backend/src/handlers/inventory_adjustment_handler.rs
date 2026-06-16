@@ -1,4 +1,5 @@
 use crate::middleware::auth_context::AuthContext;
+use crate::models::inventory_adjustment;
 use crate::models::inventory_adjustment_item;
 use crate::services::inventory_adjustment_service::{
     AdjustmentItemRequest, CreateAdjustmentRequest, InventoryAdjustmentService,
@@ -6,6 +7,7 @@ use crate::services::inventory_adjustment_service::{
 };
 use crate::utils::app_state::AppState;
 use crate::utils::error::AppError;
+use crate::utils::number_generator::DocumentNumberGenerator;
 use crate::utils::response::ApiResponse;
 use axum::{
     extract::{Path, Query, State},
@@ -544,4 +546,25 @@ pub async fn delete_item(
         .await
         .map_err(|e| AppError::bad_request(e.to_string()))?;
     Ok(Json(ApiResponse::success(())))
+}
+
+/// 生成库存调整单号
+/// GET /api/v1/erp/inventory/adjustments/generate-no
+///
+/// 单据号格式：`IA{yyyyMMdd}{4 位流水}`，例如 `IA202605140001`。
+/// 数据库列 `inventory_adjustments.adjustment_no` 上的 `UNIQUE` 约束负责最终去重。
+pub async fn generate_no(
+    State(state): State<AppState>,
+) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
+    let adjustment_no = DocumentNumberGenerator::generate_no_with_width(
+        &*state.db,
+        "IA",
+        inventory_adjustment::Entity,
+        inventory_adjustment::Column::AdjustmentNo,
+        4,
+    )
+    .await?;
+    Ok(Json(ApiResponse::success(serde_json::json!({
+        "adjustment_no": adjustment_no
+    }))))
 }

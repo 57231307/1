@@ -450,6 +450,7 @@ import { supplierApi, type Supplier } from '@/api/supplier'
 import { productApi, type Product } from '@/api/product'
 import { warehouseApi, type Warehouse } from '@/api/warehouse'
 import { loadIfNot, createLazyLoader } from '@/utils/lazy-loader'
+import { logger } from '@/utils/logger'
 
 const hasLoaded = createLazyLoader()
 
@@ -571,7 +572,7 @@ const fetchSuppliers = async () => {
     suppliers.value = res.data!.list || []
     stats.value.supplierCount = suppliers.value.length
   } catch (error) {
-    console.error('获取供应商列表失败:', error)
+    logger.error('获取供应商列表失败:', error)
   }
 }
 
@@ -580,7 +581,7 @@ const fetchProducts = async () => {
     const res = await productApi.list({ page_size: 1000 })
     products.value = res.data!.list || []
   } catch (error) {
-    console.error('获取产品列表失败:', error)
+    logger.error('获取产品列表失败:', error)
   }
 }
 
@@ -589,7 +590,7 @@ const fetchWarehouses = async () => {
     const res = await warehouseApi.list({ page_size: 1000 })
     warehouses.value = res.data!.list || []
   } catch (error) {
-    console.error('获取仓库列表失败:', error)
+    logger.error('获取仓库列表失败:', error)
   }
 }
 

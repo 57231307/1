@@ -1,6 +1,7 @@
 import { vi } from 'vitest'
 
-// Mock Element Plus（基于 importActual 保留全部真实导出，再覆盖需要的组件为可挂载的测试桩）
+// Mock Element Plus（基于 importActual 保留全部真实导出，覆盖 ElTableV2/ElAutoResizer 为可挂载的测试桩）
+// 备注：cherry-pick trae V2Table 测试需要 ElAutoResizer/ElTableV2 的测试桩；其余组件（ElMessage/ElPagination 等）保留真实导出
 vi.mock('element-plus', async () => {
   const actual = await vi.importActual<typeof import('element-plus')>('element-plus')
   return {

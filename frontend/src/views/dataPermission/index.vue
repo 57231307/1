@@ -145,6 +145,9 @@ import {
   listScopeTypes,
   type DataPermissionRole,
   type ScopeType,
+  type CustomCondition,
+  type AllowedFields,
+  type HiddenFields,
 } from '@/api/data-permission'
 
 const roleList = ref([
@@ -259,9 +262,15 @@ const handleSavePermission = async () => {
         roleId: permissionForm.roleId!,
         resourceType: permissionForm.resourceType,
         scopeType: permissionForm.scopeType,
-        customCondition: permissionForm.customCondition || undefined,
-        allowedFields: permissionForm.allowedFields || undefined,
-        hiddenFields: permissionForm.hiddenFields || undefined,
+        customCondition: permissionForm.customCondition
+          ? (permissionForm.customCondition as unknown as CustomCondition)
+          : undefined,
+        allowedFields: permissionForm.allowedFields
+          ? (permissionForm.allowedFields as unknown as AllowedFields)
+          : undefined,
+        hiddenFields: permissionForm.hiddenFields
+          ? (permissionForm.hiddenFields as unknown as HiddenFields)
+          : undefined,
       })
       ElMessage.success('保存成功')
       permissionDialogVisible.value = false

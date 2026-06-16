@@ -256,6 +256,7 @@ import { ElMessage, type FormInstance, type FormRules } from 'element-plus'
 import { Clock, CircleCheck, Warning, Timer, ArrowDown } from '@element-plus/icons-vue'
 import { bpmEnhancedApi } from '@/api/bpm-enhanced'
 import type { ApprovalTask, ApprovalChainNode } from '@/api/bpm-enhanced'
+import { logger } from '@/utils/logger'
 
 const activeTab = ref('pending')
 
@@ -332,7 +333,7 @@ const fetchPendingTasks = async () => {
       t => t.priority === 'high' && !isOverdue(t.due_date || '')
     ).length
   } catch (e) {
-    console.error(e)
+    logger.error(String(e))
   } finally {
     pendingLoading.value = false
   }
@@ -349,7 +350,7 @@ const fetchCompletedTasks = async () => {
     completedPagination.total = res.data.total
     stats.completed = res.data.total
   } catch (e) {
-    console.error(e)
+    logger.error(String(e))
   } finally {
     completedLoading.value = false
   }
@@ -387,7 +388,7 @@ const confirmApproval = async () => {
     approveDialogVisible.value = false
     fetchPendingTasks()
   } catch (e) {
-    console.error(e)
+    logger.error(String(e))
   } finally {
     submitLoading.value = false
   }
@@ -416,7 +417,7 @@ const confirmTransfer = async () => {
       transferDialogVisible.value = false
       fetchPendingTasks()
     } catch (e) {
-      console.error(e)
+      logger.error(String(e))
     } finally {
       submitLoading.value = false
     }
@@ -430,7 +431,7 @@ const handleViewChain = async (row: ApprovalTask) => {
     const res = await bpmEnhancedApi.getApprovalChain(row.process_instance_id)
     approvalChain.value = res.data
   } catch (e) {
-    console.error(e)
+    logger.error(String(e))
   }
 }
 

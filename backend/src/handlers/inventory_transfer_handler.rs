@@ -6,11 +6,13 @@ use axum::{
 use serde::Deserialize;
 
 use crate::models::dto::PageRequest;
+use crate::models::inventory_transfer;
 use crate::services::inv::{
     CreateInventoryTransferRequest, InventoryTransferItemRequest, InventoryTransferService,
     UpdateInventoryTransferRequest,
 };
 use crate::utils::error::AppError;
+use crate::utils::number_generator::DocumentNumberGenerator;
 use crate::utils::response::ApiResponse;
 
 /// 查询参数
@@ -247,4 +249,25 @@ pub async fn delete_item(
         (),
         "调拨明细已删除",
     )))
+}
+
+/// 生成库存调拨单号
+/// GET /api/v1/erp/inventory/transfers/generate-no
+///
+/// 单据号格式：`IT{yyyyMMdd}{4 位流水}`，例如 `IT202605140001`。
+/// 数据库列 `inventory_transfers.transfer_no` 上的 `UNIQUE` 约束负责最终去重。
+pub async fn generate_no(
+    State(state): State<AppState>,
+) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
+    let transfer_no = DocumentNumberGenerator::generate_no_with_width(
+        &*state.db,
+        "IT",
+        inventory_transfer::Entity,
+        inventory_transfer::Column::TransferNo,
+        4,
+    )
+    .await?;
+    Ok(Json(ApiResponse::success(serde_json::json!({
+        "transfer_no": transfer_no
+    }))))
 }

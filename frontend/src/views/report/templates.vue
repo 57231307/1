@@ -23,6 +23,7 @@ import {
   type ReportField,
   type ReportSubscription,
 } from '@/api/report-enhanced'
+import { logger } from '@/utils/logger'
 
 const loading = ref(false)
 const templates = ref<ReportTemplate[]>([])
@@ -324,7 +325,7 @@ const handleSubscriptions = async (row: ReportTemplate) => {
     subscriptions.value = res.data?.list || []
     subscriptionTotal.value = res.data?.total || 0
   } catch {
-    console.warn('加载订阅列表失败')
+    logger.warn('加载订阅列表失败')
   }
   subscriptionDialogVisible.value = true
 }

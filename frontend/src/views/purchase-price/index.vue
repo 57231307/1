@@ -334,6 +334,7 @@ import { supplierApi } from '@/api/supplier'
 import type { Supplier } from '@/api/supplier'
 import { productApi } from '@/api/product'
 import type { Product } from '@/api/product'
+import { logger } from '@/utils/logger'
 
 // 查询参数
 const queryParams = reactive({
@@ -396,7 +397,7 @@ const getList = async () => {
     priceList.value = res.data?.list || []
     total.value = res.data?.total || 0
   } catch (error) {
-    console.error('获取采购价格列表失败:', error)
+    logger.error('获取采购价格列表失败:', error)
   } finally {
     loading.value = false
   }
@@ -408,7 +409,7 @@ const getSuppliers = async () => {
     const res = await supplierApi.list({ page: 1, page_size: 1000 })
     suppliers.value = res.data?.list || []
   } catch (error) {
-    console.error('获取供应商列表失败:', error)
+    logger.error('获取供应商列表失败:', error)
   }
 }
 
@@ -418,7 +419,7 @@ const getProducts = async () => {
     const res = await productApi.list({ page: 1, page_size: 1000 })
     products.value = res.data?.list || []
   } catch (error) {
-    console.error('获取产品列表失败:', error)
+    logger.error('获取产品列表失败:', error)
   }
 }
 
@@ -480,7 +481,7 @@ const handleDisable = async (row: any) => {
     ElMessage.success('停用成功')
     getList()
   } catch (error) {
-    console.error('停用失败:', error)
+    logger.error('停用失败:', error)
   }
 }
 
@@ -491,7 +492,7 @@ const handleHistory = async (row: any) => {
     historyList.value = res.data || []
     historyVisible.value = true
   } catch (error) {
-    console.error('获取历史记录失败:', error)
+    logger.error('获取历史记录失败:', error)
   }
 }
 
@@ -513,7 +514,7 @@ const handleSubmitForm = async () => {
     dialogVisible.value = false
     getList()
   } catch (error) {
-    console.error('表单验证失败:', error)
+    logger.error('表单验证失败:', error)
   }
 }
 

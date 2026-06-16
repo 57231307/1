@@ -1,11 +1,7 @@
 -- P2-2 慢查询扫描
--- 用法（沙箱）：
---   PGPASSWORD=xxx psql -h localhost -U bingxi -d bingxi -f scripts/p2-2-slow-query.sql
--- 用法（生产）：
---   PGPASSWORD=xxx psql -h 39.99.34.194 -U bingxi -d bingxi_erp -f scripts/p2-2-slow-query.sql
+-- 用法：psql -h 39.99.34.194 -U bingxi -d bingxi_erp -f scripts/p2-2-slow-query.sql
 -- 输出：3 个查询结果，用于 Wave 4 P2-2 基线报告
 -- 说明：所有查询仅 SELECT，不修改数据
--- 修正（2026-06-16）：原硬编码 -h 39.99.34.194 改为命令行参数（沙箱/生产通用）
 
 -- 1. 高 seq_scan 表（缺索引）
 \echo ''

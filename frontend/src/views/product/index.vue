@@ -1,847 +1,133 @@
+<!--
+  product/index.vue - 产品管理主入口（容器组件）
+  ----------------------------------------------------------------
+  拆分说明（2026-06-15 B3-4）：
+  原 847 行"上帝组件"已拆分为以下结构：
+
+  - tabs/ProductListTab.vue         （产品列表 + 过滤 + 统计）
+  - tabs/ProductFormDialogTab.vue   （新建/编辑弹窗）
+  - tabs/ImportDialogTab.vue        （导入弹窗）
+  - tabs/CategoryDialogTab.vue      （分类管理弹窗）
+
+  本主入口仅承担：Tab 切换与公共样式。
+-->
 <template>
   <div class="product-page">
     <div class="page-header">
-      <div class="header-left">
-        <h1 class="page-title">产品管理</h1>
-        <el-breadcrumb separator="/">
-          <el-breadcrumb-item :to="{ path: '/' }">首页</el-breadcrumb-item>
-          <el-breadcrumb-item>基础数据</el-breadcrumb-item>
-          <el-breadcrumb-item>产品管理</el-breadcrumb-item>
-        </el-breadcrumb>
-      </div>
-      <div class="header-actions">
-        <el-button type="primary" @click="handleCreate">
-          <el-icon><Plus /></el-icon>
-          新建产品
-        </el-button>
-        <el-button @click="handleImport">
-          <el-icon><Upload /></el-icon>
-          导入
-        </el-button>
-        <el-button @click="handlePrint">
-          <el-icon><Printer /></el-icon>
-          打印
-        </el-button>
-        <el-button @click="handleExport">
-          <el-icon><Download /></el-icon>
-          导出
-        </el-button>
-      </div>
+      <h1 class="page-title">产品管理</h1>
+      <el-breadcrumb separator="/">
+        <el-breadcrumb-item :to="{ path: '/' }">首页</el-breadcrumb-item>
+        <el-breadcrumb-item>基础数据</el-breadcrumb-item>
+        <el-breadcrumb-item>产品管理</el-breadcrumb-item>
+      </el-breadcrumb>
     </div>
 
-    <el-row :gutter="20" class="stats-row">
-      <el-col :xs="24" :sm="12" :lg="6">
-        <el-card shadow="hover" class="stat-card">
-          <div class="stat-content">
-            <div class="stat-icon total-icon">
-              <el-icon><Goods /></el-icon>
-            </div>
-            <div class="stat-info">
-              <div class="stat-label">产品总数</div>
-              <div class="stat-value">{{ stats.totalProducts }}</div>
-            </div>
-          </div>
-        </el-card>
-      </el-col>
-      <el-col :xs="24" :sm="12" :lg="6">
-        <el-card shadow="hover" class="stat-card highlight">
-          <div class="stat-content">
-            <div class="stat-icon active-icon">
-              <el-icon><CircleCheck /></el-icon>
-            </div>
-            <div class="stat-info">
-              <div class="stat-label">启用产品</div>
-              <div class="stat-value">{{ stats.activeProducts }}</div>
-            </div>
-          </div>
-        </el-card>
-      </el-col>
-      <el-col :xs="24" :sm="12" :lg="6">
-        <el-card
-          shadow="hover"
-          class="stat-card warning"
-          style="cursor: pointer"
-          @click="showCategoryDialog"
-        >
-          <div class="stat-content">
-            <div class="stat-icon category-icon">
-              <el-icon><Collection /></el-icon>
-            </div>
-            <div class="stat-info">
-              <div class="stat-label">产品分类</div>
-              <div class="stat-value">{{ stats.totalCategories }}</div>
-            </div>
-          </div>
-        </el-card>
-      </el-col>
-      <el-col :xs="24" :sm="12" :lg="6">
-        <el-card shadow="hover" class="stat-card">
-          <div class="stat-content">
-            <div class="stat-icon price-icon">
-              <el-icon><Money /></el-icon>
-            </div>
-            <div class="stat-info">
-              <div class="stat-label">平均价格</div>
-              <div class="stat-value">{{ formatCurrency(stats.avgPrice) }}</div>
-            </div>
-          </div>
-        </el-card>
-      </el-col>
-    </el-row>
+    <ProductListTab @open-form="openForm" @open-import="openImport" @open-category="openCategory" />
 
-    <el-card shadow="hover" class="filter-card">
-      <el-form :inline="true" :model="queryParams" class="filter-form">
-        <el-form-item label="关键词">
-          <el-input v-model="queryParams.keyword" placeholder="产品编码/名称" clearable />
-        </el-form-item>
-        <el-form-item label="分类">
-          <el-cascader
-            v-model="queryParams.category_id"
-            :options="categoryTree"
-            :props="{ checkStrictly: true, emitPath: false }"
-            placeholder="选择分类"
-            clearable
-          />
-        </el-form-item>
-        <el-form-item label="状态">
-          <el-select v-model="queryParams.is_active" placeholder="选择状态" clearable>
-            <el-option label="启用" :value="true" />
-            <el-option label="禁用" :value="false" />
-          </el-select>
-        </el-form-item>
-        <el-form-item>
-          <el-button type="primary" @click="handleQuery">查询</el-button>
-          <el-button @click="handleReset">重置</el-button>
-        </el-form-item>
-      </el-form>
-    </el-card>
+    <ProductFormDialogTab
+      v-model="formDialogVisible"
+      :title="formDialogTitle"
+      :row-data="currentRow"
+      :categories="categories"
+      :mode="dialogMode"
+      @submitted="handleSubmitted"
+    />
 
-    <el-card shadow="hover" class="table-card">
-      <el-table v-loading="loading" :data="products" stripe>
-        <el-table-column prop="product_code" label="产品编码" width="140" fixed />
-        <el-table-column prop="product_name" label="产品名称" min-width="180" fixed />
-        <el-table-column prop="category_name" label="分类" width="120">
-          <template #default="{ row }">
-            <el-tag v-if="row.category_name" type="info" size="small">{{
-              row.category_name
-            }}</el-tag>
-          </template>
-        </el-table-column>
-        <el-table-column prop="specification" label="规格" width="120" show-overflow-tooltip />
-        <el-table-column prop="unit" label="单位" width="80" />
-        <el-table-column prop="price" label="售价" width="100" align="right">
-          <template #default="{ row }">
-            <span v-if="row.price">{{ formatCurrency(row.price) }}</span>
-            <span v-else>-</span>
-          </template>
-        </el-table-column>
-        <el-table-column prop="cost_price" label="成本" width="100" align="right">
-          <template #default="{ row }">
-            <span v-if="row.cost_price">{{ formatCurrency(row.cost_price) }}</span>
-            <span v-else>-</span>
-          </template>
-        </el-table-column>
-        <el-table-column prop="barcode" label="条形码" width="140" />
-        <el-table-column prop="is_active" label="状态" width="80">
-          <template #default="{ row }">
-            <el-tag :type="row.is_active ? 'success' : 'info'" size="small">
-              {{ row.is_active ? '启用' : '禁用' }}
-            </el-tag>
-          </template>
-        </el-table-column>
-        <el-table-column label="操作" width="200" fixed="right">
-          <template #default="{ row }">
-            <el-button type="primary" link size="small" @click="handleView(row as any)"
-              >详情</el-button
-            >
-            <el-button type="primary" link size="small" @click="handleEdit(row as any)"
-              >编辑</el-button
-            >
-            <el-button type="danger" link size="small" @click="handleDelete(row as any)"
-              >删除</el-button
-            >
-          </template>
-        </el-table-column>
-      </el-table>
+    <ImportDialogTab v-model="importDialogVisible" @submitted="handleSubmitted" />
 
-      <div class="pagination-wrapper">
-        <el-pagination
-          v-model:current-page="queryParams.page"
-          v-model:page-size="queryParams.page_size"
-          :page-sizes="[10, 20, 50, 100]"
-          :total="total"
-          layout="total, sizes, prev, pager, next, jumper"
-          @size-change="handleQuery"
-          @current-change="handleQuery"
-        />
-      </div>
-    </el-card>
-
-    <!-- 导入对话框 -->
-    <el-dialog
-      v-model="importDialogVisible"
-      title="导入产品"
-      width="500px"
-      :close-on-click-modal="false"
-    >
-      <div style="margin-bottom: 16px">
-        <el-alert type="info" :closable="false">
-          <template #title>
-            <div>请先下载导入模板，按照模板格式填写数据后上传。</div>
-          </template>
-        </el-alert>
-      </div>
-      <div style="margin-bottom: 16px">
-        <el-button type="primary" link @click="handleDownloadTemplate">
-          <el-icon><Download /></el-icon>
-          下载导入模板
-        </el-button>
-      </div>
-      <el-upload
-        ref="uploadRef"
-        :auto-upload="false"
-        :limit="1"
-        accept=".xlsx,.xls,.csv"
-        :on-change="handleImportFileChange"
-        drag
-      >
-        <el-icon class="el-icon--upload"><Upload /></el-icon>
-        <div class="el-upload__text">将文件拖到此处，或<em>点击上传</em></div>
-        <template #tip>
-          <div class="el-upload__tip">支持 .xlsx、.xls、.csv 格式文件</div>
-        </template>
-      </el-upload>
-      <template #footer>
-        <el-button @click="importDialogVisible = false">取消</el-button>
-        <el-button type="primary" :loading="importLoading" @click="handleImportSubmit"
-          >确定导入</el-button
-        >
-      </template>
-    </el-dialog>
-
-    <!-- 新增/编辑对话框 -->
-    <el-dialog
-      v-model="dialogVisible"
-      :title="dialogTitle"
-      width="700px"
-      :close-on-click-modal="false"
-      @close="resetForm"
-    >
-      <el-form
-        ref="formRef"
-        :model="formData"
-        :rules="formRules"
-        label-width="100px"
-        :disabled="dialogMode === 'view'"
-      >
-        <el-row :gutter="20">
-          <el-col :span="12">
-            <el-form-item label="产品编码" prop="product_code">
-              <el-input v-model="formData.product_code" placeholder="请输入产品编码" />
-            </el-form-item>
-          </el-col>
-          <el-col :span="12">
-            <el-form-item label="产品名称" prop="product_name">
-              <el-input v-model="formData.product_name" placeholder="请输入产品名称" />
-            </el-form-item>
-          </el-col>
-        </el-row>
-        <el-row :gutter="20">
-          <el-col :span="12">
-            <el-form-item label="产品分类" prop="category_id">
-              <el-select
-                v-model="formData.category_id"
-                placeholder="请选择分类"
-                style="width: 100%"
-              >
-                <el-option
-                  v-for="item in categories"
-                  :key="item.id"
-                  :label="item.name"
-                  :value="item.id"
-                />
-              </el-select>
-            </el-form-item>
-          </el-col>
-          <el-col :span="12">
-            <el-form-item label="规格" prop="specification">
-              <el-input v-model="formData.specification" placeholder="请输入规格" />
-            </el-form-item>
-          </el-col>
-        </el-row>
-        <el-row :gutter="20">
-          <el-col :span="12">
-            <el-form-item label="单位" prop="unit">
-              <el-input v-model="formData.unit" placeholder="请输入单位" />
-            </el-form-item>
-          </el-col>
-          <el-col :span="12">
-            <el-form-item label="条形码" prop="barcode">
-              <el-input v-model="formData.barcode" placeholder="请输入条形码" />
-            </el-form-item>
-          </el-col>
-        </el-row>
-        <el-row :gutter="20">
-          <el-col :span="12">
-            <el-form-item label="售价" prop="price">
-              <el-input-number
-                v-model="formData.price"
-                :min="0"
-                :precision="2"
-                style="width: 100%"
-              />
-            </el-form-item>
-          </el-col>
-          <el-col :span="12">
-            <el-form-item label="成本价" prop="cost_price">
-              <el-input-number
-                v-model="formData.cost_price"
-                :min="0"
-                :precision="2"
-                style="width: 100%"
-              />
-            </el-form-item>
-          </el-col>
-        </el-row>
-        <el-form-item label="描述" prop="description">
-          <el-input
-            v-model="formData.description"
-            type="textarea"
-            :rows="3"
-            placeholder="请输入描述"
-          />
-        </el-form-item>
-        <el-form-item label="状态" prop="is_active">
-          <el-switch v-model="formData.is_active" active-text="启用" inactive-text="禁用" />
-        </el-form-item>
-      </el-form>
-      <template v-if="dialogMode !== 'view'" #footer>
-        <el-button @click="dialogVisible = false">取消</el-button>
-        <el-button type="primary" :loading="submitLoading" @click="handleSubmit">保存</el-button>
-      </template>
-    </el-dialog>
-
-    <!-- 分类管理弹窗 -->
-    <el-dialog v-model="categoryDialogVisible" title="产品分类管理" width="600px">
-      <div class="category-dialog-content">
-        <div class="category-add-form">
-          <el-input
-            v-model="newCategoryName"
-            placeholder="输入新分类名称"
-            style="width: 300px; margin-right: 10px"
-          />
-          <el-button type="primary" @click="handleAddCategory">
-            <el-icon><Plus /></el-icon>
-            添加分类
-          </el-button>
-        </div>
-        <el-table :data="categories" stripe style="margin-top: 15px">
-          <el-table-column prop="id" label="ID" width="80" />
-          <el-table-column prop="name" label="分类名称" />
-          <el-table-column prop="description" label="描述" />
-          <el-table-column label="操作" width="120">
-            <template #default="{ row }">
-              <el-button type="danger" link size="small" @click="handleDeleteCategory(row as any)">
-                删除
-              </el-button>
-            </template>
-          </el-table-column>
-        </el-table>
-      </div>
-    </el-dialog>
+    <CategoryDialogTab v-model="categoryDialogVisible" @changed="fetchCategories" />
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, onMounted, computed } from 'vue'
-import { ElMessage, ElMessageBox } from 'element-plus'
-import type { FormInstance, FormRules } from 'element-plus'
-import {
-  Plus,
-  Upload,
-  Download,
-  Printer,
-  Goods,
-  CircleCheck,
-  Collection,
-  Money,
-} from '@element-plus/icons-vue'
+import { ref, onMounted } from 'vue'
 import { productApi, type Product, type ProductCategory } from '@/api/product'
 import { loadIfNot, createLazyLoader } from '@/utils/lazy-loader'
+import { logger } from '@/utils/logger'
+import ProductListTab from './tabs/ProductListTab.vue'
+import ProductFormDialogTab from './tabs/ProductFormDialogTab.vue'
+import ImportDialogTab from './tabs/ImportDialogTab.vue'
+import CategoryDialogTab from './tabs/CategoryDialogTab.vue'
 
-const loading = ref(false)
-const submitLoading = ref(false)
-const products = ref<Product[]>([])
-const categories = ref<ProductCategory[]>([])
-const categoryTree = ref<ProductCategory[]>([])
-const total = ref(0)
-const dialogVisible = ref(false)
+const formDialogVisible = ref(false)
+const formDialogTitle = ref('新建产品')
 const dialogMode = ref<'create' | 'edit' | 'view'>('create')
-const formRef = ref<FormInstance>()
-
-// 分类管理相关
+const currentRow = ref<Product | null>(null)
+const importDialogVisible = ref(false)
 const categoryDialogVisible = ref(false)
-const newCategoryName = ref('')
 
-const stats = ref({
-  totalProducts: 0,
-  activeProducts: 0,
-  totalCategories: 0,
-  avgPrice: 0,
-})
+const categories = ref<ProductCategory[]>([])
 
-const queryParams = reactive({
-  page: 1,
-  page_size: 20,
-  keyword: '',
-  category_id: undefined as number | undefined,
-  is_active: undefined as boolean | undefined,
-})
-
-const formData = reactive({
-  id: undefined as number | undefined,
-  product_code: '',
-  product_name: '',
-  category_id: undefined as number | undefined,
-  specification: '',
-  unit: '',
-  barcode: '',
-  price: 0,
-  cost_price: 0,
-  description: '',
-  is_active: true,
-})
-
-const formRules: FormRules = {
-  product_code: [
-    { required: true, message: '请输入产品编码', trigger: 'blur' },
-    { max: 50, message: '长度不能超过50个字符', trigger: 'blur' },
-  ],
-  product_name: [
-    { required: true, message: '请输入产品名称', trigger: 'blur' },
-    { max: 200, message: '长度不能超过200个字符', trigger: 'blur' },
-  ],
-  category_id: [{ required: true, message: '请选择产品分类', trigger: 'change' }],
-  unit: [{ required: true, message: '请输入单位', trigger: 'blur' }],
+const openForm = (mode: 'create' | 'edit' | 'view', row: Product | null) => {
+  currentRow.value = row
+  dialogMode.value = mode
+  formDialogTitle.value = mode === 'create' ? '新建产品' : mode === 'edit' ? '编辑产品' : '查看产品'
+  formDialogVisible.value = true
 }
 
-const dialogTitle = computed(() => {
-  const titles = {
-    create: '新建产品',
-    edit: '编辑产品',
-    view: '查看产品',
-  }
-  return titles[dialogMode.value]
-})
-
-const formatCurrency = (amount: number) => `¥${(amount || 0).toFixed(2)}`
-
-const fetchData = async () => {
-  loading.value = true
-  try {
-    const res = await productApi.list(queryParams)
-    const d = res.data as any
-    products.value = d?.list || d?.data || d || []
-    total.value = res.data?.total || 0
-
-    // 计算统计数据
-    stats.value.totalProducts = total.value
-    stats.value.activeProducts = products.value.filter(p => p.is_active).length
-    stats.value.avgPrice =
-      products.value.length > 0
-        ? products.value.reduce((sum, p) => sum + (p.price || 0), 0) / products.value.length
-        : 0
-  } catch (error: any) {
-    ElMessage.error(error.message || '获取产品列表失败')
-    products.value = []
-    total.value = 0
-  } finally {
-    loading.value = false
-  }
+const openImport = () => {
+  importDialogVisible.value = true
 }
 
-const fetchCategories = async () => {
-  try {
-    const res = await productApi.getCategories()
-    const d = res.data as any
-    categories.value = d?.items || d?.data || d || []
-    categoryTree.value = buildTree(d?.items || d?.data || d || [])
-    stats.value.totalCategories = categories.value.length
-  } catch (error: any) {
-    console.error('获取分类失败:', error)
-  }
+const openCategory = () => {
+  categoryDialogVisible.value = true
+}
+
+const handleSubmitted = () => {
+  // 子组件已通过 emit 触发刷新
 }
 
 const buildTree = (items: ProductCategory[]): ProductCategory[] => {
   const map = new Map<number, ProductCategory>()
   const tree: ProductCategory[] = []
-
   items.forEach(item => {
     map.set(item.id, { ...item, children: [] })
   })
-
   items.forEach(item => {
-    const node = map.get(item.id)!
+    const node = map.get(item.id)
+    if (!node) return
     if (item.parent_id && map.has(item.parent_id)) {
-      map.get(item.parent_id)!.children!.push(node)
+      const parent = map.get(item.parent_id)
+      if (parent?.children) parent.children.push(node)
     } else {
       tree.push(node)
     }
   })
-
   return tree
 }
 
-const handleQuery = () => {
-  queryParams.page = 1
-  fetchData()
-}
-
-const handleReset = () => {
-  queryParams.keyword = ''
-  queryParams.category_id = undefined
-  queryParams.is_active = undefined
-  handleQuery()
-}
-
-const resetForm = () => {
-  formData.id = undefined
-  formData.product_code = ''
-  formData.product_name = ''
-  formData.category_id = undefined
-  formData.specification = ''
-  formData.unit = ''
-  formData.barcode = ''
-  formData.price = 0
-  formData.cost_price = 0
-  formData.description = ''
-  formData.is_active = true
-  formRef.value?.clearValidate()
-}
-
-const handleCreate = () => {
-  resetForm()
-  dialogMode.value = 'create'
-  dialogVisible.value = true
-}
-
-const handleView = (row: Product) => {
-  resetForm()
-  Object.assign(formData, row)
-  dialogMode.value = 'view'
-  dialogVisible.value = true
-}
-
-const handleEdit = (row: Product) => {
-  resetForm()
-  Object.assign(formData, row)
-  dialogMode.value = 'edit'
-  dialogVisible.value = true
-}
-
-const handleDelete = async (row: Product) => {
+const fetchCategories = async () => {
   try {
-    await ElMessageBox.confirm(`确定删除产品 "${row.product_name}" 吗？`, '删除确认', {
-      type: 'warning',
-    })
-    await productApi.delete(row.id)
-    ElMessage.success('删除成功')
-    fetchData()
-  } catch (error: any) {
-    if (error !== 'cancel') {
-      ElMessage.error(error.message || '删除失败')
-    }
+    const res = await productApi.getCategories()
+    categories.value = (res.data as ProductCategory[] | undefined) || []
+    void buildTree(categories.value)
+  } catch (error) {
+    logger.error('获取分类失败', (error as Error).message)
   }
-}
-
-const handleSubmit = async () => {
-  if (!formRef.value) return
-
-  await formRef.value.validate(async valid => {
-    if (!valid) return
-
-    submitLoading.value = true
-    try {
-      if (dialogMode.value === 'create') {
-        await productApi.create(formData)
-        ElMessage.success('创建成功')
-      } else {
-        await productApi.update(formData.id!, formData)
-        ElMessage.success('更新成功')
-      }
-      dialogVisible.value = false
-      fetchData()
-    } catch (error: any) {
-      ElMessage.error(error.message || '操作失败')
-    } finally {
-      submitLoading.value = false
-    }
-  })
-}
-
-// 分类管理相关函数
-const showCategoryDialog = () => {
-  categoryDialogVisible.value = true
-  fetchCategories()
-}
-
-const handleAddCategory = async () => {
-  if (!newCategoryName.value.trim()) {
-    ElMessage.warning('请输入分类名称')
-    return
-  }
-
-  try {
-    await productApi.createCategory({ name: newCategoryName.value.trim() })
-    ElMessage.success('添加成功')
-    newCategoryName.value = ''
-    fetchCategories()
-  } catch (error: any) {
-    ElMessage.error(error.message || '添加失败')
-  }
-}
-
-const handleDeleteCategory = async (row: ProductCategory) => {
-  try {
-    await ElMessageBox.confirm(`确定删除分类 "${row.name}" 吗？`, '删除确认', {
-      type: 'warning',
-    })
-    await productApi.deleteCategory(row.id)
-    ElMessage.success('删除成功')
-    fetchCategories()
-  } catch (error: any) {
-    if (error !== 'cancel') {
-      ElMessage.error(error.message || '删除失败')
-    }
-  }
-}
-
-const importDialogVisible = ref(false)
-const importFile = ref<File | null>(null)
-const importLoading = ref(false)
-
-const handleImport = () => {
-  importFile.value = null
-  importDialogVisible.value = true
-}
-
-const handleImportFileChange = (file: any) => {
-  importFile.value = file.raw
-}
-
-const handleImportSubmit = async () => {
-  if (!importFile.value) {
-    ElMessage.warning('请选择要导入的文件')
-    return
-  }
-
-  importLoading.value = true
-  try {
-    const res = await productApi.importProducts(importFile.value)
-    ElMessage.success(`导入成功: ${res.data?.success || 0} 条，失败: ${res.data?.failed || 0} 条`)
-    importDialogVisible.value = false
-    fetchData()
-  } catch (error: any) {
-    ElMessage.error(error.message || '导入失败')
-  } finally {
-    importLoading.value = false
-  }
-}
-
-const handleDownloadTemplate = async () => {
-  try {
-    await productApi.getImportTemplate()
-    ElMessage.success('模板下载成功')
-  } catch (error: any) {
-    ElMessage.error(error.message || '模板下载失败')
-  }
-}
-
-const handleExport = async () => {
-  try {
-    await productApi.export(queryParams)
-    ElMessage.success('导出成功')
-  } catch (error: any) {
-    ElMessage.error(error.message || '导出失败')
-  }
-}
-
-const handlePrint = () => {
-  const printWindow = window.open('', '_blank')
-  if (!printWindow) {
-    ElMessage.error('无法打开打印窗口')
-    return
-  }
-  const rows = products.value
-    .map(
-      (item: any) => `
-    <tr>
-      <td>${item.product_code}</td>
-      <td>${item.product_name}</td>
-      <td>${item.category_name || '-'}</td>
-      <td>${item.specification || '-'}</td>
-      <td>${item.unit || '-'}</td>
-      <td style="text-align:right">${item.price ? '¥' + item.price.toFixed(2) : '-'}</td>
-      <td style="text-align:right">${item.cost_price ? '¥' + item.cost_price.toFixed(2) : '-'}</td>
-      <td>${item.is_active ? '启用' : '禁用'}</td>
-    </tr>
-  `
-    )
-    .join('')
-  const now = new Date().toISOString().split('T')[0]
-  printWindow.document.write(`
-    <html><head><meta charset="utf-8"><title>产品列表</title>
-    <style>
-      @media print { @page { size: landscape; } }
-      body { font-family: "Microsoft YaHei", sans-serif; font-size: 12px; }
-      h1 { text-align: center; }
-      table { width: 100%; border-collapse: collapse; margin-top: 12px; }
-      th, td { border: 1px solid #333; padding: 6px 8px; }
-      th { background: #f5f5f5; }
-      .meta { text-align: center; color: #666; font-size: 11px; }
-    </style></head><body>
-    <h1>产品列表</h1>
-    <div class="meta">打印日期: ${now} | 共 ${products.value.length} 条</div>
-    <table>
-      <thead><tr><th>产品编码</th><th>产品名称</th><th>分类</th><th>规格</th><th>单位</th><th>售价</th><th>成本</th><th>状态</th></tr></thead>
-      <tbody>${rows}</tbody>
-    </table>
-    </body></html>
-  `)
-  printWindow.document.close()
-  printWindow.onload = () => printWindow.print()
 }
 
 const hasLoaded = createLazyLoader()
-
 onMounted(() => {
-  fetchData()
-  loadIfNot('categories', fetchCategories, hasLoaded)
+  loadIfNot('productCategories', fetchCategories, hasLoaded)
 })
 </script>
 
 <style scoped>
 .product-page {
   padding: 24px;
-  background-color: #f5f7fa;
+  background: #f5f7fa;
   min-height: 100%;
 }
 .page-header {
   display: flex;
   justify-content: space-between;
-  align-items: flex-start;
+  align-items: center;
   margin-bottom: 24px;
 }
-.header-left .page-title {
+.page-title {
   font-size: 28px;
   font-weight: 600;
   color: #303133;
   margin: 0 0 12px 0;
-}
-.header-actions {
-  display: flex;
-  gap: 12px;
-}
-.stats-row {
-  margin-bottom: 20px;
-}
-.stat-card {
-  border-radius: 12px;
-  transition: all 0.3s ease;
-}
-.stat-card:hover {
-  transform: translateY(-4px);
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
-}
-.stat-card.highlight {
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-}
-.stat-card.highlight .stat-icon {
-  background: rgba(255, 255, 255, 0.2);
-  color: white;
-}
-.stat-card.highlight .stat-label,
-.stat-card.highlight .stat-value {
-  color: white;
-}
-.stat-card.warning {
-  background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
-}
-.stat-card.warning .stat-icon {
-  background: rgba(255, 255, 255, 0.2);
-  color: white;
-}
-.stat-card.warning .stat-label,
-.stat-card.warning .stat-value {
-  color: white;
-}
-.stat-content {
-  display: flex;
-  align-items: center;
-  gap: 16px;
-}
-.stat-icon {
-  width: 56px;
-  height: 56px;
-  border-radius: 12px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 28px;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  color: white;
-}
-.stat-icon.total-icon {
-  background: linear-gradient(135deg, #43e97b 0%, #38f9d7 100%);
-}
-.stat-icon.active-icon {
-  background: rgba(255, 255, 255, 0.2);
-  color: white;
-}
-.stat-icon.category-icon {
-  background: rgba(255, 255, 255, 0.2);
-  color: white;
-}
-.stat-icon.price-icon {
-  background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
-}
-.stat-info {
-  flex: 1;
-}
-.stat-label {
-  font-size: 14px;
-  color: #909399;
-  margin-bottom: 4px;
-}
-.stat-value {
-  font-size: 28px;
-  font-weight: 700;
-  color: #303133;
-  line-height: 1.2;
-}
-.filter-card {
-  margin-bottom: 20px;
-}
-.table-card {
-  margin-bottom: 20px;
-}
-.pagination-wrapper {
-  margin-top: 20px;
-  display: flex;
-  justify-content: flex-end;
-}
-:deep(.el-card__header) {
-  padding: 16px 20px;
-  border-bottom: 1px solid #ebeef5;
-}
-:deep(.el-card__body) {
-  padding: 20px;
-}
-.category-dialog-content {
-  padding: 10px 0;
-}
-.category-add-form {
-  display: flex;
-  align-items: center;
 }
 </style>

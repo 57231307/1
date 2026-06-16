@@ -1,3 +1,12 @@
+<!--
+  customer/index.vue - 客户管理主入口
+  ----------------------------------------------------------------
+  拆分说明（2026-06-15 B3-3）：
+  原 551 行"上帝组件"已拆分为：
+  - tabs/CustomerFormTab.vue - 新建/编辑客户对话框
+
+  本主入口承担：页面布局 + 列表数据 + 公共样式。
+-->
 <template>
   <div class="customer-page">
     <div class="page-header">
@@ -10,7 +19,7 @@
         </el-breadcrumb>
       </div>
       <div class="header-actions">
-        <el-button type="primary" @click="handleCreate">
+        <el-button type="primary" @click="openCreateDialog">
           <el-icon><Plus /></el-icon>
           新建客户
         </el-button>
@@ -80,12 +89,10 @@
         </el-table-column>
         <el-table-column label="操作" width="180" fixed="right">
           <template #default="{ row }">
-            <el-button type="primary" link size="small" @click="handleEdit(row as any)"
+            <el-button type="primary" link size="small" @click="openEditDialog(row)"
               >编辑</el-button
             >
-            <el-button type="danger" link size="small" @click="handleDelete(row as any)"
-              >删除</el-button
-            >
+            <el-button type="danger" link size="small" @click="handleDelete(row)">删除</el-button>
           </template>
         </el-table-column>
       </el-table>
@@ -103,194 +110,32 @@
       </div>
     </el-card>
 
-    <!-- 新增/编辑对话框 -->
-    <el-dialog
-      v-model="dialogVisible"
-      :title="dialogTitle"
-      width="700px"
-      :close-on-click-modal="false"
-      @close="resetForm"
-    >
-      <el-form ref="formRef" :model="formData" :rules="formRules" label-width="120px">
-        <el-divider content-position="left">基本信息</el-divider>
-        <el-row :gutter="20">
-          <el-col :span="12">
-            <el-form-item label="客户编码" prop="customer_code">
-              <el-input v-model="formData.customer_code" placeholder="请输入客户编码" />
-            </el-form-item>
-          </el-col>
-          <el-col :span="12">
-            <el-form-item label="客户名称" prop="customer_name">
-              <el-input v-model="formData.customer_name" placeholder="请输入客户名称" />
-            </el-form-item>
-          </el-col>
-        </el-row>
-        <el-row :gutter="20">
-          <el-col :span="12">
-            <el-form-item label="联系人" prop="contact_person">
-              <el-input v-model="formData.contact_person" placeholder="请输入联系人" />
-            </el-form-item>
-          </el-col>
-          <el-col :span="12">
-            <el-form-item label="联系电话" prop="contact_phone">
-              <el-input v-model="formData.contact_phone" placeholder="请输入联系电话" />
-            </el-form-item>
-          </el-col>
-        </el-row>
-        <el-row :gutter="20">
-          <el-col :span="12">
-            <el-form-item label="邮箱" prop="contact_email">
-              <el-input v-model="formData.contact_email" placeholder="请输入邮箱" />
-            </el-form-item>
-          </el-col>
-          <el-col :span="12">
-            <el-form-item label="客户类型" prop="customer_type">
-              <el-select
-                v-model="formData.customer_type"
-                placeholder="请选择类型"
-                style="width: 100%"
-              >
-                <el-option label="零售" value="retail" />
-                <el-option label="批发" value="wholesale" />
-                <el-option label="VIP" value="vip" />
-              </el-select>
-            </el-form-item>
-          </el-col>
-        </el-row>
-        <el-row :gutter="20">
-          <el-col :span="12">
-            <el-form-item label="行业" prop="customer_industry">
-              <el-input v-model="formData.customer_industry" placeholder="请输入行业" />
-            </el-form-item>
-          </el-col>
-          <el-col :span="12">
-            <el-form-item label="年采购额" prop="annual_purchase">
-              <el-input-number
-                v-model="formData.annual_purchase"
-                :min="0"
-                :precision="2"
-                style="width: 100%"
-              />
-            </el-form-item>
-          </el-col>
-        </el-row>
-        <el-divider content-position="left">地址信息</el-divider>
-        <el-form-item label="地址" prop="address">
-          <el-input v-model="formData.address" placeholder="请输入详细地址" />
-        </el-form-item>
-        <el-row :gutter="20">
-          <el-col :span="12">
-            <el-form-item label="省份" prop="province">
-              <el-input v-model="formData.province" placeholder="请输入省份" />
-            </el-form-item>
-          </el-col>
-          <el-col :span="12">
-            <el-form-item label="城市" prop="city">
-              <el-input v-model="formData.city" placeholder="请输入城市" />
-            </el-form-item>
-          </el-col>
-        </el-row>
-        <el-row :gutter="20">
-          <el-col :span="12">
-            <el-form-item label="邮编" prop="postal_code">
-              <el-input v-model="formData.postal_code" placeholder="请输入邮编" />
-            </el-form-item>
-          </el-col>
-          <el-col :span="12">
-            <el-form-item label="国家" prop="country">
-              <el-input v-model="formData.country" placeholder="请输入国家" />
-            </el-form-item>
-          </el-col>
-        </el-row>
-        <el-divider content-position="left">财务信息</el-divider>
-        <el-row :gutter="20">
-          <el-col :span="12">
-            <el-form-item label="税号" prop="tax_id">
-              <el-input v-model="formData.tax_id" placeholder="请输入税号" />
-            </el-form-item>
-          </el-col>
-          <el-col :span="12">
-            <el-form-item label="信用额度" prop="credit_limit">
-              <el-input-number
-                v-model="formData.credit_limit"
-                :min="0"
-                :precision="2"
-                style="width: 100%"
-              />
-            </el-form-item>
-          </el-col>
-        </el-row>
-        <el-row :gutter="20">
-          <el-col :span="12">
-            <el-form-item label="账期(天)" prop="payment_terms">
-              <el-input-number v-model="formData.payment_terms" :min="0" style="width: 100%" />
-            </el-form-item>
-          </el-col>
-          <el-col :span="12">
-            <el-form-item label="状态" prop="status">
-              <el-radio-group v-model="formData.status">
-                <el-radio value="active">启用</el-radio>
-                <el-radio value="inactive">停用</el-radio>
-              </el-radio-group>
-            </el-form-item>
-          </el-col>
-        </el-row>
-        <el-row :gutter="20">
-          <el-col :span="12">
-            <el-form-item label="开户银行" prop="bank_name">
-              <el-input v-model="formData.bank_name" placeholder="请输入开户银行" />
-            </el-form-item>
-          </el-col>
-          <el-col :span="12">
-            <el-form-item label="银行账号" prop="bank_account">
-              <el-input v-model="formData.bank_account" placeholder="请输入银行账号" />
-            </el-form-item>
-          </el-col>
-        </el-row>
-        <el-divider content-position="left">业务信息</el-divider>
-        <el-form-item label="主营产品" prop="main_products">
-          <el-input v-model="formData.main_products" placeholder="请输入主营产品" />
-        </el-form-item>
-        <el-row :gutter="20">
-          <el-col :span="12">
-            <el-form-item label="质量要求" prop="quality_requirement">
-              <el-input v-model="formData.quality_requirement" placeholder="请输入质量要求" />
-            </el-form-item>
-          </el-col>
-          <el-col :span="12">
-            <el-form-item label="验货标准" prop="inspection_standard">
-              <el-input v-model="formData.inspection_standard" placeholder="请输入验货标准" />
-            </el-form-item>
-          </el-col>
-        </el-row>
-        <el-form-item label="备注" prop="notes">
-          <el-input v-model="formData.notes" type="textarea" :rows="3" placeholder="请输入备注" />
-        </el-form-item>
-      </el-form>
-      <template #footer>
-        <el-button @click="dialogVisible = false">取消</el-button>
-        <el-button type="primary" :loading="submitLoading" @click="handleSubmit">保存</el-button>
-      </template>
-    </el-dialog>
+    <CustomerFormTab
+      v-model="formDialogVisible"
+      :title="formDialogTitle"
+      :row-data="currentRow"
+      @submitted="handleFormSubmitted"
+    />
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, onMounted, computed } from 'vue'
+import { ref, reactive, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import type { FormInstance, FormRules } from 'element-plus'
 import { Plus, Download, Printer } from '@element-plus/icons-vue'
 import { customerApi, type Customer } from '@/api/customer'
 import { exportData } from '@/utils/export'
 import { printData } from '@/utils/print'
+import { logger } from '@/utils/logger'
+import CustomerFormTab from './tabs/CustomerFormTab.vue'
 
 const loading = ref(false)
-const submitLoading = ref(false)
 const customers = ref<Customer[]>([])
 const total = ref(0)
-const dialogVisible = ref(false)
-const isEdit = ref(false)
-const formRef = ref<FormInstance>()
+
+const formDialogVisible = ref(false)
+const formDialogTitle = ref('新建客户')
+const currentRow = ref<Customer | null>(null)
 
 const queryParams = reactive({
   page: 1,
@@ -300,73 +145,35 @@ const queryParams = reactive({
   status: '',
 })
 
-const formData = reactive({
-  id: undefined as number | undefined,
-  customer_code: '',
-  customer_name: '',
-  contact_person: '',
-  contact_phone: '',
-  contact_email: '',
-  address: '',
-  city: '',
-  province: '',
-  country: '',
-  postal_code: '',
-  customer_type: 'retail',
-  tax_id: '',
-  credit_limit: 0,
-  payment_terms: 30,
-  bank_name: '',
-  bank_account: '',
-  status: 'active',
-  notes: '',
-  customer_industry: '',
-  main_products: '',
-  annual_purchase: 0,
-  quality_requirement: '',
-  inspection_standard: '',
-})
-
-const formRules: FormRules = {
-  customer_code: [{ required: true, message: '请输入客户编码', trigger: 'blur' }],
-  customer_name: [{ required: true, message: '请输入客户名称', trigger: 'blur' }],
-  contact_person: [{ required: true, message: '请输入联系人', trigger: 'blur' }],
-  contact_phone: [
-    { required: true, message: '请输入电话', trigger: 'blur' },
-    { pattern: /^1[3-9]\d{9}$/, message: '请输入正确的手机号', trigger: 'blur' },
-  ],
-}
-
-const dialogTitle = computed(() => (isEdit.value ? '编辑客户' : '新建客户'))
-
 const formatCurrency = (amount: number) => `¥${(amount || 0).toFixed(2)}`
 
 const getCustomerTypeLabel = (type: string) => {
-  const labels: Record<string, string> = {
+  const labelMap: Record<string, string> = {
     retail: '零售',
     vip: 'VIP',
     wholesale: '批发',
   }
-  return labels[type] || type
+  return labelMap[type] || type
 }
 
 const getCustomerTypeTag = (type: string) => {
-  const tags: Record<string, string> = {
+  const typeMap: Record<string, string> = {
     retail: '',
     vip: 'warning',
     wholesale: 'success',
   }
-  return tags[type] || ''
+  return typeMap[type] || ''
 }
 
 const fetchData = async () => {
   loading.value = true
   try {
     const res = await customerApi.list(queryParams)
-    customers.value = res.data!.list || []
+    customers.value = res.data?.list || []
     total.value = res.data?.total || 0
-  } catch (error: any) {
-    ElMessage.error(error.message || '获取客户列表失败')
+  } catch (error) {
+    const err = error as Error
+    ElMessage.error(err.message || '获取客户列表失败')
     customers.value = []
     total.value = 0
   } finally {
@@ -386,45 +193,21 @@ const handleReset = () => {
   handleQuery()
 }
 
-const resetForm = () => {
-  formData.id = undefined
-  formData.customer_code = ''
-  formData.customer_name = ''
-  formData.contact_person = ''
-  formData.contact_phone = ''
-  formData.contact_email = ''
-  formData.address = ''
-  formData.city = ''
-  formData.province = ''
-  formData.country = ''
-  formData.postal_code = ''
-  formData.customer_type = 'retail'
-  formData.tax_id = ''
-  formData.credit_limit = 0
-  formData.payment_terms = 30
-  formData.bank_name = ''
-  formData.bank_account = ''
-  formData.status = 'active'
-  formData.notes = ''
-  formData.customer_industry = ''
-  formData.main_products = ''
-  formData.annual_purchase = 0
-  formData.quality_requirement = ''
-  formData.inspection_standard = ''
-  formRef.value?.clearValidate()
+const openCreateDialog = () => {
+  currentRow.value = null
+  formDialogTitle.value = '新建客户'
+  formDialogVisible.value = true
 }
 
-const handleCreate = () => {
-  resetForm()
-  isEdit.value = false
-  dialogVisible.value = true
+const openEditDialog = (row: Customer) => {
+  currentRow.value = row
+  formDialogTitle.value = '编辑客户'
+  formDialogVisible.value = true
 }
 
-const handleEdit = (row: Customer) => {
-  resetForm()
-  Object.assign(formData, row)
-  isEdit.value = true
-  dialogVisible.value = true
+const handleFormSubmitted = () => {
+  formDialogVisible.value = false
+  fetchData()
 }
 
 const handleDelete = async (row: Customer) => {
@@ -435,36 +218,12 @@ const handleDelete = async (row: Customer) => {
     await customerApi.delete(row.id)
     ElMessage.success('删除成功')
     fetchData()
-  } catch (error: any) {
+  } catch (error) {
     if (error !== 'cancel') {
-      ElMessage.error(error.message || '删除失败')
+      const err = error as Error
+      ElMessage.error(err.message || '删除失败')
     }
   }
-}
-
-const handleSubmit = async () => {
-  if (!formRef.value) return
-
-  await formRef.value.validate(async valid => {
-    if (!valid) return
-
-    submitLoading.value = true
-    try {
-      if (isEdit.value) {
-        await customerApi.update(formData.id!, formData)
-        ElMessage.success('更新成功')
-      } else {
-        await customerApi.create(formData)
-        ElMessage.success('创建成功')
-      }
-      dialogVisible.value = false
-      fetchData()
-    } catch (error: any) {
-      ElMessage.error(error.message || '操作失败')
-    } finally {
-      submitLoading.value = false
-    }
-  })
 }
 
 const handleExport = () => {
@@ -476,9 +235,13 @@ const handleExport = () => {
       { key: 'contact_person', title: '联系人' },
       { key: 'contact_phone', title: '电话' },
       { key: 'contact_email', title: '邮箱' },
-      { key: 'customer_type', title: '类型', formatter: v => getCustomerTypeLabel(v) },
+      { key: 'customer_type', title: '类型', formatter: v => getCustomerTypeLabel(String(v)) },
       { key: 'province', title: '省份' },
-      { key: 'credit_limit', title: '信用额度', formatter: v => (v ? formatCurrency(v) : '-') },
+      {
+        key: 'credit_limit',
+        title: '信用额度',
+        formatter: v => (v ? formatCurrency(Number(v)) : '-'),
+      },
       { key: 'status', title: '状态', formatter: v => (v === 'active' ? '启用' : '禁用') },
     ],
     data: customers.value,
@@ -497,7 +260,7 @@ const handlePrint = () => {
         key: 'customer_type',
         title: '类型',
         width: '80px',
-        formatter: v => getCustomerTypeLabel(v),
+        formatter: v => getCustomerTypeLabel(String(v)),
       },
       {
         key: 'status',
@@ -508,6 +271,7 @@ const handlePrint = () => {
     ],
     data: customers.value,
   })
+  logger.info('客户列表打印任务已生成')
 }
 
 onMounted(() => {

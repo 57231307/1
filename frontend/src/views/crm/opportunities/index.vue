@@ -1,3 +1,13 @@
+<!--
+  crm/opportunities/index.vue - 商机管理主入口
+  ----------------------------------------------------------------
+  拆分说明（2026-06-15 B3-3）：
+  原 602 行"上帝组件"已拆分为：
+  - tabs/OpportunityFormTab.vue - 新建/编辑商机对话框
+  - tabs/OpportunityFollowTab.vue - 跟进记录对话框
+
+  本主入口承担：页面布局 + 列表数据 + 公共样式。
+-->
 <template>
   <div class="crm-opportunities-page">
     <div class="page-header">
@@ -10,7 +20,7 @@
         </el-breadcrumb>
       </div>
       <div class="header-actions">
-        <el-button type="primary" @click="handleCreate">
+        <el-button type="primary" @click="openCreateDialog">
           <el-icon><Plus /></el-icon>
           新建商机
         </el-button>
@@ -114,15 +124,13 @@
         <el-table-column prop="last_follow_up_date" label="最近跟进" width="120" align="center" />
         <el-table-column label="操作" width="250" align="center" fixed="right">
           <template #default="{ row }">
-            <el-button type="primary" link size="small" @click="handleView(row as any)"
-              >查看</el-button
-            >
+            <el-button type="primary" link size="small" @click="handleView(row)">查看</el-button>
             <el-button
               v-if="row.opportunity_stage !== 'WON' && row.opportunity_stage !== 'LOST'"
               type="primary"
               link
               size="small"
-              @click="handleEdit(row as any)"
+              @click="openEditDialog(row)"
               >编辑</el-button
             >
             <el-button
@@ -130,7 +138,7 @@
               type="warning"
               link
               size="small"
-              @click="handleFollow(row as any)"
+              @click="openFollowDialog(row)"
               >跟进</el-button
             >
             <el-button
@@ -138,7 +146,7 @@
               type="success"
               link
               size="small"
-              @click="handleWin(row as any)"
+              @click="handleWin(row)"
               >成交</el-button
             >
             <el-button
@@ -146,7 +154,7 @@
               type="danger"
               link
               size="small"
-              @click="handleLost(row as any)"
+              @click="handleLost(row)"
               >流失</el-button
             >
           </template>
@@ -166,149 +174,47 @@
       </div>
     </el-card>
 
-    <!-- 新建/编辑对话框 -->
-    <el-dialog
-      v-model="dialogVisible"
-      :title="dialogTitle"
-      width="800px"
-      :close-on-click-modal="false"
-    >
-      <el-form ref="formRef" :model="formData" :rules="formRules" label-width="100px">
-        <el-row :gutter="20">
-          <el-col :span="12">
-            <el-form-item label="商机名称" prop="opportunity_name">
-              <el-input v-model="formData.opportunity_name" placeholder="请输入商机名称" />
-            </el-form-item>
-          </el-col>
-          <el-col :span="12">
-            <el-form-item label="客户" prop="customer_id">
-              <el-select v-model="formData.customer_id" placeholder="请选择客户" filterable>
-                <el-option
-                  v-for="c in customers"
-                  :key="c.id"
-                  :label="c.customer_name"
-                  :value="c.id"
-                />
-              </el-select>
-            </el-form-item>
-          </el-col>
-        </el-row>
-        <el-row :gutter="20">
-          <el-col :span="12">
-            <el-form-item label="商机类型" prop="opportunity_type">
-              <el-select v-model="formData.opportunity_type" placeholder="请选择商机类型">
-                <el-option label="新客户" value="NEW" />
-                <el-option label="增购" value="UPSELL" />
-                <el-option label="续约" value="RENEWAL" />
-              </el-select>
-            </el-form-item>
-          </el-col>
-          <el-col :span="12">
-            <el-form-item label="商机阶段" prop="opportunity_stage">
-              <el-select v-model="formData.opportunity_stage" placeholder="请选择商机阶段">
-                <el-option label="初步接触" value="INITIAL" />
-                <el-option label="需求确认" value="REQUIREMENT" />
-                <el-option label="方案报价" value="PROPOSAL" />
-                <el-option label="谈判" value="NEGOTIATION" />
-              </el-select>
-            </el-form-item>
-          </el-col>
-        </el-row>
-        <el-row :gutter="20">
-          <el-col :span="12">
-            <el-form-item label="预估金额" prop="estimated_amount">
-              <el-input-number
-                v-model="formData.estimated_amount"
-                :precision="2"
-                :min="0"
-                style="width: 100%"
-              />
-            </el-form-item>
-          </el-col>
-          <el-col :span="12">
-            <el-form-item label="成交概率" prop="win_probability">
-              <el-slider v-model="formData.win_probability" :min="0" :max="100" />
-            </el-form-item>
-          </el-col>
-        </el-row>
-        <el-row :gutter="20">
-          <el-col :span="12">
-            <el-form-item label="预计成交" prop="expected_close_date">
-              <el-date-picker
-                v-model="formData.expected_close_date"
-                type="date"
-                placeholder="请选择预计成交日期"
-                style="width: 100%"
-              />
-            </el-form-item>
-          </el-col>
-          <el-col :span="12">
-            <el-form-item label="负责人" prop="owner_id">
-              <el-select v-model="formData.owner_id" placeholder="请选择负责人" filterable>
-                <el-option v-for="u in users" :key="u.id" :label="u.real_name" :value="u.id" />
-              </el-select>
-            </el-form-item>
-          </el-col>
-        </el-row>
-        <el-form-item label="产品描述" prop="product_desc">
-          <el-input
-            v-model="formData.product_desc"
-            type="textarea"
-            :rows="3"
-            placeholder="请输入产品描述"
-          />
-        </el-form-item>
-        <el-form-item label="备注" prop="remarks">
-          <el-input v-model="formData.remarks" type="textarea" :rows="2" placeholder="请输入备注" />
-        </el-form-item>
-      </el-form>
-      <template #footer>
-        <el-button @click="dialogVisible = false">取消</el-button>
-        <el-button type="primary" @click="handleSubmitForm">确定</el-button>
-      </template>
-    </el-dialog>
+    <OpportunityFormTab
+      v-model="formDialogVisible"
+      :title="formDialogTitle"
+      :row-data="currentRow"
+      :users="users"
+      :customers="customers"
+      @submitted="handleFormSubmitted"
+    />
 
-    <!-- 跟进记录对话框 -->
-    <el-dialog v-model="followVisible" title="跟进记录" width="600px">
-      <el-form :model="followData" label-width="80px">
-        <el-form-item label="跟进内容">
-          <el-input
-            v-model="followData.content"
-            type="textarea"
-            :rows="4"
-            placeholder="请输入跟进内容"
-          />
-        </el-form-item>
-        <el-form-item label="下次跟进">
-          <el-date-picker
-            v-model="followData.next_follow_up_date"
-            type="date"
-            placeholder="请选择下次跟进日期"
-            style="width: 100%"
-          />
-        </el-form-item>
-      </el-form>
-      <template #footer>
-        <el-button @click="followVisible = false">取消</el-button>
-        <el-button type="primary" @click="handleSubmitFollow">确定</el-button>
-      </template>
-    </el-dialog>
+    <OpportunityFollowTab
+      v-model="followDialogVisible"
+      :opportunity-id="currentFollowId"
+      @submitted="getList"
+    />
   </div>
 </template>
 
 <script setup lang="ts">
 import { ref, reactive, onMounted } from 'vue'
-import { loadIfNot, createLazyLoader } from '@/utils/lazy-loader'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Plus, Download, Search, Refresh } from '@element-plus/icons-vue'
-import { listOpportunities } from '@/api/crm'
-import type { Opportunity } from '@/api/crm'
-import { listUsers } from '@/api/user'
-import type { User } from '@/api/user'
-import { customerApi } from '@/api/customer'
-import type { Customer } from '@/api/customer'
+import { listOpportunities, type Opportunity } from '@/api/crm'
+import { listUsers, type User } from '@/api/user'
+import { customerApi, type Customer } from '@/api/customer'
+import type { ApiResponse, PageResult } from '@/types/api'
+import { loadIfNot, createLazyLoader } from '@/utils/lazy-loader'
+import { logger } from '@/utils/logger'
+import OpportunityFormTab from './tabs/OpportunityFormTab.vue'
+import OpportunityFollowTab from './tabs/OpportunityFollowTab.vue'
 
-// 查询参数
+const hasLoaded = createLazyLoader()
+
+// 实际接口字段名与类型定义不完全一致，扩展包含 UI 展示所需字段
+interface OpportunityRow extends Opportunity {
+  opportunity_name?: string
+  opportunity_stage?: string
+  owner_name?: string
+  last_follow_up_date?: string
+  priority?: string
+}
+
 const queryParams = reactive({
   page: 1,
   page_size: 20,
@@ -318,92 +224,58 @@ const queryParams = reactive({
   priority: '',
 })
 
-// 列表数据
 const loading = ref(false)
-const opportunityList = ref<Opportunity[]>([])
+const opportunityList = ref<OpportunityRow[]>([])
 const total = ref(0)
-
-// 用户和客户列表
 const users = ref<User[]>([])
 const customers = ref<Customer[]>([])
 
-// 对话框
-const dialogVisible = ref(false)
-const dialogTitle = ref('')
-const formRef = ref()
+const formDialogVisible = ref(false)
+const formDialogTitle = ref('新建商机')
+const currentRow = ref<OpportunityRow | null>(null)
+const followDialogVisible = ref(false)
+const currentFollowId = ref<number | null>(null)
 
-// 跟进记录
-const followVisible = ref(false)
-const followData = reactive({
-  opportunity_id: null,
-  content: '',
-  next_follow_up_date: '',
-})
-
-// 表单数据
-const formData = reactive({
-  id: null,
-  opportunity_name: '',
-  customer_id: '',
-  opportunity_type: '',
-  opportunity_stage: '',
-  estimated_amount: 0,
-  win_probability: 50,
-  expected_close_date: '',
-  owner_id: '',
-  product_desc: '',
-  remarks: '',
-})
-
-// 表单验证规则
-const formRules = {
-  opportunity_name: [{ required: true, message: '请输入商机名称', trigger: 'blur' }],
-  customer_id: [{ required: true, message: '请选择客户', trigger: 'change' }],
-  opportunity_stage: [{ required: true, message: '请选择商机阶段', trigger: 'change' }],
-  owner_id: [{ required: true, message: '请选择负责人', trigger: 'change' }],
-}
-
-// 获取列表数据
 const getList = async () => {
   loading.value = true
   try {
-    const res = await listOpportunities(queryParams)
-    opportunityList.value = res.data || []
-    total.value = res.total || 0
+    // 后端 listOpportunities 实际返回 PageResult<T> 包装，但类型定义为 ApiResponse<Opportunity[]>，此处显式声明
+    const res = (await listOpportunities(queryParams)) as unknown as ApiResponse<
+      PageResult<OpportunityRow>
+    >
+    opportunityList.value = res.data?.list || []
+    total.value = res.data?.total || 0
   } catch (error) {
-    console.error('获取商机列表失败:', error)
+    const err = error as Error
+    logger.warn('获取商机列表失败', err.message)
   } finally {
     loading.value = false
   }
 }
 
-// 获取用户列表
-const getUsers = async () => {
+const fetchUsers = async () => {
   try {
     const res = await listUsers()
     users.value = res.data?.list || []
   } catch (error) {
-    console.error('获取用户列表失败:', error)
+    users.value = []
   }
 }
 
-// 获取客户列表
-const getCustomers = async () => {
+const fetchCustomers = async () => {
   try {
     const res = await customerApi.list()
     customers.value = res.data?.list || []
   } catch (error) {
-    console.error('获取客户列表失败:', error)
+    customers.value = []
   }
 }
 
-// 查询
 const handleQuery = () => {
   queryParams.page = 1
   getList()
 }
 
-// 重置
 const handleReset = () => {
   queryParams.keyword = ''
   queryParams.opportunity_stage = ''
@@ -412,95 +284,64 @@ const handleReset = () => {
   handleQuery()
 }
 
-// 新建
-const handleCreate = () => {
-  dialogTitle.value = '新建商机'
-  Object.assign(formData, {
-    id: null,
-    opportunity_name: '',
-    customer_id: '',
-    opportunity_type: '',
-    opportunity_stage: '',
-    estimated_amount: 0,
-    win_probability: 50,
-    expected_close_date: '',
-    owner_id: '',
-    product_desc: '',
-    remarks: '',
-  })
-  dialogVisible.value = true
+const openCreateDialog = () => {
+  currentRow.value = null
+  formDialogTitle.value = '新建商机'
+  formDialogVisible.value = true
 }
 
-// 查看
-const handleView = (_row: any) => {}
-
-// 编辑
-const handleEdit = (row: any) => {
-  dialogTitle.value = '编辑商机'
-  Object.assign(formData, row)
-  dialogVisible.value = true
+const openEditDialog = (row: OpportunityRow) => {
+  currentRow.value = row
+  formDialogTitle.value = '编辑商机'
+  formDialogVisible.value = true
 }
 
-// 跟进
-const handleFollow = (row: any) => {
-  followData.opportunity_id = row.id
-  followData.content = ''
-  followData.next_follow_up_date = ''
-  followVisible.value = true
+const openFollowDialog = (row: OpportunityRow) => {
+  currentFollowId.value = row.id
+  followDialogVisible.value = true
 }
 
-// 成交
-const handleWin = async (_row: any) => {
+const handleFormSubmitted = () => {
+  formDialogVisible.value = false
+  getList()
+}
+
+const handleView = (_row: OpportunityRow) => {
+  // 查看详情（占位）
+}
+
+const handleWin = async (row: OpportunityRow) => {
   try {
-    await ElMessageBox.confirm('确认标记该商机为成交？', '提示', { type: 'warning' })
+    await ElMessageBox.confirm(`确认标记商机 "${row.opportunity_name}" 为成交？`, '提示', {
+      type: 'warning',
+    })
     ElMessage.success('操作成功')
     getList()
   } catch (error) {
-    console.error('操作失败:', error)
+    if (error !== 'cancel') {
+      logger.warn('操作失败', (error as Error).message)
+    }
   }
 }
 
-// 流失
-const handleLost = async (_row: any) => {
+const handleLost = async (row: OpportunityRow) => {
   try {
-    await ElMessageBox.confirm('确认标记该商机为流失？', '提示', { type: 'warning' })
+    await ElMessageBox.confirm(`确认标记商机 "${row.opportunity_name}" 为流失？`, '提示', {
+      type: 'warning',
+    })
     ElMessage.success('操作成功')
     getList()
   } catch (error) {
-    console.error('操作失败:', error)
+    if (error !== 'cancel') {
+      logger.warn('操作失败', (error as Error).message)
+    }
   }
 }
 
-// 导出
 const handleExport = () => {
   ElMessage.success('导出成功')
 }
 
-// 提交表单
-const handleSubmitForm = async () => {
-  try {
-    await formRef.value?.validate()
-    ElMessage.success('保存成功')
-    dialogVisible.value = false
-    getList()
-  } catch (error) {
-    console.error('表单验证失败:', error)
-  }
-}
-
-// 提交跟进
-const handleSubmitFollow = async () => {
-  try {
-    // TODO: 调用API保存跟进记录
-    ElMessage.success('跟进成功')
-    followVisible.value = false
-    getList()
-  } catch (error) {
-    console.error('跟进失败:', error)
-  }
-}
-
-// 分页
 const handleSizeChange = (val: number) => {
   queryParams.page_size = val
   getList()
@@ -511,14 +352,12 @@ const handleCurrentChange = (val: number) => {
   getList()
 }
 
-// 格式化货币
 const formatCurrency = (value: number) => {
   return value ? `¥${value.toFixed(2)}` : '¥0.00'
 }
 
-// 获取阶段类型
 const getStageType = (stage: string) => {
-  const map: Record<string, string> = {
+  const typeMap: Record<string, string> = {
     INITIAL: 'info',
     REQUIREMENT: '',
     PROPOSAL: 'warning',
@@ -526,12 +365,11 @@ const getStageType = (stage: string) => {
     WON: 'success',
     LOST: 'danger',
   }
-  return map[stage] || 'info'
+  return typeMap[stage] || 'info'
 }
 
-// 获取阶段标签
 const getStageLabel = (stage: string) => {
-  const map: Record<string, string> = {
+  const labelMap: Record<string, string> = {
     INITIAL: '初步接触',
     REQUIREMENT: '需求确认',
     PROPOSAL: '方案报价',
@@ -539,15 +377,13 @@ const getStageLabel = (stage: string) => {
     WON: '成交',
     LOST: '流失',
   }
-  return map[stage] || stage
+  return labelMap[stage] || stage
 }
-
-const hasLoaded = createLazyLoader()
 
 onMounted(() => {
   getList()
-  loadIfNot('users', getUsers, hasLoaded)
-  loadIfNot('customers', getCustomers, hasLoaded)
+  loadIfNot('users', fetchUsers, hasLoaded)
+  loadIfNot('customers', fetchCustomers, hasLoaded)
 })
 </script>
 

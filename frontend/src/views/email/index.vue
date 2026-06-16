@@ -206,6 +206,7 @@ import { ElMessage, ElMessageBox } from 'element-plus'
 import { Plus } from '@element-plus/icons-vue'
 import { emailApi, type EmailTemplate, type EmailLog, type EmailStatistics } from '@/api/email'
 import { loadIfNot, createLazyLoader } from '@/utils/lazy-loader'
+import { logger } from '@/utils/logger'
 
 const activeTab = ref('templates')
 const hasLoaded = createLazyLoader()
@@ -276,7 +277,7 @@ const fetchTemplates = async () => {
     templates.value = res.data?.list || []
     templateTotal.value = res.data?.total || 0
   } catch (error) {
-    console.error('获取模板列表失败:', error)
+    logger.error('获取模板列表失败:', error)
   } finally {
     templatesLoading.value = false
   }
@@ -294,7 +295,7 @@ const fetchRecords = async () => {
     records.value = res.data?.list || []
     recordTotal.value = res.data?.total || 0
   } catch (error) {
-    console.error('获取发送记录失败:', error)
+    logger.error('获取发送记录失败:', error)
   } finally {
     recordsLoading.value = false
   }
@@ -307,7 +308,7 @@ const fetchStatistics = async () => {
       statistics.value = res.data
     }
   } catch (error) {
-    console.error('获取统计信息失败:', error)
+    logger.error('获取统计信息失败:', error)
   }
 }
 
@@ -345,7 +346,7 @@ const handleSubmitTemplate = async () => {
     templateDialogVisible.value = false
     fetchTemplates()
   } catch (error) {
-    console.error('提交失败:', error)
+    logger.error('提交失败:', error)
   } finally {
     submitLoading.value = false
   }
@@ -359,7 +360,7 @@ const handleDeleteTemplate = async (row: EmailTemplate) => {
     fetchTemplates()
   } catch (error) {
     if (error !== 'cancel') {
-      console.error('删除失败:', error)
+      logger.error('删除失败:', error)
     }
   }
 }

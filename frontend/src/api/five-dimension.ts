@@ -19,6 +19,13 @@ export interface WarehouseDistributionItem {
 export interface FiveDimensionStats {
   dimensionId?: number
   dimensionName?: string
+  five_dimension_id?: number
+  product_id?: number
+  product_name?: string
+  batch_no?: string
+  color_no?: string
+  dye_lot_no?: string
+  grade?: string
   stats: StatsData
   period?: string
 }
@@ -64,6 +71,12 @@ export interface StatsQueryParams {
   period?: string
   startDate?: string
   endDate?: string
+  page?: number
+  page_size?: number
+  product_id?: number
+  batch_no?: string
+  color_no?: string
+  grade?: string
 }
 
 // 搜索查询参数
@@ -73,6 +86,8 @@ export interface SearchQueryParams {
   type?: string
   page?: number
   page_size?: number
+  keyword?: string
+  search_type?: string
 }
 
 export const listFiveDimensionStats = (params?: StatsQueryParams) =>

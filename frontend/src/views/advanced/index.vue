@@ -242,6 +242,343 @@
           </el-table>
         </el-card>
       </el-tab-pane>
+
+      <el-tab-pane label="工艺优化" name="recipe">
+        <div class="page-header">
+          <h2 class="page-title">染色工艺参数智能推荐</h2>
+        </div>
+
+        <el-row :gutter="20">
+          <el-col :span="8">
+            <el-card shadow="hover" class="mb-20">
+              <template #header><div class="card-header">推荐条件</div></template>
+              <el-form :model="recipeForm" label-width="100px">
+                <el-form-item label="色号" required>
+                  <el-input v-model="recipeForm.color_no" placeholder="如 BL-301" />
+                </el-form-item>
+                <el-form-item label="布类" required>
+                  <el-select
+                    v-model="recipeForm.fabric_type"
+                    placeholder="请选择布类"
+                    style="width: 100%"
+                  >
+                    <el-option label="棉" value="棉" />
+                    <el-option label="涤纶" value="涤纶" />
+                    <el-option label="丝绸" value="丝绸" />
+                    <el-option label="羊毛" value="羊毛" />
+                    <el-option label="化纤" value="化纤" />
+                  </el-select>
+                </el-form-item>
+                <el-form-item label="染料类型">
+                  <el-input
+                    v-model="recipeForm.dye_type"
+                    placeholder="可选，如 活性染料"
+                  />
+                </el-form-item>
+                <el-form-item label="颜色名称">
+                  <el-input
+                    v-model="recipeForm.color_name"
+                    placeholder="可选，如 宝蓝"
+                  />
+                </el-form-item>
+                <el-form-item label="K 值">
+                  <el-input-number
+                    v-model="recipeForm.k"
+                    :min="0"
+                    :max="20"
+                    :step="1"
+                    style="width: 100%"
+                  />
+                </el-form-item>
+                <el-form-item>
+                  <el-button
+                    type="primary"
+                    :loading="recipeLoading"
+                    @click="runRecipeOptimization"
+                    >生成推荐</el-button
+                  >
+                </el-form-item>
+              </el-form>
+            </el-card>
+          </el-col>
+
+          <el-col :span="16">
+            <el-card shadow="hover" class="mb-20">
+              <template #header>
+                <div class="card-header">推荐结果</div>
+              </template>
+              <el-empty
+                v-if="!recipeResult"
+                description="请填写色号与布类后生成推荐"
+              />
+              <div v-else>
+                <el-descriptions :column="2" border>
+                  <el-descriptions-item label="推荐温度">
+                    {{ recipeResult.recommended_params.temperature }} °C
+                  </el-descriptions-item>
+                  <el-descriptions-item label="推荐时间">
+                    {{ recipeResult.recommended_params.time_minutes }} 分钟
+                  </el-descriptions-item>
+                  <el-descriptions-item label="推荐 pH">
+                    {{ recipeResult.recommended_params.ph_value }}
+                  </el-descriptions-item>
+                  <el-descriptions-item label="推荐浴比">
+                    1 : {{ recipeResult.recommended_params.liquor_ratio }}
+                  </el-descriptions-item>
+                  <el-descriptions-item label="置信度">
+                    {{ Math.round(recipeResult.confidence * 100) }}%
+                  </el-descriptions-item>
+                  <el-descriptions-item label="相似案例数">
+                    {{ recipeResult.similar_cases }}
+                  </el-descriptions-item>
+                  <el-descriptions-item label="推荐来源">
+                    <el-tag
+                      :type="recipeResult.source === 'knn' ? 'success' : 'info'"
+                      size="small"
+                    >
+                      {{
+                        recipeResult.source === 'knn' ? 'k-NN 匹配' : '退化兜底'
+                      }}
+                    </el-tag>
+                  </el-descriptions-item>
+                </el-descriptions>
+
+                <el-alert
+                  class="mt-12"
+                  :title="recipeResult.reason"
+                  type="info"
+                  :closable="false"
+                  show-icon
+                />
+
+                <h4 class="mb-10" style="margin-top: 16px">相似候选案例</h4>
+                <el-table
+                  v-if="recipeResult.candidates && recipeResult.candidates.length > 0"
+                  :data="recipeResult.candidates"
+                  stripe
+                  size="small"
+                  border
+                >
+                  <el-table-column prop="recipe_no" label="配方编号" width="160" />
+                  <el-table-column prop="color_no" label="色号" width="120" />
+                  <el-table-column prop="fabric_type" label="布类" width="100" />
+                  <el-table-column prop="dye_type" label="染料" width="120" />
+                  <el-table-column label="温度" width="80">
+                    <template #default="{ row }">
+                      {{ row.temperature ?? '-' }} °C
+                    </template>
+                  </el-table-column>
+                  <el-table-column label="时间" width="80">
+                    <template #default="{ row }">
+                      {{ row.time_minutes ?? '-' }} 分
+                    </template>
+                  </el-table-column>
+                  <el-table-column label="pH" width="80">
+                    <template #default="{ row }">
+                      {{ row.ph_value ?? '-' }}
+                    </template>
+                  </el-table-column>
+                  <el-table-column label="浴比" width="80">
+                    <template #default="{ row }">
+                      1:{{ row.liquor_ratio ?? '-' }}
+                    </template>
+                  </el-table-column>
+                  <el-table-column label="相似度" width="100">
+                    <template #default="{ row }">
+                      {{ Math.round(row.similarity * 100) }}%
+                    </template>
+                  </el-table-column>
+                </el-table>
+                <el-empty
+                  v-else
+                  description="暂无候选案例"
+                  :image-size="60"
+                />
+              </div>
+            </el-card>
+          </el-col>
+        </el-row>
+      </el-tab-pane>
+
+      <el-tab-pane label="质量预测" name="quality">
+        <div class="page-header">
+          <h2 class="page-title">质量预测（基于历史检验记录）</h2>
+        </div>
+
+        <el-row :gutter="20">
+          <el-col :span="8">
+            <el-card shadow="hover" class="mb-20">
+              <template #header><div class="card-header">预测条件</div></template>
+              <el-form :model="qualityForm" label-width="100px">
+                <el-form-item label="产品 ID">
+                  <el-input-number
+                    v-model="qualityForm.product_id"
+                    :min="0"
+                    :step="1"
+                    placeholder="可选，不填则全产品"
+                    style="width: 100%"
+                  />
+                </el-form-item>
+                <el-form-item label="检验类型">
+                  <el-select
+                    v-model="qualityForm.inspection_type"
+                    placeholder="可选，默认为全部"
+                    clearable
+                    style="width: 100%"
+                  >
+                    <el-option label="全部" value="" />
+                    <el-option label="进货检验" value="进货检验" />
+                    <el-option label="过程检验" value="过程检验" />
+                    <el-option label="成品检验" value="成品检验" />
+                    <el-option label="出货检验" value="出货检验" />
+                  </el-select>
+                </el-form-item>
+                <el-form-item label="时间窗口">
+                  <el-input-number
+                    v-model="qualityForm.window_days"
+                    :min="1"
+                    :max="365"
+                    :step="1"
+                    style="width: 100%"
+                  />
+                  <span class="form-hint">默认 90 天，范围 1-365</span>
+                </el-form-item>
+                <el-form-item>
+                  <el-button
+                    type="primary"
+                    :loading="qualityLoading"
+                    @click="runQualityPrediction"
+                    >开始预测</el-button
+                  >
+                </el-form-item>
+              </el-form>
+            </el-card>
+          </el-col>
+
+          <el-col :span="16">
+            <el-card shadow="hover" class="mb-20">
+              <template #header>
+                <div class="card-header">预测结果</div>
+              </template>
+              <el-empty
+                v-if="!qualityResult"
+                description="请填写条件后开始预测"
+              />
+              <div v-else>
+                <!-- 关键指标卡片 -->
+                <el-row :gutter="12" class="mb-12">
+                  <el-col :span="6">
+                    <el-statistic title="总检验次数" :value="qualityResult.total_inspections" />
+                  </el-col>
+                  <el-col :span="6">
+                    <el-statistic
+                      title="平均合格率"
+                      :value="qualityResult.avg_qualification_rate"
+                      :precision="2"
+                      suffix="%"
+                    />
+                    <el-progress
+                      :percentage="qualityResult.avg_qualification_rate"
+                      :stroke-width="6"
+                      :show-text="false"
+                      :status="qualityResult.avg_qualification_rate >= 95 ? 'success' : qualityResult.avg_qualification_rate >= 85 ? 'warning' : 'exception'"
+                      style="margin-top: 4px"
+                    />
+                  </el-col>
+                  <el-col :span="6">
+                    <div class="metric-label">趋势</div>
+                    <el-tag
+                      :type="qualityResult.trend === '上升' ? 'success' : qualityResult.trend === '下降' ? 'danger' : qualityResult.trend === '平稳' ? 'info' : 'warning'"
+                      size="large"
+                    >
+                      {{ qualityResult.trend }}
+                      <span v-if="qualityResult.trend_rate !== 0 && qualityResult.trend !== '无数据'" style="margin-left: 4px">
+                        ({{ qualityResult.trend_rate > 0 ? '+' : '' }}{{ qualityResult.trend_rate }}pp)
+                      </span>
+                    </el-tag>
+                  </el-col>
+                  <el-col :span="6">
+                    <div class="metric-label">风险等级</div>
+                    <el-tag
+                      :type="qualityResult.risk_level === '高' ? 'danger' : qualityResult.risk_level === '中' ? 'warning' : 'success'"
+                      size="large"
+                    >
+                      {{ qualityResult.risk_level }}（{{ qualityResult.risk_score }}）
+                    </el-tag>
+                    <div class="metric-sub">置信度 {{ Math.round(qualityResult.confidence * 100) }}%</div>
+                  </el-col>
+                </el-row>
+
+                <!-- 主要问题归因 -->
+                <h4 class="mb-10" style="margin-top: 8px">主要问题归因（Top 3）</h4>
+                <el-table
+                  v-if="qualityResult.top_issues && qualityResult.top_issues.length > 0"
+                  :data="qualityResult.top_issues"
+                  stripe
+                  size="small"
+                  border
+                >
+                  <el-table-column prop="issue_type" label="问题类型" min-width="160" />
+                  <el-table-column prop="occurrences" label="出现次数" width="120" align="right" />
+                  <el-table-column label="占比" width="200">
+                    <template #default="{ row }">
+                      <el-progress
+                        :percentage="row.percentage"
+                        :stroke-width="8"
+                        :show-text="true"
+                      />
+                    </template>
+                  </el-table-column>
+                </el-table>
+                <el-empty
+                  v-else
+                  description="暂无不合格记录"
+                  :image-size="60"
+                />
+
+                <!-- 建议措施 -->
+                <h4 class="mb-10" style="margin-top: 16px">建议措施</h4>
+                <ul class="rec-list">
+                  <li v-for="(r, i) in qualityResult.recommendations" :key="i">
+                    <el-alert :title="r" type="info" :closable="false" show-icon />
+                  </li>
+                </ul>
+
+                <!-- 周期明细 -->
+                <h4 class="mb-10" style="margin-top: 16px">周期明细（按月）</h4>
+                <el-table
+                  v-if="qualityResult.period_breakdown && qualityResult.period_breakdown.length > 0"
+                  :data="qualityResult.period_breakdown"
+                  stripe
+                  size="small"
+                  border
+                >
+                  <el-table-column prop="period" label="周期" width="120" />
+                  <el-table-column prop="inspections" label="检验次数" width="120" align="right" />
+                  <el-table-column label="平均合格率" min-width="200">
+                    <template #default="{ row }">
+                      {{ row.avg_qualification_rate.toFixed(2) }}%
+                    </template>
+                  </el-table-column>
+                </el-table>
+                <el-empty
+                  v-else
+                  description="暂无周期数据"
+                  :image-size="60"
+                />
+
+                <el-alert
+                  class="mt-12"
+                  :title="`数据来源：${qualityResult.source === 'history' ? '历史真实数据' : '保守默认值（历史不足 5 条）'}`"
+                  :type="qualityResult.source === 'history' ? 'success' : 'warning'"
+                  :closable="false"
+                  show-icon
+                />
+              </div>
+            </el-card>
+          </el-col>
+        </el-row>
+      </el-tab-pane>
     </el-tabs>
 
     <!-- 租户对话框 -->
@@ -292,6 +629,8 @@ import {
   optimizeInventory,
   detectAnomalies,
   getRecommendations as getRecommendationsApi,
+  optimizeRecipe,
+  predictQuality,
   listReportTemplates,
   executeReport as executeReportApi,
   listTenants,
@@ -300,6 +639,7 @@ import {
   deleteTenant as deleteTenantApi,
 } from '@/api/advanced'
 import { loadIfNot, createLazyLoader } from '@/utils/lazy-loader'
+import { logger } from '@/utils/logger'
 
 const activeTab = ref('ai')
 const hasLoaded = createLazyLoader()
@@ -320,6 +660,84 @@ const reportData = ref<any[]>([])
 const reportColumns = ref<any[]>([])
 const tenants = ref<any[]>([])
 const tenantLoading = ref(false)
+
+// 工艺优化（A2-1）状态
+const recipeForm = ref({
+  color_no: '',
+  fabric_type: '棉',
+  dye_type: '',
+  color_name: '',
+  k: 5,
+})
+const recipeLoading = ref(false)
+const recipeResult = ref<any>(null)
+
+const runRecipeOptimization = async () => {
+  if (!recipeForm.value.color_no.trim()) {
+    ElMessage.warning('请输入色号')
+    return
+  }
+  if (!recipeForm.value.fabric_type) {
+    ElMessage.warning('请选择布类')
+    return
+  }
+  recipeLoading.value = true
+  try {
+    const payload: any = {
+      color_no: recipeForm.value.color_no.trim(),
+      fabric_type: recipeForm.value.fabric_type,
+      k: recipeForm.value.k,
+    }
+    if (recipeForm.value.dye_type && recipeForm.value.dye_type.trim()) {
+      payload.dye_type = recipeForm.value.dye_type.trim()
+    }
+    if (recipeForm.value.color_name && recipeForm.value.color_name.trim()) {
+      payload.color_name = recipeForm.value.color_name.trim()
+    }
+    const res: any = await optimizeRecipe(payload)
+    recipeResult.value = res.data!
+    ElMessage.success('推荐生成完成')
+  } catch (e: any) {
+    ElMessage.error(e.message || '推荐失败')
+  } finally {
+    recipeLoading.value = false
+  }
+}
+
+// 质量预测（A2-2）状态
+const qualityForm = ref<{
+  product_id: number | null
+  inspection_type: string
+  window_days: number
+}>({
+  product_id: null,
+  inspection_type: '',
+  window_days: 90,
+})
+const qualityLoading = ref(false)
+const qualityResult = ref<any>(null)
+
+const runQualityPrediction = async () => {
+  qualityLoading.value = true
+  try {
+    const payload: any = {
+      window_days: qualityForm.value.window_days,
+    }
+    if (qualityForm.value.product_id !== null && qualityForm.value.product_id !== undefined) {
+      payload.product_id = qualityForm.value.product_id
+    }
+    if (qualityForm.value.inspection_type && qualityForm.value.inspection_type.trim()) {
+      payload.inspection_type = qualityForm.value.inspection_type.trim()
+    }
+    const res: any = await predictQuality(payload)
+    qualityResult.value = res.data!
+    ElMessage.success('预测完成')
+  } catch (e: any) {
+    ElMessage.error(e.message || '预测失败')
+  } finally {
+    qualityLoading.value = false
+  }
+}
 
 const formatMoney = (amount: number) =>
   '¥' + (amount?.toLocaleString('zh-CN', { minimumFractionDigits: 2 }) || '0.00')
@@ -447,7 +865,7 @@ const updateTenantStatus = async (row: any) => {
     ElMessage.success('状态更新成功')
     fetchTenants()
   } catch (e) {
-    if (e !== 'cancel') console.error(e)
+    if (e !== 'cancel') logger.error(String(e))
   }
 }
 
@@ -487,7 +905,7 @@ const deleteTenant = async (row: any) => {
     ElMessage.success('删除成功')
     fetchTenants()
   } catch (e) {
-    if (e !== 'cancel') console.error(e)
+    if (e !== 'cancel') logger.error(String(e))
   }
 }
 
@@ -495,6 +913,8 @@ const tabLoaders: Record<string, () => void> = {
   ai: () => {},
   report: fetchReportTemplates,
   tenant: fetchTenants,
+  recipe: () => {},
+  quality: () => {},
 }
 
 const loadTab = (tabName: string) => {
@@ -539,8 +959,35 @@ onMounted(() => {
 .mb-10 {
   margin-bottom: 10px;
 }
+.mb-12 {
+  margin-bottom: 12px;
+}
 .report-result {
   max-height: 60vh;
   overflow: auto;
+}
+.metric-label {
+  font-size: 13px;
+  color: #909399;
+  margin-bottom: 6px;
+}
+.metric-sub {
+  font-size: 12px;
+  color: #909399;
+  margin-top: 4px;
+}
+.form-hint {
+  display: block;
+  font-size: 12px;
+  color: #909399;
+  margin-top: 4px;
+}
+.rec-list {
+  list-style: none;
+  padding-left: 0;
+  margin: 0;
+}
+.rec-list li {
+  margin-bottom: 8px;
 }
 </style>

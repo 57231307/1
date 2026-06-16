@@ -223,6 +223,7 @@ import { ElMessage, ElMessageBox } from 'element-plus'
 import { Download, Search, Warning, Lock, Bell } from '@element-plus/icons-vue'
 import { securityApi } from '@/api/security'
 import type { LoginLog, LockedAccount, SecurityAlert } from '@/api/security'
+import { logger } from '@/utils/logger'
 
 // 统计数据
 const stats = reactive({
@@ -262,7 +263,7 @@ const getStats = async () => {
       Object.assign(stats, res.data)
     }
   } catch (error) {
-    console.error('获取统计数据失败:', error)
+    logger.error('获取统计数据失败:', error)
   }
 }
 
@@ -274,7 +275,7 @@ const getLoginLogs = async () => {
     loginLogs.value = res.data?.list || []
     total.value = res.data?.total || 0
   } catch (error) {
-    console.error('获取登录日志失败:', error)
+    logger.error('获取登录日志失败:', error)
   } finally {
     loading.value = false
   }
@@ -287,7 +288,7 @@ const getLockedAccounts = async () => {
     const res = await securityApi.getLockedAccounts()
     lockedAccounts.value = res.data || []
   } catch (error) {
-    console.error('获取锁定账户失败:', error)
+    logger.error('获取锁定账户失败:', error)
   } finally {
     lockLoading.value = false
   }
@@ -300,7 +301,7 @@ const getSecurityAlerts = async () => {
     const res = await securityApi.getSecurityAlerts()
     securityAlerts.value = res.data || []
   } catch (error) {
-    console.error('获取安全告警失败:', error)
+    logger.error('获取安全告警失败:', error)
   } finally {
     alertLoading.value = false
   }
@@ -321,7 +322,7 @@ const handleUnlock = async (row: any) => {
     getLockedAccounts()
     getStats()
   } catch (error) {
-    console.error('解锁失败:', error)
+    logger.error('解锁失败:', error)
   }
 }
 
@@ -339,7 +340,7 @@ const handleExport = async () => {
     window.URL.revokeObjectURL(url)
     ElMessage.success('导出成功')
   } catch (error) {
-    console.error('导出失败:', error)
+    logger.error('导出失败:', error)
   }
 }
 

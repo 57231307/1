@@ -196,6 +196,7 @@ import {
 } from '@element-plus/icons-vue'
 import * as echarts from 'echarts'
 import { dashboardApi } from '@/api/dashboard'
+import { logger } from '@/utils/logger'
 
 interface DashboardStats {
   fabricCount?: number
@@ -331,7 +332,7 @@ const fetchChartData = async () => {
     initTrendChart(salesRes.data?.trends)
     initPieChart(inventoryRes.data?.categoryDistribution)
   } catch (error: any) {
-    console.error('获取图表数据失败:', error)
+    logger.error('获取图表数据失败:', error)
     await nextTick()
     initTrendChart()
     initPieChart()

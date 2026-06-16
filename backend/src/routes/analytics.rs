@@ -436,6 +436,8 @@ pub fn advanced() -> Router<AppState> {
         )
         .route("/ai/anomaly-detection", post(advanced::anomaly_detection))
         .route("/ai/recommendations", post(advanced::recommendations))
+        .route("/ai/recipe-optimization", post(advanced::optimize_recipe))
+        .route("/ai/quality-prediction", post(advanced::quality_prediction))
         .route("/reports/templates", get(advanced::list_report_templates))
         .route("/reports/execute", post(advanced::execute_report))
         .route("/reports/export", post(advanced::export_report))

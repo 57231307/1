@@ -115,7 +115,7 @@ const handlePageSizeChange = (pageSize: number) => {
 
 const openViewDialog = async (item: FiveDimensionStatsResponse) => {
   try {
-    const res: any = await getStatsByFiveDimensionId(item.dimension.five_dimension_id)
+    const res: any = await getStatsByFiveDimensionId(item.dimension.five_dimension_id!)
     viewData.value = res.data!
     viewDialogVisible.value = true
   } catch (error) {

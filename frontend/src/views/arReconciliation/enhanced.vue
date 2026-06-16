@@ -21,6 +21,7 @@ import {
 } from '@/api/ar-reconciliation-enhanced'
 import { request } from '@/api/request'
 import { loadIfNot, createLazyLoader } from '@/utils/lazy-loader'
+import { logger } from '@/utils/logger'
 
 const loading = ref(false)
 const reconcileLoading = ref(false)
@@ -87,7 +88,7 @@ const loadCustomers = async () => {
     const res: any = await request.get('/customers/select')
     customerOptions.value = res.data || []
   } catch {
-    console.warn('加载客户失败')
+    logger.warn('加载客户失败')
   }
 }
 
@@ -308,7 +309,7 @@ const openDisputeDialog = async (row: AutoReconciliationResult) => {
     disputes.value = res.data?.list || []
     disputesTotal.value = res.data?.total || 0
   } catch {
-    console.warn('加载争议记录失败')
+    logger.warn('加载争议记录失败')
   }
   disputeDialogVisible.value = true
 }

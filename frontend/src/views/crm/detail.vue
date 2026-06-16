@@ -1,3 +1,17 @@
+<!--
+  crm/detail.vue - CRM 客户 360 详情页
+  ----------------------------------------------------------------
+  拆分说明（2026-06-15 B3-3）：
+  原 663 行"上帝组件"已拆分为以下独立 section 子组件，
+  位于 views/crm/tabs/ 目录：
+
+  | Section     | 子组件                              |
+  | ----------- | ----------------------------------- |
+  | 跟进记录    | tabs/FollowUpTab.vue                |
+  | 标签管理    | tabs/TagsPanelTab.vue               |
+
+  本主入口承担：路由参数解析 + 数据获取 + 布局 + 公共样式。
+-->
 <template>
   <div class="detail-page">
     <div class="page-header">
@@ -142,31 +156,11 @@
               <el-empty v-else description="暂无 RFM 数据" />
             </el-card>
 
-            <el-card shadow="hover" class="mt-20">
-              <template #header>
-                <div class="card-header">
-                  <span>标签管理</span>
-                  <el-button type="primary" size="small" @click="tagDialogVisible = true">
-                    <el-icon><Plus /></el-icon>
-                    添加标签
-                  </el-button>
-                </div>
-              </template>
-
-              <div class="tags-container">
-                <el-tag
-                  v-for="tag in customer.tags"
-                  :key="tag.id"
-                  :color="tag.color"
-                  class="tag-item"
-                  closable
-                  @close="handleRemoveTag(tag.id)"
-                >
-                  {{ tag.name }}
-                </el-tag>
-                <span v-if="!customer.tags.length" class="no-tags">暂无标签</span>
-              </div>
-            </el-card>
+            <TagsPanelTab
+              :customer-id="customerId"
+              :tags="customer.tags"
+              @updated="fetchCustomer360"
+            />
 
             <el-card shadow="hover" class="mt-20">
               <template #header><div class="card-header">收货地址</div></template>
@@ -191,163 +185,29 @@
           </el-col>
         </el-row>
 
-        <el-card shadow="hover" class="section-card mt-20">
-          <template #header>
-            <div class="card-header">
-              <span>跟进记录</span>
-              <el-button type="primary" size="small" @click="handleAddFollowUp">
-                <el-icon><Plus /></el-icon>
-                新增跟进
-              </el-button>
-            </div>
-          </template>
-
-          <el-timeline>
-            <el-timeline-item
-              v-for="record in followUps"
-              :key="record.id"
-              :timestamp="record.created_at"
-              placement="top"
-              :type="getFollowUpType(record.type)"
-            >
-              <el-card>
-                <div class="follow-up-header">
-                  <span class="follow-up-type">{{ getFollowUpTypeLabel(record.type) }}</span>
-                  <span class="follow-up-operator">跟进人：{{ record.operator_name }}</span>
-                </div>
-                <p class="follow-up-content">{{ record.content }}</p>
-                <div v-if="record.next_follow_date" class="follow-up-next">
-                  <el-icon><Clock /></el-icon>
-                  下次跟进：{{ record.next_follow_date }}
-                </div>
-              </el-card>
-            </el-timeline-item>
-          </el-timeline>
-
-          <div class="pagination-wrapper">
-            <el-pagination
-              v-model:current-page="followUpQuery.page"
-              v-model:page-size="followUpQuery.page_size"
-              :page-sizes="[10, 20, 50]"
-              :total="followUpTotal"
-              layout="total, sizes, prev, pager, next, jumper"
-              @size-change="fetchFollowUps"
-              @current-change="fetchFollowUps"
-            />
-          </div>
-        </el-card>
+        <FollowUpTab ref="followUpRef" :customer-id="customerId" @updated="fetchCustomer360" />
       </template>
     </div>
-
-    <!-- 新增跟进对话框 -->
-    <el-dialog
-      v-model="followUpDialogVisible"
-      title="新增跟进记录"
-      width="500px"
-      :close-on-click-modal="false"
-    >
-      <el-form ref="followUpFormRef" :model="followUpForm" label-width="100px">
-        <el-form-item label="跟进方式" prop="type">
-          <el-select v-model="followUpForm.type" placeholder="请选择跟进方式" style="width: 100%">
-            <el-option label="电话" value="phone" />
-            <el-option label="面谈" value="meeting" />
-            <el-option label="邮件" value="email" />
-            <el-option label="微信" value="wechat" />
-            <el-option label="拜访" value="visit" />
-          </el-select>
-        </el-form-item>
-        <el-form-item label="跟进内容" prop="content">
-          <el-input
-            v-model="followUpForm.content"
-            type="textarea"
-            :rows="4"
-            placeholder="请输入跟进内容"
-          />
-        </el-form-item>
-        <el-form-item label="下次跟进">
-          <el-date-picker
-            v-model="followUpForm.next_follow_date"
-            type="date"
-            placeholder="选择日期"
-            style="width: 100%"
-          />
-        </el-form-item>
-      </el-form>
-      <template #footer>
-        <el-button @click="followUpDialogVisible = false">取消</el-button>
-        <el-button type="primary" :loading="followUpSubmitLoading" @click="submitFollowUp"
-          >保存</el-button
-        >
-      </template>
-    </el-dialog>
-
-    <!-- 添加标签对话框 -->
-    <el-dialog v-model="tagDialogVisible" title="添加标签" width="400px">
-      <el-form ref="tagFormRef" :model="tagForm" label-width="80px">
-        <el-form-item label="标签名称" prop="name">
-          <el-select v-model="tagForm.name" placeholder="选择已有标签" style="width: 100%">
-            <el-option
-              v-for="tag in availableTags"
-              :key="tag.id"
-              :label="tag.name"
-              :value="tag.name"
-            />
-          </el-select>
-        </el-form-item>
-      </el-form>
-      <template #footer>
-        <el-button @click="tagDialogVisible = false">取消</el-button>
-        <el-button type="primary" @click="handleAddTag">确定</el-button>
-      </template>
-    </el-dialog>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, onMounted } from 'vue'
+import { ref, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
-import type { FormInstance } from 'element-plus'
-import { Back, Plus, Clock } from '@element-plus/icons-vue'
-import crmEnhancedApi, {
-  type Customer360,
-  type FollowUpRecord,
-  type CustomerTag,
-} from '@/api/crm-enhanced'
-import { loadIfNot, createLazyLoader } from '@/utils/lazy-loader'
-
-const hasLoaded = createLazyLoader()
+import { Back, Plus } from '@element-plus/icons-vue'
+import crmEnhancedApi, { type Customer360 } from '@/api/crm-enhanced'
+import { logger } from '@/utils/logger'
+import FollowUpTab from './tabs/FollowUpTab.vue'
+import TagsPanelTab from './tabs/TagsPanelTab.vue'
 
 const route = useRoute()
 const router = useRouter()
 
 const loading = ref(false)
-const followUpSubmitLoading = ref(false)
 const customer = ref<Customer360 | null>(null)
-const followUps = ref<FollowUpRecord[]>([])
-const followUpTotal = ref(0)
-const availableTags = ref<CustomerTag[]>([])
-const tagDialogVisible = ref(false)
-const followUpDialogVisible = ref(false)
-const followUpFormRef = ref<FormInstance>()
-const tagFormRef = ref<FormInstance>()
-
-const followUpQuery = reactive({
-  page: 1,
-  page_size: 10,
-})
-
-const followUpForm = reactive({
-  type: 'phone',
-  content: '',
-  next_follow_date: '',
-})
-
-const tagForm = reactive({
-  name: '',
-})
-
 const customerId = Number(route.params.id)
+const followUpRef = ref<InstanceType<typeof FollowUpTab> | null>(null)
 
 const formatCurrency = (amount: number) => `¥${(amount || 0).toFixed(2)}`
 
@@ -361,30 +221,8 @@ const getTypeLabel = (type: string) => {
 }
 
 const getTypeTag = (type: string) => {
-  const tags: Record<string, string> = { normal: '', vip: 'warning', wholesale: 'success' }
-  return tags[type] || ''
-}
-
-const getFollowUpType = (type: string) => {
-  const types: Record<string, string> = {
-    phone: 'primary',
-    meeting: 'success',
-    email: 'info',
-    wechat: 'warning',
-    visit: 'danger',
-  }
-  return types[type] || ''
-}
-
-const getFollowUpTypeLabel = (type: string) => {
-  const labels: Record<string, string> = {
-    phone: '电话',
-    meeting: '面谈',
-    email: '邮件',
-    wechat: '微信',
-    visit: '拜访',
-  }
-  return labels[type] || type
+  const typeMap: Record<string, string> = { normal: '', vip: 'warning', wholesale: 'success' }
+  return typeMap[type] || ''
 }
 
 const fetchCustomer360 = async () => {
@@ -392,96 +230,16 @@ const fetchCustomer360 = async () => {
   try {
     const res = await crmEnhancedApi.getCustomer360(customerId)
     customer.value = res.data
-  } catch (error: any) {
-    ElMessage.error(error.message || '获取客户详情失败')
+  } catch (error) {
+    const err = error as Error
+    ElMessage.error(err.message || '获取客户详情失败')
   } finally {
     loading.value = false
   }
 }
 
-const fetchFollowUps = async () => {
-  try {
-    const res = await crmEnhancedApi.getFollowUps(customerId, followUpQuery)
-    followUps.value = res.data?.list || []
-    followUpTotal.value = res.data?.total || 0
-  } catch (error: any) {
-    followUps.value = []
-    followUpTotal.value = 0
-  }
-}
-
-const fetchTags = async () => {
-  try {
-    const res = await crmEnhancedApi.getTags()
-    availableTags.value = res.data || []
-  } catch (error: any) {
-    availableTags.value = []
-  }
-}
-
 const handleBack = () => {
   router.back()
-}
-
-const handleAddFollowUp = () => {
-  followUpForm.type = 'phone'
-  followUpForm.content = ''
-  followUpForm.next_follow_date = ''
-  followUpDialogVisible.value = true
-}
-
-const submitFollowUp = async () => {
-  if (!followUpForm.content.trim()) {
-    ElMessage.warning('请输入跟进内容')
-    return
-  }
-
-  followUpSubmitLoading.value = true
-  try {
-    await crmEnhancedApi.createFollowUp(customerId, {
-      type: followUpForm.type,
-      content: followUpForm.content,
-      next_follow_date: followUpForm.next_follow_date || undefined,
-    })
-    ElMessage.success('跟进记录已保存')
-    followUpDialogVisible.value = false
-    fetchFollowUps()
-    fetchCustomer360()
-  } catch (error: any) {
-    ElMessage.error(error.message || '保存失败')
-  } finally {
-    followUpSubmitLoading.value = false
-  }
-}
-
-const handleAddTag = async () => {
-  if (!tagForm.name) {
-    ElMessage.warning('请选择标签')
-    return
-  }
-
-  const selectedTag = availableTags.value.find(t => t.name === tagForm.name)
-  if (!selectedTag) return
-
-  try {
-    await crmEnhancedApi.addTagToCustomer(customerId, selectedTag.id)
-    ElMessage.success('标签已添加')
-    tagDialogVisible.value = false
-    tagForm.name = ''
-    fetchCustomer360()
-  } catch (error: any) {
-    ElMessage.error(error.message || '添加标签失败')
-  }
-}
-
-const handleRemoveTag = async (tagId: number) => {
-  try {
-    await crmEnhancedApi.removeTagFromCustomer(customerId, tagId)
-    ElMessage.success('标签已移除')
-    fetchCustomer360()
-  } catch (error: any) {
-    ElMessage.error(error.message || '移除标签失败')
-  }
 }
 
 const handleAddContact = () => {
@@ -494,9 +252,8 @@ onMounted(() => {
     router.back()
     return
   }
-  loadIfNot('fetchCustomer360', fetchCustomer360, hasLoaded)
-  loadIfNot('fetchFollowUps', fetchFollowUps, hasLoaded)
-  loadIfNot('fetchTags', fetchTags, hasLoaded)
+  fetchCustomer360()
+  logger.info('客户详情页加载完成', { customerId })
 })
 </script>
 
@@ -536,11 +293,6 @@ onMounted(() => {
 }
 .mt-20 {
   margin-top: 20px;
-}
-.pagination-wrapper {
-  margin-top: 20px;
-  display: flex;
-  justify-content: flex-end;
 }
 
 .rfm-display {
@@ -590,20 +342,6 @@ onMounted(() => {
   color: #303133;
 }
 
-.tags-container {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-  min-height: 40px;
-}
-.tag-item {
-  border: none;
-}
-.no-tags {
-  color: #909399;
-  font-size: 13px;
-}
-
 .address-list {
   display: flex;
   flex-direction: column;
@@ -632,32 +370,5 @@ onMounted(() => {
 .addr-detail {
   font-size: 13px;
   color: #909399;
-}
-
-.follow-up-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 8px;
-}
-.follow-up-type {
-  font-weight: 600;
-  color: #303133;
-}
-.follow-up-operator {
-  font-size: 12px;
-  color: #909399;
-}
-.follow-up-content {
-  color: #606266;
-  margin: 0 0 8px 0;
-  line-height: 1.6;
-}
-.follow-up-next {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  font-size: 12px;
-  color: #409eff;
 }
 </style>

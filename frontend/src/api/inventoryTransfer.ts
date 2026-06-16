@@ -1,4 +1,5 @@
 import { request } from './request'
+import type { ApiResponse } from '@/types/api'
 
 export interface InventoryTransferEntity {
   id?: number
@@ -73,3 +74,13 @@ export function updateTransferItem(itemId: number, data: Partial<TransferItem>) 
 export function deleteTransferItem(itemId: number) {
   return request.delete(`/inventory/transfers/items/${itemId}`)
 }
+
+/**
+ * 生成库存调拨单号
+ * GET /inventory/transfers/generate-no
+ *
+ * 单据号格式：`IT{yyyyMMdd}{4 位流水}`，例如 `IT202605140001`。
+ * 后端通过 DocumentNumberGenerator 统计当日同前缀单据数量 + 1 计算流水。
+ */
+export const generateInventoryTransferNo = (): Promise<ApiResponse<{ transfer_no: string }>> =>
+  request.get('/inventory/transfers/generate-no')

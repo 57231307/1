@@ -209,6 +209,7 @@ import {
   type UsageStats,
   type Invoice,
 } from '@/api/tenant-billing'
+import { logger } from '@/utils/logger'
 
 const activeTab = ref('current')
 
@@ -281,7 +282,7 @@ const fetchCurrentPlan = async () => {
       currentPlan.value = res.data
     }
   } catch (error) {
-    console.error('获取当前套餐失败:', error)
+    logger.error('获取当前套餐失败:', error)
   } finally {
     currentPlanLoading.value = false
   }
@@ -295,7 +296,7 @@ const fetchUsage = async () => {
       usage.value = res.data
     }
   } catch (error) {
-    console.error('获取使用情况失败:', error)
+    logger.error('获取使用情况失败:', error)
   } finally {
     usageLoading.value = false
   }
@@ -306,7 +307,7 @@ const fetchPlans = async () => {
     const res = await tenantBillingApi.getPlans()
     plans.value = res.data || []
   } catch (error) {
-    console.error('获取套餐列表失败:', error)
+    logger.error('获取套餐列表失败:', error)
   }
 }
 
@@ -317,7 +318,7 @@ const fetchInvoices = async () => {
     invoices.value = res.data?.list || []
     invoiceTotal.value = res.data?.total || 0
   } catch (error) {
-    console.error('获取账单列表失败:', error)
+    logger.error('获取账单列表失败:', error)
   } finally {
     invoicesLoading.value = false
   }
@@ -342,7 +343,7 @@ const handleConfirmUpgrade = async () => {
     fetchCurrentPlan()
     fetchUsage()
   } catch (error) {
-    console.error('升级失败:', error)
+    logger.error('升级失败:', error)
   } finally {
     upgradeLoading.value = false
   }
@@ -361,7 +362,7 @@ const handleConfirmRenew = async () => {
     renewDialogVisible.value = false
     fetchCurrentPlan()
   } catch (error) {
-    console.error('续费失败:', error)
+    logger.error('续费失败:', error)
   } finally {
     renewLoading.value = false
   }

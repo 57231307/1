@@ -327,6 +327,7 @@ import { customerApi } from '@/api/customer'
 import type { Customer } from '@/api/customer'
 import { productApi } from '@/api/product'
 import type { Product } from '@/api/product'
+import { logger } from '@/utils/logger'
 
 // 查询参数
 const queryParams = reactive({
@@ -402,7 +403,7 @@ const getCustomers = async () => {
     const res = await customerApi.list({ page: 1, page_size: 1000 })
     customers.value = res.data?.list || []
   } catch (error) {
-    console.error('获取客户列表失败:', error)
+    logger.error('获取客户列表失败:', error)
   }
 }
 
@@ -412,7 +413,7 @@ const getProducts = async () => {
     const res = await productApi.list({ page: 1, page_size: 1000 })
     products.value = res.data?.list || []
   } catch (error) {
-    console.error('获取产品列表失败:', error)
+    logger.error('获取产品列表失败:', error)
   }
 }
 

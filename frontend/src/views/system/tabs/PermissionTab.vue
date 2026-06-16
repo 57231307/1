@@ -1,27 +1,60 @@
 <!--
   PermissionTab.vue - 权限管理 Tab
   来源：原 system/index.vue 中 权限管理 tab 内容
-  拆分日期：2026-06-05
-  说明：本文件由 system/index.vue 拆分骨架，待前端工程师按 UserTab 模板完成实际数据加载与表单逻辑
-  关联 API：listPermissions
+  拆分日期：2026-06-15 B3-1
 -->
 <template>
-  <div class="permissiontab-tab">
+  <div class="permission-tab">
     <div class="page-header">
       <h2 class="page-title">权限管理</h2>
     </div>
     <el-card shadow="hover">
-      <el-alert
-        title="待迁移"
-        type="info"
-        :closable="false"
-        description="本 Tab 已从 system/index.vue 拆分至此独立子组件。\n下一步：参照 UserTab.vue 实现完整数据加载与表单逻辑。"
-      />
+      <el-table v-loading="permissionListLoading" :data="permissionList" stripe>
+        <el-table-column prop="resource_type" label="资源类型" width="150" />
+        <el-table-column prop="action" label="操作" width="120" />
+        <el-table-column prop="allowed" label="状态" width="100" align="center">
+          <template #default="{ row }">
+            <el-tag :type="row.allowed ? 'success' : 'danger'" size="small">
+              {{ row.allowed ? '允许' : '禁止' }}
+            </el-tag>
+          </template>
+        </el-table-column>
+        <el-table-column prop="resource_id" label="资源ID" width="100" />
+      </el-table>
     </el-card>
   </div>
 </template>
 
 <script setup lang="ts">
-// TODO: 从原 system/index.vue 抽取 权限管理 相关 setup 逻辑
-// 模板可参考同目录下 UserTab.vue
+import { ref, onMounted } from 'vue'
+import { request } from '@/api/request'
+
+interface PermissionRow {
+  resource_type: string
+  action: string
+  allowed: boolean
+  resource_id: string
+}
+
+const permissionList = ref<PermissionRow[]>([])
+const permissionListLoading = ref(false)
+
+const fetchPermissionList = async () => {
+  permissionListLoading.value = true
+  try {
+    const res = await request.get<PermissionRow[]>('/permissions')
+    permissionList.value = res || []
+  } catch (_e) {
+    // 接口失败时静默处理，避免向用户暴露内部错误
+    permissionList.value = []
+  } finally {
+    permissionListLoading.value = false
+  }
+}
+
+defineExpose({ refresh: fetchPermissionList })
+
+onMounted(() => {
+  fetchPermissionList()
+})
 </script>

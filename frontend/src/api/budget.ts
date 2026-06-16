@@ -28,10 +28,6 @@ export function listBudgets(
   return request.get('/budgets', { params })
 }
 
-export function getBudget(id: number): Promise<ApiResponse<Budget>> {
-  return request.get(`/budgets/${id}`)
-}
-
 export function createBudget(data: Partial<Budget>): Promise<ApiResponse<Budget>> {
   return request.post('/budgets', data)
 }
@@ -44,6 +40,7 @@ export function deleteBudget(id: number): Promise<ApiResponse<void>> {
   return request.delete(`/budgets/${id}`)
 }
 
+// TODO(tech-debt): 前端接入后移除（后端端点保留）
 export function approveBudget(id: number): Promise<ApiResponse<void>> {
   return request.post(`/budgets/${id}/approve`)
 }

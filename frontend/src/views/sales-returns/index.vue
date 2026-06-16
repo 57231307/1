@@ -255,6 +255,7 @@ import { salesApi } from '@/api/sales'
 import { listCustomers } from '@/api/customer'
 import { productApi } from '@/api/product'
 import { loadIfNot, createLazyLoader } from '@/utils/lazy-loader'
+import { logger } from '@/utils/logger'
 
 const loading = ref(false)
 const submitLoading = ref(false)
@@ -326,7 +327,7 @@ const loadSalesOrders = async () => {
     const res = await salesApi.getOrderList({ status: 'completed' })
     salesOrderList.value = res.data?.list || []
   } catch (error: any) {
-    console.error('加载销售订单失败:', error)
+    logger.error('加载销售订单失败:', error)
   }
 }
 
@@ -335,7 +336,7 @@ const loadCustomers = async () => {
     const res = await listCustomers()
     customerList.value = res.data?.list || []
   } catch (error: any) {
-    console.error('加载客户列表失败:', error)
+    logger.error('加载客户列表失败:', error)
   }
 }
 
@@ -344,7 +345,7 @@ const loadProducts = async () => {
     const res = await productApi.list()
     productList.value = res.data?.list || []
   } catch (error: any) {
-    console.error('加载产品列表失败:', error)
+    logger.error('加载产品列表失败:', error)
   }
 }
 
