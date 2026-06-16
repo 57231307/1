@@ -244,3 +244,9 @@ pub mod color_price_history;
 pub mod color_price_tier;
 pub mod customer_color_price;
 pub mod seasonal_price_rule;
+// P0-5 面料多色号定价扩展 DTO
+pub mod color_price_dto;
+pub mod color_price_history_dto;
+pub mod color_price_tier_dto;
+pub mod customer_color_price_dto;
+pub mod seasonal_price_rule_dto;
