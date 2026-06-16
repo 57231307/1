@@ -595,6 +595,31 @@ const routes = [
         component: () => import('@/views/custom-orders/tracking.vue'),
         meta: { title: '工艺跟踪', requiresAuth: true },
       },
+      // 色卡仓储管理模块（P0-4）
+      {
+        path: 'color-cards/list',
+        name: 'ColorCardList',
+        component: () => import('@/views/color-cards/list.vue'),
+        meta: { title: '色卡列表', requiresAuth: true },
+      },
+      {
+        path: 'color-cards/create',
+        name: 'ColorCardCreate',
+        component: () => import('@/views/color-cards/create.vue'),
+        meta: { title: '新建色卡', requiresAuth: true },
+      },
+      {
+        path: 'color-cards/detail/:id',
+        name: 'ColorCardDetail',
+        component: () => import('@/views/color-cards/detail.vue'),
+        meta: { title: '色卡详情', requiresAuth: true },
+      },
+      {
+        path: 'color-cards/borrow',
+        name: 'ColorCardBorrow',
+        component: () => import('@/views/color-cards/borrow.vue'),
+        meta: { title: '色卡借出管理', requiresAuth: true },
+      },
     ],
   },
   {
