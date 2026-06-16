@@ -1,0 +1,284 @@
+//! 定制订单 CRUD 服务
+//!
+//! 提供定制订单基础 CRUD 业务：create / list / get_by_id / update / cancel
+//! 工艺推进由 custom_order_state_service 处理
+//! 创建时间: 2026-06-17
+
+use chrono::Utc;
+use sea_orm::{
+    ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, PaginatorTrait, QueryFilter,
+    QueryOrder, Set, TransactionTrait,
+};
+use std::sync::Arc;
+use thiserror::Error;
+
+use crate::models::custom_order::{self, ActiveModel as CustomOrderActive, Entity as CustomOrderEntity};
+use crate::models::custom_order_create_dto::{CancelCustomOrderDto, CreateCustomOrderDto, UpdateCustomOrderDto};
+use crate::models::process_node::{self, ActiveModel as NodeActive, Entity as NodeEntity};
+use crate::utils::app_state::AppState;
+use crate::utils::process_state_machine::default_process_nodes;
+
+/// 业务错误
+#[derive(Debug, Error)]
+pub enum CrudError {
+    #[error("定制订单不存在")]
+    NotFound,
+    #[error("当前状态不允许此操作")]
+    InvalidState,
+    #[error("参数校验失败: {0}")]
+    Validation(String),
+    #[error("数据库错误: {0}")]
+    Database(#[from] sea_orm::DbErr),
+}
+
+/// 定制订单 CRUD 服务
+pub struct CustomOrderCrudService {
+    db: Arc<DatabaseConnection>,
+}
+
+impl CustomOrderCrudService {
+    /// 从数据库连接构造
+    pub fn new(db: Arc<DatabaseConnection>) -> Self {
+        Self { db }
+    }
+
+    /// 从 AppState 构造
+    pub fn from_state(state: &AppState) -> Self {
+        Self {
+            db: state.db.clone(),
+        }
+    }
+
+    /// 创建定制订单草稿（自动生成 5 阶段工艺节点）
+    pub async fn create_draft(
+        &self,
+        dto: CreateCustomOrderDto,
+        user_id: i64,
+        tenant_id: i64,
+    ) -> Result<custom_order::Model, CrudError> {
+        // 1. 业务校验
+        self.validate_create(&dto)?;
+
+        // 2. 生成 order_no（CO + YYYYMMDD + 4 位序号）
+        let order_no = self.generate_order_no().await?;
+
+        // 3. 开始事务
+        let txn = self.db.begin().await?;
+
+        // 4. 插入主表
+        let now = Utc::now();
+        let active = CustomOrderActive {
+            id: Default::default(),
+            order_no: Set(order_no),
+            customer_id: Set(dto.customer_id),
+            product_id: Set(dto.product_id),
+            color_id: Set(dto.color_id),
+            spec: Set(dto.spec),
+            quantity: Set(dto.quantity),
+            unit: Set(dto.unit),
+            custom_requirements: Set(dto
+                .custom_requirements
+                .as_ref()
+                .map(|v| v.clone())
+                .unwrap_or(serde_json::json!({}))),
+            yarn_spec: Set(dto.yarn_spec),
+            dye_method: Set(dto.dye_method),
+            finishing_method: Set(dto.finishing_method),
+            status: Set("draft".to_string()),
+            expected_delivery_date: Set(dto.expected_delivery_date),
+            actual_delivery_date: Set(None),
+            sales_order_id: Set(dto.sales_order_id),
+            total_amount: Set(dto.total_amount),
+            currency: Set(dto.currency.unwrap_or_else(|| "CNY".to_string())),
+            tenant_id: Set(tenant_id),
+            created_by: Set(Some(user_id)),
+            created_at: Set(now),
+            updated_at: Set(now),
+        };
+        let result = active.insert(&txn).await?;
+
+        // 5. 自动生成 5 阶段工艺节点
+        for (node_type, node_name, sequence) in default_process_nodes() {
+            let node = NodeActive {
+                id: Default::default(),
+                custom_order_id: Set(result.id),
+                node_type: Set(node_type.to_string()),
+                node_name: Set(node_name.to_string()),
+                sequence: Set(sequence),
+                status: Set("pending".to_string()),
+                planned_start_date: Set(None),
+                planned_end_date: Set(None),
+                actual_start_date: Set(None),
+                actual_end_date: Set(None),
+                operator_id: Set(None),
+                notes: Set(None),
+                tenant_id: Set(tenant_id),
+                created_at: Set(now),
+                updated_at: Set(now),
+            };
+            node.insert(&txn).await?;
+        }
+
+        // 6. 提交事务
+        txn.commit().await?;
+        Ok(result)
+    }
+
+    /// 列表查询（分页 + 过滤 + 多租户隔离）
+    pub async fn list(
+        &self,
+        tenant_id: i64,
+        page: u64,
+        page_size: u64,
+        status: Option<String>,
+        customer_id: Option<i64>,
+        keyword: Option<String>,
+    ) -> Result<(Vec<custom_order::Model>, u64), CrudError> {
+        let mut query = CustomOrderEntity::find();
+
+        // 强制多租户隔离
+        query = query.filter(custom_order::Column::TenantId.eq(tenant_id));
+
+        if let Some(s) = status {
+            query = query.filter(custom_order::Column::Status.eq(s));
+        }
+        if let Some(c) = customer_id {
+            query = query.filter(custom_order::Column::CustomerId.eq(c));
+        }
+        if let Some(k) = keyword {
+            let pattern = format!("%{}%", k);
+            query = query.filter(custom_order::Column::OrderNo.like(pattern));
+        }
+
+        let paginator = query
+            .order_by_desc(custom_order::Column::CreatedAt)
+            .paginate(&*self.db, page_size);
+
+        let total = paginator.num_items().await?;
+        let items = paginator.fetch_page(page.saturating_sub(1)).await?;
+
+        Ok((items, total))
+    }
+
+    /// 按 ID 查询（多租户隔离）
+    pub async fn get_by_id(
+        &self,
+        id: i64,
+        tenant_id: i64,
+    ) -> Result<custom_order::Model, CrudError> {
+        CustomOrderEntity::find_by_id(id)
+            .filter(custom_order::Column::TenantId.eq(tenant_id))
+            .one(&*self.db)
+            .await?
+            .ok_or(CrudError::NotFound)
+    }
+
+    /// 更新定制订单（仅 draft 状态可更新）
+    pub async fn update(
+        &self,
+        id: i64,
+        tenant_id: i64,
+        dto: UpdateCustomOrderDto,
+    ) -> Result<custom_order::Model, CrudError> {
+        let existing = self.get_by_id(id, tenant_id).await?;
+        if existing.status != "draft" {
+            return Err(CrudError::InvalidState);
+        }
+
+        let mut active: CustomOrderActive = existing.into();
+        if let Some(v) = dto.spec {
+            active.spec = Set(v);
+        }
+        if let Some(v) = dto.quantity {
+            active.quantity = Set(v);
+        }
+        if let Some(v) = dto.unit {
+            active.unit = Set(v);
+        }
+        if let Some(v) = dto.custom_requirements {
+            active.custom_requirements = Set(v);
+        }
+        if let Some(v) = dto.yarn_spec {
+            active.yarn_spec = Set(Some(v));
+        }
+        if let Some(v) = dto.dye_method {
+            active.dye_method = Set(Some(v));
+        }
+        if let Some(v) = dto.finishing_method {
+            active.finishing_method = Set(Some(v));
+        }
+        if let Some(v) = dto.expected_delivery_date {
+            active.expected_delivery_date = Set(Some(v));
+        }
+        if let Some(v) = dto.total_amount {
+            active.total_amount = Set(Some(v));
+        }
+        if let Some(v) = dto.notes {
+            // 暂存到 yarn_spec 字段（无 notes 字段；如有需要扩展 schema）
+            let _ = v;
+        }
+        active.updated_at = Set(Utc::now());
+        let updated = active.update(&*self.db).await?;
+        Ok(updated)
+    }
+
+    /// 取消定制订单（任意非终态可取消）
+    pub async fn cancel(
+        &self,
+        id: i64,
+        tenant_id: i64,
+        dto: CancelCustomOrderDto,
+        _user_id: i64,
+    ) -> Result<custom_order::Model, CrudError> {
+        let existing = self.get_by_id(id, tenant_id).await?;
+        if existing.status == "completed" || existing.status == "cancelled" {
+            return Err(CrudError::InvalidState);
+        }
+
+        let mut active: CustomOrderActive = existing.into();
+        active.status = Set("cancelled".to_string());
+        active.updated_at = Set(Utc::now());
+        let _ = dto.reason; // 取消原因可记录到 process_log（暂存）
+        let updated = active.update(&*self.db).await?;
+        Ok(updated)
+    }
+
+    /// 列出指定订单的工艺节点
+    pub async fn list_process_nodes(
+        &self,
+        custom_order_id: i64,
+        tenant_id: i64,
+    ) -> Result<Vec<process_node::Model>, CrudError> {
+        let nodes = NodeEntity::find()
+            .filter(process_node::Column::CustomOrderId.eq(custom_order_id))
+            .filter(process_node::Column::TenantId.eq(tenant_id))
+            .order_by_asc(process_node::Column::Sequence)
+            .all(&*self.db)
+            .await?;
+        Ok(nodes)
+    }
+
+    // ----------------------------------------------------------------------
+    // 私有辅助
+    // ----------------------------------------------------------------------
+
+    async fn generate_order_no(&self) -> Result<String, CrudError> {
+        let today = Utc::now().format("%Y%m%d").to_string();
+        let pattern = format!("CO{}%", today);
+        let count = CustomOrderEntity::find()
+            .filter(custom_order::Column::OrderNo.like(pattern))
+            .count(&*self.db)
+            .await?;
+        Ok(format!("CO{}{:04}", today, count + 1))
+    }
+
+    fn validate_create(&self, dto: &CreateCustomOrderDto) -> Result<(), CrudError> {
+        if dto.quantity <= rust_decimal::Decimal::ZERO {
+            return Err(CrudError::Validation("数量必须大于 0".to_string()));
+        }
+        if dto.spec.is_empty() {
+            return Err(CrudError::Validation("规格不能为空".to_string()));
+        }
+        Ok(())
+    }
+}

@@ -25,6 +25,7 @@ pub mod import_export;
 pub mod log_config;
 pub mod number_generator;
 pub mod pagination;
+pub mod process_state_machine;
 pub mod random;
 pub mod sql_escape;
 pub mod webhook_signature;
