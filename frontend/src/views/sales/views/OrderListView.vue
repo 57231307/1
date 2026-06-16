@@ -1,5 +1,5 @@
 <!--
-  sales/index.vue - 销售订单管理主入口
+  sales/index.vue - 销售订单管理主入口（V2Table 迁移版）
   ----------------------------------------------------------------
   拆分说明（2026-06-15 B3-1）：
   原 1125 行"上帝组件"已拆分为以下 3 个独立对话框子组件，
@@ -12,6 +12,7 @@
   | DeliveryDialog.vue    | 销售发货对话框      |
 
   本主入口仅承担：页面布局 + 列表 + 数据拉取 + 业务方法。
+  迁移日期：2026-06-16 P2-1（替换 el-table 为 V2Table + useTableApi）
 -->
 <template>
   <div class="sales-page">
@@ -84,71 +85,23 @@
           />
         </el-form-item>
         <el-form-item>
-          <el-button type="primary" @click="fetchSalesOrders">查询</el-button>
+          <el-button type="primary" @click="handleQuery">查询</el-button>
           <el-button @click="resetFilter">重置</el-button>
         </el-form-item>
       </el-form>
     </el-card>
 
     <el-card shadow="hover">
-      <el-table v-loading="loading" :data="salesOrders" stripe>
-        <el-table-column prop="order_no" label="订单号" width="140" />
-        <el-table-column prop="customer_name" label="客户" min-width="150" />
-        <el-table-column prop="order_date" label="订单日期" width="120" />
-        <el-table-column prop="required_date" label="交货日期" width="120" />
-        <el-table-column prop="total_amount" label="订单金额" width="120" align="right">
-          <template #default="{ row }">¥{{ row.total_amount.toLocaleString() }}</template>
-        </el-table-column>
-        <el-table-column prop="status" label="状态" width="100" align="center">
-          <template #default="{ row }">
-            <el-tag :type="getStatusType(row.status)" size="small">
-              {{ getStatusText(row.status) }}
-            </el-tag>
-          </template>
-        </el-table-column>
-        <el-table-column prop="creator_name" label="创建人" width="100" />
-        <el-table-column label="操作" width="280" fixed="right">
-          <template #default="{ row }">
-            <el-button size="small" link @click="viewOrder(row as unknown as SalesOrder)"
-              >查看</el-button
-            >
-            <el-button
-              v-if="row.status === 'pending'"
-              size="small"
-              link
-              type="primary"
-              @click="approveOrder(row as unknown as SalesOrder)"
-              >审批</el-button
-            >
-            <el-button
-              v-if="row.status === 'approved'"
-              size="small"
-              link
-              type="success"
-              @click="openDeliveryDialog(row as unknown as SalesOrder)"
-              >发货</el-button
-            >
-            <el-button
-              v-if="['pending', 'approved'].includes(row.status)"
-              size="small"
-              link
-              type="danger"
-              @click="cancelOrder(row as unknown as SalesOrder)"
-              >取消</el-button
-            >
-          </template>
-        </el-table-column>
-      </el-table>
-
-      <el-pagination
-        v-model:current-page="pagination.page"
-        v-model:page-size="pagination.page_size"
-        :total="pagination.total"
-        :page-sizes="[10, 20, 50, 100]"
-        layout="total, sizes, prev, pager, next, jumper"
-        class="pagination"
-        @current-change="fetchSalesOrders"
-        @size-change="fetchSalesOrders"
+      <V2Table
+        :columns="columns"
+        :data="data"
+        :loading="loading"
+        :page="page"
+        :page-size="pageSize"
+        :total="total"
+        :height="600"
+        @page-change="handlePageChange"
+        @size-change="handleSizeChange"
       />
     </el-card>
 
@@ -174,9 +127,19 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref, reactive, onMounted } from 'vue'
-import { ElMessage, ElMessageBox } from 'element-plus'
+/**
+ * 销售订单列表主入口（V2Table 迁移版）
+ * - V2Table：基于 el-table-v2 的虚拟滚动通用组件
+ * - useTableApi：通用数据 composable（分页/筛选/loading/重试）
+ * 保留原交互：4 统计卡片 / 筛选表单 / 状态 el-tag / 操作按钮条件渲染 /
+ *           3 对话框子组件 / 业务方法（approve/cancel/submit）+ 成功调用 refresh()
+ */
+import { computed, ref, reactive, watch, onMounted, h } from 'vue'
+import { ElMessage, ElMessageBox, ElTag, ElButton } from 'element-plus'
 import { Plus } from '@element-plus/icons-vue'
+import { useTableApi } from '@/composables/useTableApi'
+import V2Table from '@/components/V2Table/index.vue'
+import type { ColumnDef } from '@/components/V2Table/types'
 import { salesApi, type SalesOrder } from '@/api/sales'
 import { request } from '@/api/request'
 import type { Customer } from '@/api/customer'
@@ -185,26 +148,29 @@ import OrderFormDialog from '../OrderFormDialog.vue'
 import OrderViewDialog from '../OrderViewDialog.vue'
 import DeliveryDialog from '../DeliveryDialog.vue'
 
-// 列表数据
-const salesOrders = ref<SalesOrder[]>([])
-const loading = ref(false)
+// 销售订单列表（由 useTableApi 接管分页/loading/重试）
+const {
+  data,
+  loading,
+  page,
+  pageSize,
+  total,
+  queryParams,
+  refresh,
+  reset,
+} = useTableApi<SalesOrder>('/sales/orders')
+
+// 辅助数据（不走 useTableApi，保留原 request.get 写法）
 const customers = ref<Customer[]>([])
 const products = ref<Product[]>([])
 const warehouses = ref<{ id: number; warehouse_name?: string; name?: string }[]>([])
 
-// 过滤
+// 过滤表单（仅本地 UI 状态）
 const filterForm = reactive({
   order_no: '',
   customer_name: '',
   status: '',
   dateRange: [] as Date[] | null,
-})
-
-// 分页
-const pagination = reactive({
-  page: 1,
-  page_size: 20,
-  total: 0,
 })
 
 // 统计
@@ -287,40 +253,142 @@ const getStatusText = (status: string) => {
   return textMap[status] || status
 }
 
-const fetchSalesOrders = async () => {
-  loading.value = true
-  try {
-    const params: Record<string, string | number | Date> = {
-      page: pagination.page,
-      page_size: pagination.page_size,
-    }
-    if (filterForm.order_no) params.order_no = filterForm.order_no
-    if (filterForm.customer_name) params.customer_name = filterForm.customer_name
-    if (filterForm.status) params.status = filterForm.status
-    if (filterForm.dateRange && filterForm.dateRange.length === 2) {
-      params.start_date = filterForm.dateRange[0]
-      params.end_date = filterForm.dateRange[1]
-    }
-    const res = await salesApi.getOrderList(params as never)
-    const d = res.data
-    if (d && typeof d === 'object' && 'list' in d) {
-      salesOrders.value = d.list || []
-      pagination.total = d.total || 0
-    } else {
-      salesOrders.value = []
-      pagination.total = 0
-    }
-    // 计算统计
-    stats.totalCount = pagination.total
-    stats.pendingCount = salesOrders.value.filter(o => o.status === 'pending').length
-    stats.approvedCount = salesOrders.value.filter(o => o.status === 'approved').length
-    stats.totalAmount = salesOrders.value.reduce((sum, o) => sum + (o.total_amount || 0), 0)
-  } catch (error) {
-    const err = error as { message?: string }
-    ElMessage.error(err.message || '获取销售订单失败')
-  } finally {
-    loading.value = false
+// 监听列表数据变化，重新计算统计
+watch(
+  [data, total],
+  ([orders, totalValue]) => {
+    stats.totalCount = totalValue
+    stats.pendingCount = orders.filter(o => o.status === 'pending').length
+    stats.approvedCount = orders.filter(o => o.status === 'approved').length
+    stats.totalAmount = orders.reduce((sum, o) => sum + (o.total_amount || 0), 0)
+  },
+  { immediate: true }
+)
+
+/**
+ * 列定义：使用 renderCell 自定义渲染
+ * - 订单金额：¥ + toLocaleString
+ * - 状态 el-tag：5 种 type 映射
+ * - 操作列：查看 / 审批 / 发货 / 取消（按状态条件渲染）
+ */
+const columns: ColumnDef[] = [
+  { key: 'order_no', title: '订单号', width: 140, fixed: 'left' },
+  { key: 'customer_name', title: '客户', minWidth: 150 },
+  { key: 'order_date', title: '订单日期', width: 120 },
+  { key: 'required_date', title: '交货日期', width: 120 },
+  {
+    key: 'total_amount',
+    title: '订单金额',
+    width: 120,
+    align: 'right',
+    renderCell: (row: SalesOrder) =>
+      h('span', `¥${(row.total_amount || 0).toLocaleString()}`),
+  },
+  {
+    key: 'status',
+    title: '状态',
+    width: 100,
+    align: 'center',
+    renderCell: (row: SalesOrder) =>
+      h(
+        ElTag,
+        { type: getStatusType(row.status), size: 'small' },
+        () => getStatusText(row.status)
+      ),
+  },
+  { key: 'creator_name', title: '创建人', width: 100 },
+  {
+    key: '__actions__',
+    title: '操作',
+    width: 280,
+    fixed: 'right',
+    renderCell: (row: SalesOrder) => {
+      const buttons = [
+        h(
+          ElButton,
+          { size: 'small', link: true, onClick: () => viewOrder(row) },
+          () => '查看'
+        ),
+      ]
+      if (row.status === 'pending') {
+        buttons.push(
+          h(
+            ElButton,
+            {
+              size: 'small',
+              link: true,
+              type: 'primary',
+              onClick: () => approveOrder(row),
+            },
+            () => '审批'
+          )
+        )
+      }
+      if (row.status === 'approved') {
+        buttons.push(
+          h(
+            ElButton,
+            {
+              size: 'small',
+              link: true,
+              type: 'success',
+              onClick: () => openDeliveryDialog(row),
+            },
+            () => '发货'
+          )
+        )
+      }
+      if (row.status === 'pending' || row.status === 'approved') {
+        buttons.push(
+          h(
+            ElButton,
+            {
+              size: 'small',
+              link: true,
+              type: 'danger',
+              onClick: () => cancelOrder(row),
+            },
+            () => '取消'
+          )
+        )
+      }
+      return h('div', { class: 'action-cell' }, buttons)
+    },
+  },
+]
+
+/**
+ * 将 filterForm 同步到 queryParams 并触发查询
+ */
+const handleQuery = () => {
+  const next: Record<string, unknown> = {}
+  if (filterForm.order_no) next.order_no = filterForm.order_no
+  if (filterForm.customer_name) next.customer_name = filterForm.customer_name
+  if (filterForm.status) next.status = filterForm.status
+  if (filterForm.dateRange && filterForm.dateRange.length === 2) {
+    next.start_date = filterForm.dateRange[0]
+    next.end_date = filterForm.dateRange[1]
   }
+  queryParams.value = next
+  page.value = 1
+  refresh()
+}
+
+const resetFilter = () => {
+  filterForm.order_no = ''
+  filterForm.customer_name = ''
+  filterForm.status = ''
+  filterForm.dateRange = null
+  reset()
+  refresh()
+}
+
+const handlePageChange = (newPage: number) => {
+  page.value = newPage
+}
+
+const handleSizeChange = (newSize: number) => {
+  pageSize.value = newSize
 }
 
 const fetchCustomers = async () => {
@@ -377,15 +445,6 @@ const fetchWarehouses = async () => {
   }
 }
 
-const resetFilter = () => {
-  filterForm.order_no = ''
-  filterForm.customer_name = ''
-  filterForm.status = ''
-  filterForm.dateRange = null
-  pagination.page = 1
-  fetchSalesOrders()
-}
-
 const openCreateDialog = () => {
   formDialogTitle.value = '新建销售订单'
   Object.assign(formData, {
@@ -425,7 +484,7 @@ const approveOrder = async (row: SalesOrder) => {
     await ElMessageBox.confirm('确定审批此订单吗？', '确认', { type: 'info' })
     await salesApi.approveOrder(row.id)
     ElMessage.success('审批成功')
-    fetchSalesOrders()
+    refresh()
   } catch (error) {
     if (error !== 'cancel') {
       const err = error as { message?: string }
@@ -439,7 +498,7 @@ const cancelOrder = async (row: SalesOrder) => {
     await ElMessageBox.confirm('确定取消此订单吗？', '确认', { type: 'warning' })
     await salesApi.cancelOrder(row.id)
     ElMessage.success('取消成功')
-    fetchSalesOrders()
+    refresh()
   } catch (error) {
     if (error !== 'cancel') {
       const err = error as { message?: string }
@@ -481,7 +540,7 @@ const handleFormSubmit = async (data: never) => {
       ElMessage.success('创建成功')
     }
     formDialogVisible.value = false
-    fetchSalesOrders()
+    refresh()
   } catch (error) {
     const err = error as { message?: string }
     ElMessage.error(err.message || '操作失败')
@@ -493,7 +552,7 @@ const handleFormSubmit = async (data: never) => {
 const formDataForChild = computed(() => formData as never)
 
 onMounted(() => {
-  fetchSalesOrders()
+  refresh()
   fetchCustomers()
   fetchProducts()
   fetchWarehouses()
@@ -547,8 +606,9 @@ onMounted(() => {
 .filter-card {
   margin-bottom: 20px;
 }
-.pagination {
-  margin-top: 20px;
-  text-align: right;
+.action-cell {
+  display: flex;
+  gap: 4px;
+  align-items: center;
 }
 </style>
