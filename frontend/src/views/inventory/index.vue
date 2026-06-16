@@ -137,41 +137,13 @@
         </el-card>
 
         <el-card shadow="hover" class="table-card">
-          <el-table v-loading="loading" :data="stocks" stripe>
-            <el-table-column prop="product_code" label="产品编码" width="140" fixed />
-            <el-table-column prop="product_name" label="产品名称" min-width="180" fixed />
-            <el-table-column prop="warehouse_name" label="仓库" width="120" />
-            <el-table-column prop="batch_no" label="批次号" width="120" />
-            <el-table-column prop="color_code" label="颜色编码" width="100" />
-            <el-table-column prop="location" label="库位" width="100" />
-            <el-table-column prop="quantity" label="库存数量" width="100" align="right">
-              <template #default="{ row }">
-                <span :class="{ 'low-stock': row.quantity < row.min_quantity }">
-                  {{ row.quantity }}
-                </span>
-              </template>
-            </el-table-column>
-            <el-table-column prop="unit" label="单位" width="60" />
-            <el-table-column prop="gram_weight" label="克重" width="80" />
-            <el-table-column prop="width" label="门幅" width="80" />
-            <el-table-column prop="status" label="状态" width="80">
-              <template #default="{ row }">
-                <el-tag :type="getStatusType(row.status)" size="small">
-                  {{ getStatusText(row.status) }}
-                </el-tag>
-              </template>
-            </el-table-column>
-            <el-table-column label="操作" width="150" fixed="right">
-              <template #default="{ row }">
-                <el-button type="primary" link size="small" @click="handleView(row as any)"
-                  >详情</el-button
-                >
-                <el-button type="warning" link size="small" @click="handleAdjust(row as any)"
-                  >调整</el-button
-                >
-              </template>
-            </el-table-column>
-          </el-table>
+          <V2Table
+            :data="stocks"
+            :columns="stockColumns"
+            :estimated-row-height="40"
+            :loading="loading"
+            @row-click="handleStockRowClick"
+          />
 
           <div class="pagination-wrapper">
             <el-pagination
@@ -403,6 +375,37 @@ import {
   Delete,
 } from '@element-plus/icons-vue'
 import printJS from 'print-js'
+import V2Table from '@/components/V2Table/index.vue'
+import { useTableColumns } from '@/composables/useTableColumns'
+
+// 库存台账列表列定义（V2Table 渲染）
+const { columns: stockColumns } = useTableColumns([
+  { key: 'product_code', label: '产品编码', width: 140, sortable: true },
+  { key: 'product_name', label: '产品名称', width: 200 },
+  { key: 'warehouse_name', label: '仓库', width: 120 },
+  { key: 'batch_no', label: '批次号', width: 120 },
+  { key: 'color_code', label: '颜色编码', width: 100 },
+  {
+    key: 'quantity',
+    label: '库存数量',
+    width: 120,
+    align: 'right',
+    formatter: (v: any) => (v != null ? v.toLocaleString() : '-'),
+  },
+  {
+    key: 'status',
+    label: '状态',
+    width: 100,
+    align: 'center',
+    formatter: (v: any) => getStatusText(v),
+  },
+  { key: 'location', label: '库位', width: 100 },
+])
+
+// 行点击事件：触发详情查看
+const handleStockRowClick = (row: any) => {
+  handleView(row)
+}
 
 const loading = ref(false)
 const activeTab = ref('stock')
@@ -429,15 +432,6 @@ const queryParams = reactive({
 
 const formatNumber = (num: number) => {
   return num.toLocaleString()
-}
-
-const getStatusType = (status: string) => {
-  const typeMap: Record<string, any> = {
-    normal: 'success',
-    warning: 'warning',
-    frozen: 'info',
-  }
-  return typeMap[status] || 'info'
 }
 
 const getStatusText = (status: string) => {
@@ -576,21 +570,6 @@ const handleAdjustment = () => {
     product_name: '',
     warehouse_name: '',
     current_quantity: 0,
-    adjustment_type: 'increase',
-    adjustment_quantity: 0,
-    reason: '',
-  }
-  adjustmentDialogVisible.value = true
-}
-
-const handleAdjust = (row: any) => {
-  adjustmentForm.value = {
-    stock_id: row.id,
-    product_id: row.product_id,
-    warehouse_id: row.warehouse_id,
-    product_name: row.product_name,
-    warehouse_name: row.warehouse_name,
-    current_quantity: row.quantity,
     adjustment_type: 'increase',
     adjustment_quantity: 0,
     reason: '',
