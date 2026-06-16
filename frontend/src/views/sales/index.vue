@@ -138,63 +138,13 @@
     </el-card>
 
     <el-card shadow="hover" class="table-card">
-      <el-table v-loading="loading" :data="orders" stripe @row-click="handleRowClick">
-        <el-table-column prop="order_no" label="订单号" width="160" fixed>
-          <template #default="{ row }">
-            <el-link type="primary" @click.stop="handleView(row)">{{ row.order_no }}</el-link>
-          </template>
-        </el-table-column>
-        <el-table-column prop="customer_name" label="客户名称" width="180" fixed />
-        <el-table-column prop="order_date" label="订单日期" width="120" />
-        <el-table-column prop="required_date" label="要求交货日期" width="120" />
-        <el-table-column prop="total_amount" label="订单金额" width="120" align="right">
-          <template #default="{ row }">
-            <span class="amount">¥{{ row.total_amount.toLocaleString() }}</span>
-          </template>
-        </el-table-column>
-        <el-table-column prop="contact_person" label="联系人" width="100" />
-        <el-table-column prop="contact_phone" label="联系电话" width="120" />
-        <el-table-column prop="status" label="订单状态" width="100">
-          <template #default="{ row }">
-            <el-tag :type="getStatusType(row.status)" size="small">
-              {{ getStatusText(row.status) }}
-            </el-tag>
-          </template>
-        </el-table-column>
-        <el-table-column prop="creator_name" label="创建人" width="100" />
-        <el-table-column prop="created_at" label="创建时间" width="160" />
-        <el-table-column label="操作" width="200" fixed="right">
-          <template #default="{ row }">
-            <el-button type="primary" link size="small" @click.stop="handleView(row)"
-              >详情</el-button
-            >
-            <el-button
-              v-if="row.status === 'pending'"
-              type="success"
-              link
-              size="small"
-              @click.stop="handleApprove(row as any)"
-              >审批</el-button
-            >
-            <el-button
-              v-if="row.status === 'approved'"
-              type="warning"
-              link
-              size="small"
-              @click.stop="handleDeliver(row)"
-              >发货</el-button
-            >
-            <el-button
-              v-if="row.status === 'pending'"
-              type="danger"
-              link
-              size="small"
-              @click.stop="handleCancel(row)"
-              >取消</el-button
-            >
-          </template>
-        </el-table-column>
-      </el-table>
+      <V2Table
+        :data="orders"
+        :columns="orderColumns"
+        :estimated-row-height="56"
+        :loading="loading"
+        @row-click="handleRowClick"
+      />
 
       <div class="pagination-wrapper">
         <el-pagination
@@ -492,7 +442,7 @@
 <script setup lang="ts">
 import { ref, reactive, onMounted } from 'vue'
 import { loadIfNot, createLazyLoader } from '@/utils/lazy-loader'
-import { ElMessage, ElMessageBox } from 'element-plus'
+import { ElMessage } from 'element-plus'
 import {
   Plus,
   Download,
@@ -509,6 +459,41 @@ import { customerApi, type Customer } from '@/api/customer'
 import { productApi, type Product } from '@/api/product'
 import { warehouseApi } from '@/api/warehouse'
 import { dashboardApi } from '@/api/dashboard'
+import V2Table from '@/components/V2Table/index.vue'
+import { useTableColumns } from '@/composables/useTableColumns'
+
+// 销售订单列表列定义（V2Table 渲染）
+const { columns: orderColumns } = useTableColumns([
+  { key: 'order_no', label: '订单编号', width: 160, sortable: true },
+  { key: 'customer_name', label: '客户', width: 180 },
+  {
+    key: 'order_date',
+    label: '订单日期',
+    width: 120,
+    formatter: (v: any) => (v ? new Date(v).toLocaleDateString() : '-'),
+  },
+  {
+    key: 'total_amount',
+    label: '金额',
+    width: 140,
+    align: 'right',
+    formatter: (v: any) => (v != null ? `¥${v.toLocaleString()}` : '-'),
+  },
+  {
+    key: 'status',
+    label: '状态',
+    width: 100,
+    align: 'center',
+    formatter: (v: any) => getStatusText(v),
+  },
+  { key: 'creator_name', label: '创建人', width: 100 },
+  {
+    key: 'created_at',
+    label: '创建时间',
+    width: 160,
+    formatter: (v: any) => (v ? new Date(v).toLocaleString() : '-'),
+  },
+])
 
 const loading = ref(false)
 const orders = ref<SalesOrder[]>([])
@@ -704,52 +689,6 @@ const handleCreate = () => {
 const handleView = (row: any) => {
   currentOrder.value = row
   viewDialogVisible.value = true
-}
-
-const handleApprove = async (row: SalesOrder) => {
-  try {
-    await ElMessageBox.confirm(`确定审批通过订单 ${row.order_no} 吗？`, '审批确认', {
-      type: 'success',
-    })
-    await salesApi.approveOrder(row.id)
-    ElMessage.success(`订单 ${row.order_no} 审批成功`)
-    fetchData()
-  } catch (error: any) {
-    if (error !== 'cancel') {
-      ElMessage.error(error.message || '审批失败')
-    }
-  }
-}
-
-const handleDeliver = (row: SalesOrder) => {
-  deliveryForm.value = {
-    order_id: row.id,
-    order_no: row.order_no,
-    customer_name: row.customer_name,
-    delivery_date: new Date().toISOString().split('T')[0],
-    warehouse_id: undefined,
-    items: (row.items || []).map((item: any) => ({
-      ...item,
-      deliver_quantity: 0,
-      remarks: '',
-    })),
-  }
-  deliveryDialogVisible.value = true
-}
-
-const handleCancel = async (row: SalesOrder) => {
-  try {
-    await ElMessageBox.confirm(`确定取消订单 ${row.order_no} 吗？`, '取消确认', {
-      type: 'warning',
-    })
-    await salesApi.cancelOrder(row.id)
-    ElMessage.success(`订单 ${row.order_no} 已取消`)
-    fetchData()
-  } catch (error: any) {
-    if (error !== 'cancel') {
-      ElMessage.error(error.message || '取消失败')
-    }
-  }
 }
 
 const handleRowClick = (row: any) => {
