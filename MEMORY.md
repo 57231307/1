@@ -105,6 +105,8 @@
 | **A2-1 工艺优化**（recipe_opt）| f157f56 | ✅ **完成**（PR #99 squash merge，CI 4 job 全绿，11 文件实施，4 单测全过）|
 | **A2-2 质量预测**（quality_pred）| dd9faa4 | ✅ **完成**（PR #100 squash merge，CI 4 job 全绿，8 文件实施，4 单测全过，自动发布 v2026.615.2350）|
 | **Wave 4 P2-1：el-table-v2 真实数据迁移** | 877f18d | ✅ **完成**（5 PR：#108-#112，4 页面迁移 + 1 通用组件 + 5 死文件清理）|
+| **P0-1 销售报价单** | 7ba9b15 | ✅ **完成**（PR #126 squash merge，14 commit，4 表 + 16 端点 + 5 页面）|
+| **P0-2 主备隔离**（数据库 + 缓存）| 待合并 | ✅ **完成**（trae/solo-agent-P0-2-failover 分支，6 commit，3 表 + 4 API + 9 chaos test）|
 
 ### 进行中
 
@@ -113,7 +115,7 @@
 ### 待启动
 
 - **Wave 4 后续任务**：P2-2 性能优化 / P2-3 安全加固 / P3-1 微服务拆分 / P3-2 WebSocket 实时通信
-- 待用户决策下一步任务
+- **P0-2 主备隔离**：等用户测试通过后启动 P0-3（MQ + 存储 + 短信 + 邮件）
 
 ### Wave 4 P2-1 关键产出
 
@@ -124,6 +126,32 @@
 - 5 死文件清理：DraggableTable / index-poc / VirtualStockTabPOC / DraggableTableDemo / components-demo 部分
 - 5 单元测试：V2Table 组件测试
 - 自动发版：v2026.616.1420
+
+### P0-1 销售报价单关键产出
+
+- PR #126 squash merge（merge commit 7ba9b15）
+- 14 commit：d275533 → d7dc28f
+- 4 表：sales_quotations / sales_quotation_items / sales_quotation_terms / product_color_prices
+- 16 端点：CRUD + 定价 + 审批 + 转订单
+- 5 页面：list / create / detail / edit / approval
+- 集成测试 5 个：handler / pricing / approval / convert / e2e
+
+### P0-2 主备隔离关键产出
+
+- 分支：trae/solo-agent-P0-2-failover
+- 6 commit：
+  1. 数据库 migration 3 张表
+  2. FailoverCall trait + 熔断器 + 数据库/缓存主备实现
+  3. 配置 + 模型 + 服务 + 监控 + API
+  4. 集成测试 + 9 个故障注入场景
+  5. admin 监控页面（Vue）
+  6. TEST 测试版本（Docker）+ 部署文档 + Grafana dashboard
+- 3 张表：failover_status / failover_event / failover_config
+- 4 个 API 端点：status / metrics / test/switch / health
+- 5 个 Prometheus 指标：primary/backup/switch/circuit_state
+- 4 条告警规则：P0/P1/P2 级别
+- 9 个故障注入测试场景
+- TEST 测试版本：dist/test-version-P0-2/（Docker + compose + start.sh）
 
 ### Wave 1-3 综合评估
 
@@ -264,4 +292,5 @@ backend/src/handlers/advanced/
 
 ## 九、最后更新
 
+- 2026-06-16 20:50 (Asia/Shanghai) - P0-2 主备隔离模块完成（6 commit，trae/solo-agent-P0-2-failover 分支，待 PR 合并到 test）
 - 2026-06-16 14:30 (Asia/Shanghai) - 整理记忆文件：更新 Wave 4 P2-1 完成状态 + 更新 Git 工作流（test/main 分支策略）
