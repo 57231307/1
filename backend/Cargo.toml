@@ -32,6 +32,8 @@ regex = "1.10"
 
 # 配置
 config = "0.14"
+# TOML 解析（config 0.14 内置但不 re-export，P0-2 failover config 需要）
+toml = "0.8"
 
 # 日志
 tracing = "0.1"

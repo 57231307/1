@@ -6,7 +6,7 @@ use rust_decimal::Decimal;
 use sea_orm::entity::prelude::*;
 use serde::{Deserialize, Serialize};
 
-/// 色号价格实体
+/// 色号价格实体（P0-5 扩展版）
 #[derive(Clone, Debug, PartialEq, DeriveEntityModel, Eq, Serialize, Deserialize)]
 #[sea_orm(table_name = "product_color_prices")]
 pub struct Model {
@@ -23,6 +23,17 @@ pub struct Model {
     pub notes: Option<String>,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
+    // P0-5 新增字段
+    pub max_quantity: Option<Decimal>,
+    pub customer_id: Option<i64>,
+    pub season: Option<String>,
+    pub is_active: bool,
+    pub priority: i32,
+    pub created_by: Option<i64>,
+    pub approved_by: Option<i64>,
+    pub approved_at: Option<DateTime<Utc>>,
+    pub approval_status: String,
+    pub tenant_id: i64,
 }
 
 #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
@@ -39,6 +50,16 @@ pub enum Relation {
         to = "super::product_color::Column::Id"
     )]
     Color,
+    #[sea_orm(
+        belongs_to = "super::customer::Entity",
+        from = "Column::CustomerId",
+        to = "super::customer::Column::Id"
+    )]
+    Customer,
+    #[sea_orm(has_many = "super::color_price_history::Entity")]
+    History,
+    #[sea_orm(has_many = "super::color_price_tier::Entity")]
+    Tiers,
 }
 
 impl Related<super::product::Entity> for Entity {
@@ -50,6 +71,24 @@ impl Related<super::product::Entity> for Entity {
 impl Related<super::product_color::Entity> for Entity {
     fn to() -> RelationDef {
         Relation::Color.def()
+    }
+}
+
+impl Related<super::customer::Entity> for Entity {
+    fn to() -> RelationDef {
+        Relation::Customer.def()
+    }
+}
+
+impl Related<super::color_price_history::Entity> for Entity {
+    fn to() -> RelationDef {
+        Relation::History.def()
+    }
+}
+
+impl Related<super::color_price_tier::Entity> for Entity {
+    fn to() -> RelationDef {
+        Relation::Tiers.def()
     }
 }
 

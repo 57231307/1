@@ -138,3 +138,5 @@ pub mod missing_handlers;
 pub mod failover_handler;
 // P0-4 色卡仓储管理 handler
 pub mod color_card_handler;
+// 面料多色号定价扩展 handler（P0-5）
+pub mod color_price_handler;

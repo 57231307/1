@@ -620,6 +620,31 @@ const routes = [
         component: () => import('@/views/color-cards/borrow.vue'),
         meta: { title: '色卡借出管理', requiresAuth: true },
       },
+      // 面料多色号定价扩展模块（P0-5）
+      {
+        path: 'color-prices/list',
+        name: 'ColorPriceList',
+        component: () => import('@/views/color-prices/list.vue'),
+        meta: { title: '色号价格列表', requiresAuth: true },
+      },
+      {
+        path: 'color-prices/create',
+        name: 'ColorPriceCreate',
+        component: () => import('@/views/color-prices/list.vue'),
+        meta: { title: '新建色号价格', requiresAuth: true },
+      },
+      {
+        path: 'color-prices/detail/:id',
+        name: 'ColorPriceDetail',
+        component: () => import('@/views/color-prices/detail.vue'),
+        meta: { title: '色号价格详情', requiresAuth: true },
+      },
+      {
+        path: 'color-prices/batch-adjust',
+        name: 'ColorPriceBatchAdjust',
+        component: () => import('@/views/color-prices/batch-adjust.vue'),
+        meta: { title: '批量调价', requiresAuth: true },
+      },
     ],
   },
   {
