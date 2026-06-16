@@ -61,8 +61,10 @@ backups/
 *.log
 logs/
 
-# AI 工具状态目录（monkeycode 等）
+# AI 工具状态目录（monkeycode 等，MEMORY.md + doto.md 需同步到 main）
 .monkeycode/
+!.monkeycode/MEMORY.md
+!.monkeycode/doto.md
 .aider*
 .cursor*
 .continue
