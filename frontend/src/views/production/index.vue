@@ -49,85 +49,13 @@
         </div>
       </template>
 
-      <el-table v-loading="loading" :data="orderList" stripe border>
-        <el-table-column prop="order_no" label="订单编号" width="160" />
-        <el-table-column prop="product_name" label="产品名称" min-width="160" />
-        <el-table-column prop="planned_quantity" label="计划数量" width="120" />
-        <el-table-column prop="actual_quantity" label="实际数量" width="120" />
-        <el-table-column prop="scheduled_start_date" label="计划开始" width="140">
-          <template #default="{ row }">
-            {{ row.scheduled_start_date ? row.scheduled_start_date.substring(0, 10) : '-' }}
-          </template>
-        </el-table-column>
-        <el-table-column prop="scheduled_end_date" label="计划结束" width="140">
-          <template #default="{ row }">
-            {{ row.scheduled_end_date ? row.scheduled_end_date.substring(0, 10) : '-' }}
-          </template>
-        </el-table-column>
-        <el-table-column prop="status" label="状态" width="120">
-          <template #default="{ row }">
-            <el-tag
-              :type="
-                PRODUCTION_ORDER_STATUS[row.status as keyof typeof PRODUCTION_ORDER_STATUS]?.type ||
-                'info'
-              "
-            >
-              {{
-                PRODUCTION_ORDER_STATUS[row.status as keyof typeof PRODUCTION_ORDER_STATUS]
-                  ?.label || row.status
-              }}
-            </el-tag>
-          </template>
-        </el-table-column>
-        <el-table-column prop="priority" label="优先级" width="100" />
-        <el-table-column label="操作" width="280" fixed="right">
-          <template #default="{ row }">
-            <el-button type="primary" link size="small" @click="viewDetail(row as any)"
-              >查看</el-button
-            >
-            <el-button
-              v-if="row.status === 'draft'"
-              type="success"
-              link
-              size="small"
-              @click="openDialog('edit', row)"
-              >编辑</el-button
-            >
-            <el-button
-              v-if="row.status === 'draft'"
-              type="warning"
-              link
-              size="small"
-              @click="handleStatusChange(row, 'planned')"
-              >计划</el-button
-            >
-            <el-button
-              v-if="row.status === 'planned'"
-              type="primary"
-              link
-              size="small"
-              @click="handleStatusChange(row, 'in_production')"
-              >开始生产</el-button
-            >
-            <el-button
-              v-if="row.status === 'in_production'"
-              type="success"
-              link
-              size="small"
-              @click="handleStatusChange(row, 'completed')"
-              >完成</el-button
-            >
-            <el-button
-              v-if="row.status === 'draft'"
-              type="danger"
-              link
-              size="small"
-              @click="handleDelete(row as any)"
-              >删除</el-button
-            >
-          </template>
-        </el-table-column>
-      </el-table>
+      <V2Table
+        :data="orderList"
+        :columns="productionColumns"
+        :estimated-row-height="48"
+        :loading="loading"
+        @row-click="handleProductionRowClick"
+      />
 
       <!-- 分页 -->
       <div class="pagination-container">
@@ -251,17 +179,50 @@
 
 <script setup lang="ts">
 import { ref, reactive, onMounted } from 'vue'
-import { ElMessage, ElMessageBox, type FormInstance, type FormRules } from 'element-plus'
+import { ElMessage, type FormInstance, type FormRules } from 'element-plus'
 import { Plus, Download, Printer } from '@element-plus/icons-vue'
 import {
   listProductionOrders,
   createProductionOrder,
   updateProductionOrder,
-  deleteProductionOrder,
-  updateProductionOrderStatus,
   type ProductionOrder,
   PRODUCTION_ORDER_STATUS,
 } from '@/api/production'
+import V2Table from '@/components/V2Table/index.vue'
+import { useTableColumns } from '@/composables/useTableColumns'
+
+// 生产订单列表列定义（V2Table 渲染）
+const { columns: productionColumns } = useTableColumns([
+  { key: 'order_no', label: '工单编号', width: 160, sortable: true },
+  { key: 'product_name', label: '产品', width: 200 },
+  { key: 'planned_quantity', label: '计划数量', width: 120, align: 'right' },
+  {
+    key: 'actual_quantity',
+    label: '完成数量',
+    width: 120,
+    align: 'right',
+    formatter: (v: any, row: any) => `${v ?? 0} / ${row.planned_quantity ?? 0}`,
+  },
+  {
+    key: 'scheduled_start_date',
+    label: '开始日期',
+    width: 120,
+    formatter: (v: any) => (v ? v.substring(0, 10) : '-'),
+  },
+  {
+    key: 'scheduled_end_date',
+    label: '结束日期',
+    width: 120,
+    formatter: (v: any) => (v ? v.substring(0, 10) : '-'),
+  },
+  { key: 'status', label: '状态', width: 100, align: 'center' },
+  { key: 'priority', label: '优先级', width: 100 },
+])
+
+// 行点击：触发查看详情
+const handleProductionRowClick = (row: ProductionOrder) => {
+  viewDetail(row)
+}
 
 // 响应式数据
 const loading = ref(false)
@@ -387,46 +348,6 @@ const handleSubmit = async () => {
 const viewDetail = (row: ProductionOrder) => {
   currentOrder.value = row
   detailVisible.value = true
-}
-
-// 状态变更
-const handleStatusChange = async (row: ProductionOrder, status: string) => {
-  try {
-    await ElMessageBox.confirm(
-      `确认将订单 ${row.order_no} 状态更改为 ${PRODUCTION_ORDER_STATUS[status as keyof typeof PRODUCTION_ORDER_STATUS]?.label} 吗？`,
-      '确认',
-      {
-        type: 'warning',
-      }
-    )
-
-    await updateProductionOrderStatus(row.id, status)
-    ElMessage.success('状态更新成功')
-    fetchOrders()
-  } catch (e: any) {
-    if (e !== 'cancel') {
-      ElMessage.error(e.message || '状态更新失败')
-    }
-  }
-}
-
-// 删除订单
-const handleDelete = async (row: ProductionOrder) => {
-  try {
-    await ElMessageBox.confirm(`确认删除订单 ${row.order_no} 吗？此操作不可恢复。`, '删除确认', {
-      type: 'warning',
-      confirmButtonText: '确定',
-      cancelButtonText: '取消',
-    })
-
-    await deleteProductionOrder(row.id)
-    ElMessage.success('删除成功')
-    fetchOrders()
-  } catch (e: any) {
-    if (e !== 'cancel') {
-      ElMessage.error(e.message || '删除失败')
-    }
-  }
 }
 
 const getStatusLabel = (status: string) => {
