@@ -117,6 +117,8 @@
             :estimated-row-height="44"
             :loading="recordLoading"
             @row-click="handleInspectionRowClick"
+            @page-change="handlePageChange"
+            @size-change="handleSizeChange"
           />
         </el-card>
       </el-tab-pane>
@@ -376,32 +378,44 @@ import { useTableColumns } from '@/composables/useTableColumns'
 
 // 检验记录列定义（V2Table 渲染）
 const { columns: inspectionColumns } = useTableColumns([
-  { key: 'record_no', label: '检验单号', width: 160, sortable: true },
-  { key: 'product_name', label: '产品', width: 200 },
-  { key: 'inspection_type', label: '类型', width: 120 },
-  { key: 'batch_no', label: '批次号', width: 140 },
-  { key: 'inspector', label: '检验员', width: 100 },
+  { key: 'record_no', title: '检验单号', width: 160, sortable: true },
+  { key: 'product_name', title: '产品', width: 200 },
+  { key: 'inspection_type', title: '类型', width: 120 },
+  { key: 'batch_no', title: '批次号', width: 140 },
+  { key: 'inspector', title: '检验员', width: 100 },
   {
     key: 'result',
-    label: '结果',
+    title: '结果',
     width: 100,
     align: 'center',
-    formatter: (v: any) => {
+    formatter: (row: any) => {
       const map: Record<string, string> = { pass: '合格', fail: '不合格', pending: '待检' }
-      return map[v] || v || '-'
+      return map[row.result] || row.result || '-'
     },
   },
   {
     key: 'inspection_date',
-    label: '检验日期',
+    title: '检验日期',
     width: 120,
-    formatter: (v: any) => (v ? v.substring(0, 10) : '-'),
+    formatter: (row: any) =>
+      row.inspection_date ? String(row.inspection_date).substring(0, 10) : '-',
   },
 ])
 
 // 行点击：触发查看记录
 const handleInspectionRowClick = (_row: QualityRecord) => {
   viewRecord()
+}
+
+// V2Table 内置分页事件处理（quality 暂未对接后端分页参数，事件钩子保留以便扩展）
+const handlePageChange = (_newPage: number) => {
+  // TODO: 后端 listQualityRecords 暂未支持分页，待分页字段就绪后接入
+  fetchRecords()
+}
+
+const handleSizeChange = (_newSize: number) => {
+  // TODO: 后端 listQualityRecords 暂未支持分页，待分页字段就绪后接入
+  fetchRecords()
 }
 
 const activeTab = ref('standard')
