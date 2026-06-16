@@ -131,3 +131,5 @@ pub mod sensitive_action_alert;
 pub mod enhanced_logger;
 // 销售报价单服务（Week 1）
 pub mod quotation_service;
+// 销售报价单定价服务（Week 2 Task 6）
+pub mod quotation_pricing_service;

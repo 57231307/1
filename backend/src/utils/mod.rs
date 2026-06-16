@@ -11,6 +11,7 @@ pub mod di_container;
 pub mod dual_unit_converter;
 pub mod error;
 pub mod fabric_five_dimension;
+pub mod incoterms;
 pub mod password_validator;
 pub mod response;
 
