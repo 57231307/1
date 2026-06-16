@@ -111,31 +111,13 @@
         </div>
 
         <el-card shadow="hover">
-          <el-table v-loading="recordLoading" :data="records" stripe>
-            <el-table-column prop="record_no" label="记录编号" width="140" />
-            <el-table-column prop="inspection_type" label="检验类型" width="120" />
-            <el-table-column prop="product_name" label="产品" width="150" />
-            <el-table-column prop="batch_no" label="批次号" width="140" />
-            <el-table-column prop="inspection_date" label="检验日期" width="120" />
-            <el-table-column prop="inspector" label="检验员" width="100" />
-            <el-table-column prop="result" label="检验结果" width="100" align="center">
-              <template #default="{ row }">
-                <el-tag
-                  :type="
-                    row.result === 'pass' ? 'success' : row.result === 'fail' ? 'danger' : 'warning'
-                  "
-                  size="small"
-                >
-                  {{ row.result === 'pass' ? '合格' : row.result === 'fail' ? '不合格' : '待检' }}
-                </el-tag>
-              </template>
-            </el-table-column>
-            <el-table-column label="操作" width="120" fixed="right">
-              <template #default>
-                <el-button type="primary" link size="small" @click="viewRecord">查看</el-button>
-              </template>
-            </el-table-column>
-          </el-table>
+          <V2Table
+            :data="records"
+            :columns="inspectionColumns"
+            :estimated-row-height="44"
+            :loading="recordLoading"
+            @row-click="handleInspectionRowClick"
+          />
         </el-card>
       </el-tab-pane>
 
@@ -389,6 +371,38 @@ import {
   type QualityRecord,
   type Defect,
 } from '@/api/quality'
+import V2Table from '@/components/V2Table/index.vue'
+import { useTableColumns } from '@/composables/useTableColumns'
+
+// 检验记录列定义（V2Table 渲染）
+const { columns: inspectionColumns } = useTableColumns([
+  { key: 'record_no', label: '检验单号', width: 160, sortable: true },
+  { key: 'product_name', label: '产品', width: 200 },
+  { key: 'inspection_type', label: '类型', width: 120 },
+  { key: 'batch_no', label: '批次号', width: 140 },
+  { key: 'inspector', label: '检验员', width: 100 },
+  {
+    key: 'result',
+    label: '结果',
+    width: 100,
+    align: 'center',
+    formatter: (v: any) => {
+      const map: Record<string, string> = { pass: '合格', fail: '不合格', pending: '待检' }
+      return map[v] || v || '-'
+    },
+  },
+  {
+    key: 'inspection_date',
+    label: '检验日期',
+    width: 120,
+    formatter: (v: any) => (v ? v.substring(0, 10) : '-'),
+  },
+])
+
+// 行点击：触发查看记录
+const handleInspectionRowClick = (_row: QualityRecord) => {
+  viewRecord()
+}
 
 const activeTab = ref('standard')
 const standards = ref<QualityStandard[]>([])
