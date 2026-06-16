@@ -106,16 +106,17 @@
 | **A2-2 质量预测**（quality_pred）| dd9faa4 | ✅ **完成**（PR #100 squash merge，CI 4 job 全绿，8 文件实施，4 单测全过，自动发布 v2026.615.2350）|
 | **Wave 4 P2-1：el-table-v2 真实数据迁移** | 877f18d | ✅ **完成**（5 PR：#108-#112，4 页面迁移 + 1 通用组件 + 5 死文件清理）|
 | **P0-1 销售报价单** | 7ba9b15 | ✅ **完成**（PR #126 squash merge，14 commit，4 表 + 16 端点 + 5 页面）|
-| **P0-2 主备隔离**（数据库 + 缓存）| 待合并 | ✅ **完成**（trae/solo-agent-P0-2-failover 分支，6 commit，3 表 + 4 API + 9 chaos test）|
+| **P0-2 主备隔离**（数据库 + 缓存）| 25b07f2 | ✅ **完成**（PR #127 squash merge，6 commit，3 表 + 4 API + 9 chaos test）|
+| **P0-3 定制订单全流程跟踪** | f5fb8d3 | ✅ **完成**（PR #128 merge，9 commit，5 表 + 16 端点 + 4 页面 + 3 组件 + 5 测试）|
 
 ### 进行中
 
-- 无（Wave 4 P2-1 已完成，待用户决策下一步）
+- 无（P0-3 已完成，等用户测试通过后启动 P0-4）
 
 ### 待启动
 
 - **Wave 4 后续任务**：P2-2 性能优化 / P2-3 安全加固 / P3-1 微服务拆分 / P3-2 WebSocket 实时通信
-- **P0-2 主备隔离**：等用户测试通过后启动 P0-3（MQ + 存储 + 短信 + 邮件）
+- **P0-4 MQ + 存储 + 短信 + 邮件**：等用户测试通过后启动
 
 ### Wave 4 P2-1 关键产出
 
@@ -152,6 +153,31 @@
 - 4 条告警规则：P0/P1/P2 级别
 - 9 个故障注入测试场景
 - TEST 测试版本：dist/test-version-P0-2/（Docker + compose + start.sh）
+
+### P0-3 定制订单全流程跟踪关键产出
+
+- 分支：trae/solo-agent-P0-3-custom
+- 9 commit：
+  1. docs(spec): 定制订单全流程跟踪模块设计 spec + 实施 plan
+  2. feat(db): 定制订单 5 张表 migration
+  3. feat(model): 定制订单 5 entity + 5 DTO
+  4. feat(service+util): 定制订单 5 service + 工艺状态机
+  5. feat(handler+route): 定制订单 13 handler + 16 路由
+  6. fix(app_state): 补全 P0-3 定制订单 service 字段声明
+  7. test: 定制订单集成测试 5 个
+  8. feat(frontend): 定制订单 4 页面 + 3 组件 + API 客户端
+  9. docs(dist): P0-3 TEST 测试版本交付
+- 5 张表：custom_orders / process_nodes / process_logs / quality_issues / after_sales
+- 16 个 API 端点：CRUD + 流程推进 + 质检 + 售后
+- 5 阶段工艺状态机：draft → yarn_purchasing → dyeing → finishing → delivery → after_sales → completed
+- 4 售后类型：complaint / repair / exchange / refund
+- 4 严重度：low / medium / high / critical
+- 行业规则：GB/T 26377-2022 色差 ΔE + ISO 105 色牢度 1-5
+- 4 前端页面：list / create / detail / tracking（甘特图大屏）
+- 3 组件：ProcessFlow / QualityCheck / AfterSalesPanel
+- 5 集成测试 + E2E 测试
+- TEST 测试版本：dist/test-version-P0-3/（Docker + compose + start.sh + config + test-scenarios 19 用例）
+- PR：#128 merge 到 test，merge commit f5fb8d3
 
 ### Wave 1-3 综合评估
 
@@ -293,4 +319,5 @@ backend/src/handlers/advanced/
 ## 九、最后更新
 
 - 2026-06-16 20:50 (Asia/Shanghai) - P0-2 主备隔离模块完成（6 commit，trae/solo-agent-P0-2-failover 分支，待 PR 合并到 test）
+- 2026-06-17 05:10 (Asia/Shanghai) - P0-3 定制订单全流程跟踪模块完成（9 commit，PR #128 已 merge 到 test，merge commit f5fb8d3）
 - 2026-06-16 14:30 (Asia/Shanghai) - 整理记忆文件：更新 Wave 4 P2-1 完成状态 + 更新 Git 工作流（test/main 分支策略）

@@ -48,7 +48,56 @@
   - `docs/chaos-test-scenarios.md`
   - `monitoring/grafana/failover-dashboard.json`
   - `monitoring/prometheus/failover-alert-rules.yml`
+
+### P0-3 定制订单全流程跟踪模块
+
+- **设计文档**：
+  - Spec：[`docs/superpowers/specs/2026-06-16-custom-order-design.md`](file:///workspace/docs/superpowers/specs/2026-06-16-custom-order-design.md)
+  - Plan：[`docs/superpowers/plans/2026-06-16-custom-order-plan.md`](file:///workspace/docs/superpowers/plans/2026-06-16-custom-order-plan.md)
+- **范围**：5 阶段工艺流程跟踪（纱线采购 → 染整 → 后整理 → 交付 → 售后）
+- **核心特性**：
+  - 5 张表数据模型（含 5 阶段状态机 + 8 状态枚举）
+  - 16 个 REST API 端点（CRUD + 流程推进 + 质检 + 售后）
+  - 5 阶段工艺状态机（draft → yarn_purchasing → dyeing → finishing → delivery → after_sales → completed）
+  - 工艺节点状态机（pending / in_progress / completed / blocked）
+  - 售后工单状态机（opened → processing → resolved / closed / rejected）
+  - 质检规则：GB/T 26377-2022 色差 ΔE 校验 + ISO 105 色牢度等级 1-5 校验
+  - 4 种售后类型：客诉 / 维修 / 换货 / 退款（退款类型必填金额）
+  - 5 阶段工艺流程甘特图（tracking 大屏）
+  - 自动生成 5 阶段工艺节点（创建订单时）
+  - 完整时间线（节点 + 操作日志）
+  - 4 前端页面 + 3 组件
+  - 5 集成测试 + E2E 测试
+  - TEST 测试版本交付
+- **数据模型**：
+  - `custom_orders`（定制订单主表，8 状态枚举）
+  - `process_nodes`（工艺节点，5 节点类型 + 4 状态）
+  - `process_logs`（操作日志，含 JSONB 附件）
+  - `quality_issues`（质量异常，4 严重度）
+  - `after_sales`（售后工单，4 类型 + 5 状态）
+- **关键文件**：
+  - `backend/migrations/2026061700000{1..5}_create_{custom_orders,process_nodes,process_logs,quality_issues,after_sales}/`
+  - `backend/src/models/{custom_order,process_node,process_log,quality_issue,after_sales}.rs`（5 entity）
+  - `backend/src/models/{custom_order_create_dto,custom_order_update_dto,custom_order_response_dto,process_node_dto,quality_issue_dto}.rs`（5 DTO）
+  - `backend/src/services/custom_order_{crud,state,process,quality,aftersales}_service.rs`（5 service）
+  - `backend/src/handlers/custom_order_handler.rs`（13 handler）
+  - `backend/src/routes/custom_order.rs`（16 路由）
+  - `backend/src/utils/process_state_machine.rs`（5 阶段状态机 + 9 单元测试）
+  - `backend/tests/custom_order_{e2e,state,process,quality,aftersales}_test.rs`（5 集成测试）
+  - `frontend/src/views/custom-orders/{list,create,detail,tracking}.vue`（4 页面）
+  - `frontend/src/components/{ProcessFlow,QualityCheck,AfterSalesPanel}.vue`（3 组件）
+  - `frontend/src/api/custom-order.ts`（16 端点 API 客户端）
+  - `frontend/e2e/custom-order.spec.ts`（E2E 测试）
+  - `dist/test-version-P0-3/`（Docker + compose + start.sh + config + test-scenarios）
+  - `docs/custom-order-{user-manual,api,deployment-guide}.md`
 - **关键参数**：
+  - 色差 ΔE 警告阈值：5.0
+  - 色牢度等级范围：1-5
+  - 售后工单超时：72 小时
+  - 5 阶段工艺顺序：强制顺序，不可跳跃
+  - 多租户隔离：extract_tenant_id 强制（无 unwrap_or(0)）
+
+- **关键参数**（P0-2 主备隔离）：
   - 主调用超时：3s
   - 备用调用超时：5s
   - 熔断阈值：5 次失败
