@@ -372,3 +372,35 @@
   - 串行 + 串行调度：避免云端卡死
   - 死代码随主任务清理：避免技术债务积累
 - **下一波推荐**：P2-2 性能优化（V2Table 性能验证 + 后端 N+1 修复）
+
+---
+
+### [销售报价单模块（PR #126）完成总结]
+
+- Date: 2026-06-16 18:30
+- Context: 用户批准 P0-1 销售报价单设计 + plan 后，3 周分批实施完成
+- Category: 行业功能开发（P0）
+- **执行模式**：subagent-driven（避免信息孤岛）
+- **3 周分批**：
+  - Week 1（5 Task）：后端基础 — 4 张表 + Entity + DTO + 路由 + CRUD service + 修复 11 cargo 错误
+  - Week 2（5 Task）：后端业务 — 定价引擎 + 审批服务 + 转订单服务 + 13 handler + 集成测试
+  - Week 3（4 Task）：前端 + 文档 — 5 页面 + 3 组件 + E2E + 用户手册 + API 文档
+- **14 commit 完整保留**（从 d275533 到 d7dc28f）
+- **PR #126**：`feat(quotation): 销售报价单模块（4 表 + 16 端点 + 5 页面 + E2E + 文档）`
+  - merge commit：`7ba9b15`（双 parent：test 旧 HEAD `08c29f0` + trae/solo-agent-VZbmEA `b948be1`）
+  - merge commit（解冲突）：`b948be1`（merge origin/test）
+  - 解决 9 冲突文件（3 内容 union + 6 双添加 theirs）
+- **test 分支**：✅ 已合入，14 commit 全部保留 + 2 merge commit
+- **main 分支**：✅ 保持现状（按用户决定）
+- **行业规则覆盖**：
+  - 5 种 Incoterms 2020（FOB/CIF/EXW/DDP/DAP）
+  - 3 档金额阶梯审批（<10万自批/10-50万经理/>50万总经理）
+  - 多币种 + 汇率锁定
+  - 数量阶梯价 + 客户等级折扣（VIP 95 折）
+  - 4 类贸易条款（物流/付款/样品/检验）
+  - 一键转销售订单（事务化）
+- **关键文件**：
+  - 后端：4 services / 13 handlers / 16 routes / 4 entities / 4 DTOs / 1 utility
+  - 前端：5 views / 3 components / 1 API client / 1 router module / 1 E2E
+  - 文档：2 文档（用户手册 + API 文档）+ 1 spec + 1 plan
+- **下一步建议**：启动 P0-2 主备隔离 / P0-3 定制订单全流程跟踪（按用户优先级决策）
