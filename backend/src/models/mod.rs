@@ -231,3 +231,11 @@ pub mod custom_order_update_dto;
 pub mod custom_order_response_dto;
 pub mod process_node_dto;
 pub mod quality_issue_dto;
+// P0-4 色卡仓储管理模型
+pub mod color_card;
+pub mod color_card_item;
+pub mod color_card_borrow_record;
+pub mod color_card_create_dto;
+pub mod color_card_item_dto;
+pub mod color_card_borrow_dto;
+pub mod color_card_response_dto;
