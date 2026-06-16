@@ -104,6 +104,10 @@ pub mod sales_quotation;
 pub mod sales_quotation_item;
 pub mod sales_quotation_term;
 pub mod product_color_price;
+pub mod quotation_create_dto;
+pub mod quotation_update_dto;
+pub mod quotation_response_dto;
+pub mod quotation_convert_dto;
 // 采购检验模块
 pub mod purchase_inspection;
 // 采购合同执行模块

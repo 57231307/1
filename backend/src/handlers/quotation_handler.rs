@@ -5,8 +5,8 @@
 //! 等待 Week 2/3 任务（pricing/approval/convert）补全。
 //! 创建时间: 2026-06-16
 
-use crate::dto::quotation_create_dto::CreateQuotationDto;
-use crate::dto::quotation_response_dto::{QuotationItemResponseDto, QuotationResponseDto};
+use crate::models::quotation_create_dto::CreateQuotationDto;
+use crate::models::quotation_response_dto::{QuotationItemResponseDto, QuotationResponseDto};
 use crate::middleware::auth_context::AuthContext;
 use crate::services::quotation_service::{QuotationService, ServiceError};
 use crate::utils::app_state::AppState;
@@ -17,7 +17,7 @@ use axum::{
     http::StatusCode,
     Json,
 };
-use sea_orm::EntityTrait;
+use sea_orm::{ColumnTrait, EntityTrait, QueryFilter};
 use serde::{Deserialize, Serialize};
 
 // ----------------------------------------------------------------------
@@ -105,7 +105,7 @@ pub async fn get_quotation(
 
     // 加载条款
     use crate::models::sales_quotation_term;
-    let terms: Vec<crate::dto::quotation_response_dto::QuotationTermResponseDto> =
+    let terms: Vec<crate::models::quotation_response_dto::QuotationTermResponseDto> =
         sales_quotation_term::Entity::find()
             .filter(sales_quotation_term::Column::QuotationId.eq(id))
             .all(&*state.db)
@@ -276,11 +276,5 @@ impl From<ServiceError> for AppError {
             ServiceError::Validation(msg) => AppError::validation(msg),
             ServiceError::Database(db_err) => AppError::internal(db_err.to_string()),
         }
-    }
-}
-
-impl From<sea_orm::DbErr> for AppError {
-    fn from(e: sea_orm::DbErr) -> Self {
-        AppError::internal(format!("数据库错误: {}", e))
     }
 }

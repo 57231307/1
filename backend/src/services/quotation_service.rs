@@ -14,8 +14,8 @@ use sea_orm::{
 use std::sync::Arc;
 use thiserror::Error;
 
-use crate::dto::quotation_create_dto::{CreateQuotationDto, CreateQuotationItemDto};
-use crate::dto::quotation_update_dto::UpdateQuotationDto;
+use crate::models::quotation_create_dto::{CreateQuotationDto, CreateQuotationItemDto};
+use crate::models::quotation_update_dto::UpdateQuotationDto;
 use crate::models::sales_quotation::{self, ActiveModel as QuotationActive, Entity as QuotationEntity};
 use crate::models::sales_quotation_item::{
     self, ActiveModel as ItemActive, Entity as ItemEntity,
