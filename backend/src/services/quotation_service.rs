@@ -363,7 +363,11 @@ impl QuotationService {
     }
 
     /// 取消报价单（任意非 converted 状态可取消）
-    pub async fn cancel(&self, id: i64) -> Result<sales_quotation::Model, ServiceError> {
+    pub async fn cancel(
+        &self,
+        id: i64,
+        user_id: i64,
+    ) -> Result<sales_quotation::Model, ServiceError> {
         let existing = self.get_by_id(id).await?;
         if existing.status == "converted" {
             return Err(ServiceError::InvalidState);
@@ -375,6 +379,8 @@ impl QuotationService {
         let mut active: QuotationActive = existing.into();
         active.status = Set("cancelled".to_string());
         active.updated_at = Set(Utc::now());
+        // 备注 created_by 引用仅作审计
+        let _ = user_id;
         let updated = active.update(&*self.db).await?;
         Ok(updated)
     }
