@@ -190,6 +190,56 @@
 - Wave 3：11 PR 100% 合并（4+4 串行 + 2 单代理 + 1 收尾）
 - Wave 4 启动推荐：P2-1 el-table-v2 真实数据验证（首选）/ P2-2 性能优化 / P3-1 安全加固
 
+### P0-4 色卡仓储管理关键产出
+
+- 分支：trae/solo-agent-P0-4-color-card
+- 6 commit：e6d7e80 → 2ef9ea8
+- 3 张表：color_cards / color_card_items / color_card_borrow_records
+- 16 个 API 端点：CRUD + 色号 + 借出/归还/遗失/损坏/扫码/批量导入/CSV 导出
+- 4 前端页面：list / create / detail / borrow
+- 3 组件：ColorCardForm / BorrowDialog / ScanResult
+- 4 service：CRUD + 色号 + 借出 + 扫码
+- 13 handler + 5 集成测试
+- 行业规则：CIELab 色彩空间 + ΔE 色差
+- TEST 测试版本：dist/test-version-P0-4/
+- PR：#129 merge 到 test，merge commit b8d9913
+
+### P0-5 面料多色号定价扩展关键产出
+
+- 分支：trae/solo-agent-P0-5-color-price（已删除）
+- 7 commit：b77de42 → c61379a
+- **5 张表**（1 扩展 product_color_prices + 4 新建）：
+  - product_color_prices（扩展 10 字段）
+  - color_price_history（价格历史）
+  - color_price_tiers（阶梯定价）
+  - customer_color_prices（客户专属价）
+  - seasonal_price_rules（季节调价规则）
+- **16 个 API 端点**：
+  - 5 个 CRUD（/GET /POST /GET:id /PUT:id /DELETE:id）
+  - 批量调价 + 审批
+  - 价格历史
+  - 价格计算
+  - 3 个阶梯价
+  - 2 个客户专属价
+  - 3 个季节规则
+- **5 service**：CRUD / 批量 / 历史 / 季节 / 阶梯
+- **13 handler**
+- **1 价格计算引擎**（utils/price_calculator.rs）：
+  - 优先级：客户专属价 > 季节调价 > 阶梯价 > 客户等级 > 基础价
+  - VIP 95 折 / GOLD 9 折
+  - 10 个单元测试
+- **3 前端页面**：list / detail / batch-adjust
+- **2 组件**：PriceHistoryChart（ECharts 折线图）/ BatchAdjustDialog
+- **5 集成测试**（18 用例）
+- **5 E2E**（Playwright）
+- **3 文档**：用户手册 / API / 部署指南
+- **TEST 测试版本**：dist/test-version-P0-5/（Docker + compose + start.sh + 10 个测试场景）
+- **行业规则**：批量调价 + 10% 审批 / 4 档阶梯 / SS-AW-HOLIDAY 季节 / 客户专属价 / 多币种 / 多租户隔离
+- **复用**：P0-1 product_color_prices（30% 扩展到 100%）/ VIP 折扣 / 多币种 / 客户等级
+- **兼容性**：修改 P0-1 quotation_handler 兼容 product_color_price 扩展字段
+- **PR**：#130 merge 到 test，merge commit e57cf18
+- **P0 行业功能 5 项全部完成**（销售报价单 / 主备隔离 / 定制订单 / 色卡仓储 / 多色号定价）
+
 ---
 
 ## 四、关键文档位置

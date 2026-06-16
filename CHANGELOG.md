@@ -9,6 +9,39 @@
 
 ## [Unreleased] - 2026-06-17
 
+### Added - P0-5 面料多色号定价扩展（合并 PR #130）
+- 扩展 `product_color_prices` 表（添加 max_quantity / customer_id / season / is_active / priority / created_by / approved_by / approved_at / approval_status / tenant_id 字段）
+- 新增 4 张表：`color_price_history`（价格历史）/ `color_price_tiers`（阶梯定价）/ `customer_color_prices`（客户专属价）/ `seasonal_price_rules`（季节调价规则）
+- 新增 5 个 entity + 5 个 DTO（含 PagedResponse / PriceCalcRequest / PriceCalcResult / PriceCalcStep 等）
+- 新增 5 个 service：ColorPriceCrudService / ColorPriceBatchService / ColorPriceHistoryService / ColorPriceSeasonalService / ColorPriceTierService
+- 新增 13 个 handler + 16 个 API 端点（CRUD + 批量调价 + 审批 + 历史 + 计算 + 阶梯价 + 客户专属价 + 季节规则）
+- 新增价格计算引擎 `utils/price_calculator.rs`（4 档阶梯 + VIP 95 折 + 季节 + 客户专属 优先级统一计算）
+- 新增 3 个前端页面（list / detail / batch-adjust）+ 2 个组件（PriceHistoryChart / BatchAdjustDialog）
+- 新增 16 端点 TypeScript API 客户端 + Playwright E2E 测试
+- 新增 5 个集成测试（CRUD / 计算 / 批量 / 历史 / 季节）共 18 用例
+- 新增 TEST 测试版本（Docker + docker-compose + start.sh + stop.sh + 10 个测试场景）
+- 新增 3 个文档：用户手册 / API 文档 / 部署指南
+
+### Changed
+- 复用 P0-1 `product_color_prices`（扩展而非重建）
+- 复用 P0-1 客户等级 / 多币种 / 审批
+- 复用 P0-4 V2Table 组件（未来可平滑切换）
+- 复用 P0-2 toml 配置模式
+- models / services / handlers / routes / utils mod.rs 添加新模块声明
+- frontend router 添加 4 个色号价格路由
+- 兼容 P0-1 `quotation_handler.rs`（`product_color_price::Model` 初始化新增 10 个字段）
+
+### Technical
+- 价格计算优先级：客户专属价 > 季节调价 > 阶梯价 > 客户等级 > 基础价
+- 调价审批：涨跌幅 > 10% 自动转 PENDING 状态
+- 行业规则：VIP 95 折 / 4 档阶梯 / 季节 SS-AW-HOLIDAY / 客户专属价
+- 多租户隔离：强制 `extract_tenant_id`
+- 6 个 commit（b77de42 → c61379a），合入 test 分支后删除 P0-5 分支
+
+---
+
+## [Released] - 2026-06-16 - P0-4 色卡仓储管理（PR #129）
+
 ### Added - P0-4 色卡仓储管理（合并 PR #129）
 - 新增 3 张表：`color_cards`（色卡主表）/ `color_card_items`（色卡明细）/ `color_card_borrow_records`（借出记录）
 - 新增 3 个 entity + 7 个 DTO（含分页响应、扫码响应、配方摘要、价格摘要）
