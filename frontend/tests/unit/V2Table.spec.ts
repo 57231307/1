@@ -3,6 +3,12 @@
  * 任务编号: Wave 4 P2-1 PR-1
  * 注意: 本地不允许 npm run test:run，所有测试通过 git push 触发 CI 验证
  */
+// 局部 mock：保留 element-plus 全部真实 export（包括 V2Table 依赖的 ElAutoResizer / ElTableV2 / ElPagination）
+vi.mock('element-plus', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('element-plus')>()
+  return { ...actual }
+})
+
 import { describe, expect, it, vi } from 'vitest'
 import { mount } from '@vue/test-utils'
 import V2Table from '@/components/V2Table/index.vue'
