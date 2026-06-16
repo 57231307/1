@@ -135,3 +135,5 @@ pub mod quotation_service;
 pub mod quotation_pricing_service;
 // 销售报价单审批服务（Week 2 Task 7）
 pub mod quotation_approval_service;
+// 销售报价单转订单服务（Week 2 Task 8）
+pub mod quotation_convert_service;
