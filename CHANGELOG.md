@@ -7,7 +7,36 @@
 
 ---
 
-## [Unreleased] - 2026-06-16
+## [Unreleased] - 2026-06-17
+
+### Added - P0-4 色卡仓储管理（合并 PR #129）
+- 新增 3 张表：`color_cards`（色卡主表）/ `color_card_items`（色卡明细）/ `color_card_borrow_records`（借出记录）
+- 新增 3 个 entity + 7 个 DTO（含分页响应、扫码响应、配方摘要、价格摘要）
+- 新增 4 个 service：ColorCardCrudService / ColorCardItemService / ColorCardBorrowService / ColorCardScanService
+- 新增 13 个 handler + 16 个 API 端点（CRUD + 色号 + 借出/归还/遗失/损坏/扫码/批量导入/CSV 导出）
+- 新增 CIELab 色彩空间转换工具（RGB/CMYK/Lab/HEX/ΔE 互转 + 5 单元测试）
+- 新增 4 个前端页面（list / create / detail / borrow）+ 3 个组件（ColorCardGrid / ColorItemEditor / BorrowRecordTimeline）
+- 新增 16 端点 TypeScript API 客户端 + Playwright E2E 测试
+- 新增 5 个集成测试（共 29 用例）覆盖 CRUD / 色号 / 借出 / 扫码 / E2E
+- 新增 TEST 测试版本（Docker + docker-compose + 19 个测试场景）
+- 新增 3 个文档：用户手册 / API 文档 / 部署指南
+
+### Changed
+- 复用 P0-1 `product_color_prices`（色号价格关联）
+- 复用现有 `customers`（借出客户）和 `dye_recipes`（染色配方关联）
+- 复用现有 `users`（经办员工关联）
+- models / services / handlers / routes / utils mod.rs 添加新模块声明
+- frontend router 添加 4 个色卡路由
+
+### Technical
+- 状态机：borrowed → returned / lost / damaged（终态不可转换）
+- 行业规则：GB/T 26377-2022 / PANTONE / CNCS（中国颜色体系）/ ΔE ≤ 3
+- 多租户隔离：强制 `extract_tenant_id`
+- 8 个 commit（fb302b7 → 503c184），合入 test 分支后删除 P0-4 分支
+
+---
+
+## [Released] - 2026-06-16 - P0-3 定制订单全流程跟踪（PR #128）
 
 ### P0-2 主备隔离模块（数据库 + 缓存）
 

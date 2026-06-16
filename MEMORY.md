@@ -316,8 +316,54 @@ backend/src/handlers/advanced/
 
 ---
 
+## 2026-06-17 - P0-4 色卡仓储管理全流程完成
+
+**分支**：`trae/solo-agent-P0-4-color-card`（已合入 test 后删除）
+**PR**：[#129](https://github.com/57231307/1/pull/129) - `feat(color-card): 色卡仓储管理`
+**合入 commit**：`b8d9913`
+
+### 完成内容
+- 3 张表 migration：`color_cards` / `color_card_items` / `color_card_borrow_records`
+- 3 entity + 7 DTO
+- 4 service（CRUD + 色号 + 借出 + 扫码），状态机：borrowed → returned / lost / damaged
+- 13 handler + 16 路由（nest 到 /api/v1/erp/color-cards）
+- CIELab 色彩空间转换工具（RGB/CMYK/Lab/HEX/ΔE，5 单元测试）
+- 5 集成测试（共 29 用例）
+- 4 前端页面 + 3 组件 + API 客户端 + E2E
+- TEST 测试版本（Docker + compose + 19 个测试场景）
+- 用户手册 + API 文档 + 部署指南
+
+### 复用现有模块
+- P0-1 `product_color_prices`（色号价格）
+- 现有 `customers`（借出客户）
+- 现有 `dye_recipes`（染色配方）
+- 现有 `users`（经办员工）
+- 强制 `extract_tenant_id` 多租户隔离
+
+### 8 个 commit
+1. `fb302b7` docs(spec): 色卡仓储管理模块设计 spec + 实施 plan
+2. `e6d7e80` feat(db): 色卡仓储管理 3 张表 migration
+3. `47098f4` feat(model): 色卡仓储管理 3 entity + 3 DTO
+4. `ac4fbe4` feat(util): CIELab 色彩空间转换工具
+5. `a6ac660` feat(service): 色卡仓储管理 4 service
+6. `43e405d` feat(handler+route+test): 13 handler + 16 路由 + 5 集成测试
+7. `370a0d3` feat(frontend): 4 页面 + 3 组件 + API 客户端 + E2E
+8. `503c184` docs(dist): P0-4 TEST 测试版本交付
+
+### 沙箱 5.8GB 限制
+- cargo check --lib OOM（signal 9），按 task 失败处理方案跳过本地验证
+- rustc 1.94.0 已安装到 /usr/local/rust-1.94/ 但编译因 OOM 被 kill
+- 依赖 CI 完整验证（rust 1.92 + cargo build + cargo test）
+
+### 下一步
+- 等待用户测试 P0-4 测试版本
+- 通过后启动 P0-5（待主代理分配任务）
+
+---
+
 ## 九、最后更新
 
 - 2026-06-16 20:50 (Asia/Shanghai) - P0-2 主备隔离模块完成（6 commit，trae/solo-agent-P0-2-failover 分支，待 PR 合并到 test）
 - 2026-06-17 05:10 (Asia/Shanghai) - P0-3 定制订单全流程跟踪模块完成（9 commit，PR #128 已 merge 到 test，merge commit f5fb8d3）
+- 2026-06-17 16:00 (Asia/Shanghai) - P0-4 色卡仓储管理模块完成（8 commit，PR #129 已 merge 到 test，merge commit b8d9913）
 - 2026-06-16 14:30 (Asia/Shanghai) - 整理记忆文件：更新 Wave 4 P2-1 完成状态 + 更新 Git 工作流（test/main 分支策略）
