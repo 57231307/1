@@ -51,6 +51,12 @@ pub struct AppState {
     pub quotation_approval_service: Arc<QuotationApprovalService>,
     // 销售报价单转订单服务（Week 2 Task 8）
     pub quotation_convert_service: Arc<QuotationConvertService>,
+    // P0-3 定制订单全流程跟踪服务
+    pub custom_order_crud: Arc<CustomOrderCrudService>,
+    pub custom_order_state: Arc<CustomOrderStateService>,
+    pub custom_order_process: Arc<CustomOrderProcessService>,
+    pub custom_order_quality: Arc<CustomOrderQualityService>,
+    pub custom_order_aftersales: Arc<CustomOrderAfterSalesService>,
 }
 
 impl FromRef<AppState> for Key {
