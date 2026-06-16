@@ -127,7 +127,7 @@
         <QuotationItemEditor v-model="form.items" :currency="form.currency" />
 
         <h3 class="section-title">贸易条款</h3>
-        <TermEditor v-model="form.terms" />
+        <TermEditor :model-value="form.terms || []" @update:model-value="onTermsChange" />
 
         <el-form-item label="备注" style="margin-top: 16px">
           <el-input v-model="form.notes" type="textarea" :rows="3" placeholder="备注（选填）" />
@@ -382,6 +382,11 @@ function formatAmount(value: number): string {
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
   })
+}
+
+/** 贸易条款变化（处理可选字段） */
+function onTermsChange(value: CreateQuotationTermDto[]) {
+  form.terms = value
 }
 
 onMounted(async () => {
