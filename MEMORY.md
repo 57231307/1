@@ -95,6 +95,17 @@
 - 6 远端分支清理
 - 1 收尾报告：`docs/superpowers/plans/2026-06-15-wave3-wrap-up-completion-report.md`
 
+### Wave 1-3 综合评估
+
+- 评估报告：`docs/superpowers/plans/2026-06-15-wave1-3-evaluation.md`（754 行）
+- 评估 commit：1981888（PR #103 squash merge）
+- 关键数据：894 commits / 101 PR 全部合并 / 190 tags / 235044 行代码 / 108 .vue / 493 .rs
+- AI 模块：5 个（pred/detect/rec/recipe_opt/quality_pred）
+- Wave 1：4 PR 100% 合并（4 子代理并行）
+- Wave 2：原计划 9 子任务，实际 0 PR（主代理转向 Wave 3）
+- Wave 3：11 PR 100% 合并（4+4 串行 + 2 单代理 + 1 收尾）
+- Wave 4 启动推荐：P2-1 el-table-v2 真实数据验证（首选）/ P2-2 性能优化 / P3-1 安全加固
+
 ---
 
 ## 四、关键文档位置
@@ -103,6 +114,7 @@
 |------|------|
 | 综合 spec | `/workspace/docs/superpowers/specs/2026-06-15-wave3-wrap-up-design.md` |
 | Wave 3 收尾报告 | `/workspace/docs/superpowers/plans/2026-06-15-wave3-wrap-up-completion-report.md` |
+| Wave 1-3 综合评估 | `/workspace/docs/superpowers/plans/2026-06-15-wave1-3-evaluation.md` |
 | Wave 3 v2 评估 | `/workspace/docs/superpowers/plans/2026-06-15-wave3-evaluation-v2.md` |
 | B7 spec | `/workspace/docs/superpowers/specs/2026-06-15-b7-console-cleanup-design.md` |
 | B7 报告 | `/workspace/docs/superpowers/plans/2026-06-15-b7-completion-report.md` |
@@ -222,4 +234,4 @@ backend/src/handlers/advanced/
 
 ## 九、最后更新
 
-- 2026-06-15 23:50 (Asia/Shanghai) - Wave 3 收尾全部完成（6 PR / 8 单测 / 1 发版），Wave 4 启动条件就绪
+- 2026-06-16 00:30 (Asia/Shanghai) - Wave 1-3 综合评估完成（PR #103，754 行报告），Wave 4 启动推荐：P2-1 el-table-v2 真实数据验证
