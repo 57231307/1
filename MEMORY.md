@@ -31,12 +31,22 @@
   - 前端测试：npm run test:run + npm run lint
 - 验证流程：本地编码 → git commit → git push → 等待 CI 全绿 → 创建 PR → squash merge → 清理远端分支
 
-### 2. Git 工作流
-- 功能开发使用 feature/ 分支
-- 修复 bug 使用 fix/ 分支
-- PR 必须 squash merge 到 main
-- 合并后立即删除远端 feature/ 分支
-- 保持 main 分支为最新稳定源代码
+### 2. Git 工作流（2026-06-16 更新）
+- **分支结构**：
+  - `main`：正式版分支（不允许删除），手动触发发版
+  - `test`：测试分支（不允许删除），自动触发 CI/CD
+  - `feature/` / `fix/`：修复/功能分支，合并到 test 后自动删除
+- **工作流**：
+  - 所有修复/功能变更先在 feature/fix 分支开发
+  - 验证通过后合并到 `test` 分支（自动触发 CI）
+  - 测试通过后由 `test` 合并到 `main`（手动触发发版）
+  - 合并到 test 后立即删除 feature/fix 分支
+- **日志差异化**：
+  - `test` 分支：详细全量日志（RUST_LOG=debug，VITE_LOG_LEVEL=debug）
+  - `main` 分支：基础日志（RUST_LOG=info，VITE_LOG_LEVEL=warn）
+- **发版策略**：
+  - `test` 分支：不发版，仅构建验证
+  - `main` 分支：手动触发 GitHub Release 发版
 
 ### 3. 命名规范
 - 名称不超过 9 个英文字符
@@ -80,7 +90,7 @@
 
 ---
 
-## 三、当前状态（2026-06-15）
+## 三、当前状态（2026-06-16）
 
 ### 已完成
 
@@ -94,24 +104,26 @@
 | **B 任务：清理 32 个 type-check 错误 → 0** | 7de8b0d | ✅ 完成（4 批 4 PR：#95-#98） |
 | **A2-1 工艺优化**（recipe_opt）| f157f56 | ✅ **完成**（PR #99 squash merge，CI 4 job 全绿，11 文件实施，4 单测全过）|
 | **A2-2 质量预测**（quality_pred）| dd9faa4 | ✅ **完成**（PR #100 squash merge，CI 4 job 全绿，8 文件实施，4 单测全过，自动发布 v2026.615.2350）|
+| **Wave 4 P2-1：el-table-v2 真实数据迁移** | 877f18d | ✅ **完成**（5 PR：#108-#112，4 页面迁移 + 1 通用组件 + 5 死文件清理）|
 
 ### 进行中
 
-- 无（Wave 3 收尾全部完成，Wave 4 待启动）
+- 无（Wave 4 P2-1 已完成，待用户决策下一步）
 
 ### 待启动
 
-- **Wave 4**：el-table-v2 已通过 POC（B5），Wave 3 收尾已完成 AI 深化，Wave 4 启动条件已就绪
-- 待用户决策 Wave 4 启动哪个任务（候选：P2-1 / P2-2 / P2-3 / P3-1 / P3-2）
+- **Wave 4 后续任务**：P2-2 性能优化 / P2-3 安全加固 / P3-1 微服务拆分 / P3-2 WebSocket 实时通信
+- 待用户决策下一步任务
 
-### Wave 3 收尾关键产出
+### Wave 4 P2-1 关键产出
 
-- 6 PR：#95-#100 全部 squash merge
-- 4 CI run：4 job 全绿
-- 8 新单测：recipe_opt 4 + quality_pred 4
-- 1 自动发版：v2026.615.2350
-- 6 远端分支清理
-- 1 收尾报告：`docs/superpowers/plans/2026-06-15-wave3-wrap-up-completion-report.md`
+- 5 PR：#108-#112 全部 squash merge
+- 5 CI run：4 job 全绿
+- 4 页面迁移：StockTab / OrderListView / production / RecordTab
+- 1 通用组件：V2Table + useTableApi composable
+- 5 死文件清理：DraggableTable / index-poc / VirtualStockTabPOC / DraggableTableDemo / components-demo 部分
+- 5 单元测试：V2Table 组件测试
+- 自动发版：v2026.616.1420
 
 ### Wave 1-3 综合评估
 
@@ -252,4 +264,4 @@ backend/src/handlers/advanced/
 
 ## 九、最后更新
 
-- 2026-06-16 01:55 (Asia/Shanghai) - 新增思考模式规范（第一性原理 + 不假设 + 路径求最短 + 目标不清停下讨论）
+- 2026-06-16 14:30 (Asia/Shanghai) - 整理记忆文件：更新 Wave 4 P2-1 完成状态 + 更新 Git 工作流（test/main 分支策略）
