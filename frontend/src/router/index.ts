@@ -564,6 +564,12 @@ const routes = [
         component: () => import('@/views/quotations/edit.vue'),
         meta: { title: '编辑报价单', requiresAuth: true },
       },
+      {
+        path: 'quotations/:id/approval',
+        name: 'QuotationApproval',
+        component: () => import('@/views/quotations/approval.vue'),
+        meta: { title: '报价单审批', requiresAuth: true },
+      },
     ],
   },
   {
