@@ -142,20 +142,13 @@
             :columns="stockColumns"
             :estimated-row-height="40"
             :loading="loading"
+            :total="total"
+            :page="queryParams.page"
+            :page-size="queryParams.page_size"
             @row-click="handleStockRowClick"
+            @page-change="handlePageChange"
+            @size-change="handleSizeChange"
           />
-
-          <div class="pagination-wrapper">
-            <el-pagination
-              v-model:current-page="queryParams.page"
-              v-model:page-size="queryParams.page_size"
-              :page-sizes="[10, 20, 50, 100]"
-              :total="total"
-              layout="total, sizes, prev, pager, next, jumper"
-              @size-change="handleQuery"
-              @current-change="handleQuery"
-            />
-          </div>
         </el-card>
       </el-tab-pane>
 
@@ -380,31 +373,43 @@ import { useTableColumns } from '@/composables/useTableColumns'
 
 // 库存台账列表列定义（V2Table 渲染）
 const { columns: stockColumns } = useTableColumns([
-  { key: 'product_code', label: '产品编码', width: 140, sortable: true },
-  { key: 'product_name', label: '产品名称', width: 200 },
-  { key: 'warehouse_name', label: '仓库', width: 120 },
-  { key: 'batch_no', label: '批次号', width: 120 },
-  { key: 'color_code', label: '颜色编码', width: 100 },
+  { key: 'product_code', title: '产品编码', width: 140, sortable: true },
+  { key: 'product_name', title: '产品名称', width: 200 },
+  { key: 'warehouse_name', title: '仓库', width: 120 },
+  { key: 'batch_no', title: '批次号', width: 120 },
+  { key: 'color_code', title: '颜色编码', width: 100 },
   {
     key: 'quantity',
-    label: '库存数量',
+    title: '库存数量',
     width: 120,
     align: 'right',
-    formatter: (v: any) => (v != null ? v.toLocaleString() : '-'),
+    formatter: (row: any) => (row.quantity != null ? row.quantity.toLocaleString() : '-'),
   },
   {
     key: 'status',
-    label: '状态',
+    title: '状态',
     width: 100,
     align: 'center',
-    formatter: (v: any) => getStatusText(v),
+    formatter: (row: any) => getStatusText(row.status),
   },
-  { key: 'location', label: '库位', width: 100 },
+  { key: 'location', title: '库位', width: 100 },
 ])
 
 // 行点击事件：触发详情查看
 const handleStockRowClick = (row: any) => {
   handleView(row)
+}
+
+// V2Table 内置分页事件处理
+const handlePageChange = (newPage: number) => {
+  queryParams.page = newPage
+  fetchData()
+}
+
+const handleSizeChange = (newSize: number) => {
+  queryParams.page_size = newSize
+  queryParams.page = 1
+  fetchData()
 }
 
 const loading = ref(false)
