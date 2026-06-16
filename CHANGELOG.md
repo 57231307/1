@@ -9,6 +9,25 @@
 
 ## [Unreleased] - 2026-06-16
 
+### Wave 4 P2-1 综合评估
+
+- **评估报告**：[`docs/superpowers/plans/2026-06-16-wave4-p2-1-evaluation.md`](file:///workspace/docs/superpowers/plans/2026-06-16-wave4-p2-1-evaluation.md)（310 行，PR #117 squash merge → commit dbd472d）
+- **关键指标**：
+  - 5 PR 100% 完成（#108-#112，1h45min 串行调度）
+  - 代码变更：+1090 / -1379（净减 289 行）
+  - CI 验证：5 × 4 job = 20 job 全部全绿
+  - 自动发版：5 个 tag（v2026.616.1235 至 v2026.616.1420）
+  - 拒收率：0%
+- **关键决策**：
+  - PR-1 抽象前置：useTableApi composable + V2Table 组件，4 页面复用
+  - 串行调度模式再次验证（与 Wave 3 B7 经验一致）
+  - 死代码随 PR-5 一次性清理
+- **关键经验**：
+  - 抽通用组件前置（PR-1 模式）：下游 PR 成本 -60%
+  - 串行 + 串行调度：避免云端卡死
+  - 死代码随主任务清理：避免技术债务积累
+- **下一波推荐**：P2-2 性能优化（V2Table 性能验证 + 后端 N+1 修复）
+
 ### 已整理（记忆文件分类）
 
 - **新增** [`.monkeycode/doto.md`](file:///workspace/.monkeycode/doto.md)：从 `.monkeycode/MEMORY.md` 抽离所有**任务相关条目**，包括：
