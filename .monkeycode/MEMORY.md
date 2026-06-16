@@ -31,6 +31,66 @@ Agent 在任务执行过程中发现的条目应遵循以下格式：
 
 ## 条目
 
+[项目评估结果 2026-06-16]
+- Date: 2026-06-16
+- Context: 全项目评估（5 维度并行扫描）
+- Category: 工作流协作
+- Instructions:
+  - **整体评分**: 72/100（B+ 级）
+  - **5 大模块**: 核心业务 28/30、多租户 15/15、权限 12/15、行业 5/20、代码质量 12/20
+  - **最大短板**: 行业专属功能（5/20）— 销售报价单 0%、定制订单全流程 0%、色号命名 30%
+  - **关键缺口**:
+    1. P0: 销售报价单（缺 sales_quotations/quote_items/quote_terms 三表）
+    2. P0: 定制订单全流程跟踪（缺 custom_orders/process_nodes/process_logs/quality_issues/after_sales 五表）
+    3. P0: 主备隔离（数据库/缓存单点）
+  - **代码审计 Top 5 高危文件**:
+    1. backend/src/utils/dual_unit_converter.rs (26 expect)
+    2. backend/src/services/auth_service.rs (13 expect)
+    3. frontend/src/views/system/index.vue (56 any / 1521 行)
+    4. frontend/src/views/ap/index.vue (31 any / 1035 行)
+  - **健康指标**: 0 panic / 0 unsafe / 0 @ts-ignore / 0 as unknown
+  - **改进路线图**:
+    - 短期 6 周（目标 80 分）: P0 行业功能 + 主备隔离
+    - 中期 6 周（目标 88 分）: P1 行业功能 + 代码清理
+    - 长期 24 周（目标 95 分）: 行业标准化 + 智能制造
+  - **评估报告位置**: docs/superpowers/reports/2026-06-16-*.md (5 份)
+  - **汇总报告位置**: .monkeycode/docs/项目评估报告.md
+
+[行业规则校验结果]
+- Date: 2026-06-16
+- Context: 纺织行业业务规则联网校验
+- Category: 行业标准
+- Instructions:
+  - **合规度加权平均**: 37/100
+  - **GB/T 关键标准**:
+    - GB/T 21898-2023 纺织品颜色表示方法
+    - GB/T 15608-2006 中国颜色体系（CNCS）
+    - GB/T 26377-2022 纺织品颜色标准样品技术规范
+    - GB/T 8424.3 纺织品色牢度试验色差计算
+    - GB/T 3899.2-2007 染料命名标准色卡
+  - **色差行业标准**: ΔECMC ≤ 3
+  - **PANTONE**: 行业通用（出口导向企业广泛采用）
+  - **当前合规**:
+    - 面料分类 85/100、染整工艺 70/100
+    - 色号命名 30/100（缺 CNCS/色差/色彩空间）
+    - 报价单 0/100、定制订单 0/100
+  - **CIELab 色彩空间**: 国际标准颜色表示（需 RGB → Lab 转换）
+  - **P0 改进后预期**: 37 → 76（+39 分）
+
+[主备隔离设计原则]
+- Date: 2026-06-16
+- Context: 8 大核心功能主备隔离设计
+- Category: 架构设计
+- Instructions:
+  - **核心约束**: 仅主调用不可用（超时/失败/熔断）时才切换备用
+  - **主调用正常时禁用备用**: 避免资源浪费和双写不一致
+  - **故障转移后支持回切**: 半开状态探测
+  - **关键参数**: 主调用超时 3s、熔断阈值 5 次、熔断时长 30s
+  - **8 大功能**: 数据库/缓存/消息队列/文件存储/短信/邮件/搜索/OCR
+  - **统一抽象接口**: `FailoverCall<T,E>` trait（异步）
+  - **告警规则**: 切换频率 > 5/小时 P2，备用失败率 > 10% P1，熔断持续 > 5 分钟 P1，双不可用 P0
+  - **设计文档**: docs/superpowers/reports/2026-06-16-failover-design.md
+
 [语言偏好]
 - Date: 2026-05-22
 - Context: 用户明确要求助手使用中文回复
