@@ -9,6 +9,58 @@
 
 ## [Unreleased] - 2026-06-16
 
+### P0-2 主备隔离模块（数据库 + 缓存）
+
+- **设计文档**：
+  - Spec：[`docs/superpowers/specs/2026-06-16-failover-isolation-design.md`](file:///workspace/docs/superpowers/specs/2026-06-16-failover-isolation-design.md)
+  - Plan：[`docs/superpowers/plans/2026-06-16-failover-isolation-plan.md`](file:///workspace/docs/superpowers/plans/2026-06-16-failover-isolation-plan.md)
+  - 设计报告：[`docs/superpowers/reports/2026-06-16-failover-design.md`](file:///workspace/docs/superpowers/reports/2026-06-16-failover-design.md)
+- **范围**：P0 阶段（数据库 + 缓存 + 进程内 LRU 备 + 监控告警 + 故障注入测试）
+- **核心特性**：
+  - `FailoverCall` trait（统一主备调用接口，P1/P2 阶段可复用）
+  - 熔断器（Closed/Open/HalfOpen 状态机，阈值 5，时长 30s）
+  - 数据库主备隔离（PostgreSQL 主库 + 备库自动切换）
+  - 缓存主备隔离（Redis 主 + moka 进程内 LRU 备）
+  - 5 个 Prometheus 指标（primary/backup/switch/circuit_state）
+  - 4 条告警规则（P0/P1/P2 级别）
+  - 自动回切（主调用恢复后 < 30s 自动回切）
+  - 4 个 HTTP API 端点（status / metrics / test/switch / health）
+  - admin 监控页面（状态卡片 + 切换历史 + 健康检查）
+  - 9 个故障注入测试场景
+  - TEST 测试版本交付（Docker + docker-compose + 启动脚本）
+- **数据模型**：
+  - `failover_status`（主备实时状态）
+  - `failover_event`（切换事件流水）
+  - `failover_config`（配置持久化）
+- **关键文件**：
+  - `backend/src/utils/failover/{mod,database,cache,circuit_breaker}.rs`
+  - `backend/src/config/failover.rs`
+  - `backend/src/services/failover_service.rs`
+  - `backend/src/handlers/failover_handler.rs`
+  - `backend/src/routes/failover.rs`
+  - `backend/src/models/failover_{status,event,config}.rs`
+  - `backend/migrations/20260616000005_create_failover_tables/`
+  - `backend/tests/failover_{trait,circuit,config,metrics}_test.rs`
+  - `frontend/src/views/admin/failover.vue` + 3 组件
+  - `frontend/src/api/failover.ts`
+  - `dist/test-version-P0-2/`（Docker + compose + start.sh）
+  - `docs/failover-deployment-guide.md`
+  - `docs/chaos-test-scenarios.md`
+  - `monitoring/grafana/failover-dashboard.json`
+  - `monitoring/prometheus/failover-alert-rules.yml`
+- **关键参数**：
+  - 主调用超时：3s
+  - 备用调用超时：5s
+  - 熔断阈值：5 次失败
+  - 熔断时长：30s
+  - 半开探测：1 次
+- **验收标准**：
+  - 主调用失败 → 备用切换延迟 < 100ms
+  - 主调用恢复 → 自动回切延迟 < 30s
+  - 9 个故障注入场景全部通过
+  - 4 条告警规则按级别触发
+  - TEST 测试版本可在 Docker 中启动
+
 ### Wave 4 P2-1 综合评估
 
 - **评估报告**：[`docs/superpowers/plans/2026-06-16-wave4-p2-1-evaluation.md`](file:///workspace/docs/superpowers/plans/2026-06-16-wave4-p2-1-evaluation.md)（310 行，PR #117 squash merge → commit dbd472d）

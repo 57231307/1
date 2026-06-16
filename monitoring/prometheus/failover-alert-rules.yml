@@ -1,0 +1,64 @@
+groups:
+  # P0-2 主备隔离告警规则
+  - name: failover_alerts
+    interval: 30s
+    rules:
+      # 主备切换频率过高（P2）
+      - alert: FailoverSwitchFrequent
+        expr: increase(failover_switch_total[1h]) > 5
+        for: 5m
+        labels:
+          severity: warning
+          level: P2
+          team: sre
+        annotations:
+          summary: "主备切换频率过高"
+          description: "功能 {{ $labels.function }} 在过去 1 小时内切换 {{ $value }} 次，超过阈值 5 次。"
+          runbook_url: "https://wiki.bingxi.com/runbook/failover-switch-frequent"
+
+      # 备用调用失败率过高（P1）
+      - alert: FailoverBackupFailureRate
+        expr: |
+          (
+            rate(failover_backup_total{function="database"}[5m])
+            -
+            rate(failover_primary_failed_total{function="database"}[5m])
+          ) / rate(failover_backup_total{function="database"}[5m]) > 0.1
+        for: 10m
+        labels:
+          severity: critical
+          level: P1
+          team: sre
+        annotations:
+          summary: "备用调用失败率过高"
+          description: "{{ $labels.function }} 备用调用失败率 {{ $value | humanizePercentage }} 超过 10%。"
+          runbook_url: "https://wiki.bingxi.com/runbook/failover-backup-failure"
+
+      # 熔断器持续打开（P1）
+      - alert: FailoverCircuitOpenLong
+        expr: failover_circuit_state > 0
+        for: 5m
+        labels:
+          severity: critical
+          level: P1
+          team: sre
+        annotations:
+          summary: "熔断器持续打开"
+          description: "功能 {{ $labels.function }} 熔断器已打开超过 5 分钟（状态：{{ $value }}）。"
+          runbook_url: "https://wiki.bingxi.com/runbook/failover-circuit-open"
+
+      # 主备同时不可用（P0）
+      - alert: FailoverBothDown
+        expr: |
+          failover_circuit_state > 0
+          and
+          failover_backup_total == 0
+        for: 1m
+        labels:
+          severity: page
+          level: P0
+          team: sre
+        annotations:
+          summary: "主备同时不可用"
+          description: "功能 {{ $labels.function }} 主备同时不可用，业务受影响！请立即处理。"
+          runbook_url: "https://wiki.bingxi.com/runbook/failover-both-down"

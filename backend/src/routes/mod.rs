@@ -45,6 +45,7 @@ pub mod analytics;
 pub mod auth;
 pub mod catalog;
 pub mod crm;
+pub mod failover;
 pub mod finance;
 pub mod iam;
 pub mod inventory;
@@ -319,6 +320,8 @@ pub fn create_router(state: AppState) -> Router<()> {
         .nest("/api/v1/erp/sales", sales::routes())
         // 销售报价单路由（Week 1）
         .nest("/api/v1/erp/quotations", quotations::routes())
+        // 主备隔离路由（P0-2）
+        .merge(failover::failover_routes())
         .nest("/api/v1/erp/purchase", purchase::routes())
         .nest("/api/v1/erp/finance", finance::routes(state.clone()))
         .nest("/api/v1/erp", finance::sub_routes())
