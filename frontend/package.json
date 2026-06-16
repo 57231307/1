@@ -26,6 +26,7 @@
     "vuedraggable": "^4.1.0"
   },
   "devDependencies": {
+    "@playwright/test": "1.40.0",
     "@types/sortablejs": "^1.15.9",
     "@typescript-eslint/eslint-plugin": "^7.0.0",
     "@typescript-eslint/parser": "^7.0.0",
@@ -38,7 +39,7 @@
     "eslint-plugin-prettier": "^5.1.0",
     "eslint-plugin-vue": "^9.20.0",
     "jsdom": "^24.0.0",
-    "playwright": "^1.60.0",
+    "playwright": "^1.40.0",
     "prettier": "^3.2.0",
     "typescript": "~5.4.0",
     "unplugin-auto-import": "^0.17.0",
