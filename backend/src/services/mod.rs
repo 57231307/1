@@ -129,3 +129,5 @@ pub mod audit_cleanup_service;
 pub mod sensitive_action_alert;
 // 增强日志服务
 pub mod enhanced_logger;
+// 销售报价单服务（Week 1）
+pub mod quotation_service;
