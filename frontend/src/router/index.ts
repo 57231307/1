@@ -552,6 +552,18 @@ const routes = [
         component: () => import('@/views/quotations/create.vue'),
         meta: { title: '新建报价单', requiresAuth: true },
       },
+      {
+        path: 'quotations/:id',
+        name: 'QuotationDetail',
+        component: () => import('@/views/quotations/detail.vue'),
+        meta: { title: '报价单详情', requiresAuth: true },
+      },
+      {
+        path: 'quotations/:id/edit',
+        name: 'QuotationEdit',
+        component: () => import('@/views/quotations/edit.vue'),
+        meta: { title: '编辑报价单', requiresAuth: true },
+      },
     ],
   },
   {
