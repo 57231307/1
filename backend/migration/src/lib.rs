@@ -19,6 +19,10 @@ pub mod m0016_add_version_to_inventory_stocks;
 pub mod m0017_add_crm_supplier_tables;
 pub mod m0018_add_finance_tables;
 pub mod m0019_fix_schema_model_sync;
+pub mod m0020_create_sales_quotations;
+pub mod m0021_create_sales_quotation_items;
+pub mod m0022_create_sales_quotation_terms;
+pub mod m0023_create_product_color_prices;
 
 pub struct Migrator;
 
@@ -45,6 +49,10 @@ impl MigratorTrait for Migrator {
             Box::new(m0017_add_crm_supplier_tables::Migration),
             Box::new(m0018_add_finance_tables::Migration),
             Box::new(m0019_fix_schema_model_sync::Migration),
+            Box::new(m0020_create_sales_quotations::Migration),
+            Box::new(m0021_create_sales_quotation_items::Migration),
+            Box::new(m0022_create_sales_quotation_terms::Migration),
+            Box::new(m0023_create_product_color_prices::Migration),
         ]
     }
 }

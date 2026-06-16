@@ -539,6 +539,37 @@ const routes = [
         component: () => import('@/views/user-profile/index.vue'),
         meta: { title: '个人信息', requiresAuth: true },
       },
+      // 报价单模块 - 列表 + 新建
+      {
+        path: 'quotations',
+        name: 'QuotationList',
+        component: () => import('@/views/quotations/list.vue'),
+        meta: { title: '报价单管理', requiresAuth: true },
+      },
+      {
+        path: 'quotations/new',
+        name: 'QuotationCreate',
+        component: () => import('@/views/quotations/create.vue'),
+        meta: { title: '新建报价单', requiresAuth: true },
+      },
+      {
+        path: 'quotations/:id',
+        name: 'QuotationDetail',
+        component: () => import('@/views/quotations/detail.vue'),
+        meta: { title: '报价单详情', requiresAuth: true },
+      },
+      {
+        path: 'quotations/:id/edit',
+        name: 'QuotationEdit',
+        component: () => import('@/views/quotations/edit.vue'),
+        meta: { title: '编辑报价单', requiresAuth: true },
+      },
+      {
+        path: 'quotations/:id/approval',
+        name: 'QuotationApproval',
+        component: () => import('@/views/quotations/approval.vue'),
+        meta: { title: '报价单审批', requiresAuth: true },
+      },
     ],
   },
   {

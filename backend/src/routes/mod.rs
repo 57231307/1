@@ -51,6 +51,8 @@ pub mod inventory;
 pub mod production;
 pub mod purchase;
 pub mod sales;
+// 销售报价单模块（Week 1）
+pub mod quotations;
 #[path = "static.rs"]
 pub mod static_routes;
 pub mod system;
@@ -315,6 +317,8 @@ pub fn create_router(state: AppState) -> Router<()> {
         .nest("/api/v1/erp/auth", auth::routes())
         .nest("/api/v1/erp/inventory", inventory::routes())
         .nest("/api/v1/erp/sales", sales::routes())
+        // 销售报价单路由（Week 1）
+        .nest("/api/v1/erp/quotations", quotations::routes())
         .nest("/api/v1/erp/purchase", purchase::routes())
         .nest("/api/v1/erp/finance", finance::routes(state.clone()))
         .nest("/api/v1/erp", finance::sub_routes())

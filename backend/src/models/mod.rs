@@ -99,6 +99,15 @@ pub mod unqualified_product;
 // 采购退货模块
 pub mod purchase_return;
 pub mod purchase_return_item;
+// 销售报价单模块（Week 1）
+pub mod sales_quotation;
+pub mod sales_quotation_item;
+pub mod sales_quotation_term;
+pub mod product_color_price;
+pub mod quotation_create_dto;
+pub mod quotation_update_dto;
+pub mod quotation_response_dto;
+pub mod quotation_convert_dto;
 // 采购检验模块
 pub mod purchase_inspection;
 // 采购合同执行模块

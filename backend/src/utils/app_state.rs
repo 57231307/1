@@ -9,6 +9,10 @@ use crate::services::event_notification_service::EventNotificationService;
 use crate::services::metrics_service::MetricsService;
 use crate::services::notification_service::NotificationService;
 use crate::services::omni_audit_service::OmniAuditEngine;
+use crate::services::quotation_service::QuotationService;
+use crate::services::quotation_pricing_service::QuotationPricingService;
+use crate::services::quotation_approval_service::QuotationApprovalService;
+use crate::services::quotation_convert_service::QuotationConvertService;
 use crate::utils::cache::AppCache;
 use crate::utils::di_container::DIContainer;
 
@@ -34,6 +38,14 @@ pub struct AppState {
     pub data_permission_service: Arc<DataPermissionService>,
     pub notification_service: Arc<NotificationService>,
     pub allowed_origins: Vec<String>,
+    // 销售报价单服务（Week 1）
+    pub quotation_service: Arc<QuotationService>,
+    // 销售报价单定价服务（Week 2 Task 6）
+    pub quotation_pricing_service: Arc<QuotationPricingService>,
+    // 销售报价单审批服务（Week 2 Task 7）
+    pub quotation_approval_service: Arc<QuotationApprovalService>,
+    // 销售报价单转订单服务（Week 2 Task 8）
+    pub quotation_convert_service: Arc<QuotationConvertService>,
 }
 
 impl FromRef<AppState> for Key {
@@ -92,6 +104,10 @@ impl AppState {
         });
         let data_permission_service = Arc::new(DataPermissionService::new(db.clone()));
         let notification_service = Arc::new(NotificationService::new(db.clone()));
+        let quotation_service = Arc::new(QuotationService::new(db.clone()));
+        let quotation_pricing_service = Arc::new(QuotationPricingService::new(db.clone()));
+        let quotation_approval_service = Arc::new(QuotationApprovalService::new(db.clone()));
+        let quotation_convert_service = Arc::new(QuotationConvertService::new(db.clone()));
 
         Ok(Self {
             db,
@@ -110,6 +126,10 @@ impl AppState {
             data_permission_service,
             notification_service,
             allowed_origins,
+            quotation_service,
+            quotation_pricing_service,
+            quotation_approval_service,
+            quotation_convert_service,
         })
     }
 }
@@ -139,6 +159,10 @@ impl Default for AppState {
         let event_notification_service = Some(Arc::new(EventNotificationService::new(db.clone())));
         let data_permission_service = Arc::new(DataPermissionService::new(db.clone()));
         let notification_service = Arc::new(NotificationService::new(db.clone()));
+        let quotation_service = Arc::new(QuotationService::new(db.clone()));
+        let quotation_pricing_service = Arc::new(QuotationPricingService::new(db.clone()));
+        let quotation_approval_service = Arc::new(QuotationApprovalService::new(db.clone()));
+        let quotation_convert_service = Arc::new(QuotationConvertService::new(db.clone()));
         Self {
             db: db.clone(),
             omni_audit,
@@ -156,6 +180,10 @@ impl Default for AppState {
             data_permission_service,
             notification_service,
             allowed_origins: vec![],
+            quotation_service,
+            quotation_pricing_service,
+            quotation_approval_service,
+            quotation_convert_service,
         }
     }
 }
