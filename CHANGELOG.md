@@ -9,6 +9,32 @@
 
 ## [Unreleased] - 2026-06-17
 
+### Added - P3-3 React Native 移动端（关键路径 demo）
+- **完整设计 spec**：`docs/superpowers/specs/2026-06-17-p3-3-react-native.md`
+  - 整体架构图（RN + Zustand + Axios + React Navigation + Paper）
+  - 8 个澄清问题 + 矛盾解决
+  - 状态管理选型（Zustand vs Redux Toolkit）
+  - UI 库选型（React Native Paper）
+  - 多租户隔离 + 安全考虑
+- **完整实施 plan**：`docs/superpowers/plans/2026-06-17-p3-3-react-native.md`
+- **mobile/ 独立 React Native 项目**：
+  - `package.json` + `tsconfig.json` + `babel.config.js` + `metro.config.js`
+  - `app.json` + `index.js` + `App.tsx`
+  - `src/pages/LoginPage.tsx`：登录页（关键路径 demo，React Native Paper UI）
+  - `src/pages/HomePage.tsx`：首页（占位）
+  - `src/components/ApiClient.ts`：API 客户端（Axios + 拦截器 + JWT 注入 + 错误处理）
+  - `src/components/WebSocketClient.ts`：WebSocket 客户端（复用 P3-2 设计）
+  - `src/stores/authStore.ts`：认证状态（Zustand + AsyncStorage 持久化）
+  - `src/types/api.ts`：TypeScript 类型
+  - `src/utils/storage.ts` + `src/utils/validation.ts`：工具函数
+  - `__tests__/LoginPage.test.tsx`：单元测试（5 个）
+  - `README.md`：启动说明 + 架构图 + 后续演进
+- **文档**：
+  - `docs/2026-06-17-p3-3-react-native-user-manual.md`（用户手册 + 技术选型 + 安全）
+  - `docs/2026-06-17-p3-3-react-native-api.md`（ApiClient + authStore + WebSocketClient API）
+- **主项目兼容**：P3-3 是独立 `mobile/` 目录，**不影响**主项目 `backend/` 与 `frontend/`
+- **复用**：与主项目 REST API 兼容（`/api/v1/erp/*`）+ 复用 P3-2 WebSocket 设计
+
 ### Added - P3-2 WebSocket 实时通信（关键路径 demo）
 - **完整设计 spec**：`docs/superpowers/specs/2026-06-17-p3-2-websocket.md`
   - 整体架构图（前端 WebSocketClient + 后端 WebSocket Handler + ConnectionManager）
