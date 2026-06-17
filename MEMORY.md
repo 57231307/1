@@ -128,13 +128,20 @@
 
 ### 待启动
 
-- **P12 批 1**：详见综合路线图 [2026-06-17-roadmap.md](docs/superpowers/plans/2026-06-17-roadmap.md) **v0.2**
-  - **v0.2 范围调整**（2026-06-17）：P2-1 PR-1 已完成，**实际 4 PR 串行**（非 5 PR）；总 6 PR
-  - 推荐范围：P2-1 PR-2~5（4 PR 改写 4 .vue）+ B-type-check（CI 5 job + vue-tsc 集成）+ P2-2 性能优化
-  - **v0.2 已移除**（已完成/基本完成项）：B5 POC / B6 清理 / B-PR 模板 / 复查 / 收尾 / 部署 / .monkeycode 归档 4 阶段
-  - 派发策略：3 个独立子代理串行（参照 P11 批 1 验证通过的模式）
+- **P12 批 1**：详见综合路线图 [2026-06-17-roadmap.md](docs/superpowers/plans/2026-06-17-roadmap.md) **v0.3**
+  - **v0.3 范围调整**（2026-06-17）：加入 P0 销售报价单 port（test 独有资产），**总 10 PR / 4 子代理并行**
+  - 推荐范围：
+    - P2-1 PR-2~5（4 PR 改写 4 .vue）
+    - B-type-check（CI 5 job + vue-tsc 集成）
+    - P2-2 性能优化（DB N+1 + Redis 缓存）
+    - **P0 port 销售报价单**（4 PR 串行：数据层 → DTO+Service → Handler+路由 → 审批+转换+测试）
+  - **v0.3 P0 port 关键约束**：test 与 main 无共同祖先，所有代码重新实现；stub pricing（不引入 product_color_price）
+  - 详细 plan：[2026-06-17-p12-batch1-quotation-port-plan.md](docs/superpowers/plans/2026-06-17-p12-batch1-quotation-port-plan.md)
+  - **v0.3 已移除**（已完成/基本完成项）：B5 POC / B6 清理 / B-PR 模板 / 复查 / 收尾 / 部署 / .monkeycode 归档 4 阶段
+  - 派发策略：4 个独立子代理并行（参照 P11 批 1 验证通过的模式）
   - **v0.2 实际状态核实关键发现**：P2-1 PR-1（V2Table 组件 + useTableApi composable）已落地但被 v0.1 误标为"未启动"
-  - 用户决策：3 关键点已确认（命名/旧文件/范围）
+  - **v0.3 关键发现**：test 分支与 main 完全分叉，1154 独有 commit / 29 迁移文件 / 7 handler；P0 销售报价单与 P0 产品色价为高价值资产
+  - 用户决策：3 关键点已确认（命名/旧文件/范围）+ P0 port 范围确认 + v0.3 合并策略确认
 
 ### Wave 3 收尾关键产出
 
@@ -284,5 +291,6 @@ backend/src/handlers/advanced/
 
 ## 九、最后更新
 
+- 2026-06-17 18:xx (Asia/Shanghai) - Roadmap v0.3：加入 P0 销售报价单 port 计划（test 独有资产 reverse-port），P12 批 1 总 PR 数从 6 升至 10，4 子代理并行派发
 - 2026-06-17 17:xx (Asia/Shanghai) - Roadmap v0.2 状态更新：P2-1 PR-1 确认已完成（V2Table + useTableApi），B5/B6/B-PR 模板/部署/.monkeycode 等任务标注实际状态，P12 批 1 范围从 7 PR 调整为 6 PR
 - 2026-06-16 01:55 (Asia/Shanghai) - 新增思考模式规范（第一性原理 + 不假设 + 路径求最短 + 目标不清停下讨论）

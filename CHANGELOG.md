@@ -83,6 +83,63 @@
 - [docs/superpowers/plans/2026-06-17-roadmap.md](docs/superpowers/plans/2026-06-17-roadmap.md) — 全面更新（v0.1 → v0.2）
 - [MEMORY.md](MEMORY.md) — "P12 待启动"段扩展 + "最后更新"时间戳
 
+### test 分支 1:1 核对（2026-06-17）
+
+#### 核实方法
+- `git fetch origin test:test` 拉取远端 test 分支
+- `git log main..test` / `git log test..main` / `git merge-base test main`
+- `git diff test..main --name-status` 文件级差异
+
+#### 关键发现
+- **test 分支与 main 完全分叉**（`merge-base` 输出空），不是简单的"main 早期状态"
+- **test 独有 1154 commit**，main 独有 5 commit（PR #175/#176/#177 + release + memory）
+- **文件差异**：629 文件，+8228 / **-106290**（test 删除的文件远多于新增）
+- **test 独有数据库迁移**：29 个文件（销售报价单 / 产品色价 / 故障转移 / 生产/质量/售后 / 色卡 / AI / 数据仓库）
+- **test 独有后端 handler**：7 个（ai_extend / bi / color_card / color_price / custom_order / failover / quotation）
+- **main 已有但被 `#[allow(dead_code)]` 标注**：csrf.rs / event_kafka.rs
+
+#### 业务价值评估
+- **P0 高价值**：销售报价单系统 + 产品色价系统（⭐⭐⭐⭐⭐）
+- **P1 中价值**：生产管理 / 质量+售后 / 色卡管理
+- **P2 低价值**：BI / AI / 故障转移 / microservices/notifications
+
+#### 用户决策点
+- ✅ test 资产处理：先 port P0 高价值资产
+- ✅ P0 port 范围：完整 port 销售报价单（3-4 PR 串行），暂缓产品色价
+- ✅ v0.3 合并策略：在 PR-178 追加 v0.3 改动一次性合并
+
+---
+
+### Roadmap v0.3：加入 P0 销售报价单 port 计划（2026-06-17）
+
+#### 变更内容
+- **新增 2.5 节**：test 独有资产 P0 port 概要
+- **新增 3.1 节**：P0 关键路径加入 P0 port 销售报价单
+- **调整 4.1 节**：P12 批 1 总 PR 从 6 升至 10，4 子代理并行
+- **调整 5.1 节**：执行方案加入子代理 A（P0 port 4 PR 串行）
+- **调整 5.3 节**：风险预警加入 4 项 P0 port 特有风险
+
+#### 新建 plan 文档
+- [docs/superpowers/plans/2026-06-17-p12-batch1-quotation-port-plan.md](docs/superpowers/plans/2026-06-17-p12-batch1-quotation-port-plan.md) — 销售报价单 4 PR 串行详细计划
+
+#### 4 子代理并行策略
+- 子代理 A：P0 port 销售报价单（4 PR 串行）
+- 子代理 B：P2-1 el-table-v2（4 PR 串行）
+- 子代理 C：B-type-check（1 PR）
+- 子代理 D：P2-2 性能优化（1 PR）
+
+A/B 内部强依赖（各自串行），A/B/C/D 之间可并行（CI 资源允许）
+
+#### P0 port 关键约束
+- test 与 main 无共同祖先，所有代码**重新实现**（不能直接 copy）
+- main 已有 `sales_order_handler`，需注意命名区分
+- `quotation_pricing_service` 依赖 `product_color_price`（test 独有），port 时 **stub pricing**（标 `#[allow(dead_code)]` + TODO(tech-debt)）
+
+#### 影响文件
+- [docs/superpowers/plans/2026-06-17-roadmap.md](docs/superpowers/plans/2026-06-17-roadmap.md) — 升至 v0.3
+- [docs/superpowers/plans/2026-06-17-p12-batch1-quotation-port-plan.md](docs/superpowers/plans/2026-06-17-p12-batch1-quotation-port-plan.md) — 新建
+- [MEMORY.md](MEMORY.md) — "P12 待启动"段扩展为 v0.3 范围
+
 ---
 
 ### P11 批 1 合并汇总（2026-06-17，3 个高风险任务全部完成）
