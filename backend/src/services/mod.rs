@@ -1,6 +1,8 @@
 pub mod assist_accounting_service;
 pub mod auth_service;
 pub mod batch_service;
+// P3-4 数据仓库/BI 关键路径 demo
+pub mod bi_analysis_service;
 pub mod business_trace_service;
 pub mod crm;
 pub mod customer_service;
