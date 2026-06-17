@@ -12,6 +12,7 @@ pub mod middleware;
 pub mod models;
 pub mod observability;
 pub mod routes;
+pub mod search; // P9-8 Elasticsearch 集成
 pub mod services;
 pub mod utils;
 pub mod websocket; // P3-2 WebSocket 实时通信模块

@@ -1,0 +1,125 @@
+version: "3.9"
+
+# P9-8 Elasticsearch 集成部署
+# 包含：ES 单节点 + Kibana
+
+services:
+  # 1. Elasticsearch（单节点模式，开发/测试用）
+  elasticsearch:
+    image: docker.elastic.co/elasticsearch/elasticsearch:8.11.0
+    container_name: bx-elasticsearch
+    environment:
+      - discovery.type=single-node
+      - xpack.security.enabled=false
+      - "ES_JAVA_OPTS=-Xms512m -Xmx512m"
+      - cluster.routing.allocation.disk.threshold_enabled=false
+    ulimits:
+      memlock:
+        soft: -1
+        hard: -1
+    volumes:
+      - es_data:/usr/share/elasticsearch/data
+    ports:
+      - "9200:9200"
+      - "9300:9300"
+    restart: unless-stopped
+    networks:
+      - bx-es
+
+  # 2. Kibana（可视化）
+  kibana:
+    image: docker.elastic.co/kibana/kibana:8.11.0
+    container_name: bx-kibana
+    depends_on:
+      - elasticsearch
+    environment:
+      ELASTICSEARCH_HOSTS: http://elasticsearch:9200
+    ports:
+      - "5601:5601"
+    restart: unless-stopped
+    networks:
+      - bx-es
+
+  # 3. 索引初始化（自动创建 3 个索引）
+  es-init:
+    image: curlimages/curl:8.5.0
+    container_name: bx-es-init
+    depends_on:
+      - elasticsearch
+    networks:
+      - bx-es
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        sleep 20 &&
+        # 创建 sales_orders 索引（含中文分词器）
+        curl -X PUT "http://elasticsearch:9200/sales_orders" \
+          -H "Content-Type: application/json" \
+          -d '{
+            "settings": {
+              "number_of_shards": 1,
+              "number_of_replicas": 0,
+              "analysis": {
+                "analyzer": {
+                  "ik_smart_pinyin": {
+                    "type": "custom",
+                    "tokenizer": "ik_smart"
+                  }
+                }
+              }
+            },
+            "mappings": {
+              "properties": {
+                "order_no": { "type": "keyword" },
+                "customer_id": { "type": "integer" },
+                "customer_name": { "type": "text", "analyzer": "ik_smart" },
+                "total_amount": { "type": "double" },
+                "status": { "type": "keyword" },
+                "created_at": { "type": "date" },
+                "tenant_id": { "type": "keyword" }
+              }
+            }
+          }' &&
+        # 创建 customers 索引
+        curl -X PUT "http://elasticsearch:9200/customers" \
+          -H "Content-Type: application/json" \
+          -d '{
+            "settings": { "number_of_shards": 1, "number_of_replicas": 0 },
+            "mappings": {
+              "properties": {
+                "id": { "type": "integer" },
+                "code": { "type": "keyword" },
+                "name": { "type": "text", "analyzer": "ik_smart" },
+                "phone": { "type": "keyword" },
+                "email": { "type": "keyword" },
+                "tier": { "type": "keyword" },
+                "tenant_id": { "type": "keyword" }
+              }
+            }
+          }' &&
+        # 创建 products 索引
+        curl -X PUT "http://elasticsearch:9200/products" \
+          -H "Content-Type: application/json" \
+          -d '{
+            "settings": { "number_of_shards": 1, "number_of_replicas": 0 },
+            "mappings": {
+              "properties": {
+                "id": { "type": "integer" },
+                "code": { "type": "keyword" },
+                "name": { "type": "text", "analyzer": "ik_smart" },
+                "color_no": { "type": "keyword" },
+                "pantone_code": { "type": "keyword" },
+                "price": { "type": "double" },
+                "tenant_id": { "type": "keyword" }
+              }
+            }
+          }' &&
+        echo "P9-8 3 indices created: sales_orders, customers, products"
+
+volumes:
+  es_data:
+    driver: local
+
+networks:
+  bx-es:
+    driver: bridge
