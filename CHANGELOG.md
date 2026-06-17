@@ -9,6 +9,49 @@
 
 ## [Unreleased] - 2026-06-17
 
+### 文档重新规划（2026-06-17，项目收尾）
+
+#### 新建
+- **综合路线图**：[docs/superpowers/plans/2026-06-17-roadmap.md](docs/superpowers/plans/2026-06-17-roadmap.md)
+  - 整合所有未完成任务：Wave 2 遗留（9 子任务）+ Wave 4 候选（6 任务）+ B 复查（3 任务）+ .monkeycode/ 归档任务
+  - 按优先级分类：🟠 P0（1）/ 🟠 P1（3）/ 🟡 P2（7）/ 🟡 P3（5）
+  - 推荐 P12 批 1 范围：P2-1（5 PR 串行）+ B-type-check（CI 5 job）+ P2-2 性能优化
+  - 派发策略：3 个独立子代理串行（参照 P11 批 1 验证通过的模式）
+  - 7 节结构：目标背景 / 任务清单 / 优先级 / 批次规划 / 执行策略 / 关联文档 / 待办确认
+
+#### 删除（旧 plans/specs）
+- **plans/ 删除 10 个**：
+  - 2026-06-03-backend-refactor-security.md
+  - 2026-06-03-comprehensive-bug-fix.md
+  - 2026-06-03-fix-api-route-mismatches.md
+  - 2026-06-13-quality-improvement.md
+  - 2026-06-15-b7-completion-report.md
+  - 2026-06-15-wave1-3-evaluation.md
+  - 2026-06-15-wave2-revised-plan.md
+  - 2026-06-15-wave3-evaluation-plan.md
+  - 2026-06-15-wave3-evaluation-v2.md
+  - 2026-06-15-wave3-wrap-up-completion-report.md
+- **specs/ 删除 3 个**：
+  - 2026-06-03-backend-refactor-security-design.md
+  - 2026-06-15-b7-console-cleanup-design.md
+  - 2026-06-15-wave3-wrap-up-design.md
+- **保留 3 个**（被新路线图引用）：
+  - plans/2026-06-16-wave4-p2-1-plan.md（Wave 4 P2-1 详细子任务计划）
+  - plans/2026-06-17-p11-h3-deadcode-cleanup-report.md（最近 P11 H3 产出）
+  - specs/2026-06-16-wave4-p2-1-design.md（Wave 4 P2-1 设计稿）
+
+#### MEMORY.md 同步
+- "P12 待启动" → "P12 批 1：详见综合路线图"
+- "Wave 3 收尾报告" / "Wave 1-3 综合评估" 引用改为指向 roadmap
+- "关键文档位置" 表精简为 7 项（突出 roadmap + 3 个保留文档 + 3 个根目录文档）
+
+#### 用户决策点（2026-06-17 AskUserQuestion）
+- ✅ 新规划文件命名：`2026-06-17-roadmap.md`
+- ✅ 旧文件处理：直接删除（保留最近 3 个）
+- ✅ 新规划范围：全覆盖（Wave 2 + Wave 4 + B6 + B 复查）
+
+---
+
 ### P11 批 1 合并汇总（2026-06-17，3 个高风险任务全部完成）
 
 | PR | 任务 | 子代理 | 提交 | 状态 |

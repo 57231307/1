@@ -128,7 +128,10 @@
 
 ### 待启动
 
-- **P12**：由用户决策具体任务（P11 批 1 已完成 3 个高风险）
+- **P12 批 1**：详见综合路线图 [2026-06-17-roadmap.md](docs/superpowers/plans/2026-06-17-roadmap.md)
+  - 推荐范围：P2-1（5 PR 串行）+ B-type-check（CI 5 job）+ P2-2 性能优化
+  - 派发策略：3 个独立子代理串行（参照 P11 批 1 验证通过的模式）
+  - 用户决策：3 关键点已确认（命名/旧文件/范围）
 
 ### Wave 3 收尾关键产出
 
@@ -137,11 +140,11 @@
 - 8 新单测：recipe_opt 4 + quality_pred 4
 - 1 自动发版：v2026.615.2350
 - 6 远端分支清理
-- 1 收尾报告：`docs/superpowers/plans/2026-06-15-wave3-wrap-up-completion-report.md`
+- 1 收尾报告：（已整合入 [2026-06-17-roadmap.md](docs/superpowers/plans/2026-06-17-roadmap.md)，旧版按用户决策删除）
 
 ### Wave 1-3 综合评估
 
-- 评估报告：`docs/superpowers/plans/2026-06-15-wave1-3-evaluation.md`（754 行）
+- 评估报告：（已整合入 [2026-06-17-roadmap.md](docs/superpowers/plans/2026-06-17-roadmap.md)，旧版按用户决策删除）
 - 评估 commit：1981888（PR #103 squash merge）
 - 关键数据：894 commits / 101 PR 全部合并 / 190 tags / 235044 行代码 / 108 .vue / 493 .rs
 - AI 模块：5 个（pred/detect/rec/recipe_opt/quality_pred）
@@ -156,15 +159,15 @@
 
 | 文档 | 路径 |
 |------|------|
-| 综合 spec | `/workspace/docs/superpowers/specs/2026-06-15-wave3-wrap-up-design.md` |
-| Wave 3 收尾报告 | `/workspace/docs/superpowers/plans/2026-06-15-wave3-wrap-up-completion-report.md` |
-| Wave 1-3 综合评估 | `/workspace/docs/superpowers/plans/2026-06-15-wave1-3-evaluation.md` |
-| Wave 3 v2 评估 | `/workspace/docs/superpowers/plans/2026-06-15-wave3-evaluation-v2.md` |
-| B7 spec | `/workspace/docs/superpowers/specs/2026-06-15-b7-console-cleanup-design.md` |
-| B7 报告 | `/workspace/docs/superpowers/plans/2026-06-15-b7-completion-report.md` |
+| **综合路线图** | `/workspace/docs/superpowers/plans/2026-06-17-roadmap.md`（2026-06-17 新建，整合所有未完成任务）|
+| Wave 4 P2-1 详细计划 | `/workspace/docs/superpowers/plans/2026-06-16-wave4-p2-1-plan.md` |
+| Wave 4 P2-1 设计稿 | `/workspace/docs/superpowers/specs/2026-06-16-wave4-p2-1-design.md` |
+| P11 H3 死代码清理报告 | `/workspace/docs/superpowers/plans/2026-06-17-p11-h3-deadcode-cleanup-report.md` |
 | CHANGELOG | `/workspace/CHANGELOG.md` |
 | CI/CD | `/workspace/.github/workflows/ci-cd.yml` |
 | Clippy 规则 | `/workspace/backend/.clippy.toml` |
+
+> **注**：2026-06-15 / 2026-06-13 / 2026-06-03 的旧 plans/specs 已按用户决策删除，关键内容整合入 [roadmap.md](docs/superpowers/plans/2026-06-17-roadmap.md)。
 
 ---
 
