@@ -137,8 +137,7 @@ async fn test_kafka_unreachable_falls_back_to_broadcast() {
     let result = KafkaBackend::try_new(&cfg).await;
     assert!(
         result.is_err(),
-        "Kafka 不可达时 try_new 应返回错误，实际: {:?}",
-        result
+        "Kafka 不可达时 try_new 应返回错误（避免卡死启动流程）"
     );
     let err = result.err().unwrap();
     assert!(
