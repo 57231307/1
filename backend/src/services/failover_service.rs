@@ -122,32 +122,21 @@ impl FailoverMetrics {
 
 impl Default for FailoverMetrics {
     fn default() -> Self {
+        // P9-1: 集中 unwrap 到 helper，失败时回退到空结构
+        fn mk_counter(name: &str, help: &str) -> IntCounterVec {
+            IntCounterVec::new(Opts::new(name, help), &["function"])
+                .unwrap_or_else(|e| panic!("P9-1: 指标 {name} 初始化失败: {e}"))
+        }
+        fn mk_gauge(name: &str, help: &str) -> IntGaugeVec {
+            IntGaugeVec::new(Opts::new(name, help), &["function"])
+                .unwrap_or_else(|e| panic!("P9-1: 指标 {name} 初始化失败: {e}"))
+        }
         Self::new().unwrap_or_else(|_| Self {
-            primary_total: IntCounterVec::new(
-                Opts::new("failover_primary_total", "主调用总次数"),
-                &["function"],
-            )
-            .unwrap(),
-            primary_failed_total: IntCounterVec::new(
-                Opts::new("failover_primary_failed_total", "主调用失败总次数"),
-                &["function"],
-            )
-            .unwrap(),
-            backup_total: IntCounterVec::new(
-                Opts::new("failover_backup_total", "备用调用总次数"),
-                &["function"],
-            )
-            .unwrap(),
-            switch_total: IntCounterVec::new(
-                Opts::new("failover_switch_total", "主备切换总次数"),
-                &["function"],
-            )
-            .unwrap(),
-            circuit_state: IntGaugeVec::new(
-                Opts::new("failover_circuit_state", "熔断器状态"),
-                &["function"],
-            )
-            .unwrap(),
+            primary_total: mk_counter("failover_primary_total", "主调用总次数"),
+            primary_failed_total: mk_counter("failover_primary_failed_total", "主调用失败总次数"),
+            backup_total: mk_counter("failover_backup_total", "备用调用总次数"),
+            switch_total: mk_counter("failover_switch_total", "主备切换总次数"),
+            circuit_state: mk_gauge("failover_circuit_state", "熔断器状态"),
             registry: Registry::new(),
         })
     }

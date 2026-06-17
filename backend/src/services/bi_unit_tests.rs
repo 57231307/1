@@ -4,6 +4,9 @@
 mod tests {
     use rust_decimal::Decimal;
     use std::str::FromStr;
+    // P9-1: 引入 decs! 宏统一测试夹具
+    #[allow(unused_imports)]
+    use crate::decs;
 
     /* 销售数据点 */
     #[derive(Debug, Clone)]
@@ -86,10 +89,10 @@ mod tests {
         // 中文测试名：测试同比增长率
         // 今年 110 vs 去年 100 = 10%
         let g = yoy_growth(Decimal::from(110), Decimal::from(100));
-        assert_eq!(g, Decimal::from_str("10.00").unwrap());
+        assert_eq!(g, decs!("10.00"));
         // 今年 50 vs 去年 100 = -50%
         let g2 = yoy_growth(Decimal::from(50), Decimal::from(100));
-        assert_eq!(g2, Decimal::from_str("-50.00").unwrap());
+        assert_eq!(g2, decs!("-50.00"));
     }
 
     #[test]
@@ -114,7 +117,7 @@ mod tests {
         assert_eq!(median(&mut m_values), Decimal::from(30));
         // 偶数个
         let mut m_even = vec![Decimal::from(1), Decimal::from(2), Decimal::from(3), Decimal::from(4)];
-        assert_eq!(median(&mut m_even), Decimal::from_str("2.5").unwrap());
+        assert_eq!(median(&mut m_even), decs!("2.5"));
     }
 
     #[test]

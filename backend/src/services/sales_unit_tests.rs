@@ -11,6 +11,9 @@ mod tests {
     use rust_decimal::Decimal;
     use rust_decimal::prelude::*;
     use std::str::FromStr;
+    // P9-1: 引入 decs! 宏统一测试夹具
+    #[allow(unused_imports)]
+    use crate::decs;
 
     /* SalesOverview 统计结构 - 业务模型 */
     #[derive(Debug, Clone, Default, PartialEq)]
@@ -82,11 +85,11 @@ mod tests {
             id: 1,
             customer_id: 100,
             quantity: Decimal::from(10),
-            unit_price: Decimal::from_str("25.50").unwrap(),
+            unit_price: decs!("25.50"),
             status: OrderStatus::Draft,
         };
         let total = order.total_amount();
-        assert_eq!(total, Decimal::from_str("255.00").unwrap());
+        assert_eq!(total, decs!("255.00"));
     }
 
     #[test]
@@ -96,11 +99,11 @@ mod tests {
             id: 1,
             customer_id: 100,
             quantity: Decimal::from(100),
-            unit_price: Decimal::from_str("100.00").unwrap(),
+            unit_price: decs!("100.00"),
             status: OrderStatus::Confirmed,
         };
-        let tax = order.tax_amount(Decimal::from_str("0.13").unwrap());
-        assert_eq!(tax, Decimal::from_str("1300.00").unwrap());
+        let tax = order.tax_amount(decs!("0.13"));
+        assert_eq!(tax, decs!("1300.00"));
     }
 
     #[test]
@@ -129,7 +132,7 @@ mod tests {
                 id: 2,
                 customer_id: 2,
                 quantity: Decimal::from(5),
-                unit_price: Decimal::from_str("15.50").unwrap(),
+                unit_price: decs!("15.50"),
                 status: OrderStatus::Completed,
             },
             SalesOrder {
@@ -141,7 +144,7 @@ mod tests {
             },
         ];
         let total: Decimal = orders.iter().map(|o| o.total_amount()).sum();
-        assert_eq!(total, Decimal::from_str("477.50").unwrap());
+        assert_eq!(total, decs!("477.50"));
 
         // 仅统计已完成订单
         let completed_total: Decimal = orders
@@ -149,6 +152,6 @@ mod tests {
             .filter(|o| o.status == OrderStatus::Completed)
             .map(|o| o.total_amount())
             .sum();
-        assert_eq!(completed_total, Decimal::from_str("277.50").unwrap());
+        assert_eq!(completed_total, decs!("277.50"));
     }
 }

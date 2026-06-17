@@ -390,10 +390,18 @@ pub async fn export_login_logs(
         ));
     }
 
-    Ok(axum::response::Response::builder()
+    // P9-1 关键路径 unwrap 清理：HTTP 响应构建使用 map_err 把 I/O 错误转为 AppError
+    // 失败时返回 500 + 中文错误信息，避免生产 panic 暴露给前端
+    axum::response::Response::builder()
         .status(200)
         .header("Content-Type", "text/csv; charset=utf-8")
         .header("Content-Disposition", "attachment; filename=login_logs.csv")
         .body(axum::body::Body::from(csv_content))
-        .unwrap())
+        .map_err(|e| {
+            tracing::error!(
+                error = %e,
+                "P9-1: 登录日志 CSV 响应构建失败（HTTP builder 错误）"
+            );
+            AppError::internal(format!("P9-1: 登录日志导出响应构建失败: {e}"))
+        })
 }

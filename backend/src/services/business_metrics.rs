@@ -377,10 +377,15 @@ pub fn build_registry_and_metrics() -> Result<(Arc<Registry>, BusinessMetrics), 
 mod tests {
     use super::*;
 
+    // P9-1: 测试夹具 helper，统一 build_registry_and_metrics 的 expect
+    fn build_metrics() -> (prometheus::Registry, BusinessMetrics) {
+        build_registry_and_metrics().expect("P9-1: 测试夹具 metrics 注册失败")
+    }
+
     #[test]
     fn 测试_business_metrics_注册() {
         // 中文测试名：测试 business metrics 全部注册成功
-        let (registry, _m) = build_registry_and_metrics().unwrap();
+        let (registry, _m) = build_metrics();
         let families = registry.gather();
         // 至少 20+ 个指标家族
         assert!(families.len() >= 20, "指标家族数应 >= 20，实际: {}", families.len());
@@ -389,7 +394,7 @@ mod tests {
     #[test]
     fn 测试_缓存命中率() {
         // 中文测试名：测试缓存命中率计算
-        let (_r, m) = build_registry_and_metrics().unwrap();
+        let (_r, m) = build_metrics();
         m.record_cache_hit();
         m.record_cache_hit();
         m.record_cache_hit();
@@ -401,7 +406,7 @@ mod tests {
     #[test]
     fn 测试_登录记录() {
         // 中文测试名：测试登录成功/失败记录
-        let (_r, m) = build_registry_and_metrics().unwrap();
+        let (_r, m) = build_metrics();
         m.record_login(true);
         m.record_login(true);
         m.record_login(false);

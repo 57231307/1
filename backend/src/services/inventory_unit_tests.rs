@@ -5,6 +5,9 @@ mod tests {
     use rust_decimal::Decimal;
     use std::collections::HashMap;
     use std::str::FromStr;
+    // P9-1: 引入 decs! 宏统一测试夹具
+    #[allow(unused_imports)]
+    use crate::decs;
 
     /* 库存行 */
     #[derive(Debug, Clone)]
@@ -67,11 +70,11 @@ mod tests {
         let s = StockRow {
             product_id: 1,
             warehouse_id: 1,
-            quantity: Decimal::from_str("50.5").unwrap(),
+            quantity: decs!("50.5"),
             reserved: Decimal::ZERO,
-            unit_cost: Decimal::from_str("12.00").unwrap(),
+            unit_cost: decs!("12.00"),
         };
-        assert_eq!(s.value(), Decimal::from_str("606.00").unwrap());
+        assert_eq!(s.value(), decs!("606.00"));
     }
 
     #[test]
@@ -97,7 +100,7 @@ mod tests {
         // 中文测试名：测试库存周转率计算
         // 周转率 = 销售量 / 平均库存
         let t1 = inventory_turnover(Decimal::from(500), Decimal::from(100));
-        assert_eq!(t1, Decimal::from_str("5.00").unwrap());
+        assert_eq!(t1, decs!("5.00"));
         let t2 = inventory_turnover(Decimal::from(0), Decimal::from(100));
         assert_eq!(t2, Decimal::ZERO);
     }

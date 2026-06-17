@@ -66,9 +66,16 @@ impl Default for PasswordPolicy {
     }
 }
 
-static RE_UPPERCASE: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"[A-Z]").unwrap());
-static RE_LOWERCASE: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"[a-z]").unwrap());
-static RE_DIGIT: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"[0-9]").unwrap());
+// P9-1: 静态正则常量初始化，把 unwrap 集中到 helper 便于 P9-1 排查
+fn init_regex(pattern: &str) -> Regex {
+    Regex::new(pattern).unwrap_or_else(|e| {
+        panic!("P9-1: 密码校验正则 {pattern} 编译失败: {e}")
+    })
+}
+
+static RE_UPPERCASE: LazyLock<Regex> = LazyLock::new(|| init_regex(r"[A-Z]"));
+static RE_LOWERCASE: LazyLock<Regex> = LazyLock::new(|| init_regex(r"[a-z]"));
+static RE_DIGIT: LazyLock<Regex> = LazyLock::new(|| init_regex(r"[0-9]"));
 
 fn has_special_char(password: &str) -> bool {
     password.chars().any(|c| !c.is_alphanumeric())

@@ -317,12 +317,13 @@ mod tests {
     #[test]
     fn test_csv_parse() {
         let csv_data = b"name,age,city\nAlice,30,Beijing\nBob,25,Shanghai";
-        let records = CsvImporter::parse(csv_data).unwrap();
+        let records = CsvImporter::parse(csv_data).expect("P9-1: CSV 解析失败");
 
         assert_eq!(records.len(), 2);
-        assert_eq!(records[0].get("name").unwrap(), "Alice");
-        assert_eq!(records[0].get("age").unwrap(), "30");
-        assert_eq!(records[1].get("city").unwrap(), "Shanghai");
+        // P9-1: 用 if let Some(...) 替代 .get(...).unwrap()，明确处理键不存在场景
+        assert_eq!(records[0].get("name").map(String::as_str), Some("Alice"));
+        assert_eq!(records[0].get("age").map(String::as_str), Some("30"));
+        assert_eq!(records[1].get("city").map(String::as_str), Some("Shanghai"));
     }
 
     #[test]
@@ -333,8 +334,8 @@ mod tests {
         row1.insert("age".to_string(), "30".to_string());
         let rows = vec![row1];
 
-        let data = CsvImporter::generate(&headers, &rows).unwrap();
-        let content = String::from_utf8(data).unwrap();
+        let data = CsvImporter::generate(&headers, &rows).expect("P9-1: CSV 生成失败");
+        let content = String::from_utf8(data).expect("P9-1: UTF-8 解码失败");
         assert!(content.contains("name,age"));
         assert!(content.contains("Alice,30"));
     }
@@ -348,7 +349,7 @@ mod tests {
 
     #[test]
     fn test_field_validator_integer() {
-        assert_eq!(FieldValidator::integer("42", "数量").unwrap(), 42);
+        assert_eq!(FieldValidator::integer("42", "数量").expect("P9-1: 整数校验"), 42);
         assert!(FieldValidator::integer("abc", "数量").is_err());
     }
 
@@ -366,10 +367,10 @@ mod tests {
 
     #[test]
     fn test_field_validator_boolean() {
-        // 改用 assert! 避免 bool 字面量比较触发 clippy::bool_assert_comparison
-        assert!(FieldValidator::boolean("true", "启用").unwrap());
-        assert!(!FieldValidator::boolean("0", "启用").unwrap());
-        assert!(FieldValidator::boolean("是", "启用").unwrap());
+        // P9-1: 改用 expect 替代 unwrap，并明确中文失败原因
+        assert!(FieldValidator::boolean("true", "启用").expect("P9-1: 布尔校验"));
+        assert!(!FieldValidator::boolean("0", "启用").expect("P9-1: 布尔校验"));
+        assert!(FieldValidator::boolean("是", "启用").expect("P9-1: 布尔校验"));
         assert!(FieldValidator::boolean("maybe", "启用").is_err());
     }
 
@@ -377,7 +378,7 @@ mod tests {
     fn test_field_validator_enum() {
         let allowed = &["A", "B", "C"];
         assert_eq!(
-            FieldValidator::enum_value("B", "类型", allowed).unwrap(),
+            FieldValidator::enum_value("B", "类型", allowed).expect("P9-1: 枚举校验"),
             "B"
         );
         assert!(FieldValidator::enum_value("D", "类型", allowed).is_err());
@@ -386,15 +387,15 @@ mod tests {
     #[test]
     fn test_import_format_from_extension() {
         assert_eq!(
-            ImportFormat::from_extension("csv").unwrap(),
+            ImportFormat::from_extension("csv").expect("P9-1: 扩展名解析"),
             ImportFormat::Csv
         );
         assert_eq!(
-            ImportFormat::from_extension("xlsx").unwrap(),
+            ImportFormat::from_extension("xlsx").expect("P9-1: 扩展名解析"),
             ImportFormat::Excel
         );
         assert_eq!(
-            ImportFormat::from_extension("XLS").unwrap(),
+            ImportFormat::from_extension("XLS").expect("P9-1: 扩展名解析"),
             ImportFormat::Excel
         );
         assert!(ImportFormat::from_extension("pdf").is_none());
