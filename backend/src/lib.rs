@@ -7,6 +7,7 @@ pub mod cli;
 pub mod config;
 pub mod database;
 pub mod handlers;
+pub mod messaging; // P9-7 Kafka 集成
 pub mod middleware;
 pub mod models;
 pub mod observability;
