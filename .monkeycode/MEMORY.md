@@ -1,6 +1,9 @@
 # 用户指令记忆
 
-本文件记录了用户的指令、偏好和教导，用于在未来的交互中提供参考。
+> 本文件从 `.monkeycode/MEMORY.md` 精简后仅保留**用户指令/偏好**和**工作流规范**类条目。
+> **任务相关条目**（功能实现进度、路由架构变动、任务规划、波次总结等）已抽离到 [doto.md](file:///workspace/.monkeycode/doto.md)。
+> 本文件为本地工作记录（`.monkeycode/` 目录在 `.gitignore` 中），不通过 PR 推送。
+> 重要变更需要同步更新 `/workspace/CHANGELOG.md`。
 
 ## 格式
 
@@ -29,7 +32,74 @@ Agent 在任务执行过程中发现的条目应遵循以下格式：
 - 合并时，更新上下文或日期信息
 - 这有助于避免冗余条目，保持记忆文件整洁
 
+## 文件分类说明
+
+| 文件 | 用途 |
+|------|------|
+| `MEMORY.md` | 用户指令/偏好/工作流规范（必读）|
+| `doto.md` | 任务进度、规划、波次总结（按需查）|
+
 ## 条目
+
+[项目评估结果 2026-06-16]
+- Date: 2026-06-16
+- Context: 全项目评估（5 维度并行扫描）
+- Category: 工作流协作
+- Instructions:
+  - **整体评分**: 72/100（B+ 级）
+  - **5 大模块**: 核心业务 28/30、多租户 15/15、权限 12/15、行业 5/20、代码质量 12/20
+  - **最大短板**: 行业专属功能（5/20）— 销售报价单 0%、定制订单全流程 0%、色号命名 30%
+  - **关键缺口**:
+    1. P0: 销售报价单（缺 sales_quotations/quote_items/quote_terms 三表）
+    2. P0: 定制订单全流程跟踪（缺 custom_orders/process_nodes/process_logs/quality_issues/after_sales 五表）
+    3. P0: 主备隔离（数据库/缓存单点）
+  - **代码审计 Top 5 高危文件**:
+    1. backend/src/utils/dual_unit_converter.rs (26 expect)
+    2. backend/src/services/auth_service.rs (13 expect)
+    3. frontend/src/views/system/index.vue (56 any / 1521 行)
+    4. frontend/src/views/ap/index.vue (31 any / 1035 行)
+  - **健康指标**: 0 panic / 0 unsafe / 0 @ts-ignore / 0 as unknown
+  - **改进路线图**:
+    - 短期 6 周（目标 80 分）: P0 行业功能 + 主备隔离
+    - 中期 6 周（目标 88 分）: P1 行业功能 + 代码清理
+    - 长期 24 周（目标 95 分）: 行业标准化 + 智能制造
+  - **评估报告位置**: docs/superpowers/reports/2026-06-16-*.md (5 份)
+  - **汇总报告位置**: .monkeycode/docs/项目评估报告.md
+
+[行业规则校验结果]
+- Date: 2026-06-16
+- Context: 纺织行业业务规则联网校验
+- Category: 行业标准
+- Instructions:
+  - **合规度加权平均**: 37/100
+  - **GB/T 关键标准**:
+    - GB/T 21898-2023 纺织品颜色表示方法
+    - GB/T 15608-2006 中国颜色体系（CNCS）
+    - GB/T 26377-2022 纺织品颜色标准样品技术规范
+    - GB/T 8424.3 纺织品色牢度试验色差计算
+    - GB/T 3899.2-2007 染料命名标准色卡
+  - **色差行业标准**: ΔECMC ≤ 3
+  - **PANTONE**: 行业通用（出口导向企业广泛采用）
+  - **当前合规**:
+    - 面料分类 85/100、染整工艺 70/100
+    - 色号命名 30/100（缺 CNCS/色差/色彩空间）
+    - 报价单 0/100、定制订单 0/100
+  - **CIELab 色彩空间**: 国际标准颜色表示（需 RGB → Lab 转换）
+  - **P0 改进后预期**: 37 → 76（+39 分）
+
+[主备隔离设计原则]
+- Date: 2026-06-16
+- Context: 8 大核心功能主备隔离设计
+- Category: 架构设计
+- Instructions:
+  - **核心约束**: 仅主调用不可用（超时/失败/熔断）时才切换备用
+  - **主调用正常时禁用备用**: 避免资源浪费和双写不一致
+  - **故障转移后支持回切**: 半开状态探测
+  - **关键参数**: 主调用超时 3s、熔断阈值 5 次、熔断时长 30s
+  - **8 大功能**: 数据库/缓存/消息队列/文件存储/短信/邮件/搜索/OCR
+  - **统一抽象接口**: `FailoverCall<T,E>` trait（异步）
+  - **告警规则**: 切换频率 > 5/小时 P2，备用失败率 > 10% P1，熔断持续 > 5 分钟 P1，双不可用 P0
+  - **设计文档**: docs/superpowers/reports/2026-06-16-failover-design.md
 
 [语言偏好]
 - Date: 2026-05-22
@@ -39,13 +109,29 @@ Agent 在任务执行过程中发现的条目应遵循以下格式：
   - 包括代码解释、错误提示和操作说明
   - 保持专业术语准确的同时使用中文表达
 
+[doto.md 实时更新规则]
+- Date: 2026-06-16
+- Context: 用户明确要求 doto.md 需实时根据任务更新
+- Category: 工作流协作
+- Instructions:
+  - **触发场景**：每次任务进展（启动/完成/重新规划/状态变化）时，必须实时更新 `/workspace/.monkeycode/doto.md`
+  - **更新内容**：
+    - 当前待办表格（任务、状态、备注）
+    - 任务规划变更（重新规划、波次调整）
+    - 波次执行总结（已完成/进行中）
+    - 完成回顾（PR 列表、CI 结果、自动发版版本号）
+  - **同步规则**：
+    - 重要变更（任务完成/重新规划/分支策略调整）需同步更新 `/workspace/CHANGELOG.md`
+    - 本地 `.monkeycode/` 目录在 `.gitignore` 中，不通过 PR 推送
+    - CHANGELOG.md 通过 PR 推送到 test/main 分支
+
 [项目运行时知识]
 - Date: 2026-05-27
 - Context: 用户提供项目运维和配置信息
 - Category: 运维部署
 - Instructions:
-  - 生产服务器: 111.230.99.236，SSH 用户: root，SSH 密码: Txx19960917
-  - 数据库: 39.99.34.194:5432，用户 bingxi，数据库密码: d5eb610ccf1a701dac02d5.dbcba8f5f546a
+  - **服务器信息**：生产服务器 111.230.99.236（SSH: root），数据库服务器 39.99.34.194:5432（用户: bingxi）
+  - **敏感信息**：密码等敏感信息禁止记录在记忆文件中，仅通过环境变量或安全配置管理
   - 服务名称: bingxi-backend (systemd)，安装目录: /opt/bingxi-erp
   - 后端端口: 8082，日志目录: /opt/bingxi-erp/backend/logs，备份目录: /opt/bingxi-erp/backups
   - 环境配置: /etc/bingxi-erp/.env
@@ -54,198 +140,6 @@ Agent 在任务执行过程中发现的条目应遵循以下格式：
   - **服务器不安装Redis**：有专门的Redis服务器，应用服务器只连接远程Redis
   - **服务器只需安装**: Nginx、curl
   - 部署命令: `bingxi update` (CLI工具)
-
-[功能实现进度]
-- Date: 2026-06-06
-- Context: 用户提供项目已实现功能清单，经过深入分析确认
-- Category: 环境配置
-- Instructions:
-  - 项目包含 **751个子功能**，102个后端Handler，74个前端API模块，67个前端页面
-  - **路由变动记录（2026-06-06）**：
-    - 条码扫描统计：`/statistics` → `/scan-statistics`
-    - 邮件记录：`/records` → `/email-records`
-    - 导入模板下载：`/templates/:import_type` → `/templates/download/:import_type`
-    - 租户计费用量：`/usage` → `/billing-usage`
-    - API密钥撤销：`/:id/revoke` → `/api-key/:id/revoke`（支持DELETE和POST）
-    - 新增高级分析路由：`/sales-prices`、`/sales-returns`
-    - 新增CRM标签路由：`/customers/:id/tags`（POST添加）、`/crm-tags/:id`（DELETE删除）
-    - 新增销售用户路由：`/sales-users`
-    - 新增物流删除路由：`/logistics/:id`（DELETE）
-    - 新增染色批次更新路由：`/dye-batches/:id`（PUT）
-    - 新增MRP转单路由：`/mrp/convert-orders`（POST）
-    - 新增排程路由：`/scheduling/gantt`（GET甘特图）、`/scheduling/:id`（PUT调整）
-    - 新增产能趋势路由：`/capacity/trend`（GET）
-    - 新增供应商删除路由：`/suppliers/:id`（DELETE）
-    - **setup 模式初始化修复（2026-06-07）**：
-      - 后端：增加进程级 `SETUP_MODE_INITIALIZED` 标志位
-      - 前端：router 暴露 `resetInitStatus()`，Setup.vue 在 `goToLogin()` 之前主动重置缓存
-  - **新增前端路由和页面（2026-05-30）**：
-    - 邮件管理 `/email`：邮件模板CRUD、发送记录查询、发送统计
-      - API: `/frontend/src/api/email.ts`
-      - 页面: `/frontend/src/views/email/index.vue`
-    - 租户计费管理 `/tenant-billing`：当前套餐、套餐列表、账单列表、升级/续费
-      - API: `/frontend/src/api/tenant-billing.ts`
-      - 页面: `/frontend/src/views/tenant-billing/index.vue`
-    - 采购检验 `/purchase-inspection`：检验单CRUD、完成检验、检验明细管理
-      - API: `/frontend/src/api/purchase-inspection.ts`
-      - 页面: `/frontend/src/views/purchase-inspection/index.vue`
-    - 采购退货 `/purchase-return`：退货单CRUD、提交/审批、退货明细管理
-      - API: `/frontend/src/api/purchase-return.ts`（已存在）
-      - 页面: `/frontend/src/views/purchase-return/index.vue`
-    - 物流管理 `/logistics`：运单CRUD、发货、状态更新、删除运单
-      - API: `/frontend/src/api/logistics.ts`
-      - 页面: `/frontend/src/views/logistics/index.vue`
-    - 路由配置: `/frontend/src/router/index.ts`（已添加5个新路由）
-  - **系统设置模块（71个子功能）**：
-    - 系统管理（12个Tab）：用户管理、角色管理、部门管理、权限管理、数据权限、字段权限、通知设置、审计日志、Webhook配置、系统更新、租户配置、公司信息
-    - 系统设置：通知中心、登录安全、全量审计、数据权限管理、API密钥管理
-    - 部门管理：部门CRUD、部门树
-    - 五维管理：五维统计、搜索、解析、辅助核算、业务追溯
-    - 报表中心：报表模板、报表导出、报表订阅、财务报表、财务分析
-    - 数据导入：CSV导入、Excel导入、导入模板下载、CSV导出、Excel导出
-    - 打印模板：销售订单、销售合同、采购订单、采购入库、库存调拨、库存盘点、凭证
-    - API网关：API密钥管理、API速率限制
-    - 系统更新：检查更新、应用更新、版本管理、版本回滚、本地更新、上传更新
-    - 高级功能：AI销售预测、AI库存优化、AI异常检测、AI智能推荐、报表引擎、多租户管理
-    - 通知中心：通知列表、未读通知、标记已读、通知设置、通知详情、删除通知
-    - 全量审计：审计大屏、审计日志
-  - **销售管理（47个子功能）**：
-    - 销售订单：列表、创建、编辑、删除、详情、提交审批、审批、发货、完成、历史、导出、打印
-    - 面料订单：列表、创建、编辑、删除、详情、审批
-    - 销售合同：列表、创建、编辑、删除、详情、审批、执行、取消、打印
-    - 销售价格：列表、创建、编辑、删除、详情、审批、历史、策略（API: `/sales-prices`）
-    - 销售退货：列表、创建、编辑、删除、详情、提交审批、审批、拒绝（API: `/sales-returns`）
-    - 销售分析：统计、趋势、排名、目标
-    - 销售用户：列表（API: `/sales-users`）
-  - **采购管理（58个子功能）**：
-    - 采购订单：列表、创建、编辑、删除、详情、提交审批、审批、拒绝、关闭、明细CRUD、计算交货日期、导出、打印
-    - 采购入库：列表、创建、编辑、详情、确认入库、明细CRUD、打印
-    - 采购检验：列表、创建、编辑、详情、完成检验
-    - 采购退货：列表、创建、编辑、删除、详情、提交审批、审批、拒绝、明细CRUD
-    - 采购合同：列表、创建、编辑、删除、详情、审批、执行、取消
-    - 采购价格：列表、创建、编辑、删除、详情、审批、历史
-    - 供应商管理：列表、创建、编辑、删除供应商（API: `/suppliers/:id` DELETE）
-  - **库存管理（38个子功能）**：
-    - 库存台账：列表、创建、编辑、删除、详情、面料库存查询、创建面料库存、库存流水、库存汇总、低库存预警、导出、打印
-    - 库存调拨：列表、创建、编辑、详情、审批、发货、收货、打印
-    - 库存盘点：列表、创建、编辑、详情、审批、完成、打印
-    - 库存调整：列表、创建、详情、审批、拒绝
-    - 批次管理：列表、创建、编辑、删除、详情、批次调拨
-  - **财务管理（133个子功能）**：
-    - 凭证管理：列表、创建、编辑、删除、详情、提交、审核、过账、打印
-    - 会计科目：列表、科目树、创建、编辑、删除、详情
-    - 会计期间：当前期间、初始化期间、关闭期间
-    - 应付管理：发票CRUD、审批、取消、自动生成、账龄、余额、统计、付款CRUD、确认付款、付款申请CRUD、提交、审批、拒绝、核销CRUD、自动核销、手动核销、取消核销、未核销查询、对账CRUD、确认对账、争议对账、自动对账、对账汇总、报表统计、日报、月报、账龄报表
-    - 应收管理：发票CRUD、审批、取消
-    - 应收对账：对账CRUD、更新状态、自动匹配、账龄报告、对账详情、确认对账、争议对账、PDF导出、生成对账单
-    - 财务报表：资产负债表、利润表
-    - 固定资产：资产CRUD、计提折旧、资产处置、批量折旧
-    - 预算管理：预算CRUD、审批、调整、预算项CRUD、预算计划CRUD、审批、执行、执行记录、预算控制
-    - 资金管理：账户CRUD、存款、取款、冻结、解冻、转账、转账记录
-    - 成本归集：成本CRUD、审核、成本分析、成本汇总、按批次分析
-    - 多币种：币种列表、本位币、汇率CRUD、汇率历史、金额换算、批量同步、支持币种
-  - **CRM客户关系（53个子功能）**：
-    - 线索管理：列表、创建、编辑、删除、详情、更新状态、转化、关联信息
-    - 商机管理：列表、创建、编辑、删除、详情、转化
-    - CRM客户：列表、创建、编辑、删除、详情、标签管理（API: `/customers/:id/tags` POST添加标签）、联系人、360视图、标签CRUD（API: `/crm-tags/:id` DELETE删除标签）
-    - 公海客户池：列表、认领、回收
-    - 客户分配：列表、手动分配、批量分配、分配历史
-    - 客户信用：信用CRUD、评级、占用、释放、调整、停用、信用评估
-    - 供应商评估：评估CRUD、指标管理、排名、评估记录、评分、评级
-  - **生产管理（46个子功能）**：
-    - 生产订单：列表、创建、编辑、删除、详情、更新状态、提交审批、审批、汇报进度、订单日志
-    - BOM管理：列表、创建、编辑、删除、详情、复制、设置默认、树形结构、需求计算、版本列表
-    - MRP计算：执行计算、计算结果、需求查询、转单（API: `/mrp/convert-orders` POST）、历史记录
-    - 生产排程：自动排程、甘特图（API: `/scheduling/gantt` GET）、冲突检测、任务列表、更新排程、调整排程（API: `/scheduling/:id` PUT）、排程历史、排程结果、确认排程
-    - 产能分析：产能概览、工作中心CRUD、可用产能预测、负荷分析（API: `/capacity/trend` GET）、过载检查
-    - 缺料预警：预警列表、执行检查、缺料汇总、阈值设置、补货建议
-  - **面料行业专用（41个子功能）**：
-    - 面料管理：列表、创建、编辑、删除、详情、导入、导出
-    - 坯布管理：列表、创建、编辑、删除、详情、入库、出库、按供应商查询
-    - 染色配方：列表、创建、编辑、删除、详情、审批、创建版本、按色号查询、版本列表
-    - 染色批次：列表、创建、编辑、删除、详情、完成染色、按色号查询、更新批次（API: `/dye-batches/:id` PUT）
-    - 双计量单位：单位换算、双计量验证
-    - 条码扫描：扫码查询、扫码发货、扫码历史、扫码统计（API: `/scan-statistics`）
-    - 物流管理：运单CRUD、删除运单（API: `/logistics/:id` DELETE）
-  - **质量管理（15个子功能）**：
-    - 质量检验：标准列表、创建标准、记录CRUD、记录详情、缺陷列表、缺陷处理
-    - 质量标准：标准CRUD、标准详情、版本管理、审批、发布
-  - **基础数据模块（53个子功能）**：
-    - 产品管理：列表、创建、编辑、删除、详情、选择列表、批量创建/更新/删除、导出、导入、导入模板、色号CRUD、批量创建色号
-    - 产品类别：列表、创建、编辑、删除、详情、类别树
-    - 客户管理（基础）：列表、创建、编辑、删除、详情、选择列表
-    - 供应商管理：列表、创建、编辑、删除、详情、选择列表、切换状态、联系人CRUD、资质CRUD
-    - 仓库管理：列表、创建、编辑、删除、详情、选择列表、库位CRUD
-  - **BPM审批模块（27个子功能）**：
-    - 流程管理：启动流程、审批任务、待办任务列表、业务关联、流程可视化、审批链、流程详情、监控统计、待办监控、流程实例、转办、催办
-    - 流程定义：列表、创建、编辑、删除、详情、复制、版本列表、激活、创建模板、模板列表、从模板创建
-    - 流程模板：列表、创建、编辑、删除、详情
-  - **仪表盘模块（4个子功能）**：概览、销售统计、库存统计、低库存预警
-  - **健康检查模块（3个子功能）**：健康检查、就绪检查、存活检查
-  - **系统更新模块（10个子功能）**：检查远程更新、应用远程更新、获取当前版本、获取更新状态、备份版本列表、版本回滚、本地发布包列表、应用本地更新、检查本地更新、上传更新包
-  - **导入导出模块（5个子功能）**：CSV导入、Excel导入、导入模板下载（API: `/templates/download/:import_type` GET）、CSV导出、Excel导出
-  - **打印服务模块（7个子功能）**：销售订单、销售合同、采购订单、采购入库、库存调拨、库存盘点、凭证
-  - **多租户SaaS模块（16个子功能）**：
-    - 租户管理：列表、创建、详情、更新状态
-    - 租户配置：配置列表、设置配置、删除配置、套餐列表、创建套餐、套餐详情、使用统计
-    - 租户计费：当前套餐、升级套餐、用量统计（API: `/billing-usage` GET）、账单列表、续费订阅
-  - **通知与消息模块（30个子功能）**：
-    - 通知管理：列表、未读数、全部标已读、批量标已读、设置查询、设置更新、详情、单条标已读、删除
-    - 用户通知设置：偏好查询、偏好更新
-    - 邮件管理：发送邮件、模板CRUD、发送记录（API: `/email-records` GET）、发送统计
-    - Webhook集成：Webhook CRUD、集成CRUD、通用回调、测试集成、企业微信消息、钉钉消息
-  - **安全与权限模块（24个子功能）**：
-    - 登录安全：登录日志、锁定状态、解锁账号、登录统计、安全告警
-    - 审计日志：日志查询、日志导出
-    - 全量审计：审计大屏、审计日志搜索、接收UI埋点
-    - 数据权限：列表、设置、范围类型、角色权限、权限详情、删除
-    - 字段权限：列表、创建、详情、更新、删除
-    - API密钥：列表、创建、撤销（API: `/api-key/:id/revoke` POST或DELETE）
-  - **AI分析模块（4个子功能）**：销售预测、库存优化、异常检测、智能推荐
-  - **报表引擎模块（20个子功能）**：
-    - 报表引擎：模板列表（API: `/reports/enhanced/templates` GET）、执行报表、导出报表、数据聚合、清除缓存
-    - 增强报表：模板CRUD、执行自定义报表、导出PDF/Excel、订阅CRUD、启用/禁用订阅、手动触发
-  - **交易管理模块（28个子功能）**：
-    - 采购合同：列表、创建、详情、编辑、删除、审批、执行
-    - 采购价格：列表、创建、编辑、删除、审批
-    - 销售合同：列表、创建、详情、编辑、删除、审批
-    - 销售价格：列表、创建、编辑、删除、审批
-    - 销售退货：列表、创建、详情、编辑、删除
-  - **其他功能模块（17个子功能）**：
-    - 页面追踪：页面访问埋点
-    - 指标监控：Prometheus指标
-    - 系统初始化：状态检查、测试数据库（API: `/init/test-database` POST）、系统初始化、带数据库初始化、重置密码
-    - 认证管理：登录、登出、刷新Token、CSRF令牌、TOTP设置、启用TOTP
-    - 组件示例：图表组件、批量操作、高级筛选、拖拽表格
-
-[路由架构变动记录]
-- Date: 2026-06-06
-- Context: 修复路由冲突问题，优化路由结构
-- Category: 环境配置
-- Instructions:
-  - **路由冲突修复**：解决了 analytics.rs 中的路由冲突问题
-    - 使用 `nest` + `merge` 混合策略
-    - 内部 path 唯一的子 router 走 `merge`
-    - 内部 path 有重复的子 router 走 `nest` 加独立前缀
-  - **主要路由变动**：
-    - 条码扫描统计：`/statistics` → `/scan-statistics`
-    - 邮件记录：`/records` → `/email-records`
-    - 导入模板下载：`/templates/:import_type` → `/templates/download/:import_type`
-    - 租户计费用量：`/usage` → `/billing-usage`
-    - API密钥撤销：`/:id/revoke` → `/api-key/:id/revoke`
-  - **新增路由**：
-    - 高级分析：`/sales-prices`、`/sales-returns`
-    - CRM标签：`/customers/:id/tags`、`/crm-tags/:id`
-    - 销售用户：`/sales-users`
-    - 物流删除：`/logistics/:id` DELETE
-    - 染色批次更新：`/dye-batches/:id` PUT
-    - MRP转单：`/mrp/convert-orders` POST
-    - 生产排程：`/scheduling/gantt` GET、`/scheduling/:id` PUT
-    - 产能趋势：`/capacity/trend` GET
-    - 供应商删除：`/suppliers/:id` DELETE
-  - **前端初始化修复**：Setup.vue 中数据库测试连接成功后，下一步按钮无法点击
-    - 原因：前端检查 `data.success`，但后端返回格式为 `{code: 200, data: {success: true}}`
-    - 修复：改为检查 `data.code === 200 && data.data?.success`
 
 [工作角色定位]
 - Date: 2026-05-27
@@ -339,8 +233,6 @@ Agent 在任务执行过程中发现的条目应遵循以下格式：
   - **报告格式**：
     - 保存路径：`.diagnosis/reports/{YYYY-MM-DD}_{问题描述摘要}.md`
     - 包含内容：基本信息、问题描述、日志分析、根因分析、修复建议、附录
-<<<<<<< HEAD
-=======
 
 [16 任务总规划]
 - Date: 2026-06-14
@@ -412,68 +304,6 @@ Agent 在任务执行过程中发现的条目应遵循以下格式：
     - 449 个 API 函数 / 108 .vue 页面；P1-6 范围需在 Wave 1 前重新核对
     - 12 个 TODO 中 10 个与 P1-4 system/tabs 骨架重合，实际 P1-5 仅 2 处
   - **规划文档**：[规划-重新规划-13tasks-2026-06-14.md](file:///workspace/.monkeycode/docs/规划-重新规划-13tasks-2026-06-14.md)
-
-[P0-2 销售→AR 业务流实现细节]
-- Date: 2026-06-15
-- Context: Agent 在执行 A1 任务（销售发货→AR 应收账款 P0-2）时发现并补全
-- Category: 构建方法
-- Instructions:
-  - **业务流入口**：`backend/src/services/ar/inv.rs::ArReconciliationService::create_receivable`
-  - **调用方**：`backend/src/services/so/delivery.rs::SalesService::ship_order`（第 192-224 行）
-  - **事务边界**：调用方传入 `&DatabaseTransaction`，本方法不独立 commit/rollback；库存扣减、AR 单创建、订单状态更新共用同一事务
-  - **幂等键**：`source_type=SALES_ORDER` + `source_bill_id=order_id` 联合唯一，重复调用返回 `BusinessError`
-  - **客户账期**：调用方先经 `resolve_customer_payment_terms(customer_id)` 读取，<= 0 时回退 30 天
-  - **单号生成**：`DocumentNumberGenerator` 生成 AR + YYYYMMDD + 3 位流水号
-  - **业务事件**：`ReceivableCreated { receivable_id, order_id, customer_id, amount }` 在事务 commit 后再 publish，避免订阅方在事务回滚时误处理
-  - **现有 ar_invoice_service**：顶层 `backend/src/services/ar_invoice_service.rs` 仍保留 `auto_generate_from_delivery` 等方法，但销售发货流已统一走 `ar::inv::create_receivable`，避免双入口数据不一致
-  - **历史现象**：`delivery.rs` 在前一轮提交中已写入 AR 集成代码（含事件发布、resolve_customer_payment_terms 等），但 `ar_service.create_receivable` 方法本体缺失导致 `cargo build` 失败，本任务实际是补全缺失方法而非新增业务流
-  - **回归测试**：CICD 端到端测试应覆盖：① 正常发货→AR 单生成 ② 二次发货幂等 ③ 客户账期=0 时 AR 单到日期 +30 天
-
-[Wave 1 合并清理总结]
-- Date: 2026-06-15
-- Context: Agent 在执行"合并并清理"指令时完成
-- Category: 工作流协作
-- Instructions:
-  - **合并结果**：Wave 1 全部 4 PR 已以 Squash 策略合入 main
-    - #89 [.clippy.toml 宏路径修复] → a779078（先入）
-    - #90 [B2 P1-5 入库单明细类型强化] → 2974c6d
-    - #87 [A1 P0-2 销售→AR] → 042d123（cherry-pick 重构后）
-    - #88 [B1 P1-1 generate-no 4 端点] → 5f28212（rebase 后）
-  - **冲突解决经验**：
-    - #87 使用 `git reset origin/main + cherry-pick 0373a73 4c0888b` 解决 MEMORY.md / CHANGELOG.md / inv.rs 冲突
-    - #88 使用 `git rebase origin/main` 后解决 CHANGELOG.md (3 处) + frontend/src/api/purchaseReceipt.ts (1 处) 冲突
-    - P0-2 业务流补齐 6 单元测试 保留 HEAD 版本（覆盖应收单号格式连续）
-  - **清理范围**：
-    - 远端源分支：4 个 `feature/*` `fix/*` 分支已由 GitHub squash merge 自动删除
-    - 远端跟踪 ref：`git branch -rd origin/<branch>` 清理 4 个过时 ref
-    - 本地分支：`git branch -D` 删除 5 个本地工作分支
-    - 定时任务：`NLIZU5YY.FK660`（cron 0 * * * *）已删除，无需继续轮询
-  - **CHANGELOG 更新**：在 [Unreleased] - 2026-06-15 顶部增加"Wave 1 合并汇总"表格，4 PR + 提交 SHA + 状态
-  - **当前 main 状态**：5f28212 + a2df8f8（changelog），共 6 commit
-  - **下一步**：可启动 Wave 2（B3 P1-3 嵌套 4 并行 / B4 P1-4 / B5 P2-1）
-
-[Wave 3 B7 console.* 清理总结]
-- Date: 2026-06-15
-- Context: Agent 在执行"开始实施"指令时完成 Wave 3 B7 任务（清理 112 处 console.* → logger.*）
-- Category: 工作流协作
-- Instructions:
-  - **执行模式**：单子代理串行，4 批分批 squash merge（避免云端卡死，已在 Wave 2 验证）
-  - **Spec 文档**：`docs/superpowers/specs/2026-06-15-b7-console-cleanup-design.md`（提交 fee7507）
-  - **评估文档**：`docs/superpowers/plans/2026-06-15-wave3-evaluation-plan.md`（提交 d21965b）
-  - **4 批结果**：
-    - B7-1 PR #91 → 313084e：purchase+inventory 域，8 文件 +45/-43，37 处
-    - B7-2 PR #92 → c641239：crm+sales 域，4 文件 +15/-11，11 处
-    - B7-3 PR #93 → 374a3af：bpm+report+arReconciliation 域，7 文件 +29/-22，22 处
-    - B7-4 PR #94 → 979feca：dye/logistics/security/email/tenant/supplier/system/advanced/dashboard/setup/batch 域，12 文件 +54/-42，42 处
-  - **总成果**：112 处 console.* → logger.*，31 个 .vue/.ts 文件，0 业务逻辑改动
-  - **关键经验**：
-    - 子代理在 catch 块处理中遇到 `e:unknown` 类型与 `logger.error(message: string)` 签名冲突，使用 `String(e)` 转换解决（消除 TS2345 错误）
-    - 子代理发现 Edit 工具偶发"返回成功但未实际写入"（连续调用时），必须用 `grep` 验证 before/after
-    - GitHub squash merge 后部分远端分支自动删除，残留可通过 `git push origin --delete` 或 `git update-ref -d` 清理
-  - **已知遗留**：基线存在 32 个预存 type-check 错误（Wave 2 合并后），B7 4 批均无新增错误（基线 = 当前 = 32），清理预存错误属于 Wave 4 启动前置 P 任务
-  - **GitHub Token**：嵌入在 `/workspace/.git/config` 的 `origin` URL 中（格式 `x-access-token:ghu_...`），可用 `grep -oP 'x-access-token:\K[^@]+' .git/config` 提取
-  - **当前 main 状态**：979feca + 4658d37（changelog），共 7 commit
-  - **下一步**：A2 AI 深化（工艺优化 + 质量预测）— 需用户确认 dye_recipe 表 migration 缺失问题
 
 [GitHub 版本管理分支策略]
 - Date: 2026-06-16
