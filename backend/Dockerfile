@@ -1,7 +1,7 @@
 # ==============================================================================
 # 阶段 1: Cargo Chef 依赖规划 (Recipe)
 # ==============================================================================
-FROM rust:1.80-slim-bookworm AS chef
+FROM rust:1.94-slim-bookworm AS chef
 RUN cargo install cargo-chef
 WORKDIR /app
 

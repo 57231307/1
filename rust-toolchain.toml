@@ -1,0 +1,6 @@
+[toolchain]
+# 与 CI 配置 (.github/workflows/ci-cd.yml 中 RUST_VERSION) 保持一致
+# 锁定 sea-orm 2.0.0-rc.40 / sqlx 0.9 等依赖所要求的最低 rustc 版本
+channel = "1.94.1"
+components = ["rustfmt", "clippy"]
+profile = "minimal"

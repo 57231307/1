@@ -9,6 +9,22 @@
 
 ## [Unreleased] - 2026-06-17
 
+### Added - P2-2 统一前端日志（最终清理）
+- 清理 `custom-orders` 视图 3 处遗留 `console.error` → `logger.error`（tracking / list / detail）
+- 业务代码 `console.*` 数量：7 → 3（仅 `frontend/src/utils/logger.ts` 自身实现，不算违规）
+- 关联 PR：#139（merge commit 5801cfc）
+
+### Added - P2-3 CI 工具链统一
+- 新增仓库根 `rust-toolchain.toml`（channel = 1.94.1，profile = minimal）
+- `backend/Cargo.toml` 显式声明 `rust-version = "1.94"`（与 sea-orm 2.0.0-rc.40 / sqlx 0.9 最低要求一致）
+- `backend/Dockerfile` 与根 `Dockerfile` chef 阶段基础镜像统一升级 `rust:1.80-slim-bookworm` → `rust:1.94-slim-bookworm`
+- 新增 `docs/2026-06-17-p2-3-rustc-1.94-fix.md`（CI 修复说明）
+
+### Technical - P2-3
+- 与 `.github/workflows/ci-cd.yml` 中 `RUST_VERSION: 1.94.1` 严格对齐
+- 修复本地 rustc 1.92.0 报 `rustc 1.94.0 is not supported by sea-orm@2.0.0-rc.40` 错误
+- 不修改 `Cargo.lock`（依赖版本保持）
+
 ### Added - P0-5 面料多色号定价扩展（合并 PR #130）
 - 扩展 `product_color_prices` 表（添加 max_quantity / customer_id / season / is_active / priority / created_by / approved_by / approved_at / approval_status / tenant_id 字段）
 - 新增 4 张表：`color_price_history`（价格历史）/ `color_price_tiers`（阶梯定价）/ `customer_color_prices`（客户专属价）/ `seasonal_price_rules`（季节调价规则）

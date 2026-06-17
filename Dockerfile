@@ -1,4 +1,4 @@
-FROM rust:1.80-slim-bookworm AS chef
+FROM rust:1.94-slim-bookworm AS chef
 # 使用 cargo-chef 优化依赖构建缓存
 RUN cargo install cargo-chef
 WORKDIR /app
