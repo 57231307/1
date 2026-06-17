@@ -1,0 +1,143 @@
+# 冰溪 ERP Prometheus 告警规则
+# P4-3 监控告警
+# 适用于 Prometheus Operator / 独立 Prometheus 部署
+# 加载方式：rule_files: ['/etc/prometheus/rules/*.yml']
+
+groups:
+  # ====================================================
+  # 业务可用性告警
+  # ====================================================
+  - name: business_availability
+    interval: 30s
+    rules:
+      # 1. 5xx 错误率超过 5%（5 分钟内）
+      - alert: HighErrorRate
+        expr: |
+          sum(rate(http_requests_by_route{status=~"5.."}[5m]))
+            /
+          sum(rate(http_requests_by_route[5m]))
+            > 0.05
+        for: 2m
+        labels:
+          severity: critical
+          team: sre
+        annotations:
+          summary: "HTTP 5xx 错误率过高（>5%）"
+          description: "5 分钟内 5xx 错误率 {{ $value | humanizePercentage }}，请立即排查。"
+          runbook: "docs/2026-06-17-p4-8-ops-manual.md#故障排查"
+
+      # 2. P99 延迟超过 3 秒
+      - alert: HighP99Latency
+        expr: |
+          histogram_quantile(0.99,
+            sum by (le) (rate(http_request_duration_seconds_bucket[5m]))
+          ) > 3
+        for: 5m
+        labels:
+          severity: warning
+          team: sre
+        annotations:
+          summary: "HTTP P99 延迟过高"
+          description: "P99 延迟 {{ $value }}s，请检查慢查询与下游依赖。"
+
+  # ====================================================
+  # 性能告警
+  # ====================================================
+  - name: performance
+    interval: 30s
+    rules:
+      # 3. 慢查询速率超过 10/min
+      - alert: SlowQuerySpike
+        expr: |
+          sum(rate(erp_slow_queries_total[5m])) * 60 > 10
+        for: 3m
+        labels:
+          severity: warning
+          team: dba
+        annotations:
+          summary: "慢查询速率过高"
+          description: "5 分钟内慢查询速率 {{ $value }} 次/分钟，请检查索引与查询计划。"
+
+      # 4. DB 连接池溢出
+      - alert: DbPoolOverflow
+        expr: |
+          rate(erp_db_pool_overflow_total[5m]) > 0.1
+        for: 2m
+        labels:
+          severity: critical
+          team: dba
+        annotations:
+          summary: "数据库连接池溢出"
+          description: "DB 连接池在过去 5 分钟溢出 {{ $value }} 次/秒，请检查慢查询与连接泄漏。"
+
+  # ====================================================
+  # 安全告警
+  # ====================================================
+  - name: security
+    interval: 30s
+    rules:
+      # 5. SQL 注入审计命中
+      - alert: SqlInjectionAttempt
+        expr: |
+          rate(erp_sql_injection_blocked_total[5m]) > 0
+        for: 0m
+        labels:
+          severity: critical
+          team: security
+        annotations:
+          summary: "检测到 SQL 注入攻击"
+          description: "SQL 注入审计已拦截 {{ $value }} 次/秒，请检查来源 IP 与审计日志。"
+
+      # 6. 登录失败激增
+      - alert: LoginFailureSpike
+        expr: |
+          sum(rate(erp_login_attempts_total{result="failure"}[5m])) > 5
+        for: 3m
+        labels:
+          severity: warning
+          team: security
+        annotations:
+          summary: "登录失败次数激增（可能的暴力破解）"
+          description: "5 分钟内失败登录 {{ $value }} 次/秒，请检查账户锁定状态。"
+
+  # ====================================================
+  # 资源告警
+  # ====================================================
+  - name: resources
+    interval: 30s
+    rules:
+      # 7. 内存使用率
+      - alert: HighMemoryUsage
+        expr: |
+          (1 - (node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes)) > 0.9
+        for: 5m
+        labels:
+          severity: warning
+          team: sre
+        annotations:
+          summary: "节点内存使用率超过 90%"
+          description: "可用内存仅 {{ $value | humanizePercentage }}，请排查内存泄漏。"
+
+      # 8. 磁盘使用率
+      - alert: DiskSpaceLow
+        expr: |
+          (1 - (node_filesystem_avail_bytes{fstype!="tmpfs"} / node_filesystem_size_bytes{fstype!="tmpfs"})) > 0.85
+        for: 10m
+        labels:
+          severity: warning
+          team: sre
+        annotations:
+          summary: "磁盘使用率超过 85%"
+          description: "磁盘 {{ $labels.mountpoint }} 剩余空间 {{ $value | humanizePercentage }}。"
+
+      # 9. CPU 高负载
+      - alert: HighCpuLoad
+        expr: |
+          100 - (avg by(instance) (rate(node_cpu_seconds_total{mode="idle"}[5m])) * 100) > 80
+        for: 10m
+        labels:
+          severity: warning
+          team: sre
+        annotations:
+          summary: "CPU 使用率超过 80%"
+          description: "实例 {{ $labels.instance }} CPU 使用率 {{ $value }}%。"

@@ -9,6 +9,8 @@ pub mod cache_service;
 pub mod performance_optimizer;
 // P3-4 数据仓库/BI 关键路径 demo
 pub mod bi_analysis_service;
+// P4-3 监控告警 - 业务指标扩展（20+ 指标）
+pub mod business_metrics;
 pub mod business_trace_service;
 pub mod crm;
 pub mod customer_service;

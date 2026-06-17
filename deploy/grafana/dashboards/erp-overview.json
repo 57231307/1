@@ -1,0 +1,278 @@
+{
+  "annotations": {
+    "list": [
+      {
+        "builtIn": 1,
+        "datasource": "-- Grafana --",
+        "enable": true,
+        "hide": true,
+        "iconColor": "rgba(0, 211, 255, 1)",
+        "name": "Annotations & Alerts",
+        "type": "dashboard"
+      }
+    ]
+  },
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 0,
+  "id": null,
+  "links": [],
+  "liveNow": false,
+  "panels": [
+    {
+      "datasource": "Prometheus",
+      "fieldConfig": {
+        "defaults": {
+          "color": {"mode": "thresholds"},
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {"color": "green", "value": null},
+              {"color": "red", "value": 5000}
+            ]
+          },
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "gridPos": {"h": 4, "w": 6, "x": 0, "y": 0},
+      "id": 1,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false},
+        "textMode": "auto"
+      },
+      "pluginVersion": "10.0.0",
+      "targets": [
+        {
+          "expr": "sum(erp_users_active)",
+          "legendFormat": "活跃用户",
+          "refId": "A"
+        }
+      ],
+      "title": "活跃用户数",
+      "type": "stat"
+    },
+    {
+      "datasource": "Prometheus",
+      "fieldConfig": {"defaults": {"color": {"mode": "thresholds"}, "unit": "short"}},
+      "gridPos": {"h": 4, "w": 6, "x": 6, "y": 0},
+      "id": 2,
+      "options": {"colorMode": "value", "graphMode": "area"},
+      "targets": [
+        {
+          "expr": "sum(erp_orders_total)",
+          "legendFormat": "订单总数",
+          "refId": "A"
+        }
+      ],
+      "title": "订单总数（累计）",
+      "type": "stat"
+    },
+    {
+      "datasource": "Prometheus",
+      "fieldConfig": {"defaults": {"color": {"mode": "thresholds"}, "unit": "short"}},
+      "gridPos": {"h": 4, "w": 6, "x": 12, "y": 0},
+      "id": 3,
+      "options": {"colorMode": "value", "graphMode": "area"},
+      "targets": [
+        {
+          "expr": "sum(erp_sessions_active)",
+          "legendFormat": "活跃 Session",
+          "refId": "A"
+        }
+      ],
+      "title": "活跃 Session",
+      "type": "stat"
+    },
+    {
+      "datasource": "Prometheus",
+      "fieldConfig": {"defaults": {"color": {"mode": "thresholds"}, "unit": "percentunit"}},
+      "gridPos": {"h": 4, "w": 6, "x": 18, "y": 0},
+      "id": 4,
+      "options": {"colorMode": "value", "graphMode": "area"},
+      "targets": [
+        {
+          "expr": "sum(rate(erp_cache_hits_total[5m])) / (sum(rate(erp_cache_hits_total[5m])) + sum(rate(erp_cache_misses_total[5m])))",
+          "legendFormat": "缓存命中率",
+          "refId": "A"
+        }
+      ],
+      "title": "缓存命中率",
+      "type": "stat"
+    },
+    {
+      "datasource": "Prometheus",
+      "fieldConfig": {"defaults": {"color": {"mode": "palette-classic"}, "unit": "reqps"}},
+      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 4},
+      "id": 5,
+      "options": {"legend": {"displayMode": "list"}, "tooltip": {"mode": "single"}},
+      "targets": [
+        {
+          "expr": "sum by (status) (rate(http_requests_by_route[1m]))",
+          "legendFormat": "{{status}}",
+          "refId": "A"
+        }
+      ],
+      "title": "HTTP 请求速率（按状态码）",
+      "type": "timeseries"
+    },
+    {
+      "datasource": "Prometheus",
+      "fieldConfig": {"defaults": {"color": {"mode": "palette-classic"}, "unit": "s"}},
+      "gridPos": {"h": 8, "w": 12, "x": 12, "y": 4},
+      "id": 6,
+      "options": {"legend": {"displayMode": "list"}},
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.50, sum by (le) (rate(http_request_duration_seconds_bucket[5m])))",
+          "legendFormat": "P50",
+          "refId": "A"
+        },
+        {
+          "expr": "histogram_quantile(0.95, sum by (le) (rate(http_request_duration_seconds_bucket[5m])))",
+          "legendFormat": "P95",
+          "refId": "B"
+        },
+        {
+          "expr": "histogram_quantile(0.99, sum by (le) (rate(http_request_duration_seconds_bucket[5m])))",
+          "legendFormat": "P99",
+          "refId": "C"
+        }
+      ],
+      "title": "HTTP 请求延迟（P50/P95/P99）",
+      "type": "timeseries"
+    },
+    {
+      "datasource": "Prometheus",
+      "fieldConfig": {"defaults": {"color": {"mode": "palette-classic"}, "unit": "short"}},
+      "gridPos": {"h": 8, "w": 8, "x": 0, "y": 12},
+      "id": 7,
+      "targets": [
+        {
+          "expr": "sum(erp_ar_balance_total)",
+          "legendFormat": "应收账款余额（分）",
+          "refId": "A"
+        },
+        {
+          "expr": "sum(erp_ap_balance_total)",
+          "legendFormat": "应付账款余额（分）",
+          "refId": "B"
+        }
+      ],
+      "title": "AR / AP 余额",
+      "type": "timeseries"
+    },
+    {
+      "datasource": "Prometheus",
+      "fieldConfig": {"defaults": {"color": {"mode": "palette-classic"}, "unit": "short"}},
+      "gridPos": {"h": 8, "w": 8, "x": 8, "y": 12},
+      "id": 8,
+      "targets": [
+        {
+          "expr": "sum by (label) (rate(erp_slow_queries_total[5m]))",
+          "legendFormat": "{{label}}",
+          "refId": "A"
+        }
+      ],
+      "title": "慢查询速率（按标签）",
+      "type": "timeseries"
+    },
+    {
+      "datasource": "Prometheus",
+      "fieldConfig": {"defaults": {"color": {"mode": "palette-classic"}, "unit": "short"}},
+      "gridPos": {"h": 8, "w": 8, "x": 16, "y": 12},
+      "id": 9,
+      "targets": [
+        {
+          "expr": "erp_db_pool_size",
+          "legendFormat": "连接池大小",
+          "refId": "A"
+        },
+        {
+          "expr": "rate(erp_db_pool_overflow_total[5m])",
+          "legendFormat": "连接池溢出速率",
+          "refId": "B"
+        }
+      ],
+      "title": "DB 连接池",
+      "type": "timeseries"
+    },
+    {
+      "datasource": "Prometheus",
+      "fieldConfig": {"defaults": {"color": {"mode": "palette-classic"}, "unit": "short"}},
+      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 20},
+      "id": 10,
+      "targets": [
+        {
+          "expr": "sum by (result) (rate(erp_login_attempts_total[5m]))",
+          "legendFormat": "登录-{{result}}",
+          "refId": "A"
+        },
+        {
+          "expr": "rate(erp_login_lockouts_total[5m])",
+          "legendFormat": "账户锁定",
+          "refId": "B"
+        }
+      ],
+      "title": "登录与锁定",
+      "type": "timeseries"
+    },
+    {
+      "datasource": "Prometheus",
+      "fieldConfig": {"defaults": {"color": {"mode": "palette-classic"}, "unit": "short"}},
+      "gridPos": {"h": 8, "w": 12, "x": 12, "y": 20},
+      "id": 11,
+      "targets": [
+        {
+          "expr": "sum by (type) (rate(erp_security_alerts_total[5m]))",
+          "legendFormat": "安全告警-{{type}}",
+          "refId": "A"
+        },
+        {
+          "expr": "sum by (scope) (rate(erp_rate_limit_blocked_total[5m]))",
+          "legendFormat": "限流-{{scope}}",
+          "refId": "B"
+        },
+        {
+          "expr": "rate(erp_sql_injection_blocked_total[5m])",
+          "legendFormat": "SQL 注入拦截",
+          "refId": "C"
+        }
+      ],
+      "title": "安全事件",
+      "type": "timeseries"
+    },
+    {
+      "datasource": "Prometheus",
+      "fieldConfig": {"defaults": {"color": {"mode": "palette-classic"}, "unit": "short"}},
+      "gridPos": {"h": 8, "w": 24, "x": 0, "y": 28},
+      "id": 12,
+      "targets": [
+        {
+          "expr": "sum by (route) (rate(http_requests_by_route[5m]))",
+          "legendFormat": "{{route}}",
+          "refId": "A"
+        }
+      ],
+      "title": "Top 路由 QPS",
+      "type": "timeseries"
+    }
+  ],
+  "refresh": "30s",
+  "schemaVersion": 38,
+  "style": "dark",
+  "tags": ["erp", "bingxi", "overview"],
+  "templating": {"list": []},
+  "time": {"from": "now-6h", "to": "now"},
+  "timepicker": {},
+  "timezone": "",
+  "title": "冰溪 ERP 系统总览",
+  "uid": "bingxi-erp-overview",
+  "version": 1,
+  "weekStart": ""
+}
