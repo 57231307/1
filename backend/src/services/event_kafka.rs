@@ -14,6 +14,7 @@
 //! - publish/subscribe 全部使用 `tracing::error!` 记录中文日志，CI 抓得到。
 
 use std::collections::BTreeMap;
+use std::pin::Pin;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
 use std::time::Duration;
@@ -347,7 +348,7 @@ mod payload_serde {
         type Error = String;
         fn try_from(p: EventPayload) -> Result<Self, Self::Error> {
             Ok(match p {
-                Self::PurchaseReceiptCompleted {
+                EventPayload::PurchaseReceiptCompleted {
                     receipt_id,
                     order_id,
                     supplier_id,
@@ -356,7 +357,7 @@ mod payload_serde {
                     order_id,
                     supplier_id,
                 },
-                Self::SalesOrderShipped {
+                EventPayload::SalesOrderShipped {
                     order_id,
                     customer_id,
                     items,
@@ -365,7 +366,7 @@ mod payload_serde {
                     customer_id,
                     items,
                 },
-                Self::PaymentCompleted {
+                EventPayload::PaymentCompleted {
                     payment_id,
                     invoice_id,
                     amount,
@@ -374,7 +375,7 @@ mod payload_serde {
                     invoice_id,
                     amount,
                 },
-                Self::InventoryAdjusted {
+                EventPayload::InventoryAdjusted {
                     product_id,
                     warehouse_id,
                     quantity_change,
@@ -383,7 +384,7 @@ mod payload_serde {
                     warehouse_id,
                     quantity_change,
                 },
-                Self::CollectionCompleted {
+                EventPayload::CollectionCompleted {
                     collection_id,
                     invoice_id,
                     amount,
@@ -392,21 +393,21 @@ mod payload_serde {
                     invoice_id,
                     amount,
                 },
-                Self::PurchaseOrderApproved {
+                EventPayload::PurchaseOrderApproved {
                     order_id,
                     supplier_id,
                 } => Self::PurchaseOrderApproved {
                     order_id,
                     supplier_id,
                 },
-                Self::InventoryCountCompleted {
+                EventPayload::InventoryCountCompleted {
                     count_id,
                     variance_count,
                 } => Self::InventoryCountCompleted {
                     count_id,
                     variance_count,
                 },
-                Self::BpmProcessFinished {
+                EventPayload::BpmProcessFinished {
                     business_type,
                     business_id,
                     approved,
@@ -415,7 +416,7 @@ mod payload_serde {
                     business_id,
                     approved,
                 },
-                Self::LowStockAlert {
+                EventPayload::LowStockAlert {
                     product_id,
                     warehouse_id,
                     current_quantity,
@@ -428,14 +429,14 @@ mod payload_serde {
                     reorder_point,
                     reorder_quantity,
                 },
-                Self::FinancialIndicatorUpdate {
+                EventPayload::FinancialIndicatorUpdate {
                     period,
                     trigger_source,
                 } => Self::FinancialIndicatorUpdate {
                     period,
                     trigger_source,
                 },
-                Self::MaterialShortageAlert {
+                EventPayload::MaterialShortageAlert {
                     material_id,
                     material_name,
                     material_code,
@@ -454,7 +455,7 @@ mod payload_serde {
                     shortage_level,
                     affected_orders_count,
                 },
-                Self::InventoryTransactionCreated {
+                EventPayload::InventoryTransactionCreated {
                     transaction_id,
                     transaction_type,
                     product_id,
@@ -496,7 +497,7 @@ pub struct KafkaBackend {
 }
 
 struct KafkaBackendInner {
-    client: Client,
+    client: Arc<Client>,
     config: KafkaSettings,
     /// 轮询用：下一次投递使用的 partition
     next_partition: AtomicU64,
@@ -571,7 +572,7 @@ impl KafkaBackend {
 
         Ok(Self {
             inner: Arc::new(KafkaBackendInner {
-                client,
+                client: Arc::new(client),
                 config: config.clone(),
                 next_partition: AtomicU64::new(0),
             }),
@@ -669,7 +670,7 @@ impl Stream for KafkaSubscribeStream {
 
 /// Kafka 消费循环（独立函数，便于测试）
 async fn run_consumer_loop(
-    client: Client,
+    client: Arc<Client>,
     config: KafkaSettings,
     tx: mpsc::Sender<BusinessEvent>,
 ) -> Result<(), KafkaError> {

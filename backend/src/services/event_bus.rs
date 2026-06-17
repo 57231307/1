@@ -14,7 +14,9 @@
 //! Kafka 不可达时**自动降级**到 `Broadcast`，并通过 `tracing::error!` 输出中文日志。
 
 use futures::stream::Stream;
+use sea_orm;
 use sea_orm::DatabaseConnection;
+use sea_orm::{ColumnTrait, EntityTrait, QueryFilter};
 use std::future::Future;
 use std::pin::Pin;
 use std::sync::atomic::{AtomicU8, Ordering};
@@ -27,7 +29,7 @@ use crate::config::settings::KafkaSettings;
 // 公共类型（业务事件枚举）
 // ============================================================================
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, serde::Deserialize, serde::Serialize)]
 pub struct ShippedItem {
     pub product_id: i32,
     pub quantity: rust_decimal::Decimal,
@@ -194,7 +196,8 @@ impl Stream for BroadcastStream {
         cx: &mut std::task::Context<'_>,
     ) -> std::task::Poll<Option<Self::Item>> {
         loop {
-            match Pin::new(&mut self.rx).poll_recv(cx) {
+            // broadcast::Receiver 自身 Unpin，poll_recv 接受 &mut self
+            match self.rx.poll_recv(cx) {
                 std::task::Poll::Ready(Some(Ok(event))) => {
                     return std::task::Poll::Ready(Some(event));
                 }
