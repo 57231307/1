@@ -25,6 +25,11 @@ use tokio::sync::broadcast;
 
 use crate::config::settings::KafkaSettings;
 
+// 类型别名：抽离超长 `Pin<Box<dyn Future<...>>>` 以满足 rustc
+// "very complex type used" 限制（clippy 配置见 .clippy.toml）。
+type EventStream = Box<dyn Stream<Item = BusinessEvent> + Send + Unpin>;
+type SubscribeFuture<'a> = Pin<Box<dyn Future<Output = Result<EventStream, String>> + Send + 'a>>;
+
 // ============================================================================
 // 公共类型（业务事件枚举）
 // ============================================================================
@@ -128,19 +133,11 @@ pub trait EventBackend: Send + Sync {
     ) -> Pin<Box<dyn Future<Output = Result<(), String>> + Send + 'a>>;
 
     /// 异步订阅事件，返回 `Box<dyn Stream>` 供上层消费
-    fn subscribe<'a>(
-        &'a self,
-    ) -> Pin<
-        Box<
-            dyn Future<
-                    Output = Result<Box<dyn Stream<Item = BusinessEvent> + Send + Unpin>, String>,
-                > + Send
-                + 'a,
-        >,
-    >;
+    fn subscribe<'a>(&'a self) -> SubscribeFuture<'a>;
 }
 
 /// 进程内 Broadcast 后端（默认）
+#[derive(Clone)]
 pub struct BroadcastBackend {
     sender: broadcast::Sender<BusinessEvent>,
 }
@@ -166,16 +163,7 @@ impl EventBackend for BroadcastBackend {
         })
     }
 
-    fn subscribe<'a>(
-        &'a self,
-    ) -> Pin<
-        Box<
-            dyn Future<
-                    Output = Result<Box<dyn Stream<Item = BusinessEvent> + Send + Unpin>, String>,
-                > + Send
-                + 'a,
-        >,
-    > {
+    fn subscribe<'a>(&'a self) -> SubscribeFuture<'a> {
         // 启动桥接任务：把 broadcast::Receiver 转为 mpsc::Receiver
         // （broadcast::Receiver 没有 poll_recv，不能直接实现 Stream，
         // 所以走 tokio 任务 + mpsc 通道的桥接模式）
@@ -201,8 +189,7 @@ impl EventBackend for BroadcastBackend {
                 }
             }
         });
-        let stream: Box<dyn Stream<Item = BusinessEvent> + Send + Unpin> =
-            Box::new(BridgeStream { rx });
+        let stream: EventStream = Box::new(BridgeStream { rx });
         Box::pin(async move { Ok(stream) })
     }
 }
@@ -279,12 +266,20 @@ impl EventBus {
     /// - 当前后端 = Kafka：序列化到 Kafka；同时**始终**复制一份到本地 `local_tx`，
     ///   避免单进程内订阅者丢失事件。
     pub async fn publish_async(&self, event: BusinessEvent) {
-        let state = EVENT_BUS_STATE.lock().expect("EVENT_BUS_STATE 已中毒");
-        let _ = state.local_tx.send(event.clone());
+        // 取出所需的全部状态后立即释放锁，避免 await 持锁
+        let (kind, kafka_arc, broadcast_be) = {
+            let state = EVENT_BUS_STATE.lock().expect("EVENT_BUS_STATE 已中毒");
+            let _ = state.local_tx.send(event.clone());
+            (
+                state.backend_kind.load(Ordering::Acquire),
+                state.kafka.clone(),
+                state.broadcast.clone(),
+            )
+        };
 
-        match state.backend_kind.load(Ordering::Acquire) {
+        match kind {
             1 => {
-                if let Some(kafka) = state.kafka.as_ref() {
+                if let Some(kafka) = kafka_arc {
                     if let Err(e) = kafka.publish(event).await {
                         tracing::error!("事件投递到 Kafka 失败: {}（已写入本地兜底）", e);
                     }
@@ -293,7 +288,7 @@ impl EventBus {
                 }
             }
             _ => {
-                if let Err(e) = state.broadcast.publish(event).await {
+                if let Err(e) = broadcast_be.publish(event).await {
                     tracing::error!("事件投递到 Broadcast 失败: {}", e);
                 }
             }
