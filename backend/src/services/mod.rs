@@ -1,5 +1,7 @@
 pub mod assist_accounting_service;
 pub mod auth_service;
+// P4-2 安全加固 - 密码策略服务（密码历史/锁定/过期）
+pub mod auth;
 pub mod batch_service;
 // P4-1 性能优化 - 进程内 LRU 缓存
 pub mod cache_service;
