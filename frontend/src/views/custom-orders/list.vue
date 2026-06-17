@@ -126,6 +126,7 @@ import {
   CUSTOM_ORDER_STATUS as STATUS_LABELS,
   CUSTOM_ORDER_STATUS_COLORS as STATUS_COLORS,
 } from '@/api/custom-order'
+import logger from '@/utils/logger'
 
 const router = useRouter()
 const loading = ref(false)
@@ -149,7 +150,7 @@ async function loadData() {
     orders.value = res.data?.items || res.items || []
     pagination.value.total = res.data?.total || res.total || 0
   } catch (e) {
-    console.error('加载定制订单失败', e)
+    logger.error('加载定制订单失败', e)
     ElMessage.error('加载定制订单失败')
   } finally {
     loading.value = false
