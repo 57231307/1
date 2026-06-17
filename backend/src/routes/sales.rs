@@ -61,6 +61,10 @@ pub fn sales() -> Router<AppState> {
         )
         .route("/orders/export", get(sales_order_handler::export_orders))
         .route(
+            "/orders/generate-no",
+            get(sales_order_handler::generate_order_no),
+        )
+        .route(
             "/fabric-orders",
             get(sales_fabric_order_handler::list_fabric_orders),
         )

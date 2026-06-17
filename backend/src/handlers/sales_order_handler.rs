@@ -7,9 +7,11 @@ use axum::{
 use serde::Deserialize;
 
 use crate::models::dto::PageRequest;
+use crate::models::sales_order;
 use crate::services::so::order::SalesService;
 use crate::services::so::{CreateSalesOrderRequest, UpdateSalesOrderRequest};
 use crate::utils::error::AppError;
+use crate::utils::number_generator::DocumentNumberGenerator;
 use crate::utils::response::ApiResponse;
 
 /// 查询参数
@@ -394,6 +396,27 @@ pub async fn export_orders(
         .map_err(|e| AppError::internal(format!("响应构建失败: {}", e)))?;
 
     Ok(response)
+}
+
+/// 生成销售订单号
+/// GET /api/v1/erp/sales/orders/generate-no
+///
+/// 返回格式: `{ prefix: "SO", order_no: "SO20260617001" }`
+pub async fn generate_order_no(
+    State(state): State<AppState>,
+    _auth: AuthContext,
+) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
+    let order_no = DocumentNumberGenerator::generate_no(
+        &*state.db,
+        "SO",
+        sales_order::Entity,
+        sales_order::Column::OrderNo,
+    )
+    .await?;
+    Ok(Json(ApiResponse::success(serde_json::json!({
+        "prefix": "SO",
+        "order_no": order_no
+    }))))
 }
 
 // ========== 订单状态操作接口 ==========
