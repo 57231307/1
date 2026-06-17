@@ -11,6 +11,8 @@ pub mod public_routes;
 pub mod rate_limit;
 pub mod request_validator;
 pub mod security_headers;
+// P4-1 性能优化 - 慢查询审计
+pub mod slow_query;
 pub mod sql_injection_audit;
 pub mod tenant;
 pub mod timeout;

@@ -1,6 +1,10 @@
 pub mod assist_accounting_service;
 pub mod auth_service;
 pub mod batch_service;
+// P4-1 性能优化 - 进程内 LRU 缓存
+pub mod cache_service;
+// P4-1 性能优化 - N+1 修复 + 缓存穿透示例
+pub mod performance_optimizer;
 // P3-4 数据仓库/BI 关键路径 demo
 pub mod bi_analysis_service;
 pub mod business_trace_service;
