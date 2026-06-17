@@ -1,9 +1,14 @@
 import axios from 'axios'
 import type { AxiosInstance, AxiosRequestConfig, AxiosResponse } from 'axios'
 import { ElMessage } from 'element-plus'
-import { getToken, removeToken, getRefreshToken, setToken } from '@/utils/storage'
+import {
+  getToken,
+  removeToken,
+  getRefreshToken,
+  setToken,
+} from '@/utils/storage'
 import router from '@/router'
-import { refreshToken as refreshApi } from './auth'
+import { refreshToken as refreshApi, loadCsrfToken, clearCsrfToken } from './auth'
 import type { ApiResponse } from '@/types/api'
 
 let isRefreshing = false
@@ -16,6 +21,29 @@ function subscribeTokenRefresh(cb: (token: string) => void) {
 function onTokenRefreshed(token: string) {
   refreshSubscribers.forEach(cb => cb(token))
   refreshSubscribers = []
+}
+
+/**
+ * 不需要携带 CSRF Token 的公开路径前缀（前缀匹配）
+ * 这些端点在后端 CSRF 中间件中已加入白名单，前端无需注入头
+ */
+const CSRF_PUBLIC_PREFIXES = [
+  '/auth/login',
+  '/auth/refresh',
+  '/auth/logout',
+  '/auth/csrf-token',
+  '/init',
+  '/health',
+  '/ready',
+  '/live',
+  '/tracking/page-view',
+]
+
+/**
+ * 判断 URL 是否属于公开路径（不需要携带 X-CSRF-Token 头）
+ */
+function isCsrfPublicPath(url: string): boolean {
+  return CSRF_PUBLIC_PREFIXES.some(prefix => url.includes(prefix))
 }
 
 class Request {
@@ -41,6 +69,25 @@ class Request {
         if (token) {
           config.headers.Authorization = `Bearer ${token}`
         }
+
+        // CSRF 防护：所有非安全方法（POST/PUT/PATCH/DELETE）的「业务」请求必须携带 X-CSRF-Token
+        // - 公开路径（login/refresh/health 等）跳过，由后端白名单控制
+        // - 安全方法（GET/HEAD/OPTIONS）无需校验
+        // - 若本地没有 CSRF Token（如刷新流程未拿到），由后端返回 403，前端在此处清空并跳转登录
+        const method = (config.method || 'get').toLowerCase()
+        const url = config.url || ''
+        if (
+          method !== 'get' &&
+          method !== 'head' &&
+          method !== 'options' &&
+          !isCsrfPublicPath(url)
+        ) {
+          const csrfToken = loadCsrfToken()
+          if (csrfToken) {
+            config.headers['X-CSRF-Token'] = csrfToken
+          }
+        }
+
         return config
       },
       error => {
@@ -64,6 +111,19 @@ class Request {
       },
       async error => {
         const originalRequest = error.config
+
+        // 拦截 HTTP 403 + 业务码 CSRF 校验失败：清空 CSRF Token 并跳转登录
+        // 后端在缺失/无效 CSRF Token 时返回 403 + code 字段（字符串），前端在错误拦截器识别
+        if (error.response?.status === 403) {
+          const body = error.response.data as { code?: string } | undefined
+          if (body && (body.code === 'CSRF_TOKEN_MISSING' || body.code === 'CSRF_TOKEN_INVALID')) {
+            clearCsrfToken()
+            removeToken()
+            ElMessage.error('安全令牌已失效，请重新登录')
+            router.push('/login')
+            return Promise.reject(error)
+          }
+        }
 
         if (error.response?.status === 401 && !originalRequest?._retry) {
           if (isRefreshing) {
