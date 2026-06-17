@@ -9,6 +9,34 @@
 
 ## [Unreleased] - 2026-06-17
 
+### Added - P3-1 微服务拆分（关键路径 demo）
+- **完整设计 spec**：`docs/superpowers/specs/2026-06-17-p3-1-microservice.md`
+  - 6 个微服务职责拆分（user / inventory / sales / production / process / notifications）
+  - 整体架构图 + gRPC + Docker Compose 技术选型
+  - 7 个澄清问题 + 矛盾解决
+  - 用户验收 7 项 AC + 风险回滚
+- **完整实施 plan**：`docs/superpowers/plans/2026-06-17-p3-1-microservice.md`
+- **关键路径 demo**：notifications 独立 gRPC 微服务
+  - `microservices/notifications/Cargo.toml`：独立 Rust 项目（tonic 0.10 + sqlx 0.7 + tokio 1.35）
+  - `microservices/notifications/proto/notification.proto`：4 个 RPC + 7 个 message
+  - `microservices/notifications/src/`：main + service + repository + model（4 个文件）
+  - `microservices/notifications/migrations/001_init.sql`：notification_messages 表（多租户 + 时间倒序索引 + 已读状态索引）
+  - `microservices/notifications/tests/integration_test.rs`：单元测试 + 集成测试 stub
+  - `microservices/notifications/Dockerfile`：多阶段构建（rust 1.94 builder + debian slim 运行）
+  - `microservices/notifications/README.md`：启动 + 调用 + 故障排查
+  - `microservices/docker-compose.yml`：主项目 + notifications + postgres 3 服务编排
+  - `microservices/README.md`：微服务总览
+- **4 个 gRPC 端点**：
+  - `SendNotification` - 发送单条通知
+  - `BatchSend` - 批量发送
+  - `ListUserNotifications` - 列出用户通知（分页）
+  - `MarkAsRead` - 标记已读
+- **文档**：
+  - `docs/2026-06-17-p3-1-microservice-user-manual.md`（用户手册 + 架构图 + 故障排查）
+  - `docs/2026-06-17-p3-1-microservice-api.md`（gRPC API 详细文档）
+- **主项目向后兼容**：P3-1 不修改 `backend/` 与 `frontend/` 任何代码
+- **多租户隔离**：所有 SQL 强制 `WHERE tenant_id = $1`，标记已读 `WHERE id = $1 AND tenant_id = $2`
+
 ### Added - P2-4 AI 分析深化（工艺优化 + 质量预测）
 - **后端 2 张表**：`ai_process_optimizations`（工艺优化历史）/ `ai_quality_predictions`（质量预测历史）
   - 迁移文件：`migrations/20260617000009_create_ai_process_optimizations/`、`migrations/20260617000010_create_ai_quality_predictions/`
