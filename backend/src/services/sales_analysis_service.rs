@@ -40,6 +40,7 @@ pub struct CustomerRankingItem {
 #[derive(Debug, Clone, Deserialize)]
 pub struct ProductRankingParams {
     #[serde(rename = "type")]
+    #[allow(dead_code)] // TODO(tech-debt): 销售分析模块接入业务后移除
     pub dimension_type: Option<String>,
     pub period: Option<String>,
     pub limit: Option<i64>,
@@ -48,6 +49,7 @@ pub struct ProductRankingParams {
 #[derive(Debug, Clone, Deserialize)]
 pub struct CustomerRankingParams {
     #[serde(rename = "type")]
+    #[allow(dead_code)] // TODO(tech-debt): 销售分析模块接入业务后移除
     pub dimension_type: Option<String>,
     pub period: Option<String>,
     pub limit: Option<i64>,
@@ -74,6 +76,7 @@ pub struct SalesTargetDto {
 #[derive(Debug, Clone, Default, Deserialize)]
 pub struct ExportParams {
     pub period: Option<String>,
+    #[allow(dead_code)] // TODO(tech-debt): 销售分析导出模块接入业务后移除
     pub format: Option<String>,
 }
 

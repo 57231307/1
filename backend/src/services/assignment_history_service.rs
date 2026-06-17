@@ -38,7 +38,9 @@ pub struct AssignmentHistoryQuery {
     pub lead_id: Option<i32>,
     pub user_id: Option<i32>,
     pub action: Option<String>,
+    #[allow(dead_code)] // TODO(tech-debt): 分配历史模块接入业务后移除
     pub date_from: Option<String>,
+    #[allow(dead_code)] // TODO(tech-debt): 分配历史模块接入业务后移除
     pub date_to: Option<String>,
     pub page: Option<u64>,
     pub page_size: Option<u64>,

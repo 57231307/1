@@ -1,6 +1,7 @@
 use serde::{Deserialize, Serialize};
 
 /// 审计查询过滤条件（供 Handler 使用）
+#[allow(dead_code)] // TODO(tech-debt): 审计模块接入业务后移除
 #[derive(Debug, Deserialize)]
 pub struct AuditQueryFilter {
     pub user_id: Option<i32>,

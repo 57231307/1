@@ -30,6 +30,7 @@ pub struct SendEmailRequest {
     pub html_content: Option<String>,
     pub text_content: Option<String>,
     pub template_id: Option<i32>,
+    #[allow(dead_code)] // TODO(tech-debt): 邮件模块接入业务后移除
     pub template_params: Option<serde_json::Value>,
 }
 

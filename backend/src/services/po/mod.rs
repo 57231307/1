@@ -130,4 +130,5 @@ pub struct UpdateOrderItemRequest {
 // 统一对外导出（兼容旧路径 + 子模块直接访问）
 // =====================================================
 
+#[allow(unused_imports)] // TODO(tech-debt): 公共 API 重导出，业务接入后评估是否保留
 pub use order::PurchaseOrderService;

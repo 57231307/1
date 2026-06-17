@@ -20,8 +20,11 @@ use crate::utils::response::ApiResponse;
 pub struct PoolQueryParams {
     pub page: Option<u64>,
     pub page_size: Option<u64>,
+    #[allow(dead_code)] // TODO(tech-debt): 公海客户模块接入业务后移除
     pub source: Option<String>,
+    #[allow(dead_code)] // TODO(tech-debt): 公海客户模块接入业务后移除
     pub industry: Option<String>,
+    #[allow(dead_code)] // TODO(tech-debt): 公海客户模块接入业务后移除
     pub keyword: Option<String>,
 }
 

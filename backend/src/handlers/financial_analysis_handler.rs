@@ -23,8 +23,11 @@ use crate::utils::response::ApiResponse;
 #[derive(Debug, Deserialize)]
 pub struct TrendQueryParams {
     pub indicator_id: Option<i32>,
+    #[allow(dead_code)] // TODO(tech-debt): 财务分析模块接入业务后移除
     pub start_date: Option<String>,
+    #[allow(dead_code)] // TODO(tech-debt): 财务分析模块接入业务后移除
     pub end_date: Option<String>,
+    #[allow(dead_code)] // TODO(tech-debt): 财务分析模块接入业务后移除
     pub period: Option<String>,
     pub page_size: Option<i64>,
 }
@@ -34,8 +37,11 @@ pub struct TrendQueryParams {
 pub struct CreateReportRequest {
     pub name: String,
     pub report_type: String,
+    #[allow(dead_code)] // TODO(tech-debt): 报表创建接口接入业务后移除
     pub period_start: String,
+    #[allow(dead_code)] // TODO(tech-debt): 报表创建接口接入业务后移除
     pub period_end: String,
+    #[allow(dead_code)] // TODO(tech-debt): 报表创建接口接入业务后移除
     pub indicators: Option<Vec<i32>>,
     pub description: Option<String>,
 }

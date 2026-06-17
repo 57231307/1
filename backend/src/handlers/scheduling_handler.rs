@@ -9,10 +9,8 @@ use axum::{
 use chrono::NaiveDate;
 use rust_decimal::Decimal;
 use serde::{Deserialize, Serialize};
-use std::sync::Arc;
 
 use crate::middleware::auth_context::AuthContext;
-use crate::services::capacity_service::CapacityService;
 use crate::services::scheduling_service::{
     AdjustScheduleRequest, AutoScheduleRequest, ScheduledOrderQuery, SchedulingService,
 };
@@ -145,10 +143,7 @@ pub async fn auto_schedule(
     auth: AuthContext,
     Json(payload): Json<AutoSchedulePayload>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
-    let service = SchedulingService::new(
-        state.db.clone(),
-        Arc::new(CapacityService::new(state.db.clone())),
-    );
+    let service = SchedulingService::new(state.db.clone());
 
     let strategy = payload
         .strategy
@@ -187,10 +182,7 @@ pub async fn get_gantt_data(
     _auth: AuthContext,
     Query(query): Query<GanttQuery>,
 ) -> Result<Json<ApiResponse<GanttDataResponse>>, AppError> {
-    let service = SchedulingService::new(
-        state.db.clone(),
-        Arc::new(CapacityService::new(state.db.clone())),
-    );
+    let service = SchedulingService::new(state.db.clone());
 
     let gantt_data = service
         .get_gantt_data(query.work_center_id, query.date_from, query.date_to)
@@ -240,10 +232,7 @@ pub async fn detect_conflicts(
     State(state): State<AppState>,
     _auth: AuthContext,
 ) -> Result<Json<ApiResponse<Vec<ConflictResponse>>>, AppError> {
-    let service = SchedulingService::new(
-        state.db.clone(),
-        Arc::new(CapacityService::new(state.db.clone())),
-    );
+    let service = SchedulingService::new(state.db.clone());
 
     let conflicts = service.detect_conflicts().await?;
 
@@ -271,10 +260,7 @@ pub async fn adjust_schedule(
     Path(id): Path<i32>,
     Json(payload): Json<AdjustSchedulePayload>,
 ) -> Result<Json<ApiResponse<ScheduleDetailResponse>>, AppError> {
-    let service = SchedulingService::new(
-        state.db.clone(),
-        Arc::new(CapacityService::new(state.db.clone())),
-    );
+    let service = SchedulingService::new(state.db.clone());
 
     let req = AdjustScheduleRequest {
         work_center_id: payload.work_center_id,
@@ -315,10 +301,7 @@ pub async fn adjust_schedule_task(
     Path(task_id): Path<i32>,
     Json(payload): Json<AdjustScheduleTaskPayload>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
-    let service = SchedulingService::new(
-        state.db.clone(),
-        Arc::new(CapacityService::new(state.db.clone())),
-    );
+    let service = SchedulingService::new(state.db.clone());
 
     // 解析 start_time / end_time：兼容纯日期 (YYYY-MM-DD) 与 ISO 日期时间字符串
     fn parse_date(value: Option<String>) -> Option<NaiveDate> {
@@ -363,10 +346,7 @@ pub async fn list_scheduled_orders(
     _auth: AuthContext,
     Query(query): Query<ScheduledOrdersQuery>,
 ) -> Result<Json<ApiResponse<Vec<ScheduledOrderResponse>>>, AppError> {
-    let service = SchedulingService::new(
-        state.db.clone(),
-        Arc::new(CapacityService::new(state.db.clone())),
-    );
+    let service = SchedulingService::new(state.db.clone());
 
     let query_params = ScheduledOrderQuery {
         work_center_id: query.work_center_id,
@@ -435,10 +415,7 @@ pub async fn get_schedule_history(
     _auth: AuthContext,
     Query(query): Query<ScheduleHistoryQuery>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
-    let service = SchedulingService::new(
-        state.db.clone(),
-        Arc::new(CapacityService::new(state.db.clone())),
-    );
+    let service = SchedulingService::new(state.db.clone());
     let page = query.page.unwrap_or(1);
     let page_size = query.page_size.unwrap_or(20);
 
@@ -477,10 +454,7 @@ pub async fn get_schedule_result(
     _auth: AuthContext,
     Path(id): Path<i32>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
-    let service = SchedulingService::new(
-        state.db.clone(),
-        Arc::new(CapacityService::new(state.db.clone())),
-    );
+    let service = SchedulingService::new(state.db.clone());
 
     let result = service.get_schedule_result(id).await?;
     match result {
@@ -495,10 +469,7 @@ pub async fn confirm_schedule_result(
     auth: AuthContext,
     Path(id): Path<i32>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
-    let service = SchedulingService::new(
-        state.db.clone(),
-        Arc::new(CapacityService::new(state.db.clone())),
-    );
+    let service = SchedulingService::new(state.db.clone());
 
     let result = service.confirm_schedule_result(id, auth.user_id).await?;
     Ok(Json(ApiResponse::success_with_message(

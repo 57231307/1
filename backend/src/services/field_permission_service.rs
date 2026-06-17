@@ -224,11 +224,13 @@ impl FieldPermissionService {
     }
 
     /// 检查角色是否为管理员角色（带缓存）
+    #[allow(dead_code)] // TODO(tech-debt): 字段权限模块接入业务后移除
     async fn is_admin_role(&self, role_id: i32) -> Result<bool, AppError> {
         Ok(admin_checker::is_admin_role(&self.db, role_id).await)
     }
 
     /// 检查角色对某资源的字段读权限
+    #[allow(dead_code)] // TODO(tech-debt): 字段权限模块接入业务后移除
     pub async fn check_read_permission(
         &self,
         role_id: i32,
@@ -255,6 +257,7 @@ impl FieldPermissionService {
     }
 
     /// 检查角色对某资源的字段写权限
+    #[allow(dead_code)] // TODO(tech-debt): 字段权限模块接入业务后移除
     pub async fn check_write_permission(
         &self,
         role_id: i32,
@@ -281,6 +284,7 @@ impl FieldPermissionService {
     }
 
     /// 获取角色对某资源的所有字段权限
+    #[allow(dead_code)] // TODO(tech-debt): 字段权限模块接入业务后移除
     pub async fn get_role_field_permissions(
         &self,
         role_id: i32,
@@ -312,6 +316,7 @@ impl FieldPermissionService {
     }
 
     /// 过滤 JSON 数据中的字段（根据读权限）
+    #[allow(dead_code)] // TODO(tech-debt): 字段权限模块接入业务后移除
     pub fn filter_fields_by_read_permission(
         &self,
         data: &mut serde_json::Value,
@@ -342,6 +347,7 @@ impl FieldPermissionService {
     }
 
     /// 掩码处理 JSON 数据中的字段（无读权限时显示为 "***"）
+    #[allow(dead_code)] // TODO(tech-debt): 字段权限模块接入业务后移除
     pub fn mask_fields(&self, data: &mut serde_json::Value, permissions: &[FieldPermissionDetail]) {
         if let Some(obj) = data.as_object_mut() {
             for perm in permissions {
@@ -355,6 +361,7 @@ impl FieldPermissionService {
     }
 
     /// 批量处理 JSON 数组
+    #[allow(dead_code)] // TODO(tech-debt): 字段权限模块接入业务后移除
     pub fn process_json_array(
         &self,
         data_list: &mut [serde_json::Value],

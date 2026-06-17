@@ -180,5 +180,7 @@ pub struct UpdateSalesOrderRequest {
 // 统一对外导出
 // =====================================================
 
+#[allow(unused_imports)] // TODO(tech-debt): 公共 API 重导出，业务接入后评估是否保留
 pub use delivery::ShipOrderRequest;
+#[allow(unused_imports)] // TODO(tech-debt): 公共 API 重导出，业务接入后评估是否保留
 pub use order::SalesService;

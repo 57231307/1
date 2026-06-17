@@ -22,7 +22,6 @@ use crate::models::scheduling_result::{
     ActiveModel as SchedulingActiveModel, Entity as SchedulingResultEntity,
 };
 use crate::models::work_center::{Entity as WorkCenterEntity, Model as WorkCenterModel};
-use crate::services::capacity_service::CapacityService;
 use crate::utils::error::AppError;
 
 /// 排程工单
@@ -44,10 +43,13 @@ pub struct ScheduledOrder {
 /// 工作中心产能信息
 #[derive(Debug, Clone)]
 pub struct WorkCenterCapacity {
+    #[allow(dead_code)] // TODO(tech-debt): 报表模块接入后移除
     pub id: i32,
+    #[allow(dead_code)] // TODO(tech-debt): 报表模块接入后移除
     pub code: String,
     pub name: String,
     pub daily_capacity: Decimal,
+    #[allow(dead_code)] // TODO(tech-debt): 报表模块接入后移除
     pub status: String,
 }
 
@@ -173,15 +175,11 @@ pub struct ScheduledOrderQuery {
 /// 排程 Service
 pub struct SchedulingService {
     db: Arc<DatabaseConnection>,
-    capacity_service: Arc<CapacityService>,
 }
 
 impl SchedulingService {
-    pub fn new(db: Arc<DatabaseConnection>, capacity_service: Arc<CapacityService>) -> Self {
-        Self {
-            db,
-            capacity_service,
-        }
+    pub fn new(db: Arc<DatabaseConnection>) -> Self {
+        Self { db }
     }
 
     /// 自动排程 - 基于优先级和产能

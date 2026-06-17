@@ -22,14 +22,17 @@ pub struct CreateWebhookIntegrationRequest {
 #[derive(Debug, Deserialize)]
 pub struct SendWebhookMessageRequest {
     pub integration_id: i32,
+    #[allow(dead_code)] // TODO(tech-debt): Webhook 模块接入业务后移除
     pub message_type: String,
     pub content: String,
+    #[allow(dead_code)] // TODO(tech-debt): Webhook 模块接入业务后移除
     pub title: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
 pub struct WebhookCallbackRequest {
     pub event_type: String,
+    #[allow(dead_code)] // TODO(tech-debt): Webhook 模块接入业务后移除
     pub payload: serde_json::Value,
 }
 

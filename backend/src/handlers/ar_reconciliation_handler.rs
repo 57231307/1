@@ -215,7 +215,9 @@ pub struct ListResultsQuery {
     pub page: Option<u64>,
     pub page_size: Option<u64>,
     pub customer_id: Option<i32>,
+    #[allow(dead_code)] // TODO(tech-debt): 对账模块接入业务后移除
     pub start_date: Option<NaiveDate>,
+    #[allow(dead_code)] // TODO(tech-debt): 对账模块接入业务后移除
     pub end_date: Option<NaiveDate>,
 }
 
@@ -229,6 +231,7 @@ pub struct CreateConfirmationRequest {
 #[derive(Debug, Deserialize)]
 pub struct UpdateConfirmationStatusRequest {
     pub status: String,
+    #[allow(dead_code)] // TODO(tech-debt): 对账模块接入业务后移除
     pub remark: Option<String>,
 }
 
@@ -236,6 +239,7 @@ pub struct UpdateConfirmationStatusRequest {
 #[derive(Debug, Deserialize)]
 pub struct CreateDisputeApiRequest {
     pub reconciliation_id: Option<i32>,
+    #[allow(dead_code)] // TODO(tech-debt): 对账模块接入业务后移除
     pub customer_id: Option<i32>,
     pub reason: Option<String>,
     pub description: Option<String>,

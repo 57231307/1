@@ -588,8 +588,12 @@ impl ImportExportService {
 /// 导出查询参数
 #[derive(Debug, Clone, Deserialize)]
 pub struct ExportQuery {
+    #[allow(dead_code)] // TODO(tech-debt): 导出模块接入业务后移除
     pub format: Option<String>,
+    #[allow(dead_code)] // TODO(tech-debt): 导出模块接入业务后移除
     pub date_from: Option<String>,
+    #[allow(dead_code)] // TODO(tech-debt): 导出模块接入业务后移除
     pub date_to: Option<String>,
+    #[allow(dead_code)] // TODO(tech-debt): 导出模块接入业务后移除
     pub status: Option<String>,
 }

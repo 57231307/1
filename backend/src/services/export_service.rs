@@ -111,6 +111,7 @@ impl ExportService {
     }
 
     /// 根据格式导出
+    #[allow(dead_code)] // TODO(tech-debt): 导出模块接入业务后移除
     pub fn export(data: &ExportData, format: &ExportFormat) -> Result<Vec<u8>, AppError> {
         match format {
             ExportFormat::PDF => Self::export_pdf(data),
@@ -179,6 +180,7 @@ impl ExportService {
     }
 
     /// 生成销售报表PDF
+    #[allow(dead_code)] // TODO(tech-debt): 报表模块接入业务后移除
     pub fn generate_sales_report_pdf(
         title: &str,
         period_start: &str,

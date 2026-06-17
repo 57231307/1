@@ -553,6 +553,7 @@ impl SupplierService {
     // ==================== 供应商资质管理方法 ====================
 
     /// 获取供应商资质列表
+    #[allow(dead_code)] // TODO(tech-debt): 供应商资质模块接入业务后移除
     pub async fn list_supplier_qualifications(
         &self,
         supplier_id: i32,
@@ -566,6 +567,7 @@ impl SupplierService {
     }
 
     /// 创建供应商资质
+    #[allow(dead_code)] // TODO(tech-debt): 供应商资质模块接入业务后移除
     pub async fn create_supplier_qualification(
         &self,
         supplier_id: i32,

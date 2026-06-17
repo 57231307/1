@@ -31,7 +31,9 @@ pub struct CreateEmailLogRequest {
 #[derive(Debug, Clone, Deserialize)]
 pub struct EmailLogQuery {
     pub status: Option<String>,
+    #[allow(dead_code)] // TODO(tech-debt): 邮件日志模块接入业务后移除
     pub date_from: Option<String>,
+    #[allow(dead_code)] // TODO(tech-debt): 邮件日志模块接入业务后移除
     pub date_to: Option<String>,
     pub keyword: Option<String>,
     pub page: Option<u64>,
@@ -127,6 +129,7 @@ impl EmailLogService {
     }
 
     /// 获取邮件发送记录详情
+    #[allow(dead_code)] // TODO(tech-debt): 邮件日志模块接入业务后移除
     pub async fn get_by_id(&self, id: i32) -> Result<Option<EmailLogModel>, AppError> {
         let model = EmailLogEntity::find_by_id(id).one(&*self.db).await?;
 
@@ -169,6 +172,7 @@ impl EmailLogService {
     }
 
     /// 获取待重试的邮件列表
+    #[allow(dead_code)] // TODO(tech-debt): 邮件日志模块接入业务后移除
     pub async fn get_pending_retries(
         &self,
         max_retries: i32,
