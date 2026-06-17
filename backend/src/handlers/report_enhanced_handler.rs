@@ -341,6 +341,15 @@ pub struct TemplateExportRequest {
     pub title: Option<String>,
 }
 
+/// 报表导出请求（PDF/Excel 共用）
+#[allow(dead_code)] // TODO(tech-debt): 报表导出 API 接入前端后移除 dead_code 抑制
+#[derive(Debug, Deserialize)]
+pub struct ExportRequest {
+    pub template_id: String,
+    pub title: Option<String>,
+    pub format: Option<String>,
+}
+
 /// GET /api/v1/erp/reports-enhanced/fields/:template_type - 获取指定模板类型可用的字段定义
 pub async fn get_available_fields(
     State(_state): State<AppState>,

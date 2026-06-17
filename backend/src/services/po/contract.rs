@@ -9,7 +9,6 @@ use chrono::Utc;
 use sea_orm::{ColumnTrait, EntityTrait, PaginatorTrait, QueryFilter, Set};
 
 use super::order::PurchaseOrderService;
-use sea_orm::DatabaseConnection;
 
 impl PurchaseOrderService {
     /// 提交采购订单

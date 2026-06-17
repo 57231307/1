@@ -5,7 +5,7 @@
 
 use crate::models::dto::PageRequest;
 use crate::models::{
-    ar_invoice::{self, Column},
+    ar_invoice::{self},
     customer, product, sales_order,
     sales_order::Entity as SalesOrderEntity,
     sales_order_item,

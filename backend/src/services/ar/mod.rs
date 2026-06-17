@@ -15,13 +15,12 @@
 
 use chrono::NaiveDate;
 use rust_decimal::Decimal;
-use sea_orm::{DatabaseConnection, Order};
+use sea_orm::DatabaseConnection;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 
 use crate::models::ar_reconciliation::{
-    ActiveModel as ReconciliationActiveModel, Entity as ReconciliationEntity,
-    Model as ReconciliationModel,
+    Entity as ReconciliationEntity, Model as ReconciliationModel,
 };
 use crate::utils::error::AppError;
 use crate::utils::number_generator::DocumentNumberGenerator;

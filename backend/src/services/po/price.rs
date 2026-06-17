@@ -10,7 +10,6 @@ use rust_decimal::Decimal;
 use sea_orm::{ActiveModelTrait, ColumnTrait, EntityTrait, QueryFilter, Set, TransactionTrait};
 
 use super::order::PurchaseOrderService;
-use sea_orm::DatabaseConnection;
 
 impl PurchaseOrderService {
     /// 检查并占用预算（非阻断）

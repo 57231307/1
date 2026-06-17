@@ -6,15 +6,14 @@
 //! 这四个方法与发货/库存操作紧密相关，统一在 delivery.rs 中实现。
 
 use crate::models::{
-    inventory_reservation, inventory_stock, product, sales_delivery, sales_delivery_item,
-    sales_order, sales_order_item, warehouse,
+    inventory_reservation, inventory_stock, sales_delivery, sales_delivery_item, sales_order,
+    sales_order_item, warehouse,
 };
 use crate::utils::error::AppError;
 use rust_decimal::Decimal;
 use sea_orm::sea_query::ExprTrait;
 use sea_orm::{
-    ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter, Set,
-    TransactionTrait,
+    ActiveModelTrait, ColumnTrait, EntityTrait, QueryFilter, Set, TransactionTrait,
 };
 use serde::Deserialize;
 use validator::Validate;

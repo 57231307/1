@@ -12,7 +12,6 @@ use rust_decimal::Decimal;
 use sea_orm::{ActiveModelTrait, ColumnTrait, EntityTrait, QueryFilter, Set, TransactionTrait};
 
 use super::order::PurchaseOrderService;
-use sea_orm::DatabaseConnection;
 
 impl PurchaseOrderService {
     /// 标记采购订单为已收货（含库存入库联动）

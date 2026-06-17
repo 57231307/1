@@ -22,7 +22,7 @@ use crate::utils::error::AppError;
 
 use super::{
     AggregateRequest, AggregateResult, AggregationType, DataSource, ExecuteReportRequest,
-    ReportColumn, ReportData, ReportEngineService, ReportMetadata, DEFAULT_CACHE_TTL_SECONDS,
+    ReportData, ReportEngineService, ReportMetadata, DEFAULT_CACHE_TTL_SECONDS,
 };
 
 impl ReportEngineService {

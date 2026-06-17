@@ -6,10 +6,9 @@
 use crate::models::{crm_lead, crm_opportunity, customer};
 use crate::utils::error::AppError;
 use sea_orm::{
-    ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, PaginatorTrait, QueryFilter,
-    QueryOrder, Set, TransactionTrait,
+    ActiveModelTrait, ColumnTrait, EntityTrait, PaginatorTrait, QueryFilter, QueryOrder, Set,
+    TransactionTrait,
 };
-use std::sync::Arc;
 
 use super::cust::CrmService;
 
