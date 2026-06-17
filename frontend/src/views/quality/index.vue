@@ -408,13 +408,13 @@ const handleInspectionRowClick = (_row: QualityRecord) => {
 }
 
 // V2Table 内置分页事件处理（quality 暂未对接后端分页参数，事件钩子保留以便扩展）
+// TODO(tech-debt): 后端 listQualityRecords 暂未支持分页字段；待后端分页参数就绪后接入 page/size。
 const handlePageChange = (_newPage: number) => {
-  // TODO: 后端 listQualityRecords 暂未支持分页，待分页字段就绪后接入
   fetchRecords()
 }
 
+// TODO(tech-debt): 后端 listQualityRecords 暂未支持分页字段；待后端分页参数就绪后接入 page/size。
 const handleSizeChange = (_newSize: number) => {
-  // TODO: 后端 listQualityRecords 暂未支持分页，待分页字段就绪后接入
   fetchRecords()
 }
 

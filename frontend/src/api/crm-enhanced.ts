@@ -245,6 +245,10 @@ const crmEnhancedApi = {
 
   getRfmDistribution: () =>
     request.get<ApiResponse<Record<string, number>>>('/crm/rfm/distribution'),
+
+  // 释放客户到公海池（P1-5 补齐，与后端 /pool/recycle 对应）
+  recycleToPool: (data: { customer_ids: number[]; reason?: string }) =>
+    request.post<ApiResponse<void>>('/crm/pool/recycle', data),
 }
 
 export default crmEnhancedApi

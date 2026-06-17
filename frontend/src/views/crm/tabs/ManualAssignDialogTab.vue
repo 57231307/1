@@ -35,6 +35,7 @@ import { ref, reactive, watch } from 'vue'
 import { ElMessage } from 'element-plus'
 import type { User } from '@/api/user'
 import { logger } from '@/utils/logger'
+import { crmEnhancedApi } from '@/api/crm-enhanced'
 
 interface Props {
   modelValue: boolean
@@ -80,7 +81,12 @@ const handleSubmit = async () => {
   }
   try {
     submitLoading.value = true
-    // TODO: 实际调用手动分配 API
+    // P1-5：实际调用手动分配 API
+    await crmEnhancedApi.assignCustomer({
+      customer_ids: [props.customerId],
+      assign_to: form.newOwnerId,
+      reason: form.reason,
+    })
     ElMessage.success('分配成功')
     visible.value = false
     emit('submitted')

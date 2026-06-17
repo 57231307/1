@@ -24,6 +24,7 @@
 import { ref, reactive, watch } from 'vue'
 import { ElMessage } from 'element-plus'
 import { logger } from '@/utils/logger'
+import { crmEnhancedApi } from '@/api/crm-enhanced'
 
 interface Props {
   modelValue: boolean
@@ -59,7 +60,8 @@ const handleSubmit = async () => {
   if (!props.customerId) return
   try {
     submitLoading.value = true
-    // TODO: 实际调用领取 API
+    // P1-5：实际调用领取 API
+    await crmEnhancedApi.claimFromPool(props.customerId)
     ElMessage.success('领取成功')
     visible.value = false
     emit('submitted')
