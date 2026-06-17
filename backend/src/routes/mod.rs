@@ -262,6 +262,14 @@ fn suppliers_select_alias() -> Router<AppState> {
     )
 }
 
+/// P9-8 搜索 API 路由（path 前缀 /search）
+fn search_routes() -> Router<AppState> {
+    Router::new()
+        .route("/search/sales-orders", get(search_api::search_sales_orders))
+        .route("/search/customers", get(search_api::search_customers))
+        .route("/search/products", get(search_api::search_products))
+}
+
 /// 构建 ERP 根域子路由（共享 `/api/v1/erp` 前缀）
 ///
 /// 共享同一前缀的四个域（iam / catalog / analytics / system）必须先 merge 再整体 nest，
@@ -286,6 +294,8 @@ fn build_erp_root_router() -> Router<AppState> {
         .merge(data_import_routes())
         .merge(product_categories_alias())
         .merge(suppliers_select_alias())
+        // P9-8 搜索 API
+        .merge(search_routes())
 }
 
 /// 构建基础设施路由（静态资源 + 指标 + API 文档）
