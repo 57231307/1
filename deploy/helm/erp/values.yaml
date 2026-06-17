@@ -1,0 +1,129 @@
+# 冰溪 ERP Helm Chart 默认配置
+# 使用方法：helm install erp ./deploy/helm/erp -f values.yaml
+
+# 镜像配置
+image:
+  repository: registry.cn-hangzhou.aliyuncs.com/bingxi/erp-backend
+  tag: "2026.522.2"
+  pullPolicy: IfNotPresent
+  pullSecrets: []
+
+# 副本数
+replicaCount: 2
+
+# 资源限制
+resources:
+  requests:
+    cpu: 500m
+    memory: 512Mi
+  limits:
+    cpu: 2000m
+    memory: 2Gi
+
+# 容器端口
+containerPort: 8080
+
+# 健康检查
+livenessProbe:
+  httpGet:
+    path: /api/health
+    port: 8080
+  initialDelaySeconds: 30
+  periodSeconds: 10
+  timeoutSeconds: 3
+  failureThreshold: 3
+readinessProbe:
+  httpGet:
+    path: /api/health/ready
+    port: 8080
+  initialDelaySeconds: 10
+  periodSeconds: 5
+  timeoutSeconds: 3
+  failureThreshold: 3
+
+# Service 配置
+service:
+  type: ClusterIP
+  port: 80
+  targetPort: 8080
+
+# Ingress 配置
+ingress:
+  enabled: true
+  className: nginx
+  annotations:
+    nginx.ingress.kubernetes.io/proxy-body-size: "50m"
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "60"
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+    cert-manager.io/cluster-issuer: letsencrypt-prod
+  hosts:
+    - host: erp.bingxi.example.com
+      paths:
+        - path: /
+          pathType: Prefix
+  tls:
+    - secretName: erp-tls
+      hosts:
+        - erp.bingxi.example.com
+
+# ConfigMap 配置（非敏感）
+config:
+  RUST_LOG: "info,bingxi_backend=info"
+  RUST_BACKTRACE: "1"
+  BINGXI_SLOW_QUERY_MS: "100"
+  CACHE_ENABLED: "true"
+  CACHE_CAPACITY: "10000"
+  CACHE_TTL_SECS: "60"
+  DATABASE_POOL_SIZE: "20"
+
+# Secret 配置（敏感 - 必须通过外部 secret 管理覆盖）
+secret:
+  DATABASE_URL: "postgresql://erp:CHANGEME@postgres:5432/bingxi_erp"
+  REDIS_URL: "redis://:CHANGEME@redis:6379"
+  JWT_SECRET: "CHANGEME-base64-encoded-256-bit-key"
+  ENCRYPTION_KEY: "CHANGEME-base64-encoded-256-bit-key"
+
+# HPA 自动扩缩
+autoscaling:
+  enabled: true
+  minReplicas: 2
+  maxReplicas: 10
+  targetCPUUtilizationPercentage: 70
+  targetMemoryUtilizationPercentage: 80
+
+# 调度策略
+nodeSelector: {}
+tolerations: []
+affinity: {}
+
+# Pod 安全配置
+podSecurityContext:
+  runAsNonRoot: true
+  runAsUser: 1000
+  fsGroup: 1000
+
+securityContext:
+  allowPrivilegeEscalation: false
+  readOnlyRootFilesystem: true
+  capabilities:
+    drop:
+      - ALL
+
+# ServiceAccount
+serviceAccount:
+  create: true
+  name: "bingxi-erp"
+
+# 持久化（如需 PVC，挂载到 /data）
+persistence:
+  enabled: false
+  size: 10Gi
+  storageClass: ""
+  accessModes:
+    - ReadWriteOnce
+  mountPath: /data
+
+# Pod 中断预算
+podDisruptionBudget:
+  enabled: true
+  minAvailable: 1

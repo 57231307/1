@@ -1,0 +1,15 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "erp.fullname" . }}-config
+  labels:
+    {{- include "erp.labels" . | nindent 4 }}
+data:
+  RUST_LOG: {{ .Values.config.RUST_LOG | quote }}
+  RUST_BACKTRACE: {{ .Values.config.RUST_BACKTRACE | quote }}
+  BINGXI_SLOW_QUERY_MS: {{ .Values.config.BINGXI_SLOW_QUERY_MS | quote }}
+  CACHE_ENABLED: {{ .Values.config.CACHE_ENABLED | quote }}
+  CACHE_CAPACITY: {{ .Values.config.CACHE_CAPACITY | quote }}
+  CACHE_TTL_SECS: {{ .Values.config.CACHE_TTL_SECS | quote }}
+  DATABASE_POOL_SIZE: {{ .Values.config.DATABASE_POOL_SIZE | quote }}
+  SERVER_PORT: {{ .Values.containerPort | quote }}

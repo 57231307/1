@@ -1,0 +1,17 @@
+apiVersion: v2
+name: bingxi-erp
+description: 冰溪 ERP 系统 Helm Chart - 面料行业管理
+type: application
+version: 1.0.0
+appVersion: "2026.522.2"
+keywords:
+  - erp
+  - fabric
+  - bingxi
+  - saas
+home: https://github.com/57231307/1
+sources:
+  - https://github.com/57231307/1
+maintainers:
+  - name: BingXi Team
+    email: ops@bingxi.example.com
