@@ -8,10 +8,6 @@
 //! 3. 销售用户列表 — 复用 `user` 模型 + role 过滤
 //! 4. CRM 公海回收规则 — 内存存储（对应数据库表 `crm_recycle_rules` 后续可平滑迁移）
 
-#[allow(dead_code)]
-#[allow(clippy::too_many_arguments)]
-#[allow(clippy::missing_errors_doc)]
-#[allow(clippy::missing_panics_doc)]
 use axum::{
     extract::{Path, State},
     Json,

@@ -23,21 +23,11 @@ use crate::utils::error::AppError;
 use crate::utils::response::ApiResponse;
 
 /// 报表执行查询参数
-#[allow(dead_code)]
 #[derive(Debug, Deserialize)]
 pub struct ReportExecuteParams {
     pub template_id: String,
     pub page: Option<u64>,
     pub page_size: Option<u64>,
-}
-
-/// 导出请求
-#[allow(dead_code)]
-#[derive(Debug, Deserialize)]
-pub struct ExportRequest {
-    pub template_id: String,
-    pub format: String,
-    pub title: Option<String>,
 }
 
 /// POST /api/v1/erp/reports-enhanced/templates - 创建报表模板
@@ -345,11 +335,19 @@ pub async fn trigger_subscription(
 }
 
 /// 报表模板导出请求
-#[allow(dead_code)]
 #[derive(Debug, Deserialize)]
 pub struct TemplateExportRequest {
     pub format: Option<String>,
     pub title: Option<String>,
+}
+
+/// 报表导出请求（PDF/Excel 共用）
+#[allow(dead_code)] // TODO(tech-debt): 报表导出 API 接入前端后移除 dead_code 抑制
+#[derive(Debug, Deserialize)]
+pub struct ExportRequest {
+    pub template_id: String,
+    pub title: Option<String>,
+    pub format: Option<String>,
 }
 
 /// GET /api/v1/erp/reports-enhanced/fields/:template_type - 获取指定模板类型可用的字段定义

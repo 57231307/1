@@ -11,7 +11,6 @@
 //!
 //! 拆分自原 `report_engine_service.rs` 的"报表导出"段。
 
-use base64::Engine;
 use chrono::Utc;
 use std::io::Write;
 use tracing::info;
@@ -488,10 +487,4 @@ impl ReportEngineService {
             .await
             .map(|r| r.content)
     }
-}
-
-// 抑制未使用导入
-#[allow(dead_code)]
-fn _unused() {
-    let _ = base64::engine::general_purpose::STANDARD.encode([0u8]);
 }

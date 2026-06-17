@@ -118,8 +118,6 @@ pub mod email_log_service;
 pub mod assignment_history_service;
 // 报表订阅模块
 pub mod report_subscription_service;
-// 定时任务调度器模块
-pub mod scheduler_service;
 // 导出服务模块
 pub mod export_service;
 // 通用打印服务

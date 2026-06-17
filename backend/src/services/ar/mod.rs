@@ -15,21 +15,13 @@
 
 use chrono::NaiveDate;
 use rust_decimal::Decimal;
-use sea_orm::{DatabaseConnection, Order};
+use sea_orm::DatabaseConnection;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
-use tracing::info;
 
-use crate::models::ar_collection;
-use crate::models::ar_invoice;
 use crate::models::ar_reconciliation::{
-    ActiveModel as ReconciliationActiveModel, Entity as ReconciliationEntity,
-    Model as ReconciliationModel,
+    Entity as ReconciliationEntity, Model as ReconciliationModel,
 };
-use crate::models::ar_reconciliation_item::{
-    Entity as ReconciliationItemEntity, Model as ReconciliationItemModel,
-};
-use crate::models::customer;
 use crate::utils::error::AppError;
 use crate::utils::number_generator::DocumentNumberGenerator;
 
@@ -192,16 +184,3 @@ pub(crate) async fn generate_reconciliation_no(
 
 /// 重新导出共用 Order 枚举给子模块（避免重复导入）
 pub(crate) use sea_orm::Order as SharedOrder;
-
-/// 抑制未使用导入警告
-#[allow(dead_code)]
-fn _unused() {
-    let _: Option<ReconciliationItemModel> = None;
-    let _: Option<ReconciliationActiveModel> = None;
-    let _: Option<ReconciliationItemEntity> = None;
-    let _: Option<customer::Entity> = None;
-    let _: Option<ar_invoice::Entity> = None;
-    let _: Option<ar_collection::Entity> = None;
-    let _: fn() -> _ = || info!("");
-    let _: Order = Order::Asc;
-}

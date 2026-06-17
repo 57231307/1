@@ -6,18 +6,14 @@
 //! 这四个方法与发货/库存操作紧密相关，统一在 delivery.rs 中实现。
 
 use crate::models::{
-    inventory_reservation, inventory_stock, product, sales_delivery, sales_delivery_item,
-    sales_order, sales_order_item, warehouse,
+    inventory_reservation, inventory_stock, sales_delivery, sales_delivery_item, sales_order,
+    sales_order_item, warehouse,
 };
 use crate::utils::error::AppError;
 use rust_decimal::Decimal;
 use sea_orm::sea_query::ExprTrait;
-use sea_orm::{
-    ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter, Set,
-    TransactionTrait,
-};
+use sea_orm::{ActiveModelTrait, ColumnTrait, EntityTrait, QueryFilter, Set, TransactionTrait};
 use serde::Deserialize;
-use std::sync::Arc;
 use validator::Validate;
 
 use super::order::SalesService;
@@ -587,11 +583,3 @@ impl SalesService {
             .map_err(|e| AppError::business(format!("CSV 生成失败: {}", e)))
     }
 }
-
-/// 引用 Arc 别名
-#[allow(dead_code)]
-pub(crate) type DbArc = Arc<DatabaseConnection>;
-
-// 解决未使用导入告警
-#[allow(dead_code)]
-type _ProductModel = product::Model;

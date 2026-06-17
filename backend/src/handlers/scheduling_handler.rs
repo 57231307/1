@@ -95,18 +95,6 @@ pub struct ScheduleDetailResponse {
     pub status: String,
 }
 
-/// 自动排程结果响应
-#[allow(dead_code)]
-#[derive(Debug, Serialize)]
-pub struct AutoScheduleResultResponse {
-    pub total_orders: i32,
-    pub scheduled_orders: i32,
-    pub unscheduled_orders: i32,
-    pub conflicts: Vec<ConflictResponse>,
-    pub gantt_data: GanttDataResponse,
-    pub schedule_details: Vec<ScheduleDetailResponse>,
-}
-
 /// 手动调整排程请求体
 #[derive(Debug, Deserialize)]
 pub struct AdjustSchedulePayload {

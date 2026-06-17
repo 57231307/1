@@ -42,7 +42,6 @@ pub struct ScheduledOrder {
 }
 
 /// 工作中心产能信息
-#[allow(dead_code)]
 #[derive(Debug, Clone)]
 pub struct WorkCenterCapacity {
     pub id: i32,
@@ -53,7 +52,8 @@ pub struct WorkCenterCapacity {
 }
 
 /// 排程时间槽
-#[allow(dead_code)]
+/// 计划任务接入：用于按工位查找可用时间槽
+#[allow(dead_code)] // TODO(tech-debt): 排程前端接入时间槽可视化后移除
 #[derive(Debug, Clone)]
 pub struct TimeSlot {
     pub work_center_id: i32,
@@ -173,7 +173,6 @@ pub struct ScheduledOrderQuery {
 /// 排程 Service
 pub struct SchedulingService {
     db: Arc<DatabaseConnection>,
-    #[allow(dead_code)]
     capacity_service: Arc<CapacityService>,
 }
 

@@ -53,7 +53,7 @@ impl ArInvoiceService {
     }
 
     /// 从销售出库单自动生成应收单
-    #[allow(dead_code)]
+    #[allow(dead_code)] // TODO(tech-debt): 销售出库流程接入自动开票后移除
     pub async fn auto_generate_from_delivery(
         &self,
         delivery_id: i32,

@@ -6,7 +6,7 @@ use crate::utils::error::AppError;
 use serde::{Deserialize, Serialize};
 
 /// 导出格式
-#[allow(dead_code, clippy::upper_case_acronyms)]
+#[allow(clippy::upper_case_acronyms)]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum ExportFormat {
     PDF,
@@ -24,10 +24,8 @@ pub struct ExportData {
 }
 
 /// 导出服务
-#[allow(dead_code)]
 pub struct ExportService;
 
-#[allow(dead_code)]
 impl ExportService {
     /// 导出为CSV格式
     pub fn export_csv(data: &ExportData) -> Result<Vec<u8>, AppError> {

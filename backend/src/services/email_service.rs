@@ -354,7 +354,7 @@ impl EmailTemplate {
     }
 
     /// 保存邮件发送记录
-    #[allow(dead_code)]
+    #[allow(dead_code)] // TODO(tech-debt): 邮件发送完成时统一回写日志后移除
     #[allow(clippy::too_many_arguments)]
     pub async fn save_email_log(
         &self,

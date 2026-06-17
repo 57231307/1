@@ -33,7 +33,6 @@ pub struct CreateAssignmentHistoryRequest {
 }
 
 /// 分配历史查询参数
-#[allow(dead_code)]
 #[derive(Debug, Clone, Deserialize)]
 pub struct AssignmentHistoryQuery {
     pub lead_id: Option<i32>,
@@ -87,16 +86,6 @@ impl AssignmentHistoryService {
         Ok(model)
     }
 
-    /// 获取分配历史详情
-    #[allow(dead_code)]
-    pub async fn get_by_id(&self, id: i32) -> Result<Option<AssignmentHistoryModel>, AppError> {
-        let model = AssignmentHistoryEntity::find_by_id(id)
-            .one(&*self.db)
-            .await?;
-
-        Ok(model)
-    }
-
     /// 查询分配历史列表
     pub async fn list(
         &self,
@@ -135,65 +124,4 @@ impl AssignmentHistoryService {
 
         Ok((items, total))
     }
-
-    /// 获取客户的分配历史
-    #[allow(dead_code)]
-    pub async fn get_lead_history(
-        &self,
-        tenant_id: i32,
-        lead_id: i32,
-    ) -> Result<Vec<AssignmentHistoryModel>, AppError> {
-        let items = AssignmentHistoryEntity::find()
-            .filter(crate::models::assignment_history::Column::TenantId.eq(tenant_id))
-            .filter(crate::models::assignment_history::Column::LeadId.eq(lead_id))
-            .order_by_desc(crate::models::assignment_history::Column::CreatedAt)
-            .all(&*self.db)
-            .await?;
-
-        Ok(items)
-    }
-
-    /// 获取用户的分配统计
-    #[allow(dead_code)]
-    pub async fn get_user_statistics(
-        &self,
-        tenant_id: i32,
-        user_id: i32,
-    ) -> Result<AssignmentStatistics, AppError> {
-        let assigned_count = AssignmentHistoryEntity::find()
-            .filter(crate::models::assignment_history::Column::TenantId.eq(tenant_id))
-            .filter(crate::models::assignment_history::Column::ToUserId.eq(user_id))
-            .filter(crate::models::assignment_history::Column::Action.eq("ASSIGN"))
-            .count(&*self.db)
-            .await?;
-
-        let recycled_count = AssignmentHistoryEntity::find()
-            .filter(crate::models::assignment_history::Column::TenantId.eq(tenant_id))
-            .filter(crate::models::assignment_history::Column::FromUserId.eq(user_id))
-            .filter(crate::models::assignment_history::Column::Action.eq("RECYCLE"))
-            .count(&*self.db)
-            .await?;
-
-        let claimed_count = AssignmentHistoryEntity::find()
-            .filter(crate::models::assignment_history::Column::TenantId.eq(tenant_id))
-            .filter(crate::models::assignment_history::Column::ToUserId.eq(user_id))
-            .filter(crate::models::assignment_history::Column::Action.eq("CLAIM"))
-            .count(&*self.db)
-            .await?;
-
-        Ok(AssignmentStatistics {
-            assigned: assigned_count as i64,
-            recycled: recycled_count as i64,
-            claimed: claimed_count as i64,
-        })
-    }
-}
-
-/// 分配统计
-#[allow(dead_code)]
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct AssignmentStatistics {
-    pub assigned: i64,
-    pub recycled: i64,
-    pub claimed: i64,
 }

@@ -7,10 +7,8 @@ use crate::models::{purchase_order, purchase_order_item, status};
 use crate::utils::error::AppError;
 use chrono::Utc;
 use sea_orm::{ColumnTrait, EntityTrait, PaginatorTrait, QueryFilter, Set};
-use std::sync::Arc;
 
 use super::order::PurchaseOrderService;
-use sea_orm::DatabaseConnection;
 
 impl PurchaseOrderService {
     /// 提交采购订单
@@ -166,7 +164,3 @@ impl PurchaseOrderService {
         Ok(order)
     }
 }
-
-/// 引用 Arc 别名，避免子模块中重复声明
-#[allow(dead_code)]
-pub(crate) type DbArc = Arc<DatabaseConnection>;

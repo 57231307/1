@@ -74,16 +74,6 @@ struct StockInfo {
     available: Decimal,
 }
 
-/// BOM展开节点
-#[derive(Debug, Clone)]
-#[allow(dead_code)]
-struct BomNode {
-    product_id: i32,
-    quantity: Decimal,
-    level: i32,
-    scrap_rate: Option<Decimal>,
-}
-
 /// MRP计算引擎
 pub struct MrpEngineService {
     db: Arc<DatabaseConnection>,
@@ -580,7 +570,7 @@ impl MrpEngineService {
     }
 
     /// 获取缺料预警列表
-    #[allow(dead_code)]
+    #[allow(dead_code)] // TODO(tech-debt): 物料短缺预警 API 接入后移除
     pub async fn get_shortage_alerts(
         &self,
         days_ahead: i64,
@@ -625,7 +615,7 @@ impl MrpEngineService {
     }
 
     /// 删除MRP计算结果
-    #[allow(dead_code)]
+    #[allow(dead_code)] // TODO(tech-debt): MRP 计算结果清理任务接入后移除
     pub async fn delete_results(&self, calculation_no: &str) -> Result<u64, AppError> {
         let result = MrpResultEntity::delete_many()
             .filter(crate::models::mrp_result::Column::CalculationNo.eq(calculation_no))

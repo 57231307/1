@@ -24,7 +24,7 @@ impl AssistAccountingService {
     }
 
     /// 初始化 8 个辅助核算维度
-    #[allow(dead_code)]
+    #[allow(dead_code)] // TODO(tech-debt): 系统初始化脚本接入后移除
     pub async fn initialize_dimensions(&self) -> Result<(), AppError> {
         let dimensions = [
             ("BATCH", "批次核算", "按生产批次进行辅助核算"),
@@ -64,7 +64,7 @@ impl AssistAccountingService {
     }
 
     /// 创建辅助核算记录
-    #[allow(dead_code)]
+    #[allow(dead_code)] // TODO(tech-debt): 业务模块接入自动生成辅助核算后移除
     #[allow(clippy::too_many_arguments)]
     pub async fn create_assist_record(
         &self,
@@ -163,7 +163,7 @@ impl AssistAccountingService {
     }
 
     /// 生成会计期间汇总（按月）
-    #[allow(dead_code)]
+    #[allow(dead_code)] // TODO(tech-debt): 报表模块接入月度辅助核算汇总后移除
     pub async fn generate_monthly_summary(&self, year: i32, month: u32) -> Result<(), AppError> {
         use sea_orm::ColumnTrait;
 
@@ -408,7 +408,7 @@ impl AssistAccountingService {
     }
 
     /// 删除辅助核算记录（通常用于冲销）
-    #[allow(dead_code)]
+    #[allow(dead_code)] // TODO(tech-debt): 凭证冲销模块接入后移除
     pub async fn delete_assist_record(&self, id: i32) -> Result<(), AppError> {
         assist_accounting_record::Entity::delete_many()
             .filter(assist_accounting_record::Column::Id.eq(id))

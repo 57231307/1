@@ -211,7 +211,6 @@ pub struct GenerateReconciliationApiRequest {
 
 /// 自动对账结果列表查询参数
 #[derive(Debug, Deserialize)]
-#[allow(dead_code)]
 pub struct ListResultsQuery {
     pub page: Option<u64>,
     pub page_size: Option<u64>,
@@ -222,14 +221,12 @@ pub struct ListResultsQuery {
 
 /// 客户确认请求体
 #[derive(Debug, Deserialize)]
-#[allow(dead_code)]
 pub struct CreateConfirmationRequest {
     pub reconciliation_id: i32,
 }
 
 /// 更新确认状态请求
 #[derive(Debug, Deserialize)]
-#[allow(dead_code)]
 pub struct UpdateConfirmationStatusRequest {
     pub status: String,
     pub remark: Option<String>,
@@ -237,7 +234,6 @@ pub struct UpdateConfirmationStatusRequest {
 
 /// 创建争议请求体
 #[derive(Debug, Deserialize)]
-#[allow(dead_code)]
 pub struct CreateDisputeApiRequest {
     pub reconciliation_id: Option<i32>,
     pub customer_id: Option<i32>,
@@ -247,7 +243,6 @@ pub struct CreateDisputeApiRequest {
 
 /// 解决争议请求体
 #[derive(Debug, Deserialize)]
-#[allow(dead_code)]
 pub struct ResolveDisputeRequest {
     pub resolution: String,
     pub status: Option<String>,

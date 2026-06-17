@@ -328,7 +328,7 @@ impl ProductionOrderService {
     }
 
     /// 删除生产订单（软删除 - 设为取消状态）
-    #[allow(dead_code)]
+    #[allow(dead_code)] // TODO(tech-debt): 生产订单取消 API 接入后移除
     pub async fn delete(&self, id: i32) -> Result<(), AppError> {
         let model = ProductionOrderEntity::find_by_id(id)
             .one(&*self.db)

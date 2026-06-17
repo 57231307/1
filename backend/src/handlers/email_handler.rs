@@ -21,7 +21,6 @@ use crate::utils::error::AppError;
 use crate::utils::response::ApiResponse;
 
 /// 发送邮件请求
-#[allow(dead_code)]
 #[derive(Debug, Deserialize)]
 pub struct SendEmailRequest {
     pub to: Vec<String>,

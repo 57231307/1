@@ -9,8 +9,7 @@
 use crate::models::{customer, sales_order};
 use crate::services::so::order::SalesService;
 use crate::utils::error::AppError;
-use sea_orm::{DatabaseConnection, EntityTrait, Set, TransactionTrait};
-use std::sync::Arc;
+use sea_orm::{EntityTrait, Set, TransactionTrait};
 
 impl SalesService {
     /// 拒绝销售订单
@@ -59,7 +58,3 @@ impl SalesService {
         Ok(())
     }
 }
-
-/// 引用 Arc 别名
-#[allow(dead_code)]
-pub(crate) type DbArc = Arc<DatabaseConnection>;

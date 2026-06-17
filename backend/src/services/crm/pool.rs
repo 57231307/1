@@ -6,8 +6,7 @@
 
 use crate::models::crm_lead;
 use crate::utils::error::AppError;
-use sea_orm::{DatabaseConnection, EntityTrait, Set};
-use std::sync::Arc;
+use sea_orm::{EntityTrait, Set};
 
 use super::cust::CrmService;
 
@@ -57,7 +56,3 @@ impl CrmService {
         Ok(claimed)
     }
 }
-
-/// 引用 Arc 别名
-#[allow(dead_code)]
-pub(crate) type DbArc = Arc<DatabaseConnection>;

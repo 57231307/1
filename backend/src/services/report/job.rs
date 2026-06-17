@@ -7,10 +7,10 @@
 //! 拆分自原 `report_engine_service.rs` 的"报表订阅管理"段。
 
 use chrono::Utc;
-use sea_orm::{ActiveModelTrait, EntityTrait, Set};
+use sea_orm::{ActiveModelTrait, Set};
 use tracing::info;
 
-use crate::models::report_subscription::{self, Entity as ReportSubscriptionEntity};
+use crate::models::report_subscription;
 use crate::utils::error::AppError;
 
 use super::{CreateSubscriptionRequest, ReportEngineService, ReportSubscription};
@@ -280,10 +280,4 @@ impl ReportEngineService {
 
         Ok(values)
     }
-}
-
-// 抑制未使用导入
-#[allow(dead_code)]
-fn _unused() {
-    let _ = ReportSubscriptionEntity::find_by_id::<i32>;
 }

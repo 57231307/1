@@ -14,7 +14,6 @@ use serde_json::Value;
 use std::sync::Arc;
 
 /// 数据范围类型常量
-#[allow(dead_code)]
 pub mod data_scope {
     pub const ALL: &str = "ALL";
     pub const DEPT: &str = "DEPT";
@@ -239,37 +238,5 @@ impl DataPermissionService {
         for data in data_list {
             self.filter_fields(data, allowed_fields, hidden_fields);
         }
-    }
-}
-
-/// 数据权限构建器
-///
-/// 用于构建数据查询时的权限过滤条件
-#[allow(dead_code)]
-pub struct DataPermissionBuilder;
-
-#[allow(dead_code)]
-impl DataPermissionBuilder {
-    /// 构建部门数据范围过滤条件
-    pub fn build_dept_filter(dept_id: i32) -> serde_json::Value {
-        serde_json::json!({
-            "department_id": dept_id
-        })
-    }
-
-    /// 构建本人数据范围过滤条件
-    pub fn build_self_filter(user_id: i32) -> serde_json::Value {
-        serde_json::json!({
-            "created_by": user_id
-        })
-    }
-
-    /// 构建部门及以下数据范围过滤条件
-    pub fn build_dept_and_below_filter(dept_ids: Vec<i32>) -> serde_json::Value {
-        serde_json::json!({
-            "department_id": {
-                "$in": dept_ids
-            }
-        })
     }
 }

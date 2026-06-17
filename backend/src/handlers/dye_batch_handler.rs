@@ -41,16 +41,6 @@ impl DyeBatchStatus {
         }
     }
 
-    #[allow(dead_code)]
-    pub fn to_str(&self) -> &'static str {
-        match self {
-            Self::Pending => "待生产",
-            Self::InProgress => "生产中",
-            Self::Completed => "已完成",
-            Self::Cancelled => "已取消",
-        }
-    }
-
     /// 检查状态流转是否合法
     pub fn can_transition_to(&self, target: &Self) -> bool {
         match self {

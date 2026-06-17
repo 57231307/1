@@ -8,10 +8,8 @@ use crate::utils::error::AppError;
 use chrono::Utc;
 use rust_decimal::Decimal;
 use sea_orm::{ActiveModelTrait, ColumnTrait, EntityTrait, QueryFilter, Set, TransactionTrait};
-use std::sync::Arc;
 
 use super::order::PurchaseOrderService;
-use sea_orm::DatabaseConnection;
 
 impl PurchaseOrderService {
     /// 检查并占用预算（非阻断）
@@ -324,7 +322,3 @@ impl PurchaseOrderService {
         Ok(order)
     }
 }
-
-/// 引用 Arc 别名，避免子模块中重复声明
-#[allow(dead_code)]
-pub(crate) type DbArc = Arc<DatabaseConnection>;
