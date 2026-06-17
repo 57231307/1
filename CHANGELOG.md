@@ -50,6 +50,39 @@
 - ✅ 旧文件处理：直接删除（保留最近 3 个）
 - ✅ 新规划范围：全覆盖（Wave 2 + Wave 4 + B6 + B 复查）
 
+### 文档状态核实（2026-06-17，项目收尾续）
+
+#### 核实发现（与 v0.1 描述严重不符项）
+- **P2-1 PR-1 已完成**：V2Table 组件 + useTableApi composable + 5 单元测试已落地
+  - [useTableApi.ts](file:///workspace/frontend/src/composables/useTableApi.ts) 145 行
+  - [V2Table/index.vue](file:///workspace/frontend/src/components/V2Table/index.vue) 127 行
+  - [V2Table/types.ts](file:///workspace/frontend/src/components/V2Table/types.ts)
+  - [V2Table.spec.ts](file:///workspace/frontend/tests/unit/V2Table.spec.ts)
+  - **B5 POC 文件、DraggableTable.vue、inventory-poc 路由已提前清理**
+- **P2-1 实际为 4 PR 串行**（PR-1 完成 + PR-2~5 未启动），非 5 PR
+- **B-PR 模板已完成**：[PULL_REQUEST_TEMPLATE.md](file:///workspace/.github/PULL_REQUEST_TEMPLATE.md) 66 行
+- **B5 / B6 / 部署 容器化 / .monkeycode 归档 4 阶段**：均已基本完成
+
+#### v0.2 更新内容
+- **状态标注**：
+  - B3 拆分 / B4 完成 10 Tab：⚠️ 部分完成（仍有 30 个 > 488 行 .vue，system/ 下 11 Tab 仍为骨架）
+  - 复查 代码质量：⚠️ 持续进行（P11-H3 已完成 116→30，30 项剩余带 TODO 注释）
+  - 收尾 / 文档 OpenAPI：✅ 持续 / ⚠️ 部分完成
+  - B5 / B6 / 部署 / B-PR 模板：✅ 完成
+- **P12 批 1 范围调整**：
+  - P2-1 从 5 PR 缩为 4 PR（PR-1 已完成）
+  - 总 PR 数 7 → 6
+  - .monkeycode/ 归档 4 阶段从 P12+ 移除
+- **MEMORY.md 同步**："P12 待启动"段扩展为 v0.2 范围说明；"最后更新"段新增 v0.2 时间戳
+
+#### 用户决策点（2026-06-17 17:xx AskUserQuestion）
+- ✅ P2-1 状态与 roadmap 严重不符处理：按核实结果更新范围
+- ✅ roadmap 中已完成/部分完成任务文档：立即更新 roadmap 反映实际
+
+#### 影响文件
+- [docs/superpowers/plans/2026-06-17-roadmap.md](docs/superpowers/plans/2026-06-17-roadmap.md) — 全面更新（v0.1 → v0.2）
+- [MEMORY.md](MEMORY.md) — "P12 待启动"段扩展 + "最后更新"时间戳
+
 ---
 
 ### P11 批 1 合并汇总（2026-06-17，3 个高风险任务全部完成）
