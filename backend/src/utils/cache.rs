@@ -138,6 +138,29 @@ where
         self.writes.store(0, Ordering::Relaxed);
     }
 
+    /// 一次性获取并移除缓存项（rotation 模式：用于 CSRF Token 等一次性凭证）
+    ///
+    /// 与 [`get`](Cache::get) 不同，本方法在返回缓存值的同时会从底层存储中删除对应键，
+    /// 用于实现 token rotation：同一 token 只能被消费一次。
+    /// 若键不存在或已过期，则返回 `None` 并按 miss 计入统计。
+    pub fn take(&self, key: &K) -> Option<V> {
+        match self.storage.remove(key) {
+            Some((_, cached)) => {
+                let expired = cached.expires_at.is_some_and(|exp| Instant::now() > exp);
+                if expired {
+                    self.misses.fetch_add(1, Ordering::Relaxed);
+                    return None;
+                }
+                self.hits.fetch_add(1, Ordering::Relaxed);
+                Some(cached.value)
+            }
+            None => {
+                self.misses.fetch_add(1, Ordering::Relaxed);
+                None
+            }
+        }
+    }
+
     pub fn cleanup(&self) {
         let now = Instant::now();
         let mut removed = 0u64;
@@ -310,6 +333,15 @@ impl AppCache {
     /// 获取 CSRF Token 缓存
     pub fn get_csrf_token_cache(&self) -> Arc<MemoryCache<String, String>> {
         self.csrf_token_cache.clone()
+    }
+
+    /// 校验并消费一次性 CSRF Token（rotation 模式）
+    ///
+    /// 成功匹配后立即从缓存移除，使同一 token 仅能用于一次写操作。
+    /// 返回 `true` 表示该 token 有效且已被消费；返回 `false` 表示不存在或已过期。
+    /// 业务上配合登录/刷新 token 端点写入的 token 使用，由 CSRF 中间件调用。
+    pub fn consume_csrf_token(&self, token: &str) -> bool {
+        self.csrf_token_cache.take(&token.to_string()).is_some()
     }
 
     /// 清除所有缓存

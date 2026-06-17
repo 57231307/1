@@ -26,6 +26,7 @@ use tracing::{info, warn, Span};
 
 use crate::config::settings::AppSettings;
 use crate::middleware::auth::auth_middleware;
+use crate::middleware::csrf::csrf_middleware;
 use crate::middleware::permission::permission_middleware;
 use crate::middleware::request_validator::request_validator_middleware;
 use crate::routes::create_router;
@@ -346,6 +347,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             let app_state_clone2 = app_state.clone();
             let app_state_clone3 = app_state.clone();
             let app_state_clone4 = app_state.clone();
+            let app_state_clone5 = app_state.clone();
             crate::services::event_bus::start_event_listener(app_state.db.clone()).await;
             let app = create_router(app_state)
                 // P3.3：分布式追踪上下文（最最外层，确保下游都能拿到 trace_id）
@@ -413,9 +415,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                         ),
                 )
                 .layer(cors.clone())
-                // 中间件执行顺序：auth_middleware（最后注册、最外层、先执行）→ permission_middleware → request_validator → 处理器
+                // 中间件执行顺序：auth_middleware（最后注册、最外层、先执行）→ csrf_middleware → permission_middleware → request_validator → 处理器
                 .layer(axum::middleware::from_fn_with_state(app_state_clone3, request_validator_middleware))
                 .layer(axum::middleware::from_fn_with_state(app_state_clone2, permission_middleware))
+                .layer(axum::middleware::from_fn_with_state(app_state_clone5, csrf_middleware))
                 .layer(axum::middleware::from_fn_with_state(app_state_clone, auth_middleware))
                 .layer(SetResponseHeaderLayer::overriding(
                     axum::http::header::X_CONTENT_TYPE_OPTIONS,
