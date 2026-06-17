@@ -561,6 +561,23 @@ backend/src/handlers/advanced/
 - **未实现**（P4+）：Redis Pub/Sub 集群推送、真实 JWT 集成、熔断限流
 - **沙箱限制**：仅 `cargo check --lib` 验证，CI 完整测试
 
+### P3-3 React Native 移动端
+
+- **分支**：`trae/solo-agent-P3-3-react-native`（P3-3 进行中）
+- **范围**：完整 spec + plan + LoginPage demo
+- **架构**：独立 `mobile/` 目录（React Native 0.74 + TypeScript 5）
+- **关键路径 demo**：LoginPage + ApiClient
+  - `mobile/src/pages/LoginPage.tsx`：登录页（React Native Paper UI）
+  - `mobile/src/components/ApiClient.ts`：Axios 客户端 + JWT 拦截器 + 错误处理
+  - `mobile/src/components/WebSocketClient.ts`：复用 P3-2 设计
+  - `mobile/src/stores/authStore.ts`：Zustand 状态 + AsyncStorage 持久化
+  - `mobile/__tests__/LoginPage.test.tsx`：5 个单元测试
+- **关键依赖**：`react-native 0.74.5` + `typescript 5.0` + `zustand 4.5` + `axios 1.6` + `@react-navigation 6` + `react-native-paper 5`
+- **主项目兼容**：mobile/ 独立项目，0 改动
+- **复用**：主项目 `/api/v1/erp/*` REST API + P3-2 WebSocket
+- **未实现**（P4+）：业务页面、离线架构、原生推送、生物识别、CI/CD、上架
+- **沙箱限制**：无 RN 环境，仅源码 + spec，CI 跑完整构建
+
 ---
 
 
