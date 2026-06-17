@@ -17,6 +17,16 @@ use crate::handlers::{
     ai_extend_handler, bpm_definition_handler, bpm_handler, dashboard_handler, health_handler,
     init_handler, system_update_handler,
 };
+use crate::websocket;
+
+/// WebSocket 路由（path 前缀 /ws）
+///
+/// 关键路径：通知模块 WebSocket
+/// - `/ws/notifications`：通知实时推送（鉴权通过 URL query token）
+pub fn ws() -> Router<AppState> {
+    Router::new()
+        .route("/ws/notifications", get(websocket::ws_notifications_handler))
+}
 
 /// 仪表板路由（path 前缀 /dashboard）
 pub fn dashboard() -> Router<AppState> {
@@ -270,4 +280,5 @@ pub fn routes() -> Router<AppState> {
         .merge(health())
         .merge(init())
         .merge(ai())
+        .merge(ws())
 }

@@ -537,6 +537,30 @@ backend/src/handlers/advanced/
 | process | 50055 | P4+ 规划 |
 | notifications | 50056 | P3-1 demo |
 
+### P3-2 WebSocket 实时通信
+
+- **分支**：`trae/solo-agent-P3-2-websocket`（P3-2 进行中）
+- **范围**：完整 spec + plan + 通知 WebSocket 实现
+- **架构**：前端 WebSocketClient + 后端 WebSocket Handler + ConnectionManager
+- **关键路径 demo**：通知模块 WebSocket
+  - 后端 `backend/src/websocket/`（mod + notifications）
+  - 路由 `/api/v1/erp/ws/notifications?token=<JWT>`
+  - 前端 `frontend/src/utils/websocket.ts`（自动重连 + 心跳 + 事件分发）
+- **5 种消息类型**：notification / ping / pong / error / mark_as_read
+- **多租户隔离**：消息按 `(tenant_id, user_id)` 双键路由
+- **重连策略**：指数退避（1s → 2s → 4s → 8s → 16s → 30s 上限，最多 10 次）
+- **心跳机制**：客户端每 30 秒发送 ping
+- **关键依赖**：`axum 0.7 ws feature` + `tokio::sync::broadcast` + `dashmap`
+- **修改文件**：
+  - `backend/src/lib.rs`（新增 pub mod websocket）
+  - `backend/src/routes/system.rs`（新增 ws() 子函数 + merge）
+  - `backend/Cargo.toml`（axum 添加 ws feature）
+  - 新增 `backend/src/websocket/{mod,notifications}.rs`
+  - 新增 `backend/tests/websocket_test.rs`
+  - 新增 `frontend/src/utils/websocket.ts`
+- **未实现**（P4+）：Redis Pub/Sub 集群推送、真实 JWT 集成、熔断限流
+- **沙箱限制**：仅 `cargo check --lib` 验证，CI 完整测试
+
 ---
 
 

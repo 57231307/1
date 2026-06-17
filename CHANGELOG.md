@@ -9,6 +9,40 @@
 
 ## [Unreleased] - 2026-06-17
 
+### Added - P3-2 WebSocket 实时通信（关键路径 demo）
+- **完整设计 spec**：`docs/superpowers/specs/2026-06-17-p3-2-websocket.md`
+  - 整体架构图（前端 WebSocketClient + 后端 WebSocket Handler + ConnectionManager）
+  - 5 种消息类型（notification / ping / pong / error / mark_as_read）
+  - 多租户隔离（按 tenant_id + user_id 双键路由）
+  - 7 个澄清问题 + 矛盾解决
+- **完整实施 plan**：`docs/superpowers/plans/2026-06-17-p3-2-websocket.md`
+- **后端 WebSocket 模块**：
+  - `backend/src/websocket/mod.rs`：模块入口
+  - `backend/src/websocket/notifications.rs`：WebSocket handler + ConnectionManager + NotificationBroadcaster
+    - 5 种消息类型枚举（serde tagged enum）
+    - `ConnectionManager`：按 `(tenant_id, user_id)` 分组的 broadcast::Sender
+    - `NotificationBroadcaster`：全局单例，供 notification_service.send() 调用
+    - 简化的 JWT 验证（占位实现，P4+ 接入主项目 jsonwebtoken）
+    - 5 个单元测试（JWT 解析、消息序列化、连接管理、多租户隔离、广播）
+  - `backend/src/routes/system.rs`：新增 `ws()` 子函数并 merge 到 `routes()`
+  - 路由：`/api/v1/erp/ws/notifications?token=<JWT>`
+  - `backend/src/lib.rs`：新增 `pub mod websocket;`
+  - `backend/Cargo.toml`：axum 添加 `ws` feature
+- **前端 WebSocket 客户端**：
+  - `frontend/src/utils/websocket.ts`：WebSocketClient 封装
+    - 自动重连（指数退避 1s → 2s → 4s → 8s → 16s → 30s 上限，最多 10 次）
+    - 心跳（30s ping）
+    - 事件分发（EventTarget + 类型安全事件 Map）
+    - JWT 鉴权（URL query token）
+    - 严格 TypeScript 类型
+- **集成测试**：`backend/tests/websocket_test.rs`
+  - 8 个单元测试（JWT / 消息 / 连接管理 / 多租户 / 广播）
+  - 1 个端到端 stub（沙箱 OOM 跳过，CI 启用）
+- **文档**：
+  - `docs/2026-06-17-p3-2-websocket-user-manual.md`（用户手册 + 架构图 + 故障排查）
+  - `docs/2026-06-17-p3-2-websocket-api.md`（消息协议 + 错误码表 + 性能指标）
+- **主项目兼容**：P3-2 仅新增 `websocket/` 模块 + 路由注册，**不修改**任何已有 handler/service/migration
+
 ### Added - P3-1 微服务拆分（关键路径 demo）
 - **完整设计 spec**：`docs/superpowers/specs/2026-06-17-p3-1-microservice.md`
   - 6 个微服务职责拆分（user / inventory / sales / production / process / notifications）
