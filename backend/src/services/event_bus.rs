@@ -176,43 +176,50 @@ impl EventBackend for BroadcastBackend {
                 + 'a,
         >,
     > {
-        let rx = self.sender.subscribe();
+        // 启动桥接任务：把 broadcast::Receiver 转为 mpsc::Receiver
+        // （broadcast::Receiver 没有 poll_recv，不能直接实现 Stream，
+        // 所以走 tokio 任务 + mpsc 通道的桥接模式）
+        let (tx, rx) = tokio::sync::mpsc::channel::<BusinessEvent>(1024);
+        let mut broadcast_rx = self.sender.subscribe();
+        tokio::spawn(async move {
+            loop {
+                match broadcast_rx.recv().await {
+                    Ok(event) => {
+                        if tx.send(event).await.is_err() {
+                            // 订阅者断开，停止桥接
+                            break;
+                        }
+                    }
+                    Err(broadcast::error::RecvError::Lagged(n)) => {
+                        // Lagged：跳过丢失事件，继续接收
+                        tracing::warn!("Broadcast 桥接 lagged 跳过 {} 条事件", n);
+                    }
+                    Err(broadcast::error::RecvError::Closed) => {
+                        // channel 关闭，退出
+                        break;
+                    }
+                }
+            }
+        });
         let stream: Box<dyn Stream<Item = BusinessEvent> + Send + Unpin> =
-            Box::new(BroadcastStream { rx });
+            Box::new(BridgeStream { rx });
         Box::pin(async move { Ok(stream) })
     }
 }
 
-/// 把 `broadcast::Receiver` 包装成 `Stream<Item = BusinessEvent>`（忽略 Lagged）
-struct BroadcastStream {
-    rx: broadcast::Receiver<BusinessEvent>,
+/// 把 mpsc::Receiver 包装为 Stream（mpsc 自身实现 Stream，直接代理）
+struct BridgeStream {
+    rx: tokio::sync::mpsc::Receiver<BusinessEvent>,
 }
 
-impl Stream for BroadcastStream {
+impl Stream for BridgeStream {
     type Item = BusinessEvent;
 
     fn poll_next(
         mut self: Pin<&mut Self>,
         cx: &mut std::task::Context<'_>,
     ) -> std::task::Poll<Option<Self::Item>> {
-        loop {
-            // broadcast::Receiver 自身 Unpin，poll_recv 接受 &mut self
-            match self.rx.poll_recv(cx) {
-                std::task::Poll::Ready(Some(Ok(event))) => {
-                    return std::task::Poll::Ready(Some(event));
-                }
-                std::task::Poll::Ready(Some(Err(_e))) => {
-                    // Lagged：继续 poll 拿下一条
-                    continue;
-                }
-                std::task::Poll::Ready(None) => {
-                    return std::task::Poll::Ready(None);
-                }
-                std::task::Poll::Pending => {
-                    return std::task::Poll::Pending;
-                }
-            }
-        }
+        self.rx.poll_recv(cx)
     }
 }
 
