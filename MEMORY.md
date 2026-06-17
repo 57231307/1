@@ -80,7 +80,7 @@
 
 ---
 
-## 三、当前状态（2026-06-15）
+## 三、当前状态（2026-06-17）
 
 ### 已完成
 
@@ -94,15 +94,39 @@
 | **B 任务：清理 32 个 type-check 错误 → 0** | 7de8b0d | ✅ 完成（4 批 4 PR：#95-#98） |
 | **A2-1 工艺优化**（recipe_opt）| f157f56 | ✅ **完成**（PR #99 squash merge，CI 4 job 全绿，11 文件实施，4 单测全过）|
 | **A2-2 质量预测**（quality_pred）| dd9faa4 | ✅ **完成**（PR #100 squash merge，CI 4 job 全绿，8 文件实施，4 单测全过，自动发布 v2026.615.2350）|
+| **P11 批 1：3 个高风险任务** | 0b1c9ac | ✅ **完成**（PR #173-#175 全部 squash merge，CI 4 job 全绿） |
+
+### P11 批 1 详情（2026-06-17）
+
+- **H1 CSRF 防护**（PR #173，commit 475e79b）
+  - 后端中间件 7 文件 + 13 单元/集成测试
+  - 前端 axios 自动注入 `X-CSRF-Token` + localStorage 保存
+  - 公开路径白名单 + Token rotation 模式
+- **H2 Kafka 真实集成**（PR #174，commit 3e87b81）
+  - 引入 rskafka 0.5（纯 Rust）
+  - EventBus 重构为 `EventBackend` trait + Broadcast/Kafka 双后端
+  - 默认 `enabled=false`，Kafka 不可达 5s 超时自动降级
+- **H3 dead_code 全面清理**（PR #175，commit 0b1c9ac）
+  - `#[allow(dead_code)]` 从 116 → 30（-74%）
+  - 删除 1 整文件（scheduler_service.rs 336 行）+ 24 死函数 + 15+ 未用 import
+  - 30 项保留全部补 `TODO(tech-debt)` 注释
+  - 完成报告：`docs/superpowers/plans/2026-06-17-p11-h3-deadcode-cleanup-report.md`
+
+### P11 批 1 收尾关键经验（用于 P12 改进）
+
+- ✅ **串行派发策略** 用户已确认正确（避免子代理间文件冲突）
+- ✅ **CI 反馈循环** 子代理 1 次提交 + 主代理 1 次修复 = 2 个 commit，符合项目工作流
+- ⚠️ **子代理 import 误删** 教训：H3 子代理删除 15 处实际被用的 import，主代理通过 CI 错误精确定位并恢复
+- ⚠️ **子代理 git 工作流** H3 子代理未完成 git commit/push 流程，主代理接手完成
+- ⚠️ **本地 cargo fmt 必要之恶** 当子代理 fmt 不通过时，**主代理**可临时使用 `cargo fmt`（仅此例外），仍禁止 build/clippy/test
 
 ### 进行中
 
-- 无（Wave 3 收尾全部完成，Wave 4 待启动）
+- 无（P11 批 1 收尾完成，P12 待启动）
 
 ### 待启动
 
-- **Wave 4**：el-table-v2 已通过 POC（B5），Wave 3 收尾已完成 AI 深化，Wave 4 启动条件已就绪
-- 待用户决策 Wave 4 启动哪个任务（候选：P2-1 / P2-2 / P2-3 / P3-1 / P3-2）
+- **P12**：由用户决策具体任务（P11 批 1 已完成 3 个高风险）
 
 ### Wave 3 收尾关键产出
 

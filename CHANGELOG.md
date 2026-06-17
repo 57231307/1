@@ -7,6 +7,61 @@
 
 ---
 
+## [Unreleased] - 2026-06-17
+
+### P11 批 1 合并汇总（2026-06-17，3 个高风险任务全部完成）
+
+| PR | 任务 | 子代理 | 提交 | 状态 |
+|------|------|--------|------|------|
+| [#173](https://github.com/57231307/1/pull/173) | P11-H1 CSRF 防护（后端中间件 + 前端 X-CSRF-Token 注入） | 主代理 | [475e79b](https://github.com/57231307/1/commit/475e79b) | ✅ 已合并 |
+| [#174](https://github.com/57231307/1/pull/174) | P11-H2 Kafka 真实集成（双后端 + 自动降级） | 主代理 | [3e87b81](https://github.com/57231307/1/commit/3e87b81) | ✅ 已合并 |
+| [#175](https://github.com/57231307/1/pull/175) | P11-H3 dead_code 全面清理（services/handlers/middleware/routes） | 主代理 | [0b1c9ac](https://github.com/57231307/1/commit/0b1c9ac) | ✅ 已合并 |
+
+#### P11-H1 CSRF 防护
+- **后端中间件**：`backend/src/middleware/csrf.rs`（216 行，6 单元测试）
+- **中间件集成**：`backend/src/middleware/mod.rs` 注册 + `main.rs` 挂载在 auth → permission 之间
+- **缓存扩展**：`backend/src/utils/cache.rs` 新增 `consume_csrf_token`（一次性消费，rotation 模式）
+- **集成测试**：`backend/tests/test_csrf_middleware.rs`（277 行，7 测试覆盖：GET 放行 / POST 缺失 / POST 无效 / 有效 + rotation / 公开路径 / HEAD/OPTIONS / cache 单元测试）
+- **前端拦截**：`frontend/src/api/request.ts` axios 自动注入 `X-CSRF-Token` + 403 拦截清理并跳转登录 + 公开路径白名单
+- **前端 storage**：`frontend/src/api/auth.ts` 登录/刷新后保存 csrf_token 到 localStorage
+- **关键安全特性**：
+  - 跳过方法：GET / HEAD / OPTIONS（无副作用）
+  - 跳过路径：所有 `public_routes.rs` PUBLIC_PATHS
+  - Token rotation：验证通过后从缓存移除（一次性使用）
+  - 错误响应：JSON 格式 `CSRF_TOKEN_MISSING` / `CSRF_TOKEN_INVALID`
+
+#### P11-H2 Kafka 真实集成
+- **依赖**：`backend/Cargo.toml` 新增 `rskafka = { version = "0.5", default-features = false }`（纯 Rust，无 C 依赖）
+- **后端实现**：`backend/src/services/event_kafka.rs`（Kafka 真实后端：连接/生产/消费/重连/降级）
+- **后端重构**：`backend/src/services/event_bus.rs` 抽象 `EventBackend` trait + 双后端
+- **配置**：`backend/config.yaml` / `config.yaml.example` / `.env.example` 新增 `kafka:` 配置节
+- **集成测试**：`backend/tests/test_event_bus.rs`（5 测试：Broadcast 收/发、降级、serde round-trip、Kafka 配置、不可达）
+- **关键设计**：
+  - 默认 `enabled=false`，CI 环境无 Kafka 不阻塞
+  - Kafka 不可达时 5s 超时 + 自动降级到 BroadcastBackend + tracing::error 记录
+  - 启动超时 5s，避免启动卡死
+  - 兼容原有 13 种 BusinessEvent 变体
+  - `ShippedItem` 补 `Serialize/Deserialize` 派生以支持 Kafka 序列化
+
+#### P11-H3 dead_code 全面清理
+- **总览**：`#[allow(dead_code)]` 标记从 **116 → 30**（减少 74%）
+- **删除死函数/结构**：24 项
+- **删除死文件**：1 个（`backend/src/services/scheduler_service.rs` 整文件 336 行）
+- **删除 #[allow(unused_imports)]**：4 处 + 死 pub use 重导出
+- **修复未使用 import**：15+ 项
+- **删除 _unused/DbArc 抑制函数/类型别名**：13 项
+- **保留项**：30 项 `#[allow(dead_code)]` 全部按规范补齐 `TODO(tech-debt)` 注释
+- **完成报告**：[docs/superpowers/plans/2026-06-17-p11-h3-deadcode-cleanup-report.md](docs/superpowers/plans/2026-06-17-p11-h3-deadcode-cleanup-report.md)
+- **关键修复**：子代理初版清理时误删 15 处实际被使用的 import + 1 个 ExportRequest struct，主代理接手后通过 CI 反馈精确定位并全部恢复
+- **格式问题**：`cargo fmt --check` 失败后用 `cargo fmt` 单文件修复后通过
+
+#### 远端工作分支清理
+- 3 个临时 P11 特性分支已由 GitHub squash merge 自动删除
+- 主分支 main 始终保持可发布
+- P11 批 1 收尾后 main 已更新至 `0b1c9ac`
+
+---
+
 ## [Unreleased] - 2026-06-15
 
 ### Wave 1 合并汇总（2026-06-15）
