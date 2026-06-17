@@ -10,7 +10,7 @@ description = "面料管理 - Rust 后端服务"
 
 [dependencies]
 # Web 框架
-axum = { version = "0.7", features = ["json", "multipart", "macros"] }
+axum = { version = "0.7", features = ["json", "multipart", "macros", "ws"] }
 tower-http = { version = "0.6", features = ["cors", "trace", "fs", "set-header"] }
 
 # 异步运行时

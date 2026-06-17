@@ -13,6 +13,7 @@ pub mod observability;
 pub mod routes;
 pub mod services;
 pub mod utils;
+pub mod websocket; // P3-2 WebSocket 实时通信模块
 
 pub use services::auth_service::AuthService;
 pub use services::user_service::UserService;
