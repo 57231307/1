@@ -95,6 +95,7 @@
 | **A2-1 工艺优化**（recipe_opt）| f157f56 | ✅ **完成**（PR #99 squash merge，CI 4 job 全绿，11 文件实施，4 单测全过）|
 | **A2-2 质量预测**（quality_pred）| dd9faa4 | ✅ **完成**（PR #100 squash merge，CI 4 job 全绿，8 文件实施，4 单测全过，自动发布 v2026.615.2350）|
 | **P11 批 1：3 个高风险任务** | 0b1c9ac | ✅ **完成**（PR #173-#175 全部 squash merge，CI 4 job 全绿） |
+| **P11 收尾 PR #176** | 382e522 | ✅ **完成**（H3 死字段修复 + 27 个新 dead_code 扩展标注 + CHANGELOG/MEMORY 同步，squash merge，CI 4 job 全绿）|
 
 ### P11 批 1 详情（2026-06-17）
 
@@ -112,13 +113,14 @@
   - 30 项保留全部补 `TODO(tech-debt)` 注释
   - 完成报告：`docs/superpowers/plans/2026-06-17-p11-h3-deadcode-cleanup-report.md`
 
-### P11 批 1 收尾关键经验（用于 P12 改进）
+### P11 收尾关键经验（用于 P12 改进）
 
 - ✅ **串行派发策略** 用户已确认正确（避免子代理间文件冲突）
 - ✅ **CI 反馈循环** 子代理 1 次提交 + 主代理 1 次修复 = 2 个 commit，符合项目工作流
 - ⚠️ **子代理 import 误删** 教训：H3 子代理删除 15 处实际被用的 import，主代理通过 CI 错误精确定位并恢复
 - ⚠️ **子代理 git 工作流** H3 子代理未完成 git commit/push 流程，主代理接手完成
 - ⚠️ **本地 cargo fmt 必要之恶** 当子代理 fmt 不通过时，**主代理**可临时使用 `cargo fmt`（仅此例外），仍禁止 build/clippy/test
+- ⚠️ **子代理死代码清理不彻底** H3 子代理在 pub 字段/方法/struct 上漏加 `#[allow(dead_code)]`，主代理通过 2 轮 CI 反馈补充 27+ 个标注（PR #176）
 
 ### 进行中
 
