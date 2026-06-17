@@ -645,6 +645,31 @@ const routes = [
         component: () => import('@/views/color-prices/batch-adjust.vue'),
         meta: { title: '批量调价', requiresAuth: true },
       },
+      // P2-4 AI 分析深化（工艺优化 + 质量预测）
+      {
+        path: 'ai-extend',
+        name: 'AiExtendOverview',
+        component: () => import('@/views/ai-extend/index.vue'),
+        meta: { title: 'AI 分析深化', requiresAuth: true },
+      },
+      {
+        path: 'ai-extend/process-optimization',
+        name: 'AiExtendProcessOptimization',
+        component: () => import('@/views/ai-extend/process-optimization.vue'),
+        meta: { title: 'AI 工艺优化', requiresAuth: true },
+      },
+      {
+        path: 'ai-extend/process-detail/:id',
+        name: 'AiExtendProcessDetail',
+        component: () => import('@/views/ai-extend/process-detail.vue'),
+        meta: { title: '工艺优化详情', requiresAuth: true },
+      },
+      {
+        path: 'ai-extend/quality-prediction',
+        name: 'AiExtendQualityPrediction',
+        component: () => import('@/views/ai-extend/quality-prediction.vue'),
+        meta: { title: 'AI 质量预测', requiresAuth: true },
+      },
     ],
   },
   {

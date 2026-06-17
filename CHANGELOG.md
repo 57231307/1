@@ -9,6 +9,40 @@
 
 ## [Unreleased] - 2026-06-17
 
+### Added - P2-4 AI 分析深化（工艺优化 + 质量预测）
+- **后端 2 张表**：`ai_process_optimizations`（工艺优化历史）/ `ai_quality_predictions`（质量预测历史）
+  - 迁移文件：`migrations/20260617000009_create_ai_process_optimizations/`、`migrations/20260617000010_create_ai_quality_predictions/`
+  - 字段：UUID request_id、推荐参数、置信度、来源、应用状态、反馈打分、租户隔离、CH 约束
+- **后端 2 个 entity**：`ai_process_optimization` / `ai_quality_prediction`（SeaORM 模型 + DeriveRelation）
+- **后端 1 个 service**：`ai_extend_service`（持久化、列表、应用反馈、看板聚合、批量、跨租户过滤）
+- **后端 1 个 handler**：`ai_extend_handler`（16 端点）
+  - 工艺优化 7：创建 / 列表 / 详情 / 应用反馈 / 删除 / 按色号布类历史 / 批量
+  - 质量预测 7：创建 / 列表 / 详情 / 确认 / 删除 / 按产品历史 / 批量
+  - 看板 / 健康检查 2：summary / health
+- **后端路由**：`/api/v1/erp/ai/*`（在 `routes/system.rs::ai()` 装配）
+- **前端 4 页面**：
+  - `views/ai-extend/index.vue`：AI 概览看板（4 KPI + 最新 5 条）
+  - `views/ai-extend/process-optimization.vue`：工艺优化列表 + 创建
+  - `views/ai-extend/process-detail.vue`：工艺优化详情（含相似案例表）
+  - `views/ai-extend/quality-prediction.vue`：质量预测列表 + 详情抽屉
+- **前端 2 组件**：
+  - `components/ai/AIPredictionChart.vue`：SVG 风险趋势图
+  - `components/ai/AIOptimizationDialog.vue`：优化参数展示 + 反馈弹窗
+- **前端 1 套 API 客户端**：`api/ai-extend.ts`（16 端点封装 + 翻译字典）
+- **路由 4 条**：`/ai-extend` 概览 / `process-optimization` 列表 / `process-detail/:id` 详情 / `quality-prediction` 列表
+- **集成测试**：`tests/ai_extend_test.rs`（算法回归 + 字段映射 + 端点完整性 + 反馈边界）
+- **文档**：
+  - `docs/2026-06-17-p2-4-ai-extend-user-manual.md`（用户手册）
+  - `docs/2026-06-17-p2-4-ai-extend-api.md`（API 文档 + OpenAPI 片段）
+
+### Technical - P2-4
+- 复用现有 `services::ai::recipe_opt` 与 `services::ai::quality_pred` 算法核心
+- 趋势 / 风险等级字段中文 ↔ 英文双向映射（"上升"↔"up"、"高"↔"high"）
+- 所有端点强制使用 `extract_tenant_id(&auth)?` 提取租户 ID（严守租户隔离规范）
+- feedback_score 1-5 边界校验
+- 批量请求上限 20 条
+- 数据库表 CHECK 约束：confidence 0-1 / risk_score 0-100 / source 仅 knn|fallback / history|fallback / risk_level 仅 low|medium|high
+
 ### Added - P2-2 统一前端日志（最终清理）
 - 清理 `custom-orders` 视图 3 处遗留 `console.error` → `logger.error`（tracking / list / detail）
 - 业务代码 `console.*` 数量：7 → 3（仅 `frontend/src/utils/logger.ts` 自身实现，不算违规）
