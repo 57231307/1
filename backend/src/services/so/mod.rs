@@ -8,6 +8,11 @@
 //! - `contract` 销售合同（占位模块，待后续扩展）
 //! - `sales_return` 销售退货（占位模块，待后续扩展）
 //!
+//! P9-2 拆分：order 进一步拆分为 3 个子模块：
+//! - `order_crud`     销售订单 CRUD 子模块
+//! - `order_workflow` 销售订单工作流子模块
+//! - `order_query`    销售订单查询子模块
+//!
 //! 兼容说明：原 `crate::services::so::order::*` 路径需要由上层
 //! `services/mod.rs` 通过 `pub use super::so::*;` 重新导出以保持向后兼容。
 
@@ -20,6 +25,10 @@ pub mod delivery;
 pub mod order;
 pub mod price;
 pub mod sales_return;
+// P9-2 新增 order 拆分后的 3 个子模块
+pub mod order_crud;
+pub mod order_workflow;
+pub mod order_query;
 
 // =====================================================
 // DTO 数据结构
