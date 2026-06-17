@@ -85,6 +85,8 @@ pub mod currency_service;
 // AI智能分析与报表模块
 pub mod ai;
 pub mod report;
+// P2-4 AI 分析深化（工艺优化 + 质量预测）持久化
+pub mod ai_extend_service;
 // 多租户SaaS模块
 pub mod api_key_service;
 pub mod tenant_service;

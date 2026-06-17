@@ -250,3 +250,6 @@ pub mod color_price_history_dto;
 pub mod color_price_tier_dto;
 pub mod customer_color_price_dto;
 pub mod seasonal_price_rule_dto;
+// P2-4 AI 分析深化（工艺优化 + 质量预测）模型
+pub mod ai_process_optimization;
+pub mod ai_quality_prediction;

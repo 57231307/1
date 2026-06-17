@@ -96,6 +96,8 @@ pub mod ar_reconciliation_enhanced_handler;
 pub mod ar_reconciliation_handler;
 pub mod currency_handler;
 pub mod report_engine_handler;
+// P2-4 AI 分析深化（工艺优化 + 质量预测）
+pub mod ai_extend_handler;
 // 消息通知模块
 pub mod notification_handler;
 // 用户通知偏好设置模块
