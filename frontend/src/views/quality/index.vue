@@ -2,180 +2,18 @@
   <div class="quality-page">
     <el-tabs v-model="activeTab">
       <el-tab-pane label="质量标准" name="standard">
-        <div class="page-header">
-          <h2 class="page-title">质量标准管理</h2>
-          <div class="header-actions">
-            <el-button type="primary" @click="openStandardDialog">
-              <el-icon><Plus /></el-icon>
-              新建标准
-            </el-button>
-            <el-button @click="handlePrintStandards">
-              <el-icon><Printer /></el-icon>
-              打印
-            </el-button>
-            <el-button @click="handleExportStandards">
-              <el-icon><Download /></el-icon>
-              导出
-            </el-button>
-          </div>
-        </div>
-
-        <el-card shadow="hover">
-          <el-table v-loading="standardLoading" :data="standards" stripe>
-            <el-table-column prop="standard_code" label="标准编号" width="140" />
-            <el-table-column prop="standard_name" label="标准名称" width="180" />
-            <el-table-column prop="type" label="类型" width="100">
-              <template #default="{ row }">
-                {{ row.type === 'product' ? '产品标准' : '工艺标准' }}
-              </template>
-            </el-table-column>
-            <el-table-column prop="version" label="版本" width="80" />
-            <el-table-column prop="status" label="状态" width="100" align="center">
-              <template #default="{ row }">
-                <el-tag :type="getStandardStatusType(row.status)" size="small">
-                  {{ getStandardStatusLabel(row.status) }}
-                </el-tag>
-              </template>
-            </el-table-column>
-            <el-table-column prop="created_by_name" label="创建人" width="100" />
-            <el-table-column prop="approved_by_name" label="审批人" width="100">
-              <template #default="{ row }">
-                {{ row.approved_by_name || '-' }}
-              </template>
-            </el-table-column>
-            <el-table-column prop="approved_at" label="审批时间" width="160">
-              <template #default="{ row }">
-                {{ row.approved_at || '-' }}
-              </template>
-            </el-table-column>
-            <el-table-column label="操作" width="300" fixed="right">
-              <template #default="{ row }">
-                <el-button type="primary" link size="small" @click="viewStandard(row as any)"
-                  >查看</el-button
-                >
-                <el-button
-                  v-if="row.status !== 'draft'"
-                  type="primary"
-                  link
-                  size="small"
-                  @click="viewVersionHistory(row as any)"
-                  >版本历史</el-button
-                >
-                <el-button
-                  v-if="row.status === 'draft'"
-                  type="primary"
-                  link
-                  size="small"
-                  @click="openStandardDialog(row as any)"
-                  >编辑</el-button
-                >
-                <el-button
-                  v-if="row.status === 'draft'"
-                  type="success"
-                  link
-                  size="small"
-                  @click="approveStandard(row as any)"
-                  >审批</el-button
-                >
-                <el-button
-                  v-if="row.status === 'approved'"
-                  type="warning"
-                  link
-                  size="small"
-                  @click="publishStandard(row as any)"
-                  >发布</el-button
-                >
-              </template>
-            </el-table-column>
-          </el-table>
-        </el-card>
+        <StandardTab
+          @open-history="openVersionHistoryDialog"
+          @open-approve="openApproveDialog"
+        />
       </el-tab-pane>
 
       <el-tab-pane label="检验记录" name="record">
-        <div class="page-header">
-          <h2 class="page-title">质量检验记录</h2>
-          <div class="header-actions">
-            <el-button type="primary" @click="openRecordDialog">
-              <el-icon><Plus /></el-icon>
-              新建检验
-            </el-button>
-            <el-button @click="handlePrintRecords">
-              <el-icon><Printer /></el-icon>
-              打印
-            </el-button>
-            <el-button @click="handleExportRecords">
-              <el-icon><Download /></el-icon>
-              导出
-            </el-button>
-          </div>
-        </div>
-
-        <el-card shadow="hover">
-          <V2Table
-            :data="records"
-            :columns="inspectionColumns"
-            :estimated-row-height="44"
-            :loading="recordLoading"
-            @row-click="handleInspectionRowClick"
-            @page-change="handlePageChange"
-            @size-change="handleSizeChange"
-          />
-        </el-card>
+        <RecordTab />
       </el-tab-pane>
 
       <el-tab-pane label="缺陷管理" name="defect">
-        <div class="page-header">
-          <h2 class="page-title">质量缺陷管理</h2>
-        </div>
-
-        <el-card shadow="hover">
-          <el-table v-loading="defectLoading" :data="defects" stripe>
-            <el-table-column prop="defect_type" label="缺陷类型" width="140" />
-            <el-table-column prop="defect_description" label="缺陷描述" min-width="200" />
-            <el-table-column prop="severity" label="严重程度" width="100" align="center">
-              <template #default="{ row }">
-                <el-tag
-                  :type="
-                    row.severity === 'critical'
-                      ? 'danger'
-                      : row.severity === 'major'
-                        ? 'warning'
-                        : 'info'
-                  "
-                  size="small"
-                >
-                  {{
-                    row.severity === 'critical'
-                      ? '严重'
-                      : row.severity === 'major'
-                        ? '重大'
-                        : '轻微'
-                  }}
-                </el-tag>
-              </template>
-            </el-table-column>
-            <el-table-column prop="quantity" label="数量" width="80" align="right" />
-            <el-table-column prop="processed" label="是否处理" width="100" align="center">
-              <template #default="{ row }">
-                <el-tag :type="row.processed ? 'success' : 'info'" size="small">
-                  {{ row.processed ? '已处理' : '未处理' }}
-                </el-tag>
-              </template>
-            </el-table-column>
-            <el-table-column label="操作" width="120" fixed="right">
-              <template #default="{ row }">
-                <el-button
-                  v-if="!row.processed"
-                  type="primary"
-                  link
-                  size="small"
-                  @click="processDefect(row as any)"
-                  >处理</el-button
-                >
-              </template>
-            </el-table-column>
-          </el-table>
-        </el-card>
+        <DefectTab />
       </el-tab-pane>
     </el-tabs>
 
@@ -353,10 +191,15 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, onMounted } from 'vue'
+import { ref, reactive, onMounted, provide } from 'vue'
 import { loadIfNot, createLazyLoader } from '@/utils/lazy-loader'
 import { ElMessage, ElMessageBox, type FormInstance, type FormRules } from 'element-plus'
 import { Plus, Download, Printer } from '@element-plus/icons-vue'
+import V2Table from '@/components/V2Table/index.vue'
+import { useTableColumns } from '@/composables/useTableColumns'
+import StandardTab from './tabs/StandardTab.vue'
+import RecordTab from './tabs/RecordTab.vue'
+import DefectTab from './tabs/DefectTab.vue'
 import {
   listQualityStandards,
   getQualityStandard,
@@ -373,8 +216,6 @@ import {
   type QualityRecord,
   type Defect,
 } from '@/api/quality'
-import V2Table from '@/components/V2Table/index.vue'
-import { useTableColumns } from '@/composables/useTableColumns'
 
 // 检验记录列定义（V2Table 渲染）
 const { columns: inspectionColumns } = useTableColumns([
@@ -419,6 +260,12 @@ const handleSizeChange = (_newSize: number) => {
 }
 
 const activeTab = ref('standard')
+
+// 为 StandardTab/RecordTab 提供 actions（inject('qualityActions')）
+provide('qualityActions', {
+  openStandardDialog,
+  openRecordDialog,
+})
 const standards = ref<QualityStandard[]>([])
 const records = ref<QualityRecord[]>([])
 const defects = ref<Defect[]>([])
