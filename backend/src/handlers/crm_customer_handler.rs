@@ -21,6 +21,7 @@ pub struct CustomerQueryParams {
     pub page: Option<u64>,
     pub page_size: Option<u64>,
     pub status: Option<String>,
+    #[allow(dead_code)] // TODO(tech-debt): 客户查询模块接入业务后移除
     pub keyword: Option<String>,
 }
 

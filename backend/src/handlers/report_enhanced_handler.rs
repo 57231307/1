@@ -25,6 +25,7 @@ use crate::utils::response::ApiResponse;
 /// 报表执行查询参数
 #[derive(Debug, Deserialize)]
 pub struct ReportExecuteParams {
+    #[allow(dead_code)] // TODO(tech-debt): 报表执行模块接入业务后移除
     pub template_id: String,
     pub page: Option<u64>,
     pub page_size: Option<u64>,

@@ -180,6 +180,7 @@ impl ExportService {
     }
 
     /// 生成销售报表PDF
+    #[allow(dead_code)] // TODO(tech-debt): 报表模块接入业务后移除
     pub fn generate_sales_report_pdf(
         title: &str,
         period_start: &str,

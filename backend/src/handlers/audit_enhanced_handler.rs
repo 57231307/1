@@ -15,12 +15,15 @@ pub struct AuditLogQuery {
     pub table_name: Option<String>,
     pub action: Option<String>,
     pub user_id: Option<i32>,
+    #[allow(dead_code)] // TODO(tech-debt): 审计模块接入业务后移除
     pub start_date: Option<String>,
+    #[allow(dead_code)] // TODO(tech-debt): 审计模块接入业务后移除
     pub end_date: Option<String>,
     pub page: Option<u64>,
     pub page_size: Option<u64>,
 }
 
+#[allow(dead_code)] // TODO(tech-debt): 审计模块接入业务后移除
 #[derive(Debug, Deserialize)]
 pub struct OperationLogQuery {
     pub module: Option<String>,

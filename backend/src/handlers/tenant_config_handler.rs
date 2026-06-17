@@ -16,12 +16,13 @@ pub struct TenantConfigQuery {
     pub key: Option<String>,
     pub config_type: Option<String>,
 }
-
+/// 设置租户配置请求
 #[derive(Debug, Deserialize)]
 pub struct SetConfigRequest {
     pub key: String,
     pub value: String,
     pub config_type: Option<String>,
+    #[allow(dead_code)] // TODO(tech-debt): 租户配置模块接入业务后移除
     pub description: Option<String>,
 }
 

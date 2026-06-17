@@ -47,7 +47,9 @@ pub struct FiveDimensionQuery {
     pub dye_lot_no: Option<String>,
     pub grade: Option<String>,
     pub warehouse_id: Option<i32>,
+    #[allow(dead_code)] // TODO(tech-debt): 五维分析分页接口接入业务后移除
     pub page: Option<u64>,
+    #[allow(dead_code)] // TODO(tech-debt): 五维分析分页接口接入业务后移除
     pub page_size: Option<u64>,
 }
 

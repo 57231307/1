@@ -129,6 +129,7 @@ impl EmailLogService {
     }
 
     /// 获取邮件发送记录详情
+    #[allow(dead_code)] // TODO(tech-debt): 邮件日志模块接入业务后移除
     pub async fn get_by_id(&self, id: i32) -> Result<Option<EmailLogModel>, AppError> {
         let model = EmailLogEntity::find_by_id(id).one(&*self.db).await?;
 

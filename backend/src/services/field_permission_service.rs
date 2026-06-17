@@ -315,6 +315,7 @@ impl FieldPermissionService {
     }
 
     /// 过滤 JSON 数据中的字段（根据读权限）
+    #[allow(dead_code)] // TODO(tech-debt): 字段权限模块接入业务后移除
     pub fn filter_fields_by_read_permission(
         &self,
         data: &mut serde_json::Value,
