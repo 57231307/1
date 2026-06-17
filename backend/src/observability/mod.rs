@@ -26,5 +26,6 @@
 //!                              └─ 在响应头回写 `X-Trace-Id`
 //! ```
 
+pub mod config;
 pub mod span;
 pub mod trace_context;
