@@ -22,6 +22,7 @@ import {
 import { request } from '@/api/request'
 import { loadIfNot, createLazyLoader } from '@/utils/lazy-loader'
 import { logger } from '@/utils/logger'
+import ArReconcileFilter from './ArReconcileFilter.vue'
 
 const loading = ref(false)
 const reconcileLoading = ref(false)
@@ -417,57 +418,16 @@ onMounted(() => {
 
 <template>
   <div class="app-container">
-    <div class="filter-container">
-      <el-row :gutter="20">
-        <el-col :span="6">
-          <el-input
-            v-model="searchForm.customer_name"
-            placeholder="客户名称"
-            clearable
-            @keyup.enter="handleSearch"
-          />
-        </el-col>
-        <el-col :span="5">
-          <el-select v-model="searchForm.match_status" placeholder="匹配状态" clearable>
-            <el-option
-              v-for="s in matchStatusOptions"
-              :key="s.value"
-              :label="s.label"
-              :value="s.value"
-            />
-          </el-select>
-        </el-col>
-        <el-col :span="5">
-          <el-date-picker
-            v-model="searchForm.start_date"
-            type="date"
-            placeholder="开始日期"
-            class="w-100"
-          />
-        </el-col>
-        <el-col :span="5">
-          <el-date-picker
-            v-model="searchForm.end_date"
-            type="date"
-            placeholder="结束日期"
-            class="w-100"
-          />
-        </el-col>
-        <el-col :span="3">
-          <el-button type="primary" @click="handleSearch">查询</el-button>
-          <el-button @click="handleReset">重置</el-button>
-        </el-col>
-      </el-row>
-      <div class="filter-actions">
-        <el-button type="success" :loading="reconcileLoading" @click="handleAutoReconcile">
-          <Refresh /> 自动对账
-        </el-button>
-        <el-button type="warning" @click="handleViewConfirmations"> <Send /> 客户确认 </el-button>
-        <el-button type="danger" @click="openDisputeDialog({ id: 0 } as any)">
-          <CircleClose /> 争议处理
-        </el-button>
-      </div>
-    </div>
+    <ArReconcileFilter
+      :search-form="searchForm"
+      :reconcile-loading="reconcileLoading"
+      @search="handleSearch"
+      @reset="handleReset"
+      @auto-reconcile="handleAutoReconcile"
+      @view-confirmations="handleViewConfirmations"
+      @open-dispute="openDisputeDialog"
+      @update:search-form="(v: any) => Object.assign(searchForm, v)"
+    />
 
     <el-row :gutter="20" class="chart-row">
       <el-col :span="12">
