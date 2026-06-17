@@ -58,7 +58,7 @@ pub async fn csrf_middleware(
     let path = request.uri().path().to_string();
 
     // 1. 跳过无副作用方法
-    if matches!(*method, Method::GET | Method::HEAD | Method::OPTIONS) {
+    if matches!(method, Method::GET | Method::HEAD | Method::OPTIONS) {
         return Ok(next.run(request).await);
     }
 
@@ -122,18 +122,39 @@ mod tests {
     /// 测试安全方法（GET/HEAD/OPTIONS）通过 matches! 检查
     #[test]
     fn test_safe_methods_recognized() {
-        assert!(matches!(*Method::GET, Method::GET | Method::HEAD | Method::OPTIONS));
-        assert!(matches!(*Method::HEAD, Method::GET | Method::HEAD | Method::OPTIONS));
-        assert!(matches!(*Method::OPTIONS, Method::GET | Method::HEAD | Method::OPTIONS));
+        assert!(matches!(
+            Method::GET,
+            Method::GET | Method::HEAD | Method::OPTIONS
+        ));
+        assert!(matches!(
+            Method::HEAD,
+            Method::GET | Method::HEAD | Method::OPTIONS
+        ));
+        assert!(matches!(
+            Method::OPTIONS,
+            Method::GET | Method::HEAD | Method::OPTIONS
+        ));
     }
 
     /// 测试非安全方法不被放行
     #[test]
     fn test_unsafe_methods_not_recognized_as_safe() {
-        assert!(!matches!(*Method::POST, Method::GET | Method::HEAD | Method::OPTIONS));
-        assert!(!matches!(*Method::PUT, Method::GET | Method::HEAD | Method::OPTIONS));
-        assert!(!matches!(*Method::PATCH, Method::GET | Method::HEAD | Method::OPTIONS));
-        assert!(!matches!(*Method::DELETE, Method::GET | Method::HEAD | Method::OPTIONS));
+        assert!(!matches!(
+            Method::POST,
+            Method::GET | Method::HEAD | Method::OPTIONS
+        ));
+        assert!(!matches!(
+            Method::PUT,
+            Method::GET | Method::HEAD | Method::OPTIONS
+        ));
+        assert!(!matches!(
+            Method::PATCH,
+            Method::GET | Method::HEAD | Method::OPTIONS
+        ));
+        assert!(!matches!(
+            Method::DELETE,
+            Method::GET | Method::HEAD | Method::OPTIONS
+        ));
     }
 
     /// 测试 403 缺失错误响应：状态码与负载
