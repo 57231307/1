@@ -185,6 +185,7 @@ import { Plus, Back, Search, Refresh } from '@element-plus/icons-vue'
 import { listUsers, type User } from '@/api/user'
 import { loadIfNot, createLazyLoader } from '@/utils/lazy-loader'
 import { logger } from '@/utils/logger'
+import { crmEnhancedApi } from '@/api/crm-enhanced'
 import ClaimDialogTab from './tabs/ClaimDialogTab.vue'
 import TransferDialogTab from './tabs/TransferDialogTab.vue'
 import ReleaseDialogTab from './tabs/ReleaseDialogTab.vue'
@@ -214,9 +215,10 @@ const currentCustomerName = ref('')
 const getList = async () => {
   loading.value = true
   try {
-    // TODO: 调用真实 API
-    poolList.value = []
-    total.value = 0
+    // P1-5：调用真实 API 获取公海池列表
+    const res = await crmEnhancedApi.getPoolList({ page: 1, page_size: 50 })
+    poolList.value = (res.data?.list ?? res.data) as PoolCustomer[]
+    total.value = res.data?.total ?? poolList.value.length
   } catch (error) {
     const err = error as Error
     logger.warn('获取公海池列表失败', err.message)

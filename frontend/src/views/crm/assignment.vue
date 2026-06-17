@@ -142,6 +142,7 @@ import { Plus } from '@element-plus/icons-vue'
 import { listUsers, type User } from '@/api/user'
 import { loadIfNot, createLazyLoader } from '@/utils/lazy-loader'
 import { logger } from '@/utils/logger'
+import { crmEnhancedApi } from '@/api/crm-enhanced'
 import RuleDialogTab from './tabs/RuleDialogTab.vue'
 import ManualAssignDialogTab from './tabs/ManualAssignDialogTab.vue'
 
@@ -177,8 +178,9 @@ const currentCustomerName = ref('')
 const fetchRules = async () => {
   ruleLoading.value = true
   try {
-    // TODO: 调用真实 API
-    ruleList.value = []
+    // P1-5：调用真实 API 获取分配规则（后端使用 recycle-rules 接口承载规则）
+    const res = await crmEnhancedApi.getRecycleRules()
+    ruleList.value = (res.data?.data ?? res.data) as RuleRow[]
   } catch (error) {
     const err = error as Error
     logger.warn('获取分配规则失败', err.message)
@@ -190,8 +192,9 @@ const fetchRules = async () => {
 const fetchAssignableCustomers = async () => {
   assignLoading.value = true
   try {
-    // TODO: 调用真实 API
-    assignableCustomers.value = []
+    // P1-5：调用真实 API 获取可分配客户（公海池）
+    const res = await crmEnhancedApi.getPoolList({ page: 1, page_size: 50 })
+    assignableCustomers.value = (res.data?.list ?? res.data) as AssignableCustomer[]
   } catch (error) {
     const err = error as Error
     logger.warn('获取可分配客户失败', err.message)

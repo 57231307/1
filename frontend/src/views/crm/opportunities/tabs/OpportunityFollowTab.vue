@@ -34,6 +34,7 @@
 import { ref, reactive, watch } from 'vue'
 import { ElMessage } from 'element-plus'
 import { logger } from '@/utils/logger'
+import { crmEnhancedApi } from '@/api/crm-enhanced'
 
 interface Props {
   modelValue: boolean
@@ -72,14 +73,21 @@ watch(visible, val => {
 })
 
 const handleSubmit = async () => {
+  if (!props.opportunityId) return
   try {
     submitLoading.value = true
-    // TODO: 调用 API 保存跟进记录
+    // P1-5：实际调用跟进记录保存 API
+    await crmEnhancedApi.createFollowUp(props.opportunityId, {
+      type: 'opportunity',
+      content: formData.content,
+      next_follow_date: formData.next_follow_up_date,
+    })
     ElMessage.success('跟进成功')
     visible.value = false
     emit('submitted')
   } catch (error) {
     const err = error as Error
+    ElMessage.error(err.message || '跟进失败')
     logger.warn('跟进失败', err.message)
   } finally {
     submitLoading.value = false
