@@ -257,6 +257,7 @@ impl FieldPermissionService {
     }
 
     /// 检查角色对某资源的字段写权限
+    #[allow(dead_code)] // TODO(tech-debt): 字段权限模块接入业务后移除
     pub async fn check_write_permission(
         &self,
         role_id: i32,
