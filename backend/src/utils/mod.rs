@@ -35,3 +35,5 @@ pub mod color_space_converter;
 pub mod price_calculator;
 // P4-1 性能优化 - N+1 查询修复工具集
 pub mod n_plus_one;
+// P4-2 安全加固 - 令牌桶限流算法
+pub mod token_bucket;
