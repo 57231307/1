@@ -9,6 +9,39 @@
 
 ## [Unreleased] - 2026-06-17
 
+### Added - P3-4 数据仓库/BI 建设（关键路径 demo）
+- **完整设计 spec**：`docs/superpowers/specs/2026-06-17-p3-4-data-warehouse.md`
+  - Star Schema 架构（1 事实表 + 4 维表）
+  - SCD Type 2（保留历史版本）
+  - 8 个澄清问题 + 矛盾解决
+  - 多租户隔离 + 安全 + 性能指标
+- **完整实施 plan**：`docs/superpowers/plans/2026-06-17-p3-4-data-warehouse.md`
+- **4 个 migration**：
+  - `20260617000011_create_sales_facts`：销售事实表（tenant_id + order_date 索引）
+  - `20260617000012_create_dim_products`：产品维表（SCD Type 2）
+  - `20260617000013_create_dim_customers`：客户维表（SCD Type 2）
+  - `20260617000014_create_dim_dates`：日期维表（年/季/月/周/日 + 周末/节假日）
+- **后端 BI 模块**：
+  - `backend/src/services/bi_analysis_service.rs`：BiAnalysisService（mock 数据，16 方法 + 6 单元测试）
+  - `backend/src/handlers/bi_handler.rs`：16 端点实现
+  - `backend/src/routes/analytics.rs`：新增 bi() 子函数 + nest 到 /api/v1/erp/bi
+  - `backend/src/services/mod.rs`：注册 bi_analysis_service
+  - `backend/src/handlers/mod.rs`：注册 bi_handler
+  - `backend/tests/bi_analysis_test.rs`：14 个测试（多租户 + 钻取 + 切片/上卷 + 集成 stub）
+- **前端 BI 页面**：
+  - `frontend/src/api/bi.ts`：16 端点 API 客户端
+  - `frontend/src/views/bi/SalesAnalysis.vue`：BI 销售分析主页面（KPI 概览 + 4 ECharts 图表 + 月度钻取表格）
+  - `frontend/src/views/bi/index.vue`：BI 页面入口
+  - `frontend/src/router/index.ts`：新增 `/bi/sales-analysis` 路由
+- **文档**：
+  - `docs/2026-06-17-p3-4-data-warehouse-user-manual.md`（用户手册 + 架构 + 性能 + 故障排查）
+  - `docs/2026-06-17-p3-4-data-warehouse-api.md`（16 端点详细文档 + DTO + 错误码）
+- **设计原则**：
+  - 16 端点（8 维度聚合 + 4 钻取 + 4 切片/上卷）
+  - 多租户隔离：所有 SQL 强制 `WHERE tenant_id`
+  - 关键路径 demo：返回 mock 数据（实际 SQL 在 service 注释中）
+  - 主项目兼容：仅新增 BI 模块 + 路由注册
+
 ### Added - P3-3 React Native 移动端（关键路径 demo）
 - **完整设计 spec**：`docs/superpowers/specs/2026-06-17-p3-3-react-native.md`
   - 整体架构图（RN + Zustand + Axios + React Navigation + Paper）

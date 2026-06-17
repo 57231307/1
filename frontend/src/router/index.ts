@@ -670,6 +670,13 @@ const routes = [
         component: () => import('@/views/ai-extend/quality-prediction.vue'),
         meta: { title: 'AI 质量预测', requiresAuth: true },
       },
+      {
+        // P3-4 BI 销售多维分析
+        path: 'bi/sales-analysis',
+        name: 'BiSalesAnalysis',
+        component: () => import('@/views/bi/SalesAnalysis.vue'),
+        meta: { title: 'BI 销售多维分析', requiresAuth: true },
+      },
     ],
   },
   {

@@ -451,6 +451,83 @@ pub fn advanced() -> Router<AppState> {
         )
 }
 
+/// BI 多维分析路由（P3-4 关键路径 demo）
+///
+/// 16 个端点：
+/// - 8 维度聚合：by-time / by-customer / by-product / by-region / by-category / trend / profit / kpi
+/// - 4 钻取：year-to-month / month-to-day / customer-to-order / product-to-order
+/// - 4 切片/上卷：slice / dice / rollup / pivot
+pub fn bi() -> Router<AppState> {
+    Router::new()
+        // 8 个维度聚合
+        .route(
+            "/sales/by-time",
+            get(crate::handlers::bi_handler::sales_by_time),
+        )
+        .route(
+            "/sales/by-customer",
+            get(crate::handlers::bi_handler::sales_by_customer),
+        )
+        .route(
+            "/sales/by-product",
+            get(crate::handlers::bi_handler::sales_by_product),
+        )
+        .route(
+            "/sales/by-region",
+            get(crate::handlers::bi_handler::sales_by_region),
+        )
+        .route(
+            "/sales/by-category",
+            get(crate::handlers::bi_handler::sales_by_category),
+        )
+        .route(
+            "/sales/trend",
+            get(crate::handlers::bi_handler::sales_trend),
+        )
+        .route(
+            "/sales/profit",
+            get(crate::handlers::bi_handler::profit_analysis),
+        )
+        .route(
+            "/sales/kpi",
+            get(crate::handlers::bi_handler::kpi_summary),
+        )
+        // 4 个钻取
+        .route(
+            "/sales/drilldown/year-to-month",
+            get(crate::handlers::bi_handler::drilldown_year_to_month),
+        )
+        .route(
+            "/sales/drilldown/month-to-day",
+            get(crate::handlers::bi_handler::drilldown_month_to_day),
+        )
+        .route(
+            "/sales/drilldown/customer-to-order/:customer_id",
+            get(crate::handlers::bi_handler::drilldown_customer_to_order),
+        )
+        .route(
+            "/sales/drilldown/product-to-order/:product_id",
+            get(crate::handlers::bi_handler::drilldown_product_to_order),
+        )
+        // 4 个切片/上卷
+        .route(
+            "/sales/slice",
+            post(crate::handlers::bi_handler::slice),
+        )
+        .route(
+            "/sales/dice",
+            post(crate::handlers::bi_handler::dice),
+        )
+        .route(
+            "/sales/rollup",
+            post(crate::handlers::bi_handler::rollup),
+        )
+        .route(
+            "/sales/pivot",
+            post(crate::handlers::bi_handler::pivot),
+        )
+}
+
 /// 跟踪路由
 ///
 /// 注：main 上 tracking_handler 仅提供 `track_page_view` 基础接口（用于 POST /page-view），
@@ -492,4 +569,6 @@ pub fn routes() -> Router<AppState> {
         .nest("/notifications", notifications())
         .nest("/user-notification-settings", user_notification_settings())
         .nest("/advanced", advanced())
+        // P3-4 BI 多维分析（nest 到 /api/v1/erp/bi）
+        .nest("/bi", bi())
 }

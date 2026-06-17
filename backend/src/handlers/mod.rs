@@ -123,6 +123,8 @@ pub mod crm_pool_handler;
 // 系统级功能模块
 pub mod audit_enhanced_handler;
 pub mod email_handler;
+// P3-4 BI 多维分析 handler
+pub mod bi_handler;
 pub mod login_security_handler;
 pub mod webhook_integration_handler;
 // 生产排程模块

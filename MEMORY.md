@@ -578,6 +578,30 @@ backend/src/handlers/advanced/
 - **未实现**（P4+）：业务页面、离线架构、原生推送、生物识别、CI/CD、上架
 - **沙箱限制**：无 RN 环境，仅源码 + spec，CI 跑完整构建
 
+### P3-4 数据仓库/BI 建设
+
+- **分支**：`trae/solo-agent-P3-4-data-warehouse`（P3-4 进行中）
+- **范围**：完整 spec + plan + BI 销售多维分析 demo
+- **架构**：Star Schema（1 事实表 + 4 维表）+ SCD Type 2
+- **关键路径 demo**：销售多维分析
+  - 4 migration：sales_facts / dim_products / dim_customers / dim_dates
+  - 后端 `bi_analysis_service.rs` + `bi_handler.rs`（16 端点）
+  - 路由 `/api/v1/erp/bi/*`（nest 到 analytics）
+  - 前端 `views/bi/SalesAnalysis.vue`（KPI + 4 ECharts 图表 + 月度钻取）
+- **16 端点**：
+  - 8 维度聚合：by-time / by-customer / by-product / by-region / by-category / trend / profit / kpi
+  - 4 钻取：year-to-month / month-to-day / customer-to-order / product-to-order
+  - 4 切片/上卷：slice / dice / rollup / pivot
+- **多租户隔离**：所有 SQL 强制 `WHERE tenant_id`
+- **修改文件**：
+  - `backend/src/services/mod.rs`（注册 bi_analysis_service）
+  - `backend/src/handlers/mod.rs`（注册 bi_handler）
+  - `backend/src/routes/analytics.rs`（新增 bi() + nest）
+  - `frontend/src/router/index.ts`（新增 /bi/sales-analysis 路由）
+  - 新增 4 migration + 1 service + 1 handler + 1 test + 1 API + 1 页面
+- **未实现**（P4+）：完整 ETL（Airflow）、OLAP 引擎（ClickHouse/Druid）、实时数据流、机器学习预测
+- **沙箱限制**：service 返回 mock 数据，CI 跑真实查询
+
 ---
 
 
