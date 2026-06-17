@@ -22,6 +22,17 @@ pub mod inventory_unit_tests;
 pub mod ar_unit_tests;
 #[cfg(test)]
 pub mod bi_unit_tests;
+// P9-5 单元测试覆盖率：100+ 新测试
+#[cfg(test)]
+pub mod p9_5_sales_extra_tests;
+#[cfg(test)]
+pub mod p9_5_purchase_extra_tests;
+#[cfg(test)]
+pub mod p9_5_inventory_extra_tests;
+#[cfg(test)]
+pub mod p9_5_ar_extra_tests;
+#[cfg(test)]
+pub mod p9_5_bi_extra_tests;
 pub mod business_trace_service;
 pub mod crm;
 pub mod customer_service;
