@@ -1,0 +1,85 @@
+syntax = "proto3";
+
+package notifications;
+
+// NotificationService - 通知服务 gRPC 接口定义
+// 用途：P3-1 微服务拆分关键路径 demo
+// 4 个 RPC：发送 / 批量发送 / 列出 / 标记已读
+service NotificationService {
+  // 发送单条通知
+  rpc SendNotification(SendNotificationRequest) returns (SendNotificationResponse);
+
+  // 批量发送通知
+  rpc BatchSend(BatchSendRequest) returns (BatchSendResponse);
+
+  // 列出用户通知（分页）
+  rpc ListUserNotifications(ListRequest) returns (ListResponse);
+
+  // 标记已读
+  rpc MarkAsRead(MarkAsReadRequest) returns (MarkAsReadResponse);
+}
+
+// 发送通知请求
+message SendNotificationRequest {
+  int64 tenant_id = 1;  // 租户 ID（多租户隔离）
+  int64 user_id = 2;    // 接收用户 ID
+  string title = 3;     // 通知标题
+  string content = 4;   // 通知内容
+  string category = 5;  // 分类（订单/库存/生产/系统）
+  int32 priority = 6;   // 优先级 1-10
+}
+
+// 发送通知响应
+message SendNotificationResponse {
+  int64 id = 1;        // 通知 ID
+  string status = 2;   // 状态：success / failed
+}
+
+// 批量发送请求
+message BatchSendRequest {
+  repeated SendNotificationRequest items = 1;
+}
+
+// 批量发送响应
+message BatchSendResponse {
+  int32 count = 1;     // 成功发送数量
+  string status = 2;   // 状态
+}
+
+// 列表请求
+message ListRequest {
+  int64 tenant_id = 1;
+  int64 user_id = 2;
+  int32 limit = 3;     // 每页数量
+  int32 offset = 4;    // 偏移
+}
+
+// 通知条目
+message NotificationItem {
+  int64 id = 1;
+  int64 tenant_id = 2;
+  int64 user_id = 3;
+  string title = 4;
+  string content = 5;
+  string category = 6;
+  int32 priority = 7;
+  bool is_read = 8;
+  string created_at = 9;  // ISO 8601 字符串
+}
+
+// 列表响应
+message ListResponse {
+  repeated NotificationItem items = 1;
+  int32 total = 2;
+}
+
+// 标记已读请求
+message MarkAsReadRequest {
+  int64 id = 1;
+  int64 tenant_id = 2;  // 多租户隔离
+}
+
+// 标记已读响应
+message MarkAsReadResponse {
+  bool success = 1;
+}
