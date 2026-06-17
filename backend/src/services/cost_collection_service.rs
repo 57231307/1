@@ -460,7 +460,6 @@ pub struct BatchCostAnalysis {
 }
 
 /// 计算总成本
-#[allow(dead_code)]
 pub fn calculate_total_cost(
     direct_material: Decimal,
     direct_labor: Decimal,
@@ -472,7 +471,6 @@ pub fn calculate_total_cost(
 }
 
 /// 计算单位成本（米）
-#[allow(dead_code)]
 pub fn calculate_unit_cost_meters(
     total_cost: Decimal,
     output_meters: Option<Decimal>,
@@ -487,7 +485,6 @@ pub fn calculate_unit_cost_meters(
 }
 
 /// 计算单位成本（公斤）
-#[allow(dead_code)]
 pub fn calculate_unit_cost_kg(total_cost: Decimal, output_kg: Option<Decimal>) -> Option<Decimal> {
     output_kg.and_then(|q| {
         if q.is_zero() {

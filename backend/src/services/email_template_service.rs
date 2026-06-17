@@ -114,7 +114,7 @@ impl EmailTemplateService {
     }
 
     /// 根据编码获取邮件模板
-    #[allow(dead_code)]
+    #[allow(dead_code)] // TODO(tech-debt): 邮件发送流程接入按 code 查找后移除
     pub async fn get_by_code(
         &self,
         tenant_id: i32,
@@ -228,24 +228,5 @@ impl EmailTemplateService {
             .await?;
 
         Ok((items, total))
-    }
-
-    /// 渲染模板（替换变量）
-    #[allow(dead_code)]
-    pub fn render_template(template: &str, variables: &serde_json::Value) -> String {
-        let mut result = template.to_string();
-
-        if let Some(vars) = variables.as_object() {
-            for (key, value) in vars {
-                let placeholder = format!("{{{{{}}}}}", key);
-                let replacement = match value {
-                    serde_json::Value::String(s) => s.clone(),
-                    _ => value.to_string(),
-                };
-                result = result.replace(&placeholder, &replacement);
-            }
-        }
-
-        result
     }
 }

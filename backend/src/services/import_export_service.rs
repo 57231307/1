@@ -586,7 +586,6 @@ impl ImportExportService {
 }
 
 /// 导出查询参数
-#[allow(dead_code)]
 #[derive(Debug, Clone, Deserialize)]
 pub struct ExportQuery {
     pub format: Option<String>,

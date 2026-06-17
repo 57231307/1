@@ -39,7 +39,6 @@ pub struct WarehouseStock {
 }
 
 /// 五维查询参数
-#[allow(dead_code)]
 #[derive(Debug, Clone, Deserialize)]
 pub struct FiveDimensionQuery {
     pub product_id: Option<i32>,

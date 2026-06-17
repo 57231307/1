@@ -152,7 +152,7 @@ impl SalesPriceService {
     }
 
     /// 激活已批准的价格策略
-    #[allow(dead_code)]
+    #[allow(dead_code)] // TODO(tech-debt): 销售价格管理模块接入激活流程后移除
     pub async fn activate_price(&self, id: i32, user_id: i32) -> Result<(), AppError> {
         info!("用户 {} 正在激活销售价格，ID: {}", user_id, id);
 
@@ -279,7 +279,7 @@ impl SalesPriceService {
 
     /// 获取指定产品和客户的当前有效价格
     /// 按优先级：客户专属价格 > 客户类型价格 > 通用价格
-    #[allow(dead_code)]
+    #[allow(dead_code)] // TODO(tech-debt): 销售订单创建时查询最优价格时移除
     pub async fn get_current_price(
         &self,
         product_id: i32,

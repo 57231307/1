@@ -60,10 +60,7 @@ impl From<&str> for KafkaError {
 /// 与 `BusinessEvent` 字段一一对应，单独建模：
 /// - `type` 字段做路由（消费端据此反序列化）；
 /// - 其余字段按 variant 填入 `data`。
-#[allow(dead_code)]
-// TODO(tech-debt): 当前生产二进制走 `EventPayload` 直序列化路径，
-// `KafkaEventEnvelope` 主要用于 `tests/test_event_bus.rs` 做 round-trip 校验。
-// 等报表/审计模块接入 Kafka 时再正式启用。
+#[allow(dead_code)] // TODO(tech-debt): 报表/审计模块接入 Kafka 时启用
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct KafkaEventEnvelope {
     /// 事件类型（与 `BusinessEvent` 变体名一一对应，例如
@@ -81,8 +78,7 @@ impl KafkaEventEnvelope {
     ///
     /// 通过 `payload_serde::EventPayload` 中转序列化（不修改原 `BusinessEvent`
     /// 的 `derive` 列表，保持公共 API 最小改动）。
-    #[allow(dead_code)]
-    // TODO(tech-debt): 报表/审计模块接入 Kafka 时启用
+    #[allow(dead_code)] // TODO(tech-debt): 报表/审计模块接入 Kafka 时启用
     pub fn from_event(event: &BusinessEvent) -> Self {
         let r#type = event_type_name(event).to_string();
         let payload = payload_serde::EventPayload::from(event);
@@ -95,8 +91,7 @@ impl KafkaEventEnvelope {
     }
 
     /// 把信封还原为 `BusinessEvent`（失败时返回错误字符串）
-    #[allow(dead_code)]
-    // TODO(tech-debt): 报表/审计模块接入 Kafka 时启用
+    #[allow(dead_code)] // TODO(tech-debt): 报表/审计模块接入 Kafka 时启用
     pub fn into_event(self) -> Result<BusinessEvent, String> {
         let payload: payload_serde::EventPayload = serde_json::from_value(self.data)
             .map_err(|e| format!("反序列化 EventPayload 失败: {}", e))?;
@@ -105,8 +100,7 @@ impl KafkaEventEnvelope {
 }
 
 /// 返回 `BusinessEvent` 对应的事件类型字符串（与 `KafkaEventEnvelope.type` 对应）
-#[allow(dead_code)]
-// TODO(tech-debt): 报表/审计模块接入 Kafka 时启用
+#[allow(dead_code)] // TODO(tech-debt): 报表/审计模块接入 Kafka 时启用
 fn event_type_name(event: &BusinessEvent) -> &'static str {
     match event {
         BusinessEvent::PurchaseReceiptCompleted { .. } => "PurchaseReceiptCompleted",

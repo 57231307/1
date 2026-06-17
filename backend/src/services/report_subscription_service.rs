@@ -246,7 +246,7 @@ impl ReportSubscriptionService {
     }
 
     /// 获取用户的订阅列表
-    #[allow(dead_code)]
+    #[allow(dead_code)] // TODO(tech-debt): 用户中心"我的订阅"页面接入后移除
     pub async fn list_by_user(
         &self,
         tenant_id: i32,

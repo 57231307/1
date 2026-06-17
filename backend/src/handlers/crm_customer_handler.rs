@@ -16,7 +16,6 @@ use crate::utils::error::AppError;
 use crate::utils::response::ApiResponse;
 
 /// 客户查询参数
-#[allow(dead_code)]
 #[derive(Debug, Deserialize)]
 pub struct CustomerQueryParams {
     pub page: Option<u64>,

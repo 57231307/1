@@ -432,9 +432,3 @@ impl ReportEngineService {
         cache.clear();
     }
 }
-
-// 抑制未使用导入
-#[allow(dead_code)]
-fn _unused() {
-    let _: Vec<ReportColumn> = Vec::new();
-}

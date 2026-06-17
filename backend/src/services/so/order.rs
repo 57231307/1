@@ -5,7 +5,7 @@
 
 use crate::models::dto::PageRequest;
 use crate::models::{
-    ar_invoice::{self, Column as ArInvoiceColumn, Entity as ArInvoiceEntity},
+    ar_invoice::{self, Column},
     customer, product, sales_order,
     sales_order::Entity as SalesOrderEntity,
     sales_order_item,
@@ -1039,9 +1039,3 @@ impl SalesService {
         Ok(order)
     }
 }
-
-// 解决 ar_invoice 引用告警
-#[allow(dead_code)]
-type _Ar = ArInvoiceEntity;
-#[allow(dead_code)]
-type _ArCol = ArInvoiceColumn;

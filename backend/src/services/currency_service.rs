@@ -70,7 +70,7 @@ impl CurrencyService {
         Ok(model)
     }
 
-    #[allow(dead_code)]
+    #[allow(dead_code)] // TODO(tech-debt): 汇率管理 API 接入后移除
     pub async fn list_exchange_rates(
         &self,
         from_currency: Option<String>,
@@ -243,7 +243,7 @@ impl CurrencyService {
     }
 
     /// 批量换算到本位币
-    #[allow(dead_code)]
+    #[allow(dead_code)] // TODO(tech-debt): 报表多币种换算接入后移除
     pub async fn convert_to_base_currency(
         &self,
         from_currency: &str,
@@ -350,7 +350,7 @@ impl CurrencyService {
     }
 
     /// 计算本位币金额（用于订单和发票）
-    #[allow(dead_code)]
+    #[allow(dead_code)] // TODO(tech-debt): 订单/发票自动换算接入后移除
     pub async fn calculate_base_amount(
         &self,
         currency_code: &str,

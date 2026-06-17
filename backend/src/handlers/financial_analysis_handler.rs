@@ -20,7 +20,6 @@ use crate::utils::error::AppError;
 use crate::utils::response::ApiResponse;
 
 /// 财务趋势查询参数
-#[allow(dead_code)]
 #[derive(Debug, Deserialize)]
 pub struct TrendQueryParams {
     pub indicator_id: Option<i32>,
@@ -31,7 +30,6 @@ pub struct TrendQueryParams {
 }
 
 /// 创建报告请求
-#[allow(dead_code)]
 #[derive(Debug, Deserialize)]
 pub struct CreateReportRequest {
     pub name: String,

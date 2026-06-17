@@ -219,37 +219,3 @@ pub async fn list_assignment_history(
         "total": total,
     }))))
 }
-
-/// GET /api/v1/erp/crm/assignment/history/:lead_id - 获取客户分配历史
-#[allow(dead_code)]
-pub async fn get_lead_assignment_history(
-    State(state): State<AppState>,
-    auth: AuthContext,
-    Path(lead_id): Path<i32>,
-) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
-    let service = AssignmentHistoryService::new(state.db.clone());
-    let tenant_id = extract_tenant_id(&auth)?;
-
-    let items = service.get_lead_history(tenant_id, lead_id).await?;
-
-    Ok(Json(ApiResponse::success(serde_json::json!({
-        "items": items,
-        "total": items.len(),
-    }))))
-}
-
-/// GET /api/v1/erp/crm/assignment/statistics - 获取用户分配统计
-#[allow(dead_code)]
-pub async fn get_assignment_statistics(
-    State(state): State<AppState>,
-    auth: AuthContext,
-) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
-    let service = AssignmentHistoryService::new(state.db.clone());
-    let tenant_id = extract_tenant_id(&auth)?;
-
-    let statistics = service.get_user_statistics(tenant_id, auth.user_id).await?;
-
-    Ok(Json(ApiResponse::success(serde_json::to_value(
-        statistics,
-    )?)))
-}

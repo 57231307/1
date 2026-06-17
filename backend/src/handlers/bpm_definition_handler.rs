@@ -105,7 +105,7 @@ pub async fn activate_version_by_id(
 }
 
 /// 保存为模板
-#[allow(dead_code)]
+#[allow(dead_code)] // TODO(tech-debt): 流程定义保存为模板 API 接入后移除
 pub async fn save_as_template(
     State(state): State<AppState>,
     Path(id): Path<i32>,

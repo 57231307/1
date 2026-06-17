@@ -325,7 +325,3 @@ impl CrmService {
         }))
     }
 }
-
-/// 引用 Arc 别名
-#[allow(dead_code)]
-pub(crate) type DbArc = Arc<DatabaseConnection>;

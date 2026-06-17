@@ -281,9 +281,3 @@ impl ReportEngineService {
         Ok(values)
     }
 }
-
-// 抑制未使用导入
-#[allow(dead_code)]
-fn _unused() {
-    let _ = ReportSubscriptionEntity::find_by_id::<i32>;
-}

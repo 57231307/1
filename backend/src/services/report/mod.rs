@@ -363,9 +363,3 @@ impl ReportEngineService {
 
 /// 默认缓存 TTL：5 分钟
 pub(crate) const DEFAULT_CACHE_TTL_SECONDS: i64 = 300;
-
-/// 抑制未使用导入警告
-#[allow(dead_code)]
-fn _unused() {
-    let _: Option<Decimal> = None;
-}

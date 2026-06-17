@@ -20,7 +20,7 @@ impl AccountingPeriodService {
     }
 
     /// 获取所有开放的会计期间
-    #[allow(dead_code)]
+    #[allow(dead_code)] // TODO(tech-debt): 期间管理 API 接入后移除
     pub async fn get_all_open_periods(&self) -> Result<Vec<accounting_period::Model>, AppError> {
         let periods = accounting_period::Entity::find()
             .filter(accounting_period::Column::Status.eq("OPEN"))

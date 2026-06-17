@@ -17,7 +17,6 @@ use sea_orm::{
     TransactionTrait,
 };
 use serde::Deserialize;
-use std::sync::Arc;
 use validator::Validate;
 
 use super::order::SalesService;
@@ -587,11 +586,3 @@ impl SalesService {
             .map_err(|e| AppError::business(format!("CSV 生成失败: {}", e)))
     }
 }
-
-/// 引用 Arc 别名
-#[allow(dead_code)]
-pub(crate) type DbArc = Arc<DatabaseConnection>;
-
-// 解决未使用导入告警
-#[allow(dead_code)]
-type _ProductModel = product::Model;

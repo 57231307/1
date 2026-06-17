@@ -6,7 +6,7 @@ use axum::{
     extract::{Path, Query, State},
     Json,
 };
-use serde::{Deserialize, Serialize};
+use serde::Deserialize;
 
 use crate::middleware::auth_context::AuthContext;
 use crate::models::dto::crm_dto::BatchClaimRequest;
@@ -16,7 +16,6 @@ use crate::utils::error::AppError;
 use crate::utils::response::ApiResponse;
 
 /// 公海客户查询参数
-#[allow(dead_code)]
 #[derive(Debug, Deserialize)]
 pub struct PoolQueryParams {
     pub page: Option<u64>,
@@ -37,21 +36,6 @@ pub struct ClaimRequest {
 pub struct RecycleRequest {
     pub lead_id: i32,
     pub reason: Option<String>,
-}
-
-/// 公海客户响应
-#[allow(dead_code)]
-#[derive(Debug, Serialize)]
-pub struct PoolCustomerResponse {
-    pub id: i32,
-    pub lead_no: String,
-    pub company_name: Option<String>,
-    pub contact_name: String,
-    pub mobile_phone: Option<String>,
-    pub email: Option<String>,
-    pub lead_source: String,
-    pub created_at: String,
-    pub days_in_pool: i64,
 }
 
 /// GET /api/v1/erp/crm/pool - 获取公海客户列表
