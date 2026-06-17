@@ -8,60 +8,24 @@
     </el-card>
 
     <!-- 筛选区 -->
-    <el-card class="filter-card">
-      <el-form :inline="true" :model="queryForm">
-        <el-form-item label="订单编号">
-          <el-input v-model="queryForm.order_no" placeholder="请输入订单编号" clearable />
-        </el-form-item>
-        <el-form-item label="状态">
-          <el-select v-model="queryForm.status" placeholder="请选择状态" clearable>
-            <el-option
-              v-for="(item, key) in PRODUCTION_ORDER_STATUS"
-              :key="key"
-              :label="item.label"
-              :value="key"
-            />
-          </el-select>
-        </el-form-item>
-        <el-form-item>
-          <el-button type="primary" @click="fetchOrders">查询</el-button>
-          <el-button @click="resetQuery">重置</el-button>
-        </el-form-item>
-      </el-form>
-    </el-card>
-
-    <!-- 操作区 -->
-    <el-card class="table-card">
-      <template #header>
-        <div class="card-header">
-          <span>生产订单列表</span>
-          <div class="header-actions">
-            <el-button type="primary" @click="openDialog('create')">
-              <el-icon><Plus /></el-icon>新建订单
-            </el-button>
-            <el-button @click="handlePrint">
-              <el-icon><Printer /></el-icon>打印
-            </el-button>
-            <el-button @click="handleExport">
-              <el-icon><Download /></el-icon>导出
-            </el-button>
-          </div>
-        </div>
-      </template>
-
-      <V2Table
-        :data="orderList"
-        :columns="productionColumns"
-        :estimated-row-height="48"
-        :loading="loading"
-        :total="total"
-        :page="queryForm.page"
-        :page-size="queryForm.page_size"
-        @row-click="handleProductionRowClick"
-        @page-change="handlePageChange"
-        @size-change="handleSizeChange"
-      />
-    </el-card>
+    <ProductionList
+      :orders="orders"
+      :total="total"
+      :loading="loading"
+      :query-params="queryParams"
+      :status-type-map="statusTypeMap"
+      :status-map="statusMap"
+      :priority-type-map="priorityTypeMap"
+      :priority-map="priorityMap"
+      @search="fetchData"
+      @update:query-params="(v: any) => Object.assign(queryParams, v)"
+      @add="handleAdd"
+      @view="handleView"
+      @edit="handleEdit"
+      @delete="handleDelete"
+      @audit="handleAudit"
+      @update-status="handleUpdateStatus"
+    />
 
     <!-- 新建/编辑对话框 -->
     <el-dialog
@@ -170,6 +134,7 @@
 </template>
 
 <script setup lang="ts">
+import ProductionList from './ProductionList.vue'
 import { ref, reactive, onMounted } from 'vue'
 import { ElMessage, type FormInstance, type FormRules } from 'element-plus'
 import { Plus, Download, Printer } from '@element-plus/icons-vue'
