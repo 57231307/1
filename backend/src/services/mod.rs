@@ -40,6 +40,10 @@ pub mod inventory_count_service;
 pub mod inventory_finance_bridge_service;
 pub mod inventory_reservation_service;
 pub mod inventory_stock_service;
+// P9-2 拆分：库存子模块
+pub mod stock_ledger;
+pub mod stock_alert;
+pub mod stock_query;
 pub mod product_category_service;
 pub mod product_service;
 pub mod role_permission_service;
@@ -124,6 +128,10 @@ pub mod capacity_service;
 pub mod material_shortage_service;
 // 生产排程模块
 pub mod scheduling_service;
+// P9-2 拆分：排程子模块
+pub mod scheduling_auto;
+pub mod scheduling_manual;
+pub mod scheduling_query;
 // 字段权限模块
 pub mod field_permission_service;
 // 租户计费模块
