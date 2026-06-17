@@ -103,6 +103,7 @@ pub struct CapacityOverview {
 pub struct LoadAnalysisQuery {
     pub date_from: Option<NaiveDate>,
     pub date_to: Option<NaiveDate>,
+    #[allow(dead_code)] // TODO(tech-debt): 报表模块接入后移除
     pub work_center_id: Option<i32>,
 }
 

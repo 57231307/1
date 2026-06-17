@@ -43,10 +43,13 @@ pub struct ScheduledOrder {
 /// 工作中心产能信息
 #[derive(Debug, Clone)]
 pub struct WorkCenterCapacity {
+    #[allow(dead_code)] // TODO(tech-debt): 报表模块接入后移除
     pub id: i32,
+    #[allow(dead_code)] // TODO(tech-debt): 报表模块接入后移除
     pub code: String,
     pub name: String,
     pub daily_capacity: Decimal,
+    #[allow(dead_code)] // TODO(tech-debt): 报表模块接入后移除
     pub status: String,
 }
 

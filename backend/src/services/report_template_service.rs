@@ -56,6 +56,7 @@ pub struct UpdateReportTemplateRequest {
 #[derive(Debug, Clone, Deserialize)]
 pub struct ReportTemplateQuery {
     pub report_type: Option<String>,
+    #[allow(dead_code)] // TODO(tech-debt): 报表模板模块接入业务后移除
     pub status: Option<String>,
     pub keyword: Option<String>,
     pub page: Option<u64>,
