@@ -22,6 +22,7 @@ use axum::{
 };
 use bingxi_backend::middleware::csrf::csrf_middleware;
 use bingxi_backend::utils::app_state::AppState;
+use bingxi_backend::utils::cache::Cache;
 use serde_json::{json, Value};
 use tower::ServiceExt;
 
