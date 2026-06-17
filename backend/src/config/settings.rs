@@ -13,6 +13,13 @@ pub struct AppSettings {
     /// 配置遗漏导致服务启动 panic。
     #[serde(default)]
     pub cors: CorsConfig,
+    /// 事件总线配置（Kafka 可选后端）。
+    ///
+    /// 使用 `#[serde(default)]` 以保证老配置文件无需立刻补充 `kafka` 段
+    /// 即可解析通过；缺失时走 [`KafkaSettings::default()`]
+    /// （即 `enabled=false`、进程内 Broadcast 模式）。
+    #[serde(default)]
+    pub kafka: KafkaSettings,
     pub env: String,
 }
 
@@ -44,6 +51,52 @@ pub struct AuthConfig {
 pub struct LogConfig {
     pub level: String,
     pub dir: String,
+}
+
+/// 事件总线顶层配置（Kafka 可选后端）
+///
+/// 设计要点：
+/// - `enabled=false`（默认）→ 走进程内 `tokio::sync::broadcast`（即 Broadcast 后端），
+///   CI 环境无 Kafka 也能正常启动；
+/// - `enabled=true` 且 `brokers` 可达 → 走 `rskafka` 真实后端；
+/// - `enabled=true` 但连接失败 → 自动降级回 Broadcast，并在日志中输出中文错误。
+#[derive(Debug, Clone, Deserialize, Serialize)]
+#[serde(default)]
+pub struct KafkaSettings {
+    /// 是否启用 Kafka 后端（生产可启用，CI 必须保持 false）
+    pub enabled: bool,
+    /// Kafka broker 列表（逗号分隔）
+    pub brokers: String,
+    /// 业务事件 topic
+    pub topic: String,
+    /// 消费者组 ID
+    pub consumer_group: String,
+    /// 客户端 ID
+    pub client_id: String,
+    /// topic 分区数（首次自动创建时使用）
+    pub partitions: i32,
+    /// 复制因子（首次自动创建时使用）
+    pub replication_factor: i16,
+    /// Kafka 连接超时（毫秒）
+    pub connect_timeout_ms: u64,
+    /// 启动时是否自动创建 topic
+    pub auto_create_topic: bool,
+}
+
+impl Default for KafkaSettings {
+    fn default() -> Self {
+        Self {
+            enabled: false,
+            brokers: "localhost:9092".to_string(),
+            topic: "erp_business_events".to_string(),
+            consumer_group: "erp_event_consumer".to_string(),
+            client_id: "bingxi-erp".to_string(),
+            partitions: 12,
+            replication_factor: 1,
+            connect_timeout_ms: 5000,
+            auto_create_topic: true,
+        }
+    }
 }
 
 /// CORS 跨域配置
@@ -219,6 +272,31 @@ impl AppSettings {
                 return Err(ConfigError::Message(
                     "AUDIT_SECRET_KEY 必须至少 32 字节".to_string(),
                 ));
+            }
+        }
+
+        // Kafka 事件总线后端：从环境变量覆盖
+        if let Ok(v) = std::env::var("KAFKA_ENABLED") {
+            self.kafka.enabled = matches!(v.to_lowercase().as_str(), "1" | "true" | "yes" | "on");
+        }
+        if let Ok(v) = std::env::var("KAFKA_BROKERS") {
+            if !v.trim().is_empty() {
+                self.kafka.brokers = v;
+            }
+        }
+        if let Ok(v) = std::env::var("KAFKA_TOPIC") {
+            if !v.trim().is_empty() {
+                self.kafka.topic = v;
+            }
+        }
+        if let Ok(v) = std::env::var("KAFKA_CONSUMER_GROUP") {
+            if !v.trim().is_empty() {
+                self.kafka.consumer_group = v;
+            }
+        }
+        if let Ok(v) = std::env::var("KAFKA_CLIENT_ID") {
+            if !v.trim().is_empty() {
+                self.kafka.client_id = v;
             }
         }
 

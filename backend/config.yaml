@@ -72,4 +72,18 @@ redis:
   url: "redis://127.0.0.1:6379"
   max_connections: 10
 
+# 事件总线配置（Kafka 可选后端，P11-H2 引入）
+# - 默认 enabled=false：进程内 tokio::sync::broadcast，CI 环境无 Kafka 也能启动
+# - 生产环境设置 KAFKA_ENABLED=true 启用真实跨服务后端
+kafka:
+  enabled: false
+  brokers: "localhost:9092"
+  topic: "erp_business_events"
+  consumer_group: "erp_event_consumer"
+  client_id: "bingxi-erp"
+  partitions: 12
+  replication_factor: 1
+  connect_timeout_ms: 5000
+  auto_create_topic: true
+
 env: "development"

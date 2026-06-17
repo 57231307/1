@@ -98,6 +98,9 @@ csv = "1.3"
 # Excel处理
 migration = { version = "0.1.0", path = "migration" }
 
+# 事件总线（Kafka 后端，rskafka 0.5 纯 Rust 实现，无 C/C++ 依赖）
+rskafka = { version = "0.5", default-features = false }
+
 [dev-dependencies]
 # 开发测试相关依赖
 tokio-test = "0.4"

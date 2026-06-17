@@ -349,6 +349,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             let app_state_clone4 = app_state.clone();
             let app_state_clone5 = app_state.clone();
             crate::services::event_bus::start_event_listener(app_state.db.clone()).await;
+            crate::services::event_bus::init_event_bus_with_kafka_config(&settings.kafka).await;
             let app = create_router(app_state)
                 // P3.3：分布式追踪上下文（最最外层，确保下游都能拿到 trace_id）
                 .layer(axum::middleware::from_fn(

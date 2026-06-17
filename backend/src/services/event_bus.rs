@@ -1,10 +1,31 @@
 #![allow(dead_code)]
 // TODO(tech-debt): 业务接入或重评估后逐项移除；rustc 1.94+ 编译时由编译器报告具体死代码位置。
-use sea_orm;
-use sea_orm::{ColumnTrait, EntityTrait, QueryFilter};
-use std::sync::Arc;
-use std::sync::LazyLock;
+//!
+//! 事件总线（P11-H2 Kafka 真实集成）
+//!
+//! 抽象 [`EventBackend`] trait，对外暴露双后端：
+//! - `Broadcast`（默认，进程内 `tokio::sync::broadcast`，CI 友好）
+//! - `Kafka`（生产可启用，基于 `rskafka` 真实投递到 broker，跨服务可用）
+//!
+//! 公共 API（`EVENT_BUS` / `publish` / `subscribe` / `start_event_listener`）
+//! 保持完全向后兼容；旧调用方零修改。
+//!
+//! 启动时通过 [`init_event_bus_with_kafka_config`] 注入 Kafka 配置；
+//! Kafka 不可达时**自动降级**到 `Broadcast`，并通过 `tracing::error!` 输出中文日志。
+
+use futures::stream::Stream;
+use sea_orm::DatabaseConnection;
+use std::future::Future;
+use std::pin::Pin;
+use std::sync::atomic::{AtomicU8, Ordering};
+use std::sync::{Arc, LazyLock};
 use tokio::sync::broadcast;
+
+use crate::config::settings::KafkaSettings;
+
+// ============================================================================
+// 公共类型（业务事件枚举）
+// ============================================================================
 
 #[derive(Clone, Debug)]
 pub struct ShippedItem {
@@ -89,24 +110,213 @@ pub enum BusinessEvent {
     },
 }
 
-pub static EVENT_BUS: LazyLock<EventBus> = LazyLock::new(EventBus::new);
+// ============================================================================
+// 后端抽象（P11-H2 新增）
+// ============================================================================
 
-pub struct EventBus {
+/// 事件总线后端抽象（dyn 兼容）
+///
+/// 使用 `Pin<Box<dyn Future>>` 而非 `async fn` 是为了在 stable Rust 下支持
+/// `Arc<dyn EventBackend>` 动态分发；调用方拿到的是一次性装箱的 future。
+pub trait EventBackend: Send + Sync {
+    /// 异步发布事件
+    fn publish<'a>(
+        &'a self,
+        event: BusinessEvent,
+    ) -> Pin<Box<dyn Future<Output = Result<(), String>> + Send + 'a>>;
+
+    /// 异步订阅事件，返回 `Box<dyn Stream>` 供上层消费
+    fn subscribe<'a>(
+        &'a self,
+    ) -> Pin<
+        Box<
+            dyn Future<
+                    Output = Result<Box<dyn Stream<Item = BusinessEvent> + Send + Unpin>, String>,
+                > + Send
+                + 'a,
+        >,
+    >;
+}
+
+/// 进程内 Broadcast 后端（默认）
+pub struct BroadcastBackend {
     sender: broadcast::Sender<BusinessEvent>,
 }
 
-impl EventBus {
-    pub fn new() -> Self {
-        let (sender, _) = broadcast::channel(100);
+impl BroadcastBackend {
+    pub fn new(capacity: usize) -> Self {
+        let (sender, _) = broadcast::channel(capacity);
         Self { sender }
     }
+}
 
-    pub fn publish(&self, event: BusinessEvent) {
-        let _ = self.sender.send(event);
+impl EventBackend for BroadcastBackend {
+    fn publish<'a>(
+        &'a self,
+        event: BusinessEvent,
+    ) -> Pin<Box<dyn Future<Output = Result<(), String>> + Send + 'a>> {
+        let result = self.sender.send(event);
+        Box::pin(async move {
+            match result {
+                Ok(_) => Ok(()),
+                Err(_) => Err("事件订阅者已全部断开，发送失败".to_string()),
+            }
+        })
     }
 
+    fn subscribe<'a>(
+        &'a self,
+    ) -> Pin<
+        Box<
+            dyn Future<
+                    Output = Result<Box<dyn Stream<Item = BusinessEvent> + Send + Unpin>, String>,
+                > + Send
+                + 'a,
+        >,
+    > {
+        let rx = self.sender.subscribe();
+        let stream: Box<dyn Stream<Item = BusinessEvent> + Send + Unpin> =
+            Box::new(BroadcastStream { rx });
+        Box::pin(async move { Ok(stream) })
+    }
+}
+
+/// 把 `broadcast::Receiver` 包装成 `Stream<Item = BusinessEvent>`（忽略 Lagged）
+struct BroadcastStream {
+    rx: broadcast::Receiver<BusinessEvent>,
+}
+
+impl Stream for BroadcastStream {
+    type Item = BusinessEvent;
+
+    fn poll_next(
+        mut self: Pin<&mut Self>,
+        cx: &mut std::task::Context<'_>,
+    ) -> std::task::Poll<Option<Self::Item>> {
+        loop {
+            match Pin::new(&mut self.rx).poll_recv(cx) {
+                std::task::Poll::Ready(Some(Ok(event))) => {
+                    return std::task::Poll::Ready(Some(event));
+                }
+                std::task::Poll::Ready(Some(Err(_e))) => {
+                    // Lagged：继续 poll 拿下一条
+                    continue;
+                }
+                std::task::Poll::Ready(None) => {
+                    return std::task::Poll::Ready(None);
+                }
+                std::task::Poll::Pending => {
+                    return std::task::Poll::Pending;
+                }
+            }
+        }
+    }
+}
+
+/// 实际选用的后端运行时容器
+struct EventBusState {
+    backend_kind: AtomicU8, // 0 = Broadcast, 1 = Kafka
+    broadcast: BroadcastBackend,
+    kafka: Option<Arc<crate::services::event_kafka::KafkaBackend>>,
+    /// 始终存在的本地 channel，用于在 Kafka 模式下把 Kafka 消费到的事件
+    /// 桥接到本进程的所有订阅者，保持 `subscribe() -> broadcast::Receiver` API
+    local_tx: broadcast::Sender<BusinessEvent>,
+}
+
+impl EventBusState {
+    fn new() -> Self {
+        let broadcast = BroadcastBackend::new(1024);
+        let (local_tx, _) = broadcast::channel(1024);
+        Self {
+            backend_kind: AtomicU8::new(0),
+            broadcast,
+            kafka: None,
+            local_tx,
+        }
+    }
+}
+
+/// 全局状态（once_cell 风格，避免重入初始化）
+static EVENT_BUS_STATE: LazyLock<std::sync::Mutex<EventBusState>> =
+    LazyLock::new(|| std::sync::Mutex::new(EventBusState::new()));
+
+/// 全局 `EventBus` 句柄
+pub static EVENT_BUS: LazyLock<EventBus> = LazyLock::new(EventBus::new);
+
+/// 事件总线主结构
+///
+/// 内部根据 [`EventBusState`] 决定走 Broadcast 或 Kafka 真实后端。
+pub struct EventBus;
+
+impl EventBus {
+    /// 构造一个 `EventBus` 句柄（不会触发任何 IO）
+    pub fn new() -> Self {
+        Self
+    }
+
+    /// 当前后端类型（用于诊断 / 测试断言）
+    pub fn backend_type(&self) -> EventBackendType {
+        let state = EVENT_BUS_STATE.lock().expect("EVENT_BUS_STATE 已中毒");
+        match state.backend_kind.load(Ordering::Acquire) {
+            1 => EventBackendType::Kafka,
+            _ => EventBackendType::Broadcast,
+        }
+    }
+
+    /// 异步发布事件
+    ///
+    /// - 当前后端 = Broadcast：直接本地投递；
+    /// - 当前后端 = Kafka：序列化到 Kafka；同时**始终**复制一份到本地 `local_tx`，
+    ///   避免单进程内订阅者丢失事件。
+    pub async fn publish_async(&self, event: BusinessEvent) {
+        let state = EVENT_BUS_STATE.lock().expect("EVENT_BUS_STATE 已中毒");
+        let _ = state.local_tx.send(event.clone());
+
+        match state.backend_kind.load(Ordering::Acquire) {
+            1 => {
+                if let Some(kafka) = state.kafka.as_ref() {
+                    if let Err(e) = kafka.publish(event).await {
+                        tracing::error!("事件投递到 Kafka 失败: {}（已写入本地兜底）", e);
+                    }
+                } else {
+                    tracing::error!("Kafka 后端未初始化，事件仅保留在本地 broadcast");
+                }
+            }
+            _ => {
+                if let Err(e) = state.broadcast.publish(event).await {
+                    tracing::error!("事件投递到 Broadcast 失败: {}", e);
+                }
+            }
+        }
+    }
+
+    /// 同步发布事件（保留旧 API 兼容）
+    ///
+    /// `start_event_listener` 等旧调用方直接调用 `EVENT_BUS.publish(event)`，
+    /// 这里在同步上下文内 spawn 一个 tokio 任务异步发送。
+    pub fn publish(&self, event: BusinessEvent) {
+        // 同步上下文：直接写到本地 channel（无失败语义），并 spawn 异步 Kafka 投递
+        let state = EVENT_BUS_STATE.lock().expect("EVENT_BUS_STATE 已中毒");
+        let _ = state.local_tx.send(event.clone());
+        let kind = state.backend_kind.load(Ordering::Acquire);
+        let kafka = state.kafka.as_ref().cloned();
+        drop(state);
+
+        if kind == 1 {
+            if let Some(k) = kafka {
+                tokio::spawn(async move {
+                    if let Err(e) = k.publish(event).await {
+                        tracing::error!("事件投递到 Kafka 失败: {}（已写入本地兜底）", e);
+                    }
+                });
+            }
+        }
+    }
+
+    /// 订阅事件（返回 `broadcast::Receiver`，旧 API 完全兼容）
     pub fn subscribe(&self) -> broadcast::Receiver<BusinessEvent> {
-        self.sender.subscribe()
+        let state = EVENT_BUS_STATE.lock().expect("EVENT_BUS_STATE 已中毒");
+        state.local_tx.subscribe()
     }
 }
 
@@ -116,7 +326,80 @@ impl Default for EventBus {
     }
 }
 
-use sea_orm::DatabaseConnection;
+/// 后端类型枚举
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum EventBackendType {
+    /// 进程内 Broadcast（默认，CI 友好）
+    Broadcast,
+    /// Kafka 真实后端（生产可启用）
+    Kafka,
+}
+
+/// 使用 Kafka 配置初始化事件总线（在 `main.rs` 启动时调用一次）
+///
+/// 行为：
+/// - `kafka.enabled=false` → 保持 Broadcast 后端；
+/// - `kafka.enabled=true` 且连接成功 → 切到 Kafka 模式；
+/// - `kafka.enabled=true` 但连接失败 → 自动降级到 Broadcast + 中文 warning 日志。
+pub async fn init_event_bus_with_kafka_config(kafka_cfg: &KafkaSettings) {
+    if !kafka_cfg.enabled {
+        tracing::info!("事件总线后端 = Broadcast（kafka.enabled=false，CI/开发环境默认）");
+        return;
+    }
+
+    tracing::info!(
+        "事件总线尝试初始化 Kafka 后端：brokers={}, topic={}",
+        kafka_cfg.brokers,
+        kafka_cfg.topic
+    );
+
+    match crate::services::event_kafka::KafkaBackend::try_new(kafka_cfg).await {
+        Ok(backend) => {
+            let backend = Arc::new(backend);
+            // 启动消费后台任务，把 Kafka 事件桥接到本地 channel
+            let local_tx = {
+                let state = EVENT_BUS_STATE.lock().expect("EVENT_BUS_STATE 已中毒");
+                state.local_tx.clone()
+            };
+            let backend_for_consumer = backend.clone();
+            let _consumer_handle = tokio::spawn(async move {
+                match backend_for_consumer.subscribe().await {
+                    Ok(mut stream) => {
+                        use futures::stream::StreamExt;
+                        while let Some(event) = stream.next().await {
+                            if local_tx.send(event).is_err() {
+                                tracing::warn!("Kafka 消费桥接：本地 channel 已关闭，停止消费");
+                                break;
+                            }
+                        }
+                    }
+                    Err(e) => {
+                        tracing::error!("Kafka 订阅失败: {}", e);
+                    }
+                }
+            });
+
+            {
+                let mut state = EVENT_BUS_STATE.lock().expect("EVENT_BUS_STATE 已中毒");
+                state.kafka = Some(backend);
+                state.backend_kind.store(1, Ordering::Release);
+            }
+            tracing::info!("事件总线后端 = Kafka（已就绪）");
+        }
+        Err(e) => {
+            tracing::error!(
+                "Kafka 初始化失败，自动降级到 Broadcast 后端: {}（生产环境请检查 brokers={}）",
+                e,
+                kafka_cfg.brokers
+            );
+            // 不修改 backend_kind，保持 Broadcast
+        }
+    }
+}
+
+// ============================================================================
+// 旧 API：`start_event_listener`（保持完全兼容）
+// ============================================================================
 
 pub async fn start_event_listener(db: Arc<DatabaseConnection>) {
     // 启动库存财务桥接服务监听器
