@@ -97,6 +97,7 @@ import {
 } from '@/api/custom-order'
 import ProcessFlow from '@/components/ProcessFlow.vue'
 import QualityCheck from '@/components/QualityCheck.vue'
+import logger from '@/utils/logger'
 import AfterSalesPanel from '@/components/AfterSalesPanel.vue'
 
 const route = useRoute()
@@ -113,7 +114,7 @@ async function loadData() {
     const res: any = await getCustomOrder(id)
     order.value = res.data || res
   } catch (e) {
-    console.error('加载订单失败', e)
+    logger.error('加载订单失败', e)
     ElMessage.error('加载订单失败')
   } finally {
     loading.value = false

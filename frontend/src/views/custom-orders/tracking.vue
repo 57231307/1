@@ -85,6 +85,7 @@ import { ref, computed, onMounted, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { getTimeline, CUSTOM_ORDER_STATUS as STATUS_LABELS, CUSTOM_ORDER_STATUS_COLORS as STATUS_COLORS } from '@/api/custom-order'
+import logger from '@/utils/logger'
 
 const route = useRoute()
 const loading = ref(false)
@@ -145,7 +146,7 @@ async function loadData() {
     const res: any = await getTimeline(id)
     timeline.value = res.data || res
   } catch (e) {
-    console.error('加载时间线失败', e)
+    logger.error('加载时间线失败', e)
     ElMessage.error('加载时间线失败')
   } finally {
     loading.value = false
