@@ -6,266 +6,48 @@
 
     <el-tabs v-model="activeTab">
       <el-tab-pane label="接口管理" name="endpoints">
-        <el-card shadow="hover">
-          <div class="filter-container">
-            <el-input
-              v-model="endpointQuery.keyword"
-              placeholder="搜索接口路径/描述"
-              style="width: 200px"
-              clearable
-              @clear="fetchEndpoints"
-              @keyup.enter="fetchEndpoints"
-            />
-            <el-select
-              v-model="endpointQuery.method"
-              placeholder="请求方法"
-              clearable
-              style="width: 120px"
-            >
-              <el-option label="GET" value="GET" />
-              <el-option label="POST" value="POST" />
-              <el-option label="PUT" value="PUT" />
-              <el-option label="DELETE" value="DELETE" />
-              <el-option label="PATCH" value="PATCH" />
-            </el-select>
-            <el-select
-              v-model="endpointQuery.status"
-              placeholder="状态"
-              clearable
-              style="width: 120px"
-            >
-              <el-option label="启用" value="active" />
-              <el-option label="停用" value="inactive" />
-              <el-option label="废弃" value="deprecated" />
-            </el-select>
-            <el-button type="primary" @click="fetchEndpoints">
-              <el-icon><Search /></el-icon>
-              搜索
-            </el-button>
-            <el-button type="primary" @click="openEndpointDialog()">
-              <el-icon><Plus /></el-icon>
-              新建接口
-            </el-button>
-          </div>
-
-          <el-table v-loading="endpointLoading" :data="endpoints" stripe>
-            <el-table-column prop="path" label="接口路径" min-width="200" />
-            <el-table-column prop="method" label="方法" width="80">
-              <template #default="{ row }">
-                <el-tag :type="methodTypeMap[row.method]" size="small">
-                  {{ row.method }}
-                </el-tag>
-              </template>
-            </el-table-column>
-            <el-table-column prop="description" label="描述" min-width="150" />
-            <el-table-column prop="module" label="模块" width="100" />
-            <el-table-column prop="rate_limit" label="限流" width="80">
-              <template #default="{ row }">
-                {{ row.rate_limit ? `${row.rate_limit}/s` : '-' }}
-              </template>
-            </el-table-column>
-            <el-table-column prop="timeout" label="超时(ms)" width="100" />
-            <el-table-column prop="authentication" label="认证" width="80" align="center">
-              <template #default="{ row }">
-                <el-tag :type="row.authentication ? 'success' : 'info'" size="small">
-                  {{ row.authentication ? '是' : '否' }}
-                </el-tag>
-              </template>
-            </el-table-column>
-            <el-table-column prop="status" label="状态" width="80" align="center">
-              <template #default="{ row }">
-                <el-tag :type="endpointStatusTypeMap[row.status]" size="small">
-                  {{ endpointStatusMap[row.status] }}
-                </el-tag>
-              </template>
-            </el-table-column>
-            <el-table-column label="操作" width="150" fixed="right">
-              <template #default="{ row }">
-                <el-button type="primary" link size="small" @click="openEndpointDialog(row)"
-                  >编辑</el-button
-                >
-                <el-button type="danger" link size="small" @click="handleDeleteEndpoint(row)"
-                  >删除</el-button
-                >
-              </template>
-            </el-table-column>
-          </el-table>
-
-          <div class="pagination-container">
-            <el-pagination
-              v-model:current-page="endpointQuery.page"
-              v-model:page-size="endpointQuery.page_size"
-              :page-sizes="[10, 20, 50, 100]"
-              :total="endpointTotal"
-              layout="total, sizes, prev, pager, next, jumper"
-              @size-change="fetchEndpoints"
-              @current-change="fetchEndpoints"
-            />
-          </div>
-        </el-card>
+        <ApiEndpointTab
+          :endpoints="endpoints"
+          :loading="endpointLoading"
+          :total="endpointTotal"
+          :query-params="endpointQuery"
+          :method-type-map="methodTypeMap"
+          :status-type-map="endpointStatusTypeMap"
+          :status-map="endpointStatusMap"
+          @fetch="fetchEndpoints"
+          @new-endpoint="openEndpointDialog()"
+          @edit-endpoint="openEndpointDialog"
+          @delete-endpoint="handleDeleteEndpoint"
+          @update:query-params="(v: any) => Object.assign(endpointQuery, v)"
+        />
       </el-tab-pane>
 
       <el-tab-pane label="API 密钥" name="keys">
-        <el-card shadow="hover">
-          <div class="filter-container">
-            <el-input
-              v-model="keyQuery.keyword"
-              placeholder="搜索密钥名称"
-              style="width: 200px"
-              clearable
-              @clear="fetchKeys"
-              @keyup.enter="fetchKeys"
-            />
-            <el-select v-model="keyQuery.status" placeholder="状态" clearable style="width: 120px">
-              <el-option label="启用" value="active" />
-              <el-option label="停用" value="inactive" />
-              <el-option label="已过期" value="expired" />
-            </el-select>
-            <el-button type="primary" @click="fetchKeys">
-              <el-icon><Search /></el-icon>
-              搜索
-            </el-button>
-            <el-button type="primary" @click="openKeyDialog()">
-              <el-icon><Plus /></el-icon>
-              新建密钥
-            </el-button>
-          </div>
-
-          <el-table v-loading="keyLoading" :data="keys" stripe>
-            <el-table-column prop="key_name" label="密钥名称" width="150" />
-            <el-table-column prop="api_key" label="API Key" min-width="200">
-              <template #default="{ row }">
-                <div class="api-key-cell">
-                  <span>{{ showKeyMap[row.id] ? row.api_key : maskApiKey(row.api_key) }}</span>
-                  <el-button type="primary" link size="small" @click="toggleShowKey(row.id)">
-                    {{ showKeyMap[row.id] ? '隐藏' : '显示' }}
-                  </el-button>
-                </div>
-              </template>
-            </el-table-column>
-            <el-table-column prop="description" label="描述" min-width="150" />
-            <el-table-column prop="rate_limit" label="限流" width="100">
-              <template #default="{ row }">
-                {{ row.rate_limit ? `${row.rate_limit}/s` : '-' }}
-              </template>
-            </el-table-column>
-            <el-table-column prop="expires_at" label="过期时间" width="160" />
-            <el-table-column prop="status" label="状态" width="80" align="center">
-              <template #default="{ row }">
-                <el-tag :type="keyStatusTypeMap[row.status]" size="small">
-                  {{ keyStatusMap[row.status] }}
-                </el-tag>
-              </template>
-            </el-table-column>
-            <el-table-column prop="last_used_at" label="最后使用" width="160" />
-            <el-table-column label="操作" width="250" fixed="right">
-              <template #default="{ row }">
-                <el-button type="primary" link size="small" @click="openKeyDialog(row)"
-                  >编辑</el-button
-                >
-                <el-button type="warning" link size="small" @click="handleRegenerateKey(row)"
-                  >重新生成</el-button
-                >
-                <el-button type="danger" link size="small" @click="handleDeleteKey(row)"
-                  >删除</el-button
-                >
-              </template>
-            </el-table-column>
-          </el-table>
-
-          <div class="pagination-container">
-            <el-pagination
-              v-model:current-page="keyQuery.page"
-              v-model:page-size="keyQuery.page_size"
-              :page-sizes="[10, 20, 50, 100]"
-              :total="keyTotal"
-              layout="total, sizes, prev, pager, next, jumper"
-              @size-change="fetchKeys"
-              @current-change="fetchKeys"
-            />
-          </div>
-        </el-card>
+        <ApiKeyTab
+          :api-keys="keys"
+          :loading="keyLoading"
+          :total="keyTotal"
+          :query-params="keyQuery"
+          @fetch="fetchKeys"
+          @new-key="openKeyDialog()"
+          @view-key="viewKeyDetail"
+          @toggle-key="handleToggleKey"
+          @delete-key="handleDeleteKey"
+          @update:query-params="(v: any) => Object.assign(keyQuery, v)"
+        />
       </el-tab-pane>
 
       <el-tab-pane label="调用日志" name="logs">
-        <el-card shadow="hover">
-          <div class="filter-container">
-            <el-input
-              v-model="logQuery.keyword"
-              placeholder="搜索接口路径"
-              style="width: 200px"
-              clearable
-              @clear="fetchLogs"
-              @keyup.enter="fetchLogs"
-            />
-            <el-select
-              v-model="logQuery.method"
-              placeholder="请求方法"
-              clearable
-              style="width: 120px"
-            >
-              <el-option label="GET" value="GET" />
-              <el-option label="POST" value="POST" />
-              <el-option label="PUT" value="PUT" />
-              <el-option label="DELETE" value="DELETE" />
-            </el-select>
-            <el-input
-              v-model="logQuery.status_code"
-              placeholder="状态码"
-              style="width: 100px"
-              clearable
-              @clear="fetchLogs"
-              @keyup.enter="fetchLogs"
-            />
-            <el-button type="primary" @click="fetchLogs">
-              <el-icon><Search /></el-icon>
-              搜索
-            </el-button>
-          </div>
-
-          <el-table v-loading="logLoading" :data="logs" stripe>
-            <el-table-column prop="endpoint_path" label="接口路径" min-width="200" />
-            <el-table-column prop="method" label="方法" width="80">
-              <template #default="{ row }">
-                <el-tag :type="methodTypeMap[row.method]" size="small">
-                  {{ row.method }}
-                </el-tag>
-              </template>
-            </el-table-column>
-            <el-table-column prop="status_code" label="状态码" width="80">
-              <template #default="{ row }">
-                <el-tag :type="row.status_code < 400 ? 'success' : 'danger'" size="small">
-                  {{ row.status_code }}
-                </el-tag>
-              </template>
-            </el-table-column>
-            <el-table-column prop="response_time" label="响应时间" width="100">
-              <template #default="{ row }"> {{ row.response_time }}ms </template>
-            </el-table-column>
-            <el-table-column prop="ip_address" label="IP地址" width="140" />
-            <el-table-column prop="user_name" label="用户" width="100" />
-            <el-table-column prop="created_at" label="请求时间" width="160" />
-            <el-table-column label="操作" width="100" fixed="right">
-              <template #default="{ row }">
-                <el-button type="primary" link size="small" @click="viewLogDetail(row)"
-                  >详情</el-button
-                >
-              </template>
-            </el-table-column>
-          </el-table>
-
-          <div class="pagination-container">
-            <el-pagination
-              v-model:current-page="logQuery.page"
-              v-model:page-size="logQuery.page_size"
-              :page-sizes="[10, 20, 50, 100]"
-              :total="logTotal"
-              layout="total, sizes, prev, pager, next, jumper"
-              @size-change="fetchLogs"
-              @current-change="fetchLogs"
-            />
-          </div>
-        </el-card>
+        <ApiLogTab
+          :logs="logs"
+          :loading="logLoading"
+          :total="logTotal"
+          :query-params="logQuery"
+          :method-type-map="methodTypeMap"
+          @fetch="fetchLogs"
+          @view-log="viewLogDetail"
+          @update:query-params="(v: any) => Object.assign(logQuery, v)"
+        />
       </el-tab-pane>
     </el-tabs>
 
@@ -498,6 +280,11 @@ const fetchEndpoints = async () => {
     endpointLoading.value = false
   }
 }
+
+// API 网关 Tab 子组件
+import ApiEndpointTab from './tabs/ApiEndpointTab.vue'
+import ApiKeyTab from './tabs/ApiKeyTab.vue'
+import ApiLogTab from './tabs/ApiLogTab.vue'
 
 // 接口表单
 const endpointDialogVisible = ref(false)

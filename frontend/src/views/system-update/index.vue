@@ -53,208 +53,50 @@
 
     <el-tabs v-model="activeTab">
       <el-tab-pane label="版本列表" name="versions">
-        <el-card shadow="hover">
-          <el-table v-loading="versionLoading" :data="versions" stripe>
-            <el-table-column prop="version" label="版本号" width="120" />
-            <el-table-column prop="release_date" label="发布日期" width="120" />
-            <el-table-column
-              prop="release_notes"
-              label="更新说明"
-              min-width="200"
-              show-overflow-tooltip
-            />
-            <el-table-column prop="file_size" label="文件大小" width="100">
-              <template #default="{ row }">
-                {{ formatFileSize(row.file_size) }}
-              </template>
-            </el-table-column>
-            <el-table-column prop="status" label="状态" width="120" align="center">
-              <template #default="{ row }">
-                <el-tag :type="versionStatusTypeMap[row.status]" size="small">
-                  {{ versionStatusMap[row.status] }}
-                </el-tag>
-              </template>
-            </el-table-column>
-            <el-table-column label="操作" width="200" fixed="right">
-              <template #default="{ row }">
-                <el-button
-                  v-if="row.status === 'available'"
-                  type="primary"
-                  link
-                  size="small"
-                  @click="handleDownload(row)"
-                  >下载</el-button
-                >
-                <el-button
-                  v-if="row.status === 'downloaded'"
-                  type="success"
-                  link
-                  size="small"
-                  @click="handleInstall(row)"
-                  >安装</el-button
-                >
-                <el-button type="info" link size="small" @click="viewVersionDetail(row)"
-                  >详情</el-button
-                >
-              </template>
-            </el-table-column>
-          </el-table>
-
-          <div class="pagination-container">
-            <el-pagination
-              v-model:current-page="versionQuery.page"
-              v-model:page-size="versionQuery.page_size"
-              :page-sizes="[10, 20, 50]"
-              :total="versionTotal"
-              layout="total, sizes, prev, pager, next, jumper"
-              @size-change="fetchVersions"
-              @current-change="fetchVersions"
-            />
-          </div>
-        </el-card>
+        <SystemUpdateVersionTab
+          :versions="versions"
+          :loading="versionLoading"
+          :total="versionTotal"
+          :query-params="versionQuery"
+          :version-status-type-map="versionStatusTypeMap"
+          :version-status-map="versionStatusMap"
+          :format-file-size="formatFileSize"
+          @download="handleDownload"
+          @install="handleInstall"
+          @view-detail="viewVersionDetail"
+          @fetch="fetchVersions"
+        />
       </el-tab-pane>
 
       <el-tab-pane label="更新任务" name="tasks">
-        <el-card shadow="hover">
-          <el-table v-loading="taskLoading" :data="tasks" stripe>
-            <el-table-column prop="task_code" label="任务编号" width="140" />
-            <el-table-column prop="from_version" label="原版本" width="100" />
-            <el-table-column prop="to_version" label="目标版本" width="100" />
-            <el-table-column prop="status" label="状态" width="120" align="center">
-              <template #default="{ row }">
-                <el-tag :type="taskStatusTypeMap[row.status]" size="small">
-                  {{ taskStatusMap[row.status] }}
-                </el-tag>
-              </template>
-            </el-table-column>
-            <el-table-column prop="progress" label="进度" width="150">
-              <template #default="{ row }">
-                <el-progress
-                  :percentage="row.progress"
-                  :status="
-                    row.status === 'failed'
-                      ? 'exception'
-                      : row.status === 'completed'
-                        ? 'success'
-                        : undefined
-                  "
-                />
-              </template>
-            </el-table-column>
-            <el-table-column
-              prop="error_message"
-              label="错误信息"
-              min-width="150"
-              show-overflow-tooltip
-            />
-            <el-table-column prop="started_at" label="开始时间" width="160" />
-            <el-table-column prop="completed_at" label="完成时间" width="160" />
-            <el-table-column label="操作" width="150" fixed="right">
-              <template #default="{ row }">
-                <el-button
-                  v-if="row.status === 'completed'"
-                  type="warning"
-                  link
-                  size="small"
-                  @click="handleRollback(row)"
-                  >回滚</el-button
-                >
-                <el-button
-                  v-if="
-                    row.status === 'pending' ||
-                    row.status === 'downloading' ||
-                    row.status === 'installing'
-                  "
-                  type="danger"
-                  link
-                  size="small"
-                  @click="handleCancelTask(row)"
-                  >取消</el-button
-                >
-              </template>
-            </el-table-column>
-          </el-table>
-
-          <div class="pagination-container">
-            <el-pagination
-              v-model:current-page="taskQuery.page"
-              v-model:page-size="taskQuery.page_size"
-              :page-sizes="[10, 20, 50]"
-              :total="taskTotal"
-              layout="total, sizes, prev, pager, next, jumper"
-              @size-change="fetchTasks"
-              @current-change="fetchTasks"
-            />
-          </div>
-        </el-card>
+        <SystemUpdateTaskTab
+          :tasks="tasks"
+          :loading="taskLoading"
+          :total="taskTotal"
+          :query-params="taskQuery"
+          :task-status-type-map="taskStatusTypeMap"
+          :task-status-map="taskStatusMap"
+          @rollback="handleRollback"
+          @cancel="handleCancelTask"
+          @fetch="fetchTasks"
+        />
       </el-tab-pane>
 
       <el-tab-pane label="系统备份" name="backups">
-        <el-card shadow="hover">
-          <el-table v-loading="backupLoading" :data="backups" stripe>
-            <el-table-column prop="backup_code" label="备份编号" width="140" />
-            <el-table-column prop="backup_type" label="备份类型" width="100">
-              <template #default="{ row }">
-                {{ backupTypeMap[row.backup_type] }}
-              </template>
-            </el-table-column>
-            <el-table-column
-              prop="description"
-              label="描述"
-              min-width="150"
-              show-overflow-tooltip
-            />
-            <el-table-column prop="file_size" label="文件大小" width="100">
-              <template #default="{ row }">
-                {{ formatFileSize(row.file_size) }}
-              </template>
-            </el-table-column>
-            <el-table-column prop="status" label="状态" width="100" align="center">
-              <template #default="{ row }">
-                <el-tag :type="backupStatusTypeMap[row.status]" size="small">
-                  {{ backupStatusMap[row.status] }}
-                </el-tag>
-              </template>
-            </el-table-column>
-            <el-table-column prop="created_by_name" label="创建人" width="100" />
-            <el-table-column prop="created_at" label="创建时间" width="160" />
-            <el-table-column label="操作" width="250" fixed="right">
-              <template #default="{ row }">
-                <el-button
-                  v-if="row.status === 'completed'"
-                  type="primary"
-                  link
-                  size="small"
-                  @click="handleDownloadBackup(row)"
-                  >下载</el-button
-                >
-                <el-button
-                  v-if="row.status === 'completed'"
-                  type="success"
-                  link
-                  size="small"
-                  @click="handleRestore(row)"
-                  >恢复</el-button
-                >
-                <el-button type="danger" link size="small" @click="handleDeleteBackup(row)"
-                  >删除</el-button
-                >
-              </template>
-            </el-table-column>
-          </el-table>
-
-          <div class="pagination-container">
-            <el-pagination
-              v-model:current-page="backupQuery.page"
-              v-model:page-size="backupQuery.page_size"
-              :page-sizes="[10, 20, 50]"
-              :total="backupTotal"
-              layout="total, sizes, prev, pager, next, jumper"
-              @size-change="fetchBackups"
-              @current-change="fetchBackups"
-            />
-          </div>
-        </el-card>
+        <SystemUpdateBackupTab
+          :backups="backups"
+          :loading="backupLoading"
+          :total="backupTotal"
+          :query-params="backupQuery"
+          :backup-type-map="backupTypeMap"
+          :backup-status-type-map="backupStatusTypeMap"
+          :backup-status-map="backupStatusMap"
+          :format-file-size="formatFileSize"
+          @download="handleDownloadBackup"
+          @restore="handleRestore"
+          @delete="handleDeleteBackup"
+          @fetch="fetchBackups"
+        />
       </el-tab-pane>
     </el-tabs>
 
@@ -358,6 +200,9 @@ import {
   type SystemBackup,
 } from '@/api/system-update'
 import { logger } from '@/utils/logger'
+import SystemUpdateVersionTab from './tabs/SystemUpdateVersionTab.vue'
+import SystemUpdateTaskTab from './tabs/SystemUpdateTaskTab.vue'
+import SystemUpdateBackupTab from './tabs/SystemUpdateBackupTab.vue'
 
 const activeTab = ref('versions')
 
