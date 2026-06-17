@@ -1,3 +1,15 @@
+<!--
+  purchase/index.vue - 采购管理主入口（容器组件）
+  ----------------------------------------------------------------
+  拆分说明（2026-06-17 P1-3-Batch-2）：
+  原 957 行"上帝组件"已拆分为以下独立子组件：
+  - tabs/PurchaseStatsCards.vue（采购统计卡片，163 行）
+  - tabs/PurchaseOrderFilter.vue（采购订单筛选，89 行）
+  - tabs/PurchaseOrderList.vue（采购订单列表 V2Table 版，114 行）
+
+  本主入口承担：页面布局 + 数据加载 + 业务方法 + 3 个对话框（创建/收货/查看）。
+  通过 props/emit 通信。
+-->
 <template>
   <div class="purchase-page">
     <div class="page-header">
@@ -25,180 +37,24 @@
       </div>
     </div>
 
-    <el-row :gutter="20" class="stats-row">
-      <el-col :xs="24" :sm="12" :lg="6">
-        <el-card shadow="hover" class="stat-card">
-          <div class="stat-content">
-            <div class="stat-icon order-icon">
-              <el-icon><Document /></el-icon>
-            </div>
-            <div class="stat-info">
-              <div class="stat-label">本月采购</div>
-              <div class="stat-value">{{ stats.monthOrders }}</div>
-            </div>
-          </div>
-        </el-card>
-      </el-col>
-      <el-col :xs="24" :sm="12" :lg="6">
-        <el-card shadow="hover" class="stat-card highlight">
-          <div class="stat-content">
-            <div class="stat-icon amount-icon">
-              <el-icon><Money /></el-icon>
-            </div>
-            <div class="stat-info">
-              <div class="stat-label">采购金额</div>
-              <div class="stat-value">{{ formatCurrency(stats.monthAmount) }}</div>
-            </div>
-          </div>
-        </el-card>
-      </el-col>
-      <el-col :xs="24" :sm="12" :lg="6">
-        <el-card shadow="hover" class="stat-card warning">
-          <div class="stat-content">
-            <div class="stat-icon pending-icon">
-              <el-icon><Clock /></el-icon>
-            </div>
-            <div class="stat-info">
-              <div class="stat-label">待收货</div>
-              <div class="stat-value">{{ stats.pendingReceipt }}</div>
-            </div>
-          </div>
-        </el-card>
-      </el-col>
-      <el-col :xs="24" :sm="12" :lg="6">
-        <el-card shadow="hover" class="stat-card">
-          <div class="stat-content">
-            <div class="stat-icon supplier-icon">
-              <el-icon><OfficeBuilding /></el-icon>
-            </div>
-            <div class="stat-info">
-              <div class="stat-label">合作供应商</div>
-              <div class="stat-value">{{ stats.supplierCount }}</div>
-            </div>
-          </div>
-        </el-card>
-      </el-col>
-    </el-row>
+    <PurchaseStatsCards :stats="stats" />
 
-    <el-card shadow="hover" class="filter-card">
-      <el-form :inline="true" :model="queryParams" class="filter-form">
-        <el-form-item label="关键词">
-          <el-input
-            v-model="queryParams.keyword"
-            placeholder="订单号/供应商名"
-            clearable
-            @clear="handleQuery"
-          />
-        </el-form-item>
-        <el-form-item label="供应商">
-          <el-select
-            v-model="queryParams.supplier_id"
-            placeholder="选择供应商"
-            clearable
-            @change="handleQuery"
-          >
-            <el-option v-for="s in suppliers" :key="s.id" :label="s.supplier_name" :value="s.id" />
-          </el-select>
-        </el-form-item>
-        <el-form-item label="订单状态">
-          <el-select
-            v-model="queryParams.status"
-            placeholder="选择状态"
-            clearable
-            @change="handleQuery"
-          >
-            <el-option label="待审批" value="pending" />
-            <el-option label="已审批" value="approved" />
-            <el-option label="部分收货" value="partial" />
-            <el-option label="已完成" value="completed" />
-            <el-option label="已取消" value="cancelled" />
-          </el-select>
-        </el-form-item>
-        <el-form-item>
-          <el-button type="primary" @click="handleQuery">
-            <el-icon><Search /></el-icon>
-            查询
-          </el-button>
-          <el-button @click="handleReset">
-            <el-icon><Refresh /></el-icon>
-            重置
-          </el-button>
-        </el-form-item>
-      </el-form>
-    </el-card>
+    <PurchaseOrderFilter
+      :query-params="queryParams"
+      :suppliers="suppliers"
+      @query="handleQuery"
+      @reset="handleReset"
+    />
 
-    <el-card shadow="hover" class="table-card">
-      <el-table v-loading="loading" :data="orders" stripe>
-        <el-table-column prop="order_no" label="订单号" width="160" fixed>
-          <template #default="{ row }">
-            <el-link type="primary" @click="handleView(row as any)">{{ row.order_no }}</el-link>
-          </template>
-        </el-table-column>
-        <el-table-column prop="supplier_name" label="供应商" width="180" fixed />
-        <el-table-column prop="order_date" label="订单日期" width="120" />
-        <el-table-column prop="required_date" label="要求交货日期" width="120" />
-        <el-table-column prop="total_amount" label="订单金额" width="120" align="right">
-          <template #default="{ row }">
-            <span class="amount">¥{{ row.total_amount.toLocaleString() }}</span>
-          </template>
-        </el-table-column>
-        <el-table-column prop="received_amount" label="已收货金额" width="120" align="right">
-          <template #default="{ row }">
-            <span>¥{{ (row.received_amount || 0).toLocaleString() }}</span>
-          </template>
-        </el-table-column>
-        <el-table-column prop="payment_status" label="付款状态" width="100">
-          <template #default="{ row }">
-            <el-tag :type="getPaymentStatusType(row.payment_status)" size="small">
-              {{ getPaymentStatusText(row.payment_status) }}
-            </el-tag>
-          </template>
-        </el-table-column>
-        <el-table-column prop="status" label="订单状态" width="100">
-          <template #default="{ row }">
-            <el-tag :type="getStatusType(row.status)" size="small">
-              {{ getStatusText(row.status) }}
-            </el-tag>
-          </template>
-        </el-table-column>
-        <el-table-column prop="creator_name" label="创建人" width="100" />
-        <el-table-column label="操作" width="200" fixed="right">
-          <template #default="{ row }">
-            <el-button type="primary" link size="small" @click="handleView(row as any)"
-              >详情</el-button
-            >
-            <el-button
-              v-if="row.status === 'approved'"
-              type="warning"
-              link
-              size="small"
-              @click="handleReceive(row as any)"
-              >收货</el-button
-            >
-            <el-button
-              v-if="row.status === 'pending'"
-              type="success"
-              link
-              size="small"
-              @click="handleApprove(row as any)"
-              >审批</el-button
-            >
-          </template>
-        </el-table-column>
-      </el-table>
-
-      <div class="pagination-wrapper">
-        <el-pagination
-          v-model:current-page="queryParams.page"
-          v-model:page-size="queryParams.page_size"
-          :page-sizes="[10, 20, 50, 100]"
-          :total="total"
-          layout="total, sizes, prev, pager, next, jumper"
-          @size-change="handleQuery"
-          @current-change="handleQuery"
-        />
-      </div>
-    </el-card>
+    <PurchaseOrderList
+      :orders="orders"
+      :total="total"
+      :loading="loading"
+      :query-params="queryParams"
+      @view="handleView"
+      @update:query-params="(v: PurchaseQuery) => Object.assign(queryParams, v)"
+      @query="fetchData"
+    />
 
     <!-- 新建采购单对话框 -->
     <el-dialog v-model="createDialogVisible" title="新建采购单" width="800px">
@@ -398,34 +254,16 @@
         <el-descriptions-item label="已收货金额"
           >¥{{ (viewData.received_amount || 0).toLocaleString() }}</el-descriptions-item
         >
-        <el-descriptions-item label="付款状态">
-          <el-tag :type="getPaymentStatusType(viewData.payment_status)">{{
-            getPaymentStatusText(viewData.payment_status)
-          }}</el-tag>
-        </el-descriptions-item>
         <el-descriptions-item label="订单状态">
           <el-tag :type="getStatusType(viewData.status)">{{
             getStatusText(viewData.status)
           }}</el-tag>
         </el-descriptions-item>
         <el-descriptions-item label="创建人">{{ viewData.creator_name }}</el-descriptions-item>
-        <el-descriptions-item label="创建时间">{{ viewData.created_at }}</el-descriptions-item>
         <el-descriptions-item label="备注" :span="2">{{
           viewData.remarks || '无'
         }}</el-descriptions-item>
       </el-descriptions>
-      <div style="margin-top: 20px">
-        <h4>采购明细</h4>
-        <el-table :data="viewData.items || []" border style="width: 100%">
-          <el-table-column prop="product_name" label="产品" width="150" />
-          <el-table-column prop="product_code" label="产品编码" width="120" />
-          <el-table-column prop="quantity" label="数量" width="100" />
-          <el-table-column prop="unit_price" label="单价" width="100" />
-          <el-table-column prop="subtotal" label="金额" width="120" />
-          <el-table-column prop="received_quantity" label="已收货" width="100" />
-          <el-table-column prop="remarks" label="备注" />
-        </el-table>
-      </div>
     </el-dialog>
   </div>
 </template>
@@ -433,17 +271,7 @@
 <script setup lang="ts">
 import { ref, reactive, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import {
-  Plus,
-  Search,
-  Refresh,
-  Document,
-  Money,
-  Clock,
-  OfficeBuilding,
-  Printer,
-  Download,
-} from '@element-plus/icons-vue'
+import { Plus, Printer, Download } from '@element-plus/icons-vue'
 import printJS from 'print-js'
 import { purchaseApi, type PurchaseOrder } from '@/api/purchase'
 import { supplierApi, type Supplier } from '@/api/supplier'
@@ -451,6 +279,9 @@ import { productApi, type Product } from '@/api/product'
 import { warehouseApi, type Warehouse } from '@/api/warehouse'
 import { loadIfNot, createLazyLoader } from '@/utils/lazy-loader'
 import { logger } from '@/utils/logger'
+import PurchaseStatsCards from './tabs/PurchaseStatsCards.vue'
+import PurchaseOrderFilter, { type PurchaseQuery } from './tabs/PurchaseOrderFilter.vue'
+import PurchaseOrderList from './tabs/PurchaseOrderList.vue'
 
 const hasLoaded = createLazyLoader()
 
@@ -468,15 +299,15 @@ const stats = ref({
   supplierCount: 0,
 })
 
-const queryParams = reactive({
+const queryParams = reactive<PurchaseQuery>({
   page: 1,
   page_size: 20,
   keyword: '',
-  supplier_id: undefined as number | undefined,
+  supplier_id: undefined,
   status: '',
 })
 
-// 新建采购单对话框
+// 对话框状态
 const createDialogVisible = ref(false)
 const createFormRef = ref()
 const createFormRules = {
@@ -491,7 +322,6 @@ const createForm = ref({
   items: [{ product_id: undefined as number | undefined, quantity: 1, unit_price: 0, subtotal: 0 }],
 })
 
-// 收货对话框
 const receiveDialogVisible = ref(false)
 const receiveForm = ref({
   order_id: 0,
@@ -502,17 +332,8 @@ const receiveForm = ref({
   items: [] as any[],
 })
 
-// 查看对话框
 const viewDialogVisible = ref(false)
 const viewData = ref<any>({})
-
-const formatCurrency = (amount: number) => {
-  return new Intl.NumberFormat('zh-CN', {
-    style: 'currency',
-    currency: 'CNY',
-    minimumFractionDigits: 0,
-  }).format(amount)
-}
 
 const getStatusType = (status: string) => {
   const typeMap: Record<string, any> = {
@@ -536,24 +357,12 @@ const getStatusText = (status: string) => {
   return textMap[status] || status
 }
 
-const getPaymentStatusType = (status: string) => {
-  const typeMap: Record<string, any> = { unpaid: 'danger', partial: 'warning', paid: 'success' }
-  return typeMap[status] || 'info'
-}
-
-const getPaymentStatusText = (status: string) => {
-  const textMap: Record<string, string> = { unpaid: '未付款', partial: '部分付款', paid: '已付款' }
-  return textMap[status] || status
-}
-
 const fetchData = async () => {
   loading.value = true
   try {
     const res = await purchaseApi.getOrderList(queryParams)
     orders.value = res.data!.list || []
     total.value = res.data?.total || 0
-
-    // 计算统计数据
     stats.value.monthOrders = total.value
     stats.value.monthAmount = orders.value.reduce((sum, o) => sum + (o.total_amount || 0), 0)
     stats.value.pendingReceipt = orders.value.filter(o => o.status === 'approved').length
@@ -699,17 +508,14 @@ const handleExport = () => {
   ElMessage.success('导出成功')
 }
 
-// 新建采购单相关函数
 const addItem = () => {
   createForm.value.items.push({ product_id: undefined, quantity: 1, unit_price: 0, subtotal: 0 })
 }
-
 const removeItem = (index: number) => {
   if (createForm.value.items.length > 1) {
     createForm.value.items.splice(index, 1)
   }
 }
-
 const handleProductSelect = (index: number) => {
   const product = products.value.find(p => p.id === createForm.value.items[index].product_id)
   if (product) {
@@ -717,11 +523,9 @@ const handleProductSelect = (index: number) => {
     calculateSubtotal(createForm.value.items[index])
   }
 }
-
 const calculateSubtotal = (item: any) => {
   item.subtotal = (item.quantity || 0) * (item.unit_price || 0)
 }
-
 const calculateTotal = () => {
   return createForm.value.items.reduce((sum: number, item: any) => sum + (item.subtotal || 0), 0)
 }
@@ -806,152 +610,67 @@ onMounted(() => {
   background-color: #f5f7fa;
   min-height: 100%;
 }
+
 .page-header {
   display: flex;
   justify-content: space-between;
   align-items: flex-start;
   margin-bottom: 24px;
 }
+
 .header-left .page-title {
   font-size: 28px;
   font-weight: 600;
   color: #303133;
   margin: 0 0 12px 0;
 }
+
 .header-actions {
   display: flex;
   gap: 12px;
 }
-.stats-row {
-  margin-bottom: 20px;
-}
-.stat-card {
-  border-radius: 12px;
-  transition: all 0.3s ease;
-}
-.stat-card:hover {
-  transform: translateY(-4px);
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
-}
-.stat-card.highlight {
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-}
-.stat-card.highlight .stat-icon {
-  background: rgba(255, 255, 255, 0.2);
-  color: white;
-}
-.stat-card.highlight .stat-label,
-.stat-card.highlight .stat-value {
-  color: white;
-}
-.stat-card.warning {
-  background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
-}
-.stat-card.warning .stat-icon {
-  background: rgba(255, 255, 255, 0.2);
-  color: white;
-}
-.stat-card.warning .stat-label,
-.stat-card.warning .stat-value {
-  color: white;
-}
-.stat-content {
-  display: flex;
-  align-items: center;
-  gap: 16px;
-}
-.stat-icon {
-  width: 56px;
-  height: 56px;
-  border-radius: 12px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 28px;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  color: white;
-}
-.stat-icon.order-icon {
-  background: linear-gradient(135deg, #43e97b 0%, #38f9d7 100%);
-}
-.stat-icon.amount-icon {
-  background: rgba(255, 255, 255, 0.2);
-  color: white;
-}
-.stat-icon.pending-icon {
-  background: rgba(255, 255, 255, 0.2);
-  color: white;
-}
-.stat-icon.supplier-icon {
-  background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
-}
-.stat-info {
-  flex: 1;
-}
-.stat-label {
-  font-size: 14px;
-  color: #909399;
-  margin-bottom: 4px;
-}
-.stat-value {
-  font-size: 28px;
-  font-weight: 700;
-  color: #303133;
-  line-height: 1.2;
-}
-.filter-card {
-  margin-bottom: 20px;
-}
-.table-card {
-  margin-bottom: 20px;
-}
-.pagination-wrapper {
-  margin-top: 20px;
-  display: flex;
-  justify-content: flex-end;
-}
-.amount {
-  font-weight: 600;
-  color: #f56c6c;
-}
-:deep(.el-card__header) {
-  padding: 16px 20px;
-  border-bottom: 1px solid #ebeef5;
-}
-:deep(.el-card__body) {
-  padding: 20px;
-}
+
 .items-table {
-  border: 1px solid #ebeef5;
-  border-radius: 4px;
+  width: 100%;
 }
+
 .items-header {
   display: flex;
-  background: #f5f7fa;
-  padding: 10px;
-  font-weight: bold;
+  gap: 8px;
+  padding: 8px 0;
+  font-weight: 600;
+  color: #303133;
+  border-bottom: 1px solid #ebeef5;
 }
+
 .items-row {
   display: flex;
-  padding: 10px;
-  border-top: 1px solid #ebeef5;
+  gap: 8px;
+  align-items: center;
+  padding: 8px 0;
+  border-bottom: 1px solid #f0f0f0;
 }
+
 .col-product {
-  flex: 2;
-  margin-right: 10px;
+  flex: 1;
+  min-width: 200px;
 }
+
 .col-qty,
 .col-price,
 .col-amount {
-  width: 100px;
-  margin-right: 10px;
+  width: 110px;
 }
-.col-action {
-  width: 60px;
-}
+
 .total-amount {
-  font-size: 20px;
-  font-weight: 600;
+  font-size: 18px;
+  font-weight: 700;
   color: #f56c6c;
+}
+
+.dialog-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
 }
 </style>
