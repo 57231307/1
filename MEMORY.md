@@ -504,4 +504,39 @@ backend/src/handlers/advanced/
 
 ---
 
+## 2026-06-17 - P3 阶段开始（4 项长期演进）
+
+### 阶段目标
+- P3 = 4 项长期演进任务（微服务 / WebSocket / RN 移动端 / 数据仓库 BI）
+- P3 简化策略：完整 spec + 实施 plan + 关键路径 demo（不真拆分 / 不真开发 / 不真搭建）
+- 评估分目标：P2 完成 92-95/100 → P3 完成后 95-98/100
+
+### P3-1 微服务拆分
+
+- **分支**：`trae/solo-agent-P3-1-microservice`（P3-1 进行中）
+- **范围**：完整 spec + plan + 1 个微服务 demo
+- **架构**：6 微服务（user/inventory/sales/production/process/notifications）+ gRPC + Docker Compose
+- **关键路径 demo**：notifications 微服务
+  - 独立 `microservices/notifications/` 目录
+  - 独立 Cargo.toml（tonic 0.10 + sqlx 0.7 + tokio 1.35）
+  - 独立 proto/notification.proto（4 RPC + 7 message）
+  - 独立 migrations/001_init.sql（notification_messages 表）
+  - 独立 src/{main,service,repository,model}.rs
+  - 独立 tests/integration_test.rs（1 单元 + 1 stub）
+  - Dockerfile + docker-compose.yml
+- **主项目兼容**：P3-1 不修改 `backend/` 与 `frontend/` 任何代码
+- **多租户隔离**：所有 SQL 强制 `WHERE tenant_id = $1`，标记已读双条件
+
+### P3 端口分配
+| 微服务 | 端口 | 状态 |
+|--------|------|------|
+| user | 50051 | P4+ 规划 |
+| inventory | 50052 | P4+ 规划 |
+| sales | 50053 | P4+ 规划 |
+| production | 50054 | P4+ 规划 |
+| process | 50055 | P4+ 规划 |
+| notifications | 50056 | P3-1 demo |
+
+---
+
 
