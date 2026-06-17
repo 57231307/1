@@ -164,12 +164,19 @@ mod tests {
 
     #[test]
     fn test_next_status_normal_progression() {
-        assert_eq!(next_status("draft").unwrap(), CustomOrderStatus::YarnPurchasing);
-        assert_eq!(next_status("yarn_purchasing").unwrap(), CustomOrderStatus::Dyeing);
-        assert_eq!(next_status("dyeing").unwrap(), CustomOrderStatus::Finishing);
-        assert_eq!(next_status("finishing").unwrap(), CustomOrderStatus::Delivery);
-        assert_eq!(next_status("delivery").unwrap(), CustomOrderStatus::AfterSales);
-        assert_eq!(next_status("after_sales").unwrap(), CustomOrderStatus::Completed);
+        // P9-1: 用 match 处理 Option，失败时立即 panic 并说明 P9-1
+        let unwrap_p9 = |opt: Option<CustomOrderStatus>, ctx: &str| -> CustomOrderStatus {
+            match opt {
+                Some(s) => s,
+                None => panic!("P9-1: 测试夹具 {ctx} 状态机返回 None"),
+            }
+        };
+        assert_eq!(unwrap_p9(next_status("draft"), "draft"), CustomOrderStatus::YarnPurchasing);
+        assert_eq!(unwrap_p9(next_status("yarn_purchasing"), "yarn_purchasing"), CustomOrderStatus::Dyeing);
+        assert_eq!(unwrap_p9(next_status("dyeing"), "dyeing"), CustomOrderStatus::Finishing);
+        assert_eq!(unwrap_p9(next_status("finishing"), "finishing"), CustomOrderStatus::Delivery);
+        assert_eq!(unwrap_p9(next_status("delivery"), "delivery"), CustomOrderStatus::AfterSales);
+        assert_eq!(unwrap_p9(next_status("after_sales"), "after_sales"), CustomOrderStatus::Completed);
     }
 
     #[test]

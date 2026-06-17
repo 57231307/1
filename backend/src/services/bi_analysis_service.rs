@@ -495,23 +495,26 @@ impl Default for BiAnalysisService {
 #[cfg(test)]
 mod tests {
     use super::*;
+    // P9-1: 引入 ymd! 宏替代 chrono::NaiveDate::from_ymd_opt().unwrap()
+    #[allow(unused_imports)]
+    use crate::ymd;
 
     #[tokio::test]
     async fn test_tenant_isolation() {
-        assert!(BiAnalysisService::sales_by_time(0, chrono::NaiveDate::from_ymd_opt(2026, 1, 1).unwrap(), chrono::NaiveDate::from_ymd_opt(2026, 12, 31).unwrap(), "month").await.is_err());
+        assert!(BiAnalysisService::sales_by_time(0, ymd!(2026, 1, 1), ymd!(2026, 12, 31), "month").await.is_err());
         assert!(BiAnalysisService::kpi_summary(-1).await.is_err());
     }
 
     #[tokio::test]
     async fn test_kpi_summary() {
-        let kpi = BiAnalysisService::kpi_summary(1).await.unwrap();
+        let kpi = BiAnalysisService::kpi_summary(1).await.expect("P9-1: 测试夹具 KPI 汇总");
         assert!(kpi.total_sales > 0.0);
         assert!(kpi.order_count > 0);
     }
 
     #[tokio::test]
     async fn test_drilldown_year_to_month() {
-        let data = BiAnalysisService::drilldown_year_to_month(1, 2026).await.unwrap();
+        let data = BiAnalysisService::drilldown_year_to_month(1, 2026).await.expect("P9-1: 测试夹具 下钻查询");
         assert_eq!(data.len(), 12);
     }
 
@@ -529,8 +532,8 @@ mod tests {
     async fn test_sales_by_time_invalid_dates() {
         let result = BiAnalysisService::sales_by_time(
             1,
-            chrono::NaiveDate::from_ymd_opt(2026, 12, 31).unwrap(),
-            chrono::NaiveDate::from_ymd_opt(2026, 1, 1).unwrap(),
+            ymd!(2026, 12, 31),
+            ymd!(2026, 1, 1),
             "month",
         ).await;
         assert!(result.is_err());

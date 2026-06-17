@@ -662,9 +662,10 @@ mod tests {
     /// 不会因辅助函数未使用而失效。
     #[test]
     fn test_mean_qualification_with_real_records() {
-        let d1 = chrono::NaiveDate::from_ymd_opt(2024, 1, 15).unwrap();
-        let d2 = chrono::NaiveDate::from_ymd_opt(2024, 2, 15).unwrap();
-        let d3 = chrono::NaiveDate::from_ymd_opt(2024, 3, 15).unwrap();
+        // P9-1: 用 ymd! 宏统一日期构造
+        let d1 = crate::ymd!(2024, 1, 15);
+        let d2 = crate::ymd!(2024, 2, 15);
+        let d3 = crate::ymd!(2024, 3, 15);
         let records = vec![
             make_record(1, "成品检验", d1, Some(98.0), None),
             make_record(1, "成品检验", d2, Some(96.0), None),

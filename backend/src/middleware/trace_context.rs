@@ -81,6 +81,18 @@ mod tests {
         "world"
     }
 
+    // P9-1: 测试夹具 helper，封装 X-Trace-Id header 解析
+    fn extract_trace_id(response: &Response) -> &str {
+        // 显式 match 处理 header 缺失场景
+        match response.headers().get(X_TRACE_ID_HEADER) {
+            Some(v) => match v.to_str() {
+                Ok(s) => s,
+                Err(_) => panic!("P9-1: 测试夹具 X-Trace-Id 应为合法 ASCII"),
+            },
+            None => panic!("P9-1: 测试夹具 X-Trace-Id 缺失"),
+        }
+    }
+
     #[tokio::test]
     async fn test_middleware_generates_trace_id_when_missing() {
         let app = Router::new()
@@ -90,17 +102,12 @@ mod tests {
         let req = Request::builder()
             .uri("/")
             .body(Body::empty())
-            .expect("build request");
-        let response = app.oneshot(req).await.expect("request should succeed");
+            .expect("P9-1: 测试夹具 请求构建失败");
+        let response = app.oneshot(req).await.expect("P9-1: 测试夹具 请求应成功");
 
         assert_eq!(response.status(), 200);
         assert!(response.headers().contains_key(X_TRACE_ID_HEADER));
-        let trace_id = response
-            .headers()
-            .get(X_TRACE_ID_HEADER)
-            .unwrap()
-            .to_str()
-            .unwrap();
+        let trace_id = extract_trace_id(&response);
         assert_eq!(trace_id.len(), 32);
     }
 
@@ -117,16 +124,12 @@ mod tests {
                 "00-0af7651916cd43dd8448eb211c80319c-b7ad6b7169203331-01",
             )
             .body(Body::empty())
-            .expect("build request");
-        let response = app.oneshot(req).await.expect("request should succeed");
+            .expect("P9-1: 测试夹具 请求构建失败");
+        let response = app.oneshot(req).await.expect("P9-1: 测试夹具 请求应成功");
 
         assert_eq!(response.status(), 200);
-        let trace_id = response
-            .headers()
-            .get(X_TRACE_ID_HEADER)
-            .unwrap()
-            .to_str()
-            .unwrap();
+        // P9-1: 用 helper 替代 .get(...).unwrap().to_str().unwrap()
+        let trace_id = extract_trace_id(&response);
         // 透传客户端的 trace_id
         assert_eq!(trace_id, "0af7651916cd43dd8448eb211c80319c");
     }
@@ -141,17 +144,12 @@ mod tests {
             .uri("/")
             .header("traceparent", "garbage")
             .body(Body::empty())
-            .expect("build request");
-        let response = app.oneshot(req).await.expect("request should succeed");
+            .expect("P9-1: 测试夹具 请求构建失败");
+        let response = app.oneshot(req).await.expect("P9-1: 测试夹具 请求应成功");
 
         assert_eq!(response.status(), 200);
         // 无效 header 时 fallback 到新 trace_id
-        let trace_id = response
-            .headers()
-            .get(X_TRACE_ID_HEADER)
-            .unwrap()
-            .to_str()
-            .unwrap();
+        let trace_id = extract_trace_id(&response);
         assert_eq!(trace_id.len(), 32);
     }
 }

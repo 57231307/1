@@ -5,6 +5,9 @@ mod tests {
     use rust_decimal::Decimal;
     use std::collections::HashMap;
     use std::str::FromStr;
+    // P9-1: 引入 decs! 宏统一测试夹具
+    #[allow(unused_imports)]
+    use crate::decs;
 
     /* 采购订单状态 */
     #[derive(Debug, Clone, PartialEq)]
@@ -75,11 +78,11 @@ mod tests {
             id: 1,
             supplier_id: 10,
             quantity: Decimal::from(50),
-            unit_price: Decimal::from_str("12.80").unwrap(),
+            unit_price: decs!("12.80"),
             received_qty: Decimal::ZERO,
             status: PurchaseStatus::Submitted,
         };
-        assert_eq!(po.total_amount(), Decimal::from_str("640.00").unwrap());
+        assert_eq!(po.total_amount(), decs!("640.00"));
     }
 
     #[test]
@@ -93,9 +96,9 @@ mod tests {
             received_qty: Decimal::from(30),
             status: PurchaseStatus::Approved,
         };
-        assert_eq!(po.received_rate(), Decimal::from_str("30.00").unwrap());
+        assert_eq!(po.received_rate(), decs!("30.00"));
         po.received_qty = Decimal::from(100);
-        assert_eq!(po.received_rate(), Decimal::from_str("100.00").unwrap());
+        assert_eq!(po.received_rate(), decs!("100.00"));
         assert!(po.is_completable());
     }
 
@@ -117,13 +120,13 @@ mod tests {
     #[test]
     fn 测试_供应商评级tier() {
         // 中文测试名：测试供应商评级 tier
-        let r1 = SupplierRating { supplier_id: 1, score: 90, on_time_rate: Decimal::from_str("0.95").unwrap() };
+        let r1 = SupplierRating { supplier_id: 1, score: 90, on_time_rate: decs!("0.95") };
         assert_eq!(r1.tier(), "A");
-        let r2 = SupplierRating { supplier_id: 2, score: 75, on_time_rate: Decimal::from_str("0.80").unwrap() };
+        let r2 = SupplierRating { supplier_id: 2, score: 75, on_time_rate: decs!("0.80") };
         assert_eq!(r2.tier(), "B");
-        let r3 = SupplierRating { supplier_id: 3, score: 60, on_time_rate: Decimal::from_str("0.60").unwrap() };
+        let r3 = SupplierRating { supplier_id: 3, score: 60, on_time_rate: decs!("0.60") };
         assert_eq!(r3.tier(), "C");
-        let r4 = SupplierRating { supplier_id: 4, score: 30, on_time_rate: Decimal::from_str("0.30").unwrap() };
+        let r4 = SupplierRating { supplier_id: 4, score: 30, on_time_rate: decs!("0.30") };
         assert_eq!(r4.tier(), "D");
     }
 

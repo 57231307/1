@@ -194,6 +194,9 @@ pub async fn validate_dual_unit(Json(req): Json<ValidateDualUnitRequest>) -> imp
 mod tests {
     use super::*;
     use rust_decimal::prelude::*;
+    // P9-1: 引入 decs! 宏替代 .from_str().unwrap()
+    #[allow(unused_imports)]
+    use crate::decs;
 
     #[test]
     fn test_convert_unit_request_deserialize() {
@@ -207,20 +210,11 @@ mod tests {
         "#;
 
         let req: ConvertUnitRequest =
-            serde_json::from_str(json).expect("request json should deserialize");
-        assert_eq!(
-            req.value,
-            rust_decimal::Decimal::from_str("100.000").expect("decimal should parse")
-        );
+            serde_json::from_str(json).expect("P9-1: 测试夹具 JSON 反序列化失败");
+        assert_eq!(req.value, decs!("100.000"));
         assert_eq!(req.from_unit, "meters");
-        assert_eq!(
-            req.gram_weight,
-            rust_decimal::Decimal::from_str("180.00").expect("decimal should parse")
-        );
-        assert_eq!(
-            req.width_cm,
-            rust_decimal::Decimal::from_str("180.00").expect("decimal should parse")
-        );
+        assert_eq!(req.gram_weight, decs!("180.00"));
+        assert_eq!(req.width_cm, decs!("180.00"));
     }
 
     #[test]
@@ -236,26 +230,11 @@ mod tests {
         "#;
 
         let req: ValidateDualUnitRequest =
-            serde_json::from_str(json).expect("request json should deserialize");
-        assert_eq!(
-            req.quantity_meters,
-            rust_decimal::Decimal::from_str("100.000").expect("decimal should parse")
-        );
-        assert_eq!(
-            req.quantity_kg,
-            rust_decimal::Decimal::from_str("3.240").expect("decimal should parse")
-        );
-        assert_eq!(
-            req.gram_weight,
-            rust_decimal::Decimal::from_str("180.00").expect("decimal should parse")
-        );
-        assert_eq!(
-            req.width_cm,
-            rust_decimal::Decimal::from_str("180.00").expect("decimal should parse")
-        );
-        assert_eq!(
-            req.tolerance,
-            Some(rust_decimal::Decimal::from_str("0.005").expect("decimal should parse"))
-        );
+            serde_json::from_str(json).expect("P9-1: 测试夹具 JSON 反序列化失败");
+        assert_eq!(req.quantity_meters, decs!("100.000"));
+        assert_eq!(req.quantity_kg, decs!("3.240"));
+        assert_eq!(req.gram_weight, decs!("180.00"));
+        assert_eq!(req.width_cm, decs!("180.00"));
+        assert_eq!(req.tolerance, Some(decs!("0.005")));
     }
 }

@@ -37,3 +37,5 @@ pub mod price_calculator;
 pub mod n_plus_one;
 // P4-2 安全加固 - 令牌桶限流算法
 pub mod token_bucket;
+// P9-1 关键路径 unwrap 清理 - 统一 expect/unwrap 集中化工具
+pub mod unwrap_safe;
