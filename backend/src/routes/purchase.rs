@@ -44,6 +44,10 @@ pub fn purchases() -> Router<AppState> {
         )
         .route("/orders/export", get(purchase_order_handler::export_orders))
         .route(
+            "/orders/generate-no",
+            get(purchase_order_handler::generate_order_no),
+        )
+        .route(
             "/orders/:id/items",
             get(purchase_order_handler::list_order_items)
                 .post(purchase_order_handler::create_order_item),

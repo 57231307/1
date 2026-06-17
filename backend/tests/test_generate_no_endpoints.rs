@@ -94,3 +94,41 @@ fn test_inventory_transfer_no_format() {
     );
     assert_eq!(doc_no, "IT202606150007");
 }
+
+/// 验证销售订单 generate-no 端点返回的单据号格式（P1-1 补齐）
+///
+/// 期望：`SO{yyyyMMdd}{3 位流水}`（销售订单沿用 3 位流水）
+#[test]
+fn test_sales_order_no_format() {
+    let prefix = "SO";
+    let today = "20260617";
+    let serial = 42_usize;
+    let doc_no = format!("{}{}{:0width$}", prefix, today, serial, width = 3);
+
+    let re = Regex::new(r"^SO\d{8}\d{3}$").expect("正则必须编译通过");
+    assert!(
+        re.is_match(&doc_no),
+        "销售订单单号格式错误：{}，期望 SO{{yyyyMMdd}}{{3 位流水}}",
+        doc_no
+    );
+    assert_eq!(doc_no, "SO202606170042");
+}
+
+/// 验证采购订单 generate-no 端点返回的单据号格式（P1-1 补齐）
+///
+/// 期望：`PO{yyyyMMdd}{3 位流水}`（采购订单沿用 3 位流水）
+#[test]
+fn test_purchase_order_no_format() {
+    let prefix = "PO";
+    let today = "20260617";
+    let serial = 17_usize;
+    let doc_no = format!("{}{}{:0width$}", prefix, today, serial, width = 3);
+
+    let re = Regex::new(r"^PO\d{8}\d{3}$").expect("正则必须编译通过");
+    assert!(
+        re.is_match(&doc_no),
+        "采购订单单号格式错误：{}，期望 PO{{yyyyMMdd}}{{3 位流水}}",
+        doc_no
+    );
+    assert_eq!(doc_no, "PO202606170017");
+}
