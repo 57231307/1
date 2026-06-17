@@ -12,9 +12,7 @@ use crate::models::{
 use crate::utils::error::AppError;
 use rust_decimal::Decimal;
 use sea_orm::sea_query::ExprTrait;
-use sea_orm::{
-    ActiveModelTrait, ColumnTrait, EntityTrait, QueryFilter, Set, TransactionTrait,
-};
+use sea_orm::{ActiveModelTrait, ColumnTrait, EntityTrait, QueryFilter, Set, TransactionTrait};
 use serde::Deserialize;
 use validator::Validate;
 
