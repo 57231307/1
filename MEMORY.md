@@ -98,6 +98,7 @@
 | **P11 收尾 PR #176** | 382e522 | ✅ **完成**（H3 死字段修复 + 27 个新 dead_code 扩展标注 + CHANGELOG/MEMORY 同步，squash merge，CI 4 job 全绿）|
 | **P13 批 1 P3-2 审计日志增强**（PR #191）| 940dca1 | ✅ **已合并**（H 子代理，6 commit 经 squash merge，CI 5 轮迭代）|
 | **P13 批 1 B-慢查询审计**（PR #192）| 04b12cd | ✅ **已合并**（G 子代理，3 commit 经 squash merge，CI 2 轮迭代：max 歧义 + 未用 import）|
+| **P13 批 1 B3 拆分大 .vue I-1**（PR #193）| c6ca72f | ✅ **已合并**（I-1 子代理，5 commit 经 squash merge，CI 4 轮迭代：v-model on prop + 类型导入 + vue/no-mutating-props ESLint + 真实修复 AiPanel）|
 
 ### P11 批 1 详情（2026-06-17）
 
@@ -145,7 +146,7 @@
   - **v0.3 关键发现**：test 分支与 main 完全分叉，1154 独有 commit / 29 迁移文件 / 7 handler；P0 销售报价单与 P0 产品色价为高价值资产
   - 用户决策：3 关键点已确认（命名/旧文件/范围）+ P0 port 范围确认 + v0.3 合并策略确认
 
-### P12 批 1 进展（2026-06-18，**13/13 PR 全部完成**）
+### P12 批 1 进展（2026-06-18，**15/15 PR 全部完成**）
 
 | PR | 任务 | 子代理 | 提交 | 状态 |
 |------|------|--------|------|------|
@@ -375,6 +376,7 @@ backend/src/handlers/advanced/
 
 ## 九、最后更新
 
+- 2026-06-18 16:35 (Asia/Shanghai) - PR #193 B3 拆分大 .vue - I-1（3 个最大文件：advanced 993 → 192 + report/templates 963 → 214 + purchase 957 → 277）（P13 批 1 I-1）squash merge 入 main（c6ca72f）：5 commit（3 拆分 + 2 修复）；CI 4 轮迭代（v-model on prop 错误 / TypeScript 导入错误 / vue/no-mutating-props ESLint 错误 / 真实修复 AiPanel）；**P13 批 1 全部 3/3 PR 完成**
 - 2026-06-18 15:55 (Asia/Shanghai) - PR #192 B-慢查询审计（pg_stat_statements + 后台采集 + 统计）（P13 批 1 G）squash merge 入 main（04b12cd）：3 commit（1 特性 + 2 修复）；CI 2 轮迭代（max 歧义改 std::cmp::Ord::max / 删未用 import migration::ExprTrait）；**P13 批 1 已完成 2/3 PR**
 - 2026-06-18 15:14 (Asia/Shanghai) - PR #191 P3-2 审计日志增强（操作类型/严重级别/请求上下文/差异快照）（P13 批 1 H）squash merge 入 main（940dca1）：6 commit（5 特性 + 5 修复）；CI 5 轮迭代（rustfmt 行宽 / use 顺序 / 多 max 歧义 / bin target dead_code / Severity impl 错位）；**P13 批 1 已完成 1/3 PR**
 - 2026-06-18 14:00 (Asia/Shanghai) - PR #190 P3-1 前端 2FA + 修改密码 + 密码强度可视化（P12 批 3 F）squash merge 入 main（7074944）：6 commit（5 特性 + 1 CI 修复）；CI 2 轮迭代修复（type-check ChangePassword.vue:53 v-model→:password + 算法调整使 < 8 字符判极弱）；**P12 批 1+2+3 实际 12/12 PR 全部完成**
