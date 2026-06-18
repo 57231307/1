@@ -1,3 +1,4 @@
+mod cache; // P12 批 1：Redis 缓存层（lib crate bingxi_backend::cache 的镜像引用，让 server bin 也能解析 use crate::cache）
 mod config;
 mod docs;
 mod handlers;

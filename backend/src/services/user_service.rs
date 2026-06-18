@@ -15,6 +15,7 @@
 #![allow(dead_code)]
 // TODO(tech-debt): 业务接入或重评估后逐项移除；rustc 1.94+ 编译时由编译器报告具体死代码位置。
 
+use crate::cache::CacheService;
 use crate::models::user;
 use crate::utils::error::AppError;
 use crate::utils::pagination::paginate_with_total;
@@ -28,6 +29,8 @@ use std::sync::Arc;
 #[derive(Debug, Clone)]
 pub struct UserService {
     db: Arc<DatabaseConnection>,
+    /// 可选 Redis 缓存（P12 批 1 性能优化）；未注入时退化为直查 DB
+    cache: Option<Arc<CacheService>>,
 }
 
 impl UserService {
@@ -36,7 +39,24 @@ impl UserService {
     /// # 参数
     /// - `db`: 数据库连接
     pub fn new(db: Arc<DatabaseConnection>) -> Self {
-        Self { db }
+        Self { db, cache: None }
+    }
+
+    /// 创建带 Redis 缓存层的用户服务（P12 批 1 性能优化）
+    ///
+    /// # 参数
+    /// - `db`: 数据库连接
+    /// - `cache`: Redis 缓存服务（已配置优雅降级）
+    pub fn with_cache(db: Arc<DatabaseConnection>, cache: Arc<CacheService>) -> Self {
+        Self {
+            db,
+            cache: Some(cache),
+        }
+    }
+
+    /// 构造用户缓存键（用户表为平台级，使用 tenant_id = 0）
+    fn cache_key(user_id: i32) -> String {
+        CacheService::build_key(0, "user", &user_id.to_string())
     }
 
     /// 按用户名查找用户
@@ -55,7 +75,7 @@ impl UserService {
             .ok_or_else(|| AppError::not_found(format!("用户 {} 不存在", username)))
     }
 
-    /// 按 ID 查找用户
+    /// 按 ID 查找用户（命中 Redis 时直接返回缓存）
     ///
     /// # 参数
     /// - `id`: 用户 ID
@@ -64,10 +84,27 @@ impl UserService {
     /// - `Ok(user)`: 找到用户
     /// - `Err(DbErr::RecordNotFound)`: 用户不存在
     pub async fn find_by_id(&self, id: i32) -> Result<user::Model, AppError> {
-        user::Entity::find_by_id(id)
+        let key = Self::cache_key(id);
+
+        // 1. 尝试读缓存（Redis 不可用时自动 fallback 到 None）
+        if let Some(cache) = &self.cache {
+            if let Some(cached) = cache.get_json::<user::Model>(&key).await {
+                return Ok(cached);
+            }
+        }
+
+        // 2. 缓存未命中，查 DB
+        let user = user::Entity::find_by_id(id)
             .one(self.db.as_ref())
             .await?
-            .ok_or_else(|| AppError::not_found(format!("用户 ID {} 不存在", id)))
+            .ok_or_else(|| AppError::not_found(format!("用户 ID {} 不存在", id)))?;
+
+        // 3. 回写缓存（仅在缓存启用时生效；错误不会冒泡）
+        if let Some(cache) = &self.cache {
+            cache.set_json(&key, &user, None).await;
+        }
+
+        Ok(user)
     }
 
     /// 创建新用户
@@ -144,6 +181,11 @@ impl UserService {
         user.last_login_at = Set(Some(chrono::Utc::now()));
         user.update(self.db.as_ref()).await?;
 
+        // 失效缓存：最后登录时间变化使缓存值陈旧
+        if let Some(cache) = &self.cache {
+            cache.invalidate(&Self::cache_key(user_id)).await;
+        }
+
         Ok(())
     }
 
@@ -219,7 +261,17 @@ impl UserService {
         }
         user.updated_at = Set(chrono::Utc::now());
 
-        user.update(self.db.as_ref()).await.map_err(AppError::from)
+        let updated = user
+            .update(self.db.as_ref())
+            .await
+            .map_err(AppError::from)?;
+
+        // 失效缓存：用户字段更新使缓存值陈旧
+        if let Some(cache) = &self.cache {
+            cache.invalidate(&Self::cache_key(user_id)).await;
+        }
+
+        Ok(updated)
     }
 
     /// 删除用户（软删除）
@@ -247,6 +299,11 @@ impl UserService {
         user.is_active = Set(false);
         user.updated_at = Set(chrono::Utc::now());
         user.update(self.db.as_ref()).await?;
+
+        // 失效缓存：is_active 变化使缓存值陈旧
+        if let Some(cache) = &self.cache {
+            cache.invalidate(&Self::cache_key(user_id)).await;
+        }
 
         Ok(())
     }
