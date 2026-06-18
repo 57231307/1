@@ -39,6 +39,12 @@ const routes = [
         meta: { title: '系统管理', requiresAuth: true },
       },
       {
+        path: 'system/audit-log',
+        name: 'SystemAuditLog',
+        component: () => import('@/views/system/audit-log/index.vue'),
+        meta: { title: '审计日志', requiresAuth: true },
+      },
+      {
         path: 'finance',
         name: 'Finance',
         component: () => import('@/views/finance/index.vue'),
