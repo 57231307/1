@@ -22,6 +22,9 @@ pub mod role_permission;
 pub mod sales_order;
 pub mod sales_order_change_history;
 pub mod sales_order_item;
+pub mod sales_quotation;
+pub mod sales_quotation_item;
+pub mod sales_quotation_term;
 pub mod status;
 pub mod user;
 // MRP生产计划模块
