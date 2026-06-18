@@ -3,9 +3,23 @@
  * 任务编号: Wave 4 P2-1 PR-1
  * 关联 spec: docs/superpowers/specs/2026-06-16-wave4-p2-1-design.md 第四章
  */
-import { ref, computed, watch } from 'vue'
+import { ref, watch } from 'vue'
 import type { Ref } from 'vue'
 import { request } from '@/api/request'
+import type { ApiResponse } from '@/types/api'
+
+/**
+ * 表格接口响应的可识别字段
+ * 后端部分接口使用 list/顶层，部分使用 data.items/嵌套
+ */
+interface ListResponsePayload {
+  data?: unknown
+  list?: unknown
+  items?: unknown
+  results?: unknown
+  total?: number
+  count?: number
+}
 
 export interface UseTableApiOptions<T = any> {
   url: string
@@ -65,9 +79,13 @@ export function useTableApi<T = any>(
 
   /**
    * 从响应中探测 list 和 total 字段
+   * - 优先匹配 options.listKey 指定字段名
+   * - 后备：list / items / data / results
    */
   const detectList = (payload: any): T[] => {
     if (Array.isArray(payload)) return payload
+    // 优先按 listKey 指定的字段名取
+    if (listKey && Array.isArray(payload?.[listKey])) return payload[listKey]
     if (Array.isArray(payload?.list)) return payload.list
     if (Array.isArray(payload?.items)) return payload.items
     if (Array.isArray(payload?.data)) return payload.data
@@ -93,8 +111,14 @@ export function useTableApi<T = any>(
         [pageKey]: page.value,
         [pageSizeKey]: pageSize.value,
       }
-      const res = await request.get(url, { params })
-      const payload = res.data?.data ?? res.data
+      // 表格接口响应：ApiResponse 包装的 list/total 或裸 list/total
+      const res = await request.get<ApiResponse<ListResponsePayload | T[]> | ListResponsePayload | T[]>(
+        url,
+        { params }
+      )
+      // 兼容三种返回：ApiResponse 包装 / 裸 list / 裸对象
+      const raw: ListResponsePayload | T[] = (res as { data?: unknown })?.data ?? (res as ListResponsePayload | T[])
+      const payload: ListResponsePayload = Array.isArray(raw) ? { data: raw } : (raw ?? {})
       data.value = detectList(payload) as T[]
       total.value = detectTotal(payload)
     } catch (err) {
