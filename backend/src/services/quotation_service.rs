@@ -95,8 +95,8 @@ impl QuotationService {
         }
 
         // 使用 main 风格分页（paginate + paginate_with_total），与 user_service / product_service 保持一致
-        let page = params.page.max(1) as u64;
-        let page_size = params.page_size.max(1) as u64;
+        let page = params.page.max(1);
+        let page_size = params.page_size.max(1);
         let paginator = query
             .order_by(sales_quotation::Column::Id, Order::Desc)
             .paginate(self.db.as_ref(), page_size);
