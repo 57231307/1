@@ -1,6 +1,16 @@
 import { request } from './request'
 import type { ApiResponse } from '@/types/api'
 
+/** 账号锁定状态（来自后端 /api/v1/erp/security/lock-status） */
+export interface LockStatus {
+  user_id: number
+  username: string
+  is_locked: boolean
+  failed_attempts: number
+  locked_until: string | null
+  max_attempts: number
+}
+
 export interface SecurityStats {
   todayLogins: number
   todayFailures: number
@@ -64,4 +74,14 @@ export const securityApi = {
 
   exportLoginLogs: (params?: SecurityQueryParams) =>
     request.get<Blob>('/security/login-logs/export', { params, responseType: 'blob' }),
+
+  /**
+   * 检查指定用户名的账号锁定状态
+   * 调 GET /api/v1/erp/security/lock-status?username=xxx
+   * 用于登录页：用户输入用户名失焦时预检查 / 登录失败后展示锁定信息
+   */
+  checkLockStatus: (username: string) =>
+    request.get<ApiResponse<LockStatus>>('/security/lock-status', {
+      params: { username },
+    }),
 }

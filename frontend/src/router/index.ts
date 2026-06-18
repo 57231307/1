@@ -539,6 +539,20 @@ const routes = [
         component: () => import('@/views/user-profile/index.vue'),
         meta: { title: '个人信息', requiresAuth: true },
       },
+      // 新增路由 - 2FA 设置
+      {
+        path: 'security/two-factor-setup',
+        name: 'TwoFactorSetup',
+        component: () => import('@/views/security/TwoFactorSetup.vue'),
+        meta: { title: '双因素认证设置', requiresAuth: true },
+      },
+      // 新增路由 - 修改密码（独立页面）
+      {
+        path: 'security/change-password',
+        name: 'ChangePassword',
+        component: () => import('@/views/security/ChangePassword.vue'),
+        meta: { title: '修改密码', requiresAuth: true },
+      },
     ],
   },
   {
