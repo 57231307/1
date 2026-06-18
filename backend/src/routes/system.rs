@@ -187,19 +187,14 @@ pub fn health() -> Router<AppState> {
 /// - GET /audit-logs/:id      详情
 /// - GET /audit-logs/export   CSV 导出
 pub fn audit_logs() -> Router<AppState> {
+    use crate::handlers::audit_log_handler;
     Router::new()
-        .route(
-            "/audit-logs",
-            get(audit_log_handler::list_audit_logs),
-        )
+        .route("/audit-logs", get(audit_log_handler::list_audit_logs))
         .route(
             "/audit-logs/export",
             get(audit_log_handler::export_audit_logs),
         )
-        .route(
-            "/audit-logs/:id",
-            get(audit_log_handler::get_audit_log),
-        )
+        .route("/audit-logs/:id", get(audit_log_handler::get_audit_log))
 }
 
 /// 初始化路由（path 前缀 /init）

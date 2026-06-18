@@ -117,9 +117,9 @@ impl AuditLogService {
             old_value: ActiveValue::Set(old_data.clone().map(audit_log::AuditValue)),
             new_value: ActiveValue::Set(new_data.clone().map(audit_log::AuditValue)),
             created_at: ActiveValue::Set(Some(Utc::now())),
-            operation_type: ActiveValue::Set(
-                Some(OperationType::parse(action).as_str().to_string()),
-            ),
+            operation_type: ActiveValue::Set(Some(
+                OperationType::parse(action).as_str().to_string(),
+            )),
             severity: ActiveValue::Set(Some(Severity::Info.as_str().to_string())),
             request_id: ActiveValue::Set(None),
             before_snapshot: ActiveValue::Set(old_data.map(audit_log::AuditValue)),

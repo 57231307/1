@@ -134,7 +134,10 @@ mod tests {
             .route("/", get(echo))
             .layer(from_fn(audit_context_middleware));
 
-        let req = Request::builder().uri("/").body(Body::empty()).expect("build");
+        let req = Request::builder()
+            .uri("/")
+            .body(Body::empty())
+            .expect("build");
         let response = app.oneshot(req).await.expect("request ok");
         assert_eq!(response.status(), 200);
     }
@@ -178,7 +181,10 @@ mod tests {
             .route("/", get(echo))
             .layer(from_fn(audit_context_middleware));
 
-        let req = Request::builder().uri("/").body(Body::empty()).expect("build");
+        let req = Request::builder()
+            .uri("/")
+            .body(Body::empty())
+            .expect("build");
         let response = app.oneshot(req).await.expect("request ok");
         assert_eq!(response.status(), 200);
     }

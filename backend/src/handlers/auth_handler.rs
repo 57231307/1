@@ -243,8 +243,9 @@ pub async fn login(
             enhanced_logger::EnhancedLogger::log_login_security(&security_log);
 
             // 异步记录审计日志：登录成功（P13 批 1 P3-2）
+            // 登录事件无 tenant_id（登录前尚未确定租户），写入系统级日志
             let login_event = AuditEvent {
-                tenant_id: user.tenant_id,
+                tenant_id: None,
                 user_id: Some(user.id),
                 username: Some(payload.username.clone()),
                 operation_type: OperationType::Login,

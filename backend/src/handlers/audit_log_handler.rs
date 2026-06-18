@@ -17,6 +17,7 @@ use axum::{
 use chrono::{DateTime, Utc};
 use sea_orm::{ColumnTrait, EntityTrait, PaginatorTrait, QueryFilter, QueryOrder};
 use serde::{Deserialize, Serialize};
+use migration::ExprTrait;
 
 use crate::middleware::auth_context::AuthContext;
 use crate::middleware::tenant::extract_tenant_id;
