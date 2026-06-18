@@ -58,6 +58,7 @@ pub struct AuditEvent {
 
 impl AuditEvent {
     /// 构造最小可用事件（仅指定操作类型 + 资源类型）
+    #[allow(dead_code)] // TODO(tech-debt): 业务接入后逐项移除；用于未来简化调用方（仅需 op + resource）
     pub fn new(operation_type: OperationType, resource_type: impl Into<String>) -> Self {
         Self {
             tenant_id: None,
@@ -197,6 +198,7 @@ impl AuditLogService {
     /// 同步记录审计事件（不接管业务事务）
     ///
     /// 调用方负责异常处理；推荐使用 `record_async` 在 tokio runtime 中异步落库。
+    #[allow(dead_code)] // TODO(tech-debt): 业务接入后逐项移除；同步版本保留以备同步上下文使用
     pub async fn record(
         &self,
         event: AuditEvent,

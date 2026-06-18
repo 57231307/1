@@ -36,6 +36,7 @@ pub struct AuditContext {
 
 impl AuditContext {
     /// 构造空上下文（缺省值，避免 service 调用时 unwrap）
+    #[allow(dead_code)] // TODO(tech-debt): 业务接入后逐项移除；用于 build_active_model 测试与未来的单元测试 setup
     pub fn empty() -> Self {
         Self {
             request_id: String::new(),
@@ -45,6 +46,7 @@ impl AuditContext {
     }
 
     /// 从 request extensions 取出已注入的审计上下文；找不到则返回空
+    #[allow(dead_code)] // TODO(tech-debt): 业务接入后逐项移除；预留 API 用于未来从 request 中提取
     pub fn from_request(request: &Request<Body>) -> Self {
         request
             .extensions()

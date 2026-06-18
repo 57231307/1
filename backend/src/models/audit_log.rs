@@ -72,6 +72,7 @@ pub enum Severity {
 
 impl Severity {
     /// 从字符串解析为枚举
+    #[allow(dead_code)] // TODO(tech-debt): 业务接入后逐项移除；预留 API 用于未来从字符串反序列化
     pub fn parse(value: &str) -> Self {
         match value.to_ascii_uppercase().as_str() {
             "INFO" => Self::Info,
