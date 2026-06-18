@@ -153,6 +153,43 @@
 | [#181](https://github.com/57231307/1/pull/181) | P2-1 PR-2 V2Table 迁移 StockTab | 主代理 | e909a70 | ✅ **已合并** |
 | [#184](https://github.com/57231307/1/pull/184) | P0 port 销售报价单 DTO + Service（PR-A2）| 主代理 + 子代理 | 684e10e | ✅ **已合并** |
 | [#182](https://github.com/57231307/1/pull/182) | P2-2 性能优化：DB N+1 审计 + Redis 缓存层 | 主代理 | da5e096 | ✅ **已合并** |
+| [#185](https://github.com/57231307/1/pull/185) | P0 port 销售报价单 Handler + 路由（PR-A3）| 主代理 + 子代理 | f3fb0df | ✅ **已合并** |
+| **PR-A4** | P0 port 销售报价单 审批+转换+集成测试 | 主代理 + 子代理 | TBD | 🚧 **实施中** |
+
+#### PR #185 销售报价单 Handler + 路由（PR-A3，2026-06-18 合并）
+- **`backend/src/handlers/quotation_handler.rs`**（413 行）：8 个 HTTP handler 端点
+  - `GET /` `list_quotations`：分页查询（page / page_size / status / customer_id / quotation_no）
+  - `GET /:id` `get_quotation`：详情查询（含明细 + 贸易条款）
+  - `POST /` `create_quotation`：创建（事务化主表 + 明细 + 条款）
+  - `PUT /:id` `update_quotation`：可选字段更新（Option<T> 哨兵）
+  - `POST /:id/cancel` `cancel_quotation`：取消（状态机校验）
+  - `POST /:id/submit` `submit_quotation`：提交审批
+  - `POST /:id/approve` `approve_quotation`：审批通过
+  - `POST /:id/reject` `reject_quotation`：审批拒绝
+- **6 个单元测试**：状态码 / 租户隔离 / DTO 序列化
+- **路由** `backend/src/routes/sales.rs`：新增 `quotations()` 子函数 + `sales()` 中 `.nest("/quotations", ...)` → 统一挂载 `/api/v1/erp/sales/quotations`
+- **注册** `backend/src/handlers/mod.rs`：新增 `pub mod quotation_handler;`
+- **CI 修复历程**（3 轮迭代）：
+  1. `69cd448`：子代理首次提交（handlers/mod.rs 误将 `role_handler` 替换为 `sales_contract_handler`）
+  2. `c107990`：恢复 `pub mod role_handler;` + 修正 iam.rs 引用
+  3. `b7d4d50`：`cargo fmt` 修正 3 处格式偏差
+- **CI 验证**：5 check-run 全绿
+- **后续 TODO**：A4 审批+转换+测试子代理接入后逐项移除 dead_code 标记
+
+#### PR-A4 销售报价单 审批+转换+集成测试（2026-06-18 实施）
+- **新增 Service** `quotation_convert_service.rs`（约 330 行）：
+  - `convert_to_sales_order(tenant_id, user_id, quotation_id)`：状态机 + 有效期 + 事务化（主表 → 批量明细 → 更新报价单 → 提交）
+  - `list_convertable(tenant_id)`：APPROVED 状态且 `valid_until >= today` 的报价单
+  - 文件级 `#![allow(dead_code)]` + TODO（PR-A4 业务首次接入）
+- **Handler 扩展** `quotation_handler.rs`：
+  - `POST /:id/convert` → `convert_quotation_to_order`
+  - `GET /expiring` → `list_expiring_quotations`（保留 `days` 参数位）
+- **路由** `sales.rs`：`quotations()` 子函数新增 2 路由 → 端点总计 10 个
+- **死代码清理** `quotation_service.rs`：移除文件级抑制（PR-A2 抑制策略失效）
+- **集成测试** `tests/quotation_e2e.rs`（约 380 行）：
+  - 状态机规则 / 单据号契约 / 金额计算 / DTO 映射 / 租户隔离 / Service 装配 / 转换业务规则 / AppError 契约
+- **关键约束**：沿用 main `sales_order` 模型（不引入新依赖）+ 强租户隔离 + 命名 ≤ 9 字符 + 中文注释
+- **后续 TODO**：新 Service 文件级抑制待 PR-A5（业务全量接入）后移除
 
 #### PR #184 销售报价单 DTO + Service（PR-A2，2026-06-18 合并）
 - **3 个 DTO**：
@@ -168,10 +205,10 @@
 #### P12 批 1 实际状态更正（2026-06-18）
 - **P2-1 实际已完成 3/5 PR**（PR #108 + #181 + #110），非摘要中"PR-1 + PR-2 已完成"
 - 浅克隆 + B3 子代理发现 PR #110 已合并时发现此差异
-- 修正后 P12 批 1 进展：6/10 PR 完成（PR #108/#110/#183/#181/#184/#182）
+- 修正后 P12 批 1 进展：8/10 PR 完成（PR #108/#110/#183/#181/#184/#182/#185/PR-A4 待合并）
 
-#### P12 批 1 子代理派发计划（剩余 4 PR / 3 子代理方向）
-- 子代理 A：A3/A4（P0 port 销售报价单 Handler+路由 → 审批+转换+测试，2 PR 串行）
+#### P12 批 1 子代理派发计划（剩余 2 PR / 3 子代理方向）
+- 子代理 A：A4 ✅ 已完成（等待主代理 squash merge，2026-06-18）
 - 子代理 B：B4/B5（P2-1 V2Table PR-4~5 改写 production / RecordTab，2 PR 串行）
 - 子代理 C：B-type-check（CI 5 job + vue-tsc 集成，1 PR）
 
