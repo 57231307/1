@@ -210,7 +210,8 @@ pub async fn get_slow_query_stats(
 
     Ok(Json(ApiResponse::success(SlowQueryStatsResponse {
         top10,
-        total_count: total_count.max(0) as u64,
+        // 显式调用 std::cmp::Ord::max 避免与 migration::ExprTrait::max 冲突
+        total_count: std::cmp::Ord::max(total_count, 0) as u64,
         time_range: "近 7 天".to_string(),
     })))
 }
