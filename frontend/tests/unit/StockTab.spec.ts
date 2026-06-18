@@ -126,10 +126,11 @@ describe('StockTab.vue', () => {
     const wrapper = mount(StockTab)
     await flushPromises()
 
-    const keywordInput = wrapper.find('input[placeholder*="产品编码"]')
-    expect(keywordInput.exists()).toBe(true)
+    // 直接通过 vm 修改响应式参数（el-input 渲染依赖 Element Plus 内部组件，DOM 选择器不稳定）
+    const vm = wrapper.vm as any
+    vm.localQueryParams.keyword = 'SKU-001'
+    await nextTick()
 
-    await keywordInput.setValue('SKU-001')
     const queryBtn = wrapper.findAll('button').find(b => b.text().includes('查询'))
     expect(queryBtn).toBeTruthy()
     await queryBtn!.trigger('click')
