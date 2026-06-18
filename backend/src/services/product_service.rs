@@ -10,6 +10,7 @@ use sea_orm::{
 };
 use std::sync::Arc;
 
+use crate::cache::CacheService;
 use crate::models::product::{self, Entity as ProductEntity};
 use crate::models::product_color::{self, Entity as ProductColorEntity};
 use crate::utils::error::AppError;
@@ -29,11 +30,26 @@ pub struct CreateProductColorInput {
 /// 产品服务（面料行业版）
 pub struct ProductService {
     db: Arc<DatabaseConnection>,
+    /// 可选 Redis 缓存（P12 批 1 性能优化）
+    cache: Option<Arc<CacheService>>,
 }
 
 impl ProductService {
     pub fn new(db: Arc<DatabaseConnection>) -> Self {
-        Self { db }
+        Self { db, cache: None }
+    }
+
+    /// 创建带 Redis 缓存的产品服务（P12 批 1 性能优化）
+    pub fn with_cache(db: Arc<DatabaseConnection>, cache: Arc<CacheService>) -> Self {
+        Self {
+            db,
+            cache: Some(cache),
+        }
+    }
+
+    /// 构造产品缓存键（产品表为平台级，使用 tenant_id = 0）
+    fn cache_key(product_id: i32) -> String {
+        CacheService::build_key(0, "product", &product_id.to_string())
     }
 
     /// 生成产品编码
@@ -110,12 +126,29 @@ impl ProductService {
         Ok((products, total))
     }
 
-    /// 获取产品详情
+    /// 获取产品详情（命中 Redis 时直接返回缓存）
     pub async fn get_product(&self, id: i32) -> Result<product::Model, AppError> {
-        ProductEntity::find_by_id(id)
+        let key = Self::cache_key(id);
+
+        // 1. 尝试读缓存
+        if let Some(cache) = &self.cache {
+            if let Some(cached) = cache.get_json::<product::Model>(&key).await {
+                return Ok(cached);
+            }
+        }
+
+        // 2. 缓存未命中，查 DB
+        let product = ProductEntity::find_by_id(id)
             .one(&*self.db)
             .await?
-            .ok_or_else(|| AppError::not_found(format!("产品 ID {} 不存在", id)))
+            .ok_or_else(|| AppError::not_found(format!("产品 ID {} 不存在", id)))?;
+
+        // 3. 回写缓存
+        if let Some(cache) = &self.cache {
+            cache.set_json(&key, &product, None).await;
+        }
+
+        Ok(product)
     }
 
     /// 创建产品（面料行业版）
@@ -192,6 +225,12 @@ impl ProductService {
         if result.rows_affected == 0 {
             return Err(AppError::not_found(format!("产品 ID {} 不存在", id)));
         }
+
+        // 失效缓存：产品删除后缓存值无效
+        if let Some(cache) = &self.cache {
+            cache.invalidate(&Self::cache_key(id)).await;
+        }
+
         Ok(())
     }
 
@@ -289,6 +328,12 @@ impl ProductService {
             Some(0),
         )
         .await?;
+
+        // 失效缓存：产品字段更新使缓存值陈旧
+        if let Some(cache) = &self.cache {
+            cache.invalidate(&Self::cache_key(id)).await;
+        }
+
         Ok(result)
     }
 

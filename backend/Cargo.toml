@@ -101,6 +101,12 @@ migration = { version = "0.1.0", path = "migration" }
 # 事件总线（Kafka 后端，rskafka 0.5 纯 Rust 实现，无 C/C++ 依赖）
 rskafka = { version = "0.5", default-features = false }
 
+# 异步 trait（Redis 缓存层使用）
+async-trait = "0.1"
+
+# Redis 客户端（P12 批 1 性能优化：缓存层）
+redis = { version = "0.27", features = ["tokio-comp", "connection-manager"] }
+
 [dev-dependencies]
 # 开发测试相关依赖
 tokio-test = "0.4"
