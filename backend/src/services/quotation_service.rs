@@ -94,24 +94,19 @@ impl QuotationService {
             query = query.filter(sales_quotation::Column::QuotationNo.like(pattern));
         }
 
-        let total = query.clone().count(&*self.db).await?;
-
-        let items = query
+        // 使用 main 风格分页（paginate + paginate_with_total），与 user_service / product_service 保持一致
+        let page = params.page.max(1) as u64;
+        let page_size = params.page_size.max(1) as u64;
+        let paginator = query
             .order_by(sales_quotation::Column::Id, Order::Desc)
-            .offset(((params.page.max(1) - 1) * params.page_size) as u64)
-            .limit(params.page_size as u64)
-            .all(&*self.db)
-            .await?;
+            .paginate(self.db.as_ref(), page_size);
+        let (items, total) = crate::utils::pagination::paginate_with_total(paginator, page).await?;
 
         Ok((items, total))
     }
 
     /// 按 ID 查询详情（含明细 + 贸易条款）
-    pub async fn get_by_id(
-        &self,
-        _tenant_id: i32,
-        id: i32,
-    ) -> Result<QuotationModel, AppError> {
+    pub async fn get_by_id(&self, _tenant_id: i32, id: i32) -> Result<QuotationModel, AppError> {
         let quotation = QuotationEntity::find_by_id(id)
             .one(&*self.db)
             .await?
@@ -360,7 +355,10 @@ impl QuotationService {
         reason: Option<String>,
     ) -> Result<QuotationModel, AppError> {
         let existing = self.get_by_id(tenant_id, id).await?;
-        if !matches!(existing.status.as_str(), status_codes::DRAFT | status_codes::SUBMITTED) {
+        if !matches!(
+            existing.status.as_str(),
+            status_codes::DRAFT | status_codes::SUBMITTED
+        ) {
             return Err(AppError::validation(format!(
                 "只有 DRAFT/SUBMITTED 状态的报价单可取消，当前状态：{}",
                 existing.status
@@ -492,9 +490,9 @@ async fn insert_item(
     item: &QuotationItemCreateDto,
 ) -> Result<(), AppError> {
     // 解析 tier_pricing JSON 字符串（如有）；None / 解析失败 → None
-    let tier_pricing: Option<sea_orm::Json> = match item.tier_pricing.as_deref() {
-        Some(s) if !s.is_empty() => match serde_json::from_str::<serde_json::Value>(s) {
-            Ok(v) => Some(sea_orm::Json::from(v)),
+    let tier_pricing: Option<sea_orm::JsonValue> = match item.tier_pricing.as_deref() {
+        Some(s) if !s.is_empty() => match serde_json::from_str::<sea_orm::JsonValue>(s) {
+            Ok(v) => Some(v),
             Err(e) => {
                 warn!("明细 tier_pricing JSON 解析失败，使用 None：{}", e);
                 None

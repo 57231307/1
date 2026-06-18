@@ -7,9 +7,9 @@ use chrono::{DateTime, NaiveDate, Utc};
 use rust_decimal::Decimal;
 use serde::{Deserialize, Serialize};
 
-use crate::models::sales_quotation::{Model as QuotationModel};
-use crate::models::sales_quotation_item::{Model as QuotationItemModel};
-use crate::models::sales_quotation_term::{Model as QuotationTermModel};
+use crate::models::sales_quotation::Model as QuotationModel;
+use crate::models::sales_quotation_item::Model as QuotationItemModel;
+use crate::models::sales_quotation_term::Model as QuotationTermModel;
 
 /// 销售报价单明细行项目响应
 #[allow(dead_code)] // TODO(tech-debt): 等待 PR-3 handler 接入后移除
@@ -58,8 +58,8 @@ pub struct QuotationItemResponseDto {
 impl From<QuotationItemModel> for QuotationItemResponseDto {
     #[allow(dead_code)] // TODO(tech-debt): 等待 PR-3 handler 接入后移除
     fn from(model: QuotationItemModel) -> Self {
-        // 将 SeaORM Json 包装转成 serde_json::Value（避免直接暴露类型细节）
-        let tier_pricing = model.tier_pricing.map(|j| j.0);
+        // sea_orm 2.0 的 Json 是 serde_json::Value 的别名，直接转换即可
+        let tier_pricing: Option<serde_json::Value> = model.tier_pricing;
         Self {
             id: model.id,
             quotation_id: model.quotation_id,
@@ -238,8 +238,14 @@ impl
             created_by: m.created_by,
             created_at: m.created_at,
             updated_at: m.updated_at,
-            items: items.into_iter().map(QuotationItemResponseDto::from).collect(),
-            terms: terms.into_iter().map(QuotationTermResponseDto::from).collect(),
+            items: items
+                .into_iter()
+                .map(QuotationItemResponseDto::from)
+                .collect(),
+            terms: terms
+                .into_iter()
+                .map(QuotationTermResponseDto::from)
+                .collect(),
         }
     }
 }
