@@ -158,8 +158,9 @@
         <el-descriptions-item label="状态">
           <el-tag
             :type="
-              PRODUCTION_ORDER_STATUS[currentOrder?.status as keyof typeof PRODUCTION_ORDER_STATUS]
-                ?.type
+              (PRODUCTION_ORDER_STATUS[
+                currentOrder?.status as keyof typeof PRODUCTION_ORDER_STATUS
+              ]?.type as ElTagType) || 'info'
             "
           >
             {{
@@ -255,6 +256,10 @@ const orderRules = {
   priority: [{ required: true, message: '请选择优先级', trigger: 'change' }],
 }
 
+// 状态 el-tag 与 el-button 共用的类型别名（与 element-plus 类型保持一致）
+type ElTagType = 'primary' | 'success' | 'warning' | 'info' | 'danger'
+type ElButtonType = 'primary' | 'success' | 'warning' | 'info' | 'danger' | 'default' | 'text' | ''
+
 /**
  * 列定义
  * - 计划开始/结束：substring(0, 10) 取日期部分
@@ -287,11 +292,9 @@ const columns: ColumnDef[] = [
     align: 'center',
     renderCell: (row: ProductionOrder) => {
       const statusConfig = PRODUCTION_ORDER_STATUS[row.status as keyof typeof PRODUCTION_ORDER_STATUS]
-      return h(
-        ElTag,
-        { type: (statusConfig?.type as string) || 'info' },
-        () => statusConfig?.label || row.status
-      )
+      // 取类型时直接用 ElTag 接受的类型别名，避免 as string 后类型过宽
+      const tagType: ElTagType = (statusConfig?.type as ElTagType) || 'info'
+      return h(ElTag, { type: tagType }, { default: () => statusConfig?.label || row.status })
     },
   },
   { key: 'priority', title: '优先级', width: 100, align: 'center' },
@@ -305,7 +308,7 @@ const columns: ColumnDef[] = [
         h(
           ElButton,
           { type: 'primary', link: true, size: 'small', onClick: () => viewDetail(row) },
-          () => '查看'
+          { default: () => '查看' }
         ),
       ]
       if (row.status === 'draft') {
@@ -313,7 +316,7 @@ const columns: ColumnDef[] = [
           h(
             ElButton,
             { type: 'success', link: true, size: 'small', onClick: () => openDialog('edit', row) },
-            () => '编辑'
+            { default: () => '编辑' }
           ),
           h(
             ElButton,
@@ -323,12 +326,12 @@ const columns: ColumnDef[] = [
               size: 'small',
               onClick: () => handleStatusChange(row, 'planned'),
             },
-            () => '计划'
+            { default: () => '计划' }
           ),
           h(
             ElButton,
             { type: 'danger', link: true, size: 'small', onClick: () => handleDelete(row) },
-            () => '删除'
+            { default: () => '删除' }
           )
         )
       }
@@ -342,7 +345,7 @@ const columns: ColumnDef[] = [
               size: 'small',
               onClick: () => handleStatusChange(row, 'in_production'),
             },
-            () => '开始生产'
+            { default: () => '开始生产' }
           )
         )
       }
@@ -356,7 +359,7 @@ const columns: ColumnDef[] = [
               size: 'small',
               onClick: () => handleStatusChange(row, 'completed'),
             },
-            () => '完成'
+            { default: () => '完成' }
           )
         )
       }
