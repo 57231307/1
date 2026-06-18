@@ -148,6 +148,7 @@ pub mod logistics_waybill;
 pub mod omni_audit_log;
 pub mod sales_return;
 pub mod sales_return_item;
+pub mod slow_query;
 // 多租户SaaS模块
 pub mod api_key;
 pub mod tenant;

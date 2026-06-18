@@ -197,6 +197,26 @@ pub fn audit_logs() -> Router<AppState> {
         .route("/audit-logs/:id", get(audit_log_handler::get_audit_log))
 }
 
+/// 慢查询审计路由（path 前缀 /slow-queries）
+///
+/// P13 批 1 B-慢查询审计：
+/// - GET    /slow-queries          列表（分页 + 多维筛选）
+/// - GET    /slow-queries/stats    TOP 10 聚合统计
+/// - POST   /slow-queries/refresh  手动触发一次采集
+pub fn slow_queries() -> Router<AppState> {
+    use crate::handlers::slow_query_handler;
+    Router::new()
+        .route("/slow-queries", get(slow_query_handler::list_slow_queries))
+        .route(
+            "/slow-queries/stats",
+            get(slow_query_handler::get_slow_query_stats),
+        )
+        .route(
+            "/slow-queries/refresh",
+            axum::routing::post(slow_query_handler::refresh_slow_queries),
+        )
+}
+
 /// 初始化路由（path 前缀 /init）
 pub fn init() -> Router<AppState> {
     Router::new()
@@ -228,4 +248,5 @@ pub fn routes() -> Router<AppState> {
         .merge(health())
         .merge(init())
         .merge(audit_logs())
+        .merge(slow_queries())
 }

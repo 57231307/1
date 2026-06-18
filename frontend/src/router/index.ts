@@ -559,6 +559,13 @@ const routes = [
         component: () => import('@/views/security/ChangePassword.vue'),
         meta: { title: '修改密码', requiresAuth: true },
       },
+      // 新增路由 - 慢查询审计（P13 批 1 B-慢查询审计）
+      {
+        path: 'system/slow-query',
+        name: 'SlowQuery',
+        component: () => import('@/views/system/slow-query/index.vue'),
+        meta: { title: '慢查询审计', requiresAuth: true },
+      },
     ],
   },
   {
