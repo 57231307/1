@@ -101,22 +101,10 @@ pub fn quotations() -> Router<AppState> {
             "/:id",
             get(quotation_handler::get_quotation).put(quotation_handler::update_quotation),
         )
-        .route(
-            "/:id/cancel",
-            post(quotation_handler::cancel_quotation),
-        )
-        .route(
-            "/:id/submit",
-            post(quotation_handler::submit_quotation),
-        )
-        .route(
-            "/:id/approve",
-            post(quotation_handler::approve_quotation),
-        )
-        .route(
-            "/:id/reject",
-            post(quotation_handler::reject_quotation),
-        )
+        .route("/:id/cancel", post(quotation_handler::cancel_quotation))
+        .route("/:id/submit", post(quotation_handler::submit_quotation))
+        .route("/:id/approve", post(quotation_handler::approve_quotation))
+        .route("/:id/reject", post(quotation_handler::reject_quotation))
 }
 
 /// 销售合同路由（path 前缀 /sales-contracts）

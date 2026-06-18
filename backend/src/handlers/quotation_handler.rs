@@ -170,8 +170,9 @@ pub async fn get_quotation(
     let terms = svc.list_terms(id).await?;
 
     // 构造完整响应 DTO（From<(Model, Vec<Item>, Vec<Term>)> 实现已在 PR-2 给出）
-    let response_dto =
-        crate::models::quotation_response_dto::QuotationResponseDto::from((quotation, items, terms));
+    let response_dto = crate::models::quotation_response_dto::QuotationResponseDto::from((
+        quotation, items, terms,
+    ));
     let value = serde_json::to_value(response_dto).map_err(AppError::from)?;
     Ok(Json(ApiResponse::success(value)))
 }
@@ -196,9 +197,7 @@ pub async fn create_quotation(
         return Err(AppError::validation("报价单至少需要 1 条明细行项目"));
     }
 
-    let quotation = svc
-        .create(tenant_id, auth.user_id, payload)
-        .await?;
+    let quotation = svc.create(tenant_id, auth.user_id, payload).await?;
     let value = serde_json::to_value(&quotation).map_err(AppError::from)?;
     Ok(Json(ApiResponse::success_with_message(
         value,
