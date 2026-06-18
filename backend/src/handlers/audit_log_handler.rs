@@ -111,7 +111,7 @@ pub async fn list_audit_logs(
     Query(query): Query<AuditLogListQuery>,
 ) -> Result<Json<ApiResponse<AuditLogListResponse>>, AppError> {
     let tenant_id = extract_tenant_id(&auth)?;
-    let page = query.page.unwrap_or(1).max(1);
+    let page = std::cmp::Ord::max(query.page.unwrap_or(1), 1);
     let page_size = query.page_size.unwrap_or(20).clamp(1, 200);
 
     let mut q = audit_log::Entity::find().filter(audit_log::Column::TenantId.eq(tenant_id));
