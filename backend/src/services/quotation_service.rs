@@ -11,9 +11,11 @@
 //! - 当前 PR-2 不实现 `convert_to_order`（报价转销售订单），待 PR-4 接入。
 //!
 //! # 死代码说明
-//! 严格遵循项目死代码处理规范：服务文件使用**项级** `#[allow(dead_code)]` + TODO
-//! 注释（与 `backend/src/models/` 下的 SeaORM 自动生成模型文件级策略区分开）。
-//! 待 PR-3 handler 接入对应方法后逐项移除。
+//! PR-2 阶段 QuotationService 尚未被 server bin crate 调用（PR-3 handler 才会接入），
+//! CI clippy `-D warnings` 会报 dead_code。按 P12 批 1 PR #182 (Redis 缓存) 相同策略
+//! 使用文件级 `#![allow(dead_code)]` + TODO 注释，待 PR-3 handler 接入后逐项移除。
+#![allow(dead_code)]
+// TODO(tech-debt): PR-3 handler 接入后逐项移除 dead_code 标记
 
 use std::sync::Arc;
 
