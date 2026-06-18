@@ -124,7 +124,7 @@
 
 ### 进行中
 
-- 无（P11 批 1 收尾完成，P12 待启动）
+- 无（P12 批 1 中 P2-2 性能优化和 P0 销售报价单数据层已完成，其他子代理待派发）
 
 ### 待启动
 
@@ -142,6 +142,39 @@
   - **v0.2 实际状态核实关键发现**：P2-1 PR-1（V2Table 组件 + useTableApi composable）已落地但被 v0.1 误标为"未启动"
   - **v0.3 关键发现**：test 分支与 main 完全分叉，1154 独有 commit / 29 迁移文件 / 7 handler；P0 销售报价单与 P0 产品色价为高价值资产
   - 用户决策：3 关键点已确认（命名/旧文件/范围）+ P0 port 范围确认 + v0.3 合并策略确认
+
+### P12 批 1 进展（2026-06-18）
+
+| PR | 任务 | 子代理 | 提交 | 状态 |
+|------|------|--------|------|------|
+| [#183](https://github.com/57231307/1/pull/183) | P0 port 销售报价单数据层（PR-A1）| 主代理串行 | 7e51d50 | ✅ **已合并** |
+| [#182](https://github.com/57231307/1/pull/182) | P2-2 性能优化：DB N+1 审计 + Redis 缓存层 | 主代理 | da5e096 | ✅ **已合并** |
+
+#### PR #183 销售报价单数据层（PR-A1，2026-06-17 合并）
+- 销售报价单数据层：8 数据库表 + 8 model
+- 详见 CHANGELOG P12 批 1 合并汇总条目
+
+#### PR #182 性能优化（P2-2，2026-06-18 合并）
+- **Redis 缓存层**：`backend/src/cache/redis_client.rs`（480 行）+ `mod.rs`（14 行）
+  - `CacheBackend` trait + `RedisBackend` 真实实现 + `NullBackend` 优雅降级
+  - `CacheService` 业务级门面：build_key / get_json / set_json / invalidate
+  - 强租户隔离键空间 `tenant:{tenant_id}:{entity_type}:{entity_id}`
+  - TTL 默认 300s，可通过 `CACHE_TTL_SECS` 环境变量调整
+  - `CacheStats` 命中/未命中/错误统计
+- **业务接入**：`user_service` + `product_service` 接入 CacheService
+- **DB N+1 审计**：`docs/audits/2026-06-18-db-n1-audit.md`（278 行）
+- **CI 修复历程**（4 轮迭代）：
+  1. `a6d65a4`：用 `use crate::cache` 修正 import 路径
+  2. `068f314`：在 main.rs 加 `mod cache` 暴露
+  3. `bfbf6a1`：cache 模块文件级 `#![allow(dead_code)]` + TODO
+  4. `f4c7dfe`：cache/mod.rs pub use 加 `#[allow(unused_imports)]`
+- **CI 验证**：4 job 全绿（构建后端/前端/前端测试/运行测试）
+- **后续 TODO**：cache 辅助 API（from_env / is_enabled / stats / snapshot / NullBackend 等）需在销售报价单/审批/导入导出等业务模块分阶段接入并移除文件级 allow
+
+#### P12 批 1 子代理派发计划（剩余）
+- 子代理 A：A2/A3/A4（P0 port 销售报价单 DTO+Service → Handler+路由 → 审批+转换+测试，3 PR 串行）
+- 子代理 B：B2/B3/B4（P2-1 el-table-v2 PR-2~5，4 PR 串行改写 4 .vue）
+- 子代理 C：B-type-check（CI 5 job + vue-tsc 集成，1 PR）
 
 ### Wave 3 收尾关键产出
 
@@ -291,6 +324,7 @@ backend/src/handlers/advanced/
 
 ## 九、最后更新
 
+- 2026-06-18 xx:xx (Asia/Shanghai) - PR #182 性能优化（P2-2）squash merge 入 main（da5e096）：Redis 缓存层 + DB N+1 审计；P12 批 1 已完成 2/10 PR（PR #183 销售报价单数据层 + PR #182 性能优化）
 - 2026-06-17 18:xx (Asia/Shanghai) - Roadmap v0.3：加入 P0 销售报价单 port 计划（test 独有资产 reverse-port），P12 批 1 总 PR 数从 6 升至 10，4 子代理并行派发
 - 2026-06-17 17:xx (Asia/Shanghai) - Roadmap v0.2 状态更新：P2-1 PR-1 确认已完成（V2Table + useTableApi），B5/B6/B-PR 模板/部署/.monkeycode 等任务标注实际状态，P12 批 1 范围从 7 PR 调整为 6 PR
 - 2026-06-16 01:55 (Asia/Shanghai) - 新增思考模式规范（第一性原理 + 不假设 + 路径求最短 + 目标不清停下讨论）
