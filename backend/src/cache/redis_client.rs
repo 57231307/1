@@ -132,6 +132,15 @@ pub struct CacheService {
     enabled: bool,
 }
 
+impl std::fmt::Debug for CacheService {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("CacheService")
+            .field("enabled", &self.enabled)
+            .field("default_ttl_secs", &self.default_ttl.as_secs())
+            .finish_non_exhaustive()
+    }
+}
+
 impl CacheService {
     /// 创建启用 Redis 后端的缓存服务
     pub fn new(backend: Arc<dyn CacheBackend>, default_ttl: Duration) -> Self {
