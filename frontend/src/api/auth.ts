@@ -1,5 +1,5 @@
 import { request } from './request'
-import type { LoginRequest, LoginResponse, UserInfo } from '@/types/api'
+import type { ApiResponse, LoginRequest, LoginResponse, UserInfo } from '@/types/api'
 
 // CSRF Token 在 localStorage 中的存储 key
 // 命名遵循项目约定：所有 storage key 集中在此文件内
@@ -73,6 +73,33 @@ export function refreshToken(refreshToken: string): Promise<{ token: string; csr
 
 export function getUserInfo(): Promise<UserInfo> {
   return request.get<UserInfo>('/auth/me')
+}
+
+/**
+ * TOTP 设置响应：包含 base32 编码的密钥与后端已生成好的 base64 QR 码 PNG
+ * 后端使用 totp_rs 的 get_qr_base64() 直接产出 PNG，前端无需引入 qrcode npm 包
+ */
+export interface TotpSetupResponse {
+  secret: string
+  qr_code: string
+}
+
+/**
+ * 启动 TOTP 2FA 设置
+ * 调 GET /api/v1/erp/auth/totp/setup
+ * 返回后端生成的密钥 + base64 QR 码图片
+ */
+export function setupTotp(): Promise<ApiResponse<TotpSetupResponse>> {
+  return request.get<ApiResponse<TotpSetupResponse>>('/auth/totp/setup')
+}
+
+/**
+ * 提交 TOTP 6 位令牌并正式启用 2FA
+ * 调 POST /api/v1/erp/auth/totp/enable
+ * 后端：验证通过则将 is_totp_enabled 置为 true
+ */
+export function enableTotp(token: string): Promise<ApiResponse<boolean>> {
+  return request.post<ApiResponse<boolean>>('/auth/totp/enable', { token })
 }
 
 // 导出 CSRF Token 工具，供 request.ts 中的 axios 拦截器使用
