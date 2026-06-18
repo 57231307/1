@@ -24,9 +24,11 @@ pub mod inventory_transfer_handler;
 pub mod omni_audit_handler;
 pub mod product_category_handler;
 pub mod product_handler;
-pub mod role_handler;
+pub mod sales_contract_handler;
 pub mod sales_fabric_order_handler;
 pub mod sales_order_handler;
+// 销售报价单 Handler（P12 批 1 P0 port PR-3：HTTP 入口 + 路由注册）
+pub mod quotation_handler;
 pub mod tracking_handler;
 pub mod user_handler;
 pub mod warehouse_handler;
