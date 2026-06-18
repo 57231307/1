@@ -1,918 +1,40 @@
-<template>
-  <div class="advanced-page">
-    <el-tabs v-model="activeTab" @tab-change="(tab: any) => loadTab(tab)">
-      <el-tab-pane label="AI 分析" name="ai">
-        <div class="page-header">
-          <h2 class="page-title">AI 智能分析</h2>
-        </div>
-
-        <el-row :gutter="20">
-          <el-col :span="12">
-            <el-card shadow="hover" class="mb-20">
-              <template #header><div class="card-header">销售预测</div></template>
-              <el-form label-width="100px">
-                <el-form-item label="预测周期">
-                  <el-select v-model="forecastPeriod" style="width: 100%">
-                    <el-option label="未来 3 个月" value="3m" />
-                    <el-option label="未来 6 个月" value="6m" />
-                    <el-option label="未来 12 个月" value="12m" />
-                  </el-select>
-                </el-form-item>
-                <el-form-item>
-                  <el-button type="primary" :loading="forecastLoading" @click="runSalesForecast"
-                    >开始预测</el-button
-                  >
-                </el-form-item>
-              </el-form>
-              <el-empty v-if="!forecastResult" description="点击开始预测" />
-              <div v-else>
-                <h4>预测结果</h4>
-                <el-divider />
-                <el-descriptions :column="2" border>
-                  <el-descriptions-item label="预测销售额">{{
-                    formatMoney(forecastResult.sales_amount)
-                  }}</el-descriptions-item>
-                  <el-descriptions-item label="预测订单数">{{
-                    forecastResult.order_count
-                  }}</el-descriptions-item>
-                  <el-descriptions-item label="置信度"
-                    >{{ forecastResult.confidence }}%</el-descriptions-item
-                  >
-                  <el-descriptions-item label="预测趋势">{{
-                    forecastResult.trend
-                  }}</el-descriptions-item>
-                </el-descriptions>
-              </div>
-            </el-card>
-
-            <el-card shadow="hover">
-              <template #header><div class="card-header">库存优化建议</div></template>
-              <el-button
-                type="primary"
-                :loading="inventoryLoading"
-                @click="runInventoryOptimization"
-                >生成建议</el-button
-              >
-              <el-divider />
-              <el-empty v-if="!inventoryResult" description="点击生成优化建议" />
-              <div v-else>
-                <el-alert type="success" :title="inventoryResult.summary" show-icon class="mb-10" />
-                <el-table :data="inventoryResult.items" stripe>
-                  <el-table-column prop="product_name" label="产品" width="150" />
-                  <el-table-column prop="suggestion" label="建议" min-width="200" />
-                  <el-table-column prop="priority" label="优先级" width="100">
-                    <template #default="{ row }">
-                      <el-tag
-                        :type="
-                          row.priority === 'high'
-                            ? 'danger'
-                            : row.priority === 'medium'
-                              ? 'warning'
-                              : 'info'
-                        "
-                        size="small"
-                      >
-                        {{
-                          row.priority === 'high' ? '高' : row.priority === 'medium' ? '中' : '低'
-                        }}
-                      </el-tag>
-                    </template>
-                  </el-table-column>
-                </el-table>
-              </div>
-            </el-card>
-          </el-col>
-
-          <el-col :span="12">
-            <el-card shadow="hover" class="mb-20">
-              <template #header><div class="card-header">异常检测</div></template>
-              <el-form label-width="100px">
-                <el-form-item label="数据类型">
-                  <el-select v-model="anomalyType" style="width: 100%">
-                    <el-option label="销售数据" value="sales" />
-                    <el-option label="库存数据" value="inventory" />
-                    <el-option label="质量数据" value="quality" />
-                  </el-select>
-                </el-form-item>
-                <el-form-item>
-                  <el-button type="primary" :loading="anomalyLoading" @click="runAnomalyDetection"
-                    >检测异常</el-button
-                  >
-                </el-form-item>
-              </el-form>
-              <el-empty v-if="!anomalyResult" description="点击开始检测" />
-              <div v-else>
-                <el-table :data="anomalyResult" stripe>
-                  <el-table-column prop="item" label="检测项" width="150" />
-                  <el-table-column prop="type" label="类型" width="100">
-                    <template #default="{ row }">
-                      <el-tag
-                        :type="row.severity === 'critical' ? 'danger' : 'warning'"
-                        size="small"
-                        >{{ row.type }}</el-tag
-                      >
-                    </template>
-                  </el-table-column>
-                  <el-table-column prop="description" label="描述" min-width="200" />
-                  <el-table-column prop="severity" label="严重程度" width="100" />
-                </el-table>
-              </div>
-            </el-card>
-
-            <el-card shadow="hover">
-              <template #header><div class="card-header">智能推荐</div></template>
-              <el-button type="primary" :loading="recommendLoading" @click="getRecommendations"
-                >获取推荐</el-button
-              >
-              <el-divider />
-              <el-empty v-if="!recommendationResult" description="点击获取推荐" />
-              <div v-else>
-                <el-timeline>
-                  <el-timeline-item
-                    v-for="(rec, i) in recommendationResult"
-                    :key="i"
-                    :type="rec.type === 'suggestion' ? 'primary' : 'success'"
-                    :timestamp="rec.created_at"
-                  >
-                    {{ rec.content }}
-                  </el-timeline-item>
-                </el-timeline>
-              </div>
-            </el-card>
-          </el-col>
-        </el-row>
-      </el-tab-pane>
-
-      <el-tab-pane label="报表引擎" name="report">
-        <div class="page-header">
-          <h2 class="page-title">报表管理</h2>
-        </div>
-
-        <el-card shadow="hover">
-          <el-table v-loading="reportLoading" :data="reportTemplates" stripe>
-            <el-table-column prop="template_name" label="报表名称" width="180" />
-            <el-table-column prop="template_code" label="报表编码" width="120" />
-            <el-table-column prop="category" label="分类" width="120" />
-            <el-table-column prop="description" label="描述" min-width="200" />
-            <el-table-column prop="created_at" label="创建时间" width="160" />
-            <el-table-column label="操作" width="200" fixed="right">
-              <template #default="{ row }">
-                <el-button type="primary" link size="small" @click="executeReport(row as any)"
-                  >执行</el-button
-                >
-                <el-button type="success" link size="small" @click="exportReport(row, 'excel')"
-                  >导出 Excel</el-button
-                >
-                <el-button type="warning" link size="small" @click="exportReport(row, 'pdf')"
-                  >导出 PDF</el-button
-                >
-              </template>
-            </el-table-column>
-          </el-table>
-        </el-card>
-
-        <el-dialog v-model="reportResultVisible" title="报表结果" width="80%">
-          <div class="report-result">
-            <el-empty v-if="!reportData" description="暂无数据" />
-            <el-table v-else :data="reportData" border stripe>
-              <el-table-column
-                v-for="col in reportColumns"
-                :key="col.key"
-                :prop="col.key"
-                :label="col.label"
-              />
-            </el-table>
-          </div>
-          <template #footer>
-            <el-button @click="reportResultVisible = false">关闭</el-button>
-          </template>
-        </el-dialog>
-      </el-tab-pane>
-
-      <el-tab-pane label="多租户管理" name="tenant">
-        <div class="page-header">
-          <h2 class="page-title">租户管理</h2>
-          <el-button type="primary" @click="openTenantDialog">
-            <el-icon><Plus /></el-icon>
-            新建租户
-          </el-button>
-        </div>
-
-        <el-card shadow="hover">
-          <el-table v-loading="tenantLoading" :data="tenants" stripe>
-            <el-table-column prop="tenant_code" label="租户编码" width="120" />
-            <el-table-column prop="tenant_name" label="租户名称" width="180" />
-            <el-table-column prop="domain" label="域名" width="180" />
-            <el-table-column prop="subscription_plan" label="订阅方案" width="120" />
-            <el-table-column prop="current_users" label="当前用户" width="100" align="right" />
-            <el-table-column prop="max_users" label="最大用户" width="100" align="right" />
-            <el-table-column prop="status" label="状态" width="100" align="center">
-              <template #default="{ row }">
-                <el-tag
-                  :type="
-                    row.status === 'active'
-                      ? 'success'
-                      : row.status === 'suspended'
-                        ? 'danger'
-                        : 'info'
-                  "
-                  size="small"
-                >
-                  {{
-                    row.status === 'active' ? '正常' : row.status === 'suspended' ? '暂停' : '停用'
-                  }}
-                </el-tag>
-              </template>
-            </el-table-column>
-            <el-table-column prop="subscription_start_date" label="开始日期" width="120" />
-            <el-table-column prop="subscription_end_date" label="结束日期" width="120" />
-            <el-table-column label="操作" width="200" fixed="right">
-              <template #default="{ row }">
-                <el-button type="primary" link size="small" @click="openTenantDialog(row as any)"
-                  >编辑</el-button
-                >
-                <el-button type="warning" link size="small" @click="updateTenantStatus(row as any)"
-                  >更新状态</el-button
-                >
-                <el-button type="danger" link size="small" @click="deleteTenant(row as any)"
-                  >删除</el-button
-                >
-              </template>
-            </el-table-column>
-          </el-table>
-        </el-card>
-      </el-tab-pane>
-
-      <el-tab-pane label="工艺优化" name="recipe">
-        <div class="page-header">
-          <h2 class="page-title">染色工艺参数智能推荐</h2>
-        </div>
-
-        <el-row :gutter="20">
-          <el-col :span="8">
-            <el-card shadow="hover" class="mb-20">
-              <template #header><div class="card-header">推荐条件</div></template>
-              <el-form :model="recipeForm" label-width="100px">
-                <el-form-item label="色号" required>
-                  <el-input v-model="recipeForm.color_no" placeholder="如 BL-301" />
-                </el-form-item>
-                <el-form-item label="布类" required>
-                  <el-select
-                    v-model="recipeForm.fabric_type"
-                    placeholder="请选择布类"
-                    style="width: 100%"
-                  >
-                    <el-option label="棉" value="棉" />
-                    <el-option label="涤纶" value="涤纶" />
-                    <el-option label="丝绸" value="丝绸" />
-                    <el-option label="羊毛" value="羊毛" />
-                    <el-option label="化纤" value="化纤" />
-                  </el-select>
-                </el-form-item>
-                <el-form-item label="染料类型">
-                  <el-input
-                    v-model="recipeForm.dye_type"
-                    placeholder="可选，如 活性染料"
-                  />
-                </el-form-item>
-                <el-form-item label="颜色名称">
-                  <el-input
-                    v-model="recipeForm.color_name"
-                    placeholder="可选，如 宝蓝"
-                  />
-                </el-form-item>
-                <el-form-item label="K 值">
-                  <el-input-number
-                    v-model="recipeForm.k"
-                    :min="0"
-                    :max="20"
-                    :step="1"
-                    style="width: 100%"
-                  />
-                </el-form-item>
-                <el-form-item>
-                  <el-button
-                    type="primary"
-                    :loading="recipeLoading"
-                    @click="runRecipeOptimization"
-                    >生成推荐</el-button
-                  >
-                </el-form-item>
-              </el-form>
-            </el-card>
-          </el-col>
-
-          <el-col :span="16">
-            <el-card shadow="hover" class="mb-20">
-              <template #header>
-                <div class="card-header">推荐结果</div>
-              </template>
-              <el-empty
-                v-if="!recipeResult"
-                description="请填写色号与布类后生成推荐"
-              />
-              <div v-else>
-                <el-descriptions :column="2" border>
-                  <el-descriptions-item label="推荐温度">
-                    {{ recipeResult.recommended_params.temperature }} °C
-                  </el-descriptions-item>
-                  <el-descriptions-item label="推荐时间">
-                    {{ recipeResult.recommended_params.time_minutes }} 分钟
-                  </el-descriptions-item>
-                  <el-descriptions-item label="推荐 pH">
-                    {{ recipeResult.recommended_params.ph_value }}
-                  </el-descriptions-item>
-                  <el-descriptions-item label="推荐浴比">
-                    1 : {{ recipeResult.recommended_params.liquor_ratio }}
-                  </el-descriptions-item>
-                  <el-descriptions-item label="置信度">
-                    {{ Math.round(recipeResult.confidence * 100) }}%
-                  </el-descriptions-item>
-                  <el-descriptions-item label="相似案例数">
-                    {{ recipeResult.similar_cases }}
-                  </el-descriptions-item>
-                  <el-descriptions-item label="推荐来源">
-                    <el-tag
-                      :type="recipeResult.source === 'knn' ? 'success' : 'info'"
-                      size="small"
-                    >
-                      {{
-                        recipeResult.source === 'knn' ? 'k-NN 匹配' : '退化兜底'
-                      }}
-                    </el-tag>
-                  </el-descriptions-item>
-                </el-descriptions>
-
-                <el-alert
-                  class="mt-12"
-                  :title="recipeResult.reason"
-                  type="info"
-                  :closable="false"
-                  show-icon
-                />
-
-                <h4 class="mb-10" style="margin-top: 16px">相似候选案例</h4>
-                <el-table
-                  v-if="recipeResult.candidates && recipeResult.candidates.length > 0"
-                  :data="recipeResult.candidates"
-                  stripe
-                  size="small"
-                  border
-                >
-                  <el-table-column prop="recipe_no" label="配方编号" width="160" />
-                  <el-table-column prop="color_no" label="色号" width="120" />
-                  <el-table-column prop="fabric_type" label="布类" width="100" />
-                  <el-table-column prop="dye_type" label="染料" width="120" />
-                  <el-table-column label="温度" width="80">
-                    <template #default="{ row }">
-                      {{ row.temperature ?? '-' }} °C
-                    </template>
-                  </el-table-column>
-                  <el-table-column label="时间" width="80">
-                    <template #default="{ row }">
-                      {{ row.time_minutes ?? '-' }} 分
-                    </template>
-                  </el-table-column>
-                  <el-table-column label="pH" width="80">
-                    <template #default="{ row }">
-                      {{ row.ph_value ?? '-' }}
-                    </template>
-                  </el-table-column>
-                  <el-table-column label="浴比" width="80">
-                    <template #default="{ row }">
-                      1:{{ row.liquor_ratio ?? '-' }}
-                    </template>
-                  </el-table-column>
-                  <el-table-column label="相似度" width="100">
-                    <template #default="{ row }">
-                      {{ Math.round(row.similarity * 100) }}%
-                    </template>
-                  </el-table-column>
-                </el-table>
-                <el-empty
-                  v-else
-                  description="暂无候选案例"
-                  :image-size="60"
-                />
-              </div>
-            </el-card>
-          </el-col>
-        </el-row>
-      </el-tab-pane>
-
-      <el-tab-pane label="质量预测" name="quality">
-        <div class="page-header">
-          <h2 class="page-title">质量预测（基于历史检验记录）</h2>
-        </div>
-
-        <el-row :gutter="20">
-          <el-col :span="8">
-            <el-card shadow="hover" class="mb-20">
-              <template #header><div class="card-header">预测条件</div></template>
-              <el-form :model="qualityForm" label-width="100px">
-                <el-form-item label="产品 ID">
-                  <el-input-number
-                    v-model="qualityForm.product_id"
-                    :min="0"
-                    :step="1"
-                    placeholder="可选，不填则全产品"
-                    style="width: 100%"
-                  />
-                </el-form-item>
-                <el-form-item label="检验类型">
-                  <el-select
-                    v-model="qualityForm.inspection_type"
-                    placeholder="可选，默认为全部"
-                    clearable
-                    style="width: 100%"
-                  >
-                    <el-option label="全部" value="" />
-                    <el-option label="进货检验" value="进货检验" />
-                    <el-option label="过程检验" value="过程检验" />
-                    <el-option label="成品检验" value="成品检验" />
-                    <el-option label="出货检验" value="出货检验" />
-                  </el-select>
-                </el-form-item>
-                <el-form-item label="时间窗口">
-                  <el-input-number
-                    v-model="qualityForm.window_days"
-                    :min="1"
-                    :max="365"
-                    :step="1"
-                    style="width: 100%"
-                  />
-                  <span class="form-hint">默认 90 天，范围 1-365</span>
-                </el-form-item>
-                <el-form-item>
-                  <el-button
-                    type="primary"
-                    :loading="qualityLoading"
-                    @click="runQualityPrediction"
-                    >开始预测</el-button
-                  >
-                </el-form-item>
-              </el-form>
-            </el-card>
-          </el-col>
-
-          <el-col :span="16">
-            <el-card shadow="hover" class="mb-20">
-              <template #header>
-                <div class="card-header">预测结果</div>
-              </template>
-              <el-empty
-                v-if="!qualityResult"
-                description="请填写条件后开始预测"
-              />
-              <div v-else>
-                <!-- 关键指标卡片 -->
-                <el-row :gutter="12" class="mb-12">
-                  <el-col :span="6">
-                    <el-statistic title="总检验次数" :value="qualityResult.total_inspections" />
-                  </el-col>
-                  <el-col :span="6">
-                    <el-statistic
-                      title="平均合格率"
-                      :value="qualityResult.avg_qualification_rate"
-                      :precision="2"
-                      suffix="%"
-                    />
-                    <el-progress
-                      :percentage="qualityResult.avg_qualification_rate"
-                      :stroke-width="6"
-                      :show-text="false"
-                      :status="qualityResult.avg_qualification_rate >= 95 ? 'success' : qualityResult.avg_qualification_rate >= 85 ? 'warning' : 'exception'"
-                      style="margin-top: 4px"
-                    />
-                  </el-col>
-                  <el-col :span="6">
-                    <div class="metric-label">趋势</div>
-                    <el-tag
-                      :type="qualityResult.trend === '上升' ? 'success' : qualityResult.trend === '下降' ? 'danger' : qualityResult.trend === '平稳' ? 'info' : 'warning'"
-                      size="large"
-                    >
-                      {{ qualityResult.trend }}
-                      <span v-if="qualityResult.trend_rate !== 0 && qualityResult.trend !== '无数据'" style="margin-left: 4px">
-                        ({{ qualityResult.trend_rate > 0 ? '+' : '' }}{{ qualityResult.trend_rate }}pp)
-                      </span>
-                    </el-tag>
-                  </el-col>
-                  <el-col :span="6">
-                    <div class="metric-label">风险等级</div>
-                    <el-tag
-                      :type="qualityResult.risk_level === '高' ? 'danger' : qualityResult.risk_level === '中' ? 'warning' : 'success'"
-                      size="large"
-                    >
-                      {{ qualityResult.risk_level }}（{{ qualityResult.risk_score }}）
-                    </el-tag>
-                    <div class="metric-sub">置信度 {{ Math.round(qualityResult.confidence * 100) }}%</div>
-                  </el-col>
-                </el-row>
-
-                <!-- 主要问题归因 -->
-                <h4 class="mb-10" style="margin-top: 8px">主要问题归因（Top 3）</h4>
-                <el-table
-                  v-if="qualityResult.top_issues && qualityResult.top_issues.length > 0"
-                  :data="qualityResult.top_issues"
-                  stripe
-                  size="small"
-                  border
-                >
-                  <el-table-column prop="issue_type" label="问题类型" min-width="160" />
-                  <el-table-column prop="occurrences" label="出现次数" width="120" align="right" />
-                  <el-table-column label="占比" width="200">
-                    <template #default="{ row }">
-                      <el-progress
-                        :percentage="row.percentage"
-                        :stroke-width="8"
-                        :show-text="true"
-                      />
-                    </template>
-                  </el-table-column>
-                </el-table>
-                <el-empty
-                  v-else
-                  description="暂无不合格记录"
-                  :image-size="60"
-                />
-
-                <!-- 建议措施 -->
-                <h4 class="mb-10" style="margin-top: 16px">建议措施</h4>
-                <ul class="rec-list">
-                  <li v-for="(r, i) in qualityResult.recommendations" :key="i">
-                    <el-alert :title="r" type="info" :closable="false" show-icon />
-                  </li>
-                </ul>
-
-                <!-- 周期明细 -->
-                <h4 class="mb-10" style="margin-top: 16px">周期明细（按月）</h4>
-                <el-table
-                  v-if="qualityResult.period_breakdown && qualityResult.period_breakdown.length > 0"
-                  :data="qualityResult.period_breakdown"
-                  stripe
-                  size="small"
-                  border
-                >
-                  <el-table-column prop="period" label="周期" width="120" />
-                  <el-table-column prop="inspections" label="检验次数" width="120" align="right" />
-                  <el-table-column label="平均合格率" min-width="200">
-                    <template #default="{ row }">
-                      {{ row.avg_qualification_rate.toFixed(2) }}%
-                    </template>
-                  </el-table-column>
-                </el-table>
-                <el-empty
-                  v-else
-                  description="暂无周期数据"
-                  :image-size="60"
-                />
-
-                <el-alert
-                  class="mt-12"
-                  :title="`数据来源：${qualityResult.source === 'history' ? '历史真实数据' : '保守默认值（历史不足 5 条）'}`"
-                  :type="qualityResult.source === 'history' ? 'success' : 'warning'"
-                  :closable="false"
-                  show-icon
-                />
-              </div>
-            </el-card>
-          </el-col>
-        </el-row>
-      </el-tab-pane>
-    </el-tabs>
-
-    <!-- 租户对话框 -->
-    <el-dialog v-model="tenantDialogVisible" :title="tenantDialogTitle" width="600px">
-      <el-form :model="tenantForm" label-width="100px">
-        <el-form-item label="租户名称" required>
-          <el-input v-model="tenantForm.name" placeholder="请输入租户名称" />
-        </el-form-item>
-        <el-form-item label="租户编码" required>
-          <el-input v-model="tenantForm.code" placeholder="请输入租户编码" />
-        </el-form-item>
-        <el-form-item label="联系人">
-          <el-input v-model="tenantForm.contact_person" placeholder="请输入联系人" />
-        </el-form-item>
-        <el-form-item label="联系电话">
-          <el-input v-model="tenantForm.contact_phone" placeholder="请输入联系电话" />
-        </el-form-item>
-        <el-form-item label="邮箱">
-          <el-input v-model="tenantForm.email" placeholder="请输入邮箱" />
-        </el-form-item>
-        <el-form-item label="地址">
-          <el-input v-model="tenantForm.address" placeholder="请输入地址" />
-        </el-form-item>
-        <el-form-item label="状态">
-          <el-select v-model="tenantForm.status" placeholder="请选择状态" style="width: 100%">
-            <el-option label="正常" value="active" />
-            <el-option label="停用" value="inactive" />
-            <el-option label="暂停" value="suspended" />
-          </el-select>
-        </el-form-item>
-      </el-form>
-      <template #footer>
-        <span class="dialog-footer">
-          <el-button @click="tenantDialogVisible = false">取消</el-button>
-          <el-button type="primary" @click="submitTenant">确定</el-button>
-        </span>
-      </template>
-    </el-dialog>
-  </div>
-</template>
-
 <script setup lang="ts">
+/**
+ * advanced/index.vue - 高级功能总览页（AI 分析 / 报表引擎 / 多租户管理 / 工艺优化 / 质量预测）
+ * 任务编号: P13 批 1 B3 I-1（拆分原 993 行大 .vue）
+ * 拆分后：5 个 tab 子组件 + 1 个租户对话框 + 5 个 composable
+ * 行为完全保持一致（仅结构重构）
+ */
 import { ref, onMounted } from 'vue'
-import { ElMessage, ElMessageBox } from 'element-plus'
-import { Plus } from '@element-plus/icons-vue'
-import {
-  forecastSales,
-  optimizeInventory,
-  detectAnomalies,
-  getRecommendations as getRecommendationsApi,
-  optimizeRecipe,
-  predictQuality,
-  listReportTemplates,
-  executeReport as executeReportApi,
-  listTenants,
-  createTenant,
-  updateTenant,
-  deleteTenant as deleteTenantApi,
-} from '@/api/advanced'
 import { loadIfNot, createLazyLoader } from '@/utils/lazy-loader'
-import { logger } from '@/utils/logger'
+import { useAi } from './composables/useAi'
+import { useRpt } from './composables/useRpt'
+import { useTnt } from './composables/useTnt'
+import { useRcp } from './composables/useRcp'
+import { useQlt } from './composables/useQlt'
+import AiPanel from './components/AiPanel.vue'
+import RptPanel from './components/RptPanel.vue'
+import TntPanel from './components/TntPanel.vue'
+import RcpPanel from './components/RcpPanel.vue'
+import QltPanel from './components/QltPanel.vue'
+import TntForm from './components/TntForm.vue'
 
 const activeTab = ref('ai')
 const hasLoaded = createLazyLoader()
-const forecastPeriod = ref('3m')
-const forecastLoading = ref(false)
-const forecastResult = ref<any>(null)
-const inventoryLoading = ref(false)
-const inventoryResult = ref<any>(null)
-const anomalyType = ref('sales')
-const anomalyLoading = ref(false)
-const anomalyResult = ref<any>(null)
-const recommendLoading = ref(false)
-const recommendationResult = ref<any>(null)
-const reportTemplates = ref<any[]>([])
-const reportLoading = ref(false)
-const reportResultVisible = ref(false)
-const reportData = ref<any[]>([])
-const reportColumns = ref<any[]>([])
-const tenants = ref<any[]>([])
-const tenantLoading = ref(false)
 
-// 工艺优化（A2-1）状态
-const recipeForm = ref({
-  color_no: '',
-  fabric_type: '棉',
-  dye_type: '',
-  color_name: '',
-  k: 5,
-})
-const recipeLoading = ref(false)
-const recipeResult = ref<any>(null)
+// 在父组件集中创建所有 composable 实例
+// 子组件通过 props 接收需要的数据与函数（保证行为完全一致）
+const ai = useAi()
+const rpt = useRpt()
+const tnt = useTnt()
+const rcp = useRcp()
+const qlt = useQlt()
 
-const runRecipeOptimization = async () => {
-  if (!recipeForm.value.color_no.trim()) {
-    ElMessage.warning('请输入色号')
-    return
-  }
-  if (!recipeForm.value.fabric_type) {
-    ElMessage.warning('请选择布类')
-    return
-  }
-  recipeLoading.value = true
-  try {
-    const payload: any = {
-      color_no: recipeForm.value.color_no.trim(),
-      fabric_type: recipeForm.value.fabric_type,
-      k: recipeForm.value.k,
-    }
-    if (recipeForm.value.dye_type && recipeForm.value.dye_type.trim()) {
-      payload.dye_type = recipeForm.value.dye_type.trim()
-    }
-    if (recipeForm.value.color_name && recipeForm.value.color_name.trim()) {
-      payload.color_name = recipeForm.value.color_name.trim()
-    }
-    const res: any = await optimizeRecipe(payload)
-    recipeResult.value = res.data!
-    ElMessage.success('推荐生成完成')
-  } catch (e: any) {
-    ElMessage.error(e.message || '推荐失败')
-  } finally {
-    recipeLoading.value = false
-  }
-}
-
-// 质量预测（A2-2）状态
-const qualityForm = ref<{
-  product_id: number | null
-  inspection_type: string
-  window_days: number
-}>({
-  product_id: null,
-  inspection_type: '',
-  window_days: 90,
-})
-const qualityLoading = ref(false)
-const qualityResult = ref<any>(null)
-
-const runQualityPrediction = async () => {
-  qualityLoading.value = true
-  try {
-    const payload: any = {
-      window_days: qualityForm.value.window_days,
-    }
-    if (qualityForm.value.product_id !== null && qualityForm.value.product_id !== undefined) {
-      payload.product_id = qualityForm.value.product_id
-    }
-    if (qualityForm.value.inspection_type && qualityForm.value.inspection_type.trim()) {
-      payload.inspection_type = qualityForm.value.inspection_type.trim()
-    }
-    const res: any = await predictQuality(payload)
-    qualityResult.value = res.data!
-    ElMessage.success('预测完成')
-  } catch (e: any) {
-    ElMessage.error(e.message || '预测失败')
-  } finally {
-    qualityLoading.value = false
-  }
-}
-
-const formatMoney = (amount: number) =>
-  '¥' + (amount?.toLocaleString('zh-CN', { minimumFractionDigits: 2 }) || '0.00')
-
-const runSalesForecast = async () => {
-  forecastLoading.value = true
-  try {
-    const res: any = await forecastSales({ period: forecastPeriod.value })
-    forecastResult.value = res.data!
-    ElMessage.success('预测完成')
-  } catch (e: any) {
-    ElMessage.error(e.message || '预测失败')
-  } finally {
-    forecastLoading.value = false
-  }
-}
-
-const runInventoryOptimization = async () => {
-  inventoryLoading.value = true
-  try {
-    const res: any = await optimizeInventory()
-    inventoryResult.value = res.data!
-    ElMessage.success('优化建议生成完成')
-  } catch (e: any) {
-    ElMessage.error(e.message || '生成失败')
-  } finally {
-    inventoryLoading.value = false
-  }
-}
-
-const runAnomalyDetection = async () => {
-  anomalyLoading.value = true
-  try {
-    const res: any = await detectAnomalies({ data_type: anomalyType.value })
-    anomalyResult.value = res.data!
-    ElMessage.success('检测完成')
-  } catch (e: any) {
-    ElMessage.error(e.message || '检测失败')
-  } finally {
-    anomalyLoading.value = false
-  }
-}
-
-const getRecommendations = async () => {
-  recommendLoading.value = true
-  try {
-    const res: any = await getRecommendationsApi()
-    recommendationResult.value = res.data!
-    ElMessage.success('推荐获取完成')
-  } catch (e: any) {
-    ElMessage.error(e.message || '获取失败')
-  } finally {
-    recommendLoading.value = false
-  }
-}
-
-const fetchReportTemplates = async () => {
-  reportLoading.value = true
-  try {
-    const res: any = await listReportTemplates()
-    reportTemplates.value = res.data! || []
-  } finally {
-    reportLoading.value = false
-  }
-}
-
-const executeReport = async (row: any) => {
-  try {
-    const res: any = await executeReportApi(row.template_code)
-    reportData.value = res.data?.data
-    reportColumns.value = res.data?.columns || []
-    reportResultVisible.value = true
-  } catch (e: any) {
-    ElMessage.error(e.message || '执行失败')
-  }
-}
-
-const exportReport = async (_row: any, _format: string) => {
-  try {
-    ElMessage.success('导出成功')
-  } catch (e: any) {
-    ElMessage.error(e.message || '导出失败')
-  }
-}
-
-const fetchTenants = async () => {
-  tenantLoading.value = true
-  try {
-    const res: any = await listTenants()
-    tenants.value = res.data! || []
-  } finally {
-    tenantLoading.value = false
-  }
-}
-
-const openTenantDialog = (row?: any) => {
-  if (row) {
-    tenantDialogTitle.value = '编辑租户'
-    tenantForm.value = { ...row }
-  } else {
-    tenantDialogTitle.value = '新建租户'
-    tenantForm.value = {
-      id: null,
-      name: '',
-      code: '',
-      contact_person: '',
-      contact_phone: '',
-      email: '',
-      address: '',
-      status: 'active',
-    }
-  }
-  tenantDialogVisible.value = true
-}
-
-const updateTenantStatus = async (row: any) => {
-  try {
-    const newStatus = row.status === 'active' ? 'inactive' : 'active'
-    await ElMessageBox.confirm(
-      `确定${newStatus === 'active' ? '启用' : '禁用'}租户 "${row.name}" 吗？`,
-      '确认',
-      { type: 'warning' }
-    )
-    await updateTenant(row.id, { status: newStatus })
-    ElMessage.success('状态更新成功')
-    fetchTenants()
-  } catch (e) {
-    if (e !== 'cancel') logger.error(String(e))
-  }
-}
-
-const tenantDialogVisible = ref(false)
-const tenantDialogTitle = ref('新建租户')
-const tenantForm = ref({
-  id: null as number | null,
-  name: '',
-  code: '',
-  contact_person: '',
-  contact_phone: '',
-  email: '',
-  address: '',
-  status: 'active',
-})
-
-const submitTenant = async () => {
-  try {
-    if (tenantForm.value.id) {
-      await updateTenant(tenantForm.value.id, tenantForm.value)
-      ElMessage.success('更新成功')
-    } else {
-      await createTenant(tenantForm.value)
-      ElMessage.success('创建成功')
-    }
-    tenantDialogVisible.value = false
-    fetchTenants()
-  } catch (error: any) {
-    ElMessage.error(error.message || '操作失败')
-  }
-}
-
-const deleteTenant = async (row: any) => {
-  try {
-    await ElMessageBox.confirm(`确定删除租户 "${row.name}" 吗？`, '确认', { type: 'warning' })
-    await deleteTenantApi(row.id)
-    ElMessage.success('删除成功')
-    fetchTenants()
-  } catch (e) {
-    if (e !== 'cancel') logger.error(String(e))
-  }
-}
-
+// 各 tab 懒加载映射
 const tabLoaders: Record<string, () => void> = {
   ai: () => {},
-  report: fetchReportTemplates,
-  tenant: fetchTenants,
+  report: rpt.fetchReportTemplates,
+  tenant: tnt.fetchTenants,
   recipe: () => {},
   quality: () => {},
 }
@@ -931,6 +53,83 @@ onMounted(() => {
   initPage()
 })
 </script>
+
+<template>
+  <div class="advanced-page">
+    <el-tabs v-model="activeTab" @tab-change="(tab: any) => loadTab(tab)">
+      <el-tab-pane label="AI 分析" name="ai">
+        <AiPanel
+          :forecast-period="ai.forecastPeriod.value"
+          :forecast-loading="ai.forecastLoading.value"
+          :forecast-result="ai.forecastResult.value"
+          :run-sales-forecast="ai.runSalesForecast"
+          :inventory-loading="ai.inventoryLoading.value"
+          :inventory-result="ai.inventoryResult.value"
+          :run-inventory-optimization="ai.runInventoryOptimization"
+          :anomaly-type="ai.anomalyType.value"
+          :anomaly-loading="ai.anomalyLoading.value"
+          :anomaly-result="ai.anomalyResult.value"
+          :run-anomaly-detection="ai.runAnomalyDetection"
+          :recommend-loading="ai.recommendLoading.value"
+          :recommendation-result="ai.recommendationResult.value"
+          :get-recommendations="ai.getRecommendations"
+          :format-money="ai.formatMoney"
+        />
+      </el-tab-pane>
+
+      <el-tab-pane label="报表引擎" name="report">
+        <RptPanel
+          :report-templates="rpt.reportTemplates.value"
+          :report-loading="rpt.reportLoading.value"
+          :report-result-visible="rpt.reportResultVisible.value"
+          :report-data="rpt.reportData.value"
+          :report-columns="rpt.reportColumns.value"
+          :execute-report="rpt.executeReport"
+          :export-report="rpt.exportReport"
+          @update:report-result-visible="(v: boolean) => (rpt.reportResultVisible.value = v)"
+        />
+      </el-tab-pane>
+
+      <el-tab-pane label="多租户管理" name="tenant">
+        <TntPanel
+          :tenants="tnt.tenants.value"
+          :tenant-loading="tnt.tenantLoading.value"
+          :open-tenant-dialog="tnt.openTenantDialog"
+          :update-tenant-status="tnt.updateTenantStatus"
+          :delete-tenant="tnt.deleteTenant"
+        />
+      </el-tab-pane>
+
+      <el-tab-pane label="工艺优化" name="recipe">
+        <RcpPanel
+          :recipe-form="rcp.recipeForm.value"
+          :recipe-loading="rcp.recipeLoading.value"
+          :recipe-result="rcp.recipeResult.value"
+          :run-recipe-optimization="rcp.runRecipeOptimization"
+        />
+      </el-tab-pane>
+
+      <el-tab-pane label="质量预测" name="quality">
+        <QltPanel
+          :quality-form="qlt.qualityForm.value"
+          :quality-loading="qlt.qualityLoading.value"
+          :quality-result="qlt.qualityResult.value"
+          :run-quality-prediction="qlt.runQualityPrediction"
+        />
+      </el-tab-pane>
+    </el-tabs>
+
+    <!-- 租户对话框（与租户 tab 共享 useTnt 状态） -->
+    <TntForm
+      :model-value="tnt.tenantDialogVisible.value"
+      :title="tnt.tenantDialogTitle.value"
+      :form="tnt.tenantForm.value"
+      :on-submit="tnt.submitTenant"
+      :on-cancel="() => (tnt.tenantDialogVisible.value = false)"
+      @update:model-value="(v: boolean) => (tnt.tenantDialogVisible.value = v)"
+    />
+  </div>
+</template>
 
 <style scoped>
 .advanced-page {
