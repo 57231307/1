@@ -278,9 +278,11 @@ pub async fn export_audit_logs(
         Arc::new(svc).record_async(event, None);
     }
 
-    // 构造 CSV
+    // 构造 CSV（按列顺序：id/created_at/user_id/username/operation_type/severity/
+    // resource_type/resource_id/description/ip_address/request_id）
     let mut csv = String::from(
-        "id,created_at,user_id,username,operation_type,severity,resource_type,resource_id,description,ip_address,request_id\n",
+        "id,created_at,user_id,username,operation_type,severity,resource_type,\
+         resource_id,description,ip_address,request_id\n",
     );
     for log in logs {
         csv.push_str(&format!(
