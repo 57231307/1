@@ -43,6 +43,7 @@
  */
 import { computed, h } from 'vue'
 import { ElAutoResizer, ElTableV2, ElPagination } from 'element-plus'
+import type { Column as V2Column, CellRendererParams } from 'element-plus/es/components/table-v2/src/types'
 import type { ColumnDef, SortOrder } from './types'
 
 const props = withDefaults(defineProps<{
@@ -74,8 +75,10 @@ const emit = defineEmits<{
 
 /**
  * 将 ColumnDef 转换为 el-table-v2 接受的列配置
+ * 使用 V2Column<any> 显式标注计算属性的返回类型，
+ * 避免推断类型与 el-table-v2 columns 期望不匹配（TS2322 AnyColumn）
  */
-const v2Columns = computed(() => {
+const v2Columns = computed<V2Column<any>[]>(() => {
   return props.columns
     .filter(col => !col.hidden)
     .map(col => ({
@@ -87,7 +90,8 @@ const v2Columns = computed(() => {
       fixed: col.fixed,
       sortable: col.sortable,
       align: col.align ?? 'left',
-      cellRenderer: (params: { rowData: any; rowIndex: number }) => {
+      // cellRenderer 必须接受完整 CellRendererParams<any>（参数协变校验）
+      cellRenderer: (params: CellRendererParams<any>) => {
         const row = params.rowData
         if (col.renderCell) {
           return col.renderCell(row)
