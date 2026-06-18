@@ -16,7 +16,6 @@ use axum::{
     Json,
 };
 use chrono::{DateTime, Utc};
-use migration::ExprTrait;
 use sea_orm::{
     ColumnTrait, ConnectionTrait, EntityTrait, PaginatorTrait, QueryFilter, QueryOrder, Statement,
 };
