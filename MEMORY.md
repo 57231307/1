@@ -147,46 +147,33 @@
 
 | PR | 任务 | 子代理 | 提交 | 状态 |
 |------|------|--------|------|------|
+| [#108](https://github.com/57231307/1/pull/108) | P2-1 PR-1 V2Table 组件 + useTableApi composable | 主代理 | （较早 commit） | ✅ **已合并** |
+| [#110](https://github.com/57231307/1/pull/110) | P2-1 PR-3 OrderListView 迁 V2Table | 主代理 | 1daaac6 | ✅ **已合并** |
 | [#183](https://github.com/57231307/1/pull/183) | P0 port 销售报价单数据层（PR-A1）| 主代理串行 | b21e281 | ✅ **已合并** |
 | [#181](https://github.com/57231307/1/pull/181) | P2-1 PR-2 V2Table 迁移 StockTab | 主代理 | e909a70 | ✅ **已合并** |
+| [#184](https://github.com/57231307/1/pull/184) | P0 port 销售报价单 DTO + Service（PR-A2）| 主代理 + 子代理 | 684e10e | ✅ **已合并** |
 | [#182](https://github.com/57231307/1/pull/182) | P2-2 性能优化：DB N+1 审计 + Redis 缓存层 | 主代理 | da5e096 | ✅ **已合并** |
 
-#### PR #183 销售报价单数据层（PR-A1，2026-06-17 合并）
-- 销售报价单数据层：3 迁移（m0020/0021/0022）+ 3 SQL 脚本对 + 3 SeaORM 模型
-- 详见 CHANGELOG P12 批 1 合并汇总条目
+#### PR #184 销售报价单 DTO + Service（PR-A2，2026-06-18 合并）
+- **3 个 DTO**：
+  - `quotation_create_dto.rs`（181 行）：主表 + 明细 + 贸易条款；项级 `#[allow(dead_code)]` + TODO
+  - `quotation_response_dto.rs`（283 行）：响应 DTO + `From<(Model, Items, Terms)>` 三元组转换 + `QuotationQueryParams`
+  - `quotation_update_dto.rs`（86 行）：可选字段更新 DTO
+- **Service** `quotation_service.rs`（689 行）：list / get_by_id / create / update / cancel / submit / approve / reject + 12 个单元测试
+- **Stub pricing** `quotation_pricing_service.rs`（140 行）：文件级 `#![allow(dead_code)]` + 4 个单元测试
+- **CI 修复历程**（4 轮迭代）：子代理首次提交用 `Select.offset()` / `sea_orm::Json` / `Json.0` tuple access / `as u64` redundant cast / 文件级 dead_code 5 轮修复
+- **CI 验证**：5 个 check-run 全绿（构建后端/前端/前端测试/运行测试/构建通知）
+- **后续 TODO**：PR-3 handler 接入后逐项移除 dead_code 标记；P13+ port product_color_price 后移除 stub pricing
 
-#### PR #181 P2-1 PR-2 V2Table 迁移 StockTab（2026-06-17 合并）
-- **目标**：将 `frontend/src/views/inventory/tabs/StockTab.vue` 迁移到 V2Table 组件
-- **基础**：依赖 PR #108（V2Table 组件 + useTableApi composable + 4-5 单元测试）
-- **架构**：StockTab.vue → V2Table 组件 → useTableApi composable → axios request.get
-- **CI 验证**：squash merge 入 main
+#### P12 批 1 实际状态更正（2026-06-18）
+- **P2-1 实际已完成 3/5 PR**（PR #108 + #181 + #110），非摘要中"PR-1 + PR-2 已完成"
+- 浅克隆 + B3 子代理发现 PR #110 已合并时发现此差异
+- 修正后 P12 批 1 进展：6/10 PR 完成（PR #108/#110/#183/#181/#184/#182）
 
-#### PR #182 性能优化（P2-2，2026-06-18 合并）
-- **Redis 缓存层**：`backend/src/cache/redis_client.rs`（480 行）+ `mod.rs`（14 行）
-  - `CacheBackend` trait + `RedisBackend` 真实实现 + `NullBackend` 优雅降级
-  - `CacheService` 业务级门面：build_key / get_json / set_json / invalidate
-  - 强租户隔离键空间 `tenant:{tenant_id}:{entity_type}:{entity_id}`
-  - TTL 默认 300s，可通过 `CACHE_TTL_SECS` 环境变量调整
-  - `CacheStats` 命中/未命中/错误统计
-- **业务接入**：`user_service` + `product_service` 接入 CacheService
-- **DB N+1 审计**：`docs/audits/2026-06-18-db-n1-audit.md`（278 行）
-- **CI 修复历程**（4 轮迭代）：
-  1. `a6d65a4`：用 `use crate::cache` 修正 import 路径
-  2. `068f314`：在 main.rs 加 `mod cache` 暴露
-  3. `bfbf6a1`：cache 模块文件级 `#![allow(dead_code)]` + TODO
-  4. `f4c7dfe`：cache/mod.rs pub use 加 `#[allow(unused_imports)]`
-- **CI 验证**：4 job 全绿（构建后端/前端/前端测试/运行测试）
-- **后续 TODO**：cache 辅助 API（from_env / is_enabled / stats / snapshot / NullBackend 等）需在销售报价单/审批/导入导出等业务模块分阶段接入并移除文件级 allow
-
-#### P12 批 1 子代理派发计划（剩余 6 PR / 3 子代理方向）
-- 子代理 A：A2/A3/A4（P0 port 销售报价单 DTO+Service → Handler+路由 → 审批+转换+测试，3 PR 串行）
-- 子代理 B：B3/B4/B5（P2-1 V2Table PR-3~5 改写 OrderListView / production / RecordTab，3 PR 串行）
+#### P12 批 1 子代理派发计划（剩余 4 PR / 3 子代理方向）
+- 子代理 A：A3/A4（P0 port 销售报价单 Handler+路由 → 审批+转换+测试，2 PR 串行）
+- 子代理 B：B4/B5（P2-1 V2Table PR-4~5 改写 production / RecordTab，2 PR 串行）
 - 子代理 C：B-type-check（CI 5 job + vue-tsc 集成，1 PR）
-
-#### 本地仓库修复（2026-06-18）
-- 浅克隆（shallow clone）导致本地 main 缺少 b21e281（PR #183）和 e909a70（PR #181）的 commit
-- `git fetch --unshallow origin` 拉取完整历史后恢复
-- 教训：所有验证/派发前必须 `git fetch --unshallow` 确保历史完整
 
 ### Wave 3 收尾关键产出
 
