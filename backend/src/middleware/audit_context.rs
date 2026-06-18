@@ -39,8 +39,8 @@ impl AuditContext {
     pub fn empty() -> Self {
         Self {
             request_id: String::new(),
-            ip_address: "unknown".to_string(),
-            user_agent: "unknown".to_string(),
+            ip_address: String::new(),
+            user_agent: String::new(),
         }
     }
 
@@ -189,12 +189,12 @@ mod tests {
         assert_eq!(response.status(), 200);
     }
 
-    /// `AuditContext::empty()` 字段全为缺省值
+    /// `AuditContext::empty()` 字段全为空字符串
     #[test]
-    fn test_audit_context_empty_defaults() {
+    fn test_empty_context() {
         let ctx = AuditContext::empty();
         assert_eq!(ctx.request_id, "");
-        assert_eq!(ctx.ip_address, "unknown");
-        assert_eq!(ctx.user_agent, "unknown");
+        assert_eq!(ctx.ip_address, "");
+        assert_eq!(ctx.user_agent, "");
     }
 }
