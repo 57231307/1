@@ -25,6 +25,10 @@ pub mod sales_order_item;
 pub mod sales_quotation;
 pub mod sales_quotation_item;
 pub mod sales_quotation_term;
+// 销售报价单 DTO（P12 批 1 P0 port PR-2：DTO + 基础 Service）
+pub mod quotation_create_dto;
+pub mod quotation_response_dto;
+pub mod quotation_update_dto;
 pub mod status;
 pub mod user;
 // MRP生产计划模块
