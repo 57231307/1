@@ -143,7 +143,7 @@
   - **v0.3 关键发现**：test 分支与 main 完全分叉，1154 独有 commit / 29 迁移文件 / 7 handler；P0 销售报价单与 P0 产品色价为高价值资产
   - 用户决策：3 关键点已确认（命名/旧文件/范围）+ P0 port 范围确认 + v0.3 合并策略确认
 
-### P12 批 1 进展（2026-06-18，**11/11 PR 全部完成**）
+### P12 批 1 进展（2026-06-18，**13/13 PR 全部完成**）
 
 | PR | 任务 | 子代理 | 提交 | 状态 |
 |------|------|--------|------|------|
@@ -373,6 +373,7 @@ backend/src/handlers/advanced/
 
 ## 九、最后更新
 
+- 2026-06-18 15:14 (Asia/Shanghai) - PR #191 P3-2 审计日志增强（操作类型/严重级别/请求上下文/差异快照）（P13 批 1 H）squash merge 入 main（940dca1）：6 commit（5 特性 + 5 修复）；CI 5 轮迭代（rustfmt 行宽 / use 顺序 / 多 max 歧义 / bin target dead_code / Severity impl 错位）；**P13 批 1 已完成 1/3 PR**
 - 2026-06-18 14:00 (Asia/Shanghai) - PR #190 P3-1 前端 2FA + 修改密码 + 密码强度可视化（P12 批 3 F）squash merge 入 main（7074944）：6 commit（5 特性 + 1 CI 修复）；CI 2 轮迭代修复（type-check ChangePassword.vue:53 v-model→:password + 算法调整使 < 8 字符判极弱）；**P12 批 1+2+3 实际 12/12 PR 全部完成**
 - 2026-06-18 12:36 (Asia/Shanghai) - PR #189 vue-tsc 错误清理 + 移除 || true（P12 批 2 E）squash merge 入 main（01a8354）：16 个 vue-tsc 错误全部清理 + `|| true` 移除 + type-check 真正起到拦截作用；CI 4 轮迭代修复（E 子代理 7 commit + 主代理 2 补丁）；**P12 批 1+2 实际 11/11 PR 全部完成**
 - 2026-06-18 06:45 (Asia/Shanghai) - PR #188 B-type-check（CI 加 vue-tsc 第 5 job）squash merge 入 main（c40d3f1）：5 job 全绿（临时用 `|| true` 跳过 main 上 16 个预存 vue-tsc 错误）；**P12 批 1 实际 10/10 PR 全部完成**
