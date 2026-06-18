@@ -6,6 +6,20 @@ import type { LoginRequest, LoginResponse, UserInfo } from '@/types/api'
 const CSRF_TOKEN_KEY = 'csrf_token'
 
 /**
+ * 登录响应扩展：包含后端返回的 CSRF Token（用于后续非安全方法请求）
+ * 通过本地交叉类型扩展，避免修改全局类型定义
+ */
+type LoginResponseWithCsrf = LoginResponse & { csrf_token?: string }
+
+/**
+ * 刷新 Token 响应：包含新 access_token 与可选的 CSRF Token
+ */
+interface RefreshTokenResponse {
+  token: string
+  csrf_token?: string
+}
+
+/**
  * 保存 CSRF Token 到 localStorage
  * 登录成功与 refresh 成功后调用，供后续非安全方法请求使用
  */
@@ -29,23 +43,26 @@ function clearCsrfToken(): void {
 }
 
 export function login(data: LoginRequest): Promise<LoginResponse> {
-  return request.post('/auth/login', data).then(res => {
+  return request.post<LoginResponseWithCsrf>('/auth/login', data).then(res => {
     // 登录成功后保存 CSRF Token，供后续非安全方法请求使用
     if (res && res.csrf_token) {
       saveCsrfToken(res.csrf_token)
     }
-    return res
+    // 转换为标准 LoginResponse（去除 csrf_token 字段）
+    const { csrf_token: _csrf, ...payload } = res
+    void _csrf
+    return payload
   })
 }
 
 export function logout(): Promise<void> {
   // 登出时清除本地 CSRF Token
   clearCsrfToken()
-  return request.post('/auth/logout')
+  return request.post<void>('/auth/logout')
 }
 
 export function refreshToken(refreshToken: string): Promise<{ token: string; csrf_token?: string }> {
-  return request.post('/auth/refresh', { refresh_token: refreshToken }).then(res => {
+  return request.post<RefreshTokenResponse>('/auth/refresh', { refresh_token: refreshToken }).then(res => {
     // 刷新 Token 后同步更新 CSRF Token（rotation 模式：旧 token 已被消费）
     if (res && res.csrf_token) {
       saveCsrfToken(res.csrf_token)
@@ -55,7 +72,7 @@ export function refreshToken(refreshToken: string): Promise<{ token: string; csr
 }
 
 export function getUserInfo(): Promise<UserInfo> {
-  return request.get('/auth/me')
+  return request.get<UserInfo>('/auth/me')
 }
 
 // 导出 CSRF Token 工具，供 request.ts 中的 axios 拦截器使用
