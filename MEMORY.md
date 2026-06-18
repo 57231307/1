@@ -147,12 +147,19 @@
 
 | PR | 任务 | 子代理 | 提交 | 状态 |
 |------|------|--------|------|------|
-| [#183](https://github.com/57231307/1/pull/183) | P0 port 销售报价单数据层（PR-A1）| 主代理串行 | 7e51d50 | ✅ **已合并** |
+| [#183](https://github.com/57231307/1/pull/183) | P0 port 销售报价单数据层（PR-A1）| 主代理串行 | b21e281 | ✅ **已合并** |
+| [#181](https://github.com/57231307/1/pull/181) | P2-1 PR-2 V2Table 迁移 StockTab | 主代理 | e909a70 | ✅ **已合并** |
 | [#182](https://github.com/57231307/1/pull/182) | P2-2 性能优化：DB N+1 审计 + Redis 缓存层 | 主代理 | da5e096 | ✅ **已合并** |
 
 #### PR #183 销售报价单数据层（PR-A1，2026-06-17 合并）
-- 销售报价单数据层：8 数据库表 + 8 model
+- 销售报价单数据层：3 迁移（m0020/0021/0022）+ 3 SQL 脚本对 + 3 SeaORM 模型
 - 详见 CHANGELOG P12 批 1 合并汇总条目
+
+#### PR #181 P2-1 PR-2 V2Table 迁移 StockTab（2026-06-17 合并）
+- **目标**：将 `frontend/src/views/inventory/tabs/StockTab.vue` 迁移到 V2Table 组件
+- **基础**：依赖 PR #108（V2Table 组件 + useTableApi composable + 4-5 单元测试）
+- **架构**：StockTab.vue → V2Table 组件 → useTableApi composable → axios request.get
+- **CI 验证**：squash merge 入 main
 
 #### PR #182 性能优化（P2-2，2026-06-18 合并）
 - **Redis 缓存层**：`backend/src/cache/redis_client.rs`（480 行）+ `mod.rs`（14 行）
@@ -171,10 +178,15 @@
 - **CI 验证**：4 job 全绿（构建后端/前端/前端测试/运行测试）
 - **后续 TODO**：cache 辅助 API（from_env / is_enabled / stats / snapshot / NullBackend 等）需在销售报价单/审批/导入导出等业务模块分阶段接入并移除文件级 allow
 
-#### P12 批 1 子代理派发计划（剩余）
+#### P12 批 1 子代理派发计划（剩余 6 PR / 3 子代理方向）
 - 子代理 A：A2/A3/A4（P0 port 销售报价单 DTO+Service → Handler+路由 → 审批+转换+测试，3 PR 串行）
-- 子代理 B：B2/B3/B4（P2-1 el-table-v2 PR-2~5，4 PR 串行改写 4 .vue）
+- 子代理 B：B3/B4/B5（P2-1 V2Table PR-3~5 改写 OrderListView / production / RecordTab，3 PR 串行）
 - 子代理 C：B-type-check（CI 5 job + vue-tsc 集成，1 PR）
+
+#### 本地仓库修复（2026-06-18）
+- 浅克隆（shallow clone）导致本地 main 缺少 b21e281（PR #183）和 e909a70（PR #181）的 commit
+- `git fetch --unshallow origin` 拉取完整历史后恢复
+- 教训：所有验证/派发前必须 `git fetch --unshallow` 确保历史完整
 
 ### Wave 3 收尾关键产出
 
