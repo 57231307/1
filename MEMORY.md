@@ -96,6 +96,8 @@
 | **A2-2 质量预测**（quality_pred）| dd9faa4 | ✅ **完成**（PR #100 squash merge，CI 4 job 全绿，8 文件实施，4 单测全过，自动发布 v2026.615.2350）|
 | **P11 批 1：3 个高风险任务** | 0b1c9ac | ✅ **完成**（PR #173-#175 全部 squash merge，CI 4 job 全绿） |
 | **P11 收尾 PR #176** | 382e522 | ✅ **完成**（H3 死字段修复 + 27 个新 dead_code 扩展标注 + CHANGELOG/MEMORY 同步，squash merge，CI 4 job 全绿）|
+| **P13 批 1 P3-2 审计日志增强**（PR #191）| 940dca1 | ✅ **已合并**（H 子代理，6 commit 经 squash merge，CI 5 轮迭代）|
+| **P13 批 1 B-慢查询审计**（PR #192）| 04b12cd | ✅ **已合并**（G 子代理，3 commit 经 squash merge，CI 2 轮迭代：max 歧义 + 未用 import）|
 
 ### P11 批 1 详情（2026-06-17）
 
@@ -373,6 +375,7 @@ backend/src/handlers/advanced/
 
 ## 九、最后更新
 
+- 2026-06-18 15:55 (Asia/Shanghai) - PR #192 B-慢查询审计（pg_stat_statements + 后台采集 + 统计）（P13 批 1 G）squash merge 入 main（04b12cd）：3 commit（1 特性 + 2 修复）；CI 2 轮迭代（max 歧义改 std::cmp::Ord::max / 删未用 import migration::ExprTrait）；**P13 批 1 已完成 2/3 PR**
 - 2026-06-18 15:14 (Asia/Shanghai) - PR #191 P3-2 审计日志增强（操作类型/严重级别/请求上下文/差异快照）（P13 批 1 H）squash merge 入 main（940dca1）：6 commit（5 特性 + 5 修复）；CI 5 轮迭代（rustfmt 行宽 / use 顺序 / 多 max 歧义 / bin target dead_code / Severity impl 错位）；**P13 批 1 已完成 1/3 PR**
 - 2026-06-18 14:00 (Asia/Shanghai) - PR #190 P3-1 前端 2FA + 修改密码 + 密码强度可视化（P12 批 3 F）squash merge 入 main（7074944）：6 commit（5 特性 + 1 CI 修复）；CI 2 轮迭代修复（type-check ChangePassword.vue:53 v-model→:password + 算法调整使 < 8 字符判极弱）；**P12 批 1+2+3 实际 12/12 PR 全部完成**
 - 2026-06-18 12:36 (Asia/Shanghai) - PR #189 vue-tsc 错误清理 + 移除 || true（P12 批 2 E）squash merge 入 main（01a8354）：16 个 vue-tsc 错误全部清理 + `|| true` 移除 + type-check 真正起到拦截作用；CI 4 轮迭代修复（E 子代理 7 commit + 主代理 2 补丁）；**P12 批 1+2 实际 11/11 PR 全部完成**
