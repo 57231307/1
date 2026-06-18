@@ -49,9 +49,9 @@
             show-password
             autocomplete="new-password"
           />
-          <!-- 实时密码强度可视化 -->
+          <!-- 实时密码强度可视化（PasswordStrengthMeter 用 defineProps 接收 password，单向绑定即可） -->
           <PasswordStrengthMeter
-            v-model="form.new_password"
+            :password="form.new_password"
             class="strength-meter"
           />
         </el-form-item>

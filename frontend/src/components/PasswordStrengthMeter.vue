@@ -39,16 +39,20 @@ const emit = defineEmits<{
 
 /**
  * 简化版密码强度计算（不调后端）
- * - 长度 ≥ 12：+1
- * - 含大写字母：+1
- * - 含小写字母：+1
- * - 含数字：+1
- * - 含特殊字符：+1
- * - 累计 0-4 分
+ * - 长度 < 8：直接 0 分（极弱，过短无法补救）
+ * - 长度 ≥ 8：进入评分
+ *   - 长度 ≥ 12：+1
+ *   - 含大写字母：+1
+ *   - 含小写字母：+1
+ *   - 含数字：+1
+ *   - 含特殊字符：+1
+ *   - 累计 0-4 分（封顶 4）
  */
 const strengthScore = computed<number>(() => {
   const pwd = props.password || ''
   if (!pwd) return 0
+  // 长度 < 8 视为极弱（即使字符类齐全也救不回来）
+  if (pwd.length < 8) return 0
   let score = 0
   if (pwd.length >= 12) score += 1
   if (/[A-Z]/.test(pwd)) score += 1
