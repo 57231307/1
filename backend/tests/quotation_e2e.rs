@@ -97,7 +97,7 @@ fn dec(s: &str) -> Decimal {
 /// 端到端状态机：完整转换链必须按 DRAFT → SUBMITTED → APPROVED → CONVERTED
 #[test]
 fn test_state_machine_full_chain() {
-    let chain = vec![
+    let chain: [&str; 4] = [
         status_codes::DRAFT,
         status_codes::SUBMITTED,
         status_codes::APPROVED,
