@@ -2,7 +2,7 @@
 // 与后端 audit_log_handler 配套：分页 + 多维筛选 / 详情 / CSV 导出
 // 强租户隔离：request.ts 拦截器自动注入 X-Tenant-Id
 
-import request from './request'
+import { request } from './request'
 
 /** 操作类型枚举（与后端 OperationType 同步） */
 export type OperationType =
@@ -79,18 +79,16 @@ interface ApiResponse<T> {
  * 分页查询审计日志
  */
 export function listAuditLogs(params: AuditLogListParams = {}): Promise<AuditLogListResponse> {
-  return request
-    .get<ApiResponse<AuditLogListResponse>>('/api/v1/erp/audit-logs', { params })
-    .then((res) => res.data.data)
+  return request.get<ApiResponse<AuditLogListResponse>>('/audit-logs', { params }).then(
+    (res) => res.data,
+  )
 }
 
 /**
  * 获取审计日志详情
  */
 export function getAuditLog(id: number): Promise<AuditLogDetail> {
-  return request
-    .get<ApiResponse<AuditLogDetail>>(`/api/v1/erp/audit-logs/${id}`)
-    .then((res) => res.data.data)
+  return request.get<ApiResponse<AuditLogDetail>>(`/audit-logs/${id}`).then((res) => res.data)
 }
 
 /**
@@ -98,10 +96,8 @@ export function getAuditLog(id: number): Promise<AuditLogDetail> {
  * 返回 blob，前端用 `URL.createObjectURL` 触发下载
  */
 export function exportAuditLogs(params: AuditLogListParams = {}): Promise<Blob> {
-  return request
-    .get<Blob>('/api/v1/erp/audit-logs/export', {
-      params,
-      responseType: 'blob',
-    })
-    .then((res) => res.data)
+  return request.get<Blob>('/audit-logs/export', {
+    params,
+    responseType: 'blob',
+  })
 }

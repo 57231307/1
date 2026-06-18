@@ -86,7 +86,7 @@ describe('AuditLogView（P13 批 1 P3-2）', () => {
       total: 2,
       page: 1,
       page_size: 20,
-    })
+    } as any)
     mockGetAuditLog.mockResolvedValue({
       ...sampleLogs[0],
       before_snapshot: { amount: 100 },

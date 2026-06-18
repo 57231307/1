@@ -175,7 +175,7 @@
  */
 import { ref, reactive, onMounted, h } from 'vue'
 import { ElMessage, ElTag, ElButton } from 'element-plus'
-import { Search, Refresh, Download, View } from '@element-plus/icons-vue'
+import { Search, Refresh, Download } from '@element-plus/icons-vue'
 import V2Table from '@/components/V2Table/index.vue'
 import type { ColumnDef } from '@/components/V2Table/types'
 import {
@@ -258,12 +258,12 @@ const currentDetail = ref<AuditLogDetail | null>(null)
 // 表格列定义
 const columns: ColumnDef[] = [
   { key: 'id', title: 'ID', width: 70 },
-  { key: 'created_at', title: '操作时间', width: 170, formatter: (row) => formatDateTime(row.created_at) },
+  { key: 'created_at', title: '操作时间', width: 170, formatter: (row: Record<string, unknown>) => formatDateTime(row.created_at as string | null | undefined) },
   {
     key: 'operation_type',
     title: '操作类型',
     width: 100,
-    renderCell: (row) =>
+    renderCell: (row: Record<string, unknown>) =>
       h(
         ElTag,
         { type: OP_TYPE_TAG[row.operation_type as string] ?? 'info', size: 'small' },
@@ -274,7 +274,7 @@ const columns: ColumnDef[] = [
     key: 'severity',
     title: '级别',
     width: 80,
-    renderCell: (row) =>
+    renderCell: (row: Record<string, unknown>) =>
       h(
         ElTag,
         { type: SEVERITY_TAG[row.severity as string] ?? 'info', size: 'small' },
@@ -292,7 +292,7 @@ const columns: ColumnDef[] = [
     title: '操作',
     width: 80,
     fixed: 'right',
-    renderCell: (row) =>
+    renderCell: (row: Record<string, unknown>) =>
       h(
         ElButton,
         {
@@ -301,7 +301,7 @@ const columns: ColumnDef[] = [
           link: true,
           onClick: (e: Event) => {
             e.stopPropagation()
-            handleViewDetail(row)
+            handleViewDetail(row as unknown as AuditLogItem)
           },
         },
         () => '详情',
