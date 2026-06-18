@@ -352,6 +352,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             crate::services::event_bus::start_event_listener(app_state.db.clone()).await;
             crate::services::event_bus::init_event_bus_with_kafka_config(&settings.kafka).await;
             let app = create_router(app_state)
+                // P3.2：审计上下文（必须在 trace_context 之内层挂载，
+                // 即在 .layer() 链中位于 trace_context 之前；这样请求先经过
+                // trace_context 注入 trace_id，再进入 audit_context 读取并补充 IP/UA）
+                .layer(axum::middleware::from_fn(
+                    crate::middleware::audit_context::audit_context_middleware,
+                ))
                 // P3.3：分布式追踪上下文（最最外层，确保下游都能拿到 trace_id）
                 .layer(axum::middleware::from_fn(
                     crate::middleware::trace_context::trace_context_middleware,

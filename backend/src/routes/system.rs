@@ -180,6 +180,28 @@ pub fn health() -> Router<AppState> {
         .route("/health/liveness", get(health_handler::liveness_check))
 }
 
+/// 审计日志查询路由（path 前缀 /audit-logs）
+///
+/// P13 批 1 P3-2 增强版：
+/// - GET /audit-logs          列表（分页 + 多维筛选）
+/// - GET /audit-logs/:id      详情
+/// - GET /audit-logs/export   CSV 导出
+pub fn audit_logs() -> Router<AppState> {
+    Router::new()
+        .route(
+            "/audit-logs",
+            get(audit_log_handler::list_audit_logs),
+        )
+        .route(
+            "/audit-logs/export",
+            get(audit_log_handler::export_audit_logs),
+        )
+        .route(
+            "/audit-logs/:id",
+            get(audit_log_handler::get_audit_log),
+        )
+}
+
 /// 初始化路由（path 前缀 /init）
 pub fn init() -> Router<AppState> {
     Router::new()
@@ -210,4 +232,5 @@ pub fn routes() -> Router<AppState> {
         .merge(bpm())
         .merge(health())
         .merge(init())
+        .merge(audit_logs())
 }
