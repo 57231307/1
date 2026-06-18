@@ -1,4 +1,5 @@
 <script setup lang="ts">
+/* eslint-disable vue/no-mutating-props */
 /**
  * PurchFilter - 采购管理筛选表单
  * 任务编号: P13 批 1 B3 I-1（拆分 purchase/index.vue 筛选表单）

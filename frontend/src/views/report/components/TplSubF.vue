@@ -1,4 +1,5 @@
 <script setup lang="ts">
+/* eslint-disable vue/no-mutating-props */
 /**
  * TplSubF - 报表订阅表单对话框（纯展示）
  * 任务编号: P13 批 1 B3 I-1（拆分 report/templates.vue 订阅表单对话框）

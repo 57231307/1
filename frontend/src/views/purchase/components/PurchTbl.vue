@@ -1,4 +1,5 @@
 <script setup lang="ts">
+/* eslint-disable vue/no-mutating-props */
 /**
  * PurchTbl - 采购管理数据表格（纯展示）
  * 任务编号: P13 批 1 B3 I-1（拆分 purchase/index.vue 主表格）

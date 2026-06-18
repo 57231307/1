@@ -1,4 +1,5 @@
 <script setup lang="ts">
+/* eslint-disable vue/no-mutating-props */
 /**
  * RcpPanel - 工艺优化（染色配方）tab 视图组件（纯展示）
  * 任务编号: P13 批 1 B3 I-1（拆分 advanced/index.vue 第 4 个 tab）

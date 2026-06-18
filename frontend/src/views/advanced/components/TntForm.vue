@@ -1,4 +1,5 @@
 <script setup lang="ts">
+/* eslint-disable vue/no-mutating-props */
 /**
  * TntForm - 租户创建/编辑对话框组件（纯展示）
  * 任务编号: P13 批 1 B3 I-1（拆分 advanced/index.vue 租户对话框）

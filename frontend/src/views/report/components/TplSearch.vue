@@ -1,4 +1,5 @@
 <script setup lang="ts">
+/* eslint-disable vue/no-mutating-props */
 /**
  * TplSearch - 报表模板搜索表单（纯展示）
  * 任务编号: P13 批 1 B3 I-1（拆分 report/templates.vue 顶部搜索）
