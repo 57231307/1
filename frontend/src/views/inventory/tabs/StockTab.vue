@@ -150,7 +150,9 @@ const STATUS_TEXT: Record<string, string> = {
   warning: '预警',
   frozen: '冻结',
 }
-const STATUS_TYPE: Record<string, string> = {
+// 限定为 ElTag 接受的类型集合，与 el-tag type 属性严格匹配
+type ElTagType = 'primary' | 'success' | 'warning' | 'info' | 'danger'
+const STATUS_TYPE: Record<string, ElTagType> = {
   normal: 'success',
   warning: 'warning',
   frozen: 'info',
@@ -255,7 +257,7 @@ const columns = computed<ColumnDef[]>(() => [
       h(
         ElTag,
         { type: STATUS_TYPE[row.status] ?? 'info', size: 'small' },
-        () => STATUS_TEXT[row.status] ?? row.status
+        { default: () => STATUS_TEXT[row.status] ?? row.status }
       ),
   },
   { key: 'updated_at', title: '更新时间', width: 180, sortable: true },
@@ -269,7 +271,7 @@ const columns = computed<ColumnDef[]>(() => [
         h(
           ElButton,
           { type: 'primary', link: true, size: 'small', onClick: () => handleView(row) },
-          () => '详情'
+          { default: () => '详情' }
         ),
         h(
           ElButton,
@@ -279,7 +281,7 @@ const columns = computed<ColumnDef[]>(() => [
             size: 'small',
             onClick: () => handleEdit(row),
           },
-          () => '编辑'
+          { default: () => '编辑' }
         ),
         h(
           ElButton,
@@ -289,7 +291,7 @@ const columns = computed<ColumnDef[]>(() => [
             size: 'small',
             onClick: () => handleDelete(row),
           },
-          () => '删除'
+          { default: () => '删除' }
         ),
       ]),
   },
