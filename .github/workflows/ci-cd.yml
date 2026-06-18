@@ -256,9 +256,42 @@ jobs:
         run: |
           npm run lint
 
+  type-check:
+    name: 前端类型检查
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: 检出代码
+        uses: actions/checkout@v5
+
+      - name: 安装 Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: 缓存 npm 依赖
+        uses: actions/cache@v5
+        with:
+          path: |
+            frontend/node_modules
+            ~/.npm
+          key: ${{ runner.os }}-npm-${{ hashFiles('frontend/package-lock.json') }}
+          restore-keys: |
+            ${{ runner.os }}-npm-
+
+      - name: 安装前端依赖
+        working-directory: frontend
+        run: |
+          npm ci
+
+      - name: 运行 vue-tsc 类型检查
+        working-directory: frontend
+        run: |
+          npx vue-tsc --noEmit
+
   package-release:
     name: 创建发布包
-    needs: [build-backend, build-frontend, test, test-frontend]
+    needs: [build-backend, build-frontend, test, test-frontend, type-check]
     runs-on: ubuntu-latest
     if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master' || startsWith(github.ref, 'refs/tags/v'))
     permissions:
@@ -465,7 +498,7 @@ jobs:
 
   notify:
     name: 构建通知
-    needs: [test, test-frontend, build-backend, build-frontend, package-release, github-release]
+    needs: [test, test-frontend, build-backend, build-frontend, type-check, package-release, github-release]
     runs-on: ubuntu-latest
     if: always()
     steps:
@@ -479,11 +512,12 @@ jobs:
           echo "前端测试: ${{ needs.test-frontend.result }}"
           echo "后端构建: ${{ needs.build-backend.result }}"
           echo "前端构建: ${{ needs.build-frontend.result }}"
+          echo "前端类型检查: ${{ needs.type-check.result }}"
           echo "发布包: ${{ needs.package-release.result }}"
           echo "GitHub Release: ${{ needs.github-release.result }}"
           echo ""
-          
-          if [ "${{ needs.build-backend.result }}" == "success" ] && [ "${{ needs.build-frontend.result }}" == "success" ] && [ "${{ needs.test.result }}" == "success" ] && [ "${{ needs.test-frontend.result }}" == "success" ]; then
+
+          if [ "${{ needs.build-backend.result }}" == "success" ] && [ "${{ needs.build-frontend.result }}" == "success" ] && [ "${{ needs.test.result }}" == "success" ] && [ "${{ needs.test-frontend.result }}" == "success" ] && [ "${{ needs.type-check.result }}" == "success" ]; then
             echo "✅ 构建成功！"
             echo "📦 版本: ${{ needs.build-backend.outputs.version }}"
             echo ""
