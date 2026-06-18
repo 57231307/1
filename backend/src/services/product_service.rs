@@ -10,11 +10,11 @@ use sea_orm::{
 };
 use std::sync::Arc;
 
-use crate::cache::CacheService;
 use crate::models::product::{self, Entity as ProductEntity};
 use crate::models::product_color::{self, Entity as ProductColorEntity};
 use crate::utils::error::AppError;
 use crate::utils::sql_escape::safe_like_pattern;
+use bingxi_backend::cache::CacheService;
 
 /// 创建产品色号输入结构体
 #[derive(Debug, Clone)]
