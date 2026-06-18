@@ -141,6 +141,7 @@
           <el-menu-item index="/notification">通知中心</el-menu-item>
           <el-menu-item index="/omni-audit">全量审计</el-menu-item>
           <el-menu-item index="/system/audit-log">审计日志</el-menu-item>
+          <el-menu-item index="/system/slow-query">慢查询审计</el-menu-item>
         </el-sub-menu>
       </el-menu>
     </el-aside>

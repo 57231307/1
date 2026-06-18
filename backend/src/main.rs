@@ -330,6 +330,17 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 crate::services::audit_cleanup_service::AuditCleanupService::new(db.clone(), 999),
             );
 
+            // P13 批 1 B-慢查询审计：启动后台采集任务（每 5 分钟）
+            // 注意：采集失败仅记录日志，不阻断 main 启动
+            let slow_collector = Arc::new(
+                crate::services::slow_query_collector::SlowQueryCollector::new(
+                    db.clone(),
+                    100.0, // 阈值 100ms
+                    100,   // 单次最大 100 条
+                ),
+            );
+            slow_collector.clone().start_collect_task(5 * 60); // 5 分钟间隔
+
             let app_state = match crate::utils::app_state::AppState::with_secrets_and_cors(
                 db,
                 omni_audit,

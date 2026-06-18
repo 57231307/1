@@ -133,3 +133,5 @@ pub mod audit_cleanup_service;
 pub mod sensitive_action_alert;
 // 增强日志服务
 pub mod enhanced_logger;
+// 慢查询后台采集服务（P13 批 1 B-慢查询审计）
+pub mod slow_query_collector;

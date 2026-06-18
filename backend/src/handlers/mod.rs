@@ -121,6 +121,7 @@ pub mod audit_enhanced_handler;
 pub mod audit_log_handler;
 pub mod email_handler;
 pub mod login_security_handler;
+pub mod slow_query_handler;
 pub mod webhook_integration_handler;
 // 生产排程模块
 pub mod scheduling_handler;
