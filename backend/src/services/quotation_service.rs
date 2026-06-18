@@ -8,14 +8,12 @@
 //! - 数据库连接使用 main 风格 `Arc<DatabaseConnection>`。
 //! - 租户隔离：所有方法接受 `tenant_id` 参数，调用方（handler 层）须用
 //!   `crate::middleware::tenant::extract_tenant_id(&auth)?` 提取，**严禁** `auth.tenant_id.unwrap_or(0)`。
-//! - 当前 PR-2 不实现 `convert_to_order`（报价转销售订单），待 PR-4 接入。
+//! - 报价转销售订单逻辑已抽离至 `quotation_convert_service`（P12 批 1 PR-A4）。
 //!
 //! # 死代码说明
-//! PR-2 阶段 QuotationService 尚未被 server bin crate 调用（PR-3 handler 才会接入），
-//! CI clippy `-D warnings` 会报 dead_code。按 P12 批 1 PR #182 (Redis 缓存) 相同策略
-//! 使用文件级 `#![allow(dead_code)]` + TODO 注释，待 PR-3 handler 接入后逐项移除。
-#![allow(dead_code)]
-// TODO(tech-debt): PR-3 handler 接入后逐项移除 dead_code 标记
+//! PR-A4 阶段 QuotationService 公开 API（list / get_by_id / create / update / cancel / submit / approve / reject / list_items / list_terms）
+//! 全部被 `quotation_handler` 调用，文件级抑制已移除。如 CI 报告具体 dead_code 位置，
+//! 优先改为项级 `#[allow(dead_code)] + TODO(tech-debt)`。
 
 use std::sync::Arc;
 
@@ -48,10 +46,12 @@ pub mod status_codes {
     /// 已拒绝：流程结束
     pub const REJECTED: &str = "REJECTED";
     /// 已转销售订单
+    #[allow(dead_code)] // TODO(tech-debt): 待 P12+ 业务接入后移除（CONVERTED 由 cron 自动写入）
     pub const CONVERTED: &str = "CONVERTED";
     /// 已取消
     pub const CANCELLED: &str = "CANCELLED";
     /// 已过期
+    #[allow(dead_code)] // TODO(tech-debt): 待 P12+ 业务接入后移除（EXPIRED 由 cron 自动写入）
     pub const EXPIRED: &str = "EXPIRED";
 }
 

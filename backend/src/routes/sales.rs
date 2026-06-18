@@ -90,7 +90,8 @@ pub fn sales() -> Router<AppState> {
 
 /// 销售报价单路由（path 前缀 /quotations）
 ///
-/// 提供 8 个核心端点：list / get / create / update / cancel / submit / approve / reject。
+/// 提供 10 个核心端点：list / get / create / update / cancel / submit / approve / reject /
+/// convert / expiring。前 8 个为 PR-3 基础端点，后 2 个为 PR-A4 增强端点。
 pub fn quotations() -> Router<AppState> {
     Router::new()
         .route(
@@ -105,6 +106,15 @@ pub fn quotations() -> Router<AppState> {
         .route("/:id/submit", post(quotation_handler::submit_quotation))
         .route("/:id/approve", post(quotation_handler::approve_quotation))
         .route("/:id/reject", post(quotation_handler::reject_quotation))
+        // PR-A4：报价转销售订单 + 到期报价单列表
+        .route(
+            "/:id/convert",
+            post(quotation_handler::convert_quotation_to_order),
+        )
+        .route(
+            "/expiring",
+            get(quotation_handler::list_expiring_quotations),
+        )
 }
 
 /// 销售合同路由（path 前缀 /sales-contracts）

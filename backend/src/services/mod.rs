@@ -76,6 +76,8 @@ pub mod sales_return_service;
 // 销售报价单 Service（P12 批 1 P0 port PR-2：DTO + 基础 Service）
 pub mod quotation_pricing_service;
 pub mod quotation_service;
+// 销售报价单转销售订单 Service（P12 批 1 P0 port PR-4：审批流 + 报价转订单 + 集成测试）
+pub mod quotation_convert_service;
 pub mod system_update_service;
 pub mod totp_service;
 pub mod transaction_helper;
