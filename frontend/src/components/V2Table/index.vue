@@ -43,7 +43,7 @@
  */
 import { computed, h } from 'vue'
 import { ElAutoResizer, ElTableV2, ElPagination } from 'element-plus'
-import type { Column as V2Column, CellRendererParams } from 'element-plus/es/components/table-v2/src/types'
+import type { CellRendererParams } from 'element-plus/es/components/table-v2/src/types'
 import type { ColumnDef, SortOrder } from './types'
 
 const props = withDefaults(defineProps<{

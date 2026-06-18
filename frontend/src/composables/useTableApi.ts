@@ -51,9 +51,9 @@ export interface UseTableApiReturn<T = any> {
  * 支持分页 / 筛选 / 排序 / loading / 错误重试
  */
 export function useTableApi<T = any>(
-  optionsOrUrl: UseTableApiOptions<T> | string
+  optionsOrUrl: UseTableApiOptions | string
 ): UseTableApiReturn<T> {
-  const options: UseTableApiOptions<T> = typeof optionsOrUrl === 'string'
+  const options: UseTableApiOptions = typeof optionsOrUrl === 'string'
     ? { url: optionsOrUrl }
     : optionsOrUrl
 
