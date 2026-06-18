@@ -46,10 +46,12 @@ pub mod status_codes {
     /// 已拒绝：流程结束
     pub const REJECTED: &str = "REJECTED";
     /// 已转销售订单
+    #[allow(dead_code)] // TODO(tech-debt): 待 P12+ 业务接入后移除（CONVERTED 由 cron 自动写入）
     pub const CONVERTED: &str = "CONVERTED";
     /// 已取消
     pub const CANCELLED: &str = "CANCELLED";
     /// 已过期
+    #[allow(dead_code)] // TODO(tech-debt): 待 P12+ 业务接入后移除（EXPIRED 由 cron 自动写入）
     pub const EXPIRED: &str = "EXPIRED";
 }
 

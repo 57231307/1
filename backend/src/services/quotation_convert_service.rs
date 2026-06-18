@@ -218,7 +218,7 @@ impl QuotationConvertService {
 
         // 10. 更新报价单状态为 CONVERTED + 写入转换信息
         let mut q_active: sales_quotation::ActiveModel = quotation.clone().into();
-        q_active.status = Set("CONVERTED".to_string());
+        q_active.status = Set(status_codes::CONVERTED.to_string());
         q_active.converted_sales_order_id = Set(Some(order_entity.id));
         q_active.converted_at = Set(Some(now));
         q_active.updated_at = Set(now);
@@ -243,7 +243,7 @@ impl QuotationConvertService {
         let _ = tenant_id; // 预留参数位
         let today = Utc::now().date_naive();
         let items = QuotationEntity::find()
-            .filter(sales_quotation::Column::Status.eq("APPROVED"))
+            .filter(sales_quotation::Column::Status.eq(status_codes::APPROVED))
             .filter(sales_quotation::Column::ValidUntil.gte(today))
             .all(&*self.db)
             .await?;
