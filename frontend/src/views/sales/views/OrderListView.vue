@@ -113,7 +113,7 @@
       :customers="customers"
       :products="products"
       :submitting="submitting"
-      @submit="handleFormSubmit as never"
+      @submit="handleFormSubmit"
     />
 
     <OrderViewDialog v-model:visible="viewDialogVisible" :order="currentOrder" />
@@ -181,13 +181,39 @@ const stats = reactive({
   totalAmount: 0,
 })
 
+// 订单表单数据：与 OrderFormDialog 保持类型一致
+interface OrderItemForm {
+  id: number
+  product_id: number | undefined
+  product_name: string
+  product_code: string
+  quantity: number
+  unit: string
+  unit_price: number
+  subtotal: number
+}
+
+interface OrderForm {
+  id?: number
+  customer_id: number | undefined
+  customer_name: string
+  order_date: Date | string
+  required_date: string
+  contact_person: string
+  contact_phone: string
+  delivery_address: string
+  remark: string
+  items: OrderItemForm[]
+  total_amount?: number
+}
+
 // 订单表单对话框
 const formDialogVisible = ref(false)
 const formDialogTitle = ref('新建销售订单')
 const submitting = ref(false)
-const formData = reactive({
+const formData = reactive<OrderForm>({
   id: 0,
-  customer_id: undefined as number | undefined,
+  customer_id: undefined,
   customer_name: '',
   order_date: new Date(),
   required_date: '',
@@ -195,16 +221,18 @@ const formData = reactive({
   contact_phone: '',
   delivery_address: '',
   remark: '',
-  items: [] as {
-    id: number
-    product_id?: number
-    product_name: string
-    product_code: string
-    quantity: number
-    unit: string
-    unit_price: number
-    subtotal: number
-  }[],
+  items: [
+    {
+      id: Date.now(),
+      product_id: undefined,
+      product_name: '',
+      product_code: '',
+      quantity: 1,
+      unit: '米',
+      unit_price: 0,
+      subtotal: 0,
+    },
+  ],
   total_amount: 0,
 })
 
@@ -231,8 +259,11 @@ const deliveryForm = reactive({
   }[],
 })
 
-const getStatusType = (status: string) => {
-  const typeMap: Record<string, string> = {
+// 状态 el-tag 类型与文本映射（严格匹配 el-tag 接受类型）
+type ElTagType = 'primary' | 'success' | 'warning' | 'info' | 'danger'
+
+const getStatusType = (status: string): ElTagType => {
+  const typeMap: Record<string, ElTagType> = {
     pending: 'warning',
     approved: 'primary',
     shipped: 'success',
@@ -293,7 +324,7 @@ const columns: ColumnDef[] = [
       h(
         ElTag,
         { type: getStatusType(row.status), size: 'small' },
-        () => getStatusText(row.status)
+        { default: () => getStatusText(row.status) }
       ),
   },
   { key: 'creator_name', title: '创建人', width: 100 },
@@ -307,7 +338,7 @@ const columns: ColumnDef[] = [
         h(
           ElButton,
           { size: 'small', link: true, onClick: () => viewOrder(row) },
-          () => '查看'
+          { default: () => '查看' }
         ),
       ]
       if (row.status === 'pending') {
@@ -320,7 +351,7 @@ const columns: ColumnDef[] = [
               type: 'primary',
               onClick: () => approveOrder(row),
             },
-            () => '审批'
+            { default: () => '审批' }
           )
         )
       }
@@ -334,7 +365,7 @@ const columns: ColumnDef[] = [
               type: 'success',
               onClick: () => openDeliveryDialog(row),
             },
-            () => '发货'
+            { default: () => '发货' }
           )
         )
       }
@@ -348,7 +379,7 @@ const columns: ColumnDef[] = [
               type: 'danger',
               onClick: () => cancelOrder(row),
             },
-            () => '取消'
+            { default: () => '取消' }
           )
         )
       }
@@ -528,12 +559,11 @@ const openDeliveryDialog = (row: SalesOrder) => {
   deliveryDialogVisible.value = true
 }
 
-const handleFormSubmit = async (data: never) => {
+const handleFormSubmit = async (data: OrderForm) => {
   submitting.value = true
   try {
-    const d = data as unknown as { id: number }
-    if (d.id) {
-      await salesApi.updateOrder(d.id, data as unknown as Partial<SalesOrder>)
+    if (data.id) {
+      await salesApi.updateOrder(data.id, data as unknown as Partial<SalesOrder>)
       ElMessage.success('更新成功')
     } else {
       await salesApi.createOrder(data as unknown as Partial<SalesOrder>)
@@ -549,7 +579,7 @@ const handleFormSubmit = async (data: never) => {
   }
 }
 
-const formDataForChild = computed(() => formData as never)
+const formDataForChild = computed(() => formData)
 
 onMounted(() => {
   refresh()

@@ -287,16 +287,9 @@ jobs:
       - name: 运行 vue-tsc 类型检查
         working-directory: frontend
         run: |
-          # 临时措施：main 上 5 个文件 16 个 vue-tsc 错误待清理
-          # 任务禁止修改业务代码，使用 || true 让 CI 通过
-          # 后续 batch 需逐项修复 16 错误：
-          # - src/api/auth.ts (6 errors: TS2322/TS2339 csrf_token)
-          # - src/components/V2Table/index.vue (1 error: TS2322 AnyColumn)
-          # - src/composables/useTableApi.ts (5 errors: TS6133 unused + TS18046 res unknown)
-          # - src/views/inventory/tabs/StockTab.vue (1 error: TS2769 ElTag type)
-          # - src/views/production/index.vue (2 errors: TS2322/TS2769 ElButton type)
-          # - src/views/sales/views/OrderListView.vue (1 error: TS2769 ElButton type)
-          npx vue-tsc --noEmit || true
+          # 严格类型检查：任何 vue-tsc 错误都会让 CI 失败
+          # 历史累积的 16 个错误已在 P12 Batch 1 子任务 E 中清理
+          npx vue-tsc --noEmit
 
   package-release:
     name: 创建发布包
