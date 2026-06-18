@@ -1,17 +1,89 @@
-#![allow(dead_code)]
-// TODO(tech-debt): 业务接入或重评估后逐项移除；rustc 1.94+ 编译时由编译器报告具体死代码位置。
-use crate::models::audit_log;
+//! 审计日志服务（P13 批 1 P3-2 增强版）
+//!
+//! 提供两类能力：
+//! 1. `log_change` / `update_with_audit`：旧的业务调用接口（保留兼容）
+//! 2. `record(event: AuditEvent)`：P13 增强通用接口
+//!    - 自动从 `AuditContext` 注入 `request_id` / `ip_address` / `user_agent`
+//!    - 异步落库（`tokio::spawn`）不阻塞业务事务
+//!    - 写库失败只记录日志，不向上传播
+//!
+//! 设计要点：
+//! - 强租户隔离：所有 query 都必须加 `tenant_id` 过滤
+//! - 列名兼容：旧的 `old_value` / `new_value` 与新的 `before_snapshot` / `after_snapshot` 双写
+//! - JSON 快照：使用 `audit_log::AuditValue` 包装，PostgreSQL 自动用 JSONB 列存储
+
+use crate::middleware::audit_context::AuditContext;
+use crate::models::audit_log::{self, OperationType, Severity};
 use crate::utils::error::AppError;
 use chrono::Utc;
 use sea_orm::*;
 use serde::Serialize;
 use serde_json::Value;
+use std::sync::Arc;
 
 crate::define_service!(AuditLogService);
 
+/// 通用审计事件（P13 批 1 P3-2 新增）
+///
+/// 调用方只需填充业务相关字段，service 内部自动从 `AuditContext` 补充请求上下文。
+#[derive(Debug, Clone, Serialize)]
+pub struct AuditEvent {
+    /// 租户 ID（多租户隔离；缺省时需业务自行提供）
+    pub tenant_id: Option<i32>,
+    /// 操作用户 ID
+    pub user_id: Option<i32>,
+    /// 操作用户名
+    pub username: Option<String>,
+    /// 操作类型（推荐使用 `OperationType::*` 枚举）
+    pub operation_type: OperationType,
+    /// 严重级别（缺省 INFO）
+    pub severity: Severity,
+    /// 资源类型（如 `user` / `order`）
+    pub resource_type: Option<String>,
+    /// 资源 ID（业务主键的字符串形式）
+    pub resource_id: Option<String>,
+    /// 资源名称（人类可读，便于审计追溯）
+    pub resource_name: Option<String>,
+    /// 操作描述（用户行为的中文说明）
+    pub description: Option<String>,
+    /// 业务方法名（如 `POST` / `PUT` / `DELETE`）
+    pub request_method: Option<String>,
+    /// 请求路径
+    pub request_path: Option<String>,
+    /// 变更前快照（推荐字段）
+    pub before_snapshot: Option<Value>,
+    /// 变更后快照（推荐字段）
+    pub after_snapshot: Option<Value>,
+}
+
+impl AuditEvent {
+    /// 构造最小可用事件（仅指定操作类型 + 资源类型）
+    #[allow(dead_code)] // TODO(tech-debt): 业务接入后逐项移除；用于未来简化调用方（仅需 op + resource）
+    pub fn new(operation_type: OperationType, resource_type: impl Into<String>) -> Self {
+        Self {
+            tenant_id: None,
+            user_id: None,
+            username: None,
+            operation_type,
+            severity: Severity::Info,
+            resource_type: Some(resource_type.into()),
+            resource_id: None,
+            resource_name: None,
+            description: None,
+            request_method: None,
+            request_path: None,
+            before_snapshot: None,
+            after_snapshot: None,
+        }
+    }
+}
+
 impl AuditLogService {
     /// 计算两个 JSON 对象的 Diff 并记录审计日志
+    ///
+    /// 旧接口（P0 起即存在）：保留以兼容历史调用方。
     #[allow(clippy::too_many_arguments)]
+    #[allow(dead_code, reason = "保留兼容历史调用方")]
     pub async fn log_change(
         &self,
         resource_type: &str,
@@ -44,9 +116,16 @@ impl AuditLogService {
             request_body: ActiveValue::Set(None),
             response_status: ActiveValue::Set(None),
             duration_ms: ActiveValue::Set(None),
-            old_value: ActiveValue::Set(old_data.map(crate::models::audit_log::AuditValue)),
-            new_value: ActiveValue::Set(new_data.map(crate::models::audit_log::AuditValue)),
+            old_value: ActiveValue::Set(old_data.clone().map(audit_log::AuditValue)),
+            new_value: ActiveValue::Set(new_data.clone().map(audit_log::AuditValue)),
             created_at: ActiveValue::Set(Some(Utc::now())),
+            operation_type: ActiveValue::Set(Some(
+                OperationType::parse(action).as_str().to_string(),
+            )),
+            severity: ActiveValue::Set(Some(Severity::Info.as_str().to_string())),
+            request_id: ActiveValue::Set(None),
+            before_snapshot: ActiveValue::Set(old_data.map(audit_log::AuditValue)),
+            after_snapshot: ActiveValue::Set(new_data.map(audit_log::AuditValue)),
         };
 
         log.insert(self.db.as_ref()).await?;
@@ -106,9 +185,231 @@ impl AuditLogService {
             old_value: ActiveValue::Set(None),
             new_value: ActiveValue::Set(None),
             created_at: ActiveValue::Set(Some(Utc::now())),
+            operation_type: ActiveValue::Set(Some(OperationType::Update.as_str().to_string())),
+            severity: ActiveValue::Set(Some(Severity::Info.as_str().to_string())),
+            request_id: ActiveValue::Set(None),
+            before_snapshot: ActiveValue::Set(None),
+            after_snapshot: ActiveValue::Set(None),
         };
         log.insert(db).await?;
 
         Ok(new_model)
+    }
+
+    /// 同步记录审计事件（不接管业务事务）
+    ///
+    /// 调用方负责异常处理；推荐使用 `record_async` 在 tokio runtime 中异步落库。
+    #[allow(dead_code)] // TODO(tech-debt): 业务接入后逐项移除；同步版本保留以备同步上下文使用
+    pub async fn record(
+        &self,
+        event: AuditEvent,
+        ctx: Option<&AuditContext>,
+    ) -> Result<(), AppError> {
+        let log = build_active_model(&event, ctx);
+        log.insert(self.db.as_ref()).await?;
+        Ok(())
+    }
+
+    /// 异步记录审计事件（推荐使用）
+    ///
+    /// 使用 `tokio::spawn` 在后台执行落库，不阻塞业务事务；
+    /// 写库失败仅记录 `tracing::error!`，不向上传播。
+    pub fn record_async(self: Arc<Self>, event: AuditEvent, ctx: Option<AuditContext>) {
+        let db = self.db.clone();
+        tokio::spawn(async move {
+            let log = build_active_model(&event, ctx.as_ref());
+            match log.insert(db.as_ref()).await {
+                Ok(_) => {}
+                Err(e) => {
+                    tracing::error!(
+                        user_id = ?event.user_id,
+                        operation = event.operation_type.as_str(),
+                        error = %e,
+                        "异步审计日志落库失败"
+                    );
+                }
+            }
+        });
+    }
+}
+
+/// 从 `AuditEvent` + `AuditContext` 构造 `ActiveModel`（service 内部共享）
+fn build_active_model(event: &AuditEvent, ctx: Option<&AuditContext>) -> audit_log::ActiveModel {
+    // 从 ctx 注入请求上下文（缺省值兜底）
+    let (request_id, ip_address, user_agent) = match ctx {
+        Some(c) => (
+            Some(c.request_id.clone()).filter(|s| !s.is_empty()),
+            Some(c.ip_address.clone()).filter(|s| !s.is_empty()),
+            Some(c.user_agent.clone()).filter(|s| !s.is_empty()),
+        ),
+        None => (None, None, None),
+    };
+
+    audit_log::ActiveModel {
+        id: ActiveValue::NotSet,
+        tenant_id: ActiveValue::Set(event.tenant_id.or(Some(1))),
+        user_id: ActiveValue::Set(event.user_id),
+        username: ActiveValue::Set(event.username.clone()),
+        action: ActiveValue::Set(event.operation_type.as_str().to_string()),
+        resource_type: ActiveValue::Set(event.resource_type.clone()),
+        resource_id: ActiveValue::Set(event.resource_id.clone()),
+        resource_name: ActiveValue::Set(event.resource_name.clone()),
+        description: ActiveValue::Set(event.description.clone()),
+        ip_address: ActiveValue::Set(ip_address),
+        user_agent: ActiveValue::Set(user_agent),
+        request_method: ActiveValue::Set(event.request_method.clone()),
+        request_path: ActiveValue::Set(event.request_path.clone()),
+        request_body: ActiveValue::Set(None),
+        response_status: ActiveValue::Set(None),
+        duration_ms: ActiveValue::Set(None),
+        old_value: ActiveValue::Set(event.before_snapshot.clone().map(audit_log::AuditValue)),
+        new_value: ActiveValue::Set(event.after_snapshot.clone().map(audit_log::AuditValue)),
+        created_at: ActiveValue::Set(Some(Utc::now())),
+        operation_type: ActiveValue::Set(Some(event.operation_type.as_str().to_string())),
+        severity: ActiveValue::Set(Some(event.severity.as_str().to_string())),
+        request_id: ActiveValue::Set(request_id),
+        before_snapshot: ActiveValue::Set(event.before_snapshot.clone().map(audit_log::AuditValue)),
+        after_snapshot: ActiveValue::Set(event.after_snapshot.clone().map(audit_log::AuditValue)),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::middleware::audit_context::AuditContext;
+    use serde_json::json;
+
+    /// AuditEvent::new 默认值正确
+    #[test]
+    fn test_audit_event_new_defaults() {
+        let event = AuditEvent::new(OperationType::Login, "auth");
+        assert_eq!(event.operation_type, OperationType::Login);
+        assert_eq!(event.resource_type, Some("auth".to_string()));
+        assert_eq!(event.severity, Severity::Info);
+        assert!(event.tenant_id.is_none());
+        assert!(event.user_id.is_none());
+    }
+
+    /// 无 ctx 时请求上下文字段全部为空
+    #[test]
+    fn test_build_active_model_without_ctx() {
+        let event = AuditEvent {
+            tenant_id: Some(7),
+            user_id: Some(42),
+            username: Some("alice".to_string()),
+            operation_type: OperationType::Update,
+            severity: Severity::Warn,
+            resource_type: Some("order".to_string()),
+            resource_id: Some("1001".to_string()),
+            resource_name: Some("订单 A".to_string()),
+            description: Some("修改订单金额".to_string()),
+            request_method: Some("PUT".to_string()),
+            request_path: Some("/api/v1/erp/orders/1001".to_string()),
+            before_snapshot: Some(json!({"amount": 100})),
+            after_snapshot: Some(json!({"amount": 200})),
+        };
+        let model = build_active_model(&event, None);
+        // 关键字段透传
+        if let ActiveValue::Set(t) = model.tenant_id {
+            assert_eq!(t, Some(7));
+        } else {
+            panic!("tenant_id 应为 Set");
+        }
+        if let ActiveValue::Set(s) = model.severity {
+            assert_eq!(s, Some("WARN".to_string()));
+        } else {
+            panic!("severity 应为 Set");
+        }
+        if let ActiveValue::Set(o) = model.operation_type {
+            assert_eq!(o, Some("UPDATE".to_string()));
+        } else {
+            panic!("operation_type 应为 Set");
+        }
+        // 无 ctx 时请求上下文为 None
+        if let ActiveValue::Set(ip) = model.ip_address {
+            assert!(ip.is_none(), "无 ctx 时 ip_address 应为 None");
+        }
+        if let ActiveValue::Set(rid) = model.request_id {
+            assert!(rid.is_none(), "无 ctx 时 request_id 应为 None");
+        }
+    }
+
+    /// 有 ctx 时请求上下文自动注入
+    #[test]
+    fn test_build_active_model_with_ctx() {
+        let event = AuditEvent::new(OperationType::Login, "auth");
+        let ctx = AuditContext {
+            request_id: "trace-123".to_string(),
+            ip_address: "203.0.113.1".to_string(),
+            user_agent: "Mozilla/5.0".to_string(),
+        };
+        let model = build_active_model(&event, Some(&ctx));
+        if let ActiveValue::Set(rid) = model.request_id {
+            assert_eq!(rid, Some("trace-123".to_string()));
+        }
+        if let ActiveValue::Set(ip) = model.ip_address {
+            assert_eq!(ip, Some("203.0.113.1".to_string()));
+        }
+        if let ActiveValue::Set(ua) = model.user_agent {
+            assert_eq!(ua, Some("Mozilla/5.0".to_string()));
+        }
+    }
+
+    /// ctx 字段为空字符串时不会写入数据库（避免污染日志）
+    #[test]
+    fn test_build_active_model_with_empty_ctx() {
+        let event = AuditEvent::new(OperationType::Logout, "auth");
+        let ctx = AuditContext::empty();
+        let model = build_active_model(&event, Some(&ctx));
+        if let ActiveValue::Set(rid) = model.request_id {
+            assert!(rid.is_none(), "空 ctx request_id 应为 None");
+        }
+        if let ActiveValue::Set(ip) = model.ip_address {
+            assert!(ip.is_none(), "空 ctx ip_address 应为 None");
+        }
+        if let ActiveValue::Set(ua) = model.user_agent {
+            assert!(ua.is_none(), "空 ctx user_agent 应为 None");
+        }
+    }
+
+    /// 旧字段 old_value/new_value 与新字段 before_snapshot/after_snapshot 内容一致
+    #[test]
+    fn test_dual_write_snapshots() {
+        let before = json!({"price": 100});
+        let after = json!({"price": 200});
+        let event = AuditEvent {
+            tenant_id: Some(1),
+            user_id: Some(1),
+            username: None,
+            operation_type: OperationType::Update,
+            severity: Severity::Info,
+            resource_type: Some("product".to_string()),
+            resource_id: Some("1".to_string()),
+            resource_name: None,
+            description: None,
+            request_method: None,
+            request_path: None,
+            before_snapshot: Some(before.clone()),
+            after_snapshot: Some(after.clone()),
+        };
+        let model = build_active_model(&event, None);
+        // old_value/new_value 同步填充
+        if let ActiveValue::Set(Some(av)) = model.old_value {
+            assert_eq!(av.0, before);
+        } else {
+            panic!("old_value 应填充 before_snapshot");
+        }
+        if let ActiveValue::Set(Some(av)) = model.new_value {
+            assert_eq!(av.0, after);
+        } else {
+            panic!("new_value 应填充 after_snapshot");
+        }
+        // before_snapshot / after_snapshot 也填充
+        if let ActiveValue::Set(Some(av)) = model.before_snapshot {
+            assert_eq!(av.0, before);
+        }
+        if let ActiveValue::Set(Some(av)) = model.after_snapshot {
+            assert_eq!(av.0, after);
+        }
     }
 }

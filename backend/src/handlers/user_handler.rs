@@ -1,5 +1,8 @@
+use crate::middleware::audit_context::AuditContext;
 use crate::middleware::auth_context::AuthContext;
+use crate::models::audit_log::{OperationType, Severity};
 use crate::models::user;
+use crate::services::audit_log_service::{AuditEvent, AuditLogService};
 use crate::services::auth_service::AuthService;
 use crate::services::role_permission_service::RolePermissionService;
 use crate::services::user_service::UserService;
@@ -8,10 +11,11 @@ use crate::utils::error::AppError;
 use crate::utils::password_validator::{get_password_feedback, validate_password};
 use crate::utils::response::ApiResponse;
 use axum::{
-    extract::{Path, State},
+    extract::{Extension, Path, State},
     Json,
 };
 use serde::{Deserialize, Serialize};
+use std::sync::Arc;
 use validator::{Validate, ValidationError};
 
 fn validate_password_strength(password: &str) -> Result<(), ValidationError> {
@@ -256,6 +260,7 @@ pub struct ChangePasswordResponse {
 pub async fn change_password(
     State(state): State<AppState>,
     auth: AuthContext,
+    audit_ctx: Option<Extension<AuditContext>>,
     Json(req): Json<ChangePasswordRequest>,
 ) -> Result<Json<ApiResponse<ChangePasswordResponse>>, AppError> {
     req.validate()?;
@@ -270,6 +275,24 @@ pub async fn change_password(
         .map_err(|e| AppError::internal(e.to_string()))?;
 
     if !is_valid {
+        // 记录审计：原密码错误
+        let event = AuditEvent {
+            tenant_id: auth.tenant_id,
+            user_id: Some(auth.user_id),
+            username: Some(auth.username.clone()),
+            operation_type: OperationType::Update,
+            severity: Severity::Warn,
+            resource_type: Some("user".to_string()),
+            resource_id: Some(auth.user_id.to_string()),
+            resource_name: None,
+            description: Some("修改密码失败：原密码不正确".to_string()),
+            request_method: Some("PUT".to_string()),
+            request_path: Some("/api/v1/erp/users/change-password".to_string()),
+            before_snapshot: None,
+            after_snapshot: None,
+        };
+        let svc = Arc::new(AuditLogService::new(state.db.clone()));
+        svc.record_async(event, audit_ctx.map(|e| e.0));
         return Err(AppError::unauthorized("原密码不正确"));
     }
 
@@ -292,6 +315,25 @@ pub async fn change_password(
     user_model.updated_at = sea_orm::Set(chrono::Utc::now());
 
     user_model.update(state.db.as_ref()).await?;
+
+    // 记录审计：密码修改成功
+    let event = AuditEvent {
+        tenant_id: auth.tenant_id,
+        user_id: Some(auth.user_id),
+        username: Some(auth.username.clone()),
+        operation_type: OperationType::Update,
+        severity: Severity::Info,
+        resource_type: Some("user".to_string()),
+        resource_id: Some(auth.user_id.to_string()),
+        resource_name: None,
+        description: Some("用户修改密码成功".to_string()),
+        request_method: Some("PUT".to_string()),
+        request_path: Some("/api/v1/erp/users/change-password".to_string()),
+        before_snapshot: Some(serde_json::json!({"action": "change_password"})),
+        after_snapshot: Some(serde_json::json!({"action": "change_password", "status": "success"})),
+    };
+    let svc = Arc::new(AuditLogService::new(state.db.clone()));
+    svc.record_async(event, audit_ctx.map(|e| e.0));
 
     Ok(Json(ApiResponse::success_with_message(
         ChangePasswordResponse {

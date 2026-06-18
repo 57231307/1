@@ -1,4 +1,7 @@
+use crate::middleware::audit_context::AuditContext;
 use crate::middleware::auth_context::AuthContext;
+use crate::models::audit_log::{OperationType, Severity};
+use crate::services::audit_log_service::{AuditEvent, AuditLogService};
 use crate::services::auth_service::AuthService;
 use crate::services::enhanced_logger::{
     self, DeviceInfo, FailureInfo, LoginAttempt, LoginSecurityLog, SecurityInfo,
@@ -18,6 +21,7 @@ use axum_extra::extract::cookie::{Cookie, SameSite};
 use chrono::{Duration as ChronoDuration, Utc};
 use sea_orm::{ColumnTrait, EntityTrait, QueryFilter};
 use serde::{Deserialize, Serialize};
+use std::sync::Arc;
 use utoipa::ToSchema;
 use validator::Validate;
 
@@ -70,6 +74,7 @@ pub struct UserInfo {
 )]
 pub async fn login(
     State(state): State<AppState>,
+    audit_ctx: Option<Extension<AuditContext>>,
     jar: axum_extra::extract::PrivateCookieJar,
     headers: HeaderMap,
     Json(payload): Json<LoginRequest>,
@@ -237,6 +242,26 @@ pub async fn login(
             };
             enhanced_logger::EnhancedLogger::log_login_security(&security_log);
 
+            // 异步记录审计日志：登录成功（P13 批 1 P3-2）
+            // 登录事件无 tenant_id（登录前尚未确定租户），写入系统级日志
+            let login_event = AuditEvent {
+                tenant_id: None,
+                user_id: Some(user.id),
+                username: Some(payload.username.clone()),
+                operation_type: OperationType::Login,
+                severity: Severity::Info,
+                resource_type: Some("auth".to_string()),
+                resource_id: Some(user.id.to_string()),
+                resource_name: Some(user.username.clone()),
+                description: Some("用户登录成功".to_string()),
+                request_method: Some("POST".to_string()),
+                request_path: Some("/api/v1/erp/auth/login".to_string()),
+                before_snapshot: None,
+                after_snapshot: None,
+            };
+            let svc = Arc::new(AuditLogService::new(state.db.clone()));
+            svc.record_async(login_event, audit_ctx.map(|e| e.0));
+
             // Update last login timestamp
             let user_svc = crate::services::user_service::UserService::new(state.db.clone());
             let _ = user_svc.update_last_login(user.id).await;
@@ -375,6 +400,25 @@ pub async fn login(
             };
             enhanced_logger::EnhancedLogger::log_login_security(&security_log);
 
+            // 异步记录审计日志：登录失败（P13 批 1 P3-2）
+            let failure_event = AuditEvent {
+                tenant_id: None,
+                user_id: None,
+                username: Some(payload.username.clone()),
+                operation_type: OperationType::Login,
+                severity: Severity::Warn,
+                resource_type: Some("auth".to_string()),
+                resource_id: None,
+                resource_name: None,
+                description: Some(format!("用户登录失败：{}", e)),
+                request_method: Some("POST".to_string()),
+                request_path: Some("/api/v1/erp/auth/login".to_string()),
+                before_snapshot: None,
+                after_snapshot: None,
+            };
+            let svc = Arc::new(AuditLogService::new(state.db.clone()));
+            svc.record_async(failure_event, audit_ctx.map(|e| e.0));
+
             Err(AppError::unauthorized(e.to_string()))
         }
     }
@@ -418,6 +462,7 @@ pub struct LogoutResponse {
 
 pub async fn logout(
     State(state): State<AppState>,
+    audit_ctx: Option<Extension<AuditContext>>,
     jar: axum_extra::extract::PrivateCookieJar,
     headers: HeaderMap,
 ) -> Result<axum::response::Response, AppError> {
@@ -427,12 +472,17 @@ pub async fn logout(
         .and_then(|h| h.to_str().ok())
         .filter(|h| h.starts_with("Bearer "));
 
+    let mut logout_user_id: Option<i32> = None;
+    let mut logout_username: Option<String> = None;
+
     if let Some(auth_header) = auth_header {
         let token = &auth_header[7..];
 
         // 验证 Token 是否有效
         match AuthService::validate_token_static(token, &state.jwt_secret) {
             Ok(claims) => {
+                logout_user_id = Some(claims.sub);
+                logout_username = Some(claims.username.clone());
                 let now = chrono::Utc::now().timestamp() as usize;
                 let exp = claims.exp.timestamp() as usize;
 
@@ -451,6 +501,25 @@ pub async fn logout(
             }
         }
     }
+
+    // 异步记录审计日志：登出（P13 批 1 P3-2）
+    let logout_event = AuditEvent {
+        tenant_id: None,
+        user_id: logout_user_id,
+        username: logout_username.clone(),
+        operation_type: OperationType::Logout,
+        severity: Severity::Info,
+        resource_type: Some("auth".to_string()),
+        resource_id: logout_user_id.map(|i| i.to_string()),
+        resource_name: logout_username,
+        description: Some("用户登出".to_string()),
+        request_method: Some("POST".to_string()),
+        request_path: Some("/api/v1/erp/auth/logout".to_string()),
+        before_snapshot: None,
+        after_snapshot: None,
+    };
+    let svc = Arc::new(AuditLogService::new(state.db.clone()));
+    svc.record_async(logout_event, audit_ctx.map(|e| e.0));
 
     let is_production =
         std::env::var("ENV").unwrap_or_else(|_| "development".to_string()) == "production";
