@@ -7,7 +7,6 @@ import { ref } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import printJS from 'print-js'
 import { purchaseApi, type PurchaseOrder } from '@/api/purchase'
-import type { PurchaseOrderItem } from '@/api/purchase'
 
 /**
  * 采购单业务操作 composable

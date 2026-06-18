@@ -24,6 +24,11 @@ interface Props {
 }
 
 defineProps<Props>()
+
+const emit = defineEmits<{
+  (e: 'update:forecastPeriod', value: string): void
+  (e: 'update:anomalyType', value: string): void
+}>()
 </script>
 
 <template>
@@ -113,7 +118,11 @@ defineProps<Props>()
         <template #header><div class="card-header">异常检测</div></template>
         <el-form label-width="100px">
           <el-form-item label="数据类型">
-            <el-select v-model="anomalyType" style="width: 100%">
+            <el-select
+              :model-value="anomalyType"
+              style="width: 100%"
+              @update:model-value="(v: string) => emit('update:anomalyType', v)"
+            >
               <el-option label="销售数据" value="sales" />
               <el-option label="库存数据" value="inventory" />
               <el-option label="质量数据" value="quality" />

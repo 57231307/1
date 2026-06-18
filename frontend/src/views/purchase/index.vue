@@ -34,7 +34,6 @@ const rcv = usePurchRcv(list.fetchData)
 
 // 新建采购单
 const create = useCreate(
-  () => list.suppliers.value,
   () => list.products.value,
   list.fetchData
 )

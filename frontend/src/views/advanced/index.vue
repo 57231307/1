@@ -74,6 +74,8 @@ onMounted(() => {
           :recommendation-result="ai.recommendationResult.value"
           :get-recommendations="ai.getRecommendations"
           :format-money="ai.formatMoney"
+          @update:forecast-period="(v: string) => (ai.forecastPeriod.value = v)"
+          @update:anomaly-type="(v: string) => (ai.anomalyType.value = v)"
         />
       </el-tab-pane>
 

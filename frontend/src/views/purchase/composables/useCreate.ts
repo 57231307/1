@@ -4,8 +4,8 @@
  */
 import { ref } from 'vue'
 import { ElMessage } from 'element-plus'
-import { purchaseApi, type Supplier, type Product } from '@/api/purchase'
-import type { Warehouse } from '@/api/warehouse'
+import { purchaseApi } from '@/api/purchase'
+import type { Product } from '@/api/product'
 
 /**
  * 采购明细行数据结构
@@ -43,7 +43,6 @@ const defaultForm = (): CreateFormData => ({
  * 采购单创建表单 composable
  */
 export function useCreate(
-  suppliers: () => Supplier[],
   products: () => Product[],
   onSuccess: () => void
 ) {

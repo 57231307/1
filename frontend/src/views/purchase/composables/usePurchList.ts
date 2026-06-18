@@ -4,7 +4,8 @@
  */
 import { ref, reactive } from 'vue'
 import { ElMessage } from 'element-plus'
-import { purchaseApi, type PurchaseOrder, type Supplier } from '@/api/purchase'
+import { purchaseApi, type PurchaseOrder } from '@/api/purchase'
+import type { Supplier } from '@/api/supplier'
 import type { Product } from '@/api/product'
 import type { Warehouse } from '@/api/warehouse'
 import { supplierApi } from '@/api/supplier'
