@@ -1,7 +1,7 @@
 //! 销售报价单 HTTP Handler
 //!
 //! 处理销售报价单（Quotation）的 REST API 请求：
-//! 列表查询、详情查询、创建、修改、取消、提交、审批、拒绝 8 个核心端点。
+//! 列表查询、详情查询、创建、修改、取消、提交、审批、拒绝、报价转订单、到期列表 10 个核心端点。
 //!
 //! # 关键约束
 //! - 强租户隔离：所有方法必须使用 `extract_tenant_id(&auth)?` 提取租户 ID，
@@ -19,10 +19,12 @@
 //! - `GET    /:id`      → `get_quotation`
 //! - `POST   /`         → `create_quotation`
 //! - `PUT    /:id`      → `update_quotation`
-//! - `POST   /:id/cancel` → `cancel_quotation`
-//! - `POST   /:id/submit` → `submit_quotation`
+//! - `POST   /:id/cancel`  → `cancel_quotation`
+//! - `POST   /:id/submit`  → `submit_quotation`
 //! - `POST   /:id/approve` → `approve_quotation`
 //! - `POST   /:id/reject`  → `reject_quotation`
+//! - `POST   /:id/convert` → `convert_quotation_to_order`（PR-A4 新增）
+//! - `GET    /expiring`    → `list_expiring_quotations`（PR-A4 新增）
 
 use axum::{
     extract::{Path, Query, State},
@@ -36,6 +38,7 @@ use crate::models::dto::PageResponse;
 use crate::models::quotation_create_dto::QuotationCreateDto;
 use crate::models::quotation_response_dto::QuotationQueryParams;
 use crate::models::quotation_update_dto::QuotationUpdateDto;
+use crate::services::quotation_convert_service::QuotationConvertService;
 use crate::services::quotation_service::QuotationService;
 use crate::utils::app_state::AppState;
 use crate::utils::error::AppError;
@@ -76,6 +79,13 @@ pub struct RejectQuotationRequest {
 pub struct CancelQuotationRequest {
     /// 取消原因
     pub reason: Option<String>,
+}
+
+/// 到期报价单列表查询参数
+#[derive(Debug, Deserialize)]
+pub struct ExpiringQuotationsQuery {
+    /// 距离当前多少天内到期（默认 7）
+    pub days: Option<i32>,
 }
 
 // ============================================================================
@@ -322,6 +332,87 @@ pub async fn reject_quotation(
         value,
         "销售报价单已拒绝",
     )))
+}
+
+// ============================================================================
+// PR-A4：报价转订单 + 到期报价单列表
+// ============================================================================
+
+/// 报价转销售订单（APPROVED → sales_order）
+///
+/// `POST /api/v1/erp/sales/quotations/:id/convert`
+///
+/// 源报价单必须为 `APPROVED` 状态且 `valid_until` 未过期。
+/// 转换成功后返回新创建的销售订单详情。
+pub async fn convert_quotation_to_order(
+    auth: AuthContext,
+    State(state): State<AppState>,
+    Path(id): Path<i32>,
+) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
+    let tenant_id = extract_tenant_id(&auth)?;
+    let convert_svc = QuotationConvertService::new(state.db.clone());
+
+    let sales_order = convert_svc
+        .convert_to_sales_order(tenant_id, auth.user_id, id)
+        .await?;
+
+    // 构造响应 JSON（含关键订单信息）
+    let value = serde_json::json!({
+        "sales_order_id": sales_order.id,
+        "order_no": sales_order.order_no,
+        "customer_id": sales_order.customer_id,
+        "subtotal": sales_order.subtotal,
+        "tax_amount": sales_order.tax_amount,
+        "total_amount": sales_order.total_amount,
+        "status": sales_order.status,
+        "created_at": sales_order.created_at,
+    });
+
+    Ok(Json(ApiResponse::success_with_message(
+        value,
+        "报价单已成功转换为销售订单",
+    )))
+}
+
+/// 列出可转销售订单的报价单（APPROVED + 未过期）
+///
+/// `GET /api/v1/erp/sales/quotations/expiring?days=7`
+///
+/// 返回所有状态为 `APPROVED` 且 `valid_until` 在指定天数内（含已过期）的报价单。
+/// 注意：本实现等同于 `list_convertable`，`days` 参数保留以兼容未来扩展。
+pub async fn list_expiring_quotations(
+    auth: AuthContext,
+    State(state): State<AppState>,
+    Query(query): Query<ExpiringQuotationsQuery>,
+) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
+    let tenant_id = extract_tenant_id(&auth)?;
+    let _ = query.days; // 预留参数：业务后续可基于 days 进一步过滤
+    let convert_svc = QuotationConvertService::new(state.db.clone());
+
+    let quotations = convert_svc.list_convertable(tenant_id).await?;
+
+    // 序列化为 JSON 数组
+    let items: Vec<serde_json::Value> = quotations
+        .into_iter()
+        .map(|m| {
+            serde_json::json!({
+                "id": m.id,
+                "quotation_no": m.quotation_no,
+                "customer_id": m.customer_id,
+                "sales_user_id": m.sales_user_id,
+                "valid_until": m.valid_until,
+                "currency": m.currency,
+                "total_amount": m.total_amount,
+                "status": m.status,
+                "approved_at": m.approved_at,
+            })
+        })
+        .collect();
+
+    Ok(Json(ApiResponse::success(serde_json::json!({
+        "items": items,
+        "total": items.len(),
+    }))))
 }
 
 // ============================================================================
