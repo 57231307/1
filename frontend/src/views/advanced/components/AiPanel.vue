@@ -42,7 +42,11 @@ const emit = defineEmits<{
         <template #header><div class="card-header">销售预测</div></template>
         <el-form label-width="100px">
           <el-form-item label="预测周期">
-            <el-select v-model="forecastPeriod" style="width: 100%">
+            <el-select
+              :model-value="forecastPeriod"
+              style="width: 100%"
+              @update:model-value="(v: string) => emit('update:forecastPeriod', v)"
+            >
               <el-option label="未来 3 个月" value="3m" />
               <el-option label="未来 6 个月" value="6m" />
               <el-option label="未来 12 个月" value="12m" />
