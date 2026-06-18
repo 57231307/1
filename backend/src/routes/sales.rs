@@ -9,8 +9,8 @@ use axum::{
 };
 
 use crate::handlers::{
-    print_handler, sales_contract_handler, sales_fabric_order_handler, sales_order_handler,
-    sales_price_handler, sales_return_handler,
+    print_handler, quotation_handler, sales_contract_handler, sales_fabric_order_handler,
+    sales_order_handler, sales_price_handler, sales_return_handler,
 };
 
 /// 销售订单路由（nest 到 /api/v1/erp/sales）
@@ -84,6 +84,27 @@ pub fn sales() -> Router<AppState> {
             "/fabric-orders/:id/approve",
             post(sales_fabric_order_handler::approve_fabric_order),
         )
+        // 销售报价单子路由（PR-3）：/api/v1/erp/sales/quotations/...
+        .nest("/quotations", quotations())
+}
+
+/// 销售报价单路由（path 前缀 /quotations）
+///
+/// 提供 8 个核心端点：list / get / create / update / cancel / submit / approve / reject。
+pub fn quotations() -> Router<AppState> {
+    Router::new()
+        .route(
+            "/",
+            get(quotation_handler::list_quotations).post(quotation_handler::create_quotation),
+        )
+        .route(
+            "/:id",
+            get(quotation_handler::get_quotation).put(quotation_handler::update_quotation),
+        )
+        .route("/:id/cancel", post(quotation_handler::cancel_quotation))
+        .route("/:id/submit", post(quotation_handler::submit_quotation))
+        .route("/:id/approve", post(quotation_handler::approve_quotation))
+        .route("/:id/reject", post(quotation_handler::reject_quotation))
 }
 
 /// 销售合同路由（path 前缀 /sales-contracts）
