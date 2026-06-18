@@ -75,10 +75,10 @@ const emit = defineEmits<{
 
 /**
  * 将 ColumnDef 转换为 el-table-v2 接受的列配置
- * 使用 V2Column<any> 显式标注计算属性的返回类型，
- * 避免推断类型与 el-table-v2 columns 期望不匹配（TS2322 AnyColumn）
+ * 返回类型用 any[] 显式标注，避免与 el-table-v2 内部 Column<any>
+ * 的 fixed 字段（true | FixedDir | undefined）类型不匹配
  */
-const v2Columns = computed<V2Column<any>[]>(() => {
+const v2Columns = computed<any[]>(() => {
   return props.columns
     .filter(col => !col.hidden)
     .map(col => ({

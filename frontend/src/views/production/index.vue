@@ -256,9 +256,8 @@ const orderRules = {
   priority: [{ required: true, message: '请选择优先级', trigger: 'change' }],
 }
 
-// 状态 el-tag 与 el-button 共用的类型别名（与 element-plus 类型保持一致）
+// 状态 el-tag 类型别名（与 element-plus 类型保持一致）
 type ElTagType = 'primary' | 'success' | 'warning' | 'info' | 'danger'
-type ElButtonType = 'primary' | 'success' | 'warning' | 'info' | 'danger' | 'default' | 'text' | ''
 
 /**
  * 列定义

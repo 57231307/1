@@ -21,7 +21,7 @@ interface ListResponsePayload {
   count?: number
 }
 
-export interface UseTableApiOptions<T = any> {
+export interface UseTableApiOptions {
   url: string
   defaultParams?: Record<string, any>
   defaultPageSize?: number
