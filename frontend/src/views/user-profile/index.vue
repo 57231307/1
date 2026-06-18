@@ -6,61 +6,90 @@
 
     <div class="content">
       <!-- 个人信息卡片 -->
-      <el-card class="profile-card">
-        <template #header>
-          <div class="card-header">
-            <span>个人信息</span>
-            <el-button type="primary" :loading="profileLoading" @click="handleSaveProfile">
-              保存修改
+      <div class="left-column">
+        <el-card class="profile-card">
+          <template #header>
+            <div class="card-header">
+              <span>个人信息</span>
+              <el-button type="primary" :loading="profileLoading" @click="handleSaveProfile">
+                保存修改
+              </el-button>
+            </div>
+          </template>
+
+          <div class="profile-content">
+            <!-- 头像上传 -->
+            <div class="avatar-section">
+              <el-upload
+                class="avatar-uploader"
+                :show-file-list="false"
+                :before-upload="beforeAvatarUpload"
+                :on-change="handleAvatarChange"
+                accept="image/*"
+              >
+                <img v-if="profileForm.avatar" :src="profileForm.avatar" class="avatar" />
+                <el-icon v-else class="avatar-uploader-icon"><Plus /></el-icon>
+              </el-upload>
+              <div class="avatar-tip">点击上传头像</div>
+            </div>
+
+            <!-- 个人信息表单 -->
+            <el-form
+              ref="profileFormRef"
+              :model="profileForm"
+              :rules="profileRules"
+              label-width="100px"
+              class="profile-form"
+            >
+              <el-form-item label="用户名">
+                <el-input v-model="profileForm.username" disabled />
+              </el-form-item>
+              <el-form-item label="姓名" prop="real_name">
+                <el-input v-model="profileForm.real_name" placeholder="请输入姓名" />
+              </el-form-item>
+              <el-form-item label="邮箱" prop="email">
+                <el-input v-model="profileForm.email" placeholder="请输入邮箱" />
+              </el-form-item>
+              <el-form-item label="手机号" prop="phone">
+                <el-input v-model="profileForm.phone" placeholder="请输入手机号" />
+              </el-form-item>
+              <el-form-item label="部门">
+                <el-input v-model="profileForm.department_name" disabled />
+              </el-form-item>
+              <el-form-item label="角色">
+                <el-input :value="profileForm.role_names?.join(', ')" disabled />
+              </el-form-item>
+            </el-form>
+          </div>
+        </el-card>
+
+        <!-- 安全设置快捷入口 -->
+        <el-card class="security-card">
+          <template #header>
+            <div class="card-header">
+              <span>安全设置</span>
+            </div>
+          </template>
+          <div class="security-actions">
+            <el-button
+              type="primary"
+              plain
+              class="security-action-btn"
+              @click="goTo2fa"
+            >
+              2FA 设置
+            </el-button>
+            <el-button
+              type="primary"
+              plain
+              class="security-action-btn"
+              @click="goToChangePwd"
+            >
+              修改密码
             </el-button>
           </div>
-        </template>
-
-        <div class="profile-content">
-          <!-- 头像上传 -->
-          <div class="avatar-section">
-            <el-upload
-              class="avatar-uploader"
-              :show-file-list="false"
-              :before-upload="beforeAvatarUpload"
-              :on-change="handleAvatarChange"
-              accept="image/*"
-            >
-              <img v-if="profileForm.avatar" :src="profileForm.avatar" class="avatar" />
-              <el-icon v-else class="avatar-uploader-icon"><Plus /></el-icon>
-            </el-upload>
-            <div class="avatar-tip">点击上传头像</div>
-          </div>
-
-          <!-- 个人信息表单 -->
-          <el-form
-            ref="profileFormRef"
-            :model="profileForm"
-            :rules="profileRules"
-            label-width="100px"
-            class="profile-form"
-          >
-            <el-form-item label="用户名">
-              <el-input v-model="profileForm.username" disabled />
-            </el-form-item>
-            <el-form-item label="姓名" prop="real_name">
-              <el-input v-model="profileForm.real_name" placeholder="请输入姓名" />
-            </el-form-item>
-            <el-form-item label="邮箱" prop="email">
-              <el-input v-model="profileForm.email" placeholder="请输入邮箱" />
-            </el-form-item>
-            <el-form-item label="手机号" prop="phone">
-              <el-input v-model="profileForm.phone" placeholder="请输入手机号" />
-            </el-form-item>
-            <el-form-item label="部门">
-              <el-input v-model="profileForm.department_name" disabled />
-            </el-form-item>
-            <el-form-item label="角色">
-              <el-input :value="profileForm.role_names?.join(', ')" disabled />
-            </el-form-item>
-          </el-form>
-        </div>
-      </el-card>
+        </el-card>
+      </div>
 
       <!-- 修改密码卡片 -->
       <el-card class="password-card">
@@ -112,6 +141,7 @@
 
 <script setup lang="ts">
 import { ref, reactive, onMounted } from 'vue'
+import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import type { FormInstance, FormRules, UploadFile } from 'element-plus'
 import { Plus } from '@element-plus/icons-vue'
@@ -124,6 +154,18 @@ import {
   type UserProfileUpdateRequest,
   type ChangePasswordRequest,
 } from '@/api/user-profile'
+
+const router = useRouter()
+
+/** 跳转到 2FA 设置页 */
+const goTo2fa = () => {
+  router.push('/security/two-factor-setup')
+}
+
+/** 跳转到修改密码页 */
+const goToChangePwd = () => {
+  router.push('/security/change-password')
+}
 
 const profileLoading = ref(false)
 const passwordLoading = ref(false)
@@ -283,8 +325,29 @@ onMounted(() => {
   gap: 20px;
 }
 
-.profile-card {
+.left-column {
   flex: 2;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.profile-card {
+  width: 100%;
+}
+
+.security-card {
+  width: 100%;
+}
+
+.security-actions {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.security-action-btn {
+  min-width: 140px;
 }
 
 .password-card {
