@@ -1,0 +1,96 @@
+// Dashboard 主业务 composable
+// 拆分自 Dashboard.vue（P14 批 2 I-3 第 6 批）
+// 业务领域：仪表板（overview + 2 图表数据 + 日期范围 + 趋势天数）
+// 行为完全保持一致（仅结构重构）
+import { reactive, ref, watch } from 'vue'
+import { ElMessage } from 'element-plus'
+import { dashboardApi } from '@/api/dashboard'
+import type {
+  DashboardOverview,
+  SalesStatistics,
+  InventoryStatistics,
+  SalesTrend,
+  ChartData,
+} from '@/api/dashboard'
+import { logger } from '@/utils/logger'
+
+/** Dashboard 主业务 composable（返回 reactive 包装的字段，父组件可直接 .字段 解包） */
+export const useDb = () => {
+  // 日期范围 + 趋势天数
+  const dateRange = ref<[Date, Date] | null>(null)
+  const trendDays = ref(7)
+
+  // 概览数据
+  const stats = ref<DashboardOverview>({})
+
+  // 图表数据
+  const trendData = ref<SalesTrend[]>([])
+  const categoryDistribution = ref<ChartData[]>([])
+
+  // 获取概览数据
+  const fetchDashboardData = async () => {
+    try {
+      const res = await dashboardApi.getOverview()
+      stats.value = res.data! || {}
+    } catch (error: any) {
+      ElMessage.error(error.message || '获取仪表盘数据失败')
+      stats.value = {}
+    }
+  }
+
+  // 获取图表数据
+  const fetchChartData = async () => {
+    try {
+      const [salesRes, inventoryRes] = await Promise.all([
+        dashboardApi.getSalesStats(),
+        dashboardApi.getInventoryStats(),
+      ])
+      trendData.value = salesRes.data?.trends || []
+      categoryDistribution.value = inventoryRes.data?.categoryDistribution || []
+    } catch (error: any) {
+      logger.error('获取图表数据失败:', error)
+      trendData.value = []
+      categoryDistribution.value = []
+    }
+  }
+
+  // 刷新最新活动（同时刷新概览 + 图表）
+  const refreshActivities = async () => {
+    await Promise.all([fetchDashboardData(), fetchChartData()])
+    ElMessage.success('刷新成功')
+  }
+
+  // 日期变化 → 重新拉取概览
+  const handleDateChange = async () => {
+    await fetchDashboardData()
+  }
+
+  // 趋势天数变化 → 重新拉取销售统计
+  const handleTrendDaysChange = async () => {
+    try {
+      const res = await dashboardApi.getSalesStats()
+      trendData.value = res.data?.trends || []
+    } catch (error) {
+      logger.error('获取销售趋势失败:', error)
+      trendData.value = []
+    }
+  }
+
+  // 监听趋势天数变化
+  watch(trendDays, () => {
+    handleTrendDaysChange()
+  })
+
+  return reactive({
+    dateRange,
+    trendDays,
+    stats,
+    trendData,
+    categoryDistribution,
+    fetchDashboardData,
+    fetchChartData,
+    refreshActivities,
+    handleDateChange,
+    handleTrendDaysChange,
+  })
+}
