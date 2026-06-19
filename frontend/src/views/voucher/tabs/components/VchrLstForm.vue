@@ -135,7 +135,6 @@
 
 <script setup lang="ts">
 /* eslint-disable vue/no-mutating-props */
-import type { VoucherEntity } from '@/api/voucher'
 import { formatAmount } from '../composables/vchrLstFmts'
 
 interface VoucherEntry {
@@ -145,7 +144,7 @@ interface VoucherEntry {
   description?: string
 }
 
-/** 父组件传 Partial<VoucherEntity>，所有字段均可选 */
+/** 父组件传 Partial 类型，所有字段均可选 */
 type VoucherForm = {
   id?: number
   voucher_no?: string
