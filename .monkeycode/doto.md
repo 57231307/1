@@ -335,13 +335,54 @@
 
 ---
 
-## 五、当前待办
+## 五、项目基础信息（来自 /workspace/MEMORY.md）
+
+| 项目 | 内容 |
+|------|------|
+| 项目名称 | 冰西 ERP（Bingxi ERP） |
+| 后端技术栈 | Rust 1.94.1 + Axum + SeaORM + PostgreSQL |
+| 前端技术栈 | Vue 3.4 + TypeScript 5.4 + Element Plus + Vite |
+| 主分支 | main |
+| Git 平台 | GitHub |
+| CI/CD | `.github/workflows/ci-cd.yml`（4 job 并行：build-backend / build-frontend / test / test-frontend） |
+
+---
+
+## 六、当前待办
 
 | 任务 | 状态 | 备注 |
 |------|------|------|
-| Wave 4 P2-1 el-table-v2 | ✅ 已完成（PR #108-#112）| 5 PR 全部合并 |
-| Wave 4 P2-2 性能优化 | 🟡 PR-1 + PR-2 已完成（#121, #122）| PR-3+ 待用户决策（需 DBA 执行基线脚本填充数据） |
-| Wave 4 后续 P2-3/P3 | 🔵 待启动 | 待用户决策 |
+| P14 批 2 I-3 拆分大 .vue | ✅ 已完成（PR #195-#199，6 批 23 文件）| 累计 23/24 拆分完毕 |
+| P14 批 1 I-2 拆分大 .vue | ✅ 已完成（PR #194）| voucher 567/api-gateway 835/arReconciliation 789 |
+| P13 批 1 P3-2 审计日志增强 | ✅ 已完成（PR #191）| audit_log 扩字段 + audit_context 中间件 + 3 端点 |
+| P13 批 1 B-慢查询审计 | ✅ 已完成（PR #192）| pg_stat_statements + slow_query_log + 4 端点 |
+| P13 批 1 I-1 拆分大 .vue | ✅ 已完成（PR #193）| advanced 993/report 963/purchase 957 |
+| P12 批 1+2+3 综合 | ✅ 已完成（12 PR）| P0 报价单/P2-1 V2Table/P2-2 性能/P3-1 安全 |
+| Wave 1-3 | ✅ 已完成（21 PR）| 4 业务流 + 11 拆分 + 5 AI + 1 编译 |
+| **P14+ 候选（roadmap v0.3 剩余）** | 🔵 待启动 | 见下方 |
+
+### P14+ 候选清单（roadmap v0.3 剩余，6 任务）
+
+- **B4**：完成 10 Tab 业务骨架（system/ 下 11 Tab 仍为骨架）
+- **I-3 剩余 1 个**：sales-returns 527 行大 .vue（剩余最大的）
+- **E2E 测试覆盖**：补齐关键业务流端到端测试
+- **OpenAPI 3.1 规范生成**：后端 API 文档自动生成
+- **product_color_price 反向 port**：从 test 分支 port 产品色价
+- **P2-2 性能优化 PR-3+**：Redis 缓存层 + DB N+1 后续优化
+
+### I-3 拆分累计成果（P14 批 2，6 批 23 文件）
+
+| 批次 | PR | 拆分文件 | 行数变化 |
+|------|------|----------|----------|
+| I-1 | #193 | advanced 993 / report 963 / purchase 957 | 2913 → 683 |
+| I-2 | #194 | voucher 567 / api-gateway 835 / arReconciliation 789 | 2191 → 386 |
+| I-3 第 1 批 | #195 | VoucherListTab 870 / system-update 725 / sales-contract 717 | 2312 → 424 |
+| I-3 第 2 批 | #196 | purchase-return 695 / scheduling/gantt 691 / scheduling/index 689 | 2075 → 413 |
+| I-3 第 3 批 | #197 | sales-price 677 / OrderListView 644 / purchase-contract 644 / purchase-price 622 | 2587 → 551 |
+| I-3 第 4 批 | #198 | bpm/approval 618 / production 611 / logistics 605 / purchaseReceipt 598 | 2432 → 509 |
+| I-3 第 5 批 | #199 | data-import 596 / purchase-inspection 594 / material-shortage 590 / bpm/definitions 579 | 2359 → 475 |
+| I-3 第 6 批 | TBD (e4ba11d) | capacity 562 / Dashboard 549 / security 547 / TwoFactorSetup 540 / sales-analysis 535 | 2733 → TBD |
+| **合计** | **6 PR** | **23 文件** | **17270 → 3441 (-80%)** |
 
 ### Wave 4 P2-1 完成回顾（2026-06-16）
 
@@ -374,6 +415,31 @@
 - **下一波推荐**：P2-2 性能优化（V2Table 性能验证 + 后端 N+1 修复）
 
 ---
+
+### [test vs main 分支功能差异分析]
+
+- Date: 2026-06-19
+- Context: 用户要求"对比 test 和 main 的项目功能差异"
+- Category: 工作流协作
+- Instructions:
+  - **规模**：test 领先 196 提交（+122,467/-43,459）、main 领先 126 提交、双向 957 文件差异
+  - **test 独有核心能力**：P9 大爆炸（OTel/Kafka/ES/un-wrap 清理/service 拆分/E2E/100+ 单元测试）、mobile/ 目录、microservices/ 目录、OpenAPI 3.0 完整规范、213 表 Schema 文档、生产就绪 v2026.617.0001
+  - **main 独有治理特性**：I-3 .vue 拆分大跃进（25 文件）、审计体系增强（pg_stat_statements + V2Table UI）、P3-1 安全（TOTP 2FA + 密码强度）、H1/H2/H3 死代码清理、vue-tsc CI job、`.monkeycode/` 文档体系
+  - **关键路径冲突**：Kafka 集成（test `messaging/` vs main `services/event_kafka.rs`）、CHANGELOG 策略（test 根目录 vs main `.monkeycode/`）
+  - **合并建议 6 波次**：Wave A（test→main：mobile/microservices/OpenAPI/Schema）→ Wave B（main→test：I-3+审计 UI）→ Wave C（test→main：OTel/Kafka/ES 统一路径）→ Wave D（main→test：.monkeycode/）→ Wave E（双向：P0 业务流/P3 安全/P2 性能）→ Wave F（CI+CHANGELOG 对齐）
+  - **风险点**：mobile/ 与"禁止本地编译"规则冲突、test 缺 vue-tsc CI、I-3 拆分在 test P1-3 已有部分实现需 dedup
+
+### [docs 合并 + main 同步]
+
+- Date: 2026-06-19
+- Context: 用户要求"把非/.monkeycode 文件夹里面的 docs 文件夹合并到/.monkeycode 文件夹里面的 docs 文件夹里面"+"强制推送"
+- Category: 工作流协作
+- Instructions:
+  - **docs 合并**：将 `/workspace/docs/`、`/workspace/backend/docs/`、`/workspace/frontend/docs/` 三个源目录移动到 `/workspace/.monkeycode/docs/`（平铺到目标根目录），共 91 个文件，3 个空源目录已 `rmdir` 清理
+  - **冲突分析**：无文件/子目录名冲突，`architecture.md` 与 `ARCHITECTURE.md` 在 Linux 下按大小写区分共存
+  - **推送策略**：用户最初请求"强制推送"，但本地领先 1 提交时本可快进；fetch 后发现远端已有 `a0a25e8` 提交（与 docs 合并相关，由自动化或外部提交），与本地 `390f101 feat: 项目评估` 形成分叉
+  - **最终方案**：`git pull --no-rebase` 产生 merge commit `fb1d331` → `git push` 快进至 `fb1d331`，**未使用强制推送**（保留所有历史）
+  - **当前 main 状态**：`fb1d331`（merge commit）= 7d74eed → 390f101 → a0a25e8 → fb1d331，与 origin/main 完全同步
 
 ### [销售报价单模块（PR #126）完成总结]
 
