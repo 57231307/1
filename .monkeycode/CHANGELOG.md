@@ -16,6 +16,30 @@
 
 ## 最新任务总结
 
+### 综合审计报告（2026-06-19）
+
+- **综合报告**：[.monkeycode/docs/audits/2026-06-19-comprehensive-audit.md](file:///workspace/.monkeycode/docs/audits/2026-06-19-comprehensive-audit.md)
+- **基线**：main HEAD `2f8fa81`
+- **综合评分**：72/100 B 级（与 2026-06-16 评估持平；utils/ 清理收益被 4 维度新发现抵消）
+- **核心统计**：
+  - 后端 API：943 端点 / 905 唯一 (method,path) / 18 业务域
+  - 前端 API：89 文件 / 933 调用点
+  - 前端路由：114 路由 / 392 .vue
+  - 现代代码：626 .rs + 413 .vue + 217 .ts
+- **🔴 P0 必修（6 大类）**：
+  - **P0-A** 4 处启动时 panic：sales.rs:116/120、system.rs:28、custom_order 整模块未挂载 → **当前 main 无法启动**
+  - **P0-B** 6 处安全/规范：83 文件级 dead_code + cookie_secret 静默降级 + 随机 JWT secret + operation_log 吞咽 + token localStorage + 2 v-html XSS
+  - **P0-C** 2 处路由错配：color-prices/create 指向 list.vue、/system/slow-query 菜单孤儿
+  - **P0-D** 96 个前端 API 孤儿：custom-order 17 + api-gateway 14 + 采购路径不一致 26 + 用户档案 3
+- **🟡 P1 应当修**：5 BPM 状态流转端点 + 132 项级 dead_code + 6 .vue > 500 行 + 8 .rs > 750 行 + 18 前端死代码 + 200+ API 孤儿
+- **🟢 P2 建议修**：route 元信息 106/106 缺 icon/permission + 409 `: any` + 191 `as any` + 引入 utoipa + CI 增补启动校验
+- **🟢 已达标**：0 unsafe / 0 @ts-ignore / 0 eval / 0 innerHTML / 0 unwrap_or(0) / 146 租户隔离 100% 合规 / SQL 100% 参数化 / 7 安全头已配
+- **修复路线图**：
+  - 立即（30 分钟）：4 处 P0-A
+  - 短期（1 周）：83 dead_code + 3 密钥 + 2 XSS
+  - 中期（1 月）：P1 拆分 + 200+ 孤儿
+  - 长期（季度）：utoipa + SAST 工具链
+
 ### 冰溪 ERP 现代代码质量审计（2026-06-19）
 
 - **报告位置**：[.monkeycode/docs/audits/2026-06-19-modern-code-audit.md](file:///workspace/.monkeycode/docs/audits/2026-06-19-modern-code-audit.md)

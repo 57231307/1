@@ -363,6 +363,8 @@
 | **前端 API 调用审计** | ✅ 已完成（2026-06-19）| [报告](file:///workspace/.monkeycode/docs/audits/2026-06-19-frontend-api-audit.md) — 89 文件/933 调用点；P0 孤儿 96 处（custom-order 路由 5 分钟修复；api-gateway 14 处需新建 handler） |
 | **后端 HTTP API 路由审计** | ✅ 已完成（2026-06-19）| [报告](file:///workspace/.monkeycode/docs/audits/2026-06-19-backend-api-audit.md) — 20 文件/943 路由/905 唯一；P0 启动 panic 3 处（sales.rs:116/120、system.rs:28）；P0 孤儿 custom_order 18 端点（mod.rs 未 nest）；未发现真正 method+path 冲突 |
 | **前端 Vue Router 路由审计** | ✅ 已完成（2026-06-19）| [报告](file:///workspace/.monkeycode/docs/audits/2026-06-19-frontend-router-audit.md) — 114 路由/110 可导航/392 .vue 文件；P0 错配 1 处（color-prices/create → list.vue 错挂，router/index.ts:638-639）；P0 菜单孤儿 1 处（/system/slow-query 页面存在但无路由，MainLayout.vue:144）；P1 死代码页面 17 + 子文件 23（bpm/approval、bpm/definitions、security/two-factor、security/ChangePassword、admin/failover、bi/index、crm/leads+opportunities、report/templates、sales/tabs/{SalesOrderFilter,SalesStatsCards}） |
+| **综合审计报告（4 维度汇总）** | ✅ 已完成（2026-06-19）| [综合报告](file:///workspace/.monkeycode/docs/audits/2026-06-19-comprehensive-audit.md) — 4 子代理审计汇总，综合 72/100 B 级；**🔴 P0 必修 6 大类**：P0-A 4 处启动 panic（main 当前无法启动）+ P0-B 6 处安全（83 文件级 dead_code + 3 密钥降级 + 2 v-html + token localStorage）+ P0-C 2 处路由错配 + P0-D 96 个 API 孤儿；🟡 P1：132 项级 dead_code + 6 大 .vue + 8 大 .rs + 18 前端死代码 + 200+ API 孤儿；🟢 已达标 0 unsafe/0 unwrap_or(0)/0 @ts-ignore/146 租户隔离 100% 合规/SQL 参数化 |
+| **🔴 P0 修复（启动 panic + 路由错配）** | 🔴 待启动 | 4 处 P0-A（sales.rs:116/120、system.rs:28、custom_order 未挂载）+ 2 处 P0-C（color-prices/create 错配、/system/slow-query 菜单孤儿），预计 30-45 分钟修复，**main 当前无法启动** |
 | **P14+ 候选（roadmap v0.3 剩余）** | 🔵 待启动 | 见下方 |
 
 ### P14+ 候选清单（roadmap v0.3 剩余，6 任务）
