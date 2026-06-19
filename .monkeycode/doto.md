@@ -364,7 +364,13 @@
 | **后端 HTTP API 路由审计** | ✅ 已完成（2026-06-19）| [报告](file:///workspace/.monkeycode/docs/audits/2026-06-19-backend-api-audit.md) — 20 文件/943 路由/905 唯一；P0 启动 panic 3 处（sales.rs:116/120、system.rs:28）；P0 孤儿 custom_order 18 端点（mod.rs 未 nest）；未发现真正 method+path 冲突 |
 | **前端 Vue Router 路由审计** | ✅ 已完成（2026-06-19）| [报告](file:///workspace/.monkeycode/docs/audits/2026-06-19-frontend-router-audit.md) — 114 路由/110 可导航/392 .vue 文件；P0 错配 1 处（color-prices/create → list.vue 错挂，router/index.ts:638-639）；P0 菜单孤儿 1 处（/system/slow-query 页面存在但无路由，MainLayout.vue:144）；P1 死代码页面 17 + 子文件 23（bpm/approval、bpm/definitions、security/two-factor、security/ChangePassword、admin/failover、bi/index、crm/leads+opportunities、report/templates、sales/tabs/{SalesOrderFilter,SalesStatsCards}） |
 | **综合审计报告（4 维度汇总）** | ✅ 已完成（2026-06-19）| [综合报告](file:///workspace/.monkeycode/docs/audits/2026-06-19-comprehensive-audit.md) — 4 子代理审计汇总，综合 72/100 B 级；**🔴 P0 必修 6 大类**：P0-A 4 处启动 panic（main 当前无法启动）+ P0-B 6 处安全（83 文件级 dead_code + 3 密钥降级 + 2 v-html + token localStorage）+ P0-C 2 处路由错配 + P0-D 96 个 API 孤儿；🟡 P1：132 项级 dead_code + 6 大 .vue + 8 大 .rs + 18 前端死代码 + 200+ API 孤儿；🟢 已达标 0 unsafe/0 unwrap_or(0)/0 @ts-ignore/146 租户隔离 100% 合规/SQL 参数化 |
-| **🔴 P0 修复（启动 panic + 路由错配）** | 🔴 待启动 | 4 处 P0-A（sales.rs:116/120、system.rs:28、custom_order 未挂载）+ 2 处 P0-C（color-prices/create 错配、/system/slow-query 菜单孤儿），预计 30-45 分钟修复，**main 当前无法启动** |
+| **🔴 P0 修复（启动 panic + 路由错配）** | ✅ 已完成（Wave A） | commit `f3d2a39` — 4 启动 panic + 1 路由错配 + custom-order 挂载 + slow-query + color-prices/create |
+| **Wave B 死代码 + 安全加固** | ✅ 已完成（Wave B-1+B-2+B-3） | commit `e89cf63` (83 dead_code) + `f93dd1e` (3 密钥 + 2 v-html) + `2be6e2a` (token 迁移 httpOnly Cookie) |
+| **Wave A+B 推送 main** | ✅ 已完成（2026-06-19 18:00） | `git push origin main` 成功，76fba69..2be6e2a，4 commit / 102 文件 / +590/-377 行，等待 CI 验证 |
+| **🔴 Wave A 启动修复（5 修复点）** | ✅ 已完成（2026-06-19）| A1-1/2/3 修 3 处启动 panic + A2 挂载 custom_order 路由 + A3-1 修 color-prices/create 错配（创建新 create.vue）+ A4 添加 /system/slow-query 路由；**5 文件修改 + 1 文件新建；未本地编译，仅静态验证；未 commit/push** |
+| **Wave A-E 5 波修复规划** | ✅ 规划完成（2026-06-19）| [修复方案 plan](file:///workspace/.monkeycode/docs/superpowers/plans/2026-06-19-p0-fix-plan.md) — Wave A 启动修复（30 分钟）+ Wave B 安全加固（4-6h）+ Wave C API 对齐（1-2 周）+ Wave D 清理规范（2-3 周）+ Wave E 工具链（季度） |
+| **🔴 Wave B-1 清理 83 文件级 dead_code** | ✅ 已完成（2026-06-19）| 4 批 83 服务/handler/middleware 文件删除 `#![allow(dead_code)]` + TODO 注释；每文件 -2 行；依赖编译器精准报告（CI 强制） |
+| **🔴 Wave B-2 安全/规范 5 修复点** | ✅ 已完成（2026-06-19）| B2-1 cookie_secret 独立配置 + B2-2 jwt_secret cfg(test) + B2-3 operation_log tracing::error! + B3-1/2 v-html DOMPurify 净化；9 文件修改；新增 dompurify ^3.1.6 + @types/dompurify ^3.0.5；未本地编译，仅静态验证；未 commit/push |
 | **P14+ 候选（roadmap v0.3 剩余）** | 🔵 待启动 | 见下方 |
 
 ### P14+ 候选清单（roadmap v0.3 剩余，6 任务）
@@ -563,3 +569,44 @@
   - 前端：5 views / 3 components / 1 API client / 1 router module / 1 E2E
   - 文档：2 文档（用户手册 + API 文档）+ 1 spec + 1 plan
 - **下一步建议**：启动 P0-2 主备隔离 / P0-3 定制订单全流程跟踪（按用户优先级决策）
+
+---
+
+## Wave B-1 清理 83 文件级 #![allow(dead_code)]（2026-06-19）
+
+- Date: 2026-06-19
+- Context: 现代代码质量审计 P0-1 整改
+- Category: 死代码治理（P0 必修）
+- **问题**：CI 必失败项 — 83 处文件级 `#![allow(dead_code)]` 越界（违背 MEMORY.md 第八节）
+- **修复方案**：删除文件级抑制，依赖编译器精准报告
+- **执行批次**（4 批共 83 文件）：
+  - **Batch 1（services 1-20，20 文件）**：purchase_contract、inventory_finance_bridge、init、account_subject、supplier_evaluation、product_category、ai/mod、inventory_reservation、transaction_helper、webhook、bpm、event_bus、ar/pay、ar/mod、business_trace、crm/assign、so/price、so/sales_return、finance_payment、enhanced_logger
+  - **Batch 2（services 21-40，20 文件）**：product_service、order_change_history、auth、five_dimension_query、tenant_billing、system_update、ar_service、purchase_inspection、ap_payment、department、sales_contract、financial_analysis、quality_inspection、ar_collection、sales_return、customer、api_key、budget_management、operation_log、po/purchase_return
+  - **Batch 3（services 41-54 + cache + middleware，21 文件）**：inventory_count、voucher、tenant、user、inv/hold、inv/count、inv/adjust、purchase_receipt、purchase_delivery_calculator、quality_standard、report/mod、customer_credit、ap_invoice、inventory_stock、cache/redis_client + 6 middleware（operation_log、tenant、api_gateway、permission、logger_middleware、auth_context）
+  - **Batch 4（handlers 22 文件）**：budget_management、purchase_order、barcode_scanner、supplier_evaluation、supplier、quality_standard、sales_fabric_order、ap_payment、purchase_price、init、system_update、quality_inspection、inventory_stock、sales_price、inventory_batch、fixed_asset、warehouse、ap_invoice、purchase_inspection、customer、purchase_receipt、greige_fabric
+- **变更规模**：83 文件，165 行删除（每文件 -2 行：`#![allow(dead_code)]` + `// TODO(tech-debt): ...`）
+- **特殊处理**：`cache/redis_client.rs` 仅 -1 行（该文件 TODO 格式不同："cache 模块的辅助 API..."，保留文件级 TODO 作为业务说明）
+- **未 commit/push**：等待主代理审核
+- **CI/CD 验证**：未本地编译（遵守"禁止本地编译"规则），仅依赖 GitHub Actions
+- **下一步**：Wave B-2 处理 CI 报告的具体 dead_code 项级警告（如有）
+
+## Wave B-3 token 迁移到 httpOnly Cookie（2026-06-19）
+
+- Date: 2026-06-19
+- Context: 现代代码质量审计 P0-6 整改（OWASP A07:2021 XSS 防护）
+- Category: 安全加固（P0 必修）
+- **问题**：3 个 token（access_token / refresh_token / csrf_token）明文存于 localStorage，XSS 一击必杀
+- **修复方案**：token 由后端写入 httpOnly Cookie，前端 JS **无法读取**
+- **修改文件（6 个）**：
+  - `backend/src/handlers/auth_handler.rs`：login 设置 4 个 Cookie（access_token / refresh_token / csrf_token / 旧版 jwt 兼容）；logout 清除 4 个 Cookie（max_age=0）；refresh_token 接收 refresh_token Cookie + 设置新 Cookie
+  - `backend/src/middleware/auth.rs`：优先读 access_token Cookie → 旧 jwt Cookie → Authorization 头
+  - `frontend/src/utils/storage.ts`：完全重写，仅保留 csrf_token 的 Cookie 读取工具
+  - `frontend/src/api/request.ts`：开启 withCredentials=true，移除 Authorization 头注入，CSRF 头保留
+  - `frontend/src/api/auth.ts`：移除 localStorage 写入，CSRF 工具 re-export
+  - `frontend/src/store/user.ts`：移除 setToken / removeToken / setRefreshToken
+  - `frontend/src/router/index.ts`：鉴权检查改用 userInfo 标识
+  - `frontend/tests/unit/storage.test.ts`：更新为 Cookie 读取测试
+  - `frontend/tests/unit/user-store.test.ts`：更新为不写 localStorage 验证
+- **兼容性策略**：保留旧 jwt Cookie + Authorization 头 → 渐进式迁移，老客户端/外部调用不中断
+- **未 commit/push**：等待主代理审核
+- **CI/CD 验证**：未本地编译，依赖 GitHub Actions
