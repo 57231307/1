@@ -34,22 +34,29 @@ pub async fn auth_middleware(
         return Ok(next.run(request).await);
     }
 
-    // 优先从 HttpOnly Cookie 中提取 jwt，兼容 Authorization Header
+    // 优先从 HttpOnly Cookie 中提取 access_token，兼容旧版 jwt Cookie 与 Authorization Header
     let key = Key::derive_from(state.cookie_secret.as_bytes());
     let cookie_jar = PrivateCookieJar::from_headers(request.headers(), key);
-    let token_from_cookie = cookie_jar.get("jwt").map(|c| c.value().to_string());
+    // 1) 新版命名：access_token（httpOnly）
+    let token_from_access_cookie = cookie_jar.get("access_token").map(|c| c.value().to_string());
+    // 2) 旧版命名：jwt（httpOnly，向后兼容）
+    let token_from_legacy_cookie = cookie_jar.get("jwt").map(|c| c.value().to_string());
 
     let auth_header = request
         .headers()
         .get(axum::http::header::AUTHORIZATION)
         .and_then(|header| header.to_str().ok());
 
-    let has_cookie = token_from_cookie.is_some();
+    let has_access_cookie = token_from_access_cookie.is_some();
+    let has_legacy_cookie = token_from_legacy_cookie.is_some();
     let has_auth_header = auth_header.is_some();
 
-    let token = if let Some(cookie_token) = token_from_cookie {
-        info!(path = %path, method = %method, client_ip = %client_ip, "从Cookie获取Token");
-        cookie_token
+    let token = if let Some(access_token) = token_from_access_cookie {
+        info!(path = %path, method = %method, client_ip = %client_ip, "从 access_token Cookie 获取Token");
+        access_token
+    } else if let Some(legacy_token) = token_from_legacy_cookie {
+        info!(path = %path, method = %method, client_ip = %client_ip, "从 jwt Cookie (旧版) 获取Token");
+        legacy_token
     } else if let Some(header_val) = auth_header {
         if !header_val.starts_with("Bearer ") {
             warn!(path = %path, method = %method, client_ip = %client_ip, "无效的认证头格式: {}", header_val);
@@ -58,7 +65,7 @@ pub async fn auth_middleware(
         info!(path = %path, method = %method, client_ip = %client_ip, "从Authorization头获取Token");
         header_val[7..].to_string()
     } else {
-        warn!(path = %path, method = %method, client_ip = %client_ip, "缺少认证凭据 (Cookie={}, Header={})", has_cookie, has_auth_header);
+        warn!(path = %path, method = %method, client_ip = %client_ip, "缺少认证凭据 (Cookie={}/{}/Header={})", has_access_cookie, has_legacy_cookie, has_auth_header);
         return Err(unauthorized_response("缺少认证凭据"));
     };
 

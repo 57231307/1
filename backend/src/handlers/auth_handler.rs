@@ -17,7 +17,7 @@ use axum::{
     response::IntoResponse,
     Json,
 };
-use axum_extra::extract::cookie::{Cookie, SameSite};
+use axum_extra::extract::cookie::{time::Duration as CookieDuration, Cookie, SameSite};
 use chrono::{Duration as ChronoDuration, Utc};
 use sea_orm::{ColumnTrait, EntityTrait, QueryFilter};
 use serde::{Deserialize, Serialize};
@@ -322,18 +322,52 @@ pub async fn login(
             };
 
             // 创建 HttpOnly Cookie
-            // 开发环境下关闭secure标志，允许HTTP传输；生产环境必须开启HTTPS
+            // 开发环境下关闭 secure 标志，允许 HTTP 传输；生产环境必须开启 HTTPS
             let is_production =
                 std::env::var("ENV").unwrap_or_else(|_| "development".to_string()) == "production";
 
-            let cookie = Cookie::build(("jwt", token))
+            // access_token: httpOnly（防 XSS 窃取），SameSite=Strict 防止跨站请求携带
+            let access_cookie = Cookie::build(("access_token", token.clone()))
+                .path("/")
+                .http_only(true)
+                .secure(is_production)
+                .same_site(SameSite::Strict)
+                .max_age(CookieDuration::minutes(30))
+                .build();
+
+            // refresh_token: httpOnly，7 天有效期（用于续签 access_token）
+            let refresh_cookie = Cookie::build(("refresh_token", response.refresh_token.clone()))
+                .path("/")
+                .http_only(true)
+                .secure(is_production)
+                .same_site(SameSite::Strict)
+                .max_age(CookieDuration::days(7))
+                .build();
+
+            // csrf_token: 必须可被前端 JS 读取以注入 X-CSRF-Token 头，
+            // 故 http_only=false；CSRF 防护依赖"攻击者无法读取跨域 Cookie"的同源策略
+            let csrf_cookie = Cookie::build(("csrf_token", response.csrf_token.clone()))
+                .path("/")
+                .http_only(false)
+                .secure(is_production)
+                .same_site(SameSite::Strict)
+                .max_age(CookieDuration::days(7))
+                .build();
+
+            // 兼容旧版客户端：保留 jwt Cookie（httpOnly）。新代码优先读取 access_token。
+            let legacy_jwt_cookie = Cookie::build(("jwt", token.clone()))
                 .path("/")
                 .http_only(true)
                 .secure(is_production)
                 .same_site(SameSite::Lax)
+                .max_age(CookieDuration::minutes(30))
                 .build();
 
-            let jar = jar.add(cookie);
+            let jar = jar
+                .add(access_cookie)
+                .add(refresh_cookie)
+                .add(csrf_cookie)
+                .add(legacy_jwt_cookie);
 
             Ok((jar, Json(ApiResponse::success(response))).into_response())
         }
@@ -524,14 +558,44 @@ pub async fn logout(
     let is_production =
         std::env::var("ENV").unwrap_or_else(|_| "development".to_string()) == "production";
 
-    let removal_cookie = axum_extra::extract::cookie::Cookie::build(("jwt", ""))
+    // 清除所有登录态 Cookie（max_age 设为 0 即立刻过期）
+    // - access_token / refresh_token: httpOnly，防 XSS
+    // - csrf_token: 非 httpOnly，CSRF 头读取使用
+    // - jwt: 旧版兼容 Cookie
+    let removal_access = axum_extra::extract::cookie::Cookie::build(("access_token", ""))
+        .path("/")
+        .http_only(true)
+        .secure(is_production)
+        .same_site(SameSite::Strict)
+        .max_age(CookieDuration::seconds(0))
+        .build();
+    let removal_refresh = axum_extra::extract::cookie::Cookie::build(("refresh_token", ""))
+        .path("/")
+        .http_only(true)
+        .secure(is_production)
+        .same_site(SameSite::Strict)
+        .max_age(CookieDuration::seconds(0))
+        .build();
+    let removal_csrf = axum_extra::extract::cookie::Cookie::build(("csrf_token", ""))
+        .path("/")
+        .http_only(false)
+        .secure(is_production)
+        .same_site(SameSite::Strict)
+        .max_age(CookieDuration::seconds(0))
+        .build();
+    let removal_jwt = axum_extra::extract::cookie::Cookie::build(("jwt", ""))
         .path("/")
         .http_only(true)
         .secure(is_production)
         .same_site(SameSite::Lax)
+        .max_age(CookieDuration::seconds(0))
         .build();
 
-    let jar = jar.add(removal_cookie);
+    let jar = jar
+        .add(removal_access)
+        .add(removal_refresh)
+        .add(removal_csrf)
+        .add(removal_jwt);
 
     Ok((
         jar,
@@ -550,24 +614,32 @@ pub struct RefreshTokenResponse {
 pub async fn refresh_token(
     State(state): State<AppState>,
     headers: HeaderMap,
-) -> Result<Json<ApiResponse<RefreshTokenResponse>>, AppError> {
-    let token = headers
+    jar: axum_extra::extract::PrivateCookieJar,
+) -> Result<axum::response::Response, AppError> {
+    // 优先从 `refresh_token` Cookie 读取（httpOnly），兼容从 Authorization 头（Bearer）传入
+    let token_from_cookie = jar.get("refresh_token").map(|c| c.value().to_string());
+
+    let token_from_header = headers
         .get("Authorization")
         .and_then(|value| value.to_str().ok())
         .and_then(|value| value.strip_prefix("Bearer "))
+        .map(|s| s.to_string());
+
+    let token = token_from_cookie
+        .or(token_from_header)
         .ok_or(AppError::unauthorized("缺少认证令牌"))?;
 
     // 检查 Token 是否在黑名单中
     let is_blacklisted = state
         .cache
         .get_token_blacklist()
-        .get(&token.to_string())
+        .get(&token)
         .is_some();
     if is_blacklisted {
         return Err(AppError::unauthorized("令牌已被吊销，请重新登录"));
     }
 
-    let claims = AuthService::validate_token_static(token, &state.jwt_secret)
+    let claims = AuthService::validate_token_static(&token, &state.jwt_secret)
         .map_err(|_| AppError::unauthorized("无效的令牌"))?;
 
     // 检查是否在刷新期内（7天）
@@ -598,7 +670,7 @@ pub async fn refresh_token(
         state
             .cache
             .get_token_blacklist()
-            .set(token.to_string(), true, Some(ttl));
+            .set(token.clone(), true, Some(ttl));
         tracing::info!(
             "Old token blacklisted after refresh for user {}",
             claims.username
@@ -612,7 +684,6 @@ pub async fn refresh_token(
             AppError::internal("Internal server error")
         })?;
     let _session_id = new_claims.session_id;
-    // 生成随机 CSRF Token 并存储到缓存中（使用 token 本身作为 key，允许同一会话多个有效 token）
     let csrf_token = uuid::Uuid::new_v4().to_string();
     let csrf_ttl = std::time::Duration::from_secs(7200); // 2小时，与 JWT 有效期一致
     state
@@ -620,11 +691,46 @@ pub async fn refresh_token(
         .get_csrf_token_cache()
         .set(csrf_token.clone(), _session_id, Some(csrf_ttl));
 
-    Ok(Json(ApiResponse::success(RefreshTokenResponse {
-        token: new_token,
-        csrf_token,
-        expires_in: 7200, // 2 hours
-    })))
+    // 设置新 Cookie（同时写 access_token / csrf_token / 旧版 jwt 兼容）
+    let is_production =
+        std::env::var("ENV").unwrap_or_else(|_| "development".to_string()) == "production";
+
+    let new_access = axum_extra::extract::cookie::Cookie::build(("access_token", new_token.clone()))
+        .path("/")
+        .http_only(true)
+        .secure(is_production)
+        .same_site(SameSite::Strict)
+        .max_age(CookieDuration::minutes(30))
+        .build();
+    let new_csrf = axum_extra::extract::cookie::Cookie::build(("csrf_token", csrf_token.clone()))
+        .path("/")
+        .http_only(false)
+        .secure(is_production)
+        .same_site(SameSite::Strict)
+        .max_age(CookieDuration::days(7))
+        .build();
+    let legacy_jwt = axum_extra::extract::cookie::Cookie::build(("jwt", new_token.clone()))
+        .path("/")
+        .http_only(true)
+        .secure(is_production)
+        .same_site(SameSite::Lax)
+        .max_age(CookieDuration::minutes(30))
+        .build();
+
+    let jar = jar
+        .add(new_access)
+        .add(new_csrf)
+        .add(legacy_jwt);
+
+    Ok((
+        jar,
+        Json(ApiResponse::success(RefreshTokenResponse {
+            token: new_token,
+            csrf_token,
+            expires_in: 7200,
+        })),
+    )
+        .into_response())
 }
 
 #[derive(Debug, Serialize)]

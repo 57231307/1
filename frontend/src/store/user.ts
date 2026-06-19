@@ -1,7 +1,6 @@
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
 import { login as loginApi, logout as logoutApi, getUserInfo } from '@/api/auth'
-import { setToken, removeToken, setRefreshToken } from '@/utils/storage'
 import type { UserInfo, LoginRequest } from '@/types/api'
 
 export const useUserStore = defineStore('user', () => {
@@ -10,12 +9,12 @@ export const useUserStore = defineStore('user', () => {
 
   async function login(loginData: LoginRequest) {
     const res = (await loginApi(loginData)) as any
-    // 后端返回 {code, data: {token, refresh_token, user, ...}, message}
+    // 后端返回 {code, data: {user, ...}, message}
+    // Wave B-3：access_token / refresh_token 由后端写入 httpOnly Cookie，前端不再持有 token
     const responseData = res.data || res
-    token.value = responseData.token
-    setToken(responseData.token)
-    if (responseData.refresh_token) {
-      setRefreshToken(responseData.refresh_token)
+    // 兼容：如果后端仍返回 token 字段，本地保留以避免破坏 userStore.token 引用方
+    if (responseData.token) {
+      token.value = responseData.token
     }
     userInfo.value = responseData.user
     return responseData
@@ -25,9 +24,9 @@ export const useUserStore = defineStore('user', () => {
     try {
       await logoutApi()
     } finally {
+      // 后端通过 Set-Cookie + max-age=0 自动清除所有登录态 Cookie，前端无需清 localStorage
       token.value = null
       userInfo.value = null
-      removeToken()
     }
   }
 

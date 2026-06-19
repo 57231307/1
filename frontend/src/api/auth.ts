@@ -1,13 +1,12 @@
 import { request } from './request'
 import type { ApiResponse, LoginRequest, LoginResponse, UserInfo } from '@/types/api'
-
-// CSRF Token 在 localStorage 中的存储 key
-// 命名遵循项目约定：所有 storage key 集中在此文件内
-const CSRF_TOKEN_KEY = 'csrf_token'
+// Wave B-3：CSRF Token 由后端写入非 httpOnly Cookie，前端从 document.cookie 读取
+// 这里重新导出 storage.ts 中的工具，保留外部调用方（request.ts / user.ts）的 API 一致性
+export { loadCsrfToken, clearCsrfToken } from '@/utils/storage'
 
 /**
- * 登录响应扩展：包含后端返回的 CSRF Token（用于后续非安全方法请求）
- * 通过本地交叉类型扩展，避免修改全局类型定义
+ * 登录响应扩展：包含后端返回的 CSRF Token（保留向后兼容）
+ * 注意：新版流程下，csrf_token 也通过 Set-Cookie 头写入，前端只读取不存 localStorage
  */
 type LoginResponseWithCsrf = LoginResponse & { csrf_token?: string }
 
@@ -19,35 +18,9 @@ interface RefreshTokenResponse {
   csrf_token?: string
 }
 
-/**
- * 保存 CSRF Token 到 localStorage
- * 登录成功与 refresh 成功后调用，供后续非安全方法请求使用
- */
-function saveCsrfToken(token: string): void {
-  localStorage.setItem(CSRF_TOKEN_KEY, token)
-}
-
-/**
- * 从 localStorage 读取 CSRF Token
- */
-function loadCsrfToken(): string | null {
-  return localStorage.getItem(CSRF_TOKEN_KEY)
-}
-
-/**
- * 从 localStorage 删除 CSRF Token
- * 登出或 CSRF 校验失败时调用
- */
-function clearCsrfToken(): void {
-  localStorage.removeItem(CSRF_TOKEN_KEY)
-}
-
 export function login(data: LoginRequest): Promise<LoginResponse> {
   return request.post<LoginResponseWithCsrf>('/auth/login', data).then(res => {
-    // 登录成功后保存 CSRF Token，供后续非安全方法请求使用
-    if (res && res.csrf_token) {
-      saveCsrfToken(res.csrf_token)
-    }
+    // Wave B-3：不再写 localStorage。Cookie 由后端 Set-Cookie 自动写入。
     // 转换为标准 LoginResponse（去除 csrf_token 字段）
     const { csrf_token: _csrf, ...payload } = res
     void _csrf
@@ -56,17 +29,19 @@ export function login(data: LoginRequest): Promise<LoginResponse> {
 }
 
 export function logout(): Promise<void> {
-  // 登出时清除本地 CSRF Token
-  clearCsrfToken()
+  // Wave B-3：登出由后端通过 Set-Cookie + max-age=0 清除所有登录态 Cookie
   return request.post<void>('/auth/logout')
 }
 
-export function refreshToken(refreshToken: string): Promise<{ token: string; csrf_token?: string }> {
-  return request.post<RefreshTokenResponse>('/auth/refresh', { refresh_token: refreshToken }).then(res => {
-    // 刷新 Token 后同步更新 CSRF Token（rotation 模式：旧 token 已被消费）
-    if (res && res.csrf_token) {
-      saveCsrfToken(res.csrf_token)
-    }
+/**
+ * 刷新 Token
+ * - 不再从请求体带 refresh_token，浏览器会自动通过 httpOnly Cookie 发送
+ * - 后端刷新成功后通过 Set-Cookie 头更新 access_token / csrf_token
+ * - 入参保留 refreshToken 字符串参数以兼容历史调用，Wave B-3 后该参数已无效
+ */
+export function refreshToken(_refreshToken: string): Promise<{ token: string; csrf_token?: string }> {
+  return request.post<RefreshTokenResponse>('/auth/refresh', {}).then(res => {
+    // Cookie 已由后端 Set-Cookie 写入，前端无需再保存
     return res
   })
 }
@@ -101,6 +76,3 @@ export function setupTotp(): Promise<ApiResponse<TotpSetupResponse>> {
 export function enableTotp(token: string): Promise<ApiResponse<boolean>> {
   return request.post<ApiResponse<boolean>>('/auth/totp/enable', { token })
 }
-
-// 导出 CSRF Token 工具，供 request.ts 中的 axios 拦截器使用
-export { loadCsrfToken, clearCsrfToken }

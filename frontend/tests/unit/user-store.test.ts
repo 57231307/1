@@ -7,12 +7,12 @@ vi.mock('@/api/auth', () => ({
   refreshToken: vi.fn(),
 }))
 
+// Wave B-3：access_token / refresh_token 已迁出 localStorage（存于 httpOnly Cookie）
+// 这里仅 mock 仍然存在的 csrf_token Cookie 工具
 vi.mock('@/utils/storage', () => ({
-  getToken: vi.fn().mockReturnValue(null),
-  setToken: vi.fn(),
-  removeToken: vi.fn(),
-  getRefreshToken: vi.fn().mockReturnValue(null),
-  setRefreshToken: vi.fn(),
+  getCsrfToken: vi.fn().mockReturnValue(null),
+  loadCsrfToken: vi.fn().mockReturnValue(null),
+  clearCsrfToken: vi.fn(),
 }))
 
 // Use real Pinia for store tests
@@ -24,9 +24,8 @@ vi.mock('pinia', async (importOriginal) => {
 import { setActivePinia, createPinia } from 'pinia'
 import { useUserStore } from '@/store/user'
 import * as authApi from '@/api/auth'
-import * as storage from '@/utils/storage'
 
-describe('User Store 测试', () => {
+describe('User Store 测试（Wave B-3 Cookie 模式）', () => {
   beforeEach(() => {
     setActivePinia(createPinia())
     vi.clearAllMocks()
@@ -38,12 +37,11 @@ describe('User Store 测试', () => {
     expect(store.userInfo).toBeNull()
   })
 
-  it('login 应该调用 API 并设置 token', async () => {
+  it('login 应该调用 API 并设置 userInfo（不再操作 localStorage）', async () => {
     const mockResponse = {
       data: {
-        token: 'test-token-123',
-        refresh_token: 'refresh-123',
         user: { id: 1, username: 'admin', role: 'admin' },
+        permissions: [],
       },
     }
     vi.mocked(authApi.login).mockResolvedValue(mockResponse as any)
@@ -52,23 +50,22 @@ describe('User Store 测试', () => {
     const result = await store.login({ username: 'admin', password: 'password' })
 
     expect(authApi.login).toHaveBeenCalledWith({ username: 'admin', password: 'password' })
-    expect(storage.setToken).toHaveBeenCalledWith('test-token-123')
-    expect(storage.setRefreshToken).toHaveBeenCalledWith('refresh-123')
-    expect(store.token).toBe('test-token-123')
     expect(store.userInfo).toEqual({ id: 1, username: 'admin', role: 'admin' })
+    // 凭据由后端 Cookie 管理，前端不再写入 localStorage
+    expect(localStorage.getItem('access_token')).toBeNull()
+    expect(localStorage.getItem('refresh_token')).toBeNull()
   })
 
-  it('logout 应该调用 API 并清除状态', async () => {
+  it('logout 应该调用 API 并清除状态（不再操作 localStorage）', async () => {
     vi.mocked(authApi.logout).mockResolvedValue(undefined as any)
 
     const store = useUserStore()
-    store.token = 'existing-token'
     store.userInfo = { id: 1, username: 'admin', role: 'admin' } as any
 
     await store.logout()
 
     expect(authApi.logout).toHaveBeenCalled()
-    expect(storage.removeToken).toHaveBeenCalled()
+    // 后端通过 Set-Cookie + max-age=0 清除所有登录态 Cookie
     expect(store.token).toBeNull()
     expect(store.userInfo).toBeNull()
   })
@@ -79,14 +76,12 @@ describe('User Store 测试', () => {
     })
 
     const store = useUserStore()
-    store.token = 'existing-token'
     store.userInfo = { id: 1, username: 'admin', role: 'admin' } as any
 
     // The store uses try/finally, so state should be cleared even on error
     // But the error will propagate, so we need to catch it
     await expect(store.logout()).rejects.toThrow('Network error')
 
-    expect(storage.removeToken).toHaveBeenCalled()
     expect(store.token).toBeNull()
     expect(store.userInfo).toBeNull()
   })

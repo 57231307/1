@@ -1,6 +1,5 @@
 import { createRouter, createWebHistory } from 'vue-router'
 import MainLayout from '@/components/Layout/MainLayout.vue'
-import { getToken, removeToken } from '@/utils/storage'
 import { useUserStore } from '@/store/user'
 import { logger } from '@/utils/logger'
 
@@ -783,38 +782,15 @@ router.beforeEach(async (to, _from, next) => {
   }
 
   if (to.meta.requiresAuth) {
-    const token = getToken()
-    if (!token) {
-      next({ path: '/login', query: { redirect: to.fullPath } })
-      return
-    }
-
-    try {
-      const parts = token.split('.')
-      if (parts.length === 3) {
-        const tokenData = JSON.parse(atob(parts[1]))
-        const currentTime = Math.floor(Date.now() / 1000)
-
-        if (tokenData.exp && tokenData.exp < currentTime) {
-          removeToken()
-          next({ path: '/login', query: { redirect: to.fullPath } })
-          return
-        }
-      }
-    } catch (error) {
-      logger.error('Token 验证失败:', error)
-      removeToken()
-      next({ path: '/login', query: { redirect: to.fullPath } })
-      return
-    }
-
+    // Wave B-3：access_token 存于 httpOnly Cookie，JS 不可读。
+    // 改用 userStore.userInfo 作为"已登录"标识；后端 getCurrentUser 失败则跳转登录。
     const userStore = useUserStore()
     if (!userStore.userInfo) {
       try {
         await userStore.fetchUserInfo()
       } catch (error) {
-        logger.error('获取用户信息失败:', error)
-        removeToken()
+        logger.error('获取用户信息失败（未登录或会话已过期）:', error)
+        // 401 已被 request.ts 拦截器处理并跳转登录，这里仅作为兜底
         next({ path: '/login', query: { redirect: to.fullPath } })
         return
       }

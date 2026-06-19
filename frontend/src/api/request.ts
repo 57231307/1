@@ -1,14 +1,12 @@
 import axios from 'axios'
 import type { AxiosInstance, AxiosRequestConfig, AxiosResponse } from 'axios'
 import { ElMessage } from 'element-plus'
-import {
-  getToken,
-  removeToken,
-  getRefreshToken,
-  setToken,
-} from '@/utils/storage'
+// Wave B-3：移除 access_token / refresh_token 的 localStorage 引用
+// - 凭据由后端写入 httpOnly Cookie，前端 JS 不可读
+// - 401 自动刷新通过 refresh_token Cookie 自动携带，无需前端取 token
+import { loadCsrfToken, clearCsrfToken } from '@/utils/storage'
 import router from '@/router'
-import { refreshToken as refreshApi, loadCsrfToken, clearCsrfToken } from './auth'
+import { refreshToken as refreshApi } from './auth'
 import type { ApiResponse } from '@/types/api'
 
 let isRefreshing = false
@@ -53,6 +51,9 @@ class Request {
     this.instance = axios.create({
       baseURL: import.meta.env.VITE_API_BASE_URL || '/api/v1/erp',
       timeout: 30000,
+      // Wave B-3：开启凭据发送，使 httpOnly Cookie（access_token / refresh_token）能随请求到达后端
+      // 这是 httpOnly Cookie 鉴权方案的**关键开关**：未开启则浏览器拒绝发送 Set-Cookie 之外的 Cookie
+      withCredentials: true,
       headers: {
         'Content-Type': 'application/json',
         'X-Requested-With': 'XMLHttpRequest',
@@ -65,15 +66,14 @@ class Request {
   private setupInterceptors() {
     this.instance.interceptors.request.use(
       config => {
-        const token = getToken()
-        if (token) {
-          config.headers.Authorization = `Bearer ${token}`
-        }
+        // Wave B-3：不再手动注入 Authorization 头。
+        // 凭据由 httpOnly Cookie 在 withCredentials=true 时由浏览器自动发送，
+        // 配合后端 auth 中间件（Cookie 优先 → 旧 jwt Cookie → Authorization 头）实现无感鉴权。
 
         // CSRF 防护：所有非安全方法（POST/PUT/PATCH/DELETE）的「业务」请求必须携带 X-CSRF-Token
         // - 公开路径（login/refresh/health 等）跳过，由后端白名单控制
         // - 安全方法（GET/HEAD/OPTIONS）无需校验
-        // - 若本地没有 CSRF Token（如刷新流程未拿到），由后端返回 403，前端在此处清空并跳转登录
+        // - csrf_token 由后端以非 httpOnly Cookie 形式下发，前端从 document.cookie 读取后注入头
         const method = (config.method || 'get').toLowerCase()
         const url = config.url || ''
         if (
@@ -102,7 +102,8 @@ class Request {
           const safeMessage = getSafeErrorMessage(res.code)
           ElMessage.error(safeMessage)
           if (res.code === 401) {
-            removeToken()
+            // Wave B-3：凭据由后端 Cookie 管理，前端无需清理 localStorage；
+            // 直接跳转登录页，后端会在登出时通过 Set-Cookie 清除 Cookie
             router.push('/login')
           }
           return Promise.reject(new Error(safeMessage))
@@ -117,19 +118,23 @@ class Request {
         if (error.response?.status === 403) {
           const body = error.response.data as { code?: string } | undefined
           if (body && (body.code === 'CSRF_TOKEN_MISSING' || body.code === 'CSRF_TOKEN_INVALID')) {
+            // csrf_token Cookie 由后端管理；前端只能清空 document.cookie 中非 httpOnly 的 csrf_token
+            // 真正彻底清理需调用 logout 接口或后端通过 Set-Cookie + max-age=0 清除
             clearCsrfToken()
-            removeToken()
             ElMessage.error('安全令牌已失效，请重新登录')
             router.push('/login')
             return Promise.reject(error)
           }
         }
 
+        // Wave B-3：401 自动刷新流程
+        // - 不再从前端取 refresh_token，浏览器会自动通过 httpOnly Cookie 发送
+        // - 调 /auth/refresh 即可，后端会通过 Set-Cookie 头更新 access_token / csrf_token
+        // - 重放时不需要重新注入 Authorization 头（Cookie 自动随 withCredentials=true 发送）
         if (error.response?.status === 401 && !originalRequest?._retry) {
           if (isRefreshing) {
             return new Promise(resolve => {
-              subscribeTokenRefresh(token => {
-                originalRequest.headers.Authorization = `Bearer ${token}`
+              subscribeTokenRefresh(() => {
                 resolve(this.instance(originalRequest))
               })
             })
@@ -139,18 +144,12 @@ class Request {
           isRefreshing = true
 
           try {
-            const refreshToken = getRefreshToken()
-            if (!refreshToken) {
-              throw new Error('No refresh token')
-            }
-
-            const tokenData = await refreshApi(refreshToken)
-            setToken(tokenData.token)
-            onTokenRefreshed(tokenData.token)
-            originalRequest.headers.Authorization = `Bearer ${tokenData.token}`
+            // 注意：refreshApi 内不应在请求体里带 refresh_token 字符串，
+            // 因为后端已支持从 Cookie 读取；调用方传空字符串占位即可
+            await refreshApi('')
+            onTokenRefreshed('')
             return this.instance(originalRequest)
           } catch (refreshError) {
-            removeToken()
             router.push('/login')
             return Promise.reject(refreshError)
           } finally {
@@ -173,7 +172,6 @@ class Request {
         ElMessage.error(safeMessage)
 
         if (error.response?.status === 401) {
-          removeToken()
           router.push('/login')
         }
         return Promise.reject(error)
