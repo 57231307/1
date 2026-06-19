@@ -122,11 +122,13 @@ export function updateProcessNode(orderId: number, nodeId: number, data: any) {
 }
 
 // 推进工艺节点
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 export function advanceProcessNode(orderId: number, nodeId: number, data: any) {
   return request.post(`/api/v1/erp/custom-orders/${orderId}/nodes/${nodeId}/advance`, data)
 }
 
 // 添加节点日志
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 export function addNodeLog(orderId: number, nodeId: number, data: any) {
   return request.post(`/api/v1/erp/custom-orders/${orderId}/nodes/${nodeId}/logs`, data)
 }

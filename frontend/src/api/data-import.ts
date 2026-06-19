@@ -20,6 +20,7 @@ export interface ImportColumn {
   label: string
   type: 'string' | 'number' | 'date' | 'boolean'
   required: boolean
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   default_value?: any
   validation_rule?: string
 }

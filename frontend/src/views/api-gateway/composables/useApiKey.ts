@@ -136,6 +136,32 @@ export function useApiKey() {
     }
   }
 
+  /** 查看密钥详情 */
+  const viewKeyDetail = (row: ApiKey) => {
+    ElMessageBox.alert(
+      `应用 ID: ${row.key_name}\n密钥值: ${(row as any).api_key || '（已隐藏）'}\n过期时间: ${row.expires_at || '永久'}`,
+      '密钥详情',
+      { type: 'info' }
+    )
+  }
+
+  /** 切换密钥启用/停用状态 */
+  const handleToggleKey = async (row: ApiKey) => {
+    const nextStatus: ApiKey['status'] = row.status === 'active' ? 'inactive' : 'active'
+    try {
+      await ElMessageBox.confirm(
+        `确定要${nextStatus === 'active' ? '启用' : '停用'}此密钥吗？`,
+        '提示',
+        { type: 'warning' }
+      )
+      await updateApiKey(row.id, { status: nextStatus })
+      ElMessage.success('操作成功')
+      await fetchKeys()
+    } catch (error: any) {
+      if (error !== 'cancel') ElMessage.error(error.message || '操作失败')
+    }
+  }
+
   return {
     keys,
     keyTotal,
@@ -154,5 +180,7 @@ export function useApiKey() {
     handleKeySubmit,
     handleDeleteKey,
     handleRegenerateKey,
+    viewKeyDetail,
+    handleToggleKey,
   }
 }
