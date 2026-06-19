@@ -29,7 +29,58 @@
 
 ---
 
-## 二、基础偏好
+## 二、基本要求
+
+[任务管理]
+- Date: 2026-06-19
+- Context: 用户明确要求任务管理规范
+- Category: 工作流协作
+- Instructions:
+  - 使用中文建立 DOTO 待办任务
+  - 每完成一个待办任务，需立即标记为"已完成"状态
+  - doto.md 文件需要反映任务的最新情况，也需要实时更新
+
+[任务规划管理]
+- Date: 2026-06-19
+- Context: 用户明确要求任务规划文件存放位置
+- Category: 工作流协作
+- Instructions:
+  - 所有任务规划文件必须保存在 `.monkeycode` 文件夹下面 `docs` 文件夹里面
+
+[沟通语言]
+- Date: 2026-06-19
+- Context: 用户明确要求沟通语言规范
+- Category: 基础偏好
+- Instructions:
+  - 使用中文进行回复和沟通
+
+[编码规范]
+- Date: 2026-06-19
+- Context: 用户明确要求编码规范
+- Category: 开发规范
+- Instructions:
+  - 项目禁止硬编码，所有文本需要使用中文
+
+[开发辅助]
+- Date: 2026-06-19
+- Context: 用户明确要求开发辅助规范
+- Category: 工作流协作
+- Instructions:
+  - 每次新增或修改功能时，必须指定合适的技能或 MCP 工具进行开发辅助
+
+[记忆管理]
+- Date: 2026-06-19
+- Context: 用户明确要求记忆管理规范
+- Category: 工作流协作
+- Instructions:
+  - 实时查看和更新 `.monkeycode` 文件夹 MEMORY.md 记忆文档
+  - 所有关键内容需存储在保存在 `.monkeycode` 文件夹里面 MEMORY.md 文档记忆中
+  - 生成的文档需实时更新，删除旧文档时需提取关键内容存储
+  - 项目的重要变更需要查找并记录到保存在 `.monkeycode` 文件夹 CHANGELOG.md 文档
+
+---
+
+## 三、基础偏好
 
 [语言偏好]
 - Date: 2026-05-22
