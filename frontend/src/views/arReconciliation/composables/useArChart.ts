@@ -1,0 +1,117 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
+/**
+ * useArChart.ts - AR 对账账龄图表 composable
+ * 任务编号: P14 批 1 B3 I-2
+ * 提供 ECharts 柱状图与饼图的初始化、配置、销毁等方法
+ * 行为完全保持一致（仅结构重构）
+ */
+import { ref, nextTick } from 'vue'
+import * as echarts from 'echarts'
+import { ElMessage } from 'element-plus'
+import { getAgingAnalysis, type AgingAnalysisResult } from '@/api/ar-reconciliation-enhanced'
+import { AGING_COLORS } from './arRecFmts'
+
+/**
+ * 账龄分析图表 composable
+ */
+export function useArChart() {
+  const agingData = ref<AgingAnalysisResult[]>([])
+  const chartRef = ref<HTMLDivElement | null>(null)
+  const pieChartRef = ref<HTMLDivElement | null>(null)
+  let barChart: echarts.ECharts | null = null
+  let pieChart: echarts.ECharts | null = null
+
+  /** 默认账龄分桶（无数据时填充） */
+  const DEFAULT_BUCKETS = [
+    { label: '0-30天', range: '0-30', amount: 0, percentage: 0, count: 0 },
+    { label: '31-60天', range: '31-60', amount: 0, percentage: 0, count: 0 },
+    { label: '61-90天', range: '61-90', amount: 0, percentage: 0, count: 0 },
+    { label: '90天以上', range: '90+', amount: 0, percentage: 0, count: 0 },
+  ]
+
+  const loadAgingAnalysis = async (endDate?: string) => {
+    try {
+      const res: any = await getAgingAnalysis({
+        customer_id: undefined,
+        as_of_date: endDate || undefined,
+      })
+      agingData.value = res.data || []
+      await nextTick()
+      renderCharts()
+    } catch {
+      ElMessage.error('加载账龄分析失败')
+    }
+  }
+
+  const renderCharts = () => {
+    if (!chartRef.value || !pieChartRef.value) return
+    if (!barChart) {
+      barChart = echarts.init(chartRef.value)
+    }
+    if (!pieChart) {
+      pieChart = echarts.init(pieChartRef.value)
+    }
+
+    const buckets =
+      agingData.value.length > 0 ? agingData.value[0].buckets : DEFAULT_BUCKETS
+
+    const barOption = {
+      title: { text: '账龄分析柱状图', left: 'center' },
+      tooltip: { trigger: 'axis', formatter: '{b}: {c} 元' },
+      xAxis: { type: 'category', data: buckets.map((b: any) => b.label) },
+      yAxis: { type: 'value', name: '金额（元）' },
+      series: [
+        {
+          type: 'bar',
+          data: buckets.map((b: any) => b.amount),
+          itemStyle: {
+            color: (params: any) => {
+              return AGING_COLORS[params.dataIndex] || '#409eff'
+            },
+          },
+          label: { show: true, position: 'top', formatter: '{c}' },
+        },
+      ],
+      grid: { left: '3%', right: '4%', bottom: '3%', containLabel: true },
+    }
+
+    const pieOption = {
+      title: { text: '账龄分布占比', left: 'center' },
+      tooltip: { trigger: 'item', formatter: '{b}: {c}元 ({d}%)' },
+      legend: { bottom: '0%' },
+      series: [
+        {
+          type: 'pie',
+          radius: ['40%', '70%'],
+          avoidLabelOverlap: false,
+          itemStyle: { borderRadius: 10, borderColor: '#fff', borderWidth: 2 },
+          label: { show: true, formatter: '{b}: {d}%' },
+          data: buckets.map((b: any, i: number) => ({
+            value: b.amount,
+            name: b.label,
+            itemStyle: { color: AGING_COLORS[i] },
+          })),
+        },
+      ],
+    }
+
+    barChart.setOption(barOption)
+    pieChart.setOption(pieOption)
+  }
+
+  const disposeCharts = () => {
+    barChart?.dispose()
+    barChart = null
+    pieChart?.dispose()
+    pieChart = null
+  }
+
+  return {
+    chartRef,
+    pieChartRef,
+    agingData,
+    loadAgingAnalysis,
+    renderCharts,
+    disposeCharts,
+  }
+}
