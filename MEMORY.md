@@ -100,6 +100,7 @@
 | **P13 批 1 B-慢查询审计**（PR #192）| 04b12cd | ✅ **已合并**（G 子代理，3 commit 经 squash merge，CI 2 轮迭代：max 歧义 + 未用 import）|
 | **P13 批 1 B3 拆分大 .vue I-1**（PR #193）| c6ca72f | ✅ **已合并**（I-1 子代理，5 commit 经 squash merge，CI 4 轮迭代：v-model on prop + 类型导入 + vue/no-mutating-props ESLint + 真实修复 AiPanel）|
 | **P14 批 1 B3 拆分大 .vue I-2**（PR #194）| bb87488 | ✅ **已合并**（I-2 子代理，4 commit 经 squash merge，CI 3 轮迭代：vue-tsc 注释 + TS2540 readonly + vue/no-mutating-props template disable）|
+| **P14 批 2 B3 拆分大 .vue I-3 第 1 批**（PR #195）| 2834f86d | ✅ **已合并**（I-3 子代理，6 commit 经 squash merge，CI 4 轮迭代：composable ref 自动解包 + VoucherForm 类型兼容 + 移除未用 import）|
 
 ### P11 批 1 详情（2026-06-17）
 
@@ -128,9 +129,15 @@
 
 ### 进行中
 
-- 无（P12 批 1 中 P2-2 性能优化和 P0 销售报价单数据层已完成，其他子代理待派发）
+- **P14 批 2 B3 拆分大 .vue I-3 第 1 批**（PR #195）✅ **已合并** - 拆分 3 个大 .vue（合计 2312 → 424 行 / 13 子组件 + 6 composable + 3 工具），squash merge SHA `2834f86d`，CI 5/5 全绿
+  - voucher/tabs/VoucherListTab.vue：870 → 141 行
+  - system-update/index.vue：725 → 154 行
+  - sales-contract/index.vue：717 → 129 行
+  - 4 轮 CI 迭代关键修复：composable ref 字段在父组件访问时未自动解包（改用 reactive 包装 return）→ VoucherForm 类型与 Partial<VoucherEntity> 不兼容（改为所有字段可选）→ sc.dateRange.value 错误（reactive 已解包）→ 移除未使用 VoucherEntity import
 
 ### 待启动
+
+- 无
 
 - **P12 批 1**：详见综合路线图 [2026-06-17-roadmap.md](docs/superpowers/plans/2026-06-17-roadmap.md) **v0.3**
   - **v0.3 范围调整**（2026-06-17）：加入 P0 销售报价单 port（test 独有资产），**总 10 PR / 4 子代理并行**
