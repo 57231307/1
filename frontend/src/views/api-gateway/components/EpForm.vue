@@ -106,7 +106,7 @@
           type="textarea"
           :rows="4"
           placeholder="JSON格式请求Schema"
-          @update:model-value="(v: string) => (requestSchemaText = v ?? '')"
+          @update:model-value="(v: string) => emit('update:requestSchemaText', v ?? '')"
         />
       </el-form-item>
       <el-form-item label="响应Schema" prop="response_schema">

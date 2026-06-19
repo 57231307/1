@@ -37,7 +37,7 @@
         <el-input
           :model-value="permissionsText"
           placeholder="多个权限用逗号分隔"
-          @update:model-value="(v: string) => (permissionsText = v ?? '')"
+          @update:model-value="(v: string) => emit('update:permissionsText', v ?? '')"
         />
       </el-form-item>
       <el-row :gutter="20">
