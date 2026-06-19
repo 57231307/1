@@ -3,6 +3,7 @@
   拆分自 api-gateway/index.vue（P14 批 1 B3 I-2）
   行为完全保持一致（仅结构重构）
 -->
+<!-- eslint-disable vue/no-mutating-props -->
 <template>
   <el-dialog
     :model-value="visible"
@@ -94,7 +95,7 @@
             <el-input
               :model-value="authorizationText"
               placeholder="多个权限用逗号分隔"
-              @update:model-value="(v: string) => (authorizationText = v ?? '')"
+              @update:model-value="(v: string) => emit('update:authorizationText', v ?? '')"
             />
           </el-form-item>
         </el-col>
@@ -114,7 +115,7 @@
           type="textarea"
           :rows="4"
           placeholder="JSON格式响应Schema"
-          @update:model-value="(v: string) => (responseSchemaText = v ?? '')"
+          @update:model-value="(v: string) => emit('update:responseSchemaText', v ?? '')"
         />
       </el-form-item>
     </el-form>
@@ -133,8 +134,8 @@ import type { ApiEndpoint } from '@/api/api-gateway'
 
 /**
  * 接口新建/编辑对话框组件
- * 父组件通过响应式 Ref 传递 authorizationText / requestSchemaText / responseSchemaText
- * 子组件直接通过 .value 修改父组件引用（保持行为一致）
+ * 父组件通过 v-model 双向同步 authorizationText / requestSchemaText / responseSchemaText
+ * 子组件通过 emit('update:*') 通知父组件更新
  */
 const props = defineProps<{
   // 对话框可见性
@@ -147,16 +148,19 @@ const props = defineProps<{
   submitLoading: boolean
   // 校验规则
   rules: FormRules
-  // 权限文本（父组件 Ref<string> 引用）
-  authorizationText: { value: string }
-  // 请求 Schema 文本（父组件 Ref<string> 引用）
-  requestSchemaText: { value: string }
-  // 响应 Schema 文本（父组件 Ref<string> 引用）
-  responseSchemaText: { value: string }
+  // 权限文本（父组件通过 v-model 双向同步）
+  authorizationText: string
+  // 请求 Schema 文本（父组件通过 v-model 双向同步）
+  requestSchemaText: string
+  // 响应 Schema 文本（父组件通过 v-model 双向同步）
+  responseSchemaText: string
 }>()
 
 const emit = defineEmits<{
   'update:visible': [v: boolean]
+  'update:authorizationText': [v: string]
+  'update:requestSchemaText': [v: string]
+  'update:responseSchemaText': [v: string]
   submit: []
 }>()
 

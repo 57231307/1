@@ -73,9 +73,9 @@
       :form="ep.endpointForm"
       :submit-loading="ep.endpointSubmitLoading.value"
       :rules="ep.endpointRules"
-      :authorization-text="ep.authorizationText"
-      :request-schema-text="ep.requestSchemaText"
-      :response-schema-text="ep.responseSchemaText"
+      v-model:authorization-text="ep.authorizationText.value"
+      v-model:request-schema-text="ep.requestSchemaText.value"
+      v-model:response-schema-text="ep.responseSchemaText.value"
       @submit="ep.handleEndpointSubmit"
     />
 
@@ -85,7 +85,7 @@
       :form="key.keyForm"
       :submit-loading="key.keySubmitLoading.value"
       :rules="key.keyRules"
-      :permissions-text="key.permissionsText"
+      v-model:permissions-text="key.permissionsText.value"
       @submit="key.handleKeySubmit"
     />
 

@@ -3,6 +3,7 @@
   拆分自 VoucherTab.vue（P14 批 1 B3 I-2）
   行为完全保持一致（仅结构重构）
 -->
+<!-- eslint-disable vue/no-mutating-props -->
 <template>
   <el-card shadow="hover" class="filter-card">
     <el-form :inline="true" :model="voucherQuery">
