@@ -65,7 +65,8 @@
 </template>
 
 <script setup lang="ts">
-import { onMounted, reactive, type FormRules } from 'vue'
+import { onMounted, reactive } from 'vue'
+import { type FormRules } from 'element-plus'
 import { Plus } from '@element-plus/icons-vue'
 import { useBpmDf } from './definitions/composables/useBpmDf'
 import { useBpmDfProc } from './definitions/composables/useBpmDfProc'

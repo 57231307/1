@@ -7,7 +7,11 @@
  * 设计说明：通过 callbacks 接收 usePi 的状态引用（Reactive 包装层）
  */
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { purchaseInspectionApi, type PurchaseInspection } from '@/api/purchase-inspection'
+import {
+  purchaseInspectionApi,
+  type PurchaseInspection,
+  type PurchaseInspectionItem,
+} from '@/api/purchase-inspection'
 import { logger } from '@/utils/logger'
 
 /**
@@ -40,7 +44,7 @@ interface PiCallbacks {
     receipt_id?: number
     inspection_date: string
     remark: string
-    items: never[]
+    items: Partial<PurchaseInspectionItem>[]
   }
   // 详情
   detailDialogVisible: boolean

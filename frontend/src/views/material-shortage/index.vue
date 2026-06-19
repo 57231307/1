@@ -29,6 +29,8 @@
       @resolve="msProc.handleResolve"
       @update:page="(v: number) => (ms.currentPage = v)"
       @update:size="(v: number) => (ms.pageSize = v)"
+      @update:filter-severity="(v: string) => (ms.filterSeverity = v)"
+      @update:filter-status="(v: string) => (ms.filterStatus = v)"
     />
   </div>
 </template>

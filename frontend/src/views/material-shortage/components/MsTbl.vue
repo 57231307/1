@@ -12,7 +12,7 @@
         placeholder="缺料严重程度"
         clearable
         style="width: 160px"
-        @update:model-value="(v: string) => (filterSeverity = v)"
+        @update:model-value="(v: string) => emit('update:filter-severity', v)"
       >
         <el-option label="严重" value="critical" />
         <el-option label="高" value="high" />
@@ -24,7 +24,7 @@
         placeholder="状态"
         clearable
         style="width: 140px"
-        @update:model-value="(v: string) => (filterStatus = v)"
+        @update:model-value="(v: string) => emit('update:filter-status', v)"
       >
         <el-option label="待处理" value="pending" />
         <el-option label="已通知" value="notified" />
@@ -132,7 +132,7 @@ defineProps<{
   // 总数
   total: number
   // 加载状态
-  tableLoading: boolean
+  loading: boolean
   // 检查中
   checking: boolean
   // 分页
@@ -155,6 +155,9 @@ const emit = defineEmits<{
   // 分页
   'update:page': [v: number]
   'update:size': [v: number]
+  // 过滤值变化
+  'update:filter-severity': [v: string]
+  'update:filter-status': [v: string]
 }>()
 </script>
 
