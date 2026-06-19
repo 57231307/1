@@ -55,6 +55,9 @@ impl MigratorTrait for Migrator {
             Box::new(m0022_create_sales_quotation_terms::Migration),
             Box::new(m0023_create_product_color_prices::Migration),
             Box::new(m0024_p4_1_perf_indexes::Migration),
+            Box::new(m0025_extend_audit_log::Migration),
+            Box::new(m0026_enable_pg_stat_statements::Migration),
+            Box::new(m0027_create_slow_query_log::Migration),
         ]
     }
 }
