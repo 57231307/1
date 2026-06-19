@@ -293,19 +293,20 @@ export function getAiHealth() {
 // 翻译字典
 // =====================================================
 
-export const RISK_LEVEL_LABELS: Record<string, string> = {
+// 风险等级字典（使用显式索引签名以支持 TypeScript Record<string, T> 推断）
+export const RISK_LEVEL_LABELS: { [key: string]: string } = {
   low: '低风险',
   medium: '中风险',
   high: '高风险',
 }
 
-export const RISK_LEVEL_COLORS: Record<string, string> = {
+export const RISK_LEVEL_COLORS: { [key: string]: string } = {
   low: '#67c23a',
   medium: '#e6a23c',
   high: '#f56c6c',
 }
 
-export const TREND_LABELS: Record<string, string> = {
+export const TREND_LABELS: { [key: string]: string } = {
   up: '上升',
   flat: '平稳',
   down: '下降',

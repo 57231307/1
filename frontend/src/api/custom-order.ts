@@ -4,8 +4,8 @@
 
 import { request } from './request'
 
-// 状态枚举
-export const CUSTOM_ORDER_STATUS = {
+// 状态枚举（使用显式索引签名以支持外部字符串索引）
+export const CUSTOM_ORDER_STATUS: { [key: string]: string } = {
   draft: '草稿',
   yarn_purchasing: '纱线采购中',
   dyeing: '染整中',
@@ -16,7 +16,7 @@ export const CUSTOM_ORDER_STATUS = {
   cancelled: '已取消',
 }
 
-export const CUSTOM_ORDER_STATUS_COLORS = {
+export const CUSTOM_ORDER_STATUS_COLORS: { [key: string]: string } = {
   draft: 'info',
   yarn_purchasing: 'primary',
   dyeing: 'warning',
@@ -27,28 +27,28 @@ export const CUSTOM_ORDER_STATUS_COLORS = {
   cancelled: 'info',
 }
 
-export const NODE_STATUS = {
+export const NODE_STATUS: { [key: string]: string } = {
   pending: '待开始',
   in_progress: '进行中',
   completed: '已完成',
   blocked: '阻塞',
 }
 
-export const NODE_STATUS_COLORS = {
+export const NODE_STATUS_COLORS: { [key: string]: string } = {
   pending: 'info',
   in_progress: 'primary',
   completed: 'success',
   blocked: 'danger',
 }
 
-export const ISSUE_SEVERITY = {
+export const ISSUE_SEVERITY: { [key: string]: string } = {
   low: '低',
   medium: '中',
   high: '高',
   critical: '严重',
 }
 
-export const ISSUE_SEVERITY_COLORS = {
+export const ISSUE_SEVERITY_COLORS: { [key: string]: string } = {
   low: 'info',
   medium: 'warning',
   high: 'danger',
@@ -109,6 +109,7 @@ export function advanceCustomOrder(id: number, data: { operator_id: number; note
 }
 
 // 添加工艺节点
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 export function addProcessNode(orderId: number, data: any) {
   return request.post(`/api/v1/erp/custom-orders/${orderId}/nodes`, data)
 }

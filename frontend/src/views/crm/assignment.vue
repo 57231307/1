@@ -142,7 +142,7 @@ import { Plus } from '@element-plus/icons-vue'
 import { listUsers, type User } from '@/api/user'
 import { loadIfNot, createLazyLoader } from '@/utils/lazy-loader'
 import { logger } from '@/utils/logger'
-import { crmEnhancedApi } from '@/api/crm-enhanced'
+import { crmEnhancedApi, type AssignableCustomer } from '@/api/crm-enhanced'
 import RuleDialogTab from './tabs/RuleDialogTab.vue'
 import ManualAssignDialogTab from './tabs/ManualAssignDialogTab.vue'
 

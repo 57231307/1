@@ -202,7 +202,10 @@ export function deleteColorItem(cardId: number, itemId: number) {
 }
 
 export function batchImportItems(cardId: number, items: Partial<ColorItemInfo>[]) {
-  return request.post<{ data: { success_count: number; failed_count: number; errors: any[]; total_colors: number } }>(
+  return request.post<
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    { data: { success_count: number; failed_count: number; errors: any[]; total_colors: number } }
+  >(
     `/api/v1/erp/color-cards/${cardId}/items/batch`,
     { items },
   )
@@ -260,6 +263,7 @@ export function listBorrowRecords(params: {
 // ============== 扫码查询 ==============
 
 export function scanColorCode(code: string) {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   return request.get<{ data: any }>(`/api/v1/erp/color-cards/scan/${encodeURIComponent(code)}`)
 }
 

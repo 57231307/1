@@ -102,7 +102,7 @@ export class WebSocketClient extends EventTarget {
     this.baseUrl = baseUrl;
     this.token = token;
     // URL 中携带 token（与浏览器 WebSocket API 一致，浏览器不支持自定义 header）
-    this.url = `${baseUrl}?token=${encodeURIComponent(token)}`;
+    this.url = `${this.baseUrl}?token=${encodeURIComponent(this.token)}`;
   }
 
   /**

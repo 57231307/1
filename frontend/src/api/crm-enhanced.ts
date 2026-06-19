@@ -53,6 +53,9 @@ export interface PoolCustomer {
   created_at: string
 }
 
+/** 可分配客户（公海池同构别名，业务上用于分配场景） */
+export type AssignableCustomer = PoolCustomer
+
 export interface RecycleRule {
   id: number
   name: string

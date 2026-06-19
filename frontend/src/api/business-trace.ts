@@ -33,9 +33,12 @@ export interface FullTraceChainResponse {
 export const getTraceByFiveDimension = (fiveDimensionId: number | string) =>
   request.get(`/business-trace/five-dimension/${fiveDimensionId}`)
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 export const forwardTrace = (params?: any) => request.get('/business-trace/forward', { params })
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 export const backwardTrace = (params?: any) => request.get('/business-trace/backward', { params })
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 export const createTraceSnapshot = (traceChainId: string, data?: any) =>
   request.post(`/business-trace/snapshot/${traceChainId}`, data)

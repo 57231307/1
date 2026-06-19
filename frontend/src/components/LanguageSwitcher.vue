@@ -25,7 +25,7 @@
 
 <script setup lang="ts">
 import { computed } from 'vue'
-import { ArrowDown, Check, Earth } from '@element-plus/icons-vue'
+import { ArrowDown, Check, Compass } from '@element-plus/icons-vue'
 import { getCurrentLocale, setLocale, SUPPORTED_LOCALES, type LocaleCode } from '../i18n'
 
 /* 支持的语言列表 */

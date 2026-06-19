@@ -4,6 +4,7 @@ import { login as loginApi, logout as logoutApi, getUserInfo } from '@/api/auth'
 import type { UserInfo, LoginRequest } from '@/types/api'
 
 export const useUserStore = defineStore('user', () => {
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const token = ref<string | null>(null)
   const userInfo = ref<UserInfo | null>(null)
 

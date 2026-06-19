@@ -9,6 +9,7 @@ export interface ProcessDefinition {
   version: number
   status: 'draft' | 'active' | 'suspended' | 'deprecated'
   category?: string
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   form_schema?: any
   nodes?: ProcessNode[]
   created_at: string
