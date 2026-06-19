@@ -88,6 +88,7 @@
   - 所有关键内容需存储在保存在 `.monkeycode` 文件夹里面 MEMORY.md 文档记忆中
   - 生成的文档需实时更新，删除旧文档时需提取关键内容存储
   - 项目的重要变更需要查找并记录到保存在 `.monkeycode` 文件夹 CHANGELOG.md 文档
+  - **.monkeycode/ 路径策略（2026-06-19 确认）**：test 分支合并入 main 时，`-X theirs` 策略会覆盖 `.monkeycode/` 内容，必须以 main 版本的 `.monkeycode/` 为准；test 自身的 `.monkeycode/docs/` 不应混入 main
 
 [数据库配置]
 - Date: 2026-06-19

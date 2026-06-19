@@ -416,6 +416,22 @@
 
 ---
 
+### [test 合并入 main + test 分支删除]
+
+- Date: 2026-06-19
+- Context: 用户要求"合并 test 到 main，然后删除 test"+"使用 main 的/.monkeycode 文件夹，禁止使用 test 的/.monkeycode 文件夹"
+- Category: 工作流协作
+- Instructions:
+  - **备份兑底**：合并前创建 `main-backup-20260619-pre-testmerge` 标签，可一键回退
+  - **合并策略**：使用 `git merge -X theirs origin/test --no-edit`，test 优先解决冲突
+  - **冲突规模**：81 个 UA 冲突（test 在 `.monkeycode/docs/` 路径添加了 79 个文件，与 main 同路径文件冲突）+ 2 个 modify/delete（CHANGELOG.md / MEMORY.md 在 main 删除、test 修改）
+  - **冲突解决**：`git checkout --theirs` 批量处理 81 个冲突后 `git commit` 完成合并，merge commit `3116afa`
+  - **.monkeycode/ 恢复**：用户随后要求"使用 main 的/.monkeycode 目录"→ `git checkout main-backup -- .monkeycode/` + 删除 100 个 test 独有文档 → 恢复 commit `19fb82f`（89 文件 +143/-46049 行）
+  - **删除 test 分支**：`git push origin --delete test`（远端）+ `git branch -rd origin/test`（本地跟踪）→ 远端仅保留 main + 2 个 feature 分支
+  - **test 保留到 main 的内容**：mobile/ 目录、microservices/ 目录、P0~P9 业务功能、根 CHANGELOG.md、根 MEMORY.md
+  - **当前 main HEAD**：`19fb82f fix: 恢复 main 的 .monkeycode/ 目录（合并 test 时被 theirs 覆盖）`
+  - **风险点已处理**：mobile/ 目录与"禁止本地编译"规则冲突未解决（待后续处理），Kafka 路径 `messaging/` 仍待整合
+
 ### [test vs main 分支功能差异分析]
 
 - Date: 2026-06-19

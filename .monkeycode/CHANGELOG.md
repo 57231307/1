@@ -16,6 +16,14 @@
 
 ## 最新任务总结
 
+### test 合并入 main（2026-06-19）
+
+- **合并方式**：`git merge -X theirs origin/test`，81 个 UA 冲突以 test 版本为准，merge commit `3116afa`
+- **.monkeycode/ 恢复**：用户要求"使用 main 的 .monkeycode 目录"→ 从 `main-backup-20260619-pre-testmerge` 标签 checkout 恢复，删除 100 个 test 独有文档，commit `19fb82f`（+143/-46049 行）
+- **test 分支删除**：远端 `git push origin --delete test` + 本地 `git branch -rd origin/test` 完成清理
+- **保留 test 内容**：mobile/ 目录、microservices/ 目录、P0~P9 业务功能、根 CHANGELOG.md、根 MEMORY.md
+- **撤销兑底**：`main-backup-20260619-pre-testmerge` 标签保留可回退至合并前状态
+
 ### docs 合并 + main 同步（2026-06-19）
 
 - **docs 整合**：将 3 个源 docs 目录（`/workspace/docs`、`/workspace/backend/docs`、`/workspace/frontend/docs`）移动到 `/workspace/.monkeycode/docs`，共 91 个文件，无冲突
