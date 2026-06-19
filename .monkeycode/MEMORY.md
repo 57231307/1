@@ -141,6 +141,82 @@
   - 不要自己直接写代码，而是分配给员工执行
   - 员工完成后，我需要总结他们的工作成果，然后推送到PR
 
+[前端 Vue Router 路由架构知识]
+- Date: 2026-06-19
+- Context: Agent 在执行"前端 Vue Router 路由审计"任务时发现
+- Category: 工作流协作
+- Instructions:
+  - **路由规模**：`frontend/src/router/index.ts` 共 709 行，**114 路由条目 / 110 可导航路由**（含 1 MainLayout 父路由 + 106 子路由 + 3 独立页 Login/Setup/403/404 + 3 redirect/catch-all）
+  - **嵌套深度**：仅 1 层（MainLayout 一级嵌套）
+  - **路径别名**：`vite.config.ts:19-21` 配置 `@` → `src`；`tsconfig.json:18-21` 同步配置
+  - **name/path 唯一性**：✅ 100% 唯一
+  - **meta 字段**：当前 110 可导航路由 100% 含 `title` + `requiresAuth`（除 4 个公开页），**0 条**含 `icon`/`permission`/`roles`/`keepAlive`/`breadcrumb`
+  - **模块分布 TOP 3**：财务 16（14.5%）/ 销售 11 / 库存+物流 10
+  - **动态路由 10 条**：crm/detail/:id、quotations/:id{,.edit,.approval}、custom-orders/:id{,.track}、color-cards/detail/:id、color-prices/detail/:id、ai-extend/process-detail/:id
+  - **审计报告**：[.monkeycode/docs/audits/2026-06-19-frontend-router-audit.md](file:///workspace/.monkeycode/docs/audits/2026-06-19-frontend-router-audit.md)
+  - **关键 P0 错配 1 处**：
+    - `router/index.ts:638-639` `ColorPriceCreate` 路由 component 错配为 `color-prices/list.vue`（应为不存在的 `create.vue`）— 5 分钟内修复
+  - **关键 P0 菜单孤儿 1 处**：
+    - `MainLayout.vue:144` 菜单项 `/system/slow-query` → 无路由（页面 `system/slow-query/index.vue` 已存在但未挂载）— 后端 P13 批 1 B 慢查询审计 4 端点已上线
+  - **P1 死代码页面 17 + 子文件 23**（4 大死代码页面组）：
+    - `bpm/approval/`（1+7）— 拆分完整但未挂载
+    - `bpm/definitions/`（1+7）— 与 `bpm/definitions.vue` 重复
+    - `security/two-factor/`（1+7）— 注释承诺路由引用但未实现
+    - `admin/failover.vue` + 3 components — 主备隔离 UI 未挂载
+    - `crm/leads/index.vue` + `crm/opportunities/index.vue`（+ 3 tabs）— CRM 子模块未挂载
+    - `bi/index.vue` — BI 入口预留
+    - `security/ChangePassword.vue` — 功能合并到 user-profile
+    - `report/templates.vue` + 11 子文件 — P12 拆分前残留
+    - `sales/tabs/{SalesOrderFilter,SalesStatsCards}.vue` — 被 OlvFilter/OlvStat 取代
+  - **P2 元信息缺失**：106/106 子路由缺 `icon`/`permission`/`keepAlive`/`breadcrumb`（暂不影响运行）
+  - **治理建议**：建立 `frontend/src/router/types.ts` 的 `RouteMeta` 接口、删除废弃 alias `/workflow`、统一 children 路径前缀策略
+
+[后端 HTTP API 路由架构知识]
+- Date: 2026-06-19
+- Context: Agent 在执行"后端 HTTP API 路由审计"任务时发现
+- Category: 工作流协作
+- Instructions:
+  - **路由规模**：`backend/src/routes/*.rs` 共 20 文件，**943 路由条目 / 905 唯一 method+path**
+  - **HTTP 方法分布**：GET=447 / POST=320 / PUT=96 / DELETE=80
+  - **业务域 TOP 3**：财务 196（finance.rs 双挂载） / 分析-高级功能 136 / 采购 95
+  - **路由聚合链**：`main.rs:96-103 → routes::create_router(state) → mod.rs:138-202`
+  - **挂载模式**：
+    - `.nest("/api/v1/erp/{domain}", module::routes())` 适用于独立子域
+    - `.merge(module::routes(state))` 适用于无前缀或与根共享路径的子路由
+    - `pub fn router()` 内部 nest 模式：crm/purchase 等域内多个 handler 模块各自 `pub fn router()`，由域级 routes/*.rs 统一 merge
+  - **挂载前缀异常点**：
+    - `routes/failover.rs` 使用**完整路径**（`/admin/failover/*`），不挂到 `/api/v1/erp` 下
+    - `routes/static.rs` 挂到根 `/`
+    - `routes/v1.rs` 仅 1 个 `GET /api/v1/placeholder`
+  - **审计报告**：[.monkeycode/docs/audits/2026-06-19-backend-api-audit.md](file:///workspace/.monkeycode/docs/audits/2026-06-19-backend-api-audit.md)
+  - **关键 P0 启动时 panic**：
+    - `routes/sales.rs:116` 引用 `quotation_handler::convert_quotation_to_order`（实际为 `convert_to_sales_order`）
+    - `routes/sales.rs:120` 引用 `quotation_handler::list_expiring_quotations`（实际为 `list_expiring`）
+    - `routes/system.rs:28` 引用 `websocket::ws_notifications_handler`（实际为 `websocket::notifications::ws_notifications_handler`）
+  - **关键 P0 孤儿路由 18 个**：`routes/custom_order.rs` 整模块 18 端点，`mod.rs:58` 仅声明 `pub mod custom_order;`，`create_router` 中**未 nest/merge**
+  - **handler 命名规范**：
+    - `define_tenant_crud_handlers!` / `define_crud_handlers!` 宏自动生成 `list/create/get/update/delete` 5 个函数
+    - 兼容层：`ar_reconciliation_enhanced_handler` / `currency_enhanced_handler` 全部 `pub use` 真实 handler（薄别名）
+  - **INTERFACES.md 漂移**：65 个"未实现"端点实际全部因文档缺 `/api/v1/erp` 前缀或占位符风格不一致（`{}` vs `:id`）导致，**非真实缺失**
+
+[前端 API 架构知识]
+- Date: 2026-06-19
+- Context: Agent 在执行"前端 API 调用审计"任务时发现
+- Category: 工作流协作
+- Instructions:
+  - **baseURL 链路**：`vite.config.ts:server.proxy['/api'] → http://localhost:8082`，运行时走 `.env.{VITE_API_BASE_URL}` 默认为 `/api/v1/erp`，最终被 `frontend/src/api/request.ts:54` 的 `axios.create({baseURL})` 消费
+  - **axios 拦截器（request.ts:66-181）**：注入 `Authorization: Bearer` + `X-CSRF-Token`；401 自动 refresh + 重放；502/503/504 指数退避重试 3 次
+  - **CSRF 公开路径白名单（request.ts:30-40）**：`/auth/login, /auth/refresh, /auth/logout, /auth/csrf-token, /init, /health, /ready, /live, /tracking/page-view`
+  - **敏感信息存储**：3 个 token（access_token / refresh_token / csrf_token）均明文存于 `localStorage`，未加密，无 httpOnly 兜底
+  - **兼容层文件**（re-export，无实际调用）：`ap-invoice.ts` / `ap-payment.ts` / `ap-reconciliation.ts` / `ap-verification.ts` 全部 re-export from `ap.ts`
+  - **API 文件总数**：89 业务文件 + 2 基础设施（`request.ts` / `index.ts`） = 91 合计
+  - **审计报告**：[.monkeycode/docs/audits/2026-06-19-frontend-api-audit.md](file:///workspace/.monkeycode/docs/audits/2026-06-19-frontend-api-audit.md)
+  - **关键孤儿 P0 路径**（前端调用后端未注册）：
+    - `/api-gateway/*`（14 处，后端完全未实现）
+    - `/api/v1/erp/custom-orders/*`（17 处，路由文件存在但 `mod.rs:330-360` 未 nest）
+    - `/purchase/receipts/*`、`/purchase/suppliers/*`、`/purchase/purchase-contracts/*`（前端用单数、后端用复数 `/purchases/*`）
+    - `/production/production-orders/orders/*`（10 处）、`/production/greige-fabrics/*`（8 处）、`/crm/customer-credits/*`（11 处）后端未注册
+
 [doto.md 实时更新规则]
 - Date: 2026-06-16
 - Context: 用户明确要求 doto.md 需实时根据任务更新
@@ -156,6 +232,44 @@
     - 重要变更（任务完成/重新规划/分支策略调整）需同步更新 `/workspace/CHANGELOG.md`
     - 本地 `.monkeycode/` 目录在 `.gitignore` 中，不通过 PR 推送
     - CHANGELOG.md 通过 PR 推送到 test/main 分支
+
+[2026 现代代码质量审计结果]
+- Date: 2026-06-19
+- Context: Agent 在执行"冰溪 ERP 现代代码质量审计"任务时发现
+- Category: 项目评估
+- Instructions:
+  - **综合评分**：73/100（B- 级）
+  - **报告位置**：[.monkeycode/docs/audits/2026-06-19-modern-code-audit.md](file:///workspace/.monkeycode/docs/audits/2026-06-19-modern-code-audit.md)
+  - **6 大 P0 风险**（必须立即修复）：
+    1. **文件级 `#![allow(dead_code)]` 83 处越界**（CI 必失败）— services 68 / handlers 2 / middleware 1 / 其他 12
+    2. **cookie_secret 静默降级**（`main.rs:325-328` 复用 jwt_secret）— 高危密钥复用
+    3. **生产环境随机 JWT secret**（`utils/app_state.rs:193`）— 多副本部署签名不一致
+    4. **操作日志静默吞咽**（`middleware/operation_log.rs:76`）— 违反审计完整性
+    5. **2 处 v-html XSS 风险**（`report-templates/index.vue:170`、`print-templates/index.vue:212`）
+    6. **JWT 存 localStorage**（`utils/storage.ts:1-23`，25 处访问）— XSS 一击必杀
+  - **P1 重要**（应当修复）：
+    - 132 处 `#[allow(dead_code)]` 项级抑制（60 文件）
+    - 409 处 `: any` + 191 处 `as any`（前端类型系统失效）
+    - 6 个 .vue > 500 行（TOP purchase 748 / quality 675 / inventory 600）
+    - 8 个 .rs > 750 行（TOP so/order 1041 / scheduling 948 / customer_credit 926）
+    - 20 处 `panic!`（最严重 `audit_log_service.rs:5`）
+    - 116 处 `let _ =` 静默吞咽
+  - **已达标项**（无需修改）：
+    - `utils/` 8 个核心文件 100% 死代码清理（达成模板）
+    - `models/` 200 个 SeaORM 文件级抑制（合规例外）
+    - 0 处 `unsafe {` 块
+    - 0 处 `@ts-ignore` / `@ts-nocheck` / `eval()` / `innerHTML`
+    - 0 处 `auth.tenant_id.unwrap_or(0)` 真实代码违规
+    - 0 处空 catch 块
+    - SQL 已参数化（无 `format!("SELECT...")` 拼接）
+    - 146 处 `extract_tenant_id(&auth)?` 100% 合规
+    - CSP / HSTS / X-Frame-Options / CSRF 等 7 项安全头已配置
+  - **改进路线图**（D1-D21）：
+    - 第 1 周：删 83 文件级抑制 + 修 3 处密钥降级 + 验证 CICD clippy
+    - 第 2 周：修 v-html + 分类 132 项级抑制 + 评估 localStorage 迁移
+    - 第 3-4 周：拆 6+18 个大 .vue + 8 个大 .rs + 替换 `any`
+    - 第 5-6 周：修 116 处 `let _ =` + 20 处 `panic!` + 评估 sleep
+    - 第 7-12 周：OIDC 接入 + SAST 工具 + 自动类型生成
 
 [GitHub 版本管理分支策略]
 - Date: 2026-06-16

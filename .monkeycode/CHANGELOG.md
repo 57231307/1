@@ -16,6 +16,108 @@
 
 ## 最新任务总结
 
+### 冰溪 ERP 现代代码质量审计（2026-06-19）
+
+- **报告位置**：[.monkeycode/docs/audits/2026-06-19-modern-code-audit.md](file:///workspace/.monkeycode/docs/audits/2026-06-19-modern-code-audit.md)
+- **审计范围**：`backend/src/**`（626 .rs 文件）+ `frontend/src/**`（413 .vue + 217 .ts）
+- **执行方式**：子代理静态分析（Grep/Glob/Read/RunCommand），**未本地编译**
+- **综合评分**：**73/100（B- 级）**（较 2026-06-16 评估 72 分微升）
+- **核心发现**：
+  - 🔴 **P0 死代码违规 83 处**（文件级 `#![allow(dead_code)]` 在非 models/ 散布，CI 必失败） — services 68 / handlers 2 / middleware 1 / 其他 12
+  - 🔴 **P0 密钥静默降级 3 处**：
+    - `backend/src/main.rs:325-328` cookie_secret 复用 jwt_secret（高危密钥复用）
+    - `backend/src/utils/app_state.rs:193` 随机 JWT secret（多副本部署签名不一致）
+    - `backend/src/middleware/operation_log.rs:76` 操作日志静默吞咽（违反审计完整性）
+  - 🔴 **P0 XSS+token 风险**：2 处 v-html 残留（`report-templates/index.vue:170`、`print-templates/index.vue:212`）+ 25 处 localStorage token 访问（XSS 一击必杀）
+  - 🟡 **P1 项级死代码 132 处**（60 文件），热点：`field_permission_service.rs:7`、`event_kafka.rs:5`
+  - 🟡 **P1 前端 `any` 高密度**：409 处 `: any` + 191 处 `as any`（600 处总和，TOP5 域：quality/sales-returns/production/api-gateway/purchase）
+  - 🟡 **P1 大文件待拆分**：6 个 .vue > 500 行（TOP purchase 748 / quality 675 / inventory 600）+ 8 个 .rs > 750 行
+  - 🟡 **P1 panic 业务路径 20 处**（最严重：`services/audit_log_service.rs:5`）
+  - 🟢 **达标项**：
+    - `utils/` 8 个核心文件 100% 死代码清理（达成模板）
+    - `models/` 200 个 SeaORM 文件级抑制（合规例外）
+    - 0 处 `unsafe {` 块
+    - 0 处 `@ts-ignore` / `@ts-nocheck` / `eval()` / `innerHTML`
+    - 0 处 `auth.tenant_id.unwrap_or(0)` 真实代码违规
+    - 0 处空 catch 块
+    - SQL 已参数化（无 `format!("SELECT...")` 拼接）
+    - 146 处 `extract_tenant_id(&auth)?` 100% 合规
+    - CSP / HSTS / X-Frame-Options / CSRF 等 7 项安全头已配置
+- **改进路线图**：
+  - 第 1 周：D1-D5（删 83 文件级抑制 + 修 3 处密钥降级 + 验证 CICD clippy）
+  - 第 2 周：D6-D9（修 v-html + 分类 132 项级抑制 + 评估 localStorage 迁移）
+  - 第 3-4 周：D10-D13（拆 6+18 个大 .vue + 8 个大 .rs + 替换 `any`）
+  - 第 5-6 周：D14-D17（修 116 处 `let _ =` + 20 处 `panic!` + 评估 sleep）
+  - 第 7-12 周：D18-D21（OIDC 接入 + SAST 工具 + 自动类型生成）
+
+### 前端 Vue Router 路由审计（2026-06-19）
+
+- **报告位置**：[.monkeycode/docs/audits/2026-06-19-frontend-router-audit.md](file:///workspace/.monkeycode/docs/audits/2026-06-19-frontend-router-audit.md)
+- **审计范围**：`frontend/src/router/index.ts`（709 行，114 路由/110 可导航）+ `frontend/src/views/**`（392 .vue 文件）
+- **执行方式**：子代理静态分析（Read/Grep/Glob/find），**未本地编译**
+- **核心发现**：
+  - 🔴 **P0 错配 1 处**：`router/index.ts:638-639` `/color-prices/create` 路由 component 指向 `color-prices/list.vue`（应为 `create.vue`）
+  - 🔴 **P0 菜单孤儿 1 处**：`MainLayout.vue:144` 菜单项 `/system/slow-query` 引用了不存在的路由（页面 `system/slow-query/index.vue` 已开发但未挂载）
+  - 🟡 **P1 死代码页面 17 + 子文件 23**：
+    - `bpm/approval/`（1+7）— 拆分完整但未挂载路由
+    - `bpm/definitions/`（1+7）— 与 `bpm/definitions.vue` 重复
+    - `security/two-factor/`（1+7）— 注释承诺路由直接引用但未实现
+    - `security/ChangePassword.vue` — 功能已合并到 user-profile
+    - `admin/failover.vue` + 3 components — 主备隔离 UI 未挂载（后端 4 端点已上线）
+    - `bi/index.vue` — BI 入口预留
+    - `crm/leads/index.vue` + `crm/opportunities/index.vue`（+ 3 tabs）— CRM 子模块未挂载
+    - `report/templates.vue` + 11 components/composables — P12 拆分前残留
+    - `sales/tabs/{SalesOrderFilter,SalesStatsCards}.vue` — 被 `OlvFilter/OlvStat` 取代
+  - ✅ **良好实践**：name 100% 唯一、path 100% 唯一、嵌套深度 1 层清晰
+  - 🟡 **P2 元信息缺失**：106/106 子路由缺 `icon` / `permission` / `keepAlive` / `breadcrumb`（不影响运行）
+  - 📊 **模块分布 TOP 3**：财务 16（14.5%）/ 销售 11 / 库存+物流 10
+- **下一步**：
+  1. 5 分钟 P0：修 `color-prices/create` 错配 + 挂载 `/system/slow-query`
+  2. 下一迭代 P1：批量挂载 4 个死代码页面组（admin/failover、bpm/approval、security/two-factor、crm 子模块）
+  3. 清理 P1：删除 5 个冗余文件 + 整个 `bpm/definitions/` 子目录
+  4. P2 治理：建立路由元信息 TypeScript 接口、删除废弃 alias `/workflow`
+
+### 后端 HTTP API 路由审计（2026-06-19）
+
+- **报告位置**：[.monkeycode/docs/audits/2026-06-19-backend-api-audit.md](file:///workspace/.monkeycode/docs/audits/2026-06-19-backend-api-audit.md)
+- **审计范围**：`backend/src/routes/*.rs`（20 文件，943 路由条目，905 唯一 method+path）
+- **执行方式**：子代理静态分析（ripgrep + Python 解析 + nest/merge 链模拟），未本地编译
+- **核心发现**：
+  - 🔴 **P0 启动时 panic 3 处**：
+    - `routes/sales.rs:116` 引用 `quotation_handler::convert_quotation_to_order`（实际为 `convert_to_sales_order`）
+    - `routes/sales.rs:120` 引用 `quotation_handler::list_expiring_quotations`（实际为 `list_expiring`）
+    - `routes/system.rs:28` 引用 `websocket::ws_notifications_handler`（实际为 `websocket::notifications::ws_notifications_handler`）
+  - 🔴 **P0 孤儿路由 18 处**：`routes/custom_order.rs` 整模块 18 端点，`mod.rs:58` 仅声明 `pub mod custom_order;`，`create_router` 中**未挂载**
+  - ✅ **未发现真正 method+path 冲突**：38 个"重复"条目均为 nest 子树误判
+  - 📊 **HTTP 方法分布**：GET=447 / POST=320 / PUT=96 / DELETE=80
+  - 📊 **业务域 TOP 3**：财务 196 / 分析-高级功能 136 / 采购 95
+  - 📄 **INTERFACES.md 65 端点"未实现"**：实际全部因文档缺 `/api/v1/erp` 前缀或占位符风格不一致（`{}` vs `:id`）导致，**非真实缺失**
+- **下一步**：
+  1. 修复 3 处 handler 引用错误（启动 panic）
+  2. 在 `mod.rs` 中 nest `custom_order::custom_order_routes(state)`
+  3. 引入 OpenAPI utoipa 解决文档漂移
+  4. CI 增补 axum Router 启动校验
+
+### 前端 API 调用审计（2026-06-19）
+
+- **报告位置**：[.monkeycode/docs/audits/2026-06-19-frontend-api-audit.md](file:///workspace/.monkeycode/docs/audits/2026-06-19-frontend-api-audit.md)
+- **审计范围**：`frontend/src/api/*.ts`（89 文件，933 调用点）+ `backend/src/routes/*`（13 文件）
+- **执行方式**：子代理自动静态分析（Glob/Grep/Read），未本地编译
+- **核心发现**：
+  - 🔴 **P0 严重孤儿 ~96 端点**：
+    - `/api-gateway/*`（14 处）后端**完全未实现**
+    - `/api/v1/erp/custom-orders/*`（17 处）路由已实现但**未在 mod.rs 中 nest**（5 分钟修复）
+    - `/purchase/receipts` vs 后端 `/purchases/receipts` 路径不一致（11 处）
+    - `/production/production-orders/*`（10 处）、`/production/greige-fabrics/*`（8 处）、`/crm/customer-credits/*`（11 处）后端未注册
+    - `/user/profile` PUT、`/user/change-password`、`/user/avatar` 缺失
+  - 🟡 **P1 中等孤儿 ~200+ 端点**（销售/采购 submit-approve-reject、AP/AR 编辑、库存调整、CRM 五维等）
+  - ✅ **良好实践**：axios 拦截器（401 自动 refresh + 重放）、CSRF 注入、9 个公开路径白名单、TOTP 2FA
+  - ⚠️ **风险**：3 个 token 全部明文存于 localStorage（access_token / refresh_token / csrf_token）
+- **下一步**：
+  1. 挂载 custom-order 路由（mod.rs 中加一行 nest）
+  2. 决定 API 网关后端实现策略
+  3. 统一采购/销售 submit-approve 走 BPM 流程
+
 ### Wave 1+2+3 修复（2026-06-19）
 
 - **P0 - 3 个孤儿 migration 注册**：m0025/26/27 重命名 + lib.rs pub mod + Box::new（修复审计增强 + 慢查询审计）

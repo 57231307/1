@@ -359,6 +359,10 @@
 | P13 批 1 I-1 拆分大 .vue | ✅ 已完成（PR #193）| advanced 993/report 963/purchase 957 |
 | P12 批 1+2+3 综合 | ✅ 已完成（12 PR）| P0 报价单/P2-1 V2Table/P2-2 性能/P3-1 安全 |
 | Wave 1-3 | ✅ 已完成（21 PR）| 4 业务流 + 11 拆分 + 5 AI + 1 编译 |
+| **现代代码质量审计（2026 标准）** | ✅ 已完成（2026-06-19）| [报告](file:///workspace/.monkeycode/docs/audits/2026-06-19-modern-code-audit.md) — 综合 73/100（B- 级）；6 大 P0（83 文件级死代码违规 + 3 密钥静默降级 + 2 v-html + 25 localStorage）；132 项级死代码 + 409 `: any` + 6 大 .vue + 8 大 .rs 待处理；0 unsafe / 0 unwrap_or(0) 真实违规 / 0 空 catch / 0 @ts-ignore |
+| **前端 API 调用审计** | ✅ 已完成（2026-06-19）| [报告](file:///workspace/.monkeycode/docs/audits/2026-06-19-frontend-api-audit.md) — 89 文件/933 调用点；P0 孤儿 96 处（custom-order 路由 5 分钟修复；api-gateway 14 处需新建 handler） |
+| **后端 HTTP API 路由审计** | ✅ 已完成（2026-06-19）| [报告](file:///workspace/.monkeycode/docs/audits/2026-06-19-backend-api-audit.md) — 20 文件/943 路由/905 唯一；P0 启动 panic 3 处（sales.rs:116/120、system.rs:28）；P0 孤儿 custom_order 18 端点（mod.rs 未 nest）；未发现真正 method+path 冲突 |
+| **前端 Vue Router 路由审计** | ✅ 已完成（2026-06-19）| [报告](file:///workspace/.monkeycode/docs/audits/2026-06-19-frontend-router-audit.md) — 114 路由/110 可导航/392 .vue 文件；P0 错配 1 处（color-prices/create → list.vue 错挂，router/index.ts:638-639）；P0 菜单孤儿 1 处（/system/slow-query 页面存在但无路由，MainLayout.vue:144）；P1 死代码页面 17 + 子文件 23（bpm/approval、bpm/definitions、security/two-factor、security/ChangePassword、admin/failover、bi/index、crm/leads+opportunities、report/templates、sales/tabs/{SalesOrderFilter,SalesStatsCards}） |
 | **P14+ 候选（roadmap v0.3 剩余）** | 🔵 待启动 | 见下方 |
 
 ### P14+ 候选清单（roadmap v0.3 剩余，6 任务）
