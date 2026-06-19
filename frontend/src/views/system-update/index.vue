@@ -1,669 +1,135 @@
+<!--
+  system-update/index.vue - 系统更新管理（拆分重构版）
+  任务编号: P14 批 2 I-3 第 1 批
+  拆分：725 行 → ~150 行 + 6 子组件 + 2 composable + 1 工具
+  行为完全保持一致（仅结构重构）
+-->
 <template>
   <div class="system-update-page">
     <div class="page-header">
       <h2 class="page-title">系统更新</h2>
       <div class="header-actions">
-        <el-button type="primary" @click="handleCheckUpdate">
+        <el-button type="primary" @click="upd.handleCheckUpdate">
           <el-icon><Refresh /></el-icon>
           检查更新
         </el-button>
-        <el-button @click="openBackupDialog()">
+        <el-button @click="onOpenBackupDialog">
           <el-icon><FolderAdd /></el-icon>
           创建备份
         </el-button>
       </div>
     </div>
 
-    <el-row :gutter="20" class="info-cards">
-      <el-col :span="8">
-        <el-card shadow="hover">
-          <template #header>
-            <span>当前版本</span>
-          </template>
-          <div class="info-content">
-            <div class="version">{{ currentVersion?.version || '-' }}</div>
-            <div class="date">构建日期: {{ currentVersion?.build_date || '-' }}</div>
-          </div>
-        </el-card>
-      </el-col>
-      <el-col :span="8">
-        <el-card shadow="hover">
-          <template #header>
-            <span>最新版本</span>
-          </template>
-          <div class="info-content">
-            <div class="version">{{ latestVersion?.version || '-' }}</div>
-            <div class="date">发布日期: {{ latestVersion?.release_date || '-' }}</div>
-          </div>
-        </el-card>
-      </el-col>
-      <el-col :span="8">
-        <el-card shadow="hover">
-          <template #header>
-            <span>更新状态</span>
-          </template>
-          <div class="info-content">
-            <el-tag :type="hasUpdate ? 'warning' : 'success'" size="large">
-              {{ hasUpdate ? '有可用更新' : '已是最新版本' }}
-            </el-tag>
-          </div>
-        </el-card>
-      </el-col>
-    </el-row>
+    <SuInfoCards
+      :current-version="upd.currentVersion"
+      :latest-version="upd.latestVersion"
+      :has-update="upd.hasUpdate"
+    />
 
     <el-tabs v-model="activeTab">
       <el-tab-pane label="版本列表" name="versions">
-        <el-card shadow="hover">
-          <el-table v-loading="versionLoading" :data="versions" stripe>
-            <el-table-column prop="version" label="版本号" width="120" />
-            <el-table-column prop="release_date" label="发布日期" width="120" />
-            <el-table-column
-              prop="release_notes"
-              label="更新说明"
-              min-width="200"
-              show-overflow-tooltip
-            />
-            <el-table-column prop="file_size" label="文件大小" width="100">
-              <template #default="{ row }">
-                {{ formatFileSize(row.file_size) }}
-              </template>
-            </el-table-column>
-            <el-table-column prop="status" label="状态" width="120" align="center">
-              <template #default="{ row }">
-                <el-tag :type="versionStatusTypeMap[row.status]" size="small">
-                  {{ versionStatusMap[row.status] }}
-                </el-tag>
-              </template>
-            </el-table-column>
-            <el-table-column label="操作" width="200" fixed="right">
-              <template #default="{ row }">
-                <el-button
-                  v-if="row.status === 'available'"
-                  type="primary"
-                  link
-                  size="small"
-                  @click="handleDownload(row)"
-                  >下载</el-button
-                >
-                <el-button
-                  v-if="row.status === 'downloaded'"
-                  type="success"
-                  link
-                  size="small"
-                  @click="handleInstall(row)"
-                  >安装</el-button
-                >
-                <el-button type="info" link size="small" @click="viewVersionDetail(row)"
-                  >详情</el-button
-                >
-              </template>
-            </el-table-column>
-          </el-table>
-
-          <div class="pagination-container">
-            <el-pagination
-              v-model:current-page="versionQuery.page"
-              v-model:page-size="versionQuery.page_size"
-              :page-sizes="[10, 20, 50]"
-              :total="versionTotal"
-              layout="total, sizes, prev, pager, next, jumper"
-              @size-change="fetchVersions"
-              @current-change="fetchVersions"
-            />
-          </div>
-        </el-card>
+        <SuVerTbl
+          :versions="upd.versions"
+          :loading="upd.versionLoading"
+          :total="upd.versionTotal"
+          :query="upd.versionQuery"
+          @download="updProc.handleDownload"
+          @install="updProc.handleInstall"
+          @view-detail="onViewVersionDetail"
+          @refresh="upd.fetchVersions"
+        />
       </el-tab-pane>
 
       <el-tab-pane label="更新任务" name="tasks">
-        <el-card shadow="hover">
-          <el-table v-loading="taskLoading" :data="tasks" stripe>
-            <el-table-column prop="task_code" label="任务编号" width="140" />
-            <el-table-column prop="from_version" label="原版本" width="100" />
-            <el-table-column prop="to_version" label="目标版本" width="100" />
-            <el-table-column prop="status" label="状态" width="120" align="center">
-              <template #default="{ row }">
-                <el-tag :type="taskStatusTypeMap[row.status]" size="small">
-                  {{ taskStatusMap[row.status] }}
-                </el-tag>
-              </template>
-            </el-table-column>
-            <el-table-column prop="progress" label="进度" width="150">
-              <template #default="{ row }">
-                <el-progress
-                  :percentage="row.progress"
-                  :status="
-                    row.status === 'failed'
-                      ? 'exception'
-                      : row.status === 'completed'
-                        ? 'success'
-                        : undefined
-                  "
-                />
-              </template>
-            </el-table-column>
-            <el-table-column
-              prop="error_message"
-              label="错误信息"
-              min-width="150"
-              show-overflow-tooltip
-            />
-            <el-table-column prop="started_at" label="开始时间" width="160" />
-            <el-table-column prop="completed_at" label="完成时间" width="160" />
-            <el-table-column label="操作" width="150" fixed="right">
-              <template #default="{ row }">
-                <el-button
-                  v-if="row.status === 'completed'"
-                  type="warning"
-                  link
-                  size="small"
-                  @click="handleRollback(row)"
-                  >回滚</el-button
-                >
-                <el-button
-                  v-if="
-                    row.status === 'pending' ||
-                    row.status === 'downloading' ||
-                    row.status === 'installing'
-                  "
-                  type="danger"
-                  link
-                  size="small"
-                  @click="handleCancelTask(row)"
-                  >取消</el-button
-                >
-              </template>
-            </el-table-column>
-          </el-table>
-
-          <div class="pagination-container">
-            <el-pagination
-              v-model:current-page="taskQuery.page"
-              v-model:page-size="taskQuery.page_size"
-              :page-sizes="[10, 20, 50]"
-              :total="taskTotal"
-              layout="total, sizes, prev, pager, next, jumper"
-              @size-change="fetchTasks"
-              @current-change="fetchTasks"
-            />
-          </div>
-        </el-card>
+        <SuTaskTbl
+          :tasks="upd.tasks"
+          :loading="upd.taskLoading"
+          :total="upd.taskTotal"
+          :query="upd.taskQuery"
+          @rollback="updProc.handleRollback"
+          @cancel="updProc.handleCancelTask"
+          @refresh="upd.fetchTasks"
+        />
       </el-tab-pane>
 
       <el-tab-pane label="系统备份" name="backups">
-        <el-card shadow="hover">
-          <el-table v-loading="backupLoading" :data="backups" stripe>
-            <el-table-column prop="backup_code" label="备份编号" width="140" />
-            <el-table-column prop="backup_type" label="备份类型" width="100">
-              <template #default="{ row }">
-                {{ backupTypeMap[row.backup_type] }}
-              </template>
-            </el-table-column>
-            <el-table-column
-              prop="description"
-              label="描述"
-              min-width="150"
-              show-overflow-tooltip
-            />
-            <el-table-column prop="file_size" label="文件大小" width="100">
-              <template #default="{ row }">
-                {{ formatFileSize(row.file_size) }}
-              </template>
-            </el-table-column>
-            <el-table-column prop="status" label="状态" width="100" align="center">
-              <template #default="{ row }">
-                <el-tag :type="backupStatusTypeMap[row.status]" size="small">
-                  {{ backupStatusMap[row.status] }}
-                </el-tag>
-              </template>
-            </el-table-column>
-            <el-table-column prop="created_by_name" label="创建人" width="100" />
-            <el-table-column prop="created_at" label="创建时间" width="160" />
-            <el-table-column label="操作" width="250" fixed="right">
-              <template #default="{ row }">
-                <el-button
-                  v-if="row.status === 'completed'"
-                  type="primary"
-                  link
-                  size="small"
-                  @click="handleDownloadBackup(row)"
-                  >下载</el-button
-                >
-                <el-button
-                  v-if="row.status === 'completed'"
-                  type="success"
-                  link
-                  size="small"
-                  @click="handleRestore(row)"
-                  >恢复</el-button
-                >
-                <el-button type="danger" link size="small" @click="handleDeleteBackup(row)"
-                  >删除</el-button
-                >
-              </template>
-            </el-table-column>
-          </el-table>
-
-          <div class="pagination-container">
-            <el-pagination
-              v-model:current-page="backupQuery.page"
-              v-model:page-size="backupQuery.page_size"
-              :page-sizes="[10, 20, 50]"
-              :total="backupTotal"
-              layout="total, sizes, prev, pager, next, jumper"
-              @size-change="fetchBackups"
-              @current-change="fetchBackups"
-            />
-          </div>
-        </el-card>
+        <SuBkpTbl
+          :backups="upd.backups"
+          :loading="upd.backupLoading"
+          :total="upd.backupTotal"
+          :query="upd.backupQuery"
+          @download-backup="updProc.handleDownloadBackup"
+          @restore="updProc.handleRestore"
+          @delete="updProc.handleDeleteBackup"
+          @refresh="upd.fetchBackups"
+        />
       </el-tab-pane>
     </el-tabs>
 
-    <el-dialog v-model="versionDetailVisible" title="版本详情" width="700px">
-      <el-descriptions :column="2" border>
-        <el-descriptions-item label="版本号">{{
-          currentVersionDetail?.version
-        }}</el-descriptions-item>
-        <el-descriptions-item label="发布日期">{{
-          currentVersionDetail?.release_date
-        }}</el-descriptions-item>
-        <el-descriptions-item label="文件大小" :span="2">{{
-          formatFileSize(currentVersionDetail?.file_size || 0)
-        }}</el-descriptions-item>
-      </el-descriptions>
-      <div class="detail-section">
-        <h4>更新说明</h4>
-        <p>{{ currentVersionDetail?.release_notes || '暂无说明' }}</p>
-      </div>
-      <div class="detail-section">
-        <h4>新功能</h4>
-        <ul>
-          <li v-for="(feature, index) in currentVersionDetail?.features || []" :key="index">
-            {{ feature }}
-          </li>
-          <li v-if="!currentVersionDetail?.features?.length">暂无</li>
-        </ul>
-      </div>
-      <div class="detail-section">
-        <h4>问题修复</h4>
-        <ul>
-          <li v-for="(fix, index) in currentVersionDetail?.bug_fixes || []" :key="index">
-            {{ fix }}
-          </li>
-          <li v-if="!currentVersionDetail?.bug_fixes?.length">暂无</li>
-        </ul>
-      </div>
-      <div class="detail-section">
-        <h4>重大变更</h4>
-        <ul>
-          <li v-for="(change, index) in currentVersionDetail?.breaking_changes || []" :key="index">
-            {{ change }}
-          </li>
-          <li v-if="!currentVersionDetail?.breaking_changes?.length">暂无</li>
-        </ul>
-      </div>
-      <template #footer>
-        <el-button @click="versionDetailVisible = false">关闭</el-button>
-      </template>
-    </el-dialog>
+    <SuVerDetail
+      v-model:visible="versionDetailVisible"
+      :current-version-detail="upd.currentVersionDetail"
+    />
 
-    <el-dialog v-model="backupDialogVisible" title="创建备份" width="500px">
-      <el-form ref="backupFormRef" :model="backupForm" :rules="backupRules" label-width="100px">
-        <el-form-item label="备份类型" prop="backup_type">
-          <el-select v-model="backupForm.backup_type" style="width: 100%">
-            <el-option label="完整备份" value="full" />
-            <el-option label="增量备份" value="incremental" />
-            <el-option label="数据库备份" value="database" />
-            <el-option label="文件备份" value="files" />
-          </el-select>
-        </el-form-item>
-        <el-form-item label="描述" prop="description">
-          <el-input
-            v-model="backupForm.description"
-            type="textarea"
-            :rows="3"
-            placeholder="请输入备份描述"
-          />
-        </el-form-item>
-      </el-form>
-      <template #footer>
-        <el-button @click="backupDialogVisible = false">取消</el-button>
-        <el-button type="primary" :loading="backupSubmitLoading" @click="handleBackupSubmit"
-          >开始备份</el-button
-        >
-      </template>
-    </el-dialog>
+    <SuBkpForm
+      v-model:visible="backupDialogVisible"
+      :form="upd.backupForm"
+      :submit-loading="upd.backupSubmitLoading"
+      @submit="onBackupSubmit"
+    />
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, computed, onMounted } from 'vue'
-import { ElMessage, ElMessageBox, type FormInstance, type FormRules } from 'element-plus'
+/* eslint-disable vue/no-mutating-props */
+import { ref, onMounted } from 'vue'
 import { Refresh, FolderAdd } from '@element-plus/icons-vue'
-import {
-  getCurrentVersion,
-  checkForUpdates,
-  listSystemVersions,
-  downloadUpdate,
-  installUpdate,
-  listUpdateTasks,
-  cancelUpdateTask,
-  rollbackUpdate,
-  listSystemBackups,
-  createSystemBackup,
-  deleteSystemBackup,
-  restoreFromBackup,
-  downloadBackup,
-  type SystemVersion,
-  type UpdateTask,
-  type SystemBackup,
-} from '@/api/system-update'
-import { logger } from '@/utils/logger'
+import type { SystemVersion } from '@/api/system-update'
+import { useSysUpd } from './composables/useSysUpd'
+import { useSysUpdProc } from './composables/useSysUpdProc'
+import SuInfoCards from './components/SuInfoCards.vue'
+import SuVerTbl from './components/SuVerTbl.vue'
+import SuTaskTbl from './components/SuTaskTbl.vue'
+import SuBkpTbl from './components/SuBkpTbl.vue'
+import SuVerDetail from './components/SuVerDetail.vue'
+import SuBkpForm from './components/SuBkpForm.vue'
+
+const upd = useSysUpd()
+const updProc = useSysUpdProc({
+  fetchVersions: upd.fetchVersions,
+  fetchTasks: upd.fetchTasks,
+  fetchBackups: upd.fetchBackups,
+})
 
 const activeTab = ref('versions')
 
-// 当前版本
-const currentVersion = ref<{ version: string; build_date: string } | null>(null)
-const latestVersion = ref<SystemVersion | null>(null)
-const hasUpdate = computed(() => {
-  if (!currentVersion.value || !latestVersion.value) return false
-  return currentVersion.value.version !== latestVersion.value.version
-})
-
-const fetchCurrentVersion = async () => {
-  try {
-    const res = await getCurrentVersion()
-    currentVersion.value = res.data
-  } catch (error: any) {
-    logger.error('获取当前版本失败:', error)
-  }
-}
-
-const handleCheckUpdate = async () => {
-  try {
-    const res = await checkForUpdates()
-    latestVersion.value = res.data
-    if (hasUpdate.value) {
-      ElMessage.success(`发现新版本: ${res.data.version}`)
-    } else {
-      ElMessage.info('当前已是最新版本')
-    }
-  } catch (error: any) {
-    ElMessage.error(error.message || '检查更新失败')
-  }
-}
-
-// 版本列表
-const versions = ref<SystemVersion[]>([])
-const versionTotal = ref(0)
-const versionLoading = ref(false)
-const versionQuery = reactive({
-  page: 1,
-  page_size: 20,
-})
-
-const versionStatusMap: Record<string, string> = {
-  available: '可下载',
-  downloading: '下载中',
-  downloaded: '已下载',
-  installing: '安装中',
-  installed: '已安装',
-  failed: '失败',
-}
-
-const versionStatusTypeMap: Record<string, string> = {
-  available: 'info',
-  downloading: 'warning',
-  downloaded: 'success',
-  installing: 'warning',
-  installed: 'success',
-  failed: 'danger',
-}
-
-const fetchVersions = async () => {
-  versionLoading.value = true
-  try {
-    const res = await listSystemVersions(versionQuery)
-    versions.value = res.data || []
-    versionTotal.value = res.total || 0
-  } catch (error: any) {
-    ElMessage.error(error.message || '获取版本列表失败')
-  } finally {
-    versionLoading.value = false
-  }
-}
-
-const handleDownload = async (row: SystemVersion) => {
-  try {
-    await ElMessageBox.confirm(`确定要下载版本 ${row.version} 吗？`, '确认下载', {
-      type: 'warning',
-    })
-    await downloadUpdate(row.id)
-    ElMessage.success('下载任务已创建')
-    fetchVersions()
-    fetchTasks()
-  } catch (error: any) {
-    if (error !== 'cancel') ElMessage.error(error.message || '下载失败')
-  }
-}
-
-const handleInstall = async (row: SystemVersion) => {
-  try {
-    await ElMessageBox.confirm(
-      `确定要安装版本 ${row.version} 吗？安装过程中系统可能会重启。`,
-      '确认安装',
-      { type: 'warning' }
-    )
-    await installUpdate(row.id)
-    ElMessage.success('安装任务已创建')
-    fetchVersions()
-    fetchTasks()
-  } catch (error: any) {
-    if (error !== 'cancel') ElMessage.error(error.message || '安装失败')
-  }
-}
-
+// 对话框可见性本地 ref
 const versionDetailVisible = ref(false)
-const currentVersionDetail = ref<SystemVersion | null>(null)
+const backupDialogVisible = ref(false)
 
-const viewVersionDetail = (row: SystemVersion) => {
-  currentVersionDetail.value = row
+/** 打开版本详情 */
+const onViewVersionDetail = (row: SystemVersion) => {
+  upd.viewVersionDetail(row)
   versionDetailVisible.value = true
 }
 
-// 更新任务
-const tasks = ref<UpdateTask[]>([])
-const taskTotal = ref(0)
-const taskLoading = ref(false)
-const taskQuery = reactive({
-  page: 1,
-  page_size: 20,
-})
-
-const taskStatusMap: Record<string, string> = {
-  pending: '待处理',
-  downloading: '下载中',
-  downloaded: '已下载',
-  installing: '安装中',
-  completed: '已完成',
-  failed: '失败',
-  rolled_back: '已回滚',
-}
-
-const taskStatusTypeMap: Record<string, string> = {
-  pending: 'info',
-  downloading: 'warning',
-  downloaded: 'success',
-  installing: 'warning',
-  completed: 'success',
-  failed: 'danger',
-  rolled_back: 'info',
-}
-
-const fetchTasks = async () => {
-  taskLoading.value = true
-  try {
-    const res = await listUpdateTasks(taskQuery)
-    tasks.value = res.data || []
-    taskTotal.value = res.total || 0
-  } catch (error: any) {
-    ElMessage.error(error.message || '获取任务列表失败')
-  } finally {
-    taskLoading.value = false
-  }
-}
-
-const handleCancelTask = async (row: UpdateTask) => {
-  try {
-    await ElMessageBox.confirm('确定要取消此任务吗？', '确认取消', { type: 'warning' })
-    await cancelUpdateTask(row.id)
-    ElMessage.success('任务已取消')
-    fetchTasks()
-  } catch (error: any) {
-    if (error !== 'cancel') ElMessage.error(error.message || '取消失败')
-  }
-}
-
-const handleRollback = async (row: UpdateTask) => {
-  try {
-    await ElMessageBox.confirm(`确定要回滚到版本 ${row.from_version} 吗？`, '确认回滚', {
-      type: 'warning',
-    })
-    await rollbackUpdate(row.id)
-    ElMessage.success('回滚任务已创建')
-    fetchTasks()
-  } catch (error: any) {
-    if (error !== 'cancel') ElMessage.error(error.message || '回滚失败')
-  }
-}
-
-// 系统备份
-const backups = ref<SystemBackup[]>([])
-const backupTotal = ref(0)
-const backupLoading = ref(false)
-const backupQuery = reactive({
-  page: 1,
-  page_size: 20,
-})
-
-const backupTypeMap: Record<string, string> = {
-  full: '完整备份',
-  incremental: '增量备份',
-  database: '数据库备份',
-  files: '文件备份',
-}
-
-const backupStatusMap: Record<string, string> = {
-  creating: '创建中',
-  completed: '已完成',
-  failed: '失败',
-}
-
-const backupStatusTypeMap: Record<string, string> = {
-  creating: 'warning',
-  completed: 'success',
-  failed: 'danger',
-}
-
-const fetchBackups = async () => {
-  backupLoading.value = true
-  try {
-    const res = await listSystemBackups(backupQuery)
-    backups.value = res.data || []
-    backupTotal.value = res.total || 0
-  } catch (error: any) {
-    ElMessage.error(error.message || '获取备份列表失败')
-  } finally {
-    backupLoading.value = false
-  }
-}
-
-const backupDialogVisible = ref(false)
-const backupFormRef = ref<FormInstance>()
-const backupSubmitLoading = ref(false)
-const backupForm = reactive({
-  backup_type: 'full' as 'full' | 'incremental' | 'database' | 'files',
-  description: '',
-})
-
-const backupRules: FormRules = {
-  backup_type: [{ required: true, message: '请选择备份类型', trigger: 'change' }],
-}
-
-const openBackupDialog = () => {
-  backupForm.backup_type = 'full'
-  backupForm.description = ''
+/** 打开创建备份对话框 */
+const onOpenBackupDialog = () => {
+  upd.resetBackupForm()
   backupDialogVisible.value = true
 }
 
-const handleBackupSubmit = async () => {
-  if (!backupFormRef.value) return
-  await backupFormRef.value.validate(async valid => {
-    if (!valid) return
-
-    backupSubmitLoading.value = true
-    try {
-      await createSystemBackup(backupForm)
-      ElMessage.success('备份任务已创建')
-      backupDialogVisible.value = false
-      fetchBackups()
-    } catch (error: any) {
-      ElMessage.error(error.message || '创建备份失败')
-    } finally {
-      backupSubmitLoading.value = false
-    }
-  })
-}
-
-const handleDeleteBackup = async (row: SystemBackup) => {
-  try {
-    await ElMessageBox.confirm('确定要删除此备份吗？', '确认删除', { type: 'warning' })
-    await deleteSystemBackup(row.id)
-    ElMessage.success('删除成功')
-    fetchBackups()
-  } catch (error: any) {
-    if (error !== 'cancel') ElMessage.error(error.message || '删除失败')
-  }
-}
-
-const handleRestore = async (row: SystemBackup) => {
-  try {
-    await ElMessageBox.confirm('确定要从此备份恢复系统吗？此操作不可撤销。', '确认恢复', {
-      type: 'warning',
-    })
-    await restoreFromBackup(row.id)
-    ElMessage.success('恢复任务已创建')
-    fetchTasks()
-  } catch (error: any) {
-    if (error !== 'cancel') ElMessage.error(error.message || '恢复失败')
-  }
-}
-
-const handleDownloadBackup = async (row: SystemBackup) => {
-  try {
-    const blob = await downloadBackup(row.id)
-    const link = document.createElement('a')
-    link.href = URL.createObjectURL(blob)
-    link.download = `backup_${row.backup_code}.zip`
-    link.click()
-    ElMessage.success('备份下载成功')
-  } catch (error: any) {
-    ElMessage.error(error.message || '下载失败')
-  }
-}
-
-const formatFileSize = (bytes: number) => {
-  if (bytes === 0) return '0 B'
-  const k = 1024
-  const sizes = ['B', 'KB', 'MB', 'GB']
-  const i = Math.floor(Math.log(bytes) / Math.log(k))
-  return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i]
+/** 提交备份表单 */
+const onBackupSubmit = async () => {
+  const ok = await upd.handleBackupSubmit()
+  if (ok) backupDialogVisible.value = false
 }
 
 onMounted(() => {
-  fetchCurrentVersion()
-  fetchVersions()
-  fetchTasks()
-  fetchBackups()
+  upd.fetchCurrentVersion()
+  upd.fetchVersions()
+  upd.fetchTasks()
+  upd.fetchBackups()
 })
 </script>
 
@@ -684,42 +150,5 @@ onMounted(() => {
   font-weight: 600;
   color: #303133;
   margin: 0;
-}
-.info-cards {
-  margin-bottom: 20px;
-}
-.info-content {
-  text-align: center;
-  padding: 10px 0;
-}
-.version {
-  font-size: 24px;
-  font-weight: 600;
-  color: #303133;
-  margin-bottom: 8px;
-}
-.date {
-  font-size: 14px;
-  color: #909399;
-}
-.pagination-container {
-  display: flex;
-  justify-content: flex-end;
-  margin-top: 16px;
-}
-.detail-section {
-  margin-top: 16px;
-}
-.detail-section h4 {
-  margin-bottom: 8px;
-  color: #303133;
-}
-.detail-section ul {
-  margin: 0;
-  padding-left: 20px;
-}
-.detail-section li {
-  margin-bottom: 4px;
-  color: #606266;
 }
 </style>
