@@ -14,8 +14,6 @@
 //! - 支持令牌黑名单机制
 //! - 支持密钥轮换（平滑过渡）
 
-#![allow(dead_code)]
-// TODO(tech-debt): 业务接入或重评估后逐项移除；rustc 1.94+ 编译时由编译器报告具体死代码位置。
 
 use crate::models::user;
 use crate::services::user_service::UserService;

@@ -1,8 +1,6 @@
 //! 租户识别中间件
 //!
 //! 从请求头或子域名中提取租户标识，并注入租户上下文
-#![allow(dead_code)]
-// TODO(tech-debt): 业务接入或重评估后逐项移除；rustc 1.94+ 编译时由编译器报告具体死代码位置。
 
 use crate::middleware::auth_context::AuthContext;
 use crate::utils::app_state::AppState;

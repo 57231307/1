@@ -6,7 +6,6 @@
 // - 支持 graceful degradation：Redis 不可用时返回 NullCache，业务回退到 DB
 // - 通过 `CacheBackend` trait 抽象，便于单元测试使用 mock
 
-#![allow(dead_code)]
 // TODO(tech-debt): cache 模块的辅助 API（from_env / is_enabled / stats / snapshot /
 // DEFAULT_TTL_SECS / NullBackend / new / disabled / connect / ping）在 server bin crate
 // 独立编译时无调用方。当前 P12 批 1 仅在 lib crate 内部接入了 build_key / get_json /

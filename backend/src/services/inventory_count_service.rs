@@ -12,8 +12,6 @@
 //! - `workflow`  — 审批与完成
 //! - `items`     — 明细项管理
 
-#![allow(dead_code)]
-// TODO(tech-debt): 业务接入或重评估后逐项移除；rustc 1.94+ 编译时由编译器报告具体死代码位置。
 
 use sea_orm::DatabaseConnection;
 use std::sync::Arc;
