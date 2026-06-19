@@ -6,7 +6,7 @@
  * 争议管理由 useArDisp 提供
  * 行为完全保持一致（仅结构重构）
  */
-import { ref, reactive } from 'vue'
+import { ref } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import {
   autoReconcile,

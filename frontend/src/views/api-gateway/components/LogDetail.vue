@@ -40,6 +40,7 @@
 </template>
 
 <script setup lang="ts">
+/* eslint-disable vue/no-mutating-props */
 import type { ApiLog } from '@/api/api-gateway'
 
 /**

@@ -11,7 +11,7 @@
     @update:model-value="(v: boolean) => emit('update:visible', v)"
   >
     <el-form
-      ref="formRef"
+      :ref="(el: any) => (formRefValue = el as FormInstance)"
       :model="form"
       :rules="rules"
       label-width="100px"
@@ -127,16 +127,19 @@
 
 <script setup lang="ts">
 /* eslint-disable vue/no-mutating-props */
+import { ref, watch } from 'vue'
 import type { FormInstance, FormRules } from 'element-plus'
 import type { ApiEndpoint } from '@/api/api-gateway'
 
 /**
  * 接口新建/编辑对话框组件
+ * 父组件通过响应式 Ref 传递 authorizationText / requestSchemaText / responseSchemaText
+ * 子组件直接通过 .value 修改父组件引用（保持行为一致）
  */
 const props = defineProps<{
   // 对话框可见性
   visible: boolean
-  // 表单实例 ref
+  // 表单实例 ref（父组件持有的 FormInstance 引用包装对象）
   formRef: { value: FormInstance | undefined }
   // 表单数据
   form: Partial<ApiEndpoint>
@@ -144,12 +147,12 @@ const props = defineProps<{
   submitLoading: boolean
   // 校验规则
   rules: FormRules
-  // 权限文本
-  authorizationText: string
-  // 请求 Schema 文本
-  requestSchemaText: string
-  // 响应 Schema 文本
-  responseSchemaText: string
+  // 权限文本（父组件 Ref<string> 引用）
+  authorizationText: { value: string }
+  // 请求 Schema 文本（父组件 Ref<string> 引用）
+  requestSchemaText: { value: string }
+  // 响应 Schema 文本（父组件 Ref<string> 引用）
+  responseSchemaText: { value: string }
 }>()
 
 const emit = defineEmits<{
@@ -157,5 +160,13 @@ const emit = defineEmits<{
   submit: []
 }>()
 
-void props
+// 将 el-form 的 ref 实例同步到父组件传入的 formRef.value
+const formRefValue = ref<FormInstance | undefined>(undefined)
+watch(
+  formRefValue,
+  val => {
+    if (val) props.formRef.value = val
+  },
+  { immediate: true, flush: 'post' }
+)
 </script>

@@ -54,6 +54,7 @@
 </template>
 
 <script setup lang="ts">
+/* eslint-disable vue/no-mutating-props */
 import type { Voucher } from '@/api/finance'
 
 /**

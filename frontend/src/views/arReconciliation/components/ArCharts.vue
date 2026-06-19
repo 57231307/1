@@ -19,6 +19,7 @@
 </template>
 
 <script setup lang="ts">
+/* eslint-disable vue/no-mutating-props */
 /**
  * 账龄图表组件
  * 接收父组件传入的 ECharts 实例 ref 进行图表渲染

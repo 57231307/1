@@ -73,9 +73,9 @@
       :form="ep.endpointForm"
       :submit-loading="ep.endpointSubmitLoading.value"
       :rules="ep.endpointRules"
-      :authorization-text="ep.authorizationText.value"
-      :request-schema-text="ep.requestSchemaText.value"
-      :response-schema-text="ep.responseSchemaText.value"
+      :authorization-text="ep.authorizationText"
+      :request-schema-text="ep.requestSchemaText"
+      :response-schema-text="ep.responseSchemaText"
       @submit="ep.handleEndpointSubmit"
     />
 
@@ -85,7 +85,7 @@
       :form="key.keyForm"
       :submit-loading="key.keySubmitLoading.value"
       :rules="key.keyRules"
-      :permissions-text="key.permissionsText.value"
+      :permissions-text="key.permissionsText"
       @submit="key.handleKeySubmit"
     />
 

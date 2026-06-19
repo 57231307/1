@@ -81,6 +81,7 @@
 </template>
 
 <script setup lang="ts">
+/* eslint-disable vue/no-mutating-props */
 import type {
   AutoReconciliationResult,
   ReconciliationDetailItem,

@@ -25,7 +25,7 @@
     </div>
 
     <VchrFilter
-      :voucher-query="vchr.voucherQuery.value"
+      :voucher-query="vchr.voucherQuery"
       @search="vchr.fetchVouchers"
       @reset="vchr.resetVoucherQuery"
     />

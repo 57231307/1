@@ -11,7 +11,7 @@
     @update:model-value="(v: boolean) => emit('update:visible', v)"
   >
     <el-form
-      ref="voucherFormRef"
+      :ref="(el: any) => (formRefValue = el as FormInstance)"
       :model="voucherForm"
       :rules="voucherRules"
       label-width="80px"
@@ -123,6 +123,7 @@
 
 <script setup lang="ts">
 /* eslint-disable vue/no-mutating-props */
+import { ref, watch } from 'vue'
 import type { FormInstance, FormRules } from 'element-plus'
 import type { AccountSubject } from '@/api/finance'
 
@@ -146,7 +147,7 @@ interface VoucherForm {
 const props = defineProps<{
   // 对话框可见性
   visible: boolean
-  // 表单实例 ref
+  // 表单实例 ref（父组件持有的 FormInstance 引用包装对象）
   voucherFormRef: { value: FormInstance | undefined }
   // 表单数据
   voucherForm: VoucherForm
@@ -176,7 +177,15 @@ const emit = defineEmits<{
   'submit-form': []
 }>()
 
-void props
+// 将 el-form 的 ref 实例同步到父组件传入的 voucherFormRef.value
+const formRefValue = ref<FormInstance | undefined>(undefined)
+watch(
+  formRefValue,
+  val => {
+    if (val) props.voucherFormRef.value = val
+  },
+  { immediate: true, flush: 'post' }
+)
 </script>
 
 <style scoped>

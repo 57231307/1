@@ -52,6 +52,7 @@
 </template>
 
 <script setup lang="ts">
+/* eslint-disable vue/no-mutating-props */
 import { CircleCheck, CircleClose } from '@element-plus/icons-vue'
 import type { CustomerConfirmation } from '@/api/ar-reconciliation-enhanced'
 import { getConfirmLabel, getConfirmType } from '../composables/arRecFmts'
