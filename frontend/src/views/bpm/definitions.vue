@@ -67,13 +67,13 @@
 <script setup lang="ts">
 import { onMounted, reactive, type FormRules } from 'vue'
 import { Plus } from '@element-plus/icons-vue'
-import { useBpmDf } from './composables/useBpmDf'
-import { useBpmDfProc } from './composables/useBpmDfProc'
-import BpmDfFilter from './components/BpmDfFilter.vue'
-import BpmDfTbl from './components/BpmDfTbl.vue'
-import BpmDfForm from './components/BpmDfForm.vue'
-import BpmDfVerDlg from './components/BpmDfVerDlg.vue'
-import BpmDfTplDlg from './components/BpmDfTplDlg.vue'
+import { useBpmDf } from './definitions/composables/useBpmDf'
+import { useBpmDfProc } from './definitions/composables/useBpmDfProc'
+import BpmDfFilter from './definitions/components/BpmDfFilter.vue'
+import BpmDfTbl from './definitions/components/BpmDfTbl.vue'
+import BpmDfForm from './definitions/components/BpmDfForm.vue'
+import BpmDfVerDlg from './definitions/components/BpmDfVerDlg.vue'
+import BpmDfTplDlg from './definitions/components/BpmDfTplDlg.vue'
 
 // 业务状态
 const bpmDf = useBpmDf()
