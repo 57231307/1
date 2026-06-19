@@ -1,3 +1,9 @@
+<!--
+  sales-analysis/index.vue - 销售分析（拆分重构版）
+  任务编号: P14 批 2 I-3 第 6 批
+  拆分：535 行 → ~110 行 + 5 子组件 + 3 composable + 1 工具
+  行为完全保持一致（仅结构重构）
+-->
 <template>
   <div class="sales-analysis-page">
     <div class="page-header">
@@ -10,377 +16,58 @@
         </el-breadcrumb>
       </div>
       <div class="header-actions">
-        <el-button @click="handleExport">
+        <el-button @click="saProc.handleExport">
           <el-icon><Download /></el-icon>
           导出报表
         </el-button>
       </div>
     </div>
 
-    <!-- 统计概览 -->
-    <el-row :gutter="20" class="stats-row">
-      <el-col :xs="24" :sm="12" :lg="6">
-        <el-card shadow="hover" class="stat-card">
-          <div class="stat-content">
-            <div class="stat-icon order-icon">
-              <el-icon><Document /></el-icon>
-            </div>
-            <div class="stat-info">
-              <div class="stat-label">本月订单数</div>
-              <div class="stat-value">{{ stats.monthOrders }}</div>
-              <div class="stat-trend" :class="stats.orderTrend > 0 ? 'up' : 'down'">
-                {{ stats.orderTrend > 0 ? '+' : '' }}{{ stats.orderTrend }}%
-              </div>
-            </div>
-          </div>
-        </el-card>
-      </el-col>
-      <el-col :xs="24" :sm="12" :lg="6">
-        <el-card shadow="hover" class="stat-card highlight">
-          <div class="stat-content">
-            <div class="stat-icon amount-icon">
-              <el-icon><Money /></el-icon>
-            </div>
-            <div class="stat-info">
-              <div class="stat-label">本月销售额</div>
-              <div class="stat-value">{{ formatCurrency(stats.monthAmount) }}</div>
-              <div class="stat-trend" :class="stats.amountTrend > 0 ? 'up' : 'down'">
-                {{ stats.amountTrend > 0 ? '+' : '' }}{{ stats.amountTrend }}%
-              </div>
-            </div>
-          </div>
-        </el-card>
-      </el-col>
-      <el-col :xs="24" :sm="12" :lg="6">
-        <el-card shadow="hover" class="stat-card warning">
-          <div class="stat-content">
-            <div class="stat-icon profit-icon">
-              <el-icon><TrendCharts /></el-icon>
-            </div>
-            <div class="stat-info">
-              <div class="stat-label">毛利率</div>
-              <div class="stat-value">{{ stats.grossProfitRate }}%</div>
-              <div class="stat-trend" :class="stats.profitTrend > 0 ? 'up' : 'down'">
-                {{ stats.profitTrend > 0 ? '+' : '' }}{{ stats.profitTrend }}%
-              </div>
-            </div>
-          </div>
-        </el-card>
-      </el-col>
-      <el-col :xs="24" :sm="12" :lg="6">
-        <el-card shadow="hover" class="stat-card">
-          <div class="stat-content">
-            <div class="stat-icon customer-icon">
-              <el-icon><User /></el-icon>
-            </div>
-            <div class="stat-info">
-              <div class="stat-label">活跃客户数</div>
-              <div class="stat-value">{{ stats.activeCustomers }}</div>
-              <div class="stat-trend" :class="stats.customerTrend > 0 ? 'up' : 'down'">
-                {{ stats.customerTrend > 0 ? '+' : '' }}{{ stats.customerTrend }}%
-              </div>
-            </div>
-          </div>
-        </el-card>
-      </el-col>
-    </el-row>
+    <SaStat :stats="sa.stats" />
 
-    <!-- 趋势分析 -->
-    <el-row :gutter="20" class="chart-row">
-      <el-col :xs="24" :lg="16">
-        <el-card shadow="hover" class="chart-card">
-          <template #header>
-            <div class="card-header">
-              <span>销售趋势</span>
-              <el-radio-group v-model="trendPeriod" size="small">
-                <el-radio-button label="week">本周</el-radio-button>
-                <el-radio-button label="month">本月</el-radio-button>
-                <el-radio-button label="quarter">本季度</el-radio-button>
-                <el-radio-button label="year">本年</el-radio-button>
-              </el-radio-group>
-            </div>
-          </template>
-          <div class="chart-container">
-            <!-- 趋势图表 -->
-            <div class="chart-placeholder">
-              <el-icon><TrendCharts /></el-icon>
-              <p>销售趋势图表</p>
-            </div>
-          </div>
-        </el-card>
-      </el-col>
-      <el-col :xs="24" :lg="8">
-        <el-card shadow="hover" class="chart-card">
-          <template #header>
-            <span>销售构成</span>
-          </template>
-          <div class="chart-container">
-            <!-- 饼图 -->
-            <div class="chart-placeholder">
-              <el-icon><PieChart /></el-icon>
-              <p>销售构成图表</p>
-            </div>
-          </div>
-        </el-card>
-      </el-col>
-    </el-row>
+    <SaTrend :period="sa.trendPeriod" @update:period="(v: string) => (sa.trendPeriod = v)" />
 
-    <!-- 排名分析 -->
     <el-row :gutter="20" class="ranking-row">
       <el-col :xs="24" :lg="12">
-        <el-card shadow="hover">
-          <template #header>
-            <div class="card-header">
-              <span>产品销售排名</span>
-              <el-select v-model="productRankType" size="small" style="width: 100px">
-                <el-option label="按金额" value="amount" />
-                <el-option label="按数量" value="quantity" />
-              </el-select>
-            </div>
-          </template>
-          <el-table :data="productRanking" size="small">
-            <el-table-column type="index" label="排名" width="60" align="center" />
-            <el-table-column
-              prop="product_name"
-              label="产品名称"
-              min-width="150"
-              show-overflow-tooltip
-            />
-            <el-table-column prop="amount" label="销售额" width="120" align="right">
-              <template #default="{ row }">
-                {{ formatCurrency(row.amount) }}
-              </template>
-            </el-table-column>
-            <el-table-column prop="quantity" label="销售数量" width="100" align="right" />
-            <el-table-column prop="percentage" label="占比" width="80" align="center">
-              <template #default="{ row }"> {{ row.percentage }}% </template>
-            </el-table-column>
-          </el-table>
-        </el-card>
+        <SaProdRank
+          :data="sa.productRanking"
+          :type="sa.productRankType"
+          @update:type="(v: string) => saProc.handleProductRankTypeChange(v, sa)"
+        />
       </el-col>
       <el-col :xs="24" :lg="12">
-        <el-card shadow="hover">
-          <template #header>
-            <div class="card-header">
-              <span>客户销售排名</span>
-              <el-select v-model="customerRankType" size="small" style="width: 100px">
-                <el-option label="按金额" value="amount" />
-                <el-option label="按订单数" value="orders" />
-              </el-select>
-            </div>
-          </template>
-          <el-table :data="customerRanking" size="small">
-            <el-table-column type="index" label="排名" width="60" align="center" />
-            <el-table-column
-              prop="customer_name"
-              label="客户名称"
-              min-width="150"
-              show-overflow-tooltip
-            />
-            <el-table-column prop="amount" label="销售额" width="120" align="right">
-              <template #default="{ row }">
-                {{ formatCurrency(row.amount) }}
-              </template>
-            </el-table-column>
-            <el-table-column prop="order_count" label="订单数" width="80" align="right" />
-            <el-table-column prop="percentage" label="占比" width="80" align="center">
-              <template #default="{ row }"> {{ row.percentage }}% </template>
-            </el-table-column>
-          </el-table>
-        </el-card>
+        <SaCustRank
+          :data="sa.customerRanking"
+          :type="sa.customerRankType"
+          @update:type="(v: string) => saProc.handleCustomerRankTypeChange(v, sa)"
+        />
       </el-col>
     </el-row>
 
-    <!-- 目标管理 -->
-    <el-card shadow="hover" class="target-card">
-      <template #header>
-        <div class="card-header">
-          <span>销售目标</span>
-          <el-button type="primary" size="small" @click="handleEditTarget">
-            <el-icon><Edit /></el-icon>
-            编辑目标
-          </el-button>
-        </div>
-      </template>
-      <el-table :data="salesTargets" border>
-        <el-table-column prop="period" label="周期" width="120" align="center" />
-        <el-table-column prop="target_amount" label="目标金额" width="150" align="right">
-          <template #default="{ row }">
-            {{ formatCurrency(row.target_amount) }}
-          </template>
-        </el-table-column>
-        <el-table-column prop="actual_amount" label="实际金额" width="150" align="right">
-          <template #default="{ row }">
-            {{ formatCurrency(row.actual_amount) }}
-          </template>
-        </el-table-column>
-        <el-table-column prop="completion_rate" label="完成率" width="120" align="center">
-          <template #default="{ row }">
-            <el-progress
-              :percentage="row.completion_rate"
-              :color="getProgressColor(row.completion_rate)"
-            />
-          </template>
-        </el-table-column>
-        <el-table-column prop="variance" label="差异" width="150" align="right">
-          <template #default="{ row }">
-            <span :class="row.variance >= 0 ? 'text-success' : 'text-danger'">
-              {{ row.variance >= 0 ? '+' : '' }}{{ formatCurrency(row.variance) }}
-            </span>
-          </template>
-        </el-table-column>
-        <el-table-column prop="status" label="状态" width="100" align="center">
-          <template #default="{ row }">
-            <el-tag :type="getTargetStatusType(row.status)">{{
-              getTargetStatusLabel(row.status)
-            }}</el-tag>
-          </template>
-        </el-table-column>
-      </el-table>
-    </el-card>
+    <SaTarget :data="sa.salesTargets" @edit-target="saProc.handleEditTarget" />
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, onMounted } from 'vue'
-import { ElMessage } from 'element-plus'
-import { Download, Edit, TrendCharts, PieChart } from '@element-plus/icons-vue'
-import { salesAnalysisApi } from '@/api/sales-analysis'
-import type { ProductRanking, CustomerRanking, SalesTarget } from '@/api/sales-analysis'
-import { logger } from '@/utils/logger'
+import { onMounted } from 'vue'
+import { Download } from '@element-plus/icons-vue'
+import { useSa } from './composables/useSa'
+import { useSaProc } from './composables/useSaProc'
+import SaStat from './components/SaStat.vue'
+import SaTrend from './components/SaTrend.vue'
+import SaProdRank from './components/SaProdRank.vue'
+import SaCustRank from './components/SaCustRank.vue'
+import SaTarget from './components/SaTarget.vue'
 
-// 统计数据
-const stats = reactive({
-  monthOrders: 0,
-  monthAmount: 0,
-  grossProfitRate: 0,
-  activeCustomers: 0,
-  orderTrend: 0,
-  amountTrend: 0,
-  profitTrend: 0,
-  customerTrend: 0,
-})
-
-// 趋势周期
-const trendPeriod = ref('month')
-
-// 排名类型
-const productRankType = ref('amount')
-const customerRankType = ref('amount')
-
-// 产品排名
-const productRanking = ref<ProductRanking[]>([])
-
-// 客户排名
-const customerRanking = ref<CustomerRanking[]>([])
-
-// 销售目标
-const salesTargets = ref<SalesTarget[]>([])
-
-// 获取统计数据
-const getStats = async () => {
-  try {
-    const res = await salesAnalysisApi.getStats()
-    if (res.data) {
-      Object.assign(stats, res.data)
-    }
-  } catch (error) {
-    logger.error('获取统计数据失败:', error)
-  }
-}
-
-// 获取产品排名
-const getProductRanking = async () => {
-  try {
-    const res = await salesAnalysisApi.getProductRanking({ type: productRankType.value })
-    productRanking.value = res.data || []
-  } catch (error) {
-    logger.error('获取产品排名失败:', error)
-  }
-}
-
-// 获取客户排名
-const getCustomerRanking = async () => {
-  try {
-    const res = await salesAnalysisApi.getCustomerRanking({ type: customerRankType.value })
-    customerRanking.value = res.data || []
-  } catch (error) {
-    logger.error('获取客户排名失败:', error)
-  }
-}
-
-// 获取销售目标
-const getSalesTargets = async () => {
-  try {
-    const res = await salesAnalysisApi.getSalesTargets()
-    salesTargets.value = res.data || []
-  } catch (error) {
-    logger.error('获取销售目标失败:', error)
-  }
-}
-
-// 格式化货币
-const formatCurrency = (value: number) => {
-  return value ? `¥${value.toFixed(2)}` : '¥0.00'
-}
-
-// 获取进度条颜色
-const getProgressColor = (percentage: number) => {
-  if (percentage >= 100) return '#67c23a'
-  if (percentage >= 80) return '#e6a23c'
-  return '#f56c6c'
-}
-
-// 获取目标状态类型
-const getTargetStatusType = (status: string) => {
-  const map: Record<string, string> = {
-    COMPLETED: 'success',
-    IN_PROGRESS: 'warning',
-    PARTIAL: 'info',
-    NOT_STARTED: 'info',
-  }
-  return map[status] || 'info'
-}
-
-// 获取目标状态标签
-const getTargetStatusLabel = (status: string) => {
-  const map: Record<string, string> = {
-    COMPLETED: '已完成',
-    IN_PROGRESS: '进行中',
-    PARTIAL: '部分完成',
-    NOT_STARTED: '未开始',
-  }
-  return map[status] || status
-}
-
-// 编辑目标
-const handleEditTarget = () => {
-  ElMessage.info('编辑目标功能开发中')
-}
-
-// 导出报表
-const handleExport = async () => {
-  try {
-    const res = await salesAnalysisApi.exportReport()
-    const url = window.URL.createObjectURL(new Blob([res]))
-    const link = document.createElement('a')
-    link.href = url
-    link.setAttribute('download', '销售分析报表.xlsx')
-    document.body.appendChild(link)
-    link.click()
-    document.body.removeChild(link)
-    window.URL.revokeObjectURL(url)
-    ElMessage.success('导出成功')
-  } catch (error) {
-    logger.error('导出失败:', error)
-  }
-}
+// 业务状态
+const sa = useSa()
+const saProc = useSaProc()
 
 onMounted(() => {
-  getStats()
-  getProductRanking()
-  getCustomerRanking()
-  getSalesTargets()
+  sa.getStats()
+  sa.getProductRanking()
+  sa.getCustomerRanking()
+  sa.getSalesTargets()
 })
 </script>
 
@@ -413,123 +100,7 @@ onMounted(() => {
   gap: 10px;
 }
 
-.stats-row {
-  margin-bottom: 20px;
-}
-
-.stat-card {
-  height: 100%;
-}
-
-.stat-content {
-  display: flex;
-  align-items: center;
-  gap: 15px;
-}
-
-.stat-icon {
-  width: 50px;
-  height: 50px;
-  border-radius: 10px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 24px;
-}
-
-.order-icon {
-  background: #e6f7ff;
-  color: #1890ff;
-}
-
-.amount-icon {
-  background: #fff7e6;
-  color: #fa8c16;
-}
-
-.profit-icon {
-  background: #f6ffed;
-  color: #52c41a;
-}
-
-.customer-icon {
-  background: #f9f0ff;
-  color: #722ed1;
-}
-
-.stat-info {
-  flex: 1;
-}
-
-.stat-label {
-  font-size: 14px;
-  color: #666;
-  margin-bottom: 5px;
-}
-
-.stat-value {
-  font-size: 24px;
-  font-weight: 600;
-  color: #333;
-}
-
-.stat-trend {
-  font-size: 12px;
-  margin-top: 5px;
-}
-
-.stat-trend.up {
-  color: #52c41a;
-}
-
-.stat-trend.down {
-  color: #f5222d;
-}
-
-.chart-row {
-  margin-bottom: 20px;
-}
-
-.chart-card {
-  height: 100%;
-}
-
-.card-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-}
-
-.chart-container {
-  height: 300px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.chart-placeholder {
-  text-align: center;
-  color: #999;
-}
-
-.chart-placeholder .el-icon {
-  font-size: 48px;
-  margin-bottom: 10px;
-}
-
 .ranking-row {
   margin-bottom: 20px;
-}
-
-.target-card {
-  margin-bottom: 20px;
-}
-
-.text-success {
-  color: #52c41a;
-}
-
-.text-danger {
-  color: #f5222d;
 }
 </style>
