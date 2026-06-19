@@ -319,6 +319,7 @@ impl AccountSubjectService {
     }
 
     /// 查询科目余额
+    #[allow(dead_code)] // TODO(tech-debt): 业务接入后移除
     pub async fn get_balance(
         &self,
         subject_id: i32,

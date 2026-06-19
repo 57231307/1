@@ -63,6 +63,7 @@ pub struct InspectionRecordResponse {
 }
 
 #[derive(Debug, Serialize)]
+#[allow(dead_code)] // TODO(tech-debt): 业务接入后移除
 pub struct DefectResponse {
     pub id: i32,
     pub record_id: i32,

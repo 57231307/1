@@ -135,6 +135,7 @@ impl ArCollectionService {
     }
 
     /// 确认收款
+    #[allow(dead_code)] // TODO(tech-debt): 业务接入后移除
     pub async fn confirm_collection(
         &self,
         id: i32,
@@ -163,6 +164,7 @@ impl ArCollectionService {
     }
 
     /// 取消收款
+    #[allow(dead_code)] // TODO(tech-debt): 业务接入后移除
     pub async fn cancel_collection(&self, id: i32) -> Result<ar_collection::Model, AppError> {
         let collection = ar_collection::Entity::find_by_id(id)
             .one(&*self.db)

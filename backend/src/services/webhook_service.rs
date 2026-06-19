@@ -291,6 +291,7 @@ impl WebhookService {
     }
 
     /// 获取单个Webhook详情
+    #[allow(dead_code)] // TODO(tech-debt): 业务接入后移除
     pub async fn get_webhook(&self, id: i32, tenant_id: i32) -> Result<webhook::Model, AppError> {
         let webhook = Webhook::find_by_id(id)
             .one(self.db.as_ref())
@@ -305,6 +306,7 @@ impl WebhookService {
     }
 
     /// 更新Webhook配置
+    #[allow(dead_code)] // TODO(tech-debt): 业务接入后移除
     pub async fn update_webhook(
         &self,
         id: i32,

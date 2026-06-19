@@ -31,6 +31,7 @@ pub struct TenantContext {
 
 /// 租户识别中间件
 /// 优先级：1. X-Tenant-ID Header  2. X-Tenant-Code Header  3. AuthContext中的tenant_id
+#[allow(dead_code)] // TODO(tech-debt): 业务接入后移除
 pub async fn tenant_middleware(
     State(_state): State<AppState>,
     mut request: Request<Body>,

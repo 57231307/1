@@ -62,6 +62,7 @@ impl InventoryStockService {
             .ok_or_else(|| AppError::not_found(format!("库存记录 ID {} 不存在", id)))
     }
 
+    #[allow(dead_code)] // TODO(tech-debt): 业务接入后移除
     pub async fn find_by_product_and_warehouse(
         &self,
         product_id: i32,

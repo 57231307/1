@@ -51,6 +51,7 @@ impl RateLimitStore {
 }
 
 /// API 限流中间件
+#[allow(dead_code)] // TODO(tech-debt): 业务接入后移除
 pub async fn rate_limit_middleware(
     State(state): State<AppState>,
     request: Request<Body>,
@@ -76,6 +77,7 @@ pub async fn rate_limit_middleware(
 }
 
 /// API 版本中间件
+#[allow(dead_code)] // TODO(tech-debt): 业务接入后移除
 pub async fn api_version_middleware(mut request: Request<Body>, next: Next) -> Response {
     let version = request
         .headers()

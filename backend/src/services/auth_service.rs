@@ -385,6 +385,7 @@ pub async fn is_jti_revoked(jti: &str) -> bool {
 ///
 /// # 参数
 /// - `_max_age_secs`: 允许的最大存活时间（秒），当前实现忽略该参数
+#[allow(dead_code)] // TODO(tech-debt): 业务接入后移除
 pub async fn cleanup_expired_jti(_max_age_secs: i64) {
     let mut blacklist = JTI_BLACKLIST.write().await;
     let now = chrono::Utc::now().timestamp();

@@ -722,6 +722,7 @@ impl ReportEngineService {
     }
 
     /// 创建自定义报表模板
+    #[allow(dead_code)] // TODO(tech-debt): 业务接入后移除
     pub async fn create_custom_template(
         &self,
         user_id: i32,
@@ -793,6 +794,7 @@ impl ReportEngineService {
     }
 
     /// 获取所有模板（预定义 + 自定义）
+    #[allow(dead_code)] // TODO(tech-debt): 业务接入后移除
     pub async fn get_all_templates(
         &self,
         user_id: Option<i32>,

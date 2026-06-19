@@ -2,6 +2,7 @@ use crate::utils::error::AppError;
 use sea_orm::{DatabaseConnection, DatabaseTransaction, TransactionTrait};
 use std::future::Future;
 
+#[allow(dead_code)] // TODO(tech-debt): 业务接入后移除
 pub async fn with_transaction<T, F, Fut>(
     db: &DatabaseConnection,
     operation: F,

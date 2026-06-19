@@ -23,6 +23,7 @@ impl BusinessTraceService {
 
     /// 创建追溯链起点（采购收货）
     #[allow(clippy::too_many_arguments)]
+    #[allow(dead_code)] // TODO(tech-debt): 业务接入后移除
     pub async fn create_trace_start(
         &self,
         five_dimension: &FabricFiveDimension,
@@ -70,6 +71,7 @@ impl BusinessTraceService {
 
     /// 添加追溯环节
     #[allow(clippy::too_many_arguments)]
+    #[allow(dead_code)] // TODO(tech-debt): 业务接入后移除
     pub async fn add_trace_stage(
         &self,
         previous_trace_id: i32,

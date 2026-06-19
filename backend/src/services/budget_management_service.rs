@@ -605,6 +605,7 @@ impl BudgetManagementService {
 
     /// 释放预算
     /// 订单取消时调用，释放已占用的预算
+    #[allow(dead_code)] // TODO(tech-debt): 业务接入后移除
     pub async fn release_budget(
         &self,
         department_id: i32,

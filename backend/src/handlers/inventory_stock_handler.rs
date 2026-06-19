@@ -674,6 +674,7 @@ pub struct TransactionResponse {
 }
 
 #[derive(Debug, Serialize)]
+#[allow(dead_code)] // TODO(tech-debt): 业务接入后移除
 pub struct TransactionListResponse {
     pub transactions: Vec<TransactionResponse>,
     pub total: u64,

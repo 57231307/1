@@ -105,6 +105,7 @@ impl OrderChangeHistoryService {
     }
 
     /// 记录字段变更
+    #[allow(dead_code)] // TODO(tech-debt): 业务接入后移除
     pub async fn record_field_change(
         &self,
         order_id: i32,
@@ -129,6 +130,7 @@ impl OrderChangeHistoryService {
     }
 
     /// 记录状态变更
+    #[allow(dead_code)] // TODO(tech-debt): 业务接入后移除
     pub async fn record_status_change(
         &self,
         order_id: i32,

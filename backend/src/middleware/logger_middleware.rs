@@ -10,6 +10,7 @@ use tracing::{error, info, warn};
 
 /// 请求日志中间件
 /// 记录每个请求的详细信息
+#[allow(dead_code)] // TODO(tech-debt): 业务接入后移除
 pub async fn request_logger_middleware(
     req: Request<Body>,
     next: Next,
@@ -67,6 +68,7 @@ pub async fn request_logger_middleware(
 
 /// 慢请求检测中间件
 /// 检测并记录超过阈值的慢请求
+#[allow(dead_code)] // TODO(tech-debt): 业务接入后移除
 pub async fn slow_request_detector_middleware(
     req: Request<Body>,
     next: Next,
@@ -93,6 +95,7 @@ pub async fn slow_request_detector_middleware(
 
 /// 性能监控中间件
 /// 收集请求性能指标
+#[allow(dead_code)] // TODO(tech-debt): 业务接入后移除
 pub async fn performance_monitor_middleware(
     req: Request<Body>,
     next: Next,
@@ -120,6 +123,7 @@ pub async fn performance_monitor_middleware(
 
 /// 请求 ID 中间件
 /// 为每个请求生成唯一 ID，便于追踪
+#[allow(dead_code)] // TODO(tech-debt): 业务接入后移除
 pub async fn request_id_middleware(
     mut req: Request<Body>,
     next: Next,

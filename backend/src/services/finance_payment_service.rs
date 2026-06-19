@@ -24,6 +24,7 @@ impl FinancePaymentService {
             .ok_or_else(|| AppError::not_found(format!("付款 ID {} 不存在", id)))
     }
 
+    #[allow(dead_code)] // TODO(tech-debt): 业务接入后移除
     pub async fn find_by_payment_no(
         &self,
         payment_no: &str,
@@ -89,6 +90,7 @@ impl FinancePaymentService {
             .map_err(AppError::from)
     }
 
+    #[allow(dead_code)] // TODO(tech-debt): 业务接入后移除
     pub async fn update_payment_status(
         &self,
         id: i32,
@@ -146,6 +148,7 @@ impl FinancePaymentService {
         Ok((payments, total))
     }
 
+    #[allow(dead_code)] // TODO(tech-debt): 业务接入后移除
     pub async fn delete_payment(&self, id: i32) -> Result<(), AppError> {
         let payment = finance_payment::Entity::find_by_id(id)
             .one(&*self.db)
