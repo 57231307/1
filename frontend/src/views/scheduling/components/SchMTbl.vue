@@ -105,26 +105,26 @@ defineProps<{
   filterStatus: string
 }>()
 
-// 定义事件
+// 定义事件（object 形式，Vue 3.3+ 语法，与 I-3 第 1 批保持一致）
 const emit = defineEmits<{
   // 调整
-  (e: 'adjust', row: ScheduleTask): void
+  adjust: [row: ScheduleTask]
   // 冲突详情
-  (e: 'conflict-detail', row: ScheduleTask): void
+  'conflict-detail': [row: ScheduleTask]
   // 刷新
-  (e: 'refresh'): void
+  refresh: []
   // 筛选变化
-  (e: 'filter-change'): void
+  'filter-change': []
   // 筛选值变化
-  (e: 'update:filterStatus', value: string): void
+  'update:filterStatus': [value: string]
   // 当前页变化
-  (e: 'update:currentPage', value: number): void
+  'update:currentPage': [value: number]
   // 每页大小变化
-  (e: 'update:pageSize', value: number): void
+  'update:pageSize': [value: number]
   // 分页 - 每页大小
-  (e: 'size-change'): void
+  'size-change': [val: number]
   // 分页 - 当前页
-  (e: 'current-change'): void
+  'current-change': [val: number]
 }>()
 
 /** 筛选值变化 */
