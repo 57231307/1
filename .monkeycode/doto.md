@@ -335,7 +335,20 @@
 
 ---
 
-## 五、当前待办
+## 五、项目基础信息（来自 /workspace/MEMORY.md）
+
+| 项目 | 内容 |
+|------|------|
+| 项目名称 | 冰西 ERP（Bingxi ERP） |
+| 后端技术栈 | Rust 1.94.1 + Axum + SeaORM + PostgreSQL |
+| 前端技术栈 | Vue 3.4 + TypeScript 5.4 + Element Plus + Vite |
+| 主分支 | main |
+| Git 平台 | GitHub |
+| CI/CD | `.github/workflows/ci-cd.yml`（4 job 并行：build-backend / build-frontend / test / test-frontend） |
+
+---
+
+## 六、当前待办
 
 | 任务 | 状态 | 备注 |
 |------|------|------|
