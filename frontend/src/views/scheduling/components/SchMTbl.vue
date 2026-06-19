@@ -10,10 +10,11 @@
         <span>排程工单列表</span>
         <div class="header-ops">
           <el-select
-            v-model="filterStatus"
+            :model-value="filterStatus"
             placeholder="筛选状态"
             clearable
             style="width: 140px; margin-right: 8px"
+            @update:model-value="onFilterChange"
             @change="emit('filter-change')"
           >
             <el-option label="全部" value="" />
@@ -70,12 +71,14 @@
       </el-table-column>
     </el-table>
     <el-pagination
-      v-model:current-page="currentPage"
-      v-model:page-size="pageSize"
+      :current-page="currentPage"
+      :page-size="pageSize"
       :total="total"
       :page-sizes="[10, 20, 50]"
       layout="total, sizes, prev, pager, next"
       class="pagination"
+      @update:current-page="onPageChange"
+      @update:page-size="onSizeChange"
       @size-change="emit('size-change')"
       @current-change="emit('current-change')"
     />
@@ -112,11 +115,32 @@ const emit = defineEmits<{
   (e: 'refresh'): void
   // 筛选变化
   (e: 'filter-change'): void
+  // 筛选值变化
+  (e: 'update:filterStatus', value: string): void
+  // 当前页变化
+  (e: 'update:currentPage', value: number): void
+  // 每页大小变化
+  (e: 'update:pageSize', value: number): void
   // 分页 - 每页大小
   (e: 'size-change'): void
   // 分页 - 当前页
   (e: 'current-change'): void
 }>()
+
+/** 筛选值变化 */
+const onFilterChange = (v: string) => {
+  emit('update:filterStatus', v)
+}
+
+/** 当前页变化 */
+const onPageChange = (v: number) => {
+  emit('update:currentPage', v)
+}
+
+/** 每页大小变化 */
+const onSizeChange = (v: number) => {
+  emit('update:pageSize', v)
+}
 </script>
 
 <style scoped>
