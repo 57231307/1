@@ -101,6 +101,7 @@
 | **P13 批 1 B3 拆分大 .vue I-1**（PR #193）| c6ca72f | ✅ **已合并**（I-1 子代理，5 commit 经 squash merge，CI 4 轮迭代：v-model on prop + 类型导入 + vue/no-mutating-props ESLint + 真实修复 AiPanel）|
 | **P14 批 1 B3 拆分大 .vue I-2**（PR #194）| bb87488 | ✅ **已合并**（I-2 子代理，4 commit 经 squash merge，CI 3 轮迭代：vue-tsc 注释 + TS2540 readonly + vue/no-mutating-props template disable）|
 | **P14 批 2 B3 拆分大 .vue I-3 第 1 批**（PR #195）| 2834f86d | ✅ **已合并**（I-3 子代理，6 commit 经 squash merge，CI 4 轮迭代：composable ref 自动解包 + VoucherForm 类型兼容 + 移除未用 import）|
+| **P14 批 2 B3 拆分大 .vue I-3 第 2 批**（PR #196）| 0622b82 | ✅ **已合并**（I-3 第 2 批子代理，5 commit 经 squash merge，CI 5 轮迭代：未用 props + v-model on prop + vue-tsc emit 类型 + 移除冗余 emit）|
 
 ### P11 批 1 详情（2026-06-17）
 
@@ -134,6 +135,11 @@
   - system-update/index.vue：725 → 154 行
   - sales-contract/index.vue：717 → 129 行
   - 4 轮 CI 迭代关键修复：composable ref 字段在父组件访问时未自动解包（改用 reactive 包装 return）→ VoucherForm 类型与 Partial<VoucherEntity> 不兼容（改为所有字段可选）→ sc.dateRange.value 错误（reactive 已解包）→ 移除未使用 VoucherEntity import
+- **P14 批 2 B3 拆分大 .vue I-3 第 2 批**（PR #196）✅ **已合并** - 拆分 3 个大 .vue（合计 2075 → 413 行 / 15 子组件 + 6 composable + 3 工具），squash merge SHA `0622b82`，CI 5/5 全绿
+  - purchase-return/index.vue：695 → 211 行
+  - scheduling/gantt.vue：691 → 93 行
+  - scheduling/index.vue：689 → 109 行
+  - 5 轮 CI 迭代关键修复：14 个子组件 `const props = defineProps<...>()` 未使用（移除 const props）→ useSchGProc.ts 未使用 SchedulingParams import（移除）→ SchMTbl.vue v-model on prop（改 :model-value + @update:model-value + emit）→ SchMTbl emit 父组件类型推断错误（用 arrow function 包裹）→ SchMTbl emit object 形式（Vue 3.3+）+ 移除冗余 size-change/current-change emit（被 update:* 取代）
 
 ### 待启动
 
