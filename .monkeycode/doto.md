@@ -416,6 +416,26 @@
 
 ---
 
+### [feature 分支清理与 I-3 第 6 批合入]
+
+- Date: 2026-06-19
+- Context: 用户要求"按建议执行"——合并有价值的 p14 分支、删除过时的 p12 分支
+- Category: 工作流协作
+- Instructions:
+  - **分析阶段**：远端两个 feature 分支
+    - `feature/p12-batch1-c-btype-check`（3 提交领先、308 落后、半成品 vue-tsc CI 加固，已过时）
+    - `feature/p14-batch2-i3-split-vue-sixth-batch`（1 提交领先、209 落后、I-3 第 6 批 .vue 拆分收尾）
+  - **p14 合并策略**：因 p14 基于过老 `b21e281`（test 合并前），与当前 main 有 163 文件冲突，改用 **`git cherry-pick -X theirs e4ba11d`** 单点 cherry-pick
+  - **cherry-pick 结果**：commit `2eddde6`，41 文件 +3600/-2421 行
+    - capacity/index.vue: 562→116
+    - Dashboard.vue: 549→99
+    - security/index.vue: 547→101
+    - security/TwoFactorSetup.vue → 拆为 security/two-factor/ 子目录 + 5 组件 + 3 composable
+    - sales-analysis/index.vue: 535→106
+  - **I-3 大 .vue 拆分累计**：I-1 (3) + I-2 (3) + I-3 第 1~5 批 (18) + 第 6 批 (5) = **29 个 .vue 文件全部完成**
+  - **远端分支清理**：`git push origin --delete` 删除 p14 + p12，清理本地 tracking ref → 远端仅剩 main
+  - **当前 main HEAD**：`2eddde6 refactor(frontend): 拆分 5 个大 .vue 文件 (capacity/Dashboard/security/TwoFactorSetup/sales-analysis) - P14 批 2 I-3 第 6 批`
+
 ### [test 合并入 main + test 分支删除]
 
 - Date: 2026-06-19

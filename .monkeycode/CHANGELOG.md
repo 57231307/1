@@ -16,6 +16,13 @@
 
 ## 最新任务总结
 
+### I-3 第 6 批合入 + feature 分支清理（2026-06-19）
+
+- **cherry-pick**：`git cherry-pick -X theirs e4ba11d` 单点合入 p14 分支唯一提交，41 文件 +3600/-2421 行
+- **拆分成果**：capacity 562→116 / Dashboard 549→99 / security 547→101 / TwoFactorSetup 540→2-factor 子目录 / sales-analysis 535→106
+- **I-3 累计**：I-1 (3) + I-2 (3) + I-3 第 1~6 批 (23) = **29 个大 .vue 全部完成**
+- **远端清理**：删除 2 个 feature 分支（p14 合并后冗余、p12 过期）→ 远端仅剩 main
+
 ### test 合并入 main（2026-06-19）
 
 - **合并方式**：`git merge -X theirs origin/test`，81 个 UA 冲突以 test 版本为准，merge commit `3116afa`
