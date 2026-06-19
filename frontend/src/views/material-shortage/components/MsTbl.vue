@@ -40,7 +40,7 @@
       </el-button>
     </div>
 
-    <el-table v-loading="tableLoading" :data="data" stripe>
+    <el-table v-loading="loading" :data="data" stripe>
       <el-table-column prop="material_code" label="物料编号" min-width="140" />
       <el-table-column prop="material_name" label="物料名称" min-width="160" />
       <el-table-column prop="shortage_quantity" label="缺料数量" width="100" align="right" />
