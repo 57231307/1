@@ -13,9 +13,9 @@
     <el-tabs v-model="activeTab">
       <el-tab-pane label="接口管理" name="endpoints">
         <ApiEndpointTab
-          :endpoints="ep.endpoints"
-          :loading="ep.endpointLoading"
-          :total="ep.endpointTotal"
+          :endpoints="ep.endpoints.value"
+          :loading="ep.endpointLoading.value"
+          :total="ep.endpointTotal.value"
           :query-params="ep.endpointQuery"
           :method-type-map="ep.methodTypeMap"
           :status-type-map="ep.endpointStatusTypeMap"
@@ -30,9 +30,9 @@
 
       <el-tab-pane label="API 密钥" name="keys">
         <ApiKeyTab
-          :api-keys="key.keys"
-          :loading="key.keyLoading"
-          :total="key.keyTotal"
+          :api-keys="key.keys.value"
+          :loading="key.keyLoading.value"
+          :total="key.keyTotal.value"
           :query-params="key.keyQuery"
           @fetch="key.fetchKeys"
           @new-key="key.openKeyDialog()"
@@ -45,9 +45,9 @@
 
       <el-tab-pane label="调用日志" name="logs">
         <ApiLogTab
-          :logs="log.logs"
-          :loading="log.logLoading"
-          :total="log.logTotal"
+          :logs="log.logs.value"
+          :loading="log.logLoading.value"
+          :total="log.logTotal.value"
           :query-params="log.logQuery"
           :method-type-map="log.methodTypeMap"
           @fetch="log.fetchLogs"
@@ -125,12 +125,11 @@ onMounted(() => {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 20px;
+  margin-bottom: 16px;
 }
 .page-title {
   font-size: 20px;
   font-weight: 600;
-  color: #303133;
   margin: 0;
 }
 .filter-container {

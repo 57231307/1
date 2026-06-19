@@ -112,11 +112,13 @@ import {
   type SystemBackup,
 } from '@/api/system-update'
 import { logger } from '@/utils/logger'
+import { useSysUpd } from './composables/useSysUpd'
 import SystemUpdateVersionTab from './tabs/SystemUpdateVersionTab.vue'
 import SystemUpdateTaskTab from './tabs/SystemUpdateTaskTab.vue'
 import SystemUpdateBackupTab from './tabs/SystemUpdateBackupTab.vue'
 
 const activeTab = ref('versions')
+const upd = useSysUpd()
 
 // 对话框可见性本地 ref
 const versionDetailVisible = ref(false)

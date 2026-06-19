@@ -82,6 +82,7 @@ export function listCustomOrders(params: {
 }
 
 // 创建草稿
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 export function createCustomOrder(data: any) {
   return request.post('/api/v1/erp/custom-orders', data)
 }
@@ -115,6 +116,7 @@ export function addProcessNode(orderId: number, data: any) {
 }
 
 // 更新工艺节点
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 export function updateProcessNode(orderId: number, nodeId: number, data: any) {
   return request.put(`/api/v1/erp/custom-orders/${orderId}/nodes/${nodeId}`, data)
 }
@@ -140,6 +142,7 @@ export function reportQualityIssue(orderId: number, data: any) {
 }
 
 // 列出异常
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 export function listQualityIssues(orderId: number, params?: any) {
   return request.get(`/api/v1/erp/custom-orders/${orderId}/issues`, { params })
 }
@@ -155,11 +158,13 @@ export function createAfterSales(orderId: number, data: any) {
 }
 
 // 列出售后
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 export function listAfterSales(orderId: number, params?: any) {
   return request.get(`/api/v1/erp/custom-orders/${orderId}/after-sales`, { params })
 }
 
 // 更新售后
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 export function updateAfterSales(afterSalesId: number, data: any) {
   return request.put(`/api/v1/erp/custom-orders/after-sales/${afterSalesId}`, data)
 }

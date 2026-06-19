@@ -50,6 +50,13 @@ export function useApiLog() {
     logTotal,
     logLoading,
     logQuery,
+    methodTypeMap: {
+      GET: 'primary',
+      POST: 'success',
+      PUT: 'warning',
+      DELETE: 'danger',
+      PATCH: 'info',
+    } as Record<string, string>,
     fetchLogs,
     logDetailVisible,
     currentLog,
