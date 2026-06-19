@@ -170,7 +170,7 @@ import {
   type CreateQuotationItemDto,
   type CreateQuotationTermDto,
   type PriceTerms,
-  type Currency,
+  type CurrencyCode,
   type CustomerLevel,
 } from '@/api/quotation'
 import { listCustomers } from '@/api/customer'
@@ -287,7 +287,7 @@ async function loadExisting() {
         sales_user_id: data.sales_user_id,
         quotation_date: data.quotation_date,
         valid_until: data.valid_until,
-        currency: data.currency as Currency,
+        currency: data.currency as CurrencyCode,
         exchange_rate: Number(data.exchange_rate),
         base_currency: data.base_currency || 'CNY',
         price_terms: data.price_terms as PriceTerms,

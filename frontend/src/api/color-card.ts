@@ -2,7 +2,7 @@
 // 16 端点封装
 // 创建时间: 2026-06-17
 
-import { request } from './index'
+import { request } from './request'
 
 // ============== 枚举与常量 ==============
 

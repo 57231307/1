@@ -15,8 +15,8 @@ export type QuotationStatus =
   | 'converted'
   | 'cancelled'
 
-/** 货币 */
-export type Currency = 'CNY' | 'USD' | 'EUR'
+/** 货币代码（避免与 @/api/currency 的 Currency 接口冲突） */
+export type CurrencyCode = 'CNY' | 'USD' | 'EUR'
 
 /** 价格条款（Incoterms 2020） */
 export type PriceTerms = 'FOB' | 'CIF' | 'EXW' | 'DDP' | 'DAP'
@@ -33,7 +33,7 @@ export interface CreateQuotationDto {
   sales_user_id: number
   quotation_date: string
   valid_until: string
-  currency: Currency
+  currency: CurrencyCode
   exchange_rate: number
   base_currency: string
   price_terms: PriceTerms
@@ -157,7 +157,7 @@ export interface CalculatePriceRequest {
   product_id: number
   color_id?: number
   quantity: number
-  currency: Currency
+  currency: CurrencyCode
   quotation_date: string
 }
 

@@ -1,7 +1,7 @@
 <template>
   <el-dropdown trigger="click" @command="onCommand">
     <span class="language-switcher">
-      <el-icon><Globe /></el-icon>
+      <el-icon><Earth /></el-icon>
       <span class="lang-text">{{ currentName }}</span>
       <el-icon><ArrowDown /></el-icon>
     </span>
@@ -25,7 +25,7 @@
 
 <script setup lang="ts">
 import { computed } from 'vue'
-import { ArrowDown, Check, Globe } from '@element-plus/icons-vue'
+import { ArrowDown, Check, Earth } from '@element-plus/icons-vue'
 import { getCurrentLocale, setLocale, SUPPORTED_LOCALES, type LocaleCode } from '../i18n'
 
 /* 支持的语言列表 */

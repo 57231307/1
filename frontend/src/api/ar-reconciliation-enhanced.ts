@@ -80,6 +80,7 @@ export function autoReconcile(params: {
   return request.post('/ar-reconciliations-enhanced/auto-match', params)
 }
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 export function getAutoReconciliationResults(
   params?: any
 ): Promise<ApiResponse<PageResult<AutoReconciliationResult>>> {
@@ -103,6 +104,7 @@ export function sendCustomerConfirmation(id: number): Promise<ApiResponse<{ mess
   return request.post(`/ar-reconciliations-enhanced/${id}/confirm/send`)
 }
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 export function getCustomerConfirmations(
   params?: any
 ): Promise<ApiResponse<PageResult<CustomerConfirmation>>> {
@@ -120,6 +122,7 @@ export function createDispute(data: Partial<DisputeRecord>): Promise<ApiResponse
   return request.post('/ar-reconciliations-enhanced/disputes', data)
 }
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 export function getDisputes(params?: any): Promise<ApiResponse<PageResult<DisputeRecord>>> {
   return request.get('/ar-reconciliations-enhanced/disputes', { params })
 }

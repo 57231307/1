@@ -2,7 +2,7 @@
 // 16 端点封装
 // 创建时间: 2026-06-17
 
-import { request } from './index'
+import { request } from './request'
 
 // 状态枚举
 export const CUSTOM_ORDER_STATUS = {
@@ -55,14 +55,14 @@ export const ISSUE_SEVERITY_COLORS = {
   critical: '#f56c6c',
 }
 
-export const AFTER_SALES_TYPE = {
+export const AFTER_SALES_TYPE: Record<string, string> = {
   complaint: '客诉',
   repair: '维修',
   exchange: '换货',
   refund: '退款',
 }
 
-export const AFTER_SALES_STATUS = {
+export const AFTER_SALES_STATUS: Record<string, string> = {
   opened: '已开',
   processing: '处理中',
   resolved: '已解决',
