@@ -16,6 +16,33 @@ import type { Customer } from '@/api/customer'
 import type { Product } from '@/api/product'
 import { getStatusType, getStatusText, formatAmount } from './olvFmts'
 
+/** 销售订单明细行表单类型 */
+interface OrderItemForm {
+  id: number
+  product_id: number | undefined
+  product_name: string
+  product_code: string
+  quantity: number
+  unit: string
+  unit_price: number
+  subtotal: number
+}
+
+/** 销售订单表单类型 */
+interface OrderForm {
+  id?: number
+  customer_id: number | undefined
+  customer_name: string
+  order_date: Date | string
+  required_date: string
+  contact_person: string
+  contact_phone: string
+  delivery_address: string
+  remark: string
+  items: OrderItemForm[]
+  total_amount?: number
+}
+
 /**
  * 销售订单列表 composable
  * 集中管理列表数据、分页、辅助数据、过滤表单、统计、表单、列定义
@@ -55,32 +82,6 @@ export function useOlv() {
     approvedCount: 0,
     totalAmount: 0,
   })
-
-  // 订单表单数据：与 OrderFormDialog 保持类型一致
-  interface OrderItemForm {
-    id: number
-    product_id: number | undefined
-    product_name: string
-    product_code: string
-    quantity: number
-    unit: string
-    unit_price: number
-    subtotal: number
-  }
-
-  interface OrderForm {
-    id?: number
-    customer_id: number | undefined
-    customer_name: string
-    order_date: Date | string
-    required_date: string
-    contact_person: string
-    contact_phone: string
-    delivery_address: string
-    remark: string
-    items: OrderItemForm[]
-    total_amount?: number
-  }
 
   // 订单表单对话框
   const formDialogTitle = ref('新建销售订单')
@@ -172,10 +173,8 @@ export function useOlv() {
       width: 100,
       align: 'center',
       renderCell: (row: SalesOrder) =>
-        h(
-          ElTag,
-          { type: getStatusType(row.status), size: 'small' },
-          { default: () => getStatusText(row.status) }
+        h(ElTag, { type: getStatusType(row.status) as any, size: 'small' }, () =>
+          getStatusText(row.status)
         ),
     },
     { key: 'creator_name', title: '创建人', width: 100 },

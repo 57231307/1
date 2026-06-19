@@ -17,7 +17,7 @@
       <el-descriptions-item label="供应商">{{ viewData.supplier_name }}</el-descriptions-item>
       <el-descriptions-item label="合同类型">{{ viewData.contract_type }}</el-descriptions-item>
       <el-descriptions-item label="合同金额">{{
-        formatCurrency(viewData.total_amount)
+        formatCurrency(viewData.total_amount || 0)
       }}</el-descriptions-item>
       <el-descriptions-item label="签订日期">{{ viewData.signed_date }}</el-descriptions-item>
       <el-descriptions-item label="生效日期">{{ viewData.effective_date }}</el-descriptions-item>
@@ -35,8 +35,8 @@
         viewData.delivery_location || '-'
       }}</el-descriptions-item>
       <el-descriptions-item label="状态">
-        <el-tag :type="getStatusType(viewData.status)">{{
-          getStatusLabel(viewData.status)
+        <el-tag :type="getStatusType(viewData.status || '')">{{
+          getStatusLabel(viewData.status || '')
         }}</el-tag>
       </el-descriptions-item>
       <el-descriptions-item label="备注" :span="2">{{

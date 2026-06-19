@@ -14,14 +14,16 @@
     <el-descriptions :column="2" border>
       <el-descriptions-item label="产品名称">{{ viewData.product_name }}</el-descriptions-item>
       <el-descriptions-item label="客户">{{ viewData.customer_name || '-' }}</el-descriptions-item>
-      <el-descriptions-item label="销售价格">{{ formatCurrency(viewData.price) }}</el-descriptions-item>
+      <el-descriptions-item label="销售价格">{{
+        formatCurrency(viewData.price || 0)
+      }}</el-descriptions-item>
       <el-descriptions-item label="币种">{{ viewData.currency }}</el-descriptions-item>
       <el-descriptions-item label="单位">{{ viewData.unit }}</el-descriptions-item>
       <el-descriptions-item label="最小订购量">{{
         viewData.min_order_qty || '-'
       }}</el-descriptions-item>
       <el-descriptions-item label="价格类型">{{
-        getPriceTypeLabel(viewData.price_type)
+        getPriceTypeLabel(viewData.price_type || '')
       }}</el-descriptions-item>
       <el-descriptions-item label="价格等级">{{
         viewData.price_level || '-'
@@ -33,8 +35,8 @@
         viewData.expiry_date || '-'
       }}</el-descriptions-item>
       <el-descriptions-item label="状态">
-        <el-tag :type="getStatusType(viewData.status)">{{
-          getStatusLabel(viewData.status)
+        <el-tag :type="getStatusType(viewData.status || '')">{{
+          getStatusLabel(viewData.status || '')
         }}</el-tag>
       </el-descriptions-item>
       <el-descriptions-item label="备注" :span="2">{{

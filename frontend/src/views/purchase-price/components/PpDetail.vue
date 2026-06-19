@@ -15,7 +15,7 @@
       <el-descriptions-item label="产品名称">{{ viewData.product_name }}</el-descriptions-item>
       <el-descriptions-item label="供应商">{{ viewData.supplier_name }}</el-descriptions-item>
       <el-descriptions-item label="采购价格">{{
-        formatCurrency(viewData.price)
+        formatCurrency(viewData.price || 0)
       }}</el-descriptions-item>
       <el-descriptions-item label="币种">{{ viewData.currency }}</el-descriptions-item>
       <el-descriptions-item label="单位">{{ viewData.unit }}</el-descriptions-item>
@@ -23,11 +23,11 @@
         viewData.min_order_qty || '-'
       }}</el-descriptions-item>
       <el-descriptions-item label="价格类型">{{
-        getPriceTypeLabel(viewData.price_type)
+        getPriceTypeLabel(viewData.price_type || '')
       }}</el-descriptions-item>
       <el-descriptions-item label="状态">
-        <el-tag :type="getStatusType(viewData.status)">{{
-          getStatusLabel(viewData.status)
+        <el-tag :type="getStatusType(viewData.status || '')">{{
+          getStatusLabel(viewData.status || '')
         }}</el-tag>
       </el-descriptions-item>
       <el-descriptions-item label="生效日期">{{ viewData.effective_date }}</el-descriptions-item>
