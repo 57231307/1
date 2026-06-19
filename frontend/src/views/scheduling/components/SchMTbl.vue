@@ -79,8 +79,8 @@
       class="pagination"
       @update:current-page="onPageChange"
       @update:page-size="onSizeChange"
-      @size-change="emit('size-change')"
-      @current-change="emit('current-change')"
+      @size-change="onSizeChange"
+      @current-change="onPageChange"
     />
   </el-card>
 </template>
@@ -121,10 +121,6 @@ const emit = defineEmits<{
   'update:currentPage': [value: number]
   // 每页大小变化
   'update:pageSize': [value: number]
-  // 分页 - 每页大小
-  'size-change': [val: number]
-  // 分页 - 当前页
-  'current-change': [val: number]
 }>()
 
 /** 筛选值变化 */

@@ -29,8 +29,6 @@
           @conflict-detail="(row) => schM.showConflictDetail(row)"
           @refresh="schM.fetchTasks"
           @filter-change="schM.fetchTasks"
-          @size-change="schM.fetchTasks"
-          @current-change="schM.fetchTasks"
         />
       </el-col>
 
