@@ -176,21 +176,27 @@ export function getDrilldownProductToOrder(productId: number) {
 // =====================================================
 
 /** 切片 */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 export function postSlice(dimension: string, filters: Record<string, any>) {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   return request.post<BiResponseData<any>>('/bi/sales/slice', { dimension, filters })
 }
 
 /** 切块 */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 export function postDice(filters: Record<string, any>) {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   return request.post<BiResponseData<any>>('/bi/sales/dice', { filters })
 }
 
 /** 上卷 */
 export function postRollup(from: string, to: string) {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   return request.post<BiResponseData<any>>('/bi/sales/rollup', { from, to })
 }
 
 /** 透视 */
 export function postPivot(row: string, col: string, measure: string) {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   return request.post<BiResponseData<any>>('/bi/sales/pivot', { row, col, measure })
 }

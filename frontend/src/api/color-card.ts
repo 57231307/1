@@ -140,7 +140,7 @@ export function listColorCards(params: {
 }
 
 export function getColorCard(id: number) {
-  return request.get<any, { data: ColorCardDetail }>(`/api/v1/erp/color-cards/${id}`)
+  return request.get<{ data: ColorCardDetail }>(`/api/v1/erp/color-cards/${id}`)
 }
 
 export function createColorCard(dto: {
@@ -163,7 +163,7 @@ export function updateColorCard(id: number, dto: Partial<{
   description: string
   cover_image_url: string
 }>) {
-  return request.put<any, { data: ColorCardListItem }>(`/api/v1/erp/color-cards/${id}`, dto)
+  return request.put<{ data: ColorCardListItem }>(`/api/v1/erp/color-cards/${id}`, dto)
 }
 
 export function archiveColorCard(id: number, reason?: string) {
@@ -196,7 +196,7 @@ export function updateColorItem(cardId: number, itemId: number, dto: Partial<Col
 }
 
 export function deleteColorItem(cardId: number, itemId: number) {
-  return request.delete<any, { data: null }>(
+  return request.delete<{ data: null }>(
     `/api/v1/erp/color-cards/${cardId}/items/${itemId}`,
   )
 }
@@ -218,11 +218,11 @@ export function borrowColorCard(dto: {
   purpose?: string
   notes?: string
 }) {
-  return request.post<any, { data: BorrowRecordInfo }>('/api/v1/erp/color-cards/borrow', dto)
+  return request.post<{ data: BorrowRecordInfo }>('/api/v1/erp/color-cards/borrow', dto)
 }
 
 export function returnColorCard(recordId: number, dto: { actual_return_at?: string; notes?: string }) {
-  return request.post<any, { data: BorrowRecordInfo }>(
+  return request.post<{ data: BorrowRecordInfo }>(
     `/api/v1/erp/color-cards/return/${recordId}`,
     dto,
   )

@@ -81,7 +81,10 @@ pub async fn slow_request_detector_middleware(
     let duration = start_time.elapsed();
     if duration > slow_threshold {
         warn!(
-            method = %response.extensions().get::<axum::http::Method>().unwrap_or(&axum::http::Method::GET),
+            method = %response
+                .extensions()
+                .get::<axum::http::Method>()
+                .unwrap_or(&axum::http::Method::GET),
             path = %response.extensions().get::<axum::http::Uri>().map(|u| u.path()).unwrap_or("/"),
             status = %response.status(),
             duration_ms = duration.as_millis(),

@@ -18,6 +18,7 @@ export interface TraceChainResponse {
   business_id: number
   relation_type: string
   created_at?: string
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   [key: string]: any
 }
 
@@ -25,6 +26,7 @@ export interface FullTraceChainResponse {
   trace_chain_id: string
   five_dimension_id: number
   traces: TraceChainResponse[]
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   [key: string]: any
 }
 

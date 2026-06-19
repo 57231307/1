@@ -53,6 +53,7 @@ export interface ApprovalAction {
   action: 'approve' | 'reject' | 'transfer' | 'delegate'
   comment?: string
   target_user_id?: number
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   variables?: any
 }
 
