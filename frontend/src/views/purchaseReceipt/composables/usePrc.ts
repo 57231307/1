@@ -5,8 +5,8 @@
  * 业务流程（提交 / 删除 / 审核）由 usePrcProc 提供
  * 行为完全保持一致（仅结构重构）
  *
- * 注意：返回值中包含 Ref 和 reactive 对象，未用 reactive({...}) 包装，
- * 避免 ref 自动解包后无法回写
+ * 注意：返回值使用 reactive({...}) 包装，父组件可直接访问字段（自动解包 ref）
+ * 子组件通过 :model-value/@update:model-value 模式传入；不会修改 prop
  */
 import { ref, reactive } from 'vue'
 import { ElMessage } from 'element-plus'
@@ -152,8 +152,8 @@ export function usePrc() {
     }
   }
 
-  // 直接返回（不包装为 reactive）保持 ref 行为一致
-  return {
+  // 使用 reactive 包装，父组件可直接访问字段
+  return reactive({
     // 列表
     tableData,
     total,
@@ -165,7 +165,6 @@ export function usePrc() {
     // 入库表单
     dialogVisible,
     dialogTitle,
-    formRef,
     form,
     formRules,
     // 详情
@@ -181,5 +180,5 @@ export function usePrc() {
     loadSuppliers,
     loadWarehouses,
     loadProducts,
-  }
+  })
 }

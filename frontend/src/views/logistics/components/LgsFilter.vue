@@ -50,7 +50,7 @@
           range-separator="至"
           start-placeholder="开始日期"
           end-placeholder="结束日期"
-          @update:model-value="(v: [Date, Date] | null) => (dateRange = v)"
+          @update:model-value="emit('date-change', $event as [Date, Date] | null)"
         />
       </el-form-item>
       <el-form-item>

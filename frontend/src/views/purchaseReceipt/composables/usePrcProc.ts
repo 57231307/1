@@ -92,27 +92,19 @@ export function usePrcProc(cb: PrcCallbacks) {
   /** 打开编辑对话框 */
   const openEditDialog = async (row: PurchaseReceiptEntity) => {
     cb.dialogTitle = '编辑入库'
-    const res: { data: PurchaseReceiptEntity | null } = (await getPurchaseReceipt(
-      row.id!
-    )) as { data: PurchaseReceiptEntity | null }
-    const itemsRes: { data: ReceiptItem[] } = (await getReceiptItems(row.id!)) as {
-      data: ReceiptItem[]
-    }
-    cb.form = { ...(res.data as PrcForm), items: itemsRes.data }
+    const res = await getPurchaseReceipt(row.id!)
+    const itemsRes = await getReceiptItems(row.id!)
+    cb.form = { ...(res.data as unknown as PrcForm), items: itemsRes.data?.items || [] }
     cb.dialogVisible = true
   }
 
   /** 打开详情对话框 */
   const openViewDialog = async (row: PurchaseReceiptEntity) => {
     try {
-      const res: { data: PurchaseReceiptEntity | null } = (await getPurchaseReceipt(
-        row.id!
-      )) as { data: PurchaseReceiptEntity | null }
-      cb.viewData = res.data
-      const itemsRes: { data: ReceiptItem[] } = (await getReceiptItems(row.id!)) as {
-        data: ReceiptItem[]
-      }
-      cb.detailData = itemsRes.data
+      const res = await getPurchaseReceipt(row.id!)
+      cb.viewData = res.data || null
+      const itemsRes = await getReceiptItems(row.id!)
+      cb.detailData = itemsRes.data?.items || []
       cb.viewDialogVisible = true
     } catch (error) {
       ElMessage.error('获取详情失败')
