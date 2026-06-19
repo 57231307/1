@@ -151,6 +151,12 @@
   - logistics/index.vue：605 → 117 行 + 6 子组件 (LgsStat/Filter/Tbl/Form/Detail/StatDlg) + 2 composable + 1 工具
   - purchaseReceipt/index.vue：598 → 97 行 + 4 子组件 (PrcFilter/Tbl/Form/Detail) + 2 composable + 1 工具
   - 2 轮 CI 迭代关键修复：useXxx 返回值需用 reactive({...}) 包装（否则父组件模板访问字段不自动解包）→ PrcProc API 返回值类型从 ApiResponse 改 .data?.items → 移除 `const props = defineProps<...>()` 未使用 → LgsFilter dateRange readonly prop（改 emit 事件模式）→ PrdForm 移除未使用 watch import → PrcForm 移除未使用 Reactive import → usePrcType Partial<ProductionOrder> cast
+- **P14 批 2 B3 拆分大 .vue I-3 第 5 批**（PR #199）✅ **已合并** - 拆分 4 个 579-596 行大 .vue（合计 2359 → 475 行 / 17 子组件 + 8 composable + 4 工具），squash merge SHA `6894923`，CI 5/5 全绿
+  - data-import/index.vue：596 → 127 行 + 4 子组件 (DiTplTbl/DiTaskTbl/DiTplForm/DiTplUpload) + 2 composable + 1 工具
+  - purchase-inspection/index.vue：594 → 113 行 + 5 子组件 (PiStat/Filter/Tbl/Form/Detail) + 2 composable + 1 工具
+  - material-shortage/index.vue：590 → 85 行 + 3 子组件 (MsStat/MsSevCard/MsTbl) + 2 composable + 1 工具
+  - bpm/definitions.vue：579 → 150 行 + 5 子组件 (BpmDfFilter/Tbl/Form/VerDlg/TplDlg) + 2 composable + 1 工具（注意使用 BpmDf 前缀，与 I-3 第 4 批的 BpmAp Approval 区分）
+  - 3 轮 CI 迭代关键修复：1) definitions.vue import 路径需要 ./definitions/ 前缀（路由直接引用 bpm/definitions.vue）→ 2) ref 不能从 element-plus 导入（应从 vue 导入：BpmDfForm/BpmDfTplDlg/PiForm）→ 3) MsTbl string 类型 prop readonly（改 update:filter-severity/update:filter-status emit 模式）+ 父组件监听 → bpm/definitions.vue `type FormRules` 应从 element-plus 导入（不是 vue）→ usePiProc formData.items 类型从 never[] 改 Partial<PurchaseInspectionItem>[] → MsTbl el-table v-loading 引用旧 prop 名字 tableLoading 改 loading
 
 ### 待启动
 
@@ -401,6 +407,7 @@ backend/src/handlers/advanced/
 
 ## 九、最后更新
 
+- 2026-06-19 (Asia/Shanghai) - PR #199 B3 拆分大 .vue - I-3 第 5 批（4 个 579-596 行：data-import 596→127 + purchase-inspection 594→113 + material-shortage 590→85 + bpm/definitions 579→150）squash merge 入 main（6894923）：6 commit（4 拆分 + 2 修复）；CI 3 轮迭代（1) definitions.vue import 路径 .definitions/ 前缀 + 2) ref 不能从 element-plus 导入 + 3) MsTbl string prop readonly emit 模式 + FormRules 应从 element-plus + formData.items never[] 改 Partial + el-table v-loading 旧名）；**P14 批 2 全部 5/5 PR 完成（I-3 第 1/2/3/4/5 批）累计 18/24 大 .vue 已拆分**
 - 2026-06-19 (Asia/Shanghai) - PR #198 B3 拆分大 .vue - I-3 第 4 批（4 个 598-618 行：bpm/approval 618→123 + production 611→172 + logistics 605→117 + purchaseReceipt 598→97）squash merge 入 main（0bc1f5e）：6 commit（4 拆分 + 2 修复）；CI 2 轮迭代（useXxx 需 reactive 包装 / PrcProc API 类型 .data?.items + LgsFilter dateRange readonly emit 模式 + 移除未用 props/import）；**P14 批 2 全部 4/4 PR 完成（I-3 第 1/2/3/4 批）累计 14/24 大 .vue 已拆分**
 - 2026-06-19 (Asia/Shanghai) - PR #197 B3 拆分大 .vue - I-3 第 3 批（4 个 622-677 行：sales-price 677→147 + sales OrderListView 644→125 + purchase-contract 644→142 + purchase-price 622→137）squash merge 入 main（9367dc7）：2 commit（1 拆分 + 1 修复）；CI 1 轮迭代（vue-tsc 修复：OrderForm 顶层导出 + ElTag renderCell 函数签名 + viewData optional 字段 fallback）；**P14 批 2 全部 3/3 PR 完成（I-3 第 1/2/3 批）**
 - 2026-06-19 (Asia/Shanghai) - PR #196 B3 拆分大 .vue - I-3 第 2 批（3 个 689-695 行：purchase-return 695→211 + scheduling/gantt 691→93 + scheduling/index 689→109）squash merge 入 main（0622b82）：5 commit（3 拆分 + 2 修复）；CI 5 轮迭代（14 子组件 const props 未用 / useSchGProc 未用 import / SchMTbl v-model on prop / SchMTbl emit object 形式 / SchMTbl 冗余 size-change/current-change emit）
