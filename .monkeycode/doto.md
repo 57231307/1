@@ -416,6 +416,18 @@
 
 ---
 
+### [docs 合并 + main 同步]
+
+- Date: 2026-06-19
+- Context: 用户要求"把非/.monkeycode 文件夹里面的 docs 文件夹合并到/.monkeycode 文件夹里面的 docs 文件夹里面"+"强制推送"
+- Category: 工作流协作
+- Instructions:
+  - **docs 合并**：将 `/workspace/docs/`、`/workspace/backend/docs/`、`/workspace/frontend/docs/` 三个源目录移动到 `/workspace/.monkeycode/docs/`（平铺到目标根目录），共 91 个文件，3 个空源目录已 `rmdir` 清理
+  - **冲突分析**：无文件/子目录名冲突，`architecture.md` 与 `ARCHITECTURE.md` 在 Linux 下按大小写区分共存
+  - **推送策略**：用户最初请求"强制推送"，但本地领先 1 提交时本可快进；fetch 后发现远端已有 `a0a25e8` 提交（与 docs 合并相关，由自动化或外部提交），与本地 `390f101 feat: 项目评估` 形成分叉
+  - **最终方案**：`git pull --no-rebase` 产生 merge commit `fb1d331` → `git push` 快进至 `fb1d331`，**未使用强制推送**（保留所有历史）
+  - **当前 main 状态**：`fb1d331`（merge commit）= 7d74eed → 390f101 → a0a25e8 → fb1d331，与 origin/main 完全同步
+
 ### [销售报价单模块（PR #126）完成总结]
 
 - Date: 2026-06-16 18:30

@@ -16,6 +16,13 @@
 
 ## 最新任务总结
 
+### docs 合并 + main 同步（2026-06-19）
+
+- **docs 整合**：将 3 个源 docs 目录（`/workspace/docs`、`/workspace/backend/docs`、`/workspace/frontend/docs`）移动到 `/workspace/.monkeycode/docs`，共 91 个文件，无冲突
+- **main 同步**：远端已包含 `a0a25e8 chore: 合并 /workspace/docs 到 .monkeycode/docs`（自动化或外部提交），与本地 `390f101 feat: 项目评估` 形成分叉
+- **解决方式**：`git pull --no-rebase` + `git push`，最终 merge commit `fb1d331`，**未使用强制推送**（保留远端所有历史）
+- **关键经验**：用户口头"强制推送"在前端检查时本不需要；fetch 后才暴露分叉，最终选 merge 策略避免数据丢失
+
 ### P14 批 2 B3 拆分大 .vue（2026-06-19）
 
 - **PR #195 ~ #199**：5 个 PR 全部 squash merge 入 main
