@@ -154,14 +154,6 @@ const emit = defineEmits<{
 // 表单 ref
 const formRef = ref<FormInstance>()
 
-/** 暴露给父组件的验证方法 */
-defineExpose({
-  validate: async () => {
-    if (!formRef.value) return false
-    return await formRef.value.validate().catch(() => false)
-  },
-})
-
 /** 点击确定：先校验再发 submit */
 const onSubmit = async () => {
   if (!formRef.value) return

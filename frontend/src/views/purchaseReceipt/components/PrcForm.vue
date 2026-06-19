@@ -175,11 +175,6 @@ const emit = defineEmits<{
 // 表单 ref
 const formRef = ref<FormInstance>()
 
-/** 暴露给父组件的 formRef 访问 */
-defineExpose({
-  formRef,
-})
-
 /** 点击确定：先校验再发 submit */
 const onSubmit = async () => {
   if (!formRef.value) return

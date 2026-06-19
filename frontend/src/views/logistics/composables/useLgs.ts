@@ -9,7 +9,6 @@
  * 避免 ref 自动解包后无法回写
  */
 import { ref, reactive } from 'vue'
-import type { FormInstance } from 'element-plus'
 import { logisticsApi, type LogisticsWaybill } from '@/api/logistics'
 import { logger } from '@/utils/logger'
 
