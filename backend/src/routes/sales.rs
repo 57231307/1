@@ -113,11 +113,15 @@ pub fn quotations() -> Router<AppState> {
         // PR-A4：报价转销售订单 + 到期报价单列表
         .route(
             "/:id/convert",
-            post(quotation_handler::convert_quotation_to_order),
+            // 修复：原函数名 `convert_quotation_to_order` 在启动时 panic（不存在），
+            // 实际函数为 `convert_to_sales_order`（backend/src/handlers/quotation_handler.rs:273）
+            post(quotation_handler::convert_to_sales_order),
         )
         .route(
             "/expiring",
-            get(quotation_handler::list_expiring_quotations),
+            // 修复：原函数名 `list_expiring_quotations` 在启动时 panic（不存在），
+            // 实际函数为 `list_expiring`（backend/src/handlers/quotation_handler.rs:364）
+            get(quotation_handler::list_expiring),
         )
 }
 

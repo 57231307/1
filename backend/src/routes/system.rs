@@ -25,7 +25,13 @@ use crate::websocket;
 /// - `/ws/notifications`：通知实时推送（鉴权通过 URL query token）
 pub fn ws() -> Router<AppState> {
     Router::new()
-        .route("/ws/notifications", get(websocket::ws_notifications_handler))
+        .route(
+            "/ws/notifications",
+            // 修复：原 `websocket::ws_notifications_handler` 启动时 panic（不存在），
+            // 实际路径为 `websocket::notifications::ws_notifications_handler`
+            // （backend/src/websocket/mod.rs:6 已声明 `pub mod notifications;`）
+            get(websocket::notifications::ws_notifications_handler),
+        )
 }
 
 /// 仪表板路由（path 前缀 /dashboard）

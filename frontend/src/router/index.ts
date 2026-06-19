@@ -45,6 +45,12 @@ const routes = [
         meta: { title: '审计日志', requiresAuth: true },
       },
       {
+        path: 'system/slow-query',
+        name: 'SystemSlowQuery',
+        component: () => import('@/views/system/slow-query/index.vue'),
+        meta: { title: '慢查询审计', icon: 'Histogram', requiresAuth: true },
+      },
+      {
         path: 'finance',
         name: 'Finance',
         component: () => import('@/views/finance/index.vue'),
@@ -636,7 +642,8 @@ const routes = [
       {
         path: 'color-prices/create',
         name: 'ColorPriceCreate',
-        component: () => import('@/views/color-prices/list.vue'),
+        // 修复：原指向 list.vue（错配）→ 改为专用 create.vue
+        component: () => import('@/views/color-prices/create.vue'),
         meta: { title: '新建色号价格', requiresAuth: true },
       },
       {
