@@ -136,7 +136,7 @@ export function listColorCards(params: {
   status?: string
   keyword?: string
 }) {
-  return request.get<any, { data: PagedResponse<ColorCardListItem> }>('/api/v1/erp/color-cards', { params })
+  return request.get<{ data: PagedResponse<ColorCardListItem> }>('/api/v1/erp/color-cards', { params })
 }
 
 export function getColorCard(id: number) {
@@ -152,7 +152,7 @@ export function createColorCard(dto: {
   description?: string
   cover_image_url?: string
 }) {
-  return request.post<any, { data: ColorCardListItem }>('/api/v1/erp/color-cards', dto)
+  return request.post<{ data: ColorCardListItem }>('/api/v1/erp/color-cards', dto)
 }
 
 export function updateColorCard(id: number, dto: Partial<{
@@ -167,7 +167,7 @@ export function updateColorCard(id: number, dto: Partial<{
 }
 
 export function archiveColorCard(id: number, reason?: string) {
-  return request.delete<any, { data: ColorCardListItem }>(`/api/v1/erp/color-cards/${id}`, {
+  return request.delete<{ data: ColorCardListItem }>(`/api/v1/erp/color-cards/${id}`, {
     data: { reason },
   })
 }
@@ -175,21 +175,21 @@ export function archiveColorCard(id: number, reason?: string) {
 // ============== 色号 CRUD ==============
 
 export function listColorItems(cardId: number, params?: { page?: number; page_size?: number }) {
-  return request.get<any, { data: PagedResponse<ColorItemInfo> }>(
+  return request.get<{ data: PagedResponse<ColorItemInfo> }>(
     `/api/v1/erp/color-cards/${cardId}/items`,
     { params },
   )
 }
 
 export function createColorItem(cardId: number, dto: Partial<ColorItemInfo>) {
-  return request.post<any, { data: ColorItemInfo }>(
+  return request.post<{ data: ColorItemInfo }>(
     `/api/v1/erp/color-cards/${cardId}/items`,
     dto,
   )
 }
 
 export function updateColorItem(cardId: number, itemId: number, dto: Partial<ColorItemInfo>) {
-  return request.put<any, { data: ColorItemInfo }>(
+  return request.put<{ data: ColorItemInfo }>(
     `/api/v1/erp/color-cards/${cardId}/items/${itemId}`,
     dto,
   )
@@ -202,7 +202,7 @@ export function deleteColorItem(cardId: number, itemId: number) {
 }
 
 export function batchImportItems(cardId: number, items: Partial<ColorItemInfo>[]) {
-  return request.post<any, { data: { success_count: number; failed_count: number; errors: any[]; total_colors: number } }>(
+  return request.post<{ data: { success_count: number; failed_count: number; errors: any[]; total_colors: number } }>(
     `/api/v1/erp/color-cards/${cardId}/items/batch`,
     { items },
   )
@@ -229,14 +229,14 @@ export function returnColorCard(recordId: number, dto: { actual_return_at?: stri
 }
 
 export function markLostColorCard(recordId: number, dto: { compensation_amount: number; notes?: string }) {
-  return request.post<any, { data: BorrowRecordInfo }>(
+  return request.post<{ data: BorrowRecordInfo }>(
     `/api/v1/erp/color-cards/lost/${recordId}`,
     dto,
   )
 }
 
 export function markDamagedColorCard(recordId: number, dto: { compensation_amount?: number; notes?: string }) {
-  return request.post<any, { data: BorrowRecordInfo }>(
+  return request.post<{ data: BorrowRecordInfo }>(
     `/api/v1/erp/color-cards/damaged/${recordId}`,
     dto,
   )
@@ -251,7 +251,7 @@ export function listBorrowRecords(params: {
   from_date?: string
   to_date?: string
 }) {
-  return request.get<any, { data: PagedResponse<BorrowRecordInfo> }>(
+  return request.get<{ data: PagedResponse<BorrowRecordInfo> }>(
     '/api/v1/erp/color-cards/borrow-records',
     { params },
   )
@@ -260,7 +260,7 @@ export function listBorrowRecords(params: {
 // ============== 扫码查询 ==============
 
 export function scanColorCode(code: string) {
-  return request.get<any, { data: any }>(`/api/v1/erp/color-cards/scan/${encodeURIComponent(code)}`)
+  return request.get<{ data: any }>(`/api/v1/erp/color-cards/scan/${encodeURIComponent(code)}`)
 }
 
 export function exportColorCardUrl(cardId: number) {

@@ -48,6 +48,30 @@
   - P0-C 路由错配（2 处：color-prices/create、/system/slow-query）
   - P0-D custom-order 17 端点（Wave A 挂载）
 - **CI 状态**：已推送，等待 GitHub Actions 4 job 验证（build-backend / build-frontend / test / test-frontend）
+
+### Wave E-1 E1+E2 修复分支（2026-06-19）
+
+- **E1**：给 23 个 pub 项加项级 `#[allow(dead_code)] // TODO(tech-debt): 业务接入后移除`
+- **E2**：修复 `backend/src/middleware/auth.rs:68` 行宽超限（161 字符 → 多行 9 行，每行 <100）
+- **总变更**：11 文件 / +32/-1 行
+  - `backend/src/handlers/customer_handler.rs` +1
+  - `backend/src/handlers/inventory_stock_handler.rs` +4
+  - `backend/src/handlers/quality_inspection_handler.rs` +1
+  - `backend/src/middleware/auth.rs` +10/-1（行宽修复）
+  - `backend/src/middleware/auth_context.rs` +1
+  - `backend/src/middleware/permission.rs` +2
+  - `backend/src/services/auth_service.rs` +1
+  - `backend/src/services/enhanced_logger.rs` +6
+  - `backend/src/services/event_bus.rs` +1
+  - `backend/src/services/five_dimension_query_service.rs` +5
+  - `backend/src/services/system_update_service.rs` +1
+- **关键发现**：
+  - 子代理预判报告 25 项中 1 项是 phantom（`UpdatePlan` struct 不存在）
+  - 2 项是重复条目（`OptionalAuth` 在 line 33 实际为空，line 123 才是真正位置）
+  - 实际唯一修改项 = 25 - 1 - 1 = 23 项
+  - 预测报告多处行号有偏差（enhanced_logger.rs / five_dimension_query_service.rs），已通过 Grep 重新定位
+- **CI/CD 验证**：未本地编译（遵守"禁止本地编译"规则），仅静态分析 + Grep 验证
+- **未 commit/push**：等待主代理审核
 - **部署要求**：生产环境必须配置 ENV=production（启用 secure cookie）+ COOKIE_SECRET（Wave B-2 强制）+ JWT_SECRET（Wave B-2 强制）
 
 ### 综合审计报告（2026-06-19）
@@ -339,3 +363,45 @@
   - **变更规模**：9 文件修改（后端 2 + 前端 5 + 测试 2）
   - **测试更新**：`storage.test.ts` 改 Cookie 读取验证；`user-store.test.ts` 验证不写 localStorage
   - **CI 验证**：未本地编译，依赖 GitHub Actions
+
+### Wave E-1 deep clippy dead_code 预判（2026-06-19）
+
+- **目标**：深度扫描 Wave A+B 涉及的 90 个 .rs 文件，定位所有未被引用的 pub 项
+- **扫描工具**：`/tmp/scan_v3.py`（Python 3，~250 行；正则 word-boundary 搜索 + 自身文件定义行排除）
+- **扫描范围**：`backend/src/` + `backend/tests/` + `backend/migration/src/`（共 626 个 .rs 文件）
+- **扫描结果**：
+  - 提取 pub 项：1,043
+  - 排除已有 `#[allow(dead_code)]`（Wave B-2 修）：23
+  - 待分析：1,020
+  - 引用数 = 0（疑似死代码）：**61**
+    - 其中 `pub mod` 声明（误报，clippy 不标记）：6
+    - 实际死代码（待修复）：**55**
+  - 附加：子模块内部死代码（transitively 涉及）：**14**
+  - 死代码总计：**69 项**
+- **错误分类**：
+  - handler 未挂载：27 项（39%）
+  - main.rs 中间件未注册：8 项（12%）
+  - 服务方法调用方缺失：14 项（20%）
+  - DTO struct 未使用：6 项（9%）
+  - 子模块内部 fn 死代码：14 项（20%）
+- **TOP 死代码文件**：
+  - `services/tenant_billing_service.rs`：6 项
+  - `services/inventory_reservation_service.rs`：6 项
+  - `middleware/logger_middleware.rs`：4 项
+  - `services/tenant_service.rs`：5 项
+  - `services/supplier_evaluation_service.rs`：4 项
+- **修复建议**（3 批）：
+  - Wave C-1 中间件修复（8 项，0.5h）：8 个未注册中间件加项级抑制
+  - Wave C-2 Response/DTO 修复（4 项，0.5h）：4 个 DTO struct 加项级抑制
+  - Wave C-3 Service 方法修复（65 项，2.0h）：51 个 service fn + 14 个子模块 fn 加项级抑制
+  - 总工作量：~77 项抑制 / 3.0h
+- **关键发现**：
+  - 23 个已有 `#[allow(dead_code)]` 项已**全部正确抑制**（复核通过）
+  - 6 个 `pub mod` 声明是误报（Rust 不会对模块声明触发 dead_code）
+  - 子模块（pred/recon/vfy/ds/job/tpl）**不在 90 个受影响文件内**，但其内部 pub fn 仍被 clippy 标记
+  - `pred.rs` 内部 `forecast_sales` 实际被 3 处引用（活跃），`recon.rs` 11 个 fn 全部活跃，`vfy.rs` 5 个 fn 全部活跃
+  - `report/{ds,job,tpl}.rs` 内部合计 13 个 fn 是死代码（不活跃）
+- **报告位置**：[.monkeycode/docs/audits/2026-06-19-clippy-deep-prediction.md](file:///workspace/.monkeycode/docs/audits/2026-06-19-clippy-deep-prediction.md)
+- **扫描原始数据**：`/tmp/scan_v3_output.md`（1,043 行表格）+ `/tmp/dead_pub_items_v3.txt`
+- **CI 验证策略**：不本地编译（遵守"禁止本地编译"规则），依赖 GitHub Actions
+- **下一步**：等待用户决策修复策略（删除/抑制/接入），启动 Wave C 修复

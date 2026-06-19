@@ -271,6 +271,42 @@
     - 第 5-6 周：修 116 处 `let _ =` + 20 处 `panic!` + 评估 sleep
     - 第 7-12 周：OIDC 接入 + SAST 工具 + 自动类型生成
 
+[Wave E-1 deep clippy dead_code 预判]
+- Date: 2026-06-19
+- Context: Wave B-2 修已为 23 个 pub 项加项级 `#[allow(dead_code)]`，但 CI 仍 fail（exit 101）。本任务深度扫描 90 个 Wave A+B 涉及 .rs 文件，给出完整未引用 pub 项清单。
+- Category: 死代码治理（P0 必修）
+- Instructions:
+  - **扫描方法**：`/tmp/scan_v3.py`（Python 3，~250 行；word boundary 正则 + 自身文件定义行排除）
+  - **扫描范围**：`backend/src/` + `backend/tests/` + `backend/migration/src/`（共 626 个 .rs 文件）
+  - **关键发现**：
+    - 提取 pub 项：1,043
+    - 排除已有 `#[allow(dead_code)]`（Wave B-2 修）：23（**全部正确抑制**）
+    - 引用数 = 0 实际死代码：**55 项**（在 90 个受影响文件内）
+    - 子模块内部死代码（transitively 涉及）：**14 项**（`report/{ds,job,tpl}.rs` 内）
+    - **死代码总计：69 项**
+    - 6 个 `pub mod` 声明（pred/recon/vfy/ds/job/tpl）是误报——clippy 不会对模块声明触发 dead_code，但会标记模块**内部**未被引用的 pub fn
+  - **错误类型分布**：
+    - handler 未挂载：27 项（39%）
+    - main.rs 中间件未注册：8 项（12%）
+    - 服务方法调用方缺失：14 项（20%）
+    - DTO struct 未使用：6 项（9%）
+    - 子模块内部 fn 死代码：14 项（20%）
+  - **TOP 死代码文件**：
+    - `services/tenant_billing_service.rs`：6 项
+    - `services/inventory_reservation_service.rs`：6 项
+    - `services/tenant_service.rs`：5 项
+    - `services/supplier_evaluation_service.rs`：4 项
+    - `middleware/logger_middleware.rs`：4 项
+  - **修复路线图**（3 批 / ~77 项 / 3.0h）：
+    - Wave C-1 中间件（8 项）：8 个未注册中间件加项级抑制或删除
+    - Wave C-2 Response/DTO（4 项）：TransactionListResponse / DefectResponse / VersionInfo / UpdateProgress 加项级抑制
+    - Wave C-3 Service 方法（65 项）：51 个 service fn + 14 个子模块 fn 加项级抑制
+  - **报告位置**：[.monkeycode/docs/audits/2026-06-19-clippy-deep-prediction.md](file:///workspace/.monkeycode/docs/audits/2026-06-19-clippy-deep-prediction.md)
+  - **扫描脚本**：`/tmp/scan_v3.py`（Python 3，~250 行；可复现）
+  - **扫描原始数据**：`/tmp/scan_v3_output.md`（1,043 行表格）+ `/tmp/dead_pub_items_v3.txt`
+  - **CI 验证策略**：不本地编译（遵守"禁止本地编译"规则），依赖 GitHub Actions
+  - **下一步**：等待用户决策修复策略（删除/抑制/接入），启动 Wave C 修复
+
 [GitHub 版本管理分支策略]
 - Date: 2026-06-16
 - Context: 用户要求建立规范的分支管理策略
