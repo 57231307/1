@@ -416,6 +416,22 @@
 
 ---
 
+### [项目遗留文件检测（2026-06-19）]
+
+- Date: 2026-06-19
+- Context: 用户要求"检测项目是否还有遗留文件"
+- Category: 工作流协作
+- Instructions:
+  - **🔴 CRITICAL - 3 个孤儿 migration**：`m0023_extend_audit_log.rs`、`m0024_enable_pg_stat_statements.rs`、`m0025_create_slow_query_log.rs`（main P13 批 1 G+H 审计增强）存在于 `backend/migration/src/` 但**未注册到 `lib.rs`**，合并时被 `-X theirs` 覆盖
+  - **🔴 CRITICAL - migration 编号冲突**：m0023、m0024 各有 2 个文件（test 优先，main 变成孤儿）。lib.rs 仅注册 test 的两个，main 三个完全游离
+  - **🟡 MEDIUM - 孤立目录**：
+    - `mobile/` (17 文件，React Native P3-3 demo，违反"禁止本地编译"规则)
+    - `microservices/notifications/` (13 文件，P3-1 demo，不在 backend workspace members)
+    - `deploy/{elasticsearch,grafana,helm,kafka,observability,prometheus}/` (24 文件，test P4/P9 编排)
+  - **🟢 MINOR - 8 个空子目录**：`.monkeycode/docs/{api,superpowers/reports,poc,requirements,db,专有概念,模块,releases}`
+  - **干净项**：无 .bak/.orig/.tmp/.swp、无 <<<<<<< 冲突标记、无 .env 敏感文件、无 >1MB 大文件、无编译产物
+  - **建议修复优先级**：P0=修复 3 个孤儿 migration；P0=重编号 main 文件到 m0025/26/27；P2=删除 mobile 或迁出；P2=决定 microservices 命运；P3=评估 deploy 子目录
+
 ### [推送 main + 清理根 CHANGELOG/MEMORY]
 
 - Date: 2026-06-19
