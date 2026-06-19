@@ -64,14 +64,16 @@ pub async fn operation_log_middleware(
         "failure"
     };
 
-    // 异步记录日志（不阻塞响应）
+    // 使用 spawn 异步记录，不阻塞主流程
     let log_service = OperationLogService::new(db.clone());
     let module = extract_module_from_uri(&uri);
     let action = extract_action_from_method(&method);
 
-    // 使用 spawn 异步记录，不阻塞主流程
+    // Wave B-2 修复（B2-3）：消除 `let _ = ...` 静默吞咽错误模式
+    // 修复方案：改用 tracing::error! 记录错误详情（保留请求上下文），但不 propagate 错误
+    // 以避免审计写入失败阻断主业务流。审计失败必须可见，否则审计完整性形同虚设。
     tokio::spawn(async move {
-        let _ = log_service
+        if let Err(e) = log_service
             .log_success(
                 user_id,
                 username,
@@ -85,7 +87,18 @@ pub async fn operation_log_middleware(
                 Some(duration_ms),
                 None,
             )
-            .await;
+            .await
+        {
+            tracing::error!(
+                error = ?e,
+                method = %method,
+                path = %uri.path(),
+                module = %module,
+                action = %action,
+                user_id = ?user_id,
+                "操作日志记录失败（不阻塞主流程，错误已落审计追踪）"
+            );
+        }
     });
 
     Ok(response)

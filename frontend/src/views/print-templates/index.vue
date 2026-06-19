@@ -209,7 +209,8 @@
 
     <el-dialog v-model="previewVisible" title="模板预览" width="900px">
       <div v-loading="previewLoading" class="preview-container">
-        <div v-if="previewData" v-html="previewData"></div>
+        <!-- Wave B-2 修复（B3-2）：使用 DOMPurify 净化后端返回的 HTML，防止 XSS 注入 -->
+        <div v-if="previewData" v-html="sanitizedPreview"></div>
         <div v-else class="no-preview">暂无预览数据</div>
       </div>
       <template #footer>
@@ -221,9 +222,11 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, onMounted } from 'vue'
+import { ref, reactive, onMounted, computed } from 'vue'
 import { ElMessage, ElMessageBox, type FormInstance, type FormRules } from 'element-plus'
 import { Plus, Search } from '@element-plus/icons-vue'
+// Wave B-2 修复（B3-2）：引入 DOMPurify 用于净化后端返回的 HTML 模板，防止 XSS
+import DOMPurify from 'dompurify'
 import {
   listPrintTemplates,
   createPrintTemplate,
@@ -380,6 +383,19 @@ const previewVisible = ref(false)
 const previewLoading = ref(false)
 const previewData = ref('')
 const currentPreviewTemplate = ref<PrintTemplate | null>(null)
+
+// Wave B-2 修复（B3-2）：使用 DOMPurify.sanitize 净化预览 HTML 内容
+// 安全原因：v-html 默认不转义，后端返回的打印模板内容若包含恶意脚本（<script>、onerror 等），
+// 会在浏览器中执行导致 XSS 攻击。DOMPurify 通过白名单过滤危险标签和属性。
+const sanitizedPreview = computed(() => {
+  if (!previewData.value) return ''
+  return DOMPurify.sanitize(previewData.value, {
+    USE_PROFILES: { html: true },
+    // 禁止危险标签（脚本/iframe/object/embed），即使 DOMPurify 默认也会过滤，作为双保险
+    FORBID_TAGS: ['script', 'iframe', 'object', 'embed', 'form'],
+    FORBID_ATTR: ['onerror', 'onload', 'onclick', 'onmouseover'],
+  })
+})
 
 const handlePreview = async (row: PrintTemplate) => {
   previewLoading.value = true

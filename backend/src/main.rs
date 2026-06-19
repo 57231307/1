@@ -322,10 +322,20 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             std::io::stdout().flush().ok();
             std::io::stderr().flush().ok();
 
-            let cookie_secret = settings.auth.cookie_secret.clone().unwrap_or_else(|| {
-                tracing::warn!("警告: 未配置 auth.cookie_secret，系统正在使用降级的 jwt_secret 作为替代（这存在安全风险）");
-                settings.auth.jwt_secret.clone()
-            });
+            // Wave B-2 修复（B2-1）：强制要求独立的 cookie_secret 配置，禁止降级复用 jwt_secret
+            // 安全原因：JWT 与 Cookie 使用相同密钥会同时暴露两个攻击面（签名伪造 + Cookie 加密泄露），
+            // 违反最小权限原则，且多副本部署时若运维误改 JWT 会同步影响 Cookie 加密强度。
+            // 强制要求通过环境变量 COOKIE_SECRET 或配置项 auth.cookie_secret 显式注入。
+            let cookie_secret = match settings.auth.cookie_secret.clone() {
+                Some(secret) => secret,
+                None => {
+                    eprintln!("FATAL: COOKIE_SECRET 环境变量或 auth.cookie_secret 配置必须显式设置");
+                    eprintln!("FATAL: 出于安全考虑，禁止降级复用 AUTH__JWT_SECRET 作为 Cookie 加密密钥");
+                    eprintln!("FATAL: 请使用 `openssl rand -hex 32` 生成至少 32 字节的强随机密钥");
+                    eprintln!("FATAL: 并通过环境变量 COOKIE_SECRET 或 config.yaml 的 auth.cookie_secret 字段注入");
+                    std::process::exit(1);
+                }
+            };
 
             if cookie_secret.len() < 32 {
                 tracing::warn!("配置警告: 用于 Cookie 加密的密钥长度不足 32 字节。系统将自动进行补齐以启动服务，但请在生产环境中配置至少 32 字节的强密钥！");

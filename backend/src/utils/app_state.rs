@@ -190,7 +190,26 @@ impl Default for AppState {
             db: db.clone(),
             omni_audit,
             audit_cleanup,
-            jwt_secret: uuid::Uuid::new_v4().to_string() + &uuid::Uuid::new_v4().to_string(),
+            // Wave B-2 修复（B2-2）：生产环境禁用随机生成 JWT secret（多副本部署签名不一致）
+            // 修复方案：仅在 #[cfg(test)] 单元测试场景使用固定测试密钥；
+            // 生产环境必须通过环境变量 JWT_SECRET 注入，且调用方应使用 with_secrets_and_cors
+            // 显式传递真实密钥（main.rs 启动时已强制校验 JWT_SECRET 强度）。
+            jwt_secret: {
+                #[cfg(test)]
+                {
+                    "test_secret_for_unit_tests_only_min_32_bytes".to_string()
+                }
+                #[cfg(not(test))]
+                {
+                    eprintln!(
+                        "FATAL: AppState::default() 在生产环境被调用，禁止使用随机 JWT 密钥"
+                    );
+                    eprintln!(
+                        "FATAL: 生产环境必须通过环境变量 JWT_SECRET 配置稳定密钥，并通过 AppState::with_secrets_and_cors 显式注入"
+                    );
+                    std::process::exit(1);
+                }
+            },
             previous_jwt_secret: None,
             cookie_secret: random_cookie_secret,
             cache: AppCache::arc(),
