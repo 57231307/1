@@ -99,6 +99,7 @@
 | **P13 批 1 P3-2 审计日志增强**（PR #191）| 940dca1 | ✅ **已合并**（H 子代理，6 commit 经 squash merge，CI 5 轮迭代）|
 | **P13 批 1 B-慢查询审计**（PR #192）| 04b12cd | ✅ **已合并**（G 子代理，3 commit 经 squash merge，CI 2 轮迭代：max 歧义 + 未用 import）|
 | **P13 批 1 B3 拆分大 .vue I-1**（PR #193）| c6ca72f | ✅ **已合并**（I-1 子代理，5 commit 经 squash merge，CI 4 轮迭代：v-model on prop + 类型导入 + vue/no-mutating-props ESLint + 真实修复 AiPanel）|
+| **P14 批 1 B3 拆分大 .vue I-2**（PR #194）| bb87488 | ✅ **已合并**（I-2 子代理，4 commit 经 squash merge，CI 3 轮迭代：vue-tsc 注释 + TS2540 readonly + vue/no-mutating-props template disable）|
 
 ### P11 批 1 详情（2026-06-17）
 
@@ -376,6 +377,7 @@ backend/src/handlers/advanced/
 
 ## 九、最后更新
 
+- 2026-06-19 02:55 (Asia/Shanghai) - PR #194 B3 拆分大 .vue - I-2（3 个次大文件：voucher 567 → 117 + api-gateway 835 → 155 + arReconciliation 789 → 114）（P14 批 1 I-2）squash merge 入 main（bb87488）：4 commit（3 拆分 + 1 修复）；CI 3 轮迭代（JSDoc 中文注释 / TS2540 readonly 改 v-model+emit / 19 子组件 template 顶部加 eslint-disable 注释）；**P14 批 1 已完成 1/6 PR（I-2）**
 - 2026-06-18 16:35 (Asia/Shanghai) - PR #193 B3 拆分大 .vue - I-1（3 个最大文件：advanced 993 → 192 + report/templates 963 → 214 + purchase 957 → 277）（P13 批 1 I-1）squash merge 入 main（c6ca72f）：5 commit（3 拆分 + 2 修复）；CI 4 轮迭代（v-model on prop 错误 / TypeScript 导入错误 / vue/no-mutating-props ESLint 错误 / 真实修复 AiPanel）；**P13 批 1 全部 3/3 PR 完成**
 - 2026-06-18 15:55 (Asia/Shanghai) - PR #192 B-慢查询审计（pg_stat_statements + 后台采集 + 统计）（P13 批 1 G）squash merge 入 main（04b12cd）：3 commit（1 特性 + 2 修复）；CI 2 轮迭代（max 歧义改 std::cmp::Ord::max / 删未用 import migration::ExprTrait）；**P13 批 1 已完成 2/3 PR**
 - 2026-06-18 15:14 (Asia/Shanghai) - PR #191 P3-2 审计日志增强（操作类型/严重级别/请求上下文/差异快照）（P13 批 1 H）squash merge 入 main（940dca1）：6 commit（5 特性 + 5 修复）；CI 5 轮迭代（rustfmt 行宽 / use 顺序 / 多 max 歧义 / bin target dead_code / Severity impl 错位）；**P13 批 1 已完成 1/3 PR**
