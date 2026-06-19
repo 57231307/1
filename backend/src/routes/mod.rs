@@ -45,12 +45,21 @@ pub mod analytics;
 pub mod auth;
 pub mod catalog;
 pub mod crm;
+pub mod failover;
 pub mod finance;
 pub mod iam;
 pub mod inventory;
 pub mod production;
 pub mod purchase;
 pub mod sales;
+// 销售报价单模块（Week 1）
+pub mod quotations;
+// 定制订单全流程跟踪模块（P0-3）
+pub mod custom_order;
+// 色卡仓储管理模块（P0-4）
+pub mod color_card;
+// 面料多色号定价扩展路由（P0-5）
+pub mod color_price;
 #[path = "static.rs"]
 pub mod static_routes;
 pub mod system;
@@ -253,6 +262,14 @@ fn suppliers_select_alias() -> Router<AppState> {
     )
 }
 
+/// P9-8 搜索 API 路由（path 前缀 /search）
+fn search_routes() -> Router<AppState> {
+    Router::new()
+        .route("/search/sales-orders", get(search_api::search_sales_orders))
+        .route("/search/customers", get(search_api::search_customers))
+        .route("/search/products", get(search_api::search_products))
+}
+
 /// 构建 ERP 根域子路由（共享 `/api/v1/erp` 前缀）
 ///
 /// 共享同一前缀的四个域（iam / catalog / analytics / system）必须先 merge 再整体 nest，
@@ -277,6 +294,8 @@ fn build_erp_root_router() -> Router<AppState> {
         .merge(data_import_routes())
         .merge(product_categories_alias())
         .merge(suppliers_select_alias())
+        // P9-8 搜索 API
+        .merge(search_routes())
 }
 
 /// 构建基础设施路由（静态资源 + 指标 + API 文档）
@@ -315,6 +334,14 @@ pub fn create_router(state: AppState) -> Router<()> {
         .nest("/api/v1/erp/auth", auth::routes())
         .nest("/api/v1/erp/inventory", inventory::routes())
         .nest("/api/v1/erp/sales", sales::routes())
+        // 销售报价单路由（Week 1）
+        .nest("/api/v1/erp/quotations", quotations::routes())
+        // 主备隔离路由（P0-2）
+        .merge(failover::failover_routes())
+        // 色卡仓储管理路由（P0-4）
+        .nest("/api/v1/erp/color-cards", color_card::routes())
+        // 面料多色号定价扩展路由（P0-5）
+        .nest("/api/v1/erp/color-prices", color_price::routes())
         .nest("/api/v1/erp/purchase", purchase::routes())
         .nest("/api/v1/erp/finance", finance::routes(state.clone()))
         .nest("/api/v1/erp", finance::sub_routes())

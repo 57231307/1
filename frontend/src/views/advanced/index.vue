@@ -1,10 +1,115 @@
+<template>
+  <div class="advanced-page">
+    <el-tabs v-model="activeTab" @tab-change="(tab: any) => loadTab(tab)">
+      <el-tab-pane label="AI 分析" name="ai">
+        <AdvancedAiTab
+          :forecast-period="forecastPeriod"
+          :forecast-loading="forecastLoading"
+          :forecast-result="forecastResult"
+          :optimize-loading="optimizeLoading"
+          :optimize-result="optimizeResult"
+          :profile-loading="profileLoading"
+          :profile-result="profileResult"
+          :format-money="formatMoney"
+          @run-forecast="runSalesForecast"
+          @optimize-inventory="optimizeInventory"
+          @run-profile="runCustomerProfile"
+        />
+      </el-tab-pane>
+
+      <el-tab-pane label="报表引擎" name="report">
+        <AdvancedReportTab
+          :templates="reportTemplates"
+          @design-report="openReportDesign"
+          @preview="previewReport"
+          @generate="generateReport"
+          @edit="editReportTemplate"
+        />
+      </el-tab-pane>
+
+      <el-tab-pane label="多租户管理" name="tenant">
+        <AdvancedTenantTab
+          :tenants="tenants"
+          :loading="tenantLoading"
+          @new-tenant="openTenantDialog"
+          @edit-tenant="openTenantDialog"
+          @update-status="updateTenantStatus"
+          @delete-tenant="deleteTenant"
+        />
+      </el-tab-pane>
+
+      <el-tab-pane label="工艺优化" name="recipe">
+        <AdvancedRecipeTab
+          :recipe-form="recipeForm"
+          :recipe-loading="recipeLoading"
+          :recipe-result="recipeResult"
+          :recommend-machines="recommendMachines"
+          @update:recipe-form="(v: any) => Object.assign(recipeForm, v)"
+          @recommend="getRecipeRecommendation"
+          @recommend-machine="recommendMachine"
+          @save-template="saveRecipeTemplate"
+        />
+      </el-tab-pane>
+
+      <el-tab-pane label="质量预测" name="quality">
+        <AdvancedQualityTab
+          :quality-form="qualityForm"
+          :quality-loading="qualityLoading"
+          :quality-result="qualityResult"
+          :defect-stats="defectStats"
+          :format-money="formatMoney"
+          @update:quality-form="(v: any) => Object.assign(qualityForm, v)"
+          @predict="predictQuality"
+          @analyze-defect="analyzeDefect"
+        />
+      </el-tab-pane>
+    </el-tabs>
+
+    <!-- 租户对话框 -->
+    <el-dialog v-model="tenantDialogVisible" :title="tenantDialogTitle" width="600px">
+      <el-form :model="tenantForm" label-width="100px">
+        <el-form-item label="租户名称" required>
+          <el-input v-model="tenantForm.name" placeholder="请输入租户名称" />
+        </el-form-item>
+        <el-form-item label="租户编码" required>
+          <el-input v-model="tenantForm.code" placeholder="请输入租户编码" />
+        </el-form-item>
+        <el-form-item label="联系人">
+          <el-input v-model="tenantForm.contact_person" placeholder="请输入联系人" />
+        </el-form-item>
+        <el-form-item label="联系电话">
+          <el-input v-model="tenantForm.contact_phone" placeholder="请输入联系电话" />
+        </el-form-item>
+        <el-form-item label="邮箱">
+          <el-input v-model="tenantForm.email" placeholder="请输入邮箱" />
+        </el-form-item>
+        <el-form-item label="地址">
+          <el-input v-model="tenantForm.address" placeholder="请输入地址" />
+        </el-form-item>
+        <el-form-item label="状态">
+          <el-select v-model="tenantForm.status" placeholder="请选择状态" style="width: 100%">
+            <el-option label="正常" value="active" />
+            <el-option label="停用" value="inactive" />
+            <el-option label="暂停" value="suspended" />
+          </el-select>
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <span class="dialog-footer">
+          <el-button @click="tenantDialogVisible = false">取消</el-button>
+          <el-button type="primary" @click="submitTenant">确定</el-button>
+        </span>
+      </template>
+    </el-dialog>
+  </div>
+</template>
+
 <script setup lang="ts">
-/**
- * advanced/index.vue - 高级功能总览页（AI 分析 / 报表引擎 / 多租户管理 / 工艺优化 / 质量预测）
- * 任务编号: P13 批 1 B3 I-1（拆分原 993 行大 .vue）
- * 拆分后：5 个 tab 子组件 + 1 个租户对话框 + 5 个 composable
- * 行为完全保持一致（仅结构重构）
- */
+import AdvancedAiTab from './tabs/AdvancedAiTab.vue'
+import AdvancedReportTab from './tabs/AdvancedReportTab.vue'
+import AdvancedTenantTab from './tabs/AdvancedTenantTab.vue'
+import AdvancedRecipeTab from './tabs/AdvancedRecipeTab.vue'
+import AdvancedQualityTab from './tabs/AdvancedQualityTab.vue'
 import { ref, onMounted } from 'vue'
 import { loadIfNot, createLazyLoader } from '@/utils/lazy-loader'
 import { useAi } from './composables/useAi'

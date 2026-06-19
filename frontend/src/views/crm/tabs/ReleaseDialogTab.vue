@@ -24,6 +24,7 @@
 import { ref, reactive, watch } from 'vue'
 import { ElMessage } from 'element-plus'
 import { logger } from '@/utils/logger'
+import { crmEnhancedApi } from '@/api/crm-enhanced'
 
 interface Props {
   modelValue: boolean
@@ -59,7 +60,11 @@ const handleSubmit = async () => {
   if (!props.customerId) return
   try {
     submitLoading.value = true
-    // TODO: 实际调用释放 API
+    // P1-5：实际调用释放 API（recycle 释放客户到公海池）
+    await crmEnhancedApi.recycleToPool({
+      customer_ids: [props.customerId],
+      reason: form.reason,
+    })
     ElMessage.success('释放成功')
     visible.value = false
     emit('submitted')

@@ -1,9 +1,3 @@
-<!--
-  production/index.vue - 生产计划管理（拆分重构版）
-  任务编号: P14 批 2 I-3 第 4 批
-  拆分：611 行 → ~150 行 + 4 子组件 + 2 composable + 1 工具
-  行为完全保持一致（仅结构重构）
--->
 <template>
   <div class="production-container">
     <el-card class="header-card">
@@ -13,40 +7,25 @@
       </div>
     </el-card>
 
-    <PrdFilter :form="prd.queryForm" @search="prd.applyQuery" @reset="prd.resetQuery" />
-
-    <el-card class="table-card">
-      <template #header>
-        <div class="card-header">
-          <span>生产订单列表</span>
-          <div class="header-actions">
-            <el-button type="primary" @click="openCreate">
-              <el-icon><Plus /></el-icon>新建订单
-            </el-button>
-            <el-button @click="prdProc.handlePrint">
-              <el-icon><Printer /></el-icon>打印
-            </el-button>
-            <el-button @click="prdProc.handleExport">
-              <el-icon><Download /></el-icon>导出
-            </el-button>
-          </div>
-        </div>
-      </template>
-
-      <PrdTbl
-        :data="prd.data"
-        :loading="prd.loading"
-        :page="prd.page"
-        :page-size="prd.pageSize"
-        :total="prd.total"
-        @page-change="onPageChange"
-        @size-change="onSizeChange"
-        @view-detail="onViewDetail"
-        @open-edit="onOpenEdit"
-        @status-change="prdProc.handleStatusChange"
-        @delete="prdProc.handleDelete"
-      />
-    </el-card>
+    <!-- 筛选区 -->
+    <ProductionList
+      :orders="orders"
+      :total="total"
+      :loading="loading"
+      :query-params="queryParams"
+      :status-type-map="statusTypeMap"
+      :status-map="statusMap"
+      :priority-type-map="priorityTypeMap"
+      :priority-map="priorityMap"
+      @search="fetchData"
+      @update:query-params="(v: any) => Object.assign(queryParams, v)"
+      @add="handleAdd"
+      @view="handleView"
+      @edit="handleEdit"
+      @delete="handleDelete"
+      @audit="handleAudit"
+      @update-status="handleUpdateStatus"
+    />
 
     <PrdForm
       v-model:visible="dialogVisible"
@@ -61,43 +40,137 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
-import { ElMessage } from 'element-plus'
+import ProductionList from './ProductionList.vue'
+import { ref, reactive, onMounted } from 'vue'
+import { ElMessage, type FormInstance, type FormRules } from 'element-plus'
 import { Plus, Download, Printer } from '@element-plus/icons-vue'
 import {
+  listProductionOrders,
   createProductionOrder,
   updateProductionOrder,
   type ProductionOrder,
 } from '@/api/production'
-import { usePrd } from './composables/usePrd'
-import { usePrdProc } from './composables/usePrdProc'
-import PrdFilter from './components/PrdFilter.vue'
-import PrdTbl from './components/PrdTbl.vue'
-import PrdForm from './components/PrdForm.vue'
-import PrdDetail from './components/PrdDetail.vue'
+import V2Table from '@/components/V2Table/index.vue'
+import { useTableColumns } from '@/composables/useTableColumns'
 
-// 业务状态
-const prd = usePrd()
-const prdProc = usePrdProc({ data: prd.data, refresh: prd.refresh })
+// 生产订单列表列定义（V2Table 渲染）
+const { columns: productionColumns } = useTableColumns([
+  { key: 'order_no', title: '工单编号', width: 160, sortable: true },
+  { key: 'product_name', title: '产品', width: 200 },
+  { key: 'planned_quantity', title: '计划数量', width: 120, align: 'right' },
+  {
+    key: 'actual_quantity',
+    title: '完成数量',
+    width: 120,
+    align: 'right',
+    formatter: (row: any) => `${row.actual_quantity ?? 0} / ${row.planned_quantity ?? 0}`,
+  },
+  {
+    key: 'scheduled_start_date',
+    title: '开始日期',
+    width: 120,
+    formatter: (row: any) =>
+      row.scheduled_start_date ? String(row.scheduled_start_date).substring(0, 10) : '-',
+  },
+  {
+    key: 'scheduled_end_date',
+    title: '结束日期',
+    width: 120,
+    formatter: (row: any) =>
+      row.scheduled_end_date ? String(row.scheduled_end_date).substring(0, 10) : '-',
+  },
+  { key: 'status', title: '状态', width: 100, align: 'center' },
+  { key: 'priority', title: '优先级', width: 100 },
+])
 
-// 对话框状态
+// 行点击：触发查看详情
+const handleProductionRowClick = (row: ProductionOrder) => {
+  viewDetail(row)
+}
+
+// V2Table 内置分页事件处理
+const handlePageChange = (newPage: number) => {
+  queryForm.page = newPage
+  fetchOrders()
+}
+
+const handleSizeChange = (newSize: number) => {
+  queryForm.page_size = newSize
+  queryForm.page = 1
+  fetchOrders()
+}
+
+// 响应式数据
+const loading = ref(false)
+const submitLoading = ref(false)
 const dialogVisible = ref(false)
 const detailVisible = ref(false)
+const dialogType = ref<'create' | 'edit'>('create')
+const orderList = ref<ProductionOrder[]>([])
 const currentOrder = ref<ProductionOrder | null>(null)
+const orderFormRef = ref<FormInstance>()
+const total = ref(0)
 
-/** 翻页 */
-const onPageChange = (p: number) => {
-  prd.page = p
+// 查询表单
+const queryForm = reactive({
+  page: 1,
+  page_size: 20,
+  order_no: '',
+  status: '',
+})
+
+// 订单表单
+const orderForm = reactive<Partial<ProductionOrder>>({
+  order_no: '',
+  product_id: undefined,
+  planned_quantity: undefined,
+  scheduled_start_date: '',
+  scheduled_end_date: '',
+  status: 'draft',
+  priority: 5,
+  work_center_id: undefined,
+  remark: '',
+})
+
+// 表单验证规则
+const orderRules: FormRules = {
+  order_no: [{ required: true, message: '请输入订单编号', trigger: 'blur' }],
+  product_id: [{ required: true, message: '请输入产品ID', trigger: 'blur' }],
+  planned_quantity: [{ required: true, message: '请输入计划数量', trigger: 'blur' }],
+  priority: [{ required: true, message: '请选择优先级', trigger: 'change' }],
 }
 
-/** 调整每页大小 */
-const onSizeChange = (s: number) => {
-  prd.pageSize = s
+// 获取生产订单列表
+const fetchOrders = async () => {
+  loading.value = true
+  try {
+    const res = await listProductionOrders(queryForm)
+    orderList.value = res.data!.list || []
+    total.value = res.data?.total || 0
+  } catch (e: any) {
+    ElMessage.error(e.message || '获取订单列表失败')
+  } finally {
+    loading.value = false
+  }
 }
 
-/** 打开新建对话框 */
-const openCreate = () => {
-  prd.resetOrderForm()
+// 重置查询
+const resetQuery = () => {
+  queryForm.page = 1
+  queryForm.order_no = ''
+  queryForm.status = ''
+  fetchOrders()
+}
+
+// 打开对话框
+const openDialog = (type: 'create' | 'edit', row?: ProductionOrder) => {
+  dialogType.value = type
+  resetForm()
+
+  if (type === 'edit' && row) {
+    Object.assign(orderForm, row)
+  }
+
   dialogVisible.value = true
 }
 
@@ -108,36 +181,100 @@ const onOpenEdit = (row: ProductionOrder) => {
   dialogVisible.value = true
 }
 
-/** 查看详情 */
-const onViewDetail = (row: ProductionOrder) => {
+// 提交表单
+const handleSubmit = async () => {
+  if (!orderFormRef.value) return
+
+  await orderFormRef.value.validate(async valid => {
+    if (!valid) return
+
+    submitLoading.value = true
+    try {
+      if (dialogType.value === 'create') {
+        await createProductionOrder(orderForm)
+        ElMessage.success('创建成功')
+      } else {
+        if (orderForm.id) {
+          await updateProductionOrder(orderForm.id, orderForm)
+          ElMessage.success('更新成功')
+        }
+      }
+
+      dialogVisible.value = false
+      fetchOrders()
+    } catch (e: any) {
+      ElMessage.error(e.message || '操作失败')
+    } finally {
+      submitLoading.value = false
+    }
+  })
+}
+
+// 查看详情
+const viewDetail = (row: ProductionOrder) => {
   currentOrder.value = row
   detailVisible.value = true
 }
 
-/** 提交表单（创建/更新） */
-const onSubmitForm = async () => {
-  prd.submitLoading = true
-  try {
-    if (!prd.orderForm.id) {
-      await createProductionOrder(prd.orderForm as Partial<ProductionOrder>)
-      ElMessage.success('创建成功')
-    } else {
-      await updateProductionOrder(prd.orderForm.id, prd.orderForm as Partial<ProductionOrder>)
-      ElMessage.success('更新成功')
-    }
-    dialogVisible.value = false
-    prd.resetOrderForm()
-    await prd.refresh()
-  } catch (e: unknown) {
-    const err = e as { message?: string }
-    ElMessage.error(err.message || '操作失败')
-  } finally {
-    prd.submitLoading = false
-  }
+const getStatusLabel = (status: string) => {
+  return PRODUCTION_ORDER_STATUS[status as keyof typeof PRODUCTION_ORDER_STATUS]?.label || status
 }
 
+const handleExport = () => {
+  const csvContent = [
+    ['订单编号', '产品名称', '计划数量', '实际数量', '计划开始', '计划结束', '状态', '优先级'],
+    ...orderList.value.map((item: any) => [
+      item.order_no,
+      item.product_name,
+      item.planned_quantity,
+      item.actual_quantity || '-',
+      item.scheduled_start_date?.substring(0, 10) || '-',
+      item.scheduled_end_date?.substring(0, 10) || '-',
+      getStatusLabel(item.status),
+      item.priority,
+    ]),
+  ]
+    .map(row => row.map(cell => `"${cell ?? ''}"`).join(','))
+    .join('\n')
+  const blob = new Blob(['\uFEFF' + csvContent], { type: 'text/csv;charset=utf-8;' })
+  const link = document.createElement('a')
+  link.href = URL.createObjectURL(blob)
+  link.download = `生产订单_${new Date().toISOString().split('T')[0]}.csv`
+  link.click()
+  ElMessage.success('导出成功')
+}
+
+const handlePrint = () => {
+  const printWindow = window.open('', '_blank')
+  if (!printWindow) {
+    ElMessage.error('无法打开打印窗口')
+    return
+  }
+  const rows = orderList.value
+    .map(
+      (item: any) => `
+    <tr>
+      <td>${item.order_no}</td><td>${item.product_name || '-'}</td>
+      <td style="text-align:right">${item.planned_quantity}</td>
+      <td style="text-align:right">${item.actual_quantity || '-'}</td>
+      <td>${item.scheduled_start_date?.substring(0, 10) || '-'}</td>
+      <td>${item.scheduled_end_date?.substring(0, 10) || '-'}</td>
+      <td>${getStatusLabel(item.status)}</td><td>${item.priority}</td>
+    </tr>
+  `
+    )
+    .join('')
+  printWindow.document.write(`<html><head><meta charset="utf-8"><title>生产订单</title>
+    <style>@media print{@page{size:landscape;}}body{font-family:"Microsoft YaHei",sans-serif;font-size:12px;}h1{text-align:center;}table{width:100%;border-collapse:collapse;margin-top:12px;}th,td{border:1px solid #333;padding:6px 8px;}th{background:#f5f5f5;}.meta{text-align:center;color:#666;font-size:11px;}</style></head><body>
+    <h1>生产订单列表</h1><div class="meta">打印日期: ${new Date().toISOString().split('T')[0]} | 共 ${orderList.value.length} 条</div>
+    <table><thead><tr><th>订单编号</th><th>产品名称</th><th>计划数量</th><th>实际数量</th><th>计划开始</th><th>计划结束</th><th>状态</th><th>优先级</th></tr></thead><tbody>${rows}</tbody></table></body></html>`)
+  printWindow.document.close()
+  printWindow.onload = () => printWindow.print()
+}
+
+// 组件挂载时获取数据
 onMounted(() => {
-  prd.refresh()
+  fetchOrders()
 })
 </script>
 
@@ -165,8 +302,10 @@ onMounted(() => {
   justify-content: space-between;
   align-items: center;
 }
-.header-actions {
+
+.pagination-container {
+  margin-top: 20px;
   display: flex;
-  gap: 8px;
+  justify-content: flex-end;
 }
 </style>

@@ -4,7 +4,18 @@
 
 use std::any::{Any, TypeId};
 use std::collections::HashMap;
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, Mutex, MutexGuard};
+
+/// P9-1: 互斥锁加锁 helper，把散落的 expect 集中到此处
+///
+/// 互斥锁中毒（Poisoned）通常意味着有线程 panic，调用方已知会出现此场景
+/// 并选择立即失败。helper 内部用 unwrap_or_else + 中文日志统一处理。
+fn lock_or_panic<T>(mutex: &Mutex<T>, ctx: &str) -> MutexGuard<'_, T> {
+    mutex.lock().unwrap_or_else(|e| {
+        tracing::error!(ctx = %ctx, error = %e, "P9-1: 互斥锁中毒，可能存在线程 panic");
+        panic!("P9-1: 互斥锁中毒 {ctx}: {e}")
+    })
+}
 
 /// Service factory function type
 pub type ServiceFactory = Box<dyn Fn() -> Arc<dyn Any + Send + Sync> + Send + Sync>;
@@ -26,10 +37,7 @@ impl DIContainer {
 
     /// Register a singleton service
     pub fn register_singleton<T: Any + Send + Sync>(&self, instance: Arc<T>) {
-        let mut services = self
-            .services
-            .lock()
-            .expect("DI容器服务锁被污染，可能存在线程panic");
+        let mut services = lock_or_panic(&self.services, "DI容器服务锁");
         services.insert(TypeId::of::<T>(), instance);
     }
 
@@ -38,10 +46,7 @@ impl DIContainer {
         &self,
         factory: Box<dyn Fn() -> Arc<T> + Send + Sync>,
     ) {
-        let mut factories = self
-            .factories
-            .lock()
-            .expect("DI容器工厂锁被污染，可能存在线程panic");
+        let mut factories = lock_or_panic(&self.factories, "DI容器工厂锁");
         let type_id = TypeId::of::<T>();
         let boxed_factory: ServiceFactory = Box::new(move || {
             let instance: Arc<T> = factory();
@@ -56,10 +61,7 @@ impl DIContainer {
 
         // Try to get from singletons first
         {
-            let services = self
-                .services
-                .lock()
-                .expect("DI容器服务锁被污染，可能存在线程panic");
+            let services = lock_or_panic(&self.services, "DI容器服务锁-读");
             if let Some(instance) = services.get(&type_id) {
                 return instance.clone().downcast::<T>().ok();
             }
@@ -67,19 +69,13 @@ impl DIContainer {
 
         // Try to create from factory
         {
-            let mut factories = self
-                .factories
-                .lock()
-                .expect("DI容器工厂锁被污染，可能存在线程panic");
+            let mut factories = lock_or_panic(&self.factories, "DI容器工厂锁-读");
             if let Some(factory) = factories.remove(&type_id) {
                 let instance = factory();
                 let typed_instance = instance.clone().downcast::<T>().ok()?;
 
                 // Cache as singleton
-                let mut services = self
-                    .services
-                    .lock()
-                    .expect("DI容器服务锁被污染，可能存在线程panic");
+                let mut services = lock_or_panic(&self.services, "DI容器服务锁-写");
                 services.insert(type_id, instance);
 
                 return Some(typed_instance);
@@ -92,28 +88,16 @@ impl DIContainer {
     /// Check if a service is registered
     pub fn has<T: Any + Send + Sync>(&self) -> bool {
         let type_id = TypeId::of::<T>();
-        let services = self
-            .services
-            .lock()
-            .expect("DI容器服务锁被污染，可能存在线程panic");
-        let factories = self
-            .factories
-            .lock()
-            .expect("DI容器工厂锁被污染，可能存在线程panic");
+        let services = lock_or_panic(&self.services, "DI容器服务锁-has");
+        let factories = lock_or_panic(&self.factories, "DI容器工厂锁-has");
         services.contains_key(&type_id) || factories.contains_key(&type_id)
     }
 
     /// Remove a service
     pub fn remove<T: Any + Send + Sync>(&self) -> bool {
         let type_id = TypeId::of::<T>();
-        let mut services = self
-            .services
-            .lock()
-            .expect("DI容器服务锁被污染，可能存在线程panic");
-        let mut factories = self
-            .factories
-            .lock()
-            .expect("DI容器工厂锁被污染，可能存在线程panic");
+        let mut services = lock_or_panic(&self.services, "DI容器服务锁-remove");
+        let mut factories = lock_or_panic(&self.factories, "DI容器工厂锁-remove");
         let removed1 = services.remove(&type_id).is_some();
         let removed2 = factories.remove(&type_id).is_some();
         removed1 || removed2
@@ -121,28 +105,16 @@ impl DIContainer {
 
     /// Clear all services
     pub fn clear(&self) {
-        let mut services = self
-            .services
-            .lock()
-            .expect("DI容器服务锁被污染，可能存在线程panic");
-        let mut factories = self
-            .factories
-            .lock()
-            .expect("DI容器工厂锁被污染，可能存在线程panic");
+        let mut services = lock_or_panic(&self.services, "DI容器服务锁-clear");
+        let mut factories = lock_or_panic(&self.factories, "DI容器工厂锁-clear");
         services.clear();
         factories.clear();
     }
 
     /// Get registered service count
     pub fn count(&self) -> usize {
-        let services = self
-            .services
-            .lock()
-            .expect("DI容器服务锁被污染，可能存在线程panic");
-        let factories = self
-            .factories
-            .lock()
-            .expect("DI容器工厂锁被污染，可能存在线程panic");
+        let services = lock_or_panic(&self.services, "DI容器服务锁-count");
+        let factories = lock_or_panic(&self.factories, "DI容器工厂锁-count");
         services.len() + factories.len()
     }
 }

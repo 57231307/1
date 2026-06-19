@@ -1,0 +1,130 @@
+version: "3.9"
+
+# 冰溪 ERP P0-2 主备隔离 TEST 测试版本
+# 包含：PostgreSQL 主备 + Redis 主 + 应用
+
+services:
+  # ==================== PostgreSQL 主库 ====================
+  postgres-primary:
+    image: postgres:16-alpine
+    container_name: bingxi-postgres-primary
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-bingxi}
+      POSTGRES_PASSWORD: ${POSTGRES_PRIMARY_PASSWORD:?请设置 POSTGRES_PRIMARY_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB:-bingxi}
+      POSTGRES_REPLICATION_MODE: master
+      POSTGRES_REPLICATION_USER: ${REPLICATION_USER:-replicator}
+      POSTGRES_REPLICATION_PASSWORD: ${REPLICATION_PASSWORD:?请设置 REPLICATION_PASSWORD}
+    volumes:
+      - postgres-primary-data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-bingxi}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - bingxi-net
+
+  # ==================== PostgreSQL 备库 ====================
+  postgres-backup:
+    image: postgres:16-alpine
+    container_name: bingxi-postgres-backup
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-bingxi}
+      POSTGRES_PASSWORD: ${POSTGRES_BACKUP_PASSWORD:?请设置 POSTGRES_BACKUP_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB:-bingxi}
+      POSTGRES_REPLICATION_MODE: slave
+      POSTGRES_MASTER_SERVICE: postgres-primary
+      POSTGRES_REPLICATION_USER: ${REPLICATION_USER:-replicator}
+      POSTGRES_REPLICATION_PASSWORD: ${REPLICATION_PASSWORD:?请设置 REPLICATION_PASSWORD}
+    volumes:
+      - postgres-backup-data:/var/lib/postgresql/data
+    depends_on:
+      postgres-primary:
+        condition: service_healthy
+    ports:
+      - "5433:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-bingxi}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - bingxi-net
+
+  # ==================== Redis 主缓存 ====================
+  redis-primary:
+    image: redis:7-alpine
+    container_name: bingxi-redis-primary
+    command: redis-server --maxmemory 256mb --maxmemory-policy allkeys-lru
+    volumes:
+      - redis-data:/data
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+    networks:
+      - bingxi-net
+
+  # ==================== 冰溪 ERP 后端 ====================
+  app:
+    build:
+      context: ..
+      dockerfile: dist/test-version-P0-2/Dockerfile
+    container_name: bingxi-app
+    environment:
+      # 数据库
+      DATABASE_URL_PRIMARY: ${DATABASE_URL_PRIMARY:?请设置 DATABASE_URL_PRIMARY}
+      DATABASE_URL_BACKUP: ${DATABASE_URL_BACKUP:?请设置 DATABASE_URL_BACKUP}
+      # 缓存
+      REDIS_URL: redis://redis-primary:6379
+      CACHE_LRU_MAX_ENTRIES: 10000
+      # 主备参数
+      DATABASE_PRIMARY_TIMEOUT_MS: 3000
+      DATABASE_BACKUP_TIMEOUT_MS: 5000
+      DATABASE_CB_THRESHOLD: 5
+      DATABASE_CB_DURATION_S: 30
+      CACHE_PRIMARY_TIMEOUT_MS: 1000
+      # JWT
+      JWT_SECRET: ${JWT_SECRET:?请设置 JWT_SECRET}
+      COOKIE_SECRET: ${COOKIE_SECRET:-bingxi-cookie-secret-please-change}
+      # 日志
+      RUST_LOG: info
+    ports:
+      - "8080:8080"
+    depends_on:
+      postgres-primary:
+        condition: service_healthy
+      postgres-backup:
+        condition: service_healthy
+      redis-primary:
+        condition: service_healthy
+    volumes:
+      - ./config:/app/config:ro
+    cap_add:
+      - NET_ADMIN
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+    networks:
+      - bingxi-net
+    restart: unless-stopped
+
+volumes:
+  postgres-primary-data:
+    driver: local
+  postgres-backup-data:
+    driver: local
+  redis-data:
+    driver: local
+
+networks:
+  bingxi-net:
+    driver: bridge

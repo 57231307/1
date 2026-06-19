@@ -1,14 +1,14 @@
 <!--
-  sales/index.vue - 销售订单管理主入口（容器组件）
+  sales/index.vue - 销售管理主入口（容器组件）
   ----------------------------------------------------------------
-  拆分说明（2026-06-15 B3-1）：
-  原 1125 行"上帝组件"已拆分为：
-  | 子组件                              | 职责                |
-  | ----------------------------------- | ------------------- |
-  | views/OrderListView.vue             | 列表 + 过滤 + 统计  |
-  | OrderFormDialog.vue                 | 订单编辑/新建对话框 |
-  | OrderViewDialog.vue                 | 订单详情对话框      |
-  | DeliveryDialog.vue                  | 销售发货对话框      |
+  拆分说明（2026-06-17 P1-3-Batch-1）：
+  原 1070 行"上帝组件"已拆分为以下独立子组件：
+  - OrderListView（V2Table 迁移版） + 3 个对话框子组件（已存在）
+  - SalesStatsCards（销售统计卡片） - tabs/SalesStatsCards.vue
+  - SalesOrderFilter（销售订单筛选） - tabs/SalesOrderFilter.vue
+
+  本主入口仅承担：页面布局 + 容器化展示。
+  业务逻辑已全部迁入子组件，通过 props/emit 通信。
 -->
 <template>
   <div class="sales-page">

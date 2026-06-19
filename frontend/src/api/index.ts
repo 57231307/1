@@ -89,4 +89,8 @@ export {
   updateTenant,
   deleteTenant,
 } from './advanced'
+export * from './quotation'
+export * from './custom-order'
 export * from './trading'
+// P2-4 AI 分析深化（工艺优化 + 质量预测）16 端点客户端
+export * from './ai-extend'

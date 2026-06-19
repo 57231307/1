@@ -1,6 +1,38 @@
 pub mod assist_accounting_service;
 pub mod auth_service;
+// P4-2 安全加固 - 密码策略服务（密码历史/锁定/过期）
+pub mod auth;
 pub mod batch_service;
+// P4-1 性能优化 - 进程内 LRU 缓存
+pub mod cache_service;
+// P4-1 性能优化 - N+1 修复 + 缓存穿透示例
+pub mod performance_optimizer;
+// P3-4 数据仓库/BI 关键路径 demo
+pub mod bi_analysis_service;
+// P4-3 监控告警 - 业务指标扩展（20+ 指标）
+pub mod business_metrics;
+// P4-5 单元测试覆盖 - 5 个 service 单元测试模块
+#[cfg(test)]
+pub mod sales_unit_tests;
+#[cfg(test)]
+pub mod purchase_unit_tests;
+#[cfg(test)]
+pub mod inventory_unit_tests;
+#[cfg(test)]
+pub mod ar_unit_tests;
+#[cfg(test)]
+pub mod bi_unit_tests;
+// P9-5 单元测试覆盖率：100+ 新测试
+#[cfg(test)]
+pub mod p9_5_sales_extra_tests;
+#[cfg(test)]
+pub mod p9_5_purchase_extra_tests;
+#[cfg(test)]
+pub mod p9_5_inventory_extra_tests;
+#[cfg(test)]
+pub mod p9_5_ar_extra_tests;
+#[cfg(test)]
+pub mod p9_5_bi_extra_tests;
 pub mod business_trace_service;
 pub mod crm;
 pub mod customer_service;
@@ -19,6 +51,10 @@ pub mod inventory_count_service;
 pub mod inventory_finance_bridge_service;
 pub mod inventory_reservation_service;
 pub mod inventory_stock_service;
+// P9-2 拆分：库存子模块
+pub mod stock_ledger;
+pub mod stock_alert;
+pub mod stock_query;
 pub mod product_category_service;
 pub mod product_service;
 pub mod role_permission_service;
@@ -91,6 +127,8 @@ pub mod currency_service;
 // AI智能分析与报表模块
 pub mod ai;
 pub mod report;
+// P2-4 AI 分析深化（工艺优化 + 质量预测）持久化
+pub mod ai_extend_service;
 // 多租户SaaS模块
 pub mod api_key_service;
 pub mod tenant_service;
@@ -107,6 +145,10 @@ pub mod capacity_service;
 pub mod material_shortage_service;
 // 生产排程模块
 pub mod scheduling_service;
+// P9-2 拆分：排程子模块
+pub mod scheduling_auto;
+pub mod scheduling_manual;
+pub mod scheduling_query;
 // 字段权限模块
 pub mod field_permission_service;
 // 租户计费模块
@@ -133,5 +175,30 @@ pub mod audit_cleanup_service;
 pub mod sensitive_action_alert;
 // 增强日志服务
 pub mod enhanced_logger;
-// 慢查询后台采集服务（P13 批 1 B-慢查询审计）
-pub mod slow_query_collector;
+// 销售报价单服务（Week 1）
+pub mod quotation_service;
+// 销售报价单定价服务（Week 2 Task 6）
+pub mod quotation_pricing_service;
+// 销售报价单审批服务（Week 2 Task 7）
+pub mod quotation_approval_service;
+// 销售报价单转订单服务（Week 2 Task 8）
+pub mod quotation_convert_service;
+// P0-2 主备隔离服务
+pub mod failover_service;
+// P0-3 定制订单全流程跟踪服务
+pub mod custom_order_crud_service;
+pub mod custom_order_state_service;
+pub mod custom_order_process_service;
+pub mod custom_order_quality_service;
+pub mod custom_order_aftersales_service;
+// P0-4 色卡仓储管理服务
+pub mod color_card_crud_service;
+pub mod color_card_item_service;
+pub mod color_card_borrow_service;
+pub mod color_card_scan_service;
+// P0-5 面料多色号定价扩展服务
+pub mod color_price_crud_service;
+pub mod color_price_batch_service;
+pub mod color_price_history_service;
+pub mod color_price_seasonal_service;
+pub mod color_price_tier_service;

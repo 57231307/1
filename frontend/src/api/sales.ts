@@ -132,4 +132,12 @@ export const salesApi = {
 
   getOrderStatistics: (params: SalesStatisticsParams) =>
     request.get<ApiResponse<SalesStatisticsData>>('/sales/orders/statistics', { params }),
+
+  /**
+   * 生成销售订单号（P1-1 补齐 generate-no 端点）
+   * 后端: GET /api/v1/erp/sales/orders/generate-no
+   * 返回: { prefix: "SO", order_no: "SO20260617001" }
+   */
+  generateOrderNo: () =>
+    request.get<ApiResponse<{ prefix: string; order_no: string }>>('/sales/orders/generate-no'),
 }

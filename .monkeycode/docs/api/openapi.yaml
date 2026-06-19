@@ -1,0 +1,6764 @@
+openapi: 3.0.3
+info:
+  title: 冰溪 ERP API
+  description: |
+    冰溪 ERP 系统完整 OpenAPI 3.0 规范
+
+    ## 项目概述
+    冰溪 ERP 是面向面料 / 染整行业的全栈企业资源计划系统，
+    覆盖销售、采购、库存、财务、生产、CRM、AI、BI 等核心业务域。
+
+    ## 技术栈
+    - 后端：Rust 1.94 + axum 0.7 + SeaORM 2.0-rc.40
+    - 数据库：PostgreSQL 14+
+    - 认证：Bearer Token (JWT) + TOTP 双因素
+
+    ## API 规模
+    - 端点数：850+
+    - 业务域：19 个 routes 模块
+    - 数据库表：213
+    - 文档版本：v2026.617.0001
+
+    ## 通用约定
+    - 所有响应统一使用 `ApiResponse<T>` 包装（code / data / message）
+    - 业务异常返回 `code >= 400` 的标准错误码
+    - 多租户隔离：所有业务请求必须携带有效 JWT，租户 ID 从 token 提取
+    - 时间格式：ISO 8601（`2026-06-17T03:30:00+08:00`）
+    - 金额单位：元（DECIMAL(18,2)）
+  version: 2026.617.0001
+  contact:
+    name: 冰溪 ERP Team
+    url: https://github.com/57231307/1
+    email: support@bingxi.com
+  license:
+    name: MIT
+    url: https://github.com/57231307/1/blob/main/LICENSE
+
+servers:
+  - url: https://api.bingxi.com/v1
+    description: 生产环境
+  - url: https://staging-api.bingxi.com/v1
+    description: 预发环境
+  - url: http://localhost:8080/api/v1
+    description: 本地开发
+
+tags:
+  - name: 认证
+    description: 用户认证、Token 管理
+  - name: 用户管理
+    description: 用户 CRUD、密码、状态
+  - name: 角色权限
+    description: 角色 / 权限 / 数据权限 / 字段权限
+  - name: 租户管理
+    description: 租户 / 套餐 / 订阅 / 配置
+  - name: 部门组织
+    description: 部门树 / 组织架构
+  - name: 商品
+    description: 商品 / 分类 / 颜色 / 编码映射
+  - name: 客户
+    description: 客户 / 信用评级
+  - name: 供应商
+    description: 供应商 / 联系人 / 评估 / 分级
+  - name: 销售订单
+    description: 销售订单 / 订单明细 / 变更历史
+  - name: 销售合同
+    description: 销售合同 / 执行
+  - name: 销售价格
+    description: 销售价 / 审批 / 历史 / 价格策略
+  - name: 销售发货
+    description: 销售发货 / 发货明细
+  - name: 销售退货
+    description: 销售退货 / 退货明细
+  - name: 报价单
+    description: 报价单 / 报价明细
+  - name: 客户定制
+    description: 客户定制单 / 定制设计
+  - name: 采购订单
+    description: 采购订单 / 订单明细
+  - name: 采购收货
+    description: 采购收货 / 收货明细
+  - name: 采购退货
+    description: 采购退货 / 退货明细
+  - name: 采购合同
+    description: 采购合同 / 执行
+  - name: 采购价格
+    description: 采购价 / 审批 / 历史
+  - name: 采购检验
+    description: 采购检验
+  - name: 库存
+    description: 库存 / 库存交易 / 预占
+  - name: 库存调整
+    description: 库存调整 / 调整明细
+  - name: 库存调拨
+    description: 库存调拨 / 调拨明细
+  - name: 库存盘点
+    description: 库存盘点 / 盘点明细
+  - name: 仓库
+    description: 仓库 / 库位
+  - name: 凭证
+    description: 凭证 / 凭证明细
+  - name: 会计科目
+    description: 会计科目 / 科目余额 / 会计期间
+  - name: 应收
+    description: 应收发票 / 收款 / 核销 / 对账 / 账龄
+  - name: 应付
+    description: 应付发票 / 付款 / 核销 / 对账
+  - name: 成本
+    description: 成本归集 / 直接材料 / 直接人工 / 制造费用 / 染整费用 / 成本分析
+  - name: 固定资产
+    description: 固定资产 / 折旧 / 处置
+  - name: 财务分析
+    description: 财务指标 / 分析结果 / 趋势 / 报表配置
+  - name: 资金
+    description: 资金账户 / 计划 / 调拨 / 交易 / 监控
+  - name: 预算
+    description: 预算项 / 预算方案 / 控制 / 调整
+  - name: 辅助核算
+    description: 辅助核算维度 / 记录 / 汇总
+  - name: 币种
+    description: 币种 / 汇率 / 汇率历史
+  - name: 生产订单
+    description: 生产订单
+  - name: BOM
+    description: 物料清单 / BOM 明细
+  - name: MRP
+    description: MRP 计算结果
+  - name: 工作中心
+    description: 工作中心
+  - name: 质量标准
+    description: 质量标准 / 版本 / 引用
+  - name: 质量检验
+    description: 质量检验 / 检验明细 / 检验标准 / 统计
+  - name: 不合格品
+    description: 不合格品处理
+  - name: BPM
+    description: 流程定义 / 实例 / 任务 / 节点 / 流转
+  - name: 通知
+    description: 系统通知 / 通知设置
+  - name: 邮件
+    description: 邮件模板 / 发送日志
+  - name: OA
+    description: OA 公告 / 站内信
+  - name: 审计
+    description: 审计日志 / 业务审计 / 财务审计 / 权限审计 / 安全审计 / 全局审计
+  - name: 日志
+    description: 操作日志 / API 访问日志 / 登录日志 / 性能日志 / 系统健康日志
+  - name: 报表
+    description: 报表看板 / 报表定义 / 报表组件 / 报表模板 / 订阅 / 导出
+  - name: BI
+    description: 销售事实 / 维度表 / 多维分析
+  - name: 业务追溯
+    description: 业务追溯链 / 快照
+  - name: AI 分析
+    description: AI 销售预测 / 库存优化 / 异常检测 / 建议
+  - name: AI 工艺优化
+    description: AI 工艺优化（16 端点）
+  - name: AI 质量预测
+    description: AI 质量预测（16 端点）
+  - name: 染整工艺
+    description: 染色配方 / 染批 / 缸次 / 坯布
+  - name: 色卡
+    description: 色卡 / 色号映射
+  - name: 物流
+    description: 物流运单
+  - name: API 网关
+    description: API 密钥 / Webhook / 限流
+  - name: 监控
+    description: Prometheus 指标 / 健康检查
+  - name: 系统
+    description: 系统配置 / 系统更新
+  - name: 导入导出
+    description: CSV / Excel 导入导出
+  - name: 高级分析
+    description: 销售分析 / 客户分析 / 业务分析
+  - name: 灾备
+    description: 灾备切换 / 故障转移
+
+paths:
+  # ═══════════════════════════════════════════════════════════════════
+  # 认证模块
+  # ═══════════════════════════════════════════════════════════════════
+  /erp/auth/login:
+    post:
+      tags: [认证]
+      summary: 用户登录
+      description: 用户名密码登录，成功返回 JWT Token
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoginRequest'
+      responses:
+        '200':
+          description: 登录成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LoginResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '423':
+          description: 账号被锁定
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse'
+
+  /erp/auth/login/2fa:
+    post:
+      tags: [认证]
+      summary: 二因素验证登录
+      description: 用户名密码 + TOTP 双因素登录
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TwoFactorLoginRequest'
+      responses:
+        '200':
+          description: 登录成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LoginResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /erp/auth/logout:
+    post:
+      tags: [认证]
+      summary: 用户登出
+      description: 注销当前 Token
+      responses:
+        '200':
+          description: 登出成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse'
+
+  /erp/auth/verify:
+    get:
+      tags: [认证]
+      summary: 验证 Token 有效性
+      responses:
+        '200':
+          description: Token 有效
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /erp/auth/refresh:
+    post:
+      tags: [认证]
+      summary: 刷新 Token
+      responses:
+        '200':
+          description: 刷新成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LoginResponse'
+
+  /erp/auth/change-password:
+    post:
+      tags: [认证]
+      summary: 修改密码
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ChangePasswordRequest'
+      responses:
+        '200':
+          description: 修改成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse'
+
+  # ═══════════════════════════════════════════════════════════════════
+  # 用户管理
+  # ═══════════════════════════════════════════════════════════════════
+  /erp/users:
+    get:
+      tags: [用户管理]
+      summary: 获取用户列表
+      parameters:
+        - $ref: '#/components/parameters/PageParam'
+        - $ref: '#/components/parameters/PageSizeParam'
+        - name: keyword
+          in: query
+          description: 关键字（用户名 / 姓名 / 邮箱）
+          schema:
+            type: string
+        - name: department_id
+          in: query
+          schema:
+            type: integer
+        - name: role_id
+          in: query
+          schema:
+            type: integer
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [active, inactive, locked]
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/UserList'
+    post:
+      tags: [用户管理]
+      summary: 创建用户
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UserCreateRequest'
+      responses:
+        '201':
+          description: 创建成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+
+  /erp/users/{id}:
+    parameters:
+      - $ref: '#/components/parameters/IdParam'
+    get:
+      tags: [用户管理]
+      summary: 获取用户详情
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+    put:
+      tags: [用户管理]
+      summary: 更新用户
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UserUpdateRequest'
+      responses:
+        '200':
+          description: 更新成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+    delete:
+      tags: [用户管理]
+      summary: 删除用户
+      responses:
+        '200':
+          description: 删除成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse'
+
+  /erp/users/{id}/reset-password:
+    post:
+      tags: [用户管理]
+      summary: 重置用户密码
+      parameters:
+        - $ref: '#/components/parameters/IdParam'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ResetPasswordRequest'
+      responses:
+        '200':
+          description: 重置成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse'
+
+  /erp/users/{id}/unlock:
+    post:
+      tags: [用户管理]
+      summary: 解锁用户
+      parameters:
+        - $ref: '#/components/parameters/IdParam'
+      responses:
+        '200':
+          description: 解锁成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse'
+
+  /erp/users/{id}/enable:
+    post:
+      tags: [用户管理]
+      summary: 启用用户
+      parameters:
+        - $ref: '#/components/parameters/IdParam'
+      responses:
+        '200':
+          description: 启用成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse'
+
+  /erp/users/{id}/disable:
+    post:
+      tags: [用户管理]
+      summary: 禁用用户
+      parameters:
+        - $ref: '#/components/parameters/IdParam'
+      responses:
+        '200':
+          description: 禁用成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse'
+
+  # ═══════════════════════════════════════════════════════════════════
+  # 角色权限
+  # ═══════════════════════════════════════════════════════════════════
+  /erp/roles:
+    get:
+      tags: [角色权限]
+      summary: 获取角色列表
+      parameters:
+        - $ref: '#/components/parameters/PageParam'
+        - $ref: '#/components/parameters/PageSizeParam'
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RoleList'
+    post:
+      tags: [角色权限]
+      summary: 创建角色
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RoleCreateRequest'
+      responses:
+        '201':
+          description: 创建成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Role'
+
+  /erp/roles/{id}:
+    parameters:
+      - $ref: '#/components/parameters/IdParam'
+    get:
+      tags: [角色权限]
+      summary: 获取角色详情
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Role'
+    put:
+      tags: [角色权限]
+      summary: 更新角色
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RoleUpdateRequest'
+      responses:
+        '200':
+          description: 更新成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Role'
+    delete:
+      tags: [角色权限]
+      summary: 删除角色
+      responses:
+        '200':
+          description: 删除成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse'
+
+  /erp/roles/{id}/permissions:
+    parameters:
+      - $ref: '#/components/parameters/IdParam'
+    get:
+      tags: [角色权限]
+      summary: 获取角色权限
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Permission'
+    put:
+      tags: [角色权限]
+      summary: 设置角色权限
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                permission_ids:
+                  type: array
+                  items:
+                    type: integer
+      responses:
+        '200':
+          description: 设置成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse'
+
+  /erp/permissions:
+    get:
+      tags: [角色权限]
+      summary: 获取权限列表
+      parameters:
+        - name: resource
+          in: query
+          schema:
+            type: string
+        - name: keyword
+          in: query
+          schema:
+            type: string
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Permission'
+    post:
+      tags: [角色权限]
+      summary: 创建权限
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PermissionCreateRequest'
+      responses:
+        '201':
+          description: 创建成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Permission'
+
+  /erp/permissions/{id}:
+    parameters:
+      - $ref: '#/components/parameters/IdParam'
+    put:
+      tags: [角色权限]
+      summary: 更新权限
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PermissionUpdateRequest'
+      responses:
+        '200':
+          description: 更新成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Permission'
+    delete:
+      tags: [角色权限]
+      summary: 删除权限
+      responses:
+        '200':
+          description: 删除成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse'
+
+  /erp/data-permissions:
+    get:
+      tags: [角色权限]
+      summary: 获取数据权限列表
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/DataPermission'
+    post:
+      tags: [角色权限]
+      summary: 创建数据权限
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DataPermissionRequest'
+      responses:
+        '201':
+          description: 创建成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DataPermission'
+
+  /erp/field-permissions:
+    get:
+      tags: [角色权限]
+      summary: 获取字段权限列表
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/FieldPermission'
+    post:
+      tags: [角色权限]
+      summary: 创建字段权限
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/FieldPermissionRequest'
+      responses:
+        '201':
+          description: 创建成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FieldPermission'
+
+  # ═══════════════════════════════════════════════════════════════════
+  # 租户管理
+  # ═══════════════════════════════════════════════════════════════════
+  /erp/tenants:
+    get:
+      tags: [租户管理]
+      summary: 获取租户列表（平台级）
+      parameters:
+        - $ref: '#/components/parameters/PageParam'
+        - $ref: '#/components/parameters/PageSizeParam'
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TenantList'
+    post:
+      tags: [租户管理]
+      summary: 创建租户
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TenantCreateRequest'
+      responses:
+        '201':
+          description: 创建成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Tenant'
+
+  /erp/tenants/{id}:
+    parameters:
+      - $ref: '#/components/parameters/IdParam'
+    get:
+      tags: [租户管理]
+      summary: 获取租户详情
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Tenant'
+    put:
+      tags: [租户管理]
+      summary: 更新租户
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TenantUpdateRequest'
+      responses:
+        '200':
+          description: 更新成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Tenant'
+    delete:
+      tags: [租户管理]
+      summary: 删除租户
+      responses:
+        '200':
+          description: 删除成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse'
+
+  /erp/tenants/{id}/users:
+    parameters:
+      - $ref: '#/components/parameters/IdParam'
+    get:
+      tags: [租户管理]
+      summary: 获取租户用户列表
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/User'
+    post:
+      tags: [租户管理]
+      summary: 添加租户用户
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TenantUserRequest'
+      responses:
+        '201':
+          description: 添加成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse'
+
+  /erp/tenants/{id}/configs:
+    parameters:
+      - $ref: '#/components/parameters/IdParam'
+    get:
+      tags: [租户管理]
+      summary: 获取租户配置
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/TenantConfig'
+    put:
+      tags: [租户管理]
+      summary: 批量更新租户配置
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: array
+              items:
+                $ref: '#/components/schemas/TenantConfigRequest'
+      responses:
+        '200':
+          description: 更新成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse'
+
+  /erp/tenant-plans:
+    get:
+      tags: [租户管理]
+      summary: 获取租户套餐列表
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/TenantPlan'
+    post:
+      tags: [租户管理]
+      summary: 创建租户套餐
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TenantPlanRequest'
+      responses:
+        '201':
+          description: 创建成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TenantPlan'
+
+  /erp/tenant-subscriptions:
+    get:
+      tags: [租户管理]
+      summary: 获取租户订阅列表
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/TenantSubscription'
+    post:
+      tags: [租户管理]
+      summary: 创建租户订阅
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TenantSubscriptionRequest'
+      responses:
+        '201':
+          description: 创建成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TenantSubscription'
+
+  /erp/tenant-billing:
+    get:
+      tags: [租户管理]
+      summary: 获取租户计费记录
+      parameters:
+        - $ref: '#/components/parameters/PageParam'
+        - $ref: '#/components/parameters/PageSizeParam'
+        - name: tenant_id
+          in: query
+          schema:
+            type: integer
+        - name: period
+          in: query
+          schema:
+            type: string
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TenantBillingList'
+
+  # ═══════════════════════════════════════════════════════════════════
+  # 部门组织
+  # ═══════════════════════════════════════════════════════════════════
+  /erp/departments:
+    get:
+      tags: [部门组织]
+      summary: 获取部门树
+      parameters:
+        - name: parent_id
+          in: query
+          schema:
+            type: integer
+        - name: include_inactive
+          in: query
+          schema:
+            type: boolean
+            default: false
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Department'
+    post:
+      tags: [部门组织]
+      summary: 创建部门
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DepartmentRequest'
+      responses:
+        '201':
+          description: 创建成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Department'
+
+  /erp/departments/{id}:
+    parameters:
+      - $ref: '#/components/parameters/IdParam'
+    put:
+      tags: [部门组织]
+      summary: 更新部门
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DepartmentRequest'
+      responses:
+        '200':
+          description: 更新成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Department'
+    delete:
+      tags: [部门组织]
+      summary: 删除部门
+      responses:
+        '200':
+          description: 删除成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse'
+
+  # ═══════════════════════════════════════════════════════════════════
+  # 商品
+  # ═══════════════════════════════════════════════════════════════════
+  /erp/products:
+    get:
+      tags: [商品]
+      summary: 获取商品列表
+      parameters:
+        - $ref: '#/components/parameters/PageParam'
+        - $ref: '#/components/parameters/PageSizeParam'
+        - name: keyword
+          in: query
+          description: 关键字（编码 / 名称）
+          schema:
+            type: string
+        - name: category_id
+          in: query
+          schema:
+            type: integer
+        - name: status
+          in: query
+          schema:
+            type: string
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProductList'
+    post:
+      tags: [商品]
+      summary: 创建商品
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ProductRequest'
+      responses:
+        '201':
+          description: 创建成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Product'
+
+  /erp/products/{id}:
+    parameters:
+      - $ref: '#/components/parameters/IdParam'
+    get:
+      tags: [商品]
+      summary: 获取商品详情
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Product'
+    put:
+      tags: [商品]
+      summary: 更新商品
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ProductRequest'
+      responses:
+        '200':
+          description: 更新成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Product'
+    delete:
+      tags: [商品]
+      summary: 删除商品
+      responses:
+        '200':
+          description: 删除成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse'
+
+  /erp/products/bulk:
+    post:
+      tags: [商品]
+      summary: 批量创建商品
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: array
+              items:
+                $ref: '#/components/schemas/ProductRequest'
+      responses:
+        '201':
+          description: 创建成功
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  created:
+                    type: integer
+                  failed:
+                    type: integer
+
+  /erp/product-categories:
+    get:
+      tags: [商品]
+      summary: 获取商品分类树
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/ProductCategory'
+    post:
+      tags: [商品]
+      summary: 创建商品分类
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ProductCategoryRequest'
+      responses:
+        '201':
+          description: 创建成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProductCategory'
+
+  /erp/product-categories/{id}:
+    parameters:
+      - $ref: '#/components/parameters/IdParam'
+    put:
+      tags: [商品]
+      summary: 更新商品分类
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ProductCategoryRequest'
+      responses:
+        '200':
+          description: 更新成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProductCategory'
+    delete:
+      tags: [商品]
+      summary: 删除商品分类
+      responses:
+        '200':
+          description: 删除成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse'
+
+  /erp/product-colors:
+    get:
+      tags: [商品]
+      summary: 获取商品颜色列表
+      parameters:
+        - name: product_id
+          in: query
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/ProductColor'
+    post:
+      tags: [商品]
+      summary: 创建商品颜色
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ProductColorRequest'
+      responses:
+        '201':
+          description: 创建成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProductColor'
+
+  /erp/product-code-mappings:
+    get:
+      tags: [商品]
+      summary: 获取商品编码映射
+      parameters:
+        - name: internal_code
+          in: query
+          schema:
+            type: string
+        - name: external_code
+          in: query
+          schema:
+            type: string
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/ProductCodeMapping'
+    post:
+      tags: [商品]
+      summary: 创建商品编码映射
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ProductCodeMappingRequest'
+      responses:
+        '201':
+          description: 创建成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProductCodeMapping'
+
+  /erp/product-supplier-mappings:
+    get:
+      tags: [商品]
+      summary: 获取商品-供应商映射
+      parameters:
+        - name: product_id
+          in: query
+          schema:
+            type: integer
+        - name: supplier_id
+          in: query
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/ProductSupplierMapping'
+    post:
+      tags: [商品]
+      summary: 创建商品-供应商映射
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ProductSupplierMappingRequest'
+      responses:
+        '201':
+          description: 创建成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProductSupplierMapping'
+
+  # ═══════════════════════════════════════════════════════════════════
+  # 客户
+  # ═══════════════════════════════════════════════════════════════════
+  /erp/customers:
+    get:
+      tags: [客户]
+      summary: 获取客户列表
+      parameters:
+        - $ref: '#/components/parameters/PageParam'
+        - $ref: '#/components/parameters/PageSizeParam'
+        - name: keyword
+          in: query
+          schema:
+            type: string
+        - name: level
+          in: query
+          schema:
+            type: string
+            enum: [A, B, C, D]
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CustomerList'
+    post:
+      tags: [客户]
+      summary: 创建客户
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CustomerRequest'
+      responses:
+        '201':
+          description: 创建成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Customer'
+
+  /erp/customers/{id}:
+    parameters:
+      - $ref: '#/components/parameters/IdParam'
+    get:
+      tags: [客户]
+      summary: 获取客户详情
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Customer'
+    put:
+      tags: [客户]
+      summary: 更新客户
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CustomerRequest'
+      responses:
+        '200':
+          description: 更新成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Customer'
+    delete:
+      tags: [客户]
+      summary: 删除客户
+      responses:
+        '200':
+          description: 删除成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse'
+
+  /erp/customer-credit-ratings:
+    get:
+      tags: [客户]
+      summary: 获取客户信用评级
+      parameters:
+        - name: customer_id
+          in: query
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/CustomerCreditRating'
+    post:
+      tags: [客户]
+      summary: 创建客户信用评级
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CustomerCreditRatingRequest'
+      responses:
+        '201':
+          description: 创建成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CustomerCreditRating'
+
+  /erp/customer-credit-changes:
+    get:
+      tags: [客户]
+      summary: 获取客户信用变更历史
+      parameters:
+        - name: customer_id
+          in: query
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/CustomerCreditChange'
+
+  # ═══════════════════════════════════════════════════════════════════
+  # 供应商
+  # ═══════════════════════════════════════════════════════════════════
+  /erp/suppliers:
+    get:
+      tags: [供应商]
+      summary: 获取供应商列表
+      parameters:
+        - $ref: '#/components/parameters/PageParam'
+        - $ref: '#/components/parameters/PageSizeParam'
+        - name: keyword
+          in: query
+          schema:
+            type: string
+        - name: level
+          in: query
+          schema:
+            type: string
+        - name: status
+          in: query
+          schema:
+            type: string
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SupplierList'
+    post:
+      tags: [供应商]
+      summary: 创建供应商
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SupplierRequest'
+      responses:
+        '201':
+          description: 创建成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Supplier'
+
+  /erp/suppliers/{id}:
+    parameters:
+      - $ref: '#/components/parameters/IdParam'
+    get:
+      tags: [供应商]
+      summary: 获取供应商详情
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Supplier'
+    put:
+      tags: [供应商]
+      summary: 更新供应商
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SupplierRequest'
+      responses:
+        '200':
+          description: 更新成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Supplier'
+    delete:
+      tags: [供应商]
+      summary: 删除供应商
+      responses:
+        '200':
+          description: 删除成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse'
+
+  /erp/supplier-categories:
+    get:
+      tags: [供应商]
+      summary: 获取供应商分类
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/SupplierCategory'
+    post:
+      tags: [供应商]
+      summary: 创建供应商分类
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SupplierCategoryRequest'
+      responses:
+        '201':
+          description: 创建成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SupplierCategory'
+
+  /erp/supplier-contacts:
+    get:
+      tags: [供应商]
+      summary: 获取供应商联系人
+      parameters:
+        - name: supplier_id
+          in: query
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/SupplierContact'
+    post:
+      tags: [供应商]
+      summary: 创建供应商联系人
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SupplierContactRequest'
+      responses:
+        '201':
+          description: 创建成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SupplierContact'
+
+  /erp/supplier-evaluations:
+    get:
+      tags: [供应商]
+      summary: 获取供应商评估记录
+      parameters:
+        - name: supplier_id
+          in: query
+          schema:
+            type: integer
+        - name: period
+          in: query
+          schema:
+            type: string
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/SupplierEvaluation'
+    post:
+      tags: [供应商]
+      summary: 创建供应商评估
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SupplierEvaluationRequest'
+      responses:
+        '201':
+          description: 创建成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SupplierEvaluation'
+
+  /erp/supplier-evaluation-indicators:
+    get:
+      tags: [供应商]
+      summary: 获取评估指标
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/SupplierEvaluationIndicator'
+    post:
+      tags: [供应商]
+      summary: 创建评估指标
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SupplierEvaluationIndicatorRequest'
+      responses:
+        '201':
+          description: 创建成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SupplierEvaluationIndicator'
+
+  /erp/supplier-overall-scores:
+    get:
+      tags: [供应商]
+      summary: 获取供应商综合评分
+      parameters:
+        - name: supplier_id
+          in: query
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/SupplierOverallScore'
+
+  /erp/supplier-levels:
+    get:
+      tags: [供应商]
+      summary: 获取供应商分级
+      parameters:
+        - name: supplier_id
+          in: query
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/SupplierLevel'
+
+  /erp/supplier-qualifications:
+    get:
+      tags: [供应商]
+      summary: 获取供应商资质
+      parameters:
+        - name: supplier_id
+          in: query
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/SupplierQualification'
+
+  /erp/supplier-blacklists:
+    get:
+      tags: [供应商]
+      summary: 获取供应商黑名单
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/SupplierBlacklist'
+    post:
+      tags: [供应商]
+      summary: 添加供应商到黑名单
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SupplierBlacklistRequest'
+      responses:
+        '201':
+          description: 添加成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SupplierBlacklist'
+
+  /erp/supplier-products:
+    get:
+      tags: [供应商]
+      summary: 获取供应商商品
+      parameters:
+        - name: supplier_id
+          in: query
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/SupplierProduct'
+    post:
+      tags: [供应商]
+      summary: 关联供应商商品
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SupplierProductRequest'
+      responses:
+        '201':
+          description: 关联成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SupplierProduct'
+
+  /erp/supplier-grades:
+    get:
+      tags: [供应商]
+      summary: 获取供应商等级
+      parameters:
+        - name: supplier_id
+          in: query
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/SupplierGrade'
+
+  /erp/supplier-product-colors:
+    get:
+      tags: [供应商]
+      summary: 获取供应商商品颜色
+      parameters:
+        - name: supplier_id
+          in: query
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/SupplierProductColor'
+
+  # ═══════════════════════════════════════════════════════════════════
+  # 销售订单
+  # ═══════════════════════════════════════════════════════════════════
+  /erp/sales/orders:
+    get:
+      tags: [销售订单]
+      summary: 获取销售订单列表
+      parameters:
+        - $ref: '#/components/parameters/PageParam'
+        - $ref: '#/components/parameters/PageSizeParam'
+        - name: customer_id
+          in: query
+          schema:
+            type: integer
+        - name: status
+          in: query
+          schema:
+            type: string
+        - name: start_date
+          in: query
+          schema:
+            type: string
+            format: date
+        - name: end_date
+          in: query
+          schema:
+            type: string
+            format: date
+        - name: keyword
+          in: query
+          schema:
+            type: string
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SalesOrderList'
+    post:
+      tags: [销售订单]
+      summary: 创建销售订单
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SalesOrderRequest'
+      responses:
+        '201':
+          description: 创建成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SalesOrder'
+
+  /erp/sales/orders/{id}:
+    parameters:
+      - $ref: '#/components/parameters/IdParam'
+    get:
+      tags: [销售订单]
+      summary: 获取销售订单详情
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SalesOrder'
+    put:
+      tags: [销售订单]
+      summary: 更新销售订单
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SalesOrderRequest'
+      responses:
+        '200':
+          description: 更新成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SalesOrder'
+    delete:
+      tags: [销售订单]
+      summary: 删除销售订单
+      responses:
+        '200':
+          description: 删除成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse'
+
+  /erp/sales/orders/{id}/approve:
+    post:
+      tags: [销售订单]
+      summary: 审批销售订单
+      parameters:
+        - $ref: '#/components/parameters/IdParam'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                approved:
+                  type: boolean
+                comment:
+                  type: string
+      responses:
+        '200':
+          description: 审批成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse'
+
+  /erp/sales/orders/{id}/cancel:
+    post:
+      tags: [销售订单]
+      summary: 取消销售订单
+      parameters:
+        - $ref: '#/components/parameters/IdParam'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                reason:
+                  type: string
+      responses:
+        '200':
+          description: 取消成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse'
+
+  /erp/sales/orders/{id}/change-history:
+    get:
+      tags: [销售订单]
+      summary: 获取订单变更历史
+      parameters:
+        - $ref: '#/components/parameters/IdParam'
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/SalesOrderChangeHistory'
+
+  /erp/sales/order-items:
+    get:
+      tags: [销售订单]
+      summary: 获取订单明细
+      parameters:
+        - name: order_id
+          in: query
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/SalesOrderItem'
+
+  /erp/sales/contracts:
+    get:
+      tags: [销售合同]
+      summary: 获取销售合同列表
+      parameters:
+        - $ref: '#/components/parameters/PageParam'
+        - $ref: '#/components/parameters/PageSizeParam'
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SalesContractList'
+    post:
+      tags: [销售合同]
+      summary: 创建销售合同
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SalesContractRequest'
+      responses:
+        '201':
+          description: 创建成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SalesContract'
+
+  /erp/sales/contracts/{id}:
+    parameters:
+      - $ref: '#/components/parameters/IdParam'
+    get:
+      tags: [销售合同]
+      summary: 获取销售合同详情
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SalesContract'
+    put:
+      tags: [销售合同]
+      summary: 更新销售合同
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SalesContractRequest'
+      responses:
+        '200':
+          description: 更新成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SalesContract'
+    delete:
+      tags: [销售合同]
+      summary: 删除销售合同
+      responses:
+        '200':
+          description: 删除成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse'
+
+  /erp/sales/prices:
+    get:
+      tags: [销售价格]
+      summary: 获取销售价格列表
+      parameters:
+        - name: product_id
+          in: query
+          schema:
+            type: integer
+        - name: customer_id
+          in: query
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/SalesPrice'
+    post:
+      tags: [销售价格]
+      summary: 创建销售价格
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SalesPriceRequest'
+      responses:
+        '201':
+          description: 创建成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SalesPrice'
+
+  /erp/sales/deliveries:
+    get:
+      tags: [销售发货]
+      summary: 获取销售发货列表
+      parameters:
+        - $ref: '#/components/parameters/PageParam'
+        - $ref: '#/components/parameters/PageSizeParam'
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SalesDeliveryList'
+    post:
+      tags: [销售发货]
+      summary: 创建销售发货单
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SalesDeliveryRequest'
+      responses:
+        '201':
+          description: 创建成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SalesDelivery'
+
+  /erp/sales/returns:
+    get:
+      tags: [销售退货]
+      summary: 获取销售退货列表
+      parameters:
+        - $ref: '#/components/parameters/PageParam'
+        - $ref: '#/components/parameters/PageSizeParam'
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SalesReturnList'
+    post:
+      tags: [销售退货]
+      summary: 创建销售退货单
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SalesReturnRequest'
+      responses:
+        '201':
+          description: 创建成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SalesReturn'
+
+  /erp/quotations:
+    get:
+      tags: [报价单]
+      summary: 获取报价单列表
+      parameters:
+        - $ref: '#/components/parameters/PageParam'
+        - $ref: '#/components/parameters/PageSizeParam'
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/QuotationList'
+    post:
+      tags: [报价单]
+      summary: 创建报价单
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/QuotationRequest'
+      responses:
+        '201':
+          description: 创建成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Quotation'
+
+  /erp/custom-orders:
+    get:
+      tags: [客户定制]
+      summary: 获取客户定制单列表
+      parameters:
+        - $ref: '#/components/parameters/PageParam'
+        - $ref: '#/components/parameters/PageSizeParam'
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CustomOrderList'
+    post:
+      tags: [客户定制]
+      summary: 创建客户定制单
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CustomOrderRequest'
+      responses:
+        '201':
+          description: 创建成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CustomOrder'
+
+  # ═══════════════════════════════════════════════════════════════════
+  # 采购模块
+  # ═══════════════════════════════════════════════════════════════════
+  /erp/purchase/orders:
+    get:
+      tags: [采购订单]
+      summary: 获取采购订单列表
+      parameters:
+        - $ref: '#/components/parameters/PageParam'
+        - $ref: '#/components/parameters/PageSizeParam'
+        - name: supplier_id
+          in: query
+          schema:
+            type: integer
+        - name: status
+          in: query
+          schema:
+            type: string
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PurchaseOrderList'
+    post:
+      tags: [采购订单]
+      summary: 创建采购订单
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PurchaseOrderRequest'
+      responses:
+        '201':
+          description: 创建成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PurchaseOrder'
+
+  /erp/purchase/orders/{id}:
+    parameters:
+      - $ref: '#/components/parameters/IdParam'
+    get:
+      tags: [采购订单]
+      summary: 获取采购订单详情
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PurchaseOrder'
+    put:
+      tags: [采购订单]
+      summary: 更新采购订单
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PurchaseOrderRequest'
+      responses:
+        '200':
+          description: 更新成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PurchaseOrder'
+    delete:
+      tags: [采购订单]
+      summary: 删除采购订单
+      responses:
+        '200':
+          description: 删除成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse'
+
+  /erp/purchase/orders/{id}/approve:
+    post:
+      tags: [采购订单]
+      summary: 审批采购订单
+      parameters:
+        - $ref: '#/components/parameters/IdParam'
+      responses:
+        '200':
+          description: 审批成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse'
+
+  /erp/purchase/receipts:
+    get:
+      tags: [采购收货]
+      summary: 获取采购收货列表
+      parameters:
+        - $ref: '#/components/parameters/PageParam'
+        - $ref: '#/components/parameters/PageSizeParam'
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PurchaseReceiptList'
+    post:
+      tags: [采购收货]
+      summary: 创建采购收货单
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PurchaseReceiptRequest'
+      responses:
+        '201':
+          description: 创建成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PurchaseReceipt'
+
+  /erp/purchase/returns:
+    get:
+      tags: [采购退货]
+      summary: 获取采购退货列表
+      parameters:
+        - $ref: '#/components/parameters/PageParam'
+        - $ref: '#/components/parameters/PageSizeParam'
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PurchaseReturnList'
+    post:
+      tags: [采购退货]
+      summary: 创建采购退货单
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PurchaseReturnRequest'
+      responses:
+        '201':
+          description: 创建成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PurchaseReturn'
+
+  /erp/purchase/contracts:
+    get:
+      tags: [采购合同]
+      summary: 获取采购合同列表
+      parameters:
+        - $ref: '#/components/parameters/PageParam'
+        - $ref: '#/components/parameters/PageSizeParam'
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PurchaseContractList'
+    post:
+      tags: [采购合同]
+      summary: 创建采购合同
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PurchaseContractRequest'
+      responses:
+        '201':
+          description: 创建成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PurchaseContract'
+
+  /erp/purchase/prices:
+    get:
+      tags: [采购价格]
+      summary: 获取采购价格列表
+      parameters:
+        - name: product_id
+          in: query
+          schema:
+            type: integer
+        - name: supplier_id
+          in: query
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/PurchasePrice'
+
+  /erp/purchase/inspections:
+    get:
+      tags: [采购检验]
+      summary: 获取采购检验列表
+      parameters:
+        - $ref: '#/components/parameters/PageParam'
+        - $ref: '#/components/parameters/PageSizeParam'
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PurchaseInspectionList'
+    post:
+      tags: [采购检验]
+      summary: 创建采购检验单
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PurchaseInspectionRequest'
+      responses:
+        '201':
+          description: 创建成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PurchaseInspection'
+
+  # ═══════════════════════════════════════════════════════════════════
+  # 库存
+  # ═══════════════════════════════════════════════════════════════════
+  /erp/inventory/stocks:
+    get:
+      tags: [库存]
+      summary: 获取库存列表
+      parameters:
+        - $ref: '#/components/parameters/PageParam'
+        - $ref: '#/components/parameters/PageSizeParam'
+        - name: product_id
+          in: query
+          schema:
+            type: integer
+        - name: warehouse_id
+          in: query
+          schema:
+            type: integer
+        - name: batch_no
+          in: query
+          schema:
+            type: string
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/InventoryStockList'
+
+  /erp/inventory/transactions:
+    get:
+      tags: [库存]
+      summary: 获取库存交易流水
+      parameters:
+        - $ref: '#/components/parameters/PageParam'
+        - $ref: '#/components/parameters/PageSizeParam'
+        - name: product_id
+          in: query
+          schema:
+            type: integer
+        - name: type
+          in: query
+          schema:
+            type: string
+            enum: [in, out, transfer, adjust]
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/InventoryTransactionList'
+
+  /erp/inventory/reservations:
+    get:
+      tags: [库存]
+      summary: 获取库存预占
+      parameters:
+        - $ref: '#/components/parameters/PageParam'
+        - $ref: '#/components/parameters/PageSizeParam'
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/InventoryReservationList'
+    post:
+      tags: [库存]
+      summary: 创建库存预占
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/InventoryReservationRequest'
+      responses:
+        '201':
+          description: 创建成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/InventoryReservation'
+
+  /erp/inventory/adjustments:
+    get:
+      tags: [库存调整]
+      summary: 获取库存调整列表
+      parameters:
+        - $ref: '#/components/parameters/PageParam'
+        - $ref: '#/components/parameters/PageSizeParam'
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/InventoryAdjustmentList'
+    post:
+      tags: [库存调整]
+      summary: 创建库存调整单
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/InventoryAdjustmentRequest'
+      responses:
+        '201':
+          description: 创建成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/InventoryAdjustment'
+
+  /erp/inventory/transfers:
+    get:
+      tags: [库存调拨]
+      summary: 获取库存调拨列表
+      parameters:
+        - $ref: '#/components/parameters/PageParam'
+        - $ref: '#/components/parameters/PageSizeParam'
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/InventoryTransferList'
+    post:
+      tags: [库存调拨]
+      summary: 创建库存调拨单
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/InventoryTransferRequest'
+      responses:
+        '201':
+          description: 创建成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/InventoryTransfer'
+
+  /erp/inventory/counts:
+    get:
+      tags: [库存盘点]
+      summary: 获取库存盘点列表
+      parameters:
+        - $ref: '#/components/parameters/PageParam'
+        - $ref: '#/components/parameters/PageSizeParam'
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/InventoryCountList'
+    post:
+      tags: [库存盘点]
+      summary: 创建库存盘点单
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/InventoryCountRequest'
+      responses:
+        '201':
+          description: 创建成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/InventoryCount'
+
+  /erp/warehouses:
+    get:
+      tags: [仓库]
+      summary: 获取仓库列表
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Warehouse'
+    post:
+      tags: [仓库]
+      summary: 创建仓库
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/WarehouseRequest'
+      responses:
+        '201':
+          description: 创建成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Warehouse'
+
+  /erp/warehouse-locations:
+    get:
+      tags: [仓库]
+      summary: 获取库位列表
+      parameters:
+        - name: warehouse_id
+          in: query
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/WarehouseLocation'
+
+  # ═══════════════════════════════════════════════════════════════════
+  # 财务模块
+  # ═══════════════════════════════════════════════════════════════════
+  /erp/finance/vouchers:
+    get:
+      tags: [凭证]
+      summary: 获取凭证列表
+      parameters:
+        - $ref: '#/components/parameters/PageParam'
+        - $ref: '#/components/parameters/PageSizeParam'
+        - name: period
+          in: query
+          schema:
+            type: string
+        - name: status
+          in: query
+          schema:
+            type: string
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/VoucherList'
+    post:
+      tags: [凭证]
+      summary: 创建凭证
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/VoucherRequest'
+      responses:
+        '201':
+          description: 创建成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Voucher'
+
+  /erp/finance/vouchers/{id}:
+    parameters:
+      - $ref: '#/components/parameters/IdParam'
+    get:
+      tags: [凭证]
+      summary: 获取凭证详情
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Voucher'
+    put:
+      tags: [凭证]
+      summary: 更新凭证
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/VoucherRequest'
+      responses:
+        '200':
+          description: 更新成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Voucher'
+    delete:
+      tags: [凭证]
+      summary: 删除凭证
+      responses:
+        '200':
+          description: 删除成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse'
+
+  /erp/finance/vouchers/{id}/post:
+    post:
+      tags: [凭证]
+      summary: 过账
+      parameters:
+        - $ref: '#/components/parameters/IdParam'
+      responses:
+        '200':
+          description: 过账成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse'
+
+  /erp/finance/vouchers/{id}/reverse:
+    post:
+      tags: [凭证]
+      summary: 红字冲销
+      parameters:
+        - $ref: '#/components/parameters/IdParam'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                reason:
+                  type: string
+      responses:
+        '200':
+          description: 冲销成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse'
+
+  /erp/finance/account-subjects:
+    get:
+      tags: [会计科目]
+      summary: 获取会计科目树
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/AccountSubject'
+    post:
+      tags: [会计科目]
+      summary: 创建会计科目
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AccountSubjectRequest'
+      responses:
+        '201':
+          description: 创建成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AccountSubject'
+
+  /erp/finance/account-balances:
+    get:
+      tags: [会计科目]
+      summary: 获取科目余额
+      parameters:
+        - name: period
+          in: query
+          schema:
+            type: string
+        - name: subject_id
+          in: query
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/AccountBalance'
+
+  /erp/finance/accounting-periods:
+    get:
+      tags: [会计科目]
+      summary: 获取会计期间
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/AccountingPeriod'
+
+  /erp/ar/invoices:
+    get:
+      tags: [应收]
+      summary: 获取应收发票列表
+      parameters:
+        - $ref: '#/components/parameters/PageParam'
+        - $ref: '#/components/parameters/PageSizeParam'
+        - name: customer_id
+          in: query
+          schema:
+            type: integer
+        - name: status
+          in: query
+          schema:
+            type: string
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ArInvoiceList'
+    post:
+      tags: [应收]
+      summary: 创建应收发票
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ArInvoiceRequest'
+      responses:
+        '201':
+          description: 创建成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ArInvoice'
+
+  /erp/ar/collections:
+    get:
+      tags: [应收]
+      summary: 获取收款记录
+      parameters:
+        - $ref: '#/components/parameters/PageParam'
+        - $ref: '#/components/parameters/PageSizeParam'
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ArCollectionList'
+    post:
+      tags: [应收]
+      summary: 创建收款记录
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ArCollectionRequest'
+      responses:
+        '201':
+          description: 创建成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ArCollection'
+
+  /erp/ar/reconciliations:
+    get:
+      tags: [应收]
+      summary: 获取应收对账
+      parameters:
+        - $ref: '#/components/parameters/PageParam'
+        - $ref: '#/components/parameters/PageSizeParam'
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ArReconciliationList'
+    post:
+      tags: [应收]
+      summary: 创建对账单
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ArReconciliationRequest'
+      responses:
+        '201':
+          description: 创建成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ArReconciliation'
+
+  /erp/ar/aging-analysis:
+    get:
+      tags: [应收]
+      summary: 账龄分析
+      parameters:
+        - name: customer_id
+          in: query
+          schema:
+            type: integer
+        - name: as_of_date
+          in: query
+          schema:
+            type: string
+            format: date
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/ArAgingAnalysis'
+
+  /erp/ar/collection-plans:
+    get:
+      tags: [应收]
+      summary: 获取收款计划
+      parameters:
+        - name: customer_id
+          in: query
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/ArCollectionPlan'
+
+  /erp/ap/invoices:
+    get:
+      tags: [应付]
+      summary: 获取应付发票列表
+      parameters:
+        - $ref: '#/components/parameters/PageParam'
+        - $ref: '#/components/parameters/PageSizeParam'
+        - name: supplier_id
+          in: query
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApInvoiceList'
+    post:
+      tags: [应付]
+      summary: 创建应付发票
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ApInvoiceRequest'
+      responses:
+        '201':
+          description: 创建成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApInvoice'
+
+  /erp/ap/payments:
+    get:
+      tags: [应付]
+      summary: 获取付款记录
+      parameters:
+        - $ref: '#/components/parameters/PageParam'
+        - $ref: '#/components/parameters/PageSizeParam'
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApPaymentList'
+    post:
+      tags: [应付]
+      summary: 创建付款记录
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ApPaymentRequest'
+      responses:
+        '201':
+          description: 创建成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApPayment'
+
+  /erp/ap/payment-requests:
+    get:
+      tags: [应付]
+      summary: 获取付款请求
+      parameters:
+        - $ref: '#/components/parameters/PageParam'
+        - $ref: '#/components/parameters/PageSizeParam'
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApPaymentRequestList'
+    post:
+      tags: [应付]
+      summary: 创建付款请求
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ApPaymentRequestCreate'
+      responses:
+        '201':
+          description: 创建成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApPaymentRequest'
+
+  /erp/ap/reconciliations:
+    get:
+      tags: [应付]
+      summary: 获取应付对账
+      parameters:
+        - $ref: '#/components/parameters/PageParam'
+        - $ref: '#/components/parameters/PageSizeParam'
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApReconciliationList'
+
+  /erp/cost/collections:
+    get:
+      tags: [成本]
+      summary: 获取成本归集
+      parameters:
+        - name: period
+          in: query
+          schema:
+            type: string
+        - name: product_id
+          in: query
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/CostCollection'
+
+  /erp/cost/direct-materials:
+    get:
+      tags: [成本]
+      summary: 获取直接材料成本
+      parameters:
+        - name: product_id
+          in: query
+          schema:
+            type: integer
+        - name: period
+          in: query
+          schema:
+            type: string
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/CostDirectMaterial'
+
+  /erp/cost/direct-labors:
+    get:
+      tags: [成本]
+      summary: 获取直接人工成本
+      parameters:
+        - name: product_id
+          in: query
+          schema:
+            type: integer
+        - name: period
+          in: query
+          schema:
+            type: string
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/CostDirectLabor'
+
+  /erp/cost/manufacturing-overheads:
+    get:
+      tags: [成本]
+      summary: 获取制造费用
+      parameters:
+        - name: product_id
+          in: query
+          schema:
+            type: integer
+        - name: period
+          in: query
+          schema:
+            type: string
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/CostManufacturingOverhead'
+
+  /erp/cost/dyeing-fees:
+    get:
+      tags: [成本]
+      summary: 获取染整费用
+      parameters:
+        - name: product_id
+          in: query
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/CostDyeingFee'
+
+  /erp/cost/analyses:
+    get:
+      tags: [成本]
+      summary: 获取成本分析
+      parameters:
+        - name: product_id
+          in: query
+          schema:
+            type: integer
+        - name: period
+          in: query
+          schema:
+            type: string
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/CostAnalysis'
+
+  /erp/finance/fixed-assets:
+    get:
+      tags: [固定资产]
+      summary: 获取固定资产列表
+      parameters:
+        - $ref: '#/components/parameters/PageParam'
+        - $ref: '#/components/parameters/PageSizeParam'
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FixedAssetList'
+    post:
+      tags: [固定资产]
+      summary: 创建固定资产
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/FixedAssetRequest'
+      responses:
+        '201':
+          description: 创建成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FixedAsset'
+
+  /erp/finance/fixed-assets/{id}/depreciate:
+    post:
+      tags: [固定资产]
+      summary: 计提折旧
+      parameters:
+        - $ref: '#/components/parameters/IdParam'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                period:
+                  type: string
+                amount:
+                  type: number
+      responses:
+        '200':
+          description: 计提成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse'
+
+  /erp/finance/fixed-assets/{id}/dispose:
+    post:
+      tags: [固定资产]
+      summary: 资产处置
+      parameters:
+        - $ref: '#/components/parameters/IdParam'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AssetDisposalRequest'
+      responses:
+        '200':
+          description: 处置成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse'
+
+  /erp/finance/indicators:
+    get:
+      tags: [财务分析]
+      summary: 获取财务指标
+      parameters:
+        - name: period
+          in: query
+          schema:
+            type: string
+        - name: indicator_code
+          in: query
+          schema:
+            type: string
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/FinancialIndicator'
+
+  /erp/finance/analysis-results:
+    get:
+      tags: [财务分析]
+      summary: 获取财务分析结果
+      parameters:
+        - name: analysis_type
+          in: query
+          schema:
+            type: string
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/FinancialAnalysisResult'
+
+  /erp/finance/trends:
+    get:
+      tags: [财务分析]
+      summary: 获取财务趋势
+      parameters:
+        - name: indicator_code
+          in: query
+          schema:
+            type: string
+        - name: start_period
+          in: query
+          schema:
+            type: string
+        - name: end_period
+          in: query
+          schema:
+            type: string
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/FinancialTrend'
+
+  /erp/finance/fund-accounts:
+    get:
+      tags: [资金]
+      summary: 获取资金账户列表
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/FundAccount'
+    post:
+      tags: [资金]
+      summary: 创建资金账户
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/FundAccountRequest'
+      responses:
+        '201':
+          description: 创建成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FundAccount'
+
+  /erp/finance/fund-transfers:
+    get:
+      tags: [资金]
+      summary: 获取资金调拨记录
+      parameters:
+        - $ref: '#/components/parameters/PageParam'
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FundTransferList'
+    post:
+      tags: [资金]
+      summary: 创建资金调拨
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/FundTransferRequest'
+      responses:
+        '201':
+          description: 创建成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FundTransfer'
+
+  /erp/finance/budget-items:
+    get:
+      tags: [预算]
+      summary: 获取预算项树
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/BudgetItem'
+    post:
+      tags: [预算]
+      summary: 创建预算项
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/BudgetItemRequest'
+      responses:
+        '201':
+          description: 创建成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BudgetItem'
+
+  /erp/finance/budget-plans:
+    get:
+      tags: [预算]
+      summary: 获取预算方案
+      parameters:
+        - $ref: '#/components/parameters/PageParam'
+        - $ref: '#/components/parameters/PageSizeParam'
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BudgetPlanList'
+    post:
+      tags: [预算]
+      summary: 创建预算方案
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/BudgetPlanRequest'
+      responses:
+        '201':
+          description: 创建成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BudgetPlan'
+
+  /erp/finance/budget-adjustments:
+    get:
+      tags: [预算]
+      summary: 获取预算调整
+      parameters:
+        - $ref: '#/components/parameters/PageParam'
+        - $ref: '#/components/parameters/PageSizeParam'
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/BudgetAdjustment'
+
+  /erp/finance/currencies:
+    get:
+      tags: [币种]
+      summary: 获取币种列表
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Currency'
+
+  /erp/finance/exchange-rates:
+    get:
+      tags: [币种]
+      summary: 获取当前汇率
+      parameters:
+        - name: from_currency
+          in: query
+          schema:
+            type: string
+        - name: to_currency
+          in: query
+          schema:
+            type: string
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/ExchangeRate'
+
+  /erp/finance/exchange-rate-history:
+    get:
+      tags: [币种]
+      summary: 获取汇率历史
+      parameters:
+        - name: from_currency
+          in: query
+          schema:
+            type: string
+        - name: to_currency
+          in: query
+          schema:
+            type: string
+        - name: start_date
+          in: query
+          schema:
+            type: string
+            format: date
+        - name: end_date
+          in: query
+          schema:
+            type: string
+            format: date
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/ExchangeRate'
+
+  # ═══════════════════════════════════════════════════════════════════
+  # 生产 / BOM / MRP / 质量
+  # ═══════════════════════════════════════════════════════════════════
+  /erp/production/orders:
+    get:
+      tags: [生产订单]
+      summary: 获取生产订单列表
+      parameters:
+        - $ref: '#/components/parameters/PageParam'
+        - $ref: '#/components/parameters/PageSizeParam'
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProductionOrderList'
+    post:
+      tags: [生产订单]
+      summary: 创建生产订单
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ProductionOrderRequest'
+      responses:
+        '201':
+          description: 创建成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProductionOrder'
+
+  /erp/boms:
+    get:
+      tags: [BOM]
+      summary: 获取 BOM 列表
+      parameters:
+        - name: product_id
+          in: query
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Bom'
+    post:
+      tags: [BOM]
+      summary: 创建 BOM
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/BomRequest'
+      responses:
+        '201':
+          description: 创建成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Bom'
+
+  /erp/mrp/results:
+    get:
+      tags: [MRP]
+      summary: 获取 MRP 计算结果
+      parameters:
+        - name: period
+          in: query
+          schema:
+            type: string
+        - name: product_id
+          in: query
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/MrpResult'
+
+  /erp/mrp/calculate:
+    post:
+      tags: [MRP]
+      summary: 触发 MRP 计算
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                period:
+                  type: string
+      responses:
+        '200':
+          description: 计算完成
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse'
+
+  /erp/work-centers:
+    get:
+      tags: [工作中心]
+      summary: 获取工作中心列表
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/WorkCenter'
+
+  /erp/quality/standards:
+    get:
+      tags: [质量标准]
+      summary: 获取质量标准
+      parameters:
+        - $ref: '#/components/parameters/PageParam'
+        - $ref: '#/components/parameters/PageSizeParam'
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/QualityStandardList'
+    post:
+      tags: [质量标准]
+      summary: 创建质量标准
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/QualityStandardRequest'
+      responses:
+        '201':
+          description: 创建成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/QualityStandard'
+
+  /erp/quality/inspections:
+    get:
+      tags: [质量检验]
+      summary: 获取检验记录
+      parameters:
+        - $ref: '#/components/parameters/PageParam'
+        - $ref: '#/components/parameters/PageSizeParam'
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/QualityInspectionList'
+    post:
+      tags: [质量检验]
+      summary: 创建检验记录
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/QualityInspectionRequest'
+      responses:
+        '201':
+          description: 创建成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/QualityInspection'
+
+  /erp/quality/unqualified:
+    get:
+      tags: [不合格品]
+      summary: 获取不合格品记录
+      parameters:
+        - $ref: '#/components/parameters/PageParam'
+        - $ref: '#/components/parameters/PageSizeParam'
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UnqualifiedProductList'
+
+  # ═══════════════════════════════════════════════════════════════════
+  # BPM 流程引擎
+  # ═══════════════════════════════════════════════════════════════════
+  /erp/bpm/definitions:
+    get:
+      tags: [BPM]
+      summary: 获取流程定义
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/BpmDefinition'
+    post:
+      tags: [BPM]
+      summary: 创建流程定义
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/BpmDefinitionRequest'
+      responses:
+        '201':
+          description: 创建成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BpmDefinition'
+
+  /erp/bpm/instances:
+    get:
+      tags: [BPM]
+      summary: 获取流程实例
+      parameters:
+        - $ref: '#/components/parameters/PageParam'
+        - $ref: '#/components/parameters/PageSizeParam'
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BpmInstanceList'
+    post:
+      tags: [BPM]
+      summary: 启动流程实例
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/BpmInstanceRequest'
+      responses:
+        '201':
+          description: 启动成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BpmInstance'
+
+  /erp/bpm/tasks:
+    get:
+      tags: [BPM]
+      summary: 获取任务列表
+      parameters:
+        - $ref: '#/components/parameters/PageParam'
+        - $ref: '#/components/parameters/PageSizeParam'
+        - name: status
+          in: query
+          schema:
+            type: string
+        - name: assignee_id
+          in: query
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BpmTaskList'
+
+  /erp/bpm/tasks/{id}/approve:
+    post:
+      tags: [BPM]
+      summary: 审批任务
+      parameters:
+        - $ref: '#/components/parameters/IdParam'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                approved:
+                  type: boolean
+                comment:
+                  type: string
+      responses:
+        '200':
+          description: 审批成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse'
+
+  /erp/bpm/tasks/{id}/delegate:
+    post:
+      tags: [BPM]
+      summary: 委托任务
+      parameters:
+        - $ref: '#/components/parameters/IdParam'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                delegate_to:
+                  type: integer
+                reason:
+                  type: string
+      responses:
+        '200':
+          description: 委托成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse'
+
+  /erp/bpm/tasks/{id}/urge:
+    post:
+      tags: [BPM]
+      summary: 催办任务
+      parameters:
+        - $ref: '#/components/parameters/IdParam'
+      responses:
+        '200':
+          description: 催办成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse'
+
+  # ═══════════════════════════════════════════════════════════════════
+  # 通知 / 邮件 / OA
+  # ═══════════════════════════════════════════════════════════════════
+  /erp/notifications:
+    get:
+      tags: [通知]
+      summary: 获取通知列表
+      parameters:
+        - $ref: '#/components/parameters/PageParam'
+        - $ref: '#/components/parameters/PageSizeParam'
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [unread, read, all]
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/NotificationList'
+
+  /erp/notifications/{id}/read:
+    post:
+      tags: [通知]
+      summary: 标记通知已读
+      parameters:
+        - $ref: '#/components/parameters/IdParam'
+      responses:
+        '200':
+          description: 标记成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse'
+
+  /erp/notification-settings:
+    get:
+      tags: [通知]
+      summary: 获取通知设置
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/NotificationSetting'
+    put:
+      tags: [通知]
+      summary: 更新通知设置
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: array
+              items:
+                $ref: '#/components/schemas/NotificationSetting'
+      responses:
+        '200':
+          description: 更新成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse'
+
+  /erp/emails/send:
+    post:
+      tags: [邮件]
+      summary: 发送邮件
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/EmailSendRequest'
+      responses:
+        '200':
+          description: 发送成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse'
+
+  /erp/emails/logs:
+    get:
+      tags: [邮件]
+      summary: 获取邮件发送日志
+      parameters:
+        - $ref: '#/components/parameters/PageParam'
+        - $ref: '#/components/parameters/PageSizeParam'
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EmailLogList'
+
+  /erp/oa/announcements:
+    get:
+      tags: [OA]
+      summary: 获取 OA 公告
+      parameters:
+        - $ref: '#/components/parameters/PageParam'
+        - $ref: '#/components/parameters/PageSizeParam'
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OaAnnouncementList'
+    post:
+      tags: [OA]
+      summary: 发布公告
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/OaAnnouncementRequest'
+      responses:
+        '201':
+          description: 发布成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OaAnnouncement'
+
+  /erp/oa/messages:
+    get:
+      tags: [OA]
+      summary: 获取站内信
+      parameters:
+        - $ref: '#/components/parameters/PageParam'
+        - $ref: '#/components/parameters/PageSizeParam'
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OaMessageList'
+    post:
+      tags: [OA]
+      summary: 发送站内信
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/OaMessageRequest'
+      responses:
+        '201':
+          description: 发送成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OaMessage'
+
+  # ═══════════════════════════════════════════════════════════════════
+  # 审计 / 日志
+  # ═══════════════════════════════════════════════════════════════════
+  /erp/audit-logs:
+    get:
+      tags: [审计]
+      summary: 获取审计日志
+      parameters:
+        - $ref: '#/components/parameters/PageParam'
+        - $ref: '#/components/parameters/PageSizeParam'
+        - name: user_id
+          in: query
+          schema:
+            type: integer
+        - name: action
+          in: query
+          schema:
+            type: string
+        - name: resource
+          in: query
+          schema:
+            type: string
+        - name: start_date
+          in: query
+          schema:
+            type: string
+            format: date
+        - name: end_date
+          in: query
+          schema:
+            type: string
+            format: date
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuditLogList'
+
+  /erp/business-audit-logs:
+    get:
+      tags: [审计]
+      summary: 获取业务审计日志
+      parameters:
+        - $ref: '#/components/parameters/PageParam'
+        - $ref: '#/components/parameters/PageSizeParam'
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuditLogList'
+
+  /erp/financial-audit-logs:
+    get:
+      tags: [审计]
+      summary: 获取财务审计日志
+      parameters:
+        - $ref: '#/components/parameters/PageParam'
+        - $ref: '#/components/parameters/PageSizeParam'
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuditLogList'
+
+  /erp/permission-audit-logs:
+    get:
+      tags: [审计]
+      summary: 获取权限审计日志
+      parameters:
+        - $ref: '#/components/parameters/PageParam'
+        - $ref: '#/components/parameters/PageSizeParam'
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuditLogList'
+
+  /erp/security-audit-logs:
+    get:
+      tags: [审计]
+      summary: 获取安全审计日志
+      parameters:
+        - $ref: '#/components/parameters/PageParam'
+        - $ref: '#/components/parameters/PageSizeParam'
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuditLogList'
+
+  /erp/omni-audit-logs:
+    get:
+      tags: [审计]
+      summary: 获取全局审计日志
+      parameters:
+        - $ref: '#/components/parameters/PageParam'
+        - $ref: '#/components/parameters/PageSizeParam'
+        - name: entity_type
+          in: query
+          schema:
+            type: string
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuditLogList'
+
+  /erp/operation-logs:
+    get:
+      tags: [日志]
+      summary: 获取操作日志
+      parameters:
+        - $ref: '#/components/parameters/PageParam'
+        - $ref: '#/components/parameters/PageSizeParam'
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OperationLogList'
+
+  /erp/api-access-logs:
+    get:
+      tags: [日志]
+      summary: 获取 API 访问日志
+      parameters:
+        - $ref: '#/components/parameters/PageParam'
+        - $ref: '#/components/parameters/PageSizeParam'
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiAccessLogList'
+
+  /erp/login-logs:
+    get:
+      tags: [日志]
+      summary: 获取登录日志
+      parameters:
+        - $ref: '#/components/parameters/PageParam'
+        - $ref: '#/components/parameters/PageSizeParam'
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LoginLogList'
+
+  /erp/performance-logs:
+    get:
+      tags: [日志]
+      summary: 获取性能日志
+      parameters:
+        - $ref: '#/components/parameters/PageParam'
+        - $ref: '#/components/parameters/PageSizeParam'
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PerformanceLogList'
+
+  # ═══════════════════════════════════════════════════════════════════
+  # 报表 / BI
+  # ═══════════════════════════════════════════════════════════════════
+  /erp/reports/dashboards:
+    get:
+      tags: [报表]
+      summary: 获取报表看板列表
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/ReportDashboard'
+    post:
+      tags: [报表]
+      summary: 创建报表看板
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ReportDashboardRequest'
+      responses:
+        '201':
+          description: 创建成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReportDashboard'
+
+  /erp/reports/definitions:
+    get:
+      tags: [报表]
+      summary: 获取报表定义
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/ReportDefinition'
+    post:
+      tags: [报表]
+      summary: 创建报表定义
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ReportDefinitionRequest'
+      responses:
+        '201':
+          description: 创建成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReportDefinition'
+
+  /erp/reports/export:
+    post:
+      tags: [报表]
+      summary: 导出报表
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                report_id:
+                  type: integer
+                format:
+                  type: string
+                  enum: [pdf, excel, csv]
+                parameters:
+                  type: object
+      responses:
+        '200':
+          description: 导出成功
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  download_url:
+                    type: string
+
+  /erp/bi/sales-analysis:
+    post:
+      tags: [BI]
+      summary: BI 销售多维分析
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                dimensions:
+                  type: array
+                  items:
+                    type: string
+                    enum: [date, product, customer, warehouse, sales_rep]
+                measures:
+                  type: array
+                  items:
+                    type: string
+                    enum: [quantity, amount, cost, profit]
+                filters:
+                  type: object
+                time_range:
+                  type: object
+      responses:
+        '200':
+          description: 分析完成
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      type: object
+                  total:
+                    type: integer
+
+  /erp/bi/sales-facts:
+    get:
+      tags: [BI]
+      summary: 获取 BI 销售事实表
+      parameters:
+        - name: start_date
+          in: query
+          schema:
+            type: string
+            format: date
+        - name: end_date
+          in: query
+          schema:
+            type: string
+            format: date
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/SalesFact'
+
+  /erp/bi/dim-products:
+    get:
+      tags: [BI]
+      summary: 获取 BI 商品维度
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/DimProduct'
+
+  /erp/bi/dim-customers:
+    get:
+      tags: [BI]
+      summary: 获取 BI 客户维度
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/DimCustomer'
+
+  /erp/bi/dim-dates:
+    get:
+      tags: [BI]
+      summary: 获取 BI 日期维度
+      parameters:
+        - name: start_date
+          in: query
+          schema:
+            type: string
+            format: date
+        - name: end_date
+          in: query
+          schema:
+            type: string
+            format: date
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/DimDate'
+
+  # ═══════════════════════════════════════════════════════════════════
+  # 业务追溯
+  # ═══════════════════════════════════════════════════════════════════
+  /erp/trace/forward:
+    get:
+      tags: [业务追溯]
+      summary: 正向追溯
+      parameters:
+        - name: business_type
+          in: query
+          required: true
+          schema:
+            type: string
+        - name: business_id
+          in: query
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/BusinessTrace'
+
+  /erp/trace/backward:
+    get:
+      tags: [业务追溯]
+      summary: 反向追溯
+      parameters:
+        - name: business_type
+          in: query
+          required: true
+          schema:
+            type: string
+        - name: business_id
+          in: query
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/BusinessTrace'
+
+  # ═══════════════════════════════════════════════════════════════════
+  # AI 分析
+  # ═══════════════════════════════════════════════════════════════════
+  /erp/ai/forecast-sales:
+    post:
+      tags: [AI 分析]
+      summary: AI 销售预测
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                product_id:
+                  type: integer
+                horizon_days:
+                  type: integer
+                  default: 30
+                confidence_level:
+                  type: number
+                  default: 0.95
+      responses:
+        '200':
+          description: 预测完成
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  predictions:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        date:
+                          type: string
+                          format: date
+                        predicted_quantity:
+                          type: number
+                        lower_bound:
+                          type: number
+                        upper_bound:
+                          type: number
+
+  /erp/ai/optimize-inventory:
+    post:
+      tags: [AI 分析]
+      summary: AI 库存优化
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                warehouse_id:
+                  type: integer
+                target_service_level:
+                  type: number
+      responses:
+        '200':
+          description: 优化完成
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  recommendations:
+                    type: array
+                    items:
+                      type: object
+
+  /erp/ai/detect-anomalies:
+    post:
+      tags: [AI 分析]
+      summary: AI 异常检测
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                metric:
+                  type: string
+                time_range:
+                  type: object
+      responses:
+        '200':
+          description: 检测完成
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+
+  /erp/ai/recommendations:
+    get:
+      tags: [AI 分析]
+      summary: AI 建议
+      parameters:
+        - name: type
+          in: query
+          schema:
+            type: string
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+
+  /erp/ai/process-optimizations:
+    get:
+      tags: [AI 工艺优化]
+      summary: 获取工艺优化列表
+      parameters:
+        - $ref: '#/components/parameters/PageParam'
+        - $ref: '#/components/parameters/PageSizeParam'
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AiProcessOptimizationList'
+    post:
+      tags: [AI 工艺优化]
+      summary: 创建工艺优化
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AiProcessOptimizationRequest'
+      responses:
+        '201':
+          description: 创建成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AiProcessOptimization'
+
+  /erp/ai/process-optimizations/{id}/apply:
+    post:
+      tags: [AI 工艺优化]
+      summary: 应用工艺优化
+      parameters:
+        - $ref: '#/components/parameters/IdParam'
+      responses:
+        '200':
+          description: 应用成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse'
+
+  /erp/ai/quality-predictions:
+    get:
+      tags: [AI 质量预测]
+      summary: 获取质量预测列表
+      parameters:
+        - $ref: '#/components/parameters/PageParam'
+        - $ref: '#/components/parameters/PageSizeParam'
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AiQualityPredictionList'
+    post:
+      tags: [AI 质量预测]
+      summary: 创建质量预测
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AiQualityPredictionRequest'
+      responses:
+        '201':
+          description: 创建成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AiQualityPrediction'
+
+  /erp/ai/summary:
+    get:
+      tags: [AI 分析]
+      summary: AI 综合摘要
+      parameters:
+        - name: period
+          in: query
+          schema:
+            type: string
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  summary:
+                    type: string
+                  key_metrics:
+                    type: object
+                  recommendations:
+                    type: array
+                    items:
+                      type: string
+
+  /erp/ai/health:
+    get:
+      tags: [AI 分析]
+      summary: AI 服务健康检查
+      security: []
+      responses:
+        '200':
+          description: 健康
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: healthy
+                  model_version:
+                    type: string
+                  uptime_seconds:
+                    type: integer
+
+  # ═══════════════════════════════════════════════════════════════════
+  # 染整工艺 / 色卡 / 物流
+  # ═══════════════════════════════════════════════════════════════════
+  /erp/dye/recipes:
+    get:
+      tags: [染整工艺]
+      summary: 获取染色配方列表
+      parameters:
+        - $ref: '#/components/parameters/PageParam'
+        - $ref: '#/components/parameters/PageSizeParam'
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DyeRecipeList'
+    post:
+      tags: [染整工艺]
+      summary: 创建染色配方
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DyeRecipeRequest'
+      responses:
+        '201':
+          description: 创建成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DyeRecipe'
+
+  /erp/dye/batches:
+    get:
+      tags: [染整工艺]
+      summary: 获取染批列表
+      parameters:
+        - $ref: '#/components/parameters/PageParam'
+        - $ref: '#/components/parameters/PageSizeParam'
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DyeBatchList'
+    post:
+      tags: [染整工艺]
+      summary: 创建染批
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DyeBatchRequest'
+      responses:
+        '201':
+          description: 创建成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DyeBatch'
+
+  /erp/greige-fabrics:
+    get:
+      tags: [染整工艺]
+      summary: 获取坯布列表
+      parameters:
+        - $ref: '#/components/parameters/PageParam'
+        - $ref: '#/components/parameters/PageSizeParam'
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GreigeFabricList'
+
+  /erp/color-cards:
+    get:
+      tags: [色卡]
+      summary: 获取色卡列表
+      parameters:
+        - $ref: '#/components/parameters/PageParam'
+        - $ref: '#/components/parameters/PageSizeParam'
+        - name: season
+          in: query
+          schema:
+            type: string
+        - name: year
+          in: query
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ColorCardList'
+
+  /erp/color-code-mappings:
+    get:
+      tags: [色卡]
+      summary: 获取色号映射
+      parameters:
+        - name: pantone_code
+          in: query
+          schema:
+            type: string
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/ColorCodeMapping'
+
+  /erp/logistics/waybills:
+    get:
+      tags: [物流]
+      summary: 获取物流运单
+      parameters:
+        - $ref: '#/components/parameters/PageParam'
+        - $ref: '#/components/parameters/PageSizeParam'
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WaybillList'
+    post:
+      tags: [物流]
+      summary: 创建运单
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/WaybillRequest'
+      responses:
+        '201':
+          description: 创建成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Waybill'
+
+  # ═══════════════════════════════════════════════════════════════════
+  # API 网关 / Webhook / 监控
+  # ═══════════════════════════════════════════════════════════════════
+  /erp/api-keys:
+    get:
+      tags: [API 网关]
+      summary: 获取 API 密钥列表
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/ApiKey'
+    post:
+      tags: [API 网关]
+      summary: 创建 API 密钥
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ApiKeyRequest'
+      responses:
+        '201':
+          description: 创建成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiKey'
+
+  /erp/webhooks:
+    get:
+      tags: [API 网关]
+      summary: 获取 Webhook 列表
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Webhook'
+    post:
+      tags: [API 网关]
+      summary: 创建 Webhook
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/WebhookRequest'
+      responses:
+        '201':
+          description: 创建成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Webhook'
+
+  /erp/webhooks/{id}/test:
+    post:
+      tags: [API 网关]
+      summary: 测试 Webhook
+      parameters:
+        - $ref: '#/components/parameters/IdParam'
+      responses:
+        '200':
+          description: 测试成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse'
+
+  /metrics:
+    get:
+      tags: [监控]
+      summary: Prometheus 指标
+      security: []
+      responses:
+        '200':
+          description: 成功
+          content:
+            text/plain:
+              schema:
+                type: string
+
+  /health:
+    get:
+      tags: [监控]
+      summary: 健康检查
+      security: []
+      responses:
+        '200':
+          description: 健康
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: ok
+                  uptime_seconds:
+                    type: integer
+                  version:
+                    type: string
+
+  # ═══════════════════════════════════════════════════════════════════
+  # 导入导出
+  # ═══════════════════════════════════════════════════════════════════
+  /erp/import/csv:
+    post:
+      tags: [导入导出]
+      summary: CSV 导入
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                file:
+                  type: string
+                  format: binary
+                entity_type:
+                  type: string
+      responses:
+        '200':
+          description: 导入成功
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  imported:
+                    type: integer
+                  failed:
+                    type: integer
+                  errors:
+                    type: array
+                    items:
+                      type: object
+
+  /erp/import/excel:
+    post:
+      tags: [导入导出]
+      summary: Excel 导入
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                file:
+                  type: string
+                  format: binary
+                entity_type:
+                  type: string
+      responses:
+        '200':
+          description: 导入成功
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  imported:
+                    type: integer
+                  failed:
+                    type: integer
+
+  /erp/export/csv/{export_type}:
+    get:
+      tags: [导入导出]
+      summary: CSV 导出
+      parameters:
+        - name: export_type
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: filters
+          in: query
+          schema:
+            type: string
+            description: JSON 序列化的过滤条件
+      responses:
+        '200':
+          description: 成功
+          content:
+            text/csv:
+              schema:
+                type: string
+                format: binary
+
+  /erp/export/pdf:
+    post:
+      tags: [导入导出]
+      summary: PDF 导出
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                report_id:
+                  type: integer
+                parameters:
+                  type: object
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/pdf:
+              schema:
+                type: string
+                format: binary
+
+  /erp/export/excel:
+    post:
+      tags: [导入导出]
+      summary: Excel 导出
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                report_id:
+                  type: integer
+                parameters:
+                  type: object
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/vnd.openxmlformats-officedocument.spreadsheetml.sheet:
+              schema:
+                type: string
+                format: binary
+
+  # ═══════════════════════════════════════════════════════════════════
+  # 高级分析
+  # ═══════════════════════════════════════════════════════════════════
+  /erp/analytics/sales:
+    post:
+      tags: [高级分析]
+      summary: 销售分析
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                start_date:
+                  type: string
+                  format: date
+                end_date:
+                  type: string
+                  format: date
+                dimensions:
+                  type: array
+                  items:
+                    type: string
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      type: object
+                  summary:
+                    type: object
+
+  /erp/analytics/customers:
+    post:
+      tags: [高级分析]
+      summary: 客户分析
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                customer_id:
+                  type: integer
+                start_date:
+                  type: string
+                  format: date
+                end_date:
+                  type: string
+                  format: date
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  customer:
+                    $ref: '#/components/schemas/Customer'
+                  purchase_history:
+                    type: array
+                    items:
+                      type: object
+                  rfm_analysis:
+                    type: object
+
+  /erp/analytics/business:
+    post:
+      tags: [高级分析]
+      summary: 业务分析
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                metrics:
+                  type: array
+                  items:
+                    type: string
+                time_range:
+                  type: object
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                type: object
+
+  /erp/analytics/forecast:
+    post:
+      tags: [高级分析]
+      summary: 业务预测
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                metric:
+                  type: string
+                horizon_days:
+                  type: integer
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                type: object
+
+  /erp/analytics/trends:
+    get:
+      tags: [高级分析]
+      summary: 趋势分析
+      parameters:
+        - name: metric
+          in: query
+          schema:
+            type: string
+        - name: period
+          in: query
+          schema:
+            type: string
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                type: object
+
+  # ═══════════════════════════════════════════════════════════════════
+  # 灾备
+  # ═══════════════════════════════════════════════════════════════════
+  /erp/failover/status:
+    get:
+      tags: [灾备]
+      summary: 灾备状态
+      security: []
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  primary_status:
+                    type: string
+                  secondary_status:
+                    type: string
+                  last_sync:
+                    type: string
+                    format: date-time
+
+  /erp/failover/switchover:
+    post:
+      tags: [灾备]
+      summary: 灾备切换
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                target:
+                  type: string
+                  enum: [primary, secondary]
+                reason:
+                  type: string
+      responses:
+        '200':
+          description: 切换成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse'
+
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: |
+        使用 JWT Token 认证，格式：`Authorization: Bearer {token}`
+        Token 中包含 user_id、tenant_id、role_ids 等信息
+        有效期：2 小时，可通过 /erp/auth/refresh 刷新
+
+  parameters:
+    IdParam:
+      name: id
+      in: path
+      required: true
+      description: 资源 ID
+      schema:
+        type: integer
+        format: int64
+        minimum: 1
+    PageParam:
+      name: page
+      in: query
+      description: 页码（从 1 开始）
+      schema:
+        type: integer
+        default: 1
+        minimum: 1
+    PageSizeParam:
+      name: page_size
+      in: query
+      description: 每页大小
+      schema:
+        type: integer
+        default: 20
+        minimum: 1
+        maximum: 200
+    KeywordParam:
+      name: keyword
+      in: query
+      description: 关键字搜索
+      schema:
+        type: string
+    StartDateParam:
+      name: start_date
+      in: query
+      description: 起始日期
+      schema:
+        type: string
+        format: date
+    EndDateParam:
+      name: end_date
+      in: query
+      description: 结束日期
+      schema:
+        type: string
+        format: date
+    TenantIdParam:
+      name: tenant_id
+      in: query
+      description: 租户 ID（平台级接口使用）
+      schema:
+        type: integer
+    StatusParam:
+      name: status
+      in: query
+      description: 状态
+      schema:
+        type: string
+    SortByParam:
+      name: sort_by
+      in: query
+      description: 排序字段
+      schema:
+        type: string
+    SortOrderParam:
+      name: sort_order
+      in: query
+      description: 排序方向
+      schema:
+        type: string
+        enum: [asc, desc]
+        default: asc
+
+  responses:
+    Unauthorized:
+      description: 未认证
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ApiResponse'
+    Forbidden:
+      description: 无权限
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ApiResponse'
+    NotFound:
+      description: 资源不存在
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ApiResponse'
+    BadRequest:
+      description: 请求参数错误
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ApiResponse'
+    ServerError:
+      description: 服务器内部错误
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ApiResponse'
+
+  schemas:
+    # ═══════════════════════════════════════════════════════════════════
+    # 通用 schema
+    # ═══════════════════════════════════════════════════════════════════
+    ApiResponse:
+      type: object
+      description: 统一 API 响应包装
+      required: [code, message]
+      properties:
+        code:
+          type: integer
+          description: 状态码（0 = 成功，>= 400 = 业务异常）
+          example: 0
+        message:
+          type: string
+          description: 提示信息
+          example: 操作成功
+        data:
+          description: 业务数据
+        timestamp:
+          type: string
+          format: date-time
+        request_id:
+          type: string
+          description: 请求追踪 ID
+
+    PaginationMeta:
+      type: object
+      properties:
+        total:
+          type: integer
+          description: 总记录数
+        page:
+          type: integer
+          description: 当前页码
+        page_size:
+          type: integer
+          description: 每页大小
+        total_pages:
+          type: integer
+          description: 总页数
+
+    # ═══════════════════════════════════════════════════════════════════
+    # 认证 / 用户
+    # ═══════════════════════════════════════════════════════════════════
+    LoginRequest:
+      type: object
+      required: [username, password]
+      properties:
+        username:
+          type: string
+          minLength: 3
+          maxLength: 50
+        password:
+          type: string
+          minLength: 8
+          maxLength: 128
+          format: password
+        tenant_code:
+          type: string
+          description: 租户编码（多租户场景）
+
+    LoginResponse:
+      type: object
+      properties:
+        access_token:
+          type: string
+          description: JWT 访问令牌
+        refresh_token:
+          type: string
+          description: 刷新令牌
+        token_type:
+          type: string
+          example: Bearer
+        expires_in:
+          type: integer
+          description: 过期时间（秒）
+          example: 7200
+        user:
+          $ref: '#/components/schemas/User'
+        permissions:
+          type: array
+          items:
+            type: string
+        roles:
+          type: array
+          items:
+            type: string
+        requires_totp:
+          type: boolean
+          description: 是否需要双因素验证
+        totp_token:
+          type: string
+          description: 双因素验证临时令牌
+
+    TwoFactorLoginRequest:
+      type: object
+      required: [totp_token, totp_code]
+      properties:
+        totp_token:
+          type: string
+        totp_code:
+          type: string
+          minLength: 6
+          maxLength: 6
+
+    ChangePasswordRequest:
+      type: object
+      required: [old_password, new_password]
+      properties:
+        old_password:
+          type: string
+          format: password
+        new_password:
+          type: string
+          format: password
+          minLength: 8
+
+    ResetPasswordRequest:
+      type: object
+      required: [new_password]
+      properties:
+        new_password:
+          type: string
+          format: password
+          minLength: 8
+        force_change:
+          type: boolean
+          default: true
+
+    User:
+      type: object
+      properties:
+        id:
+          type: integer
+        tenant_id:
+          type: integer
+        username:
+          type: string
+        email:
+          type: string
+          format: email
+        real_name:
+          type: string
+        phone:
+          type: string
+        department_id:
+          type: integer
+        role_id:
+          type: integer
+        role_ids:
+          type: array
+          items:
+            type: integer
+        status:
+          type: string
+          enum: [active, inactive, locked]
+        is_totp_enabled:
+          type: boolean
+        last_login_at:
+          type: string
+          format: date-time
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+
+    UserCreateRequest:
+      type: object
+      required: [username, email, password]
+      properties:
+        username:
+          type: string
+          minLength: 3
+          maxLength: 50
+        email:
+          type: string
+          format: email
+        password:
+          type: string
+          minLength: 8
+        real_name:
+          type: string
+        phone:
+          type: string
+        department_id:
+          type: integer
+        role_ids:
+          type: array
+          items:
+            type: integer
+
+    UserUpdateRequest:
+      type: object
+      properties:
+        email:
+          type: string
+          format: email
+        real_name:
+          type: string
+        phone:
+          type: string
+        department_id:
+          type: integer
+        role_ids:
+          type: array
+          items:
+            type: integer
+        status:
+          type: string
+          enum: [active, inactive, locked]
+
+    UserList:
+      type: object
+      allOf:
+        - $ref: '#/components/schemas/ApiResponse'
+        - type: object
+          properties:
+            data:
+              type: object
+              properties:
+                items:
+                  type: array
+                  items:
+                    $ref: '#/components/schemas/User'
+                meta:
+                  $ref: '#/components/schemas/PaginationMeta'
+
+    Role:
+      type: object
+      properties:
+        id:
+          type: integer
+        tenant_id:
+          type: integer
+        code:
+          type: string
+        name:
+          type: string
+        description:
+          type: string
+        permission_ids:
+          type: array
+          items:
+            type: integer
+        is_system:
+          type: boolean
+        created_at:
+          type: string
+          format: date-time
+
+    RoleCreateRequest:
+      type: object
+      required: [code, name]
+      properties:
+        code:
+          type: string
+        name:
+          type: string
+        description:
+          type: string
+        permission_ids:
+          type: array
+          items:
+            type: integer
+
+    RoleUpdateRequest:
+      type: object
+      properties:
+        name:
+          type: string
+        description:
+          type: string
+        permission_ids:
+          type: array
+          items:
+            type: integer
+
+    RoleList:
+      allOf:
+        - $ref: '#/components/schemas/ApiResponse'
+        - type: object
+          properties:
+            data:
+              type: object
+              properties:
+                items:
+                  type: array
+                  items:
+                    $ref: '#/components/schemas/Role'
+                meta:
+                  $ref: '#/components/schemas/PaginationMeta'
+
+    Permission:
+      type: object
+      properties:
+        id:
+          type: integer
+        code:
+          type: string
+          example: 'sales:order:read'
+        name:
+          type: string
+        resource:
+          type: string
+          example: 'sales_order'
+        action:
+          type: string
+          enum: [create, read, update, delete, export, import, approve]
+        description:
+          type: string
+
+    PermissionCreateRequest:
+      type: object
+      required: [code, name, resource, action]
+      properties:
+        code:
+          type: string
+        name:
+          type: string
+        resource:
+          type: string
+        action:
+          type: string
+        description:
+          type: string
+
+    PermissionUpdateRequest:
+      type: object
+      properties:
+        name:
+          type: string
+        description:
+          type: string
+
+    DataPermission:
+      type: object
+      properties:
+        id:
+          type: integer
+        role_id:
+          type: integer
+        scope_type:
+          type: string
+          enum: [all, department, self, custom]
+        scope_value:
+          type: string
+          description: 范围值（部门 ID / 用户 ID / 自定义 SQL）
+        resource:
+          type: string
+
+    DataPermissionRequest:
+      type: object
+      required: [role_id, scope_type, resource]
+      properties:
+        role_id:
+          type: integer
+        scope_type:
+          type: string
+        scope_value:
+          type: string
+        resource:
+          type: string
+
+    FieldPermission:
+      type: object
+      properties:
+        id:
+          type: integer
+        role_id:
+          type: integer
+        table_name:
+          type: string
+        field_name:
+          type: string
+        access_type:
+          type: string
+          enum: [read, write, hidden]
+
+    FieldPermissionRequest:
+      type: object
+      required: [role_id, table_name, field_name, access_type]
+      properties:
+        role_id:
+          type: integer
+        table_name:
+          type: string
+        field_name:
+          type: string
+        access_type:
+          type: string
+
+    # ═══════════════════════════════════════════════════════════════════
+    # 租户
+    # ═══════════════════════════════════════════════════════════════════
+    Tenant:
+      type: object
+      properties:
+        id:
+          type: integer
+        code:
+          type: string
+        name:
+          type: string
+        contact_name:
+          type: string
+        contact_phone:
+          type: string
+        contact_email:
+          type: string
+        subscription_plan:
+          type: string
+          enum: [basic, standard, enterprise, custom]
+        max_users:
+          type: integer
+        status:
+          type: string
+          enum: [active, inactive, expired, suspended]
+        expires_at:
+          type: string
+          format: date
+        created_at:
+          type: string
+          format: date-time
+
+    TenantCreateRequest:
+      type: object
+      required: [code, name, contact_name, contact_email]
+      properties:
+        code:
+          type: string
+          minLength: 2
+          maxLength: 50
+        name:
+          type: string
+        contact_name:
+          type: string
+        contact_phone:
+          type: string
+        contact_email:
+          type: string
+        subscription_plan:
+          type: string
+          default: basic
+        max_users:
+          type: integer
+          default: 10
+
+    TenantUpdateRequest:
+      type: object
+      properties:
+        name:
+          type: string
+        contact_name:
+          type: string
+        contact_phone:
+          type: string
+        contact_email:
+          type: string
+        subscription_plan:
+          type: string
+        max_users:
+          type: integer
+        status:
+          type: string
+
+    TenantList:
+      allOf:
+        - $ref: '#/components/schemas/ApiResponse'
+        - type: object
+          properties:
+            data:
+              type: object
+              properties:
+                items:
+                  type: array
+                  items:
+                    $ref: '#/components/schemas/Tenant'
+                meta:
+                  $ref: '#/components/schemas/PaginationMeta'
+
+    TenantUserRequest:
+      type: object
+      required: [user_id]
+      properties:
+        user_id:
+          type: integer
+        role_ids:
+          type: array
+          items:
+            type: integer
+
+    TenantConfig:
+      type: object
+      properties:
+        id:
+          type: integer
+        tenant_id:
+          type: integer
+        config_key:
+          type: string
+        config_value:
+          type: string
+        description:
+          type: string
+
+    TenantConfigRequest:
+      type: object
+      required: [config_key, config_value]
+      properties:
+        config_key:
+          type: string
+        config_value:
+          type: string
+        description:
+          type: string
+
+    TenantPlan:
+      type: object
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        max_users:
+          type: integer
+        max_storage:
+          type: integer
+          description: 存储上限（GB）
+        price:
+          type: number
+          format: double
+        features:
+          type: object
+          description: 功能开关（JSON）
+
+    TenantPlanRequest:
+      type: object
+      required: [name, max_users, price]
+      properties:
+        name:
+          type: string
+        max_users:
+          type: integer
+        max_storage:
+          type: integer
+        price:
+          type: number
+        features:
+          type: object
+
+    TenantSubscription:
+      type: object
+      properties:
+        id:
+          type: integer
+        tenant_id:
+          type: integer
+        plan_id:
+          type: integer
+        start_date:
+          type: string
+          format: date
+        end_date:
+          type: string
+          format: date
+        status:
+          type: string
+          enum: [active, expired, cancelled]
+
+    TenantSubscriptionRequest:
+      type: object
+      required: [tenant_id, plan_id, end_date]
+      properties:
+        tenant_id:
+          type: integer
+        plan_id:
+          type: integer
+        end_date:
+          type: string
+          format: date
+
+    TenantBillingList:
+      allOf:
+        - $ref: '#/components/schemas/ApiResponse'
+        - type: object
+          properties:
+            data:
+              type: object
+              properties:
+                items:
+                  type: array
+                  items:
+                    type: object
+                    properties:
+                      id:
+                        type: integer
+                      tenant_id:
+                        type: integer
+                      period:
+                        type: string
+                      amount:
+                        type: number
+                      status:
+                        type: string
+                meta:
+                  $ref: '#/components/schemas/PaginationMeta'
+
+    Department:
+      type: object
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        parent_id:
+          type: integer
+        manager_id:
+          type: integer
+        path:
+          type: string
+          description: 部门路径（如 /1/3/8）
+        level:
+          type: integer
+        children:
+          type: array
+          items:
+            $ref: '#/components/schemas/Department'
+
+    DepartmentRequest:
+      type: object
+      required: [name]
+      properties:
+        name:
+          type: string
+        parent_id:
+          type: integer
+        manager_id:
+          type: integer
+
+    # ═══════════════════════════════════════════════════════════════════
+    # 商品 / 客户 / 供应商
+    # ═══════════════════════════════════════════════════════════════════
+    Product:
+      type: object
+      properties:
+        id:
+          type: integer
+        tenant_id:
+          type: integer
+        code:
+          type: string
+        name:
+          type: string
+        category_id:
+          type: integer
+        category_name:
+          type: string
+        unit:
+          type: string
+        specification:
+          type: string
+        status:
+          type: string
+        attributes:
+          type: object
+          additionalProperties: true
+        cost_price:
+          type: number
+        sales_price:
+          type: number
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+
+    ProductRequest:
+      type: object
+      required: [code, name, unit]
+      properties:
+        code:
+          type: string
+        name:
+          type: string
+        category_id:
+          type: integer
+        unit:
+          type: string
+        specification:
+          type: string
+        status:
+          type: string
+        attributes:
+          type: object
+        cost_price:
+          type: number
+        sales_price:
+          type: number
+
+    ProductList:
+      allOf:
+        - $ref: '#/components/schemas/ApiResponse'
+        - type: object
+          properties:
+            data:
+              type: object
+              properties:
+                items:
+                  type: array
+                  items:
+                    $ref: '#/components/schemas/Product'
+                meta:
+                  $ref: '#/components/schemas/PaginationMeta'
+
+    ProductCategory:
+      type: object
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        parent_id:
+          type: integer
+        level:
+          type: integer
+        path:
+          type: string
+        children:
+          type: array
+          items:
+            $ref: '#/components/schemas/ProductCategory'
+
+    ProductCategoryRequest:
+      type: object
+      required: [name]
+      properties:
+        name:
+          type: string
+        parent_id:
+          type: integer
+
+    ProductColor:
+      type: object
+      properties:
+        id:
+          type: integer
+        product_id:
+          type: integer
+        color_code:
+          type: string
+        color_name:
+          type: string
+        pantone_code:
+          type: string
+
+    ProductColorRequest:
+      type: object
+      required: [product_id, color_code, color_name]
+      properties:
+        product_id:
+          type: integer
+        color_code:
+          type: string
+        color_name:
+          type: string
+        pantone_code:
+          type: string
+
+    ProductCodeMapping:
+      type: object
+      properties:
+        id:
+          type: integer
+        internal_code:
+          type: string
+        external_code:
+          type: string
+        external_system:
+          type: string
+
+    ProductCodeMappingRequest:
+      type: object
+      required: [internal_code, external_code]
+      properties:
+        internal_code:
+          type: string
+        external_code:
+          type: string
+        external_system:
+          type: string
+
+    ProductSupplierMapping:
+      type: object
+      properties:
+        id:
+          type: integer
+        product_id:
+          type: integer
+        supplier_id:
+          type: integer
+        is_preferred:
+          type: boolean
+        lead_time_days:
+          type: integer
+
+    ProductSupplierMappingRequest:
+      type: object
+      required: [product_id, supplier_id]
+      properties:
+        product_id:
+          type: integer
+        supplier_id:
+          type: integer
+        is_preferred:
+          type: boolean
+        lead_time_days:
+          type: integer
+
+    Customer:
+      type: object
+      properties:
+        id:
+          type: integer
+        tenant_id:
+          type: integer
+        code:
+          type: string
+        name:
+          type: string
+        contact_name:
+          type: string
+        contact_phone:
+          type: string
+        contact_email:
+          type: string
+        address:
+          type: string
+        level:
+          type: string
+          enum: [A, B, C, D]
+        credit_rating:
+          type: string
+        credit_limit:
+          type: number
+        tax_number:
+          type: string
+        bank_account:
+          type: string
+        status:
+          type: string
+        created_at:
+          type: string
+          format: date-time
+
+    CustomerRequest:
+      type: object
+      required: [code, name]
+      properties:
+        code:
+          type: string
+        name:
+          type: string
+        contact_name:
+          type: string
+        contact_phone:
+          type: string
+        contact_email:
+          type: string
+        address:
+          type: string
+        level:
+          type: string
+        credit_limit:
+          type: number
+
+    CustomerList:
+      allOf:
+        - $ref: '#/components/schemas/ApiResponse'
+        - type: object
+          properties:
+            data:
+              type: object
+              properties:
+                items:
+                  type: array
+                  items:
+                    $ref: '#/components/schemas/Customer'
+                meta:
+                  $ref: '#/components/schemas/PaginationMeta'
+
+    CustomerCreditRating:
+      type: object
+      properties:
+        id:
+          type: integer
+        customer_id:
+          type: integer
+        rating:
+          type: string
+          enum: [AAA, AA, A, BBB, BB, B, C]
+        score:
+          type: number
+        evaluated_at:
+          type: string
+          format: date
+        evaluator_id:
+          type: integer
+        notes:
+          type: string
+
+    CustomerCreditRatingRequest:
+      type: object
+      required: [customer_id, rating, score]
+      properties:
+        customer_id:
+          type: integer
+        rating:
+          type: string
+        score:
+          type: number
+        notes:
+          type: string
+
+    CustomerCreditChange:
+      type: object
+      properties:
+        id:
+          type: integer
+        customer_id:
+          type: integer
+        old_rating:
+          type: string
+        new_rating:
+          type: string
+        change_reason:
+          type: string
+        changed_at:
+          type: string
+          format: date-time
+
+    Supplier:
+      type: object
+      properties:
+        id:
+          type: integer
+        tenant_id:
+          type: integer
+        code:
+          type: string
+        name:
+          type: string
+        contact_name:
+          type: string
+        contact_phone:
+          type: string
+        address:
+          type: string
+        category_id:
+          type: integer
+        level:
+          type: string
+        tax_number:
+          type: string
+        bank_account:
+          type: string
+        payment_terms:
+          type: string
+        status:
+          type: string
+        created_at:
+          type: string
+          format: date-time
+
+    SupplierRequest:
+      type: object
+      required: [code, name]
+      properties:
+        code:
+          type: string
+        name:
+          type: string
+        contact_name:
+          type: string
+        contact_phone:
+          type: string
+        address:
+          type: string
+        category_id:
+          type: integer
+        payment_terms:
+          type: string
+
+    SupplierList:
+      allOf:
+        - $ref: '#/components/schemas/ApiResponse'
+        - - type: object
+            properties:
+              data:
+                type: object
+                properties:
+                  items:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Supplier'
+                  meta:
+                    $ref: '#/components/schemas/PaginationMeta'
+
+    SupplierCategory:
+      type: object
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        parent_id:
+          type: integer
+        path:
+          type: string
+
+    SupplierCategoryRequest:
+      type: object
+      required: [name]
+      properties:
+        name:
+          type: string
+        parent_id:
+          type: integer
+
+    SupplierContact:
+      type: object
+      properties:
+        id:
+          type: integer
+        supplier_id:
+          type: integer
+        name:
+          type: string
+        phone:
+          type: string
+        email:
+          type: string
+        position:
+          type: string
+        is_primary:
+          type: boolean
+
+    SupplierContactRequest:
+      type: object
+      required: [supplier_id, name, phone]
+      properties:
+        supplier_id:
+          type: integer
+        name:
+          type: string
+        phone:
+          type: string
+        email:
+          type: string
+        position:
+          type: string
+        is_primary:
+          type: boolean
+
+    SupplierEvaluation:
+      type: object
+      properties:
+        id:
+          type: integer
+        supplier_id:
+          type: integer
+        period:
+          type: string
+        score:
+          type: number
+        grade:
+          type: string
+        indicators:
+          type: object
+        evaluated_at:
+          type: string
+          format: date-time
+
+    SupplierEvaluationRequest:
+      type: object
+      required: [supplier_id, period, score]
+      properties:
+        supplier_id:
+          type: integer
+        period:
+          type: string
+        score:
+          type: number
+        indicators:
+          type: object
+
+    SupplierEvaluationIndicator:
+      type: object
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        weight:
+          type: number
+        type:
+          type: string
+          enum: [quality, delivery, price, service]
+        description:
+          type: string
+
+    SupplierEvaluationIndicatorRequest:
+      type: object
+      required: [name, weight, type]
+      properties:
+        name:
+          type: string
+        weight:
+          type: number
+        type:
+          type: string
+        description:
+          type: string
+
+    SupplierOverallScore:
+      type: object
+      properties:
+        id:
+          type: integer
+        supplier_id:
+          type: integer
+        score:
+          type: number
+        grade:
+          type: string
+        calculated_at:
+          type: string
+          format: date-time
+
+    SupplierLevel:
+      type: object
+      properties:
+        id:
+          type: integer
+        supplier_id:
+          type: integer
+        level:
+          type: string
+        description:
+          type: string
+        effective_date:
+          type: string
+          format: date
+
+    SupplierQualification:
+      type: object
+      properties:
+        id:
+          type: integer
+        supplier_id:
+          type: integer
+        qualification_type:
+          type: string
+        certificate_no:
+          type: string
+        issue_date:
+          type: string
+          format: date
+        expiry_date:
+          type: string
+          format: date
+        file_url:
+          type: string
+
+    SupplierBlacklist:
+      type: object
+      properties:
+        id:
+          type: integer
+        supplier_id:
+          type: integer
+        reason:
+          type: string
+        blacklisted_at:
+          type: string
+          format: date-time
+        blacklisted_by:
+          type: integer
+
+    SupplierBlacklistRequest:
+      type: object
+      required: [supplier_id, reason]
+      properties:
+        supplier_id:
+          type: integer
+        reason:
+          type: string
+
+    SupplierProduct:
+      type: object
+      properties:
+        id:
+          type: integer
+        supplier_id:
+          type: integer
+        product_id:
+          type: integer
+        price:
+          type: number
+        lead_time_days:
+          type: integer
+
+    SupplierProductRequest:
+      type: object
+      required: [supplier_id, product_id]
+      properties:
+        supplier_id:
+          type: integer
+        product_id:
+          type: integer
+        price:
+          type: number
+        lead_time_days:
+          type: integer
+
+    SupplierGrade:
+      type: object
+      properties:
+        id:
+          type: integer
+        supplier_id:
+          type: integer
+        grade:
+          type: string
+        score:
+          type: number
+        evaluated_at:
+          type: string
+          format: date-time
+
+    SupplierProductColor:
+      type: object
+      properties:
+        id:
+          type: integer
+        supplier_id:
+          type: integer
+        product_id:
+          type: integer
+        color_id:
+          type: integer
+
+security:
+  - BearerAuth: []

@@ -9,14 +9,24 @@
 
 use crate::utils::app_state::AppState;
 use axum::{
-    routing::{get, post},
+    routing::{delete, get, post},
     Router,
 };
 
 use crate::handlers::{
-    bpm_definition_handler, bpm_handler, dashboard_handler, health_handler, init_handler,
-    system_update_handler,
+    ai_extend_handler, bpm_definition_handler, bpm_handler, dashboard_handler, health_handler,
+    init_handler, system_update_handler,
 };
+use crate::websocket;
+
+/// WebSocket 路由（path 前缀 /ws）
+///
+/// 关键路径：通知模块 WebSocket
+/// - `/ws/notifications`：通知实时推送（鉴权通过 URL query token）
+pub fn ws() -> Router<AppState> {
+    Router::new()
+        .route("/ws/notifications", get(websocket::ws_notifications_handler))
+}
 
 /// 仪表板路由（path 前缀 /dashboard）
 pub fn dashboard() -> Router<AppState> {
@@ -237,6 +247,65 @@ pub fn init() -> Router<AppState> {
         .route("/init/task-status", get(init_handler::get_task_status))
 }
 
+/// AI 分析深化路由（path 前缀 /ai）— P2-4
+///
+/// 16 个端点：
+/// - 工艺优化 5（创建/列表/详情/应用反馈/删除）+ 1（按色号+布类历史）+ 1（批量）= 7
+/// - 质量预测 5（创建/列表/详情/确认/删除）+ 1（按产品历史）+ 1（批量）= 7
+/// - 看板 / 健康检查 = 2
+pub fn ai() -> Router<AppState> {
+    Router::new()
+        // 工艺优化
+        .route(
+            "/ai/process-optimizations",
+            get(ai_extend_handler::list_process_optimizations)
+                .post(ai_extend_handler::create_process_optimization),
+        )
+        .route(
+            "/ai/process-optimizations/batch",
+            post(ai_extend_handler::batch_create_process_optimizations),
+        )
+        .route(
+            "/ai/process-optimizations/by-color",
+            get(ai_extend_handler::list_process_optimizations_by_color),
+        )
+        .route(
+            "/ai/process-optimizations/:id",
+            get(ai_extend_handler::get_process_optimization)
+                .delete(ai_extend_handler::delete_process_optimization),
+        )
+        .route(
+            "/ai/process-optimizations/:id/apply",
+            post(ai_extend_handler::apply_process_optimization),
+        )
+        // 质量预测
+        .route(
+            "/ai/quality-predictions",
+            get(ai_extend_handler::list_quality_predictions)
+                .post(ai_extend_handler::create_quality_prediction),
+        )
+        .route(
+            "/ai/quality-predictions/batch",
+            post(ai_extend_handler::batch_create_quality_predictions),
+        )
+        .route(
+            "/ai/quality-predictions/by-product",
+            get(ai_extend_handler::list_quality_predictions_by_product),
+        )
+        .route(
+            "/ai/quality-predictions/:id",
+            get(ai_extend_handler::get_quality_prediction)
+                .delete(ai_extend_handler::delete_quality_prediction),
+        )
+        .route(
+            "/ai/quality-predictions/:id/acknowledge",
+            post(ai_extend_handler::acknowledge_quality_prediction),
+        )
+        // 看板 / 健康检查
+        .route("/ai/summary", get(ai_extend_handler::ai_summary))
+        .route("/ai/health", get(ai_extend_handler::ai_health))
+}
+
 /// 系统域统一入口
 ///
 /// 子 router path 已加独立前缀，merge 时 path+method 互不重叠。
@@ -247,6 +316,6 @@ pub fn routes() -> Router<AppState> {
         .merge(bpm())
         .merge(health())
         .merge(init())
-        .merge(audit_logs())
-        .merge(slow_queries())
+        .merge(ai())
+        .merge(ws())
 }

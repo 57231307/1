@@ -5,6 +5,7 @@
 // TODO(tech-debt): 业务接入或重评估后逐项移除；rustc 1.94+ 编译时由编译器报告具体死代码位置。
 
 use crate::middleware::auth_context::AuthContext;
+use crate::models::purchase_order;
 use crate::models::supplier;
 use crate::services::po::order::PurchaseOrderService;
 use crate::services::po::{
@@ -13,6 +14,7 @@ use crate::services::po::{
 };
 use crate::utils::app_state::AppState;
 use crate::utils::error::AppError;
+use crate::utils::number_generator::DocumentNumberGenerator;
 use crate::utils::response::ApiResponse;
 use axum::{
     extract::{Path, Query, State},
@@ -482,4 +484,25 @@ pub async fn export_orders(
         .map_err(|e| AppError::internal(format!("响应构建失败: {}", e)))?;
 
     Ok(response)
+}
+
+/// 生成采购订单号
+/// GET /api/v1/erp/purchases/orders/generate-no
+///
+/// 返回格式: `{ prefix: "PO", order_no: "PO20260617001" }`
+pub async fn generate_order_no(
+    State(state): State<AppState>,
+    _auth: AuthContext,
+) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
+    let order_no = DocumentNumberGenerator::generate_no(
+        &*state.db,
+        "PO",
+        purchase_order::Entity,
+        purchase_order::Column::OrderNo,
+    )
+    .await?;
+    Ok(Json(ApiResponse::success(serde_json::json!({
+        "prefix": "PO",
+        "order_no": order_no
+    }))))
 }

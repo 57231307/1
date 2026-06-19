@@ -22,9 +22,8 @@ pub mod m0019_fix_schema_model_sync;
 pub mod m0020_create_sales_quotations;
 pub mod m0021_create_sales_quotation_items;
 pub mod m0022_create_sales_quotation_terms;
-pub mod m0023_extend_audit_log;
-pub mod m0024_enable_pg_stat_statements;
-pub mod m0025_create_slow_query_log;
+pub mod m0023_create_product_color_prices;
+pub mod m0024_p4_1_perf_indexes;
 
 pub struct Migrator;
 
@@ -54,9 +53,8 @@ impl MigratorTrait for Migrator {
             Box::new(m0020_create_sales_quotations::Migration),
             Box::new(m0021_create_sales_quotation_items::Migration),
             Box::new(m0022_create_sales_quotation_terms::Migration),
-            Box::new(m0023_extend_audit_log::Migration),
-            Box::new(m0024_enable_pg_stat_statements::Migration),
-            Box::new(m0025_create_slow_query_log::Migration),
+            Box::new(m0023_create_product_color_prices::Migration),
+            Box::new(m0024_p4_1_perf_indexes::Migration),
         ]
     }
 }

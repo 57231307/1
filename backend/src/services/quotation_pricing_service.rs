@@ -1,140 +1,227 @@
-#![allow(dead_code)]
-// TODO(tech-debt): 待 P13+ port product_color_price 后移除本占位文件；届时接入
-// 阶梯价（tier pricing）、色号专属折扣、协议价等业务规则。当前 PR-2 阶段
-// 不依赖 product_color_price 模型，所有定价方法返回 0 避免阻断主流程。
-
-//! 销售报价单定价服务（占位）
+//! 销售报价单定价服务
 //!
-//! P0 port 销售报价单 PR-2 阶段的 stub。完整定价逻辑（阶梯价 / 协议折扣 / 色号价目表）依赖
-//! `test` 分支独有的 `product_color_price` 模型，需在 P13+ 单独 port 后接入。
+//! 业务功能：
+//! - 阶梯价匹配（min_quantity 档位）
+//! - 客户等级折扣（VIP 95 折）
+//! - 增值税含税/不含税转换
+//! - 价格来源标记
 //!
-//! # 设计原则
-//! - 不引入 `product_color_price` 模型依赖
-//! - 提供与最终实现同名的方法签名（`calculate`），handler 层可安全引用
-//! - 临时返回值：固定 `Decimal::ZERO`，业务层应在此基础上由人工核算填充金额
-//!
-//! # 替换计划
-//! - P13 port `product_color_price` 模型
-//! - 替换 `QuotationPricingService::calculate` 实现：按 product_id + color_id 查表 + 协议价叠加
-//! - 移除本文件级 `#![allow(dead_code)]` 改为项级注释
+//! Week 2 任务 6 - 销售报价单模块
+//! 创建时间: 2026-06-16
+//! 关联计划: 2026-06-16-sales-quotation-plan.md Task 6
 
 use rust_decimal::Decimal;
+use sea_orm::{ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter};
 use serde::{Deserialize, Serialize};
+use std::sync::Arc;
 
+use crate::models::product_color_price;
+use crate::utils::app_state::AppState;
 use crate::utils::error::AppError;
 
-/// 报价单定价上下文（stub 占位；与最终接口形态保持一致）
-///
-/// # 字段说明
-/// - `product_id`: 产品主表 ID
-/// - `color_id`: 色号 ID（可选）
-/// - `quantity`: 数量
-/// - `unit_price`: 主表上的报价（不含税）
-/// - `customer_id`: 客户 ID（用于客户级别折扣）
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct PricingContext {
-    pub product_id: i32,
-    pub color_id: Option<i32>,
-    pub quantity: Decimal,
-    pub unit_price: Decimal,
-    pub customer_id: i32,
+/// 客户等级（影响折扣）
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "UPPERCASE")]
+pub enum CustomerLevel {
+    /// VIP 客户（95 折）
+    VIP,
+    /// 普通客户（无折扣）
+    NORMAL,
 }
 
-/// 报价单定价服务（占位实现）
-#[allow(dead_code)] // TODO(tech-debt): 待 P13+ port product_color_price 后移除
-pub struct QuotationPricingService;
+impl CustomerLevel {
+    /// 折扣率（0.05 = 95 折）
+    pub fn discount_rate(&self) -> Decimal {
+        match self {
+            CustomerLevel::VIP => Decimal::new(5, 2),
+            CustomerLevel::NORMAL => Decimal::ZERO,
+        }
+    }
+
+    /// 解析
+    pub fn from_code(s: &str) -> Self {
+        match s.to_uppercase().as_str() {
+            "VIP" => CustomerLevel::VIP,
+            _ => CustomerLevel::NORMAL,
+        }
+    }
+}
+
+/// 定价上下文
+#[derive(Debug, Clone, Deserialize)]
+pub struct PricingContext {
+    pub customer_id: i64,
+    pub customer_level: CustomerLevel,
+    pub product_id: i64,
+    pub color_id: Option<i64>,
+    pub quantity: Decimal,
+    pub currency: String,
+    pub quotation_date: chrono::NaiveDate,
+}
+
+/// 单档阶梯价
+#[derive(Debug, Clone, Serialize)]
+pub struct TierPrice {
+    pub min_quantity: Decimal,
+    pub max_quantity: Option<Decimal>,
+    pub unit_price: Decimal,
+}
+
+/// 定价结果
+#[derive(Debug, Clone, Serialize)]
+pub struct PricingResult {
+    /// 不含税单价
+    pub unit_price: Decimal,
+    /// 含税单价
+    pub unit_price_with_tax: Decimal,
+    /// 匹配的阶梯价
+    pub tier_breakdown: Vec<TierPrice>,
+    /// 折扣金额（每单位）
+    pub discount_applied: Decimal,
+    /// 最终金额（不含税）
+    pub final_amount: Decimal,
+    /// 价格来源
+    pub price_source: PriceSource,
+}
+
+/// 价格来源
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum PriceSource {
+    /// 来自色号价格表
+    ColorPrice,
+    /// 来自产品基础价
+    ProductPrice,
+    /// 来自促销
+    Promotion,
+}
+
+/// 定价服务
+pub struct QuotationPricingService {
+    db: Arc<DatabaseConnection>,
+}
 
 impl QuotationPricingService {
-    /// 计算报价单明细行项目金额（stub）
-    ///
-    /// # 当前行为
-    /// 直接返回 `Decimal::ZERO`，不读取任何外部数据；handler 层应在收到此结果后
-    /// 走人工复核 / 兜底逻辑。
-    ///
-    /// # 后续实现
-    /// ```text
-    /// 1. 根据 product_id + color_id 查 product_color_price
-    /// 2. 叠加 customer_id 对应的客户级别折扣
-    /// 3. 按 quantity 命中阶梯价表
-    /// 4. 返回 Decimal 总价
-    /// ```
-    pub async fn calculate(_ctx: PricingContext) -> Result<Decimal, AppError> {
-        // TODO: 集成 product_color_price 后实现阶梯价/折扣
-        Ok(Decimal::ZERO)
+    /// 从数据库连接直接构造
+    pub fn new(db: Arc<DatabaseConnection>) -> Self {
+        Self { db }
     }
 
-    /// 校验定价上下文（stub）
-    ///
-    /// 完整实现应检查：产品存在、色号存在、阶梯价表配置存在。
-    /// 当前 stub 仅做非空校验。
-    #[allow(dead_code)] // TODO(tech-debt): 待 P13+ port 后扩展为完整校验
-    pub fn validate(ctx: &PricingContext) -> Result<(), AppError> {
-        if ctx.unit_price < Decimal::ZERO {
-            return Err(AppError::validation("定价单价不能为负数"));
+    /// 从 AppState 构造便捷方法
+    pub fn from_state(state: &AppState) -> Self {
+        Self {
+            db: state.db.clone(),
         }
-        if ctx.quantity <= Decimal::ZERO {
-            return Err(AppError::validation("定价数量必须大于 0"));
+    }
+
+    /// 执行价格计算
+    pub async fn calculate(&self, ctx: PricingContext) -> Result<PricingResult, AppError> {
+        // 1. 查询色号价格
+        let color_price = if let Some(color_id) = ctx.color_id {
+            product_color_price::Entity::find()
+                .filter(product_color_price::Column::ProductId.eq(ctx.product_id))
+                .filter(product_color_price::Column::ColorId.eq(color_id))
+                .filter(product_color_price::Column::Currency.eq(&ctx.currency))
+                .filter(product_color_price::Column::EffectiveFrom.lte(ctx.quotation_date))
+                .all(&*self.db)
+                .await?
+        } else {
+            Vec::new()
+        };
+
+        // 过滤匹配的客户等级记录；若无匹配则取 NULL 等级（通用价）
+        let matched = if let Some(level) = ctx.customer_level_opt() {
+            color_price
+                .iter()
+                .find(|cp| {
+                    cp.customer_level
+                        .as_deref()
+                        .map(|l| l.eq_ignore_ascii_case(level))
+                        .unwrap_or(false)
+                })
+                .cloned()
+        } else {
+            None
+        };
+        let selected_price = matched.or_else(|| {
+            // 回退到无客户等级限制的记录
+            color_price
+                .iter()
+                .find(|cp| cp.customer_level.is_none())
+                .cloned()
+        });
+
+        let cp = selected_price.ok_or_else(|| {
+            AppError::not_found(format!(
+                "色号价格未配置（product_id={}, color_id={}, currency={}）",
+                ctx.product_id,
+                ctx.color_id.unwrap_or(0),
+                ctx.currency
+            ))
+        })?;
+
+        let base_price = cp.base_price;
+
+        // 2. 阶梯价匹配（按 min_quantity 阈值）
+        let tier = Self::match_tier(base_price, ctx.quantity, cp.min_quantity);
+
+        // 3. 客户等级折扣
+        let discount_rate = ctx.customer_level.discount_rate();
+        let discount_amount = tier.unit_price * discount_rate;
+        let unit_price = tier.unit_price - discount_amount;
+
+        // 4. 含税计算（默认 13% 增值税）
+        let tax_rate = Decimal::new(13, 2);
+        let unit_price_with_tax = unit_price * (Decimal::ONE + tax_rate / Decimal::from(100));
+
+        // 5. 最终金额
+        let final_amount = unit_price * ctx.quantity;
+
+        Ok(PricingResult {
+            unit_price,
+            unit_price_with_tax,
+            tier_breakdown: vec![tier],
+            discount_applied: discount_amount,
+            final_amount,
+            price_source: PriceSource::ColorPrice,
+        })
+    }
+
+    /// 阶梯价匹配：
+    /// - 若 `min_quantity` 存在且 `<= quantity`，则应用基础价作为阶梯起点
+    /// - 否则按基础价无阶梯
+    fn match_tier(base_price: Decimal, quantity: Decimal, min_quantity: Option<Decimal>) -> TierPrice {
+        match min_quantity {
+            Some(min_q) if min_q <= quantity => TierPrice {
+                min_quantity: min_q,
+                max_quantity: None,
+                unit_price: base_price,
+            },
+            _ => TierPrice {
+                min_quantity: Decimal::ONE,
+                max_quantity: None,
+                unit_price: base_price,
+            },
         }
-        Ok(())
+    }
+
+    /// 单元测试用阶梯价匹配（pub(crate) 暴露给 tests/ 集成测试）
+    #[allow(dead_code)] // TODO(tech-debt): 测试用，由 tests/quotation_pricing_test.rs 调用
+    pub(crate) fn match_tier_for_unit_test(
+        base_price: Decimal,
+        quantity: Decimal,
+        min_quantity: Option<Decimal>,
+    ) -> TierPrice {
+        Self::match_tier(base_price, quantity, min_quantity)
     }
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use std::str::FromStr;
-
-    fn dec(s: &str) -> Decimal {
-        Decimal::from_str(s).expect("测试金额格式错误")
-    }
-
-    #[tokio::test]
-    async fn calculate_returns_zero_in_stub_mode() {
-        let ctx = PricingContext {
-            product_id: 1,
-            color_id: None,
-            quantity: dec("10"),
-            unit_price: dec("50.00"),
-            customer_id: 1001,
-        };
-        let result = QuotationPricingService::calculate(ctx).await;
-        assert!(result.is_ok());
-        assert_eq!(result.unwrap(), Decimal::ZERO);
-    }
-
-    #[test]
-    fn validate_rejects_negative_unit_price() {
-        let ctx = PricingContext {
-            product_id: 1,
-            color_id: None,
-            quantity: dec("10"),
-            unit_price: dec("-1.00"),
-            customer_id: 1001,
-        };
-        assert!(QuotationPricingService::validate(&ctx).is_err());
-    }
-
-    #[test]
-    fn validate_rejects_zero_quantity() {
-        let ctx = PricingContext {
-            product_id: 1,
-            color_id: None,
-            quantity: dec("0"),
-            unit_price: dec("10.00"),
-            customer_id: 1001,
-        };
-        assert!(QuotationPricingService::validate(&ctx).is_err());
-    }
-
-    #[test]
-    fn validate_accepts_valid_context() {
-        let ctx = PricingContext {
-            product_id: 1,
-            color_id: Some(5),
-            quantity: dec("100"),
-            unit_price: dec("25.50"),
-            customer_id: 2002,
-        };
-        assert!(QuotationPricingService::validate(&ctx).is_ok());
+impl PricingContext {
+    /// 客户等级的字符串表示（用于查询匹配）
+    fn customer_level_opt(&self) -> Option<&'static str> {
+        match self.customer_level {
+            CustomerLevel::VIP => Some("VIP"),
+            CustomerLevel::NORMAL => None,
+        }
     }
 }

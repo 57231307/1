@@ -27,9 +27,11 @@ pub mod product_handler;
 pub mod role_handler;
 pub mod sales_fabric_order_handler;
 pub mod sales_order_handler;
-// 销售报价单 Handler（P12 批 1 P0 port PR-3：HTTP 入口 + 路由注册）
+// 销售报价单 handler（Week 1）
 pub mod quotation_handler;
 pub mod tracking_handler;
+// 定制订单全流程跟踪 handler（P0-3）
+pub mod custom_order_handler;
 pub mod user_handler;
 pub mod warehouse_handler;
 // 供应商管理模块
@@ -94,6 +96,8 @@ pub mod ar_reconciliation_enhanced_handler;
 pub mod ar_reconciliation_handler;
 pub mod currency_handler;
 pub mod report_engine_handler;
+// P2-4 AI 分析深化（工艺优化 + 质量预测）
+pub mod ai_extend_handler;
 // 消息通知模块
 pub mod notification_handler;
 // 用户通知偏好设置模块
@@ -120,6 +124,8 @@ pub mod crm_pool_handler;
 pub mod audit_enhanced_handler;
 pub mod audit_log_handler;
 pub mod email_handler;
+// P3-4 BI 多维分析 handler
+pub mod bi_handler;
 pub mod login_security_handler;
 pub mod slow_query_handler;
 pub mod webhook_integration_handler;
@@ -134,3 +140,9 @@ pub mod field_permission_handler;
 pub mod print_handler;
 // 缺失的 handler 补充
 pub mod missing_handlers;
+// P0-2 主备隔离 handler
+pub mod failover_handler;
+// P0-4 色卡仓储管理 handler
+pub mod color_card_handler;
+// 面料多色号定价扩展 handler（P0-5）
+pub mod color_price_handler;

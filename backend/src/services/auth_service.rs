@@ -403,32 +403,55 @@ pub async fn cleanup_expired_jti(_max_age_secs: i64) {
 mod tests {
     use super::*;
 
+    // P9-1: 测试夹具 helper，封装 AuthService 的常见操作
+    fn hash_pwd(p: &str) -> String {
+        AuthService::hash_password(p).expect("P9-1: 测试夹具 密码哈希失败")
+    }
+
+    fn verify_pwd_ok(plain: &str, hash: &str) -> bool {
+        AuthService::verify_password(plain, hash).expect("P9-1: 测试夹具 密码验证失败")
+    }
+
+    // P9-1: 集中 encode 调用，避免 4 处重复 .expect
+    fn encode_test_token(claims: &AppClaims, secret: &str) -> String {
+        encode(
+            &Header::default(),
+            claims,
+            &EncodingKey::from_secret(secret.as_bytes()),
+        )
+        .expect("P9-1: 测试夹具 令牌编码失败")
+    }
+
+    fn validate_test_token(token: &str, secret: &str) -> AppClaims {
+        AuthService::validate_token_static(token, secret).expect("P9-1: 令牌验证失败")
+    }
+
     /// 测试密码哈希和验证
     #[test]
     fn test_password_hash_and_verify() {
         let password = "TestPassword123!";
-        let hash = AuthService::hash_password(password).expect("密码哈希失败");
+        let hash = hash_pwd(password);
 
         // 验证正确密码
-        assert!(AuthService::verify_password(password, &hash).expect("验证失败"));
+        assert!(verify_pwd_ok(password, &hash));
 
         // 验证错误密码
-        assert!(!AuthService::verify_password("WrongPassword", &hash).expect("验证失败"));
+        assert!(!verify_pwd_ok("WrongPassword", &hash));
     }
 
     /// 测试密码哈希唯一性（相同密码应产生不同哈希）
     #[test]
     fn test_password_hash_uniqueness() {
         let password = "TestPassword123!";
-        let hash1 = AuthService::hash_password(password).expect("密码哈希失败");
-        let hash2 = AuthService::hash_password(password).expect("密码哈希失败");
+        let hash1 = hash_pwd(password);
+        let hash2 = hash_pwd(password);
 
         // 两次哈希结果应不同（因为使用了随机盐）
         assert_ne!(hash1, hash2);
 
         // 但都能验证通过
-        assert!(AuthService::verify_password(password, &hash1).expect("验证失败"));
-        assert!(AuthService::verify_password(password, &hash2).expect("验证失败"));
+        assert!(verify_pwd_ok(password, &hash1));
+        assert!(verify_pwd_ok(password, &hash2));
     }
 
     /// 测试 JWT 令牌生成和验证（使用静态方法）
@@ -450,15 +473,10 @@ mod tests {
             session_id: "test-session-123".to_string(),
         };
 
-        let token = encode(
-            &Header::default(),
-            &claims,
-            &EncodingKey::from_secret(secret.as_bytes()),
-        )
-        .expect("令牌编码失败");
+        let token = encode_test_token(&claims, secret);
 
         // 验证令牌
-        let decoded = AuthService::validate_token_static(&token, secret).expect("令牌验证失败");
+        let decoded = validate_test_token(&token, secret);
         assert_eq!(decoded.sub, 1);
         assert_eq!(decoded.username, "testuser");
         assert_eq!(decoded.role_id, Some(1));
@@ -483,12 +501,7 @@ mod tests {
             session_id: "test-session-456".to_string(),
         };
 
-        let token = encode(
-            &Header::default(),
-            &claims,
-            &EncodingKey::from_secret(secret.as_bytes()),
-        )
-        .expect("令牌编码失败");
+        let token = encode_test_token(&claims, secret);
 
         // 使用错误的密钥验证应失败
         let result = AuthService::validate_token_static(&token, wrong_secret);
@@ -512,12 +525,7 @@ mod tests {
             session_id: "test-session-789".to_string(),
         };
 
-        let token = encode(
-            &Header::default(),
-            &claims,
-            &EncodingKey::from_secret(secret.as_bytes()),
-        )
-        .expect("令牌编码失败");
+        let token = encode_test_token(&claims, secret);
 
         // 过期令牌验证应失败
         let result = AuthService::validate_token_static(&token, secret);
@@ -541,14 +549,9 @@ mod tests {
             session_id: "test-session-abc".to_string(),
         };
 
-        let token = encode(
-            &Header::default(),
-            &claims,
-            &EncodingKey::from_secret(secret.as_bytes()),
-        )
-        .expect("令牌编码失败");
+        let token = encode_test_token(&claims, secret);
 
-        let decoded = AuthService::validate_token_static(&token, secret).expect("令牌验证失败");
+        let decoded = validate_test_token(&token, secret);
 
         assert_eq!(decoded.sub, 42);
         assert_eq!(decoded.username, "admin");

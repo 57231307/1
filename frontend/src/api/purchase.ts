@@ -117,4 +117,12 @@ export const purchaseApi = {
 
   receiveItems: (receiptId: number, data: Partial<PurchaseReceiptItem>[]) =>
     request.post<ApiResponse<PurchaseReceipt>>(`/purchases/receipts/${receiptId}/receive`, data),
+
+  /**
+   * 生成采购订单号（P1-1 补齐 generate-no 端点）
+   * 后端: GET /api/v1/erp/purchases/orders/generate-no
+   * 返回: { prefix: "PO", order_no: "PO20260617001" }
+   */
+  generateOrderNo: () =>
+    request.get<ApiResponse<{ prefix: string; order_no: string }>>('/purchases/orders/generate-no'),
 }

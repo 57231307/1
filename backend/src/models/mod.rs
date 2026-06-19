@@ -106,6 +106,15 @@ pub mod unqualified_product;
 // 采购退货模块
 pub mod purchase_return;
 pub mod purchase_return_item;
+// 销售报价单模块（Week 1）
+pub mod sales_quotation;
+pub mod sales_quotation_item;
+pub mod sales_quotation_term;
+pub mod product_color_price;
+pub mod quotation_create_dto;
+pub mod quotation_update_dto;
+pub mod quotation_response_dto;
+pub mod quotation_convert_dto;
 // 采购检验模块
 pub mod purchase_inspection;
 // 采购合同执行模块
@@ -214,3 +223,41 @@ pub mod business_trace_view;
 // 字段权限模块
 pub mod report_definition;
 // 增强审计日志已废弃（无对应 migration + 0 业务引用）→ 整个 _legacy/ 目录已清理
+// P0-2 主备隔离模块
+pub mod failover_config;
+pub mod failover_event;
+pub mod failover_status;
+// P0-3 定制订单全流程跟踪模块
+pub mod custom_order;
+pub mod process_node;
+pub mod process_log;
+pub mod quality_issue;
+pub mod after_sales;
+// P0-3 定制订单 DTO
+pub mod custom_order_create_dto;
+pub mod custom_order_update_dto;
+pub mod custom_order_response_dto;
+pub mod process_node_dto;
+pub mod quality_issue_dto;
+// P0-4 色卡仓储管理模型
+pub mod color_card;
+pub mod color_card_item;
+pub mod color_card_borrow_record;
+pub mod color_card_create_dto;
+pub mod color_card_item_dto;
+pub mod color_card_borrow_dto;
+pub mod color_card_response_dto;
+// P0-5 面料多色号定价扩展模型
+pub mod color_price_history;
+pub mod color_price_tier;
+pub mod customer_color_price;
+pub mod seasonal_price_rule;
+// P0-5 面料多色号定价扩展 DTO
+pub mod color_price_dto;
+pub mod color_price_history_dto;
+pub mod color_price_tier_dto;
+pub mod customer_color_price_dto;
+pub mod seasonal_price_rule_dto;
+// P2-4 AI 分析深化（工艺优化 + 质量预测）模型
+pub mod ai_process_optimization;
+pub mod ai_quality_prediction;

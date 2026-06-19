@@ -7,12 +7,17 @@ pub mod cli;
 pub mod config;
 pub mod database;
 pub mod handlers;
+pub mod messaging; // P9-7 Kafka 集成
 pub mod middleware;
 pub mod models;
 pub mod observability;
 pub mod routes;
+pub mod search; // P9-8 Elasticsearch 集成
 pub mod services;
 pub mod utils;
+pub mod websocket; // P3-2 WebSocket 实时通信模块
+// P9-6 OpenTelemetry 一体化
+pub mod telemetry;
 
 pub mod cache; // P12 批 1：Redis 缓存层
 

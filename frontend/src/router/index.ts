@@ -545,26 +545,143 @@ const routes = [
         component: () => import('@/views/user-profile/index.vue'),
         meta: { title: '个人信息', requiresAuth: true },
       },
-      // 新增路由 - 2FA 设置
+      // 报价单模块 - 列表 + 新建
       {
-        path: 'security/two-factor-setup',
-        name: 'TwoFactorSetup',
-        component: () => import('@/views/security/TwoFactorSetup.vue'),
-        meta: { title: '双因素认证设置', requiresAuth: true },
+        path: 'quotations',
+        name: 'QuotationList',
+        component: () => import('@/views/quotations/list.vue'),
+        meta: { title: '报价单管理', requiresAuth: true },
       },
-      // 新增路由 - 修改密码（独立页面）
       {
-        path: 'security/change-password',
-        name: 'ChangePassword',
-        component: () => import('@/views/security/ChangePassword.vue'),
-        meta: { title: '修改密码', requiresAuth: true },
+        path: 'quotations/new',
+        name: 'QuotationCreate',
+        component: () => import('@/views/quotations/create.vue'),
+        meta: { title: '新建报价单', requiresAuth: true },
       },
-      // 新增路由 - 慢查询审计（P13 批 1 B-慢查询审计）
       {
-        path: 'system/slow-query',
-        name: 'SlowQuery',
-        component: () => import('@/views/system/slow-query/index.vue'),
-        meta: { title: '慢查询审计', requiresAuth: true },
+        path: 'quotations/:id',
+        name: 'QuotationDetail',
+        component: () => import('@/views/quotations/detail.vue'),
+        meta: { title: '报价单详情', requiresAuth: true },
+      },
+      {
+        path: 'quotations/:id/edit',
+        name: 'QuotationEdit',
+        component: () => import('@/views/quotations/edit.vue'),
+        meta: { title: '编辑报价单', requiresAuth: true },
+      },
+      {
+        path: 'quotations/:id/approval',
+        name: 'QuotationApproval',
+        component: () => import('@/views/quotations/approval.vue'),
+        meta: { title: '报价单审批', requiresAuth: true },
+      },
+      // 定制订单模块 - 列表 + 新建 + 详情 + 跟踪
+      {
+        path: 'custom-orders',
+        name: 'CustomOrderList',
+        component: () => import('@/views/custom-orders/list.vue'),
+        meta: { title: '定制订单管理', requiresAuth: true },
+      },
+      {
+        path: 'custom-orders/new',
+        name: 'CustomOrderCreate',
+        component: () => import('@/views/custom-orders/create.vue'),
+        meta: { title: '新建定制订单', requiresAuth: true },
+      },
+      {
+        path: 'custom-orders/:id',
+        name: 'CustomOrderDetail',
+        component: () => import('@/views/custom-orders/detail.vue'),
+        meta: { title: '定制订单详情', requiresAuth: true },
+      },
+      {
+        path: 'custom-orders/:id/track',
+        name: 'CustomOrderTracking',
+        component: () => import('@/views/custom-orders/tracking.vue'),
+        meta: { title: '工艺跟踪', requiresAuth: true },
+      },
+      // 色卡仓储管理模块（P0-4）
+      {
+        path: 'color-cards/list',
+        name: 'ColorCardList',
+        component: () => import('@/views/color-cards/list.vue'),
+        meta: { title: '色卡列表', requiresAuth: true },
+      },
+      {
+        path: 'color-cards/create',
+        name: 'ColorCardCreate',
+        component: () => import('@/views/color-cards/create.vue'),
+        meta: { title: '新建色卡', requiresAuth: true },
+      },
+      {
+        path: 'color-cards/detail/:id',
+        name: 'ColorCardDetail',
+        component: () => import('@/views/color-cards/detail.vue'),
+        meta: { title: '色卡详情', requiresAuth: true },
+      },
+      {
+        path: 'color-cards/borrow',
+        name: 'ColorCardBorrow',
+        component: () => import('@/views/color-cards/borrow.vue'),
+        meta: { title: '色卡借出管理', requiresAuth: true },
+      },
+      // 面料多色号定价扩展模块（P0-5）
+      {
+        path: 'color-prices/list',
+        name: 'ColorPriceList',
+        component: () => import('@/views/color-prices/list.vue'),
+        meta: { title: '色号价格列表', requiresAuth: true },
+      },
+      {
+        path: 'color-prices/create',
+        name: 'ColorPriceCreate',
+        component: () => import('@/views/color-prices/list.vue'),
+        meta: { title: '新建色号价格', requiresAuth: true },
+      },
+      {
+        path: 'color-prices/detail/:id',
+        name: 'ColorPriceDetail',
+        component: () => import('@/views/color-prices/detail.vue'),
+        meta: { title: '色号价格详情', requiresAuth: true },
+      },
+      {
+        path: 'color-prices/batch-adjust',
+        name: 'ColorPriceBatchAdjust',
+        component: () => import('@/views/color-prices/batch-adjust.vue'),
+        meta: { title: '批量调价', requiresAuth: true },
+      },
+      // P2-4 AI 分析深化（工艺优化 + 质量预测）
+      {
+        path: 'ai-extend',
+        name: 'AiExtendOverview',
+        component: () => import('@/views/ai-extend/index.vue'),
+        meta: { title: 'AI 分析深化', requiresAuth: true },
+      },
+      {
+        path: 'ai-extend/process-optimization',
+        name: 'AiExtendProcessOptimization',
+        component: () => import('@/views/ai-extend/process-optimization.vue'),
+        meta: { title: 'AI 工艺优化', requiresAuth: true },
+      },
+      {
+        path: 'ai-extend/process-detail/:id',
+        name: 'AiExtendProcessDetail',
+        component: () => import('@/views/ai-extend/process-detail.vue'),
+        meta: { title: '工艺优化详情', requiresAuth: true },
+      },
+      {
+        path: 'ai-extend/quality-prediction',
+        name: 'AiExtendQualityPrediction',
+        component: () => import('@/views/ai-extend/quality-prediction.vue'),
+        meta: { title: 'AI 质量预测', requiresAuth: true },
+      },
+      {
+        // P3-4 BI 销售多维分析
+        path: 'bi/sales-analysis',
+        name: 'BiSalesAnalysis',
+        component: () => import('@/views/bi/SalesAnalysis.vue'),
+        meta: { title: 'BI 销售多维分析', requiresAuth: true },
       },
     ],
   },

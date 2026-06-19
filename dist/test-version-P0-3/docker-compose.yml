@@ -1,0 +1,51 @@
+version: '3.8'
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: bingxi_erp
+      POSTGRES_USER: bingxi
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-bingxi123}
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./init-sql:/docker-entrypoint-initdb.d
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U bingxi"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  backend:
+    build:
+      context: ..
+      dockerfile: dist/test-version-P0-3/Dockerfile
+    environment:
+      DATABASE_URL: postgres://bingxi:${DB_PASSWORD:-bingxi123}@postgres:5432/bingxi_erp
+      REDIS_URL: redis://redis:6379
+      JWT_SECRET: ${JWT_SECRET:-test-jwt-secret-change-in-production}
+      RUST_LOG: info,custom_order=debug
+    ports:
+      - "8080:8080"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    volumes:
+      - ./config:/app/config:ro
+
+volumes:
+  postgres_data:

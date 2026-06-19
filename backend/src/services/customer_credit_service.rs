@@ -716,8 +716,8 @@ mod tests {
             used_credit: Decimal::from(0),
             available_credit: Decimal::from(100000),
             credit_days: Some(30),
-            last_assessment_date: Some(NaiveDate::from_ymd_opt(2024, 1, 1).unwrap()),
-            next_assessment_date: Some(NaiveDate::from_ymd_opt(2025, 1, 1).unwrap()),
+            last_assessment_date: Some(crate::ymd!(2024, 1, 1)),
+            next_assessment_date: Some(crate::ymd!(2025, 1, 1)),
             status: status.to_string(),
             created_by: Some(1),
             created_at: chrono::Utc::now(),
@@ -921,6 +921,6 @@ mod tests {
         // 模拟使用 50000
         let used = Decimal::from(50000);
         let utilization = used / model.credit_limit;
-        assert_eq!(utilization, Decimal::try_from(0.5).unwrap());
+        assert_eq!(utilization, Decimal::try_from(0.5).expect("P9-1: 测试夹具 Decimal::try_from"));
     }
 }

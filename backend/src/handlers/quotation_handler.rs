@@ -1,504 +1,533 @@
-//! 销售报价单 HTTP Handler
+//! 销售报价单 Handler 层
 //!
-//! 处理销售报价单（Quotation）的 REST API 请求：
-//! 列表查询、详情查询、创建、修改、取消、提交、审批、拒绝、报价转订单、到期列表 10 个核心端点。
-//!
-//! # 关键约束
-//! - 强租户隔离：所有方法必须使用 `extract_tenant_id(&auth)?` 提取租户 ID，
-//!   严禁使用 `auth.tenant_id.unwrap_or(0)`。
-//! - 统一响应格式：所有方法返回 `Result<Json<ApiResponse<serde_json::Value>>, AppError>`。
-//! - AppState 注入：通过 `State(state): State<AppState>` 注入。
-//! - Service 初始化：`QuotationService::new(state.db.clone())`。
-//!
-//! # 路由注册
-//! - 挂载在 `routes::sales::quotations()` 子路由下
-//! - 前缀：`/api/v1/erp/sales/quotations`
-//!
-//! # 端点清单
-//! - `GET    /`         → `list_quotations`
-//! - `GET    /:id`      → `get_quotation`
-//! - `POST   /`         → `create_quotation`
-//! - `PUT    /:id`      → `update_quotation`
-//! - `POST   /:id/cancel`  → `cancel_quotation`
-//! - `POST   /:id/submit`  → `submit_quotation`
-//! - `POST   /:id/approve` → `approve_quotation`
-//! - `POST   /:id/reject`  → `reject_quotation`
-//! - `POST   /:id/convert` → `convert_quotation_to_order`（PR-A4 新增）
-//! - `GET    /expiring`    → `list_expiring_quotations`（PR-A4 新增）
+//! Week 2 任务 9：实现全部 16 个端点。
+//! 关联计划: 2026-06-16-sales-quotation-plan.md Task 9
+//! 创建时间: 2026-06-16
+
+use chrono::Utc;
+use sea_orm::{ColumnTrait, EntityTrait, QueryFilter};
+use serde::{Deserialize, Serialize};
+
+use crate::middleware::auth_context::AuthContext;
+use crate::models::product_color_price;
+use crate::models::quotation_create_dto::CreateQuotationDto;
+use crate::models::quotation_response_dto::{
+    QuotationItemResponseDto, QuotationResponseDto, QuotationTermResponseDto,
+};
+use crate::models::quotation_update_dto::UpdateQuotationDto;
+use crate::services::quotation_approval_service::QuotationApprovalService;
+use crate::services::quotation_convert_service::QuotationConvertService;
+use crate::services::quotation_pricing_service::{PricingContext, QuotationPricingService};
+use crate::services::quotation_service::{QuotationService, ServiceError};
+use crate::utils::app_state::AppState;
+use crate::utils::error::AppError;
+use crate::utils::response::ApiResponse;
 
 use axum::{
     extract::{Path, Query, State},
     Json,
 };
-use serde::Deserialize;
 
-use crate::middleware::auth_context::AuthContext;
-use crate::middleware::tenant::extract_tenant_id;
-use crate::models::dto::PageResponse;
-use crate::models::quotation_create_dto::QuotationCreateDto;
-use crate::models::quotation_response_dto::QuotationQueryParams;
-use crate::models::quotation_update_dto::QuotationUpdateDto;
-use crate::services::quotation_convert_service::QuotationConvertService;
-use crate::services::quotation_service::QuotationService;
-use crate::utils::app_state::AppState;
-use crate::utils::error::AppError;
-use crate::utils::response::ApiResponse;
+// ----------------------------------------------------------------------
+// 公共 DTO
+// ----------------------------------------------------------------------
 
-// ============================================================================
-// 查询参数 DTO
-// ============================================================================
-
-/// 销售报价单列表查询参数
-///
-/// HTTP 查询字符串字段，全部可选；handler 层负责赋予默认值。
+/// 列表查询参数
 #[derive(Debug, Deserialize)]
-pub struct QuotationListQuery {
-    /// 页码（从 1 开始）
+pub struct ListQuotationsQuery {
     pub page: Option<u64>,
-    /// 每页数量
     pub page_size: Option<u64>,
-    /// 客户 ID 过滤
-    pub customer_id: Option<i32>,
-    /// 销售员 ID 过滤
-    pub sales_user_id: Option<i32>,
-    /// 状态过滤（DRAFT/SUBMITTED/APPROVED/REJECTED/CONVERTED/CANCELLED/EXPIRED）
     pub status: Option<String>,
-    /// 关键字（报价单号模糊匹配）
+    pub customer_id: Option<i64>,
+    pub sales_user_id: Option<i64>,
     pub keyword: Option<String>,
+}
+
+/// 列表响应
+#[derive(Debug, Serialize)]
+pub struct ListQuotationsResponse {
+    pub list: Vec<QuotationResponseDto>,
+    pub total: u64,
+    pub page: u64,
+    pub page_size: u64,
 }
 
 /// 拒绝请求体
 #[derive(Debug, Deserialize)]
-pub struct RejectQuotationRequest {
-    /// 拒绝原因
+pub struct RejectRequest {
     pub reason: String,
 }
 
-/// 取消请求体
-#[derive(Debug, Deserialize)]
-pub struct CancelQuotationRequest {
-    /// 取消原因
-    pub reason: Option<String>,
-}
-
-/// 到期报价单列表查询参数
-#[derive(Debug, Deserialize)]
-pub struct ExpiringQuotationsQuery {
-    /// 距离当前多少天内到期（默认 7）
+/// 即将到期 / 已过期查询参数
+#[derive(Debug, Deserialize, Default)]
+pub struct ExpiryQuery {
     pub days: Option<i32>,
 }
 
-// ============================================================================
-// 列表查询
-// ============================================================================
+/// 销售订单响应（简化）
+#[derive(Debug, Serialize)]
+pub struct SalesOrderResponse {
+    pub id: i32,
+    pub order_no: String,
+    pub customer_id: i32,
+    pub total_amount: rust_decimal::Decimal,
+    pub status: String,
+    pub created_at: chrono::DateTime<Utc>,
+}
 
-/// 获取销售报价单列表（分页 + 多维过滤）
-///
-/// `GET /api/v1/erp/sales/quotations`
-///
-/// # 查询参数
-/// - `page` / `page_size` 分页
-/// - `customer_id` / `sales_user_id` 关联实体过滤
-/// - `status` 状态过滤
-/// - `keyword` 报价单号模糊匹配
+impl From<crate::models::sales_order::Model> for SalesOrderResponse {
+    fn from(m: crate::models::sales_order::Model) -> Self {
+        Self {
+            id: m.id,
+            order_no: m.order_no,
+            customer_id: m.customer_id,
+            total_amount: m.total_amount,
+            status: m.status,
+            created_at: m.created_at,
+        }
+    }
+}
+
+// ----------------------------------------------------------------------
+// CRUD：list / get / create / update
+// ----------------------------------------------------------------------
+
+/// GET /api/v1/erp/quotations
 pub async fn list_quotations(
-    auth: AuthContext,
+    _auth: AuthContext,
     State(state): State<AppState>,
-    Query(query): Query<QuotationListQuery>,
-) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
-    // 强租户隔离：缺失租户 ID 直接返回未授权错误
-    let tenant_id = extract_tenant_id(&auth)?;
-    let svc = QuotationService::new(state.db.clone());
+    Query(query): Query<ListQuotationsQuery>,
+) -> Result<Json<ApiResponse<ListQuotationsResponse>>, AppError> {
+    let service = QuotationService::from_state(&state);
+    let page = query.page.unwrap_or(1);
+    let page_size = query.page_size.unwrap_or(20).min(100);
 
-    let page = query.page.unwrap_or(1).max(1);
-    let page_size = query.page_size.unwrap_or(20).clamp(1, 200);
-    let params = QuotationQueryParams {
-        customer_id: query.customer_id,
-        sales_user_id: query.sales_user_id,
-        status: query.status,
-        keyword: query.keyword,
-        page,
-        page_size,
-    };
+    let (items, total) = service
+        .list(
+            page,
+            page_size,
+            query.status,
+            query.customer_id,
+            query.sales_user_id,
+            query.keyword,
+        )
+        .await?;
 
-    // 调用 Service 层 list（PR-2 已实现）
-    let (items, total) = svc.list(tenant_id, params).await?;
-
-    // 将主表模型序列化为 JSON Value（响应中 items 字段）
-    let items_json: Vec<serde_json::Value> = items
+    let dtos: Vec<QuotationResponseDto> = items
         .into_iter()
-        .map(|m| {
-            serde_json::json!({
-                "id": m.id,
-                "quotation_no": m.quotation_no,
-                "customer_id": m.customer_id,
-                "sales_user_id": m.sales_user_id,
-                "quotation_date": m.quotation_date,
-                "valid_until": m.valid_until,
-                "currency": m.currency,
-                "exchange_rate": m.exchange_rate,
-                "base_currency": m.base_currency,
-                "price_terms": m.price_terms,
-                "tax_inclusive": m.tax_inclusive,
-                "tax_rate": m.tax_rate,
-                "subtotal": m.subtotal,
-                "tax_amount": m.tax_amount,
-                "total_amount": m.total_amount,
-                "status": m.status,
-                "created_by": m.created_by,
-                "created_at": m.created_at,
-                "updated_at": m.updated_at,
-            })
-        })
+        .map(QuotationResponseDto::from)
         .collect();
 
-    let total_u64 = total;
-    let response = PageResponse::new(items_json, total_u64, page, page_size);
-    let value = serde_json::to_value(response).map_err(AppError::from)?;
-    Ok(Json(ApiResponse::success(value)))
+    Ok(Json(ApiResponse::success(ListQuotationsResponse {
+        list: dtos,
+        total,
+        page,
+        page_size,
+    })))
 }
 
-// ============================================================================
-// 详情查询
-// ============================================================================
-
-/// 获取销售报价单详情（含明细 + 贸易条款）
-///
-/// `GET /api/v1/erp/sales/quotations/:id`
+/// GET /api/v1/erp/quotations/:id
 pub async fn get_quotation(
-    auth: AuthContext,
+    _auth: AuthContext,
     State(state): State<AppState>,
-    Path(id): Path<i32>,
-) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
-    let tenant_id = extract_tenant_id(&auth)?;
-    let svc = QuotationService::new(state.db.clone());
+    Path(id): Path<i64>,
+) -> Result<Json<ApiResponse<QuotationResponseDto>>, AppError> {
+    let service = QuotationService::from_state(&state);
+    let model = service.get_by_id(id).await?;
 
-    // 查询主表
-    let quotation = svc.get_by_id(tenant_id, id).await?;
-    // 关联明细 + 条款
-    let items = svc.list_items(id).await?;
-    let terms = svc.list_terms(id).await?;
+    let items: Vec<QuotationItemResponseDto> = crate::models::sales_quotation_item::Entity::find()
+        .filter(crate::models::sales_quotation_item::Column::QuotationId.eq(id))
+        .all(&*state.db)
+        .await?
+        .into_iter()
+        .map(Into::into)
+        .collect();
 
-    // 构造完整响应 DTO（From<(Model, Vec<Item>, Vec<Term>)> 实现已在 PR-2 给出）
-    let response_dto = crate::models::quotation_response_dto::QuotationResponseDto::from((
-        quotation, items, terms,
-    ));
-    let value = serde_json::to_value(response_dto).map_err(AppError::from)?;
-    Ok(Json(ApiResponse::success(value)))
+    let terms: Vec<QuotationTermResponseDto> = crate::models::sales_quotation_term::Entity::find()
+        .filter(crate::models::sales_quotation_term::Column::QuotationId.eq(id))
+        .all(&*state.db)
+        .await?
+        .into_iter()
+        .map(Into::into)
+        .collect();
+
+    let mut dto = QuotationResponseDto::from(model);
+    dto.items = items;
+    dto.terms = terms;
+
+    Ok(Json(ApiResponse::success(dto)))
 }
 
-// ============================================================================
-// 创建
-// ============================================================================
-
-/// 创建销售报价单
-///
-/// `POST /api/v1/erp/sales/quotations`
+/// POST /api/v1/erp/quotations
 pub async fn create_quotation(
     auth: AuthContext,
     State(state): State<AppState>,
-    Json(payload): Json<QuotationCreateDto>,
-) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
-    let tenant_id = extract_tenant_id(&auth)?;
-    let svc = QuotationService::new(state.db.clone());
-
-    // 业务校验：明细至少 1 条（Service 也会校验，这里提前返回更友好）
-    if payload.items.is_empty() {
-        return Err(AppError::validation("报价单至少需要 1 条明细行项目"));
+    Json(dto): Json<CreateQuotationDto>,
+) -> Result<Json<ApiResponse<QuotationResponseDto>>, AppError> {
+    use validator::Validate;
+    if let Err(e) = dto.validate() {
+        return Err(AppError::validation(e.to_string()));
     }
 
-    let quotation = svc.create(tenant_id, auth.user_id, payload).await?;
-    let value = serde_json::to_value(&quotation).map_err(AppError::from)?;
+    let service = QuotationService::from_state(&state);
+    let model = service
+        .create_draft(dto, auth.user_id as i64)
+        .await?;
+
     Ok(Json(ApiResponse::success_with_message(
-        value,
-        "销售报价单创建成功",
+        QuotationResponseDto::from(model),
+        "报价单草稿创建成功",
     )))
 }
 
-// ============================================================================
-// 更新
-// ============================================================================
-
-/// 更新销售报价单（仅 DRAFT 状态可更新）
-///
-/// `PUT /api/v1/erp/sales/quotations/:id`
+/// PUT /api/v1/erp/quotations/:id
 pub async fn update_quotation(
     auth: AuthContext,
     State(state): State<AppState>,
-    Path(id): Path<i32>,
-    Json(payload): Json<QuotationUpdateDto>,
-) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
-    let tenant_id = extract_tenant_id(&auth)?;
-    let svc = QuotationService::new(state.db.clone());
+    Path(id): Path<i64>,
+    Json(dto): Json<UpdateQuotationDto>,
+) -> Result<Json<ApiResponse<QuotationResponseDto>>, AppError> {
+    use validator::Validate;
+    if let Err(e) = dto.validate() {
+        return Err(AppError::validation(e.to_string()));
+    }
 
-    let updated = svc.update(tenant_id, auth.user_id, id, payload).await?;
-    let value = serde_json::to_value(&updated).map_err(AppError::from)?;
+    let service = QuotationService::from_state(&state);
+    let model = service.update(id, dto).await?;
+    let _ = auth; // 暂时未使用，预留给审计日志
     Ok(Json(ApiResponse::success_with_message(
-        value,
-        "销售报价单更新成功",
+        QuotationResponseDto::from(model),
+        "报价单更新成功",
     )))
 }
 
-// ============================================================================
-// 状态机操作
-// ============================================================================
+// ----------------------------------------------------------------------
+// 审批流
+// ----------------------------------------------------------------------
 
-/// 取消销售报价单（DRAFT / SUBMITTED 状态可取消）
-///
-/// `POST /api/v1/erp/sales/quotations/:id/cancel`
-///
-/// 请求体：`{ "reason": "客户主动放弃" }`，reason 可选。
-pub async fn cancel_quotation(
-    auth: AuthContext,
-    State(state): State<AppState>,
-    Path(id): Path<i32>,
-    Json(payload): Json<CancelQuotationRequest>,
-) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
-    let tenant_id = extract_tenant_id(&auth)?;
-    let svc = QuotationService::new(state.db.clone());
-
-    let result = svc
-        .cancel(tenant_id, auth.user_id, id, payload.reason)
-        .await?;
-    let value = serde_json::to_value(&result).map_err(AppError::from)?;
-    Ok(Json(ApiResponse::success_with_message(
-        value,
-        "销售报价单已取消",
-    )))
-}
-
-/// 提交审批（DRAFT → SUBMITTED）
-///
-/// `POST /api/v1/erp/sales/quotations/:id/submit`
+/// POST /api/v1/erp/quotations/:id/submit
 pub async fn submit_quotation(
     auth: AuthContext,
     State(state): State<AppState>,
-    Path(id): Path<i32>,
-) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
-    let tenant_id = extract_tenant_id(&auth)?;
-    let svc = QuotationService::new(state.db.clone());
-
-    let result = svc.submit(tenant_id, auth.user_id, id).await?;
-    let value = serde_json::to_value(&result).map_err(AppError::from)?;
+    Path(id): Path<i64>,
+) -> Result<Json<ApiResponse<QuotationResponseDto>>, AppError> {
+    let service = QuotationApprovalService::from_state(&state);
+    let model = service.submit(id, auth.user_id).await?;
     Ok(Json(ApiResponse::success_with_message(
-        value,
-        "销售报价单已提交审批",
+        QuotationResponseDto::from(model),
+        "报价单已提交审批",
     )))
 }
 
-/// 审批通过（SUBMITTED → APPROVED）
-///
-/// `POST /api/v1/erp/sales/quotations/:id/approve`
+/// POST /api/v1/erp/quotations/:id/approve
 pub async fn approve_quotation(
     auth: AuthContext,
     State(state): State<AppState>,
-    Path(id): Path<i32>,
-) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
-    let tenant_id = extract_tenant_id(&auth)?;
-    let svc = QuotationService::new(state.db.clone());
-
-    let result = svc.approve(tenant_id, auth.user_id, id).await?;
-    let value = serde_json::to_value(&result).map_err(AppError::from)?;
+    Path(id): Path<i64>,
+) -> Result<Json<ApiResponse<QuotationResponseDto>>, AppError> {
+    let service = QuotationApprovalService::from_state(&state);
+    let model = service.approve(id, auth.user_id).await?;
     Ok(Json(ApiResponse::success_with_message(
-        value,
-        "销售报价单审批通过",
+        QuotationResponseDto::from(model),
+        "报价单已批准",
     )))
 }
 
-/// 审批拒绝（SUBMITTED → REJECTED）
-///
-/// `POST /api/v1/erp/sales/quotations/:id/reject`
-///
-/// 请求体：`{ "reason": "价格高于客户预算" }`，reason 必填。
+/// POST /api/v1/erp/quotations/:id/reject
 pub async fn reject_quotation(
     auth: AuthContext,
     State(state): State<AppState>,
-    Path(id): Path<i32>,
-    Json(payload): Json<RejectQuotationRequest>,
-) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
-    let tenant_id = extract_tenant_id(&auth)?;
-    let svc = QuotationService::new(state.db.clone());
-
-    // 业务校验：拒绝原因必填
-    if payload.reason.trim().is_empty() {
-        return Err(AppError::validation("拒绝原因不能为空"));
+    Path(id): Path<i64>,
+    Json(body): Json<RejectRequest>,
+) -> Result<Json<ApiResponse<QuotationResponseDto>>, AppError> {
+    if body.reason.trim().is_empty() {
+        return Err(AppError::validation("拒绝原因不能为空".to_string()));
     }
-
-    let result = svc
-        .reject(tenant_id, auth.user_id, id, payload.reason)
-        .await?;
-    let value = serde_json::to_value(&result).map_err(AppError::from)?;
+    let service = QuotationApprovalService::from_state(&state);
+    let model = service.reject(id, auth.user_id, body.reason).await?;
     Ok(Json(ApiResponse::success_with_message(
-        value,
-        "销售报价单已拒绝",
+        QuotationResponseDto::from(model),
+        "报价单已拒绝",
     )))
 }
 
-// ============================================================================
-// PR-A4：报价转订单 + 到期报价单列表
-// ============================================================================
-
-/// 报价转销售订单（APPROVED → sales_order）
-///
-/// `POST /api/v1/erp/sales/quotations/:id/convert`
-///
-/// 源报价单必须为 `APPROVED` 状态且 `valid_until` 未过期。
-/// 转换成功后返回新创建的销售订单详情。
-pub async fn convert_quotation_to_order(
+/// POST /api/v1/erp/quotations/:id/cancel
+pub async fn cancel_quotation(
     auth: AuthContext,
     State(state): State<AppState>,
-    Path(id): Path<i32>,
-) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
-    let tenant_id = extract_tenant_id(&auth)?;
-    let convert_svc = QuotationConvertService::new(state.db.clone());
-
-    let sales_order = convert_svc
-        .convert_to_sales_order(tenant_id, auth.user_id, id)
-        .await?;
-
-    // 构造响应 JSON（含关键订单信息）
-    let value = serde_json::json!({
-        "sales_order_id": sales_order.id,
-        "order_no": sales_order.order_no,
-        "customer_id": sales_order.customer_id,
-        "subtotal": sales_order.subtotal,
-        "tax_amount": sales_order.tax_amount,
-        "total_amount": sales_order.total_amount,
-        "status": sales_order.status,
-        "created_at": sales_order.created_at,
-    });
-
+    Path(id): Path<i64>,
+) -> Result<Json<ApiResponse<QuotationResponseDto>>, AppError> {
+    let service = QuotationService::from_state(&state);
+    let model = service.cancel(id, auth.user_id as i64).await?;
     Ok(Json(ApiResponse::success_with_message(
-        value,
-        "报价单已成功转换为销售订单",
+        QuotationResponseDto::from(model),
+        "报价单已取消",
     )))
 }
 
-/// 列出可转销售订单的报价单（APPROVED + 未过期）
-///
-/// `GET /api/v1/erp/sales/quotations/expiring?days=7`
-///
-/// 返回所有状态为 `APPROVED` 且 `valid_until` 在指定天数内（含已过期）的报价单。
-/// 注意：本实现等同于 `list_convertable`，`days` 参数保留以兼容未来扩展。
-pub async fn list_expiring_quotations(
+// ----------------------------------------------------------------------
+// 转换
+// ----------------------------------------------------------------------
+
+/// POST /api/v1/erp/quotations/:id/convert
+pub async fn convert_to_sales_order(
     auth: AuthContext,
     State(state): State<AppState>,
-    Query(query): Query<ExpiringQuotationsQuery>,
-) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
-    let tenant_id = extract_tenant_id(&auth)?;
-    let _ = query.days; // 预留参数：业务后续可基于 days 进一步过滤
-    let convert_svc = QuotationConvertService::new(state.db.clone());
+    Path(id): Path<i64>,
+) -> Result<Json<ApiResponse<SalesOrderResponse>>, AppError> {
+    let service = QuotationConvertService::from_state(&state);
+    let order = service.convert(id, auth.user_id).await?;
+    Ok(Json(ApiResponse::success_with_message(
+        SalesOrderResponse::from(order),
+        "报价单已转换为销售订单草稿",
+    )))
+}
 
-    let quotations = convert_svc.list_convertable(tenant_id).await?;
+// ----------------------------------------------------------------------
+// 贸易条款
+// ----------------------------------------------------------------------
 
-    // 序列化为 JSON 数组
-    let items: Vec<serde_json::Value> = quotations
+/// GET /api/v1/erp/quotations/:id/terms
+pub async fn get_quotation_terms(
+    _auth: AuthContext,
+    State(state): State<AppState>,
+    Path(id): Path<i64>,
+) -> Result<Json<ApiResponse<Vec<QuotationTermResponseDto>>>, AppError> {
+    let terms: Vec<QuotationTermResponseDto> =
+        crate::models::sales_quotation_term::Entity::find()
+            .filter(crate::models::sales_quotation_term::Column::QuotationId.eq(id))
+            .all(&*state.db)
+            .await?
+            .into_iter()
+            .map(Into::into)
+            .collect();
+    Ok(Json(ApiResponse::success(terms)))
+}
+
+/// PUT /api/v1/erp/quotations/:id/terms
+/// 全量替换报价单贸易条款
+pub async fn set_quotation_terms(
+    _auth: AuthContext,
+    State(state): State<AppState>,
+    Path(id): Path<i64>,
+    Json(terms): Json<Vec<crate::models::quotation_create_dto::CreateQuotationTermDto>>,
+) -> Result<Json<ApiResponse<Vec<QuotationTermResponseDto>>>, AppError> {
+    use sea_orm::{ActiveModelTrait, Set, TransactionTrait};
+
+    // 校验报价单存在
+    let service = QuotationService::from_state(&state);
+    let _ = service.get_by_id(id).await?;
+
+    let txn = state.db.begin().await?;
+
+    // 删除旧条款
+    crate::models::sales_quotation_term::Entity::delete_many()
+        .filter(crate::models::sales_quotation_term::Column::QuotationId.eq(id))
+        .exec(&txn)
+        .await?;
+
+    // 插入新条款
+    for term in terms {
+        let active = crate::models::sales_quotation_term::ActiveModel {
+            id: Default::default(),
+            quotation_id: Set(id),
+            term_type: Set(term.term_type),
+            term_key: Set(term.term_key),
+            term_value: Set(term.term_value),
+            sequence: Set(term.sequence),
+        };
+        active.insert(&txn).await?;
+    }
+    txn.commit().await?;
+
+    // 重新查询返回
+    let new_terms: Vec<QuotationTermResponseDto> =
+        crate::models::sales_quotation_term::Entity::find()
+            .filter(crate::models::sales_quotation_term::Column::QuotationId.eq(id))
+            .all(&*state.db)
+            .await?
+            .into_iter()
+            .map(Into::into)
+            .collect();
+    Ok(Json(ApiResponse::success_with_message(
+        new_terms,
+        "贸易条款已更新",
+    )))
+}
+
+// ----------------------------------------------------------------------
+// 状态分类：expiring / expired
+// ----------------------------------------------------------------------
+
+/// GET /api/v1/erp/quotations/expiring
+/// 即将到期（默认 7 天内）
+pub async fn list_expiring(
+    _auth: AuthContext,
+    State(state): State<AppState>,
+    Query(query): Query<ExpiryQuery>,
+) -> Result<Json<ApiResponse<Vec<QuotationResponseDto>>>, AppError> {
+    let days = query.days.unwrap_or(7);
+    let today = Utc::now().date_naive();
+    let until = today + chrono::Duration::days(days as i64);
+
+    use crate::models::sales_quotation;
+    let items: Vec<QuotationResponseDto> = sales_quotation::Entity::find()
+        .filter(sales_quotation::Column::Status.eq("approved"))
+        .filter(sales_quotation::Column::ValidUntil.between(today, until))
+        .all(&*state.db)
+        .await?
         .into_iter()
-        .map(|m| {
-            serde_json::json!({
-                "id": m.id,
-                "quotation_no": m.quotation_no,
-                "customer_id": m.customer_id,
-                "sales_user_id": m.sales_user_id,
-                "valid_until": m.valid_until,
-                "currency": m.currency,
-                "total_amount": m.total_amount,
-                "status": m.status,
-                "approved_at": m.approved_at,
-            })
-        })
+        .map(QuotationResponseDto::from)
         .collect();
-
-    Ok(Json(ApiResponse::success(serde_json::json!({
-        "items": items,
-        "total": items.len(),
-    }))))
+    Ok(Json(ApiResponse::success(items)))
 }
 
-// ============================================================================
-// 单元测试
-// ============================================================================
+/// GET /api/v1/erp/quotations/expired
+/// 已过期（valid_until < today 且状态非 cancelled/converted）
+pub async fn list_expired(
+    _auth: AuthContext,
+    State(state): State<AppState>,
+) -> Result<Json<ApiResponse<Vec<QuotationResponseDto>>>, AppError> {
+    let today = Utc::now().date_naive();
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::middleware::auth_context::AuthContext;
+    use crate::models::sales_quotation;
+    use sea_orm::sea_query::Expr;
+    let items: Vec<QuotationResponseDto> = sales_quotation::Entity::find()
+        .filter(sales_quotation::Column::ValidUntil.lt(today))
+        .filter(Expr::cust(
+            "status NOT IN ('cancelled', 'converted', 'expired')",
+        ))
+        .all(&*state.db)
+        .await?
+        .into_iter()
+        .map(QuotationResponseDto::from)
+        .collect();
+    Ok(Json(ApiResponse::success(items)))
+}
 
-    // -------- 鉴权路径 --------
+// ----------------------------------------------------------------------
+// 定价引擎
+// ----------------------------------------------------------------------
 
-    /// 验证 extract_tenant_id 接受有效租户 ID
-    #[test]
-    fn test_extract_tenant_id_accepts_valid() {
-        let auth = AuthContext {
-            user_id: 1,
-            username: "tester".to_string(),
-            role_id: Some(1),
-            tenant_id: Some(42),
-        };
-        let tid = extract_tenant_id(&auth).expect("租户 ID 应存在");
-        assert_eq!(tid, 42);
+/// POST /api/v1/erp/quotations/calculate-price
+pub async fn calculate_price(
+    _auth: AuthContext,
+    State(state): State<AppState>,
+    Json(ctx): Json<PricingContext>,
+) -> Result<Json<ApiResponse<crate::services::quotation_pricing_service::PricingResult>>, AppError>
+{
+    let service = QuotationPricingService::from_state(&state);
+    let result = service.calculate(ctx).await?;
+    Ok(Json(ApiResponse::success(result)))
+}
+
+// ----------------------------------------------------------------------
+// 色号价格
+// ----------------------------------------------------------------------
+
+/// GET /api/v1/erp/quotations/color-prices/:product_color_id
+/// 列出该 product_color 下的所有价格档
+pub async fn list_color_prices(
+    _auth: AuthContext,
+    State(state): State<AppState>,
+    Path(product_color_id): Path<i64>,
+) -> Result<Json<ApiResponse<Vec<product_color_price::Model>>>, AppError> {
+    // product_color_id 实际为 product_id + color_id 拼接：传 0 时返回所有
+    let items: Vec<product_color_price::Model> = if product_color_id == 0 {
+        product_color_price::Entity::find().all(&*state.db).await?
+    } else {
+        product_color_price::Entity::find()
+            .filter(product_color_price::Column::ProductId.eq(product_color_id))
+            .all(&*state.db)
+            .await?
+    };
+    Ok(Json(ApiResponse::success(items)))
+}
+
+/// POST /api/v1/erp/quotations/color-prices/:product_color_id
+/// 设置色号价格
+pub async fn set_color_price(
+    _auth: AuthContext,
+    State(state): State<AppState>,
+    Path(_product_color_id): Path<i64>,
+    Json(payload): Json<ColorPriceUpsertRequest>,
+) -> Result<Json<ApiResponse<product_color_price::Model>>, AppError> {
+    use sea_orm::ActiveModelTrait;
+    let mut active: product_color_price::ActiveModel = product_color_price::Model {
+        id: payload.id.unwrap_or(0),
+        product_id: payload.product_id,
+        color_id: payload.color_id,
+        currency: payload.currency.clone(),
+        base_price: payload.base_price,
+        effective_from: payload.effective_from,
+        effective_to: payload.effective_to,
+        customer_level: payload.customer_level.clone(),
+        min_quantity: payload.min_quantity,
+        notes: payload.notes.clone(),
+        // P0-5 扩展字段（默认值以兼容旧 API）
+        max_quantity: None,
+        customer_id: None,
+        season: None,
+        is_active: true,
+        priority: 0,
+        created_by: None,
+        approved_by: None,
+        approved_at: None,
+        approval_status: "APPROVED".to_string(),
+        tenant_id: 1,
+        created_at: Utc::now(),
+        updated_at: Utc::now(),
     }
+    .into();
 
-    /// 验证 extract_tenant_id 在 tenant_id 为 None 时返回未授权错误
-    #[test]
-    fn test_extract_tenant_id_rejects_missing() {
-        let auth = AuthContext {
-            user_id: 1,
-            username: "tester".to_string(),
-            role_id: Some(1),
-            tenant_id: None,
-        };
-        let err = extract_tenant_id(&auth).expect_err("缺失租户应失败");
-        let msg = format!("{}", err);
-        assert!(
-            msg.contains("租户") || msg.contains("未授权"),
-            "错误消息应包含租户/未授权，实际：{}",
-            msg
-        );
+    if payload.id.is_some() {
+        active.updated_at = Set(Utc::now());
+        let updated = active.update(&*state.db).await?;
+        Ok(Json(ApiResponse::success_with_message(
+            updated,
+            "色号价格已更新",
+        )))
+    } else {
+        active.id = Default::default();
+        active.created_at = Set(Utc::now());
+        let inserted = active.insert(&*state.db).await?;
+        Ok(Json(ApiResponse::success_with_message(
+            inserted,
+            "色号价格已创建",
+        )))
     }
+}
 
-    // -------- 请求体反序列化路径 --------
+use sea_orm::Set;
 
-    /// 验证 RejectQuotationRequest 拒绝空 reason（handler 业务校验）
-    #[test]
-    fn test_reject_request_blank_reason_rejected() {
-        let reason = "   ".to_string();
-        assert!(reason.trim().is_empty());
-    }
+/// 色号价格 upsert 请求
+#[derive(Debug, Deserialize)]
+pub struct ColorPriceUpsertRequest {
+    pub id: Option<i64>,
+    pub product_id: i64,
+    pub color_id: i64,
+    pub currency: String,
+    pub base_price: rust_decimal::Decimal,
+    pub effective_from: chrono::NaiveDate,
+    pub effective_to: Option<chrono::NaiveDate>,
+    pub customer_level: Option<String>,
+    pub min_quantity: Option<rust_decimal::Decimal>,
+    pub notes: Option<String>,
+}
 
-    /// 验证 QuotationListQuery 反序列化：所有字段均为 Option
-    #[test]
-    fn test_quotation_list_query_deserialize_empty() {
-        let q: QuotationListQuery = serde_json::from_str("{}").expect("空对象应可反序列化");
-        assert!(q.page.is_none());
-        assert!(q.page_size.is_none());
-        assert!(q.customer_id.is_none());
-        assert!(q.sales_user_id.is_none());
-        assert!(q.status.is_none());
-        assert!(q.keyword.is_none());
-    }
+// ----------------------------------------------------------------------
+// ServiceError → AppError
+// ----------------------------------------------------------------------
 
-    /// 验证 QuotationListQuery 反序列化：完整参数
-    #[test]
-    fn test_quotation_list_query_deserialize_full() {
-        let q: QuotationListQuery = serde_json::from_str(
-            r#"{"page":2,"page_size":30,"customer_id":100,"status":"DRAFT","keyword":"QT-001"}"#,
-        )
-        .expect("完整参数应可反序列化");
-        assert_eq!(q.page, Some(2));
-        assert_eq!(q.page_size, Some(30));
-        assert_eq!(q.customer_id, Some(100));
-        assert_eq!(q.sales_user_id, None);
-        assert_eq!(q.status.as_deref(), Some("DRAFT"));
-        assert_eq!(q.keyword.as_deref(), Some("QT-001"));
-    }
-
-    // -------- Service 装配路径 --------
-
-    /// 验证 Service 构造签名：fn(Arc<DatabaseConnection>) -> QuotationService
-    #[test]
-    fn test_service_constructor_signature() {
-        let _: fn(std::sync::Arc<sea_orm::DatabaseConnection>) -> QuotationService =
-            QuotationService::new;
+impl From<ServiceError> for AppError {
+    fn from(e: ServiceError) -> Self {
+        match e {
+            ServiceError::NotFound => AppError::not_found("报价单不存在"),
+            ServiceError::InvalidState => {
+                AppError::validation("当前状态不允许此操作".to_string())
+            }
+            ServiceError::Validation(msg) => AppError::validation(msg),
+            ServiceError::Database(db_err) => AppError::internal(db_err.to_string()),
+        }
     }
 }

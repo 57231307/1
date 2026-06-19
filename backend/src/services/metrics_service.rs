@@ -357,6 +357,16 @@ pub fn create_metrics_router() -> Router<crate::utils::app_state::AppState> {
 mod tests {
     use super::*;
 
+    // P9-1: 测试夹具 helper，封装 MetricsService 的常见初始化模式
+    fn test_metrics_service() -> MetricsService {
+        MetricsService::new().expect("P9-1: 测试夹具 MetricsService 初始化失败")
+    }
+
+    fn test_metrics() -> Metrics {
+        let registry = Registry::new();
+        Metrics::new(&registry).expect("P9-1: 测试夹具 Metrics 初始化失败")
+    }
+
     #[test]
     fn test_metrics_service_creation() {
         let result = MetricsService::new();
@@ -372,8 +382,7 @@ mod tests {
 
     #[test]
     fn test_record_http_request() {
-        let registry = Registry::new();
-        let metrics = Metrics::new(&registry).expect("metrics should initialize");
+        let metrics = test_metrics();
 
         let initial_count = metrics.http_requests_total.get();
         metrics.record_http_request(0.5);
@@ -384,8 +393,7 @@ mod tests {
 
     #[test]
     fn test_start_end_request() {
-        let registry = Registry::new();
-        let metrics = Metrics::new(&registry).expect("metrics should initialize");
+        let metrics = test_metrics();
 
         let initial = metrics.http_requests_in_flight.get();
         metrics.start_request();
@@ -399,8 +407,7 @@ mod tests {
 
     #[test]
     fn test_record_db_query() {
-        let registry = Registry::new();
-        let metrics = Metrics::new(&registry).expect("metrics should initialize");
+        let metrics = test_metrics();
 
         metrics.record_db_query(0.1);
         // 直方图指标不容易直接验证，但不抛出异常即成功
@@ -408,8 +415,7 @@ mod tests {
 
     #[test]
     fn test_record_business_operation() {
-        let registry = Registry::new();
-        let metrics = Metrics::new(&registry).expect("metrics should initialize");
+        let metrics = test_metrics();
 
         let initial = metrics.business_operations_total.get();
         metrics.record_business_operation();
@@ -420,8 +426,7 @@ mod tests {
 
     #[test]
     fn test_record_error() {
-        let registry = Registry::new();
-        let metrics = Metrics::new(&registry).expect("metrics should initialize");
+        let metrics = test_metrics();
 
         let initial = metrics.errors_total.get();
         metrics.record_error();
@@ -432,8 +437,7 @@ mod tests {
 
     #[test]
     fn test_set_db_connections() {
-        let registry = Registry::new();
-        let metrics = Metrics::new(&registry).expect("metrics should initialize");
+        let metrics = test_metrics();
 
         metrics.set_db_connections(10);
         assert_eq!(metrics.db_connections.get(), 10);
@@ -444,7 +448,7 @@ mod tests {
 
     #[test]
     fn test_gather_metrics() {
-        let metrics_service = MetricsService::new().expect("metrics service should initialize");
+        let metrics_service = test_metrics_service();
 
         metrics_service.metrics.record_http_request(0.5);
         metrics_service.metrics.record_error();
@@ -455,7 +459,7 @@ mod tests {
 
     #[test]
     fn test_metrics_clone() {
-        let metrics_service = MetricsService::new().expect("metrics service should initialize");
+        let metrics_service = test_metrics_service();
         let cloned = metrics_service.clone();
 
         assert_eq!(
@@ -472,17 +476,21 @@ mod tests {
     async fn test_metrics_handler() {
         let response = metrics_handler(State(crate::utils::app_state::AppState::default())).await;
 
-        assert!(response.is_ok());
-        let response = response.expect("metrics handler should succeed");
+        // P9-1: 用 match 处理 handler 返回的 Result
+        let response = match response {
+            Ok(r) => r,
+            Err(e) => panic!("P9-1: metrics handler 返回错误: {e}"),
+        };
         assert_eq!(response.status(), 200);
 
         let headers = response.headers();
-        assert!(headers.get("Content-Type").is_some());
-        let content_type = headers
-            .get("Content-Type")
-            .expect("content-type header should exist")
+        let content_type = match headers.get("Content-Type") {
+            Some(v) => v,
+            None => panic!("P9-1: Content-Type header 缺失"),
+        };
+        let content_type = content_type
             .to_str()
-            .expect("content-type should be valid ascii");
+            .expect("P9-1: content-type 应为合法 ASCII");
         assert!(content_type.contains("text/plain"));
     }
 
@@ -517,8 +525,7 @@ mod tests {
 
     #[test]
     fn test_record_http_by_route() {
-        let registry = Registry::new();
-        let metrics = Metrics::new(&registry).expect("metrics should initialize");
+        let metrics = test_metrics();
 
         metrics.record_http_by_route("GET", "/api/v1/erp/users", StatusCode::OK);
         metrics.record_http_by_route("GET", "/api/v1/erp/users", StatusCode::OK);
@@ -544,8 +551,7 @@ mod tests {
 
     #[test]
     fn test_record_http_duration_by_route() {
-        let registry = Registry::new();
-        let metrics = Metrics::new(&registry).expect("metrics should initialize");
+        let metrics = test_metrics();
 
         metrics.record_http_duration_by_route("GET", "/api/v1/erp/products", 0.123);
         // 直方图记录不会抛异常即视为成功
@@ -553,8 +559,7 @@ mod tests {
 
     #[test]
     fn test_record_business_operation_by_type() {
-        let registry = Registry::new();
-        let metrics = Metrics::new(&registry).expect("metrics should initialize");
+        let metrics = test_metrics();
 
         let total_before = metrics.business_operations_total.get();
         metrics.record_business_operation_by_type("create_user");

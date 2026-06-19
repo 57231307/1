@@ -1,27 +1,11 @@
-<!--
-  quality/index.vue - 质量管理主入口（容器组件）
-  ----------------------------------------------------------------
-  拆分说明（2026-06-15 B3-4）：
-  原 800 行"上帝组件"已拆分为以下 3 个 Tab 子组件 + 4 个对话框，
-  位于 views/quality/tabs/ 目录：
-
-  | Tab         | 子组件                              |
-  | ----------- | ----------------------------------- |
-  | 质量标准    | tabs/StandardTab.vue                |
-  | 检验记录    | tabs/RecordTab.vue                  |
-  | 缺陷管理    | tabs/DefectTab.vue                  |
-  | 标准编辑    | tabs/StandardFormDialogTab.vue      |
-  | 审批        | tabs/ApproveDialogTab.vue           |
-  | 版本历史    | tabs/VersionHistoryDialogTab.vue    |
-  | 检验编辑    | tabs/RecordFormDialogTab.vue        |
-
-  本主入口仅承担：Tab 切换 + 公共样式。
--->
 <template>
   <div class="quality-page">
     <el-tabs v-model="activeTab">
       <el-tab-pane label="质量标准" name="standard">
-        <StandardTab @open-approve="openApprove" @open-history="openVersionHistory" />
+        <StandardTab
+          @open-history="openVersionHistoryDialog"
+          @open-approve="openApproveDialog"
+        />
       </el-tab-pane>
 
       <el-tab-pane label="检验记录" name="record">
@@ -33,109 +17,640 @@
       </el-tab-pane>
     </el-tabs>
 
-    <StandardFormDialogTab
+    <el-dialog
       v-model="standardDialogVisible"
-      :current-row="currentStandardRow"
-      @submitted="handleStandardSubmitted"
-    />
+      :title="standardForm.id ? '编辑标准' : '新建标准'"
+      width="700px"
+    >
+      <el-form
+        ref="standardFormRef"
+        :model="standardForm"
+        :rules="standardFormRules"
+        label-width="100px"
+      >
+        <el-form-item label="标准编号" prop="standard_code">
+          <el-input
+            v-model="standardForm.standard_code"
+            :disabled="!!standardForm.id"
+            placeholder="请输入标准编号"
+          />
+        </el-form-item>
+        <el-form-item label="标准名称" prop="standard_name">
+          <el-input v-model="standardForm.standard_name" placeholder="请输入标准名称" />
+        </el-form-item>
+        <el-form-item label="类型" prop="type">
+          <el-select v-model="standardForm.type" placeholder="请选择类型" style="width: 100%">
+            <el-option label="产品标准" value="product" />
+            <el-option label="工艺标准" value="process" />
+          </el-select>
+        </el-form-item>
+        <el-form-item label="版本" prop="version">
+          <el-input v-model="standardForm.version" placeholder="例如：1.0" />
+        </el-form-item>
+        <el-form-item label="标准内容" prop="content">
+          <el-input
+            v-model="standardForm.content"
+            type="textarea"
+            :rows="6"
+            placeholder="请输入标准内容"
+          />
+        </el-form-item>
+        <el-form-item label="附件" prop="attachments">
+          <el-input
+            v-model="attachmentsText"
+            type="textarea"
+            placeholder='JSON格式数组，例如：["附件1.pdf", "附件2.docx"]'
+          />
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <el-button @click="standardDialogVisible = false">取消</el-button>
+        <el-button type="primary" :loading="standardSubmitLoading" @click="submitStandard"
+          >确定</el-button
+        >
+      </template>
+    </el-dialog>
 
-    <ApproveDialogTab
-      v-model="approveDialogVisible"
-      :current-row="approveStandardItem"
-      @submitted="handleApproveSubmitted"
-    />
+    <el-dialog v-model="approveDialogVisible" title="审批质量标准" width="500px">
+      <el-form
+        ref="approveFormRef"
+        :model="approveForm"
+        :rules="approveFormRules"
+        label-width="80px"
+      >
+        <el-form-item label="标准编号">
+          <el-input :model-value="approveStandardItem?.standard_code" disabled />
+        </el-form-item>
+        <el-form-item label="标准名称">
+          <el-input :model-value="approveStandardItem?.standard_name" disabled />
+        </el-form-item>
+        <el-form-item label="当前版本">
+          <el-input :model-value="approveStandardItem?.version" disabled />
+        </el-form-item>
+        <el-form-item label="审批意见" prop="approval_comment">
+          <el-input
+            v-model="approveForm.approval_comment"
+            type="textarea"
+            :rows="4"
+            placeholder="请输入审批意见"
+          />
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <el-button @click="approveDialogVisible = false">取消</el-button>
+        <el-button type="warning" :loading="approveSubmitLoading" @click="rejectStandard"
+          >驳回</el-button
+        >
+        <el-button type="primary" :loading="approveSubmitLoading" @click="confirmApprove"
+          >通过</el-button
+        >
+      </template>
+    </el-dialog>
 
-    <VersionHistoryDialogTab v-model="versionHistoryVisible" :history-list="versionHistoryList" />
+    <el-dialog v-model="versionHistoryVisible" title="版本历史" width="800px">
+      <el-table v-loading="versionHistoryLoading" :data="versionHistoryList" stripe>
+        <el-table-column prop="version" label="版本" width="100" />
+        <el-table-column prop="status" label="状态" width="100">
+          <template #default="{ row }">
+            <el-tag :type="getStandardStatusType(row.status)" size="small">
+              {{ getStandardStatusLabel(row.status) }}
+            </el-tag>
+          </template>
+        </el-table-column>
+        <el-table-column prop="created_by_name" label="创建人" width="100" />
+        <el-table-column prop="created_at" label="创建时间" width="160" />
+        <el-table-column prop="approved_by_name" label="审批人" width="100">
+          <template #default="{ row }">
+            {{ row.approved_by_name || '-' }}
+          </template>
+        </el-table-column>
+        <el-table-column prop="approved_at" label="审批时间" width="160">
+          <template #default="{ row }">
+            {{ row.approved_at || '-' }}
+          </template>
+        </el-table-column>
+      </el-table>
+      <template #footer>
+        <el-button @click="versionHistoryVisible = false">关闭</el-button>
+      </template>
+    </el-dialog>
 
-    <RecordFormDialogTab
+    <el-dialog
       v-model="recordDialogVisible"
-      :current-row="currentRecordRow"
-      @submitted="handleRecordSubmitted"
-    />
+      :title="recordForm.id ? '编辑检验' : '新建检验'"
+      width="700px"
+    >
+      <el-form ref="recordFormRef" :model="recordForm" label-width="100px">
+        <el-form-item label="记录编号" prop="record_no">
+          <el-input v-model="recordForm.record_no" :disabled="!!recordForm.id" />
+        </el-form-item>
+        <el-form-item label="检验类型" prop="inspection_type">
+          <el-select v-model="recordForm.inspection_type" style="width: 100%">
+            <el-option label="进货检验" value="incoming" />
+            <el-option label="过程检验" value="process" />
+            <el-option label="成品检验" value="finished" />
+            <el-option label="出厂检验" value="outgoing" />
+          </el-select>
+        </el-form-item>
+        <el-form-item label="产品" prop="product_name">
+          <el-input v-model="recordForm.product_name" placeholder="产品名称" />
+        </el-form-item>
+        <el-form-item label="批次号" prop="batch_no">
+          <el-input v-model="recordForm.batch_no" />
+        </el-form-item>
+        <el-form-item label="检验日期" prop="inspection_date">
+          <el-date-picker
+            v-model="recordForm.inspection_date"
+            type="date"
+            value-format="YYYY-MM-DD"
+            style="width: 100%"
+          />
+        </el-form-item>
+        <el-form-item label="检验员" prop="inspector">
+          <el-input v-model="recordForm.inspector" />
+        </el-form-item>
+        <el-form-item label="检验结果" prop="result">
+          <el-radio-group v-model="recordForm.result">
+            <el-radio label="pass">合格</el-radio>
+            <el-radio label="fail">不合格</el-radio>
+            <el-radio label="pending">待检</el-radio>
+          </el-radio-group>
+        </el-form-item>
+        <el-form-item label="备注" prop="remark">
+          <el-input v-model="recordForm.remark" type="textarea" />
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <el-button @click="recordDialogVisible = false">取消</el-button>
+        <el-button type="primary" :loading="recordSubmitLoading" @click="submitRecord"
+          >确定</el-button
+        >
+      </template>
+    </el-dialog>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, provide } from 'vue'
-import { ElMessage } from 'element-plus'
-import { logger } from '@/utils/logger'
-import {
-  approveQualityStandard,
-  getQualityStandardVersions,
-  type QualityStandard,
-  type QualityRecord,
-} from '@/api/quality'
+import { ref, reactive, onMounted, provide } from 'vue'
+import { loadIfNot, createLazyLoader } from '@/utils/lazy-loader'
+import { ElMessage, ElMessageBox, type FormInstance, type FormRules } from 'element-plus'
+import { Plus, Download, Printer } from '@element-plus/icons-vue'
+import V2Table from '@/components/V2Table/index.vue'
+import { useTableColumns } from '@/composables/useTableColumns'
 import StandardTab from './tabs/StandardTab.vue'
 import RecordTab from './tabs/RecordTab.vue'
 import DefectTab from './tabs/DefectTab.vue'
-import StandardFormDialogTab from './tabs/StandardFormDialogTab.vue'
-import ApproveDialogTab from './tabs/ApproveDialogTab.vue'
-import VersionHistoryDialogTab from './tabs/VersionHistoryDialogTab.vue'
-import RecordFormDialogTab from './tabs/RecordFormDialogTab.vue'
+import {
+  listQualityStandards,
+  getQualityStandard,
+  createQualityStandard,
+  updateQualityStandard,
+  approveQualityStandard,
+  publishQualityStandard,
+  listQualityRecords,
+  createQualityRecord,
+  listDefects,
+  processDefect as processDefectApi,
+  getQualityStandardVersions,
+  type QualityStandard,
+  type QualityRecord,
+  type Defect,
+} from '@/api/quality'
+
+// 检验记录列定义（V2Table 渲染）
+const { columns: inspectionColumns } = useTableColumns([
+  { key: 'record_no', title: '检验单号', width: 160, sortable: true },
+  { key: 'product_name', title: '产品', width: 200 },
+  { key: 'inspection_type', title: '类型', width: 120 },
+  { key: 'batch_no', title: '批次号', width: 140 },
+  { key: 'inspector', title: '检验员', width: 100 },
+  {
+    key: 'result',
+    title: '结果',
+    width: 100,
+    align: 'center',
+    formatter: (row: any) => {
+      const map: Record<string, string> = { pass: '合格', fail: '不合格', pending: '待检' }
+      return map[row.result] || row.result || '-'
+    },
+  },
+  {
+    key: 'inspection_date',
+    title: '检验日期',
+    width: 120,
+    formatter: (row: any) =>
+      row.inspection_date ? String(row.inspection_date).substring(0, 10) : '-',
+  },
+])
+
+// 行点击：触发查看记录
+const handleInspectionRowClick = (_row: QualityRecord) => {
+  viewRecord()
+}
+
+// V2Table 内置分页事件处理（quality 暂未对接后端分页参数，事件钩子保留以便扩展）
+// TODO(tech-debt): 后端 listQualityRecords 暂未支持分页字段；待后端分页参数就绪后接入 page/size。
+const handlePageChange = (_newPage: number) => {
+  fetchRecords()
+}
+
+// TODO(tech-debt): 后端 listQualityRecords 暂未支持分页字段；待后端分页参数就绪后接入 page/size。
+const handleSizeChange = (_newSize: number) => {
+  fetchRecords()
+}
 
 const activeTab = ref('standard')
 
-const standardDialogVisible = ref(false)
-const currentStandardRow = ref<QualityStandard | null>(null)
-
-const approveDialogVisible = ref(false)
-const approveStandardItem = ref<QualityStandard | null>(null)
-
-const versionHistoryVisible = ref(false)
-const versionHistoryList = ref<QualityStandard[]>([])
-
-const recordDialogVisible = ref(false)
-const currentRecordRow = ref<QualityRecord | null>(null)
-
-// 跨子组件通知机制
-const openStandardDialog = (row: QualityStandard | null) => {
-  currentStandardRow.value = row
-  standardDialogVisible.value = true
-}
-
-const openApprove = (row: QualityStandard) => {
-  approveStandardItem.value = row
-  approveDialogVisible.value = true
-}
-
-const openVersionHistory = async (row: QualityStandard) => {
-  try {
-    const res = await getQualityStandardVersions(row.id)
-    versionHistoryList.value = (res.data as QualityStandard[] | undefined) || []
-    versionHistoryVisible.value = true
-  } catch (error) {
-    const err = error as Error
-    ElMessage.error(err.message || '获取版本历史失败')
-    logger.error('获取版本历史失败', err.message)
-  }
-}
-
-const openRecordDialog = (row: QualityRecord | null) => {
-  currentRecordRow.value = row
-  recordDialogVisible.value = true
-}
-
-const handleStandardSubmitted = () => {
-  // 通知子组件刷新
-}
-
-const handleApproveSubmitted = async (row: QualityStandard) => {
-  try {
-    await approveQualityStandard(row.id)
-    ElMessage.success('审批成功')
-  } catch (error) {
-    const err = error as Error
-    ElMessage.error(err.message || '操作失败')
-  }
-}
-
-const handleRecordSubmitted = () => {
-  // 通知子组件刷新
-}
-
+// 为 StandardTab/RecordTab 提供 actions（inject('qualityActions')）
 provide('qualityActions', {
   openStandardDialog,
   openRecordDialog,
+})
+const standards = ref<QualityStandard[]>([])
+const records = ref<QualityRecord[]>([])
+const defects = ref<Defect[]>([])
+const standardLoading = ref(false)
+const recordLoading = ref(false)
+const defectLoading = ref(false)
+
+const fetchStandards = async () => {
+  standardLoading.value = true
+  try {
+    const res: any = await listQualityStandards()
+    standards.value = res.data! || []
+  } finally {
+    standardLoading.value = false
+  }
+}
+
+const fetchRecords = async () => {
+  recordLoading.value = true
+  try {
+    const res: any = await listQualityRecords()
+    records.value = res.data! || []
+  } finally {
+    recordLoading.value = false
+  }
+}
+
+const fetchDefects = async () => {
+  defectLoading.value = true
+  try {
+    const res: any = await listDefects()
+    defects.value = res.data! || []
+  } finally {
+    defectLoading.value = false
+  }
+}
+
+const getStandardStatusLabel = (status: string) => {
+  const map: Record<string, string> = {
+    draft: '草稿',
+    approved: '已审批',
+    published: '已发布',
+    rejected: '已驳回',
+  }
+  return map[status] || status
+}
+
+const getStandardStatusType = (status: string) => {
+  const map: Record<string, any> = {
+    draft: 'info',
+    approved: 'warning',
+    published: 'success',
+    rejected: 'danger',
+  }
+  return map[status] || 'info'
+}
+
+const standardDialogVisible = ref(false)
+const standardFormRef = ref<FormInstance>()
+const standardSubmitLoading = ref(false)
+const attachmentsText = ref('')
+const standardForm = reactive({
+  id: 0,
+  standard_code: '',
+  standard_name: '',
+  version: '1.0',
+  type: 'product' as const,
+  status: 'draft' as const,
+  content: '',
+  attachments: [] as string[],
+})
+const standardFormRules: FormRules = {
+  standard_code: [{ required: true, message: '请输入标准编号', trigger: 'blur' }],
+  standard_name: [{ required: true, message: '请输入标准名称', trigger: 'blur' }],
+  type: [{ required: true, message: '请选择类型', trigger: 'change' }],
+  version: [{ required: true, message: '请输入版本号', trigger: 'blur' }],
+  content: [{ required: true, message: '请输入标准内容', trigger: 'blur' }],
+}
+
+const openStandardDialog = (row?: QualityStandard) => {
+  if (row) {
+    Object.assign(standardForm, row)
+    attachmentsText.value = JSON.stringify(row.attachments || [], null, 2)
+  } else {
+    Object.assign(standardForm, {
+      id: 0,
+      standard_code: '',
+      standard_name: '',
+      version: '1.0',
+      type: 'product',
+      status: 'draft',
+      content: '',
+      attachments: [],
+    })
+    attachmentsText.value = ''
+  }
+  standardDialogVisible.value = true
+}
+
+const viewStandard = async (row: QualityStandard) => {
+  const res: any = await getQualityStandard(row.id)
+  openStandardDialog(res.data!)
+}
+
+const submitStandard = async () => {
+  if (!standardFormRef.value) return
+  await standardFormRef.value.validate(async valid => {
+    if (!valid) return
+
+    standardSubmitLoading.value = true
+    try {
+      if (attachmentsText.value) {
+        try {
+          standardForm.attachments = JSON.parse(attachmentsText.value)
+        } catch (e) {
+          ElMessage.error('附件格式错误，请检查JSON格式')
+          return
+        }
+      }
+      if (standardForm.id) {
+        await updateQualityStandard(standardForm.id, standardForm as Partial<QualityStandard>)
+      } else {
+        await createQualityStandard(standardForm as Partial<QualityStandard>)
+      }
+      ElMessage.success('操作成功')
+      standardDialogVisible.value = false
+      fetchStandards()
+    } catch (e: any) {
+      ElMessage.error(e.message || '操作失败')
+    } finally {
+      standardSubmitLoading.value = false
+    }
+  })
+}
+
+const approveDialogVisible = ref(false)
+const approveFormRef = ref<FormInstance>()
+const approveSubmitLoading = ref(false)
+const approveStandardItem = ref<QualityStandard | null>(null)
+const approveForm = reactive({ approval_comment: '' })
+const approveFormRules: FormRules = {
+  approval_comment: [{ required: true, message: '请输入审批意见', trigger: 'blur' }],
+}
+
+const approveStandard = async (row: QualityStandard) => {
+  approveStandardItem.value! = row
+  approveForm.approval_comment = ''
+  approveDialogVisible.value = true
+}
+
+const confirmApprove = async () => {
+  if (!approveFormRef.value || !approveStandardItem.value!) return
+  await approveFormRef.value.validate(async valid => {
+    if (!valid) return
+
+    approveSubmitLoading.value = true
+    try {
+      await approveQualityStandard(approveStandardItem.value!.id)
+      ElMessage.success('审批成功')
+      approveDialogVisible.value = false
+      fetchStandards()
+    } catch (e: any) {
+      ElMessage.error(e.message || '操作失败')
+    } finally {
+      approveSubmitLoading.value = false
+    }
+  })
+}
+
+const rejectStandard = async () => {
+  if (!approveStandardItem.value!) return
+  try {
+    await ElMessageBox.confirm('确定要驳回此标准吗？', '确认驳回', { type: 'warning' })
+    ElMessage.info('驳回功能待后端实现')
+    approveDialogVisible.value = false
+  } catch (e: any) {
+    if (e !== 'cancel') ElMessage.error(e.message || '操作失败')
+  }
+}
+
+const publishStandard = async (row: QualityStandard) => {
+  try {
+    await ElMessageBox.confirm('确定发布此标准吗？发布后将无法编辑。', '确认发布', {
+      type: 'warning',
+    })
+    await publishQualityStandard(row.id)
+    ElMessage.success('发布成功')
+    fetchStandards()
+  } catch (e: any) {
+    if (e !== 'cancel') ElMessage.error(e.message || '操作失败')
+  }
+}
+
+const versionHistoryVisible = ref(false)
+const versionHistoryLoading = ref(false)
+const versionHistoryList = ref<QualityStandard[]>([])
+
+const viewVersionHistory = async (row: QualityStandard) => {
+  versionHistoryLoading.value = true
+  try {
+    const res: any = await getQualityStandardVersions(row.id)
+    versionHistoryList.value = res.data! || []
+    versionHistoryVisible.value = true
+  } catch (e: any) {
+    ElMessage.error(e.message || '获取版本历史失败')
+  } finally {
+    versionHistoryLoading.value = false
+  }
+}
+
+const recordDialogVisible = ref(false)
+const recordFormRef = ref<FormInstance>()
+const recordSubmitLoading = ref(false)
+const recordForm = reactive({
+  id: 0,
+  record_no: '',
+  inspection_type: '',
+  product_id: undefined as number | undefined,
+  product_name: '',
+  batch_no: '',
+  inspection_date: '',
+  inspector: '',
+  result: 'pending' as const,
+  defects: [] as Defect[],
+  remark: '',
+})
+
+const openRecordDialog = (row?: QualityRecord) => {
+  if (row) {
+    Object.assign(recordForm, row)
+  } else {
+    Object.assign(recordForm, {
+      id: 0,
+      record_no: '',
+      inspection_type: '',
+      product_id: undefined,
+      product_name: '',
+      batch_no: '',
+      inspection_date: '',
+      inspector: '',
+      result: 'pending',
+      defects: [],
+      remark: '',
+    })
+  }
+  recordDialogVisible.value = true
+}
+
+const viewRecord = async () => {
+  ElMessage.info('查看检验记录')
+}
+
+const submitRecord = async () => {
+  recordSubmitLoading.value = true
+  try {
+    if (recordForm.id) {
+      ElMessage.info('更新功能待实现')
+    } else {
+      await createQualityRecord(recordForm as Partial<QualityRecord>)
+    }
+    ElMessage.success('操作成功')
+    recordDialogVisible.value = false
+    fetchRecords()
+  } catch (e: any) {
+    ElMessage.error(e.message || '操作失败')
+  } finally {
+    recordSubmitLoading.value = false
+  }
+}
+
+const processDefect = async (row: Defect) => {
+  try {
+    const { value } = await ElMessageBox.prompt('请输入处理备注', '处理缺陷')
+    await processDefectApi(row.id, { remark: value })
+    ElMessage.success('处理成功')
+    fetchDefects()
+  } catch (e: any) {
+    if (e !== 'cancel') ElMessage.error(e.message || '操作失败')
+  }
+}
+
+const handleExportStandards = () => {
+  const headers = ['标准编号,标准名称,类型,版本,状态,创建人,审批人']
+  const rows = standards.value.map((item: any) =>
+    [
+      item.standard_code,
+      item.standard_name,
+      item.type === 'product' ? '产品标准' : '工艺标准',
+      item.version,
+      getStandardStatusLabel(item.status),
+      item.created_by_name || '-',
+      item.approved_by_name || '-',
+    ].join(',')
+  )
+  const csv = [...headers, ...rows].join('\n')
+  const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' })
+  const link = document.createElement('a')
+  link.href = URL.createObjectURL(blob)
+  link.download = `质量标准_${new Date().toISOString().split('T')[0]}.csv`
+  link.click()
+  ElMessage.success('导出成功')
+}
+
+const handlePrintStandards = () => {
+  const printWindow = window.open('', '_blank')
+  if (!printWindow) {
+    ElMessage.error('无法打开打印窗口')
+    return
+  }
+  const rows = standards.value
+    .map(
+      (item: any) => `
+    <tr>
+      <td>${item.standard_code}</td><td>${item.standard_name}</td>
+      <td>${item.type === 'product' ? '产品标准' : '工艺标准'}</td>
+      <td>${item.version}</td><td>${getStandardStatusLabel(item.status)}</td>
+      <td>${item.created_by_name || '-'}</td>
+    </tr>
+  `
+    )
+    .join('')
+  printWindow.document.write(`<html><head><meta charset="utf-8"><title>质量标准</title>
+    <style>@media print{@page{size:landscape;}}body{font-family:"Microsoft YaHei",sans-serif;font-size:12px;}h1{text-align:center;}table{width:100%;border-collapse:collapse;margin-top:12px;}th,td{border:1px solid #333;padding:6px 8px;}th{background:#f5f5f5;}.meta{text-align:center;color:#666;font-size:11px;}</style></head><body>
+    <h1>质量标准列表</h1><div class="meta">打印日期: ${new Date().toISOString().split('T')[0]} | 共 ${standards.value.length} 条</div>
+    <table><thead><tr><th>标准编号</th><th>标准名称</th><th>类型</th><th>版本</th><th>状态</th><th>创建人</th></tr></thead><tbody>${rows}</tbody></table></body></html>`)
+  printWindow.document.close()
+  printWindow.onload = () => printWindow.print()
+}
+
+const handleExportRecords = () => {
+  const headers = ['记录编号,检验类型,产品,批次号,检验日期,检验员,结果']
+  const resultMap: Record<string, string> = { pass: '合格', fail: '不合格', pending: '待检' }
+  const rows = records.value.map((item: any) =>
+    [
+      item.record_no,
+      item.inspection_type,
+      item.product_name,
+      item.batch_no,
+      item.inspection_date,
+      item.inspector,
+      resultMap[item.result] || item.result,
+    ].join(',')
+  )
+  const csv = [...headers, ...rows].join('\n')
+  const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' })
+  const link = document.createElement('a')
+  link.href = URL.createObjectURL(blob)
+  link.download = `检验记录_${new Date().toISOString().split('T')[0]}.csv`
+  link.click()
+  ElMessage.success('导出成功')
+}
+
+const handlePrintRecords = () => {
+  const printWindow = window.open('', '_blank')
+  if (!printWindow) {
+    ElMessage.error('无法打开打印窗口')
+    return
+  }
+  const resultMap: Record<string, string> = { pass: '合格', fail: '不合格', pending: '待检' }
+  const rows = records.value
+    .map(
+      (item: any) => `
+    <tr>
+      <td>${item.record_no}</td><td>${item.inspection_type}</td>
+      <td>${item.product_name}</td><td>${item.batch_no}</td>
+      <td>${item.inspection_date}</td><td>${item.inspector}</td>
+      <td>${resultMap[item.result] || item.result}</td>
+    </tr>
+  `
+    )
+    .join('')
+  printWindow.document.write(`<html><head><meta charset="utf-8"><title>检验记录</title>
+    <style>@media print{@page{size:landscape;}}body{font-family:"Microsoft YaHei",sans-serif;font-size:12px;}h1{text-align:center;}table{width:100%;border-collapse:collapse;margin-top:12px;}th,td{border:1px solid #333;padding:6px 8px;}th{background:#f5f5f5;}.meta{text-align:center;color:#666;font-size:11px;}</style></head><body>
+    <h1>质量检验记录</h1><div class="meta">打印日期: ${new Date().toISOString().split('T')[0]} | 共 ${records.value.length} 条</div>
+    <table><thead><tr><th>记录编号</th><th>检验类型</th><th>产品</th><th>批次号</th><th>检验日期</th><th>检验员</th><th>结果</th></tr></thead><tbody>${rows}</tbody></table></body></html>`)
+  printWindow.document.close()
+  printWindow.onload = () => printWindow.print()
+}
+
+const hasLoaded = createLazyLoader()
+
+onMounted(() => {
+  fetchStandards()
+  loadIfNot('records', fetchRecords, hasLoaded)
+  loadIfNot('defects', fetchDefects, hasLoaded)
 })
 </script>
 
@@ -145,13 +660,13 @@ provide('qualityActions', {
   background-color: #f5f7fa;
   min-height: 100%;
 }
-:deep(.page-header) {
+.page-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
   margin-bottom: 20px;
 }
-:deep(.page-title) {
+.page-title {
   font-size: 20px;
   font-weight: 600;
   color: #303133;
