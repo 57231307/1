@@ -98,7 +98,7 @@ interface GanttDataLite {
 }
 
 // 排产甘特图工具栏属性
-const props = defineProps<{
+defineProps<{
   // 甘特图数据
   ganttData: GanttDataLite
   // 日期范围

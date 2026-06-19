@@ -47,7 +47,7 @@ import type { PurchaseReturn } from '@/api/purchase-return'
 import { getStatusType, getStatusText } from '../composables/prRtnFmts'
 
 // 采购退货详情对话框属性
-const props = defineProps<{
+defineProps<{
   // 对话框可见性
   visible: boolean
   // 详情数据

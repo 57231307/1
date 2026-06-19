@@ -61,7 +61,7 @@ interface ScheduleParams {
 }
 
 // 排产参数侧栏属性
-const props = defineProps<{
+defineProps<{
   // 排程参数
   scheduleParams: ScheduleParams
   // 日期范围

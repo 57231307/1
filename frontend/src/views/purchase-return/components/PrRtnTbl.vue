@@ -88,7 +88,7 @@ interface QueryParams {
 }
 
 // 采购退货列表表格属性
-const props = defineProps<{
+defineProps<{
   // 表格数据
   tableData: PurchaseReturn[]
   // 加载状态

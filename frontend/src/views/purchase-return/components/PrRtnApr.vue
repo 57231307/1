@@ -36,7 +36,7 @@ interface ApproveForm {
 }
 
 // 采购退货审批对话框属性
-const props = defineProps<{
+defineProps<{
   // 对话框可见性
   visible: boolean
   // 审批表单

@@ -54,7 +54,7 @@ interface ConflictItem {
 }
 
 // 排程冲突对话框属性
-const props = defineProps<{
+defineProps<{
   // 对话框可见性
   visible: boolean
   // 冲突列表

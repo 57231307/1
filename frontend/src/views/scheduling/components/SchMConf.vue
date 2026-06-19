@@ -53,7 +53,7 @@
 import type { ConflictItem } from '@/api/scheduling'
 
 // 排产冲突侧栏属性
-const props = defineProps<{
+defineProps<{
   // 冲突列表
   conflictList: ConflictItem[]
   // 冲突加载状态

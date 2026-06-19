@@ -84,7 +84,7 @@ interface Stats {
 }
 
 // 排产管理工具栏属性
-const props = defineProps<{
+defineProps<{
   // 统计数据
   stats: Stats
   // 自动排程进行中

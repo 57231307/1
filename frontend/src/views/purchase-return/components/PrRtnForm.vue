@@ -150,7 +150,7 @@ interface FormRules {
 }
 
 // 采购退货表单属性
-const props = defineProps<{
+defineProps<{
   // 对话框可见性
   visible: boolean
   // 是否编辑模式

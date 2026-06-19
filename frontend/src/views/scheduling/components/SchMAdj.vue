@@ -52,7 +52,7 @@ interface AdjustForm {
 }
 
 // 排产调整对话框属性
-const props = defineProps<{
+defineProps<{
   // 对话框可见性
   visible: boolean
   // 调整任务

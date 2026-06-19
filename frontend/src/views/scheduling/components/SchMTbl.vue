@@ -87,7 +87,7 @@ import type { ScheduleTask } from '@/api/scheduling'
 import { formatDateTime, getStatusType, getStatusLabel, getPriorityType } from '../composables/schMFmts'
 
 // 排产工单列表属性
-const props = defineProps<{
+defineProps<{
   // 工单列表
   taskList: ScheduleTask[]
   // 加载状态

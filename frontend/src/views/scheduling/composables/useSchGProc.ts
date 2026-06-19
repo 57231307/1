@@ -6,7 +6,7 @@
  */
 import { reactive, ref } from 'vue'
 import { ElMessage } from 'element-plus'
-import { schedulingApi, type SchedulingParams } from '@/api/scheduling'
+import { schedulingApi } from '@/api/scheduling'
 
 /**
  * 排产自动排程流程 composable

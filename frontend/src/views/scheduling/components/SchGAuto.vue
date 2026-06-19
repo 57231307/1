@@ -59,7 +59,7 @@ interface ScheduleForm {
 }
 
 // 自动排程对话框属性
-const props = defineProps<{
+defineProps<{
   // 对话框可见性
   visible: boolean
   // 排程参数

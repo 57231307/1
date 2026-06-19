@@ -73,7 +73,7 @@ interface Supplier {
 }
 
 // 采购退货过滤栏属性
-const props = defineProps<{
+defineProps<{
   // 查询参数
   queryParams: QueryParams
   // 供应商列表
