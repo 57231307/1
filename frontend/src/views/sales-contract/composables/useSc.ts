@@ -186,7 +186,8 @@ export function useSc() {
     loadIfNot('customers', getCustomers, hasLoaded)
   }
 
-  return {
+  // 使用 reactive 包装，访问字段时自动解包 ref
+  return reactive({
     // 查询与列表
     queryParams,
     dateRange,
@@ -210,7 +211,7 @@ export function useSc() {
     handleSubmitForm,
     // 初始化
     initLoad,
-  }
+  })
 }
 
 export type ScLazyLoader = Record<string, boolean>

@@ -166,7 +166,8 @@ export function useSysUpd() {
     currentVersionDetail.value = row
   }
 
-  return {
+  // 使用 reactive 包装，访问字段时自动解包 ref
+  return reactive({
     // 当前版本
     currentVersion,
     latestVersion,
@@ -199,5 +200,5 @@ export function useSysUpd() {
     // 版本详情
     currentVersionDetail,
     viewVersionDetail,
-  }
+  })
 }

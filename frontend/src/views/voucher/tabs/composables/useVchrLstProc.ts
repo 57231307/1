@@ -16,18 +16,27 @@ import {
 } from '@/api/voucher'
 import { getStatusLabel, getTypeLabel } from './vchrLstFmts'
 
+/** 接收的列表数据（支持 ref 和 plain value） */
+type ContractListLike = { value: VoucherEntity[] } | VoucherEntity[]
+
 /**
  * 创建凭证流程操作方法集合
- * @param tableData 列表 ref（用于导出/打印）
+ * @param tableData 列表 ref 或 plain value
  * @param loadData 重新拉取列表方法
  */
 export function useVchrLstProc(
-  tableData: { value: VoucherEntity[] },
+  tableData: ContractListLike,
   loadData: () => Promise<void>
 ) {
+  /** 取出底层数组（兼容 ref 和 plain value） */
+  const getList = (): VoucherEntity[] => {
+    return Array.isArray(tableData) ? tableData : tableData.value
+  }
+
   /** 打印当前列表 */
   const handlePrint = () => {
-    const printData = tableData.value.map((item, index) => ({
+    const list = getList()
+    const printData = list.map((item, index) => ({
       序号: index + 1,
       凭证号: item.voucher_no,
       日期: item.voucher_date,
@@ -51,9 +60,10 @@ export function useVchrLstProc(
 
   /** 导出 CSV */
   const handleExport = () => {
+    const list = getList()
     const csvContent = [
       ['凭证号', '日期', '类型', '摘要', '借方金额', '贷方金额', '状态'],
-      ...tableData.value.map(item => [
+      ...list.map(item => [
         item.voucher_no,
         item.voucher_date,
         getTypeLabel(item.type),

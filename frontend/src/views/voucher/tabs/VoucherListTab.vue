@@ -69,7 +69,6 @@ const vchrProc = useVchrLstProc(vchr.tableData, vchr.loadData)
 // 对话框可见性本地 ref
 const dialogVisible = ref(false)
 const viewDialogVisible = ref(false)
-
 /** 新增凭证：composable 准备数据，本地打开对话框 */
 const onAdd = async () => {
   await vchr.openAddDialog()

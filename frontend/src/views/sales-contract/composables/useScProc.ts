@@ -102,13 +102,14 @@ export function useScProc(refresh: RefreshCallbacks) {
   }
 
   /** 打印当前列表 */
-  const handlePrint = (contractList: { value: SalesContract[] }) => {
+  const handlePrint = (contractList: { value: SalesContract[] } | SalesContract[]) => {
+    const list = Array.isArray(contractList) ? contractList : contractList.value
     const printWindow = window.open('', '_blank')
     if (!printWindow) {
       ElMessage.error('无法打开打印窗口')
       return
     }
-    const rows = contractList.value
+    const rows = list
       .map(
         (item: any) => `
       <tr>
@@ -135,7 +136,7 @@ export function useScProc(refresh: RefreshCallbacks) {
         .meta { text-align: center; color: #666; font-size: 11px; }
       </style></head><body>
       <h1>销售合同列表</h1>
-      <div class="meta">打印日期: ${now} | 共 ${contractList.value.length} 条</div>
+      <div class="meta">打印日期: ${now} | 共 ${list.length} 条</div>
       <table>
         <thead><tr><th>合同编号</th><th>合同名称</th><th>客户</th><th>金额</th><th>签订日期</th><th>状态</th></tr></thead>
         <tbody>${rows}</tbody>
@@ -147,10 +148,11 @@ export function useScProc(refresh: RefreshCallbacks) {
   }
 
   /** 导出 CSV */
-  const handleExport = (contractList: { value: SalesContract[] }) => {
+  const handleExport = (contractList: { value: SalesContract[] } | SalesContract[]) => {
+    const list = Array.isArray(contractList) ? contractList : contractList.value
     const csvContent = [
       ['合同编号', '合同名称', '客户', '金额', '签订日期', '状态'],
-      ...contractList.value.map((item: any) => [
+      ...list.map((item: any) => [
         item.contract_no,
         item.contract_name,
         item.customer_name,

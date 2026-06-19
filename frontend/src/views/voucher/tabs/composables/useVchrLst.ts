@@ -5,6 +5,10 @@
  * 提供凭证列表查询、表单管理、科目加载、详情等核心方法
  * 业务流程（打印/导出/审核/记账）由 useVchrLstProc 提供
  * 行为完全保持一致（仅结构重构）
+ *
+ * 设计说明：使用 reactive 而非 ref 包装返回值，便于父组件
+ *   const vchr = useVchrLst() 后直接以 plain value 形式访问 vchr.xxx
+ *   避免子组件 prop 期望 boolean/array 等基础类型时类型不匹配
  */
 import { ref, watch, reactive } from 'vue'
 import { ElMessage } from 'element-plus'
@@ -33,9 +37,9 @@ interface SubjectOption {
  */
 export function useVchrLst() {
   // 列表数据
-  const tableData = ref<VoucherEntity[]>([])
-  const total = ref(0)
-  const loading = ref(false)
+  const tableDataRef = ref<VoucherEntity[]>([])
+  const totalRef = ref(0)
+  const loadingRef = ref(false)
 
   // 过滤条件（reactive 包装以便父组件直接传 prop）
   const searchForm = reactive({
@@ -47,13 +51,13 @@ export function useVchrLst() {
   })
 
   // 分页
-  const pagination = ref({
+  const paginationRef = ref({
     page: 1,
     pageSize: 20,
   })
 
   // 新建/编辑对话框表单（reactive 包装以便子组件双向同步字段）
-  const dialogTitle = ref('新增凭证')
+  const dialogTitleRef = ref('新增凭证')
   const form = reactive<Partial<VoucherEntity>>({
     voucher_no: '',
     voucher_date: new Date().toISOString().split('T')[0],
@@ -66,38 +70,38 @@ export function useVchrLst() {
   })
 
   // 详情对话框数据
-  const viewData = ref<VoucherEntity | null>(null)
+  const viewDataRef = ref<VoucherEntity | null>(null)
 
   // 凭证类型选项
-  const voucherTypes = ref<{ label: string; value: string }[]>([])
+  const voucherTypesRef = ref<{ label: string; value: string }[]>([])
 
   // 科目选项（扁平化）
-  const accountSubjectOptions = ref<SubjectOption[]>([])
+  const accountSubjectOptionsRef = ref<SubjectOption[]>([])
 
   /** 加载列表 */
   const loadData = async () => {
-    loading.value = true
+    loadingRef.value = true
     try {
       const params = {
         ...searchForm,
-        page: pagination.value.page,
-        page_size: pagination.value.pageSize,
+        page: paginationRef.value.page,
+        page_size: paginationRef.value.pageSize,
       }
       const res = await listVouchers(params)
       const d = (res as { data?: unknown }).data
       if (Array.isArray(d)) {
-        tableData.value = d
-        total.value = d.length
+        tableDataRef.value = d
+        totalRef.value = d.length
       } else if (d && typeof d === 'object') {
         const listData = d as { list?: VoucherEntity[]; items?: VoucherEntity[]; total?: number }
-        tableData.value = listData.list || listData.items || []
-        total.value = listData.total || 0
+        tableDataRef.value = listData.list || listData.items || []
+        totalRef.value = listData.total || 0
       }
     } catch (error) {
       logger.error('获取凭证列表失败', error)
       ElMessage.error('获取凭证列表失败')
     } finally {
-      loading.value = false
+      loadingRef.value = false
     }
   }
 
@@ -107,9 +111,9 @@ export function useVchrLst() {
       const res = await getVoucherTypes()
       const d = (res as { data?: unknown }).data
       if (Array.isArray(d)) {
-        voucherTypes.value = (d as string[]).map(t => ({ label: t, value: t }))
+        voucherTypesRef.value = (d as string[]).map(t => ({ label: t, value: t }))
       } else {
-        voucherTypes.value = []
+        voucherTypesRef.value = []
       }
     } catch (error) {
       logger.error('获取凭证类型失败', error)
@@ -142,7 +146,7 @@ export function useVchrLst() {
         traverse(items)
         return result
       }
-      accountSubjectOptions.value = flattenOptions()
+      accountSubjectOptionsRef.value = flattenOptions()
     } catch (error) {
       logger.error('获取科目列表失败', error)
     }
@@ -183,7 +187,7 @@ export function useVchrLst() {
 
   /** 准备新增对话框数据（父组件调用后需自行打开对话框） */
   const openAddDialog = async () => {
-    dialogTitle.value = '新增凭证'
+    dialogTitleRef.value = '新增凭证'
     try {
       const res = await generateVoucherNo()
       const data = (res as { data?: { voucher_no?: string } | string }).data
@@ -207,7 +211,7 @@ export function useVchrLst() {
 
   /** 准备编辑对话框数据（父组件调用后需自行打开对话框） */
   const openEditDialog = async (row: VoucherEntity) => {
-    dialogTitle.value = '编辑凭证'
+    dialogTitleRef.value = '编辑凭证'
     const res = await getVoucher(row.id!)
     Object.assign(form, res.data)
   }
@@ -216,7 +220,7 @@ export function useVchrLst() {
   const openViewDialog = async (row: VoucherEntity) => {
     try {
       const res = await getVoucher(row.id!)
-      viewData.value = res.data!
+      viewDataRef.value = res.data!
     } catch (error) {
       logger.error('获取详情失败', error)
       ElMessage.error('获取详情失败')
@@ -262,7 +266,7 @@ export function useVchrLst() {
 
   /** 查询 */
   const handleSearch = () => {
-    pagination.value.page = 1
+    paginationRef.value.page = 1
     loadData()
   }
 
@@ -278,48 +282,46 @@ export function useVchrLst() {
 
   /** 分页变化 */
   const handlePageChange = (page: number) => {
-    pagination.value.page = page
+    paginationRef.value.page = page
     loadData()
   }
 
   /** 每页大小变化 */
   const handlePageSizeChange = (pageSize: number) => {
-    pagination.value.pageSize = pageSize
-    pagination.value.page = 1
+    paginationRef.value.pageSize = pageSize
+    paginationRef.value.page = 1
     loadData()
   }
 
   /** 监听 entries 变化自动重算合计 */
   watch(() => form.entries, calculateTotals, { deep: true })
 
-  return {
-    // 列表
-    tableData,
-    total,
-    loading,
+  // 使用 reactive 包装所有 ref 字段，访问 reactive 字段时 Vue 自动解包 ref，
+  // 父组件通过 vchr.tableData 即可直接获得 VoucherEntity[] 类型的值
+  return reactive({
+    tableData: tableDataRef,
+    total: totalRef,
+    loading: loadingRef,
     searchForm,
-    pagination,
+    pagination: paginationRef,
+    dialogTitle: dialogTitleRef,
+    form,
+    viewData: viewDataRef,
+    voucherTypes: voucherTypesRef,
+    accountSubjectOptions: accountSubjectOptionsRef,
     loadData,
     handleSearch,
     handleReset,
     handlePageChange,
     handlePageSizeChange,
-    // 表单
-    dialogTitle,
-    form,
     openAddDialog,
     openEditDialog,
     handleSubmit,
     addEntry,
     removeEntry,
     calculateTotals,
-    // 详情
-    viewData,
     openViewDialog,
-    // 类型与科目
-    voucherTypes,
-    accountSubjectOptions,
     loadVoucherTypes,
     loadAccountSubjects,
-  }
+  })
 }
