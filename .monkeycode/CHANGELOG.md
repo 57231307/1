@@ -16,6 +16,12 @@
 
 ## 最新任务总结
 
+### 推送 main + 清理根 CHANGELOG/MEMORY（2026-06-19）
+
+- **删除**：`chore: 删除 test 合入的根 CHANGELOG.md / MEMORY.md`（2 文件 -1941 行）
+- **原因**：与 .monkeycode/ 记忆体系重复，统一以 .monkeycode/ 为唯一记忆系统
+- **最终 main HEAD**：`b99ec30`
+
 ### I-3 第 6 批合入 + feature 分支清理（2026-06-19）
 
 - **cherry-pick**：`git cherry-pick -X theirs e4ba11d` 单点合入 p14 分支唯一提交，41 文件 +3600/-2421 行

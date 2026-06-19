@@ -416,6 +416,18 @@
 
 ---
 
+### [推送 main + 清理根 CHANGELOG/MEMORY]
+
+- Date: 2026-06-19
+- Context: 用户要求"推送到 main"，工作树中有未提交变更（test 合入时保留的根 CHANGELOG.md / MEMORY.md）
+- Category: 工作流协作
+- Instructions:
+  - **工作树状态**：根 CHANGELOG.md 和 MEMORY.md 已删除（未提交），是 test 合入 main 时带过来的冗余文件
+  - **与项目记忆体系冲突**：.monkeycode/ 已有 MEMORY.md / doto.md / CHANGELOG.md 完整体系，根目录同名文件重复
+  - **操作**：commit `b99ec30`（2 文件 -1941 行）→ 推送到 origin/main
+  - **最终远端**：`b99ec30 chore: 删除 test 合入的根 CHANGELOG.md / MEMORY.md（与 .monkeycode/ 记忆体系重复）`
+  - **决策依据**：用户前序指令"使用 main 的 .monkeycode 目录"已确立 .monkeycode/ 为唯一记忆体系
+
 ### [feature 分支清理与 I-3 第 6 批合入]
 
 - Date: 2026-06-19
