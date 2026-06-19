@@ -1,7 +1,7 @@
 <template>
   <el-dropdown trigger="click" @command="onCommand">
     <span class="language-switcher">
-      <el-icon><Earth /></el-icon>
+      <el-icon><Compass /></el-icon>
       <span class="lang-text">{{ currentName }}</span>
       <el-icon><ArrowDown /></el-icon>
     </span>
