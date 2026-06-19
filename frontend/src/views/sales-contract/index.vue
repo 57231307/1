@@ -97,7 +97,7 @@ const onSubmitForm = async () => {
 
 /** 日期范围变化 */
 const onDateChange = (v: [Date, Date] | null) => {
-  sc.dateRange.value = v
+  sc.dateRange = v
   sc.handleDateChange()
 }
 

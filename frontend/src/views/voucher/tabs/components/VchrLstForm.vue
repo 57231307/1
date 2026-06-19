@@ -145,16 +145,18 @@ interface VoucherEntry {
   description?: string
 }
 
-interface VoucherForm {
+/** 父组件传 Partial<VoucherEntity>，所有字段均可选 */
+type VoucherForm = {
   id?: number
-  voucher_no: string
-  voucher_date: string
-  type: string
-  status: string
+  voucher_no?: string
+  voucher_date?: string
+  type?: string
+  status?: string
   description?: string
-  total_debit: number
-  total_credit: number
-  entries: VoucherEntry[]
+  total_debit?: number
+  total_credit?: number
+  entries?: VoucherEntry[]
+  [key: string]: unknown
 }
 
 interface SubjectOption {

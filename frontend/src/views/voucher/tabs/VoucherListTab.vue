@@ -55,7 +55,6 @@
 <script setup lang="ts">
 /* eslint-disable vue/no-mutating-props */
 import { ref, onMounted } from 'vue'
-import type { VoucherEntity } from '@/api/voucher'
 import { useVchrLst } from './composables/useVchrLst'
 import { useVchrLstProc } from './composables/useVchrLstProc'
 import VchrLstFilter from './components/VchrLstFilter.vue'
