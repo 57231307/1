@@ -416,6 +416,19 @@
 
 ---
 
+### [test vs main 分支功能差异分析]
+
+- Date: 2026-06-19
+- Context: 用户要求"对比 test 和 main 的项目功能差异"
+- Category: 工作流协作
+- Instructions:
+  - **规模**：test 领先 196 提交（+122,467/-43,459）、main 领先 126 提交、双向 957 文件差异
+  - **test 独有核心能力**：P9 大爆炸（OTel/Kafka/ES/un-wrap 清理/service 拆分/E2E/100+ 单元测试）、mobile/ 目录、microservices/ 目录、OpenAPI 3.0 完整规范、213 表 Schema 文档、生产就绪 v2026.617.0001
+  - **main 独有治理特性**：I-3 .vue 拆分大跃进（25 文件）、审计体系增强（pg_stat_statements + V2Table UI）、P3-1 安全（TOTP 2FA + 密码强度）、H1/H2/H3 死代码清理、vue-tsc CI job、`.monkeycode/` 文档体系
+  - **关键路径冲突**：Kafka 集成（test `messaging/` vs main `services/event_kafka.rs`）、CHANGELOG 策略（test 根目录 vs main `.monkeycode/`）
+  - **合并建议 6 波次**：Wave A（test→main：mobile/microservices/OpenAPI/Schema）→ Wave B（main→test：I-3+审计 UI）→ Wave C（test→main：OTel/Kafka/ES 统一路径）→ Wave D（main→test：.monkeycode/）→ Wave E（双向：P0 业务流/P3 安全/P2 性能）→ Wave F（CI+CHANGELOG 对齐）
+  - **风险点**：mobile/ 与"禁止本地编译"规则冲突、test 缺 vue-tsc CI、I-3 拆分在 test P1-3 已有部分实现需 dedup
+
 ### [docs 合并 + main 同步]
 
 - Date: 2026-06-19
