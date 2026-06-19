@@ -197,6 +197,7 @@ impl AuthService {
     /// # 返回
     /// - `Ok(claims)`: 验证成功，返回令牌声明
     /// - `Err(AuthError::InvalidToken)`: 令牌无效或已过期
+    #[allow(dead_code)] // TODO(tech-debt): 业务接入后移除
     pub fn validate_token(&self, token: &str) -> Result<AppClaims, AuthError> {
         let mut validation = Validation::default();
         validation.validate_exp = true;

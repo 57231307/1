@@ -23,6 +23,7 @@ impl FiveDimensionQueryService {
     }
 
     /// 为库存表应用五维过滤条件
+    #[allow(dead_code)] // TODO(tech-debt): 业务接入后移除
     pub fn apply_to_inventory(
         query: sea_orm::Select<inventory_stock::Entity>,
         dimension: &FabricFiveDimension,
@@ -41,6 +42,7 @@ impl FiveDimensionQueryService {
     }
 
     /// 为库存表应用部分五维过滤条件（支持模糊查询）
+    #[allow(dead_code)] // TODO(tech-debt): 业务接入后移除
     pub fn apply_partial_to_inventory(
         query: sea_orm::Select<inventory_stock::Entity>,
         product_id: Option<i32>,
@@ -78,6 +80,7 @@ impl FiveDimensionQueryService {
     }
 
     /// 为库存流水表应用五维过滤条件
+    #[allow(dead_code)] // TODO(tech-debt): 业务接入后移除
     pub fn apply_to_transaction(
         query: sea_orm::Select<inventory_transaction::Entity>,
         dimension: &FabricFiveDimension,
@@ -96,6 +99,7 @@ impl FiveDimensionQueryService {
     }
 
     /// 为采购收货表应用五维过滤条件
+    #[allow(dead_code)] // TODO(tech-debt): 业务接入后移除
     pub fn apply_to_purchase_receipt(
         query: sea_orm::Select<purchase_receipt_item::Entity>,
         dimension: &FabricFiveDimension,
@@ -104,6 +108,7 @@ impl FiveDimensionQueryService {
     }
 
     /// 为销售发货表应用五维过滤条件
+    #[allow(dead_code)] // TODO(tech-debt): 业务接入后移除
     pub fn apply_to_sales_delivery(
         query: sea_orm::Select<sales_delivery_item::Entity>,
         dimension: &FabricFiveDimension,

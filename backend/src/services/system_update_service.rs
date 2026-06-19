@@ -66,6 +66,7 @@ pub struct UpdateCheckResult {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[allow(dead_code)] // TODO(tech-debt): 业务接入后移除
 pub struct UpdateStatus {
     pub current_version: String,
     pub is_updating: bool,

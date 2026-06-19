@@ -65,7 +65,15 @@ pub async fn auth_middleware(
         info!(path = %path, method = %method, client_ip = %client_ip, "从Authorization头获取Token");
         header_val[7..].to_string()
     } else {
-        warn!(path = %path, method = %method, client_ip = %client_ip, "缺少认证凭据 (Cookie={}/{}/Header={})", has_access_cookie, has_legacy_cookie, has_auth_header);
+        warn!(
+            path = %path,
+            method = %method,
+            client_ip = %client_ip,
+            "缺少认证凭据 (Cookie={}/{}/Header={})",
+            has_access_cookie,
+            has_legacy_cookie,
+            has_auth_header
+        );
         return Err(unauthorized_response("缺少认证凭据"));
     };
 
