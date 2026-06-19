@@ -416,6 +416,29 @@
 
 ---
 
+### [Wave 1+2+3 修复（2026-06-19）]
+
+- Date: 2026-06-19
+- Context: 用户选择"Wave 1 + Wave 2 + Wave 3（全部）"修复 P0 孤儿 migration + P1 孤立目录 + P2 空目录
+- Category: 紧急修复
+- Instructions:
+  - **Wave 1（P0）— 3 个孤儿 migration 注册**：
+    - 重命名 m0023_extend_audit_log → m0025_extend_audit_log
+    - 重命名 m0024_enable_pg_stat_statements → m0026_enable_pg_stat_statements
+    - 重命名 m0025_create_slow_query_log → m0027_create_slow_query_log
+    - 在 lib.rs 添加 3 个 pub mod + 3 个 Box::new（用户/自动化在 cad9216 推送了 Box::new，但漏加 pub mod，由本 commit 补全）
+    - 影响：恢复审计 5 列扩展 + pg_stat_statements + slow_query_log 表，避免登录/改密/慢查询 500 错误
+  - **Wave 2（P1）— 删除孤立目录**：
+    - mobile/ (17 文件，已由 179fc80 删除)
+    - microservices/ (13 文件，本 commit 删除)
+    - deploy/{elasticsearch,grafana,helm,kafka,observability,prometheus}/ (24 文件，本 commit 删除)
+  - **Wave 3（P2）— 删除 8 个空子目录**：
+    - .monkeycode/docs/{api, superpowers/reports, poc, requirements, db, 专有概念, 模块, releases}
+  - **变更规模**：1 文件修改 + 30 文件删除 = 31 变更
+  - **本地验证**：按 MEMORY.md 规则"禁止本地编译，只允许 CICD 编译"，跳过 cargo check
+  - **CI/CD 验证**：依赖 GitHub Actions 验证后端编译
+  - **撤销兑底**：main-backup-20260619-pre-testmerge 标签仍保留（test 合入前状态）
+
 ### [项目遗留文件检测（2026-06-19）]
 
 - Date: 2026-06-19

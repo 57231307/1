@@ -16,6 +16,14 @@
 
 ## 最新任务总结
 
+### Wave 1+2+3 修复（2026-06-19）
+
+- **P0 - 3 个孤儿 migration 注册**：m0025/26/27 重命名 + lib.rs pub mod + Box::new（修复审计增强 + 慢查询审计）
+- **P1 - 删除孤立目录**：mobile/ (17) + microservices/ (13) + deploy/{elasticsearch,grafana,helm,kafka,observability,prometheus}/ (24)
+- **P2 - 删除 8 个空子目录**：.monkeycode/docs/{api,superpowers/reports,poc,requirements,db,专有概念,模块,releases}
+- **变更**：1 修改 + 30 删除 = 31 文件
+- **CI/CD 验证**：遵循"禁止本地编译"规则，仅依赖 GitHub Actions
+
 ### 推送 main + 清理根 CHANGELOG/MEMORY（2026-06-19）
 
 - **删除**：`chore: 删除 test 合入的根 CHANGELOG.md / MEMORY.md`（2 文件 -1941 行）

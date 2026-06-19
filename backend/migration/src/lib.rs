@@ -24,6 +24,9 @@ pub mod m0021_create_sales_quotation_items;
 pub mod m0022_create_sales_quotation_terms;
 pub mod m0023_create_product_color_prices;
 pub mod m0024_p4_1_perf_indexes;
+pub mod m0025_extend_audit_log;
+pub mod m0026_enable_pg_stat_statements;
+pub mod m0027_create_slow_query_log;
 
 pub struct Migrator;
 
