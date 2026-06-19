@@ -352,9 +352,37 @@
 
 | 任务 | 状态 | 备注 |
 |------|------|------|
-| Wave 4 P2-1 el-table-v2 | ✅ 已完成（PR #108-#112）| 5 PR 全部合并 |
-| Wave 4 P2-2 性能优化 | 🟡 PR-1 + PR-2 已完成（#121, #122）| PR-3+ 待用户决策（需 DBA 执行基线脚本填充数据） |
-| Wave 4 后续 P2-3/P3 | 🔵 待启动 | 待用户决策 |
+| P14 批 2 I-3 拆分大 .vue | ✅ 已完成（PR #195-#199，6 批 23 文件）| 累计 23/24 拆分完毕 |
+| P14 批 1 I-2 拆分大 .vue | ✅ 已完成（PR #194）| voucher 567/api-gateway 835/arReconciliation 789 |
+| P13 批 1 P3-2 审计日志增强 | ✅ 已完成（PR #191）| audit_log 扩字段 + audit_context 中间件 + 3 端点 |
+| P13 批 1 B-慢查询审计 | ✅ 已完成（PR #192）| pg_stat_statements + slow_query_log + 4 端点 |
+| P13 批 1 I-1 拆分大 .vue | ✅ 已完成（PR #193）| advanced 993/report 963/purchase 957 |
+| P12 批 1+2+3 综合 | ✅ 已完成（12 PR）| P0 报价单/P2-1 V2Table/P2-2 性能/P3-1 安全 |
+| Wave 1-3 | ✅ 已完成（21 PR）| 4 业务流 + 11 拆分 + 5 AI + 1 编译 |
+| **P14+ 候选（roadmap v0.3 剩余）** | 🔵 待启动 | 见下方 |
+
+### P14+ 候选清单（roadmap v0.3 剩余，6 任务）
+
+- **B4**：完成 10 Tab 业务骨架（system/ 下 11 Tab 仍为骨架）
+- **I-3 剩余 1 个**：sales-returns 527 行大 .vue（剩余最大的）
+- **E2E 测试覆盖**：补齐关键业务流端到端测试
+- **OpenAPI 3.1 规范生成**：后端 API 文档自动生成
+- **product_color_price 反向 port**：从 test 分支 port 产品色价
+- **P2-2 性能优化 PR-3+**：Redis 缓存层 + DB N+1 后续优化
+
+### I-3 拆分累计成果（P14 批 2，6 批 23 文件）
+
+| 批次 | PR | 拆分文件 | 行数变化 |
+|------|------|----------|----------|
+| I-1 | #193 | advanced 993 / report 963 / purchase 957 | 2913 → 683 |
+| I-2 | #194 | voucher 567 / api-gateway 835 / arReconciliation 789 | 2191 → 386 |
+| I-3 第 1 批 | #195 | VoucherListTab 870 / system-update 725 / sales-contract 717 | 2312 → 424 |
+| I-3 第 2 批 | #196 | purchase-return 695 / scheduling/gantt 691 / scheduling/index 689 | 2075 → 413 |
+| I-3 第 3 批 | #197 | sales-price 677 / OrderListView 644 / purchase-contract 644 / purchase-price 622 | 2587 → 551 |
+| I-3 第 4 批 | #198 | bpm/approval 618 / production 611 / logistics 605 / purchaseReceipt 598 | 2432 → 509 |
+| I-3 第 5 批 | #199 | data-import 596 / purchase-inspection 594 / material-shortage 590 / bpm/definitions 579 | 2359 → 475 |
+| I-3 第 6 批 | TBD (e4ba11d) | capacity 562 / Dashboard 549 / security 547 / TwoFactorSetup 540 / sales-analysis 535 | 2733 → TBD |
+| **合计** | **6 PR** | **23 文件** | **17270 → 3441 (-80%)** |
 
 ### Wave 4 P2-1 完成回顾（2026-06-16）
 
