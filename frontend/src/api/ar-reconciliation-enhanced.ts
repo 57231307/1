@@ -82,6 +82,7 @@ export function autoReconcile(params: {
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export function getAutoReconciliationResults(
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   params?: any
 ): Promise<ApiResponse<PageResult<AutoReconciliationResult>>> {
   return request.get('/ar-reconciliations-enhanced/auto-match', { params })
@@ -106,6 +107,7 @@ export function sendCustomerConfirmation(id: number): Promise<ApiResponse<{ mess
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export function getCustomerConfirmations(
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   params?: any
 ): Promise<ApiResponse<PageResult<CustomerConfirmation>>> {
   return request.get('/ar-reconciliations-enhanced/confirmations', { params })

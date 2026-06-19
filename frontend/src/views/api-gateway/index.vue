@@ -13,46 +13,46 @@
     <el-tabs v-model="activeTab">
       <el-tab-pane label="接口管理" name="endpoints">
         <ApiEndpointTab
-          :endpoints="endpoints"
-          :loading="endpointLoading"
-          :total="endpointTotal"
-          :query-params="endpointQuery"
-          :method-type-map="methodTypeMap"
-          :status-type-map="endpointStatusTypeMap"
-          :status-map="endpointStatusMap"
-          @fetch="fetchEndpoints"
-          @new-endpoint="openEndpointDialog()"
-          @edit-endpoint="openEndpointDialog"
-          @delete-endpoint="handleDeleteEndpoint"
-          @update:query-params="(v: any) => Object.assign(endpointQuery, v)"
+          :endpoints="ep.endpoints"
+          :loading="ep.endpointLoading"
+          :total="ep.endpointTotal"
+          :query-params="ep.endpointQuery"
+          :method-type-map="ep.methodTypeMap"
+          :status-type-map="ep.endpointStatusTypeMap"
+          :status-map="ep.endpointStatusMap"
+          @fetch="ep.fetchEndpoints"
+          @new-endpoint="ep.openEndpointDialog()"
+          @edit-endpoint="ep.openEndpointDialog"
+          @delete-endpoint="ep.handleDeleteEndpoint"
+          @update:query-params="(v: any) => Object.assign(ep.endpointQuery, v)"
         />
       </el-tab-pane>
 
       <el-tab-pane label="API 密钥" name="keys">
         <ApiKeyTab
-          :api-keys="keys"
-          :loading="keyLoading"
-          :total="keyTotal"
-          :query-params="keyQuery"
-          @fetch="fetchKeys"
-          @new-key="openKeyDialog()"
-          @view-key="viewKeyDetail"
-          @toggle-key="handleToggleKey"
-          @delete-key="handleDeleteKey"
-          @update:query-params="(v: any) => Object.assign(keyQuery, v)"
+          :api-keys="key.keys"
+          :loading="key.keyLoading"
+          :total="key.keyTotal"
+          :query-params="key.keyQuery"
+          @fetch="key.fetchKeys"
+          @new-key="key.openKeyDialog()"
+          @view-key="key.viewKeyDetail"
+          @toggle-key="key.handleToggleKey"
+          @delete-key="key.handleDeleteKey"
+          @update:query-params="(v: any) => Object.assign(key.keyQuery, v)"
         />
       </el-tab-pane>
 
       <el-tab-pane label="调用日志" name="logs">
         <ApiLogTab
-          :logs="logs"
-          :loading="logLoading"
-          :total="logTotal"
-          :query-params="logQuery"
-          :method-type-map="methodTypeMap"
-          @fetch="fetchLogs"
-          @view-log="viewLogDetail"
-          @update:query-params="(v: any) => Object.assign(logQuery, v)"
+          :logs="log.logs"
+          :loading="log.logLoading"
+          :total="log.logTotal"
+          :query-params="log.logQuery"
+          :method-type-map="log.methodTypeMap"
+          @fetch="log.fetchLogs"
+          @view-log="log.viewLogDetail"
+          @update:query-params="(v: any) => Object.assign(log.logQuery, v)"
         />
       </el-tab-pane>
     </el-tabs>
@@ -235,7 +235,7 @@ const handleEndpointSubmit = async () => {
       }
       ElMessage.success('操作成功')
       endpointDialogVisible.value = false
-      fetchEndpoints()
+      ep.fetchEndpoints()
     } catch (error: any) {
       ElMessage.error(error.message || '操作失败')
     } finally {
@@ -249,7 +249,7 @@ const handleDeleteEndpoint = async (row: ApiEndpoint) => {
     await ElMessageBox.confirm('确定要删除此接口吗？', '确认删除', { type: 'warning' })
     await deleteApiEndpoint(row.id)
     ElMessage.success('删除成功')
-    fetchEndpoints()
+    ep.fetchEndpoints()
   } catch (error: any) {
     if (error !== 'cancel') ElMessage.error(error.message || '删除失败')
   }

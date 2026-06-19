@@ -17,7 +17,7 @@
           </template>
           <el-form label-width="100px">
             <el-form-item label="预测周期">
-              <el-select v-model="forecastPeriod" style="width: 100%">
+              <el-select v-model="localForecastPeriod" style="width: 100%">
                 <el-option label="未来 3 个月" value="3m" />
                 <el-option label="未来 6 个月" value="6m" />
                 <el-option label="未来 12 个月" value="12m" />
@@ -105,7 +105,9 @@
 </template>
 
 <script setup lang="ts">
-defineProps<{
+import { ref, watch } from 'vue'
+
+const props = defineProps<{
   forecastPeriod: string
   forecastLoading: boolean
   forecastResult: any
@@ -121,4 +123,8 @@ defineEmits<{
   'optimize-inventory': []
   'run-profile': []
 }>()
+
+// 本地副本（避免 prop mutation）
+const localForecastPeriod = ref(props.forecastPeriod)
+watch(() => props.forecastPeriod, v => { localForecastPeriod.value = v })
 </script>

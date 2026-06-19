@@ -157,6 +157,7 @@ export function getDrilldownMonthToDay(year: number, month: number) {
 
 /** 钻取：客户 → 订单 */
 export function getDrilldownCustomerToOrder(customerId: number) {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   return request.get<BiResponseData<any>>(
     `/bi/sales/drilldown/customer-to-order/${customerId}`,
   )
@@ -164,6 +165,7 @@ export function getDrilldownCustomerToOrder(customerId: number) {
 
 /** 钻取：产品 → 订单 */
 export function getDrilldownProductToOrder(productId: number) {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   return request.get<BiResponseData<any>>(
     `/bi/sales/drilldown/product-to-order/${productId}`,
   )
