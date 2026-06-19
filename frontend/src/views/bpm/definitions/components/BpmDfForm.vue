@@ -148,7 +148,8 @@
 
 <script setup lang="ts">
 /* eslint-disable vue/no-mutating-props */
-import { ref, type FormInstance, type FormRules } from 'element-plus'
+import { ref } from 'vue'
+import { type FormInstance, type FormRules } from 'element-plus'
 import { Plus } from '@element-plus/icons-vue'
 import type { ProcessNode } from '@/api/bpm-enhanced'
 

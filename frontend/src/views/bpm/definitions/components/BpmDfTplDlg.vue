@@ -54,7 +54,8 @@
 
 <script setup lang="ts">
 /* eslint-disable vue/no-mutating-props */
-import { ref, type FormInstance, type FormRules } from 'element-plus'
+import { ref } from 'vue'
+import { type FormInstance, type FormRules } from 'element-plus'
 
 // 表单数据类型
 interface TplForm {

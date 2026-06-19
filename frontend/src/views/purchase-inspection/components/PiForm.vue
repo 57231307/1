@@ -107,7 +107,8 @@
 
 <script setup lang="ts">
 /* eslint-disable vue/no-mutating-props */
-import { ref, type FormInstance, type FormRules } from 'element-plus'
+import { ref } from 'vue'
+import { type FormInstance, type FormRules } from 'element-plus'
 import type { PurchaseInspectionItem } from '@/api/purchase-inspection'
 
 // 表单数据类型（所有字段可选，兼容父组件 reactive）
