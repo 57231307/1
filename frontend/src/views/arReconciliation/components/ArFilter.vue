@@ -80,9 +80,9 @@ interface ArSearchForm {
 }
 
 const props = defineProps<{
-  /** 搜索表单（双向同步） */
+  // 搜索表单（双向同步）
   searchForm: ArSearchForm
-  /** 自动对账加载中状态 */
+  // 自动对账加载中状态
   reconcileLoading: boolean
 }>()
 

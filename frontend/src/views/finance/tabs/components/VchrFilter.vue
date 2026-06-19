@@ -59,14 +59,14 @@ interface VoucherQuery {
 }
 
 const props = defineProps<{
-  /** 凭证查询条件（双向同步） */
+  // 凭证查询条件（双向同步）
   voucherQuery: VoucherQuery
 }>()
 
 const emit = defineEmits<{
-  /** 查询按钮点击 */
+  // 查询按钮点击
   search: []
-  /** 重置按钮点击 */
+  // 重置按钮点击
   reset: []
 }>()
 

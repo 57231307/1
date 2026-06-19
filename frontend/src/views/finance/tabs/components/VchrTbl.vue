@@ -80,33 +80,22 @@ import type { Voucher } from '@/api/finance'
  * 仅做展示，行内操作通过 emit 通知父组件
  */
 const props = defineProps<{
-  /** 凭证列表 */
   vouchers: Voucher[]
-  /** 加载状态 */
   voucherLoading: boolean
-  /** 总条数 */
   voucherTotal: number
-  /** 分页参数（双向同步） */
   voucherQueryParams: { page: number; page_size: number }
-  /** 金额格式化 */
   formatMoney: (amount: number) => string
-  /** 状态标签 */
   getVoucherStatusLabel: (status?: string) => string
-  /** 状态类型 */
   getVoucherStatusType: (status?: string) => string
 }>()
 
+// 查看凭证 / 提交凭证 / 审核凭证 / 过账凭证 / 分页变化（触发 fetchVouchers）
 const emit = defineEmits<{
-  /** 查看凭证 */
   view: [row: Voucher]
-  /** 提交凭证 */
   submit: [row: Voucher]
-  /** 审核凭证 */
   review: [row: Voucher]
-  /** 过账凭证 */
   post: [row: Voucher]
-  /** 分页变化（触发 fetchVouchers） */
-  page-change: []
+  'page-change': []
 }>()
 
 void props

@@ -48,7 +48,7 @@ interface KeyQuery {
 }
 
 const props = defineProps<{
-  /** 密钥查询条件（双向同步） */
+  // 密钥查询条件（双向同步）
   query: KeyQuery
 }>()
 

@@ -62,14 +62,14 @@ interface EpQuery {
 }
 
 const props = defineProps<{
-  /** 接口查询条件（双向同步） */
+  // 接口查询条件（双向同步）
   query: EpQuery
 }>()
 
 const emit = defineEmits<{
-  /** 搜索 */
+  // 搜索
   search: []
-  /** 新建 */
+  // 新建
   create: []
 }>()
 

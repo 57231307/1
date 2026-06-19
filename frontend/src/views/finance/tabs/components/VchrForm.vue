@@ -144,35 +144,35 @@ interface VoucherForm {
  * 接收父组件传入的 form / ref / 业务方法
  */
 const props = defineProps<{
-  /** 对话框可见性 */
+  // 对话框可见性
   visible: boolean
-  /** 表单实例 ref */
+  // 表单实例 ref
   voucherFormRef: { value: FormInstance | undefined }
-  /** 表单数据 */
+  // 表单数据
   voucherForm: VoucherForm
-  /** 提交中状态 */
+  // 提交中状态
   voucherSubmitLoading: boolean
-  /** 校验规则 */
+  // 校验规则
   voucherRules: FormRules
-  /** 叶子科目列表 */
+  // 叶子科目列表
   leafSubjects: AccountSubject[]
-  /** 借贷合计 */
+  // 借贷合计
   totalDebit: number
   totalCredit: number
-  /** 是否平衡 */
+  // 是否平衡
   isBalanced: boolean
-  /** 金额格式化 */
+  // 金额格式化
   formatMoney: (amount: number) => string
 }>()
 
 const emit = defineEmits<{
-  /** 关闭对话框 */
+  // 关闭对话框
   'update:visible': [v: boolean]
-  /** 添加分录 */
+  // 添加分录
   'add-entry': []
-  /** 删除分录 */
+  // 删除分录
   'remove-entry': [index: number]
-  /** 提交表单 */
+  // 提交表单
   'submit-form': []
 }>()
 

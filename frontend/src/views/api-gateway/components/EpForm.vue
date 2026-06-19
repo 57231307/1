@@ -134,21 +134,21 @@ import type { ApiEndpoint } from '@/api/api-gateway'
  * 接口新建/编辑对话框组件
  */
 const props = defineProps<{
-  /** 对话框可见性 */
+  // 对话框可见性
   visible: boolean
-  /** 表单实例 ref */
+  // 表单实例 ref
   formRef: { value: FormInstance | undefined }
-  /** 表单数据 */
+  // 表单数据
   form: Partial<ApiEndpoint>
-  /** 提交中状态 */
+  // 提交中状态
   submitLoading: boolean
-  /** 校验规则 */
+  // 校验规则
   rules: FormRules
-  /** 权限文本 */
+  // 权限文本
   authorizationText: string
-  /** 请求 Schema 文本 */
+  // 请求 Schema 文本
   requestSchemaText: string
-  /** 响应 Schema 文本 */
+  // 响应 Schema 文本
   responseSchemaText: string
 }>()
 

@@ -61,20 +61,20 @@ import type { Voucher } from '@/api/finance'
  * 仅做展示，对话框状态由父组件控制
  */
 const props = defineProps<{
-  /** 对话框可见性 */
+  // 对话框可见性
   visible: boolean
-  /** 当前凭证 */
+  // 当前凭证
   currentVoucher: Voucher | null
-  /** 金额格式化 */
+  // 金额格式化
   formatMoney: (amount: number) => string
-  /** 状态标签 */
+  // 状态标签
   getVoucherStatusLabel: (status?: string) => string
-  /** 状态类型 */
+  // 状态类型
   getVoucherStatusType: (status?: string) => string
 }>()
 
 const emit = defineEmits<{
-  /** 关闭对话框 */
+  // 关闭对话框
   'update:visible': [v: boolean]
 }>()
 
