@@ -13,8 +13,6 @@ import { ElMessage } from 'element-plus'
 import { request } from '@/api/request'
 import {
   listPurchaseReceipts,
-  getPurchaseReceipt,
-  getReceiptItems,
   type PurchaseReceiptEntity,
   type ReceiptItem,
 } from '@/api/purchaseReceipt'

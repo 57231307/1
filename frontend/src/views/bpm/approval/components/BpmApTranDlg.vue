@@ -60,7 +60,7 @@ interface TranForm {
 /**
  * 转交任务对话框组件
  */
-const props = defineProps<{
+defineProps<{
   // 对话框可见性
   visible: boolean
   // 当前任务

@@ -113,7 +113,7 @@ export function usePrd() {
   }
 
   // 直接返回（不包装为 reactive）保持 ref 行为一致
-  return {
+  return reactive({
     // V2Table 数据
     data,
     loading,
@@ -134,5 +134,5 @@ export function usePrd() {
     orderForm,
     orderRules,
     resetOrderForm,
-  }
+  })
 }

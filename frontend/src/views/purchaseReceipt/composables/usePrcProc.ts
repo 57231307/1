@@ -3,6 +3,9 @@
  * 任务编号: P14 批 2 I-3 第 4 批（拆分原 purchaseReceipt/index.vue）
  * 封装搜索 / 翻页 / 打开对话框 / 增删明细 / 提交 / 删除 / 审核等流程性方法
  * 行为完全保持一致（仅结构重构）
+ *
+ * 设计说明：通过 callbacks 接收 usePrc 的状态引用（Reactive 包装层）；
+ * 由于 usePrc 返回 reactive({...})，父组件传入 prc.searchForm 等会自动解包为值
  */
 import { reactive } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
@@ -19,21 +22,21 @@ import {
 import type { PrcForm } from './usePrc'
 
 /**
- * 流程回调（接收 usePrc 返回的状态）
+ * 流程回调（接收 usePrc 返回的状态，自动解包后的值类型）
  */
 interface PrcCallbacks {
   // 搜索表单
-  searchForm: { value: { receipt_no: string; supplier_id: string; warehouse_id: string; status: string } }
+  searchForm: { receipt_no: string; supplier_id: string; warehouse_id: string; status: string }
   // 分页
-  pagination: { value: { page: number; pageSize: number } }
+  pagination: { page: number; pageSize: number }
   // 表单
-  dialogVisible: { value: boolean }
-  dialogTitle: { value: string }
-  form: { value: PrcForm }
+  dialogVisible: boolean
+  dialogTitle: string
+  form: PrcForm
   // 详情
-  viewDialogVisible: { value: boolean }
-  viewData: { value: PurchaseReceiptEntity | null }
-  detailData: { value: ReceiptItem[] }
+  viewDialogVisible: boolean
+  viewData: PurchaseReceiptEntity | null
+  detailData: ReceiptItem[]
   // 列表刷新
   loadData: () => Promise<void>
 }
@@ -44,38 +47,38 @@ interface PrcCallbacks {
 export function usePrcProc(cb: PrcCallbacks) {
   /** 查询 */
   const handleSearch = () => {
-    cb.pagination.value.page = 1
+    cb.pagination.page = 1
     cb.loadData()
   }
 
   /** 重置 */
   const handleReset = () => {
-    cb.searchForm.value = {
+    cb.searchForm = {
       receipt_no: '',
       supplier_id: '',
       warehouse_id: '',
       status: '',
     }
-    cb.pagination.value.page = 1
+    cb.pagination.page = 1
     cb.loadData()
   }
 
   /** 翻页 */
   const handlePageChange = (page: number) => {
-    cb.pagination.value.page = page
+    cb.pagination.page = page
     cb.loadData()
   }
 
   /** 调整每页大小 */
   const handlePageSizeChange = (pageSize: number) => {
-    cb.pagination.value.pageSize = pageSize
+    cb.pagination.pageSize = pageSize
     cb.loadData()
   }
 
   /** 打开新增对话框 */
   const openAddDialog = () => {
-    cb.dialogTitle.value = '新增入库'
-    cb.form.value = {
+    cb.dialogTitle = '新增入库'
+    cb.form = {
       receipt_no: '',
       receipt_date: new Date().toISOString().split('T')[0],
       supplier_id: undefined,
@@ -83,20 +86,20 @@ export function usePrcProc(cb: PrcCallbacks) {
       status: 'draft',
       items: [{ product_id: 0, quantity: 0, price: 0, amount: 0 }],
     }
-    cb.dialogVisible.value = true
+    cb.dialogVisible = true
   }
 
   /** 打开编辑对话框 */
   const openEditDialog = async (row: PurchaseReceiptEntity) => {
-    cb.dialogTitle.value = '编辑入库'
+    cb.dialogTitle = '编辑入库'
     const res: { data: PurchaseReceiptEntity | null } = (await getPurchaseReceipt(
       row.id!
     )) as { data: PurchaseReceiptEntity | null }
     const itemsRes: { data: ReceiptItem[] } = (await getReceiptItems(row.id!)) as {
       data: ReceiptItem[]
     }
-    cb.form.value = { ...(res.data as PrcForm), items: itemsRes.data }
-    cb.dialogVisible.value = true
+    cb.form = { ...(res.data as PrcForm), items: itemsRes.data }
+    cb.dialogVisible = true
   }
 
   /** 打开详情对话框 */
@@ -105,12 +108,12 @@ export function usePrcProc(cb: PrcCallbacks) {
       const res: { data: PurchaseReceiptEntity | null } = (await getPurchaseReceipt(
         row.id!
       )) as { data: PurchaseReceiptEntity | null }
-      cb.viewData.value = res.data
+      cb.viewData = res.data
       const itemsRes: { data: ReceiptItem[] } = (await getReceiptItems(row.id!)) as {
         data: ReceiptItem[]
       }
-      cb.detailData.value = itemsRes.data
-      cb.viewDialogVisible.value = true
+      cb.detailData = itemsRes.data
+      cb.viewDialogVisible = true
     } catch (error) {
       ElMessage.error('获取详情失败')
     }
@@ -118,14 +121,14 @@ export function usePrcProc(cb: PrcCallbacks) {
 
   /** 添加明细 */
   const addItem = () => {
-    if (!cb.form.value.items) cb.form.value.items = []
-    cb.form.value.items.push({ product_id: 0, quantity: 0, price: 0, amount: 0 })
+    if (!cb.form.items) cb.form.items = []
+    cb.form.items.push({ product_id: 0, quantity: 0, price: 0, amount: 0 })
   }
 
   /** 删除明细 */
   const removeItem = (index: number) => {
-    if ((cb.form.value.items || []).length > 1) {
-      cb.form.value.items!.splice(index, 1)
+    if ((cb.form.items || []).length > 1) {
+      cb.form.items!.splice(index, 1)
     }
   }
 
@@ -138,7 +141,7 @@ export function usePrcProc(cb: PrcCallbacks) {
    * 提交表单（仅 API 调用 + 明细校验，表单规则校验已由 PrcForm 内部完成）
    */
   const handleSubmit = async () => {
-    const validItems = (cb.form.value.items || []).filter(
+    const validItems = (cb.form.items || []).filter(
       e => e.product_id > 0 && e.quantity !== 0
     )
     if (validItems.length === 0) {
@@ -147,15 +150,15 @@ export function usePrcProc(cb: PrcCallbacks) {
     }
 
     try {
-      const data = { ...cb.form.value, items: validItems }
-      if (cb.form.value.id) {
-        await updatePurchaseReceipt(cb.form.value.id, data as PurchaseReceiptEntity)
+      const data = { ...cb.form, items: validItems }
+      if (cb.form.id) {
+        await updatePurchaseReceipt(cb.form.id, data as PurchaseReceiptEntity)
         ElMessage.success('更新成功')
       } else {
         await createPurchaseReceipt(data as PurchaseReceiptEntity)
         ElMessage.success('新增成功')
       }
-      cb.dialogVisible.value = false
+      cb.dialogVisible = false
       await cb.loadData()
     } catch (error) {
       ElMessage.error('操作失败')

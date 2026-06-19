@@ -5,8 +5,9 @@
  * 业务流程（创建 / 编辑 / 查看 / 发货 / 更新状态 / 删除）由 useLgsProc 提供
  * 行为完全保持一致（仅结构重构）
  *
- * 注意：返回值中包含 Ref 和 reactive 对象，未用 reactive({...}) 包装，
- * 避免 ref 自动解包后无法回写
+ * 设计说明：返回 reactive({...})，父组件可直接访问字段；
+ * 子组件通过 :model-value/@update:model-value 模式传入；不会修改 prop
+ * （日期范围由 LgsFilter 发出事件，父组件更新自身 dateRange）
  */
 import { ref, reactive } from 'vue'
 import { logisticsApi, type LogisticsWaybill } from '@/api/logistics'
@@ -63,7 +64,6 @@ export function useLgs() {
   const dialogVisible = ref(false)
   const isEdit = ref(false)
   const submitLoading = ref(false)
-  const formRef = ref<FormInstance>()
   const formData = reactive<LgsFormData>({
     id: undefined,
     order_id: undefined,
@@ -145,8 +145,8 @@ export function useLgs() {
     fetchData()
   }
 
-  // 直接返回（不包装为 reactive）保持 ref 行为一致
-  return {
+  // 使用 reactive 包装，访问字段时自动解包 ref
+  return reactive({
     // 统计
     stats,
     // 表格
@@ -165,7 +165,6 @@ export function useLgs() {
     dialogVisible,
     isEdit,
     submitLoading,
-    formRef,
     formData,
     formRules,
     // 详情
@@ -176,5 +175,5 @@ export function useLgs() {
     statusForm,
     // 列表拉取
     fetchData,
-  }
+  })
 }

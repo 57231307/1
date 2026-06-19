@@ -3,8 +3,11 @@
  * 任务编号: P14 批 2 I-3 第 4 批（拆分原 logistics/index.vue）
  * 封装创建 / 编辑 / 查看 / 发货 / 更新状态 / 删除等流程性方法
  * 行为完全保持一致（仅结构重构）
+ *
+ * 设计说明：通过 callbacks 接收 useLgs 的状态引用（Reactive 包装层）；
+ * 内部访问 cb.isEdit.value 等即可修改实际 ref 的 value
  */
-import { computed } from 'vue'
+import { reactive, computed } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { logisticsApi, type LogisticsWaybill } from '@/api/logistics'
 import { logger } from '@/utils/logger'
@@ -35,20 +38,22 @@ interface LgsStatusForm {
 
 /**
  * 流程回调（接收 useLgs 返回的状态）
+ * 由于 useLgs 返回 reactive({...})，父组件传入 lgs.dialogVisible 等会自动解包为值；
+ * 因此回调使用 plain 类型，useLgsProc 内部通过 cb.isEdit = newValue 修改（reactive 会更新底层 ref）
  */
 interface LgsCallbacks {
   // 详情对话框
-  detailDialogVisible: { value: boolean }
+  detailDialogVisible: boolean
   // 详情数据
-  detailData: { value: LogisticsWaybill }
+  detailData: LogisticsWaybill
   // 表单
-  isEdit: { value: boolean }
+  isEdit: boolean
   formData: LgsFormData
-  submitLoading: { value: boolean }
-  dialogVisible: { value: boolean }
+  submitLoading: boolean
+  dialogVisible: boolean
   // 状态表单
   statusForm: LgsStatusForm
-  statusDialogVisible: { value: boolean }
+  statusDialogVisible: boolean
   // 列表刷新
   fetchData: () => Promise<void>
 }
@@ -59,7 +64,7 @@ interface LgsCallbacks {
 export function useLgsProc(cb: LgsCallbacks) {
   /** 打开新建对话框 */
   const handleCreate = () => {
-    cb.isEdit.value = false
+    cb.isEdit = false
     Object.assign(cb.formData, {
       id: undefined,
       order_id: undefined,
@@ -71,12 +76,12 @@ export function useLgsProc(cb: LgsCallbacks) {
       expected_arrival: '',
       notes: '',
     })
-    cb.dialogVisible.value = true
+    cb.dialogVisible = true
   }
 
   /** 打开编辑对话框 */
   const handleEdit = (row: LogisticsWaybill) => {
-    cb.isEdit.value = true
+    cb.isEdit = true
     Object.assign(cb.formData, {
       id: row.id,
       order_id: row.order_id,
@@ -88,15 +93,15 @@ export function useLgsProc(cb: LgsCallbacks) {
       expected_arrival: row.expected_arrival,
       notes: row.notes,
     })
-    cb.dialogVisible.value = true
+    cb.dialogVisible = true
   }
 
   /** 查看详情 */
   const handleView = async (row: LogisticsWaybill) => {
     try {
       const res = await logisticsApi.getById(row.id!)
-      cb.detailData.value = res.data
-      cb.detailDialogVisible.value = true
+      cb.detailData = res.data
+      cb.detailDialogVisible = true
     } catch (error) {
       logger.error('获取详情失败:', error)
     }
@@ -106,21 +111,21 @@ export function useLgsProc(cb: LgsCallbacks) {
    * 提交表单（仅 API 调用，校验已由 LgsForm 内部完成）
    */
   const handleSubmit = async () => {
-    cb.submitLoading.value = true
+    cb.submitLoading = true
     try {
-      if (cb.isEdit.value && cb.formData.id) {
+      if (cb.isEdit && cb.formData.id) {
         await logisticsApi.update(cb.formData.id, cb.formData)
         ElMessage.success('更新成功')
       } else {
         await logisticsApi.create(cb.formData)
         ElMessage.success('创建成功')
       }
-      cb.dialogVisible.value = false
+      cb.dialogVisible = false
       await cb.fetchData()
     } catch (error) {
       logger.error('提交失败:', error)
     } finally {
-      cb.submitLoading.value = false
+      cb.submitLoading = false
     }
   }
 
@@ -143,7 +148,7 @@ export function useLgsProc(cb: LgsCallbacks) {
     cb.statusForm.id = row.id!
     cb.statusForm.currentStatus = row.status
     cb.statusForm.newStatus = ''
-    cb.statusDialogVisible.value = true
+    cb.statusDialogVisible = true
   }
 
   /** 提交状态更新 */
@@ -151,7 +156,7 @@ export function useLgsProc(cb: LgsCallbacks) {
     try {
       await logisticsApi.update(cb.statusForm.id, { status: cb.statusForm.newStatus as any })
       ElMessage.success('状态更新成功')
-      cb.statusDialogVisible.value = false
+      cb.statusDialogVisible = false
       await cb.fetchData()
     } catch (error) {
       logger.error('状态更新失败:', error)

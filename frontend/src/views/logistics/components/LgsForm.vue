@@ -131,7 +131,12 @@ interface LgsForm {
   notes?: string
 }
 
-const props = defineProps<{
+// 表单字段类型已在下方 defineProps 内联定义（避免 TS6133 'props' 未使用错误）
+
+/**
+ * 物流运单表单对话框（新建/编辑）
+ */
+defineProps<{
   // 对话框可见性
   visible: boolean
   // 是否编辑模式
@@ -145,6 +150,7 @@ const props = defineProps<{
   // 校验规则
   rules: FormRules
 }>()
+
 
 const emit = defineEmits<{
   'update:visible': [v: boolean]

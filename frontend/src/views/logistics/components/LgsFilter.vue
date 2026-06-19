@@ -86,8 +86,8 @@ defineProps<{
 const emit = defineEmits<{
   search: []
   reset: []
-  // 日期范围变化（已直接通过 v-model 处理，此处保留占位）
-  'date-change': []
+  // 日期范围变化（父组件监听后更新 lgs.dateRange）
+  'date-change': [v: [Date, Date] | null]
 }>()
 </script>
 

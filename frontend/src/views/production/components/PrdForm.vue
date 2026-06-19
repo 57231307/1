@@ -102,7 +102,7 @@
 
 <script setup lang="ts">
 /* eslint-disable vue/no-mutating-props */
-import { ref, watch } from 'vue'
+import { ref } from 'vue'
 import type { FormInstance, FormRules } from 'element-plus'
 
 // 订单表单字段类型
@@ -129,6 +129,7 @@ const props = defineProps<{
   // 校验规则
   rules: FormRules
 }>()
+void props // 显式标记使用避免 TS6133
 
 const emit = defineEmits<{
   'update:visible': [v: boolean]

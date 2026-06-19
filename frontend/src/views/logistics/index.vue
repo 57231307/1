@@ -1,7 +1,7 @@
 <!--
   logistics/index.vue - 物流管理（拆分重构版）
   任务编号: P14 批 2 I-3 第 4 批
-  拆分：605 行 → ~150 行 + 6 子组件 + 2 composable + 1 工具
+  拆分：605 行 → ~120 行 + 6 子组件 + 2 composable + 1 工具
   行为完全保持一致（仅结构重构）
 -->
 <template>
@@ -21,6 +21,7 @@
       :date-range="lgs.dateRange"
       @search="lgs.handleQuery"
       @reset="lgs.handleReset"
+      @date-change="onDateChange"
     />
 
     <LgsTbl
@@ -74,7 +75,7 @@ import LgsForm from './components/LgsForm.vue'
 import LgsDetail from './components/LgsDetail.vue'
 import LgsStatDlg from './components/LgsStatDlg.vue'
 
-// 业务状态
+// 业务状态（reactive 包装，父组件可直接访问字段）
 const lgs = useLgs()
 const lgsProc = useLgsProc({
   detailDialogVisible: lgs.detailDialogVisible,
@@ -87,6 +88,13 @@ const lgsProc = useLgsProc({
   statusDialogVisible: lgs.statusDialogVisible,
   fetchData: lgs.fetchData,
 })
+
+/**
+ * 日期范围变化（由 LgsFilter 发出，父组件更新 lgs.dateRange）
+ */
+const onDateChange = (v: [Date, Date] | null) => {
+  lgs.dateRange = v
+}
 
 // 懒加载标记
 const hasLoaded = createLazyLoader()

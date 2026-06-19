@@ -1,7 +1,7 @@
 <!--
   production/index.vue - 生产计划管理（拆分重构版）
   任务编号: P14 批 2 I-3 第 4 批
-  拆分：611 行 → ~150 行 + 5 子组件 + 2 composable + 1 工具
+  拆分：611 行 → ~150 行 + 4 子组件 + 2 composable + 1 工具
   行为完全保持一致（仅结构重构）
 -->
 <template>
@@ -87,12 +87,12 @@ const currentOrder = ref<ProductionOrder | null>(null)
 
 /** 翻页 */
 const onPageChange = (p: number) => {
-  prd.page.value = p
+  prd.page = p
 }
 
 /** 调整每页大小 */
 const onSizeChange = (s: number) => {
-  prd.pageSize.value = s
+  prd.pageSize = s
 }
 
 /** 打开新建对话框 */
@@ -116,13 +116,13 @@ const onViewDetail = (row: ProductionOrder) => {
 
 /** 提交表单（创建/更新） */
 const onSubmitForm = async () => {
-  prd.submitLoading.value = true
+  prd.submitLoading = true
   try {
     if (!prd.orderForm.id) {
-      await createProductionOrder(prd.orderForm)
+      await createProductionOrder(prd.orderForm as Partial<ProductionOrder>)
       ElMessage.success('创建成功')
     } else {
-      await updateProductionOrder(prd.orderForm.id, prd.orderForm)
+      await updateProductionOrder(prd.orderForm.id, prd.orderForm as Partial<ProductionOrder>)
       ElMessage.success('更新成功')
     }
     dialogVisible.value = false
@@ -132,7 +132,7 @@ const onSubmitForm = async () => {
     const err = e as { message?: string }
     ElMessage.error(err.message || '操作失败')
   } finally {
-    prd.submitLoading.value = false
+    prd.submitLoading = false
   }
 }
 

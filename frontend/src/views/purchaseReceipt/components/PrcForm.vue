@@ -163,6 +163,7 @@ const props = defineProps<{
   // 产品选项
   products: OptItem[]
 }>()
+void props // 显式标记使用避免 TS6133
 
 const emit = defineEmits<{
   'update:visible': [v: boolean]
