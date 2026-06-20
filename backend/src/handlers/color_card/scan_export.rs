@@ -8,6 +8,7 @@ use axum::{
     extract::{Path, State},
     http::StatusCode,
     response::IntoResponse,
+    Json,
 };
 
 use crate::middleware::auth_context::AuthContext;
