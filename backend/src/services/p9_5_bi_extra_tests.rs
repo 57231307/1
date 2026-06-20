@@ -3,9 +3,10 @@
 //! 覆盖：销售/产品/客户/财务分析 业务规则
 
 #[cfg(test)]
+#[rustfmt::skip]
 mod tests {
-    use rust_decimal::Decimal;
     use rust_decimal::prelude::*;
+    use rust_decimal::Decimal;
     use std::str::FromStr;
 
     /// 时间粒度

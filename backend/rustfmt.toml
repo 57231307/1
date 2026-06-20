@@ -10,6 +10,9 @@ tab_spaces = 4
 newline_style = "Unix"
 use_small_heuristics = "Default"
 reorder_imports = true
-reorder_modules = true
+# 关闭 reorder_modules：CI 跑 rustfmt stable 1.94.1，按字母序重排 pub mod 触发了
+# 大量顺序不一致的"假错误"（mod.rs 注释中说明的逻辑分组是手工排序，
+# 按字母排序后会破坏业务阅读习惯）。改用 off 保留逻辑分组。
+reorder_modules = false
 use_field_init_shorthand = true
 use_try_shorthand = true
