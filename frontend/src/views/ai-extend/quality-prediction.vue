@@ -3,7 +3,6 @@
  * P2-4 质量预测列表 + 创建
  */
 import { onMounted, reactive, ref, computed } from 'vue'
-import { useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import {
   listQualityPredictions,
@@ -19,14 +18,13 @@ import {
 } from '@/api/ai-extend'
 import AIPredictionChart from '@/components/ai/AIPredictionChart.vue'
 
-const router = useRouter()
 const loading = ref(false)
 const items = ref<AiQualityPrediction[]>([])
 const total = ref(0)
 const page = ref(1)
 const pageSize = ref(20)
 
-const filter = reactive({
+const queryFilter = reactive({
   product_id: undefined as number | undefined,
   inspection_type: undefined as string | undefined,
   risk_level: undefined as string | undefined,
@@ -121,32 +119,18 @@ function showDetail(row: AiQualityPrediction) {
 }
 
 function resetFilter() {
-  filter.product_id = undefined
-  filter.inspection_type = undefined
-  filter.risk_level = undefined
-  filter.is_acknowledged = undefined
+  queryFilter.product_id = undefined
+  queryFilter.inspection_type = undefined
+  queryFilter.risk_level = undefined
+  queryFilter.is_acknowledged = undefined
   page.value = 1
   load()
 }
 
-const riskOptions = [
-  { value: '', label: '全部' },
-  { value: 'low', label: '低风险' },
-  { value: 'medium', label: '中风险' },
-  { value: 'high', label: '高风险' },
-]
 const ackOptions = [
   { value: undefined, label: '全部' },
   { value: false, label: '待确认' },
   { value: true, label: '已确认' },
-]
-const inspectionOptions = [
-  { value: '', label: '全部' },
-  { value: 'all', label: '全部检验' },
-  { value: 'incoming', label: '来料' },
-  { value: 'inprocess', label: '过程' },
-  { value: 'final', label: '成品' },
-  { value: 'outgoing', label: '出货' },
 ]
 
 const detailPeriods = computed(() => {

@@ -35,6 +35,7 @@ export interface TransferItem {
   remark?: string
 }
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 export function listInventoryTransfers(params?: any) {
   return request.get('/inventory/transfers', { params })
 }

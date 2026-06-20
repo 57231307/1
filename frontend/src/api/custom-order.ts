@@ -140,6 +140,7 @@ export function getTimeline(orderId: number) {
 }
 
 // 上报质量异常
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 export function reportQualityIssue(orderId: number, data: any) {
   return request.post(`/api/v1/erp/custom-orders/${orderId}/issues`, data)
 }
@@ -156,6 +157,7 @@ export function resolveQualityIssue(issueId: number, data: { resolution: string;
 }
 
 // 创建售后
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 export function createAfterSales(orderId: number, data: any) {
   return request.post(`/api/v1/erp/custom-orders/${orderId}/after-sales`, data)
 }

@@ -9,6 +9,7 @@ export interface ImportTemplate {
   module: 'customer' | 'supplier' | 'product' | 'inventory' | 'sales' | 'purchase' | 'finance'
   file_format: 'xlsx' | 'csv' | 'json'
   columns: ImportColumn[]
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   sample_data: any[]
   status: 'active' | 'inactive'
   created_at: string
