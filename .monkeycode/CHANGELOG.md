@@ -16,6 +16,30 @@
 
 ## 最新任务总结
 
+### CI 批次 3 死代码清理全部 5 子批完成（2026-06-20）
+
+| # | PR | 文件 | 删除函数 | 净行数 | CI | Merge commit |
+|---|---|---|---|---|---|---|
+| #1 | PR #205 | `services/transaction_helper.rs` 整文件 | 1 (with_transaction) | -28 | #1187 success | a84a8e3f |
+| #2 | PR #206 | `services/supplier_evaluation_service.rs` | 4 (update/delete_indicator + update/delete_evaluation_record) | -145 | #1189 success | d1d42444 |
+| #3 | PR #207 | `services/tenant_service.rs` | 5 (get_tenant_by_code / add_user_to_tenant / delete_tenant / remove_user_from_tenant / update_user_role) | -97 | #1191 success | cb61de82 |
+| #4 | PR #208 | `services/tenant_billing_service.rs` | 6 (get_all_plans / check_usage_limits / record_api_call / update_storage_usage / update_user_count / process_auto_renewals) | -242 | #1193 success | 291546fb |
+| #5 | PR #209 | `services/webhook_service.rs` | 2 (get_webhook / update_webhook) | -56 | #1195 success | 82109886 |
+| **合计** | **5 PRs** | **5 文件** | **18 DEAD 函数** | **-568 行** | **5/5 success** | **main @ 82109886** |
+
+**关键发现**：
+- 5 子批全部 CI 一次过（cargo clippy --all-targets -- -D warnings 不报任何缺失方法）—— 证明 grep 验证 0 引用的判断可靠
+- DEAD 特征 = `#[allow(dead_code)]` + `// TODO(tech-debt):` 注释，**100% 命中率**
+- 体检中 218 处 item-level `#[allow(dead_code)]` 已清理 18 处，剩 200 处分散在 100+ 文件
+
+**剩余候选**（按报告顺序）：
+- 批次 4：后端 `log_login.rs` 多余 allow 清理（1 文件，1 行，5-10 分钟）
+- 批次 5：后端大型服务拆分（4-6h）
+- 批次 6：前端 `eslint-disable` 收敛（172 处 / 100+ 文件）
+- 批次 8：后端 290 处 unwrap/panic 整改
+
+**main HEAD**：82109886（CI 全绿）
+
 ### 项目健康检查报告生成（2026-06-20）
 
 - **报告文件**：`/workspace/.monkeycode/docs/audits/2026-06-20-health-report.md`
