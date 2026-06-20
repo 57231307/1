@@ -213,19 +213,19 @@ impl InventoryAdjustmentService {
 
             // 使用乐观锁条件更新
             let update_result = inventory_stock::Entity::update_many()
-                
+                .col_expr(
                     inventory_stock::Column::QuantityOnHand,
                     sea_orm::sea_query::Expr::val(item.quantity_after).into(),
                 )
-                
+                .col_expr(
                     inventory_stock::Column::QuantityAvailable,
                     sea_orm::sea_query::Expr::val(item.quantity_after).into(),
                 )
-                
+                .col_expr(
                     inventory_stock::Column::QuantityMeters,
                     sea_orm::sea_query::Expr::val(item.quantity_after).into(),
                 )
-                
+                .col_expr(
                     inventory_stock::Column::QuantityKg,
                     sea_orm::sea_query::Expr::val(if quantity_before > Decimal::ZERO {
                         let kg_ratio = current_quantity_kg / quantity_before;
@@ -234,11 +234,11 @@ impl InventoryAdjustmentService {
                         current_quantity_kg
                     }).into(),
                 )
-                
+                .col_expr(
                     inventory_stock::Column::Version,
                     sea_orm::sea_query::Expr::col(inventory_stock::Column::Version).add(1).into(),
                 )
-                
+                .col_expr(
                     inventory_stock::Column::UpdatedAt,
                     sea_orm::sea_query::Expr::val(Utc::now()).into(),
                 )

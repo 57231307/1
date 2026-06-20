@@ -139,12 +139,12 @@ impl SalesService {
             sales_order_item::Entity::update_many()
                 .filter(sales_order_item::Column::OrderId.eq(request.order_id))
                 .filter(sales_order_item::Column::ProductId.eq(item.product_id))
-                
+                .col_expr(
                     sales_order_item::Column::ShippedQuantity,
                     sea_orm::sea_query::Expr::col(sales_order_item::Column::ShippedQuantity)
                         .add(item.quantity).into(),
                 )
-                
+                .col_expr(
                     sales_order_item::Column::UpdatedAt,
                     sea_orm::sea_query::Expr::val(chrono::Utc::now()).into(),
                 )
@@ -330,12 +330,12 @@ impl SalesService {
 
                 inventory_stock::Entity::update_many()
                     .filter(inventory_stock::Column::Id.eq(s.id))
-                    
+                    .col_expr(
                         inventory_stock::Column::QuantityAvailable,
                         sea_orm::sea_query::Expr::col(inventory_stock::Column::QuantityAvailable)
                             .sub(item.quantity).into(),
                     )
-                    
+                    .col_expr(
                         inventory_stock::Column::UpdatedAt,
                         sea_orm::sea_query::Expr::val(chrono::Utc::now()).into(),
                     )
@@ -376,17 +376,17 @@ impl SalesService {
 
         inventory_stock::Entity::update_many()
             .filter(inventory_stock::Column::Id.eq(stock.id))
-            
+            .col_expr(
                 inventory_stock::Column::QuantityAvailable,
                 sea_orm::sea_query::Expr::col(inventory_stock::Column::QuantityAvailable)
                     .sub(quantity).into(),
             )
-            
+            .col_expr(
                 inventory_stock::Column::QuantityShipped,
                 sea_orm::sea_query::Expr::col(inventory_stock::Column::QuantityShipped)
                     .add(quantity).into(),
             )
-            
+            .col_expr(
                 inventory_stock::Column::UpdatedAt,
                 sea_orm::sea_query::Expr::val(chrono::Utc::now()).into(),
             )
@@ -398,15 +398,15 @@ impl SalesService {
             .filter(inventory_reservation::Column::OrderId.eq(order_id))
             .filter(inventory_reservation::Column::ProductId.eq(product_id))
             .filter(inventory_reservation::Column::Status.eq("pending"))
-            
+            .col_expr(
                 inventory_reservation::Column::Status,
                 sea_orm::sea_query::Expr::val("consumed".to_string()).into(),
             )
-            
+            .col_expr(
                 inventory_reservation::Column::ReleasedAt,
                 sea_orm::sea_query::Expr::val(chrono::Utc::now()).into(),
             )
-            
+            .col_expr(
                 inventory_reservation::Column::UpdatedAt,
                 sea_orm::sea_query::Expr::val(chrono::Utc::now()).into(),
             )
@@ -432,12 +432,12 @@ impl SalesService {
             inventory_stock::Entity::update_many()
                 .filter(inventory_stock::Column::ProductId.eq(res.product_id))
                 .filter(inventory_stock::Column::WarehouseId.eq(res.warehouse_id))
-                
+                .col_expr(
                     inventory_stock::Column::QuantityAvailable,
                     sea_orm::sea_query::Expr::col(inventory_stock::Column::QuantityAvailable)
                         .add(res.quantity).into(),
                 )
-                
+                .col_expr(
                     inventory_stock::Column::UpdatedAt,
                     sea_orm::sea_query::Expr::val(chrono::Utc::now()).into(),
                 )
@@ -448,15 +448,15 @@ impl SalesService {
         inventory_reservation::Entity::update_many()
             .filter(inventory_reservation::Column::OrderId.eq(order_id))
             .filter(inventory_reservation::Column::Status.eq("pending"))
-            
+            .col_expr(
                 inventory_reservation::Column::Status,
                 sea_orm::sea_query::Expr::val("cancelled".to_string()).into(),
             )
-            
+            .col_expr(
                 inventory_reservation::Column::ReleasedAt,
                 sea_orm::sea_query::Expr::val(chrono::Utc::now()).into(),
             )
-            
+            .col_expr(
                 inventory_reservation::Column::UpdatedAt,
                 sea_orm::sea_query::Expr::val(chrono::Utc::now()).into(),
             )

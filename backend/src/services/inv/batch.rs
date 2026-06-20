@@ -101,27 +101,27 @@ impl InventoryTransferService {
 
                 // 使用乐观锁条件更新：只有 version 匹配时才更新
                 let update_result = inventory_stock::Entity::update_many()
-                    
+                    .col_expr(
                         inventory_stock::Column::QuantityOnHand,
                         Expr::col(inventory_stock::Column::QuantityOnHand).binary(BinOper::Sub, Expr::val(item.quantity)).into(),
                     )
-                    
+                    .col_expr(
                         inventory_stock::Column::QuantityAvailable,
                         Expr::col(inventory_stock::Column::QuantityAvailable).binary(BinOper::Sub, Expr::val(item.quantity)).into(),
                     )
-                    
+                    .col_expr(
                         inventory_stock::Column::QuantityMeters,
                         Expr::val(new_quantity_meters).into(),
                     )
-                    
+                    .col_expr(
                         inventory_stock::Column::QuantityKg,
                         Expr::val(new_quantity_kg).into(),
                     )
-                    
+                    .col_expr(
                         inventory_stock::Column::Version,
                         Expr::col(inventory_stock::Column::Version).binary(BinOper::Add, Expr::val(1)).into(),
                     )
-                    
+                    .col_expr(
                         inventory_stock::Column::UpdatedAt,
                         sea_orm::sea_query::Expr::val(chrono::Utc::now()).into(),
                     )
@@ -289,27 +289,27 @@ impl InventoryTransferService {
 
                 // 使用乐观锁条件更新：只有 version 匹配时才更新
                 let update_result = inventory_stock::Entity::update_many()
-                    
+                    .col_expr(
                         inventory_stock::Column::QuantityOnHand,
                         Expr::col(inventory_stock::Column::QuantityOnHand).binary(BinOper::Add, Expr::val(item.quantity)).into(),
                     )
-                    
+                    .col_expr(
                         inventory_stock::Column::QuantityAvailable,
                         Expr::col(inventory_stock::Column::QuantityAvailable).binary(BinOper::Add, Expr::val(item.quantity)).into(),
                     )
-                    
+                    .col_expr(
                         inventory_stock::Column::QuantityMeters,
                         Expr::val(new_quantity_meters).into(),
                     )
-                    
+                    .col_expr(
                         inventory_stock::Column::QuantityKg,
                         Expr::val(new_quantity_kg).into(),
                     )
-                    
+                    .col_expr(
                         inventory_stock::Column::Version,
                         Expr::col(inventory_stock::Column::Version).binary(BinOper::Add, Expr::val(1)).into(),
                     )
-                    
+                    .col_expr(
                         inventory_stock::Column::UpdatedAt,
                         sea_orm::sea_query::Expr::val(chrono::Utc::now()).into(),
                     )
