@@ -16,6 +16,30 @@
 
 ## 最新任务总结
 
+### 项目健康检查报告生成（2026-06-20）
+
+- **报告文件**：`/workspace/.monkeycode/docs/audits/2026-06-20-health-report.md`
+- **扫描范围**：4 类抑制代码 + 真实错误痕迹 + 大型文件分布
+- **关键发现**：
+  - 后端 file-level `#![allow(dead_code)]` 共 162 个 SeaORM 自动生成模型（规则六.1 豁免）
+  - 后端 `models/log_login.rs` 多余 `unused_imports/unused_variables` allow 段（1 处可立即清理）
+  - 后端 item-level `#[allow(dead_code)]` 共 **218 处 / 100 文件**，其中带 `// TODO(tech-debt):` 注释 **20+ 处**
+  - 后端 `.unwrap()/expect()/panic!()` 痕迹 **290 处 / 100 文件**（含潜在 `auth.tenant_id.unwrap_or(0)` 嫌疑，需按规则四.1 修复）
+  - 前端 `eslint-disable*` **172 处 / 100+ 文件**（集中在 `src/api/` 60+ 与 `src/views/**/components/` 100+）
+  - 前端 `@ts-ignore/@ts-expect-error/@ts-nocheck` **0 处**（绿）
+  - 前端 `console.*/debugger` **5 处 / 2 文件**（仅 utils 类，可接受）
+  - 后端大型文件：69 个 >500 行 / 12 个 >800 行（结构拆分候选）
+  - 前端大型文件：31 个 .vue >400 行 / 4 个 .ts >400 行（I-3 拆分候选）
+- **推荐 8 批 PR**（详见报告五）：
+  1. 安全必修 — 租户隔离 unwrap 修复（1-2h，最高优先级）
+  2. 后端 20+ TODO 死代码清理（2-3h）
+  3. 后端剩余 198 处死代码清理
+  4. 后端 `log_login.rs` 多余 allow 清理（1 文件）
+  5. 后端 1000+ 行大服务拆分（4-6h，I-3 下一批）
+  6. 前端 `eslint-disable` 收敛
+  7. 前端大型 .vue 拆分（I-3 继续）
+  8. 后端 290 处 unwrap/panic 整改
+
 ### I-3 color_card_handler 拆分完成（2026-06-20）
 
 - **PR #204 已 merge**（commit `a357cd24`，分支 `refactor/i3-color-card`）
