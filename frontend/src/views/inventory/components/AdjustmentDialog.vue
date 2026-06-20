@@ -65,7 +65,7 @@ const emit = defineEmits<{
 }>()
 
 // 浅拷贝避免突变 prop
-const localForm = reactive<any>({})
+const localForm = reactive<Record<string, any>>({})
 watch(
   () => props.form,
   newVal => {
@@ -73,6 +73,15 @@ watch(
     Object.assign(localForm, JSON.parse(JSON.stringify(newVal)))
   },
   { immediate: true, deep: true }
+)
+
+// 同步 localForm 回父组件 form prop
+watch(
+  localForm,
+  (newVal: Record<string, any>) => {
+    emit('update:form', JSON.parse(JSON.stringify(newVal)))
+  },
+  { deep: true }
 )
 
 const onClose = (val: boolean) => {
