@@ -116,7 +116,6 @@ pub mod quotation_service;
 pub mod quotation_convert_service;
 pub mod system_update_service;
 pub mod totp_service;
-pub mod transaction_helper;
 // MRP生产计划模块
 pub mod bom_service;
 pub mod mrp_engine_service;
