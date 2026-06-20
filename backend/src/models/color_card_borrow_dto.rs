@@ -42,12 +42,21 @@ pub struct ReturnColorCardDto {
 /// 登记遗失请求 DTO
 #[derive(Debug, Deserialize, Serialize, Validate, Clone)]
 pub struct MarkLostColorCardDto {
-    /// 赔付金额（必填 > 0）
-    #[validate(range(min = 0.01))]
+    /// 赔付金额（必填 > 0，Decimal 自定义校验：range 验证器不支持 Decimal）
+    #[validate(custom(function = "validate_decimal_positive", message = "赔付金额必须大于 0"))]
     pub compensation_amount: Decimal,
 
     /// 遗失原因
     pub notes: Option<String>,
+}
+
+/// 自定义校验：Decimal 必须 > 0
+fn validate_decimal_positive(v: &Decimal) -> Result<(), validator::ValidationError> {
+    if *v > Decimal::ZERO {
+        Ok(())
+    } else {
+        Err(validator::ValidationError::new("decimal_positive"))
+    }
 }
 
 /// 标记损坏请求 DTO

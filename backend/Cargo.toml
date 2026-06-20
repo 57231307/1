@@ -94,7 +94,7 @@ clap = { version = "4.4", features = ["derive"] }
 
 # API 文档
 utoipa = { version = "5.2.0", features = ["axum_extras"] }
-axum-extra = { version = "0.9.3", features = ["cookie", "cookie-private", "cookie-key-expansion"] }
+axum-extra = { version = "0.9.3", features = ["cookie", "cookie-private", "cookie-key-expansion", "time"] }
 totp-rs = { version = "5.5", features = ["qr", "gen_secret"] }
 utoipa-swagger-ui = { version = "8.0.3", features = ["axum"], optional = true }
 percent-encoding = "2.3.1"
@@ -125,6 +125,8 @@ mockall = "0.12"
 tower = "0.5"
 # 测试环境使用 SQLite
 sea-orm = { version = "2.0.0-rc.40", features = ["sqlx-sqlite", "runtime-tokio"] }
+# 测试用 Decimal 字面量宏
+rust_decimal_macros = "1.34"
 
 [build-dependencies]
 

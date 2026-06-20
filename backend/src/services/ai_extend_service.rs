@@ -86,6 +86,40 @@ pub struct AiExtendService {
     pub(crate) db: std::sync::Arc<sea_orm::DatabaseConnection>,
 }
 
+// =====================================================
+// 质量预测 持久化 DTO（file-level，避免 impl 内 pub struct 编译错误）
+// =====================================================
+
+#[derive(Debug, Deserialize)]
+pub struct CreateQualityPredDto {
+    pub request: QualityPredRequest,
+    pub operator_id: Option<i64>,
+    pub tenant_id: i64,
+}
+
+#[derive(Debug, Deserialize, Default)]
+pub struct ListQualityPredQuery {
+    pub page: Option<u64>,
+    pub page_size: Option<u64>,
+    pub product_id: Option<i64>,
+    pub inspection_type: Option<String>,
+    pub risk_level: Option<String>,
+    pub is_acknowledged: Option<bool>,
+}
+
+#[derive(Debug, Serialize)]
+pub struct QualityPredListVo {
+    pub items: Vec<QualityModel>,
+    pub total: u64,
+    pub page: u64,
+    pub page_size: u64,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct AcknowledgeQualityPredDto {
+    pub operator_id: Option<i64>,
+}
+
 impl AiExtendService {
     pub fn new(db: std::sync::Arc<sea_orm::DatabaseConnection>) -> Self {
         Self { db }
@@ -268,36 +302,6 @@ impl AiExtendService {
     // =====================================================
     // 质量预测 持久化
     // =====================================================
-
-    #[derive(Debug, Deserialize)]
-    pub struct CreateQualityPredDto {
-        pub request: QualityPredRequest,
-        pub operator_id: Option<i64>,
-        pub tenant_id: i64,
-    }
-
-    #[derive(Debug, Deserialize, Default)]
-    pub struct ListQualityPredQuery {
-        pub page: Option<u64>,
-        pub page_size: Option<u64>,
-        pub product_id: Option<i64>,
-        pub inspection_type: Option<String>,
-        pub risk_level: Option<String>,
-        pub is_acknowledged: Option<bool>,
-    }
-
-    #[derive(Debug, Serialize)]
-    pub struct QualityPredListVo {
-        pub items: Vec<QualityModel>,
-        pub total: u64,
-        pub page: u64,
-        pub page_size: u64,
-    }
-
-    #[derive(Debug, Deserialize)]
-    pub struct AcknowledgeQualityPredDto {
-        pub operator_id: Option<i64>,
-    }
 
     /// 触发质量预测（算法 + 落库）
     pub async fn create_quality_prediction(

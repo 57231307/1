@@ -17,8 +17,7 @@
 //! - `frame-ancestors 'none'` — 禁止被嵌入 iframe（防 clickjacking）
 //! - `upgrade-insecure-requests` — 自动升级 HTTP 到 HTTPS
 
-use axum::{extract::Request, middleware::Next, response::Response};
-use http::{HeaderName, HeaderValue};
+use axum::{extract::Request, http::{HeaderName, HeaderValue}, middleware::Next, response::Response};
 
 /// CSP 策略值
 pub const CSP_POLICY: &str = "default-src 'self'; \

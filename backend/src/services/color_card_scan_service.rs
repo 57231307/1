@@ -12,8 +12,8 @@ use crate::models::color_card_item::{self, Entity as ItemEntity};
 use crate::models::color_card_response_dto::{PriceSummary, RecipeSummary, ScanResult};
 use crate::models::dye_recipe;
 use crate::models::product_color_price;
-use crate::utils::app_state::AppError;
 use crate::utils::app_state::AppState;
+use crate::utils::error::AppError;
 
 /// 业务错误
 #[derive(Debug, Error)]

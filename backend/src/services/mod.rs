@@ -175,14 +175,10 @@ pub mod audit_cleanup_service;
 pub mod sensitive_action_alert;
 // 增强日志服务
 pub mod enhanced_logger;
-// 销售报价单服务（Week 1）
-pub mod quotation_service;
-// 销售报价单定价服务（Week 2 Task 6）
-pub mod quotation_pricing_service;
+pub mod slow_query_collector;
+// 销售报价单服务（Week 1）— 已在 L113-114 声明，此处仅声明新增的
 // 销售报价单审批服务（Week 2 Task 7）
 pub mod quotation_approval_service;
-// 销售报价单转订单服务（Week 2 Task 8）
-pub mod quotation_convert_service;
 // P0-2 主备隔离服务
 pub mod failover_service;
 // P0-3 定制订单全流程跟踪服务
