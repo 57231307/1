@@ -17,7 +17,11 @@ tower-http = { version = "0.6", features = ["cors", "trace", "fs", "set-header"]
 tokio = { version = "1.0", features = ["full"] }
 
 # 数据库
-sea-orm = { version = "2.0.0-rc.40", features = ["sqlx-postgres", "runtime-tokio", "macros", "with-rust_decimal", "with-chrono"] }
+# sea-orm 1.1.20 与 sqlx 0.8.4+ 兼容（修了 sqlx 0.8.4 的 TransactionManager::begin 签名变化）
+# 项目代码用 DeriveEntityModel 老式 derive，2.0 改了 ActiveModel::insert/update 为
+# Insert::one/Update::one associated function，项目代码是 1.x 风格 active.insert(db)，
+# 降级到 1.1.20 兼容性最佳
+sea-orm = { version = "1.1.20", features = ["sqlx-postgres", "runtime-tokio", "macros", "with-rust_decimal", "with-chrono"] }
 sqlx = { version = "0.8", features = ["postgres", "runtime-tokio", "chrono", "uuid", "json", "macros", "tls-rustls"] }
 
 # 序列化
@@ -127,7 +131,7 @@ tokio-test = "0.4"
 mockall = "0.12"
 tower = "0.5"
 # 测试环境使用 SQLite
-sea-orm = { version = "2.0.0-rc.40", features = ["sqlx-sqlite", "runtime-tokio"] }
+sea-orm = { version = "1.1.20", features = ["sqlx-sqlite", "runtime-tokio"] }
 # 测试用 Decimal 字面量宏
 rust_decimal_macros = "1.34"
 

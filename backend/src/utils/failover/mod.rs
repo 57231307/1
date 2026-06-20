@@ -76,7 +76,7 @@ pub enum FailoverError<E> {
 /// }
 /// ```
 #[async_trait]
-pub trait FailoverCall<T, E>: Send + Sync {
+pub trait FailoverCall<T: Send, E: Send>: Send + Sync {
     /// 主调用
     async fn primary_call(&self) -> Result<T, E>;
 

@@ -157,6 +157,7 @@ impl Default for AppState {
     /// 生产环境必须使用 [`AppState::with_secrets_and_cors`] 并提供真实的密钥配置。
     /// 随机生成的密钥与数据库连接（`DatabaseConnection::default()`）仅能保证单测可运行，
     /// 不具备任何业务可用性。
+    #[allow(unused_variables)] // clippy 在 lib-test 模式会报 unused；字段已在 Self {} 中使用
     fn default() -> Self {
         // 指标服务构造失败时显式返回字符串（之前是 .expect() panic，违背测试可观察性）
         let metrics = MetricsService::new()

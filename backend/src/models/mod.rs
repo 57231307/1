@@ -108,7 +108,6 @@ pub mod purchase_return;
 pub mod purchase_return_item;
 // 销售报价单模块（Week 1）— 已在 L25-27 声明，此处仅声明新增的 DTO 模块
 pub mod product_color_price;
-pub mod quotation_update_dto;
 pub mod quotation_convert_dto;
 // 采购检验模块
 pub mod purchase_inspection;

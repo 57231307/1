@@ -15,7 +15,7 @@
 // 后续 P10 将逐步将大型函数迁移到本子模块。
 
 #[allow(unused_imports)]
-pub use crate::services::so::order::{
+pub use crate::services::so::{
     CreateSalesOrderRequest, SalesOrderDetail, SalesOrderItemDetail, SalesService,
     UpdateSalesOrderRequest,
 };

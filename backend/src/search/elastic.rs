@@ -195,14 +195,18 @@ pub trait SearchClient: Send + Sync {
         index: &str,
         id: &str,
         doc: &T,
-    ) -> Result<(), SearchError>;
+    ) -> Result<(), SearchError>
+    where
+        T: 'async_trait;
 
     /// 搜索
-    async fn search<T: for<'de> Deserialize<'de> + Send>(
+    async fn search<T>(
         &self,
         index: &str,
         query: &SearchQuery,
-    ) -> Result<SearchResult<T>, SearchError>;
+    ) -> Result<SearchResult<T>, SearchError>
+    where
+        T: for<'de> Deserialize<'de> + Send + 'async_trait;
 
     /// 删除文档
     async fn delete_doc(&self, index: &str, id: &str) -> Result<(), SearchError>;
@@ -212,7 +216,9 @@ pub trait SearchClient: Send + Sync {
         &self,
         index: &str,
         docs: &[(String, T)],
-    ) -> Result<usize, SearchError>;
+    ) -> Result<usize, SearchError>
+    where
+        T: 'async_trait;
 }
 
 /// 搜索错误
