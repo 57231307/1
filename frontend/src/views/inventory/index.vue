@@ -277,7 +277,7 @@ const handleRemoveTransferItem = (index: number) => {
     transferForm.value.items.splice(index, 1)
   }
 }
-const handleSubmitTransfer = async (form: any) => {
+const onSubmitTransfer = async (form: any) => {
   if (!form.from_warehouse_id || !form.to_warehouse_id) {
     ElMessage.warning('请选择调出/调入仓库')
     return
