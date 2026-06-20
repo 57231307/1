@@ -188,7 +188,7 @@ pub async fn delete_quality_prediction(
     State(state): State<AppState>,
     auth: AuthContext,
     Path(id): Path<i64>,
-) -> Result<Json<Json<serde_json::Value>>, AppError> {
+) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     let tenant_id = extract_tenant_id(&auth)? as i64;
     let svc = AiExtendService::new(state.db);
     svc.delete_quality_prediction(tenant_id, id).await?;

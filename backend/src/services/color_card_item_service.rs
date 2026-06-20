@@ -236,7 +236,12 @@ impl ColorCardItemService {
             .ok_or(ItemError::ColorCardNotFound)?;
         let mut card_active: color_card::ActiveModel = card.into();
         // P9-1: 用 map_or 替代 unwrap，对 None 显式回退
-        let current = card_active.total_colors.clone().map(|v| v - 1).unwrap_or(0).max(0);
+        let current = card_active
+            .total_colors
+            .take()
+            .map(|v| v - 1)
+            .unwrap_or(0)
+            .max(0);
         card_active.total_colors = Set(current);
         card_active.updated_at = Set(Utc::now());
         card_active.update(&txn).await?;
@@ -327,9 +332,10 @@ impl ColorCardItemService {
         // 更新色卡 total_colors
         let mut card_active: color_card::ActiveModel = card.into();
         // P9-1: 用 map_or 替代 unwrap，对 None 显式回退
+        // ActiveValue<Option<i32>>::take() 返回 Option<i32>
         let new_total = card_active
             .total_colors
-            .clone()
+            .take()
             .map(|v| v + success_count as i32)
             .unwrap_or(success_count as i32);
         card_active.total_colors = Set(new_total);
