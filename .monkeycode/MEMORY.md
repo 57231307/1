@@ -377,6 +377,21 @@
   - 后端端口: 8082，日志目录: /opt/bingxi-erp/backend/logs，备份目录: /opt/bingxi-erp/backups
   - 环境配置: /etc/bingxi-erp/.env
   - 构建限制: 禁止本地编译，只允许 CICD 编译，CICD 自动部署到 GitHub Release，手动部署到生产服务器
+
+[CI/CD 验证强制（2026-06-20 用户强调）]
+- Date: 2026-06-20
+- Context: 用户明确要求所有验证在 CI/CD 进行，禁止本地编译/构建验证
+- Category: 运维部署
+- Instructions:
+  - **禁止**本地编译验证（`cargo build` / `cargo check` / `cargo test` / `cargo fmt -- --check` / `cargo clippy` / `npm run build` / `vue-tsc` / `pnpm typecheck` 等任何本地构建命令）
+  - **禁止**本地启动服务做端到端验证（`npm run dev` / `cargo run` / 起后端服务 / 起前端 dev server 等）
+  - 所有验证工作流：
+    1. 修改代码 → 写 commit → push 触发 CI
+    2. 用 GitHub API 监控 CI run 状态（`/repos/{owner}/{repo}/actions/runs` + `/actions/runs/{id}/jobs` + `/actions/runs/{id}/logs`）
+    3. 失败 → 拉取 logs zip → 解析 annotations → 修复 → 重新 push
+    4. 循环直到 CI 全绿
+  - **唯一允许的本地检查**：文件 diff、语法、文本类操作（git status、cat、grep、sed 等只读或文本编辑操作）
+  - 工具链验证（如需）通过 CI 触发的具体 job（`cargo fmt --check`、`cargo clippy --all-targets`、`npx vue-tsc --noEmit`）
   - **服务器不安装PostgreSQL客户端**：有专门的数据库服务器(39.99.34.194)，应用服务器只连接远程数据库
   - **服务器不安装Redis**：有专门的Redis服务器，应用服务器只连接远程Redis
   - **服务器只需安装**: Nginx、curl
