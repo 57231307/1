@@ -31,6 +31,13 @@ const queryFilter = reactive({
   is_acknowledged: undefined as boolean | undefined,
 })
 
+// 派生下拉选项（从 LABEL 字典生成 OPTIONS 数组，供 el-select 使用）
+const INSPECTION_TYPE_OPTIONS = (Object.entries(INSPECTION_TYPE_LABELS) as [string, string][])
+  .filter(([k]) => k !== 'all')
+  .map(([value, label]) => ({ value, label }))
+const RISK_LEVEL_OPTIONS = (Object.entries(RISK_LEVEL_LABELS) as [string, string][])
+  .map(([value, label]) => ({ value, label }))
+
 const dialogVisible = ref(false)
 const form = reactive<QualityPredRequest>({
   product_id: undefined,

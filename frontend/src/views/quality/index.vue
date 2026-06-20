@@ -199,7 +199,6 @@ import RecordTab from './tabs/RecordTab.vue'
 import DefectTab from './tabs/DefectTab.vue'
 import {
   listQualityStandards,
-  getQualityStandard,
   createQualityStandard,
   updateQualityStandard,
   approveQualityStandard,

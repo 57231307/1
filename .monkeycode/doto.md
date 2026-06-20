@@ -660,3 +660,34 @@
   - **CI 验证策略**：不本地编译（遵守"禁止本地编译"规则），依赖 GitHub Actions
   - **下一步**：等待用户决策修复策略（删除/抑制/接入），启动 Wave C 修复
   - **未 commit/push**：等待主代理审核
+
+## Wave C-2 CI 监控循环第 2 轮（2026-06-20）
+
+- **背景**：用户指令"你要监控 CI 验证的结果...验证失败继续拉日志，一直直到成功" — b0c39b0 推送后 CI #1154 失败 50+ 错误，本轮修复后 commit 2d2a913
+- **CI #1154 错误抓取**（关键突破）：
+  - **后端**：`backend/Cargo.toml:122 duplicate key` — `redis = { version = "0.27", ... }` 在 L64 和 L122 重复声明，clippy + fmt 同步失败
+  - **前端 type-check 50+ 错误**（annotations 只显示前 10）：
+    - `quality-prediction.vue` 缺 INSPECTION_TYPE_OPTIONS/RISK_LEVEL_OPTIONS + ElMessageBox 未用
+    - `api-gateway/index.vue:51` LogQuery 缺 status/date_range
+    - `bi/SalesAnalysis.vue` 7 处 `.data.data` → `.data`（BiResponseData 不嵌套）
+    - 7 个 CRM 文件 crmEnhancedApi no exported member + 3 个 custom-orders logger no default export
+    - `inventory/index.vue:428/465` 类型不匹配 + 多 product_name 字段
+    - `inventory/tabs/InventoryAlertTab.vue:28` + `InventoryTransferTab.vue:9/30/38` emit → $emit
+    - 3 个 detail.vue 未用 + dashboard/useDb + security/useSec 未用 import
+    - `supplier/SupplierList.vue` 5 errors
+    - `sales-analysis/{SaCustRank,SaProdRank}.vue:13` rankType → type
+    - **`quality/index.vue` 18 errors**（9 unused functions + L6-7 引用不存在 + provide used before declaration）
+- **本批 21 文件 / +45/-215 行修复**：
+  - 后端：`backend/Cargo.toml` 合并重复 redis 键
+  - 前端 19 文件 + .eslintrc.cjs：crm-enhanced export const crmEnhancedApi + logger default export + useApiLog logQuery 字段 + SalesAnalysis 7 处 .data + inventory 修复 + 4 处 emit→$emit + quality-prediction OPTIONS 派生 + 4 处 ||→?? + e2e 字符串 + 未用 import/variable + supplier 5 修 + rank 2 改 type + quality/index.vue 删 9 unused + L6-7 改函数名 + provide 移到底
+- **commit 2d2a913** + **push 成功** `b0c39b0..2d2a913 fix/wave-a-b-errors`
+- **CI #1155 监控中**（2d2a913 触发）
+
+## Wave C-1 CI 监控循环第 1 轮（2026-06-20）
+
+- **背景**：b75013a 推送后 CI #1153 失败，b0c39b0 修复
+- **本批 9 文件 / +17/-22 行**（commit b0c39b0）：
+  - quality-prediction.vue P0 修复（queryFilter 替换 L29 + resetFilter + 删 useRouter + 删 riskOptions/inspectionOptions + Filters deprecated 解决）
+  - 8 文件 lint any 抑制（custom-order 2/data-import/inventory 2/inventoryAdjustment/inventoryBatch/inventoryCount/inventoryTransfer/mrp）
+- **push 成功** `513d731..b75013a..b0c39b0`
+- **CI #1154 监控中**（b0c39b0 触发）→ 失败 50+ 错误（见 Wave C-2 修复）

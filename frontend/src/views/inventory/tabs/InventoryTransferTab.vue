@@ -6,7 +6,7 @@
 <template>
   <el-card shadow="hover">
     <div class="transfer-actions">
-      <el-button type="primary" @click="emit('new-transfer')">
+      <el-button type="primary" @click="$emit('new-transfer')">
         <el-icon><Plus /></el-icon>
         新建调拨单
       </el-button>

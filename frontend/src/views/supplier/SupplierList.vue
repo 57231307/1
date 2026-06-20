@@ -103,6 +103,13 @@ const emit = defineEmits<{
 
 const localQuery = reactive({ ...props.queryParams })
 
+/** 等级 → Element Plus Tag 类型映射 */
+const getGradeTag = (grade: string): 'success' | 'warning' | 'danger' | 'info' => {
+  if (grade === 'A') return 'success'
+  if (grade === 'D') return 'danger'
+  return 'warning'
+}
+
 watch(
   () => props.queryParams,
   newQ => Object.assign(localQuery, newQ),

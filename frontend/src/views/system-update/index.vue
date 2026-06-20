@@ -92,33 +92,84 @@
 <script setup lang="ts">
 /* eslint-disable vue/no-mutating-props */
 import { ref, onMounted } from 'vue'
-import { Refresh, FolderAdd } from '@element-plus/icons-vue'
-import {
-  getCurrentVersion,
-  checkForUpdates,
-  listSystemVersions,
-  downloadUpdate,
-  installUpdate,
-  listUpdateTasks,
-  cancelUpdateTask,
-  rollbackUpdate,
-  listSystemBackups,
-  createSystemBackup,
-  deleteSystemBackup,
-  restoreFromBackup,
-  downloadBackup,
-  type SystemVersion,
-  type UpdateTask,
-  type SystemBackup,
-} from '@/api/system-update'
 import { logger } from '@/utils/logger'
 import { useSysUpd } from './composables/useSysUpd'
+import { useSysUpdProc } from './composables/useSysUpdProc'
+import * as sysUpdFmts from './composables/sysUpdFmts'
 import SystemUpdateVersionTab from './tabs/SystemUpdateVersionTab.vue'
 import SystemUpdateTaskTab from './tabs/SystemUpdateTaskTab.vue'
 import SystemUpdateBackupTab from './tabs/SystemUpdateBackupTab.vue'
+import type { SystemVersion } from '@/api/system-update'
 
 const activeTab = ref('versions')
-const upd = useSysUpd()
+
+// 解构 useSysUpd 到顶层（useSysUpd 直接返回 ref/function 集合，不包装 reactive）
+const {
+  currentVersion,
+  latestVersion,
+  hasUpdate,
+  fetchCurrentVersion,
+  handleCheckUpdate,
+  versions,
+  versionTotal,
+  versionLoading,
+  versionQuery,
+  fetchVersions,
+  tasks,
+  taskTotal,
+  taskLoading,
+  taskQuery,
+  fetchTasks,
+  backups,
+  backupTotal,
+  backupLoading,
+  backupQuery,
+  fetchBackups,
+  backupForm,
+  backupSubmitLoading,
+  resetBackupForm,
+  handleBackupSubmit,
+  currentVersionDetail,
+  viewVersionDetail,
+} = useSysUpd()
+
+// 流程性方法（下载/安装/回滚/取消/恢复/下载备份/删除）
+const proc = useSysUpdProc({
+  fetchVersions,
+  fetchTasks,
+  fetchBackups,
+})
+const {
+  handleDownload,
+  handleInstall,
+  handleRollback,
+  handleCancelTask,
+  handleDownloadBackup,
+  handleRestore,
+  handleDeleteBackup,
+} = proc
+
+// 状态映射 + 文件大小格式化（来自 sysUpdFmts 工具）
+const {
+  getVersionStatusLabel,
+  getVersionStatusType,
+  getTaskStatusLabel,
+  getTaskStatusType,
+  getBackupTypeLabel,
+  getBackupStatusLabel,
+  getBackupStatusType,
+  formatFileSize,
+} = sysUpdFmts
+
+// 提供给子组件的 props 名转换：模板里用 statusTypeMap/statusMap，但工具函数是 getXxxType/Label。
+// 这里提供 alias，便于 <el-tag :type="versionStatusTypeMap[row.status]"> 直接用
+const versionStatusTypeMap = getVersionStatusType
+const versionStatusMap = getVersionStatusLabel
+const taskStatusTypeMap = getTaskStatusType
+const taskStatusMap = getTaskStatusLabel
+const backupTypeMap = getBackupTypeLabel
+const backupStatusTypeMap = getBackupStatusType
+const backupStatusMap = getBackupStatusLabel
 
 // 对话框可见性本地 ref
 const versionDetailVisible = ref(false)
@@ -126,27 +177,27 @@ const backupDialogVisible = ref(false)
 
 /** 打开版本详情 */
 const onViewVersionDetail = (row: SystemVersion) => {
-  upd.viewVersionDetail(row)
+  viewVersionDetail(row)
   versionDetailVisible.value = true
 }
 
 /** 打开创建备份对话框 */
 const onOpenBackupDialog = () => {
-  upd.resetBackupForm()
+  resetBackupForm()
   backupDialogVisible.value = true
 }
 
 /** 提交备份表单 */
 const onBackupSubmit = async () => {
-  const ok = await upd.handleBackupSubmit()
+  const ok = await handleBackupSubmit()
   if (ok) backupDialogVisible.value = false
 }
 
 onMounted(() => {
-  upd.fetchCurrentVersion()
-  upd.fetchVersions()
-  upd.fetchTasks()
-  upd.fetchBackups()
+  fetchCurrentVersion()
+  fetchVersions()
+  fetchTasks()
+  fetchBackups()
 })
 </script>
 

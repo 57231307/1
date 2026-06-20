@@ -180,7 +180,8 @@ const fetchRules = async () => {
   try {
     // P1-5：调用真实 API 获取分配规则（后端使用 recycle-rules 接口承载规则）
     const res = await crmEnhancedApi.getRecycleRules()
-    ruleList.value = (res.data?.data ?? res.data) as RuleRow[]
+    // crm API 不嵌套 .data（直接返回 data），保留 ?? 容错
+    ruleList.value = (res.data ?? res) as unknown as RuleRow[]
   } catch (error) {
     const err = error as Error
     logger.warn('获取分配规则失败', err.message)

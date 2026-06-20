@@ -218,7 +218,6 @@
           :key="index"
           style="display: flex; gap: 10px; margin-bottom: 10px"
         >
-          <el-input v-model="item.product_name" placeholder="产品名称" style="flex: 2" />
           <el-input-number v-model="item.quantity" :min="1" placeholder="数量" style="flex: 1" />
           <el-button
             type="danger"
@@ -441,14 +440,14 @@ const handleTransfer = () => {
   transferForm.value = {
     from_warehouse_id: null,
     to_warehouse_id: null,
-    items: [{ product_id: null, product_name: '', quantity: 0 }],
+    items: [{ product_id: null, quantity: 0 }],
     remark: '',
   }
   transferDialogVisible.value = true
 }
 
 const handleAddTransferItem = () => {
-  transferForm.value.items.push({ product_id: null, product_name: '', quantity: 0 })
+  transferForm.value.items.push({ product_id: null, quantity: 0 })
 }
 const handleRemoveTransferItem = (index: number) => {
   if (transferForm.value.items.length > 1) {
