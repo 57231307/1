@@ -16,6 +16,25 @@
 
 ## 最新任务总结
 
+### I-3 color_card_handler 拆分完成（2026-06-20）
+
+- **PR #204 已 merge**（commit `a357cd24`，分支 `refactor/i3-color-card`）
+- **拆分结构**：原 `backend/src/handlers/color_card_handler.rs`（590 行）→ 6 子模块 + 1 入口
+  - `crud.rs`（~150 行）：5 端点 list/create/get/update/archive
+  - `items.rs`（~80 行）：5 端点 list/create/update/delete/batch_import
+  - `borrow.rs`（~120 行）：5 端点 borrow/return/mark_lost/mark_damaged/list_records
+  - `scan_export.rs`（~100 行）：scan_color_code + export_color_card
+  - `error_map.rs`（~50 行）：crud_err/item_err/borrow_err 错误映射
+  - `helpers.rs`（~60 行）：ListItemsQuery + item_to_info + record_to_info + csv_escape
+  - `mod.rs`（~50 行）：re-export + 模块入口
+- **路径更新**：`handlers/mod.rs` 改 `pub mod color_card_handler` → `pub mod color_card`，`routes/color_card.rs` 所有 `color_card_handler::*` → `color_card::*`
+- **CI 历程**：
+  - **#1182 failure**：scan_export.rs:30/35 E0425 cannot find type `Json` in this scope
+  - **修复**：在 `use axum::{...}` 块添加 `Json` 导入（commit `bf23bc2b`）
+  - **#1183 success**：5 核心 job 全绿（构建后端/构建前端/运行测试/前端类型检查/前端测试）
+- **I-3 拆分累计 9 批**：u8 / u5 / sales-price / security×2 / sales-returns / inventory / color_card + (product_color_price/quality 跳过)
+- **本地清理**：`main` 同步至 `a357cd24`，删除 `refactor/i3-color-card`、`refactor/i3-inventory`、`refactor/i3-sales-returns` 三个本地分支
+
 ### Wave C-2 CI 监控循环第 2 轮（2026-06-20）
 
 - **背景**：b0c39b0 推送后 CI #1154 失败（20→10 errors 后 50+ 真实错误），用户指令"你要监控 CI 验证的结果...验证失败继续拉日志，一直直到成功"
