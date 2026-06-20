@@ -6,7 +6,7 @@
 //! 注意：完整集成测试需要数据库连接，单元测试主要验证
 //! 业务逻辑（不涉及 DB 的部分）。
 
-use crate::services::quotation_pricing_service::*;
+use bingxi_backend::services::quotation_pricing_service::*;
 use rust_decimal::Decimal;
 
 #[test]

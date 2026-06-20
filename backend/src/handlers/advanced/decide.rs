@@ -5,7 +5,7 @@
 use axum::{extract::State, response::IntoResponse, Json};
 use chrono::Utc;
 use rust_decimal::prelude::ToPrimitive;
-use sea_orm::{EntityTrait, QueryOrder};
+use sea_orm::{ActiveModelTrait, EntityTrait, QueryOrder};
 use serde::{Deserialize, Serialize};
 
 use crate::middleware::auth_context::AuthContext;

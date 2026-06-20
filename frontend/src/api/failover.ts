@@ -1,5 +1,5 @@
 // 主备隔离 API
-import request from './request'
+import { request } from './request'
 
 /** 主备状态 DTO */
 export interface FailoverStatusDto {

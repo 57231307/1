@@ -53,6 +53,9 @@ export interface PoolCustomer {
   created_at: string
 }
 
+/** 可分配客户（公海池同构别名，业务上用于分配场景） */
+export type AssignableCustomer = PoolCustomer
+
 export interface RecycleRule {
   id: number
   name: string
@@ -156,7 +159,7 @@ export interface AssignmentQueryParams extends QueryParams {
   date_range?: string[]
 }
 
-const crmEnhancedApi = {
+export const crmEnhancedApi = {
   // 客户列表（含标签、联系人）
   getCustomerList: (params?: QueryParams) =>
     request.get<ApiResponse<PageResult<CustomerWithTags>>>('/crm/customers/enhanced', { params }),

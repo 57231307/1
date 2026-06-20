@@ -15,7 +15,7 @@ use axum::{
     response::Response,
 };
 use chrono::{DateTime, Duration, Utc};
-use sea_orm::{ColumnTrait, EntityTrait, QueryFilter};
+use sea_orm::{ActiveModelTrait, ColumnTrait, EntityTrait, QueryFilter};
 use std::sync::Arc;
 use tracing::warn;
 
@@ -159,6 +159,7 @@ static PERMISSION_CACHE: LazyLock<DashMap<i32, CacheEntry<Arc<Vec<role_permissio
 /// 权限缓存TTL（5分钟）
 const PERMISSION_CACHE_TTL: i64 = 5;
 
+#[allow(dead_code)] // TODO(tech-debt): 业务接入后移除
 pub fn clear_permission_cache(role_id: Option<i32>) {
     if let Some(id) = role_id {
         PERMISSION_CACHE.remove(&id);
@@ -169,6 +170,7 @@ pub fn clear_permission_cache(role_id: Option<i32>) {
 
 /// 清理所有过期的权限缓存条目
 /// 建议定期调用此函数以避免内存泄漏
+#[allow(dead_code)] // TODO(tech-debt): 业务接入后移除
 pub fn cleanup_expired_permission_cache() {
     PERMISSION_CACHE.retain(|_, entry| !entry.is_expired());
     // 同时清理管理员角色缓存

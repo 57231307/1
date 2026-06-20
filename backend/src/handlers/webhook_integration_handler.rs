@@ -68,7 +68,7 @@ pub async fn list_integrations(
     auth: AuthContext,
 ) -> Result<Json<ApiResponse<Vec<WebhookIntegrationItem>>>, AppError> {
     use crate::models::webhook;
-    use sea_orm::{ColumnTrait, EntityTrait, QueryFilter};
+    use sea_orm::{ActiveModelTrait, ColumnTrait, EntityTrait, QueryFilter};
 
     let tenant_id = extract_tenant_id(&auth)?;
 

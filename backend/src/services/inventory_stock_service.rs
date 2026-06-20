@@ -7,7 +7,7 @@ use chrono::Utc;
 use rust_decimal::Decimal;
 use sea_orm::DatabaseConnection;
 use sea_orm::{
-    ActiveModelTrait, ColumnTrait, EntityTrait, ExprTrait, Order, PaginatorTrait, QueryFilter,
+    ActiveModelTrait, ColumnTrait, EntityTrait, Order, PaginatorTrait, QueryFilter,
     QueryOrder, Set,
 };
 use std::sync::Arc;
@@ -62,6 +62,7 @@ impl InventoryStockService {
             .ok_or_else(|| AppError::not_found(format!("库存记录 ID {} 不存在", id)))
     }
 
+    #[allow(dead_code)] // TODO(tech-debt): 业务接入后移除
     pub async fn find_by_product_and_warehouse(
         &self,
         product_id: i32,
@@ -141,27 +142,27 @@ impl InventoryStockService {
         let update_result = inventory_stock::Entity::update_many()
             .col_expr(
                 inventory_stock::Column::QuantityOnHand,
-                sea_orm::sea_query::Expr::val(quantity_meters),
+                sea_orm::sea_query::Expr::val(quantity_meters).into(),
             )
             .col_expr(
                 inventory_stock::Column::QuantityAvailable,
-                sea_orm::sea_query::Expr::val(quantity_meters),
+                sea_orm::sea_query::Expr::val(quantity_meters).into(),
             )
             .col_expr(
                 inventory_stock::Column::QuantityMeters,
-                sea_orm::sea_query::Expr::val(quantity_meters),
+                sea_orm::sea_query::Expr::val(quantity_meters).into(),
             )
             .col_expr(
                 inventory_stock::Column::QuantityKg,
-                sea_orm::sea_query::Expr::val(quantity_kg),
+                sea_orm::sea_query::Expr::val(quantity_kg).into(),
             )
             .col_expr(
                 inventory_stock::Column::Version,
-                sea_orm::sea_query::Expr::col(inventory_stock::Column::Version).add(1),
+                sea_orm::sea_query::Expr::col(inventory_stock::Column::Version).add(1).into(),
             )
             .col_expr(
                 inventory_stock::Column::UpdatedAt,
-                sea_orm::sea_query::Expr::val(chrono::Utc::now()),
+                sea_orm::sea_query::Expr::val(chrono::Utc::now()).into(),
             )
             .filter(inventory_stock::Column::Id.eq(id))
             .filter(inventory_stock::Column::Version.eq(expected_version))
@@ -432,27 +433,27 @@ impl InventoryStockService {
         let update_result = inventory_stock::Entity::update_many()
             .col_expr(
                 inventory_stock::Column::QuantityOnHand,
-                sea_orm::sea_query::Expr::val(quantity_meters),
+                sea_orm::sea_query::Expr::val(quantity_meters).into(),
             )
             .col_expr(
                 inventory_stock::Column::QuantityAvailable,
-                sea_orm::sea_query::Expr::val(quantity_meters),
+                sea_orm::sea_query::Expr::val(quantity_meters).into(),
             )
             .col_expr(
                 inventory_stock::Column::QuantityMeters,
-                sea_orm::sea_query::Expr::val(quantity_meters),
+                sea_orm::sea_query::Expr::val(quantity_meters).into(),
             )
             .col_expr(
                 inventory_stock::Column::QuantityKg,
-                sea_orm::sea_query::Expr::val(quantity_kg),
+                sea_orm::sea_query::Expr::val(quantity_kg).into(),
             )
             .col_expr(
                 inventory_stock::Column::Version,
-                sea_orm::sea_query::Expr::col(inventory_stock::Column::Version).add(1),
+                sea_orm::sea_query::Expr::col(inventory_stock::Column::Version).add(1).into(),
             )
             .col_expr(
                 inventory_stock::Column::UpdatedAt,
-                sea_orm::sea_query::Expr::val(chrono::Utc::now()),
+                sea_orm::sea_query::Expr::val(chrono::Utc::now()).into(),
             )
             .filter(inventory_stock::Column::Id.eq(id))
             .filter(inventory_stock::Column::Version.eq(expected_version))

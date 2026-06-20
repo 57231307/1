@@ -2,7 +2,7 @@ use crate::models::sales_price;
 use crate::utils::error::AppError;
 use rust_decimal::Decimal;
 use sea_orm::{
-    ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, ExprTrait, IntoActiveModel,
+    ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, IntoActiveModel,
     Order, PaginatorTrait, QueryFilter, QueryOrder, QuerySelect, Set,
 };
 use serde::Deserialize;

@@ -250,6 +250,7 @@ impl EventBus {
     }
 
     /// 当前后端类型（用于诊断 / 测试断言）
+    #[allow(dead_code)] // TODO(tech-debt): 业务接入后移除
     pub fn backend_type(&self) -> EventBackendType {
         let state = EVENT_BUS_STATE.lock().expect("EVENT_BUS_STATE 已中毒");
         match state.backend_kind.load(Ordering::Acquire) {
@@ -263,6 +264,7 @@ impl EventBus {
     /// - 当前后端 = Broadcast：直接本地投递；
     /// - 当前后端 = Kafka：序列化到 Kafka；同时**始终**复制一份到本地 `local_tx`，
     ///   避免单进程内订阅者丢失事件。
+    #[allow(dead_code)] // TODO(tech-debt): 业务接入后移除
     pub async fn publish_async(&self, event: BusinessEvent) {
         // 取出所需的全部状态后立即释放锁，避免 await 持锁
         let (kind, kafka_arc, broadcast_be) = {

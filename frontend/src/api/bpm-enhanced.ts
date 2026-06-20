@@ -9,6 +9,7 @@ export interface ProcessDefinition {
   version: number
   status: 'draft' | 'active' | 'suspended' | 'deprecated'
   category?: string
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   form_schema?: any
   nodes?: ProcessNode[]
   created_at: string
@@ -53,6 +54,7 @@ export interface ApprovalAction {
   action: 'approve' | 'reject' | 'transfer' | 'delegate'
   comment?: string
   target_user_id?: number
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   variables?: any
 }
 

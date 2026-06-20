@@ -17,7 +17,7 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use async_trait::async_trait;
-use sea_orm::{ConnectionTrait, DatabaseConnection, DbBackend, DbErr, Statement};
+use sea_orm::{ActiveModelTrait, ConnectionTrait, DatabaseConnection, DbBackend, DbErr, Statement};
 use tracing::{info, warn};
 
 use super::circuit_breaker::CircuitBreaker;
@@ -147,7 +147,8 @@ pub async fn health_check_task(
 
 /// 更新 failover_status 表
 async fn update_status(db: &DatabaseConnection, function_name: &str, state: &str, circuit_state: i64) {
-    use sea_orm::{EntityTrait, QueryFilter, ColumnTrait};
+    use sea_orm::{ActiveModelTrait, EntityTrait, QueryFilter, ColumnTrait, Set};
+    use crate::models::failover_status::{self, ActiveModel as FailoverStatusActive};
     let now = chrono::Utc::now();
     if let Ok(Some(_existing)) = failover_status::Entity::find()
         .filter(failover_status::Column::FunctionName.eq(function_name))

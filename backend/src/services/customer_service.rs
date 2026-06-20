@@ -1,7 +1,7 @@
 
 use chrono::Utc;
 use sea_orm::{
-    ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, ExprTrait, Order,
+    ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, Order,
     PaginatorTrait, QueryFilter, QueryOrder, QuerySelect,
 };
 use std::sync::Arc;
@@ -432,6 +432,7 @@ impl CustomerService {
     }
 
     /// 检查客户编码是否已存在
+    #[allow(dead_code)] // TODO(tech-debt): 业务接入后移除
     pub async fn check_customer_code_exists(
         &self,
         customer_code: &str,

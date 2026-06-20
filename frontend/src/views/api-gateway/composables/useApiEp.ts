@@ -156,6 +156,21 @@ export function useApiEp() {
     endpointTotal,
     endpointLoading,
     endpointQuery,
+    methodTypeMap: {
+      GET: 'primary',
+      POST: 'success',
+      PUT: 'warning',
+      DELETE: 'danger',
+      PATCH: 'info',
+    } as Record<string, string>,
+    endpointStatusTypeMap: {
+      active: 'success',
+      inactive: 'info',
+    } as Record<string, string>,
+    endpointStatusMap: {
+      active: '已激活',
+      inactive: '未激活',
+    } as Record<string, string>,
     fetchEndpoints,
     endpointDialogVisible,
     endpointFormRef,

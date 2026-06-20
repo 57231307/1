@@ -37,10 +37,7 @@ impl AuditCleanupService {
         let result = self
             .db
             .as_ref()
-            .execute_raw(Statement::from_string(
-                sea_orm::DatabaseBackend::Postgres,
-                sql,
-            ))
+            .execute_unprepared(&sql)
             .await?;
 
         let deleted_count = result.rows_affected();
@@ -62,10 +59,7 @@ impl AuditCleanupService {
         let result = self
             .db
             .as_ref()
-            .execute_raw(Statement::from_string(
-                sea_orm::DatabaseBackend::Postgres,
-                sql,
-            ))
+            .execute_unprepared(&sql)
             .await?;
 
         let deleted_count2 = result.rows_affected();
@@ -90,10 +84,10 @@ impl AuditCleanupService {
             (SELECT MIN(created_at) FROM omni_audit_logs) as oldest_omni_log,
             (SELECT MAX(created_at) FROM omni_audit_logs) as newest_omni_log";
 
-        let result = self
+        let result: Option<sea_orm::QueryResult> = self
             .db
             .as_ref()
-            .query_one_raw(Statement::from_string(
+            .query_one(sea_orm::Statement::from_string(
                 sea_orm::DatabaseBackend::Postgres,
                 sql.to_string(),
             ))

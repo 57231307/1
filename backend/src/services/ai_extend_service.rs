@@ -10,7 +10,7 @@
 //! 5. 看板聚合
 
 use sea_orm::{
-    ActiveModelTrait, ColumnTrait, EntityTrait, PaginatorTrait, QueryFilter, QueryOrder, Set,
+    QuerySelect, ActiveModelTrait, ColumnTrait, EntityTrait, PaginatorTrait, QueryFilter, QueryOrder, Set,
 };
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
@@ -86,6 +86,40 @@ pub struct AiExtendService {
     pub(crate) db: std::sync::Arc<sea_orm::DatabaseConnection>,
 }
 
+// =====================================================
+// 质量预测 持久化 DTO（file-level，避免 impl 内 pub struct 编译错误）
+// =====================================================
+
+#[derive(Debug, Deserialize)]
+pub struct CreateQualityPredDto {
+    pub request: QualityPredRequest,
+    pub operator_id: Option<i64>,
+    pub tenant_id: i64,
+}
+
+#[derive(Debug, Deserialize, Default)]
+pub struct ListQualityPredQuery {
+    pub page: Option<u64>,
+    pub page_size: Option<u64>,
+    pub product_id: Option<i64>,
+    pub inspection_type: Option<String>,
+    pub risk_level: Option<String>,
+    pub is_acknowledged: Option<bool>,
+}
+
+#[derive(Debug, Serialize)]
+pub struct QualityPredListVo {
+    pub items: Vec<QualityModel>,
+    pub total: u64,
+    pub page: u64,
+    pub page_size: u64,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct AcknowledgeQualityPredDto {
+    pub operator_id: Option<i64>,
+}
+
 impl AiExtendService {
     pub fn new(db: std::sync::Arc<sea_orm::DatabaseConnection>) -> Self {
         Self { db }
@@ -112,16 +146,19 @@ impl AiExtendService {
             color_name: Set(dto.request.color_name.clone()),
             fabric_type: Set(dto.request.fabric_type.clone()),
             dye_type: Set(dto.request.dye_type.clone()),
-            recommended_temperature: Set(rust_decimal::Decimal::from(
+            recommended_temperature: Set(rust_decimal::Decimal::from_f64_retain(
                 resp.recommended_params.temperature,
-            )),
-            recommended_time_minutes: Set(resp.recommended_params.time_minutes),
-            recommended_ph_value: Set(rust_decimal::Decimal::from(
+            )
+            .unwrap_or_default()),
+            recommended_time_minutes: Set(resp.recommended_params.time_minutes as i32),
+            recommended_ph_value: Set(rust_decimal::Decimal::from_f64_retain(
                 resp.recommended_params.ph_value,
-            )),
-            recommended_liquor_ratio: Set(rust_decimal::Decimal::from(
+            )
+            .unwrap_or_default()),
+            recommended_liquor_ratio: Set(rust_decimal::Decimal::from_f64_retain(
                 resp.recommended_params.liquor_ratio,
-            )),
+            )
+            .unwrap_or_default()),
             similar_cases: Set(resp.similar_cases as i32),
             confidence: Set(rust_decimal::Decimal::from_f64_retain(resp.confidence)
                 .unwrap_or_default()),
@@ -268,36 +305,6 @@ impl AiExtendService {
     // =====================================================
     // 质量预测 持久化
     // =====================================================
-
-    #[derive(Debug, Deserialize)]
-    pub struct CreateQualityPredDto {
-        pub request: QualityPredRequest,
-        pub operator_id: Option<i64>,
-        pub tenant_id: i64,
-    }
-
-    #[derive(Debug, Deserialize, Default)]
-    pub struct ListQualityPredQuery {
-        pub page: Option<u64>,
-        pub page_size: Option<u64>,
-        pub product_id: Option<i64>,
-        pub inspection_type: Option<String>,
-        pub risk_level: Option<String>,
-        pub is_acknowledged: Option<bool>,
-    }
-
-    #[derive(Debug, Serialize)]
-    pub struct QualityPredListVo {
-        pub items: Vec<QualityModel>,
-        pub total: u64,
-        pub page: u64,
-        pub page_size: u64,
-    }
-
-    #[derive(Debug, Deserialize)]
-    pub struct AcknowledgeQualityPredDto {
-        pub operator_id: Option<i64>,
-    }
 
     /// 触发质量预测（算法 + 落库）
     pub async fn create_quality_prediction(

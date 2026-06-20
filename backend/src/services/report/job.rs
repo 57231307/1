@@ -17,6 +17,7 @@ use super::{CreateSubscriptionRequest, ReportEngineService, ReportSubscription};
 
 impl ReportEngineService {
     /// 创建报表订阅
+    #[allow(dead_code)] // TODO(tech-debt): 业务接入后移除
     pub async fn create_subscription(
         &self,
         user_id: i32,

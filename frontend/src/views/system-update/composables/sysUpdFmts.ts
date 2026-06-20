@@ -6,7 +6,7 @@
  */
 
 /** 版本状态 → 中文标签 */
-const VERSION_STATUS_LABEL: Record<string, string> = {
+export const VERSION_STATUS_LABEL: Record<string, string> = {
   available: '可下载',
   downloading: '下载中',
   downloaded: '已下载',
@@ -16,7 +16,7 @@ const VERSION_STATUS_LABEL: Record<string, string> = {
 }
 
 /** 版本状态 → el-tag 类型 */
-const VERSION_STATUS_TYPE: Record<string, string> = {
+export const VERSION_STATUS_TYPE: Record<string, string> = {
   available: 'info',
   downloading: 'warning',
   downloaded: 'success',
@@ -26,7 +26,7 @@ const VERSION_STATUS_TYPE: Record<string, string> = {
 }
 
 /** 更新任务状态 → 中文标签 */
-const TASK_STATUS_LABEL: Record<string, string> = {
+export const TASK_STATUS_LABEL: Record<string, string> = {
   pending: '待处理',
   downloading: '下载中',
   downloaded: '已下载',
@@ -37,7 +37,7 @@ const TASK_STATUS_LABEL: Record<string, string> = {
 }
 
 /** 更新任务状态 → el-tag 类型 */
-const TASK_STATUS_TYPE: Record<string, string> = {
+export const TASK_STATUS_TYPE: Record<string, string> = {
   pending: 'info',
   downloading: 'warning',
   downloaded: 'success',
@@ -48,7 +48,7 @@ const TASK_STATUS_TYPE: Record<string, string> = {
 }
 
 /** 备份类型 → 中文标签 */
-const BACKUP_TYPE_LABEL: Record<string, string> = {
+export const BACKUP_TYPE_LABEL: Record<string, string> = {
   full: '完整备份',
   incremental: '增量备份',
   database: '数据库备份',
@@ -56,14 +56,14 @@ const BACKUP_TYPE_LABEL: Record<string, string> = {
 }
 
 /** 备份状态 → 中文标签 */
-const BACKUP_STATUS_LABEL: Record<string, string> = {
+export const BACKUP_STATUS_LABEL: Record<string, string> = {
   creating: '创建中',
   completed: '已完成',
   failed: '失败',
 }
 
 /** 备份状态 → el-tag 类型 */
-const BACKUP_STATUS_TYPE: Record<string, string> = {
+export const BACKUP_STATUS_TYPE: Record<string, string> = {
   creating: 'warning',
   completed: 'success',
   failed: 'danger',

@@ -31,6 +31,17 @@
 - **数据库类型**：PostgreSQL
 - **连接方式**：使用远程数据库连接模式，确保数据库连接模块的稳定性和安全性
 
+### 2.5 验证强制（CI/CD Only）
+
+- **禁止**本地编译/构建验证（`cargo build`、`cargo check`、`cargo test`、`cargo fmt -- --check`、`cargo clippy`、`npm run build`、`vue-tsc`、`pnpm typecheck`、`pnpm lint` 等任何本地构建命令）
+- **禁止**本地启动服务做端到端验证（`npm run dev`、`cargo run`、后端服务、前端 dev server）
+- **唯一允许的本地操作**：文件 diff、语法、文本类（git status、cat、grep、sed、Edit、Write 等只读或文本编辑）
+- **所有验证必须经 CI/CD**：
+  1. 修改代码 → 写 commit → push 触发 CI
+  2. 用 GitHub Actions API 监控 run 状态（`/actions/runs`、`/actions/runs/{id}/jobs`、`/actions/runs/{id}/logs`）
+  3. 失败 → 拉取 logs zip → 解析 annotations → 修复 → 重新 push
+  4. 循环直到 CI 全绿
+
 ### 3. 功能实现依据
 
 - 功能实现必须严格按照技能进行推进

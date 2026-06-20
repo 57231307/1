@@ -1,6 +1,6 @@
 [package]
 name = "bingxi-backend"
-version = "2026.617.0001"
+version = "2026.617.1"
 edition = "2021"
 # 与 rust-toolchain.toml / .github/workflows/ci-cd.yml (RUST_VERSION=1.94.1) 保持一致
 # sea-orm 2.0.0-rc.40 与 sqlx 0.9 要求的最低 rustc 版本
@@ -17,7 +17,11 @@ tower-http = { version = "0.6", features = ["cors", "trace", "fs", "set-header"]
 tokio = { version = "1.0", features = ["full"] }
 
 # 数据库
-sea-orm = { version = "2.0.0-rc.40", features = ["sqlx-postgres", "runtime-tokio", "macros", "with-rust_decimal", "with-chrono"] }
+# sea-orm 1.1.20 与 sqlx 0.8.4+ 兼容（修了 sqlx 0.8.4 的 TransactionManager::begin 签名变化）
+# 项目代码用 DeriveEntityModel 老式 derive，2.0 改了 ActiveModel::insert/update 为
+# Insert::one/Update::one associated function，项目代码是 1.x 风格 active.insert(db)，
+# 降级到 1.1.20 兼容性最佳
+sea-orm = { version = "1.1.20", features = ["sqlx-postgres", "runtime-tokio", "macros", "with-rust_decimal", "with-chrono"] }
 sqlx = { version = "0.8", features = ["postgres", "runtime-tokio", "chrono", "uuid", "json", "macros", "tls-rustls"] }
 
 # 序列化
@@ -60,8 +64,8 @@ reqwest = { version = "0.12", features = ["json"] }
 # 进程内 LRU 缓存
 moka = { version = "0.12", features = ["future"] }
 
-# Redis 客户端
-redis = { version = "0.27", features = ["tokio-comp"] }
+# Redis 客户端（P12 批 1 性能优化：缓存层 connection-manager）
+redis = { version = "0.27", features = ["tokio-comp", "connection-manager"] }
 
 # 全局单例
 once_cell = "1.20"
@@ -71,6 +75,9 @@ base64 = "0.22"
 
 # ZIP 压缩
 zip = "2.2"
+
+# 时间类型（axum-extra Cookie::max_age 需要 time::Duration，axum-extra 不 re-export）
+time = { version = "0.3", features = ["macros"] }
 
 # PDF 生成
 printpdf = "0.7"
@@ -118,16 +125,15 @@ rskafka = { version = "0.5", default-features = false }
 # 异步 trait（Redis 缓存层使用）
 async-trait = "0.1"
 
-# Redis 客户端（P12 批 1 性能优化：缓存层）
-redis = { version = "0.27", features = ["tokio-comp", "connection-manager"] }
-
 [dev-dependencies]
 # 开发测试相关依赖
 tokio-test = "0.4"
 mockall = "0.12"
 tower = "0.5"
 # 测试环境使用 SQLite
-sea-orm = { version = "2.0.0-rc.40", features = ["sqlx-sqlite", "runtime-tokio"] }
+sea-orm = { version = "1.1.20", features = ["sqlx-sqlite", "runtime-tokio"] }
+# 测试用 Decimal 字面量宏
+rust_decimal_macros = "1.34"
 
 [build-dependencies]
 

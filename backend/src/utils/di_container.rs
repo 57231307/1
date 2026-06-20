@@ -10,7 +10,7 @@ use std::sync::{Arc, Mutex, MutexGuard};
 ///
 /// 互斥锁中毒（Poisoned）通常意味着有线程 panic，调用方已知会出现此场景
 /// 并选择立即失败。helper 内部用 unwrap_or_else + 中文日志统一处理。
-fn lock_or_panic<T>(mutex: &Mutex<T>, ctx: &str) -> MutexGuard<'_, T> {
+fn lock_or_panic<'a, T>(mutex: &'a Mutex<T>, ctx: &str) -> MutexGuard<'a, T> {
     mutex.lock().unwrap_or_else(|e| {
         tracing::error!(ctx = %ctx, error = %e, "P9-1: 互斥锁中毒，可能存在线程 panic");
         panic!("P9-1: 互斥锁中毒 {ctx}: {e}")

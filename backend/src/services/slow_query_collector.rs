@@ -121,10 +121,10 @@ impl SlowQueryCollector {
         // 使用 build_query_sql 拼接 SQL（便于单元测试覆盖）
         let sql = build_query_sql(self.threshold_ms, self.limit_rows);
 
-        let query_result = self
+        let query_result: Vec<sea_orm::QueryResult> = self
             .db
             .as_ref()
-            .query_all_raw(Statement::from_string(
+            .query_all(Statement::from_string(
                 sea_orm::DatabaseBackend::Postgres,
                 sql,
             ))
@@ -134,10 +134,10 @@ impl SlowQueryCollector {
         for row in query_result {
             // 解析字段：query(text) / mean_exec_time(float8) / calls(int8) / rows(int8)
             // 使用 try_get_by_index 防御式读取：缺字段时跳过该行
-            let query_text: Option<String> = row.try_get_by_index(0).ok();
-            let mean_exec_time: Option<f64> = row.try_get_by_index(1).ok();
-            let calls: Option<i64> = row.try_get_by_index(2).ok();
-            let rows_examined: Option<i64> = row.try_get_by_index(3).ok();
+            let query_text: Option<String> = row.try_get_by_index::<String>(0).ok();
+            let mean_exec_time: Option<f64> = row.try_get_by_index::<f64>(1).ok();
+            let calls: Option<i64> = row.try_get_by_index::<i64>(2).ok();
+            let rows_examined: Option<i64> = row.try_get_by_index::<i64>(3).ok();
 
             // 跳过空查询（pg_stat_statements 偶尔会插入空字符串占位）
             let query_text = match query_text {

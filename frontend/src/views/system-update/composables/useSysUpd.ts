@@ -166,8 +166,9 @@ export function useSysUpd() {
     currentVersionDetail.value = row
   }
 
-  // 使用 reactive 包装，访问字段时自动解包 ref
-  return reactive({
+  // 直接返回 ref/function/computed 集合（不再用 reactive 包装），方便父组件解构到顶层
+  // 这样 template 里可以直接用 `versions` 而不用 `upd.versions`
+  return {
     // 当前版本
     currentVersion,
     latestVersion,
@@ -200,5 +201,5 @@ export function useSysUpd() {
     // 版本详情
     currentVersionDetail,
     viewVersionDetail,
-  })
+  }
 }

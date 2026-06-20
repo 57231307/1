@@ -215,6 +215,8 @@ const total = ref(0)
 const dialogVisible = ref(false)
 const isEdit = ref(false)
 const formRef = ref<FormInstance>()
+// SupplierList 通过 dialog-mode prop 接收的当前模式（add/edit/view）
+const dialogMode = ref<'add' | 'edit' | 'view'>('add')
 
 const queryParams = reactive({
   page: 1,
@@ -258,16 +260,6 @@ const formRules: FormRules = {
 }
 
 const dialogTitle = computed(() => (isEdit.value ? '编辑供应商' : '新建供应商'))
-
-const getGradeTag = (grade: string) => {
-  const tags: Record<string, string> = {
-    A: 'success',
-    B: '',
-    C: 'warning',
-    D: 'danger',
-  }
-  return tags[grade] || ''
-}
 
 const fetchData = async () => {
   loading.value = true
@@ -324,6 +316,19 @@ const resetForm = () => {
 const handleCreate = () => {
   resetForm()
   isEdit.value = false
+  dialogMode.value = 'add'
+  dialogVisible.value = true
+}
+
+const handleAdd = () => {
+  handleCreate()
+}
+
+const handleView = (row: Supplier) => {
+  resetForm()
+  Object.assign(formData, row)
+  isEdit.value = false
+  dialogMode.value = 'view'
   dialogVisible.value = true
 }
 
@@ -331,6 +336,7 @@ const handleEdit = (row: Supplier) => {
   resetForm()
   Object.assign(formData, row)
   isEdit.value = true
+  dialogMode.value = 'edit'
   dialogVisible.value = true
 }
 

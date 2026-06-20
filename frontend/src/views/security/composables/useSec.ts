@@ -4,7 +4,7 @@
 // 行为完全保持一致（仅结构重构）
 import { reactive, ref } from 'vue'
 import { securityApi } from '@/api/security'
-import type { SecurityStats, LoginLog, LockedAccount, SecurityAlert } from '@/api/security'
+import type { LoginLog, LockedAccount, SecurityAlert } from '@/api/security'
 import { logger } from '@/utils/logger'
 
 /** security 主业务 composable（返回 reactive 包装的字段，父组件可直接 .字段 解包） */

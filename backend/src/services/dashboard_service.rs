@@ -2,7 +2,7 @@ use chrono::{DateTime, Utc};
 use rust_decimal::Decimal;
 use sea_orm::prelude::*;
 use sea_orm::{
-    sea_query::Expr, ColumnTrait, DatabaseConnection, EntityTrait, ExprTrait, QueryFilter,
+    sea_query::Expr, ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter,
     QueryOrder, QuerySelect,
 };
 use serde::{Deserialize, Serialize};

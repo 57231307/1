@@ -22,44 +22,51 @@ impl MigrationTrait for Migration {
         // 1. 销售订单按租户+客户+状态
         db.execute_unprepared(
             "CREATE INDEX IF NOT EXISTS idx_sales_orders_tenant_customer_status
-             ON sales_orders (tenant_id, customer_id, status);"
-        ).await?;
+             ON sales_orders (tenant_id, customer_id, status);",
+        )
+        .await?;
 
         // 2. 库存按租户+仓库+商品
         db.execute_unprepared(
             "CREATE INDEX IF NOT EXISTS idx_inventory_stocks_tenant_wh_product
-             ON inventory_stocks (tenant_id, warehouse_id, product_id);"
-        ).await?;
+             ON inventory_stocks (tenant_id, warehouse_id, product_id);",
+        )
+        .await?;
 
         // 3. 应收账款按租户+客户+到期日
         db.execute_unprepared(
             "CREATE INDEX IF NOT EXISTS idx_ar_invoices_tenant_customer_due
-             ON ar_invoices (tenant_id, customer_id, due_date);"
-        ).await?;
+             ON ar_invoices (tenant_id, customer_id, due_date);",
+        )
+        .await?;
 
         // 4. 采购订单按租户+供应商+状态
         db.execute_unprepared(
             "CREATE INDEX IF NOT EXISTS idx_purchase_orders_tenant_supplier_status
-             ON purchase_orders (tenant_id, supplier_id, status);"
-        ).await?;
+             ON purchase_orders (tenant_id, supplier_id, status);",
+        )
+        .await?;
 
         // 5. 库存预留按租户+商品+状态
         db.execute_unprepared(
             "CREATE INDEX IF NOT EXISTS idx_inventory_reservations_tenant_product_status
-             ON inventory_reservations (tenant_id, product_id, status);"
-        ).await?;
+             ON inventory_reservations (tenant_id, product_id, status);",
+        )
+        .await?;
 
         // 6. 操作日志按租户+创建时间
         db.execute_unprepared(
             "CREATE INDEX IF NOT EXISTS idx_operation_logs_tenant_created
-             ON operation_logs (tenant_id, created_at DESC);"
-        ).await?;
+             ON operation_logs (tenant_id, created_at DESC);",
+        )
+        .await?;
 
         // 7. 用户名唯一约束（按租户隔离）
         db.execute_unprepared(
             "CREATE UNIQUE INDEX IF NOT EXISTS uq_users_tenant_username
-             ON users (tenant_id, username);"
-        ).await?;
+             ON users (tenant_id, username);",
+        )
+        .await?;
 
         Ok(())
     }

@@ -44,7 +44,7 @@ pub async fn sales_by_time(
     let tenant_id = extract_tenant_id(&auth)? as i64;
     let data = BiAnalysisService::sales_by_time(tenant_id, q.start_date, q.end_date, &q.granularity)
         .await
-        .map_err(|e| AppError::Business(format!("查询失败: {}", e)))?;
+        .map_err(|e| AppError::BusinessError(format!("查询失败: {}", e)))?;
     Ok(Json(ApiResponse::success(BiResponse::success(data))))
 }
 
@@ -64,7 +64,7 @@ pub async fn sales_by_customer(
     let limit = q.limit.unwrap_or(10);
     let data = BiAnalysisService::sales_by_customer(tenant_id, limit)
         .await
-        .map_err(|e| AppError::Business(format!("查询失败: {}", e)))?;
+        .map_err(|e| AppError::BusinessError(format!("查询失败: {}", e)))?;
     Ok(Json(ApiResponse::success(BiResponse::success(data))))
 }
 
@@ -79,7 +79,7 @@ pub async fn sales_by_product(
     let limit = q.limit.unwrap_or(10);
     let data = BiAnalysisService::sales_by_product(tenant_id, limit)
         .await
-        .map_err(|e| AppError::Business(format!("查询失败: {}", e)))?;
+        .map_err(|e| AppError::BusinessError(format!("查询失败: {}", e)))?;
     Ok(Json(ApiResponse::success(BiResponse::success(data))))
 }
 
@@ -92,7 +92,7 @@ pub async fn sales_by_region(
     let tenant_id = extract_tenant_id(&auth)? as i64;
     let data = BiAnalysisService::sales_by_region(tenant_id)
         .await
-        .map_err(|e| AppError::Business(format!("查询失败: {}", e)))?;
+        .map_err(|e| AppError::BusinessError(format!("查询失败: {}", e)))?;
     Ok(Json(ApiResponse::success(BiResponse::success(data))))
 }
 
@@ -105,7 +105,7 @@ pub async fn sales_by_category(
     let tenant_id = extract_tenant_id(&auth)? as i64;
     let data = BiAnalysisService::sales_by_category(tenant_id)
         .await
-        .map_err(|e| AppError::Business(format!("查询失败: {}", e)))?;
+        .map_err(|e| AppError::BusinessError(format!("查询失败: {}", e)))?;
     Ok(Json(ApiResponse::success(BiResponse::success(data))))
 }
 
@@ -125,7 +125,7 @@ pub async fn sales_trend(
     let days = q.days.unwrap_or(30);
     let data = BiAnalysisService::sales_trend(tenant_id, days)
         .await
-        .map_err(|e| AppError::Business(format!("查询失败: {}", e)))?;
+        .map_err(|e| AppError::BusinessError(format!("查询失败: {}", e)))?;
     Ok(Json(ApiResponse::success(BiResponse::success(data))))
 }
 
@@ -138,7 +138,7 @@ pub async fn profit_analysis(
     let tenant_id = extract_tenant_id(&auth)? as i64;
     let data = BiAnalysisService::profit_analysis(tenant_id)
         .await
-        .map_err(|e| AppError::Business(format!("查询失败: {}", e)))?;
+        .map_err(|e| AppError::BusinessError(format!("查询失败: {}", e)))?;
     Ok(Json(ApiResponse::success(BiResponse::success(data))))
 }
 
@@ -151,7 +151,7 @@ pub async fn kpi_summary(
     let tenant_id = extract_tenant_id(&auth)? as i64;
     let data = BiAnalysisService::kpi_summary(tenant_id)
         .await
-        .map_err(|e| AppError::Business(format!("查询失败: {}", e)))?;
+        .map_err(|e| AppError::BusinessError(format!("查询失败: {}", e)))?;
     Ok(Json(ApiResponse::success(BiResponse::success(data))))
 }
 
@@ -174,7 +174,7 @@ pub async fn drilldown_year_to_month(
     let tenant_id = extract_tenant_id(&auth)? as i64;
     let data = BiAnalysisService::drilldown_year_to_month(tenant_id, q.year)
         .await
-        .map_err(|e| AppError::Business(format!("查询失败: {}", e)))?;
+        .map_err(|e| AppError::BusinessError(format!("查询失败: {}", e)))?;
     Ok(Json(ApiResponse::success(BiResponse::success(data))))
 }
 
@@ -194,7 +194,7 @@ pub async fn drilldown_month_to_day(
     let tenant_id = extract_tenant_id(&auth)? as i64;
     let data = BiAnalysisService::drilldown_month_to_day(tenant_id, q.year, q.month)
         .await
-        .map_err(|e| AppError::Business(format!("查询失败: {}", e)))?;
+        .map_err(|e| AppError::BusinessError(format!("查询失败: {}", e)))?;
     Ok(Json(ApiResponse::success(BiResponse::success(data))))
 }
 
@@ -208,7 +208,7 @@ pub async fn drilldown_customer_to_order(
     let tenant_id = extract_tenant_id(&auth)? as i64;
     let data = BiAnalysisService::drilldown_customer_to_order(tenant_id, customer_id)
         .await
-        .map_err(|e| AppError::Business(format!("查询失败: {}", e)))?;
+        .map_err(|e| AppError::BusinessError(format!("查询失败: {}", e)))?;
     Ok(Json(ApiResponse::success(BiResponse::success(data))))
 }
 
@@ -222,7 +222,7 @@ pub async fn drilldown_product_to_order(
     let tenant_id = extract_tenant_id(&auth)? as i64;
     let data = BiAnalysisService::drilldown_product_to_order(tenant_id, product_id)
         .await
-        .map_err(|e| AppError::Business(format!("查询失败: {}", e)))?;
+        .map_err(|e| AppError::BusinessError(format!("查询失败: {}", e)))?;
     Ok(Json(ApiResponse::success(BiResponse::success(data))))
 }
 
@@ -246,7 +246,7 @@ pub async fn slice(
     let tenant_id = extract_tenant_id(&auth)? as i64;
     let data = BiAnalysisService::slice(tenant_id, &body.dimension, &body.filters)
         .await
-        .map_err(|e| AppError::Business(format!("查询失败: {}", e)))?;
+        .map_err(|e| AppError::BusinessError(format!("查询失败: {}", e)))?;
     Ok(Json(ApiResponse::success(BiResponse::success(data))))
 }
 
@@ -265,7 +265,7 @@ pub async fn dice(
     let tenant_id = extract_tenant_id(&auth)? as i64;
     let data = BiAnalysisService::dice(tenant_id, &body.filters)
         .await
-        .map_err(|e| AppError::Business(format!("查询失败: {}", e)))?;
+        .map_err(|e| AppError::BusinessError(format!("查询失败: {}", e)))?;
     Ok(Json(ApiResponse::success(BiResponse::success(data))))
 }
 
@@ -285,7 +285,7 @@ pub async fn rollup(
     let tenant_id = extract_tenant_id(&auth)? as i64;
     let data = BiAnalysisService::rollup(tenant_id, &body.from, &body.to)
         .await
-        .map_err(|e| AppError::Business(format!("查询失败: {}", e)))?;
+        .map_err(|e| AppError::BusinessError(format!("查询失败: {}", e)))?;
     Ok(Json(ApiResponse::success(BiResponse::success(data))))
 }
 
@@ -306,6 +306,6 @@ pub async fn pivot(
     let tenant_id = extract_tenant_id(&auth)? as i64;
     let data = BiAnalysisService::pivot(tenant_id, &body.row, &body.col, &body.measure)
         .await
-        .map_err(|e| AppError::Business(format!("查询失败: {}", e)))?;
+        .map_err(|e| AppError::BusinessError(format!("查询失败: {}", e)))?;
     Ok(Json(ApiResponse::success(BiResponse::success(data))))
 }

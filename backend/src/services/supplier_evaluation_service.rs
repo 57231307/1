@@ -124,6 +124,7 @@ impl SupplierEvaluationService {
         Ok(indicator)
     }
 
+    #[allow(dead_code)] // TODO(tech-debt): 业务接入后移除
     pub async fn update_indicator(
         &self,
         id: i32,
@@ -164,6 +165,7 @@ impl SupplierEvaluationService {
         Ok(updated)
     }
 
+    #[allow(dead_code)] // TODO(tech-debt): 业务接入后移除
     pub async fn delete_indicator(&self, id: i32) -> Result<(), AppError> {
         info!("删除评估指标：{}", id);
 
@@ -491,6 +493,7 @@ impl SupplierEvaluationService {
         Ok(record)
     }
 
+    #[allow(dead_code)] // TODO(tech-debt): 业务接入后移除
     pub async fn update_evaluation_record(
         &self,
         id: i32,
@@ -555,6 +558,7 @@ impl SupplierEvaluationService {
         Ok(updated)
     }
 
+    #[allow(dead_code)] // TODO(tech-debt): 业务接入后移除
     pub async fn delete_evaluation_record(&self, id: i32) -> Result<(), AppError> {
         info!("删除评估记录：{}", id);
 

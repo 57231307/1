@@ -10,7 +10,7 @@
       <div class="card-header">
         <span>客户销售排名</span>
         <el-select
-          :model-value="rankType"
+          :model-value="type"
           size="small"
           style="width: 100px"
           @update:model-value="updateType"

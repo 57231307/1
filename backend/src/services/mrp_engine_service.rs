@@ -6,7 +6,7 @@ use chrono::{Duration, NaiveDate, Utc};
 use rust_decimal::Decimal;
 use sea_orm::DatabaseConnection;
 use sea_orm::{
-    ActiveModelTrait, ColumnTrait, EntityTrait, ExprTrait, PaginatorTrait, QueryFilter, QueryOrder,
+    ActiveModelTrait, ColumnTrait, EntityTrait, PaginatorTrait, QueryFilter, QueryOrder,
     Set,
 };
 use serde::{Deserialize, Serialize};

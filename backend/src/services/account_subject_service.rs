@@ -3,7 +3,7 @@
 //! 会计科目业务逻辑层
 
 use sea_orm::{
-    ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, ExprTrait, IntoActiveModel,
+    ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, IntoActiveModel,
     ModelTrait, Order, PaginatorTrait, QueryFilter, QueryOrder,
 };
 use std::sync::Arc;
@@ -319,6 +319,7 @@ impl AccountSubjectService {
     }
 
     /// 查询科目余额
+    #[allow(dead_code)] // TODO(tech-debt): 业务接入后移除
     pub async fn get_balance(
         &self,
         subject_id: i32,

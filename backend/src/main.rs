@@ -6,8 +6,10 @@ mod middleware;
 mod models;
 mod observability;
 mod routes;
+mod search; // P9-8 Elasticsearch 集成（lib crate bingxi_backend::search 的镜像引用）
 mod services;
 mod utils;
+mod websocket; // P3-2 WebSocket 实时通信（lib crate bingxi_backend::websocket 的镜像引用）
 
 use axum::http::{HeaderValue, Method, Request};
 use axum::{
@@ -69,7 +71,8 @@ fn setup_initialized_flag() -> Arc<Mutex<bool>> {
 async fn get_init_status() -> Json<InitStatusResponse> {
     // 优先使用内存中的初始化成功标志（处理「setup 模式内完成初始化」的场景）
     // P9-1: 用 unwrap_or_else + 日志替代裸 unwrap，锁中毒有 P9-1 中文提示
-    let guard = setup_initialized_flag().lock().unwrap_or_else(|e| {
+    let arc = setup_initialized_flag();
+    let guard = arc.lock().unwrap_or_else(|e| {
         tracing::error!(error = %e, "P9-1: setup 初始化标志锁中毒");
         panic!("P9-1: setup 初始化标志锁中毒: {e}")
     });
@@ -130,10 +133,12 @@ async fn initialize_with_db(
             // 在同一进程内返回 initialized = true，避免前端在跳转登录页时
             // 被路由守卫再次拉回 setup 页面。
             // P9-1: 用 unwrap_or_else 替代裸 unwrap，锁中毒有 P9-1 中文提示
-            *setup_initialized_flag().lock().unwrap_or_else(|e| {
+            let arc = setup_initialized_flag();
+            let mut guard = arc.lock().unwrap_or_else(|e| {
                 tracing::error!(error = %e, "P9-1: setup 初始化标志锁中毒");
                 panic!("P9-1: setup 初始化标志锁中毒: {e}")
-            }) = true;
+            });
+            *guard = true;
             Ok(Json(ApiResponse::success_with_message(
                 result,
                 "系统初始化成功",

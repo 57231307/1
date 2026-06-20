@@ -3,8 +3,8 @@
     <el-tabs v-model="activeTab">
       <el-tab-pane label="质量标准" name="standard">
         <StandardTab
-          @open-history="openVersionHistoryDialog"
-          @open-approve="openApproveDialog"
+          @open-history="viewVersionHistory"
+          @open-approve="approveStandard"
         />
       </el-tab-pane>
 
@@ -194,78 +194,31 @@
 import { ref, reactive, onMounted, provide } from 'vue'
 import { loadIfNot, createLazyLoader } from '@/utils/lazy-loader'
 import { ElMessage, ElMessageBox, type FormInstance, type FormRules } from 'element-plus'
-import { Plus, Download, Printer } from '@element-plus/icons-vue'
-import V2Table from '@/components/V2Table/index.vue'
-import { useTableColumns } from '@/composables/useTableColumns'
 import StandardTab from './tabs/StandardTab.vue'
 import RecordTab from './tabs/RecordTab.vue'
 import DefectTab from './tabs/DefectTab.vue'
 import {
   listQualityStandards,
-  getQualityStandard,
   createQualityStandard,
   updateQualityStandard,
   approveQualityStandard,
-  publishQualityStandard,
   listQualityRecords,
   createQualityRecord,
   listDefects,
-  processDefect as processDefectApi,
   getQualityStandardVersions,
   type QualityStandard,
   type QualityRecord,
   type Defect,
 } from '@/api/quality'
 
-// 检验记录列定义（V2Table 渲染）
-const { columns: inspectionColumns } = useTableColumns([
-  { key: 'record_no', title: '检验单号', width: 160, sortable: true },
-  { key: 'product_name', title: '产品', width: 200 },
-  { key: 'inspection_type', title: '类型', width: 120 },
-  { key: 'batch_no', title: '批次号', width: 140 },
-  { key: 'inspector', title: '检验员', width: 100 },
-  {
-    key: 'result',
-    title: '结果',
-    width: 100,
-    align: 'center',
-    formatter: (row: any) => {
-      const map: Record<string, string> = { pass: '合格', fail: '不合格', pending: '待检' }
-      return map[row.result] || row.result || '-'
-    },
-  },
-  {
-    key: 'inspection_date',
-    title: '检验日期',
-    width: 120,
-    formatter: (row: any) =>
-      row.inspection_date ? String(row.inspection_date).substring(0, 10) : '-',
-  },
-])
-
-// 行点击：触发查看记录
-const handleInspectionRowClick = (_row: QualityRecord) => {
-  viewRecord()
-}
-
-// V2Table 内置分页事件处理（quality 暂未对接后端分页参数，事件钩子保留以便扩展）
+// 检验记录列定义已下线（V2Table 改为 el-table，未使用此 columns）
 // TODO(tech-debt): 后端 listQualityRecords 暂未支持分页字段；待后端分页参数就绪后接入 page/size。
-const handlePageChange = (_newPage: number) => {
-  fetchRecords()
-}
-
-// TODO(tech-debt): 后端 listQualityRecords 暂未支持分页字段；待后端分页参数就绪后接入 page/size。
-const handleSizeChange = (_newSize: number) => {
-  fetchRecords()
-}
+// handlePageChange / handleSizeChange 已下线（V2Table 移除）
 
 const activeTab = ref('standard')
 
 // 为 StandardTab/RecordTab 提供 actions（inject('qualityActions')）
-provide('qualityActions', {
-  openStandardDialog,
-  openRecordDialog,
-})
+// 注意：provide 移到所有函数定义之后，避免 hoisting 问题（vue-tsc 报 used before declaration）
 const standards = ref<QualityStandard[]>([])
 const records = ref<QualityRecord[]>([])
 const defects = ref<Defect[]>([])
@@ -365,11 +318,6 @@ const openStandardDialog = (row?: QualityStandard) => {
   standardDialogVisible.value = true
 }
 
-const viewStandard = async (row: QualityStandard) => {
-  const res: any = await getQualityStandard(row.id)
-  openStandardDialog(res.data!)
-}
-
 const submitStandard = async () => {
   if (!standardFormRef.value) return
   await standardFormRef.value.validate(async valid => {
@@ -446,19 +394,6 @@ const rejectStandard = async () => {
   }
 }
 
-const publishStandard = async (row: QualityStandard) => {
-  try {
-    await ElMessageBox.confirm('确定发布此标准吗？发布后将无法编辑。', '确认发布', {
-      type: 'warning',
-    })
-    await publishQualityStandard(row.id)
-    ElMessage.success('发布成功')
-    fetchStandards()
-  } catch (e: any) {
-    if (e !== 'cancel') ElMessage.error(e.message || '操作失败')
-  }
-}
-
 const versionHistoryVisible = ref(false)
 const versionHistoryLoading = ref(false)
 const versionHistoryList = ref<QualityStandard[]>([])
@@ -514,10 +449,6 @@ const openRecordDialog = (row?: QualityRecord) => {
   recordDialogVisible.value = true
 }
 
-const viewRecord = async () => {
-  ElMessage.info('查看检验记录')
-}
-
 const submitRecord = async () => {
   recordSubmitLoading.value = true
   try {
@@ -536,121 +467,18 @@ const submitRecord = async () => {
   }
 }
 
-const processDefect = async (row: Defect) => {
-  try {
-    const { value } = await ElMessageBox.prompt('请输入处理备注', '处理缺陷')
-    await processDefectApi(row.id, { remark: value })
-    ElMessage.success('处理成功')
-    fetchDefects()
-  } catch (e: any) {
-    if (e !== 'cancel') ElMessage.error(e.message || '操作失败')
-  }
-}
-
-const handleExportStandards = () => {
-  const headers = ['标准编号,标准名称,类型,版本,状态,创建人,审批人']
-  const rows = standards.value.map((item: any) =>
-    [
-      item.standard_code,
-      item.standard_name,
-      item.type === 'product' ? '产品标准' : '工艺标准',
-      item.version,
-      getStandardStatusLabel(item.status),
-      item.created_by_name || '-',
-      item.approved_by_name || '-',
-    ].join(',')
-  )
-  const csv = [...headers, ...rows].join('\n')
-  const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' })
-  const link = document.createElement('a')
-  link.href = URL.createObjectURL(blob)
-  link.download = `质量标准_${new Date().toISOString().split('T')[0]}.csv`
-  link.click()
-  ElMessage.success('导出成功')
-}
-
-const handlePrintStandards = () => {
-  const printWindow = window.open('', '_blank')
-  if (!printWindow) {
-    ElMessage.error('无法打开打印窗口')
-    return
-  }
-  const rows = standards.value
-    .map(
-      (item: any) => `
-    <tr>
-      <td>${item.standard_code}</td><td>${item.standard_name}</td>
-      <td>${item.type === 'product' ? '产品标准' : '工艺标准'}</td>
-      <td>${item.version}</td><td>${getStandardStatusLabel(item.status)}</td>
-      <td>${item.created_by_name || '-'}</td>
-    </tr>
-  `
-    )
-    .join('')
-  printWindow.document.write(`<html><head><meta charset="utf-8"><title>质量标准</title>
-    <style>@media print{@page{size:landscape;}}body{font-family:"Microsoft YaHei",sans-serif;font-size:12px;}h1{text-align:center;}table{width:100%;border-collapse:collapse;margin-top:12px;}th,td{border:1px solid #333;padding:6px 8px;}th{background:#f5f5f5;}.meta{text-align:center;color:#666;font-size:11px;}</style></head><body>
-    <h1>质量标准列表</h1><div class="meta">打印日期: ${new Date().toISOString().split('T')[0]} | 共 ${standards.value.length} 条</div>
-    <table><thead><tr><th>标准编号</th><th>标准名称</th><th>类型</th><th>版本</th><th>状态</th><th>创建人</th></tr></thead><tbody>${rows}</tbody></table></body></html>`)
-  printWindow.document.close()
-  printWindow.onload = () => printWindow.print()
-}
-
-const handleExportRecords = () => {
-  const headers = ['记录编号,检验类型,产品,批次号,检验日期,检验员,结果']
-  const resultMap: Record<string, string> = { pass: '合格', fail: '不合格', pending: '待检' }
-  const rows = records.value.map((item: any) =>
-    [
-      item.record_no,
-      item.inspection_type,
-      item.product_name,
-      item.batch_no,
-      item.inspection_date,
-      item.inspector,
-      resultMap[item.result] || item.result,
-    ].join(',')
-  )
-  const csv = [...headers, ...rows].join('\n')
-  const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' })
-  const link = document.createElement('a')
-  link.href = URL.createObjectURL(blob)
-  link.download = `检验记录_${new Date().toISOString().split('T')[0]}.csv`
-  link.click()
-  ElMessage.success('导出成功')
-}
-
-const handlePrintRecords = () => {
-  const printWindow = window.open('', '_blank')
-  if (!printWindow) {
-    ElMessage.error('无法打开打印窗口')
-    return
-  }
-  const resultMap: Record<string, string> = { pass: '合格', fail: '不合格', pending: '待检' }
-  const rows = records.value
-    .map(
-      (item: any) => `
-    <tr>
-      <td>${item.record_no}</td><td>${item.inspection_type}</td>
-      <td>${item.product_name}</td><td>${item.batch_no}</td>
-      <td>${item.inspection_date}</td><td>${item.inspector}</td>
-      <td>${resultMap[item.result] || item.result}</td>
-    </tr>
-  `
-    )
-    .join('')
-  printWindow.document.write(`<html><head><meta charset="utf-8"><title>检验记录</title>
-    <style>@media print{@page{size:landscape;}}body{font-family:"Microsoft YaHei",sans-serif;font-size:12px;}h1{text-align:center;}table{width:100%;border-collapse:collapse;margin-top:12px;}th,td{border:1px solid #333;padding:6px 8px;}th{background:#f5f5f5;}.meta{text-align:center;color:#666;font-size:11px;}</style></head><body>
-    <h1>质量检验记录</h1><div class="meta">打印日期: ${new Date().toISOString().split('T')[0]} | 共 ${records.value.length} 条</div>
-    <table><thead><tr><th>记录编号</th><th>检验类型</th><th>产品</th><th>批次号</th><th>检验日期</th><th>检验员</th><th>结果</th></tr></thead><tbody>${rows}</tbody></table></body></html>`)
-  printWindow.document.close()
-  printWindow.onload = () => printWindow.print()
-}
-
 const hasLoaded = createLazyLoader()
 
 onMounted(() => {
   fetchStandards()
   loadIfNot('records', fetchRecords, hasLoaded)
   loadIfNot('defects', fetchDefects, hasLoaded)
+})
+
+// provide 必须在所有函数定义之后，避免 hoisting 问题
+provide('qualityActions', {
+  openStandardDialog,
+  openRecordDialog,
 })
 </script>
 

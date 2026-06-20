@@ -6,12 +6,12 @@
 <template>
   <div>
     <el-card shadow="hover" class="filter-card">
-      <el-form :inline="true" :model="queryParams" class="filter-form">
+      <el-form :inline="true" :model="localQuery" class="filter-form">
         <el-form-item label="关键词">
-          <el-input v-model="queryParams.keyword" placeholder="供应商编码/名称" clearable />
+          <el-input v-model="localQuery.keyword" placeholder="供应商编码/名称" clearable />
         </el-form-item>
         <el-form-item label="等级">
-          <el-select v-model="queryParams.grade" placeholder="选择等级" clearable>
+          <el-select v-model="localQuery.grade" placeholder="选择等级" clearable>
             <el-option label="A级" value="A" />
             <el-option label="B级" value="B" />
             <el-option label="C级" value="C" />
@@ -19,7 +19,7 @@
           </el-select>
         </el-form-item>
         <el-form-item label="状态">
-          <el-select v-model="queryParams.status" placeholder="选择状态" clearable>
+          <el-select v-model="localQuery.status" placeholder="选择状态" clearable>
             <el-option label="启用" value="active" />
             <el-option label="禁用" value="inactive" />
           </el-select>
@@ -55,10 +55,10 @@
         </el-table-column>
         <el-table-column label="操作" width="180" fixed="right">
           <template #default="{ row }">
-            <el-button type="primary" link size="small" @click="handleEdit(row as any)"
+            <el-button type="primary" link size="small" @click="$emit('edit', row)"
               >编辑</el-button
             >
-            <el-button type="danger" link size="small" @click="handleDelete(row as any)"
+            <el-button type="danger" link size="small" @click="$emit('delete', row)"
               >删除</el-button
             >
           </template>
@@ -67,8 +67,8 @@
 
       <div class="pagination-wrapper">
         <el-pagination
-          v-model:current-page="queryParams.page"
-          v-model:page-size="queryParams.page_size"
+          v-model:current-page="localQuery.page"
+          v-model:page-size="localQuery.page_size"
           :page-sizes="[10, 20, 50, 100]"
           :total="total"
           layout="total, sizes, prev, pager, next, jumper"
@@ -81,15 +81,14 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, watch } from 'vue'
-import { Search, Refresh, Plus, Edit, Delete } from '@element-plus/icons-vue'
+import { reactive, watch } from 'vue'
 
 const props = defineProps<{
   suppliers: any[]
   total: number
   loading: boolean
   queryParams: any
-  dialogMode: 'list' | 'view'
+  dialogMode: 'list' | 'view' | 'add' | 'edit'
 }>()
 
 const emit = defineEmits<{
@@ -104,6 +103,13 @@ const emit = defineEmits<{
 
 const localQuery = reactive({ ...props.queryParams })
 
+/** 等级 → Element Plus Tag 类型映射 */
+const getGradeTag = (grade: string): 'success' | 'warning' | 'danger' | 'info' => {
+  if (grade === 'A') return 'success'
+  if (grade === 'D') return 'danger'
+  return 'warning'
+}
+
 watch(
   () => props.queryParams,
   newQ => Object.assign(localQuery, newQ),
@@ -113,5 +119,14 @@ watch(
 const handleQuery = () => {
   emit('update:queryParams', { ...localQuery, page: 1 })
   emit('search')
+}
+
+const handleReset = () => {
+  localQuery.keyword = ''
+  localQuery.grade = ''
+  localQuery.status = ''
+  localQuery.page = 1
+  localQuery.page_size = 20
+  handleQuery()
 }
 </script>

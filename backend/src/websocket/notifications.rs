@@ -175,7 +175,7 @@ pub async fn ws_notifications_handler(
         _ => {
             return Err((
                 axum::http::StatusCode::UNAUTHORIZED,
-                "缺少 token 参数",
+                String::from("缺少 token 参数"),
             ));
         }
     };

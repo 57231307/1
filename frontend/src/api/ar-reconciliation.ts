@@ -30,6 +30,7 @@ export interface ReconciliationDetail {
   remark?: string
 }
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 export function listArReconciliations(params?: any) {
   return request.get('/ar-reconciliations', { params })
 }

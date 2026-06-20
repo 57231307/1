@@ -2,10 +2,10 @@
 // 16 端点封装
 // 创建时间: 2026-06-17
 
-import { request } from './index'
+import { request } from './request'
 
-// 状态枚举
-export const CUSTOM_ORDER_STATUS = {
+// 状态枚举（使用显式索引签名以支持外部字符串索引）
+export const CUSTOM_ORDER_STATUS: { [key: string]: string } = {
   draft: '草稿',
   yarn_purchasing: '纱线采购中',
   dyeing: '染整中',
@@ -16,7 +16,7 @@ export const CUSTOM_ORDER_STATUS = {
   cancelled: '已取消',
 }
 
-export const CUSTOM_ORDER_STATUS_COLORS = {
+export const CUSTOM_ORDER_STATUS_COLORS: { [key: string]: string } = {
   draft: 'info',
   yarn_purchasing: 'primary',
   dyeing: 'warning',
@@ -27,42 +27,42 @@ export const CUSTOM_ORDER_STATUS_COLORS = {
   cancelled: 'info',
 }
 
-export const NODE_STATUS = {
+export const NODE_STATUS: { [key: string]: string } = {
   pending: '待开始',
   in_progress: '进行中',
   completed: '已完成',
   blocked: '阻塞',
 }
 
-export const NODE_STATUS_COLORS = {
+export const NODE_STATUS_COLORS: { [key: string]: string } = {
   pending: 'info',
   in_progress: 'primary',
   completed: 'success',
   blocked: 'danger',
 }
 
-export const ISSUE_SEVERITY = {
+export const ISSUE_SEVERITY: { [key: string]: string } = {
   low: '低',
   medium: '中',
   high: '高',
   critical: '严重',
 }
 
-export const ISSUE_SEVERITY_COLORS = {
+export const ISSUE_SEVERITY_COLORS: { [key: string]: string } = {
   low: 'info',
   medium: 'warning',
   high: 'danger',
   critical: '#f56c6c',
 }
 
-export const AFTER_SALES_TYPE = {
+export const AFTER_SALES_TYPE: Record<string, string> = {
   complaint: '客诉',
   repair: '维修',
   exchange: '换货',
   refund: '退款',
 }
 
-export const AFTER_SALES_STATUS = {
+export const AFTER_SALES_STATUS: Record<string, string> = {
   opened: '已开',
   processing: '处理中',
   resolved: '已解决',
@@ -82,6 +82,7 @@ export function listCustomOrders(params: {
 }
 
 // 创建草稿
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 export function createCustomOrder(data: any) {
   return request.post('/api/v1/erp/custom-orders', data)
 }
@@ -92,6 +93,7 @@ export function getCustomOrder(id: number) {
 }
 
 // 更新
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 export function updateCustomOrder(id: number, data: any) {
   return request.put(`/api/v1/erp/custom-orders/${id}`, data)
 }
@@ -109,21 +111,25 @@ export function advanceCustomOrder(id: number, data: { operator_id: number; note
 }
 
 // 添加工艺节点
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 export function addProcessNode(orderId: number, data: any) {
   return request.post(`/api/v1/erp/custom-orders/${orderId}/nodes`, data)
 }
 
 // 更新工艺节点
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 export function updateProcessNode(orderId: number, nodeId: number, data: any) {
   return request.put(`/api/v1/erp/custom-orders/${orderId}/nodes/${nodeId}`, data)
 }
 
 // 推进工艺节点
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 export function advanceProcessNode(orderId: number, nodeId: number, data: any) {
   return request.post(`/api/v1/erp/custom-orders/${orderId}/nodes/${nodeId}/advance`, data)
 }
 
 // 添加节点日志
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 export function addNodeLog(orderId: number, nodeId: number, data: any) {
   return request.post(`/api/v1/erp/custom-orders/${orderId}/nodes/${nodeId}/logs`, data)
 }
@@ -134,11 +140,13 @@ export function getTimeline(orderId: number) {
 }
 
 // 上报质量异常
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 export function reportQualityIssue(orderId: number, data: any) {
   return request.post(`/api/v1/erp/custom-orders/${orderId}/issues`, data)
 }
 
 // 列出异常
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 export function listQualityIssues(orderId: number, params?: any) {
   return request.get(`/api/v1/erp/custom-orders/${orderId}/issues`, { params })
 }
@@ -149,16 +157,19 @@ export function resolveQualityIssue(issueId: number, data: { resolution: string;
 }
 
 // 创建售后
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 export function createAfterSales(orderId: number, data: any) {
   return request.post(`/api/v1/erp/custom-orders/${orderId}/after-sales`, data)
 }
 
 // 列出售后
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 export function listAfterSales(orderId: number, params?: any) {
   return request.get(`/api/v1/erp/custom-orders/${orderId}/after-sales`, { params })
 }
 
 // 更新售后
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 export function updateAfterSales(afterSalesId: number, data: any) {
   return request.put(`/api/v1/erp/custom-orders/after-sales/${afterSalesId}`, data)
 }

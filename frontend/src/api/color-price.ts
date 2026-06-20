@@ -3,7 +3,7 @@
 // 创建时间: 2026-06-18
 // 关联 spec: docs/superpowers/specs/2026-06-16-color-price-extension-design.md
 
-import request from '@/utils/request'
+import { request } from '@/api/request'
 
 // ----------------------------------------------------------------------
 // 枚举

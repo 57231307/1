@@ -78,7 +78,7 @@ pub async fn get_process_optimization(
     let tenant_id = extract_tenant_id(&auth)? as i64;
     let svc = AiExtendService::new(state.db);
     let model = svc.get_process_optimization(tenant_id, id).await?;
-    Ok(Json(ApiResponse::success(model)))
+    Ok(Json(ApiResponse::success(serde_json::to_value(model)?)))
 }
 
 /// POST /api/v1/erp/ai/process-optimizations/:id/apply
@@ -93,7 +93,7 @@ pub async fn apply_process_optimization(
     body.operator_id = Some(auth.user_id as i64);
     let svc = AiExtendService::new(state.db);
     let model = svc.apply_process_optimization(tenant_id, id, body).await?;
-    Ok(Json(ApiResponse::success(model)))
+    Ok(Json(ApiResponse::success(serde_json::to_value(model)?)))
 }
 
 /// DELETE /api/v1/erp/ai/process-optimizations/:id
@@ -164,7 +164,7 @@ pub async fn get_quality_prediction(
     let tenant_id = extract_tenant_id(&auth)? as i64;
     let svc = AiExtendService::new(state.db);
     let model = svc.get_quality_prediction(tenant_id, id).await?;
-    Ok(Json(ApiResponse::success(model)))
+    Ok(Json(ApiResponse::success(serde_json::to_value(model)?)))
 }
 
 /// POST /api/v1/erp/ai/quality-predictions/:id/acknowledge
@@ -179,7 +179,7 @@ pub async fn acknowledge_quality_prediction(
     body.operator_id = Some(auth.user_id as i64);
     let svc = AiExtendService::new(state.db);
     let model = svc.acknowledge_quality_prediction(tenant_id, id, body).await?;
-    Ok(Json(ApiResponse::success(model)))
+    Ok(Json(ApiResponse::success(serde_json::to_value(model)?)))
 }
 
 /// DELETE /api/v1/erp/ai/quality-predictions/:id
@@ -188,7 +188,7 @@ pub async fn delete_quality_prediction(
     State(state): State<AppState>,
     auth: AuthContext,
     Path(id): Path<i64>,
-) -> Result<Json<Json<serde_json::Value>>, AppError> {
+) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     let tenant_id = extract_tenant_id(&auth)? as i64;
     let svc = AiExtendService::new(state.db);
     svc.delete_quality_prediction(tenant_id, id).await?;
@@ -301,6 +301,7 @@ pub async fn batch_create_process_optimizations(
     let svc = AiExtendService::new(state.db);
     let mut results = Vec::new();
     let mut failed = 0;
+    let total = body.requests.len();
     for mut req in body.requests {
         req.tenant_id = tenant_id;
         req.operator_id = Some(auth.user_id as i64);
@@ -322,8 +323,8 @@ pub async fn batch_create_process_optimizations(
         }
     }
     Ok(Json(ApiResponse::success(serde_json::json!({
-        "total": body.requests.len(),
-        "succeeded": body.requests.len() - failed,
+        "total": total,
+        "succeeded": total - failed,
         "failed": failed,
         "results": results,
     }))))
@@ -348,6 +349,7 @@ pub async fn batch_create_quality_predictions(
     let svc = AiExtendService::new(state.db);
     let mut results = Vec::new();
     let mut failed = 0;
+    let total = body.requests.len();
     for mut req in body.requests {
         req.tenant_id = tenant_id;
         req.operator_id = Some(auth.user_id as i64);
@@ -370,8 +372,8 @@ pub async fn batch_create_quality_predictions(
         }
     }
     Ok(Json(ApiResponse::success(serde_json::json!({
-        "total": body.requests.len(),
-        "succeeded": body.requests.len() - failed,
+        "total": total,
+        "succeeded": total - failed,
         "failed": failed,
         "results": results,
     }))))

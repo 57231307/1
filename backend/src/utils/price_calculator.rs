@@ -6,7 +6,7 @@
 
 use chrono::NaiveDate;
 use rust_decimal::Decimal;
-use sea_orm::{ColumnTrait, DatabaseConnection, EntityTrait, ExprTrait, QueryFilter, QueryOrder};
+use sea_orm::{ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter, QueryOrder};
 use thiserror::Error;
 
 use crate::models::color_price_dto::{PriceCalcRequest, PriceCalcResult, PriceCalcStep};

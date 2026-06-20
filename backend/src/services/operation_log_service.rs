@@ -99,6 +99,7 @@ impl OperationLogService {
 
     /// 记录失败操作
     #[allow(clippy::too_many_arguments)]
+    #[allow(dead_code)] // TODO(tech-debt): 业务接入后移除
     pub async fn log_failure(
         &self,
         user_id: Option<i32>,

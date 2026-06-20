@@ -3,9 +3,10 @@
 //! 覆盖：采购订单/收货/检验/退货 业务规则
 
 #[cfg(test)]
+#[rustfmt::skip]
 mod tests {
-    use rust_decimal::Decimal;
     use rust_decimal::prelude::*;
+    use rust_decimal::Decimal;
     use std::str::FromStr;
 
     /// 采购订单状态机

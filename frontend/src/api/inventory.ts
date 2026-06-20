@@ -171,7 +171,10 @@ export const inventoryApi = {
   getStockAlerts: () => request.get<ApiResponse<StockAlert[]>>('/inventory/stock/alerts'),
 
   getInventoryReport: (params: InventoryReportParams) =>
-    request.get<ApiResponse<{ summary: any; details: any[] }>>('/inventory/stock/summary', {
+    request.get<
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      ApiResponse<{ summary: any; details: any[] }>
+    >('/inventory/stock/summary', {
       params,
     }),
 }

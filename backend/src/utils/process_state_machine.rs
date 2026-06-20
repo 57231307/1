@@ -164,11 +164,11 @@ mod tests {
 
     #[test]
     fn test_next_status_normal_progression() {
-        // P9-1: 用 match 处理 Option，失败时立即 panic 并说明 P9-1
-        let unwrap_p9 = |opt: Option<CustomOrderStatus>, ctx: &str| -> CustomOrderStatus {
-            match opt {
-                Some(s) => s,
-                None => panic!("P9-1: 测试夹具 {ctx} 状态机返回 None"),
+        // P9-1: 用 match 处理 Result，失败时立即 panic 并说明 P9-1
+        let unwrap_p9 = |res: Result<CustomOrderStatus, StateMachineError>, ctx: &str| -> CustomOrderStatus {
+            match res {
+                Ok(s) => s,
+                Err(e) => panic!("P9-1: 测试夹具 {ctx} 状态机返回错误: {e}"),
             }
         };
         assert_eq!(unwrap_p9(next_status("draft"), "draft"), CustomOrderStatus::YarnPurchasing);

@@ -96,7 +96,7 @@
 
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
-import { useRoute, useRouter } from 'vue-router'
+import { useRoute } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Plus } from '@element-plus/icons-vue'
 import {
@@ -118,7 +118,6 @@ import {
 import PriceHistoryChart from '@/components/PriceHistoryChart.vue'
 
 const route = useRoute()
-const router = useRouter()
 const loading = ref(false)
 const price = ref<ColorPriceDetail | null>(null)
 const history = ref<PriceHistoryItem[]>([])

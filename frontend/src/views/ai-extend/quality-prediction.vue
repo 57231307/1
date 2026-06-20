@@ -3,7 +3,6 @@
  * P2-4 质量预测列表 + 创建
  */
 import { onMounted, reactive, ref, computed } from 'vue'
-import { useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import {
   listQualityPredictions,
@@ -19,19 +18,25 @@ import {
 } from '@/api/ai-extend'
 import AIPredictionChart from '@/components/ai/AIPredictionChart.vue'
 
-const router = useRouter()
 const loading = ref(false)
 const items = ref<AiQualityPrediction[]>([])
 const total = ref(0)
 const page = ref(1)
 const pageSize = ref(20)
 
-const filter = reactive({
+const queryFilter = reactive({
   product_id: undefined as number | undefined,
   inspection_type: undefined as string | undefined,
   risk_level: undefined as string | undefined,
   is_acknowledged: undefined as boolean | undefined,
 })
+
+// 派生下拉选项（从 LABEL 字典生成 OPTIONS 数组，供 el-select 使用）
+const INSPECTION_TYPE_OPTIONS = (Object.entries(INSPECTION_TYPE_LABELS) as [string, string][])
+  .filter(([k]) => k !== 'all')
+  .map(([value, label]) => ({ value, label }))
+const RISK_LEVEL_OPTIONS = (Object.entries(RISK_LEVEL_LABELS) as [string, string][])
+  .map(([value, label]) => ({ value, label }))
 
 const dialogVisible = ref(false)
 const form = reactive<QualityPredRequest>({
@@ -51,10 +56,10 @@ async function load() {
     const res = await listQualityPredictions({
       page: page.value,
       page_size: pageSize.value,
-      product_id: filter.product_id,
-      inspection_type: filter.inspection_type,
-      risk_level: filter.risk_level,
-      is_acknowledged: filter.is_acknowledged,
+      product_id: queryFilter.product_id,
+      inspection_type: queryFilter.inspection_type,
+      risk_level: queryFilter.risk_level,
+      is_acknowledged: queryFilter.is_acknowledged,
     })
     items.value = res.items
     total.value = res.total
@@ -81,7 +86,7 @@ async function submitCreate() {
   try {
     const resp = await createQualityPrediction({ ...form })
     ElMessage.success(
-      `预测完成：${RISK_LEVEL_LABELS[resp.response.risk_level]}（评分 ${resp.response.risk_score}，趋势 ${TREND_LABELS[resp.response.trend as keyof typeof TREND_LABELS] || resp.response.trend}）`,
+      `预测完成：${RISK_LEVEL_LABELS[resp.response.risk_level]}（评分 ${resp.response.risk_score}，趋势 ${TREND_LABELS[resp.response.trend as keyof typeof TREND_LABELS] ?? resp.response.trend}）`,
     )
     dialogVisible.value = false
     page.value = 1
@@ -121,32 +126,18 @@ function showDetail(row: AiQualityPrediction) {
 }
 
 function resetFilter() {
-  filter.product_id = undefined
-  filter.inspection_type = undefined
-  filter.risk_level = undefined
-  filter.is_acknowledged = undefined
+  queryFilter.product_id = undefined
+  queryFilter.inspection_type = undefined
+  queryFilter.risk_level = undefined
+  queryFilter.is_acknowledged = undefined
   page.value = 1
   load()
 }
 
-const riskOptions = [
-  { value: '', label: '全部' },
-  { value: 'low', label: '低风险' },
-  { value: 'medium', label: '中风险' },
-  { value: 'high', label: '高风险' },
-]
 const ackOptions = [
   { value: undefined, label: '全部' },
   { value: false, label: '待确认' },
   { value: true, label: '已确认' },
-]
-const inspectionOptions = [
-  { value: '', label: '全部' },
-  { value: 'all', label: '全部检验' },
-  { value: 'incoming', label: '来料' },
-  { value: 'inprocess', label: '过程' },
-  { value: 'final', label: '成品' },
-  { value: 'outgoing', label: '出货' },
 ]
 
 const detailPeriods = computed(() => {
@@ -183,22 +174,22 @@ onMounted(load)
     </div>
 
     <el-card class="filter-card">
-      <el-form :inline="true" :model="filter">
+      <el-form :inline="true" :model="queryFilter">
         <el-form-item label="产品 ID">
-          <el-input-number v-model="filter.product_id" :min="1" controls-position="right" style="width: 140px" />
+          <el-input-number v-model="queryFilter.product_id" :min="1" controls-position="right" style="width: 140px" />
         </el-form-item>
         <el-form-item label="检验类型">
-          <el-select v-model="filter.inspection_type" clearable style="width: 140px">
-            <el-option v-for="o in inspectionOptions" :key="o.value || 'all'" :label="o.label" :value="o.value || undefined" />
+          <el-select v-model="queryFilter.inspection_type" clearable style="width: 140px">
+            <el-option v-for="o in INSPECTION_TYPE_OPTIONS" :key="o.value" :label="o.label" :value="o.value" />
           </el-select>
         </el-form-item>
         <el-form-item label="风险等级">
-          <el-select v-model="filter.risk_level" clearable style="width: 140px">
-            <el-option v-for="o in riskOptions" :key="o.value || 'all'" :label="o.label" :value="o.value || undefined" />
+          <el-select v-model="queryFilter.risk_level" clearable style="width: 140px">
+            <el-option v-for="o in RISK_LEVEL_OPTIONS" :key="o.value" :label="o.label" :value="o.value" />
           </el-select>
         </el-form-item>
         <el-form-item label="确认状态">
-          <el-select v-model="filter.is_acknowledged" clearable style="width: 140px">
+          <el-select v-model="queryFilter.is_acknowledged" clearable style="width: 140px">
             <el-option v-for="o in ackOptions" :key="String(o.value)" :label="o.label" :value="o.value" />
           </el-select>
         </el-form-item>
@@ -216,7 +207,7 @@ onMounted(load)
           <template #default="{ row }">{{ row.product_id ?? '全局' }}</template>
         </el-table-column>
         <el-table-column prop="inspection_type" label="检验类型" width="100">
-          <template #default="{ row }">{{ INSPECTION_TYPE_LABELS[row.inspection_type] || row.inspection_type }}</template>
+          <template #default="{ row }">{{ INSPECTION_TYPE_LABELS[row.inspection_type] ?? row.inspection_type }}</template>
         </el-table-column>
         <el-table-column prop="total_inspections" label="检验总数" width="100" align="right" />
         <el-table-column prop="avg_qualification_rate" label="平均合格率" width="120">
@@ -233,7 +224,7 @@ onMounted(load)
           </template>
         </el-table-column>
         <el-table-column prop="trend" label="趋势" width="100">
-          <template #default="{ row }">{{ TREND_LABELS[row.trend] || row.trend }} ({{ Number(row.trend_rate).toFixed(1) }}pp)</template>
+          <template #default="{ row }">{{ TREND_LABELS[row.trend] ?? row.trend }} ({{ Number(row.trend_rate).toFixed(1) }}pp)</template>
         </el-table-column>
         <el-table-column prop="confidence" label="置信度" width="100">
           <template #default="{ row }">{{ Number(row.confidence).toFixed(2) }}</template>
@@ -307,7 +298,7 @@ onMounted(load)
           <el-descriptions :column="2" border>
             <el-descriptions-item label="产品 ID">{{ detailModel.product_id ?? '全局' }}</el-descriptions-item>
             <el-descriptions-item label="检验类型">
-              {{ INSPECTION_TYPE_LABELS[detailModel.inspection_type] || detailModel.inspection_type }}
+              {{ INSPECTION_TYPE_LABELS[detailModel.inspection_type] ?? detailModel.inspection_type }}
             </el-descriptions-item>
             <el-descriptions-item label="时间窗">{{ detailModel.window_days }} 天</el-descriptions-item>
             <el-descriptions-item label="检验总数">{{ detailModel.total_inspections }}</el-descriptions-item>

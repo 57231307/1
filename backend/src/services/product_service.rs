@@ -3,7 +3,7 @@ use chrono::Utc;
 use rust_decimal::Decimal;
 use sea_orm::prelude::*;
 use sea_orm::{
-    ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, ExprTrait, NotSet, Order,
+    ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, NotSet, Order,
     QueryFilter, QueryOrder, Set,
 };
 use std::sync::Arc;
@@ -466,6 +466,7 @@ impl ProductService {
     }
 
     /// 根据色号查询产品色号
+    #[allow(dead_code)] // TODO(tech-debt): 业务接入后移除
     pub async fn find_color_by_product_and_color_no(
         &self,
         product_id: i32,

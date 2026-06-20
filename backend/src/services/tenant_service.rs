@@ -55,6 +55,7 @@ impl TenantService {
     }
 
     /// 根据编码获取租户
+    #[allow(dead_code)] // TODO(tech-debt): 业务接入后移除
     pub async fn get_tenant_by_code(&self, code: &str) -> Result<Option<tenant::Model>, AppError> {
         Tenant::find()
             .filter(tenant::Column::Code.eq(code))
@@ -101,6 +102,7 @@ impl TenantService {
     }
 
     /// 添加用户到租户
+    #[allow(dead_code)] // TODO(tech-debt): 业务接入后移除
     pub async fn add_user_to_tenant(
         &self,
         tenant_id: i32,
@@ -223,6 +225,7 @@ impl TenantService {
     }
 
     /// 删除租户（软删除）
+    #[allow(dead_code)] // TODO(tech-debt): 业务接入后移除
     pub async fn delete_tenant(&self, id: i32) -> Result<(), AppError> {
         let tenant = Tenant::find_by_id(id)
             .one(self.db.as_ref())
@@ -238,6 +241,7 @@ impl TenantService {
     }
 
     /// 移除租户用户
+    #[allow(dead_code)] // TODO(tech-debt): 业务接入后移除
     pub async fn remove_user_from_tenant(
         &self,
         tenant_id: i32,
@@ -256,6 +260,7 @@ impl TenantService {
     }
 
     /// 更新租户用户角色
+    #[allow(dead_code)] // TODO(tech-debt): 业务接入后移除
     pub async fn update_user_role(
         &self,
         tenant_id: i32,

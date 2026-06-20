@@ -9,7 +9,7 @@
     <div class="page-header">
       <h2 class="page-title">系统更新</h2>
       <div class="header-actions">
-        <el-button type="primary" @click="upd.handleCheckUpdate">
+        <el-button type="primary" @click="handleCheckUpdate">
           <el-icon><Refresh /></el-icon>
           检查更新
         </el-button>
@@ -21,9 +21,9 @@
     </div>
 
     <SuInfoCards
-      :current-version="upd.currentVersion"
-      :latest-version="upd.latestVersion"
-      :has-update="upd.hasUpdate"
+      :current-version="currentVersion"
+      :latest-version="latestVersion"
+      :has-update="hasUpdate"
     />
 
     <el-tabs v-model="activeTab">
@@ -77,13 +77,13 @@
 
     <SuVerDetail
       v-model:visible="versionDetailVisible"
-      :current-version-detail="upd.currentVersionDetail"
+      :current-version-detail="currentVersionDetail"
     />
 
     <SuBkpForm
       v-model:visible="backupDialogVisible"
-      :form="upd.backupForm"
-      :submit-loading="upd.backupSubmitLoading"
+      :form="backupForm"
+      :submit-loading="backupSubmitLoading"
       @submit="onBackupSubmit"
     />
   </div>
@@ -92,59 +92,103 @@
 <script setup lang="ts">
 /* eslint-disable vue/no-mutating-props */
 import { ref, onMounted } from 'vue'
-import { Refresh, FolderAdd } from '@element-plus/icons-vue'
-import {
-  getCurrentVersion,
-  checkForUpdates,
-  listSystemVersions,
-  downloadUpdate,
-  installUpdate,
-  listUpdateTasks,
-  cancelUpdateTask,
-  rollbackUpdate,
-  listSystemBackups,
-  createSystemBackup,
-  deleteSystemBackup,
-  restoreFromBackup,
-  downloadBackup,
-  type SystemVersion,
-  type UpdateTask,
-  type SystemBackup,
-} from '@/api/system-update'
-import { logger } from '@/utils/logger'
+import { useSysUpd } from './composables/useSysUpd'
+import { useSysUpdProc } from './composables/useSysUpdProc'
+import * as sysUpdFmts from './composables/sysUpdFmts'
 import SystemUpdateVersionTab from './tabs/SystemUpdateVersionTab.vue'
 import SystemUpdateTaskTab from './tabs/SystemUpdateTaskTab.vue'
 import SystemUpdateBackupTab from './tabs/SystemUpdateBackupTab.vue'
 
 const activeTab = ref('versions')
 
+// 解构 useSysUpd 到顶层（useSysUpd 直接返回 ref/function 集合，不包装 reactive）
+const {
+  currentVersion,
+  latestVersion,
+  hasUpdate,
+  fetchCurrentVersion,
+  handleCheckUpdate,
+  versions,
+  versionTotal,
+  versionLoading,
+  versionQuery,
+  fetchVersions,
+  tasks,
+  taskTotal,
+  taskLoading,
+  taskQuery,
+  fetchTasks,
+  backups,
+  backupTotal,
+  backupLoading,
+  backupQuery,
+  fetchBackups,
+  backupForm,
+  backupSubmitLoading,
+  resetBackupForm,
+  handleBackupSubmit,
+  currentVersionDetail,
+  viewVersionDetail,
+} = useSysUpd()
+
+// 流程性方法（下载/安装/回滚/取消/恢复/下载备份/删除）
+const proc = useSysUpdProc({
+  fetchVersions,
+  fetchTasks,
+  fetchBackups,
+})
+const {
+  handleDownload,
+  handleInstall,
+  handleRollback,
+  handleCancelTask,
+  handleDownloadBackup,
+  handleRestore,
+  handleDeleteBackup,
+} = proc
+
+// 状态映射 + 文件大小格式化（来自 sysUpdFmts 工具）
+const {
+  VERSION_STATUS_LABEL,
+  VERSION_STATUS_TYPE,
+  TASK_STATUS_LABEL,
+  TASK_STATUS_TYPE,
+  BACKUP_TYPE_LABEL,
+  BACKUP_STATUS_LABEL,
+  BACKUP_STATUS_TYPE,
+  formatFileSize,
+} = sysUpdFmts
+
+// 模板里用 statusTypeMap/statusMap 短名（与子组件 props 名称对齐）
+const versionStatusTypeMap = VERSION_STATUS_TYPE
+const versionStatusMap = VERSION_STATUS_LABEL
+const taskStatusTypeMap = TASK_STATUS_TYPE
+const taskStatusMap = TASK_STATUS_LABEL
+const backupTypeMap = BACKUP_TYPE_LABEL
+const backupStatusTypeMap = BACKUP_STATUS_TYPE
+const backupStatusMap = BACKUP_STATUS_LABEL
+
 // 对话框可见性本地 ref
 const versionDetailVisible = ref(false)
 const backupDialogVisible = ref(false)
 
-/** 打开版本详情 */
-const onViewVersionDetail = (row: SystemVersion) => {
-  upd.viewVersionDetail(row)
-  versionDetailVisible.value = true
-}
-
 /** 打开创建备份对话框 */
 const onOpenBackupDialog = () => {
-  upd.resetBackupForm()
+  resetBackupForm()
   backupDialogVisible.value = true
 }
 
 /** 提交备份表单 */
 const onBackupSubmit = async () => {
-  const ok = await upd.handleBackupSubmit()
+  const ok = await handleBackupSubmit()
   if (ok) backupDialogVisible.value = false
 }
 
 onMounted(() => {
-  upd.fetchCurrentVersion()
-  upd.fetchVersions()
-  upd.fetchTasks()
-  upd.fetchBackups()
+  fetchCurrentVersion()
+  fetchVersions()
+  fetchTasks()
+  fetchBackups()
 })
 </script>
 

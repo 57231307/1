@@ -62,6 +62,7 @@ pub mod color_card;
 pub mod color_price;
 #[path = "static.rs"]
 pub mod static_routes;
+pub mod search_api;
 pub mod system;
 pub mod tenant;
 pub mod v1;

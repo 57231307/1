@@ -5,7 +5,7 @@ use chrono::{DateTime, Utc};
 use rust_decimal::Decimal;
 use sea_orm::DatabaseConnection;
 use sea_orm::{
-    ActiveModelTrait, ColumnTrait, EntityTrait, ExprTrait, IntoActiveModel, Order, PaginatorTrait,
+    ActiveModelTrait, ColumnTrait, EntityTrait, IntoActiveModel, Order, PaginatorTrait,
     QueryFilter, QueryOrder, Set, TransactionTrait,
 };
 use std::sync::Arc;
@@ -215,15 +215,15 @@ impl InventoryAdjustmentService {
             let update_result = inventory_stock::Entity::update_many()
                 .col_expr(
                     inventory_stock::Column::QuantityOnHand,
-                    sea_orm::sea_query::Expr::val(item.quantity_after),
+                    sea_orm::sea_query::Expr::val(item.quantity_after).into(),
                 )
                 .col_expr(
                     inventory_stock::Column::QuantityAvailable,
-                    sea_orm::sea_query::Expr::val(item.quantity_after),
+                    sea_orm::sea_query::Expr::val(item.quantity_after).into(),
                 )
                 .col_expr(
                     inventory_stock::Column::QuantityMeters,
-                    sea_orm::sea_query::Expr::val(item.quantity_after),
+                    sea_orm::sea_query::Expr::val(item.quantity_after).into(),
                 )
                 .col_expr(
                     inventory_stock::Column::QuantityKg,
@@ -232,15 +232,15 @@ impl InventoryAdjustmentService {
                         item.quantity_after * kg_ratio
                     } else {
                         current_quantity_kg
-                    }),
+                    }).into(),
                 )
                 .col_expr(
                     inventory_stock::Column::Version,
-                    sea_orm::sea_query::Expr::col(inventory_stock::Column::Version).add(1),
+                    sea_orm::sea_query::Expr::col(inventory_stock::Column::Version).add(1).into(),
                 )
                 .col_expr(
                     inventory_stock::Column::UpdatedAt,
-                    sea_orm::sea_query::Expr::val(Utc::now()),
+                    sea_orm::sea_query::Expr::val(Utc::now()).into(),
                 )
                 .filter(inventory_stock::Column::Id.eq(item.stock_id))
                 .filter(inventory_stock::Column::Version.eq(expected_version))

@@ -99,6 +99,7 @@ impl InventoryReservationService {
     }
 
     /// 使用预留（从 locked 到 used）- 通常在发货时调用
+    #[allow(dead_code)] // TODO(tech-debt): 业务接入后移除
     pub async fn use_reservation(
         &self,
         reservation_id: i32,
@@ -126,6 +127,7 @@ impl InventoryReservationService {
     }
 
     /// 根据订单 ID 获取所有预留
+    #[allow(dead_code)] // TODO(tech-debt): 业务接入后移除
     pub async fn get_reservations_by_order(
         &self,
         order_id: i32,
@@ -138,6 +140,7 @@ impl InventoryReservationService {
     }
 
     /// 根据订单 ID 获取所有已锁定的预留
+    #[allow(dead_code)] // TODO(tech-debt): 业务接入后移除
     pub async fn get_locked_reservations_by_order(
         &self,
         order_id: i32,
@@ -151,6 +154,7 @@ impl InventoryReservationService {
     }
 
     /// 批量创建预留（用于订单审核时）
+    #[allow(dead_code)] // TODO(tech-debt): 业务接入后移除
     pub async fn batch_create_reservations(
         &self,
         order_id: i32,
@@ -177,6 +181,7 @@ impl InventoryReservationService {
     }
 
     /// 批量锁定预留
+    #[allow(dead_code)] // TODO(tech-debt): 业务接入后移除
     pub async fn batch_lock_reservations(
         &self,
         reservation_ids: Vec<i32>,
@@ -194,6 +199,7 @@ impl InventoryReservationService {
     }
 
     /// 批量释放预留
+    #[allow(dead_code)] // TODO(tech-debt): 业务接入后移除
     pub async fn batch_release_reservations(
         &self,
         reservation_ids: Vec<i32>,

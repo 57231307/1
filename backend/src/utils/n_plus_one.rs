@@ -6,7 +6,7 @@
 //!
 //! SeaORM 的 `find_in` API 本身就是为解决 N+1 设计的：
 //! ```rust,ignore
-//! use sea_orm::{ColumnTrait, EntityTrait, QueryFilter};
+//! use sea_orm::{ActiveModelTrait, ColumnTrait, EntityTrait, QueryFilter};
 //! let orders = Order::find()
 //!     .filter(Column::CustomerId.is_in(customer_ids.clone()))
 //!     .all(db).await?;

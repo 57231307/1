@@ -351,6 +351,7 @@ pub struct ApplicationHealth {
 
 impl EnhancedLogger {
     /// 记录资金操作日志
+    #[allow(dead_code)] // TODO(tech-debt): 业务接入后移除
     pub fn log_financial_operation(log: &FinancialOperationLog) {
         tracing::info!(
             target: "financial_audit",
@@ -374,6 +375,7 @@ impl EnhancedLogger {
     }
 
     /// 记录权限变更日志
+    #[allow(dead_code)] // TODO(tech-debt): 业务接入后移除
     pub fn log_permission_change(log: &PermissionChangeLog) {
         tracing::warn!(
             target: "permission_audit",
@@ -446,6 +448,7 @@ impl EnhancedLogger {
     }
 
     /// 记录数据库操作日志
+    #[allow(dead_code)] // TODO(tech-debt): 业务接入后移除
     pub fn log_database_operation(log: &DatabaseOperationLog) {
         if let Some(ref error) = log.error {
             tracing::error!(
@@ -487,6 +490,7 @@ impl EnhancedLogger {
     }
 
     /// 记录性能监控日志
+    #[allow(dead_code)] // TODO(tech-debt): 业务接入后移除
     pub fn log_performance(log: &PerformanceLog) {
         let is_slow = log.performance.total_duration_ms > 1000;
         let has_slow_queries = log.database.slow_queries > 0;
@@ -524,6 +528,7 @@ impl EnhancedLogger {
     }
 
     /// 记录业务操作日志
+    #[allow(dead_code)] // TODO(tech-debt): 业务接入后移除
     pub fn log_business_operation(log: &BusinessOperationLog) {
         if log.result.success {
             tracing::info!(
@@ -560,6 +565,7 @@ impl EnhancedLogger {
     }
 
     /// 记录系统健康日志
+    #[allow(dead_code)] // TODO(tech-debt): 业务接入后移除
     pub fn log_system_health(log: &SystemHealthLog) {
         let is_healthy = log.system.cpu_usage_percent < 80.0
             && log.system.memory_usage_percent < 80.0

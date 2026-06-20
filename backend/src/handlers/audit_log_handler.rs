@@ -15,8 +15,7 @@ use axum::{
     Json,
 };
 use chrono::{DateTime, Utc};
-use migration::ExprTrait;
-use sea_orm::{ColumnTrait, EntityTrait, PaginatorTrait, QueryFilter, QueryOrder};
+use sea_orm::{ActiveModelTrait, ColumnTrait, EntityTrait, PaginatorTrait, QueryFilter, QueryOrder};
 use serde::{Deserialize, Serialize};
 
 use crate::middleware::auth_context::AuthContext;

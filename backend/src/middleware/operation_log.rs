@@ -20,6 +20,7 @@ use std::sync::Arc;
 /// - 请求方法、URI、IP
 /// - 响应状态码
 /// - 请求耗时
+#[allow(dead_code)] // TODO(tech-debt): 业务接入后移除
 pub async fn operation_log_middleware(
     State(db): State<Arc<DatabaseConnection>>,
     request: Request<Body>,

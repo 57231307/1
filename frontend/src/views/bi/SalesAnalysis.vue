@@ -53,16 +53,16 @@ async function loadAll() {
       getSalesByRegion(),
       getProfitAnalysis(),
     ])
-    kpi.value = k.data.data
-    trend.value = t.data.data
-    customers.value = c.data.data
-    products.value = p.data.data
-    regions.value = r.data.data
-    profit.value = prof.data.data
+    kpi.value = k.data
+    trend.value = t.data
+    customers.value = c.data
+    products.value = p.data
+    regions.value = r.data
+    profit.value = prof.data
 
     // 钻取 2026 年 → 月
     const monthly = await getDrilldownYearToMonth(2026)
-    monthlyData.value = monthly.data.data
+    monthlyData.value = monthly.data
 
     renderCharts()
   } catch (e) {

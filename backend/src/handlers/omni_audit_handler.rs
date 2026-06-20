@@ -67,16 +67,15 @@ pub async fn get_dashboard_stats(
     use sea_orm::ConnectionTrait;
 
     let sql = "SELECT COUNT(*) as total FROM omni_audit_logs";
-    let result = state
-        .db
-        .query_one_raw(sea_orm::Statement::from_string(
+    let result = (&*state.db)
+        .query_one(sea_orm::Statement::from_string(
             sea_orm::DatabaseBackend::Postgres,
             sql,
         ))
         .await?;
     // DB 查询失败应传播错误而非吞掉为 0，避免大屏数据失真
     let total: i64 = match result {
-        Some(r) => r.try_get("", "total")?,
+        Some(r) => r.try_get::<i64>("", "total")?,
         None => 0,
     };
 
@@ -100,9 +99,8 @@ pub async fn search_logs(
     let offset: u64 = if page > 0 { (page - 1) * page_size } else { 0 };
 
     let sql = "SELECT * FROM omni_audit_logs ORDER BY id DESC LIMIT $1 OFFSET $2";
-    let rows = state
-        .db
-        .query_all_raw(sea_orm::Statement::from_sql_and_values(
+    let rows = (&*state.db)
+        .query_all(sea_orm::Statement::from_sql_and_values(
             sea_orm::DatabaseBackend::Postgres,
             sql,
             vec![page_size.into(), offset.into()],
@@ -113,13 +111,13 @@ pub async fn search_logs(
     for row in rows {
         // DB 字段读取失败应传播错误而非吞掉，避免审计数据失真
         let item = serde_json::json!({
-            "id": row.try_get::<i64>("", "id")?,
+            "id": row.try_get_by_index::<i64>(0).unwrap_or(0),
             "trace_id": row.try_get::<String>("", "trace_id").unwrap_or_default(),
-            "user_id": row.try_get::<i32>("", "user_id")?,
+            "user_id": row.try_get::<i32>("", "user_id").unwrap_or(0),
             "module": row.try_get::<String>("", "module").unwrap_or_default(),
             "action": row.try_get::<String>("", "action").unwrap_or_default(),
-            "response_status": row.try_get::<i32>("", "response_status")?,
-            "duration_ms": row.try_get::<i32>("", "duration_ms")?,
+            "response_status": row.try_get::<i32>("", "response_status").unwrap_or(0),
+            "duration_ms": row.try_get::<i32>("", "duration_ms").unwrap_or(0),
             "created_at": row.try_get::<String>("", "created_at").unwrap_or_default(),
         });
         items.push(item);

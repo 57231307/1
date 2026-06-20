@@ -5,7 +5,7 @@ use crate::utils::response::PaginatedResponse;
 use chrono::{NaiveDate, Utc};
 use rust_decimal::Decimal;
 use sea_orm::{
-    ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, ExprTrait, ModelTrait, Order,
+    ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, ModelTrait, Order,
     PaginatorTrait, QueryFilter, QueryOrder, Set, TransactionTrait,
 };
 use serde::{Deserialize, Serialize};

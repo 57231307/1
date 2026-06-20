@@ -46,3 +46,5 @@ class Logger {
 }
 
 export const logger = new Logger()
+// 同时导出 default 以兼容 `import logger from '@/utils/logger'`
+export default logger

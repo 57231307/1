@@ -280,6 +280,7 @@ impl QualityInspectionService {
         Ok((defects, total))
     }
 
+    #[allow(dead_code)] // TODO(tech-debt): 业务接入后移除
     pub async fn update_unqualified_status(
         &self,
         id: i32,

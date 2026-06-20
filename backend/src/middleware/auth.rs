@@ -52,20 +52,49 @@ pub async fn auth_middleware(
     let has_auth_header = auth_header.is_some();
 
     let token = if let Some(access_token) = token_from_access_cookie {
-        info!(path = %path, method = %method, client_ip = %client_ip, "从 access_token Cookie 获取Token");
+        info!(
+            path = %path,
+            method = %method,
+            client_ip = %client_ip,
+            "从 access_token Cookie 获取Token"
+        );
         access_token
     } else if let Some(legacy_token) = token_from_legacy_cookie {
-        info!(path = %path, method = %method, client_ip = %client_ip, "从 jwt Cookie (旧版) 获取Token");
+        info!(
+            path = %path,
+            method = %method,
+            client_ip = %client_ip,
+            "从 jwt Cookie (旧版) 获取Token"
+        );
         legacy_token
     } else if let Some(header_val) = auth_header {
         if !header_val.starts_with("Bearer ") {
-            warn!(path = %path, method = %method, client_ip = %client_ip, "无效的认证头格式: {}", header_val);
+            warn!(
+                path = %path,
+                method = %method,
+                client_ip = %client_ip,
+                "无效的认证头格式: {}",
+                header_val
+            );
             return Err(unauthorized_response("无效的认证头格式"));
         }
-        info!(path = %path, method = %method, client_ip = %client_ip, "从Authorization头获取Token");
+        info!(
+            path = %path,
+            method = %method,
+            client_ip = %client_ip,
+            "从Authorization头获取Token"
+        );
         header_val[7..].to_string()
     } else {
-        warn!(path = %path, method = %method, client_ip = %client_ip, "缺少认证凭据 (Cookie={}/{}/Header={})", has_access_cookie, has_legacy_cookie, has_auth_header);
+        warn!(
+            path = %path,
+            method = %method,
+            client_ip = %client_ip,
+            "缺少认证凭据 (Cookie={}/{}/Header={})",
+            has_access_cookie,
+            has_legacy_cookie,
+            has_auth_header
+        );
         return Err(unauthorized_response("缺少认证凭据"));
     };
 
@@ -97,17 +126,36 @@ pub async fn auth_middleware(
             let is_revoked =
                 crate::services::auth_service::is_jti_revoked(&claims.session_id).await;
             if is_revoked {
-                warn!(path = %path, method = %method, client_ip = %client_ip, jti = %claims.session_id, "认证失败: JTI 已被吊销");
+                warn!(
+                    path = %path,
+                    method = %method,
+                    client_ip = %client_ip,
+                    jti = %claims.session_id,
+                    "认证失败: JTI 已被吊销"
+                );
                 return Err(unauthorized_response("令牌已被吊销，请重新登录"));
             }
 
             let auth_context = AuthContext::from_claims(claims);
-            info!(path = %path, method = %method, client_ip = %client_ip, user_id = %auth_context.user_id, username = %auth_context.username, "认证成功");
+            info!(
+                path = %path,
+                method = %method,
+                client_ip = %client_ip,
+                user_id = %auth_context.user_id,
+                username = %auth_context.username,
+                "认证成功"
+            );
             request.extensions_mut().insert(auth_context);
             Ok(next.run(request).await)
         }
         Err(e) => {
-            warn!(path = %path, method = %method, client_ip = %client_ip, error = %e, "认证失败: 令牌验证失败");
+            warn!(
+                path = %path,
+                method = %method,
+                client_ip = %client_ip,
+                error = %e,
+                "认证失败: 令牌验证失败"
+            );
             Err(unauthorized_response("无效的认证令牌"))
         }
     }

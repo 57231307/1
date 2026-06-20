@@ -11,6 +11,7 @@ export interface DyeRecipe {
   version: number
   status: 'draft' | 'approved' | 'obsolete'
   recipe_items: RecipeItem[]
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   process_parameters: Record<string, any>
   created_by: number
   created_by_name: string

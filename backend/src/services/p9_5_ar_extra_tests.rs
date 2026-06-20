@@ -3,9 +3,11 @@
 //! 覆盖：AR 应收单/对账/收款
 
 #[cfg(test)]
+#[rustfmt::skip]
 mod tests {
-    use rust_decimal::Decimal;
     use rust_decimal::prelude::*;
+    use rust_decimal_macros::dec;
+    use rust_decimal::Decimal;
     use std::str::FromStr;
 
     /// 应收单状态

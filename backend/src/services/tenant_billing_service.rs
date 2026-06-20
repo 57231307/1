@@ -95,6 +95,7 @@ impl TenantBillingService {
         Self { db }
     }
 
+    #[allow(dead_code)] // TODO(tech-debt): 业务接入后移除
     pub async fn get_all_plans(&self) -> Result<Vec<PlanInfo>, AppError> {
         let plans = TenantPlan::find()
             .filter(tenant_plan::Column::IsActive.eq(true))
@@ -250,6 +251,7 @@ impl TenantBillingService {
         }))
     }
 
+    #[allow(dead_code)] // TODO(tech-debt): 业务接入后移除
     pub async fn check_usage_limits(
         &self,
         tenant_id: i32,
@@ -515,6 +517,7 @@ impl TenantBillingService {
         Ok((invoice_items, total))
     }
 
+    #[allow(dead_code)] // TODO(tech-debt): 业务接入后移除
     pub async fn record_api_call(&self, tenant_id: i32) -> Result<(), AppError> {
         let now = Utc::now();
         let today_start = crate::utils::date_utils::today_start_utc();
@@ -548,6 +551,7 @@ impl TenantBillingService {
         Ok(())
     }
 
+    #[allow(dead_code)] // TODO(tech-debt): 业务接入后移除
     pub async fn update_storage_usage(
         &self,
         tenant_id: i32,
@@ -584,6 +588,7 @@ impl TenantBillingService {
         Ok(())
     }
 
+    #[allow(dead_code)] // TODO(tech-debt): 业务接入后移除
     pub async fn update_user_count(&self, tenant_id: i32, count: i32) -> Result<(), AppError> {
         let now = Utc::now();
         let today_start = crate::utils::date_utils::today_start_utc();
@@ -616,6 +621,7 @@ impl TenantBillingService {
         Ok(())
     }
 
+    #[allow(dead_code)] // TODO(tech-debt): 业务接入后移除
     pub async fn process_auto_renewals(&self) -> Result<usize, AppError> {
         let now = Utc::now();
         let threshold = now + Duration::hours(24);

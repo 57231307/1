@@ -103,39 +103,27 @@ impl InventoryTransferService {
                 let update_result = inventory_stock::Entity::update_many()
                     .col_expr(
                         inventory_stock::Column::QuantityOnHand,
-                        Expr::Binary(
-                            Box::new(Expr::col(inventory_stock::Column::QuantityOnHand)),
-                            BinOper::Sub,
-                            Box::new(Expr::val(item.quantity)),
-                        ),
+                        Expr::col(inventory_stock::Column::QuantityOnHand).binary(BinOper::Sub, Expr::val(item.quantity)).into(),
                     )
                     .col_expr(
                         inventory_stock::Column::QuantityAvailable,
-                        Expr::Binary(
-                            Box::new(Expr::col(inventory_stock::Column::QuantityAvailable)),
-                            BinOper::Sub,
-                            Box::new(Expr::val(item.quantity)),
-                        ),
+                        Expr::col(inventory_stock::Column::QuantityAvailable).binary(BinOper::Sub, Expr::val(item.quantity)).into(),
                     )
                     .col_expr(
                         inventory_stock::Column::QuantityMeters,
-                        Expr::val(new_quantity_meters),
+                        Expr::val(new_quantity_meters).into(),
                     )
                     .col_expr(
                         inventory_stock::Column::QuantityKg,
-                        Expr::val(new_quantity_kg),
+                        Expr::val(new_quantity_kg).into(),
                     )
                     .col_expr(
                         inventory_stock::Column::Version,
-                        Expr::Binary(
-                            Box::new(Expr::col(inventory_stock::Column::Version)),
-                            BinOper::Add,
-                            Box::new(Expr::val(1)),
-                        ),
+                        Expr::col(inventory_stock::Column::Version).binary(BinOper::Add, Expr::val(1)).into(),
                     )
                     .col_expr(
                         inventory_stock::Column::UpdatedAt,
-                        sea_orm::sea_query::Expr::val(chrono::Utc::now()),
+                        sea_orm::sea_query::Expr::val(chrono::Utc::now()).into(),
                     )
                     .filter(inventory_stock::Column::Id.eq(stock_id))
                     .filter(inventory_stock::Column::Version.eq(expected_version))
@@ -303,39 +291,27 @@ impl InventoryTransferService {
                 let update_result = inventory_stock::Entity::update_many()
                     .col_expr(
                         inventory_stock::Column::QuantityOnHand,
-                        Expr::Binary(
-                            Box::new(Expr::col(inventory_stock::Column::QuantityOnHand)),
-                            BinOper::Add,
-                            Box::new(Expr::val(item.quantity)),
-                        ),
+                        Expr::col(inventory_stock::Column::QuantityOnHand).binary(BinOper::Add, Expr::val(item.quantity)).into(),
                     )
                     .col_expr(
                         inventory_stock::Column::QuantityAvailable,
-                        Expr::Binary(
-                            Box::new(Expr::col(inventory_stock::Column::QuantityAvailable)),
-                            BinOper::Add,
-                            Box::new(Expr::val(item.quantity)),
-                        ),
+                        Expr::col(inventory_stock::Column::QuantityAvailable).binary(BinOper::Add, Expr::val(item.quantity)).into(),
                     )
                     .col_expr(
                         inventory_stock::Column::QuantityMeters,
-                        Expr::val(new_quantity_meters),
+                        Expr::val(new_quantity_meters).into(),
                     )
                     .col_expr(
                         inventory_stock::Column::QuantityKg,
-                        Expr::val(new_quantity_kg),
+                        Expr::val(new_quantity_kg).into(),
                     )
                     .col_expr(
                         inventory_stock::Column::Version,
-                        Expr::Binary(
-                            Box::new(Expr::col(inventory_stock::Column::Version)),
-                            BinOper::Add,
-                            Box::new(Expr::val(1)),
-                        ),
+                        Expr::col(inventory_stock::Column::Version).binary(BinOper::Add, Expr::val(1)).into(),
                     )
                     .col_expr(
                         inventory_stock::Column::UpdatedAt,
-                        sea_orm::sea_query::Expr::val(chrono::Utc::now()),
+                        sea_orm::sea_query::Expr::val(chrono::Utc::now()).into(),
                     )
                     .filter(inventory_stock::Column::Id.eq(stock_id))
                     .filter(inventory_stock::Column::Version.eq(expected_version))

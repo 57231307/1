@@ -9,6 +9,11 @@ import { ref, reactive } from 'vue'
 import { ElMessage } from 'element-plus'
 import { listApiLogs, type ApiLog } from '@/api/api-gateway'
 
+// 完整的日志查询参数（包含 method/status_code/status/date_range 等，
+// listApiLogs 接受泛型 QueryParams，但实际后端接口支持这些额外字段）
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type LogQueryParams = any
+
 /**
  * 调用日志 composable
  */
@@ -22,6 +27,9 @@ export function useApiLog() {
     keyword: '',
     method: '',
     status_code: '',
+    // 对齐 ApiLogTab.LogQuery 字段（vue-tsc 类型检查需要）
+    status: '',
+    date_range: null as [Date, Date] | null,
   })
 
   const logDetailVisible = ref(false)
@@ -30,7 +38,7 @@ export function useApiLog() {
   const fetchLogs = async () => {
     logLoading.value = true
     try {
-      const res = await listApiLogs(logQuery)
+      const res = await listApiLogs(logQuery as LogQueryParams)
       logs.value = res.data || []
       logTotal.value = res.total || 0
     } catch (error: any) {
@@ -50,6 +58,13 @@ export function useApiLog() {
     logTotal,
     logLoading,
     logQuery,
+    methodTypeMap: {
+      GET: 'primary',
+      POST: 'success',
+      PUT: 'warning',
+      DELETE: 'danger',
+      PATCH: 'info',
+    } as Record<string, string>,
     fetchLogs,
     logDetailVisible,
     currentLog,

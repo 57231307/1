@@ -101,6 +101,7 @@ pub struct UpdateCustomerRequest {
 
 /// 客户响应
 #[derive(Debug, Serialize)]
+#[allow(dead_code)] // TODO(tech-debt): 业务接入后移除
 pub struct CustomerResponse {
     pub id: i32,
     pub customer_code: String,

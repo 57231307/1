@@ -56,6 +56,7 @@ impl ApiKeyService {
     }
 
     /// 验证 API 密钥
+    #[allow(dead_code)] // TODO(tech-debt): 业务接入后移除
     pub async fn validate_api_key(&self, key: &str) -> Result<Option<api_key::Model>, AppError> {
         let key_hash = Self::hash_api_key(key);
 

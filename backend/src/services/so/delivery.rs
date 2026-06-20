@@ -11,7 +11,6 @@ use crate::models::{
 };
 use crate::utils::error::AppError;
 use rust_decimal::Decimal;
-use sea_orm::sea_query::ExprTrait;
 use sea_orm::{ActiveModelTrait, ColumnTrait, EntityTrait, QueryFilter, Set, TransactionTrait};
 use serde::Deserialize;
 use validator::Validate;
@@ -143,11 +142,11 @@ impl SalesService {
                 .col_expr(
                     sales_order_item::Column::ShippedQuantity,
                     sea_orm::sea_query::Expr::col(sales_order_item::Column::ShippedQuantity)
-                        .add(item.quantity),
+                        .add(item.quantity).into(),
                 )
                 .col_expr(
                     sales_order_item::Column::UpdatedAt,
-                    sea_orm::sea_query::Expr::val(chrono::Utc::now()),
+                    sea_orm::sea_query::Expr::val(chrono::Utc::now()).into(),
                 )
                 .exec(&txn)
                 .await?;
@@ -334,11 +333,11 @@ impl SalesService {
                     .col_expr(
                         inventory_stock::Column::QuantityAvailable,
                         sea_orm::sea_query::Expr::col(inventory_stock::Column::QuantityAvailable)
-                            .sub(item.quantity),
+                            .sub(item.quantity).into(),
                     )
                     .col_expr(
                         inventory_stock::Column::UpdatedAt,
-                        sea_orm::sea_query::Expr::val(chrono::Utc::now()),
+                        sea_orm::sea_query::Expr::val(chrono::Utc::now()).into(),
                     )
                     .exec(txn)
                     .await?;
@@ -380,16 +379,16 @@ impl SalesService {
             .col_expr(
                 inventory_stock::Column::QuantityAvailable,
                 sea_orm::sea_query::Expr::col(inventory_stock::Column::QuantityAvailable)
-                    .sub(quantity),
+                    .sub(quantity).into(),
             )
             .col_expr(
                 inventory_stock::Column::QuantityShipped,
                 sea_orm::sea_query::Expr::col(inventory_stock::Column::QuantityShipped)
-                    .add(quantity),
+                    .add(quantity).into(),
             )
             .col_expr(
                 inventory_stock::Column::UpdatedAt,
-                sea_orm::sea_query::Expr::val(chrono::Utc::now()),
+                sea_orm::sea_query::Expr::val(chrono::Utc::now()).into(),
             )
             .exec(txn)
             .await?;
@@ -401,15 +400,15 @@ impl SalesService {
             .filter(inventory_reservation::Column::Status.eq("pending"))
             .col_expr(
                 inventory_reservation::Column::Status,
-                sea_orm::sea_query::Expr::val("consumed".to_string()),
+                sea_orm::sea_query::Expr::val("consumed".to_string()).into(),
             )
             .col_expr(
                 inventory_reservation::Column::ReleasedAt,
-                sea_orm::sea_query::Expr::val(chrono::Utc::now()),
+                sea_orm::sea_query::Expr::val(chrono::Utc::now()).into(),
             )
             .col_expr(
                 inventory_reservation::Column::UpdatedAt,
-                sea_orm::sea_query::Expr::val(chrono::Utc::now()),
+                sea_orm::sea_query::Expr::val(chrono::Utc::now()).into(),
             )
             .exec(txn)
             .await?;
@@ -436,11 +435,11 @@ impl SalesService {
                 .col_expr(
                     inventory_stock::Column::QuantityAvailable,
                     sea_orm::sea_query::Expr::col(inventory_stock::Column::QuantityAvailable)
-                        .add(res.quantity),
+                        .add(res.quantity).into(),
                 )
                 .col_expr(
                     inventory_stock::Column::UpdatedAt,
-                    sea_orm::sea_query::Expr::val(chrono::Utc::now()),
+                    sea_orm::sea_query::Expr::val(chrono::Utc::now()).into(),
                 )
                 .exec(txn)
                 .await?;
@@ -451,15 +450,15 @@ impl SalesService {
             .filter(inventory_reservation::Column::Status.eq("pending"))
             .col_expr(
                 inventory_reservation::Column::Status,
-                sea_orm::sea_query::Expr::val("cancelled".to_string()),
+                sea_orm::sea_query::Expr::val("cancelled".to_string()).into(),
             )
             .col_expr(
                 inventory_reservation::Column::ReleasedAt,
-                sea_orm::sea_query::Expr::val(chrono::Utc::now()),
+                sea_orm::sea_query::Expr::val(chrono::Utc::now()).into(),
             )
             .col_expr(
                 inventory_reservation::Column::UpdatedAt,
-                sea_orm::sea_query::Expr::val(chrono::Utc::now()),
+                sea_orm::sea_query::Expr::val(chrono::Utc::now()).into(),
             )
             .exec(txn)
             .await?;

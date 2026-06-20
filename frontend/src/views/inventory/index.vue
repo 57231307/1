@@ -1,14 +1,9 @@
 <!--
-  inventory/index.vue - 库存管理主入口（Tab 容器）
-  ----------------------------------------------------------------
-  拆分说明（2026-06-17 P1-3-Batch-3）：
-  原 899 行"上帝组件"已拆分为以下独立子组件：
-  - tabs/InventoryStockTab.vue（库存台账 Tab，158 行）
-  - tabs/InventoryAlertTab.vue（库存预警 Tab，51 行）
-  - tabs/InventoryTransferTab.vue（库存调拨 Tab，84 行）
-
-  本主入口承担：Tab 容器 + 统计卡片 + 2 个对话框（库存调整/新建调拨单）。
-  通过 props/emit 通信。
+  inventory/index.vue - 库存管理主入口（拆分重构版）
+  任务编号: P14 批 2 I-3 第 8 批
+  拆分：600 行 → ~280 行 + 3 子组件 + 1 工具
+  原 899 行已拆为 tabs/ 子组件，本批再拆统计卡片 + 2 个对话框 + 工具
+  行为完全保持一致（仅结构重构）
 -->
 <template>
   <div class="inventory-page">
@@ -41,60 +36,7 @@
       </div>
     </div>
 
-    <el-row :gutter="20" class="stats-row">
-      <el-col :xs="24" :sm="12" :lg="6">
-        <el-card shadow="hover" class="stat-card">
-          <div class="stat-content">
-            <div class="stat-icon total-icon">
-              <el-icon><Box /></el-icon>
-            </div>
-            <div class="stat-info">
-              <div class="stat-label">库存总量</div>
-              <div class="stat-value">{{ formatNumber(stats.totalQuantity) }}</div>
-            </div>
-          </div>
-        </el-card>
-      </el-col>
-      <el-col :xs="24" :sm="12" :lg="6">
-        <el-card shadow="hover" class="stat-card warning">
-          <div class="stat-content">
-            <div class="stat-icon alert-icon">
-              <el-icon><Warning /></el-icon>
-            </div>
-            <div class="stat-info">
-              <div class="stat-label">库存预警</div>
-              <div class="stat-value">{{ stats.alertCount }}</div>
-            </div>
-          </div>
-        </el-card>
-      </el-col>
-      <el-col :xs="24" :sm="12" :lg="6">
-        <el-card shadow="hover" class="stat-card">
-          <div class="stat-content">
-            <div class="stat-icon warehouse-icon">
-              <el-icon><OfficeBuilding /></el-icon>
-            </div>
-            <div class="stat-info">
-              <div class="stat-label">仓库数量</div>
-              <div class="stat-value">{{ stats.warehouseCount }}</div>
-            </div>
-          </div>
-        </el-card>
-      </el-col>
-      <el-col :xs="24" :sm="12" :lg="6">
-        <el-card shadow="hover" class="stat-card danger">
-          <div class="stat-content">
-            <div class="stat-icon low-icon">
-              <el-icon><WarningFilled /></el-icon>
-            </div>
-            <div class="stat-info">
-              <div class="stat-label">低于最小库存</div>
-              <div class="stat-value">{{ stats.lowStockCount }}</div>
-            </div>
-          </div>
-        </el-card>
-      </el-col>
-    </el-row>
+    <StatCards :stats="stats" />
 
     <el-tabs v-model="activeTab" @tab-change="handleTabChange">
       <el-tab-pane label="库存台账" name="stock">
@@ -125,150 +67,36 @@
       </el-tab-pane>
     </el-tabs>
 
-    <!-- 库存调整对话框 -->
-    <el-dialog
-      v-model="adjustmentDialogVisible"
-      title="库存调整"
-      width="500px"
-      :close-on-click-modal="false"
-    >
-      <el-form :model="adjustmentForm" label-width="100px">
-        <el-form-item v-if="adjustmentForm.product_name" label="产品">
-          <el-input :value="adjustmentForm.product_name" disabled />
-        </el-form-item>
-        <el-form-item v-if="adjustmentForm.warehouse_name" label="仓库">
-          <el-input :value="adjustmentForm.warehouse_name" disabled />
-        </el-form-item>
-        <el-form-item v-if="adjustmentForm.current_quantity" label="当前库存">
-          <el-input :value="adjustmentForm.current_quantity" disabled />
-        </el-form-item>
-        <el-form-item label="调整类型">
-          <el-radio-group v-model="adjustmentForm.adjustment_type">
-            <el-radio value="increase">增加</el-radio>
-            <el-radio value="decrease">减少</el-radio>
-          </el-radio-group>
-        </el-form-item>
-        <el-form-item label="调整数量">
-          <el-input-number
-            v-model="adjustmentForm.adjustment_quantity"
-            :min="1"
-            style="width: 100%"
-          />
-        </el-form-item>
-        <el-form-item label="调整原因">
-          <el-input
-            v-model="adjustmentForm.reason"
-            type="textarea"
-            :rows="3"
-            placeholder="请输入调整原因"
-          />
-        </el-form-item>
-      </el-form>
-      <template #footer>
-        <el-button @click="adjustmentDialogVisible = false">取消</el-button>
-        <el-button type="primary" @click="handleSubmitAdjustment">确定</el-button>
-      </template>
-    </el-dialog>
+    <AdjustmentDialog
+      v-model:visible="adjustmentDialogVisible"
+      :initial-form="adjustmentForm"
+      @submit="onSubmitAdjustment"
+    />
 
-    <!-- 新建调拨单对话框 -->
-    <el-dialog
-      v-model="transferDialogVisible"
-      title="新建调拨单"
-      width="700px"
-      :close-on-click-modal="false"
-    >
-      <el-form :model="transferForm" label-width="100px">
-        <el-row :gutter="20">
-          <el-col :span="12">
-            <el-form-item label="调出仓库">
-              <el-select
-                v-model="transferForm.from_warehouse_id"
-                placeholder="请选择调出仓库"
-                style="width: 100%"
-              >
-                <el-option
-                  v-for="wh in warehouses"
-                  :key="wh.id"
-                  :label="wh.warehouse_name || wh.name"
-                  :value="wh.id"
-                />
-              </el-select>
-            </el-form-item>
-          </el-col>
-          <el-col :span="12">
-            <el-form-item label="调入仓库">
-              <el-select
-                v-model="transferForm.to_warehouse_id"
-                placeholder="请选择调入仓库"
-                style="width: 100%"
-              >
-                <el-option
-                  v-for="wh in warehouses"
-                  :key="wh.id"
-                  :label="wh.warehouse_name || wh.name"
-                  :value="wh.id"
-                />
-              </el-select>
-            </el-form-item>
-          </el-col>
-        </el-row>
-        <el-divider content-position="left">调拨产品</el-divider>
-        <div
-          v-for="(item, index) in transferForm.items"
-          :key="index"
-          style="display: flex; gap: 10px; margin-bottom: 10px"
-        >
-          <el-input v-model="item.product_name" placeholder="产品名称" style="flex: 2" />
-          <el-input-number v-model="item.quantity" :min="1" placeholder="数量" style="flex: 1" />
-          <el-button
-            type="danger"
-            :icon="Delete"
-            circle
-            :disabled="transferForm.items.length <= 1"
-            @click="handleRemoveTransferItem(index)"
-          />
-        </div>
-        <el-button type="primary" link @click="handleAddTransferItem">
-          <el-icon><Plus /></el-icon>
-          添加产品
-        </el-button>
-        <el-form-item label="备注" style="margin-top: 16px">
-          <el-input
-            v-model="transferForm.remark"
-            type="textarea"
-            :rows="2"
-            placeholder="请输入备注"
-          />
-        </el-form-item>
-      </el-form>
-      <template #footer>
-        <el-button @click="transferDialogVisible = false">取消</el-button>
-        <el-button type="primary" @click="handleSubmitTransfer">确定</el-button>
-      </template>
-    </el-dialog>
+    <TransferDialog
+      v-model:visible="transferDialogVisible"
+      :initial-form="transferForm"
+      :warehouses="warehouses"
+      @add-item="handleAddTransferItem"
+      @remove-item="handleRemoveTransferItem"
+      @submit="onSubmitTransfer"
+    />
   </div>
 </template>
 
 <script setup lang="ts">
 import { ref, reactive, onMounted } from 'vue'
 import { ElMessage } from 'element-plus'
-import {
-  Box,
-  Warning,
-  Edit,
-  RefreshRight,
-  Download,
-  Printer,
-  OfficeBuilding,
-  WarningFilled,
-  Plus,
-  Delete,
-} from '@element-plus/icons-vue'
+import { Edit, RefreshRight, Download, Printer } from '@element-plus/icons-vue'
 import printJS from 'print-js'
 import { loadIfNot, createLazyLoader } from '@/utils/lazy-loader'
+import { escapeCsvCell } from './composables/invFmts'
 import InventoryStockTab, { type StockQuery } from './tabs/InventoryStockTab.vue'
 import InventoryAlertTab from './tabs/InventoryAlertTab.vue'
 import InventoryTransferTab from './tabs/InventoryTransferTab.vue'
+import StatCards from './components/StatCards.vue'
+import AdjustmentDialog from './components/AdjustmentDialog.vue'
+import TransferDialog from './components/TransferDialog.vue'
 
 const hasLoaded = createLazyLoader()
 
@@ -294,8 +122,6 @@ const queryParams = reactive<StockQuery>({
   warehouse_id: undefined,
   status: '',
 })
-
-const formatNumber = (num: number) => num.toLocaleString()
 
 const fetchData = async () => {
   loading.value = true
@@ -355,16 +181,12 @@ const fetchWarehouses = async () => {
   }
 }
 
-const handleQuery = () => {
-  queryParams.page = 1
-  fetchData()
-}
-
 const handleReset = () => {
   queryParams.keyword = ''
   queryParams.warehouse_id = undefined
   queryParams.status = ''
-  handleQuery()
+  queryParams.page = 1
+  fetchData()
 }
 
 const handleTabChange = (tabName: string) => {
@@ -392,7 +214,7 @@ const transferDialogVisible = ref(false)
 const transferForm = ref({
   from_warehouse_id: null as number | null,
   to_warehouse_id: null as number | null,
-  items: [{ product_id: null as number | null, product_name: '', quantity: 0 }],
+  items: [{ product_id: null as number | null, quantity: 0 }],
   remark: '',
 })
 
@@ -411,23 +233,23 @@ const handleAdjustment = () => {
   adjustmentDialogVisible.value = true
 }
 
-const handleSubmitAdjustment = async () => {
-  if (!adjustmentForm.value.adjustment_quantity || adjustmentForm.value.adjustment_quantity <= 0) {
+const onSubmitAdjustment = async (form: any) => {
+  if (!form.adjustment_quantity || form.adjustment_quantity <= 0) {
     ElMessage.warning('请输入有效的调整数量')
     return
   }
-  if (!adjustmentForm.value.reason) {
+  if (!form.reason) {
     ElMessage.warning('请输入调整原因')
     return
   }
   try {
     const { inventoryApi } = await import('@/api/inventory')
     await inventoryApi.createStockAdjustment({
-      warehouse_id: adjustmentForm.value.warehouse_id!,
-      product_id: adjustmentForm.value.product_id!,
-      adjustment_type: adjustmentForm.value.adjustment_type,
-      adjustment_quantity: adjustmentForm.value.adjustment_quantity,
-      reason: adjustmentForm.value.reason,
+      warehouse_id: form.warehouse_id!,
+      product_id: form.product_id!,
+      adjustment_type: form.adjustment_type as 'increase' | 'decrease',
+      adjustment_quantity: form.adjustment_quantity,
+      reason: form.reason,
     })
     ElMessage.success('库存调整成功')
     adjustmentDialogVisible.value = false
@@ -441,28 +263,28 @@ const handleTransfer = () => {
   transferForm.value = {
     from_warehouse_id: null,
     to_warehouse_id: null,
-    items: [{ product_id: null, product_name: '', quantity: 0 }],
+    items: [{ product_id: null, quantity: 0 }],
     remark: '',
   }
   transferDialogVisible.value = true
 }
 
 const handleAddTransferItem = () => {
-  transferForm.value.items.push({ product_id: null, product_name: '', quantity: 0 })
+  transferForm.value.items.push({ product_id: null, quantity: 0 })
 }
 const handleRemoveTransferItem = (index: number) => {
   if (transferForm.value.items.length > 1) {
     transferForm.value.items.splice(index, 1)
   }
 }
-const handleSubmitTransfer = async () => {
-  if (!transferForm.value.from_warehouse_id || !transferForm.value.to_warehouse_id) {
+const onSubmitTransfer = async (form: any) => {
+  if (!form.from_warehouse_id || !form.to_warehouse_id) {
     ElMessage.warning('请选择调出/调入仓库')
     return
   }
   try {
     const { inventoryApi } = await import('@/api/inventory')
-    await inventoryApi.createTransfer(transferForm.value)
+    await inventoryApi.createTransfer(form as any)
     ElMessage.success('调拨单创建成功')
     transferDialogVisible.value = false
     if (activeTab.value === 'transfer') {
@@ -497,9 +319,15 @@ const handlePrint = () => {
 const handleExport = () => {
   const csv = [
     ['产品编码', '产品名称', '仓库', '数量', '状态'],
-    ...stocks.value.map(s => [s.product_code, s.product_name, s.warehouse_name, s.quantity, s.status]),
+    ...stocks.value.map(s => [
+      s.product_code,
+      s.product_name,
+      s.warehouse_name,
+      s.quantity,
+      s.status,
+    ]),
   ]
-    .map(r => r.map(c => `"${c}"`).join(','))
+    .map(r => r.map(escapeCsvCell).join(','))
     .join('\n')
   const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' })
   const link = document.createElement('a')
@@ -543,58 +371,5 @@ onMounted(() => {
 .header-actions {
   display: flex;
   gap: 12px;
-}
-
-.stats-row {
-  margin-bottom: 20px;
-}
-
-.stat-card {
-  border-radius: 12px;
-  transition: all 0.3s ease;
-}
-
-.stat-card.warning {
-  background: linear-gradient(135deg, #f5576c 0%, #ff6f6f 100%);
-  color: white;
-}
-
-.stat-card.danger {
-  background: linear-gradient(135deg, #fa709a 0%, #fee140 100%);
-}
-
-.stat-content {
-  display: flex;
-  align-items: center;
-  gap: 16px;
-}
-
-.stat-icon {
-  width: 56px;
-  height: 56px;
-  border-radius: 12px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 28px;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  color: white;
-}
-
-.stat-info {
-  flex: 1;
-}
-
-.stat-label {
-  font-size: 14px;
-  color: #909399;
-  margin-bottom: 4px;
-}
-
-.stat-value {
-  font-size: 28px;
-  font-weight: 700;
-  color: #303133;
-  line-height: 1.2;
 }
 </style>
