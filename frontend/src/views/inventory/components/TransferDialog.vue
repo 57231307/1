@@ -114,7 +114,7 @@ watch(
 
 // 同步 localForm 回父组件 form prop
 watch(
-  localForm,
+  () => localForm,
   newVal => {
     emit('update:form', JSON.parse(JSON.stringify(newVal)))
   },
