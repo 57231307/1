@@ -233,7 +233,7 @@ const handleAdjustment = () => {
   adjustmentDialogVisible.value = true
 }
 
-const handleSubmitAdjustment = async (form: any) => {
+const onSubmitAdjustment = async (form: any) => {
   if (!form.adjustment_quantity || form.adjustment_quantity <= 0) {
     ElMessage.warning('请输入有效的调整数量')
     return
