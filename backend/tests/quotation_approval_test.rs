@@ -3,7 +3,7 @@
 //! Week 2 任务 7 - 销售报价单模块
 //! 关联计划: 2026-06-16-sales-quotation-plan.md Task 7
 
-use crate::services::quotation_approval_service::ApproverRole;
+use bingxi_backend::services::quotation_approval_service::ApproverRole;
 use rust_decimal::Decimal;
 
 #[test]
