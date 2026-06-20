@@ -34,13 +34,10 @@ impl AuditCleanupService {
             self.retention_days
         );
 
-        let result: sea_orm::DeleteResult = self
+        let result = self
             .db
             .as_ref()
-            .execute_unprepared(Statement::from_string(
-                sea_orm::DatabaseBackend::Postgres,
-                sql,
-            ))
+            .execute_unprepared(&sql)
             .await?;
 
         let deleted_count = result.rows_affected();
@@ -93,7 +90,7 @@ impl AuditCleanupService {
         let result: Option<sea_orm::QueryResult> = self
             .db
             .as_ref()
-            .query_one(Statement::from_string(
+            .query_one(sea_orm::Statement::from_string(
                 sea_orm::DatabaseBackend::Postgres,
                 sql.to_string(),
             ))

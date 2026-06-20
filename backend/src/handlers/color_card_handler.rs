@@ -509,10 +509,10 @@ pub async fn export_color_card(
 
     let filename = format!("color-card-{}.csv", card.card_no.replace(['/', '\\', ' '], "_"));
     let headers = [
-        (axum::http::header::CONTENT_TYPE, "text/csv; charset=utf-8"),
+        (axum::http::header::CONTENT_TYPE, "text/csv; charset=utf-8".to_string()),
         (
             axum::http::header::CONTENT_DISPOSITION,
-            format!("attachment; filename=\"{}\"", filename).as_str(),
+            format!("attachment; filename=\"{}\"", filename),
         ),
     ];
 

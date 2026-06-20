@@ -9,6 +9,7 @@ use axum::{
     Json,
 };
 use rust_decimal::Decimal;
+use sea_orm::ActiveModelTrait;
 use serde_json::json;
 use std::str::FromStr;
 
@@ -427,8 +428,8 @@ pub async fn create_customer_special_price(
         created_at: Set(now),
         updated_at: Set(now),
     };
-    let result = customer_color_price::Entity::insert(active)
-        .exec_with_returning(&*state.db)
+    let result: customer_color_price::Model = active
+        .insert(&*state.db)
         .await
         .map_err(|e| AppError::database(e.to_string()))?;
     Ok(Json(ApiResponse::success(json!(result))))

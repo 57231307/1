@@ -301,6 +301,7 @@ pub async fn batch_create_process_optimizations(
     let svc = AiExtendService::new(state.db);
     let mut results = Vec::new();
     let mut failed = 0;
+    let total = body.requests.len();
     for mut req in body.requests {
         req.tenant_id = tenant_id;
         req.operator_id = Some(auth.user_id as i64);
@@ -322,8 +323,8 @@ pub async fn batch_create_process_optimizations(
         }
     }
     Ok(Json(ApiResponse::success(serde_json::json!({
-        "total": body.requests.len(),
-        "succeeded": body.requests.len() - failed,
+        "total": total,
+        "succeeded": total - failed,
         "failed": failed,
         "results": results,
     }))))
@@ -348,6 +349,7 @@ pub async fn batch_create_quality_predictions(
     let svc = AiExtendService::new(state.db);
     let mut results = Vec::new();
     let mut failed = 0;
+    let total = body.requests.len();
     for mut req in body.requests {
         req.tenant_id = tenant_id;
         req.operator_id = Some(auth.user_id as i64);
@@ -370,8 +372,8 @@ pub async fn batch_create_quality_predictions(
         }
     }
     Ok(Json(ApiResponse::success(serde_json::json!({
-        "total": body.requests.len(),
-        "succeeded": body.requests.len() - failed,
+        "total": total,
+        "succeeded": total - failed,
         "failed": failed,
         "results": results,
     }))))

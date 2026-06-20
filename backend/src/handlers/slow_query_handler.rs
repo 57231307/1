@@ -17,7 +17,7 @@ use axum::{
 };
 use chrono::{DateTime, Utc};
 use sea_orm::{
-    ColumnTrait, ConnectionTrait, EntityTrait, PaginatorTrait, QueryFilter, QueryOrder, Statement,
+    ColumnTrait, ConnectionTrait, EntityTrait, PaginatorTrait, QueryFilter, QueryOrder,
 };
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
@@ -268,10 +268,7 @@ pub async fn cleanup_slow_queries(
     let result = state
         .db
         .as_ref()
-        .execute_raw(Statement::from_string(
-            sea_orm::DatabaseBackend::Postgres,
-            sql.to_string(),
-        ))
+        .execute_unprepared(sql)
         .await
         .map_err(|e| AppError::internal(format!("清理慢查询日志失败: {}", e)))?;
 
