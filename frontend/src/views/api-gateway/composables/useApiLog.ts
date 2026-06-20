@@ -22,6 +22,9 @@ export function useApiLog() {
     keyword: '',
     method: '',
     status_code: '',
+    // 对齐 ApiLogTab.LogQuery 字段（vue-tsc 类型检查需要）
+    status: '',
+    date_range: null as [Date, Date] | null,
   })
 
   const logDetailVisible = ref(false)

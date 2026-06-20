@@ -27,7 +27,7 @@
       <el-table-column prop="created_at" label="创建时间" width="160" />
       <el-table-column label="操作" width="150">
         <template #default="{ row }">
-          <el-button type="primary" link size="small" @click="emit('view-transfer', row)"
+          <el-button type="primary" link size="small" @click="$emit('view-transfer', row)"
             >详情</el-button
           >
           <el-button
@@ -35,7 +35,7 @@
             type="success"
             link
             size="small"
-            @click="emit('approve-transfer', row)"
+            @click="$emit('approve-transfer', row)"
             >审批</el-button
           >
         </template>

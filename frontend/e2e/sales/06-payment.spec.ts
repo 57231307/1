@@ -31,7 +31,7 @@ test.describe('06 销售收付款', () => {
 
   test('06-02 应收单可多次部分收款', async ({ page }) => {
     await page.goto('/ar/invoice/list')
-    const invoice = page.locator('tr, .el-table__row').filter({ hasText: '部分收款|未收款/ }).first()
+    const invoice = page.locator('tr, .el-table__row').filter({ hasText: /部分收款|未收款/ }).first()
     await invoice.getByRole('button', { name: /详情/ }).click()
     // 第 1 次收款
     await page.getByRole('button', { name: /收款/ }).click()

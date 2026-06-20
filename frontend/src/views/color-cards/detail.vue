@@ -113,7 +113,6 @@ import { ElMessage, ElMessageBox } from 'element-plus'
 import { ArrowLeft, Plus, Box, Download } from '@element-plus/icons-vue'
 import {
   getColorCard,
-  listColorItems,
   listBorrowRecords,
   createColorItem,
   deleteColorItem,

@@ -159,7 +159,7 @@ export interface AssignmentQueryParams extends QueryParams {
   date_range?: string[]
 }
 
-const crmEnhancedApi = {
+export const crmEnhancedApi = {
   // 客户列表（含标签、联系人）
   getCustomerList: (params?: QueryParams) =>
     request.get<ApiResponse<PageResult<CustomerWithTags>>>('/crm/customers/enhanced', { params }),

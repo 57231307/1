@@ -118,7 +118,6 @@ import {
 import PriceHistoryChart from '@/components/PriceHistoryChart.vue'
 
 const route = useRoute()
-const router = useRouter()
 const loading = ref(false)
 const price = ref<ColorPriceDetail | null>(null)
 const history = ref<PriceHistoryItem[]>([])

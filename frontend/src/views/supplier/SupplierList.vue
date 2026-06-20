@@ -55,10 +55,10 @@
         </el-table-column>
         <el-table-column label="操作" width="180" fixed="right">
           <template #default="{ row }">
-            <el-button type="primary" link size="small" @click="handleEdit(row as any)"
+            <el-button type="primary" link size="small" @click="$emit('edit', row)"
               >编辑</el-button
             >
-            <el-button type="danger" link size="small" @click="handleDelete(row as any)"
+            <el-button type="danger" link size="small" @click="$emit('delete', row)"
               >删除</el-button
             >
           </template>
@@ -81,8 +81,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, watch } from 'vue'
-import { Search, Refresh, Plus, Edit, Delete } from '@element-plus/icons-vue'
+import { reactive, watch } from 'vue'
 
 const props = defineProps<{
   suppliers: any[]

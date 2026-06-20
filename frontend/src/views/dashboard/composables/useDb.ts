@@ -7,8 +7,6 @@ import { ElMessage } from 'element-plus'
 import { dashboardApi } from '@/api/dashboard'
 import type {
   DashboardOverview,
-  SalesStatistics,
-  InventoryStatistics,
   SalesTrend,
   ChartData,
 } from '@/api/dashboard'

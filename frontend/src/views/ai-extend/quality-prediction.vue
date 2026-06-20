@@ -79,7 +79,7 @@ async function submitCreate() {
   try {
     const resp = await createQualityPrediction({ ...form })
     ElMessage.success(
-      `预测完成：${RISK_LEVEL_LABELS[resp.response.risk_level]}（评分 ${resp.response.risk_score}，趋势 ${TREND_LABELS[resp.response.trend as keyof typeof TREND_LABELS] || resp.response.trend}）`,
+      `预测完成：${RISK_LEVEL_LABELS[resp.response.risk_level]}（评分 ${resp.response.risk_score}，趋势 ${TREND_LABELS[resp.response.trend as keyof typeof TREND_LABELS] ?? resp.response.trend}）`,
     )
     dialogVisible.value = false
     page.value = 1
@@ -200,7 +200,7 @@ onMounted(load)
           <template #default="{ row }">{{ row.product_id ?? '全局' }}</template>
         </el-table-column>
         <el-table-column prop="inspection_type" label="检验类型" width="100">
-          <template #default="{ row }">{{ INSPECTION_TYPE_LABELS[row.inspection_type] || row.inspection_type }}</template>
+          <template #default="{ row }">{{ INSPECTION_TYPE_LABELS[row.inspection_type] ?? row.inspection_type }}</template>
         </el-table-column>
         <el-table-column prop="total_inspections" label="检验总数" width="100" align="right" />
         <el-table-column prop="avg_qualification_rate" label="平均合格率" width="120">
@@ -217,7 +217,7 @@ onMounted(load)
           </template>
         </el-table-column>
         <el-table-column prop="trend" label="趋势" width="100">
-          <template #default="{ row }">{{ TREND_LABELS[row.trend] || row.trend }} ({{ Number(row.trend_rate).toFixed(1) }}pp)</template>
+          <template #default="{ row }">{{ TREND_LABELS[row.trend] ?? row.trend }} ({{ Number(row.trend_rate).toFixed(1) }}pp)</template>
         </el-table-column>
         <el-table-column prop="confidence" label="置信度" width="100">
           <template #default="{ row }">{{ Number(row.confidence).toFixed(2) }}</template>
@@ -291,7 +291,7 @@ onMounted(load)
           <el-descriptions :column="2" border>
             <el-descriptions-item label="产品 ID">{{ detailModel.product_id ?? '全局' }}</el-descriptions-item>
             <el-descriptions-item label="检验类型">
-              {{ INSPECTION_TYPE_LABELS[detailModel.inspection_type] || detailModel.inspection_type }}
+              {{ INSPECTION_TYPE_LABELS[detailModel.inspection_type] ?? detailModel.inspection_type }}
             </el-descriptions-item>
             <el-descriptions-item label="时间窗">{{ detailModel.window_days }} 天</el-descriptions-item>
             <el-descriptions-item label="检验总数">{{ detailModel.total_inspections }}</el-descriptions-item>

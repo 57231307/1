@@ -392,7 +392,7 @@ const transferDialogVisible = ref(false)
 const transferForm = ref({
   from_warehouse_id: null as number | null,
   to_warehouse_id: null as number | null,
-  items: [{ product_id: null as number | null, product_name: '', quantity: 0 }],
+  items: [{ product_id: null as number | null, quantity: 0 }],
   remark: '',
 })
 
@@ -425,7 +425,7 @@ const handleSubmitAdjustment = async () => {
     await inventoryApi.createStockAdjustment({
       warehouse_id: adjustmentForm.value.warehouse_id!,
       product_id: adjustmentForm.value.product_id!,
-      adjustment_type: adjustmentForm.value.adjustment_type,
+      adjustment_type: adjustmentForm.value.adjustment_type as 'increase' | 'decrease',
       adjustment_quantity: adjustmentForm.value.adjustment_quantity,
       reason: adjustmentForm.value.reason,
     })

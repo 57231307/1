@@ -101,7 +101,6 @@ import logger from '@/utils/logger'
 import AfterSalesPanel from '@/components/AfterSalesPanel.vue'
 
 const route = useRoute()
-const router = useRouter()
 const loading = ref(false)
 const order = ref<any>({})
 const activeTab = ref('info')
