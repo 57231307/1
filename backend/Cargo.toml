@@ -72,6 +72,9 @@ base64 = "0.22"
 # ZIP 压缩
 zip = "2.2"
 
+# 时间类型（axum-extra Cookie::max_age 需要 time::Duration，axum-extra 不 re-export）
+time = { version = "0.3", features = ["macros"] }
+
 # PDF 生成
 printpdf = "0.7"
 
@@ -94,7 +97,7 @@ clap = { version = "4.4", features = ["derive"] }
 
 # API 文档
 utoipa = { version = "5.2.0", features = ["axum_extras"] }
-axum-extra = { version = "0.9.3", features = ["cookie", "cookie-private", "cookie-key-expansion", "time"] }
+axum-extra = { version = "0.9.3", features = ["cookie", "cookie-private", "cookie-key-expansion"] }
 totp-rs = { version = "5.5", features = ["qr", "gen_secret"] }
 utoipa-swagger-ui = { version = "8.0.3", features = ["axum"], optional = true }
 percent-encoding = "2.3.1"
