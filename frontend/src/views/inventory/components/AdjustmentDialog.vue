@@ -2,7 +2,9 @@
   AdjustmentDialog.vue - 库存调整对话框
   任务编号: P14 批 2 I-3 第 8 批
   拆分原 inventory/index.vue 的库存调整对话框
-  内部维护 localForm，避免直接突变 form prop
+  行为完全保持一致（仅结构重构）
+  使用 props.initialForm 初始化 + 内部 localForm（不直接突变 prop）
+  submit 时 emit submitWithForm(localForm) 把当前 form 回传
 -->
 <template>
   <el-dialog
@@ -56,7 +58,7 @@ import { reactive, watch } from 'vue'
 
 const props = defineProps<{
   visible: boolean
-  form: any
+  initialForm: any
 }>()
 
 const emit = defineEmits<{
@@ -64,10 +66,10 @@ const emit = defineEmits<{
   (e: 'submit', data: any): void
 }>()
 
-// 浅拷贝避免突变 prop
+// 浅拷贝 initialForm 同步初始值（不直接突变 prop）
 const localForm = reactive<Record<string, any>>({})
 watch(
-  () => props.form,
+  () => props.initialForm,
   newVal => {
     Object.keys(localForm).forEach(k => delete localForm[k])
     Object.assign(localForm, JSON.parse(JSON.stringify(newVal)))
@@ -75,20 +77,11 @@ watch(
   { immediate: true, deep: true }
 )
 
-// 同步 localForm 回父组件 form prop
-watch(
-  localForm,
-  (newVal: Record<string, any>) => {
-    emit('update:form', JSON.parse(JSON.stringify(newVal)))
-  },
-  { deep: true }
-)
-
 const onClose = (val: boolean) => {
   emit('update:visible', val)
 }
 
 const onSubmit = () => {
-  emit('submit')
+  emit('submit', JSON.parse(JSON.stringify(localForm)))
 }
 </script>

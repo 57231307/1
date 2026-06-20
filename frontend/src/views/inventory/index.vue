@@ -69,17 +69,17 @@
 
     <AdjustmentDialog
       v-model:visible="adjustmentDialogVisible"
-      v-model:form="adjustmentForm"
-      @submit="handleSubmitAdjustment"
+      :initial-form="adjustmentForm"
+      @submit="onSubmitAdjustment"
     />
 
     <TransferDialog
       v-model:visible="transferDialogVisible"
-      v-model:form="transferForm"
+      :initial-form="transferForm"
       :warehouses="warehouses"
       @add-item="handleAddTransferItem"
       @remove-item="handleRemoveTransferItem"
-      @submit="handleSubmitTransfer"
+      @submit="onSubmitTransfer"
     />
   </div>
 </template>
@@ -233,23 +233,23 @@ const handleAdjustment = () => {
   adjustmentDialogVisible.value = true
 }
 
-const handleSubmitAdjustment = async () => {
-  if (!adjustmentForm.value.adjustment_quantity || adjustmentForm.value.adjustment_quantity <= 0) {
+const handleSubmitAdjustment = async (form: any) => {
+  if (!form.adjustment_quantity || form.adjustment_quantity <= 0) {
     ElMessage.warning('请输入有效的调整数量')
     return
   }
-  if (!adjustmentForm.value.reason) {
+  if (!form.reason) {
     ElMessage.warning('请输入调整原因')
     return
   }
   try {
     const { inventoryApi } = await import('@/api/inventory')
     await inventoryApi.createStockAdjustment({
-      warehouse_id: adjustmentForm.value.warehouse_id!,
-      product_id: adjustmentForm.value.product_id!,
-      adjustment_type: adjustmentForm.value.adjustment_type as 'increase' | 'decrease',
-      adjustment_quantity: adjustmentForm.value.adjustment_quantity,
-      reason: adjustmentForm.value.reason,
+      warehouse_id: form.warehouse_id!,
+      product_id: form.product_id!,
+      adjustment_type: form.adjustment_type as 'increase' | 'decrease',
+      adjustment_quantity: form.adjustment_quantity,
+      reason: form.reason,
     })
     ElMessage.success('库存调整成功')
     adjustmentDialogVisible.value = false
@@ -277,14 +277,14 @@ const handleRemoveTransferItem = (index: number) => {
     transferForm.value.items.splice(index, 1)
   }
 }
-const handleSubmitTransfer = async () => {
-  if (!transferForm.value.from_warehouse_id || !transferForm.value.to_warehouse_id) {
+const handleSubmitTransfer = async (form: any) => {
+  if (!form.from_warehouse_id || !form.to_warehouse_id) {
     ElMessage.warning('请选择调出/调入仓库')
     return
   }
   try {
     const { inventoryApi } = await import('@/api/inventory')
-    await inventoryApi.createTransfer(transferForm.value as any)
+    await inventoryApi.createTransfer(form as any)
     ElMessage.success('调拨单创建成功')
     transferDialogVisible.value = false
     if (activeTab.value === 'transfer') {
