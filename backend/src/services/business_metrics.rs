@@ -378,7 +378,7 @@ mod tests {
     use super::*;
 
     // P9-1: 测试夹具 helper，统一 build_registry_and_metrics 的 expect
-    fn build_metrics() -> (prometheus::Registry, BusinessMetrics) {
+    fn build_metrics() -> (Arc<prometheus::Registry>, BusinessMetrics) {
         build_registry_and_metrics().expect("P9-1: 测试夹具 metrics 注册失败")
     }
 

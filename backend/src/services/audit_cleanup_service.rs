@@ -34,10 +34,10 @@ impl AuditCleanupService {
             self.retention_days
         );
 
-        let result = self
+        let result: sea_orm::DeleteResult = self
             .db
             .as_ref()
-            .execute_raw(Statement::from_string(
+            .execute_unprepared(Statement::from_string(
                 sea_orm::DatabaseBackend::Postgres,
                 sql,
             ))
@@ -59,10 +59,10 @@ impl AuditCleanupService {
             self.retention_days
         );
 
-        let result = self
+        let result: sea_orm::DeleteResult = self
             .db
             .as_ref()
-            .execute_raw(Statement::from_string(
+            .execute_unprepared(Statement::from_string(
                 sea_orm::DatabaseBackend::Postgres,
                 sql,
             ))
@@ -90,10 +90,10 @@ impl AuditCleanupService {
             (SELECT MIN(created_at) FROM omni_audit_logs) as oldest_omni_log,
             (SELECT MAX(created_at) FROM omni_audit_logs) as newest_omni_log";
 
-        let result = self
+        let result: Option<sea_orm::QueryResult> = self
             .db
             .as_ref()
-            .query_one_raw(Statement::from_string(
+            .query_one(Statement::from_string(
                 sea_orm::DatabaseBackend::Postgres,
                 sql.to_string(),
             ))

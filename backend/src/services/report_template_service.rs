@@ -387,10 +387,10 @@ impl ReportTemplateService {
 
         let stmt = Statement::from_string(sea_orm::DatabaseBackend::Postgres, paginated_sql);
 
-        let result = self
+        let result: Vec<sea_orm::QueryResult> = self
             .db
             .as_ref()
-            .query_all_raw(stmt)
+            .query_all(stmt)
             .await
             .map_err(|e| AppError::database(format!("SQL 执行失败：{}", e)))?;
 
@@ -417,7 +417,7 @@ impl ReportTemplateService {
             let mut row_data: Vec<String> = Vec::new();
             #[allow(clippy::needless_range_loop)]
             for i in 0..column_count {
-                let value: String = row.try_get("", &headers[i]).unwrap_or_default();
+                let value: String = row.try_get_by_index::<String>(i).unwrap_or_default();
                 row_data.push(value);
             }
             data.push(row_data);

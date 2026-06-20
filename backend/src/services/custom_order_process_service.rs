@@ -4,7 +4,7 @@
 //! 创建时间: 2026-06-17
 
 use chrono::Utc;
-use sea_orm::{ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter, Set};
+use sea_orm::{ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter, QuerySelect, Set};
 use std::sync::Arc;
 use thiserror::Error;
 
@@ -151,7 +151,7 @@ impl CustomOrderProcessService {
             _ => {}
         }
 
-        if let Some(n) = dto.notes {
+        if let Some(ref n) = dto.notes {
             active.notes = Set(Some(n.clone()));
         }
 

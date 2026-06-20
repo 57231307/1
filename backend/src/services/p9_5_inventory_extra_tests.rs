@@ -7,6 +7,7 @@
 mod tests {
     use rust_decimal::prelude::*;
     use rust_decimal::Decimal;
+    use rust_decimal_macros::dec;
     use std::str::FromStr;
 
     /// 库存移动类型

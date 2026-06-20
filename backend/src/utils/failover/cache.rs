@@ -86,25 +86,23 @@ impl FailoverCache {
     }
 
     /// 优先主缓存，失败时切备用
-    pub async fn get(&self, key: &str) -> Result<Option<Vec<u8>, String>, String> {
+    pub async fn get(&self, key: &str) -> Result<Option<Vec<u8>>, String> {
         match tokio::time::timeout(
             Duration::from_millis(self.config.primary_timeout_ms),
             self.get_primary(key),
         )
         .await
         {
-            Ok(Ok(Some(v))) => Ok(Ok(v)),
-            Ok(Ok(None)) => Ok(Ok(None)),
+            Ok(Ok(opt)) => Ok(opt.map(|v| v.to_vec())),
             Ok(Err(e)) => {
                 warn!("[缓存主备] 主缓存读取失败: {}，切到 LRU", e);
-                Ok(Err(e.to_string()))
+                Err(e.to_string())
             }
             Err(_) => {
                 warn!("[缓存主备] 主缓存读取超时，切到 LRU");
-                Ok(Err("timeout".to_string()))
+                Err("timeout".to_string())
             }
         }
-        .and_then(|r| r.map_err(|e| e).and_then(|opt| Ok(opt.map(|v| v.to_vec()))))
     }
 
     /// 获取熔断器

@@ -165,7 +165,7 @@ pub async fn get_slow_query_stats(
     let query_result = state
         .db
         .as_ref()
-        .query_all_raw(Statement::from_string(
+        .query_all(Statement::from_string(
             sea_orm::DatabaseBackend::Postgres,
             sql.to_string(),
         ))
@@ -197,7 +197,7 @@ pub async fn get_slow_query_stats(
     let count_row = state
         .db
         .as_ref()
-        .query_one_raw(Statement::from_string(
+        .query_one(Statement::from_string(
             sea_orm::DatabaseBackend::Postgres,
             count_sql.to_string(),
         ))

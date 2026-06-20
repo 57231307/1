@@ -146,16 +146,16 @@ impl AiExtendService {
             color_name: Set(dto.request.color_name.clone()),
             fabric_type: Set(dto.request.fabric_type.clone()),
             dye_type: Set(dto.request.dye_type.clone()),
-            recommended_temperature: Set(rust_decimal::Decimal::from_f64(
+            recommended_temperature: Set(rust_decimal::Decimal::from_f64_retain(
                 resp.recommended_params.temperature,
             )
             .unwrap_or_default()),
-            recommended_time_minutes: Set(resp.recommended_params.time_minutes),
-            recommended_ph_value: Set(rust_decimal::Decimal::from_f64(
+            recommended_time_minutes: Set(resp.recommended_params.time_minutes as i32),
+            recommended_ph_value: Set(rust_decimal::Decimal::from_f64_retain(
                 resp.recommended_params.ph_value,
             )
             .unwrap_or_default()),
-            recommended_liquor_ratio: Set(rust_decimal::Decimal::from_f64(
+            recommended_liquor_ratio: Set(rust_decimal::Decimal::from_f64_retain(
                 resp.recommended_params.liquor_ratio,
             )
             .unwrap_or_default()),

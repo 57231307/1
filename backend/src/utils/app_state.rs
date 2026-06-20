@@ -121,7 +121,7 @@ impl AppState {
         let quotation_convert_service = Arc::new(QuotationConvertService::new(db.clone()));
 
         Ok(Self {
-            db,
+            db: db.clone(),
             omni_audit,
             audit_cleanup,
             jwt_secret,

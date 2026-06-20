@@ -96,18 +96,18 @@ impl PurchaseDeliveryCalculator {
 
     /// 获取供应商平均交货周期
     async fn get_supplier_avg_lead_time(&self, supplier_id: i32) -> Result<(i32, i64), AppError> {
-        let result = self
+        let result: Option<sea_orm::QueryResult> = self
             .db
-            .query_one_raw(Statement::from_sql_and_values(
+            .query_one(Statement::from_sql_and_values(
                 sea_orm::DatabaseBackend::Postgres,
                 r#"
-                SELECT 
+                SELECT
                     COALESCE(
                         AVG(
-                            CASE 
-                                WHEN actual_delivery_date IS NOT NULL AND order_date IS NOT NULL 
-                                THEN actual_delivery_date - order_date 
-                                ELSE NULL 
+                            CASE
+                                WHEN actual_delivery_date IS NOT NULL AND order_date IS NOT NULL
+                                THEN actual_delivery_date - order_date
+                                ELSE NULL
                             END
                         )::INTEGER,
                         7
@@ -124,8 +124,8 @@ impl PurchaseDeliveryCalculator {
             .map_err(|e| AppError::internal(format!("查询供应商交货周期失败: {}", e)))?;
 
         if let Some(row) = result {
-            let avg_days: Option<i32> = row.try_get_by_index(0).ok();
-            let order_count: Option<i64> = row.try_get_by_index(1).ok();
+            let avg_days: Option<i32> = row.try_get_by_index::<i32>(0).ok();
+            let order_count: Option<i64> = row.try_get_by_index::<i64>(1).ok();
             // 缺记录时默认 7 天交货 + 0 单（业务接受估算）
             Ok((avg_days.unwrap_or(7), order_count.unwrap_or_default()))
         } else {
