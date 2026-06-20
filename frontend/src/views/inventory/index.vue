@@ -69,13 +69,13 @@
 
     <AdjustmentDialog
       v-model:visible="adjustmentDialogVisible"
-      :form="adjustmentForm"
+      v-model:form="adjustmentForm"
       @submit="handleSubmitAdjustment"
     />
 
     <TransferDialog
       v-model:visible="transferDialogVisible"
-      :form="transferForm"
+      v-model:form="transferForm"
       :warehouses="warehouses"
       @add-item="handleAddTransferItem"
       @remove-item="handleRemoveTransferItem"

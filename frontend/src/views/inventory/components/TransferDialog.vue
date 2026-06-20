@@ -2,6 +2,7 @@
   TransferDialog.vue - 新建调拨单对话框
   任务编号: P14 批 2 I-3 第 8 批
   拆分原 inventory/index.vue 的新建调拨单对话框
+  内部维护 localForm，避免直接突变 form prop
 -->
 <template>
   <el-dialog
@@ -11,12 +12,12 @@
     :close-on-click-modal="false"
     @update:model-value="onClose"
   >
-    <el-form :model="form" label-width="100px">
+    <el-form :model="localForm" label-width="100px">
       <el-row :gutter="20">
         <el-col :span="12">
           <el-form-item label="调出仓库">
             <el-select
-              v-model="form.from_warehouse_id"
+              v-model="localForm.from_warehouse_id"
               placeholder="请选择调出仓库"
               style="width: 100%"
             >
@@ -32,7 +33,7 @@
         <el-col :span="12">
           <el-form-item label="调入仓库">
             <el-select
-              v-model="form.to_warehouse_id"
+              v-model="localForm.to_warehouse_id"
               placeholder="请选择调入仓库"
               style="width: 100%"
             >
@@ -48,7 +49,7 @@
       </el-row>
       <el-divider content-position="left">调拨产品</el-divider>
       <div
-        v-for="(item, index) in form.items"
+        v-for="(item, index) in localForm.items"
         :key="index"
         style="display: flex; gap: 10px; margin-bottom: 10px"
       >
@@ -57,7 +58,7 @@
           type="danger"
           :icon="Delete"
           circle
-          :disabled="form.items.length <= 1"
+          :disabled="localForm.items.length <= 1"
           @click="emit('removeItem', index)"
         />
       </div>
@@ -67,7 +68,7 @@
       </el-button>
       <el-form-item label="备注" style="margin-top: 16px">
         <el-input
-          v-model="form.remark"
+          v-model="localForm.remark"
           type="textarea"
           :rows="2"
           placeholder="请输入备注"
@@ -83,9 +84,10 @@
 
 <script setup lang="ts">
 import { Delete, Plus } from '@element-plus/icons-vue'
+import { reactive, watch } from 'vue'
 import { getWarehouseLabel } from '../composables/invFmts'
 
-defineProps<{
+const props = defineProps<{
   visible: boolean
   form: any
   warehouses: any[]
@@ -93,10 +95,31 @@ defineProps<{
 
 const emit = defineEmits<{
   (e: 'update:visible', val: boolean): void
+  (e: 'update:form', val: any): void
   (e: 'submit'): void
   (e: 'addItem'): void
   (e: 'removeItem', index: number): void
 }>()
+
+// 浅拷贝避免突变 prop
+const localForm = reactive<any>({ items: [] })
+watch(
+  () => props.form,
+  newVal => {
+    Object.keys(localForm).forEach(k => delete localForm[k])
+    Object.assign(localForm, JSON.parse(JSON.stringify(newVal)))
+  },
+  { immediate: true, deep: true }
+)
+
+// 同步 localForm 回父组件 form prop
+watch(
+  localForm,
+  newVal => {
+    emit('update:form', JSON.parse(JSON.stringify(newVal)))
+  },
+  { deep: true }
+)
 
 const onClose = (val: boolean) => {
   emit('update:visible', val)
