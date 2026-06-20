@@ -7,19 +7,16 @@
  * 行为完全保持一致（仅结构重构）
  */
 import { ref, reactive } from 'vue'
+import type { FormInstance } from 'element-plus'
 import { ElMessage } from 'element-plus'
-import { FormInstance } from 'element-plus'
 import { salesReturnApi } from '@/api/sales-return'
 import { salesApi } from '@/api/sales'
 import { listCustomers } from '@/api/customer'
 import { productApi } from '@/api/product'
-import { loadIfNot, createLazyLoader } from '@/utils/lazy-loader'
-import { logger } from '@/utils/logger'
 
 /**
  * 销售退货 composable
  * 集中管理退货列表、表单、销售订单/客户/产品、对话框的业务状态
- * 对话框可见性由父组件本地 ref 管理
  */
 export function useSr() {
   // 列表 loading

@@ -2,7 +2,8 @@
   ReturnEditDialog.vue - 销售退货新建/编辑对话框
   任务编号: P14 批 2 I-3 第 7 批
   拆分原 sales-returns/index.vue 的新建/编辑对话框部分
-  包含主表单 + 退货明细表 + 总金额计算
+  内部维护 local formData，通过 props.initialData 同步初始值
+  行为完全保持一致（仅结构重构）
 -->
 <template>
   <el-dialog
@@ -14,7 +15,7 @@
   >
     <el-form
       ref="formRef"
-      :model="formData"
+      :model="localFormData"
       :rules="formRules"
       label-width="120px"
     >
@@ -22,7 +23,7 @@
         <el-col :span="12">
           <el-form-item label="销售订单号" prop="salesOrderId">
             <el-select
-              v-model="formData.salesOrderId"
+              v-model="localFormData.salesOrderId"
               placeholder="请选择销售订单"
               style="width: 100%"
               filterable
@@ -40,7 +41,7 @@
         <el-col :span="12">
           <el-form-item label="客户" prop="customerId">
             <el-select
-              v-model="formData.customerId"
+              v-model="localFormData.customerId"
               placeholder="请选择客户"
               style="width: 100%"
               filterable
@@ -60,7 +61,7 @@
         <el-col :span="12">
           <el-form-item label="退货日期" prop="returnDate">
             <el-date-picker
-              v-model="formData.returnDate"
+              v-model="localFormData.returnDate"
               type="date"
               placeholder="请选择退货日期"
               style="width: 100%"
@@ -71,7 +72,7 @@
         </el-col>
         <el-col :span="12">
           <el-form-item label="退货原因" prop="reason">
-            <el-select v-model="formData.reason" placeholder="请选择退货原因" style="width: 100%">
+            <el-select v-model="localFormData.reason" placeholder="请选择退货原因" style="width: 100%">
               <el-option label="质量问题" value="quality" />
               <el-option label="数量不符" value="quantity" />
               <el-option label="规格不符" value="specification" />
@@ -86,7 +87,7 @@
         <el-col :span="24">
           <el-form-item label="备注" prop="remarks">
             <el-input
-              v-model="formData.remarks"
+              v-model="localFormData.remarks"
               type="textarea"
               :rows="3"
               placeholder="请输入备注"
@@ -101,7 +102,7 @@
         <el-button type="primary" size="small" style="margin-bottom: 10px" @click="onAddItem">
           添加明细
         </el-button>
-        <el-table :data="formData.items" border style="width: 100%">
+        <el-table :data="localFormData.items" border style="width: 100%">
           <el-table-column label="产品名称" width="200">
             <template #default="{ row }">
               <el-select
@@ -163,7 +164,7 @@
         <el-col :span="12" :offset="12">
           <el-form-item label="退货总金额">
             <el-input-number
-              v-model="formData.totalAmount"
+              v-model="localFormData.totalAmount"
               :precision="2"
               :disabled="true"
               style="width: 100%"
@@ -181,8 +182,8 @@
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue'
-import type { FormInstance, FormRules } from 'element-plus'
+import { ref, watch, reactive } from 'vue'
+import type { FormInstance } from 'element-plus'
 
 const props = defineProps<{
   visible: boolean
@@ -191,13 +192,13 @@ const props = defineProps<{
   salesOrderList: any[]
   customerList: any[]
   productList: any[]
-  formRules: FormRules
+  formRules: any
   submitLoading: boolean
 }>()
 
 const emit = defineEmits<{
   (e: 'update:visible', val: boolean): void
-  (e: 'submit'): void
+  (e: 'submit', data: any): void
   (e: 'salesOrderChange', orderId: number): void
   (e: 'addItem'): void
   (e: 'removeItem', index: number): void
@@ -207,12 +208,23 @@ const emit = defineEmits<{
 
 const formRef = ref<FormInstance>()
 
+// 浅拷贝 props.formData 到 local（避免直接修改 prop）
+const localFormData = reactive<any>({})
+watch(
+  () => props.formData,
+  newVal => {
+    Object.keys(localFormData).forEach(k => delete localFormData[k])
+    Object.assign(localFormData, JSON.parse(JSON.stringify(newVal)))
+  },
+  { immediate: true, deep: true }
+)
+
 const onClose = (val: boolean) => {
   emit('update:visible', val)
 }
 
 const onSubmit = () => {
-  emit('submit')
+  emit('submit', localFormData)
 }
 
 const onSalesOrderChange = (orderId: number) => {
