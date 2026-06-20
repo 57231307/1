@@ -54,16 +54,6 @@ impl TenantService {
             .map_err(AppError::from)
     }
 
-    /// 根据编码获取租户
-    #[allow(dead_code)] // TODO(tech-debt): 业务接入后移除
-    pub async fn get_tenant_by_code(&self, code: &str) -> Result<Option<tenant::Model>, AppError> {
-        Tenant::find()
-            .filter(tenant::Column::Code.eq(code))
-            .one(self.db.as_ref())
-            .await
-            .map_err(AppError::from)
-    }
-
     /// 更新租户状态
     pub async fn update_tenant_status(
         &self,
@@ -99,33 +89,6 @@ impl TenantService {
         let items = paginator.fetch_page(page - 1).await?;
 
         Ok((items, total))
-    }
-
-    /// 添加用户到租户
-    #[allow(dead_code)] // TODO(tech-debt): 业务接入后移除
-    pub async fn add_user_to_tenant(
-        &self,
-        tenant_id: i32,
-        user_id: i32,
-        role: &str,
-        is_primary: bool,
-    ) -> Result<tenant_user::Model, AppError> {
-        let now = Utc::now();
-        let active_model = tenant_user::ActiveModel {
-            tenant_id: Set(tenant_id),
-            user_id: Set(user_id),
-            role_in_tenant: Set(role.to_string()),
-            is_primary: Set(is_primary),
-            joined_at: Set(now),
-            created_at: Set(now),
-            updated_at: Set(now),
-            ..Default::default()
-        };
-
-        active_model
-            .insert(self.db.as_ref())
-            .await
-            .map_err(AppError::from)
     }
 
     /// 获取租户用户列表
@@ -216,66 +179,6 @@ impl TenantService {
         if let Some(p) = plan_id {
             active_model.plan_id = Set(p);
         }
-        active_model.updated_at = Set(Utc::now());
-
-        active_model
-            .update(self.db.as_ref())
-            .await
-            .map_err(AppError::from)
-    }
-
-    /// 删除租户（软删除）
-    #[allow(dead_code)] // TODO(tech-debt): 业务接入后移除
-    pub async fn delete_tenant(&self, id: i32) -> Result<(), AppError> {
-        let tenant = Tenant::find_by_id(id)
-            .one(self.db.as_ref())
-            .await?
-            .ok_or_else(|| AppError::business("租户不存在"))?;
-
-        let mut active_model: TenantActiveModel = tenant.into();
-        active_model.status = Set("DELETED".to_string());
-        active_model.updated_at = Set(Utc::now());
-
-        active_model.update(self.db.as_ref()).await?;
-        Ok(())
-    }
-
-    /// 移除租户用户
-    #[allow(dead_code)] // TODO(tech-debt): 业务接入后移除
-    pub async fn remove_user_from_tenant(
-        &self,
-        tenant_id: i32,
-        user_id: i32,
-    ) -> Result<(), AppError> {
-        let result = TenantUser::delete_many()
-            .filter(tenant_user::Column::TenantId.eq(tenant_id))
-            .filter(tenant_user::Column::UserId.eq(user_id))
-            .exec(self.db.as_ref())
-            .await?;
-
-        if result.rows_affected == 0 {
-            return Err(AppError::not_found("用户不在此租户中"));
-        }
-        Ok(())
-    }
-
-    /// 更新租户用户角色
-    #[allow(dead_code)] // TODO(tech-debt): 业务接入后移除
-    pub async fn update_user_role(
-        &self,
-        tenant_id: i32,
-        user_id: i32,
-        role: &str,
-    ) -> Result<tenant_user::Model, AppError> {
-        let tenant_user = TenantUser::find()
-            .filter(tenant_user::Column::TenantId.eq(tenant_id))
-            .filter(tenant_user::Column::UserId.eq(user_id))
-            .one(self.db.as_ref())
-            .await?
-            .ok_or_else(|| AppError::not_found("用户不在此租户中"))?;
-
-        let mut active_model: tenant_user::ActiveModel = tenant_user.into();
-        active_model.role_in_tenant = Set(role.to_string());
         active_model.updated_at = Set(Utc::now());
 
         active_model
