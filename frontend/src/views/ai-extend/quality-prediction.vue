@@ -51,10 +51,10 @@ async function load() {
     const res = await listQualityPredictions({
       page: page.value,
       page_size: pageSize.value,
-      product_id: filter.product_id,
-      inspection_type: filter.inspection_type,
-      risk_level: filter.risk_level,
-      is_acknowledged: filter.is_acknowledged,
+      product_id: queryFilter.product_id,
+      inspection_type: queryFilter.inspection_type,
+      risk_level: queryFilter.risk_level,
+      is_acknowledged: queryFilter.is_acknowledged,
     })
     items.value = res.items
     total.value = res.total
@@ -183,22 +183,22 @@ onMounted(load)
     </div>
 
     <el-card class="filter-card">
-      <el-form :inline="true" :model="filter">
+      <el-form :inline="true" :model="queryFilter">
         <el-form-item label="产品 ID">
-          <el-input-number v-model="filter.product_id" :min="1" controls-position="right" style="width: 140px" />
+          <el-input-number v-model="queryFilter.product_id" :min="1" controls-position="right" style="width: 140px" />
         </el-form-item>
         <el-form-item label="检验类型">
-          <el-select v-model="filter.inspection_type" clearable style="width: 140px">
-            <el-option v-for="o in inspectionOptions" :key="o.value || 'all'" :label="o.label" :value="o.value || undefined" />
+          <el-select v-model="queryFilter.inspection_type" clearable style="width: 140px">
+            <el-option v-for="o in INSPECTION_TYPE_OPTIONS" :key="o.value" :label="o.label" :value="o.value" />
           </el-select>
         </el-form-item>
         <el-form-item label="风险等级">
-          <el-select v-model="filter.risk_level" clearable style="width: 140px">
-            <el-option v-for="o in riskOptions" :key="o.value || 'all'" :label="o.label" :value="o.value || undefined" />
+          <el-select v-model="queryFilter.risk_level" clearable style="width: 140px">
+            <el-option v-for="o in RISK_LEVEL_OPTIONS" :key="o.value" :label="o.label" :value="o.value" />
           </el-select>
         </el-form-item>
         <el-form-item label="确认状态">
-          <el-select v-model="filter.is_acknowledged" clearable style="width: 140px">
+          <el-select v-model="queryFilter.is_acknowledged" clearable style="width: 140px">
             <el-option v-for="o in ackOptions" :key="String(o.value)" :label="o.label" :value="o.value" />
           </el-select>
         </el-form-item>

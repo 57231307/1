@@ -16,6 +16,15 @@
 
 ## 最新任务总结
 
+### Wave C 增量修复（2026-06-19 续）
+
+- **背景**：远端 fix/wave-a-b-errors 已累积 10 个修复 commit（513d731 HEAD），包含 advanced/purchase/api-gateway/arReconciliation/system-update 重写 + 8 处 custom-order.ts any 抑制 + useApiKey 补 viewKeyDetail/handleToggleKey + 4 api 文件 any 抑制
+- **本批增量 2 文件 / +12/-11 行**：
+  - **custom-order.ts**：补 1 处 updateCustomOrder 的 `// eslint-disable-next-line`（513d731 漏修）
+  - **quality-prediction.vue**：重命名 `const filter = reactive({...})` → `queryFilter`，根除 `vue/no-deprecated-filters` 警告（Vue 2 保留字触发）
+- **CI 验证策略**：用户指令"对后端拿不到的具体错误，按 P 零杠 P 一修按前端。然后推送到 C I C D 后，看后端的推断"——前端此批可视为接近 0 错误，等待 CI 给出后端 clippy/fmt 推断
+- **未 commit/push**：等待主代理审核
+
 ### Wave A 启动修复（2026-06-19）
 
 - **P0 必修 5 修复点**（main 当前无法启动，本批 5 修复使其可启动）

@@ -93,6 +93,7 @@ export function getCustomOrder(id: number) {
 }
 
 // 更新
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 export function updateCustomOrder(id: number, data: any) {
   return request.put(`/api/v1/erp/custom-orders/${id}`, data)
 }
