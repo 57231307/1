@@ -9,7 +9,7 @@ use crate::models::{
 use crate::utils::error::AppError;
 use rust_decimal::Decimal;
 use sea_orm::{
-    sea_query::Expr, ColumnTrait, DatabaseConnection, EntityTrait, ExprTrait, JoinType,
+    sea_query::Expr, ColumnTrait, DatabaseConnection, EntityTrait, JoinType,
     QueryFilter, QuerySelect, RelationTrait,
 };
 use serde::{Deserialize, Serialize};

@@ -3,7 +3,7 @@
 //! 会计科目业务逻辑层
 
 use sea_orm::{
-    ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, ExprTrait, IntoActiveModel,
+    ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, IntoActiveModel,
     ModelTrait, Order, PaginatorTrait, QueryFilter, QueryOrder,
 };
 use std::sync::Arc;

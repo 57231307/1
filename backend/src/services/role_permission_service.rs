@@ -1,5 +1,5 @@
 use sea_orm::{
-    ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, ExprTrait, Order,
+    ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, Order,
     PaginatorTrait, QueryFilter, QueryOrder, TransactionTrait,
 };
 use std::sync::Arc;

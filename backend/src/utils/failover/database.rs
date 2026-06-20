@@ -17,7 +17,7 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use async_trait::async_trait;
-use sea_orm::{ConnectionTrait, DatabaseConnection, DbBackend, DbErr, Statement};
+use sea_orm::{ActiveModelTrait, ConnectionTrait, DatabaseConnection, DbBackend, DbErr, Statement};
 use tracing::{info, warn};
 
 use super::circuit_breaker::CircuitBreaker;

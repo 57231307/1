@@ -5,7 +5,7 @@
 //! 创建时间: 2026-06-16
 
 use chrono::Utc;
-use sea_orm::{ColumnTrait, EntityTrait, QueryFilter};
+use sea_orm::{ActiveModelTrait, ColumnTrait, EntityTrait, QueryFilter};
 use serde::{Deserialize, Serialize};
 
 use crate::middleware::auth_context::AuthContext;

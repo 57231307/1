@@ -187,38 +187,36 @@ pub struct SearchHit<T> {
 }
 
 /// ES 客户端 trait
+///
+/// 全部方法使用 `serde_json::Value` 而非泛型 `T`，避免 async trait 含泛型参数
+/// 触发 E0038 trait not dyn compatible（`Arc<dyn SearchClient>` 用法需要 dyn 兼容）。
+/// 调用方在传参前 `serde_json::to_value(doc)?` 即可。
 #[async_trait]
 pub trait SearchClient: Send + Sync {
     /// 索引文档
-    async fn index_doc<T: Serialize + Send + Sync>(
+    async fn index_doc(
         &self,
         index: &str,
         id: &str,
-        doc: &T,
-    ) -> Result<(), SearchError>
-    where
-        T: 'async_trait;
+        doc: &serde_json::Value,
+    ) -> Result<(), SearchError>;
 
     /// 搜索
-    async fn search<T>(
+    async fn search(
         &self,
         index: &str,
         query: &SearchQuery,
-    ) -> Result<SearchResult<T>, SearchError>
-    where
-        T: for<'de> Deserialize<'de> + Send + 'async_trait;
+    ) -> Result<SearchResult<serde_json::Value>, SearchError>;
 
     /// 删除文档
     async fn delete_doc(&self, index: &str, id: &str) -> Result<(), SearchError>;
 
     /// 批量索引
-    async fn bulk_index<T: Serialize + Send + Sync>(
+    async fn bulk_index(
         &self,
         index: &str,
-        docs: &[(String, T)],
-    ) -> Result<usize, SearchError>
-    where
-        T: 'async_trait;
+        docs: &[(String, serde_json::Value)],
+    ) -> Result<usize, SearchError>;
 }
 
 /// 搜索错误
@@ -272,30 +270,29 @@ impl ElasticClient {
 
 #[async_trait]
 impl SearchClient for ElasticClient {
-    async fn index_doc<T: Serialize + Send + Sync>(
+    async fn index_doc(
         &self,
         index: &str,
         id: &str,
-        doc: &T,
+        doc: &serde_json::Value,
     ) -> Result<(), SearchError> {
-        let value = serde_json::to_value(doc).map_err(|e| SearchError::Serialize(e.to_string()))?;
         let mut storage = self.storage.lock().await;
         storage
             .entry(index.to_string())
             .or_insert_with(HashMap::new)
-            .insert(id.to_string(), value);
+            .insert(id.to_string(), doc.clone());
         Ok(())
     }
 
-    async fn search<T: for<'de> Deserialize<'de> + Send>(
+    async fn search(
         &self,
         index: &str,
         query: &SearchQuery,
-    ) -> Result<SearchResult<T>, SearchError> {
+    ) -> Result<SearchResult<serde_json::Value>, SearchError> {
         let storage = self.storage.lock().await;
         let docs = storage.get(index).cloned().unwrap_or_default();
 
-        let mut hits: Vec<SearchHit<T>> = docs
+        let mut hits: Vec<SearchHit<serde_json::Value>> = docs
             .iter()
             .filter(|(_, v)| match &query.q {
                 Some(q) => serde_json::to_string(v)
@@ -303,16 +300,11 @@ impl SearchClient for ElasticClient {
                     .unwrap_or(false),
                 None => true,
             })
-            .map(|(id, value)| {
-                let source: T = serde_json::from_value(value.clone()).unwrap_or_else(|_| {
-                    panic!("deserialize failed for {}", id)
-                });
-                SearchHit {
-                    id: id.clone(),
-                    score: 1.0,
-                    source,
-                    highlight: None,
-                }
+            .map(|(id, value)| SearchHit {
+                id: id.clone(),
+                score: 1.0,
+                source: value.clone(),
+                highlight: None,
             })
             .collect();
 
@@ -342,10 +334,10 @@ impl SearchClient for ElasticClient {
         Ok(())
     }
 
-    async fn bulk_index<T: Serialize + Send + Sync>(
+    async fn bulk_index(
         &self,
         index: &str,
-        docs: &[(String, T)],
+        docs: &[(String, serde_json::Value)],
     ) -> Result<usize, SearchError> {
         let mut count = 0;
         for (id, doc) in docs {
@@ -368,21 +360,24 @@ impl SearchSyncer {
 
     /// 同步销售订单
     pub async fn sync_sales_order(&self, doc: &SalesOrderDoc) -> Result<(), SearchError> {
+        let value = serde_json::to_value(doc).map_err(|e| SearchError::Serialize(e.to_string()))?;
         self.client
-            .index_doc(indices::SALES_ORDERS, &doc.order_no, doc)
+            .index_doc(indices::SALES_ORDERS, &doc.order_no, &value)
             .await
     }
 
     /// 同步客户
     pub async fn sync_customer(&self, doc: &CustomerDoc) -> Result<(), SearchError> {
         let id = doc.id.to_string();
-        self.client.index_doc(indices::CUSTOMERS, &id, doc).await
+        let value = serde_json::to_value(doc).map_err(|e| SearchError::Serialize(e.to_string()))?;
+        self.client.index_doc(indices::CUSTOMERS, &id, &value).await
     }
 
     /// 同步产品
     pub async fn sync_product(&self, doc: &ProductDoc) -> Result<(), SearchError> {
         let id = doc.id.to_string();
-        self.client.index_doc(indices::PRODUCTS, &id, doc).await
+        let value = serde_json::to_value(doc).map_err(|e| SearchError::Serialize(e.to_string()))?;
+        self.client.index_doc(indices::PRODUCTS, &id, &value).await
     }
 }
 
@@ -513,8 +508,9 @@ mod tests {
             items: vec![],
             tenant_id: "t1".to_string(),
         };
+        let value = serde_json::to_value(&doc).unwrap();
         client
-            .index_doc(indices::SALES_ORDERS, "SO-001", &doc)
+            .index_doc(indices::SALES_ORDERS, "SO-001", &value)
             .await
             .unwrap();
         assert_eq!(client.doc_count(indices::SALES_ORDERS).await, 1);
@@ -534,13 +530,14 @@ mod tests {
                 items: vec![],
                 tenant_id: "t1".to_string(),
             };
+            let value = serde_json::to_value(&doc).unwrap();
             client
-                .index_doc(indices::SALES_ORDERS, &format!("SO-{:03}", i), &doc)
+                .index_doc(indices::SALES_ORDERS, &format!("SO-{:03}", i), &value)
                 .await
                 .unwrap();
         }
         let query = SearchQuery::new().with_keyword("客户");
-        let result: SearchResult<SalesOrderDoc> = client
+        let result: SearchResult<serde_json::Value> = client
             .search(indices::SALES_ORDERS, &query)
             .await
             .unwrap();
@@ -561,7 +558,8 @@ mod tests {
             tier: "C".to_string(),
             tenant_id: "t1".to_string(),
         };
-        client.index_doc(indices::CUSTOMERS, "1", &doc).await.unwrap();
+        let value = serde_json::to_value(&doc).unwrap();
+        client.index_doc(indices::CUSTOMERS, "1", &value).await.unwrap();
         assert_eq!(client.doc_count(indices::CUSTOMERS).await, 1);
         client.delete_doc(indices::CUSTOMERS, "1").await.unwrap();
         assert_eq!(client.doc_count(indices::CUSTOMERS).await, 0);
@@ -570,23 +568,21 @@ mod tests {
     #[tokio::test]
     async fn test_elastic_client_bulk_index() {
         let client = ElasticClient::mock();
-        let docs: Vec<(String, ProductDoc)> = (0..3)
+        let docs: Vec<(String, serde_json::Value)> = (0..3)
             .map(|i| {
-                (
-                    format!("P{:03}", i),
-                    ProductDoc {
-                        id: i,
-                        code: format!("P{:03}", i),
-                        name: format!("产品 {}", i),
-                        category: None,
-                        spec: None,
-                        unit: "米".to_string(),
-                        color_no: None,
-                        pantone_code: None,
-                        price: 10.0 * i as f64,
-                        tenant_id: "t1".to_string(),
-                    },
-                )
+                let doc = ProductDoc {
+                    id: i,
+                    code: format!("P{:03}", i),
+                    name: format!("产品 {}", i),
+                    category: None,
+                    spec: None,
+                    unit: "米".to_string(),
+                    color_no: None,
+                    pantone_code: None,
+                    price: 10.0 * i as f64,
+                    tenant_id: "t1".to_string(),
+                };
+                (format!("P{:03}", i), serde_json::to_value(&doc).unwrap())
             })
             .collect();
         let count = client.bulk_index(indices::PRODUCTS, &docs).await.unwrap();

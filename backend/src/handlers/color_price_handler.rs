@@ -407,7 +407,7 @@ pub async fn create_customer_special_price(
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     let tenant_id = extract_tenant_id(&auth)? as i64;
     use crate::models::customer_color_price;
-    use sea_orm::{Set};
+    use sea_orm::{ActiveModelTrait, Set};
 
     let now = chrono::Utc::now();
     let active = customer_color_price::ActiveModel {

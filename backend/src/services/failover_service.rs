@@ -11,7 +11,7 @@
 //! - Prometheus 指标导出
 
 use chrono::Utc;
-use sea_orm::{ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter, Set};
+use sea_orm::{QuerySelect, ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter, Set};
 use std::sync::Arc;
 use tracing::{info, warn};
 

@@ -10,7 +10,7 @@
 //! 拆分自原 `report_engine_service.rs` 的"数据聚合"段。
 
 use chrono::Utc;
-use sea_orm::{ColumnTrait, EntityTrait, QueryFilter, QueryOrder};
+use sea_orm::{ActiveModelTrait, ColumnTrait, EntityTrait, QueryFilter, QueryOrder};
 use std::collections::HashMap;
 use std::time::Instant;
 use tracing::info;

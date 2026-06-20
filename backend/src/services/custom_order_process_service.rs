@@ -4,7 +4,7 @@
 //! 创建时间: 2026-06-17
 
 use chrono::Utc;
-use sea_orm::{ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter, Set};
+use sea_orm::{ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter, Set};
 use std::sync::Arc;
 use thiserror::Error;
 

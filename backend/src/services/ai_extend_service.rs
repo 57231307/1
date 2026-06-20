@@ -10,7 +10,7 @@
 //! 5. 看板聚合
 
 use sea_orm::{
-    ActiveModelTrait, ColumnTrait, EntityTrait, PaginatorTrait, QueryFilter, QueryOrder, Set,
+    QuerySelect, ActiveModelTrait, ColumnTrait, EntityTrait, PaginatorTrait, QueryFilter, QueryOrder, Set,
 };
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
