@@ -461,7 +461,8 @@ const handleSubmitTransfer = async () => {
   }
   try {
     const { inventoryApi } = await import('@/api/inventory')
-    await inventoryApi.createTransfer(transferForm.value)
+    // 提交时剥离 null 字段（form 模板里允许 null，但 API 要求 number）
+    await inventoryApi.createTransfer(transferForm.value as any)
     ElMessage.success('调拨单创建成功')
     transferDialogVisible.value = false
     if (activeTab.value === 'transfer') {

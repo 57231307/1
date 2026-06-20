@@ -88,7 +88,7 @@ const props = defineProps<{
   total: number
   loading: boolean
   queryParams: any
-  dialogMode: 'list' | 'view'
+  dialogMode: 'list' | 'view' | 'add' | 'edit'
 }>()
 
 const emit = defineEmits<{

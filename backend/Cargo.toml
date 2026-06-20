@@ -1,6 +1,6 @@
 [package]
 name = "bingxi-backend"
-version = "2026.617.0001"
+version = "2026.617.1"
 edition = "2021"
 # 与 rust-toolchain.toml / .github/workflows/ci-cd.yml (RUST_VERSION=1.94.1) 保持一致
 # sea-orm 2.0.0-rc.40 与 sqlx 0.9 要求的最低 rustc 版本
