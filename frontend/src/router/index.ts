@@ -514,6 +514,13 @@ const routes = [
         component: () => import('@/views/tenant-billing/index.vue'),
         meta: { title: '租户计费管理', requiresAuth: true },
       },
+      // 新增路由 - 主备隔离监控
+      {
+        path: 'admin/failover',
+        name: 'AdminFailover',
+        component: () => import('@/views/admin/failover.vue'),
+        meta: { title: '主备隔离监控', requiresAuth: true },
+      },
       // 新增路由 - 采购检验
       {
         path: 'purchase-inspection',
