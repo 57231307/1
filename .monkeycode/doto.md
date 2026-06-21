@@ -379,6 +379,8 @@
 | **批次 9.4 子批 1 20 项冗余 allow** | ✅ 已完成（PR #216）| commit `d0dab01f`，20 项冗余 #[allow(dead_code)] 删除（11 文件），CI 5/5 success |
 | **批次 9.2 16 个未引用 .vue** | ✅ 已完成（PR #217）| commit `c31023b0`，16 文件删除（-1928 行），CI 5/5 success |
 | **批次 9.1 5 项剩余冗余 allow** | ✅ 已完成（PR #218）| commit `5584fd82`，5 项删除（slow_query_collector + quotation_pricing），CI 5/5 success |
+| **批次 9.4 子批 2 services 41 项真死代码** | ✅ 已完成（PR #219）| commit `dc43a32`，41 项 #[allow(dead_code)] 删除（31 文件 / -1792 行），CI 5/5 success（含 E0584 修复）|
+| **批次 9.4 子批 3 utils+middleware+cli+handlers 29 项真死代码** | ✅ 已完成（PR #220）| commit `5ecff2b`，29 项删除（16 文件 / -638 行，含整个 query_builder.rs 文件级删除），CI 5/5 success（含 E0774 修复）|
 
 ### P14+ 候选清单（roadmap v0.3 剩余，6 任务）
 

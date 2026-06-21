@@ -69,13 +69,31 @@
 - CI 5/5 success
 
 #### 批次 9.1（PR #218 merged `5584fd82`）
-- 删 **5 项**冗余 `#[allow(dead_code)]` 抑制（剩余批次）
-- 2 文件：slow_query_collector (4 项) + quotation_pricing_service (1 项)
-- 全部有真实引用（main.rs:360 / 366 / collect_once 内部调用 / tests/）
+- 删 **5 项**剩余冗余 `#[allow(dead_code)]` 抑制
+- 2 文件：slow_query_collector (4) + quotation_pricing (1)
 - CI 5/5 success
 
-#### 24 项冗余 allow 全部完成
+#### 批次 9.4 子批 2 services（PR #219 merged `dc43a32`）
+- 删 **41 项**真死代码 services `#[allow(dead_code)]`
+- 31 文件 / -1792 行：email_template/email_log/account_subject/event_bus/report_subscription/ar_invoice/business_trace/assist_accounting/currency/finance_payment/product/order_change_history/accounting_period/export/quality_inspection/ar_collection/api_key/budget_management/capacity/enhanced_logger/field_permission/five_dimension_query/inventory_reservation/inventory_stock/mrp_engine/operation_log/report/{job,tpl}/sales_price/system_update/customer
+- 修复 3 文件 impl 块缺失闭合 `}` (account_subject/enhanced_logger/export_service)
+- 修复 2 文件孤儿 `///` 文档注释 (sales_price/field_permission) - E0584
+- 39 A 类真删 + 3 C 类（field_permission 2 + system_update 1）仅删抑制
+- CI 5/5 success
+
+#### 批次 9.4 子批 3 utils+handlers+middleware+cli（PR #220 merged `5ecff2b`）
+- 删 **29 项**真死代码剩余 `#[allow(dead_code)]`
+- 16 文件 / -638 行：query_builder.rs（整个文件删除）/admin_checker/quality_inspection_handler/inventory_stock_handler/customer_handler/slow_query_handler/operation_log/security_headers/tenant/api_gateway/permission/logger_middleware/audit_context/auth_context/cli/util
+- 修复 4 文件孤儿 `#[derive(...)]` 属性（inventory_stock 2 + customer + quality_inspection） - E0774
+- 28 A 类真删 + 1 B 类（admin_checker::clear_admin_role_cache 被 test 引用，函数保留，删抑制）
+- 1 个文件级删除（query_builder.rs）+ utils/mod.rs 同步移除 `pub mod query_builder;`
+- CI 5/5 success
+
+#### 24 项冗余 allow + 112 项真死代码 全部完成（2026-06-21）
 - 批次 9.4 子批 1: 20 项（11 文件） + 批次 9.1: 5 项（2 文件）= **25 项**冗余 allow 全部删除
+- 批次 9.4 子批 2/3: 41 项 + 29 项 = **70 项**真死代码 `#[allow(dead_code)]` 全部删除
+- 累计删除：95 文件 / -4358 行
+- 修复 9 个 E0xxx 编译错误：E0584 (2 文件) + E0774 (4 文件) + impl 缺 `}` (3 文件)
 - 待办：9 个路由未挂载 view 决策（bi/bpm/approval/crm/leads/crm/opportunities/admin/failover/report/templates/security/ChangePassword/security/TwoFactorSetup）
 
 #### 治理路线图进度（2026-06-21）
@@ -84,11 +102,11 @@
 - ✅ 批次 9.4 子批 1（20 项冗余 allow）
 - ✅ 批次 9.2（16 个未引用 .vue）
 - ✅ 批次 9.1（5 项剩余冗余 allow）
-- 🔵 批次 9.4 子批 2/3（112 项真死代码 allow 评估 + 处理）— 部分处理（如慢查询 4 项已合并到 9.1）
+- ✅ 批次 9.4 子批 2/3（70 项真死代码 allow，41 services + 29 utils/handlers/middleware/cli）
 - 🔵 批次 9.5（9 个路由未挂载 view 决策）
 
 #### main HEAD 状态
-- `5584fd82`（批次 9.1 合并点）
+- `5ecff2b`（批次 9.4 子批 3 合并点）
 
 ### CI 批次 9.3+ 完成（2026-06-21）
 
