@@ -209,12 +209,12 @@ impl WebhookService {
             .header("Content-Type", "application/json")
             .header("User-Agent", "BingXi-ERP-Webhook/1.0");
 
-        // 如果有签名密钥，添加签名头
+        // P1-B 修复：出站签名从 SHA256(body || secret) 改为 HMAC-SHA256(secret, body)，
+        // 与 webhook_signature.rs 入站验证使用同一份算法（sign_webhook_payload）。
+        // 旧实现 SHA256(body || secret) 存在长度扩展攻击风险：攻击者可在不知 secret 的情况下
+        // 推算 secret + padding 后的扩展摘要。
         if let Some(secret) = secret {
-            // 计算 SHA256(body || secret) 摘要作为签名
-            // 注意：保留与原 `ring::digest::SHA256` 等价的拼接摘要行为
-            let signature =
-                crate::utils::hash::sha256_hex_multi(&[body.as_bytes(), secret.as_bytes()]);
+            let signature = crate::utils::webhook_signature::sign_webhook_payload(body, secret);
             request = request.header("X-Webhook-Signature", format!("sha256={}", signature));
         }
 
