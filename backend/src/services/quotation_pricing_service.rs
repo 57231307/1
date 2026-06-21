@@ -206,7 +206,6 @@ impl QuotationPricingService {
     }
 
     /// 单元测试用阶梯价匹配（pub(crate) 暴露给 tests/ 集成测试）
-    #[allow(dead_code)] // TODO(tech-debt): 测试用，由 tests/quotation_pricing_test.rs 调用
     pub(crate) fn match_tier_for_unit_test(
         base_price: Decimal,
         quantity: Decimal,
