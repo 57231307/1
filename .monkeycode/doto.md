@@ -385,6 +385,8 @@
 | **批次 9.5.1 5 view 挂载 + 修 2 P0 死链** | ✅ 已完成（PR #221-#225, 5/5 merged）| 5 个独立 PR（BPM 审批/CRM 线索/CRM 商机/主备监控/2FA+改密），CI 5/5 success 各 PR，累计 5 文件 / +35 行 |
 | **批次 9.5.2 删除 bi/index.vue** | ✅ 已完成（PR #226）| commit `c135e4c`，删除 10 行 pure wrapper，CI 5/5 success |
 | **批次 9.5.3 报表模板重构** | ✅ 已完成（PR #228, 方案 D）| commit `42fb4fc`，删除 dist/test-version-P0-{2,3,4,5}/ 29 文件 + frontend/src/views/report/ 16 文件 = 46 文件 / -3624 行 / CI 5/5 success。放弃新版重构（旧版 report-templates/index.vue 保留）|
+| **安全批次：7 PR 全部 CI 通过并 merged（2026-06-22）** | ✅ 已完成 | #229 DB迁移 + #230 SQL注入 + #231 部署基础设施 + #232 Webhook HMAC + #233 前端XSS + #234 cookie_secret fail-fast + #235 测试密钥收敛；main HEAD: `ee5abb2` |
+| **通知用户手动全新部署** | 🔵 待通知用户 | 用户指令：待手动全新部署（禁止热更新）；部署前需配置 32+ 字节 COOKIE_SECRET 环境变量 |
 
 ### P14+ 候选清单（roadmap v0.3 剩余，6 任务）
 

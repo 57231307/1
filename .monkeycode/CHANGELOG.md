@@ -792,3 +792,18 @@
 - **扫描原始数据**：`/tmp/scan_v3_output.md`（1,043 行表格）+ `/tmp/dead_pub_items_v3.txt`
 - **CI 验证策略**：不本地编译（遵守"禁止本地编译"规则），依赖 GitHub Actions
 - **下一步**：等待用户决策修复策略（删除/抑制/接入），启动 Wave C 修复
+
+### 安全修复批次（2026-06-21 PR 合并）
+
+| PR | 修复内容 | 状态 | CI |
+|----|---------|------|-----|
+| #229 | P0-A DB 迁移根治（Some(5)→None + m0019） | ✅ merged | 5/5 |
+| #230 | P0-B SQL 注入根治（删除 execute_sql_report） | ✅ merged | 5/5 |
+| #231 | P1-A 部署基础设施（config 备份 + slow_query + /health） | ✅ merged | 5/5 |
+| #232 | P1-B Webhook HMAC-SHA256（出站 + 入站统一） | ✅ merged | 5/5 |
+| #233 | P1-C 前端 XSS（escapeHtml + 8 处 document.write） | ✅ merged | 5/5 |
+| #234 | P2-B cookie_secret fail-fast（< 32 字节 exit(1)） | ✅ merged | 5/5 |
+| #235 | P2-C 测试密钥收敛（统一 TEST_JWT_SECRET 常量） | ✅ merged | 5/5 |
+
+- **已合并到 main HEAD**：`ee5abb2`（2026-06-22 05:28 UTC+8）
+- **用户指令**：待手动全新部署（禁止热更新）
