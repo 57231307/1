@@ -16,6 +16,15 @@
 
 ## 最新任务总结
 
+### CI 批次 8 子批 1 完成（2026-06-20）
+
+- **PR #213 merged**（commit `8da1f6c6`，squash 合并）
+- **目标**：后端业务路径 unwrap 整改（示范）
+- **变更**：`backend/src/services/event_bus.rs` 新增 `lock_event_bus_state()` helper，6 处 inline `EVENT_BUS_STATE.lock().expect(...)` 全部统一封装（+15 / -6 行）
+- **关键发现**：体检 185 处 unwrap 中 95% 是 idiomatic Rust 测试代码（建议保留），4% 是合理 fail-fast 启动 panic（建议保留），1% 是业务路径锁中毒（本批示范）
+- **CI 验证**：5/5 success（构建后端、运行测试、前端类型检查、构建前端、前端测试）
+- **main HEAD**：`8da1f6c6`
+
 ### CI 批次 6 子批 1+2 完成（2026-06-20）
 
 - **PR #211 + #212 merged**（commits `42815266` + `7513f38f`）
