@@ -242,6 +242,13 @@ const routes = [
         component: () => import('@/views/crm/leads/index.vue'),
         meta: { title: '线索管理', requiresAuth: true },
       },
+      // 新增路由 - CRM商机管理
+      {
+        path: 'crm/opportunities',
+        name: 'CRMOpportunities',
+        component: () => import('@/views/crm/opportunities/index.vue'),
+        meta: { title: '商机管理', requiresAuth: true },
+      },
       {
         path: 'advanced',
         name: 'Advanced',
