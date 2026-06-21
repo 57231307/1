@@ -99,6 +99,7 @@ import { ElMessage, ElMessageBox } from 'element-plus'
 import { Plus, Download, Printer } from '@element-plus/icons-vue'
 import { getQualityStandard, publishQualityStandard, type QualityStandard } from '@/api/quality'
 import { logger } from '@/utils/logger'
+import { escapeHtml } from '@/utils/print'
 
 const emit = defineEmits<{
   openApprove: [row: QualityStandard]
@@ -213,10 +214,10 @@ const handlePrint = () => {
     .map(
       item => `
     <tr>
-      <td>${item.standard_code}</td><td>${item.standard_name}</td>
-      <td>${item.type === 'product' ? '产品标准' : '工艺标准'}</td>
-      <td>${item.version}</td><td>${getStatusLabel(item.status)}</td>
-      <td>${item.created_by_name || '-'}</td>
+      <td>${escapeHtml(item.standard_code)}</td><td>${escapeHtml(item.standard_name)}</td>
+      <td>${escapeHtml(item.type === 'product' ? '产品标准' : '工艺标准')}</td>
+      <td>${escapeHtml(item.version)}</td><td>${escapeHtml(getStatusLabel(item.status))}</td>
+      <td>${escapeHtml(item.created_by_name || '-')}</td>
     </tr>
   `
     )

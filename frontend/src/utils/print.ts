@@ -33,7 +33,7 @@ function generatePrintHTML<T extends Record<string, unknown>>(options: PrintOpti
   const headerCells = columns
     .map(
       col =>
-        `<th style="padding: 8px 12px; border: 1px solid #333; background: #f5f5f5; text-align: ${col.align || 'left'}; ${col.width ? `width: ${col.width}` : ''}">${col.title}</th>`
+        `<th style="padding: 8px 12px; border: 1px solid #333; background: #f5f5f5; text-align: ${col.align || 'left'}; ${col.width ? `width: ${col.width}` : ''}">${escapeHtml(col.title)}</th>`
     )
     .join('')
 
@@ -43,7 +43,7 @@ function generatePrintHTML<T extends Record<string, unknown>>(options: PrintOpti
         .map(col => {
           const value = row[col.key]
           const formatted = col.formatter ? col.formatter(value, row) : (value ?? '')
-          return `<td style="padding: 6px 12px; border: 1px solid #333; text-align: ${col.align || 'left'}">${formatted}</td>`
+          return `<td style="padding: 6px 12px; border: 1px solid #333; text-align: ${col.align || 'left'}">${escapeHtml(formatted)}</td>`
         })
         .join('')
       return `<tr>${cells}</tr>`
@@ -52,7 +52,7 @@ function generatePrintHTML<T extends Record<string, unknown>>(options: PrintOpti
 
   const infoSection = extraInfo
     ? `<div style="margin: 16px 0; display: flex; gap: 32px;">
-        ${extraInfo.map(info => `<span><strong>${info.label}:</strong> ${info.value}</span>`).join('')}
+        ${extraInfo.map(info => `<span><strong>${escapeHtml(info.label)}:</strong> ${escapeHtml(info.value)}</span>`).join('')}
        </div>`
     : ''
 
@@ -64,7 +64,7 @@ function generatePrintHTML<T extends Record<string, unknown>>(options: PrintOpti
     <html>
     <head>
       <meta charset="utf-8">
-      <title>${title}</title>
+      <title>${escapeHtml(title)}</title>
       <style>
         @media print {
           @page { size: ${orientation}; margin: 15mm; }
@@ -79,7 +79,7 @@ function generatePrintHTML<T extends Record<string, unknown>>(options: PrintOpti
       </style>
     </head>
     <body>
-      <h1>${title}</h1>
+      <h1>${escapeHtml(title)}</h1>
       <div class="print-meta">打印时间: ${printDate} | 共 ${data.length} 条记录</div>
       ${infoSection}
       <table>
@@ -119,7 +119,6 @@ export function printData<T extends Record<string, unknown>>(options: PrintOptio
   }
   ElMessage.success('打印窗口已打开')
 }
-
 /**
  * 打印单个单据（含表头信息、明细行、页脚）
  */
@@ -134,14 +133,14 @@ export function printSingleDocument<T extends Record<string, unknown>>(options: 
 
   const infoHTML = Object.entries(info)
     .map(
-      ([key, value]) => `<span style="margin-right: 32px;"><strong>${key}:</strong> ${value}</span>`
+      ([key, value]) => `<span style="margin-right: 32px;"><strong>${escapeHtml(key)}:</strong> ${escapeHtml(value)}</span>`
     )
     .join('')
 
   const headerCells = itemColumns
     .map(
       col =>
-        `<th style="padding: 8px 12px; border: 1px solid #333; background: #f5f5f5; text-align: ${col.align || 'left'}">${col.title}</th>`
+        `<th style="padding: 8px 12px; border: 1px solid #333; background: #f5f5f5; text-align: ${col.align || 'left'}">${escapeHtml(col.title)}</th>`
     )
     .join('')
 
@@ -151,7 +150,7 @@ export function printSingleDocument<T extends Record<string, unknown>>(options: 
         .map(col => {
           const value = row[col.key]
           const formatted = col.formatter ? col.formatter(value, row) : (value ?? '')
-          return `<td style="padding: 6px 12px; border: 1px solid #333; text-align: ${col.align || 'left'}">${formatted}</td>`
+          return `<td style="padding: 6px 12px; border: 1px solid #333; text-align: ${col.align || 'left'}">${escapeHtml(formatted)}</td>`
         })
         .join('')
       return `<tr>${cells}</tr>`
@@ -161,7 +160,7 @@ export function printSingleDocument<T extends Record<string, unknown>>(options: 
   const footerHTML = footer
     ? `<div style="margin-top: 20px; display: flex; justify-content: space-between;">
         ${Object.entries(footer)
-          .map(([key, value]) => `<span><strong>${key}:</strong> ${value}</span>`)
+          .map(([key, value]) => `<span><strong>${escapeHtml(key)}:</strong> ${escapeHtml(value)}</span>`)
           .join('')}
        </div>`
     : ''
@@ -174,7 +173,7 @@ export function printSingleDocument<T extends Record<string, unknown>>(options: 
     <html>
     <head>
       <meta charset="utf-8">
-      <title>${title}</title>
+      <title>${escapeHtml(title)}</title>
       <style>
         @media print {
           @page { size: A4; margin: 15mm; }
@@ -189,7 +188,7 @@ export function printSingleDocument<T extends Record<string, unknown>>(options: 
       </style>
     </head>
     <body>
-      <h1>${title}</h1>
+      <h1>${escapeHtml(title)}</h1>
       <div class="info-section">${infoHTML}</div>
       <table>
         <thead><tr>${headerCells}</tr></thead>
@@ -216,4 +215,56 @@ export function printSingleDocument<T extends Record<string, unknown>>(options: 
   printWindow.onload = () => {
     printWindow.print()
   }
+}
+
+/**
+ * HTML 实体转义函数（P1-C MED-4 修复）
+ *
+ * 用于 printWindow.document.write 之前对用户可控字符串做转义，
+ * 防止 XSS 攻击（攻击者可通过设置客户名/产品名/订单备注等字段嵌入 `<script>`）。
+ *
+ * 为什么不直接用 DOMPurify：
+ * - 打印 HTML 是 window 内部 document.write，DOMPurify 需等待 DOM 挂载；
+ *   转义函数无依赖，开销可忽略，可在任何地方调用
+ * - 转义仅针对 5 个特殊字符（< > & " '），不破坏中文/数字
+ *
+ * 防御范围：
+ * - `<` → `&lt;`
+ * - `>` → `&gt;`
+ * - `&` → `&amp;`
+ * - `"` → `&quot;`
+ * - `'` → `&#39;`
+ *
+ * 不防御：
+ * - javascript: URL（document.write 不会执行跳转）
+ * - CSS injection（已通过 `<style>` 标签硬编码，攻击者无法注入新样式块）
+ *
+ * 使用示例：
+ * ```ts
+ * import { escapeHtml } from '@/utils/print'
+ * const safeName = escapeHtml(item.customer_name)
+ * printWindow.document.write(`<td>${safeName}</td>`)
+ * ```
+ */
+export function escapeHtml(input: unknown): string {
+  if (input === null || input === undefined) {
+    return ''
+  }
+  const str = String(input)
+  return str.replace(/[&<>"']/g, char => {
+    switch (char) {
+      case '&':
+        return '&amp;'
+      case '<':
+        return '&lt;'
+      case '>':
+        return '&gt;'
+      case '"':
+        return '&quot;'
+      case "'":
+        return '&#39;'
+      default:
+        return char
+    }
+  })
 }

@@ -64,6 +64,7 @@ import V2Table from '@/components/V2Table/index.vue'
 import type { ColumnDef } from '@/components/V2Table/types'
 import { type QualityRecord } from '@/api/quality'
 import { logger } from '@/utils/logger'
+import { escapeHtml } from '@/utils/print'
 
 // 父组件注入：openRecordDialog(row | null)
 const actions = inject<{
@@ -168,10 +169,10 @@ const handlePrint = () => {
     .map(
       item => `
     <tr>
-      <td>${item.record_no}</td><td>${item.inspection_type}</td>
-      <td>${item.product_name}</td><td>${item.batch_no}</td>
-      <td>${item.inspection_date}</td><td>${item.inspector}</td>
-      <td>${resultMap[item.result] || item.result}</td>
+      <td>${escapeHtml(item.record_no)}</td><td>${escapeHtml(item.inspection_type)}</td>
+      <td>${escapeHtml(item.product_name)}</td><td>${escapeHtml(item.batch_no)}</td>
+      <td>${escapeHtml(item.inspection_date)}</td><td>${escapeHtml(item.inspector)}</td>
+      <td>${escapeHtml(resultMap[item.result] || item.result)}</td>
     </tr>
   `
     )

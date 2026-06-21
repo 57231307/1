@@ -13,6 +13,7 @@ import {
   type SalesContract,
 } from '@/api/sales-contract'
 import { formatCurrency, getStatusLabel } from './scFmts'
+import { escapeHtml } from '@/utils/print'
 
 /** 刷新回调 */
 interface RefreshCallbacks {
@@ -113,12 +114,12 @@ export function useScProc(refresh: RefreshCallbacks) {
       .map(
         (item: any) => `
       <tr>
-        <td>${item.contract_no}</td>
-        <td>${item.contract_name}</td>
-        <td>${item.customer_name}</td>
+        <td>${escapeHtml(item.contract_no)}</td>
+        <td>${escapeHtml(item.contract_name)}</td>
+        <td>${escapeHtml(item.customer_name)}</td>
         <td style="text-align:right">${formatCurrency(item.total_amount)}</td>
-        <td>${item.signed_date || '-'}</td>
-        <td>${getStatusLabel(item.status)}</td>
+        <td>${escapeHtml(item.signed_date || '-')}</td>
+        <td>${escapeHtml(getStatusLabel(item.status))}</td>
       </tr>
     `
       )
