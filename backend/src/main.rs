@@ -357,16 +357,28 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 crate::services::audit_cleanup_service::AuditCleanupService::new(db.clone(), 999),
             );
 
-            // P13 批 1 B-慢查询审计：启动后台采集任务（每 5 分钟）
-            // 注意：采集失败仅记录日志，不阻断 main 启动
-            let slow_collector = Arc::new(
-                crate::services::slow_query_collector::SlowQueryCollector::new(
-                    db.clone(),
-                    100.0, // 阈值 100ms
-                    100,   // 单次最大 100 条
-                ),
-            );
-            slow_collector.clone().start_collect_task(5 * 60); // 5 分钟间隔
+            // P13 批 1 B-慢查询审计：启动后台采集任务（默认 5 分钟间隔）。
+            // 部署-3 修复：增加 slow_query.enabled 配置开关。
+            // 关闭时（CI 容器 / 未安装 pg_stat_statements 扩展的数据库）完全跳过采集任务。
+            // 开启时（默认）按配置间隔采集，失败仅记录日志，不阻断 main 启动。
+            if settings.slow_query.enabled {
+                let slow_collector = Arc::new(
+                    crate::services::slow_query_collector::SlowQueryCollector::new(
+                        db.clone(),
+                        settings.slow_query.threshold_ms,
+                        settings.slow_query.limit_rows,
+                    ),
+                );
+                slow_collector
+                    .clone()
+                    .start_collect_task(settings.slow_query.interval_secs);
+                info!(
+                    "慢查询采集任务已启动（间隔 {} 秒，阈值 {}ms）",
+                    settings.slow_query.interval_secs, settings.slow_query.threshold_ms
+                );
+            } else {
+                info!("慢查询采集任务已禁用（slow_query.enabled=false）");
+            }
 
             let app_state = match crate::utils::app_state::AppState::with_secrets_and_cors(
                 db,

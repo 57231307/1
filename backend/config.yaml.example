@@ -69,4 +69,14 @@ kafka:
   connect_timeout_ms: 5000
   auto_create_topic: true
 
+# 慢查询采集配置（部署-3 修复，P13 批 1 B-慢查询审计）
+# - enabled=true（默认）：启动后台任务每 5 分钟采集 pg_stat_statements，写入 slow_query_log 表
+# - enabled=false：CI 容器 / 未安装 pg_stat_statements 扩展的环境可关闭
+# - 失败降级：采集失败仅 warn 记录，不阻断服务启动
+slow_query:
+  enabled: true
+  interval_secs: 300       # 采集间隔（秒）
+  threshold_ms: 100.0      # 慢查询阈值（毫秒），超过此值的 SQL 才会被记录
+  limit_rows: 100          # 单次采集最大行数
+
 env: "production"

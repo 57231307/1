@@ -355,6 +355,21 @@ pub fn create_router(state: AppState) -> Router<()> {
         .nest("/api/v1/erp/tenants", tenant::routes())
         // v1 占位入口
         .nest("/api/v1", v1::routes())
+        // ---- 顶层基础设施路由（K8s liveness / readiness probe 友好）----
+        // 部署-4 修复：暴露顶层 /health，避免 K8s / 负载均衡器只接受无前缀路径。
+        // 复用 system 模块的 health_check 实现（不需鉴权，状态从 AppState 读取）
+        .route(
+            "/health",
+            get(crate::handlers::health_handler::health_check),
+        )
+        .route(
+            "/health/liveness",
+            get(crate::handlers::health_handler::liveness_check),
+        )
+        .route(
+            "/health/readiness",
+            get(crate::handlers::health_handler::readiness_check),
+        )
         // ---- 基础设施（静态 / 指标 / API 文档）----
         .merge(build_infrastructure_routes())
         // ---- 中间件 ----
