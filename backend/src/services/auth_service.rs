@@ -426,6 +426,9 @@ mod tests {
         AuthService::validate_token_static(token, secret).expect("P9-1: 令牌验证失败")
     }
 
+    /// 统一测试 JWT 密钥（与 tests/integration/mod.rs::TEST_JWT_SECRET 保持一致）
+    const TEST_JWT_SECRET: &str = "test-jwt-secret-key-for-integration-tests-only-32bytes";
+
     /// 测试密码哈希和验证
     #[test]
     fn test_password_hash_and_verify() {
@@ -454,10 +457,10 @@ mod tests {
         assert!(verify_pwd_ok(password, &hash2));
     }
 
-    /// 测试 JWT 令牌生成和验证（使用静态方法）
+    /// 测试 JWT 令牌生成和验证（使用集中测试密钥常量）
     #[test]
     fn test_token_generation_and_validation() {
-        let secret = "test-secret-key-for-jwt-tokens-32-bytes";
+        let secret = TEST_JWT_SECRET;
 
         // 使用静态方法直接测试令牌生成和验证
         // 先生成一个令牌（通过编码）
@@ -486,7 +489,7 @@ mod tests {
     /// 测试无效令牌验证
     #[test]
     fn test_invalid_token_validation() {
-        let secret = "test-secret-key-for-jwt-tokens-32-bytes";
+        let secret = TEST_JWT_SECRET;
         let wrong_secret = "wrong-secret-key-for-jwt-tokens-32-byte";
 
         let now = Utc::now();
@@ -511,7 +514,7 @@ mod tests {
     /// 测试过期令牌验证
     #[test]
     fn test_expired_token_validation() {
-        let secret = "test-secret-key-for-jwt-tokens-32-bytes";
+        let secret = TEST_JWT_SECRET;
 
         let now = Utc::now();
         let claims = AppClaims {
@@ -535,7 +538,7 @@ mod tests {
     /// 测试令牌声明字段完整性
     #[test]
     fn test_token_claims_fields() {
-        let secret = "test-secret-key-for-jwt-tokens-32-bytes";
+        let secret = TEST_JWT_SECRET;
 
         let now = Utc::now();
         let claims = AppClaims {
