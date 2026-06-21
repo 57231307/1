@@ -464,6 +464,20 @@ const routes = [
         component: () => import('@/views/security/index.vue'),
         meta: { title: '安全管理', requiresAuth: true },
       },
+      // 新增路由 - 双因素认证(修复 user-profile 死链)
+      {
+        path: 'security/two-factor-setup',
+        name: 'SecurityTwoFactorSetup',
+        component: () => import('@/views/security/TwoFactorSetup.vue'),
+        meta: { title: '双因素认证', requiresAuth: true },
+      },
+      // 新增路由 - 修改密码(修复 user-profile 死链)
+      {
+        path: 'security/change-password',
+        name: 'SecurityChangePassword',
+        component: () => import('@/views/security/ChangePassword.vue'),
+        meta: { title: '修改密码', requiresAuth: true },
+      },
       {
         path: 'dye-recipe',
         name: 'DyeRecipe',
