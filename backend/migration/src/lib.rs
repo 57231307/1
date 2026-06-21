@@ -18,15 +18,16 @@ pub mod m0015_add_opportunity_id_to_sales_orders;
 pub mod m0016_add_version_to_inventory_stocks;
 pub mod m0017_add_crm_supplier_tables;
 pub mod m0018_add_finance_tables;
-pub mod m0019_fix_schema_model_sync;
-pub mod m0020_create_sales_quotations;
-pub mod m0021_create_sales_quotation_items;
-pub mod m0022_create_sales_quotation_terms;
-pub mod m0023_create_product_color_prices;
-pub mod m0024_p4_1_perf_indexes;
-pub mod m0025_extend_audit_log;
-pub mod m0026_enable_pg_stat_statements;
-pub mod m0027_create_slow_query_log;
+pub mod m0019_add_missing_columns;
+pub mod m0020_fix_schema_model_sync;
+pub mod m0021_create_sales_quotations;
+pub mod m0022_create_sales_quotation_items;
+pub mod m0023_create_sales_quotation_terms;
+pub mod m0024_create_product_color_prices;
+pub mod m0025_p4_1_perf_indexes;
+pub mod m0026_extend_audit_log;
+pub mod m0027_enable_pg_stat_statements;
+pub mod m0028_create_slow_query_log;
 
 pub struct Migrator;
 
@@ -52,15 +53,16 @@ impl MigratorTrait for Migrator {
             Box::new(m0016_add_version_to_inventory_stocks::Migration),
             Box::new(m0017_add_crm_supplier_tables::Migration),
             Box::new(m0018_add_finance_tables::Migration),
-            Box::new(m0019_fix_schema_model_sync::Migration),
-            Box::new(m0020_create_sales_quotations::Migration),
-            Box::new(m0021_create_sales_quotation_items::Migration),
-            Box::new(m0022_create_sales_quotation_terms::Migration),
-            Box::new(m0023_create_product_color_prices::Migration),
-            Box::new(m0024_p4_1_perf_indexes::Migration),
-            Box::new(m0025_extend_audit_log::Migration),
-            Box::new(m0026_enable_pg_stat_statements::Migration),
-            Box::new(m0027_create_slow_query_log::Migration),
+            Box::new(m0019_add_missing_columns::Migration),
+            Box::new(m0020_fix_schema_model_sync::Migration),
+            Box::new(m0021_create_sales_quotations::Migration),
+            Box::new(m0022_create_sales_quotation_items::Migration),
+            Box::new(m0023_create_sales_quotation_terms::Migration),
+            Box::new(m0024_create_product_color_prices::Migration),
+            Box::new(m0025_p4_1_perf_indexes::Migration),
+            Box::new(m0026_extend_audit_log::Migration),
+            Box::new(m0027_enable_pg_stat_statements::Migration),
+            Box::new(m0028_create_slow_query_log::Migration),
         ]
     }
 }
