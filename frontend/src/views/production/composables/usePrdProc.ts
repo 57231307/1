@@ -16,6 +16,7 @@ import {
   PRODUCTION_ORDER_STATUS,
 } from '@/api/production'
 import { getStatusLabel } from './prdFmts'
+import { escapeHtml } from '@/utils/print'
 
 /**
  * 流程回调（接收 usePrd 返回的状态，自动解包后的值类型）
@@ -107,12 +108,12 @@ export function usePrdProc(cb: PrdCallbacks) {
       .map(
         (item: ProductionOrder) => `
     <tr>
-      <td>${item.order_no}</td><td>${item.product_name || '-'}</td>
-      <td style="text-align:right">${item.planned_quantity}</td>
-      <td style="text-align:right">${item.actual_quantity || '-'}</td>
-      <td>${item.scheduled_start_date?.substring(0, 10) || '-'}</td>
-      <td>${item.scheduled_end_date?.substring(0, 10) || '-'}</td>
-      <td>${getStatusLabel(item.status)}</td><td>${item.priority}</td>
+      <td>${escapeHtml(item.order_no)}</td><td>${escapeHtml(item.product_name || '-')}</td>
+      <td style="text-align:right">${escapeHtml(item.planned_quantity)}</td>
+      <td style="text-align:right">${escapeHtml(item.actual_quantity || '-')}</td>
+      <td>${escapeHtml(item.scheduled_start_date?.substring(0, 10) || '-')}</td>
+      <td>${escapeHtml(item.scheduled_end_date?.substring(0, 10) || '-')}</td>
+      <td>${escapeHtml(getStatusLabel(item.status))}</td><td>${escapeHtml(item.priority)}</td>
     </tr>
   `
       )

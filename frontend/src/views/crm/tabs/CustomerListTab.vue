@@ -247,6 +247,7 @@ import crmEnhancedApi, { type CustomerTag, type CustomerWithTags } from '@/api/c
 import { exportData } from '@/utils/export'
 import { loadIfNot, createLazyLoader } from '@/utils/lazy-loader'
 import { logger } from '@/utils/logger'
+import { escapeHtml } from '@/utils/print'
 
 const hasLoaded = createLazyLoader()
 
@@ -458,14 +459,14 @@ const handlePrint = () => {
     .map(
       item => `
     <tr>
-      <td>${item.customer_code}</td>
-      <td>${item.customer_name}</td>
-      <td>${item.contact_person}</td>
-      <td>${item.phone}</td>
-      <td>${getCustomerTypeLabel(item.customer_type)}</td>
-      <td>${item.owner_name || '-'}</td>
+      <td>${escapeHtml(item.customer_code)}</td>
+      <td>${escapeHtml(item.customer_name)}</td>
+      <td>${escapeHtml(item.contact_person)}</td>
+      <td>${escapeHtml(item.phone)}</td>
+      <td>${escapeHtml(getCustomerTypeLabel(item.customer_type))}</td>
+      <td>${escapeHtml(item.owner_name || '-')}</td>
       <td style="text-align:right">${item.total_amount ? '¥' + item.total_amount.toLocaleString() : '-'}</td>
-      <td>${item.status === 'active' ? '启用' : '禁用'}</td>
+      <td>${escapeHtml(item.status === 'active' ? '启用' : '禁用')}</td>
     </tr>
   `
     )
