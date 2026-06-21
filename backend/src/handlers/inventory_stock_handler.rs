@@ -68,10 +68,6 @@ pub struct StockResponse {
     pub updated_at: chrono::DateTime<chrono::Utc>,
 }
 
-#[derive(Debug, Serialize)]
-
-#[derive(Debug, Serialize)]
-
 pub async fn get_stock(
     State(state): State<AppState>,
     auth: AuthContext,
@@ -619,8 +615,6 @@ pub struct StockFabricResponse {
     pub updated_at: chrono::DateTime<chrono::Utc>,
 }
 
-#[derive(Debug, Serialize)]
-
 #[derive(Debug, Deserialize)]
 pub struct ListTransactionParams {
     pub page: Option<u64>,
@@ -655,8 +649,6 @@ pub struct TransactionResponse {
 }
 
 #[derive(Debug, Serialize)]
-
-#[derive(Debug, Serialize)]
 pub struct InventorySummaryItem {
     pub product_id: i32,
     pub product_name: String,
@@ -667,8 +659,6 @@ pub struct InventorySummaryItem {
     pub total_quantity_kg: Decimal,
     pub warehouse_name: String,
 }
-
-#[derive(Debug, Serialize)]
 
 // ========== 面料行业双计量单位优化接口 ==========
 

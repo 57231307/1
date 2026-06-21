@@ -99,9 +99,6 @@ pub struct UpdateCustomerRequest {
     pub notes: Option<String>,
 }
 
-/// 客户响应
-#[derive(Debug, Serialize)]
-
 /// 获取客户列表
 pub async fn list_customers(
     State(state): State<AppState>,

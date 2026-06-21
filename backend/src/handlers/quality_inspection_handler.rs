@@ -43,10 +43,6 @@ pub struct DefectQuery {
     pub page_size: Option<i64>,
 }
 
-#[derive(Debug, Serialize)]
-
-#[derive(Debug, Serialize)]
-
 pub async fn list_standards(
     Query(params): Query<QualityInspectionQuery>,
     State(state): State<AppState>,
