@@ -419,7 +419,7 @@ const routes = [
       {
         path: 'report-templates',
         name: 'ReportTemplates',
-        component: () => import('@/views/report-templates/index.vue'),
+        component: () => import('@/views/report/templates.vue'),
         meta: { title: '报表中心', requiresAuth: true },
       },
       // 新增路由 - BPM流程定义
