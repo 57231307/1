@@ -69,7 +69,6 @@ export interface TransferBatchRequest {
   remarks?: string
 }
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
 export function listBatches(params?: any) {
   return request.get('/inventory/batches', { params })
 }

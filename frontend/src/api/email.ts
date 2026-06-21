@@ -49,7 +49,6 @@ export interface SendEmailRequest {
   html_content?: string
   text_content?: string
   template_id?: number
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   template_params?: Record<string, any>
 }
 

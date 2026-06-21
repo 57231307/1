@@ -172,7 +172,6 @@ export const inventoryApi = {
 
   getInventoryReport: (params: InventoryReportParams) =>
     request.get<
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       ApiResponse<{ summary: any; details: any[] }>
     >('/inventory/stock/summary', {
       params,

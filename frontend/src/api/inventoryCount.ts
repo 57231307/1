@@ -31,7 +31,6 @@ export interface CountItem {
   remark?: string
 }
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
 export const listInventoryCounts = (params?: any) => request.get('/inventory/counts', { params })
 
 export const getInventoryCount = (id: number) => request.get(`/inventory/counts/${id}`)

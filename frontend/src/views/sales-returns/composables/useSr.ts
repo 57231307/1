@@ -70,7 +70,6 @@ export function useSr() {
       const res = await salesApi.getOrderList({ status: 'completed' })
       salesOrderList.value = res.data?.list || []
     } catch (error: any) {
-      // eslint-disable-next-line no-console
       console.error('加载销售订单失败:', error)
     }
   }
@@ -91,7 +90,6 @@ export function useSr() {
       const res = await productApi.list()
       productList.value = res.data?.list || []
     } catch (error: any) {
-      // eslint-disable-next-line no-console
       console.error('加载产品列表失败:', error)
     }
   }

@@ -107,7 +107,6 @@ export function exportMrpResult(id: number): Promise<void> {
 export function getMaterialRequirementDetail(
   calculationId: number,
   materialId: number
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
 ): Promise<ApiResponse<MrpMaterialRequirement & { supply_details: any[] }>> {
   return request.get(`/production/mrp-history/${calculationId}/materials/${materialId}`)
 }

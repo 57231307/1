@@ -34,7 +34,6 @@ export interface AdjustmentItem {
   remark?: string
 }
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
 export function listInventoryAdjustments(params?: any) {
   return request.get('/inventory/adjustments', { params })
 }

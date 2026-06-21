@@ -11,7 +11,6 @@ import { listApiLogs, type ApiLog } from '@/api/api-gateway'
 
 // 完整的日志查询参数（包含 method/status_code/status/date_range 等，
 // listApiLogs 接受泛型 QueryParams，但实际后端接口支持这些额外字段）
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
 type LogQueryParams = any
 
 /**
