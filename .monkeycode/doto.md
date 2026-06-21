@@ -382,6 +382,9 @@
 | **批次 9.4 子批 2 services 41 项真死代码** | ✅ 已完成（PR #219）| commit `dc43a32`，41 项 #[allow(dead_code)] 删除（31 文件 / -1792 行），CI 5/5 success（含 E0584 修复）|
 | **批次 9.4 子批 3 utils+middleware+cli+handlers 29 项真死代码** | ✅ 已完成（PR #220）| commit `5ecff2b`，29 项删除（16 文件 / -638 行，含整个 query_builder.rs 文件级删除），CI 5/5 success（含 E0774 修复）|
 | **批次 9.5 评估 9 个路由未挂载 view 决策** | ✅ 评估完成（待用户确认执行）| 9.5.1 mount 5 view + 修 2 P0 死链 / 9.5.2 delete bi/index / 9.5.3 refactor report/templates；详见 [.monkeycode/CHANGELOG.md](file:///workspace/.monkeycode/CHANGELOG.md) 9.5 节 |
+| **批次 9.5.1 5 view 挂载 + 修 2 P0 死链** | ✅ 已完成（PR #221-#225, 5/5 merged）| 5 个独立 PR（BPM 审批/CRM 线索/CRM 商机/主备监控/2FA+改密），CI 5/5 success 各 PR，累计 5 文件 / +35 行 |
+| **批次 9.5.2 删除 bi/index.vue** | ✅ 已完成（PR #226）| commit `c135e4c`，删除 10 行 pure wrapper，CI 5/5 success |
+| **批次 9.5.3 报表模板重构** | ⏸️ 延期（PR #227 closed）| 新版 `report/templates.vue` 子组件 `TplFld.vue:23` `v-model` 绑 prop 违反 Vue 3 规则，CI 失败；需先修复 TplFld.vue 等子组件 v-model 问题再切换 |
 
 ### P14+ 候选清单（roadmap v0.3 剩余，6 任务）
 

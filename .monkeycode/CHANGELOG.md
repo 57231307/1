@@ -146,8 +146,41 @@
 - 是否按 9.5.1 → 9.5.2 → 9.5.3 顺序执行？
 - 9.5.1 是否拆为更小 PR（每 view 一个 PR）以降低 CI 风险？
 
+#### 批次 9.5.1 — 5 view 挂载 + 修 2 P0 死链（2026-06-21）
+
+- **PR #221 merged `f1cdec4`**：BPM 审批中心 `/bpm/approval`
+- **PR #222 merged `2f21847`**：CRM 线索管理 `/crm/leads`
+- **PR #223 merged `b23937a`**：CRM 商机管理 `/crm/opportunities`
+- **PR #224 merged `a3e822e`**：主备隔离监控 `/admin/failover`
+- **PR #225 merged `6db769f`**：双因素认证 + 修改密码，修 2 P0 死链
+- 累计：5 PR / 5 文件 / +35 行 / CI 5/5 success 各 PR
+- **关键修复**：user-profile/index.vue:162/167 调用 `router.push('/security/two-factor-setup')` 和 `router.push('/security/change-password')`，原本 404，现可正常跳转
+
+#### 批次 9.5.2 — 删除 bi/index.vue 纯 wrapper（2026-06-21）
+
+- **PR #226 merged `c135e4c`**：删除 `frontend/src/views/bi/index.vue`（10 行 pure wrapper）
+- 路由 `/bi/sales-analysis` 已存在，无需补充
+- 0 外部引用，删除安全
+- 变更：1 文件 / -10 行 / CI 5/5 success
+
+#### 批次 9.5.3 — 报表模板重构延期（2026-06-21）
+
+- **PR #227 closed**：路由指向新版 `report/templates.vue` CI 失败
+- **根因**：`TplFld.vue:23` `v-model="selectedFieldKeys"` 直接绑 prop，违反 Vue 3 规则（还有第 46/55/66 行同类问题）
+- **修复路径**：需将 v-model 改为 :model-value + @update:model-value 模式，但需父组件同步接收 emit，工作量较大且可能连锁触发 TplExp/TplSub 等子组件同类问题
+- **决定**：延期 9.5.3，等待新版 bug 修复后再切换
+- **当前状态**：main 路由仍指向旧版 `report-templates/index.vue`（未受影响），旧版功能正常
+- **后续**：在 9.5.3-fix 子批次中修复 TplFld.vue 等子组件 v-model 问题，验证后再切换
+
+#### 9.5 总进度（2026-06-21）
+
+- ✅ 9.5.1 5 view 挂载 + 修 2 P0 死链（5/5 PR merged）
+- ✅ 9.5.2 删除 bi/index.vue（PR #226 merged）
+- ⏸️ 9.5.3 报表模板重构延期（PR #227 closed，新版有 bug 待修）
+- 📊 main HEAD `aaa3872`（自动发版 tag v2026.621.1516）
+
 #### main HEAD 状态
-- `5ecff2b`（批次 9.4 子批 3 合并点）
+- `aaa3872`（自动发版 tag v2026.621.1516）
 
 ### CI 批次 9.3+ 完成（2026-06-21）
 
