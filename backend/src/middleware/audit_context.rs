@@ -36,7 +36,6 @@ pub struct AuditContext {
 
 impl AuditContext {
     /// 构造空上下文（缺省值，避免 service 调用时 unwrap）
-    #[allow(dead_code)] // TODO(tech-debt): 业务接入后逐项移除；用于 build_active_model 测试与未来的单元测试 setup
     pub fn empty() -> Self {
         Self {
             request_id: String::new(),

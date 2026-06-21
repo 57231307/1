@@ -265,7 +265,6 @@ impl EventBus {
     }
 
     /// 当前后端类型（用于诊断 / 测试断言）
-    #[allow(dead_code)] // TODO(tech-debt): 业务接入后移除
     pub fn backend_type(&self) -> EventBackendType {
         let state = lock_event_bus_state();
         match state.backend_kind.load(Ordering::Acquire) {

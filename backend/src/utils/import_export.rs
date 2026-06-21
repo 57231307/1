@@ -240,10 +240,8 @@ impl CsvImporter {
 }
 
 /// 字段验证器
-#[allow(dead_code)]
 pub struct FieldValidator;
 
-#[allow(dead_code)]
 impl FieldValidator {
     /// 验证必填字段
     pub fn required(value: &str, field_name: &str) -> Result<(), String> {
