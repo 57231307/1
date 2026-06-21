@@ -16,6 +16,39 @@
 
 ## 最新任务总结
 
+### 全项目死代码深度评估（2026-06-20）
+
+- **报告位置**：[.monkeycode/docs/audits/2026-06-20-full-dead-code-audit.md](file:///workspace/.monkeycode/docs/audits/2026-06-20-full-dead-code-audit.md)
+- **扫描方法**：Python 脚本 + 手工抽样（709 .rs + 632 前端文件）
+- **数据**：`/workspace/.tmp_scans/dead_code_full_report.json`
+
+#### 6 大类死代码
+
+| 类别 | 扫描数 | true positive | 评估 |
+|------|--------|---------------|------|
+| 1. `#[allow(dead_code)]` 项级标注 | 136 | **24 冗余**（实际有引用）+ 112 真死代码 | 24 处直接删 |
+| 2. 前端未引用 .vue 组件 | 34 | **30+ 真死代码**（含 import 缺失型） | 31 文件可删 |
+| 3. 后端 pub 零引用 | 816 | ~100-150（其余是宏/trait/use） | 需逐项 |
+| 4. 后端未使用 use | 683 | ~30-50（其余是 crate path 末段误识别） | 依赖 CI |
+| 5. 前端未引用 export | 466 | ~80-120（其余是 re-export / 单例） | 依赖 CI |
+| 6. 项目遗留文件 | 0 空目录/0 临时/0 冲突 | 全部干净 | 4 dist/test-version-* 是历史归档 |
+
+#### 关键发现
+
+- **24 项 `#[allow(dead_code)]` 冗余**（高置信度）：data_permission_service (4) / event_kafka (3) / slow_query_collector (3) / supplier_service (2) / audit_log_service (2) 等
+- **34 个未引用 .vue 组件**：api-gateway/components (6) / system-update/components (6) / arReconciliation/components (6) / quality/tabs (4) 等
+- **system-update/index.vue 3 个 import 缺失**：template 引用 `<SuInfoCards>` `<SuVerDetail>` `<SuBkpForm>`，script 缺 import
+- **4 个未挂载 views**：bi / bpm/approval / crm/leads / crm/opportunities
+
+#### 治理路线图（6 批）
+
+- 批次 9.1：24 项冗余 allow 删（-24 行，0 风险）
+- 批次 9.2：31 个未引用 .vue 删（-2000+ 行，低风险）
+- 批次 9.3：修 system-update 3 个 import 缺失
+- 批次 9.4：112 真死代码 allow 评估 + 删除（-500-1500 行）
+- 批次 9.5：4 个未挂载 view 决策
+- 批次 9.6+：依赖 CI 自动化报告
+
 ### CI 批次 8 子批 1 完成（2026-06-20）
 
 - **PR #213 merged**（commit `8da1f6c6`，squash 合并）
