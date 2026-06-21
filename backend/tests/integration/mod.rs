@@ -7,6 +7,14 @@ pub mod api_routes;
 
 use std::sync::Arc;
 
+/// 测试 JWT 密钥（统一来源，避免多版本重复）
+/// 注意：此常量仅用于测试/开发环境，不可用于生产
+pub const TEST_JWT_SECRET: &str = "test-jwt-secret-key-for-integration-tests-only-32bytes";
+
+/// 测试 Cookie 加密密钥（统一来源，避免多版本重复）
+/// 注意：此常量仅用于测试/开发环境，不可用于生产
+pub const TEST_COOKIE_SECRET: &str = "test-cookie-secret-key-for-integration-tests-only-32bytes";
+
 /// 测试配置
 pub struct TestConfig {
     pub db_url: String,
@@ -20,8 +28,8 @@ impl Default for TestConfig {
             db_url: std::env::var("TEST_DATABASE_URL").unwrap_or_else(|_| {
                 "postgres://postgres:postgres@localhost:5432/bingxi_test".to_string()
             }),
-            jwt_secret: "test-jwt-secret-key-for-integration-tests-only-32bytes".to_string(),
-            cookie_secret: "test-cookie-secret-key-for-integration-tests-only-32bytes".to_string(),
+            jwt_secret: TEST_JWT_SECRET.to_string(),
+            cookie_secret: TEST_COOKIE_SECRET.to_string(),
         }
     }
 }
@@ -29,32 +37,29 @@ impl Default for TestConfig {
 /// 测试辅助函数
 pub mod helpers {
     use super::*;
+    use jsonwebtoken::{encode, EncodingKey, Header};
+    use serde::{Deserialize, Serialize};
 
-    /// 创建测试用的JWT令牌
+    #[derive(Debug, Serialize, Deserialize)]
+    struct TestClaims {
+        sub: i32,
+        username: String,
+        role_id: Option<i32>,
+        exp: i64,
+    }
+
+    /// 创建测试用的 JWT 令牌（使用 TEST_JWT_SECRET 统一密钥）
     pub fn create_test_token(user_id: i32, username: &str, role_id: Option<i32>) -> String {
-        use jsonwebtoken::{encode, EncodingKey, Header};
-        use serde::{Deserialize, Serialize};
-
-        #[derive(Debug, Serialize, Deserialize)]
-        struct TestClaims {
-            sub: i32,
-            username: String,
-            role_id: Option<i32>,
-            exp: i64,
-        }
-
         let claims = TestClaims {
             sub: user_id,
             username: username.to_string(),
             role_id,
             exp: chrono::Utc::now().timestamp() + 3600,
         };
-
-        let secret = "test-jwt-secret-key-for-integration-tests-only-32bytes";
         encode(
             &Header::default(),
             &claims,
-            &EncodingKey::from_secret(secret.as_bytes()),
+            &EncodingKey::from_secret(TEST_JWT_SECRET.as_bytes()),
         )
         .unwrap()
     }
