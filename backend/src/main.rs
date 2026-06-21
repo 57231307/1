@@ -346,7 +346,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             };
 
             if cookie_secret.len() < 32 {
-                tracing::warn!("配置警告: 用于 Cookie 加密的密钥长度不足 32 字节。系统将自动进行补齐以启动服务，但请在生产环境中配置至少 32 字节的强密钥！");
+                eprintln!("FATAL: COOKIE_SECRET 长度不足 32 字节（当前: {} 字节）", cookie_secret.len());
+                eprintln!("FATAL: 出于安全考虑，禁止以补 0 / 截断等方式弱化 Cookie 加密密钥");
+                eprintln!("FATAL: 请使用 `openssl rand -hex 32` 生成至少 32 字节（64 个十六进制字符）的强随机密钥");
+                eprintln!("FATAL: 并通过环境变量 COOKIE_SECRET 或 config.yaml 的 auth.cookie_secret 字段注入");
+                std::process::exit(1);
             }
             let db = Arc::new(db);
 

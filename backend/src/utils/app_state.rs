@@ -88,14 +88,15 @@ impl AppState {
             cleanup_clone.start_cleanup_task();
         });
 
-        let mut final_cookie_secret = cookie_secret;
-        if final_cookie_secret.len() < 32 {
-            tracing::warn!(
-                "配置警告: cookie_secret 长度不足 32 字节 (当前长度: {})。这会降低系统的加密安全性。已自动为您填充为 32 字节以保证服务启动，请尽快在生产环境更换！",
-                final_cookie_secret.len()
-            );
-            final_cookie_secret.push_str(&"0".repeat(32 - final_cookie_secret.len()));
+        // P2-B 修复：cookie_secret 长度不足 32 字节时 fail-fast，禁止自动补 0 弱化密钥
+        // 安全原因：补 0 / 截断会让攻击者仅需爆破 1-N 字节即可还原密钥，违背 fail-secure 原则
+        if cookie_secret.len() < 32 {
+            return Err(format!(
+                "cookie_secret 长度不足 32 字节（当前: {} 字节）。禁止补 0/截断弱化，请通过环境变量 COOKIE_SECRET 提供至少 32 字节的强随机密钥（openssl rand -hex 32）",
+                cookie_secret.len()
+            ));
         }
+        let final_cookie_secret = cookie_secret;
 
         // 指标服务构造失败时显式返回错误（之前是 .expect() panic，违背 Result 语义）
         let metrics = MetricsService::new().map_err(|e| {
