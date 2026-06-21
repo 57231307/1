@@ -381,6 +381,7 @@
 | **批次 9.1 5 项剩余冗余 allow** | ✅ 已完成（PR #218）| commit `5584fd82`，5 项删除（slow_query_collector + quotation_pricing），CI 5/5 success |
 | **批次 9.4 子批 2 services 41 项真死代码** | ✅ 已完成（PR #219）| commit `dc43a32`，41 项 #[allow(dead_code)] 删除（31 文件 / -1792 行），CI 5/5 success（含 E0584 修复）|
 | **批次 9.4 子批 3 utils+middleware+cli+handlers 29 项真死代码** | ✅ 已完成（PR #220）| commit `5ecff2b`，29 项删除（16 文件 / -638 行，含整个 query_builder.rs 文件级删除），CI 5/5 success（含 E0774 修复）|
+| **批次 9.5 评估 9 个路由未挂载 view 决策** | ✅ 评估完成（待用户确认执行）| 9.5.1 mount 5 view + 修 2 P0 死链 / 9.5.2 delete bi/index / 9.5.3 refactor report/templates；详见 [.monkeycode/CHANGELOG.md](file:///workspace/.monkeycode/CHANGELOG.md) 9.5 节 |
 
 ### P14+ 候选清单（roadmap v0.3 剩余，6 任务）
 

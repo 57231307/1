@@ -103,7 +103,48 @@
 - ✅ 批次 9.2（16 个未引用 .vue）
 - ✅ 批次 9.1（5 项剩余冗余 allow）
 - ✅ 批次 9.4 子批 2/3（70 项真死代码 allow，41 services + 29 utils/handlers/middleware/cli）
-- 🔵 批次 9.5（9 个路由未挂载 view 决策）
+- ✅ 批次 9.5 评估（9 个路由未挂载 view 决策完成，待用户确认执行）
+
+#### 批次 9.5 — 9 个未挂载 view 决策评估（2026-06-21）
+
+- **触发**：批次 9.4 完成后，路由审计中标记的 9 个 P1 死代码 view 进入决策环节
+- **评估方法**：subagent 全量扫描 + Grep 交叉验证（router/index.ts 1137 行 + views 374 个 .vue）
+- **关键发现修正**（与原 P1 列表的差异）：
+  - **bpm/definitions/* 5 组件 + 3 composable** 实际**已被 `bpm/definitions.vue:71-77` 引用**（不是真死代码）
+  - **crm/leads/opportunities/bpm/approval 三个 view** 调用真实 API（listLeads / listOpportunities / fetchPendingTasks）— **不是占位符**
+  - **bi/index.vue** 是 10 行纯 wrapper（只渲染 SalesAnalysis）— **真死代码**
+  - **🚨 关键 P0 死链 bug**：`user-profile/index.vue:162` `router.push('/security/two-factor-setup')` 和 `:167` `router.push('/security/change-password')` — **两条路由都不存在**（router 中 0 命中），点击直接 404
+
+##### 9 个 view 决策矩阵
+
+| # | view 路径 | 行数 | 实际状态 | 决策 | 优先级 |
+|---|-----------|------|----------|------|--------|
+| 1 | `bi/index.vue` | 10 | 纯 wrapper（仅渲染 SalesAnalysis） | **删除**（路由 `/bi/sales-analysis` 已存在） | 🟢 低 |
+| 2 | `bpm/approval/index.vue` | 618 | 完整功能（`bpmAp.fetchPendingTasks`） | **挂载**（加 `/bpm/approval` 路由） | 🟡 中 |
+| 3 | `bpm/definitions/*` 5 组件 + 3 composable | ~370 | 已被 `bpm/definitions.vue` 引用 | **保留**（非决策项，原 P1 误报） | — |
+| 4 | `crm/leads/index.vue` + `LeadFormTab` | ~440 | 完整功能（`listLeads` API） | **挂载**（加 `/crm/leads` 路由） | 🟡 中 |
+| 5 | `crm/opportunities/index.vue` + 2 tab | ~390 | 完整功能（`listOpportunities` + `customerApi`） | **挂载**（加 `/crm/opportunities` 路由） | 🟡 中 |
+| 6 | `admin/failover.vue` + 3 组件 | ~250 | 运维工具完整 | **挂载**（加 `/admin/failover` 路由） | 🟡 中 |
+| 7 | `report/templates.vue` + 10 组件 + 5 composable | ~700 | 完整功能 | **重构**（替换已有 `/report-templates` 旧版） | 🟠 中高 |
+| 8 | `security/two-factor/*` + `TwoFactorSetup.vue` | 540+5 步+2c | 完整功能（拆分子目录） | **挂载**（修 P0 死链 + `/security/two-factor-setup` 路由） | 🔴 高 |
+| 9 | `security/ChangePassword.vue` | ~120 | 完整功能（表单 + 强度计） | **挂载**（修 P0 死链 + `/security/change-password` 路由） | 🔴 高 |
+
+##### 推荐执行批次
+
+- **9.5.1 mount 5 个 view + 修 2 个 P0 死链**（bpm/approval + crm/leads + crm/opportunities + admin/failover + security/2FA + security/ChangePassword）
+  - 影响：6 个新路由 + 1 个死链 bug 修复
+  - 风险：低（前端 mount + router 新增），CI 必跑 type-check
+- **9.5.2 delete 1 个 view**（bi/index.vue）
+  - 影响：-10 行
+  - 风险：极低
+- **9.5.3 refactor 1 个 view**（report/templates.vue 替换 `/report-templates` 旧版）
+  - 影响：-~400 行旧版 + ~700 行新版
+  - 风险：中（需先看新版与旧版兼容性，建议先 mount 再 delete）
+- **9.5.4 保留 1 个**（bpm/definitions/* 子目录已挂载，无需操作）
+
+##### 待用户决策
+- 是否按 9.5.1 → 9.5.2 → 9.5.3 顺序执行？
+- 9.5.1 是否拆为更小 PR（每 view 一个 PR）以降低 CI 风险？
 
 #### main HEAD 状态
 - `5ecff2b`（批次 9.4 子批 3 合并点）
