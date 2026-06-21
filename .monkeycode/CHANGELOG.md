@@ -16,6 +16,33 @@
 
 ## 最新任务总结
 
+### CI 批次 6 子批 1+2 完成（2026-06-20）
+
+- **PR #211 + #212 merged**（commits `42815266` + `7513f38f`）
+- **目标**：前端 eslint-disable 收敛
+- **策略**：`@typescript-eslint/no-explicit-any` 规则当前为 `warn`（不阻塞 CI），删除冗余 `// eslint-disable-next-line` 注释
+- **变更**：
+  - **子批 1**（PR #211）：8 文件 / +0 / -43 行
+    - custom-order.ts: 11 / bi.ts: 8 / assist-accounting.ts: 6
+    - business-trace.ts: 5 / ar-reconciliation-enhanced.ts: 5
+    - api-gateway.ts: 3 / ar.ts: 4 / useSr.ts: 1
+  - **子批 2**（PR #212）：17 文件 / +0 / -22 行
+    - 14 个 api 文件: 16 处
+    - useApiLog.ts: 1 处
+    - useSr.ts: 2 处 (no-console 冗余)
+- **CI 验证**：5/5 success × 2
+- **main HEAD**：`7513f38f`
+- **总删除**：25 文件 / 65 处 disable 注释
+- **剩余**：172 处中已删 65 处；剩 107 处（189 vue/no-mutating-props error 规则 + 24 处块级 no-explicit-any + 极少数其他）
+
+### CI 批次 4 完成（2026-06-20）
+
+- **PR #210 merged**（commit `8eae7c18`，squash 合并）
+- **目标**：后端 `log_login.rs` 多余 file-level allow 清理
+- **变更**：`backend/src/models/log_login.rs` 从 `#![allow(dead_code, unused_imports, unused_variables)]` 收敛到 `#![allow(dead_code)]`（1 文件 / +1/-1 行）
+- **CI 验证**：5/5 success（构建后端、运行测试、前端类型检查、构建前端、前端测试）
+- **main HEAD**：`8eae7c18`
+
 ### CI 批次 3 死代码清理全部 5 子批完成（2026-06-20）
 
 | # | PR | 文件 | 删除函数 | 净行数 | CI | Merge commit |
