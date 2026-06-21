@@ -92,6 +92,7 @@
 <script setup lang="ts">
 /* eslint-disable vue/no-mutating-props */
 import { ref, onMounted } from 'vue'
+import { Refresh, FolderAdd } from '@element-plus/icons-vue'
 import { useSysUpd } from './composables/useSysUpd'
 import { useSysUpdProc } from './composables/useSysUpdProc'
 import * as sysUpdFmts from './composables/sysUpdFmts'

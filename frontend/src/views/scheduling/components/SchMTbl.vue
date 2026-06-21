@@ -87,6 +87,7 @@
 
 <script setup lang="ts">
 import type { ScheduleTask } from '@/api/scheduling'
+import { Refresh } from '@element-plus/icons-vue'
 import { formatDateTime, getStatusType, getStatusLabel, getPriorityType } from '../composables/schMFmts'
 
 // 排产工单列表属性

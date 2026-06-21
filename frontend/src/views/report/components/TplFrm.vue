@@ -10,6 +10,8 @@ import type {
   ReportTemplateField,
   ReportFilterCondition,
 } from '@/api/report-enhanced'
+import TplFld from './TplFld.vue'
+import TplFlt from './TplFlt.vue'
 
 interface Props {
   modelValue: boolean

@@ -15,7 +15,7 @@ import {
   ElTabs,
   ElTabPane,
 } from 'element-plus'
-import { View } from '@element-plus/icons-vue'
+import { View, Refresh } from '@element-plus/icons-vue'
 import {
   listAssistDimensions,
   queryAssistRecords,

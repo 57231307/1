@@ -5,6 +5,7 @@
 import { onMounted, ref, computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
+import { DataAnalysis, Document, MagicStick } from '@element-plus/icons-vue'
 import { getAiSummary, getAiHealth, RISK_LEVEL_LABELS, RISK_LEVEL_COLORS, TREND_LABELS, SOURCE_LABELS } from '@/api/ai-extend'
 import type { AiSummary } from '@/api/ai-extend'
 
