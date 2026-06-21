@@ -238,6 +238,21 @@ static EVENT_BUS_STATE: LazyLock<std::sync::Mutex<EventBusState>> =
 /// 全局 `EventBus` 句柄
 pub static EVENT_BUS: LazyLock<EventBus> = LazyLock::new(EventBus::new);
 
+/// 统一封装 `EVENT_BUS_STATE` 加锁逻辑
+///
+/// 锁中毒（PoisonError）通常意味着某线程在持锁期间 panic，状态已不可信，
+/// 这里保留 fail-fast panic 行为，但通过 `tracing::error!` 给出可观测的中文错误，
+/// 便于运维快速定位崩溃源。
+fn lock_event_bus_state() -> std::sync::MutexGuard<'static, EventBusState> {
+    EVENT_BUS_STATE.lock().unwrap_or_else(|e| {
+        tracing::error!(
+            error = %e,
+            "P9-1: EVENT_BUS_STATE 锁中毒（可能存在线程 panic），状态不可信"
+        );
+        panic!("P9-1: EVENT_BUS_STATE 锁中毒: {e}")
+    })
+}
+
 /// 事件总线主结构
 ///
 /// 内部根据 [`EventBusState`] 决定走 Broadcast 或 Kafka 真实后端。
@@ -252,7 +267,7 @@ impl EventBus {
     /// 当前后端类型（用于诊断 / 测试断言）
     #[allow(dead_code)] // TODO(tech-debt): 业务接入后移除
     pub fn backend_type(&self) -> EventBackendType {
-        let state = EVENT_BUS_STATE.lock().expect("EVENT_BUS_STATE 已中毒");
+        let state = lock_event_bus_state();
         match state.backend_kind.load(Ordering::Acquire) {
             1 => EventBackendType::Kafka,
             _ => EventBackendType::Broadcast,
@@ -268,7 +283,7 @@ impl EventBus {
     pub async fn publish_async(&self, event: BusinessEvent) {
         // 取出所需的全部状态后立即释放锁，避免 await 持锁
         let (kind, kafka_arc, broadcast_be) = {
-            let state = EVENT_BUS_STATE.lock().expect("EVENT_BUS_STATE 已中毒");
+            let state = lock_event_bus_state();
             let _ = state.local_tx.send(event.clone());
             (
                 state.backend_kind.load(Ordering::Acquire),
@@ -301,7 +316,7 @@ impl EventBus {
     /// 这里在同步上下文内 spawn 一个 tokio 任务异步发送。
     pub fn publish(&self, event: BusinessEvent) {
         // 同步上下文：直接写到本地 channel（无失败语义），并 spawn 异步 Kafka 投递
-        let state = EVENT_BUS_STATE.lock().expect("EVENT_BUS_STATE 已中毒");
+        let state = lock_event_bus_state();
         let _ = state.local_tx.send(event.clone());
         let kind = state.backend_kind.load(Ordering::Acquire);
         let kafka = state.kafka.as_ref().cloned();
@@ -320,7 +335,7 @@ impl EventBus {
 
     /// 订阅事件（返回 `broadcast::Receiver`，旧 API 完全兼容）
     pub fn subscribe(&self) -> broadcast::Receiver<BusinessEvent> {
-        let state = EVENT_BUS_STATE.lock().expect("EVENT_BUS_STATE 已中毒");
+        let state = lock_event_bus_state();
         state.local_tx.subscribe()
     }
 }
@@ -363,7 +378,7 @@ pub async fn init_event_bus_with_kafka_config(kafka_cfg: &KafkaSettings) {
             let backend = Arc::new(backend);
             // 启动消费后台任务，把 Kafka 事件桥接到本地 channel
             let local_tx = {
-                let state = EVENT_BUS_STATE.lock().expect("EVENT_BUS_STATE 已中毒");
+                let state = lock_event_bus_state();
                 state.local_tx.clone()
             };
             let backend_for_consumer = backend.clone();
@@ -385,7 +400,7 @@ pub async fn init_event_bus_with_kafka_config(kafka_cfg: &KafkaSettings) {
             });
 
             {
-                let mut state = EVENT_BUS_STATE.lock().expect("EVENT_BUS_STATE 已中毒");
+                let mut state = lock_event_bus_state();
                 state.kafka = Some(backend);
                 state.backend_kind.store(1, Ordering::Release);
             }
