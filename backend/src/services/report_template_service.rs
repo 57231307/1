@@ -68,21 +68,10 @@ pub struct ReportTemplateService {
     db: Arc<DatabaseConnection>,
 }
 
-/// 敏感表列表 - 禁止通过自定义 SQL 访问
-const SENSITIVE_TABLES: &[&str] = &[
-    "users",
-    "roles",
-    "permissions",
-    "audit_logs",
-    "jti_blacklist",
-    "system_config",
-];
-
-/// 危险 SQL 关键词 - 禁止在 SELECT 查询中使用
-const DANGEROUS_KEYWORDS: &[&str] = &[
-    "DELETE", "UPDATE", "INSERT", "DROP", "TRUNCATE", "ALTER", "CREATE", "EXEC", "EXECUTE",
-    "GRANT", "REVOKE",
-];
+// P0-B 安全修复：DANGEROUS_KEYWORDS / SENSITIVE_TABLES 常量及配套检查方法
+// （check_dangerous_keywords / check_sensitive_tables / add_tenant_filter / log_sql_execution）
+// 全部删除。execute_sql_report 走 SimpleQuery 协议，黑名单无法阻止分号切割攻击；
+// 统一在 create / update / execute 入口拒绝 data_source_sql，彻底关闭 SQL 注入攻击面。
 
 impl ReportTemplateService {
     pub fn new(db: Arc<DatabaseConnection>) -> Self {
@@ -94,13 +83,20 @@ impl ReportTemplateService {
         &self,
         tenant_id: i32,
         user_id: i32,
-        role_id: Option<i32>,
+        _role_id: Option<i32>,
         req: CreateReportTemplateRequest,
     ) -> Result<ReportTemplateModel, AppError> {
-        // 安全检查：仅允许管理员提交自定义 SQL
-        if req.data_source_sql.is_some() && role_id != Some(1) {
+        // P0-B 安全修复：彻底关闭"自定义 SQL 报表"入口。
+        // 历史实现 execute_sql_report 通过 Statement::from_string + query_all 走 SimpleQuery
+        // 协议，允许多语句执行；关键词黑名单 + starts_with("SELECT") 都不能阻止分号切割，
+        // 攻击者可利用 `SELECT 1; DROP TABLE ...` 实现 SQL 注入。
+        // 修复策略：禁止所有角色在 create/update 中提交 data_source_sql；
+        // execute_custom_report 也不再调用 execute_sql_report，统一返回功能禁用错误。
+        // 后续如需 SQL 报表能力，必须改用预定义白名单模板（report_type + 模板 ID），
+        // 由后端硬编码 SQL，前端仅传参数。
+        if req.data_source_sql.is_some() {
             return Err(AppError::permission_denied(
-                "出于安全原因，仅系统管理员允许提交自定义 SQL 报表",
+                "出于安全考虑，自定义 SQL 报表功能已禁用，请使用预定义报表模板".to_string(),
             ));
         }
 
@@ -177,7 +173,7 @@ impl ReportTemplateService {
         id: i32,
         tenant_id: i32,
         user_id: i32,
-        role_id: Option<i32>,
+        _role_id: Option<i32>,
         req: UpdateReportTemplateRequest,
     ) -> Result<ReportTemplateModel, AppError> {
         let model = ReportTemplateEntity::find()
@@ -192,10 +188,10 @@ impl ReportTemplateService {
             return Err(AppError::permission_denied("只有创建者可以更新该报表模板"));
         }
 
-        // 安全检查：仅允许管理员提交自定义 SQL
-        if req.data_source_sql.is_some() && role_id != Some(1) {
+        // P0-B 安全修复：禁止通过 update 提交自定义 SQL（与 create 一致）
+        if req.data_source_sql.is_some() {
             return Err(AppError::permission_denied(
-                "出于安全原因，仅系统管理员允许提交自定义 SQL 报表",
+                "出于安全考虑，自定义 SQL 报表功能已禁用，请使用预定义报表模板".to_string(),
             ));
         }
 
@@ -312,215 +308,27 @@ impl ReportTemplateService {
         template_id: i32,
         tenant_id: i32,
         user_id: i32,
-        role_id: Option<i32>,
+        _role_id: Option<i32>,
         page: u64,
         page_size: u64,
     ) -> Result<(Vec<String>, Vec<Vec<String>>, u64), AppError> {
-        let template = self
+        let _template = self
             .get_by_id(template_id, tenant_id, user_id)
             .await?
             .ok_or_else(|| AppError::not_found("报表模板不存在"))?;
 
-        // 如果有自定义SQL，使用SQL执行
-        if let Some(sql) = &template.data_source_sql {
-            return self
-                .execute_sql_report(sql, tenant_id, user_id, role_id, page, page_size)
-                .await;
+        // P0-B 安全修复：彻底关闭"自定义 SQL 报表"执行入口。
+        // 任何带 data_source_sql 的模板统一返回功能禁用错误，
+        // 避免攻击者通过创建/更新已存在的模板字段来触发 SQL 执行。
+        if _template.data_source_sql.is_some() {
+            return Err(AppError::permission_denied(
+                "出于安全考虑，自定义 SQL 报表功能已禁用，请使用预定义报表模板".to_string(),
+            ));
         }
 
         // 否则使用预定义的报表类型
         Err(AppError::business(
             "自定义报表需要配置数据源SQL".to_string(),
         ))
-    }
-
-    /// 执行自定义 SQL 报表（公开方法，供路由直接调用）
-    pub async fn execute_sql_report(
-        &self,
-        sql: &str,
-        tenant_id: i32,
-        user_id: i32,
-        role_id: Option<i32>,
-        page: u64,
-        page_size: u64,
-    ) -> Result<(Vec<String>, Vec<Vec<String>>, u64), AppError> {
-        use sea_orm::{ConnectionTrait, Statement};
-
-        // 1. 权限检查：仅系统管理员可执行
-        if role_id != Some(1) {
-            return Err(AppError::permission_denied(
-                "出于安全原因，仅系统管理员允许执行原始 SQL 报表",
-            ));
-        }
-
-        // 2. 基础验证
-        let sql_trimmed = sql.trim();
-        if sql_trimmed.is_empty() {
-            return Err(AppError::validation("SQL 语句不能为空"));
-        }
-
-        // 3. 只允许 SELECT 语句
-        let sql_upper = sql_trimmed.to_uppercase();
-        if !sql_upper.starts_with("SELECT") {
-            return Err(AppError::validation("只允许 SELECT 查询语句"));
-        }
-
-        // 4. 禁止危险关键词
-        Self::check_dangerous_keywords(&sql_upper)?;
-
-        // 5. 检查敏感表访问
-        Self::check_sensitive_tables(sql_trimmed)?;
-
-        // 6. 强制添加租户 ID 过滤条件
-        let filtered_sql = Self::add_tenant_filter(sql_trimmed, tenant_id)?;
-
-        // 7. 记录审计日志
-        Self::log_sql_execution(user_id, sql_trimmed, tenant_id);
-
-        // 8. 添加分页
-        let paginated_sql = format!(
-            "{} LIMIT {} OFFSET {}",
-            filtered_sql,
-            page_size,
-            (page - 1) * page_size
-        );
-
-        let stmt = Statement::from_string(sea_orm::DatabaseBackend::Postgres, paginated_sql);
-
-        let result: Vec<sea_orm::QueryResult> = self
-            .db
-            .as_ref()
-            .query_all(stmt)
-            .await
-            .map_err(|e| AppError::database(format!("SQL 执行失败：{}", e)))?;
-
-        if result.is_empty() {
-            return Ok((vec![], vec![], 0));
-        }
-
-        // 解析 QueryResult 的列和行
-        let first_row = &result[0];
-        let column_count = first_row.column_names().len();
-
-        let headers: Vec<String> = (0..column_count)
-            .map(|i| {
-                first_row
-                    .column_names()
-                    .get(i)
-                    .cloned()
-                    .unwrap_or_else(|| format!("col_{}", i))
-            })
-            .collect();
-
-        let mut data: Vec<Vec<String>> = Vec::new();
-        for row in &result {
-            let mut row_data: Vec<String> = Vec::new();
-            #[allow(clippy::needless_range_loop)]
-            for i in 0..column_count {
-                let value: String = row.try_get_by_index::<String>(i).unwrap_or_default();
-                row_data.push(value);
-            }
-            data.push(row_data);
-        }
-
-        let total = data.len() as u64;
-        Ok((headers, data, total))
-    }
-
-    /// 检查 SQL 中是否包含危险关键词
-    fn check_dangerous_keywords(sql_upper: &str) -> Result<(), AppError> {
-        for keyword in DANGEROUS_KEYWORDS {
-            // 使用单词边界检查，避免误判普通列名中包含关键词子串
-            let pattern = format!(" {} ", keyword);
-            let pattern_start = format!("{} ", keyword);
-            let pattern_end = format!(" {}", keyword);
-            if sql_upper.contains(&pattern)
-                || sql_upper.starts_with(&pattern_start)
-                || sql_upper.ends_with(&pattern_end)
-                || sql_upper == *keyword
-            {
-                return Err(AppError::validation(format!(
-                    "禁止使用危险关键词：{}",
-                    keyword
-                )));
-            }
-        }
-        Ok(())
-    }
-
-    /// 检查 SQL 是否访问了敏感表
-    fn check_sensitive_tables(sql: &str) -> Result<(), AppError> {
-        let sql_lower = sql.to_lowercase();
-
-        for table in SENSITIVE_TABLES {
-            // 检查 FROM / JOIN 后是否引用了敏感表
-            // 支持 "from table"、"join table"、"from table "、", table" 等模式
-            let patterns = [
-                format!("from {}", table),
-                format!("join {}", table),
-                format!(", {}", table),
-            ];
-
-            for pattern in &patterns {
-                if sql_lower.contains(pattern.as_str()) {
-                    return Err(AppError::permission_denied(format!(
-                        "禁止访问敏感表：{}",
-                        table
-                    )));
-                }
-            }
-        }
-
-        Ok(())
-    }
-
-    /// 强制添加租户 ID 过滤条件，防止跨租户数据泄露
-    fn add_tenant_filter(sql: &str, tenant_id: i32) -> Result<String, AppError> {
-        let sql_upper = sql.to_uppercase();
-
-        // 如果 SQL 中已包含 WHERE 子句，追加 AND 条件
-        // 注意：需要处理子查询中也有 WHERE 的情况，这里采用简单策略
-        // 在最外层追加过滤条件
-        if sql_upper.contains(" WHERE ") {
-            // 在已有 WHERE 基础上追加 AND 条件
-            // 需要找到最后一个 WHERE 后面的位置来追加
-            Ok(format!("{} AND tenant_id = {}", sql, tenant_id))
-        } else {
-            // 没有 WHERE 子句，在 FROM 子句后添加 WHERE
-            // 查找可能的插入点：ORDER BY / GROUP BY / LIMIT / OFFSET / 末尾
-            let insert_keywords = [
-                " ORDER BY ",
-                " GROUP BY ",
-                " HAVING ",
-                " LIMIT ",
-                " OFFSET ",
-            ];
-
-            let mut insert_pos = sql.len();
-            for kw in &insert_keywords {
-                if let Some(pos) = sql_upper.rfind(kw) {
-                    if pos < insert_pos {
-                        insert_pos = pos;
-                    }
-                }
-            }
-
-            let (before, after) = sql.split_at(insert_pos);
-            Ok(format!(
-                "{} WHERE tenant_id = {}{}",
-                before, tenant_id, after
-            ))
-        }
-    }
-
-    /// 记录 SQL 执行审计日志
-    fn log_sql_execution(user_id: i32, sql: &str, tenant_id: i32) {
-        tracing::warn!(
-            user_id = user_id,
-            tenant_id = tenant_id,
-            sql = sql,
-            "执行自定义 SQL 报表"
-        );
-        // TODO: 写入审计日志表
     }
 }
