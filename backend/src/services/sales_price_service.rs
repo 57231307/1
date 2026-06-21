@@ -245,7 +245,4 @@ impl SalesPriceService {
 
         Ok(strategies)
     }
-
-    /// 获取指定产品和客户的当前有效价格
-    /// 按优先级：客户专属价格 > 客户类型价格 > 通用价格
 }
