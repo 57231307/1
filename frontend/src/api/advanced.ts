@@ -44,10 +44,8 @@ export const executeReport = (template_code: string) =>
 
 export const listTenants = () => request.get('/advanced/tenants')
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
 export const createTenant = (data: any) => request.post('/advanced/tenants', data)
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
 export const updateTenant = (id: number, data: any) => request.put(`/advanced/tenants/${id}`, data)
 
 export const deleteTenant = (id: number) => request.delete(`/advanced/tenants/${id}`)

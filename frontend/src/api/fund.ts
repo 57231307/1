@@ -1,7 +1,6 @@
 import { request } from './request'
 import type { ApiResponse, QueryParams } from '@/types/api'
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
 export const FUND_ACCOUNT_STATUS: Record<string, { label: string; type: any }> = {
   active: { label: '正常', type: 'success' },
   inactive: { label: '停用', type: 'info' },

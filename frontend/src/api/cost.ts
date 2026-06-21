@@ -29,7 +29,6 @@ export const auditCollection = (id: number, approved: boolean, comment?: string)
   request.post(`/production/cost-collections/${id}/audit`, { approved, comment })
 
 // 成本归集列表查询（重命名自 listCollections）
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
 export const listCostCollections = (params?: any) =>
   request.get('/production/cost-collections', { params })
 
