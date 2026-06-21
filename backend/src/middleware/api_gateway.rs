@@ -50,42 +50,4 @@ impl RateLimitStore {
     }
 }
 
-/// API 限流中间件
-#[allow(dead_code)] // TODO(tech-debt): 业务接入后移除
-pub async fn rate_limit_middleware(
-    State(state): State<AppState>,
-    request: Request<Body>,
-    next: Next,
-) -> Result<Response, StatusCode> {
-    // 从请求中获取客户端标识（IP 或 API Key）
-    let client_key = request
-        .headers()
-        .get("X-API-Key")
-        .and_then(|h| h.to_str().ok())
-        .map(|s| s.to_string())
-        .unwrap_or_else(|| "anonymous".to_string());
 
-    // 检查限流（默认每分钟 100 请求）
-    if !state
-        .rate_limiter
-        .is_allowed(&client_key, 100, Duration::from_secs(60))
-    {
-        return Err(StatusCode::TOO_MANY_REQUESTS);
-    }
-
-    Ok(next.run(request).await)
-}
-
-/// API 版本中间件
-#[allow(dead_code)] // TODO(tech-debt): 业务接入后移除
-pub async fn api_version_middleware(mut request: Request<Body>, next: Next) -> Response {
-    let version = request
-        .headers()
-        .get("X-API-Version")
-        .and_then(|h| h.to_str().ok())
-        .unwrap_or("v1")
-        .to_string();
-
-    request.extensions_mut().insert(version);
-    next.run(request).await
-}

@@ -32,7 +32,6 @@ static ADMIN_ROLE_CACHE: LazyLock<DashMap<i32, AdminCacheEntry>> = LazyLock::new
 const ADMIN_CACHE_TTL_MINUTES: i64 = 5;
 
 /// 清除管理员角色缓存
-#[allow(dead_code)]
 pub fn clear_admin_role_cache(role_id: Option<i32>) {
     if let Some(id) = role_id {
         ADMIN_ROLE_CACHE.remove(&id);

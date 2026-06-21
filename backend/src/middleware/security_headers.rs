@@ -81,23 +81,6 @@ pub fn apply_security_headers(response: &mut Response) {
     );
 }
 
-/// 安全响应头中间件（axum middleware 形式）
-///
-/// 用法示例：
-/// ```ignore
-/// let app = Router::new()
-///     .route("/", get(handler))
-///     .layer(axum::middleware::from_fn(security_headers_middleware));
-/// ```
-///
-/// 当前主链路未使用本函数（`main.rs` 使用 `SetResponseHeaderLayer` 注入），
-/// 但保留作为备用工具方法供需要"完整中间件"形式的场景调用。
-#[allow(dead_code)] // TODO(tech-debt): 切换到中间件形式注入安全头时移除
-pub async fn security_headers_middleware(req: Request, next: Next) -> Response {
-    let mut response = next.run(req).await;
-    apply_security_headers(&mut response);
-    response
-}
 
 #[cfg(test)]
 mod tests {

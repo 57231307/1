@@ -43,41 +43,6 @@ pub struct DefectQuery {
     pub page_size: Option<i64>,
 }
 
-#[derive(Debug, Serialize)]
-#[allow(dead_code)] // TODO(tech-debt): 业务接入后移除
-pub struct InspectionRecordResponse {
-    pub id: i32,
-    pub record_number: String,
-    pub product_id: i32,
-    pub product_name: Option<String>,
-    pub batch_number: String,
-    pub color_code: Option<String>,
-    pub quantity: i32,
-    pub qualified_quantity: i32,
-    pub unqualified_quantity: i32,
-    pub inspection_date: String,
-    pub inspector_id: i32,
-    pub inspector_name: Option<String>,
-    pub inspection_result: String,
-    pub remark: Option<String>,
-}
-
-#[derive(Debug, Serialize)]
-#[allow(dead_code)] // TODO(tech-debt): 业务接入后移除
-pub struct DefectResponse {
-    pub id: i32,
-    pub record_id: i32,
-    pub defect_type: String,
-    pub defect_description: String,
-    pub quantity: i32,
-    pub severity_level: String,
-    pub handling_method: String,
-    pub handler_id: Option<i32>,
-    pub handler_name: Option<String>,
-    pub handling_date: Option<String>,
-    pub status: String,
-}
-
 pub async fn list_standards(
     Query(params): Query<QualityInspectionQuery>,
     State(state): State<AppState>,
