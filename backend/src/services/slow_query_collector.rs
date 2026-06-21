@@ -43,7 +43,6 @@ pub struct SlowQueryCollector {
 ///
 /// 设计说明：threshold 与 limit 均为数值类型（f64 / i64），
 /// 不接受用户输入，无 SQL 注入风险。
-#[allow(dead_code, reason = "辅助函数被 collect_once 调用，预留 API")]
 pub fn build_query_sql(threshold_ms: f64, limit_rows: i64) -> String {
     format!(
         "SELECT query, mean_exec_time, calls, rows \
@@ -62,7 +61,6 @@ impl SlowQueryCollector {
     /// - `db`：数据库连接（Arc 包装）
     /// - `threshold_ms`：慢查询阈值（毫秒），默认 100ms（与 plan 一致）
     /// - `limit_rows`：单次采集最大行数，默认 100（与 plan 一致）
-    #[allow(dead_code, reason = "构造器供 main.rs 启动时调用，预留 API")]
     pub fn new(db: Arc<DatabaseConnection>, threshold_ms: f64, limit_rows: i64) -> Self {
         Self {
             db,
