@@ -177,7 +177,7 @@ impl ExportService {
 
         Ok(content.into_bytes())
     }
-
+}
 
 /// 对账单PDF明细项
 #[derive(Debug, Clone, Serialize, Deserialize)]

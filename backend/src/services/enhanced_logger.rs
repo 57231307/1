@@ -350,9 +350,6 @@ pub struct ApplicationHealth {
 }
 
 impl EnhancedLogger {
-    /// 记录资金操作日志
-    /// 记录权限变更日志
-    #[allow(dead_code)] // TODO(tech-debt): 业务接入后移除
     /// 记录登录安全日志
     pub fn log_login_security(log: &LoginSecurityLog) {
         let level = match log.security_info.risk_level.as_str() {
@@ -402,12 +399,4 @@ impl EnhancedLogger {
             serde_json::to_string(log).unwrap_or_default()
         );
     }
-
-    /// 记录数据库操作日志
-    #[allow(dead_code)] // TODO(tech-debt): 业务接入后移除
-    /// 记录性能监控日志
-    #[allow(dead_code)] // TODO(tech-debt): 业务接入后移除
-    /// 记录业务操作日志
-    #[allow(dead_code)] // TODO(tech-debt): 业务接入后移除
-    /// 记录系统健康日志
-    #[allow(dead_code)] // TODO(tech-debt): 业务接入后移除
+}

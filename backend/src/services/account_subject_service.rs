@@ -317,8 +317,9 @@ impl AccountSubjectService {
         info!("会计科目删除成功：id={}", id);
         Ok(())
     }
+}
 
-    /// 科目树节点
+/// 科目树节点
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SubjectTreeNode {
     pub id: i32,
@@ -340,3 +341,4 @@ pub struct SubjectBalance {
     pub ending_balance_debit: rust_decimal::Decimal,
     pub ending_balance_credit: rust_decimal::Decimal,
 }
+
