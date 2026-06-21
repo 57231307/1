@@ -172,15 +172,29 @@
 - **当前状态**：main 路由仍指向旧版 `report-templates/index.vue`（未受影响），旧版功能正常
 - **后续**：在 9.5.3-fix 子批次中修复 TplFld.vue 等子组件 v-model 问题，验证后再切换
 
+#### 批次 9.5.3-方案D — 放弃重构，删除新版 + dist 历史归档清理（2026-06-21）
+
+- **PR #228 merged `42fb4fc`**：46 文件 / -3624 行 / CI 5/5 success
+- **删除 1: dist/test-version-P0-{2,3,4,5}/**（29 文件, ~160KB）
+  - P0-2 主备隔离 / P0-3 定制订单 / P0-4 色卡 / P0-5 面料多色号定价
+  - test 阶段临时 Docker 部署包，功能已合入 main，0 引用
+- **删除 2: frontend/src/views/report/ 整个目录**（16 文件, ~2100 行）
+  - templates.vue + 10 子组件 + 5 composables
+  - 架构问题：7 子组件全部用 `v-model` 绑 prop 对象的字段（每个文件第 2 行都有 `/* eslint-disable vue/no-mutating-props */` 注释）
+  - Vue 3.4+ strict 模式构建时直接拒绝，PR #227 关闭原因
+  - 方案 A/B 修复 ROI 低，决定方案 D：放弃重构，删除新版（孤儿）
+  - 旧版 `report-templates/index.vue` 保留，路由 `/report-templates` 继续指向旧版
+- **9.5.3-fix 标记为"不需要"**
+
 #### 9.5 总进度（2026-06-21）
 
 - ✅ 9.5.1 5 view 挂载 + 修 2 P0 死链（5/5 PR merged）
 - ✅ 9.5.2 删除 bi/index.vue（PR #226 merged）
-- ⏸️ 9.5.3 报表模板重构延期（PR #227 closed，新版有 bug 待修）
-- 📊 main HEAD `aaa3872`（自动发版 tag v2026.621.1516）
+- ✅ 9.5.3 报表模板放弃重构（PR #228 merged，方案 D）
+- 📊 main HEAD `42fb4fc`（自动发版 tag v2026.621.1537）
 
 #### main HEAD 状态
-- `aaa3872`（自动发版 tag v2026.621.1516）
+- `42fb4fc`（自动发版 tag v2026.621.1537）
 
 ### CI 批次 9.3+ 完成（2026-06-21）
 
