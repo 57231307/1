@@ -49,6 +49,72 @@
 - 批次 9.5：4 个未挂载 view 决策
 - 批次 9.6+：依赖 CI 自动化报告
 
+### CI 批次 9.4 / 9.2 / 9.1 连续完成（2026-06-21）
+
+#### 批次 9.4 子批 1（PR #216 merged `d0dab01f`）
+- 删 **20 项**冗余 `#[allow(dead_code)]` 抑制（实际有引用）
+- 13 文件：import_export/bpm_definition/audit_context/supplier/email_log/event_bus/currency/export/data_permission/audit_log/production_order/event_kafka
+- CI 5/5 success
+
+#### 批次 9.3+（PR #215 merged `9a79de46`）
+- 修 9 个 .vue template-script 不一致真实 bug
+- 2 文件本项目组件（arReconciliation 6 + report 2）+ 7 文件 Element Plus Icon
+- 9 文件 / +17 / -1 行
+- CI 5/5 success
+
+#### 批次 9.2（PR #217 merged `c31023b0`）
+- 删 **16 个**未引用 .vue 组件（0 引用死代码）
+- 分布：3 components + 6 api-gateway + 4 业务子组件 + 2 sales 拆分未挂载 tab + 1 arReconciliation
+- 16 文件 / -1928 行
+- CI 5/5 success
+
+#### 批次 9.1（PR #218 merged `5584fd82`）
+- 删 **5 项**冗余 `#[allow(dead_code)]` 抑制（剩余批次）
+- 2 文件：slow_query_collector (4 项) + quotation_pricing_service (1 项)
+- 全部有真实引用（main.rs:360 / 366 / collect_once 内部调用 / tests/）
+- CI 5/5 success
+
+#### 24 项冗余 allow 全部完成
+- 批次 9.4 子批 1: 20 项（11 文件） + 批次 9.1: 5 项（2 文件）= **25 项**冗余 allow 全部删除
+- 待办：9 个路由未挂载 view 决策（bi/bpm/approval/crm/leads/crm/opportunities/admin/failover/report/templates/security/ChangePassword/security/TwoFactorSetup）
+
+#### 治理路线图进度（2026-06-21）
+- ✅ 批次 9.3（system-update 3 import + 3 死代码）
+- ✅ 批次 9.3+（9 个 .vue 真实 bug + Icon 缺失）
+- ✅ 批次 9.4 子批 1（20 项冗余 allow）
+- ✅ 批次 9.2（16 个未引用 .vue）
+- ✅ 批次 9.1（5 项剩余冗余 allow）
+- 🔵 批次 9.4 子批 2/3（112 项真死代码 allow 评估 + 处理）— 部分处理（如慢查询 4 项已合并到 9.1）
+- 🔵 批次 9.5（9 个路由未挂载 view 决策）
+
+#### main HEAD 状态
+- `5584fd82`（批次 9.1 合并点）
+
+### CI 批次 9.3+ 完成（2026-06-21）
+
+- **PR #215 merged**（squash commit `9a79de46`）
+- **目标**：修 9 个 .vue template-script 不一致真实 bug + 7 文件 Element Plus Icon 缺失
+- **扫描方法**：`/workspace/.tmp_scans/scan_missing_imports.py` + `/workspace/.tmp_scans/scan_missing_el_icons.py`
+- **修复清单**（9 文件 28 处）：
+  - **本项目组件 import 缺失（2 文件 8 处）**：
+    - `arReconciliation/enhanced.vue`：ArFilter/ArCharts/ArTbl/ArDetail/ArConfirm/ArDispute（6 个）
+    - `report/components/TplFrm.vue`：TplFld/TplFlt（2 个）
+  - **Element Plus Icon import 缺失（7 文件 20 处）**：
+    - `system-update/index.vue`：Refresh/FolderAdd
+    - `scheduling/components/SchGTool.vue`：7 个 Icon（ArrowLeft/Calendar/Cpu/List/OfficeBuilding/Refresh/Warning）
+    - `scheduling/components/SchMTool.vue`：6 个 Icon
+    - `scheduling/components/SchMTbl.vue`：Refresh
+    - `ai-extend/index.vue`：DataAnalysis/Document/MagicStick
+    - `assistAccounting/index.vue`：Refresh
+    - `quotations/components/QuotationItemEditor.vue`：Plus
+- **扫描局限修复**：
+  - 不识别 `import Default, { type Named } from` 语法
+  - 不识别 `<script setup>` 顶部 inline 接口之前的 import 位置
+  - 扫描结果需人工核对
+- **变更规模**：9 文件 / +17 / -1 行（仅新增 import 块）
+- **CI 验证**：5/5 success（构建后端 / 运行测试 / 前端类型检查 / 构建前端 / 前端测试）
+- **main HEAD**：`9a79de46`（批次 9.3+ 合并点）
+
 ### CI 批次 9.3 完成（2026-06-21）
 
 - **PR #214 merged**（squash commit `bda4a75a`）

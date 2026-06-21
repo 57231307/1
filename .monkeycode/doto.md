@@ -375,6 +375,10 @@
 | **🔴 Wave E-1 deep clippy dead_code 深度预判** | ✅ 已完成（2026-06-19）| 扫描 90 个 Wave A+B 涉及 .rs 文件，发现**55 项实际死代码** + 14 项子模块内部死代码 = 69 项待修复；[报告](file:///workspace/.monkeycode/docs/audits/2026-06-19-clippy-deep-prediction.md)；6 个 `pub mod` 声明为误报；扫描脚本 `/tmp/scan_v3.py`；按修复策略 3 批 / ~77 项抑制 / 3.0h |
 | **P14+ 候选（roadmap v0.3 剩余）** | 🔵 待启动 | 见下方 |
 | **批次 9.3 system-update 修复** | ✅ 已完成（PR #214）| commit `bda4a75a`，修 3 import 缺失 + 删 3 死代码，CI 5/5 success |
+| **批次 9.3+ 9 .vue import 缺失修复** | ✅ 已完成（PR #215）| commit `9a79de46`，9 文件 28 处（2 本项目 + 20 Icon + 6 system-update Icon 合并到批次 9.3），CI 5/5 success |
+| **批次 9.4 子批 1 20 项冗余 allow** | ✅ 已完成（PR #216）| commit `d0dab01f`，20 项冗余 #[allow(dead_code)] 删除（11 文件），CI 5/5 success |
+| **批次 9.2 16 个未引用 .vue** | ✅ 已完成（PR #217）| commit `c31023b0`，16 文件删除（-1928 行），CI 5/5 success |
+| **批次 9.1 5 项剩余冗余 allow** | ✅ 已完成（PR #218）| commit `5584fd82`，5 项删除（slow_query_collector + quotation_pricing），CI 5/5 success |
 
 ### P14+ 候选清单（roadmap v0.3 剩余，6 任务）
 

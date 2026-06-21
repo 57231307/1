@@ -1,0 +1,146 @@
+[
+  {
+    "file": "backend/src/utils/import_export.rs",
+    "name": "FieldValidator",
+    "decl": "pub struct FieldValidator",
+    "ref_count": 5
+  },
+  {
+    "file": "backend/src/handlers/bpm_definition_handler.rs",
+    "name": "save_as_template",
+    "decl": "pub async fn save_as_template",
+    "ref_count": 1
+  },
+  {
+    "file": "backend/src/models/audit_log.rs",
+    "name": "parse",
+    "decl": "pub fn parse",
+    "ref_count": 131
+  },
+  {
+    "file": "backend/src/middleware/audit_context.rs",
+    "name": "empty",
+    "decl": "pub fn empty",
+    "ref_count": 17
+  },
+  {
+    "file": "backend/src/services/supplier_service.rs",
+    "name": "list_supplier_qualifications",
+    "decl": "pub async fn list_supplier_qualifications",
+    "ref_count": 2
+  },
+  {
+    "file": "backend/src/services/supplier_service.rs",
+    "name": "create_supplier_qualification",
+    "decl": "pub async fn create_supplier_qualification",
+    "ref_count": 2
+  },
+  {
+    "file": "backend/src/services/email_log_service.rs",
+    "name": "get_by_id",
+    "decl": "pub async fn get_by_id",
+    "ref_count": 98
+  },
+  {
+    "file": "backend/src/services/event_bus.rs",
+    "name": "backend_type",
+    "decl": "pub fn backend_type",
+    "ref_count": 3
+  },
+  {
+    "file": "backend/src/services/currency_service.rs",
+    "name": "list_exchange_rates",
+    "decl": "pub async fn list_exchange_rates",
+    "ref_count": 3
+  },
+  {
+    "file": "backend/src/services/export_service.rs",
+    "name": "export",
+    "decl": "pub fn export",
+    "ref_count": 50
+  },
+  {
+    "file": "backend/src/services/data_permission_service.rs",
+    "name": "DEPT",
+    "decl": "pub const DEPT",
+    "ref_count": 3
+  },
+  {
+    "file": "backend/src/services/data_permission_service.rs",
+    "name": "DEPT_AND_BELOW",
+    "decl": "pub const DEPT_AND_BELOW",
+    "ref_count": 3
+  },
+  {
+    "file": "backend/src/services/data_permission_service.rs",
+    "name": "SELF",
+    "decl": "pub const SELF",
+    "ref_count": 3
+  },
+  {
+    "file": "backend/src/services/data_permission_service.rs",
+    "name": "CUSTOM",
+    "decl": "pub const CUSTOM",
+    "ref_count": 6
+  },
+  {
+    "file": "backend/src/services/audit_log_service.rs",
+    "name": "new",
+    "decl": "pub fn new",
+    "ref_count": 2130
+  },
+  {
+    "file": "backend/src/services/audit_log_service.rs",
+    "name": "record",
+    "decl": "pub async fn record",
+    "ref_count": 67
+  },
+  {
+    "file": "backend/src/services/production_order_service.rs",
+    "name": "delete",
+    "decl": "pub async fn delete",
+    "ref_count": 174
+  },
+  {
+    "file": "backend/src/services/quotation_pricing_service.rs",
+    "name": "match_tier_for_unit_test",
+    "decl": "pub(crate) fn match_tier_for_unit_test",
+    "ref_count": 2
+  },
+  {
+    "file": "backend/src/services/event_kafka.rs",
+    "name": "from_event",
+    "decl": "pub fn from_event",
+    "ref_count": 2
+  },
+  {
+    "file": "backend/src/services/event_kafka.rs",
+    "name": "into_event",
+    "decl": "pub fn into_event",
+    "ref_count": 1
+  },
+  {
+    "file": "backend/src/services/event_kafka.rs",
+    "name": "config",
+    "decl": "pub fn config",
+    "ref_count": 120
+  },
+  {
+    "file": "backend/src/services/slow_query_collector.rs",
+    "name": "new",
+    "decl": "pub fn new",
+    "ref_count": 2134
+  },
+  {
+    "file": "backend/src/services/slow_query_collector.rs",
+    "name": "start_collect_task",
+    "decl": "pub fn start_collect_task",
+    "ref_count": 1
+  },
+  {
+    "file": "backend/src/services/slow_query_collector.rs",
+    "name": "collect_once",
+    "decl": "pub async fn collect_once",
+    "ref_count": 1
+  }
+]
