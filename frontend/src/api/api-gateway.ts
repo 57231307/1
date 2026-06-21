@@ -12,9 +12,7 @@ export interface ApiEndpoint {
   timeout: number
   authentication: boolean
   authorization: string[]
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   request_schema: Record<string, any>
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   response_schema: Record<string, any>
   created_at: string
   updated_at: string
@@ -106,7 +104,6 @@ export function regenerateApiKey(id: number): Promise<ApiResponse<ApiKey>> {
   return request.post(`/api-gateway/keys/${id}/regenerate`)
 }
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
 export function getApiStats(): Promise<ApiResponse<any>> {
   return request.get('/api-gateway/stats')
 }

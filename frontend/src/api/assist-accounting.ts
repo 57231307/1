@@ -19,7 +19,6 @@ export interface AssistDimension {
 export interface AssistDimensionResponse {
   dimension_code: string
   dimension_name: string
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   [key: string]: any
 }
 
@@ -30,7 +29,6 @@ export interface AssistRecordResponse {
   dimension_code: string
   business_type: string
   amount: number
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   [key: string]: any
 }
 
@@ -38,15 +36,12 @@ export interface AssistSummaryResponse {
   dimension_code: string
   dimension_name: string
   total_amount: number
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   [key: string]: any
 }
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
 export const listAssistDimensions = (params?: any) =>
   request.get('/assist-accounting/dimensions', { params })
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
 export const listAssistRecords = (params?: any) =>
   request.get('/assist-accounting/records', { params })
 
@@ -55,6 +50,5 @@ export const queryAssistRecords = listAssistRecords
 export const getAssistRecordsByFiveDimension = (fiveDimensionId: number) =>
   request.get(`/assist-accounting/records/five-dimension/${fiveDimensionId}`)
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
 export const getAssistSummary = (params?: any) =>
   request.get('/assist-accounting/summary', { params })
