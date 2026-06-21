@@ -374,6 +374,7 @@
 | **🔴 Wave E-1 修复分支 E1+E2** | ✅ 已完成（2026-06-19）| E1：23 个 pub 项加项级 `#[allow(dead_code)] // TODO(tech-debt): 业务接入后移除`（预测报告 25 项中 1 phantom (UpdatePlan) + 1 重复 (OptionalAuth)）；E2：修复 `auth.rs:68` 行宽（161 字符 → 9 行）；11 文件 / +32/-1 行；未本地编译，仅 Grep 静态验证；未 commit/push |
 | **🔴 Wave E-1 deep clippy dead_code 深度预判** | ✅ 已完成（2026-06-19）| 扫描 90 个 Wave A+B 涉及 .rs 文件，发现**55 项实际死代码** + 14 项子模块内部死代码 = 69 项待修复；[报告](file:///workspace/.monkeycode/docs/audits/2026-06-19-clippy-deep-prediction.md)；6 个 `pub mod` 声明为误报；扫描脚本 `/tmp/scan_v3.py`；按修复策略 3 批 / ~77 项抑制 / 3.0h |
 | **P14+ 候选（roadmap v0.3 剩余）** | 🔵 待启动 | 见下方 |
+| **批次 9.3 system-update 修复** | ✅ 已完成（PR #214）| commit `bda4a75a`，修 3 import 缺失 + 删 3 死代码，CI 5/5 success |
 
 ### P14+ 候选清单（roadmap v0.3 剩余，6 任务）
 
@@ -682,6 +683,36 @@
   - 前端 19 文件 + .eslintrc.cjs：crm-enhanced export const crmEnhancedApi + logger default export + useApiLog logQuery 字段 + SalesAnalysis 7 处 .data + inventory 修复 + 4 处 emit→$emit + quality-prediction OPTIONS 派生 + 4 处 ||→?? + e2e 字符串 + 未用 import/variable + supplier 5 修 + rank 2 改 type + quality/index.vue 删 9 unused + L6-7 改函数名 + provide 移到底
 - **commit 2d2a913** + **push 成功** `b0c39b0..2d2a913 fix/wave-a-b-errors`
 - **CI #1155 监控中**（2d2a913 触发）
+
+## CI 批次 9.3 死代码 + 真实 bug 修复（2026-06-21）
+
+- Date: 2026-06-21
+- Context: 用户指令"开始"启动批次 9.3 — 修 system-update/index.vue 3 个 import 缺失 + 删 3 个死代码组件
+- Category: 死代码治理 + 真实 bug 修复
+- Instructions:
+  - **真实 bug 发现**（用户问"为什么冲突"时回答）：
+    - `system-update/index.vue` 模板引用 `<SuInfoCards>` `<SuVerDetail>` `<SuBkpForm>` 3 个核心 UI 组件
+    - script setup 只 import 了 3 个 tab 组件，**3 个核心 UI 组件 import 缺失**
+    - Vue 3 script setup 宽容处理：template 引用未 import 组件不报错（仅运行时警告）
+    - 业务影响：用户打开 system-update 页面 → 顶部 3 张信息卡不显示、版本详情/备份表单弹窗不显示
+  - **扫描脚本**：`/workspace/.tmp_scans/scan_missing_imports.py`
+    - 扫描所有 .vue 父页面的 template 引用 vs script import
+    - 发现 10 个文件 21 处缺失：3 核心 UI（system-update）+ 9 次要（arReconciliation/report/inventory）+ 7 Icon
+  - **修复**：
+    - `frontend/src/views/system-update/index.vue` L101-103 加 3 行 import
+  - **死代码清理**（3 个已迁移组件）：
+    - `SuBkpTbl.vue` → 已迁移到 `tabs/SystemUpdateBackupTab.vue`
+    - `SuVerTbl.vue` → 已迁移到 `tabs/SystemUpdateVersionTab.vue`
+    - `SuTaskTbl.vue` → 已迁移到 `tabs/SystemUpdateTaskTab.vue`
+  - **流程**：commit `59c4eaf` → push → PR #214 → CI 5/5 success → squash merge `bda4a75a`
+  - **关键经验**：
+    - Vue 3 + script setup 不会因 template 引用未 import 组件报错，仅控制台警告
+    - 拆分大 .vue 后续子批时（I-3 第 1 批）遗漏 import 是常见 bug 类型
+    - 扫描脚本 `.tmp_scans/scan_missing_imports.py` 通用化能力强，可复用到其他页面
+  - **同类待办**（下一批）：
+    - 9 个 .vue import 缺失：arReconciliation/enhanced.vue (6 Ar*) / report/TplFrm (2 Tpl*) / inventory/index.vue (1)
+    - 7 个文件 Element Plus Icon 缺失：方案 A 手动 import / 方案 B vite.config.ts 加 IconsResolver
+  - **main HEAD**：`bda4a75a`
 
 ## Wave C-1 CI 监控循环第 1 轮（2026-06-20）
 

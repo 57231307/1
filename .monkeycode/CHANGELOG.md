@@ -49,6 +49,29 @@
 - 批次 9.5：4 个未挂载 view 决策
 - 批次 9.6+：依赖 CI 自动化报告
 
+### CI 批次 9.3 完成（2026-06-21）
+
+- **PR #214 merged**（squash commit `bda4a75a`）
+- **目标**：修复 system-update 真实运行时 bug + 清理 3 个未引用 .vue 组件
+- **背景发现**（扫描脚本 `.tmp_scans/scan_missing_imports.py`）：
+  - `system-update/index.vue` 模板 L23/L78/L83 引用 `<SuInfoCards>` `<SuVerDetail>` `<SuBkpForm>`，但 script L94-100 只 import 了 3 个 tab 组件
+  - Vue 3 script setup 宽容处理：template 引用未 import 组件不报错（仅运行时警告）
+  - 业务影响：用户打开 system-update 页面 → 顶部 3 张信息卡不显示、版本详情/备份表单弹窗不显示
+- **修复**（`frontend/src/views/system-update/index.vue` L101-103）：新增 3 行 import
+  ```ts
+  import SuInfoCards from './components/SuInfoCards.vue'
+  import SuVerDetail from './components/SuVerDetail.vue'
+  import SuBkpForm from './components/SuBkpForm.vue'
+  ```
+- **死代码清理**（3 个 .vue，已迁移到 tabs/）：
+  - `components/SuBkpTbl.vue` → `tabs/SystemUpdateBackupTab.vue`
+  - `components/SuVerTbl.vue` → `tabs/SystemUpdateVersionTab.vue`
+  - `components/SuTaskTbl.vue` → `tabs/SystemUpdateTaskTab.vue`
+- **变更规模**：4 文件 / +3 / -355 行
+- **CI 验证**：5/5 success（构建后端 ✅ / 运行测试 ✅ / 前端类型检查 ✅ / 构建前端 ✅ / 前端测试 ✅）
+- **同类风险**：扫描发现 9 个 .vue 文件 21 处 import 缺失（7 Element Plus Icon + 13 本项目组件），下一批处理
+- **当前 main HEAD**：`bda4a75a`（批次 9.3 合并点）
+
 ### CI 批次 8 子批 1 完成（2026-06-20）
 
 - **PR #213 merged**（commit `8da1f6c6`，squash 合并）
