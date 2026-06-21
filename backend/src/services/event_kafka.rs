@@ -91,7 +91,6 @@ impl KafkaEventEnvelope {
     }
 
     /// 把信封还原为 `BusinessEvent`（失败时返回错误字符串）
-    #[allow(dead_code)] // TODO(tech-debt): 报表/审计模块接入 Kafka 时启用
     pub fn into_event(self) -> Result<BusinessEvent, String> {
         let payload: payload_serde::EventPayload = serde_json::from_value(self.data)
             .map_err(|e| format!("反序列化 EventPayload 失败: {}", e))?;
@@ -584,7 +583,6 @@ impl KafkaBackend {
     }
 
     /// 暴露内部 client，便于测试构造 partition client。
-    #[allow(dead_code)] // TODO(tech-debt): 报表模块接入后移除
     pub fn config(&self) -> &KafkaSettings {
         &self.inner.config
     }

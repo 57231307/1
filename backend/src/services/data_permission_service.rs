@@ -16,13 +16,9 @@ use std::sync::Arc;
 /// 数据范围类型常量
 pub mod data_scope {
     pub const ALL: &str = "ALL";
-    #[allow(dead_code)] // TODO(tech-debt): 数据权限模块接入业务后移除
     pub const DEPT: &str = "DEPT";
-    #[allow(dead_code)] // TODO(tech-debt): 数据权限模块接入业务后移除
     pub const DEPT_AND_BELOW: &str = "DEPT_AND_BELOW";
-    #[allow(dead_code)] // TODO(tech-debt): 数据权限模块接入业务后移除
     pub const SELF: &str = "SELF";
-    #[allow(dead_code)] // TODO(tech-debt): 数据权限模块接入业务后移除
     pub const CUSTOM: &str = "CUSTOM";
 }
 

@@ -70,7 +70,6 @@ impl CurrencyService {
         Ok(model)
     }
 
-    #[allow(dead_code)] // TODO(tech-debt): 汇率管理 API 接入后移除
     pub async fn list_exchange_rates(
         &self,
         from_currency: Option<String>,
