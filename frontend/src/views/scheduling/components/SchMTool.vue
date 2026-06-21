@@ -75,6 +75,8 @@
 </template>
 
 <script setup lang="ts">
+import { Calendar, Clock, Cpu, Loading, TrendCharts, Warning } from '@element-plus/icons-vue'
+
 // 统计数据类型
 interface Stats {
   pending: number

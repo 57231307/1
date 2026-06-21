@@ -61,6 +61,12 @@ import { type AutoReconciliationResult } from '@/api/ar-reconciliation-enhanced'
 import { request } from '@/api/request'
 import { loadIfNot, createLazyLoader } from '@/utils/lazy-loader'
 import { logger } from '@/utils/logger'
+import ArFilter from './components/ArFilter.vue'
+import ArCharts from './components/ArCharts.vue'
+import ArTbl from './components/ArTbl.vue'
+import ArDetail from './components/ArDetail.vue'
+import ArConfirm from './components/ArConfirm.vue'
+import ArDispute from './components/ArDispute.vue'
 
 const arrec = useArRec()
 const ardisp = useArDisp(arrec.loadData)

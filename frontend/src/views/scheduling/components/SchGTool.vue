@@ -90,6 +90,8 @@
 </template>
 
 <script setup lang="ts">
+import { ArrowLeft, Calendar, Cpu, List, OfficeBuilding, Refresh, Warning } from '@element-plus/icons-vue'
+
 // 排产甘特图数据类型（最少必要字段）
 interface GanttDataLite {
   total_tasks?: number

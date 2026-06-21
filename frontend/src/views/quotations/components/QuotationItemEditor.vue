@@ -118,6 +118,7 @@
 // - 加载产品/色号
 // - 含税单价 = 单价 × 1.13
 import { ref, onMounted, watch } from 'vue'
+import { Plus } from '@element-plus/icons-vue'
 import { productApi } from '@/api/product'
 import type { CreateQuotationItemDto } from '@/api/quotation'
 
