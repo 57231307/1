@@ -315,13 +315,16 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 info!("成功执行 Migration (TOTP 字段及性能索引)");
             }
 
-            // 启动时执行核心迁移（m0001-m0005）
+            // P0-A 数据库迁移根治：启动时执行全部迁移（m0001-m0028）
+            // 修复策略：移除 Some(5) 上限限制，让 Migrator::up 跑完所有 migration，
+            // 避免 m0019_add_missing_columns 等关键 schema 修复被漏掉。
+            // 全新部署时按编号顺序完整执行；已部署时 SeaORM 按名称去重。
             use migration::{Migrator, MigratorTrait};
-            tracing::info!("启动时执行核心数据库迁移...");
-            if let Err(e) = Migrator::up(&db, Some(5)).await {
-                tracing::warn!("启动时核心迁移失败: {}，将在初始化时重试", e);
+            tracing::info!("启动时执行数据库迁移（全部 m0001-m0028）...");
+            if let Err(e) = Migrator::up(&db, None).await {
+                tracing::warn!("启动时迁移失败: {}，将在初始化时重试", e);
             } else {
-                tracing::info!("核心迁移执行完成");
+                tracing::info!("数据库迁移执行完成");
             }
 
             std::io::stdout().flush().ok();
