@@ -422,6 +422,13 @@ const routes = [
         component: () => import('@/views/bpm/templates.vue'),
         meta: { title: '流程模板管理', requiresAuth: true },
       },
+      // 新增路由 - BPM审批中心
+      {
+        path: 'bpm/approval',
+        name: 'BPMApproval',
+        component: () => import('@/views/bpm/approval/index.vue'),
+        meta: { title: '审批中心', requiresAuth: true },
+      },
       // 新增路由 - 增强版应收对账
       {
         path: 'ar-reconciliation/enhanced',
