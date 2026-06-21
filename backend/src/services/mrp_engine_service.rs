@@ -570,60 +570,8 @@ impl MrpEngineService {
     }
 
     /// 获取缺料预警列表
-    #[allow(dead_code)] // TODO(tech-debt): 物料短缺预警 API 接入后移除
-    pub async fn get_shortage_alerts(
-        &self,
-        days_ahead: i64,
-    ) -> Result<Vec<MaterialRequirement>, AppError> {
-        let alert_date = Utc::now().date_naive() + Duration::days(days_ahead);
-
-        let mrp_results = MrpResultEntity::find()
-            .filter(crate::models::mrp_result::Column::RequiredDate.lte(alert_date))
-            .filter(crate::models::mrp_result::Column::Status.eq("PLANNED"))
-            .all(&*self.db)
-            .await?;
-
-        let mut alerts = Vec::new();
-
-        for result in mrp_results {
-            let stock_info = self.get_stock_info(result.product_id).await?;
-
-            let shortage = if result.required_quantity > stock_info.available {
-                result.required_quantity - stock_info.available
-            } else {
-                Decimal::ZERO
-            };
-
-            if shortage > Decimal::ZERO {
-                alerts.push(MaterialRequirement {
-                    product_id: result.product_id,
-                    required_quantity: result.required_quantity,
-                    required_date: result.required_date.unwrap_or(alert_date),
-                    on_hand_quantity: stock_info.on_hand,
-                    in_transit_quantity: stock_info.in_transit,
-                    safety_stock: stock_info.safety_stock,
-                    available_quantity: stock_info.available,
-                    shortage_quantity: shortage,
-                    source_type: result.source_type,
-                    source_id: result.source_id,
-                    bom_level: 0,
-                });
-            }
-        }
-
-        Ok(alerts)
-    }
 
     /// 删除MRP计算结果
-    #[allow(dead_code)] // TODO(tech-debt): MRP 计算结果清理任务接入后移除
-    pub async fn delete_results(&self, calculation_no: &str) -> Result<u64, AppError> {
-        let result = MrpResultEntity::delete_many()
-            .filter(crate::models::mrp_result::Column::CalculationNo.eq(calculation_no))
-            .exec(&*self.db)
-            .await?;
-
-        Ok(result.rows_affected)
-    }
 
     /// 列出可用于 MRP 计算的产品
     pub async fn list_products_for_mrp(

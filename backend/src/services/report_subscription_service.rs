@@ -245,24 +245,6 @@ impl ReportSubscriptionService {
         Ok((items, total))
     }
 
-    /// 获取用户的订阅列表
-    #[allow(dead_code)] // TODO(tech-debt): 用户中心"我的订阅"页面接入后移除
-    pub async fn list_by_user(
-        &self,
-        tenant_id: i32,
-        user_id: i32,
-    ) -> Result<Vec<ReportSubscriptionModel>, AppError> {
-        let items = ReportSubscriptionEntity::find()
-            .filter(crate::models::report_subscription::Column::TenantId.eq(tenant_id))
-            .filter(crate::models::report_subscription::Column::CreatedBy.eq(user_id))
-            .filter(crate::models::report_subscription::Column::Status.eq("ACTIVE"))
-            .order_by_desc(crate::models::report_subscription::Column::CreatedAt)
-            .all(&*self.db)
-            .await?;
-
-        Ok(items)
-    }
-
     /// 手动触发订阅执行
     pub async fn trigger(&self, id: i32) -> Result<(), AppError> {
         let model = ReportSubscriptionEntity::find_by_id(id)

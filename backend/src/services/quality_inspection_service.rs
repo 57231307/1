@@ -280,32 +280,4 @@ impl QualityInspectionService {
         Ok((defects, total))
     }
 
-    #[allow(dead_code)] // TODO(tech-debt): 业务接入后移除
-    pub async fn update_unqualified_status(
-        &self,
-        id: i32,
-        handling_status: &str,
-        handler_id: i32,
-    ) -> Result<unqualified_product::Model, AppError> {
-        let mut unqualified: unqualified_product::ActiveModel =
-            unqualified_product::Entity::find_by_id(id)
-                .one(&*self.db)
-                .await?
-                .ok_or_else(|| AppError::not_found(format!("不合格品记录不存在：{}", id)))?
-                .into();
-
-        unqualified.handling_status = Set(handling_status.to_string());
-        unqualified.handling_by = Set(Some(handler_id));
-        unqualified.handling_at = Set(Some(chrono::Utc::now()));
-
-        let result = crate::services::audit_log_service::AuditLogService::update_with_audit(
-            &*self.db,
-            "auto_audit",
-            unqualified,
-            Some(0),
-        )
-        .await?;
-        info!("不合格品处理状态更新成功：{}", result.unqualified_no);
-        Ok(result)
-    }
 }

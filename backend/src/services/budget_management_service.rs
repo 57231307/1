@@ -605,40 +605,6 @@ impl BudgetManagementService {
 
     /// 释放预算
     /// 订单取消时调用，释放已占用的预算
-    #[allow(dead_code)] // TODO(tech-debt): 业务接入后移除
-    pub async fn release_budget(
-        &self,
-        department_id: i32,
-        plan_id: i32,
-        amount: Decimal,
-        document_type: String,
-        document_id: i32,
-        user_id: i32,
-    ) -> Result<budget_execution::Model, AppError> {
-        info!(
-            "释放预算：部门ID={}, 方案ID={}, 金额={}, 单据类型={}, 单据ID={}",
-            department_id, plan_id, amount, document_type, document_id
-        );
-
-        // 创建释放记录（负数金额）
-        let execution = self
-            .create_execution(
-                plan_id,
-                "使用".to_string(),
-                -amount, // 负数表示释放
-                chrono::Utc::now().date_naive(),
-                Some("采购订单取消".to_string()),
-                Some(document_type),
-                Some(document_id),
-                Some(format!("采购订单取消释放预算，单据ID: {}", document_id)),
-                user_id,
-            )
-            .await?;
-
-        info!("预算释放成功：执行ID={}", execution.id);
-        Ok(execution)
-    }
-
     /// 核销预算
     /// 付款确认时调用，将预算占用转为实际执行
     pub async fn write_off_budget(

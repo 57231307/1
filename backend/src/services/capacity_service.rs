@@ -292,24 +292,6 @@ impl CapacityService {
     }
 
     /// 产能瓶颈识别：返回负荷率超过阈值的工作中心
-    #[allow(dead_code)] // TODO(tech-debt): 产能瓶颈仪表盘 API 接入后移除
-    pub async fn identify_bottlenecks(
-        &self,
-        threshold: Decimal,
-    ) -> Result<Vec<CapacityLoadItem>, AppError> {
-        let all = self
-            .load_analysis(LoadAnalysisQuery {
-                date_from: None,
-                date_to: None,
-                work_center_id: None,
-            })
-            .await?;
-
-        Ok(all
-            .into_iter()
-            .filter(|i| i.load_rate >= threshold)
-            .collect())
-    }
 
     /// 根据工作中心类型返回默认班次配置
     fn default_shifts_for_type(wc_type: &Option<String>) -> Vec<ShiftInfo> {

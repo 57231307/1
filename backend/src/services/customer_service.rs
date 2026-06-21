@@ -431,21 +431,4 @@ impl CustomerService {
             .map_err(AppError::from)
     }
 
-    /// 检查客户编码是否已存在
-    #[allow(dead_code)] // TODO(tech-debt): 业务接入后移除
-    pub async fn check_customer_code_exists(
-        &self,
-        customer_code: &str,
-        exclude_id: Option<i32>,
-    ) -> Result<bool, AppError> {
-        let mut query =
-            CustomerEntity::find().filter(customer::Column::CustomerCode.eq(customer_code));
-
-        if let Some(exclude_id) = exclude_id {
-            query = query.filter(customer::Column::Id.ne(exclude_id));
-        }
-
-        let count = query.count(&*self.db).await?;
-        Ok(count > 0)
-    }
 }

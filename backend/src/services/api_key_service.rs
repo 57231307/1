@@ -56,34 +56,6 @@ impl ApiKeyService {
     }
 
     /// 验证 API 密钥
-    #[allow(dead_code)] // TODO(tech-debt): 业务接入后移除
-    pub async fn validate_api_key(&self, key: &str) -> Result<Option<api_key::Model>, AppError> {
-        let key_hash = Self::hash_api_key(key);
-
-        let api_key = ApiKey::find()
-            .filter(api_key::Column::KeyHash.eq(key_hash))
-            .filter(api_key::Column::IsActive.eq(true))
-            .one(self.db.as_ref())
-            .await?;
-
-        if let Some(ref key) = api_key {
-            // 检查是否过期
-            if let Some(expires_at) = key.expires_at {
-                if expires_at < Utc::now() {
-                    return Ok(None);
-                }
-            }
-
-            // 更新最后使用时间
-            let mut active_model: ApiKeyActiveModel = key.clone().into();
-            active_model.last_used_at = Set(Some(Utc::now()));
-            active_model.update(self.db.as_ref()).await?;
-        }
-
-        Ok(api_key)
-    }
-
-    /// 获取租户的 API 密钥列表
     pub async fn list_api_keys(&self, tenant_id: i32) -> Result<Vec<api_key::Model>, AppError> {
         ApiKey::find()
             .filter(api_key::Column::TenantId.eq(tenant_id))

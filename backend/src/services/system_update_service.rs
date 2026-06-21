@@ -31,16 +31,6 @@ pub struct LocalUpdateCheckResult {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[allow(dead_code)] // TODO(tech-debt): 业务接入后移除
-pub struct VersionInfo {
-    pub version: String,
-    pub release_date: String,
-    pub changelog: Option<String>,
-    pub download_url: Option<String>,
-    pub file_size: Option<u64>,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct GitHubRelease {
     pub tag_name: String,
     pub name: String,
@@ -67,20 +57,11 @@ pub struct UpdateCheckResult {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[allow(dead_code)] // TODO(tech-debt): 业务接入后移除
 pub struct UpdateStatus {
     pub current_version: String,
     pub is_updating: bool,
     pub last_update_time: Option<String>,
     pub backup_versions: Vec<String>,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[allow(dead_code)] // TODO(tech-debt): 业务接入后移除
-pub struct UpdateProgress {
-    pub stage: String,
-    pub progress: u8,
-    pub message: String,
 }
 
 #[derive(Debug, Error)]

@@ -97,41 +97,6 @@ impl OperationLogService {
         Ok(())
     }
 
-    /// 记录失败操作
-    #[allow(clippy::too_many_arguments)]
-    #[allow(dead_code)] // TODO(tech-debt): 业务接入后移除
-    pub async fn log_failure(
-        &self,
-        user_id: Option<i32>,
-        username: Option<String>,
-        module: &str,
-        action: &str,
-        error_message: String,
-        request_method: Option<String>,
-        request_uri: Option<String>,
-        request_ip: Option<String>,
-        user_agent: Option<String>,
-        duration_ms: Option<i64>,
-    ) -> Result<(), AppError> {
-        let request = CreateOperationLogRequest {
-            user_id,
-            username,
-            module: module.to_string(),
-            action: action.to_string(),
-            description: None,
-            request_method,
-            request_uri,
-            request_ip,
-            user_agent,
-            status: "failure".to_string(),
-            error_message: Some(error_message),
-            duration_ms,
-            extra_data: None,
-        };
-
-        self.create_log(request).await?;
-        Ok(())
-    }
 
     /// 查询操作日志（分页）
     pub async fn list_logs(

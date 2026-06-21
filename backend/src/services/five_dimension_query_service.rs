@@ -24,97 +24,18 @@ impl FiveDimensionQueryService {
 
     /// 为库存表应用五维过滤条件
     #[allow(dead_code)] // TODO(tech-debt): 业务接入后移除
-    pub fn apply_to_inventory(
-        query: sea_orm::Select<inventory_stock::Entity>,
-        dimension: &FabricFiveDimension,
-    ) -> sea_orm::Select<inventory_stock::Entity> {
-        let mut query = query
-            .filter(inventory_stock::Column::ProductId.eq(dimension.product_id))
-            .filter(inventory_stock::Column::BatchNo.eq(&dimension.batch_no))
-            .filter(inventory_stock::Column::ColorNo.eq(&dimension.color_no))
-            .filter(inventory_stock::Column::Grade.eq(&dimension.grade));
-
-        if let Some(ref dl) = dimension.dye_lot_no {
-            query = query.filter(inventory_stock::Column::DyeLotNo.eq(dl));
-        }
-
-        query
-    }
 
     /// 为库存表应用部分五维过滤条件（支持模糊查询）
     #[allow(dead_code)] // TODO(tech-debt): 业务接入后移除
-    pub fn apply_partial_to_inventory(
-        query: sea_orm::Select<inventory_stock::Entity>,
-        product_id: Option<i32>,
-        batch_no: Option<String>,
-        color_no: Option<String>,
-        dye_lot_no: Option<String>,
-        grade: Option<String>,
-    ) -> sea_orm::Select<inventory_stock::Entity> {
-        let mut query = query;
-
-        if let Some(pid) = product_id {
-            query = query.filter(inventory_stock::Column::ProductId.eq(pid));
-        }
-
-        if let Some(batch) = batch_no {
-            let pattern = safe_like_pattern(&batch);
-            query = query.filter(inventory_stock::Column::BatchNo.like(&pattern));
-        }
-
-        if let Some(color) = color_no {
-            let pattern = safe_like_pattern(&color);
-            query = query.filter(inventory_stock::Column::ColorNo.like(&pattern));
-        }
-
-        if let Some(dye_lot) = dye_lot_no {
-            let pattern = safe_like_pattern(&dye_lot);
-            query = query.filter(inventory_stock::Column::DyeLotNo.like(&pattern));
-        }
-
-        if let Some(g) = grade {
-            query = query.filter(inventory_stock::Column::Grade.eq(g));
-        }
-
-        query
-    }
 
     /// 为库存流水表应用五维过滤条件
     #[allow(dead_code)] // TODO(tech-debt): 业务接入后移除
-    pub fn apply_to_transaction(
-        query: sea_orm::Select<inventory_transaction::Entity>,
-        dimension: &FabricFiveDimension,
-    ) -> sea_orm::Select<inventory_transaction::Entity> {
-        let mut query = query
-            .filter(inventory_transaction::Column::ProductId.eq(dimension.product_id))
-            .filter(inventory_transaction::Column::BatchNo.eq(&dimension.batch_no))
-            .filter(inventory_transaction::Column::ColorNo.eq(&dimension.color_no))
-            .filter(inventory_transaction::Column::Grade.eq(&dimension.grade));
-
-        if let Some(ref dl) = dimension.dye_lot_no {
-            query = query.filter(inventory_transaction::Column::DyeLotNo.eq(dl));
-        }
-
-        query
-    }
 
     /// 为采购收货表应用五维过滤条件
     #[allow(dead_code)] // TODO(tech-debt): 业务接入后移除
-    pub fn apply_to_purchase_receipt(
-        query: sea_orm::Select<purchase_receipt_item::Entity>,
-        dimension: &FabricFiveDimension,
-    ) -> sea_orm::Select<purchase_receipt_item::Entity> {
-        query.filter(purchase_receipt_item::Column::ProductId.eq(dimension.product_id))
-    }
 
     /// 为销售发货表应用五维过滤条件
     #[allow(dead_code)] // TODO(tech-debt): 业务接入后移除
-    pub fn apply_to_sales_delivery(
-        query: sea_orm::Select<sales_delivery_item::Entity>,
-        dimension: &FabricFiveDimension,
-    ) -> sea_orm::Select<sales_delivery_item::Entity> {
-        query.filter(sales_delivery_item::Column::ProductId.eq(dimension.product_id))
-    }
 
     /// 生成五维 ID
     pub fn generate_five_dimension_id(

@@ -178,58 +178,6 @@ impl ExportService {
         Ok(content.into_bytes())
     }
 
-    /// 生成销售报表PDF
-    #[allow(dead_code)] // TODO(tech-debt): 报表模块接入业务后移除
-    pub fn generate_sales_report_pdf(
-        title: &str,
-        period_start: &str,
-        period_end: &str,
-        data: &ExportData,
-    ) -> Result<Vec<u8>, AppError> {
-        let mut content = String::new();
-
-        // 标题
-        content.push_str(&format!("{}\n", title));
-        content.push_str(&"=".repeat(80));
-        content.push_str("\n\n");
-
-        // 报表信息
-        content.push_str(&format!("报表期间: {} 至 {}\n", period_start, period_end));
-        content.push_str(&format!(
-            "生成时间: {}\n\n",
-            chrono::Utc::now().format("%Y-%m-%d %H:%M:%S")
-        ));
-
-        // 表头
-        let header_line = data.headers.join(" | ");
-        content.push_str(&header_line);
-        content.push('\n');
-        content.push_str(&"-".repeat(header_line.len()));
-        content.push('\n');
-
-        // 数据行
-        for row in &data.rows {
-            let row_line = row.join(" | ");
-            content.push_str(&row_line);
-            content.push('\n');
-        }
-
-        // 汇总
-        if let Some(summary) = &data.summary {
-            content.push('\n');
-            content.push_str(&"=".repeat(80));
-            content.push('\n');
-            for (key, value) in summary {
-                content.push_str(&format!("{}: {}\n", key, value));
-            }
-        }
-
-        content.push_str(&"=".repeat(80));
-        content.push('\n');
-
-        Ok(content.into_bytes())
-    }
-}
 
 /// 对账单PDF明细项
 #[derive(Debug, Clone, Serialize, Deserialize)]

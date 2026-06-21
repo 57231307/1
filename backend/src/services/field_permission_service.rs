@@ -230,93 +230,12 @@ impl FieldPermissionService {
     }
 
     /// 检查角色对某资源的字段读权限
-    #[allow(dead_code)] // TODO(tech-debt): 字段权限模块接入业务后移除
-    pub async fn check_read_permission(
-        &self,
-        role_id: i32,
-        resource_type: &str,
-        field_name: &str,
-    ) -> Result<bool, AppError> {
-        // Admin 角色默认拥有全部权限（从数据库查询角色编码）
-        if self.is_admin_role(role_id).await? {
-            return Ok(true);
-        }
-
-        let perm = FieldPermissionEntity::find()
-            .filter(field_permission::Column::RoleId.eq(role_id))
-            .filter(field_permission::Column::ResourceType.eq(resource_type))
-            .filter(field_permission::Column::FieldName.eq(field_name))
-            .filter(field_permission::Column::IsEnabled.eq(true))
-            .one(&*self.db)
-            .await?;
-
-        match perm {
-            Some(p) => Ok(p.can_read),
-            None => Ok(false), // 默认拒绝读取（未配置权限规则时）
-        }
-    }
 
     /// 检查角色对某资源的字段写权限
-    #[allow(dead_code)] // TODO(tech-debt): 字段权限模块接入业务后移除
-    pub async fn check_write_permission(
-        &self,
-        role_id: i32,
-        resource_type: &str,
-        field_name: &str,
-    ) -> Result<bool, AppError> {
-        // Admin 角色默认拥有全部权限（从数据库查询角色编码）
-        if self.is_admin_role(role_id).await? {
-            return Ok(true);
-        }
-
-        let perm = FieldPermissionEntity::find()
-            .filter(field_permission::Column::RoleId.eq(role_id))
-            .filter(field_permission::Column::ResourceType.eq(resource_type))
-            .filter(field_permission::Column::FieldName.eq(field_name))
-            .filter(field_permission::Column::IsEnabled.eq(true))
-            .one(&*self.db)
-            .await?;
-
-        match perm {
-            Some(p) => Ok(p.can_write),
-            None => Ok(false), // 默认拒绝写入（未配置权限规则时）
-        }
-    }
 
     /// 获取角色对某资源的所有字段权限
-    #[allow(dead_code)] // TODO(tech-debt): 字段权限模块接入业务后移除
-    pub async fn get_role_field_permissions(
-        &self,
-        role_id: i32,
-        resource_type: &str,
-    ) -> Result<Vec<FieldPermissionDetail>, AppError> {
-        let permissions = FieldPermissionEntity::find()
-            .filter(field_permission::Column::RoleId.eq(role_id))
-            .filter(field_permission::Column::ResourceType.eq(resource_type))
-            .filter(field_permission::Column::IsEnabled.eq(true))
-            .order_by(field_permission::Column::FieldName, Order::Asc)
-            .all(&*self.db)
-            .await?;
-
-        Ok(permissions
-            .into_iter()
-            .map(|p| FieldPermissionDetail {
-                id: p.id,
-                role_id: p.role_id,
-                resource_type: p.resource_type,
-                field_name: p.field_name,
-                can_read: p.can_read,
-                can_write: p.can_write,
-                mask_strategy: p.mask_strategy,
-                is_enabled: p.is_enabled,
-                created_at: p.created_at,
-                updated_at: p.updated_at,
-            })
-            .collect())
-    }
 
     /// 过滤 JSON 数据中的字段（根据读权限）
-    #[allow(dead_code)] // TODO(tech-debt): 字段权限模块接入业务后移除
     pub fn filter_fields_by_read_permission(
         &self,
         data: &mut serde_json::Value,
@@ -347,7 +266,6 @@ impl FieldPermissionService {
     }
 
     /// 掩码处理 JSON 数据中的字段（无读权限时显示为 "***"）
-    #[allow(dead_code)] // TODO(tech-debt): 字段权限模块接入业务后移除
     pub fn mask_fields(&self, data: &mut serde_json::Value, permissions: &[FieldPermissionDetail]) {
         if let Some(obj) = data.as_object_mut() {
             for perm in permissions {
@@ -361,15 +279,4 @@ impl FieldPermissionService {
     }
 
     /// 批量处理 JSON 数组
-    #[allow(dead_code)] // TODO(tech-debt): 字段权限模块接入业务后移除
-    pub fn process_json_array(
-        &self,
-        data_list: &mut [serde_json::Value],
-        permissions: &[FieldPermissionDetail],
-    ) {
-        for data in data_list {
-            self.filter_fields_by_read_permission(data, permissions);
-            self.mask_fields(data, permissions);
-        }
-    }
 }
