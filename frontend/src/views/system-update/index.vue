@@ -98,6 +98,9 @@ import * as sysUpdFmts from './composables/sysUpdFmts'
 import SystemUpdateVersionTab from './tabs/SystemUpdateVersionTab.vue'
 import SystemUpdateTaskTab from './tabs/SystemUpdateTaskTab.vue'
 import SystemUpdateBackupTab from './tabs/SystemUpdateBackupTab.vue'
+import SuInfoCards from './components/SuInfoCards.vue'
+import SuVerDetail from './components/SuVerDetail.vue'
+import SuBkpForm from './components/SuBkpForm.vue'
 
 const activeTab = ref('versions')
 
