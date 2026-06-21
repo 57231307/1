@@ -81,7 +81,6 @@ export function useSr() {
       const res = await listCustomers()
       customerList.value = res.data?.list || []
     } catch (error: any) {
-      // eslint-disable-next-line no-console
       console.error('加载客户列表失败:', error)
     }
   }

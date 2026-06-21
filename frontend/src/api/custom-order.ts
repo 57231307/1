@@ -82,7 +82,6 @@ export function listCustomOrders(params: {
 }
 
 // 创建草稿
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
 export function createCustomOrder(data: any) {
   return request.post('/api/v1/erp/custom-orders', data)
 }
@@ -93,7 +92,6 @@ export function getCustomOrder(id: number) {
 }
 
 // 更新
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
 export function updateCustomOrder(id: number, data: any) {
   return request.put(`/api/v1/erp/custom-orders/${id}`, data)
 }
@@ -111,25 +109,21 @@ export function advanceCustomOrder(id: number, data: { operator_id: number; note
 }
 
 // 添加工艺节点
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
 export function addProcessNode(orderId: number, data: any) {
   return request.post(`/api/v1/erp/custom-orders/${orderId}/nodes`, data)
 }
 
 // 更新工艺节点
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
 export function updateProcessNode(orderId: number, nodeId: number, data: any) {
   return request.put(`/api/v1/erp/custom-orders/${orderId}/nodes/${nodeId}`, data)
 }
 
 // 推进工艺节点
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
 export function advanceProcessNode(orderId: number, nodeId: number, data: any) {
   return request.post(`/api/v1/erp/custom-orders/${orderId}/nodes/${nodeId}/advance`, data)
 }
 
 // 添加节点日志
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
 export function addNodeLog(orderId: number, nodeId: number, data: any) {
   return request.post(`/api/v1/erp/custom-orders/${orderId}/nodes/${nodeId}/logs`, data)
 }
@@ -140,13 +134,11 @@ export function getTimeline(orderId: number) {
 }
 
 // 上报质量异常
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
 export function reportQualityIssue(orderId: number, data: any) {
   return request.post(`/api/v1/erp/custom-orders/${orderId}/issues`, data)
 }
 
 // 列出异常
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
 export function listQualityIssues(orderId: number, params?: any) {
   return request.get(`/api/v1/erp/custom-orders/${orderId}/issues`, { params })
 }
@@ -157,19 +149,16 @@ export function resolveQualityIssue(issueId: number, data: { resolution: string;
 }
 
 // 创建售后
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
 export function createAfterSales(orderId: number, data: any) {
   return request.post(`/api/v1/erp/custom-orders/${orderId}/after-sales`, data)
 }
 
 // 列出售后
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
 export function listAfterSales(orderId: number, params?: any) {
   return request.get(`/api/v1/erp/custom-orders/${orderId}/after-sales`, { params })
 }
 
 // 更新售后
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
 export function updateAfterSales(afterSalesId: number, data: any) {
   return request.put(`/api/v1/erp/custom-orders/after-sales/${afterSalesId}`, data)
 }

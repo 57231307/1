@@ -157,7 +157,6 @@ export function getDrilldownMonthToDay(year: number, month: number) {
 
 /** 钻取：客户 → 订单 */
 export function getDrilldownCustomerToOrder(customerId: number) {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   return request.get<BiResponseData<any>>(
     `/bi/sales/drilldown/customer-to-order/${customerId}`,
   )
@@ -165,7 +164,6 @@ export function getDrilldownCustomerToOrder(customerId: number) {
 
 /** 钻取：产品 → 订单 */
 export function getDrilldownProductToOrder(productId: number) {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   return request.get<BiResponseData<any>>(
     `/bi/sales/drilldown/product-to-order/${productId}`,
   )
@@ -176,27 +174,21 @@ export function getDrilldownProductToOrder(productId: number) {
 // =====================================================
 
 /** 切片 */
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
 export function postSlice(dimension: string, filters: Record<string, any>) {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   return request.post<BiResponseData<any>>('/bi/sales/slice', { dimension, filters })
 }
 
 /** 切块 */
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
 export function postDice(filters: Record<string, any>) {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   return request.post<BiResponseData<any>>('/bi/sales/dice', { filters })
 }
 
 /** 上卷 */
 export function postRollup(from: string, to: string) {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   return request.post<BiResponseData<any>>('/bi/sales/rollup', { from, to })
 }
 
 /** 透视 */
 export function postPivot(row: string, col: string, measure: string) {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   return request.post<BiResponseData<any>>('/bi/sales/pivot', { row, col, measure })
 }

@@ -172,22 +172,18 @@ export function getUnverifiedARPayments(): Promise<ApiResponse<ARPayment[]>> {
   return request.get('/ar/verifications/unverified/payments')
 }
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
 export function getARStatisticsReport(params?: QueryParams): Promise<ApiResponse<any>> {
   return request.get('/ar/reports/statistics', { params })
 }
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
 export function getARDailyReport(date: string): Promise<ApiResponse<any>> {
   return request.get('/ar/reports/daily', { params: { date } })
 }
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
 export function getARMonthlyReport(year: number, month: number): Promise<ApiResponse<any>> {
   return request.get('/ar/reports/monthly', { params: { year, month } })
 }
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
 export function getARAgingReport(): Promise<ApiResponse<any>> {
   return request.get('/ar/reports/aging')
 }
