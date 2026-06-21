@@ -20,6 +20,13 @@ pub struct AppSettings {
     /// （即 `enabled=false`、进程内 Broadcast 模式）。
     #[serde(default)]
     pub kafka: KafkaSettings,
+    /// 慢查询采集配置（部署-3 修复）。
+    ///
+    /// 默认 `enabled=true`，启动后自动每 5 分钟采集 `pg_stat_statements`；
+    /// 当数据库未安装 `pg_stat_statements` 扩展时采集任务静默 warn 失败，
+    /// 不阻断服务启动。CI 容器环境 / 仅 SQL 单机环境可在配置中关闭。
+    #[serde(default)]
+    pub slow_query: SlowQuerySettings,
     pub env: String,
 }
 
@@ -95,6 +102,37 @@ impl Default for KafkaSettings {
             replication_factor: 1,
             connect_timeout_ms: 5000,
             auto_create_topic: true,
+        }
+    }
+}
+
+/// 慢查询采集配置（部署-3 修复）
+///
+/// 设计要点：
+/// - `enabled=true`（默认）→ 启动后台采集任务，每 5 分钟拉取 `pg_stat_statements`；
+///   CI 容器或未安装扩展的数据库会自动降级（warn 失败，不阻断）
+/// - `enabled=false` → 完全跳过采集任务（节省 < 1MB 内存 / 0 CPU）
+/// - `interval_secs` / `threshold_ms` / `limit_rows` 可调，便于性能调优
+#[derive(Debug, Clone, Deserialize, Serialize)]
+#[serde(default)]
+pub struct SlowQuerySettings {
+    /// 是否启用慢查询后台采集任务
+    pub enabled: bool,
+    /// 采集间隔（秒），默认 300（5 分钟）
+    pub interval_secs: u64,
+    /// 慢查询阈值（毫秒），超过此值的 SQL 才会被记录
+    pub threshold_ms: f64,
+    /// 单次采集最大行数，防止极端情况下表爆炸
+    pub limit_rows: i64,
+}
+
+impl Default for SlowQuerySettings {
+    fn default() -> Self {
+        Self {
+            enabled: true,
+            interval_secs: 300,
+            threshold_ms: 100.0,
+            limit_rows: 100,
         }
     }
 }

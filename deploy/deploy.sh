@@ -105,6 +105,17 @@ deploy_backend() {
     fi
 
     # 复制配置文件
+    # 部署-1 修复：复制 config.yaml.example 前先备份现有 config.yaml（如果存在）。
+    # 原因：旧逻辑在每次更新部署时直接覆盖 config.yaml，会丢失用户在引导页面、
+    # 或后续手动调整的数据库连接 / JWT / 密钥等关键配置；备份后即使覆盖也能回滚。
+    if [ -f "$CONFIG_FILE" ]; then
+        local config_bak="$BACKUP_DIR/config_$(date +%Y%m%d_%H%M%S).yaml.bak"
+        mkdir -p "$BACKUP_DIR"
+        cp "$CONFIG_FILE" "$config_bak"
+        log "已备份现有 config.yaml 到: $config_bak"
+        # 仅保留最近 5 个 config 备份
+        ls -t "$BACKUP_DIR"/config_*.yaml.bak 2>/dev/null | tail -n +6 | xargs rm -f 2>/dev/null || true
+    fi
     if [ -f "/tmp/bingxi-deploy/backend/config.yaml.example" ]; then
         cp /tmp/bingxi-deploy/backend/config.yaml.example "$BACKEND_DIR/config.yaml"
     elif [ -f "$(dirname "$0")/../backend/config.yaml.example" ]; then
