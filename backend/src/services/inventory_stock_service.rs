@@ -62,20 +62,6 @@ impl InventoryStockService {
             .ok_or_else(|| AppError::not_found(format!("库存记录 ID {} 不存在", id)))
     }
 
-    #[allow(dead_code)] // TODO(tech-debt): 业务接入后移除
-    pub async fn find_by_product_and_warehouse(
-        &self,
-        product_id: i32,
-        warehouse_id: i32,
-    ) -> Result<Option<inventory_stock::Model>, AppError> {
-        inventory_stock::Entity::find()
-            .filter(inventory_stock::Column::ProductId.eq(product_id))
-            .filter(inventory_stock::Column::WarehouseId.eq(warehouse_id))
-            .one(&*self.db)
-            .await
-            .map_err(AppError::from)
-    }
-
     #[allow(clippy::too_many_arguments)]
     pub async fn create_stock(
         &self,

@@ -113,23 +113,6 @@ impl EmailTemplateService {
         Ok(model)
     }
 
-    /// 根据编码获取邮件模板
-    #[allow(dead_code)] // TODO(tech-debt): 邮件发送流程接入按 code 查找后移除
-    pub async fn get_by_code(
-        &self,
-        tenant_id: i32,
-        code: &str,
-    ) -> Result<Option<EmailTemplateModel>, AppError> {
-        let model = EmailTemplateEntity::find()
-            .filter(crate::models::email_template::Column::TenantId.eq(tenant_id))
-            .filter(crate::models::email_template::Column::Code.eq(code))
-            .filter(crate::models::email_template::Column::IsActive.eq(true))
-            .one(&*self.db)
-            .await?;
-
-        Ok(model)
-    }
-
     /// 更新邮件模板
     pub async fn update(
         &self,

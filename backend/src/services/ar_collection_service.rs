@@ -133,56 +133,5 @@ impl ArCollectionService {
 
         Ok(collection_model)
     }
-
-    /// 确认收款
-    #[allow(dead_code)] // TODO(tech-debt): 业务接入后移除
-    pub async fn confirm_collection(
-        &self,
-        id: i32,
-        user_id: i32,
-    ) -> Result<ar_collection::Model, AppError> {
-        let collection = ar_collection::Entity::find_by_id(id)
-            .one(&*self.db)
-            .await?
-            .ok_or_else(|| AppError::not_found(format!("收款单 {} 不存在", id)))?;
-
-        if collection.status != "pending" {
-            return Err(AppError::business(format!(
-                "收款单状态为 {}，只有待确认的收款可以确认",
-                collection.status
-            )));
-        }
-
-        let mut active_model: ar_collection::ActiveModel = collection.into();
-        active_model.status = Set("confirmed".to_string());
-        active_model.confirmed_by = Set(Some(user_id));
-        active_model.confirmed_at = Set(Some(Utc::now()));
-        active_model.updated_at = Set(Utc::now());
-
-        let updated = active_model.update(&*self.db).await?;
-        Ok(updated)
-    }
-
-    /// 取消收款
-    #[allow(dead_code)] // TODO(tech-debt): 业务接入后移除
-    pub async fn cancel_collection(&self, id: i32) -> Result<ar_collection::Model, AppError> {
-        let collection = ar_collection::Entity::find_by_id(id)
-            .one(&*self.db)
-            .await?
-            .ok_or_else(|| AppError::not_found(format!("收款单 {} 不存在", id)))?;
-
-        if collection.status != "pending" {
-            return Err(AppError::business(format!(
-                "收款单状态为 {}，只有待确认的收款可以取消",
-                collection.status
-            )));
-        }
-
-        let mut active_model: ar_collection::ActiveModel = collection.into();
-        active_model.status = Set("cancelled".to_string());
-        active_model.updated_at = Set(Utc::now());
-
-        let updated = active_model.update(&*self.db).await?;
-        Ok(updated)
-    }
 }
+

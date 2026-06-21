@@ -19,17 +19,6 @@ impl AccountingPeriodService {
         Ok(period)
     }
 
-    /// 获取所有开放的会计期间
-    #[allow(dead_code)] // TODO(tech-debt): 期间管理 API 接入后移除
-    pub async fn get_all_open_periods(&self) -> Result<Vec<accounting_period::Model>, AppError> {
-        let periods = accounting_period::Entity::find()
-            .filter(accounting_period::Column::Status.eq("OPEN"))
-            .order_by_asc(accounting_period::Column::StartDate)
-            .all(self.db.as_ref())
-            .await?;
-        Ok(periods)
-    }
-
     /// 初始化第一个会计期间（如果不存在）
     pub async fn init_first_period(
         &self,

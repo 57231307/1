@@ -104,52 +104,5 @@ impl OrderChangeHistoryService {
         .await
     }
 
-    /// 记录字段变更
-    #[allow(dead_code)] // TODO(tech-debt): 业务接入后移除
-    pub async fn record_field_change(
-        &self,
-        order_id: i32,
-        field_name: &str,
-        old_value: &str,
-        new_value: &str,
-        changed_by: i32,
-        change_reason: Option<&str>,
-    ) -> Result<(), AppError> {
-        self.record_change(
-            order_id,
-            "UPDATE",
-            Some(field_name),
-            Some(old_value),
-            Some(new_value),
-            changed_by,
-            change_reason,
-            None,
-            None,
-        )
-        .await
-    }
 
-    /// 记录状态变更
-    #[allow(dead_code)] // TODO(tech-debt): 业务接入后移除
-    pub async fn record_status_change(
-        &self,
-        order_id: i32,
-        old_status: &str,
-        new_status: &str,
-        changed_by: i32,
-        change_reason: Option<&str>,
-    ) -> Result<(), AppError> {
-        self.record_change(
-            order_id,
-            "STATUS_CHANGE",
-            Some("status"),
-            Some(old_status),
-            Some(new_status),
-            changed_by,
-            change_reason,
-            None,
-            None,
-        )
-        .await
-    }
 }

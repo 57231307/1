@@ -31,10 +31,6 @@ pub struct CreateEmailLogRequest {
 #[derive(Debug, Clone, Deserialize)]
 pub struct EmailLogQuery {
     pub status: Option<String>,
-    #[allow(dead_code)] // TODO(tech-debt): 邮件日志模块接入业务后移除
-    pub date_from: Option<String>,
-    #[allow(dead_code)] // TODO(tech-debt): 邮件日志模块接入业务后移除
-    pub date_to: Option<String>,
     pub keyword: Option<String>,
     pub page: Option<u64>,
     pub page_size: Option<u64>,
@@ -168,22 +164,6 @@ impl EmailLogService {
             .await?;
 
         Ok((items, total))
-    }
-
-    /// 获取待重试的邮件列表
-    #[allow(dead_code)] // TODO(tech-debt): 邮件日志模块接入业务后移除
-    pub async fn get_pending_retries(
-        &self,
-        max_retries: i32,
-    ) -> Result<Vec<EmailLogModel>, AppError> {
-        let items = EmailLogEntity::find()
-            .filter(crate::models::email_log::Column::Status.eq("PENDING"))
-            .filter(crate::models::email_log::Column::RetryCount.lt(max_retries))
-            .order_by_asc(crate::models::email_log::Column::CreatedAt)
-            .all(&*self.db)
-            .await?;
-
-        Ok(items)
     }
 
     /// 获取发送统计

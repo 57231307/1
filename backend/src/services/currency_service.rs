@@ -241,30 +241,6 @@ impl CurrencyService {
         })
     }
 
-    /// 批量换算到本位币
-    #[allow(dead_code)] // TODO(tech-debt): 报表多币种换算接入后移除
-    pub async fn convert_to_base_currency(
-        &self,
-        from_currency: &str,
-        amounts: Vec<Decimal>,
-    ) -> Result<Vec<ConversionResult>, AppError> {
-        let base_currency = self.get_base_currency().await?;
-        let base_code = match base_currency {
-            Some(base) => base.code,
-            None => return Err(AppError::business("未配置本位币")),
-        };
-
-        let mut results = Vec::new();
-        for amount in amounts {
-            let result = self
-                .convert_amount(from_currency, &base_code, amount, None)
-                .await?;
-            results.push(result);
-        }
-
-        Ok(results)
-    }
-
     /// 获取外部汇率（真实外部API调用）
     pub async fn fetch_external_rate(
         &self,
@@ -346,29 +322,6 @@ impl CurrencyService {
             .await?;
 
         Ok(model)
-    }
-
-    /// 计算本位币金额（用于订单和发票）
-    #[allow(dead_code)] // TODO(tech-debt): 订单/发票自动换算接入后移除
-    pub async fn calculate_base_amount(
-        &self,
-        currency_code: &str,
-        amount: Decimal,
-    ) -> Result<(Decimal, Decimal), AppError> {
-        let base_currency = self.get_base_currency().await?;
-        let base_code = match base_currency {
-            Some(base) => base.code,
-            None => return Err(AppError::business("未配置本位币")),
-        };
-
-        if currency_code == base_code {
-            return Ok((amount, Decimal::ONE));
-        }
-
-        let result = self
-            .convert_amount(currency_code, &base_code, amount, None)
-            .await?;
-        Ok((result.converted_amount, result.exchange_rate))
     }
 
     /// 批量同步所有活跃币种的汇率

@@ -273,42 +273,6 @@ impl EventBus {
         }
     }
 
-    /// 异步发布事件
-    ///
-    /// - 当前后端 = Broadcast：直接本地投递；
-    /// - 当前后端 = Kafka：序列化到 Kafka；同时**始终**复制一份到本地 `local_tx`，
-    ///   避免单进程内订阅者丢失事件。
-    #[allow(dead_code)] // TODO(tech-debt): 业务接入后移除
-    pub async fn publish_async(&self, event: BusinessEvent) {
-        // 取出所需的全部状态后立即释放锁，避免 await 持锁
-        let (kind, kafka_arc, broadcast_be) = {
-            let state = lock_event_bus_state();
-            let _ = state.local_tx.send(event.clone());
-            (
-                state.backend_kind.load(Ordering::Acquire),
-                state.kafka.clone(),
-                state.broadcast.clone(),
-            )
-        };
-
-        match kind {
-            1 => {
-                if let Some(kafka) = kafka_arc {
-                    if let Err(e) = kafka.publish(event).await {
-                        tracing::error!("事件投递到 Kafka 失败: {}（已写入本地兜底）", e);
-                    }
-                } else {
-                    tracing::error!("Kafka 后端未初始化，事件仅保留在本地 broadcast");
-                }
-            }
-            _ => {
-                if let Err(e) = broadcast_be.publish(event).await {
-                    tracing::error!("事件投递到 Broadcast 失败: {}", e);
-                }
-            }
-        }
-    }
-
     /// 同步发布事件（保留旧 API 兼容）
     ///
     /// `start_event_listener` 等旧调用方直接调用 `EVENT_BUS.publish(event)`，

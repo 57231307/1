@@ -99,122 +99,21 @@ impl InventoryReservationService {
     }
 
     /// 使用预留（从 locked 到 used）- 通常在发货时调用
-    #[allow(dead_code)] // TODO(tech-debt): 业务接入后移除
-    pub async fn use_reservation(
-        &self,
-        reservation_id: i32,
-    ) -> Result<inventory_reservation::Model, AppError> {
-        let reservation = InventoryReservationEntity::find_by_id(reservation_id)
-            .one(&*self.db)
-            .await?
-            .ok_or_else(|| AppError::not_found(format!("库存预留 {} 未找到", reservation_id)))?;
-
-        if reservation.status != "locked" {
-            return Err(AppError::business(format!(
-                "预留状态为{}，只有已锁定状态的预留可以使用",
-                reservation.status
-            )));
-        }
-
-        let mut reservation_update: inventory_reservation::ActiveModel = reservation.into();
-        reservation_update.status = sea_orm::ActiveValue::Set("used".to_string());
-        reservation_update.updated_at = sea_orm::ActiveValue::Set(Utc::now());
-
-        reservation_update
-            .update(&*self.db)
-            .await
-            .map_err(AppError::from)
-    }
 
     /// 根据订单 ID 获取所有预留
     #[allow(dead_code)] // TODO(tech-debt): 业务接入后移除
-    pub async fn get_reservations_by_order(
-        &self,
-        order_id: i32,
-    ) -> Result<Vec<inventory_reservation::Model>, AppError> {
-        InventoryReservationEntity::find()
-            .filter(inventory_reservation::Column::OrderId.eq(order_id))
-            .all(&*self.db)
-            .await
-            .map_err(AppError::from)
-    }
 
     /// 根据订单 ID 获取所有已锁定的预留
     #[allow(dead_code)] // TODO(tech-debt): 业务接入后移除
-    pub async fn get_locked_reservations_by_order(
-        &self,
-        order_id: i32,
-    ) -> Result<Vec<inventory_reservation::Model>, AppError> {
-        InventoryReservationEntity::find()
-            .filter(inventory_reservation::Column::OrderId.eq(order_id))
-            .filter(inventory_reservation::Column::Status.eq("locked"))
-            .all(&*self.db)
-            .await
-            .map_err(AppError::from)
-    }
 
     /// 批量创建预留（用于订单审核时）
     #[allow(dead_code)] // TODO(tech-debt): 业务接入后移除
-    pub async fn batch_create_reservations(
-        &self,
-        order_id: i32,
-        items: Vec<(i32, i32, rust_decimal::Decimal)>, // (product_id, warehouse_id, quantity)
-        created_by: Option<i32>,
-    ) -> Result<Vec<inventory_reservation::Model>, AppError> {
-        let mut reservations = Vec::new();
-
-        for (product_id, warehouse_id, quantity) in items {
-            let reservation = self
-                .create_reservation(
-                    order_id,
-                    product_id,
-                    warehouse_id,
-                    quantity,
-                    created_by,
-                    None,
-                )
-                .await?;
-            reservations.push(reservation);
-        }
-
-        Ok(reservations)
-    }
 
     /// 批量锁定预留
     #[allow(dead_code)] // TODO(tech-debt): 业务接入后移除
-    pub async fn batch_lock_reservations(
-        &self,
-        reservation_ids: Vec<i32>,
-    ) -> Result<Vec<inventory_reservation::Model>, AppError> {
-        let mut locked = Vec::new();
-
-        for id in reservation_ids {
-            match self.lock_reservation(id).await {
-                Ok(reservation) => locked.push(reservation),
-                Err(e) => return Err(e),
-            }
-        }
-
-        Ok(locked)
-    }
 
     /// 批量释放预留
     #[allow(dead_code)] // TODO(tech-debt): 业务接入后移除
-    pub async fn batch_release_reservations(
-        &self,
-        reservation_ids: Vec<i32>,
-    ) -> Result<Vec<inventory_reservation::Model>, AppError> {
-        let mut released = Vec::new();
-
-        for id in reservation_ids {
-            match self.release_reservation(id).await {
-                Ok(reservation) => released.push(reservation),
-                Err(e) => return Err(e),
-            }
-        }
-
-        Ok(released)
-    }
 
     /// 获取预留列表
     pub async fn list_reservations(

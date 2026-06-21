@@ -317,47 +317,6 @@ impl AccountSubjectService {
         info!("会计科目删除成功：id={}", id);
         Ok(())
     }
-
-    /// 查询科目余额
-    #[allow(dead_code)] // TODO(tech-debt): 业务接入后移除
-    pub async fn get_balance(
-        &self,
-        subject_id: i32,
-        period: &str,
-    ) -> Result<SubjectBalance, AppError> {
-        info!("查询科目余额 subject_id={}, period={}", subject_id, period);
-
-        let balance = account_balance::Entity::find()
-            .filter(account_balance::Column::SubjectId.eq(subject_id))
-            .filter(account_balance::Column::Period.eq(period))
-            .one(&*self.db)
-            .await
-            .map_err(|e| AppError::internal(e.to_string()))?;
-
-        if let Some(b) = balance {
-            Ok(SubjectBalance {
-                subject_id: b.subject_id,
-                period: b.period,
-                initial_balance_debit: b.initial_balance_debit,
-                initial_balance_credit: b.initial_balance_credit,
-                current_period_debit: b.current_period_debit,
-                current_period_credit: b.current_period_credit,
-                ending_balance_debit: b.ending_balance_debit,
-                ending_balance_credit: b.ending_balance_credit,
-            })
-        } else {
-            Ok(SubjectBalance {
-                subject_id,
-                period: period.to_string(),
-                initial_balance_debit: rust_decimal::Decimal::ZERO,
-                initial_balance_credit: rust_decimal::Decimal::ZERO,
-                current_period_debit: rust_decimal::Decimal::ZERO,
-                current_period_credit: rust_decimal::Decimal::ZERO,
-                ending_balance_debit: rust_decimal::Decimal::ZERO,
-                ending_balance_credit: rust_decimal::Decimal::ZERO,
-            })
-        }
-    }
 }
 
 /// 科目树节点
@@ -382,3 +341,4 @@ pub struct SubjectBalance {
     pub ending_balance_debit: rust_decimal::Decimal,
     pub ending_balance_credit: rust_decimal::Decimal,
 }
+

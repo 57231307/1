@@ -465,23 +465,6 @@ impl ProductService {
         Ok(())
     }
 
-    /// 根据色号查询产品色号
-    #[allow(dead_code)] // TODO(tech-debt): 业务接入后移除
-    pub async fn find_color_by_product_and_color_no(
-        &self,
-        product_id: i32,
-        color_no: &str,
-    ) -> Result<product_color::Model, AppError> {
-        ProductColorEntity::find()
-            .filter(product_color::Column::ProductId.eq(product_id))
-            .filter(product_color::Column::ColorNo.eq(color_no))
-            .one(&*self.db)
-            .await?
-            .ok_or_else(|| {
-                AppError::not_found(format!("产品 {} 的色号 {} 不存在", product_id, color_no))
-            })
-    }
-
     // ========== 数据导入导出方法 ==========
 
     /// 导出产品数据为 CSV 格式
