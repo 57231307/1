@@ -101,30 +101,6 @@ pub struct UpdateCustomerRequest {
 
 /// 客户响应
 #[derive(Debug, Serialize)]
-#[allow(dead_code)] // TODO(tech-debt): 业务接入后移除
-pub struct CustomerResponse {
-    pub id: i32,
-    pub customer_code: String,
-    pub customer_name: String,
-    pub contact_person: Option<String>,
-    pub contact_phone: Option<String>,
-    pub contact_email: Option<String>,
-    pub address: Option<String>,
-    pub city: Option<String>,
-    pub province: Option<String>,
-    pub country: String,
-    pub postal_code: Option<String>,
-    pub credit_limit: String,
-    pub payment_terms: i32,
-    pub tax_id: Option<String>,
-    pub bank_name: Option<String>,
-    pub bank_account: Option<String>,
-    pub status: String,
-    pub customer_type: String,
-    pub notes: Option<String>,
-    pub created_at: chrono::DateTime<chrono::Utc>,
-    pub updated_at: chrono::DateTime<chrono::Utc>,
-}
 
 /// 获取客户列表
 pub async fn list_customers(

@@ -226,14 +226,6 @@ pub(crate) fn build_release_url(version: &str) -> String {
     )
 }
 
-/// 构建 GitHub API 链接
-#[allow(dead_code)]
-pub(crate) fn build_api_url() -> String {
-    format!(
-        "https://api.github.com/repos/{}/releases/latest",
-        GITHUB_REPO
-    )
-}
 
 /// 带镜像源的下载 (自动尝试多个镜像)
 pub(crate) fn download_with_mirrors(url: &str, output: &str, timeout: u32) -> bool {

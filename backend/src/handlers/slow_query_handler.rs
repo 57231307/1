@@ -251,30 +251,6 @@ pub async fn refresh_slow_queries(
     })))
 }
 
-/// DELETE /api/v1/erp/slow-queries
-///
-/// 清理慢查询日志（保留近 N 天，默认 30 天）
-///
-/// 注意：仅供管理员/运维调用，未在路由注册中暴露（保留 API 接口）
-#[allow(dead_code, reason = "保留 API：未来运维面板调用")]
-pub async fn cleanup_slow_queries(
-    State(state): State<AppState>,
-    auth: AuthContext,
-) -> Result<Json<ApiResponse<u64>>, AppError> {
-    let _tenant_id = extract_tenant_id(&auth)?;
-
-    // 保留近 30 天数据
-    let sql = "DELETE FROM slow_query_log WHERE captured_at < NOW() - INTERVAL '30 days'";
-    let result = state
-        .db
-        .as_ref()
-        .execute_unprepared(sql)
-        .await
-        .map_err(|e| AppError::internal(format!("清理慢查询日志失败: {}", e)))?;
-
-    Ok(Json(ApiResponse::success(result.rows_affected())))
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;

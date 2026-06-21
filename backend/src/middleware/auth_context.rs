@@ -119,6 +119,3 @@ impl OptionalAuthContext {
 /// 认证上下文提取器类型别名（使用 Extension）
 pub type Auth = axum::extract::Extension<AuthContext>;
 
-/// 可选认证上下文提取器类型别名（使用 Extension）
-#[allow(dead_code)] // TODO(tech-debt): 业务接入后移除
-pub type OptionalAuth = axum::extract::Extension<OptionalAuthContext>;

@@ -69,20 +69,8 @@ pub struct StockResponse {
 }
 
 #[derive(Debug, Serialize)]
-#[allow(dead_code)] // TODO(tech-debt): 业务接入后移除
-pub struct StockListResponse {
-    pub stock: Vec<StockResponse>,
-    pub total: u64,
-    pub page: u64,
-    pub page_size: u64,
-}
 
 #[derive(Debug, Serialize)]
-#[allow(dead_code)] // TODO(tech-debt): 业务接入后移除
-pub struct LowStockResponse {
-    pub products: Vec<StockResponse>,
-    pub count: u64,
-}
 
 pub async fn get_stock(
     State(state): State<AppState>,
@@ -632,13 +620,6 @@ pub struct StockFabricResponse {
 }
 
 #[derive(Debug, Serialize)]
-#[allow(dead_code)] // TODO(tech-debt): 业务接入后移除
-pub struct StockFabricListResponse {
-    pub stock: Vec<StockFabricResponse>,
-    pub total: u64,
-    pub page: u64,
-    pub page_size: u64,
-}
 
 #[derive(Debug, Deserialize)]
 pub struct ListTransactionParams {
@@ -674,13 +655,6 @@ pub struct TransactionResponse {
 }
 
 #[derive(Debug, Serialize)]
-#[allow(dead_code)] // TODO(tech-debt): 业务接入后移除
-pub struct TransactionListResponse {
-    pub transactions: Vec<TransactionResponse>,
-    pub total: u64,
-    pub page: u64,
-    pub page_size: u64,
-}
 
 #[derive(Debug, Serialize)]
 pub struct InventorySummaryItem {
@@ -695,12 +669,6 @@ pub struct InventorySummaryItem {
 }
 
 #[derive(Debug, Serialize)]
-#[allow(dead_code)] // TODO(tech-debt): 业务接入后移除
-pub struct InventorySummaryResponse {
-    pub summary: Vec<InventorySummaryItem>,
-    pub total_meters: Decimal,
-    pub total_kg: Decimal,
-}
 
 // ========== 面料行业双计量单位优化接口 ==========
 
