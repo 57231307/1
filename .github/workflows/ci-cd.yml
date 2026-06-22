@@ -141,7 +141,7 @@ jobs:
             echo "  \"cargo\": \"$(cargo --version 2>&1 || echo N/A)\","
             echo "  \"node\": \"$(node --version 2>&1 || echo N/A)\","
             echo "  \"npm\": \"$(npm --version 2>&1 || echo N/A)\","
-            echo "  \"cpus\": $(nproc),
+            echo "  \"cpus\": $(nproc),"
             echo "  \"mem_total\": \"$(free -h | awk '/Mem:/ {print $2}')\","
             echo "  \"disk_free\": \"$(df -h / | tail -1 | awk '{print $4}')\""
             echo "}"
