@@ -9,6 +9,12 @@ pub struct RefreshTokenResponse {
     pub expires_in: u64,
 }
 
+#[derive(Debug, Serialize)]
+pub struct CsrfTokenResponse {
+    pub csrf_token: String,
+    pub header_name: String,
+}
+
 pub async fn refresh_token(
     State(state): State<AppState>,
     headers: HeaderMap,
@@ -224,4 +230,11 @@ pub async fn get_current_user(
     ),
     tags = ["Auth"]
 )]
-pub async fn get_csrf_token(
+pub async fn get_csrf_token() -> Result<Json<ApiResponse<CsrfTokenResponse>>, AppError> {
+    // 简单的 CSRF token 生成
+    let csrf_token = uuid::Uuid::new_v4().to_string();
+    Ok(Json(ApiResponse::success(CsrfTokenResponse {
+        csrf_token,
+        header_name: "X-CSRF-Token".to_string(),
+    })))
+}
