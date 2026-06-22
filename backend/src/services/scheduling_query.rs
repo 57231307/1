@@ -14,11 +14,14 @@ use crate::models::scheduling_result::{ActiveModel as SchedulingActiveModel, Ent
 use crate::models::work_center::{Entity as WorkCenterEntity, Model as WorkCenterModel};
 use crate::utils::error::AppError;
 use crate::services::scheduling_service::{
-    AutoScheduleResult, DateRange, GanttData, ScheduleDetail, ScheduledOrder, ScheduledOrderQuery,
-    WorkCenterInfo,
+    AutoScheduleResult, DateRange, GanttData, GanttItemDto, ScheduleDetail, ScheduledOrder,
+    ScheduledOrderQuery, WorkCenterInfo,
 };
-use chrono::{NaiveDate, Utc};
-use sea_orm::Set;
+use chrono::{Duration, NaiveDate, Utc};
+use sea_orm::{
+    ActiveModelTrait, ColumnTrait, EntityTrait, IntoActiveModel, PaginatorTrait, QueryFilter,
+    QueryOrder, QuerySelect, Set,
+};
 
 /// P9-2 标记：排程查询子模块路径
 pub const P92_QRY_MODULE: &str = "scheduling_query";
@@ -178,80 +181,7 @@ impl SchedulingService {
         Ok((results, total))
     }
 
-    /// 加载活跃工作中心
-    async fn load_active_work_centers(
-        &self,
-        ids: &Option<Vec<i32>>,
-    ) -> Result<Vec<WorkCenterModel>, AppError> {
-        let mut query = WorkCenterEntity::find()
-            .filter(crate::models::work_center::Column::Status.eq("ACTIVE"));
-
-        if let Some(id_list) = ids {
-            if !id_list.is_empty() {
-                query = query.filter(crate::models::work_center::Column::Id.is_in(id_list.clone()));
-            }
-        }
-
-        query
-            .order_by_asc(crate::models::work_center::Column::Code)
-            .all(&*self.db)
-            .await
-            .map_err(|e| AppError::database(e.to_string()))
-    }
-
-    /// 加载待排程工单
-    async fn load_pending_orders(&self) -> Result<Vec<ProductionOrderModel>, AppError> {
-        ProductionOrderEntity::find()
-            .filter(crate::models::production_order::Column::Status.eq("DRAFT"))
-            .order_by_asc(crate::models::production_order::Column::Priority)
-            .all(&*self.db)
-            .await
-            .map_err(|e| AppError::database(e.to_string()))
-    }
-
-    /// 查找最早可用时间槽
-    fn find_earliest_slot(
-        &self,
-        schedule: &[(NaiveDate, NaiveDate, i32, String)],
-        start_date: NaiveDate,
-        days_needed: i64,
-    ) -> NaiveDate {
-        if schedule.is_empty() {
-            return start_date;
-        }
-
-        let mut candidate = start_date;
-        let max_iterations = 365; // 防止无限循环
-        let mut iterations = 0;
-
-        loop {
-            let end_candidate = candidate + Duration::days(days_needed - 1);
-
-            let has_overlap = schedule
-                .iter()
-                .any(|(s, e, _, _)| !(end_candidate < *s || candidate > *e));
-
-            if !has_overlap {
-                return candidate;
-            }
-
-            // 找到下一个可用时间槽
-            let next_start = schedule
-                .iter()
-                .filter(|(_s, e, _, _)| *e >= candidate)
-                .map(|(_, e, _, _)| *e + Duration::days(1))
-                .min()
-                .unwrap_or(candidate + Duration::days(1));
-
-            candidate = next_start;
-
-            iterations += 1;
-            if iterations >= max_iterations {
-                // 超过最大迭代次数，返回当前候选日期（避免无限循环）
-                return candidate;
-            }
-        }
-    }
+    /// 加载活跃工作中心（与 scheduling_auto.rs 重复，删）
 
     /// 持久化排程结果
     pub async fn get_schedule_history(
@@ -437,19 +367,18 @@ impl SchedulingService {
         );
 
         // 计算日期范围
-        let (start_date, end_date) = if result.schedule_details.is_empty() {
+        let (start_date, end_date) = if result.schedule_details.as_ref().map(|v| v.is_empty()).unwrap_or(true) {
             (now.date_naive(), now.date_naive())
         } else {
-            let min_start = result
-                .schedule_details
+            let details = result.schedule_details.as_ref().unwrap();
+            let min_start = details
                 .iter()
-                .map(|d| d.start_date)
+                .map(|d| d.start_date.unwrap_or(d.planned_start))
                 .min()
                 .unwrap_or(now.date_naive());
-            let max_end = result
-                .schedule_details
+            let max_end = details
                 .iter()
-                .map(|d| d.end_date)
+                .map(|d| d.end_date.unwrap_or(d.planned_end))
                 .max()
                 .unwrap_or(now.date_naive());
             (min_start, max_end)

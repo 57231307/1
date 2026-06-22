@@ -4,7 +4,10 @@
 
 use chrono::Utc;
 use rust_decimal::Decimal;
-use sea_orm::{DatabaseConnection, Order, Set};
+use sea_orm::{
+    ActiveModelTrait, ColumnTrait, EntityTrait, IntoActiveModel, Order, QueryFilter, QueryOrder,
+    QuerySelect, Set,
+};
 use std::sync::Arc;
 
 use crate::handlers::inventory_stock_handler_dto::InventorySummaryItem;

@@ -60,7 +60,7 @@ pub struct CreditLimitAdjustmentRequest {
 }
 
 pub struct CustomerCreditService {
-    db: Arc<DatabaseConnection>,
+    pub db: Arc<DatabaseConnection>,
 }
 impl CustomerCreditService {
     pub fn new(db: Arc<DatabaseConnection>) -> Self {

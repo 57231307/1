@@ -9,21 +9,22 @@
 
 use super::scheduling_service::SchedulingService;
 use crate::models::production_order::{self, Entity as ProductionOrderEntity, Model as ProductionOrderModel};
+use crate::models::scheduling_result::{ActiveModel as SchedulingActiveModel, Entity as SchedulingResultEntity};
+use crate::models::work_center::{Entity as WorkCenterEntity, Model as WorkCenterModel};
 use crate::services::capacity_service::WorkCenterCapacity;
 use crate::services::scheduling_service::{
     AdjustScheduleRequest, AutoScheduleRequest, AutoScheduleResult, DateRange, GanttData,
     ScheduleConflict, ScheduleDetail, WorkCenterInfo,
 };
 use crate::utils::error::AppError;
-use chrono::{NaiveDate, Utc};
+use chrono::{Duration, NaiveDate, Utc};
 use rust_decimal::Decimal;
 use sea_orm::{
-    ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter, QueryOrder,
-    QuerySelect, Set,
+    ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, IntoActiveModel, QueryFilter,
+    QueryOrder, QuerySelect, Set,
 };
 use std::collections::HashMap;
 use std::sync::Arc;
-use std::time::Duration;
 
 /// P9-2 标记：自动排程子模块路径
 pub const P92_AUTO_MODULE: &str = "scheduling_auto";
