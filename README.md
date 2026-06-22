@@ -1,8 +1,8 @@
 # 冰溪 ERP 系统
 
 [![Build Status](https://github.com/57231307/1/actions/workflows/ci-cd.yml/badge.svg)](https://github.com/57231307/1/actions/workflows/ci-cd.yml)
-[![Code Quality](https://img.shields.io/badge/quality-10.0%2F10-brightgreen)](https://github.com/57231307/1)
-[![Test Coverage](https://img.shields.io/badge/coverage-75%25-green)](https://github.com/57231307/1)
+[![Code Quality](https://img.shields.io/badge/quality-80%2F100-yellow)](.monkeycode/docs/audits/2026-06-22-runtime-issues-detection.md)
+[![Test Coverage](https://img.shields.io/badge/tests-178-blue)](docs/TESTING.md)
 [![License](https://img.shields.io/badge/license-Proprietary-blue)]()
 [![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](CONTRIBUTING.md)
 [![Docs](https://img.shields.io/badge/docs-49%20files-blue)](docs/)
