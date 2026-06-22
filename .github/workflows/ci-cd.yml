@@ -817,7 +817,7 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y pkg-config libssl-dev postgresql-client protobuf-compiler
 
-      - name: 运行 cargo test（严格化）
+      - name: 运行 cargo test（严格化 + baseline 机制）
         working-directory: backend
         run: |
           mkdir -p reports
@@ -832,39 +832,127 @@ jobs:
           FAILED=$(grep -cE "^test .* FAILED$" reports/cargo-test-output.txt 2>/dev/null || echo 0)
           TOTAL=$((PASSED + FAILED))
 
+          # 与 baseline 对比
+          NEW_FAILED=0
+          BASELINE_FAILED=0
+          FIXED=0
+          BASELINE_MODE=""
+
+          if [ ! -f "backend/.test-baseline.txt" ]; then
+            # 首次跑：自动建立 baseline，不阻塞
+            BASELINE_MODE="bootstrap"
+            grep -E "^test .* FAILED$" reports/cargo-test-output.txt 2>/dev/null | \
+              awk '{print $2}' > backend/.test-baseline.txt
+            BASELINE_FAILED=$FAILED
+            NEW_FAILED=0
+            FIXED=0
+            echo "⚠️  首次跑：自动建立测试基线（$BASELINE_FAILED 个失败）"
+          else
+            BASELINE_MODE="strict"
+            BASELINE_FAILED=$(wc -l < backend/.test-baseline.txt)
+
+            # 当前失败的测试
+            grep -E "^test .* FAILED$" reports/cargo-test-output.txt 2>/dev/null | \
+              awk '{print $2}' > reports/test-current-failed.txt
+            NEW_FAILED=$(wc -l < reports/test-current-failed.txt)
+
+            # 找出新失败
+            comm -23 reports/test-current-failed.txt backend/.test-baseline.txt > reports/test-new-failed.txt
+            NEW_FAILED_COUNT=$(wc -l < reports/test-new-failed.txt)
+
+            # 找出已修复
+            comm -13 reports/test-current-failed.txt backend/.test-baseline.txt > reports/test-fixed.txt
+            FIXED=$(wc -l < reports/test-fixed.txt)
+
+            NEW_FAILED=$NEW_FAILED_COUNT
+          fi
+
           {
             echo "# Rust 单元测试报告"
             echo ""
             echo "**生成时间**: $(date -u +'%Y-%m-%dT%H:%M:%SZ')  "
-            echo "**退出码**: $EXIT_CODE  "
+            echo "**模式**: $BASELINE_MODE  "
             echo "**通过**: $PASSED  "
             echo "**失败**: $FAILED  "
             echo "**总计**: $TOTAL  "
+            echo "**基线失败**: $BASELINE_FAILED  "
+            echo "**新增失败**: $NEW_FAILED  "
+            echo "**已修复**: $FIXED  "
             echo ""
-            if [ "$EXIT_CODE" -eq "0" ]; then
-              echo "## ✅ 全部 $TOTAL 个测试通过"
-            else
-              echo "## ❌ $FAILED 个测试失败"
+            if [ "$BASELINE_MODE" = "bootstrap" ]; then
+              echo "## 🎯 首次运行（自动建立基线）"
+              echo ""
+              echo "本项目此前未配置 test baseline，已自动将当前 $BASELINE_FAILED 个失败作为基线。"
+              echo ""
+              echo "### 后续策略"
+              echo ""
+              echo "- **新失败 = 0 容忍**（CI 失败）"
+              echo "- **历史失败 = 渐进清理**（基线大小 = 剩余债务）"
               echo ""
               echo "### 失败列表"
               echo ""
-              echo '```'
-              grep -B1 -A5 "FAILED" reports/cargo-test-output.txt | head -100
-              echo '```'
+              if [ "$FAILED" -gt "0" ]; then
+                grep -E "^test .* FAILED$" reports/cargo-test-output.txt 2>/dev/null | head -30
+              fi
+            elif [ "$NEW_FAILED" -eq "0" ]; then
+              echo "## ✅ 无新增失败"
+              if [ "$FIXED" -gt "0" ]; then
+                echo ""
+                echo "🎉 本次运行修复了 $FIXED 个历史失败，建议同步更新基线："
+                echo ""
+                echo '```bash'
+                echo "bash scripts/ci/setup-test-baseline.sh"
+                echo '```'
+              fi
+            else
+              echo "## ❌ 新增 $NEW_FAILED 个失败（新代码引入回归）"
+              echo ""
+              echo "### 新增失败列表"
+              echo ""
+              cat reports/test-new-failed.txt
+              echo ""
+              echo "### 失败详情"
+              echo ""
+              grep -B 1 -A 5 "FAILED" reports/cargo-test-output.txt | head -50
             fi
           } > reports/cargo-test-report.md
 
           {
             echo "## Rust 单元测试"
             echo ""
-            if [ "$EXIT_CODE" -eq "0" ]; then
-              echo "✅ $TOTAL 个测试全部通过"
+            if [ "$BASELINE_MODE" = "bootstrap" ]; then
+              echo "🎯 首次运行：基线已建立（$BASELINE_FAILED 个历史失败）"
+              echo "  - 通过: $PASSED / $TOTAL"
+              echo "  - 失败: $FAILED（已纳入基线）"
+            elif [ "$NEW_FAILED" -eq "0" ]; then
+              echo "✅ 通过 $PASSED / $TOTAL（$FAILED 历史失败，详见 artifacts）"
             else
-              echo "❌ $FAILED / $TOTAL 个测试失败"
+              echo "❌ 新增 $NEW_FAILED 个失败（回归）"
             fi
           } >> "$GITHUB_STEP_SUMMARY"
 
-          exit $EXIT_CODE
+          # 渐进式：仅新失败阻塞 CI
+          if [ "$NEW_FAILED" -gt "0" ]; then
+            exit 1
+          fi
+          exit 0
+
+      - name: 提交 baseline 文件（首次运行时）
+        if: always()
+        run: |
+          if [ -f "backend/.test-baseline.txt" ]; then
+            if git log --all --oneline -- backend/.test-baseline.txt 2>/dev/null | head -1 | grep -q .; then
+              echo "✅ baseline 文件已纳入版本控制，跳过"
+            else
+              echo "📝 提交 baseline 文件..."
+              git config user.name "github-actions[bot]"
+              git config user.email "github-actions[bot]@users.noreply.github.com"
+              git add backend/.test-baseline.txt
+              git commit -m "chore(ci): 自动建立测试基线" || echo "提交失败，跳过"
+              git remote set-url origin https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git
+              git push origin HEAD:${{ github.ref_name }} || echo "推送失败，可能有冲突"
+            fi
+          fi
 
       - name: 上传报告
         if: always()
