@@ -20,7 +20,7 @@ use crate::services::scheduling_service::{
 use chrono::{Duration, NaiveDate, Utc};
 use sea_orm::{
     ActiveModelTrait, ColumnTrait, EntityTrait, IntoActiveModel, PaginatorTrait, QueryFilter,
-    QueryOrder, QuerySelect, Set,
+    QueryOrder, QuerySelect, Set, TransactionTrait,
 };
 
 /// P9-2 标记：排程查询子模块路径
@@ -268,8 +268,8 @@ impl SchedulingService {
                         active.planned_end_date = Set(Some(detail.end_date));
                         active.work_center_id = Set(Some(detail.work_center_id));
                         // 自动将DRAFT状态更新为SCHEDULED
-                        if active.status.as_ref() == "DRAFT" {
-                            active.status = Set("SCHEDULED".to_string());
+                        if active.status.as_ref().as_deref() == Some(Some("DRAFT")) {
+                            active.status = Set(Some("SCHEDULED".to_string()));
                         }
                         active.updated_at = Set(Utc::now());
                         active.update(&txn).await?;
@@ -297,8 +297,10 @@ impl SchedulingService {
         let items: Vec<GanttItemDto> = details
             .iter()
             .map(|d| {
-                let duration = (d.end_date - d.start_date).num_days() + 1;
-                let progress = match d.status.as_str() {
+                let start = d.start_date.unwrap_or(d.planned_start);
+                let end = d.end_date.unwrap_or(d.planned_end);
+                let duration = (end - start).num_days() + 1;
+                let progress = match d.status.as_deref().unwrap_or("") {
                     "COMPLETED" => 100.0,
                     "IN_PROGRESS" => 50.0,
                     "SCHEDULED" => 0.0,
@@ -312,11 +314,11 @@ impl SchedulingService {
                     product_id: 0,
                     work_center_id: d.work_center_id,
                     work_center_name: d.work_center_name.clone().unwrap_or_default(),
-                    start_date: d.start_date,
-                    end_date: d.end_date,
+                    start_date: start,
+                    end_date: end,
                     duration_days: duration,
                     progress,
-                    status: d.status.clone(),
+                    status: d.status.clone().unwrap_or_default(),
                     priority: 0,
                     dependencies: Vec::new(),
                 }
@@ -327,9 +329,9 @@ impl SchedulingService {
             .iter()
             .map(|wc| WorkCenterInfo {
                 id: wc.id,
-                code: wc.code.clone(),
-                name: wc.name.clone(),
-                status: wc.status.clone(),
+                code: Some(wc.code.clone()),
+                name: Some(wc.name.clone()),
+                status: Some(wc.status.clone()),
             })
             .collect();
 

@@ -15,8 +15,9 @@
 use super::order::SalesService;
 use super::SalesOrderDetail;
 use crate::models::sales_order;
+use crate::models::sales_order::Entity as SalesOrderEntity;
 use crate::utils::error::AppError;
-use sea_orm::{ColumnTrait, EntityTrait, QueryFilter};
+use sea_orm::{ColumnTrait, EntityTrait, QueryFilter, TransactionTrait};
 
 /// 销售订单工作流子模块标记
 pub const P92_WF_MODULE: &str = "sales_order_workflow";

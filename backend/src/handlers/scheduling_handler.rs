@@ -215,9 +215,9 @@ pub async fn get_gantt_data(
             .into_iter()
             .map(|wc| WorkCenterInfoResponse {
                 id: wc.id,
-                code: wc.code,
-                name: wc.name,
-                status: wc.status,
+                code: wc.code.unwrap_or_default(),
+                name: wc.name.unwrap_or_default(),
+                status: wc.status.unwrap_or_default(),
             })
             .collect(),
         date_range: DateRangeResponse {

@@ -22,8 +22,8 @@ use crate::utils::error::AppError;
 use crate::utils::pagination::paginate_with_total;
 use crate::utils::PaginatedResponse;
 use sea_orm::{
-    ColumnTrait, EntityTrait, LoaderTrait, Order, PaginatorTrait, QueryFilter, QueryOrder,
-    QuerySelect, RelationTrait,
+    ColumnTrait, EntityTrait, LoaderTrait, ModelTrait, Order, PaginatorTrait, QueryFilter,
+    QueryOrder, QuerySelect, RelationTrait,
 };
 use std::sync::Arc;
 

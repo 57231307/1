@@ -326,7 +326,7 @@ impl InventoryStockService {
     // ========== 双计量单位自动计算辅助方法 ==========
 
     /// 自动计算公斤数（如果提供了克重和幅宽）
-    fn calculate_quantity_kg(
+    pub fn calculate_quantity_kg(
         quantity_meters: Decimal,
         gram_weight: Option<Decimal>,
         width: Option<Decimal>,

@@ -154,13 +154,13 @@ impl SchedulingService {
                 conflicts.push(ScheduleConflict {
                     conflict_type: "NO_WORK_CENTER".to_string(),
                     order_id: order.id,
-                    order_no: order.order_no.clone(),
+                    order_no: Some(order.order_no.clone()),
                     conflicting_order_id: None,
                     conflicting_order_no: None,
-                    work_center_id: None,
+                    work_center_id: 0,
                     work_center_name: None,
                     description: format!("工单 {} 未指定有效工作中心", order.order_no),
-                    severity: "HIGH".to_string(),
+                    severity: Some("HIGH".to_string()),
                 });
                 continue;
             }
@@ -179,16 +179,16 @@ impl SchedulingService {
                 conflicts.push(ScheduleConflict {
                     conflict_type: "CAPACITY_INSUFFICIENT".to_string(),
                     order_id: order.id,
-                    order_no: order.order_no.clone(),
+                    order_no: Some(order.order_no.clone()),
                     conflicting_order_id: None,
                     conflicting_order_no: None,
-                    work_center_id: Some(wc_id),
+                    work_center_id: wc_id,
                     work_center_name: Some(cap.name.clone()),
                     description: format!(
                         "工单 {} 需要产能 {}，工作中心 {} 可用产能不足（剩余 {}）",
                         order.order_no, quantity, cap.name, available
                     ),
-                    severity: "HIGH".to_string(),
+                    severity: Some("HIGH".to_string()),
                 });
                 continue;
             }
@@ -218,16 +218,16 @@ impl SchedulingService {
                 conflicts.push(ScheduleConflict {
                     conflict_type: "TIME_OVERLAP".to_string(),
                     order_id: order.id,
-                    order_no: order.order_no.clone(),
+                    order_no: Some(order.order_no.clone()),
                     conflicting_order_id: None,
                     conflicting_order_no: None,
-                    work_center_id: Some(wc_id),
+                    work_center_id: wc_id,
                     work_center_name: Some(cap.name.clone()),
                     description: format!(
                         "工单 {} 在工作中心 {} 存在时间重叠",
                         order.order_no, wc_id
                     ),
-                    severity: "MEDIUM".to_string(),
+                    severity: Some("MEDIUM".to_string()),
                 });
             }
 
@@ -306,16 +306,16 @@ impl SchedulingService {
                             conflicts.push(ScheduleConflict {
                                 conflict_type: "TIME_OVERLAP".to_string(),
                                 order_id: a.id,
-                                order_no: a.order_no.clone(),
+                                order_no: Some(a.order_no.clone()),
                                 conflicting_order_id: Some(b.id),
                                 conflicting_order_no: Some(b.order_no.clone()),
-                                work_center_id: Some(*wc_id),
+                                work_center_id: *wc_id,
                                 work_center_name: None,
                                 description: format!(
                                     "工单 {} 和 {} 在工作中心 {} 时间重叠",
                                     a.order_no, b.order_no, wc_id
                                 ),
-                                severity: "HIGH".to_string(),
+                                severity: Some("HIGH".to_string()),
                             });
                         }
                     }
@@ -328,13 +328,13 @@ impl SchedulingService {
                 conflicts.push(ScheduleConflict {
                     conflict_type: "MISSING_DATES".to_string(),
                     order_id: order.id,
-                    order_no: order.order_no.clone(),
+                    order_no: Some(order.order_no.clone()),
                     conflicting_order_id: None,
                     conflicting_order_no: None,
-                    work_center_id: order.work_center_id,
+                    work_center_id: order.work_center_id.unwrap_or(0),
                     work_center_name: None,
                     description: format!("工单 {} 缺少计划日期", order.order_no),
-                    severity: "MEDIUM".to_string(),
+                    severity: Some("MEDIUM".to_string()),
                 });
             }
 
@@ -343,13 +343,13 @@ impl SchedulingService {
                     conflicts.push(ScheduleConflict {
                         conflict_type: "INVALID_DATES".to_string(),
                         order_id: order.id,
-                        order_no: order.order_no.clone(),
+                        order_no: Some(order.order_no.clone()),
                         conflicting_order_id: None,
                         conflicting_order_no: None,
-                        work_center_id: order.work_center_id,
+                        work_center_id: order.work_center_id.unwrap_or(0),
                         work_center_name: None,
                         description: format!("工单 {} 结束日期早于开始日期", order.order_no),
-                        severity: "HIGH".to_string(),
+                        severity: Some("HIGH".to_string()),
                     });
                 }
             }
