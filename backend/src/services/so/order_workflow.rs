@@ -216,7 +216,8 @@ impl SalesService {
         let mut order_update: sales_order::ActiveModel = order.into();
         order_update.status = sea_orm::ActiveValue::Set("completed".to_string());
         order_update.updated_at = sea_orm::ActiveValue::Set(chrono::Utc::now());
-
+    }
+}
 
 #[cfg(test)]
 mod tests {

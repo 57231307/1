@@ -384,9 +384,7 @@ impl SalesService {
     // 注意：export_orders_to_csv 已迁移到 so/delivery.rs
 
     // ========== 订单生命周期方法（handler 调用） ==========
-
-    /// 提交订单：草稿 -> 提交审批（含信用检查、BPM 启动）
-
+}
 
 #[cfg(test)]
 mod tests {

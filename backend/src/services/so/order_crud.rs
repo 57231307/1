@@ -574,9 +574,7 @@ impl SalesService {
 
         Ok(())
     }
-
-    /// 取消订单
-
+}
 
 #[cfg(test)]
 mod tests {

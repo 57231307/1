@@ -400,6 +400,7 @@ async fn run_consumer_loop(
         tokio::time::sleep(Duration::from_millis(200)).await;
     }
 }
+}
 
 #[cfg(test)]
 mod tests {
