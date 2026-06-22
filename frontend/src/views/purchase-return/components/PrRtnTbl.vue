@@ -1,4 +1,3 @@
-<!-- eslint-disable vue/no-mutating-props -->
 <!--
   PrRtnTbl.vue - 采购退货列表表格
   任务编号: P14 批 2 I-3 第 2 批（拆分原 purchase-return/index.vue）

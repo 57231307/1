@@ -3,7 +3,6 @@
   拆分自 bpm/approval.vue（P14 批 2 I-3 第 4 批）
   行为完全保持一致（仅结构重构）
 -->
-<!-- eslint-disable vue/no-mutating-props -->
 <template>
   <el-row :gutter="20" class="stats-row">
     <el-col :xs="24" :sm="12" :lg="6">
@@ -62,7 +61,6 @@
 </template>
 
 <script setup lang="ts">
-/* eslint-disable vue/no-mutating-props */
 import { Clock, CircleCheck, Warning, Timer } from '@element-plus/icons-vue'
 
 // 统计字段类型

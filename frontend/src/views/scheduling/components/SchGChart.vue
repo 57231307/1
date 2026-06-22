@@ -1,4 +1,3 @@
-<!-- eslint-disable vue/no-mutating-props -->
 <!--
   SchGChart.vue - 排产甘特图容器（内部管理 ECharts 渲染）
   任务编号: P14 批 2 I-3 第 2 批（拆分原 scheduling/gantt.vue）

@@ -41,8 +41,6 @@
 </template>
 
 <script setup lang="ts">
-/* eslint-disable vue/no-mutating-props */
-
 // 销售订单统计类型
 interface OlvStats {
   totalCount: number

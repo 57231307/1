@@ -20,7 +20,6 @@
 </template>
 
 <script setup lang="ts">
-/* eslint-disable vue/no-mutating-props */
 import { computed, h } from 'vue'
 import { ElButton } from 'element-plus'
 import V2Table from '@/components/V2Table/index.vue'

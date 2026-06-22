@@ -3,7 +3,6 @@
   拆分自 voucher/tabs/VoucherListTab.vue（P14 批 2 I-3 第 1 批）
   行为完全保持一致（仅结构重构）
 -->
-<!-- eslint-disable vue/no-mutating-props -->
 <template>
   <ElDialog
     :model-value="visible"
@@ -72,7 +71,6 @@
 </template>
 
 <script setup lang="ts">
-/* eslint-disable vue/no-mutating-props */
 import type { VoucherEntity } from '@/api/voucher'
 import { getStatusLabel, getStatusClass, getTypeLabel } from '../composables/vchrLstFmts'
 

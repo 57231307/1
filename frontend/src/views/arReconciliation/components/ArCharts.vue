@@ -3,7 +3,6 @@
   拆分自 arReconciliation/enhanced.vue（P14 批 1 B3 I-2）
   行为完全保持一致（仅结构重构）
 -->
-<!-- eslint-disable vue/no-mutating-props -->
 <template>
   <el-row :gutter="20" class="chart-row">
     <el-col :span="12">
@@ -20,7 +19,6 @@
 </template>
 
 <script setup lang="ts">
-/* eslint-disable vue/no-mutating-props */
 /**
  * 账龄图表组件
  * 接收父组件传入的 ECharts 实例 ref 进行图表渲染

@@ -3,7 +3,6 @@
   拆分自 sales-price/index.vue（P14 批 2 I-3 第 3 批）
   行为完全保持一致（仅结构重构）
 -->
-<!-- eslint-disable vue/no-mutating-props -->
 <template>
   <el-dialog
     :model-value="visible"
@@ -30,7 +29,6 @@
 </template>
 
 <script setup lang="ts">
-/* eslint-disable vue/no-mutating-props */
 import type { SalesPrice } from '@/api/sales-price'
 import { formatCurrency, getStatusType, getStatusLabel } from '../composables/spFmts'
 

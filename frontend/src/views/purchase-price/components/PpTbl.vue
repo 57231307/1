@@ -3,7 +3,6 @@
   拆分自 purchase-price/index.vue（P14 批 2 I-3 第 3 批）
   行为完全保持一致（仅结构重构）
 -->
-<!-- eslint-disable vue/no-mutating-props -->
 <template>
   <el-card shadow="hover" class="table-card">
     <el-table v-loading="loading" :data="priceList" border stripe>
@@ -78,7 +77,6 @@
 </template>
 
 <script setup lang="ts">
-/* eslint-disable vue/no-mutating-props */
 import type { PurchasePrice } from '@/api/purchase-price'
 import { formatCurrency, getPriceTypeLabel, getStatusType, getStatusLabel } from '../composables/ppFmts'
 

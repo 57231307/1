@@ -3,7 +3,6 @@
   拆分自 logistics/index.vue（P14 批 2 I-3 第 4 批）
   行为完全保持一致（仅结构重构）
 -->
-<!-- eslint-disable vue/no-mutating-props -->
 <template>
   <el-card class="table-card">
     <el-table v-loading="loading" :data="data" border stripe>
@@ -78,7 +77,6 @@
 </template>
 
 <script setup lang="ts">
-/* eslint-disable vue/no-mutating-props */
 import type { LogisticsWaybill } from '@/api/logistics'
 import { getStatusType, getStatusText } from '../composables/lgsFmts'
 

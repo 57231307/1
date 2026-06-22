@@ -3,7 +3,6 @@
   拆分自 arReconciliation/enhanced.vue（P14 批 1 B3 I-2）
   行为完全保持一致（仅结构重构）
 -->
-<!-- eslint-disable vue/no-mutating-props -->
 <template>
   <el-dialog
     :model-value="visible"
@@ -53,7 +52,6 @@
 </template>
 
 <script setup lang="ts">
-/* eslint-disable vue/no-mutating-props */
 import { CircleCheck, CircleClose } from '@element-plus/icons-vue'
 import type { CustomerConfirmation } from '@/api/ar-reconciliation-enhanced'
 import { getConfirmLabel, getConfirmType } from '../composables/arRecFmts'

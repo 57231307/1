@@ -3,7 +3,6 @@
   拆分自 system-update/index.vue（P14 批 2 I-3 第 1 批）
   行为完全保持一致（仅结构重构）
 -->
-<!-- eslint-disable vue/no-mutating-props -->
 <template>
   <el-dialog
     :model-value="visible"
@@ -58,7 +57,6 @@
 </template>
 
 <script setup lang="ts">
-/* eslint-disable vue/no-mutating-props */
 import type { SystemVersion } from '@/api/system-update'
 import { formatFileSize } from '../composables/sysUpdFmts'
 

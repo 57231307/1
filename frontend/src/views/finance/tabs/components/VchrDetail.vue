@@ -3,7 +3,6 @@
   拆分自 VoucherTab.vue（P14 批 1 B3 I-2）
   行为完全保持一致（仅结构重构）
 -->
-<!-- eslint-disable vue/no-mutating-props -->
 <template>
   <el-dialog
     :model-value="visible"
@@ -55,7 +54,6 @@
 </template>
 
 <script setup lang="ts">
-/* eslint-disable vue/no-mutating-props */
 import type { Voucher } from '@/api/finance'
 
 /**

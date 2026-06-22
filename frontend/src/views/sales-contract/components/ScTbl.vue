@@ -3,7 +3,6 @@
   拆分自 sales-contract/index.vue（P14 批 2 I-3 第 1 批）
   行为完全保持一致（仅结构重构）
 -->
-<!-- eslint-disable vue/no-mutating-props -->
 <template>
   <el-card shadow="hover" class="table-card">
     <el-table v-loading="loading" :data="contractList" border stripe>
@@ -93,7 +92,6 @@
 </template>
 
 <script setup lang="ts">
-/* eslint-disable vue/no-mutating-props */
 import type { SalesContract } from '@/api/sales-contract'
 import { formatCurrency, getStatusType, getStatusLabel } from '../composables/scFmts'
 

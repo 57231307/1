@@ -3,7 +3,6 @@
   拆分自 purchaseReceipt/index.vue（P14 批 2 I-3 第 4 批）
   行为完全保持一致（仅结构重构）
 -->
-<!-- eslint-disable vue/no-mutating-props -->
 <template>
   <el-dialog
     :model-value="visible"
@@ -52,7 +51,6 @@
 </template>
 
 <script setup lang="ts">
-/* eslint-disable vue/no-mutating-props */
 import type { PurchaseReceiptEntity, ReceiptItem } from '@/api/purchaseReceipt'
 import { getStatusLabel } from '../composables/prcFmts'
 

@@ -93,7 +93,6 @@
 </template>
 
 <script setup lang="ts">
-/* eslint-disable vue/no-mutating-props */
 // 注：form 由父组件通过 ref() 创建，prop 传递的 form 对象在父子组件间共享是设计意图；
 // 子组件在用户交互时直接更新 form 字段，父组件通过 v-model 同步可见。
 import { ElMessage } from 'element-plus'

@@ -1,4 +1,3 @@
-<!-- eslint-disable vue/no-mutating-props -->
 <!--
   SchMTool.vue - 排产管理顶部工具栏 + 统计卡片
   任务编号: P14 批 2 I-3 第 2 批（拆分原 scheduling/index.vue）

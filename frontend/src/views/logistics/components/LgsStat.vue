@@ -3,7 +3,6 @@
   拆分自 logistics/index.vue（P14 批 2 I-3 第 4 批）
   行为完全保持一致（仅结构重构）
 -->
-<!-- eslint-disable vue/no-mutating-props -->
 <template>
   <el-row :gutter="20" class="stats-row">
     <el-col :span="6">
@@ -42,8 +41,6 @@
 </template>
 
 <script setup lang="ts">
-/* eslint-disable vue/no-mutating-props */
-
 // 统计字段类型
 interface LgsStats {
   total: number

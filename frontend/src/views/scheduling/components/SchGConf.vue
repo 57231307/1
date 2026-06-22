@@ -1,4 +1,3 @@
-<!-- eslint-disable vue/no-mutating-props -->
 <!--
   SchGConf.vue - 排程冲突列表对话框
   任务编号: P14 批 2 I-3 第 2 批（拆分原 scheduling/gantt.vue）

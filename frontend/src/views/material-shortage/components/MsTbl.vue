@@ -3,7 +3,6 @@
   拆分自 material-shortage/index.vue（P14 批 2 I-3 第 5 批）
   行为完全保持一致（仅结构重构）
 -->
-<!-- eslint-disable vue/no-mutating-props -->
 <template>
   <el-card shadow="hover">
     <div class="filter-bar">
@@ -111,7 +110,6 @@
 </template>
 
 <script setup lang="ts">
-/* eslint-disable vue/no-mutating-props */
 import { Search, Refresh } from '@element-plus/icons-vue'
 import {
   getSeverityColor,
