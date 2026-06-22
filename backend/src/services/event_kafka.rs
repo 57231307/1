@@ -77,12 +77,12 @@ pub struct KafkaEventEnvelope {
 impl KafkaEventEnvelope {
     /// 把 `BusinessEvent` 包装为信封
     ///
-    /// 通过 `payload_serde::EventPayload` 中转序列化（不修改原 `BusinessEvent`
+    /// 通过 `EventPayload` 中转序列化（不修改原 `BusinessEvent`
     /// 的 `derive` 列表，保持公共 API 最小改动）。
     #[allow(dead_code)] // TODO(tech-debt): 报表/审计模块接入 Kafka 时启用
     pub fn from_event(event: &BusinessEvent) -> Self {
         let r#type = event_type_name(event).to_string();
-        let payload = payload_serde::EventPayload::from(event);
+        let payload = EventPayload::from(event);
         let data = serde_json::to_value(&payload).unwrap_or(serde_json::Value::Null);
         Self {
             r#type,
@@ -93,7 +93,7 @@ impl KafkaEventEnvelope {
 
     /// 把信封还原为 `BusinessEvent`（失败时返回错误字符串）
     pub fn into_event(self) -> Result<BusinessEvent, String> {
-        let payload: payload_serde::EventPayload = serde_json::from_value(self.data)
+        let payload: EventPayload = serde_json::from_value(self.data)
             .map_err(|e| format!("反序列化 EventPayload 失败: {}", e))?;
         BusinessEvent::try_from(payload)
     }
@@ -227,7 +227,7 @@ impl KafkaBackend {
 
     /// 异步发布事件到 Kafka
     pub async fn publish(&self, event: BusinessEvent) -> Result<(), KafkaError> {
-        let payload = payload_serde::EventPayload::from(&event);
+        let payload = EventPayload::from(&event);
         let payload_json = serde_json::to_vec(&payload)
             .map_err(|e| KafkaError(format!("事件序列化失败: {}", e)))?;
 
@@ -365,7 +365,7 @@ async fn run_consumer_loop(
                             Some(b) => b,
                             None => continue,
                         };
-                        let payload: payload_serde::EventPayload =
+                        let payload: EventPayload =
                             match serde_json::from_slice(&bytes) {
                                 Ok(p) => p,
                                 Err(e) => {
@@ -520,9 +520,9 @@ mod tests {
             },
         ];
         for event in &cases {
-            let payload = payload_serde::EventPayload::from(event);
+            let payload = EventPayload::from(event);
             let bytes = serde_json::to_vec(&payload).expect("序列化失败");
-            let restored_payload: payload_serde::EventPayload =
+            let restored_payload: EventPayload =
                 serde_json::from_slice(&bytes).expect("反序列化失败");
             let restored = BusinessEvent::try_from(restored_payload).expect("转换失败");
             let event_type = event_type_name(event);

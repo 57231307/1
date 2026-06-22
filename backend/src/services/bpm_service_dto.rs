@@ -2,6 +2,8 @@
 //!
 //! 拆分自 bpm_service.rs：原 4 个 DTO 单独成文件便于引用。
 
+use crate::models::{bpm_process_instance, bpm_task};
+
 /// BPM business relation info
 /// BPM business relation info
 #[derive(Debug, serde::Serialize)]

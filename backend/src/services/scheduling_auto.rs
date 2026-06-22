@@ -9,10 +9,14 @@
 
 use super::scheduling_service::SchedulingService;
 use crate::models::production_order::{self, Entity as ProductionOrderEntity, Model as ProductionOrderModel};
-use crate::services::scheduling_service::{AutoScheduleRequest, AutoScheduleResult, ScheduleConflict};
+use crate::services::capacity_service::WorkCenterCapacity;
+use crate::services::scheduling_service::{
+    AutoScheduleRequest, AutoScheduleResult, DateRange, GanttData, ScheduleConflict, WorkCenterInfo,
+};
 use crate::utils::error::AppError;
-use chrono::NaiveDate;
+use chrono::{NaiveDate, Utc};
 use sea_orm::{ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter, QueryOrder, QuerySelect};
+use std::collections::HashMap;
 use std::sync::Arc;
 
 /// P9-2 标记：自动排程子模块路径

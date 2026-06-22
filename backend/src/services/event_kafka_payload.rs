@@ -14,6 +14,11 @@ use crate::services::event_bus::{BusinessEvent, ShippedItem};
 /// `EventPayload` 包装，再借助 `serde_json` 透明转换，避免在 8 个必需文件之外
 /// 改动 `event_bus.rs` 的公共定义。
 pub mod payload_serde {
+    use rust_decimal::Decimal;
+    use serde::{Deserialize, Serialize};
+
+    use crate::services::event_bus::{BusinessEvent, ShippedItem};
+
     /// 与 `BusinessEvent` 字段一一对应的可序列化结构
     #[derive(Serialize, Deserialize)]
     #[serde(tag = "kind", rename_all = "snake_case")]

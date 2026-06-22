@@ -2,10 +2,17 @@
 //!
 //! 拆分自 inventory_stock_service.rs：原 6 个事务记录与汇总方法独立成文件。
 
-use sea_orm::DatabaseConnection;
+use chrono::Utc;
+use rust_decimal::Decimal;
+use sea_orm::{DatabaseConnection, Order, Set};
 use std::sync::Arc;
 
-use super::inventory_stock_service::InventoryStockService;
+use crate::handlers::inventory_stock_handler_dto::InventorySummaryItem;
+use crate::models::{inventory_stock, inventory_transaction};
+use crate::services::event_bus::{BusinessEvent, EVENT_BUS};
+use crate::utils::error::AppError;
+
+use super::inventory_stock_service::{InventoryStockService, InventorySummaryQueryResult};
 
 impl InventoryStockService {
     pub async fn record_transaction(

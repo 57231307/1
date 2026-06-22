@@ -3,6 +3,10 @@
 //! 拆分自 bpm_service.rs：原 impl BpmService 第二段 7 个未实现方法，
 //! 当前统一返回 AppError::bad_request/not_found 占位。
 
+use crate::models::dto::bpm_dto::{
+    CreateProcessDefinitionRequest, ProcessDefinitionQuery, UpdateProcessDefinitionRequest,
+};
+use crate::models::dto::PageResponse;
 use crate::models::{bpm_process_definition, bpm_process_instance};
 use crate::utils::error::AppError;
 

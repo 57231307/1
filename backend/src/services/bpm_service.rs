@@ -5,6 +5,9 @@ use crate::models::dto::bpm_dto::{
 };
 use crate::models::dto::PageResponse;
 use crate::models::{bpm_process_definition, bpm_process_instance, bpm_task};
+use crate::services::bpm_service_dto::{
+    ApprovalChainNode, BpmBusinessRelation, ProcessInstanceDetail, ProcessMonitorStats,
+};
 use crate::utils::error::AppError;
 use sea_orm::*;
 use std::sync::Arc;

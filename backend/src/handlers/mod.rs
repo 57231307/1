@@ -2,6 +2,9 @@ pub mod account_subject_handler;
 pub mod accounting_period_handler;
 pub mod assist_accounting_handler;
 pub mod auth_handler;
+// P9-2 D 拆分：认证相关辅助 handler 独立成文件
+pub mod auth_handler_misc;
+pub mod auth_handler_session;
 pub mod bulk_product_handler;
 pub mod business_trace_handler;
 pub mod crm_handler;

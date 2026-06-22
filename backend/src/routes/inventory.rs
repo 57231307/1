@@ -15,8 +15,8 @@ use axum::{
 
 use crate::handlers::{
     inventory_adjustment_handler, inventory_batch_handler, inventory_count_handler,
-    inventory_reservation_handler, inventory_stock_handler, inventory_transfer_handler,
-    logistics_handler, print_handler,
+    inventory_reservation_handler, inventory_stock_handler, inventory_stock_handler_fabric,
+    inventory_stock_handler_query, inventory_transfer_handler, logistics_handler, print_handler,
 };
 
 /// 库存主路由（nest 到 /api/v1/erp/inventory）
@@ -33,19 +33,19 @@ pub fn inventory() -> Router<AppState> {
         .route("/stock/:id", delete(inventory_stock_handler::delete_stock))
         .route(
             "/stock/fabric",
-            get(inventory_stock_handler::list_stock_fabric),
+            get(inventory_stock_handler_fabric::list_stock_fabric),
         )
         .route(
             "/stock/fabric",
-            post(inventory_stock_handler::create_stock_fabric),
+            post(inventory_stock_handler_fabric::create_stock_fabric),
         )
         .route(
             "/stock/transactions",
-            get(inventory_stock_handler::list_transactions),
+            get(inventory_stock_handler_query::list_transactions),
         )
         .route(
             "/stock/summary",
-            get(inventory_stock_handler::get_inventory_summary),
+            get(inventory_stock_handler_query::get_inventory_summary),
         )
         .route(
             "/stock/low-stock",
@@ -53,11 +53,11 @@ pub fn inventory() -> Router<AppState> {
         )
         .route(
             "/stock/product/:productId",
-            get(inventory_stock_handler::get_stock_by_product),
+            get(inventory_stock_handler_query::get_stock_by_product),
         )
         .route(
             "/stock/alerts",
-            get(inventory_stock_handler::get_stock_alerts),
+            get(inventory_stock_handler_query::get_stock_alerts),
         )
         .route(
             "/transfers",

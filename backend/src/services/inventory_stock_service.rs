@@ -32,7 +32,7 @@ pub struct InventorySummaryItem {
 
 /// 库存汇总查询结果（内部使用）
 #[derive(Debug, Clone, sea_orm::FromQueryResult)]
-struct InventorySummaryQueryResult {
+pub struct InventorySummaryQueryResult {
     pub product_id: i32,
     pub product_name: String,
     pub warehouse_id: i32,

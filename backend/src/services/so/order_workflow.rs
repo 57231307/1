@@ -13,6 +13,7 @@
 //! 通过 `crate::services::so::order::SalesService` 路径访问。
 
 use super::order::SalesService;
+use super::SalesOrderDetail;
 use crate::models::sales_order;
 use crate::utils::error::AppError;
 use sea_orm::{ColumnTrait, EntityTrait, QueryFilter};

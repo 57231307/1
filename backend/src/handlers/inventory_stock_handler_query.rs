@@ -3,6 +3,7 @@
 //! 拆分自 inventory_stock_handler.rs：原 4 个查询 fn + tests 独立成文件。
 
 use crate::middleware::auth_context::AuthContext;
+use crate::models::dto::PageRequest;
 use crate::services::inventory_stock_service::InventoryStockService;
 use crate::utils::app_state::AppState;
 use crate::utils::error::AppError;
@@ -15,7 +16,7 @@ use rust_decimal::Decimal;
 use sea_orm::EntityTrait;
 
 use super::inventory_stock_handler_dto::{
-    InventorySummaryItem, ListTransactionParams, TransactionResponse,
+    InventorySummaryItem, ListStockFabricParams, ListTransactionParams, TransactionResponse,
 };
 
 pub async fn list_transactions(

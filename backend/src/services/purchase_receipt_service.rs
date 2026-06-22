@@ -4,6 +4,10 @@
 //! 包含入库单创建、确认、更新等全流程管理
 
 use crate::models::{purchase_receipt, purchase_receipt_item};
+use crate::services::purchase_receipt_dto::{
+    CreatePurchaseReceiptRequest, CreateReceiptItemRequest, UpdatePurchaseReceiptRequest,
+    UpdateReceiptItemRequest,
+};
 use crate::utils::error::AppError;
 use rust_decimal::Decimal;
 use sea_orm::{
