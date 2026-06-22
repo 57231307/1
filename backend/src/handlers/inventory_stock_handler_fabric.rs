@@ -121,8 +121,3 @@ pub async fn create_stock_fabric(
         updated_at: stock.updated_at,
     })))
 }
-
-// ========== 库存查询增强接口 ==========
-
-/// 按产品查询库存
-/// GET /api/v1/erp/inventory/stock/product/:productId

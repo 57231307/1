@@ -183,8 +183,3 @@ pub struct InventorySummaryItem {
 ///     "layer_no": "01"
 /// }
 /// ```
-///
-/// # 说明
-/// - 如果提供了 `gram_weight` 和 `width`，系统会自动计算 `quantity_kg`
-/// - 计算公式：公斤数 = 米数 × 克重 (g/m²) × 幅宽 (m) ÷ 1000
-/// - 如果同时提供了 `quantity_kg`，将使用自动计算的值（更精确）
