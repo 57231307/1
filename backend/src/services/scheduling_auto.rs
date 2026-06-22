@@ -476,7 +476,7 @@ impl SchedulingService {
     }
 
     /// 构建甘特图数据
-
+}
 
 #[cfg(test)]
 mod tests {
