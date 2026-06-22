@@ -87,6 +87,8 @@ pub mod voucher_service;
 // 成本管理模块
 pub mod audit_log_service;
 pub mod bpm_service;
+pub mod bpm_service_dto;
+pub mod bpm_service_stub;
 pub mod budget_management_service;
 pub mod cost_collection_service;
 pub mod customer_credit_evaluate;
