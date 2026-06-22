@@ -94,6 +94,7 @@ pub mod customer_credit_limit;
 pub mod customer_credit_service;
 pub mod event_bus;
 pub mod event_kafka;
+pub mod event_kafka_payload;
 pub mod financial_analysis_service;
 pub mod fixed_asset_service;
 pub mod fund_management_service;
