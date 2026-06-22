@@ -161,25 +161,3 @@ pub struct InventorySummaryItem {
     pub total_quantity_kg: Decimal,
     pub warehouse_name: String,
 }
-
-// ========== 面料行业双计量单位优化接口 ==========
-
-/// 创建面料库存（双计量单位自动换算版）
-///
-/// # 请求示例
-/// ```json
-/// {
-///     "warehouse_id": 1,
-///     "product_id": 100,
-///     "batch_no": "B20240101",
-///     "color_no": "C001",
-///     "dye_lot_no": "D20240101001",
-///     "grade": "一等品",
-///     "quantity_meters": "100.00",
-///     "gram_weight": "180.00",
-///     "width": "180.00",
-///     "location_id": 1,
-///     "shelf_no": "A01",
-///     "layer_no": "01"
-/// }
-/// ```

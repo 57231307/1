@@ -407,5 +407,4 @@ impl InventoryStockService {
 
         active_stock.insert(&*self.db).await.map_err(AppError::from)
     }
-
-    /// 更新库存数量（带乐观锁，事务版本）
+}
