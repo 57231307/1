@@ -89,6 +89,8 @@ pub mod audit_log_service;
 pub mod bpm_service;
 pub mod budget_management_service;
 pub mod cost_collection_service;
+pub mod customer_credit_evaluate;
+pub mod customer_credit_limit;
 pub mod customer_credit_service;
 pub mod event_bus;
 pub mod event_kafka;
