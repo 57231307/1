@@ -69,6 +69,8 @@ pub mod supplier_service;
 // 采购管理模块
 pub mod po;
 pub mod purchase_inspection_service;
+pub mod purchase_receipt_dto;
+pub mod purchase_receipt_private;
 pub mod purchase_receipt_service;
 pub mod purchase_return_service;
 // 应付管理模块
