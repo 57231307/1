@@ -11,7 +11,7 @@
  * 6. 利润分析
  * 7. 多维筛选 + 钻取
  */
-import { onMounted, ref } from 'vue'
+import { onBeforeUnmount, onMounted, ref } from 'vue'
 import { ElMessage } from 'element-plus'
 import * as echarts from 'echarts'
 import {
@@ -141,6 +141,12 @@ function formatCurrency(n: number | undefined) {
 onMounted(() => {
   loadAll()
   window.addEventListener('resize', resizeCharts)
+})
+
+onBeforeUnmount(() => {
+  // 清理 window resize 监听器，防止组件卸载后内存泄漏
+  // 多次进入 BI 销售分析页面时，旧的 listener 不释放会持续累积，导致内存占用线性增长
+  window.removeEventListener('resize', resizeCharts)
 })
 
 function resizeCharts() {
