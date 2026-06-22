@@ -1,0 +1,19 @@
+
+    |
+    |                   - unclosed delimiter
+    |  ^
+   --> src/services/so/order_crud.rs:589:3
+   = help: add `allow-invalid = true` to the entry to suppress this warning
+   |
+   |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+   |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  --> /home/runner/work/1/1/backend/.clippy.toml:15:5
+  --> /home/runner/work/1/1/backend/.clippy.toml:16:5
+ 35 | impl SalesService {
+...
+15 |     { path = "println", reason = "使用 tracing::info! 替代" },
+16 |     { path = "eprintln", reason = "使用 tracing::error! 替代" },
+589 | }
+error: this file contains an unclosed delimiter
+warning: `eprintln` does not refer to a reachable function
+warning: `println` does not refer to a reachable function
