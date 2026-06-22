@@ -65,6 +65,7 @@ pub struct UpdateStockWithVersionRequest {
     pub version: i32,
 }
 
+#[derive(Debug, Deserialize, Validate)]
 pub struct ListStockParams {
     #[validate(range(min = 0, message = "页码不能为负数"))]
     pub page: Option<u64>,

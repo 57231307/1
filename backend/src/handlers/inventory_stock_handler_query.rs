@@ -134,7 +134,6 @@ pub async fn get_inventory_summary(
     )))
 }
 
-#[derive(Debug, Deserialize)]
 pub async fn get_stock_by_product(
     _auth: AuthContext,
     State(state): State<AppState>,

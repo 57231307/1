@@ -110,7 +110,6 @@ pub async fn create_stock(
     })))
 }
 
-#[derive(Debug, Deserialize)]
 pub async fn update_stock(
     State(state): State<AppState>,
     _auth: AuthContext,

@@ -2,6 +2,10 @@
 //!
 //! 拆分自 purchase_receipt_service.rs：原 4 个 DTO 独立成文件。
 
+use rust_decimal::Decimal;
+use serde::{Deserialize, Serialize};
+use validator::Validate;
+
 /// 创建采购入库单请求
 #[derive(Debug, Validate, Deserialize)]
 pub struct CreatePurchaseReceiptRequest {

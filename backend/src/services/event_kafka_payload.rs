@@ -1,6 +1,6 @@
 //! 业务事件 Kafka 线格式序列化（与 BusinessEvent 字段一一对应）
 //!
-//! 拆分自 event_kafka.rs：原 mod payload_serde { ... } 内部块。
+//! 拆分自 event_kafka.rs：原 pub mod payload_serde { ... } 内部块。
 //! 包含 EventPayload 枚举 + From<&BusinessEvent> + TryFrom<EventPayload> 三段实现。
 
 use rust_decimal::Decimal;
@@ -13,7 +13,7 @@ use crate::services::event_bus::{BusinessEvent, ShippedItem};
 /// 原 `BusinessEvent` 派生来自 `event_bus.rs`，没有 `Serialize`。这里通过新类型
 /// `EventPayload` 包装，再借助 `serde_json` 透明转换，避免在 8 个必需文件之外
 /// 改动 `event_bus.rs` 的公共定义。
-mod payload_serde {
+pub mod payload_serde {
     /// 与 `BusinessEvent` 字段一一对应的可序列化结构
     #[derive(Serialize, Deserialize)]
     #[serde(tag = "kind", rename_all = "snake_case")]
@@ -376,3 +376,6 @@ mod payload_serde {
         }
     }
 }
+
+// 重导出 EventPayload 给外部直接访问
+pub use payload_serde::EventPayload;
