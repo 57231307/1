@@ -264,12 +264,14 @@ impl SchedulingService {
                     {
                         use crate::models::production_order::ActiveModel;
                         let mut active: ActiveModel = order.into();
-                        active.planned_start_date = Set(Some(detail.start_date));
-                        active.planned_end_date = Set(Some(detail.end_date));
+                        active.planned_start_date = Set(detail.start_date);
+                        active.planned_end_date = Set(detail.end_date);
                         active.work_center_id = Set(Some(detail.work_center_id));
                         // 自动将DRAFT状态更新为SCHEDULED
-                        if active.status.as_ref().as_deref() == Some(Some("DRAFT")) {
-                            active.status = Set(Some("SCHEDULED".to_string()));
+                        if let sea_orm::ActiveValue::Set(Some(s)) = &active.status {
+                            if s == "DRAFT" {
+                                active.status = Set(Some("SCHEDULED".to_string()));
+                            }
                         }
                         active.updated_at = Set(Utc::now());
                         active.update(&txn).await?;

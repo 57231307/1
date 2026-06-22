@@ -17,7 +17,7 @@ use super::SalesOrderDetail;
 use crate::models::sales_order;
 use crate::models::sales_order::Entity as SalesOrderEntity;
 use crate::utils::error::AppError;
-use sea_orm::{ColumnTrait, EntityTrait, QueryFilter, TransactionTrait};
+use sea_orm::{ActiveModelTrait, ColumnTrait, EntityTrait, QueryFilter, TransactionTrait};
 
 /// 销售订单工作流子模块标记
 pub const P92_WF_MODULE: &str = "sales_order_workflow";
@@ -218,6 +218,16 @@ impl SalesService {
         let mut order_update: sales_order::ActiveModel = order.into();
         order_update.status = sea_orm::ActiveValue::Set("completed".to_string());
         order_update.updated_at = sea_orm::ActiveValue::Set(chrono::Utc::now());
+
+        let order = crate::services::audit_log_service::AuditLogService::update_with_audit(
+            &*self.db,
+            "auto_audit",
+            order_update,
+            Some(0),
+        )
+        .await?;
+
+        Ok(order)
     }
 }
 

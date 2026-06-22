@@ -1,8 +1,6 @@
 use crate::models::customer_credit;
 use crate::utils::error::AppError;
 use rust_decimal::Decimal;
-use sea_orm::sea_query::PessimisticLock;
-use sea_orm::sea_query::LockType;
 use sea_orm::{
     ActiveModelTrait, ColumnTrait, EntityTrait, QueryFilter, Set, TransactionTrait,
 };

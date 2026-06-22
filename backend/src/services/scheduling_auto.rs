@@ -71,9 +71,9 @@ impl SchedulingService {
                         .iter()
                         .map(|wc| WorkCenterInfo {
                             id: wc.id,
-                            code: wc.code.clone(),
+                            code: Some(wc.code.clone()),
                             name: wc.name.clone(),
-                            status: wc.status.clone(),
+                            status: Some(wc.status.clone()),
                         })
                         .collect(),
                     date_range: Some(DateRange {
