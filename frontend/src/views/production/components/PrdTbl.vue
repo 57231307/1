@@ -2,8 +2,10 @@
   PrdTbl.vue - 生产管理订单表（V2Table 包装）
   拆分自 production/index.vue（P14 批 2 I-3 第 4 批）
   行为完全保持一致（仅结构重构）
+
+  P9-3 清理：原文件级 vue/no-mutating-props disable 注释已删除
+  （本组件仅读取 props 传给 V2Table 并 emit 事件，无 prop mutation 行为）
 -->
-<!-- eslint-disable vue/no-mutating-props -->
 <template>
   <V2Table
     :columns="columns"
@@ -19,7 +21,6 @@
 </template>
 
 <script setup lang="ts">
-/* eslint-disable vue/no-mutating-props */
 import { h } from 'vue'
 import { ElTag, ElButton } from 'element-plus'
 import V2Table from '@/components/V2Table/index.vue'
