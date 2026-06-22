@@ -91,9 +91,7 @@ impl SchedulingService {
             status: updated.status.clone(),
         })
     }
-
-    /// 获取排程工单列表
-
+}
 
 #[cfg(test)]
 mod tests {

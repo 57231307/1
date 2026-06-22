@@ -396,7 +396,6 @@ impl SchedulingService {
     }
 
     /// 获取工作中心名称
-
     async fn get_work_center_name(&self, wc_id: Option<i32>) -> Option<String> {
         let wc_id = wc_id?;
         let wc = WorkCenterEntity::find_by_id(wc_id)
