@@ -278,7 +278,9 @@ pub async fn handle_generic_callback(
         .ok_or_else(|| AppError::unauthorized("缺少签名头 X-Webhook-Signature"))?;
 
     // 2. 获取 Webhook 密钥
-    let webhook_secret = &state.jwt_secret;
+    // M-2 修复：使用独立的 webhook_secret（与 jwt_secret 分离），
+    // 避免 JWT 密钥泄露导致第三方回调被任意伪造。
+    let webhook_secret = &state.webhook_secret;
 
     // 3. 验证签名
     crate::utils::webhook_signature::verify_webhook_signature(&body, webhook_secret, signature)?;

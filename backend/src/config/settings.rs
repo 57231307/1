@@ -52,6 +52,16 @@ pub struct AuthConfig {
     pub jwt_secret: String,
     pub previous_jwt_secret: Option<String>,
     pub cookie_secret: Option<String>,
+    /// M-2 修复：独立 Webhook HMAC 密钥，与 JWT_SECRET 分离
+    /// 安全原因：JWT_SECRET 一旦泄露（环境变量备份、配置错配、容器镜像层）
+    /// 会导致第三方 webhook 回调被任意伪造。本字段独立配置、独立持久化。
+    /// 若为 None，则 fallback 到 `webhook.inherit_jwt_secret`（默认 false）
+    /// 启动时 fail-fast 要求显式配置。
+    #[serde(default)]
+    pub webhook_secret: Option<String>,
+    /// M-2 修复：是否允许 webhook 复用 JWT_SECRET（仅用于迁移期，默认 false）
+    #[serde(default)]
+    pub webhook_inherit_jwt_secret: bool,
 }
 
 #[derive(Debug, Clone, Deserialize)]

@@ -352,6 +352,26 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 eprintln!("FATAL: 并通过环境变量 COOKIE_SECRET 或 config.yaml 的 auth.cookie_secret 字段注入");
                 std::process::exit(1);
             }
+
+            // M-2 修复：要求独立的 webhook_secret 配置
+            // 安全原因：JWT_SECRET 一旦泄露（环境变量备份、容器镜像层泄漏）
+            // 会导致第三方 webhook 回调被任意伪造。强制要求独立密钥。
+            let webhook_secret = match settings.auth.webhook_secret.clone() {
+                Some(secret) => secret,
+                None => {
+                    eprintln!("FATAL: WEBHOOK_SECRET 环境变量或 auth.webhook_secret 配置必须显式设置");
+                    eprintln!("FATAL: 出于安全考虑，禁止降级复用 JWT_SECRET 作为 Webhook HMAC 密钥");
+                    eprintln!("FATAL: 请使用 `openssl rand -hex 32` 生成至少 32 字节的强随机密钥");
+                    eprintln!("FATAL: 并通过环境变量 WEBHOOK_SECRET 或 config.yaml 的 auth.webhook_secret 字段注入");
+                    std::process::exit(1);
+                }
+            };
+
+            if webhook_secret.len() < 32 {
+                eprintln!("FATAL: WEBHOOK_SECRET 长度不足 32 字节（当前: {} 字节）", webhook_secret.len());
+                eprintln!("FATAL: 请重新生成强随机密钥并重新启动服务");
+                std::process::exit(1);
+            }
             let db = Arc::new(db);
 
             let omni_audit = Arc::new(crate::services::omni_audit_service::OmniAuditEngine::new(
@@ -391,6 +411,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 settings.auth.jwt_secret.clone(),
                 settings.auth.previous_jwt_secret.clone(),
                 cookie_secret,
+                webhook_secret,
                 settings.cors.allowed_origins.clone(),
             ) {
                 Ok(state) => state,

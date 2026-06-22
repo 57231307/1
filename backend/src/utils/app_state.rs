@@ -1,5 +1,6 @@
 use sea_orm::DatabaseConnection;
 use std::sync::Arc;
+use std::sync::atomic::AtomicU32;
 
 use crate::middleware::api_gateway::RateLimitStore;
 use crate::services::audit_cleanup_service::AuditCleanupService;
@@ -23,6 +24,7 @@ use crate::utils::di_container::DIContainer;
 
 use axum::extract::FromRef;
 use axum_extra::extract::cookie::Key;
+use dashmap::DashMap;
 
 /// 应用全局状态
 #[derive(Clone)]
@@ -33,6 +35,8 @@ pub struct AppState {
     pub jwt_secret: String,
     pub previous_jwt_secret: Option<String>,
     pub cookie_secret: String,
+    /// M-2 修复：独立 Webhook HMAC 密钥
+    pub webhook_secret: String,
     pub cache: Arc<AppCache>,
     pub metrics: Arc<MetricsService>,
     pub cookie_key: Key,
@@ -57,6 +61,9 @@ pub struct AppState {
     pub custom_order_process: Arc<CustomOrderProcessService>,
     pub custom_order_quality: Arc<CustomOrderQualityService>,
     pub custom_order_aftersales: Arc<CustomOrderAfterSalesService>,
+    /// M-1 修复：每用户每小时邮件发送配额计数器
+    /// key = (user_id, hour_bucket_secs)，value = 已发送封数
+    pub email_send_counters: Arc<DashMap<(i32, u64), Arc<AtomicU32>>>,
 }
 
 impl FromRef<AppState> for Key {
@@ -80,6 +87,7 @@ impl AppState {
         jwt_secret: String,
         previous_jwt_secret: Option<String>,
         cookie_secret: String,
+        webhook_secret: String,
         allowed_origins: Vec<String>,
     ) -> Result<Self, String> {
         // 启动审计日志清理任务（后台任务，失败不阻塞启动）
@@ -97,6 +105,20 @@ impl AppState {
             ));
         }
         let final_cookie_secret = cookie_secret;
+
+        // M-2 修复：webhook_secret 强度校验 + 与 jwt_secret 互不相同校验
+        if webhook_secret.len() < 32 {
+            return Err(format!(
+                "webhook_secret 长度不足 32 字节（当前: {} 字节）。请通过环境变量 WEBHOOK_SECRET 提供至少 32 字节的强随机密钥（openssl rand -hex 32）",
+                webhook_secret.len()
+            ));
+        }
+        if webhook_secret == jwt_secret {
+            return Err(
+                "FATAL: webhook_secret 与 jwt_secret 相同，违反 M-2 修复（密钥单一违反，泄漏面扩大）。请为 webhook 单独生成密钥"
+                    .to_string(),
+            );
+        }
 
         // 指标服务构造失败时显式返回错误（之前是 .expect() panic，违背 Result 语义）
         let metrics = MetricsService::new().map_err(|e| {
@@ -128,6 +150,8 @@ impl AppState {
             jwt_secret,
             previous_jwt_secret,
             cookie_secret: final_cookie_secret,
+            // M-2 修复：独立 Webhook 密钥
+            webhook_secret,
             cache: AppCache::arc(),
             metrics: Arc::new(metrics),
             cookie_key,
@@ -148,6 +172,8 @@ impl AppState {
             custom_order_process: Arc::new(CustomOrderProcessService::new(db.clone())),
             custom_order_quality: Arc::new(CustomOrderQualityService::new(db.clone())),
             custom_order_aftersales: Arc::new(CustomOrderAfterSalesService::new(db.clone())),
+            // M-1 修复：邮件发送配额计数器
+            email_send_counters: Arc::new(DashMap::new()),
         })
     }
 }
@@ -214,6 +240,8 @@ impl Default for AppState {
             },
             previous_jwt_secret: None,
             cookie_secret: random_cookie_secret,
+            // M-2 修复：测试环境使用独立 webhook 密钥（与 jwt_secret 错开）
+            webhook_secret: "test_webhook_secret_for_unit_tests_only_min_32_bytes".to_string(),
             cache: AppCache::arc(),
             metrics: Arc::new(metrics),
             cookie_key,
@@ -233,6 +261,8 @@ impl Default for AppState {
             custom_order_process,
             custom_order_quality,
             custom_order_aftersales,
+            // M-1 修复：测试环境也使用独立配额计数器
+            email_send_counters: Arc::new(DashMap::new()),
         }
     }
 }

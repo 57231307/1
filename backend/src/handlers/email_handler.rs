@@ -7,9 +7,13 @@ use axum::{
     Json,
 };
 use serde::Deserialize;
+use std::sync::Arc;
+use std::sync::atomic::{AtomicU32, Ordering};
+use std::time::{SystemTime, UNIX_EPOCH};
 
 use crate::middleware::auth_context::AuthContext;
 use crate::middleware::tenant::extract_tenant_id;
+use crate::utils::admin_checker::is_admin_role;
 
 use crate::services::email_log_service::{CreateEmailLogRequest, EmailLogQuery, EmailLogService};
 use crate::services::email_template_service::{
@@ -19,6 +23,13 @@ use crate::services::email_template_service::{
 use crate::utils::app_state::AppState;
 use crate::utils::error::AppError;
 use crate::utils::response::ApiResponse;
+
+/// M-1 修复：每用户每小时邮件发送配额
+///
+/// 安全原因：避免邮件炸弹/DoS 滥用组织 SMTP 配额。
+/// 设计：使用进程内 DashMap 存储 `{user_id, hour_bucket} -> count`，
+/// 每次 send_email 前检查并自增。
+const EMAIL_PER_USER_PER_HOUR: u32 = 50;
 
 /// 发送邮件请求
 #[derive(Debug, Deserialize)]
@@ -50,6 +61,38 @@ pub async fn send_email(
     auth: AuthContext,
     Json(req): Json<SendEmailRequest>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
+    // M-1 修复：仅 admin 角色可调用 send_email
+    let role_id = auth
+        .role_id
+        .ok_or_else(|| AppError::permission_denied("用户未分配角色，无法执行该操作"))?;
+    if !is_admin_role(&state.db, role_id).await {
+        return Err(AppError::permission_denied(
+            "邮件发送仅限管理员（code=admin）执行",
+        ));
+    }
+
+    // M-1 修复：每用户每小时发送配额检查
+    let now = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map_err(|e| AppError::internal(e.to_string()))?
+        .as_secs();
+    let hour_bucket = now / 3600;
+    let key = (auth.user_id, hour_bucket);
+    let counter = state
+        .email_send_counters
+        .entry(key)
+        .or_insert(Arc::new(AtomicU32::new(0)));
+    let current = counter.fetch_add(1, Ordering::SeqCst) + 1;
+    if current > EMAIL_PER_USER_PER_HOUR {
+        // 回滚
+        counter.fetch_sub(1, Ordering::SeqCst);
+        return Err(AppError::validation(format!(
+            "邮件发送配额已用完：本小时已发送 {} 封（上限 {} 封）",
+            current - 1,
+            EMAIL_PER_USER_PER_HOUR
+        )));
+    }
+
     let email_service = state
         .email_service
         .as_ref()

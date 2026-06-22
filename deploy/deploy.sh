@@ -204,6 +204,7 @@ generate_config() {
         local DB_PASS="${DATABASE__PASSWORD:-}"
         local JWT="${JWT_SECRET:-}"
         local COOKIE="${COOKIE_SECRET:-}"
+        local WEBHOOK="${WEBHOOK_SECRET:-}"
         
         # 自动生成 AUDIT_SECRET_KEY（基于服务器硬件信息 + 随机盐）
         if [ -z "$AUDIT_SECRET_KEY" ]; then
@@ -258,6 +259,26 @@ generate_config() {
             log "已自动生成 JWT_SECRET（64 字符 / 32 字节）"
         fi
 
+        # M-2 修复：自动生成 WEBHOOK_SECRET（与 JWT_SECRET 独立）
+        # 安全原因：JWT_SECRET 泄漏会同时影响第三方 webhook 签名。
+        # 必须为 webhook 单独生成独立密钥，且与 JWT_SECRET 互不相同。
+        if [ -z "$WEBHOOK" ] || [ ${#WEBHOOK} -lt 32 ] || [ "$WEBHOOK" = "$JWT" ]; then
+            local GENERATED_WEBHOOK_SECRET=$(openssl rand -hex 32)
+            # 再次校验：若新生成的密钥与 JWT 相同（极低概率），重新生成
+            local RETRY_COUNT=0
+            while [ "$GENERATED_WEBHOOK_SECRET" = "$JWT" ] && [ $RETRY_COUNT -lt 5 ]; do
+                GENERATED_WEBHOOK_SECRET=$(openssl rand -hex 32)
+                RETRY_COUNT=$((RETRY_COUNT + 1))
+            done
+            if grep -q "^WEBHOOK_SECRET=" "$ENV_FILE" 2>/dev/null; then
+                sed -i "s|^WEBHOOK_SECRET=.*|WEBHOOK_SECRET=${GENERATED_WEBHOOK_SECRET}|" "$ENV_FILE"
+            else
+                echo "WEBHOOK_SECRET=${GENERATED_WEBHOOK_SECRET}" >> "$ENV_FILE"
+            fi
+            WEBHOOK="$GENERATED_WEBHOOK_SECRET"
+            log "已自动生成 WEBHOOK_SECRET（64 字符 / 32 字节，与 JWT_SECRET 独立）"
+        fi
+
         # 验证必需的环境变量（保留作为最后防线，理论上自动生成后不会触发）
         if [ -z "$DB_PASS" ]; then
             error "DATABASE__PASSWORD 环境变量未设置"
@@ -267,6 +288,9 @@ generate_config() {
         fi
         if [ -z "$COOKIE" ]; then
             error "COOKIE_SECRET 环境变量未设置（自动生成失败）"
+        fi
+        if [ -z "$WEBHOOK" ]; then
+            error "WEBHOOK_SECRET 环境变量未设置（自动生成失败）"
         fi
         local REDIS_URL="${REDIS__URL:-redis://127.0.0.1:6379}"
         local REDIS_MAX="${REDIS__MAX_CONNECTIONS:-10}"

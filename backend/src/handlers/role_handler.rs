@@ -3,6 +3,7 @@ use crate::services::role_permission_service::RolePermissionService;
 use crate::services::role_permission_service::{
     AssignPermissionRequest, CreateRoleRequest, UpdateRoleRequest,
 };
+use crate::utils::admin_checker::is_admin_role;
 use crate::utils::app_state::AppState;
 use crate::utils::error::AppError;
 use crate::utils::response::ApiResponse;
@@ -11,6 +12,27 @@ use axum::{
     Json,
 };
 use serde::{Deserialize, Serialize};
+
+/// C-1 修复：处理器内部的 admin 角色二次校验
+///
+/// 设计原因：`permission_middleware` 仅做资源类型级粗粒度权限（roles:create 等），
+/// 拥有 `roles:read` 权限的低权限用户也能通过粗粒度校验进入处理器，造成权限提升。
+/// 修复方案：所有写处理器顶部调用 `require_admin_role`，强制要求 `role.code == "admin"`。
+/// 防御深度：与全局 `permission_middleware` 形成"粗粒度 + 细粒度 admin 校验"双重防线。
+async fn require_admin_role(
+    state: &AppState,
+    auth: &AuthContext,
+) -> Result<(), AppError> {
+    let role_id = auth
+        .role_id
+        .ok_or_else(|| AppError::permission_denied("用户未分配角色，无法执行该操作"))?;
+    if !is_admin_role(&state.db, role_id).await {
+        return Err(AppError::permission_denied(
+            "该操作仅限管理员（code=admin）执行",
+        ));
+    }
+    Ok(())
+}
 
 /// 角色响应
 #[derive(Debug, Serialize)]
@@ -155,9 +177,10 @@ pub async fn get_role(
 /// 创建角色
 pub async fn create_role(
     State(state): State<AppState>,
-    _auth: AuthContext,
+    auth: AuthContext,
     Json(payload): Json<CreateRolePayload>,
 ) -> Result<Json<ApiResponse<RoleDetailResponse>>, AppError> {
+    require_admin_role(&state, &auth).await?;
     let service = RolePermissionService::new(state.db.clone());
 
     let request = CreateRoleRequest {
@@ -200,10 +223,11 @@ pub async fn create_role(
 /// 更新角色
 pub async fn update_role(
     State(state): State<AppState>,
-    _auth: AuthContext,
+    auth: AuthContext,
     Path(id): Path<i32>,
     Json(payload): Json<UpdateRolePayload>,
 ) -> Result<Json<ApiResponse<RoleDetailResponse>>, AppError> {
+    require_admin_role(&state, &auth).await?;
     let service = RolePermissionService::new(state.db.clone());
 
     let request = UpdateRoleRequest {
@@ -246,9 +270,10 @@ pub async fn update_role(
 /// 删除角色
 pub async fn delete_role(
     State(state): State<AppState>,
-    _auth: AuthContext,
+    auth: AuthContext,
     Path(id): Path<i32>,
 ) -> Result<Json<ApiResponse<()>>, AppError> {
+    require_admin_role(&state, &auth).await?;
     let service = RolePermissionService::new(state.db.clone());
 
     service
@@ -266,6 +291,7 @@ pub async fn assign_permission(
     Path(role_id): Path<i32>,
     Json(payload): Json<AssignPermissionPayload>,
 ) -> Result<Json<ApiResponse<PermissionResponse>>, AppError> {
+    require_admin_role(&state, &auth).await?;
     let service = RolePermissionService::new(state.db.clone());
 
     let request = AssignPermissionRequest {
@@ -308,6 +334,7 @@ pub async fn remove_permission(
     auth: AuthContext,
     Path(id): Path<i32>,
 ) -> Result<Json<ApiResponse<()>>, AppError> {
+    require_admin_role(&state, &auth).await?;
     let service = RolePermissionService::new(state.db.clone());
 
     service

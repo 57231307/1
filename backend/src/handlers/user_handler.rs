@@ -6,6 +6,7 @@ use crate::services::audit_log_service::{AuditEvent, AuditLogService};
 use crate::services::auth_service::AuthService;
 use crate::services::role_permission_service::RolePermissionService;
 use crate::services::user_service::UserService;
+use crate::utils::admin_checker::is_admin_role;
 use crate::utils::app_state::AppState;
 use crate::utils::error::AppError;
 use crate::utils::password_validator::{get_password_feedback, validate_password};
@@ -17,6 +18,25 @@ use axum::{
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use validator::{Validate, ValidationError};
+
+/// H-1 修复：用户管理 admin 校验 + 限制非 admin 修改 role_id
+///
+/// 安全原因：低权限用户调用 create_user 时可指定 role_id=admin_role_id
+/// 提权；update_user 时可改写他人 role_id 字段。
+async fn require_admin_role(
+    state: &AppState,
+    auth: &AuthContext,
+) -> Result<(), AppError> {
+    let role_id = auth
+        .role_id
+        .ok_or_else(|| AppError::permission_denied("用户未分配角色，无法执行该操作"))?;
+    if !is_admin_role(&state.db, role_id).await {
+        return Err(AppError::permission_denied(
+            "用户管理仅限管理员（code=admin）执行",
+        ));
+    }
+    Ok(())
+}
 
 fn validate_password_strength(password: &str) -> Result<(), ValidationError> {
     let result = validate_password(password);
@@ -118,9 +138,10 @@ pub async fn get_current_user_profile(
 
 pub async fn create_user(
     State(state): State<AppState>,
-    _auth: AuthContext,
+    auth: AuthContext,
     Json(payload): Json<CreateUserRequest>,
 ) -> Result<Json<ApiResponse<UserResponse>>, AppError> {
+    require_admin_role(&state, &auth).await?;
     payload.validate()?;
 
     let user_service = UserService::new(state.db.clone());
@@ -176,11 +197,24 @@ use axum::extract::Query;
 /// 更新用户信息
 pub async fn update_user(
     State(state): State<AppState>,
-    _auth: AuthContext,
+    auth: AuthContext,
     Path(id): Path<i32>,
     Json(req): Json<UpdateUserRequest>,
 ) -> Result<Json<ApiResponse<UserResponse>>, AppError> {
+    require_admin_role(&state, &auth).await?;
     req.validate()?;
+
+    // H-1 修复：禁止通过 update_user 提权到 admin 角色
+    // 即使调用者是 admin（仅 admin 可调用此处理器），仍禁止把用户改成 admin
+    // 除非调用者本身就是 admin。is_admin_role 已通过 require_admin_role 验证。
+    // 进一步防御：如果 req.role_id 是 admin 角色 ID 且调用者非 admin，禁止。
+    if let Some(new_role_id) = req.role_id {
+        if is_admin_role(&state.db, new_role_id).await && !is_admin_role(&state.db, auth.role_id.unwrap_or(-1)).await {
+            return Err(AppError::permission_denied(
+                "禁止将用户角色改为 admin 角色",
+            ));
+        }
+    }
 
     let user_service = UserService::new(state.db.clone());
 
