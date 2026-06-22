@@ -805,6 +805,18 @@
 | #234 | P2-B cookie_secret fail-fast（< 32 字节 exit(1)） | ✅ merged | 5/5 |
 | #235 | P2-C 测试密钥收敛（统一 TEST_JWT_SECRET 常量） | ✅ merged | 5/5 |
 | #236 | P2-D 部署脚本自动生成 COOKIE_SECRET/JWT_SECRET | ✅ merged | 5/5 |
+| #237 | 安全审计 C-1/C-2/C-3 + H-1 + M-1 + M-2 修复 | ✅ merged | 5/5 |
 
-- **已合并到 main HEAD**：`9a55db1`（2026-06-22 05:48 UTC+8）
+- **已合并到 main HEAD**：`ff5c0be8`（2026-06-22 06:25 UTC+8）
 - **用户指令**：待手动全新部署（禁止热更新）
+
+## 安全审计批次（PR #237）
+
+| 漏洞 | 级别 | 修复 | 关键改动 |
+|------|------|------|----------|
+| C-1 角色管理无授权 | Critical | role_handler 5 处理器加 require_admin_role | 防御深度：粗粒度 permission_middleware + admin 校验 |
+| C-2 字段权限无授权 | Critical | field_permission_handler 5 处理器加 admin 校验 | 强制 require_admin_role |
+| C-3 数据权限无授权 + SQL 注入 | Critical | data_permission_handler 4 处理器 + custom_condition 白名单 | 禁 UNION/SELECT/INSERT/... |
+| H-1 用户管理无授权 | High | user_handler create/update 加 admin 校验 + 防提权 | 禁止非 admin 把用户改成 admin 角色 |
+| M-1 邮件无授权 + 无配额 | Medium | email_handler admin 校验 + 50 封/小时配额 | DashMap<user_id, hour_bucket> 计数 |
+| M-2 Webhook 复用 JWT 密钥 | Medium | 独立 webhook_secret + 启动期互不相同校验 | app_state.rs + deploy.sh 自动生成 |
