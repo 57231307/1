@@ -987,3 +987,21 @@
 | H-1 用户管理无授权 | High | user_handler create/update 加 admin 校验 + 防提权 | 禁止非 admin 把用户改成 admin 角色 |
 | M-1 邮件无授权 + 无配额 | Medium | email_handler admin 校验 + 50 封/小时配额 | DashMap<user_id, hour_bucket> 计数 |
 | M-2 Webhook 复用 JWT 密钥 | Medium | 独立 webhook_secret + 启动期互不相同校验 | app_state.rs + deploy.sh 自动生成 |
+
+## P9-2 拆分批次 D 完成（2026-06-22 commit c9b579d）
+
+| 批次 | 文件 | 行数拆分 | commit |
+|------|------|----------|--------|
+| 批次 C | so/order.rs | 24+589+418+239 | cd13658 (项目快照) |
+| 批次 D1 | scheduling_service.rs | 146+497+116+666 | cd13658 (项目快照) |
+| 批次 D2 | customer_credit_service.rs | 116+295+536 | cd13658 (项目快照) |
+| 批次 D3 | event_kafka.rs | 533+377 | cd13658 (项目快照) |
+| 批次 D4 | bpm_service.rs | 773+55+89 | cd13658 (项目快照) |
+| 批次 D5 | inventory_stock_service.rs | 411+201+308 | cd13658 (项目快照) |
+| 批次 D6 | purchase_receipt_service.rs | 554+187+133 | cd13658 (项目快照) |
+| 批次 D7 | auth_handler.rs | 460+149+227 | cd13658 (项目快照) |
+| 批次 D8 | inventory_stock_handler.rs | 341+186+128+213 | **c9b579d**（本次） |
+
+- **总计**：8 个后端单文件（>800 行）降至 26 个职责清晰子模块
+- **CI 验证**：c9b579d 后无新 baseline commit = 全部 15 个 CI job 通过
+- **关联文件**：每次拆分同步更新 `mod.rs`/`handlers/mod.rs` 加 `pub mod` 声明
