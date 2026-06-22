@@ -1,0 +1,227 @@
+//! 认证处理器：Token 刷新 / TOTP / 用户信息 / CSRF
+//!
+//! 拆分自 auth_handler.rs：原 refresh_token + TOTP + get_current_user + get_csrf_token 业务独立成文件。
+
+#[derive(Debug, Serialize)]
+pub struct RefreshTokenResponse {
+    pub token: String,
+    pub csrf_token: String,
+    pub expires_in: u64,
+}
+
+pub async fn refresh_token(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    jar: axum_extra::extract::PrivateCookieJar,
+) -> Result<axum::response::Response, AppError> {
+    // 优先从 `refresh_token` Cookie 读取（httpOnly），兼容从 Authorization 头（Bearer）传入
+    let token_from_cookie = jar.get("refresh_token").map(|c| c.value().to_string());
+
+    let token_from_header = headers
+        .get("Authorization")
+        .and_then(|value| value.to_str().ok())
+        .and_then(|value| value.strip_prefix("Bearer "))
+        .map(|s| s.to_string());
+
+    let token = token_from_cookie
+        .or(token_from_header)
+        .ok_or(AppError::unauthorized("缺少认证令牌"))?;
+
+    // 检查 Token 是否在黑名单中
+    let is_blacklisted = state
+        .cache
+        .get_token_blacklist()
+        .get(&token)
+        .is_some();
+    if is_blacklisted {
+        return Err(AppError::unauthorized("令牌已被吊销，请重新登录"));
+    }
+
+    let claims = AuthService::validate_token_static(&token, &state.jwt_secret)
+        .map_err(|_| AppError::unauthorized("无效的令牌"))?;
+
+    // 检查是否在刷新期内（7天）
+    let now = chrono::Utc::now();
+    if now > claims.refresh_exp {
+        return Err(AppError::unauthorized("刷新令牌已过期，请重新登录"));
+    }
+
+    let auth_service = AuthService::new(state.db.clone(), state.jwt_secret.clone());
+    let new_token = auth_service
+        .generate_token(
+            claims.sub,
+            &claims.username,
+            claims.role_id,
+            claims.tenant_id,
+        )
+        .map_err(|e| AppError::internal(format!("生成令牌失败：{}", e)))?;
+
+    // Refresh Token 轮换：先将旧 Token 的 JTI（session_id）加入黑名单
+    let expires_at = claims.exp.timestamp();
+    crate::services::auth_service::revoke_jti(&claims.session_id, expires_at).await;
+
+    // Blacklist the old token after successful refresh
+    let now_ts = chrono::Utc::now().timestamp() as usize;
+    let exp = claims.exp.timestamp() as usize;
+    if exp > now_ts {
+        let ttl = std::time::Duration::from_secs((exp - now_ts) as u64);
+        state
+            .cache
+            .get_token_blacklist()
+            .set(token.clone(), true, Some(ttl));
+        tracing::info!(
+            "Old token blacklisted after refresh for user {}",
+            claims.username
+        );
+    }
+
+    // 生成新的 CSRF Token (use same session_id derivation as login)
+    let new_claims =
+        AuthService::validate_token_static(&new_token, &state.jwt_secret).map_err(|e| {
+            tracing::error!("Failed to decode new JWT token: {}", e);
+            AppError::internal("Internal server error")
+        })?;
+    let _session_id = new_claims.session_id;
+    let csrf_token = uuid::Uuid::new_v4().to_string();
+    let csrf_ttl = std::time::Duration::from_secs(7200); // 2小时，与 JWT 有效期一致
+    state
+        .cache
+        .get_csrf_token_cache()
+        .set(csrf_token.clone(), _session_id, Some(csrf_ttl));
+
+    // 设置新 Cookie（同时写 access_token / csrf_token / 旧版 jwt 兼容）
+    let is_production =
+        std::env::var("ENV").unwrap_or_else(|_| "development".to_string()) == "production";
+
+    let new_access = axum_extra::extract::cookie::Cookie::build(("access_token", new_token.clone()))
+        .path("/")
+        .http_only(true)
+        .secure(is_production)
+        .same_site(SameSite::Strict)
+        .max_age(CookieDuration::minutes(30))
+        .build();
+    let new_csrf = axum_extra::extract::cookie::Cookie::build(("csrf_token", csrf_token.clone()))
+        .path("/")
+        .http_only(false)
+        .secure(is_production)
+        .same_site(SameSite::Strict)
+        .max_age(CookieDuration::days(7))
+        .build();
+    let legacy_jwt = axum_extra::extract::cookie::Cookie::build(("jwt", new_token.clone()))
+        .path("/")
+        .http_only(true)
+        .secure(is_production)
+        .same_site(SameSite::Lax)
+        .max_age(CookieDuration::minutes(30))
+        .build();
+
+    let jar = jar
+        .add(new_access)
+        .add(new_csrf)
+        .add(legacy_jwt);
+
+    Ok((
+        jar,
+        Json(ApiResponse::success(RefreshTokenResponse {
+            token: new_token,
+            csrf_token,
+            expires_in: 7200,
+        })),
+    )
+        .into_response())
+}
+
+#[derive(Debug, Serialize)]
+pub struct TotpSetupResponse {
+    pub secret: String,
+    pub qr_code: String,
+}
+
+/// 1. 获取 TOTP 绑定信息 (需登录)
+pub async fn setup_totp(
+    State(state): State<AppState>,
+    Extension(auth): Extension<AuthContext>,
+) -> Result<Json<ApiResponse<TotpSetupResponse>>, AppError> {
+    let totp_service = TotpService::new(state.db.clone());
+
+    match totp_service
+        .generate_totp_secret(auth.user_id, &auth.username)
+        .await
+    {
+        Ok((secret, qr_code)) => Ok(Json(ApiResponse::success(TotpSetupResponse {
+            secret,
+            qr_code,
+        }))),
+        Err(e) => Err(AppError::internal(e.to_string())),
+    }
+}
+
+#[derive(Debug, Deserialize)]
+pub struct TotpVerifyRequest {
+    pub token: String,
+}
+
+/// 2. 验证并正式启用 TOTP (需登录)
+pub async fn enable_totp(
+    State(state): State<AppState>,
+    Extension(auth): Extension<AuthContext>,
+    Json(payload): Json<TotpVerifyRequest>,
+) -> Result<Json<ApiResponse<bool>>, AppError> {
+    let totp_service = TotpService::new(state.db.clone());
+
+    match totp_service
+        .verify_and_enable(auth.user_id, &payload.token)
+        .await
+    {
+        Ok(true) => Ok(Json(ApiResponse::success_with_message(
+            true,
+            "双因素认证已成功开启",
+        ))),
+        Ok(false) => Err(AppError::bad_request("验证码不正确")),
+        Err(e) => Err(AppError::internal(e.to_string())),
+    }
+}
+
+#[derive(Debug, Serialize, ToSchema)]
+pub struct CsrfTokenResponse {
+    pub csrf_token: String,
+}
+
+/// 获取当前登录用户信息
+pub async fn get_current_user(
+    State(state): State<AppState>,
+    Extension(auth): Extension<AuthContext>,
+) -> Result<Json<ApiResponse<UserInfo>>, AppError> {
+    use crate::models::user;
+    use sea_orm::EntityTrait;
+
+    let user = user::Entity::find_by_id(auth.user_id)
+        .one(state.db.as_ref())
+        .await
+        .map_err(|e| {
+            tracing::error!("Failed to query user: {}", e);
+            AppError::internal("Internal server error")
+        })?;
+
+    match user {
+        Some(u) => Ok(Json(ApiResponse::success(UserInfo {
+            id: u.id,
+            username: u.username,
+            email: u.email,
+            role_id: u.role_id,
+        }))),
+        None => Err(AppError::not_found("用户不存在")),
+    }
+}
+
+/// 获取 CSRF Token（公开接口，无需认证）
+/// 前端在登录前或需要时调用此接口获取 CSRF Token
+#[utoipa::path(
+    get,
+    path = "/api/v1/erp/auth/csrf-token",
+    responses(
+        (status = 200, description = "获取成功", body = ApiResponse<CsrfTokenResponse>)
+    ),
+    tags = ["Auth"]
+)]
+pub async fn get_csrf_token(
