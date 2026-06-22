@@ -420,14 +420,14 @@ jobs:
           FIXED_COUNT=0
           BASELINE_MODE=""
 
-          if [ ! -f "backend/.clippy-baseline.txt" ]; then
+          if [ ! -f ".clippy-baseline.txt" ]; then
             # 首次跑：自动建立 baseline，不阻塞
             BASELINE_MODE="bootstrap"
             echo "⚠️  未找到 backend/.clippy-baseline.txt"
             echo "📝 自动建立基线（首次跑，渐进式，不阻塞）"
 
             # 把当前警告列表作为 baseline
-            cp reports/clippy-current.txt backend/.clippy-baseline.txt
+            cp reports/clippy-current.txt .clippy-baseline.txt
             BASELINE_COUNT=$CURRENT_COUNT
             NEW_COUNT=0
             FIXED_COUNT=0
@@ -436,16 +436,16 @@ jobs:
             echo "💡 提交 backend/.clippy-baseline.txt 到 git"
           else
             BASELINE_MODE="strict"
-            BASELINE_COUNT=$(wc -l < backend/.clippy-baseline.txt)
+            BASELINE_COUNT=$(wc -l < .clippy-baseline.txt)
             echo "基线警告数: $BASELINE_COUNT"
 
             # 找出新警告（不在基线中）
-            comm -23 reports/clippy-current.txt backend/.clippy-baseline.txt > reports/clippy-new.txt
+            comm -23 reports/clippy-current.txt .clippy-baseline.txt > reports/clippy-new.txt
             NEW_COUNT=$(wc -l < reports/clippy-new.txt)
             echo "新增警告数: $NEW_COUNT"
 
             # 找出已修复警告（基线有但当前没有）
-            comm -13 reports/clippy-current.txt backend/.clippy-baseline.txt > reports/clippy-fixed.txt
+            comm -13 reports/clippy-current.txt .clippy-baseline.txt > reports/clippy-fixed.txt
             FIXED_COUNT=$(wc -l < reports/clippy-fixed.txt)
             echo "已修复警告数: $FIXED_COUNT"
           fi
@@ -552,15 +552,18 @@ jobs:
       - name: 提交 baseline 文件（首次运行时）
         if: always()
         run: |
-          if [ -f "backend/.clippy-baseline.txt" ]; then
-            # 检查是否是新创建的文件
-            if git log --all --oneline -- backend/.clippy-baseline.txt 2>/dev/null | head -1 | grep -q .; then
+          if [ -f "backend/.clippy-baseline.txt" ] || [ -f ".clippy-baseline.txt" ]; then
+            BASELINE_PATH=".clippy-baseline.txt"
+            if [ -f "backend/.clippy-baseline.txt" ]; then
+              BASELINE_PATH="backend/.clippy-baseline.txt"
+            fi
+            if git log --all --oneline -- "$BASELINE_PATH" 2>/dev/null | head -1 | grep -q .; then
               echo "✅ baseline 文件已纳入版本控制，跳过"
             else
-              echo "📝 提交 baseline 文件..."
+              echo "📝 提交 baseline 文件: $BASELINE_PATH"
               git config user.name "github-actions[bot]"
               git config user.email "github-actions[bot]@users.noreply.github.com"
-              git add backend/.clippy-baseline.txt
+              git add "$BASELINE_PATH"
               git commit -m "chore(ci): 自动建立 clippy 基线" || echo "提交失败，跳过"
               git remote set-url origin https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git
               git push origin HEAD:${{ github.ref_name }} || echo "推送失败，可能有冲突"
@@ -838,19 +841,19 @@ jobs:
           FIXED=0
           BASELINE_MODE=""
 
-          if [ ! -f "backend/.test-baseline.txt" ]; then
+          if [ ! -f ".test-baseline.txt" ]; then
             # 首次跑：自动建立 baseline，不阻塞
             BASELINE_MODE="bootstrap"
-            touch backend/.test-baseline.txt
+            touch .test-baseline.txt
             grep -E "^test .* FAILED$" reports/cargo-test-output.txt 2>/dev/null | \
-              awk '{print $2}' >> backend/.test-baseline.txt || true
+              awk '{print $2}' >> .test-baseline.txt || true
             BASELINE_FAILED=$FAILED
             NEW_FAILED=0
             FIXED=0
             echo "⚠️  首次跑：自动建立测试基线（$BASELINE_FAILED 个失败）"
           else
             BASELINE_MODE="strict"
-            BASELINE_FAILED=$(wc -l < backend/.test-baseline.txt)
+            BASELINE_FAILED=$(wc -l < .test-baseline.txt)
 
             # 当前失败的测试
             touch reports/test-current-failed.txt
@@ -860,11 +863,11 @@ jobs:
 
             # 找出新失败
             touch reports/test-new-failed.txt reports/test-fixed.txt
-            comm -23 reports/test-current-failed.txt backend/.test-baseline.txt > reports/test-new-failed.txt || true
+            comm -23 reports/test-current-failed.txt .test-baseline.txt > reports/test-new-failed.txt || true
             NEW_FAILED_COUNT=$(wc -l < reports/test-new-failed.txt)
 
             # 找出已修复
-            comm -13 reports/test-current-failed.txt backend/.test-baseline.txt > reports/test-fixed.txt || true
+            comm -13 reports/test-current-failed.txt .test-baseline.txt > reports/test-fixed.txt || true
             FIXED=$(wc -l < reports/test-fixed.txt)
 
             NEW_FAILED=$NEW_FAILED_COUNT
@@ -943,14 +946,18 @@ jobs:
       - name: 提交 baseline 文件（首次运行时）
         if: always()
         run: |
-          if [ -f "backend/.test-baseline.txt" ]; then
-            if git log --all --oneline -- backend/.test-baseline.txt 2>/dev/null | head -1 | grep -q .; then
+          if [ -f "backend/.test-baseline.txt" ] || [ -f ".test-baseline.txt" ]; then
+            BASELINE_PATH=".test-baseline.txt"
+            if [ -f "backend/.test-baseline.txt" ]; then
+              BASELINE_PATH="backend/.test-baseline.txt"
+            fi
+            if git log --all --oneline -- "$BASELINE_PATH" 2>/dev/null | head -1 | grep -q .; then
               echo "✅ baseline 文件已纳入版本控制，跳过"
             else
-              echo "📝 提交 baseline 文件..."
+              echo "📝 提交 baseline 文件: $BASELINE_PATH"
               git config user.name "github-actions[bot]"
               git config user.email "github-actions[bot]@users.noreply.github.com"
-              git add backend/.test-baseline.txt
+              git add "$BASELINE_PATH"
               git commit -m "chore(ci): 自动建立测试基线" || echo "提交失败，跳过"
               git remote set-url origin https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git
               git push origin HEAD:${{ github.ref_name }} || echo "推送失败，可能有冲突"
