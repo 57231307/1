@@ -2,6 +2,7 @@ use crate::middleware::auth_context::AuthContext;
 use crate::services::field_permission_service::{
     CreateFieldPermissionRequest, FieldPermissionService, UpdateFieldPermissionRequest,
 };
+use crate::utils::admin_checker::is_admin_role;
 use crate::utils::app_state::AppState;
 use crate::utils::error::AppError;
 use crate::utils::response::ApiResponse;
@@ -10,6 +11,25 @@ use axum::{
     Json,
 };
 use serde::{Deserialize, Serialize};
+
+/// C-2 修复：字段权限处理器内部的 admin 校验
+///
+/// 安全原因：字段权限控制着 user.password_hash、salary 等敏感字段的脱敏策略，
+/// 普通用户若可写会绕过所有读保护。本函数强制要求 admin 角色。
+async fn require_admin_role(
+    state: &AppState,
+    auth: &AuthContext,
+) -> Result<(), AppError> {
+    let role_id = auth
+        .role_id
+        .ok_or_else(|| AppError::permission_denied("用户未分配角色，无法执行该操作"))?;
+    if !is_admin_role(&state.db, role_id).await {
+        return Err(AppError::permission_denied(
+            "字段权限管理仅限管理员（code=admin）执行",
+        ));
+    }
+    Ok(())
+}
 
 /// 字段权限响应
 #[derive(Debug, Serialize)]
@@ -56,9 +76,10 @@ pub struct UpdateFieldPermissionPayload {
 /// 获取字段权限列表
 pub async fn list_field_permissions(
     State(state): State<AppState>,
-    _auth: AuthContext,
+    auth: AuthContext,
     Query(query): Query<FieldPermissionQuery>,
 ) -> Result<Json<ApiResponse<Vec<FieldPermissionResponse>>>, AppError> {
+    require_admin_role(&state, &auth).await?;
     let service = FieldPermissionService::new(state.db.clone());
 
     let permissions = service
@@ -88,9 +109,10 @@ pub async fn list_field_permissions(
 /// 获取字段权限详情
 pub async fn get_field_permission(
     State(state): State<AppState>,
-    _auth: AuthContext,
+    auth: AuthContext,
     Path(id): Path<i32>,
 ) -> Result<Json<ApiResponse<FieldPermissionResponse>>, AppError> {
+    require_admin_role(&state, &auth).await?;
     let service = FieldPermissionService::new(state.db.clone());
 
     let perm = service
@@ -115,9 +137,10 @@ pub async fn get_field_permission(
 /// 创建字段权限
 pub async fn create_field_permission(
     State(state): State<AppState>,
-    _auth: AuthContext,
+    auth: AuthContext,
     Json(payload): Json<CreateFieldPermissionPayload>,
 ) -> Result<Json<ApiResponse<FieldPermissionResponse>>, AppError> {
+    require_admin_role(&state, &auth).await?;
     let service = FieldPermissionService::new(state.db.clone());
 
     let request = CreateFieldPermissionRequest {
@@ -151,10 +174,11 @@ pub async fn create_field_permission(
 /// 更新字段权限
 pub async fn update_field_permission(
     State(state): State<AppState>,
-    _auth: AuthContext,
+    auth: AuthContext,
     Path(id): Path<i32>,
     Json(payload): Json<UpdateFieldPermissionPayload>,
 ) -> Result<Json<ApiResponse<FieldPermissionResponse>>, AppError> {
+    require_admin_role(&state, &auth).await?;
     let service = FieldPermissionService::new(state.db.clone());
 
     let request = UpdateFieldPermissionRequest {
@@ -186,9 +210,10 @@ pub async fn update_field_permission(
 /// 删除字段权限
 pub async fn delete_field_permission(
     State(state): State<AppState>,
-    _auth: AuthContext,
+    auth: AuthContext,
     Path(id): Path<i32>,
 ) -> Result<Json<ApiResponse<()>>, AppError> {
+    require_admin_role(&state, &auth).await?;
     let service = FieldPermissionService::new(state.db.clone());
 
     service
