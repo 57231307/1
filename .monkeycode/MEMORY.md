@@ -821,3 +821,86 @@
     - 指标：Prometheus、Grafana
     - 链路追踪：分布式追踪
     - 告警：实时告警、自动恢复
+
+---
+
+## 五、项目真实运行问题检测（2026-06-22 关键经验）
+
+[真实运行问题检测结果]
+- Date: 2026-06-22
+- Context: 用户指令"检测项目现在真实运行中存在的问题"
+- Category: 全面体检
+- Instructions:
+  - **检测方式**：全量静态扫描（Grep/Glob/Read，遵守"禁止本地编译"规则）
+  - **报告位置**：[.monkeycode/docs/audits/2026-06-22-runtime-issues-detection.md](file:///workspace/.monkeycode/docs/audits/2026-06-22-runtime-issues-detection.md)
+  - **综合评分**：80/100（B 级）
+
+### 三大 P0 必修问题
+
+1. **CI baseline 文件实际未提交**（🔴 最严重）
+   - `backend/.clippy-baseline.txt` 和 `backend/.test-baseline.txt` 不在 git 仓库中
+   - PR #238 commit message 声称"已建立 baseline"但实际**未提交**
+   - CI 工作流 `541d001` commit 明确引用这两个文件
+   - **真实风险**：下一个 PR 触发 CI → 无 baseline → clippy 历史 90+ 警告被识别为新警告 → CI 红
+   - **修复**：本地跑 `cargo clippy --all-targets --message-format=short 2>&1 | grep -E "^(warning|error):" | sort -u > backend/.clippy-baseline.txt` + 跑测试收集失败用例名 → 提交 + push + CI 验证
+
+2. **前端 bi/SalesAnalysis.vue 内存泄漏**（🔴）
+   - L143 `window.addEventListener('resize', resizeCharts)`
+   - L14 import 缺 `onBeforeUnmount`
+   - **影响**：多次进入 BI 页面后内存占用线性增长
+   - **修复**：加 onBeforeUnmount import + removeEventListener（5 分钟）
+
+3. **后端无 Cargo.lock**（🔴）
+   - `backend/Cargo.lock` 不存在
+   - PR #238 移除 `--locked` 时未考虑 Cargo.lock 缺失
+   - **影响**：cargo build 每次重新解析依赖，sea-orm 2.0.0-rc.40/sqlx 0.9 是 RC 版本
+   - **修复**：`cargo generate-lockfile` + commit + push
+
+### 关键经验教训
+
+1. **PR 文档总结与 git 提交清单必须严格对齐** —— PR #238 "已建立 baseline" 文档与实际不符
+2. **PR 移除配置时要追因** —— 移除 `--locked` 必须确认 Cargo.lock 存在
+3. **资源清理要逐文件验证** —— bi/SalesAnalysis.vue 内存泄漏是 script setup 宽容处理掩盖的典型 bug
+4. **静态扫描可发现 Vue script setup 隐藏问题** —— template 引用 vs script import 不一致
+
+### 关键数据
+
+- 后端 .rs 文件：~626
+- 前端 .vue 文件：362
+- 路由 path：121
+- view 引用：117（**0 缺失**）✅
+- 业务路径 panic：6
+- 业务路径 unwrap：60
+- 业务路径 expect：96
+- 文件级 dead_code（非 models）：0 ✅
+- 租户隔离违规：0 ✅
+- SQL 注入：0 ✅
+- CVE 漏洞：5（dev/test 依赖）
+
+### 已确认正常/已修复的 23 项 P0
+
+- 4 处启动 panic ✅
+- 6 个安全漏洞（PR #237）✅
+- DB 迁移 100% 注册 ✅
+- 路由 view 一致性 100% ✅
+- 9.5 评估中 5 view 全部挂载 ✅
+- 部署期 4 大问题全部修复 ✅
+- 28 个 migration 全部 Box::new 注册 ✅
+- 6 个 chart 组件 addEventListener 全部正确清理 ✅
+- 2 处 setInterval 全部清理 ✅
+- 关键中间件顺序正确 ✅
+- /health 端点暴露（routes/mod.rs:362）✅
+- WebSocket 已挂载 ✅
+
+### 推荐修复批次
+
+- **批次 A（1-2 天，P0）**：生成 baseline 文件 + 修 bi/SalesAnalysis.vue 内存泄漏 + 生成 Cargo.lock
+- **批次 B（1 周，P1）**：6 处业务 panic + README 同步
+- **批次 C（2-4 周，P1）**：so/order.rs 拆分 + 15 个前端大文件拆分 + 192 ESLint disable 收敛
+- **批次 D（季度）**：CVE 升级（dev 依赖）
+
+### main HEAD
+
+- 远端 main HEAD：`c6469cb`（auto-release 2026.622.1219）
+- 实际代码 HEAD：`541d001`（PR #238 squash merge）
+- 本地 main 落后远端 main：2 个 auto-release commit（不影响代码）

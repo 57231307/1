@@ -734,3 +734,133 @@
   - 8 文件 lint any 抑制（custom-order 2/data-import/inventory 2/inventoryAdjustment/inventoryBatch/inventoryCount/inventoryTransfer/mrp）
 - **push 成功** `513d731..b75013a..b0c39b0`
 - **CI #1154 监控中**（b0c39b0 触发）→ 失败 50+ 错误（见 Wave C-2 修复）
+
+## CI/CD 严格化 + 全面日志重构（2026-06-22）
+
+- Date: 2026-06-22
+- Context: 用户指令"优化cicd ：cicd构建验证需要非常严格/需要记录全面的构建日志便于进行项目修复"
+- Category: CI/CD 重构
+- Instructions:
+  - **PR #238 merged**（squash commit `541d001`）
+  - **CI 工作流**：5 job → 15 job
+  - **严格化分级**：
+    - build/test/type-check：严格阻塞
+    - clippy/test：用 baseline 机制（首次跑 bootstrap，后续 0 容忍）
+    - fmt/lint：渐进式不阻塞（不阻断 PR，提供报告）
+  - **16 个 Artifacts**（90 天保留）
+  - **辅助脚本**：4 个 scripts/ci/ 脚本（fix-rustfmt/fix-prettier/setup-clippy-baseline/setup-test-baseline/clippy-check）
+  - **CI 验证**：main #1276（15/15 success）/ PR #1275（13/13 success）
+  - **关键文档**：[.monkeycode/docs/superpowers/plans/2026-06-22-cicd-strict-logs-plan.md](file:///workspace/.monkeycode/docs/superpowers/plans/2026-06-22-cicd-strict-logs-plan.md)
+  - **🚨 后续审计发现**：PR #238 文档中"已建立 baseline 渐进清理" 实际**未提交到 git** —— 见"项目真实运行问题检测（2026-06-22）"任务的 P0 问题 #1
+  - **main HEAD**：`541d001`（PR #238）
+  - **远端 main HEAD**：`c6469cb`（auto-release 2026.622.1219）
+
+## 项目真实运行问题检测（2026-06-22）
+
+- Date: 2026-06-22
+- Context: 用户指令"检测项目现在真实运行中存在的问题"
+- Category: 全面体检
+- Instructions:
+  - **检测范围**：main 分支（远端 HEAD `c6469cb` / 代码 HEAD `541d001` PR #238）全量静态扫描
+  - **检测方式**：Grep/Glob/Read 静态分析（遵守 MEMORY.md"禁止本地编译"规则）
+  - **报告位置**：[.monkeycode/docs/audits/2026-06-22-runtime-issues-detection.md](file:///workspace/.monkeycode/docs/audits/2026-06-22-runtime-issues-detection.md)
+  - **综合评分**：80/100（B 级，较 2026-06-19 评估 73/100 提升 7 分）
+
+### 3 大 P0 必修问题（影响所有未来 PR 与运行时）
+
+1. **🔴 CI baseline 文件实际未提交**（最严重）
+   - 实际仓库中**不存在** `backend/.clippy-baseline.txt` 和 `backend/.test-baseline.txt`
+   - CI 工作流 `541d001` commit 明确引用这两个文件（env-info job L243）
+   - clippy 严格化 job + test 严格化 job 完整 baseline 机制
+   - **真实风险**：下一个 PR 触发 CI → 无 baseline → clippy 历史 90+ 警告被识别为新警告 → CI 红
+   - **修复路径**：本地跑 `cargo clippy --all-targets --message-format=short 2>&1 | grep -E "^(warning|error):" | sort -u > backend/.clippy-baseline.txt` + 跑测试收集失败用例名 → 提交 baseline + push + CI 验证
+
+2. **🔴 前端 bi/SalesAnalysis.vue 内存泄漏**
+   - L143 `window.addEventListener('resize', resizeCharts)`
+   - L14 import 缺 `onBeforeUnmount`
+   - **影响**：多次进入 BI 页面后内存占用线性增长
+   - **修复**：加 onBeforeUnmount import + removeEventListener（5 分钟）
+
+3. **🔴 后端无 Cargo.lock**
+   - `backend/Cargo.lock` 文件不存在
+   - PR #238 移除 `--locked` 时未考虑 Cargo.lock 缺失
+   - **影响**：cargo build 每次重新解析依赖，sea-orm 2.0.0-rc.40/sqlx 0.9 是 RC 版本，可能突然拉新版本 API 漂移
+   - **修复**：`cargo generate-lockfile` + commit + push
+
+### 5 个 P1 重要问题
+
+1. 6 处业务路径 panic（audit_log_service.rs:315/320/325/399/404 + event_kafka.rs:808）
+   - 这些是 fail-fast 调试断言，不是启动 panic
+   - 异常路径上 panic → 进程级 panic → 5xx 错误，业务流中断
+   - 修复：tracing::error! + 返回 AppError
+2. 1 个后端大文件（so/order.rs 1041 行）
+3. 15 个前端大文件（> 400 行）
+4. 192 处 ESLint disable（vue/no-mutating-props 大量）
+5. README 文档漂移（badge 评分与实际不符）
+
+### 关键数据
+
+| 指标 | 数量 | 评估 |
+|------|------|------|
+| 后端 .rs 文件 | ~626 | 合理 |
+| 前端 .vue 文件 | 362 | 巨大 |
+| 路由 path | 121 | |
+| view 引用 | 117（**0 缺失**）| ✅ |
+| 业务路径 panic | 6 | 需修 |
+| 业务路径 unwrap | 60 | 需审 |
+| 业务路径 expect | 96 | 需审 |
+| let _ = 静默吞咽 | 113 | 需审 |
+| 业务 println! | 20（11 启动 + 9 其他）| 待审 |
+| 文件级 dead_code（非 models）| 0 | ✅ |
+| 租户隔离违规 | 0 | ✅ |
+| SQL 注入 | 0 | ✅ |
+| CVE 漏洞 | 5（dev/test 依赖）| 暂缓 |
+
+### 已确认正常/已修复的 23 项 P0
+
+- 4 处启动 panic ✅
+- 6 个安全漏洞（PR #237）✅
+- DB 迁移 100% 注册 ✅
+- 路由 view 一致性 100% ✅
+- 9.5 评估中 5 view 全部挂载 ✅
+- 部署期 4 大问题全部修复 ✅
+- 28 个 migration 全部 Box::new 注册 ✅
+- 6 个 chart 组件 addEventListener 全部正确清理 ✅
+- 2 处 setInterval 全部清理 ✅
+- 关键中间件顺序正确 ✅
+- /health 端点暴露（routes/mod.rs:362）✅
+- WebSocket 已挂载 ✅
+
+### 推荐修复批次
+
+- **批次 A（1-2 天，P0）**：生成 baseline 文件 + 修 bi/SalesAnalysis.vue 内存泄漏 + 生成 Cargo.lock
+- **批次 B（1 周，P1）**：6 处业务 panic + README 同步
+- **批次 C（2-4 周，P1）**：so/order.rs 拆分 + 15 个前端大文件拆分 + 192 ESLint disable 收敛
+- **批次 D（季度）**：CVE 升级（dev 依赖）
+
+### 关键经验教训
+
+1. **PR #238 "已建立 baseline" 文档与实际不符** —— 文档总结与 git 提交清单必须严格对齐
+2. **PR 移除配置时要追因** —— 移除 `--locked` 必须确认 Cargo.lock 存在
+3. **资源清理要逐文件验证** —— bi/SalesAnalysis.vue 内存泄漏是 script setup 宽容处理掩盖的典型 bug
+4. **静态扫描可发现 Vue script setup 隐藏问题** —— template 引用 vs script import 不一致是 9.3 批次已修类型，9.5 批次仍有 1 处遗漏
+
+### 同类待办（下一批）
+
+- 9.5 评估中 9.5.3 报表模板重构延期（`TplFld.vue` 等子组件 v-model 问题）
+- 批次 4：后端 `log_login.rs` 多余 allow 清理（1 文件 1 行）
+- 批次 5：后端大型服务拆分（4-6h）
+- 批次 6：前端 `eslint-disable` 收敛（192 处 / 100+ 文件）
+- 批次 8：后端 290 处 unwrap/panic 整改
+
+### main HEAD
+
+- 远端 main HEAD：`c6469cb`（auto-release 2026.622.1219）
+- 实际代码 HEAD：`541d001`（PR #238 squash merge）
+- 本地 main 落后远端 main：2 个 auto-release commit（不影响代码）
+
+### 检测后未提交变更
+
+- 0（纯检测报告 + 文档更新）
+- 报告与文档已写入 .monkeycode/（gitignored）
+- 后续修复批次按用户指令走"commit + push + CI 验证 + merge"流程
