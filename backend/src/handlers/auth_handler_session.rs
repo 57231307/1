@@ -2,6 +2,26 @@
 //!
 //! 拆分自 auth_handler.rs：原 record_login_attempt 私有 fn + logout 业务独立成文件。
 
+use crate::middleware::audit_context::AuditContext;
+use crate::models::audit_log::{OperationType, Severity};
+use crate::services::audit_log_service::{AuditEvent, AuditLogService};
+use crate::services::auth_service::AuthService;
+use crate::utils::app_state::AppState;
+use crate::utils::error::AppError;
+use crate::utils::response::ApiResponse;
+use axum::{
+    extract::{Extension, State},
+    http::HeaderMap,
+    response::IntoResponse,
+    Json,
+};
+use axum_extra::extract::cookie::SameSite;
+use chrono::Utc;
+use sea_orm::ActiveModelTrait;
+use serde::Serialize;
+use std::sync::Arc;
+use time::Duration as CookieDuration;
+
 /// Record login attempt to the login log table for security auditing
 async fn record_login_attempt(
     state: &AppState,

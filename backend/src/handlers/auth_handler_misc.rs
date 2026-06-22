@@ -2,6 +2,24 @@
 //!
 //! 拆分自 auth_handler.rs：原 refresh_token + TOTP + get_current_user + get_csrf_token 业务独立成文件。
 
+use crate::middleware::auth_context::AuthContext;
+use crate::services::auth_service::AuthService;
+use crate::services::totp_service::TotpService;
+use crate::utils::app_state::AppState;
+use crate::utils::error::AppError;
+use crate::utils::response::ApiResponse;
+use super::auth_handler::UserInfo;
+use axum::{
+    extract::{Extension, State},
+    http::HeaderMap,
+    response::IntoResponse,
+    Json,
+};
+use axum_extra::extract::cookie::SameSite;
+use serde::{Deserialize, Serialize};
+use time::Duration as CookieDuration;
+use utoipa::ToSchema;
+
 #[derive(Debug, Serialize)]
 pub struct RefreshTokenResponse {
     pub token: String,
@@ -9,7 +27,7 @@ pub struct RefreshTokenResponse {
     pub expires_in: u64,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, ToSchema)]
 pub struct CsrfTokenResponse {
     pub csrf_token: String,
     pub header_name: String,
@@ -186,11 +204,6 @@ pub async fn enable_totp(
         Ok(false) => Err(AppError::bad_request("验证码不正确")),
         Err(e) => Err(AppError::internal(e.to_string())),
     }
-}
-
-#[derive(Debug, Serialize, ToSchema)]
-pub struct CsrfTokenResponse {
-    pub csrf_token: String,
 }
 
 /// 获取当前登录用户信息

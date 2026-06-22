@@ -11,6 +11,7 @@ use crate::utils::app_state::AppState;
 use crate::utils::cache::Cache;
 use crate::utils::error::AppError;
 use crate::utils::response::ApiResponse;
+use super::auth_handler_session::record_login_attempt;
 use axum::{
     extract::{Extension, State},
     http::HeaderMap,
