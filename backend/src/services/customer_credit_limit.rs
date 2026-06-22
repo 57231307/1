@@ -1,9 +1,8 @@
 use crate::models::customer_credit;
 use crate::utils::error::AppError;
 use rust_decimal::Decimal;
-use sea_orm::PessimisticLock;
 use sea_orm::{
-    ActiveModelTrait, ColumnTrait, EntityTrait, QueryFilter, Set, TransactionTrait,
+    ActiveModelTrait, ColumnTrait, EntityTrait, QueryFilter, QuerySelect, Set, TransactionTrait,
 };
 use std::sync::Arc;
 use tracing::info;
