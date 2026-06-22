@@ -1,0 +1,199 @@
+//! 库存事务版本方法（带 _txn 后缀，与外层同名方法行为一致但接受外部事务）
+//!
+//! 拆分自 inventory_stock_service.rs：原 4 个 _txn 方法独立成文件。
+
+use sea_orm::DatabaseConnection;
+use std::sync::Arc;
+
+use super::inventory_stock_service::InventoryStockService;
+
+impl InventoryStockService {
+    pub async fn update_stock_quantity_with_optimistic_lock_txn(
+        txn: &sea_orm::DatabaseTransaction,
+        id: i32,
+        quantity_meters: Decimal,
+        quantity_kg: Decimal,
+        expected_version: i32,
+    ) -> Result<inventory_stock::Model, AppError> {
+        let update_result = inventory_stock::Entity::update_many()
+            .col_expr(
+                inventory_stock::Column::QuantityOnHand,
+                sea_orm::sea_query::Expr::val(quantity_meters).into(),
+            )
+            .col_expr(
+                inventory_stock::Column::QuantityAvailable,
+                sea_orm::sea_query::Expr::val(quantity_meters).into(),
+            )
+            .col_expr(
+                inventory_stock::Column::QuantityMeters,
+                sea_orm::sea_query::Expr::val(quantity_meters).into(),
+            )
+            .col_expr(
+                inventory_stock::Column::QuantityKg,
+                sea_orm::sea_query::Expr::val(quantity_kg).into(),
+            )
+            .col_expr(
+                inventory_stock::Column::Version,
+                sea_orm::sea_query::Expr::col(inventory_stock::Column::Version).add(1).into(),
+            )
+            .col_expr(
+                inventory_stock::Column::UpdatedAt,
+                sea_orm::sea_query::Expr::val(chrono::Utc::now()).into(),
+            )
+            .filter(inventory_stock::Column::Id.eq(id))
+            .filter(inventory_stock::Column::Version.eq(expected_version))
+            .exec(txn)
+            .await?;
+
+        if update_result.rows_affected == 0 {
+            return Err(AppError::business(format!(
+                "并发冲突：库存记录 ID {} 已被其他用户修改，期望版本 {}",
+                id, expected_version
+            )));
+        }
+
+        inventory_stock::Entity::find_by_id(id)
+            .one(txn)
+            .await?
+            .ok_or_else(|| AppError::not_found(format!("库存记录 ID {} 不存在", id)))
+    }
+
+    /// 创建面料库存记录（事务版本）
+    #[allow(clippy::too_many_arguments)]
+    pub async fn create_stock_fabric_txn(
+        txn: &sea_orm::DatabaseTransaction,
+        warehouse_id: i32,
+        product_id: i32,
+        batch_no: String,
+        color_no: String,
+        dye_lot_no: Option<String>,
+        grade: String,
+        quantity_meters: Decimal,
+        quantity_kg: Decimal,
+        gram_weight: Option<Decimal>,
+        width: Option<Decimal>,
+        location_id: Option<i32>,
+        shelf_no: Option<String>,
+        layer_no: Option<String>,
+    ) -> Result<inventory_stock::Model, AppError> {
+        let _final_quantity_kg =
+            Self::calculate_quantity_kg(quantity_meters, gram_weight, width, quantity_kg);
+
+        let active_stock = inventory_stock::ActiveModel {
+            id: Default::default(),
+            warehouse_id: Set(warehouse_id),
+            product_id: Set(product_id),
+            quantity_on_hand: Set(quantity_meters),
+            quantity_available: Set(quantity_meters),
+            quantity_reserved: Set(Decimal::ZERO),
+            quantity_incoming: Set(Decimal::ZERO),
+            reorder_point: Set(Decimal::ZERO),
+            reorder_quantity: Set(Decimal::ZERO),
+            last_count_date: Set(None),
+            last_movement_date: Set(None),
+            created_at: Set(Utc::now()),
+            updated_at: Set(Utc::now()),
+            batch_no: Set(batch_no),
+            color_no: Set(color_no),
+            dye_lot_no: Set(dye_lot_no),
+            grade: Set(grade),
+            production_date: Set(None),
+            expiry_date: Set(None),
+            quantity_meters: Set(quantity_meters),
+            quantity_kg: Set(quantity_kg),
+            gram_weight: Set(gram_weight),
+            width: Set(width),
+            quantity_shipped: Set(Decimal::ZERO),
+            location_id: Set(location_id),
+            shelf_no: Set(shelf_no),
+            layer_no: Set(layer_no),
+            bin_location: Set(None),
+            stock_status: Set("正常".to_string()),
+            quality_status: Set("合格".to_string()),
+            version: Set(0),
+        };
+
+        active_stock.insert(txn).await.map_err(AppError::from)
+    }
+
+    /// 记录库存流水（事务版本）
+    #[allow(clippy::too_many_arguments)]
+    pub async fn record_transaction_txn(
+        txn: &sea_orm::DatabaseTransaction,
+        transaction_type: String,
+        product_id: i32,
+        warehouse_id: i32,
+        batch_no: String,
+        color_no: String,
+        dye_lot_no: Option<String>,
+        grade: String,
+        quantity_meters: Decimal,
+        quantity_kg: Decimal,
+        source_bill_type: Option<String>,
+        source_bill_no: Option<String>,
+        source_bill_id: Option<i32>,
+        quantity_before_meters: Option<Decimal>,
+        quantity_before_kg: Option<Decimal>,
+        quantity_after_meters: Option<Decimal>,
+        quantity_after_kg: Option<Decimal>,
+        notes: Option<String>,
+        created_by: Option<i32>,
+    ) -> Result<inventory_transaction::Model, AppError> {
+        let active_transaction = inventory_transaction::ActiveModel {
+            id: Set(0),
+            transaction_type: Set(transaction_type),
+            product_id: Set(product_id),
+            warehouse_id: Set(warehouse_id),
+            batch_no: Set(batch_no),
+            color_no: Set(color_no),
+            dye_lot_no: Set(dye_lot_no),
+            grade: Set(grade),
+            quantity_meters: Set(quantity_meters),
+            quantity_kg: Set(quantity_kg),
+            source_bill_type: Set(source_bill_type),
+            source_bill_no: Set(source_bill_no),
+            source_bill_id: Set(source_bill_id),
+            quantity_before_meters: Set(quantity_before_meters),
+            quantity_before_kg: Set(quantity_before_kg),
+            quantity_after_meters: Set(quantity_after_meters),
+            quantity_after_kg: Set(quantity_after_kg),
+            notes: Set(notes),
+            created_by: Set(created_by),
+            created_at: Set(Utc::now()),
+        };
+
+        let transaction = active_transaction.insert(txn).await?;
+
+        let event = BusinessEvent::InventoryTransactionCreated {
+            transaction_id: transaction.id,
+            transaction_type: transaction.transaction_type.clone(),
+            product_id: transaction.product_id,
+            warehouse_id: transaction.warehouse_id,
+            quantity_meters: transaction.quantity_meters,
+            quantity_kg: transaction.quantity_kg,
+            source_bill_type: transaction.source_bill_type.clone(),
+            source_bill_no: transaction.source_bill_no.clone(),
+            source_bill_id: transaction.source_bill_id,
+            batch_no: transaction.batch_no.clone(),
+            color_no: transaction.color_no.clone(),
+            created_by: transaction.created_by,
+        };
+        EVENT_BUS.publish(event);
+
+        Ok(transaction)
+    }
+
+    /// 查找库存（事务版本）
+    pub async fn find_by_product_and_warehouse_txn(
+        txn: &sea_orm::DatabaseTransaction,
+        product_id: i32,
+        warehouse_id: i32,
+    ) -> Result<Option<inventory_stock::Model>, AppError> {
+        inventory_stock::Entity::find()
+            .filter(inventory_stock::Column::ProductId.eq(product_id))
+            .filter(inventory_stock::Column::WarehouseId.eq(warehouse_id))
+            .one(txn)
+            .await
+            .map_err(AppError::from)
+    }
+}

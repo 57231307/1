@@ -50,7 +50,9 @@ pub mod inventory_count;
 pub mod inventory_count_service;
 pub mod inventory_finance_bridge_service;
 pub mod inventory_reservation_service;
+pub mod inventory_stock_query;
 pub mod inventory_stock_service;
+pub mod inventory_stock_txn;
 // P9-2 拆分：库存子模块
 pub mod stock_ledger;
 pub mod stock_alert;
