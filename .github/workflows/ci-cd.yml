@@ -841,8 +841,9 @@ jobs:
           if [ ! -f "backend/.test-baseline.txt" ]; then
             # 首次跑：自动建立 baseline，不阻塞
             BASELINE_MODE="bootstrap"
+            touch backend/.test-baseline.txt
             grep -E "^test .* FAILED$" reports/cargo-test-output.txt 2>/dev/null | \
-              awk '{print $2}' > backend/.test-baseline.txt
+              awk '{print $2}' >> backend/.test-baseline.txt || true
             BASELINE_FAILED=$FAILED
             NEW_FAILED=0
             FIXED=0
@@ -852,16 +853,18 @@ jobs:
             BASELINE_FAILED=$(wc -l < backend/.test-baseline.txt)
 
             # 当前失败的测试
+            touch reports/test-current-failed.txt
             grep -E "^test .* FAILED$" reports/cargo-test-output.txt 2>/dev/null | \
-              awk '{print $2}' > reports/test-current-failed.txt
+              awk '{print $2}' >> reports/test-current-failed.txt || true
             NEW_FAILED=$(wc -l < reports/test-current-failed.txt)
 
             # 找出新失败
-            comm -23 reports/test-current-failed.txt backend/.test-baseline.txt > reports/test-new-failed.txt
+            touch reports/test-new-failed.txt reports/test-fixed.txt
+            comm -23 reports/test-current-failed.txt backend/.test-baseline.txt > reports/test-new-failed.txt || true
             NEW_FAILED_COUNT=$(wc -l < reports/test-new-failed.txt)
 
             # 找出已修复
-            comm -13 reports/test-current-failed.txt backend/.test-baseline.txt > reports/test-fixed.txt
+            comm -13 reports/test-current-failed.txt backend/.test-baseline.txt > reports/test-fixed.txt || true
             FIXED=$(wc -l < reports/test-fixed.txt)
 
             NEW_FAILED=$NEW_FAILED_COUNT
