@@ -151,8 +151,8 @@ pub async fn auto_schedule(
         .unwrap_or_else(|| "priority".to_string());
     let req = AutoScheduleRequest {
         work_center_ids: payload.work_center_ids,
-        start_date: payload.start_date.unwrap_or_else(|| chrono::Utc::now().date_naive()),
-        end_date: payload.start_date.unwrap_or_else(|| chrono::Utc::now().date_naive())
+        start_date: payload.start_date.unwrap_or_else(|| chrono::Utc::now().naive_utc().date()),
+        end_date: payload.start_date.unwrap_or_else(|| chrono::Utc::now().naive_utc().date())
             + chrono::Duration::days(30),
         algo: strategy.clone(),
     };
@@ -221,8 +221,8 @@ pub async fn get_gantt_data(
             })
             .collect(),
         date_range: DateRangeResponse {
-            start: gantt_data.date_range.as_ref().map(|d| d.start).unwrap_or_else(chrono::Utc::now().date_naive),
-            end: gantt_data.date_range.as_ref().map(|d| d.end).unwrap_or_else(chrono::Utc::now().date_naive),
+            start: gantt_data.date_range.as_ref().map(|d| d.start).unwrap_or_else(|| chrono::Utc::now().naive_utc().date()),
+            end: gantt_data.date_range.as_ref().map(|d| d.end).unwrap_or_else(|| chrono::Utc::now().naive_utc().date()),
         },
     };
 
@@ -366,6 +366,8 @@ pub async fn list_scheduled_orders(
     let query_params = ScheduledOrderQuery {
         work_center_id: query.work_center_id,
         status: query.status,
+        start_date: None,
+        end_date: None,
         date_from: query.date_from,
         date_to: query.date_to,
         page: query.page.unwrap_or(1),

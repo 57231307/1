@@ -5,7 +5,7 @@
 
 use rust_decimal::Decimal;
 use sea_orm::DatabaseConnection;
-use sea_orm::Set;
+use sea_orm::{ColumnTrait, EntityTrait, QueryFilter, Set};
 use std::sync::Arc;
 
 use crate::models::{purchase_receipt, purchase_receipt_item};
@@ -14,7 +14,7 @@ use crate::utils::error::AppError;
 use super::purchase_receipt_service::PurchaseReceiptService;
 
 impl PurchaseReceiptService {
-    async fn update_order_received_quantity(
+    pub async fn update_order_received_quantity(
         &self,
         order_id: i32,
         receipt_id: i32,
@@ -105,7 +105,7 @@ impl PurchaseReceiptService {
         Ok(())
     }
 
-    async fn update_inventory_txn(
+    pub async fn update_inventory_txn(
         &self,
         receipt: &purchase_receipt::Model,
         txn: &sea_orm::DatabaseTransaction,

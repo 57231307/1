@@ -101,17 +101,33 @@ impl SchedulingService {
 
                 Some(ScheduleDetail {
                     order_id: o.id,
-                    order_no: o.order_no.clone(),
+                    order_no: Some(o.order_no.clone()),
                     work_center_id: o.work_center_id.unwrap_or(0),
-                    work_center_name: wc_name,
-                    start_date: start,
-                    end_date: end,
-                    status: o.status.clone(),
+                    work_center_name: Some(wc_name),
+                    planned_start: start,
+                    planned_end: end,
+                    start_date: Some(start),
+                    end_date: Some(end),
+                    status: Some(o.status.clone()),
                 })
             })
             .collect();
 
-        let work_centers = self.load_active_work_centers(&None).await?;
+        // 从生产订单关联的 work_center_id 列表批量查询工作中心，避免 N+1
+        let work_center_ids: Vec<i32> = orders
+            .iter()
+            .filter_map(|o| o.work_center_id)
+            .collect::<std::collections::HashSet<_>>()
+            .into_iter()
+            .collect();
+        let work_centers = if work_center_ids.is_empty() {
+            Vec::new()
+        } else {
+            WorkCenterEntity::find()
+                .filter(crate::models::work_center::Column::Id.is_in(work_center_ids))
+                .all(&*self.db)
+                .await?
+        };
         let gantt = self.build_gantt_data(&scheduled_details, &work_centers);
         Ok(gantt)
     }
@@ -273,12 +289,12 @@ impl SchedulingService {
         Ok(updated)
     }
 
-    fn build_gantt_data(
+    pub(crate) fn build_gantt_data(
         &self,
         details: &[ScheduleDetail],
         work_centers: &[WorkCenterModel],
     ) -> GanttData {
-        let items: Vec<GanttItem> = details
+        let items: Vec<GanttItemDto> = details
             .iter()
             .map(|d| {
                 let duration = (d.end_date - d.start_date).num_days() + 1;
@@ -289,13 +305,13 @@ impl SchedulingService {
                     _ => 0.0,
                 };
 
-                GanttItem {
+                GanttItemDto {
                     id: format!("order_{}", d.order_id),
                     order_id: d.order_id,
-                    order_no: d.order_no.clone(),
+                    order_no: d.order_no.clone().unwrap_or_default(),
                     product_id: 0,
                     work_center_id: d.work_center_id,
-                    work_center_name: d.work_center_name.clone(),
+                    work_center_name: d.work_center_name.clone().unwrap_or_default(),
                     start_date: d.start_date,
                     end_date: d.end_date,
                     duration_days: duration,
@@ -335,12 +351,13 @@ impl SchedulingService {
         GanttData {
             items,
             work_centers: wc_infos,
-            date_range,
+            date_range: Some(date_range),
+            schedule_details: None,
         }
     }
 
     /// 获取工作中心名称
-    async fn get_work_center_name(&self, wc_id: Option<i32>) -> Option<String> {
+    pub(crate) async fn get_work_center_name(&self, wc_id: Option<i32>) -> Option<String> {
         let wc_id = wc_id?;
         let wc = WorkCenterEntity::find_by_id(wc_id)
             .one(&*self.db)
@@ -348,72 +365,6 @@ impl SchedulingService {
             .ok()
             .flatten()?;
         Some(wc.name)
-    }
-
-    /// 持久化排程结果
-    pub async fn save_schedule_result(
-        &self,
-        result: &AutoScheduleResult,
-        strategy: &str,
-        user_id: i32,
-        user_name: &str,
-        remarks: Option<String>,
-    ) -> Result<crate::models::scheduling_result::Model, AppError> {
-        let now = Utc::now();
-        let batch_no = format!(
-            "SCH-{}-{}",
-            now.format("%Y%m%d%H%M%S"),
-            crate::utils::random::random_6_digit()
-        );
-
-        // 计算日期范围
-        let (start_date, end_date) = if result.schedule_details.as_ref().map(|v| v.is_empty()).unwrap_or(true) {
-            (now.date_naive(), now.date_naive())
-        } else {
-            let details = result.schedule_details.as_ref().unwrap();
-            let min_start = details
-                .iter()
-                .map(|d| d.start_date.unwrap_or(d.planned_start))
-                .min()
-                .unwrap_or(now.date_naive());
-            let max_end = details
-                .iter()
-                .map(|d| d.end_date.unwrap_or(d.planned_end))
-                .max()
-                .unwrap_or(now.date_naive());
-            (min_start, max_end)
-        };
-
-        let active_model = SchedulingActiveModel {
-            id: Default::default(),
-            batch_no: Set(batch_no),
-            strategy: Set(strategy.to_string()),
-            status: Set("DRAFT".to_string()),
-            total_orders: Set(result.total_orders),
-            scheduled_orders: Set(result.scheduled_orders),
-            unscheduled_orders: Set(result.unscheduled_orders),
-            conflict_count: Set(result.conflicts.len() as i32),
-            schedule_start_date: Set(start_date),
-            schedule_end_date: Set(end_date),
-            schedule_details: Set(Some(
-                serde_json::to_value(&result.schedule_details).unwrap_or_default(),
-            )),
-            gantt_data: Set(Some(
-                serde_json::to_value(&result.gantt_data).unwrap_or_default(),
-            )),
-            conflicts: Set(Some(
-                serde_json::to_value(&result.conflicts).unwrap_or_default(),
-            )),
-            created_by: Set(user_id),
-            created_by_name: Set(Some(user_name.to_string())),
-            remarks: Set(remarks),
-            created_at: Set(now),
-            updated_at: Set(now),
-        };
-
-        let model = active_model.insert(&*self.db).await?;
-
-        Ok(model)
     }
 }
 

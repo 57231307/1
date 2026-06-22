@@ -63,9 +63,7 @@ impl SchedulingService {
 
         if pending_orders.is_empty() {
             return Ok(AutoScheduleResult {
-                total_orders: 0,
-                scheduled_orders: 0,
-                unscheduled_orders: 0,
+                scheduled_count: 0,
                 conflicts: Vec::new(),
                 gantt_data: GanttData {
                     items: Vec::new(),
@@ -78,17 +76,23 @@ impl SchedulingService {
                             status: wc.status.clone(),
                         })
                         .collect(),
-                    date_range: DateRange {
+                    date_range: Some(DateRange {
                         start: Utc::now().date_naive(),
                         end: Utc::now().date_naive(),
-                    },
+                    }),
+                    schedule_details: None,
                 },
-                schedule_details: Vec::new(),
+                total_orders: Some(0),
+                scheduled_orders: Some(Vec::new()),
+                unscheduled_orders: Some(Vec::new()),
+                schedule_details: Some(Vec::new()),
+                id: None,
+                batch_no: None,
             });
         }
 
         let mut sorted_orders = pending_orders.clone();
-        let strategy = req.strategy.as_deref().unwrap_or("priority");
+        let strategy = req.algo.as_str();
         match strategy {
             "priority" => sorted_orders.sort_by_key(|o| o.priority),
             "fifo" => sorted_orders.sort_by_key(|o| o.created_at),
@@ -107,8 +111,11 @@ impl SchedulingService {
                     id: wc.id,
                     code: wc.code.clone(),
                     name: wc.name.clone(),
+                    work_center_type: wc.work_center_type.clone(),
                     daily_capacity: daily_cap,
+                    capacity_unit: Some("件".to_string()),
                     status: wc.status.clone(),
+                    shifts: Vec::new(),
                 },
             );
         }
@@ -119,7 +126,7 @@ impl SchedulingService {
             wc_schedule.insert(*wc_id, Vec::new());
         }
 
-        let start_date = req.start_date.unwrap_or(Utc::now().date_naive());
+        let start_date = req.start_date;
         let mut scheduled_details: Vec<ScheduleDetail> = Vec::new();
         let mut conflicts: Vec<ScheduleConflict> = Vec::new();
         let mut scheduled_count = 0;
@@ -234,12 +241,14 @@ impl SchedulingService {
             let wc_name = cap.name.clone();
             scheduled_details.push(ScheduleDetail {
                 order_id: order.id,
-                order_no: order.order_no.clone(),
+                order_no: Some(order.order_no.clone()),
                 work_center_id: wc_id,
-                work_center_name: wc_name,
-                start_date: assigned_start,
-                end_date: assigned_end,
-                status: "SCHEDULED".to_string(),
+                work_center_name: Some(wc_name),
+                planned_start: assigned_start,
+                planned_end: assigned_end,
+                start_date: Some(assigned_start),
+                end_date: Some(assigned_end),
+                status: Some("SCHEDULED".to_string()),
             });
 
             scheduled_count += 1;
@@ -367,19 +376,23 @@ impl SchedulingService {
         );
 
         // 计算日期范围
-        let (start_date, end_date) = if result.schedule_details.is_empty() {
+        let (start_date, end_date) = if result
+            .schedule_details
+            .as_ref()
+            .map(|v| v.is_empty())
+            .unwrap_or(true)
+        {
             (now.date_naive(), now.date_naive())
         } else {
-            let min_start = result
-                .schedule_details
+            let details = result.schedule_details.as_ref().unwrap();
+            let min_start = details
                 .iter()
-                .map(|d| d.start_date)
+                .map(|d| d.start_date.unwrap_or(d.planned_start))
                 .min()
                 .unwrap_or(now.date_naive());
-            let max_end = result
-                .schedule_details
+            let max_end = details
                 .iter()
-                .map(|d| d.end_date)
+                .map(|d| d.end_date.unwrap_or(d.planned_end))
                 .max()
                 .unwrap_or(now.date_naive());
             (min_start, max_end)
@@ -390,9 +403,11 @@ impl SchedulingService {
             batch_no: Set(batch_no),
             strategy: Set(strategy.to_string()),
             status: Set("DRAFT".to_string()),
-            total_orders: Set(result.total_orders),
-            scheduled_orders: Set(result.scheduled_orders),
-            unscheduled_orders: Set(result.unscheduled_orders),
+            total_orders: Set(result.total_orders.unwrap_or(0)),
+            scheduled_orders: Set(result.scheduled_count),
+            unscheduled_orders: Set(
+                result.unscheduled_orders.as_ref().map(|v| v.len() as i32).unwrap_or(0),
+            ),
             conflict_count: Set(result.conflicts.len() as i32),
             schedule_start_date: Set(start_date),
             schedule_end_date: Set(end_date),

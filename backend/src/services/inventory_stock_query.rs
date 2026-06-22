@@ -232,15 +232,10 @@ impl InventoryStockService {
             .map(|r| InventorySummaryItem {
                 product_id: r.product_id,
                 product_name: r.product_name,
-                specification: None,
-                color_no: r.color_no,
                 batch_no: r.batch_no,
+                color_no: r.color_no,
                 grade: r.grade,
-                warehouse_id: r.warehouse_id,
                 warehouse_name: r.warehouse_name,
-                quantity: Decimal::ZERO,
-                unit: String::new(),
-                total_value: None,
                 total_quantity_meters: r.total_quantity_meters,
                 total_quantity_kg: r.total_quantity_kg,
             })

@@ -4,7 +4,7 @@
 //! 当前统一返回 AppError::bad_request/not_found 占位。
 
 use crate::models::dto::bpm_dto::{
-    CreateProcessDefinitionRequest, CreateVersionRequest, ProcessDefinitionQuery,
+    CreateProcessDefinitionRequest, CreateVersionRequest, ProcessDefinitionQuery, TemplateQuery,
     UpdateProcessDefinitionRequest,
 };
 use crate::models::dto::PageResponse;

@@ -7,6 +7,7 @@ use crate::models::audit_log::{OperationType, Severity};
 use crate::services::audit_log_service::{AuditEvent, AuditLogService};
 use crate::services::auth_service::AuthService;
 use crate::utils::app_state::AppState;
+use crate::utils::cache::Cache;
 use crate::utils::error::AppError;
 use crate::utils::response::ApiResponse;
 use axum::{
@@ -23,7 +24,7 @@ use std::sync::Arc;
 use time::Duration as CookieDuration;
 
 /// Record login attempt to the login log table for security auditing
-async fn record_login_attempt(
+pub async fn record_login_attempt(
     state: &AppState,
     username: &str,
     user_id: i32,

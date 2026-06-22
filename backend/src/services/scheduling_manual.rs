@@ -8,7 +8,10 @@
 //! - 重新排程
 
 use super::scheduling_service::SchedulingService;
+use crate::models::production_order::Entity as ProductionOrderEntity;
+use crate::services::scheduling_service::{AdjustScheduleRequest, ScheduleDetail};
 use crate::utils::error::AppError;
+use chrono::Utc;
 
 /// P9-2 标记：手动调整子模块路径
 pub const P92_MANUAL_MODULE: &str = "scheduling_manual";
@@ -46,8 +49,8 @@ impl SchedulingService {
         order_id: i32,
         req: AdjustScheduleRequest,
     ) -> Result<ScheduleDetail, AppError> {
-        use sea_orm::ActiveModelTrait;
-        use sea_orm::Set;
+        use sea_orm::EntityTrait;
+        use sea_orm::{ActiveModelTrait, Set};
 
         let order = ProductionOrderEntity::find_by_id(order_id)
             .one(&*self.db)
@@ -79,16 +82,17 @@ impl SchedulingService {
             .await
             .unwrap_or_else(|| "未知".to_string());
 
+        let today = Utc::now().date_naive();
         Ok(ScheduleDetail {
             order_id: updated.id,
-            order_no: updated.order_no.clone(),
+            order_no: Some(updated.order_no.clone()),
             work_center_id: updated.work_center_id.unwrap_or(0),
-            work_center_name: wc_name,
-            start_date: updated
-                .planned_start_date
-                .unwrap_or(Utc::now().date_naive()),
-            end_date: updated.planned_end_date.unwrap_or(Utc::now().date_naive()),
-            status: updated.status.clone(),
+            work_center_name: Some(wc_name),
+            planned_start: updated.planned_start_date.unwrap_or(today),
+            planned_end: updated.planned_end_date.unwrap_or(today),
+            start_date: updated.planned_start_date,
+            end_date: updated.planned_end_date,
+            status: Some(updated.status.clone()),
         })
     }
 }

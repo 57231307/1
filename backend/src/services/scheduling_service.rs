@@ -67,14 +67,21 @@ pub struct ScheduleConflict {
 }
 
 /// 甘特图项
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct GanttItemDto {
+    pub id: String,
     pub order_id: i32,
     pub order_no: String,
-    pub work_center: String,
-    pub start: NaiveDate,
-    pub end: NaiveDate,
-    pub progress: i32,
+    pub product_id: i32,
+    pub work_center_id: i32,
+    pub work_center_name: String,
+    pub start_date: NaiveDate,
+    pub end_date: NaiveDate,
+    pub duration_days: i64,
+    pub progress: f64,
+    pub status: String,
+    pub priority: i32,
+    pub dependencies: Vec<String>,
 }
 
 /// 甘特图数据

@@ -6,6 +6,7 @@ use crate::middleware::auth_context::AuthContext;
 use crate::services::auth_service::AuthService;
 use crate::services::totp_service::TotpService;
 use crate::utils::app_state::AppState;
+use crate::utils::cache::Cache;
 use crate::utils::error::AppError;
 use crate::utils::response::ApiResponse;
 use super::auth_handler::UserInfo;
