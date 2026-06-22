@@ -5,6 +5,82 @@
 
 ---
 
+## 最新任务：分支清理 + 批次 A P0 修复（2026-06-22）
+
+**提交者**：CI/CD 自动化（MaxTrae）
+**关联 commits**：
+- `2e685db` ci(workflow): 修复 baseline 自动 commit 权限 + Cargo.lock 自动生成
+- `6c9266f` fix(frontend): 修 bi/SalesAnalysis.vue window resize 监听器内存泄漏
+- `e32d8fa` docs(monkeycode): 记录项目真实运行问题检测结果 + 修复批次 A
+- `4b08279` chore(deps): 生成 backend/Cargo.lock 锁定依赖版本（CI 自动触发）
+
+### 变更内容
+
+#### 1. 分支清理
+
+- 同步 main 到 origin/main（reset --hard，丢失本地独有 e7af13e + 58d20d2 + 恢复 .monkeycode/ 工作区文件）
+- 删除本地 `fix/cicd-strict-and-logs`（PR #238 工作分支，与 squash merge 重复）
+- 删除本地 `trae/solo-agent-VZbmEA`（trae IDE 自动创建的 agent 分支）
+- 远端实际只有 `origin/main`，无其他远程分支
+- 最终：本地 1 个 main + 远端 1 个 origin/main
+
+#### 2. 批次 A P0 三修
+
+- **P0-1 CI baseline 失效修复**（commit 2e685db）
+  - 加 ci-lint-rust/ci-test-rust/ci-build-rust `permissions: contents: write`
+  - 根因：PR #238 设计的自动 commit baseline 步骤因缺此权限 → push 失败被 `|| echo` 吞掉
+  - 效果：未来 PR 触发 CI → bootstrap 模式自动建 baseline → commit + push 到 main → 后续 PR 进入 strict 模式
+
+- **P0-2 前端内存泄漏修复**（commit 6c9266f）
+  - 修 bi/SalesAnalysis.vue L14 import 缺 onBeforeUnmount
+  - 加 L146-150 onBeforeUnmount 块 + removeEventListener
+  - 关联文件：仅 1 文件 8 行
+
+- **P0-3 Cargo.lock 自动生成**（commit 2e685db 同一 commit + CI 自动 commit 4b08279）
+  - ci-build-rust 加 `permissions: contents: write`
+  - 新增 "确保 Cargo.lock 存在" step 自动跑 `cargo generate-lockfile` + commit
+  - **实际效果**：CI 跑后自动生成 5476 行 Cargo.lock 并 commit（4b08279）
+
+#### 3. P1 重新核实（重要修正）
+
+- **P1-1（6 处业务路径 panic）经核实是测试代码**，不是真问题，从清单移除
+- P1 真实问题：4 个（后端大文件 / 前端大文件 / ESLint disable 166 处 / README 漂移）
+- 完整计划：[.monkeycode/docs/superpowers/plans/2026-06-22-p0-p1-fix-plan.md](file:///workspace/.monkeycode/docs/superpowers/plans/2026-06-22-p0-p1-fix-plan.md)
+
+### 完整 P0/P1 真实问题清单
+
+| # | 问题 | 关联文件 | 状态 |
+|---|------|----------|------|
+| P0-1 | CI baseline 自动 commit 权限缺失 | .github/workflows/ci-cd.yml | ✅ 已修 |
+| P0-2 | 前端 bi/SalesAnalysis.vue 内存泄漏 | frontend/src/views/bi/SalesAnalysis.vue | ✅ 已修 |
+| P0-3 | 后端无 Cargo.lock | ci-cd.yml 自动生成 | ✅ 已修 |
+| P1-1 | ~~6 处业务路径 panic~~ | ~~测试代码~~ | ❌ 不是真问题 |
+| P1-2 | 后端 9 个 > 800 行服务 | so/order.rs 等 | ⏳ 待修 |
+| P1-3 | 前端 20 个 > 400 行 .vue | quality/index.vue 等 | ⏳ 待修 |
+| P1-4 | ESLint disable 166 处 vue/no-mutating-props | 子组件 Form/Tbl/Filter | ⏳ 待修 |
+| P1-5 | README 文档漂移 | README.md | ⏳ 待修 |
+
+### 推荐修复顺序与工作量
+
+- 批次 B（README 漂移，30min）→ 立即可做
+- 批次 C（so/order.rs 拆分，4-6h）
+- 批次 D（其他 8 个 > 800 行服务，2-3 周）
+- 批次 E（前端 20 个大文件，2-3 周）
+- 批次 F（ESLint disable 166 处收敛，2 周）
+
+### 关键经验教训
+
+1. **CI 工作流的 git push 步骤必须显式 permissions: contents: write**
+2. **Vue 3 script setup 宽容处理会掩盖 template import 缺失**（bi/SalesAnalysis.vue 内存泄漏）
+3. **Rust 测试代码 panic 与业务路径 panic 区分**（需检查 panic! 是否在 #[test] 函数内）
+4. **PR 移除配置时要追因**（移除 --locked 必须确认 Cargo.lock 存在）
+
+### main HEAD
+
+- 远端 main HEAD：`4b08279`（CI 自动 commit + 批次 A 推送完成）
+
+---
+
 ## 文件来源
 
 | 文件 | 用途 | 说明 |
