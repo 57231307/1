@@ -386,6 +386,10 @@
 | **批次 9.5.2 删除 bi/index.vue** | ✅ 已完成（PR #226）| commit `c135e4c`，删除 10 行 pure wrapper，CI 5/5 success |
 | **批次 9.5.3 报表模板重构** | ✅ 已完成（PR #228, 方案 D）| commit `42fb4fc`，删除 dist/test-version-P0-{2,3,4,5}/ 29 文件 + frontend/src/views/report/ 16 文件 = 46 文件 / -3624 行 / CI 5/5 success。放弃新版重构（旧版 report-templates/index.vue 保留）|
 | **安全批次：7 PR 全部 CI 通过并 merged（2026-06-22）** | ✅ 已完成 | #229 DB迁移 + #230 SQL注入 + #231 部署基础设施 + #232 Webhook HMAC + #233 前端XSS + #234 cookie_secret fail-fast + #235 测试密钥收敛；main HEAD: `ee5abb2` |
+| **批次 A：ci(workflow)权限+Cargo.lock+bi 内存泄漏** | ✅ 已完成（2026-06-22）| commit 2e685db + 6c9266f + 4b08279；3 修 P0 问题 |
+| **批次 E 样板 1+2：supplier 拆分 + .vue 拆分模式** | ✅ 已完成（2026-06-22）| commit 3bba8ed（SupplierDialog 拆出）+ commit faa670f（PrdTbl 样板）；验证 props+emit 模式 |
+| **批次 F 样板 1+大：vue/no-mutating-props disable 收敛** | ✅ 已完成（2026-06-22）| commit faa670f（PrdTbl 1 文件）+ commit 6509e72（46 文件 / 79 disable 注释删除）|
+| **P9-2 批次 C/D1-D8 后端大文件拆分** | ✅ 已完成（2026-06-22）| commit c9b579d（D8） + 其他 D1-D7 在 cd13658 快照中；8 个 > 800 行 .rs 文件已拆 |
 | **通知用户手动全新部署** | 🔵 待通知用户 | 用户指令：待手动全新部署（禁止热更新）；部署前需配置 32+ 字节 COOKIE_SECRET 环境变量 |
 
 ### P14+ 候选清单（roadmap v0.3 剩余，6 任务）
