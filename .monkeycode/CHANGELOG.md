@@ -804,6 +804,7 @@
 | #233 | P1-C 前端 XSS（escapeHtml + 8 处 document.write） | ✅ merged | 5/5 |
 | #234 | P2-B cookie_secret fail-fast（< 32 字节 exit(1)） | ✅ merged | 5/5 |
 | #235 | P2-C 测试密钥收敛（统一 TEST_JWT_SECRET 常量） | ✅ merged | 5/5 |
+| #236 | P2-D 部署脚本自动生成 COOKIE_SECRET/JWT_SECRET | ✅ merged | 5/5 |
 
-- **已合并到 main HEAD**：`ee5abb2`（2026-06-22 05:28 UTC+8）
+- **已合并到 main HEAD**：`9a55db1`（2026-06-22 05:48 UTC+8）
 - **用户指令**：待手动全新部署（禁止热更新）
