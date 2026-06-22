@@ -268,9 +268,9 @@ impl SchedulingService {
                         active.planned_end_date = Set(detail.end_date);
                         active.work_center_id = Set(Some(detail.work_center_id));
                         // 自动将DRAFT状态更新为SCHEDULED
-                        if let sea_orm::ActiveValue::Set(Some(s)) = &active.status {
+                        if let sea_orm::ActiveValue::Set(s) = &active.status {
                             if s == "DRAFT" {
-                                active.status = Set(Some("SCHEDULED".to_string()));
+                                active.status = Set("SCHEDULED".to_string());
                             }
                         }
                         active.updated_at = Set(Utc::now());
@@ -332,7 +332,7 @@ impl SchedulingService {
             .map(|wc| WorkCenterInfo {
                 id: wc.id,
                 code: Some(wc.code.clone()),
-                name: Some(wc.name.clone()),
+                name: wc.name.clone(),
                 status: Some(wc.status.clone()),
             })
             .collect();
