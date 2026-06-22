@@ -9,7 +9,16 @@
 //! - 排程结果确认
 
 use super::scheduling_service::SchedulingService;
+use crate::models::production_order::{Entity as ProductionOrderEntity, Model as ProductionOrderModel};
+use crate::models::scheduling_result::{ActiveModel as SchedulingActiveModel, Entity as SchedulingResultEntity};
+use crate::models::work_center::{Entity as WorkCenterEntity, Model as WorkCenterModel};
 use crate::utils::error::AppError;
+use crate::services::scheduling_service::{
+    AutoScheduleResult, DateRange, GanttData, ScheduleDetail, ScheduledOrder, ScheduledOrderQuery,
+    WorkCenterInfo,
+};
+use chrono::{NaiveDate, Utc};
+use sea_orm::Set;
 
 /// P9-2 标记：排程查询子模块路径
 pub const P92_QRY_MODULE: &str = "scheduling_query";
@@ -147,16 +156,21 @@ impl SchedulingService {
                 .unwrap_or_else(|| "未分配".to_string());
 
             results.push(ScheduledOrder {
+                id: order.id,
                 order_id: order.id,
                 order_no: order.order_no,
                 product_id: order.product_id,
                 quantity: order.planned_quantity,
                 work_center_id: order.work_center_id.unwrap_or(0),
                 work_center_name: wc_name,
+                planned_start: order.planned_start_date.unwrap_or(Utc::now().date_naive()),
+                planned_end: order.planned_end_date.unwrap_or(Utc::now().date_naive()),
                 start_time: order.planned_start_date.unwrap_or(Utc::now().date_naive()),
                 end_time: order.planned_end_date.unwrap_or(Utc::now().date_naive()),
-                priority: order.priority,
+                actual_start: order.actual_start_date,
+                actual_end: order.actual_end_date,
                 status: order.status,
+                priority: order.priority,
                 dependencies: Vec::new(),
             });
         }

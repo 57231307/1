@@ -47,7 +47,7 @@ pub struct InventorySummaryQueryResult {
 /// 库存服务（面料行业版）
 #[derive(Debug, Clone)]
 pub struct InventoryStockService {
-    db: Arc<DatabaseConnection>,
+    pub db: Arc<DatabaseConnection>,
 }
 
 impl InventoryStockService {

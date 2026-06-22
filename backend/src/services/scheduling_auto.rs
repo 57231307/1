@@ -11,13 +11,19 @@ use super::scheduling_service::SchedulingService;
 use crate::models::production_order::{self, Entity as ProductionOrderEntity, Model as ProductionOrderModel};
 use crate::services::capacity_service::WorkCenterCapacity;
 use crate::services::scheduling_service::{
-    AutoScheduleRequest, AutoScheduleResult, DateRange, GanttData, ScheduleConflict, WorkCenterInfo,
+    AdjustScheduleRequest, AutoScheduleRequest, AutoScheduleResult, DateRange, GanttData,
+    ScheduleConflict, ScheduleDetail, WorkCenterInfo,
 };
 use crate::utils::error::AppError;
 use chrono::{NaiveDate, Utc};
-use sea_orm::{ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter, QueryOrder, QuerySelect};
+use rust_decimal::Decimal;
+use sea_orm::{
+    ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter, QueryOrder,
+    QuerySelect, Set,
+};
 use std::collections::HashMap;
 use std::sync::Arc;
+use std::time::Duration;
 
 /// P9-2 标记：自动排程子模块路径
 pub const P92_AUTO_MODULE: &str = "scheduling_auto";
@@ -144,6 +150,7 @@ impl SchedulingService {
                     conflicting_order_id: None,
                     conflicting_order_no: None,
                     work_center_id: None,
+                    work_center_name: None,
                     description: format!("工单 {} 未指定有效工作中心", order.order_no),
                     severity: "HIGH".to_string(),
                 });
@@ -168,6 +175,7 @@ impl SchedulingService {
                     conflicting_order_id: None,
                     conflicting_order_no: None,
                     work_center_id: Some(wc_id),
+                    work_center_name: Some(cap.name.clone()),
                     description: format!(
                         "工单 {} 需要产能 {}，工作中心 {} 可用产能不足（剩余 {}）",
                         order.order_no, quantity, cap.name, available
@@ -206,6 +214,7 @@ impl SchedulingService {
                     conflicting_order_id: None,
                     conflicting_order_no: None,
                     work_center_id: Some(wc_id),
+                    work_center_name: Some(cap.name.clone()),
                     description: format!(
                         "工单 {} 在工作中心 {} 存在时间重叠",
                         order.order_no, wc_id
@@ -238,12 +247,15 @@ impl SchedulingService {
         let gantt_data = self.build_gantt_data(&scheduled_details, &work_centers);
 
         Ok(AutoScheduleResult {
-            total_orders: pending_orders.len() as i32,
-            scheduled_orders: scheduled_count,
-            unscheduled_orders: pending_orders.len() as i32 - scheduled_count,
+            scheduled_count,
+            total_orders: Some(pending_orders.len() as i32),
+            scheduled_orders: Some(scheduled_details.clone()),
+            unscheduled_orders: Some(vec![]),
+            schedule_details: Some(scheduled_details),
             conflicts,
             gantt_data,
-            schedule_details: scheduled_details,
+            id: None,
+            batch_no: None,
         })
     }
 
@@ -288,6 +300,7 @@ impl SchedulingService {
                                 conflicting_order_id: Some(b.id),
                                 conflicting_order_no: Some(b.order_no.clone()),
                                 work_center_id: Some(*wc_id),
+                                work_center_name: None,
                                 description: format!(
                                     "工单 {} 和 {} 在工作中心 {} 时间重叠",
                                     a.order_no, b.order_no, wc_id
@@ -309,6 +322,7 @@ impl SchedulingService {
                     conflicting_order_id: None,
                     conflicting_order_no: None,
                     work_center_id: order.work_center_id,
+                    work_center_name: None,
                     description: format!("工单 {} 缺少计划日期", order.order_no),
                     severity: "MEDIUM".to_string(),
                 });
@@ -323,6 +337,7 @@ impl SchedulingService {
                         conflicting_order_id: None,
                         conflicting_order_no: None,
                         work_center_id: order.work_center_id,
+                        work_center_name: None,
                         description: format!("工单 {} 结束日期早于开始日期", order.order_no),
                         severity: "HIGH".to_string(),
                     });

@@ -151,8 +151,10 @@ pub async fn auto_schedule(
         .unwrap_or_else(|| "priority".to_string());
     let req = AutoScheduleRequest {
         work_center_ids: payload.work_center_ids,
-        start_date: payload.start_date,
-        strategy: payload.strategy,
+        start_date: payload.start_date.unwrap_or_else(|| chrono::Utc::now().date_naive()),
+        end_date: payload.start_date.unwrap_or_else(|| chrono::Utc::now().date_naive())
+            + chrono::Duration::days(30),
+        algo: strategy.clone(),
     };
 
     let result = service.auto_schedule(req).await?;
@@ -219,8 +221,8 @@ pub async fn get_gantt_data(
             })
             .collect(),
         date_range: DateRangeResponse {
-            start: gantt_data.date_range.start,
-            end: gantt_data.date_range.end,
+            start: gantt_data.date_range.as_ref().map(|d| d.start).unwrap_or_else(chrono::Utc::now().date_naive),
+            end: gantt_data.date_range.as_ref().map(|d| d.end).unwrap_or_else(chrono::Utc::now().date_naive),
         },
     };
 
@@ -241,12 +243,12 @@ pub async fn detect_conflicts(
         .map(|c| ConflictResponse {
             conflict_type: c.conflict_type,
             order_id: c.order_id,
-            order_no: c.order_no,
+            order_no: c.order_no.unwrap_or_default(),
             conflicting_order_id: c.conflicting_order_id,
             conflicting_order_no: c.conflicting_order_no,
-            work_center_id: c.work_center_id,
+            work_center_id: Some(c.work_center_id),
             description: c.description,
-            severity: c.severity,
+            severity: c.severity.unwrap_or_else(|| "MEDIUM".to_string()),
         })
         .collect();
 
@@ -263,7 +265,11 @@ pub async fn adjust_schedule(
     let service = SchedulingService::new(state.db.clone());
 
     let req = AdjustScheduleRequest {
+        order_id: Some(id),
         work_center_id: payload.work_center_id,
+        new_start: payload.start_date,
+        new_end: payload.end_date,
+        adjust_type: Some("MANUAL".to_string()),
         start_date: payload.start_date,
         end_date: payload.end_date,
         priority: payload.priority,
@@ -273,12 +279,12 @@ pub async fn adjust_schedule(
 
     let response = ScheduleDetailResponse {
         order_id: detail.order_id,
-        order_no: detail.order_no,
+        order_no: detail.order_no.unwrap_or_default(),
         work_center_id: detail.work_center_id,
-        work_center_name: detail.work_center_name,
-        start_date: detail.start_date,
-        end_date: detail.end_date,
-        status: detail.status,
+        work_center_name: detail.work_center_name.unwrap_or_default(),
+        start_date: detail.start_date.unwrap_or(detail.planned_start),
+        end_date: detail.end_date.unwrap_or(detail.planned_end),
+        status: detail.status.unwrap_or_else(|| "SCHEDULED".to_string()),
     };
 
     Ok(Json(ApiResponse::success(response)))
@@ -312,7 +318,11 @@ pub async fn adjust_schedule_task(
     }
 
     let req = AdjustScheduleRequest {
+        order_id: Some(task_id),
         work_center_id: payload.work_center_id,
+        new_start: parse_date(payload.start_time.clone()),
+        new_end: parse_date(payload.end_time.clone()),
+        adjust_type: Some("MANUAL".to_string()),
         start_date: parse_date(payload.start_time),
         end_date: parse_date(payload.end_time),
         priority: payload.priority,
@@ -337,8 +347,8 @@ pub async fn adjust_schedule_task(
         "order_no": detail.order_no,
         "work_center_id": detail.work_center_id,
         "work_center_name": detail.work_center_name,
-        "start_time": format_date(detail.start_date),
-        "end_time": format_date(detail.end_date),
+        "start_time": format_date(detail.start_date.unwrap_or(detail.planned_start)),
+        "end_time": format_date(detail.end_date.unwrap_or(detail.planned_end)),
         "status": detail.status,
     });
 

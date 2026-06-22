@@ -3,10 +3,13 @@
 //! 拆分自 inventory_stock_service.rs：原 4 个 _txn 方法独立成文件。
 
 use rust_decimal::Decimal;
-use sea_orm::DatabaseConnection;
+use sea_orm::{DatabaseConnection, Set};
 use std::sync::Arc;
+use chrono::Utc;
 
 use crate::models::inventory_stock;
+use crate::models::inventory_transaction;
+use crate::services::event_bus::{BusinessEvent, EVENT_BUS};
 use crate::utils::error::AppError;
 
 use super::inventory_stock_service::InventoryStockService;
