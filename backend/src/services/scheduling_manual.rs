@@ -1,4 +1,4 @@
-//! P9-2 排程手动调整子模块（占位）
+//! P9-2 排程手动调整子模块
 //!
 //! 拆分自原 `services/scheduling_service.rs`。
 //!
@@ -7,28 +7,24 @@
 //! - 锁定/解锁工位
 //! - 重新排程
 
+use super::scheduling_service::SchedulingService;
+use crate::utils::error::AppError;
+
 /// P9-2 标记：手动调整子模块路径
 pub const P92_MANUAL_MODULE: &str = "scheduling_manual";
 
 /// 调整类型
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum AdjustType {
-    /// 上移
     MoveUp,
-    /// 下移
     MoveDown,
-    /// 置顶
     MoveTop,
-    /// 置底
     MoveBottom,
-    /// 锁定
     Lock,
-    /// 解锁
     Unlock,
 }
 
 impl AdjustType {
-    /// 中文描述
     pub fn desc(&self) -> &'static str {
         match self {
             Self::MoveUp => "上移",
@@ -40,6 +36,64 @@ impl AdjustType {
         }
     }
 }
+
+impl SchedulingService {
+    // adjust_schedule
+    // 内容来自原 scheduling_service.rs L531-582
+
+    pub async fn adjust_schedule(
+        &self,
+        order_id: i32,
+        req: AdjustScheduleRequest,
+    ) -> Result<ScheduleDetail, AppError> {
+        use sea_orm::ActiveModelTrait;
+        use sea_orm::Set;
+
+        let order = ProductionOrderEntity::find_by_id(order_id)
+            .one(&*self.db)
+            .await?
+            .ok_or_else(|| AppError::not_found("生产订单不存在"))?;
+
+        use crate::models::production_order::ActiveModel;
+        let mut active: ActiveModel = order.clone().into();
+
+        if let Some(wc_id) = req.work_center_id {
+            active.work_center_id = Set(Some(wc_id));
+        }
+        if let Some(start) = req.start_date {
+            active.planned_start_date = Set(Some(start));
+        }
+        if let Some(end) = req.end_date {
+            active.planned_end_date = Set(Some(end));
+        }
+        if let Some(priority) = req.priority {
+            active.priority = Set(priority);
+        }
+
+        active.updated_at = Set(Utc::now());
+
+        let updated = active.update(&*self.db).await?;
+
+        let wc_name = self
+            .get_work_center_name(updated.work_center_id)
+            .await
+            .unwrap_or_else(|| "未知".to_string());
+
+        Ok(ScheduleDetail {
+            order_id: updated.id,
+            order_no: updated.order_no.clone(),
+            work_center_id: updated.work_center_id.unwrap_or(0),
+            work_center_name: wc_name,
+            start_date: updated
+                .planned_start_date
+                .unwrap_or(Utc::now().date_naive()),
+            end_date: updated.planned_end_date.unwrap_or(Utc::now().date_naive()),
+            status: updated.status.clone(),
+        })
+    }
+
+    /// 获取排程工单列表
+
 
 #[cfg(test)]
 mod tests {
