@@ -213,26 +213,60 @@ generate_config() {
             HW_INFO+=$(dmidecode -s system-serial-number 2>/dev/null || echo "no-serial")
             HW_INFO+=$(dmidecode -s baseboard-serial-number 2>/dev/null || echo "no-board-serial")
             HW_INFO+=$(cat /sys/class/dmi/id/product_uuid 2>/dev/null || echo "no-uuid")
-            
+
             # 生成 256 字节密钥（硬件信息 + 随机盐 + 时间戳）
             local SALT=$(openssl rand -hex 32)
             local TIMESTAMP=$(date +%s%N)
             AUDIT_SECRET_KEY=$(echo -n "${HW_INFO}${SALT}${TIMESTAMP}" | sha512sum | awk '{print $1}')
-            
+
             # 追加到 .env 文件
             echo "AUDIT_SECRET_KEY=${AUDIT_SECRET_KEY}" >> "$ENV_FILE"
             log "已自动生成 AUDIT_SECRET_KEY（基于服务器硬件信息）"
         fi
-        
-        # 验证必需的环境变量
+
+        # P2-D 修复：自动生成 COOKIE_SECRET（与 AUDIT_SECRET_KEY 同策略）
+        # 安全原因：cookie_secret < 32 字节时 main.rs 会 fail-fast 退出，
+        # 全新部署时若运维忘记手动设置会直接导致服务启动失败。
+        # 修复方案：检测到 COOKIE_SECRET 为空或长度不足 32 字节时，
+        # 自动用 openssl rand -hex 32 生成 64 字符（32 字节）强随机密钥，
+        # 并持久化到 /etc/bingxi-erp/.env 避免每次部署重新生成（密钥稳定性）。
+        if [ -z "$COOKIE" ] || [ ${#COOKIE} -lt 32 ]; then
+            local GENERATED_COOKIE_SECRET=$(openssl rand -hex 32)
+            if grep -q "^COOKIE_SECRET=" "$ENV_FILE" 2>/dev/null; then
+                # 替换已存在的 COOKIE_SECRET
+                sed -i "s|^COOKIE_SECRET=.*|COOKIE_SECRET=${GENERATED_COOKIE_SECRET}|" "$ENV_FILE"
+            else
+                # 追加到 .env 文件
+                echo "COOKIE_SECRET=${GENERATED_COOKIE_SECRET}" >> "$ENV_FILE"
+            fi
+            # 重新加载变量供后续 cat 使用
+            COOKIE="$GENERATED_COOKIE_SECRET"
+            log "已自动生成 COOKIE_SECRET（64 字符 / 32 字节）"
+        fi
+
+        # P2-D 修复：自动生成 JWT_SECRET（同样策略）
+        # 安全原因：cookie_secret fail-fast 后下一步也会校验 JWT 强度，
+        # 自动生成避免运维忘记设置。
+        if [ -z "$JWT" ] || [ ${#JWT} -lt 32 ]; then
+            local GENERATED_JWT_SECRET=$(openssl rand -hex 32)
+            if grep -q "^JWT_SECRET=" "$ENV_FILE" 2>/dev/null; then
+                sed -i "s|^JWT_SECRET=.*|JWT_SECRET=${GENERATED_JWT_SECRET}|" "$ENV_FILE"
+            else
+                echo "JWT_SECRET=${GENERATED_JWT_SECRET}" >> "$ENV_FILE"
+            fi
+            JWT="$GENERATED_JWT_SECRET"
+            log "已自动生成 JWT_SECRET（64 字符 / 32 字节）"
+        fi
+
+        # 验证必需的环境变量（保留作为最后防线，理论上自动生成后不会触发）
         if [ -z "$DB_PASS" ]; then
             error "DATABASE__PASSWORD 环境变量未设置"
         fi
         if [ -z "$JWT" ]; then
-            error "JWT_SECRET 环境变量未设置"
+            error "JWT_SECRET 环境变量未设置（自动生成失败）"
         fi
         if [ -z "$COOKIE" ]; then
-            error "COOKIE_SECRET 环境变量未设置"
+            error "COOKIE_SECRET 环境变量未设置（自动生成失败）"
         fi
         local REDIS_URL="${REDIS__URL:-redis://127.0.0.1:6379}"
         local REDIS_MAX="${REDIS__MAX_CONNECTIONS:-10}"
