@@ -2,6 +2,7 @@
 //!
 //! 拆分自 inventory_stock_handler.rs：原 7 个 DTO 独立成文件。
 
+use rust_decimal::Decimal;
 use serde::{Deserialize, Serialize};
 use validator::Validate;
 
@@ -55,6 +56,7 @@ pub struct StockResponse {
     pub updated_at: chrono::DateTime<chrono::Utc>,
 }
 
+#[derive(Debug, Deserialize, Validate)]
 pub struct UpdateStockWithVersionRequest {
     pub quantity_on_hand: Option<Decimal>,
     pub quantity_available: Option<Decimal>,
@@ -87,6 +89,7 @@ pub struct LowStockParams {
 // ========== 面料行业库存管理接口 ==========
 
 /// 按批次 + 色号查询库存（面料行业版）
+#[derive(Debug, Deserialize)]
 pub struct ListStockFabricParams {
     pub page: Option<u64>,
     pub page_size: Option<u64>,

@@ -17,6 +17,11 @@ use sea_orm::EntityTrait;
 use serde::{Deserialize, Serialize};
 use validator::Validate;
 
+use super::inventory_stock_handler_dto::{
+    CreateStockFabricRequest, ListStockParams, LowStockParams, StockResponse,
+    UpdateStockWithVersionRequest,
+};
+
 pub async fn get_stock(
     State(state): State<AppState>,
     auth: AuthContext,
