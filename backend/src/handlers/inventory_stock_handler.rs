@@ -339,5 +339,3 @@ pub async fn check_low_stock(
         stock_responses,
     )))
 }
-
-#[derive(Debug, Deserialize, Validate)]

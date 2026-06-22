@@ -165,9 +165,8 @@
 </template>
 
 <script setup lang="ts">
-import { ref, watch, reactive, computed } from 'vue'
+import { ref, computed } from 'vue'
 import type { FormInstance, FormRules } from 'element-plus'
-import type { Supplier } from '@/api/supplier'
 
 // 表单数据结构（与 supplier/index.vue 中 formData 完全一致）
 interface SupplierFormData {
