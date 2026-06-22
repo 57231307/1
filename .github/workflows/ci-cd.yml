@@ -356,6 +356,10 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     needs: ci-info
+    # 启用 contents: write 以便"提交 baseline 文件"步骤能 push 自动建立的基线
+    # PR #238 引入的 baseline 自动 commit 机制因缺此权限而失效，导致基线未纳入版本控制
+    permissions:
+      contents: write
     steps:
       - name: 检出代码
         uses: actions/checkout@v5
@@ -787,6 +791,10 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     needs: ci-info
+    # 启用 contents: write 以便"提交 baseline 文件"步骤能 push 自动建立的基线
+    # PR #238 引入的 baseline 自动 commit 机制因缺此权限而失效，导致基线未纳入版本控制
+    permissions:
+      contents: write
     steps:
       - name: 检出代码
         uses: actions/checkout@v5
@@ -1249,6 +1257,9 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     needs: ci-info
+    # 启用 contents: write 以便提交自动生成的 Cargo.lock 与版本号更新
+    permissions:
+      contents: write
     outputs:
       version: ${{ steps.version.outputs.version }}
     steps:
@@ -1256,6 +1267,28 @@ jobs:
         uses: actions/checkout@v5
         with:
           fetch-depth: 0
+
+      - name: 确保 Cargo.lock 存在（构建可重复性）
+        run: |
+          # PR #238 移除了 --locked 但未生成 Cargo.lock，导致每次 cargo build 重新解析依赖
+          # 这里确保 backend/Cargo.lock 存在并纳入版本控制
+          if [ ! -f "backend/Cargo.lock" ]; then
+            echo "📝 backend/Cargo.lock 不存在，自动生成"
+            cd backend
+            cargo generate-lockfile
+            cd ..
+            git config user.name "github-actions[bot]"
+            git config user.email "github-actions[bot]@users.noreply.github.com"
+            git add backend/Cargo.lock
+            if git commit -m "chore(deps): 生成 backend/Cargo.lock 锁定依赖版本"; then
+              git remote set-url origin https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git
+              git push origin HEAD:${{ github.ref_name }} || echo "⚠️  Cargo.lock push 失败，请人工干预"
+            else
+              echo "⚠️  没有 diff 提交"
+            fi
+          else
+            echo "✅ backend/Cargo.lock 已存在"
+          fi
 
       - name: 生成版本号
         id: version
