@@ -101,18 +101,48 @@ pub async fn refresh_token(
     }
 
     // 生成新的 CSRF Token (use same session_id derivation as login)
+    // Wave 3 安全漏洞 #7 修复：TTL 缩短到 1800s，IP 绑定，强制轮换
     let new_claims =
         AuthService::validate_token_static(&new_token, &state.jwt_secret).map_err(|e| {
             tracing::error!("Failed to decode new JWT token: {}", e);
             AppError::internal("Internal server error")
         })?;
-    let _session_id = new_claims.session_id;
+    let new_session_id = new_claims.session_id;
+
+    // 提取客户端 IP（Wave 3 #7：IP 绑定到 CSRF Token）
+    // 优先从 X-Real-IP / X-Forwarded-For 取（与 audit_context 中间件一致）
+    let refresh_ip = headers
+        .get("X-Forwarded-For")
+        .and_then(|h| h.to_str().ok())
+        .map(|s| s.split(',').next().unwrap_or("").trim().to_string())
+        .filter(|s| !s.is_empty())
+        .or_else(|| {
+            headers
+                .get("X-Real-IP")
+                .and_then(|h| h.to_str().ok())
+                .map(|s| s.to_string())
+                .filter(|s| !s.is_empty())
+        })
+        .unwrap_or_else(|| "unknown".to_string());
+
+    // 强制轮换：刷新 token 时清除该 user_id 关联的旧 CSRF Token（Wave 3 #7）
+    if state.cache.clear_old_csrf_token_for_user(claims.sub) {
+        tracing::info!(
+            user_id = claims.sub,
+            username = %claims.username,
+            "Token 刷新：已清除该用户的旧 CSRF Token（强制轮换）"
+        );
+    }
+
     let csrf_token = uuid::Uuid::new_v4().to_string();
-    let csrf_ttl = std::time::Duration::from_secs(7200); // 2小时，与 JWT 有效期一致
-    state
-        .cache
-        .get_csrf_token_cache()
-        .set(csrf_token.clone(), _session_id, Some(csrf_ttl));
+    // 使用默认 TTL (CSRF_TOKEN_DEFAULT_TTL_SECS = 1800s = 30min)
+    state.cache.set_csrf_token(
+        csrf_token.clone(),
+        new_session_id,
+        refresh_ip,
+        claims.sub,
+        None,
+    );
 
     // 设置新 Cookie（同时写 access_token / csrf_token / 旧版 jwt 兼容）
     let is_production =

@@ -8,7 +8,6 @@ use crate::services::enhanced_logger::{
 };
 use crate::services::totp_service::TotpService;
 use crate::utils::app_state::AppState;
-use crate::utils::cache::Cache;
 use crate::utils::error::AppError;
 use crate::utils::response::ApiResponse;
 use super::auth_handler_session::record_login_attempt;
@@ -303,14 +302,39 @@ pub async fn login(
                     tracing::error!("Failed to decode JWT token: {}", e);
                     AppError::unauthorized("无效的认证令牌")
                 })?;
-            let _session_id = claims.session_id;
-            // 生成随机 CSRF Token 并存储到缓存中（使用 token 本身作为 key，允许同一会话多个有效 token）
+            let session_id = claims.session_id;
+
+            // 提取客户端 IP（Wave 3 安全漏洞 #7：IP 绑定到 CSRF Token）
+            // 优先从 AuditContext 取（已处理 X-Real-IP / X-Forwarded-For 多级降级），
+            // 缺失时回退到 local 提取（双保险，与 audit_log 一致）。
+            let csrf_ip = audit_ctx
+                .as_ref()
+                .map(|e| e.0.ip_address.clone())
+                .filter(|s| !s.is_empty())
+                .unwrap_or_else(|| client_ip.clone());
+
+            // 强制轮换：登录前清除该 user_id 关联的旧 CSRF Token（Wave 3 #7）
+            let rotated = state.cache.clear_old_csrf_token_for_user(user.id);
+            if rotated {
+                tracing::info!(
+                    user_id = user.id,
+                    username = %payload.username,
+                    "已清除该用户的旧 CSRF Token（强制轮换）"
+                );
+            }
+
+            // 生成随机 CSRF Token 并存储到缓存中（Wave 3 #7）：
+            // - 缓存值 = (session_id, ip_address) 元组，IP 用于消费时校验
+            // - 反向索引 user_id → csrf_token 支持强制轮换
+            // - TTL = CSRF_TOKEN_DEFAULT_TTL_SECS (1800s = 30min)，与 access_token Cookie 对齐
             let csrf_token = uuid::Uuid::new_v4().to_string();
-            let csrf_ttl = std::time::Duration::from_secs(7200); // 2小时，与 JWT 有效期一致
-            state
-                .cache
-                .get_csrf_token_cache()
-                .set(csrf_token.clone(), _session_id, Some(csrf_ttl));
+            state.cache.set_csrf_token(
+                csrf_token.clone(),
+                session_id,
+                csrf_ip,
+                user.id,
+                None, // 使用默认 TTL (1800s)
+            );
 
             // 生成 refresh_token (简单的随机字符串)
             let refresh_token = uuid::Uuid::new_v4().to_string();
