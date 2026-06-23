@@ -28,6 +28,7 @@
       :query-params="sc.queryParams"
       :customers="sc.customers"
       :date-range="sc.dateRange"
+      @update:query-params="(v) => Object.assign(sc.queryParams, v)"
       @query="sc.handleQuery"
       @reset="sc.handleReset"
       @date-change="onDateChange"
@@ -53,13 +54,13 @@
       :title="sc.dialogTitle"
       :form-data="sc.formData"
       :customers="sc.customers"
+      @update:form-data="(v) => Object.assign(sc.formData, v)"
       @submit="onSubmitForm"
     />
   </div>
 </template>
 
 <script setup lang="ts">
-/* eslint-disable vue/no-mutating-props */
 import { ref, onMounted } from 'vue'
 import { Plus, Printer, Download } from '@element-plus/icons-vue'
 import type { SalesContract } from '@/api/sales-contract'
