@@ -1,13 +1,17 @@
 //! 系统初始化处理器
 
+use crate::middleware::audit_context::AuditContext;
+use crate::middleware::auth_context::AuthContext;
 use crate::services::init_service::{
     get_init_tasks, DatabaseConfig, InitRequest, InitService, InitStatus, InitTaskStatus,
 };
+use crate::utils::admin_checker::is_admin_role;
 use crate::utils::app_state::AppState;
+use crate::utils::audit::{self, SecurityEvent};
 use crate::utils::error::AppError;
 use crate::utils::response::ApiResponse;
 use axum::extract::Query;
-use axum::{extract::State, Json};
+use axum::{extract::State, Extension, Json};
 use std::collections::HashMap;
 
 #[derive(Debug, serde::Deserialize)]
@@ -149,12 +153,48 @@ pub struct ResetPasswordResponse {
     pub message: String,
 }
 
+/// 重置用户密码（P0 修复：必须 admin 登录后才能调用）
+///
+/// 安全约束：
+/// 1. 必须登录并具备 admin 角色（深度防御：service 层再做用户存在性二次校验 + 密码强度校验）
+/// 2. 不允许重置自己的密码（防止 admin 误操作锁定自己）
+/// 3. 审计日志记录"谁在什么时间重置谁的密码"（不记录明文密码）
 pub async fn reset_admin_password(
     State(state): State<AppState>,
+    auth: AuthContext,
+    audit_ctx: Option<Extension<AuditContext>>,
     Json(payload): Json<ResetPasswordRequest>,
 ) -> Result<Json<ApiResponse<ResetPasswordResponse>>, AppError> {
-    let init_service = InitService::new(state.db.clone());
+    // 1) 强制要求管理员角色（防御深度：缺 role_id 直接拒绝，避免后续 is_admin_role 误判）
+    let role_id = auth
+        .role_id
+        .ok_or_else(|| AppError::permission_denied("用户未分配角色，无法执行该操作"))?;
+    if !is_admin_role(&state.db, role_id).await {
+        return Err(AppError::permission_denied(
+            "重置密码功能仅限管理员（code=admin）执行",
+        ));
+    }
+    // 2) 自我保护：禁止重置当前登录管理员的密码（防止误操作锁定自己）
+    if auth.username == payload.username {
+        return Err(AppError::bad_request(
+            "不能重置当前登录管理员的密码，请联系其他管理员",
+        ));
+    }
+    // 3) 审计日志：best-effort 写入安全审计（结构化日志，当前未落 DB）
+    //    仅记录操作语义和目标用户名，不写入明文密码或密码哈希
+    audit::log_security_event(
+        SecurityEvent::ResetPassword,
+        auth.user_id,
+        &auth.username,
+        auth.role_id,
+        Some(&payload.username),
+        None,
+        audit_ctx.as_deref(),
+    )
+    .await;
 
+    // 4) 调用 service 层执行重置（service 层会做密码强度 + 用户存在性二次校验）
+    let init_service = InitService::new(state.db.clone());
     init_service
         .reset_password(&payload.username, &payload.new_password)
         .await
@@ -171,6 +211,9 @@ pub async fn reset_admin_password(
             crate::services::init_service::InitError::UserNotFound => {
                 AppError::not_found("用户不存在")
             }
+            crate::services::init_service::InitError::ValidationError(msg) => {
+                AppError::bad_request(format!("密码强度校验失败：{}", msg))
+            }
             _ => map_init_error(e),
         })
 }
@@ -178,7 +221,7 @@ pub async fn reset_admin_password(
 /// 将 `InitError` 统一映射为 `AppError`。
 ///
 /// 错误分类：
-/// - `AlreadyInitialized` / `HashError` / `UserNotFound` / `ConfigError` → 业务/校验错误（400）
+/// - `AlreadyInitialized` / `HashError` / `UserNotFound` / `ConfigError` / `ValidationError` → 业务/校验错误（400）
 /// - `DatabaseError` → 数据库错误（500）
 fn map_init_error(e: crate::services::init_service::InitError) -> AppError {
     match e {
@@ -192,6 +235,9 @@ fn map_init_error(e: crate::services::init_service::InitError) -> AppError {
         crate::services::init_service::InitError::UserNotFound => AppError::not_found("用户不存在"),
         crate::services::init_service::InitError::ConfigError(msg) => {
             AppError::bad_request(format!("配置错误: {}", msg))
+        }
+        crate::services::init_service::InitError::ValidationError(msg) => {
+            AppError::bad_request(format!("参数校验失败: {}", msg))
         }
     }
 }

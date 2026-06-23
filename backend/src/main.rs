@@ -153,6 +153,8 @@ async fn initialize_with_db(
                 crate::services::init_service::InitError::DatabaseError(_) => "database_error",
                 crate::services::init_service::InitError::UserNotFound => "user_not_found",
                 crate::services::init_service::InitError::ConfigError(_) => "config_error",
+                // P0 新增：参数校验错误（如密码强度不足）
+                crate::services::init_service::InitError::ValidationError(_) => "validation_error",
             };
 
             let message = match e {
@@ -166,6 +168,10 @@ async fn initialize_with_db(
                 crate::services::init_service::InitError::UserNotFound => "用户不存在".to_string(),
                 crate::services::init_service::InitError::ConfigError(msg) => {
                     format!("配置错误: {}", msg)
+                }
+                // P0 新增：参数校验错误中文提示
+                crate::services::init_service::InitError::ValidationError(msg) => {
+                    format!("参数校验失败: {}", msg)
                 }
             };
 
