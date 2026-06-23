@@ -50,6 +50,7 @@
       v-model:visible="olv.deliveryDialogVisible"
       :form="olv.deliveryForm"
       :warehouses="olv.warehouses"
+      @update:form="(v) => Object.assign(olv.deliveryForm, v)"
     />
   </div>
 </template>

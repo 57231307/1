@@ -2,6 +2,7 @@
   DeliveryDialog.vue - 销售发货对话框
   来源：原 sales/index.vue 中 发货 dialog
   拆分日期：2026-06-15 B3-1
+  P9-3 批次 F 重构：移除 vue/no-mutating-props 抑制，通过 emit 整体覆盖 + 局部 update
 -->
 <template>
   <el-dialog
@@ -93,8 +94,8 @@
 </template>
 
 <script setup lang="ts">
-// 注：form 由父组件通过 ref() 创建，prop 传递的 form 对象在父子组件间共享是设计意图；
-// 子组件在用户交互时直接更新 form 字段，父组件通过 v-model 同步可见。
+// 注：form 由父组件通过 reactive() 创建并通过 prop 传入；
+// 子组件在用户交互时通过 emit('update:form', newForm) 整体覆盖，避免直接修改 prop。
 import { ElMessage } from 'element-plus'
 
 interface DeliveryItem {
@@ -129,18 +130,22 @@ const emit = defineEmits<{
   submit: [data: DeliveryForm]
 }>()
 
-// 通过 emit 通知父组件更新 form 字段，避免直接修改 prop
+// 通过 emit 通知父组件更新 form 字段（顶层字段）
 const updateForm = <K extends keyof DeliveryForm>(key: K, value: DeliveryForm[K]) => {
   emit('update:form', { ...props.form, [key]: value })
 }
 
+// 通过 emit 通知父组件更新 items 数组中的指定行
 const updateItem = <K extends keyof DeliveryItem>(
   row: DeliveryItem,
   key: K,
   value: DeliveryItem[K]
 ) => {
-  // eslint-disable-next-line vue/no-mutating-props
-  row[key] = value
+  // 创建新的 items 数组（不可变更新），避免直接修改 prop.items
+  const newItems = props.form.items.map(item =>
+    item === row ? { ...item, [key]: value } : item
+  )
+  emit('update:form', { ...props.form, items: newItems })
 }
 
 const handleSubmit = (form: DeliveryForm) => {
