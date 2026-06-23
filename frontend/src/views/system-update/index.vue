@@ -84,13 +84,13 @@
       v-model:visible="backupDialogVisible"
       :form="backupForm"
       :submit-loading="backupSubmitLoading"
+      @update:form="(v) => Object.assign(backupForm, v)"
       @submit="onBackupSubmit"
     />
   </div>
 </template>
 
 <script setup lang="ts">
-/* eslint-disable vue/no-mutating-props */
 import { ref, onMounted } from 'vue'
 import { Refresh, FolderAdd } from '@element-plus/icons-vue'
 import { useSysUpd } from './composables/useSysUpd'
