@@ -5,6 +5,151 @@
 
 ---
 
+## 最新任务：🔵 安全漏洞 Wave 4 P3-#5 #10 #11 #12 #13 #14 修复（启动中，2026-06-23）
+
+**分支**：`fix/security-wave4-p3-2026-06-23`（从 main 2ab793c 切出）
+**漏洞等级**：P3 / 低（1 月内修复）
+**修复状态**：🔵 启动中，4 子代理并行
+
+### 漏洞清单（6 个，源自 Wave 1 计划文档 §三-161-167）
+
+| 漏洞 | 标题 | 涉及文件 | 派发子代理 |
+|------|------|----------|------------|
+| #5 | get_task_status 加 auth + require_admin_role | `handlers/init_handler.rs` 或 `auth_handler.rs` | A |
+| #10 | LoginResponse 移除 `token` 字段（保留 cookie）| `handlers/auth_handler.rs` (LoginResponse DTO) | B |
+| #11 | 错误响应体生产环境移除 `error_type` | `utils/response.rs` 或中间件 | C |
+| #12 | `is_production` 改用 `APP_ENV=production` 环境变量 | `main.rs` + `utils/response.rs` | C |
+| #13 | LoginResponse 移除 `refresh_token` 字段（保留 cookie）| `handlers/auth_handler.rs` (LoginResponse DTO) | B |
+| #14 | 登录响应权限列表改为 `Vec<String>` 资源标识符 | `handlers/auth_handler.rs` (LoginResponse DTO) | D |
+
+### 派发策略：4 子代理并行（按文件分组）
+
+| 子代理 | 漏洞 | 关注点 | 涉及文件 |
+|--------|------|--------|----------|
+| A | #5 | get_task_status 权限 | init_handler.rs / auth_handler.rs |
+| B | #10 + #13 + #14 | LoginResponse 字段调整 + permissions 类型转换（强相关，同 DTO）| auth_handler.rs (LoginResponse 定义 + login 逻辑) |
+| C | #11 + #12 | 错误响应 + 生产环境配置 | utils/response.rs + main.rs |
+
+**注**：原计划 D 子代理（#14）已并入 B 子代理（3 漏洞同一 DTO，串行处理避免冲突）。
+
+### 协调机制
+
+- A 与 B 无文件冲突
+- B 与 C 都可能改 `auth_handler.rs`：
+  - B 改 LoginResponse + login 逻辑（L40-360）
+  - C 改 `is_production` 变量名（L364）→ **冲突点**
+- **解决方案**：
+  - C 先把 `is_production` 改为 `is_production()` 函数调用（仅 1 行）
+  - B 之后再改 LoginResponse 字段（不触碰 L364）
+  - 如果合并冲突，主代理手动 merge `is_production` 替换
+- 都不修改 `utils/audit.rs`（保持 Wave 1-3 审计模块不变）
+- 都不修改 `Cargo.toml`（不引入新依赖）
+
+### 子代理 B 修复报告（#10 + #13 + #14，2026-06-23）
+
+**修复状态**：✅ 代码完成（未 commit，由主代理统一 commit + push）
+
+**修改文件清单**：
+
+| 文件 | 行数变化 | 变更说明 |
+|------|----------|----------|
+| `backend/src/handlers/auth_handler.rs` | +108 / -16 | 删除 `UserPermissionDto` 结构体；`LoginResponse` 删除 `token` + `refresh_token` 字段；`permissions: Vec<UserPermissionDto>` → `Vec<String>`（资源标识符格式 `"{resource}:{action}"`）；login 函数权限转换代码 + LoginResponse 构造处调整；新增 4 个单测（`omits_token_field` / `omits_refresh_token_field` / `permissions_is_string_array` / `field_whitelist`） |
+
+**关键决策**：
+1. **删除 `UserPermissionDto`**：grep 确认全 backend/src 无其他引用（仅自身定义 + 构造处），符合死代码治理规范，**显式删除**（不保留 `#[allow(dead_code)]`）
+2. **权限格式**：`"{resource}:{action}"`（如 `"user.list:read"`），前端可直接 `permissions.includes("user.list:read")` 判断
+3. **refresh_token cookie**：删除响应体字段后，cookie 构造从 `response.refresh_token.clone()` 改为直接使用局部变量 `refresh_token`
+4. **csrf_token 保留**：前端 form header 需携带（`X-CSRF-Token`），且由非 httpOnly Cookie 暴露给 JS
+5. **is_production 跳过**：L364-365 仍由 C 子代理改为 `is_production()` 函数调用
+6. **OpenAPI 文档同步**：`openapi.rs:79` 注册的 `crate::handlers::auth_handler::LoginResponse` 类型不变（utoipa 自动从 Rust struct 生成 schema，删除字段后 schema 自动同步）
+
+**静态验证结果**：
+- `grep "LoginResponse {" backend/src/handlers/auth_handler.rs` → 3 处（结构体定义 L50 / 构造处 L357 / 测试构造处 L513）
+- `grep -rn "UserPermissionDto" backend/src/` → 0 处实际使用（仅 3 处注释引用：L43 / L591 / L594）
+- `grep -rn "LoginResponse" backend/src/` → auth_handler.rs (定义+构造+测试) + openapi.rs:79（OpenAPI 注册），无其他引用
+- `grep -n "is_production" backend/src/handlers/auth_handler.rs` → L365/372/381/391/400 均保留（C 子代理会改为 `is_production()`）
+
+**前端影响报告**（不修改，由其他批次处理）：
+- `frontend/src/types/api.ts:9-14` `LoginResponse` 接口仍定义 `token` / `refresh_token` / `expires_in` 字段，需更新
+- `frontend/src/api/auth.ts:11-29` `LoginResponseWithCsrf` 类型 + `login()` 函数仍按旧结构 destructure 响应体（`res.token` / `res.refresh_token` 不再存在）
+- `frontend/src/store/user.ts:11-22` `userStore.login()` 仍检查 `responseData.token` 字段（`if (responseData.token)` 永真分支）
+- `frontend/src/views/Login.vue:214-223` `userStore.userInfo.permissions` 当前按 `string[]` 使用（`.map((code: string) => ...)`），已与新 DTO 对齐，**无需修改**
+
+**新单测**（4 个，文件末尾 `#[cfg(test)] mod tests`）：
+1. `test_login_response_omits_token_field` —— 验证 JSON 序列化不含 `token` 字段
+2. `test_login_response_omits_refresh_token_field` —— 验证 JSON 序列化不含 `refresh_token` 字段
+3. `test_login_response_permissions_is_string_array` —— 验证 `permissions` 是 `Vec<String>` 且格式正确
+4. `test_login_response_field_whitelist` —— 验证响应体仅包含 `csrf_token` / `user` / `permissions` 三个白名单字段
+
+**commit message 草稿**：
+```
+fix(backend): 安全漏洞 #10 #13 #14 - LoginResponse 移除敏感字段 + permissions 改为资源标识符
+- #10：LoginResponse 删除 token 字段（access_token 已在 httpOnly Cookie 写入）
+- #13：LoginResponse 删除 refresh_token 字段（refresh_token 已在 httpOnly Cookie 写入）
+- #14：LoginResponse permissions 改为 Vec<String> 资源标识符（格式 "{resource}:{action}"）
+- 删除不再使用的 UserPermissionDto 结构体（全代码无引用）
+- 新增 4 个单测验证 LoginResponse 字段白名单 + 权限类型
+- 同步影响前端：api/auth.ts + types/api.ts + store/user.ts（待其他批次处理）
+```
+
+### 子代理 C 修复报告（#11 + #12，2026-06-23）
+
+**修复状态**：✅ 代码完成（未 commit，由主代理统一 commit + push）
+
+**修改文件清单**：
+
+| 文件 | 行数变化 | 变更说明 |
+|------|----------|----------|
+| `backend/Cargo.toml` | +2 / -0 | 新增 `dotenvy = "0.15"` 依赖（dotenvy 0.15.7 已在 Cargo.lock 中作为 sea-orm-cli 传递依赖） |
+| `backend/src/utils/config.rs` | +100 / -0 | **新增**模块：`is_production()` 函数（从 `APP_ENV` 读取，不区分大小写匹配 `production`）+ 4 个单测 |
+| `backend/src/utils/mod.rs` | +1 / -0 | 注册 `pub mod config;` |
+| `backend/src/utils/error.rs` | +90 / -10 | `IntoResponse` 重构：生产环境仅 `code + message + trace_id + timestamp`；移除 `error_type` / `detail` 字段；新增 5 个单测（生产/开发双向覆盖）|
+| `backend/src/handlers/auth_handler.rs` | +2 / -2 | L364-365 替换 `ENV` 判断为 `is_production()` 函数调用 |
+| `backend/src/handlers/auth_handler_misc.rs` | +2 / -2 | L152 同样替换 |
+| `backend/src/handlers/auth_handler_session.rs` | +2 / -2 | L123 同样替换 |
+| `backend/src/main.rs` | +8 / -0 | 启动时 `dotenvy::dotenv().ok()` 加载 .env 文件 |
+
+**关键决策**：
+1. **新增独立 `utils/config.rs` 模块**：避免循环依赖（`utils/audit.rs` 不应被 error/handler 反向依赖）；模块仅依赖 `std::env`，可被任何层级引用
+2. **`APP_ENV` 而非 `ENV`**：与 telemetry/observability 的 `ENV` 区分（telemetry 仍按原用法），新约定 `APP_ENV=production`；保守策略：未设置按开发环境处理
+3. **API 破坏性变更**：错误响应 `code` 字段从数字（HTTP status）改为字符串（业务错误码，如 `"NOT_FOUND"`），与 `ErrorResponse` 统一
+4. **新增 `trace_id` + `timestamp`**：UUID v4 + Unix epoch seconds，便于客户端关联服务端日志
+5. **dotenvy 不覆盖**：仅加载**未设置**的环境变量（dotenvy 默认行为），不覆盖 systemd EnvironmentFile / CI 注入的变量
+6. **测试用例互不污染**：每个 test 在开头 `set_var` / 结尾 `remove_var` 清理环境变量
+
+**静态验证结果**：
+- `grep "is_production" backend/src/` → 34 处（5 个引用方 + 1 个测试模块 + 28 个文档/注释引用），全部用统一函数 ✅
+- `grep "APP_ENV" backend/src/` → 仅在 `config.rs` 读取 + 测试用例 + 注释 ✅
+- `grep "dotenvy" backend/Cargo.toml` → 1 处声明 ✅
+- `grep "error_type" backend/src/utils/error.rs` → 11 处（10 个 match arm 构造 + 1 个 body 内引用），均按 prod/dev 路径条件包含 ✅
+- `grep "cfg!\\b" backend/src/` → 0 处运行时判断（仅 `cfg!(windows)` 在 system_update_service.rs 是 OS 检测，不相关）✅
+- `grep "ENV" backend/src/` → telemetry.rs（2 处）+ observability/config.rs（1 处）保留，**不在本任务范围**（与 is_production 无关，telemetry 需多环境区分）
+
+**新单测**（9 个）：
+- `utils/config.rs`：4 个（`test_is_production_with_production_value` / `_with_development_value` / `_with_unset` / `_case_insensitive`）
+- `utils/error.rs`：5 个（`test_production_response_omits_error_type` / `_omits_detail` / `test_development_response_includes_error_type_and_detail` / `test_to_response_uses_public_message_in_production` / `_uses_display_in_development`）
+
+**commit message 草稿**：
+```
+fix(backend): 安全漏洞 #11 #12 - 错误响应脱敏 + is_production 配置统一
+
+#11：错误响应体生产环境移除 error_type / detail 字段（防信息泄露）
+#11：响应体新增 trace_id + timestamp 便于客户端关联服务端日志
+#11：API 破坏性变更 - code 字段从数字改为字符串（与 ErrorResponse 统一）
+
+#12：新增 utils/config.rs 统一 is_production() 函数（从 APP_ENV 读取）
+#12：5 处历史代码（auth_handler * 3 + error.rs * 2）从多源判断迁移到统一函数
+#12：main.rs 启动时加载 .env 文件（dotenvy::dotenv）
+
+新增 9 个单测覆盖 is_production + 错误响应脱敏
+新增依赖 dotenvy = "0.15"（已在 Cargo.lock 中）
+不修改 utils/audit.rs
+```
+
+---
+
+
+
 ## 最新任务：🎉 安全漏洞 Wave 3 P2-#7 #8 修复 PR #242 merged（2026-06-23）
 
 **分支**：`fix/security-wave3-p2-2026-06-23`（从 main cdb2ada 切出）

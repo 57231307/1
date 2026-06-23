@@ -80,7 +80,12 @@ impl std::error::Error for AppError {}
 
 impl IntoResponse for AppError {
     fn into_response(self) -> Response {
-        let is_production = !cfg!(debug_assertions);
+        // 漏洞 #12 修复：is_production 统一从 `crate::utils::config::is_production()` 读取
+        // 历史问题：原 `!cfg!(debug_assertions)` 是**编译时**判断，导致：
+        // 1. release 构建后无法通过环境变量关闭脱敏（CI 测试不友好）
+        // 2. 与 `auth_handler.rs` 的 `ENV=production` 判断不一致（多源配置漂移）
+        // 现在统一从 `APP_ENV` 环境变量读取，CI 可注入 `APP_ENV=production` 测试脱敏路径
+        let is_production = crate::utils::config::is_production();
         let (status, error_type, error_message, log_detail) = match &self {
             AppError::DatabaseError(msg) => {
                 let detail = serde_json::json!({
@@ -279,20 +284,35 @@ impl IntoResponse for AppError {
             }
         };
 
-        let (final_message, final_detail) = if is_production {
-            (self.public_message(), serde_json::json!(null))
+        // 漏洞 #11 修复：生产环境脱敏 error_type / detail
+        // 历史问题：原代码总是序列化 `error_type` 和 `detail`，生产环境会泄露：
+        // 1. error_type 暴露内部错误分类（DatabaseError / ValidationError / ...）
+        //    协助攻击者识别后端技术栈与错误处理逻辑
+        // 2. detail 包含 severity / action_required / 内部建议，违反"最小披露原则"
+        // 修复策略：生产环境只返回 code + message + trace_id + timestamp
+        //          开发环境保留 error_type + detail 便于排查
+        // 同时新增 trace_id + timestamp 便于客户端关联服务端日志
+        let trace_id = uuid::Uuid::new_v4().to_string();
+        let timestamp = chrono::Utc::now().timestamp();
+        let body = if is_production {
+            // 生产环境：仅返回脱敏后的 code + message + 链路追踪信息
+            serde_json::json!({
+                "code": self.error_code(),
+                "message": self.public_message(),
+                "trace_id": trace_id,
+                "timestamp": timestamp,
+            })
         } else {
-            (error_message, log_detail)
+            // 开发环境：返回完整 error_type + detail 便于排错
+            serde_json::json!({
+                "code": self.error_code(),
+                "message": error_message,
+                "trace_id": trace_id,
+                "timestamp": timestamp,
+                "error_type": error_type,
+                "detail": log_detail,
+            })
         };
-
-        // 返回统一的 ApiResponse 格式 {code, data, message}
-        let body = serde_json::json!({
-            "code": status.as_u16(),
-            "data": null,
-            "message": final_message,
-            "error_type": error_type,
-            "detail": final_detail
-        });
 
         (status, Json(body)).into_response()
     }
@@ -417,19 +437,22 @@ impl AppError {
     /// 转换为对外统一的 [`ErrorResponse`]
     ///
     /// 行为：
-    /// - `cfg!(debug_assertions)` 为 true（即 `cargo run` / `cargo test`）→ 返回 `Display` 详细描述
-    /// - release 构建 → 返回脱敏的通用文案，敏感信息（SQL 片段、内部堆栈等）不再外泄
+    /// - `APP_ENV=production`（大小写不敏感） → 返回脱敏的通用文案
+    /// - 其他情况（未设置 / development / test） → 返回 `Display` 详细描述，便于排查
+    ///
+    /// 漏洞 #12 修复：从编译时 `cfg!(debug_assertions)` 改为运行时 `APP_ENV` 判断，
+    /// 统一与 `IntoResponse::into_response` 的脱敏策略；CI 可注入 `APP_ENV=production` 验证
     pub fn to_response(&self) -> ErrorResponse {
         let trace_id = Uuid::new_v4().to_string();
         let timestamp = Utc::now().timestamp();
 
         let code = self.error_code();
-        let message = if cfg!(debug_assertions) {
-            // 开发环境：暴露 Display 的完整内容，便于排查
-            self.to_string()
-        } else {
+        let message = if crate::utils::config::is_production() {
             // 生产环境：脱敏为通用文案
             self.public_message()
+        } else {
+            // 开发/测试环境：暴露 Display 的完整内容，便于排查
+            self.to_string()
         };
 
         ErrorResponse {
@@ -471,5 +494,125 @@ impl AppError {
             AppError::NotImplemented(_) => "功能未实现".to_string(),
             AppError::TooManyRequests { .. } => "请求过于频繁，请稍后重试".to_string(),
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use axum::body::to_bytes;
+
+    /// 辅助函数：从 IntoResponse 提取 body JSON
+    async fn extract_body_json(response: Response) -> serde_json::Value {
+        let body_bytes = to_bytes(response.into_body(), 65536)
+            .await
+            .expect("读取响应体失败");
+        serde_json::from_slice(&body_bytes).expect("响应体不是合法 JSON")
+    }
+
+    /// 漏洞 #11 测试：生产环境响应（APP_ENV=production）**不含** `error_type` 字段
+    ///
+    /// 背景：`error_type` 暴露内部错误分类（DatabaseError / ValidationError / ...），
+    /// 协助攻击者识别后端技术栈。生产环境必须脱敏。
+    #[tokio::test]
+    async fn test_production_response_omits_error_type() {
+        // 强制设置生产环境
+        std::env::set_var("APP_ENV", "production");
+        let err = AppError::DatabaseError("connection refused".to_string());
+        let response = err.into_response();
+        let body_json = extract_body_json(response).await;
+        assert!(
+            body_json.get("error_type").is_none(),
+            "生产环境响应不应包含 error_type 字段，实际 body: {}",
+            body_json
+        );
+        // 验证 code + message 仍存在（脱敏后保留基本信息）
+        assert!(body_json.get("code").is_some(), "生产环境响应应包含 code");
+        assert!(
+            body_json.get("message").is_some(),
+            "生产环境响应应包含 message"
+        );
+        std::env::remove_var("APP_ENV");
+    }
+
+    /// 漏洞 #11 测试：生产环境响应（APP_ENV=production）**不含** `detail` 字段
+    ///
+    /// 背景：`detail` 包含 severity / action_required / 内部建议，
+    /// 泄露内部错误处理策略。生产环境必须脱敏。
+    #[tokio::test]
+    async fn test_production_response_omits_detail() {
+        std::env::set_var("APP_ENV", "production");
+        let err = AppError::ValidationError("字段 email 格式错误".to_string());
+        let response = err.into_response();
+        let body_json = extract_body_json(response).await;
+        assert!(
+            body_json.get("detail").is_none(),
+            "生产环境响应不应包含 detail 字段，实际 body: {}",
+            body_json
+        );
+        std::env::remove_var("APP_ENV");
+    }
+
+    /// 漏洞 #11 反向测试：开发环境响应**包含** `error_type` 和 `detail` 字段
+    ///
+    /// 验证开发/排错场景仍能拿到完整错误信息。
+    #[tokio::test]
+    async fn test_development_response_includes_error_type_and_detail() {
+        // 确保不是 production
+        std::env::remove_var("APP_ENV");
+        let err = AppError::NotFound("用户 ID=42".to_string());
+        let response = err.into_response();
+        let body_json = extract_body_json(response).await;
+        assert!(
+            body_json.get("error_type").is_some(),
+            "开发环境响应应包含 error_type 字段，实际 body: {}",
+            body_json
+        );
+        assert!(
+            body_json.get("detail").is_some(),
+            "开发环境响应应包含 detail 字段，实际 body: {}",
+            body_json
+        );
+        // 验证 error_type 是 "NotFound" 字符串
+        assert_eq!(
+            body_json.get("error_type").and_then(|v| v.as_str()),
+            Some("NotFound")
+        );
+    }
+
+    /// 漏洞 #12 反向测试：to_response() 在生产环境下返回脱敏 message
+    #[tokio::test]
+    async fn test_to_response_uses_public_message_in_production() {
+        std::env::set_var("APP_ENV", "production");
+        let err = AppError::DatabaseError("internal SQL: SELECT * FROM secrets".to_string());
+        let response = err.to_response();
+        // 脱敏后不应包含原始 SQL 片段
+        assert!(
+            !response.message.contains("secrets"),
+            "生产环境 message 不应泄露内部细节，实际 message: {}",
+            response.message
+        );
+        // 脱敏后应包含通用文案
+        assert!(
+            response.message.contains("数据库错误")
+                || response.message.contains("服务器"),
+            "生产环境 message 应为脱敏文案，实际 message: {}",
+            response.message
+        );
+        std::env::remove_var("APP_ENV");
+    }
+
+    /// 漏洞 #12 反向测试：to_response() 在非生产环境下返回 Display 完整描述
+    #[tokio::test]
+    async fn test_to_response_uses_display_in_development() {
+        std::env::remove_var("APP_ENV");
+        let err = AppError::DatabaseError("connection timeout".to_string());
+        let response = err.to_response();
+        // 开发环境保留 Display 输出
+        assert!(
+            response.message.contains("connection timeout"),
+            "开发环境 message 应保留 Display 内容，实际 message: {}",
+            response.message
+        );
     }
 }

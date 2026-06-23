@@ -120,8 +120,8 @@ pub async fn logout(
     let svc = Arc::new(AuditLogService::new(state.db.clone()));
     svc.record_async(logout_event, audit_ctx.map(|e| e.0));
 
-    let is_production =
-        std::env::var("ENV").unwrap_or_else(|_| "development".to_string()) == "production";
+    // 漏洞 #12 修复：统一从 `crate::utils::config::is_production()` 读取 APP_ENV
+    let is_production = crate::utils::config::is_production();
 
     // 清除所有登录态 Cookie（max_age 设为 0 即立刻过期）
     // - access_token / refresh_token: httpOnly，防 XSS

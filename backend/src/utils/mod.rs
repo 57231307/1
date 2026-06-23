@@ -7,6 +7,7 @@ pub mod failover;
 pub mod path_utils;
 pub mod request_ext;
 
+pub mod config; // Wave 4 漏洞 #12：统一 is_production 配置来源（APP_ENV）
 pub mod di_container;
 pub mod dual_unit_converter;
 pub mod error;
