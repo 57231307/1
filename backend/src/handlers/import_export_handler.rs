@@ -28,10 +28,7 @@ use crate::utils::response::ApiResponse;
 #[derive(Debug, Deserialize, Validate)]
 pub struct CsvImportRequest {
     pub import_type: String,
-    #[validate(length(
-        max = 10 * 1024 * 1024,
-        message = "CSV 数据超过 10MB 上限"
-    ))]
+    #[validate(length(max = 10 * 1024 * 1024, message = "CSV 数据超过 10MB 上限"))]
     pub data: String, // CSV 格式的字符串
 }
 
@@ -42,10 +39,7 @@ pub struct CsvImportRequest {
 #[derive(Debug, Deserialize, Validate)]
 pub struct ExcelImportRequest {
     pub import_type: String,
-    #[validate(length(
-        max = 10_000,
-        message = "Excel 数据超过 1 万行上限"
-    ))]
+    #[validate(length(max = 10_000, message = "Excel 数据超过 1 万行上限"))]
     pub data: Vec<Vec<String>>, // 二维数组
 }
 

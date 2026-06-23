@@ -261,7 +261,7 @@ pub async fn login(
                 after_snapshot: None,
             };
             let svc = Arc::new(AuditLogService::new(state.db.clone()));
-            svc.record_async(login_event, audit_ctx.map(|e| e.0));
+            svc.record_async(login_event, audit_ctx.clone().map(|e| e.0));
 
             // Update last login timestamp
             let user_svc = crate::services::user_service::UserService::new(state.db.clone());
