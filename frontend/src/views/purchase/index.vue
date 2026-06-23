@@ -13,6 +13,7 @@
       :suppliers="list.suppliers.value"
       :on-query="list.handleQuery"
       :on-reset="list.handleReset"
+      @update:query-params="(v) => Object.assign(list.queryParams, v)"
     />
 
     <PurchTbl
@@ -28,6 +29,7 @@
       :get-status-text="list.getStatusText"
       :get-payment-status-type="list.getPaymentStatusType"
       :get-payment-status-text="list.getPaymentStatusText"
+      @update:query-params="(v) => Object.assign(list.queryParams, v)"
     />
 
     <!-- 新建采购单对话框 -->
@@ -46,6 +48,7 @@
       :on-calculate-subtotal="create.calculateSubtotal"
       :calculate-total="create.calculateTotal"
       @update:model-value="(v: boolean) => (create.createDialogVisible.value = v)"
+      @update:form="(v) => (create.createForm.value = v)"
     />
 
     <!-- 收货对话框 -->
@@ -56,6 +59,7 @@
       :on-submit="rcv.submitReceive"
       :on-cancel="() => (rcv.receiveDialogVisible.value = false)"
       @update:model-value="(v: boolean) => (rcv.receiveDialogVisible.value = v)"
+      @update:form="(v) => (rcv.receiveForm.value = v)"
     />
 
     <!-- 查看对话框 -->

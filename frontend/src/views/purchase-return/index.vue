@@ -57,6 +57,7 @@
       @query="prRtn.handleQuery"
       @reset="prRtn.handleReset"
       @date-change="onDateChange"
+      @update:query-params="(v) => Object.assign(prRtn.queryParams, v)"
     />
 
     <PrRtnTbl
@@ -85,6 +86,7 @@
       @product-change="prRtn.handleProductChange"
       @add-item="prRtn.handleAddItem"
       @remove-item="prRtn.handleRemoveItem"
+      @update:form-data="(v) => Object.assign(prRtn.formData, v)"
     />
 
     <PrRtnDetail
@@ -97,6 +99,7 @@
       :approve-form="prRtnProc.approveForm"
       @approve-confirm="prRtnProc.handleApproveConfirm"
       @reject="prRtnProc.handleReject"
+      @update:approve-form="(v) => Object.assign(prRtnProc.approveForm, v)"
     />
   </div>
 </template>
