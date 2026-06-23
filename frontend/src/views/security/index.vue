@@ -30,6 +30,7 @@
       :loading="sec.loading"
       :total="sec.total"
       :query-params="sec.queryParams"
+      @update:query-params="(v) => Object.assign(sec.queryParams, v)"
       @query="secProc.handleQuery(sec)"
       @size-or-current="(val, type) => type === 'size' ? secProc.handleSizeChange(val, sec) : secProc.handleCurrentChange(val, sec)"
     />
