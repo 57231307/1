@@ -1,11 +1,13 @@
 <script setup lang="ts">
-/* eslint-disable vue/no-mutating-props */
 /**
- * QltPanel - 质量预测 tab 视图组件（纯展示）
+ * QltPanel - 质量预测 tab 视图组件
  * 任务编号: P13 批 1 B3 I-1（拆分 advanced/index.vue 第 5 个 tab）
  * 质量预测（A2-2）：基于历史检验记录
  * 数据与函数全部由父组件通过 props 传入
+ * P9-3 批次 F 重构：移除 vue/no-mutating-props 抑制，改用本地 ref 镜像 + watch 防循环
  */
+import { ref, watch, nextTick } from 'vue'
+
 interface QualityFormData {
   product_id: number | null
   inspection_type: string
@@ -13,13 +15,53 @@ interface QualityFormData {
 }
 
 interface Props {
+  // 质量预测表单（由父组件管理，子组件通过 emit('update:qualityForm') 回写）
   qualityForm: QualityFormData
   qualityLoading: boolean
   qualityResult: any
   runQualityPrediction: () => Promise<void>
 }
 
-defineProps<Props>()
+const props = defineProps<Props>()
+
+const emit = defineEmits<{
+  // 整体回写表单
+  (e: 'update:qualityForm', form: QualityFormData): void
+}>()
+
+// 本地镜像：避免直接修改 prop 触发 vue/no-mutating-props
+const localForm = ref<QualityFormData>({ ...props.qualityForm })
+
+// 同步标志位：防止 prop → local 与 local → emit 形成循环
+let syncing = false
+
+// 外部 prop 变化时同步到 local
+watch(
+  () => props.qualityForm,
+  (newForm) => {
+    if (syncing) return
+    syncing = true
+    localForm.value = { ...newForm }
+    nextTick(() => {
+      syncing = false
+    })
+  },
+  { deep: true },
+)
+
+// 本地变化时通知父组件
+watch(
+  localForm,
+  (newForm) => {
+    if (syncing) return
+    syncing = true
+    emit('update:qualityForm', { ...newForm })
+    nextTick(() => {
+      syncing = false
+    })
+  },
+  { deep: true },
+)
 </script>
 
 <template>
@@ -31,10 +73,10 @@ defineProps<Props>()
     <el-col :span="8">
       <el-card shadow="hover" class="mb-20">
         <template #header><div class="card-header">预测条件</div></template>
-        <el-form :model="qualityForm" label-width="100px">
+        <el-form :model="localForm" label-width="100px">
           <el-form-item label="产品 ID">
             <el-input-number
-              v-model="qualityForm.product_id"
+              v-model="localForm.product_id"
               :min="0"
               :step="1"
               placeholder="可选，不填则全产品"
@@ -43,7 +85,7 @@ defineProps<Props>()
           </el-form-item>
           <el-form-item label="检验类型">
             <el-select
-              v-model="qualityForm.inspection_type"
+              v-model="localForm.inspection_type"
               placeholder="可选，默认为全部"
               clearable
               style="width: 100%"
@@ -57,7 +99,7 @@ defineProps<Props>()
           </el-form-item>
           <el-form-item label="时间窗口">
             <el-input-number
-              v-model="qualityForm.window_days"
+              v-model="localForm.window_days"
               :min="1"
               :max="365"
               :step="1"

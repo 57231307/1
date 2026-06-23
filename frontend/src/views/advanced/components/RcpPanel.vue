@@ -1,11 +1,13 @@
 <script setup lang="ts">
-/* eslint-disable vue/no-mutating-props */
 /**
- * RcpPanel - 工艺优化（染色配方）tab 视图组件（纯展示）
+ * RcpPanel - 工艺优化（染色配方）tab 视图组件
  * 任务编号: P13 批 1 B3 I-1（拆分 advanced/index.vue 第 4 个 tab）
  * 染色工艺参数智能推荐（A2-1）
  * 数据与函数全部由父组件通过 props 传入
+ * P9-3 批次 F 重构：移除 vue/no-mutating-props 抑制，改用本地 ref 镜像 + watch 防循环
  */
+import { ref, watch, nextTick } from 'vue'
+
 interface RecipeFormData {
   color_no: string
   fabric_type: string
@@ -15,13 +17,53 @@ interface RecipeFormData {
 }
 
 interface Props {
+  // 工艺推荐表单（由父组件管理，子组件通过 emit('update:recipeForm') 回写）
   recipeForm: RecipeFormData
   recipeLoading: boolean
   recipeResult: any
   runRecipeOptimization: () => Promise<void>
 }
 
-defineProps<Props>()
+const props = defineProps<Props>()
+
+const emit = defineEmits<{
+  // 整体回写表单
+  (e: 'update:recipeForm', form: RecipeFormData): void
+}>()
+
+// 本地镜像：避免直接修改 prop 触发 vue/no-mutating-props
+const localForm = ref<RecipeFormData>({ ...props.recipeForm })
+
+// 同步标志位：防止 prop → local 与 local → emit 形成循环
+let syncing = false
+
+// 外部 prop 变化时同步到 local
+watch(
+  () => props.recipeForm,
+  (newForm) => {
+    if (syncing) return
+    syncing = true
+    localForm.value = { ...newForm }
+    nextTick(() => {
+      syncing = false
+    })
+  },
+  { deep: true },
+)
+
+// 本地变化时通知父组件
+watch(
+  localForm,
+  (newForm) => {
+    if (syncing) return
+    syncing = true
+    emit('update:recipeForm', { ...newForm })
+    nextTick(() => {
+      syncing = false
+    })
+  },
+  { deep: true },
+)
 </script>
 
 <template>
@@ -33,13 +75,13 @@ defineProps<Props>()
     <el-col :span="8">
       <el-card shadow="hover" class="mb-20">
         <template #header><div class="card-header">推荐条件</div></template>
-        <el-form :model="recipeForm" label-width="100px">
+        <el-form :model="localForm" label-width="100px">
           <el-form-item label="色号" required>
-            <el-input v-model="recipeForm.color_no" placeholder="如 BL-301" />
+            <el-input v-model="localForm.color_no" placeholder="如 BL-301" />
           </el-form-item>
           <el-form-item label="布类" required>
             <el-select
-              v-model="recipeForm.fabric_type"
+              v-model="localForm.fabric_type"
               placeholder="请选择布类"
               style="width: 100%"
             >
@@ -52,19 +94,19 @@ defineProps<Props>()
           </el-form-item>
           <el-form-item label="染料类型">
             <el-input
-              v-model="recipeForm.dye_type"
+              v-model="localForm.dye_type"
               placeholder="可选，如 活性染料"
             />
           </el-form-item>
           <el-form-item label="颜色名称">
             <el-input
-              v-model="recipeForm.color_name"
+              v-model="localForm.color_name"
               placeholder="可选，如 宝蓝"
             />
           </el-form-item>
           <el-form-item label="K 值">
             <el-input-number
-              v-model="recipeForm.k"
+              v-model="localForm.k"
               :min="0"
               :max="20"
               :step="1"
