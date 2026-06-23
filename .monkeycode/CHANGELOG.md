@@ -1262,3 +1262,102 @@ $ grep -nE "(\b|^)form\.[a-z_]+\s*=" src/views/api-gateway/components/KeyForm.vu
 - **总计**：8 个后端单文件（>800 行）降至 26 个职责清晰子模块
 - **CI 验证**：c9b579d 后无新 baseline commit = 全部 15 个 CI job 通过
 - **关联文件**：每次拆分同步更新 `mod.rs`/`handlers/mod.rs` 加 `pub mod` 声明
+
+---
+
+## 批次 F 第 3C 子批：vue/no-mutating-props 收敛（2026-06-23 commit a49a17a / PR #239）
+
+### 任务背景
+
+延续批次 F Pattern A（`本地 ref 镜像 + watch 防循环 + emit 整体覆盖父组件`），处理剩余 12 个子组件的 eslint-disable 注释，分布在 4 个域：
+
+| 域 | 子组件数 | 父组件数 | 关键 prop |
+|----|---------|---------|----------|
+| data-import | 3（DiTaskTbl/DiTplForm/DiTplTbl）| 1 | query / form |
+| bpm | 5（BpmDfFilter/BpmDfForm/BpmDfTplDlg/BpmApTranDlg/BpmApAprDlg）| 2 | params / formData / form / approveForm |
+| arReconciliation | 2（ArFilter/ArDispute）| 1 | searchForm / form |
+| api-gateway | 2（KeyForm/EpForm）| 1 | form |
+| **合计** | **12 子组件** | **5 父组件** | |
+
+### 执行模式
+
+- **并行 4 子代理**：每子代理负责一个域，4 个同时启动减少 wall time
+- **总代理汇总**：等 4 子代理交付工作报告后，统一 commit + push + 创建 PR
+
+### 关键样板（Pattern A 巩固）
+
+子组件：
+```vue
+<script setup lang="ts">
+import { reactive, watch } from 'vue'
+const props = defineProps<{ params?: QryParams }>()
+const emit = defineEmits<{ 'update:params': [v: QryParams]; search: []; reset: [] }>()
+
+// 本地镜像：避免直接修改 prop 触发 vue/no-mutating-props
+const localParams = reactive<QryParams>({ ...(props.params ?? DEFAULT) })
+watch(() => props.params, v => { if (v) Object.assign(localParams, v) }, { deep: true })
+const syncToParent = () => emit('update:params', { ...localParams })
+</script>
+```
+
+父组件：
+```vue
+<DiTaskTbl
+  v-model:params="query"
+  :data="data"
+  :total="total"
+  :loading="loading"
+  @search="load"
+/>
+```
+
+### 关键决策
+
+- **统一 prop 名为 `params`/`form`**：与已重构样板（LgsFilter/LgsForm/ScForm）保持一致，团队认知负担最低
+- **父组件用 `Object.assign` 不用 `v-model:params` 整体替换**：避免替换 reactive proxy，导致 useDi/useBpmDfProc 内部对原对象引用的逻辑失效
+- **BpmDfForm 用 `JSON.parse(JSON.stringify(...))` 深拷贝**：`formData.nodes` 是 `ProcessNode[]` 数组，必须深拷贝
+- **类型严格**：emit 用 `defineEmits<{ 'update:xxx': [v: T] }>()` 强签名；`Partial<DisputeRecord>` / `Partial<ApiKey>` / `Partial<ApiEndpoint>` 保留索引访问类型
+- **不修改 .vue 以外文件**：除父组件配合外，所有改动均在 .vue 内
+
+### 统计
+
+- **18 文件** / **+760 / -195 行**（净 +565 行样板代码）
+- 移除 **24 处** eslint-disable 注释
+- **0 残留**：`grep -rn "eslint-disable.*no-mutating-props" frontend/src/` 返回 0 行
+- 行为完全保持一致：仅结构重构，0 业务逻辑改动 / 0 UI 改动 / 0 类型放宽
+
+### 静态验证
+
+```bash
+$ grep -rn "eslint-disable.*no-mutating-props" frontend/src/
+# 0 行
+
+$ grep -rn "no-mutating-props" frontend/src/ | wc -l
+# 11 行（11 处中文"本地镜像"说明注释，无 disable 抑制）
+
+$ grep -rn "query\.(status|page|page_size|keyword|module)\s*=" frontend/src/views/data-import/components/
+# 0 行（全部已改为 localParams.*）
+
+$ grep -rn "form\.(template_code|template_name|name|email)\s*=" frontend/src/views/data-import/components/
+# 0 行（全部已改为 localForm.*）
+```
+
+### 关键经验
+
+1. **Pattern A 适用于所有"对象 prop 编辑"场景**：filterForm / searchForm / form / formData / query 都用同一模式，团队只需学一个样板
+2. **`Object.assign` 父组件是核心**：保持 reactive 引用不变，下游 composable 的 watch 不会被触发副作用
+3. **syncing 标志位 + nextTick 防循环**：与第二批样板一致
+4. **并行 4 子代理提速 4 倍**：1 小时完成 12 文件重构 + 验证 + commit
+
+### CI 预期
+
+- eslint：disable 注释 0 残留 → 应通过
+- vue-tsc type-check：emit 严格签名 + Partial 类型完整覆盖 → 应通过
+- build：无语法错误、无导入错误 → 应通过
+- 整体 CI 预期：全绿
+
+### 下一步
+
+- 等待 PR #239 CI 验证结果
+- 失败 → 拉日志 → 修复 → 重新 push → 循环
+- 成功 → squash merge → test 分支自动集成 → 后续批次可启动（I-3 剩余 1 个 / B4 / OpenAPI 3.1）

@@ -389,6 +389,7 @@
 | **批次 A：ci(workflow)权限+Cargo.lock+bi 内存泄漏** | ✅ 已完成（2026-06-22）| commit 2e685db + 6c9266f + 4b08279；3 修 P0 问题 |
 | **批次 E 样板 1+2：supplier 拆分 + .vue 拆分模式** | ✅ 已完成（2026-06-22）| commit 3bba8ed（SupplierDialog 拆出）+ commit faa670f（PrdTbl 样板）；验证 props+emit 模式 |
 | **批次 F 样板 1+大：vue/no-mutating-props disable 收敛** | ✅ 已完成（2026-06-22）| commit faa670f（PrdTbl 1 文件）+ commit 6509e72（46 文件 / 79 disable 注释删除）|
+| **批次 F 第 3C 子批：剩余 12 文件 disable 收敛** | ✅ 已完成（PR #239, 2026-06-23）| commit `a49a17a` + 18 文件 / +760/-195 行 / 移除 24 处 eslint-disable 注释 / 0 残留；分 4 子代理并行：data-import × 3 + bpm × 5 + arReconciliation × 2 + api-gateway × 2；5 父组件加 `@update:xxx` 监听 + `Object.assign` 同步 |
 | **P9-2 批次 C/D1-D8 后端大文件拆分** | ✅ 已完成（2026-06-22）| commit c9b579d（D8） + 其他 D1-D7 在 cd13658 快照中；8 个 > 800 行 .rs 文件已拆 |
 | **P9-2 批次 D 拆分 CI 修复全绿** | ✅ 已完成（2026-06-22）| 7 commit + CI 27967740035 15/15 success；错误从 502→0；clippy baseline 重建为 1039 行（commit 78abf4c）|
 | **通知用户手动全新部署** | 🔵 待通知用户 | 用户指令：待手动全新部署（禁止热更新）；部署前需配置 32+ 字节 COOKIE_SECRET 环境变量 |
