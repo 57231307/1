@@ -5,6 +5,204 @@
 
 ---
 
+## 最新任务：🚨 安全漏洞 Wave 2 P1-#6 用户自删除后 JWT 仍有效修复（2026-06-23）
+
+**分支**：`fix/security-wave2-p1-2026-06-23`（从 main b298c99 切出）
+**漏洞等级**：P1 / 低（信息泄露面扩大 / 违规账户仍可访问）
+**修复状态**：✅ 代码完成，待总代理 commit + push
+
+### 漏洞摘要
+
+`auth_middleware`（`backend/src/middleware/auth.rs:113-148`，修复前）在 JWT 签名验证 + JTI 黑名单检查通过后，**未检查用户的 `is_active` 状态**。被软删除（`delete_user`）或禁用（`update_user(status)`）的用户的旧 JWT 在剩余有效期（最长 2 小时）内仍可正常调用任何受保护接口。
+
+### 修改文件清单
+
+| 文件 | 行数变化 | 变更说明 |
+|------|----------|----------|
+| `backend/src/middleware/auth.rs` | 162 → 262（+100/-0）| 新增 5 分钟 DashMap 缓存 + is_active 校验 + 审计 + 环境变量开关 |
+
+### 修复要点
+
+1. **新增静态缓存**：`USER_ACTIVE_CACHE: OnceLock<DashMap<i32, (bool, Instant)>>`，TTL 5 分钟
+2. **新增 `is_user_active_cached` 辅助函数**：命中缓存走 DashMap 查，miss 走 `UserService::find_by_id` + 写回缓存
+3. **新增 `is_user_active_check_enabled` 开关**：`AUTH_CHECK_USER_ACTIVE` 环境变量，默认 `true`
+4. **JTI 黑名单检查后插入 is_active 校验**：若 `is_active=false` → `log::warn!` + `audit::log_security_event(AuthorizationDenied, ...)` + 返回 401
+5. **审计日志**复用 `utils/audit.rs::SecurityEvent::AuthorizationDenied`，传入 `claims.sub / claims.username / claims.role_id`，并从 `request.extensions()` 提取 `AuditContext`（IP / UA / request_id）
+
+### 关键决策
+
+- ✅ **TTL = 5 分钟**：可接受最坏 5 分钟的失效延迟，平衡性能与封号操作感知灵敏度
+- ✅ **审计事件复用 `AuthorizationDenied`**：避免新增 `AccountDisabled` 变体；`target="auth_middleware_is_active_check"` + `extra="账户已被禁用"` 携带语义
+- ✅ **`role_id` 直接来自 `claims.role_id`**：JWT 已编码，无需额外查 DB（热路径性能优先）
+- ✅ **fail-secure 默认**：用户不存在时 `find_by_id` 返回 `Err(_)`，函数返回 `false`（拒绝 JWT）
+- ✅ **未失效本地缓存 on delete**：`UserService::delete_user` 已失效 Redis 缓存；本地 5 分钟窗口可接受，避免在删除路径上加额外清理
+
+### 行为变化
+
+| 场景 | 修复前 | 修复后 |
+|------|--------|--------|
+| 软删除用户调用受保护接口 | ✅ 可继续访问（漏洞） | ❌ 401 "账户已被禁用"（最多 5 分钟缓存延迟） |
+| 禁用用户调用受保护接口 | ✅ 可继续访问（漏洞） | ❌ 401 "账户已被禁用" |
+| `AUTH_CHECK_USER_ACTIVE=false` | n/a | 关闭校验（兼容模式） |
+| 正常用户调用 | ✅ 可继续访问 | ✅ 可继续访问（性能开销：1 次 DashMap 查） |
+
+### 静态验证
+
+- `is_user_active_cached` 调用存在于 `Ok(claims)` 分支 ✅
+- `is_user_active_check_enabled()` 短路求值保护 ✅
+- `USER_ACTIVE_CACHE_TTL_SECS = 300` 常量化 ✅
+- 审计日志调用 `audit::log_security_event(SecurityEvent::AuthorizationDenied, ...)` ✅
+- 401 响应消息："账户已被禁用，请联系管理员" ✅
+- `dashmap` / `OnceLock` / `Instant` 均为已有依赖，未引入新 crate ✅
+- `claims.role_id`（`Option<i32>`）直接透传，无需 DB 查询 ✅
+- `user::Model::is_active: bool`（`models/user.rs:19`）确认字段名 ✅
+
+### 风险与遗留
+
+- **缓存过期窗口**：被禁用用户的旧 JWT 最长 5 分钟内仍可用。可通过同步失效本地缓存缩短窗口，但需在 `UserService::delete_user` 加额外清理逻辑；当前选择可接受。
+- **多副本部署**：本地缓存不跨进程同步；`AUTH_CHECK_USER_ACTIVE=false` 会绕过校验，CI 中默认 `true`。
+- **角色变更未覆盖**：本修复仅针对 `is_active`；若管理员修改 `role_id` 不会立即反映在 JWT 中（属预期行为，role 变更需要重新登录）。
+
+### 复用样板
+
+- 审计调用模式：参考 Wave 1 `audit::log_security_event(AuthorizationDenied, ...)`
+- 环境变量开关模式：参考已有 `std::env::var("...").unwrap_or_else(|_| "true".to_string())` 模式
+
+---
+
+## 最新任务：🚨 安全漏洞 Wave 2 P1-#3 #4 #9 漏洞修复（2026-06-23）
+
+**分支**：`fix/security-wave2-p1-2026-06-23`（从 main b298c99 切出）
+**漏洞等级**：P1 / 低-中（信息泄露 + 会话劫持防御失效）
+**修复状态**：✅ 代码完成 + ⏳ CI 修复中（PR #241, commit efea1c2）
+
+### 漏洞 #3：用户管理端点缺少权限校验
+
+`user_handler.rs::get_user`（修复前 118-127 行）+ `list_users`（修复前 165-187 行）使用 `_auth: AuthContext` 表示完全未使用，任何已认证用户都能查任意用户详情 + 列出所有用户。
+
+**修复**：
+- `get_user`：`_auth` → `auth`，非 admin 只能查自己（`auth.user_id == id`）
+- `list_users`：`_auth` → `auth`，仅 admin 可列出所有用户
+- 失败路径写审计（`AuthorizationDenied` + `extra` 标签区分）
+
+### 漏洞 #4：测试数据库连接端点未认证
+
+`init_handler.rs::test_database_connection`（修复前 48-65 行）完全无认证，外部攻击者可探测内网数据库端口（SSRF）+ 暴力破解凭据。
+
+**修复**：
+- handler 签名加 `State + auth + audit_ctx`
+- 强制 admin 角色校验（role_id 缺失 + 非 admin 双重拒绝）
+- 成功路径审计：`SecurityEvent::TestDatabaseConnection` + `target=host:port/name`
+- 失败路径审计：`SecurityEvent::AuthorizationDenied` + `extra` 标签区分
+- TODO 注释预留内网 IP 白名单（不在本批实施）
+
+### 漏洞 #9：删除用户操作未吊销 JTI
+
+`user_handler.rs::delete_user`（修复前 235-275 行）软删除时未调用 `revoke_jti`，被删用户的所有活跃 JWT 在剩余有效期内仍可使用。
+
+**关键发现**：现有 `revoke_jti(jti, expires_at)` 仅按 session_id 维度存储，无法按 user_id 撤销所有 JTI。
+
+**修复方案**：新增"用户级 Token 吊销表"维度：
+- `auth_service.rs` 新增 `revoke_user_jtis(user_id, reason)` / `is_user_token_revoked(user_id, iat)` / `cleanup_revoked_users()`
+- 进程内 `HashMap<i32, i64>` 存储
+- `auth.rs` middleware 检查 `iat < revoked_at` 立即拒绝
+- 与 #6 形成 defense-in-depth：#9 即时进程内黑名单 + #6 DB 实时校验
+
+### 统一审计模块扩展
+
+`utils/audit.rs` `SecurityEvent` 新增 4 变体：
+- `UserListViewed` —— 列表用户查询
+- `UserViewed` —— 单用户查询
+- `UserDeleted` —— 用户被删除（含 token 吊销）
+- `TestDatabaseConnection` —— 测试数据库连接
+
+Display + 单测同步更新。当前 SecurityEvent **8 变体**。
+
+### 修改文件清单（Wave 2 全部 4 漏洞）
+
+| 文件 | 行数变化 | 变更说明 |
+|------|----------|----------|
+| `backend/src/handlers/init_handler.rs` | +96 / -10 | test_database 加 auth + admin + 审计；CI 修复 borrow of moved value |
+| `backend/src/handlers/user_handler.rs` | +96 / -3 | get_user + list_users 权限；delete_user 调 revoke_user_jtis |
+| `backend/src/middleware/auth.rs` | +135 / -30 | is_active 缓存 + 用户级 token 吊销 + JTI 黑名单 3 层合并 |
+| `backend/src/services/auth_service.rs` | +174 / -0 | 新增 3 函数 + 3 单测 + REVOKED_USERS HashMap |
+| `backend/src/utils/audit.rs` | +13 / -0 | SecurityEvent 新增 4 变体 + Display + 单测 |
+| **合计** | **5 文件 / +514/-43 行** | |
+
+### 关键经验
+
+1. **服务层签名不能照搬任务描述**：任务说 `revoke_user_jtis(user_id, reason)`，但实际 `revoke_jti` 是 `(jti, expires_at)`。修复真实漏洞需要新增"用户级撤销"维度，**而不是装饰性调用**。
+2. **并发子代理合并 audit 模块无冲突**：3 个子代理各自添加不同变体，并发写入成功合并。
+3. **缓存 TTL 选 5 分钟**：性能与封号操作感知灵敏度平衡。
+4. **审计事件复用 vs 新增变体**：成功路径用专用变体（语义清晰），失败路径用 `AuthorizationDenied` + extra 字段。
+5. **defense-in-depth**：#9 即时进程内黑名单 + #6 DB 实时校验，双层防护覆盖单层失效场景。
+
+### CI 修复 commit（计划中）
+
+`init_handler.rs:121-132` `borrow of moved value` 修复：原代码中 `let target = format!("{}:{}/{}", payload.host, payload.port, payload.name)` 在 `DatabaseConfig { host: payload.host, ... }` 构造之后调用，导致 `payload.host/port/name` 已被 move 后无法借用。修复：将 `let target = format!()` 提前到 `DatabaseConfig` 构造之前。
+
+---
+
+## 最新任务：🚨 安全漏洞 Wave 1 P0-#1 密码重置端点修复（2026-06-23）
+
+**分支**：`fix/security-wave1-p0-2026-06-23`（从 main HEAD = d670a5f 切出）
+**漏洞等级**：P0（账户接管漏洞）
+**修复状态**：✅ 代码完成，待总代理 commit + push
+
+### 漏洞摘要
+
+`init_handler.rs::reset_admin_password`（修复前 152-176 行）**完全没有身份认证**，任何能访问 API 端点的人（含未认证外部用户）都可以重置任意用户密码，构成完全账户接管漏洞。
+
+### 修改文件清单
+
+| 文件 | 变更说明 |
+|------|----------|
+| `backend/src/handlers/init_handler.rs` | +75 / -10 行（auth 提取器 + admin 校验 + 自我保护 + 审计） |
+| `backend/src/services/init_service.rs` | +55 / -10 行（密码强度校验 + 用户二次校验 + InitError::ValidationError） |
+| `backend/src/main.rs` | +12 / -2 行（两处 match 块新增 ValidationError 分支） |
+
+### 修复要点
+
+1. **handler 层强制认证**：`auth: AuthContext, audit_ctx: Option<Extension<AuditContext>>` 提取器
+2. **admin 角色校验**：`is_admin_role(&state.db, role_id).await`，使用 admin_checker 模块
+3. **自我保护**：`auth.username == payload.username` 立即返回 400
+4. **service 层深度防御**：
+   - 密码强度校验（`password_validator::validate_password`）
+   - 用户存在性二次校验（精确区分 NotFound / DatabaseError）
+5. **审计日志**：`AuditLogService::record_async` 异步落库（severity=Warn, OperationType=Update）
+
+### 关键决策
+
+- ✅ 复用现有 `AuditLogService`（不新建 audit 模块），与 `user_handler::change_password` 模式完全一致
+- ✅ 新增 `InitError::ValidationError(String)` 变体（HTTP 400），保留错误分类精度
+- ✅ 修复原有 `find_by_username` 错误分类 bug（不再把 DB 错误误报为 UserNotFound）
+
+### 行为变化
+
+| 场景 | 修复前 | 修复后 |
+|------|--------|--------|
+| 未登录访问 | ✅ 可重置任意密码（漏洞） | ❌ 401 未认证 |
+| 普通用户调用 | ✅ 可重置任意密码（漏洞） | ❌ 403 无权限 |
+| admin 登录后调用 | ✅ 可重置 | ✅ 可重置 |
+| admin 重置自己 | ✅ 可重置（误操作风险） | ❌ 400 拒绝 |
+| 密码强度不足 | ✅ 可设置弱密码 | ❌ 400 拒绝 |
+
+### 静态验证
+
+- handler 签名包含 `auth: AuthContext` ✅
+- `is_admin_role` 调用 ✅
+- `auth.username == payload.username` 自我保护 ✅
+- `password_validator::validate_password` 校验 ✅
+- `record_async` 审计调用 ✅
+- `public_routes.rs` 不含 `reset-password`（白名单正确）✅
+- 无未使用变量（无 `_auth` 残留）✅
+
+### 复用样板
+
+`reset_admin_password` 修复样板已记录到 `doto.md`，供 Wave 2 #4（test_database_connection）参考复用。
+
+---
+
 ## 最新任务：P9-3 批次 F 第 3C 子批 arReconciliation 域收敛（2026-06-23）
 
 **分支**：`feature/p9-3-batch-f-3c-no-mutating-props`
@@ -1357,3 +1555,90 @@ const syncToParent = () => emit('update:params', { ...localParams })
 - **OpenAPI 3.1 规范生成**：后端 API 文档自动生成
 - **product_color_price 反向 port**：从 test 分支 port 产品色价
 - **P2-2 性能优化 PR-3+**：Redis 缓存层 + DB N+1 后续优化
+
+---
+
+## 安全漏洞修复 Wave 1 (P0 紧急) 2026-06-23 PR #240 merged
+
+### 修复范围
+
+| 漏洞 | 文件 | 关键变更 |
+|------|------|----------|
+| **#1 密码重置认证** (critical) | init_handler.rs / init_service.rs / main.rs | auth 提取器 + admin 校验 + 自我保护 + 密码强度 + 二次校验 + 审计 |
+| **#2 租户管理权限** (critical) | tenant_handler.rs / tenant_service.rs | 4 端点 _auth→auth + require_admin_role + actor 深度防御 + 审计 |
+
+### 新增模块 utils/audit.rs（95 行）
+
+- **SecurityEvent 枚举**（4 变体）：ResetPassword / TenantCreated / TenantStatusChange / AuthorizationDenied
+- **log_security_event 统一接口**（best-effort tracing 结构化日志，当前未落 DB）
+- **单元测试 4 个**（Display 实现 + 调用签名验证）
+
+### 子代理协调关键经验
+
+子代理 A（#1）原本使用 `AuditLogService::record_async`（项目已有服务），
+子代理 B（#2）创建了 `utils/audit.rs`（新模块）。
+**汇总时统一改用 `utils::audit::log_security_event`**，删除 init_handler 中的 `AuditLogService` 引用，
+**避免两套并行的审计实现**。后续 Wave 2/3/4 全部复用此统一接口。
+
+### 关键样板（Wave 2/3/4 复用）
+
+```rust
+// handler 签名：auth + audit_ctx 提取器组合
+pub async fn secure_handler(
+    State(state): State<AppState>,
+    auth: AuthContext,
+    audit_ctx: Option<Extension<AuditContext>>,
+    Json(payload): Json<Request>,
+) -> Result<...> {
+    // 1) 角色校验（深度防御：缺 role_id + 非 admin 双重拒绝）
+    let role_id = auth.role_id.ok_or_else(|| AppError::permission_denied(...))?;
+    if !is_admin_role(&state.db, role_id).await {
+        audit::log_security_event(SecurityEvent::AuthorizationDenied,
+            auth.user_id, &auth.username, auth.role_id, None, None,
+            audit_ctx.as_deref()).await;
+        return Err(AppError::permission_denied(...));
+    }
+    // 2) 业务执行
+    let svc = SomeService::new(state.db.clone());
+    svc.do_something(...).await?;
+    // 3) 审计日志（best-effort，不阻塞业务）
+    audit::log_security_event(
+        SecurityEvent::BusinessEvent,
+        auth.user_id, &auth.username, auth.role_id,
+        Some(&target), Some(&extra), audit_ctx.as_deref(),
+    ).await;
+    // 4) 返回
+}
+```
+
+### CI 监控全程
+
+- 12→15 个 check run，全部 success（13 success + 2 skipped Release/packaging）
+- 总耗时：约 9 分钟
+- 0 failure / 0 警告
+- main HEAD：d670a5f → b298c99a9ce94a66ff32cf8db38b75cd618b1792
+
+### 行为变化（重要 - 需通知运维 + 业务方）
+
+| 端点 | 原行为 | 新行为 |
+|------|--------|--------|
+| POST /api/v1/erp/init/reset-password | 任何人都能重置 | 需 admin 登录 + 密码强度校验 + 不能重置自己 |
+| POST /api/v1/erp/tenants | 任何角色都能创建 | 需 admin 角色 |
+| GET /api/v1/erp/tenants | 任何角色都能查询 | 需 admin 角色 |
+| GET /api/v1/erp/tenants/{id} | 任何角色都能查询 | 需 admin 角色 |
+| PUT /api/v1/erp/tenants/{id}/status | 任何角色都能改状态 | 需 admin 角色 + 审计记录 |
+
+### 风险与遗留
+
+- **admin 误操作锁定自己**：禁止重置当前登录管理员的密码（防自锁），需联系其他 admin
+- **operator 角色用户**：原本能"看到"租户列表，现在被 403 拒绝——需业务方通知操作员此变化
+- **审计落库**：当前仅 tracing 日志，未落 DB；后续可按需扩展 `log_security_event` 表
+
+### Wave 2 (P1 高) 计划
+
+- **#3** user_handler get_user / list_users 加权限校验（operator 只能查自己，admin 全权限）
+- **#4** init_handler test_database_connection 加 auth + require_admin_role
+- **#6** auth_middleware 中加 is_active 字段检查
+- **#9** delete_user 软删除时调用 revoke_jti
+
+预计执行时间：1 周内

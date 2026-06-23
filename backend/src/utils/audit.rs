@@ -12,6 +12,8 @@
 //! - `TenantCreated` —— 创建租户
 //! - `TenantStatusChange` —— 租户状态变更（启用/停用/暂停等）
 //! - `AuthorizationDenied` —— 鉴权失败（角色不足 / 资源越权）
+//! - `UserDeleted` —— 用户被删除（软删除 + 吊销其所有活跃 JWT）
+//! - `TestDatabaseConnection` —— 测试数据库连接（数据库敏感探测行为）
 
 use crate::middleware::audit_context::AuditContext;
 
@@ -26,6 +28,10 @@ pub enum SecurityEvent {
     TenantStatusChange,
     /// 鉴权失败（角色不足 / 资源越权）
     AuthorizationDenied,
+    /// 用户被删除（软删除 + 吊销其所有活跃 JWT）
+    UserDeleted,
+    /// 测试数据库连接（数据库敏感探测行为）
+    TestDatabaseConnection,
 }
 
 impl std::fmt::Display for SecurityEvent {
@@ -35,6 +41,8 @@ impl std::fmt::Display for SecurityEvent {
             SecurityEvent::TenantCreated => write!(f, "TENANT_CREATED"),
             SecurityEvent::TenantStatusChange => write!(f, "TENANT_STATUS_CHANGE"),
             SecurityEvent::AuthorizationDenied => write!(f, "AUTHORIZATION_DENIED"),
+            SecurityEvent::UserDeleted => write!(f, "USER_DELETED"),
+            SecurityEvent::TestDatabaseConnection => write!(f, "TEST_DATABASE_CONNECTION"),
         }
     }
 }
@@ -90,6 +98,11 @@ mod tests {
         assert_eq!(
             SecurityEvent::AuthorizationDenied.to_string(),
             "AUTHORIZATION_DENIED"
+        );
+        assert_eq!(SecurityEvent::UserDeleted.to_string(), "USER_DELETED");
+        assert_eq!(
+            SecurityEvent::TestDatabaseConnection.to_string(),
+            "TEST_DATABASE_CONNECTION"
         );
     }
 }

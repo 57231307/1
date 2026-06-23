@@ -3,11 +3,12 @@ use crate::middleware::auth_context::AuthContext;
 use crate::models::audit_log::{OperationType, Severity};
 use crate::models::user;
 use crate::services::audit_log_service::{AuditEvent, AuditLogService};
-use crate::services::auth_service::AuthService;
+use crate::services::auth_service::{self, AuthService};
 use crate::services::role_permission_service::RolePermissionService;
 use crate::services::user_service::UserService;
 use crate::utils::admin_checker::is_admin_role;
 use crate::utils::app_state::AppState;
+use crate::utils::audit::{self, SecurityEvent};
 use crate::utils::error::AppError;
 use crate::utils::password_validator::{get_password_feedback, validate_password};
 use crate::utils::response::ApiResponse;
@@ -117,9 +118,31 @@ pub struct DeleteUserResponse {
 
 pub async fn get_user(
     State(state): State<AppState>,
-    _auth: AuthContext,
+    auth: AuthContext,
     Path(id): Path<i32>,
 ) -> Result<Json<ApiResponse<UserResponse>>, AppError> {
+    // 安全漏洞 #3 修复：非 admin 角色只能查自己
+    // 缺角色时直接拒绝（避免 role_id=0 误匹配"超级管理员"角色）
+    let role_id = auth
+        .role_id
+        .ok_or_else(|| AppError::permission_denied("用户未分配角色，无法执行该操作"))?;
+    if !is_admin_role(&state.db, role_id).await && auth.user_id != id {
+        // 记录鉴权失败审计日志（best-effort，无 audit_ctx 时传 None）
+        audit::log_security_event(
+            SecurityEvent::AuthorizationDenied,
+            auth.user_id,
+            &auth.username,
+            auth.role_id,
+            Some(&format!("target_user_id={}", id)),
+            Some("非 admin 越权查询其他用户信息"),
+            None,
+        )
+        .await;
+        return Err(AppError::permission_denied(
+            "仅管理员可查询其他用户信息",
+        ));
+    }
+
     let user_service = UserService::new(state.db.clone());
 
     let user = user_service.find_by_id(id).await?;
@@ -164,9 +187,28 @@ pub async fn create_user(
 
 pub async fn list_users(
     State(state): State<AppState>,
-    _auth: AuthContext,
+    auth: AuthContext,
     Query(params): Query<ListUsersParams>,
 ) -> Result<Json<ApiResponse<UserListResponse>>, AppError> {
+    // 安全漏洞 #3 修复：仅 admin 角色可列出所有用户（防止用户枚举攻击）
+    let role_id = auth
+        .role_id
+        .ok_or_else(|| AppError::permission_denied("用户未分配角色，无法执行该操作"))?;
+    if !is_admin_role(&state.db, role_id).await {
+        // 记录鉴权失败审计日志（best-effort，无 audit_ctx 时传 None）
+        audit::log_security_event(
+            SecurityEvent::AuthorizationDenied,
+            auth.user_id,
+            &auth.username,
+            auth.role_id,
+            Some("list_users"),
+            Some("非 admin 越权调用用户列表"),
+            None,
+        )
+        .await;
+        return Err(AppError::permission_denied("列出用户列表仅限管理员"));
+    }
+
     let user_service = UserService::new(state.db.clone());
 
     let (users, total) = user_service
@@ -235,6 +277,7 @@ pub async fn update_user(
 pub async fn delete_user(
     State(state): State<AppState>,
     auth: AuthContext,
+    audit_ctx: Option<Extension<AuditContext>>,
     Path(id): Path<i32>,
 ) -> Result<Json<ApiResponse<DeleteUserResponse>>, AppError> {
     // 检查是否是删除自己的账户
@@ -268,7 +311,34 @@ pub async fn delete_user(
     // 2. 有特殊权限的用户不允许删除
     // 3. 正在使用中的用户不允许删除
 
+    // 软删除：将 is_active 标记为 false
     user_service.delete_user(id).await?;
+
+    // 安全漏洞 #9 修复：吊销该用户的所有活跃 JWT
+    //    软删除成功后立即调用 `revoke_user_jtis` 标记该用户，
+    //    后续该用户的任何 iat < revoked_at 的 Token 一律拒绝。
+    //    防止被删除用户的旧 JWT 在剩余有效期（最长 2 小时）内继续使用。
+    //    失败不阻塞主业务流（best-effort）。
+    if let Err(e) = auth_service::revoke_user_jtis(id, "USER_DELETED").await {
+        tracing::warn!(
+            "[SECURITY] 吊销已删除用户 {} 的活跃 JWT 失败：{}",
+            id,
+            e
+        );
+    }
+
+    // 记录审计：谁删了谁
+    audit::log_security_event(
+        SecurityEvent::UserDeleted,
+        auth.user_id,
+        &auth.username,
+        auth.role_id,
+        Some(&format!("user_id={}", id)),
+        None,
+        audit_ctx.as_deref(),
+    )
+    .await;
+
     Ok(Json(ApiResponse::success(DeleteUserResponse {
         success: true,
     })))

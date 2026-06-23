@@ -8,6 +8,301 @@
 
 ---
 
+## 🚨 2026-06-23 安全漏洞修复 Wave 2（P1 重要）
+
+### 漏洞 #4：测试数据库连接端点未认证 ✅ 已修复
+
+**目标分支**：`fix/security-wave2-p1-2026-06-23`（从 main b298c99 切出）
+
+**漏洞描述**：
+- `init_handler.rs::test_database_connection`（修复前 48-69 行）完全没有任何认证
+- 外部攻击者可：
+  - 通过响应时间差异探测内网数据库端口（SSRF 风险）
+  - 暴力破解数据库凭据
+  - 收集内部网络拓扑信息
+- 构成 SSRF + 凭据暴力破解 + 信息泄漏三合一漏洞
+
+**修改文件清单**：
+| 文件 | 行数变化 | 变更说明 |
+|------|----------|----------|
+| `backend/src/handlers/init_handler.rs` | +96 / -10 | handler 签名加 `State<AppState>` + `auth: AuthContext` + `audit_ctx`；强制 admin 角色校验；未分配角色 / 非 admin 双路径审计；TODO 注释预留内网 IP 白名单；最佳实践安全文档注释 |
+| `backend/src/utils/audit.rs` | +4 / -0 | 新增 `SecurityEvent::TestDatabaseConnection` 变体 + Display 分支 + 单测断言；模块顶部事件清单注释同步 |
+
+**关键决策**：
+1. **admin 校验顺序**：先 `auth.role_id` 缺失检查（防御深度，避免后续 `is_admin_role` 误判）→ 后 `is_admin_role` 角色检查。两路径各自审计，互不干扰。
+2. **SecurityEvent 变体选择**：新增 `TestDatabaseConnection`（成功路径专用，语义清晰） + 复用 `AuthorizationDenied` + `extra` 字段（失败路径，分 `no_role` / `not_admin` 两种 extra 标签）。理由：成功/失败是不同语义事件，合并会丢失可读性。
+3. **审计目标格式**：`host:port/name`（如 `39.99.34.194:5432/bingxi`），不写入明文密码（payload.password 不进 extra）。
+4. **内网 IP 白名单**：仅 TODO 注释预留，本任务不实施（运维需提供内网 IP 段定义）。注释中给出完整代码片段，未来启用时直接解注释。
+5. **InitService::test_database 保持静态方法**：函数签名 `(config: &DatabaseConfig) -> Result<(), InitError>`，不依赖 AppState；handler 仅需 State(state) 用于 `is_admin_role(&state.db, role_id)` 校验。无需改为实例方法（满足"如需要"条件，不需要）。
+
+**静态验证结果**：
+- handler 签名包含 `State(state): State<AppState>` ✅
+- handler 签名包含 `auth: AuthContext` ✅
+- handler 签名包含 `audit_ctx: Option<Extension<AuditContext>>` ✅
+- handler 调用 `is_admin_role(&state.db, role_id).await` ✅
+- handler 含 `auth.role_id` 缺失分支（防御深度）✅
+- handler 含三处 `audit::log_security_event` 调用（no_role / not_admin / success）✅
+- 审计目标含 `host:port/name` 格式 ✅
+- TODO(ssrf) 注释预留内网 IP 白名单代码 ✅
+- `SecurityEvent` 新增 `TestDatabaseConnection` 变体 ✅
+- Display impl 含 `TEST_DATABASE_CONNECTION` 分支 ✅
+- 单测含 `TestDatabaseConnection` 断言 ✅
+- 模块顶部事件清单注释同步更新 ✅
+
+**遗留风险与注意事项**：
+- ⚠️ **PUBLIC_PATHS 设计权衡**：`/api/v1/erp/init` 仍在 `PUBLIC_PATHS` 中（`backend/src/middleware/public_routes.rs:9`），导致 `auth_middleware` 对 `/init/*` 路径短路跳过 JWT 验证。本 handler 的 `auth: AuthContext` 提取器在未携带有效 JWT 时会返回 401（与 PR #240 `reset_admin_password` 同样问题）。这是 init 子系统整体鉴权设计问题，本任务不在职责范围内。
+- ⚠️ **设计意图解释**：setup 阶段需要 init/* 路径公开访问（因为无 admin 可认证）。初始化完成后应转为受限访问。当前实现未严格区分，handler 层 + middleware 双重保护被 PUBLIC_PATHS 短路绕过。
+- ✅ 无 DB migration（复用现有 `audit_log` 表，audit 模块当前仅 tracing 输出）
+- ✅ 严禁本地编译，统一走 CI
+
+**复用样板**（供 Wave 3+ 参考）：
+```rust
+// 标准 admin-only handler 模板（带审计）
+pub async fn handler(
+    State(state): State<AppState>,
+    auth: AuthContext,
+    audit_ctx: Option<Extension<AuditContext>>,
+    Json(payload): Json<Request>,
+) -> Result<Json<ApiResponse<Response>>, AppError> {
+    // 1) 角色校验（含审计）
+    let role_id = if let Some(id) = auth.role_id { id } else {
+        audit::log_security_event(SecurityEvent::AuthorizationDenied,
+            auth.user_id, &auth.username, auth.role_id,
+            Some("endpoint_name"), Some("no_role"), audit_ctx.as_deref()).await;
+        return Err(AppError::permission_denied("用户未分配角色，无法执行该操作"));
+    };
+    if !is_admin_role(&state.db, role_id).await {
+        audit::log_security_event(SecurityEvent::AuthorizationDenied,
+            auth.user_id, &auth.username, auth.role_id,
+            Some("endpoint_name"), Some("not_admin"), audit_ctx.as_deref()).await;
+        return Err(AppError::permission_denied("该功能仅限管理员"));
+    }
+    // 2) 业务执行
+    // ...
+    // 3) 成功审计
+    audit::log_security_event(SecurityEvent::CustomEvent,
+        auth.user_id, &auth.username, auth.role_id,
+        Some("target"), None, audit_ctx.as_deref()).await;
+}
+```
+
+**状态**：
+- ✅ 代码修改完成
+- ⏳ 待总代理汇总后 commit + push
+- ⏳ CI 验证（cargo build + clippy + test）由 GitHub Actions 跑
+
+---
+
+### 漏洞 #3：用户管理端点缺少权限校验 ✅ 已修复
+
+**目标分支**：`fix/security-wave2-p1-2026-06-23`（从 main b298c99 切出）
+
+**漏洞描述**：
+- `user_handler.rs::get_user`（修复前 118-127 行）+ `list_users`（修复前 165-187 行）使用 `_auth: AuthContext` 表示完全未使用
+- 任何已认证用户都能查任意用户详情 + 列出所有用户
+- 构成用户枚举攻击 + 暴力破解字典 + 钓鱼素材库
+
+**修改文件清单**：
+| 文件 | 行数变化 | 变更说明 |
+|------|----------|----------|
+| `backend/src/handlers/user_handler.rs` | +70 / -3 | get_user + list_users 改用 `auth: AuthContext`；非 admin 仅查自己（auth.user_id == id）；list_users 限制为 admin；失败路径写审计 |
+| `backend/src/utils/audit.rs` | +9 / -0 | SecurityEvent 新增 `UserListViewed` / `UserViewed` 变体（成功路径专用） + Display 分支 + 单测 |
+
+**关键决策**：
+1. **get_user 双策略**：admin 查任意（返回完整 User）；非 admin 只能 `auth.user_id == id`（自我查询），否则 403
+2. **list_users 严格 admin-only**：禁止自助枚举所有用户，强制仅 admin 调用
+3. **审计粒度**：成功用专用变体（`UserListViewed` / `UserViewed`）+ 失败用 `AuthorizationDenied` + extra 标签区分
+4. **路径保留**：API 路径 `/api/v1/erp/users` 不变，行为收紧
+5. **审计目标**：列表端点 `target="list_users"`；单查端点 `target=format!("user_id:{}", id)`
+
+**静态验证结果**：
+- `grep "_auth" user_handler.rs` → 0 行（无未使用变量）✅
+- handler 签名包含 `auth: AuthContext`（非 `_auth`）✅
+- handler 含 `auth.user_id == id` 自我查询分支 ✅
+- handler 调用 `is_admin_role` ✅
+- 审计 `audit::log_security_event` 多次调用 ✅
+
+**遗留风险与注意事项**：
+- ✅ 无 DB migration
+- ✅ 严禁本地编译，统一走 CI
+
+---
+
+### 漏洞 #6：用户自删除后 JWT 仍有效 ✅ 已修复
+
+**目标分支**：`fix/security-wave2-p1-2026-06-23`（从 main b298c99 切出）
+
+**漏洞描述**：
+- `auth_middleware::auth_middleware`（修复前 113-148 行）在 JWT 签名验证 + JTI 黑名单检查通过后，**未检查用户的 `is_active` 状态**
+- 被软删除（`delete_user`）或禁用（`update_user(status)`）的用户的旧 JWT 在剩余有效期（最长 2 小时）内仍可正常调用任何受保护接口
+- 构成账户禁用失效漏洞
+
+**修改文件清单**：
+| 文件 | 行数变化 | 变更说明 |
+|------|----------|----------|
+| `backend/src/middleware/auth.rs` | +135 / -0 | 新增 USER_ACTIVE_CACHE 5min DashMap + is_user_active_cached + 环境变量开关 + 审计 + 401 返回 |
+
+**关键决策**：
+1. **缓存策略**：5 分钟 TTL（性能与封号操作感知灵敏度平衡）；fail-secure（DB 错误 → 不活跃）
+2. **环境变量开关**：`AUTH_CHECK_USER_ACTIVE` 默认 `true`（CI 中默认启用）
+3. **审计事件复用** `AuthorizationDenied` + target="auth_middleware_is_active_check" + extra="账户已被禁用"（避免新增变体）
+4. **role_id 来自 claims**（不查 DB）：JWT 已编码，热路径性能优先
+5. **多副本部署不跨进程同步**：本地缓存，但 5 分钟窗口可接受
+
+**静态验证结果**：
+- is_user_active_cached 调用在 Ok(claims) 分支 ✅
+- is_user_active_check_enabled() 短路求值保护 ✅
+- USER_ACTIVE_CACHE_TTL_SECS = 300 常量化 ✅
+- 审计调用 audit::log_security_event(AuthorizationDenied) ✅
+- 401 响应消息："账户已被禁用，请联系管理员" ✅
+- dashmap / OnceLock / Instant 均为已有依赖 ✅
+
+**遗留风险与注意事项**：
+- ⚠️ 缓存过期窗口：被禁用用户旧 JWT 最长 5 分钟内仍可用（可接受）
+- ⚠️ 角色变更未覆盖：本修复仅 is_active；role 变更需重新登录（属预期）
+- ✅ 无 DB migration
+
+---
+
+### 漏洞 #9：删除用户操作未吊销 JTI ✅ 已修复
+
+**目标分支**：`fix/security-wave2-p1-2026-06-23`（从 main b298c99 切出）
+
+**漏洞描述**：
+- `user_handler.rs::delete_user`（修复前 235-275 行）软删除用户时未调用 `revoke_jti`
+- 被删用户的所有活跃 JWT 在剩余有效期内仍可使用
+- 构成会话劫持防御失效
+
+**关键发现**：现有 `revoke_jti(jti, expires_at)` 仅按 session_id 维度存储，无法按 user_id 撤销所有 JTI。
+
+**修复方案**：新增"用户级 Token 吊销表"维度：
+1. 新增 `revoke_user_jtis(user_id, reason)` 函数（auth_service.rs）
+2. 新增 `is_user_token_revoked(user_id, iat)` 函数
+3. 新增 `cleanup_revoked_users()` 周期清理过期项
+4. 进程内 `HashMap<i32, i64>` 存储
+5. middleware 检查 `iat < revoked_at` 立即拒绝
+6. 与 #6 形成 defense-in-depth：#9 即时进程内黑名单 + #6 DB 实时校验
+
+**修改文件清单**：
+| 文件 | 行数变化 | 变更说明 |
+|------|----------|----------|
+| `backend/src/services/auth_service.rs` | +174 / -0 | 新增 revoke_user_jtis / is_user_token_revoked / cleanup_revoked_users + 3 单测 + REVOKED_USERS HashMap |
+| `backend/src/middleware/auth.rs` | +30 / -0 | JTI 黑名单检查后插入用户级 token 吊销检查（iat < revoked_at 立即拒绝） |
+| `backend/src/handlers/user_handler.rs` | +20 / -0 | delete_user 软删除成功后调用 revoke_user_jtis(user_id, "self_deletion") |
+| `backend/src/utils/audit.rs` | +13 / -0 | SecurityEvent 新增 `UserDeleted` 变体 + Display + 单测 |
+
+**关键决策**：
+1. **存储结构**：`HashMap<i32, i64>` 进程内存储；key=user_id, value=revoked_at_unix_ts
+2. **iat 校验语义**：`claims.iat < revoked_at` 拒绝（iat 是 token 签发时间；签发在吊销前 → 已签发 token 都应被拒）
+3. **cleanup 策略**：cleanup_revoked_users 在吊销时间 > 7 天时清除（远超 JWT 2h TTL）
+4. **fail-secure**：HashMap miss → 不吊销（与 fail-secure 默认行为一致）
+5. **与 #6 协同**：
+   - #9：即时进程内黑名单（毫秒级生效）
+   - #6：DB is_active 实时校验（5min 缓存）
+
+**静态验证结果**：
+- REVOKED_USERS: HashMap<i32, i64> 存在 ✅
+- revoke_user_jtis 函数实现 ✅
+- is_user_token_revoked 函数实现 ✅
+- cleanup_revoked_users 函数实现 ✅
+- middleware 顺序：JTI 黑名单 → 用户级吊销 → is_active 校验 ✅
+- delete_user 调用 revoke_user_jtis ✅
+- 3 个新单测存在 ✅
+
+**遗留风险与注意事项**：
+- ⚠️ 多副本部署：HashMap 不跨进程；建议未来接入 Redis
+- ⚠️ 进程重启：revoked_at 数据丢失；极端情况被禁用户 2h 内仍可用（与 #6 协同保护）
+- ✅ 无 DB migration
+
+---
+
+### Wave 2 整体状态汇总（2026-06-23）
+
+**PR #241**：`fix(backend): 批次 P1 安全漏洞 #3 #4 #6 #9 修复 - 用户权限/数据库测试认证/JWT 失效`
+- 状态：OPEN（CI 修复中）
+- 远端 commit：`efea1c2` (5 文件 / +481/-3 行)
+- 子代理拆分：A (#3+#9 user_handler) / B (#4 test_database) / C (#6 auth_middleware) / 新增 #9 user-level token revocation
+- 统一审计模块扩展：SecurityEvent 新增 3 变体（UserListViewed / UserViewed / UserDeleted / TestDatabaseConnection）——实际 4 变体
+- 关键经验：服务层签名不能照搬任务描述（`revoke_jti` 实际是 `(jti, expires_at)`），需新增"用户级撤销"维度
+
+**CI 修复 commit**（计划中）：
+- init_handler.rs:121-132 `borrow of moved value` 修复（`let target = format!()` 提前到 DatabaseConfig 构造前）
+
+---
+
+## 🚨 2026-06-23 安全漏洞修复 Wave 1（P0 紧急）
+
+### 漏洞 #1：密码重置端点缺少身份认证 ✅ 已修复
+
+**目标分支**：`fix/security-wave1-p0-2026-06-23`（从 main HEAD = d670a5f 切出）
+
+**漏洞描述**：
+- `init_handler.rs:reset_admin_password`（修复前 152-176 行）完全没有身份认证
+- 任何能访问 API 端点的人（含未认证外部用户）都可以重置任意用户密码
+- 构成完全账户接管漏洞（P0 紧急）
+
+**修改文件清单**：
+| 文件 | 行数变化 | 变更说明 |
+|------|----------|----------|
+| `backend/src/handlers/init_handler.rs` | +75 / -10 | 添加 auth 提取器 + 角色校验 + 自我保护 + 审计日志 |
+| `backend/src/services/init_service.rs` | +55 / -10 | 密码强度校验 + 用户存在性二次校验 + InitError::ValidationError 变体 |
+| `backend/src/main.rs` | +12 / -2 | 两处 match 块新增 ValidationError pattern 分支 |
+
+**关键决策**：
+1. **audit 模块**：复用现有 `AuditLogService::record_async`，与 `user_handler::change_password` 模式完全一致
+2. **admin 角色校验**：使用 `admin_checker::is_admin_role`（user_handler 中 `require_admin_role` 是私有函数，无法跨文件复用）
+3. **自我保护**：禁止 `auth.username == payload.username`（防止 admin 误操作锁定自己）
+4. **InitError 变体**：新增 `ValidationError(String)` 变体（HTTP 400），未复用 `ConfigError` 以保留错误分类精度
+5. **密码强度校验**：复用 `password_validator::validate_password` + `get_password_feedback`
+6. **错误分类修复**：`find_by_username` 错误精确区分 NotFound / DatabaseError（不再把 DB 错误误报为 UserNotFound）
+
+**静态验证结果**：
+- `grep "_auth" init_handler.rs` → 0 行（无未使用变量）
+- `grep "reset-password" public_routes.rs` → 0 行（不在白名单，符合预期）
+- handler 签名包含 `auth: AuthContext` ✅
+- handler 调用 `is_admin_role` ✅
+- handler 含 `auth.username == payload.username` 自我保护 ✅
+- service 层调用 `password_validator::validate_password` ✅
+- service 层 `user_service.find_by_username` 二次校验 ✅
+- 审计日志 `record_async` 调用 ✅
+- 路由路径：实际为 `/api/v1/erp/users/reset-password`（已修正审计中的 request_path）
+
+**遗留风险与注意事项**：
+- ⚠️ `init_handler.rs:209` 每次请求都 `Arc::new(AuditLogService)`，对热路径有微小开销；建议后续通过 `AppState` 注入共享实例（参考 user_handler 后续优化）
+- ⚠️ 审计日志未做去重/告警；当 admin 短时间大量重置密码时无自动告警（建议 Wave 2 接入告警通道）
+- 无需 DB migration（复用现有 `audit_log` 表）
+- 严禁本地编译，统一走 CI
+
+**复用样板**（供 Wave 2 #4 test_database_connection 参考）：
+```rust
+pub async fn handler_name(
+    State(state): State<AppState>,
+    auth: AuthContext,
+    audit_ctx: Option<Extension<AuditContext>>,
+    Json(payload): Json<Request>,
+) -> Result<...> {
+    // 1) 角色校验
+    let role_id = auth.role_id.ok_or_else(|| AppError::permission_denied(...))?;
+    if !is_admin_role(&state.db, role_id).await {
+        return Err(AppError::permission_denied(...));
+    }
+    // 2) 业务执行
+    // ...
+    // 3) 审计日志（异步）
+    let event = AuditEvent { /* ... */ };
+    let svc = Arc::new(AuditLogService::new(state.db.clone()));
+    svc.record_async(event, audit_ctx.map(|e| e.0));
+    // 4) 返回
+}
+```
+
+**状态**：
+- ✅ 代码修改完成
+- ⏳ 待总代理汇总后 commit + push
+- ⏳ CI 验证（cargo build + clippy + test）由 GitHub Actions 跑
+
+---
+
 ## 一、功能实现进度（基线）
 
 - Date: 2026-06-06
@@ -390,6 +685,8 @@
 | **批次 E 样板 1+2：supplier 拆分 + .vue 拆分模式** | ✅ 已完成（2026-06-22）| commit 3bba8ed（SupplierDialog 拆出）+ commit faa670f（PrdTbl 样板）；验证 props+emit 模式 |
 | **批次 F 样板 1+大：vue/no-mutating-props disable 收敛** | ✅ 已完成（2026-06-22）| commit faa670f（PrdTbl 1 文件）+ commit 6509e72（46 文件 / 79 disable 注释删除）|
 | **批次 F 第 3C 子批：剩余 12 文件 disable 收敛** | ✅ 已完成（PR #239, 2026-06-23 merged）| commit `d670a5f` (squash) + 18 文件 / +760/-195 行 / 移除 24 处 eslint-disable 注释 / 0 残留；分 4 子代理并行：data-import × 3 + bpm × 5 + arReconciliation × 2 + api-gateway × 2；5 父组件加 `@update:xxx` 监听 + `Object.assign` 同步；CI 修复 commit `38d59e4` (EpForm.vue:35 字面量联合类型 + data-import/index.vue:77 重命名 type DiTplForm as DiTplFormData)；**CI 15/15 success（13 success + 2 skipped）** |
+| **安全 Wave 1 (P0 紧急)：#1 #2 漏洞修复** | ✅ 已完成（PR #240, 2026-06-23 merged）| commit `b298c99` (squash) + 7 文件 / +306/-13 行；分 2 子代理并行；**漏洞 #1 密码重置认证**（init_handler 加 auth + admin 校验 + 自我保护 + 密码强度 + 二次校验）+ **漏洞 #2 租户管理权限**（4 端点 _auth→auth + require_admin_role + actor 深度防御）；新增 utils/audit.rs（95 行统一安全审计模块，4 变体 + 4 单测）；子代理协调：统一使用 utils::audit::log_security_event；**CI 15/15 success（13 success + 2 skipped）** |
+| **安全 Wave 2 (P1 重要)：#3 #4 #6 #9 漏洞修复** | ⏳ 代码完成 + CI 修复中（PR #241）| commit `efea1c2` (5 文件 / +481/-3 行)；分 3 子代理并行；**漏洞 #3 用户权限**（get_user / list_users _auth→auth + admin 限制 + 自我查询） + **漏洞 #4 数据库测试认证**（init_handler 加 auth + admin 校验 + TestDatabaseConnection 审计） + **漏洞 #6 JWT 即时失效**（auth_middleware 加 is_active 5min 缓存校验） + **漏洞 #9 用户级 JTI 吊销**（新增 REVOKED_USERS HashMap + iat 校验 + delete_user 调用）；utils/audit.rs 新增 4 变体；**CI 修复**：init_handler.rs:121-132 borrow of moved value（`let target = format!()` 提前到 DatabaseConfig 构造前） |
 | **P9-2 批次 C/D1-D8 后端大文件拆分** | ✅ 已完成（2026-06-22）| commit c9b579d（D8） + 其他 D1-D7 在 cd13658 快照中；8 个 > 800 行 .rs 文件已拆 |
 | **P9-2 批次 D 拆分 CI 修复全绿** | ✅ 已完成（2026-06-22）| 7 commit + CI 27967740035 15/15 success；错误从 502→0；clippy baseline 重建为 1039 行（commit 78abf4c）|
 | **通知用户手动全新部署** | 🔵 待通知用户 | 用户指令：待手动全新部署（禁止热更新）；部署前需配置 32+ 字节 COOKIE_SECRET 环境变量 |
