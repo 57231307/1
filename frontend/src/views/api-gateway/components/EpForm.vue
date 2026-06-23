@@ -32,7 +32,7 @@
             <el-select
               :model-value="localForm.method"
               style="width: 100%"
-              @update:model-value="(v: string) => (localForm.method = v)"
+              @update:model-value="(v: 'GET' | 'POST' | 'PUT' | 'DELETE' | 'PATCH') => (localForm.method = v)"
             >
               <el-option label="GET" value="GET" />
               <el-option label="POST" value="POST" />

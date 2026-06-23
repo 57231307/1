@@ -55,7 +55,7 @@
       :rules="diProc.templateRules"
       :submit-loading="diProc.templateSubmitLoading"
       :columns-text="diProc.columnsText"
-      @update:form="(v: DiTplForm) => Object.assign(diProc.templateForm, v)"
+      @update:form="(v: DiTplFormData) => Object.assign(diProc.templateForm, v)"
       @update:columns-text="(v: string) => (diProc.columnsText = v)"
       @submit="diProc.handleTemplateSubmit"
     />
@@ -74,7 +74,7 @@
 import { onMounted } from 'vue'
 import { Plus } from '@element-plus/icons-vue'
 import { useDi, type TplQuery, type TaskQuery } from './composables/useDi'
-import { useDiProc, type DiTplForm } from './composables/useDiProc'
+import { useDiProc, type DiTplForm as DiTplFormData } from './composables/useDiProc'
 import DiTplTbl from './components/DiTplTbl.vue'
 import DiTaskTbl from './components/DiTaskTbl.vue'
 import DiTplForm from './components/DiTplForm.vue'
