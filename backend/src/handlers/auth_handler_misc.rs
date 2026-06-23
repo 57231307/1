@@ -149,8 +149,8 @@ pub async fn refresh_token(
     );
 
     // 设置新 Cookie（同时写 access_token / csrf_token / 旧版 jwt 兼容）
-    let is_production =
-        std::env::var("ENV").unwrap_or_else(|_| "development".to_string()) == "production";
+    // 漏洞 #12 修复：统一从 `crate::utils::config::is_production()` 读取 APP_ENV
+    let is_production = crate::utils::config::is_production();
 
     let new_access = axum_extra::extract::cookie::Cookie::build(("access_token", new_token.clone()))
         .path("/")

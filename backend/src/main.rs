@@ -233,6 +233,13 @@ async fn shutdown_signal() {
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    // 漏洞 #12 修复：在启动最早期加载 .env 文件，确保后续 is_production() 等
+    // 环境变量判断能正确读到 APP_ENV。dotenvy::dotenv() 在 .env 文件不存在时返回 Err，
+    // 这里用 .ok() 静默忽略（生产环境通常通过 systemd EnvironmentFile 注入变量）。
+    // 安全说明：dotenvy 仅加载**未设置**的环境变量，不会覆盖系统/CI 中已显式注入的值，
+    // 避免 .env 文件意外覆盖部署期的环境配置。
+    dotenvy::dotenv().ok();
+
     let settings = AppSettings::new()?;
 
     let log_level = settings.log.level.clone();

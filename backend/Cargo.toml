@@ -41,6 +41,8 @@ regex = "1.10"
 config = "0.14"
 # TOML 解析（config 0.14 内置但不 re-export，P0-2 failover config 需要）
 toml = "0.8"
+# 加载 .env 文件（漏洞 #12 修复：统一 is_production 配置来源 APP_ENV）
+dotenvy = "0.15"
 
 # 日志
 tracing = "0.1"

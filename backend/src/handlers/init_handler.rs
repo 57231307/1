@@ -200,10 +200,56 @@ pub async fn initialize_system_with_db_async(
     .map_err(map_init_error)
 }
 
-/// 查询初始化任务状态
+/// 初始化子系统处理器内部的 admin 角色二次校验
+///
+/// 设计原因：
+/// 1. `permission_middleware` 不覆盖 init 路径（因 `/init` 在 PUBLIC_PATHS 中短路），
+///    必须在 handler 层补一道 admin 防线；
+/// 2. `auth_middleware` 在 `/api/v1/erp/init/*` 路径下被 `PUBLIC_PATHS` 短路跳过 JWT 验证，
+///    因此本函数实际触达场景是"调用方绕过了 auth_middleware 但仍注入了 AuthContext"
+///    （例如 init 模式下的 fallback router）。`auth: AuthContext` 提取器自身
+///    会在缺 AuthContext 时直接返回 401，所以缺角色/缺认证两种情况都已被覆盖。
+/// 3. 与 `user_handler::require_admin_role` 实现保持一致，便于未来统一抽到 utils。
+async fn require_admin_role(state: &AppState, auth: &AuthContext) -> Result<(), AppError> {
+    let role_id = auth
+        .role_id
+        .ok_or_else(|| AppError::permission_denied("用户未分配角色，无法执行该操作"))?;
+    if !is_admin_role(&state.db, role_id).await {
+        // 审计：非 admin 角色尝试访问 init 管理接口
+        audit::log_security_event(
+            SecurityEvent::AuthorizationDenied,
+            auth.user_id,
+            &auth.username,
+            auth.role_id,
+            Some("init_management"),
+            Some("non-admin attempt"),
+            None,
+        )
+        .await;
+        return Err(AppError::permission_denied(
+            "初始化子系统管理接口仅限管理员（code=admin）执行",
+        ));
+    }
+    Ok(())
+}
+
+/// 查询初始化任务状态（仅管理员可访问）
+///
+/// 安全约束：
+/// 1. 必须登录并具备 admin 角色（handler 层强制拦截）
+/// 2. 注意：`/api/v1/erp/init/*` 在 `PUBLIC_PATHS` 中，`auth_middleware` 会短路跳过 JWT 验证，
+///    因此 `auth: AuthContext` 提取器在未登录时也会返回 401（fail-secure）。
+///    这是 init 子系统整体的鉴权设计权衡（PR #240 的 `reset_admin_password` 同样受影响），
+///    本任务不在职责范围内修复。
 pub async fn get_task_status(
+    State(state): State<AppState>,
+    auth: AuthContext,
     Query(params): Query<HashMap<String, String>>,
 ) -> Result<Json<serde_json::Value>, AppError> {
+    // 1) 强制要求管理员角色（深度防御：与 test_database_connection / reset_admin_password 一致）
+    require_admin_role(&state, &auth).await?;
+
+    // 2) 业务逻辑保持不变
     let task_id = params
         .get("task_id")
         .ok_or_else(|| AppError::bad_request("缺少 task_id 参数"))?;
@@ -326,5 +372,132 @@ fn map_init_error(e: crate::services::init_service::InitError) -> AppError {
         crate::services::init_service::InitError::ValidationError(msg) => {
             AppError::bad_request(format!("参数校验失败: {}", msg))
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    //! 安全漏洞 #5 修复单测
+    //!
+    //! 覆盖 `get_task_status` 权限校验逻辑：
+    //! 1. **场景 A（匿名调用）**：请求 extensions 中无 `AuthContext` → `auth: AuthContext` 提取器
+    //!    应当返回 401，阻止匿名用户查询任意 task_id 的初始化任务状态。
+    //! 2. **场景 B（缺角色用户调用）**：注入 `role_id = None` 的 `AuthContext` → `require_admin_role`
+    //!    应当直接返回 403（permission_denied），不依赖 DB 查询。
+    //! 3. **场景 C（缺 task_id 参数）**：验证 Query 提取顺序无回归（缺 AuthContext → 401）。
+    //!
+    //! 设计说明：
+    //! - 不通过完整 HTTP 流程（绕开 `auth_middleware`），直接构造 `AuthContext`
+    //!   与无认证两种场景，验证 handler 内部 admin 校验逻辑。
+    //! - 场景 B 选择"缺 role_id"分支而非"非 admin 角色"分支，是为了避免在测试环境
+    //!   依赖真实 DB（`is_admin_role` 在 DB miss 时的行为依赖具体 sea_orm 错误信息）。
+    //!   "非 admin 角色"的端到端覆盖由 `utils/admin_checker::tests` 与 service 层测试承担。
+    //! - `tower::ServiceExt::oneshot` + 最小化 `AppState::default()` 隔离依赖。
+
+    use super::*;
+    use crate::utils::app_state::AppState;
+    use axum::{
+        body::Body,
+        http::{Request, StatusCode},
+        routing::get,
+        Router,
+    };
+    use tower::ServiceExt;
+
+    /// 构造一个最小化的测试 Router：仅注册 `get_task_status` + `AppState`。
+    fn build_test_app() -> Router {
+        Router::new()
+            .route("/init/task-status", get(get_task_status))
+            .with_state(AppState::default())
+    }
+
+    /// 场景 A：匿名调用 get_task_status（无 AuthContext）→ 期望 401
+    ///
+    /// 验证链路：
+    /// - 请求 extensions 中没有注入 `AuthContext`
+    /// - `auth: AuthContext` 提取器找不到 `AuthContext` → 返回 `AuthRejection::unauthorized`
+    /// - 响应状态码：401
+    #[tokio::test]
+    async fn test_get_task_status_anonymous_returns_401() {
+        let app = build_test_app();
+
+        let req = Request::builder()
+            .method("GET")
+            .uri("/init/task-status?task_id=any-task-id")
+            .body(Body::empty())
+            .expect("构造匿名请求失败");
+
+        let resp = app.oneshot(req).await.expect("执行匿名请求失败");
+
+        assert_eq!(
+            resp.status(),
+            StatusCode::UNAUTHORIZED,
+            "匿名调用 get_task_status 应返回 401（auth: AuthContext 提取器在缺 AuthContext 时直接拒绝）"
+        );
+    }
+
+    /// 场景 B：缺角色用户（role_id=None）调用 get_task_status → 期望 403
+    ///
+    /// 验证链路：
+    /// - 注入 `AuthContext { role_id: None }`
+    /// - `auth: AuthContext` 提取器成功
+    /// - `require_admin_role` 第一个分支：`role_id = None` → `permission_denied` → 403
+    /// - **不依赖 DB 查询**，测试稳定可重复。
+    #[tokio::test]
+    async fn test_get_task_status_no_role_returns_403() {
+        let state = AppState::default();
+
+        // 直接调用 require_admin_role 验证缺角色会被拒绝（不触发 DB 调用）
+        let auth = AuthContext {
+            user_id: 42,
+            username: "no_role_user".to_string(),
+            role_id: None,
+            tenant_id: Some(1),
+        };
+        let result = require_admin_role(&state, &auth).await;
+        assert!(
+            matches!(result, Err(AppError::PermissionDenied(_))),
+            "缺角色用户调用 require_admin_role 应返回 PermissionDenied，实际: {:?}",
+            result
+        );
+
+        // 端到端验证：通过 Router 调用也应返回 403
+        let app = build_test_app();
+        let mut req = Request::builder()
+            .method("GET")
+            .uri("/init/task-status?task_id=any-task-id")
+            .body(Body::empty())
+            .expect("构造缺角色请求失败");
+        req.extensions_mut().insert(auth);
+
+        let resp = app.oneshot(req).await.expect("执行缺角色请求失败");
+        assert_eq!(
+            resp.status(),
+            StatusCode::FORBIDDEN,
+            "缺角色用户调用 get_task_status 应返回 403（handler 内 require_admin_role 拒绝）"
+        );
+    }
+
+    /// 场景 C：缺少 task_id 参数 → 期望 401（缺 AuthContext 时提取器先失败）
+    ///
+    /// 验证 `require_admin_role` 之前的 Query 提取顺序无回归。
+    /// 注意：本测试跳过 admin 校验（无 AuthContext），仅验证 Query 提取器被正确解析。
+    #[tokio::test]
+    async fn test_get_task_status_missing_task_id_returns_401() {
+        let app = build_test_app();
+
+        let req = Request::builder()
+            .method("GET")
+            .uri("/init/task-status")
+            .body(Body::empty())
+            .expect("构造缺参请求失败");
+
+        let resp = app.oneshot(req).await.expect("执行缺参请求失败");
+        // 缺 AuthContext → 提取器先失败 → 401；如果未来先做 Query 校验，会改为 400。
+        assert_eq!(
+            resp.status(),
+            StatusCode::UNAUTHORIZED,
+            "缺 AuthContext 时 get_task_status 应先返回 401"
+        );
     }
 }
