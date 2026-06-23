@@ -105,7 +105,7 @@ const props = defineProps<{
 const emit = defineEmits<{
   (e: 'update:modelValue', value: boolean): void
   // 整体回写表单（父组件监听此事件并回写到自己的 form.value）
-  'update:form': [form: ReceiveFormData]
+  (e: 'update:form', form: ReceiveFormData): void
 }>()
 
 // 本地镜像：避免直接修改 prop 触发 vue/no-mutating-props

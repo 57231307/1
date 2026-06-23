@@ -119,7 +119,7 @@ const props = defineProps<{
 
 const emit = defineEmits<{
   // 整体回写查询参数（父组件监听此事件并 Object.assign 到自己的 queryParams）
-  'update:queryParams': [queryParams: QueryParams]
+  (e: 'update:queryParams', queryParams: QueryParams): void
 }>()
 
 // 本地镜像：避免直接修改 prop 触发 vue/no-mutating-props
