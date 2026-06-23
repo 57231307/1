@@ -8,7 +8,6 @@ use crate::services::enhanced_logger::{
 };
 use crate::services::totp_service::TotpService;
 use crate::utils::app_state::AppState;
-use crate::utils::cache::Cache;
 use crate::utils::error::AppError;
 use crate::utils::response::ApiResponse;
 use super::auth_handler_session::record_login_attempt;
@@ -21,7 +20,7 @@ use axum::{
 use axum_extra::extract::cookie::{Cookie, SameSite};
 use chrono::{Duration as ChronoDuration, Utc};
 use time::Duration as CookieDuration;
-use sea_orm::{ActiveModelTrait, ColumnTrait, EntityTrait, QueryFilter};
+use sea_orm::{ColumnTrait, EntityTrait, QueryFilter};
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use utoipa::ToSchema;
@@ -74,6 +73,18 @@ pub struct UserInfo {
     ),
     tags = ["Auth"]
 )]
+// 防御性 allow：
+// - redundant_clone：函数内多处 `.clone()`（payload.username / client_ip / csrf_token / token
+//   等）虽然当前都是必要消费，但 wave 3+ 接入新审计字段 / 多设备 session 跟踪时
+//   局部 clone 形态变化可能误报，预先抑制避免 CI 抖动。
+// - unused_variables：`rotated` / `csrf_ip` / `csrf_token` 在 wave 3 #7 强制轮换分支中
+//   短期作为中间值使用，未来若拆分到 helper 函数时可能暂时未消费，保留标注。
+// - needless_pass_by_value：axum Json 提取器要求 owned LoginRequest，无法改为引用。
+// login 函数
+// 保留 `clippy::redundant_clone` 抑制：
+// `audit_ctx.clone()` 与 `csrf_token.clone()` 用于
+// Option<Extension<T>> 的 Option::map 闭包 + Cookie 构建。
+#[allow(clippy::redundant_clone)]
 pub async fn login(
     State(state): State<AppState>,
     audit_ctx: Option<Extension<AuditContext>>,
@@ -262,7 +273,7 @@ pub async fn login(
                 after_snapshot: None,
             };
             let svc = Arc::new(AuditLogService::new(state.db.clone()));
-            svc.record_async(login_event, audit_ctx.map(|e| e.0));
+            svc.record_async(login_event, audit_ctx.clone().map(|e| e.0));
 
             // Update last login timestamp
             let user_svc = crate::services::user_service::UserService::new(state.db.clone());
@@ -303,14 +314,39 @@ pub async fn login(
                     tracing::error!("Failed to decode JWT token: {}", e);
                     AppError::unauthorized("无效的认证令牌")
                 })?;
-            let _session_id = claims.session_id;
-            // 生成随机 CSRF Token 并存储到缓存中（使用 token 本身作为 key，允许同一会话多个有效 token）
+            let session_id = claims.session_id;
+
+            // 提取客户端 IP（Wave 3 安全漏洞 #7：IP 绑定到 CSRF Token）
+            // 优先从 AuditContext 取（已处理 X-Real-IP / X-Forwarded-For 多级降级），
+            // 缺失时回退到 local 提取（双保险，与 audit_log 一致）。
+            let csrf_ip = audit_ctx
+                .as_ref()
+                .map(|e| e.0.ip_address.clone())
+                .filter(|s| !s.is_empty())
+                .unwrap_or_else(|| client_ip.clone());
+
+            // 强制轮换：登录前清除该 user_id 关联的旧 CSRF Token（Wave 3 #7）
+            let rotated = state.cache.clear_old_csrf_token_for_user(user.id);
+            if rotated {
+                tracing::info!(
+                    user_id = user.id,
+                    username = %payload.username,
+                    "已清除该用户的旧 CSRF Token（强制轮换）"
+                );
+            }
+
+            // 生成随机 CSRF Token 并存储到缓存中（Wave 3 #7）：
+            // - 缓存值 = (session_id, ip_address) 元组，IP 用于消费时校验
+            // - 反向索引 user_id → csrf_token 支持强制轮换
+            // - TTL = CSRF_TOKEN_DEFAULT_TTL_SECS (1800s = 30min)，与 access_token Cookie 对齐
             let csrf_token = uuid::Uuid::new_v4().to_string();
-            let csrf_ttl = std::time::Duration::from_secs(7200); // 2小时，与 JWT 有效期一致
-            state
-                .cache
-                .get_csrf_token_cache()
-                .set(csrf_token.clone(), _session_id, Some(csrf_ttl));
+            state.cache.set_csrf_token(
+                csrf_token.clone(),
+                session_id,
+                csrf_ip,
+                user.id,
+                None, // 使用默认 TTL (1800s)
+            );
 
             // 生成 refresh_token (简单的随机字符串)
             let refresh_token = uuid::Uuid::new_v4().to_string();

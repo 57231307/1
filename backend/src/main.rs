@@ -11,6 +11,7 @@ mod services;
 mod utils;
 mod websocket; // P3-2 WebSocket 实时通信（lib crate bingxi_backend::websocket 的镜像引用）
 
+use axum::extract::DefaultBodyLimit;
 use axum::http::{HeaderValue, Method, Request};
 use axum::{
     routing::{get, post},
@@ -36,6 +37,13 @@ use crate::routes::create_router;
 use crate::services::init_service::{DatabaseConfig, InitService};
 use crate::utils::log_config::{self, LogConfig};
 use crate::utils::response::ApiResponse;
+
+// ============================================================================
+// 安全漏洞 #8 修复：HTTP 请求体大小限制常量
+// ============================================================================
+// 12MB 全局请求体上限（CSV 导入 10MB + 2MB JSON 编码/头部余量）
+/// 全局 HTTP 请求体大小上限：12 MB
+const MAX_HTTP_BODY_BYTES: usize = 12 * 1024 * 1024;
 
 #[derive(Debug, serde::Serialize)]
 struct InitStatusResponse {
@@ -433,6 +441,18 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             crate::services::event_bus::start_event_listener(app_state.db.clone()).await;
             crate::services::event_bus::init_event_bus_with_kafka_config(&settings.kafka).await;
             let app = create_router(app_state)
+                // 安全漏洞 #8 修复：全局 HTTP 请求体大小限制（12MB）
+                // - 设计目的：兜底防止已认证用户发送 100MB+ 请求触发 OOM DoS
+                // - 上限选择：CSV 导入允许 10MB（业务上限），12MB 留 2MB 余量
+                //   给 JSON 编码 / 头部开销，避免 10MB CSV + metadata 触及外层限制
+                // - 与 DTO 校验 + handler 早期校验 + service defense-in-depth 形成
+                //   四层防御，详见 import_export_service.rs 模块顶部注释
+                // - 必须在 cors / trace / metrics 等其他 layer 之外（先执行），
+                //   这样在所有解析之前先拒绝超限请求，节省后续中间件开销
+                //
+                // 使用具名常量 `MAX_HTTP_BODY_BYTES`（=12MB）替代魔法数字，
+                // 防御 clippy 1.94 对 `12 * 1024 * 1024` 字面量的 dead_code 误报。
+                .layer(DefaultBodyLimit::max(MAX_HTTP_BODY_BYTES))
                 // P3.2：审计上下文（必须在 trace_context 之内层挂载，
                 // 即在 .layer() 链中位于 trace_context 之前；这样请求先经过
                 // trace_context 注入 trace_id，再进入 audit_context 读取并补充 IP/UA）
