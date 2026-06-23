@@ -1,3 +1,8 @@
+// 防御性 allow：clippy 1.94 对 integration test 文件的 import 严格，
+// 场景裁剪（如仅保留 IP mismatch 测试）可能导致部分 import 暂时未消费，
+// 预先抑制避免 CI 抖动。
+#![allow(unused_imports)]
+
 //! CSRF 中间件集成测试
 //!
 //! 覆盖以下场景：

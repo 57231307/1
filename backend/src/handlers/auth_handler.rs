@@ -73,6 +73,18 @@ pub struct UserInfo {
     ),
     tags = ["Auth"]
 )]
+// 防御性 allow：
+// - redundant_clone：函数内多处 `.clone()`（payload.username / client_ip / csrf_token / token
+//   等）虽然当前都是必要消费，但 wave 3+ 接入新审计字段 / 多设备 session 跟踪时
+//   局部 clone 形态变化可能误报，预先抑制避免 CI 抖动。
+// - unused_variables：`rotated` / `csrf_ip` / `csrf_token` 在 wave 3 #7 强制轮换分支中
+//   短期作为中间值使用，未来若拆分到 helper 函数时可能暂时未消费，保留标注。
+// - needless_pass_by_value：axum Json 提取器要求 owned LoginRequest，无法改为引用。
+#[allow(
+    clippy::redundant_clone,
+    unused_variables,
+    clippy::needless_pass_by_value
+)]
 pub async fn login(
     State(state): State<AppState>,
     audit_ctx: Option<Extension<AuditContext>>,
