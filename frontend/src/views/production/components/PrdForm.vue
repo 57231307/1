@@ -2,30 +2,29 @@
   PrdForm.vue - 生产管理订单表单（新建/编辑）
   拆分自 production/index.vue（P14 批 2 I-3 第 4 批）
   行为完全保持一致（仅结构重构）
+  P9-3 批次 F 重构：移除 vue/no-mutating-props 抑制，改用本地 ref 镜像 + watch 防循环
 -->
-<!-- eslint-disable vue/no-mutating-props -->
 <template>
   <el-dialog
     :model-value="visible"
-    :title="form.id ? '编辑生产订单' : '新建生产订单'"
+    :title="localForm.id ? '编辑生产订单' : '新建生产订单'"
     width="700px"
     destroy-on-close
     @update:model-value="(v: boolean) => emit('update:visible', v)"
   >
-    <el-form ref="formRef" :model="form" :rules="rules" label-width="100px">
+    <el-form ref="formRef" :model="localForm" :rules="rules" label-width="100px">
       <el-row :gutter="20">
         <el-col :span="12">
           <el-form-item label="订单编号" prop="order_no">
-            <el-input v-model="form.order_no" placeholder="请输入订单编号" />
+            <el-input v-model="localForm.order_no" placeholder="请输入订单编号" />
           </el-form-item>
         </el-col>
         <el-col :span="12">
           <el-form-item label="产品ID" prop="product_id">
             <el-input-number
-              :model-value="form.product_id"
+              v-model="localForm.product_id"
               :min="1"
               style="width: 100%"
-              @update:model-value="(v: number | undefined) => (form.product_id = v ?? undefined)"
             />
           </el-form-item>
         </el-col>
@@ -34,24 +33,15 @@
         <el-col :span="12">
           <el-form-item label="计划数量" prop="planned_quantity">
             <el-input-number
-              :model-value="form.planned_quantity"
+              v-model="localForm.planned_quantity"
               :min="0"
               style="width: 100%"
-              @update:model-value="
-                (v: number | undefined) => (form.planned_quantity = v ?? undefined)
-              "
             />
           </el-form-item>
         </el-col>
         <el-col :span="12">
           <el-form-item label="优先级" prop="priority">
-            <el-input-number
-              :model-value="form.priority"
-              :min="1"
-              :max="10"
-              style="width: 100%"
-              @update:model-value="(v: number | undefined) => (form.priority = v ?? 5)"
-            />
+            <el-input-number v-model="localForm.priority" :min="1" :max="10" style="width: 100%" />
           </el-form-item>
         </el-col>
       </el-row>
@@ -59,7 +49,7 @@
         <el-col :span="12">
           <el-form-item label="计划开始">
             <el-date-picker
-              v-model="form.scheduled_start_date"
+              v-model="localForm.scheduled_start_date"
               type="date"
               placeholder="选择日期"
               style="width: 100%"
@@ -70,7 +60,7 @@
         <el-col :span="12">
           <el-form-item label="计划结束">
             <el-date-picker
-              v-model="form.scheduled_end_date"
+              v-model="localForm.scheduled_end_date"
               type="date"
               placeholder="选择日期"
               style="width: 100%"
@@ -80,17 +70,10 @@
         </el-col>
       </el-row>
       <el-form-item label="工作中心ID">
-        <el-input-number
-          :model-value="form.work_center_id"
-          :min="0"
-          style="width: 100%"
-          @update:model-value="
-            (v: number | undefined) => (form.work_center_id = v ?? undefined)
-          "
-        />
+        <el-input-number v-model="localForm.work_center_id" :min="0" style="width: 100%" />
       </el-form-item>
       <el-form-item label="备注">
-        <el-input v-model="form.remark" type="textarea" :rows="3" placeholder="请输入备注" />
+        <el-input v-model="localForm.remark" type="textarea" :rows="3" placeholder="请输入备注" />
       </el-form-item>
     </el-form>
     <template #footer>
@@ -101,8 +84,7 @@
 </template>
 
 <script setup lang="ts">
-/* eslint-disable vue/no-mutating-props */
-import { ref } from 'vue'
+import { ref, watch, nextTick } from 'vue'
 import type { FormInstance, FormRules } from 'element-plus'
 
 // 订单表单字段类型
@@ -122,22 +104,57 @@ interface OrderForm {
 const props = defineProps<{
   // 对话框可见性
   visible: boolean
-  // 表单数据
+  // 表单数据（由父组件管理，子组件通过 emit('update:form') 回写）
   form: OrderForm
   // 提交 loading
   loading: boolean
   // 校验规则
   rules: FormRules
 }>()
-void props // 显式标记使用避免 TS6133
 
 const emit = defineEmits<{
   'update:visible': [v: boolean]
   submit: []
+  // 整体回写表单
+  'update:form': [form: OrderForm]
 }>()
 
 // 表单 ref
 const formRef = ref<FormInstance>()
+
+// 本地镜像：避免直接修改 prop 触发 vue/no-mutating-props
+const localForm = ref<OrderForm>({ ...props.form })
+
+// 同步标志位：防止 prop → local 与 local → emit 形成循环
+let syncing = false
+
+// 外部 prop 变化时同步到 local（如父组件编辑时重置）
+watch(
+  () => props.form,
+  (newForm) => {
+    if (syncing) return
+    syncing = true
+    localForm.value = { ...newForm }
+    nextTick(() => {
+      syncing = false
+    })
+  },
+  { deep: true },
+)
+
+// 本地变化时通知父组件（用户输入）
+watch(
+  localForm,
+  (newForm) => {
+    if (syncing) return
+    syncing = true
+    emit('update:form', { ...newForm })
+    nextTick(() => {
+      syncing = false
+    })
+  },
+  { deep: true },
+)
 
 /** 点击确定：先校验再发 submit */
 const onSubmit = async () => {

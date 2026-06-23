@@ -13,7 +13,12 @@
       </div>
     </el-card>
 
-    <PrdFilter :form="prd.queryForm" @search="prd.applyQuery" @reset="prd.resetQuery" />
+    <PrdFilter
+      :form="prd.queryForm"
+      @update:form="(v) => Object.assign(prd.queryForm, v)"
+      @search="prd.applyQuery"
+      @reset="prd.resetQuery"
+    />
 
     <el-card class="table-card">
       <template #header>
@@ -53,6 +58,7 @@
       :form="prd.orderForm"
       :loading="prd.submitLoading"
       :rules="prd.orderRules"
+      @update:form="(v) => Object.assign(prd.orderForm, v)"
       @submit="onSubmitForm"
     />
 

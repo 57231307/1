@@ -2,27 +2,25 @@
   PrdFilter.vue - 生产管理过滤栏
   拆分自 production/index.vue（P14 批 2 I-3 第 4 批）
   行为完全保持一致（仅结构重构）
+  P9-3 批次 F 重构：移除 vue/no-mutating-props 抑制，改用本地 ref 镜像 + watch 防循环
 -->
-<!-- eslint-disable vue/no-mutating-props -->
 <template>
   <el-card shadow="never" class="filter-card">
-    <el-form :inline="true" :model="form" @submit.prevent>
+    <el-form :inline="true" :model="localForm" @submit.prevent>
       <el-form-item label="订单编号">
         <el-input
-          :model-value="form.order_no"
+          v-model="localForm.order_no"
           placeholder="请输入订单编号"
           clearable
           style="width: 200px"
-          @update:model-value="(v: string) => (form.order_no = v)"
         />
       </el-form-item>
       <el-form-item label="状态">
         <el-select
-          :model-value="form.status"
+          v-model="localForm.status"
           placeholder="请选择状态"
           clearable
           style="width: 150px"
-          @update:model-value="(v: string) => (form.status = v)"
         >
           <el-option label="草稿" value="draft" />
           <el-option label="已计划" value="planned" />
@@ -40,7 +38,7 @@
 </template>
 
 <script setup lang="ts">
-/* eslint-disable vue/no-mutating-props */
+import { ref, watch, nextTick } from 'vue'
 
 // 过滤表单字段类型
 interface FilterForm {
@@ -48,18 +46,51 @@ interface FilterForm {
   status: string
 }
 
-/**
- * 生产管理过滤栏组件
- */
-defineProps<{
-  // 过滤表单数据
+const props = defineProps<{
+  // 过滤表单数据（由父组件管理，子组件通过 emit('update:form') 回写）
   form: FilterForm
 }>()
 
 const emit = defineEmits<{
   search: []
   reset: []
+  // 整体回写表单（父组件监听此事件并 Object.assign 到自己的 form）
+  'update:form': [form: FilterForm]
 }>()
+
+// 本地镜像：避免直接修改 prop 触发 vue/no-mutating-props
+const localForm = ref<FilterForm>({ ...props.form })
+
+// 同步标志位：防止 prop → local 与 local → emit 形成循环
+let syncing = false
+
+// 外部 prop 变化时同步到 local（如父组件重置）
+watch(
+  () => props.form,
+  (newForm) => {
+    if (syncing) return
+    syncing = true
+    localForm.value = { ...newForm }
+    nextTick(() => {
+      syncing = false
+    })
+  },
+  { deep: true },
+)
+
+// 本地变化时通知父组件（用户输入）
+watch(
+  localForm,
+  (newForm) => {
+    if (syncing) return
+    syncing = true
+    emit('update:form', { ...newForm })
+    nextTick(() => {
+      syncing = false
+    })
+  },
+  { deep: true },
+)
 </script>
 
 <style scoped>
