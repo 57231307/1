@@ -5,6 +5,155 @@
 
 ---
 
+## 最新任务：🚨 安全漏洞 Wave 3 P2-#7 CSRF Token 缓存设计缺陷（2026-06-23）
+
+**分支**：`fix/security-wave3-p2-2026-06-23`（从 main cdb2ada 切出）
+**漏洞等级**：P2 / 中（CSRF 跨 IP 重放 + 长时间窗口攻击面）
+**修复负责人**：Wave 3 子代理 A
+**修复状态**：✅ 代码完成 + commit `f33221c`，待总代理 push
+
+### 漏洞摘要
+
+`backend/src/handlers/auth_handler.rs:308-313`（修复前）使用 UUID 作为缓存键、session_id 作为值、TTL **2 小时**（7200s），存在三个独立缺陷：
+1. **TTL 过长**：2h 暴露窗口过大，与 access_token Cookie 30min 生命周期不匹配
+2. **未绑定 IP**：缓存值仅含 session_id，攻击者窃取 token 后可跨 IP 重放
+3. **无强制轮换**：登录/刷新 token 时未清除旧 token，多设备登录时旧 token 长期残留
+
+### 修改文件清单
+
+| 文件 | 行数变化 | 变更说明 |
+|------|----------|----------|
+| `backend/src/utils/cache.rs` | +243 / -14 | 新增 `CSRF_TOKEN_DEFAULT_TTL_SECS = 1800` 常量；`csrf_token_cache` 值类型 `String → (String, String)` 元组（session_id, ip）；新增 `csrf_user_index: DashMap<i32, String>` 反向索引；公开 `set_csrf_token / consume_csrf_token / clear_old_csrf_token_for_user` 三个新 API；新增 `CsrfConsumeResult` 枚举（Ok / IpMismatch / NotFound）；新增 4 个 `#[cfg(test)]` 单测 |
+| `backend/src/middleware/csrf.rs` | +131 / -11 | 新增 `CSRF_IP_MISMATCH` 业务码 + `CSRF_IP_MISMATCH_MSG` 常量；新增 `extract_client_ip` 辅助函数（X-Real-IP → X-Forwarded-For → ConnectInfo → "unknown"）；`csrf_middleware` 消费时校验 IP；新增 2 个单测 |
+| `backend/src/handlers/auth_handler.rs` | +33 / -7 | login 流程：移除 7200s TTL；调用新 `set_csrf_token` API（默认 1800s）；IP 提取：AuditContext.ip_address → client_ip fallback；登录前调用 `clear_old_csrf_token_for_user` 强制轮换 |
+| `backend/src/handlers/auth_handler_misc.rs` | +35 / -7 | refresh_token 流程同 login 修复：1800s TTL + IP 绑定 + 强制轮换 |
+| `backend/tests/test_csrf_middleware.rs` | +131 / -25 | 更新已有测试使用新 API；新增 2 个集成测试（IP 拒绝 + 强制轮换） |
+| **合计** | **5 文件 / +572/-57 行** | |
+
+### 关键决策
+
+1. **TTL 选择 1800s (30min)**：与 `auth_handler_misc.rs:156` 的 access_token Cookie `max_age(30min)` 严格对齐
+2. **IP 来源优先级**：登录时 `AuditContext.ip_address` → `client_ip` fallback；中间件消费时 `extract_client_ip(request)` 自有提取
+3. **强制轮换触发点**：login 成功后 + refresh_token 成功后；反向索引 `csrf_user_index: DashMap<i32, String>` 记录 user_id → 最新 token
+4. **IP 不匹配时不消费 token**：消费函数返回 `IpMismatch` 时把 token 放回缓存（**不消费**），防 IP 探测 DoS
+5. **未引入新依赖**：复用 `DashMap::new()`，未修改 `Cargo.toml`
+
+### 静态验证结果
+
+- `grep "7200" backend/src/handlers/auth_handler.rs` → **0 行**（TTL 已改 1800）✅
+- `grep "CSRF_IP_MISMATCH" backend/src/middleware/csrf.rs` → **5 处**（常量 + 测试 + 文档）✅
+- 8 个新单测（cache.rs 4 + csrf.rs 2 + 集成测试 2），覆盖 IP 匹配通过 / IP 不匹配拒绝 / 强制轮换 / 反向索引清理
+
+**详细报告**：`.monkeycode/doto.md` → "漏洞 #7：CSRF Token 缓存设计缺陷" 章节
+
+---
+
+## 🚨 安全漏洞 Wave 3 P2-#8 批量导入端点请求体大小限制（2026-06-23）
+
+**分支**：`fix/security-wave3-p2-2026-06-23`（从 main cdb2ada 切出）
+**漏洞等级**：P2 / 中（已认证用户可触发 OOM DoS / 数据库压力）
+**修复负责人**：Wave 3 子代理 B
+**修复状态**：✅ 代码完成 + commit `4ddce50`，待总代理 push
+
+### 漏洞摘要
+
+`backend/src/handlers/import_export_handler.rs:32-98` 的 `import_csv` 和 `import_excel` 端点：
+- `import_csv` 接收 `CsvImportRequest { import_type, data: String }`：data 字段无最大长度限制
+- `import_excel` 接收 `ExcelImportRequest { import_type, data: Vec<Vec<String>> }`：data 字段无最大行数/列数限制
+- `services::import_data`（L266-320）循环处理每行，无任何限制
+
+**风险**：已认证用户可发 100MB+ 请求触发 OOM DoS / 数据库压力 / 服务崩溃
+
+### 修改文件清单
+
+| 文件 | 行数变化 | 变更说明 |
+|------|----------|----------|
+| `backend/src/services/import_export_service.rs` | +193 / -0 | 顶部新增 4 个 pub const（MAX_CSV_BYTES/MAX_EXCEL_ROWS/MAX_EXCEL_COLS/MAX_CELL_LEN）+ 设计依据注释；`import_data` 入口加 defense-in-depth 校验；新增 5 个 #[tokio::test] 单测 |
+| `backend/src/handlers/import_export_handler.rs` | +158 / -6 | `CsvImportRequest`/`ExcelImportRequest` 加 `#[derive(Validate)]` + `#[validate(length(max = ...))]` 注解；`import_csv`/`import_excel` 入口加 `req.validate()?` + 早期 size 校验；新增 3 个 #[test] 单测 |
+| `backend/src/main.rs` | +10 / -0 | `use axum::extract::DefaultBodyLimit`；全局添加 `DefaultBodyLimit::max(12 * 1024 * 1024)` layer |
+| **合计** | **3 文件 / +361/-6 行** | |
+
+### 四层防御（defense-in-depth）
+
+- **L1**：`DefaultBodyLimit::max(12MB)`（main.rs 全局中间件，兜底）。12MB = 10MB CSV + 2MB 头部余量
+- **L2**：DTO `#[validate(length(max = ...))]`（axum 提取器层，结构化校验）。错误经 `From<validator::ValidationErrors> for AppError` 转 AppError
+- **L3**：handler 入口早期校验（拒绝更快、更友好）
+- **L4**：`import_data` 入口 defense-in-depth（避免内部调用绕过 handler）
+
+### 关键决策
+
+- **常量值**：MAX_CSV_BYTES=10MB / MAX_EXCEL_ROWS=10000 / MAX_EXCEL_COLS=100 / MAX_CELL_LEN=1024
+- **不引入新依赖**：复用项目已有 `validator = "0.16"`（已带 `derive` feature）
+- **错误信息**：全部中文 + 具体值（如 "CSV 数据超过 10485760 字节上限：当前 10485761 字节"）
+- **test 设计**：service 测试用 `sea_orm::Database::connect("sqlite::memory:")` 创建内存 DB；校验在 DB 调用前触发，DB 内容无关紧要
+
+### 新增 8 个单测
+
+1. `test_vuln8_constants_defined_correctly`（常量值断言）
+2. `test_csv_import_request_rejects_exceeding_10mb`（DTO CSV 超 10MB）
+
+3. `test_csv_import_request_accepts_exactly_10mb`（DTO 边界值）
+4. `test_excel_import_request_rejects_exceeding_10k_rows`（DTO Excel 超 1 万行）
+5. `test_import_data_rejects_exceeding_max_rows`（service 层超行）
+6. `test_import_data_rejects_exceeding_max_cols`（service 层超列）
+7. `test_import_data_rejects_exceeding_max_cell_len`（service 层单元格超长）
+8. `test_import_data_allows_within_limits`（service 层正常数据不误拒）
+
+### commit
+
+- `4ddce50 fix(backend): 安全漏洞 #8 - 批量导入端点请求体大小限制`
+- 3 files changed, 361 insertions(+), 6 deletions(-)
+- ✅ 已 commit，未 push（总代理统一 push）
+
+### 风险与遗留
+
+- ⚠️ **PUBLIC_PATHS 跳过 JWT**：`/api/v1/erp/import/*` 不在 PUBLIC_PATHS 中，auth_middleware 会先校验 JWT。修复假设攻击者已认证。
+- ⚠️ **Content-Length 欺骗**：DefaultBodyLimit 在 axum 实际读取 body 时触发，恶意客户端可基于头欺骗流量。
+- ✅ 无 DB migration（无需新增表/列）
+- ✅ 严禁本地编译，统一走 CI
+- ✅ 复用现有 `validator = "0.16"` 依赖，未修改 Cargo.toml
+- ✅ 未触碰 `utils/audit.rs` / `auth_middleware.rs` / `csrf.rs`（避免与 Wave 1/2/3A 冲突）
+
+### 关键样板（Wave 4+ 复用）
+
+```rust
+// DTO 注解模式
+#[derive(Debug, Deserialize, Validate)]
+pub struct CsvImportRequest {
+    pub import_type: String,
+    #[validate(length(max = 10 * 1024 * 1024, message = "CSV 数据超过 10MB 上限"))]
+    pub data: String,
+}
+
+// handler 入口早期校验
+pub async fn import_csv(
+    State(state): State<AppState>,
+    auth: AuthContext,
+    Json(req): Json<CsvImportRequest>,
+) -> Result<Json<ApiResponse<...>>, AppError> {
+    req.validate()?; // DTO 校验（友好错误）
+    if req.data.len() > MAX_CSV_BYTES {
+        return Err(AppError::validation(format!(
+            "CSV 数据超过 {} 字节上限：当前 {} 字节", MAX_CSV_BYTES, req.data.len()
+        )));
+    }
+    // ... 业务逻辑
+}
+
+// service 层 defense-in-depth
+pub async fn import_data(&self, ...) -> Result<..., AppError> {
+    if data.len() > MAX_EXCEL_ROWS {
+        return Err(AppError::validation(format!("导入数据超过最大行数限制：当前 {} 行，上限 {} 行", data.len(), MAX_EXCEL_ROWS)));
+    }
+    // ... 业务逻辑
+}
+
+// main.rs 全局 body 限制
+.layer(DefaultBodyLimit::max(12 * 1024 * 1024))
+```
+
+---
+
 ## 最新任务：🚨 安全漏洞 Wave 2 P1-#6 用户自删除后 JWT 仍有效修复（2026-06-23）
 
 **分支**：`fix/security-wave2-p1-2026-06-23`（从 main b298c99 切出）

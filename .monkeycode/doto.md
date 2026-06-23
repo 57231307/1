@@ -686,7 +686,7 @@ pub async fn handler_name(
 | **批次 F 样板 1+大：vue/no-mutating-props disable 收敛** | ✅ 已完成（2026-06-22）| commit faa670f（PrdTbl 1 文件）+ commit 6509e72（46 文件 / 79 disable 注释删除）|
 | **批次 F 第 3C 子批：剩余 12 文件 disable 收敛** | ✅ 已完成（PR #239, 2026-06-23 merged）| commit `d670a5f` (squash) + 18 文件 / +760/-195 行 / 移除 24 处 eslint-disable 注释 / 0 残留；分 4 子代理并行：data-import × 3 + bpm × 5 + arReconciliation × 2 + api-gateway × 2；5 父组件加 `@update:xxx` 监听 + `Object.assign` 同步；CI 修复 commit `38d59e4` (EpForm.vue:35 字面量联合类型 + data-import/index.vue:77 重命名 type DiTplForm as DiTplFormData)；**CI 15/15 success（13 success + 2 skipped）** |
 | **安全 Wave 1 (P0 紧急)：#1 #2 漏洞修复** | ✅ 已完成（PR #240, 2026-06-23 merged）| commit `b298c99` (squash) + 7 文件 / +306/-13 行；分 2 子代理并行；**漏洞 #1 密码重置认证**（init_handler 加 auth + admin 校验 + 自我保护 + 密码强度 + 二次校验）+ **漏洞 #2 租户管理权限**（4 端点 _auth→auth + require_admin_role + actor 深度防御）；新增 utils/audit.rs（95 行统一安全审计模块，4 变体 + 4 单测）；子代理协调：统一使用 utils::audit::log_security_event；**CI 15/15 success（13 success + 2 skipped）** |
-| **安全 Wave 2 (P1 重要)：#3 #4 #6 #9 漏洞修复** | ⏳ 代码完成 + CI 修复中（PR #241）| commit `efea1c2` (5 文件 / +481/-3 行)；分 3 子代理并行；**漏洞 #3 用户权限**（get_user / list_users _auth→auth + admin 限制 + 自我查询） + **漏洞 #4 数据库测试认证**（init_handler 加 auth + admin 校验 + TestDatabaseConnection 审计） + **漏洞 #6 JWT 即时失效**（auth_middleware 加 is_active 5min 缓存校验） + **漏洞 #9 用户级 JTI 吊销**（新增 REVOKED_USERS HashMap + iat 校验 + delete_user 调用）；utils/audit.rs 新增 4 变体；**CI 修复**：init_handler.rs:121-132 borrow of moved value（`let target = format!()` 提前到 DatabaseConfig 构造前） |
+| **安全 Wave 2 (P1 重要)：#3 #4 #6 #9 漏洞修复** | ✅ 已完成（PR #241, 2026-06-23 merged）| commit `cdb2ada` (squash) + 7 文件 / +1064/-3 行；分 3 子代理并行；**漏洞 #3 用户权限**（get_user / list_users _auth→auth + admin 限制 + 自我查询） + **漏洞 #4 数据库测试认证**（init_handler 加 auth + admin 校验 + TestDatabaseConnection 审计） + **漏洞 #6 JWT 即时失效**（auth_middleware 加 is_active 5min 缓存校验） + **漏洞 #9 用户级 JTI 吊销**（新增 REVOKED_USERS HashMap + iat 校验 + delete_user 调用）；utils/audit.rs 新增 4 变体（UserListViewed / UserViewed / UserDeleted / TestDatabaseConnection），共 8 变体；**CI 13/13 success（13 success + 2 skipped）**；CI 修复 commit `502235d`（init_handler.rs borrow of moved value）|
 | **P9-2 批次 C/D1-D8 后端大文件拆分** | ✅ 已完成（2026-06-22）| commit c9b579d（D8） + 其他 D1-D7 在 cd13658 快照中；8 个 > 800 行 .rs 文件已拆 |
 | **P9-2 批次 D 拆分 CI 修复全绿** | ✅ 已完成（2026-06-22）| 7 commit + CI 27967740035 15/15 success；错误从 502→0；clippy baseline 重建为 1039 行（commit 78abf4c）|
 | **通知用户手动全新部署** | 🔵 待通知用户 | 用户指令：待手动全新部署（禁止热更新）；部署前需配置 32+ 字节 COOKIE_SECRET 环境变量 |
@@ -1262,7 +1262,273 @@ pub async fn handler_name(
     - `.lock()` 是 `sea_orm::QuerySelect` trait 方法（参照 `voucher_service.rs` 现有用法）
     - 拆分大文件后必须全面检查 trait import：SeaORM 多 trait 易遗漏
     - clippy baseline 机制是合规历史警告清理方案
+
+---
+
+## 🚨 2026-06-23 安全漏洞修复 Wave 3 P2（重要）
+
+### 漏洞 #8：批量导入端点缺少请求体大小限制 ✅ 已修复
+
+**目标分支**：`fix/security-wave3-p2-2026-06-23`（从 main cdb2ada 切出）
+
+**修复负责人**：Wave 3 子代理 B
+
+**漏洞描述**：
+- `backend/src/handlers/import_export_handler.rs:32-98` 的 `import_csv` 和 `import_excel` 端点：
+  - `import_csv` 接收 `CsvImportRequest { import_type, data: String }`：data 字段无最大长度限制
+  - `import_excel` 接收 `ExcelImportRequest { import_type, data: Vec<Vec<String>> }`：data 字段无最大行数/列数限制
+- `services::import_data`（L266-320）循环处理每行，无任何限制
+- **风险**：已认证用户可发 100MB+ 请求触发 OOM DoS / 数据库压力 / 服务崩溃
+
+**修改文件清单**：
+| 文件 | 行数变化 | 变更说明 |
+|------|----------|----------|
+| `backend/src/services/import_export_service.rs` | +193 / -0 | 顶部新增 4 个 pub const（MAX_CSV_BYTES/MAX_EXCEL_ROWS/MAX_EXCEL_COLS/MAX_CELL_LEN）+ 设计依据注释；`import_data` 入口加 defense-in-depth 校验（行数/列数/单元格长度）；新增 5 个 #[tokio::test] 单测 |
+| `backend/src/handlers/import_export_handler.rs` | +158 / -6 | `CsvImportRequest`/`ExcelImportRequest` 加 `#[derive(Validate)]` + `#[validate(length(max = ...))]` 注解；`import_csv`/`import_excel` 入口加 `req.validate()?` + 早期 size 校验（友好中文错误）；新增 3 个 #[test] 单测 |
+| `backend/src/main.rs` | +10 / -0 | `use axum::extract::DefaultBodyLimit`；全局添加 `DefaultBodyLimit::max(12 * 1024 * 1024)` layer（外层兜底） |
+
+**关键决策**：
+
+1. **常量值选取**：
+   - `MAX_CSV_BYTES = 10 * 1024 * 1024` (10MB)：单行 100 字符 × 10 万行 ≈ 10MB，兼顾业务规模与内存安全
+   - `MAX_EXCEL_ROWS = 10_000`：单批次导入上限；超过此行数应分批导入
+   - `MAX_EXCEL_COLS = 100`：通用业务实体（订单/客户/产品）字段均 < 100 列
+   - `MAX_CELL_LEN = 1024`：产品名称/地址等长文本字段通常 < 1KB
+
+2. **四层防御（defense-in-depth）**：
+   - **L1**：`DefaultBodyLimit::max(12MB)`（main.rs 全局中间件，兜底）。12MB = 10MB CSV + 2MB 头部余量
+   - **L2**：DTO `#[validate(length(max = ...))]`（axum 提取器层，结构化校验）。自动调用 `req.validate()?` 触发，错误经 `From<validator::ValidationErrors> for AppError` 转 AppError
+   - **L3**：handler 入口早期校验（拒绝更快、更友好）。CSV 再次校验 data.len()，Excel 校验行/列/单元格
+   - **L4**：`import_data` 入口 defense-in-depth（避免内部调用绕过 handler）
+
+3. **错误信息**：全部中文 + 具体值（如 "CSV 数据超过 10485760 字节上限：当前 10485761 字节"），便于用户理解与排错
+
+4. **DefaultBodyLimit placement**：`main.rs` 第一个 `.layer()` 调用；虽然 axum 中 LAST layer 是 OUTERMOST，但 DefaultBodyLimit 是配置层（设置全局默认值给 Json 提取器），不是 function middleware，位置不影响功能
+
+5. **test 设计**：
+   - handler 测试：DTO `req.validate()` 行为（无需 mock）
+   - service 测试：使用 `sea_orm::Database::connect("sqlite::memory:")` 创建内存 DB（仅用于构造 ImportExportService）；校验在 DB 调用前触发，DB 内容无关紧要
+   - 边界值：恰好 10MB 的 CSV 应通过 validate（验证 `<=` 而非 `<`）
+
+6. **不引入新依赖**：复用项目已有 `validator = "0.16"`（已带 `derive` feature），未修改 Cargo.toml
+
+**静态验证结果**：
+- `CsvImportRequest.data` 字段含 `#[validate(length(max = 10 * 1024 * 1024, message = "CSV 数据超过 10MB 上限"))]` ✅
+- `ExcelImportRequest.data` 字段含 `#[validate(length(max = 10_000, message = "Excel 数据超过 1 万行上限"))]` ✅
+- 两个 DTO 都有 `#[derive(Deserialize, Validate)]` ✅
+- `import_csv` 含 `req.validate()?` + `if req.data.len() > MAX_CSV_BYTES` 校验 ✅
+- `import_excel` 含 `req.validate()?` + 行数/列数/单元格长度三层校验 ✅
+- `import_data` 入口含行数 + 列数 + 单元格长度 defense-in-depth 校验 ✅
+- `main.rs` 含 `use axum::extract::DefaultBodyLimit` + `DefaultBodyLimit::max(12 * 1024 * 1024)` 全局 layer ✅
+- 单测列表（6 个）：
+  1. `test_vuln8_constants_defined_correctly`（4 个常量值断言）
+  2. `test_csv_import_request_rejects_exceeding_10mb`（DTO CSV 超 10MB）
+  3. `test_csv_import_request_accepts_exactly_10mb`（DTO 边界值）
+  4. `test_excel_import_request_rejects_exceeding_10k_rows`（DTO Excel 超 1 万行）
+  5. `test_import_data_rejects_exceeding_max_rows`（service 层超行）
+  6. `test_import_data_rejects_exceeding_max_cols`（service 层超列）
+  7. `test_import_data_rejects_exceeding_max_cell_len`（service 层单元格超长）
+  8. `test_import_data_allows_within_limits`（service 层正常数据不误拒）
+
+**commit**：
+- `4ddce50 fix(backend): 安全漏洞 #8 - 批量导入端点请求体大小限制`
+- 3 files changed, 361 insertions(+), 6 deletions(-)
+- ✅ 已 commit，未 push（总代理统一 push）
+
+**遗留风险与注意事项**：
+- ⚠️ **PUBLIC_PATHS 跳过 JWT**：`/api/v1/erp/import/*` 不在 `PUBLIC_PATHS` 中（仅 init 路径在），所以 `auth_middleware` 会先校验 JWT。本修复假设攻击者已认证。
+- ⚠️ **Content-Length 欺骗**：恶意客户端可发送 `Content-Length: 12MB` 但实际无 body。axum 会等到收到完整 body 才校验 `DefaultBodyLimit`。若需更严格保护，应结合 `tower_http::limit::RequestBodyLimitLayer`（仅在 axum 实际读取 body 时触发 vs. 在请求开始时基于 Content-Length 头拒绝）。本任务采用 `DefaultBodyLimit`，符合计划要求。
+- ⚠️ **Service 层测试 DB 连接**：service 层单测使用 SQLite 内存 DB；生产环境使用 PostgreSQL，行为完全等价（validator 校验在 DB 调用前，DB 无关）。
+- ✅ 无 DB migration（无需新增表/列）
+- ✅ 严禁本地编译，统一走 CI
+- ✅ 复用现有 `validator = "0.16"` 依赖，未修改 Cargo.toml
+- ✅ 复用现有 `From<validator::ValidationErrors> for AppError` 转换（utils/error.rs:381）
+- ✅ 未触碰 `utils/audit.rs` / `auth_middleware.rs` / `csrf.rs`（避免与 Wave 1/2/3A 冲突）
+
+**复用样板**（供 Wave 3+ 参考）：
+```rust
+// DTO 注解模式（handler 层结构化校验）
+#[derive(Debug, Deserialize, Validate)]
+pub struct CsvImportRequest {
+    pub import_type: String,
+    #[validate(length(max = 10 * 1024 * 1024, message = "CSV 数据超过 10MB 上限"))]
+    pub data: String,
+}
+
+// handler 入口早期校验
+pub async fn import_csv(
+    State(state): State<AppState>,
+    auth: AuthContext,
+    Json(req): Json<CsvImportRequest>,
+) -> Result<Json<ApiResponse<...>>, AppError> {
+    req.validate()?; // DTO 校验（友好错误）
+    if req.data.len() > MAX_CSV_BYTES {
+        return Err(AppError::validation(format!(
+            "CSV 数据超过 {} 字节上限：当前 {} 字节", MAX_CSV_BYTES, req.data.len()
+        )));
+    }
+    // ... 业务逻辑
+}
+
+// service 层 defense-in-depth
+pub async fn import_data(&self, ...) -> Result<..., AppError> {
+    if data.len() > MAX_EXCEL_ROWS {
+        return Err(AppError::validation(format!("导入数据超过最大行数限制：当前 {} 行，上限 {} 行", data.len(), MAX_EXCEL_ROWS)));
+    }
+    // ... 业务逻辑
+}
+
+// main.rs 全局 body 限制
+.layer(DefaultBodyLimit::max(12 * 1024 * 1024))
+```
+
+**状态**：
+- ✅ 代码修改完成
+- ✅ 已 commit（4ddce50），未 push（总代理统一 push）
+- ⏳ CI 验证（cargo build + clippy + test）由 GitHub Actions 跑
   - **CI 序列**：27954026132 → 27955187945 → 27956309664 → 27957607389 (17 错误) → 27961302149 (9 错误) → 27962160421 → 27963191123 → 27966433572 (clippy 1003 new) → 27967740035 (15/15 success)
   - **远端 main HEAD**：`78abf4c`（CI 自动 commit baseline）
   - **实际代码 HEAD**：`964e015`（最后一次代码修复）
   - **下一步**：批次 E（前端 20 个 > 400 行 .vue 拆分）或批次 F（ESLint 166 处 vue/no-mutating-props 收敛）
+
+---
+
+### 漏洞 #7：CSRF Token 缓存设计缺陷（TTL 过长 + 未绑 IP + 无轮换） ✅ 已修复
+
+**目标分支**：`fix/security-wave3-p2-2026-06-23`（从 main cdb2ada 切出）
+
+**修复负责人**：Wave 3 子代理 A
+
+**漏洞描述**：
+- `backend/src/handlers/auth_handler.rs:308-313`（修复前）使用 UUID 作为缓存键、session_id 作为值、TTL **2 小时**（7200s）
+- 三个独立缺陷叠加：
+  1. **TTL 过长**：2h 暴露窗口过大，与 access_token Cookie 30min 生命周期不匹配
+  2. **未绑定 IP**：缓存值仅含 session_id，攻击者窃取 token 后可跨 IP 重放
+  3. **无强制轮换**：登录/刷新 token 时未清除旧 token，多设备登录时旧 token 长期残留
+- 构成 CSRF 跨 IP 重放 + 长时间窗口攻击面
+
+**修改文件清单**：
+| 文件 | 行数变化 | 变更说明 |
+|------|----------|----------|
+| `backend/src/utils/cache.rs` | +243 / -14 | 新增 `CSRF_TOKEN_DEFAULT_TTL_SECS = 1800` 常量；`csrf_token_cache` 值类型 `String → (String, String)` 元组（session_id, ip）；新增 `csrf_user_index: DashMap<i32, String>` 反向索引；公开 `set_csrf_token / consume_csrf_token / clear_old_csrf_token_for_user` 三个新 API；新增 `CsrfConsumeResult` 枚举（Ok / IpMismatch / NotFound）；新增 4 个 `#[cfg(test)]` 单测 |
+| `backend/src/middleware/csrf.rs` | +131 / -11 | 新增 `CSRF_IP_MISMATCH` 业务码 + `CSRF_IP_MISMATCH_MSG` 常量；新增 `extract_client_ip` 辅助函数（X-Real-IP → X-Forwarded-For → ConnectInfo → "unknown"）；`csrf_middleware` 消费时校验 IP；新增 2 个单测（IP 错误响应 + IP 提取多级降级） |
+| `backend/src/handlers/auth_handler.rs` | +33 / -7 | login 流程移除 7200s TTL；调用新 `set_csrf_token` API（默认 1800s）；IP 提取：AuditContext.ip_address → client_ip fallback；登录前调用 `clear_old_csrf_token_for_user` 强制轮换；移除 unused `use crate::utils::cache::Cache` |
+| `backend/src/handlers/auth_handler_misc.rs` | +35 / -7 | refresh_token 流程同 login 修复：1800s TTL + IP 绑定 + 强制轮换 |
+| `backend/tests/test_csrf_middleware.rs` | +131 / -25 | 更新已有测试使用新 API（`set_csrf_token` + IP header）；新增 `test_post_with_valid_token_but_wrong_ip_returns_ip_mismatch`（IP 拒绝）；新增 `test_clear_old_csrf_token_for_user_invalidates_token`（强制轮换）；更新 `test_consume_csrf_token_one_time_use` 验证 `CsrfConsumeResult` 枚举 |
+| **合计** | **+572 / -57** | 5 文件改动 |
+
+**关键决策**：
+
+1. **TTL 选择 1800s (30min)**：与 `auth_handler_misc.rs:156` 的 access_token Cookie `max_age(30min)` 严格对齐。理由：CSRF token 是 access_token 的伴生凭证，二者生命周期一致能避免"token 失效但 CSRF 仍可用"的死锁。Wave 1 B-3 token 迁移到 httpOnly Cookie 后，access_token 30min 已成为统一基线。
+
+2. **IP 来源优先级**：登录时 `AuditContext.ip_address` → `client_ip` fallback；中间件消费时 `extract_client_ip(request)` 自有提取（X-Real-IP > X-Forwarded-For > ConnectInfo > "unknown"）。理由：登录阶段依赖已有 `AuditContext`（与 audit_log 一致）；消费阶段使用本地提取避免依赖注入复杂度。两者提取逻辑同源。
+
+3. **强制轮换触发点**：
+   - `auth_handler::login`：登录成功后立即 `clear_old_csrf_token_for_user(user.id)`
+   - `auth_handler_misc::refresh_token`：刷新成功后立即 `clear_old_csrf_token_for_user(claims.sub)`
+   - 反向索引 `csrf_user_index: DashMap<i32, String>` 记录 user_id → 最新 token
+
+4. **IP 不匹配时不消费 token**：消费函数返回 `IpMismatch` 时把 token 放回缓存（**不消费**）。理由：若消费则攻击者可通过 IP 探测重复请求消耗合法用户的 token（DoS）。保留 token 让合法用户仍可使用。
+
+5. **IP 提取降级兼容**：`extract_client_ip` 失败时回退 `"unknown"`。与 `cache::consume_csrf_token` 的 IP 比对语义：
+   - 登录时也是 unknown（无 IP header 场景）→ 能正常消费
+   - 登录时有 IP 但消费时 unknown → 触发 IP 不匹配（符合预期：IP 失配即拒绝）
+
+6. **消费时按 value 找 key 的实现**：`DashMap` 不直接支持按 value 查 key。采用独立 scope 遍历 `csrf_user_index` 收集 to_remove，避免与后续 `remove(&uid)` 借用冲突。性能可接受：单次 CSRF 校验遍历成本远小于用户会话数。
+
+7. **保留 `get_csrf_token_cache` 与 `get_csrf_user_index`**：作为 `pub` 逃生口供内部维护与未来测试使用；业务代码统一走高层 API（`set_csrf_token` / `consume_csrf_token` / `clear_old_csrf_token_for_user`）。
+
+8. **未引入新依赖**：复用 `DashMap::new()`（已存在 `dashmap` 依赖），未修改 `Cargo.toml`。
+
+**静态验证结果**：
+- `grep "7200" backend/src/handlers/auth_handler.rs` → **0 行**（TTL 已改 1800）✅
+- `grep "CSRF_IP_MISMATCH" backend/src/middleware/csrf.rs` → **5 处**（常量 + 测试 + 文档）✅
+- `grep "CSRF_IP_MISMATCH" backend/tests/test_csrf_middleware.rs` → **1 处**（测试断言）✅
+- `cache.rs` 包含 `set_csrf_token` / `consume_csrf_token` / `clear_old_csrf_token_for_user` 三个新 pub fn ✅
+- `cache.rs` 包含 `CsrfConsumeResult` 枚举 + `CSRF_TOKEN_DEFAULT_TTL_SECS` 常量 ✅
+- `auth_handler.rs` login 流程调用 `clear_old_csrf_token_for_user(user.id)` ✅
+- `auth_handler_misc.rs` refresh_token 流程调用 `clear_old_csrf_token_for_user(claims.sub)` ✅
+- `csrf.rs` 消费时调用 `state.cache.consume_csrf_token(&token, &client_ip)` ✅
+- 单测覆盖（cache.rs 4 + csrf.rs 2 + 集成测试 2 = 8 个新测试）：
+  1. `test_set_csrf_token_then_consume_with_matching_ip`（IP 匹配通过）
+  2. `test_consume_csrf_token_with_mismatched_ip_returns_ip_mismatch_and_keeps_token`（IP 不匹配拒绝 + 不消费）
+  3. `test_clear_old_csrf_token_for_user_invalidates_old_token`（强制轮换）
+  4. `test_consume_cleans_up_user_index`（反向索引同步清理）
+  5. `test_ip_mismatch_response_payload`（CSRF_IP_MISMATCH 响应结构）
+  6. `test_extract_client_ip_priority`（IP 提取多级降级）
+  7. `test_post_with_valid_token_but_wrong_ip_returns_ip_mismatch`（集成测试：IP 拒绝 403）
+  8. `test_clear_old_csrf_token_for_user_invalidates_token`（集成测试：强制轮换）
+
+**commit**：
+- `f33221c fix(backend): 安全漏洞 #7 - CSRF Token 绑定 IP + 缩短 TTL + 强制轮换`
+- 5 files changed, 572 insertions(+), 57 deletions(-)
+- ✅ 已 commit，未 push（总代理统一 push）
+
+**遗留风险与注意事项**：
+
+- ⚠️ **`csrf_user_index` 内存不跨进程**：与 #9 `REVOKED_USERS` HashMap 同样问题（Wave 2 修复已识别）；多副本部署时单副本的轮换不影响其他副本。建议未来接入 Redis 统一。
+- ⚠️ **IP 不匹配日志级别**：当前 `tracing::warn!`（高噪声风险）。生产环境若 NAT/代理导致同一用户 IP 频繁变化，可能刷大量 warn 日志。建议监控告警阈值后再考虑降级为 `info!`。
+- ⚠️ **`extract_client_ip` 重复实现**：与 `middleware::audit_context::extract_ip` 同源（X-Real-IP > X-Forwarded-For），本任务独立实现避免跨文件依赖。Wave 4+ 可抽取共享 helper。
+- ⚠️ **登录失败路径不轮换**：仅成功登录调用 `clear_old_csrf_token_for_user`。失败登录保留旧 token 是合理设计（防误清）。
+- ✅ 无 DB migration（纯缓存层）
+- ✅ 严禁本地编译，统一走 CI
+- ✅ 复用现有 `dashmap` 依赖，未修改 `Cargo.toml`
+- ✅ 未触碰 `utils/audit.rs` / `auth_middleware.rs`（避免与 Wave 1/2 冲突）
+
+**复用样板**（供 Wave 4+ 参考）：
+
+```rust
+// utils/cache.rs: 带 IP 绑定的 CSRF Token 写入
+pub fn set_csrf_token(
+    &self,
+    token: String,
+    session_id: String,
+    ip_address: String,
+    user_id: i32,
+    ttl: Option<Duration>,
+) {
+    let effective_ttl = ttl.unwrap_or(Duration::from_secs(CSRF_TOKEN_DEFAULT_TTL_SECS));
+    self.csrf_token_cache
+        .set(token.clone(), (session_id, ip_address), Some(effective_ttl));
+    self.csrf_user_index.insert(user_id, token);
+}
+
+// 消费模式（IP 不匹配不消费，防 DoS）
+pub fn consume_csrf_token(&self, token: &str, client_ip: &str) -> CsrfConsumeResult {
+    match self.csrf_token_cache.take(&token.to_string()) {
+        Some((session_id, bound_ip)) => {
+            if bound_ip != client_ip {
+                self.csrf_token_cache.set(token.to_string(), (session_id, bound_ip), None);
+                return CsrfConsumeResult::IpMismatch;
+            }
+            // ... 清理反向索引
+            CsrfConsumeResult::Ok
+        }
+        None => CsrfConsumeResult::NotFound,
+    }
+}
+
+// middleware/csrf.rs: 提取客户端 IP
+fn extract_client_ip(request: &Request<Body>) -> String {
+    if let Some(real_ip) = headers.get("x-real-ip").and_then(|v| v.to_str().ok()).filter(|s| !s.is_empty()) {
+        return real_ip.to_string();
+    }
+    if let Some(forwarded) = headers.get("x-forwarded-for").and_then(|v| v.to_str().ok()) {
+        if let Some(first) = forwarded.split(',').next() {
+            let trimmed = first.trim();
+            if !trimmed.is_empty() { return trimmed.to_string(); }
+        }
+    }
+    if let Some(ConnectInfo(addr)) = request.extensions().get::<ConnectInfo<SocketAddr>>() {
+        return addr.ip().to_string();
+    }
+    "unknown".to_string()
+}
+```
+
+**状态**：
+- ✅ 代码修改完成
+- ✅ 已 commit（f33221c），未 push（总代理统一 push）
+- ⏳ CI 验证（cargo build + clippy + test）由 GitHub Actions 跑
+- **下一步**：Wave 4+ 抽取 `extract_client_ip` 共享 helper（与 `audit_context::extract_ip` 合并）
+
