@@ -546,6 +546,10 @@ jobs:
           if [ "$NEW_COUNT" -gt "0" ]; then
             echo ""
             echo "❌ 发现 $NEW_COUNT 个新警告，CI 失败"
+            echo ""
+            echo "=== 新增警告列表（完整）==="
+            cat reports/clippy-new.txt
+            echo "=== 列表结束 ==="
             echo "详见 reports/clippy-report.md 和 artifacts"
             exit 1
           fi
