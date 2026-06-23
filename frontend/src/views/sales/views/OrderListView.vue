@@ -16,7 +16,12 @@
 
     <OlvStat :stats="olv.stats" />
 
-    <OlvFilter :filter-form="olv.filterForm" @query="olv.handleQuery" @reset="olv.handleReset" />
+    <OlvFilter
+      :filter-form="olv.filterForm"
+      @query="olv.handleQuery"
+      @reset="olv.handleReset"
+      @update:filter-form="(v) => Object.assign(olv.filterForm, v)"
+    />
 
     <OlvTbl
       :columns="olv.columns"

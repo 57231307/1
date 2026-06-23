@@ -46,6 +46,7 @@
       :form="lgs.formData"
       :rules="lgs.formRules"
       @submit="lgsProc.handleSubmit"
+      @update:form="(v) => Object.assign(lgs.formData, v)"
     />
 
     <LgsDetail
@@ -58,6 +59,7 @@
       :form="lgs.statusForm"
       :statuses="lgsProc.availableStatuses"
       @submit="lgsProc.handleStatusSubmit"
+      @update:form="(v) => Object.assign(lgs.statusForm, v)"
     />
   </div>
 </template>

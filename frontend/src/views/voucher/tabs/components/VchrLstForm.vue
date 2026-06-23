@@ -1,9 +1,9 @@
 <!--
   VchrLstForm.vue - 凭证新建/编辑对话框
   拆分自 voucher/tabs/VoucherListTab.vue（P14 批 2 I-3 第 1 批）
+  P9-3 批次 F Pattern A 重构：本地 ref 镜像 + watch 防循环 + emit 整体覆盖父组件
   行为完全保持一致（仅结构重构）
 -->
-<!-- eslint-disable vue/no-mutating-props -->
 <template>
   <ElDialog
     :model-value="visible"
@@ -11,31 +11,23 @@
     width="800px"
     @update:model-value="(v: boolean) => emit('update:visible', v)"
   >
-    <ElForm :model="form" label-width="100px">
+    <ElForm :model="localForm" label-width="100px">
       <ElRow :gutter="20">
         <ElCol :span="12">
           <ElFormItem label="凭证号" prop="voucher_no">
-            <ElInput :model-value="form.voucher_no" readonly @update:model-value="(v: string) => (form.voucher_no = v)" />
+            <ElInput v-model="localForm.voucher_no" readonly />
           </ElFormItem>
         </ElCol>
         <ElCol :span="12">
           <ElFormItem label="凭证日期" prop="voucher_date">
-            <ElDatePicker
-              :model-value="form.voucher_date"
-              type="date"
-              @update:model-value="(v: string) => (form.voucher_date = v ?? '')"
-            />
+            <ElDatePicker v-model="localForm.voucher_date" type="date" />
           </ElFormItem>
         </ElCol>
       </ElRow>
       <ElRow :gutter="20">
         <ElCol :span="12">
           <ElFormItem label="凭证类型" prop="type">
-            <ElSelect
-              :model-value="form.type"
-              placeholder="请选择凭证类型"
-              @update:model-value="(v: string) => (form.type = v)"
-            >
+            <ElSelect v-model="localForm.type" placeholder="请选择凭证类型">
               <ElOption
                 v-for="t in voucherTypes"
                 :key="t.value"
@@ -47,11 +39,7 @@
         </ElCol>
         <ElCol :span="12">
           <ElFormItem label="摘要" prop="description">
-            <ElInput
-              :model-value="form.description ?? ''"
-              placeholder="请输入摘要"
-              @update:model-value="(v: string) => (form.description = v)"
-            />
+            <ElInput v-model="localForm.description" placeholder="请输入摘要" />
           </ElFormItem>
         </ElCol>
       </ElRow>
@@ -64,12 +52,11 @@
             <span class="col-desc">摘要</span>
             <span class="col-action">操作</span>
           </div>
-          <div v-for="(entry, index) in form.entries" :key="index" class="entries-row">
+          <div v-for="(entry, index) in (localForm.entries || [])" :key="index" class="entries-row">
             <ElSelect
-              :model-value="entry.account_subject_id"
+              v-model="entry.account_subject_id"
               placeholder="选择科目"
               class="col-subject"
-              @update:model-value="(v: number) => (entry.account_subject_id = v)"
             >
               <ElOption
                 v-for="subject in accountSubjectOptions"
@@ -79,25 +66,18 @@
               />
             </ElSelect>
             <ElInputNumber
-              :model-value="entry.debit_amount"
+              v-model="entry.debit_amount"
               :precision="2"
               class="col-debit"
-              @update:model-value="(v: number) => (entry.debit_amount = v ?? 0)"
             />
             <ElInputNumber
-              :model-value="entry.credit_amount"
+              v-model="entry.credit_amount"
               :precision="2"
               class="col-credit"
-              @update:model-value="(v: number) => (entry.credit_amount = v ?? 0)"
             />
-            <ElInput
-              :model-value="entry.description ?? ''"
-              placeholder="摘要"
-              class="col-desc"
-              @update:model-value="(v: string) => (entry.description = v)"
-            />
+            <ElInput v-model="entry.description" placeholder="摘要" class="col-desc" />
             <ElButton
-              v-if="(form.entries || []).length > 1"
+              v-if="(localForm.entries || []).length > 1"
               size="small"
               type="danger"
               @click="emit('remove-entry', index)"
@@ -111,13 +91,13 @@
       <ElRow :gutter="20" class="total-row">
         <ElCol :span="12" class="total-item">
           <span class="label">借方合计:</span>
-          <span class="value debit">{{ formatAmount(form.total_debit) }}</span>
+          <span class="value debit">{{ formatAmount(localForm.total_debit) }}</span>
         </ElCol>
         <ElCol :span="12" class="total-item">
           <span class="label">贷方合计:</span>
-          <span class="value credit">{{ formatAmount(form.total_credit) }}</span>
+          <span class="value credit">{{ formatAmount(localForm.total_credit) }}</span>
           <span
-            v-if="Math.abs((form.total_debit ?? 0) - (form.total_credit ?? 0)) > 0.01"
+            v-if="Math.abs((localForm.total_debit ?? 0) - (localForm.total_credit ?? 0)) > 0.01"
             class="error"
           >
             借贷不平
@@ -134,7 +114,7 @@
 </template>
 
 <script setup lang="ts">
-/* eslint-disable vue/no-mutating-props */
+import { ref, watch, nextTick } from 'vue'
 import { formatAmount } from '../composables/vchrLstFmts'
 
 interface VoucherEntry {
@@ -145,7 +125,7 @@ interface VoucherEntry {
 }
 
 /** 父组件传 Partial 类型，所有字段均可选 */
-type VoucherForm = {
+interface VoucherForm {
   id?: number
   voucher_no?: string
   voucher_date?: string
@@ -172,7 +152,7 @@ const props = defineProps<{
   visible: boolean
   // 对话框标题
   title: string
-  // 表单数据
+  // 表单数据（由父组件管理，子组件通过 emit 回写）
   form: VoucherForm
   // 凭证类型下拉选项
   voucherTypes: { label: string; value: string }[]
@@ -182,16 +162,51 @@ const props = defineProps<{
 
 const emit = defineEmits<{
   // 关闭对话框
-  'update:visible': [v: boolean]
+  (e: 'update:visible', v: boolean): void
   // 添加分录
-  'add-entry': []
+  (e: 'add-entry'): void
   // 删除分录
-  'remove-entry': [index: number]
+  (e: 'remove-entry', index: number): void
   // 提交表单
-  submit: []
+  (e: 'submit'): void
+  // 整体回写表单（父组件监听此事件并 Object.assign 到自己的 form）
+  (e: 'update:form', form: VoucherForm): void
 }>()
 
-void props
+// 本地镜像：避免直接修改 prop 触发 vue/no-mutating-props
+// 注意：表单内有 entries 数组，需要深拷贝以保证本地修改与父组件解耦
+const localForm = ref<VoucherForm>(JSON.parse(JSON.stringify(props.form)))
+
+// 同步标志位：防止 prop → local 与 local → emit 形成循环
+let syncing = false
+
+// 外部 prop 变化时同步到 local（如父组件新建/编辑时填充数据）
+watch(
+  () => props.form,
+  (newForm) => {
+    if (syncing) return
+    syncing = true
+    localForm.value = JSON.parse(JSON.stringify(newForm))
+    nextTick(() => {
+      syncing = false
+    })
+  },
+  { deep: true },
+)
+
+// 本地变化时通知父组件（用户输入）
+watch(
+  localForm,
+  (newForm) => {
+    if (syncing) return
+    syncing = true
+    emit('update:form', JSON.parse(JSON.stringify(newForm)))
+    nextTick(() => {
+      syncing = false
+    })
+  },
+  { deep: true },
+)
 </script>
 
 <style scoped>

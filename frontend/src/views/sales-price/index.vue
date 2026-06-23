@@ -37,6 +37,7 @@
       :products="sp.products"
       @query="sp.handleQuery"
       @reset="sp.handleReset"
+      @update:query-params="(v) => Object.assign(sp.queryParams, v)"
     />
 
     <SpTbl
@@ -60,6 +61,7 @@
       :customers="sp.customers"
       :products="sp.products"
       @submit="onSubmitForm"
+      @update:form-data="(v) => Object.assign(sp.formData, v)"
     />
 
     <SpView v-model:visible="spProc.viewDialogVisible" :view-data="spProc.viewData" />

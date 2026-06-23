@@ -17,6 +17,7 @@
       @add="onAdd"
       @print="vchrProc.handlePrint"
       @export="vchrProc.handleExport"
+      @update:search-form="(v) => Object.assign(vchr.searchForm, v)"
     />
 
     <VchrLstTbl
@@ -43,6 +44,7 @@
       @add-entry="vchr.addEntry"
       @remove-entry="vchr.removeEntry"
       @submit="onSubmitForm"
+      @update:form="(v) => Object.assign(vchr.form, v)"
     />
 
     <VchrLstDetail
@@ -53,7 +55,6 @@
 </template>
 
 <script setup lang="ts">
-/* eslint-disable vue/no-mutating-props */
 import { ref, onMounted } from 'vue'
 import type { VoucherEntity } from '@/api/voucher'
 import { useVchrLst } from './composables/useVchrLst'

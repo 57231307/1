@@ -28,6 +28,7 @@
       :voucher-query="vchr.voucherQuery"
       @search="vchr.fetchVouchers"
       @reset="vchr.resetVoucherQuery"
+      @update:voucher-query="(v) => Object.assign(vchr.voucherQuery, v)"
     />
 
     <VchrTbl
@@ -59,6 +60,7 @@
       @add-entry="vchr.addEntry"
       @remove-entry="vchr.removeEntry"
       @submit-form="onSubmitForm"
+      @update:voucher-form="(v) => Object.assign(vchr.voucherForm, v)"
     />
 
     <VchrDetail
