@@ -1791,3 +1791,53 @@ pub async fn secure_handler(
 - **#9** delete_user 软删除时调用 revoke_jti
 
 预计执行时间：1 周内
+
+---
+
+## 2026-06-23 - PR #242 clippy 防御性 allow 误报清理
+
+### 背景
+
+PR #242（commit ed11832，Wave 3 漏洞 #7 #8 修复）在 CI 中触发失败：
+- 🔍 Rust Clippy: failure（exit 1）
+- 🏗️ Rust 后端构建: failure（exit 101）
+- 13/15 check run success
+
+### 根因
+
+Wave 3 子代理 A/B/C/D 在大量使用"防御性 `#[allow(...)]`"策略，导致 clippy 1.94 触发 `useless_attribute` 警告（默认 warn 级）。CI 使用 `cargo clippy --all-targets -- -D warnings`，所有 warn 升级为 error。
+
+**典型问题模式**：
+- `#[allow(dead_code)]` 标记**实际被使用**的常量（CSRF_TOKEN_DEFAULT_TTL_SECS / CODE_MISS / extract_client_ip 等）
+- `#[allow(unused_variables)]` 标记**下划线前缀变量**（rustc 默认不报警）
+- `#[allow(clippy::too_many_arguments)]` 标记**3-4 个参数**的函数（阈值 7+）
+- `#[allow(clippy::needless_pass_by_value)]` 标记**已用引用**的函数签名
+- 文件级 `#![allow(unused_imports)]` 违反项目规则（禁止 crate 级抑制）
+
+### 修复
+
+**总变化**：8 文件 +9 / -127 行
+
+| 文件 | 删除 useless allow 数量 |
+|------|------------------------|
+| backend/src/utils/cache.rs | 3 处（CSRF_TOKEN_DEFAULT_TTL_SECS + 2 个 enum 变体）|
+| backend/src/middleware/csrf.rs | 8 处（7 个 const + 1 个 fn + 1 个 tests 模块）|
+| backend/src/main.rs | 1 处（MAX_HTTP_BODY_BYTES）|
+| backend/src/handlers/import_export_handler.rs | 9 处（2 DTO + 5 handler + 1 tests + 1 export_data）|
+| backend/src/services/import_export_service.rs | 11 处（4 const + 4 字段 + 1 export_data + 1 tests + 1 export_data）|
+| backend/src/handlers/auth_handler.rs | login 函数 4 项 → 1 项 |
+| backend/src/handlers/auth_handler_misc.rs | refresh_token 函数 4 项 → 1 项 |
+| backend/tests/test_csrf_middleware.rs | 文件级 #![allow(unused_imports)] 删除 |
+
+**保留**真正必要的 `#[allow(clippy::redundant_clone)]`（axum 提取器 / Cookie 构建需要 owned String，clone 必要）。
+
+### 状态
+
+- ✅ 代码修改完成
+- ⏳ commit + push + GitHub Actions CI 监控
+
+### 影响
+
+- **编译时间不变**：删除 useless allow 不影响产物
+- **CI 严格度提升**：移除防御性抑制后，新代码违反 `useless_attribute` / `dead_code` / `unused_*` 会立即被 CI 捕获
+- **项目规则一致性**：删除文件级 allow 后，遵循 `.trae/rules/project_rules.md` "禁止文件级/crate 级 `#![allow(dead_code/unused_imports/unused_variables)]`"

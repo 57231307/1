@@ -248,9 +248,6 @@ where
 // TODO(tech-debt): CSRF Token 默认 TTL，从 7200s（2h）缩短为 1800s（30min），
 // 与 access_token Cookie 30min 有效期对齐，降低被窃取后的暴露窗口。
 // Wave 3 安全漏洞 #7 修复引入。
-// 防御性 allow：当前在 set_csrf_token 中通过 unwrap_or 引用，
-// 后续若重构为配置驱动可能暂时未引用，保留此标注避免 CI 抖动。
-#[allow(dead_code)]
 pub const CSRF_TOKEN_DEFAULT_TTL_SECS: u64 = 1800;
 
 /// 全局缓存实例
@@ -282,13 +279,8 @@ pub enum CsrfConsumeResult {
     /// 消费成功（token 有效 + IP 匹配，已从缓存移除）
     Ok,
     /// IP 地址不匹配（token 存在但绑定到其他 IP，疑似盗用）
-    // 防御性 allow：当前在 csrf.rs 中间件 / 单测中引用，wave 3+ 接入
-    // 监控指标 / 审计分类时若暂时未消费此变体，保留标注避免 CI 抖动。
-    #[allow(dead_code)]
     IpMismatch,
     /// Token 不存在或已过期
-    // 防御性 allow：同上，防止单测分支裁剪后误报 dead_code。
-    #[allow(dead_code)]
     NotFound,
 }
 

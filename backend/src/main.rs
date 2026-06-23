@@ -42,10 +42,7 @@ use crate::utils::response::ApiResponse;
 // 安全漏洞 #8 修复：HTTP 请求体大小限制常量
 // ============================================================================
 // 12MB 全局请求体上限（CSV 导入 10MB + 2MB JSON 编码/头部余量）
-// 防御性 `#[allow(dead_code)]`：与 import_export_service::MAX_CSV_BYTES 形成常量对照，
-// clippy 1.94 可能对顶层未使用常量报 dead_code 误报（实际仅在 .layer() 处使用）。
 /// 全局 HTTP 请求体大小上限：12 MB
-#[allow(dead_code)] // TODO(tech-debt): 配置化后移除
 const MAX_HTTP_BODY_BYTES: usize = 12 * 1024 * 1024;
 
 #[derive(Debug, serde::Serialize)]

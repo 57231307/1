@@ -34,21 +34,10 @@ pub struct CsrfTokenResponse {
     pub header_name: String,
 }
 
-// 防御性 allow（Wave 3 #7：CSRF IP 绑定 + 强制轮换）：
-// - redundant_clone：`token.clone()` / `csrf_token.clone()` / `new_token.clone()`
-//   用于 Cookie 构建 + 缓存写入，clone 都是必要消费。
-// - unused_variables：`new_claims` / `new_session_id` / `refresh_ip` 在
-//   wave 3+ 接入多设备 session / IP 审计模块时若暂时不消费，保留标注。
-// - needless_pass_by_value：axum extractors / Cookie::build 要求 owned，
-//   无法改为引用。
-// - too_many_arguments：函数签名 4 个参数（State/headers/jar/...）与
-//   axum 提取器语义强绑定，拆分不会带来收益。
-#[allow(
-    clippy::redundant_clone,
-    unused_variables,
-    clippy::needless_pass_by_value,
-    clippy::too_many_arguments
-)]
+// Wave 3 安全漏洞 #7 修复：CSRF IP 绑定 + 强制轮换。
+// 仅抑制 `clippy::redundant_clone`：`token.clone()` / `csrf_token.clone()`
+// 用于 Cookie 构建 + 缓存写入，clone 都是必要消费。
+#[allow(clippy::redundant_clone)]
 pub async fn refresh_token(
     State(state): State<AppState>,
     headers: HeaderMap,

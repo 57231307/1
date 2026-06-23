@@ -80,11 +80,11 @@ pub struct UserInfo {
 // - unused_variables：`rotated` / `csrf_ip` / `csrf_token` 在 wave 3 #7 强制轮换分支中
 //   短期作为中间值使用，未来若拆分到 helper 函数时可能暂时未消费，保留标注。
 // - needless_pass_by_value：axum Json 提取器要求 owned LoginRequest，无法改为引用。
-#[allow(
-    clippy::redundant_clone,
-    unused_variables,
-    clippy::needless_pass_by_value
-)]
+// login 函数
+// 保留 `clippy::redundant_clone` 抑制：
+// `audit_ctx.clone()` 与 `csrf_token.clone()` 用于
+// Option<Extension<T>> 的 Option::map 闭包 + Cookie 构建。
+#[allow(clippy::redundant_clone)]
 pub async fn login(
     State(state): State<AppState>,
     audit_ctx: Option<Extension<AuditContext>>,

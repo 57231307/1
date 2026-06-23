@@ -25,35 +25,18 @@ use crate::utils::error::AppError;
 
 /// CSV 字符串最大长度：10 MB
 /// 依据：单行 100 字符 × 10 万行 ≈ 10MB，足够覆盖业务批量导入场景
-///
-/// 防御性 `#[allow(dead_code)]`：
-/// 漏洞 #8 防御常量由 handler 入口和单测模块 `use` 引用，
-/// 未来若重构为配置驱动（从 settings 读取）时移除。
-#[allow(dead_code)] // TODO(tech-debt): 配置化后移除
 pub const MAX_CSV_BYTES: usize = 10 * 1024 * 1024;
 
 /// Excel 最大行数：1 万行
 /// 依据：超过此行数时应分批导入；本服务只做单批次导入
-///
-/// 防御性 `#[allow(dead_code)]`：当前由 handler/service 双重引用；
-/// 后续若改为 trait 或 trait 常量时可能短暂 dead_code。
-#[allow(dead_code)] // TODO(tech-debt): 配置化后移除
 pub const MAX_EXCEL_ROWS: usize = 10_000;
 
 /// Excel 最大列数：100 列
 /// 依据：通用业务实体（订单/客户/产品）字段均 < 100 列；超过则怀疑非业务数据
-///
-/// 防御性 `#[allow(dead_code)]`：当前由 handler 引用 + 单测断言；
-/// clippy 1.94 可能误报为 "constant is never used" 之类的死代码。
-#[allow(dead_code)] // TODO(tech-debt): 配置化后移除
 pub const MAX_EXCEL_COLS: usize = 100;
 
 /// 单元格最大字符数：1024 字符
 /// 依据：产品名称/地址等长文本字段通常 < 1KB；超过则怀疑恶意注入或粘贴错误
-///
-/// 防御性 `#[allow(dead_code)]`：当前由 handler/service 双重引用；
-/// 未来若按列差异化上限（产品名称 256 vs 备注 4096）时重构为 HashMap。
-#[allow(dead_code)] // TODO(tech-debt): 列差异化配置后移除
 pub const MAX_CELL_LEN: usize = 1024;
 
 /// 导入结果
@@ -559,11 +542,6 @@ impl ImportExportService {
     }
 
     /// 导出数据
-    ///
-    /// 防御性 `#[allow(clippy::needless_pass_by_value)]`：
-    /// `export_type: &str` + `query: &ExportQuery` 已是最优签名，
-    /// clippy 1.94 对 Option<String> 字段链偶发误报。
-    #[allow(clippy::needless_pass_by_value)]
     pub async fn export_data(
         &self,
         export_type: &str,
@@ -695,18 +673,13 @@ impl ImportExportService {
 /// 导出查询参数
 #[derive(Debug, Clone, Deserialize)]
 pub struct ExportQuery {
-    #[allow(dead_code)] // TODO(tech-debt): 导出模块接入业务后移除
     pub format: Option<String>,
-    #[allow(dead_code)] // TODO(tech-debt): 导出模块接入业务后移除
     pub date_from: Option<String>,
-    #[allow(dead_code)] // TODO(tech-debt): 导出模块接入业务后移除
     pub date_to: Option<String>,
-    #[allow(dead_code)] // TODO(tech-debt): 导出模块接入业务后移除
     pub status: Option<String>,
 }
 
 #[cfg(test)]
-#[allow(unused_imports)] // 防御性：clippy 1.94 对 test imports 严格
 mod tests {
     //! 安全漏洞 #8 修复配套单测
     //!

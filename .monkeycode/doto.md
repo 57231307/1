@@ -1532,3 +1532,60 @@ fn extract_client_ip(request: &Request<Body>) -> String {
 - ⏳ CI 验证（cargo build + clippy + test）由 GitHub Actions 跑
 - **下一步**：Wave 4+ 抽取 `extract_client_ip` 共享 helper（与 `audit_context::extract_ip` 合并）
 
+---
+
+## 🚨 2026-06-23 PR #242 clippy 防御性 allow 误报清理
+
+### 背景
+
+PR #242（`ed11832`）在 CI 中触发 `🔍 Rust Clippy` 和 `🏗️ Rust 后端构建` 失败。
+GitHub Actions run 28025246348：13 jobs success / 2 jobs failure。
+
+### 根因分析
+
+Wave 3 子代理在 `#[allow(...)]` 标注中使用了"防御性"策略：
+- `#[allow(dead_code)]` 标记**实际被使用**的常量/函数（如 `CSRF_TOKEN_DEFAULT_TTL_SECS`、`CODE_MISS`、`extract_client_ip` 等）
+- `#[allow(unused_variables)]` 标记**未使用下划线前缀变量**（rustc 不会报警）
+- `#[allow(clippy::too_many_arguments)]` 标记**3-4 个参数**的函数（阈值 7+）
+- `#[allow(clippy::needless_pass_by_value)]` 标记**已用引用**的函数签名
+
+这些"防御性"标注本身被 clippy 1.94 的 `useless_attribute` lint 识别为**无效标注**（默认 warn 级）。
+由于 CI 用 `cargo clippy --all-targets -- -D warnings`，所有 warn 升级为 error。
+
+### 修复方案
+
+**严格区分"真需要"的标注和"防御性误用"的标注**：
+
+1. **删除**所有标记**实际被使用项**的 `#[allow(dead_code)]`（12+ 处）
+2. **删除**所有标记**下划线前缀变量**的 `#[allow(unused_variables)]`（5+ 处）
+3. **删除**所有触发阈值不达标的 `#[allow(clippy::too_many_arguments)]` / `#[allow(clippy::needless_pass_by_value)]`（6+ 处）
+4. **保留**真正可能触发的 `#[allow(clippy::redundant_clone)]`（axum 提取器签名中的 .clone() 必要）
+
+### 修改文件清单
+
+| 文件 | 关键修改 |
+|------|----------|
+| `backend/src/utils/cache.rs` | 删除 `CSRF_TOKEN_DEFAULT_TTL_SECS` / `CsrfConsumeResult::IpMismatch/NotFound` 上的 `#[allow(dead_code)]` |
+| `backend/src/middleware/csrf.rs` | 删除 7 个常量 + `extract_client_ip` 函数 + tests 模块的 useless allow |
+| `backend/src/main.rs` | 删除 `MAX_HTTP_BODY_BYTES` 上的 `#[allow(dead_code)]` |
+| `backend/src/handlers/import_export_handler.rs` | 删除 DTO 上 2 个 `#[allow(dead_code)]` + 5 个 handler 函数 + tests 模块的 useless allow |
+| `backend/src/services/import_export_service.rs` | 删除 4 个常量 + ExportQuery 4 个字段 + export_data 函数 + tests 模块的 useless allow |
+| `backend/src/handlers/auth_handler.rs` | login 函数 `#[allow(...)]` 从 4 项简化为 1 项（保留 `redundant_clone`） |
+| `backend/src/handlers/auth_handler_misc.rs` | refresh_token 函数 `#[allow(...)]` 从 4 项简化为 1 项（保留 `redundant_clone`） |
+| `backend/tests/test_csrf_middleware.rs` | 删除文件级 `#![allow(unused_imports)]`（违反项目规则：禁止 crate 级抑制） |
+
+**总变化**：8 文件 +9 / -127 行
+
+### 状态
+
+- ✅ 代码修改完成
+- ⏳ commit + push + CI 监控
+- ⏳ 失败时按 GitHub Actions API 报告循环修复
+
+### 关键决策
+
+1. **不删除 import_export_handler 的 import_excel 函数 `state` 参数**：删除 allow 后，state.db 实际被使用，不会触发 unused_variables 警告
+2. **保留 `clippy::redundant_clone`**：axum 提取器 / Cookie 构建需要 owned String，clone 必要
+3. **删除文件级 `#![allow(unused_imports)]`**：项目规则明确禁止 crate 级抑制（`.monkeycode/docs` 模板已建立）
+4. **不重命名为 `_` 前缀**：`export_data` 的 `query` 实际在 match 分支传递，不属于 unused
+
