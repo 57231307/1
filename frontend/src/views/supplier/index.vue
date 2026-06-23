@@ -55,6 +55,7 @@
       :mode="dialogMode"
       :form-data="formData"
       :submit-loading="submitLoading"
+      @update:form-data="(v) => Object.assign(formData, v)"
       @close="resetForm"
       @submit="handleSubmit"
     />
