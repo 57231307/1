@@ -118,6 +118,12 @@ pub async fn test_database_connection(
     //     return Err(AppError::permission_denied("测试数据库连接仅允许内网 IP"));
     // }
 
+    // 3) 审计日志：best-effort 写入"谁在什么时间测试了什么数据库连接"
+    //    目标记录格式：host:port/name，便于后续按业务目标聚合
+    //    不记录明文密码（payload.password 不写入 extra）
+    //    注意：target 必须在 DatabaseConfig 构造前 format，避免 payload 字段被 move 后无法借用
+    let target = format!("{}:{}/{}", payload.host, payload.port, payload.name);
+
     let db_config = DatabaseConfig {
         host: payload.host,
         port: payload.port,
@@ -125,11 +131,6 @@ pub async fn test_database_connection(
         username: payload.username,
         password: payload.password,
     };
-
-    // 3) 审计日志：best-effort 写入"谁在什么时间测试了什么数据库连接"
-    //    目标记录格式：host:port/name，便于后续按业务目标聚合
-    //    不记录明文密码（payload.password 不写入 extra）
-    let target = format!("{}:{}/{}", payload.host, payload.port, payload.name);
     audit::log_security_event(
         SecurityEvent::TestDatabaseConnection,
         auth.user_id,
