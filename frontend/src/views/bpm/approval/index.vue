@@ -53,6 +53,7 @@
       :submit-loading="bpmApProc.submitLoading"
       :approve-form="bpmApProc.approveForm"
       @confirm="bpmApProc.confirmApproval"
+      @update:approve-form="(v) => Object.assign(bpmApProc.approveForm, v)"
     />
 
     <BpmApTranDlg
@@ -62,6 +63,7 @@
       :form="bpmApProc.transferForm"
       :rules="bpmApProc.transferRules"
       @confirm="bpmApProc.confirmTransfer"
+      @update:form="(v) => Object.assign(bpmApProc.transferForm, v)"
     />
 
     <BpmApChainDlg

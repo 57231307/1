@@ -1,9 +1,10 @@
 <!--
   BpmDfForm.vue - BPM 流程定义新建/编辑对话框（含节点配置子表）
   拆分自 bpm/definitions.vue（P14 批 2 I-3 第 5 批）
+  P9-3 批次 F Pattern A 重构：本地 ref 镜像 + watch 防循环 + emit 整体覆盖父组件
+  注意：formData 含 nodes 数组，需要深拷贝以保证本地修改与父组件解耦
   行为完全保持一致（仅结构重构）
 -->
-<!-- eslint-disable vue/no-mutating-props -->
 <template>
   <el-dialog
     :model-value="visible"
@@ -11,24 +12,22 @@
     width="900px"
     @update:model-value="(v: boolean) => emit('update:visible', v)"
   >
-    <el-form ref="formRef" :model="formData" :rules="rules" label-width="100px">
+    <el-form ref="formRef" :model="localFormData" :rules="rules" label-width="100px">
       <el-row :gutter="20">
         <el-col :span="12">
           <el-form-item label="流程标识" prop="process_key">
             <el-input
-              :model-value="formData.process_key"
+              v-model="localFormData.process_key"
               :disabled="isEdit"
               placeholder="请输入流程标识（英文字母）"
-              @update:model-value="(v: string) => (formData.process_key = v)"
             />
           </el-form-item>
         </el-col>
         <el-col :span="12">
           <el-form-item label="流程名称" prop="process_name">
             <el-input
-              :model-value="formData.process_name"
+              v-model="localFormData.process_name"
               placeholder="请输入流程名称"
-              @update:model-value="(v: string) => (formData.process_name = v)"
             />
           </el-form-item>
         </el-col>
@@ -37,10 +36,9 @@
         <el-col :span="12">
           <el-form-item label="分类" prop="category">
             <el-select
-              :model-value="formData.category"
+              v-model="localFormData.category"
               placeholder="请选择分类"
               style="width: 100%"
-              @update:model-value="(v: string) => (formData.category = v)"
             >
               <el-option label="财务" value="finance" />
               <el-option label="人事" value="hr" />
@@ -55,11 +53,10 @@
       </el-row>
       <el-form-item label="描述">
         <el-input
-          :model-value="formData.description"
+          v-model="localFormData.description"
           type="textarea"
           :rows="3"
           placeholder="请输入描述"
-          @update:model-value="(v: string) => (formData.description = v)"
         />
       </el-form-item>
 
@@ -71,13 +68,12 @@
           添加节点
         </el-button>
       </div>
-      <el-table :data="formData.nodes" border>
+      <el-table :data="localFormData.nodes" border>
         <el-table-column label="节点类型" width="120">
           <template #default="{ row }">
             <el-select
-              :model-value="row.type"
+              v-model="row.type"
               size="small"
-              @update:model-value="(v: string) => (row.type = v as never)"
             >
               <el-option label="开始" value="start" />
               <el-option label="审批" value="approval" />
@@ -90,19 +86,17 @@
         <el-table-column label="节点名称" min-width="140">
           <template #default="{ row }">
             <el-input
-              :model-value="row.name"
+              v-model="row.name"
               size="small"
-              @update:model-value="(v: string) => (row.name = v)"
             />
           </template>
         </el-table-column>
         <el-table-column label="审批人类型" width="140">
           <template #default="{ row }">
             <el-select
-              :model-value="row.assignee_type"
+              v-model="row.assignee_type"
               size="small"
               clearable
-              @update:model-value="(v: string) => (row.assignee_type = v as never)"
             >
               <el-option label="指定用户" value="user" />
               <el-option label="指定角色" value="role" />
@@ -123,10 +117,9 @@
         <el-table-column label="条件表达式" min-width="160">
           <template #default="{ row }">
             <el-input
-              :model-value="row.condition"
+              v-model="row.condition"
               size="small"
               placeholder="如：amount > 1000"
-              @update:model-value="(v: string) => (row.condition = v)"
             />
           </template>
         </el-table-column>
@@ -147,8 +140,7 @@
 </template>
 
 <script setup lang="ts">
-/* eslint-disable vue/no-mutating-props */
-import { ref } from 'vue'
+import { ref, watch, nextTick } from 'vue'
 import { type FormInstance, type FormRules } from 'element-plus'
 import { Plus } from '@element-plus/icons-vue'
 import type { ProcessNode } from '@/api/bpm-enhanced'
@@ -171,7 +163,7 @@ const props = defineProps<{
   visible: boolean
   // 是否编辑
   isEdit: boolean
-  // 表单数据
+  // 表单数据（由父组件管理，子组件通过 emit 回写）
   formData: BpmDfFormData
   // 验证规则
   rules: FormRules
@@ -185,6 +177,8 @@ const emit = defineEmits<{
   'add-node': []
   // 删除节点
   'remove-node': [index: number]
+  // 整体回写表单数据（父组件监听此事件并 Object.assign 到自己的 formData）
+  'update:formData': [v: BpmDfFormData]
   // 提交（父组件处理 API）
   submit: []
 }>()
@@ -192,8 +186,43 @@ const emit = defineEmits<{
 // 表单 ref
 const formRef = ref<FormInstance>()
 
+// 本地镜像：避免直接修改 prop 触发 vue/no-mutating-props
+// 注意：formData 含 nodes 数组，需要深拷贝以保证本地修改与父组件解耦
+const localFormData = ref<BpmDfFormData>(JSON.parse(JSON.stringify(props.formData)))
+
+// 同步标志位：防止 prop → local 与 local → emit 形成循环
+let syncing = false
+
+// 外部 prop 变化时同步到 local（如父组件打开新建/编辑时填充数据）
+watch(
+  () => props.formData,
+  (newData) => {
+    if (syncing) return
+    syncing = true
+    localFormData.value = JSON.parse(JSON.stringify(newData))
+    nextTick(() => {
+      syncing = false
+    })
+  },
+  { deep: true },
+)
+
+// 本地变化时通知父组件（用户输入）
+watch(
+  localFormData,
+  (newData) => {
+    if (syncing) return
+    syncing = true
+    emit('update:formData', JSON.parse(JSON.stringify(newData)))
+    nextTick(() => {
+      syncing = false
+    })
+  },
+  { deep: true },
+)
+
 // 暴露给父组件
-defineExpose({ formRef, props })
+defineExpose({ formRef })
 
 /** 添加节点（父组件处理节点对象） */
 const handleAddNode = () => {

@@ -67,6 +67,7 @@
       v-model:request-schema-text="ep.requestSchemaText.value"
       v-model:response-schema-text="ep.responseSchemaText.value"
       @submit="ep.handleEndpointSubmit"
+      @update:form="(v) => Object.assign(ep.endpointForm, v)"
     />
 
     <KeyForm
@@ -77,6 +78,7 @@
       :rules="key.keyRules"
       v-model:permissions-text="key.permissionsText.value"
       @submit="key.handleKeySubmit"
+      @update:form="(v) => Object.assign(key.keyForm, v)"
     />
 
     <LogDetail

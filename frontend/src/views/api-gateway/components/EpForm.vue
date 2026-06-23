@@ -1,19 +1,19 @@
 <!--
   EpForm.vue - 接口新建/编辑对话框
   拆分自 api-gateway/index.vue（P14 批 1 B3 I-2）
+  P9-3 批次 F Pattern A 重构：本地 ref 镜像 + watch 防循环 + emit 整体覆盖父组件
   行为完全保持一致（仅结构重构）
 -->
-<!-- eslint-disable vue/no-mutating-props -->
 <template>
   <el-dialog
     :model-value="visible"
-    :title="form.id ? '编辑接口' : '新建接口'"
+    :title="form?.id ? '编辑接口' : '新建接口'"
     width="700px"
     @update:model-value="(v: boolean) => emit('update:visible', v)"
   >
     <el-form
       :ref="(el: any) => (formRefValue = el as FormInstance)"
-      :model="form"
+      :model="localForm"
       :rules="rules"
       label-width="100px"
     >
@@ -21,18 +21,18 @@
         <el-col :span="16">
           <el-form-item label="接口路径" prop="path">
             <el-input
-              :model-value="form.path"
+              :model-value="localForm.path ?? ''"
               placeholder="例如：/api/v1/users"
-              @update:model-value="(v: string) => (form.path = v ?? '')"
+              @update:model-value="(v: string) => (localForm.path = v ?? '')"
             />
           </el-form-item>
         </el-col>
         <el-col :span="8">
           <el-form-item label="请求方法" prop="method">
             <el-select
-              :model-value="form.method"
+              :model-value="localForm.method"
               style="width: 100%"
-              @update:model-value="(v: string) => (form.method = v as any)"
+              @update:model-value="(v: 'GET' | 'POST' | 'PUT' | 'DELETE' | 'PATCH') => (localForm.method = v)"
             >
               <el-option label="GET" value="GET" />
               <el-option label="POST" value="POST" />
@@ -45,38 +45,38 @@
       </el-row>
       <el-form-item label="描述" prop="description">
         <el-input
-          :model-value="form.description"
+          :model-value="localForm.description ?? ''"
           placeholder="请输入接口描述"
-          @update:model-value="(v: string) => (form.description = v ?? '')"
+          @update:model-value="(v: string) => (localForm.description = v ?? '')"
         />
       </el-form-item>
       <el-row :gutter="20">
         <el-col :span="8">
           <el-form-item label="模块" prop="module">
             <el-input
-              :model-value="form.module"
+              :model-value="localForm.module ?? ''"
               placeholder="模块名称"
-              @update:model-value="(v: string) => (form.module = v ?? '')"
+              @update:model-value="(v: string) => (localForm.module = v ?? '')"
             />
           </el-form-item>
         </el-col>
         <el-col :span="8">
           <el-form-item label="限流(/秒)" prop="rate_limit">
             <el-input-number
-              :model-value="form.rate_limit"
+              :model-value="localForm.rate_limit"
               :min="0"
               style="width: 100%"
-              @update:model-value="(v: number) => (form.rate_limit = v ?? 0)"
+              @update:model-value="(v: number) => (localForm.rate_limit = v ?? 0)"
             />
           </el-form-item>
         </el-col>
         <el-col :span="8">
           <el-form-item label="超时(ms)" prop="timeout">
             <el-input-number
-              :model-value="form.timeout"
+              :model-value="localForm.timeout"
               :min="0"
               style="width: 100%"
-              @update:model-value="(v: number) => (form.timeout = v ?? 0)"
+              @update:model-value="(v: number) => (localForm.timeout = v ?? 0)"
             />
           </el-form-item>
         </el-col>
@@ -85,8 +85,8 @@
         <el-col :span="8">
           <el-form-item label="需要认证" prop="authentication">
             <el-switch
-              :model-value="form.authentication"
-              @update:model-value="(v: boolean) => (form.authentication = v)"
+              :model-value="!!localForm.authentication"
+              @update:model-value="(v: boolean) => (localForm.authentication = v)"
             />
           </el-form-item>
         </el-col>
@@ -127,8 +127,7 @@
 </template>
 
 <script setup lang="ts">
-/* eslint-disable vue/no-mutating-props */
-import { ref, watch } from 'vue'
+import { ref, watch, nextTick } from 'vue'
 import type { FormInstance, FormRules } from 'element-plus'
 import type { ApiEndpoint } from '@/api/api-gateway'
 
@@ -136,14 +135,15 @@ import type { ApiEndpoint } from '@/api/api-gateway'
  * 接口新建/编辑对话框组件
  * 父组件通过 v-model 双向同步 authorizationText / requestSchemaText / responseSchemaText
  * 子组件通过 emit('update:*') 通知父组件更新
+ * 表单数据通过本地 ref 镜像 + 双向 watch 防循环 + emit('update:form') 整体回写
  */
 const props = defineProps<{
   // 对话框可见性
   visible: boolean
   // 表单实例 ref（父组件持有的 FormInstance 引用包装对象）
   formRef: { value: FormInstance | undefined }
-  // 表单数据
-  form: Partial<ApiEndpoint>
+  // 表单数据（由父组件管理，子组件通过 emit 回写）
+  form?: Partial<ApiEndpoint>
   // 提交中状态
   submitLoading: boolean
   // 校验规则
@@ -161,8 +161,44 @@ const emit = defineEmits<{
   'update:authorizationText': [v: string]
   'update:requestSchemaText': [v: string]
   'update:responseSchemaText': [v: string]
+  // 整体回写表单（父组件监听此事件并 Object.assign 到自己的 form）
+  'update:form': [form: Partial<ApiEndpoint>]
   submit: []
 }>()
+
+// 本地镜像：避免直接修改 prop 触发 vue/no-mutating-props
+const localForm = ref<Partial<ApiEndpoint>>({ ...(props.form ?? {}) })
+
+// 同步标志位：防止 prop → local 与 local → emit 形成循环
+let syncing = false
+
+// 外部 prop 变化时同步到 local（如父组件打开新建/编辑时填充数据）
+watch(
+  () => props.form,
+  newForm => {
+    if (syncing) return
+    syncing = true
+    localForm.value = { ...(newForm ?? {}) }
+    nextTick(() => {
+      syncing = false
+    })
+  },
+  { deep: true }
+)
+
+// 本地变化时通知父组件（用户输入）
+watch(
+  localForm,
+  newForm => {
+    if (syncing) return
+    syncing = true
+    emit('update:form', { ...newForm })
+    nextTick(() => {
+      syncing = false
+    })
+  },
+  { deep: true }
+)
 
 // 将 el-form 的 ref 实例同步到父组件传入的 formRef.value
 const formRefValue = ref<FormInstance | undefined>(undefined)

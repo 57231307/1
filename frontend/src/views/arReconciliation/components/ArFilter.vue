@@ -1,27 +1,25 @@
 <!--
   ArFilter.vue - AR 对账过滤与操作栏
   拆分自 arReconciliation/enhanced.vue（P14 批 1 B3 I-2）
+  P9-3 批次 F Pattern A 重构：本地 ref 镜像 + watch 防循环 + emit 整体覆盖父组件
   行为完全保持一致（仅结构重构）
 -->
-<!-- eslint-disable vue/no-mutating-props -->
 <template>
   <div class="filter-container">
     <el-row :gutter="20">
       <el-col :span="6">
         <el-input
-          :model-value="searchForm.customer_name"
+          v-model="localSearchForm.customer_name"
           placeholder="客户名称"
           clearable
-          @update:model-value="(v: string) => (searchForm.customer_name = v ?? '')"
           @keyup.enter="emit('search')"
         />
       </el-col>
       <el-col :span="5">
         <el-select
-          :model-value="searchForm.match_status"
+          v-model="localSearchForm.match_status"
           placeholder="匹配状态"
           clearable
-          @update:model-value="(v: string) => (searchForm.match_status = v ?? '')"
         >
           <el-option
             v-for="s in MATCH_OPTIONS"
@@ -33,20 +31,18 @@
       </el-col>
       <el-col :span="5">
         <el-date-picker
-          :model-value="searchForm.start_date"
+          v-model="localSearchForm.start_date"
           type="date"
           placeholder="开始日期"
           class="w-100"
-          @update:model-value="(v: string) => (searchForm.start_date = v ?? '')"
         />
       </el-col>
       <el-col :span="5">
         <el-date-picker
-          :model-value="searchForm.end_date"
+          v-model="localSearchForm.end_date"
           type="date"
           placeholder="结束日期"
           class="w-100"
-          @update:model-value="(v: string) => (searchForm.end_date = v ?? '')"
         />
       </el-col>
       <el-col :span="3">
@@ -69,10 +65,11 @@
 </template>
 
 <script setup lang="ts">
-/* eslint-disable vue/no-mutating-props */
+import { ref, watch, nextTick } from 'vue'
 import { Refresh, Promotion, CircleClose } from '@element-plus/icons-vue'
 import { MATCH_OPTIONS } from '../composables/arRecFmts'
 
+// 搜索表单类型
 interface ArSearchForm {
   customer_name: string
   match_status: string
@@ -81,7 +78,7 @@ interface ArSearchForm {
 }
 
 const props = defineProps<{
-  // 搜索表单（双向同步）
+  // 搜索表单（由父组件管理，子组件通过 emit 回写）
   searchForm: ArSearchForm
   // 自动对账加载中状态
   reconcileLoading: boolean
@@ -93,9 +90,43 @@ const emit = defineEmits<{
   'auto-reconcile': []
   'view-confirmations': []
   'open-dispute': []
+  // 整体回写搜索表单（父组件监听此事件并 Object.assign 到自己的 searchForm）
+  'update:searchForm': [v: ArSearchForm]
 }>()
 
-void props
+// 本地镜像：避免直接修改 prop 触发 vue/no-mutating-props
+const localSearchForm = ref<ArSearchForm>({ ...props.searchForm })
+
+// 同步标志位：防止 prop → local 与 local → emit 形成循环
+let syncing = false
+
+// 外部 prop 变化时同步到 local（如父组件重置）
+watch(
+  () => props.searchForm,
+  (newForm) => {
+    if (syncing) return
+    syncing = true
+    localSearchForm.value = { ...newForm }
+    nextTick(() => {
+      syncing = false
+    })
+  },
+  { deep: true },
+)
+
+// 本地变化时通知父组件（用户输入）
+watch(
+  localSearchForm,
+  (newForm) => {
+    if (syncing) return
+    syncing = true
+    emit('update:searchForm', { ...newForm })
+    nextTick(() => {
+      syncing = false
+    })
+  },
+  { deep: true },
+)
 </script>
 
 <style scoped>
