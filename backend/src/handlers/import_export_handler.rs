@@ -28,7 +28,9 @@ use crate::utils::response::ApiResponse;
 #[derive(Debug, Deserialize, Validate)]
 pub struct CsvImportRequest {
     pub import_type: String,
-    #[validate(length(max = 10 * 1024 * 1024, message = "CSV 数据超过 10MB 上限"))]
+    // validator 0.16 的 length(max = ...) 不支持 Rust 表达式，只能用整数字面量。
+    // 10 * 1024 * 1024 = 10485760 字节 = 10 MB。
+    #[validate(length(max = 10485760, message = "CSV 数据超过 10MB 上限"))]
     pub data: String, // CSV 格式的字符串
 }
 
@@ -317,7 +319,7 @@ mod tests {
             data: big_csv,
         };
 
-        // 期望 validate() 失败（被 #[validate(length(max = 10 * 1024 * 1024))] 拦截）
+        // 期望 validate() 失败（被 #[validate(length(max = 10485760))] 拦截）
         let result = req.validate();
         assert!(
             result.is_err(),
