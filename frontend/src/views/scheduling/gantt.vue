@@ -27,7 +27,7 @@
       v-model:visible="schG.autoScheduleDialogVisible"
       :schedule-form="schG.scheduleForm"
       :scheduling="schGProc.scheduling"
-      @update:form="(v) => (schG.scheduleForm = v)"
+      @update:form="(v) => { schG.scheduleForm = v }"
       @confirm="schGProc.confirmAutoSchedule"
     />
 

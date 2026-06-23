@@ -51,20 +51,13 @@
 
 <script setup lang="ts">
 import { ref, watch, nextTick } from 'vue'
-
-// 排程参数类型
-interface ScheduleForm {
-  start_date: string
-  end_date: string
-  priority_mode: string
-  optimization_target: string
-}
+import type { SchedulingParams } from '@/api/scheduling'
 
 const props = defineProps<{
   // 对话框可见性
   visible: boolean
   // 排程参数（由父组件管理，子组件通过 emit('update:form') 回写）
-  scheduleForm: ScheduleForm
+  scheduleForm: SchedulingParams
   // 排程进行中
   scheduling: boolean
 }>()
@@ -76,11 +69,11 @@ const emit = defineEmits<{
   // 确认执行
   (e: 'confirm'): void
   // 整体回写表单
-  (e: 'update:form', form: ScheduleForm): void
+  (e: 'update:form', form: SchedulingParams): void
 }>()
 
 // 本地镜像：避免直接修改 prop 触发 vue/no-mutating-props
-const localForm = ref<ScheduleForm>({ ...props.scheduleForm })
+const localForm = ref<SchedulingParams>({ ...props.scheduleForm })
 
 // 同步标志位：防止 prop → local 与 local → emit 形成循环
 let syncing = false

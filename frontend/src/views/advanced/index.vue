@@ -52,7 +52,7 @@
           :recipe-loading="rcp.recipeLoading.value"
           :recipe-result="rcp.recipeResult.value"
           :run-recipe-optimization="rcp.runRecipeOptimization"
-          @update:recipe-form="(v) => (rcp.recipeForm = v)"
+          @update:recipe-form="(v) => { rcp.recipeForm.value = v }"
         />
       </el-tab-pane>
 
@@ -62,7 +62,7 @@
           :quality-loading="qlt.qualityLoading.value"
           :quality-result="qlt.qualityResult.value"
           :run-quality-prediction="qlt.runQualityPrediction"
-          @update:quality-form="(v) => (qlt.qualityForm = v)"
+          @update:quality-form="(v) => { qlt.qualityForm.value = v }"
         />
       </el-tab-pane>
     </el-tabs>
@@ -75,7 +75,7 @@
       :on-submit="tnt.submitTenant"
       :on-cancel="() => (tnt.tenantDialogVisible.value = false)"
       @update:model-value="(v: boolean) => (tnt.tenantDialogVisible.value = v)"
-      @update:form="(v) => (tnt.tenantForm = v)"
+      @update:form="(v) => { tnt.tenantForm.value = v }"
     />
   </div>
 </template>

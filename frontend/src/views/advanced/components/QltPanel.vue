@@ -14,15 +14,13 @@ interface QualityFormData {
   window_days: number
 }
 
-interface Props {
+const props = defineProps<{
   // 质量预测表单（由父组件管理，子组件通过 emit('update:qualityForm') 回写）
   qualityForm: QualityFormData
   qualityLoading: boolean
   qualityResult: any
   runQualityPrediction: () => Promise<void>
-}
-
-const props = defineProps<Props>()
+}>()
 
 const emit = defineEmits<{
   // 整体回写表单

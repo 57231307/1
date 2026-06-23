@@ -18,16 +18,14 @@ interface TenantFormData {
   status: string
 }
 
-interface Props {
+const props = defineProps<{
   modelValue: boolean
   title: string
   // 租户表单（由父组件管理，子组件通过 emit('update:form') 回写）
   form: TenantFormData
   onSubmit: () => Promise<void>
   onCancel: () => void
-}
-
-const props = defineProps<Props>()
+}>()
 
 const emit = defineEmits<{
   (e: 'update:modelValue', value: boolean): void

@@ -16,15 +16,13 @@ interface RecipeFormData {
   k: number
 }
 
-interface Props {
+const props = defineProps<{
   // 工艺推荐表单（由父组件管理，子组件通过 emit('update:recipeForm') 回写）
   recipeForm: RecipeFormData
   recipeLoading: boolean
   recipeResult: any
   runRecipeOptimization: () => Promise<void>
-}
-
-const props = defineProps<Props>()
+}>()
 
 const emit = defineEmits<{
   // 整体回写表单
