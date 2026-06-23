@@ -1070,4 +1070,75 @@ pub struct CsvImportRequest {
     - 新增 9 个单测覆盖 is_production + 错误响应脱敏
     - 新增依赖 dotenvy = "0.15"（已在 Cargo.lock 中）
     ```
+```
 
+---
+
+## 🚨 PR #243 Wave 4 合并 + Clippy 1661 警告规划（2026-06-23）
+
+- Date: 2026-06-23
+- Context: Wave 4 PR #243 merged（commit 37ce64e）+ clippy 失败 1661 警告 + 用户决策合并 + 规划
+- Category: 安全批次总结 + 死代码清理
+
+### Wave 4 完成状态
+
+PR #243 6 个 P3 漏洞全部修复：
+- **#5 get_task_status 权限**（子代理 A）：`init_handler.rs` +174/-1，3 单测
+- **#10 + #13 LoginResponse 字段**（子代理 B）：`auth_handler.rs` +149/-27，4 单测
+- **#14 permissions 类型**（子代理 B）：`Vec<String>` 资源标识符 + 删除 `UserPermissionDto`
+- **#11 错误响应脱敏**（子代理 C）：`error.rs` +90/-10，5 单测
+- **#12 is_production 统一**（子代理 C）：`utils/config.rs`（新）+100 行 + `dotenvy 0.15` 依赖 + 4 单测
+
+**9 业务文件 + 1 新文件 / +846/-55 行 / 16 新单测 / 1 新依赖**
+
+**PR merge**：CI 11/12 success（build/test/类型检查全过），clippy 失败但**强制 squash 合并**（用户决策"合并 main + 规划所有警告"）
+
+### 14 个安全漏洞全部修复完成
+
+| Wave | 等级 | 漏洞 | PR | 合并 commit |
+|------|------|------|------|-------------|
+| Wave 1 | P0 | #1 #2 | #240 | b298c99 |
+| Wave 2 | P1 | #3 #4 #6 #9 | #241 | cdb2ada |
+| Wave 3 | P2 | #7 #8 | #242 | 2ab793c |
+| Wave 4 | P3 | #5 #10 #11 #12 #13 #14 | #243 | 37ce64e |
+| **合计** | **4 等级** | **14 漏洞** | **4 PR** | **4 merged** |
+
+### Clippy 1661 警告分析（关键经验）
+
+- **真实警告数**：285 个（按 warning text 分类，top 10 类型全是 dead_code）
+- **拆行后行数**：1661（`sort -u` 把 rendered 字段多行 warning 拆成单行，每行都计）
+- **根因 1**：rustc 1.94 增强 dead_code 检测（vs 旧 baseline 1039 行）
+- **根因 2**：dotenvy 新依赖引入（虽然 PR #243 没改 122 个文件中任一个，但依赖变化触发了所有 target 的 dead_code 重新分析）
+- **分布**：122 个不同 src 文件，最高 `src/services/enhanced_logger.rs` 27 警告
+
+### 修复规划（4 批次 / 123 子代理 / 4 PR #244-#247）
+
+- **批次 A**（高频 20 文件 166 警告）：第一批启动
+- **批次 B**（中频 30 文件 100 警告）
+- **批次 C**（低频 72 文件 90 警告）
+- **批次 D**（2 unused_imports）
+- **目标**：baseline 1039 → < 500（清理 50% 死代码）
+
+### 死代码处理规范（`.trae/rules/project_rules.md` §六）
+
+- **禁止**文件级 `#![allow(dead_code)]`
+- **禁止** crate 级 `#![allow(unused_imports)]` / `#[allow(unused_variables)]`
+- 真实未使用项**显式删除**（git 保留历史）
+- 保留项加 `pub` 修饰或 `#[allow(dead_code)]` + TODO 注释
+
+### 决策树
+
+```
+dead_code 警告 → 该项是否仍需要？
+├─ 不需要 → 删除
+└─ 需要保留
+   ├─ 是否能 pub 暴露给外部用？
+   │  └─ 是 → 改 fn/struct 为 pub
+   └─ 否 → 加 #[allow(dead_code)] + TODO 注释
+```
+
+### 详细计划
+
+- 规划文档：`.monkeycode/docs/superpowers/plans/2026-06-23-clippy-deadcode-cleanup-plan.md`
+- main HEAD（更新）：`37ce64e`（PR #243 squash merge）
+- 下一步：批次 A 启动（20 子代理并行）→ 监控 CI → 合并 → 后续批次
