@@ -54,6 +54,7 @@
       :adjust-task="schM.adjustTask"
       :adjust-form="schM.adjustForm"
       :adjusting="schM.adjusting"
+      @update:form="(v) => (schM.adjustForm = v)"
       @confirm="onConfirmAdjust"
     />
   </div>

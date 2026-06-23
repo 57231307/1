@@ -27,6 +27,7 @@
       v-model:visible="schG.autoScheduleDialogVisible"
       :schedule-form="schG.scheduleForm"
       :scheduling="schGProc.scheduling"
+      @update:form="(v) => (schG.scheduleForm = v)"
       @confirm="schGProc.confirmAutoSchedule"
     />
 
@@ -36,6 +37,7 @@
       :adjust-form="schG.adjustForm"
       :adjusting="schG.adjusting"
       :work-centers="schG.ganttData.work_centers"
+      @update:form="(v) => (schG.adjustForm = v)"
       @confirm="schG.confirmAdjust"
     />
 
