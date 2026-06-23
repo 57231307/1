@@ -1262,3 +1262,98 @@ $ grep -nE "(\b|^)form\.[a-z_]+\s*=" src/views/api-gateway/components/KeyForm.vu
 - **总计**：8 个后端单文件（>800 行）降至 26 个职责清晰子模块
 - **CI 验证**：c9b579d 后无新 baseline commit = 全部 15 个 CI job 通过
 - **关联文件**：每次拆分同步更新 `mod.rs`/`handlers/mod.rs` 加 `pub mod` 声明
+
+---
+
+## 批次 F 第 3C 子批：vue/no-mutating-props 收敛（2026-06-23 PR #239 merged）
+
+### 最终结果
+
+- **PR #239** merged → squash commit `d670a5f8a04be4139970ed3f8aaef715a00fe0d9`
+- **main HEAD**：`679167e → d670a5f`
+- **CI 全绿**：15 job / 13 success / 0 failure / 2 skipped
+- **总变更**：18 文件 / +760/-195 行（首次提交）；CI 修复 +3/-3 行
+- **166 → 0**：项目 `vue/no-mutating-props` disable 注释全部清零
+
+### CI 监控全程（按 MEMORY.md"CI/CD 验证强制"规则）
+
+#### 第 1 轮：commit a49a17a 推送后
+
+- 15 job / 13 success / **2 failure**（前端构建 + 前端类型检查）
+- 其他后端 job 还在跑
+
+#### 错误根因分析
+
+通过 jobs API + 单 job logs 端点拉取 320 行 type-check 日志，定位 3 处 vue-tsc 错误：
+
+```
+src/views/api-gateway/components/EpForm.vue(35,52): error TS2322: 
+  Type 'string' is not assignable to type '"GET" | "DELETE" | "POST" | "PUT" | "PATCH" | undefined'.
+
+src/views/data-import/index.vue(77,26): error TS2300: Duplicate identifier 'DiTplForm'.
+src/views/data-import/index.vue(80,8):  error TS2300: Duplicate identifier 'DiTplForm'.
+```
+
+- **错误 1 根因**：`localForm.method` 是 `Partial<ApiEndpoint>['method']` 字面量联合类型，不能接受 `string`
+- **错误 2+3 根因**：L77 `import { useDiProc, type DiTplForm }` 与 L80 `import DiTplForm from './components/DiTplForm.vue'` 同名冲突
+
+#### CI 修复 commit `38d59e4`（cherry-pick 后的 SHA）
+
+```diff
+# EpForm.vue:35
+- @update:model-value="(v: string) => (localForm.method = v)"
++ @update:model-value="(v: 'GET' | 'POST' | 'PUT' | 'DELETE' | 'PATCH') => (localForm.method = v)"
+
+# data-import/index.vue:77
+- import { useDiProc, type DiTplForm } from './composables/useDiProc'
++ import { useDiProc, type DiTplForm as DiTplFormData } from './composables/useDiProc'
+
+# data-import/index.vue:58
+- @update:form="(v: DiTplForm) => Object.assign(diProc.templateForm, v)"
++ @update:form="(v: DiTplFormData) => Object.assign(diProc.templateForm, v)"
+```
+
+#### 第 2 轮：commit 38d59e4 推送后
+
+- 30 秒 → env-info 完成
+- 2.5 分钟 → 前端 5 job 全 success
+- 6 分钟 → 后端 11 job 全 success（含 Clippy / 单元测试 / 依赖审计）
+- **最终：15 job / 13 success / 0 failure / 2 skipped（Release + 打包发布仅 main push 触发）**
+
+### 关键经验
+
+1. **CI 监控依赖 jobs API + 单 job logs 端点**：workflow run logs API 返回 404，但 `actions/jobs/{id}/logs` 可用
+2. **vue-tsc 错误定位 3 步走**：先看 `vue-tsc-output.txt` 行号 → 在 .vue 文件 Read 对应行 → 分析 prop 类型 → 修复
+3. **类型 alias 是处理 import 冲突的标准做法**：`type X as XxxData` 避免与组件同名 import
+4. **字面量联合类型赋值不能用 `string`**：必须用 `typeof prop.field` 或显式联合
+5. **CI 修复不要走 `cherry-pick` 路径上的"分支漂移"**：所有 fix commit 必须直接进 feature 分支，避免 `trae/agent-*` 自动分支污染
+
+### 关键样板（Pattern A 已统一）
+
+子组件：
+```vue
+<script setup lang="ts">
+import { reactive, watch } from 'vue'
+const props = defineProps<{ params?: QryParams }>()
+const emit = defineEmits<{ 'update:params': [v: QryParams]; search: []; reset: [] }>()
+
+// 本地镜像：避免直接修改 prop 触发 vue/no-mutating-props
+const localParams = reactive<QryParams>({ ...(props.params ?? DEFAULT) })
+watch(() => props.params, v => { if (v) Object.assign(localParams, v) }, { deep: true })
+const syncToParent = () => emit('update:params', { ...localParams })
+</script>
+```
+
+父组件：
+```vue
+<DiTaskTbl v-model:params="query" :data="data" :total="total" :loading="loading" @search="load" />
+```
+
+### 下一步候选（roadmap v0.3 剩余）
+
+- **I-3 剩余 1 个**：sales-returns 527 行大 .vue（剩余最大）
+- **B4**：完成 system/ 下 11 Tab 业务骨架
+- **E2E 测试覆盖**：补齐关键业务流端到端测试
+- **OpenAPI 3.1 规范生成**：后端 API 文档自动生成
+- **product_color_price 反向 port**：从 test 分支 port 产品色价
+- **P2-2 性能优化 PR-3+**：Redis 缓存层 + DB N+1 后续优化
