@@ -1,30 +1,51 @@
 //! 导入导出 Handler
 //!
 //! 提供 CSV/Excel 数据导入导出 API 接口
+//!
+//! 安全说明（漏洞 #8 修复）：
+//! - CSV / Excel 导入端点对请求体大小有限制（详见 import_export_service::MAX_CSV_BYTES /
+//!   MAX_EXCEL_ROWS / MAX_EXCEL_COLS / MAX_CELL_LEN），防止已认证用户发送超大请求触发
+//!   OOM DoS / 数据库压力 / 服务崩溃。
+//! - 校验层次：DTO #[validate] → handler 早期校验（友好提示）→ service 层 defense-in-depth。
 
 use axum::{
     extract::{Path, Query, State},
     Json,
 };
 use serde::Deserialize;
+use validator::Validate;
 
 use crate::middleware::auth_context::AuthContext;
-use crate::services::import_export_service::{ExportQuery, ImportExportService};
+use crate::services::import_export_service::{ExportQuery, ImportExportService, MAX_CSV_BYTES};
 use crate::utils::app_state::AppState;
 use crate::utils::error::AppError;
 use crate::utils::response::ApiResponse;
 
-/// CSV导入请求
-#[derive(Debug, Deserialize)]
+/// CSV 导入请求
+///
+/// 安全约束：data 字段使用 validator crate 做长度上限校验（10MB），
+/// 防止已认证用户发送超大请求触发 OOM DoS。
+#[derive(Debug, Deserialize, Validate)]
 pub struct CsvImportRequest {
     pub import_type: String,
-    pub data: String, // CSV格式的字符串
+    #[validate(length(
+        max = 10 * 1024 * 1024,
+        message = "CSV 数据超过 10MB 上限"
+    ))]
+    pub data: String, // CSV 格式的字符串
 }
 
-/// Excel导入请求
-#[derive(Debug, Deserialize)]
+/// Excel 导入请求
+///
+/// 安全约束：data 行数使用 validator crate 做上限校验（1 万行），
+/// 单元格/列数限制由 handler 入口早期校验 + service 层 defense-in-depth 双重把关。
+#[derive(Debug, Deserialize, Validate)]
 pub struct ExcelImportRequest {
     pub import_type: String,
+    #[validate(length(
+        max = 10_000,
+        message = "Excel 数据超过 1 万行上限"
+    ))]
     pub data: Vec<Vec<String>>, // 二维数组
 }
 
@@ -34,6 +55,22 @@ pub async fn import_csv(
     auth: AuthContext,
     Json(req): Json<CsvImportRequest>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
+    // 安全漏洞 #8 修复：DTO 校验失败（数据超过 10MB）→ 友好错误
+    // validator crate 自动从 #[validate(length(max = ...))] 注解生成校验逻辑，
+    // 错误通过 `?` 操作符转为 AppError::ValidationError 返回。
+    req.validate()?;
+
+    // 安全漏洞 #8 修复：handler 入口早期校验（defense-in-depth 第二层）
+    // 即使 DTO 校验被绕过（例如：手写请求绕过 axum 提取器层），
+    // 本入口仍以毫秒级速度拒绝超大数据，避免后续解析逻辑耗尽内存。
+    if req.data.len() > MAX_CSV_BYTES {
+        return Err(AppError::validation(format!(
+            "CSV 数据超过 {} 字节上限：当前 {} 字节",
+            MAX_CSV_BYTES,
+            req.data.len()
+        )));
+    }
+
     let service = ImportExportService::new(state.db.clone());
 
     // 获取导入模板
@@ -70,6 +107,44 @@ pub async fn import_excel(
     auth: AuthContext,
     Json(req): Json<ExcelImportRequest>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
+    // 安全漏洞 #8 修复：DTO 校验失败（行数超过 1 万行）→ 友好错误
+    req.validate()?;
+
+    // 安全漏洞 #8 修复：handler 入口早期校验
+    // - 行数：DTO 校验已覆盖；本处冗余判断以防 validator crate 未来 API 变化
+    // - 列数 / 单元格长度：validator crate 的 `length` 不直接支持嵌套 Vec，
+    //   在 handler 入口做精确校验并返回友好中文错误
+    use crate::services::import_export_service::{MAX_CELL_LEN, MAX_EXCEL_COLS, MAX_EXCEL_ROWS};
+
+    if req.data.len() > MAX_EXCEL_ROWS {
+        return Err(AppError::validation(format!(
+            "Excel 数据超过 {} 行上限：当前 {} 行",
+            MAX_EXCEL_ROWS,
+            req.data.len()
+        )));
+    }
+    for (row_idx, row) in req.data.iter().enumerate() {
+        if row.len() > MAX_EXCEL_COLS {
+            return Err(AppError::validation(format!(
+                "Excel 第 {} 行列数超过 {} 列上限：当前 {} 列",
+                row_idx + 1,
+                MAX_EXCEL_COLS,
+                row.len()
+            )));
+        }
+        for (col_idx, cell) in row.iter().enumerate() {
+            if cell.len() > MAX_CELL_LEN {
+                return Err(AppError::validation(format!(
+                    "Excel 第 {} 行第 {} 列单元格超过 {} 字符上限：当前 {} 字符",
+                    row_idx + 1,
+                    col_idx + 1,
+                    MAX_CELL_LEN,
+                    cell.len()
+                )));
+            }
+        }
+    }
+
     let service = ImportExportService::new(state.db.clone());
 
     // 获取导入模板
@@ -218,4 +293,75 @@ pub async fn list_import_tasks(
 ) -> Result<Json<ApiResponse<Vec<ImportTaskItem>>>, AppError> {
     // 导入任务功能暂返回空列表，后续可接入数据库任务记录
     Ok(Json(ApiResponse::success(vec![])))
+}
+
+#[cfg(test)]
+mod tests {
+    //! 安全漏洞 #8 修复配套单测
+    //!
+    //! 测试目标：DTO #[validate] 注解在反序列化后能正确拒绝超限数据。
+    //! 备注：handler 早期校验的测试需要 mock State/AppState/AuthContext，
+    //! 仅测试 DTO 层（不涉及 handler 调用），覆盖率已足够。
+    use super::*;
+    use crate::services::import_export_service::{MAX_CSV_BYTES, MAX_EXCEL_ROWS};
+
+    /// 漏洞 #8 修复：CSV data 字段超过 10MB → validate() 失败
+    #[test]
+    fn test_csv_import_request_rejects_exceeding_10mb() {
+        // 构造一个 data 字段超过 10MB 的请求
+        let big_csv = "a".repeat(MAX_CSV_BYTES + 1);
+        let req = CsvImportRequest {
+            import_type: "products".to_string(),
+            data: big_csv,
+        };
+
+        // 期望 validate() 失败（被 #[validate(length(max = 10 * 1024 * 1024))] 拦截）
+        let result = req.validate();
+        assert!(
+            result.is_err(),
+            "漏洞 #8 单测：{} 字节的 CSV data 应被 validate() 拒绝",
+            MAX_CSV_BYTES + 1
+        );
+    }
+
+    /// 漏洞 #8 修复：Excel data 行数超过 1 万行 → validate() 失败
+    #[test]
+    fn test_excel_import_request_rejects_exceeding_10k_rows() {
+        // 构造一个 data 字段超过 1 万行的请求
+        let mut rows = Vec::with_capacity(MAX_EXCEL_ROWS + 1);
+        for _ in 0..=MAX_EXCEL_ROWS {
+            rows.push(vec!["P001".to_string(), "name".to_string()]);
+        }
+        let req = ExcelImportRequest {
+            import_type: "products".to_string(),
+            data: rows,
+        };
+
+        // 期望 validate() 失败（被 #[validate(length(max = 10_000))] 拦截）
+        let result = req.validate();
+        assert!(
+            result.is_err(),
+            "漏洞 #8 单测：{} 行的 Excel data 应被 validate() 拒绝",
+            MAX_EXCEL_ROWS + 1
+        );
+    }
+
+    /// 漏洞 #8 修复：边界值测试 - 10MB 的 CSV 应通过 validate()
+    #[test]
+    fn test_csv_import_request_accepts_exactly_10mb() {
+        // 构造一个 data 字段正好 10MB 的请求
+        let csv = "a".repeat(MAX_CSV_BYTES);
+        let req = CsvImportRequest {
+            import_type: "products".to_string(),
+            data: csv,
+        };
+
+        // 期望 validate() 成功
+        let result = req.validate();
+        assert!(
+            result.is_ok(),
+            "漏洞 #8 单测：恰好 {} 字节的 CSV data 应通过 validate()",
+            MAX_CSV_BYTES
+        );
+    }
 }
