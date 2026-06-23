@@ -2,6 +2,8 @@
   data-import/index.vue - 数据导入管理（拆分重构版）
   任务编号: P14 批 2 I-3 第 5 批
   拆分：596 行 → ~120 行 + 4 子组件 + 2 composable + 1 工具
+  P9-3 批次 F Pattern A 父组件配合：子组件 prop 改为 params，
+  父组件通过 @update:params + Object.assign 整体回写查询参数/表单数据
   行为完全保持一致（仅结构重构）
 -->
 <template>
@@ -22,14 +24,13 @@
           :data="di.templates"
           :loading="di.templateLoading"
           :total="di.templateTotal"
-          :query="di.templateQuery"
+          :params="di.templateQuery"
+          @update:params="(v: TplQuery) => Object.assign(di.templateQuery, v)"
           @search="di.fetchTemplates"
           @edit="diProc.openTemplateDialog"
           @delete="diProc.handleDeleteTemplate"
           @download="diProc.handleDownloadTemplate"
           @upload="diProc.openUploadDialog"
-          @update:page="(v: number) => (di.templateQuery.page = v)"
-          @update:size="(v: number) => (di.templateQuery.page_size = v)"
         />
       </el-tab-pane>
 
@@ -38,23 +39,23 @@
           :data="di.tasks"
           :loading="di.taskLoading"
           :total="di.taskTotal"
-          :query="di.taskQuery"
+          :params="di.taskQuery"
+          @update:params="(v: TaskQuery) => Object.assign(di.taskQuery, v)"
           @search="di.fetchTasks"
           @retry="diProc.handleRetryTask"
           @cancel="diProc.handleCancelTask"
           @download-log="diProc.handleDownloadErrorLog"
-          @update:page="(v: number) => (di.taskQuery.page = v)"
-          @update:size="(v: number) => (di.taskQuery.page_size = v)"
         />
       </el-tab-pane>
     </el-tabs>
 
     <DiTplForm
       v-model:visible="diProc.templateDialogVisible"
-      :form="diProc.templateForm"
+      :params="diProc.templateForm"
       :rules="diProc.templateRules"
       :submit-loading="diProc.templateSubmitLoading"
       :columns-text="diProc.columnsText"
+      @update:form="(v: DiTplForm) => Object.assign(diProc.templateForm, v)"
       @update:columns-text="(v: string) => (diProc.columnsText = v)"
       @submit="diProc.handleTemplateSubmit"
     />
@@ -72,8 +73,8 @@
 <script setup lang="ts">
 import { onMounted } from 'vue'
 import { Plus } from '@element-plus/icons-vue'
-import { useDi } from './composables/useDi'
-import { useDiProc } from './composables/useDiProc'
+import { useDi, type TplQuery, type TaskQuery } from './composables/useDi'
+import { useDiProc, type DiTplForm } from './composables/useDiProc'
 import DiTplTbl from './components/DiTplTbl.vue'
 import DiTaskTbl from './components/DiTaskTbl.vue'
 import DiTplForm from './components/DiTplForm.vue'

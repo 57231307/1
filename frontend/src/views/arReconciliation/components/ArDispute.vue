@@ -1,9 +1,9 @@
 <!--
   ArDispute.vue - AR 对账争议处理对话框
   拆分自 arReconciliation/enhanced.vue（P14 批 1 B3 I-2）
+  P9-3 批次 F Pattern A 重构：本地 ref 镜像 + watch 防循环 + emit 整体覆盖父组件
   行为完全保持一致（仅结构重构）
 -->
-<!-- eslint-disable vue/no-mutating-props -->
 <template>
   <el-dialog
     :model-value="visible"
@@ -11,13 +11,13 @@
     width="900px"
     @update:model-value="(v: boolean) => emit('update:visible', v)"
   >
-    <el-form :model="form" label-width="100px">
+    <el-form :model="localForm" label-width="100px">
       <el-row :gutter="20">
         <el-col :span="12">
           <el-form-item label="争议类型">
             <el-select
-              :model-value="form.dispute_type"
-              @update:model-value="(v: string) => (form.dispute_type = v as any)"
+              :model-value="localForm.dispute_type"
+              @update:model-value="(v: string) => (localForm.dispute_type = v as DisputeRecord['dispute_type'])"
             >
               <el-option
                 v-for="o in DISPUTE_TYPE_OPTIONS"
@@ -31,22 +31,22 @@
         <el-col :span="12">
           <el-form-item label="争议金额">
             <el-input-number
-              :model-value="form.dispute_amount"
+              :model-value="localForm.dispute_amount"
               :min="0"
               :precision="2"
               style="width: 100%"
-              @update:model-value="(v: number) => (form.dispute_amount = v ?? 0)"
+              @update:model-value="(v: number) => (localForm.dispute_amount = v ?? 0)"
             />
           </el-form-item>
         </el-col>
       </el-row>
       <el-form-item label="争议描述">
         <el-input
-          :model-value="form.description"
+          :model-value="localForm.description"
           type="textarea"
           :rows="3"
           placeholder="请详细描述争议内容"
-          @update:model-value="(v: string) => (form.description = v ?? '')"
+          @update:model-value="(v: string) => (localForm.description = v ?? '')"
         />
       </el-form-item>
       <el-form-item>
@@ -90,7 +90,7 @@
 </template>
 
 <script setup lang="ts">
-/* eslint-disable vue/no-mutating-props */
+import { ref, watch, nextTick } from 'vue'
 import type { DisputeRecord } from '@/api/ar-reconciliation-enhanced'
 import { DISPUTE_TYPE_OPTIONS, getDisputeType } from '../composables/arRecFmts'
 
@@ -116,6 +116,7 @@ const getDisputeStatusLabel = (status: string) => {
 
 const props = defineProps<{
   visible: boolean
+  // 表单数据（由父组件管理，子组件通过 emit 回写）
   form: Partial<DisputeRecord>
   disputes: DisputeRecord[]
 }>()
@@ -124,7 +125,41 @@ const emit = defineEmits<{
   'update:visible': [v: boolean]
   submit: []
   resolve: [row: DisputeRecord]
+  // 整体回写表单数据（父组件监听此事件并 Object.assign 到自己的 form）
+  'update:form': [v: Partial<DisputeRecord>]
 }>()
 
-void props
+// 本地镜像：避免直接修改 prop 触发 vue/no-mutating-props
+const localForm = ref<Partial<DisputeRecord>>({ ...props.form })
+
+// 同步标志位：防止 prop → local 与 local → emit 形成循环
+let syncing = false
+
+// 外部 prop 变化时同步到 local（如父组件重新打开对话框时填充数据）
+watch(
+  () => props.form,
+  (newForm) => {
+    if (syncing) return
+    syncing = true
+    localForm.value = { ...newForm }
+    nextTick(() => {
+      syncing = false
+    })
+  },
+  { deep: true },
+)
+
+// 本地变化时通知父组件（用户输入）
+watch(
+  localForm,
+  (newForm) => {
+    if (syncing) return
+    syncing = true
+    emit('update:form', { ...newForm })
+    nextTick(() => {
+      syncing = false
+    })
+  },
+  { deep: true },
+)
 </script>

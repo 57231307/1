@@ -1,27 +1,27 @@
 <!--
   DiTplTbl.vue - 数据导入模板列表 + 过滤栏
   拆分自 data-import/index.vue（P14 批 2 I-3 第 5 批）
+  P9-3 批次 F Pattern A 重构：本地 reactive 镜像 + watch 同步 + emit 整体覆盖父组件
   行为完全保持一致（仅结构重构）
 -->
-<!-- eslint-disable vue/no-mutating-props -->
 <template>
   <el-card shadow="hover">
     <div class="filter-container">
       <el-input
-        :model-value="query.keyword"
+        :model-value="localParams.keyword"
         placeholder="搜索模板编号/名称"
         style="width: 200px"
         clearable
-        @update:model-value="(v: string) => (query.keyword = v)"
+        @update:model-value="(v: string) => { localParams.keyword = v; syncToParent() }"
         @clear="emit('search')"
         @keyup.enter="emit('search')"
       />
       <el-select
-        :model-value="query.module"
+        :model-value="localParams.module"
         placeholder="模块"
         clearable
         style="width: 120px"
-        @update:model-value="(v: string) => (query.module = v)"
+        @update:model-value="(v: string) => { localParams.module = v; syncToParent() }"
       >
         <el-option label="客户" value="customer" />
         <el-option label="供应商" value="supplier" />
@@ -74,8 +74,8 @@
 
     <div class="pagination-container">
       <el-pagination
-        :current-page="query.page"
-        :page-size="query.page_size"
+        :current-page="localParams.page"
+        :page-size="localParams.page_size"
         :page-sizes="[10, 20, 50, 100]"
         :total="total"
         layout="total, sizes, prev, pager, next, jumper"
@@ -89,31 +89,32 @@
 </template>
 
 <script setup lang="ts">
-/* eslint-disable vue/no-mutating-props */
+import { reactive, watch } from 'vue'
 import { Search } from '@element-plus/icons-vue'
 import type { ImportTemplate } from '@/api/data-import'
 import { MODULE_MAP } from '../composables/diFmts'
+import type { TplQuery } from '../composables/useDi'
 
-// 查询参数类型
-interface TplQuery {
-  page: number
-  page_size: number
-  keyword: string
-  module: string
+// 查询参数默认值（父组件未传入时使用）
+const DEFAULT_PARAMS: TplQuery = {
+  page: 1,
+  page_size: 20,
+  keyword: '',
+  module: '',
 }
 
 /**
  * 模板列表组件（含过滤栏）
  */
-defineProps<{
+const props = defineProps<{
   // 模板数据
   data: ImportTemplate[]
   // 总数
   total: number
   // 加载状态
   loading: boolean
-  // 查询参数
-  query: TplQuery
+  // 查询参数（由父组件管理，子组件通过 emit('update:params') 整体回写）
+  params?: TplQuery
 }>()
 
 const emit = defineEmits<{
@@ -122,19 +123,39 @@ const emit = defineEmits<{
   delete: [row: ImportTemplate]
   download: [row: ImportTemplate]
   upload: [row: ImportTemplate]
-  // 分页
-  'update:page': [v: number]
-  'update:size': [v: number]
+  // 整体回写查询参数（父组件监听后 Object.assign 到自己的 params）
+  'update:params': [params: TplQuery]
 }>()
+
+// 本地镜像：避免直接修改 prop 触发 vue/no-mutating-props
+const localParams = reactive<TplQuery>({
+  ...(props.params ?? DEFAULT_PARAMS),
+})
+
+// 父组件传参变化时同步到本地（如父组件重置分页/过滤条件）
+watch(
+  () => props.params,
+  newParams => {
+    if (newParams) Object.assign(localParams, newParams)
+  },
+  { deep: true },
+)
+
+/** 同步本地到父组件（深拷贝避免外部引用被意外修改） */
+const syncToParent = () => {
+  emit('update:params', { ...localParams })
+}
 
 /** 页码变更 */
 const onPageChange = (page: number) => {
-  emit('update:page', page)
+  localParams.page = page
+  syncToParent()
 }
 
 /** 每页大小变更 */
 const onSizeChange = (size: number) => {
-  emit('update:size', size)
+  localParams.page_size = size
+  syncToParent()
 }
 </script>
 

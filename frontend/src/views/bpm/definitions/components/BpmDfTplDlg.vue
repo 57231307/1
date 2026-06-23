@@ -1,9 +1,9 @@
 <!--
   BpmDfTplDlg.vue - BPM 流程定义保存为模板对话框
   拆分自 bpm/definitions.vue（P14 批 2 I-3 第 5 批）
+  P9-3 批次 F Pattern A 重构：本地 ref 镜像 + watch 防循环 + emit 整体覆盖父组件
   行为完全保持一致（仅结构重构）
 -->
-<!-- eslint-disable vue/no-mutating-props -->
 <template>
   <el-dialog
     :model-value="visible"
@@ -11,20 +11,18 @@
     width="500px"
     @update:model-value="(v: boolean) => emit('update:visible', v)"
   >
-    <el-form ref="formRef" :model="formData" :rules="rules" label-width="100px">
+    <el-form ref="formRef" :model="localFormData" :rules="rules" label-width="100px">
       <el-form-item label="模板名称" prop="template_name">
         <el-input
-          :model-value="formData.template_name"
+          v-model="localFormData.template_name"
           placeholder="请输入模板名称"
-          @update:model-value="(v: string) => (formData.template_name = v)"
         />
       </el-form-item>
       <el-form-item label="分类" prop="category">
         <el-select
-          :model-value="formData.category"
+          v-model="localFormData.category"
           placeholder="请选择分类"
           style="width: 100%"
-          @update:model-value="(v: string) => (formData.category = v)"
         >
           <el-option label="财务" value="finance" />
           <el-option label="人事" value="hr" />
@@ -37,11 +35,10 @@
       </el-form-item>
       <el-form-item label="描述">
         <el-input
-          :model-value="formData.description"
+          v-model="localFormData.description"
           type="textarea"
           :rows="3"
           placeholder="请输入模板描述"
-          @update:model-value="(v: string) => (formData.description = v)"
         />
       </el-form-item>
     </el-form>
@@ -53,8 +50,7 @@
 </template>
 
 <script setup lang="ts">
-/* eslint-disable vue/no-mutating-props */
-import { ref } from 'vue'
+import { ref, watch, nextTick } from 'vue'
 import { type FormInstance, type FormRules } from 'element-plus'
 
 // 表单数据类型
@@ -67,12 +63,12 @@ interface TplForm {
 /**
  * 保存为模板对话框
  */
-defineProps<{
+const props = defineProps<{
   // 可见性
   visible: boolean
   // 加载状态
   loading: boolean
-  // 表单数据
+  // 表单数据（由父组件管理，子组件通过 emit 回写）
   formData: TplForm
   // 验证规则
   rules: FormRules
@@ -80,11 +76,47 @@ defineProps<{
 
 const emit = defineEmits<{
   'update:visible': [v: boolean]
+  // 整体回写表单数据（父组件监听此事件并 Object.assign 到自己的 formData）
+  'update:formData': [v: TplForm]
   submit: []
 }>()
 
 // 表单 ref
 const formRef = ref<FormInstance>()
+
+// 本地镜像：避免直接修改 prop 触发 vue/no-mutating-props
+const localFormData = ref<TplForm>({ ...props.formData })
+
+// 同步标志位：防止 prop → local 与 local → emit 形成循环
+let syncing = false
+
+// 外部 prop 变化时同步到 local（如父组件打开保存模板时填充数据）
+watch(
+  () => props.formData,
+  (newData) => {
+    if (syncing) return
+    syncing = true
+    localFormData.value = { ...newData }
+    nextTick(() => {
+      syncing = false
+    })
+  },
+  { deep: true },
+)
+
+// 本地变化时通知父组件（用户输入）
+watch(
+  localFormData,
+  (newData) => {
+    if (syncing) return
+    syncing = true
+    emit('update:formData', { ...newData })
+    nextTick(() => {
+      syncing = false
+    })
+  },
+  { deep: true },
+)
 
 // 暴露给父组件
 defineExpose({ formRef })

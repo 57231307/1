@@ -18,6 +18,7 @@
       :params="bpmDf.queryParams"
       @search="bpmDfProc.handleSearch"
       @reset="bpmDfProc.handleReset"
+      @update:params="(v) => Object.assign(bpmDf.queryParams, v)"
     />
 
     <BpmDfTbl
@@ -43,6 +44,7 @@
       @add-node="handleAddNode"
       @remove-node="handleRemoveNode"
       @submit="bpmDfProc.handleSubmit"
+      @update:form-data="(v) => Object.assign(bpmDf.formData, v)"
     />
 
     <BpmDfVerDlg
@@ -60,6 +62,7 @@
       :form-data="bpmDf.templateForm"
       :rules="templateRules"
       @submit="bpmDfProc.handleSaveAsTemplate"
+      @update:form-data="(v) => Object.assign(bpmDf.templateForm, v)"
     />
   </div>
 </template>

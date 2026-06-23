@@ -5,6 +5,182 @@
 
 ---
 
+## 最新任务：P9-3 批次 F 第 3C 子批 arReconciliation 域收敛（2026-06-23）
+
+**分支**：`feature/p9-3-batch-f-3c-no-mutating-props`
+**目标**：移除 `arReconciliation/components/` 下 2 个子组件的 `<!-- eslint-disable vue/no-mutating-props -->` 注释，按 Pattern A 样板重构
+
+### 修改文件清单
+
+| 文件 | 行数变化 | 变更说明 |
+|------|----------|----------|
+| `frontend/src/views/arReconciliation/components/ArFilter.vue` | 117 → 148（+47/-8）| Pattern A 重构（localSearchForm） |
+| `frontend/src/views/arReconciliation/components/ArDispute.vue` | 130 → 165（+51/-7）| Pattern A 重构（localForm） |
+| `frontend/src/views/arReconciliation/enhanced.vue` | 114 → 116（+2/-0）| 加 `@update:searchForm` + `@update:form` 监听 |
+| **合计** | **3 文件 +100/-15** | |
+
+### 关键决策
+
+#### 1. Pattern A 样板（LgsFilter / LgsForm 同款）
+
+- **`localSearchForm = ref<ArSearchForm>({ ...props.searchForm })`**：本地镜像，避免直接修改 prop
+- **`localForm = ref<Partial<DisputeRecord>>({ ...props.form })`**：ArDispute 用 Partial<DisputeRecord> 类型
+- **双向 watch + `syncing` 标志位**：
+  - `watch(() => props.xxx, ..., { deep: true })` 同步 prop → local
+  - `watch(localXxx, ..., { deep: true })` 同步 local → emit('update:xxx')
+  - `syncing = true` + `nextTick(() => syncing = false)` 防 prop↔local 死循环
+- **`emit('update:searchForm', { ...newForm })`**：整体对象回写父组件（父组件 `Object.assign`）
+
+#### 2. 父组件协议（enhanced.vue）
+
+- ArFilter：`:search-form="arrec.searchForm.value"` + `@update:search-form="(v) => Object.assign(arrec.searchForm.value, v)"`
+- ArDispute：`:form="ardisp.disputeForm.value"` + `@update:form="(v) => Object.assign(ardisp.disputeForm.value, v)"`
+- `arrec.searchForm` 和 `ardisp.disputeForm` 是 `ref({...})` 包裹对象，需通过 `.value` 解包传入；`Object.assign(arrec.searchForm.value, v)` 同步回 ref 内部对象
+- 业务事件 `@search` / `@reset` / `@auto-reconcile` / `@view-confirmations` / `@open-dispute` / `@submit` / `@resolve` / `v-model:visible` 全部保持不变
+
+#### 3. prop 类型调整
+
+- ArFilter：保持 `searchForm: ArSearchForm`（原版），`reconcileLoading: boolean`（单向状态，不需同步）
+- ArDispute：保持 `form: Partial<DisputeRecord>`（原版），`disputes: DisputeRecord[]`（单向数据），`visible: boolean`（已用 v-model:visible 双向）
+
+#### 4. 保留项（Pattern A 不涉及）
+
+- `reconcileLoading`：单向状态 prop，无需双向同步
+- `disputes`：父组件一次性加载后传入的数据列表，子组件只读不修改
+- `visible`：已有 `v-model:visible` 通过 `@update:visible` 实现
+- ArDispute 中 `dispute_type = v as DisputeRecord['dispute_type']`：从原 `as any` 收紧为类型断言，符合严格 TypeScript 规范
+
+### 静态验证结果
+
+```bash
+$ grep -rn "eslint-disable.*no-mutating-props" /workspace/frontend/src/views/arReconciliation/
+# 0 残留
+
+$ grep -rn "no-mutating-props" /workspace/frontend/src/views/arReconciliation/
+# 仅剩 2 处"本地镜像"中文注释（无 disable 注释）：
+src/views/arReconciliation/components/ArFilter.vue:97:// 本地镜像：避免直接修改 prop 触发 vue/no-mutating-props
+src/views/arReconciliation/components/ArDispute.vue:132:// 本地镜像：避免直接修改 prop 触发 vue/no-mutating-props
+```
+
+### 风险与遗留
+
+- **0 业务逻辑改动**：所有事件流保持不变（`@search` / `@reset` / `@auto-reconcile` / `@view-confirmations` / `@open-dispute` / `@submit` / `@resolve` / `v-model:visible` 全部保留）
+- **0 UI 改动**：template 结构和样式完全保持
+- **0 TypeScript 类型放宽**：`as any` 收紧为 `as DisputeRecord['dispute_type']`（增强类型安全）
+- **`@update:xxx` 协议遵循样板**：与 LgsFilter / LgsForm / OlvFilter / SpForm / VchrLstForm / BpmDfFilter / BpmDfForm 完全一致，团队认知负担最低
+- **emits 类型严格化**：保留 `defineEmits<{ ... }>()` 严格签名，emit('update:searchForm', v) 类型强校验
+- **sync 防循环机制**：`syncing` 标志位 + `nextTick` 重置，避免 prop ↔ local 死循环
+- **`useArRec.ts` / `useArDisp.ts` 不需修改**：composable 内部使用 `ref({...})` 包装对象，子组件通过 `.value` 解包传入 + 父组件 `Object.assign(value, v)` 写回，ref 引用保持稳定
+
+### 自评
+
+- ✅ 2 子组件 `eslint-disable vue/no-mutating-props` 注释 100% 删除
+- ✅ 2 子组件都按 Pattern A 样板重构（本地 ref 镜像 + 双向 watch 防循环 + emit 整体回写）
+- ✅ 父组件按 `v-model:searchForm` / `v-model:form` 协议新增 `@update:xxx` 处理器
+- ✅ 静态验证 0 残留：grep 搜索 `eslint-disable vue/no-mutating-props` 0 匹配
+- ✅ 行为完全保持一致：仅结构重构，无业务逻辑改动
+- ✅ 中文注释：所有新加注释（"本地镜像"、"同步标志位"等）均使用中文
+- ✅ TypeScript 严格类型：唯一类型断言从 `as any` 收紧为 `as DisputeRecord['dispute_type']`
+- ⚠️ CI 预期：vue-tsc type-check 应通过（emit 类型严格 + `Partial<DisputeRecord>` 完整覆盖）；eslint 应通过（disable 注释 0 残留）；CI 全绿预期较高
+- ⚠️ 不本地编译：遵守 MEMORY.md"禁止本地编译"规则，全部验证走 CI/CD
+
+### 关键经验
+
+1. **Pattern A 适用于"对象/表单"型 props**：当子组件需要编辑父组件传入的对象时，本地 ref 镜像 + 双向 watch + emit 整体回写是最干净的模式
+2. **`syncing` 标志位是双向同步的关键**：避免 prop → local → emit → prop 死循环，`nextTick` 重置保证下次 watch 不被错误抑制
+3. **`Object.assign` 父组件 ref 内部对象**：与 LgsForm / ScForm / OlvFilter / BpmDfForm 完全一致，团队认知负担最低
+4. **`as DisputeRecord['dispute_type']` 比 `as any` 安全**：利用 TS 索引访问类型实现精确类型断言，避免 `any` 兜底污染类型系统
+5. **子组件模板中的可选链 `localForm.dispute_type` 不再报错**：`Partial<DisputeRecord>` 类型自动允许 undefined，TS 不会因访问可选属性报错
+6. **dialog 类型组件适合 Pattern A**：ArDispute 重新打开时 `openDisputeDialog` 重新填充 form，watch 监听 prop.form 变化并重置 localForm，实现"打开时刷新"语义
+
+---
+
+## 最新任务：P9-3 批次 F 第 3C 子批 api-gateway 域收敛（2026-06-23）
+
+**分支**：`feature/p9-3-batch-f-3c-no-mutating-props`
+**目标**：移除 api-gateway 域子组件的 `<!-- eslint-disable vue/no-mutating-props -->` 注释，按 Pattern A 样板重构
+
+### 修改文件清单
+
+| 文件 | 行数变化 | 变更说明 |
+|------|----------|----------|
+| `frontend/src/views/api-gateway/components/KeyForm.vue` | 115 → 151（+51/-15）| Pattern A 重构 |
+| `frontend/src/views/api-gateway/components/EpForm.vue` | 175 → 212（+57/-21）| Pattern A 重构 |
+| `frontend/src/views/api-gateway/index.vue` | 142 → 144（+2/-0）| 加 `@update:form` 处理器 |
+| **合计** | **3 文件 +110/-36** | |
+
+### 关键决策
+
+#### 1. Pattern A 样板（LgsForm.vue 同款）
+
+- **`localForm = ref<Partial<...>>({...(props.form ?? {})})`**：本地镜像，避免直接修改 prop
+- **双向 watch + `syncing` 标志位**：
+  - `watch(() => props.form, ..., { deep: true })` 同步 prop → local
+  - `watch(localForm, ..., { deep: true })` 同步 local → emit('update:form')
+  - `syncing = true` + `nextTick(() => syncing = false)` 防 prop↔local 死循环
+- **`emit('update:form', { ...newForm })`**：整体对象回写父组件（父组件 `Object.assign`）
+
+#### 2. 父组件协议（index.vue）
+
+- KeyForm / EpForm 使用 `:form="..."` + `@update:form="(v) => Object.assign(target, v)"`
+- 与 LgsForm / ScForm / SalesAnalysis 完全一致，便于统一理解
+- 父组件 `ep.endpointForm` / `key.keyForm` 均为 composable 返回的 `reactive`，`Object.assign` 完美工作
+
+#### 3. prop 类型调整
+
+- `form: Partial<ApiKey>` → `form?: Partial<ApiKey>`（可选，因 dialog 关闭时可能为 undefined）
+- `:title="form?.id ? '编辑密钥' : '新建密钥'"`（可选链取值）
+- `:title="form?.id ? '编辑接口' : '新建接口'"`（可选链取值）
+
+#### 4. 保留项（Pattern A 不涉及）
+
+- `formRef: { value: FormInstance | undefined }` 父组件持有的 ref 包装对象，保持不变
+- `permissionsText` / `authorizationText` / `requestSchemaText` / `responseSchemaText` 已是 `v-model:xxx` 文本字段，Pattern A 不动
+- `el-switch` 的 `!!localForm.authentication`（原 `form.authentication` 可能是 undefined，加双非运算保底）
+
+### 静态验证结果
+
+```bash
+$ grep -rn "no-mutating-props" src/views/api-gateway/
+# 仅剩"本地镜像"中文注释（无 disable 注释）：
+src/views/api-gateway/components/KeyForm.vue:108:// 本地镜像：避免直接修改 prop 触发 vue/no-mutating-props
+src/views/api-gateway/components/EpForm.vue:169:// 本地镜像：避免直接修改 prop 触发 vue/no-mutating-props
+
+$ grep -rn "eslint-disable" src/views/api-gateway/components/KeyForm.vue src/views/api-gateway/components/EpForm.vue
+# 0 行（exit code 1，无匹配）
+
+$ grep -nE "(\b|^)form\.[a-z_]+\s*=" src/views/api-gateway/components/KeyForm.vue src/views/api-gateway/components/EpForm.vue
+# 0 行（exit code 1，无 prop 直接赋值）
+```
+
+### 风险与遗留
+
+- **0 业务逻辑改动**：所有事件流保持不变（`@submit` / `v-model:visible` / `v-model:xxx-text` / `@update:form` 全部保留）
+- **0 UI 改动**：template 结构和样式完全保持
+- **0 TypeScript 类型变更**：`Partial<ApiKey>` / `Partial<ApiEndpoint>` 维持，仅加 `?` 标记为可选
+- **`!!localForm.authentication` 双非保底**：避免 el-switch 接收 `boolean | undefined` 类型错误（el-switch 不接受 undefined，但原代码 `form.authentication` 也是 `boolean | undefined`，原样保留风险，Pattern A 用 `!!` 兜底更安全）
+- **emits 类型严格化**：保留 `defineEmits<{ ... }>()` 严格签名，emit('update:form', v) 类型强校验
+
+### 自评
+
+- ✅ 2 子组件 `eslint-disable vue/no-mutating-props` 注释 100% 删除
+- ✅ 2 子组件都按 Pattern A 样板重构（本地 ref 镜像 + 双向 watch 防循环 + emit 整体回写）
+- ✅ 父组件按 `v-model:form` 协议新增 `@update:form` 处理器
+- ✅ 静态验证 0 残留：grep 搜索 `eslint-disable` 0 匹配，`form.x = ...` 0 匹配
+- ✅ 行为完全保持一致：仅结构重构，无业务逻辑改动
+- ✅ 中文注释：所有新加注释（"本地镜像"、"同步标志位"等）均使用中文
+- ✅ TypeScript 严格类型：无 `as any` 兜底，无 `fallback` 字段
+- ⚠️ CI 预期：vue-tsc type-check 应通过（emit 类型严格 + Partial<...> 完整覆盖）；eslint 应通过（disable 注释 0 残留）；CI 全绿预期较高
+
+### 关键经验
+
+1. **Pattern A 适用于"form 对象"型 props**：当子组件需要编辑父组件传入的对象时，本地 ref 镜像 + 双向 watch + emit 整体回写是最干净的模式
+2. **`syncing` 标志位是双向同步的关键**：避免 prop → local → emit → prop 死循环，`nextTick` 重置保证下次 watch 不被错误抑制
+3. **`Object.assign` 父组件 reactive 对象**：与 LgsForm / ScForm / SalesAnalysis 完全一致，团队认知负担最低
+4. **`form?: Partial<...>` 标记可选**：避免 dialog 关闭瞬间父组件清空 form 时子组件访问 `form.id` 报 TS2532
+
+---
+
 ## 最新任务：P9-2 批次 D 拆分后 CI 修复全绿（2026-06-22）
 
 **关联 commits**（本批次共 7 commit）：
