@@ -169,10 +169,6 @@ pub async fn import_excel(
 }
 
 /// GET /api/v1/erp/import/templates/:import_type - 下载导入模板
-///
-/// 防御性 `#[allow(clippy::unused_variables)]`：
-/// `_state` / `_auth` 暂时未用（未来扩展为按 tenant_id 限定模板 / 记录下载审计）
-#[allow(clippy::unused_variables)]
 pub async fn download_template(
     State(_state): State<AppState>,
     _auth: AuthContext,
@@ -264,10 +260,6 @@ pub struct ImportTaskItem {
 }
 
 /// GET /api/v1/erp/data-import/templates - 获取导入模板列表
-///
-/// 防御性 `#[allow(clippy::unused_variables)]`：
-/// `_state` 暂时未用（未来按 tenant_id 过滤模板）
-#[allow(clippy::unused_variables)]
 pub async fn list_import_templates(
     State(_state): State<AppState>,
 ) -> Result<Json<ApiResponse<Vec<ImportTemplateListItem>>>, AppError> {
