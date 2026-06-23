@@ -399,6 +399,102 @@ pub async fn cleanup_expired_jti(_max_age_secs: i64) {
     );
 }
 
+// =====================================================================
+// 用户级 Token 吊销表（修复安全漏洞 #9：删除/封禁用户后即时撤销其所有活跃 JWT）
+// =====================================================================
+//
+// 设计动机：现有 JTI 黑名单按 session_id（UUID）维度存储，
+// 但应用层在删除/封禁用户时无法枚举该用户历史上颁发的全部 session_id。
+// 为此新增 user_id -> revoked_at 的全局表，middleware 在校验完 Claims 后
+// 再检查 `claims.iat < user_revoke_ts` 以决定是否放行。
+//
+// 语义：
+// - `revoke_user_jtis(user_id, reason)`：将 user_id 标记为已吊销，记录当前时间戳。
+//   后续所有 iat < 该时间戳的 Token 一律拒绝；iat >= 该时间戳的 Token 仍然有效。
+// - `is_user_token_revoked(user_id, token_iat)`：供 middleware 调用的快速判定。
+// - 该表为进程内内存表，进程重启后失效。生产环境如需持久化，
+//   应迁移到 Redis/DB（按 user_id 维度持久化 revoked_at），此实现仅做 MVP。
+
+/// 用户级 Token 吊销表（user_id -> 吊销时间戳，Unix 秒）
+static REVOKED_USERS: LazyLock<RwLock<HashMap<i32, i64>>> =
+    LazyLock::new(|| RwLock::new(HashMap::new()));
+
+/// 吊销指定用户的所有活跃 JWT
+///
+/// 将 user_id 加入内存吊销表，记录当前时间戳为吊销点。
+/// 后续 middleware 收到该用户 Token 时，若 `iat < revoked_at` 则拒绝。
+///
+/// # 参数
+/// - `user_id`: 被吊销用户的 ID
+/// - `reason`: 吊销原因（如 `"USER_DELETED"`、`"USER_DEACTIVATED"`），仅用于日志
+///
+/// # 返回
+/// - `Ok(())`: 成功加入吊销表
+/// - `Err(AuthError::InternalError)`: 当前实现下不会失败，保留 Result 供后续扩展
+pub async fn revoke_user_jtis(
+    user_id: i32,
+    reason: &str,
+) -> Result<(), crate::utils::error::AppError> {
+    let now = chrono::Utc::now().timestamp();
+    let mut table = REVOKED_USERS.write().await;
+    table.insert(user_id, now);
+    tracing::warn!(
+        target: "security_audit",
+        event = "USER_TOKENS_REVOKED",
+        user_id = user_id,
+        reason = reason,
+        revoked_at = now,
+        "[SECURITY] 用户级 Token 吊销：user_id={} reason={} revoked_at={}",
+        user_id,
+        reason,
+        now
+    );
+    Ok(())
+}
+
+/// 检查某用户 Token 是否已被吊销
+///
+/// 判定规则：
+/// - 若 user_id 不在吊销表中，返回 `false`（未吊销）
+/// - 若 token_iat >= revoked_at，返回 `false`（Token 在吊销后签发，仍有效）
+/// - 若 token_iat < revoked_at，返回 `true`（Token 在吊销前签发，必须拒绝）
+///
+/// # 参数
+/// - `user_id`: Token 所属用户 ID
+/// - `token_iat`: Token 签发时间戳（Unix 秒）
+pub async fn is_user_token_revoked(user_id: i32, token_iat: i64) -> bool {
+    let table = REVOKED_USERS.read().await;
+    if let Some(&revoked_at) = table.get(&user_id) {
+        token_iat < revoked_at
+    } else {
+        false
+    }
+}
+
+/// 清理过期的用户吊销记录（建议定期调用）
+///
+/// 当前实现为占位：因 revoked_at 永不过期（仅当用户重新激活时调用方应主动删除），
+/// 此函数保留接口以备后续策略调整（例如引入"吊销 TTL"）。
+#[allow(dead_code)] // TODO(tech-debt): 业务接入后移除
+pub async fn cleanup_revoked_users() {
+    // 当前策略：吊销记录永久保留，直至进程重启或显式 unregister。
+    // 保留此函数以备后续引入"自动解除封禁"等业务策略。
+    let table = REVOKED_USERS.read().await;
+    tracing::info!("当前用户吊销表条目数：{}", table.len());
+}
+
+/// 显式注销用户吊销标记（用于用户重新激活场景）
+///
+/// # 参数
+/// - `user_id`: 需注销的用户 ID
+#[allow(dead_code)] // TODO(tech-debt): 业务接入后移除
+pub async fn unrevoke_user(user_id: i32) {
+    let mut table = REVOKED_USERS.write().await;
+    if table.remove(&user_id).is_some() {
+        tracing::info!("用户吊销标记已清除：user_id={}", user_id);
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -568,5 +664,83 @@ mod tests {
 
         // 验证会话ID不为空
         assert!(!decoded.session_id.is_empty());
+    }
+
+    // =================================================================
+    // 安全漏洞 #9 修复：用户级 Token 吊销函数单元测试
+    // =================================================================
+
+    /// 测试 `revoke_user_jtis` 后旧 iat Token 被判定为已吊销
+    #[tokio::test]
+    async fn test_revoke_user_jtis_blocks_old_iat_token() {
+        // 选一个不与其他测试冲突的高位 user_id
+        let test_user_id: i32 = 9_999_001;
+
+        // 清理：确保测试前该用户未被吊销
+        unrevoke_user(test_user_id).await;
+
+        // 模拟"删除前签发"的 Token：iat 在 revoke 之前 1 小时
+        let old_iat = chrono::Utc::now().timestamp() - 3600;
+        assert!(
+            !is_user_token_revoked(test_user_id, old_iat).await,
+            "未吊销时旧 Token 应判定为有效"
+        );
+
+        // 标记用户吊销
+        revoke_user_jtis(test_user_id, "USER_DELETED")
+            .await
+            .expect("revoke_user_jtis 不应失败");
+
+        // 删除前的 Token (iat < revoked_at) 应被拒绝
+        assert!(
+            is_user_token_revoked(test_user_id, old_iat).await,
+            "revoke 之前的 Token 必须被判定为已吊销"
+        );
+
+        // 清理
+        unrevoke_user(test_user_id).await;
+    }
+
+    /// 测试吊销后新签发 Token 不受影响（iat >= revoked_at）
+    #[tokio::test]
+    async fn test_revoke_user_jtis_does_not_block_new_iat_token() {
+        let test_user_id: i32 = 9_999_002;
+        unrevoke_user(test_user_id).await;
+
+        // 标记吊销
+        revoke_user_jtis(test_user_id, "USER_DEACTIVATED")
+            .await
+            .expect("revoke_user_jtis 不应失败");
+
+        // 等 10ms 模拟"新 Token 在吊销后签发"
+        tokio::time::sleep(std::time::Duration::from_millis(10)).await;
+        let new_iat = chrono::Utc::now().timestamp();
+
+        assert!(
+            !is_user_token_revoked(test_user_id, new_iat).await,
+            "吊销后签发的新 Token 不应被误判为已吊销"
+        );
+
+        unrevoke_user(test_user_id).await;
+    }
+
+    /// 测试 `unrevoke_user` 解除吊销标记
+    #[tokio::test]
+    async fn test_unrevoke_user_clears_revocation() {
+        let test_user_id: i32 = 9_999_003;
+        unrevoke_user(test_user_id).await;
+
+        revoke_user_jtis(test_user_id, "USER_DELETED")
+            .await
+            .expect("revoke_user_jtis 不应失败");
+
+        let old_iat = chrono::Utc::now().timestamp() - 60;
+        assert!(is_user_token_revoked(test_user_id, old_iat).await);
+
+        unrevoke_user(test_user_id).await;
+        assert!(
+            !is_user_token_revoked(test_user_id, old_iat).await,
+            "unrevoke 后旧 Token 应判定为有效"
+        );
     }
 }

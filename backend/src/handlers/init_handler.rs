@@ -45,9 +45,79 @@ pub async fn get_init_status(State(state): State<AppState>) -> Json<ApiResponse<
     }))
 }
 
+/// 测试数据库连接（P1 修复：必须 admin 角色才能调用）
+///
+/// 安全约束：
+/// 1. 必须登录并具备 admin 角色（handler 层强制拦截）
+/// 2. 审计日志记录"谁在什么时间测试了什么数据库连接"（不记录明文密码）
+/// 3. 可选内网 IP 白名单（防 SSRF）：本任务不实施，TODO 注释预留
+///
+/// 注意：当前 `auth_middleware` 在 `/api/v1/erp/init/*` 路径下因
+/// `PUBLIC_PATHS` 包含 `/api/v1/erp/init` 前缀而短路跳过 JWT 验证，
+/// 因此本 handler 的 `auth: AuthContext` 提取器在未登录时也会返回 401。
+/// 这是 init 子系统整体的鉴权设计权衡（PR #240 的 `reset_admin_password`
+/// 同样受影响），本任务不在职责范围内修复。
 pub async fn test_database_connection(
+    State(state): State<AppState>,
+    auth: AuthContext,
+    audit_ctx: Option<Extension<AuditContext>>,
     Json(payload): Json<TestDatabaseRequest>,
 ) -> Result<Json<ApiResponse<TestDatabaseResponse>>, AppError> {
+    // 1) 强制要求管理员角色（防御深度：缺 role_id 直接拒绝，避免后续 is_admin_role 误判）
+    let role_id = if let Some(id) = auth.role_id {
+        id
+    } else {
+        // 审计：未分配角色即尝试访问
+        audit::log_security_event(
+            SecurityEvent::AuthorizationDenied,
+            auth.user_id,
+            &auth.username,
+            auth.role_id,
+            Some("test_database_connection"),
+            Some("no_role"),
+            audit_ctx.as_deref(),
+        )
+        .await;
+        return Err(AppError::permission_denied(
+            "用户未分配角色，无法执行该操作",
+        ));
+    };
+    if !is_admin_role(&state.db, role_id).await {
+        // 审计：非 admin 角色尝试访问
+        audit::log_security_event(
+            SecurityEvent::AuthorizationDenied,
+            auth.user_id,
+            &auth.username,
+            auth.role_id,
+            Some("test_database_connection"),
+            Some("not_admin"),
+            audit_ctx.as_deref(),
+        )
+        .await;
+        return Err(AppError::permission_denied("测试数据库连接仅限管理员"));
+    }
+
+    // 2) 可选：内网 IP 白名单（防 SSRF 探测外网数据库端口）
+    //    本任务不实施，TODO 注释预留
+    // TODO(ssrf): 待运维提供内网 IP 段白名单后启用 is_internal_ip 检查
+    // let client_ip = audit_ctx
+    //     .as_deref()
+    //     .map(|c| c.ip_address.as_str())
+    //     .unwrap_or("unknown");
+    // if !is_internal_ip(client_ip) {
+    //     audit::log_security_event(
+    //         SecurityEvent::AuthorizationDenied,
+    //         auth.user_id,
+    //         &auth.username,
+    //         auth.role_id,
+    //         Some("test_database_connection"),
+    //         Some("non_internal_ip"),
+    //         audit_ctx.as_deref(),
+    //     )
+    //     .await;
+    //     return Err(AppError::permission_denied("测试数据库连接仅允许内网 IP"));
+    // }
+
     let db_config = DatabaseConfig {
         host: payload.host,
         port: payload.port,
@@ -56,6 +126,22 @@ pub async fn test_database_connection(
         password: payload.password,
     };
 
+    // 3) 审计日志：best-effort 写入"谁在什么时间测试了什么数据库连接"
+    //    目标记录格式：host:port/name，便于后续按业务目标聚合
+    //    不记录明文密码（payload.password 不写入 extra）
+    let target = format!("{}:{}/{}", payload.host, payload.port, payload.name);
+    audit::log_security_event(
+        SecurityEvent::TestDatabaseConnection,
+        auth.user_id,
+        &auth.username,
+        auth.role_id,
+        Some(&target),
+        None,
+        audit_ctx.as_deref(),
+    )
+    .await;
+
+    // 4) 调用 service 层执行数据库连接测试（静态方法，无需 AppState）
     match InitService::test_database(&db_config).await {
         Ok(_) => Ok(Json(ApiResponse::success_with_message(
             TestDatabaseResponse {
