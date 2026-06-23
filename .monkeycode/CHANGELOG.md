@@ -5,46 +5,93 @@
 
 ---
 
-## 最新任务：🚨 安全漏洞 Wave 3 P2-#7 CSRF Token 缓存设计缺陷（2026-06-23）
+## 最新任务：🎉 安全漏洞 Wave 3 P2-#7 #8 修复 PR #242 merged（2026-06-23）
 
 **分支**：`fix/security-wave3-p2-2026-06-23`（从 main cdb2ada 切出）
-**漏洞等级**：P2 / 中（CSRF 跨 IP 重放 + 长时间窗口攻击面）
-**修复负责人**：Wave 3 子代理 A
-**修复状态**：✅ 代码完成 + commit `f33221c`，待总代理 push
+**漏洞等级**：P2 / 中（CSRF 跨 IP 重放 + 长时间窗口 + 批量导入 DoS）
+**修复状态**：✅ **CI 15/15 success（13 success + 2 skipped）+ PR #242 merged（commit `2ab793c`）**
 
-### 漏洞摘要
+### 合并 commit
+
+- `2ab793c` (squash): fix(backend): 批次 P2 安全漏洞 #7 #8 修复 - CSRF Token 改进 + 导入大小限制
+- PR #242: https://github.com/57231307/1/pull/242
+
+### 漏洞 #7：CSRF Token 缓存设计缺陷
 
 `backend/src/handlers/auth_handler.rs:308-313`（修复前）使用 UUID 作为缓存键、session_id 作为值、TTL **2 小时**（7200s），存在三个独立缺陷：
 1. **TTL 过长**：2h 暴露窗口过大，与 access_token Cookie 30min 生命周期不匹配
 2. **未绑定 IP**：缓存值仅含 session_id，攻击者窃取 token 后可跨 IP 重放
 3. **无强制轮换**：登录/刷新 token 时未清除旧 token，多设备登录时旧 token 长期残留
 
+**修复策略**：TTL 7200s→1800s + 缓存值 String→(String,String) 元组绑定 IP + 新增 CSRF_IP_MISMATCH 业务码 + login/refresh 强制轮换
+
+### 漏洞 #8：批量导入端点请求体大小限制
+
+`backend/src/handlers/import_export_handler.rs:32-98` 的 `import_csv` 和 `import_excel` 端点 data 字段无最大限制，攻击者可发 100MB+ 请求触发 OOM DoS / 数据库压力
+
+**修复策略**：四层防御 - DefaultBodyLimit 12MB 全局 + DTO validate (10MB/1万行字面量) + handler 入口 + service defense-in-depth
+
 ### 修改文件清单
 
 | 文件 | 行数变化 | 变更说明 |
 |------|----------|----------|
-| `backend/src/utils/cache.rs` | +243 / -14 | 新增 `CSRF_TOKEN_DEFAULT_TTL_SECS = 1800` 常量；`csrf_token_cache` 值类型 `String → (String, String)` 元组（session_id, ip）；新增 `csrf_user_index: DashMap<i32, String>` 反向索引；公开 `set_csrf_token / consume_csrf_token / clear_old_csrf_token_for_user` 三个新 API；新增 `CsrfConsumeResult` 枚举（Ok / IpMismatch / NotFound）；新增 4 个 `#[cfg(test)]` 单测 |
-| `backend/src/middleware/csrf.rs` | +131 / -11 | 新增 `CSRF_IP_MISMATCH` 业务码 + `CSRF_IP_MISMATCH_MSG` 常量；新增 `extract_client_ip` 辅助函数（X-Real-IP → X-Forwarded-For → ConnectInfo → "unknown"）；`csrf_middleware` 消费时校验 IP；新增 2 个单测 |
-| `backend/src/handlers/auth_handler.rs` | +33 / -7 | login 流程：移除 7200s TTL；调用新 `set_csrf_token` API（默认 1800s）；IP 提取：AuditContext.ip_address → client_ip fallback；登录前调用 `clear_old_csrf_token_for_user` 强制轮换 |
-| `backend/src/handlers/auth_handler_misc.rs` | +35 / -7 | refresh_token 流程同 login 修复：1800s TTL + IP 绑定 + 强制轮换 |
-| `backend/tests/test_csrf_middleware.rs` | +131 / -25 | 更新已有测试使用新 API；新增 2 个集成测试（IP 拒绝 + 强制轮换） |
-| **合计** | **5 文件 / +572/-57 行** | |
+| `backend/src/handlers/auth_handler.rs` | +33 / -7 | 漏洞 #7 login 流程 |
+| `backend/src/handlers/auth_handler_misc.rs` | +35 / -7 | 漏洞 #7 refresh_token 流程 |
+| `backend/src/middleware/csrf.rs` | +131 / -11 | 漏洞 #7 中间件 + IP 提取 |
+| `backend/src/utils/cache.rs` | +243 / -14 | 漏洞 #7 缓存层 + IP 绑定 + 反向索引 |
+| `backend/src/handlers/import_export_handler.rs` | +158 / -6 | 漏洞 #8 DTO validate + handler 入口 |
+| `backend/src/services/import_export_service.rs` | +193 / -0 | 漏洞 #8 service defense-in-depth |
+| `backend/src/main.rs` | +10 / -0 | 漏洞 #8 DefaultBodyLimit 12MB 全局 |
+| `backend/tests/test_csrf_middleware.rs` | +131 / -25 | 漏洞 #7 集成测试 |
+| **合计** | **8 业务文件 / +933/-63 行** | + 16 个新单测（8 CSRF + 8 导入） |
 
-### 关键决策
+### CI 修复历程（5 commits，PR #242 squash 前）
 
-1. **TTL 选择 1800s (30min)**：与 `auth_handler_misc.rs:156` 的 access_token Cookie `max_age(30min)` 严格对齐
-2. **IP 来源优先级**：登录时 `AuditContext.ip_address` → `client_ip` fallback；中间件消费时 `extract_client_ip(request)` 自有提取
-3. **强制轮换触发点**：login 成功后 + refresh_token 成功后；反向索引 `csrf_user_index: DashMap<i32, String>` 记录 user_id → 最新 token
-4. **IP 不匹配时不消费 token**：消费函数返回 `IpMismatch` 时把 token 放回缓存（**不消费**），防 IP 探测 DoS
-5. **未引入新依赖**：复用 `DashMap::new()`，未修改 `Cargo.toml`
+PR #242 触发 CI 失败后，通过 5 个修复 commit 达到 CI 15/15 success：
 
-### 静态验证结果
+1. **00846cd** — 9 文件删除 useless `#[allow(...)]` 标记实际使用项
+2. **09b0e5c** — 简化 auth_handler.rs / auth_handler_misc.rs 多余 allow
+3. **39a363c** — validator `length(max = 10 * 1024 * 1024)` 改字面量 10485760（validator 0.16 不支持表达式）
+4. **c1dda49** — ci-cd.yml 在 clippy 失败时 cat 完整新警告列表（便于静态定位）
+5. **ee18ece** — 删除 `auth_handler.rs:23` 4 个未用 sea_orm trait（保留 EntityTrait/ColumnTrait/QueryFilter；Entity::find() 是 EntityTrait trait method）
 
-- `grep "7200" backend/src/handlers/auth_handler.rs` → **0 行**（TTL 已改 1800）✅
-- `grep "CSRF_IP_MISMATCH" backend/src/middleware/csrf.rs` → **5 处**（常量 + 测试 + 文档）✅
-- 8 个新单测（cache.rs 4 + csrf.rs 2 + 集成测试 2），覆盖 IP 匹配通过 / IP 不匹配拒绝 / 强制轮换 / 反向索引清理
+### 关键经验教训
 
-**详细报告**：`.monkeycode/doto.md` → "漏洞 #7：CSRF Token 缓存设计缺陷" 章节
+1. **rustc builtin vs clippy lints**：`unused_variables` / `unused_imports` 是 rustc builtin，写成 `#[allow(unused_variables)]`；`clippy::unused_variables` 是无效 lint 名（触发 `unknown_lints` warn）
+2. **CI debug 输出**：在 CI workflow 的 exit 1 之前 cat 完整警告列表（`reports/clippy-new.txt`），让静态分析能精准定位
+3. **Entity::find() 是 trait method**：`EntityTrait::find` 不是 inherent method，必须 `use sea_orm::EntityTrait;` 才能调用；同 `.filter()` (`QueryFilter`)、`.gte()` (`.lt()` / `.gt()` / `.lte()` 在 `ColumnTrait`)
+4. **validator crate 限制**：`#[validate(length(max = X))]` 只支持整数字面量，**不支持** Rust 表达式（`10 * 1024 * 1024` 不行）
+5. **rustc 1.94 useless_attribute**：标记**实际被使用项**的 `#[allow(dead_code)]` / `#[allow(unused_variables)]` 触发 useless_attribute warn（CI `-D warnings` 升级为 error）
+
+### 复用样板
+
+```rust
+// CSRF token 写入（带 IP 绑定 + 反向索引 + 强制轮换）
+pub fn set_csrf_token(
+    &self, token: String, session_id: String,
+    ip_address: String, user_id: i32, ttl: Option<Duration>,
+) {
+    let effective_ttl = ttl.unwrap_or(Duration::from_secs(CSRF_TOKEN_DEFAULT_TTL_SECS));
+    self.csrf_token_cache.set(token.clone(), (session_id, ip_address), Some(effective_ttl));
+    self.csrf_user_index.insert(user_id, token);
+}
+
+// CSRF token 消费（IP 不匹配不消费，防 DoS）
+pub fn consume_csrf_token(&self, token: &str, client_ip: &str) -> CsrfConsumeResult {
+    match self.csrf_token_cache.take(&token.to_string()) {
+        Some((session_id, bound_ip)) => {
+            if bound_ip != client_ip {
+                self.csrf_token_cache.set(token.to_string(), (session_id, bound_ip), None);
+                return CsrfConsumeResult::IpMismatch;
+            }
+            CsrfConsumeResult::Ok
+        }
+        None => CsrfConsumeResult::NotFound,
+    }
+}
+```
+
+**详细报告**：`.monkeycode/doto.md` → "当前待办"表 PR #242 行 + "漏洞 #7 #8" 章节
 
 ---
 

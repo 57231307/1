@@ -904,3 +904,89 @@
 - 远端 main HEAD：`c6469cb`（auto-release 2026.622.1219）
 - 实际代码 HEAD：`541d001`（PR #238 squash merge）
 - 本地 main 落后远端 main：2 个 auto-release commit（不影响代码）
+
+---
+
+## 🚨 安全 Wave 3 P2 修复经验教训（PR #242, 2026-06-23）
+
+- Date: 2026-06-23
+- Context: 修复漏洞 #7（CSRF Token 设计缺陷）+ #8（批量导入 DoS）后 CI 触发多个 clippy/build 失败
+- Category: 排错调试
+- Instructions:
+  - **rustc builtin vs clippy lints**：标记**实际被使用项**的 `#[allow(...)]` 触发 rustc 1.94 `useless_attribute` warn（CI `-D warnings` 升级为 error）。正确做法是删除 useless allow，依赖编译器精准报告
+  - **rustc builtin lint 名**：`unused_variables` / `unused_imports` / `dead_code` 是 rustc builtin，应写 `#[allow(unused_variables)]`；`clippy::unused_variables` 是**无效 lint 名**，触发 `unknown_lints` warn
+  - **clippy 有效 lint 名**：`clippy::redundant_clone` / `clippy::too_many_arguments` / `clippy::needless_pass_by_value` / `clippy::type_complexity` / `clippy::needless_range_loop` / `clippy::needless_late_init` / `clippy::upper_case_acronyms` 等才是有效 clippy 内置 lint
+  - **CI debug 输出策略**：在 CI workflow 的 exit 1 之前 `cat reports/clippy-new.txt`，把完整新警告列表输出到 step logs，让静态分析能精准定位（无需下载 logs zip）
+  - **Entity::find() 是 trait method**：`EntityTrait::find` 不是 inherent method，必须 `use sea_orm::EntityTrait;` 才能调用；同 `.filter()` (需 `QueryFilter`)、`.gte()/.lt()/.gt()/.lte()/.eq()` (需 `ColumnTrait`)、`.count()/.all()/.paginate()` (需 `PaginatorTrait`)
+  - **validator crate 限制**：`#[validate(length(max = X))]` 只支持**整数字面量**，**不支持** Rust 表达式（`10 * 1024 * 1024` 不行，必须用 `10485760`）
+  - **连续 5 个 commit 才修复 1 个 PR**：PR #242 squash merge 前的 5 个 CI 修复 commit (00846cd, 09b0e5c, 39a363c, c1dda49, ee18ece) 证明**单次修复很容易漏改**，必须**每改一处静态验证 + CI 监控循环**
+  - **3 次连续失败教訓（3182e84, 6c0af46, cefef42）**：删 sea_orm trait import 时**不能批量删**，必须**逐个静态验证**是否被使用（`grep -n "Entity::find\|\\.filter\|\\.gte\|\\.lt\|\\.gt\|\\.lte"`）；CI build error E0599 的 help 提示会明确指出需要的 trait 名（如 `trait EntityTrait which provides find is implemented but not in scope`）
+  - **CI 监控 API**（不下载 logs）：`/repos/.../commits/{sha}/check-runs` + `/actions/jobs/{id}/logs` (API 端点，不是 zip 下载) + `/check-runs/{id}/annotations` 是合规监控方式
+
+### PR #242 squash 前 CI 修复历程（5 commits）
+
+| Commit | 修复内容 | 失败根因 |
+|--------|----------|----------|
+| 00846cd | 9 文件删 useless `#[allow(...)]` | useless_attribute 警告（标记实际使用项） |
+| 09b0e5c | 简化 auth_handler.rs / auth_handler_misc.rs 多余 allow | 同上 |
+| 39a363c | validator `length(max = 10 * 1024 * 1024)` → `length(max = 10485760)` | validator 0.16 不支持 Rust 表达式 |
+| c1dda49 | ci-cd.yml 在 clippy 失败前 cat 完整新警告 | 14 个 `unknown_lints: clippy::unused_variables` 警告需静态定位 |
+| ee18ece | 删除 auth_handler.rs:23 4 个未用 sea_orm trait（保留 EntityTrait/ColumnTrait/QueryFilter） | 3 次连续失败（3182e84, 6c0af46, cefef42）后正确识别 trait 使用位置 |
+
+### 复用样板
+
+```rust
+// 1. CSRF token 写入（带 IP 绑定 + 反向索引 + 强制轮换）
+pub fn set_csrf_token(
+    &self, token: String, session_id: String,
+    ip_address: String, user_id: i32, ttl: Option<Duration>,
+) {
+    let effective_ttl = ttl.unwrap_or(Duration::from_secs(CSRF_TOKEN_DEFAULT_TTL_SECS));
+    self.csrf_token_cache.set(token.clone(), (session_id, ip_address), Some(effective_ttl));
+    self.csrf_user_index.insert(user_id, token);
+}
+
+// 2. CSRF token 消费（IP 不匹配不消费，防 DoS）
+pub fn consume_csrf_token(&self, token: &str, client_ip: &str) -> CsrfConsumeResult {
+    match self.csrf_token_cache.take(&token.to_string()) {
+        Some((session_id, bound_ip)) => {
+            if bound_ip != client_ip {
+                self.csrf_token_cache.set(token.to_string(), (session_id, bound_ip), None);
+                return CsrfConsumeResult::IpMismatch;
+            }
+            CsrfConsumeResult::Ok
+        }
+        None => CsrfConsumeResult::NotFound,
+    }
+}
+
+// 3. 批量导入 DTO 四层防御
+#[derive(Debug, Deserialize, Validate)]
+pub struct CsvImportRequest {
+    pub import_type: String,
+    #[validate(length(max = 10_485_760, message = "CSV 数据超过 10MB 上限"))]
+    pub data: String,  // 10MB = 10 * 1024 * 1024 字面量
+}
+```
+
+### main HEAD（更新）
+
+- 远端 main HEAD：`2ab793c`（PR #242 squash merge）
+- 本次合并：8 业务文件 / +933/-63 行 + 16 个新单测 + 5 CI 修复 commits
+
+---
+
+## 📋 安全漏洞修复波次总览（2026-06-23）
+
+| Wave | 等级 | 漏洞数 | 漏洞 | PR | 状态 |
+|------|------|--------|------|------|------|
+| Wave 1 | P0 紧急 | 2 | #1 密码重置认证 + #2 租户管理权限 | #240 | ✅ merged b298c99 |
+| Wave 2 | P1 重要 | 4 | #3 用户权限 + #4 数据库测试认证 + #6 JWT 即时失效 + #9 用户级 JTI 吊销 | #241 | ✅ merged cdb2ada |
+| Wave 3 | P2 中 | 2 | #7 CSRF Token 设计缺陷 + #8 批量导入 DoS | #242 | ✅ merged 2ab793c |
+| Wave 4 | P3 低 | 6 (待评估) | #5 #10 #11 #12 #13 #14 | TBD | 🔵 待启动 |
+
+### Wave 4 启动条件
+
+- 需要用户提供 6 个 P3 漏洞的详细描述（按用户"分批细做"原则，每个漏洞 1 子代理）
+- 或可基于 Wave 1-3 模式自动推断常见漏洞类型（密码策略 / 错误处理 / 日志泄漏 / 资源清理等）
+
