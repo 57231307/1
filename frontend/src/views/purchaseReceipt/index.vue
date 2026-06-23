@@ -14,6 +14,7 @@
       @search="prcProc.handleSearch"
       @reset="prcProc.handleReset"
       @add="prcProc.openAddDialog"
+      @update:form="(v) => (prc.searchForm = v)"
     />
 
     <PrcTbl
@@ -41,6 +42,7 @@
       @remove-item="prcProc.removeItem"
       @calc-amount="prcProc.calculateItemAmount"
       @submit="prcProc.handleSubmit"
+      @update:form="(v) => (prc.form = v)"
     />
 
     <PrcDetail

@@ -33,6 +33,7 @@
       :products="pp.products"
       @query="pp.handleQuery"
       @reset="pp.handleReset"
+      @update:query-params="(v) => Object.assign(pp.queryParams, v)"
     />
 
     <PpTbl
@@ -55,6 +56,7 @@
       :suppliers="pp.suppliers"
       :products="pp.products"
       @submit="onSubmitForm"
+      @update:form-data="(v) => Object.assign(pp.formData, v)"
     />
 
     <PpHistory v-model:visible="ppProc.historyVisible" :history-list="ppProc.historyList" />

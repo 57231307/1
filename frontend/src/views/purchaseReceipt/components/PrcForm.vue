@@ -1,9 +1,9 @@
 <!--
   PrcForm.vue - 采购入库新增/编辑对话框
   拆分自 purchaseReceipt/index.vue（P14 批 2 I-3 第 4 批）
+  P9-3 批次 F Pattern A 重构：本地 ref 镜像 + watch 防循环 + emit 整体覆盖父组件
   行为完全保持一致（仅结构重构）
 -->
-<!-- eslint-disable vue/no-mutating-props -->
 <template>
   <el-dialog
     :model-value="visible"
@@ -11,16 +11,16 @@
     width="800px"
     @update:model-value="(v: boolean) => emit('update:visible', v)"
   >
-    <el-form ref="formRef" :model="form" :rules="rules" label-width="100px">
+    <el-form ref="formRef" :model="localForm" :rules="rules" label-width="100px">
       <el-row :gutter="20">
         <el-col :span="12">
           <el-form-item label="入库单号" prop="receipt_no">
-            <el-input v-model="form.receipt_no" readonly />
+            <el-input v-model="localForm.receipt_no" readonly />
           </el-form-item>
         </el-col>
         <el-col :span="12">
           <el-form-item label="入库日期" prop="receipt_date">
-            <el-date-picker v-model="form.receipt_date" type="date" />
+            <el-date-picker v-model="localForm.receipt_date" type="date" />
           </el-form-item>
         </el-col>
       </el-row>
@@ -28,9 +28,9 @@
         <el-col :span="12">
           <el-form-item label="供应商" prop="supplier_id">
             <el-select
-              :model-value="form.supplier_id"
+              :model-value="localForm.supplier_id"
               placeholder="请选择供应商"
-              @update:model-value="(v: number | undefined) => (form.supplier_id = v)"
+              @update:model-value="(v: number | undefined) => (localForm.supplier_id = v)"
             >
               <el-option
                 v-for="s in suppliers"
@@ -44,9 +44,9 @@
         <el-col :span="12">
           <el-form-item label="仓库" prop="warehouse_id">
             <el-select
-              :model-value="form.warehouse_id"
+              :model-value="localForm.warehouse_id"
               placeholder="请选择仓库"
-              @update:model-value="(v: number | undefined) => (form.warehouse_id = v)"
+              @update:model-value="(v: number | undefined) => (localForm.warehouse_id = v)"
             >
               <el-option
                 v-for="w in warehouses"
@@ -67,7 +67,7 @@
             <span class="col-amount">金额</span>
             <span class="col-action">操作</span>
           </div>
-          <div v-for="(item, index) in (form.items || [])" :key="index" class="items-row">
+          <div v-for="(item, index) in (localForm.items || [])" :key="index" class="items-row">
             <el-select
               :model-value="item.product_id"
               placeholder="选择产品"
@@ -105,7 +105,7 @@
               readonly
             />
             <el-button
-              v-if="(form.items || []).length > 1"
+              v-if="(localForm.items || []).length > 1"
               size="small"
               type="danger"
               @click="emit('remove-item', index)"
@@ -124,8 +124,7 @@
 </template>
 
 <script setup lang="ts">
-/* eslint-disable vue/no-mutating-props */
-import { ref } from 'vue'
+import { ref, watch, nextTick } from 'vue'
 import type { FormInstance, FormRules } from 'element-plus'
 import type { ReceiptItem } from '@/api/purchaseReceipt'
 
@@ -152,7 +151,7 @@ const props = defineProps<{
   visible: boolean
   // 对话框标题
   title: string
-  // 表单数据
+  // 表单数据（由父组件管理，子组件通过 emit('update:form') 回写）
   form: PrcFormModel
   // 校验规则
   rules: FormRules
@@ -163,18 +162,54 @@ const props = defineProps<{
   // 产品选项
   products: OptItem[]
 }>()
-void props // 显式标记使用避免 TS6133
 
 const emit = defineEmits<{
-  'update:visible': [v: boolean]
-  'add-item': []
-  'remove-item': [index: number]
-  'calc-amount': [item: ReceiptItem]
-  submit: []
+  (e: 'update:visible', v: boolean): void
+  (e: 'add-item'): void
+  (e: 'remove-item', index: number): void
+  (e: 'calc-amount', item: ReceiptItem): void
+  (e: 'submit'): void
+  // 整体回写表单（父组件监听此事件并回写到自己的 form）
+  (e: 'update:form', form: PrcFormModel): void
 }>()
 
 // 表单 ref
 const formRef = ref<FormInstance>()
+
+// 本地镜像：避免直接修改 prop 触发 vue/no-mutating-props
+// 注意：表单内有 items 数组，需要深拷贝以保证本地修改与父组件解耦
+const localForm = ref<PrcFormModel>(JSON.parse(JSON.stringify(props.form)))
+
+// 同步标志位：防止 prop → local 与 local → emit 形成循环
+let syncing = false
+
+// 外部 prop 变化时同步到 local（如父组件打开新增/编辑时填充数据）
+watch(
+  () => props.form,
+  (newForm) => {
+    if (syncing) return
+    syncing = true
+    localForm.value = JSON.parse(JSON.stringify(newForm))
+    nextTick(() => {
+      syncing = false
+    })
+  },
+  { deep: true },
+)
+
+// 本地变化时通知父组件（用户输入）
+watch(
+  localForm,
+  (newForm) => {
+    if (syncing) return
+    syncing = true
+    emit('update:form', JSON.parse(JSON.stringify(newForm)))
+    nextTick(() => {
+      syncing = false
+    })
+  },
+  { deep: true },
+)
 
 /** 点击确定：先校验再发 submit */
 const onSubmit = async () => {

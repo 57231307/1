@@ -32,6 +32,7 @@
       :suppliers="pc.suppliers"
       @query="pc.handleQuery"
       @reset="pc.handleReset"
+      @update:query-params="(v) => Object.assign(pc.queryParams, v)"
     />
 
     <PcTbl
@@ -55,6 +56,7 @@
       :form-data="pc.formData"
       :suppliers="pc.suppliers"
       @submit="onSubmitForm"
+      @update:form-data="(v) => Object.assign(pc.formData, v)"
     />
 
     <PcDetail v-model:visible="detailDialogVisible" :view-data="viewData" />

@@ -1,27 +1,25 @@
 <!--
   PpFilter.vue - 采购价格过滤栏
   拆分自 purchase-price/index.vue（P14 批 2 I-3 第 3 批）
+  P9-3 批次 F Pattern A 重构：本地 ref 镜像 + watch 防循环 + emit 整体覆盖父组件
   行为完全保持一致（仅结构重构）
 -->
-<!-- eslint-disable vue/no-mutating-props -->
 <template>
   <el-card shadow="hover" class="filter-card">
-    <el-form :inline="true" :model="queryParams" class="filter-form">
+    <el-form :inline="true" :model="localQueryParams" class="filter-form">
       <el-form-item label="关键词">
         <el-input
-          :model-value="queryParams.keyword"
+          v-model="localQueryParams.keyword"
           placeholder="产品名称/供应商名称"
           clearable
-          @update:model-value="(v: string) => (queryParams.keyword = v)"
           @clear="emit('query')"
         />
       </el-form-item>
       <el-form-item label="供应商">
         <el-select
-          :model-value="queryParams.supplier_id"
+          v-model="localQueryParams.supplier_id"
           placeholder="选择供应商"
           clearable
-          @update:model-value="(v: number) => (queryParams.supplier_id = v)"
           @change="emit('query')"
         >
           <el-option v-for="s in suppliers" :key="s.id" :label="s.supplier_name" :value="s.id" />
@@ -29,11 +27,10 @@
       </el-form-item>
       <el-form-item label="产品">
         <el-select
-          :model-value="queryParams.product_id"
+          v-model="localQueryParams.product_id"
           placeholder="选择产品"
           clearable
           filterable
-          @update:model-value="(v: number) => (queryParams.product_id = v)"
           @change="emit('query')"
         >
           <el-option
@@ -46,10 +43,9 @@
       </el-form-item>
       <el-form-item label="价格状态">
         <el-select
-          :model-value="queryParams.status"
+          v-model="localQueryParams.status"
           placeholder="选择状态"
           clearable
-          @update:model-value="(v: string) => (queryParams.status = v)"
           @change="emit('query')"
         >
           <el-option label="已生效" value="active" />
@@ -71,7 +67,7 @@
 </template>
 
 <script setup lang="ts">
-/* eslint-disable vue/no-mutating-props */
+import { ref, watch, nextTick } from 'vue'
 import { Search, Refresh } from '@element-plus/icons-vue'
 import type { Supplier } from '@/api/supplier'
 import type { Product } from '@/api/product'
@@ -89,8 +85,8 @@ interface PpQueryParams {
 /**
  * 采购价格过滤栏组件
  */
-defineProps<{
-  // 查询参数
+const props = defineProps<{
+  // 查询参数（由父组件管理，子组件通过 emit('update:queryParams') 回写）
   queryParams: PpQueryParams
   // 供应商列表
   suppliers: Supplier[]
@@ -100,10 +96,46 @@ defineProps<{
 
 const emit = defineEmits<{
   // 查询
-  query: []
+  (e: 'query'): void
   // 重置
-  reset: []
+  (e: 'reset'): void
+  // 整体回写查询参数（父组件监听此事件并 Object.assign 到自己的 queryParams）
+  (e: 'update:queryParams', queryParams: PpQueryParams): void
 }>()
+
+// 本地镜像：避免直接修改 prop 触发 vue/no-mutating-props
+const localQueryParams = ref<PpQueryParams>({ ...props.queryParams })
+
+// 同步标志位：防止 prop → local 与 local → emit 形成循环
+let syncing = false
+
+// 外部 prop 变化时同步到 local（如父组件重置）
+watch(
+  () => props.queryParams,
+  (newParams) => {
+    if (syncing) return
+    syncing = true
+    localQueryParams.value = { ...newParams }
+    nextTick(() => {
+      syncing = false
+    })
+  },
+  { deep: true },
+)
+
+// 本地变化时通知父组件（用户输入）
+watch(
+  localQueryParams,
+  (newParams) => {
+    if (syncing) return
+    syncing = true
+    emit('update:queryParams', { ...newParams })
+    nextTick(() => {
+      syncing = false
+    })
+  },
+  { deep: true },
+)
 </script>
 
 <style scoped>

@@ -23,6 +23,7 @@
       @query="piProc.handleQuery"
       @reset="piProc.handleReset"
       @date-change="(v: [Date, Date] | null) => (pi.dateRange = v)"
+      @update:params="(v) => Object.assign(pi.queryParams, v)"
     />
 
     <PiTbl
@@ -47,6 +48,7 @@
       :receipts="pi.receipts"
       @receipt-change="(v: number) => pi.handleReceiptChange(v)"
       @submit="piProc.handleSubmit"
+      @update:form-data="(v) => Object.assign(pi.formData, v)"
     />
 
     <PiDetail
