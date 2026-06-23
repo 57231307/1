@@ -1,13 +1,16 @@
 use axum::{
-    extract::{Path, Query, State},
+    extract::{Extension, Path, Query, State},
     Json,
 };
 use serde::{Deserialize, Serialize};
 use validator::Validate;
 
+use crate::middleware::audit_context::AuditContext;
 use crate::middleware::auth_context::AuthContext;
 use crate::services::tenant_service::TenantService;
+use crate::utils::admin_checker::is_admin_role;
 use crate::utils::app_state::AppState;
+use crate::utils::audit::{self, SecurityEvent};
 use crate::utils::error::AppError;
 use crate::utils::response::ApiResponse;
 
@@ -43,12 +46,41 @@ impl From<crate::models::tenant::Model> for TenantResponse {
     }
 }
 
+/// 租户管理端点角色校验（深度防御第 1 层：handler 层）
+///
+/// 缺角色时直接拒绝（避免 `role_id=0` 误匹配 admin 角色），
+/// 与 `user_handler::require_admin_role` 实现保持一致。
+async fn require_admin_role(state: &AppState, auth: &AuthContext) -> Result<(), AppError> {
+    let role_id = auth
+        .role_id
+        .ok_or_else(|| AppError::permission_denied("用户未分配角色，无法执行该操作"))?;
+    if !is_admin_role(&state.db, role_id).await {
+        // 审计：鉴权失败
+        audit::log_security_event(
+            SecurityEvent::AuthorizationDenied,
+            auth.user_id,
+            &auth.username,
+            auth.role_id,
+            Some("tenant_management"),
+            Some("non-admin attempt"),
+            None,
+        )
+        .await;
+        return Err(AppError::permission_denied(
+            "租户管理仅限管理员（code=admin）执行",
+        ));
+    }
+    Ok(())
+}
+
 /// 创建租户
 pub async fn create_tenant(
     State(state): State<AppState>,
-    _auth: AuthContext,
+    auth: AuthContext,
+    audit_ctx: Option<Extension<AuditContext>>,
     Json(req): Json<CreateTenantRequest>,
 ) -> Result<Json<ApiResponse<TenantResponse>>, AppError> {
+    require_admin_role(&state, &auth).await?;
     req.validate()?;
 
     let service = TenantService::new(state.db);
@@ -58,9 +90,23 @@ pub async fn create_tenant(
             &req.name,
             req.description.as_deref(),
             req.plan_id,
+            auth.user_id,
+            auth.role_id,
         )
         .await
         .map_err(|e| AppError::internal(format!("创建租户失败: {}", e)))?;
+
+    // 审计：租户创建
+    audit::log_security_event(
+        SecurityEvent::TenantCreated,
+        auth.user_id,
+        &auth.username,
+        auth.role_id,
+        Some(&req.code),
+        Some(&req.name),
+        audit_ctx.as_deref(),
+    )
+    .await;
 
     Ok(Json(ApiResponse::success(TenantResponse::from(tenant))))
 }
@@ -76,9 +122,10 @@ pub struct ListTenantsQuery {
 
 pub async fn list_tenants(
     State(state): State<AppState>,
-    _auth: AuthContext,
+    auth: AuthContext,
     Query(query): Query<ListTenantsQuery>,
 ) -> Result<Json<ApiResponse<Vec<TenantResponse>>>, AppError> {
+    require_admin_role(&state, &auth).await?;
     query.validate()?;
 
     let service = TenantService::new(state.db);
@@ -99,9 +146,11 @@ pub async fn list_tenants(
 /// 获取单个租户
 pub async fn get_tenant(
     State(state): State<AppState>,
-    _auth: AuthContext,
+    auth: AuthContext,
     Path(id): Path<i32>,
 ) -> Result<Json<ApiResponse<TenantResponse>>, AppError> {
+    require_admin_role(&state, &auth).await?;
+
     let service = TenantService::new(state.db);
 
     let tenant = service
@@ -122,16 +171,35 @@ pub struct UpdateTenantStatusRequest {
 
 pub async fn update_tenant_status(
     State(state): State<AppState>,
-    _auth: AuthContext,
+    auth: AuthContext,
+    audit_ctx: Option<Extension<AuditContext>>,
     Path(id): Path<i32>,
     Json(req): Json<UpdateTenantStatusRequest>,
 ) -> Result<Json<ApiResponse<TenantResponse>>, AppError> {
+    require_admin_role(&state, &auth).await?;
     req.validate()?;
+
+    // 审计：状态变更（变更前记录，避免失败时遗漏）
+    audit::log_security_event(
+        SecurityEvent::TenantStatusChange,
+        auth.user_id,
+        &auth.username,
+        auth.role_id,
+        Some(&format!("tenant_id={}", id)),
+        Some(&req.status),
+        audit_ctx.as_deref(),
+    )
+    .await;
 
     let service = TenantService::new(state.db);
 
     let tenant = service
-        .update_tenant_status(id, &req.status)
+        .update_tenant_status(
+            id,
+            &req.status,
+            auth.user_id,
+            auth.role_id,
+        )
         .await
         .map_err(|e| AppError::internal(format!("更新租户状态失败: {}", e)))?;
 

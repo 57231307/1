@@ -2,6 +2,7 @@
 use crate::models::tenant::{self, ActiveModel as TenantActiveModel, Entity as Tenant};
 use crate::models::tenant_config::{self, Entity as TenantConfig};
 use crate::models::tenant_user::{self, Entity as TenantUser};
+use crate::utils::admin_checker::is_admin_role;
 use crate::utils::error::AppError;
 use chrono::Utc;
 use sea_orm::*;
@@ -10,13 +11,32 @@ crate::define_service!(TenantService);
 
 impl TenantService {
     /// 创建租户
+    ///
+    /// # 安全加固（P0-Wave1）
+    /// 深度防御：handler 层已校验角色，服务层再次校验调用方角色，
+    /// 避免未来新增内部调用方绕过权限检查。
+    /// 缺角色或非 admin 角色直接拒绝（不允许 `unwrap_or(0)` 默认值，
+    /// 避免误匹配 role_id=0）。
     pub async fn create_tenant(
         &self,
         code: &str,
         name: &str,
         description: Option<&str>,
         plan_id: Option<i32>,
+        actor_user_id: i32,
+        actor_role_id: Option<i32>,
     ) -> Result<tenant::Model, AppError> {
+        // 深度防御：服务层再次校验角色
+        let role_id = actor_role_id
+            .ok_or_else(|| AppError::permission_denied("用户未分配角色，无法执行该操作"))?;
+        if !is_admin_role(self.db.as_ref(), role_id).await {
+            return Err(AppError::permission_denied(
+                "租户管理需要管理员权限",
+            ));
+        }
+        // 调用方已通过校验；保留 actor_user_id 便于后续审计/扩展
+        let _ = actor_user_id;
+
         // 检查租户编码是否已存在
         let existing = Tenant::find()
             .filter(tenant::Column::Code.eq(code))
@@ -55,11 +75,26 @@ impl TenantService {
     }
 
     /// 更新租户状态
+    ///
+    /// # 安全加固（P0-Wave1）
+    /// 深度防御：handler 层已校验角色，服务层再次校验调用方角色。
     pub async fn update_tenant_status(
         &self,
         id: i32,
         status: &str,
+        actor_user_id: i32,
+        actor_role_id: Option<i32>,
     ) -> Result<tenant::Model, AppError> {
+        // 深度防御：服务层再次校验角色
+        let role_id = actor_role_id
+            .ok_or_else(|| AppError::permission_denied("用户未分配角色，无法执行该操作"))?;
+        if !is_admin_role(self.db.as_ref(), role_id).await {
+            return Err(AppError::permission_denied(
+                "租户状态变更需要管理员权限",
+            ));
+        }
+        let _ = actor_user_id;
+
         let tenant = Tenant::find_by_id(id)
             .one(self.db.as_ref())
             .await?

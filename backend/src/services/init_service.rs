@@ -482,20 +482,51 @@ impl InitService {
             .map_err(|e| InitError::DatabaseError(format!("创建管理员用户失败: {}", e)))
     }
 
+    /// 重置用户密码（P0 修复：深度防御 + 密码强度校验 + 用户存在性二次校验）
+    ///
+    /// 业务流程：
+    /// 1. 密码强度校验（与 user_handler::create_user / change_password 一致，使用 `password_validator`）
+    /// 2. 用户存在性二次校验（handler 层已做"admin 角色"判断，本层防止 service 误用）
+    /// 3. Argon2id 密码哈希
+    /// 4. 更新 DB + tracing::info 安全审计日志
+    ///
+    /// 错误返回：
+    /// - `InitError::ValidationError` → 密码强度不满足策略（HTTP 400）
+    /// - `InitError::UserNotFound` → 用户不存在（HTTP 404）
+    /// - `InitError::HashError` → 哈希失败（HTTP 400）
+    /// - `InitError::DatabaseError` → DB 错误（HTTP 500）
     pub async fn reset_password(
         &self,
         username: &str,
         new_password: &str,
     ) -> Result<(), InitError> {
-        let user_service = crate::services::user_service::UserService::new(self.db.clone());
-        let user = user_service
-            .find_by_username(username)
-            .await
-            .map_err(|_| InitError::UserNotFound)?;
+        // 1) 密码强度校验（与 AuthService::hash_password 行为对齐，复用 password_validator 模块）
+        let password_check =
+            crate::utils::password_validator::validate_password(new_password);
+        if !password_check.is_valid {
+            return Err(InitError::ValidationError(
+                crate::utils::password_validator::get_password_feedback(&password_check),
+            ));
+        }
 
+        // 2) 二次校验：用户必须存在（精确区分 NotFound / DatabaseError，避免把 DB 错误误报为用户不存在）
+        let user_service = crate::services::user_service::UserService::new(self.db.clone());
+        let user = user_service.find_by_username(username).await.map_err(|e| {
+            use crate::utils::error::AppError;
+            match e {
+                AppError::NotFound(_) => InitError::UserNotFound,
+                AppError::DatabaseError(msg) => InitError::DatabaseError(msg),
+                other => {
+                    InitError::DatabaseError(format!("查询用户失败: {}", other))
+                }
+            }
+        })?;
+
+        // 3) Argon2id 哈希
         let password_hash = AuthService::hash_password(new_password)
             .map_err(|e| InitError::HashError(e.to_string()))?;
 
+        // 4) 更新密码 + 写日志（service 层不持有 actor 信息，handler 层已记录 actor+target 全量审计）
         let mut user_model: user::ActiveModel = user.into();
         user_model.password_hash = Set(password_hash);
         user_model.updated_at = Set(chrono::Utc::now());
@@ -504,6 +535,12 @@ impl InitService {
             .update(self.db.as_ref())
             .await
             .map_err(|e| InitError::DatabaseError(format!("更新密码失败: {}", e)))?;
+
+        // 安全审计：service 层落库成功时记录日志，便于运维排查（handler 层已异步写入 audit_log 表）
+        tracing::info!(
+            "[SECURITY] password reset succeeded for username={} (service-layer audit)",
+            username
+        );
 
         Ok(())
     }
@@ -521,6 +558,9 @@ pub enum InitError {
     UserNotFound,
     #[error("配置错误：{0}")]
     ConfigError(String),
+    /// 参数校验错误（P0 新增：用于密码强度等输入校验，HTTP 400）
+    #[error("参数校验错误：{0}")]
+    ValidationError(String),
 }
 
 impl From<InitError> for AppError {
@@ -531,6 +571,7 @@ impl From<InitError> for AppError {
             InitError::DatabaseError(e) => AppError::database(e),
             InitError::UserNotFound => AppError::not_found("用户不存在"),
             InitError::ConfigError(e) => AppError::bad_request(format!("配置错误: {}", e)),
+            InitError::ValidationError(e) => AppError::validation(format!("参数校验失败: {}", e)),
         }
     }
 }

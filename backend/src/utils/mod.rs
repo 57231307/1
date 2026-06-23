@@ -38,3 +38,5 @@ pub mod n_plus_one;
 pub mod token_bucket;
 // P9-1 关键路径 unwrap 清理 - 统一 expect/unwrap 集中化工具
 pub mod unwrap_safe;
+// P0-Wave1 安全加固 - 安全事件审计
+pub mod audit;
