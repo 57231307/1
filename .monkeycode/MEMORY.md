@@ -40,6 +40,18 @@
 
 ## 二、基本要求
 
+[批次 A dead_code 清理经验]
+- Date: 2026-06-24
+- Context: Agent 在执行"PR #243 后 clippy dead_code 警告清理（批次 A）"时发现
+- Category: 工作流协作
+- Instructions:
+  - 批次 A 共处理 20 个高频 dead_code 警告文件，采用"删除真实死代码 + 项级 #[allow(dead_code)] + TODO"策略
+  - 最高频文件 `backend/src/services/enhanced_logger.rs` 删除 27 个未使用 DTO/结构体，文件从 401 行精简至 122 行
+  - 严格禁止文件级 `#![allow(dead_code)]`；预留 API/功能必须加 TODO(tech-debt) 注释说明接入时机
+  - 子代理按文件并行可避免跨文件冲突；主代理负责汇总提交、推送、PR、CI 监控
+  - 当前环境缺少 `gh` CLI 与 `GITHUB_TOKEN`，PR 创建需用户协助或提供认证信息
+  - 所有验证经 GitHub Actions CI 完成，不执行本地 cargo build/clippy/test
+
 [任务管理]
 - Date: 2026-06-19
 - Context: 用户明确要求任务管理规范
