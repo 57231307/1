@@ -553,6 +553,115 @@
   - 工作流：.github/workflows/ci-cd.yml `cargo clippy --all-targets -- -D warnings`
   - 任何死代码警告都会让 CI 失败，开发者必须立即处理
 
+[批次 A-4 trace.rs 死代码清理实践]
+- Date: 2026-06-24
+- Context: PR #244 批次 A 死代码清理，目标文件 `backend/src/middleware/trace.rs`
+- Category: 开发规范
+- Instructions:
+  - 文件角色：P9-6 OpenTelemetry HTTP 追踪中间件，当前未接入请求处理链，但已规划上线
+  - 引用情况：`grep` 全库无外部 `use crate::middleware::trace::...`；仅自身定义与 7 个单元测试引用
+  - 处理方式：未删除代码，对 8 个顶层定义（3 struct、3 impl、1 trait impl、2 fn）逐项加 `#[allow(dead_code)] // TODO(tech-debt): P9-6 OpenTelemetry HTTP 追踪中间件接入后移除`
+  - 未使用文件级 `#![allow(dead_code)]`，符合项目规则 §六
+  - 单测：文件内 7 个单元测试全部保留，`#[allow(dead_code)]` 不影响测试编译与执行
+  - 验证策略：未本地运行 cargo build/clippy/test，依赖 CI 验证
+
+[批次 A-3 slow_query_handler.rs 死代码清理实践]
+- Date: 2026-06-24
+- Context: PR #244 批次 A 死代码清理，目标文件 `backend/src/handlers/slow_query_handler.rs`
+- Category: 开发规范
+- Instructions:
+  - 文件角色：P13 批 1 B-慢查询审计 Handler，3 个接口已在 `routes/system.rs` 的 `slow_queries()` 中定义但尚未并入 `system::routes()`
+  - 引用情况：`grep` 命中 `routes/system.rs:225/228/232` 引用 3 个 handler；4 个 DTO 无 crate 外部引用；文件内 3 个单元测试保留
+  - 处理方式：未删除代码，对 7 个 pub API 项（4 struct + 3 fn）逐项加 `#[allow(dead_code)] // TODO(tech-debt): P13 批 1 B-慢查询审计路由接入 system::routes() 后移除`
+  - 未使用文件级 `#![allow(dead_code)]`，符合项目规则 §六
+  - 单测：文件内 3 个单元测试全部保留，`#[allow(dead_code)]` 不影响测试编译与执行
+  - 验证策略：未本地运行 cargo build/clippy/test，依赖 CI 验证
+
+[批次 A-5 security_headers.rs 死代码清理实践]
+- Date: 2026-06-24
+- Context: PR #244 批次 A 死代码清理，目标文件 `backend/src/middleware/security_headers.rs`
+- Category: 开发规范
+- Instructions:
+  - 文件角色：安全响应头工具模块，提供 `apply_security_headers` 函数供错误响应/静态资源等场景复用；当前主链路已通过 `main.rs` 的 `SetResponseHeaderLayer` 注入安全头
+  - 引用情况：`grep` 全库无外部 `use crate::middleware::security_headers::...`；仅自身定义与 2 个单元测试引用
+  - 处理方式：未删除代码，对 7 个顶层定义（6 const、1 fn）逐项加 `#[allow(dead_code)] // TODO(tech-debt): 错误响应/静态资源等路径接入后移除`
+  - 顺手移除未使用的 `axum::extract::Request` 和 `axum::middleware::Next` import
+  - 未使用文件级 `#![allow(dead_code)]`，符合项目规则 §六
+  - 单测：文件内 2 个单元测试全部保留，`#[allow(dead_code)]` 不影响测试编译与执行
+  - 验证策略：未本地运行 cargo build/clippy/test，依赖 CI 验证
+
+[audit_log_handler.rs 死代码处理决策]
+- Date: 2026-06-24
+- Context: Agent 在执行 PR #244 批次 A-9 `backend/src/handlers/audit_log_handler.rs` 死代码清理时发现
+- Category: 死代码治理
+- Instructions:
+  - 该文件为 P13 批 1 P3-2 审计日志查询 Handler，提供 `/api/v1/erp/audit-logs` 列表/详情/导出 3 个端点
+  - `routes/system.rs` 中 `audit_logs()` 已引用 3 个 handler，但未在 `system::routes()` 中 merge，导致 CI clippy 报告 7 个 dead_code 警告（4 个 DTO + 3 个函数）
+  - 文件内另有 1 处真实未使用导入 `sea_orm::ActiveModelTrait`，直接删除
+  - 对 7 个 pub 项全部使用项级 `#[allow(dead_code)] // TODO(tech-debt): 审计日志查询路由接入 system::routes 后移除` 抑制
+  - 未使用文件级 `#![allow(dead_code)]`，未删除 handler 业务代码，未修改单测
+  - 后续应由负责路由装配的代理将 `audit_logs()` 并入 `system::routes()`，并同步移除这些 TODO 抑制
+
+[failover/database.rs 死代码处理决策]
+- Date: 2026-06-24
+- Context: Agent 在执行 PR #244 批次 A `backend/src/utils/failover/database.rs` 死代码清理时发现
+- Category: 死代码治理
+- Instructions:
+  - 该文件为 8 大核心功能主备隔离设计中的数据库主备模块（MEMORY.md §十四），提供 PostgreSQL 主库 + PostgreSQL 备库自动切换能力
+  - `backend/src/utils/failover/mod.rs:24` 已声明 `pub mod database`，但 `backend/src/` 中无 `FailoverDatabase::new` / `primary` / `backup` / `circuit` / `health_check_task` 的业务引用
+  - 文件内另有 1 处真实未使用导入 `sea_orm::ActiveModelTrait`（`health_check_task` 与 `update_status` 内部已各自局部导入），直接删除
+  - 对 4 个 pub/impl 顶层项使用项级 `#[allow(dead_code)] // TODO(tech-debt): 主备隔离数据库模块接入后移除` 抑制：`FailoverDatabase` 结构体、`impl FailoverDatabase`、`impl FailoverCall<bool, DbErr> for FailoverDatabase`、`health_check_task`
+  - 未使用文件级 `#![allow(dead_code)]`，未删除数据库主备业务代码，未修改单测（文件内无单测）
+  - 后续应由负责主备隔离模块接入的代理实例化 `FailoverDatabase` 并启动 `health_check_task`，同步移除这些 TODO 抑制
+
+[budget_management_service.rs 死代码处理决策]
+- Date: 2026-06-24
+- Context: Agent 在执行 PR #244 批次 A-16 `backend/src/services/budget_management_service.rs` 死代码清理时发现
+- Category: 死代码治理
+- Instructions:
+  - 该文件为活跃预算管理服务，`BudgetManagementService` 已在 `routes/finance.rs` 的 `/budgets/*` 路由下挂载，并在 `services/po/price.rs`、`services/ap_payment_service.rs` 中被调用
+  - 死代码项为 4 个 DTO struct 内的未读字段与 1 个未使用的明细项类型/字段：
+    - `CreateBudgetItemRequest`：budget_year / planned_amount / remark 字段在 `create_item` 中未被读取
+    - `UpdateBudgetItemRequest`：planned_amount / remark 字段在 `update_item` 中未被读取
+    - `BudgetExecuteRequest`：actual_amount / expense_type / expense_date / remark 字段在 `execute_plan` 中未被读取
+    - `CreateBudgetPlanRequest.items`：handler 始终传空 vec，`create_plan` 未读取
+    - `BudgetPlanItemRequest`：仅作为 `CreateBudgetPlanRequest.items` 元素类型，无外部直接引用
+  - 因 handler 仍显式构造这些 DTO，删除字段/类型需跨文件修改；本次按“只修改目标文件”约束，对 5 个项加 `#[allow(dead_code)] // TODO(tech-debt): 预算管理扩展字段/明细项接入业务后移除`
+  - 服务方法（`get_items_list`、`create_item`、`approve_plan`、`adjust_budget`、`check_budget_available`、`occupy_budget`、`write_off_budget` 等）均已被 handler 或其他 service 引用，无需抑制
+  - 未使用文件级 `#![allow(dead_code)]`，未删除业务代码，未修改单测（文件内无单测）
+  - 后续应由负责预算管理模块扩展的代理将这些预留字段接入 `budget_management` / `budget_plan` 模型，并同步移除 TODO 抑制
+
+[performance_optimizer.rs 死代码处理决策]
+- Date: 2026-06-24
+- Context: Agent 在执行 PR #244 批次 A-15 `backend/src/services/performance_optimizer.rs` 死代码清理时发现
+- Category: 死代码治理
+- Instructions:
+  - 该文件为 P4-1 性能优化阶段参考实现，提供 `BatchInventoryLoader`（N+1 修复示例）与 `CachedDashboardService`（缓存穿透示例）两种模式样板
+  - `grep` 全库无外部 `use crate::services::performance_optimizer::...`；仅 `services/mod.rs` 声明 `pub mod performance_optimizer;`，无业务代码实际引用
+  - 文件内 2 个单元测试引用 `BatchInventoryLoader::new` / `load_by_ids` / `load_map`，单测保留且可继续运行
+  - 对 5 个顶层定义逐项加 `#[allow(dead_code)] // TODO(tech-debt): P4-1 性能优化示例接入实际业务 service 后移除`：
+    - `InventoryRow`（业务模型示例 struct）
+    - `BatchInventoryLoader`（批量加载器 struct）
+    - `impl BatchInventoryLoader`（struct 方法 impl 块）
+    - `CachedDashboardService`（缓存包装 Dashboard service struct）
+    - `impl CachedDashboardService`（struct 方法 impl 块）
+  - 未使用文件级 `#![allow(dead_code)]`，未删除业务示例代码，未修改单测
+  - 后续应由负责 P4-1 性能优化落地的代理将示例模式接入真实 inventory / dashboard service，并同步移除这些 TODO 抑制
+
+[data_permission_service.rs 死代码处理决策]
+- Date: 2026-06-24
+- Context: Agent 在执行 PR #244 批次 A-20 `backend/src/services/data_permission_service.rs` 死代码清理时发现
+- Category: 死代码治理
+- Instructions:
+  - 该文件为活跃数据权限服务，`DataPermissionService` 已在 `utils/app_state.rs` 注册，并在 `handlers/data_permission_handler.rs` 及采购/销售/库存/CRM/AP 等多个 handler 中实际调用
+  - 死代码项为 4 个数据范围类型常量与 1 个未接入的权限检查方法：
+    - `data_scope::DEPT` / `DEPT_AND_BELOW` / `SELF` / `CUSTOM`：仅 `ALL` 在 `get_role_data_permission` 内部使用，其余常量无 crate 内外引用
+    - `check_data_permission`：public 方法，但 `backend/src/` 中无业务调用方
+  - 文件内无单元测试，无需调整单测
+  - 对 5 个死代码项全部使用项级 `#[allow(dead_code)] // TODO(tech-debt): 数据权限范围常量/检查接口接入业务后移除` 抑制
+  - 未使用文件级 `#![allow(dead_code)]`，未删除数据权限业务代码
+  - 后续应由负责数据权限模块的代理将常量接入 handler 校验逻辑、将 `check_data_permission` 接入具体业务场景，并同步移除这些 TODO 抑制
+
 ---
 
 ## 九、版本控制规范
@@ -821,6 +930,16 @@
     - 指标：Prometheus、Grafana
     - 链路追踪：分布式追踪
     - 告警：实时告警、自动恢复
+
+[incoterms.rs 死代码处理决策]
+- Date: 2026-06-24
+- Context: Agent 在执行 PR #244 批次 A-2 `backend/src/utils/incoterms.rs` 死代码清理时发现
+- Category: 死代码治理
+- Instructions:
+  - 该文件为 Week 2 任务 6 销售报价单模块预留的贸易术语工具 API，当前在 `backend/src/` 中无业务引用
+  - 文件内 8 个 pub 项（枚举 + 7 个方法）全部使用项级 `#[allow(dead_code)] // TODO(tech-debt): 销售报价单模块接入后移除` 抑制
+  - 未使用文件级 `#![allow(dead_code)]`，未删除任何代码，未修改单测
+  - 决策理由：功能预留型 pub API 按项目规则采用项级抑制 + TODO，而非直接删除
 
 ---
 

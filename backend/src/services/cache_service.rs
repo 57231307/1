@@ -55,6 +55,7 @@ pub struct CacheService {
 
 impl CacheService {
     /// 创建默认配置缓存（容量 10000、TTL 60s）
+    #[allow(dead_code)] // TODO(tech-debt): 业务模块接入后移除
     pub fn new() -> Self {
         let enabled = std::env::var("CACHE_ENABLED")
             .map(|v| v != "false" && v != "0")
@@ -105,6 +106,7 @@ impl CacheService {
     }
 
     /// 带自定义 TTL 的写入
+    #[allow(dead_code)] // TODO(tech-debt): 业务模块接入后移除
     pub async fn set_with_ttl(&self, key: String, value: Vec<u8>, ttl: Duration) {
         if !self.enabled {
             return;
@@ -116,6 +118,7 @@ impl CacheService {
     }
 
     /// 失效指定 key
+    #[allow(dead_code)] // TODO(tech-debt): 业务模块接入后移除
     pub async fn invalidate(&self, key: &str) {
         self.inner.invalidate(key).await;
     }
@@ -134,11 +137,13 @@ impl CacheService {
     }
 
     /// 默认 TTL
+    #[allow(dead_code)] // TODO(tech-debt): 业务模块接入后移除
     pub fn default_ttl(&self) -> Duration {
         self.default_ttl
     }
 }
 
+#[allow(dead_code)] // TODO(tech-debt): 业务模块接入后移除
 impl Default for CacheService {
     fn default() -> Self {
         Self::new()

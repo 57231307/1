@@ -8,6 +8,173 @@
 
 ---
 
+## 当前任务：PR #244 批次 A-16 budget_management_service.rs 死代码清理（2026-06-24）
+
+- **分支**：`fix/clippy-deadcode-batch-a-2026-06-24`
+- **状态**：已完成
+- **目标文件**：`/workspace/backend/src/services/budget_management_service.rs`
+- **目标**：清理 PR #243 后 CI clippy 报告的预算管理服务约 5 个 dead_code 警告
+
+### 处理结果
+
+| 序号 | 符号 | 类型 | 外部引用 | 处理方式 | 原因 |
+|------|------|------|----------|----------|------|
+| 1 | `CreateBudgetItemRequest` | struct | handler 构造但部分字段未读 | `#[allow(dead_code)]` + TODO | 预算科目 DTO，budget_year/planned_amount/remark 字段待接入模型 |
+| 2 | `UpdateBudgetItemRequest` | struct | handler 构造但部分字段未读 | `#[allow(dead_code)]` + TODO | 预算科目 DTO，planned_amount/remark 字段待接入模型 |
+| 3 | `BudgetExecuteRequest` | struct | handler 构造但部分字段未读 | `#[allow(dead_code)]` + TODO | 预算执行 DTO，actual_amount/expense_type/expense_date/remark 字段待接入业务 |
+| 4 | `CreateBudgetPlanRequest.items` | field | 始终由 handler 传空 vec，service 未读取 | `#[allow(dead_code)]` + TODO | 预算方案明细项列表，待预算方案拆分业务接入 |
+| 5 | `BudgetPlanItemRequest` | struct | 仅作为 `CreateBudgetPlanRequest.items` 元素类型，无外部直接引用 | `#[allow(dead_code)]` + TODO | 预算方案明细项 DTO，随 items 字段保留 |
+
+### 关键说明
+
+- 未使用文件级 `#![allow(dead_code)]`，严格按项目规则 §六采用项级抑制。
+- 未删除 DTO/字段，因为 handler 中仍显式构造这些结构体，删除会破坏跨文件编译；本次仅修改目标文件。
+- 服务方法（`get_items_list`、`create_item`、`approve_plan`、`adjust_budget`、`check_budget_available` 等）均已被 handler 或其他 service 引用，无需抑制。
+- 文件内无单元测试，无需调整单测。
+- 未执行 `cargo build` / `cargo clippy` / `cargo test`，结果由 CI 验证。
+
+---
+
+## 历史任务：PR #244 批次 A-20 data_permission_service.rs 死代码清理（2026-06-24）
+
+- **分支**：`fix/clippy-deadcode-batch-a-2026-06-24`
+- **状态**：已完成
+- **目标文件**：`/workspace/backend/src/services/data_permission_service.rs`
+- **目标**：清理 PR #243 后 CI clippy 报告的数据权限服务 dead_code 警告
+
+### 处理结果
+
+| 序号 | 符号 | 类型 | 外部引用 | 处理方式 | 原因 |
+|------|------|------|----------|----------|------|
+| 1 | `data_scope::DEPT` | const | 无 | `#[allow(dead_code)]` + TODO | 数据范围类型常量，待接入 handler/校验逻辑 |
+| 2 | `data_scope::DEPT_AND_BELOW` | const | 无 | `#[allow(dead_code)]` + TODO | 同上 |
+| 3 | `data_scope::SELF` | const | 无 | `#[allow(dead_code)]` + TODO | 同上 |
+| 4 | `data_scope::CUSTOM` | const | 无 | `#[allow(dead_code)]` + TODO | 同上 |
+| 5 | `check_data_permission` | fn | 无 | `#[allow(dead_code)]` + TODO | 数据权限存在性检查接口，待业务接入 |
+
+### 关键说明
+
+- 未使用文件级 `#![allow(dead_code)]`，严格按项目规则 §六采用项级抑制。
+- 未删除业务代码，因为数据权限服务处于活跃使用状态，未引用项为预留常量/接口。
+- 文件内无单元测试，无需调整单测。
+- 未执行 `cargo build` / `cargo clippy` / `cargo test`，结果由 CI 验证。
+
+---
+
+## 历史任务：PR #244 批次 A-15 performance_optimizer.rs 死代码清理（2026-06-24）
+
+- **分支**：`fix/clippy-deadcode-batch-a-2026-06-24`
+- **状态**：已完成
+- **目标文件**：`/workspace/backend/src/services/performance_optimizer.rs`
+- **目标**：清理 PR #243 后 CI clippy 报告的约 5 个 dead_code 警告
+
+### 处理结果
+
+| 序号 | 符号 | 类型 | 外部引用 | 处理方式 | 原因 |
+|------|------|------|----------|----------|------|
+| 1 | `InventoryRow` | struct | 无（仅在自身函数签名/测试中出现） | `#[allow(dead_code)]` + TODO | P4-1 性能优化示例业务模型，随参考实现保留 |
+| 2 | `BatchInventoryLoader` | struct | 无（仅自身测试引用） | `#[allow(dead_code)]` + TODO | P4-1 N+1 修复示例，待接入真实 inventory service |
+| 3 | `impl BatchInventoryLoader` | impl | 无（仅自身测试引用） | `#[allow(dead_code)]` + TODO | 同上，方法随结构体保留 |
+| 4 | `CachedDashboardService` | struct | 无 | `#[allow(dead_code)]` + TODO | P4-1 缓存穿透示例，待接入真实 dashboard service |
+| 5 | `impl CachedDashboardService` | impl | 无 | `#[allow(dead_code)]` + TODO | 同上，方法随结构体保留 |
+
+### 关键说明
+
+- 未使用文件级 `#![allow(dead_code)]`，严格按项目规则 §六采用项级抑制。
+- 未删除任何业务示例代码，因为 `performance_optimizer.rs` 是 P4-1 性能优化阶段参考实现，示例模式待后续接入真实 inventory / dashboard service。
+- 文件内 2 个单元测试全部保留，`#[allow(dead_code)]` 不影响测试编译与执行。
+- 未执行 `cargo build` / `cargo clippy` / `cargo test`，结果由 CI 验证。
+
+---
+
+## 历史任务：PR #244 批次 A-5 middleware/security_headers.rs 死代码清理（2026-06-24）
+
+- **分支**：`fix/clippy-deadcode-batch-a-2026-06-24`
+- **状态**：已完成
+- **目标文件**：`/workspace/backend/src/middleware/security_headers.rs`
+- **目标**：清理 PR #243 后 CI clippy 报告的约 7 个 dead_code 警告
+
+### 处理结果
+
+| 序号 | 符号 | 类型 | 外部引用 | 处理方式 | 原因 |
+|------|------|------|----------|----------|------|
+| 1 | `CSP_VALUE` | const | 无（仅文件内函数/测试引用） | `#[allow(dead_code)]` + TODO | 安全头默认值，随工具函数保留 |
+| 2 | `HSTS_VALUE` | const | 无（仅文件内函数/测试引用） | `#[allow(dead_code)]` + TODO | 同上 |
+| 3 | `X_CONTENT_TYPE_OPTIONS_VALUE` | const | 无（仅文件内函数/测试引用） | `#[allow(dead_code)]` + TODO | 同上 |
+| 4 | `X_FRAME_OPTIONS_VALUE` | const | 无（仅文件内函数/测试引用） | `#[allow(dead_code)]` + TODO | 同上 |
+| 5 | `REFERRER_POLICY_VALUE` | const | 无（仅文件内函数/测试引用） | `#[allow(dead_code)]` + TODO | 同上 |
+| 6 | `PERMISSIONS_POLICY_VALUE` | const | 无（仅文件内函数/测试引用） | `#[allow(dead_code)]` + TODO | 同上 |
+| 7 | `apply_security_headers` | fn | 无（仅自身测试引用） | `#[allow(dead_code)]` + TODO | 预留工具函数，用于补充 SetResponseHeaderLayer 未覆盖路径 |
+
+### 关键说明
+
+- 未使用文件级 `#![allow(dead_code)]`，严格按项目规则 §六采用项级抑制。
+- 未删除任何代码，因为 `security_headers.rs` 是预留的安全响应头工具模块，供错误响应/静态资源等场景复用。
+- 文件内 2 个单元测试全部保留，`#[allow(dead_code)]` 不影响测试编译与执行。
+- 顺手移除未使用的 `axum::extract::Request` 和 `axum::middleware::Next` import。
+- 未执行 `cargo build` / `cargo clippy` / `cargo test`，结果由 CI 验证。
+
+---
+
+## 历史任务：PR #244 批次 A-9 audit_log_handler.rs 死代码清理（2026-06-24）
+
+- **分支**：`fix/clippy-deadcode-batch-a-2026-06-24`
+- **状态**：已完成
+- **目标文件**：`/workspace/backend/src/handlers/audit_log_handler.rs`
+- **目标**：清理 PR #243 后 CI clippy 报告的约 7 个 dead_code 警告
+
+### 处理结果
+
+| 序号 | 符号 | 类型 | 外部引用 | 处理方式 | 原因 |
+|------|------|------|----------|----------|------|
+| 1 | `AuditLogListQuery` | struct | 仅在自身 handler 中使用 | `#[allow(dead_code)]` + TODO | 审计日志查询路由接入 system::routes 后移除 |
+| 2 | `AuditLogListItem` | struct | 仅在自身 handler 中使用 | `#[allow(dead_code)]` + TODO | 同上 |
+| 3 | `AuditLogListResponse` | struct | 仅在自身 handler 中使用 | `#[allow(dead_code)]` + TODO | 同上 |
+| 4 | `AuditLogDetailResponse` | struct | 仅在自身 handler 中使用 | `#[allow(dead_code)]` + TODO | 同上 |
+| 5 | `list_audit_logs` | fn | `routes/system.rs::audit_logs()` 引用但 audit_logs() 未并入 system::routes() | `#[allow(dead_code)]` + TODO | 同上 |
+| 6 | `get_audit_log` | fn | 同上 | `#[allow(dead_code)]` + TODO | 同上 |
+| 7 | `export_audit_logs` | fn | 同上 | `#[allow(dead_code)]` + TODO | 同上 |
+| 8 | `ActiveModelTrait` | import | 无 | 删除 | 真实未使用导入 |
+
+### 关键说明
+
+- 未使用文件级 `#![allow(dead_code)]`，严格按项目规则 §六采用项级抑制。
+- 未删除任何 handler 业务代码，因为 `routes/system.rs` 中 `audit_logs()` 已定义但尚未并入 `system::routes()`，属于路由接入遗漏而非功能废弃。
+- 文件内 3 个单元测试全部保留，`#[allow(dead_code)]` 不影响测试编译与执行。
+- 未执行 `cargo build` / `cargo clippy` / `cargo test`，结果由 CI 验证。
+
+---
+
+## 历史任务：PR #244 批次 A-4 middleware/trace.rs 死代码清理（2026-06-24）
+
+- **分支**：`fix/clippy-deadcode-batch-a-2026-06-24`
+- **状态**：已完成
+- **目标文件**：`/workspace/backend/src/middleware/trace.rs`
+- **目标**：清理 PR #243 后 CI clippy 报告的约 8 个 dead_code 警告
+
+### 处理结果
+
+| 序号 | 符号 | 类型 | 外部引用 | 处理方式 | 原因 |
+|------|------|------|----------|----------|------|
+| 1 | `HttpTraceCtx` | struct | 无 | `#[allow(dead_code)]` + TODO | P9-6 预留 OpenTelemetry 上下文 DTO |
+| 2 | `impl HttpTraceCtx` | impl | 无 | `#[allow(dead_code)]` + TODO | 同上，方法随结构体保留 |
+| 3 | `HttpTraceResponse` | struct | 无 | `#[allow(dead_code)]` + TODO | P9-6 预留响应追踪 DTO |
+| 4 | `impl HttpTraceResponse` | impl | 无 | `#[allow(dead_code)]` + TODO | 同上 |
+| 5 | `TraceTimer` | struct | 无 | `#[allow(dead_code)]` + TODO | P9-6 预留计时器 |
+| 6 | `impl TraceTimer` | impl | 无 | `#[allow(dead_code)]` + TODO | 同上 |
+| 7 | `impl Default for TraceTimer` | impl | 无 | `#[allow(dead_code)]` + TODO | 同上 |
+| 8 | `generate_trace_id` | fn | 无 | `#[allow(dead_code)]` + TODO | P9-6 预留 trace_id 生成器 |
+| 9 | `generate_span_id` | fn | 无 | `#[allow(dead_code)]` + TODO | P9-6 预留 span_id 生成器 |
+
+### 关键说明
+
+- 未使用文件级 `#![allow(dead_code)]`，严格按项目规则 §六采用项级抑制。
+- 未删除任何代码，因为 `trace.rs` 属于 P9-6 OpenTelemetry HTTP 追踪中间件，当前未接入但已规划上线。
+- 文件内 7 个单元测试全部保留，测试目标仍为同一模块内符号。
+- 未执行 `cargo build` / `cargo clippy` / `cargo test`，结果由 CI 验证。
+
+---
+
 ## 一、功能实现进度（基线）
 
 - Date: 2026-06-06
@@ -969,3 +1136,159 @@
   - **远端 main HEAD**：`78abf4c`（CI 自动 commit baseline）
   - **实际代码 HEAD**：`964e015`（最后一次代码修复）
   - **下一步**：批次 E（前端 20 个 > 400 行 .vue 拆分）或批次 F（ESLint 166 处 vue/no-mutating-props 收敛）
+
+## PR #244 批次 A-1 enhanced_logger.rs 死代码清理（2026-06-24）
+
+- Date: 2026-06-24
+- Context: PR #243 合并后 CI clippy 报告 1661 个新警告，enhanced_logger.rs 单文件 27 个 dead_code 警告为最高
+- Category: 死代码清理
+- Instructions:
+  - **分支**：`fix/clippy-deadcode-batch-a-2026-06-24`
+  - **目标文件**：`backend/src/services/enhanced_logger.rs`
+  - **处理方式**：删除 27 个零引用的日志 DTO 结构体，不做项级 `#[allow(dead_code)]` 抑制
+  - **保留项**：`EnhancedLogger`、`LoginSecurityLog`、`LoginAttempt`、`FailureInfo`、`SecurityInfo`、`GeoInfo`、`DeviceInfo`、`log_login_security`
+  - **删除项**（27 个）：
+    - `OperationContext`
+    - `DatabaseOperationLog`、`DatabaseError`
+    - `FinancialOperationLog`、`OperatorInfo`、`FinancialDetails`、`ApprovalInfo`
+    - `PermissionChangeLog`、`TargetUser`、`PermissionChange`、`PermissionSnapshot`、`PermissionDiff`、`PermissionItem`
+    - `PerformanceLog`、`PerformanceMetrics`、`DatabaseMetrics`、`QueryMetric`、`ConnectionPoolMetrics`、`CacheMetrics`、`MemoryMetrics`
+    - `BusinessOperationLog`、`OperationResult`
+    - `SystemHealthLog`、`SystemMetrics`、`DatabaseHealth`、`CacheHealth`、`ApplicationHealth`
+  - **外部引用检查**：`backend/src/handlers/auth_handler.rs` 是 `LoginSecurityLog` 等保留类型的唯一调用方；被删除类型在 `backend/src/` 中无实际引用（`DatabaseError`、`PermissionChange` 仅作为其他模块内部枚举变体同名，非引用本文件结构体）
+  - **导入清理**：同步删除不再使用的 `use serde_json::Value;`
+  - **单测影响**：文件内无单测，无需调整
+  - **验证方式**：不本地编译/构建，提交后由 GitHub Actions CI 验证
+  - **状态**：代码修改完成，待主代理收集 diff 后统一 commit/push
+
+## PR #244 批次 A-2 elastic.rs 死代码清理（2026-06-24）
+
+- Date: 2026-06-24
+- Context: PR #243 合并后 CI clippy 报告约 14 个 dead_code 警告，目标文件 `backend/src/search/elastic.rs`
+- Category: 死代码清理
+- Instructions:
+  - **分支**：`fix/clippy-deadcode-batch-a-2026-06-24`
+  - **目标文件**：`backend/src/search/elastic.rs`
+  - **处理方式**：
+    - 对 14 个未引用的预留 pub API 项使用项级 `#[allow(dead_code)]` + TODO 注释抑制
+    - 删除 2 处真实未使用字段：`ElasticClient::real_es_enabled`（私有字段从未读取）、`SearchQuery::sort`（无外部使用、无 builder、无读取）
+  - **决策依据**：该文件为 P9-8 Elasticsearch 搜索集成模块，`routes/search_api.rs` 当前仅引用 `SalesOrderDoc` / `CustomerDoc` / `ProductDoc` / `SearchQuery`，其余 pub API 属于未来搜索功能预留；按项目规则对未引用 pub API 使用项级抑制 + TODO
+  - **处理项清单**（全部加 `#[allow(dead_code)] // TODO(tech-debt): P9-8 搜索模块接入业务后移除`，除特殊标注外）：
+    - `indices` 模块
+    - `SALES_ORDERS` / `CUSTOMERS` / `PRODUCTS` 索引常量
+    - `DocType` 枚举及 `impl DocType` 方法块
+    - `SalesOrderItemDoc` 结构体
+    - `SearchResult<T>` 结构体
+    - `SearchHit<T>` 结构体
+    - `SearchClient` trait
+    - `SearchError` 枚举
+    - `ElasticClient` 结构体
+    - `ElasticClient::real` 方法（TODO 注释为 `P9-8 启用真实 Elasticsearch 客户端后移除`）
+    - `SearchSyncer` 结构体
+    - `SearchSyncer::sync_product` 方法（TODO 注释为 `P9-8 接入产品同步调用后移除`）
+  - **删除项**：
+    - `ElasticClient::real_es_enabled` 字段
+    - `SearchQuery::sort` 字段
+  - **外部引用检查**：`routes/search_api.rs` 仅引用 `CustomerDoc`、`ProductDoc`、`SalesOrderDoc`、`SearchQuery`；其余定义在 `backend/src/` 中无业务代码引用，仅在本文件测试中使用
+  - **单测影响**：文件内 18 个单测均保留；删除的 `sort` 字段无单测引用，`real_es_enabled` 为私有字段且未在测试中使用，不影响测试编译与执行
+  - **文件级抑制**：未使用 `#![allow(dead_code)]`，符合项目规则
+  - **验证方式**：不本地编译/构建，提交后由 GitHub Actions CI 验证
+  - **状态**：代码修改完成，待主代理收集 diff 后统一 commit/push
+
+## PR #244 批次 A-2 incoterms.rs 死代码清理（2026-06-24）
+
+- Date: 2026-06-24
+- Context: PR #243 合并后 CI clippy 报告约 7 个 dead_code 警告，目标文件 `backend/src/utils/incoterms.rs`
+- Category: 死代码清理
+- Instructions:
+  - **分支**：`fix/clippy-deadcode-batch-a-2026-06-24`
+  - **目标文件**：`backend/src/utils/incoterms.rs`
+  - **处理方式**：全部 8 个 pub 项使用项级 `#[allow(dead_code)]` + TODO 注释抑制，不做删除
+  - **决策依据**：该文件为 Week 2 任务 6 销售报价单模块预留的贸易术语工具 API，当前尚未被业务引用，但属于功能预留；按项目规则对未引用 pub API 使用项级抑制 + TODO
+  - **处理项清单**（8 个 pub 项全部加 `#[allow(dead_code)] // TODO(tech-debt): 销售报价单模块接入后移除`）：
+    - `Incoterms2020` 枚举
+    - `from_code`
+    - `code`
+    - `includes_insurance`
+    - `includes_freight`
+    - `requires_duty_paid`
+    - `description`
+    - `all`
+  - **外部引用检查**：`backend/src/` 中无 `Incoterms2020` 或上述方法的实际业务引用；`incoterms_version` 字段在报价单模型/服务中仅作为字符串存在，未使用本工具类型
+  - **单测影响**：文件内 6 个单测均引用上述方法；未删除或修改单测，项级抑制不影响测试编译与执行
+  - **文件级抑制**：未使用 `#![allow(dead_code)]`，符合项目规则
+  - **验证方式**：不本地编译/构建，提交后由 GitHub Actions CI 验证
+  - **状态**：代码修改完成，待主代理收集 diff 后统一 commit/push
+
+## PR #244 批次 A-3 slow_query_handler.rs 死代码清理（2026-06-24）
+
+- Date: 2026-06-24
+- Context: PR #243 合并后 CI clippy 报告约 7 个 dead_code 警告，目标文件 `backend/src/handlers/slow_query_handler.rs`
+- Category: 死代码清理
+- Instructions:
+  - **分支**：`fix/clippy-deadcode-batch-a-2026-06-24`
+  - **目标文件**：`backend/src/handlers/slow_query_handler.rs`
+  - **处理方式**：对 7 个未引用的 pub API 项使用项级 `#[allow(dead_code)]` + TODO 注释抑制，不做删除
+  - **决策依据**：该文件为 P13 批 1 B-慢查询审计模块，路由 `system::slow_queries()` 已在 `routes/system.rs` 定义但尚未并入 `system::routes()`，导致 3 个 handler 和 4 个 DTO 在 crate 主入口不可达；按项目规则对未引用的预留 pub API 使用项级抑制 + TODO
+  - **处理项清单**（7 个 pub 项全部加 `#[allow(dead_code)] // TODO(tech-debt): P13 批 1 B-慢查询审计路由接入 system::routes() 后移除`）：
+    - `SlowQueryListParams` 结构体
+    - `SlowQueryListResponse` 结构体
+    - `SlowQueryStatsResponse` 结构体
+    - `SlowQueryRefreshResponse` 结构体
+    - `list_slow_queries` 接口函数
+    - `get_slow_query_stats` 接口函数
+    - `refresh_slow_queries` 接口函数
+  - **外部引用检查**：`backend/src/routes/system.rs:225/228/232` 在 `slow_queries()` 中引用 3 个 handler，但 `slow_queries()` 未在 `system::routes()` 中 merge；`backend/src/` 中无其他外部引用上述 4 个 DTO
+  - **单测影响**：文件内 3 个单测（`test_extract_tenant_id_accepts_valid`、`test_extract_tenant_id_rejects_missing`、`test_list_params_default`）全部保留；项级抑制不影响测试编译与执行
+  - **文件级抑制**：未使用 `#![allow(dead_code)]`，符合项目规则
+  - **验证方式**：不本地编译/构建，提交后由 GitHub Actions CI 验证
+  - **状态**：代码修改完成，待主代理收集 diff 后统一 commit/push
+
+## PR #244 批次 A  failover/database.rs 死代码清理（2026-06-24）
+
+- Date: 2026-06-24
+- Context: PR #243 合并后 CI clippy 报告目标文件 `backend/src/utils/failover/database.rs` 死代码警告
+- Category: 死代码清理
+- Instructions:
+  - **分支**：`fix/clippy-deadcode-batch-a-2026-06-24`
+  - **目标文件**：`backend/src/utils/failover/database.rs`
+  - **处理方式**：对 4 个未引用的 pub API 项使用项级 `#[allow(dead_code)]` + TODO 注释抑制；删除 1 处真实未使用的 `ActiveModelTrait` 文件级导入
+  - **决策依据**：该文件为 8 大核心功能主备隔离设计中的数据库主备模块（MEMORY.md §十四），当前尚未被业务代码实例化或调用，但属于架构预留能力；按项目规则对未引用的预留 pub API 使用项级抑制 + TODO
+  - **处理项清单**（4 个 pub/impl 项全部加 `#[allow(dead_code)] // TODO(tech-debt): 主备隔离数据库模块接入后移除`）：
+    - `FailoverDatabase` 结构体
+    - `impl FailoverDatabase` 方法块
+    - `impl FailoverCall<bool, DbErr> for FailoverDatabase` trait 实现块
+    - `health_check_task` 任务函数
+  - **删除项**：文件级 `use sea_orm::{ActiveModelTrait, ...}` 中的 `ActiveModelTrait`（`health_check_task` 与 `update_status` 内部已各自局部导入 `ActiveModelTrait`，文件级导入真实未使用）
+  - **外部引用检查**：`backend/src/` 中无 `FailoverDatabase::new` / `FailoverDatabase::primary` / `FailoverDatabase::backup` / `FailoverDatabase::circuit` / `health_check_task` 的业务引用；`backend/src/utils/failover/mod.rs:24` 声明 `pub mod database`，模块本身公开但无外部调用点
+  - **单测影响**：文件内无单测，无需调整
+  - **文件级抑制**：未使用 `#![allow(dead_code)]`，符合项目规则 §六
+  - **验证方式**：不本地编译/构建，提交后由 GitHub Actions CI 验证
+  - **状态**：代码修改完成，待主代理收集 diff 后统一 commit/push
+
+## PR #244 批次 A-14 report/mod.rs 死代码清理（2026-06-24）
+
+- Date: 2026-06-24
+- Context: PR #243 合并后 CI clippy 报告目标文件 `backend/src/services/report/mod.rs` 约 5 个 dead_code 警告
+- Category: 死代码清理
+- Instructions:
+  - **分支**：`fix/clippy-deadcode-batch-a-2026-06-24`
+  - **目标文件**：`backend/src/services/report/mod.rs`
+  - **处理方式**：对 5 个未引用的 pub API 项使用项级 `#[allow(dead_code)]` + TODO 注释抑制，不做删除
+  - **决策依据**：目标文件为报表引擎服务共享 DTO/Service 入口，`CreateTemplateRequest`/`ReportSubscription`/`CreateSubscriptionRequest` 在子模块 `tpl.rs`/`job.rs` 中被导入但对应方法体尚未实现，`DataSource::as_str()`/`AggregationType::as_str()` 当前无业务调用；按项目规则对未引用的预留 pub API 使用项级抑制 + TODO
+  - **处理项清单**：
+    - `CreateTemplateRequest` 结构体：`#[allow(dead_code)] // TODO(tech-debt): 自定义报表模板创建接口接入后移除`
+    - `ReportSubscription` 结构体：`#[allow(dead_code)] // TODO(tech-debt): 报表订阅调度接口接入后移除`
+    - `CreateSubscriptionRequest` 结构体：`#[allow(dead_code)] // TODO(tech-debt): 报表订阅创建接口接入后移除`
+    - `DataSource::as_str()` 方法：`#[allow(dead_code)] // TODO(tech-debt): 数据源字符串序列化接入后移除`
+    - `AggregationType::as_str()` 方法：`#[allow(dead_code)] // TODO(tech-debt): 聚合类型字符串序列化接入后移除`
+  - **保留项**：`ReportTemplate`、`ReportColumn`、`ReportFilter`、`ReportParameter`、`DataSource` 枚举、`AggregationType` 枚举、`AggregateRequest`、`DateRange`、`AggregateResult`、`ReportData`、`ReportMetadata`、`CacheEntry`、`ExecuteReportRequest`、`ExportFormat` 枚举、`PdfExportResult`、`ExcelExportResult`、`ReportEngineService`、`DEFAULT_CACHE_TTL_SECONDS` 等均在子模块或 handler 中有实际引用，保持 `pub` 不变
+  - **删除项**：无（5 个目标项均为预留 pub API，删除会导致 `tpl.rs`/`job.rs` 的 `use super::{...}` 编译失败）
+  - **外部引用检查**：
+    - `CreateTemplateRequest`：仅 `report/tpl.rs:18` 导入，对应 `create_custom_template`/`get_all_templates` 方法体缺失，无实际使用
+    - `ReportSubscription`/`CreateSubscriptionRequest`：仅 `report/job.rs:16` 导入，对应 `create_subscription` 方法体缺失，无实际使用；注意 `services/report_subscription_service.rs` 与 `handlers/report_enhanced_handler.rs` 使用的是同名但独立的类型
+    - `DataSource::as_str()`/`AggregationType::as_str()`：`backend/src/` 中无调用，仅作为辅助方法预留
+  - **单测影响**：`report` 模块文件内无单测，`backend/tests/` 无上述 5 项引用；项级抑制不影响现有测试编译与执行
+  - **文件级抑制**：未使用 `#![allow(dead_code)]`，符合项目规则 §六
+  - **验证方式**：不本地编译/构建，提交后由 GitHub Actions CI 验证
+  - **状态**：代码修改完成，待主代理收集 diff 后统一 commit/push

@@ -12,35 +12,40 @@
 //! - Permissions-Policy
 
 use axum::{
-    extract::Request,
     http::{HeaderName, HeaderValue},
-    middleware::Next,
     response::Response,
 };
 
 /// Content-Security-Policy 默认值
 /// 仅允许加载同源资源；脚本放行 wasm-unsafe-eval 与内联样式以兼容 SPA
+#[allow(dead_code)] // TODO(tech-debt): 错误响应/静态资源等路径接入后移除
 const CSP_VALUE: &str = "default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; connect-src 'self' ws: wss:; font-src 'self' data:; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'; upgrade-insecure-requests;";
 
 /// HSTS：1 年 + 子域 + 预加载
+#[allow(dead_code)] // TODO(tech-debt): 错误响应/静态资源等路径接入后移除
 const HSTS_VALUE: &str = "max-age=31536000; includeSubDomains; preload";
 
 /// X-Content-Type-Options：禁止 MIME 嗅探
+#[allow(dead_code)] // TODO(tech-debt): 错误响应/静态资源等路径接入后移除
 const X_CONTENT_TYPE_OPTIONS_VALUE: &str = "nosniff";
 
 /// X-Frame-Options：禁止嵌入
+#[allow(dead_code)] // TODO(tech-debt): 错误响应/静态资源等路径接入后移除
 const X_FRAME_OPTIONS_VALUE: &str = "DENY";
 
 /// Referrer-Policy：跨源仅发送 origin
+#[allow(dead_code)] // TODO(tech-debt): 错误响应/静态资源等路径接入后移除
 const REFERRER_POLICY_VALUE: &str = "strict-origin-when-cross-origin";
 
 /// Permissions-Policy：关闭地理位置、麦克风、摄像头
-const PERMISSIONS_POLICY_VALUE: &str = "geolocation=(), microphone=(), camera=()";
+#[allow(dead_code)] // TODO(tech-debt): 错误响应/静态资源等路径接入后移除
+const PERMISSIONS_POLICY_VALUE: &str = "geolocation=(), microphone=(), camera()";
 
 /// 将安全响应头写入 Response
 ///
 /// 可用于补充 `SetResponseHeaderLayer` 未覆盖到的响应路径（如内部错误降级响应）。
 /// 实际主链路（main.rs `create_router`）已通过 `SetResponseHeaderLayer` 集中注入安全头。
+#[allow(dead_code)] // TODO(tech-debt): 错误响应/静态资源等路径接入后移除
 pub fn apply_security_headers(response: &mut Response) {
     let headers = response.headers_mut();
 

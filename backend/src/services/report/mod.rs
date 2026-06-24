@@ -93,6 +93,7 @@ pub struct ReportParameter {
 }
 
 /// 创建自定义模板请求
+#[allow(dead_code)] // TODO(tech-debt): 自定义报表模板创建接口接入后移除
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CreateTemplateRequest {
     pub name: String,
@@ -117,6 +118,7 @@ pub enum DataSource {
 }
 
 impl DataSource {
+    #[allow(dead_code)] // TODO(tech-debt): 数据源字符串序列化接入后移除
     pub fn as_str(&self) -> &'static str {
         match self {
             DataSource::Sales => "sales",
@@ -154,6 +156,7 @@ pub enum AggregationType {
 }
 
 impl AggregationType {
+    #[allow(dead_code)] // TODO(tech-debt): 聚合类型字符串序列化接入后移除
     pub fn as_str(&self) -> &'static str {
         match self {
             AggregationType::Sum => "sum",
@@ -304,6 +307,7 @@ pub struct ExcelExportResult {
 }
 
 /// 报表订阅
+#[allow(dead_code)] // TODO(tech-debt): 报表订阅调度接口接入后移除
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ReportSubscription {
     pub id: i32,
@@ -324,6 +328,7 @@ pub struct ReportSubscription {
 }
 
 /// 创建订阅请求
+#[allow(dead_code)] // TODO(tech-debt): 报表订阅创建接口接入后移除
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CreateSubscriptionRequest {
     pub template_id: String,
