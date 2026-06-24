@@ -110,7 +110,7 @@ pub fn static_assets_handler() -> Router<AppState> {
 
                     let static_dir = std::env::var("FRONTEND_STATIC_DIR")
                         .unwrap_or_else(|_| "/workspace/frontend/static".to_string());
-                    let static_path = static_dir.join(&safe_path);
+                    let static_path = PathBuf::from(&static_dir).join(&safe_path);
                     if let Ok(content) = tokio::fs::read(&static_path).await {
                         let body = Body::from(content);
                         let mut res = response::Response::new(body);
