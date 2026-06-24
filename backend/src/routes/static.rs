@@ -11,8 +11,71 @@ use axum::{
     Router,
 };
 use std::convert::Infallible;
+use std::path::{Component, PathBuf};
 
 use crate::utils::app_state::AppState;
+
+/// 规范化静态资源路径，拒绝包含 `..` 或绝对路径段的请求
+///
+/// 防御路径遍历漏洞（bug.md #1）：
+/// - 拒绝 `..` 父目录段
+/// - 拒绝 `\` 与 `//` 双重斜杠
+/// - 拒绝绝对路径前缀（`/foo`）
+fn sanitize_static_path(input: &str) -> Option<PathBuf> {
+    // 拒绝空路径与包含反斜杠的 Windows 风格路径
+    if input.is_empty() || input.contains('\\') {
+        return None;
+    }
+
+    let p = std::path::Path::new(input);
+
+    // 拒绝绝对路径与包含 `..` 段
+    let has_invalid_component = p
+        .components()
+        .any(|c| matches!(c, Component::ParentDir | Component::Prefix(_) | Component::RootDir));
+    if has_invalid_component {
+        return None;
+    }
+
+    Some(p.to_path_buf())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// 测试合法路径：通过
+    #[test]
+    fn test_sanitize_accepts_valid_paths() {
+        assert!(sanitize_static_path("style.css").is_some());
+        assert!(sanitize_static_path("css/main.css").is_some());
+        assert!(sanitize_static_path("a/b/c/d.js").is_some());
+    }
+
+    /// 测试路径遍历攻击：应被拒绝
+    ///
+    /// 修复 bug.md #1：原代码接受 `../../../etc/passwd` 等路径进行任意文件读取
+    #[test]
+    fn test_sanitize_rejects_path_traversal() {
+        assert!(sanitize_static_path("../../../etc/passwd").is_none());
+        assert!(sanitize_static_path("..\\..\\windows\\system32").is_none());
+        assert!(sanitize_static_path("a/../../etc/passwd").is_none());
+    }
+
+    /// 测试绝对路径：应被拒绝
+    #[test]
+    fn test_sanitize_rejects_absolute_paths() {
+        assert!(sanitize_static_path("/etc/passwd").is_none());
+        assert!(sanitize_static_path("/absolute/path").is_none());
+    }
+
+    /// 测试空路径与 Windows 风格反斜杠：应被拒绝
+    #[test]
+    fn test_sanitize_rejects_empty_and_windows_paths() {
+        assert!(sanitize_static_path("").is_none());
+        assert!(sanitize_static_path("..\\config").is_none());
+    }
+}
 
 /// 静态资源服务（Catch-all 通配路由，需要直接挂到主 Router）
 pub fn static_assets_handler() -> Router<AppState> {
@@ -22,9 +85,32 @@ pub fn static_assets_handler() -> Router<AppState> {
             "/static/*path",
             get({
                 move |Path(path): Path<String>| async move {
+                    // 防御路径遍历漏洞（bug.md #1）：先规范化路径，拒绝 `..` 段
+                    let safe_path = match sanitize_static_path(&path) {
+                        Some(p) => p,
+                        None => {
+                            tracing::warn!(
+                                "拒绝非法静态资源路径（疑似路径遍历攻击）: input={:?}",
+                                path
+                            );
+                            return Ok::<_, Infallible>(
+                                response::Response::builder()
+                                    .status(StatusCode::BAD_REQUEST)
+                                    .body(Body::from("Invalid path"))
+                                    .unwrap_or_else(|e| {
+                                        tracing::error!(
+                                            "Failed to build 400 response: {:?}",
+                                            e
+                                        );
+                                        response::Response::new(Body::from("Internal Error"))
+                                    }),
+                            );
+                        }
+                    };
+
                     let static_dir = std::env::var("FRONTEND_STATIC_DIR")
                         .unwrap_or_else(|_| "/workspace/frontend/static".to_string());
-                    let static_path = format!("{}/{}", static_dir, path);
+                    let static_path = static_dir.join(&safe_path);
                     if let Ok(content) = tokio::fs::read(&static_path).await {
                         let body = Body::from(content);
                         let mut res = response::Response::new(body);
@@ -32,12 +118,11 @@ pub fn static_assets_handler() -> Router<AppState> {
                             .insert(header::CONTENT_TYPE, HeaderValue::from_static("text/css"));
                         return Ok::<_, Infallible>(res);
                     }
-                    let fallback = format!(
-                        "{}/static/{}",
-                        std::env::var("CARGO_MANIFEST_DIR")
-                            .unwrap_or_else(|_| "/workspace/backend".to_string()),
-                        path
-                    );
+                    let cargo_manifest_dir = std::env::var("CARGO_MANIFEST_DIR")
+                        .unwrap_or_else(|_| "/workspace/backend".to_string());
+                    let fallback = PathBuf::from(cargo_manifest_dir)
+                        .join("static")
+                        .join(&safe_path);
                     if let Ok(content) = tokio::fs::read(&fallback).await {
                         let body = Body::from(content);
                         let mut res = response::Response::new(body);
