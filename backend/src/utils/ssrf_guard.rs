@@ -207,10 +207,6 @@ fn is_blocked_ipv6(ip: &Ipv6Addr) -> bool {
     if let Some(v4) = ip.to_ipv4_mapped() {
         return is_blocked_ipv4(&v4);
     }
-    // IPv4-compatible IPv6（已弃用但仍需检查）
-    if let Some(v4) = ip.to_ipv4_compatible() {
-        return is_blocked_ipv4(&v4);
-    }
     // 多播 ff00::/8
     if ip.segments()[0] >= 0xff00 && ip.segments()[0] <= 0xffff {
         return true;
