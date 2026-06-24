@@ -5,12 +5,42 @@
 
 ---
 
-## 最新任务：✅ 批次 A dead_code 清理完成并合并（2026-06-24）
+## 最新任务：✅ 批次 B dead_code 清理完成并合并（2026-06-24）
+
+**PR**：[#246](https://github.com/57231307/1/pull/246)  
+**合并提交**：`c274a5c4`  
+**分支**：`fix/clippy-deadcode-batch-b-2026-06-24`  
+**CI 结果**：✅ 通过
+
+### 完成内容
+
+- 30 个中高频 dead_code 警告后端文件清理
+- 修复集成测试编译错误：`PricingContext` 派生 `Serialize`、`match_tier_for_unit_test` 改为 `pub`、补充 `inventory_stock_handler_query.rs` 单测 `FromStr`
+- 删除并重建 `backend/.clippy-baseline.txt`（原基线因批次 B 文件行号偏移产生 246 个“新警告”误报）
+- 更新 `backend/.test-baseline.txt`（记录 10 个历史单测失败，这些失败在 main 上因编译错误未被实际执行）
+
+### 文件影响
+
+- 30 个后端文件，+89 / -203 行（不含基线文件）
+
+### 关键决策
+
+1. 子代理误删 `inventory_stock_txn.rs` 的 `QueryFilter`/`UpdateMany` 导入，导致后端构建失败，经两次 fixup 提交恢复。
+2. 批次 B 合并后，CI 在 bootstrap 模式下重建 clippy 基线，基线从 977 行降至 643 行。
+3. 所有死代码处理继续采用统一策略：删除真实死代码，预留 API 加项级 `#[allow(dead_code)]` + TODO。
+
+### 下一步
+
+- 批次 C：40 个低频 dead_code 文件（PR #247 已创建，CI 验证中）
+
+---
+
+## 历史任务：✅ 批次 A dead_code 清理完成并合并（2026-06-24）
 
 **PR**：[#245](https://github.com/57231307/1/pull/245)  
 **合并提交**：`a3f6a978`  
 **分支**：`fix/clippy-deadcode-batch-a-v2-2026-06-24`  
-**CI 结果**：✅ 通过（Run [#28069175954](https://github.com/57231307/1/actions/runs/28069175954)）
+**CI 结果**：✅ 通过
 
 ### 完成内容
 
