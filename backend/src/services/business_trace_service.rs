@@ -1,6 +1,5 @@
 
 use chrono::Utc;
-use rust_decimal::Decimal;
 use sea_orm::DatabaseConnection;
 use sea_orm::{ActiveModelTrait, ColumnTrait, EntityTrait, Order, QueryFilter, QueryOrder, Set};
 use serde_json::json;
@@ -8,7 +7,6 @@ use std::sync::Arc;
 
 use crate::models::{business_trace_chain, business_trace_snapshot};
 use crate::utils::error::AppError;
-use crate::utils::fabric_five_dimension::FabricFiveDimension;
 
 /// 业务追溯服务
 #[derive(Debug, Clone)]
@@ -185,18 +183,4 @@ impl BusinessTraceService {
             .map_err(AppError::from)
     }
 
-    /// 生成追溯链 ID
-    fn generate_trace_chain_id(
-        &self,
-        five_dimension: &FabricFiveDimension,
-        bill_type: &str,
-        bill_no: &str,
-    ) -> String {
-        format!(
-            "TC-{}-{}-{}",
-            five_dimension.generate_unique_id(),
-            bill_type,
-            bill_no
-        )
-    }
 }

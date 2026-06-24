@@ -3,8 +3,6 @@ use crate::utils::error::AppError;
 use chrono::NaiveDate;
 use rust_decimal::Decimal;
 use sea_orm::{ColumnTrait, EntityTrait, QueryFilter};
-use std::sync::Arc;
-use tracing::info;
 
 use super::customer_credit_service::{
     CreditEvaluationResult, EvaluationFactor, CustomerCreditService,
@@ -308,7 +306,6 @@ impl CustomerCreditService {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use chrono::NaiveDate;
 
     /// 创建测试用的客户信用记录
     fn create_test_credit_model(

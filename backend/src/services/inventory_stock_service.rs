@@ -1,5 +1,4 @@
 use crate::models::inventory_stock;
-use crate::models::inventory_transaction;
 use crate::services::event_bus::{BusinessEvent, EVENT_BUS};
 use crate::utils::dual_unit_converter::DualUnitConverter;
 use crate::utils::error::AppError;
@@ -7,8 +6,7 @@ use chrono::Utc;
 use rust_decimal::Decimal;
 use sea_orm::DatabaseConnection;
 use sea_orm::{
-    ActiveModelTrait, ColumnTrait, EntityTrait, Order, PaginatorTrait, QueryFilter,
-    QueryOrder, Set,
+    ActiveModelTrait, ColumnTrait, EntityTrait, PaginatorTrait, QueryFilter, Set,
 };
 use std::sync::Arc;
 
@@ -144,7 +142,7 @@ impl InventoryStockService {
             )
             .col_expr(
                 inventory_stock::Column::Version,
-                sea_orm::sea_query::Expr::col(inventory_stock::Column::Version).add(1).into(),
+                sea_orm::sea_query::Expr::col(inventory_stock::Column::Version).add(1),
             )
             .col_expr(
                 inventory_stock::Column::UpdatedAt,

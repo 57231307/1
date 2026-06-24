@@ -37,6 +37,17 @@ pub enum ItemError {
     Database(#[from] sea_orm::DbErr),
 }
 
+/// CMYK 色彩空间四元组（用于降低 `compute_color_spaces` 返回类型复杂度）
+type CmykTuple = (
+    Option<Decimal>,
+    Option<Decimal>,
+    Option<Decimal>,
+    Option<Decimal>,
+);
+
+/// CIELab 色彩空间三元组（用于降低 `compute_color_spaces` 返回类型复杂度）
+type LabTuple = (Option<Decimal>, Option<Decimal>, Option<Decimal>);
+
 /// 色号管理服务
 pub struct ColorCardItemService {
     db: Arc<DatabaseConnection>,
@@ -366,12 +377,7 @@ impl ColorCardItemService {
 
     /// 自动计算色彩空间（CMYK + CIELab）
     /// 如果 DTO 中未提供，则从 RGB 计算
-    fn compute_color_spaces(
-        dto: &ColorItemDto,
-    ) -> (
-        (Option<Decimal>, Option<Decimal>, Option<Decimal>, Option<Decimal>),
-        (Option<Decimal>, Option<Decimal>, Option<Decimal>),
-    ) {
+    fn compute_color_spaces(dto: &ColorItemDto) -> (CmykTuple, LabTuple) {
         let r = dto.rgb_r as u8;
         let g = dto.rgb_g as u8;
         let b = dto.rgb_b as u8;
@@ -380,39 +386,29 @@ impl ColorCardItemService {
         let cmyk = color_space_converter::rgb_to_cmyk(r, g, b);
         let cmyk_c = dto
             .cmyk_c
-            .clone()
             .or_else(|| Decimal::from_str(&format!("{:.2}", cmyk.c)).ok());
         let cmyk_m = dto
             .cmyk_m
-            .clone()
             .or_else(|| Decimal::from_str(&format!("{:.2}", cmyk.m)).ok());
         let cmyk_y = dto
             .cmyk_y
-            .clone()
             .or_else(|| Decimal::from_str(&format!("{:.2}", cmyk.y)).ok());
         let cmyk_k = dto
             .cmyk_k
-            .clone()
             .or_else(|| Decimal::from_str(&format!("{:.2}", cmyk.k)).ok());
 
         // CIELab
         let lab = color_space_converter::rgb_to_lab(r, g, b);
         let lab_l = dto
             .lab_l
-            .clone()
             .or_else(|| Decimal::from_str(&format!("{:.2}", lab.l)).ok());
         let lab_a = dto
             .lab_a
-            .clone()
             .or_else(|| Decimal::from_str(&format!("{:.2}", lab.a)).ok());
         let lab_b = dto
             .lab_b
-            .clone()
             .or_else(|| Decimal::from_str(&format!("{:.2}", lab.b)).ok());
 
-        (
-            (cmyk_c, cmyk_m, cmyk_y, cmyk_k),
-            (lab_l, lab_a, lab_b),
-        )
+        ((cmyk_c, cmyk_m, cmyk_y, cmyk_k), (lab_l, lab_a, lab_b))
     }
 }

@@ -11,13 +11,11 @@
 use super::order::SalesService;
 use crate::models::dto::PageRequest;
 use crate::models::{
-    customer, product, sales_order,
+    sales_order,
     sales_order::Entity as SalesOrderEntity,
     sales_order_item,
 };
-use crate::services::so::{
-    CreateSalesOrderRequest, SalesOrderDetail, SalesOrderItemDetail, UpdateSalesOrderRequest,
-};
+use crate::services::so::{SalesOrderDetail, SalesOrderItemDetail};
 use crate::utils::error::AppError;
 use crate::utils::pagination::paginate_with_total;
 use crate::utils::PaginatedResponse;
@@ -25,7 +23,6 @@ use sea_orm::{
     ColumnTrait, EntityTrait, LoaderTrait, ModelTrait, Order, PaginatorTrait, QueryFilter,
     QueryOrder, QuerySelect, RelationTrait,
 };
-use std::sync::Arc;
 
 /// 销售订单查询子模块标记
 pub const P92_QRY_MODULE: &str = "sales_order_query";
@@ -234,7 +231,6 @@ impl SalesService {
     }
 
     /// 获取销售订单详情（包含明细项）
-
     pub async fn get_order_detail(&self, order_id: i32) -> Result<SalesOrderDetail, AppError> {
         let order = SalesOrderEntity::find_by_id(order_id)
             .one(&*self.db)
@@ -328,7 +324,6 @@ impl SalesService {
     }
 
     /// 创建销售订单
-
     pub async fn get_order_statistics(
         &self,
         query: serde_json::Value,

@@ -13,7 +13,6 @@ use axum::{
     Json,
 };
 use rust_decimal::Decimal;
-use sea_orm::EntityTrait;
 
 use super::inventory_stock_handler_dto::{
     InventorySummaryItem, ListStockFabricParams, ListTransactionParams, TransactionResponse,
@@ -178,7 +177,7 @@ pub async fn get_stock_alerts(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use rust_decimal::prelude::*;
+    use crate::handlers::inventory_stock_handler_dto::CreateStockFabricRequest;
 
     #[test]
     fn test_create_stock_fabric_request_deserialize() {

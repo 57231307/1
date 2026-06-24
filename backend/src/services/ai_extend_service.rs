@@ -150,7 +150,7 @@ impl AiExtendService {
                 resp.recommended_params.temperature,
             )
             .unwrap_or_default()),
-            recommended_time_minutes: Set(resp.recommended_params.time_minutes as i32),
+            recommended_time_minutes: Set(resp.recommended_params.time_minutes),
             recommended_ph_value: Set(rust_decimal::Decimal::from_f64_retain(
                 resp.recommended_params.ph_value,
             )
@@ -207,7 +207,7 @@ impl AiExtendService {
         let total = select.clone().count(&*self.db).await?;
         let items = select
             .order_by_desc(ProcessColumn::CreatedAt)
-            .offset(((page - 1) * page_size) as u64)
+            .offset((page - 1) * page_size)
             .limit(page_size)
             .all(&*self.db)
             .await?;
@@ -395,7 +395,7 @@ impl AiExtendService {
         let total = select.clone().count(&*self.db).await?;
         let items = select
             .order_by_desc(QualityColumn::CreatedAt)
-            .offset(((page - 1) * page_size) as u64)
+            .offset((page - 1) * page_size)
             .limit(page_size)
             .all(&*self.db)
             .await?;

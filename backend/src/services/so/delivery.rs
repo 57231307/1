@@ -142,7 +142,7 @@ impl SalesService {
                 .col_expr(
                     sales_order_item::Column::ShippedQuantity,
                     sea_orm::sea_query::Expr::col(sales_order_item::Column::ShippedQuantity)
-                        .add(item.quantity).into(),
+                        .add(item.quantity),
                 )
                 .col_expr(
                     sales_order_item::Column::UpdatedAt,
@@ -333,7 +333,7 @@ impl SalesService {
                     .col_expr(
                         inventory_stock::Column::QuantityAvailable,
                         sea_orm::sea_query::Expr::col(inventory_stock::Column::QuantityAvailable)
-                            .sub(item.quantity).into(),
+                            .sub(item.quantity),
                     )
                     .col_expr(
                         inventory_stock::Column::UpdatedAt,
@@ -379,12 +379,12 @@ impl SalesService {
             .col_expr(
                 inventory_stock::Column::QuantityAvailable,
                 sea_orm::sea_query::Expr::col(inventory_stock::Column::QuantityAvailable)
-                    .sub(quantity).into(),
+                    .sub(quantity),
             )
             .col_expr(
                 inventory_stock::Column::QuantityShipped,
                 sea_orm::sea_query::Expr::col(inventory_stock::Column::QuantityShipped)
-                    .add(quantity).into(),
+                    .add(quantity),
             )
             .col_expr(
                 inventory_stock::Column::UpdatedAt,
@@ -435,7 +435,7 @@ impl SalesService {
                 .col_expr(
                     inventory_stock::Column::QuantityAvailable,
                     sea_orm::sea_query::Expr::col(inventory_stock::Column::QuantityAvailable)
-                        .add(res.quantity).into(),
+                        .add(res.quantity),
                 )
                 .col_expr(
                     inventory_stock::Column::UpdatedAt,

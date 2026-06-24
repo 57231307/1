@@ -1,10 +1,8 @@
 
 use crate::middleware::auth_context::AuthContext;
-use crate::models::dto::PageRequest;
 use crate::models::product;
 use crate::services::inventory_stock_service::InventoryStockService;
 use crate::utils::app_state::AppState;
-use crate::utils::dual_unit_converter::DualUnitConverter;
 use crate::utils::error::AppError;
 use crate::utils::response::ApiResponse;
 use axum::{
@@ -15,7 +13,7 @@ use chrono::Utc;
 use rust_decimal::Decimal;
 use sea_orm::EntityTrait;
 use serde::{Deserialize, Serialize};
-use validator::Validate;
+use validator::Validate as _; // 仅用于 `ListStockParams::validate()` 方法解析
 
 use super::inventory_stock_handler_dto::{
     CreateStockFabricRequest, ListStockParams, LowStockParams, StockResponse,

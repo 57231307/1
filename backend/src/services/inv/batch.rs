@@ -103,11 +103,11 @@ impl InventoryTransferService {
                 let update_result = inventory_stock::Entity::update_many()
                     .col_expr(
                         inventory_stock::Column::QuantityOnHand,
-                        Expr::col(inventory_stock::Column::QuantityOnHand).binary(BinOper::Sub, Expr::val(item.quantity)).into(),
+                        Expr::col(inventory_stock::Column::QuantityOnHand).binary(BinOper::Sub, Expr::val(item.quantity)),
                     )
                     .col_expr(
                         inventory_stock::Column::QuantityAvailable,
-                        Expr::col(inventory_stock::Column::QuantityAvailable).binary(BinOper::Sub, Expr::val(item.quantity)).into(),
+                        Expr::col(inventory_stock::Column::QuantityAvailable).binary(BinOper::Sub, Expr::val(item.quantity)),
                     )
                     .col_expr(
                         inventory_stock::Column::QuantityMeters,
@@ -119,7 +119,7 @@ impl InventoryTransferService {
                     )
                     .col_expr(
                         inventory_stock::Column::Version,
-                        Expr::col(inventory_stock::Column::Version).binary(BinOper::Add, Expr::val(1)).into(),
+                        Expr::col(inventory_stock::Column::Version).binary(BinOper::Add, Expr::val(1)),
                     )
                     .col_expr(
                         inventory_stock::Column::UpdatedAt,
@@ -291,11 +291,11 @@ impl InventoryTransferService {
                 let update_result = inventory_stock::Entity::update_many()
                     .col_expr(
                         inventory_stock::Column::QuantityOnHand,
-                        Expr::col(inventory_stock::Column::QuantityOnHand).binary(BinOper::Add, Expr::val(item.quantity)).into(),
+                        Expr::col(inventory_stock::Column::QuantityOnHand).binary(BinOper::Add, Expr::val(item.quantity)),
                     )
                     .col_expr(
                         inventory_stock::Column::QuantityAvailable,
-                        Expr::col(inventory_stock::Column::QuantityAvailable).binary(BinOper::Add, Expr::val(item.quantity)).into(),
+                        Expr::col(inventory_stock::Column::QuantityAvailable).binary(BinOper::Add, Expr::val(item.quantity)),
                     )
                     .col_expr(
                         inventory_stock::Column::QuantityMeters,
@@ -307,7 +307,7 @@ impl InventoryTransferService {
                     )
                     .col_expr(
                         inventory_stock::Column::Version,
-                        Expr::col(inventory_stock::Column::Version).binary(BinOper::Add, Expr::val(1)).into(),
+                        Expr::col(inventory_stock::Column::Version).binary(BinOper::Add, Expr::val(1)),
                     )
                     .col_expr(
                         inventory_stock::Column::UpdatedAt,

@@ -7,18 +7,14 @@
 //! 拆分自原 `report_engine_service.rs` 的"报表订阅管理"段。
 
 use chrono::Utc;
-use sea_orm::{ActiveModelTrait, Set};
-use tracing::info;
 
-use crate::models::report_subscription;
 use crate::utils::error::AppError;
 
-use super::{CreateSubscriptionRequest, ReportEngineService, ReportSubscription};
+use super::ReportEngineService;
 
 impl ReportEngineService {
-    /// 创建报表订阅
-
     /// 根据 cron 表达式推断订阅频率
+    #[allow(dead_code)] // TODO(tech-debt): 创建报表订阅接入后移除
     fn infer_frequency(cron: &str) -> String {
         let parts: Vec<&str> = cron.split_whitespace().collect();
         if parts.len() != 5 {
