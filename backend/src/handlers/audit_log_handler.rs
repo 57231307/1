@@ -15,7 +15,7 @@ use axum::{
     Json,
 };
 use chrono::{DateTime, Utc};
-use sea_orm::{ActiveModelTrait, ColumnTrait, EntityTrait, PaginatorTrait, QueryFilter, QueryOrder};
+use sea_orm::{ColumnTrait, EntityTrait, PaginatorTrait, QueryFilter, QueryOrder};
 use serde::{Deserialize, Serialize};
 
 use crate::middleware::auth_context::AuthContext;
@@ -27,6 +27,7 @@ use crate::utils::response::ApiResponse;
 
 /// 列表查询参数（全部可选）
 #[derive(Debug, Default, Deserialize)]
+#[allow(dead_code)] // TODO(tech-debt): 审计日志查询路由接入 system::routes 后移除
 pub struct AuditLogListQuery {
     /// 起始时间（RFC3339 / ISO8601）
     pub start_time: Option<String>,
@@ -50,6 +51,7 @@ pub struct AuditLogListQuery {
 
 /// 列表返回项（前端展示用）
 #[derive(Debug, Serialize)]
+#[allow(dead_code)] // TODO(tech-debt): 审计日志查询路由接入 system::routes 后移除
 pub struct AuditLogListItem {
     pub id: i32,
     pub tenant_id: Option<i32>,
@@ -94,6 +96,7 @@ impl From<audit_log::Model> for AuditLogListItem {
 
 /// 列表返回结构
 #[derive(Debug, Serialize)]
+#[allow(dead_code)] // TODO(tech-debt): 审计日志查询路由接入 system::routes 后移除
 pub struct AuditLogListResponse {
     pub items: Vec<AuditLogListItem>,
     pub total: u64,
@@ -104,6 +107,7 @@ pub struct AuditLogListResponse {
 /// GET /api/v1/erp/audit-logs
 ///
 /// 分页 + 多维筛选（时间范围 / user_id / operation_type / severity / resource_type / request_id）
+#[allow(dead_code)] // TODO(tech-debt): 审计日志查询路由接入 system::routes 后移除
 pub async fn list_audit_logs(
     State(state): State<AppState>,
     auth: AuthContext,
@@ -174,6 +178,7 @@ pub async fn list_audit_logs(
 
 /// 审计日志详情（含 before/after 快照原始 JSON）
 #[derive(Debug, Serialize)]
+#[allow(dead_code)] // TODO(tech-debt): 审计日志查询路由接入 system::routes 后移除
 pub struct AuditLogDetailResponse {
     #[serde(flatten)]
     pub base: AuditLogListItem,
@@ -188,6 +193,7 @@ pub struct AuditLogDetailResponse {
 }
 
 /// GET /api/v1/erp/audit-logs/{id}
+#[allow(dead_code)] // TODO(tech-debt): 审计日志查询路由接入 system::routes 后移除
 pub async fn get_audit_log(
     State(state): State<AppState>,
     auth: AuthContext,
@@ -214,6 +220,7 @@ pub async fn get_audit_log(
 /// GET /api/v1/erp/audit-logs/export
 ///
 /// 返回 CSV 格式（text/csv），前端直接 `window.URL.createObjectURL(blob)` 下载。
+#[allow(dead_code)] // TODO(tech-debt): 审计日志查询路由接入 system::routes 后移除
 pub async fn export_audit_logs(
     State(state): State<AppState>,
     auth: AuthContext,

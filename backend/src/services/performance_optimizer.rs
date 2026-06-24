@@ -15,6 +15,7 @@ use std::sync::Arc;
 use std::time::Duration;
 
 /// 库存行（业务模型 - 示例用）
+#[allow(dead_code)] // TODO(tech-debt): P4-1 性能优化示例接入实际业务 service 后移除
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct InventoryRow {
     pub id: i64,
@@ -39,6 +40,7 @@ pub struct InventoryRow {
 /// ```text
 /// let rows = SELECT * FROM inventory WHERE id IN ($1, $2, ..., $N);  // 1 次
 /// ```
+#[allow(dead_code)] // TODO(tech-debt): P4-1 性能优化示例接入实际业务 service 后移除
 pub struct BatchInventoryLoader {
     /// 多租户 ID（强制租户隔离）
     pub tenant_id: i64,
@@ -46,6 +48,7 @@ pub struct BatchInventoryLoader {
     pub max_in_clause: usize,
 }
 
+#[allow(dead_code)] // TODO(tech-debt): P4-1 性能优化示例接入实际业务 service 后移除
 impl BatchInventoryLoader {
     /// 创建 loader
     pub fn new(tenant_id: i64) -> Self {
@@ -81,6 +84,7 @@ impl BatchInventoryLoader {
 }
 
 /// 缓存包装的 Dashboard 聚合查询示例
+#[allow(dead_code)] // TODO(tech-debt): P4-1 性能优化示例接入实际业务 service 后移除
 pub struct CachedDashboardService {
     /// 底层缓存
     pub cache: Arc<CacheService>,
@@ -88,6 +92,7 @@ pub struct CachedDashboardService {
     pub default_ttl: Duration,
 }
 
+#[allow(dead_code)] // TODO(tech-debt): P4-1 性能优化示例接入实际业务 service 后移除
 impl CachedDashboardService {
     /// 读穿透（cache miss 时回源）
     ///

@@ -123,6 +123,7 @@ pub enum BusinessEvent {
 ///
 /// 使用 `Pin<Box<dyn Future>>` 而非 `async fn` 是为了在 stable Rust 下支持
 /// `Arc<dyn EventBackend>` 动态分发；调用方拿到的是一次性装箱的 future。
+#[allow(dead_code)] // TODO(tech-debt): P11-H2 Kafka 真实集成完全接入后移除
 pub trait EventBackend: Send + Sync {
     /// 异步发布事件
     fn publish<'a>(
@@ -136,10 +137,12 @@ pub trait EventBackend: Send + Sync {
 
 /// 进程内 Broadcast 后端（默认）
 #[derive(Clone)]
+#[allow(dead_code)] // TODO(tech-debt): P11-H2 进程内 Broadcast 兜底后端保留
 pub struct BroadcastBackend {
     sender: broadcast::Sender<BusinessEvent>,
 }
 
+#[allow(dead_code)] // TODO(tech-debt): P11-H2 进程内 Broadcast 兜底后端保留
 impl BroadcastBackend {
     pub fn new(capacity: usize) -> Self {
         let (sender, _) = broadcast::channel(capacity);
@@ -147,6 +150,7 @@ impl BroadcastBackend {
     }
 }
 
+#[allow(dead_code)] // TODO(tech-debt): P11-H2 Kafka 真实集成完全接入后移除
 impl EventBackend for BroadcastBackend {
     fn publish<'a>(
         &'a self,
@@ -211,6 +215,7 @@ impl Stream for BridgeStream {
 /// 实际选用的后端运行时容器
 struct EventBusState {
     backend_kind: AtomicU8, // 0 = Broadcast, 1 = Kafka
+    #[allow(dead_code)] // TODO(tech-debt): P11-H2 进程内 Broadcast 兜底后端保留
     broadcast: BroadcastBackend,
     kafka: Option<Arc<crate::services::event_kafka::KafkaBackend>>,
     /// 始终存在的本地 channel，用于在 Kafka 模式下把 Kafka 消费到的事件
@@ -265,6 +270,7 @@ impl EventBus {
     }
 
     /// 当前后端类型（用于诊断 / 测试断言）
+    #[allow(dead_code)] // TODO(tech-debt): 后端类型诊断 API 接入后移除
     pub fn backend_type(&self) -> EventBackendType {
         let state = lock_event_bus_state();
         match state.backend_kind.load(Ordering::Acquire) {
@@ -311,6 +317,7 @@ impl Default for EventBus {
 
 /// 后端类型枚举
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[allow(dead_code)] // TODO(tech-debt): 后端类型诊断 API 接入后移除
 pub enum EventBackendType {
     /// 进程内 Broadcast（默认，CI 友好）
     Broadcast,

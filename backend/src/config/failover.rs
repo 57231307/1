@@ -52,9 +52,11 @@ pub struct CacheFailoverConfig {
 pub struct MonitoringFailoverConfig {
     /// 是否启用指标
     #[serde(default = "default_true")]
+    #[allow(dead_code)] // TODO(tech-debt): 主备监控配置接入业务后移除
     pub metrics_enabled: bool,
     /// 日志级别
     #[serde(default = "default_log_level")]
+    #[allow(dead_code)] // TODO(tech-debt): 主备监控配置接入业务后移除
     pub log_level: String,
 }
 
@@ -67,16 +69,19 @@ impl Default for MonitoringFailoverConfig {
     }
 }
 
+#[allow(dead_code)] // TODO(tech-debt): serde 默认值函数，监控配置业务接入后评估是否保留
 fn default_true() -> bool {
     true
 }
 
+#[allow(dead_code)] // TODO(tech-debt): serde 默认值函数，监控配置业务接入后评估是否保留
 fn default_log_level() -> String {
     "info".to_string()
 }
 
 impl FailoverConfig {
     /// 从文件加载配置
+    #[allow(dead_code)] // TODO(tech-debt): 配置文件加载业务接入后移除
     pub fn load_from_file<P: AsRef<Path>>(path: P) -> Result<Self, String> {
         let content = std::fs::read_to_string(path.as_ref())
             .map_err(|e| format!("读取配置文件失败: {}", e))?;

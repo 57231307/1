@@ -31,6 +31,7 @@ use crate::utils::error::AppError;
 use crate::utils::response::ApiResponse;
 
 /// 列表查询参数（全部可选）
+#[allow(dead_code)] // TODO(tech-debt): P13 批 1 B-慢查询审计路由接入 system::routes() 后移除
 #[derive(Debug, Default, Deserialize)]
 pub struct SlowQueryListParams {
     /// 起始时间（RFC3339 / ISO8601）
@@ -48,6 +49,7 @@ pub struct SlowQueryListParams {
 }
 
 /// 列表返回包装
+#[allow(dead_code)] // TODO(tech-debt): P13 批 1 B-慢查询审计路由接入 system::routes() 后移除
 #[derive(Debug, Serialize)]
 pub struct SlowQueryListResponse {
     pub items: Vec<SlowQueryDto>,
@@ -57,6 +59,7 @@ pub struct SlowQueryListResponse {
 }
 
 /// 统计接口返回包装
+#[allow(dead_code)] // TODO(tech-debt): P13 批 1 B-慢查询审计路由接入 system::routes() 后移除
 #[derive(Debug, Serialize)]
 pub struct SlowQueryStatsResponse {
     /// TOP 10 列表（按最大平均执行时间倒序）
@@ -68,6 +71,7 @@ pub struct SlowQueryStatsResponse {
 }
 
 /// 手动刷新接口返回
+#[allow(dead_code)] // TODO(tech-debt): P13 批 1 B-慢查询审计路由接入 system::routes() 后移除
 #[derive(Debug, Serialize)]
 pub struct SlowQueryRefreshResponse {
     /// 本次采集写入条数
@@ -79,6 +83,7 @@ pub struct SlowQueryRefreshResponse {
 /// GET /api/v1/erp/slow-queries
 ///
 /// 分页 + 多维筛选（时间范围 / 最小执行时间 / 关键词）
+#[allow(dead_code)] // TODO(tech-debt): P13 批 1 B-慢查询审计路由接入 system::routes() 后移除
 pub async fn list_slow_queries(
     State(state): State<AppState>,
     auth: AuthContext,
@@ -143,6 +148,7 @@ pub async fn list_slow_queries(
 /// GET /api/v1/erp/slow-queries/stats
 ///
 /// 聚合统计：按 query_text 分组，TOP 10（按最大平均执行时间倒序）
+#[allow(dead_code)] // TODO(tech-debt): P13 批 1 B-慢查询审计路由接入 system::routes() 后移除
 pub async fn get_slow_query_stats(
     State(state): State<AppState>,
     auth: AuthContext,
@@ -220,6 +226,7 @@ pub async fn get_slow_query_stats(
 /// 手动触发一次慢查询采集（用于前端"刷新"按钮）
 ///
 /// 返回：插入条数 + 提示信息
+#[allow(dead_code)] // TODO(tech-debt): P13 批 1 B-慢查询审计路由接入 system::routes() 后移除
 pub async fn refresh_slow_queries(
     State(state): State<AppState>,
     auth: AuthContext,

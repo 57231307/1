@@ -35,6 +35,7 @@ pub struct BudgetItemQueryParams {
 }
 
 /// 创建预算科目请求
+#[allow(dead_code)] // TODO(tech-debt): 预算科目扩展字段（budget_year/planned_amount/remark）接入模型后移除
 #[derive(Debug, Clone)]
 pub struct CreateBudgetItemRequest {
     pub item_code: Option<String>,
@@ -47,6 +48,7 @@ pub struct CreateBudgetItemRequest {
 }
 
 /// 更新预算科目请求
+#[allow(dead_code)] // TODO(tech-debt): 预算科目扩展字段（planned_amount/remark）接入模型后移除
 #[derive(Debug, Clone)]
 pub struct UpdateBudgetItemRequest {
     pub item_name: Option<String>,
@@ -65,10 +67,14 @@ pub struct CreateBudgetPlanRequest {
     pub budget_type: String,
     pub department_id: i32,
     pub total_amount: Decimal,
+    /// 预算方案明细项列表（当前未使用）
+    #[allow(dead_code)] // TODO(tech-debt): 预算方案明细项接入业务后移除
     pub items: Vec<BudgetPlanItemRequest>,
     pub remark: Option<String>,
 }
 
+/// 预算方案明细项请求
+#[allow(dead_code)] // TODO(tech-debt): 预算方案明细项接入业务后移除
 #[derive(Debug, Clone)]
 pub struct BudgetPlanItemRequest {
     pub item_id: i32,
@@ -76,6 +82,7 @@ pub struct BudgetPlanItemRequest {
 }
 
 /// 预算执行请求
+#[allow(dead_code)] // TODO(tech-debt): 预算执行扩展字段（actual_amount/expense_type/expense_date/remark）接入业务后移除
 #[derive(Debug, Clone)]
 pub struct BudgetExecuteRequest {
     pub plan_id: i32,
