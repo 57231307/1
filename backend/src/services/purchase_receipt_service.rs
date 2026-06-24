@@ -14,9 +14,7 @@ use sea_orm::{
     ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, Order, PaginatorTrait,
     QueryFilter, QueryOrder, Set, TransactionTrait,
 };
-use serde::{Deserialize, Serialize};
 use std::sync::Arc;
-use validator::Validate;
 
 /// 采购入库服务
 pub struct PurchaseReceiptService {

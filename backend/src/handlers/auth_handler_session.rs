@@ -14,11 +14,9 @@ use axum::{
     extract::{Extension, State},
     http::HeaderMap,
     response::IntoResponse,
-    Json,
 };
 use axum_extra::extract::cookie::SameSite;
 use chrono::Utc;
-use sea_orm::ActiveModelTrait;
 use serde::Serialize;
 use std::sync::Arc;
 use time::Duration as CookieDuration;

@@ -5,10 +5,8 @@
 #[cfg(test)]
 #[rustfmt::skip]
 mod tests {
-    use rust_decimal::prelude::*;
     use rust_decimal::Decimal;
     use rust_decimal_macros::dec;
-    use std::str::FromStr;
 
     /// 采购订单状态机
     #[derive(Debug, Clone, PartialEq)]

@@ -6,7 +6,6 @@ use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 
 use crate::models::field_permission::{self, Entity as FieldPermissionEntity};
-use crate::utils::admin_checker;
 use crate::utils::error::AppError;
 
 /// 字段权限详情
@@ -222,18 +221,6 @@ impl FieldPermissionService {
 
         Ok(())
     }
-
-    /// 检查角色是否为管理员角色（带缓存）
-    #[allow(dead_code)] // TODO(tech-debt): 字段权限模块接入业务后移除
-    async fn is_admin_role(&self, role_id: i32) -> Result<bool, AppError> {
-        Ok(admin_checker::is_admin_role(&self.db, role_id).await)
-    }
-
-    /// 检查角色对某资源的字段读权限
-
-    /// 检查角色对某资源的字段写权限
-
-    /// 获取角色对某资源的所有字段权限
 
     /// 过滤 JSON 数据中的字段（根据读权限）
     pub fn filter_fields_by_read_permission(

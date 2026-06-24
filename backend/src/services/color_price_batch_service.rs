@@ -7,8 +7,7 @@
 use chrono::Utc;
 use rust_decimal::Decimal;
 use sea_orm::{
-    ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, PaginatorTrait, QueryFilter,
-    QueryOrder, Set,
+    ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter, QueryOrder, Set,
 };
 use std::sync::Arc;
 use thiserror::Error;
@@ -18,7 +17,6 @@ use crate::models::color_price_history::{self, ActiveModel as HistoryActive};
 use crate::models::product_color_price::{
     self, ActiveModel as ColorPriceActive, Entity as ColorPriceEntity,
 };
-use crate::services::color_price_crud_service::{ColorPriceCrudService, CrudError};
 
 /// 业务错误
 #[derive(Debug, Error)]
@@ -184,9 +182,6 @@ impl ColorPriceBatchService {
             history_active.update(&*self.db).await?;
         }
 
-        // 调用 _crud 防止未使用告警
-        let _ = ColorPriceCrudService::new(self.db.clone());
-
         Ok(result)
     }
 }
@@ -210,7 +205,3 @@ fn calculate_new_price(
     }
 }
 
-#[allow(dead_code)]
-fn _unused_crud_ref(_svc: &ColorPriceCrudService) -> Result<(), CrudError> {
-    Ok(())
-}

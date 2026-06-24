@@ -128,25 +128,6 @@ impl CustomOrderQualityService {
         Ok(updated)
     }
 
-    /// 关闭异常
-    pub async fn close_issue(
-        &self,
-        id: i64,
-        tenant_id: i64,
-    ) -> Result<quality_issue::Model, QualityError> {
-        let existing = Entity::find_by_id(id)
-            .filter(quality_issue::Column::TenantId.eq(tenant_id))
-            .one(&*self.db)
-            .await?
-            .ok_or(QualityError::NotFound)?;
-
-        let mut active: ActiveModel = existing.into();
-        active.status = Set("closed".to_string());
-        active.updated_at = Set(Utc::now());
-        let updated = active.update(&*self.db).await?;
-        Ok(updated)
-    }
-
     /// 列出订单的所有异常
     pub async fn list_by_order(
         &self,
@@ -168,16 +149,4 @@ impl CustomOrderQualityService {
         Ok((items, total))
     }
 
-    /// 按 ID 获取异常
-    pub async fn get_by_id(
-        &self,
-        id: i64,
-        tenant_id: i64,
-    ) -> Result<quality_issue::Model, QualityError> {
-        Entity::find_by_id(id)
-            .filter(quality_issue::Column::TenantId.eq(tenant_id))
-            .one(&*self.db)
-            .await?
-            .ok_or(QualityError::NotFound)
-    }
 }

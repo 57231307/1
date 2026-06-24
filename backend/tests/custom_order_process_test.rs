@@ -5,7 +5,7 @@
 
 #[cfg(test)]
 mod tests {
-    use crate::utils::process_state_machine::{default_process_nodes, node_type_to_status};
+    use bingxi_backend::utils::process_state_machine::{default_process_nodes, node_type_to_status};
 
     #[test]
     fn test_default_process_nodes_complete() {

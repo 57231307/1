@@ -80,6 +80,7 @@ impl FromRef<AppState> for Arc<MetricsService> {
 
 impl AppState {
     /// 创建应用全局状态，构造失败时返回错误（例如指标注册冲突）
+    #[allow(clippy::too_many_arguments)] // TODO(tech-debt): 构造全局状态需要注入多个依赖；后续考虑 Builder 模式收敛参数
     pub fn with_secrets_and_cors(
         db: Arc<DatabaseConnection>,
         omni_audit: Arc<OmniAuditEngine>,
@@ -184,7 +185,7 @@ impl Default for AppState {
     /// 生产环境必须使用 [`AppState::with_secrets_and_cors`] 并提供真实的密钥配置。
     /// 随机生成的密钥与数据库连接（`DatabaseConnection::default()`）仅能保证单测可运行，
     /// 不具备任何业务可用性。
-    #[allow(unused_variables)] // clippy 在 lib-test 模式会报 unused；字段已在 Self {} 中使用
+    #[allow(dead_code, unused_variables)] // TODO(tech-debt): Default 实现仅用于测试环境；lib-test 下局部变量可能误报 unused
     fn default() -> Self {
         // 指标服务构造失败时显式返回字符串（之前是 .expect() panic，违背测试可观察性）
         let metrics = MetricsService::new()

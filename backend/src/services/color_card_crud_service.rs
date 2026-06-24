@@ -198,6 +198,7 @@ impl ColorCardCrudService {
     }
 
     /// 标记色卡为遗失
+    #[allow(dead_code)] // TODO(tech-debt): 当前未接入路由，后续如需直接标记色卡遗失可接入 CRUD 路由
     pub async fn mark_lost(&self, id: i64, tenant_id: i64) -> Result<color_card::Model, CrudError> {
         let existing = self.get_by_id(id, tenant_id).await?;
         let mut active: ColorCardActive = existing.into();

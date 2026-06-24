@@ -15,7 +15,7 @@
 use chrono::{Datelike, Duration, NaiveDate, Utc};
 use rust_decimal::prelude::ToPrimitive;
 use rust_decimal::Decimal;
-use sea_orm::{ActiveModelTrait, ColumnTrait, EntityTrait, QueryFilter, QueryOrder};
+use sea_orm::{ColumnTrait, EntityTrait, QueryFilter, QueryOrder};
 use std::collections::HashMap;
 
 use crate::models::sales_order::Entity as SalesOrderEntity;

@@ -15,7 +15,7 @@ use axum::{
     response::Response,
 };
 use chrono::{DateTime, Duration, Utc};
-use sea_orm::{ActiveModelTrait, ColumnTrait, EntityTrait, QueryFilter};
+use sea_orm::{ColumnTrait, EntityTrait, QueryFilter};
 use std::sync::Arc;
 use tracing::warn;
 

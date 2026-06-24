@@ -151,8 +151,6 @@ impl SalesPriceService {
         Ok(())
     }
 
-    /// 激活已批准的价格策略
-
     pub async fn get_price_history(
         &self,
         product_id: i32,

@@ -569,10 +569,6 @@ impl MrpEngineService {
         Ok(updated_results)
     }
 
-    /// 获取缺料预警列表
-
-    /// 删除MRP计算结果
-
     /// 列出可用于 MRP 计算的产品
     pub async fn list_products_for_mrp(
         &self,

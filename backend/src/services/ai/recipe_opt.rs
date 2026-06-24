@@ -173,7 +173,6 @@ pub(crate) struct AggregatedParams {
     pub time_minutes: f64,
     pub ph_value: f64,
     pub liquor_ratio: f64,
-    pub total_weight: f64,
 }
 
 /// 按相似度加权聚合多条命中配方的参数
@@ -217,7 +216,6 @@ pub(crate) fn weighted_average_params(hits: &[(f64, &DyeRecipeModel)]) -> Option
         time_minutes: time_sum / weight_sum,
         ph_value: ph_sum / weight_sum,
         liquor_ratio: liquor_sum / weight_sum,
-        total_weight: weight_sum,
     })
 }
 
@@ -234,7 +232,6 @@ pub(crate) fn find_typical_params() -> AggregatedParams {
         time_minutes: TYPICAL_TIME_MINUTES as f64,
         ph_value: TYPICAL_PH,
         liquor_ratio: TYPICAL_LIQUOR_RATIO,
-        total_weight: 0.0,
     }
 }
 

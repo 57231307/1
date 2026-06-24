@@ -4,7 +4,7 @@
 
 #[cfg(test)]
 mod tests {
-    use crate::utils::color_space_converter::{delta_e_76, delta_e_is_acceptable, rgb_to_lab};
+    use bingxi_backend::utils::color_space_converter::{delta_e_76, delta_e_is_acceptable, rgb_to_lab};
 
     #[test]
     fn test_scan_by_color_code_lab_values() {

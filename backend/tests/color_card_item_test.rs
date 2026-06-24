@@ -4,7 +4,7 @@
 
 #[cfg(test)]
 mod tests {
-    use crate::utils::color_space_converter::{rgb_to_cmyk, rgb_to_hex, rgb_to_lab};
+    use bingxi_backend::utils::color_space_converter::{rgb_to_cmyk, rgb_to_hex, rgb_to_lab};
 
     #[test]
     fn test_rgb_to_cmyk_white() {

@@ -141,7 +141,7 @@ impl CustomOrderProcessService {
         let now = Utc::now();
         match dto.action.as_str() {
             "start" | "resume" => {
-                if active.actual_start_date.is_set() == false {
+                if !active.actual_start_date.is_set() {
                     active.actual_start_date = Set(Some(now));
                 }
             }
@@ -196,21 +196,6 @@ impl CustomOrderProcessService {
         };
         let result = active.insert(&*self.db).await?;
         Ok(result)
-    }
-
-    /// 列出节点日志
-    pub async fn list_node_logs(
-        &self,
-        node_id: i64,
-        tenant_id: i64,
-    ) -> Result<Vec<process_log::Model>, ProcessError> {
-        let logs = LogEntity::find()
-            .filter(process_log::Column::ProcessNodeId.eq(node_id))
-            .filter(process_log::Column::TenantId.eq(tenant_id))
-            .order_by_desc(process_log::Column::LogTime)
-            .all(&*self.db)
-            .await?;
-        Ok(logs)
     }
 
     /// 获取完整时间线（节点 + 日志合并）

@@ -13,7 +13,6 @@ use axum::{
     Json,
 };
 use rust_decimal::Decimal;
-use sea_orm::EntityTrait;
 use validator::Validate;
 
 use super::inventory_stock_handler_dto::{

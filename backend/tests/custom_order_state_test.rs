@@ -5,7 +5,7 @@
 
 #[cfg(test)]
 mod tests {
-    use crate::utils::process_state_machine::{can_transition, next_status, CustomOrderStatus};
+    use bingxi_backend::utils::process_state_machine::{can_transition, next_status, CustomOrderStatus};
 
     #[test]
     fn test_state_machine_complete_matrix() {
