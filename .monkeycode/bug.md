@@ -12,99 +12,19 @@
 
 | 编号 | 严重度 | 漏洞名称 | 状态 |
 |------|--------|----------|------|
-| #5 | 🟡 低危 | API Key 撤销后仍可被冒用 | 未修复 |
 | #6 | 🟡 低危 | 内存速率限制器多实例失效 | 未修复 |
 | #7 | 🟡 低危 | 弱密码黑名单策略不严 | 未修复 |
 
-> **已修复**（详见 PR #250、PR #251、PR #252）：
+> **已修复**（详见 PR #250、PR #251、PR #252、PR #253）：
 > - ✅ #1 静态资源路径遍历漏洞（PR #250）
 > - ✅ #2 WebSocket 通知服务认证绕过（PR #250）
 > - ✅ #3 系统初始化接口匿名访问风险（PR #251）
 > - ✅ #4 错误信息泄露内部细节（PR #252）
+> - ✅ #5 API Key 撤销后仍可被冒用（PR #253）
 > - ✅ #8 调试模式错误响应泄露堆栈信息（PR #252）
 
 ---
 
-
-## 漏洞 #5：API Key 撤销后仍可被冒用
-
-### 基础信息
-
-- **严重度**：🟡 低危（Low）
-- **CWE 分类**：CWE-613 不足的会话过期
-- **CVSS 3.1 评分估计**：4.3（AV:N/AC:H/PR:L/UI:N/S:U/C:L/I:L/A:N）
-- **发现时间**：2026-06-24
-- **影响版本**：当前 main 分支
-- **修复状态**：未修复
-
-### 漏洞位置
-
-- 主文件：[services/api_key_service.rs](file:///workspace/backend/src/services/api_key_service.rs)
-- 关键代码行：[69-85](file:///workspace/backend/src/services/api_key_service.rs#L69-L85)
-
-### 攻击者画像
-
-- **类型**：持有旧 API 密钥的内部服务/已被撤销密钥的用户
-- **所需权限**：需要已经获得过有效的 API Key
-
-### 可控输入向量
-
-API Key 字符串（明文）。
-
-### 完整利用路径
-
-1. API 密钥撤销逻辑仅设置 `is_active = false`（[第 80-82 行](file:///workspace/backend/src/services/api_key_service.rs#L80-L82)）：
-   ```rust
-   let mut active_model: ApiKeyActiveModel = key.into();
-   active_model.is_active = Set(false);
-   active_model.updated_at = Set(Utc::now());
-   active_model.update(self.db.as_ref()).await?;
-   ```
-2. 没有清理 `key_hash` 或加入撤销黑名单
-3. 旧的明文 API Key 在撤销后无法被强制失效（仅依赖调用方不再使用）
-4. 若 API Key 已被泄露并被攻击者截获，撤销仅阻止新建使用，**已泄露的密钥仍能通过撤销前缓存的副本使用**
-
-### 影响分析
-
-- **缺乏 API Key 强制吊销机制**
-- **已泄露的密钥在撤销后仍可继续使用**（直到调用方主动清除）
-- **缺乏审计追踪**：无法区分正常调用与已撤销密钥的冒用
-
-### 修复建议
-
-#### 必做修复
-
-1. 添加 API Key 黑名单（Redis 存储已撤销的 key_hash）
-2. 在认证中间件中检查黑名单
-3. 撤销时主动通知相关服务刷新缓存
-
-#### 示例代码
-
-```rust
-pub async fn revoke_api_key(&self, id: i32, tenant_id: i32) -> Result<(), AppError> {
-    let key = ApiKey::find_by_id(id)
-        .one(self.db.as_ref())
-        .await?
-        .ok_or_else(|| AppError::business("API 密钥不存在"))?;
-    
-    if key.tenant_id != tenant_id {
-        return Err(AppError::permission_denied("无权操作此API密钥"));
-    }
-    
-    // 加入黑名单（Redis 存储）
-    let blacklist_key = format!("apikey:blacklist:{}", key.key_hash);
-    redis_client.set_ex(&blacklist_key, "1", 86400 * 7).await?; // 7 天
-    
-    let mut active_model: ApiKeyActiveModel = key.into();
-    active_model.is_active = Set(false);
-    active_model.updated_at = Set(Utc::now());
-    active_model.update(self.db.as_ref()).await?;
-    
-    Ok(())
-}
-```
-
----
 
 ## 漏洞 #6：内存速率限制器多实例失效
 
