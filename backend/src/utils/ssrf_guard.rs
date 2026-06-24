@@ -207,8 +207,8 @@ fn is_blocked_ipv6(ip: &Ipv6Addr) -> bool {
     if let Some(v4) = ip.to_ipv4_mapped() {
         return is_blocked_ipv4(&v4);
     }
-    // 多播 ff00::/8
-    if ip.segments()[0] >= 0xff00 && ip.segments()[0] <= 0xffff {
+    // 多播 ff00::/8（u16 最大值即 0xffff，<= 0xffff 恒为真，简化为 >= 0xff00）
+    if ip.segments()[0] >= 0xff00 {
         return true;
     }
     false

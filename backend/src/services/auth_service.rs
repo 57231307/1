@@ -450,7 +450,6 @@ pub async fn revoke_jti(jti: &str, expires_at: i64) {
             blacklist.insert(jti.to_string(), expires_at);
         } else {
             tracing::info!("JTI 已吊销（Redis）：{}，TTL {} 秒", jti, ttl_secs);
-            return;
         }
     } else {
         // 未配置 Redis：直接写内存

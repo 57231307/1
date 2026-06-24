@@ -183,12 +183,14 @@ pub async fn auth_middleware(
         legacy_token
     } else if let Some(header_val) = auth_header {
         if !header_val.starts_with("Bearer ") {
+            // 低危 #4 修复：避免完整 Authorization 头值落地到日志聚合系统
+            //   仅输出脱敏后的前缀和长度，原始 token 不会进入日志
             warn!(
                 path = %path,
                 method = %method,
                 client_ip = %client_ip,
-                "无效的认证头格式: {}",
-                header_val
+                auth_header = %mask_auth_header(&header_val),
+                "无效的认证头格式"
             );
             return Err(unauthorized_response("无效的认证头格式"));
         }
@@ -370,7 +372,9 @@ mod tests {
     /// 低危 #4 修复：测试 Authorization 头脱敏（边界 = 12 字符）
     #[test]
     fn test_mask_auth_header_boundary() {
-        let boundary = "Bearer xxxx"; // 12 字符
+        // "Bearer xxxxx" = 12 字符（B-e-a-r-e-r- -x-x-x-x-x），正好等于 PREFIX_KEEP
+        // 走 if 分支，不暴露任何前缀字符
+        let boundary = "Bearer xxxxx";
         let masked = mask_auth_header(boundary);
         assert_eq!(masked, "***redacted***(len=12)");
     }
@@ -394,7 +398,9 @@ mod tests {
     #[test]
     fn test_mask_username_chinese() {
         // 中文字符 1 个 = 3 字节，chars() 按 Unicode 字符截断
+        // "管理员" = 3 字符 > 2 字符阈值，走 else 分支保留前 2 字符 → "管理***"
+        // 关键：不能按字节截断（`&username[..6]` 在中文上会 panic at boundary）
         let masked = mask_username("管理员");
-        assert_eq!(masked, "管***", "中文用户名应按字符截断");
+        assert_eq!(masked, "管理***", "中文用户名应按字符截断，保留前 2 字符");
     }
 }
