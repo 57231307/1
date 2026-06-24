@@ -84,7 +84,8 @@ impl ConnectionManager {
         user_id: i64,
     ) -> broadcast::Receiver<String> {
         let key = (tenant_id, user_id);
-        let mut entry = self.senders.entry(key).or_insert_with(|| {
+        // 防御 clippy::unused_mut：entry 仅通过 Deref 调用 subscribe()，无需 mut
+        let entry = self.senders.entry(key).or_insert_with(|| {
             // 初始容量 100，多端登录时自动扩容
             let (tx, _rx) = broadcast::channel(100);
             tx
