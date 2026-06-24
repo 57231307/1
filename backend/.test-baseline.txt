@@ -1,0 +1,10 @@
+services::ar_unit_tests::tests::测试_账龄分桶
+services::business_metrics::tests::测试_business_metrics_注册
+services::purchase_unit_tests::tests::测试_收货进度_零数量保护
+services::sales_unit_tests::tests::测试_批量订单汇总
+utils::color_space_converter::tests::test_hex_to_rgb_basic
+utils::failover::tests::test_both_fail
+utils::failover::tests::test_primary_fail_use_backup
+utils::n_plus_one::tests::测试_chunk_ids_空列表
+utils::price_calculator::tests::test_special_price_overrides_all
+utils::price_calculator::tests::test_tier_vip_combined
