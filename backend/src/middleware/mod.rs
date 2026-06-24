@@ -21,5 +21,7 @@ pub mod sql_injection_audit;
 pub mod tenant;
 pub mod timeout;
 pub mod trace_context;
+// P1 修复：init 端点 token 校验中间件（bug.md #3）
+pub mod init_token;
 // P9-6 OpenTelemetry HTTP 追踪中间件
 pub mod trace;

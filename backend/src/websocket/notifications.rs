@@ -24,6 +24,8 @@ use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::sync::broadcast;
 
+use crate::services::auth_service::AuthService;
+
 /// WebSocket 消息类型
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(tag = "type", rename_all = "snake_case")]
@@ -82,7 +84,8 @@ impl ConnectionManager {
         user_id: i64,
     ) -> broadcast::Receiver<String> {
         let key = (tenant_id, user_id);
-        let mut entry = self.senders.entry(key).or_insert_with(|| {
+        // 防御 clippy::unused_mut：entry 仅通过 Deref 调用 subscribe()，无需 mut
+        let entry = self.senders.entry(key).or_insert_with(|| {
             // 初始容量 100，多端登录时自动扩容
             let (tx, _rx) = broadcast::channel(100);
             tx
@@ -197,24 +200,33 @@ pub async fn ws_notifications_handler(
 
 /// 简化的 JWT 验证（占位实现）
 ///
-/// TODO(P4+): 接入主项目 auth_service 的 JWT 验证逻辑
-/// 当前实现：仅从 token 中按格式解析出 tenant_id + user_id
+/// 修复 bug.md #2 WebSocket 认证绕过：
+/// - 之前实现仅按 `tenant_id:user_id` 格式解析字符串，**未做任何签名验证**
+/// - 攻击者只需提交 `1:1` 等格式字符串即可冒充任意用户
+/// - 当前实现复用 `AuthService::validate_token_static()` 进行真实 JWT 签名验证
 fn verify_jwt_token(token: &str) -> Result<AuthInfo, String> {
-    // 临时占位：实际接入 jsonwebtoken 验证
-    // 解析逻辑：token 格式 `<tenant_id>:<user_id>`（仅用于 demo）
-    let parts: Vec<&str> = token.split(':').collect();
-    if parts.len() != 2 {
-        return Err("token 格式错误".to_string());
+    // 防御性检查：拒绝空 token 与过短 token（避免 jsonwebtoken panic）
+    if token.is_empty() || token.len() < 16 {
+        return Err("token 长度无效".to_string());
     }
-    let tenant_id = parts[0]
-        .parse::<i64>()
-        .map_err(|_| "tenant_id 解析失败".to_string())?;
-    let user_id = parts[1]
-        .parse::<i64>()
-        .map_err(|_| "user_id 解析失败".to_string())?;
+
+    // 从环境变量获取 JWT 密钥
+    let secret = std::env::var("JWT_SECRET")
+        .map_err(|_| "JWT_SECRET 环境变量未配置".to_string())?;
+
+    // 调用真实的 JWT 验证逻辑（auth_service.rs）
+    let claims = AuthService::validate_token_static(token, &secret)
+        .map_err(|e| format!("JWT 验证失败: {}", e))?;
+
+    let tenant_id = claims
+        .tenant_id
+        .ok_or_else(|| "JWT 缺少 tenant_id 声明".to_string())? as i64;
+    let user_id = claims.sub as i64;
+
     if tenant_id <= 0 || user_id <= 0 {
         return Err("tenant_id 或 user_id 无效".to_string());
     }
+
     Ok(AuthInfo {
         tenant_id,
         user_id,
@@ -322,18 +334,31 @@ async fn handle_socket(socket: WebSocket, auth: AuthInfo) {
 mod tests {
     use super::*;
 
+    /// 测试无效 token 场景：旧版 `"tenant:user"` 格式不再被接受
+    ///
+    /// 修复 bug.md #2：原占位实现接受 `"1:100"` 等格式字符串冒充任意用户
+    /// 当前实现复用 `AuthService::validate_token_static()`，需要真实签名
     #[test]
-    fn test_jwt_token_parse() {
-        let auth = verify_jwt_token("1:100").unwrap();
-        assert_eq!(auth.tenant_id, 1);
-        assert_eq!(auth.user_id, 100);
+    fn test_jwt_token_rejects_legacy_format() {
+        // 旧版格式应被拒绝
+        assert!(verify_jwt_token("1:100").is_err());
+        assert!(verify_jwt_token("0:0").is_err());
     }
 
+    /// 测试无效 token 场景：空 / 过短 / 无效签名
     #[test]
     fn test_jwt_token_invalid() {
-        assert!(verify_jwt_token("invalid").is_err());
-        assert!(verify_jwt_token("0:0").is_err());
-        assert!(verify_jwt_token("abc:def").is_err());
+        // 空 token
+        assert!(verify_jwt_token("").is_err());
+        // 过短 token
+        assert!(verify_jwt_token("short").is_err());
+        // 任意字符串（应被 JWT 签名验证拒绝）
+        // 注：需要 JWT_SECRET 环境变量，否则返回"JWT_SECRET 未配置"
+        std::env::set_var("JWT_SECRET", "test-secret-key-for-unit-test");
+        assert!(verify_jwt_token(
+            "eyJhbGciOiJIUzI1NiJ9.invalid.signature"
+        )
+        .is_err());
     }
 
     #[test]

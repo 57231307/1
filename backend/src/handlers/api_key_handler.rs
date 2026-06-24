@@ -117,7 +117,11 @@ pub async fn revoke_api_key(
         }
     };
 
-    match service.revoke_api_key(id, tenant_id).await {
+    // 漏洞 #5 修复：传入 AppCache 以启用 key_hash 黑名单
+    match service
+        .revoke_api_key(id, tenant_id, Some(&state.cache))
+        .await
+    {
         Ok(()) => Ok(Json(ApiResponse::success_with_message((), "撤销成功"))),
         Err(e) => {
             tracing::error!("撤销 API 密钥失败: {}", e);
