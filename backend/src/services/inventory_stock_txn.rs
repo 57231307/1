@@ -3,7 +3,9 @@
 //! 拆分自 inventory_stock_service.rs：原 4 个 _txn 方法独立成文件。
 
 use rust_decimal::Decimal;
-use sea_orm::{ActiveModelTrait, ColumnTrait, EntityTrait, Set};
+use sea_orm::{
+    ActiveModelTrait, ColumnTrait, EntityTrait, QueryFilter, Set, UpdateMany,
+};
 use chrono::Utc;
 
 use crate::models::inventory_stock;
