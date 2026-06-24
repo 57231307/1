@@ -40,6 +40,40 @@
 
 ---
 
+## 🔄 2026-06-24 批次 B + 批次 C dead_code 清理进行中
+
+**规划文档**：`.monkeycode/docs/superpowers/plans/2026-06-24-clippy-deadcode-batch-bc-plan.md`
+
+### 当前状态
+
+- 基于 main 最新 clippy baseline 解析
+- 剩余：**96 个文件 / 212 条警告**
+- 批次 B：30 个文件（2-10 条警告）
+- 批次 C：40 个文件（1-2 条警告）
+
+### 批次 B 文件 TOP 10
+
+| 排名 | 文件 | 警告数 |
+|------|------|--------|
+| 1 | `backend/src/services/scheduling_auto.rs` | 10 |
+| 2 | `backend/src/services/color_card_item_service.rs` | 8 |
+| 3 | `backend/src/services/scheduling_query.rs` | 8 |
+| 4 | `backend/src/middleware/operation_log.rs` | 8 |
+| 5 | `backend/src/services/report/job.rs` | 7 |
+| 6 | `backend/src/services/inv/batch.rs` | 6 |
+| 7 | `backend/src/services/report/tpl.rs` | 5 |
+| 8 | `backend/src/services/so/delivery.rs` | 5 |
+| 9 | `backend/src/services/so/order_query.rs` | 5 |
+| 10 | `backend/src/services/so/order_workflow.rs` | 5 |
+
+### 执行计划
+
+- 批次 B：6 轮并行，每轮 5 个子代理
+- 批次 C：8 轮并行，每轮 5 个子代理
+- 每批次汇总为 1 个 PR，squash merge
+
+---
+
 ## 🚨 2026-06-23 安全漏洞修复 Wave 2（P1 重要）
 
 ### 漏洞 #4：测试数据库连接端点未认证 ✅ 已修复
