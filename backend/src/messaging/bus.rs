@@ -4,9 +4,6 @@
 
 use async_trait::async_trait;
 use std::sync::Arc;
-use tokio::sync::mpsc;
-#[allow(unused_imports)]
-pub use mpsc::Receiver as MpscReceiver;
 
 /// 业务事件（重新导出 kafka 模块）
 pub use super::kafka::{BusinessEvent, EventType, KafkaMessage, MessagingError, MessagingProvider};

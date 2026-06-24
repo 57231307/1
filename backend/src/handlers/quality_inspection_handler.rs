@@ -15,7 +15,6 @@ use axum::{
     Json,
 };
 use serde::Deserialize;
-use serde::Serialize;
 use tracing::info;
 
 #[derive(Debug, Deserialize)]

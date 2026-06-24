@@ -8,7 +8,7 @@ use crate::models::dto::bpm_dto::{
     UpdateProcessDefinitionRequest,
 };
 use crate::models::dto::PageResponse;
-use crate::models::{bpm_process_definition, bpm_process_instance};
+use crate::models::bpm_process_definition;
 use crate::utils::error::AppError;
 
 use super::bpm_service::BpmService;
