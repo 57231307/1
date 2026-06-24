@@ -5,7 +5,39 @@
 
 ---
 
-## 最新任务：PR #244 批次 A-16 budget_management_service.rs 死代码清理（2026-06-24）
+## 最新任务：PR #244 批次 A 汇总（2026-06-24）
+
+**分支**：`fix/clippy-deadcode-batch-a-2026-06-24`  
+**提交**：`772fa3a4`（含 `07436648`）  
+**状态**：已推送，等待 PR 创建 / CI 验证  
+**目标**：集中清理 PR #243 后 CI 高频 dead_code 警告
+
+### 批次 A 范围
+
+- 处理文件：20 个高频 dead_code 警告后端文件
+- 修改方式：删除真实死代码 + 对预留 API 加项级 `#[allow(dead_code)]` + TODO
+- 行数变化：+895 / -301
+- 核心精简：`backend/src/services/enhanced_logger.rs` 删除 27 个未使用 DTO/结构体
+
+### 主要模块
+
+搜索、认证策略、中间件、缓存、报表、预算、限流、熔断、故障转移、数据权限、库存预警等。
+
+### 执行记录
+
+1. 4 轮并行子代理，每轮 5 个文件，共 20 个子代理全部完成。
+2. 主代理汇总提交：`refactor(backend): 批次 A 清理 20 个高频 dead_code 警告文件`
+3. 文档同步提交：`docs(.monkeycode): 更新批次 A 汇总与 CI 监控状态`
+4. 推送至 origin：`fix/clippy-deadcode-batch-a-2026-06-24`
+
+### 阻塞点
+
+- 当前环境缺少 `gh` CLI 与 `GITHUB_TOKEN`，无法自动创建 PR #244。
+- 需用户手动创建 PR 或提供 GitHub 认证信息后继续。
+
+---
+
+## 历史任务：PR #244 批次 A-16 budget_management_service.rs 死代码清理（2026-06-24）
 
 **分支**：`fix/clippy-deadcode-batch-a-2026-06-24`
 **目标**：清理 `backend/src/services/budget_management_service.rs` 中约 5 个 dead_code 警告
