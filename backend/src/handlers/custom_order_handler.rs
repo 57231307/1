@@ -8,7 +8,7 @@ use axum::{
     extract::{Path, Query, State},
     Json,
 };
-use serde::{Deserialize, Serialize};
+use serde::Deserialize;
 
 use crate::middleware::auth_context::AuthContext;
 use crate::middleware::tenant::extract_tenant_id;
@@ -478,7 +478,7 @@ pub async fn get_timeline(
     State(state): State<AppState>,
     Path(id): Path<i64>,
 ) -> Result<Json<ApiResponse<ProcessTimeline>>, AppError> {
-    use sea_orm::{ActiveModelTrait, ColumnTrait, EntityTrait, QueryFilter};
+    use sea_orm::EntityTrait;
     let tenant_id = extract_tenant_id(&auth)? as i64;
     let crud_svc = CustomOrderCrudService::from_state(&state);
     let process_svc = CustomOrderProcessService::from_state(&state);

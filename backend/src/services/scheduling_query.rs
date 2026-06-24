@@ -9,18 +9,18 @@
 //! - 排程结果确认
 
 use super::scheduling_service::SchedulingService;
-use crate::models::production_order::{Entity as ProductionOrderEntity, Model as ProductionOrderModel};
+use crate::models::production_order::Entity as ProductionOrderEntity;
 use crate::models::scheduling_result::{ActiveModel as SchedulingActiveModel, Entity as SchedulingResultEntity};
 use crate::models::work_center::{Entity as WorkCenterEntity, Model as WorkCenterModel};
 use crate::utils::error::AppError;
 use crate::services::scheduling_service::{
-    AutoScheduleResult, DateRange, GanttData, GanttItemDto, ScheduleDetail, ScheduledOrder,
+    DateRange, GanttData, GanttItemDto, ScheduleDetail, ScheduledOrder,
     ScheduledOrderQuery, WorkCenterInfo,
 };
-use chrono::{Duration, NaiveDate, Utc};
+use chrono::{NaiveDate, Utc};
 use sea_orm::{
     ActiveModelTrait, ColumnTrait, EntityTrait, IntoActiveModel, PaginatorTrait, QueryFilter,
-    QueryOrder, QuerySelect, Set, TransactionTrait,
+    QueryOrder, Set, TransactionTrait,
 };
 
 /// P9-2 标记：排程查询子模块路径
@@ -133,7 +133,6 @@ impl SchedulingService {
     }
 
     /// 检测排程冲突
-
     pub async fn list_scheduled_orders(
         &self,
         query: ScheduledOrderQuery,
@@ -197,8 +196,6 @@ impl SchedulingService {
         Ok((results, total))
     }
 
-    /// 加载活跃工作中心（与 scheduling_auto.rs 重复，删）
-
     /// 持久化排程结果
     pub async fn get_schedule_history(
         &self,
@@ -219,7 +216,6 @@ impl SchedulingService {
     }
 
     /// 获取排程结果详情
-
     pub async fn get_schedule_result(
         &self,
         id: i32,
@@ -232,7 +228,6 @@ impl SchedulingService {
     }
 
     /// 确认排程结果并应用到生产订单
-
     pub async fn confirm_schedule_result(
         &self,
         id: i32,

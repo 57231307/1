@@ -24,10 +24,8 @@ use crate::services::so::{
 };
 use crate::utils::error::AppError;
 use sea_orm::{
-    ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, ModelTrait, QueryFilter,
-    QuerySelect, RelationTrait, TransactionTrait,
+    ActiveModelTrait, ColumnTrait, EntityTrait, QueryFilter, TransactionTrait,
 };
-use std::sync::Arc;
 
 /// 销售订单 CRUD 子模块标记
 pub const P92_CRUD_MODULE: &str = "sales_order_crud";
@@ -370,7 +368,6 @@ impl SalesService {
     }
 
     /// 更新销售订单
-
     pub async fn update_order(
         &self,
         order_id: i32,
@@ -538,7 +535,6 @@ impl SalesService {
     }
 
     /// 删除销售订单
-
     pub async fn delete_order(&self, order_id: i32) -> Result<(), AppError> {
         // 检查订单是否存在
         let order = SalesOrderEntity::find_by_id(order_id)

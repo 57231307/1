@@ -1,23 +1,14 @@
-use chrono::Utc;
 // 操作日志中间件
 // 自动记录用户的 HTTP 请求操作
 
-use crate::services::operation_log_service::OperationLogService;
-use axum::{
-    body::Body,
-    extract::State,
-    http::{Request, StatusCode},
-    middleware::Next,
-    response::Response,
-};
-use sea_orm::DatabaseConnection;
-use std::sync::Arc;
+use axum::http::{HeaderMap, Method, Uri};
 
 
 /// 从请求头中提取用户信息
 ///
 /// 注意：这里简化处理，实际需要解析 JWT Token
-fn extract_user_info(headers: &axum::http::HeaderMap) -> (Option<i32>, Option<String>) {
+#[allow(dead_code)] // TODO(tech-debt): 操作日志中间件接入后移除
+fn extract_user_info(headers: &HeaderMap) -> (Option<i32>, Option<String>) {
     // 待实现(v1.1): 从请求上下文中解析 JWT Token 提取操作人 ID
     // 这里暂时返回 None，实际使用时需要从 Token 中解析
 
@@ -36,7 +27,8 @@ fn extract_user_info(headers: &axum::http::HeaderMap) -> (Option<i32>, Option<St
 }
 
 /// 从 URI 中提取模块名
-fn extract_module_from_uri(uri: &axum::http::Uri) -> String {
+#[allow(dead_code)] // TODO(tech-debt): 操作日志中间件接入后移除
+fn extract_module_from_uri(uri: &Uri) -> String {
     let path = uri.path();
 
     // 根据路径提取模块
@@ -76,7 +68,8 @@ fn extract_module_from_uri(uri: &axum::http::Uri) -> String {
 }
 
 /// 从 HTTP 方法中提取操作类型
-fn extract_action_from_method(method: &axum::http::Method) -> String {
+#[allow(dead_code)] // TODO(tech-debt): 操作日志中间件接入后移除
+fn extract_action_from_method(method: &Method) -> String {
     match method.as_str() {
         "GET" => "query".to_string(),
         "POST" => "create".to_string(),

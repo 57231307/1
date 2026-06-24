@@ -10,7 +10,7 @@ use axum::http::StatusCode;
 use axum::Json;
 use serde::{Deserialize, Serialize};
 
-use crate::search::{CustomerDoc, ProductDoc, SalesOrderDoc, SearchQuery, SearchResult};
+use crate::search::{CustomerDoc, ProductDoc, SalesOrderDoc, SearchQuery};
 
 /// 搜索端点
 #[derive(Debug, Deserialize)]
@@ -73,7 +73,7 @@ pub struct ProductSearchResponse {
 pub async fn search_sales_orders(
     Query(params): Query<SearchParams>,
 ) -> Result<Json<SalesOrderSearchResponse>, StatusCode> {
-    let query: SearchQuery = params.into();
+    let _query: SearchQuery = params.into(); // TODO(tech-debt): P9-8 接入搜索引擎后使用
     // 实际生产环境调用 SearchClient.search()
     Ok(Json(SalesOrderSearchResponse {
         total: 0,
@@ -86,7 +86,7 @@ pub async fn search_sales_orders(
 pub async fn search_customers(
     Query(params): Query<SearchParams>,
 ) -> Result<Json<CustomerSearchResponse>, StatusCode> {
-    let query: SearchQuery = params.into();
+    let _query: SearchQuery = params.into(); // TODO(tech-debt): P9-8 接入搜索引擎后使用
     Ok(Json(CustomerSearchResponse {
         total: 0,
         took_ms: 0,
@@ -98,7 +98,7 @@ pub async fn search_customers(
 pub async fn search_products(
     Query(params): Query<SearchParams>,
 ) -> Result<Json<ProductSearchResponse>, StatusCode> {
-    let query: SearchQuery = params.into();
+    let _query: SearchQuery = params.into(); // TODO(tech-debt): P9-8 接入搜索引擎后使用
     Ok(Json(ProductSearchResponse {
         total: 0,
         took_ms: 0,

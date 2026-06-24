@@ -67,7 +67,7 @@ pub async fn get_dashboard_stats(
     use sea_orm::ConnectionTrait;
 
     let sql = "SELECT COUNT(*) as total FROM omni_audit_logs";
-    let result = (&*state.db)
+    let result = (*state.db)
         .query_one(sea_orm::Statement::from_string(
             sea_orm::DatabaseBackend::Postgres,
             sql,
@@ -99,7 +99,7 @@ pub async fn search_logs(
     let offset: u64 = if page > 0 { (page - 1) * page_size } else { 0 };
 
     let sql = "SELECT * FROM omni_audit_logs ORDER BY id DESC LIMIT $1 OFFSET $2";
-    let rows = (&*state.db)
+    let rows = (*state.db)
         .query_all(sea_orm::Statement::from_sql_and_values(
             sea_orm::DatabaseBackend::Postgres,
             sql,

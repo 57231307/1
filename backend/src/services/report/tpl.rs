@@ -8,14 +8,12 @@
 //!
 //! 拆分自原 `report_engine_service.rs` 的"报表模板管理"段。
 
-use chrono::Utc;
-use sea_orm::{ActiveModelTrait, ColumnTrait, EntityTrait, QueryFilter, Set};
-use tracing::info;
+use sea_orm::{ColumnTrait, EntityTrait, QueryFilter};
 
 use crate::models::report_template::{self, Entity as ReportTemplateEntity};
 use crate::utils::error::AppError;
 
-use super::{CreateTemplateRequest, ReportEngineService, ReportTemplate};
+use super::{ReportEngineService, ReportTemplate};
 
 impl ReportEngineService {
     /// 获取预定义报表模板
@@ -720,10 +718,6 @@ impl ReportEngineService {
             },
         ]
     }
-
-    /// 创建自定义报表模板
-
-    /// 获取所有模板（预定义 + 自定义）
 
     /// 根据 template_id 获取模板（按 id 优先匹配自定义，fallback 到预定义）
     pub async fn get_template(&self, template_id: &str) -> Result<ReportTemplate, AppError> {

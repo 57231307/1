@@ -1,19 +1,17 @@
-use chrono::NaiveDate;
+use chrono::{NaiveDate, Utc};
 // 应收单 Service
 //
 // 应收账款业务逻辑层
 
 use sea_orm::{
     ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, Order, PaginatorTrait,
-    QueryFilter, QueryOrder, QuerySelect, TransactionTrait,
+    QueryFilter, QueryOrder, QuerySelect,
 };
 use std::sync::Arc;
 use tracing::info;
 
 use crate::models::ar_invoice;
-use crate::models::sales_delivery;
 use crate::utils::error::AppError;
-use chrono::{Duration, Utc};
 use rust_decimal::Decimal;
 use sea_orm::ActiveValue::Set;
 

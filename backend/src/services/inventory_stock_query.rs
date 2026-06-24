@@ -5,10 +5,8 @@
 use chrono::Utc;
 use rust_decimal::Decimal;
 use sea_orm::{
-    ActiveModelTrait, ColumnTrait, EntityTrait, IntoActiveModel, Order, PaginatorTrait, QueryFilter,
-    QueryOrder, QuerySelect, Set,
+    ActiveModelTrait, ColumnTrait, EntityTrait, Order, PaginatorTrait, QueryFilter, QueryOrder, Set,
 };
-use std::sync::Arc;
 
 use crate::handlers::inventory_stock_handler_dto::InventorySummaryItem;
 use crate::models::{inventory_stock, inventory_transaction};
@@ -18,6 +16,8 @@ use crate::utils::error::AppError;
 use super::inventory_stock_service::{InventoryStockService, InventorySummaryQueryResult};
 
 impl InventoryStockService {
+    // TODO(tech-debt): 库存流水记录字段较多，后续可通过 DTO 聚合参数以收敛签名长度，移除此标注。
+    #[allow(clippy::too_many_arguments)]
     pub async fn record_transaction(
         &self,
         transaction_type: String,

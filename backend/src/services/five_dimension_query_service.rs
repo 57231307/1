@@ -1,9 +1,4 @@
-use crate::models::{
-    inventory_stock, inventory_transaction, purchase_receipt_item, sales_delivery_item,
-};
 use crate::utils::fabric_five_dimension::FabricFiveDimension;
-use crate::utils::sql_escape::safe_like_pattern;
-use sea_orm::{ColumnTrait, QueryFilter};
 
 /// 五维查询服务
 /// 提供统一的五维查询接口，支持精确查询、模糊查询和统计查询
@@ -21,21 +16,6 @@ impl FiveDimensionQueryService {
     pub fn new() -> Self {
         Self
     }
-
-    /// 为库存表应用五维过滤条件
-    #[allow(dead_code)] // TODO(tech-debt): 业务接入后移除
-
-    /// 为库存表应用部分五维过滤条件（支持模糊查询）
-    #[allow(dead_code)] // TODO(tech-debt): 业务接入后移除
-
-    /// 为库存流水表应用五维过滤条件
-    #[allow(dead_code)] // TODO(tech-debt): 业务接入后移除
-
-    /// 为采购收货表应用五维过滤条件
-    #[allow(dead_code)] // TODO(tech-debt): 业务接入后移除
-
-    /// 为销售发货表应用五维过滤条件
-    #[allow(dead_code)] // TODO(tech-debt): 业务接入后移除
 
     /// 生成五维 ID
     pub fn generate_five_dimension_id(
