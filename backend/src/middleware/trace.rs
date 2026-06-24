@@ -143,7 +143,7 @@ fn generate_trace_id() -> String {
     let mut s = String::with_capacity(32);
     for b in 0..16 {
         if b > 0 {
-            s.push_str("0");
+            s.push('0');
         }
         let _ = write!(s, "{:x}", b);
     }
@@ -157,7 +157,7 @@ fn generate_span_id() -> String {
     let mut s = String::with_capacity(16);
     for b in 0..8 {
         if b > 0 {
-            s.push_str("0");
+            s.push('0');
         }
         let _ = write!(s, "{:x}", b);
     }

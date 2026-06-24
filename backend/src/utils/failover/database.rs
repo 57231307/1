@@ -122,9 +122,6 @@ pub async fn health_check_task(
     failover: Arc<FailoverDatabase>,
     db: DatabaseConnection,
 ) {
-    use sea_orm::{ActiveModelTrait, Set};
-    use crate::models::failover_status::{self, ActiveModel as FailoverStatusActive};
-
     let mut interval = tokio::time::interval(Duration::from_secs(10));
     loop {
         interval.tick().await;
