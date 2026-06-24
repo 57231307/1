@@ -148,10 +148,10 @@ impl ApiKeyService {
     pub fn is_api_key_revoked(cache: &AppCache, plain_key: &str) -> bool {
         let key_hash = Self::hash_api_key(plain_key);
         let blacklist_key = format!("{}{}", API_KEY_BLACKLIST_PREFIX, key_hash);
+        // Cache::get 返回 Option<V>（已 Clone），无需 .copied()
         cache
             .get_token_blacklist()
             .get(&blacklist_key)
-            .copied()
             .unwrap_or(false)
     }
 }
