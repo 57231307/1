@@ -3,15 +3,7 @@
 //! 从请求头或子域名中提取租户标识，并注入租户上下文
 
 use crate::middleware::auth_context::AuthContext;
-use crate::utils::app_state::AppState;
 use crate::utils::error::AppError;
-use axum::{
-    body::Body,
-    extract::State,
-    http::{Request, StatusCode},
-    middleware::Next,
-    response::Response,
-};
 
 /// 从认证上下文中安全提取租户 ID
 ///
@@ -22,6 +14,7 @@ pub fn extract_tenant_id(auth: &AuthContext) -> Result<i32, AppError> {
 }
 
 /// 租户上下文
+#[allow(dead_code)] // TODO(tech-debt): 中间件注入租户上下文功能接入后移除
 #[derive(Debug, Clone)]
 pub struct TenantContext {
     pub tenant_id: i32,

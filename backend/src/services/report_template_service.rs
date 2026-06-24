@@ -303,14 +303,15 @@ impl ReportTemplateService {
     }
 
     /// 执行自定义报表
+    // TODO(tech-debt): _page/_page_size 当前未实际参与分页，待自定义 SQL 报表安全重构后启用
     pub async fn execute_custom_report(
         &self,
         template_id: i32,
         tenant_id: i32,
         user_id: i32,
         _role_id: Option<i32>,
-        page: u64,
-        page_size: u64,
+        _page: u64,
+        _page_size: u64,
     ) -> Result<(Vec<String>, Vec<Vec<String>>, u64), AppError> {
         let _template = self
             .get_by_id(template_id, tenant_id, user_id)

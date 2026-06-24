@@ -2,14 +2,6 @@
 //!
 //! 提供限流、熔断、请求转换等功能
 
-use crate::utils::app_state::AppState;
-use axum::{
-    body::Body,
-    extract::State,
-    http::{Request, StatusCode},
-    middleware::Next,
-    response::Response,
-};
 use dashmap::DashMap;
 use std::time::{Duration, Instant};
 

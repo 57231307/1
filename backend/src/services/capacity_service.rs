@@ -291,8 +291,6 @@ impl CapacityService {
         })
     }
 
-    /// 产能瓶颈识别：返回负荷率超过阈值的工作中心
-
     /// 根据工作中心类型返回默认班次配置
     fn default_shifts_for_type(wc_type: &Option<String>) -> Vec<ShiftInfo> {
         match wc_type.as_deref().unwrap_or("STANDARD") {

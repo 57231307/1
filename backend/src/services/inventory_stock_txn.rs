@@ -4,10 +4,8 @@
 
 use rust_decimal::Decimal;
 use sea_orm::{
-    ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter, Set,
-    UpdateMany,
+    ActiveModelTrait, ColumnTrait, EntityTrait, QueryFilter, Set, UpdateMany,
 };
-use std::sync::Arc;
 use chrono::Utc;
 
 use crate::models::inventory_stock;

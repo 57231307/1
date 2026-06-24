@@ -154,7 +154,8 @@ pub async fn delete_config(
     Path(key): Path<String>,
 ) -> Result<Json<ApiResponse<()>>, AppError> {
     use crate::models::tenant_config;
-    use sea_orm::{ActiveModelTrait, ColumnTrait, EntityTrait, QueryFilter};
+    // 删除操作仅需 EntityTrait、QueryFilter、ColumnTrait，无需 ActiveModelTrait
+    use sea_orm::{ColumnTrait, EntityTrait, QueryFilter};
 
     let tenant_id = auth
         .tenant_id

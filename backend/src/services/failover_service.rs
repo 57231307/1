@@ -13,7 +13,7 @@
 use chrono::Utc;
 use sea_orm::{QuerySelect, ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter, Set};
 use std::sync::Arc;
-use tracing::{info, warn};
+use tracing::info;
 
 use crate::config::failover::FailoverConfig;
 use crate::models::failover_event as event_model;
@@ -186,7 +186,7 @@ impl FailoverService {
     }
 
     /// 记录切换事件
-    pub async fn record_event(
+    async fn record_event(
         &self,
         function_name: &str,
         event_type: &str,

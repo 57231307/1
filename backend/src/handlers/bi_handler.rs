@@ -11,7 +11,7 @@ use axum::{
     extract::{Path, Query, State},
     Json,
 };
-use serde::{Deserialize, Serialize};
+use serde::Deserialize;
 
 use crate::middleware::auth_context::AuthContext;
 use crate::middleware::tenant::extract_tenant_id;

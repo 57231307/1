@@ -205,8 +205,8 @@ impl QuotationPricingService {
         }
     }
 
-    /// 单元测试用阶梯价匹配（pub(crate) 暴露给 tests/ 集成测试）
-    pub(crate) fn match_tier_for_unit_test(
+    /// 单元测试用阶梯价匹配（暴露给 tests/ 集成测试）
+    pub fn match_tier_for_unit_test(
         base_price: Decimal,
         quantity: Decimal,
         min_quantity: Option<Decimal>,

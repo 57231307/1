@@ -249,7 +249,8 @@ impl MessagingProvider for KafkaProducer {
     }
 
     async fn subscribe(&self, topic: &str) -> Result<EventStream, MessagingError> {
-        let (tx, rx) = tokio::sync::mpsc::channel(100);
+        // TODO(tech-debt): 真实 Kafka Consumer 接入后将通过 _tx 向 EventStream 发送业务事件，当前 mock 实现仅保留发送端以维持通道语义
+        let (_tx, rx) = tokio::sync::mpsc::channel(100);
         tracing::info!("Kafka subscribe to {}", topic);
         // 实际生产环境调用 rdkafka consumer
         Ok(rx)

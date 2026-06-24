@@ -98,23 +98,6 @@ impl InventoryReservationService {
             .map_err(AppError::from)
     }
 
-    /// 使用预留（从 locked 到 used）- 通常在发货时调用
-
-    /// 根据订单 ID 获取所有预留
-    #[allow(dead_code)] // TODO(tech-debt): 业务接入后移除
-
-    /// 根据订单 ID 获取所有已锁定的预留
-    #[allow(dead_code)] // TODO(tech-debt): 业务接入后移除
-
-    /// 批量创建预留（用于订单审核时）
-    #[allow(dead_code)] // TODO(tech-debt): 业务接入后移除
-
-    /// 批量锁定预留
-    #[allow(dead_code)] // TODO(tech-debt): 业务接入后移除
-
-    /// 批量释放预留
-    #[allow(dead_code)] // TODO(tech-debt): 业务接入后移除
-
     /// 获取预留列表
     pub async fn list_reservations(
         &self,

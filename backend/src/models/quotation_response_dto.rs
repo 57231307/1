@@ -139,7 +139,7 @@ impl From<sales_quotation_item::Model> for QuotationItemResponseDto {
             unit_price_with_tax: m.unit_price_with_tax,
             amount: m.amount,
             amount_with_tax: m.amount_with_tax,
-            tier_pricing: m.tier_pricing.map(|j| j.into()),
+            tier_pricing: m.tier_pricing,
             discount_rate: m.discount_rate,
             discount_amount: m.discount_amount,
             notes: m.notes,

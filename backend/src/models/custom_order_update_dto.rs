@@ -2,8 +2,6 @@
 //!
 //! 设计依据：docs/superpowers/specs/2026-06-16-custom-order-design.md
 
-use chrono::NaiveDate;
-use rust_decimal::Decimal;
 use serde::{Deserialize, Serialize};
 use validator::Validate;
 
