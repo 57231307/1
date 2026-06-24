@@ -54,6 +54,8 @@ impl BorrowStatus {
         }
     }
 
+    /// 从字符串解析借出状态（保持 Option 返回值以兼容现有调用方及测试）
+    #[allow(clippy::should_implement_trait)] // TODO(tech-debt): 业务稳定后迁移到 std::str::FromStr
     pub fn from_str(s: &str) -> Option<Self> {
         match s {
             "borrowed" => Some(Self::Borrowed),
@@ -72,25 +74,23 @@ impl BorrowStatus {
 /// 借出管理服务
 pub struct ColorCardBorrowService {
     db: Arc<DatabaseConnection>,
-    crud: crate::services::color_card_crud_service::ColorCardCrudService,
 }
 
 impl ColorCardBorrowService {
     pub fn new(db: Arc<DatabaseConnection>) -> Self {
         Self {
             db: db.clone(),
-            crud: crate::services::color_card_crud_service::ColorCardCrudService::new(db),
         }
     }
 
     pub fn from_state(state: &AppState) -> Self {
         Self {
             db: state.db.clone(),
-            crud: crate::services::color_card_crud_service::ColorCardCrudService::from_state(state),
         }
     }
 
     /// 创建借出记录
+    #[allow(clippy::too_many_arguments)]
     pub async fn borrow(
         &self,
         color_card_id: i64,
@@ -279,7 +279,7 @@ impl ColorCardBorrowService {
         tenant_id: i64,
         query: ListBorrowRecordsQuery,
     ) -> Result<(Vec<color_card_borrow_record::Model>, u64), BorrowError> {
-        let mut find = BorrowEntity::find();
+        let find = BorrowEntity::find();
 
         // 强制多租户隔离
         let mut cond = Condition::all()

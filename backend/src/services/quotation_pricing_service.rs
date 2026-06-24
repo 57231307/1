@@ -48,7 +48,7 @@ impl CustomerLevel {
 }
 
 /// 定价上下文
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PricingContext {
     pub customer_id: i64,
     pub customer_level: CustomerLevel,
@@ -205,7 +205,7 @@ impl QuotationPricingService {
         }
     }
 
-    /// 单元测试用阶梯价匹配（暴露给 tests/ 集成测试）
+    /// 单元测试用阶梯价匹配（pub 暴露给 tests/ 集成测试）
     pub fn match_tier_for_unit_test(
         base_price: Decimal,
         quantity: Decimal,

@@ -55,7 +55,7 @@ impl FailoverCache {
 
     /// 从主缓存获取
     pub async fn get_primary(&self, key: &str) -> Result<Option<Vec<u8>>, redis::RedisError> {
-        let mut conn = self.primary.get_async_connection().await?;
+        let mut conn = self.primary.get_multiplexed_async_connection().await?;
         let value: Option<Vec<u8>> = conn.get(key).await?;
         Ok(value)
     }
@@ -67,7 +67,7 @@ impl FailoverCache {
 
     /// 写入主缓存（同步）
     pub async fn set_primary(&self, key: &str, value: Vec<u8>) -> Result<(), redis::RedisError> {
-        let mut conn = self.primary.get_async_connection().await?;
+        let mut conn = self.primary.get_multiplexed_async_connection().await?;
         let _: () = conn.set(key, value).await?;
         Ok(())
     }
@@ -115,7 +115,7 @@ impl FailoverCache {
 impl FailoverCall<bool, redis::RedisError> for FailoverCache {
     /// 主缓存 ping
     async fn primary_call(&self) -> Result<bool, redis::RedisError> {
-        let mut conn = self.primary.get_async_connection().await?;
+        let mut conn = self.primary.get_multiplexed_async_connection().await?;
         let pong: String = redis::cmd("PING").query_async(&mut conn).await?;
         Ok(pong == "PONG")
     }

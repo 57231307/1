@@ -8,23 +8,19 @@
 //! - 排程结果保存
 
 use super::scheduling_service::SchedulingService;
-use crate::models::production_order::{self, Entity as ProductionOrderEntity, Model as ProductionOrderModel};
-use crate::models::scheduling_result::{ActiveModel as SchedulingActiveModel, Entity as SchedulingResultEntity};
+use crate::models::production_order::{Entity as ProductionOrderEntity, Model as ProductionOrderModel};
+use crate::models::scheduling_result::ActiveModel as SchedulingActiveModel;
 use crate::models::work_center::{Entity as WorkCenterEntity, Model as WorkCenterModel};
 use crate::services::capacity_service::WorkCenterCapacity;
 use crate::services::scheduling_service::{
-    AdjustScheduleRequest, AutoScheduleRequest, AutoScheduleResult, DateRange, GanttData,
-    ScheduleConflict, ScheduleDetail, WorkCenterInfo,
+    AutoScheduleRequest, AutoScheduleResult, DateRange, GanttData, ScheduleConflict, ScheduleDetail,
+    WorkCenterInfo,
 };
 use crate::utils::error::AppError;
 use chrono::{Duration, NaiveDate, Utc};
 use rust_decimal::Decimal;
-use sea_orm::{
-    ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, IntoActiveModel, QueryFilter,
-    QueryOrder, QuerySelect, Set,
-};
+use sea_orm::{ActiveModelTrait, ColumnTrait, EntityTrait, QueryFilter, QueryOrder, Set};
 use std::collections::HashMap;
-use std::sync::Arc;
 
 /// P9-2 标记：自动排程子模块路径
 pub const P92_AUTO_MODULE: &str = "scheduling_auto";
@@ -269,8 +265,7 @@ impl SchedulingService {
         })
     }
 
-    /// 获取甘特图数据
-
+    /// 检测排程冲突
     pub async fn detect_conflicts(&self) -> Result<Vec<ScheduleConflict>, AppError> {
         let orders = ProductionOrderEntity::find()
             .filter(crate::models::production_order::Column::Status.ne("CANCELLED"))
@@ -358,8 +353,7 @@ impl SchedulingService {
         Ok(conflicts)
     }
 
-    /// 手动调整排程
-
+    /// 保存排程结果
     pub async fn save_schedule_result(
         &self,
         result: &AutoScheduleResult,
@@ -432,8 +426,7 @@ impl SchedulingService {
         Ok(model)
     }
 
-    /// 获取排程历史记录
-
+    /// 加载活跃工作中心
     async fn load_active_work_centers(
         &self,
         ids: &Option<Vec<i32>>,
@@ -455,7 +448,6 @@ impl SchedulingService {
     }
 
     /// 加载待排程工单
-
     async fn load_pending_orders(&self) -> Result<Vec<ProductionOrderModel>, AppError> {
         ProductionOrderEntity::find()
             .filter(crate::models::production_order::Column::Status.eq("DRAFT"))
@@ -466,7 +458,6 @@ impl SchedulingService {
     }
 
     /// 查找最早可用时间槽
-
     fn find_earliest_slot(
         &self,
         schedule: &[(NaiveDate, NaiveDate, i32, String)],

@@ -42,7 +42,7 @@ impl InventoryStockService {
             )
             .col_expr(
                 inventory_stock::Column::Version,
-                sea_orm::sea_query::Expr::col(inventory_stock::Column::Version).add(1).into(),
+                sea_orm::sea_query::Expr::col(inventory_stock::Column::Version).add(1),
             )
             .col_expr(
                 inventory_stock::Column::UpdatedAt,

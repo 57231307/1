@@ -17,7 +17,7 @@ use super::SalesOrderDetail;
 use crate::models::sales_order;
 use crate::models::sales_order::Entity as SalesOrderEntity;
 use crate::utils::error::AppError;
-use sea_orm::{ActiveModelTrait, ColumnTrait, EntityTrait, QueryFilter, TransactionTrait};
+use sea_orm::{ActiveModelTrait, EntityTrait, QueryFilter};
 
 /// 销售订单工作流子模块标记
 pub const P92_WF_MODULE: &str = "sales_order_workflow";
@@ -83,7 +83,6 @@ impl SalesService {
     }
 
     /// 获取订单统计
-
     pub async fn submit_order(
         &self,
         order_id: i32,
@@ -165,7 +164,6 @@ impl SalesService {
     }
 
     /// 审核订单：通过或拒绝
-
     pub async fn approve_order(
         &self,
         order_id: i32,
@@ -201,7 +199,6 @@ impl SalesService {
     }
 
     /// 完成订单
-
     pub async fn complete_order(&self, order_id: i32) -> Result<sales_order::Model, AppError> {
         let order = SalesOrderEntity::find_by_id(order_id)
             .one(&*self.db)

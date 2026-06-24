@@ -148,7 +148,7 @@ impl BiAnalysisService {
         tenant_id: i64,
         start_date: chrono::NaiveDate,
         end_date: chrono::NaiveDate,
-        granularity: &str,
+        _granularity: &str,
     ) -> Result<Vec<TimeSeriesPoint>, String> {
         if tenant_id <= 0 {
             return Err("租户 ID 无效".to_string());
@@ -159,14 +159,14 @@ impl BiAnalysisService {
         // mock 数据
         Ok(vec![
             TimeSeriesPoint {
-                period: format!("2026-05"),
+                period: "2026-05".to_string(),
                 total_amount: 125000.0,
                 order_count: 45,
                 quantity: 1250.0,
                 profit_amount: 25000.0,
             },
             TimeSeriesPoint {
-                period: format!("2026-06"),
+                period: "2026-06".to_string(),
                 total_amount: 158000.0,
                 order_count: 56,
                 quantity: 1580.0,
@@ -333,7 +333,7 @@ impl BiAnalysisService {
         if tenant_id <= 0 {
             return Err("租户 ID 无效".to_string());
         }
-        if year < 1900 || year > 2999 {
+        if !(1900..=2999).contains(&year) {
             return Err("年份无效".to_string());
         }
         Ok((1..=12)

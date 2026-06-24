@@ -1,13 +1,11 @@
 use crate::models::customer_credit;
 use crate::utils::error::AppError;
-use chrono::NaiveDate;
 use rust_decimal::Decimal;
 use sea_orm::{
-    ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, Order, PaginatorTrait,
-    QueryFilter, QueryOrder, QuerySelect, Set, TransactionTrait,
+    ColumnTrait, DatabaseConnection, EntityTrait, Order, PaginatorTrait, QueryFilter, QueryOrder,
+    QuerySelect,
 };
 use std::sync::Arc;
-use tracing::info;
 /// 信用评估结果
 #[derive(Debug, Clone, serde::Serialize)]
 pub struct CreditEvaluationResult {

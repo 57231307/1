@@ -3,11 +3,6 @@
 //! 拆分自 event_kafka.rs：原 pub mod payload_serde { ... } 内部块。
 //! 包含 EventPayload 枚举 + From<&BusinessEvent> + TryFrom<EventPayload> 三段实现。
 
-use rust_decimal::Decimal;
-use serde::{Deserialize, Serialize};
-
-use crate::services::event_bus::{BusinessEvent, ShippedItem};
-
 /// 为 `BusinessEvent` 增加 `Serialize` / `Deserialize` 派生（仅在 kafka 模块内使用）
 ///
 /// 原 `BusinessEvent` 派生来自 `event_bus.rs`，没有 `Serialize`。这里通过新类型

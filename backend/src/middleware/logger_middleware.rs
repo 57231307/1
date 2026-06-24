@@ -1,18 +1,6 @@
-use axum::{
-    body::Body,
-    http::{Request, StatusCode},
-    middleware::Next,
-    response::Response,
-};
-use chrono::Utc;
-use std::time::{Duration, Instant};
-use tracing::{error, info, warn};
-
-
-
-
-
-fn sanitize_query(query: Option<&str>) -> String {
+/// 日志查询参数脱敏处理函数（预留 API）
+#[allow(dead_code)] // TODO(tech-debt): 日志中间件接入后移除
+pub fn sanitize_query(query: Option<&str>) -> String {
     const SENSITIVE_PARAMS: [&str; 6] =
         ["password", "token", "secret", "key", "auth", "access_token"];
 
