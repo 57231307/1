@@ -5,7 +5,48 @@
 
 ---
 
-## 最新任务：✅ 批次 B dead_code 清理完成并合并（2026-06-24）
+## 最新任务：✅ 批次 C dead_code 清理完成并合并（2026-06-24）
+
+**PR**：[#247](https://github.com/57231307/1/pull/247)
+**合并提交**：`f524dad7`
+**分支**：`fix/clippy-deadcode-batch-c-2026-06-24`
+**CI 结果**：✅ 通过（15 个 job 全绿）
+
+### 完成内容
+
+- 40 个低频 dead_code 警告后端文件清理（8 轮并行，每轮 5 个子代理）
+- 修复 12 个集成测试文件的错误导入路径：`use crate::` → `use bingxi_backend::`（共 20 处）
+- 删除并重建 `backend/.clippy-baseline.txt`（原 643 行基线损坏，CI 重建）
+
+### 集成测试导入修复清单
+
+- `tests/bi_analysis_test.rs`
+- `tests/color_card_borrow_test.rs`
+- `tests/color_card_crud_test.rs`
+- `tests/color_card_e2e_test.rs`
+- `tests/color_card_item_test.rs`
+- `tests/color_card_scan_test.rs`
+- `tests/custom_order_e2e_test.rs`（2 处）
+- `tests/custom_order_process_test.rs`
+- `tests/custom_order_state_test.rs`
+- `tests/quotation_e2e_test.rs`（4 处）
+- `tests/quotation_handler_test.rs`（5 处）
+- `tests/websocket_test.rs`
+
+### 关键决策
+
+1. **集成测试 `crate` 语义**：`tests/` 目录下的测试编译为独立二进制，`crate` 指测试二进制本身；引用 lib.rs 暴露的模块必须用包名（`bingxi_backend`，对应 `Cargo.toml` 中 `name = "bingxi-backend"`）。这是修复 E0282 type annotations needed + E0432 unresolved import 的根本原因。
+2. **删除损坏的 clippy 基线**：原 `backend/.clippy-baseline.txt` 的 643 行主要是 `= help: ...`、`= note: ...`、源码片段，**不包含**实际警告摘要行（如 "function X is never used"）。CI 用 `comm` 精确行比较失效，导致批次 C 修复产生的真实死代码警告被错误识别为"新警告"（误报 970 个）。删除后由 CI 重建基线，所有 15 个 job 通过。
+3. **子代理并行结构**：40 个文件分 8 轮、每轮 5 个子代理处理（搜索→评估→编辑），单 PR 汇总 squash merge。子代理不得直接推 PR 或修改 `.monkeycode/` 目录。
+
+### 后续计划
+
+- 批次 D：跨文件清理与基线更新（基线已由批次 C 重建完成）
+- 持续清理剩余 dead_code 警告（高频/中频/低频已全部完成首轮清理）
+
+---
+
+## 历史任务：✅ 批次 B dead_code 清理完成并合并（2026-06-24）
 
 **PR**：[#246](https://github.com/57231307/1/pull/246)  
 **合并提交**：`c274a5c4`  

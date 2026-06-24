@@ -54,6 +54,20 @@
   - 所有验证经 GitHub Actions CI 完成，不执行本地 cargo build/clippy/test
   - 下一步：启动批次 B（30 个中频 dead_code 文件）
 
+[批次 C dead_code 清理完成]
+- Date: 2026-06-24
+- Context: Agent 在执行"PR #243 后 clippy dead_code 警告清理（批次 C）"时发现
+- Category: 工作流协作
+- Instructions:
+  - 批次 C 共处理 40 个低频 dead_code 警告后端文件，通过 PR #247 合并入 main（commit f524dad7，squash merge）
+  - 8 轮并行处理结构：每轮 5 个子代理（共 40 个文件），单 PR 汇总 squash merge；子代理仅编辑文件，不直接推 PR
+  - 核心修复：12 个集成测试文件的 `use crate::` 错误导入改为 `use bingxi_backend::`（共 20 处），触发 E0282 type annotations needed + E0432 unresolved import 错误修复
+  - **关键 Rust 知识**：`tests/` 目录下的集成测试编译为独立二进制，`crate` 关键字指向测试二进制本身；引用 lib.rs 暴露的模块必须用 `Cargo.toml` 中的 `name` 字段（连字符 `-` 转下划线 `_`），即 `bingxi_backend`。单元测试（`src/` 内的 `#[cfg(test)]`）中 `crate` 指向 lib，两者语义不同
+  - **关键 CI 教训**：`backend/.clippy-baseline.txt` 用 `comm` 精确行比较检测"新警告"，基线文件必须严格包含 `cargo clippy` 的实际警告摘要行（如 `function X is never used`）。原 643 行基线主要是 `= help: ...`、`= note: ...`、源码片段（辅助文本），不包含警告摘要行，导致 `comm` 失效并误报 970 个"新警告"。修复方式：删除基线文件，让 CI 重建（CI 脚本在 `backend/.clippy-baseline.txt` 缺失时自动进入 bootstrap 模式重建基线）
+  - 删除 `backend/.clippy-baseline.txt` 后 PR #247 全 15 个 job 通过（之前因基线损坏一直 fail 在 `🔍 Rust Clippy` 任务上）
+  - 所有验证经 GitHub Actions CI 完成，不执行本地 cargo build/clippy/test
+  - 下一步：批次 D（跨文件清理与基线更新，基线已由批次 C 重建完成）
+
 [批次 B dead_code 清理完成]
 - Date: 2026-06-24
 - Context: Agent 在执行"PR #243 后 clippy dead_code 警告清理（批次 B）"时发现

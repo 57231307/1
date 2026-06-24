@@ -62,26 +62,50 @@
 
 ---
 
-## 🔄 2026-06-24 批次 C dead_code 清理进行中
+## ✅ 2026-06-24 批次 C dead_code 清理完成
 
-**规划文档**：`.monkeycode/docs/superpowers/plans/2026-06-24-clippy-deadcode-batch-bc-plan.md`
+**PR**：[#247](https://github.com/57231307/1/pull/247)
+**合并提交**：`f524dad7`
+**分支**：`fix/clippy-deadcode-batch-c-2026-06-24`
+**状态**：已合并入 main（squash merge）
 
-**PR**：[#247](https://github.com/57231307/1/pull/247)  
-**分支**：`fix/clippy-deadcode-batch-c-2026-06-24`  
-**状态**：PR 已创建，CI 验证中
+### 变更范围
 
-### 当前状态
+- 40 个低频 dead_code 警告后端文件（8 轮并行，每轮 5 个子代理）
+- 修复 12 个集成测试文件的错误导入路径（`use crate::` → `use bingxi_backend::`）
+- 删除并重建 `backend/.clippy-baseline.txt`（损坏基线，CI 重建）
 
-- 基于批次 B 合并后的最新 clippy baseline 解析
-- 本次处理：**40 个文件 / 1-2 条警告**
-- 已完成 8 轮并行清理，共 40 个文件
-- 已同步合并 main（批次 B 变更）并解决 `quotation_pricing_service.rs` 冲突
+### 集成测试导入修复清单
 
-### 执行计划
+- `tests/bi_analysis_test.rs`
+- `tests/color_card_borrow_test.rs`
+- `tests/color_card_crud_test.rs`
+- `tests/color_card_e2e_test.rs`
+- `tests/color_card_item_test.rs`
+- `tests/color_card_scan_test.rs`
+- `tests/custom_order_e2e_test.rs`（2 处）
+- `tests/custom_order_process_test.rs`
+- `tests/custom_order_state_test.rs`
+- `tests/quotation_e2e_test.rs`（4 处）
+- `tests/quotation_handler_test.rs`（5 处）
+- `tests/websocket_test.rs`
 
-- 8 轮并行，每轮 5 个子代理
-- 汇总为 1 个 PR #247，squash merge
-- 验证通过后更新 MEMORY.md / CHANGELOG.md
+### 关键决策
+
+1. **集成测试导入根因**：`tests/` 目录下的测试编译为独立二进制，`crate` 指测试二进制本身；需用外部 crate 名称 `bingxi_backend` 访问 `lib.rs` 暴露的模块。批量替换 `use crate::` → `use bingxi_backend::` 修复 E0282/E0432。
+2. **删除损坏的 clippy 基线**：原 `backend/.clippy-baseline.txt` 643 行主要是 `= help: ...`、`= note: ...`、源码片段，**不包含**实际警告摘要行。CI 用 `comm` 精确行比较失效，导致真实死代码警告被误识别为"新警告"。删除后 CI 重建基线，PR #247 全 15 个 job 通过。
+3. **批次 C 任务结构**：40 个文件分为 8 轮并行处理（每轮 5 个子代理），每轮子代理完成文件清理后汇总到 `fix/clippy-deadcode-batch-c-2026-06-24` 分支，最终 squash merge 为 1 个 PR。
+
+### 经验教训
+
+- **`comm` 行比较基线的脆弱性**：必须保证基线文件内容与 `cargo clippy` 实际输出完全一致，任何辅助文本、注释、空行偏差都会让基线失效。修复方式：删除基线，让 CI 重建。
+- **集成测试的 `crate` 语义**：与单元测试（在 `src/` 内）不同，集成测试（在 `tests/`）中 `crate` 关键字指向测试二进制；引用 lib.rs 暴露的模块必须用包名（`bingxi_backend`）。这与 `Cargo.toml` 中 `name = "bingxi-backend"` 对应（`-` 转 `_`）。
+- **子代理协调模式**：8 轮 5 个并行子代理（共 40 个文件），单 PR 汇总 squash merge。子代理仅编辑文件不直接推 PR，由主代理汇总。
+
+### 后续计划
+
+- 批次 D：跨文件清理与基线更新（基线已由批次 C 重建完成）
+- 继续清理剩余 dead_code 警告（高频/中频/低频已全部完成首轮）
 
 ---
 
