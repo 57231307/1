@@ -12,106 +12,19 @@
 
 | 编号 | 严重度 | 漏洞名称 | 状态 |
 |------|--------|----------|------|
-| #3 | 🟠 中危 | 系统初始化接口匿名访问风险 | 未修复 |
 | #4 | 🟡 低危 | 错误信息泄露内部细节 | 未修复 |
 | #5 | 🟡 低危 | API Key 撤销后仍可被冒用 | 未修复 |
 | #6 | 🟡 低危 | 内存速率限制器多实例失效 | 未修复 |
 | #7 | 🟡 低危 | 弱密码黑名单策略不严 | 未修复 |
 | #8 | 🟡 低危 | 调试模式错误响应泄露堆栈信息 | 未修复 |
 
-> **已修复**（详见 PR #250）：
+> **已修复**（详见 PR #250、PR #251）：
 > - ✅ #1 静态资源路径遍历漏洞（PR #250）
 > - ✅ #2 WebSocket 通知服务认证绕过（PR #250）
+> - ✅ #3 系统初始化接口匿名访问风险（PR #251）
 
 ---
 
-
-## 漏洞 #3：系统初始化接口匿名访问风险
-
-### 基础信息
-
-- **严重度**：🟠 中危（Medium）
-- **CWE 分类**：CWE-1188 不安全初始化、CWE-306 关键功能缺少认证
-- **CVSS 3.1 评分估计**：6.5（AV:N/AC:L/PR:N/UI:N/S:U/C:N/I:H/A:N）
-- **发现时间**：2026-06-24
-- **影响版本**：当前 main 分支
-- **修复状态**：未修复
-
-### 漏洞位置
-
-- 公开路径白名单：[middleware/public_routes.rs](file:///workspace/backend/src/middleware/public_routes.rs#L9)
-- 初始化路由注册：[routes/system.rs](file:///workspace/backend/src/routes/system.rs#L236-L254)
-- 初始化处理器：[handlers/init_handler.rs](file:///workspace/backend/src/handlers/init_handler.rs)
-
-### 攻击者画像
-
-- **类型**：外部匿名用户
-- **所需权限**：无需任何认证
-- **攻击时机**：系统首次部署时（数据库表为空状态）
-
-### 可控输入向量
-
-- 数据库配置参数（host、port、name、username、password）
-- 管理员用户名、管理员密码
-
-### 完整利用路径
-
-1. `/api/v1/erp/init` 前缀在 [PUBLIC_PATHS](file:///workspace/backend/src/middleware/public_routes.rs#L1-L14) 中被标记为公开路径
-2. `auth_middleware` 对该路径下的所有请求直接跳过 JWT 认证
-3. 以下接口完全匿名可访问：
-   - `/api/v1/erp/init/initialize` - [initialize_system()](file:///workspace/backend/src/handlers/init_handler.rs#L158-L169)
-   - `/api/v1/erp/init/initialize-with-db` - [initialize_system_with_db()](file:///workspace/backend/src/handlers/init_handler.rs#L171-L182)
-4. 虽然 `initialize()` 内部会调用 `check_initialized()` 检查系统是否已初始化，但在**系统首次部署时**（数据库无 users 表或 users 表为空）：
-   - 攻击者可抢先访问初始化接口
-   - 设置自己的管理员用户名和密码
-   - 接管整个 ERP 系统
-5. 部分接口（`test-database`、`task-status`、`reset-password`）在 handler 层有 admin 权限二次校验，**但 initialize 接口无此类校验**
-
-### 影响分析
-
-- **窗口期攻击**：系统首次部署窗口期存在被攻击者抢先初始化的风险
-- **完全接管**：成功利用后攻击者获得管理员权限，可完全控制系统和所有租户数据
-- **隐蔽性**：管理员难以发现系统已被攻击者初始化（直到合法管理员尝试初始化时才发现"已初始化"）
-- **持续性**：一旦初始化，攻击者的管理员账号长期有效
-
-### 修复建议
-
-#### 立即修复（必做）
-
-1. 初始化接口应增加额外的安全机制（如初始化令牌）
-2. 初始化令牌应在环境变量或配置文件中预先设置，而非完全开放
-3. 限制只有本地网络或特定 IP 段才能访问初始化接口
-
-#### 增强防护
-
-- 系统初始化后应立即锁定初始化接口（即使数据库表为空也不应无限期开放）
-- 添加初始化操作审计日志（记录来源 IP、请求时间）
-- 提供"已初始化"状态查询但不开放初始化接口
-
-#### 示例代码
-
-```rust
-// 在 init 路径下添加初始化令牌校验中间件
-async fn init_token_middleware(
-    headers: HeaderMap,
-    request: Request<Body>,
-    next: Next,
-) -> Result<Response, Response> {
-    let init_token = std::env::var("INIT_TOKEN")
-        .map_err(|_| "INIT_TOKEN 未配置")?;
-    let provided = headers.get("X-Init-Token")
-        .and_then(|v| v.to_str().ok())
-        .ok_or_else(|| unauthorized_response("缺少初始化令牌"))?;
-    
-    if !constant_time_eq(provided.as_bytes(), init_token.as_bytes()) {
-        return Err(unauthorized_response("初始化令牌无效"));
-    }
-    
-    Ok(next.run(request).await)
-}
-```
-
----
 
 ## 漏洞 #4：错误信息泄露内部细节
 

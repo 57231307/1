@@ -155,6 +155,14 @@ pub async fn test_database_connection(
     }
 }
 
+/// 同步初始化（无 DB 配置版本）
+///
+/// 安全约束（bug.md #3 修复）：
+/// 1. 路由层已应用 `init_token_middleware`：调用方必须携带 `X-Init-Token`
+///    请求头，且与服务端 `INIT_TOKEN` 环境变量一致（恒定时间比较防时序攻击）
+/// 2. handler 内部仍执行 `check_initialized()` 兜底：系统已初始化时拒绝重复初始化
+/// 3. 缺失/错误 `INIT_TOKEN` 直接 401（fail-secure），未配置 `INIT_TOKEN` 时
+///    整个 init 端点拒绝所有请求
 pub async fn initialize_system(
     State(state): State<AppState>,
     Json(payload): Json<InitRequest>,
@@ -182,6 +190,8 @@ pub async fn initialize_system_with_db(
 }
 
 /// 异步初始化处理器（非阻塞）
+///
+/// 安全约束同 [`initialize_system`]：路由层已应用 `init_token_middleware` 保护。
 pub async fn initialize_system_with_db_async(
     Json(payload): Json<InitWithDbRequest>,
 ) -> Result<Json<ApiResponse<String>>, AppError> {
