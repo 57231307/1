@@ -1,6 +1,6 @@
 
 use crate::models::api_key::{self, ActiveModel as ApiKeyActiveModel, Entity as ApiKey};
-use crate::utils::cache::AppCache;
+use crate::utils::cache::{AppCache, Cache};
 use crate::utils::error::AppError;
 use crate::utils::random;
 use chrono::Utc;
@@ -159,7 +159,7 @@ impl ApiKeyService {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::utils::cache::AppCache;
+    use crate::utils::cache::{AppCache, Cache};
 
     /// 漏洞 #5 修复单元测试：未撤销的 key 不在黑名单
     ///
