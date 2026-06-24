@@ -11,7 +11,7 @@ mod tests {
     // 模拟 5 阶段状态机转换（端到端场景）
     #[test]
     fn test_full_lifecycle_state_progression() {
-        use crate::utils::process_state_machine::next_status;
+        use bingxi_backend::utils::process_state_machine::next_status;
 
         // draft → yarn_purchasing → dyeing → finishing → delivery → after_sales → completed
         let mut current = "draft";
@@ -33,7 +33,7 @@ mod tests {
 
     #[test]
     fn test_terminal_state_cannot_advance() {
-        use crate::utils::process_state_machine::next_status;
+        use bingxi_backend::utils::process_state_machine::next_status;
         assert!(next_status("completed").is_err());
         assert!(next_status("cancelled").is_err());
     }

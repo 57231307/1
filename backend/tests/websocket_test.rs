@@ -7,7 +7,7 @@
 
 #[cfg(test)]
 mod tests {
-    use crate::websocket::notifications::*;
+    use bingxi_backend::websocket::notifications::*;
 
     /// 单元测试：JWT token 解析
     #[test]

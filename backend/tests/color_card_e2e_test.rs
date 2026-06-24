@@ -4,7 +4,7 @@
 
 #[cfg(test)]
 mod tests {
-    use crate::utils::color_space_converter::{delta_e_76, rgb_to_hex, rgb_to_lab};
+    use bingxi_backend::utils::color_space_converter::{delta_e_76, rgb_to_hex, rgb_to_lab};
 
     /// 模拟完整业务流程：创建色卡 → 添加色号 → 借出 → 归还
     #[test]

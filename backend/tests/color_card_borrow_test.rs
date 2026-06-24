@@ -4,7 +4,7 @@
 
 #[cfg(test)]
 mod tests {
-    use crate::services::color_card_borrow_service::BorrowStatus;
+    use bingxi_backend::services::color_card_borrow_service::BorrowStatus;
 
     #[test]
     fn test_borrow_status_terminal() {

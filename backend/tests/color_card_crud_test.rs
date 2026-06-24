@@ -6,7 +6,7 @@
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::utils::color_space_converter::{rgb_to_hex, hex_to_rgb, rgb_to_lab, delta_e_76};
+    use bingxi_backend::utils::color_space_converter::{rgb_to_hex, hex_to_rgb, rgb_to_lab, delta_e_76};
 
     #[test]
     fn test_rgb_to_hex_pure_red() {

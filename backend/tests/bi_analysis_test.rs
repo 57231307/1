@@ -5,7 +5,7 @@
 
 #[cfg(test)]
 mod tests {
-    use crate::services::bi_analysis_service::BiAnalysisService;
+    use bingxi_backend::services::bi_analysis_service::BiAnalysisService;
 
     /// 单元测试：BI service 多租户隔离
     #[tokio::test]

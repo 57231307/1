@@ -6,12 +6,12 @@
 //! 注：完整 HTTP 集成测试需要启动 AppState / 路由，
 //! 本测试仅覆盖 DTO/请求体的反序列化和校验逻辑。
 
-use crate::models::quotation_response_dto::QuotationResponseDto;
-use crate::services::quotation_pricing_service::{CustomerLevel, PricingContext};
+use bingxi_backend::models::quotation_response_dto::QuotationResponseDto;
+use bingxi_backend::services::quotation_pricing_service::{CustomerLevel, PricingContext};
 
 #[test]
 fn test_reject_request_serde() {
-    use crate::handlers::quotation_handler::RejectRequest;
+    use bingxi_backend::handlers::quotation_handler::RejectRequest;
     let json = r#"{"reason":"价格过高"}"#;
     let req: RejectRequest = serde_json::from_str(json).unwrap();
     assert_eq!(req.reason, "价格过高");
@@ -45,14 +45,14 @@ fn test_quotation_response_dto_default() {
 
 #[test]
 fn test_expiry_query_default() {
-    use crate::handlers::quotation_handler::ExpiryQuery;
+    use bingxi_backend::handlers::quotation_handler::ExpiryQuery;
     let q = ExpiryQuery::default();
     assert!(q.days.is_none());
 }
 
 #[test]
 fn test_color_price_upsert_request() {
-    use crate::handlers::quotation_handler::ColorPriceUpsertRequest;
+    use bingxi_backend::handlers::quotation_handler::ColorPriceUpsertRequest;
     let json = r#"{
         "id": null,
         "product_id": 1,

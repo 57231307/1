@@ -11,10 +11,10 @@
 //!
 //! 实际 e2e 在沙箱 OOM 限制下无法跑 `cargo test`，但当 CI 环境充足时可执行。
 
-use crate::models::quotation_create_dto::CreateQuotationDto;
-use crate::models::quotation_response_dto::QuotationResponseDto;
-use crate::models::sales_quotation;
-use crate::services::quotation_approval_service::ApproverRole;
+use bingxi_backend::models::quotation_create_dto::CreateQuotationDto;
+use bingxi_backend::models::quotation_response_dto::QuotationResponseDto;
+use bingxi_backend::models::sales_quotation;
+use bingxi_backend::services::quotation_approval_service::ApproverRole;
 use rust_decimal::Decimal;
 use rust_decimal_macros::dec;
 
