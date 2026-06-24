@@ -41,3 +41,5 @@ pub mod token_bucket;
 pub mod unwrap_safe;
 // P0-Wave1 安全加固 - 安全事件审计
 pub mod audit;
+// 低危 #2 SSRF 防护 - Webhook URL 内网白名单校验
+pub mod ssrf_guard;

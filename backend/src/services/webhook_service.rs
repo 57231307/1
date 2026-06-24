@@ -41,6 +41,9 @@ impl WebhookService {
         events: &[&str],
         secret: Option<&str>,
     ) -> Result<webhook::Model, AppError> {
+        // 低危 #2 修复（SSRF 防护）：创建前校验 URL 不指向内网/loopback/云元数据
+        crate::utils::ssrf_guard::validate_url(url)?;
+
         let now = Utc::now();
         let active_model = WebhookActiveModel {
             tenant_id: Set(tenant_id),
@@ -121,6 +124,17 @@ impl WebhookService {
         };
 
         let body = serde_json::to_string(&webhook_payload).unwrap_or_else(|_| payload.to_string());
+
+        // 低危 #2 修复（SSRF 防护 + DNS Rebinding 防御）：发送前再次校验 URL
+        // 防御 create 时解析为公网、trigger 时重新解析为内网的攻击
+        if let Err(e) = crate::utils::ssrf_guard::validate_url(&webhook.url) {
+            return Ok(WebhookDeliveryResult {
+                success: false,
+                status_code: None,
+                response_body: None,
+                error: Some(format!("SSRF 防护拦截：{}", e)),
+            });
+        }
 
         // 发送HTTP请求
         let result = self

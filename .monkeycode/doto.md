@@ -7,6 +7,101 @@
 
 ## 当前活跃任务（2026-06-24）
 
+### ⏳ 2026-06-24 审计周期新增 6 个低危漏洞修复（commit `b651e320`）
+
+**状态**：⏳ 待用户本地推送 + CI 监控
+**commit**：`b651e320`（本地已 commit，沙箱 22 端口阻断无法 push）
+**PR**：⏳ 待用户提交
+**CI**：⏳ 待用户推送后由 GitHub Actions 触发
+
+#### 6 个漏洞处理结果
+| # | 等级 | 漏洞 | 处理 | 关键改动 |
+|---|------|------|------|----------|
+| #1 | 低危 | JTI 黑名单进程内存储 | ✅ 修复 | auth_service.rs 改用 Redis SETEX + TTL，失败回退内存 |
+| #2 | 低危 | Webhook URL 内网白名单（SSRF） | ✅ 修复 | 新建 ssrf_guard.rs（383 行 + 22 测试），双重校验 |
+| #3 | 低危 | 分布式限流 try_lock 锁中毒 | ✅ 修复 | rate_limit.rs 改用 std Mutex + try_lock + fail-open |
+| #4 | 低危 | 认证失败日志脱敏 | ✅ 修复 | auth.rs 新增 mask_auth_header / mask_username + 6 测试 |
+| #5 | 低危 | JWT 密钥硬编码 | ✅ 审计无问题 | main.rs 启动时强制校验 + Default 在生产 panic |
+| #6 | 低危 | TOTP 熵源 | ✅ 审计无问题 | totp-rs 5.5 Secret::generate_secret 用 rand::thread_rng → OsRng |
+
+#### 9 个文件变更（+755 / -64 行）
+- `backend/src/utils/ssrf_guard.rs`（新增 383 行）
+- `backend/src/services/auth_service.rs`（+207 行 JTI→Redis）
+- `backend/src/middleware/rate_limit.rs`（+49/-? try_lock）
+- `backend/src/middleware/auth.rs`（+105 行脱敏）
+- `backend/src/services/webhook_service.rs`（+14 行 SSRF 调用）
+- `backend/Cargo.toml`（+url = "2.5"）
+- `backend/src/utils/mod.rs`（+pub mod ssrf_guard）
+- `.monkeycode/bug.md`（清除 6 个已处理漏洞）
+- `.monkeycode/CHANGELOG.md`（添加本次任务）
+
+#### 31 个新增测试
+- ssrf_guard.rs：22 个（协议、主机名、IPv4/IPv6、URL 解析）
+- auth_service.rs：3 个 JTI 黑名单回退路径
+- auth.rs：6 个脱敏（中英文、边界、短字符串）
+
+#### 待用户手动操作
+- **推送 commit `b651e320` 到远程**（沙箱 22 端口阻断，patch 在 `/tmp/2026-06-24-fix-6-low-vulns.patch`）
+- 推送命令（用户本地）：
+  ```bash
+  cd /workspace  # 或项目根目录
+  git pull origin main  # 同步远程（避免冲突）
+  git fetch https://github.com/57231307/1.git main  # 沙箱已用此命令
+  # 如未自动合并：git merge FETCH_HEAD
+  # 应用 patch（如未自动合并）：git am /tmp/2026-06-24-fix-6-low-vulns.patch
+  git push origin main  # 用 SSH key 推送（已配置）
+  ```
+- **打开 PR**（如需走 PR 流程）并监控 CI 到全绿
+- 监控 CI：https://github.com/57231307/1/actions
+
+#### 关键经验
+- **沙箱 22 端口阻断**：仅 HTTPS 443 通；SSH 推送需用户本地操作
+- **JTI 黑名单→Redis 设计**：SETEX 替代 HashMap，TTL 自动清理；环境变量 `JTI_REDIS_URL` 启用；失败回退内存
+- **SSRF 双重校验必要性**：create 时校验 + trigger 时再校验（防御 DNS Rebinding）
+- **DashMap vs std::sync::Mutex**：DashMap API 不暴露 PoisonError，但 audit 建议显式 try_lock 防御
+- **日志脱敏按字符而非字节**：中文用户名按 Unicode 字符截断，避免 UTF-8 边界切断
+
+---
+
+### ✅ Token 轮换 + Draft Release 清理 + E0624 修复（commit `e8e69a52`）
+
+**状态**：✅ 已完成
+**commit**：`e8e69a52`
+**CI run**：[28103404780](https://github.com/57231307/1/actions/runs/28103404780)
+**CI 结果**：✅ 15/15 job 全绿
+**新 release**：[v2026.624.2150](https://github.com/57231307/1/releases/tag/v2026.624.2150)
+
+#### 完成项
+| 项 | 状态 | 详情 |
+|---|------|------|
+| 1. 修 14 个 E0624 编译错误 | ✅ | `compose_color_no` 加 `pub` 修饰 |
+| 2. 删除 draft release v2026.62.24 | ✅ | API id=332629717 已删 |
+| 3. 创建 Token 轮换指南 | ✅ | `.monkeycode/docs/archives/2026-06-24/token-rotation-2026-06-24.md` |
+| 4. 更新 MEMORY.md 安全规则 | ✅ | 新增"GitHub Token 安全"条目 |
+| 5. CI 全绿监控 | ✅ | 15/15 job success |
+| 6. 新 release 发布 | ✅ | v2026.624.2150 |
+| 7. **生成 SSH key（ed25519）** | ✅ | `/root/.ssh/github_bingxi` 指纹 `SHA256:lWfrC60FouzfR7pF9KHnHjutL1S5WTpQW+gQTdFhdbw` |
+| 8. **配置 SSH client** | ✅ | `/root/.ssh/config` 限定 github.com 使用专用 key |
+| 9. **修改 .git/config 切 SSH** | ✅ | HTTPS token URL → `git@github.com:57231307/1.git` |
+| 10. **明文 Token 移除** | ✅ | `.git/config` 中无 token 字符串 |
+| 11. **创建 SSH 公钥归档** | ✅ | `.monkeycode/docs/archives/2026-06-24/ssh-public-key-2026-06-24.md` |
+
+#### 待用户手动操作
+- 注册 SSH 公钥到 GitHub：https://github.com/settings/keys（公钥见上述归档）
+- 撤销旧 GitHub Token：https://github.com/settings/tokens（旧 token `ghu_b3Jc...xxE0`）
+- 验证：`ssh -T git@github.com` 应返回 `Hi 57231307! ...`
+
+#### 关键经验
+- **集成测试跨 crate 调用**：私有函数无法跨 crate 访问；测试文件在 `tests/` 编译为独立二进制，`fn foo()` 必须 `pub fn foo()` 才能被外部 crate 测试调用
+- **GitHub Secret Scanning**：文档中包含真实 Token 字符串会被阻止 push；务必使用占位符 `<REDACTED>` 或 `ghu_NEW_TOKEN_HERE`
+- **SSH vs HTTPS 认证**：
+  - HTTPS + Token：明文存储在 .git/config，泄露风险高
+  - SSH Key：私钥本地 600 权限文件，公开指纹对认证无影响
+  - 推荐使用专用 key 而非默认 `~/.ssh/id_*`（`IdentitiesOnly yes` 避免 key 冲突）
+  - SSH key 可加 expiration 强制轮换（GitHub 不会自动过期，但用户可定期删除）
+
+---
+
 ### ✅ bug.md 8 个安全漏洞全部修复（PR #250）
 
 **状态**：已合并

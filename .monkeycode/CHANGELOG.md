@@ -8,7 +8,9 @@
 
 | PR | 标题 | commit | CI | 状态 |
 |----|------|--------|----|------|
+| **待定** | **2026-06-24 审计周期新增 6 个低危漏洞修复（#1-#6）** | **`本地未推送`** | **⏳ 待 CI** | **⏳ 待用户本地推送** |
 | **#250** | **修复 bug.md 全部 8 个安全漏洞 (#1-#8)** | **`1e6ba7da`** | **✅** | **✅ 已合并 main** |
+| **fixup** | **公开 compose_color_no 修 14 个 E0624 + Token 轮换 + 清理 draft** | **`e8e69a52`** | **✅ 15/15** | **✅ 已合并 main** |
 | #248 | CI 错误修复（E0599 + clippy baseline 重建） | `cd7f6b5e` | ✅ | ✅ |
 | #247 | 批次 C dead_code 清理（40 文件 + 12 测试导入） | `f524dad7` | ✅ | ✅ |
 | #246 | 批次 B dead_code 清理（30 中频文件） | `c274a5c4` | ✅ | ✅ |
@@ -59,6 +61,57 @@
 - API Key 撤销需双轨：DB is_active=false + 黑名单缓存强制吊销
 - **分布式限流回退逻辑必须真正回退**：check_redis_rate_limit 返回 `Ok(None)`（未配置）应与 `Err(_)`（错误）等价，都回退内存限流；返回 `Ok(true)` 直接放行会绕过内存限流
 - **clippy baseline 脆弱性**：`sort -u` 对多行 `rendered` 字段去重错误，只保留尾部 `= help:`/`= note:` 行；编译成功 vs 失败时输出差异大，导致 baseline 与实际不匹配；解决：删除损坏 baseline 让 CI 重建
+
+---
+
+## Token 轮换 + Draft Release 清理（2026-06-24 fixup）
+
+**状态**：✅ 已完成
+
+### 1. E0624 编译错误修复（commit `e8e69a52`）
+- **根因**：集成测试 `tests/quotation_convert_test.rs` 跨 crate 调用私有函数 `compose_color_no`（行 32/59/86）→ 编译失败
+- **修复**：`fn compose_color_no` → `pub fn compose_color_no`，添加文档注释说明公开目的
+- **影响**：CI clippy 14 个新警告全部消除，✅ 15 个 job 全绿
+- **新 release**：[v2026.624.2150](https://github.com/57231307/1/releases/tag/v2026.624.2150)（draft=False, prerelease=False）
+
+### 2. Draft Release 清理
+- **对象**：`v2026.62.24`（id=332629717，draft=true 遗留版本）
+- **操作**：通过 GitHub API 删除
+- **结果**：release 列表现在全部 `draft=False prerelease=False`
+
+### 3. Token 轮换文档 + SSH 切换
+- **文件**：
+  - `.monkeycode/docs/archives/2026-06-24/token-rotation-2026-06-24.md`
+  - `.monkeycode/docs/archives/2026-06-24/ssh-public-key-2026-06-24.md`
+- **目的**：发现 Token（`ghu_` 前缀）明文存储在 `.git/config`，违反"禁止硬编码敏感信息"规范
+- **风险**：该 Token 拥有 57231307/1 与 57231307/2 仓库 admin 权限
+- **沙箱已完成**（2026-06-24 14:10 UTC）：
+  - ✅ 生成专用 SSH key（ed25519，fingerprint `SHA256:lWfrC60FouzfR7pF9KHnHjutL1S5WTpQW+gQTdFhdbw`）
+  - ✅ 配置 SSH client（`/root/.ssh/config` 限定使用专用 key）
+  - ✅ 切换 .git/config 到 SSH URL（明文 Token 已清除）
+  - ✅ 归档公钥内容到 `ssh-public-key-2026-06-24.md`
+- **待用户操作**：
+  - 注册公钥到 https://github.com/settings/keys
+  - 撤销旧 Token：https://github.com/settings/tokens
+
+### 4. CI 全绿验证（commit `e8e69a52` run 28103404780）
+| Job | 状态 |
+|-----|------|
+| 📋 环境信息 | ✅ |
+| 🔍 Rust Clippy | ✅ **（14 E0624 全部修复）** |
+| 🔍 前端 ESLint | ✅ |
+| 🛡️ 依赖审计 | ✅ |
+| 🧪 前端测试 | ✅ |
+| 🔧 Rust 格式检查 | ✅ |
+| 📦 依赖图记录 | ✅ |
+| 🔧 前端格式检查 | ✅ |
+| 🧪 Rust 单元测试 | ✅ |
+| 🏗️ Rust 后端构建 | ✅ |
+| 🔬 前端类型检查 | ✅ |
+| 🏗️ 前端构建 | ✅ |
+| 📦 打包发布 | ✅ |
+| 🚀 GitHub Release | ✅ |
+| 📊 构建通知 | ✅ |
 
 ---
 

@@ -14,6 +14,49 @@ use std::sync::OnceLock;
 use std::time::Instant;
 use tracing::{info, warn};
 
+/// 日志脱敏：截断 Authorization 头值，避免完整 Token 写入日志
+///
+/// 低危 #4 修复：原实现直接把 `header_val` 拼到 warn 日志中，
+/// 可能导致完整 JWT Token 落地到日志文件/聚合系统，违反最小暴露原则。
+/// 本函数仅返回格式与长度供排错使用，Token 部分被截断。
+///
+/// # 参数
+/// - `header_val`: 原始 Authorization 头值（可能含 `Bearer xxx...`）
+///
+/// # 返回
+/// - 脱敏后的字符串：仅显示前缀与长度，如 `Bearer abc***(len=143)`
+fn mask_auth_header(header_val: &str) -> String {
+    // 截取前 12 个字符（包含 "Bearer " 前缀和 Token 前 6 位），剩余长度记入日志
+    const PREFIX_KEEP: usize = 12;
+    let total_len = header_val.len();
+    if total_len <= PREFIX_KEEP {
+        // 太短不显示任何字符（防御极端短 header）
+        format!("***redacted***(len={})", total_len)
+    } else {
+        let prefix = &header_val[..PREFIX_KEEP];
+        format!("{}***(len={})", prefix, total_len)
+    }
+}
+
+/// 日志脱敏：用户名 PII 截断
+///
+/// 低危 #4 修复：warn 级别日志中只保留用户名前 2 字符 + `***`，
+/// 避免明文 username 进入日志聚合系统；保留前 2 字符仍可定位用户。
+///
+/// # 参数
+/// - `username`: 原始用户名
+///
+/// # 返回
+/// - 脱敏后的字符串，如 `al***`
+fn mask_username(username: &str) -> String {
+    let chars: Vec<char> = username.chars().collect();
+    if chars.len() <= 2 {
+        "***".to_string()
+    } else {
+        format!("{}***", chars[..2].iter().collect::<String>())
+    }
+}
+
 /// 用户 is_active 状态内存缓存的 TTL（5 分钟）
 ///
 /// 安全漏洞 #6 修复：禁用 / 软删除用户的旧 JWT 在剩余有效期（最长 2 小时）内
@@ -254,7 +297,7 @@ pub async fn auth_middleware(
                     method = %method,
                     client_ip = %client_ip,
                     user_id = claims.sub,
-                    username = %claims.username,
+                    username = %mask_username(&claims.username),
                     "认证失败: 用户账户已被禁用"
                 );
                 // best-effort 审计落库（失败不阻塞主流程）
@@ -293,5 +336,65 @@ pub async fn auth_middleware(
             );
             Err(unauthorized_response("无效的认证令牌"))
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// 低危 #4 修复：测试 Authorization 头脱敏（正常长度）
+    #[test]
+    fn test_mask_auth_header_normal_length() {
+        let token = "Bearer abcdef1234567890.thisisafakesignaturevalue";
+        let masked = mask_auth_header(token);
+        // 保留前 12 字符
+        assert!(masked.starts_with("Bearer abcd"), "应保留前 12 字符前缀");
+        // 含长度信息
+        assert!(masked.contains("(len="), "应包含原始长度信息");
+        // 完整 token 不在脱敏结果中
+        assert!(
+            !masked.contains("thisisafakesignaturevalue"),
+            "完整 token 不应出现在脱敏结果中"
+        );
+    }
+
+    /// 低危 #4 修复：测试 Authorization 头脱敏（短 header）
+    #[test]
+    fn test_mask_auth_header_short() {
+        let short = "abc";
+        let masked = mask_auth_header(short);
+        assert_eq!(masked, "***redacted***(len=3)");
+    }
+
+    /// 低危 #4 修复：测试 Authorization 头脱敏（边界 = 12 字符）
+    #[test]
+    fn test_mask_auth_header_boundary() {
+        let boundary = "Bearer xxxx"; // 12 字符
+        let masked = mask_auth_header(boundary);
+        assert_eq!(masked, "***redacted***(len=12)");
+    }
+
+    /// 低危 #4 修复：测试用户名脱敏（长用户名）
+    #[test]
+    fn test_mask_username_long() {
+        let masked = mask_username("admin_user");
+        assert_eq!(masked, "ad***", "长用户名应保留前 2 字符 + ***");
+    }
+
+    /// 低危 #4 修复：测试用户名脱敏（短用户名）
+    #[test]
+    fn test_mask_username_short() {
+        assert_eq!(mask_username("ab"), "***");
+        assert_eq!(mask_username("a"), "***");
+        assert_eq!(mask_username(""), "***");
+    }
+
+    /// 低危 #4 修复：测试中文用户名脱敏（按字符而非字节截断）
+    #[test]
+    fn test_mask_username_chinese() {
+        // 中文字符 1 个 = 3 字节，chars() 按 Unicode 字符截断
+        let masked = mask_username("管理员");
+        assert_eq!(masked, "管***", "中文用户名应按字符截断");
     }
 }

@@ -24,12 +24,14 @@ use argon2::{
 };
 use chrono::{DateTime, Duration, Utc};
 use jsonwebtoken::{decode, encode, DecodingKey, EncodingKey, Header, Validation};
+use redis::aio::ConnectionManager;
+use redis::AsyncCommands;
 use sea_orm::DatabaseConnection;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::sync::Arc;
 use std::sync::LazyLock;
-use tokio::sync::RwLock;
+use tokio::sync::{OnceCell, RwLock};
 
 /// JWT 令牌声明
 ///
@@ -348,22 +350,114 @@ impl From<AppError> for AuthError {
 // - 登出时调用 `revoke_jti` 吊销当前 Token 的 JTI（session_id）
 // - Refresh Token 旋转时调用 `revoke_jti` 吊销旧 Token 的 JTI
 // - 每次受保护请求在 middleware 中调用 `is_jti_revoked` 检查
+//
+// 低危 #1 修复：JTI 黑名单从进程内 HashMap 迁移到 Redis（SETEX + TTL）。
+// 进程内存储在多实例部署时不共享，撤销后的旧 JWT 在其他实例最多可继续使用
+// 2 小时（JWT 过期时间）。Redis 后端保证所有实例共享同一黑名单视图。
+// Redis 不可用时自动回退到内存（graceful degradation）。
 
-/// JWT JTI 黑名单（已吊销的 Token ID -> 过期时间戳）
+/// JTI 黑名单 Redis key 前缀
+const JTI_KEY_PREFIX: &str = "jwt:jti:revoked:";
+
+/// JWT JTI 黑名单（进程内降级回退表：jti -> 过期时间戳）
+///
+/// 仅在 Redis 不可用时使用，避免阻塞业务。生产环境应配置 Redis。
 static JTI_BLACKLIST: LazyLock<RwLock<HashMap<String, i64>>> =
     LazyLock::new(|| RwLock::new(HashMap::new()));
 
+/// 分布式 JTI 黑名单 Redis 客户端（懒初始化）
+///
+/// 通过环境变量 `JTI_REDIS_URL` 或回退 `REDIS_URL` 启用。
+static REDIS_JTI_BLACKLIST: OnceCell<Option<Arc<tokio::sync::Mutex<ConnectionManager>>>> =
+    OnceCell::const_new();
+
+/// 初始化 Redis JTI 黑名单客户端
+async fn init_redis_jti_blacklist() -> Option<Arc<tokio::sync::Mutex<ConnectionManager>>> {
+    let url = std::env::var("JTI_REDIS_URL")
+        .or_else(|_| std::env::var("REDIS_URL"))
+        .ok()
+        .filter(|s| !s.is_empty());
+
+    let url = match url {
+        Some(u) => u,
+        None => {
+            tracing::debug!(
+                "JTI_REDIS_URL/REDIS_URL 未配置，JTI 黑名单使用进程内存储（多实例部署不安全）"
+            );
+            return None;
+        }
+    };
+
+    match redis::Client::open(url.as_str()) {
+        Ok(client) => match ConnectionManager::new(client).await {
+            Ok(conn) => {
+                tracing::info!("JTI 黑名单已启用 Redis 分布式后端 (URL 已配置)");
+                Some(Arc::new(tokio::sync::Mutex::new(conn)))
+            }
+            Err(e) => {
+                tracing::warn!(
+                    "JTI 黑名单 Redis 连接失败 ({:?})，回退到进程内存储",
+                    e
+                );
+                None
+            }
+        },
+        Err(e) => {
+            tracing::warn!("JTI 黑名单 Redis URL 解析失败 ({:?})，回退到进程内存储", e);
+            None
+        }
+    }
+}
+
+/// 获取或初始化 Redis JTI 黑名单客户端
+async fn get_redis_jti_blacklist() -> Option<Arc<tokio::sync::Mutex<ConnectionManager>>> {
+    REDIS_JTI_BLACKLIST
+        .get_or_init(init_redis_jti_blacklist)
+        .await
+        .clone()
+}
+
 /// 吊销指定 JTI
 ///
-/// 将给定 JTI 加入内存黑名单，后续请求将拒绝持有该 JTI 的 Token。
+/// 将给定 JTI 加入黑名单（优先写 Redis；Redis 不可用时回退到进程内 HashMap）。
+/// 后续请求将拒绝持有该 JTI 的 Token。
 ///
 /// # 参数
 /// - `jti`: 待吊销的 Token 唯一标识（当前实现取自 `AppClaims::session_id`）
 /// - `expires_at`: Token 的过期时间戳（Unix 秒）
 pub async fn revoke_jti(jti: &str, expires_at: i64) {
-    let mut blacklist = JTI_BLACKLIST.write().await;
-    blacklist.insert(jti.to_string(), expires_at);
-    tracing::info!("JTI 已吊销：{}，过期时间：{}", jti, expires_at);
+    // 主路径：写入 Redis（SETEX 自动设置 TTL，过期自动清理，零维护成本）
+    if let Some(conn_arc) = get_redis_jti_blacklist().await {
+        let now = chrono::Utc::now().timestamp();
+        let ttl_secs = (expires_at - now).max(1) as u64;
+        let key = format!("{}{}", JTI_KEY_PREFIX, jti);
+
+        let write_result: Result<(), redis::RedisError> = async {
+            let mut conn = conn_arc.lock().await;
+            let _: () = conn.set_ex(&key, expires_at.to_string(), ttl_secs).await?;
+            Ok(())
+        }
+        .await;
+
+        if let Err(e) = write_result {
+            tracing::warn!(
+                "JTI 写入 Redis 失败 ({:?})，回退到进程内存储；jti={}",
+                e,
+                jti
+            );
+            // 降级：写入内存
+            let mut blacklist = JTI_BLACKLIST.write().await;
+            blacklist.insert(jti.to_string(), expires_at);
+        } else {
+            tracing::info!("JTI 已吊销（Redis）：{}，TTL {} 秒", jti, ttl_secs);
+            return;
+        }
+    } else {
+        // 未配置 Redis：直接写内存
+        let mut blacklist = JTI_BLACKLIST.write().await;
+        blacklist.insert(jti.to_string(), expires_at);
+        tracing::info!("JTI 已吊销（内存）：{}，过期时间：{}", jti, expires_at);
+    }
 }
 
 /// 检查 JTI 是否在黑名单
@@ -375,25 +469,56 @@ pub async fn revoke_jti(jti: &str, expires_at: i64) {
 /// - `true`: 该 JTI 已被吊销
 /// - `false`: 该 JTI 仍然有效
 pub async fn is_jti_revoked(jti: &str) -> bool {
+    // 主路径：查 Redis
+    if let Some(conn_arc) = get_redis_jti_blacklist().await {
+        let key = format!("{}{}", JTI_KEY_PREFIX, jti);
+        let check_result: Result<bool, redis::RedisError> = async {
+            let mut conn = conn_arc.lock().await;
+            let exists: bool = conn.exists(&key).await?;
+            Ok(exists)
+        }
+        .await;
+
+        match check_result {
+            Ok(exists) => return exists,
+            Err(e) => {
+                tracing::warn!(
+                    "JTI 查 Redis 失败 ({:?})，回退到进程内检查；jti={}",
+                    e,
+                    jti
+                );
+                // 降级：查内存
+            }
+        }
+    }
+
+    // 降级：查内存
     let blacklist = JTI_BLACKLIST.read().await;
     blacklist.contains_key(jti)
 }
 
 /// 清理过期 JTI（建议定期调用，如每小时）
 ///
-/// 仅清理已超过过期时间的记录，避免内存泄漏。
+/// 当使用 Redis 后端时，TTL 自动清理过期条目，此函数为 noop。
+/// 当回退到进程内存储时，主动清理已超过过期时间的记录，避免内存泄漏。
 ///
 /// # 参数
 /// - `_max_age_secs`: 允许的最大存活时间（秒），当前实现忽略该参数
-#[allow(dead_code)] // TODO(tech-debt): 业务接入后移除
 pub async fn cleanup_expired_jti(_max_age_secs: i64) {
+    // Redis 后端下，SETEX TTL 自动清理，无需手动操作
+    if get_redis_jti_blacklist().await.is_some() {
+        tracing::debug!("JTI 黑名单使用 Redis 后端，过期条目由 TTL 自动清理");
+        return;
+    }
+
+    // 进程内存储降级路径：手动清理过期记录
     let mut blacklist = JTI_BLACKLIST.write().await;
     let now = chrono::Utc::now().timestamp();
     let before = blacklist.len();
     blacklist.retain(|_, expires_at| *expires_at > now);
     let removed = before - blacklist.len();
     tracing::info!(
-        "清理 JTI 黑名单：移除 {} 条过期记录，剩余 {} 条",
+        "清理 JTI 黑名单（内存）：移除 {} 条过期记录，剩余 {} 条",
         removed,
         blacklist.len()
     );
@@ -741,6 +866,70 @@ mod tests {
         assert!(
             !is_user_token_revoked(test_user_id, old_iat).await,
             "unrevoke 后旧 Token 应判定为有效"
+        );
+    }
+
+    // =================================================================
+    // 安全漏洞 #1 修复：JTI 黑名单→Redis 单元测试
+    // =================================================================
+    //
+    // 注：测试运行环境未配置 JTI_REDIS_URL/REDIS_URL，自动回退到进程内 HashMap。
+    // 此处覆盖回退路径的核心行为：revoke → is_revoked 双向一致性。
+
+    /// 测试 JTI revoke 后立即被 is_jti_revoked 判定为已吊销
+    #[tokio::test]
+    async fn test_revoke_jti_marks_as_revoked() {
+        let test_jti = format!("test-jti-{}", chrono::Utc::now().timestamp_nanos_opt().unwrap_or(0));
+        let expires_at = chrono::Utc::now().timestamp() + 3600;
+
+        // revoke 前应未吊销
+        assert!(!is_jti_revoked(&test_jti).await, "新 JTI 默认应为有效");
+
+        // revoke 后应判定为已吊销
+        revoke_jti(&test_jti, expires_at).await;
+        assert!(is_jti_revoked(&test_jti).await, "revoke 后应被判定为已吊销");
+    }
+
+    /// 测试不同 JTI 之间互不干扰
+    #[tokio::test]
+    async fn test_revoke_jti_isolation() {
+        let ts = chrono::Utc::now().timestamp_nanos_opt().unwrap_or(0);
+        let jti_a = format!("test-jti-a-{}", ts);
+        let jti_b = format!("test-jti-b-{}", ts);
+        let expires_at = chrono::Utc::now().timestamp() + 3600;
+
+        revoke_jti(&jti_a, expires_at).await;
+
+        assert!(is_jti_revoked(&jti_a).await, "jti_a 应被吊销");
+        assert!(!is_jti_revoked(&jti_b).await, "jti_b 不应被吊销（互不干扰）");
+    }
+
+    /// 测试 cleanup_expired_jti 在内存模式下移除过期项
+    #[tokio::test]
+    async fn test_cleanup_expired_jti_removes_expired_entries() {
+        let ts = chrono::Utc::now().timestamp_nanos_opt().unwrap_or(0);
+        let expired_jti = format!("test-jti-expired-{}", ts);
+        let fresh_jti = format!("test-jti-fresh-{}", ts);
+        let now = chrono::Utc::now().timestamp();
+
+        // 插入一条已过期（1 小时前到期）和一条未过期（1 小时后到期）
+        revoke_jti(&expired_jti, now - 3600).await;
+        revoke_jti(&fresh_jti, now + 3600).await;
+
+        assert!(is_jti_revoked(&expired_jti).await);
+        assert!(is_jti_revoked(&fresh_jti).await);
+
+        // 触发清理
+        cleanup_expired_jti(0).await;
+
+        // 过期项应被清除，未过期项保留
+        assert!(
+            !is_jti_revoked(&expired_jti).await,
+            "过期 JTI 应被清理"
+        );
+        assert!(
+            is_jti_revoked(&fresh_jti).await,
+            "未过期 JTI 应保留"
         );
     }
 }

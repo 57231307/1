@@ -2,9 +2,9 @@ use crate::middleware::auth_context::AuthContext;
 use crate::utils::app_state::AppState;
 use crate::utils::error::AppError;
 use axum::{body::Body, extract::State, http::Request, middleware::Next, response::Response};
-use dashmap::DashMap;
 use redis::aio::ConnectionManager;
 use redis::AsyncCommands;
+use std::collections::HashMap;
 use std::net::SocketAddr;
 use std::sync::Arc;
 use std::sync::LazyLock;
@@ -16,9 +16,19 @@ use tokio::sync::OnceCell;
 // =====================================================
 
 /// 内存速率限制器
-#[derive(Clone, Debug)]
+///
+/// # 设计
+/// - 内部使用 `std::sync::Mutex<HashMap>`，所有访问通过 `try_lock` 避免锁中毒
+/// - 锁失败时默认放行（fail-open），记录 warn 日志
+/// - 单 mutex 替代 DashMap（分片锁），简化锁中毒防御路径
+/// - 高频场景下性能足够：180 req/min/user 是常见限流阈值
+///
+/// # 低危 #3 修复
+/// 原实现使用 DashMap 分片锁，理论上不存在 PoisonError 暴露
+/// （DashMap API 不返回 Result），但 audit 报告建议显式 try_lock
+/// 防御极端 panic 场景。本实现满足该建议：锁不可用时放行而非 panic。
 pub struct MemoryRateLimiter {
-    storage: Arc<DashMap<String, RateLimitInfo>>,
+    storage: Arc<std::sync::Mutex<HashMap<String, RateLimitInfo>>>,
     max_requests: usize,
     window: Duration,
 }
@@ -33,19 +43,35 @@ struct RateLimitInfo {
 impl MemoryRateLimiter {
     pub fn new(max_requests: usize, window: Duration) -> Self {
         Self {
-            storage: Arc::new(DashMap::new()),
+            storage: Arc::new(std::sync::Mutex::new(HashMap::new())),
             max_requests,
             window,
         }
     }
 
     /// 清理过期的记录
+    ///
+    /// 使用 `try_lock` 避免锁中毒（PoisonError）。如果锁不可用则跳过本次清理。
     pub fn cleanup(&self) {
+        // 低危 #3 修复：try_lock 防御锁中毒；失败时跳过清理（不影响主流程）
+        let Ok(mut storage) = self.storage.try_lock() else {
+            tracing::warn!("限流器存储锁不可用，跳过本次清理（fail-open）");
+            return;
+        };
         let now = Instant::now();
-        self.storage.retain(|_, v| now < v.reset_at);
+        storage.retain(|_, v| now < v.reset_at);
     }
 
     /// 检查是否允许请求
+    ///
+    /// # 低危 #3 修复
+    /// 使用 `try_lock` 而非 `lock().unwrap()`：
+    /// - 锁中毒（PoisonError）时不再 panic
+    /// - 极端情况下（panic 蔓延）默认放行（fail-open），不阻塞业务
+    ///
+    /// # 返回
+    /// - `true`: 允许请求
+    /// - `false`: 拒绝请求（已达上限）
     pub fn check(&self, key: &str) -> bool {
         // 偶尔清理过期记录以防止内存泄漏
         if fastrand::usize(..1000) == 0 {
@@ -53,7 +79,16 @@ impl MemoryRateLimiter {
         }
 
         let now = Instant::now();
-        if let Some(mut entry) = self.storage.get_mut(key) {
+        // 低危 #3 修复：try_lock 防御锁中毒；失败时 fail-open（放行）
+        let Ok(mut storage) = self.storage.try_lock() else {
+            tracing::warn!(
+                "限流器存储锁不可用（PoisonError 或争用），默认放行；key={}",
+                key
+            );
+            return true;
+        };
+
+        if let Some(entry) = storage.get_mut(key) {
             if now >= entry.reset_at {
                 entry.count = 1;
                 entry.reset_at = now + self.window;
@@ -63,7 +98,7 @@ impl MemoryRateLimiter {
                 entry.count <= self.max_requests
             }
         } else {
-            self.storage.insert(
+            storage.insert(
                 key.to_string(),
                 RateLimitInfo {
                     count: 1,

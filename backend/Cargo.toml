@@ -32,6 +32,8 @@ serde_json = "1.0"
 argon2 = "0.5"
 uuid = { version = "1.0", default-features = false, features = ["serde", "v4"] }
 jsonwebtoken = "9.0"
+# URL 解析（用于 SSRF 防护：解析 Webhook URL 主机名后校验内网地址）
+url = "2.5"
 
 # 验证
 validator = { version = "0.16", features = ["derive"] }

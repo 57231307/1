@@ -179,6 +179,37 @@
 
 ## 五、核心经验（关键排错与开发经验）
 
+[集成测试跨 crate 调用私有函数]
+- Date: 2026-06-24
+- Context: commit `e8e69a52` 修复 14 个 E0624 编译错误时发现
+- Category: 排错调试
+- `tests/` 目录下的集成测试编译为**独立二进制 crate**，`fn foo()` 对集成测试 crate 不可见
+- 修复：`fn foo()` → `pub fn foo()`（或使用 `pub(crate)` 限制可见性）
+- 错误模式：`error[E0624]: associated function compose_color_no is private`
+- 决策原则：内部实现细节稳定可作为测试入口时用 `pub`；否则考虑重构暴露更窄的公共 API
+
+[沙箱网络限制]
+- Date: 2026-06-24
+- Context: SSH 切换后尝试在沙箱内推送测试时发现
+- Category: 环境配置
+- **限制**：沙箱环境出站 22 端口（github.com）和 443 端口（ssh.github.com）均被防火墙阻断
+- **可用**：443 端口（github.com HTTPS API/页面）正常
+- **影响**：沙箱内无法 `git push` 或 `ssh -T git@github.com`，所有推送操作必须在**用户本地终端**执行
+- **应对策略**：
+  - 沙箱内仅做：代码编辑、git commit、文档更新
+  - 推送前：通过 GitHub HTTPS API 检查远程状态
+  - 用户本地：执行 `git push` / `gh pr create`
+- **验证方法**：`nc -zv github.com 22` 返回 "Connection timed out" 即确认
+
+[.monkeycode 目录 gitignore 规则]
+- Date: 2026-06-24
+- Context: ssh-public-key 文档创建后 `git add` 失败时发现
+- Category: 环境配置
+- `.gitignore` 默认忽略 `.monkeycode/`，仅白名单：`MEMORY.md` / `doto.md` / `bug.md` / `CHANGELOG.md`
+- `.monkeycode/docs/` 子目录不在白名单
+- **添加新归档文件**必须用 `git add -f` 强制添加
+- 已有 71 个 `.monkeycode/docs/*.md` 文件被追踪（历史均用 `-f` 添加）
+
 [集成测试 `crate` 语义]
 - Date: 2026-06-24
 - Context: PR #247 批次 C 修复时发现
@@ -206,7 +237,112 @@
 - `backend/src/utils/cache.rs` 的 `Cache` trait 定义 `fn get(&self, key: &K) -> Option<V>`，返回值已 **Clone**（不是 `Option<&V>`）
 - 不能在结果上调用 `.copied()`（仅 `Option<&T>` 或迭代器支持）
 - 错误模式：`cache.get(&key).copied().unwrap_or(false)` → 修复：`cache.get(&key).unwrap_or(false)`
-- 同时必须 `use crate::utils::cache::{AppCache, Cache};`（导入 trait 才能调用 `get`/`set`）
+
+[JTI 黑名单→Redis 迁移设计]
+- Date: 2026-06-24
+- Context: 修复低危 #1 JTI 黑名单进程内存储时设计
+- Category: 安全 / 性能
+- **现状**：`auth_service.rs` 用 `static JTI_BLACKLIST: LazyLock<RwLock<HashMap<String, i64>>>`，多实例不共享
+- **风险**：撤销后的旧 JWT 在其他实例最多可继续使用 2 小时（JWT 过期时间）
+- **迁移方案**：
+  - 优先用 Redis SETEX（`SET key value EX <ttl>`），TTL 到期自动清理，零维护成本
+  - 环境变量 `JTI_REDIS_URL` 或回退 `REDIS_URL` 启用
+  - **失败回退**：Redis 不可用时降级到原 HashMap（避免阻塞业务）
+  - **清理**：`cleanup_expired_jti` 在 Redis 模式下为 noop（TTL 自动清理）
+- **关键 API**：
+  - 写：`SET key value EX <ttl_secs>` → `redis::AsyncCommands::set_ex`
+  - 读：`EXISTS key` → `redis::AsyncCommands::exists`
+- **优雅降级模式**：与 `rate_limit.rs` 的 `REDIS_RATE_LIMITER` 设计一致
+- **测试覆盖**：未配置 Redis 时回退路径的行为（`is_jti_revoked` 一致性、清理逻辑）
+
+[SSRF 防护双重校验必要性]
+- Date: 2026-06-24
+- Context: 修复低危 #2 Webhook SSRF 时设计
+- Category: 安全
+- **单次校验的弱点**：create 时校验 `url` 指向公网，但攻击者可注册合法公网域名后修改 DNS 记录为内网 IP（DNS Rebinding）
+- **必须双重校验**：
+  1. `create_webhook` 时校验（防滥用：阻止用户保存内网 URL）
+  2. `trigger_webhook` 发送前**再次**校验（防 DNS Rebinding：每次重新解析）
+- **校验内容**（`backend/src/utils/ssrf_guard.rs`）：
+  - 协议白名单：`http://` / `https://`（拒 `file://`、`gopher://` 等）
+  - 主机名黑名单：`localhost` / `*.local` / `*.internal`
+  - IP 黑名单：解析为 IP 后校验
+    - IPv4：RFC1918（10/8、172.16/12、192.168/16）、loopback（127/8）、link-local（169.254/16 含云元数据 169.254.169.254）
+    - IPv6：`::1`、`::`、`fe80::/10`、ULA（fc00::/7）、IPv4-mapped 内部 IPv4
+- **错误传播**：校验失败时 `WebhookDeliveryResult` 返回 `success: false, error: "SSRF 防护拦截：..."`（不 panic 业务）
+
+[DashMap vs std::sync::Mutex 选型]
+- Date: 2026-06-24
+- Context: 修复低危 #3 限流器 try_lock 时决策
+- Category: 代码规范
+- **DashMap**（分片无锁 HashMap）：
+  - 优点：高并发读、API 简洁（无 unwrap）
+  - 缺点：API 不暴露 `PoisonError`，极端 panic 场景下不可恢复
+- **std::sync::Mutex<HashMap>**：
+  - 优点：`try_lock()` 显式处理锁不可用
+  - 缺点：单锁并发受限
+- **决策原则**：
+  - 高频/性能关键：DashMap
+  - 安全关键 + 锁中毒需防御：std::sync::Mutex + try_lock
+- **项目实践**（限流器 `MemoryRateLimiter`）：
+  - 改用 `std::sync::Mutex<HashMap>` + `try_lock`
+  - 锁失败时 **fail-open**（默认放行） + `warn!` 日志
+  - 性能可接受：180 req/min/user 是常见限流阈值，单锁不构成瓶颈
+- **关键模式**：`let Ok(mut g) = self.storage.try_lock() else { return; };`（Rust 1.65+ let-else）
+
+[日志脱敏按字符而非字节]
+- Date: 2026-06-24
+- Context: 修复低危 #4 认证失败日志脱敏时实现
+- Category: 安全 / 国际化
+- **风险**：截断 UTF-8 字符串用字节切片 `&s[..n]` 可能切到字符中间，panic（`byte index N is not a char boundary`）
+- **正确做法**：用 `chars().take(n)` 按 Unicode 字符截断
+- **项目实践**（`auth.rs::mask_username`）：
+  ```rust
+  let chars: Vec<char> = username.chars().collect();
+  if chars.len() <= 2 { "***".to_string() }
+  else { format!("{}***", chars[..2].iter().collect::<String>()) }
+  ```
+- **测试覆盖**：中文用户名 `"管理员"` → `"管***"`（3 字符按字符截断）
+- **Authorization 头脱敏**：保留前缀 `"Bearer "` + Token 前几位 + `(len=N)` 供排错，截断 Token 部分
+
+[totp-rs 5.5 熵源确认]
+- Date: 2026-06-24
+- Context: 审计低危 #6 TOTP 熵源时确认
+- Category: 安全 / 依赖审计
+- `totp-rs = { version = "5.5", features = ["qr", "gen_secret"] }` 启用 `gen_secret` feature
+- `Secret::generate_secret()` 源码（`constantoine/totp-rs@v5.5.0/src/secret.rs`）：
+  ```rust
+  pub fn generate_secret() -> Secret {
+      use rand::Rng;
+      let mut rng = rand::thread_rng();
+      let mut secret: [u8; 20] = Default::default();
+      rng.fill(&mut secret[..]);
+      Secret::Raw(secret.to_vec())
+  }
+  ```
+- **熵源链**：`rand::thread_rng()` → 内部用 `OsRng`（rand 0.8+）→ 操作系统 CSPRNG（Linux: `getrandom(2)`）
+- **安全等级**：密码学安全（160 bits 熵，符合 RFC 4226 推荐）
+- **审计结论**：✅ 无需修改，TOTP 密钥生成路径已是密码学最佳实践
+
+[GitHub Token 安全存储]
+- Date: 2026-06-24
+- Context: 用户提供 fine-grained PAT 用于推送
+- Category: 安全 / 凭证管理
+- **绝不写入任何 git 跟踪文件**（.git/config / MEMORY.md / doto.md / CHANGELOG.md / commit message）
+- **存储位置**：沙箱本地 `~/.git-credentials`（600 权限，git credential helper = store 自动读取）
+- **类型**：fine-grained PAT（`github_pat_` 前缀，90 天有效期，用户提供）
+- **沙箱网络限制**：SSH 22 端口被防火墙阻断，必须用 HTTPS push
+- **推送诊断流程**（PAT 403 必走）：
+  1. 立即用 PAT 测 issue 创建（`POST /repos/.../issues`）
+  2. 403 `Resource not accessible by personal access token` = 缺写权限
+  3. 不是 token 错误，是 fine-grained PAT 权限未勾选
+  4. 引导用户去 https://github.com/settings/pats 给 token 勾选 `Contents: Read and write`
+- **推送命令**：
+  ```bash
+  git credential fill <<< $'protocol=https\nhost=github.com'  # 验证 token 读回
+  git push -u origin <branch>  # 自动从 ~/.git-credentials 读取
+  ```
+- **SSH 22 端口 vs HTTPS 443**：沙箱 raw TCP 22/443 阻断，但 git/curl 高层 HTTPS 透通（透明代理）
 
 [分布式限流回退必须真实回退]
 - Date: 2026-06-24
@@ -499,3 +635,10 @@
 - **降级方案**：环境变量 `GITHUB_TOKEN` + 启动脚本加载
 - **重要提醒**：仓库中**严禁**提交真实 Token 字符串（GitHub Secret Scanning 会阻止 push）
 - **检查方法**：`git remote -v` 不应出现 token 字符串
+- **沙箱执行记录（2026-06-24 14:10 UTC）**：
+  - 已生成专用 SSH key `/root/.ssh/github_bingxi`（ed25519，fingerprint `SHA256:lWfrC60FouzfR7pF9KHnHjutL1S5WTpQW+gQTdFhdbw`）
+  - `/root/.ssh/config` 已配置：限定 github.com 使用专用 key（`IdentitiesOnly yes`）
+  - .git/config remote URL 已从 `https://x-access-token:...@github.com/...` 切换到 `git@github.com:57231307/1.git`
+  - 明文 Token 已从 .git/config 移除（本地暴露风险已消除）
+  - 公钥位置：`.monkeycode/docs/archives/2026-06-24/ssh-public-key-2026-06-24.md`
+  - 待用户操作：注册公钥到 GitHub + 撤销旧 Token
