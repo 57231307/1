@@ -8,7 +8,61 @@
 
 ---
 
-## 当前任务：PR #244 批次 A-16 budget_management_service.rs 死代码清理（2026-06-24）
+## 当前任务：PR #244 批次 A 汇总与 CI 监控（2026-06-24）
+
+- **分支**：`fix/clippy-deadcode-batch-a-2026-06-24`
+- **提交**：`07436648`
+- **状态**：已提交并推送，等待 PR 创建 / CI 验证
+- **目标**：将批次 A 20 个子代理的 dead_code 清理结果合并入 main
+
+### 变更统计
+
+- 修改文件：23 个（后端 20 个 + `.monkeycode` 文档 3 个）
+- 新增行数：895 行
+- 删除行数：301 行
+- 核心精简：`backend/src/services/enhanced_logger.rs` 从 401 行减至 122 行
+
+### 后端文件清单
+
+| 序号 | 文件 | 处理方式 |
+|------|------|----------|
+| 1 | `backend/src/services/enhanced_logger.rs` | 删除 27 个未使用 DTO/结构体 |
+| 2 | `backend/src/search/elastic.rs` | 项级抑制 + 删除未使用字段 |
+| 3 | `backend/src/services/auth/password_policy_service.rs` | 项级抑制 |
+| 4 | `backend/src/middleware/trace.rs` | 项级抑制 |
+| 5 | `backend/src/utils/incoterms.rs` | 项级抑制 |
+| 6 | `backend/src/services/event_bus.rs` | 项级抑制 |
+| 7 | `backend/src/middleware/security_headers.rs` | 项级抑制 + 删除未使用 import |
+| 8 | `backend/src/handlers/slow_query_handler.rs` | 项级抑制 |
+| 9 | `backend/src/handlers/audit_log_handler.rs` | 项级抑制 + 删除未使用 import |
+| 10 | `backend/src/cache/redis_client.rs` | 项级抑制 |
+| 11 | `backend/src/utils/failover/database.rs` | 项级抑制 + 删除未使用 import |
+| 12 | `backend/src/services/cache_service.rs` | 项级抑制 |
+| 13 | `backend/src/services/stock_alert.rs` | 删除未使用常量 + 项级抑制 |
+| 14 | `backend/src/services/report/mod.rs` | 项级抑制 |
+| 15 | `backend/src/services/performance_optimizer.rs` | 项级抑制 |
+| 16 | `backend/src/services/budget_management_service.rs` | 项级抑制 |
+| 17 | `backend/src/config/failover.rs` | 项级抑制 |
+| 18 | `backend/src/utils/token_bucket.rs` | 项级抑制 |
+| 19 | `backend/src/utils/failover/circuit_breaker.rs` | 项级抑制 |
+| 20 | `backend/src/services/data_permission_service.rs` | 项级抑制 |
+
+### 阻塞点
+
+- 当前环境缺少 `gh` CLI 与 `GITHUB_TOKEN`，无法自动创建 PR #244。
+- 需要用户手动创建 PR 或提供 GitHub 认证信息后由 Agent 继续创建并监控 CI。
+
+### 下一步
+
+1. 创建 PR #244（base: main ← head: fix/clippy-deadcode-batch-a-2026-06-24）
+2. 监控 GitHub Actions CI 结果
+3. 修复失败项（如有）
+4. Squash 合并 PR #244
+5. 启动批次 B（30 个中频 dead_code 文件）
+
+---
+
+## 历史任务：PR #244 批次 A-16 budget_management_service.rs 死代码清理（2026-06-24）
 
 - **分支**：`fix/clippy-deadcode-batch-a-2026-06-24`
 - **状态**：已完成
