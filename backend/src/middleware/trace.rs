@@ -5,10 +5,14 @@
 //! - 请求处理耗时
 //! - 租户 ID（多租户隔离）
 //! - trace_id（用于关联日志）
+//!
+//! 注意：当前尚未接入请求处理链，P9-6 上线后逐项启用。
+//!       在接入前通过 #[allow(dead_code)] 临时抑制 dead_code 警告。
 
 use std::time::Instant;
 
 /// HTTP 追踪上下文
+#[allow(dead_code)] // TODO(tech-debt): P9-6 OpenTelemetry HTTP 追踪中间件接入后移除
 #[derive(Debug, Clone)]
 pub struct HttpTraceCtx {
     /// HTTP 方法
@@ -27,6 +31,7 @@ pub struct HttpTraceCtx {
     pub span_id: String,
 }
 
+#[allow(dead_code)] // TODO(tech-debt): P9-6 OpenTelemetry HTTP 追踪中间件接入后移除
 impl HttpTraceCtx {
     /// 创建新的 HTTP 追踪上下文
     pub fn new(method: impl Into<String>, path: impl Into<String>) -> Self {
@@ -76,6 +81,7 @@ impl HttpTraceCtx {
 }
 
 /// HTTP 响应追踪
+#[allow(dead_code)] // TODO(tech-debt): P9-6 OpenTelemetry HTTP 追踪中间件接入后移除
 #[derive(Debug, Clone)]
 pub struct HttpTraceResponse {
     pub status: u16,
@@ -83,6 +89,7 @@ pub struct HttpTraceResponse {
     pub duration_ms: u64,
 }
 
+#[allow(dead_code)] // TODO(tech-debt): P9-6 OpenTelemetry HTTP 追踪中间件接入后移除
 impl HttpTraceResponse {
     /// 记录响应信息
     pub fn record(self, ctx: &HttpTraceCtx) {
@@ -106,11 +113,13 @@ impl HttpTraceResponse {
 }
 
 /// 计时器
+#[allow(dead_code)] // TODO(tech-debt): P9-6 OpenTelemetry HTTP 追踪中间件接入后移除
 #[derive(Debug, Clone)]
 pub struct TraceTimer {
     pub start: Instant,
 }
 
+#[allow(dead_code)] // TODO(tech-debt): P9-6 OpenTelemetry HTTP 追踪中间件接入后移除
 impl TraceTimer {
     pub fn new() -> Self {
         Self { start: Instant::now() }
@@ -120,6 +129,7 @@ impl TraceTimer {
     }
 }
 
+#[allow(dead_code)] // TODO(tech-debt): P9-6 OpenTelemetry HTTP 追踪中间件接入后移除
 impl Default for TraceTimer {
     fn default() -> Self {
         Self::new()
@@ -127,12 +137,13 @@ impl Default for TraceTimer {
 }
 
 /// 生成 32 字符 trace_id（16 字节十六进制）
+#[allow(dead_code)] // TODO(tech-debt): P9-6 OpenTelemetry HTTP 追踪中间件接入后移除
 fn generate_trace_id() -> String {
     use std::fmt::Write;
     let mut s = String::with_capacity(32);
     for b in 0..16 {
         if b > 0 {
-            s.push_str("0");
+            s.push('0');
         }
         let _ = write!(s, "{:x}", b);
     }
@@ -140,12 +151,13 @@ fn generate_trace_id() -> String {
 }
 
 /// 生成 16 字符 span_id（8 字节十六进制）
+#[allow(dead_code)] // TODO(tech-debt): P9-6 OpenTelemetry HTTP 追踪中间件接入后移除
 fn generate_span_id() -> String {
     use std::fmt::Write;
     let mut s = String::with_capacity(16);
     for b in 0..8 {
         if b > 0 {
-            s.push_str("0");
+            s.push('0');
         }
         let _ = write!(s, "{:x}", b);
     }

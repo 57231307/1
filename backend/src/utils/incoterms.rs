@@ -1,6 +1,7 @@
 //! Incoterms 2020 贸易术语工具
 //!
 //! 提供 5 种主要 Incoterms 代码的解析与业务含义查询。
+//! 当前为销售报价单模块预留 API，尚未被业务引用。
 //! Week 2 任务 6 - 销售报价单模块
 //! 创建时间: 2026-06-16
 
@@ -16,6 +17,7 @@ use serde::{Deserialize, Serialize};
 /// - DAP: 目的地交货
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "UPPERCASE")]
+#[allow(dead_code)] // TODO(tech-debt): 销售报价单模块接入后移除
 pub enum Incoterms2020 {
     /// 装运港船上交货（Free On Board）
     FOB,
@@ -31,6 +33,7 @@ pub enum Incoterms2020 {
 
 impl Incoterms2020 {
     /// 从字符串解析
+    #[allow(dead_code)] // TODO(tech-debt): 销售报价单模块接入后移除
     pub fn from_code(s: &str) -> Result<Self, String> {
         match s.to_uppercase().as_str() {
             "FOB" => Ok(Incoterms2020::FOB),
@@ -43,6 +46,7 @@ impl Incoterms2020 {
     }
 
     /// 返回术语的代码字符串
+    #[allow(dead_code)] // TODO(tech-debt): 销售报价单模块接入后移除
     pub fn code(&self) -> &'static str {
         match self {
             Incoterms2020::FOB => "FOB",
@@ -54,21 +58,25 @@ impl Incoterms2020 {
     }
 
     /// 是否包含保险（CIF / DDP 包含）
+    #[allow(dead_code)] // TODO(tech-debt): 销售报价单模块接入后移除
     pub fn includes_insurance(&self) -> bool {
         matches!(self, Incoterms2020::CIF | Incoterms2020::DDP)
     }
 
     /// 是否包含运费（EXW 不包含，其他都包含）
+    #[allow(dead_code)] // TODO(tech-debt): 销售报价单模块接入后移除
     pub fn includes_freight(&self) -> bool {
         !matches!(self, Incoterms2020::EXW)
     }
 
     /// 是否需要卖方支付关税（仅 DDP）
+    #[allow(dead_code)] // TODO(tech-debt): 销售报价单模块接入后移除
     pub fn requires_duty_paid(&self) -> bool {
         matches!(self, Incoterms2020::DDP)
     }
 
     /// 中文业务描述
+    #[allow(dead_code)] // TODO(tech-debt): 销售报价单模块接入后移除
     pub fn description(&self) -> &'static str {
         match self {
             Incoterms2020::FOB => "装运港船上交货（卖方承担装船前费用和风险）",
@@ -80,6 +88,7 @@ impl Incoterms2020 {
     }
 
     /// 返回所有支持的术语
+    #[allow(dead_code)] // TODO(tech-debt): 销售报价单模块接入后移除
     pub fn all() -> [Incoterms2020; 5] {
         [
             Incoterms2020::FOB,

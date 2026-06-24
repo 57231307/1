@@ -17,8 +17,10 @@ use tokio::sync::RwLock;
 #[derive(Debug, Clone, Default)]
 pub struct PasswordHistory {
     /// 历史上使用过的密码哈希
+    #[allow(dead_code)] // TODO(tech-debt): 密码策略模块接入业务后移除
     pub history: VecDeque<String>,
     /// 上限
+    #[allow(dead_code)] // TODO(tech-debt): 密码策略模块接入业务后移除
     pub capacity: usize,
 }
 
@@ -49,8 +51,10 @@ impl PasswordHistory {
 #[derive(Debug, Clone, Default)]
 pub struct LockoutInfo {
     /// 连续失败次数
+    #[allow(dead_code)] // TODO(tech-debt): 密码策略模块接入业务后移除
     pub failed_attempts: u32,
     /// 锁定到期时间（None = 未锁定）
+    #[allow(dead_code)] // TODO(tech-debt): 密码策略模块接入业务后移除
     pub locked_until: Option<chrono::DateTime<chrono::Utc>>,
 }
 
@@ -58,14 +62,19 @@ pub struct LockoutInfo {
 #[derive(Clone)]
 pub struct PasswordPolicyService {
     /// 全局默认策略
+    #[allow(dead_code)] // TODO(tech-debt): 密码策略模块接入业务后移除
     pub default_policy: Arc<RwLock<PasswordPolicy>>,
     /// 密码历史容量
+    #[allow(dead_code)] // TODO(tech-debt): 密码策略模块接入业务后移除
     pub history_capacity: usize,
     /// 锁定阈值
+    #[allow(dead_code)] // TODO(tech-debt): 密码策略模块接入业务后移除
     pub lockout_threshold: u32,
     /// 锁定时长
+    #[allow(dead_code)] // TODO(tech-debt): 密码策略模块接入业务后移除
     pub lockout_duration_minutes: i64,
     /// 密码有效期（天），None = 永不过期
+    #[allow(dead_code)] // TODO(tech-debt): 密码策略模块接入业务后移除
     pub max_age_days: Option<i64>,
 }
 
@@ -94,6 +103,7 @@ impl PasswordPolicyService {
     }
 
     /// 校验密码 + 排除历史
+    #[allow(dead_code)] // TODO(tech-debt): 密码策略模块接入业务后移除
     pub async fn validate_with_history(
         &self,
         password: &str,
@@ -168,6 +178,7 @@ pub fn contains_username_fragment(password: &str, username: &str) -> bool {
 }
 
 /// 生成密码强度反馈（多语言友好版）
+#[allow(dead_code)] // TODO(tech-debt): 密码策略模块接入业务后移除
 pub fn strength_feedback_zh(result: &PasswordValidationResult) -> String {
     if result.is_valid {
         format!(
@@ -186,6 +197,7 @@ pub fn strength_feedback_zh(result: &PasswordValidationResult) -> String {
 }
 
 /// 构建默认 HashSet 用于快速密码查询（运行时使用）
+#[allow(dead_code)] // TODO(tech-debt): 密码策略模块接入业务后移除
 pub fn build_password_blacklist() -> HashSet<String> {
     const BLACKLIST: &[&str] = &[
         "password", "123456", "qwerty", "admin", "root", "toor",

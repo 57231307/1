@@ -10,6 +10,10 @@
 //!                                                      └--探测失败--> Open
 //! ```
 
+// TODO(tech-debt): 此文件已开启 dead_code 检查；后续接入时如出现未使用项，应按模板逐项评估。
+// 当前核心 API（new/default_breaker/state/is_open/record_success/record_failure/CircuitState）均已被业务引用。
+// reset/force_open/consecutive_failures 当前仅用于测试，已用 #[allow(dead_code)] 逐项标注。
+
 use std::sync::atomic::{AtomicI64, AtomicU32, AtomicU8, Ordering};
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
@@ -122,6 +126,7 @@ impl CircuitBreaker {
     }
 
     /// 强制重置熔断器
+    #[allow(dead_code)] // TODO(tech-debt): 当前仅测试使用，管理后台接入后移除
     pub fn reset(&self) {
         self.consecutive_failures.store(0, Ordering::Release);
         self.state.store(CircuitState::Closed as u8, Ordering::Release);
@@ -129,12 +134,14 @@ impl CircuitBreaker {
     }
 
     /// 强制打开熔断器（用于手动测试）
+    #[allow(dead_code)] // TODO(tech-debt): 当前仅测试使用，管理后台接入后移除
     pub fn force_open(&self) {
         self.state.store(CircuitState::Open as u8, Ordering::Release);
         self.opened_at_ms.store(Self::now_ms(), Ordering::Release);
     }
 
     /// 获取连续失败次数
+    #[allow(dead_code)] // TODO(tech-debt): 当前仅测试使用，管理后台接入后移除
     pub fn consecutive_failures(&self) -> u32 {
         self.consecutive_failures.load(Ordering::Acquire)
     }

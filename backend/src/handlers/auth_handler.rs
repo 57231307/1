@@ -608,7 +608,8 @@ mod tests {
             ["csrf_token", "user", "permissions"].into_iter().collect();
 
         let extra: Vec<&&String> = actual_fields
-            .difference(&expected_fields.iter().map(|s| s.to_string()).collect())
+            .iter()
+            .filter(|f| !expected_fields.contains(f.as_str()))
             .collect();
         assert!(
             extra.is_empty(),

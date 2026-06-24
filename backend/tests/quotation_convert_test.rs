@@ -3,7 +3,7 @@
 //! Week 2 任务 8 - 销售报价单模块
 //! 关联计划: 2026-06-16-sales-quotation-plan.md Task 8
 
-use crate::models::sales_quotation_item;
+use bingxi_backend::models::sales_quotation_item;
 use rust_decimal::Decimal;
 
 #[test]
@@ -29,7 +29,7 @@ fn test_compose_color_no_empty_returns_dash() {
         notes: None,
         sequence: 0,
     };
-    let s = crate::services::quotation_convert_service::QuotationConvertService::compose_color_no(&item);
+    let s = bingxi_backend::services::quotation_convert_service::QuotationConvertService::compose_color_no(&item);
     assert_eq!(s, "-");
 }
 
@@ -56,7 +56,7 @@ fn test_compose_color_no_with_color_code() {
         notes: None,
         sequence: 0,
     };
-    let s = crate::services::quotation_convert_service::QuotationConvertService::compose_color_no(&item);
+    let s = bingxi_backend::services::quotation_convert_service::QuotationConvertService::compose_color_no(&item);
     assert_eq!(s, "BLUE-09");
 }
 
@@ -83,7 +83,7 @@ fn test_compose_color_no_with_pantone_and_cncs() {
         notes: None,
         sequence: 0,
     };
-    let s = crate::services::quotation_convert_service::QuotationConvertService::compose_color_no(&item);
+    let s = bingxi_backend::services::quotation_convert_service::QuotationConvertService::compose_color_no(&item);
     assert!(s.contains("RED-01"));
     assert!(s.contains("PANTONE:18-1664"));
     assert!(s.contains("CNCS:S1080-Y90R"));

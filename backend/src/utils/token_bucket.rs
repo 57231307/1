@@ -23,7 +23,8 @@ use dashmap::DashMap;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
-/// 令牌桶
+/// 令牌桶（预留 API，待限流中间件接入）
+#[allow(dead_code)] // TODO(tech-debt): 限流中间件接入后移除
 #[derive(Debug, Clone)]
 pub struct TokenBucket {
     /// 桶容量（最大突发）
@@ -73,7 +74,8 @@ impl TokenBucket {
     }
 }
 
-/// 令牌桶限流器
+/// 令牌桶限流器（预留 API，待限流中间件接入）
+#[allow(dead_code)] // TODO(tech-debt): 限流中间件接入后移除
 #[derive(Clone, Debug)]
 pub struct TokenBucketLimiter {
     storage: Arc<DashMap<String, TokenBucket>>,

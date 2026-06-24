@@ -8,10 +8,8 @@
 //! - 滞销库存预警
 //! - 预警规则配置
 
-/// P9-2 标记：库存预警子模块路径
-pub const P92_ALERT_MODULE: &str = "stock_alert";
-
 /// 预警级别
+#[allow(dead_code)] // TODO(tech-debt): P9-2 业务接入后移除
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub enum AlertLevel {
     /// 提示
@@ -24,6 +22,7 @@ pub enum AlertLevel {
 
 impl AlertLevel {
     /// 中文描述
+    #[allow(dead_code)] // TODO(tech-debt): P9-2 业务接入后移除
     pub fn desc(&self) -> &'static str {
         match self {
             Self::Info => "提示",
@@ -34,6 +33,7 @@ impl AlertLevel {
 }
 
 /// 预警类型
+#[allow(dead_code)] // TODO(tech-debt): P9-2 业务接入后移除
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum AlertType {
     /// 低于下限
@@ -50,6 +50,7 @@ pub enum AlertType {
 
 impl AlertType {
     /// 中文描述
+    #[allow(dead_code)] // TODO(tech-debt): P9-2 业务接入后移除
     pub fn desc(&self) -> &'static str {
         match self {
             Self::LowStock => "低于下限",
@@ -87,8 +88,4 @@ mod tests {
         assert_eq!(AlertType::Discrepancy.desc(), "盘点差异");
     }
 
-    #[test]
-    fn test_module_loaded() {
-        assert_eq!(P92_ALERT_MODULE, "stock_alert");
-    }
 }

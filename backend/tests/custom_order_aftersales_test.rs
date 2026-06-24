@@ -26,27 +26,17 @@ mod tests {
         }
     }
 
-    /// 售后状态
-    #[derive(Debug, PartialEq)]
-    pub enum AfterSalesStatus {
-        Opened,
-        Processing,
-        Resolved,
-        Closed,
-        Rejected,
-    }
-
     fn is_valid_transition(from: &str, to: &str) -> bool {
-        match (from, to) {
-            ("opened", "processing") => true,
-            ("opened", "rejected") => true,
-            ("opened", "closed") => true,
-            ("processing", "resolved") => true,
-            ("processing", "closed") => true,
-            ("processing", "rejected") => true,
-            ("resolved", "closed") => true,
-            _ => false,
-        }
+        matches!(
+            (from, to),
+            ("opened", "processing")
+                | ("opened", "rejected")
+                | ("opened", "closed")
+                | ("processing", "resolved")
+                | ("processing", "closed")
+                | ("processing", "rejected")
+                | ("resolved", "closed")
+        )
     }
 
     #[test]

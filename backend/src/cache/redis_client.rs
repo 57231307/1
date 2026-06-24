@@ -21,9 +21,11 @@ use std::time::Duration;
 use tracing::{debug, warn};
 
 /// 默认缓存 TTL（秒）
+#[allow(dead_code)] // TODO(tech-debt): P12 批 1 辅助 API，后续业务模块接入后移除
 pub const DEFAULT_TTL_SECS: u64 = 300;
 
 /// 缓存后端 trait（用于 mock 测试）
+#[allow(dead_code)] // TODO(tech-debt): P12 批 1 辅助 API，后续业务模块接入后移除
 #[async_trait]
 pub trait CacheBackend: Send + Sync {
     /// 获取键对应的值（JSON 字符串）
@@ -40,6 +42,7 @@ pub trait CacheBackend: Send + Sync {
 }
 
 /// Redis 后端实现（基于 ConnectionManager）
+#[allow(dead_code)] // TODO(tech-debt): P12 批 1 辅助 API，后续业务模块接入后移除
 pub struct RedisBackend {
     conn: tokio::sync::Mutex<ConnectionManager>,
 }
@@ -49,6 +52,7 @@ impl RedisBackend {
     ///
     /// # 参数
     /// - `url`: Redis 连接 URL（如 `redis://127.0.0.1:6379`）
+    #[allow(dead_code)] // TODO(tech-debt): P12 批 1 辅助 API，后续业务模块接入后移除
     pub async fn connect(url: &str) -> Result<Self, redis::RedisError> {
         let client = redis::Client::open(url)?;
         let manager = ConnectionManager::new(client).await?;
@@ -86,6 +90,7 @@ impl CacheBackend for RedisBackend {
 }
 
 /// 缓存统计（命中 / 未命中 / 错误 / 回退次数）
+#[allow(dead_code)] // TODO(tech-debt): P12 批 1 辅助 API，后续业务模块接入后移除
 #[derive(Debug, Default)]
 pub struct CacheStats {
     hits: AtomicU64,
@@ -116,6 +121,7 @@ impl CacheStats {
     }
 
     /// 获取统计快照
+    #[allow(dead_code)] // TODO(tech-debt): P12 批 1 辅助 API，后续业务模块接入后移除
     pub fn snapshot(&self) -> (u64, u64, u64, u64) {
         (
             self.hits.load(Ordering::Relaxed),
@@ -149,6 +155,7 @@ impl std::fmt::Debug for CacheService {
 
 impl CacheService {
     /// 创建启用 Redis 后端的缓存服务
+    #[allow(dead_code)] // TODO(tech-debt): P12 批 1 辅助 API，后续业务模块接入后移除
     pub fn new(backend: Arc<dyn CacheBackend>, default_ttl: Duration) -> Self {
         Self {
             backend,
@@ -159,6 +166,7 @@ impl CacheService {
     }
 
     /// 创建禁用缓存的服务（用于测试或显式关闭缓存）
+    #[allow(dead_code)] // TODO(tech-debt): P12 批 1 辅助 API，后续业务模块接入后移除
     pub fn disabled() -> Self {
         Self {
             backend: Arc::new(NullBackend),
@@ -169,6 +177,7 @@ impl CacheService {
     }
 
     /// 尝试从环境变量自动构建（REDIS_URL），失败时返回禁用实例
+    #[allow(dead_code)] // TODO(tech-debt): P12 批 1 辅助 API，后续业务模块接入后移除
     pub async fn from_env() -> Self {
         let url = std::env::var("REDIS_URL").unwrap_or_default();
         if url.is_empty() {
@@ -192,11 +201,13 @@ impl CacheService {
     }
 
     /// 是否启用缓存
+    #[allow(dead_code)] // TODO(tech-debt): P12 批 1 辅助 API，后续业务模块接入后移除
     pub fn is_enabled(&self) -> bool {
         self.enabled
     }
 
     /// 获取统计句柄
+    #[allow(dead_code)] // TODO(tech-debt): P12 批 1 辅助 API，后续业务模块接入后移除
     pub fn stats(&self) -> Arc<CacheStats> {
         self.stats.clone()
     }

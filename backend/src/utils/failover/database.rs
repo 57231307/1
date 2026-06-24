@@ -17,7 +17,7 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use async_trait::async_trait;
-use sea_orm::{ActiveModelTrait, ConnectionTrait, DatabaseConnection, DbBackend, DbErr, Statement};
+use sea_orm::{ConnectionTrait, DatabaseConnection, DbBackend, DbErr, Statement};
 use tracing::{info, warn};
 
 use super::circuit_breaker::CircuitBreaker;
@@ -25,6 +25,7 @@ use super::{FailoverCall, FailoverError};
 use crate::config::failover::DatabaseFailoverConfig;
 
 /// 数据库主备结构体
+#[allow(dead_code)] // TODO(tech-debt): 主备隔离数据库模块接入后移除
 pub struct FailoverDatabase {
     /// 主库连接
     primary: DatabaseConnection,
@@ -38,6 +39,7 @@ pub struct FailoverDatabase {
     function_name: String,
 }
 
+#[allow(dead_code)] // TODO(tech-debt): 主备隔离数据库模块接入后移除
 impl FailoverDatabase {
     /// 创建数据库主备实例
     pub fn new(
@@ -74,6 +76,7 @@ impl FailoverDatabase {
     }
 }
 
+#[allow(dead_code)] // TODO(tech-debt): 主备隔离数据库模块接入后移除
 #[async_trait]
 impl FailoverCall<bool, DbErr> for FailoverDatabase {
     /// 主库 ping
@@ -114,13 +117,11 @@ async fn ping(db: &DatabaseConnection) -> Result<bool, DbErr> {
 }
 
 /// 健康检查任务：定期 ping 主库，更新 failover_status 表
+#[allow(dead_code)] // TODO(tech-debt): 主备隔离数据库模块接入后移除
 pub async fn health_check_task(
     failover: Arc<FailoverDatabase>,
     db: DatabaseConnection,
 ) {
-    use sea_orm::{ActiveModelTrait, Set};
-    use crate::models::failover_status::{self, ActiveModel as FailoverStatusActive};
-
     let mut interval = tokio::time::interval(Duration::from_secs(10));
     loop {
         interval.tick().await;
