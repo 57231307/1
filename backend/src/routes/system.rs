@@ -7,8 +7,10 @@
 //! 同时规避同前缀下的 path+method 重叠（`system_update` 的 `/status` 与
 //! `init` 的 `/status` 不冲突），避免 axum 0.7 `Overlapping method route` panic。
 
+use crate::middleware::init_token::init_token_middleware;
 use crate::utils::app_state::AppState;
 use axum::{
+    middleware,
     routing::{get, post},
     Router,
 };
@@ -234,13 +236,14 @@ pub fn slow_queries() -> Router<AppState> {
 }
 
 /// 初始化路由（path 前缀 /init）
+///
+/// P1 修复（bug.md #3）：对"高危"初始化接口（`initialize`/`initialize-with-db` 系列）
+/// 应用 [`init_token_middleware`]，要求请求方提供 `X-Init-Token` 请求头（与服务端
+/// `INIT_TOKEN` 环境变量一致）才能调用。仅状态查询（`/status`）和已加 admin 二次校验
+/// 的接口（`/test-database`、`/task-status`）不受此中间件约束。
 pub fn init() -> Router<AppState> {
-    Router::new()
-        .route("/init/status", get(init_handler::get_init_status))
-        .route(
-            "/init/test-database",
-            post(init_handler::test_database_connection),
-        )
+    // 高危初始化接口子路由：必须通过 INIT_TOKEN 校验
+    let protected = Router::new()
         .route("/init/initialize", post(init_handler::initialize_system))
         .route(
             "/init/initialize-with-db",
@@ -250,7 +253,20 @@ pub fn init() -> Router<AppState> {
             "/init/initialize-with-db-async",
             post(init_handler::initialize_system_with_db_async),
         )
-        .route("/init/task-status", get(init_handler::get_task_status))
+        .layer(middleware::from_fn(init_token_middleware));
+
+    // 只读/受限接口：不应用 init token 校验
+    // - /status：无副作用，仅返回初始化状态，公开访问合理
+    // - /test-database 与 /task-status：handler 内已有 admin 角色二次校验
+    let public = Router::new()
+        .route("/init/status", get(init_handler::get_init_status))
+        .route(
+            "/init/test-database",
+            post(init_handler::test_database_connection),
+        )
+        .route("/init/task-status", get(init_handler::get_task_status));
+
+    protected.merge(public)
 }
 
 /// AI 分析深化路由（path 前缀 /ai）— P2-4
