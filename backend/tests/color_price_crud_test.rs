@@ -87,7 +87,11 @@ mod crud_tests {
         active.is_active = Set(false);
         // 多租户：所有查询必须带 tenant_id
         let tenant_id: i64 = 999;
-        assert!(active.is_active.is_ok() || true);
+        // 验证 ActiveValue 正确设置为 Set(false)，可解包得到原值
+        match &active.is_active {
+            sea_orm::ActiveValue::Set(v) => assert_eq!(*v, false),
+            _ => panic!("is_active 应为 Set 变体"),
+        }
         assert_eq!(tenant_id, 999);
     }
 }
