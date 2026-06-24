@@ -18,7 +18,6 @@ use bingxi_backend::services::ai::recipe_opt::RecipeOptRequest;
 
 #[test]
 fn test_recipe_opt_fallback_when_no_history() {
-    use bingxi_backend::services::ai::AiAnalysisService;
     let req = RecipeOptRequest {
         color_no: "UNKNOWN-XX".to_string(),
         color_name: Some("测试色".to_string()),

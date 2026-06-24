@@ -41,10 +41,16 @@ mod tests {
             end_date: NaiveDate::from_ymd_opt(2026, 5, 25).unwrap(),
             duration_days: 5,
             progress: 0.0,
+            status: "SCHEDULED".to_string(),
+            priority: 1,
+            dependencies: vec![],
         };
 
         assert_eq!(item.duration_days, 5);
         assert_eq!(item.progress, 0.0);
+        assert_eq!(item.status, "SCHEDULED");
+        assert_eq!(item.priority, 1);
+        assert!(item.dependencies.is_empty());
     }
 
     /// 测试排程冲突创建

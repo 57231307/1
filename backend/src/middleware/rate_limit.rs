@@ -156,17 +156,18 @@ async fn get_redis_rate_limiter(
 /// - `window`: 时间窗口（秒）
 ///
 /// # 返回
-/// - `Ok(true)`: 允许
-/// - `Ok(false)`: 拒绝（超限）
-/// - `Err(_)`: Redis 错误，调用方应回退到内存限流
+/// - `Ok(Some(true))`: Redis 判定放行
+/// - `Ok(Some(false))`: Redis 判定拒绝
+/// - `Ok(None)`: 未配置 Redis（应回退到内存限流）
+/// - `Err(_)`: Redis 调用错误（应回退到内存限流）
 async fn check_redis_rate_limit(
     key: &str,
     max_requests: usize,
     window: Duration,
-) -> Result<bool, redis::RedisError> {
+) -> Result<Option<bool>, redis::RedisError> {
     let conn_arc = match get_redis_rate_limiter().await {
         Some(c) => c,
-        None => return Ok(true), // 未启用分布式限流时放行（调用方应回退内存）
+        None => return Ok(None), // 未启用分布式限流（调用方回退到内存限流）
     };
 
     let mut conn = conn_arc.lock().await;
@@ -175,7 +176,7 @@ async fn check_redis_rate_limit(
         // 第一次请求时设置过期时间（避免长尾 key）
         let _: () = conn.expire(key, window.as_secs() as i64).await?;
     }
-    Ok((count as usize) <= max_requests)
+    Ok(Some((count as usize) <= max_requests))
 }
 
 /// 通用限流检查：优先 Redis 分布式，回退到内存
@@ -186,7 +187,11 @@ async fn check_rate_limit(
     memory_limiter: &MemoryRateLimiter,
 ) -> bool {
     match check_redis_rate_limit(key, max_requests, window).await {
-        Ok(allowed) => allowed,
+        Ok(Some(allowed)) => allowed,
+        Ok(None) => {
+            // 未配置 Redis：直接回退到内存限流（graceful degradation）
+            memory_limiter.check(key)
+        }
         Err(e) => {
             tracing::warn!(
                 "Redis 限流检查失败 {:?}，回退到内存限流 key={}",
@@ -275,10 +280,10 @@ pub async fn anti_brute_force(req: Request<Body>, next: Next) -> Result<Response
 mod tests {
     use super::*;
 
-    /// 漏洞 #6 修复单元测试：未配置 Redis 时，check_redis_rate_limit 返回 Ok(true)
+    /// 漏洞 #6 修复单元测试：未配置 Redis 时，check_redis_rate_limit 返回 Ok(None)
     ///
     /// 验证：默认（无 REDIS_URL / RATE_LIMIT_REDIS_URL）环境下，
-    /// Redis 限流器应优雅降级为"放行"，由调用方回退到内存限流
+    /// Redis 限流器应返回 `Ok(None)`，由调用方（`check_rate_limit`）回退到内存限流
     #[tokio::test]
     async fn test_redis_rate_limiter_disabled_when_no_url() {
         // 确保没有 RATE_LIMIT_REDIS_URL / REDIS_URL
@@ -288,11 +293,11 @@ mod tests {
         let result = check_redis_rate_limit("test:key", 5, Duration::from_secs(60)).await;
         assert!(
             result.is_ok(),
-            "未配置 Redis URL 时 check_redis_rate_limit 应返回 Ok(允许)"
+            "未配置 Redis URL 时 check_redis_rate_limit 应返回 Ok"
         );
         assert!(
-            result.unwrap(),
-            "未配置 Redis URL 时应放行（由调用方回退内存）"
+            result.unwrap().is_none(),
+            "未配置 Redis URL 时应返回 Ok(None) 指示调用方回退内存限流"
         );
     }
 
