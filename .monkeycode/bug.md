@@ -12,85 +12,19 @@
 
 | 编号 | 严重度 | 漏洞名称 | 状态 |
 |------|--------|----------|------|
-| #4 | 🟡 低危 | 错误信息泄露内部细节 | 未修复 |
 | #5 | 🟡 低危 | API Key 撤销后仍可被冒用 | 未修复 |
 | #6 | 🟡 低危 | 内存速率限制器多实例失效 | 未修复 |
 | #7 | 🟡 低危 | 弱密码黑名单策略不严 | 未修复 |
-| #8 | 🟡 低危 | 调试模式错误响应泄露堆栈信息 | 未修复 |
 
-> **已修复**（详见 PR #250、PR #251）：
+> **已修复**（详见 PR #250、PR #251、PR #252）：
 > - ✅ #1 静态资源路径遍历漏洞（PR #250）
 > - ✅ #2 WebSocket 通知服务认证绕过（PR #250）
 > - ✅ #3 系统初始化接口匿名访问风险（PR #251）
+> - ✅ #4 错误信息泄露内部细节（PR #252）
+> - ✅ #8 调试模式错误响应泄露堆栈信息（PR #252）
 
 ---
 
-
-## 漏洞 #4：错误信息泄露内部细节
-
-### 基础信息
-
-- **严重度**：🟡 低危（Low）
-- **CWE 分类**：CWE-209 生成包含敏感信息的错误信息、CWE-200 信息泄露
-- **CVSS 3.1 评分估计**：3.7（AV:N/AC:H/PR:N/UI:N/S:U/C:L/I:N/A:N）
-- **发现时间**：2026-06-24
-- **影响版本**：当前 main 分支
-- **修复状态**：未修复
-
-### 漏洞位置
-
-- 主文件：[utils/error.rs](file:///workspace/backend/src/utils/error.rs)
-- 关键代码行：[297-315](file:///workspace/backend/src/utils/error.rs#L297-L315)、[90-101](file:///workspace/backend/src/utils/error.rs#L90-L101)
-
-### 攻击者画像
-
-- **类型**：外部匿名用户 / 已认证用户
-- **所需权限**：无需权限，触发任意类型的错误即可
-- **攻击条件**：系统未设置 `APP_ENV=production` 环境变量
-
-### 可控输入向量
-
-任意 HTTP 请求（通过触发不同类型错误获取错误响应）。
-
-### 完整利用路径
-
-1. 当系统未设置 `APP_ENV=production` 时（即开发/测试模式）
-2. 服务端错误响应会携带 `error_type` 和 `detail` 字段（第 312-313 行）：
-   ```rust
-   serde_json::json!({
-       "code": self.error_code(),
-       "message": error_message,
-       "trace_id": trace_id,
-       "timestamp": timestamp,
-       "error_type": error_type,
-       "detail": log_detail,
-   })
-   ```
-3. `detail` 字段包含 `severity` / `action_required` 等内部建议
-4. `DatabaseError` 还会泄露数据库错误原始内容（[第 91-101 行](file:///workspace/backend/src/utils/error.rs#L90-L101)）
-5. 攻击者通过触发不同类型的错误，可枚举系统内部结构
-
-### 影响分析
-
-- **协助攻击者识别后端技术栈**：错误分类、异常类型（如 `DatabaseError`、`ValidationError`）
-- **泄露数据库查询错误细节**：列名、约束名（如 `unique constraint`、`foreign key constraint`）
-- **暴露内部错误处理策略**：通过 `severity` 字段判断哪些操作更敏感
-- **间接风险**：这些信息可被用于后续的针对性攻击
-
-### 修复建议
-
-#### 必做修复
-
-- 部署时强制要求 `APP_ENV=production`
-- 在 `IntoResponse` 中根据环境变量做基础脱敏，仅 `tracing` 详细日志
-- CI/CD 流程增加 `APP_ENV` 检查门禁
-
-#### 推荐修复
-
-- 即使是开发环境，也只暴露 `code` 和 `message`（脱敏后），将 `error_type` 和 `detail` 仅写入 `tracing`
-- 提供"详细错误模式"开关，由开发者在本地主动启用
-
----
 
 ## 漏洞 #5：API Key 撤销后仍可被冒用
 
@@ -298,64 +232,6 @@ if COMMON_PASSWORDS.iter().any(|common| lower_password == *common) {
         is_valid: false,
         errors: vec!["密码过于常见，不允许使用".to_string()],
     };
-}
-```
-
----
-
-## 漏洞 #8：调试模式错误响应泄露堆栈信息
-
-### 基础信息
-
-- **严重度**：🟡 低危（Low）
-- **CWE 分类**：CWE-209 生成包含敏感信息的错误信息
-- **CVSS 3.1 评分估计**：3.1（AV:N/AC:H/PR:N/UI:N/S:U/C:L/I:N/A:N）
-- **发现时间**：2026-06-24
-- **影响版本**：当前 main 分支
-- **修复状态**：未修复
-
-### 漏洞位置
-
-- 主文件：[utils/error.rs](file:///workspace/backend/src/utils/error.rs)
-- 关键代码行：[88](file:///workspace/backend/src/utils/error.rs#L88)、[297-315](file:///workspace/backend/src/utils/error.rs#L297-L315)
-
-### 攻击者画像
-
-- **类型**：外部匿名用户
-- **所需权限**：无需任何权限
-
-### 可控输入向量
-
-触发各种异常类型的请求。
-
-### 完整利用路径
-
-1. 当 `APP_ENV` 未设置为 `production` 时
-2. 错误响应中 `message` 字段直接返回 `Display` 完整内容
-3. 部分错误携带 SQL 语句、文件路径、堆栈信息
-4. 多处错误处理代码（如 [services/import_export_service.rs](file:///workspace/backend/src/services/import_export_service.rs)）会透传内部异常信息到响应中
-
-### 影响分析
-
-- 协助攻击者进行系统探测
-- 暴露后端文件路径结构、SQL 语句结构
-- 在非生产环境部署时同样危险（如开发/测试环境对外开放时）
-
-### 修复建议
-
-#### 必做修复
-
-1. 默认始终脱敏，仅在 `tracing` 日志中输出完整信息
-2. CI/CD 流程强制要求 `APP_ENV=production`
-3. 服务启动时检测环境变量，未设置时打印警告
-
-#### 示例代码
-
-```rust
-// 在 main.rs 启动时增加检查
-if std::env::var("APP_ENV").is_err() {
-    eprintln!("警告：APP_ENV 未设置，将按开发模式处理（可能泄露内部信息）");
-    eprintln!("生产部署请设置 APP_ENV=production");
 }
 ```
 

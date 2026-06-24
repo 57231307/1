@@ -85,8 +85,17 @@ impl IntoResponse for AppError {
         // 1. release 构建后无法通过环境变量关闭脱敏（CI 测试不友好）
         // 2. 与 `auth_handler.rs` 的 `ENV=production` 判断不一致（多源配置漂移）
         // 现在统一从 `APP_ENV` 环境变量读取，CI 可注入 `APP_ENV=production` 测试脱敏路径
-        let is_production = crate::utils::config::is_production();
-        let (status, error_type, error_message, log_detail) = match &self {
+        // 漏洞 #4 / #8 修复：match 块仅返回 (status, log_detail)
+        // 历史问题：原 match 返回 (status, error_type, error_message, log_detail) 四元组，
+        // 但 error_type / error_message 会被序列化到 HTTP 响应，泄露：
+        // - error_type 暴露内部错误分类（DatabaseError / ValidationError / ...）
+        //   协助攻击者识别后端技术栈与错误处理逻辑
+        // - error_message 在开发环境直接是原始 msg，可能含 SQL/文件路径/堆栈
+        // 修复策略：match 块不再产出 error_type / error_message，
+        //           响应体由 [`Self::public_message()`] 统一提供脱敏文案
+        // 注意：match 块返回的 `log_detail` 仅用于保留 `tracing` 字段（结构化日志），
+        // 不再序列化到 HTTP 响应（#4 / #8 修复）。下划线前缀避免 dead_code 警告。
+        let (status, _log_detail) = match &self {
             AppError::DatabaseError(msg) => {
                 let detail = serde_json::json!({
                     "error_type": "DatabaseError",
@@ -99,12 +108,7 @@ impl IntoResponse for AppError {
                     msg,
                     detail
                 );
-                (
-                    StatusCode::INTERNAL_SERVER_ERROR,
-                    "DatabaseError",
-                    msg.clone(),
-                    detail,
-                )
+                (StatusCode::INTERNAL_SERVER_ERROR, detail)
             }
             AppError::ValidationError(msg) => {
                 let detail = serde_json::json!({
@@ -118,12 +122,7 @@ impl IntoResponse for AppError {
                     msg,
                     detail
                 );
-                (
-                    StatusCode::BAD_REQUEST,
-                    "ValidationError",
-                    "请求参数验证失败".to_string(),
-                    detail,
-                )
+                (StatusCode::BAD_REQUEST, detail)
             }
             AppError::NotFound(msg) => {
                 let detail = serde_json::json!({
@@ -137,12 +136,7 @@ impl IntoResponse for AppError {
                     msg,
                     detail
                 );
-                (
-                    StatusCode::NOT_FOUND,
-                    "NotFound",
-                    "未找到".to_string(),
-                    detail,
-                )
+                (StatusCode::NOT_FOUND, detail)
             }
             AppError::BusinessError(msg) => {
                 let detail = serde_json::json!({
@@ -156,12 +150,7 @@ impl IntoResponse for AppError {
                     msg,
                     detail
                 );
-                (
-                    StatusCode::BAD_REQUEST,
-                    "BusinessError",
-                    "业务错误".to_string(),
-                    detail,
-                )
+                (StatusCode::BAD_REQUEST, detail)
             }
             AppError::Unauthorized(msg) => {
                 let detail = serde_json::json!({
@@ -175,12 +164,7 @@ impl IntoResponse for AppError {
                     msg,
                     detail
                 );
-                (
-                    StatusCode::UNAUTHORIZED,
-                    "Unauthorized",
-                    "未授权访问".to_string(),
-                    detail,
-                )
+                (StatusCode::UNAUTHORIZED, detail)
             }
             AppError::InternalError(msg) => {
                 let detail = serde_json::json!({
@@ -194,12 +178,7 @@ impl IntoResponse for AppError {
                     msg,
                     detail
                 );
-                (
-                    StatusCode::INTERNAL_SERVER_ERROR,
-                    "InternalError",
-                    "系统内部错误".to_string(),
-                    detail,
-                )
+                (StatusCode::INTERNAL_SERVER_ERROR, detail)
             }
             AppError::PermissionDenied(msg) => {
                 let detail = serde_json::json!({
@@ -213,12 +192,7 @@ impl IntoResponse for AppError {
                     msg,
                     detail
                 );
-                (
-                    StatusCode::FORBIDDEN,
-                    "PermissionDenied",
-                    "权限不足".to_string(),
-                    detail,
-                )
+                (StatusCode::FORBIDDEN, detail)
             }
             AppError::BadRequest(msg) => {
                 let detail = serde_json::json!({
@@ -232,7 +206,7 @@ impl IntoResponse for AppError {
                     msg,
                     detail
                 );
-                (StatusCode::BAD_REQUEST, "BadRequest", msg.clone(), detail)
+                (StatusCode::BAD_REQUEST, detail)
             }
             AppError::TooManyRequests {
                 retry_after,
@@ -251,17 +225,7 @@ impl IntoResponse for AppError {
                     detail,
                     retry_after
                 );
-                let retry_msg = if let Some(seconds) = retry_after {
-                    format!("{}，请{}秒后再试", message, seconds)
-                } else {
-                    message.clone()
-                };
-                (
-                    StatusCode::TOO_MANY_REQUESTS,
-                    "TooManyRequests",
-                    retry_msg,
-                    detail,
-                )
+                (StatusCode::TOO_MANY_REQUESTS, detail)
             }
             AppError::NotImplemented(msg) => {
                 let detail = serde_json::json!({
@@ -275,44 +239,30 @@ impl IntoResponse for AppError {
                     msg,
                     detail
                 );
-                (
-                    StatusCode::NOT_IMPLEMENTED,
-                    "NotImplemented",
-                    "功能未实现".to_string(),
-                    detail,
-                )
+                (StatusCode::NOT_IMPLEMENTED, detail)
             }
         };
 
-        // 漏洞 #11 修复：生产环境脱敏 error_type / detail
-        // 历史问题：原代码总是序列化 `error_type` 和 `detail`，生产环境会泄露：
-        // 1. error_type 暴露内部错误分类（DatabaseError / ValidationError / ...）
+        // 漏洞 #4 / #8 修复：响应体不再包含 `error_type` 与 `detail` 字段
+        // 历史问题：
+        // 1. `error_type` 暴露内部错误分类（DatabaseError / ValidationError / ...），
         //    协助攻击者识别后端技术栈与错误处理逻辑
-        // 2. detail 包含 severity / action_required / 内部建议，违反"最小披露原则"
-        // 修复策略：生产环境只返回 code + message + trace_id + timestamp
-        //          开发环境保留 error_type + detail 便于排查
-        // 同时新增 trace_id + timestamp 便于客户端关联服务端日志
+        // 2. `detail` 包含 severity / action_required / 内部建议，违反"最小披露原则"
+        // 3. 内部错误（如 `DatabaseError` 携带的 SQL 片段、堆栈信息）通过
+        //    `error_message` 字段泄露（#8：调试模式堆栈信息泄露）
+        // 修复策略：
+        // - 响应体**永远**只返回 `code` + `message`（脱敏文案）+ `trace_id` + `timestamp`
+        // - 原始 `msg` 仍写入 `tracing`（服务端日志），便于运维/排错
+        // - 移除 `is_production` 分支的环境差异处理（#11 修复保留的差异现已统一）
+        // - `public_message()` 提供各错误类型对应的对外友好文案
         let trace_id = uuid::Uuid::new_v4().to_string();
         let timestamp = chrono::Utc::now().timestamp();
-        let body = if is_production {
-            // 生产环境：仅返回脱敏后的 code + message + 链路追踪信息
-            serde_json::json!({
-                "code": self.error_code(),
-                "message": self.public_message(),
-                "trace_id": trace_id,
-                "timestamp": timestamp,
-            })
-        } else {
-            // 开发环境：返回完整 error_type + detail 便于排错
-            serde_json::json!({
-                "code": self.error_code(),
-                "message": error_message,
-                "trace_id": trace_id,
-                "timestamp": timestamp,
-                "error_type": error_type,
-                "detail": log_detail,
-            })
-        };
+        let body = serde_json::json!({
+            "code": self.error_code(),
+            "message": self.public_message(),
+            "trace_id": trace_id,
+            "timestamp": timestamp,
+        });
 
         (status, Json(body)).into_response()
     }
@@ -446,14 +396,12 @@ impl AppError {
         let trace_id = Uuid::new_v4().to_string();
         let timestamp = Utc::now().timestamp();
 
+        // 漏洞 #4 / #8 修复：to_response 与 IntoResponse 保持一致，
+        // 永远返回脱敏的 public_message，不再根据环境暴露 Display 完整内容
+        // （避免开发环境/测试环境对外暴露时泄露 SQL / 文件路径 / 堆栈）。
+        // 详细信息通过 trace_id 在服务端日志（tracing）中查询。
         let code = self.error_code();
-        let message = if crate::utils::config::is_production() {
-            // 生产环境：脱敏为通用文案
-            self.public_message()
-        } else {
-            // 开发/测试环境：暴露 Display 的完整内容，便于排查
-            self.to_string()
-        };
+        let message = self.public_message();
 
         ErrorResponse {
             code,
@@ -553,30 +501,58 @@ mod tests {
         std::env::remove_var("APP_ENV");
     }
 
-    /// 漏洞 #11 反向测试：开发环境响应**包含** `error_type` 和 `detail` 字段
+    /// 漏洞 #4 / #8 修复测试：开发环境响应**也不包含** `error_type` 和 `detail` 字段
     ///
-    /// 验证开发/排错场景仍能拿到完整错误信息。
+    /// 背景：原 #11 修复仅在生产环境脱敏，开发环境仍暴露 error_type / detail。
+    /// 修复后无论环境，HTTP 响应统一仅含 code / message / trace_id / timestamp。
+    /// 详细信息仅写入 `tracing` 服务端日志（运维通过 trace_id 关联）。
     #[tokio::test]
-    async fn test_development_response_includes_error_type_and_detail() {
+    async fn test_development_response_omits_error_type_and_detail() {
         // 确保不是 production
         std::env::remove_var("APP_ENV");
         let err = AppError::NotFound("用户 ID=42".to_string());
         let response = err.into_response();
         let body_json = extract_body_json(response).await;
         assert!(
-            body_json.get("error_type").is_some(),
-            "开发环境响应应包含 error_type 字段，实际 body: {}",
+            body_json.get("error_type").is_none(),
+            "开发环境响应也不应包含 error_type 字段，实际 body: {}",
             body_json
         );
         assert!(
-            body_json.get("detail").is_some(),
-            "开发环境响应应包含 detail 字段，实际 body: {}",
+            body_json.get("detail").is_none(),
+            "开发环境响应也不应包含 detail 字段，实际 body: {}",
             body_json
         );
-        // 验证 error_type 是 "NotFound" 字符串
-        assert_eq!(
-            body_json.get("error_type").and_then(|v| v.as_str()),
-            Some("NotFound")
+        // 验证 message 已是脱敏文案（"用户 ID=42" 不会泄露）
+        let message = body_json
+            .get("message")
+            .and_then(|v| v.as_str())
+            .unwrap_or("");
+        assert!(
+            !message.contains("ID=42"),
+            "开发环境 message 也不应泄露原始 msg，实际 message: {}",
+            message
+        );
+    }
+
+    /// 漏洞 #4 修复测试：DatabaseError 响应脱敏
+    ///
+    /// 验证：即使原始 msg 包含 SQL 片段/列名/约束名，响应 message 也不泄露。
+    #[tokio::test]
+    async fn test_database_error_response_is_sanitized() {
+        std::env::remove_var("APP_ENV");
+        let sensitive = "duplicate key value violates unique constraint \"users_email_key\"";
+        let err = AppError::DatabaseError(sensitive.to_string());
+        let response = err.into_response();
+        let body_json = extract_body_json(response).await;
+        let message = body_json
+            .get("message")
+            .and_then(|v| v.as_str())
+            .unwrap_or("");
+        assert!(
+            !message.contains("users_email_key") && !message.contains("duplicate"),
+            "DatabaseError 响应不应泄露约束名/SQL 片段，实际 message: {}",
+            message
         );
     }
 
@@ -602,16 +578,26 @@ mod tests {
         std::env::remove_var("APP_ENV");
     }
 
-    /// 漏洞 #12 反向测试：to_response() 在非生产环境下返回 Display 完整描述
+    /// 漏洞 #12 反向测试：to_response() 在非生产环境下也使用脱敏 message
+    ///
+    /// 漏洞 #4 / #8 修复：to_response 不再根据环境区分，**永远**返回脱敏的 public_message。
+    /// 验证开发环境也不暴露原始 msg 内容（Display 完整描述）。
     #[tokio::test]
-    async fn test_to_response_uses_display_in_development() {
+    async fn test_to_response_uses_public_message_in_development() {
         std::env::remove_var("APP_ENV");
-        let err = AppError::DatabaseError("connection timeout".to_string());
+        let err = AppError::DatabaseError("connection timeout with secrets table".to_string());
         let response = err.to_response();
-        // 开发环境保留 Display 输出
+        // 开发环境也不再泄露原始 msg
         assert!(
-            response.message.contains("connection timeout"),
-            "开发环境 message 应保留 Display 内容，实际 message: {}",
+            !response.message.contains("secrets")
+                && !response.message.contains("connection timeout"),
+            "开发环境 message 也不应泄露原始 msg，实际 message: {}",
+            response.message
+        );
+        // 脱敏后应包含通用文案
+        assert!(
+            response.message.contains("数据库错误") || response.message.contains("服务器"),
+            "开发环境 message 应为脱敏文案，实际 message: {}",
             response.message
         );
     }
