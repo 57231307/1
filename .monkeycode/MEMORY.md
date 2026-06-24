@@ -487,3 +487,15 @@
 历史规划：
 - `.monkeycode/docs/superpowers/plans/2026-06-23-clippy-deadcode-cleanup-plan.md`
 - `.monkeycode/docs/superpowers/plans/2026-06-24-clippy-deadcode-batch-bc-plan.md`
+
+[GitHub Token 安全]
+- Date: 2026-06-24
+- Context: 健康检查发现 Token（`ghu_` 前缀）明文存储在 .git/config
+- Category: 环境配置
+- **风险**：该 Token 拥有 57231307/1 与 57231307/2 两个仓库的 **admin 权限**，泄露可推送任意代码
+- **违规**：违反项目安全规范"禁止在代码中硬编码敏感信息"
+- **修复指南**：见 `.monkeycode/docs/archives/2026-06-24/token-rotation-2026-06-24.md`
+- **推荐方式**：SSH Key 认证（`git@github.com:57231307/1.git`）优于 HTTPS + Token
+- **降级方案**：环境变量 `GITHUB_TOKEN` + 启动脚本加载
+- **重要提醒**：仓库中**严禁**提交真实 Token 字符串（GitHub Secret Scanning 会阻止 push）
+- **检查方法**：`git remote -v` 不应出现 token 字符串
