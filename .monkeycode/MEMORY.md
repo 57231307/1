@@ -40,6 +40,20 @@
 
 ## 二、基本要求
 
+[批次 A dead_code 清理完成]
+- Date: 2026-06-24
+- Context: Agent 在执行"PR #243 后 clippy dead_code 警告清理（批次 A）"时发现
+- Category: 工作流协作
+- Instructions:
+  - 批次 A 共处理 20 个高频 dead_code 警告文件，通过 PR #245 合并入 main（commit a3f6a978）
+  - 采用统一策略：删除真实死代码 + 对预留 API 加项级 `#[allow(dead_code)]` + TODO
+  - 核心精简：`backend/src/services/enhanced_logger.rs` 从 401 行减至 122 行，删除 27 个未使用 DTO/结构体
+  - 因 PR #243 合并后 main 历史重写，原 `fix/clippy-deadcode-batch-a-2026-06-24` 分支无法合并，已关闭 PR #244，转用 v2 分支
+  - 删除失效 `backend/.clippy-baseline.txt`（旧基线与新代码完全不匹配），让 CI 在 bootstrap 模式下重建基线
+  - CI 过程中暴露的关联问题已修复：trace.rs `push_str` 改 `push`、database.rs 删除未使用 import、auth_handler.rs 修复 HashSet 类型错误、tests/ 下 integration test 路径修正
+  - 所有验证经 GitHub Actions CI 完成，不执行本地 cargo build/clippy/test
+  - 下一步：启动批次 B（30 个中频 dead_code 文件）
+
 [任务管理]
 - Date: 2026-06-19
 - Context: 用户明确要求任务管理规范

@@ -8,6 +8,38 @@
 
 ---
 
+## ✅ 2026-06-24 批次 A dead_code 清理完成
+
+**PR**：[#245](https://github.com/57231307/1/pull/245)  
+**合并提交**：`a3f6a978`  
+**分支**：`fix/clippy-deadcode-batch-a-v2-2026-06-24`  
+**状态**：已合并入 main
+
+### 变更范围
+
+- 20 个高频 dead_code 警告后端文件
+- 删除 `backend/.clippy-baseline.txt`（旧基线失效）
+- 修复 CI 过程中暴露的关联问题（trace.rs/database.rs/auth_handler.rs/tests）
+
+### 行数统计
+
+- 24 个文件，+159 / -1370 行
+- `backend/src/services/enhanced_logger.rs` 从 401 行精简至 122 行
+
+### 关键决策
+
+1. 旧 `fix/clippy-deadcode-batch-a-2026-06-24` 分支因 main 历史重写而无法合并，已关闭 PR #244，转用 v2 分支。
+2. 删除失效 `backend/.clippy-baseline.txt`，让 CI 在 bootstrap 模式下重新建立基线。
+3. 批次 A 文件采用统一策略：真实死代码删除，预留 API 加项级 `#[allow(dead_code)]` + TODO。
+
+### 后续计划
+
+- 批次 B：30 个中频 dead_code 文件
+- 批次 C：40 个低频文件
+- 批次 D：跨文件清理与基线更新
+
+---
+
 ## 🚨 2026-06-23 安全漏洞修复 Wave 2（P1 重要）
 
 ### 漏洞 #4：测试数据库连接端点未认证 ✅ 已修复

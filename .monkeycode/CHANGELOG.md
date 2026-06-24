@@ -5,7 +5,37 @@
 
 ---
 
-## 最新任务：🔵 Clippy 1661 警告全面修复规划（2026-06-23）
+## 最新任务：✅ 批次 A dead_code 清理完成并合并（2026-06-24）
+
+**PR**：[#245](https://github.com/57231307/1/pull/245)  
+**合并提交**：`a3f6a978`  
+**分支**：`fix/clippy-deadcode-batch-a-v2-2026-06-24`  
+**CI 结果**：✅ 通过（Run [#28069175954](https://github.com/57231307/1/actions/runs/28069175954)）
+
+### 完成内容
+
+- 20 个高频 dead_code 警告后端文件清理
+- 删除 `backend/.clippy-baseline.txt`（旧基线因 main 历史重写失效）
+- 修复 CI 暴露的关联问题：trace.rs/database.rs/auth_handler.rs 及 tests/ 下文件
+
+### 文件影响
+
+- 24 个文件，+159 / -1370 行
+- `backend/src/services/enhanced_logger.rs` 从 401 行精简至 122 行
+
+### 关键决策
+
+1. 原 `fix/clippy-deadcode-batch-a-2026-06-24` 分支因 main 历史重写无法合并，关闭 PR #244，转用 v2 分支。
+2. 删除失效 clippy 基线，让 CI 在 bootstrap 模式下重建。
+3. 所有死代码处理采用统一策略：删除真实死代码，预留 API 加项级 `#[allow(dead_code)]` + TODO。
+
+### 下一步
+
+- 启动批次 B：30 个中频 dead_code 文件
+
+---
+
+## 历史任务：🔵 Clippy 1661 警告全面修复规划（2026-06-23）
 
 **关联**：PR #243 Wave 4 merged（commit 37ce64e）后 clippy 失败
 **根因**：rustc 1.94 增强 dead_code 检测 + dotenvy 新依赖 → 122 文件触发 285 个真实警告
