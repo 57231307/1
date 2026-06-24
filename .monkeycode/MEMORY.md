@@ -190,13 +190,43 @@
 
 [Clippy Baseline 脆弱性]
 - Date: 2026-06-24
-- Context: PR #247 + #248 CI 失败时发现
+- Context: PR #247 + #248 CI 失败时发现；PR #250 再次出现
 - Category: 排错调试
 - `backend/.clippy-baseline.txt` 用 `comm -23` 精确行比较检测"新警告"
 - CI 脚本（`.github/workflows/ci-cd.yml:405-416`）用 `sort -u` 处理多行 `rendered` 字段，导致基线只包含 `= help:`、`= note:` 等辅助文本而非警告摘要行
-- **症状**：CI 误报数百到上千个"新警告"（实际为 0）
+- **症状**：CI 误报数百到上千个"新警告"（实际为 0）；PR #250 编译成功后 baseline 441 → 当前 1539，差 1113 全是误报
 - **修复**：删除 `backend/.clippy-baseline.txt`，让 CI 在 bootstrap 模式下重建
 - **快速诊断**：CI 误报"大量新警告"时，先 `head backend/.clippy-baseline.txt` 检查首行内容（应为警告摘要而非辅助文本）
+- **长期方案（TODO）**：改用 `jq` 提取结构化标识符（`code` + `message` + `span`）进行去重
+
+[Cache::get 返回值语义]
+- Date: 2026-06-24
+- Context: PR #250 修复 #5 API Key 黑名单 CI 失败时发现
+- Category: 排错调试
+- `backend/src/utils/cache.rs` 的 `Cache` trait 定义 `fn get(&self, key: &K) -> Option<V>`，返回值已 **Clone**（不是 `Option<&V>`）
+- 不能在结果上调用 `.copied()`（仅 `Option<&T>` 或迭代器支持）
+- 错误模式：`cache.get(&key).copied().unwrap_or(false)` → 修复：`cache.get(&key).unwrap_or(false)`
+- 同时必须 `use crate::utils::cache::{AppCache, Cache};`（导入 trait 才能调用 `get`/`set`）
+
+[分布式限流回退必须真实回退]
+- Date: 2026-06-24
+- Context: PR #250 #6 修复后 CI 单元测试 `test_check_rate_limit_falls_back_to_memory` 失败时发现
+- Category: 排错调试
+- 错误设计：`check_redis_rate_limit` 返回 `Ok(true)`（未配置 Redis），`check_rate_limit` 直接放行
+- 正确设计：返回 `Result<Option<bool>>`：
+  - `Ok(Some(allowed))`：Redis 判定结果
+  - `Ok(None)`：未配置 Redis（应回退）
+  - `Err(_)`：Redis 错误（应回退）
+- 调用方（`check_rate_limit`）在 `Ok(None)` 和 `Err(_)` 两种情况下都必须调用 `memory_limiter.check(key)`
+- **测试断言**：`assert!(!check_rate_limit(...))` 第 N 次（max 限流上限）应被拒绝，验证真正回退到内存
+
+[Cargo build --release vs cargo test 编译差异]
+- Date: 2026-06-24
+- Context: PR #250 #5 修复在 release build 才暴露 `.copied()` 编译错误
+- Category: 排错调试
+- 某些编译错误在 `cargo test`（dev build）中不会触发，但在 `cargo build --release`（`opt-level=2`）会触发
+- **CI 防护**：依赖 `🏗️ Rust 后端构建` job 跑 `cargo build --release` 早期发现问题
+- **本地验证**（非 CI）：`cargo check --release --all-targets` 可提前暴露此类问题
 
 [`|| true` 反模式]
 - Date: 2026-06-24

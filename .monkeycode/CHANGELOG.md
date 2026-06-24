@@ -8,7 +8,7 @@
 
 | PR | 标题 | commit | CI | 状态 |
 |----|------|--------|----|------|
-| #250 | 修复 bug.md 全部 8 个安全漏洞 (#1-#8) | `8390380c` | 🟡 运行中 | ⏳ |
+| **#250** | **修复 bug.md 全部 8 个安全漏洞 (#1-#8)** | **`1e6ba7da`** | **✅** | **✅ 已合并 main** |
 | #248 | CI 错误修复（E0599 + clippy baseline 重建） | `cd7f6b5e` | ✅ | ✅ |
 | #247 | 批次 C dead_code 清理（40 文件 + 12 测试导入） | `f524dad7` | ✅ | ✅ |
 | #246 | 批次 B dead_code 清理（30 中频文件） | `c274a5c4` | ✅ | ✅ |
@@ -24,7 +24,7 @@
 | Wave 2 | P1 | #3 #4 #6 #9 | #241 | `cdb2ada` |
 | Wave 3 | P2 | #7 #8 | #242 | `2ab793c` |
 | Wave 4 | P3 | #5 #10 #11 #12 #13 #14 | #243 | `37ce64e` |
-| **Wave 5** | **P0-P2** | **bug.md 全部 8 漏洞（路径遍历/WebSocket/init/错误/API Key/限流/密码/堆栈）** | **#250** | **`8390380c`** |
+| **Wave 5** | **P0-P2** | **bug.md 全部 8 漏洞（路径遍历/WebSocket/init/错误/API Key/限流/密码/堆栈）** | **#250** | **`1e6ba7da`** |
 
 **Wave 5 关键修复**：
 - #1 静态资源路径遍历：路径规范化 + 严格前缀校验
@@ -35,7 +35,21 @@
 - #6 分布式限流：Redis INCR + EXPIRE 原子操作
 - #7 弱密码严格化：l33t 归一化 + 100+ 黑名单 + 键盘序列检测
 
-**关键经验**：
+**Wave 5 9 次 commit 累计修复（fix/security-p0-2026-06-24）**：
+- `ee5fda48` #1 路径遍历 + #2 WebSocket 认证
+- `373e132e` #3 init_token 中间件
+- `b47c4108` #4 #8 错误脱敏
+- `3d193937` #5 API Key 黑名单
+- `62efbc5f` #6 分布式限流
+- `8390380c` #7 弱密码严格化
+- `e1988f74` docs 记录
+- `2419a8bc` #5 修复补充（Cache trait import）
+- `82909402` #5 修复补充（移除错误 .copied()）
+- `ebf4ada7` CI 失败修复（3 个问题：rate_limit 回退 / GanttItemDto 字段 / 未用导入）
+- `ab9c4396` 删除损坏 clippy baseline
+- `1e6ba7da` **squash merge into main**（PR #250）
+
+**Wave 5 关键经验**：
 - CSRF Token 需 IP 绑定 + 强制轮换
 - 错误响应体生产/开发环境统一脱敏（移除 `error_type`/`detail`）
 - WebSocket 鉴权必须从握手阶段拦截
@@ -43,6 +57,8 @@
 - 弱密码校验需 l33t 归一化 + 严格匹配（防"contains"模糊绕过）
 - 限流需支持分布式（Redis INCR+EXPIRE），失败回退内存
 - API Key 撤销需双轨：DB is_active=false + 黑名单缓存强制吊销
+- **分布式限流回退逻辑必须真正回退**：check_redis_rate_limit 返回 `Ok(None)`（未配置）应与 `Err(_)`（错误）等价，都回退内存限流；返回 `Ok(true)` 直接放行会绕过内存限流
+- **clippy baseline 脆弱性**：`sort -u` 对多行 `rendered` 字段去重错误，只保留尾部 `= help:`/`= note:` 行；编译成功 vs 失败时输出差异大，导致 baseline 与实际不匹配；解决：删除损坏 baseline 让 CI 重建
 
 ---
 
