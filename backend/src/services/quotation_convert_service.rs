@@ -174,7 +174,10 @@ impl QuotationConvertService {
     }
 
     /// 拼接色号（color_code / pantone_code / cncs_code）
-    fn compose_color_no(item: &sales_quotation_item::Model) -> String {
+    ///
+    /// 公开为 `pub` 以便集成测试 `tests/quotation_convert_test.rs` 直接调用。
+    /// 内部实现细节稳定，可安全作为测试入口暴露。
+    pub fn compose_color_no(item: &sales_quotation_item::Model) -> String {
         let mut parts: Vec<String> = Vec::new();
         if let Some(c) = &item.color_code {
             if !c.is_empty() {
