@@ -54,6 +54,26 @@
   - 所有验证经 GitHub Actions CI 完成，不执行本地 cargo build/clippy/test
   - 下一步：启动批次 B（30 个中频 dead_code 文件）
 
+[CI E0599 错误修复（PR #248）]
+- Date: 2026-06-24
+- Context: Agent 在执行"main 分支 CI 错误修复"时发现
+- Category: 排错调试
+- Instructions:
+  - PR #248 修复了 main 分支的 CI 编译错误，commit `cd7f6b5e` 合并入 main
+  - 根因：`backend/tests/color_price_crud_test.rs:90` 错误调用 `active.is_active.is_ok()`，但 `active.is_active` 类型是 `sea_orm::ActiveValue<bool>`，不是 `Result`
+  - **`|| true` 反模式警示**：`assert!(some_expr.is_ok() || true)` 是恒真式断言，没有测试价值却能掩盖编译错误。CI 中应使用 `cargo check --tests` 或 `cargo test --no-run` 提前发现编译错误
+  - 修复方法：改用 `match` 模式匹配 `ActiveValue::Set(v)` 变体
+    ```rust
+    match &active.is_active {
+        sea_orm::ActiveValue::Set(v) => assert_eq!(*v, false),
+        _ => panic!("is_active 应为 Set 变体"),
+    }
+    ```
+  - **基线文件损坏问题再现**：删除 `backend/.clippy-baseline.txt` 后 CI 重建基线，但 CI 脚本（`.github/workflows/ci-cd.yml:405-416`）用 `sort -u` 处理多行 `rendered` 字段，导致基线只包含辅助文本（`= help:`、`= note:`）而非警告行。新基线（441 行）依然有同样的问题
+  - **CI 改进方向（TODO）**：使用 `jq` 提取结构化标识符（`code` + `message` + `span`）作为基线条目，而非整段 `rendered`。这样每个警告对应一行稳定的标识符
+  - 未来若再次出现"大量新警告"误报，先检查 `backend/.clippy-baseline.txt` 首行内容（应为警告摘要而非辅助文本）
+  - 下一步：批次 D（跨文件清理与基线更新）
+
 [批次 C dead_code 清理完成]
 - Date: 2026-06-24
 - Context: Agent 在执行"PR #243 后 clippy dead_code 警告清理（批次 C）"时发现

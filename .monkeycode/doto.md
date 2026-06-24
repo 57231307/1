@@ -62,6 +62,58 @@
 
 ---
 
+## 🚨 2026-06-24 CI 错误修复（PR #248）
+
+**PR**：[#248](https://github.com/57231307/1/pull/248)
+**合并提交**：`cd7f6b5e`
+**分支**：`fix/ci-clippy-activevalue-error-2026-06-24`
+**状态**：已合并入 main（squash merge），15 个 CI job 全绿
+
+### 问题诊断
+
+CI 在 main 分支 commit `f4b861e2`（doc 更新）后失败，错误信息：
+
+```
+error[E0599]: no method named `is_ok` found for enum `sea_orm::ActiveValue<V>`
+  --> tests/color_price_crud_test.rs:90:34
+```
+
+**根因**：
+- `backend/tests/color_price_crud_test.rs:90` 错误调用 `active.is_active.is_ok()`
+- `active.is_active` 类型是 `sea_orm::ActiveValue<bool>`，**不是** `Result`
+- `ActiveValue` 没有 `is_ok()` 方法
+- 原代码 `assert!(active.is_active.is_ok() || true);` 中 `|| true` 是恒真式，掩盖了编译错误
+
+### 影响
+
+- CI 编译失败 → cargo clippy 无法完成 → 误报 884 个"新警告"
+- 后续 commit `6eafbe5a` 自动重建的基线（441 行）依然包含 `= help:`、`= note:` 辅助文本而非警告摘要行
+- 当编译错误修复后，再次触发 1178 个"新警告"误报
+
+### 修复内容
+
+1. **E0599 编译错误修复**（commit `354f43c1`）：
+   - 改用 `match` 模式匹配 `ActiveValue::Set(v)` 变体
+   - 保留多租户隔离断言（`tenant_id == 999`）
+   - 保留软删除语义验证（`Set(false)` 解包检查）
+
+2. **删除损坏的基线文件**（commit `0318d367`）：
+   - 删除 `backend/.clippy-baseline.txt`（441 行无效辅助文本）
+   - 让 CI 在 bootstrap 模式下重建基线
+   - 重建后 commit `1fb09e55` 提交新基线
+
+### 关键经验
+
+- **`|| true` 反模式**：`assert!(some_expr.is_ok() || true)` 是恒真式断言，没有测试价值却能掩盖编译错误。CI 中应使用 `cargo check --tests` 或 `cargo test --no-run` 提前发现编译错误。
+- **基线文件脆弱性**：`backend/.clippy-baseline.txt` 用 `comm -23` 精确行比较，必须严格包含 `cargo clippy` 实际警告摘要行。当前 CI 脚本用 `sort -u` 处理多行 `rendered` 字段，导致基线只包含辅助文本而非警告行。未来改进方向：使用 `jq` 提取结构化标识符（`code` + `message` + `span`）作为基线条目，而非整段 `rendered`。
+
+### 后续计划
+
+- 批次 D：跨文件清理与基线更新（基线已重建）
+- CI 脚本改进：使用结构化基线条目（TODO 计划）
+
+---
+
 ## ✅ 2026-06-24 批次 C dead_code 清理完成
 
 **PR**：[#247](https://github.com/57231307/1/pull/247)

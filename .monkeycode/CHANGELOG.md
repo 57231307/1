@@ -5,7 +5,36 @@
 
 ---
 
-## 最新任务：✅ 批次 C dead_code 清理完成并合并（2026-06-24）
+## 最新任务：✅ CI 错误修复（PR #248）已合并（2026-06-24）
+
+**PR**：[#248](https://github.com/57231307/1/pull/248)
+**合并提交**：`cd7f6b5e`
+**分支**：`fix/ci-clippy-activevalue-error-2026-06-24`
+**CI 结果**：✅ 通过（15 个 job 全绿）
+
+### 完成内容
+
+- 修复 `backend/tests/color_price_crud_test.rs:90` 的 E0599 编译错误
+  - `active.is_active` 类型是 `sea_orm::ActiveValue<bool>`，不是 `Result`
+  - 改用 `match` 模式匹配 `ActiveValue::Set(v)` 变体
+- 删除损坏的 `backend/.clippy-baseline.txt`（441 行无效辅助文本）
+  - 让 CI 在 bootstrap 模式下重建基线
+  - 重建后 commit `1fb09e55` 提交新基线
+
+### 关键决策
+
+1. **`|| true` 反模式**：`assert!(some_expr.is_ok() || true)` 是恒真式断言，没有测试价值却能掩盖编译错误。
+2. **基线文件脆弱性**：`backend/.clippy-baseline.txt` 用 `comm -23` 精确行比较，必须严格包含 `cargo clippy` 实际警告摘要行。当前 CI 脚本用 `sort -u` 处理多行 `rendered` 字段，导致基线只包含辅助文本（`= help:`、`= note:`）而非警告行。
+3. **CI 改进方向**：使用 `jq` 提取结构化标识符（`code` + `message` + `span`）作为基线条目，而非整段 `rendered`。
+
+### 后续计划
+
+- 批次 D：跨文件清理与基线更新
+- CI 脚本改进：使用结构化基线条目（TODO 计划）
+
+---
+
+## 历史任务：✅ 批次 C dead_code 清理完成并合并（2026-06-24）
 
 **PR**：[#247](https://github.com/57231307/1/pull/247)
 **合并提交**：`f524dad7`
