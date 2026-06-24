@@ -65,6 +65,8 @@ logs/
 .monkeycode/
 !.monkeycode/MEMORY.md
 !.monkeycode/doto.md
+!.monkeycode/bug.md
+!.monkeycode/CHANGELOG.md
 .aider*
 .cursor*
 .continue

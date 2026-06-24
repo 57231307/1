@@ -7,6 +7,45 @@
 
 ## 当前活跃任务（2026-06-24）
 
+### 🔴 安全审计：周期性漏洞评估
+
+**状态**：审计完成，P0/P1/P2 漏洞待修复
+**详细记录**：[bug.md](file:///workspace/.monkeycode/bug.md)
+**审计时间**：2026-06-24
+**审计方法**：人工审计，聚焦 4 大高风险攻击面（认证/注入/外部交互/敏感数据）
+
+#### 漏洞汇总
+
+| 编号 | 等级 | 漏洞 | 位置 | 状态 |
+|------|------|------|------|------|
+| #1 | 🔴 P0 | 静态资源路径遍历 | `routes/static.rs:22-57` | 待修复 |
+| #2 | 🔴 P0 | WebSocket 认证绕过 | `websocket/notifications.rs:198-222` | 待修复 |
+| #3 | 🟠 P1 | 初始化接口匿名访问 | `middleware/public_routes.rs:9` | 待修复 |
+| #4 | 🟡 P2 | 错误信息泄露内部细节 | `utils/error.rs:297-315` | 待修复 |
+| #5 | 🟡 P2 | API Key 撤销后仍可冒用 | `services/api_key_service.rs:69-85` | 待修复 |
+| #6 | 🟡 P2 | 内存限流器多实例失效 | `middleware/rate_limit.rs:76-79` | 待修复 |
+| #7 | 🟡 P2 | 弱密码黑名单策略不严 | `utils/password_validator.rs:84-100` | 待修复 |
+| #8 | 🟡 P2 | 调试模式错误响应泄露 | `utils/error.rs:88` | 待修复 |
+
+#### 关键修复要点
+
+- **#1 路径遍历**：`std::fs::canonicalize()` + 目录范围校验，过滤 `..` 和 `//`
+- **#2 WebSocket 认证**：复用 `validate_token_static()`，删除占位 `verify_jwt_token`
+- **#3 初始化接口**：增加 `INIT_TOKEN` 环境变量校验
+- **#4/#8 错误响应**：强制 `APP_ENV=production`，脱敏 `error_type`/`detail`
+- **#5 API Key 黑名单**：Redis 存储已撤销 key_hash
+- **#6 分布式限流**：使用 Redis `INCR` + `EXPIRE` 原子操作
+- **#7 弱密码策略**：COMMON_PASSWORDS 命中硬性拒绝而非扣分
+
+#### 修复任务分解
+
+- [ ] P0：#1 静态资源路径遍历（1-2 天）
+- [ ] P0：#2 WebSocket 认证绕过（1-2 天）
+- [ ] P1：#3 初始化接口匿名访问（3-5 天）
+- [ ] P2：#4-#8 批量修复（2-3 周）
+
+---
+
 ### ✅ CI 错误修复（PR #248）
 
 **状态**：已合并

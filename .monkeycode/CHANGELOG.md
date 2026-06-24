@@ -8,10 +8,36 @@
 
 | PR | 标题 | commit | CI | 状态 |
 |----|------|--------|----|------|
+| #249 | 安全审计：周期性漏洞评估（8 个漏洞待修复） | - | - | 🔴 待修复 |
 | #248 | CI 错误修复（E0599 + clippy baseline 重建） | `cd7f6b5e` | ✅ | ✅ |
 | #247 | 批次 C dead_code 清理（40 文件 + 12 测试导入） | `f524dad7` | ✅ | ✅ |
 | #246 | 批次 B dead_code 清理（30 中频文件） | `c274a5c4` | ✅ | ✅ |
 | #245 | 批次 A dead_code 清理（20 高频文件） | `a3f6a978` | ✅ | ✅ |
+
+---
+
+## 2026-06-24 周期性安全审计发现
+
+详细记录：[bug.md](file:///workspace/.monkeycode/bug.md)
+
+| 编号 | 等级 | 漏洞 | 位置 |
+|------|------|------|------|
+| #1 | 🔴 P0 | 静态资源路径遍历 | `routes/static.rs` |
+| #2 | 🔴 P0 | WebSocket 认证绕过 | `websocket/notifications.rs` |
+| #3 | 🟠 P1 | 初始化接口匿名访问 | `middleware/public_routes.rs` |
+| #4 | 🟡 P2 | 错误信息泄露内部细节 | `utils/error.rs` |
+| #5 | 🟡 P2 | API Key 撤销后仍可冒用 | `services/api_key_service.rs` |
+| #6 | 🟡 P2 | 内存限流器多实例失效 | `middleware/rate_limit.rs` |
+| #7 | 🟡 P2 | 弱密码黑名单策略不严 | `utils/password_validator.rs` |
+| #8 | 🟡 P2 | 调试模式错误响应泄露 | `utils/error.rs` |
+
+**关键经验**：
+- 占位实现（`verify_jwt_token`）必须接入真实 JWT 验证逻辑
+- 静态资源路径必须做 `canonicalize` + 目录范围校验
+- 初始化接口需配合 `INIT_TOKEN` 环境变量
+- 多实例部署需使用 Redis 集中限流
+- 弱密码黑名单命中应硬性拒绝而非仅扣分
+- 生产环境必须强制 `APP_ENV=production`，错误响应脱敏
 
 ---
 

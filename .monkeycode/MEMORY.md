@@ -121,6 +121,30 @@
 - 使用参数化查询防止 SQL 注入
 - 对输出进行编码防止 XSS 攻击
 
+[2026-06-24 安全审计发现]
+- Date: 2026-06-24
+- Context: 周期性人工安全审计
+- Category: 安全规范
+- 详细记录：[`bug.md`](file:///workspace/.monkeycode/bug.md)
+- **P0 待修复**（1-2 天）：
+  - #1 静态资源路径遍历（`routes/static.rs:22-57`）—— 用 `Component::ParentDir` 拒绝 `..` 段
+  - #2 WebSocket 认证绕过（`websocket/notifications.rs:198-222`）—— `verify_jwt_token` 是占位实现，未做签名验证
+- **P1 待修复**（3-5 天）：
+  - #3 初始化接口匿名访问（`middleware/public_routes.rs:9`）—— 需 `INIT_TOKEN` 环境变量
+- **P2 待修复**（2-3 周）：
+  - #4 错误信息泄露内部细节（`utils/error.rs:297-315`）
+  - #5 API Key 撤销后仍可冒用（`services/api_key_service.rs:69-85`）
+  - #6 内存限流器多实例失效（`middleware/rate_limit.rs:76-79`）
+  - #7 弱密码黑名单策略不严（`utils/password_validator.rs:84-100`）
+  - #8 调试模式错误响应泄露（`utils/error.rs:88`）
+- **关键经验**：
+  - 占位实现必须接入真实 JWT 验证（`validate_token_static`）
+  - 静态资源路径必须做 `canonicalize` + 目录范围校验
+  - 初始化接口需配合 `INIT_TOKEN` 环境变量
+  - 多实例部署需使用 Redis 集中限流（`INCR` + `EXPIRE`）
+  - 弱密码黑名单命中应硬性拒绝而非仅扣分
+  - 生产环境必须强制 `APP_ENV=production`，错误响应脱敏
+
 ---
 
 ## 四、CI/CD 强制（2026-06-20 用户强调）
