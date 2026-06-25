@@ -1,16 +1,19 @@
+//! 公开路径白名单
+//!
+//! 安全原则：最小化公开端点，仅保留认证必需和基础设施健康检查。
+//! 所有业务端点必须经过 JWT 验证。
+
 pub const PUBLIC_PATHS: &[&str] = &[
+    // 基础设施健康检查（K8s / 负载均衡器探针，无需认证）
     "/health",
     "/ready",
     "/live",
-    "/init",
     "/api/v1/erp/health",
     "/api/v1/erp/ready",
     "/api/v1/erp/live",
-    "/api/v1/erp/init",
+    // 认证流程必需端点
     "/api/v1/erp/auth/login",
     "/api/v1/erp/auth/refresh",
-    "/api/v1/erp/auth/logout",
-    "/api/tracking/page-view",
 ];
 
 /// 公开路径白名单（跳过 JWT 认证）
@@ -38,9 +41,16 @@ mod tests {
 
     #[test]
     fn test_health_paths_public() {
+        // 健康检查端点必须公开（K8s / 负载均衡探针）
         assert!(is_public_path("/health"));
+        assert!(is_public_path("/ready"));
+        assert!(is_public_path("/live"));
         assert!(is_public_path("/api/v1/erp/health"));
+        assert!(is_public_path("/api/v1/erp/ready"));
+        assert!(is_public_path("/api/v1/erp/live"));
+        // 登录/刷新必须公开（认证流程）
         assert!(is_public_path("/api/v1/erp/auth/login"));
+        assert!(is_public_path("/api/v1/erp/auth/refresh"));
     }
 
     #[test]
@@ -50,6 +60,11 @@ mod tests {
         assert!(!is_public_path("/api/v1/erp/sales/orders"));
         assert!(!is_public_path("/api/v1/erp/inventory/stocks"));
         assert!(!is_public_path("/api/v1/erp/crm/customers"));
+        // init / tracking / logout 均需认证
+        assert!(!is_public_path("/init"));
+        assert!(!is_public_path("/api/v1/erp/init"));
+        assert!(!is_public_path("/api/tracking/page-view"));
+        assert!(!is_public_path("/api/v1/erp/auth/logout"));
     }
 
     /// 低危 #3 修复：精确匹配防止 starts_with 误匹配
