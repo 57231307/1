@@ -14,8 +14,8 @@ mod tests {
         assert!(!card_no.is_empty());
 
         // 2. 添加色号
-        let color_code = "18-1664 TPX";
-        let color_name = "番茄红";
+        let _color_code = "18-1664 TPX";
+        let _color_name = "番茄红";
         let hex = rgb_to_hex(220, 50, 50);
         assert_eq!(hex, "#DC3232");
 

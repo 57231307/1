@@ -3,6 +3,27 @@
 > 本文件记录**当前任务**与**历史任务索引**。
 > 详细历史请查阅 [`.monkeycode/docs/archives/`](file:///workspace/.monkeycode/docs/archives/)。
 
+### 2026-06-25 上午 09:30 - 第九次安全审计周期（PR #253）
+
+- [x] commit-1: M-6 permission NULL 匹配过宽修复
+- [x] commit-2: H-2 + M-5 + M-4 邮件服务安全加固
+- [x] commit-3: M-1 客户 IDOR + created_by 校验
+- [x] commit-4: M-3 refresh_token is_active/JTI 校验
+- [x] commit-5: M-7 SQL 注入黑名单补全
+- [x] commit-6: L-2 legacy_jwt SameSite Strict
+- [x] commit-7: L-1 CSRF 公开端点要求 session 头
+- [x] commit-8: public_routes 仅限登录页+健康检查公开
+- [x] commit-9: import_export 只查需要的表 + 租户权限限制
+- [x] 创建 PR #253 等待 CI #1402 验证
+- [ ] CI 监控与失败修复
+
+---
+
+### 2026-06-25 凌晨 08:30 - 第八次安全审计周期（H-4）
+
+- [x] commit H-4: 静态资源路径符号链接越界防护（canonicalize 校验）
+- [x] CI #1399 验证通过
+
 ---
 
 ## 当前活跃任务（2026-06-24）

@@ -162,6 +162,7 @@ impl CustomerService {
     }
 
     /// 获取客户列表
+    #[allow(dead_code)] // TODO(tech-debt): CRM 客户模块统一迁移后接入，或删除
     pub async fn list_customers(
         &self,
         page_req: PageRequest,

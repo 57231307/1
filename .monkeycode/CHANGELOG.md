@@ -2,6 +2,29 @@
 
 > 重要变更一句话摘要列表。详细历史请查阅 [`.monkeycode/docs/archives/`](file:///workspace/.monkeycode/docs/archives/)。
 
+## 2026-06-25 (第九次安全审计周期)
+
+### 修复 9 项安全漏洞 + 2 项业务优化
+
+**PR #253**: `fix/security-batch-2026-06-25` (9 commits)
+
+| Commit | 类型 | 描述 |
+|--------|------|------|
+| fix(security): M-6 | 中危 | 权限匹配 resource_id 精确匹配，防止 NULL 越权 |
+| fix(security): H-2+M-5+M-4 | 高危+中危 | 邮件 API URL 写死 + 邮件 XSS 防御 + 邮件日志脱敏 |
+| fix(security): M-1 | 中危 | 客户数据权限隔离（created_by 校验） |
+| fix(security): M-3 | 中危 | refresh_token 增加 JTI 吊销检查和用户状态校验 |
+| fix(security): M-7 | 中危 | SQL 注入审计中间件黑名单扩展 14→60+ 模式 |
+| fix(security): L-2 | 低危 | legacy_jwt Cookie SameSite 从 Lax 改为 Strict |
+| fix(security): L-1 | 低危 | CSRF 公开端点非安全方法要求自定义请求头 |
+| refactor(security) | 业务 | 公开端点收敛至登录/刷新/健康检查 |
+| refactor(perf) | 业务 | 数据导出优化 - 条件过滤 + 行数限制 + 审计日志 |
+
+### CI 验证
+
+- CI #1402 (PR #253): 触发中，等待完成
+- 修复目标: 9 项安全漏洞 + 2 项业务优化
+
 ---
 
 ## 最新任务（2026-06-24）

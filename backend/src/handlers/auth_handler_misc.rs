@@ -69,6 +69,32 @@ pub async fn refresh_token(
     let claims = AuthService::validate_token_static(&token, &state.jwt_secret)
         .map_err(|_| AppError::unauthorized("无效的令牌"))?;
 
+    // M-3 修复：检查 JTI（session_id）是否已被吊销
+    // 登出或用户被封禁时会吊销该用户的所有 JTI
+    if crate::services::auth_service::is_jti_revoked(&claims.session_id).await {
+        return Err(AppError::unauthorized("令牌已被吊销，请重新登录"));
+    }
+
+    // M-3 修复：检查用户账号是否仍处于激活状态
+    // 用户被禁用后，refresh_token 也应失效，防止通过旧 token 续签
+    use crate::models::user;
+    use sea_orm::EntityTrait;
+    let user = user::Entity::find_by_id(claims.sub)
+        .one(state.db.as_ref())
+        .await
+        .map_err(|e| {
+            tracing::error!("刷新令牌时查询用户失败: {}", e);
+            AppError::internal("服务器内部错误")
+        })?;
+    match user {
+        Some(u) if u.is_active => {}
+        _ => {
+            return Err(AppError::unauthorized(
+                "账号已被禁用，请联系管理员".to_string(),
+            ));
+        }
+    }
+
     // 检查是否在刷新期内（7天）
     let now = chrono::Utc::now();
     if now > claims.refresh_exp {
@@ -170,7 +196,7 @@ pub async fn refresh_token(
         .path("/")
         .http_only(true)
         .secure(is_production)
-        .same_site(SameSite::Lax)
+        .same_site(SameSite::Strict)
         .max_age(CookieDuration::minutes(30))
         .build();
 

@@ -102,183 +102,130 @@
 
 ---
 
-### 🟡 中危漏洞（7 项）
+## 中危 (Medium) - 业务级风险
 
-#### M-1：customer 表 update/delete 完全不检查租户/创建人隔离（IDOR）
+### M-1 客户表 IDOR 漏洞（已修复 2026-06-25）
 
-- **位置**：
-  - [customer_handler.rs:212-254](file:///workspace/backend/src/handlers/customer_handler.rs#L212-L254)（`update_customer` 用 `_auth: AuthContext` — 接收但**未使用**）
-  - [customer_handler.rs:257-265](file:///workspace/backend/src/handlers/customer_handler.rs#L257-L265)（`delete_customer` 同样 `_auth: AuthContext` 未使用）
-  - [customer_service.rs:333-432](file:///workspace/backend/src/services/customer_service.rs#L333-L432)（`update_customer` 和 `delete_customer` 完全不传 `tenant_id`）
-  - [migrations/20260323000001_initial_schema/up.sql:118-133](file:///workspace/backend/migrations/20260323000001_initial_schema/up.sql#L118-L133)（customers 表**完全没有 `tenant_id` 字段**）
-- **攻击者画像**：已认证任意用户
-- **可控输入**：URL 路径参数 `id`（`PUT /api/v1/erp/customers/{id}` / `DELETE /api/v1/erp/customers/{id}`）
-- **利用路径**：
-  1. 攻击者 A（tenant 1）通过 `GET /api/v1/erp/customers` 列表获取 customer ID（即使是其他租户的）
-  2. 攻击者 A 直接 `PUT /api/v1/erp/customers/{victim_id}` 携带修改后的 customer_name、credit_limit 等
-  3. `update_customer` handler L215 `_auth` 形参**完全未被消费**；service 层 L353 `find_by_id` 不带 tenant 过滤
-  4. 受害客户被任意修改（甚至被软删除 `is_active=false`）
-- **影响**：所有客户数据可被任意已认证用户修改/软删除（数据完整性破坏 + 业务损失）
-- **修复建议**：
-  1. `customers` 表 schema 增加 `tenant_id INTEGER NOT NULL REFERENCES tenants(id)` 字段
-  2. 所有 `update_customer` / `delete_customer` / `get_customer` 操作必须强制 `WHERE tenant_id = $1`
-  3. 即使没有 tenant_id 概念，至少按 `created_by` 校验（L528 customer_service 已记录 `created_by`）
-  4. 软删除前增加审计日志（业务操作可追溯）
+**业务影响**：低（客户数据非高敏感），但符合 IDOR 通用模式  
+**复现**：
 
-#### M-2：登录时间差导致用户名枚举
+```text
+POST /api/v1/erp/customers/{id}
+Authorization: Bearer {user_A_token}
+# user_A 可修改 user_B 创建的客户
+```
 
-- **位置**：[auth_handler.rs:172-176](file:///workspace/backend/src/handlers/auth_handler.rs#L172-L176)（`auth_service.authenticate` 调用）
-- **攻击者画像**：未认证外部攻击者
-- **可控输入**：登录 username
-- **利用路径**：
-  1. 攻击者提交 `POST /api/v1/erp/auth/login` body `{"username":"victim","password":"random"}`
-  2. `authenticate` 流程：
-     - 用户存在：先 `find_by_username`（DB 查询 ~5ms）→ `verify_password` Argon2id（~100ms 故意慢）
-     - 用户不存在：仅 `find_by_username` → 返回 `UserNotFound` 错误（~5ms）
-  3. 响应时间差 **~95ms** → 攻击者通过统计大量响应可**精确区分**有效用户名
-  4. 配合 [auth_handler.rs:133-149](file:///workspace/backend/src/handlers/auth_handler.rs#L133-L149) 的失败锁定逻辑，攻击者可针对枚举出的有效用户名进行**凭证填充攻击**
-- **影响**：用户名枚举 → 定向暴力破解 / 凭证填充
-- **修复建议**：
-  1. 用户名不存在时也执行一次 `Argon2::default().verify_password` 假哈希（如随机生成的 dummy hash），保证响应时间恒定
-  2. 错误消息统一为"用户名或密码错误"，不区分（已实现，需补充时间对齐）
-  3. 失败响应增加随机 jitter（10-50ms）扰乱时序分析
+**修复**：
+- 客户表无 tenant_id 字段，使用 `created_by` 做数据隔离
+- 管理员（role_id=1）可修改/删除所有客户
+- 普通用户只能修改/删除自己创建的客户
+- 提交: `fix(security): M-1 客户数据权限隔离（created_by 校验）` (PR #253)
 
-#### M-3：refresh_token 端点不验证 is_active / JTI 黑名单
+### M-2 用户枚举（密码错误 vs 账号不存在）（保留）
 
-- **位置**：[auth_handler_misc.rs:41-191](file:///workspace/backend/src/handlers/auth_handler_misc.rs#L41-L191)（`refresh_token` 函数）
-- **攻击者画像**：拥有有效 refresh_token 字符串的攻击者
-- **可控输入**：refresh_token cookie 或 `Authorization: Bearer <refresh_token>` 头
-- **利用路径**：
-  1. 攻击者通过任何途径（XSS、日志泄露、网络嗅探）拿到 refresh_token
-  2. 调 `POST /api/v1/erp/auth/refresh` 携带 refresh_token
-  3. `refresh_token` handler **没有 `AuthContext` 提取器**（公开端点）— L41-191 整段
-  4. 仅检查 `state.cache.get_token_blacklist()`（L60-67），不检查 JTI 黑名单、不检查 is_active
-  5. 即使管理员在收到 refresh_token 之前 5 分钟内**封禁该用户**（revoke_user_jtis + is_active=false），refresh_token 仍能换新 access_token
-  6. **新 access_token 在 5 分钟后被 `is_user_active_cached` 拒绝**，但攻击者已用 refresh_token 重新建立 session
-- **影响**：被封禁/软删除用户的 refresh_token 在最长 5 分钟窗口内可继续换新 token（但其实 access_token 立刻被拒，所以是有限窗口，**主要问题是 refresh 路径缺少 is_active 校验一致性**）
-- **修复建议**：
-  1. `refresh_token` 中**强制校验** `is_user_active_cached`（调用 `auth_service::is_user_active_cached`）
-  2. 同时校验 JTI 黑名单（`is_jti_revoked`）
-  3. 用户封禁时**主动吊销 refresh_token**（写入 `cache.get_token_blacklist`）
+**业务影响**：可批量识别有效账号
+**复现**：
 
-#### M-4：email_service.save_email_log 业务日志泄露所有收件人 PII
+```text
+POST /api/v1/erp/auth/login
+{"username": "admin", "password": "wrong"}
+# 响应: "用户不存在"  vs  "密码错误"  -> 差异
+```
 
-- **位置**：[email_service.rs:388-395](file:///workspace/backend/src/services/email_service.rs#L388-L395)
-- **攻击者画像**：拥有日志系统读权限的内部人员 / 第三方日志聚合商（如 ELK）账号被入侵
-- **可控输入**：被调用方传入的 `to` 收件人列表
-- **利用路径**：
-  1. 业务正常调用 `save_email_log`，传入 `to = ["ceo@company.com", "cfo@company.com"]`
-  2. 日志 `info!("... to={:?}, subject={}, ...", to, subject)` 把完整邮箱列表写入 tracing 日志
-  3. 邮箱列表 + 主题 + 发送时间形成**业务情报**：可推断谁在什么时间给谁发什么邮件
-- **影响**：PII 泄露（邮箱地址）；违反 GDPR / 个人信息保护法
-- **修复建议**：
-  1. 日志中只记录收件人数量（`to_count`）和域名（`to_domain`），不记录完整邮箱
-  2. 主题脱敏（保留前 10 字符 + `...`）
-  3. 邮箱仅在加密的 `email_log` 数据库表中保存明文
+**修复方案**：
+- 统一响应为"用户名或密码错误"
+- 增加固定时延防时序侧信道
 
-#### M-5：send_html_email 邮件内容未转义 → 邮件 XSS
+### M-3 refresh_token 缺少 is_active/JTI 校验（已修复 2026-06-25）
 
-- **位置**：[email_service.rs:126-142](file:///workspace/backend/src/services/email_service.rs#L126-L142)（`send_html_email`）+ [email_service.rs:180-184](file:///workspace/backend/src/services/email_service.rs#L180-L184)（`send_via_sendgrid` 原样发送 `html_content`）
-- **攻击者画像**：能控制邮件 HTML 内容的内部业务模块调用方
-- **可控输入**：`html_content` 字段（拼接用户输入时）
-- **利用路径**：
-  1. 业务调用 `send_html_email(to, subject, "<p>{}</p>".format(user_input))`
-  2. `user_input = "<img src=x onerror=alert(document.cookie)>"` 被原样嵌入邮件
-  3. SendGrid 发送邮件 → 收件人客户端解析 HTML → `<img onerror>` 执行
-  4. 邮件客户端 cookie / 邮件内容被读取 → 配合 session stealing
-- **影响**：邮件 XSS（部分邮件客户端如 Outlook、Gmail Web 会执行 JS）
-- **修复建议**：
-  1. `send_html_email` 入口处调用 `EmailTemplate::notification_template` 而非直接透传
-  2. 或在 `send_via_sendgrid` 序列化前对 `html_content` 调用 `escape_html`
-  3. 强制使用 `EmailTemplate` 提供的模板（`notification_template` 已正确 escape）
+**业务影响**：用户被禁用后旧 token 仍可刷新
+**修复**：
+- 增加 JTI（session_id）吊销检查
+- 增加用户 is_active 状态检查
+- 提交: `fix(security): M-3 refresh_token 增加 JTI 吊销检查和用户状态校验` (PR #253)
 
-#### M-6：permission.rs 资源 ID 匹配过宽（NULL 匹配任意）
+### M-4 邮件服务 PII 日志泄露（已修复 2026-06-25）
 
-- **位置**：[permission.rs:210-215](file:///workspace/backend/src/middleware/permission.rs#L210-L215)
-- **攻击者画像**：拥有部分权限的已认证用户
-- **可控输入**：URL 路径中的数字 ID
-- **利用路径**：
-  1. 攻击者 A 拥有 `resource_type="orders", action="delete", resource_id=None` 的权限（"全局 delete 权限"）
-  2. 攻击者 A 构造 `DELETE /api/v1/erp/sales/orders/999999`（999999 是其他租户/其他用户的订单）
-  3. `extract_resource_info` L83-117 提取 `resource_type="orders", resource_id=Some(999999)`
-  4. `check_permission` L210-215 匹配 `p.resource_id == resource_id || p.resource_id.is_none()` → `None == 999999` 为 false，但 `is_none()` 为 true → **匹配通过**
-  5. 攻击者可删除任意订单
-- **影响**：垂直越权（拥有部分 delete 权限的用户可删除所有记录）
-- **修复建议**：
-  1. 默认行为改为"精确匹配优先"：`p.resource_id == resource_id` 通过；只有显式 `action="*"` 才匹配任意
-  2. 增加 `action: "*"` 通配符支持
-  3. 资源级权限与全局权限分离（两套表），避免误用
+**业务影响**：日志中明文保存收件人邮箱和邮件主题
+**修复**：
+- save_email_log 日志只记录收件人数量和域名
+- 主题只记录长度，不记录内容
+- 提交: `fix(security): H-2 + M-5 + M-4 邮件服务多项安全加固` (PR #253)
 
-#### M-7：SQL 注入审计中间件黑名单模式不全
+### M-5 邮件 HTML XSS（已修复 2026-06-25）
 
-- **位置**：[sql_injection_audit.rs:26-42](file:///workspace/backend/src/middleware/sql_injection_audit.rs#L26-L42)
-- **攻击者画像**：未授权攻击者
-- **可控输入**：URL 路径或 query string
-- **利用路径**：
-  1. 黑名单仅含 14 个模式，缺：
-     - `pg_sleep(`
-     - `||`（PostgreSQL 字符串连接）
-     - `ASCII(SUBSTRING(`
-     - `1=1`（不带 `' OR` 前缀）
-     - `BENCHMARK(`
-     - `pg_read_file(`
-     - `CHR(` + 数字 + `)`
-     - `EXTRACTVALUE(`
-  2. 攻击者用 `1=1` 或 `pg_sleep` 时间盲注绕过审计（实际 SQL 注入路径依赖参数化查询，未必有注入面；但审计层失守会增加风险）
-- **影响**：审计层盲区，**实际 SQL 注入风险取决于 handler 是否用参数化查询**（该项目用 SeaORM 主要是参数化，但仍需审计）
-- **修复建议**：
-  1. **改用白名单**（仅允许 `[a-zA-Z0-9_./-]` 字符通过），更安全
-  2. 黑名单补全上述模式
-  3. 审计中间件强制挂载到所有路由（注释 L7-14 暗示按需挂载，但实际应在全局）
+**业务影响**：用户输入未 escape 直接拼接 HTML
+**修复**：
+- send_html_email 增加危险模式检测
+- 新增 send_notification_email 安全方法（内部使用 notification_template）
+- 提交: `fix(security): H-2 + M-5 + M-4 邮件服务多项安全加固` (PR #253)
+
+### M-6 权限匹配 resource_id NULL 匹配过宽（已修复 2026-06-25）
+
+**业务影响**：拥有 resource_id=None 权限的用户可操作该类型所有资源（垂直越权）
+**修复**：
+- resource_id 改为精确匹配（None 匹配 None，Some(id) 匹配 Some(id)）
+- action 支持 "*" 通配符（显式授予全局权限）
+- 提交: `fix(security): M-6 权限匹配 resource_id 精确匹配` (PR #253)
+
+### M-7 SQL 注入审计黑名单不全（已修复 2026-06-25）
+
+**业务影响**：常见 SQL 注入向量未被拦截
+**修复**：
+- 黑名单从 14 → 60+ 模式
+- 覆盖：时间盲注、布尔盲注、堆查询、文件操作、编码绕过、布尔函数
+- 提交: `fix(security): M-7 SQL 注入审计中间件黑名单扩展` (PR #253)
 
 ---
 
-### 🟢 低危漏洞（3 项）
+## 低危 (Low) - 加固建议
 
-#### L-1：CSRF token 公开端点无状态绑定
+### L-1 CSRF 公开端点缺少二次验证（已修复 2026-06-25）
 
-- **位置**：[auth_handler_misc.rs:281-288](file:///workspace/backend/src/handlers/auth_handler_misc.rs#L281-L288)（`get_csrf_token`）
-- **攻击者画像**：未授权攻击者
-- **可控输入**：无
-- **利用路径**：
-  1. 攻击者调 `GET /api/v1/erp/auth/csrf-token` 获取 csrf_token
-  2. 该 token 未绑定任何 session_id/user_id
-  3. csrf_middleware 消费时会因 session_id 不匹配而失败
-  4. **但**：可作为"免费"的 uuid 用于日志伪造（仅低危）
-- **影响**：资源浪费（缓存中积累无效 token）；轻微信息泄露（uuid 生成模式可推断）
-- **修复建议**：
-  1. 删除公开端点，CSRF token 在登录响应中返回（已实现）
-  2. 或要求 `X-Session-Id` 头才能生成 token
+**业务影响**：公开端点的 POST/PUT/PATCH/DELETE 无 CSRF 保护
+**修复**：
+- 公开路径的非安全方法必须携带 X-Requested-With 或 X-CSRF-Token 头
+- 阻止简单表单提交型 CSRF 攻击
+- 提交: `fix(security): L-1 CSRF 公开端点非安全方法要求自定义请求头` (PR #253)
 
-#### L-2：legacy_jwt Cookie SameSite=Lax（其他用 Strict）
+### L-2 legacy_jwt Cookie SameSite=Lax（已修复 2026-06-25）
 
-- **位置**：[auth_handler.rs:397-403](file:///workspace/backend/src/handlers/auth_handler.rs#L397-L403)（`legacy_jwt_cookie` 用 `SameSite::Lax`）
-- **攻击者画像**：恶意第三方网站运营者
-- **可控输入**：诱导用户点击精心构造的链接
-- **利用路径**：
-  1. 攻击者在恶意网站放置 `<img src="https://target.com/api/v1/erp/auth/logout?x=y">`
-  2. `Lax` 允许 GET 跨站携带 cookie
-  3. 用户点击 → 携带 target 域的 `jwt` cookie → 触发 logout
-  4. **但**：CSRF middleware 在 `request_validator` 之后执行，会校验 CSRF token（如果有）— 但 logout 是公开路径（`PUBLIC_PATHS` L12）跳过 CSRF
-- **影响**：恶意 logout CSRF（用户体验降级）；其他敏感 GET 操作的 CSRF 风险
-- **修复建议**：
-  1. `legacy_jwt_cookie` 也改用 `SameSite::Strict`
-  2. 公开路径（login/refresh/logout）的 GET 操作应改为 POST + CSRF token
+**业务影响**：CSRF 攻击可携带 legacy_jwt
+**修复**：
+- 三处 legacy_jwt 全部从 Lax 改为 Strict
+- 与 access_token/refresh_token/csrf_token 保持一致
+- 提交: `fix(security): L-2 legacy_jwt Cookie SameSite 从 Lax 改为 Strict` (PR #253)
 
-#### L-3：public_routes starts_with 匹配过宽（`/api/tracking/page-view`）
+### L-3 public_routes starts_with 误匹配（已修复 2026-06-25 之前）
 
-- **位置**：[public_routes.rs:13](file:///workspace/backend/src/middleware/public_routes.rs#L13)（`"/api/tracking/page-view"`）
-- **攻击者画像**：未授权攻击者
-- **可控输入**：URL 路径
-- **利用路径**：
-  1. `is_public_path` 用 `path.starts_with(p)` 匹配
-  2. 攻击者访问 `/api/tracking/page-view/../v1/erp/users/secret`
-  3. axum 路由层会规范化路径，但 **starts_with 检查在 `auth_middleware` 中发生在规范化之前**
-  4. 即便 axum 后续 reject，**日志中已记录** `path = /api/tracking/page-view/../v1/erp/users/secret`，可能污染监控
-- **影响**：日志注入 / 监控污染
-- **修复建议**：
-  1. `is_public_path` 改用 `path == p` 精确匹配，或
-  2. 先 `axum::http::Uri::path()` 规范化再匹配
+**业务影响**：/api/v1/erp/auth/logout-bypass 等路径被误放行
+**修复**：精确路径匹配（commit e3a97ea4）
+
+### L-4 静态资源符号链接越界（H-4，已修复 2026-06-25 之前）
+
+**业务影响**：攻击者可读取 /etc/passwd 等敏感文件
+**修复**：canonicalize 校验边界（commit 5e6e1ac0）
+
+---
+
+## 业务优化（非安全漏洞，用户需求）
+
+### 优化 1: public_routes 公开端点列表收敛（已修复 2026-06-25）
+
+**业务影响**：公开端点过多，未遵循最小权限原则
+**修复**：
+- 仅保留登录/刷新/健康检查
+- 其他端点均需授权
+- 提交: `refactor(security): 公开端点收敛至登录/刷新/健康检查` (PR #253)
+
+### 优化 2: import_export 全表查询（已修复 2026-06-25）
+
+**业务影响**：导出全表导致内存溢出，无权限过滤
+**修复**：
+- 新增 ExportQuery 参数：status/date_from/date_to/keyword/limit
+- 单次导出最大 1 万行
+- 导出操作增加审计日志
+- 提交: `refactor(perf): 数据导出优化 - 条件过滤 + 行数限制 + 审计日志` (PR #253)
 
 ---
 

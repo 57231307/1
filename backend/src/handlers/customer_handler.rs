@@ -212,12 +212,23 @@ pub async fn create_customer(
 pub async fn update_customer(
     State(state): State<AppState>,
     Path(id): Path<i32>,
-    _auth: crate::middleware::auth_context::AuthContext,
+    auth: crate::middleware::auth_context::AuthContext,
     Json(payload): Json<UpdateCustomerRequest>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     payload.validate()?;
 
     let customer_service = CustomerService::new(state.db.clone());
+
+    // M-1 修复：检查数据权限
+    // 客户表无 tenant_id 字段，使用 created_by 做数据隔离：
+    // - 管理员（role_id=1）可修改所有客户
+    // - 普通用户只能修改自己创建的客户
+    let customer = customer_service.get_customer(id).await?;
+    let is_admin = auth.role_id == Some(1);
+    let is_owner = customer.created_by == Some(auth.user_id);
+    if !is_admin && !is_owner {
+        return Err(AppError::permission_denied("无权修改该客户信息".to_string()));
+    }
 
     let credit_limit = payload
         .credit_limit
@@ -257,9 +268,21 @@ pub async fn update_customer(
 pub async fn delete_customer(
     State(state): State<AppState>,
     Path(id): Path<i32>,
-    _auth: AuthContext,
+    auth: AuthContext,
 ) -> Result<Json<ApiResponse<()>>, AppError> {
     let customer_service = CustomerService::new(state.db.clone());
+
+    // M-1 修复：检查数据权限
+    // 客户表无 tenant_id 字段，使用 created_by 做数据隔离：
+    // - 管理员（role_id=1）可删除所有客户
+    // - 普通用户只能删除自己创建的客户
+    let customer = customer_service.get_customer(id).await?;
+    let is_admin = auth.role_id == Some(1);
+    let is_owner = customer.created_by == Some(auth.user_id);
+    if !is_admin && !is_owner {
+        return Err(AppError::permission_denied("无权删除该客户".to_string()));
+    }
+
     customer_service.delete_customer(id).await?;
     Ok(Json(ApiResponse::success_with_message((), "客户删除成功")))
 }
