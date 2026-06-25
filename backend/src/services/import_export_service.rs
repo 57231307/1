@@ -566,7 +566,7 @@ impl ImportExportService {
     /// 解析日期字符串为 DateTime（兼容多种格式）
     fn parse_date_filter(date_str: &str) -> Option<chrono::DateTime<chrono::Utc>> {
         let formats = ["%Y-%m-%d", "%Y-%m-%d %H:%M:%S", "%Y/%m/%d"];
-        for fmt in &formats {
+        for _fmt in &formats {
             if let Ok(naive) = chrono::NaiveDateTime::parse_from_str(
                 &format!("{} 00:00:00", date_str.split(' ').next().unwrap_or(date_str)),
                 "%Y-%m-%d %H:%M:%S",

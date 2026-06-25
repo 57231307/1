@@ -227,7 +227,7 @@ pub async fn update_customer(
     let is_admin = auth.role_id == Some(1);
     let is_owner = customer.created_by == Some(auth.user_id);
     if !is_admin && !is_owner {
-        return Err(AppError::forbidden("无权修改该客户信息".to_string()));
+        return Err(AppError::permission_denied("无权修改该客户信息".to_string()));
     }
 
     let credit_limit = payload
@@ -280,7 +280,7 @@ pub async fn delete_customer(
     let is_admin = auth.role_id == Some(1);
     let is_owner = customer.created_by == Some(auth.user_id);
     if !is_admin && !is_owner {
-        return Err(AppError::forbidden("无权删除该客户".to_string()));
+        return Err(AppError::permission_denied("无权删除该客户".to_string()));
     }
 
     customer_service.delete_customer(id).await?;

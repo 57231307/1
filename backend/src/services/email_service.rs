@@ -264,11 +264,12 @@ impl EmailService {
 
         // H-2 修复：使用硬编码的 SendGrid 官方 API URL，
         // 禁止从环境变量或配置中读取自定义 URL，防止 API Key 泄露到攻击者服务器。
-        let api_url = SENDGRID_API_URL;
+        // SENDGRID_API_URL 是 &'static str，IntoUrl 已为 &str 实现，直接传值。
+        let api_url: &str = SENDGRID_API_URL;
 
         let response = self
             .http_client
-            .post(&api_url)
+            .post(api_url)
             .header("Authorization", format!("Bearer {}", self.config.api_key))
             .header("Content-Type", "application/json")
             .json(&sendgrid_message)
