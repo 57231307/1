@@ -24,6 +24,9 @@ fn escape_html(input: &str) -> String {
     result
 }
 
+/// SendGrid 官方 API URL（硬编码，防止环境变量注入导致 API Key 泄露）
+const SENDGRID_API_URL: &str = "https://api.sendgrid.com/v3/mail/send";
+
 /// 邮件配置
 #[derive(Debug, Clone, Deserialize)]
 pub struct EmailConfig {
@@ -35,7 +38,9 @@ pub struct EmailConfig {
     pub from_email: String,
     /// 发件人名称
     pub from_name: String,
-    /// API 基础 URL（可选，用于自定义端点）
+    /// API 基础 URL（可选，用于自定义端点；生产环境不建议使用）
+    /// ⚠️ 安全约束：自定义 URL 必须经过 SSRF 校验，
+    /// 默认使用各服务商官方 URL，禁止通过环境变量直接覆盖。
     pub api_url: Option<String>,
 }
 
@@ -74,19 +79,24 @@ impl EmailService {
     }
 
     /// 从环境变量创建邮件服务
+    ///
+    /// 安全约束（H-2 修复）：
+    /// - 禁止从 `EMAIL_API_URL` 环境变量读取 API URL，防止环境变量注入导致 API Key 被
+    ///   发送到攻击者控制的服务器。
+    /// - 各服务商 API URL 使用硬编码的官方地址。
+    /// - 如需自定义 URL，必须通过代码显式设置 EmailConfig.api_url，并经过 SSRF 校验。
     pub fn from_env() -> Option<Self> {
         let provider = std::env::var("EMAIL_PROVIDER").ok()?;
         let api_key = std::env::var("EMAIL_API_KEY").ok()?;
         let from_email = std::env::var("EMAIL_FROM").ok()?;
         let from_name = std::env::var("EMAIL_FROM_NAME").unwrap_or_else(|_| "系统通知".to_string());
-        let api_url = std::env::var("EMAIL_API_URL").ok();
 
         Some(Self::new(EmailConfig {
             provider,
             api_key,
             from_email,
             from_name,
-            api_url,
+            api_url: None,
         }))
     }
 
@@ -123,12 +133,41 @@ impl EmailService {
     }
 
     /// 发送 HTML 邮件
+    ///
+    /// ⚠️ 安全警告（M-5 修复）：
+    /// 调用方必须确保 `html_content` 中所有用户输入都经过 HTML 转义。
+    /// 推荐使用 `EmailTemplate` 系列方法（`notification_template` / `order_notification` 等），
+    /// 这些模板内部已自动对所有用户输入做 escape。
+    /// 直接拼接用户输入到 HTML 中会导致邮件 XSS。
     pub async fn send_html_email(
         &self,
         to: Vec<String>,
         subject: String,
         html_content: String,
     ) -> Result<(), AppError> {
+        // M-5 防御性检查：检测常见邮件 XSS 危险模式
+        // 注意：这不是完整的 XSS 过滤，仅作为防御纵深的最后一道防线
+        let dangerous_patterns = [
+            "<script",
+            "javascript:",
+            "onerror=",
+            "onload=",
+            "onclick=",
+            "onmouseover=",
+            "eval(",
+            "expression(",
+        ];
+        let lower_content = html_content.to_lowercase();
+        for pattern in &dangerous_patterns {
+            if lower_content.contains(pattern) {
+                tracing::warn!(
+                    "邮件 HTML 内容包含危险模式: pattern={}, subject_len={}",
+                    pattern,
+                    subject.len()
+                );
+            }
+        }
+
         self.send_email(EmailMessage {
             to,
             cc: None,
@@ -136,6 +175,30 @@ impl EmailService {
             subject,
             html_content: Some(html_content),
             text_content: None,
+            attachments: None,
+        })
+        .await
+    }
+
+    /// 发送通知邮件（安全版本，自动 HTML 转义）
+    ///
+    /// 接受纯文本标题和内容，内部使用 `EmailTemplate::notification_template`
+    /// 对所有用户输入进行 HTML 转义，防止邮件 XSS。
+    pub async fn send_notification_email(
+        &self,
+        to: Vec<String>,
+        title: &str,
+        content: &str,
+        action_url: Option<&str>,
+    ) -> Result<(), AppError> {
+        let html = EmailTemplate::notification_template(title, content, action_url);
+        self.send_email(EmailMessage {
+            to,
+            cc: None,
+            bcc: None,
+            subject: title.to_string(),
+            html_content: Some(html),
+            text_content: Some(content.to_string()),
             attachments: None,
         })
         .await
@@ -199,11 +262,9 @@ impl EmailService {
             content,
         };
 
-        let api_url = self
-            .config
-            .api_url
-            .clone()
-            .unwrap_or_else(|| "https://api.sendgrid.com/v3/mail/send".to_string());
+        // H-2 修复：使用硬编码的 SendGrid 官方 API URL，
+        // 禁止从环境变量或配置中读取自定义 URL，防止 API Key 泄露到攻击者服务器。
+        let api_url = SENDGRID_API_URL;
 
         let response = self
             .http_client
@@ -385,12 +446,27 @@ impl EmailTemplate {
 
         active_model.insert(db).await?;
 
+        // M-4 修复：日志脱敏，不记录完整收件人邮箱和主题
+        // 仅记录：收件人数量、域名列表、主题长度
+        let to_count = to.len();
+        let domains: Vec<String> = to
+            .iter()
+            .filter_map(|email| {
+                email
+                    .split('@')
+                    .nth(1)
+                    .map(|d| d.to_lowercase())
+            })
+            .collect();
+        let subject_len = subject.len();
+
         tracing::info!(
-            "邮件发送记录已保存: tenant_id={}, user_id={:?}, to={:?}, subject={}, status={}",
+            "邮件发送记录已保存: tenant_id={}, user_id={:?}, to_count={}, to_domains={:?}, subject_len={}, status={}",
             tenant_id,
             user_id,
-            to,
-            subject,
+            to_count,
+            domains,
+            subject_len,
             status
         );
 
