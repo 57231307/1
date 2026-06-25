@@ -20,7 +20,43 @@
 
 ---
 
-## 当前任务状态（2026-06-25 16:30）
+## 当前任务状态（2026-06-25 综合审计周期）
+
+### 🟡 项目综合审计（37 项发现，2026-06-25 完成）
+
+- **报告路径**：[`.monkeycode/docs/audits/2026-06-25-comprehensive-audit.md`](file:///workspace/.monkeycode/docs/audits/2026-06-25-comprehensive-audit.md)
+- **审计方法**：4 个并行子代理（search 类型）+ 主代理关键点核验，仅研究未修改代码
+- **问题统计**：P0 × 1 + P1 × 21 + P2 × 15 = 37 项
+- **综合评分**：2.5 / 5.0（较 2026-06-13 自评 5.0 回落）
+
+#### 关键发现摘要
+
+1. **P0-1 AP 发票汇率 0.01**（应为 1.0）—— `ap_invoice_service.rs:91,154` `Decimal::new(1, 2)` 导致财务数据缩小 100 倍
+2. **H-3 init SSRF 完全未修复** —— TODO 注释仍在，IP 白名单全部被注释，可枚举内网 PG 端口
+3. **H-1 Webhook TOCTOU 核心未修** —— `client.post(url)` 仍传 URL 字符串，reqwest 第三次解析 DNS
+4. **H-2 EmailConfig.api_url 死字段残留** —— 字段未删，可复活环境变量注入路径
+5. **前端采购域单复数前缀全部断链** —— `/purchases/*` vs 后端 `/purchase/*`
+6. **前端 5 模块全部断链** —— tenant-billing / logistics / email / security / api-gateway
+7. **销售订单状态机枚举脱节** —— Received/Closed 死状态；partial_shipped/completed/cancelled 不在枚举
+8. **30+ 前端孤儿路由无菜单入口**
+9. **permission store 完全未被引用** —— 权限码形同虚设，所有已登录用户可访问任意 URL
+10. **22 个假测试 + 8 处恒真断言 + E2E 配置断裂**（17 spec 无法运行）
+
+#### bug.md 状态
+
+- 已清理已修复项（M-1~M-7 / L-1 / L-2 / L-3 / L-4 / 优化 1 / 优化 2 / 2026-06-24 P0-P2 共 14 项）
+- 保留 3 条高危未完全修复项（H-1 / H-2 / H-3）
+- 新增 2 条审计发现（P0-1 AP 汇率 / P1-11 user_id 硬编码 0）
+
+#### 优先修复顺序
+
+1. **本周**：P0-1 AP 汇率 / H-3 init SSRF / H-1 Webhook TOCTOU / 前端采购域断链 / audit_log+slow_query 死代码 / custom_order_process_test.rs 编译错误 / bug.md 清理
+2. **下迭代**：销售订单状态机重写 / AP 发票自动生成保留 PENDING / quotations 双重路由去重 / 5 模块断链修复 / 前端权限码接入 / 假测试重写
+3. **持续改进**：Handler 返回类型统一 / 硬编码 CNY 改为租户配置 / f64 金额改 Decimal / 跨模块分组归位 / 功能缺失补齐 / 测试覆盖率提升
+
+---
+
+## 历史任务状态（2026-06-25 16:30）
 
 ### 第九次安全审计周期（PR #253）✅ 已完成
 

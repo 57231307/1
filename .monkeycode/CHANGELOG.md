@@ -2,6 +2,43 @@
 
 > 重要变更一句话摘要列表。详细历史请查阅 [`.monkeycode/docs/archives/`](file:///workspace/.monkeycode/docs/archives/)。
 
+## 2026-06-25 (项目综合审计周期)
+
+### 综合审计报告（37 项发现）
+
+**报告路径**：[`.monkeycode/docs/audits/2026-06-25-comprehensive-audit.md`](file:///workspace/.monkeycode/docs/audits/2026-06-25-comprehensive-audit.md)
+
+**审计范围**：死代码 / API 不一致 / 调样返回不准确 / 业务流程不对 / 侧边栏功能分配 / 功能聚合 / 业务孤岛 / 数据流转异常 / 项目功能缺失 / 功能不全 / 边界不准确 / 测试文件不准确 / 漏洞
+
+**问题统计**：
+- P0 致命：1 项（AP 汇率 0.01 应为 1.0，财务数据缩小 100 倍）
+- P1 高危：21 项（H-1/H-2/H-3 漏洞状态核实 + API 一致性 + 业务流程 + 死代码 + 数据流转 + 前端侧边栏）
+- P2 中危：15 项（功能缺失 + 测试文件 + 边界文档）
+- 合计：37 项
+
+**关键发现**：
+1. **P0-1** AP 发票汇率 `Decimal::new(1, 2)` = 0.01（应为 1.0），财务数据缩小 100 倍
+2. **H-3** init SSRF 完全未修复（TODO 注释仍在，IP 白名单全部被注释）
+3. **H-1** Webhook TOCTOU 核心未修（`client.post(url)` 仍传字符串，reqwest 第三次解析 DNS）
+4. **H-2** EmailConfig.api_url 死字段残留
+5. 前端采购域单复数前缀全部断链（`/purchases/*` vs 后端 `/purchase/*`）
+6. 前端 5 模块（tenant-billing/logistics/email/security/api-gateway）全部断链
+7. 销售订单状态机枚举与实际字符串脱节（Received/Closed 死状态，partial_shipped/completed/cancelled 不在枚举）
+8. 30+ 前端孤儿路由无菜单入口
+9. permission store 完全未被路由/菜单引用，权限码形同虚设
+10. 22 个假测试文件 + 8 处恒真断言 + E2E 配置断裂（17 spec 无法运行）
+
+**综合评分**：2.5 / 5.0（较 2026-06-13 自评 5.0 明显回落）
+
+**优先修复**：见审计报告第十二节"优先修复建议"
+
+**记忆更新**：
+- bug.md 已清理，仅保留 H-1/H-2/H-3 三条未完全修复项 + P0-1/P1-11 两条新发现
+- MEMORY.md 新增"综合审计发现"段落
+- doto.md 新增 2026-06-25 综合审计任务条目
+
+---
+
 ## 2026-06-25 (第九次安全审计周期)
 
 ### 修复 9 项安全漏洞 + 2 项业务优化
