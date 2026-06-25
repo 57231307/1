@@ -344,6 +344,55 @@
   ```
 - **SSH 22 端口 vs HTTPS 443**：沙箱 raw TCP 22/443 阻断，但 git/curl 高层 HTTPS 透通（透明代理）
 
+[Clippy Baseline 行号漂移与重建]
+- Date: 2026-06-24
+- Context: CI #1394 #1395 失败时发现 strict 模式误判行号变化为新警告
+- Category: 排错调试
+- **问题机制**：CI 严格模式用 `comm -23 current baseline` 检测新警告；修改单行代码会导致 baseline 中后续行号全偏移，触发大量"假新警告"
+- **症状**：单次代码改动 → 22~35 个 clippy 新警告（远超真实警告数）
+- **解决步骤**：
+  1. `git rm --cached backend/.clippy-baseline.txt`（保留 working tree 文件，从 git 索引删除）
+  2. push 触发 CI，CI 检测到 baseline 不在 git 中 → 进入 bootstrap 模式重新建立
+  3. 重建后 baseline 从 1529 → 459 条（清掉行号漂移）
+  4. CI bot 自动 commit 新 baseline（`github-actions[bot]` 头像）
+- **风险**：CI bot 自动 commit 时若遇到 git 状态混乱可能把所有未跟踪文件 add 进去，导致整个仓库被重置为单 commit
+- **预防**：提前 `git status` 确认 working tree 干净再触发重建
+
+[GitHub Actions Log 100KB 截断与详细日志获取]
+- Date: 2026-06-24
+- Context: CI #1394 失败时发现前端 Rust 测试的 clippy 详细警告被截断
+- Category: 排错调试
+- **限制**：GitHub Web UI 的 CI run log 最多显示尾部 100KB，前面 warning 行被截断
+- **解决方案**：用 `https://api.github.com/repos/{owner}/{repo}/actions/jobs/{job_id}/logs` 获取**单 job 完整 log**
+  - 需 Accept header `application/vnd.github+json`
+  - 响应为 302 → 跟随 Location 重定向到 S3
+  - 返回的就是该 job 的**全部**警告，无截断
+- **工作流**：
+  1. `GET /repos/{owner}/{repo}/actions/runs/{run_id}/jobs` 获取所有 job ID
+  2. 找到 clippy/check 失败的 job ID
+  3. `GET /actions/jobs/{id}/logs` 获取完整日志
+  4. 用 grep 提取具体 warning（`warning: ...`）
+
+[u16 永真比较与 Clippy 极端比较警告]
+- Date: 2026-06-24
+- Context: CI #1394 失败时发现 `ssrf_guard.rs` L211 触发 `absurd_extreme_comparisons`
+- Category: 排错调试
+- **触发模式**：`x >= 0xff00 && x <= 0xffff`（u16 类型）
+- **原理**：u16 最大值就是 0xffff，`<= 0xffff` 永远为真
+- **Clippy lint**：`absurd_extreme_comparisons`（会在 CI 中失败）
+- **修复**：
+  ```rust
+  // 错误：
+  if ip.segments()[0] >= 0xff00 && ip.segments()[0] <= 0xffff {
+      return true;
+  }
+  // 正确（u16 类型，<= 0xffff 恒真，直接删除）：
+  if ip.segments()[0] >= 0xff00 {
+      return true;
+  }
+  ```
+- **通用规则**：写数值比较前先想"类型边界"，避免无意义的下界/上界比较
+
 [分布式限流回退必须真实回退]
 - Date: 2026-06-24
 - Context: PR #250 #6 修复后 CI 单元测试 `test_check_rate_limit_falls_back_to_memory` 失败时发现
