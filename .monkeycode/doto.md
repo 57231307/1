@@ -16,7 +16,7 @@
 - [x] commit-9: import_export 只查需要的表 + 租户权限限制
 - [x] 创建 PR #253 等待 CI #1402 验证
 - [x] CI 监控与失败修复（4 轮修复，CI 28151930115 全绿）
-- [ ] 合并 PR #253 到 main
+- [x] 合并 PR #253 到 main（squash merge `a3b0e319`）
 
 ---
 
