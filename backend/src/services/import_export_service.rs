@@ -782,7 +782,6 @@ pub const MAX_EXPORT_ROWS: u64 = 10_000;
 /// 导出查询参数
 #[derive(Debug, Clone, Deserialize)]
 pub struct ExportQuery {
-    pub format: Option<String>,
     pub date_from: Option<String>,
     pub date_to: Option<String>,
     pub status: Option<String>,
