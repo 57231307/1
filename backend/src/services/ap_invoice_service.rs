@@ -15,6 +15,13 @@ use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use validator::Validate;
 
+/// 默认本位币汇率（CNY 本位币 = 1.0）。
+///
+/// 历史缺陷（P0-1，2026-06-25 综合审计）：自动生成 AP 发票时曾误用
+/// `Decimal::new(1, 2)` = 0.01，导致下游按汇率换算本位币金额被缩小 100 倍。
+/// 抽取为常量并在单元测试中断言其值，避免再次被改错。
+pub const DEFAULT_BASE_CURRENCY_EXCHANGE_RATE: Decimal = Decimal::new(1, 0);
+
 /// 应付单服务
 pub struct ApInvoiceService {
     db: Arc<DatabaseConnection>,
@@ -88,7 +95,7 @@ impl ApInvoiceService {
             unpaid_amount: Set(receipt.total_amount),
             invoice_status: Set("AUDITED".to_string()), // 自动生成直接审核
             currency: Set("CNY".to_string()),
-            exchange_rate: Set(Decimal::new(1, 2)),
+            exchange_rate: Set(DEFAULT_BASE_CURRENCY_EXCHANGE_RATE),
             tax_amount: Set(Decimal::ZERO),
             created_by: Set(user_id),
             ..Default::default()
@@ -151,7 +158,7 @@ impl ApInvoiceService {
             unpaid_amount: Set(amount),
             invoice_status: Set("AUDITED".to_string()), // 自动生成直接审核
             currency: Set("CNY".to_string()),
-            exchange_rate: Set(Decimal::new(1, 2)),
+            exchange_rate: Set(DEFAULT_BASE_CURRENCY_EXCHANGE_RATE),
             tax_amount: Set(Decimal::ZERO),
             created_by: Set(user_id),
             ..Default::default()
@@ -197,7 +204,7 @@ impl ApInvoiceService {
             unpaid_amount: Set(req.amount.unwrap_or(Decimal::ZERO)),
             invoice_status: Set("DRAFT".to_string()),
             currency: Set(req.currency.unwrap_or_else(|| "CNY".to_string())),
-            exchange_rate: Set(req.exchange_rate.unwrap_or(Decimal::new(1, 0))),
+            exchange_rate: Set(req.exchange_rate.unwrap_or(DEFAULT_BASE_CURRENCY_EXCHANGE_RATE)),
             tax_amount: Set(req.tax_amount.unwrap_or(Decimal::ZERO)),
             notes: Set(req.notes),
             attachment_urls: Set(req.attachment_urls),
@@ -672,4 +679,60 @@ pub struct BalanceSummary {
 
     /// 应付单数量
     pub invoice_count: i64,
+}
+
+#[cfg(test)]
+mod tests {
+    //! AP 发票服务单元测试
+    //!
+    //! 覆盖目标：
+    //! - DEFAULT_BASE_CURRENCY_EXCHANGE_RATE 常量值正确性（防止 P0-1 缺陷复发）
+    //! - 汇率换算逻辑（金额 × 汇率 = 本位币金额）
+
+    use super::*;
+
+    /// 防止 P0-1 缺陷复发：默认本位币汇率必须是 1.0，不能是 0.01。
+    ///
+    /// 历史缺陷：`Decimal::new(1, 2)` 误用导致自动生成 AP 发票汇率被设为 0.01，
+    /// 下游按汇率换算本位币金额的财务计算被缩小 100 倍。
+    #[test]
+    fn test_default_exchange_rate_is_one_not_zero_dot_zero_one() {
+        assert_eq!(
+            DEFAULT_BASE_CURRENCY_EXCHANGE_RATE,
+            Decimal::new(1, 0),
+            "默认本位币汇率应为 1.0，当前值 {:?} 不正确（P0-1 缺陷复发风险）",
+            DEFAULT_BASE_CURRENCY_EXCHANGE_RATE
+        );
+        // 数值断言：1.0 而非 0.01
+        assert_eq!(DEFAULT_BASE_CURRENCY_EXCHANGE_RATE, Decimal::ONE);
+        assert_ne!(
+            DEFAULT_BASE_CURRENCY_EXCHANGE_RATE,
+            Decimal::new(1, 2),
+            "默认汇率不应为 0.01"
+        );
+    }
+
+    /// 验证按默认汇率换算本位币金额：金额 × 1.0 = 金额本身。
+    ///
+    /// 该测试模拟下游按汇率换算本位币金额的场景，确保 P0-1 修复后
+    /// 自动生成的 AP 发票换算结果不会被缩小 100 倍。
+    #[test]
+    fn test_exchange_rate_conversion_not_shrunk_by_100() {
+        let invoice_amount = Decimal::new(12345, 2); // 123.45
+        let base_currency_amount = invoice_amount * DEFAULT_BASE_CURRENCY_EXCHANGE_RATE;
+
+        // 修复前（汇率 0.01）：123.45 * 0.01 = 1.2345（被缩小 100 倍）
+        assert_ne!(
+            base_currency_amount,
+            Decimal::new(12345, 4), // 1.2345（错误结果）
+            "本位币金额被缩小 100 倍，P0-1 缺陷未修复"
+        );
+
+        // 修复后（汇率 1.0）：123.45 * 1.0 = 123.45（正确）
+        assert_eq!(
+            base_currency_amount,
+            Decimal::new(12345, 2),
+            "按汇率 1.0 换算后本位币金额应等于原金额"
+        );
+    }
 }
