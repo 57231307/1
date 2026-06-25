@@ -20,7 +20,10 @@ use validator::Validate;
 /// 历史缺陷（P0-1，2026-06-25 综合审计）：自动生成 AP 发票时曾误用
 /// `Decimal::new(1, 2)` = 0.01，导致下游按汇率换算本位币金额被缩小 100 倍。
 /// 抽取为常量并在单元测试中断言其值，避免再次被改错。
-pub const DEFAULT_BASE_CURRENCY_EXCHANGE_RATE: Decimal = Decimal::new(1, 0);
+///
+/// 注意：`Decimal::new` 不是 const fn，不能用于 const 初始化；
+/// 使用 rust_decimal 提供的 const 关联常量 `Decimal::ONE`（= 1.0）。
+pub const DEFAULT_BASE_CURRENCY_EXCHANGE_RATE: Decimal = Decimal::ONE;
 
 /// 应付单服务
 pub struct ApInvoiceService {
