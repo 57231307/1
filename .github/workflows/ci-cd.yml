@@ -635,6 +635,12 @@ jobs:
           # JSON 格式单独输出
           npx eslint . --ext .vue,.js,.jsx,.cjs,.mjs,.ts,.tsx,.cts,.mts --format json --output-file reports/eslint-report.json 2>&1 || true
 
+          # 报告生成阶段关闭 pipefail，防止 sort|head 管道因 broken pipe
+          # (head 提前关闭管道) 导致 SIGPIPE 退出码 2 中断整个 CI 步骤。
+          # 历史缺陷：CI #1417 因 race 触发 sort: write failed: Broken pipe，
+          # 在到达 exit 0（渐进式不阻塞）之前退出。
+          set +o pipefail
+
           # 统计错误数
           TOTAL_ERRORS=0
           if [ -f reports/eslint-report.json ]; then
