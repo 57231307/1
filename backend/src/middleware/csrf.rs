@@ -91,8 +91,8 @@ fn extract_client_ip(request: &Request<Body>) -> String {
 /// 1. 跳过方法：GET / HEAD / OPTIONS（HTTP 语义无副作用）。
 /// 2. 公开路径非安全方法：要求自定义请求头防御（L-1 修复）。
 ///    - 公开路径的 POST/PUT/PATCH/DELETE 不强制 CSRF Token（登录/刷新等场景），
-///    但要求至少携带一个自定义请求头（`X-Requested-With` 或 `X-CSRF-Token`），
-///    以阻止简单表单提交型 CSRF 攻击（简单表单无法设置自定义头）。
+///      但要求至少携带一个自定义请求头（`X-Requested-With` 或 `X-CSRF-Token`），
+///      以阻止简单表单提交型 CSRF 攻击（简单表单无法设置自定义头）。
 /// 3. 非公开路径非安全方法：要求 `X-CSRF-Token` 头存在且与
 ///    [AppCache::consume_csrf_token] 匹配，
 ///    且请求 IP 与 token 绑定的 IP 一致（Wave 3 #7）。
