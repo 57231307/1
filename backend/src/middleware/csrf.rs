@@ -89,8 +89,12 @@ fn extract_client_ip(request: &Request<Body>) -> String {
 ///
 /// 校验策略：
 /// 1. 跳过方法：GET / HEAD / OPTIONS（HTTP 语义无副作用）。
-/// 2. 跳过路径：[PUBLIC_PATHS](crate::middleware::public_routes::PUBLIC_PATHS) 中的端点。
-/// 3. 其它情况：要求 `X-CSRF-Token` 头存在且与 [AppCache::consume_csrf_token] 匹配，
+/// 2. 公开路径非安全方法：要求自定义请求头防御（L-1 修复）。
+///    - 公开路径的 POST/PUT/PATCH/DELETE 不强制 CSRF Token（登录/刷新等场景），
+///    但要求至少携带一个自定义请求头（`X-Requested-With` 或 `X-CSRF-Token`），
+///    以阻止简单表单提交型 CSRF 攻击（简单表单无法设置自定义头）。
+/// 3. 非公开路径非安全方法：要求 `X-CSRF-Token` 头存在且与
+///    [AppCache::consume_csrf_token] 匹配，
 ///    且请求 IP 与 token 绑定的 IP 一致（Wave 3 #7）。
 ///
 /// 失败响应：
@@ -110,8 +114,32 @@ pub async fn csrf_middleware(
         return Ok(next.run(request).await);
     }
 
-    // 2. 跳过公开路径
+    // 2. 公开路径：L-1 修复 - 要求自定义请求头（防御简单表单提交 CSRF）
     if is_public_path(&path) {
+        // 检查是否有自定义请求头（二选一即可）
+        // - X-Requested-With: XMLHttpRequest（传统 AJAX 请求标识
+        // - X-CSRF-Token: （完整 CSRF Token（如果前端已经有也放行）
+        let has_xhr = request
+            .headers()
+            .get("x-requested-with")
+            .and_then(|v| v.to_str().ok())
+            .map(|s| s.eq_ignore_ascii_case("XMLHttpRequest"))
+            .unwrap_or(false);
+        let has_csrf = request.headers().contains_key(CSRF_HDR_NAME);
+
+        if !has_xhr && !has_csrf {
+            tracing::warn!(
+                path = %path,
+                method = %method,
+                "CSRF 验证失败：公开端点的非安全方法缺少自定义请求头（L-1 防御）"
+            );
+            return Err(csrf_error_response(
+                CODE_MISS,
+                "缺少必要的请求头，请使用 AJAX 方式请求",
+            ));
+        }
+
+        // 公开路径通过自定义头检查后放行（不强制消费 CSRF Token）
         return Ok(next.run(request).await);
     }
 
