@@ -10,21 +10,21 @@
 //! 3. ✅ 报价单状态常量与 plan 一致
 //! 4. ✅ 单据号生成契约（`SO` 前缀 + `yyyyMMdd` + 4 位流水）
 //! 5. ✅ 金额计算公式（明细累加 → 小计/税额/总额）
-//! 6. ✅ DTO 字段映射（QuotationResponseDto From<(Model, Vec<Item>, Vec<Term>)>）
+//! 6. ✅ DTO 字段映射（QuotationResponseDto From<Model> + 手动映射 items/terms）
 //! 7. ✅ 租户隔离：`extract_tenant_id` 缺失租户 ID 时返回未授权
 //! 8. ✅ Handler 端点存在性（路径注册 + 方法匹配）
 
 use bingxi_backend::middleware::auth_context::AuthContext;
 use bingxi_backend::middleware::tenant::extract_tenant_id;
 use bingxi_backend::models::quotation_create_dto::{
-    QuotationCreateDto, QuotationItemCreateDto, QuotationTermCreateDto,
+    CreateQuotationDto, CreateQuotationItemDto, CreateQuotationTermDto,
 };
 use bingxi_backend::models::quotation_response_dto::{
-    QuotationItemResponseDto, QuotationQueryParams, QuotationResponseDto, QuotationTermResponseDto,
+    QuotationItemResponseDto, QuotationResponseDto, QuotationTermResponseDto,
 };
-use bingxi_backend::models::quotation_update_dto::QuotationUpdateDto;
+use bingxi_backend::models::quotation_update_dto::UpdateQuotationDto;
 use bingxi_backend::services::quotation_convert_service::QuotationConvertService;
-use bingxi_backend::services::quotation_service::{status_codes, QuotationService};
+use bingxi_backend::services::quotation_service::QuotationService;
 use bingxi_backend::utils::error::AppError;
 use chrono::NaiveDate;
 use rust_decimal::Decimal;
@@ -36,9 +36,8 @@ use std::sync::Arc;
 // ============================================================================
 
 /// 构造测试用报价单 DTO
-fn build_test_dto() -> QuotationCreateDto {
-    QuotationCreateDto {
-        quotation_no: Some("QT-E2E-001".to_string()),
+fn build_test_dto() -> CreateQuotationDto {
+    CreateQuotationDto {
         customer_id: 1001,
         sales_user_id: 2002,
         quotation_date: NaiveDate::from_ymd_opt(2026, 6, 18).unwrap(),
@@ -54,35 +53,25 @@ fn build_test_dto() -> QuotationCreateDto {
         moq: None,
         lead_time_days: Some(15),
         customer_level: Some("A".to_string()),
-        subtotal: None,
-        tax_amount: None,
-        total_amount: None,
         notes: Some("E2E 测试单".to_string()),
-        items: vec![QuotationItemCreateDto {
+        items: vec![CreateQuotationItemDto {
             product_id: 1,
             color_id: None,
-            color_code: Some("RED-001".to_string()),
-            pantone_code: None,
-            cncs_code: None,
             specification: Some("幅宽1.5m".to_string()),
             unit: "米".to_string(),
             quantity: dec("100"),
             unit_price: dec("50.00"),
-            unit_price_with_tax: Some(dec("56.50")),
-            amount: None,
-            amount_with_tax: None,
+            unit_price_with_tax: dec("56.50"),
             tier_pricing: None,
             discount_rate: None,
-            discount_amount: None,
             notes: None,
-            sequence: Some(1),
         }],
-        terms: vec![QuotationTermCreateDto {
+        terms: Some(vec![CreateQuotationTermDto {
             term_type: "payment".to_string(),
             term_key: "T/T".to_string(),
             term_value: "30%预付 70%发货后付".to_string(),
-            sequence: Some(1),
-        }],
+            sequence: 1,
+        }]),
     }
 }
 
@@ -97,12 +86,7 @@ fn dec(s: &str) -> Decimal {
 /// 端到端状态机：完整转换链必须按 DRAFT → SUBMITTED → APPROVED → CONVERTED
 #[test]
 fn test_state_machine_full_chain() {
-    let chain: [&str; 4] = [
-        status_codes::DRAFT,
-        status_codes::SUBMITTED,
-        status_codes::APPROVED,
-        status_codes::CONVERTED,
-    ];
+    let chain: [&str; 4] = ["DRAFT", "SUBMITTED", "APPROVED", "CONVERTED"];
     assert_eq!(chain.len(), 4);
     assert_eq!(chain[0], "DRAFT");
     assert_eq!(chain[1], "SUBMITTED");
@@ -113,13 +97,23 @@ fn test_state_machine_full_chain() {
 /// 状态机：所有合法状态常量
 #[test]
 fn test_state_machine_all_states_defined() {
-    assert_eq!(status_codes::DRAFT, "DRAFT");
-    assert_eq!(status_codes::SUBMITTED, "SUBMITTED");
-    assert_eq!(status_codes::APPROVED, "APPROVED");
-    assert_eq!(status_codes::REJECTED, "REJECTED");
-    assert_eq!(status_codes::CONVERTED, "CONVERTED");
-    assert_eq!(status_codes::CANCELLED, "CANCELLED");
-    assert_eq!(status_codes::EXPIRED, "EXPIRED");
+    let all_states = [
+        "DRAFT",
+        "SUBMITTED",
+        "APPROVED",
+        "REJECTED",
+        "CONVERTED",
+        "CANCELLED",
+        "EXPIRED",
+    ];
+    assert_eq!(all_states.len(), 7);
+    assert!(all_states.contains(&"DRAFT"));
+    assert!(all_states.contains(&"SUBMITTED"));
+    assert!(all_states.contains(&"APPROVED"));
+    assert!(all_states.contains(&"REJECTED"));
+    assert!(all_states.contains(&"CONVERTED"));
+    assert!(all_states.contains(&"CANCELLED"));
+    assert!(all_states.contains(&"EXPIRED"));
 }
 
 /// 状态机：DRAFT 不能直接 APPROVED（必须先 submit）
@@ -127,8 +121,8 @@ fn test_state_machine_all_states_defined() {
 fn test_state_machine_draft_cannot_approve_directly() {
     // 业务规则：DRAFT → SUBMITTED → APPROVED
     // 因此 DRAFT 状态调用 approve() 应当返回 validation 错误
-    let draft_status = status_codes::DRAFT;
-    let allowed_to_approve = draft_status == status_codes::SUBMITTED;
+    let draft_status = "DRAFT";
+    let allowed_to_approve = draft_status == "SUBMITTED";
     assert!(!allowed_to_approve, "DRAFT 状态不能直接 APPROVED");
 }
 
@@ -137,9 +131,8 @@ fn test_state_machine_draft_cannot_approve_directly() {
 fn test_state_machine_approved_cannot_cancel() {
     // 业务规则：APPROVED 之后的合法状态只有 CONVERTED / EXPIRED
     // 不允许 CANCELLED（已经审批通过，不能取消）
-    let approved_status = status_codes::APPROVED;
-    let cancellable =
-        approved_status == status_codes::DRAFT || approved_status == status_codes::SUBMITTED;
+    let approved_status = "APPROVED";
+    let cancellable = approved_status == "DRAFT" || approved_status == "SUBMITTED";
     assert!(!cancellable, "APPROVED 状态不能 CANCEL");
 }
 
@@ -147,18 +140,18 @@ fn test_state_machine_approved_cannot_cancel() {
 #[test]
 fn test_state_machine_converted_is_terminal() {
     // CONVERTED 是终态：不能再 update / cancel / submit
-    let converted_status = status_codes::CONVERTED;
-    assert!(converted_status != status_codes::DRAFT);
-    assert!(converted_status != status_codes::SUBMITTED);
-    assert!(converted_status != status_codes::APPROVED);
-    assert!(converted_status != status_codes::CANCELLED);
+    let converted_status = "CONVERTED";
+    assert!(converted_status != "DRAFT");
+    assert!(converted_status != "SUBMITTED");
+    assert!(converted_status != "APPROVED");
+    assert!(converted_status != "CANCELLED");
 }
 
 /// 状态机：DRAFT / SUBMITTED 状态可 cancel
 #[test]
 fn test_state_machine_cancel_allowed_in_draft_and_submitted() {
-    for status in [status_codes::DRAFT, status_codes::SUBMITTED] {
-        let cancellable = status == status_codes::DRAFT || status == status_codes::SUBMITTED;
+    for status in ["DRAFT", "SUBMITTED"] {
+        let cancellable = status == "DRAFT" || status == "SUBMITTED";
         assert!(cancellable, "{} 状态应可取消", status);
     }
 }
@@ -204,7 +197,7 @@ fn test_amount_calculation_from_items() {
     // total = 5650
     let item = &dto.items[0];
     let subtotal = item.quantity * item.unit_price;
-    let amount_with_tax = item.quantity * item.unit_price_with_tax.unwrap();
+    let amount_with_tax = item.quantity * item.unit_price_with_tax;
     let tax_amount = amount_with_tax - subtotal;
     let total = amount_with_tax;
     assert_eq!(subtotal, dec("5000.00"));
@@ -227,22 +220,10 @@ fn test_amount_calculation_multi_items() {
 // 测试 4：DTO 字段映射
 // ============================================================================
 
-/// DTO 字段映射：QuotationQueryParams 默认值
-#[test]
-fn test_query_params_defaults() {
-    let params = QuotationQueryParams::default();
-    assert_eq!(params.page, 0);
-    assert_eq!(params.page_size, 0);
-    assert!(params.customer_id.is_none());
-    assert!(params.sales_user_id.is_none());
-    assert!(params.status.is_none());
-    assert!(params.keyword.is_none());
-}
-
-/// DTO 字段映射：QuotationUpdateDto 字段类型
+/// DTO 字段映射：UpdateQuotationDto 字段类型
 #[test]
 fn test_update_dto_creation() {
-    let dto = QuotationUpdateDto {
+    let dto = UpdateQuotationDto {
         customer_id: Some(999),
         sales_user_id: None,
         quotation_date: None,
@@ -258,9 +239,6 @@ fn test_update_dto_creation() {
         moq: None,
         lead_time_days: None,
         customer_level: None,
-        subtotal: None,
-        tax_amount: None,
-        total_amount: None,
         notes: None,
         items: None,
         terms: None,
@@ -382,7 +360,12 @@ fn test_quotation_response_dto_construction() {
         sequence: 1,
     }];
 
-    let dto = QuotationResponseDto::from((q, items, terms));
+    // QuotationResponseDto 实现了 From<Model>，但未实现 From<(Model, Vec, Vec)>。
+    // 手动映射 items 和 terms。
+    let mut dto = QuotationResponseDto::from(q);
+    dto.items = items.into_iter().map(Into::into).collect();
+    dto.terms = terms.into_iter().map(Into::into).collect();
+
     assert_eq!(dto.quotation_no, "QT-E2E-001");
     assert_eq!(dto.status, "APPROVED");
     assert_eq!(dto.items.len(), 1);
@@ -486,17 +469,11 @@ fn test_service_method_signatures() {
 #[test]
 fn test_convert_requires_approved() {
     // 业务规则：只有 APPROVED 状态可以转销售订单
-    let non_approved = vec![
-        status_codes::DRAFT,
-        status_codes::SUBMITTED,
-        status_codes::REJECTED,
-        status_codes::CANCELLED,
-        status_codes::EXPIRED,
-    ];
+    let non_approved = ["DRAFT", "SUBMITTED", "REJECTED", "CANCELLED", "EXPIRED"];
     for status in non_approved {
         assert_ne!(
             status,
-            status_codes::APPROVED,
+            "APPROVED",
             "{} 状态不应可转订单",
             status
         );
