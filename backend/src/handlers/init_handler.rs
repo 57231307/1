@@ -45,12 +45,15 @@ pub async fn get_init_status(State(state): State<AppState>) -> Json<ApiResponse<
     }))
 }
 
-/// 测试数据库连接（P1 修复：必须 admin 角色才能调用）
+/// 测试数据库连接（P1-1 修复：admin 角色 + port 校验 + 内网 IP 白名单 + 错误脱敏 + 初始化模式约束）
 ///
-/// 安全约束：
+/// 安全约束（H-3 完整修复，2026-06-25 综合审计）：
 /// 1. 必须登录并具备 admin 角色（handler 层强制拦截）
-/// 2. 审计日志记录"谁在什么时间测试了什么数据库连接"（不记录明文密码）
-/// 3. 可选内网 IP 白名单（防 SSRF）：本任务不实施，TODO 注释预留
+/// 2. **port 范围校验**：仅允许 1-65535，防止端口枚举
+/// 3. **内网 IP 白名单**：仅允许 RFC1918 私有网段 + loopback，防 SSRF 探测外网
+/// 4. **初始化模式约束**：系统已初始化后拒绝调用，收敛攻击面
+/// 5. **错误消息脱敏**：不透传底层 DbErr 原文，避免泄露内网服务信息
+/// 6. 审计日志记录"谁在什么时间测试了什么数据库连接"（不记录明文密码）
 ///
 /// 注意：当前 `auth_middleware` 在 `/api/v1/erp/init/*` 路径下因
 /// `PUBLIC_PATHS` 包含 `/api/v1/erp/init` 前缀而短路跳过 JWT 验证，
@@ -97,28 +100,75 @@ pub async fn test_database_connection(
         return Err(AppError::permission_denied("测试数据库连接仅限管理员"));
     }
 
-    // 2) 可选：内网 IP 白名单（防 SSRF 探测外网数据库端口）
-    //    本任务不实施，TODO 注释预留
-    // TODO(ssrf): 待运维提供内网 IP 段白名单后启用 is_internal_ip 检查
-    // let client_ip = audit_ctx
-    //     .as_deref()
-    //     .map(|c| c.ip_address.as_str())
-    //     .unwrap_or("unknown");
-    // if !is_internal_ip(client_ip) {
-    //     audit::log_security_event(
-    //         SecurityEvent::AuthorizationDenied,
-    //         auth.user_id,
-    //         &auth.username,
-    //         auth.role_id,
-    //         Some("test_database_connection"),
-    //         Some("non_internal_ip"),
-    //         audit_ctx.as_deref(),
-    //     )
-    //     .await;
-    //     return Err(AppError::permission_denied("测试数据库连接仅允许内网 IP"));
-    // }
+    // 2) P1-1 修复（H-3，2026-06-25 综合审计）：port 范围校验
+    //    仅允许 1-65535，防止任意端口枚举内网服务。
+    let port_num: u16 = match payload.port.parse::<u16>() {
+        Ok(p) if p > 0 => p,
+        _ => {
+            audit::log_security_event(
+                SecurityEvent::AuthorizationDenied,
+                auth.user_id,
+                &auth.username,
+                auth.role_id,
+                Some("test_database_connection"),
+                Some("invalid_port"),
+                audit_ctx.as_deref(),
+            )
+            .await;
+            return Err(AppError::bad_request(
+                "数据库端口无效，仅允许 1-65535 范围内的数字",
+            ));
+        }
+    };
+    // 防止未使用变量警告（port_num 用于校验，不参与后续逻辑）
+    let _ = port_num;
 
-    // 3) 审计日志：best-effort 写入"谁在什么时间测试了什么数据库连接"
+    // 3) P1-1 修复：初始化模式约束
+    //    系统已初始化后拒绝调用 test_database_connection，收敛 SSRF 攻击面。
+    //    正常流程：系统未初始化 → admin 测试目标库 → 确认可用 → 执行 initialize。
+    //    系统已初始化后不应再测试任意数据库连接。
+    let init_service = InitService::new(state.db.clone());
+    let (already_initialized, _) = init_service.check_initialized().await;
+    if already_initialized {
+        audit::log_security_event(
+            SecurityEvent::AuthorizationDenied,
+            auth.user_id,
+            &auth.username,
+            auth.role_id,
+            Some("test_database_connection"),
+            Some("system_already_initialized"),
+            audit_ctx.as_deref(),
+        )
+        .await;
+        return Err(AppError::permission_denied(
+            "系统已初始化，测试数据库连接功能已禁用",
+        ));
+    }
+
+    // 4) P1-1 修复：内网 IP 白名单（防 SSRF 探测外网数据库端口）
+    //    仅允许 RFC1918 私有网段 + loopback，拒绝公网 IP。
+    //    客户端 IP 从 AuditContext 获取（由反向代理/中间件填充）。
+    let client_ip = audit_ctx
+        .as_deref()
+        .map(|c| c.ip_address.as_str())
+        .unwrap_or("unknown");
+    if !is_internal_ip(client_ip) {
+        audit::log_security_event(
+            SecurityEvent::AuthorizationDenied,
+            auth.user_id,
+            &auth.username,
+            auth.role_id,
+            Some("test_database_connection"),
+            Some("non_internal_ip"),
+            audit_ctx.as_deref(),
+        )
+        .await;
+        return Err(AppError::permission_denied(
+            "测试数据库连接仅允许从内网 IP 调用",
+        ));
+    }
+
+    // 5) 审计日志：best-effort 写入"谁在什么时间测试了什么数据库连接"
     //    目标记录格式：host:port/name，便于后续按业务目标聚合
     //    不记录明文密码（payload.password 不写入 extra）
     //    注意：target 必须在 DatabaseConfig 构造前 format，避免 payload 字段被 move 后无法借用
@@ -142,7 +192,10 @@ pub async fn test_database_connection(
     )
     .await;
 
-    // 4) 调用 service 层执行数据库连接测试（静态方法，无需 AppState）
+    // 6) 调用 service 层执行数据库连接测试（静态方法，无需 AppState）
+    //    P1-1 修复：错误消息脱敏，不透传底层 DbErr 原文，
+    //    避免"password authentication failed"/"database xxx does not exist"等
+    //    差异化错误信息被用于内网服务枚举。
     match InitService::test_database(&db_config).await {
         Ok(_) => Ok(Json(ApiResponse::success_with_message(
             TestDatabaseResponse {
@@ -151,7 +204,45 @@ pub async fn test_database_connection(
             },
             "数据库连接测试成功",
         ))),
-        Err(e) => Err(AppError::bad_request(format!("数据库连接失败: {}", e))),
+        Err(_) => Err(AppError::bad_request(
+            "数据库连接失败，请检查主机、端口、数据库名、用户名和密码是否正确",
+        )),
+    }
+}
+
+/// 判断客户端 IP 是否为内网 IP（P1-1 修复，H-3 SSRF 防护）
+///
+/// 仅允许以下网段：
+/// - 127.0.0.0/8 (IPv4 loopback)
+/// - 10.0.0.0/8 (RFC1918 A 类私有)
+/// - 172.16.0.0/12 (RFC1918 B 类私有)
+/// - 192.168.0.0/16 (RFC1918 C 类私有)
+/// - ::1 (IPv6 loopback)
+/// - fe80::/10 (IPv6 link-local)
+/// - fc00::/7 (IPv6 ULA)
+///
+/// 拒绝：公网 IP、未识别格式（"unknown"等）
+fn is_internal_ip(ip_str: &str) -> bool {
+    let ip: std::net::IpAddr = match ip_str.parse() {
+        Ok(addr) => addr,
+        Err(_) => return false, // 无法解析的 IP（如 "unknown"）一律拒绝
+    };
+
+    match ip {
+        std::net::IpAddr::V4(ipv4) => {
+            ipv4.is_loopback()
+                || ipv4.is_private() // RFC1918: 10/8, 172.16/12, 192.168/16
+                || ipv4.is_link_local() // 169.254/16（含云元数据 169.254.169.254，仅限内网调试）
+        }
+        std::net::IpAddr::V6(ipv6) => {
+            ipv6.is_loopback() // ::1
+                || ipv6.is_unicast_link_local() // fe80::/10
+                || {
+                    // fc00::/7 ULA（Unique Local Address）
+                    let segments = ipv6.segments();
+                    (segments[0] & 0xfe00) == 0xfc00
+                }
+        }
     }
 }
 

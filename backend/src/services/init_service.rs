@@ -122,11 +122,20 @@ impl InitService {
                     })
                     .map(|opt| opt.unwrap_or_default());
 
+                // P1-1 修复（H-3，2026-06-25 综合审计）：错误消息脱敏
+                // 不透传底层 DbErr 原文，避免差异化错误信息被用于内网服务枚举。
+                // 详细错误通过 tracing::warn 记录到服务端日志用于排查。
                 query_result
                     .map(|_| ())
-                    .map_err(|e| InitError::DatabaseError(format!("数据库测试查询失败: {}", e)))
+                    .map_err(|e| {
+                        warn!("init test_database 查询失败，目标 {}: {}", config.host, e);
+                        InitError::DatabaseError("数据库测试查询失败".to_string())
+                    })
             }
-            Err(e) => Err(InitError::DatabaseError(format!("数据库连接失败: {}", e))),
+            Err(e) => {
+                warn!("init test_database 连接失败，目标 {}: {}", config.host, e);
+                Err(InitError::DatabaseError("数据库连接失败".to_string()))
+            }
         }
     }
 
