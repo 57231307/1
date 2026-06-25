@@ -5,7 +5,9 @@
 
 #[cfg(test)]
 mod tests {
-    use bingxi_backend::utils::process_state_machine::{default_process_nodes, node_type_to_status};
+    use bingxi_backend::utils::process_state_machine::{
+        default_process_nodes, node_type_to_status, CustomOrderStatus,
+    };
 
     #[test]
     fn test_default_process_nodes_complete() {
@@ -27,11 +29,28 @@ mod tests {
 
     #[test]
     fn test_node_type_to_status_mapping() {
-        assert_eq!(node_type_to_status("yarn_purchasing"), Some(crate::utils::process_state_machine::CustomOrderStatus::YarnPurchasing));
-        assert_eq!(node_type_to_status("dyeing"), Some(crate::utils::process_state_machine::CustomOrderStatus::Dyeing));
-        assert_eq!(node_type_to_status("finishing"), Some(crate::utils::process_state_machine::CustomOrderStatus::Finishing));
-        assert_eq!(node_type_to_status("delivery"), Some(crate::utils::process_state_machine::CustomOrderStatus::Delivery));
-        assert_eq!(node_type_to_status("after_sales"), Some(crate::utils::process_state_machine::CustomOrderStatus::AfterSales));
+        // 修复 P2-7（2026-06-25 综合审计）：集成测试属于外部 crate，
+        // 不能用 `crate::` 引用被测 crate 的私有路径，改用 `bingxi_backend::`。
+        assert_eq!(
+            node_type_to_status("yarn_purchasing"),
+            Some(CustomOrderStatus::YarnPurchasing)
+        );
+        assert_eq!(
+            node_type_to_status("dyeing"),
+            Some(CustomOrderStatus::Dyeing)
+        );
+        assert_eq!(
+            node_type_to_status("finishing"),
+            Some(CustomOrderStatus::Finishing)
+        );
+        assert_eq!(
+            node_type_to_status("delivery"),
+            Some(CustomOrderStatus::Delivery)
+        );
+        assert_eq!(
+            node_type_to_status("after_sales"),
+            Some(CustomOrderStatus::AfterSales)
+        );
         assert_eq!(node_type_to_status("invalid"), None);
     }
 }
