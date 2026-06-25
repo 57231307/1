@@ -23,22 +23,105 @@ use axum::{extract::Request, middleware::Next, response::Response};
 use crate::utils::error::AppError;
 
 /// 已知的 SQL 注入危险模式（白名单，命中即拒绝）
+///
+/// M-7 修复：扩展黑名单，覆盖更多常见 SQL 注入攻击向量：
+/// - 时间盲注：SLEEP、pg_sleep、WAITFOR、BENCHMARK
+/// - 布尔盲注：更完整的 OR/AND 恒真模式
+/// - 注释绕过：-- 、# 、/* */
+/// - 函数注入：LOAD_FILE、INTO OUTFILE/DUMPFILE、xp_cmdshell
+/// - 信息收集：INFORMATION_SCHEMA、pg_catalog、sysobjects
+/// - 编码绕过：CHAR、CONCAT、ASCII、ORD、UNHEX
+/// - 堆查询：多语句分隔符 ; 后跟危险关键字
+///
+/// 设计原则：模式尽量具体，避免误杀合法业务参数（如 "Order"、"OR" 之类的通用词）。
 const DANGEROUS_PATTERNS: &[&str] = &[
+    // 经典恒真注入
     "' OR '1'='1",
     "' OR 1=1",
+    "\" OR \"1\"=\"1",
+    "\" OR 1=1",
+    "OR 1=1--",
+    "OR 1=1#",
+    "AND 1=1--",
+    "AND 1=1#",
+
+    // 堆查询 / 多语句注入
     "'; DROP TABLE",
     "'; DELETE FROM",
     "'; UPDATE ",
     "'; INSERT INTO",
+    "'; ALTER TABLE",
+    "'; CREATE TABLE",
+    "'; TRUNCATE TABLE",
+    "'; EXEC ",
+    "'; EXECUTE ",
+
+    // UNION 注入
     "UNION SELECT",
+    "UNION ALL SELECT",
+    "UNION DISTINCT SELECT",
+
+    // SQL 注释（用于截断查询）
+    "-- ",
     "/*",
     "*/",
+
+    // 存储过程 / 命令执行
     "xp_cmdshell",
     "sp_executesql",
+    "EXEC sp_",
+    "EXECUTE sp_",
+    "EXEC xp_",
+    "EXECUTE xp_",
+
+    // 信息 schema 探测
     "INFORMATION_SCHEMA.TABLES",
     "INFORMATION_SCHEMA.COLUMNS",
+    "INFORMATION_SCHEMA.SCHEMATA",
+    "pg_catalog.pg_tables",
+    "sysobjects",
+    "syscolumns",
+    "sqlite_master",
+
+    // 文件操作
     "LOAD_FILE(",
     "INTO OUTFILE",
+    "INTO DUMPFILE",
+    "COPY FROM",
+    "COPY TO",
+
+    // 时间盲注函数
+    "SLEEP(",
+    "pg_sleep(",
+    "WAITFOR DELAY",
+    "BENCHMARK(",
+    "DBMS_PIPE.RECEIVE_MESSAGE",
+
+    // 常用注入函数（编码/字符串绕过）
+    "CHAR(",
+    "CONCAT(",
+    "ASCII(",
+    "ORD(",
+    "MID(",
+    "SUBSTRING(",
+    "SUBSTR(",
+    "UNHEX(",
+    "HEX(",
+    "CAST(",
+    "CONVERT(",
+
+    // 布尔盲注常用函数
+    "IFNULL(",
+    "NULLIF(",
+    "ISNULL(",
+    "COALESCE(",
+    "CASE WHEN",
+
+    // 布尔/时间盲注的常见探测模式
+    "' AND SLEEP(",
+    "\" AND SLEEP(",
+    "' OR SLEEP(",
+    "\" OR SLEEP(",
 ];
 
 /// SQL 注入审计中间件函数
