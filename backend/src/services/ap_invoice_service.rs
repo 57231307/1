@@ -93,9 +93,15 @@ impl ApInvoiceService {
             amount: Set(receipt.total_amount),
             paid_amount: Set(Decimal::ZERO),
             unpaid_amount: Set(receipt.total_amount),
-            invoice_status: Set("AUDITED".to_string()), // 自动生成直接审核
+            // P1-10 修复（2026-06-25 综合审计）：自动生成 AP 发票保留 PENDING 状态，
+            // 触发审批环节，原 AUDITED 跳过审批违反业务流程。
+            invoice_status: Set("PENDING".to_string()),
             currency: Set("CNY".to_string()),
             exchange_rate: Set(DEFAULT_BASE_CURRENCY_EXCHANGE_RATE),
+            // P1-10 修复：tax_amount 应从源单据税额传递。
+            // purchase_receipt 主表与 purchase_receipt_item 均无 tax_amount 字段
+            // （模型设计不记录税额），暂保持 ZERO。
+            // TODO(tech-debt): receipt 模型补充 tax_amount 字段后从源单据传递。
             tax_amount: Set(Decimal::ZERO),
             created_by: Set(user_id),
             ..Default::default()
@@ -144,6 +150,17 @@ impl ApInvoiceService {
         // 退货金额为负数
         let amount = -return_doc.total_amount.unwrap_or(Decimal::ZERO);
 
+        // P1-10 修复（2026-06-25 综合审计）：从退货单明细汇总税额。
+        // purchase_return_item 表有 tax_amount 字段，按 return_id 汇总。
+        let tax_amount: Decimal = crate::models::purchase_return_item::Entity::find()
+            .filter(crate::models::purchase_return_item::Column::ReturnId.eq(return_id))
+            .all(&txn)
+            .await?
+            .iter()
+            .fold(Decimal::ZERO, |acc, item| acc + item.tax_amount);
+        // 退货税额为负数（红字冲销）
+        let tax_amount = -tax_amount;
+
         let invoice = ap_invoice::ActiveModel {
             invoice_no: Set(invoice_no),
             supplier_id: Set(return_doc.supplier_id),
@@ -156,10 +173,12 @@ impl ApInvoiceService {
             amount: Set(amount),
             paid_amount: Set(Decimal::ZERO),
             unpaid_amount: Set(amount),
-            invoice_status: Set("AUDITED".to_string()), // 自动生成直接审核
+            // P1-10 修复：保留 PENDING 状态触发审批环节
+            invoice_status: Set("PENDING".to_string()),
             currency: Set("CNY".to_string()),
             exchange_rate: Set(DEFAULT_BASE_CURRENCY_EXCHANGE_RATE),
-            tax_amount: Set(Decimal::ZERO),
+            // P1-10 修复：从退货单明细汇总税额（负数红字）
+            tax_amount: Set(tax_amount),
             created_by: Set(user_id),
             ..Default::default()
         }
