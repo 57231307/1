@@ -1,0 +1,1543 @@
+
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.94.0/index.html#needless_borrow
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.94.0/index.html#too_many_arguments
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.94.0/index.html#useless_vec
+    = note: `#[warn(clippy::needless_borrow)]` on by default
+    = note: `#[warn(clippy::too_many_arguments)]` on by default
+    = note: `#[warn(clippy::useless_vec)]` on by default
+    = note: `#[warn(unreachable_code)]` (part of `#[warn(unused)]`) on by default
+    = note: `#[warn(unused_mut)]` (part of `#[warn(unused)]`) on by default
+    = note: `GenerateReconciliationRequest` has derived impls for the traits `Clone` and `Debug`, but these are intentionally ignored during dead code analysis
+    = note: `ReturnRequest` has derived impls for the traits `Clone` and `Debug`, but these are intentionally ignored during dead code analysis
+    = note: `UpdateReceiptItemRequest` has a derived impl for the trait `Debug`, but this is intentionally ignored during dead code analysis
+    = note: `VoucherDetail` has derived impls for the traits `Clone` and `Debug`, but these are intentionally ignored during dead code analysis
+    |
+    |                                                 ^^^^^^^^^^^ help: change this to: `header_val`
+    |                                  ^^^^ unreachable expression
+    |                         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ help: you can use an array directly: `[OrderType::Bulk, OrderType::Rush, OrderType::Normal, OrderType::Sample]`
+    |                     --------------------- any code following this expression is unreachable
+    |                  ^^^
+    |                  ^^^^^
+    |                  ^^^^^^
+    |                  ^^^^^^^
+    |                  ^^^^^^^^^
+    |                  ^^^^^^^^^^
+    |                  ^^^^^^^^^^^
+    |                  ^^^^^^^^^^^^
+    |                  ^^^^^^^^^^^^^
+    |                  ^^^^^^^^^^^^^^^^
+    |                  ^^^^^^^^^^^^^^^^^
+    |                  ^^^^^^^^^^^^^^^^^^
+    |                  ^^^^^^^^^^^^^^^^^^^
+    |                  ^^^^^^^^^^^^^^^^^^^^
+    |                  ^^^^^^^^^^^^^^^^^^^^^^
+    |                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |              ^^^^^^^^^^^^^^^^
+    |              ^^^^^^^^^^^^^^^^^
+    |              ^^^^^^^^^^^^^^^^^^^
+    |              ^^^^^^^^^^^^^^^^^^^^
+    |             ----^^^^^
+    |             ^^^^^^
+    |             ^^^^^^^^^^^^
+    |             help: remove this `mut`
+    |             |
+    |            ------------- field in this struct
+    |            ------------- fields in this struct
+    |            --------------- field in this struct
+    |            ------------------------ fields in this struct
+    |            ----------------------------- field in this struct
+    |            ^^^
+    |            ^^^^
+    |            ^^^^^
+    |            ^^^^^^
+    |            ^^^^^^^
+    |            ^^^^^^^^^
+    |            ^^^^^^^^^^
+    |            ^^^^^^^^^^^
+    |            ^^^^^^^^^^^^
+    |            ^^^^^^^^^^^^^
+    |            ^^^^^^^^^^^^^^
+    |            ^^^^^^^^^^^^^^^
+    |            ^^^^^^^^^^^^^^^^
+    |            ^^^^^^^^^^^^^^^^^
+    |            ^^^^^^^^^^^^^^^^^^
+    |            ^^^^^^^^^^^^^^^^^^^
+    |            ^^^^^^^^^^^^^^^^^^^^
+    |            ^^^^^^^^^^^^^^^^^^^^^
+    |            ^^^^^^^^^^^^^^^^^^^^^^
+    |            ^^^^^^^^^^^^^^^^^^^^^^^
+    |            ^^^^^^^^^^^^^^^^^^^^^^^^^
+    |            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |          ^^^^
+    |         ^^^^^
+    |         ^^^^^^
+    |         ^^^^^^^
+    |         ^^^^^^^^
+    |         ^^^^^^^^^^
+    |         ^^^^^^^^^^^
+    |         ^^^^^^^^^^^^^
+    |        ^^^^^^^^^^
+    |        ^^^^^^^^^^^^
+    |        ^^^^^^^^^^^^^^^^
+    |        ^^^^^^^^^^^^^^^^^^
+    |        ^^^^^^^^^^^^^^^^^^^
+    |        ^^^^^^^^^^^^^^^^^^^^^^^^^
+    |        ^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |  ______________________^
+    |  ________________________^
+    | ---------------- method in this implementation
+    | ----------------- associated items in this implementation
+    | ----------------- method in this implementation
+    | ------------------ associated function in this implementation
+    | ------------------ associated items in this implementation
+    | ------------------ method in this implementation
+    | ------------------- associated functions in this implementation
+    | -------------------- associated items in this implementation
+    | -------------------- method in this implementation
+    | -------------------- methods in this implementation
+    | --------------------- method in this implementation
+    | ---------------------- method in this implementation
+    | ---------------------- methods in this implementation
+    | ----------------------- associated items in this implementation
+    | ------------------------ associated functions in this implementation
+    | ------------------------ associated items in this implementation
+    | ------------------------ methods in this implementation
+    | ------------------------- associated items in this implementation
+    | -------------------------- associated items in this implementation
+    | -------------------------- method in this implementation
+    | --------------------------- method in this implementation
+    | --------------------------- methods in this implementation
+    | ---------------------------- associated items in this implementation
+    | ---------------------------- method in this implementation
+    | ---------------------------- methods in this implementation
+    | ----------------------------- method in this implementation
+    | ------------------------------ associated items in this implementation
+    | |_________^
+    | |___________________________^
+   --> src/handlers/ap_payment_handler.rs:174:12
+   --> src/handlers/ap_payment_handler.rs:180:14
+   --> src/handlers/bpm_definition_handler.rs:108:14
+   --> src/handlers/failover_handler.rs:156:8
+   --> src/handlers/inventory_stock_handler_query.rs:179:9
+   --> src/middleware/auth.rs:192:49
+   --> src/middleware/auth_context.rs:101:12
+   --> src/middleware/auth_context.rs:120:10
+   --> src/observability/config.rs:108:12
+   --> src/routes/system.rs:207:8
+   --> src/routes/system.rs:224:8
+   --> src/search/elastic.rs:171:12
+   --> src/search/elastic.rs:253:12
+   --> src/search/elastic.rs:365:12
+   --> src/services/account_subject_service.rs:334:12
+   --> src/services/ai/rec.rs:170:18
+   --> src/services/ap_payment_service.rs:431:18
+   --> src/services/ap_payment_service.rs:522:12
+   --> src/services/api_key_service.rs:148:12
+   --> src/services/ar/inv.rs:118:18
+   --> src/services/ar/mod.rs:148:9
+   --> src/services/ar/recon.rs:97:18
+   --> src/services/audit_log_service.rs:202:18
+   --> src/services/auth/password_policy_service.rs:160:8
+   --> src/services/auth/password_policy_service.rs:171:8
+   --> src/services/auth/password_policy_service.rs:95:12
+   --> src/services/auth_service.rs:506:14
+   --> src/services/business_metrics.rs:113:12
+   --> src/services/business_metrics.rs:362:8
+   --> src/services/business_metrics.rs:370:8
+   --> src/services/cache_service.rs:135:18
+   --> src/services/color_card_scan_service.rs:33:12
+   --> src/services/color_price_seasonal_service.rs:36:12
+   --> src/services/custom_order_quality_service.rs:139:13
+   --> src/services/department_service.rs:248:18
+   --> src/services/email_log_service.rs:128:18
+   --> src/services/event_kafka.rs:215:12
+   --> src/services/export_service.rs:114:12
+   --> src/services/failover_service.rs:152:9
+   --> src/services/failover_service.rs:189:5
+   --> src/services/failover_service.rs:85:12
+   --> src/services/field_permission_service.rs:226:12
+   --> src/services/inventory_stock_service.rs:284:18
+   --> src/services/operation_log_service.rs:34:12
+   --> src/services/p9_5_ar_extra_tests.rs:141:24
+   --> src/services/p9_5_inventory_extra_tests.rs:195:22
+   --> src/services/p9_5_inventory_extra_tests.rs:245:24
+   --> src/services/p9_5_sales_extra_tests.rs:170:25
+   --> src/services/p9_5_sales_extra_tests.rs:256:13
+   --> src/services/product_category_service.rs:168:18
+   --> src/services/purchase_receipt_dto.rs:122:9
+   --> src/services/quality_inspection_service.rs:129:18
+   --> src/services/report/exp.rs:470:18
+   --> src/services/report/job.rs:43:12
+   --> src/services/sales_unit_tests.rs:123:22
+   --> src/services/supplier_service.rs:570:18
+   --> src/services/tenant_billing_service.rs:491:12
+   --> src/services/tenant_service.rs:195:18
+   --> src/services/voucher_service.rs:775:9
+   --> src/utils/app_state.rs:242:34
+   --> src/utils/color_space_converter.rs:160:8
+   --> src/utils/failover/cache.rs:146:14
+   --> src/utils/failover/cache.rs:40:12
+   --> src/utils/import_export.rs:256:12
+   --> src/utils/process_state_machine.rs:139:8
+   --> src/utils/token_bucket.rs:94:12
+   --> src/websocket/notifications.rs:111:12
+   --> src/websocket/notifications.rs:130:12
+   --> src/websocket/notifications.rs:135:12
+   = help: add `allow-invalid = true` to the entry to suppress this warning
+   = help: consider implementing the trait `std::str::FromStr` or choosing a less ambiguous method name
+   = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.94.0/index.html#ptr_arg
+   = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.94.0/index.html#should_implement_trait
+   = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.94.0/index.html#too_many_arguments
+   = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.94.0/index.html#upper_case_acronyms
+   = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.94.0/index.html#useless_asref
+   = help: the trait `std::cmp::PartialEq<str>` is not implemented for `&str`
+   = note: `#[warn(clippy::ptr_arg)]` on by default
+   = note: `#[warn(clippy::should_implement_trait)]` on by default
+   = note: `#[warn(clippy::upper_case_acronyms)]` on by default
+   = note: `#[warn(clippy::useless_asref)]` on by default
+   = note: `ARStatus` has derived impls for the traits `Clone` and `Debug`, but these are intentionally ignored during dead code analysis
+   = note: `AbcClassification` has derived impls for the traits `Clone` and `Debug`, but these are intentionally ignored during dead code analysis
+   = note: `ApprovePriceRequest` has a derived impl for the trait `Debug`, but this is intentionally ignored during dead code analysis
+   = note: `ArInvoice` has derived impls for the traits `Clone` and `Debug`, but these are intentionally ignored during dead code analysis
+   = note: `AuthConfig` has derived impls for the traits `Clone` and `Debug`, but these are intentionally ignored during dead code analysis
+   = note: `AutoMatchRequest` has derived impls for the traits `Clone` and `Debug`, but these are intentionally ignored during dead code analysis
+   = note: `BatchListQuery` has a derived impl for the trait `Debug`, but this is intentionally ignored during dead code analysis
+   = note: `BudgetExecuteRequest` has a derived impl for the trait `Debug`, but this is intentionally ignored during dead code analysis
+   = note: `CacheFailoverConfig` has derived impls for the traits `Clone` and `Debug`, but these are intentionally ignored during dead code analysis
+   = note: `ColorSpaceError` has a derived impl for the trait `Debug`, but this is intentionally ignored during dead code analysis
+   = note: `CreateBatchRequest` has a derived impl for the trait `Debug`, but this is intentionally ignored during dead code analysis
+   = note: `CreateContractRequest` has derived impls for the traits `Clone` and `Debug`, but these are intentionally ignored during dead code analysis
+   = note: `CreateFabricOrderRequest` has a derived impl for the trait `Debug`, but this is intentionally ignored during dead code analysis
+   = note: `CreateQualityStandardRequest` has derived impls for the traits `Clone` and `Debug`, but these are intentionally ignored during dead code analysis
+   = note: `CreateReconciliationRequest` has derived impls for the traits `Clone` and `Debug`, but these are intentionally ignored during dead code analysis
+   = note: `CreateSalesContractRequest` has derived impls for the traits `Clone` and `Debug`, but these are intentionally ignored during dead code analysis
+   = note: `CreateVersionHistoryRequest` has derived impls for the traits `Clone` and `Debug`, but these are intentionally ignored during dead code analysis
+   = note: `CreateWarehouseRequest` has a derived impl for the trait `Debug`, but this is intentionally ignored during dead code analysis
+   = note: `CreditLimitAdjustmentRequest` has derived impls for the traits `Clone` and `Debug`, but these are intentionally ignored during dead code analysis
+   = note: `CreditRatingRequest` has derived impls for the traits `Clone` and `Debug`, but these are intentionally ignored during dead code analysis
+   = note: `CustomerCredit` has derived impls for the traits `Clone` and `Debug`, but these are intentionally ignored during dead code analysis
+   = note: `DatabaseFailoverConfig` has derived impls for the traits `Clone` and `Debug`, but these are intentionally ignored during dead code analysis
+   = note: `DefectQuery` has a derived impl for the trait `Debug`, but this is intentionally ignored during dead code analysis
+   = note: `ExecuteContractRequest` has derived impls for the traits `Clone` and `Debug`, but these are intentionally ignored during dead code analysis
+   = note: `ExecuteSalesContractRequest` has derived impls for the traits `Clone` and `Debug`, but these are intentionally ignored during dead code analysis
+   = note: `FabricOrderItemRequest` has a derived impl for the trait `Debug`, but this is intentionally ignored during dead code analysis
+   = note: `FabricOrderQuery` has a derived impl for the trait `Debug`, but this is intentionally ignored during dead code analysis
+   = note: `FailoverConfig` has derived impls for the traits `Clone` and `Debug`, but these are intentionally ignored during dead code analysis
+   = note: `FailoverError` has a derived impl for the trait `Debug`, but this is intentionally ignored during dead code analysis
+   = note: `InspectionResult` has derived impls for the traits `Clone` and `Debug`, but these are intentionally ignored during dead code analysis
+   = note: `InventorySummaryQueryResult` has derived impls for the traits `Clone` and `Debug`, but these are intentionally ignored during dead code analysis
+   = note: `LocationListQuery` has a derived impl for the trait `Debug`, but this is intentionally ignored during dead code analysis
+   = note: `MovementType` has derived impls for the traits `Clone` and `Debug`, but these are intentionally ignored during dead code analysis
+   = note: `POStatus` has derived impls for the traits `Clone` and `Debug`, but these are intentionally ignored during dead code analysis
+   = note: `PurchaseOrder` has derived impls for the traits `Clone` and `Debug`, but these are intentionally ignored during dead code analysis
+   = note: `PurchaseStatus` has derived impls for the traits `Clone` and `Debug`, but these are intentionally ignored during dead code analysis
+   = note: `Quotation` has derived impls for the traits `Clone` and `Debug`, but these are intentionally ignored during dead code analysis
+   = note: `Receipt` has derived impls for the traits `Clone` and `Debug`, but these are intentionally ignored during dead code analysis
+   = note: `RecordQuery` has a derived impl for the trait `Debug`, but this is intentionally ignored during dead code analysis
+   = note: `SalesOrder` has derived impls for the traits `Clone` and `Debug`, but these are intentionally ignored during dead code analysis
+   = note: `StockOutRequest` has a derived impl for the trait `Debug`, but this is intentionally ignored during dead code analysis
+   = note: `StockRecord` has derived impls for the traits `Clone` and `Debug`, but these are intentionally ignored during dead code analysis
+   = note: `StockRow` has derived impls for the traits `Clone` and `Debug`, but these are intentionally ignored during dead code analysis
+   = note: `SupplierRating` has derived impls for the traits `Clone` and `Debug`, but these are intentionally ignored during dead code analysis
+   = note: `TierError` has a derived impl for the trait `Debug`, but this is intentionally ignored during dead code analysis
+   = note: `TransferBatchRequest` has a derived impl for the trait `Debug`, but this is intentionally ignored during dead code analysis
+   = note: `UpdateFabricOrderRequest` has a derived impl for the trait `Debug`, but this is intentionally ignored during dead code analysis
+   = note: `UpdateLocationRequest` has a derived impl for the trait `Debug`, but this is intentionally ignored during dead code analysis
+   = note: `UpdateQualityStandardRequest` has derived impls for the traits `Clone` and `Debug`, but these are intentionally ignored during dead code analysis
+   = note: `UpdateWarehouseRequest` has a derived impl for the trait `Debug`, but this is intentionally ignored during dead code analysis
+   = note: `VoucherQueryParams` has derived impls for the traits `Clone` and `Debug`, but these are intentionally ignored during dead code analysis
+   = note: requested on the command line with `-W dead-code`
+   = note: this error originates in the macro `assert_eq` (in Nightly builds, run with -Z macro-backtrace for more info)
+   |
+   |                                                                        ++++++++++++++++
+   |                                                                      ^^^^^ unresolved import
+   |                                                                    ++++++++++++++++
+   |                                                                    ^^^^^ unresolved import
+   |                                                                  ++++++++++++++++
+   |                                                                  ^^^^^ unresolved import
+   |                                                                 ++++++++++++++++
+   |                                                                 ^^^^^ unresolved import
+   |                                                               ++++++++++++++++
+   |                                                               ^^^^^ unresolved import
+   |                                                 ^^^^^^^^^^^
+   |                                                 ^^^^^^^^^^^^^^^
+   |                                              ^^^^^^^^^^^
+   |                         ^^^^^^^^^^^^^^^^^  ^^^^^^^^^^^^^^^^^^^^^^^  ^^^^^^^^^
+   |                       ^^^^^^^^^^^^^^^^^ help: change this to: `&mut [Decimal]`
+   |                  ^^^^^^^^^^^^^
+   |                  ^^^^^^^^^^^^^^^^
+   |                  ^^^^^^^^^^^^^^^^^
+   |                  ^^^^^^^^^^^^^^^^^^^
+   |                  ^^^^^^^^^^^^^^^^^^^^
+   |                 ^^^^^^^^^^^
+   |               ^^^^^^^^^^^^^^^^
+   |              ^^^^^^^^^^^^^^
+   |             ----^^^
+   |             ^^
+   |             ^^^^
+   |             ^^^^^
+   |             ^^^^^^
+   |             ^^^^^^^^^^
+   |             ^^^^^^^^^^^
+   |             ^^^^^^^^^^^  ^^^^^^^^^
+   |             ^^^^^^^^^^^^
+   |             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ no implementation for `&str == str`
+   |             help: remove this `mut`
+   |             |
+   |            ------- field in this struct
+   |            -------- field in this struct
+   |            --------- fields in this struct
+   |            ---------- field in this struct
+   |            ---------- fields in this struct
+   |            ----------- field in this struct
+   |            ----------- fields in this struct
+   |            ------------- fields in this struct
+   |            -------------- field in this struct
+   |            -------------- fields in this struct
+   |            --------------- field in this struct
+   |            --------------- fields in this struct
+   |            ---------------- field in this struct
+   |            ---------------- fields in this struct
+   |            ----------------- field in this struct
+   |            ----------------- fields in this struct
+   |            ------------------ fields in this struct
+   |            ------------------- field in this struct
+   |            ------------------- fields in this struct
+   |            -------------------- field in this struct
+   |            -------------------- fields in this struct
+   |            --------------------- field in this struct
+   |            --------------------- fields in this struct
+   |            ---------------------- field in this struct
+   |            ---------------------- fields in this struct
+   |            ------------------------ fields in this struct
+   |            -------------------------- field in this struct
+   |            --------------------------- field in this struct
+   |            ---------------------------- field in this struct
+   |            ^^^
+   |            ^^^^
+   |            ^^^^^
+   |            ^^^^^^
+   |            ^^^^^^^
+   |            ^^^^^^^^
+   |            ^^^^^^^^^
+   |            ^^^^^^^^^^
+   |            ^^^^^^^^^^^
+   |            ^^^^^^^^^^^^^
+   |            ^^^^^^^^^^^^^^
+   |            ^^^^^^^^^^^^^^^
+   |            ^^^^^^^^^^^^^^^^
+   |            ^^^^^^^^^^^^^^^^^
+   |            ^^^^^^^^^^^^^^^^^^
+   |            ^^^^^^^^^^^^^^^^^^^
+   |            ^^^^^^^^^^^^^^^^^^^^
+   |            ^^^^^^^^^^^^^^^^^^^^^
+   |            ^^^^^^^^^^^^^^^^^^^^^^
+   |            ^^^^^^^^^^^^^^^^^^^^^^^
+   |            ^^^^^^^^^^^^^^^^^^^^^^^^^
+   |            ^^^^^^^^^^^^^^^^^^^^^^^^^^
+   |            ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+   |           ^^^^^^^^^^
+   |           ^^^^^^^^^^^^^
+   |           ^^^^^^^^^^^^^^
+   |           ^^^^^^^^^^^^^^^
+   |           ^^^^^^^^^^^^^^^^
+   |           ^^^^^^^^^^^^^^^^^
+   |          -------- variant in this enum
+   |          -------- variants in this enum
+   |          --------- variant in this enum
+   |          ------------ variants in this enum
+   |          ------------- variants in this enum
+   |          -------------- variants in this enum
+   |          --------------- variant in this enum
+   |          ---------------- variant in this enum
+   |          ^^^^^^^^^
+   |          ^^^^^^^^^^
+   |          ^^^^^^^^^^^^
+   |          ^^^^^^^^^^^^^
+   |          ^^^^^^^^^^^^^^
+   |         ^^^ help: consider making the acronym lowercase, except the initial letter: `Vip`
+   |         ^^^^
+   |         ^^^^^
+   |         ^^^^^^
+   |         ^^^^^^^
+   |         ^^^^^^^^
+   |         ^^^^^^^^^
+   |         ^^^^^^^^^^
+   |         ^^^^^^^^^^^
+   |         ^^^^^^^^^^^^
+   |         ^^^^^^^^^^^^^
+   |         ^^^^^^^^^^^^^^
+   |         ^^^^^^^^^^^^^^^
+   |         ^^^^^^^^^^^^^^^^
+   |         ^^^^^^^^^^^^^^^^^
+   |         ^^^^^^^^^^^^^^^^^^
+   |         ^^^^^^^^^^^^^^^^^^^^
+   |         ^^^^^^^^^^^^^^^^^^^^^
+   |         ^^^^^^^^^^^^^^^^^^^^^^^^
+   |         ^^^^^^^^^^^^^^^^^^^^^^^^^^
+   |        ^^^^^^
+   |        ^^^^^^^
+   |        ^^^^^^^^^
+   |        ^^^^^^^^^^
+   |        ^^^^^^^^^^^^^^^^
+   |        ^^^^^^^^^^^^^^^^^
+   |        ^^^^^^^^^^^^^^^^^^^^
+   |        ^^^^^^^^^^^^^^^^^^^^^^
+   |        ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+   |     ^^
+   |     ^^^ help: consider making the acronym lowercase, except the initial letter (notice the capitalization): `Cif`
+   |     ^^^ help: consider making the acronym lowercase, except the initial letter (notice the capitalization): `Exw`
+   |     ^^^ help: consider making the acronym lowercase, except the initial letter: `Dap`
+   |     ^^^ help: consider making the acronym lowercase, except the initial letter: `Ddp`
+   |     ^^^ help: consider making the acronym lowercase, except the initial letter: `Fob`
+   |     ^^^ help: consider making the acronym lowercase, except the initial letter: `Vip`
+   |     ^^^^^^ help: consider making the acronym lowercase, except the initial letter: `Normal`
+   |     ^^^^^^^^^^
+   |     ^^^^^^^^^^^
+   |     ^^^^^^^^^^^^^
+   |     ^^^^^^^^^^^^^^
+   |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+   |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+   |  ______________________________________^
+   | -------------- methods in this implementation
+   | --------------- method in this implementation
+   | --------------- methods in this implementation
+   | ---------------- associated function in this implementation
+   | ---------------- associated items in this implementation
+   | ---------------- methods in this implementation
+   | ----------------- associated function in this implementation
+   | ----------------- method in this implementation
+   | ----------------- methods in this implementation
+   | ------------------ method in this implementation
+   | ------------------- associated function in this implementation
+   | ------------------- method in this implementation
+   | -------------------- associated items in this implementation
+   | ---------------------- associated items in this implementation
+   | ----------------------- method in this implementation
+   | ------------------------ associated function in this implementation
+   | ------------------------ associated items in this implementation
+   | ------------------------- associated function in this implementation
+   | -------------------------- associated function in this implementation
+   | --------------------------- associated function in this implementation
+   | ----------------------------- associated items in this implementation
+   | ------------------------------ associated functions in this implementation
+   | ------------------------------ methods in this implementation
+   | -------------------------------- methods in this implementation
+   | |_____^
+   | |___________________________________^
+   | |_________________________________________________________^
+  --> /home/runner/work/1/1/backend/.clippy.toml:15:5
+  --> /home/runner/work/1/1/backend/.clippy.toml:16:5
+  --> src/config/failover.rs:12:9
+  --> src/config/failover.rs:24:9
+  --> src/config/failover.rs:41:9
+  --> src/config/settings.rs:64:9
+  --> src/handlers/budget_management_handler.rs:67:9
+  --> src/handlers/greige_fabric_handler.rs:94:9
+  --> src/handlers/inventory_batch_handler.rs:22:9
+  --> src/handlers/inventory_batch_handler.rs:38:9
+  --> src/handlers/inventory_batch_handler.rs:69:9
+  --> src/handlers/inventory_stock_handler.rs:15:13
+  --> src/handlers/purchase_price_handler.rs:26:9
+  --> src/handlers/quality_inspection_handler.rs:30:9
+  --> src/handlers/quality_inspection_handler.rs:39:9
+  --> src/handlers/sales_fabric_order_handler.rs:27:9
+  --> src/handlers/sales_fabric_order_handler.rs:40:9
+  --> src/handlers/sales_fabric_order_handler.rs:54:9
+  --> src/handlers/sales_fabric_order_handler.rs:84:9
+  --> src/handlers/sales_price_handler.rs:28:9
+  --> src/handlers/warehouse_handler.rs:35:9
+  --> src/handlers/warehouse_handler.rs:49:9
+  --> src/handlers/warehouse_handler.rs:67:9
+  --> src/handlers/warehouse_handler.rs:86:9
+  --> src/messaging/bus.rs:90:13
+  --> src/middleware/audit_context.rs:39:12
+  --> src/middleware/auth_context.rs:94:12
+  --> src/middleware/csp.rs:23:11
+  --> src/middleware/csp.rs:38:14
+  --> src/middleware/slow_query.rs:27:8
+  --> src/middleware/slow_query.rs:36:12
+  --> src/middleware/slow_query.rs:49:12
+  --> src/middleware/slow_query.rs:80:11
+  --> src/models/color_price_history_dto.rs:33:12
+  --> src/models/color_price_tier_dto.rs:37:12
+  --> src/models/custom_order_create_dto.rs:73:12
+  --> src/models/customer_color_price_dto.rs:49:12
+  --> src/models/process_node_dto.rs:11:12
+  --> src/models/process_node_dto.rs:31:12
+  --> src/models/process_node_dto.rs:39:12
+  --> src/models/quality_issue_dto.rs:44:12
+  --> src/models/quotation_convert_dto.rs:11:12
+  --> src/models/seasonal_price_rule_dto.rs:41:12
+  --> src/models/seasonal_price_rule_dto.rs:73:12
+  --> src/observability/config.rs:33:12
+  --> src/observability/config.rs:69:12
+  --> src/observability/config.rs:99:12
+  --> src/services/ai/mod.rs:75:9
+  --> src/services/ai/mod.rs:81:12
+  --> src/services/ai_extend_service.rs:47:12
+  --> src/services/ar/mod.rs:46:9
+  --> src/services/ar/mod.rs:51:12
+  --> src/services/ar/mod.rs:73:9
+  --> src/services/ar_collection_service.rs:12:12
+  --> src/services/ar_collection_service.rs:17:12
+  --> src/services/ar_unit_tests.rs:12:13
+  --> src/services/ar_unit_tests.rs:48:13
+  --> src/services/auth/password_policy_service.rs:29:12
+  --> src/services/auth/password_policy_service.rs:52:12
+  --> src/services/bi_unit_tests.rs:13:12
+  --> src/services/bi_unit_tests.rs:38:23
+  --> src/services/bpm_service_stub.rs:72:18
+  --> src/services/business_metrics.rs:51:12
+  --> src/services/cache_service.rs:36:12
+  --> src/services/color_card_borrow_service.rs:48:12
+  --> src/services/color_card_borrow_service.rs:80:12
+  --> src/services/color_card_crud_service.rs:42:12
+  --> src/services/color_card_crud_service.rs:90:5
+  --> src/services/color_card_item_service.rs:57:12
+  --> src/services/color_card_scan_service.rs:20:10
+  --> src/services/color_price_batch_service.rs:41:12
+  --> src/services/color_price_crud_service.rs:43:12
+  --> src/services/color_price_history_service.rs:30:12
+  --> src/services/color_price_history_service.rs:60:5
+  --> src/services/color_price_tier_service.rs:21:5
+  --> src/services/color_price_tier_service.rs:33:12
+  --> src/services/custom_order_crud_service.rs:79:38
+  --> src/services/customer_credit_service.rs:48:9
+  --> src/services/customer_credit_service.rs:57:9
+  --> src/services/event_kafka.rs:31:49
+  --> src/services/event_kafka.rs:95:12
+  --> src/services/export_service.rs:11:10
+  --> src/services/failover_service.rs:29:9
+  --> src/services/five_dimension_query_service.rs:16:12
+  --> src/services/inventory_count_service.rs:41:5
+  --> src/services/inventory_reservation_service.rs:47:18
+  --> src/services/inventory_stock_service.rs:15:12
+  --> src/services/inventory_stock_service.rs:36:9
+  --> src/services/inventory_unit_tests.rs:15:13
+  --> src/services/operation_log_service.rs:11:12
+  --> src/services/operation_log_service.rs:17:12
+  --> src/services/order_change_history_service.rs:24:18
+  --> src/services/p9_5_ar_extra_tests.rs:16:9
+  --> src/services/p9_5_ar_extra_tests.rs:33:12
+  --> src/services/p9_5_bi_extra_tests.rs:60:9
+  --> src/services/p9_5_inventory_extra_tests.rs:17:9
+  --> src/services/p9_5_inventory_extra_tests.rs:67:13
+  --> src/services/p9_5_purchase_extra_tests.rs:15:9
+  --> src/services/p9_5_purchase_extra_tests.rs:35:9
+  --> src/services/p9_5_purchase_extra_tests.rs:69:13
+  --> src/services/p9_5_sales_extra_tests.rs:39:13
+  --> src/services/product_service.rs:41:12
+  --> src/services/purchase_contract_service.rs:32:9
+  --> src/services/purchase_contract_service.rs:41:9
+  --> src/services/purchase_delivery_calculator.rs:46:8
+  --> src/services/purchase_unit_tests.rs:18:9
+  --> src/services/purchase_unit_tests.rs:26:13
+  --> src/services/purchase_unit_tests.rs:55:13
+  --> src/services/quality_standard_service.rs:30:9
+  --> src/services/quality_standard_service.rs:40:9
+  --> src/services/quality_standard_service.rs:48:9
+  --> src/services/quotation_approval_service.rs:54:12
+  --> src/services/quotation_pricing_service.rs:27:5
+  --> src/services/quotation_pricing_service.rs:29:5
+  --> src/services/quotation_service.rs:12:17
+  --> src/services/report/ds.rs:13:15
+  --> src/services/sales_contract_service.rs:32:9
+  --> src/services/sales_contract_service.rs:42:9
+  --> src/services/sales_unit_tests.rs:12:9
+  --> src/services/sales_unit_tests.rs:52:13
+  --> src/services/scheduling_auto.rs:26:11
+  --> src/services/scheduling_auto.rs:30:10
+  --> src/services/scheduling_auto.rs:38:12
+  --> src/services/scheduling_manual.rs:17:11
+  --> src/services/scheduling_manual.rs:21:10
+  --> src/services/scheduling_manual.rs:31:12
+  --> src/services/scheduling_query.rs:22:49
+  --> src/services/scheduling_query.rs:27:11
+  --> src/services/scheduling_query.rs:31:12
+  --> src/services/scheduling_query.rs:40:12
+  --> src/services/scheduling_service.rs:40:12
+  --> src/services/scheduling_service.rs:49:12
+  --> src/services/so/order_crud.rs:31:11
+  --> src/services/so/order_query.rs:28:11
+  --> src/services/so/order_query.rs:32:12
+  --> src/services/so/order_query.rs:47:12
+  --> src/services/so/order_workflow.rs:20:46
+  --> src/services/so/order_workflow.rs:23:11
+  --> src/services/so/order_workflow.rs:27:10
+  --> src/services/so/order_workflow.rs:44:12
+  --> src/services/stock_ledger.rs:11:11
+  --> src/services/stock_ledger.rs:15:10
+  --> src/services/stock_ledger.rs:32:12
+  --> src/services/stock_query.rs:11:11
+  --> src/services/stock_query.rs:15:12
+  --> src/services/stock_query.rs:32:12
+  --> src/services/user_service.rs:48:12
+  --> src/services/voucher_service.rs:72:9
+  --> src/utils/admin_checker.rs:35:8
+  --> src/utils/admin_checker.rs:44:8
+  --> src/utils/color_space_converter.rs:20:5
+  --> src/utils/color_space_converter.rs:55:8
+  --> src/utils/fabric_five_dimension.rs:14:12
+  --> src/utils/fabric_five_dimension.rs:30:12
+  --> src/utils/failover/cache.rs:25:12
+  --> src/utils/failover/circuit_breaker.rs:80:12
+  --> src/utils/failover/mod.rs:35:5
+  --> src/utils/hash.rs:55:8
+  --> src/utils/incoterms.rs:23:5
+  --> src/utils/incoterms.rs:25:5
+  --> src/utils/incoterms.rs:27:5
+  --> src/utils/incoterms.rs:29:5
+  --> src/utils/incoterms.rs:31:5
+  --> src/utils/process_state_machine.rs:33:5
+  --> src/utils/token_bucket.rs:42:12
+  --> src/utils/unwrap_safe.rs:65:8
+  --> src/utils/unwrap_safe.rs:76:8
+  --> src/websocket/mod.rs:18:25
+  --> tests/custom_order_e2e_test.rs:29:13
+  --> tests/custom_order_process_test.rs:30:72
+  --> tests/custom_order_process_test.rs:31:63
+  --> tests/custom_order_process_test.rs:32:66
+  --> tests/custom_order_process_test.rs:33:65
+  --> tests/custom_order_process_test.rs:34:68
+  = note: requested on the command line with `-W unused-imports`
+  |
+  |                                                                     ^^^^^^^^^^
+  |                                                                   ^^^^^^^^^^
+  |                                                    ^^^^^^^^^
+  |                                  ^^^^
+  |                          ^^^
+  |                          ^^^^^^^^^
+  |                         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^  ^^^^^^^^^^^^^^^^^^^^
+  |                  ^^^^^^^  ^^^^^^^^^^^^^                             ^^^^^^^^^^^^^^^^^  ^^^^^^^^^^^^
+  |               ^^^^^^
+  |               ^^^^^^^^^^^^^^^^
+  |              ^^^^^^^^  ^^^
+  |            --------- field in this struct
+  |            ^^^^^^^^^^^^^^^^^^^^^^^^^
+  |     ^^
+  |     ^^^^^^^^^^^  ^^^^^^^^^               ^^^^^^^^^^^^  ^^^^^^^^^^^^
+  |     ^^^^^^^^^^^^^
+  |     ^^^^^^^^^^^^^^
+  |     ^^^^^^^^^^^^^^^^^^^^^^                                                        ^^^^^^^^^^^^^
+  |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+ --> src/handlers/advanced/decide.rs:8:15
+ --> src/handlers/auth_handler.rs:2:5
+ --> src/handlers/customer_handler.rs:6:26
+ --> src/handlers/quotation_handler.rs:8:15
+ --> src/models/log_login.rs:6:14
+ --> src/routes/color_card.rs:8:15
+ --> src/routes/custom_order.rs:8:15
+ --> src/routes/quotations.rs:8:26
+ --> src/search/mod.rs:8:18
+ --> src/services/ar_service.rs:9:5
+ --> src/services/assist_accounting_service.rs:8:5
+ --> src/services/audit_cleanup_service.rs:1:52
+ --> src/services/bpm_service.rs:2:25
+ --> src/services/customer_credit_limit.rs:7:5
+ --> src/services/five_dimension_query_service.rs:6:12
+ --> src/services/inventory_stock_txn.rs:7:67
+ --> src/services/supplier_evaluation_service.rs:7:69
+ --> src/services/tenant_billing_service.rs:4:34
+ --> src/utils/admin_checker.rs:4:15
+ 12 | impl TenantService {
+ 15 | impl ReportEngineService {
+ 19 | impl ProductCategoryService {
+ 20 | impl SupplierService {
+ 22 | impl ApiKeyService {
+ 23 | impl ApPaymentService {
+ 25 | impl DepartmentService {
+ 26 | impl ArReconciliationService {
+ 26 | impl ReportEngineService {
+ 29 | impl AiAnalysisService {
+ 29 | impl ExportService {
+ 32 | impl ColorCardScanService {
+ 33 |     pub fn new(db: Arc<DatabaseConnection>) -> Self {
+ 33 | impl OperationLogService {
+ 34 |     pub fn new(db: Arc<DatabaseConnection>) -> Self {
+ 35 | impl ColorPriceSeasonalService {
+ 36 |     pub fn new(db: Arc<DatabaseConnection>) -> Self {
+ 36 | impl ArReconciliationService {
+ 38 | impl FailoverCache {
+ 39 |     /// 创建缓存主备实例
+ 39 |     pub async fn create_log(
+ 40 |     pub fn new(config: CacheFailoverConfig) -> Result<Self, redis::RedisError> {
+ 42 | impl FailoverMetrics {
+ 43 |     pub fn calculate_next_run(
+ 44 | impl EmailLogService {
+ 51 | impl FieldPermissionService {
+ 51 | impl InventoryStockService {
+ 56 | impl CacheService {
+ 57 |     pub async fn get_primary(&self, key: &str) -> Result<Option<Vec<u8>>, redis::RedisError> {
+ 64 |     pub async fn get_backup(&self, key: &str) -> Option<Vec<u8>> {
+ 66 |     pub async fn log_success(
+ 69 |     pub async fn set_primary(&self, key: &str, value: Vec<u8>) -> Result<(), redis::RedisError> {
+ 69 | impl QualityInspectionService {
+ 72 | impl ConnectionManager {
+ 76 |     pub async fn set_backup(&self, key: String, value: Vec<u8>) {
+ 8 +     use bingxi_backend::utils::process_state_machine::CustomOrderStatus;
+ 81 |     pub async fn set(&self, key: String, value: Vec<u8>) {
+ 81 | impl AuditLogService {
+ 85 |     pub fn record_primary(&self, function: &str) {
+ 88 | impl TokenBucketLimiter {
+ 89 |     pub async fn get(&self, key: &str) -> Result<Option<Vec<u8>>, String> {
+ 90 |     pub fn record_primary_failed(&self, function: &str) {
+ 93 | impl PasswordPolicyService {
+ 94 |     /// 创建默认策略服务
+ 94 |     pub fn new(capacity: u32, window: Duration) -> Self {
+ 95 |     pub fn new() -> Self {
+ 97 |     pub async fn update(
+ 97 |     pub fn record_backup(&self, function: &str) {
+...
+...   |
+...  |
+1 | use sea_orm::{ConnectionTrait, DatabaseConnection, Statement};
+10 | pub struct FailoverConfig {
+100 | impl OptionalAuthContext {
+101 |     pub fn from_claims(claims: AppClaims) -> Self {
+102 |     pub async fn list_logs(
+104 |     pub fn check(&self, key: &str) -> bool {
+107 |     pub fn set_circuit_state(&self, function: &str, state: i64) {
+107 | impl ResourceAttrs {
+108 |     pub fn from_config(cfg: &ObservabilityConfig) -> Self {
+108 | pub async fn save_as_template(
+109 |     pub fn circuit(&self) -> &Arc<CircuitBreaker> {
+11 |     /// 数据库主备配置
+11 |     struct ArInvoice {
+11 | pub const P92_LEDGER_MODULE: &str = "stock_ledger";
+11 | pub const P92_QRY_MODULE: &str = "stock_query";
+11 | pub enum ExportFormat {
+11 | pub struct ConvertToOrderDto {
+11 | pub struct OperationLogService {
+11 | pub struct ProcessNodeDetail {
+110 |     pub fn empty() -> Self {
+111 |     pub fn broadcast(&self, tenant_id: i64, user_id: i64, message: String) {
+111 | impl BusinessMetrics {
+112 |     /// 创建并注册所有业务指标
+113 |     pub fn new(registry: &Registry) -> Result<Self, prometheus::Error> {
+114 |     pub fn export(data: &ExportData, format: &ExportFormat) -> Result<Vec<u8>, AppError> {
+118 |     pub async fn create_receivable(
+118 |     pub fn remaining(&self, key: &str) -> f64 {
+12 |         pub id: i64,
+12 |     QueryOrder, QuerySelect, Set, TransactionTrait,
+12 |     pub database: DatabaseFailoverConfig,
+12 |     use rust_decimal::prelude::*;
+12 | pub struct ArCollectionService {
+120 |     pub async fn list_logs_by_module(
+120 |     pub async fn update(
+120 |     pub fn connection_count(&self) -> usize {
+120 | pub type Auth = axum::extract::Extension<AuthContext>;
+121 | pub struct UpdateReceiptItemRequest {
+122 |     pub fn is_locked(&self, info: &LockoutInfo) -> bool {
+122 |     pub line_no: Option<i32>,
+123 |           let orders = vec![
+123 |     pub material_id: Option<i32>,
+123 ~         let orders = [SalesOrder {
+124 +                 id: 1,
+124 |     pub material_code: Option<String>,
+124 | |             SalesOrder {
+125 +                 customer_id: 1,
+125 |     pub material_name: Option<String>,
+125 | |                 id: 1,
+126 +                 quantity: Decimal::from(10),
+126 |     fn parse_cron_field(
+126 |     pub batch_no: Option<String>,
+126 | |                 customer_id: 1,
+127 +                 unit_price: Decimal::from(20),
+127 |     pub color_code: Option<String>,
+127 |     pub fn cleanup(&self) {
+128 +                 status: OrderStatus::Completed,
+128 |     pub async fn get_by_id(&self, id: i32) -> Result<Option<EmailLogModel>, AppError> {
+128 |     pub lot_no: Option<String>,
+129 +             },
+129 |     pub async fn get_standard_by_id(&self, id: i32) -> Result<quality_inspection::Model, AppError> {
+129 |     pub grade: Option<String>,
+13 |         pub customer_id: i64,
+13 |     /// 缓存主备配置
+13 |     enum ARStatus {
+13 |     enum MovementType {
+13 |     enum POStatus {
+13 |     struct SalesPoint {
+13 | impl InventoryReservationService {
+13 | use sea_orm::{ActiveModelTrait, ColumnTrait, EntityTrait, QueryFilter, QueryOrder};
+130 +             SalesOrder {
+130 |     pub gram_weight: Option<Decimal>,
+130 | pub struct NotificationBroadcaster {
+131 +                 id: 2,
+131 |     pub fn record_failure(&self, info: &mut LockoutInfo) {
+131 |     pub width: Option<Decimal>,
+132 +                 customer_id: 2,
+132 |     pub async fn delete(&self, id: i32) -> Result<(), AppError> {
+133 +                 quantity: Decimal::from(5),
+134 +                 unit_price: decs!("15.50"),
+134 | impl NotificationBroadcaster {
+135 +                 status: OrderStatus::Completed,
+135 |     pub async fn stats(&self) -> CacheStats {
+135 |     pub fn new() -> Self {
+135 |     pub location_code: Option<String>,
+136 +             },
+136 |     pub async fn scan_by_id(
+137 +             SalesOrder {
+138 +                 id: 3,
+138 | impl KafkaBackend {
+139 +                 customer_id: 1,
+139 |         let mut query = Entity::find()
+139 | pub fn node_type_to_status(node_type: &str) -> Option<CustomOrderStatus> {
+14 |         Draft,
+14 |     enum PurchaseStatus {
+14 |     pub cache: CacheFailoverConfig,
+14 |     struct StockRow {
+14 | impl FiveDimensionQueryService {
+14 | pub struct FabricFiveDimension {
+140 +                 quantity: Decimal::from(3),
+140 |     pub async fn list_logs_by_user(
+141 +                 unit_price: Decimal::from(100),
+141 |           let _methods = vec![
+141 ~         let _methods = [PaymentMethod::Cash,
+142 +                 status: OrderStatus::Cancelled,
+142 +             PaymentMethod::BankTransfer,
+142 |     pub fn broadcast_notification(
+142 |     pub fn record_success(&self, info: &mut LockoutInfo) {
+142 | |             PaymentMethod::Cash,
+143 +             PaymentMethod::Check,
+143 | |             PaymentMethod::BankTransfer,
+143 ~             }];
+144 +             PaymentMethod::Alipay,
+144 | pub struct GenerateReconciliationRequest {
+144 | |             PaymentMethod::Check,
+144 | |             },
+145 | |             PaymentMethod::Alipay,
+145 | |         ];
+145 ~             PaymentMethod::Wechat];
+146 | impl SearchQuery {
+146 | pub async fn health_check_task(failover: Arc<FailoverCache>) {
+146 | |             PaymentMethod::Wechat,
+147 | |         ];
+148 |     pub fn is_api_key_revoked(cache: &AppCache, plain_key: &str) -> bool {
+148 |     pub fn is_expired(&self, last_changed: chrono::DateTime<chrono::Utc>) -> bool {
+148 |     pub notes: Option<String>,
+148 | pub struct FailoverService {
+15 |         Pending,
+15 |         pub product_id: i64,
+15 |     /// 创建查询构建器
+15 |     { path = "println", reason = "使用 tracing::info! 替代" },
+15 | pub enum MovementType {
+15 | pub struct InventorySummaryItem {
+15 | pub struct StockFilter {
+15 | use serde::{Deserialize, Serialize};
+152 |     pub config: FailoverConfig,
+156 | pub fn init_global_metrics() -> Arc<FailoverMetrics> {
+157 |     pub fn manager(&self) -> ConnectionManager {
+16 |         Partial,
+16 |     pub fn new() -> Self {
+16 |     { path = "eprintln", reason = "使用 tracing::error! 替代" },
+16 | impl ArCollectionService {
+16 | impl BpmService {
+16 | pub enum ColorSpaceError {
+160 | pub fn delta_e_76(lab1: Lab, lab2: Lab) -> f64 {
+160 | pub fn is_common_password(password: &str) -> bool {
+168 |     pub async fn find_by_name(&self, name: &str) -> Result<product_category::Model, AppError> {
+17 |         Adjustment,
+17 |     pub fn new(db: Arc<DatabaseConnection>) -> Self {
+17 |     pub monitoring: MonitoringFailoverConfig,
+17 | impl OrderChangeHistoryService {
+17 | pub const P92_MANUAL_MODULE: &str = "scheduling_manual";
+17 | pub enum TierError {
+17 | pub struct CreateOperationLogRequest {
+170 |         let mut types = vec![OrderType::Bulk, OrderType::Rush, OrderType::Normal, OrderType::Sample];
+170 |     pub async fn get_abc_classification(&self) -> Result<Vec<AbcClassification>, AppError> {
+171 |     pub fn with_highlight(mut self) -> Self {
+171 | pub fn contains_username_fragment(password: &str, username: &str) -> bool {
+174 | pub struct PaymentScheduleParams {
+175 |     pub async fn confirm(
+179 |     use super::*;
+18 |         Received,
+18 |         Stocktake,
+18 | pub use notifications::{ConnectionManager, NotificationBroadcaster, WsMessage};
+180 | pub async fn get_payment_schedule(
+189 | /     async fn record_event(
+19 |         Cancelled,
+19 |         Closed,
+19 | pub struct BatchListQuery {
+190 | |         &self,
+191 | |         function_name: &str,
+192 |                 auth_header = %mask_auth_header(&header_val),
+192 | |         event_type: &str,
+195 |           let _types = vec![
+195 |     pub async fn update_tenant(
+195 ~         let _types = [StockAlertType::LowStock,
+196 +             StockAlertType::OverStock,
+196 | |             StockAlertType::LowStock,
+197 +             StockAlertType::Expiring,
+197 | |             StockAlertType::OverStock,
+197 | |         tenant_id: Option<i64>,
+198 +             StockAlertType::SlowMoving,
+198 |     pub async fn dispute(&self, id: i32, reason: String) -> Result<ReconciliationModel, AppError> {
+198 | |             StockAlertType::Expiring,
+198 | |     ) -> Result<(), String> {
+199 | |             StockAlertType::SlowMoving,
+199 ~             StockAlertType::Discrepancy];
+2 |     ApproveTaskRequest, CreateProcessDefinitionRequest, CreateVersionRequest,
+2 | use crate::middleware::auth_context::AuthContext;
+20 |         Cancelled,
+20 |     RgbOutOfRange(String),
+20 | pub enum ScanError {
+20 | use sea_orm::{ActiveModelTrait, EntityTrait, QueryFilter};
+200 | |             StockAlertType::Discrepancy,
+201 | |         ];
+202 |     pub async fn record(
+207 | pub fn audit_logs() -> Router<AppState> {
+21 |     PriceNotFound,
+21 |     pub async fn create_collection(
+21 |     pub fn generate_five_dimension_id(
+21 | pub enum AdjustType {
+21 | pub struct FabricOrderQuery {
+215 |     pub async fn close(&self, id: i32) -> Result<ReconciliationModel, AppError> {
+215 |     pub fn config(&self) -> &KafkaSettings {
+22 |     ActiveModelTrait, ColumnTrait, EntityTrait, IntoActiveModel, PaginatorTrait, QueryFilter,
+22 |     pub product_id: Option<i32>,
+22 | pub struct CreateQualityStandardRequest {
+22 | pub struct DatabaseFailoverConfig {
+224 | pub fn slow_queries() -> Router<AppState> {
+226 |     pub fn filter_fields_by_read_permission(
+23 |     /// 主库 URL
+23 |     FOB,
+23 |     pub batch_no: Option<String>,
+23 | pub const CSP_POLICY: &str = "default-src 'self'; \
+23 | pub const P92_WF_MODULE: &str = "sales_order_workflow";
+239 |                     std::process::exit(1);
+24 |     pub async fn record_change(
+24 |     pub color_no: Option<String>,
+24 |     pub primary_url: String,
+242 |             previous_jwt_secret: None,
+245 |           let _reasons = vec![
+245 | impl FieldValidator {
+245 ~         let _reasons = [AdjustmentReason::Stocktake,
+246 +             AdjustmentReason::Damage,
+246 | |             AdjustmentReason::Stocktake,
+247 +             AdjustmentReason::Expiry,
+247 | |             AdjustmentReason::Damage,
+248 +             AdjustmentReason::Loss,
+248 |     pub async fn find_by_name(&self, name: &str) -> Result<department::Model, AppError> {
+248 | |             AdjustmentReason::Expiry,
+249 +             AdjustmentReason::Found,
+25 |     /// 备库 URL
+25 |     CIF,
+25 |     pub grade: Option<String>,
+25 |     struct PurchaseOrder {
+25 | pub struct ApprovePriceRequest {
+25 | pub struct CreateContractRequest {
+25 | pub struct CreateSalesContractRequest {
+25 | pub struct FailoverCache {
+250 ~             AdjustmentReason::SystemError];
+251 | impl ElasticClient {
+251 | |             AdjustmentReason::SystemError,
+252 |     /// 创建 mock 客户端
+252 | |         ];
+253 |     pub fn mock() -> Self {
+255 |     struct ReturnRequest {
+256 |         pub order_amount: Decimal,
+256 |     pub fn integer(value: &str, field_name: &str) -> Result<i32, String> {
+256 |     pub fn mask_fields(&self, data: &mut serde_json::Value, permissions: &[FieldPermissionDetail]) {
+257 |     pub async fn get_inventory_turnover(
+259 |         pub reason: String,
+26 |         pub id: i64,
+26 |     pub approved: bool,
+26 |     pub backup_url: String,
+26 |     pub warehouse_id: Option<i32>,
+26 | pub const P92_AUTO_MODULE: &str = "scheduling_auto";
+263 |     pub fn decimal(value: &str, field_name: &str) -> Result<rust_decimal::Decimal, String> {
+268 |     pub async fn doc_count(&self, index: &str) -> usize {
+27 |     EXW,
+27 |     VIP,
+27 |     pub batch_no: Option<String>,
+27 |     pub remark: Option<String>,
+27 |     pub start_date: Option<DateTime<Utc>>,
+27 | impl FabricFiveDimension {
+27 | impl PasswordHistory {
+27 | pub const P92_QRY_MODULE: &str = "scheduling_query";
+27 | pub enum WorkflowStage {
+27 | pub fn slow_query_threshold() -> Duration {
+27 | pub struct ApprovePriceRequest {
+27 | pub struct FailoverMetrics {
+270 |     pub fn date(value: &str, field_name: &str) -> Result<chrono::NaiveDate, String> {
+276 |     pub fn boolean(value: &str, field_name: &str) -> Result<bool, String> {
+28 |     /// 主调用总次数
+28 |     /// 创建指定容量的历史
+28 |     pub approved: bool,
+28 |     pub color_no: Option<String>,
+28 |     pub end_date: Option<DateTime<Utc>>,
+28 | pub const P92_QRY_MODULE: &str = "sales_order_query";
+282 |     pub fn record_order_created(&self, tenant_id: i64, status: &str) {
+284 |     pub async fn list_stock_fabric(
+287 |     pub fn set_users_active(&self, count: i64) {
+29 |             assert_eq!(next.as_str(), *exp, "状态应推进到 {}", exp);
+29 |     DDP,
+29 |     NORMAL,
+29 |     pub fn new(capacity: usize) -> Self {
+29 |     pub primary_total: IntCounterVec,
+29 |     pub remark: Option<String>,
+29 | impl ColorPriceHistoryService {
+29 | pub enum FailoverError<E> {
+29 | pub struct CreateWarehouseRequest {
+29 | pub struct RecordQuery {
+292 |     pub fn set_ar_balance(&self, tenant_id: i64, balance_fen: i64) {
+297 |     pub fn set_ap_balance(&self, tenant_id: i64, balance_fen: i64) {
+3 |     ProcessDefinitionQuery, StartProcessRequest, StartProcessResponse, TaskQuery, TemplateQuery,
+30 +         assert_eq!(node_type_to_status("yarn_purchasing"), Some(CustomOrderStatus::YarnPurchasing));
+30 -         assert_eq!(node_type_to_status("yarn_purchasing"), Some(crate::utils::process_state_machine::CustomOrderStatus::YarnPurchasing));
+30 |         assert_eq!(node_type_to_status("yarn_purchasing"), Some(crate::bingxi_backend::utils::process_state_machine::CustomOrderStatus::YarnPurchasing));
+30 |     /// 主调用失败总次数
+30 |     pub fn generate_unique_id(&self) -> String {
+30 |     pub fn new(db: Arc<DatabaseConnection>) -> Self {
+30 |     pub product_id: Option<i32>,
+30 |     pub remark: Option<String>,
+30 | ...   assert_eq!(node_type_to_status("yarn_purchasing"), Some(crate::utils::process_state_machine::CustomOrderStatus::YarnPurchasing));
+30 | impl AdjustType {
+30 | impl MovementType {
+30 | impl StockFilter {
+30 | pub enum SchedulingAlgo {
+302 |     pub fn max_length(value: &str, field_name: &str, max_len: usize) -> Result<(), String> {
+302 |     pub fn set_inventory_value(&self, tenant_id: i64, value_fen: i64) {
+308 |     pub fn record_cache_hit(&self) {
+31 +         assert_eq!(node_type_to_status("dyeing"), Some(CustomOrderStatus::Dyeing));
+31 -         assert_eq!(node_type_to_status("dyeing"), Some(crate::utils::process_state_machine::CustomOrderStatus::Dyeing));
+31 |         assert_eq!(node_type_to_status("dyeing"), Some(crate::bingxi_backend::utils::process_state_machine::CustomOrderStatus::Dyeing));
+31 |         assert_eq!(node_type_to_status("dyeing"), Some(crate::utils::process_state_machine::CustomOrderStatus::Dyeing));
+31 |         pub status: PurchaseStatus,
+31 |     /// 中文描述
+31 |     /// 是否为空过滤
+31 |     DAP,
+31 |     pub batch_number: Option<String>,
+31 |     pub fn desc(&self) -> &'static str {
+31 |     pub primary_failed_total: IntCounterVec,
+31 | pub const P92_CRUD_MODULE: &str = "sales_order_crud";
+31 | pub struct GanttItem {
+31 | pub struct ProcessNodeQuery {
+31 | use crate::services::event_bus::{BusinessEvent, ShippedItem};
+313 |     pub fn record_cache_miss(&self) {
+318 |     pub fn cache_hit_ratio(&self) -> f64 {
+32 +         assert_eq!(node_type_to_status("finishing"), Some(CustomOrderStatus::Finishing));
+32 -         assert_eq!(node_type_to_status("finishing"), Some(crate::utils::process_state_machine::CustomOrderStatus::Finishing));
+32 |         assert_eq!(node_type_to_status("finishing"), Some(crate::bingxi_backend::utils::process_state_machine::CustomOrderStatus::Finishing));
+32 |         assert_eq!(node_type_to_status("finishing"), Some(crate::utils::process_state_machine::CustomOrderStatus::Finishing));
+32 |     /// 备用调用总次数
+32 |     pub fn desc(&self) -> &'static str {
+32 |     pub fn is_empty(&self) -> bool {
+32 |     pub remark: Option<String>,
+32 | impl ColorPriceTierService {
+32 | pub struct OrderQuery {
+327 |     pub fn record_login(&self, success: bool) {
+33 +         assert_eq!(node_type_to_status("delivery"), Some(CustomOrderStatus::Delivery));
+33 -         assert_eq!(node_type_to_status("delivery"), Some(crate::utils::process_state_machine::CustomOrderStatus::Delivery));
+33 |         assert_eq!(node_type_to_status("delivery"), Some(crate::bingxi_backend::utils::process_state_machine::CustomOrderStatus::Delivery));
+33 |         assert_eq!(node_type_to_status("delivery"), Some(crate::utils::process_state_machine::CustomOrderStatus::Delivery));
+33 |     pub backup_total: IntCounterVec,
+33 |     pub fn new(db: Arc<DatabaseConnection>) -> Self {
+33 |     struct Payment {
+33 | /     pub fn from_str(s: &str) -> Option<Self> {
+33 | pub struct CreateBatchRequest {
+33 | pub struct CreateFabricOrderRequest {
+33 | pub struct InventorySummaryQueryResult {
+33 | pub struct ObservabilityConfig {
+33 | pub struct PriceHistoryQuery {
+333 |     pub fn record_lockout(&self) {
+334 | pub struct SubjectBalance {
+339 |     pub fn record_slow_query(&self, label: &str, duration_secs: f64) {
+34 +         assert_eq!(node_type_to_status("after_sales"), Some(CustomOrderStatus::AfterSales));
+34 -         assert_eq!(node_type_to_status("after_sales"), Some(crate::utils::process_state_machine::CustomOrderStatus::AfterSales));
+34 |         assert_eq!(node_type_to_status("after_sales"), Some(crate::bingxi_backend::utils::process_state_machine::CustomOrderStatus::AfterSales));
+34 |         assert_eq!(node_type_to_status("after_sales"), Some(crate::utils::process_state_machine::CustomOrderStatus::AfterSales));
+34 |     enum InspectionResult {
+34 | impl CacheStats {
+34 | impl UserService {
+34 | |         match s {
+346 |     pub fn record_rate_limit_blocked(&self, scope: &str) {
+35 |         Pending,
+35 |     /// 计算命中率（0.0 - 1.0）
+35 |     PrimaryTimeout,
+35 |     pub manager: Option<String>,
+35 | impl ProductService {
+35 | pub fn clear_admin_role_cache(role_id: Option<i32>) {
+35 | pub struct UpdateQualityStandardRequest {
+35 | |             "draft" => Some(Self::Draft),
+351 |     pub fn record_security_alert(&self, alert_type: &str) {
+356 |     pub fn record_sql_injection_blocked(&self) {
+36 |     pub fn hit_ratio(&self) -> f64 {
+36 |     pub fn parse_five_dimension_id(five_dim_id: &str) -> Option<FabricFiveDimension> {
+36 |     pub phone: Option<String>,
+36 |     pub warehouse_id: i32,
+36 | pub struct SlowQueryRecorder {
+36 | |             "yarn_purchasing" => Some(Self::YarnPurchasing),
+362 | pub fn render_prometheus_metrics(registry: &Registry) -> Result<String, prometheus::Error> {
+364 | impl SearchSyncer {
+365 |     pub fn new(client: Arc<dyn SearchClient>) -> Self {
+37 |     pub capacity: Option<i32>,
+37 |     pub circuit_state: IntGaugeVec,
+37 |     pub fn push(&mut self, hash: String) {
+37 | impl AuditContext {
+37 | impl SchedulingAlgo {
+37 | pub struct CreateReconciliationRequest {
+37 | pub struct ExecuteContractRequest {
+37 | pub struct ExecuteSalesContractRequest {
+37 | pub struct PriceTierInfo {
+370 |     pub async fn sync_sales_order(&self, doc: &SalesOrderDoc) -> Result<(), SearchError> {
+370 | pub fn build_registry_and_metrics() -> Result<(Arc<Registry>, BusinessMetrics), prometheus::Error> {
+378 |     pub async fn sync_customer(&self, doc: &CustomerDoc) -> Result<(), SearchError> {
+38 |     /// 构造空上下文（缺省值，避免 service 调用时 unwrap）
+38 |     fn median(values: &mut Vec<Decimal>) -> Decimal {
+38 |     pub color_name: Option<String>,
+38 |     pub description: Option<String>,
+38 |     pub fn desc(&self) -> &'static str {
+38 |     struct Quotation {
+38 | pub async fn csp_middleware(req: Request, next: Next) -> Response {
+38 | pub struct DefectQuery {
+39 |         pub id: i32,
+39 |     pub fn empty() -> Self {
+39 |     pub fn from_unique_id(unique_id: &str) -> Result<Self, String> {
+39 |     pub record_id: Option<i32>,
+39 | impl GanttItem {
+39 | pub struct AdvanceNodeRequest {
+39 | pub struct CacheFailoverConfig {
+4 |     UpdateProcessDefinitionRequest,
+4 | use crate::models::tenant_plan::{self, Entity as TenantPlan};
+4 | use sea_orm::{ActiveModelTrait, DatabaseConnection, EntityTrait};
+40 |         pub code: String,
+40 |     /// Redis 主缓存 URL
+40 |     pub fn duration_days(&self) -> i64 {
+40 |     pub payment_terms: Option<String>,
+40 |     pub remark: Option<String>,
+40 | impl ApproverRole {
+40 | impl ColorCardCrudService {
+40 | impl ColorPriceBatchService {
+40 | impl TokenBucket {
+40 | pub struct InventoryCountService {
+40 | pub struct WorkCenterCapacity {
+41 |         pub customer_id: i32,
+41 |     /// 从数据库连接构造
+41 |     /// 创建新桶（满载）
+41 |     db: Arc<DatabaseConnection>,
+41 |     pub fn new(db: Arc<DatabaseConnection>) -> Self {
+41 |     pub fn with_cache(db: Arc<DatabaseConnection>, cache: Arc<CacheService>) -> Self {
+41 |     pub primary_url: String,
+41 |     pub related_bill_type: Option<String>,
+41 |     pub remarks: Option<String>,
+41 | impl ColorPriceCrudService {
+41 | pub struct UpdateSeasonalRuleDto {
+42 |     /// 从数据库连接构造
+42 |     /// 进程内 LRU 最大条目数
+42 |     pub batch_no: Option<String>,
+42 |     pub fn desc(&self) -> String {
+42 |     pub fn new(capacity: f64, refill_rate: f64) -> Self {
+42 |     pub fn new(db: Arc<DatabaseConnection>) -> Self {
+42 |     pub related_bill_id: Option<i32>,
+42 |     pub remark: Option<String>,
+42 | impl WorkflowStage {
+42 | pub struct CreditRatingRequest {
+43 |     /// 中文描述
+43 |     pub backup_max_entries: usize,
+43 |     pub color_no: Option<String>,
+43 |     pub fn new(db: Arc<DatabaseConnection>) -> Self {
+43 | pub struct UpdateWarehouseRequest {
+431 |     pub async fn get_payment_schedule(
+44 |         pub status: QuotationStatus,
+44 |     /// 主调用超时（毫秒）
+44 |     BothFailed(E, E),
+44 |     pub dye_lot_no: Option<String>,
+44 |     pub fn desc(&self) -> &'static str {
+44 |     pub fn desc(&self) -> String {
+44 |     pub fn is_positive(&self) -> bool {
+44 | pub fn cleanup_expired_admin_cache() {
+44 | pub struct QualityIssueDetail {
+45 |         pub valid_until: chrono::NaiveDate,
+45 |     pub grade: Option<String>,
+45 |     pub primary_timeout_ms: u64,
+45 | impl OrderQuery {
+45 | pub struct CreateVersionHistoryRequest {
+45 | |     }
+46 |     /// 备用调用超时（毫秒）
+46 |     /// 是否为空查询
+46 |     pub notes: Option<String>,
+46 |     pub packaging_requirement: Option<String>,
+46 | struct AvgLeadTimeResult {
+47 |     BothTimeout,
+47 |     pub async fn lock_reservation(
+47 |     pub backup_timeout_ms: u64,
+47 |     pub fn is_empty(&self) -> bool {
+47 |     pub quality_standard: Option<String>,
+47 |     pub supplier_id: Option<i32>,
+47 |     struct CustomerCredit {
+47 | impl BorrowStatus {
+47 | impl SlowQueryRecorder {
+47 | pub struct ProcessOptDetailVo {
+470 |     pub async fn export_excel_bytes(
+48 |         pub customer_id: i64,
+48 |     /// 启动一个慢查询记录器
+48 |     pub change_reason: String,
+48 |     pub fn as_str(&self) -> &'static str {
+48 |     pub fn with_cache(db: Arc<DatabaseConnection>, cache: Arc<CacheService>) -> Self {
+48 |     pub purchase_order_no: Option<String>,
+48 |     pub remark: Option<String>,
+481 |     pub async fn export_pdf_bytes(
+49 |     pub capacity: Option<i32>,
+49 |     pub fn start(label: &'static str, tenant_id: i64, metrics: Option<Arc<MetricsService>>) -> Self {
+49 |     pub remarks: Option<String>,
+49 | pub struct CustomerColorPriceInfo {
+49 | pub struct TimeSlot {
+491 | pub struct LimitViolation {
+50 |     CircuitOpen,
+506 | pub async fn cleanup_expired_jti(_max_age_secs: i64) {
+51 |     struct SalesOrder {
+51 | pub struct AuthConfig {
+51 | pub struct BusinessMetrics {
+51 | pub struct UpdateReconciliationRequest {
+52 |         pub id: i64,
+52 |     pub fn try_acquire(&mut self) -> bool {
+52 | pub struct FabricOrderItemRequest {
+52 | pub struct LockoutInfo {
+522 | pub struct PaymentScheduleItem {
+53 |         pub customer_id: i64,
+53 |     pub product_id: i32,
+53 | pub struct CreditLimitAdjustmentRequest {
+54 |     pub fn code(&self) -> &'static str {
+54 |     pub product_name: Option<String>,
+54 |     struct SupplierRating {
+55 |         pub supplier_id: i64,
+55 | pub fn rgb_to_hex(r: u8, g: u8, b: u8) -> String {
+55 | pub fn sha256_hex_multi(parts: &[&[u8]]) -> String {
+56 |         pub score: u8,
+56 |     pub fn desc(&self) -> String {
+56 | impl ColorCardItemService {
+57 |         pub on_time_rate: Decimal,
+57 |     pub fn new(db: Arc<DatabaseConnection>) -> Self {
+57 |     pub reason: String,
+570 |     pub async fn create_supplier_qualification(
+59 |     pub fn finish(self) {
+6 | pub struct FiveDimensionQueryService;
+6 | use chrono::{DateTime, Utc};
+6 | use serde::{Deserialize, Serialize};
+60 |         VIP,
+60 |     pub async fn record_change(
+60 | /     pub async fn record_change(
+61 |     pub batch_no: Option<String>,
+61 | |         &self,
+62 |     pub dye_lot_no: Option<String>,
+62 | impl CircuitBreaker {
+62 | |         price_id: i64,
+63 |     fn refill(&mut self) {
+63 | pub struct LocationListQuery {
+63 | |         old_price: Decimal,
+64 |     pub webhook_inherit_jwt_secret: bool,
+65 | pub fn must_some<T>(opt: Option<T>, ctx: &str) -> T {
+66 |     struct StockRecord {
+66 | pub struct BudgetExecuteRequest {
+67 |         pub product_id: i32,
+67 |     pub plan_id: i32,
+67 |     pub search: Option<String>,
+67 | impl ObservabilityConfig {
+67 | pub struct VoucherQueryParams {
+68 |         pub warehouse_id: i32,
+68 |     /// 从环境变量加载
+68 |     struct Receipt {
+68 | pub struct TransferBatchRequest {
+69 |         pub po_id: i32,
+69 |     pub fn from_env() -> Self {
+69 |     pub fn is_terminal(&self) -> bool {
+69 |     pub from_warehouse_id: i32,
+69 | pub struct AutoMatchRequest {
+7 |     ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, ModelTrait, Order,
+7 |     ActiveModelTrait, ColumnTrait, EntityTrait, QueryFilter, Set, UpdateMany,
+7 | use std::sync::Arc;
+71 |     pub fn available(&mut self) -> f64 {
+71 | |         tenant_id: i64,
+72 |     pub async fn save_as_template(&self, _id: i32, _name: String) -> Result<(), AppError> {
+72 |     pub batch_no: Option<String>,
+72 | pub struct AbcClassification {
+72 | |     ) -> Result<color_price_history::Model, HistoryError> {
+73 |     pub color_no: Option<String>,
+73 |     pub match_strategy: Option<String>,
+73 |     pub remarks: Option<String>,
+73 | pub struct AdvanceStatusDto {
+73 | pub struct SeasonalRuleInfo {
+74 |     pub async fn release_reservation(
+75 |     pub total_sales: rust_decimal::Decimal,
+76 |     pub cumulative_ratio: f64,
+76 | pub fn must_ok<T, E: std::fmt::Display>(r: Result<T, E>, ctx: &str) -> T {
+77 | impl KafkaEventEnvelope {
+773 | pub struct VoucherDetail {
+774 |     pub voucher: voucher::Model,
+775 |     pub items: Vec<voucher_item::Model>,
+79 |               custom_requirements: Set(dto
+79 | impl ColorCardBorrowService {
+79 | pub struct UpdateFabricOrderRequest {
+79 ~             custom_requirements: Set(dto
+8 |     CustomerDoc, DocType, ElasticClient, ProductDoc, SalesOrderDoc, SalesOrderItemDoc, SearchClient,
+8 |     routing::{delete, get, post, put},
+8 |     routing::{get, post, put},
+8 | pub struct ArService {
+8 | use sea_orm::{ActiveModelTrait, ColumnTrait, EntityTrait, QueryFilter};
+8 | use sea_orm::{ActiveModelTrait, EntityTrait, QueryOrder};
+8 | use tracing::info;
+80 +                 .custom_requirements.clone()
+80 |     pub fn default_breaker() -> Self {
+80 |     pub fn new(db: Arc<DatabaseConnection>) -> Self {
+80 | pub trait SlowQueryMetrics {
+80 | |                 .custom_requirements
+81 | pub struct InventoryTurnover {
+81 | |                 .as_ref()
+82 | |                 .map(|v| v.clone())
+84 |     pub payment_terms: Option<String>,
+85 |     pub remarks: Option<String>,
+85 | pub struct UpdateLocationRequest {
+86 |     pub items: Option<Vec<FabricOrderItemRequest>>,
+86 |     pub location_name: Option<String>,
+87 |     pub batch_no: Option<String>,
+87 |     pub location_type: Option<String>,
+88 |     pub async fn record_order_created(
+88 |     pub color_no: Option<String>,
+88 |     pub zone: Option<String>,
+89 |     pub capacity: Option<f64>,
+89 |     pub packaging_requirement: Option<String>,
+9 |     SearchError, SearchHit, SearchQuery, SearchResult, SearchSyncer,
+9 |     db: Arc<DatabaseConnection>,
+90 |         let mut bus = EventBus::new(producer);
+90 |     pub quality_standard: Option<String>,
+90 |     pub status: Option<String>,
+90 | /     pub async fn list(
+91 | pub struct StockOutRequest {
+91 | |         &self,
+92 | |         tenant_id: i64,
+93 | |         page: u64,
+94 |     pub remarks: Option<String>,
+94 | pub struct OptionalAuthContext {
+95 |     pub fn into_event(self) -> Result<BusinessEvent, String> {
+98 | |         keyword: Option<String>,
+99 | pub struct ResourceAttrs {
+99 | |     ) -> Result<(Vec<color_card::Model>, u64), CrudError> {
+error[E0277]: can't compare `&str` with `str`
+error[E0433]: failed to resolve: unresolved import
+help: a similar path exists
+help: consider importing this enum
+help: if you import `CustomOrderStatus`, refer to it directly
+help: try
+help: you can use an array directly
+warning: `eprintln` does not refer to a reachable function
+warning: `println` does not refer to a reachable function
+warning: associated function `default_breaker` is never used
+warning: associated function `empty` is never used
+warning: associated function `export` is never used
+warning: associated function `from_config` is never used
+warning: associated function `from_env` is never used
+warning: associated function `is_api_key_revoked` is never used
+warning: associated function `new` is never used
+warning: associated function `with_cache` is never used
+warning: associated functions `from_claims` and `empty` are never used
+warning: associated functions `integer`, `decimal`, `date`, `boolean`, and `max_length` are never used
+warning: associated functions `new`, `generate_five_dimension_id`, and `parse_five_dimension_id` are never used
+warning: associated items `calculate_next_run` and `parse_cron_field` are never used
+warning: associated items `generate_unique_id` and `from_unique_id` are never used
+warning: associated items `mock` and `doc_count` are never used
+warning: associated items `new` and `create_collection` are never used
+warning: associated items `new` and `push` are never used
+warning: associated items `new` and `record_change` are never used
+warning: associated items `new` and `scan_by_id` are never used
+warning: associated items `new` and `update` are never used
+warning: associated items `new`, `broadcast_notification`, and `manager` are never used
+warning: associated items `new`, `check`, `remaining`, and `cleanup` are never used
+warning: associated items `new`, `create_log`, `log_success`, `list_logs`, `list_logs_by_module`, and `list_logs_by_user` are never used
+warning: associated items `new`, `is_locked`, `record_failure`, `record_success`, and `is_expired` are never used
+warning: associated items `new`, `sync_sales_order`, and `sync_customer` are never used
+warning: associated items `new`, `try_acquire`, `refill`, and `available` are never used
+warning: associated items `start` and `finish` are never used
+warning: constant `CSP_POLICY` is never used
+warning: constant `P92_AUTO_MODULE` is never used
+warning: constant `P92_CRUD_MODULE` is never used
+warning: constant `P92_LEDGER_MODULE` is never used
+warning: constant `P92_MANUAL_MODULE` is never used
+warning: constant `P92_QRY_MODULE` is never used
+warning: constant `P92_WF_MODULE` is never used
+warning: enum `AdjustType` is never used
+warning: enum `ExportFormat` is never used
+warning: enum `MovementType` is never used
+warning: enum `ScanError` is never used
+warning: enum `SchedulingAlgo` is never used
+warning: enum `WorkflowStage` is never used
+warning: field `capacity` is never read
+warning: field `change_reason` is never read
+warning: field `config` is never read
+warning: field `customer_id` is never read
+warning: field `db` is never read
+warning: field `items` is never read
+warning: field `match_strategy` is never read
+warning: field `notes` is never read
+warning: field `plan_id` is never read
+warning: field `po_id` is never read
+warning: field `product_id` is never read
+warning: field `reason` is never read
+warning: field `record_id` is never read
+warning: field `remark` is never read
+warning: field `remarks` is never read
+warning: field `search` is never read
+warning: field `warehouse_id` is never read
+warning: field `webhook_inherit_jwt_secret` is never read
+warning: fields `approved` and `remark` are never read
+warning: fields `batch_no` and `color_no` are never read
+warning: fields `color_name`, `supplier_id`, `purchase_order_no`, and `remarks` are never read
+warning: fields `database`, `cache`, and `monitoring` are never read
+warning: fields `from_warehouse_id` and `remarks` are never read
+warning: fields `id` and `customer_id` are never read
+warning: fields `id` and `status` are never read
+warning: fields `id`, `code`, `customer_id`, `status`, and `valid_until` are never read
+warning: fields `location_name`, `location_type`, `zone`, `capacity`, and `status` are never read
+warning: fields `manager`, `capacity`, and `description` are never read
+warning: fields `order_amount` and `reason` are never read
+warning: fields `primary_total`, `primary_failed_total`, `backup_total`, and `circuit_state` are never read
+warning: fields `primary_url` and `backup_url` are never read
+warning: fields `primary_url`, `backup_max_entries`, `primary_timeout_ms`, and `backup_timeout_ms` are never read
+warning: fields `product_id` and `batch_number` are never read
+warning: fields `product_id` and `warehouse_id` are never read
+warning: fields `product_name`, `batch_no`, and `dye_lot_no` are never read
+warning: fields `related_bill_type` and `related_bill_id` are never read
+warning: fields `supplier_id` and `on_time_rate` are never read
+warning: fields `total_sales` and `cumulative_ratio` are never read
+warning: function `audit_logs` is never used
+warning: function `build_registry_and_metrics` is never used
+warning: function `cleanup_expired_admin_cache` is never used
+warning: function `cleanup_expired_jti` is never used
+warning: function `clear_admin_role_cache` is never used
+warning: function `contains_username_fragment` is never used
+warning: function `csp_middleware` is never used
+warning: function `delta_e_76` is never used
+warning: function `get_payment_schedule` is never used
+warning: function `health_check_task` is never used
+warning: function `init_global_metrics` is never used
+warning: function `is_common_password` is never used
+warning: function `must_ok` is never used
+warning: function `must_some` is never used
+warning: function `node_type_to_status` is never used
+warning: function `render_prometheus_metrics` is never used
+warning: function `rgb_to_hex` is never used
+warning: function `save_as_template` is never used
+warning: function `sha256_hex_multi` is never used
+warning: function `slow_queries` is never used
+warning: function `slow_query_threshold` is never used
+warning: method `code` is never used
+warning: method `config` is never used
+warning: method `create_receivable` is never used
+warning: method `create_supplier_qualification` is never used
+warning: method `desc` is never used
+warning: method `find_by_name` is never used
+warning: method `from_str` can be confused for the standard trait method `std::str::FromStr::from_str`
+warning: method `get_by_id` is never used
+warning: method `get_payment_schedule` is never used
+warning: method `get_standard_by_id` is never used
+warning: method `hit_ratio` is never used
+warning: method `into_event` is never used
+warning: method `list_stock_fabric` is never used
+warning: method `record` is never used
+warning: method `save_as_template` is never used
+warning: method `stats` is never used
+warning: method `update_tenant` is never used
+warning: method `with_highlight` is never used
+warning: methods `as_str` and `is_terminal` are never used
+warning: methods `broadcast` and `connection_count` are never used
+warning: methods `desc` and `is_positive` are never used
+warning: methods `duration_days` and `desc` are never used
+warning: methods `export_excel_bytes` and `export_pdf_bytes` are never used
+warning: methods `filter_fields_by_read_permission` and `mask_fields` are never used
+warning: methods `get_abc_classification` and `get_inventory_turnover` are never used
+warning: methods `is_empty` and `desc` are never used
+warning: methods `lock_reservation` and `release_reservation` are never used
+warning: methods `record_change` and `record_order_created` are never used
+warning: methods `record_primary`, `record_primary_failed`, `record_backup`, and `set_circuit_state` are never used
+warning: methods `update`, `delete`, `confirm`, `dispute`, and `close` are never used
+warning: multiple associated items are never used
+warning: multiple fields are never read
+warning: name `CIF` contains a capitalized acronym
+warning: name `DAP` contains a capitalized acronym
+warning: name `DDP` contains a capitalized acronym
+warning: name `EXW` contains a capitalized acronym
+warning: name `FOB` contains a capitalized acronym
+warning: name `NORMAL` contains a capitalized acronym
+warning: name `VIP` contains a capitalized acronym
+warning: struct `AdvanceNodeRequest` is never constructed
+warning: struct `AdvanceStatusDto` is never constructed
+warning: struct `ArCollectionService` is never constructed
+warning: struct `AvgLeadTimeResult` is never constructed
+warning: struct `BusinessMetrics` is never constructed
+warning: struct `ConvertToOrderDto` is never constructed
+warning: struct `CreateOperationLogRequest` is never constructed
+warning: struct `CustomerColorPriceInfo` is never constructed
+warning: struct `FabricFiveDimension` is never constructed
+warning: struct `FailoverCache` is never constructed
+warning: struct `FiveDimensionQueryService` is never constructed
+warning: struct `GanttItem` is never constructed
+warning: struct `InventorySummaryItem` is never constructed
+warning: struct `InventoryTurnover` is never constructed
+warning: struct `LimitViolation` is never constructed
+warning: struct `LockoutInfo` is never constructed
+warning: struct `NotificationBroadcaster` is never constructed
+warning: struct `ObservabilityConfig` is never constructed
+warning: struct `OperationLogService` is never constructed
+warning: struct `OptionalAuthContext` is never constructed
+warning: struct `OrderQuery` is never constructed
+warning: struct `PaymentScheduleItem` is never constructed
+warning: struct `PaymentScheduleParams` is never constructed
+warning: struct `Payment` is never constructed
+warning: struct `PriceHistoryQuery` is never constructed
+warning: struct `PriceTierInfo` is never constructed
+warning: struct `ProcessNodeDetail` is never constructed
+warning: struct `ProcessNodeQuery` is never constructed
+warning: struct `ProcessOptDetailVo` is never constructed
+warning: struct `QualityIssueDetail` is never constructed
+warning: struct `ResourceAttrs` is never constructed
+warning: struct `SalesPoint` is never constructed
+warning: struct `SeasonalRuleInfo` is never constructed
+warning: struct `SlowQueryRecorder` is never constructed
+warning: struct `StockFilter` is never constructed
+warning: struct `SubjectBalance` is never constructed
+warning: struct `TimeSlot` is never constructed
+warning: struct `UpdateReconciliationRequest` is never constructed
+warning: struct `UpdateSeasonalRuleDto` is never constructed
+warning: struct `WorkCenterCapacity` is never constructed
+warning: this call to `as_ref.map(...)` does nothing
+warning: this expression creates a reference which is immediately dereferenced by the compiler
+warning: this function has too many arguments (11/7)
+warning: this function has too many arguments (8/7)
+warning: trait `SlowQueryMetrics` is never used
+warning: type alias `Auth` is never used
+warning: unreachable expression
+warning: unused import: `ActiveModelTrait`
+warning: unused import: `IntoActiveModel`
+warning: unused import: `ModelTrait`
+warning: unused import: `QueryFilter`
+warning: unused import: `QuerySelect`
+warning: unused import: `Serialize`
+warning: unused import: `ShippedItem`
+warning: unused import: `Statement`
+warning: unused import: `UpdateMany`
+warning: unused import: `crate::middleware::auth_context::AuthContext`
+warning: unused import: `delete`
+warning: unused import: `put`
+warning: unused import: `rust_decimal::prelude::*`
+warning: unused import: `self`
+warning: unused import: `std::sync::Arc`
+warning: unused import: `super::*`
+warning: unused import: `tracing::info`
+warning: unused imports: `ConnectionManager`, `NotificationBroadcaster`, and `WsMessage`
+warning: unused imports: `CreateProcessDefinitionRequest`, `CreateVersionRequest`, `ProcessDefinitionQuery`, `TemplateQuery`, and `UpdateProcessDefinitionRequest`
+warning: unused imports: `DateTime` and `Utc`
+warning: unused imports: `Deserialize` and `Serialize`
+warning: unused imports: `DocType`, `ElasticClient`, `SalesOrderItemDoc`, `SearchClient`, `SearchError`, `SearchHit`, `SearchResult`, and `SearchSyncer`
+warning: useless use of `vec!`
+warning: variable does not need to be mutable
+warning: variant `Pending` is never constructed
+warning: variant `PriceNotFound` is never constructed
+warning: variant `RgbOutOfRange` is never constructed
+warning: variants `Adjustment` and `Stocktake` are never constructed
+warning: variants `Partial` and `Cancelled` are never constructed
+warning: variants `PrimaryTimeout`, `BothFailed`, `BothTimeout`, and `CircuitOpen` are never constructed
+warning: variants `Received` and `Cancelled` are never constructed
+warning: writing `&mut Vec` instead of `&mut [_]` involves a new object where a slice will do
