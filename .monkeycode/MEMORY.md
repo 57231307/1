@@ -20,7 +20,52 @@
 
 ---
 
-## 当前任务状态（2026-06-25 综合审计周期）
+## 当前任务状态（2026-06-25 综合审计修复批次，9 commits 待推送）
+
+### 🟢 综合审计修复批次（9 项已修复，待 CI 验证）
+
+- **审计报告**：[`.monkeycode/docs/audits/2026-06-25-comprehensive-audit.md`](file:///workspace/.monkeycode/docs/audits/2026-06-25-comprehensive-audit.md)
+- **修复批次**：9 个独立 commit（待推送触发 CI）
+- **沙箱限制**：22 端口阻断，需用户在本地终端执行 `git push origin <branch>` 推送
+
+#### 已修复（9 项）
+
+| # | 严重度 | 问题 | 状态 |
+|---|--------|------|------|
+| P0-1 | P0 | AP 发票汇率 0.01 → 1.0（常量化 + 单元测试） | ✅ |
+| P1-1 | P1 | H-3 init SSRF 完整修复（port+IP白名单+脱敏+初始化约束） | ✅ |
+| P1-2 | P1 | H-1 Webhook TOCTOU 删除内联 IP 校验（统一 ssrf_guard） | ✅ |
+| P1-3 | P1 | H-2 EmailConfig.api_url 死字段删除 | ✅ |
+| P1-4 | P1 | quotations 双重路由注册去重 | ✅ |
+| P1-10 | P1 | AP 发票自动生成保留 PENDING + 传递 tax_amount | ✅ |
+| P1-11 | P1 | 销售订单/AP 发票审批 user_id 硬编码 0 修复 | ✅ |
+| P1-13/14/15 | P1 | audit_log/slow_query 死代码补挂载 + 移除 14 处标记 | ✅ |
+| P2-7 | P2 | custom_order_process_test.rs crate:: 编译错误 | ✅ |
+
+#### 漏洞状态更新
+
+- **H-2** ✅ 已修复（死字段删除）
+- **H-3** ✅ 已修复（5 检查点全部实现）
+- **H-1** 🟡 接近完成（仅剩 reqwest connector TOCTOU 改造）
+- **P0-1** ✅ 已修复（汇率常量化 + 单元测试；历史数据订正脚本待办）
+- **P1-11** ✅ 已修复（user_id 真实传递；mark_as_paid 事件驱动场景保留 TODO）
+
+#### 残留待办（下一迭代）
+
+1. **H-1 最终修复**：reqwest 自定义 connector 强制使用解析的 IP connect（消除 TOCTOU）
+2. **P0-1 历史数据订正**：已生成的错误汇率数据需订正脚本
+3. **前端断链修复**：采购域单复数（P1-6）/ 5 模块断链（P1-7）/ quotations 子端点（P1-8）
+4. **销售订单状态机重写**（P1-9）：枚举与实际状态字符串对齐
+5. **前端权限码接入**（P1-19/20/21）：路由 meta.permission + 菜单动态渲染 + 守卫权限校验
+6. **假测试重写 + E2E 配置修复**（P2-8/9/10）：22 个假测试 + 8 处恒真断言 + playwright testDir
+7. **Handler 返回类型统一**（P1-5）：5 种风格 → `Result<Json<ApiResponse<T>>, AppError>`
+8. **硬编码 CNY / f64 金额 / 无分页**（P1-16/17/18）
+9. **跨模块分组归位**（P1-22）
+10. **功能缺失补齐**（P2-1~6）
+
+---
+
+## 历史任务状态（2026-06-25 综合审计周期）
 
 ### 🟡 项目综合审计（37 项发现，2026-06-25 完成）
 

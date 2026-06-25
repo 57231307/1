@@ -2,6 +2,43 @@
 
 > 重要变更一句话摘要列表。详细历史请查阅 [`.monkeycode/docs/archives/`](file:///workspace/.monkeycode/docs/archives/)。
 
+## 2026-06-25 (综合审计修复批次，9 commits 待推送)
+
+### 修复批次总结（9 项审计发现已修复）
+
+**审计报告**：[`.monkeycode/docs/audits/2026-06-25-comprehensive-audit.md`](file:///workspace/.monkeycode/docs/audits/2026-06-25-comprehensive-audit.md)
+
+**修复清单**（9 个独立 commit）：
+
+| # | 严重度 | 问题 | commit |
+|---|--------|------|--------|
+| 1 | P0 | AP 发票汇率 0.01 → 1.0（财务数据缩小 100 倍） | `fix(ap-invoice)` |
+| 2 | P1 | H-3 init SSRF 完整修复（port+IP白名单+脱敏+初始化约束） | `security(init)` |
+| 3 | P1 | H-1 Webhook TOCTOU 删除内联 IP 校验（统一 ssrf_guard） | `refactor(webhook)` |
+| 4 | P1 | H-2 EmailConfig.api_url 死字段删除 | `refactor(email)` |
+| 5 | P1 | AP 发票自动生成保留 PENDING + 传递 tax_amount | `fix(ap-invoice)` |
+| 6 | P1 | 销售订单/AP 发票审批 user_id 硬编码 0 修复 | `fix(audit)` |
+| 7 | P1 | quotations 双重路由注册去重 | `refactor(routes)` |
+| 8 | P1 | audit_log/slow_query 死代码补挂载 + 移除 14 处标记 | `refactor(routes)` |
+| 9 | P2 | custom_order_process_test.rs crate:: 编译错误修复 | `test(custom-order)` |
+
+**漏洞状态更新**：
+- H-2 ✅ 已修复（死字段删除）
+- H-3 ✅ 已修复（5 检查点全部实现）
+- H-1 🟡 接近完成（仅剩 reqwest connector TOCTOU 改造）
+- P0-1 ✅ 已修复（汇率常量化 + 单元测试）
+- P1-11 ✅ 已修复（user_id 真实传递，mark_as_paid 保留 TODO）
+
+**待办**（下一迭代）：
+- H-1 最终修复（reqwest 自定义 connector 强制 IP connect）
+- P0-1 历史数据订正脚本
+- 前端断链修复（采购域单复数 / 5 模块断链 / quotations 子端点）
+- 销售订单状态机重写（P1-9）
+- 前端权限码接入路由/菜单（P1-19/20/21）
+- 假测试重写 + E2E 配置修复（P2-8/9/10）
+
+---
+
 ## 2026-06-25 (项目综合审计周期)
 
 ### 综合审计报告（37 项发现）
