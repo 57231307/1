@@ -5,6 +5,48 @@
 
 ---
 
+# 项目记忆
+
+## 关键项目规则（必读）
+
+1. **CI/CD Only 验证**：禁止本地编译/构建。所有验证必须通过 CI/CD pipeline。
+2. **每项修复 1 commit**：bug 修复按"每项 1 commit"原则，便于回滚和审计。
+3. **多语言禁止**：项目所有文本必须使用中文（注释、用户界面、文档）。
+4. **任务管理**：使用 TodoWrite 跟踪进度，状态实时更新。
+5. **memory 优先**：每次操作前查看 MEMORY.md / doto.md / bug.md。
+6. **关键变更必记录**：CHANGELOG.md 记录所有重要变更。
+7. **公开端点收敛**：当前仅登录/刷新/健康检查可匿名访问（2026-06-25 优化）。
+8. **租户隔离**：使用 `extract_tenant_id(&auth)?` 提取租户 ID，禁止用 `auth.tenant_id.unwrap_or(0)`。
+
+---
+
+## 当前任务状态（2026-06-25 09:30）
+
+### 第九次安全审计周期（PR #253）
+
+- **分支**: `fix/security-batch-2026-06-25`
+- **PR**: https://github.com/57231307/1/pull/253
+- **CI**: #1402 (in_progress)
+- **commits**: 9 个
+
+已提交：
+1. M-6 permission NULL 越权
+2. H-2 + M-5 + M-4 邮件服务
+3. M-1 客户 IDOR
+4. M-3 refresh_token
+5. M-7 SQL 注入黑名单
+6. L-2 legacy_jwt SameSite
+7. L-1 CSRF 公开端点
+8. public_routes 收敛
+9. import_export 优化
+
+待处理：
+- 监控 CI #1402 完成情况
+- 修复可能的 CI 失败
+- PR 合并到 main
+
+---
+
 ## 文件定义
 
 | 文件 | 用途 | 说明 |
