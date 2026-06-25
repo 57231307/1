@@ -38,10 +38,12 @@ pub struct EmailConfig {
     pub from_email: String,
     /// 发件人名称
     pub from_name: String,
-    /// API 基础 URL（可选，用于自定义端点；生产环境不建议使用）
-    /// ⚠️ 安全约束：自定义 URL 必须经过 SSRF 校验，
-    /// 默认使用各服务商官方 URL，禁止通过环境变量直接覆盖。
-    pub api_url: Option<String>,
+    // P1-3 修复（2026-06-25 综合审计）：
+    // 删除 api_url: Option<String> 字段（H-2 残留死字段）。
+    // 历史缺陷：该字段曾可由 EMAIL_API_URL 环境变量覆盖，导致 API Key 可被发送到
+    // 攻击者控制的服务器。H-2 修复后 from_env 不再读取环境变量，
+    // send_via_sendgrid 改用硬编码 SENDGRID_API_URL 常量，字段成为死字段。
+    // 删除后避免未来被误用复活环境变量注入路径。
 }
 
 /// 邮件内容
@@ -80,11 +82,11 @@ impl EmailService {
 
     /// 从环境变量创建邮件服务
     ///
-    /// 安全约束（H-2 修复）：
+    /// 安全约束（H-2 修复 + P1-3 死字段清理，2026-06-25 综合审计）：
     /// - 禁止从 `EMAIL_API_URL` 环境变量读取 API URL，防止环境变量注入导致 API Key 被
     ///   发送到攻击者控制的服务器。
-    /// - 各服务商 API URL 使用硬编码的官方地址。
-    /// - 如需自定义 URL，必须通过代码显式设置 EmailConfig.api_url，并经过 SSRF 校验。
+    /// - 各服务商 API URL 使用硬编码的官方地址（如 SENDGRID_API_URL 常量）。
+    /// - EmailConfig.api_url 字段已删除，不再保留可被误用的自定义 URL 入口。
     pub fn from_env() -> Option<Self> {
         let provider = std::env::var("EMAIL_PROVIDER").ok()?;
         let api_key = std::env::var("EMAIL_API_KEY").ok()?;
@@ -96,7 +98,6 @@ impl EmailService {
             api_key,
             from_email,
             from_name,
-            api_url: None,
         }))
     }
 

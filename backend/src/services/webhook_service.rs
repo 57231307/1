@@ -184,32 +184,18 @@ impl WebhookService {
             return Err(AppError::validation("仅允许 HTTPS 协议"));
         }
 
-        if let Ok(parsed_url) = reqwest::Url::parse(url) {
-            if let Some(host) = parsed_url.host_str() {
-                // 尝试解析 IP
-                if let Ok(addrs) = std::net::ToSocketAddrs::to_socket_addrs(&(host, 443)) {
-                    for addr in addrs {
-                        let ip = addr.ip();
-                        let is_private = match ip {
-                            std::net::IpAddr::V4(ipv4) => {
-                                ipv4.is_private()
-                                    || ipv4.is_loopback()
-                                    || ipv4.is_link_local()
-                                    || ipv4.is_broadcast()
-                                    || ipv4.is_documentation()
-                                    || ipv4.is_unspecified()
-                            }
-                            std::net::IpAddr::V6(ipv6) => {
-                                ipv6.is_loopback() || ipv6.is_unspecified() || ipv6.is_multicast()
-                            }
-                        };
-                        if is_private {
-                            return Err(AppError::validation("禁止访问内网或私有 IP 地址"));
-                        }
-                    }
-                }
-            }
-        }
+        // P1-2 修复（2026-06-25 综合审计）：删除 L187-212 内联 IP 校验逻辑，
+        // 统一调用 ssrf_guard::validate_url，消除两套校验逻辑覆盖范围不一致的问题。
+        //
+        // 原内联校验覆盖范围窄于 ssrf_guard：
+        // - 缺 CGNAT 100.64.0.0/10、保留 240.0.0.0/4、多播 224.0.0.0/4
+        // - IPv6 缺 link-local fe80::/10、ULA fc00::/7、IPv4-mapped、多播 ff00::/8
+        // ssrf_guard 已完整覆盖上述场景。
+        //
+        // 注意：TOCTOU 核心漏洞（client.post(url) 传 URL 字符串，reqwest 内部
+        // 第三次解析 DNS）仍存在，完整修复需在 connect 时强制使用解析的 IP，
+        // 待后续单独处理（需 reqwest 自定义 connector）。
+        crate::utils::ssrf_guard::validate_url(url)?;
 
         let client = reqwest::Client::builder()
             .timeout(std::time::Duration::from_secs(30))

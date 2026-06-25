@@ -15,6 +15,16 @@ use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use validator::Validate;
 
+/// 默认本位币汇率（CNY 本位币 = 1.0）。
+///
+/// 历史缺陷（P0-1，2026-06-25 综合审计）：自动生成 AP 发票时曾误用
+/// `Decimal::new(1, 2)` = 0.01，导致下游按汇率换算本位币金额被缩小 100 倍。
+/// 抽取为常量并在单元测试中断言其值，避免再次被改错。
+///
+/// 注意：`Decimal::new` 不是 const fn，不能用于 const 初始化；
+/// 使用 rust_decimal 提供的 const 关联常量 `Decimal::ONE`（= 1.0）。
+pub const DEFAULT_BASE_CURRENCY_EXCHANGE_RATE: Decimal = Decimal::ONE;
+
 /// 应付单服务
 pub struct ApInvoiceService {
     db: Arc<DatabaseConnection>,
@@ -86,9 +96,15 @@ impl ApInvoiceService {
             amount: Set(receipt.total_amount),
             paid_amount: Set(Decimal::ZERO),
             unpaid_amount: Set(receipt.total_amount),
-            invoice_status: Set("AUDITED".to_string()), // 自动生成直接审核
+            // P1-10 修复（2026-06-25 综合审计）：自动生成 AP 发票保留 PENDING 状态，
+            // 触发审批环节，原 AUDITED 跳过审批违反业务流程。
+            invoice_status: Set("PENDING".to_string()),
             currency: Set("CNY".to_string()),
-            exchange_rate: Set(Decimal::new(1, 2)),
+            exchange_rate: Set(DEFAULT_BASE_CURRENCY_EXCHANGE_RATE),
+            // P1-10 修复：tax_amount 应从源单据税额传递。
+            // purchase_receipt 主表与 purchase_receipt_item 均无 tax_amount 字段
+            // （模型设计不记录税额），暂保持 ZERO。
+            // TODO(tech-debt): receipt 模型补充 tax_amount 字段后从源单据传递。
             tax_amount: Set(Decimal::ZERO),
             created_by: Set(user_id),
             ..Default::default()
@@ -137,6 +153,17 @@ impl ApInvoiceService {
         // 退货金额为负数
         let amount = -return_doc.total_amount.unwrap_or(Decimal::ZERO);
 
+        // P1-10 修复（2026-06-25 综合审计）：从退货单明细汇总税额。
+        // purchase_return_item 表有 tax_amount 字段，按 return_id 汇总。
+        let tax_amount: Decimal = crate::models::purchase_return_item::Entity::find()
+            .filter(crate::models::purchase_return_item::Column::ReturnId.eq(return_id))
+            .all(&txn)
+            .await?
+            .iter()
+            .fold(Decimal::ZERO, |acc, item| acc + item.tax_amount);
+        // 退货税额为负数（红字冲销）
+        let tax_amount = -tax_amount;
+
         let invoice = ap_invoice::ActiveModel {
             invoice_no: Set(invoice_no),
             supplier_id: Set(return_doc.supplier_id),
@@ -149,10 +176,12 @@ impl ApInvoiceService {
             amount: Set(amount),
             paid_amount: Set(Decimal::ZERO),
             unpaid_amount: Set(amount),
-            invoice_status: Set("AUDITED".to_string()), // 自动生成直接审核
+            // P1-10 修复：保留 PENDING 状态触发审批环节
+            invoice_status: Set("PENDING".to_string()),
             currency: Set("CNY".to_string()),
-            exchange_rate: Set(Decimal::new(1, 2)),
-            tax_amount: Set(Decimal::ZERO),
+            exchange_rate: Set(DEFAULT_BASE_CURRENCY_EXCHANGE_RATE),
+            // P1-10 修复：从退货单明细汇总税额（负数红字）
+            tax_amount: Set(tax_amount),
             created_by: Set(user_id),
             ..Default::default()
         }
@@ -197,7 +226,7 @@ impl ApInvoiceService {
             unpaid_amount: Set(req.amount.unwrap_or(Decimal::ZERO)),
             invoice_status: Set("DRAFT".to_string()),
             currency: Set(req.currency.unwrap_or_else(|| "CNY".to_string())),
-            exchange_rate: Set(req.exchange_rate.unwrap_or(Decimal::new(1, 0))),
+            exchange_rate: Set(req.exchange_rate.unwrap_or(DEFAULT_BASE_CURRENCY_EXCHANGE_RATE)),
             tax_amount: Set(req.tax_amount.unwrap_or(Decimal::ZERO)),
             notes: Set(req.notes),
             attachment_urls: Set(req.attachment_urls),
@@ -264,11 +293,13 @@ impl ApInvoiceService {
 
         invoice_active.updated_by = Set(Some(user_id));
 
+        // P1-11 修复（2026-06-25 综合审计）：传入真实操作人 ID，
+        // 原 Some(0) 硬编码导致审计日志无法追溯修改人。
         let invoice = crate::services::audit_log_service::AuditLogService::update_with_audit(
             &txn,
             "auto_audit",
             invoice_active,
-            Some(0),
+            Some(user_id),
         )
         .await?;
 
@@ -331,11 +362,12 @@ impl ApInvoiceService {
         invoice_active.approved_at = Set(Some(now));
         invoice_active.updated_at = Set(now);
 
+        // P1-11 修复（2026-06-25 综合审计）：传入真实操作人 ID
         let invoice = crate::services::audit_log_service::AuditLogService::update_with_audit(
             &txn,
             "auto_audit",
             invoice_active,
-            Some(0),
+            Some(user_id),
         )
         .await?;
 
@@ -366,6 +398,10 @@ impl ApInvoiceService {
         invoice_active.invoice_status = Set("PAID".to_string());
         invoice_active.updated_at = Set(now);
 
+        // P1-11 部分修复（2026-06-25 综合审计）：
+        // mark_as_paid 由事件总线（event_bus.rs）在付款完成后异步触发，
+        // 事件驱动场景下无用户上下文，暂保留 Some(0)。
+        // TODO(tech-debt): 扩展事件载荷携带 user_id 后传入真实操作人。
         let invoice = crate::services::audit_log_service::AuditLogService::update_with_audit(
             &*self.db,
             "auto_audit",
@@ -416,11 +452,12 @@ impl ApInvoiceService {
         invoice_active.cancelled_reason = Set(Some(reason));
         invoice_active.updated_at = Set(now);
 
+        // P1-11 修复（2026-06-25 综合审计）：传入真实操作人 ID
         let invoice = crate::services::audit_log_service::AuditLogService::update_with_audit(
             &txn,
             "auto_audit",
             invoice_active,
-            Some(0),
+            Some(user_id),
         )
         .await?;
 
@@ -672,4 +709,60 @@ pub struct BalanceSummary {
 
     /// 应付单数量
     pub invoice_count: i64,
+}
+
+#[cfg(test)]
+mod tests {
+    //! AP 发票服务单元测试
+    //!
+    //! 覆盖目标：
+    //! - DEFAULT_BASE_CURRENCY_EXCHANGE_RATE 常量值正确性（防止 P0-1 缺陷复发）
+    //! - 汇率换算逻辑（金额 × 汇率 = 本位币金额）
+
+    use super::*;
+
+    /// 防止 P0-1 缺陷复发：默认本位币汇率必须是 1.0，不能是 0.01。
+    ///
+    /// 历史缺陷：`Decimal::new(1, 2)` 误用导致自动生成 AP 发票汇率被设为 0.01，
+    /// 下游按汇率换算本位币金额的财务计算被缩小 100 倍。
+    #[test]
+    fn test_default_exchange_rate_is_one_not_zero_dot_zero_one() {
+        assert_eq!(
+            DEFAULT_BASE_CURRENCY_EXCHANGE_RATE,
+            Decimal::new(1, 0),
+            "默认本位币汇率应为 1.0，当前值 {:?} 不正确（P0-1 缺陷复发风险）",
+            DEFAULT_BASE_CURRENCY_EXCHANGE_RATE
+        );
+        // 数值断言：1.0 而非 0.01
+        assert_eq!(DEFAULT_BASE_CURRENCY_EXCHANGE_RATE, Decimal::ONE);
+        assert_ne!(
+            DEFAULT_BASE_CURRENCY_EXCHANGE_RATE,
+            Decimal::new(1, 2),
+            "默认汇率不应为 0.01"
+        );
+    }
+
+    /// 验证按默认汇率换算本位币金额：金额 × 1.0 = 金额本身。
+    ///
+    /// 该测试模拟下游按汇率换算本位币金额的场景，确保 P0-1 修复后
+    /// 自动生成的 AP 发票换算结果不会被缩小 100 倍。
+    #[test]
+    fn test_exchange_rate_conversion_not_shrunk_by_100() {
+        let invoice_amount = Decimal::new(12345, 2); // 123.45
+        let base_currency_amount = invoice_amount * DEFAULT_BASE_CURRENCY_EXCHANGE_RATE;
+
+        // 修复前（汇率 0.01）：123.45 * 0.01 = 1.2345（被缩小 100 倍）
+        assert_ne!(
+            base_currency_amount,
+            Decimal::new(12345, 4), // 1.2345（错误结果）
+            "本位币金额被缩小 100 倍，P0-1 缺陷未修复"
+        );
+
+        // 修复后（汇率 1.0）：123.45 * 1.0 = 123.45（正确）
+        assert_eq!(
+            base_currency_amount,
+            Decimal::new(12345, 2),
+            "按汇率 1.0 换算后本位币金额应等于原金额"
+        );
+    }
 }

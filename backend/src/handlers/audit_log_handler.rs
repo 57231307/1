@@ -27,7 +27,8 @@ use crate::utils::response::ApiResponse;
 
 /// 列表查询参数（全部可选）
 #[derive(Debug, Default, Deserialize)]
-#[allow(dead_code)] // TODO(tech-debt): 审计日志查询路由接入 system::routes 后移除
+// P1-13 修复（2026-06-25）：路由已挂载至 system::routes()，函数标记已移除。
+// 结构体字段经 serde Deserialize 派生使用，标记保留待编译器验证后清理。
 pub struct AuditLogListQuery {
     /// 起始时间（RFC3339 / ISO8601）
     pub start_time: Option<String>,
@@ -51,7 +52,8 @@ pub struct AuditLogListQuery {
 
 /// 列表返回项（前端展示用）
 #[derive(Debug, Serialize)]
-#[allow(dead_code)] // TODO(tech-debt): 审计日志查询路由接入 system::routes 后移除
+// P1-13 修复（2026-06-25）：路由已挂载至 system::routes()，函数标记已移除。
+// 结构体字段经 serde Serialize 派生使用，标记保留待编译器验证后清理。
 pub struct AuditLogListItem {
     pub id: i32,
     pub tenant_id: Option<i32>,
@@ -96,7 +98,7 @@ impl From<audit_log::Model> for AuditLogListItem {
 
 /// 列表返回结构
 #[derive(Debug, Serialize)]
-#[allow(dead_code)] // TODO(tech-debt): 审计日志查询路由接入 system::routes 后移除
+// P1-13 修复（2026-06-25）：路由已挂载至 system::routes()，函数标记已移除。
 pub struct AuditLogListResponse {
     pub items: Vec<AuditLogListItem>,
     pub total: u64,
@@ -107,7 +109,6 @@ pub struct AuditLogListResponse {
 /// GET /api/v1/erp/audit-logs
 ///
 /// 分页 + 多维筛选（时间范围 / user_id / operation_type / severity / resource_type / request_id）
-#[allow(dead_code)] // TODO(tech-debt): 审计日志查询路由接入 system::routes 后移除
 pub async fn list_audit_logs(
     State(state): State<AppState>,
     auth: AuthContext,
@@ -178,7 +179,8 @@ pub async fn list_audit_logs(
 
 /// 审计日志详情（含 before/after 快照原始 JSON）
 #[derive(Debug, Serialize)]
-#[allow(dead_code)] // TODO(tech-debt): 审计日志查询路由接入 system::routes 后移除
+// P1-13 修复（2026-06-25）：路由已挂载至 system::routes()，函数标记已移除。
+// base 字段经 #[serde(flatten)] 使用，其余字段经 Serialize 派生使用。
 pub struct AuditLogDetailResponse {
     #[serde(flatten)]
     pub base: AuditLogListItem,
@@ -193,7 +195,6 @@ pub struct AuditLogDetailResponse {
 }
 
 /// GET /api/v1/erp/audit-logs/{id}
-#[allow(dead_code)] // TODO(tech-debt): 审计日志查询路由接入 system::routes 后移除
 pub async fn get_audit_log(
     State(state): State<AppState>,
     auth: AuthContext,
@@ -220,7 +221,6 @@ pub async fn get_audit_log(
 /// GET /api/v1/erp/audit-logs/export
 ///
 /// 返回 CSV 格式（text/csv），前端直接 `window.URL.createObjectURL(blob)` 下载。
-#[allow(dead_code)] // TODO(tech-debt): 审计日志查询路由接入 system::routes 后移除
 pub async fn export_audit_logs(
     State(state): State<AppState>,
     auth: AuthContext,

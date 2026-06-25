@@ -331,6 +331,9 @@ pub fn ai() -> Router<AppState> {
 /// 系统域统一入口
 ///
 /// 子 router path 已加独立前缀，merge 时 path+method 互不重叠。
+///
+/// P1-13/14/15 修复（2026-06-25 综合审计）：补挂载 audit_logs() 与 slow_queries()，
+/// 消除 audit_log_handler / slow_query_handler 全文件死代码。
 pub fn routes() -> Router<AppState> {
     Router::new()
         .merge(dashboard())
@@ -340,4 +343,6 @@ pub fn routes() -> Router<AppState> {
         .merge(init())
         .merge(ai())
         .merge(ws())
+        .merge(audit_logs())
+        .merge(slow_queries())
 }

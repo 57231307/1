@@ -135,11 +135,13 @@ impl SalesService {
         order_update.status = sea_orm::ActiveValue::Set("pending".to_string());
         order_update.updated_at = sea_orm::ActiveValue::Set(chrono::Utc::now());
 
+        // P1-11 修复（2026-06-25 综合审计）：传入真实操作人 ID，
+        // 原 Some(0) 硬编码导致审计日志无法追溯提交人。
         let order = crate::services::audit_log_service::AuditLogService::update_with_audit(
             &*self.db,
             "auto_audit",
             order_update,
-            Some(0),
+            Some(user_id),
         )
         .await?;
 
@@ -187,11 +189,13 @@ impl SalesService {
         order_update.approved_at = sea_orm::ActiveValue::Set(Some(chrono::Utc::now()));
         order_update.updated_at = sea_orm::ActiveValue::Set(chrono::Utc::now());
 
+        // P1-11 修复（2026-06-25 综合审计）：传入真实操作人 ID，
+        // 原 Some(0) 硬编码导致审计日志无法追溯审批人。
         let order = crate::services::audit_log_service::AuditLogService::update_with_audit(
             &*self.db,
             "auto_audit",
             order_update,
-            Some(0),
+            Some(user_id),
         )
         .await?;
 
@@ -199,7 +203,14 @@ impl SalesService {
     }
 
     /// 完成订单
-    pub async fn complete_order(&self, order_id: i32) -> Result<sales_order::Model, AppError> {
+    ///
+    /// P1-11 修复（2026-06-25 综合审计）：新增 user_id 参数，
+    /// 原 Some(0) 硬编码导致审计日志无法追溯完成操作人。
+    pub async fn complete_order(
+        &self,
+        order_id: i32,
+        user_id: i32,
+    ) -> Result<sales_order::Model, AppError> {
         let order = SalesOrderEntity::find_by_id(order_id)
             .one(&*self.db)
             .await?
@@ -216,11 +227,12 @@ impl SalesService {
         order_update.status = sea_orm::ActiveValue::Set("completed".to_string());
         order_update.updated_at = sea_orm::ActiveValue::Set(chrono::Utc::now());
 
+        // P1-11 修复：传入真实操作人 ID
         let order = crate::services::audit_log_service::AuditLogService::update_with_audit(
             &*self.db,
             "auto_audit",
             order_update,
-            Some(0),
+            Some(user_id),
         )
         .await?;
 

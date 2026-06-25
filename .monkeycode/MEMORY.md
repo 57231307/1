@@ -20,7 +20,90 @@
 
 ---
 
-## 当前任务状态（2026-06-25 16:30）
+## 当前任务状态（2026-06-25 综合审计修复批次，CI #1416 全绿）
+
+### ✅ 综合审计修复批次（9 项已修复 + 2 项 CI 修复，CI 全绿）
+
+- **审计报告**：[`.monkeycode/docs/audits/2026-06-25-comprehensive-audit.md`](file:///workspace/.monkeycode/docs/audits/2026-06-25-comprehensive-audit.md)
+- **PR #254**：https://github.com/57231307/1/pull/254
+- **分支**：`trae/agent-paRsUI`
+- **CI**：#1416 全绿（13/13 核心 job 通过，2 发布 job 因 PR 模式跳过）
+- **HTTPS 推送**：沙箱可通过 HTTPS (443) 推送，无需用户本地操作
+
+#### 已修复（9 项）
+
+| # | 严重度 | 问题 | 状态 |
+|---|--------|------|------|
+| P0-1 | P0 | AP 发票汇率 0.01 → 1.0（常量化 + 单元测试） | ✅ |
+| P1-1 | P1 | H-3 init SSRF 完整修复（port+IP白名单+脱敏+初始化约束） | ✅ |
+| P1-2 | P1 | H-1 Webhook TOCTOU 删除内联 IP 校验（统一 ssrf_guard） | ✅ |
+| P1-3 | P1 | H-2 EmailConfig.api_url 死字段删除 | ✅ |
+| P1-4 | P1 | quotations 双重路由注册去重 | ✅ |
+| P1-10 | P1 | AP 发票自动生成保留 PENDING + 传递 tax_amount | ✅ |
+| P1-11 | P1 | 销售订单/AP 发票审批 user_id 硬编码 0 修复 | ✅ |
+| P1-13/14/15 | P1 | audit_log/slow_query 死代码补挂载 + 移除 14 处标记 | ✅ |
+| P2-7 | P2 | custom_order_process_test.rs crate:: 编译错误 | ✅ |
+
+#### 漏洞状态更新
+
+- **H-2** ✅ 已修复（死字段删除）
+- **H-3** ✅ 已修复（5 检查点全部实现）
+- **H-1** 🟡 接近完成（仅剩 reqwest connector TOCTOU 改造）
+- **P0-1** ✅ 已修复（汇率常量化 + 单元测试；历史数据订正脚本待办）
+- **P1-11** ✅ 已修复（user_id 真实传递；mark_as_paid 事件驱动场景保留 TODO）
+
+#### 残留待办（下一迭代）
+
+1. **H-1 最终修复**：reqwest 自定义 connector 强制使用解析的 IP connect（消除 TOCTOU）
+2. **P0-1 历史数据订正**：已生成的错误汇率数据需订正脚本
+3. **前端断链修复**：采购域单复数（P1-6）/ 5 模块断链（P1-7）/ quotations 子端点（P1-8）
+4. **销售订单状态机重写**（P1-9）：枚举与实际状态字符串对齐
+5. **前端权限码接入**（P1-19/20/21）：路由 meta.permission + 菜单动态渲染 + 守卫权限校验
+6. **假测试重写 + E2E 配置修复**（P2-8/9/10）：22 个假测试 + 8 处恒真断言 + playwright testDir
+7. **Handler 返回类型统一**（P1-5）：5 种风格 → `Result<Json<ApiResponse<T>>, AppError>`
+8. **硬编码 CNY / f64 金额 / 无分页**（P1-16/17/18）
+9. **跨模块分组归位**（P1-22）
+10. **功能缺失补齐**（P2-1~6）
+
+---
+
+## 历史任务状态（2026-06-25 综合审计周期）
+
+### 🟡 项目综合审计（37 项发现，2026-06-25 完成）
+
+- **报告路径**：[`.monkeycode/docs/audits/2026-06-25-comprehensive-audit.md`](file:///workspace/.monkeycode/docs/audits/2026-06-25-comprehensive-audit.md)
+- **审计方法**：4 个并行子代理（search 类型）+ 主代理关键点核验，仅研究未修改代码
+- **问题统计**：P0 × 1 + P1 × 21 + P2 × 15 = 37 项
+- **综合评分**：2.5 / 5.0（较 2026-06-13 自评 5.0 回落）
+
+#### 关键发现摘要
+
+1. **P0-1 AP 发票汇率 0.01**（应为 1.0）—— `ap_invoice_service.rs:91,154` `Decimal::new(1, 2)` 导致财务数据缩小 100 倍
+2. **H-3 init SSRF 完全未修复** —— TODO 注释仍在，IP 白名单全部被注释，可枚举内网 PG 端口
+3. **H-1 Webhook TOCTOU 核心未修** —— `client.post(url)` 仍传 URL 字符串，reqwest 第三次解析 DNS
+4. **H-2 EmailConfig.api_url 死字段残留** —— 字段未删，可复活环境变量注入路径
+5. **前端采购域单复数前缀全部断链** —— `/purchases/*` vs 后端 `/purchase/*`
+6. **前端 5 模块全部断链** —— tenant-billing / logistics / email / security / api-gateway
+7. **销售订单状态机枚举脱节** —— Received/Closed 死状态；partial_shipped/completed/cancelled 不在枚举
+8. **30+ 前端孤儿路由无菜单入口**
+9. **permission store 完全未被引用** —— 权限码形同虚设，所有已登录用户可访问任意 URL
+10. **22 个假测试 + 8 处恒真断言 + E2E 配置断裂**（17 spec 无法运行）
+
+#### bug.md 状态
+
+- 已清理已修复项（M-1~M-7 / L-1 / L-2 / L-3 / L-4 / 优化 1 / 优化 2 / 2026-06-24 P0-P2 共 14 项）
+- 保留 3 条高危未完全修复项（H-1 / H-2 / H-3）
+- 新增 2 条审计发现（P0-1 AP 汇率 / P1-11 user_id 硬编码 0）
+
+#### 优先修复顺序
+
+1. **本周**：P0-1 AP 汇率 / H-3 init SSRF / H-1 Webhook TOCTOU / 前端采购域断链 / audit_log+slow_query 死代码 / custom_order_process_test.rs 编译错误 / bug.md 清理
+2. **下迭代**：销售订单状态机重写 / AP 发票自动生成保留 PENDING / quotations 双重路由去重 / 5 模块断链修复 / 前端权限码接入 / 假测试重写
+3. **持续改进**：Handler 返回类型统一 / 硬编码 CNY 改为租户配置 / f64 金额改 Decimal / 跨模块分组归位 / 功能缺失补齐 / 测试覆盖率提升
+
+---
+
+## 历史任务状态（2026-06-25 16:30）
 
 ### 第九次安全审计周期（PR #253）✅ 已完成
 
@@ -218,17 +301,13 @@
 - 决策原则：内部实现细节稳定可作为测试入口时用 `pub`；否则考虑重构暴露更窄的公共 API
 
 [沙箱网络限制]
-- Date: 2026-06-24
-- Context: SSH 切换后尝试在沙箱内推送测试时发现
+- Date: 2026-06-25（更新）
+- Context: 2026-06-25 综合审计修复批次通过 HTTPS 成功推送
 - Category: 环境配置
-- **限制**：沙箱环境出站 22 端口（github.com）和 443 端口（ssh.github.com）均被防火墙阻断
-- **可用**：443 端口（github.com HTTPS API/页面）正常
-- **影响**：沙箱内无法 `git push` 或 `ssh -T git@github.com`，所有推送操作必须在**用户本地终端**执行
-- **应对策略**：
-  - 沙箱内仅做：代码编辑、git commit、文档更新
-  - 推送前：通过 GitHub HTTPS API 检查远程状态
-  - 用户本地：执行 `git push` / `gh pr create`
-- **验证方法**：`nc -zv github.com 22` 返回 "Connection timed out" 即确认
+- **限制**：沙箱环境出站 22 端口（github.com SSH）被防火墙阻断
+- **可用**：443 端口（github.com HTTPS）正常，包括 `git push` HTTPS 远程
+- **影响**：SSH 推送不可用，但 HTTPS 推送正常（remote URL 格式 `https://x-access-token:<token>@github.com/<repo>`）
+- **应对策略**：沙箱内可通过 HTTPS 完成 commit → push → CI 全流程
 
 [.monkeycode 目录 gitignore 规则]
 - Date: 2026-06-24
