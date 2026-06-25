@@ -74,24 +74,67 @@ pub fn static_assets_handler() -> Router<AppState> {
                     let static_dir = std::env::var("FRONTEND_STATIC_DIR")
                         .unwrap_or_else(|_| "/workspace/frontend/static".to_string());
                     let static_path = PathBuf::from(&static_dir).join(&safe_path);
-                    if let Ok(content) = tokio::fs::read(&static_path).await {
+                    // 高危 #4 修复（符号链接逃逸）：canonicalize 解析符号链接
+                    // 验证最终路径仍在 static_dir 内，防止攻击者创建符号链接
+                    // 指向 /etc/passwd、~/.aws/credentials 等敏感文件
+                    let resolved_path = match tokio::fs::canonicalize(&static_path).await {
+                        Ok(p) => p,
+                        Err(_) => {
+                            // 静默回退到 fallback
+                            let cargo_manifest_dir = std::env::var("CARGO_MANIFEST_DIR")
+                                .unwrap_or_else(|_| "/workspace/backend".to_string());
+                            let fallback = PathBuf::from(cargo_manifest_dir)
+                                .join("static")
+                                .join(&safe_path);
+                            match tokio::fs::canonicalize(&fallback).await {
+                                Ok(p) => p,
+                                Err(_) => {
+                                    let body = Body::from("/* File not found */");
+                                    return Ok(response::Response::builder()
+                                        .status(StatusCode::NOT_FOUND)
+                                        .body(body)
+                                        .unwrap_or_else(|e| {
+                                            tracing::error!(
+                                                "Failed to build 404 response: {:?}",
+                                                e
+                                            );
+                                            response::Response::new(Body::from("Internal Error"))
+                                        }));
+                                }
+                            }
+                        }
+                    };
+                    // 解析 static_dir 一次，用于后续边界校验
+                    let canonical_static_dir = tokio::fs::canonicalize(&static_dir)
+                        .await
+                        .ok();
+                    // 验证 resolved_path 在 static_dir 内（防符号链接逃逸）
+                    if let Some(ref dir) = canonical_static_dir {
+                        if !resolved_path.starts_with(dir) {
+                            tracing::warn!(
+                                "拒绝符号链接越界访问: resolved={:?}, static_dir={:?}",
+                                resolved_path,
+                                dir
+                            );
+                            let body = Body::from("Invalid path");
+                            return Ok(response::Response::builder()
+                                .status(StatusCode::BAD_REQUEST)
+                                .body(body)
+                                .unwrap_or_else(|e| {
+                                    tracing::error!(
+                                        "Failed to build 400 response: {:?}",
+                                        e
+                                    );
+                                    response::Response::new(Body::from("Internal Error"))
+                                }));
+                        }
+                    }
+                    if let Ok(content) = tokio::fs::read(&resolved_path).await {
                         let body = Body::from(content);
                         let mut res = response::Response::new(body);
                         res.headers_mut()
                             .insert(header::CONTENT_TYPE, HeaderValue::from_static("text/css"));
                         return Ok::<_, Infallible>(res);
-                    }
-                    let cargo_manifest_dir = std::env::var("CARGO_MANIFEST_DIR")
-                        .unwrap_or_else(|_| "/workspace/backend".to_string());
-                    let fallback = PathBuf::from(cargo_manifest_dir)
-                        .join("static")
-                        .join(&safe_path);
-                    if let Ok(content) = tokio::fs::read(&fallback).await {
-                        let body = Body::from(content);
-                        let mut res = response::Response::new(body);
-                        res.headers_mut()
-                            .insert(header::CONTENT_TYPE, HeaderValue::from_static("text/css"));
-                        return Ok(res);
                     }
                     let body = Body::from("/* File not found */");
                     Ok(response::Response::builder()
