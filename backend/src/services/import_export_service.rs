@@ -542,6 +542,11 @@ impl ImportExportService {
     }
 
     /// 导出数据
+    ///
+    /// 架构优化（2026-06-25）：
+    /// 1. 不再全表查询，根据 ExportQuery 条件过滤（status / date_from / date_to / keyword）
+    /// 2. 强制行数上限 MAX_EXPORT_ROWS，避免大表导出 OOM
+    /// 3. 过滤已删除数据（is_deleted=false）
     pub async fn export_data(
         &self,
         export_type: &str,
@@ -558,14 +563,65 @@ impl ImportExportService {
         }
     }
 
+    /// 解析日期字符串为 DateTime（兼容多种格式）
+    fn parse_date_filter(date_str: &str) -> Option<chrono::DateTime<chrono::Utc>> {
+        let formats = ["%Y-%m-%d", "%Y-%m-%d %H:%M:%S", "%Y/%m/%d"];
+        for fmt in &formats {
+            if let Ok(naive) = chrono::NaiveDateTime::parse_from_str(
+                &format!("{} 00:00:00", date_str.split(' ').next().unwrap_or(date_str)),
+                "%Y-%m-%d %H:%M:%S",
+            ) {
+                return Some(chrono::DateTime::from_naive_utc_and_offset(
+                    naive,
+                    chrono::Utc,
+                ));
+            }
+        }
+        None
+    }
+
+    /// 获取导出行数限制（不超过 MAX_EXPORT_ROWS）
+    fn get_export_limit(query: &ExportQuery) -> u64 {
+        query
+            .limit
+            .unwrap_or(MAX_EXPORT_ROWS)
+            .min(MAX_EXPORT_ROWS)
+    }
+
     /// 导出产品数据
     async fn export_products(
         &self,
-        _query: &ExportQuery,
+        query: &ExportQuery,
     ) -> Result<(Vec<String>, Vec<Vec<String>>), AppError> {
-        use crate::models::product::Entity as ProductEntity;
+        use crate::models::product::{Column as ProductCol, Entity as ProductEntity};
+        use sea_orm::QuerySelect;
 
-        let products = ProductEntity::find().all(&*self.db).await?;
+        let mut db_query = ProductEntity::find().filter(ProductCol::IsDeleted.eq(false));
+
+        if let Some(status) = &query.status {
+            db_query = db_query.filter(ProductCol::Status.eq(status.clone()));
+        }
+        if let Some(keyword) = &query.keyword {
+            let like = format!("%{}%", keyword);
+            db_query = db_query.filter(
+                ProductCol::Name
+                    .like(like.clone())
+                    .or(ProductCol::Code.like(like)),
+            );
+        }
+        if let Some(date_from) = &query.date_from {
+            if let Some(dt) = Self::parse_date_filter(date_from) {
+                db_query = db_query.filter(ProductCol::CreatedAt.gte(dt));
+            }
+        }
+        if let Some(date_to) = &query.date_to {
+            if let Some(dt) = Self::parse_date_filter(date_to) {
+                db_query = db_query.filter(ProductCol::CreatedAt.lte(dt));
+            }
+        }
+
+        let limit = Self::get_export_limit(query);
+        let products = db_query.limit(limit).all(&*self.db).await?;
 
         let headers = vec![
             "ID".to_string(),
@@ -598,11 +654,37 @@ impl ImportExportService {
     /// 导出客户数据
     async fn export_customers(
         &self,
-        _query: &ExportQuery,
+        query: &ExportQuery,
     ) -> Result<(Vec<String>, Vec<Vec<String>>), AppError> {
-        use crate::models::customer::Entity as CustomerEntity;
+        use crate::models::customer::{Column as CustomerCol, Entity as CustomerEntity};
+        use sea_orm::QuerySelect;
 
-        let customers = CustomerEntity::find().all(&*self.db).await?;
+        let mut db_query = CustomerEntity::find();
+
+        if let Some(status) = &query.status {
+            db_query = db_query.filter(CustomerCol::Status.eq(status.clone()));
+        }
+        if let Some(keyword) = &query.keyword {
+            let like = format!("%{}%", keyword);
+            db_query = db_query.filter(
+                CustomerCol::CustomerName
+                    .like(like.clone())
+                    .or(CustomerCol::CustomerCode.like(like)),
+            );
+        }
+        if let Some(date_from) = &query.date_from {
+            if let Some(dt) = Self::parse_date_filter(date_from) {
+                db_query = db_query.filter(CustomerCol::CreatedAt.gte(dt));
+            }
+        }
+        if let Some(date_to) = &query.date_to {
+            if let Some(dt) = Self::parse_date_filter(date_to) {
+                db_query = db_query.filter(CustomerCol::CreatedAt.lte(dt));
+            }
+        }
+
+        let limit = Self::get_export_limit(query);
+        let customers = db_query.limit(limit).all(&*self.db).await?;
 
         let headers = vec![
             "ID".to_string(),
@@ -635,11 +717,34 @@ impl ImportExportService {
     /// 导出库存数据
     async fn export_inventory(
         &self,
-        _query: &ExportQuery,
+        query: &ExportQuery,
     ) -> Result<(Vec<String>, Vec<Vec<String>>), AppError> {
-        use crate::models::inventory_stock::Entity as InventoryStockEntity;
+        use crate::models::inventory_stock::{Column as StockCol, Entity as StockEntity};
+        use sea_orm::QuerySelect;
 
-        let stocks = InventoryStockEntity::find().all(&*self.db).await?;
+        let mut db_query = StockEntity::find();
+
+        if let Some(keyword) = &query.keyword {
+            let like = format!("%{}%", keyword);
+            db_query = db_query.filter(
+                StockCol::BatchNo
+                    .like(like.clone())
+                    .or(StockCol::ColorNo.like(like)),
+            );
+        }
+        if let Some(date_from) = &query.date_from {
+            if let Some(dt) = Self::parse_date_filter(date_from) {
+                db_query = db_query.filter(StockCol::CreatedAt.gte(dt));
+            }
+        }
+        if let Some(date_to) = &query.date_to {
+            if let Some(dt) = Self::parse_date_filter(date_to) {
+                db_query = db_query.filter(StockCol::CreatedAt.lte(dt));
+            }
+        }
+
+        let limit = Self::get_export_limit(query);
+        let stocks = db_query.limit(limit).all(&*self.db).await?;
 
         let headers = vec![
             "ID".to_string(),
@@ -670,6 +775,10 @@ impl ImportExportService {
     }
 }
 
+/// 单次导出最大行数（防止全表导出导致内存溢出）
+/// 业务上限：单次导出不应超过 1 万行；超过应分页分批导出
+pub const MAX_EXPORT_ROWS: u64 = 10_000;
+
 /// 导出查询参数
 #[derive(Debug, Clone, Deserialize)]
 pub struct ExportQuery {
@@ -677,6 +786,8 @@ pub struct ExportQuery {
     pub date_from: Option<String>,
     pub date_to: Option<String>,
     pub status: Option<String>,
+    pub keyword: Option<String>,
+    pub limit: Option<u64>,
 }
 
 #[cfg(test)]

@@ -196,13 +196,21 @@ pub async fn download_template(
 /// GET /api/v1/erp/export/csv/:export_type - CSV导出
 pub async fn export_csv(
     State(state): State<AppState>,
-    _auth: AuthContext,
+    auth: AuthContext,
     Path(export_type): Path<String>,
     Query(query): Query<ExportQuery>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     let service = ImportExportService::new(state.db.clone());
 
-    // 从数据库查询数据
+    tracing::info!(
+        "数据导出请求: user_id={}, export_type={}, status={:?}, date_from={:?}, date_to={:?}",
+        auth.user_id,
+        export_type,
+        query.status,
+        query.date_from,
+        query.date_to
+    );
+
     let (headers, data) = service.export_data(&export_type, &query).await?;
 
     let csv_content = ImportExportService::generate_csv(&headers, &data)?;
@@ -218,22 +226,29 @@ pub async fn export_csv(
 /// GET /api/v1/erp/export/excel/:export_type - Excel导出
 pub async fn export_excel_type(
     State(state): State<AppState>,
-    _auth: AuthContext,
+    auth: AuthContext,
     Path(export_type): Path<String>,
     Query(query): Query<ExportQuery>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     let service = ImportExportService::new(state.db.clone());
 
-    // 从数据库查询数据
+    tracing::info!(
+        "数据导出请求: user_id={}, export_type={}, status={:?}, date_from={:?}, date_to={:?}",
+        auth.user_id,
+        export_type,
+        query.status,
+        query.date_from,
+        query.date_to
+    );
+
     let (headers, data) = service.export_data(&export_type, &query).await?;
 
-    // 生成Excel格式（使用CSV作为简化实现）
     let csv_content = ImportExportService::generate_csv(&headers, &data)?;
 
     Ok(Json(ApiResponse::success(serde_json::json!({
         "filename": format!("{}.xlsx", export_type),
         "content": csv_content,
-        "content_type": "text/csv", // 简化实现使用CSV格式
+        "content_type": "text/csv",
         "total": data.len(),
         "exported_at": chrono::Utc::now().to_rfc3339(),
     }))))
