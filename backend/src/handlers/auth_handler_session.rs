@@ -150,7 +150,7 @@ pub async fn logout(
         .path("/")
         .http_only(true)
         .secure(is_production)
-        .same_site(SameSite::Lax)
+        .same_site(SameSite::Strict)
         .max_age(CookieDuration::seconds(0))
         .build();
 

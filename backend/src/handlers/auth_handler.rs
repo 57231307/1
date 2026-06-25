@@ -394,11 +394,12 @@ pub async fn login(
                 .build();
 
             // 兼容旧版客户端：保留 jwt Cookie（httpOnly）。新代码优先读取 access_token。
+            // L-2 修复：legacy_jwt 也使用 SameSite::Strict，防止 CSRF 攻击
             let legacy_jwt_cookie = Cookie::build(("jwt", token.clone()))
                 .path("/")
                 .http_only(true)
                 .secure(is_production)
-                .same_site(SameSite::Lax)
+                .same_site(SameSite::Strict)
                 .max_age(CookieDuration::minutes(30))
                 .build();
 
