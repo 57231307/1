@@ -9,7 +9,7 @@ use axum::{
 };
 
 use crate::handlers::{
-    print_handler, quotation_handler, sales_contract_handler, sales_fabric_order_handler,
+    print_handler, sales_contract_handler, sales_fabric_order_handler,
     sales_order_handler, sales_price_handler, sales_return_handler,
 };
 
@@ -88,41 +88,12 @@ pub fn sales() -> Router<AppState> {
             "/fabric-orders/:id/approve",
             post(sales_fabric_order_handler::approve_fabric_order),
         )
-        // 销售报价单子路由（PR-3）：/api/v1/erp/sales/quotations/...
-        .nest("/quotations", quotations())
-}
-
-/// 销售报价单路由（path 前缀 /quotations）
-///
-/// 提供 10 个核心端点：list / get / create / update / cancel / submit / approve / reject /
-/// convert / expiring。前 8 个为 PR-3 基础端点，后 2 个为 PR-A4 增强端点。
-pub fn quotations() -> Router<AppState> {
-    Router::new()
-        .route(
-            "/",
-            get(quotation_handler::list_quotations).post(quotation_handler::create_quotation),
-        )
-        .route(
-            "/:id",
-            get(quotation_handler::get_quotation).put(quotation_handler::update_quotation),
-        )
-        .route("/:id/cancel", post(quotation_handler::cancel_quotation))
-        .route("/:id/submit", post(quotation_handler::submit_quotation))
-        .route("/:id/approve", post(quotation_handler::approve_quotation))
-        .route("/:id/reject", post(quotation_handler::reject_quotation))
-        // PR-A4：报价转销售订单 + 到期报价单列表
-        .route(
-            "/:id/convert",
-            // 修复：原函数名 `convert_quotation_to_order` 在启动时 panic（不存在），
-            // 实际函数为 `convert_to_sales_order`（backend/src/handlers/quotation_handler.rs:273）
-            post(quotation_handler::convert_to_sales_order),
-        )
-        .route(
-            "/expiring",
-            // 修复：原函数名 `list_expiring_quotations` 在启动时 panic（不存在），
-            // 实际函数为 `list_expiring`（backend/src/handlers/quotation_handler.rs:364）
-            get(quotation_handler::list_expiring),
-        )
+    // P1-4 修复（2026-06-25 综合审计）：移除 quotations 双重路由注册。
+    // 销售报价单已由 routes/quotations.rs::routes() 统一挂载至
+    // /api/v1/erp/quotations/*（mod.rs:339），该处提供 12 个端点（超集）。
+    // 原 sales.rs::quotations() 仅 8 个端点（子集），双重注册导致：
+    // - 同一资源暴露在两路径，能力不同，前端调用混乱
+    // - 同一报价操作可能命中不同端点，行为不可预测
 }
 
 /// 销售合同路由（path 前缀 /sales-contracts）
