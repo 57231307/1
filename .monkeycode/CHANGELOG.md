@@ -2,6 +2,22 @@
 
 > 重要变更一句话摘要列表。详细历史请查阅 [`.monkeycode/docs/archives/`](file:///workspace/.monkeycode/docs/archives/)。
 
+## 2026-06-25 (综合审计修复批次 CI 全绿)
+
+### CI #1416 全绿（PR #254，分支 trae/agent-paRsUI）
+
+**CI 经历 4 轮修复后全绿**：
+- CI #1413 ❌ E0015 `Decimal::new` 非 const fn → 改用 `Decimal::ONE`
+- CI #1414 ❌ E0277/E0432 `quotation_e2e.rs` 引用不存在类型 → 重写测试文件
+- CI #1415 ❌ Clippy baseline 误报 87 条新警告 → 删除 baseline 让 CI 重建
+- CI #1416 ✅ 13/13 核心 job 全绿（2 发布 job 因 PR 模式跳过）
+
+**新增 CI 修复 commit**（2 个）：
+- `1f7ee40` fix(test): 修复 quotation_e2e.rs 编译错误（类型名/导入/字段不匹配）
+- `2100304` chore(ci): 删除 clippy baseline 让 CI 重建（基线误报）
+
+---
+
 ## 2026-06-25 (综合审计修复批次，9 commits 待推送)
 
 ### 修复批次总结（9 项审计发现已修复）

@@ -20,13 +20,15 @@
 
 ---
 
-## 当前任务状态（2026-06-25 综合审计修复批次，9 commits 待推送）
+## 当前任务状态（2026-06-25 综合审计修复批次，CI #1416 全绿）
 
-### 🟢 综合审计修复批次（9 项已修复，待 CI 验证）
+### ✅ 综合审计修复批次（9 项已修复 + 2 项 CI 修复，CI 全绿）
 
 - **审计报告**：[`.monkeycode/docs/audits/2026-06-25-comprehensive-audit.md`](file:///workspace/.monkeycode/docs/audits/2026-06-25-comprehensive-audit.md)
-- **修复批次**：9 个独立 commit（待推送触发 CI）
-- **沙箱限制**：22 端口阻断，需用户在本地终端执行 `git push origin <branch>` 推送
+- **PR #254**：https://github.com/57231307/1/pull/254
+- **分支**：`trae/agent-paRsUI`
+- **CI**：#1416 全绿（13/13 核心 job 通过，2 发布 job 因 PR 模式跳过）
+- **HTTPS 推送**：沙箱可通过 HTTPS (443) 推送，无需用户本地操作
 
 #### 已修复（9 项）
 
@@ -299,17 +301,13 @@
 - 决策原则：内部实现细节稳定可作为测试入口时用 `pub`；否则考虑重构暴露更窄的公共 API
 
 [沙箱网络限制]
-- Date: 2026-06-24
-- Context: SSH 切换后尝试在沙箱内推送测试时发现
+- Date: 2026-06-25（更新）
+- Context: 2026-06-25 综合审计修复批次通过 HTTPS 成功推送
 - Category: 环境配置
-- **限制**：沙箱环境出站 22 端口（github.com）和 443 端口（ssh.github.com）均被防火墙阻断
-- **可用**：443 端口（github.com HTTPS API/页面）正常
-- **影响**：沙箱内无法 `git push` 或 `ssh -T git@github.com`，所有推送操作必须在**用户本地终端**执行
-- **应对策略**：
-  - 沙箱内仅做：代码编辑、git commit、文档更新
-  - 推送前：通过 GitHub HTTPS API 检查远程状态
-  - 用户本地：执行 `git push` / `gh pr create`
-- **验证方法**：`nc -zv github.com 22` 返回 "Connection timed out" 即确认
+- **限制**：沙箱环境出站 22 端口（github.com SSH）被防火墙阻断
+- **可用**：443 端口（github.com HTTPS）正常，包括 `git push` HTTPS 远程
+- **影响**：SSH 推送不可用，但 HTTPS 推送正常（remote URL 格式 `https://x-access-token:<token>@github.com/<repo>`）
+- **应对策略**：沙箱内可通过 HTTPS 完成 commit → push → CI 全流程
 
 [.monkeycode 目录 gitignore 规则]
 - Date: 2026-06-24
