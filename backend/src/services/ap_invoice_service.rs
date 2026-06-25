@@ -271,11 +271,13 @@ impl ApInvoiceService {
 
         invoice_active.updated_by = Set(Some(user_id));
 
+        // P1-11 修复（2026-06-25 综合审计）：传入真实操作人 ID，
+        // 原 Some(0) 硬编码导致审计日志无法追溯修改人。
         let invoice = crate::services::audit_log_service::AuditLogService::update_with_audit(
             &txn,
             "auto_audit",
             invoice_active,
-            Some(0),
+            Some(user_id),
         )
         .await?;
 
@@ -338,11 +340,12 @@ impl ApInvoiceService {
         invoice_active.approved_at = Set(Some(now));
         invoice_active.updated_at = Set(now);
 
+        // P1-11 修复（2026-06-25 综合审计）：传入真实操作人 ID
         let invoice = crate::services::audit_log_service::AuditLogService::update_with_audit(
             &txn,
             "auto_audit",
             invoice_active,
-            Some(0),
+            Some(user_id),
         )
         .await?;
 
@@ -373,6 +376,10 @@ impl ApInvoiceService {
         invoice_active.invoice_status = Set("PAID".to_string());
         invoice_active.updated_at = Set(now);
 
+        // P1-11 部分修复（2026-06-25 综合审计）：
+        // mark_as_paid 由事件总线（event_bus.rs）在付款完成后异步触发，
+        // 事件驱动场景下无用户上下文，暂保留 Some(0)。
+        // TODO(tech-debt): 扩展事件载荷携带 user_id 后传入真实操作人。
         let invoice = crate::services::audit_log_service::AuditLogService::update_with_audit(
             &*self.db,
             "auto_audit",
@@ -423,11 +430,12 @@ impl ApInvoiceService {
         invoice_active.cancelled_reason = Set(Some(reason));
         invoice_active.updated_at = Set(now);
 
+        // P1-11 修复（2026-06-25 综合审计）：传入真实操作人 ID
         let invoice = crate::services::audit_log_service::AuditLogService::update_with_audit(
             &txn,
             "auto_audit",
             invoice_active,
-            Some(0),
+            Some(user_id),
         )
         .await?;
 

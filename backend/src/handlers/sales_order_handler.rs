@@ -305,11 +305,12 @@ pub async fn ship_order(
 /// POST /api/v1/erp/sales/orders/:id/complete
 pub async fn complete_order(
     State(state): State<AppState>,
-    _auth: AuthContext,
+    auth: AuthContext,
     Path(id): Path<i32>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     let sales_service = SalesService::new(state.db.clone());
-    let order = sales_service.complete_order(id).await?;
+    // P1-11 修复（2026-06-25 综合审计）：传入真实操作人 ID 用于审计日志
+    let order = sales_service.complete_order(id, auth.user_id).await?;
 
     // 订单完成后发送通知给申请人
     if let Some(event_service) = &state.event_notification_service {
