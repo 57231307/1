@@ -208,9 +208,20 @@ async fn check_permission(
     };
 
     // 检查是否有匹配的权限
+    // M-6 修复：resource_id 精确匹配，action 支持 "*" 通配符
+    // 原逻辑 p.resource_id.is_none() 会匹配任意 resource_id，
+    // 导致拥有 resource_id=None 权限的用户可操作该类型所有资源（垂直越权）。
+    // 修复后：
+    // - resource_id 精确匹配（None 匹配 None，Some(id) 匹配 Some(id)）
+    // - action 支持 "*" 通配符（表示该资源类型的所有操作）
+    // - 全局权限（可操作该类型所有资源）通过 action="*" 明确授予
     permissions.iter().any(|p| {
         p.resource_type == resource_type
-            && p.action == action
-            && (p.resource_id == resource_id || p.resource_id.is_none())
+            && (p.action == action || p.action == "*")
+            && match (p.resource_id, resource_id) {
+                (None, None) => true,
+                (Some(pid), Some(rid)) => pid == rid,
+                _ => false,
+            }
     })
 }
