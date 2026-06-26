@@ -80,7 +80,7 @@ impl ApPaymentRequestService {
             payment_method: Set(req.payment_method),
             request_amount: Set(req.request_amount),
             approval_status: Set("DRAFT".to_string()),
-            currency: Set(req.currency.unwrap_or_else(|| "CNY".to_string())),
+            currency: Set(req.currency.unwrap_or_else(|| crate::constants::DEFAULT_CURRENCY.to_string())),
             exchange_rate: Set(req.exchange_rate.unwrap_or(Decimal::new(1, 0))),
             expected_payment_date: Set(req.expected_payment_date),
             bank_name: Set(req.bank_name),

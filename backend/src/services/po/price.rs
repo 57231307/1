@@ -155,10 +155,10 @@ impl PurchaseOrderService {
             expected_delivery_date: Set(Some(
                 (Utc::now() + chrono::Duration::days(7)).date_naive(),
             )),
-            warehouse_id: Set(1), // 默认仓库
-            department_id: Set(1), // 默认部门
-            purchaser_id: Set(1), // 默认采购员
-            currency: Set("CNY".to_string()),
+            warehouse_id: Set(crate::constants::DEFAULT_WAREHOUSE_ID),
+            department_id: Set(crate::constants::DEFAULT_DEPARTMENT_ID),
+            purchaser_id: Set(crate::constants::DEFAULT_PURCHASER_ID),
+            currency: Set(crate::constants::DEFAULT_CURRENCY.to_string()),
             exchange_rate: Set(Decimal::new(1, 0)),
             order_status: Set("DRAFT".to_string()),
             notes: Set(Some(format!(
@@ -262,9 +262,9 @@ impl PurchaseOrderService {
                 (Utc::now() + chrono::Duration::days(7)).date_naive(),
             )),
             warehouse_id: Set(warehouse_id),
-            department_id: Set(1), // 默认部门
-            purchaser_id: Set(1),  // 默认采购员
-            currency: Set("CNY".to_string()),
+            department_id: Set(crate::constants::DEFAULT_DEPARTMENT_ID),
+            purchaser_id: Set(crate::constants::DEFAULT_PURCHASER_ID),
+            currency: Set(crate::constants::DEFAULT_CURRENCY.to_string()),
             exchange_rate: Set(Decimal::new(1, 0)),
             order_status: Set("DRAFT".to_string()),
             notes: Set(Some(format!(

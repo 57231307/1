@@ -16,12 +16,12 @@ use axum::{
 };
 
 use crate::handlers::{
-    advanced, ai_analysis_handler, api_key_handler, assist_accounting_handler,
-    audit_enhanced_handler, barcode_scanner_handler, business_trace_handler,
-    data_permission_handler, dual_unit_converter_handler, email_handler, import_export_handler,
-    login_security_handler, notification_handler, report_engine_handler, report_enhanced_handler,
-    tracking_handler, user_notification_setting_handler, webhook_handler,
-    webhook_integration_handler,
+    advanced, ai_analysis_handler, api_gateway_handler, api_key_handler,
+    assist_accounting_handler, audit_enhanced_handler, barcode_scanner_handler,
+    business_trace_handler, data_permission_handler, dual_unit_converter_handler, email_handler,
+    import_export_handler, login_security_handler, notification_handler, report_engine_handler,
+    report_enhanced_handler, tracking_handler, user_notification_setting_handler,
+    webhook_handler, webhook_integration_handler,
 };
 
 /// 双计量单位路由
@@ -330,6 +330,9 @@ pub fn webhooks() -> Router<AppState> {
 ///
 /// 注：main 上 api_key_handler 没有 `delete_api_key`（撤销 = 删除），仅有 `revoke_api_key`，
 /// 因此 `DELETE /api-key/:id` 直接复用 `revoke_api_key`。
+#[allow(dead_code)]
+// TODO(tech-debt): 前端已切换到 /api-gateway/keys 前缀（见 api_gateway()），
+// 本函数保留以兼容旧引用，待确认无外部调用后可移除。
 pub fn api_keys() -> Router<AppState> {
     Router::new()
         .route(
@@ -337,6 +340,48 @@ pub fn api_keys() -> Router<AppState> {
             get(api_key_handler::list_api_keys).post(api_key_handler::create_api_key),
         )
         .route("/api-key/:id", delete(api_key_handler::revoke_api_key))
+}
+
+/// API 网关管理路由
+///
+/// 技术债务修复（2026-06-26）：
+/// 前端 api-gateway.ts 调用 /api-gateway/{endpoints,logs,keys,stats} 前缀。
+/// 原 api_keys() 挂载在 /api-keys 前缀，与前端不匹配。
+/// 新增 api_gateway() 统一挂载到 /api-gateway 前缀下。
+pub fn api_gateway() -> Router<AppState> {
+    Router::new()
+        // endpoints CRUD
+        .route(
+            "/endpoints",
+            get(api_gateway_handler::list_api_endpoints)
+                .post(api_gateway_handler::create_api_endpoint),
+        )
+        .route(
+            "/endpoints/:id",
+            get(api_gateway_handler::get_api_endpoint)
+                .put(api_gateway_handler::update_api_endpoint)
+                .delete(api_gateway_handler::delete_api_endpoint),
+        )
+        // logs 查询
+        .route("/logs", get(api_gateway_handler::list_api_logs))
+        .route("/logs/:id", get(api_gateway_handler::get_api_log))
+        // keys CRUD（list/create/delete 复用 api_key_handler；get/update/regenerate 为 TODO 占位）
+        .route(
+            "/keys",
+            get(api_gateway_handler::list_api_keys).post(api_gateway_handler::create_api_key),
+        )
+        .route(
+            "/keys/:id",
+            get(api_gateway_handler::get_api_key)
+                .put(api_gateway_handler::update_api_key)
+                .delete(api_gateway_handler::delete_api_key),
+        )
+        .route(
+            "/keys/:id/regenerate",
+            post(api_gateway_handler::regenerate_api_key),
+        )
+        // stats
+        .route("/stats", get(api_gateway_handler::get_api_stats))
 }
 
 /// 数据权限路由
@@ -564,7 +609,7 @@ pub fn routes() -> Router<AppState> {
         .nest("/reports/enhanced", reports_enhanced())
         .nest("/webhooks/integrations", webhook_integrations())
         .nest("/webhooks", webhooks())
-        .nest("/api-keys", api_keys())
+        .nest("/api-gateway", api_gateway())
         .nest("/data-permissions", data_permissions())
         .nest("/notifications", notifications())
         .nest("/user-notification-settings", user_notification_settings())

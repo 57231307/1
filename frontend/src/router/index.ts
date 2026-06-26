@@ -233,7 +233,7 @@ const routes = [
         path: 'crm/detail/:id',
         name: 'CRMDetail',
         component: () => import('@/views/crm/detail.vue'),
-        meta: { title: '客户360视图', requiresAuth: true },
+        meta: { title: '客户360视图', requiresAuth: true, hidden: true },
       },
       // 新增路由 - CRM线索管理
       {
@@ -385,7 +385,7 @@ const routes = [
         path: 'components-demo',
         name: 'ComponentsDemo',
         component: () => import('@/views/components-demo/index.vue'),
-        meta: { title: '组件示例', requiresAuth: true },
+        meta: { title: '组件示例', requiresAuth: true, hidden: true },
       },
       // 新增路由 - 凭证管理
       {
@@ -469,14 +469,14 @@ const routes = [
         path: 'security/two-factor-setup',
         name: 'SecurityTwoFactorSetup',
         component: () => import('@/views/security/TwoFactorSetup.vue'),
-        meta: { title: '双因素认证', requiresAuth: true },
+        meta: { title: '双因素认证', requiresAuth: true, hidden: true },
       },
       // 新增路由 - 修改密码(修复 user-profile 死链)
       {
         path: 'security/change-password',
         name: 'SecurityChangePassword',
         component: () => import('@/views/security/ChangePassword.vue'),
-        meta: { title: '修改密码', requiresAuth: true },
+        meta: { title: '修改密码', requiresAuth: true, hidden: true },
       },
       {
         path: 'dye-recipe',
@@ -590,7 +590,7 @@ const routes = [
         path: 'system/profile',
         name: 'UserProfile',
         component: () => import('@/views/user-profile/index.vue'),
-        meta: { title: '个人信息', requiresAuth: true },
+        meta: { title: '个人信息', requiresAuth: true, hidden: true },
       },
       // 报价单模块 - 列表 + 新建
       {
@@ -603,25 +603,25 @@ const routes = [
         path: 'quotations/new',
         name: 'QuotationCreate',
         component: () => import('@/views/quotations/create.vue'),
-        meta: { title: '新建报价单', requiresAuth: true },
+        meta: { title: '新建报价单', requiresAuth: true, hidden: true },
       },
       {
         path: 'quotations/:id',
         name: 'QuotationDetail',
         component: () => import('@/views/quotations/detail.vue'),
-        meta: { title: '报价单详情', requiresAuth: true },
+        meta: { title: '报价单详情', requiresAuth: true, hidden: true },
       },
       {
         path: 'quotations/:id/edit',
         name: 'QuotationEdit',
         component: () => import('@/views/quotations/edit.vue'),
-        meta: { title: '编辑报价单', requiresAuth: true },
+        meta: { title: '编辑报价单', requiresAuth: true, hidden: true },
       },
       {
         path: 'quotations/:id/approval',
         name: 'QuotationApproval',
         component: () => import('@/views/quotations/approval.vue'),
-        meta: { title: '报价单审批', requiresAuth: true },
+        meta: { title: '报价单审批', requiresAuth: true, hidden: true },
       },
       // 定制订单模块 - 列表 + 新建 + 详情 + 跟踪
       {
@@ -634,19 +634,19 @@ const routes = [
         path: 'custom-orders/new',
         name: 'CustomOrderCreate',
         component: () => import('@/views/custom-orders/create.vue'),
-        meta: { title: '新建定制订单', requiresAuth: true },
+        meta: { title: '新建定制订单', requiresAuth: true, hidden: true },
       },
       {
         path: 'custom-orders/:id',
         name: 'CustomOrderDetail',
         component: () => import('@/views/custom-orders/detail.vue'),
-        meta: { title: '定制订单详情', requiresAuth: true },
+        meta: { title: '定制订单详情', requiresAuth: true, hidden: true },
       },
       {
         path: 'custom-orders/:id/track',
         name: 'CustomOrderTracking',
         component: () => import('@/views/custom-orders/tracking.vue'),
-        meta: { title: '工艺跟踪', requiresAuth: true },
+        meta: { title: '工艺跟踪', requiresAuth: true, hidden: true },
       },
       // 色卡仓储管理模块（P0-4）
       {
@@ -659,13 +659,13 @@ const routes = [
         path: 'color-cards/create',
         name: 'ColorCardCreate',
         component: () => import('@/views/color-cards/create.vue'),
-        meta: { title: '新建色卡', requiresAuth: true },
+        meta: { title: '新建色卡', requiresAuth: true, hidden: true },
       },
       {
         path: 'color-cards/detail/:id',
         name: 'ColorCardDetail',
         component: () => import('@/views/color-cards/detail.vue'),
-        meta: { title: '色卡详情', requiresAuth: true },
+        meta: { title: '色卡详情', requiresAuth: true, hidden: true },
       },
       {
         path: 'color-cards/borrow',
@@ -685,13 +685,13 @@ const routes = [
         name: 'ColorPriceCreate',
         // 修复：原指向 list.vue（错配）→ 改为专用 create.vue
         component: () => import('@/views/color-prices/create.vue'),
-        meta: { title: '新建色号价格', requiresAuth: true },
+        meta: { title: '新建色号价格', requiresAuth: true, hidden: true },
       },
       {
         path: 'color-prices/detail/:id',
         name: 'ColorPriceDetail',
         component: () => import('@/views/color-prices/detail.vue'),
-        meta: { title: '色号价格详情', requiresAuth: true },
+        meta: { title: '色号价格详情', requiresAuth: true, hidden: true },
       },
       {
         path: 'color-prices/batch-adjust',
@@ -716,7 +716,7 @@ const routes = [
         path: 'ai-extend/process-detail/:id',
         name: 'AiExtendProcessDetail',
         component: () => import('@/views/ai-extend/process-detail.vue'),
-        meta: { title: '工艺优化详情', requiresAuth: true },
+        meta: { title: '工艺优化详情', requiresAuth: true, hidden: true },
       },
       {
         path: 'ai-extend/quality-prediction',

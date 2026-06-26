@@ -47,6 +47,13 @@ use prometheus::{
 use std::sync::Arc;
 
 /// 业务指标集合
+///
+/// BE-D 修复（2026-06-26 第三优先级）：
+/// BusinessMetrics 注册了 20+ Prometheus 指标，但当前业务代码尚未接入
+/// 读取路径（state.business_metrics 未在 handler 中使用）。
+/// 保留结构体供 metrics 暴露端点接入后使用，项级 allow + TODO。
+#[allow(dead_code)]
+// TODO(tech-debt): metrics 暴露端点 / 中间件接入后移除；rustc 1.94+ 编译时由编译器报告具体死代码位置。
 #[derive(Debug, Clone)]
 pub struct BusinessMetrics {
     // ===== 业务核心指标 =====
@@ -367,6 +374,7 @@ pub fn render_prometheus_metrics(registry: &Registry) -> Result<String, promethe
 }
 
 /// 指标注册表构建器
+#[allow(dead_code)] // TODO(tech-debt): metrics 暴露端点接入后移除
 pub fn build_registry_and_metrics() -> Result<(Arc<Registry>, BusinessMetrics), prometheus::Error> {
     let registry = Arc::new(Registry::new());
     let metrics = BusinessMetrics::new(&registry)?;

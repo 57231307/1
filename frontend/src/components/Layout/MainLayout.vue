@@ -25,6 +25,10 @@
           <el-menu-item index="/fabric">面料列表</el-menu-item>
           <el-menu-item index="/greige-fabrics">坯布管理</el-menu-item>
           <el-menu-item index="/product">产品管理</el-menu-item>
+          <el-menu-item index="/color-cards/list">色卡列表</el-menu-item>
+          <el-menu-item index="/color-cards/borrow">色卡借出</el-menu-item>
+          <el-menu-item index="/color-prices/list">色号价格</el-menu-item>
+          <el-menu-item index="/color-prices/batch-adjust">批量调价</el-menu-item>
         </el-sub-menu>
 
         <el-sub-menu index="inventory">
@@ -38,6 +42,7 @@
           <el-menu-item index="/inventory-count">库存盘点</el-menu-item>
           <el-menu-item index="/inventory-transfer">库存调拨</el-menu-item>
           <el-menu-item index="/inventory-adjustment">库存调整</el-menu-item>
+          <el-menu-item index="/logistics">物流管理</el-menu-item>
         </el-sub-menu>
 
         <el-sub-menu index="sales">
@@ -50,6 +55,10 @@
           <el-menu-item index="/sales-ext">销售扩展</el-menu-item>
           <el-menu-item index="/customer">客户管理</el-menu-item>
           <el-menu-item index="/customer-credit">客户信用</el-menu-item>
+          <el-menu-item index="/sales-contract">销售合同</el-menu-item>
+          <el-menu-item index="/sales-price">销售价格</el-menu-item>
+          <el-menu-item index="/sales-analysis">销售分析</el-menu-item>
+          <el-menu-item index="/quotations">报价单管理</el-menu-item>
         </el-sub-menu>
 
         <el-sub-menu index="purchase">
@@ -62,6 +71,10 @@
           <el-menu-item index="/purchase-ext">采购扩展</el-menu-item>
           <el-menu-item index="/supplier">供应商管理</el-menu-item>
           <el-menu-item index="/supplier-evaluation">供应商评估</el-menu-item>
+          <el-menu-item index="/purchase-contract">采购合同</el-menu-item>
+          <el-menu-item index="/purchase-price">采购价格</el-menu-item>
+          <el-menu-item index="/purchase-inspection">采购检验</el-menu-item>
+          <el-menu-item index="/purchase-return">采购退货</el-menu-item>
         </el-sub-menu>
 
         <el-sub-menu index="crm">
@@ -70,6 +83,10 @@
             <span>客户关系</span>
           </template>
           <el-menu-item index="/crm">CRM 管理</el-menu-item>
+          <el-menu-item index="/crm/pool">公海客户池</el-menu-item>
+          <el-menu-item index="/crm/assignment">客户分配</el-menu-item>
+          <el-menu-item index="/crm/leads">线索管理</el-menu-item>
+          <el-menu-item index="/crm/opportunities">商机管理</el-menu-item>
         </el-sub-menu>
 
         <el-sub-menu index="production">
@@ -86,6 +103,9 @@
           <el-menu-item index="/scheduling">排产管理</el-menu-item>
           <el-menu-item index="/quality">质量管理</el-menu-item>
           <el-menu-item index="/scheduling/gantt">甘特图</el-menu-item>
+          <el-menu-item index="/custom-orders">定制订单</el-menu-item>
+          <el-menu-item index="/dye-recipe">染色配方</el-menu-item>
+          <el-menu-item index="/dye-batch">染色批次</el-menu-item>
         </el-sub-menu>
 
         <el-sub-menu index="finance">
@@ -109,6 +129,8 @@
           <el-menu-item index="/accounting-period">会计期间</el-menu-item>
           <el-menu-item index="/voucher">凭证管理</el-menu-item>
           <el-menu-item index="/trading">交易管理</el-menu-item>
+          <el-menu-item index="/ar-reconciliation/enhanced">增强版应收对账</el-menu-item>
+          <el-menu-item index="/bi/sales-analysis">BI 销售分析</el-menu-item>
         </el-sub-menu>
 
         <el-sub-menu index="workflow">
@@ -117,9 +139,11 @@
             <span>工作流</span>
           </template>
           <el-menu-item index="/bpm">审批管理</el-menu-item>
+          <el-menu-item index="/bpm/definitions">流程定义</el-menu-item>
+          <el-menu-item index="/bpm/templates">流程模板</el-menu-item>
+          <el-menu-item index="/bpm/approval">审批中心</el-menu-item>
           <el-menu-item index="/business-trace">业务追溯</el-menu-item>
           <el-menu-item index="/barcode-scanner">扫码功能</el-menu-item>
-          <el-menu-item index="/dye-recipe">染色配方</el-menu-item>
           <el-menu-item index="/quality-standards">质量标准</el-menu-item>
         </el-sub-menu>
 
@@ -142,6 +166,20 @@
           <el-menu-item index="/omni-audit">全量审计</el-menu-item>
           <el-menu-item index="/system/audit-log">审计日志</el-menu-item>
           <el-menu-item index="/system/slow-query">慢查询审计</el-menu-item>
+          <el-menu-item index="/security">安全管理</el-menu-item>
+          <el-menu-item index="/email">邮件管理</el-menu-item>
+          <el-menu-item index="/tenant-billing">租户计费</el-menu-item>
+          <el-menu-item index="/admin/failover">主备监控</el-menu-item>
+        </el-sub-menu>
+
+        <el-sub-menu index="ai">
+          <template #title>
+            <el-icon><MagicStick /></el-icon>
+            <span>AI 智能</span>
+          </template>
+          <el-menu-item index="/ai-extend">AI 分析深化</el-menu-item>
+          <el-menu-item index="/ai-extend/process-optimization">AI 工艺优化</el-menu-item>
+          <el-menu-item index="/ai-extend/quality-prediction">AI 质量预测</el-menu-item>
         </el-sub-menu>
       </el-menu>
     </el-aside>
@@ -193,6 +231,7 @@ import {
   User,
   Cpu,
   List,
+  MagicStick,
 } from '@element-plus/icons-vue'
 import { useUserStore } from '@/store/user'
 

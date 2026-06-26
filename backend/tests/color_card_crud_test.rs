@@ -5,7 +5,8 @@
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    // BE-D 修复（2026-06-26 第三优先级）：
+    // 删除 `use super::*;`（模块无父级 pub 项，触发 dead_code 警告）。
     use bingxi_backend::utils::color_space_converter::{rgb_to_hex, hex_to_rgb, rgb_to_lab, delta_e_76};
 
     #[test]
