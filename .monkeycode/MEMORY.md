@@ -20,13 +20,45 @@
 
 ---
 
-## 当前任务状态（2026-06-26 第二优先级功能修复 CI 全绿，PR #257 已合并）
+## 当前任务状态（2026-06-26 第三四五优先级 + 技术债务修复 CI 全绿，PR #259 已合并）
+
+### ✅ 第三四五优先级 + 技术债务修复完成（PR #259 已 squash merge）
+
+- **分支**：`fix/reaudit-p345-v2-2026-06-26`
+- **PR**：https://github.com/57231307/1/pull/259
+- **最新 commit**：`822449fd`（main HEAD）
+- **CI**：run 28245032366 全绿（13 success + 2 skipped release）
+
+#### 已修复项
+
+| 优先级 | 编号 | 修复内容 |
+|--------|------|----------|
+| P3 | BE-D | 7 处死代码抑制（business_metrics/operation_log_service/scheduling_query 删除 GanttItem+清空恒真测试/import_export/failover/color_card_crud_test），均加 #[allow(dead_code)] + TODO |
+| P3 | BE-C | 新建 constants.rs 集中定义 5 个常量，11 个 service/handler 文件 22 处硬编码替换 |
+| P4 | FE-P4 | 48 条孤儿路由修复（17 条 hidden + 32 条菜单 + AI 智能菜单分组） |
+| P5 | TS-T | color_price_crud_test.rs 重写为 5 个有效测试；scheduling_query 删除恒真断言 |
+| 技术债务 | api-gateway | 新建 api_gateway_handler.rs 实现 14 个端点（endpoints/logs/stats 占位 + keys 复用 api_key_handler） |
+| CI 修复 | main.rs | 补 `mod constants;` 声明（修复 binary 编译 E0433） |
+
+#### 关键技术发现
+
+- **main 被 reset**：main 分支被 reset 为单一 release commit `da0d7960`，旧分支无共同祖先导致 PR #258 无法合并（已关闭）
+- **binary crate 模块镜像**：`src/main.rs` 声明了 binary crate 自己的 `mod cache/config/handlers` 等（lib crate 的镜像引用），新增模块必须同步在 main.rs 声明，否则 binary 编译报 E0433
+
+#### 待办（审计报告剩余项）
+
+6. **未处理**：BE-P 分页修复（5 处全量加载做内存聚合）— 非CI阻断，未在本批次处理
+7. **未处理**：BE-A/H 返回类型统一（47 个 `impl IntoResponse` → `Result<Json<ApiResponse<...>>, AppError>`）— 改动量大风险高
+8. **历史残留**：P0-1 AP 发票汇率 0.01 历史数据订正脚本
+9. **安全**：TS-S-3~7 安全加固（输入验证不足等）
+
+---
 
 ### ✅ 第二优先级 FE-A + FE-P + TS-T 修复完成（PR #257 已 squash merge）
 
 - **分支**：`fix/reaudit-priority2-2026-06-26`
 - **PR**：https://github.com/57231307/1/pull/257
-- **最新 commit**：`e19091ac`（main HEAD）
+- **最新 commit**：`e19091ac`（已合并入 main）
 - **CI**：run 28238017259 全绿（12 success + 2 skipped release）
 
 #### 已修复项
@@ -40,14 +72,6 @@
 | TS-T-4 | `79a68845` | playwright.config.ts testDir 改为 ./e2e；package.json 新增 test:e2e / test:e2e:ui 脚本 |
 | 测试同步 | `e4314715` | tests/unit/user-store.test.ts 期望值增加 permissions: [] 字段 |
 | CI 修复 | `e4314715` | backend/.clippy-baseline.txt 从 main 同步 1496 行（避免 PR 缺 baseline 误判 106 个新警告） |
-
-#### 待办（按审计报告修复优先级）
-
-3. **第三优先级**（CI 阻断）：BE-D-1~14 死代码 / BE-A/H 返回类型 / BE-C 硬编码 / BE-P 分页
-4. **第四优先级**（前端 UI）：FE-S/G 侧边栏+聚合 / FE-M meta / 48 条孤儿路由
-5. **第五优先级**（测试补齐）：TS-T 恒真断言 / TS-S-3~7 安全加固
-
-**技术债务**：api-gateway endpoints/logs/stats/regenerate 后端 handler 未实现（FE-A-6 仅修复了路由前缀，handler 仍为 TODO）
 
 ---
 

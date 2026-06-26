@@ -2,6 +2,34 @@
 
 > 重要变更一句话摘要列表。详细历史请查阅 [`.monkeycode/docs/archives/`](file:///workspace/.monkeycode/docs/archives/)。
 
+## 2026-06-26 (第三四五优先级 + 技术债务修复 CI 全绿，PR #259)
+
+### P3/P4/P5/技术债务修复完成
+
+**分支**：`fix/reaudit-p345-v2-2026-06-26`
+**PR**：https://github.com/57231307/1/pull/259
+**最新 commit**：`822449fd`（squash merge 到 main）
+**CI**：run 28245032366 全绿（13 success + 2 skipped release）
+
+**修复清单**（2 commits squash 为 1）：
+1. `97b1c637` P3/P4/P5 + 技术债务修复
+   - **P3 BE-D 死代码抑制（7 处）**：business_metrics / operation_log_service / scheduling_query（删除 GanttItem + 清空恒真测试）/ import_export / failover / color_card_crud_test
+   - **P3 BE-C 硬编码常量化（22 处）**：新建 `constants.rs`（DEFAULT_CURRENCY/DEFAULT_PAYMENT_TERMS_DAYS/DEFAULT_WAREHOUSE_ID/DEFAULT_DEPARTMENT_ID/DEFAULT_PURCHASER_ID），11 个 service/handler 文件替换
+   - **P5 TS-T 恒真断言重写**：color_price_crud_test.rs 重写为 5 个有效测试
+   - **技术债务**：新建 `api_gateway_handler.rs` 实现 14 个端点（endpoints/logs/stats 占位 + keys 复用 api_key_handler）
+   - **P4 前端孤儿路由修复（48 条）**：17 条 hidden + 32 条菜单 + AI 智能菜单分组
+2. `7ac01e7f` 修复 main.rs 缺少 `mod constants` 导致 binary 编译 E0433
+
+**关键技术发现**：
+- main 被 reset 为单一 release commit `da0d7960`，旧分支无共同祖先导致 PR #258 无法合并
+- `src/main.rs` 声明了 binary crate 自己的 `mod cache/config/handlers` 等，但缺少 `mod constants`，导致编译 server binary 时 `crate::constants` 无法解析（E0433）。lib.rs 有 `pub mod constants` 但 binary crate 不继承
+
+**CI 经历 2 轮**：
+- run 28244134130 ❌ Clippy + 后端构建失败（E0433 unresolved import `crate::constants`）
+- run 28245032366 ✅ 13 success + 2 skipped
+
+---
+
 ## 2026-06-26 (第二优先级功能修复 CI 全绿，PR #257)
 
 ### 第二优先级 FE-P-1~3 + TS-T-4 修复完成
