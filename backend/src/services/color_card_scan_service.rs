@@ -149,3 +149,6 @@ impl ColorCardScanService {
         self.scan_by_code(&item.color_code, tenant_id).await
     }
 }
+
+// 死代码清理（2026-06-26）：_ensure_dye_recipe_used / _ensure_price_used 为抑制未使用导入的 hack，
+// 现已删除多余的 use 语句，这两个函数一并删除。

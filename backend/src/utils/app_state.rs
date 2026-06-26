@@ -191,8 +191,7 @@ impl Default for AppState {
         let metrics = MetricsService::new()
             .expect("测试环境创建 Prometheus 指标服务不应失败（指标命名冲突？）");
         // 使用随机生成的密钥，而不是硬编码的默认值
-        let random_cookie_secret =
-            uuid::Uuid::new_v4().to_string() + &uuid::Uuid::new_v4().to_string();
+        let random_cookie_secret = format!("{}{}", uuid::Uuid::new_v4(), uuid::Uuid::new_v4());
         let cookie_key = Key::derive_from(random_cookie_secret.as_bytes());
         let db = Arc::new(DatabaseConnection::default());
         let omni_audit = Arc::new(

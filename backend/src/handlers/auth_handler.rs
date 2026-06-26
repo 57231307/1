@@ -33,8 +33,11 @@ const LOCKOUT_DURATION_MINUTES: i64 = 30;
 pub struct LoginRequest {
     #[validate(length(min = 3, max = 50, message = "用户名长度必须在3到50个字符之间"))]
     pub username: String,
+    // TS-S-5 安全加固（2026-06-26）：密码长度校验
+    #[validate(length(min = 6, max = 128, message = "密码长度必须在6到128个字符之间"))]
     pub password: String,
     // 可选：如果用户开启了 TOTP，则必须在登录时传入此项
+    #[validate(length(max = 10, message = "TOTP令牌长度不能超过10个字符"))]
     pub totp_token: Option<String>,
 }
 

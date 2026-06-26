@@ -319,19 +319,7 @@ pub struct HealthStatus {
     pub cache: String,
 }
 
-/// 错误辅助：FailoverError 转字符串
-#[allow(dead_code)] // TODO(tech-debt): 主备隔离告警/日志模块接入后移除
-pub fn format_failover_error<E: std::fmt::Debug>(e: &FailoverError<E>) -> String {
-    match e {
-        FailoverError::PrimaryFailed(_) => "主调用失败".to_string(),
-        FailoverError::PrimaryTimeout => "主调用超时".to_string(),
-        FailoverError::BackupFailed(_) => "备用调用失败".to_string(),
-        FailoverError::BackupTimeout => "备用调用超时".to_string(),
-        FailoverError::BothFailed(_, _) => "主备同时失败".to_string(),
-        FailoverError::BothTimeout => "主备同时超时".to_string(),
-        FailoverError::CircuitOpen => "熔断器已打开".to_string(),
-    }
-}
+// 死代码清理（2026-06-26）：format_failover_error 仅被测试调用，无业务引用，已删除。
 
 #[cfg(test)]
 mod tests {
@@ -343,10 +331,5 @@ mod tests {
         assert!(m.is_ok());
     }
 
-    #[test]
-    fn test_format_failover_error() {
-        let err: FailoverError<String> = FailoverError::PrimaryFailed("test".to_string());
-        let s = format_failover_error(&err);
-        assert_eq!(s, "主调用失败");
-    }
+    // 死代码清理（2026-06-26）：test_format_failover_error 测试的 format_failover_error 已删除。
 }

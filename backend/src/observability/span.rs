@@ -68,9 +68,10 @@ mod tests {
         let _g = span.enter();
     }
 
-    // 触发宏编译
-    #[allow(dead_code)] // TODO(tech-debt): span_business! 宏接入业务后改为 #[test]
-    fn _macro_compiles() {
+    // 死代码清理（2026-06-26）：_macro_compiles 改为 #[test]，
+    // 触发 span_business! 宏编译检查的同时作为真实测试运行。
+    #[test]
+    fn test_span_business_macro_compiles() {
         let _s = span_business!("test_op", user_id = 42);
     }
 }

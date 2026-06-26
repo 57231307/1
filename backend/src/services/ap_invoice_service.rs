@@ -619,6 +619,9 @@ impl ApInvoiceService {
 // =====================================================
 
 /// 创建应付单请求
+///
+/// TS-S-5 安全加固（2026-06-26）：补齐 exchange_rate / amount / currency / notes / attachment_urls 校验，
+/// 防止手工传入 0.01 汇率（P0-1）或负数金额。
 #[derive(Debug, Deserialize, Validate)]
 pub struct CreateApInvoiceRequest {
     /// 供应商 ID
@@ -638,29 +641,38 @@ pub struct CreateApInvoiceRequest {
     #[validate(range(min = 0, max = 365, message = "账期必须在0到365天之间"))]
     pub payment_terms: Option<i32>,
 
-    /// 应付金额
+    /// 应付金额（必须为正数）
+    #[validate(custom(function = "validate_positive_decimal"))]
     pub amount: Option<Decimal>,
 
-    /// 币种
+    /// 币种（ISO 4217 三字母代码）
+    #[validate(length(equal = 3, message = "币种必须为 ISO 4217 三字母代码"))]
     pub currency: Option<String>,
 
-    /// 汇率
+    /// 汇率（必须大于 0，防止 P0-1 历史缺陷的 0.01 汇率再次发生）
+    #[validate(custom(function = "validate_exchange_rate"))]
     pub exchange_rate: Option<Decimal>,
 
-    /// 税额
+    /// 税额（必须非负）
+    #[validate(custom(function = "validate_non_negative_decimal"))]
     pub tax_amount: Option<Decimal>,
 
     /// 备注
+    #[validate(length(max = 500, message = "备注长度不能超过500个字符"))]
     pub notes: Option<String>,
 
     /// 附件 URL 列表
+    #[validate(length(max = 10, message = "附件数量不能超过10个"))]
     pub attachment_urls: Option<Vec<String>>,
 }
 
 /// 更新应付单请求
+///
+/// TS-S-5 安全加固（2026-06-26）：补齐字段校验，与 CreateApInvoiceRequest 保持一致。
 #[derive(Debug, Deserialize, Validate)]
 pub struct UpdateApInvoiceRequest {
     /// 应付类型
+    #[validate(length(min = 1, max = 20, message = "发票号码长度必须在1到20个字符之间"))]
     pub invoice_type: Option<String>,
 
     /// 应付日期
@@ -670,16 +682,54 @@ pub struct UpdateApInvoiceRequest {
     pub due_date: Option<NaiveDate>,
 
     /// 账期（天）
+    #[validate(range(min = 0, max = 365, message = "账期必须在0到365天之间"))]
     pub payment_terms: Option<i32>,
 
-    /// 应付金额
+    /// 应付金额（必须为正数）
+    #[validate(custom(function = "validate_positive_decimal"))]
     pub amount: Option<Decimal>,
 
     /// 备注
+    #[validate(length(max = 500, message = "备注长度不能超过500个字符"))]
     pub notes: Option<String>,
 
     /// 附件 URL 列表
+    #[validate(length(max = 10, message = "附件数量不能超过10个"))]
     pub attachment_urls: Option<Vec<String>>,
+}
+
+// =====================================================
+// DTO 校验函数（TS-S-5 安全加固）
+// =====================================================
+
+/// 校验 Decimal 为正数
+fn validate_positive_decimal(value: &Decimal) -> Result<(), validator::ValidationError> {
+    if *value <= Decimal::ZERO {
+        return Err(validator::ValidationError::new("金额必须为正数"));
+    }
+    Ok(())
+}
+
+/// 校验 Decimal 为非负数
+fn validate_non_negative_decimal(value: &Decimal) -> Result<(), validator::ValidationError> {
+    if *value < Decimal::ZERO {
+        return Err(validator::ValidationError::new("金额不能为负数"));
+    }
+    Ok(())
+}
+
+/// 校验汇率合法：必须大于 0 且不等于 P0-1 历史缺陷值 0.01
+fn validate_exchange_rate(value: &Decimal) -> Result<(), validator::ValidationError> {
+    if *value <= Decimal::ZERO {
+        return Err(validator::ValidationError::new("汇率必须大于0"));
+    }
+    // P0-1 防护：拒绝 0.01 汇率（历史缺陷值）
+    if *value == Decimal::new(1, 2) {
+        return Err(validator::ValidationError::new(
+            "汇率不能为0.01（P0-1历史缺陷值，本位币汇率应为1.0）",
+        ));
+    }
+    Ok(())
 }
 
 /// 账龄分析项

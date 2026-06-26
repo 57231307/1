@@ -12,45 +12,8 @@ use crate::utils::error::AppError;
 use serde::Serialize;
 use std::collections::HashMap;
 
-/// 导入格式
-#[allow(dead_code)] // TODO(tech-debt): Excel 导入功能接入后移除
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum ImportFormat {
-    /// CSV 格式
-    Csv,
-    /// Excel 格式
-    Excel,
-}
-
-#[allow(dead_code)] // TODO(tech-debt): Excel 导入功能接入后移除
-impl ImportFormat {
-    /// 从文件扩展名解析格式
-    pub fn from_extension(ext: &str) -> Option<Self> {
-        match ext.to_lowercase().as_str() {
-            "csv" => Some(ImportFormat::Csv),
-            "xlsx" | "xls" => Some(ImportFormat::Excel),
-            _ => None,
-        }
-    }
-
-    /// 获取文件扩展名
-    pub fn extension(&self) -> &'static str {
-        match self {
-            ImportFormat::Csv => "csv",
-            ImportFormat::Excel => "xlsx",
-        }
-    }
-
-    /// 获取 MIME 类型
-    pub fn mime_type(&self) -> &'static str {
-        match self {
-            ImportFormat::Csv => "text/csv",
-            ImportFormat::Excel => {
-                "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-            }
-        }
-    }
-}
+// 死代码清理（2026-06-26）：ImportFormat enum 及 impl 仅在测试中使用，无业务引用，已删除。
+// 业务代码直接使用 import_export_handler 中的 import_csv/import_excel 函数。
 
 /// 导入错误
 #[derive(Debug, Clone, Serialize)]
@@ -383,20 +346,5 @@ mod tests {
         assert!(FieldValidator::enum_value("D", "类型", allowed).is_err());
     }
 
-    #[test]
-    fn test_import_format_from_extension() {
-        assert_eq!(
-            ImportFormat::from_extension("csv").expect("P9-1: 扩展名解析"),
-            ImportFormat::Csv
-        );
-        assert_eq!(
-            ImportFormat::from_extension("xlsx").expect("P9-1: 扩展名解析"),
-            ImportFormat::Excel
-        );
-        assert_eq!(
-            ImportFormat::from_extension("XLS").expect("P9-1: 扩展名解析"),
-            ImportFormat::Excel
-        );
-        assert!(ImportFormat::from_extension("pdf").is_none());
-    }
+    // 死代码清理（2026-06-26）：test_import_format_from_extension 测试的 ImportFormat 已删除。
 }
