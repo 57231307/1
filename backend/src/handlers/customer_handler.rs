@@ -190,7 +190,7 @@ pub async fn create_customer(
             Some("中国".to_string()),
             payload.postal_code,
             credit_limit,
-            payload.payment_terms.unwrap_or(30),
+            payload.payment_terms.unwrap_or(crate::constants::DEFAULT_PAYMENT_TERMS_DAYS),
             payload.tax_id,
             payload.bank_name,
             payload.bank_account,

@@ -307,7 +307,7 @@ pub async fn calculate_color_price(
             .map_err(|_| AppError::validation("无效的数量".to_string()))?,
         season: req.season,
         product_category_id: req.product_category_id,
-        currency: req.currency.unwrap_or_else(|| "CNY".to_string()),
+        currency: req.currency.unwrap_or_else(|| crate::constants::DEFAULT_CURRENCY.to_string()),
         calc_date: req.calc_date,
     };
     let result = crate::utils::price_calculator::calculate_price(&state.db, &calc_req)

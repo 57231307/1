@@ -89,7 +89,7 @@ impl CustomOrderCrudService {
             actual_delivery_date: Set(None),
             sales_order_id: Set(dto.sales_order_id),
             total_amount: Set(dto.total_amount),
-            currency: Set(dto.currency.unwrap_or_else(|| "CNY".to_string())),
+            currency: Set(dto.currency.unwrap_or_else(|| crate::constants::DEFAULT_CURRENCY.to_string())),
             tenant_id: Set(tenant_id),
             created_by: Set(Some(user_id)),
             created_at: Set(now),

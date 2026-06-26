@@ -7,12 +7,20 @@ use serde_json::Value;
 use std::sync::Arc;
 
 /// 操作日志服务
+#[allow(dead_code)] // TODO(tech-debt): 审计日志中间件接入后移除
 #[derive(Debug, Clone)]
 pub struct OperationLogService {
     db: Arc<DatabaseConnection>,
 }
 
 /// 创建操作日志请求
+///
+/// BE-D 修复（2026-06-26 第三优先级）：
+/// OperationLogService 完整实现了审计日志 CRUD，但当前 handler 层尚未接入
+/// 调用路径（审计日志中间件未调用 create_log/log_success）。
+/// 保留服务供审计中间件接入后使用，项级 allow + TODO。
+#[allow(dead_code)]
+// TODO(tech-debt): 审计日志中间件接入后移除；rustc 1.94+ 编译时由编译器报告具体死代码位置。
 #[derive(Debug, Clone)]
 pub struct CreateOperationLogRequest {
     pub user_id: Option<i32>,

@@ -11,21 +11,6 @@ use sea_orm::{ActiveModelTrait, ColumnTrait, EntityTrait, QueryFilter, Set, Tran
 
 use super::order::PurchaseOrderService;
 
-// BE-F-4/BE-C-5 修复（2026-06-25 第二次全面审计）：
-// 以下常量用于"缺料预警/库存预警自动生成采购订单"场景。这些订单由系统触发，
-// 无用户上下文，因此使用命名常量替代魔法数字 1，便于集中管理与后续从系统配置获取。
-// TODO(tech-debt): 后续应从租户配置/系统设置表获取这些默认值。
-/// 默认币种（自动生成采购订单使用）
-const DEFAULT_CURRENCY: &str = "CNY";
-/// 默认仓库 ID（缺料预警自动生成采购订单使用）
-const DEFAULT_WAREHOUSE_ID: i32 = 1;
-/// 默认部门 ID（自动生成采购订单使用）
-const DEFAULT_DEPARTMENT_ID: i32 = 1;
-/// 默认采购员 ID（自动生成采购订单使用）
-const DEFAULT_PURCHASER_ID: i32 = 1;
-/// 系统用户 ID（自动生成订单的审计操作人）
-const SYSTEM_USER_ID: i32 = 1;
-
 impl PurchaseOrderService {
     /// 检查并占用预算（非阻断）
     pub(crate) async fn check_and_occupy_budget(
@@ -170,17 +155,17 @@ impl PurchaseOrderService {
             expected_delivery_date: Set(Some(
                 (Utc::now() + chrono::Duration::days(7)).date_naive(),
             )),
-            warehouse_id: Set(DEFAULT_WAREHOUSE_ID),
-            department_id: Set(DEFAULT_DEPARTMENT_ID),
-            purchaser_id: Set(DEFAULT_PURCHASER_ID),
-            currency: Set(DEFAULT_CURRENCY.to_string()),
+            warehouse_id: Set(crate::constants::DEFAULT_WAREHOUSE_ID),
+            department_id: Set(crate::constants::DEFAULT_DEPARTMENT_ID),
+            purchaser_id: Set(crate::constants::DEFAULT_PURCHASER_ID),
+            currency: Set(crate::constants::DEFAULT_CURRENCY.to_string()),
             exchange_rate: Set(Decimal::new(1, 0)),
             order_status: Set("DRAFT".to_string()),
             notes: Set(Some(format!(
                 "缺料预警自动生成 | 物料: {} ({}) | 需求量: {} | 可用量: {} | 缺口: {} | 级别: {} | 受影响订单: {}",
                 material_name, material_code, required_quantity, available_quantity, shortage_quantity, shortage_level, affected_orders_count
             ))),
-            created_by: Set(SYSTEM_USER_ID),
+            created_by: Set(1), // 系统用户
             ..Default::default()
         }
         .insert(&txn)
@@ -277,16 +262,16 @@ impl PurchaseOrderService {
                 (Utc::now() + chrono::Duration::days(7)).date_naive(),
             )),
             warehouse_id: Set(warehouse_id),
-            department_id: Set(DEFAULT_DEPARTMENT_ID),
-            purchaser_id: Set(DEFAULT_PURCHASER_ID),
-            currency: Set(DEFAULT_CURRENCY.to_string()),
+            department_id: Set(crate::constants::DEFAULT_DEPARTMENT_ID),
+            purchaser_id: Set(crate::constants::DEFAULT_PURCHASER_ID),
+            currency: Set(crate::constants::DEFAULT_CURRENCY.to_string()),
             exchange_rate: Set(Decimal::new(1, 0)),
             order_status: Set("DRAFT".to_string()),
             notes: Set(Some(format!(
                 "库存预警自动生成，当前库存: {}, 补货点: {}, 建议补货量: {}",
                 current_quantity, reorder_point, reorder_quantity
             ))),
-            created_by: Set(SYSTEM_USER_ID),
+            created_by: Set(1), // 系统用户
             ..Default::default()
         }
         .insert(&txn)

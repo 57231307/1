@@ -35,6 +35,12 @@ pub struct DatabaseFailoverConfig {
 }
 
 /// 缓存主备配置
+///
+/// BE-D 修复（2026-06-26 第三优先级）：
+/// CacheFailoverConfig 的 primary_url / primary_timeout_ms / backup_timeout_ms
+/// 字段当前未在业务代码中被读取（缓存主备切换未接入）。
+#[allow(dead_code)]
+// TODO(tech-debt): 缓存主备故障切换接入后移除；rustc 1.94+ 编译时由编译器报告具体死代码位置。
 #[derive(Debug, Deserialize, Clone)]
 pub struct CacheFailoverConfig {
     /// Redis 主缓存 URL

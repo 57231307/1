@@ -96,7 +96,7 @@ impl SalesPriceService {
             customer_id: Set(req.customer_id),
             customer_type: Set(req.customer_type),
             price: Set(req.price),
-            currency: Set(req.currency.unwrap_or_else(|| "CNY".to_string())),
+            currency: Set(req.currency.unwrap_or_else(|| crate::constants::DEFAULT_CURRENCY.to_string())),
             min_order_qty: Set(req.min_order_qty.unwrap_or_default()),
             effective_date: Set(req
                 .effective_date
