@@ -38,15 +38,18 @@ impl SchedulingService {
         date_from: Option<NaiveDate>,
         date_to: Option<NaiveDate>,
     ) -> Result<GanttData, AppError> {
-        let mut orders = ProductionOrderEntity::find()
-            .filter(crate::models::production_order::Column::Status.ne("CANCELLED"))
+        // BE-P 优化（2026-06-26）：work_center_id 过滤下推到 SQL，避免全量加载后 retain
+        let mut query = ProductionOrderEntity::find()
+            .filter(crate::models::production_order::Column::Status.ne("CANCELLED"));
+
+        if let Some(wc_id) = work_center_id {
+            query = query.filter(crate::models::production_order::Column::WorkCenterId.eq(wc_id));
+        }
+
+        let orders = query
             .order_by_asc(crate::models::production_order::Column::Priority)
             .all(&*self.db)
             .await?;
-
-        if let Some(wc_id) = work_center_id {
-            orders.retain(|o| o.work_center_id == Some(wc_id));
-        }
 
         let scheduled_details: Vec<ScheduleDetail> = orders
             .iter()

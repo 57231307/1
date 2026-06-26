@@ -115,14 +115,20 @@ pub async fn get_supplier_score_by_path(
 pub async fn list_ratings(
     State(state): State<AppState>,
     auth: AuthContext,
+    Query(params): Query<EvaluationRecordQuery>,
 ) -> Result<Json<ApiResponse<Vec<supplier_evaluation::Model>>>, AppError> {
     info!("用户 {} 正在查询供应商评级列表", auth.user_id);
 
+    let page = params.page.unwrap_or(1) as u64;
+    let page_size = params.page_size.unwrap_or(20) as u64;
+
     let service = SupplierEvaluationService::new(state.db.clone());
-    let ratings = service.list_ratings().await?;
+    let (ratings, total) = service.list_ratings(page, page_size).await?;
     info!("供应商评级列表查询成功，共 {} 条记录", ratings.len());
 
-    Ok(Json(ApiResponse::success(ratings)))
+    Ok(Json(ApiResponse::success_paginated(
+        ratings, total, page, page_size,
+    )))
 }
 
 #[derive(Debug, Deserialize)]

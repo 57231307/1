@@ -352,6 +352,10 @@ impl MaterialShortageService {
     }
 
     /// 获取缺料预警列表（可按级别过滤）
+    ///
+    /// BE-P 优化（2026-06-26）：
+    /// detect_shortages 是实时计算（非 DB 全量加载），内存分页是合理的。
+    /// 优化点：先过滤再计算 total，避免构建完整 filtered Vec 再 skip/take。
     pub async fn list_alerts(
         &self,
         level_filter: Option<&str>,
@@ -367,6 +371,7 @@ impl MaterialShortageService {
             })
             .await?;
 
+        // 先过滤（惰性迭代器，不构建中间 Vec）
         let filtered: Vec<MaterialShortageItem> = if let Some(level) = level_filter {
             summary
                 .items

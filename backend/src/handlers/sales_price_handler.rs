@@ -114,17 +114,29 @@ pub async fn get_price_history(
     Ok(Json(ApiResponse::success(history)))
 }
 
+#[derive(Debug, Deserialize)]
+pub struct StrategiesQuery {
+    pub page: Option<i64>,
+    pub page_size: Option<i64>,
+}
+
 pub async fn list_strategies(
+    Query(params): Query<StrategiesQuery>,
     State(state): State<AppState>,
     auth: AuthContext,
 ) -> Result<Json<ApiResponse<Vec<sales_price::Model>>>, AppError> {
     info!("用户 {} 正在查询销售价格策略", auth.user_id);
 
+    let page = params.page.unwrap_or(1) as u64;
+    let page_size = params.page_size.unwrap_or(20) as u64;
+
     let service = SalesPriceService::new(state.db.clone());
-    let strategies = service.list_strategies().await?;
+    let (strategies, total) = service.list_strategies(page, page_size).await?;
     info!("销售价格策略查询成功，共 {} 条记录", strategies.len());
 
-    Ok(Json(ApiResponse::success(strategies)))
+    Ok(Json(ApiResponse::success_paginated(
+        strategies, total, page, page_size,
+    )))
 }
 
 pub async fn update_price(

@@ -232,15 +232,25 @@ impl SalesPriceService {
         Ok(())
     }
 
-    pub async fn list_strategies(&self) -> Result<Vec<sales_price::Model>, AppError> {
-        info!("查询销售价格策略列表");
+    /// BE-P 优化（2026-06-26）：补齐分页参数，避免数据量增长后全量返回。
+    pub async fn list_strategies(
+        &self,
+        page: u64,
+        page_size: u64,
+    ) -> Result<(Vec<sales_price::Model>, u64), AppError> {
+        info!(
+            "查询销售价格策略列表，页码：{}，每页：{}",
+            page, page_size
+        );
 
-        let strategies = sales_price::Entity::find()
+        let paginator = sales_price::Entity::find()
             .filter(sales_price::Column::Status.eq("active".to_string()))
             .order_by(sales_price::Column::Id, Order::Desc)
-            .all(&*self.db)
-            .await?;
+            .paginate(&*self.db, page_size);
 
-        Ok(strategies)
+        let total = paginator.num_items().await?;
+        let strategies = paginator.fetch_page(page.saturating_sub(1)).await?;
+
+        Ok((strategies, total))
     }
 }

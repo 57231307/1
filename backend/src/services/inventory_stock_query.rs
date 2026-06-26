@@ -263,6 +263,10 @@ impl InventoryStockService {
     }
 
     /// 获取库存告警
+    ///
+    /// BE-P 待评估（2026-06-26）：当前为 stub 实现，alert_type 总是返回 "normal"。
+    /// 后续接入真实低库存/超期/临界阈值预警逻辑时，应同步引入 SQL 分页或批量限制，
+    /// 避免库存数据量增长后全量加载导致内存压力。
     pub async fn get_stock_alerts(
         &self,
         query: serde_json::Value,
