@@ -20,26 +20,36 @@
 
 ---
 
-## 当前任务状态（2026-06-26 第一优先级安全修复 CI 全绿，PR #256 待合并）
+## 当前任务状态（2026-06-26 第二优先级功能修复 CI 全绿，PR #257 已合并）
 
-### ✅ 第一优先级 5 项安全+数据正确性修复已完成（PR #256 CI 全绿）
+### ✅ 第二优先级 FE-A + FE-P + TS-T 修复完成（PR #257 已 squash merge）
 
-- **分支**：`fix/reaudit-priority1-2026-06-25`
-- **PR**：https://github.com/57231307/1/pull/256
-- **最新 commit**：`ca18f85a`
-- **CI**：#1426 全绿（13 success + 2 skipped）
+- **分支**：`fix/reaudit-priority2-2026-06-26`
+- **PR**：https://github.com/57231307/1/pull/257
+- **最新 commit**：`e19091ac`（main HEAD）
+- **CI**：run 28238017259 全绿（12 success + 2 skipped release）
 
 #### 已修复项
 
 | 编号 | commit | 修复内容 |
 |------|--------|----------|
-| TS-S-1 | `2aba58c6` | Setup 模式 init 接口认证绕过（init_token_middleware 保护高危初始化接口） |
-| BE-F-1/2/C-7 | `6e68d898` | quotation_handler 硬编码 tenant_id=1 → extract_tenant_id |
-| BE-B-1/F-6 | `be35375f` | 审批阈值 f64 转换绕过修复（直接 Decimal 比较） |
-| BE-V-2/TS-S-2 | `fac2c92f` | Webhook SSRF TOCTOU 根治（validate_url_and_resolve + resolve_to_addrs） |
-| BE-F-4/C-5 | `b54e8572` | po/price 硬编码 ID=1 → 命名常量 |
-| CI 修复 | `34af9c8e` | tenant_id 类型不匹配 i32→i64 |
-| CI 修复 | `ca18f85a` | 删除 clippy baseline 让 CI 重建（baseline 440行 vs 1602行差异） |
+| FE-A-1~6 | `873a6f45` | 6 组前端 API 断链（purchase 单复数 / tenant-billing / logistics / email / security / api-gateway 路由前缀） |
+| FE-P-1 | `79a68845` | main.ts 注册 v-permission/v-role 全局指令 |
+| FE-P-2 | `79a68845` | user.ts login() 合并 LoginResponse.permissions 到 userInfo |
+| FE-P-3 | `79a68845` | 删除 store/permission.ts 死代码；types/api.ts 增加 permissions 字段；Login.vue 清理 permissionStore 写入路径 |
+| TS-T-4 | `79a68845` | playwright.config.ts testDir 改为 ./e2e；package.json 新增 test:e2e / test:e2e:ui 脚本 |
+| 测试同步 | `e4314715` | tests/unit/user-store.test.ts 期望值增加 permissions: [] 字段 |
+| CI 修复 | `e4314715` | backend/.clippy-baseline.txt 从 main 同步 1496 行（避免 PR 缺 baseline 误判 106 个新警告） |
+
+#### 待办（按审计报告修复优先级）
+
+3. **第三优先级**（CI 阻断）：BE-D-1~14 死代码 / BE-A/H 返回类型 / BE-C 硬编码 / BE-P 分页
+4. **第四优先级**（前端 UI）：FE-S/G 侧边栏+聚合 / FE-M meta / 48 条孤儿路由
+5. **第五优先级**（测试补齐）：TS-T 恒真断言 / TS-S-3~7 安全加固
+
+**技术债务**：api-gateway endpoints/logs/stats/regenerate 后端 handler 未实现（FE-A-6 仅修复了路由前缀，handler 仍为 TODO）
+
+---
 
 ### 🟡 第二次全面审计（126 项错误，所有问题均列为错误）
 
@@ -68,8 +78,8 @@
 
 #### 修复优先级
 
-1. **第一优先级**（安全+数据正确性）：✅ 已完成（PR #256 CI 全绿）
-2. **第二优先级**（功能阻断）：FE-A-1~6 API 断链 / FE-P-1~3 权限码 / TS-T-4 E2E testDir
+1. **第一优先级**（安全+数据正确性）：✅ 已完成（PR #256 CI 全绿，commit `629cc59e`）
+2. **第二优先级**（功能阻断）：✅ 已完成（PR #257 CI 全绿，commit `e19091ac`）—— FE-A-1~6 API 断链 / FE-P-1~3 权限码 / TS-T-4 E2E testDir
 3. **第三优先级**（CI 阻断）：BE-D-1~14 死代码 / BE-A/H 返回类型 / BE-C 硬编码 / BE-P 分页
 4. **第四优先级**（前端 UI）：FE-S/G 侧边栏+聚合 / FE-M meta / 48 条孤儿路由
 5. **第五优先级**（测试补齐）：TS-T 恒真断言 / TS-S-3~7 安全加固

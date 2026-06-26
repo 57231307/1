@@ -2,6 +2,32 @@
 
 > 重要变更一句话摘要列表。详细历史请查阅 [`.monkeycode/docs/archives/`](file:///workspace/.monkeycode/docs/archives/)。
 
+## 2026-06-26 (第二优先级功能修复 CI 全绿，PR #257)
+
+### 第二优先级 FE-P-1~3 + TS-T-4 修复完成
+
+**分支**：`fix/reaudit-priority2-2026-06-26`
+**PR**：https://github.com/57231307/1/pull/257
+**最新 commit**：`e19091ac`（squash merge 到 main）
+**CI**：run 28238017259 全绿（12 success + 2 skipped release）
+
+**修复清单**（2 commits 合并为 1 squash）：
+1. `873a6f45` FE-A-1~6 6 组前端 API 断链修复（purchase 单复数 / tenant-billing / logistics / email / security / api-gateway 路由前缀）
+2. `79a68845` FE-P-1~3 权限码接入 + TS-T-4 E2E testDir 修复
+   - FE-P-1：main.ts 注册 v-permission/v-role 全局指令
+   - FE-P-2：user.ts login() 合并 LoginResponse.permissions 到 userInfo
+   - FE-P-3：删除 store/permission.ts 死代码；types/api.ts 增加 permissions 字段；Login.vue 清理 permissionStore 写入路径
+   - TS-T-4：playwright.config.ts testDir 由 ./tests/views 改为 ./e2e；package.json 新增 test:e2e / test:e2e:ui 脚本
+3. `e4314715` 测试期望同步 + clippy baseline 同步
+   - tests/unit/user-store.test.ts 期望值增加 permissions: [] 字段（匹配 FE-P-2 行为变更）
+   - backend/.clippy-baseline.txt 从 main 同步 1496 行（避免 PR 缺 baseline 误判 106 个新警告）
+
+**CI 经历 2 轮**：
+- run 28237627261 ❌ 前端测试期望不匹配 + Clippy baseline 缺失（106 个新警告误报）
+- run 28238017259 ✅ 12 success + 2 skipped release
+
+---
+
 ## 2026-06-26 (第一优先级安全修复 CI 全绿，PR #256)
 
 ### 第一优先级 5 项安全+数据正确性修复完成
