@@ -2,6 +2,21 @@
 
 > 重要变更一句话摘要列表。详细历史请查阅 [`.monkeycode/docs/archives/`](file:///workspace/.monkeycode/docs/archives/)。
 
+## 2026-06-25 (CI ESLint flaky 修复，PR #255 全绿)
+
+### CI #1417 ESLint flaky 失败修复
+
+**PR #255**：https://github.com/57231307/1/pull/255（分支 `fix/ci-eslint-flaky`，CI #1421 全绿）
+
+**根因**：ESLint 报告生成阶段 `jq|sort|head -20` 管道，在 `set -e + pipefail` 模式下 `head` 提前关闭管道导致 `sort` 收到 SIGPIPE，退出码 2 在到达 `exit 0`（渐进式不阻塞）之前中断了整个 CI 步骤。这是 race condition——CI #1416/#1418 碰巧未触发，#1417 触发了。
+
+**修复**（3 个 commit）：
+- `a98dfc5` fix(ci): 在报告生成阶段前 `set +o pipefail`
+- `0d6f463` fix(test): 删除 `color_price_calc_test.rs` 未使用的 `Decimal` 导入（CI #1419 clippy 新警告）
+- `b461760` chore(ci): 删除损坏的 clippy baseline（847 条误报，CI #1420）
+
+---
+
 ## 2026-06-25 (综合审计修复批次 CI 全绿)
 
 ### CI #1416 全绿（PR #254，分支 trae/agent-paRsUI）

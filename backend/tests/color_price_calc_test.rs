@@ -2,7 +2,6 @@
 
 #[cfg(test)]
 mod calc_tests {
-    use rust_decimal::Decimal;
     use rust_decimal_macros::dec;
 
     use bingxi_backend::utils::price_calculator::customer_level_discount;
