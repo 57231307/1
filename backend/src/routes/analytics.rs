@@ -224,25 +224,28 @@ pub fn security() -> Router<AppState> {
         )
 }
 
-/// 邮件路由
+/// 邮件路由（nest 到 /api/v1/erp/emails）
+///
+/// FE-A-4 修复（2026-06-26 第二次审计第二优先级）：
+/// 原内部路径 `/email-templates`、`/email-records`、`/email-statistics` 带
+/// email- 前缀，但 analytics.rs `routes()` 用 merge 而非 nest `/emails`，
+/// 导致前端 `/emails/templates` 等调用落到 `/email-templates` 错误路径上。
+/// 改为 nest `/emails` + 内部路径去掉冗余前缀（templates/records/statistics）。
 pub fn emails() -> Router<AppState> {
     Router::new()
         .route("/send", post(email_handler::send_email))
         .route(
-            "/email-templates",
+            "/templates",
             get(email_handler::list).post(email_handler::create),
         )
         .route(
-            "/email-templates/:id",
+            "/templates/:id",
             get(email_handler::get)
                 .put(email_handler::update)
                 .delete(email_handler::delete),
         )
-        .route("/email-records", get(email_handler::get_email_records))
-        .route(
-            "/email-statistics",
-            get(email_handler::get_email_statistics),
-        )
+        .route("/records", get(email_handler::get_email_records))
+        .route("/statistics", get(email_handler::get_email_statistics))
 }
 
 /// Webhook 集成路由（内部 path 保留 `/`、`/callback` 等，nest 装配时再加前缀）
@@ -330,13 +333,24 @@ pub fn webhooks() -> Router<AppState> {
 ///
 /// 注：main 上 api_key_handler 没有 `delete_api_key`（撤销 = 删除），仅有 `revoke_api_key`，
 /// 因此 `DELETE /api-key/:id` 直接复用 `revoke_api_key`。
-pub fn api_keys() -> Router<AppState> {
+///
+/// FE-A-6 修复（2026-06-26 第二次审计第二优先级）：
+/// 原内部路径 `/`、`/api-key/:id` 经 `.nest("/api-keys", api_keys())` 挂载后
+/// 实际路径为 `/api/v1/erp/api-keys/` 和 `/api/v1/erp/api-keys/api-key/:id`，
+/// 与前端 `/api/v1/erp/api-gateway/keys`、`/api/v1/erp/api-gateway/keys/:id` 不匹配。
+/// 改为 `.nest("/api-gateway", api_gateway_keys())` + 内部路径 `/keys`、`/keys/:id`，
+/// 与前端调用对齐。
+///
+/// TODO(tech-debt): 前端 `/api-gateway/endpoints`、`/api-gateway/logs`、
+/// `/api-gateway/stats`、`/api-gateway/keys/:id/regenerate` 等接口后端未实现，
+/// 需补齐 handler + 路由。
+pub fn api_gateway_keys() -> Router<AppState> {
     Router::new()
         .route(
-            "/",
+            "/keys",
             get(api_key_handler::list_api_keys).post(api_key_handler::create_api_key),
         )
-        .route("/api-key/:id", delete(api_key_handler::revoke_api_key))
+        .route("/keys/:id", delete(api_key_handler::revoke_api_key))
 }
 
 /// 数据权限路由
@@ -554,8 +568,13 @@ pub fn routes() -> Router<AppState> {
         .merge(imports())
         .merge(exports())
         .merge(audit())
-        .merge(security())
-        .merge(emails())
+        // FE-A-4/FE-A-5 修复（2026-06-26 第二次审计第二优先级）：
+        // 原 `.merge(security()) + .merge(emails())` 让 security/emails 子路由
+        // 直接挂到 analytics 顶层（即 /api/v1/erp/login-logs 等），但前端按
+        // /api/v1/erp/security/login-logs、/api/v1/erp/emails/templates 调用，
+        // 路径前缀整体丢失。改为 nest 加独立子前缀，与前端调用对齐。
+        .nest("/security", security())
+        .nest("/emails", emails())
         .merge(ai())
         .merge(reports())
         .nest("/trading", trading())
@@ -564,7 +583,7 @@ pub fn routes() -> Router<AppState> {
         .nest("/reports/enhanced", reports_enhanced())
         .nest("/webhooks/integrations", webhook_integrations())
         .nest("/webhooks", webhooks())
-        .nest("/api-keys", api_keys())
+        .nest("/api-gateway", api_gateway_keys())
         .nest("/data-permissions", data_permissions())
         .nest("/notifications", notifications())
         .nest("/user-notification-settings", user_notification_settings())

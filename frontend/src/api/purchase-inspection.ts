@@ -48,44 +48,44 @@ export const purchaseInspectionApi = {
   // 检验单列表
   list: (params?: PurchaseInspectionQueryParams) =>
     request.get<ApiResponse<{ list: PurchaseInspection[]; total: number }>>(
-      '/purchases/inspections',
+      '/purchase/inspections',
       { params }
     ),
 
   // 创建检验单
   create: (data: Partial<PurchaseInspection>) =>
-    request.post<ApiResponse<PurchaseInspection>>('/purchases/inspections', data),
+    request.post<ApiResponse<PurchaseInspection>>('/purchase/inspections', data),
 
   // 获取检验单详情
   getById: (id: number) =>
-    request.get<ApiResponse<PurchaseInspection>>(`/purchases/inspections/${id}`),
+    request.get<ApiResponse<PurchaseInspection>>(`/purchase/inspections/${id}`),
 
   // 更新检验单
   update: (id: number, data: Partial<PurchaseInspection>) =>
-    request.put<ApiResponse<PurchaseInspection>>(`/purchases/inspections/${id}`, data),
+    request.put<ApiResponse<PurchaseInspection>>(`/purchase/inspections/${id}`, data),
 
   // 完成检验
   complete: (id: number) =>
-    request.post<ApiResponse<PurchaseInspection>>(`/purchases/inspections/${id}/complete`),
+    request.post<ApiResponse<PurchaseInspection>>(`/purchase/inspections/${id}/complete`),
 
   // 获取检验明细
   getItems: (id: number) =>
     request.get<ApiResponse<{ items: PurchaseInspectionItem[] }>>(
-      `/purchases/inspections/${id}/items`
+      `/purchase/inspections/${id}/items`
     ),
 
   // 创建检验明细
   createItem: (id: number, data: Partial<PurchaseInspectionItem>) =>
-    request.post<ApiResponse<PurchaseInspectionItem>>(`/purchases/inspections/${id}/items`, data),
+    request.post<ApiResponse<PurchaseInspectionItem>>(`/purchase/inspections/${id}/items`, data),
 
   // 更新检验明细
   updateItem: (id: number, itemId: number, data: Partial<PurchaseInspectionItem>) =>
     request.put<ApiResponse<PurchaseInspectionItem>>(
-      `/purchases/inspections/${id}/items/${itemId}`,
+      `/purchase/inspections/${id}/items/${itemId}`,
       data
     ),
 
   // 删除检验明细
   deleteItem: (id: number, itemId: number) =>
-    request.delete<ApiResponse<void>>(`/purchases/inspections/${id}/items/${itemId}`),
+    request.delete<ApiResponse<void>>(`/purchase/inspections/${id}/items/${itemId}`),
 }

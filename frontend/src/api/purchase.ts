@@ -86,43 +86,43 @@ export interface PurchaseReceiptQueryParams {
 
 export const purchaseApi = {
   getOrderList: (params?: PurchaseOrderQueryParams) =>
-    request.get<ApiResponse<{ list: PurchaseOrder[]; total: number }>>('/purchases/orders', {
+    request.get<ApiResponse<{ list: PurchaseOrder[]; total: number }>>('/purchase/orders', {
       params,
     }),
 
-  getOrderById: (id: number) => request.get<ApiResponse<PurchaseOrder>>(`/purchases/orders/${id}`),
+  getOrderById: (id: number) => request.get<ApiResponse<PurchaseOrder>>(`/purchase/orders/${id}`),
 
   createOrder: (data: Partial<PurchaseOrder>) =>
-    request.post<ApiResponse<PurchaseOrder>>('/purchases/orders', data),
+    request.post<ApiResponse<PurchaseOrder>>('/purchase/orders', data),
 
   updateOrder: (id: number, data: Partial<PurchaseOrder>) =>
-    request.put<ApiResponse<PurchaseOrder>>(`/purchases/orders/${id}`, data),
+    request.put<ApiResponse<PurchaseOrder>>(`/purchase/orders/${id}`, data),
 
-  deleteOrder: (id: number) => request.delete<ApiResponse<null>>(`/purchases/orders/${id}`),
+  deleteOrder: (id: number) => request.delete<ApiResponse<null>>(`/purchase/orders/${id}`),
 
-  submitOrder: (id: number) => request.post<ApiResponse<null>>(`/purchases/orders/${id}/submit`),
+  submitOrder: (id: number) => request.post<ApiResponse<null>>(`/purchase/orders/${id}/submit`),
 
-  approveOrder: (id: number) => request.post<ApiResponse<null>>(`/purchases/orders/${id}/approve`),
+  approveOrder: (id: number) => request.post<ApiResponse<null>>(`/purchase/orders/${id}/approve`),
 
   rejectOrder: (id: number, reason: string) =>
-    request.post<ApiResponse<null>>(`/purchases/orders/${id}/reject`, { reason }),
+    request.post<ApiResponse<null>>(`/purchase/orders/${id}/reject`, { reason }),
 
   getReceipts: (params?: PurchaseReceiptQueryParams) =>
-    request.get<ApiResponse<{ list: PurchaseReceipt[]; total: number }>>('/purchases/receipts', {
+    request.get<ApiResponse<{ list: PurchaseReceipt[]; total: number }>>('/purchase/receipts', {
       params,
     }),
 
   createReceipt: (data: Partial<PurchaseReceipt>) =>
-    request.post<ApiResponse<PurchaseReceipt>>('/purchases/receipts', data),
+    request.post<ApiResponse<PurchaseReceipt>>('/purchase/receipts', data),
 
   receiveItems: (receiptId: number, data: Partial<PurchaseReceiptItem>[]) =>
-    request.post<ApiResponse<PurchaseReceipt>>(`/purchases/receipts/${receiptId}/receive`, data),
+    request.post<ApiResponse<PurchaseReceipt>>(`/purchase/receipts/${receiptId}/receive`, data),
 
   /**
    * 生成采购订单号（P1-1 补齐 generate-no 端点）
-   * 后端: GET /api/v1/erp/purchases/orders/generate-no
+   * 后端: GET /api/v1/erp/purchase/orders/generate-no
    * 返回: { prefix: "PO", order_no: "PO20260617001" }
    */
   generateOrderNo: () =>
-    request.get<ApiResponse<{ prefix: string; order_no: string }>>('/purchases/orders/generate-no'),
+    request.get<ApiResponse<{ prefix: string; order_no: string }>>('/purchase/orders/generate-no'),
 }
