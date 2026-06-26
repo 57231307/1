@@ -102,7 +102,10 @@ pub async fn list_dye_batches(
     let total = paginator.num_items().await?;
     let batches = paginator.fetch_page(page - 1).await?;
     Ok(Json(ApiResponse::success_paginated(
-        batches, total, page, page_size,
+        batches,
+        total,
+        page,
+        page_size,
     )))
 }
 
@@ -165,10 +168,10 @@ pub async fn create_dye_batch(
         .one(&*state.db)
         .await
         .ok()
-        .flatten();
-
+        .flatten()
+        .unwrap_or_default();
     Ok(Json(ApiResponse::success_with_message(
-        created.unwrap_or_default(),
+        created,
         "缸号创建成功",
     )))
 }
@@ -179,11 +182,11 @@ pub async fn update_dye_batch(
     _auth: AuthContext,
     Json(req): Json<UpdateDyeBatchRequest>,
 ) -> Result<Json<ApiResponse<dye_batch::Model>>, AppError> {
-    let batch_model = dye_batch::Entity::find_by_id(id)
+    let mut batch: dye_batch::ActiveModel = dye_batch::Entity::find_by_id(id)
         .one(&*state.db)
         .await?
-        .ok_or_else(|| AppError::not_found("缸号不存在"))?;
-    let mut batch: dye_batch::ActiveModel = batch_model.into();
+        .ok_or_else(|| AppError::not_found("缸号不存在"))?
+        .into();
 
     if let Some(greige_fabric_id) = req.greige_fabric_id {
         batch.greige_fabric_id = Set(Some(greige_fabric_id));
@@ -232,7 +235,10 @@ pub async fn update_dye_batch(
     batch.updated_at = Set(crate::utils::date_utils::utc_now_fixed());
 
     let updated = batch.update(&*state.db).await?;
-    Ok(Json(ApiResponse::success_with_message(updated, "缸号更新成功")))
+    Ok(Json(ApiResponse::success_with_message(
+        updated,
+        "缸号更新成功",
+    )))
 }
 
 pub async fn delete_dye_batch(
@@ -256,7 +262,10 @@ pub async fn delete_dye_batch(
     active.updated_at = Set(crate::utils::date_utils::utc_now_fixed());
 
     active.update(&*state.db).await?;
-    Ok(Json(ApiResponse::success_with_message((), "缸号删除成功")))
+    Ok(Json(ApiResponse::success_with_message(
+        (),
+        "缸号删除成功",
+    )))
 }
 
 pub async fn complete_dye_batch(
@@ -264,11 +273,11 @@ pub async fn complete_dye_batch(
     Path(id): Path<i32>,
     _auth: AuthContext,
 ) -> Result<Json<ApiResponse<dye_batch::Model>>, AppError> {
-    let batch_model = dye_batch::Entity::find_by_id(id)
+    let mut batch: dye_batch::ActiveModel = dye_batch::Entity::find_by_id(id)
         .one(&*state.db)
         .await?
-        .ok_or_else(|| AppError::not_found("缸号不存在"))?;
-    let mut batch: dye_batch::ActiveModel = batch_model.into();
+        .ok_or_else(|| AppError::not_found("缸号不存在"))?
+        .into();
 
     // 检查当前状态是否允许完成
     let current_status = match &batch.status {
@@ -290,7 +299,10 @@ pub async fn complete_dye_batch(
     batch.updated_at = Set(crate::utils::date_utils::utc_now_fixed());
 
     let updated = batch.update(&*state.db).await?;
-    Ok(Json(ApiResponse::success_with_message(updated, "缸号完成成功")))
+    Ok(Json(ApiResponse::success_with_message(
+        updated,
+        "缸号完成成功",
+    )))
 }
 
 pub async fn get_dye_batches_by_color(
@@ -349,6 +361,8 @@ pub async fn export_dye_batches(
         buf.extend_from_slice(line.as_bytes());
     }
 
+    // BE-A/H 统一：CSV 导出保留为二进制下载（非 JSON），
+    // 错误用 AppError 表达，成功返回 200 + text/csv 响应体。
     let mut response = axum::response::Response::new(axum::body::Body::from(buf));
     response.headers_mut().insert(
         axum::http::header::CONTENT_TYPE,

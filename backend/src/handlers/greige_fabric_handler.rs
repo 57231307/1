@@ -94,6 +94,8 @@ pub struct StockOutRequest {
     pub remarks: Option<String>,
 }
 
+/// 错误类型从 StatusCode 改为 AppError，并使用 `?` 运算符简化错误传播；
+/// `AppError: From<sea_orm::DbErr>` 已实现自动转换。
 pub async fn list_greige_fabrics(
     State(state): State<AppState>,
     Query(query): Query<GreigeFabricListQuery>,
@@ -130,7 +132,6 @@ pub async fn list_greige_fabrics(
     let paginator = q.paginate(&*state.db, page_size);
     let total = paginator.num_items().await?;
     let fabrics = paginator.fetch_page(page - 1).await?;
-
     Ok(Json(ApiResponse::success_paginated(
         fabrics, total, page, page_size,
     )))
@@ -193,10 +194,7 @@ pub async fn create_greige_fabric(
     };
 
     let created = fabric.insert(&*state.db).await?;
-    Ok(Json(ApiResponse::success_with_message(
-        created,
-        "坯布创建成功",
-    )))
+    Ok(Json(ApiResponse::success_with_message(created, "坯布创建成功")))
 }
 
 pub async fn update_greige_fabric(
@@ -254,10 +252,7 @@ pub async fn update_greige_fabric(
     fabric.updated_at = Set(crate::utils::date_utils::utc_now_fixed());
 
     let updated = fabric.update(&*state.db).await?;
-    Ok(Json(ApiResponse::success_with_message(
-        updated,
-        "坯布更新成功",
-    )))
+    Ok(Json(ApiResponse::success_with_message(updated, "坯布更新成功")))
 }
 
 pub async fn delete_greige_fabric(
@@ -271,7 +266,7 @@ pub async fn delete_greige_fabric(
         .ok_or_else(|| AppError::not_found("坯布不存在"))?;
 
     if fabric.status.as_deref() == Some("在库") {
-        return Err(AppError::bad_request("在库坯布不允许删除，请先完成出库"));
+        return Err(AppError::business("在库坯布不允许删除，请先完成出库"));
     }
 
     // 软删除
@@ -336,10 +331,7 @@ pub async fn stock_in(
     fabric.updated_at = Set(crate::utils::date_utils::utc_now_fixed());
 
     let updated = fabric.update(&*state.db).await?;
-    Ok(Json(ApiResponse::success_with_message(
-        updated,
-        "坯布入库成功",
-    )))
+    Ok(Json(ApiResponse::success_with_message(updated, "坯布入库成功")))
 }
 
 pub async fn stock_out(
@@ -360,7 +352,7 @@ pub async fn stock_out(
         let new_weight =
             current_weight - Decimal::from_f64_retain(out_weight).unwrap_or(Decimal::ZERO);
         if new_weight < Decimal::ZERO {
-            return Err(AppError::bad_request("出库重量不能大于现有重量"));
+            return Err(AppError::business("出库重量不能大于现有重量"));
         }
         update_fabric.weight_kg = Set(Some(new_weight));
         // 同步更新 quantity_kg
@@ -375,7 +367,7 @@ pub async fn stock_out(
         let new_length =
             current_length - Decimal::from_f64_retain(out_length).unwrap_or(Decimal::ZERO);
         if new_length < Decimal::ZERO {
-            return Err(AppError::bad_request("出库长度不能大于现有长度"));
+            return Err(AppError::business("出库长度不能大于现有长度"));
         }
         update_fabric.length_m = Set(Some(new_length));
         // 同步更新 quantity_meters
@@ -407,10 +399,7 @@ pub async fn stock_out(
     update_fabric.updated_at = Set(crate::utils::date_utils::utc_now_fixed());
 
     let updated = update_fabric.update(&*state.db).await?;
-    Ok(Json(ApiResponse::success_with_message(
-        updated,
-        "坯布出库成功",
-    )))
+    Ok(Json(ApiResponse::success_with_message(updated, "坯布出库成功")))
 }
 
 pub async fn get_greige_by_supplier(
