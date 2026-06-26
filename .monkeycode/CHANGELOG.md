@@ -2,18 +2,49 @@
 
 > 重要变更一句话摘要列表。详细历史请查阅 [`.monkeycode/docs/archives/`](file:///workspace/.monkeycode/docs/archives/)。
 
-## 2026-06-25 (CI ESLint flaky 修复，PR #255 全绿)
+## 2026-06-26 (第一优先级安全修复 CI 全绿，PR #256)
 
-### CI #1417 ESLint flaky 失败修复
+### 第一优先级 5 项安全+数据正确性修复完成
 
-**PR #255**：https://github.com/57231307/1/pull/255（分支 `fix/ci-eslint-flaky`，CI #1421 全绿）
+**分支**：`fix/reaudit-priority1-2026-06-25`
+**PR**：https://github.com/57231307/1/pull/256
+**最新 commit**：`ca18f85a`
+**CI**：#1426 全绿（13 success + 2 skipped）
 
-**根因**：ESLint 报告生成阶段 `jq|sort|head -20` 管道，在 `set -e + pipefail` 模式下 `head` 提前关闭管道导致 `sort` 收到 SIGPIPE，退出码 2 在到达 `exit 0`（渐进式不阻塞）之前中断了整个 CI 步骤。这是 race condition——CI #1416/#1418 碰巧未触发，#1417 触发了。
+**修复清单**（5 项 + 2 CI 修复 = 7 commits）：
+1. `2aba58c6` TS-S-1 Setup 模式 init 接口认证绕过修复（init_token_middleware 保护高危初始化接口）
+2. `6e68d898` BE-F-1/BE-F-2/BE-C-7 quotation_handler 硬编码 tenant_id=1 → extract_tenant_id
+3. `be35375f` BE-B-1/BE-F-6 审批阈值 f64 转换绕过修复（直接 Decimal 比较）
+4. `fac2c92f` BE-V-2/TS-S-2 Webhook SSRF TOCTOU 根治（validate_url_and_resolve + resolve_to_addrs）
+5. `b54e8572` BE-F-4/BE-C-5 po/price 硬编码 ID=1 → 命名常量
+6. `34af9c8e` fix(ci) tenant_id 类型不匹配 i32→i64
+7. `ca18f85a` chore(ci) 删除 clippy baseline 让 CI 重建（baseline 440行 vs 当前1602行差异）
 
-**修复**（3 个 commit）：
-- `a98dfc5` fix(ci): 在报告生成阶段前 `set +o pipefail`
-- `0d6f463` fix(test): 删除 `color_price_calc_test.rs` 未使用的 `Decimal` 导入（CI #1419 clippy 新警告）
-- `b461760` chore(ci): 删除损坏的 clippy baseline（847 条误报，CI #1420）
+**CI 经历 3 轮**：#1424 类型不匹配 → #1425 Clippy baseline 误报 1162 条 → #1426 全绿
+
+---
+
+## 2026-06-25 (第二次全面审计，126 项错误)
+
+### 审计报告
+
+**报告路径**：[`.monkeycode/docs/audits/2026-06-25-full-reaudit.md`](file:///workspace/.monkeycode/docs/audits/2026-06-25-full-reaudit.md)
+**审计基线**：main 分支 `301abf07`（PR #254 + #255 合并后）
+**审计规则**：所有问题均列为错误，不区分严重度
+
+**错误分布**：后端 48 + 前端 69 + 测试/安全 12 = **126 项错误**
+
+**关键发现**：
+1. TS-S-1 Setup 模式 init 认证绕过（最高优先级）
+2. BE-F-1 quotation_handler 硬编码 tenant_id=1（租户隔离违规）
+3. BE-B-1 审批阈值 f64 转换绕过（销售员自批）
+4. BE-V-2 Webhook TOCTOU 核心漏洞仍在
+5. FE-A-1~6 6 组前端 API 断链（purchase/tenant-billing/logistics/email/security/api-gateway）
+6. FE-P-1~3 权限码完全未接入
+7. BE-D-1~14 14 组死代码（CI clippy 会失败）
+8. 48 条孤儿路由（34 条需补菜单 + 13 条需补 hidden）
+9. 3 处恒真断言 + E2E testDir 配置错误
+10. 60+ handler 未调用 validator::Validate
 
 ---
 

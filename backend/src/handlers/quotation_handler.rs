@@ -9,6 +9,7 @@ use sea_orm::{ActiveModelTrait, ColumnTrait, EntityTrait, QueryFilter};
 use serde::{Deserialize, Serialize};
 
 use crate::middleware::auth_context::AuthContext;
+use crate::middleware::tenant::extract_tenant_id;
 use crate::models::product_color_price;
 use crate::models::quotation_create_dto::CreateQuotationDto;
 use crate::models::quotation_response_dto::{
@@ -447,12 +448,15 @@ pub async fn list_color_prices(
 /// POST /api/v1/erp/quotations/color-prices/:product_color_id
 /// 设置色号价格
 pub async fn set_color_price(
-    _auth: AuthContext,
+    auth: AuthContext,
     State(state): State<AppState>,
     Path(_product_color_id): Path<i64>,
     Json(payload): Json<ColorPriceUpsertRequest>,
 ) -> Result<Json<ApiResponse<product_color_price::Model>>, AppError> {
     use sea_orm::ActiveModelTrait;
+    // BE-F-1/BE-C-7 修复（2026-06-25 第二次全面审计）：
+    // 原 tenant_id 硬编码为 1，违反租户隔离规范。改用 extract_tenant_id 从认证上下文提取。
+    let tenant_id = extract_tenant_id(&auth)? as i64;
     let mut active: product_color_price::ActiveModel = product_color_price::Model {
         id: payload.id.unwrap_or(0),
         product_id: payload.product_id,
@@ -474,7 +478,7 @@ pub async fn set_color_price(
         approved_by: None,
         approved_at: None,
         approval_status: "APPROVED".to_string(),
-        tenant_id: 1,
+        tenant_id,
         created_at: Utc::now(),
         updated_at: Utc::now(),
     }

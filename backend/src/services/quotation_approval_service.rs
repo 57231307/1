@@ -40,10 +40,16 @@ pub enum ApproverRole {
 impl ApproverRole {
     /// 从金额判定审批角色
     pub fn from_amount(amount: Decimal) -> Self {
-        let amount_int = amount.to_string().parse::<f64>().unwrap_or(0.0) as i64;
-        if amount_int < AMOUNT_THRESHOLD_SELF {
+        // BE-B-1/BE-F-6 修复（2026-06-25 第二次全面审计）：
+        // 原实现 amount.to_string().parse::<f64>().unwrap_or(0.0) as i64 存在两个问题：
+        // 1. f64 精度损失（大金额比较错误）
+        // 2. unwrap_or(0.0) 解析失败时金额被视为 0 → 命中 < 10万 分支 → 销售员自批绕过审批
+        // 修复：直接用 Decimal 比较，避免 f64 中转与解析失败降级。
+        let threshold_self = Decimal::new(AMOUNT_THRESHOLD_SELF, 0);
+        let threshold_manager = Decimal::new(AMOUNT_THRESHOLD_MANAGER, 0);
+        if amount < threshold_self {
             ApproverRole::Salesperson
-        } else if amount_int < AMOUNT_THRESHOLD_MANAGER {
+        } else if amount < threshold_manager {
             ApproverRole::SalesManager
         } else {
             ApproverRole::GeneralManager

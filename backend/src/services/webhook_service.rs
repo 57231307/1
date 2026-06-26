@@ -184,23 +184,19 @@ impl WebhookService {
             return Err(AppError::validation("仅允许 HTTPS 协议"));
         }
 
-        // P1-2 修复（2026-06-25 综合审计）：删除 L187-212 内联 IP 校验逻辑，
-        // 统一调用 ssrf_guard::validate_url，消除两套校验逻辑覆盖范围不一致的问题。
-        //
-        // 原内联校验覆盖范围窄于 ssrf_guard：
-        // - 缺 CGNAT 100.64.0.0/10、保留 240.0.0.0/4、多播 224.0.0.0/4
-        // - IPv6 缺 link-local fe80::/10、ULA fc00::/7、IPv4-mapped、多播 ff00::/8
-        // ssrf_guard 已完整覆盖上述场景。
-        //
-        // 注意：TOCTOU 核心漏洞（client.post(url) 传 URL 字符串，reqwest 内部
-        // 第三次解析 DNS）仍存在，完整修复需在 connect 时强制使用解析的 IP，
-        // 待后续单独处理（需 reqwest 自定义 connector）。
-        crate::utils::ssrf_guard::validate_url(url)?;
+        // BE-V-2/TS-S-2 修复（2026-06-25 第二次全面审计）：TOCTOU 根治
+        // 原实现 validate_url(url) 校验通过后，client.post(url) 传 URL 字符串给
+        // reqwest，reqwest 内部会第三次解析 DNS，DNS Rebinding 可绕过校验。
+        // 修复：validate_url_and_resolve 返回校验通过的安全 IP 列表，
+        // 用 resolve_to_addrs 将 host 固定到已校验 IP，reqwest 不再独立解析 DNS，
+        // 彻底消除"校验时解析为公网 IP、连接时解析为内网 IP"的 TOCTOU 窗口。
+        let (host, safe_addrs) = crate::utils::ssrf_guard::validate_url_and_resolve(url)?;
 
         let client = reqwest::Client::builder()
             .timeout(std::time::Duration::from_secs(30))
             .connect_timeout(std::time::Duration::from_secs(10))
             .redirect(reqwest::redirect::Policy::none()) // SSRF 缓解：禁止跟随重定向
+            .resolve_to_addrs(&host, &safe_addrs) // TOCTOU 修复：固定连接到已校验 IP
             .build()
             .unwrap_or_default();
 
