@@ -114,6 +114,89 @@ pub fn validate_url(url_str: &str) -> Result<(), AppError> {
     }
 }
 
+/// 校验 URL 并返回主机名与安全解析的 SocketAddr 列表
+///
+/// 与 [`validate_url`] 的区别：返回 DNS 解析结果（host + 安全地址列表），
+/// 调用方可将结果传给 `reqwest::ClientBuilder::resolve_to_addrs` 固定连接 IP，
+/// 消除"校验时解析为公网 IP、reqwest 内部再次解析为内网 IP"的 TOCTOU 漏洞
+/// （DNS Rebinding 攻击）。
+///
+/// # 返回
+/// - `Ok((host, addrs))`：URL 安全，host 为 URL 主机名，addrs 为校验通过的地址列表
+/// - `Err(AppError)`：URL 不安全或解析失败
+pub fn validate_url_and_resolve(url_str: &str) -> Result<(String, Vec<std::net::SocketAddr>), AppError> {
+    // 1. 解析 URL
+    let parsed = url::Url::parse(url_str)
+        .map_err(|e| AppError::validation(format!("URL 格式无效: {}", e)))?;
+
+    // 2. 协议白名单
+    match parsed.scheme() {
+        "http" | "https" => {}
+        scheme => {
+            return Err(AppError::validation(format!(
+                "URL 协议不允许：{}（仅允许 http/https）",
+                scheme
+            )));
+        }
+    }
+
+    // 3. 提取主机名
+    let host = parsed
+        .host_str()
+        .ok_or_else(|| AppError::validation("URL 缺少主机名".to_string()))?
+        .to_string();
+
+    // 4. 主机名黑名单
+    if is_blocked_hostname(&host) {
+        return Err(AppError::validation(format!(
+            "Webhook URL 主机名被禁止：{}（可能指向本地或私有网络）",
+            host
+        )));
+    }
+
+    let port = parsed.port_or_known_default().unwrap_or(80);
+
+    // 5. IP 字面量：直接校验并返回单元素列表
+    if let Ok(ip) = host.parse::<IpAddr>() {
+        if is_blocked_ip(&ip) {
+            return Err(AppError::validation(format!(
+                "Webhook URL 指向被禁止的 IP 地址：{}",
+                ip
+            )));
+        }
+        return Ok((host, vec![std::net::SocketAddr::new(ip, port)]));
+    }
+
+    // 6. 域名解析为 IP 后校验，返回所有安全地址（一次性解析，消除 TOCTOU 窗口）
+    let socket_addr_str = format!("{}:{}", host, port);
+    match socket_addr_str.to_socket_addrs() {
+        Ok(addrs) => {
+            let mut safe_addrs = Vec::new();
+            for addr in addrs {
+                if is_blocked_ip(&addr.ip()) {
+                    return Err(AppError::validation(format!(
+                        "Webhook URL 域名 {} 解析到被禁止的 IP {}",
+                        host,
+                        addr.ip()
+                    )));
+                }
+                safe_addrs.push(addr);
+            }
+            if safe_addrs.is_empty() {
+                return Err(AppError::validation(format!(
+                    "Webhook URL 主机名 {} DNS 解析返回空结果",
+                    host
+                )));
+            }
+            Ok((host, safe_addrs))
+        }
+        Err(e) => Err(AppError::validation(format!(
+            "Webhook URL 主机名 {} DNS 解析失败: {}",
+            host, e
+        ))),
+    }
+}
+
 /// 检查主机名是否在黑名单（不需要 DNS 解析的明显内网主机名）
 fn is_blocked_hostname(host: &str) -> bool {
     let host_lower = host.to_lowercase();
