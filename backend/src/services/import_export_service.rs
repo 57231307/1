@@ -519,7 +519,7 @@ impl ImportExportService {
             country: Set(None),
             postal_code: Set(None),
             credit_limit: Set(rust_decimal::Decimal::ZERO),
-            payment_terms: Set(30),
+            payment_terms: Set(crate::constants::DEFAULT_PAYMENT_TERMS_DAYS),
             tax_id: Set(None),
             bank_name: Set(None),
             bank_account: Set(None),

@@ -24,34 +24,8 @@ use sea_orm::{
 };
 
 /// P9-2 标记：排程查询子模块路径
+#[allow(dead_code)] // TODO(tech-debt): 排程诊断日志接入后移除
 pub const P92_QRY_MODULE: &str = "scheduling_query";
-
-/// 甘特图任务项
-#[derive(Debug, Clone)]
-pub struct GanttItem {
-    pub task_id: i32,
-    pub name: String,
-    pub start: chrono::NaiveDate,
-    pub end: chrono::NaiveDate,
-    pub progress: i32,
-}
-
-impl GanttItem {
-    pub fn duration_days(&self) -> i64 {
-        (self.end - self.start).num_days()
-    }
-
-    pub fn desc(&self) -> String {
-        format!(
-            "{}（{} → {}，{} 天，进度 {}%）",
-            self.name,
-            self.start,
-            self.end,
-            self.duration_days(),
-            self.progress
-        )
-    }
-}
 
 impl SchedulingService {
     // get_gantt_data + list_scheduled_orders + get_schedule_history + get_schedule_result + confirm_schedule_result
@@ -369,23 +343,8 @@ impl SchedulingService {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-
-    #[test]
-    fn test_gantt_duration() {
-        let item = GanttItem {
-            task_id: 1,
-            name: "工单 A".to_string(),
-            start: crate::ymd!(2026, 6, 1),
-            end: crate::ymd!(2026, 6, 8),
-            progress: 50,
-        };
-        assert_eq!(item.duration_days(), 7);
-        assert!(item.desc().contains("工单 A"));
-    }
-
-    #[test]
-    fn test_module_loaded() {
-        assert_eq!(P92_QRY_MODULE, "scheduling_query");
-    }
+    // BE-D 修复（2026-06-26 第三优先级）：
+    // 原 test_gantt_duration 测试 GanttItem 结构体（已被删除，业务改用 GanttItemDto）。
+    // 原 test_module_loaded 是恒真断言（常量与自身字面量比较），已删除。
+    // scheduling_query 的业务逻辑由 scheduling_e2e.rs 集成测试覆盖。
 }

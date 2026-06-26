@@ -232,7 +232,7 @@ impl PurchaseOrderService {
             warehouse_id: Set(warehouse_id),
             department_id: Set(department_id),
             purchaser_id: Set(user_id),
-            currency: Set(req.currency.clone().unwrap_or_else(|| "CNY".to_string())),
+            currency: Set(req.currency.clone().unwrap_or_else(|| crate::constants::DEFAULT_CURRENCY.to_string())),
             exchange_rate: Set(req.exchange_rate.unwrap_or(Decimal::new(1, 0))),
             order_status: Set("DRAFT".to_string()),
             payment_terms: Set(req.payment_terms.clone()),

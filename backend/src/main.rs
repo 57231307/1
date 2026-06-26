@@ -1,5 +1,6 @@
 mod cache; // P12 批 1：Redis 缓存层（lib crate bingxi_backend::cache 的镜像引用，让 server bin 也能解析 use crate::cache）
 mod config;
+mod constants; // BE-C: 全局常量（lib crate bingxi_backend::constants 的镜像引用，让 server bin 也能解析 crate::constants）
 mod docs;
 mod handlers;
 mod middleware;

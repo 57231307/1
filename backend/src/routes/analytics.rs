@@ -16,12 +16,12 @@ use axum::{
 };
 
 use crate::handlers::{
-    advanced, ai_analysis_handler, api_key_handler, assist_accounting_handler,
-    audit_enhanced_handler, barcode_scanner_handler, business_trace_handler,
-    data_permission_handler, dual_unit_converter_handler, email_handler, import_export_handler,
-    login_security_handler, notification_handler, report_engine_handler, report_enhanced_handler,
-    tracking_handler, user_notification_setting_handler, webhook_handler,
-    webhook_integration_handler,
+    advanced, ai_analysis_handler, api_gateway_handler, api_key_handler,
+    assist_accounting_handler, audit_enhanced_handler, barcode_scanner_handler,
+    business_trace_handler, data_permission_handler, dual_unit_converter_handler, email_handler,
+    import_export_handler, login_security_handler, notification_handler, report_engine_handler,
+    report_enhanced_handler, tracking_handler, user_notification_setting_handler,
+    webhook_handler, webhook_integration_handler,
 };
 
 /// 双计量单位路由
@@ -224,28 +224,25 @@ pub fn security() -> Router<AppState> {
         )
 }
 
-/// 邮件路由（nest 到 /api/v1/erp/emails）
-///
-/// FE-A-4 修复（2026-06-26 第二次审计第二优先级）：
-/// 原内部路径 `/email-templates`、`/email-records`、`/email-statistics` 带
-/// email- 前缀，但 analytics.rs `routes()` 用 merge 而非 nest `/emails`，
-/// 导致前端 `/emails/templates` 等调用落到 `/email-templates` 错误路径上。
-/// 改为 nest `/emails` + 内部路径去掉冗余前缀（templates/records/statistics）。
+/// 邮件路由
 pub fn emails() -> Router<AppState> {
     Router::new()
         .route("/send", post(email_handler::send_email))
         .route(
-            "/templates",
+            "/email-templates",
             get(email_handler::list).post(email_handler::create),
         )
         .route(
-            "/templates/:id",
+            "/email-templates/:id",
             get(email_handler::get)
                 .put(email_handler::update)
                 .delete(email_handler::delete),
         )
-        .route("/records", get(email_handler::get_email_records))
-        .route("/statistics", get(email_handler::get_email_statistics))
+        .route("/email-records", get(email_handler::get_email_records))
+        .route(
+            "/email-statistics",
+            get(email_handler::get_email_statistics),
+        )
 }
 
 /// Webhook 集成路由（内部 path 保留 `/`、`/callback` 等，nest 装配时再加前缀）
@@ -333,24 +330,58 @@ pub fn webhooks() -> Router<AppState> {
 ///
 /// 注：main 上 api_key_handler 没有 `delete_api_key`（撤销 = 删除），仅有 `revoke_api_key`，
 /// 因此 `DELETE /api-key/:id` 直接复用 `revoke_api_key`。
-///
-/// FE-A-6 修复（2026-06-26 第二次审计第二优先级）：
-/// 原内部路径 `/`、`/api-key/:id` 经 `.nest("/api-keys", api_keys())` 挂载后
-/// 实际路径为 `/api/v1/erp/api-keys/` 和 `/api/v1/erp/api-keys/api-key/:id`，
-/// 与前端 `/api/v1/erp/api-gateway/keys`、`/api/v1/erp/api-gateway/keys/:id` 不匹配。
-/// 改为 `.nest("/api-gateway", api_gateway_keys())` + 内部路径 `/keys`、`/keys/:id`，
-/// 与前端调用对齐。
-///
-/// TODO(tech-debt): 前端 `/api-gateway/endpoints`、`/api-gateway/logs`、
-/// `/api-gateway/stats`、`/api-gateway/keys/:id/regenerate` 等接口后端未实现，
-/// 需补齐 handler + 路由。
-pub fn api_gateway_keys() -> Router<AppState> {
+#[allow(dead_code)]
+// TODO(tech-debt): 前端已切换到 /api-gateway/keys 前缀（见 api_gateway()），
+// 本函数保留以兼容旧引用，待确认无外部调用后可移除。
+pub fn api_keys() -> Router<AppState> {
     Router::new()
         .route(
-            "/keys",
+            "/",
             get(api_key_handler::list_api_keys).post(api_key_handler::create_api_key),
         )
-        .route("/keys/:id", delete(api_key_handler::revoke_api_key))
+        .route("/api-key/:id", delete(api_key_handler::revoke_api_key))
+}
+
+/// API 网关管理路由
+///
+/// 技术债务修复（2026-06-26）：
+/// 前端 api-gateway.ts 调用 /api-gateway/{endpoints,logs,keys,stats} 前缀。
+/// 原 api_keys() 挂载在 /api-keys 前缀，与前端不匹配。
+/// 新增 api_gateway() 统一挂载到 /api-gateway 前缀下。
+pub fn api_gateway() -> Router<AppState> {
+    Router::new()
+        // endpoints CRUD
+        .route(
+            "/endpoints",
+            get(api_gateway_handler::list_api_endpoints)
+                .post(api_gateway_handler::create_api_endpoint),
+        )
+        .route(
+            "/endpoints/:id",
+            get(api_gateway_handler::get_api_endpoint)
+                .put(api_gateway_handler::update_api_endpoint)
+                .delete(api_gateway_handler::delete_api_endpoint),
+        )
+        // logs 查询
+        .route("/logs", get(api_gateway_handler::list_api_logs))
+        .route("/logs/:id", get(api_gateway_handler::get_api_log))
+        // keys CRUD（list/create/delete 复用 api_key_handler；get/update/regenerate 为 TODO 占位）
+        .route(
+            "/keys",
+            get(api_gateway_handler::list_api_keys).post(api_gateway_handler::create_api_key),
+        )
+        .route(
+            "/keys/:id",
+            get(api_gateway_handler::get_api_key)
+                .put(api_gateway_handler::update_api_key)
+                .delete(api_gateway_handler::delete_api_key),
+        )
+        .route(
+            "/keys/:id/regenerate",
+            post(api_gateway_handler::regenerate_api_key),
+        )
+        // stats
+        .route("/stats", get(api_gateway_handler::get_api_stats))
 }
 
 /// 数据权限路由
@@ -568,13 +599,8 @@ pub fn routes() -> Router<AppState> {
         .merge(imports())
         .merge(exports())
         .merge(audit())
-        // FE-A-4/FE-A-5 修复（2026-06-26 第二次审计第二优先级）：
-        // 原 `.merge(security()) + .merge(emails())` 让 security/emails 子路由
-        // 直接挂到 analytics 顶层（即 /api/v1/erp/login-logs 等），但前端按
-        // /api/v1/erp/security/login-logs、/api/v1/erp/emails/templates 调用，
-        // 路径前缀整体丢失。改为 nest 加独立子前缀，与前端调用对齐。
-        .nest("/security", security())
-        .nest("/emails", emails())
+        .merge(security())
+        .merge(emails())
         .merge(ai())
         .merge(reports())
         .nest("/trading", trading())
@@ -583,7 +609,7 @@ pub fn routes() -> Router<AppState> {
         .nest("/reports/enhanced", reports_enhanced())
         .nest("/webhooks/integrations", webhook_integrations())
         .nest("/webhooks", webhooks())
-        .nest("/api-gateway", api_gateway_keys())
+        .nest("/api-gateway", api_gateway())
         .nest("/data-permissions", data_permissions())
         .nest("/notifications", notifications())
         .nest("/user-notification-settings", user_notification_settings())

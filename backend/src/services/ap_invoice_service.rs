@@ -77,7 +77,7 @@ impl ApInvoiceService {
             .ok_or_else(|| AppError::not_found(format!("供应商 {}", receipt.supplier_id)))?;
 
         // 使用默认账期 30 天
-        let payment_terms = 30;
+        let payment_terms = crate::constants::DEFAULT_PAYMENT_TERMS_DAYS;
 
         // 4. 生成应付单
         let invoice_no = self.generate_invoice_no().await?;
@@ -99,7 +99,7 @@ impl ApInvoiceService {
             // P1-10 修复（2026-06-25 综合审计）：自动生成 AP 发票保留 PENDING 状态，
             // 触发审批环节，原 AUDITED 跳过审批违反业务流程。
             invoice_status: Set("PENDING".to_string()),
-            currency: Set("CNY".to_string()),
+            currency: Set(crate::constants::DEFAULT_CURRENCY.to_string()),
             exchange_rate: Set(DEFAULT_BASE_CURRENCY_EXCHANGE_RATE),
             // P1-10 修复：tax_amount 应从源单据税额传递。
             // purchase_receipt 主表与 purchase_receipt_item 均无 tax_amount 字段
@@ -178,7 +178,7 @@ impl ApInvoiceService {
             unpaid_amount: Set(amount),
             // P1-10 修复：保留 PENDING 状态触发审批环节
             invoice_status: Set("PENDING".to_string()),
-            currency: Set("CNY".to_string()),
+            currency: Set(crate::constants::DEFAULT_CURRENCY.to_string()),
             exchange_rate: Set(DEFAULT_BASE_CURRENCY_EXCHANGE_RATE),
             // P1-10 修复：从退货单明细汇总税额（负数红字）
             tax_amount: Set(tax_amount),
@@ -220,12 +220,12 @@ impl ApInvoiceService {
             due_date: Set(req
                 .due_date
                 .unwrap_or_else(|| chrono::Utc::now().date_naive())),
-            payment_terms: Set(req.payment_terms.unwrap_or(30)),
+            payment_terms: Set(req.payment_terms.unwrap_or(crate::constants::DEFAULT_PAYMENT_TERMS_DAYS)),
             amount: Set(req.amount.unwrap_or(Decimal::ZERO)),
             paid_amount: Set(Decimal::ZERO),
             unpaid_amount: Set(req.amount.unwrap_or(Decimal::ZERO)),
             invoice_status: Set("DRAFT".to_string()),
-            currency: Set(req.currency.unwrap_or_else(|| "CNY".to_string())),
+            currency: Set(req.currency.unwrap_or_else(|| crate::constants::DEFAULT_CURRENCY.to_string())),
             exchange_rate: Set(req.exchange_rate.unwrap_or(DEFAULT_BASE_CURRENCY_EXCHANGE_RATE)),
             tax_amount: Set(req.tax_amount.unwrap_or(Decimal::ZERO)),
             notes: Set(req.notes),
