@@ -31,6 +31,7 @@ use tracing::{info, warn, Span};
 use crate::config::settings::AppSettings;
 use crate::middleware::auth::auth_middleware;
 use crate::middleware::csrf::csrf_middleware;
+use crate::middleware::init_token::init_token_middleware;
 use crate::middleware::permission::permission_middleware;
 use crate::middleware::request_validator::request_validator_middleware;
 use crate::routes::create_router;
@@ -195,14 +196,23 @@ async fn initialize_with_db(
 }
 
 fn create_init_router() -> Router<()> {
-    Router::<()>::new().nest(
-        "/api/v1/erp",
-        Router::<()>::new()
-            .route("/init/status", get(get_init_status))
-            .route("/init/test-database", post(test_database_connection))
-            .route("/init/initialize-with-db", post(initialize_with_db)), // reset-password路由已在 routes/mod.rs 中配置
-                                                                          // .route("/init/reset-password", post(crate::handlers::init_handler::reset_admin_password)),
-    )
+    // TS-S-1 修复（2026-06-25 第二次全面审计）：setup 模式下数据库未就绪，
+    // auth_middleware 未挂载，高危初始化接口必须由 init_token_middleware 保护，
+    // 防止攻击者匿名 POST 完成系统初始化（抢占首个管理员账号）。
+    //
+    // 设计与 routes/system.rs::init() 保持一致：
+    // - 高危接口（initialize*）→ 应用 init_token_middleware
+    // - 只读接口（/status）→ 公开（无副作用）
+    // - 受限接口（/test-database）→ 公开（handler 内已有 admin 二次校验）
+    let protected = Router::<()>::new()
+        .route("/init/initialize-with-db", post(initialize_with_db))
+        .layer(axum::middleware::from_fn(init_token_middleware));
+
+    let public = Router::<()>::new()
+        .route("/init/status", get(get_init_status))
+        .route("/init/test-database", post(test_database_connection));
+
+    Router::<()>::new().nest("/api/v1/erp", protected.merge(public))
 }
 
 async fn shutdown_signal() {
