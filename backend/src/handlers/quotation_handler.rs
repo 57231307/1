@@ -456,7 +456,7 @@ pub async fn set_color_price(
     use sea_orm::ActiveModelTrait;
     // BE-F-1/BE-C-7 修复（2026-06-25 第二次全面审计）：
     // 原 tenant_id 硬编码为 1，违反租户隔离规范。改用 extract_tenant_id 从认证上下文提取。
-    let tenant_id = extract_tenant_id(&auth)?;
+    let tenant_id = extract_tenant_id(&auth)? as i64;
     let mut active: product_color_price::ActiveModel = product_color_price::Model {
         id: payload.id.unwrap_or(0),
         product_id: payload.product_id,
