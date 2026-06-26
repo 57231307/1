@@ -11,6 +11,13 @@ export interface LoginResponse {
   refresh_token: string
   expires_in: number
   user: UserInfo
+  /**
+   * FE-P-3 修复（2026-06-26 第二次审计第二优先级）：
+   * 后端 LoginResponse 顶层返回 `permissions: Vec<String>`（格式 "{resource}:{action}"），
+   * 前端用 `permissions.includes("xxx:yyy")` 判断权限。
+   */
+  permissions?: string[]
+  csrf_token?: string
 }
 
 export interface UserInfo {
@@ -26,15 +33,6 @@ export interface UserInfo {
   department_name?: string
   is_totp_enabled?: boolean
   permissions?: string[]
-}
-
-export interface UserPermission {
-  id: number
-  name: string
-  code: string
-  type: string
-  resource?: string
-  action?: string
 }
 
 export interface PageResult<T = any> {

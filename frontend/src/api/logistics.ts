@@ -33,19 +33,23 @@ export interface LogisticsQueryParams {
 export const logisticsApi = {
   // 运单列表
   list: (params?: LogisticsQueryParams) =>
-    request.get<ApiResponse<{ list: LogisticsWaybill[]; total: number }>>('/logistics', { params }),
+    request.get<ApiResponse<{ list: LogisticsWaybill[]; total: number }>>('/inventory/logistics', {
+      params,
+    }),
 
   // 创建运单
   create: (data: Partial<LogisticsWaybill>) =>
-    request.post<ApiResponse<LogisticsWaybill>>('/logistics', data),
+    request.post<ApiResponse<LogisticsWaybill>>('/inventory/logistics', data),
 
   // 获取运单详情
-  getById: (id: number) => request.get<ApiResponse<LogisticsWaybill>>(`/logistics/${id}`),
+  getById: (id: number) =>
+    request.get<ApiResponse<LogisticsWaybill>>(`/inventory/logistics/${id}`),
 
   // 更新运单状态
   update: (id: number, data: Partial<LogisticsWaybill>) =>
-    request.put<ApiResponse<LogisticsWaybill>>(`/logistics/${id}`, data),
+    request.put<ApiResponse<LogisticsWaybill>>(`/inventory/logistics/${id}`, data),
 
   // 删除运单
-  delete: (id: number) => request.delete<ApiResponse<void>>(`/logistics/${id}`),
+  delete: (id: number) =>
+    request.delete<ApiResponse<void>>(`/inventory/logistics/${id}`),
 }

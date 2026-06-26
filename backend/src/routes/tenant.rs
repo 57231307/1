@@ -21,7 +21,7 @@ pub fn tenants() -> Router<AppState> {
         .route("/:id/status", put(tenant_handler::update_tenant_status))
 }
 
-/// 租户配置路由（nest 到 /api/v1/erp/tenant/config）
+/// 租户配置路由（nest 到 /api/v1/erp/tenants/config）
 pub fn tenant_config() -> Router<AppState> {
     Router::new()
         .route(
@@ -40,20 +40,29 @@ pub fn tenant_config() -> Router<AppState> {
         .route("/usage", get(tenant_config_handler::get_usage_statistics))
 }
 
-/// 租户计费路由（nest 到 /api/v1/erp/tenant/billing）
+/// 租户计费路由（nest 到 /api/v1/erp/tenants/billing）
 pub fn tenant_billing() -> Router<AppState> {
     Router::new()
         .route("/plan", get(tenant_billing_handler::get_current_plan))
         .route("/upgrade", post(tenant_billing_handler::upgrade_plan))
-        .route("/billing-usage", get(tenant_billing_handler::get_usage))
+        .route("/usage", get(tenant_billing_handler::get_usage))
         .route("/invoices", get(tenant_billing_handler::list_invoices))
         .route("/renew", post(tenant_billing_handler::renew_subscription))
 }
 
 /// 租户域统一入口
+///
+/// FE-A-2 修复（2026-06-26 第二次审计第二优先级）：
+/// 原实现 `routes()` 用 `.merge(tenant_config()) + .merge(tenant_billing())`，
+/// 前端按 `/tenants/billing/*`、`/tenants/config/*` 调用，但 merge 后路径是
+/// `/tenants/plan`、`/tenants/settings` 等，缺少 billing/config 子前缀。
+/// 改为 nest 加独立子前缀，路径与前端一致：
+/// - `/tenants/`、`/tenants/:id` 等（保留 merge）
+/// - `/tenants/config/settings`、`/tenants/config/plans` 等
+/// - `/tenants/billing/plan`、`/tenants/billing/upgrade` 等
 pub fn routes() -> Router<AppState> {
     Router::new()
         .merge(tenants())
-        .merge(tenant_config())
-        .merge(tenant_billing())
+        .nest("/config", tenant_config())
+        .nest("/billing", tenant_billing())
 }

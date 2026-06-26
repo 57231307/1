@@ -50,7 +50,15 @@ describe('User Store 测试（Wave B-3 Cookie 模式）', () => {
     const result = await store.login({ username: 'admin', password: 'password' })
 
     expect(authApi.login).toHaveBeenCalledWith({ username: 'admin', password: 'password' })
-    expect(store.userInfo).toEqual({ id: 1, username: 'admin', role: 'admin' })
+    // FE-P-2/FE-P-3 修复（2026-06-26 第二次审计第二优先级）：
+    // userStore.login() 现在将 LoginResponse.permissions 合并到 userInfo，
+    // 使 v-permission 指令可从 userStore.userInfo.permissions 读取权限码。
+    expect(store.userInfo).toEqual({
+      id: 1,
+      username: 'admin',
+      role: 'admin',
+      permissions: [],
+    })
     // 凭据由后端 Cookie 管理，前端不再写入 localStorage
     expect(localStorage.getItem('access_token')).toBeNull()
     expect(localStorage.getItem('refresh_token')).toBeNull()

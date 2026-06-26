@@ -71,14 +71,12 @@ import { reactive, ref, onUnmounted } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { ElMessage, type FormInstance, type FormRules } from 'element-plus'
 import { useUserStore } from '@/store/user'
-import { usePermissionStore } from '@/store/permission'
 import { securityApi } from '@/api/security'
 import { logger } from '@/utils/logger'
 
 const router = useRouter()
 const route = useRoute()
 const userStore = useUserStore()
-const permissionStore = usePermissionStore()
 
 const formRef = ref<FormInstance>()
 const loading = ref(false)
@@ -211,17 +209,10 @@ async function handleLogin() {
     try {
       await userStore.login(loginForm)
 
-      if (userStore.userInfo?.permissions) {
-        const permList = userStore.userInfo.permissions.map((code: string) => ({
-          id: 0,
-          name: code,
-          code: code,
-          type: 'menu',
-          resource: code.split(':')[0] || code,
-          action: code.split(':')[1] || '*',
-        }))
-        permissionStore.setPermissions(permList)
-      }
+      // FE-P-2 修复（2026-06-26 第二次审计第二优先级）：
+      // permissions 已在 userStore.login() 中合并到 userInfo，
+      // v-permission 指令直接从 userStore.userInfo.permissions 读取字符串数组判断。
+      // 原 permissionStore 写入路径是死代码（无读取方），已移除。
 
       // 登录成功清空锁定提示
       clearLockInfo()

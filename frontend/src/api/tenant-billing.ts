@@ -61,39 +61,39 @@ export interface TenantConfig {
 
 export const tenantBillingApi = {
   // 套餐管理
-  getCurrentPlan: () => request.get<ApiResponse<CurrentPlanInfo>>('/tenant/billing/plan'),
+  getCurrentPlan: () => request.get<ApiResponse<CurrentPlanInfo>>('/tenants/billing/plan'),
 
   upgradePlan: (data: { plan_id: number; billing_cycle: string }) =>
-    request.post<ApiResponse<CurrentPlanInfo>>('/tenant/billing/upgrade', data),
+    request.post<ApiResponse<CurrentPlanInfo>>('/tenants/billing/upgrade', data),
 
-  getUsage: () => request.get<ApiResponse<UsageStats>>('/tenant/billing/usage'),
+  getUsage: () => request.get<ApiResponse<UsageStats>>('/tenants/billing/usage'),
 
   getInvoices: (params?: { page?: number; page_size?: number }) =>
-    request.get<ApiResponse<{ list: Invoice[]; total: number }>>('/tenant/billing/invoices', {
+    request.get<ApiResponse<{ list: Invoice[]; total: number }>>('/tenants/billing/invoices', {
       params,
     }),
 
   renew: (data: { billing_cycle: string }) =>
-    request.post<ApiResponse<CurrentPlanInfo>>('/tenant/billing/renew', data),
+    request.post<ApiResponse<CurrentPlanInfo>>('/tenants/billing/renew', data),
 
   // 套餐列表
-  getPlans: () => request.get<ApiResponse<BillingPlan[]>>('/tenant/config/plans'),
+  getPlans: () => request.get<ApiResponse<BillingPlan[]>>('/tenants/config/plans'),
 
-  getPlanById: (id: number) => request.get<ApiResponse<BillingPlan>>(`/tenant/config/plans/${id}`),
+  getPlanById: (id: number) => request.get<ApiResponse<BillingPlan>>(`/tenants/config/plans/${id}`),
 
   createPlan: (data: Partial<BillingPlan>) =>
-    request.post<ApiResponse<BillingPlan>>('/tenant/config/plans', data),
+    request.post<ApiResponse<BillingPlan>>('/tenants/config/plans', data),
 
   // 租户配置
   getConfigs: (params?: { key?: string; config_type?: string }) =>
-    request.get<ApiResponse<TenantConfig[]>>('/tenant/config/settings', { params }),
+    request.get<ApiResponse<TenantConfig[]>>('/tenants/config/settings', { params }),
 
   setConfig: (data: Partial<TenantConfig>) =>
-    request.post<ApiResponse<void>>('/tenant/config/settings', data),
+    request.post<ApiResponse<void>>('/tenants/config/settings', data),
 
   deleteConfig: (key: string) =>
-    request.delete<ApiResponse<void>>(`/tenant/config/settings/${key}`),
+    request.delete<ApiResponse<void>>(`/tenants/config/settings/${key}`),
 
   // 使用统计
-  getUsageStatistics: () => request.get<ApiResponse<UsageStats>>('/tenant/config/usage'),
+  getUsageStatistics: () => request.get<ApiResponse<UsageStats>>('/tenants/config/usage'),
 }
