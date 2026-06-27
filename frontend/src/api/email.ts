@@ -53,34 +53,34 @@ export interface SendEmailRequest {
 }
 
 export const emailApi = {
-  // 发送邮件
+  // 发送邮件（后端路由 POST /api/v1/erp/send）
   send: (data: SendEmailRequest) =>
     request.post<ApiResponse<{ message_id: string; status: string; sent_at: string }>>(
-      '/emails/send',
+      '/send',
       data
     ),
 
-  // 邮件模板
+  // 邮件模板（后端路由 /api/v1/erp/email-templates）
   getTemplates: (params?: { page?: number; page_size?: number }) =>
-    request.get<ApiResponse<{ list: EmailTemplate[]; total: number }>>('/emails/templates', {
+    request.get<ApiResponse<{ list: EmailTemplate[]; total: number }>>('/email-templates', {
       params,
     }),
 
   getTemplateById: (id: number) =>
-    request.get<ApiResponse<EmailTemplate>>(`/emails/templates/${id}`),
+    request.get<ApiResponse<EmailTemplate>>(`/email-templates/${id}`),
 
   createTemplate: (data: Partial<EmailTemplate>) =>
-    request.post<ApiResponse<EmailTemplate>>('/emails/templates', data),
+    request.post<ApiResponse<EmailTemplate>>('/email-templates', data),
 
   updateTemplate: (id: number, data: Partial<EmailTemplate>) =>
-    request.put<ApiResponse<EmailTemplate>>(`/emails/templates/${id}`, data),
+    request.put<ApiResponse<EmailTemplate>>(`/email-templates/${id}`, data),
 
-  deleteTemplate: (id: number) => request.delete<ApiResponse<void>>(`/emails/templates/${id}`),
+  deleteTemplate: (id: number) => request.delete<ApiResponse<void>>(`/email-templates/${id}`),
 
-  // 发送记录
+  // 发送记录（后端路由 /api/v1/erp/email-records）
   getRecords: (params?: EmailQueryParams) =>
-    request.get<ApiResponse<{ list: EmailLog[]; total: number }>>('/emails/records', { params }),
+    request.get<ApiResponse<{ list: EmailLog[]; total: number }>>('/email-records', { params }),
 
-  // 发送统计
-  getStatistics: () => request.get<ApiResponse<EmailStatistics>>('/emails/statistics'),
+  // 发送统计（后端路由 /api/v1/erp/email-statistics）
+  getStatistics: () => request.get<ApiResponse<EmailStatistics>>('/email-statistics'),
 }

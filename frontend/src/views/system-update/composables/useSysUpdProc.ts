@@ -80,7 +80,7 @@ export function useSysUpdProc(refresh: RefreshCallbacks) {
       await ElMessageBox.confirm(`确定要回滚到版本 ${row.from_version} 吗？`, '确认回滚', {
         type: 'warning',
       })
-      await rollbackUpdate(row.id)
+      await rollbackUpdate(row.from_version)
       ElMessage.success('回滚任务已创建')
       await refresh.fetchTasks()
     } catch (error: any) {

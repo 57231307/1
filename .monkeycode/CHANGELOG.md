@@ -2,6 +2,34 @@
 
 > 重要变更一句话摘要列表。详细历史请查阅 [`.monkeycode/docs/archives/`](file:///workspace/.monkeycode/docs/archives/)。
 
+## 2026-06-27 (严格再审计 v3 + P0 整改批次 2：前端 API 断链修复)
+
+### 前端回退项 API 端点断链修复
+
+**修复范围**：email.ts / security.ts / system-update.ts 三个前端 API 文件
+
+**修复清单**：
+1. email.ts：8 个端点路径全部修复
+   - `/emails/send` → `/send`
+   - `/emails/templates` → `/email-templates`
+   - `/emails/templates/${id}` → `/email-templates/${id}`
+   - `/emails/records` → `/email-records`
+   - `/emails/statistics` → `/email-statistics`
+2. security.ts：8 个端点路径全部修复（去掉 `/security` 前缀，后端 security() 路由 merge 到 erp 根下无前缀）
+   - `/security/stats` → `/stats`
+   - `/security/login-logs` → `/login-logs`
+   - `/security/locked-accounts` → `/locked-accounts`
+   - `/security/locked-accounts/${id}/unlock` → `/locked-accounts/${id}/unlock`
+   - `/security/alerts` → `/alerts`
+   - `/security/alerts/${id}/resolve` → `/alerts/${id}/resolve`
+   - `/security/login-logs/export` → `/login-logs/export`
+   - `/security/lock-status` → `/lock-status`
+3. system-update.ts：rollbackUpdate 函数签名 + 路径 + 请求体修复
+   - 路径 `/system-update/tasks/${taskId}/rollback` → `/system-update/rollback`
+   - 签名 `rollbackUpdate(taskId: number)` → `rollbackUpdate(version: string)`
+   - 请求体改为 `{ version }`（匹配后端 RollbackRequest）
+   - 调用方 useSysUpdProc.ts 同步修改：`rollbackUpdate(row.id)` → `rollbackUpdate(row.from_version)`
+
 ## 2026-06-27 (严格再审计 v3 + P0 整改批次 1)
 
 ### 审计 v3 + 回退项 + 安全关键 P0 修复

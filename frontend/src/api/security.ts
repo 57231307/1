@@ -1,7 +1,7 @@
 import { request } from './request'
 import type { ApiResponse } from '@/types/api'
 
-/** 账号锁定状态（来自后端 /api/v1/erp/security/lock-status） */
+/** 账号锁定状态（来自后端 /api/v1/erp/lock-status） */
 export interface LockStatus {
   user_id: number
   username: string
@@ -56,32 +56,39 @@ export interface SecurityQueryParams {
 }
 
 export const securityApi = {
-  getStats: () => request.get<ApiResponse<SecurityStats>>('/security/stats'),
+  // 后端路由 GET /api/v1/erp/stats
+  getStats: () => request.get<ApiResponse<SecurityStats>>('/stats'),
 
+  // 后端路由 GET /api/v1/erp/login-logs
   getLoginLogs: (params?: SecurityQueryParams) =>
-    request.get<ApiResponse<{ list: LoginLog[]; total: number }>>('/security/login-logs', {
+    request.get<ApiResponse<{ list: LoginLog[]; total: number }>>('/login-logs', {
       params,
     }),
 
-  getLockedAccounts: () => request.get<ApiResponse<LockedAccount[]>>('/security/locked-accounts'),
+  // 后端路由 GET /api/v1/erp/locked-accounts
+  getLockedAccounts: () => request.get<ApiResponse<LockedAccount[]>>('/locked-accounts'),
 
+  // 后端路由 POST /api/v1/erp/locked-accounts/:id/unlock
   unlockAccount: (id: number) =>
-    request.post<ApiResponse<void>>(`/security/locked-accounts/${id}/unlock`),
+    request.post<ApiResponse<void>>(`/locked-accounts/${id}/unlock`),
 
-  getSecurityAlerts: () => request.get<ApiResponse<SecurityAlert[]>>('/security/alerts'),
+  // 后端路由 GET /api/v1/erp/alerts
+  getSecurityAlerts: () => request.get<ApiResponse<SecurityAlert[]>>('/alerts'),
 
-  resolveAlert: (id: number) => request.post<ApiResponse<void>>(`/security/alerts/${id}/resolve`),
+  // 后端路由 POST /api/v1/erp/alerts/:id/resolve
+  resolveAlert: (id: number) => request.post<ApiResponse<void>>(`/alerts/${id}/resolve`),
 
+  // 后端路由 GET /api/v1/erp/login-logs/export
   exportLoginLogs: (params?: SecurityQueryParams) =>
-    request.get<Blob>('/security/login-logs/export', { params, responseType: 'blob' }),
+    request.get<Blob>('/login-logs/export', { params, responseType: 'blob' }),
 
   /**
    * 检查指定用户名的账号锁定状态
-   * 调 GET /api/v1/erp/security/lock-status?username=xxx
+   * 调 GET /api/v1/erp/lock-status?username=xxx
    * 用于登录页：用户输入用户名失焦时预检查 / 登录失败后展示锁定信息
    */
   checkLockStatus: (username: string) =>
-    request.get<ApiResponse<LockStatus>>('/security/lock-status', {
+    request.get<ApiResponse<LockStatus>>('/lock-status', {
       params: { username },
     }),
 }

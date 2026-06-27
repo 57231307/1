@@ -46,13 +46,19 @@
 12. di_container.rs 锁中毒 panic → e.into_inner() 优雅降级
 13. middleware/omni_audit.rs OmniAuditMessage 构造点增加 tenant_id 字段
 
-#### 待处理（批次 2-5）
+#### 待处理（批次 3-5）
 
-- 前端回退项：email.ts / security.ts / system-update.ts API 端点断链
 - 前端回退项：路由 meta icon/permission/hidden 缺失
 - 业务逻辑 P0：状态机断裂、单号无锁、事务边界
 - 并发 P0：spawn panic 处理、无 FOR UPDATE
 - 测试 P0：假测试重写、恒真断言删除
+
+#### 批次 2 修复（✅ 已完成，前端 API 断链修复）
+
+1. email.ts：8 个端点路径全部修复（`/emails/*` → `/send`、`/email-templates`、`/email-records`、`/email-statistics`）
+2. security.ts：8 个端点路径全部修复（去掉 `/security` 前缀，后端 security() merge 到 erp 根下无前缀）
+3. system-update.ts：rollbackUpdate 路径 + 签名 + 请求体修复（`taskId: number` → `version: string`，请求体 `{ version }`）
+4. useSysUpdProc.ts：调用方同步修改（`rollbackUpdate(row.id)` → `rollbackUpdate(row.from_version)`）
 
 ---
 

@@ -84,8 +84,13 @@ export function cancelUpdateTask(id: number): Promise<ApiResponse<void>> {
   return request.post(`/system-update/tasks/${id}/cancel`)
 }
 
-export function rollbackUpdate(taskId: number): Promise<ApiResponse<void>> {
-  return request.post(`/system-update/tasks/${taskId}/rollback`)
+/**
+ * 回滚到指定版本
+ * 后端路由 POST /api/v1/erp/system-update/rollback
+ * 请求体：{ version: string }（后端 RollbackRequest 需要 version 字段，非 taskId）
+ */
+export function rollbackUpdate(version: string): Promise<ApiResponse<void>> {
+  return request.post('/system-update/rollback', { version })
 }
 
 export function listSystemBackups(params?: QueryParams): Promise<ApiResponse<SystemBackup[]>> {

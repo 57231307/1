@@ -29,9 +29,17 @@
 | 12 | event_bus.rs | 锁中毒 panic → `e.into_inner()` 优雅降级 |
 | 13 | di_container.rs | 锁中毒 panic → `e.into_inner()` 优雅降级 |
 
-#### 批次 2-5：待处理
+#### 批次 2：前端 API 端点断链修复（✅ 已完成）
 
-- 前端回退项：email.ts / security.ts / system-update.ts API 端点断链
+| # | 文件 | 修复内容 |
+|---|------|----------|
+| 1 | email.ts | 8 个端点路径全部修复：`/emails/*` → `/send`、`/email-templates`、`/email-records`、`/email-statistics` |
+| 2 | security.ts | 8 个端点路径全部修复：去掉 `/security` 前缀（后端 security() merge 到 erp 根下无前缀） |
+| 3 | system-update.ts | rollbackUpdate 路径 `/system-update/tasks/${id}/rollback` → `/system-update/rollback`；签名 `taskId: number` → `version: string`；请求体改为 `{ version }` |
+| 4 | useSysUpdProc.ts | 调用方同步修改：`rollbackUpdate(row.id)` → `rollbackUpdate(row.from_version)` |
+
+#### 批次 3-5：待处理
+
 - 前端回退项：路由 meta icon/permission/hidden 缺失
 - 业务逻辑 P0：状态机断裂、单号无锁、事务边界
 - 并发 P0：spawn panic 处理、无 FOR UPDATE
