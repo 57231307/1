@@ -38,6 +38,7 @@ pub struct CreateOperationLogRequest {
     pub extra_data: Option<Value>,
 }
 
+#[allow(dead_code)] // TODO(tech-debt): 审计日志中间件接入后移除；rustc 1.94+ 编译时由编译器报告具体死代码位置。
 impl OperationLogService {
     pub fn new(db: Arc<DatabaseConnection>) -> Self {
         Self { db }

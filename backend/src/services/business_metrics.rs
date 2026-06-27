@@ -115,6 +115,7 @@ pub struct BusinessMetrics {
     pub http_response_size_bytes: Histogram,
 }
 
+#[allow(dead_code)] // TODO(tech-debt): metrics 暴露端点 / 中间件接入后移除；rustc 1.94+ 编译时由编译器报告具体死代码位置。
 impl BusinessMetrics {
     /// 创建并注册所有业务指标
     pub fn new(registry: &Registry) -> Result<Self, prometheus::Error> {
@@ -366,6 +367,7 @@ impl BusinessMetrics {
 }
 
 /// 指标导出辅助函数
+#[allow(dead_code)] // TODO(tech-debt): metrics 暴露端点接入后移除
 pub fn render_prometheus_metrics(registry: &Registry) -> Result<String, prometheus::Error> {
     let encoder = TextEncoder::new();
     let mut buf = Vec::new();

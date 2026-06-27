@@ -11,6 +11,7 @@ use crate::services::currency_service::{
     ConversionResult, CurrencyService, ExchangeRateHistoryModel,
 };
 use crate::utils::app_state::AppState;
+use crate::utils::error::AppError;
 use crate::utils::response::ApiResponse;
 
 #[derive(Debug, Serialize)]
@@ -40,35 +41,22 @@ impl From<crate::models::currency::Model> for CurrencyResponse {
 
 pub async fn list_currencies(
     State(state): State<AppState>,
-) -> Result<Json<ApiResponse<Vec<CurrencyResponse>>>, StatusCode> {
+) -> Result<Json<ApiResponse<Vec<CurrencyResponse>>>, AppError> {
     let service = CurrencyService::new(state.db);
-
-    match service.list_currencies().await {
-        Ok(models) => {
-            let responses: Vec<CurrencyResponse> =
-                models.into_iter().map(CurrencyResponse::from).collect();
-            Ok(Json(ApiResponse::success(responses)))
-        }
-        Err(e) => {
-            tracing::error!("获取币种列表失败: {}", e);
-            Err(StatusCode::INTERNAL_SERVER_ERROR)
-        }
-    }
+    let models = service.list_currencies().await?;
+    let responses: Vec<CurrencyResponse> = models.into_iter().map(CurrencyResponse::from).collect();
+    Ok(Json(ApiResponse::success(responses)))
 }
 
 pub async fn get_base_currency(
     State(state): State<AppState>,
-) -> Result<Json<ApiResponse<CurrencyResponse>>, StatusCode> {
+) -> Result<Json<ApiResponse<CurrencyResponse>>, AppError> {
     let service = CurrencyService::new(state.db);
-
-    match service.get_base_currency().await {
-        Ok(Some(model)) => Ok(Json(ApiResponse::success(CurrencyResponse::from(model)))),
-        Ok(None) => Err(StatusCode::NOT_FOUND),
-        Err(e) => {
-            tracing::error!("获取本位币失败: {}", e);
-            Err(StatusCode::INTERNAL_SERVER_ERROR)
-        }
-    }
+    let model = service
+        .get_base_currency()
+        .await?
+        .ok_or_else(|| AppError::not_found("未配置本位币"))?;
+    Ok(Json(ApiResponse::success(CurrencyResponse::from(model))))
 }
 
 #[derive(Debug, Deserialize)]
@@ -103,26 +91,17 @@ impl From<crate::models::exchange_rate::Model> for ExchangeRateResponse {
 pub async fn create_exchange_rate(
     State(state): State<AppState>,
     Json(req): Json<CreateExchangeRateApiRequest>,
-) -> Result<Json<ApiResponse<ExchangeRateResponse>>, StatusCode> {
+) -> Result<Json<ApiResponse<ExchangeRateResponse>>, AppError> {
     let service = CurrencyService::new(state.db);
-
-    match service
+    let model = service
         .create_exchange_rate(
             req.from_currency,
             req.to_currency,
             req.rate,
             req.effective_date,
         )
-        .await
-    {
-        Ok(model) => Ok(Json(ApiResponse::success(ExchangeRateResponse::from(
-            model,
-        )))),
-        Err(e) => {
-            tracing::error!("创建汇率失败: {}", e);
-            Err(StatusCode::INTERNAL_SERVER_ERROR)
-        }
-    }
+        .await?;
+    Ok(Json(ApiResponse::success(ExchangeRateResponse::from(model))))
 }
 
 #[derive(Debug, Deserialize)]
@@ -134,22 +113,13 @@ pub struct GetExchangeRateQuery {
 pub async fn get_exchange_rate(
     State(state): State<AppState>,
     Query(query): Query<GetExchangeRateQuery>,
-) -> Result<Json<ApiResponse<ExchangeRateResponse>>, StatusCode> {
+) -> Result<Json<ApiResponse<ExchangeRateResponse>>, AppError> {
     let service = CurrencyService::new(state.db);
-
-    match service
+    let model = service
         .get_exchange_rate(&query.from_currency, &query.to_currency)
-        .await
-    {
-        Ok(Some(model)) => Ok(Json(ApiResponse::success(ExchangeRateResponse::from(
-            model,
-        )))),
-        Ok(None) => Err(StatusCode::NOT_FOUND),
-        Err(e) => {
-            tracing::error!("获取汇率失败: {}", e);
-            Err(StatusCode::INTERNAL_SERVER_ERROR)
-        }
-    }
+        .await?
+        .ok_or_else(|| AppError::not_found("汇率记录不存在"))?;
+    Ok(Json(ApiResponse::success(ExchangeRateResponse::from(model))))
 }
 
 #[derive(Debug, Deserialize)]
@@ -162,25 +132,17 @@ pub struct ListExchangeRatesQuery {
 pub async fn list_exchange_rates(
     State(state): State<AppState>,
     Query(query): Query<ListExchangeRatesQuery>,
-) -> Result<Json<ApiResponse<Vec<ExchangeRateResponse>>>, StatusCode> {
+) -> Result<Json<ApiResponse<Vec<ExchangeRateResponse>>>, AppError> {
     let service = CurrencyService::new(state.db);
     let page = query.page.unwrap_or(1);
     let page_size = query.page_size.unwrap_or(20);
 
-    match service
+    let (models, _total) = service
         .list_exchange_rates(query.from_currency, page, page_size)
-        .await
-    {
-        Ok((models, _total)) => {
-            let responses: Vec<ExchangeRateResponse> =
-                models.into_iter().map(ExchangeRateResponse::from).collect();
-            Ok(Json(ApiResponse::success(responses)))
-        }
-        Err(e) => {
-            tracing::error!("获取汇率列表失败: {}", e);
-            Err(StatusCode::INTERNAL_SERVER_ERROR)
-        }
-    }
+        .await?;
+    let responses: Vec<ExchangeRateResponse> =
+        models.into_iter().map(ExchangeRateResponse::from).collect();
+    Ok(Json(ApiResponse::success(responses)))
 }
 
 // ============================================================================
@@ -259,13 +221,13 @@ impl From<ConversionResult> for ConversionResultResponse {
 pub async fn get_exchange_rate_history(
     State(state): State<AppState>,
     Query(query): Query<ExchangeRateHistoryQuery>,
-) -> Result<Json<ApiResponse<Vec<ExchangeRateHistoryResponse>>>, StatusCode> {
+) -> Result<Json<ApiResponse<Vec<ExchangeRateHistoryResponse>>>, AppError> {
     let service = CurrencyService::new(state.db);
 
     let page = query.page.unwrap_or(1);
     let page_size = query.page_size.unwrap_or(20);
 
-    match service
+    let (models, _total) = service
         .get_exchange_rate_history(
             &query.from_currency,
             &query.to_currency,
@@ -274,29 +236,23 @@ pub async fn get_exchange_rate_history(
             page,
             page_size,
         )
-        .await
-    {
-        Ok((models, _total)) => {
-            let responses: Vec<ExchangeRateHistoryResponse> = models
-                .into_iter()
-                .map(ExchangeRateHistoryResponse::from)
-                .collect();
-            Ok(Json(ApiResponse::success(responses)))
-        }
-        Err(e) => {
-            tracing::error!("获取汇率历史失败: {}", e);
-            Err(StatusCode::INTERNAL_SERVER_ERROR)
-        }
-    }
+        .await?;
+    let responses: Vec<ExchangeRateHistoryResponse> = models
+        .into_iter()
+        .map(ExchangeRateHistoryResponse::from)
+        .collect();
+    Ok(Json(ApiResponse::success(responses)))
 }
 
 /// 金额换算
+///
+/// 注意：业务错误（如币种不存在、汇率缺失）以 200 + ApiResponse::error_with_status
+/// 返回，保持前端兼容；系统错误以 AppError 返回 500。
 pub async fn convert_amount(
     State(state): State<AppState>,
     Json(req): Json<ConvertAmountRequest>,
-) -> Result<Json<ApiResponse<ConversionResultResponse>>, StatusCode> {
+) -> Result<Json<ApiResponse<ConversionResultResponse>>, AppError> {
     let service = CurrencyService::new(state.db);
-
     match service
         .convert_amount(
             &req.from_currency,
@@ -309,51 +265,32 @@ pub async fn convert_amount(
         Ok(result) => Ok(Json(ApiResponse::success(ConversionResultResponse::from(
             result,
         )))),
-        Err(e) => {
-            tracing::error!("金额换算失败: {}", e);
-            match e {
-                crate::utils::error::AppError::BusinessError(msg) => Ok(Json(
-                    ApiResponse::error_with_status(StatusCode::BAD_REQUEST, msg),
-                )),
-                _ => Err(StatusCode::INTERNAL_SERVER_ERROR),
-            }
-        }
+        Err(crate::utils::error::AppError::BusinessError(msg)) => Ok(Json(
+            ApiResponse::error_with_status(StatusCode::BAD_REQUEST, msg),
+        )),
+        Err(e) => Err(e),
     }
 }
 
 /// 批量同步所有币种汇率
 pub async fn sync_all_rates(
     State(state): State<AppState>,
-) -> Result<Json<ApiResponse<serde_json::Value>>, StatusCode> {
+) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     let service = CurrencyService::new(state.db);
-
-    match service.sync_all_rates().await {
-        Ok(results) => {
-            let count = results.len();
-            tracing::info!("批量同步汇率成功，共同步 {} 个币种", count);
-            Ok(Json(ApiResponse::success(serde_json::json!({
-                "synced_count": count,
-                "message": format!("成功同步 {} 个币种的汇率", count),
-            }))))
-        }
-        Err(e) => {
-            tracing::error!("批量同步汇率失败: {}", e);
-            Err(StatusCode::INTERNAL_SERVER_ERROR)
-        }
-    }
+    let results = service.sync_all_rates().await?;
+    let count = results.len();
+    tracing::info!("批量同步汇率成功，共同步 {} 个币种", count);
+    Ok(Json(ApiResponse::success(serde_json::json!({
+        "synced_count": count,
+        "message": format!("成功同步 {} 个币种的汇率", count),
+    }))))
 }
 
 /// 获取支持的币种列表
 pub async fn get_supported_currencies(
     State(state): State<AppState>,
-) -> Result<Json<ApiResponse<Vec<String>>>, StatusCode> {
+) -> Result<Json<ApiResponse<Vec<String>>>, AppError> {
     let service = CurrencyService::new(state.db);
-
-    match service.get_supported_currencies().await {
-        Ok(currencies) => Ok(Json(ApiResponse::success(currencies))),
-        Err(e) => {
-            tracing::error!("获取支持币种列表失败: {}", e);
-            Err(StatusCode::INTERNAL_SERVER_ERROR)
-        }
-    }
+    let currencies = service.get_supported_currencies().await?;
+    Ok(Json(ApiResponse::success(currencies)))
 }

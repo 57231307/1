@@ -6,7 +6,7 @@
 //! - `POST /api/v1/erp/admin/failover/test/switch` — 手动触发切换
 //! - `GET /api/v1/erp/admin/failover/health` — 健康检查
 
-use axum::{extract::State, http::StatusCode, response::IntoResponse, Json};
+use axum::{extract::State, Json};
 use once_cell::sync::OnceCell;
 use serde::Deserialize;
 use serde_json::json;
@@ -15,6 +15,7 @@ use tracing::warn;
 
 use crate::services::failover_service::{FailoverMetrics, FailoverService};
 use crate::utils::app_state::AppState;
+use crate::utils::error::AppError;
 use crate::utils::response::ApiResponse;
 
 /// 全局 failover metrics 单例
@@ -30,44 +31,35 @@ pub struct StatusResponse {
 /// 获取主备状态
 pub async fn get_failover_status(
     State(state): State<AppState>,
-) -> Result<Json<StatusResponse>, (StatusCode, String)> {
-    let service = build_service(&state).ok_or_else(|| {
-        (
-            StatusCode::SERVICE_UNAVAILABLE,
-            "failover service not initialized".to_string(),
-        )
-    })?;
+) -> Result<Json<StatusResponse>, AppError> {
+    let service = build_service(&state)?;
 
     let statuses = service
         .get_statuses()
         .await
-        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e))?;
+        .map_err(AppError::internal)?;
     let events = service
         .get_recent_events(20)
         .await
-        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e))?;
+        .map_err(AppError::internal)?;
 
     Ok(Json(StatusResponse { statuses, events }))
 }
 
 /// 获取 Prometheus 指标
+///
+/// 返回 text/plain 格式（Prometheus exposition format），非 JSON。
 pub async fn get_failover_metrics(
     State(state): State<AppState>,
-) -> Result<impl IntoResponse, (StatusCode, String)> {
-    let service = build_service(&state).ok_or_else(|| {
-        (
-            StatusCode::SERVICE_UNAVAILABLE,
-            "failover service not initialized".to_string(),
-        )
-    })?;
-    let text = service
-        .export_metrics()
-        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e))?;
-    Ok((
-        StatusCode::OK,
-        [("content-type", "text/plain; version=0.0.4; charset=utf-8")],
-        text,
-    ))
+) -> Result<axum::response::Response, AppError> {
+    let service = build_service(&state)?;
+    let text = service.export_metrics().map_err(AppError::internal)?;
+    let mut response = axum::response::Response::new(axum::body::Body::from(text));
+    response.headers_mut().insert(
+        axum::http::header::CONTENT_TYPE,
+        axum::http::HeaderValue::from_static("text/plain; version=0.0.4; charset=utf-8"),
+    );
+    Ok(response)
 }
 
 /// 手动切换请求
@@ -81,24 +73,16 @@ pub struct SwitchRequest {
 pub async fn post_test_switch(
     State(state): State<AppState>,
     Json(req): Json<SwitchRequest>,
-) -> Result<Json<ApiResponse<String>>, (StatusCode, String)> {
+) -> Result<Json<ApiResponse<String>>, AppError> {
     if req.function != "database" && req.function != "cache" {
-        return Err((
-            StatusCode::BAD_REQUEST,
-            "function 必须是 database 或 cache".to_string(),
-        ));
+        return Err(AppError::bad_request("function 必须是 database 或 cache"));
     }
 
-    let service = build_service(&state).ok_or_else(|| {
-        (
-            StatusCode::SERVICE_UNAVAILABLE,
-            "failover service not initialized".to_string(),
-        )
-    })?;
+    let service = build_service(&state)?;
     let message = service
         .test_switch(&req.function)
         .await
-        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e))?;
+        .map_err(AppError::internal)?;
 
     Ok(Json(ApiResponse::success(message)))
 }
@@ -106,17 +90,9 @@ pub async fn post_test_switch(
 /// 健康检查
 pub async fn health_check(
     State(state): State<AppState>,
-) -> Result<Json<ApiResponse<serde_json::Value>>, (StatusCode, String)> {
-    let service = build_service(&state).ok_or_else(|| {
-        (
-            StatusCode::SERVICE_UNAVAILABLE,
-            "failover service not initialized".to_string(),
-        )
-    })?;
-    let health = service
-        .health_check()
-        .await
-        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e))?;
+) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
+    let service = build_service(&state)?;
+    let health = service.health_check().await.map_err(AppError::internal)?;
     Ok(Json(ApiResponse::success(json!({
         "database": health.database,
         "cache": health.cache,
@@ -125,9 +101,8 @@ pub async fn health_check(
 
 /// 构建 FailoverService（从 AppState 推断）
 ///
-/// 如果 AppState 中没有初始化 FailoverService，则返回 None 并记录警告。
-/// FailoverService 是可选的（不影响主流程）。
-fn build_service(state: &AppState) -> Option<FailoverService> {
+/// 如果配置加载失败则使用默认配置，仅在 AppState 未初始化时返回错误。
+fn build_service(state: &AppState) -> Result<FailoverService, AppError> {
     // 从环境变量加载配置
     let config = match crate::config::failover::FailoverConfig::load_from_env() {
         Ok(c) => c,
@@ -138,7 +113,7 @@ fn build_service(state: &AppState) -> Option<FailoverService> {
     };
 
     let metrics = get_global_metrics();
-    Some(FailoverService::new(
+    Ok(FailoverService::new(
         (*state.db).clone(),
         config,
         metrics,
@@ -153,6 +128,7 @@ pub fn get_global_metrics() -> Arc<FailoverMetrics> {
 }
 
 /// 初始化全局 metrics（在 main 中调用）
+#[allow(dead_code)] // TODO(tech-debt): failover metrics 端点接入后移除
 pub fn init_global_metrics() -> Arc<FailoverMetrics> {
     get_global_metrics()
 }

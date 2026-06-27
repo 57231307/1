@@ -10,8 +10,7 @@
 
 use axum::{
     extract::{Path, Query, State},
-    http::{header, HeaderMap, HeaderValue, StatusCode},
-    response::IntoResponse,
+    http::{header, HeaderValue, StatusCode},
     Json,
 };
 use chrono::{DateTime, Utc};
@@ -225,7 +224,7 @@ pub async fn export_audit_logs(
     State(state): State<AppState>,
     auth: AuthContext,
     Query(query): Query<AuditLogListQuery>,
-) -> Result<impl IntoResponse, AppError> {
+) -> Result<axum::response::Response, AppError> {
     let tenant_id = extract_tenant_id(&auth)?;
 
     let mut q = audit_log::Entity::find().filter(audit_log::Column::TenantId.eq(tenant_id));
@@ -318,18 +317,17 @@ pub async fn export_audit_logs(
         "audit_logs_{}.csv",
         chrono::Utc::now().format("%Y%m%d%H%M%S")
     );
-    let mut headers = HeaderMap::new();
-    headers.insert(
-        header::CONTENT_TYPE,
-        HeaderValue::from_static("text/csv; charset=utf-8"),
-    );
-    headers.insert(
-        header::CONTENT_DISPOSITION,
-        HeaderValue::from_str(&format!("attachment; filename=\"{}\"", filename))
-            .map_err(|e| AppError::internal(format!("构建下载头失败: {}", e)))?,
-    );
-
-    Ok((StatusCode::OK, headers, csv))
+    let content_disposition = HeaderValue::from_str(&format!("attachment; filename=\"{}\"", filename))
+        .map_err(|e| AppError::internal(format!("构建下载头失败: {}", e)))?;
+    axum::response::Response::builder()
+        .status(StatusCode::OK)
+        .header(
+            header::CONTENT_TYPE,
+            HeaderValue::from_static("text/csv; charset=utf-8"),
+        )
+        .header(header::CONTENT_DISPOSITION, content_disposition)
+        .body(axum::body::Body::from(csv))
+        .map_err(|e| AppError::internal(format!("响应构建失败: {}", e)))
 }
 
 #[cfg(test)]

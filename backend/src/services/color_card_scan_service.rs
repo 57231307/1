@@ -10,12 +10,11 @@ use thiserror::Error;
 use crate::models::color_card::{self, Entity as ColorCardEntity};
 use crate::models::color_card_item::{self, Entity as ItemEntity};
 use crate::models::color_card_response_dto::{PriceSummary, RecipeSummary, ScanResult};
-use crate::models::dye_recipe;
-use crate::models::product_color_price;
 use crate::utils::app_state::AppState;
 use crate::utils::error::AppError;
 
 /// 业务错误
+#[allow(dead_code)] // TODO(tech-debt): 业务接入完整错误链后移除
 #[derive(Debug, Error)]
 pub enum ScanError {
     #[error("色号不存在")]
@@ -29,6 +28,7 @@ pub struct ColorCardScanService {
     db: Arc<DatabaseConnection>,
 }
 
+#[allow(dead_code)] // TODO(tech-debt): 色卡扫码路由接入后移除
 impl ColorCardScanService {
     pub fn new(db: Arc<DatabaseConnection>) -> Self {
         Self { db }
@@ -148,15 +148,4 @@ impl ColorCardScanService {
         // 复用 scan_by_code
         self.scan_by_code(&item.color_code, tenant_id).await
     }
-}
-
-// 抑制未使用导入警告
-#[allow(dead_code)]
-fn _ensure_dye_recipe_used() {
-    let _: Option<dye_recipe::Model> = None;
-}
-
-#[allow(dead_code)]
-fn _ensure_price_used() {
-    let _: Option<product_color_price::Model> = None;
 }

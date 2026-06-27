@@ -2,8 +2,6 @@
 
 use axum::{
     extract::{Path, Query, State},
-    http::StatusCode,
-    response::IntoResponse,
     Json,
 };
 use rust_decimal::Decimal;
@@ -15,7 +13,8 @@ use serde::Deserialize;
 use crate::middleware::auth_context::AuthContext;
 use crate::models::dye_recipe;
 use crate::utils::app_state::AppState;
-use crate::utils::response::{ApiResponse, PaginatedResponse};
+use crate::utils::error::AppError;
+use crate::utils::response::ApiResponse;
 
 #[derive(Debug, Deserialize)]
 pub struct DyeRecipeListQuery {
@@ -79,7 +78,7 @@ pub struct CreateVersionRequest {
 pub async fn list_dye_recipes(
     State(state): State<AppState>,
     Query(query): Query<DyeRecipeListQuery>,
-) -> impl IntoResponse {
+) -> Result<Json<ApiResponse<Vec<dye_recipe::Model>>>, AppError> {
     let page = query.page.unwrap_or(1);
     let page_size = query.page_size.unwrap_or(20);
 
@@ -104,50 +103,29 @@ pub async fn list_dye_recipes(
     q = q.order_by_desc(dye_recipe::Column::CreatedAt);
 
     let paginator = q.paginate(&*state.db, page_size);
-    match paginator.num_items().await {
-        Ok(total) => match paginator.fetch_page(page - 1).await {
-            Ok(recipes) => {
-                let paginated = PaginatedResponse::new(recipes, total, page, page_size);
-                paginated.into_response()
-            }
-            Err(e) => (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                Json(ApiResponse::<()>::error(format!("获取配方列表失败：{}", e))),
-            )
-                .into_response(),
-        },
-        Err(e) => (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            Json(ApiResponse::<()>::error(format!("获取配方总数失败：{}", e))),
-        )
-            .into_response(),
-    }
+    let total = paginator.num_items().await?;
+    let recipes = paginator.fetch_page(page - 1).await?;
+    Ok(Json(ApiResponse::success_paginated(
+        recipes, total, page, page_size,
+    )))
 }
 
 pub async fn get_dye_recipe(
     State(state): State<AppState>,
     Path(id): Path<i32>,
-) -> impl IntoResponse {
-    match dye_recipe::Entity::find_by_id(id).one(&*state.db).await {
-        Ok(Some(recipe)) => (StatusCode::OK, Json(ApiResponse::success(recipe))).into_response(),
-        Ok(None) => (
-            StatusCode::NOT_FOUND,
-            Json(ApiResponse::<()>::error("配方不存在")),
-        )
-            .into_response(),
-        Err(e) => (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            Json(ApiResponse::<()>::error(format!("获取配方失败：{}", e))),
-        )
-            .into_response(),
-    }
+) -> Result<Json<ApiResponse<dye_recipe::Model>>, AppError> {
+    let recipe = dye_recipe::Entity::find_by_id(id)
+        .one(&*state.db)
+        .await?
+        .ok_or_else(|| AppError::not_found("配方不存在"))?;
+    Ok(Json(ApiResponse::success(recipe)))
 }
 
 pub async fn create_dye_recipe(
     State(state): State<AppState>,
     _auth: AuthContext,
     Json(req): Json<CreateDyeRecipeRequest>,
-) -> impl IntoResponse {
+) -> Result<Json<ApiResponse<dye_recipe::Model>>, AppError> {
     // 自动生成配方编号
     let recipe_no = match req.recipe_no {
         Some(no) if !no.is_empty() => no,
@@ -191,33 +169,21 @@ pub async fn create_dye_recipe(
     };
 
     // 使用 insert 获取返回的 Model
-    match dye_recipe::Entity::insert(recipe)
+    dye_recipe::Entity::insert(recipe)
         .exec_without_returning(&*state.db)
-        .await
-    {
-        Ok(_) => {
-            // 重新查询获取创建的记录
-            let created = dye_recipe::Entity::find()
-                .order_by_desc(dye_recipe::Column::Id)
-                .one(&*state.db)
-                .await
-                .ok()
-                .flatten();
-            (
-                StatusCode::CREATED,
-                Json(ApiResponse::success_with_message(
-                    created.unwrap_or_default(),
-                    "配方创建成功",
-                )),
-            )
-                .into_response()
-        }
-        Err(e) => (
-            StatusCode::BAD_REQUEST,
-            Json(ApiResponse::<()>::error(format!("创建配方失败：{}", e))),
-        )
-            .into_response(),
-    }
+        .await?;
+
+    // 重新查询获取创建的记录
+    let created = dye_recipe::Entity::find()
+        .order_by_desc(dye_recipe::Column::Id)
+        .one(&*state.db)
+        .await?
+        .ok_or_else(|| AppError::internal("创建后查询配方失败"))?;
+
+    Ok(Json(ApiResponse::success_with_message(
+        created,
+        "配方创建成功",
+    )))
 }
 
 pub async fn update_dye_recipe(
@@ -225,25 +191,12 @@ pub async fn update_dye_recipe(
     Path(id): Path<i32>,
     _auth: AuthContext,
     Json(req): Json<UpdateDyeRecipeRequest>,
-) -> impl IntoResponse {
-    let mut recipe: dye_recipe::ActiveModel =
-        match dye_recipe::Entity::find_by_id(id).one(&*state.db).await {
-            Ok(Some(r)) => r.into(),
-            Ok(None) => {
-                return (
-                    StatusCode::NOT_FOUND,
-                    Json(ApiResponse::<()>::error("配方不存在")),
-                )
-                    .into_response();
-            }
-            Err(e) => {
-                return (
-                    StatusCode::INTERNAL_SERVER_ERROR,
-                    Json(ApiResponse::<()>::error(format!("获取配方失败：{}", e))),
-                )
-                    .into_response();
-            }
-        };
+) -> Result<Json<ApiResponse<dye_recipe::Model>>, AppError> {
+    let mut recipe: dye_recipe::ActiveModel = dye_recipe::Entity::find_by_id(id)
+        .one(&*state.db)
+        .await?
+        .ok_or_else(|| AppError::not_found("配方不存在"))?
+        .into();
 
     if let Some(color_code) = req.color_code {
         recipe.color_code = Set(Some(color_code));
@@ -290,14 +243,10 @@ pub async fn update_dye_recipe(
             _ => false,
         };
         if !valid {
-            return (
-                StatusCode::BAD_REQUEST,
-                Json(ApiResponse::<()>::error(format!(
-                    "配方状态流转不合法：{} -> {}",
-                    current_status, status
-                ))),
-            )
-                .into_response();
+            return Err(AppError::bad_request(format!(
+                "配方状态流转不合法：{} -> {}",
+                current_status, status
+            )));
         }
         recipe.status = Set(Some(status));
     }
@@ -307,49 +256,25 @@ pub async fn update_dye_recipe(
 
     recipe.updated_at = Set(crate::utils::date_utils::utc_now_fixed());
 
-    match recipe.update(&*state.db).await {
-        Ok(updated) => (
-            StatusCode::OK,
-            Json(ApiResponse::success_with_message(updated, "配方更新成功")),
-        )
-            .into_response(),
-        Err(e) => (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            Json(ApiResponse::<()>::error(format!("更新配方失败：{}", e))),
-        )
-            .into_response(),
-    }
+    let updated = recipe.update(&*state.db).await?;
+    Ok(Json(ApiResponse::success_with_message(
+        updated,
+        "配方更新成功",
+    )))
 }
 
 pub async fn delete_dye_recipe(
     State(state): State<AppState>,
     Path(id): Path<i32>,
     _auth: AuthContext,
-) -> impl IntoResponse {
-    let recipe = match dye_recipe::Entity::find_by_id(id).one(&*state.db).await {
-        Ok(Some(r)) => r,
-        Ok(None) => {
-            return (
-                StatusCode::NOT_FOUND,
-                Json(ApiResponse::<()>::error("配方不存在")),
-            )
-                .into_response();
-        }
-        Err(e) => {
-            return (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                Json(ApiResponse::<()>::error(format!("获取配方失败：{}", e))),
-            )
-                .into_response();
-        }
-    };
+) -> Result<Json<ApiResponse<()>>, AppError> {
+    let recipe = dye_recipe::Entity::find_by_id(id)
+        .one(&*state.db)
+        .await?
+        .ok_or_else(|| AppError::not_found("配方不存在"))?;
 
     if recipe.status.as_deref() == Some("已审核") {
-        return (
-            StatusCode::BAD_REQUEST,
-            Json(ApiResponse::<()>::error("已审核的配方不允许删除，请先停用")),
-        )
-            .into_response();
+        return Err(AppError::bad_request("已审核的配方不允许删除，请先停用"));
     }
 
     // 软删除
@@ -357,18 +282,8 @@ pub async fn delete_dye_recipe(
     active.is_deleted = Set(Some(true));
     active.updated_at = Set(crate::utils::date_utils::utc_now_fixed());
 
-    match active.update(&*state.db).await {
-        Ok(_) => (
-            StatusCode::OK,
-            Json(ApiResponse::success_with_message((), "配方删除成功")),
-        )
-            .into_response(),
-        Err(e) => (
-            StatusCode::BAD_REQUEST,
-            Json(ApiResponse::<()>::error(format!("删除配方失败：{}", e))),
-        )
-            .into_response(),
-    }
+    active.update(&*state.db).await?;
+    Ok(Json(ApiResponse::success_with_message((), "配方删除成功")))
 }
 
 pub async fn approve_recipe(
@@ -376,25 +291,12 @@ pub async fn approve_recipe(
     Path(id): Path<i32>,
     _auth: AuthContext,
     Json(req): Json<ApproveRecipeRequest>,
-) -> impl IntoResponse {
-    let mut recipe: dye_recipe::ActiveModel =
-        match dye_recipe::Entity::find_by_id(id).one(&*state.db).await {
-            Ok(Some(r)) => r.into(),
-            Ok(None) => {
-                return (
-                    StatusCode::NOT_FOUND,
-                    Json(ApiResponse::<()>::error("配方不存在")),
-                )
-                    .into_response();
-            }
-            Err(e) => {
-                return (
-                    StatusCode::INTERNAL_SERVER_ERROR,
-                    Json(ApiResponse::<()>::error(format!("获取配方失败：{}", e))),
-                )
-                    .into_response();
-            }
-        };
+) -> Result<Json<ApiResponse<dye_recipe::Model>>, AppError> {
+    let mut recipe: dye_recipe::ActiveModel = dye_recipe::Entity::find_by_id(id)
+        .one(&*state.db)
+        .await?
+        .ok_or_else(|| AppError::not_found("配方不存在"))?
+        .into();
 
     // 检查当前状态是否允许审核
     let current_status = match &recipe.status {
@@ -402,14 +304,10 @@ pub async fn approve_recipe(
         _ => "草稿",
     };
     if current_status != "草稿" {
-        return (
-            StatusCode::BAD_REQUEST,
-            Json(ApiResponse::<()>::error(format!(
-                "只有草稿状态的配方可以审核，当前状态：{}",
-                current_status
-            ))),
-        )
-            .into_response();
+        return Err(AppError::bad_request(format!(
+            "只有草稿状态的配方可以审核，当前状态：{}",
+            current_status
+        )));
     }
 
     recipe.status = Set(Some("已审核".to_string()));
@@ -417,18 +315,11 @@ pub async fn approve_recipe(
     recipe.approved_at = Set(Some(crate::utils::date_utils::utc_now_fixed()));
     recipe.updated_at = Set(crate::utils::date_utils::utc_now_fixed());
 
-    match recipe.update(&*state.db).await {
-        Ok(updated) => (
-            StatusCode::OK,
-            Json(ApiResponse::success_with_message(updated, "配方审核成功")),
-        )
-            .into_response(),
-        Err(e) => (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            Json(ApiResponse::<()>::error(format!("审核配方失败：{}", e))),
-        )
-            .into_response(),
-    }
+    let updated = recipe.update(&*state.db).await?;
+    Ok(Json(ApiResponse::success_with_message(
+        updated,
+        "配方审核成功",
+    )))
 }
 
 pub async fn create_new_version(
@@ -436,35 +327,18 @@ pub async fn create_new_version(
     Path(id): Path<i32>,
     _auth: AuthContext,
     Json(req): Json<CreateVersionRequest>,
-) -> impl IntoResponse {
-    let original = match dye_recipe::Entity::find_by_id(id).one(&*state.db).await {
-        Ok(Some(r)) => r,
-        Ok(None) => {
-            return (
-                StatusCode::NOT_FOUND,
-                Json(ApiResponse::<()>::error("配方不存在")),
-            )
-                .into_response();
-        }
-        Err(e) => {
-            return (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                Json(ApiResponse::<()>::error(format!("获取配方失败：{}", e))),
-            )
-                .into_response();
-        }
-    };
+) -> Result<Json<ApiResponse<dye_recipe::Model>>, AppError> {
+    let original = dye_recipe::Entity::find_by_id(id)
+        .one(&*state.db)
+        .await?
+        .ok_or_else(|| AppError::not_found("配方不存在"))?;
 
     // 只有已审核的配方才能创建新版本
     if original.status.as_deref() != Some("已审核") {
-        return (
-            StatusCode::BAD_REQUEST,
-            Json(ApiResponse::<()>::error(format!(
-                "只有已审核的配方才能创建新版本，当前状态：{}",
-                original.status.as_deref().unwrap_or("未知")
-            ))),
-        )
-            .into_response();
+        return Err(AppError::bad_request(format!(
+            "只有已审核的配方才能创建新版本，当前状态：{}",
+            original.status.as_deref().unwrap_or("未知")
+        )));
     }
 
     let new_version = original.version.unwrap_or(1) + 1;
@@ -498,52 +372,34 @@ pub async fn create_new_version(
         updated_at: Set(crate::utils::date_utils::utc_now_fixed()),
     };
 
-    match new_recipe.insert(&*state.db).await {
-        Ok(created) => (
-            StatusCode::CREATED,
-            Json(ApiResponse::success_with_message(
-                created,
-                "配方新版本创建成功",
-            )),
-        )
-            .into_response(),
-        Err(e) => (
-            StatusCode::BAD_REQUEST,
-            Json(ApiResponse::<()>::error(format!("创建新版本失败：{}", e))),
-        )
-            .into_response(),
-    }
+    let created = new_recipe.insert(&*state.db).await?;
+    Ok(Json(ApiResponse::success_with_message(
+        created,
+        "配方新版本创建成功",
+    )))
 }
 
 pub async fn get_recipes_by_color(
     State(state): State<AppState>,
     Path(color_code): Path<String>,
-) -> impl IntoResponse {
-    match dye_recipe::Entity::find()
+) -> Result<Json<ApiResponse<Vec<dye_recipe::Model>>>, AppError> {
+    let recipes = dye_recipe::Entity::find()
         .filter(dye_recipe::Column::ColorCode.eq(color_code))
         .filter(dye_recipe::Column::Status.eq("已审核"))
         .filter(dye_recipe::Column::IsDeleted.eq(false))
         .order_by_desc(dye_recipe::Column::Version)
         .all(&*state.db)
-        .await
-    {
-        Ok(recipes) => (StatusCode::OK, Json(ApiResponse::success(recipes))).into_response(),
-        Err(e) => (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            Json(ApiResponse::<()>::error(format!("获取配方列表失败：{}", e))),
-        )
-            .into_response(),
-    }
+        .await?;
+    Ok(Json(ApiResponse::success(recipes)))
 }
 
 pub async fn get_recipe_versions(
     State(state): State<AppState>,
     Path(id): Path<i32>,
-) -> impl IntoResponse {
+) -> Result<Json<ApiResponse<Vec<dye_recipe::Model>>>, AppError> {
     use sea_orm::Condition;
-    use sea_orm::QueryFilter;
 
-    match dye_recipe::Entity::find()
+    let recipes = dye_recipe::Entity::find()
         .filter(
             Condition::any()
                 .add(dye_recipe::Column::ParentRecipeId.eq(id))
@@ -552,15 +408,8 @@ pub async fn get_recipe_versions(
         .filter(dye_recipe::Column::IsDeleted.eq(false))
         .order_by_asc(dye_recipe::Column::Version)
         .all(&*state.db)
-        .await
-    {
-        Ok(recipes) => (StatusCode::OK, Json(ApiResponse::success(recipes))).into_response(),
-        Err(e) => (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            Json(ApiResponse::<()>::error(format!("获取配方版本失败：{}", e))),
-        )
-            .into_response(),
-    }
+        .await?;
+    Ok(Json(ApiResponse::success(recipes)))
 }
 
 /// POST /api/v1/erp/dye-recipes/:id/submit - 提交配方审核
@@ -568,64 +417,40 @@ pub async fn submit_dye_recipe(
     State(state): State<AppState>,
     _auth: AuthContext,
     Path(id): Path<i32>,
-) -> impl IntoResponse {
-    let mut recipe: dye_recipe::ActiveModel =
-        match dye_recipe::Entity::find_by_id(id).one(&*state.db).await {
-            Ok(Some(r)) => r.into(),
-            Ok(None) => {
-                return (
-                    StatusCode::NOT_FOUND,
-                    Json(ApiResponse::<()>::error("配方不存在")),
-                )
-                    .into_response();
-            }
-            Err(e) => {
-                return (
-                    StatusCode::INTERNAL_SERVER_ERROR,
-                    Json(ApiResponse::<()>::error(format!("获取配方失败：{}", e))),
-                )
-                    .into_response();
-            }
-        };
+) -> Result<Json<ApiResponse<dye_recipe::Model>>, AppError> {
+    let mut recipe: dye_recipe::ActiveModel = dye_recipe::Entity::find_by_id(id)
+        .one(&*state.db)
+        .await?
+        .ok_or_else(|| AppError::not_found("配方不存在"))?
+        .into();
 
     let current_status = match &recipe.status {
         sea_orm::ActiveValue::Set(Some(s)) => s.as_str(),
         _ => "草稿",
     };
     if current_status != "草稿" {
-        return (
-            StatusCode::BAD_REQUEST,
-            Json(ApiResponse::<()>::error(format!(
-                "只有草稿状态的配方可以提交审核，当前状态：{}",
-                current_status
-            ))),
-        )
-            .into_response();
+        return Err(AppError::bad_request(format!(
+            "只有草稿状态的配方可以提交审核，当前状态：{}",
+            current_status
+        )));
     }
 
     // 提交时设置占位的 approved_by 标识为提交动作
     recipe.approved_by = Set(Some(-1));
     recipe.updated_at = Set(crate::utils::date_utils::utc_now_fixed());
 
-    match recipe.update(&*state.db).await {
-        Ok(updated) => (
-            StatusCode::OK,
-            Json(ApiResponse::success_with_message(updated, "配方已提交审核")),
-        )
-            .into_response(),
-        Err(e) => (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            Json(ApiResponse::<()>::error(format!("提交配方失败：{}", e))),
-        )
-            .into_response(),
-    }
+    let updated = recipe.update(&*state.db).await?;
+    Ok(Json(ApiResponse::success_with_message(
+        updated,
+        "配方已提交审核",
+    )))
 }
 
 /// GET /api/v1/erp/dye-recipes/export - 导出配方列表（CSV）
 pub async fn export_dye_recipes(
     State(state): State<AppState>,
     Query(query): Query<DyeRecipeListQuery>,
-) -> impl IntoResponse {
+) -> Result<axum::response::Response, AppError> {
     let mut q = dye_recipe::Entity::find().filter(dye_recipe::Column::IsDeleted.eq(false));
 
     if let Some(recipe_no) = &query.recipe_no {
@@ -646,16 +471,7 @@ pub async fn export_dye_recipes(
 
     q = q.order_by_desc(dye_recipe::Column::CreatedAt);
 
-    let recipes = match q.all(&*state.db).await {
-        Ok(r) => r,
-        Err(e) => {
-            return (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                Json(ApiResponse::<()>::error(format!("获取配方列表失败：{}", e))),
-            )
-                .into_response();
-        }
-    };
+    let recipes = q.all(&*state.db).await?;
 
     let mut buf: Vec<u8> = Vec::new();
     buf.extend_from_slice(b"\xEF\xBB\xBF");
@@ -681,10 +497,10 @@ pub async fn export_dye_recipes(
         buf.extend_from_slice(line.as_bytes());
     }
 
-    (
-        StatusCode::OK,
-        [(axum::http::header::CONTENT_TYPE, "text/csv; charset=utf-8")],
-        buf,
-    )
-        .into_response()
+    let mut response = axum::response::Response::new(axum::body::Body::from(buf));
+    response.headers_mut().insert(
+        axum::http::header::CONTENT_TYPE,
+        axum::http::HeaderValue::from_static("text/csv; charset=utf-8"),
+    );
+    Ok(response)
 }
