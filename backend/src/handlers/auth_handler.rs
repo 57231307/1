@@ -91,7 +91,7 @@ pub async fn login(
     jar: axum_extra::extract::PrivateCookieJar,
     headers: HeaderMap,
     Json(payload): Json<LoginRequest>,
-) -> Result<impl IntoResponse, AppError> {
+) -> Result<axum::response::Response, AppError> {
     if let Err(errors) = payload.validate() {
         let error_msgs: Vec<String> = errors
             .field_errors()

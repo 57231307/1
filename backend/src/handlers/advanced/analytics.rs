@@ -3,7 +3,11 @@
 //! 提供报表模板查询、报表执行与导出能力。
 //! 适配重构后的 `services::report` 模块 API。
 
-use axum::{extract::State, response::IntoResponse, Json};
+use axum::body::Body;
+use axum::extract::State;
+use axum::http::{header, HeaderValue};
+use axum::response::Response;
+use axum::Json;
 use chrono::Utc;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -11,6 +15,7 @@ use std::collections::HashMap;
 use crate::middleware::auth_context::AuthContext;
 use crate::services::report::{ExecuteReportRequest, ReportEngineService, ReportFilter};
 use crate::utils::app_state::AppState;
+use crate::utils::error::AppError;
 use crate::utils::response::ApiResponse;
 
 // ============================================================================
@@ -18,7 +23,9 @@ use crate::utils::response::ApiResponse;
 // ============================================================================
 
 /// 报表模板列表
-pub async fn list_report_templates(State(state): State<AppState>) -> impl IntoResponse {
+pub async fn list_report_templates(
+    State(state): State<AppState>,
+) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     let service = ReportEngineService::new(state.db);
     let templates = service.get_predefined_templates();
 
@@ -41,7 +48,9 @@ pub async fn list_report_templates(State(state): State<AppState>) -> impl IntoRe
         })
         .collect();
 
-    Json(ApiResponse::success(items))
+    // ReportTemplateDto 为模块私有结构，序列化为 serde_json::Value 以避免 private_interfaces 警告
+    let value = serde_json::to_value(items)?;
+    Ok(Json(ApiResponse::success(value)))
 }
 
 #[derive(Debug, Serialize)]
@@ -58,7 +67,7 @@ pub async fn execute_report(
     State(state): State<AppState>,
     _auth: AuthContext,
     Json(payload): Json<ReportExecuteRequest>,
-) -> impl IntoResponse {
+) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     let service = ReportEngineService::new(state.db);
 
     let req = ExecuteReportRequest {
@@ -70,44 +79,38 @@ pub async fn execute_report(
         use_cache: Some(true),
     };
 
-    match service.execute_report(req).await {
-        Ok(report_data) => {
-            let columns_json: Vec<serde_json::Value> = report_data
-                .columns
-                .iter()
-                .map(|c| serde_json::json!({"key": c.key, "label": c.label}))
-                .collect();
+    let report_data = service.execute_report(req).await?;
 
-            // rows 是 Vec<serde_json::Value>，统一转为字符串映射
-            let rows: Vec<HashMap<String, String>> = report_data
-                .rows
-                .into_iter()
-                .map(|row| {
-                    let mut map: HashMap<String, String> = HashMap::new();
-                    if let serde_json::Value::Object(obj) = row {
-                        for (k, v) in obj.into_iter() {
-                            let s = match v {
-                                serde_json::Value::String(s) => s,
-                                other => other.to_string(),
-                            };
-                            map.insert(k, s);
-                        }
-                    }
-                    map
-                })
-                .collect();
+    let columns_json: Vec<serde_json::Value> = report_data
+        .columns
+        .iter()
+        .map(|c| serde_json::json!({"key": c.key, "label": c.label}))
+        .collect();
 
-            Json(ApiResponse::success(serde_json::json!({
-                "columns": columns_json,
-                "data": rows,
-                "total_count": report_data.total_rows,
-            })))
-        }
-        Err(e) => {
-            tracing::error!("执行报表失败: {}", e);
-            Json(ApiResponse::error(format!("执行报表失败: {}", e)))
-        }
-    }
+    // rows 是 Vec<serde_json::Value>，统一转为字符串映射
+    let rows: Vec<HashMap<String, String>> = report_data
+        .rows
+        .into_iter()
+        .map(|row| {
+            let mut map: HashMap<String, String> = HashMap::new();
+            if let serde_json::Value::Object(obj) = row {
+                for (k, v) in obj.into_iter() {
+                    let s = match v {
+                        serde_json::Value::String(s) => s,
+                        other => other.to_string(),
+                    };
+                    map.insert(k, s);
+                }
+            }
+            map
+        })
+        .collect();
+
+    Ok(Json(ApiResponse::success(serde_json::json!({
+        "columns": columns_json,
+        "data": rows,
+        "total_count": report_data.total_rows,
+    }))))
 }
 
 #[derive(Debug, Deserialize)]
@@ -120,7 +123,7 @@ pub async fn export_report(
     State(state): State<AppState>,
     _auth: AuthContext,
     Json(payload): Json<ReportExportRequest>,
-) -> impl IntoResponse {
+) -> Result<Response, AppError> {
     let service = ReportEngineService::new(state.db.clone());
 
     let req = ExecuteReportRequest {
@@ -132,40 +135,42 @@ pub async fn export_report(
         use_cache: Some(true),
     };
 
-    match service.execute_report(req).await {
-        Ok(report_data) => {
-            let format_str = match payload.format.as_str() {
-                "csv" => "csv",
-                "excel" | "xlsx" => "excel",
-                "pdf" => "pdf",
-                _ => "json",
-            };
+    let report_data = service.execute_report(req).await?;
 
-            match service
-                .export_report(&report_data, format_str, &payload.template_code)
-                .await
-            {
-                Ok(bytes) => {
-                    let size_kb = bytes.len() / 1024;
-                    Json(ApiResponse::success(serde_json::json!({
-                        "status": "success",
-                        "format": payload.format,
-                        "size_bytes": bytes.len(),
-                        "size_kb": size_kb,
-                        "record_count": report_data.total_rows,
-                    })))
-                }
-                Err(e) => {
-                    tracing::error!("导出报表失败: {}", e);
-                    Json(ApiResponse::error(format!("导出报表失败: {}", e)))
-                }
-            }
-        }
-        Err(e) => {
-            tracing::error!("执行报表失败: {}", e);
-            Json(ApiResponse::error(format!("执行报表失败: {}", e)))
-        }
-    }
+    let format_str = match payload.format.as_str() {
+        "csv" => "csv",
+        "excel" | "xlsx" => "excel",
+        "pdf" => "pdf",
+        _ => "json",
+    };
+
+    let bytes = service
+        .export_report(&report_data, format_str, &payload.template_code)
+        .await?;
+
+    // 根据导出格式设置 Content-Type 与 Content-Disposition，返回二进制下载流
+    let content_type = match payload.format.as_str() {
+        "csv" => "text/csv; charset=utf-8",
+        "excel" | "xlsx" => "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        "pdf" => "application/pdf",
+        _ => "application/json",
+    };
+    let filename = format!("{}.{}", payload.template_code, payload.format);
+    let disposition = format!("attachment; filename=\"{}\"", filename);
+
+    let mut response = Response::new(Body::from(bytes));
+    let headers = response.headers_mut();
+    headers.insert(
+        header::CONTENT_TYPE,
+        HeaderValue::from_str(content_type)
+            .map_err(|e| AppError::internal(format!("无效的 Content-Type: {}", e)))?,
+    );
+    headers.insert(
+        header::CONTENT_DISPOSITION,
+        HeaderValue::from_str(&disposition)
+            .map_err(|e| AppError::internal(format!("无效的 Content-Disposition: {}", e)))?,
+    );
+    Ok(response)
 }
 
 #[derive(Debug, Deserialize)]

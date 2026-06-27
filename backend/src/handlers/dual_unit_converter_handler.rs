@@ -1,7 +1,8 @@
-use axum::response::{IntoResponse, Json};
+use axum::Json;
 use serde::{Deserialize, Serialize};
 
 use crate::utils::dual_unit_converter::DualUnitConverter;
+use crate::utils::error::AppError;
 use crate::utils::ApiResponse;
 
 /// 单位换算请求
@@ -55,63 +56,63 @@ pub struct ConvertUnitResponse {
 ///     "message": "单位换算成功"
 /// }
 /// ```
-pub async fn convert_dual_unit(Json(req): Json<ConvertUnitRequest>) -> impl IntoResponse {
+pub async fn convert_dual_unit(
+    Json(req): Json<ConvertUnitRequest>,
+) -> Result<Json<ApiResponse<ConvertUnitResponse>>, AppError> {
     // 验证单位参数
     let from_unit = req.from_unit.to_lowercase();
     if from_unit != "meters" && from_unit != "kg" {
-        return ApiResponse::<()>::error("无效的单位，必须是 'meters' 或 'kg'".to_string())
-            .into_response();
+        return Err(AppError::bad_request("无效的单位，必须是 'meters' 或 'kg'"));
     }
 
     // 执行换算
     let result = match from_unit.as_str() {
         "meters" => {
             // 米数转公斤数
-            match DualUnitConverter::meters_to_kg(req.value, req.gram_weight, req.width_cm) {
-                Ok(kg) => ConvertUnitResponse {
-                    converted_value: kg,
-                    to_unit: "kg".to_string(),
-                    formula: format!(
-                        "公斤数 = 米数 × 克重 (g/m²) × 幅宽 (m) ÷ 1000\n= {} × {} × {} ÷ 1000 = {}",
-                        req.value,
-                        req.gram_weight,
-                        req.width_cm / rust_decimal::Decimal::from(100),
-                        kg
-                    ),
-                    conversion_rate: DualUnitConverter::calculate_conversion_rate(
-                        req.gram_weight,
-                        req.width_cm,
-                    )
-                    .unwrap_or(rust_decimal::Decimal::ZERO),
-                },
-                Err(e) => return ApiResponse::<()>::error(e).into_response(),
+            let kg = DualUnitConverter::meters_to_kg(req.value, req.gram_weight, req.width_cm)
+                .map_err(AppError::bad_request)?;
+            ConvertUnitResponse {
+                converted_value: kg,
+                to_unit: "kg".to_string(),
+                formula: format!(
+                    "公斤数 = 米数 × 克重 (g/m²) × 幅宽 (m) ÷ 1000\n= {} × {} × {} ÷ 1000 = {}",
+                    req.value,
+                    req.gram_weight,
+                    req.width_cm / rust_decimal::Decimal::from(100),
+                    kg
+                ),
+                conversion_rate: DualUnitConverter::calculate_conversion_rate(
+                    req.gram_weight,
+                    req.width_cm,
+                )
+                .unwrap_or(rust_decimal::Decimal::ZERO),
             }
         }
         "kg" => {
             // 公斤数转米数
-            match DualUnitConverter::kg_to_meters(req.value, req.gram_weight, req.width_cm) {
-                Ok(meters) => ConvertUnitResponse {
-                    converted_value: meters,
-                    to_unit: "meters".to_string(),
-                    formula: format!(
-                        "米数 = 公斤数 ÷ (克重 (g/m²) × 幅宽 (m) ÷ 1000)\n= {} ÷ ({} × {} ÷ 1000) = {}",
-                        req.value,
-                        req.gram_weight,
-                        req.width_cm / rust_decimal::Decimal::from(100),
-                        meters
-                    ),
-                    conversion_rate: DualUnitConverter::calculate_conversion_rate(
-                        req.gram_weight,
-                        req.width_cm,
-                    ).unwrap_or(rust_decimal::Decimal::ZERO),
-                },
-                Err(e) => return ApiResponse::<()>::error(e).into_response(),
+            let meters = DualUnitConverter::kg_to_meters(req.value, req.gram_weight, req.width_cm)
+                .map_err(AppError::bad_request)?;
+            ConvertUnitResponse {
+                converted_value: meters,
+                to_unit: "meters".to_string(),
+                formula: format!(
+                    "米数 = 公斤数 ÷ (克重 (g/m²) × 幅宽 (m) ÷ 1000)\n= {} ÷ ({} × {} ÷ 1000) = {}",
+                    req.value,
+                    req.gram_weight,
+                    req.width_cm / rust_decimal::Decimal::from(100),
+                    meters
+                ),
+                conversion_rate: DualUnitConverter::calculate_conversion_rate(
+                    req.gram_weight,
+                    req.width_cm,
+                )
+                .unwrap_or(rust_decimal::Decimal::ZERO),
             }
         }
-        _ => return ApiResponse::<()>::error("不支持的单位转换".to_string()).into_response(),
+        _ => unreachable!("已通过单位参数校验，此处不可能到达"),
     };
 
-    ApiResponse::success(result).into_response()
+    Ok(Json(ApiResponse::success(result)))
 }
 
 /// 验证双计量单位一致性请求
@@ -145,49 +146,49 @@ pub struct ValidateDualUnitResponse {
 }
 
 /// 验证双计量单位一致性接口
-pub async fn validate_dual_unit(Json(req): Json<ValidateDualUnitRequest>) -> impl IntoResponse {
-    match DualUnitConverter::validate_dual_unit(
+pub async fn validate_dual_unit(
+    Json(req): Json<ValidateDualUnitRequest>,
+) -> Result<Json<ApiResponse<ValidateDualUnitResponse>>, AppError> {
+    let is_valid = DualUnitConverter::validate_dual_unit(
         req.quantity_meters,
         req.quantity_kg,
         req.gram_weight,
         req.width_cm,
         req.tolerance,
-    ) {
-        Ok(is_valid) => {
-            // 计算详细信息
-            let calculated_kg =
-                DualUnitConverter::meters_to_kg(req.quantity_meters, req.gram_weight, req.width_cm)
-                    .unwrap_or(rust_decimal::Decimal::ZERO);
+    )
+    .map_err(AppError::bad_request)?;
 
-            let difference = (calculated_kg - req.quantity_kg).abs();
-            let tolerance = req.tolerance.unwrap_or(
-                "0.005"
-                    .parse::<rust_decimal::Decimal>()
-                    .unwrap_or(rust_decimal::Decimal::ZERO),
-            );
-            let allowed_difference = calculated_kg * tolerance;
+    // 计算详细信息
+    let calculated_kg =
+        DualUnitConverter::meters_to_kg(req.quantity_meters, req.gram_weight, req.width_cm)
+            .unwrap_or(rust_decimal::Decimal::ZERO);
 
-            let error_rate = if calculated_kg != rust_decimal::Decimal::ZERO {
-                format!(
-                    "{:.4}%",
-                    (difference / calculated_kg) * rust_decimal::Decimal::from(100)
-                )
-            } else {
-                "0.0000%".to_string()
-            };
+    let difference = (calculated_kg - req.quantity_kg).abs();
+    let tolerance = req.tolerance.unwrap_or(
+        "0.005"
+            .parse::<rust_decimal::Decimal>()
+            .unwrap_or(rust_decimal::Decimal::ZERO),
+    );
+    let allowed_difference = calculated_kg * tolerance;
 
-            let response = ValidateDualUnitResponse {
-                is_valid,
-                calculated_kg,
-                difference,
-                allowed_difference,
-                error_rate,
-            };
+    let error_rate = if calculated_kg != rust_decimal::Decimal::ZERO {
+        format!(
+            "{:.4}%",
+            (difference / calculated_kg) * rust_decimal::Decimal::from(100)
+        )
+    } else {
+        "0.0000%".to_string()
+    };
 
-            ApiResponse::success(response).into_response()
-        }
-        Err(e) => ApiResponse::<()>::error(e).into_response(),
-    }
+    let response = ValidateDualUnitResponse {
+        is_valid,
+        calculated_kg,
+        difference,
+        allowed_difference,
+        error_rate,
+    };
+
+    Ok(Json(ApiResponse::success(response)))
 }
 
 #[cfg(test)]

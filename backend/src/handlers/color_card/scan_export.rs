@@ -7,7 +7,6 @@
 use axum::{
     extract::{Path, State},
     http::StatusCode,
-    response::IntoResponse,
     Json,
 };
 
@@ -41,7 +40,7 @@ pub async fn export_color_card(
     auth: AuthContext,
     State(state): State<AppState>,
     Path(id): Path<i64>,
-) -> Result<impl IntoResponse, AppError> {
+) -> Result<axum::response::Response, AppError> {
     let tenant_id = extract_tenant_id(&auth)? as i64;
     let item_svc = ColorCardItemService::from_state(&state);
     let crud_svc = ColorCardCrudService::from_state(&state);
@@ -77,13 +76,13 @@ pub async fn export_color_card(
     }
 
     let filename = format!("color-card-{}.csv", card.card_no.replace(['/', '\\', ' '], "_"));
-    let headers = [
-        (axum::http::header::CONTENT_TYPE, "text/csv; charset=utf-8".to_string()),
-        (
+    axum::response::Response::builder()
+        .status(StatusCode::OK)
+        .header(axum::http::header::CONTENT_TYPE, "text/csv; charset=utf-8")
+        .header(
             axum::http::header::CONTENT_DISPOSITION,
             format!("attachment; filename=\"{}\"", filename),
-        ),
-    ];
-
-    Ok((StatusCode::OK, headers, csv))
+        )
+        .body(axum::body::Body::from(csv))
+        .map_err(|e| AppError::internal(format!("导出响应构建失败: {e}")))
 }

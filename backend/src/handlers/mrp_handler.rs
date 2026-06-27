@@ -304,13 +304,13 @@ pub async fn export_calculation(
     State(state): State<AppState>,
     _auth: AuthContext,
     Path(id): Path<i32>,
-) -> Result<impl axum::response::IntoResponse, AppError> {
+) -> Result<axum::response::Response, AppError> {
     let service = MrpEngineService::new(state.db.clone());
     let bytes = service.export_calculation(id).await?;
-    Ok((
-        [(axum::http::header::CONTENT_TYPE, "text/csv; charset=utf-8")],
-        bytes,
-    ))
+    axum::response::Response::builder()
+        .header(axum::http::header::CONTENT_TYPE, "text/csv; charset=utf-8")
+        .body(axum::body::Body::from(bytes))
+        .map_err(|e| AppError::internal(format!("导出响应构建失败: {e}")))
 }
 
 /// 获取 MRP 计算中某物料的明细

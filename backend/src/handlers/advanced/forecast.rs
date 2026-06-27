@@ -2,7 +2,7 @@
 //!
 //! 包含销售预测（基于时间序列算法）以及库存优化建议。
 
-use axum::{extract::State, response::IntoResponse, Json};
+use axum::{extract::State, Json};
 use rust_decimal::prelude::ToPrimitive;
 use sea_orm::EntityTrait;
 use serde::{Deserialize, Serialize};
@@ -94,7 +94,7 @@ pub async fn inventory_optimization(
     State(state): State<AppState>,
     _auth: AuthContext,
     payload: Option<Json<InventoryOptimizationRequest>>,
-) -> impl IntoResponse {
+) -> Result<Json<ApiResponse<InventoryOptimizationResponse>>, AppError> {
     let db = state.db.clone();
     let service = AiAnalysisService::new(state.db);
 
@@ -102,73 +102,67 @@ pub async fn inventory_optimization(
         .as_ref()
         .and_then(|p| p.product_id.map(|pid| pid as i32));
 
-    match service.optimize_inventory(product_id).await {
-        Ok(suggestions) => {
-            let high_count = suggestions
-                .iter()
-                .filter(|s| {
-                    let current = s.current_stock.to_f64().unwrap_or(0.0);
-                    current < s.reorder_point.to_f64().unwrap_or(0.0)
-                })
-                .count();
-            let overstock_count = suggestions
-                .iter()
-                .filter(|s| {
-                    let current = s.current_stock.to_f64().unwrap_or(0.0);
-                    let suggested = s.suggested_stock.to_f64().unwrap_or(0.0);
-                    current > suggested * 2.0
-                })
-                .count();
+    let suggestions = service.optimize_inventory(product_id).await?;
 
-            let mut items: Vec<InventorySuggestion> = Vec::new();
-            for s in suggestions {
-                let current = s.current_stock.to_f64().unwrap_or(0.0);
-                let reorder_point = s.reorder_point.to_f64().unwrap_or(0.0);
-                let suggested = s.suggested_stock.to_f64().unwrap_or(0.0);
+    let high_count = suggestions
+        .iter()
+        .filter(|s| {
+            let current = s.current_stock.to_f64().unwrap_or(0.0);
+            current < s.reorder_point.to_f64().unwrap_or(0.0)
+        })
+        .count();
+    let overstock_count = suggestions
+        .iter()
+        .filter(|s| {
+            let current = s.current_stock.to_f64().unwrap_or(0.0);
+            let suggested = s.suggested_stock.to_f64().unwrap_or(0.0);
+            current > suggested * 2.0
+        })
+        .count();
 
-                if current >= reorder_point && current <= suggested * 2.0 && current > 0.0 {
-                    continue;
-                }
+    let mut items: Vec<InventorySuggestion> = Vec::new();
+    for s in suggestions {
+        let current = s.current_stock.to_f64().unwrap_or(0.0);
+        let reorder_point = s.reorder_point.to_f64().unwrap_or(0.0);
+        let suggested = s.suggested_stock.to_f64().unwrap_or(0.0);
 
-                let priority = if current <= 0.0 || current < reorder_point * 0.5 {
-                    "high"
-                } else if current < reorder_point {
-                    "medium"
-                } else {
-                    "low"
-                };
-
-                let product_name = match get_product_name(&db, s.product_id).await {
-                    Ok(name) => name,
-                    Err(_) => format!("产品 {}", s.product_id),
-                };
-
-                items.push(InventorySuggestion {
-                    product_name,
-                    suggestion: format!(
-                        "{} (当前库存: {:.0}, 再订货点: {:.0}, 建议订货: {:.0})",
-                        s.reason,
-                        current,
-                        reorder_point,
-                        s.reorder_quantity.to_f64().unwrap_or(0.0)
-                    ),
-                    priority: priority.to_string(),
-                });
-            }
-
-            let summary = format!(
-                "检测到 {} 个产品需要补货，{} 个产品库存积压",
-                high_count, overstock_count
-            );
-
-            let response = InventoryOptimizationResponse { summary, items };
-            Json(ApiResponse::success(response))
+        if current >= reorder_point && current <= suggested * 2.0 && current > 0.0 {
+            continue;
         }
-        Err(e) => {
-            tracing::error!("库存优化失败: {}", e);
-            Json(ApiResponse::error(format!("库存优化失败: {}", e)))
-        }
+
+        let priority = if current <= 0.0 || current < reorder_point * 0.5 {
+            "high"
+        } else if current < reorder_point {
+            "medium"
+        } else {
+            "low"
+        };
+
+        let product_name = match get_product_name(&db, s.product_id).await {
+            Ok(name) => name,
+            Err(_) => format!("产品 {}", s.product_id),
+        };
+
+        items.push(InventorySuggestion {
+            product_name,
+            suggestion: format!(
+                "{} (当前库存: {:.0}, 再订货点: {:.0}, 建议订货: {:.0})",
+                s.reason,
+                current,
+                reorder_point,
+                s.reorder_quantity.to_f64().unwrap_or(0.0)
+            ),
+            priority: priority.to_string(),
+        });
     }
+
+    let summary = format!(
+        "检测到 {} 个产品需要补货，{} 个产品库存积压",
+        high_count, overstock_count
+    );
+
+    let response = InventoryOptimizationResponse { summary, items };
+    Ok(Json(ApiResponse::success(response)))
 }
 
 // ============================================================================

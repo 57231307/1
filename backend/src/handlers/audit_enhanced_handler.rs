@@ -1,6 +1,5 @@
 use axum::{
     extract::{Query, State},
-    http::StatusCode,
     Json,
 };
 use serde::{Deserialize, Serialize};
@@ -8,6 +7,7 @@ use serde::{Deserialize, Serialize};
 use crate::middleware::auth_context::AuthContext;
 
 use crate::utils::app_state::AppState;
+use crate::utils::error::AppError;
 use crate::utils::response::ApiResponse;
 
 #[derive(Debug, Deserialize)]
@@ -56,7 +56,7 @@ pub async fn list_audit_logs(
     State(state): State<AppState>,
     _auth: AuthContext,
     Query(query): Query<AuditLogQuery>,
-) -> Result<Json<ApiResponse<serde_json::Value>>, StatusCode> {
+) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     let page = query.page.unwrap_or(1);
     let page_size = query.page_size.unwrap_or(20);
 
@@ -80,70 +80,52 @@ pub async fn list_audit_logs(
         .order_by_desc(audit_log::Column::CreatedAt)
         .paginate(state.db.as_ref(), page_size);
 
-    match paginator.num_items().await {
-        Ok(total) => match paginator.fetch_page(page - 1).await {
-            Ok(logs) => {
-                let items: Vec<AuditLogItem> = logs
-                    .into_iter()
-                    .map(|m| AuditLogItem {
-                        id: m.id,
-                        user_id: m.user_id,
-                        action: m.action,
-                        resource_type: m.resource_type,
-                        resource_id: m.resource_id,
-                        ip_address: m.ip_address,
-                        created_at: m.created_at.map(|t| t.to_rfc3339()).unwrap_or_default(),
-                    })
-                    .collect();
+    let total = paginator.num_items().await?;
+    let logs = paginator.fetch_page(page - 1).await?;
 
-                Ok(Json(ApiResponse::success(serde_json::json!({
-                    "list": items,
-                    "total": total,
-                    "page": page,
-                    "page_size": page_size,
-                }))))
-            }
-            Err(e) => {
-                tracing::error!("查询审计日志失败: {}", e);
-                Err(StatusCode::INTERNAL_SERVER_ERROR)
-            }
-        },
-        Err(e) => {
-            tracing::error!("统计审计日志失败: {}", e);
-            Err(StatusCode::INTERNAL_SERVER_ERROR)
-        }
-    }
+    let items: Vec<AuditLogItem> = logs
+        .into_iter()
+        .map(|m| AuditLogItem {
+            id: m.id,
+            user_id: m.user_id,
+            action: m.action,
+            resource_type: m.resource_type,
+            resource_id: m.resource_id,
+            ip_address: m.ip_address,
+            created_at: m.created_at.map(|t| t.to_rfc3339()).unwrap_or_default(),
+        })
+        .collect();
+
+    Ok(Json(ApiResponse::success(serde_json::json!({
+        "list": items,
+        "total": total,
+        "page": page,
+        "page_size": page_size,
+    }))))
 }
 
 pub async fn export_audit_logs(
     State(state): State<AppState>,
     _auth: AuthContext,
     Query(_query): Query<AuditLogQuery>,
-) -> Result<Json<ApiResponse<ExportResult>>, StatusCode> {
+) -> Result<Json<ApiResponse<ExportResult>>, AppError> {
     use crate::models::audit_log;
     use sea_orm::{EntityTrait, QueryOrder};
 
-    match audit_log::Entity::find()
+    let logs = audit_log::Entity::find()
         .order_by_desc(audit_log::Column::CreatedAt)
         .all(state.db.as_ref())
-        .await
-    {
-        Ok(logs) => {
-            let count = logs.len();
-            let file_name = format!(
-                "audit_logs_{}.json",
-                chrono::Utc::now().format("%Y%m%d%H%M%S")
-            );
+        .await?;
 
-            Ok(Json(ApiResponse::success(ExportResult {
-                download_url: format!("/api/v1/erp/downloads/{}", file_name),
-                file_name,
-                record_count: count,
-            })))
-        }
-        Err(e) => {
-            tracing::error!("导出审计日志失败: {}", e);
-            Err(StatusCode::INTERNAL_SERVER_ERROR)
-        }
-    }
+    let count = logs.len();
+    let file_name = format!(
+        "audit_logs_{}.json",
+        chrono::Utc::now().format("%Y%m%d%H%M%S")
+    );
+
+    Ok(Json(ApiResponse::success(ExportResult {
+        download_url: format!("/api/v1/erp/downloads/{}", file_name),
+        file_name,
+        record_count: count,
+    })))
 }
