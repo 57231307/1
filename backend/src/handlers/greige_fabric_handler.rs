@@ -2,8 +2,6 @@
 
 use axum::{
     extract::{Path, Query, State},
-    http::StatusCode,
-    response::IntoResponse,
     Json,
 };
 use rust_decimal::Decimal;
@@ -15,7 +13,8 @@ use serde::Deserialize;
 use crate::middleware::auth_context::AuthContext;
 use crate::models::greige_fabric;
 use crate::utils::app_state::AppState;
-use crate::utils::response::{ApiResponse, PaginatedResponse};
+use crate::utils::error::AppError;
+use crate::utils::response::ApiResponse;
 
 #[derive(Debug, Deserialize)]
 pub struct GreigeFabricListQuery {
@@ -97,7 +96,7 @@ pub struct StockOutRequest {
 pub async fn list_greige_fabrics(
     State(state): State<AppState>,
     Query(query): Query<GreigeFabricListQuery>,
-) -> impl IntoResponse {
+) -> Result<Json<ApiResponse<Vec<greige_fabric::Model>>>, AppError> {
     let page = query.page.unwrap_or(1);
     let page_size = query.page_size.unwrap_or(20);
 
@@ -128,50 +127,30 @@ pub async fn list_greige_fabrics(
     q = q.order_by_desc(greige_fabric::Column::CreatedAt);
 
     let paginator = q.paginate(&*state.db, page_size);
-    match paginator.num_items().await {
-        Ok(total) => match paginator.fetch_page(page - 1).await {
-            Ok(fabrics) => {
-                let paginated = PaginatedResponse::new(fabrics, total, page, page_size);
-                paginated.into_response()
-            }
-            Err(e) => (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                Json(ApiResponse::<()>::error(format!("获取坯布列表失败：{}", e))),
-            )
-                .into_response(),
-        },
-        Err(e) => (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            Json(ApiResponse::<()>::error(format!("获取坯布总数失败：{}", e))),
-        )
-            .into_response(),
-    }
+    let total = paginator.num_items().await?;
+    let fabrics = paginator.fetch_page(page - 1).await?;
+
+    Ok(Json(ApiResponse::success_paginated(
+        fabrics, total, page, page_size,
+    )))
 }
 
 pub async fn get_greige_fabric(
     State(state): State<AppState>,
     Path(id): Path<i32>,
-) -> impl IntoResponse {
-    match greige_fabric::Entity::find_by_id(id).one(&*state.db).await {
-        Ok(Some(fabric)) => (StatusCode::OK, Json(ApiResponse::success(fabric))).into_response(),
-        Ok(None) => (
-            StatusCode::NOT_FOUND,
-            Json(ApiResponse::<()>::error("坯布不存在")),
-        )
-            .into_response(),
-        Err(e) => (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            Json(ApiResponse::<()>::error(format!("获取坯布失败：{}", e))),
-        )
-            .into_response(),
-    }
+) -> Result<Json<ApiResponse<greige_fabric::Model>>, AppError> {
+    let fabric = greige_fabric::Entity::find_by_id(id)
+        .one(&*state.db)
+        .await?
+        .ok_or_else(|| AppError::not_found("坯布不存在"))?;
+    Ok(Json(ApiResponse::success(fabric)))
 }
 
 pub async fn create_greige_fabric(
     State(state): State<AppState>,
     _auth: AuthContext,
     Json(req): Json<CreateGreigeFabricRequest>,
-) -> impl IntoResponse {
+) -> Result<Json<ApiResponse<greige_fabric::Model>>, AppError> {
     // 自动生成编号
     let fabric_no = req.fabric_no.unwrap_or_else(|| {
         let timestamp = chrono::Utc::now().format("%Y%m%d%H%M%S");
@@ -212,18 +191,11 @@ pub async fn create_greige_fabric(
         updated_at: Set(crate::utils::date_utils::utc_now_fixed()),
     };
 
-    match fabric.insert(&*state.db).await {
-        Ok(created) => (
-            StatusCode::CREATED,
-            Json(ApiResponse::success_with_message(created, "坯布创建成功")),
-        )
-            .into_response(),
-        Err(e) => (
-            StatusCode::BAD_REQUEST,
-            Json(ApiResponse::<()>::error(format!("创建坯布失败：{}", e))),
-        )
-            .into_response(),
-    }
+    let created = fabric.insert(&*state.db).await?;
+    Ok(Json(ApiResponse::success_with_message(
+        created,
+        "坯布创建成功",
+    )))
 }
 
 pub async fn update_greige_fabric(
@@ -231,25 +203,12 @@ pub async fn update_greige_fabric(
     Path(id): Path<i32>,
     _auth: AuthContext,
     Json(req): Json<UpdateGreigeFabricRequest>,
-) -> impl IntoResponse {
-    let mut fabric: greige_fabric::ActiveModel =
-        match greige_fabric::Entity::find_by_id(id).one(&*state.db).await {
-            Ok(Some(f)) => f.into(),
-            Ok(None) => {
-                return (
-                    StatusCode::NOT_FOUND,
-                    Json(ApiResponse::<()>::error("坯布不存在")),
-                )
-                    .into_response();
-            }
-            Err(e) => {
-                return (
-                    StatusCode::INTERNAL_SERVER_ERROR,
-                    Json(ApiResponse::<()>::error(format!("获取坯布失败：{}", e))),
-                )
-                    .into_response();
-            }
-        };
+) -> Result<Json<ApiResponse<greige_fabric::Model>>, AppError> {
+    let mut fabric: greige_fabric::ActiveModel = greige_fabric::Entity::find_by_id(id)
+        .one(&*state.db)
+        .await?
+        .ok_or_else(|| AppError::not_found("坯布不存在"))?
+        .into();
 
     if let Some(fabric_name) = req.fabric_name {
         fabric.fabric_name = Set(fabric_name);
@@ -293,49 +252,25 @@ pub async fn update_greige_fabric(
 
     fabric.updated_at = Set(crate::utils::date_utils::utc_now_fixed());
 
-    match fabric.update(&*state.db).await {
-        Ok(updated) => (
-            StatusCode::OK,
-            Json(ApiResponse::success_with_message(updated, "坯布更新成功")),
-        )
-            .into_response(),
-        Err(e) => (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            Json(ApiResponse::<()>::error(format!("更新坯布失败：{}", e))),
-        )
-            .into_response(),
-    }
+    let updated = fabric.update(&*state.db).await?;
+    Ok(Json(ApiResponse::success_with_message(
+        updated,
+        "坯布更新成功",
+    )))
 }
 
 pub async fn delete_greige_fabric(
     State(state): State<AppState>,
     Path(id): Path<i32>,
     _auth: AuthContext,
-) -> impl IntoResponse {
-    let fabric = match greige_fabric::Entity::find_by_id(id).one(&*state.db).await {
-        Ok(Some(f)) => f,
-        Ok(None) => {
-            return (
-                StatusCode::NOT_FOUND,
-                Json(ApiResponse::<()>::error("坯布不存在")),
-            )
-                .into_response();
-        }
-        Err(e) => {
-            return (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                Json(ApiResponse::<()>::error(format!("获取坯布失败：{}", e))),
-            )
-                .into_response();
-        }
-    };
+) -> Result<Json<ApiResponse<()>>, AppError> {
+    let fabric = greige_fabric::Entity::find_by_id(id)
+        .one(&*state.db)
+        .await?
+        .ok_or_else(|| AppError::not_found("坯布不存在"))?;
 
     if fabric.status.as_deref() == Some("在库") {
-        return (
-            StatusCode::BAD_REQUEST,
-            Json(ApiResponse::<()>::error("在库坯布不允许删除，请先完成出库")),
-        )
-            .into_response();
+        return Err(AppError::bad_request("在库坯布不允许删除，请先完成出库"));
     }
 
     // 软删除
@@ -343,18 +278,8 @@ pub async fn delete_greige_fabric(
     active.is_deleted = Set(Some(true));
     active.updated_at = Set(crate::utils::date_utils::utc_now_fixed());
 
-    match active.update(&*state.db).await {
-        Ok(_) => (
-            StatusCode::OK,
-            Json(ApiResponse::success_with_message((), "坯布删除成功")),
-        )
-            .into_response(),
-        Err(e) => (
-            StatusCode::BAD_REQUEST,
-            Json(ApiResponse::<()>::error(format!("删除坯布失败：{}", e))),
-        )
-            .into_response(),
-    }
+    active.update(&*state.db).await?;
+    Ok(Json(ApiResponse::success_with_message((), "坯布删除成功")))
 }
 
 pub async fn stock_in(
@@ -362,25 +287,12 @@ pub async fn stock_in(
     Path(id): Path<i32>,
     _auth: AuthContext,
     Json(req): Json<StockInRequest>,
-) -> impl IntoResponse {
-    let mut fabric: greige_fabric::ActiveModel =
-        match greige_fabric::Entity::find_by_id(id).one(&*state.db).await {
-            Ok(Some(f)) => f.into(),
-            Ok(None) => {
-                return (
-                    StatusCode::NOT_FOUND,
-                    Json(ApiResponse::<()>::error("坯布不存在")),
-                )
-                    .into_response();
-            }
-            Err(e) => {
-                return (
-                    StatusCode::INTERNAL_SERVER_ERROR,
-                    Json(ApiResponse::<()>::error(format!("获取坯布失败：{}", e))),
-                )
-                    .into_response();
-            }
-        };
+) -> Result<Json<ApiResponse<greige_fabric::Model>>, AppError> {
+    let mut fabric: greige_fabric::ActiveModel = greige_fabric::Entity::find_by_id(id)
+        .one(&*state.db)
+        .await?
+        .ok_or_else(|| AppError::not_found("坯布不存在"))?
+        .into();
 
     // 累加库存而不是覆盖
     let current_weight = fabric
@@ -422,18 +334,11 @@ pub async fn stock_in(
     }
     fabric.updated_at = Set(crate::utils::date_utils::utc_now_fixed());
 
-    match fabric.update(&*state.db).await {
-        Ok(updated) => (
-            StatusCode::OK,
-            Json(ApiResponse::success_with_message(updated, "坯布入库成功")),
-        )
-            .into_response(),
-        Err(e) => (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            Json(ApiResponse::<()>::error(format!("坯布入库失败：{}", e))),
-        )
-            .into_response(),
-    }
+    let updated = fabric.update(&*state.db).await?;
+    Ok(Json(ApiResponse::success_with_message(
+        updated,
+        "坯布入库成功",
+    )))
 }
 
 pub async fn stock_out(
@@ -441,24 +346,11 @@ pub async fn stock_out(
     Path(id): Path<i32>,
     _auth: AuthContext,
     Json(req): Json<StockOutRequest>,
-) -> impl IntoResponse {
-    let fabric = match greige_fabric::Entity::find_by_id(id).one(&*state.db).await {
-        Ok(Some(f)) => f,
-        Ok(None) => {
-            return (
-                StatusCode::NOT_FOUND,
-                Json(ApiResponse::<()>::error("坯布不存在")),
-            )
-                .into_response();
-        }
-        Err(e) => {
-            return (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                Json(ApiResponse::<()>::error(format!("获取坯布失败：{}", e))),
-            )
-                .into_response();
-        }
-    };
+) -> Result<Json<ApiResponse<greige_fabric::Model>>, AppError> {
+    let fabric = greige_fabric::Entity::find_by_id(id)
+        .one(&*state.db)
+        .await?
+        .ok_or_else(|| AppError::not_found("坯布不存在"))?;
 
     let mut update_fabric: greige_fabric::ActiveModel = fabric.clone().into();
 
@@ -467,11 +359,7 @@ pub async fn stock_out(
         let new_weight =
             current_weight - Decimal::from_f64_retain(out_weight).unwrap_or(Decimal::ZERO);
         if new_weight < Decimal::ZERO {
-            return (
-                StatusCode::BAD_REQUEST,
-                Json(ApiResponse::<()>::error("出库重量不能大于现有重量")),
-            )
-                .into_response();
+            return Err(AppError::bad_request("出库重量不能大于现有重量"));
         }
         update_fabric.weight_kg = Set(Some(new_weight));
         // 同步更新 quantity_kg
@@ -486,11 +374,7 @@ pub async fn stock_out(
         let new_length =
             current_length - Decimal::from_f64_retain(out_length).unwrap_or(Decimal::ZERO);
         if new_length < Decimal::ZERO {
-            return (
-                StatusCode::BAD_REQUEST,
-                Json(ApiResponse::<()>::error("出库长度不能大于现有长度")),
-            )
-                .into_response();
+            return Err(AppError::bad_request("出库长度不能大于现有长度"));
         }
         update_fabric.length_m = Set(Some(new_length));
         // 同步更新 quantity_meters
@@ -521,36 +405,22 @@ pub async fn stock_out(
     update_fabric.status = Set(Some(new_status));
     update_fabric.updated_at = Set(crate::utils::date_utils::utc_now_fixed());
 
-    match update_fabric.update(&*state.db).await {
-        Ok(updated) => (
-            StatusCode::OK,
-            Json(ApiResponse::success_with_message(updated, "坯布出库成功")),
-        )
-            .into_response(),
-        Err(e) => (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            Json(ApiResponse::<()>::error(format!("坯布出库失败：{}", e))),
-        )
-            .into_response(),
-    }
+    let updated = update_fabric.update(&*state.db).await?;
+    Ok(Json(ApiResponse::success_with_message(
+        updated,
+        "坯布出库成功",
+    )))
 }
 
 pub async fn get_greige_by_supplier(
     State(state): State<AppState>,
     Path(supplier_id): Path<i32>,
-) -> impl IntoResponse {
-    match greige_fabric::Entity::find()
+) -> Result<Json<ApiResponse<Vec<greige_fabric::Model>>>, AppError> {
+    let fabrics = greige_fabric::Entity::find()
         .filter(greige_fabric::Column::SupplierId.eq(supplier_id))
         .filter(greige_fabric::Column::IsDeleted.eq(false))
         .order_by_desc(greige_fabric::Column::CreatedAt)
         .all(&*state.db)
-        .await
-    {
-        Ok(fabrics) => (StatusCode::OK, Json(ApiResponse::success(fabrics))).into_response(),
-        Err(e) => (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            Json(ApiResponse::<()>::error(format!("获取坯布列表失败：{}", e))),
-        )
-            .into_response(),
-    }
+        .await?;
+    Ok(Json(ApiResponse::success(fabrics)))
 }

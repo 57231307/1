@@ -2,8 +2,6 @@
 
 use axum::{
     extract::{Path, Query, State},
-    http::StatusCode,
-    response::IntoResponse,
     Json,
 };
 use rust_decimal::Decimal;
@@ -15,7 +13,8 @@ use serde::Deserialize;
 use crate::middleware::auth_context::AuthContext;
 use crate::models::dye_batch;
 use crate::utils::app_state::AppState;
-use crate::utils::response::{ApiResponse, PaginatedResponse};
+use crate::utils::error::AppError;
+use crate::utils::response::ApiResponse;
 
 /// 缸号状态枚举
 #[derive(Debug, Clone, PartialEq)]
@@ -81,7 +80,7 @@ pub struct UpdateDyeBatchRequest {
 pub async fn list_dye_batches(
     State(state): State<AppState>,
     Query(query): Query<DyeBatchListQuery>,
-) -> impl IntoResponse {
+) -> Result<Json<ApiResponse<Vec<dye_batch::Model>>>, AppError> {
     let page = query.page.unwrap_or(1);
     let page_size = query.page_size.unwrap_or(20);
 
@@ -100,59 +99,34 @@ pub async fn list_dye_batches(
     q = q.order_by_desc(dye_batch::Column::CreatedAt);
 
     let paginator = q.paginate(&*state.db, page_size);
-    match paginator.num_items().await {
-        Ok(total) => match paginator.fetch_page(page - 1).await {
-            Ok(batches) => {
-                let paginated = PaginatedResponse::new(batches, total, page, page_size);
-                paginated.into_response()
-            }
-            Err(e) => (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                Json(ApiResponse::<()>::error(format!("获取缸号列表失败：{}", e))),
-            )
-                .into_response(),
-        },
-        Err(e) => (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            Json(ApiResponse::<()>::error(format!("获取缸号总数失败：{}", e))),
-        )
-            .into_response(),
-    }
+    let total = paginator.num_items().await?;
+    let batches = paginator.fetch_page(page - 1).await?;
+    Ok(Json(ApiResponse::success_paginated(
+        batches, total, page, page_size,
+    )))
 }
 
 pub async fn get_dye_batch(
     State(state): State<AppState>,
     Path(id): Path<i32>,
-) -> impl IntoResponse {
-    match dye_batch::Entity::find_by_id(id).one(&*state.db).await {
-        Ok(Some(batch)) => (StatusCode::OK, Json(ApiResponse::success(batch))).into_response(),
-        Ok(None) => (
-            StatusCode::NOT_FOUND,
-            Json(ApiResponse::<()>::error("缸号不存在")),
-        )
-            .into_response(),
-        Err(e) => (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            Json(ApiResponse::<()>::error(format!("获取缸号失败：{}", e))),
-        )
-            .into_response(),
-    }
+) -> Result<Json<ApiResponse<dye_batch::Model>>, AppError> {
+    let batch = dye_batch::Entity::find_by_id(id)
+        .one(&*state.db)
+        .await?
+        .ok_or_else(|| AppError::not_found("缸号不存在"))?;
+    Ok(Json(ApiResponse::success(batch)))
 }
 
 pub async fn create_dye_batch(
     State(state): State<AppState>,
     _auth: AuthContext,
     Json(req): Json<CreateDyeBatchRequest>,
-) -> impl IntoResponse {
+) -> Result<Json<ApiResponse<dye_batch::Model>>, AppError> {
     // 验证状态值
     let status = match req.status {
         Some(s) => {
             if DyeBatchStatus::from_chinese_str(&s).is_none() {
-                return (
-                    StatusCode::BAD_REQUEST,
-                    Json(ApiResponse::<()>::error(format!("无效的缸号状态：{}", s))),
-                )
-                    .into_response();
+                return Err(AppError::bad_request(format!("无效的缸号状态：{}", s)));
             }
             Some(s)
         }
@@ -181,33 +155,22 @@ pub async fn create_dye_batch(
     };
 
     // 使用 insert 获取返回的 Model
-    match dye_batch::Entity::insert(batch)
+    dye_batch::Entity::insert(batch)
         .exec_without_returning(&*state.db)
+        .await?;
+
+    // 重新查询获取创建的记录
+    let created = dye_batch::Entity::find()
+        .order_by_desc(dye_batch::Column::Id)
+        .one(&*state.db)
         .await
-    {
-        Ok(_) => {
-            // 重新查询获取创建的记录
-            let created = dye_batch::Entity::find()
-                .order_by_desc(dye_batch::Column::Id)
-                .one(&*state.db)
-                .await
-                .ok()
-                .flatten();
-            (
-                StatusCode::CREATED,
-                Json(ApiResponse::success_with_message(
-                    created.unwrap_or_default(),
-                    "缸号创建成功",
-                )),
-            )
-                .into_response()
-        }
-        Err(e) => (
-            StatusCode::BAD_REQUEST,
-            Json(ApiResponse::<()>::error(format!("创建缸号失败：{}", e))),
-        )
-            .into_response(),
-    }
+        .ok()
+        .flatten();
+
+    Ok(Json(ApiResponse::success_with_message(
+        created.unwrap_or_default(),
+        "缸号创建成功",
+    )))
 }
 
 pub async fn update_dye_batch(
@@ -215,25 +178,12 @@ pub async fn update_dye_batch(
     Path(id): Path<i32>,
     _auth: AuthContext,
     Json(req): Json<UpdateDyeBatchRequest>,
-) -> impl IntoResponse {
-    let mut batch: dye_batch::ActiveModel =
-        match dye_batch::Entity::find_by_id(id).one(&*state.db).await {
-            Ok(Some(b)) => b.into(),
-            Ok(None) => {
-                return (
-                    StatusCode::NOT_FOUND,
-                    Json(ApiResponse::<()>::error("缸号不存在")),
-                )
-                    .into_response();
-            }
-            Err(e) => {
-                return (
-                    StatusCode::INTERNAL_SERVER_ERROR,
-                    Json(ApiResponse::<()>::error(format!("获取缸号失败：{}", e))),
-                )
-                    .into_response();
-            }
-        };
+) -> Result<Json<ApiResponse<dye_batch::Model>>, AppError> {
+    let batch_model = dye_batch::Entity::find_by_id(id)
+        .one(&*state.db)
+        .await?
+        .ok_or_else(|| AppError::not_found("缸号不存在"))?;
+    let mut batch: dye_batch::ActiveModel = batch_model.into();
 
     if let Some(greige_fabric_id) = req.greige_fabric_id {
         batch.greige_fabric_id = Set(Some(greige_fabric_id));
@@ -256,21 +206,13 @@ pub async fn update_dye_batch(
             let current =
                 DyeBatchStatus::from_chinese_str(current_status).unwrap_or(DyeBatchStatus::Pending);
             if !current.can_transition_to(&target) {
-                return (
-                    StatusCode::BAD_REQUEST,
-                    Json(ApiResponse::<()>::error(format!(
-                        "状态流转不合法：{} -> {}",
-                        current_status, status
-                    ))),
-                )
-                    .into_response();
+                return Err(AppError::business(format!(
+                    "状态流转不合法：{} -> {}",
+                    current_status, status
+                )));
             }
         } else {
-            return (
-                StatusCode::BAD_REQUEST,
-                Json(ApiResponse::<()>::error(format!("无效的状态：{}", status))),
-            )
-                .into_response();
+            return Err(AppError::bad_request(format!("无效的状态：{}", status)));
         }
 
         batch.status = Set(Some(status.clone()));
@@ -289,52 +231,23 @@ pub async fn update_dye_batch(
 
     batch.updated_at = Set(crate::utils::date_utils::utc_now_fixed());
 
-    match batch.update(&*state.db).await {
-        Ok(updated) => (
-            StatusCode::OK,
-            Json(ApiResponse::success_with_message(updated, "缸号更新成功")),
-        )
-            .into_response(),
-        Err(e) => (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            Json(ApiResponse::<()>::error(format!("更新缸号失败：{}", e))),
-        )
-            .into_response(),
-    }
+    let updated = batch.update(&*state.db).await?;
+    Ok(Json(ApiResponse::success_with_message(updated, "缸号更新成功")))
 }
 
 pub async fn delete_dye_batch(
     State(state): State<AppState>,
     Path(id): Path<i32>,
     _auth: AuthContext,
-) -> impl IntoResponse {
+) -> Result<Json<ApiResponse<()>>, AppError> {
     // 检查缸号状态，生产中的缸号不允许删除
-    let batch = match dye_batch::Entity::find_by_id(id).one(&*state.db).await {
-        Ok(Some(b)) => b,
-        Ok(None) => {
-            return (
-                StatusCode::NOT_FOUND,
-                Json(ApiResponse::<()>::error("缸号不存在")),
-            )
-                .into_response();
-        }
-        Err(e) => {
-            return (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                Json(ApiResponse::<()>::error(format!("获取缸号失败：{}", e))),
-            )
-                .into_response();
-        }
-    };
+    let batch = dye_batch::Entity::find_by_id(id)
+        .one(&*state.db)
+        .await?
+        .ok_or_else(|| AppError::not_found("缸号不存在"))?;
 
     if batch.status.as_deref() == Some("生产中") {
-        return (
-            StatusCode::BAD_REQUEST,
-            Json(ApiResponse::<()>::error(
-                "生产中的缸号不允许删除，请先取消或完成",
-            )),
-        )
-            .into_response();
+        return Err(AppError::business("生产中的缸号不允许删除，请先取消或完成"));
     }
 
     // 软删除
@@ -342,43 +255,20 @@ pub async fn delete_dye_batch(
     active.is_deleted = Set(Some(true));
     active.updated_at = Set(crate::utils::date_utils::utc_now_fixed());
 
-    match active.update(&*state.db).await {
-        Ok(_) => (
-            StatusCode::OK,
-            Json(ApiResponse::success_with_message((), "缸号删除成功")),
-        )
-            .into_response(),
-        Err(e) => (
-            StatusCode::BAD_REQUEST,
-            Json(ApiResponse::<()>::error(format!("删除缸号失败：{}", e))),
-        )
-            .into_response(),
-    }
+    active.update(&*state.db).await?;
+    Ok(Json(ApiResponse::success_with_message((), "缸号删除成功")))
 }
 
 pub async fn complete_dye_batch(
     State(state): State<AppState>,
     Path(id): Path<i32>,
     _auth: AuthContext,
-) -> impl IntoResponse {
-    let mut batch: dye_batch::ActiveModel =
-        match dye_batch::Entity::find_by_id(id).one(&*state.db).await {
-            Ok(Some(b)) => b.into(),
-            Ok(None) => {
-                return (
-                    StatusCode::NOT_FOUND,
-                    Json(ApiResponse::<()>::error("缸号不存在")),
-                )
-                    .into_response();
-            }
-            Err(e) => {
-                return (
-                    StatusCode::INTERNAL_SERVER_ERROR,
-                    Json(ApiResponse::<()>::error(format!("获取缸号失败：{}", e))),
-                )
-                    .into_response();
-            }
-        };
+) -> Result<Json<ApiResponse<dye_batch::Model>>, AppError> {
+    let batch_model = dye_batch::Entity::find_by_id(id)
+        .one(&*state.db)
+        .await?
+        .ok_or_else(|| AppError::not_found("缸号不存在"))?;
+    let mut batch: dye_batch::ActiveModel = batch_model.into();
 
     // 检查当前状态是否允许完成
     let current_status = match &batch.status {
@@ -389,59 +279,38 @@ pub async fn complete_dye_batch(
         DyeBatchStatus::from_chinese_str(current_status).unwrap_or(DyeBatchStatus::Pending);
 
     if !current.can_transition_to(&DyeBatchStatus::Completed) {
-        return (
-            StatusCode::BAD_REQUEST,
-            Json(ApiResponse::<()>::error(format!(
-                "状态流转不合法：{} -> 已完成",
-                current_status
-            ))),
-        )
-            .into_response();
+        return Err(AppError::business(format!(
+            "状态流转不合法：{} -> 已完成",
+            current_status
+        )));
     }
 
     batch.status = Set(Some("已完成".to_string()));
     batch.completed_at = Set(Some(crate::utils::date_utils::utc_now_fixed()));
     batch.updated_at = Set(crate::utils::date_utils::utc_now_fixed());
 
-    match batch.update(&*state.db).await {
-        Ok(updated) => (
-            StatusCode::OK,
-            Json(ApiResponse::success_with_message(updated, "缸号完成成功")),
-        )
-            .into_response(),
-        Err(e) => (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            Json(ApiResponse::<()>::error(format!("完成缸号失败：{}", e))),
-        )
-            .into_response(),
-    }
+    let updated = batch.update(&*state.db).await?;
+    Ok(Json(ApiResponse::success_with_message(updated, "缸号完成成功")))
 }
 
 pub async fn get_dye_batches_by_color(
     State(state): State<AppState>,
     Path(color_no): Path<String>,
-) -> impl IntoResponse {
-    match dye_batch::Entity::find()
+) -> Result<Json<ApiResponse<Vec<dye_batch::Model>>>, AppError> {
+    let batches = dye_batch::Entity::find()
         .filter(dye_batch::Column::ColorNo.eq(color_no))
         .filter(dye_batch::Column::IsDeleted.eq(false))
         .order_by_desc(dye_batch::Column::CreatedAt)
         .all(&*state.db)
-        .await
-    {
-        Ok(batches) => (StatusCode::OK, Json(ApiResponse::success(batches))).into_response(),
-        Err(e) => (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            Json(ApiResponse::<()>::error(format!("获取缸号列表失败：{}", e))),
-        )
-            .into_response(),
-    }
+        .await?;
+    Ok(Json(ApiResponse::success(batches)))
 }
 
 /// GET /api/v1/erp/dye-batches/export - 导出缸号列表（CSV）
 pub async fn export_dye_batches(
     State(state): State<AppState>,
     Query(query): Query<DyeBatchListQuery>,
-) -> impl IntoResponse {
+) -> Result<axum::response::Response, AppError> {
     let mut q = dye_batch::Entity::find().filter(dye_batch::Column::IsDeleted.eq(false));
 
     if let Some(batch_no) = &query.batch_no {
@@ -456,16 +325,7 @@ pub async fn export_dye_batches(
 
     q = q.order_by_desc(dye_batch::Column::CreatedAt);
 
-    let batches = match q.all(&*state.db).await {
-        Ok(b) => b,
-        Err(e) => {
-            return (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                Json(ApiResponse::<()>::error(format!("获取缸号列表失败：{}", e))),
-            )
-                .into_response();
-        }
-    };
+    let batches = q.all(&*state.db).await?;
 
     let mut buf: Vec<u8> = Vec::new();
     buf.extend_from_slice(b"\xEF\xBB\xBF");
@@ -489,10 +349,10 @@ pub async fn export_dye_batches(
         buf.extend_from_slice(line.as_bytes());
     }
 
-    (
-        StatusCode::OK,
-        [(axum::http::header::CONTENT_TYPE, "text/csv; charset=utf-8")],
-        buf,
-    )
-        .into_response()
+    let mut response = axum::response::Response::new(axum::body::Body::from(buf));
+    response.headers_mut().insert(
+        axum::http::header::CONTENT_TYPE,
+        axum::http::HeaderValue::from_static("text/csv; charset=utf-8"),
+    );
+    Ok(response)
 }
