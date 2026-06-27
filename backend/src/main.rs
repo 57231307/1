@@ -80,11 +80,13 @@ fn setup_initialized_flag() -> Arc<Mutex<bool>> {
 
 async fn get_init_status() -> Json<InitStatusResponse> {
     // 优先使用内存中的初始化成功标志（处理「setup 模式内完成初始化」的场景）
-    // P9-1: 用 unwrap_or_else + 日志替代裸 unwrap，锁中毒有 P9-1 中文提示
+    // P0 修复（批次 4，2026-06-27）：锁中毒时改为优雅降级（e.into_inner()），
+    // 与 event_bus.rs / di_container.rs 一致，避免生产环境 panic 直接拖垮进程。
+    // 锁中毒仅在持锁线程 panic 时发生，此时返回上次成功写入的值是安全降级。
     let arc = setup_initialized_flag();
     let guard = arc.lock().unwrap_or_else(|e| {
-        tracing::error!(error = %e, "P9-1: setup 初始化标志锁中毒");
-        panic!("P9-1: setup 初始化标志锁中毒: {e}")
+        tracing::error!(error = %e, "P9-1: setup 初始化标志锁中毒，降级使用上次值");
+        e.into_inner()
     });
     let initialized = *guard;
     if initialized {
@@ -142,11 +144,13 @@ async fn initialize_with_db(
             // 标记 setup 模式下的初始化已完成，便于 `get_init_status`
             // 在同一进程内返回 initialized = true，避免前端在跳转登录页时
             // 被路由守卫再次拉回 setup 页面。
-            // P9-1: 用 unwrap_or_else 替代裸 unwrap，锁中毒有 P9-1 中文提示
+            // P0 修复（批次 4，2026-06-27）：锁中毒时改为优雅降级（e.into_inner()），
+            // 与 event_bus.rs / di_container.rs 一致；若锁已中毒则不写入，
+            // 仅记录日志（初始化已成功完成，下次 get_init_status 走 DB 路径）。
             let arc = setup_initialized_flag();
             let mut guard = arc.lock().unwrap_or_else(|e| {
-                tracing::error!(error = %e, "P9-1: setup 初始化标志锁中毒");
-                panic!("P9-1: setup 初始化标志锁中毒: {e}")
+                tracing::error!(error = %e, "P9-1: setup 初始化标志锁中毒，跳过本次写入");
+                e.into_inner()
             });
             *guard = true;
             Ok(Json(ApiResponse::success_with_message(

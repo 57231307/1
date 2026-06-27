@@ -78,8 +78,15 @@ impl PurchaseOrderService {
             form_data: None,
             variables: None,
         };
-        // 忽略找不到模板的错误，为了兼容旧数据
-        let _ = bpm_service.start_process(req).await;
+        // P0 修复（批次 4，2026-06-27）：原 `let _ = ...` 静默吞掉 BPM 启动错误，
+        // 改为 warn 日志记录，保留兼容性（不阻断主流程），确保运维可观测。
+        if let Err(e) = bpm_service.start_process(req).await {
+            tracing::warn!(
+                error = %e,
+                order_id = order_id,
+                "BPM 启动采购订单审批流程失败（兼容旧数据，不阻断主流程）"
+            );
+        }
 
         Ok(updated_order)
     }

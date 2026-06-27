@@ -674,8 +674,16 @@ impl ProductionOrderService {
             variables: None,
         };
 
-        // 忽略找不到模板的错误，为了兼容旧数据
-        let _ = bpm_service.start_process(req).await;
+        // P0 修复（批次 4，2026-06-27）：原 `let _ = ...` 静默吞掉 BPM 启动错误，
+        // 导致模板缺失/DB 异常时无任何日志可追溯。改为 warn 日志记录，保留兼容性
+        // （不向上传播错误，避免阻断主流程），但确保运维可观测。
+        if let Err(e) = bpm_service.start_process(req).await {
+            tracing::warn!(
+                error = %e,
+                order_id = id,
+                "BPM 启动生产订单审批流程失败（兼容旧数据，不阻断主流程）"
+            );
+        }
 
         Ok(updated)
     }
@@ -726,7 +734,9 @@ impl ProductionOrderService {
                 for task in task_list.data {
                     // 只处理当前流程实例的任务
                     if task.instance_id == instance.id {
-                        let _ = bpm_service
+                        // P0 修复（批次 4，2026-06-27）：原 `let _ = ...` 静默吞掉
+                        // BPM 任务审批错误，改为 warn 日志记录，确保运维可观测。
+                        if let Err(e) = bpm_service
                             .approve_task(crate::models::dto::bpm_dto::ApproveTaskRequest {
                                 task_id: task.id,
                                 handler_id: user_id,
@@ -739,7 +749,15 @@ impl ProductionOrderService {
                                 approval_opinion: opinion.clone(),
                                 attachment_urls: None,
                             })
-                            .await;
+                            .await
+                        {
+                            tracing::warn!(
+                                error = %e,
+                                task_id = task.id,
+                                order_id = id,
+                                "BPM 生产订单任务审批失败（不阻断主流程）"
+                            );
+                        }
                     }
                 }
             }

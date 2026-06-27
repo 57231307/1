@@ -212,7 +212,9 @@ impl QuotationApprovalService {
                 {
                     for task in tasks.data {
                         if task.instance_id == instance.id {
-                            let _ = bpm_service
+                            // P0 修复（批次 4，2026-06-27）：原 `let _ = ...` 静默吞掉
+                            // BPM 任务审批错误，改为 warn 日志记录，确保运维可观测。
+                            if let Err(e) = bpm_service
                                 .approve_task(crate::models::dto::bpm_dto::ApproveTaskRequest {
                                     task_id: task.id,
                                     handler_id: approver_id,
@@ -221,7 +223,15 @@ impl QuotationApprovalService {
                                     approval_opinion: None,
                                     attachment_urls: None,
                                 })
-                                .await;
+                                .await
+                            {
+                                tracing::warn!(
+                                    error = %e,
+                                    task_id = task.id,
+                                    quotation_id = quotation.id,
+                                    "BPM 报价单审批通过任务失败（不阻断主流程）"
+                                );
+                            }
                         }
                     }
                 }
@@ -276,7 +286,9 @@ impl QuotationApprovalService {
                 {
                     for task in tasks.data {
                         if task.instance_id == instance.id {
-                            let _ = bpm_service
+                            // P0 修复（批次 4，2026-06-27）：原 `let _ = ...` 静默吞掉
+                            // BPM 任务审批错误，改为 warn 日志记录，确保运维可观测。
+                            if let Err(e) = bpm_service
                                 .approve_task(crate::models::dto::bpm_dto::ApproveTaskRequest {
                                     task_id: task.id,
                                     handler_id: approver_id,
@@ -285,7 +297,15 @@ impl QuotationApprovalService {
                                     approval_opinion: Some(reason.clone()),
                                     attachment_urls: None,
                                 })
-                                .await;
+                                .await
+                            {
+                                tracing::warn!(
+                                    error = %e,
+                                    task_id = task.id,
+                                    quotation_id = quotation.id,
+                                    "BPM 报价单审批拒绝任务失败（不阻断主流程）"
+                                );
+                            }
                         }
                     }
                 }

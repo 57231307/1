@@ -146,8 +146,10 @@ impl SalesService {
         .await?;
 
         // 启动审批工作流（BPM）
+        // P0 修复（批次 4，2026-06-27）：原 `let _ = ...` 静默吞掉 BPM 启动错误，
+        // 改为 warn 日志记录，保留兼容性（不阻断主流程），确保运维可观测。
         let bpm_service = crate::services::bpm_service::BpmService::new(self.db.clone());
-        let _ = bpm_service
+        if let Err(e) = bpm_service
             .start_process(crate::models::dto::bpm_dto::StartProcessRequest {
                 process_key: "sales_order_approval".to_string(),
                 business_type: "sales_order".to_string(),
@@ -160,7 +162,14 @@ impl SalesService {
                 form_data: None,
                 variables: None,
             })
-            .await;
+            .await
+        {
+            tracing::warn!(
+                error = %e,
+                order_id = order_id,
+                "BPM 启动销售订单审批流程失败（不阻断主流程）"
+            );
+        }
 
         Ok(order)
     }

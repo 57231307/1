@@ -192,14 +192,16 @@ mod tests {
 
     #[test]
     fn test_i10_alert_type_count() {
-        let _types = vec![
+        let types = vec![
             StockAlertType::LowStock,
             StockAlertType::OverStock,
             StockAlertType::Expiring,
             StockAlertType::SlowMoving,
             StockAlertType::Discrepancy,
         ];
-        assert_eq!(5, 5); // 5 种预警类型
+        // P0 修复（批次 4，2026-06-27）：原 `assert_eq!(5, 5)` 为恒真断言，
+        // 改为对实际向量长度断言，真正校验预警类型枚举数量。
+        assert_eq!(types.len(), 5); // 5 种预警类型
     }
 
     // ============= 盘点差异 =============
@@ -242,7 +244,7 @@ mod tests {
 
     #[test]
     fn test_i16_adjustment_reason_count() {
-        let _reasons = vec![
+        let reasons = vec![
             AdjustmentReason::Stocktake,
             AdjustmentReason::Damage,
             AdjustmentReason::Expiry,
@@ -250,7 +252,9 @@ mod tests {
             AdjustmentReason::Found,
             AdjustmentReason::SystemError,
         ];
-        assert_eq!(6, 6);
+        // P0 修复（批次 4，2026-06-27）：原 `assert_eq!(6, 6)` 为恒真断言，
+        // 改为对实际向量长度断言，真正校验调整原因枚举数量。
+        assert_eq!(reasons.len(), 6);
     }
 
     #[test]

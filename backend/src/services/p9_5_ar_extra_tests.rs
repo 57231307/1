@@ -138,14 +138,16 @@ mod tests {
 
     #[test]
     fn test_ar04_payment_method_count() {
-        let _methods = vec![
+        let methods = vec![
             PaymentMethod::Cash,
             PaymentMethod::BankTransfer,
             PaymentMethod::Check,
             PaymentMethod::Alipay,
             PaymentMethod::Wechat,
         ];
-        assert_eq!(5, 5);
+        // P0 修复（批次 4，2026-06-27）：原 `assert_eq!(5, 5)` 为恒真断言，无任何校验作用。
+        // 改为对实际向量长度断言，真正验证支付方式枚举数量。
+        assert_eq!(methods.len(), 5);
     }
 
     #[test]
