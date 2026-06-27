@@ -18,7 +18,6 @@ use tracing::info;
 use crate::config::failover::FailoverConfig;
 use crate::models::failover_event as event_model;
 use crate::models::failover_status as status_model;
-use crate::utils::failover::FailoverError;
 use prometheus::{Encoder, IntCounterVec, IntGaugeVec, Opts, Registry, TextEncoder};
 
 // ==================== Prometheus 指标 ====================
