@@ -56,13 +56,17 @@ pub struct ConvertUnitResponse {
 ///     "message": "单位换算成功"
 /// }
 /// ```
+/// BE-A/H 统一（2026-06-26）：返回类型从 impl IntoResponse 改为
+/// Result<Json<ApiResponse<T>>, AppError>，错误用 AppError::bad_request 表达。
 pub async fn convert_dual_unit(
     Json(req): Json<ConvertUnitRequest>,
 ) -> Result<Json<ApiResponse<ConvertUnitResponse>>, AppError> {
     // 验证单位参数
     let from_unit = req.from_unit.to_lowercase();
     if from_unit != "meters" && from_unit != "kg" {
-        return Err(AppError::bad_request("无效的单位，必须是 'meters' 或 'kg'"));
+        return Err(AppError::bad_request(
+            "无效的单位，必须是 'meters' 或 'kg'",
+        ));
     }
 
     // 执行换算
@@ -146,6 +150,9 @@ pub struct ValidateDualUnitResponse {
 }
 
 /// 验证双计量单位一致性接口
+///
+/// BE-A/H 统一（2026-06-26）：返回类型从 impl IntoResponse 改为
+/// Result<Json<ApiResponse<T>>, AppError>。
 pub async fn validate_dual_unit(
     Json(req): Json<ValidateDualUnitRequest>,
 ) -> Result<Json<ApiResponse<ValidateDualUnitResponse>>, AppError> {

@@ -713,8 +713,13 @@ impl SystemUpdateService {
 
         let download_path = download_dir.join(&asset.name);
 
+        // TS-S-7 安全加固（2026-06-26）：校验下载域名，防止 SSRF / 中间人攻击
+        validate_download_url(&asset.browser_download_url)?;
+
+        // TS-S-7：限制重定向次数并校验最终 URL 域名
         let client = reqwest::Client::builder()
             .user_agent("BingxiERP/1.0")
+            .redirect(reqwest::redirect::Policy::limited(3))
             .build()
             .map_err(|e| UpdateError::NetworkError(e.to_string()))?;
 
@@ -723,6 +728,10 @@ impl SystemUpdateService {
             .send()
             .await
             .map_err(|e| UpdateError::NetworkError(e.to_string()))?;
+
+        // TS-S-7：二次校验最终跳转后的 URL 域名
+        let final_url = response.url();
+        validate_download_url(final_url.as_str())?;
 
         let mut file = fs::File::create(&download_path)?;
 
@@ -755,4 +764,33 @@ impl Default for SystemUpdateService {
     fn default() -> Self {
         Self::new()
     }
+}
+
+// =====================================================
+// TS-S-7 安全加固：下载域名校验
+// =====================================================
+
+/// 校验下载 URL 的域名是否为允许的 GitHub 域名
+fn validate_download_url(url_str: &str) -> Result<(), UpdateError> {
+    let parsed = url::Url::parse(url_str)
+        .map_err(|e| UpdateError::NetworkError(format!("无效的下载 URL: {e}")))?;
+
+    // 仅允许 HTTPS
+    if parsed.scheme() != "https" {
+        return Err(UpdateError::NetworkError(format!(
+            "下载 URL 必须使用 HTTPS，当前 scheme: {}",
+            parsed.scheme()
+        )));
+    }
+
+    let host = parsed.host_str().unwrap_or("");
+    let allowed_hosts = ["github.com", "objects.githubusercontent.com"];
+
+    if !allowed_hosts.contains(&host) {
+        return Err(UpdateError::NetworkError(format!(
+            "下载域名 {host} 不在允许列表中（仅允许 github.com / objects.githubusercontent.com）"
+        )));
+    }
+
+    Ok(())
 }

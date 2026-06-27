@@ -474,25 +474,31 @@ pub struct CreateApPaymentRequest {
     #[validate(length(min = 1, max = 20, message = "申请单号长度必须在1到20个字符之间"))]
     pub payment_method: String,
 
-    /// 申请金额
+    /// 申请金额（必须为正数）
+    #[validate(custom(function = "validate_positive_decimal_payment"))]
     pub request_amount: Decimal,
 
-    /// 币种
+    /// 币种（ISO 4217 三字母代码）
+    #[validate(length(equal = 3, message = "币种必须为 ISO 4217 三字母代码"))]
     pub currency: Option<String>,
 
-    /// 汇率
+    /// 汇率（必须大于 0，防止 P0-1 历史缺陷的 0.01 汇率）
+    #[validate(custom(function = "validate_exchange_rate_payment"))]
     pub exchange_rate: Option<Decimal>,
 
     /// 期望付款日期
     pub expected_payment_date: Option<NaiveDate>,
 
     /// 收款银行
+    #[validate(length(max = 100, message = "银行名称长度不能超过100个字符"))]
     pub bank_name: Option<String>,
 
     /// 收款账号
+    #[validate(length(max = 50, message = "银行账号长度不能超过50个字符"))]
     pub bank_account: Option<String>,
 
     /// 收款账户名
+    #[validate(length(max = 100, message = "账户名长度不能超过100个字符"))]
     pub bank_account_name: Option<String>,
 
     /// 备注
@@ -516,6 +522,32 @@ pub struct ApPaymentRequestItemDto {
 
     /// 备注
     pub notes: Option<String>,
+}
+
+// =====================================================
+// DTO 校验函数（TS-S-5 安全加固）
+// =====================================================
+
+/// 校验 Decimal 为正数
+fn validate_positive_decimal_payment(value: &Decimal) -> Result<(), validator::ValidationError> {
+    if *value <= Decimal::ZERO {
+        return Err(validator::ValidationError::new("金额必须为正数"));
+    }
+    Ok(())
+}
+
+/// 校验汇率合法：必须大于 0 且不等于 P0-1 历史缺陷值 0.01
+fn validate_exchange_rate_payment(value: &Decimal) -> Result<(), validator::ValidationError> {
+    if *value <= Decimal::ZERO {
+        return Err(validator::ValidationError::new("汇率必须大于0"));
+    }
+    // P0-1 防护：拒绝 0.01 汇率（历史缺陷值）
+    if *value == Decimal::new(1, 2) {
+        return Err(validator::ValidationError::new(
+            "汇率不能为0.01（P0-1历史缺陷值，本位币汇率应为1.0）",
+        ));
+    }
+    Ok(())
 }
 
 /// 更新付款申请请求

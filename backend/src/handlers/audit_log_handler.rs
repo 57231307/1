@@ -10,7 +10,7 @@
 
 use axum::{
     extract::{Path, Query, State},
-    http::{header, HeaderValue, StatusCode},
+    http::{header, HeaderValue},
     Json,
 };
 use chrono::{DateTime, Utc};
@@ -317,17 +317,20 @@ pub async fn export_audit_logs(
         "audit_logs_{}.csv",
         chrono::Utc::now().format("%Y%m%d%H%M%S")
     );
-    let content_disposition = HeaderValue::from_str(&format!("attachment; filename=\"{}\"", filename))
-        .map_err(|e| AppError::internal(format!("构建下载头失败: {}", e)))?;
-    axum::response::Response::builder()
-        .status(StatusCode::OK)
-        .header(
-            header::CONTENT_TYPE,
-            HeaderValue::from_static("text/csv; charset=utf-8"),
-        )
-        .header(header::CONTENT_DISPOSITION, content_disposition)
-        .body(axum::body::Body::from(csv))
-        .map_err(|e| AppError::internal(format!("响应构建失败: {}", e)))
+
+    // BE-A/H 统一：CSV 导出保留为二进制下载（非 JSON），
+    // 错误用 AppError 表达，成功返回 200 + text/csv 响应体。
+    let mut response = axum::response::Response::new(axum::body::Body::from(csv));
+    response.headers_mut().insert(
+        header::CONTENT_TYPE,
+        HeaderValue::from_static("text/csv; charset=utf-8"),
+    );
+    response.headers_mut().insert(
+        header::CONTENT_DISPOSITION,
+        HeaderValue::from_str(&format!("attachment; filename=\"{}\"", filename))
+            .map_err(|e| AppError::internal(format!("构建下载头失败: {}", e)))?,
+    );
+    Ok(response)
 }
 
 #[cfg(test)]

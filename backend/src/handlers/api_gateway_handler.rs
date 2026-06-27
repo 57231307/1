@@ -9,13 +9,13 @@
 
 use axum::{
     extract::{Path, State},
-    http::StatusCode,
     Json,
 };
 use serde_json::{json, Value};
 
 use crate::middleware::auth_context::AuthContext;
 use crate::utils::app_state::AppState;
+use crate::utils::error::AppError;
 use crate::utils::response::ApiResponse;
 
 // 复用 api_key_handler 已有实现：keys 的 list / create / delete（= revoke）
@@ -30,7 +30,7 @@ pub use crate::handlers::api_key_handler::revoke_api_key as delete_api_key;
 pub async fn list_api_endpoints(
     State(_state): State<AppState>,
     _auth: AuthContext,
-) -> Result<Json<ApiResponse<Vec<Value>>>, StatusCode> {
+) -> Result<Json<ApiResponse<Vec<Value>>>, AppError> {
     Ok(Json(ApiResponse::success_with_message(
         Vec::new(),
         "API 端点管理功能开发中",
@@ -44,7 +44,7 @@ pub async fn get_api_endpoint(
     State(_state): State<AppState>,
     _auth: AuthContext,
     Path(_id): Path<i32>,
-) -> Result<Json<ApiResponse<Value>>, StatusCode> {
+) -> Result<Json<ApiResponse<Value>>, AppError> {
     Ok(Json(ApiResponse::success_with_message(
         Value::Null,
         "API 端点管理功能开发中",
@@ -57,7 +57,7 @@ pub async fn get_api_endpoint(
 pub async fn create_api_endpoint(
     State(_state): State<AppState>,
     _auth: AuthContext,
-) -> Result<Json<ApiResponse<Value>>, StatusCode> {
+) -> Result<Json<ApiResponse<Value>>, AppError> {
     Ok(Json(ApiResponse::success_with_message(
         Value::Null,
         "API 端点管理功能开发中",
@@ -71,7 +71,7 @@ pub async fn update_api_endpoint(
     State(_state): State<AppState>,
     _auth: AuthContext,
     Path(_id): Path<i32>,
-) -> Result<Json<ApiResponse<Value>>, StatusCode> {
+) -> Result<Json<ApiResponse<Value>>, AppError> {
     Ok(Json(ApiResponse::success_with_message(
         Value::Null,
         "API 端点管理功能开发中",
@@ -85,7 +85,7 @@ pub async fn delete_api_endpoint(
     State(_state): State<AppState>,
     _auth: AuthContext,
     Path(_id): Path<i32>,
-) -> Result<Json<ApiResponse<()>>, StatusCode> {
+) -> Result<Json<ApiResponse<()>>, AppError> {
     Ok(Json(ApiResponse::success_with_message(
         (),
         "API 端点管理功能开发中",
@@ -100,7 +100,7 @@ pub async fn delete_api_endpoint(
 pub async fn list_api_logs(
     State(_state): State<AppState>,
     _auth: AuthContext,
-) -> Result<Json<ApiResponse<Vec<Value>>>, StatusCode> {
+) -> Result<Json<ApiResponse<Vec<Value>>>, AppError> {
     Ok(Json(ApiResponse::success_with_message(
         Vec::new(),
         "API 日志查询功能开发中",
@@ -114,7 +114,7 @@ pub async fn get_api_log(
     State(_state): State<AppState>,
     _auth: AuthContext,
     Path(_id): Path<i32>,
-) -> Result<Json<ApiResponse<Value>>, StatusCode> {
+) -> Result<Json<ApiResponse<Value>>, AppError> {
     Ok(Json(ApiResponse::success_with_message(
         Value::Null,
         "API 日志查询功能开发中",
@@ -129,7 +129,7 @@ pub async fn get_api_log(
 pub async fn get_api_stats(
     State(_state): State<AppState>,
     _auth: AuthContext,
-) -> Result<Json<ApiResponse<Value>>, StatusCode> {
+) -> Result<Json<ApiResponse<Value>>, AppError> {
     Ok(Json(ApiResponse::success(json!({
         "total_endpoints": 0,
         "total_keys": 0,
@@ -146,7 +146,7 @@ pub async fn get_api_key(
     State(_state): State<AppState>,
     _auth: AuthContext,
     Path(_id): Path<i32>,
-) -> Result<Json<ApiResponse<Value>>, StatusCode> {
+) -> Result<Json<ApiResponse<Value>>, AppError> {
     Ok(Json(ApiResponse::success_with_message(
         Value::Null,
         "API 密钥详情/更新/重新生成功能开发中",
@@ -160,7 +160,7 @@ pub async fn update_api_key(
     State(_state): State<AppState>,
     _auth: AuthContext,
     Path(_id): Path<i32>,
-) -> Result<Json<ApiResponse<Value>>, StatusCode> {
+) -> Result<Json<ApiResponse<Value>>, AppError> {
     Ok(Json(ApiResponse::success_with_message(
         Value::Null,
         "API 密钥详情/更新/重新生成功能开发中",
@@ -174,7 +174,7 @@ pub async fn regenerate_api_key(
     State(_state): State<AppState>,
     _auth: AuthContext,
     Path(_id): Path<i32>,
-) -> Result<Json<ApiResponse<Value>>, StatusCode> {
+) -> Result<Json<ApiResponse<Value>>, AppError> {
     Ok(Json(ApiResponse::success_with_message(
         Value::Null,
         "API 密钥详情/更新/重新生成功能开发中",

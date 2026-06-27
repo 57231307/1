@@ -115,6 +115,13 @@ impl CurrencyService {
         rate: Decimal,
         effective_date: NaiveDate,
     ) -> Result<RateModel, AppError> {
+        // TS-S-6 安全加固（2026-06-26）：ISO 4217 币种码校验 + 汇率范围校验
+        validate_currency_code(&from_currency)?;
+        validate_currency_code(&to_currency)?;
+        if rate <= Decimal::ZERO {
+            return Err(AppError::business("汇率必须大于0"));
+        }
+
         let active_model = RateActiveModel {
             from_currency: Set(from_currency),
             to_currency: Set(to_currency),
@@ -247,6 +254,10 @@ impl CurrencyService {
         from_currency: &str,
         to_currency: &str,
     ) -> Result<ExternalRateResponse, AppError> {
+        // TS-S-6 安全加固（2026-06-26）：ISO 4217 币种码校验，防止 SSRF / 路径操纵
+        validate_currency_code(from_currency)?;
+        validate_currency_code(to_currency)?;
+
         // 使用免费的汇率API
         let url = format!(
             "https://api.exchangerate-api.com/v4/latest/{}",
@@ -255,10 +266,15 @@ impl CurrencyService {
 
         tracing::info!("调用外部汇率API: {} -> {}", from_currency, to_currency);
 
-        let client = reqwest::Client::new();
+        // TS-S-6：禁止重定向，防止 SSRF
+        let client = reqwest::Client::builder()
+            .redirect(reqwest::redirect::Policy::none())
+            .timeout(std::time::Duration::from_secs(10))
+            .build()
+            .map_err(|e| AppError::business(format!("HTTP 客户端构建失败: {}", e)))?;
+
         let response = client
             .get(&url)
-            .timeout(std::time::Duration::from_secs(10))
             .send()
             .await
             .map_err(|e| AppError::business(format!("汇率API请求失败: {}", e)))?;
@@ -359,4 +375,23 @@ impl CurrencyService {
         let currencies = self.list_currencies().await?;
         Ok(currencies.iter().map(|c| c.code.clone()).collect())
     }
+}
+
+// =====================================================
+// TS-S-6 安全加固：币种码校验
+// =====================================================
+
+/// 校验 ISO 4217 币种码：必须为 3 个大写字母
+fn validate_currency_code(code: &str) -> Result<(), AppError> {
+    if code.len() != 3 {
+        return Err(AppError::business(format!(
+            "币种码 {code} 不是有效的 ISO 4217 代码（必须为3个字符）"
+        )));
+    }
+    if !code.chars().all(|c| c.is_ascii_uppercase()) {
+        return Err(AppError::business(format!(
+            "币种码 {code} 不是有效的 ISO 4217 代码（必须为大写字母）"
+        )));
+    }
+    Ok(())
 }

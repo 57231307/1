@@ -6,7 +6,6 @@
 
 use axum::{
     extract::{Path, State},
-    http::StatusCode,
     Json,
 };
 
@@ -76,13 +75,18 @@ pub async fn export_color_card(
     }
 
     let filename = format!("color-card-{}.csv", card.card_no.replace(['/', '\\', ' '], "_"));
-    axum::response::Response::builder()
-        .status(StatusCode::OK)
-        .header(axum::http::header::CONTENT_TYPE, "text/csv; charset=utf-8")
-        .header(
-            axum::http::header::CONTENT_DISPOSITION,
-            format!("attachment; filename=\"{}\"", filename),
-        )
-        .body(axum::body::Body::from(csv))
-        .map_err(|e| AppError::internal(format!("导出响应构建失败: {e}")))
+
+    // BE-A/H 统一：CSV 导出保留为二进制下载（非 JSON），
+    // 错误用 AppError 表达，成功返回 200 + text/csv 响应体。
+    let mut response = axum::response::Response::new(axum::body::Body::from(csv));
+    response.headers_mut().insert(
+        axum::http::header::CONTENT_TYPE,
+        axum::http::HeaderValue::from_static("text/csv; charset=utf-8"),
+    );
+    response.headers_mut().insert(
+        axum::http::header::CONTENT_DISPOSITION,
+        axum::http::HeaderValue::from_str(&format!("attachment; filename=\"{}\"", filename))
+            .map_err(|e| AppError::internal(format!("构建下载头失败: {}", e)))?,
+    );
+    Ok(response)
 }

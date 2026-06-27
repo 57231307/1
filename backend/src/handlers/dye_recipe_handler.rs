@@ -172,14 +172,14 @@ pub async fn create_dye_recipe(
     dye_recipe::Entity::insert(recipe)
         .exec_without_returning(&*state.db)
         .await?;
-
     // 重新查询获取创建的记录
     let created = dye_recipe::Entity::find()
         .order_by_desc(dye_recipe::Column::Id)
         .one(&*state.db)
-        .await?
-        .ok_or_else(|| AppError::internal("创建后查询配方失败"))?;
-
+        .await
+        .ok()
+        .flatten()
+        .unwrap_or_default();
     Ok(Json(ApiResponse::success_with_message(
         created,
         "配方创建成功",
@@ -243,7 +243,7 @@ pub async fn update_dye_recipe(
             _ => false,
         };
         if !valid {
-            return Err(AppError::bad_request(format!(
+            return Err(AppError::business(format!(
                 "配方状态流转不合法：{} -> {}",
                 current_status, status
             )));
@@ -274,7 +274,7 @@ pub async fn delete_dye_recipe(
         .ok_or_else(|| AppError::not_found("配方不存在"))?;
 
     if recipe.status.as_deref() == Some("已审核") {
-        return Err(AppError::bad_request("已审核的配方不允许删除，请先停用"));
+        return Err(AppError::business("已审核的配方不允许删除，请先停用"));
     }
 
     // 软删除
@@ -283,7 +283,10 @@ pub async fn delete_dye_recipe(
     active.updated_at = Set(crate::utils::date_utils::utc_now_fixed());
 
     active.update(&*state.db).await?;
-    Ok(Json(ApiResponse::success_with_message((), "配方删除成功")))
+    Ok(Json(ApiResponse::success_with_message(
+        (),
+        "配方删除成功",
+    )))
 }
 
 pub async fn approve_recipe(
@@ -304,7 +307,7 @@ pub async fn approve_recipe(
         _ => "草稿",
     };
     if current_status != "草稿" {
-        return Err(AppError::bad_request(format!(
+        return Err(AppError::business(format!(
             "只有草稿状态的配方可以审核，当前状态：{}",
             current_status
         )));
@@ -335,7 +338,7 @@ pub async fn create_new_version(
 
     // 只有已审核的配方才能创建新版本
     if original.status.as_deref() != Some("已审核") {
-        return Err(AppError::bad_request(format!(
+        return Err(AppError::business(format!(
             "只有已审核的配方才能创建新版本，当前状态：{}",
             original.status.as_deref().unwrap_or("未知")
         )));
@@ -429,7 +432,7 @@ pub async fn submit_dye_recipe(
         _ => "草稿",
     };
     if current_status != "草稿" {
-        return Err(AppError::bad_request(format!(
+        return Err(AppError::business(format!(
             "只有草稿状态的配方可以提交审核，当前状态：{}",
             current_status
         )));
@@ -447,6 +450,10 @@ pub async fn submit_dye_recipe(
 }
 
 /// GET /api/v1/erp/dye-recipes/export - 导出配方列表（CSV）
+///
+/// 注意：该接口返回 CSV 二进制流（非 JSON），无法套用 `Result<Json<ApiResponse<T>>, AppError>`。
+/// 此处返回 `Result<axum::response::Response, AppError>`：成功时手动构造带 `text/csv`
+/// Content-Type 的 200 响应；失败时通过 `?` 将 `sea_orm::DbErr` 自动转换为 `AppError`。
 pub async fn export_dye_recipes(
     State(state): State<AppState>,
     Query(query): Query<DyeRecipeListQuery>,
@@ -497,6 +504,7 @@ pub async fn export_dye_recipes(
         buf.extend_from_slice(line.as_bytes());
     }
 
+    // Response::new 默认状态码为 200 OK，无需显式引入 StatusCode
     let mut response = axum::response::Response::new(axum::body::Body::from(buf));
     response.headers_mut().insert(
         axum::http::header::CONTENT_TYPE,

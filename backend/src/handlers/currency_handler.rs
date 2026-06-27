@@ -39,12 +39,15 @@ impl From<crate::models::currency::Model> for CurrencyResponse {
     }
 }
 
+/// BE-A/H 统一（2026-06-26）：错误类型从 StatusCode 改为 AppError，
+/// 并使用 `?` 运算符简化错误传播；`AppError: From<sea_orm::DbErr>` 已实现自动转换。
 pub async fn list_currencies(
     State(state): State<AppState>,
 ) -> Result<Json<ApiResponse<Vec<CurrencyResponse>>>, AppError> {
     let service = CurrencyService::new(state.db);
     let models = service.list_currencies().await?;
-    let responses: Vec<CurrencyResponse> = models.into_iter().map(CurrencyResponse::from).collect();
+    let responses: Vec<CurrencyResponse> =
+        models.into_iter().map(CurrencyResponse::from).collect();
     Ok(Json(ApiResponse::success(responses)))
 }
 
@@ -52,11 +55,10 @@ pub async fn get_base_currency(
     State(state): State<AppState>,
 ) -> Result<Json<ApiResponse<CurrencyResponse>>, AppError> {
     let service = CurrencyService::new(state.db);
-    let model = service
-        .get_base_currency()
-        .await?
-        .ok_or_else(|| AppError::not_found("未配置本位币"))?;
-    Ok(Json(ApiResponse::success(CurrencyResponse::from(model))))
+    match service.get_base_currency().await? {
+        Some(model) => Ok(Json(ApiResponse::success(CurrencyResponse::from(model)))),
+        None => Err(AppError::not_found("未设置本位币")),
+    }
 }
 
 #[derive(Debug, Deserialize)]
@@ -115,11 +117,16 @@ pub async fn get_exchange_rate(
     Query(query): Query<GetExchangeRateQuery>,
 ) -> Result<Json<ApiResponse<ExchangeRateResponse>>, AppError> {
     let service = CurrencyService::new(state.db);
-    let model = service
+    match service
         .get_exchange_rate(&query.from_currency, &query.to_currency)
         .await?
-        .ok_or_else(|| AppError::not_found("汇率记录不存在"))?;
-    Ok(Json(ApiResponse::success(ExchangeRateResponse::from(model))))
+    {
+        Some(model) => Ok(Json(ApiResponse::success(ExchangeRateResponse::from(model)))),
+        None => Err(AppError::not_found(format!(
+            "未找到 {} -> {} 的汇率记录",
+            query.from_currency, query.to_currency
+        ))),
+    }
 }
 
 #[derive(Debug, Deserialize)]
@@ -223,7 +230,6 @@ pub async fn get_exchange_rate_history(
     Query(query): Query<ExchangeRateHistoryQuery>,
 ) -> Result<Json<ApiResponse<Vec<ExchangeRateHistoryResponse>>>, AppError> {
     let service = CurrencyService::new(state.db);
-
     let page = query.page.unwrap_or(1);
     let page_size = query.page_size.unwrap_or(20);
 
@@ -246,8 +252,8 @@ pub async fn get_exchange_rate_history(
 
 /// 金额换算
 ///
-/// 注意：业务错误（如币种不存在、汇率缺失）以 200 + ApiResponse::error_with_status
-/// 返回，保持前端兼容；系统错误以 AppError 返回 500。
+/// 注意：业务错误（如币种不存在）通过 200 + ApiResponse::error 返回，
+/// 让前端可以正常解析业务错误码；其他错误类型直接走 `?` 传播。
 pub async fn convert_amount(
     State(state): State<AppState>,
     Json(req): Json<ConvertAmountRequest>,

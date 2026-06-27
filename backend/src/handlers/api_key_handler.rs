@@ -50,6 +50,9 @@ impl From<crate::models::api_key::Model> for ApiKeyResponse {
     }
 }
 
+/// BE-A/H 统一（2026-06-26）：错误类型从 StatusCode 改为 AppError，
+/// 并使用 `extract_tenant_id(&auth)?` 替代 `auth.tenant_id.ok_or(...)`，
+/// 符合租户隔离规范。
 pub async fn create_api_key(
     State(state): State<AppState>,
     auth: AuthContext,
@@ -81,7 +84,6 @@ pub async fn list_api_keys(
 ) -> Result<Json<ApiResponse<Vec<ApiKeyResponse>>>, AppError> {
     let tenant_id = extract_tenant_id(&auth)?;
     let service = ApiKeyService::new(state.db);
-
     let keys = service.list_api_keys(tenant_id).await?;
     let responses: Vec<ApiKeyResponse> = keys.into_iter().map(ApiKeyResponse::from).collect();
     Ok(Json(ApiResponse::success(responses)))

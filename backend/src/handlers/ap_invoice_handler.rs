@@ -125,6 +125,9 @@ pub async fn update_ap_invoice(
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     info!("用户 {} 更新应付单 ID: {}", auth.username, id);
 
+    // TS-S-5 安全加固（2026-06-26）：补齐 validate 调用
+    req.validate().map_err(|e| AppError::validation(e.to_string()))?;
+
     let service = ApInvoiceService::new(state.db.clone());
     let invoice = service.update(id, req, auth.user_id).await?;
 

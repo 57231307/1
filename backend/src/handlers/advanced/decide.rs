@@ -55,7 +55,8 @@ pub async fn anomaly_detection(
         .map(|a| {
             let severity = match a.severity.as_str() {
                 "CRITICAL" => "critical",
-                "WARNING" | "MEDIUM" => "warning",
+                "WARNING" => "warning",
+                "MEDIUM" => "warning",
                 _ => "info",
             };
 
@@ -204,7 +205,6 @@ pub async fn create_tenant(
     };
 
     let inserted = active.insert(&*state.db).await?;
-
     Ok(Json(ApiResponse::success(Tenant {
         id: inserted.id as u32,
         tenant_code: inserted.code,

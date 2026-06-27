@@ -646,8 +646,31 @@ mod tests {
         AuthService::validate_token_static(token, secret).expect("P9-1: 令牌验证失败")
     }
 
-    /// 统一测试 JWT 密钥（与 tests/integration/mod.rs::TEST_JWT_SECRET 保持一致）
-    const TEST_JWT_SECRET: &str = "test-jwt-secret-key-for-integration-tests-only-32bytes";
+    /// TS-S-3 安全加固（2026-06-26）：
+    /// 测试 JWT 密钥改为运行时随机生成，避免硬编码密钥泄露后可伪造任意 JWT。
+    /// 使用 OnceLock 保证同一测试进程中所有测试共享同一随机密钥。
+    static TEST_JWT_SECRET_CELL: std::sync::OnceLock<String> = std::sync::OnceLock::new();
+
+    /// 生成随机测试密钥
+    fn generate_test_secret() -> String {
+        use std::time::{SystemTime, UNIX_EPOCH};
+        let timestamp = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .map(|d| d.as_nanos())
+            .unwrap_or(0);
+        let pid = std::process::id();
+        let seed = format!("{timestamp}{pid}");
+        let mut hash = [0u8; 32];
+        for (i, byte) in seed.as_bytes().iter().enumerate() {
+            hash[i % 32] = hash[i % 32].wrapping_add(*byte).wrapping_mul(31);
+        }
+        hash.iter().map(|b| format!("{b:02x}")).collect()
+    }
+
+    /// 获取测试 JWT 密钥
+    fn test_jwt_secret() -> &'static str {
+        TEST_JWT_SECRET_CELL.get_or_init(generate_test_secret)
+    }
 
     /// 测试密码哈希和验证
     #[test]
@@ -677,10 +700,10 @@ mod tests {
         assert!(verify_pwd_ok(password, &hash2));
     }
 
-    /// 测试 JWT 令牌生成和验证（使用集中测试密钥常量）
+    /// 测试 JWT 令牌生成和验证（使用运行时随机密钥）
     #[test]
     fn test_token_generation_and_validation() {
-        let secret = TEST_JWT_SECRET;
+        let secret = test_jwt_secret();
 
         // 使用静态方法直接测试令牌生成和验证
         // 先生成一个令牌（通过编码）
@@ -709,7 +732,7 @@ mod tests {
     /// 测试无效令牌验证
     #[test]
     fn test_invalid_token_validation() {
-        let secret = TEST_JWT_SECRET;
+        let secret = test_jwt_secret();
         let wrong_secret = "wrong-secret-key-for-jwt-tokens-32-byte";
 
         let now = Utc::now();
@@ -734,7 +757,7 @@ mod tests {
     /// 测试过期令牌验证
     #[test]
     fn test_expired_token_validation() {
-        let secret = TEST_JWT_SECRET;
+        let secret = test_jwt_secret();
 
         let now = Utc::now();
         let claims = AppClaims {
@@ -758,7 +781,7 @@ mod tests {
     /// 测试令牌声明字段完整性
     #[test]
     fn test_token_claims_fields() {
-        let secret = TEST_JWT_SECRET;
+        let secret = test_jwt_secret();
 
         let now = Utc::now();
         let claims = AppClaims {

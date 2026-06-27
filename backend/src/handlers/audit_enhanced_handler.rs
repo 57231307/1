@@ -52,6 +52,8 @@ pub struct ExportResult {
     pub record_count: usize,
 }
 
+/// BE-A/H 统一（2026-06-26）：错误类型从 StatusCode 改为 AppError，
+/// 使用 `?` 运算符简化错误传播；`AppError: From<sea_orm::DbErr>` 已实现自动转换。
 pub async fn list_audit_logs(
     State(state): State<AppState>,
     _auth: AuthContext,
@@ -116,7 +118,6 @@ pub async fn export_audit_logs(
         .order_by_desc(audit_log::Column::CreatedAt)
         .all(state.db.as_ref())
         .await?;
-
     let count = logs.len();
     let file_name = format!(
         "audit_logs_{}.json",

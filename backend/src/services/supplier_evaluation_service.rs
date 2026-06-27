@@ -271,19 +271,32 @@ impl SupplierEvaluationService {
         })
     }
 
-    pub async fn list_ratings(&self) -> Result<Vec<supplier_evaluation::Model>, AppError> {
-        info!("查询供应商评级列表");
-        let ratings = supplier_evaluation::Entity::find()
+    /// 查询供应商评级列表
+    ///
+    /// BE-P 优化（2026-06-26）：补齐分页参数，避免全量返回。
+    pub async fn list_ratings(
+        &self,
+        page: u64,
+        page_size: u64,
+    ) -> Result<(Vec<supplier_evaluation::Model>, u64), AppError> {
+        info!("查询供应商评级列表，页码：{}，每页：{}", page, page_size);
+        let paginator = supplier_evaluation::Entity::find()
             .order_by(supplier_evaluation::Column::Id, Order::Desc)
-            .all(&*self.db)
-            .await?;
-        Ok(ratings)
+            .paginate(&*self.db, page_size);
+
+        let total = paginator.num_items().await?;
+        let items = paginator.fetch_page(page.saturating_sub(1)).await?;
+        Ok((items, total))
     }
 
     pub async fn get_supplier_rankings(
         &self,
         limit: i64,
     ) -> Result<Vec<SupplierScoreResponse>, AppError> {
+        // BE-P 说明（2026-06-26）：
+        // 本方法涉及跨表权重查询 + 加权平均计算 + 等级评定，无法简单下推 SQL 聚合。
+        // 当前全量加载 + 内存分组计算 + 排序截断是合理的业务实现。
+        // 后续优化方向：将计算结果持久化到 supplier_score_summary 表，按 average_score 排序 + LIMIT 查询。
         info!("查询供应商排名榜，限制：{} 条", limit);
 
         let records = supplier_evaluation_record::Entity::find()

@@ -315,3 +315,6 @@ impl ColorCardBorrowService {
         Ok((items, total))
     }
 }
+
+// 死代码清理（2026-06-26）：_ensure_color_space_converter_used 为抑制未使用导入的 hack，
+// 已删除多余的 use crate::utils::color_space_converter 语句，函数一并删除。

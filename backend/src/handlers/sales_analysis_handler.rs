@@ -189,8 +189,12 @@ pub async fn export_analysis(
     info!("正在导出销售分析报告");
     let service = SalesAnalysisService::new(state.db.clone());
     let bytes = service.export_report(params).await?;
-    axum::response::Response::builder()
-        .header(axum::http::header::CONTENT_TYPE, "text/csv; charset=utf-8")
-        .body(axum::body::Body::from(bytes))
-        .map_err(|e| AppError::internal(format!("导出响应构建失败: {e}")))
+    // BE-A/H 统一：CSV 导出保留为二进制下载（非 JSON），
+    // 错误用 AppError 表达，成功返回 200 + text/csv 响应体。
+    let mut response = axum::response::Response::new(axum::body::Body::from(bytes));
+    response.headers_mut().insert(
+        axum::http::header::CONTENT_TYPE,
+        axum::http::HeaderValue::from_static("text/csv; charset=utf-8"),
+    );
+    Ok(response)
 }
