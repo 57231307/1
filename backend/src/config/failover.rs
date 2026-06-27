@@ -19,6 +19,12 @@ pub struct FailoverConfig {
 }
 
 /// 数据库主备配置
+///
+/// BE-D 修复（2026-06-27 Clippy 修复）：
+/// DatabaseFailoverConfig 的 primary_url / backup_url / primary_timeout_ms
+/// 等字段当前未在业务代码中被读取（数据库主备切换未接入）。
+#[allow(dead_code)]
+// TODO(tech-debt): 数据库主备故障切换接入后移除；rustc 1.94+ 编译时由编译器报告具体死代码位置。
 #[derive(Debug, Deserialize, Clone)]
 pub struct DatabaseFailoverConfig {
     /// 主库 URL
