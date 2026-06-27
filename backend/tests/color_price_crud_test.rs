@@ -75,7 +75,7 @@ mod crud_tests {
         // 测试 Set(false) 可正确解包得到 false
         let active: ColorPriceActive = ColorPriceActive {
             is_active: Set(false),
-            ..unsafe { std::mem::zeroed() }
+            ..Default::default() // 修复 unsafe UB：SeaORM ActiveModel 实现 Default（所有字段 NotSet）
         };
         match &active.is_active {
             sea_orm::ActiveValue::Set(v) => assert!(!*v), // clippy: 用 assert!(!...) 替代 assert_eq!(*v, false)
@@ -89,7 +89,7 @@ mod crud_tests {
         // 软删除：is_active = false 表示已删除
         let active: ColorPriceActive = ColorPriceActive {
             is_active: Set(false),
-            ..unsafe { std::mem::zeroed() }
+            ..Default::default() // 修复 unsafe UB：SeaORM ActiveModel 实现 Default（所有字段 NotSet）
         };
         // 验证 Set(false) 可解包
         match &active.is_active {

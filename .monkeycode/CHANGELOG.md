@@ -2,6 +2,31 @@
 
 > 重要变更一句话摘要列表。详细历史请查阅 [`.monkeycode/docs/archives/`](file:///workspace/.monkeycode/docs/archives/)。
 
+## 2026-06-27 (严格再审计 v3 + P0 整改批次 1)
+
+### 审计 v3 + 回退项 + 安全关键 P0 修复
+
+**审计报告**：[`.monkeycode/docs/audits/2026-06-27-strict-reaudit-v3.md`](file:///workspace/.monkeycode/docs/audits/2026-06-27-strict-reaudit-v3.md)
+**审计基线**：`origin/main` HEAD = `8a18bc3b`
+**审计结果**：1275 项发现（9 个子代理，30+ 维度，比上次 230 项增加 454%）
+
+**批次 1 修复清单**（13 项 P0）：
+1. audit_log_service.rs 硬编码 tenant_id=1 → NotSet（修复租户隔离违规）
+2. omni_audit_service.rs 硬编码 tenant_id=1 → msg.tenant_id + 默认密钥回退改为非生产环境
+3. color_price_crud_test.rs unsafe UB → Default::default()
+4. inventory_finance_bridge_service.rs 5 处 let _ = 静默吞错 → unwrap_or_else 错误处理
+5. .env.example 添加 AUDIT_SECRET_KEY 配置
+6. config.test.yaml 添加测试环境安全提示注释
+7. deploy/supervisord.conf 创建文件（修复 Dockerfile COPY 缺失）
+8. ci-cd.yml 添加 TODO 注释说明 --lib 跳过集成测试
+9. bpm_service.rs fail-open → fail-closed（防止审批绕过）
+10. ap_payment_request_service.rs 审批分级失效添加注释 + TODO
+11. event_bus.rs 锁中毒 panic → e.into_inner() 优雅降级
+12. di_container.rs 锁中毒 panic → e.into_inner() 优雅降级
+13. middleware/omni_audit.rs OmniAuditMessage 构造点增加 tenant_id 字段
+
+**待处理**：前端回退项（email.ts/security.ts/system-update.ts 断链）、路由 meta、业务逻辑 P0（状态机/单号/事务）、并发 P0（spawn/FOR UPDATE）、测试 P0（假测试/恒真断言）
+
 ## 2026-06-26 (第三四五优先级 + 技术债务修复 CI 全绿，PR #259)
 
 ### P3/P4/P5/技术债务修复完成

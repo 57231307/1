@@ -8,6 +8,8 @@ use crate::models::omni_audit_log;
 
 #[derive(Debug, Clone)]
 pub struct OmniAuditMessage {
+    /// 租户 ID（多租户隔离；由中间件从 AuthContext 注入，禁止硬编码）
+    pub tenant_id: Option<i32>,
     pub trace_id: String,
     /// 用户 ID；未登录/匿名场景下为 None（避免脏数据归到 user_id=0 系统用户）
     pub user_id: Option<i32>,
@@ -45,10 +47,18 @@ impl OmniAuditEngine {
     pub fn new(db: Arc<DatabaseConnection>) -> Result<Self, String> {
         let secret_key = std::env::var("AUDIT_SECRET_KEY")
             .unwrap_or_else(|_| {
-                tracing::warn!(
-                    "安全警告: 未设置 AUDIT_SECRET_KEY 环境变量，正在使用默认密钥。请在生产环境中设置强密钥！"
-                );
-                "default-audit-secret-key-for-test-environments-only-32-bytes".to_string()
+                // 安全修复：未设置 AUDIT_SECRET_KEY 时，仅在测试/开发环境回退默认密钥
+                // 生产环境必须设置 AUDIT_SECRET_KEY 环境变量，否则启动 panic
+                let env = std::env::var("ENV").unwrap_or_default();
+                if env == "test" || env == "development" {
+                    tracing::warn!(
+                        env = %env,
+                        "安全警告: 未设置 AUDIT_SECRET_KEY 环境变量，{env} 环境使用默认密钥。生产环境必须设置强密钥！"
+                    );
+                    "default-audit-secret-key-for-test-environments-only-32-bytes".to_string()
+                } else {
+                    panic!("未设置 AUDIT_SECRET_KEY 环境变量，生产环境必须设置强密钥（至少32字节）");
+                }
             });
 
         if secret_key.len() < 32 {
@@ -93,7 +103,7 @@ impl OmniAuditEngine {
 
                 let log = omni_audit_log::ActiveModel {
                     id: ActiveValue::NotSet,
-                    tenant_id: ActiveValue::Set(Some(1)), // 默认租户
+                    tenant_id: ActiveValue::Set(msg.tenant_id), // 从消息携带的租户ID注入（修复硬编码违规）
                     trace_id: ActiveValue::Set(Some(msg.trace_id)),
                     span_id: ActiveValue::Set(None),
                     parent_span_id: ActiveValue::Set(None),

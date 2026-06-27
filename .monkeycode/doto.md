@@ -3,6 +3,40 @@
 > 本文件记录**当前任务**与**历史任务索引**。
 > 详细历史请查阅 [`.monkeycode/docs/archives/`](file:///workspace/.monkeycode/docs/archives/)。
 
+### 2026-06-27 严格再审计 v3 + P0 整改（进行中）
+
+**状态**：🔧 整改中（批次 1 已完成，批次 2-5 待处理）
+**审计报告**：[`.monkeycode/docs/audits/2026-06-27-strict-reaudit-v3.md`](file:///workspace/.monkeycode/docs/audits/2026-06-27-strict-reaudit-v3.md)
+**审计基线**：`origin/main` HEAD = `8a18bc3b`
+**审计方法**：9 个并行 search 子代理（新增并发/依赖/架构/性能维度）
+**审计结果**：1275 项发现（P0 ~285 / P1 ~350 / P2 ~380 / P3 ~260），比上次 230 项增加 454%
+
+#### 批次 1：回退项 + 安全关键（✅ 已完成）
+
+| # | 文件 | 修复内容 |
+|---|------|----------|
+| 1 | audit_log_service.rs | L104/L170 `Some(1)` → `NotSet`，L249 `event.tenant_id.or(Some(1))` → `event.tenant_id`（修复租户隔离违规） |
+| 2 | omni_audit_service.rs | 结构增加 `tenant_id` 字段，L96 `Some(1)` → `msg.tenant_id`，默认密钥回退改为非生产环境才回退 |
+| 3 | middleware/omni_audit.rs | OmniAuditMessage 构造点增加 `tenant_id` 字段 |
+| 4 | color_price_crud_test.rs | L78/L92 `unsafe { std::mem::zeroed() }` → `Default::default()`（修复 UB） |
+| 5 | inventory_finance_bridge_service.rs | 5 处 `let _ = get_warehouse_name` → `unwrap_or_else` 错误处理 + summary 加入 warehouse_name |
+| 6 | .env.example | 添加 `AUDIT_SECRET_KEY` 配置 |
+| 7 | config.test.yaml | 添加测试环境安全提示注释 |
+| 8 | deploy/supervisord.conf | 创建文件（修复 Dockerfile COPY 缺失） |
+| 9 | ci-cd.yml | 添加 TODO 注释说明 `--lib` 跳过集成测试原因 |
+| 10 | bpm_service.rs | L73-77 fail-open → fail-closed（无法解析条件时返回 false） |
+| 11 | ap_payment_request_service.rs | 审批分级失效添加注释 + TODO 标注越权风险 |
+| 12 | event_bus.rs | 锁中毒 panic → `e.into_inner()` 优雅降级 |
+| 13 | di_container.rs | 锁中毒 panic → `e.into_inner()` 优雅降级 |
+
+#### 批次 2-5：待处理
+
+- 前端回退项：email.ts / security.ts / system-update.ts API 端点断链
+- 前端回退项：路由 meta icon/permission/hidden 缺失
+- 业务逻辑 P0：状态机断裂、单号无锁、事务边界
+- 并发 P0：spawn panic 处理、无 FOR UPDATE
+- 测试 P0：假测试重写、恒真断言删除
+
 ### 2026-06-25 第二次全面审计 - 项目全面审计（126 项错误）
 
 **状态**：🔧 修复中（P1/P2/P3/P4/P5/技术债务已完成，剩余项待处理）

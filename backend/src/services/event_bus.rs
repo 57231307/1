@@ -245,16 +245,16 @@ pub static EVENT_BUS: LazyLock<EventBus> = LazyLock::new(EventBus::new);
 
 /// 统一封装 `EVENT_BUS_STATE` 加锁逻辑
 ///
-/// 锁中毒（PoisonError）通常意味着某线程在持锁期间 panic，状态已不可信，
-/// 这里保留 fail-fast panic 行为，但通过 `tracing::error!` 给出可观测的中文错误，
-/// 便于运维快速定位崩溃源。
+/// 锁中毒（PoisonError）通常意味着某线程在持锁期间 panic，状态已不可信。
+/// 安全修复：改为优雅降级（`e.into_inner()` 恢复数据继续运行），避免 panic 导致服务中断。
+/// TODO(tech-debt): 未来迁移到 `parking_lot::Mutex`（无中毒概念），彻底消除此问题。
 fn lock_event_bus_state() -> std::sync::MutexGuard<'static, EventBusState> {
     EVENT_BUS_STATE.lock().unwrap_or_else(|e| {
         tracing::error!(
             error = %e,
-            "P9-1: EVENT_BUS_STATE 锁中毒（可能存在线程 panic），状态不可信"
+            "P9-1: EVENT_BUS_STATE 锁中毒（可能存在线程 panic），恢复数据继续运行以避免服务中断"
         );
-        panic!("P9-1: EVENT_BUS_STATE 锁中毒: {e}")
+        e.into_inner()
     })
 }
 

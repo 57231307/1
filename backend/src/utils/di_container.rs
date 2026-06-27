@@ -8,12 +8,13 @@ use std::sync::{Arc, Mutex, MutexGuard};
 
 /// P9-1: 互斥锁加锁 helper，把散落的 expect 集中到此处
 ///
-/// 互斥锁中毒（Poisoned）通常意味着有线程 panic，调用方已知会出现此场景
-/// 并选择立即失败。helper 内部用 unwrap_or_else + 中文日志统一处理。
+/// 互斥锁中毒（Poisoned）通常意味着有线程 panic，状态已不可信。
+/// 安全修复：改为优雅降级（`e.into_inner()` 恢复数据继续运行），避免 panic 导致服务中断。
+/// TODO(tech-debt): 未来迁移到 `parking_lot::Mutex`（无中毒概念），彻底消除此问题。
 fn lock_or_panic<'a, T>(mutex: &'a Mutex<T>, ctx: &str) -> MutexGuard<'a, T> {
     mutex.lock().unwrap_or_else(|e| {
-        tracing::error!(ctx = %ctx, error = %e, "P9-1: 互斥锁中毒，可能存在线程 panic");
-        panic!("P9-1: 互斥锁中毒 {ctx}: {e}")
+        tracing::error!(ctx = %ctx, error = %e, "P9-1: 互斥锁中毒，恢复数据继续运行以避免服务中断");
+        e.into_inner()
     })
 }
 

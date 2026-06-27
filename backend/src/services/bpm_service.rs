@@ -71,9 +71,9 @@ fn evaluate_bpm_condition(condition: &str, variables: &Option<serde_json::Value>
             None => false,
         }
     } else {
-        // 无法解析的条件，默认通过并记录警告
-        tracing::warn!("无法解析 BPM 条件表达式: {}", condition);
-        true
+        // 安全修复：无法解析的条件时 fail-closed（默认拒绝），防止审批被绕过
+        tracing::warn!("无法解析 BPM 条件表达式: {}，默认拒绝（fail-closed）", condition);
+        false
     }
 }
 

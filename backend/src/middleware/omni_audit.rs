@@ -195,6 +195,7 @@ pub async fn omni_audit_middleware(
         let resource_id = extract_resource_id(&uri);
 
         state.omni_audit.log(OmniAuditMessage {
+            tenant_id, // 从 AuthContext 提取，禁止硬编码（修复租户隔离违规）
             trace_id: trace_id.clone(),
             user_id,
             username: Some(username),

@@ -236,11 +236,14 @@ impl InventoryFinanceBridgeService {
             .get_product_name(product_id)
             .await
             .unwrap_or_else(|_| format!("产品{}", product_id));
-        let _ = self.get_warehouse_name(warehouse_id).await;
+        let warehouse_name = self
+            .get_warehouse_name(warehouse_id)
+            .await
+            .unwrap_or_else(|_| format!("仓库{}", warehouse_id));
 
         let summary = format!(
-            "采购入库：{} {}米 {}公斤 批次:{} 色号:{}",
-            product_name, quantity_meters, quantity_kg, batch_no, color_no
+            "采购入库：{} {}米 {}公斤 批次:{} 色号:{} 仓库:{}",
+            product_name, quantity_meters, quantity_kg, batch_no, color_no, warehouse_name
         );
 
         let amount = self
@@ -319,11 +322,14 @@ impl InventoryFinanceBridgeService {
             .get_product_name(product_id)
             .await
             .unwrap_or_else(|_| format!("产品{}", product_id));
-        let _ = self.get_warehouse_name(warehouse_id).await;
+        let warehouse_name = self
+            .get_warehouse_name(warehouse_id)
+            .await
+            .unwrap_or_else(|_| format!("仓库{}", warehouse_id));
 
         let summary = format!(
-            "销售出库：{} {}米 {}公斤 批次:{} 色号:{}",
-            product_name, quantity_meters, quantity_kg, batch_no, color_no
+            "销售出库：{} {}米 {}公斤 批次:{} 色号:{} 仓库:{}",
+            product_name, quantity_meters, quantity_kg, batch_no, color_no, warehouse_name
         );
 
         let amount = self
@@ -402,11 +408,14 @@ impl InventoryFinanceBridgeService {
             .get_product_name(product_id)
             .await
             .unwrap_or_else(|_| format!("产品{}", product_id));
-        let _ = self.get_warehouse_name(warehouse_id).await;
+        let warehouse_name = self
+            .get_warehouse_name(warehouse_id)
+            .await
+            .unwrap_or_else(|_| format!("仓库{}", warehouse_id));
 
         let summary = format!(
-            "库存调整：{} {}米 {}公斤 批次:{} 色号:{}",
-            product_name, quantity_meters, quantity_kg, batch_no, color_no
+            "库存调整：{} {}米 {}公斤 批次:{} 色号:{} 仓库:{}",
+            product_name, quantity_meters, quantity_kg, batch_no, color_no, warehouse_name
         );
 
         let amount = self
@@ -521,11 +530,14 @@ impl InventoryFinanceBridgeService {
             .get_product_name(product_id)
             .await
             .unwrap_or_else(|_| format!("产品{}", product_id));
-        let _ = self.get_warehouse_name(warehouse_id).await;
+        let warehouse_name = self
+            .get_warehouse_name(warehouse_id)
+            .await
+            .unwrap_or_else(|_| format!("仓库{}", warehouse_id));
 
         let summary = format!(
-            "生产入库：{} {}米 {}公斤 批次:{} 色号:{}",
-            product_name, quantity_meters, quantity_kg, batch_no, color_no
+            "生产入库：{} {}米 {}公斤 批次:{} 色号:{} 仓库:{}",
+            product_name, quantity_meters, quantity_kg, batch_no, color_no, warehouse_name
         );
 
         let amount = self
@@ -603,11 +615,14 @@ impl InventoryFinanceBridgeService {
             .get_product_name(product_id)
             .await
             .unwrap_or_else(|_| format!("产品{}", product_id));
-        let _ = self.get_warehouse_name(warehouse_id).await;
+        let warehouse_name = self
+            .get_warehouse_name(warehouse_id)
+            .await
+            .unwrap_or_else(|_| format!("仓库{}", warehouse_id));
 
         let summary = format!(
-            "生产领料：{} {}米 {}公斤 批次:{} 色号:{}",
-            product_name, quantity_meters, quantity_kg, batch_no, color_no
+            "生产领料：{} {}米 {}公斤 批次:{} 色号:{} 仓库:{}",
+            product_name, quantity_meters, quantity_kg, batch_no, color_no, warehouse_name
         );
 
         let amount = self

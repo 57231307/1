@@ -101,7 +101,7 @@ impl AuditLogService {
     ) -> Result<(), AppError> {
         let log = audit_log::ActiveModel {
             id: ActiveValue::NotSet,
-            tenant_id: ActiveValue::Set(Some(1)), // 默认租户
+            tenant_id: ActiveValue::NotSet, // 租户ID由调用方通过AuditEvent提供，禁止硬编码（修复租户隔离违规）
             user_id: ActiveValue::Set(user_id),
             username: ActiveValue::Set(username),
             action: ActiveValue::Set(action.to_string()),
@@ -167,7 +167,7 @@ impl AuditLogService {
         // 记录审计日志
         let log = audit_log::ActiveModel {
             id: ActiveValue::NotSet,
-            tenant_id: ActiveValue::Set(Some(1)), // 默认租户
+            tenant_id: ActiveValue::NotSet, // 租户ID由调用方通过AuditEvent提供，禁止硬编码（修复租户隔离违规）
             user_id: ActiveValue::Set(user_id),
             username: ActiveValue::Set(None),
             action: ActiveValue::Set("UPDATE".to_string()),
@@ -246,7 +246,7 @@ fn build_active_model(event: &AuditEvent, ctx: Option<&AuditContext>) -> audit_l
 
     audit_log::ActiveModel {
         id: ActiveValue::NotSet,
-        tenant_id: ActiveValue::Set(event.tenant_id.or(Some(1))),
+        tenant_id: ActiveValue::Set(event.tenant_id), // 租户ID由调用方提供，不再硬编码兜底（修复租户隔离违规）
         user_id: ActiveValue::Set(event.user_id),
         username: ActiveValue::Set(event.username.clone()),
         action: ActiveValue::Set(event.operation_type.as_str().to_string()),

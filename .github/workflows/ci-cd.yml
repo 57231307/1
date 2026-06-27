@@ -840,6 +840,10 @@ jobs:
 
       - name: 运行 cargo test（严格化 + baseline 机制）
         working-directory: backend
+        # TODO(tech-debt): 当前 --lib 仅运行 lib crate 单元测试（src/ 下），
+        # 跳过了 backend/tests/ 下 47 个集成测试二进制。
+        # 集成测试需要 PostgreSQL 服务容器 + DATABASE_URL 环境变量 + migration 初始化。
+        # 未来添加 services.postgres + migration 步骤后，改为 `cargo test` 运行全部测试。
         run: |
           mkdir -p reports
           set +e
