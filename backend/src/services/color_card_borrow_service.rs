@@ -43,6 +43,7 @@ pub enum BorrowStatus {
     Damaged,
 }
 
+#[allow(dead_code)] // TODO(tech-debt): 色卡借还路由接入后移除
 impl BorrowStatus {
     pub fn as_str(&self) -> &'static str {
         match self {
@@ -75,6 +76,7 @@ pub struct ColorCardBorrowService {
     db: Arc<DatabaseConnection>,
 }
 
+#[allow(dead_code)] // TODO(tech-debt): 色卡借还路由接入后移除
 impl ColorCardBorrowService {
     pub fn new(db: Arc<DatabaseConnection>) -> Self {
         Self {

@@ -87,6 +87,7 @@ pub struct StockInRequest {
 }
 
 #[derive(Debug, Deserialize)]
+#[allow(dead_code)] // TODO(tech-debt): 坯布出库 handler 路由挂载后移除
 pub struct StockOutRequest {
     pub weight_kg: Option<f64>,
     pub length_m: Option<f64>,

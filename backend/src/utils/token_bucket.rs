@@ -124,6 +124,7 @@ impl TokenBucketLimiter {
     }
 
     /// 清理过期的桶（每 1000 次请求触发一次）
+    #[allow(dead_code)] // TODO(tech-debt): 限流定时清理任务接入后移除
     pub fn cleanup(&self) {
         let now = Instant::now();
         self.storage

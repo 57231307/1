@@ -14,6 +14,7 @@ pub struct FailoverConfig {
     pub cache: CacheFailoverConfig,
     /// 监控配置
     #[serde(default)]
+    #[allow(dead_code)] // TODO(tech-debt): failover 监控告警接入后移除
     pub monitoring: MonitoringFailoverConfig,
 }
 

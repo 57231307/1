@@ -128,6 +128,7 @@ pub fn get_global_metrics() -> Arc<FailoverMetrics> {
 }
 
 /// 初始化全局 metrics（在 main 中调用）
+#[allow(dead_code)] // TODO(tech-debt): failover metrics 端点接入后移除
 pub fn init_global_metrics() -> Arc<FailoverMetrics> {
     get_global_metrics()
 }

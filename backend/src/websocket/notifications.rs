@@ -154,6 +154,7 @@ impl NotificationBroadcaster {
     }
 
     /// 获取连接管理器（供 ws handler 注册连接）
+    #[allow(dead_code)] // TODO(tech-debt): ws handler 接入注册连接后移除
     pub fn manager(&self) -> ConnectionManager {
         self.manager.clone()
     }
