@@ -18,7 +18,6 @@ use crate::models::color_card_borrow_record::{
     self, ActiveModel as BorrowActive, Entity as BorrowEntity,
 };
 use crate::utils::app_state::AppState;
-use crate::utils::color_space_converter;
 
 /// 业务错误
 #[derive(Debug, Error)]
@@ -313,10 +312,4 @@ impl ColorCardBorrowService {
         let items = paginator.fetch_page(page.saturating_sub(1)).await?;
         Ok((items, total))
     }
-}
-
-// 抑制未使用导入警告（color_space_converter 是预留 API，给前端扫码展示用）
-#[allow(dead_code)]
-fn _ensure_color_space_converter_used() {
-    let _ = color_space_converter::delta_e_is_acceptable;
 }

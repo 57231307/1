@@ -320,7 +320,7 @@ pub struct HealthStatus {
 }
 
 /// 错误辅助：FailoverError 转字符串
-#[allow(dead_code)]
+#[allow(dead_code)] // TODO(tech-debt): 主备隔离告警/日志模块接入后移除
 pub fn format_failover_error<E: std::fmt::Debug>(e: &FailoverError<E>) -> String {
     match e {
         FailoverError::PrimaryFailed(_) => "主调用失败".to_string(),

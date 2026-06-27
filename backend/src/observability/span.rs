@@ -69,7 +69,7 @@ mod tests {
     }
 
     // 触发宏编译
-    #[allow(dead_code)]
+    #[allow(dead_code)] // TODO(tech-debt): span_business! 宏接入业务后改为 #[test]
     fn _macro_compiles() {
         let _s = span_business!("test_op", user_id = 42);
     }

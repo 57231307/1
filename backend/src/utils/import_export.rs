@@ -13,7 +13,7 @@ use serde::Serialize;
 use std::collections::HashMap;
 
 /// 导入格式
-#[allow(dead_code)]
+#[allow(dead_code)] // TODO(tech-debt): Excel 导入功能接入后移除
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ImportFormat {
     /// CSV 格式
@@ -22,7 +22,7 @@ pub enum ImportFormat {
     Excel,
 }
 
-#[allow(dead_code)]
+#[allow(dead_code)] // TODO(tech-debt): Excel 导入功能接入后移除
 impl ImportFormat {
     /// 从文件扩展名解析格式
     pub fn from_extension(ext: &str) -> Option<Self> {
