@@ -9,7 +9,6 @@ use crate::utils::error::AppError;
 use crate::utils::ApiResponse;
 use axum::{
     extract::{Path, Query, State},
-    response::IntoResponse,
     Json,
 };
 use serde::Deserialize;
@@ -186,12 +185,12 @@ pub async fn export_analysis(
     State(state): State<AppState>,
     _auth: AuthContext,
     Query(params): Query<ExportParams>,
-) -> Result<impl IntoResponse, AppError> {
+) -> Result<axum::response::Response, AppError> {
     info!("正在导出销售分析报告");
     let service = SalesAnalysisService::new(state.db.clone());
     let bytes = service.export_report(params).await?;
-    Ok((
-        [(axum::http::header::CONTENT_TYPE, "text/csv; charset=utf-8")],
-        bytes,
-    ))
+    axum::response::Response::builder()
+        .header(axum::http::header::CONTENT_TYPE, "text/csv; charset=utf-8")
+        .body(axum::body::Body::from(bytes))
+        .map_err(|e| AppError::internal(format!("导出响应构建失败: {e}")))
 }

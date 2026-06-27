@@ -1,6 +1,5 @@
 use axum::{
     extract::{Path, Query, State},
-    response::IntoResponse,
     Json,
 };
 use serde::{Deserialize, Serialize};
@@ -353,7 +352,7 @@ pub async fn export_login_logs(
     State(state): State<AppState>,
     _auth: AuthContext,
     Query(query): Query<LoginLogQuery>,
-) -> Result<impl IntoResponse, AppError> {
+) -> Result<axum::response::Response, AppError> {
     use crate::models::log_login;
     use sea_orm::{ColumnTrait, EntityTrait, PaginatorTrait, QueryFilter, QueryOrder};
 
