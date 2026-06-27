@@ -50,10 +50,11 @@ impl OmniAuditEngine {
                 // 安全修复：未设置 AUDIT_SECRET_KEY 时，仅在测试/开发环境回退默认密钥
                 // 生产环境必须设置 AUDIT_SECRET_KEY 环境变量，否则启动 panic
                 let env = std::env::var("ENV").unwrap_or_default();
-                if env == "test" || env == "development" {
+                // cfg!(test) 覆盖单元测试场景；ENV=test/development 覆盖集成测试/开发场景
+                if cfg!(test) || env == "test" || env == "development" {
                     tracing::warn!(
                         env = %env,
-                        "安全警告: 未设置 AUDIT_SECRET_KEY 环境变量，{env} 环境使用默认密钥。生产环境必须设置强密钥！"
+                        "安全警告: 未设置 AUDIT_SECRET_KEY 环境变量，测试/开发环境使用默认密钥。生产环境必须设置强密钥！"
                     );
                     "default-audit-secret-key-for-test-environments-only-32-bytes".to_string()
                 } else {
