@@ -21,9 +21,9 @@
 
 ---
 
-## 当前任务状态（2026-06-27 严格再审计 v3 + P0 整改批次 1 进行中）
+## 当前任务状态（2026-06-27 严格再审计 v3 + P0 整改批次 3 进行中）
 
-### 🔧 严格再审计 v3 + P0 整改批次 1（进行中）
+### 🔧 严格再审计 v3 + P0 整改批次 3（进行中）
 
 - **审计报告**：[`.monkeycode/docs/audits/2026-06-27-strict-reaudit-v3.md`](file:///workspace/.monkeycode/docs/audits/2026-06-27-strict-reaudit-v3.md)
 - **审计基线**：`origin/main` HEAD = `8a18bc3b`
@@ -46,19 +46,29 @@
 12. di_container.rs 锁中毒 panic → e.into_inner() 优雅降级
 13. middleware/omni_audit.rs OmniAuditMessage 构造点增加 tenant_id 字段
 
-#### 待处理（批次 3-5）
-
-- 前端回退项：路由 meta icon/permission/hidden 缺失
-- 业务逻辑 P0：状态机断裂、单号无锁、事务边界
-- 并发 P0：spawn panic 处理、无 FOR UPDATE
-- 测试 P0：假测试重写、恒真断言删除
-
 #### 批次 2 修复（✅ 已完成，前端 API 断链修复）
 
 1. email.ts：8 个端点路径全部修复（`/emails/*` → `/send`、`/email-templates`、`/email-records`、`/email-statistics`）
 2. security.ts：8 个端点路径全部修复（去掉 `/security` 前缀，后端 security() merge 到 erp 根下无前缀）
 3. system-update.ts：rollbackUpdate 路径 + 签名 + 请求体修复（`taskId: number` → `version: string`，请求体 `{ version }`）
 4. useSysUpdProc.ts：调用方同步修改（`rollbackUpdate(row.id)` → `rollbackUpdate(row.from_version)`）
+
+#### 批次 3 修复（✅ 已完成，前端路由 meta 补齐 + 守卫权限校验）
+
+1. router/index.ts：80+ 路由 meta 补齐 icon（从 MainLayout 菜单 icon 映射，如 HomeFilled/Goods/Box/ShoppingCart/User/Cpu/Money/List/Setting/MagicStick）
+2. router/index.ts：补齐遗漏的 hidden（mrp/history、scheduling/gantt、bpm/definitions、bpm/templates 子页面）
+3. router/index.ts：列表/管理类路由补 permission 码（用后端中间件推导格式 `resource:read`，如 inventory:read/sales:read/purchases:read/finance:read/customers:read/suppliers:read/products:read/warehouses:read/users:read/dashboard:read/audit:read）
+4. router/index.ts：RouteMeta 类型扩展（icon/permission/hidden 字段声明）
+5. router/index.ts：路由守卫增加 permission 校验（宽松模式：admin 绕过 + permissions 为空放行 + 通配符 `*` 匹配 + read/view 等价、update/edit 等价，兼容后端两套 action 命名）
+6. router/index.ts：导出 hasRoutePermission 函数供其他组件复用
+7. MainLayout 菜单 permission 过滤留作后续（路由守卫已保障安全性，用户点击无权限菜单会被拦截到 /403）
+
+#### 待处理（批次 4-5）
+
+- MainLayout 菜单按 permission 过滤（#8 完整修复）
+- 业务逻辑 P0：状态机断裂、单号无锁、事务边界
+- 并发 P0：spawn panic 处理、无 FOR UPDATE
+- 测试 P0：假测试重写、恒真断言删除
 
 ---
 

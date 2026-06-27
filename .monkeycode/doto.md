@@ -5,7 +5,7 @@
 
 ### 2026-06-27 严格再审计 v3 + P0 整改（进行中）
 
-**状态**：🔧 整改中（批次 1 已完成，批次 2-5 待处理）
+**状态**：🔧 整改中（批次 1-3 已完成，批次 4-5 待处理）
 **审计报告**：[`.monkeycode/docs/audits/2026-06-27-strict-reaudit-v3.md`](file:///workspace/.monkeycode/docs/audits/2026-06-27-strict-reaudit-v3.md)
 **审计基线**：`origin/main` HEAD = `8a18bc3b`
 **审计方法**：9 个并行 search 子代理（新增并发/依赖/架构/性能维度）
@@ -38,9 +38,20 @@
 | 3 | system-update.ts | rollbackUpdate 路径 `/system-update/tasks/${id}/rollback` → `/system-update/rollback`；签名 `taskId: number` → `version: string`；请求体改为 `{ version }` |
 | 4 | useSysUpdProc.ts | 调用方同步修改：`rollbackUpdate(row.id)` → `rollbackUpdate(row.from_version)` |
 
-#### 批次 3-5：待处理
+#### 批次 3：前端路由 meta 补齐 + 守卫权限校验（✅ 已完成）
 
-- 前端回退项：路由 meta icon/permission/hidden 缺失
+| # | 文件 | 修复内容 |
+|---|------|----------|
+| 1 | router/index.ts | 80+ 路由 meta 补齐 icon（从 MainLayout 菜单 icon 映射） |
+| 2 | router/index.ts | 补齐遗漏的 hidden（mrp/history、scheduling/gantt、bpm/definitions、bpm/templates） |
+| 3 | router/index.ts | 列表/管理类路由补 permission 码（`resource:read` 格式，11 种资源） |
+| 4 | router/index.ts | RouteMeta 类型扩展（icon/permission/hidden 字段声明） |
+| 5 | router/index.ts | 路由守卫增加 permission 校验（宽松模式：admin 绕过 + permissions 为空放行 + 通配符 + read/view 等价） |
+| 6 | router/index.ts | 导出 hasRoutePermission 函数供复用 |
+
+#### 批次 4-5：待处理
+
+- MainLayout 菜单按 permission 过滤（#8 完整修复）
 - 业务逻辑 P0：状态机断裂、单号无锁、事务边界
 - 并发 P0：spawn panic 处理、无 FOR UPDATE
 - 测试 P0：假测试重写、恒真断言删除

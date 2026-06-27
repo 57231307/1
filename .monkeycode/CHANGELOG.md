@@ -2,6 +2,40 @@
 
 > 重要变更一句话摘要列表。详细历史请查阅 [`.monkeycode/docs/archives/`](file:///workspace/.monkeycode/docs/archives/)。
 
+## 2026-06-27 (严格再审计 v3 + P0 整改批次 3：前端路由 meta 补齐 + 守卫权限校验)
+
+### 前端回退项 #7/#9 修复
+
+**修复范围**：router/index.ts（80+ 路由 meta 补齐 + 路由守卫权限校验）
+
+**修复清单**：
+1. 80+ 路由 meta 补齐 icon（从 MainLayout 菜单 icon 映射：HomeFilled/Goods/Box/ShoppingCart/User/Cpu/Money/List/Setting/MagicStick）
+2. 补齐遗漏的 hidden（mrp/history、scheduling/gantt、bpm/definitions、bpm/templates 子页面）
+3. 列表/管理类路由补 permission 码（用后端中间件推导格式 `resource:read`）：
+   - inventory:read（fabric/inventory/inventory-batch/inventory-count/inventory-transfer/inventory-adjustment/greige-fabrics）
+   - sales:read（sales/sales-returns/sales-ext/sales-contract/sales-price/sales-analysis/quotations）
+   - purchases:read（purchase/purchase-receipt/purchase-ext/purchase-contract/purchase-price/purchase-inspection/purchase-return）
+   - finance:read（finance/ap/ar/ar-reconciliation/finance-report/cost/budget/fund/financial-analysis/currency/voucher/account-subject/accounting-period/trading/assist-accounting/ar-reconciliation-enhanced）
+   - customers:read（customer/customer-credit）
+   - suppliers:read（supplier/supplier-evaluation）
+   - products:read（product）
+   - warehouses:read（warehouse）
+   - users:read（departments）
+   - dashboard:read（dashboard）
+   - audit:read（system/audit-log、omni-audit）
+4. RouteMeta 类型扩展（`declare module 'vue-router'` 声明 icon/permission/hidden 字段）
+5. 路由守卫增加 permission 校验（宽松模式）：
+   - admin 角色绕过（与 v-permission 指令行为一致）
+   - 用户未配置任何权限码时放行（避免锁死未配置权限的账户）
+   - 通配符 `resource:*` 匹配该 resource 下的任意 action
+   - read/view 等价、update/edit 等价（兼容后端两套 action 命名不统一）
+   - 权限不足时跳转 /403 + 记录 warn 日志
+6. 导出 `hasRoutePermission` 函数供 MainLayout 等其他组件复用
+
+**设计决策**：
+- 后端权限码体系存在三套并存（旧式 JSON / init SQL / list_permissions），action 命名不统一（read vs view，update vs edit），resource_type 单复数不统一。宽松模式避免因后端权限码混乱而锁死用户。
+- MainLayout 菜单 permission 过滤（#8）留作后续批次：路由守卫已保障安全性，用户点击无权限菜单会被拦截到 /403。
+
 ## 2026-06-27 (严格再审计 v3 + P0 整改批次 2：前端 API 断链修复)
 
 ### 前端回退项 API 端点断链修复
