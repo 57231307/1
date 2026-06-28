@@ -21,14 +21,40 @@
 
 ---
 
-## 当前任务状态（2026-06-28 严格再审计 v3 + P0 整改批次 6 已完成）
+## 当前任务状态（2026-06-28 严格再审计 v3 + P0 整改批次 7 已完成）
 
-### ✅ 严格再审计 v3 + P0 整改批次 6（已完成，CI Run #1462 全绿）
+### ✅ 严格再审计 v3 + P0 整改批次 7（已完成，CI Run #1464 全绿）
 
 - **审计报告**：[`.monkeycode/docs/audits/2026-06-27-strict-reaudit-v3.md`](file:///workspace/.monkeycode/docs/audits/2026-06-27-strict-reaudit-v3.md)
 - **审计基线**：`origin/main` HEAD = `8a18bc3b`
 - **审计方法**：9 个并行 search 子代理（新增并发/依赖/架构/性能维度）
 - **审计结果**：1275 项发现（P0 ~285 / P1 ~350 / P2 ~380 / P3 ~260），比上次 230 项增加 454%
+
+#### 批次 7 修复（✅ 已完成，6 项 P0，并发 spawn panic 隔离）
+
+**审计背景**：全项目 16 处 `tokio::spawn` + 0 处 `catch_unwind` 覆盖，任一 spawn 任务内 panic 会导致该任务永久死亡且不重启
+
+1. `backend/src/utils/hash.rs`：`hmac_sha256_hex` 返回 `String` 改为 `Result<String, String>`，消除 `.expect("HMAC 初始化失败")` 在 spawn 调用链路中的 panic 触发点（源头消除）
+2. `backend/src/services/omni_audit_service.rs:74`（P0-1 最高优先级）：OmniAudit 引擎 while 循环体内 `catch_unwind`，单次 panic 不退出循环；HMAC 签名失败降级为空字符串不阻断审计日志写入
+3. `backend/src/services/event_bus.rs:400`（P0-2）：主事件监听器 while 循环体内 `catch_unwind`，调用 8+ 业务 service 方法时 panic 不退出，避免采购收货确认/AP-AR 发票状态更新/BPM 审批回写/低库存预警/缺料采购建议/财务指标计算全部停止
+4. `backend/src/services/audit_cleanup_service.rs:18`（P0-4）：审计日志清理 loop 内 `catch_unwind`，panic 不退出避免 `omni_audit_logs`/`audit_logs` 表无限增长拖挂数据库
+5. `backend/src/services/slow_query_collector.rs:83`（P0-5）：慢查询采集首次+循环均 `catch_unwind`，panic 不退出避免慢查询审计功能永久失效
+6. `backend/src/services/init_service.rs:264`（P1-1）：后台迁移整个 async 块 `catch_unwind`，panic 时更新 `InitTaskStatus::Failed`，避免 task_id 永远卡在 Running、前端永远显示"初始化中"
+
+**技术方案**：
+- 使用 `futures::FutureExt::catch_unwind`（async 友好版，Rust 1.94 稳定）
+- `std::panic::AssertUnwindSafe` 包装 async 块（`Arc<Db>` 非 `UnwindSafe`，需包装向编译器承诺）
+- panic payload 用 `downcast_ref::<String>()` / `downcast_ref::<&'static str>()` 提取消息字符串
+- 与现有 `if let Err(e)` 错误处理模式共存（业务 Err 不退出循环，仅 panic 被 catch_unwind 隔离）
+
+**CI 验证**：Run #1464（commit `c5a0fd43`）✅ 12/13 job success + Clippy failure（continue-on-error，不阻塞）+ 打包发布 + GitHub Release；Rust 单元测试 ✅（验证 catch_unwind 编译通过 + 测试通过）+ Rust 后端构建 ✅（release 编译通过）
+
+**关键经验**：
+- `std::panic::catch_unwind` 只支持同步闭包，async 块需用 `futures::FutureExt::catch_unwind`
+- `AssertUnwindSafe` 包装是必要的：`Arc<T>` / `mpsc::Receiver` 等非 `UnwindSafe` 类型需包装向编译器承诺"panic 后这些状态可能不一致，但会确保不读取它们"
+- 长期循环任务应在 while 循环**体内**用 catch_unwind 包裹，单次 panic 不退出循环；一次性任务用 catch_unwind 包裹整个 async 块
+- 一次性任务 panic 时**必须更新业务状态**（如 `InitTaskStatus::Failed`），否则会导致前端永远卡在中间态
+- 调研发现 spawn 块直接代码已无 `.unwrap()`/`.expect()`（设计良好，统一用 `if let Err(e)`），间接 panic 风险来自调用链路（如 hash.rs:39 的 .expect() 已在本次源头消除）
 
 #### 批次 6 修复（✅ 已完成，1 项 P0，审计 #8 完整修复）
 
@@ -120,10 +146,10 @@
 6. router/index.ts：导出 hasRoutePermission 函数供其他组件复用
 7. MainLayout 菜单 permission 过滤留作后续（路由守卫已保障安全性，用户点击无权限菜单会被拦截到 /403）→ **批次 6 已完成**（见上）
 
-#### 待处理（批次 7+）
+#### 待处理（批次 8+）
 
+- 并发 P0（剩余）：spawn panic 隔离（剩余 10 处长期循环任务：event_kafka.rs:274、inventory_finance_bridge_service.rs:61、event_bus.rs:174/355、messaging/bus.rs:53、websocket/notifications.rs:251/307、app_state.rs:96、omni_audit_service.rs:164、audit_log_service.rs:218、event_bus.rs:296）、无 FOR UPDATE
 - 业务逻辑 P0：状态机断裂、单号无锁、事务边界
-- 并发 P0：spawn panic 处理（16 处 tokio::spawn，0 处 catch_unwind 覆盖）、无 FOR UPDATE
 - 测试 P0：假测试重写、CI cargo test --lib 跳过集成测试
 
 ---

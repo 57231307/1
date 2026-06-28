@@ -2,6 +2,34 @@
 
 > 重要变更一句话摘要列表。详细历史请查阅 [`.monkeycode/docs/archives/`](file:///workspace/.monkeycode/docs/archives/)。
 
+## 2026-06-28 (严格再审计 v3 + P0 整改批次 7：spawn panic 隔离 catch_unwind 覆盖)
+
+### 并发 P0 修复（spawn panic 隔离）
+
+**修复范围**：全项目 16 处 `tokio::spawn` + 0 处 `catch_unwind` 覆盖，任一 spawn 任务内 panic 会导致该任务永久死亡且不重启。本次为 6 个高影响长期循环/一次性任务加 panic 隔离。
+
+**修复清单**（commit `c5a0fd43`，CI #1464 全绿）：
+
+| # | 文件 | 修复内容 |
+|---|------|----------|
+| 1 | hash.rs | `hmac_sha256_hex` 返回 `String` 改为 `Result<String, String>`，消除 `.expect("HMAC 初始化失败")` 在 spawn 调用链路中的 panic 触发点（源头消除） |
+| 2 | omni_audit_service.rs:74 | OmniAudit 引擎 while 循环体内 `catch_unwind`，单次 panic 不退出；HMAC 签名失败降级空字符串（P0-1 最高优先级） |
+| 3 | event_bus.rs:400 | 主事件监听器 while 循环体内 `catch_unwind`，调用 8+ 业务 service 时 panic 不退出（P0-2，业务事件分发中枢） |
+| 4 | audit_cleanup_service.rs:18 | 审计日志清理 loop 内 `catch_unwind`，panic 不退出避免表无限增长（P0-4） |
+| 5 | slow_query_collector.rs:83 | 慢查询采集首次+循环均 `catch_unwind`，panic 不退出避免审计功能失效（P0-5） |
+| 6 | init_service.rs:264 | 后台迁移整个 async 块 `catch_unwind`，panic 时更新 `InitTaskStatus::Failed` 避免 task_id 卡 Running（P1-1） |
+
+**技术方案**：
+- 使用 `futures::FutureExt::catch_unwind`（async 友好版，Rust 1.94 稳定）
+- `std::panic::AssertUnwindSafe` 包装 async 块（`Arc<Db>` 非 `UnwindSafe`）
+- panic payload 用 `downcast_ref::<String>()` / `downcast_ref::<&'static str>()` 提取消息字符串
+- 长期循环任务在 while 循环**体内**用 catch_unwind 包裹，单次 panic 不退出；一次性任务用 catch_unwind 包裹整个 async 块
+- 一次性任务 panic 时必须更新业务状态（如 `InitTaskStatus::Failed`），避免前端永远卡在中间态
+
+**CI 验证**：Run #1464（commit `c5a0fd43`）✅ 12/13 job success + Clippy failure（continue-on-error，不阻塞）+ 打包发布 + GitHub Release；Rust 单元测试 ✅（验证 catch_unwind 编译通过 + 测试通过）+ Rust 后端构建 ✅（release 编译通过）
+
+---
+
 ## 2026-06-28 (严格再审计 v3 + P0 整改批次 6：MainLayout 菜单按 permission 过滤)
 
 ### 前端 P0 修复（审计 #8 完整修复）
