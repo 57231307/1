@@ -13,7 +13,9 @@
 
 use chrono::Utc;
 use rust_decimal::Decimal;
-use sea_orm::{ActiveModelTrait, DatabaseConnection, EntityTrait, Set};
+use sea_orm::{
+    ActiveModelTrait, DatabaseConnection, EntityTrait, QuerySelect, Set, TransactionTrait,
+};
 use std::sync::Arc;
 
 use crate::models::dto::bpm_dto::StartProcessRequest;
@@ -121,17 +123,32 @@ impl QuotationApprovalService {
         quotation_id: i64,
         user_id: i32,
     ) -> Result<sales_quotation::Model, AppError> {
+        // 批次 12（2026-06-28）：事务包裹"查询 + update_with_audit"，
+        // 加 lock_exclusive 防止并发自批导致状态不一致；
+        // update_with_audit 内部 2 次写入（实体 update + 审计 insert）非原子，事务包裹保证原子性。
+        let txn = (*self.db).begin().await?;
+
         let quotation = QuotationEntity::find_by_id(quotation_id)
-            .one(&*self.db)
+            .lock_exclusive()
+            .one(&txn)
             .await?
             .ok_or_else(|| AppError::not_found("报价单不存在"))?;
 
-        let mut active: QuotationActive = quotation.clone().into();
+        let mut active: QuotationActive = quotation.into();
         active.status = Set("approved".to_string());
         active.approved_by = Set(Some(user_id as i64));
         active.approved_at = Set(Some(Utc::now()));
         active.updated_at = Set(Utc::now());
-        let updated = active.update(&*self.db).await?;
+
+        let updated = crate::services::audit_log_service::AuditLogService::update_with_audit(
+            &txn,
+            "auto_audit",
+            active,
+            Some(user_id),
+        )
+        .await?;
+
+        txn.commit().await?;
         Ok(updated)
     }
 
@@ -142,7 +159,10 @@ impl QuotationApprovalService {
         user_id: i32,
         _role: ApproverRole,
     ) -> Result<sales_quotation::Model, AppError> {
-        // 创建 BPM 流程实例（找不到模板时忽略错误以保持向后兼容）
+        // 批次 12（2026-06-28）：BPM 启动在事务外（容错），状态更新在事务内。
+        // 先 BPM start_process 获取 instance_id，再事务包裹"查询 + 状态检查 + update_with_audit"，
+        // 加 lock_exclusive 防止并发提交同一报价单导致状态不一致；
+        // 若事务回滚，BPM 实例成为孤儿（容错设计，BPM 失败也不阻断主流程）。
         let bpm_service = BpmService::new(self.db.clone());
         let req = StartProcessRequest {
             process_key: "quotation_approval".to_string(),
@@ -161,18 +181,42 @@ impl QuotationApprovalService {
             variables: None,
         };
 
-        // 启动 BPM 流程（容错：找不到模板时继续）
+        // 1. 启动 BPM 流程（事务外，容错：找不到模板时 instance_id=None）
         let bpm_instance_id: Option<i32> = match bpm_service.start_process(req).await {
             Ok(resp) => Some(resp.instance_id),
             Err(_) => None,
         };
 
-        // 更新报价单状态为 pending_approval
-        let mut active: QuotationActive = quotation.clone().into();
+        // 2. 事务包裹状态更新（重新查询并加锁，防止 quotation 已过期）
+        let txn = (*self.db).begin().await?;
+
+        let latest = QuotationEntity::find_by_id(quotation.id)
+            .lock_exclusive()
+            .one(&txn)
+            .await?
+            .ok_or_else(|| AppError::not_found("报价单不存在"))?;
+
+        if !["draft", "rejected"].contains(&latest.status.as_str()) {
+            return Err(AppError::business(format!(
+                "报价单当前状态不允许提交：{}",
+                latest.status
+            )));
+        }
+
+        let mut active: QuotationActive = latest.into();
         active.status = Set("pending_approval".to_string());
         active.approval_instance_id = Set(bpm_instance_id.map(|i| i as i64));
         active.updated_at = Set(Utc::now());
-        let updated = active.update(&*self.db).await?;
+
+        let updated = crate::services::audit_log_service::AuditLogService::update_with_audit(
+            &txn,
+            "auto_audit",
+            active,
+            Some(user_id),
+        )
+        .await?;
+
+        txn.commit().await?;
         Ok(updated)
     }
 
@@ -182,8 +226,14 @@ impl QuotationApprovalService {
         quotation_id: i64,
         approver_id: i32,
     ) -> Result<sales_quotation::Model, AppError> {
+        // 批次 12（2026-06-28）：事务包裹"查询 + 状态检查 + update_with_audit"，
+        // 加 lock_exclusive 防止并发审批同一报价单导致重复审批或字段覆盖；
+        // BPM 任务审批在事务外执行（容错，失败不阻断已提交状态）
+        let txn = (*self.db).begin().await?;
+
         let quotation = QuotationEntity::find_by_id(quotation_id)
-            .one(&*self.db)
+            .lock_exclusive()
+            .one(&txn)
             .await?
             .ok_or_else(|| AppError::not_found("报价单不存在"))?;
 
@@ -194,11 +244,27 @@ impl QuotationApprovalService {
             )));
         }
 
-        // 完成 BPM 任务（容错）
-        if let Some(instance_id) = quotation.approval_instance_id {
+        let mut active: QuotationActive = quotation.into();
+        active.status = Set("approved".to_string());
+        active.approved_by = Set(Some(approver_id as i64));
+        active.approved_at = Set(Some(Utc::now()));
+        active.updated_at = Set(Utc::now());
+
+        let updated = crate::services::audit_log_service::AuditLogService::update_with_audit(
+            &txn,
+            "auto_audit",
+            active,
+            Some(approver_id),
+        )
+        .await?;
+
+        txn.commit().await?;
+
+        // 完成 BPM 任务（事务外，容错）
+        if let Some(instance_id) = updated.approval_instance_id {
             let bpm_service = BpmService::new(self.db.clone());
             if let Ok(Some(instance)) = bpm_service
-                .get_process_by_business("quotation", quotation.id as i32)
+                .get_process_by_business("quotation", updated.id as i32)
                 .await
             {
                 if let Ok(tasks) = bpm_service
@@ -228,7 +294,7 @@ impl QuotationApprovalService {
                                 tracing::warn!(
                                     error = %e,
                                     task_id = task.id,
-                                    quotation_id = quotation.id,
+                                    quotation_id = updated.id,
                                     "BPM 报价单审批通过任务失败（不阻断主流程）"
                                 );
                             }
@@ -240,12 +306,6 @@ impl QuotationApprovalService {
             let _ = instance_id;
         }
 
-        let mut active: QuotationActive = quotation.into();
-        active.status = Set("approved".to_string());
-        active.approved_by = Set(Some(approver_id as i64));
-        active.approved_at = Set(Some(Utc::now()));
-        active.updated_at = Set(Utc::now());
-        let updated = active.update(&*self.db).await?;
         Ok(updated)
     }
 
@@ -256,8 +316,14 @@ impl QuotationApprovalService {
         approver_id: i32,
         reason: String,
     ) -> Result<sales_quotation::Model, AppError> {
+        // 批次 12（2026-06-28）：事务包裹"查询 + 状态检查 + update_with_audit"，
+        // 加 lock_exclusive 防止并发拒绝同一报价单导致重复拒绝或字段覆盖；
+        // BPM 任务审批在事务外执行（容错，失败不阻断已提交状态）
+        let txn = (*self.db).begin().await?;
+
         let quotation = QuotationEntity::find_by_id(quotation_id)
-            .one(&*self.db)
+            .lock_exclusive()
+            .one(&txn)
             .await?
             .ok_or_else(|| AppError::not_found("报价单不存在"))?;
 
@@ -268,11 +334,27 @@ impl QuotationApprovalService {
             )));
         }
 
-        // 完成 BPM 任务（容错）
-        if quotation.approval_instance_id.is_some() {
+        let mut active: QuotationActive = quotation.into();
+        active.status = Set("rejected".to_string());
+        active.approved_by = Set(Some(approver_id as i64));
+        active.rejection_reason = Set(Some(reason.clone()));
+        active.updated_at = Set(Utc::now());
+
+        let updated = crate::services::audit_log_service::AuditLogService::update_with_audit(
+            &txn,
+            "auto_audit",
+            active,
+            Some(approver_id),
+        )
+        .await?;
+
+        txn.commit().await?;
+
+        // 完成 BPM 任务（事务外，容错）
+        if updated.approval_instance_id.is_some() {
             let bpm_service = BpmService::new(self.db.clone());
             if let Ok(Some(instance)) = bpm_service
-                .get_process_by_business("quotation", quotation.id as i32)
+                .get_process_by_business("quotation", updated.id as i32)
                 .await
             {
                 if let Ok(tasks) = bpm_service
@@ -302,7 +384,7 @@ impl QuotationApprovalService {
                                 tracing::warn!(
                                     error = %e,
                                     task_id = task.id,
-                                    quotation_id = quotation.id,
+                                    quotation_id = updated.id,
                                     "BPM 报价单审批拒绝任务失败（不阻断主流程）"
                                 );
                             }
@@ -312,12 +394,6 @@ impl QuotationApprovalService {
             }
         }
 
-        let mut active: QuotationActive = quotation.into();
-        active.status = Set("rejected".to_string());
-        active.approved_by = Set(Some(approver_id as i64));
-        active.rejection_reason = Set(Some(reason));
-        active.updated_at = Set(Utc::now());
-        let updated = active.update(&*self.db).await?;
         Ok(updated)
     }
 }
