@@ -95,10 +95,26 @@
 - CI cargo test --lib：已配置（ci-cd.yml 行 846-858），跳过 47 个集成测试
 
 **状态机调研发现（未修复，留待后续批次）**：
-- WorkflowStage 枚举是死代码（仅测试用，与业务状态字符串不对应）
+- ~~WorkflowStage 枚举是死代码（仅测试用，与业务状态字符串不对应）~~ ✅ 批次 14 已删除
 - ProductionOrderStatus 枚举不完整（缺 PENDING_APPROVAL/APPROVED/REJECTED）
-- models/status.rs 常量从未被引用且 sales_order 模块值与业务矛盾（大写 vs 小写）
+- ~~models/status.rs 常量从未被引用且 sales_order 模块值与业务矛盾（大写 vs 小写）~~ ✅ 批次 14 已修正
 - 大小写不一致：销售订单/凭证小写，生产订单/AP/AR 发票大写（需数据迁移，风险高）
+
+### ✅ 严格再审计 v3 + P0 整改批次 14（已完成，CI Run #1480 全绿）
+
+**修复范围**：删除 WorkflowStage 死代码枚举 + 修正 models/status.rs sales_order 模块常量矛盾
+
+**批次 14 修复**（commit `babbb756`，3 项）：
+
+| # | 文件 | 修复内容 |
+|---|------|----------|
+| 1 | so/order_workflow.rs | 删除 WorkflowStage 枚举 + P92_WF_MODULE 常量 + 相关测试（死代码，Received/Closed 业务不存在） |
+| 2 | models/status.rs | sales_order 模块常量值大写改小写（"DRAFT"→"draft"），与业务一致；补全 PARTIAL_SHIPPED 和 SHIPPED；删除业务中不存在的 PENDING_APPROVAL 和 CONFIRMED |
+
+**关键技术**：
+- WorkflowStage 死代码：枚举变体（Received/Closed）在业务中不存在，业务实际用的 partial_shipped/completed/cancelled 枚举中没有
+- models/status.rs 常量矛盾：原常量值大写（"DRAFT"），业务用小写（"draft"），若被引用会查不到数据（隐性 P0 风险）
+- 遵循项目规则第六章"死代码处理"：评估 → 确认无业务引用 → 物理删除
 
 ### ✅ 严格再审计 v3 + P0 整改批次 10（已完成，CI Run 28310061168 全绿）
 

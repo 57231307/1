@@ -2,6 +2,28 @@
 
 > 重要变更一句话摘要列表。详细历史请查阅 [`.monkeycode/docs/archives/`](file:///workspace/.monkeycode/docs/archives/)。
 
+## 2026-06-28 (严格再审计 v3 + P0 整改批次 14：死代码清理 + 状态常量矛盾修正)
+
+### 删除 WorkflowStage 死代码枚举 + 修正 models/status.rs sales_order 模块常量矛盾
+
+**修复范围**：删除与业务状态字符串不对应的死代码枚举 + 修正隐性 P0 风险的常量矛盾
+
+**修复清单**（commit `babbb756`，CI run 28313071909 全绿）：
+
+| # | 文件 | 修复内容 |
+|---|------|----------|
+| 1 | so/order_workflow.rs | 删除 WorkflowStage 枚举 + P92_WF_MODULE 常量 + 相关测试（死代码，仅测试用，Received/Closed 业务不存在，partial_shipped/completed/cancelled 枚举缺失） |
+| 2 | models/status.rs | sales_order 模块常量值大写改小写（"DRAFT"→"draft"），与业务代码一致；补全 PARTIAL_SHIPPED 和 SHIPPED；删除业务中不存在的 PENDING_APPROVAL 和 CONFIRMED |
+
+**关键技术**：
+- WorkflowStage 死代码：枚举变体（Received/Closed）在业务中不存在，业务实际用的 partial_shipped/completed/cancelled 枚举中没有，是设计偏离业务的死代码
+- models/status.rs 常量矛盾：原 sales_order 模块常量值大写（"DRAFT"），但业务代码用小写（"draft"），若被引用会查不到数据（隐性 P0 风险）
+- 遵循项目规则第六章"死代码处理"：评估 → 确认无业务引用 → 物理删除
+
+**CI 验证**：Run 28313071909（commit `babbb756`）✅ 14/15 job success + Clippy failure（continue-on-error 不阻断）+ 打包发布 + GitHub Release
+
+---
+
 ## 2026-06-28 (严格再审计 v3 + P0 整改批次 13：销售订单状态机死锁修复 + 测试 P0 调研确认)
 
 ### partial_shipped 状态死锁修复 + 测试 P0 调研
