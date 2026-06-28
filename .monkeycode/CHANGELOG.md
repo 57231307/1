@@ -2,6 +2,39 @@
 
 > 重要变更一句话摘要列表。详细历史请查阅 [`.monkeycode/docs/archives/`](file:///workspace/.monkeycode/docs/archives/)。
 
+## 2026-06-28 (严格再审计 v4：12 维度并行审计 391 项发现)
+
+### v4 严格审计完成
+
+**审计范围**：12 个并行 search 子代理覆盖后端 services/handlers/middleware/utils + 前端 src/tests/e2e + CI 配置
+**审计基线**：`origin/main` HEAD = `1b933af5`（批次 19 文档后）
+**审计产出**：[`.monkeycode/docs/audits/2026-06-28-strict-reaudit-v4.md`](file:///workspace/.monkeycode/docs/audits/2026-06-28-strict-reaudit-v4.md)
+
+**审计结果**：391 项发现（P0 85 / P1 138 / P2 105 / P3 63）
+
+**v4 相对 v3 的"更严格"体现**：
+1. 维度扩展 9 → 12（新增前端 API 类型安全、前端路由权限、测试质量深化）
+2. 检查深度：v3 通常只检查"是否存在"；v4 进一步检查"是否完整、一致、可用"
+3. 量化指标：测试覆盖率 38%、死代码 816 项、any 90 处、伪测试 80+ 个
+
+**关键发现**：
+- 维度 1：v3 修复 33 处后，v4 重新发现 28 处未修复 + 22 处新发现（状态机函数完全绕过 update_with_audit）
+- 维度 2：4 个 handler 完全无认证（logistics/greige_fabric/dye_recipe/dye_batch）
+- 维度 9：816 零引用 pub 项 + 683 未使用 use + 466 未使用前端导出
+- 维度 11：v-permission 仅 1 文件使用，i18n 4506 行资源闲置 0 处调用
+- 维度 12：80+ 伪测试（测试玩具模型而非生产代码）+ CI `--lib` 跳过 47 个集成测试
+
+**最高优先级风险**：
+1. `/inventory/counts` 12 个端点对用户返回 501（线上事故级）
+2. 22 个状态机转换函数同时缺事务、缺审计日志、缺锁
+3. 4 个 handler 完全无认证，任何请求可跨租户读写
+4. v-permission 仅 1 文件使用，任何登录用户可提权为 admin
+5. 测试体系系统性"测试剧场"问题
+
+**下一步**：按 v4 报告"五、批次修复建议"规划批次 21+（建议批次 21 修复维度 1 P0 的 22 个状态机转换函数）
+
+---
+
 ## 2026-06-28 (严格再审计 v3 + P0 整改批次 19：P2 calculate_*_total 事务传递模式与调用方事务补全)
 
 ### calculate_receipt_total/calculate_order_total _txn 变体 + 6 调用方事务补全

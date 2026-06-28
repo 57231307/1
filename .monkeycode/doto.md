@@ -3,14 +3,33 @@
 > 本文件记录**当前任务**与**历史任务索引**。
 > 详细历史请查阅 [`.monkeycode/docs/archives/`](file:///workspace/.monkeycode/docs/archives/)。
 
-### 2026-06-28 严格再审计 v3 + P0 整改（进行中）
+### 2026-06-28 严格再审计 v4 + P0 整改（进行中）
 
-**状态**：🔧 整改中（批次 1-19 已完成，批次 20 待处理；spawn panic 隔离 100% 全覆盖 + 业务逻辑 P0 + FOR UPDATE + 死代码清理 + P1 事务边界 + 状态机死锁 + WorkflowStage 死代码清理 + ProductionOrderStatus 枚举补全 + 付款/入库单状态门 lock_exclusive + 付款申请审批/收货/发货/关闭状态门 lock_exclusive + close_order 事务补全 + update_order/cancel_order/update_receipt 事务边界补全 + update_with_audit 原子性修复 + calculate_*_total 事务传递模式（_txn 变体 + 6 调用方事务补全） 已修复）
-**审计报告**：[`.monkeycode/docs/audits/2026-06-27-strict-reaudit-v3.md`](file:///workspace/.monkeycode/docs/audits/2026-06-27-strict-reaudit-v3.md)
-**审计基线**：`origin/main` HEAD = `8a18bc3b`
-**审计方法**：9 个并行 search 子代理（新增并发/依赖/架构/性能维度）
-**审计结果**：1275 项发现（P0 ~285 / P1 ~350 / P2 ~380 / P3 ~260），比上次 230 项增加 454%
-**main 当前 HEAD**：`74208517`（批次 19 修复 + CI bot 版本号，CI run 28319444700 全绿）
+**状态**：🔧 整改中（批次 1-19 已完成；**批次 20：v4 严格审计已完成**（12 维度 391 项发现），待批次 21+ 按 v4 报告整改）
+**审计报告 v4**：[`.monkeycode/docs/audits/2026-06-28-strict-reaudit-v4.md`](file:///workspace/.monkeycode/docs/audits/2026-06-28-strict-reaudit-v4.md)
+**审计报告 v3（已归档）**：v3 报告在 orphan commit 事件中丢失，v4 已替代
+**审计基线 v4**：`origin/main` HEAD = `1b933af5`（批次 19 文档后）
+**审计方法 v4**：12 个并行 search 子代理（比 v3 的 9 个增加 3 个维度：前端 API 类型安全、前端路由权限、测试质量深化）
+**审计结果 v4**：391 项发现（P0 85 / P1 138 / P2 105 / P3 63）
+  - 维度 1 事务边界：64 项（v3 修复 33 处后，v4 重新发现 28 处未修复 + 22 处新发现）
+  - 维度 2 租户隔离：19 项（4 个 handler 完全无认证 P0）
+  - 维度 3 输入验证：17 项（DTO 验证系统性缺失）
+  - 维度 4 错误处理：30 项（金额服务日志缺失）
+  - 维度 5 业务逻辑：35 项（状态枚举大小写不一致根因问题）
+  - 维度 6 并发竞态：34 项（TOCTOU 18 + 丢失更新 12）
+  - 维度 7 性能 N+1：48 项（N+1 查询 18 + 全表查询 11 + 分页偏移错误 6）
+  - 维度 8 依赖配置：12 项（.env.example 占位符绕过校验 P0）
+  - 维度 9 架构死代码：21 项（816 零引用 pub + 683 未使用 use）
+  - 维度 10 前端 API：32 项（quotation.ts 19 处 as any P0）
+  - 维度 11 前端路由：25 项（v-permission 仅 1 文件使用 P0）
+  - 维度 12 测试质量：49 项（80+ 伪测试 + CI 跳过集成测试）
+**main 当前 HEAD**：`1b933af5`（批次 19 文档 + CI bot 版本号，CI run 28319733851 全绿）
+
+#### 批次 20：v4 严格审计（✅ 已完成，待 CI 验证）
+
+**审计范围**：12 个并行 search 子代理覆盖后端 services/handlers/middleware/utils + 前端 src/tests/e2e + CI 配置
+**审计产出**：v4 报告保存至 `.monkeycode/docs/audits/2026-06-28-strict-reaudit-v4.md`
+**下一步**：按 v4 报告"五、批次修复建议"规划批次 21+（建议批次 21 修复维度 1 P0 的 22 个状态机转换函数）
 
 #### 批次 1：回退项 + 安全关键（✅ 已完成）
 
