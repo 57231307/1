@@ -21,7 +21,7 @@
 
 ---
 
-## 当前任务状态（2026-06-28 严格再审计 v3 + P0 整改批次 11 已完成）
+## 当前任务状态（2026-06-28 严格再审计 v3 + P0 整改批次 15 已完成）
 
 ### ✅ 严格再审计 v3 + P0 整改批次 11（已完成，CI Run 28310882782 全绿）
 
@@ -115,6 +115,23 @@
 - WorkflowStage 死代码：枚举变体（Received/Closed）在业务中不存在，业务实际用的 partial_shipped/completed/cancelled 枚举中没有
 - models/status.rs 常量矛盾：原常量值大写（"DRAFT"），业务用小写（"draft"），若被引用会查不到数据（隐性 P0 风险）
 - 遵循项目规则第六章"死代码处理"：评估 → 确认无业务引用 → 物理删除
+
+### ✅ 严格再审计 v3 + P0 整改批次 15（已完成，CI Run 28313695277 全绿）
+
+**修复范围**：补全 ProductionOrderStatus 枚举 + 生产订单审批事务边界修复
+
+**批次 15 修复**（commit `aa505712`，3 项）：
+
+| # | 文件 | 修复内容 |
+|---|------|----------|
+| 1 | models/production_order.rs | ProductionOrderStatus 枚举补全 3 个变体（PendingApproval/Approved/Rejected），与业务实际使用的 8 个状态值对齐 |
+| 2 | production_order_service.rs:submit_for_approval | 事务边界修复：begin + lock_exclusive + update(&txn) + commit；BPM 启动保留事务外 |
+| 3 | production_order_service.rs:approve_order | 事务边界修复：同上模式；BPM 任务审批保留事务外 |
+
+**关键技术**：
+- 枚举补全：原枚举仅 5 个变体（Draft/Scheduled/InProgress/Completed/Cancelled），但业务代码（submit_for_approval/approve_order）实际使用 8 个状态值（含 PENDING_APPROVAL/APPROVED/REJECTED），枚举作为状态字典文档化用途
+- 事务边界修复模式与批次 12 一致：`begin → lock_exclusive → 状态校验 → update(&txn) → commit`，BPM 调用保留事务外（失败 warn 不阻断已提交状态）
+- 注意：这两个函数用 `active_model.update(&txn)` 而非 `update_with_audit`，保持原行为（无审计日志），仅加事务边界 + lock_exclusive
 
 ### ✅ 严格再审计 v3 + P0 整改批次 10（已完成，CI Run 28310061168 全绿）
 

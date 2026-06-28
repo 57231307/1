@@ -5,12 +5,12 @@
 
 ### 2026-06-28 严格再审计 v3 + P0 整改（进行中）
 
-**状态**：🔧 整改中（批次 1-14 已完成，批次 15 待处理；spawn panic 隔离 100% 全覆盖 + 业务逻辑 P0 + FOR UPDATE + 死代码清理 + P1 事务边界 + 状态机死锁 + WorkflowStage 死代码清理已修复）
+**状态**：🔧 整改中（批次 1-15 已完成，批次 16 待处理；spawn panic 隔离 100% 全覆盖 + 业务逻辑 P0 + FOR UPDATE + 死代码清理 + P1 事务边界 + 状态机死锁 + WorkflowStage 死代码清理 + ProductionOrderStatus 枚举补全已修复）
 **审计报告**：[`.monkeycode/docs/audits/2026-06-27-strict-reaudit-v3.md`](file:///workspace/.monkeycode/docs/audits/2026-06-27-strict-reaudit-v3.md)
 **审计基线**：`origin/main` HEAD = `8a18bc3b`
 **审计方法**：9 个并行 search 子代理（新增并发/依赖/架构/性能维度）
 **审计结果**：1275 项发现（P0 ~285 / P1 ~350 / P2 ~380 / P3 ~260），比上次 230 项增加 454%
-**main 当前 HEAD**：`babbb756`（批次 14 修复）
+**main 当前 HEAD**：`aa505712`（批次 15 修复）
 
 #### 批次 1：回退项 + 安全关键（✅ 已完成）
 
@@ -225,8 +225,29 @@
 **CI 验证**：Run 28313071909（commit `babbb756`）✅ 14/15 job success + Clippy failure（continue-on-error 不阻断）+ 打包发布 + GitHub Release
 
 **待批次 15+ 处理**：
-- ProductionOrderStatus 枚举不完整（缺 PENDING_APPROVAL/APPROVED/REJECTED）
+- ~~ProductionOrderStatus 枚举不完整（缺 PENDING_APPROVAL/APPROVED/REJECTED）~~ ✅ 批次 15 已补全
 - 大小写不一致：销售订单/凭证小写，生产订单/AP/AR 发票大写（需数据迁移，风险高）
+
+#### 批次 15：生产订单审批事务边界修复 + 枚举补全（✅ 已完成，CI run 28313695277 全绿）
+
+**修复范围**：补全 ProductionOrderStatus 枚举 + submit_for_approval/approve_order 事务边界修复
+
+| # | 文件 | 修复内容 |
+|---|------|----------|
+| 1 | models/production_order.rs | ProductionOrderStatus 枚举补全 3 个变体（PendingApproval/Approved/Rejected），与业务实际使用的 8 个状态值对齐；添加文档注释说明状态字典用途 |
+| 2 | production_order_service.rs | submit_for_approval 事务边界修复：begin + lock_exclusive + update(&txn) + commit；BPM 启动保留事务外 |
+| 3 | production_order_service.rs | approve_order 事务边界修复：同上模式；BPM 任务审批保留事务外 |
+
+**关键技术**：
+- 枚举补全：原枚举仅 5 个变体（Draft/Scheduled/InProgress/Completed/Cancelled），但业务代码（submit_for_approval/approve_order）实际使用 8 个状态值（含 PENDING_APPROVAL/APPROVED/REJECTED），枚举作为状态字典文档化用途
+- 事务边界修复模式与批次 12 一致：`begin → lock_exclusive → 状态校验 → update(&txn) → commit`，BPM 调用保留事务外（失败 warn 不阻断已提交状态）
+- 注意：这两个函数用 `active_model.update(&txn)` 而非 `update_with_audit`，保持原行为（无审计日志），仅加事务边界 + lock_exclusive
+
+**CI 验证**：Run 28313695277（commit `aa505712`）✅ 14/15 job success + Clippy failure（continue-on-error 不阻断）+ 打包发布 + GitHub Release；Rust 后端构建 ✅ + Rust 单元测试 ✅（验证事务边界修复编译通过）
+
+**待批次 16+ 处理**：
+- 大小写不一致：销售订单/凭证小写，生产订单/AP/AR 发票大写（需数据迁移，风险高）
+- 其他 P0/P1 整改项（待调研）
 
 ### 2026-06-25 第二次全面审计 - 项目全面审计（126 项错误）
 

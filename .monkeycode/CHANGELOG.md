@@ -2,6 +2,29 @@
 
 > 重要变更一句话摘要列表。详细历史请查阅 [`.monkeycode/docs/archives/`](file:///workspace/.monkeycode/docs/archives/)。
 
+## 2026-06-28 (严格再审计 v3 + P0 整改批次 15：生产订单审批事务边界修复 + 枚举补全)
+
+### 补全 ProductionOrderStatus 枚举 + 生产订单审批事务边界修复
+
+**修复范围**：补全业务实际使用但枚举缺失的 3 个状态变体 + submit_for_approval/approve_order 事务边界修复
+
+**修复清单**（commit `aa505712`，CI run 28313695277 全绿）：
+
+| # | 文件 | 修复内容 |
+|---|------|----------|
+| 1 | models/production_order.rs | ProductionOrderStatus 枚举补全 3 个变体（PendingApproval/Approved/Rejected），与业务实际使用的 8 个状态值对齐；添加文档注释 |
+| 2 | production_order_service.rs | submit_for_approval 事务边界修复：begin + lock_exclusive + update(&txn) + commit；BPM 启动保留事务外 |
+| 3 | production_order_service.rs | approve_order 事务边界修复：同上模式；BPM 任务审批保留事务外 |
+
+**关键技术**：
+- 枚举补全：原枚举仅 5 个变体（Draft/Scheduled/InProgress/Completed/Cancelled），但业务代码实际使用 8 个状态值，枚举作为状态字典文档化用途
+- 事务边界修复模式与批次 12 一致：`begin → lock_exclusive → 状态校验 → update(&txn) → commit`，BPM 调用保留事务外（失败 warn 不阻断已提交状态）
+- 注意：这两个函数用 `active_model.update(&txn)` 而非 `update_with_audit`，保持原行为（无审计日志），仅加事务边界 + lock_exclusive
+
+**CI 验证**：Run 28313695277（commit `aa505712`）✅ 14/15 job success + Clippy failure（continue-on-error 不阻断）+ 打包发布 + GitHub Release；Rust 后端构建 ✅ + Rust 单元测试 ✅
+
+---
+
 ## 2026-06-28 (严格再审计 v3 + P0 整改批次 14：死代码清理 + 状态常量矛盾修正)
 
 ### 删除 WorkflowStage 死代码枚举 + 修正 models/status.rs sales_order 模块常量矛盾
