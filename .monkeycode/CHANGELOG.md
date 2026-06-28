@@ -2,6 +2,27 @@
 
 > 重要变更一句话摘要列表。详细历史请查阅 [`.monkeycode/docs/archives/`](file:///workspace/.monkeycode/docs/archives/)。
 
+## 2026-06-28 (严格再审计 v3 + P0 整改批次 6：MainLayout 菜单按 permission 过滤)
+
+### 前端 P0 修复（审计 #8 完整修复）
+
+**修复范围**：MainLayout 侧边栏菜单完全无权限过滤 → 复用 router 守卫同款宽松匹配函数实现菜单可见性过滤
+
+**修复清单**（commit `0b61590f`，CI #1462 全绿）：
+
+| # | 文件 | 修复内容 |
+|---|------|----------|
+| 1 | MainLayout.vue | 侧边栏菜单按 permission 过滤：导入 `hasRoutePermission`；新增 `canAccessMenu(path)` 函数（通过 `router.resolve` 找到叶子路由 record，读取 `meta.permission` 判定可见性）；新增 `visibleSubMenu` computed（子菜单项全部隐藏时父级 el-sub-menu 也隐藏）；模板 96 个 `el-menu-item` + 10 个 `el-sub-menu` 全部加 `v-if`；与守卫一致的宽松模式（admin 绕过 + 空权限放行 + 通配符 + read/view 等价） |
+
+**设计决策**：
+- 菜单可见性应与路由可达性严格对称：复用 router 守卫同款 `hasRoutePermission` 函数确保规则一致；避免"路由放行但菜单隐藏"或反向情况造成用户困惑
+- 未配置 `permission` 的菜单 path 一律放行（与守卫 `if (to.meta.permission)` 行为对称），避免菜单异常消失
+- 父级 `el-sub-menu` 可见性用 computed 缓存（依赖 `userStore.userInfo` 是 reactive），避免在模板中重复调用造成性能问题
+
+**CI 验证**：Run #1462（commit `0b61590f`）✅ 12/13 job success + Clippy failure（continue-on-error，不阻塞）+ 打包发布；前端 ESLint + 类型检查 + 测试 + 构建全 ✅
+
+---
+
 ## 2026-06-28 (严格再审计 v3 + P0 整改批次 5：恒真断言剩余 5 处 + spawn panic 触发点)
 
 ### 测试 P0 + 并发 P0 修复

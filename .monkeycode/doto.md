@@ -5,12 +5,12 @@
 
 ### 2026-06-28 严格再审计 v3 + P0 整改（进行中）
 
-**状态**：🔧 整改中（批次 1-5 已完成，批次 6 待处理）
+**状态**：🔧 整改中（批次 1-6 已完成，批次 7 待处理）
 **审计报告**：[`.monkeycode/docs/audits/2026-06-27-strict-reaudit-v3.md`](file:///workspace/.monkeycode/docs/audits/2026-06-27-strict-reaudit-v3.md)
 **审计基线**：`origin/main` HEAD = `8a18bc3b`
 **审计方法**：9 个并行 search 子代理（新增并发/依赖/架构/性能维度）
 **审计结果**：1275 项发现（P0 ~285 / P1 ~350 / P2 ~380 / P3 ~260），比上次 230 项增加 454%
-**main 当前 HEAD**：`109b3275`（批次 5 修复）
+**main 当前 HEAD**：`0b61590f`（批次 6 修复）
 
 #### 批次 1：回退项 + 安全关键（✅ 已完成）
 
@@ -82,11 +82,18 @@
 
 **CI 验证**：Run #1460（commit `109b3275`）✅ 13/15 job success + Clippy failure（continue-on-error，不阻塞）+ 打包发布 + GitHub Release 成功
 
-#### 批次 6：待处理
+#### 批次 6：MainLayout 菜单按 permission 过滤（✅ 已完成，CI #1462 全绿）
 
-- MainLayout 菜单按 permission 过滤（#8 完整修复）
+| # | 文件 | 修复内容 |
+|---|------|----------|
+| 1 | MainLayout.vue | 侧边栏菜单按 permission 过滤：导入 router 守卫同款 `hasRoutePermission`；新增 `canAccessMenu(path)` 函数（通过 `router.resolve` 找到叶子路由 record，读取 `meta.permission` 判定可见性）；新增 `visibleSubMenu` computed（子菜单项全部隐藏时父级 el-sub-menu 也隐藏）；模板 96 个 `el-menu-item` + 10 个 `el-sub-menu` 全部加 `v-if`；与守卫一致的宽松模式（admin 绕过 + 空权限放行 + 通配符 + read/view 等价） |
+
+**CI 验证**：Run #1462（commit `0b61590f`）✅ 12/13 job success + Clippy failure（continue-on-error，不阻塞）+ 打包发布；前端 ESLint + 类型检查 + 测试 + 构建全 ✅
+
+#### 批次 7：待处理
+
 - 业务逻辑 P0：状态机断裂、单号无锁、事务边界
-- 并发 P0：spawn panic 全局 catch_unwind 覆盖、无 FOR UPDATE
+- 并发 P0：spawn panic 全局 catch_unwind 覆盖（16 处 tokio::spawn，0 处 catch_unwind）、无 FOR UPDATE
 - 测试 P0：假测试重写、CI cargo test --lib 跳过集成测试
 
 ### 2026-06-25 第二次全面审计 - 项目全面审计（126 项错误）

@@ -21,14 +21,32 @@
 
 ---
 
-## 当前任务状态（2026-06-28 严格再审计 v3 + P0 整改批次 5 已完成）
+## 当前任务状态（2026-06-28 严格再审计 v3 + P0 整改批次 6 已完成）
 
-### ✅ 严格再审计 v3 + P0 整改批次 5（已完成，CI Run #1460 全绿）
+### ✅ 严格再审计 v3 + P0 整改批次 6（已完成，CI Run #1462 全绿）
 
 - **审计报告**：[`.monkeycode/docs/audits/2026-06-27-strict-reaudit-v3.md`](file:///workspace/.monkeycode/docs/audits/2026-06-27-strict-reaudit-v3.md)
 - **审计基线**：`origin/main` HEAD = `8a18bc3b`
 - **审计方法**：9 个并行 search 子代理（新增并发/依赖/架构/性能维度）
 - **审计结果**：1275 项发现（P0 ~285 / P1 ~350 / P2 ~380 / P3 ~260），比上次 230 项增加 454%
+
+#### 批次 6 修复（✅ 已完成，1 项 P0，审计 #8 完整修复）
+
+1. `frontend/src/components/Layout/MainLayout.vue`：侧边栏菜单按 permission 过滤
+   - 原状：菜单完全无权限过滤，所有用户均能看到全部菜单项；路由守卫已对 `to.meta.permission` 校验，但用户点击无权限菜单后被拦截到 /403，体验差且暴露系统功能结构
+   - 修复方案：
+     - 导入 router 守卫同款 `hasRoutePermission` 函数（宽松匹配：admin 绕过、空权限放行、通配符 `*`、read/view 等价、update/edit 等价）
+     - 新增 `canAccessMenu(path)` 函数：通过 `router.resolve(path)` 找到叶子路由 record，读取 `meta.permission` 调用 `hasRoutePermission` 判定可见性
+     - 新增 `visibleSubMenu` computed：当子菜单项全部因权限不足隐藏时父级 `el-sub-menu` 也隐藏，避免出现空菜单组
+     - 模板：96 个 `el-menu-item` + 10 个 `el-sub-menu` 全部加 `v-if`
+     - 与路由守卫一致的宽松模式：未配置 `permission` 的菜单 path 一律放行（避免菜单异常消失），与守卫 `if (to.meta.permission)` 行为对称
+
+**CI 验证**：Run #1462（commit `0b61590f`）✅ 12/13 job success + Clippy failure（continue-on-error，不阻塞）+ 打包发布；前端 ESLint + 类型检查 + 测试 + 构建全 ✅
+
+**关键经验**：
+- 菜单可见性应与路由可达性严格对称：用同一份 `hasRoutePermission` 函数确保规则一致；任何"路由放行但菜单隐藏"或反向情况都会造成用户困惑
+- `router.resolve(path).matched[matched.length - 1]` 取叶子路由 record 是读取嵌套路由 meta 的标准模式
+- 父级 `el-sub-menu` 可见性必须用 computed 缓存（依赖 `userStore.userInfo` 是 reactive），避免在模板中重复调用造成性能问题
 
 #### 批次 5 修复（✅ 已完成，6 项）
 
@@ -100,14 +118,13 @@
 4. router/index.ts：RouteMeta 类型扩展（icon/permission/hidden 字段声明）
 5. router/index.ts：路由守卫增加 permission 校验（宽松模式：admin 绕过 + permissions 为空放行 + 通配符 `*` 匹配 + read/view 等价、update/edit 等价，兼容后端两套 action 命名）
 6. router/index.ts：导出 hasRoutePermission 函数供其他组件复用
-7. MainLayout 菜单 permission 过滤留作后续（路由守卫已保障安全性，用户点击无权限菜单会被拦截到 /403）
+7. MainLayout 菜单 permission 过滤留作后续（路由守卫已保障安全性，用户点击无权限菜单会被拦截到 /403）→ **批次 6 已完成**（见上）
 
-#### 待处理（批次 4-5）
+#### 待处理（批次 7+）
 
-- MainLayout 菜单按 permission 过滤（#8 完整修复）
 - 业务逻辑 P0：状态机断裂、单号无锁、事务边界
-- 并发 P0：spawn panic 处理、无 FOR UPDATE
-- 测试 P0：假测试重写、恒真断言删除
+- 并发 P0：spawn panic 处理（16 处 tokio::spawn，0 处 catch_unwind 覆盖）、无 FOR UPDATE
+- 测试 P0：假测试重写、CI cargo test --lib 跳过集成测试
 
 ---
 
