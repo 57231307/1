@@ -2,6 +2,32 @@
 
 > 重要变更一句话摘要列表。详细历史请查阅 [`.monkeycode/docs/archives/`](file:///workspace/.monkeycode/docs/archives/)。
 
+## 2026-06-28 (严格再审计 v3 + P0 整改批次 19：P2 calculate_*_total 事务传递模式与调用方事务补全)
+
+### calculate_receipt_total/calculate_order_total _txn 变体 + 6 调用方事务补全
+
+**修复范围**：2 文件 P2 修复 - calculate_receipt_total 与 calculate_order_total 完全无事务 + 6 个调用方（add/update/delete_receipt_item + add/update/delete_order_item）明细写与重算非原子
+
+**修复清单**（commit `766243bf`，CI run 28319444700 全绿）：
+
+| # | 文件:函数 | 修复内容 |
+|---|----------|----------|
+| 1 | purchase_receipt_service.rs:calculate_receipt_total_txn（新增） | 新增 _txn 变体，3 处 DB 句柄全部使用 txn，主表查询加 lock_exclusive 串行化并发重算防止丢失更新 |
+| 2 | purchase_receipt_service.rs:calculate_receipt_total（改造） | 改为便捷入口（begin + 调 _txn + commit） |
+| 3-5 | purchase_receipt_service.rs:add/update/delete_receipt_item | 3 个调用方补全事务边界，明细写与重算原子化；主表查询加 lock_exclusive；调用 _txn 变体 |
+| 6 | po/receipt.rs:calculate_order_total_txn（新增） | 新增 _txn 变体，3 处 DB 句柄全部使用 txn，主表查询加 lock_exclusive 串行化并发重算防止丢失更新 |
+| 7 | po/receipt.rs:calculate_order_total（改造） | 改为便捷入口（begin + 调 _txn + commit） |
+| 8-10 | po/receipt.rs:add/update/delete_order_item | 3 个调用方补全事务边界，明细写与重算原子化；主表查询加 lock_exclusive；调用 _txn 变体 |
+
+**关键技术**：
+- TOCTOU 竞态：原 read-then-write 模式（读明细求和→覆盖写主表）无锁，两个并发请求会导致丢失更新
+- _txn 变体修复模式：新增 `calculate_*_total_txn(id, &txn)` 接受外部事务参数，原函数改为便捷入口
+- 参考模式：`inventory_stock_txn.rs` 的 _txn 后缀变体约定
+
+**CI 验证**：Run 28319444700（commit `766243bf`）✅ CI 全绿（CI bot 提交版本号 `74208517`，clippy job continue-on-error 不阻塞）
+
+---
+
 ## 2026-06-28 (严格再审计 v3 + P0 整改批次 18：P2 事务边界与 update_with_audit 原子性修复)
 
 ### cancel_order/update_order/update_receipt 事务边界补全 + update_with_audit 原子性修复

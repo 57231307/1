@@ -21,7 +21,31 @@
 
 ---
 
-## 当前任务状态（2026-06-28 严格再审计 v3 + P0 整改批次 18 已完成）
+## 当前任务状态（2026-06-28 严格再审计 v3 + P0 整改批次 19 已完成）
+
+### ✅ 严格再审计 v3 + P0 整改批次 19（已完成，CI Run 28319444700 全绿）
+
+**修复范围**：2 文件 P2 修复 - calculate_receipt_total 与 calculate_order_total 完全无事务 + 6 个调用方（add/update/delete_receipt_item + add/update/delete_order_item）明细写与重算非原子
+
+**修复清单**（commit `766243bf`，CI run 28319444700 全绿）：
+
+1. `purchase_receipt_service.rs`：新增 `calculate_receipt_total_txn(txn)` 变体（3 处 DB 句柄全部使用 txn，主表查询加 lock_exclusive）；原 `calculate_receipt_total` 改为便捷入口；`add_receipt_item`/`update_receipt_item`/`delete_receipt_item` 3 个调用方补全事务边界，明细写与重算原子化，主表查询加 lock_exclusive，调用 _txn 变体
+2. `po/receipt.rs`：新增 `calculate_order_total_txn(txn)` 变体（3 处 DB 句柄全部使用 txn，主表查询加 lock_exclusive）；原 `calculate_order_total` 改为便捷入口；`add_order_item`/`update_order_item`/`delete_order_item` 3 个调用方补全事务边界，明细写与重算原子化，主表查询加 lock_exclusive，调用 _txn 变体
+
+**关键技术**：
+- TOCTOU 竞态：原 read-then-write 模式（读明细求和→覆盖写主表）无锁，两个并发请求会导致丢失更新，总金额与实际明细长期不一致
+- 跨函数非原子：原调用方明细写（insert/update/delete）与 calculate_*_total 非原子，重算失败会导致主从数据不一致且无回滚机制
+- _txn 变体修复模式：新增 `calculate_*_total_txn(id, &txn)` 接受外部事务参数，原函数改为便捷入口（begin + 调 _txn + commit）
+- 参考模式：`inventory_stock_txn.rs` 的 _txn 后缀变体约定（接受外部事务参数，与外层同名方法行为一致）
+
+**CI 验证**：Run 28319444700（commit `766243bf`）✅ CI 全绿（CI bot 提交版本号 `74208517`，clippy job continue-on-error 不阻塞）
+
+**批次 20 待处理**：
+- P2 中风险：33 处 update_with_audit 非原子调用中剩余项
+- 大小写不一致（各表内部自洽，无真实 P0，仅命名风格分裂，低优先级）
+- 其他 P1/P2 整改项（待调研）
+
+---
 
 ### ✅ 严格再审计 v3 + P0 整改批次 18（已完成，CI Run 28318567597 全绿）
 

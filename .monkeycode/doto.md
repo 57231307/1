@@ -5,12 +5,12 @@
 
 ### 2026-06-28 严格再审计 v3 + P0 整改（进行中）
 
-**状态**：🔧 整改中（批次 1-18 已完成，批次 19 待处理；spawn panic 隔离 100% 全覆盖 + 业务逻辑 P0 + FOR UPDATE + 死代码清理 + P1 事务边界 + 状态机死锁 + WorkflowStage 死代码清理 + ProductionOrderStatus 枚举补全 + 付款/入库单状态门 lock_exclusive + 付款申请审批/收货/发货/关闭状态门 lock_exclusive + close_order 事务补全 + update_order/cancel_order/update_receipt 事务边界补全 + update_with_audit 原子性修复 已修复）
+**状态**：🔧 整改中（批次 1-19 已完成，批次 20 待处理；spawn panic 隔离 100% 全覆盖 + 业务逻辑 P0 + FOR UPDATE + 死代码清理 + P1 事务边界 + 状态机死锁 + WorkflowStage 死代码清理 + ProductionOrderStatus 枚举补全 + 付款/入库单状态门 lock_exclusive + 付款申请审批/收货/发货/关闭状态门 lock_exclusive + close_order 事务补全 + update_order/cancel_order/update_receipt 事务边界补全 + update_with_audit 原子性修复 + calculate_*_total 事务传递模式（_txn 变体 + 6 调用方事务补全） 已修复）
 **审计报告**：[`.monkeycode/docs/audits/2026-06-27-strict-reaudit-v3.md`](file:///workspace/.monkeycode/docs/audits/2026-06-27-strict-reaudit-v3.md)
 **审计基线**：`origin/main` HEAD = `8a18bc3b`
 **审计方法**：9 个并行 search 子代理（新增并发/依赖/架构/性能维度）
 **审计结果**：1275 项发现（P0 ~285 / P1 ~350 / P2 ~380 / P3 ~260），比上次 230 项增加 454%
-**main 当前 HEAD**：`3b649c52`（批次 18 修复 + CI bot 版本号，CI run 28318567597 全绿）
+**main 当前 HEAD**：`74208517`（批次 19 修复 + CI bot 版本号，CI run 28319444700 全绿）
 
 #### 批次 1：回退项 + 安全关键（✅ 已完成）
 
@@ -314,8 +314,34 @@
 
 **CI 验证**：Run 28318567597（commit `dc887fb3`）✅ CI 全绿（CI bot 提交版本号 `3b649c52`，clippy job continue-on-error 不阻塞）
 
-**待批次 19+ 处理**：
-- P2 高风险：calculate_receipt_total、calculate_order_total 无事务（需设计调用方事务传递模式）
+#### 批次 19：P2 calculate_*_total 事务传递模式与调用方事务补全（✅ 已完成，CI run 28319444700 全绿）
+
+**修复范围**：2 文件 P2 修复 - calculate_receipt_total 与 calculate_order_total 完全无事务 + 6 个调用方（add/update/delete_receipt_item + add/update/delete_order_item）明细写与重算非原子
+
+**修复模式**：参考 `inventory_stock_txn.rs` 的 `_txn` 后缀变体约定（接受外部事务参数，与外层同名方法行为一致）
+
+| # | 文件 | 函数 | 修复内容 |
+|---|------|------|----------|
+| 1 | purchase_receipt_service.rs | calculate_receipt_total_txn（新增） | 新增 _txn 变体，3 处 DB 句柄全部使用 txn，主表查询加 lock_exclusive 串行化并发重算防止丢失更新 |
+| 2 | purchase_receipt_service.rs | calculate_receipt_total（改造） | 改为便捷入口（begin + 调 _txn + commit），已在事务内的调用方应直接调用 _txn 变体 |
+| 3 | purchase_receipt_service.rs | add_receipt_item | 补全事务边界，明细 insert 与重算原子化；主表查询加 lock_exclusive；调用 _txn 变体 |
+| 4 | purchase_receipt_service.rs | update_receipt_item | 补全事务边界，明细 update_with_audit 与重算原子化；主表查询加 lock_exclusive；调用 _txn 变体 |
+| 5 | purchase_receipt_service.rs | delete_receipt_item | 补全事务边界，明细 delete 与重算原子化；主表查询加 lock_exclusive；调用 _txn 变体 |
+| 6 | po/receipt.rs | calculate_order_total_txn（新增） | 新增 _txn 变体，3 处 DB 句柄全部使用 txn，主表查询加 lock_exclusive 串行化并发重算防止丢失更新 |
+| 7 | po/receipt.rs | calculate_order_total（改造） | 改为便捷入口（begin + 调 _txn + commit） |
+| 8 | po/receipt.rs | add_order_item | 补全事务边界，明细 insert 与重算原子化；主表查询加 lock_exclusive；调用 _txn 变体 |
+| 9 | po/receipt.rs | update_order_item | 补全事务边界，明细 update_with_audit 与重算原子化；主表查询加 lock_exclusive；调用 _txn 变体 |
+| 10 | po/receipt.rs | delete_order_item | 补全事务边界，明细 delete 与重算原子化；主表查询加 lock_exclusive；调用 _txn 变体 |
+
+**关键技术**：
+- TOCTOU 竞态：原 read-then-write 模式（读明细求和→覆盖写主表）无锁，两个并发请求会导致丢失更新，总金额与实际明细长期不一致
+- 跨函数非原子：原调用方明细写（insert/update/delete）与 calculate_*_total 非原子，重算失败会导致主从数据不一致且无回滚机制
+- _txn 变体修复模式：新增 `calculate_*_total_txn(receipt_id/order_id, &txn)` 接受外部事务参数，原函数改为便捷入口（begin + 调 _txn + commit）
+- 调用方事务补全：6 个调用方各自 begin → 明细写 → 调 _txn 变体 → commit，主表查询加 lock_exclusive 串行化并发明细操作
+
+**CI 验证**：Run 28319444700（commit `766243bf`）✅ CI 全绿（CI bot 提交版本号 `74208517`，clippy job continue-on-error 不阻塞）
+
+**待批次 20+ 处理**：
 - P2 中风险：33 处 update_with_audit 非原子调用中剩余项
 - 大小写不一致（各表内部自洽，无真实 P0，仅命名风格分裂，低优先级）
 - 其他 P1/P2 整改项（待调研）
