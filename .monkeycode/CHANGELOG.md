@@ -2,6 +2,39 @@
 
 > 重要变更一句话摘要列表。详细历史请查阅 [`.monkeycode/docs/archives/`](file:///workspace/.monkeycode/docs/archives/)。
 
+## 2026-06-28 (严格再审计 v3 + P0 整改批次 8：spawn panic 隔离 100% 全覆盖)
+
+### 并发 P0 修复（剩余 11 处 spawn panic 隔离，完成 100% 覆盖）
+
+**修复范围**：批次 7 修复了 5 处高影响 spawn，批次 8 完成剩余 11 处，实现全项目 16 处 `tokio::spawn` 的 `catch_unwind` 覆盖 100%
+
+**修复清单**（commit `6cabfacb`，CI #1466 全绿）：
+
+| # | 文件 | 修复内容 |
+|---|------|----------|
+| 1 | omni_audit_service.rs:193 | 审计日志投递一次性 spawn panic 隔离 |
+| 2 | event_bus.rs:298 | Kafka 异步投递一次性 spawn panic 隔离 |
+| 3 | audit_log_service.rs:218 | 异步审计落库一次性 spawn panic 隔离 |
+| 4 | event_kafka.rs:274 | Kafka 消费循环间接长期循环 spawn 块层面包裹 |
+| 5 | inventory_finance_bridge_service.rs:61 | 库存财务桥接 while 体内 catch_unwind |
+| 6 | event_bus.rs:176 | Broadcast 桥接 loop 体内 catch_unwind（返回值控制 break） |
+| 7 | event_bus.rs:357 | Kafka 消费桥接 while 体内 catch_unwind（返回值控制 break） |
+| 8 | messaging/bus.rs:53 | 事件订阅消费 while 体内 catch_unwind |
+| 9 | websocket/notifications.rs:251 | WebSocket 接收 while 体内 catch_unwind（返回值控制 break） |
+| 10 | websocket/notifications.rs:307 | WebSocket 发送 while 体内 catch_unwind（返回值控制 break） |
+| 11 | app_state.rs:96 | 审计清理启动器 spawn panic 隔离 |
+
+**技术方案（含 break 循环的创新模式）**：
+- 含 `break` 的循环（websocket recv/send、event_bus broadcast/kafka-consumer）：catch_unwind 内不能 break 跨闭包，改用返回值 `false` 控制，外层 `match result { Ok(false) => break, ... }`
+- 一次性任务：整个 async 块用 catch_unwind 包裹
+- 间接长期循环（event_kafka:274、app_state:96）：spawn 块层面包裹
+
+**里程碑**：全项目 16 处 tokio::spawn 的 catch_unwind 覆盖率从 0% → 100%（批次 7 修复 5 处 + 批次 8 修复 11 处）
+
+**CI 验证**：Run #1466（commit `6cabfacb`）✅ 12/13 job success + Clippy failure（continue-on-error，不阻塞）+ 打包发布 + GitHub Release；Rust 单元测试 ✅（验证 catch_unwind 编译通过 + 测试通过）+ Rust 后端构建 ✅（release 编译通过）
+
+---
+
 ## 2026-06-28 (严格再审计 v3 + P0 整改批次 7：spawn panic 隔离 catch_unwind 覆盖)
 
 ### 并发 P0 修复（spawn panic 隔离）

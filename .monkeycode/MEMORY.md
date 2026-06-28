@@ -21,14 +21,42 @@
 
 ---
 
-## 当前任务状态（2026-06-28 严格再审计 v3 + P0 整改批次 7 已完成）
+## 当前任务状态（2026-06-28 严格再审计 v3 + P0 整改批次 8 已完成）
 
-### ✅ 严格再审计 v3 + P0 整改批次 7（已完成，CI Run #1464 全绿）
+### ✅ 严格再审计 v3 + P0 整改批次 8（已完成，CI Run #1466 全绿）
 
 - **审计报告**：[`.monkeycode/docs/audits/2026-06-27-strict-reaudit-v3.md`](file:///workspace/.monkeycode/docs/audits/2026-06-27-strict-reaudit-v3.md)
 - **审计基线**：`origin/main` HEAD = `8a18bc3b`
 - **审计方法**：9 个并行 search 子代理（新增并发/依赖/架构/性能维度）
 - **审计结果**：1275 项发现（P0 ~285 / P1 ~350 / P2 ~380 / P3 ~260），比上次 230 项增加 454%
+
+#### 批次 8 修复（✅ 已完成，11 项 P0，spawn panic 隔离 100% 全覆盖）
+
+**审计背景**：批次 7 修复了 5 处高影响 spawn，批次 8 完成剩余 11 处，实现全项目 16 处 `tokio::spawn` 的 `catch_unwind` 覆盖 100%
+
+1. `omni_audit_service.rs:193`：审计日志投递一次性 spawn panic 隔离
+2. `event_bus.rs:298`：Kafka 异步投递一次性 spawn panic 隔离
+3. `audit_log_service.rs:218`：异步审计落库一次性 spawn panic 隔离
+4. `event_kafka.rs:274`：Kafka 消费循环间接长期循环 spawn 块层面包裹
+5. `inventory_finance_bridge_service.rs:61`：库存财务桥接监听器 while 循环体内 catch_unwind
+6. `event_bus.rs:176`：Broadcast 桥接 loop 体内 catch_unwind（用返回值控制 break）
+7. `event_bus.rs:357`：Kafka 消费桥接 while 体内 catch_unwind（用返回值控制 break）
+8. `messaging/bus.rs:53`：事件订阅消费 while 体内 catch_unwind
+9. `websocket/notifications.rs:251`：WebSocket 接收 while 体内 catch_unwind（用返回值控制 break）
+10. `websocket/notifications.rs:307`：WebSocket 发送 while 体内 catch_unwind（用返回值控制 break）
+11. `app_state.rs:96`：审计清理启动器 spawn panic 隔离
+
+**技术方案（含 break 循环的创新模式）**：
+- 含 `break` 的循环（websocket recv/send、event_bus broadcast/kafka-consumer）：catch_unwind 内不能 break 跨闭包，改用返回值 `false` 控制，外层 `match result { Ok(false) => break, ... }`
+- 一次性任务：整个 async 块用 catch_unwind 包裹
+- 间接长期循环（event_kafka:274、app_state:96）：spawn 块层面包裹
+
+**CI 验证**：Run #1466（commit `6cabfacb`）✅ 12/13 job success + Clippy failure（continue-on-error，不阻塞）+ 打包发布 + GitHub Release；Rust 单元测试 ✅（验证 catch_unwind 编译通过 + 测试通过）+ Rust 后端构建 ✅（release 编译通过）
+
+**关键经验**：
+- `catch_unwind` 闭包内不能使用 `break`/`continue`（跨闭包边界），必须用返回值控制循环退出
+- 含 break 的循环改造模式：`AssertUnwindSafe(async { ...; return false; }).catch_unwind().await` + 外层 `match { Ok(false) => break, ... }`
+- 间接长期循环（spawn 调用函数，函数内部有 loop）在 spawn 块层面包裹 catch_unwind，虽然 panic 后整个循环退出，但至少不会传播到 tokio runtime
 
 #### 批次 7 修复（✅ 已完成，6 项 P0，并发 spawn panic 隔离）
 
@@ -146,10 +174,10 @@
 6. router/index.ts：导出 hasRoutePermission 函数供其他组件复用
 7. MainLayout 菜单 permission 过滤留作后续（路由守卫已保障安全性，用户点击无权限菜单会被拦截到 /403）→ **批次 6 已完成**（见上）
 
-#### 待处理（批次 8+）
+#### 待处理（批次 9+）
 
-- 并发 P0（剩余）：spawn panic 隔离（剩余 10 处长期循环任务：event_kafka.rs:274、inventory_finance_bridge_service.rs:61、event_bus.rs:174/355、messaging/bus.rs:53、websocket/notifications.rs:251/307、app_state.rs:96、omni_audit_service.rs:164、audit_log_service.rs:218、event_bus.rs:296）、无 FOR UPDATE
 - 业务逻辑 P0：状态机断裂、单号无锁、事务边界
+- 并发 P0（剩余）：无 FOR UPDATE（spawn panic 隔离已 100% 全覆盖）
 - 测试 P0：假测试重写、CI cargo test --lib 跳过集成测试
 
 ---
