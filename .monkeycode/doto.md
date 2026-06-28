@@ -5,12 +5,12 @@
 
 ### 2026-06-28 严格再审计 v3 + P0 整改（进行中）
 
-**状态**：🔧 整改中（批次 1-16 已完成，批次 17 待处理；spawn panic 隔离 100% 全覆盖 + 业务逻辑 P0 + FOR UPDATE + 死代码清理 + P1 事务边界 + 状态机死锁 + WorkflowStage 死代码清理 + ProductionOrderStatus 枚举补全 + 付款/入库单状态门 lock_exclusive 已修复）
+**状态**：🔧 整改中（批次 1-17 已完成，批次 18 待处理；spawn panic 隔离 100% 全覆盖 + 业务逻辑 P0 + FOR UPDATE + 死代码清理 + P1 事务边界 + 状态机死锁 + WorkflowStage 死代码清理 + ProductionOrderStatus 枚举补全 + 付款/入库单状态门 lock_exclusive + 付款申请审批/收货/发货/关闭状态门 lock_exclusive + close_order 事务补全 已修复）
 **审计报告**：[`.monkeycode/docs/audits/2026-06-27-strict-reaudit-v3.md`](file:///workspace/.monkeycode/docs/audits/2026-06-27-strict-reaudit-v3.md)
 **审计基线**：`origin/main` HEAD = `8a18bc3b`
 **审计方法**：9 个并行 search 子代理（新增并发/依赖/架构/性能维度）
 **审计结果**：1275 项发现（P0 ~285 / P1 ~350 / P2 ~380 / P3 ~260），比上次 230 项增加 454%
-**main 当前 HEAD**：`5c1c97a8`（批次 16 修复）
+**main 当前 HEAD**：`a316bc16`（批次 17 修复，CI bot 版本号 `a3043b12`）
 
 #### 批次 1：回退项 + 安全关键（✅ 已完成）
 
@@ -269,8 +269,31 @@
 
 **待批次 17+ 处理**：
 - 大小写不一致（各表内部自洽，无真实 P0，仅命名风格分裂，低优先级）
-- P1 事务边界修复：po/receipt.receive_order、so/delivery.ship_order、po/order.close_order、ap_payment_request_service.submit/approve/reject（状态门缺 lock_exclusive）
+- ~~P1 事务边界修复：po/receipt.receive_order、so/delivery.ship_order、po/order.close_order、ap_payment_request_service.submit/approve/reject（状态门缺 lock_exclusive）~~ ✅ 批次 17 已修复
 - P2：cancel_order 无事务 + update_order/update_receipt/calculate_*_total 完全无事务
+
+#### 批次 17：P1 事务边界与状态门 lock_exclusive 修复（✅ 已完成，CI run 28317684534 全绿）
+
+**修复范围**：4 文件的并发安全与事务原子性修复（付款申请审批竞态 + 采购收货/销售发货/采购关闭状态门缺锁 + close_order 完全无事务）
+
+| # | 文件 | 函数 | 修复内容 |
+|---|------|------|----------|
+| 1 | ap_payment_request_service.rs | submit/approve/reject | 三状态门查询加 lock_exclusive，串行化并发状态变更，防止审批/拒绝竞态；imports 补 QuerySelect |
+| 2 | po/receipt.rs | receive_order | 采购收货订单查询加 lock_exclusive 串行化并发收货；imports 补 QuerySelect |
+| 3 | so/delivery.rs | ship_order | 销售发货订单查询加 lock_exclusive 串行化并发发货（imports 已含 QuerySelect，批次 9 已补） |
+| 4 | po/order.rs | close_order | 补全事务边界（原实现完全无事务，update_with_audit 传 &*self.db 非原子）；改为 begin + lock_exclusive + update_with_audit(&txn) + commit；imports 补 QuerySelect |
+
+**关键技术**：
+- close_order 事务缺陷：原实现完全无事务，查询用 &*self.db 且 update_with_audit 也传 &*self.db，状态检查与更新非原子，并发关闭可能基于过期状态更新
+- update_with_audit 非原子性：内部执行 2 次独立写入（active_model.update + log.insert），传 &*self.db 时非原子，传 &txn 时自动纳入事务
+- 状态门 lock_exclusive 修复模式：已有事务但状态门查询无锁 → 加 .lock_exclusive() 串行化并发（与批次 9/16 一致）
+
+**CI 验证**：Run 28317684534（commit `a316bc16`）✅ CI 全绿（CI bot 提交版本号 `a3043b12`，clippy job continue-on-error 不阻塞）
+
+**待批次 18+ 处理**：
+- P2：cancel_order 无事务 + update_order/update_receipt/calculate_*_total 完全无事务
+- 大小写不一致（各表内部自洽，无真实 P0，仅命名风格分裂，低优先级）
+- 其他 P1/P2 整改项（待调研）
 
 ### 2026-06-25 第二次全面审计 - 项目全面审计（126 项错误）
 

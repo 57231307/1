@@ -21,7 +21,7 @@
 
 ---
 
-## 当前任务状态（2026-06-28 严格再审计 v3 + P0 整改批次 16 已完成）
+## 当前任务状态（2026-06-28 严格再审计 v3 + P0 整改批次 17 已完成）
 
 ### ✅ 严格再审计 v3 + P0 整改批次 11（已完成，CI Run 28310882782 全绿）
 
@@ -149,6 +149,28 @@
 - 资金双重支付风险：原 confirm 已有事务+invoice lock_exclusive，但付款单状态门查询无锁，两并发 confirm 均通过 REGISTERED 检查，第二个 confirm 在 invoice lock 后读取已更新的 paid_amount 再次累加，导致应付单已付金额翻倍
 - 库存重复入库风险：原 confirm_receipt 已有事务，但入库单状态门查询无锁，两并发 confirm 均通过 DRAFT 检查，第二个 confirm 重复执行库存入库 + order_item received_quantity 累加 + commit 后重复触发 auto_generate_from_receipt 生成应付账单
 - 修复模式与批次 9 P0-2（ap_verification_service）一致：状态门查询加 lock_exclusive 串行化并发
+
+### ✅ 严格再审计 v3 + P0 整改批次 17（已完成，CI Run 28317684534 全绿）
+
+**修复范围**：4 文件 P1 修复 - 付款申请审批竞态 + 采购收货/销售发货/采购关闭状态门缺锁 + close_order 完全无事务
+
+**批次 17 修复**（commit `a316bc16`，4 项 P1）：
+
+| # | 文件:函数 | 修复内容 |
+|---|----------|----------|
+| 1 | ap_payment_request_service.rs:submit/approve/reject | 三状态门查询加 lock_exclusive，串行化并发状态变更，防止审批/拒绝竞态；imports 补 QuerySelect |
+| 2 | po/receipt.rs:receive_order | 采购收货订单查询加 lock_exclusive 串行化并发收货；imports 补 QuerySelect |
+| 3 | so/delivery.rs:ship_order | 销售发货订单查询加 lock_exclusive 串行化并发发货（imports 已含 QuerySelect，批次 9 已补） |
+| 4 | po/order.rs:close_order | 补全事务边界（原实现完全无事务，update_with_audit 传 &*self.db 非原子）；改为 begin + lock_exclusive + update_with_audit(&txn) + commit；imports 补 QuerySelect |
+
+**关键技术**：
+- close_order 事务缺陷：原实现完全无事务，查询用 &*self.db 且 update_with_audit 也传 &*self.db，状态检查与更新非原子，并发关闭可能基于过期状态更新
+- update_with_audit 非原子性：内部执行 2 次独立写入（active_model.update + log.insert），传 &*self.db 时非原子，传 &txn 时自动纳入事务
+- 状态门 lock_exclusive 修复模式：已有事务但状态门查询无锁 → 加 .lock_exclusive() 串行化并发（与批次 9/16 一致）
+
+**CI 验证**：Run 28317684534（commit `a316bc16`）✅ CI 全绿（CI bot 提交版本号 `a3043b12`，clippy job continue-on-error 不阻塞）
+
+**重要发现**（2026-06-28）：远程 `trae/agent-paRsUI` 分支被另一会话 force-push 重写为独立历史（P1-5 handler 返回类型修复 + 死代码清理 + ESLint 修复），与 origin/main 无共同祖先。该分支含部分批次修改但不全（缺 batch 9 so/delivery lock_inventory、batch 16 purchase_receipt_service confirm_receipt）。批次 17 改为基于 origin/main (b7c69318) 提交并用 `git push origin HEAD:main` 快进推送 main 触发 CI（workflow 仅 push 到 main/master 触发）。
 
 ### ✅ 严格再审计 v3 + P0 整改批次 10（已完成，CI Run 28310061168 全绿）
 

@@ -2,6 +2,30 @@
 
 > 重要变更一句话摘要列表。详细历史请查阅 [`.monkeycode/docs/archives/`](file:///workspace/.monkeycode/docs/archives/)。
 
+## 2026-06-28 (严格再审计 v3 + P0 整改批次 17：P1 事务边界与状态门 lock_exclusive 修复)
+
+### 付款申请审批/收货/发货/关闭状态门 lock_exclusive + close_order 事务补全
+
+**修复范围**：4 文件 P1 修复 - 付款申请审批竞态 + 采购收货/销售发货/采购关闭状态门缺锁 + close_order 完全无事务
+
+**修复清单**（commit `a316bc16`，CI run 28317684534 全绿）：
+
+| # | 文件:函数 | 修复内容 |
+|---|----------|----------|
+| 1 | ap_payment_request_service.rs:submit/approve/reject | 三状态门查询加 lock_exclusive，串行化并发状态变更，防止审批/拒绝竞态；imports 补 QuerySelect |
+| 2 | po/receipt.rs:receive_order | 采购收货订单查询加 lock_exclusive 串行化并发收货；imports 补 QuerySelect |
+| 3 | so/delivery.rs:ship_order | 销售发货订单查询加 lock_exclusive 串行化并发发货（imports 已含 QuerySelect，批次 9 已补） |
+| 4 | po/order.rs:close_order | 补全事务边界（原实现完全无事务，update_with_audit 传 &*self.db 非原子）；改为 begin + lock_exclusive + update_with_audit(&txn) + commit；imports 补 QuerySelect |
+
+**关键技术**：
+- close_order 事务缺陷：原实现完全无事务，查询用 &*self.db 且 update_with_audit 也传 &*self.db，状态检查与更新非原子，并发关闭可能基于过期状态更新
+- update_with_audit 非原子性：内部执行 2 次独立写入（active_model.update + log.insert），传 &*self.db 时非原子，传 &txn 时自动纳入事务
+- 状态门 lock_exclusive 修复模式：已有事务但状态门查询无锁 → 加 .lock_exclusive() 串行化并发（与批次 9/16 一致）
+
+**CI 验证**：Run 28317684534（commit `a316bc16`）✅ CI 全绿（CI bot 提交版本号 `a3043b12`，clippy job continue-on-error 不阻塞）
+
+---
+
 ## 2026-06-28 (严格再审计 v3 + P0 整改批次 16：并发 P0 修复 - 付款/入库单状态门加 lock_exclusive)
 
 ### 付款单状态门 + 入库单状态门并发锁修复（资金双重支付 + 库存重复入库风险）
