@@ -17,7 +17,7 @@ use super::SalesOrderDetail;
 use crate::models::sales_order;
 use crate::models::sales_order::Entity as SalesOrderEntity;
 use crate::utils::error::AppError;
-use sea_orm::{ActiveModelTrait, EntityTrait, QueryFilter};
+use sea_orm::{ActiveModelTrait, EntityTrait, QueryFilter, QuerySelect, TransactionTrait};
 
 /// 销售订单工作流子模块标记
 pub const P92_WF_MODULE: &str = "sales_order_workflow";
@@ -88,8 +88,14 @@ impl SalesService {
         order_id: i32,
         user_id: i32,
     ) -> Result<sales_order::Model, AppError> {
+        // 批次 12（2026-06-28）：事务包裹"查询 + 状态检查 + update_with_audit"，
+        // 加 lock_exclusive 防止并发提交同一订单导致状态不一致；
+        // update_with_audit 内部 2 次写入（实体 update + 审计 insert）非原子，事务包裹保证原子性。
+        let txn = (*self.db).begin().await?;
+
         let order = SalesOrderEntity::find_by_id(order_id)
-            .one(&*self.db)
+            .lock_exclusive()
+            .one(&txn)
             .await?
             .ok_or_else(|| AppError::not_found(format!("销售订单 {} 不存在", order_id)))?;
 
@@ -100,7 +106,7 @@ impl SalesService {
             )));
         }
 
-        // 客户信用度复检
+        // 客户信用度复检（信用表与订单表独立，用 self.db 不影响事务一致性）
         let credit_service =
             crate::services::customer_credit_service::CustomerCreditService::new(self.db.clone());
         let total_amount_decimal = {
@@ -119,9 +125,9 @@ impl SalesService {
             return Err(AppError::business("信用额度不足，无法提交订单"));
         }
 
-        // 客户状态校验
+        // 客户状态校验（事务内，保证校验与提交一致）
         let customer = crate::models::customer::Entity::find_by_id(order.customer_id)
-            .one(&*self.db)
+            .one(&txn)
             .await?
             .ok_or_else(|| AppError::not_found("客户不存在"))?;
         if customer.status != "active" {
@@ -138,14 +144,16 @@ impl SalesService {
         // P1-11 修复（2026-06-25 综合审计）：传入真实操作人 ID，
         // 原 Some(0) 硬编码导致审计日志无法追溯提交人。
         let order = crate::services::audit_log_service::AuditLogService::update_with_audit(
-            &*self.db,
+            &txn,
             "auto_audit",
             order_update,
             Some(user_id),
         )
         .await?;
 
-        // 启动审批工作流（BPM）
+        txn.commit().await?;
+
+        // 启动审批工作流（BPM）—— 事务外，失败不阻断已提交状态
         // P0 修复（批次 4，2026-06-27）：原 `let _ = ...` 静默吞掉 BPM 启动错误，
         // 改为 warn 日志记录，保留兼容性（不阻断主流程），确保运维可观测。
         let bpm_service = crate::services::bpm_service::BpmService::new(self.db.clone());
@@ -180,8 +188,13 @@ impl SalesService {
         order_id: i32,
         user_id: i32,
     ) -> Result<sales_order::Model, AppError> {
+        // 批次 12（2026-06-28）：事务包裹"查询 + 状态检查 + update_with_audit"，
+        // 加 lock_exclusive 防止并发审批同一订单导致重复审批或字段覆盖
+        let txn = (*self.db).begin().await?;
+
         let order = SalesOrderEntity::find_by_id(order_id)
-            .one(&*self.db)
+            .lock_exclusive()
+            .one(&txn)
             .await?
             .ok_or_else(|| AppError::not_found(format!("销售订单 {} 不存在", order_id)))?;
 
@@ -201,12 +214,14 @@ impl SalesService {
         // P1-11 修复（2026-06-25 综合审计）：传入真实操作人 ID，
         // 原 Some(0) 硬编码导致审计日志无法追溯审批人。
         let order = crate::services::audit_log_service::AuditLogService::update_with_audit(
-            &*self.db,
+            &txn,
             "auto_audit",
             order_update,
             Some(user_id),
         )
         .await?;
+
+        txn.commit().await?;
 
         Ok(order)
     }
@@ -220,8 +235,13 @@ impl SalesService {
         order_id: i32,
         user_id: i32,
     ) -> Result<sales_order::Model, AppError> {
+        // 批次 12（2026-06-28）：事务包裹"查询 + 状态检查 + update_with_audit"，
+        // 加 lock_exclusive 防止并发完成同一订单导致状态不一致
+        let txn = (*self.db).begin().await?;
+
         let order = SalesOrderEntity::find_by_id(order_id)
-            .one(&*self.db)
+            .lock_exclusive()
+            .one(&txn)
             .await?
             .ok_or_else(|| AppError::not_found(format!("销售订单 {} 不存在", order_id)))?;
 
@@ -238,12 +258,14 @@ impl SalesService {
 
         // P1-11 修复：传入真实操作人 ID
         let order = crate::services::audit_log_service::AuditLogService::update_with_audit(
-            &*self.db,
+            &txn,
             "auto_audit",
             order_update,
             Some(user_id),
         )
         .await?;
+
+        txn.commit().await?;
 
         Ok(order)
     }
