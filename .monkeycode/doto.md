@@ -5,9 +5,16 @@
 
 ### 2026-06-28 完整删除租户功能 + v4 审计整改（进行中）
 
-**状态**：✅ 租户功能彻底删除完成（后端 + 前端 + 文档 + 残留清理），CI 全绿，待继续 v4 审计整改
+**状态**：✅ 租户功能彻底删除完成 + Clippy baseline 重建完成，CI 全绿（15/15），待继续 v4 审计整改
 **当前任务**：完整删除租户功能（用户指令"完整删除租户功能及相关文件和代码"）
-**main 当前 HEAD**：`c932ac6a`（残留清理完成，CI run 28325510600 全绿 14/15 + Clippy continue-on-error）
+**main 当前 HEAD**：`e45e37b2`（Clippy baseline 重建，CI run 28326588786 全绿 15/15）
+
+#### Clippy baseline 重建（✅ 已完成，CI run 28326588786 全绿）
+
+**问题**：删除租户功能后产生大量代码变动，导致 clippy baseline 行号漂移，724 个旧警告被误报为新警告，CI run 28326180266 的 Clippy job failure（continue-on-error 不阻断整体 CI）。
+**修复**：`git rm --cached backend/.clippy-baseline.txt` 让 CI bootstrap 自动重建 baseline（按批次 11 相同方式处理）。
+**结果**：CI run 28326588786（commit `e45e37b2`）✅ 15/15 job 全部 success，包括 Rust Clippy ✅ success。
+**后续**：按项目规范"死代码处理规范"逐步清理真正的死代码（未构造的 struct / 未使用的方法等）。
 
 #### 租户功能删除（✅ 后端 + 前端 + 残留清理 全部完成）
 
