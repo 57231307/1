@@ -5,11 +5,12 @@
 
 ### 2026-06-27 严格再审计 v3 + P0 整改（进行中）
 
-**状态**：🔧 整改中（批次 1-3 已完成，批次 4-5 待处理）
+**状态**：🔧 整改中（批次 1-4 已完成，批次 5 待处理）
 **审计报告**：[`.monkeycode/docs/audits/2026-06-27-strict-reaudit-v3.md`](file:///workspace/.monkeycode/docs/audits/2026-06-27-strict-reaudit-v3.md)
 **审计基线**：`origin/main` HEAD = `8a18bc3b`
 **审计方法**：9 个并行 search 子代理（新增并发/依赖/架构/性能维度）
 **审计结果**：1275 项发现（P0 ~285 / P1 ~350 / P2 ~380 / P3 ~260），比上次 230 项增加 454%
+**main 当前 HEAD**：`ff6c3e15`（CI bot 自动提交新 baseline）
 
 #### 批次 1：回退项 + 安全关键（✅ 已完成）
 
@@ -49,12 +50,31 @@
 | 5 | router/index.ts | 路由守卫增加 permission 校验（宽松模式：admin 绕过 + permissions 为空放行 + 通配符 + read/view 等价） |
 | 6 | router/index.ts | 导出 hasRoutePermission 函数供复用 |
 
-#### 批次 4-5：待处理
+#### 批次 4：恒真断言 + 锁中毒 + BPM 静默吞错（✅ 已完成，CI #1457 全绿）
+
+| # | 文件 | 修复内容 |
+|---|------|----------|
+| 1 | p9_5_ar_extra_tests.rs:148 | 恒真断言 `assert_eq!(5, 5)` → `assert_eq!(methods.len(), 5)` |
+| 2 | p9_5_inventory_extra_tests.rs:202 | 恒真断言 `assert_eq!(5, 5)` → `assert_eq!(types.len(), 5)` |
+| 3 | p9_5_inventory_extra_tests.rs:253 | 恒真断言 `assert_eq!(6, 6)` → `assert_eq!(reasons.len(), 6)` |
+| 4 | main.rs:85-88 | 锁中毒 `panic!` → `e.into_inner()` 优雅降级 |
+| 5 | main.rs:147-150 | 锁中毒 `panic!` → `e.into_inner()` 优雅降级 |
+| 6 | production_order_service.rs:678 | BPM `let _ = start_process` 静默吞错 → warn 日志记录 |
+| 7 | production_order_service.rs:729 | BPM `let _ = approve_task` 静默吞错 → warn 日志记录 |
+| 8 | po/contract.rs:82 | BPM `let _ = start_process` 静默吞错 → warn 日志记录 |
+| 9 | so/order_workflow.rs:150 | BPM `let _ = start_process` 静默吞错 → warn 日志记录 |
+| 10 | quotation_approval_service.rs:215 | BPM `let _ = approve_task` 静默吞错 → warn 日志记录 |
+| 11 | quotation_approval_service.rs:279 | BPM `let _ = approve_task` 静默吞错 → warn 日志记录 |
+| CI | backend/.clippy-baseline.txt | 取消 git 跟踪让 CI bootstrap 重建（baseline 行号漂移误报） |
+
+**CI 验证**：Run #1457（commit `9a5b5db0`）✅ 13/15 job success + 2 skipped release；baseline 重建 1376 → 1106 行
+
+#### 批次 5：待处理
 
 - MainLayout 菜单按 permission 过滤（#8 完整修复）
 - 业务逻辑 P0：状态机断裂、单号无锁、事务边界
 - 并发 P0：spawn panic 处理、无 FOR UPDATE
-- 测试 P0：假测试重写、恒真断言删除
+- 测试 P0：假测试重写、CI cargo test --lib 跳过集成测试
 
 ### 2026-06-25 第二次全面审计 - 项目全面审计（126 项错误）
 
