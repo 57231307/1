@@ -378,9 +378,14 @@ impl ApInvoiceService {
 
     /// 标记应付单为已付清
     pub async fn mark_as_paid(&self, id: i32) -> Result<ap_invoice::Model, AppError> {
+        // 批次 11（2026-06-28）：事务包裹"状态变更 + 审计日志"，保证原子性
+        // 原实现直接 &*self.db 调用 update_with_audit，内部 2 次独立写入非原子；
+        // 异步事件驱动场景下若审计写入失败，发票已 PAID 但无审计，且难以发现。
+        let txn = (*self.db).begin().await?;
+
         // 1. 查询应付单
         let invoice = ap_invoice::Entity::find_by_id(id)
-            .one(&*self.db)
+            .one(&txn)
             .await?
             .ok_or_else(|| AppError::not_found(format!("应付单 {}", id)))?;
 
@@ -403,12 +408,14 @@ impl ApInvoiceService {
         // 事件驱动场景下无用户上下文，暂保留 Some(0)。
         // TODO(tech-debt): 扩展事件载荷携带 user_id 后传入真实操作人。
         let invoice = crate::services::audit_log_service::AuditLogService::update_with_audit(
-            &*self.db,
+            &txn,
             "auto_audit",
             invoice_active,
             Some(0),
         )
         .await?;
+
+        txn.commit().await?;
 
         Ok(invoice)
     }

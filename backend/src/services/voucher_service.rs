@@ -425,13 +425,19 @@ impl VoucherService {
 
         let mut active_model: voucher::ActiveModel = voucher.into_active_model();
         active_model.status = sea_orm::Set("submitted".to_string());
+
+        // 批次 11（2026-06-28）：事务包裹"凭证状态更新 + 审计日志"，保证原子性
+        // 原 update_with_audit(&*self.db, ...) 内部 2 次独立写入非原子，
+        // 审计插入失败会导致"凭证已提交但审计缺失"
+        let txn = (*self.db).begin().await?;
         let updated = crate::services::audit_log_service::AuditLogService::update_with_audit(
-            &*self.db,
+            &txn,
             "auto_audit",
             active_model,
             Some(0),
         )
         .await?;
+        txn.commit().await?;
 
         info!("凭证提交成功：no={}", updated.voucher_no);
         Ok(updated)
@@ -454,13 +460,17 @@ impl VoucherService {
         active_model.status = sea_orm::Set("reviewed".to_string());
         active_model.reviewed_by = sea_orm::Set(Some(user_id));
         active_model.reviewed_at = sea_orm::Set(Some(chrono::Utc::now()));
+
+        // 批次 11（2026-06-28）：事务包裹"凭证审核状态更新 + 审计日志"，保证原子性
+        let txn = (*self.db).begin().await?;
         let updated = crate::services::audit_log_service::AuditLogService::update_with_audit(
-            &*self.db,
+            &txn,
             "auto_audit",
             active_model,
             Some(0),
         )
         .await?;
+        txn.commit().await?;
 
         info!("凭证审核成功：no={}", updated.voucher_no);
         Ok(updated)

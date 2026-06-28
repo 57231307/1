@@ -5,7 +5,7 @@ use chrono::{NaiveDate, Utc};
 
 use sea_orm::{
     ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, Order, PaginatorTrait,
-    QueryFilter, QueryOrder, QuerySelect,
+    QueryFilter, QueryOrder, QuerySelect, TransactionTrait,
 };
 use std::sync::Arc;
 use tracing::info;
@@ -171,8 +171,13 @@ impl ArInvoiceService {
         req: UpdateArInvoiceRequest,
         _user_id: i32,
     ) -> Result<ar_invoice::Model, AppError> {
+        // 批次 11（2026-06-28）：事务包裹"实体更新 + 审计日志"，保证原子性
+        // 原 update_with_audit(&*self.db, ...) 内部 2 次独立写入（实体 update + 审计 insert），
+        // 无事务包裹时若审计插入失败会导致"实体已变更但审计缺失"
+        let txn = (*self.db).begin().await?;
+
         let invoice = ar_invoice::Entity::find_by_id(id)
-            .one(&*self.db)
+            .one(&txn)
             .await?
             .ok_or_else(|| AppError::not_found("应收单不存在"))?;
 
@@ -199,12 +204,14 @@ impl ArInvoiceService {
         active_invoice.updated_at = sea_orm::ActiveValue::Set(Utc::now());
 
         let result = crate::services::audit_log_service::AuditLogService::update_with_audit(
-            &*self.db,
+            &txn,
             "auto_audit",
             active_invoice,
             Some(0),
         )
         .await?;
+
+        txn.commit().await?;
 
         Ok(result)
     }
@@ -250,8 +257,11 @@ impl ArInvoiceService {
 
     /// 标记应收单为已收讫
     pub async fn mark_as_paid(&self, id: i32) -> Result<ar_invoice::Model, AppError> {
+        // 批次 11（2026-06-28）：事务包裹"状态变更 + 审计日志"，保证原子性
+        let txn = (*self.db).begin().await?;
+
         let invoice = ar_invoice::Entity::find_by_id(id)
-            .one(&*self.db)
+            .one(&txn)
             .await?
             .ok_or_else(|| AppError::not_found("应收单不存在"))?;
 
@@ -269,12 +279,14 @@ impl ArInvoiceService {
         active_invoice.updated_at = sea_orm::ActiveValue::Set(Utc::now());
 
         let result = crate::services::audit_log_service::AuditLogService::update_with_audit(
-            &*self.db,
+            &txn,
             "auto_audit",
             active_invoice,
             Some(0),
         )
         .await?;
+
+        txn.commit().await?;
 
         Ok(result)
     }
@@ -285,8 +297,11 @@ impl ArInvoiceService {
         _reason: String,
         _user_id: i32,
     ) -> Result<ar_invoice::Model, AppError> {
+        // 批次 11（2026-06-28）：事务包裹"取消状态变更 + 审计日志"，保证原子性
+        let txn = (*self.db).begin().await?;
+
         let invoice = ar_invoice::Entity::find_by_id(id)
-            .one(&*self.db)
+            .one(&txn)
             .await?
             .ok_or_else(|| AppError::not_found("应收单不存在"))?;
 
@@ -299,12 +314,14 @@ impl ArInvoiceService {
         active_invoice.updated_at = Set(Utc::now());
 
         let result = crate::services::audit_log_service::AuditLogService::update_with_audit(
-            &*self.db,
+            &txn,
             "auto_audit",
             active_invoice,
             Some(0),
         )
         .await?;
+
+        txn.commit().await?;
 
         Ok(result)
     }
