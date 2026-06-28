@@ -15,7 +15,7 @@ impl DocumentNumberGenerator {
     /// 默认使用 3 位流水号。业务需要 4 位或更多位数时，请使用
     /// [`generate_no_with_width`] 显式指定，避免对存量单据号位数产生回归。
     pub async fn generate_no<'db, E, C>(
-        db: &'db impl ConnectionTrait,
+        db: &'db (impl ConnectionTrait + TransactionTrait),
         prefix: &str,
         _entity: E,
         column: C,
@@ -47,7 +47,7 @@ impl DocumentNumberGenerator {
     /// 业务侧仍应在创建单据的事务中依赖单据号列的 `UNIQUE` 约束进行最终去重，
     /// 作为双重防御（防御性编程）。
     pub async fn generate_no_with_width<'db, E, C>(
-        db: &'db impl ConnectionTrait,
+        db: &'db (impl ConnectionTrait + TransactionTrait),
         prefix: &str,
         _entity: E,
         column: C,
