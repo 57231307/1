@@ -114,60 +114,6 @@ impl InventoryStockService {
         active_stock.insert(&*self.db).await.map_err(AppError::from)
     }
 
-    /// 更新库存数量（带乐观锁）
-    pub async fn update_stock_quantity_with_optimistic_lock(
-        &self,
-        id: i32,
-        quantity_meters: Decimal,
-        quantity_kg: Decimal,
-        expected_version: i32,
-    ) -> Result<inventory_stock::Model, AppError> {
-        // 使用乐观锁条件更新：只有 version 匹配时才更新
-        let update_result = inventory_stock::Entity::update_many()
-            .col_expr(
-                inventory_stock::Column::QuantityOnHand,
-                sea_orm::sea_query::Expr::val(quantity_meters).into(),
-            )
-            .col_expr(
-                inventory_stock::Column::QuantityAvailable,
-                sea_orm::sea_query::Expr::val(quantity_meters).into(),
-            )
-            .col_expr(
-                inventory_stock::Column::QuantityMeters,
-                sea_orm::sea_query::Expr::val(quantity_meters).into(),
-            )
-            .col_expr(
-                inventory_stock::Column::QuantityKg,
-                sea_orm::sea_query::Expr::val(quantity_kg).into(),
-            )
-            .col_expr(
-                inventory_stock::Column::Version,
-                sea_orm::sea_query::Expr::col(inventory_stock::Column::Version).add(1),
-            )
-            .col_expr(
-                inventory_stock::Column::UpdatedAt,
-                sea_orm::sea_query::Expr::val(chrono::Utc::now()).into(),
-            )
-            .filter(inventory_stock::Column::Id.eq(id))
-            .filter(inventory_stock::Column::Version.eq(expected_version))
-            .exec(&*self.db)
-            .await?;
-
-        // 检查乐观锁是否成功
-        if update_result.rows_affected == 0 {
-            return Err(AppError::business(format!(
-                "并发冲突：库存记录 ID {} 已被其他用户修改，期望版本 {}",
-                id, expected_version
-            )));
-        }
-
-        // 返回更新后的记录
-        inventory_stock::Entity::find_by_id(id)
-            .one(&*self.db)
-            .await?
-            .ok_or_else(|| AppError::not_found(format!("库存记录 ID {} 不存在", id)))
-    }
-
     pub async fn list_stock(
         &self,
         page: u64,
@@ -277,48 +223,6 @@ impl InventoryStockService {
         }
 
         query.all(&*self.db).await.map_err(AppError::from)
-    }
-
-    /// 查询库存（支持批次、色号、等级过滤）
-    #[allow(clippy::too_many_arguments)]
-    pub async fn list_stock_fabric(
-        &self,
-        page: u64,
-        page_size: u64,
-        warehouse_id: Option<i32>,
-        product_id: Option<i32>,
-        batch_no: Option<String>,
-        color_no: Option<String>,
-        grade: Option<String>,
-    ) -> Result<(Vec<inventory_stock::Model>, u64), AppError> {
-        let mut query = inventory_stock::Entity::find();
-
-        if let Some(wid) = warehouse_id {
-            query = query.filter(inventory_stock::Column::WarehouseId.eq(wid));
-        }
-
-        if let Some(pid) = product_id {
-            query = query.filter(inventory_stock::Column::ProductId.eq(pid));
-        }
-
-        if let Some(batch) = batch_no {
-            query = query.filter(inventory_stock::Column::BatchNo.eq(batch));
-        }
-
-        if let Some(color) = color_no {
-            query = query.filter(inventory_stock::Column::ColorNo.eq(color));
-        }
-
-        if let Some(g) = grade {
-            query = query.filter(inventory_stock::Column::Grade.eq(g));
-        }
-
-        // 并行执行分页查询：同时获取总数和当前页数据，提升性能
-        let paginator = query.paginate(&*self.db, page_size);
-        let (total, stock_list) =
-            tokio::try_join!(paginator.num_items(), paginator.fetch_page(page))?;
-
-        Ok((stock_list, total))
     }
 
     // ========== 双计量单位自动计算辅助方法 ==========
