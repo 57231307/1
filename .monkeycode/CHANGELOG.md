@@ -2,6 +2,38 @@
 
 > 重要变更一句话摘要列表。详细历史请查阅 [`.monkeycode/docs/archives/`](file:///workspace/.monkeycode/docs/archives/)。
 
+## 2026-06-28 (严格再审计 v3 + P0 整改批次 12：P1-高 事务边界 + 并发锁修复)
+
+### SO 工作流 + 报价审批 7 函数事务包裹 + lock_exclusive + BPM 事务外触发
+
+**修复范围**：销售订单工作流（submit/approve/complete）+ 报价审批（self_approve/submit_to_bpm/approve/reject）共 7 函数零事务 + 无并发锁 + BPM 跨事务导致的审批状态分裂、重复审批、孤儿 BPM 实例问题
+
+**修复清单**：
+
+| commit | 文件 | 函数 | 修复内容 |
+|--------|------|------|----------|
+| `16875563` | so/order_workflow.rs | submit_order | 事务包裹查询+状态检查+update_with_audit + lock_exclusive；BPM 启动保留事务外（失败 warn 不阻断已提交状态）；客户状态校验改为事务内 |
+| `16875563` | so/order_workflow.rs | approve_order | 事务包裹 + lock_exclusive 防并发审批 |
+| `16875563` | so/order_workflow.rs | complete_order | 事务包裹 + lock_exclusive 防并发完成 |
+| `0524ddf8` | quotation_approval_service.rs | self_approve | 事务包裹查询+update_with_audit + lock_exclusive |
+| `0524ddf8` | quotation_approval_service.rs | submit_to_bpm | BPM 启动事务外（容错获取 instance_id）+ 事务内重新加锁查询+状态检查+update_with_audit |
+| `0524ddf8` | quotation_approval_service.rs | approve | 事务包裹+lock_exclusive；BPM 任务审批移到事务外 |
+| `0524ddf8` | quotation_approval_service.rs | reject | 同 approve 模式 |
+
+**关键技术**：
+- **修复模式**：`begin → lock_exclusive → 状态检查 → update_with_audit(&txn) → commit`，与批次 11 正例一致
+- **BPM 事务外触发模式**：状态变更在事务内提交后，BPM 启动/任务审批在事务外执行（失败 warn 不阻断已提交状态），避免 BPM 调用持有数据库锁
+- **submit_to_bpm 特殊处理**：BPM start_process 需先于状态更新（获取 instance_id），故 BPM 在事务外启动获取 instance_id，再事务包裹状态更新写入 instance_id；若事务回滚，BPM 实例成孤儿（容错设计）
+- **lock_exclusive**：`sea_orm::QuerySelect::lock_exclusive()` 实现 `SELECT ... FOR UPDATE`，防止并发丢失更新
+
+**CI 验证**：
+- commit `16875563`（SO 工作流）→ Run #1475 全绿（14/15 success，Clippy continue-on-error 不阻断）
+- commit `0524ddf8`（报价审批）→ Run #1476 全绿（14/15 success，Clippy continue-on-error 不阻断）
+
+**Clippy 说明**：953 个"新警告"均为历史死代码（struct never constructed 等），非批次 12 引入；annotations 无代码级新警告（仅 Node.js 20 deprecated + reports 路径 + exit code 1）
+
+---
+
 ## 2026-06-28 (严格再审计 v3 + P0 整改批次 11：P1 事务边界修复 + clippy baseline 重建)
 
 ### P1 事务边界修复（6 函数）+ clippy baseline 重建

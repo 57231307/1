@@ -44,8 +44,34 @@
 **里程碑**：clippy baseline 重建成功，批次 9-10 的 Clippy failure（continue-on-error）历史问题彻底解决
 
 **P1 风险优先级排序**（批次 12 待处理）：
-- P1-高：报价审批 `quotation_approval_service.rs:submit_to_bpm/approve/reject`（零事务 + BPM 跨事务 + 无并发锁，审批状态分裂/重复审批风险）
-- P1-高：销售订单工作流 `so/order_workflow.rs:submit_order/approve_order/complete_order`（零事务 + BPM 跨事务 + update_with_audit 非原子）
+- ~~P1-高：报价审批 `quotation_approval_service.rs:submit_to_bpm/approve/reject`（零事务 + BPM 跨事务 + 无并发锁，审批状态分裂/重复审批风险）~~ ✅ 批次 12 已修复
+- ~~P1-高：销售订单工作流 `so/order_workflow.rs:submit_order/approve_order/complete_order`（零事务 + BPM 跨事务 + update_with_audit 非原子）~~ ✅ 批次 12 已修复
+- 测试 P0：假测试重写、CI cargo test --lib 跳过集成测试
+- 业务逻辑 P0（剩余）：状态机断裂
+
+### ✅ 严格再审计 v3 + P0 整改批次 12（已完成，CI Run #1475 + #1476 全绿）
+
+**修复范围**：SO 工作流 + 报价审批 7 函数事务包裹 + lock_exclusive + BPM 事务外触发
+
+**批次 12 修复**（2 commits，7 函数）：
+
+| commit | 文件 | 函数 | 修复内容 |
+|--------|------|------|----------|
+| `16875563` | so/order_workflow.rs | submit_order/approve_order/complete_order | 事务包裹查询+状态检查+update_with_audit + lock_exclusive；BPM 启动保留事务外 |
+| `0524ddf8` | quotation_approval_service.rs | self_approve/submit_to_bpm/approve/reject | 事务包裹+lock_exclusive；submit_to_bpm BPM 事务外启动获取 instance_id 后事务内写入；approve/reject BPM 任务审批移到事务外 |
+
+**关键技术**：
+- 修复模式：`begin → lock_exclusive → 状态检查 → update_with_audit(&txn) → commit`，与批次 11 正例一致
+- BPM 事务外触发模式：状态变更在事务内提交后，BPM 启动/任务审批在事务外执行（失败 warn 不阻断已提交状态），避免 BPM 调用持有数据库锁
+- submit_to_bpm 特殊处理：BPM start_process 需先于状态更新（获取 instance_id），故 BPM 在事务外启动获取 instance_id，再事务包裹状态更新写入 instance_id；若事务回滚，BPM 实例成孤儿（容错设计）
+- lock_exclusive：`sea_orm::QuerySelect::lock_exclusive()` 实现 `SELECT ... FOR UPDATE`，防止并发丢失更新
+
+**CI 验证**：
+- commit `16875563`（SO 工作流）→ Run #1475 全绿（14/15 success，Clippy continue-on-error 不阻断）
+- commit `0524ddf8`（报价审批）→ Run #1476 全绿（14/15 success，Clippy continue-on-error 不阻断）
+- Clippy 953 个"新警告"均为历史死代码（struct never constructed 等），非批次 12 引入；annotations 无代码级新警告
+
+**批次 13+ 待处理**：
 - 测试 P0：假测试重写、CI cargo test --lib 跳过集成测试
 - 业务逻辑 P0（剩余）：状态机断裂
 

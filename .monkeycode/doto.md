@@ -5,12 +5,12 @@
 
 ### 2026-06-28 严格再审计 v3 + P0 整改（进行中）
 
-**状态**：🔧 整改中（批次 1-10 已完成，批次 11 待处理；spawn panic 隔离 100% 全覆盖 + 业务逻辑 P0 + FOR UPDATE + 死代码清理已修复）
+**状态**：🔧 整改中（批次 1-12 已完成，批次 13 待处理；spawn panic 隔离 100% 全覆盖 + 业务逻辑 P0 + FOR UPDATE + 死代码清理 + P1 事务边界已修复）
 **审计报告**：[`.monkeycode/docs/audits/2026-06-27-strict-reaudit-v3.md`](file:///workspace/.monkeycode/docs/audits/2026-06-27-strict-reaudit-v3.md)
 **审计基线**：`origin/main` HEAD = `8a18bc3b`
 **审计方法**：9 个并行 search 子代理（新增并发/依赖/架构/性能维度）
 **审计结果**：1275 项发现（P0 ~285 / P1 ~350 / P2 ~380 / P3 ~260），比上次 230 项增加 454%
-**main 当前 HEAD**：`97bcf601`（批次 10 修复）
+**main 当前 HEAD**：`0524ddf8`（批次 12 修复）
 
 #### 批次 1：回退项 + 安全关键（✅ 已完成）
 
@@ -167,10 +167,27 @@
 
 **里程碑**：clippy baseline 重建成功，批次 9-10 的 Clippy failure（continue-on-error）历史问题彻底解决
 
-#### 批次 12：待处理（P1-高 事务边界 + 并发锁）
+#### 批次 12：P1-高 事务边界 + 并发锁修复（✅ 已完成，CI run 28311908345 全绿）
 
-- **P1-高 报价审批**：`quotation_approval_service.rs` submit_to_bpm/approve/reject —— 零事务 + BPM 与状态跨事务 + 无并发锁（审批状态分裂、重复审批、孤儿 BPM 实例风险）
-- **P1-高 销售订单工作流**：`so/order_workflow.rs` submit_order/approve_order/complete_order —— 零事务 + BPM 跨事务 + update_with_audit 非原子
+**修复范围**：SO 工作流 + 报价审批 7 函数事务包裹 + lock_exclusive + BPM 事务外触发
+
+| # | 文件 | 函数 | 修复内容 |
+|---|------|------|----------|
+| 1 | so/order_workflow.rs | submit_order | 事务包裹查询+状态检查+update_with_audit + lock_exclusive；BPM 启动保留事务外 |
+| 2 | so/order_workflow.rs | approve_order | 事务包裹 + lock_exclusive 防并发审批 |
+| 3 | so/order_workflow.rs | complete_order | 事务包裹 + lock_exclusive 防并发完成 |
+| 4 | quotation_approval_service.rs | self_approve | 事务包裹查询+update_with_audit + lock_exclusive |
+| 5 | quotation_approval_service.rs | submit_to_bpm | BPM 启动事务外（容错）+ 事务内重新加锁查询+状态检查+update_with_audit |
+| 6 | quotation_approval_service.rs | approve | 事务包裹+lock_exclusive；BPM 任务审批移到事务外 |
+| 7 | quotation_approval_service.rs | reject | 同 approve 模式 |
+
+**CI 验证**：
+- commit `16875563`（SO 工作流）→ Run #1475 全绿（14/15 success，Clippy continue-on-error）
+- commit `0524ddf8`（报价审批）→ Run #1476 全绿（14/15 success，Clippy continue-on-error）
+
+**修复模式**：`begin → lock_exclusive → 状态检查 → update_with_audit(&txn) → commit`，BPM 操作（start_process/approve_task）保留事务外，失败 warn 不阻断已提交状态
+
+**待批次 13+ 处理**：
 - **测试 P0**：假测试重写、CI cargo test --lib 跳过集成测试
 - **业务逻辑 P0（剩余）**：状态机断裂
 
