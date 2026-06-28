@@ -19,40 +19,6 @@ use crate::models::sales_order::Entity as SalesOrderEntity;
 use crate::utils::error::AppError;
 use sea_orm::{ActiveModelTrait, EntityTrait, QueryFilter, QuerySelect, TransactionTrait};
 
-/// 销售订单工作流子模块标记
-pub const P92_WF_MODULE: &str = "sales_order_workflow";
-
-/// 销售订单工作流状态枚举
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum WorkflowStage {
-    /// 草稿
-    Draft,
-    /// 待审核
-    Pending,
-    /// 已审核
-    Approved,
-    /// 已发货
-    Shipped,
-    /// 已收款
-    Received,
-    /// 已关闭
-    Closed,
-}
-
-impl WorkflowStage {
-    /// 中文描述
-    pub fn desc(&self) -> &'static str {
-        match self {
-            Self::Draft => "草稿",
-            Self::Pending => "待审核",
-            Self::Approved => "已审核",
-            Self::Shipped => "已发货",
-            Self::Received => "已收款",
-            Self::Closed => "已关闭",
-        }
-    }
-}
-
 impl SalesService {
     // cancel_order / submit_order / approve_order / complete_order
     // 内容来自原 order.rs L815-840 + L898-978 + L979-1013 + L1014-1029
@@ -270,25 +236,5 @@ impl SalesService {
         txn.commit().await?;
 
         Ok(order)
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_workflow_stage_desc() {
-        assert_eq!(WorkflowStage::Draft.desc(), "草稿");
-        assert_eq!(WorkflowStage::Pending.desc(), "待审核");
-        assert_eq!(WorkflowStage::Approved.desc(), "已审核");
-        assert_eq!(WorkflowStage::Shipped.desc(), "已发货");
-        assert_eq!(WorkflowStage::Received.desc(), "已收款");
-        assert_eq!(WorkflowStage::Closed.desc(), "已关闭");
-    }
-
-    #[test]
-    fn test_workflow_module_loaded() {
-        assert_eq!(P92_WF_MODULE, "sales_order_workflow");
     }
 }
