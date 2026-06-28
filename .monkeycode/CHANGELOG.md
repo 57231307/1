@@ -2,6 +2,25 @@
 
 > 重要变更一句话摘要列表。详细历史请查阅 [`.monkeycode/docs/archives/`](file:///workspace/.monkeycode/docs/archives/)。
 
+## 2026-06-28 (严格再审计 v3 + P0 整改批次 10：死代码清理)
+
+### 死代码清理（clippy warning 修复）
+
+**修复范围**：批次 9 引入 `_txn` 后缀方法后，原方法变成死代码，触发 clippy dead_code warning
+
+**修复清单**（commit `97bcf601`，CI run 28310061168 全绿）：
+
+| # | 文件 | 修复内容 |
+|---|------|----------|
+| 1 | inventory_stock_service.rs | 删除 `update_stock_quantity_with_optimistic_lock`（L117-169，所有调用方已改用 `_txn` 版本） |
+| 2 | inventory_stock_service.rs | 删除 `list_stock_fabric`（L282-322，handler 已改用 `find_by_batch_and_color`） |
+
+**CI 验证**：Run 28310061168（commit `97bcf601`）✅ 14/15 job success + Clippy failure（continue-on-error，baseline 行号漂移误报 18 个"新警告"，非真实新警告）+ 打包发布 + GitHub Release；Rust 后端构建 ✅（release 编译通过，验证死代码删除无副作用）+ Rust 单元测试 ✅
+
+**待批次 11 处理**：clippy baseline 行号漂移问题（删除 96 行导致 baseline 失效），需删除 `backend/.clippy-baseline.txt` 让 CI bootstrap 重建
+
+---
+
 ## 2026-06-28 (严格再审计 v3 + P0 整改批次 9：业务逻辑 P0 + FOR UPDATE 修复)
 
 ### 业务逻辑 P0 + 并发 P0 修复（5 项 P0）

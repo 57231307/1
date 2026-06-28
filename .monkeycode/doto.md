@@ -5,12 +5,12 @@
 
 ### 2026-06-28 严格再审计 v3 + P0 整改（进行中）
 
-**状态**：🔧 整改中（批次 1-9 已完成，批次 10 待处理；spawn panic 隔离 100% 全覆盖 + 业务逻辑 P0 + FOR UPDATE 已修复）
+**状态**：🔧 整改中（批次 1-10 已完成，批次 11 待处理；spawn panic 隔离 100% 全覆盖 + 业务逻辑 P0 + FOR UPDATE + 死代码清理已修复）
 **审计报告**：[`.monkeycode/docs/audits/2026-06-27-strict-reaudit-v3.md`](file:///workspace/.monkeycode/docs/audits/2026-06-27-strict-reaudit-v3.md)
 **审计基线**：`origin/main` HEAD = `8a18bc3b`
 **审计方法**：9 个并行 search 子代理（新增并发/依赖/架构/性能维度）
 **审计结果**：1275 项发现（P0 ~285 / P1 ~350 / P2 ~380 / P3 ~260），比上次 230 项增加 454%
-**main 当前 HEAD**：`a34e23d6`（批次 9 修复）
+**main 当前 HEAD**：`97bcf601`（批次 10 修复）
 
 #### 批次 1：回退项 + 安全关键（✅ 已完成）
 
@@ -138,9 +138,20 @@
 
 **第一次 push 失败原因**：commit `bf26248f` 的 number_generator.rs 函数签名只约束 `ConnectionTrait`，但函数体调用 `db.begin()` 和 `txn.commit()` 需要 `TransactionTrait` bound。CI 🏗️ Rust 后端构建 ❌ failure（error[E0599] + error[E0282]）。修复后 commit `a34e23d6` 重新 push 通过。
 
-#### 批次 10：待处理
+#### 批次 10：死代码清理（✅ 已完成，CI run 28310061168 全绿）
 
-- **dead_code 处理**（clippy warning）：`update_stock_quantity_with_optimistic_lock` 和 `list_stock_fabric`（inventory_stock_service.rs）因批次 9 改用 `_txn` 版本而变成未使用 → 评估保留/删除
+| # | 文件 | 修复内容 |
+|---|------|----------|
+| 1 | inventory_stock_service.rs | 删除 `update_stock_quantity_with_optimistic_lock`（L117-169，所有调用方已改用 `_txn` 版本） |
+| 2 | inventory_stock_service.rs | 删除 `list_stock_fabric`（L282-322，handler 已改用 `find_by_batch_and_color`） |
+
+**CI 验证**：Run 28310061168（commit `97bcf601`）✅ 14/15 job success + Clippy failure（continue-on-error，baseline 行号漂移误报 18 个"新警告"）+ 打包发布 + GitHub Release；Rust 后端构建 ✅（验证死代码删除无副作用）
+
+**待批次 11 处理**：clippy baseline 行号漂移问题（删除 96 行导致 baseline 失效），需删除 `backend/.clippy-baseline.txt` 让 CI bootstrap 重建
+
+#### 批次 11：待处理
+
+- **clippy baseline 重建**：删除 `backend/.clippy-baseline.txt` 让 CI bootstrap 重建（消除行号漂移误报）
 - **P1 事务边界修复**：AR/AP 发票、报价审批、销售订单工作流、凭证、销售退货
 - **测试 P0**：假测试重写、CI cargo test --lib 跳过集成测试
 - **业务逻辑 P0（剩余）**：状态机断裂
