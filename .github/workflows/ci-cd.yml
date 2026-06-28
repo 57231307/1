@@ -1134,7 +1134,7 @@ jobs:
 
       - name: 安装 Playwright 浏览器
         working-directory: frontend
-        run: npx playwright install --with-deps chromium
+        run: npx playwright install chromium
 
       - name: 运行 E2E 测试
         working-directory: frontend
