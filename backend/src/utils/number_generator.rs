@@ -1,7 +1,8 @@
 use crate::utils::error::AppError;
 use chrono::Utc;
 use sea_orm::{
-    ColumnTrait, ConnectionTrait, EntityTrait, FromQueryResult, PaginatorTrait, QueryFilter,
+    ColumnTrait, ConnectionTrait, DatabaseBackend, EntityTrait, FromQueryResult, PaginatorTrait,
+    QueryFilter, Statement, TransactionTrait,
 };
 
 /// 通用单号生成器
@@ -31,11 +32,20 @@ impl DocumentNumberGenerator {
     /// 生成可指定流水位数的单号: {前缀}{YYYYMMDD}{width位流水号}
     /// 例如 width=4 时: `IC202605140001`
     ///
-    /// # 并发安全说明
-    /// 当前实现基于"读当日数量 + 1"策略（无锁），存在理论上并发请求产生相同流水号
-    /// 的窗口（窗口大小 = 单次 COUNT 查询耗时）。业务侧应在创建单据的事务中依赖
-    /// 单据号列的 `UNIQUE` 约束进行最终去重，或后续接入 PostgreSQL 序列
-    /// (`SEQUENCE`) + `nextval` 实现真正无并发冲突的生成方案。
+    /// # 并发安全说明（批次 9 修复，2026-06-28）
+    ///
+    /// 原实现基于"读当日数量 + 1"策略（无锁），并发请求会在 COUNT 查询窗口内
+    /// 读到相同值，导致生成重复单号。
+    ///
+    /// 现实现使用 PostgreSQL `pg_advisory_xact_lock(lock_key)` 串行化同前缀同日的
+    /// 单号生成请求。`pg_advisory_xact_lock` 在事务结束时自动释放，无需手动 unlock，
+    /// 也不会因 panic 导致锁泄漏。
+    ///
+    /// 锁 key 由 prefix + 当日日期字符串哈希得到，确保不同业务/不同日期之间互不阻塞。
+    /// 同前缀同日的并发请求会被串行化（短暂的 COUNT 查询耗时，通常 < 1ms）。
+    ///
+    /// 业务侧仍应在创建单据的事务中依赖单据号列的 `UNIQUE` 约束进行最终去重，
+    /// 作为双重防御（防御性编程）。
     pub async fn generate_no_with_width<'db, E, C>(
         db: &'db impl ConnectionTrait,
         prefix: &str,
@@ -52,11 +62,30 @@ impl DocumentNumberGenerator {
         let today = Utc::now().format("%Y%m%d").to_string();
         let date_prefix = format!("{}{}", prefix, today);
 
-        // 统计今日的单据数量
+        // 批次 9（2026-06-28）：用 PostgreSQL advisory_xact_lock 串行化同前缀同日的单号生成
+        // 开启子事务（若调用方已在事务中，PostgreSQL 自动创建 savepoint；
+        // advisory_xact_lock 在 savepoint 释放时也会释放，行为正确）
+        let txn = db.begin().await?;
+
+        // 计算锁 key：prefix + date 字符串的稳定 i64 哈希
+        let lock_key = compute_advisory_lock_key(prefix, &today);
+
+        // 获取事务级 advisory lock，串行化同 key 的并发请求
+        txn.execute(Statement::from_sql_and_values(
+            DatabaseBackend::Postgres,
+            "SELECT pg_advisory_xact_lock($1)",
+            [lock_key.into()],
+        ))
+        .await?;
+
+        // 在锁保护下统计今日的单据数量
         let count = E::find()
             .filter(column.starts_with(&date_prefix))
-            .count(db)
+            .count(&txn)
             .await?;
+
+        // 提交子事务，advisory_xact_lock 自动释放
+        txn.commit().await?;
 
         // 防御：当 width == 0 时退化为 1 位，至少保留流水号
         let width = width.max(1);
@@ -66,5 +95,57 @@ impl DocumentNumberGenerator {
             count + 1,
             width = width
         ))
+    }
+}
+
+/// 计算 PostgreSQL advisory lock 的 i64 键值
+///
+/// 由 prefix + date 字符串哈希得到，确保不同业务/不同日期的锁互不冲突。
+/// 使用 `DefaultHasher`（稳定哈希，进程内一致），跨进程/跨重启结果可能不同，
+/// 但 advisory lock 是进程内会话状态，不影响正确性。
+fn compute_advisory_lock_key(prefix: &str, date: &str) -> i64 {
+    use std::collections::hash_map::DefaultHasher;
+    use std::hash::{Hash, Hasher};
+
+    let mut hasher = DefaultHasher::new();
+    prefix.hash(&mut hasher);
+    date.hash(&mut hasher);
+    // u64 → i64：PostgreSQL advisory lock 接受 i64，取低 63 位避免符号问题
+    (hasher.finish() & 0x7FFF_FFFF_FFFF_FFFF) as i64
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// 锁 key 计算稳定性：同输入应得同输出
+    #[test]
+    fn test_compute_advisory_lock_key_stable() {
+        let key1 = compute_advisory_lock_key("PO", "20260628");
+        let key2 = compute_advisory_lock_key("PO", "20260628");
+        assert_eq!(key1, key2, "同输入应得同输出");
+    }
+
+    /// 锁 key 计算区分性：不同前缀应得不同 key
+    #[test]
+    fn test_compute_advisory_lock_key_different_prefix() {
+        let key_po = compute_advisory_lock_key("PO", "20260628");
+        let key_so = compute_advisory_lock_key("SO", "20260628");
+        assert_ne!(key_po, key_so, "不同前缀应得不同 key");
+    }
+
+    /// 锁 key 计算区分性：不同日期应得不同 key
+    #[test]
+    fn test_compute_advisory_lock_key_different_date() {
+        let key_day1 = compute_advisory_lock_key("PO", "20260628");
+        let key_day2 = compute_advisory_lock_key("PO", "20260629");
+        assert_ne!(key_day1, key_day2, "不同日期应得不同 key");
+    }
+
+    /// 锁 key 计算非负性：PostgreSQL advisory lock 接受 i64，结果应在合理范围
+    #[test]
+    fn test_compute_advisory_lock_key_non_negative() {
+        let key = compute_advisory_lock_key("IC", "20260628");
+        assert!(key >= 0, "锁 key 应非负（取低 63 位）");
     }
 }

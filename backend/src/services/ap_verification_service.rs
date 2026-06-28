@@ -9,7 +9,7 @@ use chrono::{NaiveDate, Utc};
 use rust_decimal::Decimal;
 use sea_orm::{
     ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, Order, PaginatorTrait,
-    QueryFilter, QueryOrder, Set, TransactionTrait,
+    QueryFilter, QueryOrder, QuerySelect, Set, TransactionTrait,
 };
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
@@ -163,7 +163,9 @@ impl ApVerificationService {
             .await?;
 
             // 更新应付单
+            // 批次 9（2026-06-28）：加 FOR UPDATE 行锁，防止并发核销导致 paid_amount 丢失更新
             let mut invoice = ap_invoice::Entity::find_by_id(item_dto.invoice_id)
+                .lock_exclusive()
                 .one(&txn)
                 .await?
                 .ok_or_else(|| AppError::not_found(format!("应付单 {}", item_dto.invoice_id)))?;
@@ -205,7 +207,9 @@ impl ApVerificationService {
 
         for item in &req.items {
             // 验证应付单
+            // 批次 9（2026-06-28）：加 FOR UPDATE 行锁，防止并发核销导致 paid_amount 丢失更新
             let invoice = ap_invoice::Entity::find_by_id(item.invoice_id)
+                .lock_exclusive()
                 .one(&txn)
                 .await?
                 .ok_or_else(|| AppError::not_found(format!("应付单 {}", item.invoice_id)))?;
@@ -218,7 +222,9 @@ impl ApVerificationService {
             }
 
             // 验证付款单
+            // 批次 9（2026-06-28）：加 FOR UPDATE 行锁，防止并发核销复用同一付款单导致超额核销
             let payment = ap_payment::Entity::find_by_id(item.payment_id)
+                .lock_exclusive()
                 .one(&txn)
                 .await?
                 .ok_or_else(|| AppError::not_found(format!("付款单 ID: {}", item.payment_id)))?;
@@ -322,7 +328,9 @@ impl ApVerificationService {
 
         // 4. 恢复应付单状态
         for item in items {
+            // 批次 9（2026-06-28）：加 FOR UPDATE 行锁，防止并发取消核销导致 paid_amount 丢失更新
             let mut invoice = ap_invoice::Entity::find_by_id(item.invoice_id)
+                .lock_exclusive()
                 .one(&txn)
                 .await?
                 .ok_or_else(|| AppError::not_found(format!("应付单 {}", item.invoice_id)))?;

@@ -11,7 +11,9 @@ use crate::models::{
 };
 use crate::utils::error::AppError;
 use rust_decimal::Decimal;
-use sea_orm::{ActiveModelTrait, ColumnTrait, EntityTrait, QueryFilter, Set, TransactionTrait};
+use sea_orm::{
+    ActiveModelTrait, ColumnTrait, EntityTrait, QueryFilter, QuerySelect, Set, TransactionTrait,
+};
 use serde::Deserialize;
 use validator::Validate;
 
@@ -299,8 +301,10 @@ impl SalesService {
                 continue;
             }
 
+            // 批次 9（2026-06-28）：加 FOR UPDATE 行锁，防止并发锁定导致超扣
             let stock = inventory_stock::Entity::find()
                 .filter(inventory_stock::Column::ProductId.eq(item.product_id))
+                .lock_exclusive()
                 .one(txn)
                 .await?;
 
@@ -328,8 +332,11 @@ impl SalesService {
                 };
                 reservation.insert(txn).await?;
 
-                inventory_stock::Entity::update_many()
+                // 批次 9（2026-06-28）：UPDATE 加防御性 WHERE 条件 quantity_available >= quantity，
+                // 即使并发绕过 SELECT FOR UPDATE（理论上不会发生），也能阻止超扣
+                let lock_result = inventory_stock::Entity::update_many()
                     .filter(inventory_stock::Column::Id.eq(s.id))
+                    .filter(inventory_stock::Column::QuantityAvailable.gte(item.quantity))
                     .col_expr(
                         inventory_stock::Column::QuantityAvailable,
                         sea_orm::sea_query::Expr::col(inventory_stock::Column::QuantityAvailable)
@@ -341,6 +348,13 @@ impl SalesService {
                     )
                     .exec(txn)
                     .await?;
+
+                if lock_result.rows_affected == 0 {
+                    return Err(AppError::business(format!(
+                        "产品 {} 库存不足（并发冲突或库存已被其他事务扣减）",
+                        item.product_id
+                    )));
+                }
             } else {
                 return Err(AppError::business(format!(
                     "产品 {} 没有库存记录，无法锁定",
@@ -360,9 +374,11 @@ impl SalesService {
         order_id: i32,
         txn: &sea_orm::DatabaseTransaction,
     ) -> Result<(), AppError> {
+        // 批次 9（2026-06-28）：加 FOR UPDATE 行锁，防止并发发货导致超扣
         let stock = inventory_stock::Entity::find()
             .filter(inventory_stock::Column::ProductId.eq(product_id))
             .filter(inventory_stock::Column::WarehouseId.eq(warehouse_id))
+            .lock_exclusive()
             .one(txn)
             .await?
             .ok_or_else(|| AppError::not_found(format!("产品 {} 库存记录", product_id)))?;
@@ -374,8 +390,11 @@ impl SalesService {
             )));
         }
 
-        inventory_stock::Entity::update_many()
+        // 批次 9（2026-06-28）：UPDATE 加防御性 WHERE 条件 quantity_available >= quantity，
+        // 即使并发绕过 SELECT FOR UPDATE（理论上不会发生），也能阻止超扣
+        let reduce_result = inventory_stock::Entity::update_many()
             .filter(inventory_stock::Column::Id.eq(stock.id))
+            .filter(inventory_stock::Column::QuantityAvailable.gte(quantity))
             .col_expr(
                 inventory_stock::Column::QuantityAvailable,
                 sea_orm::sea_query::Expr::col(inventory_stock::Column::QuantityAvailable)
@@ -392,6 +411,13 @@ impl SalesService {
             )
             .exec(txn)
             .await?;
+
+        if reduce_result.rows_affected == 0 {
+            return Err(AppError::business(format!(
+                "产品 {} 库存不足（并发冲突或库存已被其他事务扣减）",
+                product_id
+            )));
+        }
 
         // 标记预留为已完成
         inventory_reservation::Entity::update_many()

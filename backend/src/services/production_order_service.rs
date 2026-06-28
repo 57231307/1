@@ -6,7 +6,8 @@ use chrono::Utc;
 use rust_decimal::Decimal;
 use sea_orm::DatabaseConnection;
 use sea_orm::{
-    ActiveModelTrait, ColumnTrait, EntityTrait, PaginatorTrait, QueryFilter, QueryOrder, Set,
+    ActiveModelTrait, ColumnTrait, EntityTrait, PaginatorTrait, QueryFilter, QueryOrder,
+    QuerySelect, Set, TransactionTrait,
 };
 use std::sync::Arc;
 
@@ -347,12 +348,21 @@ impl ProductionOrderService {
     }
 
     /// 更新生产订单状态
+    ///
+    /// 批次 9（2026-06-28）：COMPLETED 状态变更涉及多表操作（订单状态 + 库存扣减 + 库存流水），
+    /// 必须用事务包裹，否则状态变更已提交但库存联动失败会导致账实不符。
+    /// 其他状态变更保持原行为（单表更新）。
     pub async fn update_status(
         &self,
         id: i32,
         status: String,
         actual_quantity: Option<Decimal>,
     ) -> Result<ProductionOrderModel, AppError> {
+        // COMPLETED 走事务包裹的专用路径
+        if status == "COMPLETED" {
+            return self.complete_production_order(id, actual_quantity).await;
+        }
+
         let model = ProductionOrderEntity::find_by_id(id)
             .one(&*self.db)
             .await?
@@ -370,41 +380,71 @@ impl ProductionOrderService {
             active_model.actual_start_date = Set(Some(chrono::Utc::now().date_naive()));
         }
 
-        // 如果状态变为已完成，设置实际完成日期和实际生产数量
-        if status == "COMPLETED" {
-            active_model.actual_end_date = Set(Some(chrono::Utc::now().date_naive()));
-            if let Some(qty) = actual_quantity {
-                active_model.actual_quantity = Set(Some(qty));
-            }
-        }
-
         let updated = active_model.update(&*self.db).await?;
-
-        // 生产完成时执行库存联动：扣减原材料 + 入库成品
-        if status == "COMPLETED" {
-            self.handle_production_completion_inventory(&updated)
-                .await?;
-        }
 
         Ok(updated)
     }
 
-    /// 处理生产完成时的库存联动
+    /// 完成生产订单（事务包裹状态变更 + 库存联动）
+    ///
+    /// 批次 9（2026-06-28）：原 `update_status` 在 COMPLETED 时先提交状态变更，
+    /// 然后调用库存联动；如果库存联动失败，状态已变更但库存未扣减导致账实不符。
+    /// 改为：在事务内更新状态 + 调用库存联动，任一失败回滚全部。
+    /// 同时给订单查询加 FOR UPDATE 行锁，防止并发完成同一订单。
+    async fn complete_production_order(
+        &self,
+        id: i32,
+        actual_quantity: Option<Decimal>,
+    ) -> Result<ProductionOrderModel, AppError> {
+        let txn = self.db.begin().await?;
+
+        // 加 FOR UPDATE 行锁，防止并发完成同一订单
+        let model = ProductionOrderEntity::find_by_id(id)
+            .lock_exclusive()
+            .one(&txn)
+            .await?
+            .ok_or_else(|| AppError::not_found("生产订单不存在"))?;
+
+        // 验证状态转换是否合法
+        Self::validate_status_transition(&model.status, "COMPLETED")?;
+
+        let mut active_model: ActiveModel = model.into();
+        active_model.status = Set("COMPLETED".to_string());
+        active_model.actual_end_date = Set(Some(chrono::Utc::now().date_naive()));
+        active_model.updated_at = Set(Utc::now());
+        if let Some(qty) = actual_quantity {
+            active_model.actual_quantity = Set(Some(qty));
+        }
+
+        let updated = active_model.update(&txn).await?;
+
+        // 在同一事务内执行库存联动（含原材料扣减 + 成品入库）
+        Self::handle_production_completion_inventory_txn(&txn, &updated).await?;
+
+        txn.commit().await?;
+
+        Ok(updated)
+    }
+
+    /// 处理生产完成时的库存联动（事务版本）
     ///
     /// 1. 查询产品默认BOM，扣减原材料库存（按BOM用量 × 生产数量）
     /// 2. 增加成品库存（生产数量）
     /// 3. 记录库存流水（PRODUCTION_CONSUMPTION 和 PRODUCTION_OUTPUT）
-    async fn handle_production_completion_inventory(
-        &self,
+    ///
+    /// 批次 9（2026-06-28）：从原 `handle_production_completion_inventory` 改造而来，
+    /// 接受外部事务参数，所有查询/更新都在 `txn` 上执行；原材料库存查询加 FOR UPDATE 行锁，
+    /// 防止并发完成多个生产订单时原材料库存被并发扣减导致丢失更新。
+    async fn handle_production_completion_inventory_txn(
+        txn: &sea_orm::DatabaseTransaction,
         order: &ProductionOrderModel,
     ) -> Result<(), AppError> {
-        let stock_service =
-            crate::services::inventory_stock_service::InventoryStockService::new(self.db.clone());
+        use crate::services::inventory_stock_service::InventoryStockService;
 
         // 查询默认成品仓库（取第一个激活的仓库）
         let default_warehouse = WarehouseEntity::find()
             .filter(crate::models::warehouse::Column::IsActive.eq(true))
-            .one(&*self.db)
+            .one(txn)
             .await?
             .ok_or_else(|| AppError::business("未找到可用仓库，无法执行库存联动"))?;
 
@@ -422,20 +462,21 @@ impl ProductionOrderService {
             .filter(BomColumn::ProductId.eq(order.product_id))
             .filter(BomColumn::IsDefault.eq(true))
             .filter(BomColumn::Status.eq("ACTIVE"))
-            .one(&*self.db)
+            .one(txn)
             .await?;
 
         if let Some(bom) = bom {
             // 查询BOM明细
             let bom_items = BomItemEntity::find()
                 .filter(BomItemColumn::BomId.eq(bom.id))
-                .all(&*self.db)
+                .all(txn)
                 .await?;
 
             for bom_item in bom_items {
                 let consumption_qty = bom_item.quantity * production_qty;
 
                 // 查找该原材料在默认仓库的库存记录
+                // 批次 9（2026-06-28）：加 FOR UPDATE 行锁，防止并发扣减原材料库存丢失更新
                 let stock_record = InventoryStockEntity::find()
                     .filter(
                         crate::models::inventory_stock::Column::ProductId.eq(bom_item.material_id),
@@ -444,7 +485,8 @@ impl ProductionOrderService {
                         crate::models::inventory_stock::Column::WarehouseId
                             .eq(default_warehouse.id),
                     )
-                    .one(&*self.db)
+                    .lock_exclusive()
+                    .one(txn)
                     .await?
                     .ok_or_else(|| {
                         AppError::business(format!(
@@ -474,53 +516,55 @@ impl ProductionOrderService {
                 };
 
                 // 更新库存数量（带乐观锁）
-                stock_service
-                    .update_stock_quantity_with_optimistic_lock(
-                        stock_record.id,
-                        qty_after_meters,
-                        qty_after_kg,
-                        stock_record.version,
-                    )
-                    .await?;
+                InventoryStockService::update_stock_quantity_with_optimistic_lock_txn(
+                    txn,
+                    stock_record.id,
+                    qty_after_meters,
+                    qty_after_kg,
+                    stock_record.version,
+                )
+                .await?;
 
                 // 记录库存流水：生产消耗
-                stock_service
-                    .record_transaction(
-                        "PRODUCTION_CONSUMPTION".to_string(),
-                        bom_item.material_id,
-                        default_warehouse.id,
-                        stock_record.batch_no.clone(),
-                        stock_record.color_no.clone(),
-                        stock_record.dye_lot_no.clone(),
-                        stock_record.grade.clone(),
-                        consumption_qty,
-                        Decimal::ZERO,
-                        Some("production_order".to_string()),
-                        Some(order.order_no.clone()),
-                        Some(order.id),
-                        Some(qty_before_meters),
-                        Some(qty_before_kg),
-                        Some(qty_after_meters),
-                        Some(qty_after_kg),
-                        Some(format!("生产消耗 - 订单 {}", order.order_no)),
-                        Some(order.created_by),
-                    )
-                    .await?;
+                InventoryStockService::record_transaction_txn(
+                    txn,
+                    "PRODUCTION_CONSUMPTION".to_string(),
+                    bom_item.material_id,
+                    default_warehouse.id,
+                    stock_record.batch_no.clone(),
+                    stock_record.color_no.clone(),
+                    stock_record.dye_lot_no.clone(),
+                    stock_record.grade.clone(),
+                    consumption_qty,
+                    Decimal::ZERO,
+                    Some("production_order".to_string()),
+                    Some(order.order_no.clone()),
+                    Some(order.id),
+                    Some(qty_before_meters),
+                    Some(qty_before_kg),
+                    Some(qty_after_meters),
+                    Some(qty_after_kg),
+                    Some(format!("生产消耗 - 订单 {}", order.order_no)),
+                    Some(order.created_by),
+                )
+                .await?;
             }
         }
 
         // ========== 2. 增加成品库存 ==========
         // 查询成品产品信息以获取克重和幅宽
         let product = ProductEntity::find_by_id(order.product_id)
-            .one(&*self.db)
+            .one(txn)
             .await?
             .ok_or_else(|| AppError::business(format!("产品ID {} 不存在", order.product_id)))?;
 
         // 查找成品在默认仓库的已有库存记录
+        // 批次 9（2026-06-28）：加 FOR UPDATE 行锁，防止并发入库丢失更新
         let existing_stock = InventoryStockEntity::find()
             .filter(crate::models::inventory_stock::Column::ProductId.eq(order.product_id))
             .filter(crate::models::inventory_stock::Column::WarehouseId.eq(default_warehouse.id))
-            .one(&*self.db)
+            .lock_exclusive()
+            .one(txn)
             .await?;
 
         match existing_stock {
@@ -538,38 +582,38 @@ impl ProductionOrderService {
                 };
                 let qty_after_kg = qty_before_kg + added_kg;
 
-                stock_service
-                    .update_stock_quantity_with_optimistic_lock(
-                        stock_record.id,
-                        qty_after_meters,
-                        qty_after_kg,
-                        stock_record.version,
-                    )
-                    .await?;
+                InventoryStockService::update_stock_quantity_with_optimistic_lock_txn(
+                    txn,
+                    stock_record.id,
+                    qty_after_meters,
+                    qty_after_kg,
+                    stock_record.version,
+                )
+                .await?;
 
                 // 记录库存流水：生产入库
-                stock_service
-                    .record_transaction(
-                        "PRODUCTION_OUTPUT".to_string(),
-                        order.product_id,
-                        default_warehouse.id,
-                        stock_record.batch_no.clone(),
-                        stock_record.color_no.clone(),
-                        stock_record.dye_lot_no.clone(),
-                        stock_record.grade.clone(),
-                        production_qty,
-                        added_kg,
-                        Some("production_order".to_string()),
-                        Some(order.order_no.clone()),
-                        Some(order.id),
-                        Some(qty_before_meters),
-                        Some(qty_before_kg),
-                        Some(qty_after_meters),
-                        Some(qty_after_kg),
-                        Some(format!("生产入库 - 订单 {}", order.order_no)),
-                        Some(order.created_by),
-                    )
-                    .await?;
+                InventoryStockService::record_transaction_txn(
+                    txn,
+                    "PRODUCTION_OUTPUT".to_string(),
+                    order.product_id,
+                    default_warehouse.id,
+                    stock_record.batch_no.clone(),
+                    stock_record.color_no.clone(),
+                    stock_record.dye_lot_no.clone(),
+                    stock_record.grade.clone(),
+                    production_qty,
+                    added_kg,
+                    Some("production_order".to_string()),
+                    Some(order.order_no.clone()),
+                    Some(order.id),
+                    Some(qty_before_meters),
+                    Some(qty_before_kg),
+                    Some(qty_after_meters),
+                    Some(qty_after_kg),
+                    Some(format!("生产入库 - 订单 {}", order.order_no)),
+                    Some(order.created_by),
+                )
+                .await?;
             }
             None => {
                 // 创建新的库存记录
@@ -579,47 +623,47 @@ impl ProductionOrderService {
                     Decimal::ZERO
                 };
 
-                let new_stock = stock_service
-                    .create_stock_fabric(
-                        default_warehouse.id,
-                        order.product_id,
-                        order.order_no.clone(),
-                        "DEFAULT".to_string(),
-                        None,
-                        "一等品".to_string(),
-                        production_qty,
-                        kg,
-                        product.gram_weight,
-                        product.width,
-                        None,
-                        None,
-                        None,
-                    )
-                    .await?;
+                let new_stock = InventoryStockService::create_stock_fabric_txn(
+                    txn,
+                    default_warehouse.id,
+                    order.product_id,
+                    order.order_no.clone(),
+                    "DEFAULT".to_string(),
+                    None,
+                    "一等品".to_string(),
+                    production_qty,
+                    kg,
+                    product.gram_weight,
+                    product.width,
+                    None,
+                    None,
+                    None,
+                )
+                .await?;
 
                 // 记录库存流水：生产入库
-                stock_service
-                    .record_transaction(
-                        "PRODUCTION_OUTPUT".to_string(),
-                        order.product_id,
-                        default_warehouse.id,
-                        new_stock.batch_no.clone(),
-                        new_stock.color_no.clone(),
-                        new_stock.dye_lot_no.clone(),
-                        new_stock.grade.clone(),
-                        production_qty,
-                        kg,
-                        Some("production_order".to_string()),
-                        Some(order.order_no.clone()),
-                        Some(order.id),
-                        Some(Decimal::ZERO),
-                        Some(Decimal::ZERO),
-                        Some(production_qty),
-                        Some(kg),
-                        Some(format!("生产入库 - 订单 {}", order.order_no)),
-                        Some(order.created_by),
-                    )
-                    .await?;
+                InventoryStockService::record_transaction_txn(
+                    txn,
+                    "PRODUCTION_OUTPUT".to_string(),
+                    order.product_id,
+                    default_warehouse.id,
+                    new_stock.batch_no.clone(),
+                    new_stock.color_no.clone(),
+                    new_stock.dye_lot_no.clone(),
+                    new_stock.grade.clone(),
+                    production_qty,
+                    kg,
+                    Some("production_order".to_string()),
+                    Some(order.order_no.clone()),
+                    Some(order.id),
+                    Some(Decimal::ZERO),
+                    Some(Decimal::ZERO),
+                    Some(production_qty),
+                    Some(kg),
+                    Some(format!("生产入库 - 订单 {}", order.order_no)),
+                    Some(order.created_by),
+                )
+                .await?;
             }
         }
 
