@@ -154,13 +154,6 @@ pub mod sales_return_item;
 pub mod slow_query;
 // 多租户SaaS模块
 pub mod api_key;
-pub mod tenant;
-pub mod tenant_config;
-pub mod tenant_invoice;
-pub mod tenant_plan;
-pub mod tenant_subscription;
-pub mod tenant_usage;
-pub mod tenant_user;
 pub mod webhook;
 // 消息通知模块
 pub mod notification;

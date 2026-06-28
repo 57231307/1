@@ -46,7 +46,6 @@ impl CustomOrderQualityService {
     pub async fn report_issue(
         &self,
         dto: ReportQualityIssueDto,
-        tenant_id: i64,
     ) -> Result<quality_issue::Model, QualityError> {
         // 校验严重度
         if !["low", "medium", "high", "critical"].contains(&dto.severity.as_str()) {
@@ -91,7 +90,6 @@ impl CustomOrderQualityService {
             resolved_at: Set(None),
             resolution: Set(None),
             status: Set("open".to_string()),
-            tenant_id: Set(tenant_id),
             created_at: Set(now),
             updated_at: Set(now),
         };
@@ -103,11 +101,9 @@ impl CustomOrderQualityService {
     pub async fn resolve_issue(
         &self,
         id: i64,
-        tenant_id: i64,
         dto: ResolveQualityIssueDto,
     ) -> Result<quality_issue::Model, QualityError> {
         let existing = Entity::find_by_id(id)
-            .filter(quality_issue::Column::TenantId.eq(tenant_id))
             .one(&*self.db)
             .await?
             .ok_or(QualityError::NotFound)?;
@@ -132,13 +128,11 @@ impl CustomOrderQualityService {
     pub async fn list_by_order(
         &self,
         order_id: i64,
-        tenant_id: i64,
         page: u64,
         page_size: u64,
     ) -> Result<(Vec<quality_issue::Model>, u64), QualityError> {
         let mut query = Entity::find()
-            .filter(quality_issue::Column::CustomOrderId.eq(order_id))
-            .filter(quality_issue::Column::TenantId.eq(tenant_id));
+            .filter(quality_issue::Column::CustomOrderId.eq(order_id));
 
         let paginator = query
             .order_by_desc(quality_issue::Column::DiscoveredAt)

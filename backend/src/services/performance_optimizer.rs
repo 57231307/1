@@ -42,18 +42,22 @@ pub struct InventoryRow {
 /// ```
 #[allow(dead_code)] // TODO(tech-debt): P4-1 性能优化示例接入实际业务 service 后移除
 pub struct BatchInventoryLoader {
-    /// 多租户 ID（强制租户隔离）
-    pub tenant_id: i64,
     /// 单次 IN 子句最大参数（PostgreSQL 推荐 5000）
     pub max_in_clause: usize,
 }
 
 #[allow(dead_code)] // TODO(tech-debt): P4-1 性能优化示例接入实际业务 service 后移除
+impl Default for BatchInventoryLoader {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+#[allow(dead_code)] // TODO(tech-debt): P4-1 性能优化示例接入实际业务 service 后移除
 impl BatchInventoryLoader {
     /// 创建 loader
-    pub fn new(tenant_id: i64) -> Self {
+    pub fn new() -> Self {
         Self {
-            tenant_id,
             max_in_clause: 5_000,
         }
     }
@@ -70,7 +74,6 @@ impl BatchInventoryLoader {
         let _chunks = chunk_ids(ids, self.max_in_clause);
         // 此处调用实际 SeaORM 查询，示例返回空
         // let rows = Inventory::find()
-        //     .filter(Column::TenantId.eq(self.tenant_id))
         //     .filter(Column::Id.is_in(chunk))
         //     .all(db).await?;
         Ok(vec![])
@@ -97,10 +100,8 @@ impl CachedDashboardService {
     /// 读穿透（cache miss 时回源）
     ///
     /// 真实业务侧：`fetcher` 闭包从 DB 拉数据，本方法只负责缓存。
-    /// 缓存键必须以 `tenant:{id}:` 开头，避免跨租户数据串味。
     pub async fn read_through<T, F, Fut>(
         &self,
-        tenant_id: i64,
         key_suffix: &str,
         fetcher: F,
     ) -> Result<T, String>
@@ -109,7 +110,7 @@ impl CachedDashboardService {
         F: FnOnce() -> Fut,
         Fut: std::future::Future<Output = Result<T, String>>,
     {
-        let key = format!("tenant:{}:dashboard:{}", tenant_id, key_suffix);
+        let key = format!("dashboard:{}", key_suffix);
         // 1) 查缓存
         if let Some(bytes) = self.cache.get(&key).await {
             if let Ok(v) = serde_json::from_slice::<T>(&bytes) {
@@ -125,10 +126,9 @@ impl CachedDashboardService {
         Ok(value)
     }
 
-    /// 失效租户全部缓存（写操作后调用）
-    pub async fn invalidate_tenant(&self, tenant_id: i64) {
-        let key = format!("tenant:{}:", tenant_id);
-        self.cache.invalidate_prefix(&key).await;
+    /// 失效全部 Dashboard 缓存（写操作后调用）
+    pub async fn invalidate_all(&self) {
+        self.cache.invalidate_prefix("dashboard:").await;
     }
 }
 
@@ -139,7 +139,7 @@ mod tests {
     #[tokio::test]
     async fn 测试_batch_loader_空列表() {
         // 中文测试名：测试 batch loader 传入空 ids 返回空
-        let loader = BatchInventoryLoader::new(1);
+        let loader = BatchInventoryLoader::new();
         let result = loader.load_by_ids(&[]).await.unwrap();
         assert!(result.is_empty());
     }
@@ -147,7 +147,7 @@ mod tests {
     #[tokio::test]
     async fn 测试_batch_loader_分组() {
         // 中文测试名：测试 batch loader load_map 按 id 分组
-        let loader = BatchInventoryLoader::new(1);
+        let loader = BatchInventoryLoader::new();
         let result = loader.load_map(&[]).await.unwrap();
         assert!(result.is_empty());
     }

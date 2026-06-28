@@ -46,14 +46,12 @@ impl ColorPriceSeasonalService {
     /// 列表查询
     pub async fn list(
         &self,
-        tenant_id: i64,
         query: &ListSeasonalRulesQuery,
     ) -> Result<(Vec<seasonal_price_rule::Model>, u64), SeasonalError> {
         let page = query.page.unwrap_or(1);
         let page_size = query.page_size.unwrap_or(20);
 
-        let mut q = RuleEntity::find()
-            .filter(seasonal_price_rule::Column::TenantId.eq(tenant_id));
+        let mut q = RuleEntity::find();
 
         if let Some(s) = &query.season {
             q = q.filter(seasonal_price_rule::Column::Season.eq(s.clone()));
@@ -77,10 +75,8 @@ impl ColorPriceSeasonalService {
     pub async fn get_by_id(
         &self,
         id: i64,
-        tenant_id: i64,
     ) -> Result<seasonal_price_rule::Model, SeasonalError> {
         RuleEntity::find_by_id(id)
-            .filter(seasonal_price_rule::Column::TenantId.eq(tenant_id))
             .one(&*self.db)
             .await?
             .ok_or(SeasonalError::NotFound)
@@ -90,7 +86,6 @@ impl ColorPriceSeasonalService {
     pub async fn create(
         &self,
         dto: CreateSeasonalRuleDto,
-        tenant_id: i64,
     ) -> Result<seasonal_price_rule::Model, SeasonalError> {
         Self::validate_season(&dto.season)?;
         Self::validate_adjustment_type(&dto.adjustment_type)?;
@@ -108,7 +103,6 @@ impl ColorPriceSeasonalService {
             valid_until: Set(dto.valid_until),
             is_active: Set(true),
             description: Set(dto.description),
-            tenant_id: Set(tenant_id),
             created_at: Set(now),
             updated_at: Set(now),
         };
@@ -120,10 +114,9 @@ impl ColorPriceSeasonalService {
     pub async fn update(
         &self,
         id: i64,
-        tenant_id: i64,
         dto: UpdateSeasonalRuleDto,
     ) -> Result<seasonal_price_rule::Model, SeasonalError> {
-        let existing = self.get_by_id(id, tenant_id).await?;
+        let existing = self.get_by_id(id).await?;
 
         if let Some(s) = &dto.season {
             Self::validate_season(s)?;
@@ -172,8 +165,8 @@ impl ColorPriceSeasonalService {
     }
 
     /// 删除规则
-    pub async fn delete(&self, id: i64, tenant_id: i64) -> Result<(), SeasonalError> {
-        let existing = self.get_by_id(id, tenant_id).await?;
+    pub async fn delete(&self, id: i64) -> Result<(), SeasonalError> {
+        let existing = self.get_by_id(id).await?;
         let mut active: RuleActive = existing.into();
         active.is_active = Set(false);
         active.updated_at = Set(Utc::now());

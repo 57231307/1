@@ -14,9 +14,9 @@
 //! ## 使用方式
 //!
 //! ```rust,ignore
-//! let rec = SlowQueryRecorder::start("select_orders_by_tenant");
-//! let result = query_orders(tenant_id).await;
-//! rec.finish(tenant_id);
+//! let rec = SlowQueryRecorder::start("select_orders", None);
+//! let result = query_orders().await;
+//! rec.finish();
 //! ```
 
 use crate::services::metrics_service::MetricsService;
@@ -34,10 +34,8 @@ pub fn slow_query_threshold() -> Duration {
 
 /// 慢查询记录器（RAII 风格：创建时开始计时，drop 时判断是否上报）
 pub struct SlowQueryRecorder {
-    /// 查询标签（如 `select_orders_by_tenant` / `find_inventory_stocks`）
+    /// 查询标签（如 `select_orders` / `find_inventory_stocks`）
     pub label: &'static str,
-    /// 租户 ID（用于多租户隔离指标）
-    pub tenant_id: i64,
     /// 起始时间
     pub start: Instant,
     /// 指标服务（可空 - 测试环境允许为 None）
@@ -46,10 +44,9 @@ pub struct SlowQueryRecorder {
 
 impl SlowQueryRecorder {
     /// 启动一个慢查询记录器
-    pub fn start(label: &'static str, tenant_id: i64, metrics: Option<Arc<MetricsService>>) -> Self {
+    pub fn start(label: &'static str, metrics: Option<Arc<MetricsService>>) -> Self {
         Self {
             label,
-            tenant_id,
             start: Instant::now(),
             metrics,
         }
@@ -62,7 +59,6 @@ impl SlowQueryRecorder {
             tracing::warn!(
                 target: "slow_query",
                 label = self.label,
-                tenant_id = self.tenant_id,
                 elapsed_ms = elapsed.as_millis() as u64,
                 threshold_ms = slow_query_threshold().as_millis() as u64,
                 "检测到慢查询",

@@ -15,9 +15,9 @@
 //! 每次请求消耗 1 个令牌；令牌 < 1 时拒绝
 //! ```
 //!
-//! ## 多租户隔离
+//! ## 限流 key 格式
 //!
-//! key 格式：`tenant:{tenant_id}:{scope}` 或 `ip:{ip_addr}:{scope}`
+//! key 格式：`ip:{ip_addr}:{scope}`
 
 use dashmap::DashMap;
 use std::sync::Arc;

@@ -22,7 +22,6 @@ pub struct Model {
     pub purpose: Option<String>,
     pub notes: Option<String>,
     pub compensation_amount: Option<Decimal>,
-    pub tenant_id: i64,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
 }

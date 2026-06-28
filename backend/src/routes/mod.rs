@@ -12,7 +12,6 @@
 //! - `/api/v1/erp/finance`     -> finance::routes(state)  唯一需要传 state 的域
 //! - `/api/v1/erp/production`  -> production::routes()
 //! - `/api/v1/erp/crm`         -> crm::routes()
-//! - `/api/v1/erp/tenants`     -> tenant::routes()
 //! - `/api/v1`                 -> v1::routes()  占位
 //! - `/static/*` `/bingxi_frontend.*` -> static_routes::static_assets_handler()
 //! - `/metrics`                -> create_metrics_router()
@@ -64,7 +63,6 @@ pub mod color_price;
 pub mod static_routes;
 pub mod search_api;
 pub mod system;
-pub mod tenant;
 pub mod v1;
 
 /// 缺料预警路由（从 production 域提升到根级，path 前缀 /material-shortage）
@@ -352,7 +350,6 @@ pub fn create_router(state: AppState) -> Router<()> {
         .nest("/api/v1/erp", finance::sub_routes())
         .nest("/api/v1/erp/production", production::routes())
         .nest("/api/v1/erp/crm", crm::routes())
-        .nest("/api/v1/erp/tenants", tenant::routes())
         // v1 占位入口
         .nest("/api/v1", v1::routes())
         // ---- 顶层基础设施路由（K8s liveness / readiness probe 友好）----

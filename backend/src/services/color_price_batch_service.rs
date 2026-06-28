@@ -52,7 +52,6 @@ impl ColorPriceBatchService {
     pub async fn batch_adjust(
         &self,
         dto: BatchAdjustPriceDto,
-        tenant_id: i64,
         operated_by: i64,
     ) -> Result<BatchAdjustResult, BatchError> {
         let mut auto_approved: Vec<i64> = Vec::new();
@@ -62,7 +61,6 @@ impl ColorPriceBatchService {
         for item in dto.items.iter() {
             // 1. 查找色号价格
             let existing = ColorPriceEntity::find_by_id(item.price_id)
-                .filter(product_color_price::Column::TenantId.eq(tenant_id))
                 .one(&*self.db)
                 .await?
                 .ok_or(BatchError::PriceNotFound(item.price_id))?;
@@ -93,7 +91,6 @@ impl ColorPriceBatchService {
                 operated_at: Set(Utc::now()),
                 approved_by: Set(None),
                 approved_at: Set(None),
-                tenant_id: Set(tenant_id),
             };
             history.insert(&*self.db).await?;
 
@@ -128,12 +125,10 @@ impl ColorPriceBatchService {
     pub async fn approve(
         &self,
         id: i64,
-        tenant_id: i64,
         approved_by: i64,
         dto: ApproveColorPriceDto,
     ) -> Result<product_color_price::Model, BatchError> {
         let existing = ColorPriceEntity::find_by_id(id)
-            .filter(product_color_price::Column::TenantId.eq(tenant_id))
             .one(&*self.db)
             .await?
             .ok_or(BatchError::PriceNotFound(id))?;

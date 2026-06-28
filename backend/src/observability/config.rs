@@ -101,7 +101,6 @@ pub struct ResourceAttrs {
     pub service_namespace: String,
     pub service_version: String,
     pub deployment_environment: String,
-    pub tenant_id: Option<String>,
 }
 
 impl ResourceAttrs {
@@ -111,7 +110,6 @@ impl ResourceAttrs {
             service_namespace: "erp".to_string(),
             service_version: cfg.service_version.clone(),
             deployment_environment: cfg.environment.clone(),
-            tenant_id: std::env::var("TENANT_ID").ok(),
         }
     }
 }

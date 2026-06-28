@@ -307,7 +307,7 @@ impl ImportExportService {
     ///
     /// 防御性 `#[allow]`：
     /// - `clippy::too_many_arguments`：3 个参数（import_type, data, user_id），接近 clippy 上限；
-    ///   未来若加 tenant_id / trace_id 可能突破，预先抑制。
+    ///   未来若加 trace_id 可能突破，预先抑制。
     /// - `clippy::needless_pass_by_value`：handler 调用模式 `&req.import_type, &rows, auth.user_id`
     ///   触发的链式引用检测；保持签名稳定便于未来重命名参数。
     /// - `clippy::redundant_clone`：防御 import_type 在 match 内的潜在 clone 误报。

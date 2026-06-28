@@ -52,9 +52,9 @@ impl UserService {
         }
     }
 
-    /// 构造用户缓存键（用户表为平台级，使用 tenant_id = 0）
+    /// 构造用户缓存键（用户表为平台级）
     fn cache_key(user_id: i32) -> String {
-        CacheService::build_key(0, "user", &user_id.to_string())
+        CacheService::build_key("user", &user_id.to_string())
     }
 
     /// 按用户名查找用户

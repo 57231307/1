@@ -5,7 +5,6 @@ use axum::{
 use serde::{Deserialize, Serialize};
 
 use crate::middleware::auth_context::AuthContext;
-use crate::middleware::tenant::extract_tenant_id;
 use crate::services::api_key_service::ApiKeyService;
 use crate::utils::app_state::AppState;
 use crate::utils::error::AppError;
@@ -50,21 +49,17 @@ impl From<crate::models::api_key::Model> for ApiKeyResponse {
     }
 }
 
-/// BE-A/H 统一（2026-06-26）：错误类型从 StatusCode 改为 AppError，
-/// 并使用 `extract_tenant_id(&auth)?` 替代 `auth.tenant_id.ok_or(...)`，
-/// 符合租户隔离规范。
+/// BE-A/H 统一（2026-06-26）：错误类型从 StatusCode 改为 AppError
 pub async fn create_api_key(
     State(state): State<AppState>,
-    auth: AuthContext,
+    _auth: AuthContext,
     Json(req): Json<CreateApiKeyRequest>,
 ) -> Result<Json<ApiResponse<CreateApiKeyResponse>>, AppError> {
-    let tenant_id = extract_tenant_id(&auth)?;
     let service = ApiKeyService::new(state.db);
     let rate_limit = req.rate_limit_per_minute.unwrap_or(100);
 
     let (model, plain_key) = service
         .create_api_key(
-            tenant_id,
             &req.name,
             req.permissions.as_deref(),
             rate_limit,
@@ -80,24 +75,22 @@ pub async fn create_api_key(
 
 pub async fn list_api_keys(
     State(state): State<AppState>,
-    auth: AuthContext,
+    _auth: AuthContext,
 ) -> Result<Json<ApiResponse<Vec<ApiKeyResponse>>>, AppError> {
-    let tenant_id = extract_tenant_id(&auth)?;
     let service = ApiKeyService::new(state.db);
-    let keys = service.list_api_keys(tenant_id).await?;
+    let keys = service.list_api_keys().await?;
     let responses: Vec<ApiKeyResponse> = keys.into_iter().map(ApiKeyResponse::from).collect();
     Ok(Json(ApiResponse::success(responses)))
 }
 
 pub async fn revoke_api_key(
     State(state): State<AppState>,
-    auth: AuthContext,
+    _auth: AuthContext,
     Path(id): Path<i32>,
 ) -> Result<Json<ApiResponse<()>>, AppError> {
     let service = ApiKeyService::new(state.db);
-    let tenant_id = extract_tenant_id(&auth)?;
 
     // 漏洞 #5 修复：传入 AppCache 以启用 key_hash 黑名单
-    service.revoke_api_key(id, tenant_id, Some(&state.cache)).await?;
+    service.revoke_api_key(id, Some(&state.cache)).await?;
     Ok(Json(ApiResponse::success_with_message((), "撤销成功")))
 }

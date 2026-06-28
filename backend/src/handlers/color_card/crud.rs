@@ -10,7 +10,6 @@ use axum::{
 };
 
 use crate::middleware::auth_context::AuthContext;
-use crate::middleware::tenant::extract_tenant_id;
 use crate::models::color_card_borrow_dto::ListColorCardsQuery;
 use crate::models::color_card_create_dto::{ArchiveColorCardDto, CreateColorCardDto, UpdateColorCardDto};
 use crate::models::color_card_response_dto::{ColorCardDetail, ColorCardListItem, ColorItemInfo, PagedResponse};
@@ -25,18 +24,16 @@ use super::helpers::item_to_info;
 
 /// GET /api/v1/erp/color-cards - 色卡列表
 pub async fn list_color_cards(
-    auth: AuthContext,
+    _auth: AuthContext,
     State(state): State<AppState>,
     Query(query): Query<ListColorCardsQuery>,
 ) -> Result<Json<ApiResponse<PagedResponse<ColorCardListItem>>>, AppError> {
-    let tenant_id = extract_tenant_id(&auth)? as i64;
     let service = ColorCardCrudService::from_state(&state);
     let page = query.page.unwrap_or(1);
     let page_size = query.page_size.unwrap_or(20);
 
     let (items, total) = service
         .list(
-            tenant_id,
             page,
             page_size,
             query.card_type,
@@ -73,14 +70,13 @@ pub async fn list_color_cards(
 
 /// POST /api/v1/erp/color-cards - 创建色卡
 pub async fn create_color_card(
-    auth: AuthContext,
+    _auth: AuthContext,
     State(state): State<AppState>,
     Json(dto): Json<CreateColorCardDto>,
 ) -> Result<Json<ApiResponse<ColorCardListItem>>, AppError> {
-    let tenant_id = extract_tenant_id(&auth)? as i64;
     let service = ColorCardCrudService::from_state(&state);
 
-    let created = service.create(dto, tenant_id).await.map_err(crud_err)?;
+    let created = service.create(dto).await.map_err(crud_err)?;
 
     Ok(Json(ApiResponse::success(ColorCardListItem {
         id: created.id,
@@ -98,17 +94,16 @@ pub async fn create_color_card(
 
 /// GET /api/v1/erp/color-cards/:id - 色卡详情（含色号列表）
 pub async fn get_color_card(
-    auth: AuthContext,
+    _auth: AuthContext,
     State(state): State<AppState>,
     Path(id): Path<i64>,
 ) -> Result<Json<ApiResponse<ColorCardDetail>>, AppError> {
-    let tenant_id = extract_tenant_id(&auth)? as i64;
     let crud_svc = ColorCardCrudService::from_state(&state);
     let item_svc = ColorCardItemService::from_state(&state);
 
-    let card = crud_svc.get_by_id(id, tenant_id).await.map_err(crud_err)?;
+    let card = crud_svc.get_by_id(id).await.map_err(crud_err)?;
     let (items, _) = item_svc
-        .list(id, tenant_id, 1, 1000)
+        .list(id, 1, 1000)
         .await
         .map_err(super::error_map::item_err)?;
 
@@ -136,16 +131,15 @@ pub async fn get_color_card(
 
 /// PUT /api/v1/erp/color-cards/:id - 更新色卡
 pub async fn update_color_card(
-    auth: AuthContext,
+    _auth: AuthContext,
     State(state): State<AppState>,
     Path(id): Path<i64>,
     Json(dto): Json<UpdateColorCardDto>,
 ) -> Result<Json<ApiResponse<ColorCardListItem>>, AppError> {
-    let tenant_id = extract_tenant_id(&auth)? as i64;
     let service = ColorCardCrudService::from_state(&state);
 
     let updated = service
-        .update(id, tenant_id, dto)
+        .update(id, dto)
         .await
         .map_err(crud_err)?;
 
@@ -165,16 +159,15 @@ pub async fn update_color_card(
 
 /// DELETE /api/v1/erp/color-cards/:id - 归档色卡
 pub async fn archive_color_card(
-    auth: AuthContext,
+    _auth: AuthContext,
     State(state): State<AppState>,
     Path(id): Path<i64>,
     Json(dto): Json<ArchiveColorCardDto>,
 ) -> Result<Json<ApiResponse<ColorCardListItem>>, AppError> {
-    let tenant_id = extract_tenant_id(&auth)? as i64;
     let service = ColorCardCrudService::from_state(&state);
 
     let updated = service
-        .archive(id, tenant_id, dto)
+        .archive(id, dto)
         .await
         .map_err(crud_err)?;
 

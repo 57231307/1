@@ -100,11 +100,9 @@ impl ColorCardBorrowService {
         expected_return_at: Option<chrono::DateTime<Utc>>,
         purpose: Option<String>,
         notes: Option<String>,
-        tenant_id: i64,
     ) -> Result<color_card_borrow_record::Model, BorrowError> {
         // 验证色卡存在
         let _card = ColorCardEntity::find_by_id(color_card_id)
-            .filter(color_card::Column::TenantId.eq(tenant_id))
             .one(&*self.db)
             .await?
             .ok_or(BorrowError::ColorCardNotFound)?;
@@ -133,7 +131,6 @@ impl ColorCardBorrowService {
             purpose: Set(purpose),
             notes: Set(notes),
             compensation_amount: Set(None),
-            tenant_id: Set(tenant_id),
             created_at: Set(now),
             updated_at: Set(now),
         };
@@ -147,9 +144,8 @@ impl ColorCardBorrowService {
         record_id: i64,
         actual_return_at: Option<chrono::DateTime<Utc>>,
         notes: Option<String>,
-        tenant_id: i64,
     ) -> Result<color_card_borrow_record::Model, BorrowError> {
-        let existing = self.get_by_id(record_id, tenant_id).await?;
+        let existing = self.get_by_id(record_id).await?;
 
         // 状态机校验
         let current = BorrowStatus::from_str(&existing.status)
@@ -179,13 +175,12 @@ impl ColorCardBorrowService {
         record_id: i64,
         compensation_amount: rust_decimal::Decimal,
         notes: Option<String>,
-        tenant_id: i64,
     ) -> Result<color_card_borrow_record::Model, BorrowError> {
         if compensation_amount <= rust_decimal::Decimal::ZERO {
             return Err(BorrowError::Validation("赔付金额必须 > 0".to_string()));
         }
 
-        let existing = self.get_by_id(record_id, tenant_id).await?;
+        let existing = self.get_by_id(record_id).await?;
         let current = BorrowStatus::from_str(&existing.status)
             .ok_or_else(|| BorrowError::InvalidState(format!("未知状态: {}", existing.status)))?;
         if current != BorrowStatus::Borrowed {
@@ -210,7 +205,6 @@ impl ColorCardBorrowService {
 
         // 2. 更新色卡状态为 lost
         let card = ColorCardEntity::find_by_id(existing.color_card_id)
-            .filter(color_card::Column::TenantId.eq(tenant_id))
             .one(&txn)
             .await?
             .ok_or(BorrowError::ColorCardNotFound)?;
@@ -229,7 +223,6 @@ impl ColorCardBorrowService {
         record_id: i64,
         compensation_amount: Option<rust_decimal::Decimal>,
         notes: Option<String>,
-        tenant_id: i64,
     ) -> Result<color_card_borrow_record::Model, BorrowError> {
         if let Some(amt) = compensation_amount {
             if amt < rust_decimal::Decimal::ZERO {
@@ -237,7 +230,7 @@ impl ColorCardBorrowService {
             }
         }
 
-        let existing = self.get_by_id(record_id, tenant_id).await?;
+        let existing = self.get_by_id(record_id).await?;
         let current = BorrowStatus::from_str(&existing.status)
             .ok_or_else(|| BorrowError::InvalidState(format!("未知状态: {}", existing.status)))?;
         if current != BorrowStatus::Borrowed {
@@ -260,31 +253,26 @@ impl ColorCardBorrowService {
         Ok(result)
     }
 
-    /// 按 ID 查询（多租户隔离）
+    /// 按 ID 查询
     pub async fn get_by_id(
         &self,
         record_id: i64,
-        tenant_id: i64,
     ) -> Result<color_card_borrow_record::Model, BorrowError> {
         BorrowEntity::find_by_id(record_id)
-            .filter(color_card_borrow_record::Column::TenantId.eq(tenant_id))
             .one(&*self.db)
             .await?
             .ok_or(BorrowError::RecordNotFound)
     }
 
-    /// 列表查询（分页 + 多条件 + 多租户隔离）
+    /// 列表查询（分页 + 多条件）
     #[allow(clippy::too_many_arguments)]
     pub async fn list_records(
         &self,
-        tenant_id: i64,
         query: ListBorrowRecordsQuery,
     ) -> Result<(Vec<color_card_borrow_record::Model>, u64), BorrowError> {
         let find = BorrowEntity::find();
 
-        // 强制多租户隔离
-        let mut cond = Condition::all()
-            .add(color_card_borrow_record::Column::TenantId.eq(tenant_id));
+        let mut cond = Condition::all();
 
         if let Some(card_id) = query.color_card_id {
             cond = cond.add(color_card_borrow_record::Column::ColorCardId.eq(card_id));

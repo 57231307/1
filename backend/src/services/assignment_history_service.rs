@@ -59,7 +59,6 @@ impl AssignmentHistoryService {
     /// 创建分配历史记录
     pub async fn create(
         &self,
-        tenant_id: i32,
         user_id: i32,
         user_name: &str,
         req: CreateAssignmentHistoryRequest,
@@ -67,7 +66,6 @@ impl AssignmentHistoryService {
         let now = Utc::now();
         let active_model = ActiveModel {
             id: Default::default(),
-            tenant_id: Set(tenant_id),
             lead_id: Set(req.lead_id),
             lead_no: Set(req.lead_no),
             company_name: Set(req.company_name),
@@ -91,14 +89,12 @@ impl AssignmentHistoryService {
     /// 查询分配历史列表
     pub async fn list(
         &self,
-        tenant_id: i32,
         query: AssignmentHistoryQuery,
     ) -> Result<(Vec<AssignmentHistoryModel>, u64), AppError> {
         let page = query.page.unwrap_or(1);
         let page_size = query.page_size.unwrap_or(20);
 
-        let mut select = AssignmentHistoryEntity::find()
-            .filter(crate::models::assignment_history::Column::TenantId.eq(tenant_id));
+        let mut select = AssignmentHistoryEntity::find();
 
         if let Some(lead_id) = query.lead_id {
             select = select.filter(crate::models::assignment_history::Column::LeadId.eq(lead_id));

@@ -1,17 +1,15 @@
 //! 决策类 handler
 //!
-//! 包含异常检测、销售合同、销售价格、租户管理四类与业务决策相关的端点。
+//! 包含异常检测、销售合同、销售价格三类与业务决策相关的端点。
 
 use axum::{extract::State, Json};
-use chrono::Utc;
 use rust_decimal::prelude::ToPrimitive;
-use sea_orm::{ActiveModelTrait, EntityTrait, QueryOrder};
+use sea_orm::{EntityTrait, QueryOrder};
 use serde::{Deserialize, Serialize};
 
 use crate::middleware::auth_context::AuthContext;
 use crate::models::sales_contract::Entity as SalesContractEntity;
 use crate::models::sales_price::Entity as SalesPriceEntity;
-use crate::models::tenant::Entity as TenantEntity;
 use crate::services::ai::AiAnalysisService;
 use crate::utils::app_state::AppState;
 use crate::utils::error::AppError;
@@ -146,94 +144,6 @@ pub async fn list_sales_prices(
 }
 
 // ============================================================================
-// 租户管理相关 - 使用真实数据库查询
-// ============================================================================
-
-/// 租户列表
-pub async fn list_tenants(
-    State(state): State<AppState>,
-) -> Result<Json<ApiResponse<Vec<Tenant>>>, AppError> {
-    let tenants = TenantEntity::find()
-        .order_by_asc(crate::models::tenant::Column::CreatedAt)
-        .all(&*state.db)
-        .await?;
-
-    let items: Vec<Tenant> = tenants
-        .into_iter()
-        .map(|t| Tenant {
-            id: t.id as u32,
-            tenant_code: t.code,
-            tenant_name: t.name,
-            domain: t.custom_domain.unwrap_or_else(|| "".to_string()),
-            subscription_plan: t
-                .plan_id
-                .map_or_else(|| "free".to_string(), |pid| format!("plan_{}", pid)),
-            current_users: 0,
-            max_users: 0,
-            status: t.status,
-            subscription_start_date: "".to_string(),
-            subscription_end_date: t
-                .expired_at
-                .map_or_else(|| "".to_string(), |d| d.format("%Y-%m-%d").to_string()),
-        })
-        .collect();
-    Ok(Json(ApiResponse::success(items)))
-}
-
-/// 创建租户
-pub async fn create_tenant(
-    State(state): State<AppState>,
-    Json(payload): Json<CreateTenantRequest>,
-) -> Result<Json<ApiResponse<Tenant>>, AppError> {
-    use crate::models::tenant::ActiveModel;
-
-    let now = Utc::now();
-
-    let active = ActiveModel {
-        code: sea_orm::ActiveValue::Set(payload.tenant_code.clone()),
-        name: sea_orm::ActiveValue::Set(payload.tenant_name.clone()),
-        description: sea_orm::ActiveValue::Set(None),
-        status: sea_orm::ActiveValue::Set("active".to_string()),
-        plan_id: sea_orm::ActiveValue::Set(None),
-        admin_user_id: sea_orm::ActiveValue::Set(None),
-        db_schema: sea_orm::ActiveValue::Set(None),
-        custom_domain: sea_orm::ActiveValue::Set(Some(payload.domain.clone())),
-        created_at: sea_orm::ActiveValue::Set(now),
-        updated_at: sea_orm::ActiveValue::Set(now),
-        expired_at: sea_orm::ActiveValue::Set(Some(now + chrono::Duration::days(365))),
-        id: sea_orm::ActiveValue::NotSet,
-    };
-
-    let inserted = active.insert(&*state.db).await?;
-    Ok(Json(ApiResponse::success(Tenant {
-        id: inserted.id as u32,
-        tenant_code: inserted.code,
-        tenant_name: inserted.name,
-        domain: inserted.custom_domain.unwrap_or_else(|| "".to_string()),
-        subscription_plan: inserted
-            .plan_id
-            .map_or_else(|| "free".to_string(), |pid| format!("plan_{}", pid)),
-        current_users: 0,
-        max_users: 0,
-        status: inserted.status,
-        subscription_start_date: "".to_string(),
-        subscription_end_date: inserted
-            .expired_at
-            .map_or_else(|| "".to_string(), |d| d.format("%Y-%m-%d").to_string()),
-    })))
-}
-
-/// 获取租户
-pub async fn get_tenant() -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
-    Err(AppError::bad_request("请提供租户ID"))
-}
-
-/// 更新租户
-pub async fn update_tenant() -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
-    Err(AppError::bad_request("请提供租户ID和更新数据"))
-}
-
-// ============================================================================
 // 数据结构
 // ============================================================================
 
@@ -272,25 +182,4 @@ pub struct SalesPrice {
     pub unit: String,
     pub effective_date: String,
     pub status: String,
-}
-
-#[derive(Debug, Serialize, Deserialize)]
-pub struct CreateTenantRequest {
-    pub tenant_code: String,
-    pub tenant_name: String,
-    pub domain: String,
-}
-
-#[derive(Debug, Serialize, Deserialize)]
-pub struct Tenant {
-    pub id: u32,
-    pub tenant_code: String,
-    pub tenant_name: String,
-    pub domain: String,
-    pub subscription_plan: String,
-    pub current_users: u32,
-    pub max_users: u32,
-    pub status: String,
-    pub subscription_start_date: String,
-    pub subscription_end_date: String,
 }

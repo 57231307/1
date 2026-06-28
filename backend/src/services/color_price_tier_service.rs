@@ -44,11 +44,9 @@ impl ColorPriceTierService {
     pub async fn list_by_price(
         &self,
         price_id: i64,
-        tenant_id: i64,
     ) -> Result<Vec<color_price_tier::Model>, TierError> {
         let items = TierEntity::find()
             .filter(color_price_tier::Column::ProductColorPriceId.eq(price_id))
-            .filter(color_price_tier::Column::TenantId.eq(tenant_id))
             .order_by_asc(color_price_tier::Column::Sequence)
             .all(&*self.db)
             .await?;
@@ -59,7 +57,6 @@ impl ColorPriceTierService {
     pub async fn create(
         &self,
         dto: CreatePriceTierDto,
-        tenant_id: i64,
     ) -> Result<color_price_tier::Model, TierError> {
         if let Some(max) = dto.max_quantity {
             if dto.min_quantity >= max {
@@ -78,7 +75,6 @@ impl ColorPriceTierService {
             tier_price: Set(dto.tier_price),
             customer_level: Set(dto.customer_level),
             sequence: Set(dto.sequence.unwrap_or(0)),
-            tenant_id: Set(tenant_id),
             created_at: Set(now),
             updated_at: Set(now),
         };
@@ -87,9 +83,8 @@ impl ColorPriceTierService {
     }
 
     /// 删除阶梯价
-    pub async fn delete(&self, id: i64, tenant_id: i64) -> Result<(), TierError> {
+    pub async fn delete(&self, id: i64) -> Result<(), TierError> {
         let existing = TierEntity::find_by_id(id)
-            .filter(color_price_tier::Column::TenantId.eq(tenant_id))
             .one(&*self.db)
             .await?
             .ok_or(TierError::NotFound)?;

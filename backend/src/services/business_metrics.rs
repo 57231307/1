@@ -4,7 +4,7 @@
 //!
 //! ## 业务指标（20+）
 //!
-//! - `erp_orders_total{status, tenant_id}` - 订单总数（按状态/租户）
+//! - `erp_orders_total{status}` - 订单总数（按状态）
 //! - `erp_users_active` - 活跃用户数
 //! - `erp_ar_balance_total` - 应收账款余额
 //! - `erp_ap_balance_total` - 应付账款余额
@@ -36,13 +36,13 @@
 //! use crate::services::business_metrics::BusinessMetrics;
 //!
 //! let m = state.business_metrics.clone();
-//! m.record_order_created(tenant_id, "pending");
-//! m.set_ar_balance(tenant_id, 12345.67);
+//! m.record_order_created("pending");
+//! m.set_ar_balance(12345.67);
 //! ```
 
 use prometheus::{
     Encoder, Histogram, HistogramOpts, HistogramVec, IntCounter, IntCounterVec, IntGauge,
-    IntGaugeVec, Opts, Registry, TextEncoder,
+    Opts, Registry, TextEncoder,
 };
 use std::sync::Arc;
 
@@ -56,16 +56,16 @@ use std::sync::Arc;
 #[derive(Debug, Clone)]
 pub struct BusinessMetrics {
     // ===== 业务核心指标 =====
-    /// 订单总数（按状态/租户）
+    /// 订单总数（按状态）
     pub orders_total: IntCounterVec,
     /// 活跃用户数
     pub users_active: IntGauge,
-    /// 应收账款余额（按租户）
-    pub ar_balance: IntGaugeVec,
-    /// 应付账款余额（按租户）
-    pub ap_balance: IntGaugeVec,
-    /// 库存总价值（按租户）
-    pub inventory_value: IntGaugeVec,
+    /// 应收账款余额
+    pub ar_balance: IntGauge,
+    /// 应付账款余额
+    pub ap_balance: IntGauge,
+    /// 库存总价值
+    pub inventory_value: IntGauge,
 
     // ===== 会话与缓存 =====
     /// 活跃 session 数
@@ -120,30 +120,21 @@ impl BusinessMetrics {
     pub fn new(registry: &Registry) -> Result<Self, prometheus::Error> {
         // ===== 业务核心 =====
         let orders_total = IntCounterVec::new(
-            Opts::new("erp_orders_total", "Total number of orders by status and tenant"),
-            &["status", "tenant_id"],
+            Opts::new("erp_orders_total", "Total number of orders by status"),
+            &["status"],
         )?;
         registry.register(Box::new(orders_total.clone()))?;
 
         let users_active = IntGauge::new("erp_users_active", "Number of active users")?;
         registry.register(Box::new(users_active.clone()))?;
 
-        let ar_balance = IntGaugeVec::new(
-            Opts::new("erp_ar_balance_total", "Accounts receivable balance by tenant (fen)"),
-            &["tenant_id"],
-        )?;
+        let ar_balance = IntGauge::new("erp_ar_balance_total", "Accounts receivable balance (fen)")?;
         registry.register(Box::new(ar_balance.clone()))?;
 
-        let ap_balance = IntGaugeVec::new(
-            Opts::new("erp_ap_balance_total", "Accounts payable balance by tenant (fen)"),
-            &["tenant_id"],
-        )?;
+        let ap_balance = IntGauge::new("erp_ap_balance_total", "Accounts payable balance (fen)")?;
         registry.register(Box::new(ap_balance.clone()))?;
 
-        let inventory_value = IntGaugeVec::new(
-            Opts::new("erp_inventory_value_total", "Inventory value by tenant (fen)"),
-            &["tenant_id"],
-        )?;
+        let inventory_value = IntGauge::new("erp_inventory_value_total", "Inventory value (fen)")?;
         registry.register(Box::new(inventory_value.clone()))?;
 
         // ===== 会话与缓存 =====
@@ -286,8 +277,8 @@ impl BusinessMetrics {
 
     // ===== 业务核心便捷方法 =====
     /// 记录订单创建
-    pub fn record_order_created(&self, tenant_id: i64, status: &str) {
-        self.orders_total.with_label_values(&[status, &tenant_id.to_string()]).inc();
+    pub fn record_order_created(&self, status: &str) {
+        self.orders_total.with_label_values(&[status]).inc();
     }
 
     /// 设置活跃用户数
@@ -296,18 +287,18 @@ impl BusinessMetrics {
     }
 
     /// 设置应收余额
-    pub fn set_ar_balance(&self, tenant_id: i64, balance_fen: i64) {
-        self.ar_balance.with_label_values(&[&tenant_id.to_string()]).set(balance_fen);
+    pub fn set_ar_balance(&self, balance_fen: i64) {
+        self.ar_balance.set(balance_fen);
     }
 
     /// 设置应付余额
-    pub fn set_ap_balance(&self, tenant_id: i64, balance_fen: i64) {
-        self.ap_balance.with_label_values(&[&tenant_id.to_string()]).set(balance_fen);
+    pub fn set_ap_balance(&self, balance_fen: i64) {
+        self.ap_balance.set(balance_fen);
     }
 
     /// 设置库存价值
-    pub fn set_inventory_value(&self, tenant_id: i64, value_fen: i64) {
-        self.inventory_value.with_label_values(&[&tenant_id.to_string()]).set(value_fen);
+    pub fn set_inventory_value(&self, value_fen: i64) {
+        self.inventory_value.set(value_fen);
     }
 
     // ===== 缓存便捷方法 =====

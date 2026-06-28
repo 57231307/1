@@ -193,7 +193,6 @@ impl FailoverService {
         to_state: Option<&str>,
         reason: Option<&str>,
         latency_ms: Option<i32>,
-        tenant_id: Option<i64>,
     ) -> Result<(), String> {
         let now = Utc::now();
         let active = event_model::ActiveModel {
@@ -203,7 +202,6 @@ impl FailoverService {
             to_state: Set(to_state.map(|s| s.to_string())),
             reason: Set(reason.map(|s| s.to_string())),
             latency_ms: Set(latency_ms),
-            tenant_id: Set(tenant_id),
             created_at: Set(now),
             ..Default::default()
         };
@@ -260,7 +258,6 @@ impl FailoverService {
             Some("primary"),
             Some("backup"),
             Some("manual switch"),
-            None,
             None,
         )
         .await?;

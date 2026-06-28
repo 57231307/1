@@ -66,7 +66,6 @@ impl CustomOrderAfterSalesService {
     pub async fn create(
         &self,
         dto: CreateAfterSalesDto,
-        tenant_id: i64,
     ) -> Result<after_sales::Model, AfterSalesError> {
         // 校验售后类型
         if !["complaint", "repair", "exchange", "refund"].contains(&dto.issue_type.as_str()) {
@@ -95,7 +94,6 @@ impl CustomOrderAfterSalesService {
             closed_at: Set(None),
             resolution: Set(None),
             refund_amount: Set(dto.refund_amount),
-            tenant_id: Set(tenant_id),
             created_at: Set(now),
             updated_at: Set(now),
         };
@@ -107,11 +105,9 @@ impl CustomOrderAfterSalesService {
     pub async fn update(
         &self,
         id: i64,
-        tenant_id: i64,
         dto: UpdateAfterSalesDto,
     ) -> Result<after_sales::Model, AfterSalesError> {
         let existing = Entity::find_by_id(id)
-            .filter(after_sales::Column::TenantId.eq(tenant_id))
             .one(&*self.db)
             .await?
             .ok_or(AfterSalesError::NotFound)?;
@@ -149,13 +145,11 @@ impl CustomOrderAfterSalesService {
     pub async fn list_by_order(
         &self,
         order_id: i64,
-        tenant_id: i64,
         page: u64,
         page_size: u64,
     ) -> Result<(Vec<after_sales::Model>, u64), AfterSalesError> {
         let query = Entity::find()
-            .filter(after_sales::Column::CustomOrderId.eq(order_id))
-            .filter(after_sales::Column::TenantId.eq(tenant_id));
+            .filter(after_sales::Column::CustomOrderId.eq(order_id));
 
         let paginator = query
             .order_by_desc(after_sales::Column::OpenedAt)
@@ -170,10 +164,8 @@ impl CustomOrderAfterSalesService {
     pub async fn get_by_id(
         &self,
         id: i64,
-        tenant_id: i64,
     ) -> Result<after_sales::Model, AfterSalesError> {
         Entity::find_by_id(id)
-            .filter(after_sales::Column::TenantId.eq(tenant_id))
             .one(&*self.db)
             .await?
             .ok_or(AfterSalesError::NotFound)

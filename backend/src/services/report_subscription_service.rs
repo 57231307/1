@@ -62,7 +62,6 @@ impl ReportSubscriptionService {
     /// 创建订阅
     pub async fn create(
         &self,
-        tenant_id: i32,
         user_id: i32,
         req: CreateSubscriptionRequest,
     ) -> Result<ReportSubscriptionModel, AppError> {
@@ -81,7 +80,6 @@ impl ReportSubscriptionService {
 
         let active_model = ActiveModel {
             id: Default::default(),
-            tenant_id: Set(tenant_id),
             name: Set(req.name),
             template_id: Set(req.template_id),
             frequency: Set(req.frequency),
@@ -209,14 +207,12 @@ impl ReportSubscriptionService {
     /// 查询订阅列表
     pub async fn list(
         &self,
-        tenant_id: i32,
         query: SubscriptionQuery,
     ) -> Result<(Vec<ReportSubscriptionModel>, u64), AppError> {
         let page = query.page.unwrap_or(1);
         let page_size = query.page_size.unwrap_or(20);
 
         let mut select = ReportSubscriptionEntity::find()
-            .filter(crate::models::report_subscription::Column::TenantId.eq(tenant_id))
             .filter(crate::models::report_subscription::Column::Status.eq("ACTIVE"));
 
         if let Some(template_id) = query.template_id {

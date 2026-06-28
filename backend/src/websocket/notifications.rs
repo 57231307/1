@@ -3,16 +3,12 @@
 //! 路径：`/api/v1/erp/ws/notifications?token=<JWT>`
 //!
 //! 核心功能：
-//! 1. 握手时验证 JWT（提取 tenant_id + user_id）
+//! 1. 握手时验证 JWT（提取 user_id）
 //! 2. 升级到 WebSocket 协议
-//! 3. 注册连接到 ConnectionManager（按 (tenant_id, user_id) 分组）
+//! 3. 注册连接到 ConnectionManager（按 user_id 分组）
 //! 4. 接收客户端消息（ping / mark_as_read）
 //! 5. 接收服务端广播（来自 notification_service.send()）
 //! 6. 断开时自动清理
-//!
-//! 多租户隔离：
-//! - JWT 验证时提取 tenant_id
-//! - 消息广播按 (tenant_id, user_id) 双键过滤
 
 use axum::extract::ws::{Message, WebSocket, WebSocketUpgrade};
 use axum::extract::Query;
@@ -57,17 +53,16 @@ pub struct NotificationPayload {
 /// 鉴权信息（从 JWT 提取）
 #[derive(Debug, Clone)]
 pub struct AuthInfo {
-    pub tenant_id: i64,
     pub user_id: i64,
 }
 
 /// 连接管理器（全局单例）
 ///
-/// Key: (tenant_id, user_id)
+/// Key: user_id
 /// Value: broadcast::Sender（一个用户可能有多个连接，例如多端登录）
 #[derive(Clone, Default)]
 pub struct ConnectionManager {
-    senders: Arc<DashMap<(i64, i64), broadcast::Sender<String>>>,
+    senders: Arc<DashMap<i64, broadcast::Sender<String>>>,
 }
 
 impl ConnectionManager {
@@ -79,12 +74,8 @@ impl ConnectionManager {
     /// 注册新连接
     ///
     /// 返回 `broadcast::Receiver`，handler 用来接收广播消息
-    pub fn register(
-        &self,
-        tenant_id: i64,
-        user_id: i64,
-    ) -> broadcast::Receiver<String> {
-        let key = (tenant_id, user_id);
+    pub fn register(&self, user_id: i64) -> broadcast::Receiver<String> {
+        let key = user_id;
         // 防御 clippy::unused_mut：entry 仅通过 Deref 调用 subscribe()，无需 mut
         let entry = self.senders.entry(key).or_insert_with(|| {
             // 初始容量 100，多端登录时自动扩容
@@ -95,8 +86,8 @@ impl ConnectionManager {
     }
 
     /// 注销连接（handler drop 时调用）
-    pub fn unregister(&self, tenant_id: i64, user_id: i64) {
-        let key = (tenant_id, user_id);
+    pub fn unregister(&self, user_id: i64) {
+        let key = user_id;
         // 仅在无活跃订阅者时清理（dashmap entry API）
         if let Some(entry) = self.senders.get(&key) {
             if entry.receiver_count() == 0 {
@@ -109,8 +100,8 @@ impl ConnectionManager {
     /// 广播通知给指定用户
     ///
     /// 用途：notification_service.send() 调用此方法推送新通知
-    pub fn broadcast(&self, tenant_id: i64, user_id: i64, message: String) {
-        let key = (tenant_id, user_id);
+    pub fn broadcast(&self, user_id: i64, message: String) {
+        let key = user_id;
         if let Some(tx) = self.senders.get(&key) {
             // 发送失败说明无活跃订阅者，忽略即可
             let _ = tx.send(message);
@@ -126,7 +117,6 @@ impl ConnectionManager {
 /// 全局 NotificationBroadcaster
 ///
 /// 用途：notification_service.send() 通过这个全局对象广播新通知
-/// 多租户隔离：所有方法接受 tenant_id + user_id
 #[derive(Clone, Default)]
 pub struct NotificationBroadcaster {
     manager: ConnectionManager,
@@ -140,17 +130,12 @@ impl NotificationBroadcaster {
     }
 
     /// 广播通知（供 notification_service 调用）
-    pub fn broadcast_notification(
-        &self,
-        tenant_id: i64,
-        user_id: i64,
-        payload: &NotificationPayload,
-    ) {
+    pub fn broadcast_notification(&self, user_id: i64, payload: &NotificationPayload) {
         let msg = WsMessage::Notification {
             data: payload.clone(),
         };
         if let Ok(json) = serde_json::to_string(&msg) {
-            self.manager.broadcast(tenant_id, user_id, json);
+            self.manager.broadcast(user_id, json);
         }
     }
 
@@ -167,7 +152,7 @@ impl NotificationBroadcaster {
 ///
 /// 流程：
 /// 1. 提取 URL query 中的 token
-/// 2. 验证 JWT（提取 tenant_id + user_id）
+/// 2. 验证 JWT（提取 user_id）
 /// 3. 升级 HTTP 到 WebSocket
 /// 4. 进入 handle_socket() 处理消息
 pub async fn ws_notifications_handler(
@@ -221,32 +206,22 @@ pub fn verify_jwt_token(token: &str) -> Result<AuthInfo, String> {
     let claims = AuthService::validate_token_static(token, &secret)
         .map_err(|e| format!("JWT 验证失败: {}", e))?;
 
-    let tenant_id = claims
-        .tenant_id
-        .ok_or_else(|| "JWT 缺少 tenant_id 声明".to_string())? as i64;
     let user_id = claims.sub as i64;
 
-    if tenant_id <= 0 || user_id <= 0 {
-        return Err("tenant_id 或 user_id 无效".to_string());
+    if user_id <= 0 {
+        return Err("user_id 无效".to_string());
     }
 
-    Ok(AuthInfo {
-        tenant_id,
-        user_id,
-    })
+    Ok(AuthInfo { user_id })
 }
 
 /// 处理 WebSocket 连接
 async fn handle_socket(socket: WebSocket, auth: AuthInfo) {
     let manager = ConnectionManager::new();
-    let mut rx = manager.register(auth.tenant_id, auth.user_id);
+    let mut rx = manager.register(auth.user_id);
     let (mut sender, mut receiver) = socket.split();
 
-    tracing::info!(
-        "WebSocket 连接建立：tenant_id={}, user_id={}",
-        auth.tenant_id,
-        auth.user_id
-    );
+    tracing::info!("WebSocket 连接建立：user_id={}", auth.user_id);
 
     // 接收客户端消息任务
     let recv_task = tokio::spawn(async move {
@@ -259,17 +234,14 @@ async fn handle_socket(socket: WebSocket, auth: AuthInfo) {
                             match ws_msg {
                                 WsMessage::Ping { timestamp } => {
                                     tracing::debug!(
-                                        "收到 ping：tenant_id={}, timestamp={}",
-                                        auth.tenant_id,
-                                        timestamp
+                                        "收到 ping：user_id={}, timestamp={}",
+                                        auth.user_id, timestamp
                                     );
                                 }
                                 WsMessage::MarkAsRead { id } => {
                                     tracing::info!(
-                                        "客户端标记已读：tenant_id={}, user_id={}, id={}",
-                                        auth.tenant_id,
-                                        auth.user_id,
-                                        id
+                                        "客户端标记已读：user_id={}, id={}",
+                                        auth.user_id, id
                                     );
                                 }
                                 _ => {
@@ -281,11 +253,7 @@ async fn handle_socket(socket: WebSocket, auth: AuthInfo) {
                         }
                     }
                     Ok(Message::Close(_)) => {
-                        tracing::info!(
-                            "客户端主动关闭：tenant_id={}, user_id={}",
-                            auth.tenant_id,
-                            auth.user_id
-                        );
+                        tracing::info!("客户端主动关闭：user_id={}", auth.user_id);
                         return false; // break
                     }
                     Ok(Message::Ping(_)) => {}
@@ -360,12 +328,8 @@ async fn handle_socket(socket: WebSocket, auth: AuthInfo) {
     }
 
     // 清理
-    manager.unregister(auth.tenant_id, auth.user_id);
-    tracing::info!(
-        "WebSocket 连接清理完成：tenant_id={}, user_id={}",
-        auth.tenant_id,
-        auth.user_id
-    );
+    manager.unregister(auth.user_id);
+    tracing::info!("WebSocket 连接清理完成：user_id={}", auth.user_id);
 }
 
 #[cfg(test)]
@@ -410,9 +374,9 @@ mod tests {
     #[test]
     fn test_connection_manager_register_unregister() {
         let manager = ConnectionManager::new();
-        let _rx1 = manager.register(1, 100);
+        let _rx1 = manager.register(100);
         assert_eq!(manager.connection_count(), 1);
-        manager.unregister(1, 100);
+        manager.unregister(100);
         // 注意：unregister 仅在无活跃订阅者时清理，可能延迟
     }
 
@@ -428,6 +392,6 @@ mod tests {
             created_at: "2026-06-17T10:30:00Z".to_string(),
         };
         // 广播给无订阅者的用户应不报错
-        broadcaster.broadcast_notification(1, 100, &payload);
+        broadcaster.broadcast_notification(100, &payload);
     }
 }

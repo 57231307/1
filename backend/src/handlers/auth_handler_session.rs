@@ -101,7 +101,6 @@ pub async fn logout(
 
     // 异步记录审计日志：登出（P13 批 1 P3-2）
     let logout_event = AuditEvent {
-        tenant_id: None,
         user_id: logout_user_id,
         username: logout_username.clone(),
         operation_type: OperationType::Logout,

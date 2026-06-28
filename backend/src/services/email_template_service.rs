@@ -65,13 +65,11 @@ impl EmailTemplateService {
     /// 创建邮件模板
     pub async fn create(
         &self,
-        tenant_id: i32,
         user_id: i32,
         req: CreateEmailTemplateRequest,
     ) -> Result<EmailTemplateModel, AppError> {
         // 检查编码是否已存在
         let existing = EmailTemplateEntity::find()
-            .filter(crate::models::email_template::Column::TenantId.eq(tenant_id))
             .filter(crate::models::email_template::Column::Code.eq(&req.code))
             .one(&*self.db)
             .await?;
@@ -86,7 +84,6 @@ impl EmailTemplateService {
         let now = Utc::now();
         let active_model = ActiveModel {
             id: Default::default(),
-            tenant_id: Set(tenant_id),
             name: Set(req.name),
             code: Set(req.code),
             subject_template: Set(req.subject_template),
@@ -175,14 +172,12 @@ impl EmailTemplateService {
     /// 查询邮件模板列表
     pub async fn list(
         &self,
-        tenant_id: i32,
         query: EmailTemplateQuery,
     ) -> Result<(Vec<EmailTemplateModel>, u64), AppError> {
         let page = query.page.unwrap_or(1);
         let page_size = query.page_size.unwrap_or(20);
 
         let mut select = EmailTemplateEntity::find()
-            .filter(crate::models::email_template::Column::TenantId.eq(tenant_id))
             .filter(crate::models::email_template::Column::Status.eq("ACTIVE"));
 
         if let Some(template_type) = query.template_type {

@@ -21,7 +21,6 @@ pub struct ProcessNodeDetail {
     pub actual_end_date: Option<DateTime<Utc>>,
     pub operator_id: Option<i64>,
     pub notes: Option<String>,
-    pub tenant_id: i64,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
 }

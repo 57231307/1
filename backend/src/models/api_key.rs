@@ -10,7 +10,6 @@ use serde::{Deserialize, Serialize};
 pub struct Model {
     #[sea_orm(primary_key)]
     pub id: i32,
-    pub tenant_id: i32,
     pub name: String,
     pub key_hash: String,
     pub key_prefix: String,
@@ -24,19 +23,6 @@ pub struct Model {
 }
 
 #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
-pub enum Relation {
-    #[sea_orm(
-        belongs_to = "super::tenant::Entity",
-        from = "Column::TenantId",
-        to = "super::tenant::Column::Id"
-    )]
-    Tenant,
-}
-
-impl Related<super::tenant::Entity> for Entity {
-    fn to() -> RelationDef {
-        Relation::Tenant.def()
-    }
-}
+pub enum Relation {}
 
 impl ActiveModelBehavior for ActiveModel {}

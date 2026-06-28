@@ -10,7 +10,7 @@
 //! 功能：
 //! - 服务端主动推送新通知给客户端
 //! - 客户端心跳（ping → pong）
-//! - 多租户隔离（按 tenant_id + user_id 分组）
+//! - 连接管理（按 user_id 分组）
 //! - 鉴权（URL query 携带 JWT）
 
 pub mod notifications;

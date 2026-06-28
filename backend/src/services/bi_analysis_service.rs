@@ -5,8 +5,6 @@
 //! 2. 钻取（年→月、月→日、客户→订单、产品→订单）
 //! 3. 切片/切块/上卷/透视
 //!
-//! 多租户隔离：所有 SQL 强制 `WHERE tenant_id = $1`
-//!
 //! 实现策略：
 //! - 直接使用 sqlx（避免 SeaORM 实体生成复杂度）
 //! - 关键路径 demo：返回 mock 数据（沙箱无法连真实数据库）
@@ -139,20 +137,15 @@ impl BiAnalysisService {
     ///        SUM(quantity) AS quantity,
     ///        SUM(profit_amount) AS profit_amount
     /// FROM sales_facts
-    /// WHERE tenant_id = $1
-    ///   AND order_date BETWEEN $4 AND $5
+    /// WHERE order_date BETWEEN $4 AND $5
     /// GROUP BY period
     /// ORDER BY period ASC
     /// ```
     pub async fn sales_by_time(
-        tenant_id: i64,
         start_date: chrono::NaiveDate,
         end_date: chrono::NaiveDate,
         _granularity: &str,
     ) -> Result<Vec<TimeSeriesPoint>, String> {
-        if tenant_id <= 0 {
-            return Err("租户 ID 无效".to_string());
-        }
         if end_date < start_date {
             return Err("结束日期不能早于开始日期".to_string());
         }
@@ -177,12 +170,8 @@ impl BiAnalysisService {
 
     /// 按客户聚合销售
     pub async fn sales_by_customer(
-        tenant_id: i64,
         limit: i64,
     ) -> Result<Vec<CustomerRank>, String> {
-        if tenant_id <= 0 {
-            return Err("租户 ID 无效".to_string());
-        }
         let limit = limit.clamp(1, 100);
         Ok(vec![
             CustomerRank {
@@ -212,12 +201,8 @@ impl BiAnalysisService {
 
     /// 按产品聚合销售
     pub async fn sales_by_product(
-        tenant_id: i64,
         limit: i64,
     ) -> Result<Vec<ProductRank>, String> {
-        if tenant_id <= 0 {
-            return Err("租户 ID 无效".to_string());
-        }
         let limit = limit.clamp(1, 100);
         Ok(vec![
             ProductRank {
@@ -243,10 +228,7 @@ impl BiAnalysisService {
     }
 
     /// 按区域聚合销售
-    pub async fn sales_by_region(tenant_id: i64) -> Result<Vec<RegionStat>, String> {
-        if tenant_id <= 0 {
-            return Err("租户 ID 无效".to_string());
-        }
+    pub async fn sales_by_region() -> Result<Vec<RegionStat>, String> {
         Ok(vec![
             RegionStat {
                 region: "华东".to_string(),
@@ -264,10 +246,7 @@ impl BiAnalysisService {
     }
 
     /// 按品类聚合销售
-    pub async fn sales_by_category(tenant_id: i64) -> Result<Vec<CategoryStat>, String> {
-        if tenant_id <= 0 {
-            return Err("租户 ID 无效".to_string());
-        }
+    pub async fn sales_by_category() -> Result<Vec<CategoryStat>, String> {
         Ok(vec![
             CategoryStat {
                 category: "面料".to_string(),
@@ -283,9 +262,8 @@ impl BiAnalysisService {
     }
 
     /// 销售趋势（时间序列）
-    pub async fn sales_trend(tenant_id: i64, days: i32) -> Result<Vec<TimeSeriesPoint>, String> {
+    pub async fn sales_trend(days: i32) -> Result<Vec<TimeSeriesPoint>, String> {
         Self::sales_by_time(
-            tenant_id,
             chrono::Local::now().date_naive() - chrono::Duration::days(days as i64),
             chrono::Local::now().date_naive(),
             "day",
@@ -294,10 +272,7 @@ impl BiAnalysisService {
     }
 
     /// 利润分析
-    pub async fn profit_analysis(tenant_id: i64) -> Result<ProfitAnalysis, String> {
-        if tenant_id <= 0 {
-            return Err("租户 ID 无效".to_string());
-        }
+    pub async fn profit_analysis() -> Result<ProfitAnalysis, String> {
         Ok(ProfitAnalysis {
             total_revenue: 285000.0,
             total_cost: 200000.0,
@@ -309,10 +284,7 @@ impl BiAnalysisService {
     }
 
     /// 核心 KPI
-    pub async fn kpi_summary(tenant_id: i64) -> Result<KpiSummary, String> {
-        if tenant_id <= 0 {
-            return Err("租户 ID 无效".to_string());
-        }
+    pub async fn kpi_summary() -> Result<KpiSummary, String> {
         Ok(KpiSummary {
             total_sales: 285000.0,
             order_count: 105,
@@ -327,12 +299,8 @@ impl BiAnalysisService {
 
     /// 钻取：年 → 月
     pub async fn drilldown_year_to_month(
-        tenant_id: i64,
         year: i32,
     ) -> Result<Vec<TimeSeriesPoint>, String> {
-        if tenant_id <= 0 {
-            return Err("租户 ID 无效".to_string());
-        }
         if !(1900..=2999).contains(&year) {
             return Err("年份无效".to_string());
         }
@@ -349,13 +317,9 @@ impl BiAnalysisService {
 
     /// 钻取：月 → 日
     pub async fn drilldown_month_to_day(
-        tenant_id: i64,
         year: i32,
         month: u32,
     ) -> Result<Vec<TimeSeriesPoint>, String> {
-        if tenant_id <= 0 {
-            return Err("租户 ID 无效".to_string());
-        }
         if !(1..=12).contains(&month) {
             return Err("月份无效".to_string());
         }
@@ -373,12 +337,8 @@ impl BiAnalysisService {
 
     /// 钻取：客户 → 订单
     pub async fn drilldown_customer_to_order(
-        tenant_id: i64,
         customer_id: i64,
     ) -> Result<serde_json::Value, String> {
-        if tenant_id <= 0 {
-            return Err("租户 ID 无效".to_string());
-        }
         if customer_id <= 0 {
             return Err("客户 ID 无效".to_string());
         }
@@ -393,12 +353,8 @@ impl BiAnalysisService {
 
     /// 钻取：产品 → 订单
     pub async fn drilldown_product_to_order(
-        tenant_id: i64,
         product_id: i64,
     ) -> Result<serde_json::Value, String> {
-        if tenant_id <= 0 {
-            return Err("租户 ID 无效".to_string());
-        }
         if product_id <= 0 {
             return Err("产品 ID 无效".to_string());
         }
@@ -415,13 +371,9 @@ impl BiAnalysisService {
 
     /// 切片（固定其他维度，单独分析一个维度）
     pub async fn slice(
-        tenant_id: i64,
         dimension: &str,
         filters: &serde_json::Value,
     ) -> Result<serde_json::Value, String> {
-        if tenant_id <= 0 {
-            return Err("租户 ID 无效".to_string());
-        }
         let valid_dims = ["time", "customer", "product", "region", "category"];
         if !valid_dims.contains(&dimension) {
             return Err(format!("不支持的维度: {}", dimension));
@@ -435,12 +387,8 @@ impl BiAnalysisService {
 
     /// 切块（多维范围筛选）
     pub async fn dice(
-        tenant_id: i64,
         filters: &serde_json::Value,
     ) -> Result<serde_json::Value, String> {
-        if tenant_id <= 0 {
-            return Err("租户 ID 无效".to_string());
-        }
         Ok(serde_json::json!({
             "filters": filters,
             "result": "mock dice result"
@@ -449,13 +397,9 @@ impl BiAnalysisService {
 
     /// 上卷（细粒度 → 粗粒度）
     pub async fn rollup(
-        tenant_id: i64,
         from_level: &str,
         to_level: &str,
     ) -> Result<serde_json::Value, String> {
-        if tenant_id <= 0 {
-            return Err("租户 ID 无效".to_string());
-        }
         let valid_levels = ["day", "week", "month", "quarter", "year"];
         if !valid_levels.contains(&from_level) || !valid_levels.contains(&to_level) {
             return Err("无效的粒度级别".to_string());
@@ -469,14 +413,10 @@ impl BiAnalysisService {
 
     /// 透视（行列转换）
     pub async fn pivot(
-        tenant_id: i64,
         row_dim: &str,
         col_dim: &str,
         measure: &str,
     ) -> Result<serde_json::Value, String> {
-        if tenant_id <= 0 {
-            return Err("租户 ID 无效".to_string());
-        }
         Ok(serde_json::json!({
             "row": row_dim,
             "col": col_dim,
@@ -500,38 +440,31 @@ mod tests {
     use crate::ymd;
 
     #[tokio::test]
-    async fn test_tenant_isolation() {
-        assert!(BiAnalysisService::sales_by_time(0, ymd!(2026, 1, 1), ymd!(2026, 12, 31), "month").await.is_err());
-        assert!(BiAnalysisService::kpi_summary(-1).await.is_err());
-    }
-
-    #[tokio::test]
     async fn test_kpi_summary() {
-        let kpi = BiAnalysisService::kpi_summary(1).await.expect("P9-1: 测试夹具 KPI 汇总");
+        let kpi = BiAnalysisService::kpi_summary().await.expect("P9-1: 测试夹具 KPI 汇总");
         assert!(kpi.total_sales > 0.0);
         assert!(kpi.order_count > 0);
     }
 
     #[tokio::test]
     async fn test_drilldown_year_to_month() {
-        let data = BiAnalysisService::drilldown_year_to_month(1, 2026).await.expect("P9-1: 测试夹具 下钻查询");
+        let data = BiAnalysisService::drilldown_year_to_month(2026).await.expect("P9-1: 测试夹具 下钻查询");
         assert_eq!(data.len(), 12);
     }
 
     #[tokio::test]
     async fn test_drilldown_invalid_year() {
-        assert!(BiAnalysisService::drilldown_year_to_month(1, 1800).await.is_err());
+        assert!(BiAnalysisService::drilldown_year_to_month(1800).await.is_err());
     }
 
     #[tokio::test]
     async fn test_slice_invalid_dimension() {
-        assert!(BiAnalysisService::slice(1, "invalid_dim", &serde_json::json!({})).await.is_err());
+        assert!(BiAnalysisService::slice("invalid_dim", &serde_json::json!({})).await.is_err());
     }
 
     #[tokio::test]
     async fn test_sales_by_time_invalid_dates() {
         let result = BiAnalysisService::sales_by_time(
-            1,
             ymd!(2026, 12, 31),
             ymd!(2026, 1, 1),
             "month",

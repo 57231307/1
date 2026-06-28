@@ -99,7 +99,6 @@ impl Severity {
 pub struct Model {
     #[sea_orm(primary_key)]
     pub id: i32,
-    pub tenant_id: Option<i32>,
     pub user_id: Option<i32>,
     pub username: Option<String>,
     /// 旧字段：通用操作类型（自由文本，与 operation_type 语义重叠，新代码优先用 operation_type）

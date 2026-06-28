@@ -116,8 +116,6 @@ pub struct BusinessEvent {
     pub aggregate_id: String,
     /// 聚合根类型（"sales_order" / "purchase_order" / "inventory"）
     pub aggregate_type: String,
-    /// 租户 ID
-    pub tenant_id: String,
     /// 事件数据（JSON 序列化）
     pub payload: serde_json::Value,
     /// 发生时间
@@ -132,7 +130,6 @@ impl BusinessEvent {
         event_type: EventType,
         aggregate_id: impl Into<String>,
         aggregate_type: impl Into<String>,
-        tenant_id: impl Into<String>,
         payload: serde_json::Value,
     ) -> Self {
         Self {
@@ -140,7 +137,6 @@ impl BusinessEvent {
             event_type,
             aggregate_id: aggregate_id.into(),
             aggregate_type: aggregate_type.into(),
-            tenant_id: tenant_id.into(),
             payload,
             occurred_at: chrono::Utc::now(),
             trace_id: None,
@@ -160,7 +156,6 @@ impl BusinessEvent {
             value: serde_json::to_vec(self).unwrap_or_default(),
             headers: HashMap::from([
                 ("event_type".to_string(), self.event_type.desc_zh().to_string()),
-                ("tenant_id".to_string(), self.tenant_id.clone()),
                 ("event_id".to_string(), self.event_id.clone()),
             ]),
         }
@@ -359,12 +354,10 @@ mod tests {
             EventType::SalesOrderCreated,
             "SO-20260617-0001",
             "sales_order",
-            "tenant-001",
             serde_json::json!({"amount": 1000}),
         );
         assert!(!evt.event_id.is_empty());
         assert_eq!(evt.aggregate_id, "SO-20260617-0001");
-        assert_eq!(evt.tenant_id, "tenant-001");
     }
 
     #[test]
@@ -373,7 +366,6 @@ mod tests {
             EventType::PurchaseOrderCreated,
             "PO-001",
             "purchase_order",
-            "tenant-002",
             serde_json::json!({}),
         )
         .with_trace_id("trace-abc-123");
@@ -386,14 +378,12 @@ mod tests {
             EventType::SalesOrderCreated,
             "SO-001",
             "sales_order",
-            "tenant-001",
             serde_json::json!({"amount": 1000}),
         );
         let msg = evt.to_kafka_message();
         assert_eq!(msg.key, "SO-001");
         assert!(!msg.value.is_empty());
         assert!(msg.headers.contains_key("event_type"));
-        assert!(msg.headers.contains_key("tenant_id"));
     }
 
     #[tokio::test]

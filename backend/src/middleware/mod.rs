@@ -18,7 +18,6 @@ pub mod slow_query;
 // P4-2 安全加固 - CSP 中间件
 pub mod csp;
 pub mod sql_injection_audit;
-pub mod tenant;
 pub mod timeout;
 pub mod trace_context;
 // P1 修复：init 端点 token 校验中间件（bug.md #3）

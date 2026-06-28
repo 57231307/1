@@ -103,12 +103,7 @@ pub async fn refresh_token(
 
     let auth_service = AuthService::new(state.db.clone(), state.jwt_secret.clone());
     let new_token = auth_service
-        .generate_token(
-            claims.sub,
-            &claims.username,
-            claims.role_id,
-            claims.tenant_id,
-        )
+        .generate_token(claims.sub, &claims.username, claims.role_id)
         .map_err(|e| AppError::internal(format!("生成令牌失败：{}", e)))?;
 
     // Refresh Token 轮换：先将旧 Token 的 JTI（session_id）加入黑名单

@@ -20,7 +20,6 @@ pub struct Model {
     pub status: String,
     pub description: Option<String>,
     pub cover_image_url: Option<String>,
-    pub tenant_id: i64,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
 }

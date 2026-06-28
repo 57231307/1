@@ -442,7 +442,6 @@ impl MaterialShortageService {
     /// 保存预警阈值配置
     pub async fn save_threshold_config(
         &self,
-        tenant_id: i32,
         config: &ShortageThresholdConfig,
     ) -> Result<(), AppError> {
         use sea_orm::Set;
@@ -452,7 +451,6 @@ impl MaterialShortageService {
 
         // 查找现有配置
         let existing = TenantConfigEntity::find()
-            .filter(crate::models::tenant_config::Column::TenantId.eq(tenant_id))
             .filter(crate::models::tenant_config::Column::ConfigKey.eq("shortage_threshold"))
             .one(&*self.db)
             .await?;
@@ -465,7 +463,6 @@ impl MaterialShortageService {
         } else {
             let active = TenantConfigActiveModel {
                 id: Default::default(),
-                tenant_id: Set(tenant_id),
                 config_key: Set("shortage_threshold".to_string()),
                 config_value: Set(config_json),
                 config_type: Set("json".to_string()),
@@ -482,12 +479,10 @@ impl MaterialShortageService {
     /// 加载预警阈值配置
     pub async fn load_threshold_config(
         &self,
-        tenant_id: i32,
     ) -> Result<ShortageThresholdConfig, AppError> {
         use crate::models::tenant_config::Entity as TenantConfigEntity;
 
         let config = TenantConfigEntity::find()
-            .filter(crate::models::tenant_config::Column::TenantId.eq(tenant_id))
             .filter(crate::models::tenant_config::Column::ConfigKey.eq("shortage_threshold"))
             .one(&*self.db)
             .await?;
@@ -594,7 +589,6 @@ impl MaterialShortageService {
         } else {
             let active = TenantConfigActiveModel {
                 id: Default::default(),
-                tenant_id: Set(0),
                 config_key: Set(key),
                 config_value: Set(payload_str),
                 config_type: Set("json".to_string()),

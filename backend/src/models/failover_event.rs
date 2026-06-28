@@ -35,9 +35,6 @@ pub struct Model {
     /// 调用延迟（毫秒）
     pub latency_ms: Option<i32>,
 
-    /// 租户 ID（多租户隔离）
-    pub tenant_id: Option<i64>,
-
     /// 创建时间
     pub created_at: DateTime<Utc>,
 }
@@ -57,7 +54,6 @@ pub struct FailoverEventDto {
     pub to_state: Option<String>,
     pub reason: Option<String>,
     pub latency_ms: Option<i32>,
-    pub tenant_id: Option<i64>,
     pub created_at: DateTime<Utc>,
 }
 
@@ -71,7 +67,6 @@ impl From<Model> for FailoverEventDto {
             to_state: m.to_state,
             reason: m.reason,
             latency_ms: m.latency_ms,
-            tenant_id: m.tenant_id,
             created_at: m.created_at,
         }
     }

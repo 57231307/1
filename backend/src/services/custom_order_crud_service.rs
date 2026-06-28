@@ -54,7 +54,6 @@ impl CustomOrderCrudService {
         &self,
         dto: CreateCustomOrderDto,
         user_id: i64,
-        tenant_id: i64,
     ) -> Result<custom_order::Model, CrudError> {
         // 1. 业务校验
         self.validate_create(&dto)?;
@@ -90,7 +89,6 @@ impl CustomOrderCrudService {
             sales_order_id: Set(dto.sales_order_id),
             total_amount: Set(dto.total_amount),
             currency: Set(dto.currency.unwrap_or_else(|| crate::constants::DEFAULT_CURRENCY.to_string())),
-            tenant_id: Set(tenant_id),
             created_by: Set(Some(user_id)),
             created_at: Set(now),
             updated_at: Set(now),
@@ -112,7 +110,6 @@ impl CustomOrderCrudService {
                 actual_end_date: Set(None),
                 operator_id: Set(None),
                 notes: Set(None),
-                tenant_id: Set(tenant_id),
                 created_at: Set(now),
                 updated_at: Set(now),
             };
@@ -124,10 +121,9 @@ impl CustomOrderCrudService {
         Ok(result)
     }
 
-    /// 列表查询（分页 + 过滤 + 多租户隔离）
+    /// 列表查询（分页 + 过滤）
     pub async fn list(
         &self,
-        tenant_id: i64,
         page: u64,
         page_size: u64,
         status: Option<String>,
@@ -135,9 +131,6 @@ impl CustomOrderCrudService {
         keyword: Option<String>,
     ) -> Result<(Vec<custom_order::Model>, u64), CrudError> {
         let mut query = CustomOrderEntity::find();
-
-        // 强制多租户隔离
-        query = query.filter(custom_order::Column::TenantId.eq(tenant_id));
 
         if let Some(s) = status {
             query = query.filter(custom_order::Column::Status.eq(s));
@@ -160,14 +153,12 @@ impl CustomOrderCrudService {
         Ok((items, total))
     }
 
-    /// 按 ID 查询（多租户隔离）
+    /// 按 ID 查询
     pub async fn get_by_id(
         &self,
         id: i64,
-        tenant_id: i64,
     ) -> Result<custom_order::Model, CrudError> {
         CustomOrderEntity::find_by_id(id)
-            .filter(custom_order::Column::TenantId.eq(tenant_id))
             .one(&*self.db)
             .await?
             .ok_or(CrudError::NotFound)
@@ -177,10 +168,9 @@ impl CustomOrderCrudService {
     pub async fn update(
         &self,
         id: i64,
-        tenant_id: i64,
         dto: UpdateCustomOrderDto,
     ) -> Result<custom_order::Model, CrudError> {
-        let existing = self.get_by_id(id, tenant_id).await?;
+        let existing = self.get_by_id(id).await?;
         if existing.status != "draft" {
             return Err(CrudError::InvalidState);
         }
@@ -226,11 +216,10 @@ impl CustomOrderCrudService {
     pub async fn cancel(
         &self,
         id: i64,
-        tenant_id: i64,
         dto: CancelCustomOrderDto,
         _user_id: i64,
     ) -> Result<custom_order::Model, CrudError> {
-        let existing = self.get_by_id(id, tenant_id).await?;
+        let existing = self.get_by_id(id).await?;
         if existing.status == "completed" || existing.status == "cancelled" {
             return Err(CrudError::InvalidState);
         }
@@ -247,11 +236,9 @@ impl CustomOrderCrudService {
     pub async fn list_process_nodes(
         &self,
         custom_order_id: i64,
-        tenant_id: i64,
     ) -> Result<Vec<process_node::Model>, CrudError> {
         let nodes = NodeEntity::find()
             .filter(process_node::Column::CustomOrderId.eq(custom_order_id))
-            .filter(process_node::Column::TenantId.eq(tenant_id))
             .order_by_asc(process_node::Column::Sequence)
             .all(&*self.db)
             .await?;

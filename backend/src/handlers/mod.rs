@@ -95,7 +95,6 @@ pub mod production_order_handler;
 // 多租户SaaS模块
 pub mod api_gateway_handler;
 pub mod api_key_handler;
-pub mod tenant_handler;
 pub mod webhook_handler;
 // Phase 2-3 补充Handler
 pub mod ai_analysis_handler;
@@ -138,9 +137,6 @@ pub mod slow_query_handler;
 pub mod webhook_integration_handler;
 // 生产排程模块
 pub mod scheduling_handler;
-pub mod tenant_config_handler;
-// 租户计费模块
-pub mod tenant_billing_handler;
 // 字段权限模块
 pub mod field_permission_handler;
 // 通用打印模块

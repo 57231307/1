@@ -25,7 +25,6 @@ pub struct Model {
     pub notes: Option<String>,
     pub approved_by: Option<i64>,
     pub approved_at: Option<DateTime<Utc>>,
-    pub tenant_id: i64,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
 }

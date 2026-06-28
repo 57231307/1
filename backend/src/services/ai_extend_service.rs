@@ -39,8 +39,6 @@ pub struct CreateProcessOptDto {
     pub request: RecipeOptRequest,
     /// 操作员 ID（来自 auth context，可选）
     pub operator_id: Option<i64>,
-    /// 租户 ID（来自 auth context，必须）
-    pub tenant_id: i64,
 }
 
 #[derive(Debug, Serialize)]
@@ -94,7 +92,6 @@ pub struct AiExtendService {
 pub struct CreateQualityPredDto {
     pub request: QualityPredRequest,
     pub operator_id: Option<i64>,
-    pub tenant_id: i64,
 }
 
 #[derive(Debug, Deserialize, Default)]
@@ -170,7 +167,6 @@ impl AiExtendService {
             applied_by: Set(None),
             feedback_score: Set(None),
             feedback_remark: Set(None),
-            tenant_id: Set(dto.tenant_id),
             created_by: Set(dto.operator_id),
             created_at: Set(now),
             updated_at: Set(now),
@@ -183,14 +179,12 @@ impl AiExtendService {
     /// 工艺优化列表查询
     pub async fn list_process_optimizations(
         &self,
-        tenant_id: i64,
         q: ListProcessOptQuery,
     ) -> Result<ProcessOptListVo, AppError> {
         let page = q.page.unwrap_or(1).max(1);
         let page_size = q.page_size.unwrap_or(20).clamp(1, 100);
 
-        let mut select = ProcessEntity::find()
-            .filter(ProcessColumn::TenantId.eq(tenant_id));
+        let mut select = ProcessEntity::find();
         if let Some(c) = &q.color_no {
             select = select.filter(ProcessColumn::ColorNo.eq(c));
         }
@@ -223,11 +217,9 @@ impl AiExtendService {
     /// 工艺优化详情
     pub async fn get_process_optimization(
         &self,
-        tenant_id: i64,
         id: i64,
     ) -> Result<ProcessModel, AppError> {
         let model = ProcessEntity::find_by_id(id)
-            .filter(ProcessColumn::TenantId.eq(tenant_id))
             .one(&*self.db)
             .await?
             .ok_or_else(|| AppError::not_found(format!("工艺优化记录不存在: id={}", id)))?;
@@ -237,13 +229,11 @@ impl AiExtendService {
     /// 按色号 + 布类查询工艺优化历史
     pub async fn list_process_optimizations_by_color(
         &self,
-        tenant_id: i64,
         color_no: &str,
         fabric_type: &str,
         limit: u64,
     ) -> Result<Vec<ProcessModel>, AppError> {
         let items = ProcessEntity::find()
-            .filter(ProcessColumn::TenantId.eq(tenant_id))
             .filter(ProcessColumn::ColorNo.eq(color_no))
             .filter(ProcessColumn::FabricType.eq(fabric_type))
             .order_by_desc(ProcessColumn::CreatedAt)
@@ -256,12 +246,10 @@ impl AiExtendService {
     /// 标记工艺优化已应用 + 反馈打分
     pub async fn apply_process_optimization(
         &self,
-        tenant_id: i64,
         id: i64,
         dto: ApplyProcessOptDto,
     ) -> Result<ProcessModel, AppError> {
         let model = ProcessEntity::find_by_id(id)
-            .filter(ProcessColumn::TenantId.eq(tenant_id))
             .one(&*self.db)
             .await?
             .ok_or_else(|| AppError::not_found(format!("工艺优化记录不存在: id={}", id)))?;
@@ -285,14 +273,12 @@ impl AiExtendService {
         Ok(updated)
     }
 
-    /// 删除工艺优化记录（仅创建者可删）
+    /// 删除工艺优化记录
     pub async fn delete_process_optimization(
         &self,
-        tenant_id: i64,
         id: i64,
     ) -> Result<(), AppError> {
         let res = ProcessEntity::delete_many()
-            .filter(ProcessColumn::TenantId.eq(tenant_id))
             .filter(ProcessColumn::Id.eq(id))
             .exec(&*self.db)
             .await?;
@@ -359,7 +345,6 @@ impl AiExtendService {
             is_acknowledged: Set(false),
             acknowledged_at: Set(None),
             acknowledged_by: Set(None),
-            tenant_id: Set(dto.tenant_id),
             created_by: Set(dto.operator_id),
             created_at: Set(now),
             updated_at: Set(now),
@@ -372,13 +357,12 @@ impl AiExtendService {
     /// 质量预测列表查询
     pub async fn list_quality_predictions(
         &self,
-        tenant_id: i64,
         q: ListQualityPredQuery,
     ) -> Result<QualityPredListVo, AppError> {
         let page = q.page.unwrap_or(1).max(1);
         let page_size = q.page_size.unwrap_or(20).clamp(1, 100);
 
-        let mut select = QualityEntity::find().filter(QualityColumn::TenantId.eq(tenant_id));
+        let mut select = QualityEntity::find();
         if let Some(pid) = q.product_id {
             select = select.filter(QualityColumn::ProductId.eq(pid));
         }
@@ -411,11 +395,9 @@ impl AiExtendService {
     /// 质量预测详情
     pub async fn get_quality_prediction(
         &self,
-        tenant_id: i64,
         id: i64,
     ) -> Result<QualityModel, AppError> {
         let model = QualityEntity::find_by_id(id)
-            .filter(QualityColumn::TenantId.eq(tenant_id))
             .one(&*self.db)
             .await?
             .ok_or_else(|| AppError::not_found(format!("质量预测记录不存在: id={}", id)))?;
@@ -425,12 +407,10 @@ impl AiExtendService {
     /// 按产品查询质量预测历史
     pub async fn list_quality_predictions_by_product(
         &self,
-        tenant_id: i64,
         product_id: i64,
         limit: u64,
     ) -> Result<Vec<QualityModel>, AppError> {
         let items = QualityEntity::find()
-            .filter(QualityColumn::TenantId.eq(tenant_id))
             .filter(QualityColumn::ProductId.eq(product_id))
             .order_by_desc(QualityColumn::CreatedAt)
             .limit(limit.min(50))
@@ -442,12 +422,10 @@ impl AiExtendService {
     /// 标记质量预测已确认
     pub async fn acknowledge_quality_prediction(
         &self,
-        tenant_id: i64,
         id: i64,
         dto: AcknowledgeQualityPredDto,
     ) -> Result<QualityModel, AppError> {
         let model = QualityEntity::find_by_id(id)
-            .filter(QualityColumn::TenantId.eq(tenant_id))
             .one(&*self.db)
             .await?
             .ok_or_else(|| AppError::not_found(format!("质量预测记录不存在: id={}", id)))?;
@@ -465,11 +443,9 @@ impl AiExtendService {
     /// 删除质量预测记录
     pub async fn delete_quality_prediction(
         &self,
-        tenant_id: i64,
         id: i64,
     ) -> Result<(), AppError> {
         let res = QualityEntity::delete_many()
-            .filter(QualityColumn::TenantId.eq(tenant_id))
             .filter(QualityColumn::Id.eq(id))
             .exec(&*self.db)
             .await?;
@@ -484,18 +460,15 @@ impl AiExtendService {
     // =====================================================
 
     /// AI 概览（应用率、平均风险、最新 5 条工艺优化 + 5 条质量预测）
-    pub async fn ai_summary(&self, tenant_id: i64) -> Result<serde_json::Value, AppError> {
+    pub async fn ai_summary(&self) -> Result<serde_json::Value, AppError> {
         let total_proc = ProcessEntity::find()
-            .filter(ProcessColumn::TenantId.eq(tenant_id))
             .count(&*self.db)
             .await?;
         let applied_proc = ProcessEntity::find()
-            .filter(ProcessColumn::TenantId.eq(tenant_id))
             .filter(ProcessColumn::IsApplied.eq(true))
             .count(&*self.db)
             .await?;
         let knn_proc = ProcessEntity::find()
-            .filter(ProcessColumn::TenantId.eq(tenant_id))
             .filter(ProcessColumn::Source.eq("knn"))
             .count(&*self.db)
             .await?;
@@ -506,28 +479,23 @@ impl AiExtendService {
         };
 
         let total_qual = QualityEntity::find()
-            .filter(QualityColumn::TenantId.eq(tenant_id))
             .count(&*self.db)
             .await?;
         let high_risk = QualityEntity::find()
-            .filter(QualityColumn::TenantId.eq(tenant_id))
             .filter(QualityColumn::RiskLevel.eq("high"))
             .count(&*self.db)
             .await?;
         let unack = QualityEntity::find()
-            .filter(QualityColumn::TenantId.eq(tenant_id))
             .filter(QualityColumn::IsAcknowledged.eq(false))
             .count(&*self.db)
             .await?;
 
         let latest_proc = ProcessEntity::find()
-            .filter(ProcessColumn::TenantId.eq(tenant_id))
             .order_by_desc(ProcessColumn::CreatedAt)
             .limit(5)
             .all(&*self.db)
             .await?;
         let latest_qual = QualityEntity::find()
-            .filter(QualityColumn::TenantId.eq(tenant_id))
             .order_by_desc(QualityColumn::CreatedAt)
             .limit(5)
             .all(&*self.db)

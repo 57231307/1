@@ -28,14 +28,10 @@ pub async fn track_event(
     Json(req): Json<TrackEventRequest>,
 ) -> Result<Json<ApiResponse<()>>, AppError> {
     // 未登录场景下 user_id 为 None，避免与系统用户（id=0）混淆
-    // 安全修复：从 AuthContext 提取 tenant_id，禁止硬编码（修复租户隔离违规）
-    let (tenant_id, user_id) = auth
-        .map(|a| (a.tenant_id, Some(a.user_id)))
-        .unwrap_or((None, None));
+    let user_id = auth.map(|a| a.user_id);
     let trace_id = uuid::Uuid::new_v4().to_string();
 
     state.omni_audit.log(OmniAuditMessage {
-        tenant_id, // 从 AuthContext 提取，禁止硬编码
         trace_id,
         user_id,
         username: None,

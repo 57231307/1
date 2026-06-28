@@ -17,7 +17,6 @@ use axum::{
 use serde::Deserialize;
 
 use crate::middleware::auth_context::AuthContext;
-use crate::middleware::tenant::extract_tenant_id;
 use crate::services::ai_extend_service::{
     AcknowledgeQualityPredDto, AiExtendService, ApplyProcessOptDto, CreateProcessOptDto,
     CreateQualityPredDto, ListProcessOptQuery, ListQualityPredQuery,
@@ -37,9 +36,7 @@ pub async fn create_process_optimization(
     auth: AuthContext,
     Json(body): Json<CreateProcessOptDto>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
-    let tenant_id = extract_tenant_id(&auth)? as i64;
     let mut dto = body;
-    dto.tenant_id = tenant_id;
     dto.operator_id = Some(auth.user_id as i64);
 
     let svc = AiExtendService::new(state.db);
@@ -54,12 +51,11 @@ pub async fn create_process_optimization(
 /// 工艺优化列表
 pub async fn list_process_optimizations(
     State(state): State<AppState>,
-    auth: AuthContext,
+    _auth: AuthContext,
     Query(q): Query<ListProcessOptQuery>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
-    let tenant_id = extract_tenant_id(&auth)? as i64;
     let svc = AiExtendService::new(state.db);
-    let vo = svc.list_process_optimizations(tenant_id, q).await?;
+    let vo = svc.list_process_optimizations(q).await?;
     Ok(Json(ApiResponse::success(serde_json::json!({
         "items": vo.items,
         "total": vo.total,
@@ -72,12 +68,11 @@ pub async fn list_process_optimizations(
 /// 工艺优化详情
 pub async fn get_process_optimization(
     State(state): State<AppState>,
-    auth: AuthContext,
+    _auth: AuthContext,
     Path(id): Path<i64>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
-    let tenant_id = extract_tenant_id(&auth)? as i64;
     let svc = AiExtendService::new(state.db);
-    let model = svc.get_process_optimization(tenant_id, id).await?;
+    let model = svc.get_process_optimization(id).await?;
     Ok(Json(ApiResponse::success(serde_json::to_value(model)?)))
 }
 
@@ -89,10 +84,9 @@ pub async fn apply_process_optimization(
     Path(id): Path<i64>,
     Json(mut body): Json<ApplyProcessOptDto>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
-    let tenant_id = extract_tenant_id(&auth)? as i64;
     body.operator_id = Some(auth.user_id as i64);
     let svc = AiExtendService::new(state.db);
-    let model = svc.apply_process_optimization(tenant_id, id, body).await?;
+    let model = svc.apply_process_optimization(id, body).await?;
     Ok(Json(ApiResponse::success(serde_json::to_value(model)?)))
 }
 
@@ -100,12 +94,11 @@ pub async fn apply_process_optimization(
 /// 删除工艺优化记录
 pub async fn delete_process_optimization(
     State(state): State<AppState>,
-    auth: AuthContext,
+    _auth: AuthContext,
     Path(id): Path<i64>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
-    let tenant_id = extract_tenant_id(&auth)? as i64;
     let svc = AiExtendService::new(state.db);
-    svc.delete_process_optimization(tenant_id, id).await?;
+    svc.delete_process_optimization(id).await?;
     Ok(Json(ApiResponse::success(serde_json::json!({
         "deleted": true,
         "id": id,
@@ -123,9 +116,7 @@ pub async fn create_quality_prediction(
     auth: AuthContext,
     Json(body): Json<CreateQualityPredDto>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
-    let tenant_id = extract_tenant_id(&auth)? as i64;
     let mut dto = body;
-    dto.tenant_id = tenant_id;
     dto.operator_id = Some(auth.user_id as i64);
 
     let svc = AiExtendService::new(state.db);
@@ -140,12 +131,11 @@ pub async fn create_quality_prediction(
 /// 质量预测列表
 pub async fn list_quality_predictions(
     State(state): State<AppState>,
-    auth: AuthContext,
+    _auth: AuthContext,
     Query(q): Query<ListQualityPredQuery>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
-    let tenant_id = extract_tenant_id(&auth)? as i64;
     let svc = AiExtendService::new(state.db);
-    let vo = svc.list_quality_predictions(tenant_id, q).await?;
+    let vo = svc.list_quality_predictions(q).await?;
     Ok(Json(ApiResponse::success(serde_json::json!({
         "items": vo.items,
         "total": vo.total,
@@ -158,12 +148,11 @@ pub async fn list_quality_predictions(
 /// 质量预测详情
 pub async fn get_quality_prediction(
     State(state): State<AppState>,
-    auth: AuthContext,
+    _auth: AuthContext,
     Path(id): Path<i64>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
-    let tenant_id = extract_tenant_id(&auth)? as i64;
     let svc = AiExtendService::new(state.db);
-    let model = svc.get_quality_prediction(tenant_id, id).await?;
+    let model = svc.get_quality_prediction(id).await?;
     Ok(Json(ApiResponse::success(serde_json::to_value(model)?)))
 }
 
@@ -175,10 +164,9 @@ pub async fn acknowledge_quality_prediction(
     Path(id): Path<i64>,
     Json(mut body): Json<AcknowledgeQualityPredDto>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
-    let tenant_id = extract_tenant_id(&auth)? as i64;
     body.operator_id = Some(auth.user_id as i64);
     let svc = AiExtendService::new(state.db);
-    let model = svc.acknowledge_quality_prediction(tenant_id, id, body).await?;
+    let model = svc.acknowledge_quality_prediction(id, body).await?;
     Ok(Json(ApiResponse::success(serde_json::to_value(model)?)))
 }
 
@@ -186,12 +174,11 @@ pub async fn acknowledge_quality_prediction(
 /// 删除质量预测记录
 pub async fn delete_quality_prediction(
     State(state): State<AppState>,
-    auth: AuthContext,
+    _auth: AuthContext,
     Path(id): Path<i64>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
-    let tenant_id = extract_tenant_id(&auth)? as i64;
     let svc = AiExtendService::new(state.db);
-    svc.delete_quality_prediction(tenant_id, id).await?;
+    svc.delete_quality_prediction(id).await?;
     Ok(Json(ApiResponse::success(serde_json::json!({
         "deleted": true,
         "id": id,
@@ -206,11 +193,10 @@ pub async fn delete_quality_prediction(
 /// AI 概览（应用率 / 风险等级分布 / 最新 5 条）
 pub async fn ai_summary(
     State(state): State<AppState>,
-    auth: AuthContext,
+    _auth: AuthContext,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
-    let tenant_id = extract_tenant_id(&auth)? as i64;
     let svc = AiExtendService::new(state.db);
-    let summary = svc.ai_summary(tenant_id).await?;
+    let summary = svc.ai_summary().await?;
     Ok(Json(ApiResponse::success(summary)))
 }
 
@@ -244,13 +230,12 @@ pub struct ByColorQuery {
 /// 按色号 + 布类查询历史
 pub async fn list_process_optimizations_by_color(
     State(state): State<AppState>,
-    auth: AuthContext,
+    _auth: AuthContext,
     Query(q): Query<ByColorQuery>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
-    let tenant_id = extract_tenant_id(&auth)? as i64;
     let svc = AiExtendService::new(state.db);
     let items =
-        svc.list_process_optimizations_by_color(tenant_id, &q.color_no, &q.fabric_type, q.limit.unwrap_or(20)).await?;
+        svc.list_process_optimizations_by_color(&q.color_no, &q.fabric_type, q.limit.unwrap_or(20)).await?;
     Ok(Json(ApiResponse::success(serde_json::json!({
         "items": items,
     }))))
@@ -266,13 +251,12 @@ pub struct ByProductQuery {
 /// 按产品查询历史
 pub async fn list_quality_predictions_by_product(
     State(state): State<AppState>,
-    auth: AuthContext,
+    _auth: AuthContext,
     Query(q): Query<ByProductQuery>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
-    let tenant_id = extract_tenant_id(&auth)? as i64;
     let svc = AiExtendService::new(state.db);
     let items =
-        svc.list_quality_predictions_by_product(tenant_id, q.product_id, q.limit.unwrap_or(20)).await?;
+        svc.list_quality_predictions_by_product(q.product_id, q.limit.unwrap_or(20)).await?;
     Ok(Json(ApiResponse::success(serde_json::json!({
         "items": items,
     }))))
@@ -297,13 +281,11 @@ pub async fn batch_create_process_optimizations(
     if body.requests.len() > 20 {
         return Err(AppError::validation("批量请求数不得超过 20"));
     }
-    let tenant_id = extract_tenant_id(&auth)? as i64;
     let svc = AiExtendService::new(state.db);
     let mut results = Vec::new();
     let mut failed = 0;
     let total = body.requests.len();
     for mut req in body.requests {
-        req.tenant_id = tenant_id;
         req.operator_id = Some(auth.user_id as i64);
         match svc.create_process_optimization(req).await {
             Ok((resp, id)) => results.push(serde_json::json!({
@@ -345,13 +327,11 @@ pub async fn batch_create_quality_predictions(
     if body.requests.len() > 20 {
         return Err(AppError::validation("批量请求数不得超过 20"));
     }
-    let tenant_id = extract_tenant_id(&auth)? as i64;
     let svc = AiExtendService::new(state.db);
     let mut results = Vec::new();
     let mut failed = 0;
     let total = body.requests.len();
     for mut req in body.requests {
-        req.tenant_id = tenant_id;
         req.operator_id = Some(auth.user_id as i64);
         match svc.create_quality_prediction(req).await {
             Ok((resp, id)) => results.push(serde_json::json!({

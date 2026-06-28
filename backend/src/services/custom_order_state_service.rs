@@ -50,12 +50,10 @@ impl CustomOrderStateService {
     pub async fn advance(
         &self,
         order_id: i64,
-        tenant_id: i64,
         operator_id: i64,
         notes: Option<String>,
     ) -> Result<custom_order::Model, StateError> {
         let order = Entity::find_by_id(order_id)
-            .filter(custom_order::Column::TenantId.eq(tenant_id))
             .one(&*self.db)
             .await?
             .ok_or(StateError::NotFound)?;
@@ -102,7 +100,6 @@ impl CustomOrderStateService {
                 log_time: Set(Utc::now()),
                 log_content: Set(notes.clone()),
                 attachments: Set(serde_json::json!([])),
-                tenant_id: Set(tenant_id),
             };
             log.insert(&*self.db).await?;
         }
@@ -130,13 +127,11 @@ impl CustomOrderStateService {
     pub async fn set_status(
         &self,
         order_id: i64,
-        tenant_id: i64,
         target: &str,
         operator_id: i64,
         notes: Option<String>,
     ) -> Result<custom_order::Model, StateError> {
         let order = Entity::find_by_id(order_id)
-            .filter(custom_order::Column::TenantId.eq(tenant_id))
             .one(&*self.db)
             .await?
             .ok_or(StateError::NotFound)?;
@@ -170,7 +165,6 @@ impl CustomOrderStateService {
                 log_time: Set(Utc::now()),
                 log_content: Set(notes),
                 attachments: Set(serde_json::json!([])),
-                tenant_id: Set(tenant_id),
             };
             log.insert(&*self.db).await?;
         }
@@ -182,12 +176,10 @@ impl CustomOrderStateService {
     pub async fn list_logs(
         &self,
         order_id: i64,
-        tenant_id: i64,
     ) -> Result<Vec<process_log::Model>, StateError> {
         // 获取所有节点
         let nodes = NodeEntity::find()
             .filter(process_node::Column::CustomOrderId.eq(order_id))
-            .filter(process_node::Column::TenantId.eq(tenant_id))
             .all(&*self.db)
             .await?;
 

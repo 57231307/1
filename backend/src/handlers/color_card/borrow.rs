@@ -10,7 +10,6 @@ use axum::{
 };
 
 use crate::middleware::auth_context::AuthContext;
-use crate::middleware::tenant::extract_tenant_id;
 use crate::models::color_card_borrow_dto::{
     BorrowColorCardDto, ListBorrowRecordsQuery, MarkDamagedColorCardDto, MarkLostColorCardDto,
     ReturnColorCardDto,
@@ -30,7 +29,6 @@ pub async fn borrow_color_card(
     State(state): State<AppState>,
     Json(dto): Json<BorrowColorCardDto>,
 ) -> Result<Json<ApiResponse<BorrowRecordInfo>>, AppError> {
-    let tenant_id = extract_tenant_id(&auth)? as i64;
     let user_id = auth.user_id as i64;
     let service = ColorCardBorrowService::from_state(&state);
 
@@ -44,7 +42,6 @@ pub async fn borrow_color_card(
             dto.expected_return_at,
             dto.purpose,
             dto.notes,
-            tenant_id,
         )
         .await
         .map_err(borrow_err)?;
@@ -54,16 +51,15 @@ pub async fn borrow_color_card(
 
 /// POST /api/v1/erp/color-cards/return/:record_id - 归还色卡
 pub async fn return_color_card(
-    auth: AuthContext,
+    _auth: AuthContext,
     State(state): State<AppState>,
     Path(record_id): Path<i64>,
     Json(dto): Json<ReturnColorCardDto>,
 ) -> Result<Json<ApiResponse<BorrowRecordInfo>>, AppError> {
-    let tenant_id = extract_tenant_id(&auth)? as i64;
     let service = ColorCardBorrowService::from_state(&state);
 
     let record = service
-        .return_card(record_id, dto.actual_return_at, dto.notes, tenant_id)
+        .return_card(record_id, dto.actual_return_at, dto.notes)
         .await
         .map_err(borrow_err)?;
 
@@ -72,16 +68,15 @@ pub async fn return_color_card(
 
 /// POST /api/v1/erp/color-cards/lost/:record_id - 登记遗失
 pub async fn mark_lost_color_card(
-    auth: AuthContext,
+    _auth: AuthContext,
     State(state): State<AppState>,
     Path(record_id): Path<i64>,
     Json(dto): Json<MarkLostColorCardDto>,
 ) -> Result<Json<ApiResponse<BorrowRecordInfo>>, AppError> {
-    let tenant_id = extract_tenant_id(&auth)? as i64;
     let service = ColorCardBorrowService::from_state(&state);
 
     let record = service
-        .mark_lost(record_id, dto.compensation_amount, dto.notes, tenant_id)
+        .mark_lost(record_id, dto.compensation_amount, dto.notes)
         .await
         .map_err(borrow_err)?;
 
@@ -90,16 +85,15 @@ pub async fn mark_lost_color_card(
 
 /// POST /api/v1/erp/color-cards/damaged/:record_id - 标记损坏
 pub async fn mark_damaged_color_card(
-    auth: AuthContext,
+    _auth: AuthContext,
     State(state): State<AppState>,
     Path(record_id): Path<i64>,
     Json(dto): Json<MarkDamagedColorCardDto>,
 ) -> Result<Json<ApiResponse<BorrowRecordInfo>>, AppError> {
-    let tenant_id = extract_tenant_id(&auth)? as i64;
     let service = ColorCardBorrowService::from_state(&state);
 
     let record = service
-        .mark_damaged(record_id, dto.compensation_amount, dto.notes, tenant_id)
+        .mark_damaged(record_id, dto.compensation_amount, dto.notes)
         .await
         .map_err(borrow_err)?;
 
@@ -108,17 +102,16 @@ pub async fn mark_damaged_color_card(
 
 /// GET /api/v1/erp/color-cards/borrow-records - 借出历史
 pub async fn list_borrow_records(
-    auth: AuthContext,
+    _auth: AuthContext,
     State(state): State<AppState>,
     Query(query): Query<ListBorrowRecordsQuery>,
 ) -> Result<Json<ApiResponse<PagedResponse<BorrowRecordInfo>>>, AppError> {
-    let tenant_id = extract_tenant_id(&auth)? as i64;
     let service = ColorCardBorrowService::from_state(&state);
     let page = query.page.unwrap_or(1);
     let page_size = query.page_size.unwrap_or(20);
 
     let (items, total) = service
-        .list_records(tenant_id, query)
+        .list_records(query)
         .await
         .map_err(borrow_err)?;
 

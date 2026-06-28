@@ -10,7 +10,6 @@ use axum::{
 };
 
 use crate::middleware::auth_context::AuthContext;
-use crate::middleware::tenant::extract_tenant_id;
 use crate::models::color_card_response_dto::ScanResult;
 use crate::services::color_card_crud_service::ColorCardCrudService;
 use crate::services::color_card_item_service::ColorCardItemService;
@@ -23,30 +22,28 @@ use super::error_map::{crud_err, item_err};
 
 /// GET /api/v1/erp/color-cards/scan/:code - 扫码查询色号详情
 pub async fn scan_color_code(
-    auth: AuthContext,
+    _auth: AuthContext,
     State(state): State<AppState>,
     Path(code): Path<String>,
 ) -> Result<Json<ApiResponse<ScanResult>>, AppError> {
-    let tenant_id = extract_tenant_id(&auth)? as i64;
     let service = ColorCardScanService::from_state(&state);
 
-    let result = service.scan_by_code(&code, tenant_id).await?;
+    let result = service.scan_by_code(&code).await?;
     Ok(Json(ApiResponse::success(result)))
 }
 
 /// GET /api/v1/erp/color-cards/export/:id - 导出色卡为 CSV
 pub async fn export_color_card(
-    auth: AuthContext,
+    _auth: AuthContext,
     State(state): State<AppState>,
     Path(id): Path<i64>,
 ) -> Result<axum::response::Response, AppError> {
-    let tenant_id = extract_tenant_id(&auth)? as i64;
     let item_svc = ColorCardItemService::from_state(&state);
     let crud_svc = ColorCardCrudService::from_state(&state);
 
-    let card = crud_svc.get_by_id(id, tenant_id).await.map_err(crud_err)?;
+    let card = crud_svc.get_by_id(id).await.map_err(crud_err)?;
     let (items, _) = item_svc
-        .list(id, tenant_id, 1, 10000)
+        .list(id, 1, 10000)
         .await
         .map_err(item_err)?;
 

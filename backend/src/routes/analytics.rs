@@ -470,8 +470,7 @@ pub fn trading() -> Router<AppState> {
 
 /// Advanced 分析路由（nest 到 /api/v1/erp/advanced）
 ///
-/// 内部 path 与前端 `/advanced/ai/...`、`/advanced/reports/...`、
-/// `/advanced/tenants/...` 完全一致。
+/// 内部 path 与前端 `/advanced/ai/...`、`/advanced/reports/...` 完全一致。
 pub fn advanced() -> Router<AppState> {
     Router::new()
         .route("/ai/sales-forecast", post(advanced::sales_forecast))
@@ -486,14 +485,6 @@ pub fn advanced() -> Router<AppState> {
         .route("/reports/templates", get(advanced::list_report_templates))
         .route("/reports/execute", post(advanced::execute_report))
         .route("/reports/export", post(advanced::export_report))
-        .route(
-            "/tenants",
-            get(advanced::list_tenants).post(advanced::create_tenant),
-        )
-        .route(
-            "/tenants/:id",
-            get(advanced::get_tenant).put(advanced::update_tenant),
-        )
 }
 
 /// BI 多维分析路由（P3-4 关键路径 demo）

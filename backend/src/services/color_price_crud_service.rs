@@ -55,7 +55,6 @@ impl ColorPriceCrudService {
     pub async fn create(
         &self,
         dto: CreateColorPriceDto,
-        tenant_id: i64,
         operated_by: i64,
     ) -> Result<product_color_price::Model, CrudError> {
         // 1. 业务校验
@@ -87,7 +86,6 @@ impl ColorPriceCrudService {
             approved_by: Set(None),
             approved_at: Set(None),
             approval_status: Set("APPROVED".to_string()),
-            tenant_id: Set(tenant_id),
             created_at: Set(now),
             updated_at: Set(now),
         };
@@ -95,18 +93,15 @@ impl ColorPriceCrudService {
         Ok(result)
     }
 
-    /// 列表查询（分页 + 过滤 + 多租户隔离）
+    /// 列表查询（分页 + 过滤）
     pub async fn list(
         &self,
-        tenant_id: i64,
         query: &ListColorPricesQuery,
     ) -> Result<(Vec<product_color_price::Model>, u64), CrudError> {
         let page = query.page.unwrap_or(1);
         let page_size = query.page_size.unwrap_or(20);
 
         let mut q = ColorPriceEntity::find();
-        // 强制多租户隔离
-        q = q.filter(product_color_price::Column::TenantId.eq(tenant_id));
 
         if let Some(pid) = query.product_id {
             q = q.filter(product_color_price::Column::ProductId.eq(pid));
@@ -143,14 +138,12 @@ impl ColorPriceCrudService {
         Ok((items, total))
     }
 
-    /// 按 ID 查询（多租户隔离）
+    /// 按 ID 查询
     pub async fn get_by_id(
         &self,
         id: i64,
-        tenant_id: i64,
     ) -> Result<product_color_price::Model, CrudError> {
         ColorPriceEntity::find_by_id(id)
-            .filter(product_color_price::Column::TenantId.eq(tenant_id))
             .one(&*self.db)
             .await?
             .ok_or(CrudError::NotFound)
@@ -160,10 +153,9 @@ impl ColorPriceCrudService {
     pub async fn update(
         &self,
         id: i64,
-        tenant_id: i64,
         dto: UpdateColorPriceDto,
     ) -> Result<product_color_price::Model, CrudError> {
-        let existing = self.get_by_id(id, tenant_id).await?;
+        let existing = self.get_by_id(id).await?;
 
         if let Some(c) = &dto.currency {
             Self::validate_currency(c)?;
@@ -219,8 +211,8 @@ impl ColorPriceCrudService {
     }
 
     /// 软删除（is_active = false）
-    pub async fn delete(&self, id: i64, tenant_id: i64) -> Result<product_color_price::Model, CrudError> {
-        let existing = self.get_by_id(id, tenant_id).await?;
+    pub async fn delete(&self, id: i64) -> Result<product_color_price::Model, CrudError> {
+        let existing = self.get_by_id(id).await?;
         if !existing.is_active {
             return Err(CrudError::InvalidState);
         }

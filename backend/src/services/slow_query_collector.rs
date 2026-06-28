@@ -10,8 +10,7 @@
 //! 关键设计：
 //! - **降级方案**：CI/容器环境如未预装 `pg_stat_statements` 共享库，采集 SQL 会失败；
 //!   失败时仅记录 `tracing::warn!`，不向上传播，不阻断 main 启动
-//! - **强租户隔离**：慢查询是系统级数据（tenant_id 允许 NULL），但采集到的记录仍可
-//!   按租户分类以便扩展
+//! - **系统级数据**：慢查询为系统级数据，采集到的记录全局可见
 //! - **不阻塞 main**：使用 `tokio::spawn` 启动后台任务，采集失败仅记录日志
 //!
 //! 关联文档：[2026-06-18-p13-batch1-comprehensive-plan.md §2.2]
@@ -182,8 +181,6 @@ impl SlowQueryCollector {
                 rows_examined: Set(rows_examined),
                 // 数据库名：系统级元数据（暂留空，前端 stats 接口会标注"系统"）
                 database_name: Set(None),
-                // tenant_id：系统级数据，允许 NULL
-                tenant_id: Set(None),
                 captured_at: Set(Utc::now()),
             };
 

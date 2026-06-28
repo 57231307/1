@@ -42,7 +42,6 @@ pub struct PriceTierInfo {
     pub tier_price: Decimal,
     pub customer_level: Option<String>,
     pub sequence: i32,
-    pub tenant_id: i64,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
 }

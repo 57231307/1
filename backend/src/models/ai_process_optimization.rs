@@ -31,7 +31,6 @@ pub struct Model {
     pub applied_by: Option<i64>,
     pub feedback_score: Option<i16>,
     pub feedback_remark: Option<String>,
-    pub tenant_id: i64,
     pub created_by: Option<i64>,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,

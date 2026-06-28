@@ -20,7 +20,6 @@ pub struct Model {
     pub resolved_at: Option<DateTime<Utc>>,
     pub resolution: Option<String>,
     pub status: String,
-    pub tenant_id: i64,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
 }

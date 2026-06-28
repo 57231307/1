@@ -46,7 +46,6 @@ impl CustomOrderProcessService {
     pub async fn add_node(
         &self,
         custom_order_id: i64,
-        tenant_id: i64,
         dto: CreateProcessNodeDto,
     ) -> Result<process_node::Model, ProcessError> {
         let now = Utc::now();
@@ -63,7 +62,6 @@ impl CustomOrderProcessService {
             actual_end_date: Set(None),
             operator_id: Set(None),
             notes: Set(None),
-            tenant_id: Set(tenant_id),
             created_at: Set(now),
             updated_at: Set(now),
         };
@@ -75,11 +73,9 @@ impl CustomOrderProcessService {
     pub async fn update_node(
         &self,
         node_id: i64,
-        tenant_id: i64,
         dto: UpdateProcessNodeDto,
     ) -> Result<process_node::Model, ProcessError> {
         let existing = NodeEntity::find_by_id(node_id)
-            .filter(process_node::Column::TenantId.eq(tenant_id))
             .one(&*self.db)
             .await?
             .ok_or(ProcessError::NotFound)?;
@@ -109,11 +105,9 @@ impl CustomOrderProcessService {
     pub async fn advance_node(
         &self,
         node_id: i64,
-        tenant_id: i64,
         dto: AdvanceNodeDto,
     ) -> Result<process_node::Model, ProcessError> {
         let existing = NodeEntity::find_by_id(node_id)
-            .filter(process_node::Column::TenantId.eq(tenant_id))
             .one(&*self.db)
             .await?
             .ok_or(ProcessError::NotFound)?;
@@ -168,7 +162,6 @@ impl CustomOrderProcessService {
             log_time: Set(Utc::now()),
             log_content: Set(dto.notes),
             attachments: Set(serde_json::json!(dto.attachments.unwrap_or_default())),
-            tenant_id: Set(tenant_id),
         };
         log.insert(&*self.db).await?;
 
@@ -179,7 +172,6 @@ impl CustomOrderProcessService {
     pub async fn add_log(
         &self,
         node_id: i64,
-        tenant_id: i64,
         dto: AddProcessLogDto,
     ) -> Result<process_log::Model, ProcessError> {
         let active = LogActive {
@@ -192,7 +184,6 @@ impl CustomOrderProcessService {
             log_time: Set(Utc::now()),
             log_content: Set(dto.log_content),
             attachments: Set(serde_json::json!(dto.attachments.unwrap_or_default())),
-            tenant_id: Set(tenant_id),
         };
         let result = active.insert(&*self.db).await?;
         Ok(result)
@@ -202,11 +193,9 @@ impl CustomOrderProcessService {
     pub async fn get_timeline(
         &self,
         order_id: i64,
-        tenant_id: i64,
     ) -> Result<Vec<(process_node::Model, Vec<process_log::Model>)>, ProcessError> {
         let nodes = NodeEntity::find()
             .filter(process_node::Column::CustomOrderId.eq(order_id))
-            .filter(process_node::Column::TenantId.eq(tenant_id))
             .order_by_asc(process_node::Column::Sequence)
             .all(&*self.db)
             .await?;

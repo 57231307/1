@@ -33,7 +33,6 @@ pub struct Model {
     pub product_color_price_id: Option<i64>,
     pub swatch_image_url: Option<String>,
     pub sequence: i32,
-    pub tenant_id: i64,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
 }

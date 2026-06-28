@@ -21,7 +21,6 @@ use serde::{Deserialize, Serialize};
 /// - execution_time_ms: DOUBLE PRECISION（pg_stat_statements.mean_exec_time 是 float8）
 /// - calls / rows_examined: BIGINT（pg_stat_statements.calls / rows 是 int8）
 /// - database_name: VARCHAR(128)（DB 名最长 ~64 字符，128 留余量）
-/// - tenant_id: INTEGER NULL（系统级数据允许 NULL）
 /// - captured_at: TIMESTAMPTZ（带时区，便于跨时区分析）
 #[derive(Clone, Debug, PartialEq, DeriveEntityModel, Serialize, Deserialize, Default)]
 #[sea_orm(table_name = "slow_query_log")]
@@ -44,9 +43,6 @@ pub struct Model {
 
     /// 数据库名（系统级元数据；多库部署时区分来源）
     pub database_name: Option<String>,
-
-    /// 租户 ID（NULL = 系统级；慢查询主要是系统级，但允许按租户分类便于扩展）
-    pub tenant_id: Option<i32>,
 
     /// 采集时间
     pub captured_at: DateTimeUtc,
@@ -74,8 +70,6 @@ pub struct SlowQueryDto {
     pub rows_examined: i64,
     /// 数据库名
     pub database_name: Option<String>,
-    /// 租户 ID（None = 系统级）
-    pub tenant_id: Option<i32>,
     /// 采集时间（ISO8601 字符串）
     pub captured_at: String,
 }
@@ -89,7 +83,6 @@ impl From<Model> for SlowQueryDto {
             calls: m.calls,
             rows_examined: m.rows_examined,
             database_name: m.database_name,
-            tenant_id: m.tenant_id,
             captured_at: m.captured_at.to_rfc3339(),
         }
     }
@@ -126,7 +119,6 @@ mod tests {
         assert_eq!(m.calls, 0);
         assert_eq!(m.rows_examined, 0);
         assert!(m.database_name.is_none());
-        assert!(m.tenant_id.is_none());
     }
 
     /// Model → DTO 转换正确性
@@ -140,7 +132,6 @@ mod tests {
             calls: 42,
             rows_examined: 1024,
             database_name: Some("bingxi_erp".to_string()),
-            tenant_id: Some(1),
             captured_at: captured,
         };
         let dto: SlowQueryDto = m.into();
@@ -150,7 +141,6 @@ mod tests {
         assert_eq!(dto.calls, 42);
         assert_eq!(dto.rows_examined, 1024);
         assert_eq!(dto.database_name, Some("bingxi_erp".to_string()));
-        assert_eq!(dto.tenant_id, Some(1));
         // captured_at 已转成 RFC3339 字符串（包含时区偏移）
         assert!(dto.captured_at.contains("T"));
         assert!(dto.captured_at.contains("+") || dto.captured_at.ends_with("Z"));
@@ -166,7 +156,6 @@ mod tests {
             calls: 1,
             rows_examined: 1,
             database_name: None,
-            tenant_id: None,
             captured_at: "2026-06-18T10:00:00+00:00".to_string(),
         };
         let json = serde_json::to_string(&dto).expect("序列化应成功");

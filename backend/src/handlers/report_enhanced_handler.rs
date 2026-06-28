@@ -9,7 +9,6 @@ use axum::{
 use serde::Deserialize;
 
 use crate::middleware::auth_context::AuthContext;
-use crate::middleware::tenant::extract_tenant_id;
 use crate::services::report_subscription_service::{
     CreateSubscriptionRequest, ReportSubscriptionService, SubscriptionQuery,
     UpdateSubscriptionRequest,
@@ -38,10 +37,9 @@ pub async fn create_report_template(
     Json(req): Json<CreateReportTemplateRequest>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     let service = ReportTemplateService::new(state.db.clone());
-    let tenant_id = extract_tenant_id(&auth)?;
 
     let template = service
-        .create(tenant_id, auth.user_id, auth.role_id, req)
+        .create(auth.user_id, auth.role_id, req)
         .await?;
 
     tracing::info!("用户 {} 创建报表模板: {}", auth.username, template.name);
@@ -59,9 +57,8 @@ pub async fn list_report_templates(
     Query(query): Query<ReportTemplateQuery>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     let service = ReportTemplateService::new(state.db.clone());
-    let tenant_id = extract_tenant_id(&auth)?;
 
-    let (items, total) = service.list(tenant_id, auth.user_id, query).await?;
+    let (items, total) = service.list(auth.user_id, query).await?;
 
     Ok(Json(ApiResponse::success(serde_json::json!({
         "items": items,
@@ -78,7 +75,7 @@ pub async fn get_report_template(
     let service = ReportTemplateService::new(state.db.clone());
 
     let template = service
-        .get_by_id(id, extract_tenant_id(&auth)?, auth.user_id)
+        .get_by_id(id, auth.user_id)
         .await?
         .ok_or_else(|| AppError::not_found("报表模板不存在"))?;
 
@@ -97,7 +94,6 @@ pub async fn update_report_template(
     let template = service
         .update(
             id,
-            extract_tenant_id(&auth)?,
             auth.user_id,
             auth.role_id,
             req,
@@ -121,7 +117,7 @@ pub async fn delete_report_template(
     let service = ReportTemplateService::new(state.db.clone());
 
     service
-        .delete(id, extract_tenant_id(&auth)?, auth.user_id)
+        .delete(id, auth.user_id)
         .await?;
 
     tracing::info!("用户 {} 删除报表模板: ID={}", auth.username, id);
@@ -147,7 +143,6 @@ pub async fn execute_custom_report(
     let (headers, data, total) = service
         .execute_custom_report(
             id,
-            extract_tenant_id(&auth)?,
             auth.user_id,
             auth.role_id,
             page,
@@ -183,7 +178,6 @@ pub async fn export_pdf(
     let (headers, data, _total) = service
         .execute_custom_report(
             template_id,
-            extract_tenant_id(&auth)?,
             auth.user_id,
             auth.role_id,
             1,
@@ -236,7 +230,6 @@ pub async fn export_excel(
     let (headers, data, _total) = service
         .execute_custom_report(
             template_id,
-            extract_tenant_id(&auth)?,
             auth.user_id,
             auth.role_id,
             1,
@@ -413,7 +406,6 @@ pub async fn export_template(
     let (headers, data, _total) = service
         .execute_custom_report(
             id,
-            extract_tenant_id(&auth)?,
             auth.user_id,
             auth.role_id,
             1,
@@ -481,7 +473,6 @@ pub async fn preview_template(
     let (columns, data, total) = service
         .execute_custom_report(
             id,
-            extract_tenant_id(&auth)?,
             auth.user_id,
             auth.role_id,
             1,

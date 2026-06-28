@@ -8,7 +8,6 @@
 //!    - 写库失败只记录日志，不向上传播
 //!
 //! 设计要点：
-//! - 强租户隔离：所有 query 都必须加 `tenant_id` 过滤
 //! - 列名兼容：旧的 `old_value` / `new_value` 与新的 `before_snapshot` / `after_snapshot` 双写
 //! - JSON 快照：使用 `audit_log::AuditValue` 包装，PostgreSQL 自动用 JSONB 列存储
 
@@ -30,8 +29,6 @@ crate::define_service!(AuditLogService);
 /// 调用方只需填充业务相关字段，service 内部自动从 `AuditContext` 补充请求上下文。
 #[derive(Debug, Clone, Serialize)]
 pub struct AuditEvent {
-    /// 租户 ID（多租户隔离；缺省时需业务自行提供）
-    pub tenant_id: Option<i32>,
     /// 操作用户 ID
     pub user_id: Option<i32>,
     /// 操作用户名
@@ -63,7 +60,6 @@ impl AuditEvent {
     #[allow(dead_code)] // TODO(tech-debt): 业务接入后逐项移除；用于未来简化调用方（仅需 op + resource）
     pub fn new(operation_type: OperationType, resource_type: impl Into<String>) -> Self {
         Self {
-            tenant_id: None,
             user_id: None,
             username: None,
             operation_type,
@@ -103,7 +99,6 @@ impl AuditLogService {
     ) -> Result<(), AppError> {
         let log = audit_log::ActiveModel {
             id: ActiveValue::NotSet,
-            tenant_id: ActiveValue::NotSet, // 租户ID由调用方通过AuditEvent提供，禁止硬编码（修复租户隔离违规）
             user_id: ActiveValue::Set(user_id),
             username: ActiveValue::Set(username),
             action: ActiveValue::Set(action.to_string()),
@@ -169,7 +164,6 @@ impl AuditLogService {
         // 记录审计日志
         let log = audit_log::ActiveModel {
             id: ActiveValue::NotSet,
-            tenant_id: ActiveValue::NotSet, // 租户ID由调用方通过AuditEvent提供，禁止硬编码（修复租户隔离违规）
             user_id: ActiveValue::Set(user_id),
             username: ActiveValue::Set(None),
             action: ActiveValue::Set("UPDATE".to_string()),
@@ -264,7 +258,6 @@ fn build_active_model(event: &AuditEvent, ctx: Option<&AuditContext>) -> audit_l
 
     audit_log::ActiveModel {
         id: ActiveValue::NotSet,
-        tenant_id: ActiveValue::Set(event.tenant_id), // 租户ID由调用方提供，不再硬编码兜底（修复租户隔离违规）
         user_id: ActiveValue::Set(event.user_id),
         username: ActiveValue::Set(event.username.clone()),
         action: ActiveValue::Set(event.operation_type.as_str().to_string()),
@@ -303,7 +296,6 @@ mod tests {
         assert_eq!(event.operation_type, OperationType::Login);
         assert_eq!(event.resource_type, Some("auth".to_string()));
         assert_eq!(event.severity, Severity::Info);
-        assert!(event.tenant_id.is_none());
         assert!(event.user_id.is_none());
     }
 
@@ -311,7 +303,6 @@ mod tests {
     #[test]
     fn test_build_active_model_without_ctx() {
         let event = AuditEvent {
-            tenant_id: Some(7),
             user_id: Some(42),
             username: Some("alice".to_string()),
             operation_type: OperationType::Update,
@@ -327,11 +318,6 @@ mod tests {
         };
         let model = build_active_model(&event, None);
         // 关键字段透传
-        if let ActiveValue::Set(t) = model.tenant_id {
-            assert_eq!(t, Some(7));
-        } else {
-            panic!("tenant_id 应为 Set");
-        }
         if let ActiveValue::Set(s) = model.severity {
             assert_eq!(s, Some("WARN".to_string()));
         } else {
@@ -395,7 +381,6 @@ mod tests {
         let before = json!({"price": 100});
         let after = json!({"price": 200});
         let event = AuditEvent {
-            tenant_id: Some(1),
             user_id: Some(1),
             username: None,
             operation_type: OperationType::Update,

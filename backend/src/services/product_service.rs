@@ -45,9 +45,9 @@ impl ProductService {
         }
     }
 
-    /// 构造产品缓存键（产品表为平台级，使用 tenant_id = 0）
+    /// 构造产品缓存键（产品表为平台级）
     fn cache_key(product_id: i32) -> String {
-        CacheService::build_key(0, "product", &product_id.to_string())
+        CacheService::build_key("product", &product_id.to_string())
     }
 
     /// 生成产品编码

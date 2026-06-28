@@ -68,20 +68,17 @@ impl ColorCardItemService {
     pub async fn list(
         &self,
         color_card_id: i64,
-        tenant_id: i64,
         page: u64,
         page_size: u64,
     ) -> Result<(Vec<color_card_item::Model>, u64), ItemError> {
         // 验证色卡存在
         let _card = ColorCardEntity::find_by_id(color_card_id)
-            .filter(color_card::Column::TenantId.eq(tenant_id))
             .one(&*self.db)
             .await?
             .ok_or(ItemError::ColorCardNotFound)?;
 
         let paginator = ItemEntity::find()
             .filter(color_card_item::Column::ColorCardId.eq(color_card_id))
-            .filter(color_card_item::Column::TenantId.eq(tenant_id))
             .order_by_asc(color_card_item::Column::Sequence)
             .paginate(&*self.db, page_size);
 
@@ -94,12 +91,10 @@ impl ColorCardItemService {
     pub async fn create(
         &self,
         color_card_id: i64,
-        tenant_id: i64,
         dto: ColorItemDto,
     ) -> Result<color_card_item::Model, ItemError> {
         // 1. 验证色卡
         let card = ColorCardEntity::find_by_id(color_card_id)
-            .filter(color_card::Column::TenantId.eq(tenant_id))
             .one(&*self.db)
             .await?
             .ok_or(ItemError::ColorCardNotFound)?;
@@ -140,7 +135,6 @@ impl ColorCardItemService {
             product_color_price_id: Set(dto.product_color_price_id),
             swatch_image_url: Set(dto.swatch_image_url),
             sequence: Set(dto.sequence.unwrap_or(0)),
-            tenant_id: Set(tenant_id),
             created_at: Set(now),
             updated_at: Set(now),
         };
@@ -166,12 +160,10 @@ impl ColorCardItemService {
         &self,
         color_card_id: i64,
         item_id: i64,
-        tenant_id: i64,
         dto: ColorItemDto,
     ) -> Result<color_card_item::Model, ItemError> {
         let existing = ItemEntity::find_by_id(item_id)
             .filter(color_card_item::Column::ColorCardId.eq(color_card_id))
-            .filter(color_card_item::Column::TenantId.eq(tenant_id))
             .one(&*self.db)
             .await?
             .ok_or(ItemError::ItemNotFound)?;
@@ -225,11 +217,9 @@ impl ColorCardItemService {
         &self,
         color_card_id: i64,
         item_id: i64,
-        tenant_id: i64,
     ) -> Result<(), ItemError> {
         let existing = ItemEntity::find_by_id(item_id)
             .filter(color_card_item::Column::ColorCardId.eq(color_card_id))
-            .filter(color_card_item::Column::TenantId.eq(tenant_id))
             .one(&*self.db)
             .await?
             .ok_or(ItemError::ItemNotFound)?;
@@ -240,7 +230,6 @@ impl ColorCardItemService {
         active.delete(&txn).await?;
 
         let card = ColorCardEntity::find_by_id(color_card_id)
-            .filter(color_card::Column::TenantId.eq(tenant_id))
             .one(&txn)
             .await?
             .ok_or(ItemError::ColorCardNotFound)?;
@@ -261,12 +250,10 @@ impl ColorCardItemService {
     pub async fn batch_import(
         &self,
         color_card_id: i64,
-        tenant_id: i64,
         items: Vec<ColorItemDto>,
     ) -> Result<BatchImportResponse, ItemError> {
         // 验证色卡
         let card = ColorCardEntity::find_by_id(color_card_id)
-            .filter(color_card::Column::TenantId.eq(tenant_id))
             .one(&*self.db)
             .await?
             .ok_or(ItemError::ColorCardNotFound)?;
@@ -317,7 +304,6 @@ impl ColorCardItemService {
                 product_color_price_id: Set(dto.product_color_price_id),
                 swatch_image_url: Set(dto.swatch_image_url),
                 sequence: Set(dto.sequence.unwrap_or(0)),
-                tenant_id: Set(tenant_id),
                 created_at: Set(now),
                 updated_at: Set(now),
             };

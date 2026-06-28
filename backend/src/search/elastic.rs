@@ -84,7 +84,6 @@ pub struct SalesOrderDoc {
     pub status: String,
     pub created_at: chrono::DateTime<chrono::Utc>,
     pub items: Vec<SalesOrderItemDoc>,
-    pub tenant_id: String,
 }
 
 /// 销售订单明细
@@ -110,7 +109,6 @@ pub struct CustomerDoc {
     pub email: Option<String>,
     pub address: Option<String>,
     pub tier: String,
-    pub tenant_id: String,
 }
 
 /// 产品文档
@@ -125,7 +123,6 @@ pub struct ProductDoc {
     pub color_no: Option<String>,
     pub pantone_code: Option<String>,
     pub price: f64,
-    pub tenant_id: String,
 }
 
 /// 搜索查询
@@ -461,7 +458,6 @@ mod tests {
             status: "approved".to_string(),
             created_at: crate::ymd!(2026, 6, 17).and_hms_opt(10, 0, 0).unwrap().and_utc(),
             items: vec![],
-            tenant_id: "tenant-001".to_string(),
         };
         let json = serde_json::to_string(&doc).unwrap();
         assert!(json.contains("SO-001"));
@@ -479,7 +475,6 @@ mod tests {
             email: None,
             address: Some("杭州".to_string()),
             tier: "A".to_string(),
-            tenant_id: "tenant-001".to_string(),
         };
         let json = serde_json::to_string(&doc).unwrap();
         assert!(json.contains("ACME Corp"));
@@ -498,7 +493,6 @@ mod tests {
             color_no: Some("CN-001".to_string()),
             pantone_code: Some("PANTONE-18-1664".to_string()),
             price: 50.0,
-            tenant_id: "tenant-001".to_string(),
         };
         let json = serde_json::to_string(&doc).unwrap();
         assert!(json.contains("纯棉布"));
@@ -515,7 +509,6 @@ mod tests {
             status: "draft".to_string(),
             created_at: crate::ymd!(2026, 6, 17).and_hms_opt(0, 0, 0).unwrap().and_utc(),
             items: vec![],
-            tenant_id: "t1".to_string(),
         };
         let value = serde_json::to_value(&doc).unwrap();
         client
@@ -537,7 +530,6 @@ mod tests {
                 status: "draft".to_string(),
                 created_at: crate::ymd!(2026, 6, 17).and_hms_opt(0, 0, 0).unwrap().and_utc(),
                 items: vec![],
-                tenant_id: "t1".to_string(),
             };
             let value = serde_json::to_value(&doc).unwrap();
             client
@@ -565,7 +557,6 @@ mod tests {
             email: None,
             address: None,
             tier: "C".to_string(),
-            tenant_id: "t1".to_string(),
         };
         let value = serde_json::to_value(&doc).unwrap();
         client.index_doc(indices::CUSTOMERS, "1", &value).await.unwrap();
@@ -589,7 +580,6 @@ mod tests {
                     color_no: None,
                     pantone_code: None,
                     price: 10.0 * i as f64,
-                    tenant_id: "t1".to_string(),
                 };
                 (format!("P{:03}", i), serde_json::to_value(&doc).unwrap())
             })
@@ -612,7 +602,6 @@ mod tests {
             status: "approved".to_string(),
             created_at: crate::ymd!(2026, 6, 17).and_hms_opt(0, 0, 0).unwrap().and_utc(),
             items: vec![],
-            tenant_id: "t1".to_string(),
         };
         syncer.sync_sales_order(&order).await.unwrap();
         assert_eq!(client.doc_count(indices::SALES_ORDERS).await, 1);
@@ -626,7 +615,6 @@ mod tests {
             email: None,
             address: None,
             tier: "A".to_string(),
-            tenant_id: "t1".to_string(),
         };
         syncer.sync_customer(&customer).await.unwrap();
         assert_eq!(client.doc_count(indices::CUSTOMERS).await, 1);

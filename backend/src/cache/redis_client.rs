@@ -1,7 +1,7 @@
 // P12 批 1 性能优化：Redis 缓存层（P2-2）
 //
 // 设计要点：
-// - 键空间：tenant_id + entity_type + entity_id（强租户隔离）
+// - 键空间：entity_type + entity_id
 // - TTL 默认 300 秒，可通过环境变量 CACHE_TTL_SECS 调整
 // - 支持 graceful degradation：Redis 不可用时返回 NullCache，业务回退到 DB
 // - 通过 `CacheBackend` trait 抽象，便于单元测试使用 mock
@@ -212,9 +212,9 @@ impl CacheService {
         self.stats.clone()
     }
 
-    /// 构造缓存键：`tenant:{tenant_id}:{entity_type}:{entity_id}`
-    pub fn build_key(tenant_id: i64, entity_type: &str, entity_id: &str) -> String {
-        format!("tenant:{}:{}:{}", tenant_id, entity_type, entity_id)
+    /// 构造缓存键：`{entity_type}:{entity_id}`
+    pub fn build_key(entity_type: &str, entity_id: &str) -> String {
+        format!("{}:{}", entity_type, entity_id)
     }
 
     /// 读取并反序列化 JSON 缓存值
@@ -393,7 +393,7 @@ mod tests {
     #[tokio::test]
     async fn cache_miss_returns_none_and_increments_miss() {
         let (svc, _backend) = make_service();
-        let key = CacheService::build_key(1, "user", "42");
+        let key = CacheService::build_key("user", "42");
 
         let result: Option<Sample> = svc.get_json(&key).await;
         assert!(result.is_none(), "首次读取应当 miss");
@@ -406,7 +406,7 @@ mod tests {
     #[tokio::test]
     async fn cache_hit_returns_value_and_increments_hit() {
         let (svc, _backend) = make_service();
-        let key = CacheService::build_key(1, "product", "P-001");
+        let key = CacheService::build_key("product", "P-001");
         let payload = Sample {
             id: 7,
             name: "测试面料".to_string(),
@@ -425,7 +425,7 @@ mod tests {
     #[tokio::test]
     async fn cache_invalidate_removes_entry() {
         let (svc, _backend) = make_service();
-        let key = CacheService::build_key(2, "user", "99");
+        let key = CacheService::build_key("user", "99");
         let payload = Sample {
             id: 99,
             name: "待删除".to_string(),
@@ -453,7 +453,7 @@ mod tests {
         let backend = Arc::new(MockBackend::new());
         backend.set_fail(true).await;
         let svc = CacheService::new(backend.clone(), Duration::from_secs(60));
-        let key = CacheService::build_key(3, "user", "1");
+        let key = CacheService::build_key("user", "1");
 
         let result: Option<Sample> = svc.get_json(&key).await;
         assert!(result.is_none(), "故障时必须 fallback 到 None");
@@ -468,7 +468,7 @@ mod tests {
     async fn disabled_service_never_touches_backend() {
         // 验证禁用模式下不访问后端（用于 REDIS_URL 未配置场景）
         let svc = CacheService::disabled();
-        let key = CacheService::build_key(0, "x", "y");
+        let key = CacheService::build_key("x", "y");
 
         let v: Option<Sample> = svc.get_json(&key).await;
         assert!(v.is_none());

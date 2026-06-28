@@ -81,7 +81,6 @@ impl ReportTemplateService {
     /// 创建报表模板
     pub async fn create(
         &self,
-        tenant_id: i32,
         user_id: i32,
         _role_id: Option<i32>,
         req: CreateReportTemplateRequest,
@@ -102,7 +101,6 @@ impl ReportTemplateService {
 
         // 检查编码是否已存在
         let existing = ReportTemplateEntity::find()
-            .filter(crate::models::report_template::Column::TenantId.eq(tenant_id))
             .filter(crate::models::report_template::Column::Code.eq(&req.code))
             .one(&*self.db)
             .await?;
@@ -117,7 +115,6 @@ impl ReportTemplateService {
         let now = Utc::now();
         let active_model = ActiveModel {
             id: Default::default(),
-            tenant_id: Set(tenant_id),
             template_id: Set(req.template_id),
             name: Set(req.name),
             code: Set(req.code),
@@ -148,12 +145,10 @@ impl ReportTemplateService {
     pub async fn get_by_id(
         &self,
         id: i32,
-        tenant_id: i32,
         user_id: i32,
     ) -> Result<Option<ReportTemplateModel>, AppError> {
         let model = ReportTemplateEntity::find()
             .filter(crate::models::report_template::Column::Id.eq(id))
-            .filter(crate::models::report_template::Column::TenantId.eq(tenant_id))
             .one(&*self.db)
             .await?;
 
@@ -171,14 +166,12 @@ impl ReportTemplateService {
     pub async fn update(
         &self,
         id: i32,
-        tenant_id: i32,
         user_id: i32,
         _role_id: Option<i32>,
         req: UpdateReportTemplateRequest,
     ) -> Result<ReportTemplateModel, AppError> {
         let model = ReportTemplateEntity::find()
             .filter(crate::models::report_template::Column::Id.eq(id))
-            .filter(crate::models::report_template::Column::TenantId.eq(tenant_id))
             .one(&*self.db)
             .await?
             .ok_or_else(|| AppError::not_found("报表模板不存在"))?;
@@ -236,10 +229,9 @@ impl ReportTemplateService {
     }
 
     /// 删除报表模板（软删除）
-    pub async fn delete(&self, id: i32, tenant_id: i32, user_id: i32) -> Result<(), AppError> {
+    pub async fn delete(&self, id: i32, user_id: i32) -> Result<(), AppError> {
         let model = ReportTemplateEntity::find()
             .filter(crate::models::report_template::Column::Id.eq(id))
-            .filter(crate::models::report_template::Column::TenantId.eq(tenant_id))
             .one(&*self.db)
             .await?
             .ok_or_else(|| AppError::not_found("报表模板不存在"))?;
@@ -260,7 +252,6 @@ impl ReportTemplateService {
     /// 查询报表模板列表
     pub async fn list(
         &self,
-        tenant_id: i32,
         user_id: i32,
         query: ReportTemplateQuery,
     ) -> Result<(Vec<ReportTemplateModel>, u64), AppError> {
@@ -268,7 +259,6 @@ impl ReportTemplateService {
         let page_size = query.page_size.unwrap_or(20);
 
         let mut select = ReportTemplateEntity::find()
-            .filter(crate::models::report_template::Column::TenantId.eq(tenant_id))
             .filter(crate::models::report_template::Column::Status.eq("ACTIVE"));
 
         // 只显示公开模板或用户自己创建的模板
@@ -307,14 +297,13 @@ impl ReportTemplateService {
     pub async fn execute_custom_report(
         &self,
         template_id: i32,
-        tenant_id: i32,
         user_id: i32,
         _role_id: Option<i32>,
         _page: u64,
         _page_size: u64,
     ) -> Result<(Vec<String>, Vec<Vec<String>>, u64), AppError> {
         let _template = self
-            .get_by_id(template_id, tenant_id, user_id)
+            .get_by_id(template_id, user_id)
             .await?
             .ok_or_else(|| AppError::not_found("报表模板不存在"))?;
 

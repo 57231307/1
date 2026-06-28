@@ -33,7 +33,6 @@ pub struct Model {
     pub approved_by: Option<i64>,
     pub approved_at: Option<DateTime<Utc>>,
     pub approval_status: String,
-    pub tenant_id: i64,
 }
 
 #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]

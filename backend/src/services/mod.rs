@@ -139,7 +139,6 @@ pub mod report;
 pub mod ai_extend_service;
 // 多租户SaaS模块
 pub mod api_key_service;
-pub mod tenant_service;
 pub mod webhook_service;
 // 消息通知模块
 pub mod data_permission_service;
@@ -159,8 +158,6 @@ pub mod scheduling_manual;
 pub mod scheduling_query;
 // 字段权限模块
 pub mod field_permission_service;
-// 租户计费模块
-pub mod tenant_billing_service;
 // 导入导出模块
 pub mod import_export_service;
 // 报表模板模块

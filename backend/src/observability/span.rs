@@ -8,14 +8,14 @@
 //! use crate::observability::span::span_business;
 //!
 //! // 在 service / handler 中：
-//! let _enter = span_business!("create_purchase_order", user_id = 42, tenant_id = "acme");
+//! let _enter = span_business!("create_purchase_order", user_id = 42);
 //! // ... 业务逻辑 ...
 //! ```
 //!
 //! 输出（tracing 日志）会包含：
 //! ```text
 //! span name=business.create_purchase_order
-//! span fields: user_id=42 tenant_id=acme trace_id=...
+//! span fields: user_id=42 trace_id=...
 //! ```
 
 use tracing::Span;

@@ -28,6 +28,7 @@ pub mod m0025_p4_1_perf_indexes;
 pub mod m0026_extend_audit_log;
 pub mod m0027_enable_pg_stat_statements;
 pub mod m0028_create_slow_query_log;
+pub mod m0029_drop_tenant_columns;
 
 pub struct Migrator;
 
@@ -63,6 +64,7 @@ impl MigratorTrait for Migrator {
             Box::new(m0026_extend_audit_log::Migration),
             Box::new(m0027_enable_pg_stat_statements::Migration),
             Box::new(m0028_create_slow_query_log::Migration),
+            Box::new(m0029_drop_tenant_columns::Migration),
         ]
     }
 }

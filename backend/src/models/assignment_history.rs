@@ -35,9 +35,6 @@ pub struct Model {
     #[sea_orm(primary_key)]
     pub id: i32,
 
-    /// 租户 ID
-    pub tenant_id: i32,
-
     /// 线索/客户 ID
     pub lead_id: i32,
 

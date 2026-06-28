@@ -9,7 +9,6 @@ use axum::{
 use serde::Deserialize;
 
 use crate::middleware::auth_context::AuthContext;
-use crate::middleware::tenant::extract_tenant_id;
 use crate::services::assignment_history_service::{
     AssignmentHistoryQuery, AssignmentHistoryService, CreateAssignmentHistoryRequest,
 };
@@ -44,7 +43,6 @@ pub async fn assign_customer(
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     let crm_service = CrmService::new(state.db.clone());
     let history_service = AssignmentHistoryService::new(state.db.clone());
-    let tenant_id = extract_tenant_id(&auth)?;
 
     // 获取线索
     let lead = crm_service.get_lead(req.lead_id).await?;
@@ -64,7 +62,6 @@ pub async fn assign_customer(
     // 记录分配历史
     history_service
         .create(
-            tenant_id,
             auth.user_id,
             &auth.username,
             CreateAssignmentHistoryRequest {
@@ -111,7 +108,6 @@ pub async fn batch_assign(
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     let crm_service = CrmService::new(state.db.clone());
     let history_service = AssignmentHistoryService::new(state.db.clone());
-    let tenant_id = extract_tenant_id(&auth)?;
 
     let mut assigned_count = 0;
     let mut failed_count = 0;
@@ -138,7 +134,6 @@ pub async fn batch_assign(
                         // 记录分配历史
                         let _ = history_service
                             .create(
-                                tenant_id,
                                 auth.user_id,
                                 &auth.username,
                                 CreateAssignmentHistoryRequest {
@@ -189,13 +184,12 @@ pub async fn batch_assign(
 /// GET /api/v1/erp/crm/assignments - 获取分配列表
 pub async fn list_assignments(
     State(state): State<AppState>,
-    auth: AuthContext,
+    _auth: AuthContext,
     Query(query): Query<AssignmentHistoryQuery>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     let service = AssignmentHistoryService::new(state.db.clone());
-    let tenant_id = extract_tenant_id(&auth)?;
 
-    let (items, total) = service.list(tenant_id, query).await?;
+    let (items, total) = service.list(query).await?;
 
     Ok(Json(ApiResponse::success(serde_json::json!({
         "items": items,
@@ -206,13 +200,12 @@ pub async fn list_assignments(
 /// GET /api/v1/erp/crm/assignment/history - 获取分配历史
 pub async fn list_assignment_history(
     State(state): State<AppState>,
-    auth: AuthContext,
+    _auth: AuthContext,
     Query(query): Query<AssignmentHistoryQuery>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     let service = AssignmentHistoryService::new(state.db.clone());
-    let tenant_id = extract_tenant_id(&auth)?;
 
-    let (items, total) = service.list(tenant_id, query).await?;
+    let (items, total) = service.list(query).await?;
 
     Ok(Json(ApiResponse::success(serde_json::json!({
         "items": items,

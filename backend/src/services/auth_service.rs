@@ -44,8 +44,6 @@ pub struct AppClaims {
     pub username: String,
     /// 角色 ID
     pub role_id: Option<i32>,
-    /// 租户 ID（多租户支持）
-    pub tenant_id: Option<i32>,
     /// 令牌过期时间
     #[serde(with = "chrono::serde::ts_seconds")]
     pub exp: DateTime<Utc>,
@@ -118,7 +116,7 @@ impl AuthService {
         }
 
         let token = self
-            .generate_token(user.id, &user.username, user.role_id, None)
+            .generate_token(user.id, &user.username, user.role_id)
             .map_err(|e| AuthError::TokenGenerationError(e.to_string()))?;
 
         Ok((token, user))
@@ -132,7 +130,6 @@ impl AuthService {
     /// - `user_id`: 用户 ID
     /// - `username`: 用户名
     /// - `role_id`: 角色 ID（可选）
-    /// - `tenant_id`: 租户 ID（可选）
     ///
     /// # 返回
     /// - `Ok(token)`: 生成的 JWT 令牌
@@ -142,7 +139,6 @@ impl AuthService {
         user_id: i32,
         username: &str,
         role_id: Option<i32>,
-        tenant_id: Option<i32>,
     ) -> Result<String, AuthError> {
         let now = Utc::now();
         // Token expires in 2 hours (reduced from 24 hours for security)
@@ -154,7 +150,6 @@ impl AuthService {
             sub: user_id,
             username: username.to_string(),
             role_id,
-            tenant_id,
             exp,
             iat: now,
             refresh_exp,
@@ -712,7 +707,6 @@ mod tests {
             sub: 1,
             username: "testuser".to_string(),
             role_id: Some(1),
-            tenant_id: None,
             exp: now + Duration::hours(2),
             iat: now,
             refresh_exp: now + Duration::days(7),
@@ -726,7 +720,6 @@ mod tests {
         assert_eq!(decoded.sub, 1);
         assert_eq!(decoded.username, "testuser");
         assert_eq!(decoded.role_id, Some(1));
-        assert_eq!(decoded.tenant_id, None);
     }
 
     /// 测试无效令牌验证
@@ -740,7 +733,6 @@ mod tests {
             sub: 1,
             username: "testuser".to_string(),
             role_id: Some(1),
-            tenant_id: None,
             exp: now + Duration::hours(2),
             iat: now,
             refresh_exp: now + Duration::days(7),
@@ -764,7 +756,6 @@ mod tests {
             sub: 1,
             username: "testuser".to_string(),
             role_id: Some(1),
-            tenant_id: None,
             exp: now - Duration::hours(1), // 已过期
             iat: now - Duration::hours(2),
             refresh_exp: now + Duration::days(7),
@@ -788,7 +779,6 @@ mod tests {
             sub: 42,
             username: "admin".to_string(),
             role_id: Some(1),
-            tenant_id: Some(100),
             exp: now + Duration::hours(2),
             iat: now,
             refresh_exp: now + Duration::days(7),
@@ -802,7 +792,6 @@ mod tests {
         assert_eq!(decoded.sub, 42);
         assert_eq!(decoded.username, "admin");
         assert_eq!(decoded.role_id, Some(1));
-        assert_eq!(decoded.tenant_id, Some(100));
 
         // 验证时间字段
         assert!(decoded.iat.timestamp() >= now.timestamp() - 1);

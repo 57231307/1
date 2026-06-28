@@ -4,12 +4,6 @@
 //! - GET /api/v1/erp/slow-queries         分页 + 多维筛选（时间范围 / 最小执行时间 / 关键词）
 //! - GET /api/v1/erp/slow-queries/stats   TOP 10 聚合统计
 //! - POST /api/v1/erp/slow-queries/refresh 手动触发一次采集
-//!
-//! 强租户隔离：所有 query 必须使用 `extract_tenant_id(&auth)?` 提取租户 ID；
-//! 严禁使用 `auth.tenant_id.unwrap_or(0)` 绕过。
-//!
-//! 慢查询本质是系统级数据（tenant_id 允许 NULL），但 handler 仍要求调用方
-//! 提供有效租户上下文，防止未授权访问。
 
 use axum::{
     extract::{Query, State},
@@ -23,7 +17,6 @@ use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 
 use crate::middleware::auth_context::AuthContext;
-use crate::middleware::tenant::extract_tenant_id;
 use crate::models::slow_query::{self, SlowQueryDto, SlowQueryStatDto};
 use crate::services::slow_query_collector::SlowQueryCollector;
 use crate::utils::app_state::AppState;
@@ -86,12 +79,9 @@ pub struct SlowQueryRefreshResponse {
 /// 分页 + 多维筛选（时间范围 / 最小执行时间 / 关键词）
 pub async fn list_slow_queries(
     State(state): State<AppState>,
-    auth: AuthContext,
+    _auth: AuthContext,
     Query(params): Query<SlowQueryListParams>,
 ) -> Result<Json<ApiResponse<SlowQueryListResponse>>, AppError> {
-    // 强租户隔离：未携带有效租户上下文拒绝访问
-    let _tenant_id = extract_tenant_id(&auth)?;
-
     // 防御式分页参数：unwrap_or(1).max(1) 显式调用 Ord::max 避免 ExprTrait 歧义
     let page = std::cmp::Ord::max(params.page.unwrap_or(1), 1);
     let page_size = params.page_size.unwrap_or(20).clamp(1, 200);
@@ -150,10 +140,8 @@ pub async fn list_slow_queries(
 /// 聚合统计：按 query_text 分组，TOP 10（按最大平均执行时间倒序）
 pub async fn get_slow_query_stats(
     State(state): State<AppState>,
-    auth: AuthContext,
+    _auth: AuthContext,
 ) -> Result<Json<ApiResponse<SlowQueryStatsResponse>>, AppError> {
-    let _tenant_id = extract_tenant_id(&auth)?;
-
     // 使用原生 SQL 聚合：按 query_text 分组，取 max(execution_time_ms) / sum(calls) / avg(rows)
     // 仅取近 7 天数据，避免历史数据爆炸
     let sql = "SELECT query_text, \
@@ -227,10 +215,8 @@ pub async fn get_slow_query_stats(
 /// 返回：插入条数 + 提示信息
 pub async fn refresh_slow_queries(
     State(state): State<AppState>,
-    auth: AuthContext,
+    _auth: AuthContext,
 ) -> Result<Json<ApiResponse<SlowQueryRefreshResponse>>, AppError> {
-    let _tenant_id = extract_tenant_id(&auth)?;
-
     // 构造采集器（与 main 启动参数一致：阈值 100ms / limit 100）
     let collector = Arc::new(SlowQueryCollector::new(state.db.clone(), 100.0, 100));
 
@@ -259,38 +245,6 @@ pub async fn refresh_slow_queries(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::middleware::auth_context::AuthContext;
-
-    /// 提取租户 ID 在有效值时返回 Ok
-    #[test]
-    fn test_extract_tenant_id_accepts_valid() {
-        let auth = AuthContext {
-            user_id: 1,
-            username: "tester".to_string(),
-            role_id: Some(1),
-            tenant_id: Some(42),
-        };
-        let tid = extract_tenant_id(&auth).expect("租户 ID 应存在");
-        assert_eq!(tid, 42);
-    }
-
-    /// 提取租户 ID 在 None 时返回 AppError（强隔离）
-    #[test]
-    fn test_extract_tenant_id_rejects_missing() {
-        let auth = AuthContext {
-            user_id: 1,
-            username: "tester".to_string(),
-            role_id: Some(1),
-            tenant_id: None,
-        };
-        let err = extract_tenant_id(&auth).expect_err("缺失租户应失败");
-        let msg = format!("{:?}", err);
-        assert!(
-            msg.contains("未授权") || msg.contains("Unauthorized") || msg.contains("租户"),
-            "错误信息应提示租户相关问题：{}",
-            msg
-        );
-    }
 
     /// 列表查询参数默认值
     #[test]

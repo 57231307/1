@@ -95,7 +95,6 @@ mod tests {
             EventType::SalesOrderCreated,
             "SO-001",
             "sales_order",
-            "tenant-001",
             serde_json::json!({}),
         );
         bus.publish(event).await.unwrap();

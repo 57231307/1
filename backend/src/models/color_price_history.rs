@@ -26,7 +26,6 @@ pub struct Model {
     pub operated_at: DateTime<Utc>,
     pub approved_by: Option<i64>,
     pub approved_at: Option<DateTime<Utc>>,
-    pub tenant_id: i64,
 }
 
 #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]

@@ -12,7 +12,6 @@ use std::sync::atomic::{AtomicU32, Ordering};
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use crate::middleware::auth_context::AuthContext;
-use crate::middleware::tenant::extract_tenant_id;
 use crate::utils::admin_checker::is_admin_role;
 
 use crate::services::email_log_service::{CreateEmailLogRequest, EmailLogQuery, EmailLogService};
@@ -99,12 +98,10 @@ pub async fn send_email(
         .ok_or_else(|| AppError::business("邮件服务未配置"))?;
 
     let log_service = EmailLogService::new(state.db.clone());
-    let tenant_id = extract_tenant_id(&auth)?;
 
     // 创建邮件发送记录
     let log = log_service
         .create(
-            tenant_id,
             CreateEmailLogRequest {
                 user_id: Some(auth.user_id),
                 recipients: req.to.clone(),
@@ -161,13 +158,12 @@ pub async fn send_email(
 /// GET /api/v1/erp/email/records - 获取邮件发送记录
 pub async fn get_email_records(
     State(state): State<AppState>,
-    auth: AuthContext,
+    _auth: AuthContext,
     Query(query): Query<EmailLogQuery>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     let service = EmailLogService::new(state.db.clone());
-    let tenant_id = extract_tenant_id(&auth)?;
 
-    let (items, total) = service.list(tenant_id, query).await?;
+    let (items, total) = service.list(query).await?;
 
     Ok(Json(ApiResponse::success(serde_json::json!({
         "list": items,
@@ -178,12 +174,11 @@ pub async fn get_email_records(
 /// GET /api/v1/erp/email/statistics - 获取邮件发送统计
 pub async fn get_email_statistics(
     State(state): State<AppState>,
-    auth: AuthContext,
+    _auth: AuthContext,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     let service = EmailLogService::new(state.db.clone());
-    let tenant_id = extract_tenant_id(&auth)?;
 
-    let statistics = service.get_statistics(tenant_id).await?;
+    let statistics = service.get_statistics().await?;
 
     Ok(Json(ApiResponse::success(serde_json::to_value(
         statistics,

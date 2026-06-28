@@ -3,7 +3,6 @@
 //! 本中间件为 HTTP 请求自动创建 span，并记录：
 //! - HTTP method / url / status code
 //! - 请求处理耗时
-//! - 租户 ID（多租户隔离）
 //! - trace_id（用于关联日志）
 //!
 //! 注意：当前尚未接入请求处理链，P9-6 上线后逐项启用。
@@ -23,8 +22,6 @@ pub struct HttpTraceCtx {
     pub client_ip: Option<String>,
     /// User-Agent
     pub user_agent: Option<String>,
-    /// 租户 ID（多租户隔离）
-    pub tenant_id: Option<String>,
     /// Trace ID
     pub trace_id: String,
     /// Span ID
@@ -40,7 +37,6 @@ impl HttpTraceCtx {
             path: path.into(),
             client_ip: None,
             user_agent: None,
-            tenant_id: None,
             trace_id: generate_trace_id(),
             span_id: generate_span_id(),
         }
@@ -55,12 +51,6 @@ impl HttpTraceCtx {
     /// 设置 User-Agent
     pub fn with_user_agent(mut self, ua: impl Into<String>) -> Self {
         self.user_agent = Some(ua.into());
-        self
-    }
-
-    /// 设置租户 ID
-    pub fn with_tenant_id(mut self, tid: impl Into<String>) -> Self {
-        self.tenant_id = Some(tid.into());
         self
     }
 
@@ -102,7 +92,6 @@ impl HttpTraceResponse {
             status = self.status,
             duration_ms = self.duration_ms,
             bytes = self.bytes_sent,
-            tenant_id = ?ctx.tenant_id,
             "HTTP {} {} -> {} ({}ms)",
             ctx.method,
             ctx.path,
@@ -181,11 +170,9 @@ mod tests {
     fn test_http_ctx_with_metadata() {
         let ctx = HttpTraceCtx::new("POST", "/api/orders")
             .with_client_ip("192.168.1.1")
-            .with_user_agent("TestAgent/1.0")
-            .with_tenant_id("tenant-001");
+            .with_user_agent("TestAgent/1.0");
         assert_eq!(ctx.client_ip, Some("192.168.1.1".to_string()));
         assert_eq!(ctx.user_agent, Some("TestAgent/1.0".to_string()));
-        assert_eq!(ctx.tenant_id, Some("tenant-001".to_string()));
     }
 
     #[test]

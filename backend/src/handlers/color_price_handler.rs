@@ -13,7 +13,6 @@ use serde_json::json;
 use std::str::FromStr;
 
 use crate::middleware::auth_context::AuthContext;
-use crate::middleware::tenant::extract_tenant_id;
 use crate::models::color_price_dto::{
     ApproveColorPriceDto, BatchAdjustPriceDto, ColorPriceDetail, ColorPriceListItem,
     CreateColorPriceDto, ListColorPricesQuery, PagedResponse, PriceCalcRequest, UpdateColorPriceDto,
@@ -116,7 +115,6 @@ fn model_to_detail(m: crate::models::product_color_price::Model) -> ColorPriceDe
         approved_by: m.approved_by,
         approved_at: m.approved_at,
         approval_status: m.approval_status,
-        tenant_id: m.tenant_id,
         created_at: m.created_at,
         updated_at: m.updated_at,
     }
@@ -128,14 +126,13 @@ fn model_to_detail(m: crate::models::product_color_price::Model) -> ColorPriceDe
 
 /// GET /api/v1/erp/color-prices - 色号价格列表
 pub async fn list_color_prices(
-    auth: AuthContext,
+    _auth: AuthContext,
     State(state): State<AppState>,
     Query(query): Query<ListColorPricesQuery>,
 ) -> Result<Json<ApiResponse<PagedResponse<ColorPriceListItem>>>, AppError> {
-    let tenant_id = extract_tenant_id(&auth)? as i64;
     let service = ColorPriceCrudService::from_state(&state);
 
-    let (items, total) = service.list(tenant_id, &query).await.map_err(crud_err)?;
+    let (items, total) = service.list(&query).await.map_err(crud_err)?;
     let page = query.page.unwrap_or(1);
     let page_size = query.page_size.unwrap_or(20);
     let list: Vec<ColorPriceListItem> = items.into_iter().map(model_to_list_item).collect();
@@ -154,51 +151,47 @@ pub async fn create_color_price(
     State(state): State<AppState>,
     Json(dto): Json<CreateColorPriceDto>,
 ) -> Result<Json<ApiResponse<ColorPriceDetail>>, AppError> {
-    let tenant_id = extract_tenant_id(&auth)? as i64;
     let user_id = auth.user_id as i64;
     let service = ColorPriceCrudService::from_state(&state);
 
-    let created = service.create(dto, tenant_id, user_id).await.map_err(crud_err)?;
+    let created = service.create(dto, user_id).await.map_err(crud_err)?;
     Ok(Json(ApiResponse::success(model_to_detail(created))))
 }
 
 /// GET /api/v1/erp/color-prices/:id - 色号价格详情
 pub async fn get_color_price(
-    auth: AuthContext,
+    _auth: AuthContext,
     State(state): State<AppState>,
     Path(id): Path<i64>,
 ) -> Result<Json<ApiResponse<ColorPriceDetail>>, AppError> {
-    let tenant_id = extract_tenant_id(&auth)? as i64;
     let service = ColorPriceCrudService::from_state(&state);
 
-    let m = service.get_by_id(id, tenant_id).await.map_err(crud_err)?;
+    let m = service.get_by_id(id).await.map_err(crud_err)?;
     Ok(Json(ApiResponse::success(model_to_detail(m))))
 }
 
 /// PUT /api/v1/erp/color-prices/:id - 更新色号价格
 pub async fn update_color_price(
-    auth: AuthContext,
+    _auth: AuthContext,
     State(state): State<AppState>,
     Path(id): Path<i64>,
     Json(dto): Json<UpdateColorPriceDto>,
 ) -> Result<Json<ApiResponse<ColorPriceDetail>>, AppError> {
-    let tenant_id = extract_tenant_id(&auth)? as i64;
     let service = ColorPriceCrudService::from_state(&state);
 
-    let m = service.update(id, tenant_id, dto).await.map_err(crud_err)?;
+    let m = service.update(id, dto).await.map_err(crud_err)?;
     Ok(Json(ApiResponse::success(model_to_detail(m))))
 }
 
 /// DELETE /api/v1/erp/color-prices/:id - 软删除
 pub async fn delete_color_price(
-    auth: AuthContext,
+    _auth: AuthContext,
     State(state): State<AppState>,
     Path(id): Path<i64>,
 ) -> Result<Json<ApiResponse<ColorPriceDetail>>, AppError> {
-    let tenant_id = extract_tenant_id(&auth)? as i64;
     let service = ColorPriceCrudService::from_state(&state);
 
-    let m = service.delete(id, tenant_id).await.map_err(crud_err)?;
+    let m = service.delete(id).await.map_err(crud_err)?;
     Ok(Json(ApiResponse::success(model_to_detail(m))))
 }
 
@@ -212,12 +205,11 @@ pub async fn batch_adjust_color_prices(
     State(state): State<AppState>,
     Json(dto): Json<BatchAdjustPriceDto>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
-    let tenant_id = extract_tenant_id(&auth)? as i64;
     let user_id = auth.user_id as i64;
     let service = ColorPriceBatchService::from_state(&state);
 
     let result = service
-        .batch_adjust(dto, tenant_id, user_id)
+        .batch_adjust(dto, user_id)
         .await
         .map_err(batch_err)?;
     Ok(Json(ApiResponse::success(json!({
@@ -234,12 +226,11 @@ pub async fn approve_color_price(
     Path(id): Path<i64>,
     Json(dto): Json<ApproveColorPriceDto>,
 ) -> Result<Json<ApiResponse<ColorPriceDetail>>, AppError> {
-    let tenant_id = extract_tenant_id(&auth)? as i64;
     let user_id = auth.user_id as i64;
     let service = ColorPriceBatchService::from_state(&state);
 
     let m = service
-        .approve(id, tenant_id, user_id, dto)
+        .approve(id, user_id, dto)
         .await
         .map_err(batch_err)?;
     Ok(Json(ApiResponse::success(model_to_detail(m))))
@@ -251,14 +242,13 @@ pub async fn approve_color_price(
 
 /// GET /api/v1/erp/color-prices/:id/history - 价格历史
 pub async fn get_color_price_history(
-    auth: AuthContext,
+    _auth: AuthContext,
     State(state): State<AppState>,
     Path(id): Path<i64>,
 ) -> Result<Json<ApiResponse<PagedResponse<PriceHistoryItem>>>, AppError> {
-    let tenant_id = extract_tenant_id(&auth)? as i64;
     let service = ColorPriceHistoryService::from_state(&state);
 
-    let (items, total) = service.list_by_price(id, tenant_id, 1, 100).await
+    let (items, total) = service.list_by_price(id, 1, 100).await
         .map_err(|e| AppError::database(e.to_string()))?;
     let page_items: Vec<PriceHistoryItem> = items
         .into_iter()
@@ -293,11 +283,10 @@ pub async fn get_color_price_history(
 
 /// GET /api/v1/erp/color-prices/calculate - 价格计算
 pub async fn calculate_color_price(
-    auth: AuthContext,
+    _auth: AuthContext,
     State(state): State<AppState>,
     Query(req): Query<PriceCalcQuery>,
 ) -> Result<Json<ApiResponse<crate::models::color_price_dto::PriceCalcResult>>, AppError> {
-    let _tenant_id = extract_tenant_id(&auth)? as i64;
     let calc_req = PriceCalcRequest {
         product_id: req.product_id,
         color_id: req.color_id,
@@ -336,15 +325,14 @@ pub struct PriceCalcQuery {
 
 /// GET /api/v1/erp/color-prices/tiers/:price_id - 阶梯价列表
 pub async fn list_tiers(
-    auth: AuthContext,
+    _auth: AuthContext,
     State(state): State<AppState>,
     Path(price_id): Path<i64>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
-    let tenant_id = extract_tenant_id(&auth)? as i64;
     let service = ColorPriceTierService::from_state(&state);
 
     let items = service
-        .list_by_price(price_id, tenant_id)
+        .list_by_price(price_id)
         .await
         .map_err(tier_err)?;
     Ok(Json(ApiResponse::success(json!({ "items": items, "total": items.len() }))))
@@ -352,27 +340,25 @@ pub async fn list_tiers(
 
 /// POST /api/v1/erp/color-prices/tiers - 新建阶梯价
 pub async fn create_tier(
-    auth: AuthContext,
+    _auth: AuthContext,
     State(state): State<AppState>,
     Json(dto): Json<CreatePriceTierDto>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
-    let tenant_id = extract_tenant_id(&auth)? as i64;
     let service = ColorPriceTierService::from_state(&state);
 
-    let m = service.create(dto, tenant_id).await.map_err(tier_err)?;
+    let m = service.create(dto).await.map_err(tier_err)?;
     Ok(Json(ApiResponse::success(json!(m))))
 }
 
 /// DELETE /api/v1/erp/color-prices/tiers/item/:tier_id - 删除阶梯价
 pub async fn delete_tier(
-    auth: AuthContext,
+    _auth: AuthContext,
     State(state): State<AppState>,
     Path(tier_id): Path<i64>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
-    let tenant_id = extract_tenant_id(&auth)? as i64;
     let service = ColorPriceTierService::from_state(&state);
 
-    service.delete(tier_id, tenant_id).await.map_err(tier_err)?;
+    service.delete(tier_id).await.map_err(tier_err)?;
     Ok(Json(ApiResponse::success(json!({ "deleted": tier_id }))))
 }
 
@@ -382,11 +368,10 @@ pub async fn delete_tier(
 
 /// GET /api/v1/erp/color-prices/customer-special - 客户专属价列表
 pub async fn list_customer_special_prices(
-    auth: AuthContext,
+    _auth: AuthContext,
     State(state): State<AppState>,
     Query(_query): Query<ListCustomerColorPricesQuery>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
-    let _tenant_id = extract_tenant_id(&auth)? as i64;
     use crate::models::customer_color_price;
     use sea_orm::EntityTrait;
     let items: Vec<customer_color_price::Model> = customer_color_price::Entity::find()
@@ -401,11 +386,10 @@ pub async fn list_customer_special_prices(
 
 /// POST /api/v1/erp/color-prices/customer-special - 新建客户专属价
 pub async fn create_customer_special_price(
-    auth: AuthContext,
+    _auth: AuthContext,
     State(state): State<AppState>,
     Json(dto): Json<CreateCustomerColorPriceDto>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
-    let tenant_id = extract_tenant_id(&auth)? as i64;
     use crate::models::customer_color_price;
     use sea_orm::{ActiveModelTrait, Set};
 
@@ -423,7 +407,6 @@ pub async fn create_customer_special_price(
         notes: Set(dto.notes),
         approved_by: Set(None),
         approved_at: Set(None),
-        tenant_id: Set(tenant_id),
         created_at: Set(now),
         updated_at: Set(now),
     };
@@ -440,14 +423,13 @@ pub async fn create_customer_special_price(
 
 /// GET /api/v1/erp/color-prices/seasonal-rules - 季节规则列表
 pub async fn list_seasonal_rules(
-    auth: AuthContext,
+    _auth: AuthContext,
     State(state): State<AppState>,
     Query(query): Query<ListSeasonalRulesQuery>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
-    let tenant_id = extract_tenant_id(&auth)? as i64;
     let service = ColorPriceSeasonalService::from_state(&state);
 
-    let (items, total) = service.list(tenant_id, &query).await.map_err(seasonal_err)?;
+    let (items, total) = service.list(&query).await.map_err(seasonal_err)?;
     Ok(Json(ApiResponse::success(json!({
         "items": items,
         "total": total,
@@ -458,26 +440,24 @@ pub async fn list_seasonal_rules(
 
 /// POST /api/v1/erp/color-prices/seasonal-rules - 新建季节规则
 pub async fn create_seasonal_rule(
-    auth: AuthContext,
+    _auth: AuthContext,
     State(state): State<AppState>,
     Json(dto): Json<CreateSeasonalRuleDto>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
-    let tenant_id = extract_tenant_id(&auth)? as i64;
     let service = ColorPriceSeasonalService::from_state(&state);
 
-    let m = service.create(dto, tenant_id).await.map_err(seasonal_err)?;
+    let m = service.create(dto).await.map_err(seasonal_err)?;
     Ok(Json(ApiResponse::success(json!(m))))
 }
 
 /// DELETE /api/v1/erp/color-prices/seasonal-rules/:id - 软删除季节规则
 pub async fn delete_seasonal_rule(
-    auth: AuthContext,
+    _auth: AuthContext,
     State(state): State<AppState>,
     Path(id): Path<i64>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
-    let tenant_id = extract_tenant_id(&auth)? as i64;
     let service = ColorPriceSeasonalService::from_state(&state);
 
-    service.delete(id, tenant_id).await.map_err(seasonal_err)?;
+    service.delete(id).await.map_err(seasonal_err)?;
     Ok(Json(ApiResponse::success(json!({ "deleted": id }))))
 }

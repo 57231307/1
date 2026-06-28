@@ -35,7 +35,6 @@ impl WebhookService {
     /// 创建 Webhook
     pub async fn create_webhook(
         &self,
-        tenant_id: i32,
         name: &str,
         url: &str,
         events: &[&str],
@@ -46,7 +45,6 @@ impl WebhookService {
 
         let now = Utc::now();
         let active_model = WebhookActiveModel {
-            tenant_id: Set(tenant_id),
             name: Set(name.to_string()),
             url: Set(url.to_string()),
             events: Set(events.join(",")),
@@ -66,10 +64,9 @@ impl WebhookService {
             .map_err(AppError::from)
     }
 
-    /// 获取租户的所有 Webhook
-    pub async fn list_webhooks(&self, tenant_id: i32) -> Result<Vec<webhook::Model>, AppError> {
+    /// 获取所有 Webhook
+    pub async fn list_webhooks(&self) -> Result<Vec<webhook::Model>, AppError> {
         Webhook::find()
-            .filter(webhook::Column::TenantId.eq(tenant_id))
             .filter(webhook::Column::IsActive.eq(true))
             .all(self.db.as_ref())
             .await
@@ -246,16 +243,11 @@ impl WebhookService {
     pub async fn test_webhook(
         &self,
         webhook_id: i32,
-        tenant_id: i32,
     ) -> Result<WebhookDeliveryResult, AppError> {
         let webhook = Webhook::find_by_id(webhook_id)
             .one(self.db.as_ref())
             .await?
             .ok_or_else(|| AppError::business("Webhook 不存在"))?;
-
-        if webhook.tenant_id != tenant_id {
-            return Err(AppError::permission_denied("无权测试此Webhook"));
-        }
 
         let test_payload = serde_json::json!({
             "message": "This is a test webhook delivery",
@@ -267,16 +259,12 @@ impl WebhookService {
             .await
     }
 
-    /// 删除 Webhook（带租户权限验证）
-    pub async fn delete_webhook(&self, id: i32, tenant_id: i32) -> Result<(), AppError> {
+    /// 删除 Webhook
+    pub async fn delete_webhook(&self, id: i32) -> Result<(), AppError> {
         let webhook = Webhook::find_by_id(id)
             .one(self.db.as_ref())
             .await?
             .ok_or_else(|| AppError::business("Webhook 不存在"))?;
-
-        if webhook.tenant_id != tenant_id {
-            return Err(AppError::permission_denied("无权删除此Webhook"));
-        }
 
         let mut active_model: WebhookActiveModel = webhook.into();
         active_model.is_active = Set(false);

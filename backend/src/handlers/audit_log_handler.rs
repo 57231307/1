@@ -4,9 +4,6 @@
 //! - GET    /api/v1/erp/audit-logs          分页 + 多维筛选
 //! - GET    /api/v1/erp/audit-logs/{id}      详情
 //! - GET    /api/v1/erp/audit-logs/export    CSV 导出
-//!
-//! 强租户隔离：所有 query 必须使用 `extract_tenant_id(&auth)?` 提取租户 ID；
-//! 严禁使用 `auth.tenant_id.unwrap_or(0)` 绕过。
 
 use axum::{
     extract::{Path, Query, State},
@@ -18,7 +15,6 @@ use sea_orm::{ColumnTrait, EntityTrait, PaginatorTrait, QueryFilter, QueryOrder}
 use serde::{Deserialize, Serialize};
 
 use crate::middleware::auth_context::AuthContext;
-use crate::middleware::tenant::extract_tenant_id;
 use crate::models::audit_log;
 use crate::utils::app_state::AppState;
 use crate::utils::error::AppError;
@@ -55,7 +51,6 @@ pub struct AuditLogListQuery {
 // 结构体字段经 serde Serialize 派生使用，标记保留待编译器验证后清理。
 pub struct AuditLogListItem {
     pub id: i32,
-    pub tenant_id: Option<i32>,
     pub user_id: Option<i32>,
     pub username: Option<String>,
     pub operation_type: Option<String>,
@@ -76,7 +71,6 @@ impl From<audit_log::Model> for AuditLogListItem {
     fn from(m: audit_log::Model) -> Self {
         Self {
             id: m.id,
-            tenant_id: m.tenant_id,
             user_id: m.user_id,
             username: m.username,
             operation_type: m.operation_type,
@@ -110,14 +104,13 @@ pub struct AuditLogListResponse {
 /// 分页 + 多维筛选（时间范围 / user_id / operation_type / severity / resource_type / request_id）
 pub async fn list_audit_logs(
     State(state): State<AppState>,
-    auth: AuthContext,
+    _auth: AuthContext,
     Query(query): Query<AuditLogListQuery>,
 ) -> Result<Json<ApiResponse<AuditLogListResponse>>, AppError> {
-    let tenant_id = extract_tenant_id(&auth)?;
     let page = std::cmp::Ord::max(query.page.unwrap_or(1), 1);
     let page_size = query.page_size.unwrap_or(20).clamp(1, 200);
 
-    let mut q = audit_log::Entity::find().filter(audit_log::Column::TenantId.eq(tenant_id));
+    let mut q = audit_log::Entity::find();
 
     if let Some(start) = &query.start_time {
         if let Ok(ts) = start.parse::<DateTime<Utc>>() {
@@ -196,12 +189,10 @@ pub struct AuditLogDetailResponse {
 /// GET /api/v1/erp/audit-logs/{id}
 pub async fn get_audit_log(
     State(state): State<AppState>,
-    auth: AuthContext,
+    _auth: AuthContext,
     Path(id): Path<i32>,
 ) -> Result<Json<ApiResponse<AuditLogDetailResponse>>, AppError> {
-    let tenant_id = extract_tenant_id(&auth)?;
     let log = audit_log::Entity::find_by_id(id)
-        .filter(audit_log::Column::TenantId.eq(tenant_id))
         .one(state.db.as_ref())
         .await
         .map_err(|e| AppError::internal(format!("查询审计日志失败: {}", e)))?
@@ -225,9 +216,7 @@ pub async fn export_audit_logs(
     auth: AuthContext,
     Query(query): Query<AuditLogListQuery>,
 ) -> Result<axum::response::Response, AppError> {
-    let tenant_id = extract_tenant_id(&auth)?;
-
-    let mut q = audit_log::Entity::find().filter(audit_log::Column::TenantId.eq(tenant_id));
+    let mut q = audit_log::Entity::find();
     if let Some(start) = &query.start_time {
         if let Ok(ts) = start.parse::<DateTime<Utc>>() {
             q = q.filter(audit_log::Column::CreatedAt.gte(ts.naive_utc()));
@@ -267,7 +256,6 @@ pub async fn export_audit_logs(
         use std::sync::Arc;
         let svc = AuditLogService::new(state.db.clone());
         let event = AuditEvent {
-            tenant_id: Some(tenant_id),
             user_id: Some(auth.user_id),
             username: Some(auth.username.clone()),
             operation_type: OperationType::Export,
@@ -336,38 +324,6 @@ pub async fn export_audit_logs(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::middleware::auth_context::AuthContext;
-
-    /// 提取租户 ID 在有效值时返回 Ok
-    #[test]
-    fn test_extract_tenant_id_accepts_valid() {
-        let auth = AuthContext {
-            user_id: 1,
-            username: "tester".to_string(),
-            role_id: Some(1),
-            tenant_id: Some(42),
-        };
-        let tid = extract_tenant_id(&auth).expect("租户 ID 应存在");
-        assert_eq!(tid, 42);
-    }
-
-    /// 提取租户 ID 在 None 时返回 AppError（强隔离）
-    #[test]
-    fn test_extract_tenant_id_rejects_missing() {
-        let auth = AuthContext {
-            user_id: 1,
-            username: "tester".to_string(),
-            role_id: Some(1),
-            tenant_id: None,
-        };
-        let err = extract_tenant_id(&auth).expect_err("缺失租户应失败");
-        let msg = format!("{:?}", err);
-        assert!(
-            msg.contains("未授权") || msg.contains("Unauthorized") || msg.contains("租户"),
-            "错误信息应提示租户相关问题：{}",
-            msg
-        );
-    }
 
     /// AuditLogListQuery 默认值：所有可选字段为 None
     #[test]

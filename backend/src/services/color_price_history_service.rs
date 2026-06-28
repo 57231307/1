@@ -41,13 +41,11 @@ impl ColorPriceHistoryService {
     pub async fn list_by_price(
         &self,
         price_id: i64,
-        tenant_id: i64,
         page: u64,
         page_size: u64,
     ) -> Result<(Vec<color_price_history::Model>, u64), HistoryError> {
         let paginator = color_price_history::Entity::find()
             .filter(color_price_history::Column::ProductColorPriceId.eq(price_id))
-            .filter(color_price_history::Column::TenantId.eq(tenant_id))
             .order_by_desc(color_price_history::Column::OperatedAt)
             .paginate(&*self.db, page_size);
 
@@ -68,7 +66,6 @@ impl ColorPriceHistoryService {
         change_percent: Option<Decimal>,
         quantity: Option<Decimal>,
         operated_by: i64,
-        tenant_id: i64,
     ) -> Result<color_price_history::Model, HistoryError> {
         let history = HistoryActive {
             id: Default::default(),
@@ -84,7 +81,6 @@ impl ColorPriceHistoryService {
             operated_at: Set(Utc::now()),
             approved_by: Set(None),
             approved_at: Set(None),
-            tenant_id: Set(tenant_id),
         };
         let result = history.insert(&*self.db).await?;
         Ok(result)

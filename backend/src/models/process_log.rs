@@ -19,7 +19,6 @@ pub struct Model {
     pub log_time: DateTime<Utc>,
     pub log_content: Option<String>,
     pub attachments: Json,
-    pub tenant_id: i64,
 }
 
 #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]

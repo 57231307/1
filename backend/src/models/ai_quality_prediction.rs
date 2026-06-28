@@ -30,7 +30,6 @@ pub struct Model {
     pub is_acknowledged: bool,
     pub acknowledged_at: Option<DateTime<Utc>>,
     pub acknowledged_by: Option<i64>,
-    pub tenant_id: i64,
     pub created_by: Option<i64>,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,

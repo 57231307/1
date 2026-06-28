@@ -54,7 +54,6 @@ impl ColorCardCrudService {
     pub async fn create(
         &self,
         dto: CreateColorCardDto,
-        tenant_id: i64,
     ) -> Result<color_card::Model, CrudError> {
         // 1. 业务校验
         Self::validate_card_type(&dto.card_type)?;
@@ -75,7 +74,6 @@ impl ColorCardCrudService {
             status: Set("active".to_string()),
             description: Set(dto.description),
             cover_image_url: Set(dto.cover_image_url),
-            tenant_id: Set(tenant_id),
             created_at: Set(now),
             updated_at: Set(now),
         };
@@ -86,10 +84,9 @@ impl ColorCardCrudService {
         Ok(result)
     }
 
-    /// 列表查询（分页 + 过滤 + 多租户隔离）
+    /// 列表查询（分页 + 过滤）
     pub async fn list(
         &self,
-        tenant_id: i64,
         page: u64,
         page_size: u64,
         card_type: Option<String>,
@@ -98,9 +95,6 @@ impl ColorCardCrudService {
         keyword: Option<String>,
     ) -> Result<(Vec<color_card::Model>, u64), CrudError> {
         let mut query = ColorCardEntity::find();
-
-        // 强制多租户隔离
-        query = query.filter(color_card::Column::TenantId.eq(tenant_id));
 
         if let Some(t) = card_type {
             query = query.filter(color_card::Column::CardType.eq(t));
@@ -126,14 +120,12 @@ impl ColorCardCrudService {
         Ok((items, total))
     }
 
-    /// 按 ID 查询（多租户隔离）
+    /// 按 ID 查询
     pub async fn get_by_id(
         &self,
         id: i64,
-        tenant_id: i64,
     ) -> Result<color_card::Model, CrudError> {
         ColorCardEntity::find_by_id(id)
-            .filter(color_card::Column::TenantId.eq(tenant_id))
             .one(&*self.db)
             .await?
             .ok_or(CrudError::NotFound)
@@ -143,10 +135,9 @@ impl ColorCardCrudService {
     pub async fn update(
         &self,
         id: i64,
-        tenant_id: i64,
         dto: UpdateColorCardDto,
     ) -> Result<color_card::Model, CrudError> {
-        let existing = self.get_by_id(id, tenant_id).await?;
+        let existing = self.get_by_id(id).await?;
         if existing.status != "active" {
             return Err(CrudError::InvalidState);
         }
@@ -181,10 +172,9 @@ impl ColorCardCrudService {
     pub async fn archive(
         &self,
         id: i64,
-        tenant_id: i64,
         _dto: ArchiveColorCardDto,
     ) -> Result<color_card::Model, CrudError> {
-        let existing = self.get_by_id(id, tenant_id).await?;
+        let existing = self.get_by_id(id).await?;
         if existing.status == "archived" {
             return Err(CrudError::InvalidState);
         }
@@ -199,8 +189,8 @@ impl ColorCardCrudService {
 
     /// 标记色卡为遗失
     #[allow(dead_code)] // TODO(tech-debt): 当前未接入路由，后续如需直接标记色卡遗失可接入 CRUD 路由
-    pub async fn mark_lost(&self, id: i64, tenant_id: i64) -> Result<color_card::Model, CrudError> {
-        let existing = self.get_by_id(id, tenant_id).await?;
+    pub async fn mark_lost(&self, id: i64) -> Result<color_card::Model, CrudError> {
+        let existing = self.get_by_id(id).await?;
         let mut active: ColorCardActive = existing.into();
         active.status = Set("lost".to_string());
         active.updated_at = Set(Utc::now());

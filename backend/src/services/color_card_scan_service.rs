@@ -44,12 +44,10 @@ impl ColorCardScanService {
     pub async fn scan_by_code(
         &self,
         color_code: &str,
-        tenant_id: i64,
     ) -> Result<ScanResult, AppError> {
         // 1. 查找色号
         let item = ItemEntity::find()
             .filter(color_card_item::Column::ColorCode.eq(color_code))
-            .filter(color_card_item::Column::TenantId.eq(tenant_id))
             .one(&*self.db)
             .await
             .map_err(|e| AppError::database(e.to_string()))?
@@ -57,7 +55,6 @@ impl ColorCardScanService {
 
         // 2. 加载色卡
         let card = ColorCardEntity::find_by_id(item.color_card_id)
-            .filter(color_card::Column::TenantId.eq(tenant_id))
             .one(&*self.db)
             .await
             .map_err(|e| AppError::database(e.to_string()))?
@@ -136,17 +133,15 @@ impl ColorCardScanService {
     pub async fn scan_by_id(
         &self,
         item_id: i64,
-        tenant_id: i64,
     ) -> Result<ScanResult, AppError> {
         let item = ItemEntity::find_by_id(item_id)
-            .filter(color_card_item::Column::TenantId.eq(tenant_id))
             .one(&*self.db)
             .await
             .map_err(|e| AppError::database(e.to_string()))?
             .ok_or_else(|| AppError::not_found("色号不存在"))?;
 
         // 复用 scan_by_code
-        self.scan_by_code(&item.color_code, tenant_id).await
+        self.scan_by_code(&item.color_code).await
     }
 }
 

@@ -5,7 +5,6 @@ use axum::{
 use serde::{Deserialize, Serialize};
 
 use crate::middleware::auth_context::AuthContext;
-use crate::middleware::tenant::extract_tenant_id;
 use crate::services::webhook_service::WebhookService;
 use crate::utils::app_state::AppState;
 use crate::utils::error::AppError;
@@ -42,21 +41,14 @@ impl From<crate::models::webhook::Model> for WebhookResponse {
 
 pub async fn create_webhook(
     State(state): State<AppState>,
-    auth: AuthContext,
+    _auth: AuthContext,
     Json(req): Json<CreateWebhookRequest>,
 ) -> Result<Json<ApiResponse<WebhookResponse>>, AppError> {
-    let tenant_id = extract_tenant_id(&auth)?;
     let service = WebhookService::new(state.db);
     let events: Vec<&str> = req.events.iter().map(|s| s.as_str()).collect();
 
     match service
-        .create_webhook(
-            tenant_id,
-            &req.name,
-            &req.url,
-            &events,
-            req.secret.as_deref(),
-        )
+        .create_webhook(&req.name, &req.url, &events, req.secret.as_deref())
         .await
     {
         Ok(webhook) => Ok(Json(ApiResponse::success(WebhookResponse::from(webhook)))),
@@ -69,12 +61,11 @@ pub async fn create_webhook(
 
 pub async fn list_webhooks(
     State(state): State<AppState>,
-    auth: AuthContext,
+    _auth: AuthContext,
 ) -> Result<Json<ApiResponse<Vec<WebhookResponse>>>, AppError> {
-    let tenant_id = extract_tenant_id(&auth)?;
     let service = WebhookService::new(state.db);
 
-    match service.list_webhooks(tenant_id).await {
+    match service.list_webhooks().await {
         Ok(webhooks) => {
             let responses: Vec<WebhookResponse> =
                 webhooks.into_iter().map(WebhookResponse::from).collect();
@@ -89,13 +80,12 @@ pub async fn list_webhooks(
 
 pub async fn delete_webhook(
     State(state): State<AppState>,
-    auth: AuthContext,
+    _auth: AuthContext,
     Path(id): Path<i32>,
 ) -> Result<Json<ApiResponse<()>>, AppError> {
     let service = WebhookService::new(state.db);
-    let tenant_id = extract_tenant_id(&auth)?;
 
-    match service.delete_webhook(id, tenant_id).await {
+    match service.delete_webhook(id).await {
         Ok(()) => Ok(Json(ApiResponse::success_with_message((), "删除成功"))),
         Err(e) => {
             tracing::error!("删除 Webhook 失败: {}", e);

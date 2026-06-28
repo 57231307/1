@@ -53,11 +53,6 @@ pub fn deployment_environment() -> String {
     env::var("ENV").unwrap_or_else(|_| "dev".to_string())
 }
 
-/// 资源属性：租户 ID（多租户隔离）
-pub fn tenant_id() -> Option<String> {
-    env::var("TENANT_ID").ok()
-}
-
 /// OTLP 端点（gRPC）
 pub fn otlp_endpoint() -> String {
     env::var("OTEL_EXPORTER_OTLP_ENDPOINT")

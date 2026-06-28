@@ -13,7 +13,6 @@ pub fn is_module_prefix(part: &str) -> bool {
             | "crm"
             | "ai"
             | "reports"
-            | "tenants"
             | "webhooks"
             | "api-keys"
             | "supplier-evaluation"

@@ -21,7 +21,6 @@ pub struct Model {
     pub closed_at: Option<DateTime<Utc>>,
     pub resolution: Option<String>,
     pub refund_amount: Option<Decimal>,
-    pub tenant_id: i64,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
 }

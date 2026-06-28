@@ -220,7 +220,7 @@ pub async fn update_customer(
     let customer_service = CustomerService::new(state.db.clone());
 
     // M-1 修复：检查数据权限
-    // 客户表无 tenant_id 字段，使用 created_by 做数据隔离：
+    // 使用 created_by 做数据隔离：
     // - 管理员（role_id=1）可修改所有客户
     // - 普通用户只能修改自己创建的客户
     let customer = customer_service.get_customer(id).await?;
@@ -273,7 +273,7 @@ pub async fn delete_customer(
     let customer_service = CustomerService::new(state.db.clone());
 
     // M-1 修复：检查数据权限
-    // 客户表无 tenant_id 字段，使用 created_by 做数据隔离：
+    // 使用 created_by 做数据隔离：
     // - 管理员（role_id=1）可删除所有客户
     // - 普通用户只能删除自己创建的客户
     let customer = customer_service.get_customer(id).await?;

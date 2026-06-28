@@ -11,7 +11,6 @@ use axum::{
 use serde::Deserialize;
 
 use crate::middleware::auth_context::AuthContext;
-use crate::middleware::tenant::extract_tenant_id;
 use crate::models::after_sales as after_sales_model;
 use crate::models::custom_order_create_dto::{CancelCustomOrderDto, CreateCustomOrderDto, UpdateCustomOrderDto};
 use crate::models::custom_order_response_dto::{
@@ -113,18 +112,16 @@ fn aftersales_err(e: crate::services::custom_order_aftersales_service::AfterSale
 
 /// GET /api/v1/erp/custom-orders - 列表
 pub async fn list_custom_orders(
-    auth: AuthContext,
+    _auth: AuthContext,
     State(state): State<AppState>,
     Query(query): Query<ListCustomOrdersQuery>,
 ) -> Result<Json<ApiResponse<PagedResponse<CustomOrderListItem>>>, AppError> {
-    let tenant_id = extract_tenant_id(&auth)? as i64;
     let service = CustomOrderCrudService::from_state(&state);
     let page = query.page.unwrap_or(1);
     let page_size = query.page_size.unwrap_or(20);
 
     let (items, total) = service
         .list(
-            tenant_id,
             page,
             page_size,
             query.status,
@@ -169,12 +166,11 @@ pub async fn create_custom_order(
     State(state): State<AppState>,
     Json(dto): Json<CreateCustomOrderDto>,
 ) -> Result<Json<ApiResponse<CustomOrderListItem>>, AppError> {
-    let tenant_id = extract_tenant_id(&auth)? as i64;
     let user_id = auth.user_id as i64;
     let service = CustomOrderCrudService::from_state(&state);
 
     let created = service
-        .create_draft(dto, user_id, tenant_id)
+        .create_draft(dto, user_id)
         .await
         .map_err(crud_err)?;
 
@@ -199,26 +195,25 @@ pub async fn create_custom_order(
 
 /// GET /api/v1/erp/custom-orders/:id - 详情
 pub async fn get_custom_order(
-    auth: AuthContext,
+    _auth: AuthContext,
     State(state): State<AppState>,
     Path(id): Path<i64>,
 ) -> Result<Json<ApiResponse<CustomOrderDetail>>, AppError> {
-    let tenant_id = extract_tenant_id(&auth)? as i64;
     let crud_svc = CustomOrderCrudService::from_state(&state);
     let quality_svc = CustomOrderQualityService::from_state(&state);
     let after_svc = CustomOrderAfterSalesService::from_state(&state);
 
-    let order = crud_svc.get_by_id(id, tenant_id).await.map_err(crud_err)?;
+    let order = crud_svc.get_by_id(id).await.map_err(crud_err)?;
     let nodes = crud_svc
-        .list_process_nodes(id, tenant_id)
+        .list_process_nodes(id)
         .await
         .map_err(crud_err)?;
     let (issues, _) = quality_svc
-        .list_by_order(id, tenant_id, 1, 100)
+        .list_by_order(id, 1, 100)
         .await
         .map_err(quality_err)?;
     let (after_sales_list, _) = after_svc
-        .list_by_order(id, tenant_id, 1, 100)
+        .list_by_order(id, 1, 100)
         .await
         .map_err(aftersales_err)?;
 
@@ -241,7 +236,6 @@ pub async fn get_custom_order(
         sales_order_id: order.sales_order_id,
         total_amount: order.total_amount,
         currency: order.currency,
-        tenant_id: order.tenant_id,
         created_by: order.created_by,
         created_at: order.created_at,
         updated_at: order.updated_at,
@@ -292,14 +286,13 @@ pub async fn get_custom_order(
 
 /// PUT /api/v1/erp/custom-orders/:id - 更新（仅草稿）
 pub async fn update_custom_order(
-    auth: AuthContext,
+    _auth: AuthContext,
     State(state): State<AppState>,
     Path(id): Path<i64>,
     Json(dto): Json<UpdateCustomOrderDto>,
 ) -> Result<Json<ApiResponse<CustomOrderListItem>>, AppError> {
-    let tenant_id = extract_tenant_id(&auth)? as i64;
     let service = CustomOrderCrudService::from_state(&state);
-    let updated = service.update(id, tenant_id, dto).await.map_err(crud_err)?;
+    let updated = service.update(id, dto).await.map_err(crud_err)?;
     Ok(Json(ApiResponse::success(CustomOrderListItem {
         id: updated.id,
         order_no: updated.order_no,
@@ -326,11 +319,10 @@ pub async fn cancel_custom_order(
     Path(id): Path<i64>,
     Json(dto): Json<CancelCustomOrderDto>,
 ) -> Result<Json<ApiResponse<CustomOrderListItem>>, AppError> {
-    let tenant_id = extract_tenant_id(&auth)? as i64;
     let user_id = auth.user_id as i64;
     let service = CustomOrderCrudService::from_state(&state);
     let updated = service
-        .cancel(id, tenant_id, dto, user_id)
+        .cancel(id, dto, user_id)
         .await
         .map_err(crud_err)?;
     Ok(Json(ApiResponse::success(CustomOrderListItem {
@@ -358,15 +350,14 @@ pub async fn cancel_custom_order(
 
 /// POST /api/v1/erp/custom-orders/:id/advance - 推进到下一阶段
 pub async fn advance_custom_order(
-    auth: AuthContext,
+    _auth: AuthContext,
     State(state): State<AppState>,
     Path(id): Path<i64>,
     Json(req): Json<AdvanceRequest>,
 ) -> Result<Json<ApiResponse<CustomOrderListItem>>, AppError> {
-    let tenant_id = extract_tenant_id(&auth)? as i64;
     let service = CustomOrderStateService::from_state(&state);
     let updated = service
-        .advance(id, tenant_id, req.operator_id, req.notes)
+        .advance(id, req.operator_id, req.notes)
         .await
         .map_err(state_err)?;
     Ok(Json(ApiResponse::success(CustomOrderListItem {
@@ -390,15 +381,14 @@ pub async fn advance_custom_order(
 
 /// POST /api/v1/erp/custom-orders/:id/nodes - 添加工艺节点
 pub async fn add_process_node(
-    auth: AuthContext,
+    _auth: AuthContext,
     State(state): State<AppState>,
     Path(id): Path<i64>,
     Json(dto): Json<CreateProcessNodeDto>,
 ) -> Result<Json<ApiResponse<ProcessNodeInfo>>, AppError> {
-    let tenant_id = extract_tenant_id(&auth)? as i64;
     let service = CustomOrderProcessService::from_state(&state);
     let node = service
-        .add_node(id, tenant_id, dto)
+        .add_node(id, dto)
         .await
         .map_err(process_err)?;
     Ok(Json(ApiResponse::success(ProcessNodeInfo {
@@ -418,15 +408,14 @@ pub async fn add_process_node(
 
 /// PUT /api/v1/erp/custom-orders/:id/nodes/:nid - 更新节点
 pub async fn update_process_node(
-    auth: AuthContext,
+    _auth: AuthContext,
     State(state): State<AppState>,
     Path((_oid, nid)): Path<(i64, i64)>,
     Json(dto): Json<UpdateProcessNodeDto>,
 ) -> Result<Json<ApiResponse<ProcessNodeInfo>>, AppError> {
-    let tenant_id = extract_tenant_id(&auth)? as i64;
     let service = CustomOrderProcessService::from_state(&state);
     let node = service
-        .update_node(nid, tenant_id, dto)
+        .update_node(nid, dto)
         .await
         .map_err(process_err)?;
     Ok(Json(ApiResponse::success(ProcessNodeInfo {
@@ -446,15 +435,14 @@ pub async fn update_process_node(
 
 /// POST /api/v1/erp/custom-orders/:id/nodes/:nid/advance - 推进节点
 pub async fn advance_process_node(
-    auth: AuthContext,
+    _auth: AuthContext,
     State(state): State<AppState>,
     Path((_oid, nid)): Path<(i64, i64)>,
     Json(dto): Json<AdvanceNodeDto>,
 ) -> Result<Json<ApiResponse<ProcessNodeInfo>>, AppError> {
-    let tenant_id = extract_tenant_id(&auth)? as i64;
     let service = CustomOrderProcessService::from_state(&state);
     let node = service
-        .advance_node(nid, tenant_id, dto)
+        .advance_node(nid, dto)
         .await
         .map_err(process_err)?;
     Ok(Json(ApiResponse::success(ProcessNodeInfo {
@@ -474,18 +462,17 @@ pub async fn advance_process_node(
 
 /// GET /api/v1/erp/custom-orders/:id/timeline - 完整时间线
 pub async fn get_timeline(
-    auth: AuthContext,
+    _auth: AuthContext,
     State(state): State<AppState>,
     Path(id): Path<i64>,
 ) -> Result<Json<ApiResponse<ProcessTimeline>>, AppError> {
     use sea_orm::EntityTrait;
-    let tenant_id = extract_tenant_id(&auth)? as i64;
     let crud_svc = CustomOrderCrudService::from_state(&state);
     let process_svc = CustomOrderProcessService::from_state(&state);
 
-    let order = crud_svc.get_by_id(id, tenant_id).await.map_err(crud_err)?;
+    let order = crud_svc.get_by_id(id).await.map_err(crud_err)?;
     let timeline_data = process_svc
-        .get_timeline(id, tenant_id)
+        .get_timeline(id)
         .await
         .map_err(process_err)?;
 
@@ -545,17 +532,16 @@ pub async fn get_timeline(
 
 /// POST /api/v1/erp/custom-orders/:id/issues - 上报异常
 pub async fn report_quality_issue(
-    auth: AuthContext,
+    _auth: AuthContext,
     State(state): State<AppState>,
     Path(_id): Path<i64>,
     Json(mut dto): Json<ReportQualityIssueDto>,
 ) -> Result<Json<ApiResponse<QualityIssueInfo>>, AppError> {
-    let tenant_id = extract_tenant_id(&auth)? as i64;
     // URL 中的 id 与 body 中 custom_order_id 一致时，使用 URL 的 id 作为权威
     dto.custom_order_id = _id;
     let service = CustomOrderQualityService::from_state(&state);
     let issue = service
-        .report_issue(dto, tenant_id)
+        .report_issue(dto)
         .await
         .map_err(quality_err)?;
     Ok(Json(ApiResponse::success(QualityIssueInfo {
@@ -578,17 +564,16 @@ pub struct ListIssuesQuery {
 }
 
 pub async fn list_quality_issues(
-    auth: AuthContext,
+    _auth: AuthContext,
     State(state): State<AppState>,
     Path(id): Path<i64>,
     Query(query): Query<ListIssuesQuery>,
 ) -> Result<Json<ApiResponse<PagedResponse<QualityIssueInfo>>>, AppError> {
-    let tenant_id = extract_tenant_id(&auth)? as i64;
     let service = CustomOrderQualityService::from_state(&state);
     let page = query.page.unwrap_or(1);
     let page_size = query.page_size.unwrap_or(20);
     let (items, total) = service
-        .list_by_order(id, tenant_id, page, page_size)
+        .list_by_order(id, page, page_size)
         .await
         .map_err(quality_err)?;
 
@@ -616,15 +601,14 @@ pub async fn list_quality_issues(
 
 /// PUT /api/v1/erp/custom-orders/issues/:id/resolve - 解决异常
 pub async fn resolve_quality_issue(
-    auth: AuthContext,
+    _auth: AuthContext,
     State(state): State<AppState>,
     Path(id): Path<i64>,
     Json(dto): Json<ResolveQualityIssueDto>,
 ) -> Result<Json<ApiResponse<QualityIssueInfo>>, AppError> {
-    let tenant_id = extract_tenant_id(&auth)? as i64;
     let service = CustomOrderQualityService::from_state(&state);
     let issue = service
-        .resolve_issue(id, tenant_id, dto)
+        .resolve_issue(id, dto)
         .await
         .map_err(quality_err)?;
     Ok(Json(ApiResponse::success(QualityIssueInfo {
@@ -645,15 +629,14 @@ pub async fn resolve_quality_issue(
 
 /// POST /api/v1/erp/custom-orders/:id/after-sales - 创建售后工单
 pub async fn create_after_sales(
-    auth: AuthContext,
+    _auth: AuthContext,
     State(state): State<AppState>,
     Path(_id): Path<i64>,
     Json(mut dto): Json<CreateAfterSalesDto>,
 ) -> Result<Json<ApiResponse<AfterSalesInfo>>, AppError> {
-    let tenant_id = extract_tenant_id(&auth)? as i64;
     dto.custom_order_id = _id;
     let service = CustomOrderAfterSalesService::from_state(&state);
-    let after = service.create(dto, tenant_id).await.map_err(aftersales_err)?;
+    let after = service.create(dto).await.map_err(aftersales_err)?;
     Ok(Json(ApiResponse::success(AfterSalesInfo {
         id: after.id,
         issue_type: after.issue_type,
@@ -668,17 +651,16 @@ pub async fn create_after_sales(
 
 /// GET /api/v1/erp/custom-orders/:id/after-sales - 售后列表
 pub async fn list_after_sales(
-    auth: AuthContext,
+    _auth: AuthContext,
     State(state): State<AppState>,
     Path(id): Path<i64>,
     Query(query): Query<ListIssuesQuery>,
 ) -> Result<Json<ApiResponse<PagedResponse<AfterSalesInfo>>>, AppError> {
-    let tenant_id = extract_tenant_id(&auth)? as i64;
     let service = CustomOrderAfterSalesService::from_state(&state);
     let page = query.page.unwrap_or(1);
     let page_size = query.page_size.unwrap_or(20);
     let (items, total) = service
-        .list_by_order(id, tenant_id, page, page_size)
+        .list_by_order(id, page, page_size)
         .await
         .map_err(aftersales_err)?;
 
@@ -706,15 +688,14 @@ pub async fn list_after_sales(
 
 /// PUT /api/v1/erp/custom-orders/after-sales/:id - 更新售后
 pub async fn update_after_sales(
-    auth: AuthContext,
+    _auth: AuthContext,
     State(state): State<AppState>,
     Path(id): Path<i64>,
     Json(dto): Json<UpdateAfterSalesDto>,
 ) -> Result<Json<ApiResponse<AfterSalesInfo>>, AppError> {
-    let tenant_id = extract_tenant_id(&auth)? as i64;
     let service = CustomOrderAfterSalesService::from_state(&state);
     let after = service
-        .update(id, tenant_id, dto)
+        .update(id, dto)
         .await
         .map_err(aftersales_err)?;
     Ok(Json(ApiResponse::success(AfterSalesInfo {
@@ -735,14 +716,13 @@ pub async fn update_after_sales(
 
 /// POST /api/v1/erp/custom-orders/:id/nodes/:nid/logs - 添加日志
 pub async fn add_node_log(
-    auth: AuthContext,
+    _auth: AuthContext,
     State(state): State<AppState>,
     Path((_oid, nid)): Path<(i64, i64)>,
     Json(dto): Json<AddProcessLogDto>,
 ) -> Result<Json<ApiResponse<ProcessLogInfo>>, AppError> {
-    let tenant_id = extract_tenant_id(&auth)? as i64;
     let service = CustomOrderProcessService::from_state(&state);
-    let log = service.add_log(nid, tenant_id, dto).await.map_err(process_err)?;
+    let log = service.add_log(nid, dto).await.map_err(process_err)?;
     let attachments: Vec<String> = log
         .attachments
         .as_array()

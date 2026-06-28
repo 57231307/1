@@ -422,7 +422,6 @@ impl EmailTemplate {
     pub async fn save_email_log(
         &self,
         db: &sea_orm::DatabaseConnection,
-        tenant_id: i32,
         user_id: Option<i32>,
         to: &[String],
         subject: &str,
@@ -435,7 +434,6 @@ impl EmailTemplate {
         use sea_orm::{ActiveModelTrait, Set};
 
         let active_model = email_log::ActiveModel {
-            tenant_id: Set(tenant_id),
             user_id: Set(user_id),
             recipients: Set(to.join(",")),
             subject: Set(subject.to_string()),
@@ -463,8 +461,7 @@ impl EmailTemplate {
         let subject_len = subject.len();
 
         tracing::info!(
-            "邮件发送记录已保存: tenant_id={}, user_id={:?}, to_count={}, to_domains={:?}, subject_len={}, status={}",
-            tenant_id,
+            "邮件发送记录已保存: user_id={:?}, to_count={}, to_domains={:?}, subject_len={}, status={}",
             user_id,
             to_count,
             domains,

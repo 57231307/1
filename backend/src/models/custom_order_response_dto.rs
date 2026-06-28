@@ -47,7 +47,6 @@ pub struct CustomOrderDetail {
     pub sales_order_id: Option<i64>,
     pub total_amount: Option<Decimal>,
     pub currency: String,
-    pub tenant_id: i64,
     pub created_by: Option<i64>,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,

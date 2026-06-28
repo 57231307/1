@@ -10,8 +10,6 @@ use crate::models::omni_audit_log;
 
 #[derive(Debug, Clone)]
 pub struct OmniAuditMessage {
-    /// 租户 ID（多租户隔离；由中间件从 AuthContext 注入，禁止硬编码）
-    pub tenant_id: Option<i32>,
     pub trace_id: String,
     /// 用户 ID；未登录/匿名场景下为 None（避免脏数据归到 user_id=0 系统用户）
     pub user_id: Option<i32>,
@@ -119,7 +117,6 @@ impl OmniAuditEngine {
 
                     let log = omni_audit_log::ActiveModel {
                         id: ActiveValue::NotSet,
-                        tenant_id: ActiveValue::Set(msg.tenant_id),
                         trace_id: ActiveValue::Set(Some(msg.trace_id)),
                         span_id: ActiveValue::Set(None),
                         parent_span_id: ActiveValue::Set(None),

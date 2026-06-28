@@ -81,7 +81,6 @@ pub struct SeasonalRuleInfo {
     pub valid_until: Option<NaiveDate>,
     pub is_active: bool,
     pub description: Option<String>,
-    pub tenant_id: i64,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
 }

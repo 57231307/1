@@ -71,10 +71,6 @@ pub async fn omni_audit_middleware(
         .get::<AuthContext>()
         .map(|ctx| ctx.username.clone())
         .unwrap_or_default();
-    let tenant_id = req
-        .extensions()
-        .get::<AuthContext>()
-        .and_then(|ctx| ctx.tenant_id);
 
     // 读取请求体（仅对 POST/PUT/PATCH 请求）
     let (req, request_body) = if method == "POST" || method == "PUT" || method == "PATCH" {
@@ -195,7 +191,6 @@ pub async fn omni_audit_middleware(
         let resource_id = extract_resource_id(&uri);
 
         state.omni_audit.log(OmniAuditMessage {
-            tenant_id, // 从 AuthContext 提取，禁止硬编码（修复租户隔离违规）
             trace_id: trace_id.clone(),
             user_id,
             username: Some(username),
@@ -220,7 +215,6 @@ pub async fn omni_audit_middleware(
                 "referer": referer,
                 "content_type": content_type,
                 "accept": accept,
-                "tenant_id": tenant_id,
                 "response_size_bytes": response_body.len(),
             })),
             ip_address,

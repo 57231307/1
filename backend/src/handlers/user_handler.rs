@@ -381,7 +381,6 @@ pub async fn change_password(
     if !is_valid {
         // 记录审计：原密码错误
         let event = AuditEvent {
-            tenant_id: auth.tenant_id,
             user_id: Some(auth.user_id),
             username: Some(auth.username.clone()),
             operation_type: OperationType::Update,
@@ -422,7 +421,6 @@ pub async fn change_password(
 
     // 记录审计：密码修改成功
     let event = AuditEvent {
-        tenant_id: auth.tenant_id,
         user_id: Some(auth.user_id),
         username: Some(auth.username.clone()),
         operation_type: OperationType::Update,

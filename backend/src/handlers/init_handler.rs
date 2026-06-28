@@ -553,7 +553,6 @@ mod tests {
             user_id: 42,
             username: "no_role_user".to_string(),
             role_id: None,
-            tenant_id: Some(1),
         };
         let result = require_admin_role(&state, &auth).await;
         assert!(

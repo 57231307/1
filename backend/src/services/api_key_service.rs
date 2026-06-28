@@ -35,7 +35,6 @@ impl ApiKeyService {
     /// 创建 API 密钥
     pub async fn create_api_key(
         &self,
-        tenant_id: i32,
         name: &str,
         permissions: Option<&str>,
         rate_limit: i32,
@@ -49,7 +48,6 @@ impl ApiKeyService {
         let now = Utc::now();
 
         let active_model = ApiKeyActiveModel {
-            tenant_id: Set(tenant_id),
             name: Set(name.to_string()),
             key_hash: Set(key_hash),
             key_prefix: Set(key_prefix),
@@ -68,9 +66,8 @@ impl ApiKeyService {
     }
 
     /// 验证 API 密钥
-    pub async fn list_api_keys(&self, tenant_id: i32) -> Result<Vec<api_key::Model>, AppError> {
+    pub async fn list_api_keys(&self) -> Result<Vec<api_key::Model>, AppError> {
         ApiKey::find()
-            .filter(api_key::Column::TenantId.eq(tenant_id))
             .filter(api_key::Column::IsActive.eq(true))
             .all(self.db.as_ref())
             .await
@@ -88,17 +85,12 @@ impl ApiKeyService {
     pub async fn revoke_api_key(
         &self,
         id: i32,
-        tenant_id: i32,
         cache: Option<&AppCache>,
     ) -> Result<(), AppError> {
         let key = ApiKey::find_by_id(id)
             .one(self.db.as_ref())
             .await?
             .ok_or_else(|| AppError::business("API 密钥不存在"))?;
-
-        if key.tenant_id != tenant_id {
-            return Err(AppError::permission_denied("无权操作此API密钥"));
-        }
 
         let mut active_model: ApiKeyActiveModel = key.clone().into();
         active_model.is_active = Set(false);
@@ -112,18 +104,16 @@ impl ApiKeyService {
                 .get_token_blacklist()
                 .set(blacklist_key, true, Some(Duration::from_secs(API_KEY_BLACKLIST_TTL_SECS)));
             tracing::info!(
-                "API 密钥已撤销并加入黑名单：id={}, tenant_id={}, key_prefix={}",
+                "API 密钥已撤销并加入黑名单：id={}, key_prefix={}",
                 id,
-                tenant_id,
                 key.key_prefix
             );
         } else {
             // 调用方未传入 cache：仅 DB 标记 is_active=false，黑名单失效
             // 保留 warn 日志便于运维发现未接管的调用方
             tracing::warn!(
-                "API 密钥撤销时未传入 AppCache，黑名单失效：id={}, tenant_id={}",
-                id,
-                tenant_id
+                "API 密钥撤销时未传入 AppCache，黑名单失效：id={}",
+                id
             );
         }
 

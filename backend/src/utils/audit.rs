@@ -9,8 +9,6 @@
 //!
 //! 安全事件当前覆盖：
 //! - `ResetPassword` —— 任意用户重置密码
-//! - `TenantCreated` —— 创建租户
-//! - `TenantStatusChange` —— 租户状态变更（启用/停用/暂停等）
 //! - `AuthorizationDenied` —— 鉴权失败（角色不足 / 资源越权）
 //! - `UserDeleted` —— 用户被删除（软删除 + 吊销其所有活跃 JWT）
 //! - `TestDatabaseConnection` —— 测试数据库连接（数据库敏感探测行为）
@@ -22,10 +20,6 @@ use crate::middleware::audit_context::AuditContext;
 pub enum SecurityEvent {
     /// 任意用户重置密码
     ResetPassword,
-    /// 创建租户
-    TenantCreated,
-    /// 租户状态变更
-    TenantStatusChange,
     /// 鉴权失败（角色不足 / 资源越权）
     AuthorizationDenied,
     /// 用户被删除（软删除 + 吊销其所有活跃 JWT）
@@ -38,8 +32,6 @@ impl std::fmt::Display for SecurityEvent {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             SecurityEvent::ResetPassword => write!(f, "RESET_PASSWORD"),
-            SecurityEvent::TenantCreated => write!(f, "TENANT_CREATED"),
-            SecurityEvent::TenantStatusChange => write!(f, "TENANT_STATUS_CHANGE"),
             SecurityEvent::AuthorizationDenied => write!(f, "AUTHORIZATION_DENIED"),
             SecurityEvent::UserDeleted => write!(f, "USER_DELETED"),
             SecurityEvent::TestDatabaseConnection => write!(f, "TEST_DATABASE_CONNECTION"),
@@ -90,11 +82,6 @@ mod tests {
     #[test]
     fn test_security_event_display() {
         assert_eq!(SecurityEvent::ResetPassword.to_string(), "RESET_PASSWORD");
-        assert_eq!(SecurityEvent::TenantCreated.to_string(), "TENANT_CREATED");
-        assert_eq!(
-            SecurityEvent::TenantStatusChange.to_string(),
-            "TENANT_STATUS_CHANGE"
-        );
         assert_eq!(
             SecurityEvent::AuthorizationDenied.to_string(),
             "AUTHORIZATION_DENIED"

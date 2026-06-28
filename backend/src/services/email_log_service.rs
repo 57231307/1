@@ -49,13 +49,11 @@ impl EmailLogService {
     /// 创建邮件发送记录
     pub async fn create(
         &self,
-        tenant_id: i32,
         req: CreateEmailLogRequest,
     ) -> Result<EmailLogModel, AppError> {
         let now = Utc::now();
         let active_model = ActiveModel {
             id: Default::default(),
-            tenant_id: Set(tenant_id),
             user_id: Set(req.user_id),
             recipients: Set(req.recipients.join(",")),
             cc: Set(req.cc.map(|v| v.join(","))),
@@ -134,14 +132,12 @@ impl EmailLogService {
     /// 查询邮件发送记录列表
     pub async fn list(
         &self,
-        tenant_id: i32,
         query: EmailLogQuery,
     ) -> Result<(Vec<EmailLogModel>, u64), AppError> {
         let page = query.page.unwrap_or(1);
         let page_size = query.page_size.unwrap_or(20);
 
-        let mut select =
-            EmailLogEntity::find().filter(crate::models::email_log::Column::TenantId.eq(tenant_id));
+        let mut select = EmailLogEntity::find();
 
         if let Some(status) = query.status {
             select = select.filter(crate::models::email_log::Column::Status.eq(status));
@@ -167,26 +163,22 @@ impl EmailLogService {
     }
 
     /// 获取发送统计
-    pub async fn get_statistics(&self, tenant_id: i32) -> Result<EmailStatistics, AppError> {
+    pub async fn get_statistics(&self) -> Result<EmailStatistics, AppError> {
         let total = EmailLogEntity::find()
-            .filter(crate::models::email_log::Column::TenantId.eq(tenant_id))
             .count(&*self.db)
             .await?;
 
         let sent = EmailLogEntity::find()
-            .filter(crate::models::email_log::Column::TenantId.eq(tenant_id))
             .filter(crate::models::email_log::Column::Status.eq("SENT"))
             .count(&*self.db)
             .await?;
 
         let failed = EmailLogEntity::find()
-            .filter(crate::models::email_log::Column::TenantId.eq(tenant_id))
             .filter(crate::models::email_log::Column::Status.eq("FAILED"))
             .count(&*self.db)
             .await?;
 
         let pending = EmailLogEntity::find()
-            .filter(crate::models::email_log::Column::TenantId.eq(tenant_id))
             .filter(crate::models::email_log::Column::Status.eq("PENDING"))
             .count(&*self.db)
             .await?;
