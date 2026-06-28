@@ -16,9 +16,6 @@ use crate::models::product::{Column as ProductColumn, Entity as ProductEntity};
 use crate::models::production_order::{
     Column as ProductionOrderColumn, Entity as ProductionOrderEntity,
 };
-use crate::models::tenant_config::{
-    ActiveModel as TenantConfigActiveModel, Entity as TenantConfigEntity,
-};
 use crate::services::event_bus::{BusinessEvent, EVENT_BUS};
 use crate::utils::error::AppError;
 
@@ -439,59 +436,20 @@ impl MaterialShortageService {
         Ok(map)
     }
 
-    /// 保存预警阈值配置
+    /// 保存预警阈值配置（租户功能已删除，配置不再持久化）
     pub async fn save_threshold_config(
         &self,
-        config: &ShortageThresholdConfig,
+        _config: &ShortageThresholdConfig,
     ) -> Result<(), AppError> {
-        use sea_orm::Set;
-
-        let config_json = serde_json::to_string(config)
-            .map_err(|e| AppError::validation(format!("配置序列化失败: {}", e)))?;
-
-        // 查找现有配置
-        let existing = TenantConfigEntity::find()
-            .filter(crate::models::tenant_config::Column::ConfigKey.eq("shortage_threshold"))
-            .one(&*self.db)
-            .await?;
-
-        if let Some(model) = existing {
-            let mut active: TenantConfigActiveModel = model.into();
-            active.config_value = Set(config_json);
-            active.updated_at = Set(Utc::now());
-            active.update(&*self.db).await?;
-        } else {
-            let active = TenantConfigActiveModel {
-                id: Default::default(),
-                config_key: Set("shortage_threshold".to_string()),
-                config_value: Set(config_json),
-                config_type: Set("json".to_string()),
-                description: Set(Some("缺料预警阈值配置".to_string())),
-                created_at: Set(Utc::now()),
-                updated_at: Set(Utc::now()),
-            };
-            active.insert(&*self.db).await?;
-        }
-
+        tracing::warn!("save_threshold_config: 租户配置表已删除，配置不再持久化");
         Ok(())
     }
 
-    /// 加载预警阈值配置
+    /// 加载预警阈值配置（租户功能已删除，返回默认值）
     pub async fn load_threshold_config(
         &self,
     ) -> Result<ShortageThresholdConfig, AppError> {
-        use crate::models::tenant_config::Entity as TenantConfigEntity;
-
-        let config = TenantConfigEntity::find()
-            .filter(crate::models::tenant_config::Column::ConfigKey.eq("shortage_threshold"))
-            .one(&*self.db)
-            .await?;
-
-        match config {
-            Some(model) => serde_json::from_str(&model.config_value)
-                .map_err(|e| AppError::validation(format!("配置解析失败: {}", e))),
-            None => Ok(ShortageThresholdConfig::default()),
-        }
+        Ok(ShortageThresholdConfig::default())
     }
 
     /// 生成补货建议
@@ -538,10 +496,8 @@ impl MaterialShortageService {
         Ok(suggestions)
     }
 
-    /// 更新缺料预警状态（将状态持久化到 tenant_config，key 包含物料 ID）
-    pub async fn update_status(&self, material_id: i32, status: &str) -> Result<String, AppError> {
-        use sea_orm::Set;
-
+    /// 更新缺料预警状态（租户配置表已删除，状态不再持久化，仅返回严重程度）
+    pub async fn update_status(&self, material_id: i32, _status: &str) -> Result<String, AppError> {
         // 复用现有检测得到当前严重程度
         let summary = self
             .detect_shortages(ShortageCheckRequest {
@@ -565,39 +521,11 @@ impl MaterialShortageService {
             .unwrap_or("low")
             .to_string();
 
-        let payload = serde_json::json!({
-            "material_id": material_id,
-            "status": status,
-            "severity": severity,
-            "updated_at": Utc::now().to_rfc3339(),
-        });
-        let payload_str = serde_json::to_string(&payload)
-            .map_err(|e| AppError::validation(format!("状态序列化失败: {}", e)))?;
-
-        let key = format!("shortage_status:{}", material_id);
-
-        let existing = TenantConfigEntity::find()
-            .filter(crate::models::tenant_config::Column::ConfigKey.eq(&key))
-            .one(&*self.db)
-            .await?;
-
-        if let Some(model) = existing {
-            let mut active: TenantConfigActiveModel = model.into();
-            active.config_value = Set(payload_str);
-            active.updated_at = Set(Utc::now());
-            active.update(&*self.db).await?;
-        } else {
-            let active = TenantConfigActiveModel {
-                id: Default::default(),
-                config_key: Set(key),
-                config_value: Set(payload_str),
-                config_type: Set("json".to_string()),
-                description: Set(Some("缺料预警状态".to_string())),
-                created_at: Set(Utc::now()),
-                updated_at: Set(Utc::now()),
-            };
-            active.insert(&*self.db).await?;
-        }
+        tracing::warn!(
+            material_id = material_id,
+            severity = %severity,
+            "update_status: 租户配置表已删除，状态不再持久化"
+        );
 
         Ok(severity)
     }
