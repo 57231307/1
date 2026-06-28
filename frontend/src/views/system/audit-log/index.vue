@@ -123,7 +123,6 @@
       <div v-if="currentDetail" class="detail-content">
         <el-descriptions :column="2" border>
           <el-descriptions-item label="日志 ID">{{ currentDetail.id }}</el-descriptions-item>
-          <el-descriptions-item label="租户">{{ currentDetail.tenant_id ?? '-' }}</el-descriptions-item>
           <el-descriptions-item label="操作人">
             {{ currentDetail.username ?? '-' }} (#{{ currentDetail.user_id ?? '-' }})
           </el-descriptions-item>
@@ -171,7 +170,6 @@
 /**
  * 审计日志查看页（P13 批 1 P3-2）
  * - 后端路由：/api/v1/erp/audit-logs（list / detail / export）
- * - 强租户隔离：由 request.ts 拦截器自动注入 X-Tenant-Id，无需前端手动传
  */
 import { ref, reactive, onMounted, h } from 'vue'
 import { ElMessage, ElTag, ElButton } from 'element-plus'

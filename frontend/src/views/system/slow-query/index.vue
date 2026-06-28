@@ -117,7 +117,6 @@
 /**
  * 慢查询审计查看页（P13 批 1 B-慢查询审计）
  * - 后端路由：/api/v1/erp/slow-queries（list / stats / refresh）
- * - 强租户隔离：由 request.ts 拦截器自动注入 X-Tenant-Id，无需前端手动传
  */
 import { ref, reactive, onMounted, h } from 'vue'
 import { ElMessage, ElTag } from 'element-plus'

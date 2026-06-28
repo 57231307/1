@@ -36,16 +36,6 @@
         />
       </el-tab-pane>
 
-      <el-tab-pane label="多租户管理" name="tenant">
-        <TntPanel
-          :tenants="tnt.tenants.value"
-          :tenant-loading="tnt.tenantLoading.value"
-          :open-tenant-dialog="tnt.openTenantDialog"
-          :update-tenant-status="tnt.updateTenantStatus"
-          :delete-tenant="tnt.deleteTenant"
-        />
-      </el-tab-pane>
-
       <el-tab-pane label="工艺优化" name="recipe">
         <RcpPanel
           :recipe-form="rcp.recipeForm.value"
@@ -66,17 +56,6 @@
         />
       </el-tab-pane>
     </el-tabs>
-
-    <!-- 租户对话框（与租户 tab 共享 useTnt 状态） -->
-    <TntForm
-      :model-value="tnt.tenantDialogVisible.value"
-      :title="tnt.tenantDialogTitle.value"
-      :form="tnt.tenantForm.value"
-      :on-submit="tnt.submitTenant"
-      :on-cancel="() => (tnt.tenantDialogVisible.value = false)"
-      @update:model-value="(v: boolean) => (tnt.tenantDialogVisible.value = v)"
-      @update:form="(v) => { tnt.tenantForm.value = v }"
-    />
   </div>
 </template>
 
@@ -85,15 +64,12 @@ import { ref, onMounted } from 'vue'
 import { loadIfNot, createLazyLoader } from '@/utils/lazy-loader'
 import { useAi } from './composables/useAi'
 import { useRpt } from './composables/useRpt'
-import { useTnt } from './composables/useTnt'
 import { useRcp } from './composables/useRcp'
 import { useQlt } from './composables/useQlt'
 import AiPanel from './components/AiPanel.vue'
 import RptPanel from './components/RptPanel.vue'
-import TntPanel from './components/TntPanel.vue'
 import RcpPanel from './components/RcpPanel.vue'
 import QltPanel from './components/QltPanel.vue'
-import TntForm from './components/TntForm.vue'
 
 const activeTab = ref('ai')
 const hasLoaded = createLazyLoader()
@@ -102,7 +78,6 @@ const hasLoaded = createLazyLoader()
 // 子组件通过 props 接收需要的数据与函数（保证行为完全一致）
 const ai = useAi()
 const rpt = useRpt()
-const tnt = useTnt()
 const rcp = useRcp()
 const qlt = useQlt()
 
@@ -110,7 +85,6 @@ const qlt = useQlt()
 const tabLoaders: Record<string, () => void> = {
   ai: () => {},
   report: rpt.fetchReportTemplates,
-  tenant: tnt.fetchTenants,
   recipe: () => {},
   quality: () => {},
 }

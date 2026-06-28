@@ -540,13 +540,6 @@ const routes: RouteRecordRaw[] = [
         component: () => import('@/views/email/index.vue'),
         meta: { title: '邮件管理', icon: 'Setting', requiresAuth: true },
       },
-      // 新增路由 - 租户计费管理
-      {
-        path: 'tenant-billing',
-        name: 'TenantBilling',
-        component: () => import('@/views/tenant-billing/index.vue'),
-        meta: { title: '租户计费管理', icon: 'Setting', requiresAuth: true },
-      },
       // 新增路由 - 主备隔离监控
       {
         path: 'admin/failover',

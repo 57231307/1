@@ -84,10 +84,6 @@ export {
   detectAnomalies,
   getRecommendations,
   executeReport,
-  listTenants,
-  createTenant,
-  updateTenant,
-  deleteTenant,
 } from './advanced'
 export * from './quotation'
 export * from './custom-order'

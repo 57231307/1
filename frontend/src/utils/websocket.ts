@@ -95,7 +95,7 @@ export class WebSocketClient extends EventTarget {
   /**
    * 构造 WebSocket 客户端
    * @param baseUrl WebSocket 服务端地址（如 /api/v1/erp/ws/notifications）
-   * @param token JWT token（用作 tenant_id:user_id 形式）
+   * @param token JWT token
    */
   constructor(baseUrl: string, token: string) {
     super();

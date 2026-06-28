@@ -1,6 +1,5 @@
 // 慢查询审计 API 模块（P13 批 1 B-慢查询审计）
 // 与后端 slow_query_handler 配套：分页 + 多维筛选 / 聚合统计 / 手动刷新
-// 强租户隔离：request.ts 拦截器自动注入 X-Tenant-Id
 
 import { request } from './request'
 
@@ -12,7 +11,6 @@ export interface SlowQueryItem {
   calls: number
   rows_examined: number
   database_name?: string | null
-  tenant_id?: number | null
   captured_at?: string | null
 }
 

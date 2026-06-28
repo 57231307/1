@@ -37,7 +37,6 @@ export default {
     createTime: 'Created At',
     updateTime: 'Updated At',
     creator: 'Creator',
-    tenant: 'Tenant',
     pleaseInput: 'Please input',
     pleaseSelect: 'Please select',
     operation: 'Operation',
@@ -176,9 +175,6 @@ export default {
     },
     permission: {
       title: 'Permissions',
-    },
-    tenant: {
-      title: 'Tenants',
     },
     system: {
       title: 'System Config',

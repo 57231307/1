@@ -26,7 +26,6 @@ export interface FailoverEventDto {
   to_state?: string
   reason?: string
   latency_ms?: number
-  tenant_id?: number
   created_at: string
 }
 

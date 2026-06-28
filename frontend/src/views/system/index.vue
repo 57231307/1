@@ -17,7 +17,6 @@
   | 审计日志  | tabs/AuditTab.vue                   | ✅ 已拆  |
   | Webhook   | tabs/WebhookTab.vue                 | ✅ 已拆  |
   | 系统更新  | tabs/SystemUpdateTab.vue            | ✅ 已拆  |
-  | 租户配置  | tabs/TenantTab.vue                  | ✅ 已拆  |
   | 公司信息  | tabs/CompanyTab.vue                 | ✅ 已拆  |
 
   本主入口仅承担：Tab 切换 + 公共样式。
@@ -62,9 +61,6 @@
       <el-tab-pane label="系统更新" name="update">
         <SystemUpdateTab />
       </el-tab-pane>
-      <el-tab-pane label="租户配置" name="tenant">
-        <TenantTab />
-      </el-tab-pane>
       <el-tab-pane label="公司信息" name="company">
         <CompanyTab />
       </el-tab-pane>
@@ -84,7 +80,6 @@ import NotificationTab from './tabs/NotificationTab.vue'
 import AuditTab from './tabs/AuditTab.vue'
 import WebhookTab from './tabs/WebhookTab.vue'
 import SystemUpdateTab from './tabs/SystemUpdateTab.vue'
-import TenantTab from './tabs/TenantTab.vue'
 import CompanyTab from './tabs/CompanyTab.vue'
 
 // 当前激活的 Tab（懒加载由各子组件 onMounted 内部处理）

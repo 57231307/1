@@ -41,11 +41,3 @@ export const listReportTemplates = () => request.get('/advanced/reports/template
 
 export const executeReport = (template_code: string) =>
   request.post('/advanced/reports/execute', { template_code })
-
-export const listTenants = () => request.get('/advanced/tenants')
-
-export const createTenant = (data: any) => request.post('/advanced/tenants', data)
-
-export const updateTenant = (id: number, data: any) => request.put(`/advanced/tenants/${id}`, data)
-
-export const deleteTenant = (id: number) => request.delete(`/advanced/tenants/${id}`)

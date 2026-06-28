@@ -69,7 +69,6 @@ export interface ColorPriceDetail extends ColorPriceListItem {
   created_by: number | null
   approved_by: number | null
   approved_at: string | null
-  tenant_id: number
 }
 
 export interface PriceTier {
@@ -80,7 +79,6 @@ export interface PriceTier {
   tier_price: string
   customer_level: string | null
   sequence: number
-  tenant_id: number
   created_at: string
   updated_at: string
 }
@@ -113,7 +111,6 @@ export interface SeasonalPriceRule {
   valid_until: string | null
   is_active: boolean
   description: string | null
-  tenant_id: number
   created_at: string
   updated_at: string
 }

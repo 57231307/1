@@ -1,6 +1,5 @@
 // 审计日志 API 模块（P13 批 1 P3-2）
 // 与后端 audit_log_handler 配套：分页 + 多维筛选 / 详情 / CSV 导出
-// 强租户隔离：request.ts 拦截器自动注入 X-Tenant-Id
 
 import { request } from './request'
 
@@ -21,7 +20,6 @@ export type Severity = 'INFO' | 'WARN' | 'ERROR' | 'CRITICAL'
 /** 审计日志列表项 */
 export interface AuditLogItem {
   id: number
-  tenant_id?: number | null
   user_id?: number | null
   username?: string | null
   operation_type?: OperationType | null

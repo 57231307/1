@@ -168,7 +168,6 @@
           <el-menu-item v-if="canAccessMenu('/system/slow-query')" index="/system/slow-query">慢查询审计</el-menu-item>
           <el-menu-item v-if="canAccessMenu('/security')" index="/security">安全管理</el-menu-item>
           <el-menu-item v-if="canAccessMenu('/email')" index="/email">邮件管理</el-menu-item>
-          <el-menu-item v-if="canAccessMenu('/tenant-billing')" index="/tenant-billing">租户计费</el-menu-item>
           <el-menu-item v-if="canAccessMenu('/admin/failover')" index="/admin/failover">主备监控</el-menu-item>
         </el-sub-menu>
 
@@ -291,7 +290,7 @@ const visibleSubMenu = computed<Record<string, boolean>>(() => {
     production: ['/production', '/bom', '/mrp', '/mrp/history', '/capacity', '/material-shortage', '/scheduling', '/quality', '/scheduling/gantt', '/custom-orders', '/dye-recipe', '/dye-batch'],
     finance: ['/finance', '/ap', '/ar', '/ar-reconciliation', '/finance-report', '/cost', '/budget', '/fund', '/fixed-assets', '/currency', '/financial-analysis', '/assist-accounting', '/account-subject', '/accounting-period', '/voucher', '/trading', '/ar-reconciliation/enhanced', '/bi/sales-analysis'],
     workflow: ['/bpm', '/bpm/definitions', '/bpm/templates', '/bpm/approval', '/business-trace', '/barcode-scanner', '/quality-standards'],
-    system: ['/system', '/departments', '/five-dimension', '/data-permission', '/report-templates', '/data-import', '/print-templates', '/api-gateway', '/system-update', '/advanced', '/notification', '/omni-audit', '/system/audit-log', '/system/slow-query', '/security', '/email', '/tenant-billing', '/admin/failover'],
+    system: ['/system', '/departments', '/five-dimension', '/data-permission', '/report-templates', '/data-import', '/print-templates', '/api-gateway', '/system-update', '/advanced', '/notification', '/omni-audit', '/system/audit-log', '/system/slow-query', '/security', '/email', '/admin/failover'],
     ai: ['/ai-extend', '/ai-extend/process-optimization', '/ai-extend/quality-prediction'],
   }
   const result: Record<string, boolean> = {}

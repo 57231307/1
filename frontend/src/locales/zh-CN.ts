@@ -37,7 +37,6 @@ export default {
     createTime: '创建时间',
     updateTime: '更新时间',
     creator: '创建人',
-    tenant: '租户',
     pleaseInput: '请输入',
     pleaseSelect: '请选择',
     operation: '操作',
@@ -176,9 +175,6 @@ export default {
     },
     permission: {
       title: '权限管理',
-    },
-    tenant: {
-      title: '租户管理',
     },
     system: {
       title: '系统配置',

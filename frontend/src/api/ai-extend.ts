@@ -99,7 +99,6 @@ export interface AiProcessOptimization {
   applied_by: number | null
   feedback_score: number | null
   feedback_remark: string | null
-  tenant_id: number
   created_by: number | null
   created_at: string
   updated_at: string
@@ -125,7 +124,6 @@ export interface AiQualityPrediction {
   is_acknowledged: boolean
   acknowledged_at: string | null
   acknowledged_by: number | null
-  tenant_id: number
   created_by: number | null
   created_at: string
   updated_at: string
