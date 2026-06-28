@@ -677,14 +677,21 @@ impl ProductionOrderService {
     }
 
     /// 提交生产订单审批
+    ///
+    /// 批次 15（2026-06-28）：事务包裹"查询 + 状态校验 + update"，
+    /// 加 lock_exclusive 防止并发提交同一订单导致状态不一致；
+    /// BPM 启动保留事务外（失败 warn 不阻断已提交状态），避免 BPM 调用持有数据库锁。
     pub async fn submit_for_approval(
         &self,
         id: i32,
         user_id: i32,
         user_name: &str,
     ) -> Result<ProductionOrderModel, AppError> {
+        let txn = (*self.db).begin().await?;
+
         let model = ProductionOrderEntity::find_by_id(id)
-            .one(&*self.db)
+            .lock_exclusive()
+            .one(&txn)
             .await?
             .ok_or_else(|| AppError::not_found("生产订单不存在"))?;
 
@@ -696,9 +703,11 @@ impl ProductionOrderService {
         active_model.status = Set("PENDING_APPROVAL".to_string());
         active_model.updated_at = Set(Utc::now());
 
-        let updated = active_model.update(&*self.db).await?;
+        let updated = active_model.update(&txn).await?;
 
-        // 启动BPM审批流程
+        txn.commit().await?;
+
+        // 启动BPM审批流程（事务外，失败不阻断已提交状态）
         let bpm_service = crate::services::bpm_service::BpmService::new(self.db.clone());
         let req = crate::models::dto::bpm_dto::StartProcessRequest {
             process_key: "production_order_approval".to_string(),
@@ -733,6 +742,10 @@ impl ProductionOrderService {
     }
 
     /// 审批生产订单
+    ///
+    /// 批次 15（2026-06-28）：事务包裹"查询 + 状态校验 + update"，
+    /// 加 lock_exclusive 防止并发审批同一订单导致重复审批或状态覆盖；
+    /// BPM 任务审批保留事务外（失败 warn 不阻断已提交状态），避免 BPM 调用持有数据库锁。
     pub async fn approve_order(
         &self,
         id: i32,
@@ -741,8 +754,11 @@ impl ProductionOrderService {
         approved: bool,
         opinion: Option<String>,
     ) -> Result<ProductionOrderModel, AppError> {
+        let txn = (*self.db).begin().await?;
+
         let model = ProductionOrderEntity::find_by_id(id)
-            .one(&*self.db)
+            .lock_exclusive()
+            .one(&txn)
             .await?
             .ok_or_else(|| AppError::not_found("生产订单不存在"))?;
 
@@ -754,9 +770,11 @@ impl ProductionOrderService {
         active_model.status = Set(new_status.to_string());
         active_model.updated_at = Set(Utc::now());
 
-        let updated = active_model.update(&*self.db).await?;
+        let updated = active_model.update(&txn).await?;
 
-        // 完成BPM任务 - 通过process_instance关联
+        txn.commit().await?;
+
+        // 完成BPM任务 - 通过process_instance关联（事务外，失败不阻断已提交状态）
         let bpm_service = crate::services::bpm_service::BpmService::new(self.db.clone());
 
         // 获取与该生产订单关联的流程实例

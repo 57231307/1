@@ -10,12 +10,26 @@ use sea_orm::entity::prelude::*;
 use serde::{Deserialize, Serialize};
 
 /// 生产订单状态
+///
+/// 批次 15（2026-06-28）：补全 PENDING_APPROVAL/APPROVED/REJECTED 三个变体。
+/// 原枚举仅定义 5 个状态，但业务代码（production_order_service.rs:submit_for_approval/approve_order）
+/// 实际使用 8 个状态值（参见 validate_status_transition 状态转换图）。
+/// status 字段为 String 类型，枚举当前作为状态字典文档化用途，未被业务直接引用。
 #[derive(Debug, Clone, PartialEq, Eq, EnumIter, DeriveActiveEnum, Serialize, Deserialize)]
 #[sea_orm(rs_type = "String", db_type = "String(StringLen::N(20))")]
 pub enum ProductionOrderStatus {
     /// 草稿
     #[sea_orm(string_value = "DRAFT")]
     Draft,
+    /// 待审批
+    #[sea_orm(string_value = "PENDING_APPROVAL")]
+    PendingApproval,
+    /// 已审批
+    #[sea_orm(string_value = "APPROVED")]
+    Approved,
+    /// 已拒绝
+    #[sea_orm(string_value = "REJECTED")]
+    Rejected,
     /// 已排产
     #[sea_orm(string_value = "SCHEDULED")]
     Scheduled,
