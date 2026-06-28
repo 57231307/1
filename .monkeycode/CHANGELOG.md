@@ -2,6 +2,60 @@
 
 > 重要变更一句话摘要列表。详细历史请查阅 [`.monkeycode/docs/archives/`](file:///workspace/.monkeycode/docs/archives/)。
 
+## 2026-06-28 (严格再审计 v5：16 维度并行审计 ~528 项发现)
+
+### v5 严格审计完成
+
+**审计范围**：16 个并行 search 子代理（3 批：5+5+6）覆盖后端 services/handlers/middleware/utils + 前端 src/tests/e2e + CI 配置 + deploy 运维 + i18n + 可维护性指标
+**审计基线**：main HEAD = `839f8dc5`（租户功能彻底删除 + Clippy baseline 重建，CI run 28326588786 全绿 15/15）
+**审计产出**：[`.monkeycode/docs/audits/2026-06-28-strict-reaudit-v5.md`](file:///workspace/.monkeycode/docs/audits/2026-06-28-strict-reaudit-v5.md)
+
+**审计结果**：~528 项发现（P0 51 / P1 155 / P2 183 / P3 116）
+
+**v5 相对 v4 的"更严格"体现**：
+1. 维度扩展 12 → 16（新增可维护性、i18n/可访问性、部署运维、残留租户检查 4 个维度）
+2. 检查深度：v4 检查"是否完整、一致、可用"；v5 进一步检查"是否健壮、可运维、可观测、可访问"
+3. 风险归因：v5 每项 P0 都明确给出业务影响与攻击向量
+4. 量化指标更细：每个维度的子类别分布
+
+**关键发现**：
+- 维度 2 输入验证：6 项 P0（finance_invoice/voucher 接收 Json<Value> 无校验、webhook SSRF、fund 负金额、print XSS）
+- 维度 4 业务逻辑：6 项 P0（AP/AR mark_as_paid 不检查状态、生产订单状态机与基线不符）
+- 维度 5 并发：2 项 P0（WebSocket 单例破坏 + AR 收款无 lock_exclusive 丢失更新）
+- 维度 6 性能：3 项 P0（3 处分页偏移错误 page*page_size 应为 (page-1)*page_size）
+- 维度 7 依赖：5 项 P0（.env.example 占位符绕过 + config.yaml 硬编码密码 + sslmode=disable）
+- 维度 9 前端 API：3 项 P0（color-card/color-price/custom-order 3 文件 51 端点路径错误）
+- 维度 10 前端路由：8 项 P0（路由守卫不完整 + Open Redirect + v-permission 覆盖率<1%）
+- 维度 11 测试：3 项 P0（CI 跳过所有 47 集成测试 + 17 E2E 测试）
+- 维度 13 可维护性（新增）：5 项 P0（Arc::try_unwrap panic + BPM 正则重复编译 + 172 行超长函数）
+- 维度 15 部署运维（新增）：7 项 P0（docker-compose 硬编码密钥 + SSH 弱认证 + frontend Dockerfile root 运行）
+
+**v4 vs v5 对比**：
+| 指标 | v4 | v5 | 趋势 |
+|------|----|----|------|
+| 维度数 | 12 | 16 | ↑ 33% |
+| 总发现数 | 391 | ~528 | ↑ 35% |
+| P0 数量 | 85 | 51 | ↓ 40%（批次 1-19 修复） |
+
+**最高优先级风险 Top 10**：
+1. docker-compose 硬编码密钥（容器逃逸后获得所有密钥）
+2. v-permission 覆盖率 < 1%（任何登录用户可提权为 admin）
+3. 路由守卫不完整（任何登录用户可访问所有路由）
+4. CI 跳过所有 47 个集成测试（集成缺陷全部漏到生产）
+5. 3 个 API 文件 51 个端点路径错误（颜色卡/价格/定制订单全部 502）
+6. 3 处分页偏移错误（分页数据错乱）
+7. .env.example 占位符绕过校验（生产环境密钥校验失效）
+8. webhook SSRF 绕过（内网探测/云元数据读取）
+9. AR 收款并发丢失更新（应收账款重复收款）
+10. frontend Dockerfile root 运行（容器提权风险）
+
+**下一步**：按 v5 报告"四、批次修复建议"规划批次 21-23
+- 批次 21（低难度高收益，18 项 P0）：输入验证 + 分页偏移 + AR 收款锁 + .env 强化 + 前端 baseURL 修正 + CI 移除 --lib + docker-compose 安全
+- 批次 22（中等难度，14 项 P0）：业务逻辑状态机 + 前端路由权限全量改造
+- 批次 23（高难度，19 项 P0 + 155 P1）：可维护性 + i18n + 死代码清理
+
+---
+
 ## 2026-06-28 (完整删除租户功能 - 重大架构变更)
 
 ### 租户功能完整删除

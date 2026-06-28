@@ -3,9 +3,59 @@
 > 本文件记录**当前任务**与**历史任务索引**。
 > 详细历史请查阅 [`.monkeycode/docs/archives/`](file:///workspace/.monkeycode/docs/archives/)。
 
-### 2026-06-28 完整删除租户功能 + v4 审计整改（进行中）
+### 2026-06-28 v5 严格审计 + 整改（进行中）
 
-**状态**：✅ 租户功能彻底删除完成 + Clippy baseline 重建完成，CI 全绿（15/15），待继续 v4 审计整改
+**状态**：✅ v5 审计报告完成（16 维度 ~528 项发现），待 commit + push + 监控 CI
+**当前任务**：v5 严格审计（用户指令"重新对项目进行比审计方法v4更严格的审计，然后上传到仓库"）
+**main 当前 HEAD**：`839f8dc5`（feat: 全面审计项目问题，CI run 28326588786 全绿 15/15）
+
+#### v5 审计报告（✅ 已完成，待 commit + push）
+
+**审计报告 v5**：[`.monkeycode/docs/audits/2026-06-28-strict-reaudit-v5.md`](file:///workspace/.monkeycode/docs/audits/2026-06-28-strict-reaudit-v5.md)
+**审计基线 v5**：main HEAD = `839f8dc5`（租户功能彻底删除 + Clippy baseline 重建，CI 全绿 15/15）
+**审计方法 v5**：16 个并行 search 子代理（3 批：5+5+6），比 v4 的 12 维度扩展 4 个新维度
+**审计结果 v5**：~528 项发现（P0 51 / P1 155 / P2 183 / P3 116）
+  - 维度 1 事务边界：56 项（P0=0，批次 1-19 已修复 v4 大量 P0；P1=27 非原子 update_with_audit 调用）
+  - 维度 2 输入验证：57 项（P0=6，finance_invoice/voucher 接收 Json<Value> 无校验、webhook SSRF、fund 负金额、print XSS）
+  - 维度 3 错误处理：38 项（P0=0，v4 P0 已修复；P1=10 静默吞错 + Arc::try_unwrap panic）
+  - 维度 4 业务逻辑：46 项（P0=6，AP/AR mark_as_paid 不检查状态、生产订单状态机与基线不符、contract approve/cancel 残留）
+  - 维度 5 并发竞态：35 项（P0=2，WebSocket 单例破坏 + AR 收款无 lock_exclusive 丢失更新）
+  - 维度 6 性能 N+1：40 项（P0=3，3 处分页偏移错误 page*page_size 应为 (page-1)*page_size）
+  - 维度 7 依赖配置：24 项（P0=5，.env.example 占位符绕过 + config.yaml 硬编码密码 + sslmode=disable + ci-audit continue-on-error）
+  - 维度 8 死代码：~15 项（P0=1，inventory_count 12 端点全 NotImplemented；utils/ 已清理大部分）
+  - 维度 9 前端 API：~30 项（P0=3，color-card/color-price/custom-order 3 文件 51 端点路径错误）
+  - 维度 10 前端路由：29 项（P0=8，路由守卫不完整 + Open Redirect + v-permission 覆盖率<1% + 64 路由无 permission）
+  - 维度 11 测试质量：29 项（P0=3，CI 跳过所有 47 集成测试 + 17 E2E 测试 + 关键路径无真实测试）
+  - 维度 12 安全性：10 项（P0=0，v5 独立成维度；P1=2 CSRF includes 匹配漏洞 + JWT 过期硬编码）
+  - 维度 13 可维护性（新增）：44 项（P0=5，Arc::try_unwrap panic + BPM 正则重复编译 + 角色权限硬编码 + CRM 规则内存存储 + 172 行超长函数）
+  - 维度 14 i18n/可访问性（新增）：24 项（P0=2，i18n 4506 行资源闲置 0 调用 + 表单无 aria-label）
+  - 维度 15 部署运维（新增）：36 项（P0=7，docker-compose 硬编码密钥 + SSH 弱认证 + 缺资源/日志限制 + 部署拓扑分裂 + frontend Dockerfile root 运行）
+  - 维度 16 残留租户（新增）：15 项（P0=0，租户功能已彻底删除；P1=4 历史迁移/文档残留符合预期）
+
+**v5 相对 v4 的"更严格"体现**：
+1. 维度扩展 12 → 16（新增可维护性、i18n/可访问性、部署运维、残留租户检查 4 个维度）
+2. 检查深度：v4 检查"是否完整、一致、可用"；v5 进一步检查"是否健壮、可运维、可观测、可访问"
+3. 风险归因：v5 每项 P0 都明确给出业务影响与攻击向量
+4. 量化指标更细：每个维度的子类别分布
+
+**v4 vs v5 对比**：
+| 指标 | v4 | v5 | 趋势 |
+|------|----|----|------|
+| 维度数 | 12 | 16 | ↑ 33% |
+| 总发现数 | 391 | ~528 | ↑ 35%（新维度贡献） |
+| P0 数量 | 85 | 51 | ↓ 40%（批次 1-19 修复） |
+| P1 数量 | 138 | 155 | ↑ 12%（检查更深入） |
+
+**下一步**：按 v5 报告"四、批次修复建议"规划批次 21-23
+- 批次 21（低难度高收益，18 项 P0）：输入验证 P0 + 分页偏移 + AR 收款锁 + .env 强化 + 前端 baseURL 修正 + CI 移除 --lib + docker-compose 安全
+- 批次 22（中等难度，14 项 P0）：业务逻辑状态机 + 前端路由权限全量改造
+- 批次 23（高难度，19 项 P0 + 155 P1）：可维护性 + i18n + 死代码清理
+
+---
+
+### 2026-06-28 完整删除租户功能 + v4 审计整改（已归档）
+
+**状态**：✅ 租户功能彻底删除完成 + Clippy baseline 重建完成，CI 全绿（15/15）
 **当前任务**：完整删除租户功能（用户指令"完整删除租户功能及相关文件和代码"）
 **main 当前 HEAD**：`e45e37b2`（Clippy baseline 重建，CI run 28326588786 全绿 15/15）
 
