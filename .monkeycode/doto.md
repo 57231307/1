@@ -3,10 +3,35 @@
 > 本文件记录**当前任务**与**历史任务索引**。
 > 详细历史请查阅 [`.monkeycode/docs/archives/`](file:///workspace/.monkeycode/docs/archives/)。
 
-### 2026-06-28 严格再审计 v4 + P0 整改（进行中）
+### 2026-06-28 完整删除租户功能 + v4 审计整改（进行中）
 
-**状态**：🔧 整改中（批次 1-19 已完成；**批次 20：v4 严格审计已完成**（12 维度 391 项发现），待批次 21+ 按 v4 报告整改）
+**状态**：🔧 租户功能删除完成（后端 + 前端 + 文档），待 CI 全绿后继续 v4 审计整改
+**当前任务**：完整删除租户功能（用户指令"完整删除租户功能及相关文件和代码"）
+**main 当前 HEAD**：`735231b8`（前端租户删除，CI run 28324540311 进行中）
+
+#### 租户功能删除（✅ 后端 + 前端已完成）
+
+**数据库迁移**（m0029_drop_tenant_columns）：
+- DROP 51 个 tenant_id 索引 + DROP COLUMN tenant_id（35 张业务表）+ DROP TABLE（7 张租户管理表）
+
+**后端清理**（commit `5d95daa4` + `6131518a`，CI run 28324131217 ✅ 全绿）：
+- 删除 13 文件 + 修改 117 文件（629 insertions / 3143 deletions）
+- AuthContext.tenant_id / AppClaims.tenant_id / extract_tenant_id / 86 处调用 / 66 处过滤 / 35 处写入 全部删除
+- middleware/tenant.rs / 7 个 tenant_*.rs model / 3 个 handler / 2 个 service / 1 个 routes 全部删除
+
+**前端清理**（commit `735231b8`，CI run 28324540311 进行中）：
+- 删除 6 文件 + 修改 16 文件（2 insertions / 1170 deletions）
+- 5 个视图 + tenant-billing.ts API + 路由 + 菜单 + i18n + API 类型字段 全部删除
+
+**项目规则变更**：
+- MEMORY.md 第 8 条"租户隔离"规则已标记删除
+- 项目不再支持多租户
+
+#### v4 审计报告（已完成，待整改）
+
 **审计报告 v4**：[`.monkeycode/docs/audits/2026-06-28-strict-reaudit-v4.md`](file:///workspace/.monkeycode/docs/audits/2026-06-28-strict-reaudit-v4.md)
+**审计结果**：391 项发现（P0 85 / P1 138 / P2 105 / P3 63）
+**注意**：v4 报告中维度 2"租户隔离"19 项发现已因租户功能删除而自动失效，需重新评估剩余整改项
 **审计报告 v3（已归档）**：v3 报告在 orphan commit 事件中丢失，v4 已替代
 **审计基线 v4**：`origin/main` HEAD = `1b933af5`（批次 19 文档后）
 **审计方法 v4**：12 个并行 search 子代理（比 v3 的 9 个增加 3 个维度：前端 API 类型安全、前端路由权限、测试质量深化）

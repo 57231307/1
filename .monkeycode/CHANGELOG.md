@@ -2,6 +2,34 @@
 
 > 重要变更一句话摘要列表。详细历史请查阅 [`.monkeycode/docs/archives/`](file:///workspace/.monkeycode/docs/archives/)。
 
+## 2026-06-28 (完整删除租户功能 - 重大架构变更)
+
+### 租户功能完整删除
+
+**变更性质**：重大架构变更，项目不再支持多租户，所有 tenant_id 相关代码、数据库列、索引、管理表、前端页面全部删除。
+
+**数据库迁移**（m0029）：
+- DROP 51 个 tenant_id 索引
+- DROP COLUMN tenant_id（35 张业务表）
+- DROP TABLE（7 张租户管理表：tenants/tenant_plans/tenant_users/tenant_configs/tenant_subscriptions/tenant_usage/tenant_invoices）
+
+**后端删除**（commit `5d95daa4` + `6131518a`，CI run 28324131217 全绿）：
+- 删除 13 个独立模块文件（7 model + 3 handler + 2 service + 1 routes + 1 middleware/tenant.rs）
+- 修改 117 个文件：middleware（AuthContext/AppClaims/JWT）+ model（37 文件 tenant_id 字段 + 6 文件 Relation）+ handler（86 处 extract_tenant_id 调用）+ service（66 处过滤 + 35 处写入）+ WebSocket + CRUD 宏 + 基础设施层（observability/telemetry/cache/messaging/search/business_metrics）
+- 变更统计：629 insertions / 3143 deletions
+
+**前端删除**（commit `735231b8`，CI run 28324540311）：
+- 删除 6 个文件（5 视图 + tenant-billing.ts API）
+- 修改 16 个文件：router + MainLayout + advanced/system views + i18n + API 类型字段 + websocket JSDoc
+- 变更统计：2 insertions / 1170 deletions
+
+**项目规则变更**：
+- MEMORY.md 第 8 条"租户隔离"规则已标记删除
+- `extract_tenant_id` 函数、`AuthContext.tenant_id`、`AppClaims.tenant_id` 均已移除
+- 项目不再支持多租户
+
+---
+
 ## 2026-06-28 (严格再审计 v4：12 维度并行审计 391 项发现)
 
 ### v4 严格审计完成
