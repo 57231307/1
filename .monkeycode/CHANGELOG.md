@@ -2,6 +2,33 @@
 
 > 重要变更一句话摘要列表。详细历史请查阅 [`.monkeycode/docs/archives/`](file:///workspace/.monkeycode/docs/archives/)。
 
+## 2026-06-28 (严格再审计 v3 + P0 整改批次 18：P2 事务边界与 update_with_audit 原子性修复)
+
+### cancel_order/update_order/update_receipt 事务边界补全 + update_with_audit 原子性修复
+
+**修复范围**：4 文件 P2 修复 - cancel_order 三重缺陷（无事务+无审计日志+无锁）+ update_order(PO)/update_receipt 完全无事务 + update_order(SO) 状态门在事务外
+
+**修复清单**（commit `dc887fb3`，CI run 28318567597 全绿）：
+
+| # | 文件:函数 | 修复内容 |
+|---|----------|----------|
+| 1 | so/order_workflow.rs:cancel_order | 原完全无事务、无审计日志（直接 .update()）、状态查询无锁；补全事务边界 + 审计日志（update_with_audit）+ lock_exclusive；`_user_id` 改为 `user_id` 启用真实操作人审计 |
+| 2 | po/order.rs:update_order | 原无事务，update_with_audit 传 &*self.db 非原子；补全事务边界 + lock_exclusive + update_with_audit(&txn) + commit；`Some(0)` 改为 `Some(user_id)` |
+| 3 | purchase_receipt_service.rs:update_receipt | 原无事务，update_with_audit 传 &*self.db 非原子；补全事务边界 + lock_exclusive + update_with_audit(&txn) + commit；`Some(0)` 改为 `Some(user_id)` |
+| 4 | so/order_crud.rs:update_order | 原状态门查询在事务 begin() 之前（用 &*self.db），并发 update_order 均通过状态检查后基于过期状态写入，状态门失效；状态门查询移入事务内并加 lock_exclusive 串行化并发修改；imports 补 QuerySelect |
+
+**关键技术**：
+- cancel_order 三重缺陷：无事务 + 无审计日志（直接 .update()）+ 状态查询无锁，并发取消可能基于过期状态且无审计追溯
+- update_with_audit 非原子调用修复模式：原 `update_with_audit(&*self.db, ...)` → `begin + update_with_audit(&txn) + commit`
+- 状态门事务外查询修复模式：原 `find().one(&*self.db)` 在 `begin()` 之前 → 改为先 `begin()` 再 `find().lock_exclusive().one(&txn)`，保证状态检查与更新原子性
+- 审计操作人 ID 硬编码修复：`Some(0)` → `Some(user_id)`，`_user_id` → `user_id`
+
+**调研背景**：子代理调研发现 33 处 `update_with_audit(&*self.db, ...)` 非原子调用，本次修复其中 4 处极高/高风险项；剩余 calculate_*_total（高风险，需设计调用方事务传递模式）等留待批次 19
+
+**CI 验证**：Run 28318567597（commit `dc887fb3`）✅ CI 全绿（CI bot 提交版本号 `3b649c52`，clippy job continue-on-error 不阻塞）
+
+---
+
 ## 2026-06-28 (严格再审计 v3 + P0 整改批次 17：P1 事务边界与状态门 lock_exclusive 修复)
 
 ### 付款申请审批/收货/发货/关闭状态门 lock_exclusive + close_order 事务补全
