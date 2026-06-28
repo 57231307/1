@@ -2,6 +2,35 @@
 
 > 重要变更一句话摘要列表。详细历史请查阅 [`.monkeycode/docs/archives/`](file:///workspace/.monkeycode/docs/archives/)。
 
+## 2026-06-28 (严格再审计 v3 + P0 整改批次 11：P1 事务边界修复 + clippy baseline 重建)
+
+### P1 事务边界修复（6 函数）+ clippy baseline 重建
+
+**修复范围**：`update_with_audit(&*self.db, ...)` 内部 2 次独立写入（实体 update + 审计 insert）非原子，无事务包裹时若审计插入失败会导致"实体已变更但审计缺失"。改为 `begin/update_with_audit(&txn)/commit` 三段式，与 `ap_invoice_service.rs:approve` / `voucher_service.rs:post` 正例一致。
+
+**修复清单**（commit `5c4747ae`，CI run 28310882782 全绿）：
+
+| # | 文件 | 函数 | 修复内容 |
+|---|------|------|----------|
+| 1 | ar_invoice_service.rs | update | 事务包裹"实体更新 + 审计日志"；import 补 `TransactionTrait` |
+| 2 | ar_invoice_service.rs | mark_as_paid | 事务包裹"PAID 状态变更 + 审计日志" |
+| 3 | ar_invoice_service.rs | cancel | 事务包裹"取消状态变更 + 审计日志" |
+| 4 | ap_invoice_service.rs | mark_as_paid | 事务包裹（与同文件 approve 正例一致）；异步事件驱动场景审计缺失风险消除 |
+| 5 | voucher_service.rs | submit | 事务包裹"凭证提交状态 + 审计日志" |
+| 6 | voucher_service.rs | review | 事务包裹"凭证审核状态 + 审计日志" |
+| CI | backend/.clippy-baseline.txt | - | `git rm --cached` 取消跟踪，让 CI bootstrap 重建（消除批次 10 删除 96 行导致的 baseline 行号漂移误报 18 个假"新警告"） |
+
+**关键技术**：
+- `update_with_audit` 非原子性缺陷：参数 `db: &C` 接受任意 `ConnectionTrait`（裸连接或事务），调用方传 `&*self.db` 时 2 次写入非原子；传 `&txn` 时自动纳入事务
+- 修复模式：`let txn = (*self.db).begin().await?;` → `update_with_audit(&txn, ...)` → `txn.commit().await?;`，与正例一致
+- clippy baseline 重建：CI bootstrap 检测到 baseline 不在 git 中则重新生成，消除行号漂移
+
+**CI 验证**：Run 28310882782（commit `9426cb2b`）✅ **12/12 job success**（Rust Clippy ✅ success —— baseline 重建成功，消除行号漂移误报；Rust 单元测试 ✅；Rust 后端构建 ✅ release 编译通过）+ 打包发布 + GitHub Release
+
+**里程碑**：clippy baseline 重建成功，后续 CI 不再有 baseline 漂移误报；批次 9-10 的 Clippy failure（continue-on-error）历史问题彻底解决
+
+---
+
 ## 2026-06-28 (严格再审计 v3 + P0 整改批次 10：死代码清理)
 
 ### 死代码清理（clippy warning 修复）

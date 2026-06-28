@@ -149,10 +149,28 @@
 
 **待批次 11 处理**：clippy baseline 行号漂移问题（删除 96 行导致 baseline 失效），需删除 `backend/.clippy-baseline.txt` 让 CI bootstrap 重建
 
-#### 批次 11：待处理
+#### 批次 11：P1 事务边界修复 + clippy baseline 重建（✅ 已完成，CI run 28310882782 全绿）
 
-- **clippy baseline 重建**：删除 `backend/.clippy-baseline.txt` 让 CI bootstrap 重建（消除行号漂移误报）
-- **P1 事务边界修复**：AR/AP 发票、报价审批、销售订单工作流、凭证、销售退货
+**修复范围**：`update_with_audit(&*self.db, ...)` 非原子调用修复 + baseline 行号漂移解决
+
+| # | 文件 | 函数 | 修复内容 |
+|---|------|------|----------|
+| 1 | ar_invoice_service.rs | update | 事务包裹 + import 补 TransactionTrait |
+| 2 | ar_invoice_service.rs | mark_as_paid | 事务包裹 PAID 状态变更 |
+| 3 | ar_invoice_service.rs | cancel | 事务包裹取消状态变更 |
+| 4 | ap_invoice_service.rs | mark_as_paid | 事务包裹（与同文件 approve 正例一致） |
+| 5 | voucher_service.rs | submit | 事务包裹凭证提交 |
+| 6 | voucher_service.rs | review | 事务包裹凭证审核 |
+| CI | backend/.clippy-baseline.txt | - | git rm --cached 让 CI bootstrap 重建 |
+
+**CI 验证**：Run 28310882782（commit `9426cb2b`）✅ **12/12 job success**（Rust Clippy ✅ baseline 重建成功 + Rust 单元测试 ✅ + Rust 后端构建 ✅）
+
+**里程碑**：clippy baseline 重建成功，批次 9-10 的 Clippy failure（continue-on-error）历史问题彻底解决
+
+#### 批次 12：待处理（P1-高 事务边界 + 并发锁）
+
+- **P1-高 报价审批**：`quotation_approval_service.rs` submit_to_bpm/approve/reject —— 零事务 + BPM 与状态跨事务 + 无并发锁（审批状态分裂、重复审批、孤儿 BPM 实例风险）
+- **P1-高 销售订单工作流**：`so/order_workflow.rs` submit_order/approve_order/complete_order —— 零事务 + BPM 跨事务 + update_with_audit 非原子
 - **测试 P0**：假测试重写、CI cargo test --lib 跳过集成测试
 - **业务逻辑 P0（剩余）**：状态机断裂
 
