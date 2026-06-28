@@ -2,6 +2,29 @@
 
 > 重要变更一句话摘要列表。详细历史请查阅 [`.monkeycode/docs/archives/`](file:///workspace/.monkeycode/docs/archives/)。
 
+## 2026-06-28 (严格再审计 v3 + P0 整改批次 16：并发 P0 修复 - 付款/入库单状态门加 lock_exclusive)
+
+### 付款单状态门 + 入库单状态门并发锁修复（资金双重支付 + 库存重复入库风险）
+
+**修复范围**：2 项并发 P0 - 付款单状态门缺 lock_exclusive + 入库单状态门缺 lock_exclusive
+
+**修复清单**（commit `5c1c97a8`，CI run 28314570251 全绿）：
+
+| # | 文件:函数 | 修复内容 |
+|---|----------|----------|
+| 1 | ap_payment_service.rs:confirm | 付款单状态门查询加 lock_exclusive，防止并发 confirm 导致 ap_invoice paid_amount 重复累加（资金双重支付风险） |
+| 2 | purchase_receipt_service.rs:confirm_receipt | 入库单状态门查询加 lock_exclusive，防止并发 confirm_receipt 导致重复入库 + 重复生成应付账单 + 重复累加采购单已收数量 |
+| 3 | 两文件 imports | 补 QuerySelect（lock_exclusive 所在 trait） |
+
+**关键技术**：
+- 资金双重支付风险：原 confirm 已有事务+invoice lock_exclusive，但付款单状态门查询无锁，两并发 confirm 均通过 REGISTERED 检查，第二个 confirm 在 invoice lock 后读取已更新的 paid_amount 再次累加，导致应付单已付金额翻倍
+- 库存重复入库风险：原 confirm_receipt 已有事务，但入库单状态门查询无锁，两并发 confirm 均通过 DRAFT 检查，第二个 confirm 重复执行库存入库 + order_item received_quantity 累加 + commit 后重复触发 auto_generate_from_receipt 生成应付账单
+- 修复模式与批次 9 P0-2（ap_verification_service）一致：状态门查询加 lock_exclusive 串行化并发
+
+**CI 验证**：Run 28314570251（commit `5c1c97a8`）✅ CI 全绿（CI bot 提交版本号 `23da571f`）
+
+---
+
 ## 2026-06-28 (严格再审计 v3 + P0 整改批次 15：生产订单审批事务边界修复 + 枚举补全)
 
 ### 补全 ProductionOrderStatus 枚举 + 生产订单审批事务边界修复

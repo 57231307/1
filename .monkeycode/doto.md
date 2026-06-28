@@ -5,12 +5,12 @@
 
 ### 2026-06-28 严格再审计 v3 + P0 整改（进行中）
 
-**状态**：🔧 整改中（批次 1-15 已完成，批次 16 待处理；spawn panic 隔离 100% 全覆盖 + 业务逻辑 P0 + FOR UPDATE + 死代码清理 + P1 事务边界 + 状态机死锁 + WorkflowStage 死代码清理 + ProductionOrderStatus 枚举补全已修复）
+**状态**：🔧 整改中（批次 1-16 已完成，批次 17 待处理；spawn panic 隔离 100% 全覆盖 + 业务逻辑 P0 + FOR UPDATE + 死代码清理 + P1 事务边界 + 状态机死锁 + WorkflowStage 死代码清理 + ProductionOrderStatus 枚举补全 + 付款/入库单状态门 lock_exclusive 已修复）
 **审计报告**：[`.monkeycode/docs/audits/2026-06-27-strict-reaudit-v3.md`](file:///workspace/.monkeycode/docs/audits/2026-06-27-strict-reaudit-v3.md)
 **审计基线**：`origin/main` HEAD = `8a18bc3b`
 **审计方法**：9 个并行 search 子代理（新增并发/依赖/架构/性能维度）
 **审计结果**：1275 项发现（P0 ~285 / P1 ~350 / P2 ~380 / P3 ~260），比上次 230 项增加 454%
-**main 当前 HEAD**：`aa505712`（批次 15 修复）
+**main 当前 HEAD**：`5c1c97a8`（批次 16 修复）
 
 #### 批次 1：回退项 + 安全关键（✅ 已完成）
 
@@ -246,8 +246,31 @@
 **CI 验证**：Run 28313695277（commit `aa505712`）✅ 14/15 job success + Clippy failure（continue-on-error 不阻断）+ 打包发布 + GitHub Release；Rust 后端构建 ✅ + Rust 单元测试 ✅（验证事务边界修复编译通过）
 
 **待批次 16+ 处理**：
-- 大小写不一致：销售订单/凭证小写，生产订单/AP/AR 发票大写（需数据迁移，风险高）
+- ~~付款/入库单状态门缺 lock_exclusive（并发 P0）~~ ✅ 批次 16 已修复
+- 大小写不一致：销售订单/凭证小写，生产订单/AP/AR 发票大写（调研确认各表内部自洽，无真实 P0 风险，仅命名风格分裂）
 - 其他 P0/P1 整改项（待调研）
+
+#### 批次 16：并发 P0 修复 - 付款/入库单状态门加 lock_exclusive（✅ 已完成，CI run 28314570251 全绿）
+
+**修复范围**：付款单状态门 + 入库单状态门并发锁修复（资金双重支付 + 库存重复入库风险）
+
+| # | 文件 | 函数 | 修复内容 |
+|---|------|------|----------|
+| 1 | ap_payment_service.rs | confirm | 付款单状态门查询加 lock_exclusive，防止并发 confirm 导致 ap_invoice paid_amount 重复累加（资金双重支付风险） |
+| 2 | purchase_receipt_service.rs | confirm_receipt | 入库单状态门查询加 lock_exclusive，防止并发 confirm_receipt 导致重复入库 + 重复生成应付账单 + 重复累加采购单已收数量 |
+| 3 | 两文件 imports | - | 补 QuerySelect（lock_exclusive 所在 trait） |
+
+**关键技术**：
+- 资金双重支付风险：原 confirm 已有事务+invoice lock_exclusive，但付款单状态门查询无锁，两并发 confirm 均通过 REGISTERED 检查，第二个 confirm 在 invoice lock 后读取已更新的 paid_amount 再次累加，导致应付单已付金额翻倍
+- 库存重复入库风险：原 confirm_receipt 已有事务，但入库单状态门查询无锁，两并发 confirm 均通过 DRAFT 检查，第二个 confirm 重复执行库存入库 + order_item received_quantity 累加 + commit 后重复触发 auto_generate_from_receipt 生成应付账单
+- 修复模式与批次 9 P0-2（ap_verification_service）一致：状态门查询加 lock_exclusive 串行化并发
+
+**CI 验证**：Run 28314570251（commit `5c1c97a8`）✅ CI 全绿（CI bot 提交版本号 `23da571f`）
+
+**待批次 17+ 处理**：
+- 大小写不一致（各表内部自洽，无真实 P0，仅命名风格分裂，低优先级）
+- P1 事务边界修复：po/receipt.receive_order、so/delivery.ship_order、po/order.close_order、ap_payment_request_service.submit/approve/reject（状态门缺 lock_exclusive）
+- P2：cancel_order 无事务 + update_order/update_receipt/calculate_*_total 完全无事务
 
 ### 2026-06-25 第二次全面审计 - 项目全面审计（126 项错误）
 
