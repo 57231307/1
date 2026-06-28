@@ -45,6 +45,13 @@ pub struct OmniAuditEngine {
 
 impl OmniAuditEngine {
     pub fn new(db: Arc<DatabaseConnection>) -> Result<Self, String> {
+        // v5 审计批次 21：测试环境专用默认密钥
+        // 该字符串包含 "test" 关键词，会命中 validate_secret 黑名单：
+        // 即使误将此值通过 AUDIT_SECRET_KEY 环境变量注入生产环境，
+        // AppSettings::new 中的 validate_secret 校验也会拒绝启动（fail-secure）。
+        // 仅在 cfg!(test) 或 ENV=test/development 时作为兜底默认密钥使用。
+        const TEST_DEFAULT_KEY: &str = "test-only-audit-secret-do-not-use-in-production-32b";
+
         let secret_key = std::env::var("AUDIT_SECRET_KEY")
             .unwrap_or_else(|_| {
                 // 安全修复：未设置 AUDIT_SECRET_KEY 时，仅在测试/开发环境回退默认密钥
@@ -56,7 +63,7 @@ impl OmniAuditEngine {
                         env = %env,
                         "安全警告: 未设置 AUDIT_SECRET_KEY 环境变量，测试/开发环境使用默认密钥。生产环境必须设置强密钥！"
                     );
-                    "default-audit-secret-key-for-test-environments-only-32-bytes".to_string()
+                    TEST_DEFAULT_KEY.to_string()
                 } else {
                     panic!("未设置 AUDIT_SECRET_KEY 环境变量，生产环境必须设置强密钥（至少32字节）");
                 }

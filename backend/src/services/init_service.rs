@@ -44,6 +44,13 @@ pub struct DatabaseConfig {
     pub name: String,
     pub username: String,
     pub password: String,
+    /// SSL 模式：prefer（默认）/ require / disable 等
+    /// 来源：前端初始化请求或 config.yaml 的 database.ssl_mode
+    /// v5 审计批次 21：原硬编码 sslmode=disable，无视配置文件中的 ssl_mode 字段；
+    /// 改为读取配置值，缺省时回退到 prefer（比 disable 更安全）。
+    /// 使用 #[serde(default)] 保证前端旧版请求（不携带 ssl_mode 字段）仍可解析。
+    #[serde(default)]
+    pub ssl_mode: Option<String>,
 }
 
 impl DatabaseConfig {
@@ -59,9 +66,14 @@ impl DatabaseConfig {
         let encoded_password = utf8_percent_encode(&self.password, NON_ALPHANUMERIC).to_string();
         let encoded_name = utf8_percent_encode(&self.name, NON_ALPHANUMERIC).to_string();
 
+        // SSL 模式来源：self.ssl_mode（来自 config.yaml 或前端请求），缺省时使用 prefer
+        // v5 审计批次 21：原硬编码 "disable"，现改为读取配置值，默认 prefer
+        // prefer 比 disable 更安全：先尝试 SSL 连接，失败再回退明文
+        let ssl_mode = self.ssl_mode.as_deref().unwrap_or("prefer");
+
         format!(
-            "postgres://{}:{}@{}:{}/{}?sslmode=disable",
-            encoded_username, encoded_password, self.host, self.port, encoded_name
+            "postgres://{}:{}@{}:{}/{}?sslmode={}",
+            encoded_username, encoded_password, self.host, self.port, encoded_name, ssl_mode
         )
     }
 }
@@ -638,6 +650,8 @@ mod tests {
             name: "bingxi".to_string(),
             username: "bingxi".to_string(),
             password: "p@ss word".to_string(),
+            // v5 审计批次 21：ssl_mode 缺省时回退到 prefer（原为 disable）
+            ssl_mode: None,
         };
         let s = cfg.to_connection_string();
         // 关键断言：host 段不应被编码
@@ -652,7 +666,8 @@ mod tests {
             "s = {}",
             s
         );
-        assert!(s.ends_with("/bingxi?sslmode=disable"));
+        // v5 审计批次 21：ssl_mode 缺省时默认 prefer
+        assert!(s.ends_with("/bingxi?sslmode=prefer"));
     }
 
     #[test]
@@ -664,6 +679,8 @@ mod tests {
             name: "bingxi".to_string(),
             username: "u".to_string(),
             password: "p".to_string(),
+            // v5 审计批次 21：ssl_mode 缺省时回退到 prefer
+            ssl_mode: None,
         };
         let s = cfg.to_connection_string();
         assert!(s.contains("@db.example.com:5432/"), "s = {}", s);
@@ -679,6 +696,8 @@ mod tests {
             name: "bingxi".to_string(),
             username: "u".to_string(),
             password: "p".to_string(),
+            // v5 审计批次 21：ssl_mode 缺省时回退到 prefer
+            ssl_mode: None,
         };
         let s = cfg.to_connection_string();
         assert!(s.contains("@[::1]:5432/"), "s = {}", s);

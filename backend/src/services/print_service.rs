@@ -4,6 +4,17 @@ use crate::utils::error::AppError;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
+/// HTML 实体转义：将用户提供的数据安全嵌入 HTML，
+/// 防止 XSS（跨站脚本攻击）。
+/// 转义字符参考 OWASP 推荐：& < > " '
+fn escape_html(s: &str) -> String {
+    s.replace('&', "&amp;")
+        .replace('<', "&lt;")
+        .replace('>', "&gt;")
+        .replace('"', "&quot;")
+        .replace('\'', "&#x27;")
+}
+
 /// 打印数据类型
 #[derive(Debug, Serialize, Deserialize)]
 pub struct PrintData {
@@ -166,7 +177,18 @@ impl PrintService {
             print_data
                 .data
                 .iter()
-                .map(|(k, v)| format!("<tr><td>{}</td><td>{}</td></tr>", k, v))
+                .map(|(k, v)| {
+                    // 将 JSON Value 转为字符串后做 HTML 转义，防止 XSS
+                    let v_str = match v {
+                        serde_json::Value::String(s) => s.clone(),
+                        _ => v.to_string(),
+                    };
+                    format!(
+                        "<tr><td>{}</td><td>{}</td></tr>",
+                        escape_html(k),
+                        escape_html(&v_str)
+                    )
+                })
                 .collect::<Vec<_>>()
                 .join("\n"),
             print_data.items.len()

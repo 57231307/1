@@ -1,3 +1,19 @@
+# ==============================================================================
+# Bingxi ERP Docker Compose 配置
+#
+# 安全说明（批次 21 修复）：
+#   - 所有密钥（密码、JWT、Cookie、审计密钥）通过环境变量引用，不在本文档硬编码
+#   - 请在项目根目录创建 .env 文件（参考 .env.example），并填写实际值
+#   - 必填环境变量：
+#       POSTGRES_PASSWORD   数据库密码（db 与 backend 共用，需保持一致）
+#       DATABASE_PASSWORD   backend 连接数据库的密码（应与 POSTGRES_PASSWORD 一致）
+#       JWT_SECRET          JWT 签发密钥（至少 32 字节，使用 openssl rand -hex 32 生成）
+#       COOKIE_SECRET       Cookie 加密密钥（至少 32 字节，使用 openssl rand -hex 32 生成）
+#       AUDIT_SECRET_KEY    审计日志密钥（至少 32 字节，使用 openssl rand -hex 32 生成）
+#   - 资源限制：每个服务均配置内存与 CPU 上限，防止单服务耗尽宿主机资源
+#   - 日志限制：每个服务日志单文件 10MB、最多 3 个文件，防止日志撑满磁盘
+# ==============================================================================
+
 version: '3.8'
 
 services:
@@ -6,7 +22,8 @@ services:
     container_name: bingxi-db
     environment:
       POSTGRES_USER: bingxi
-      POSTGRES_PASSWORD: bingxi_password
+      # 密码通过环境变量引用，避免硬编码（批次 21 修复）
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
       POSTGRES_DB: bingxi
     volumes:
       - pgdata:/var/lib/postgresql/data
@@ -18,23 +35,37 @@ services:
       timeout: 5s
       retries: 5
     restart: unless-stopped
+    # 资源限制：数据库服务需要较大内存（1G）和 2 个 CPU 核心
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+          cpus: '2.0'
+    # 日志限制：防止单服务日志撑满磁盘
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
 
   backend:
     build:
       context: .
       dockerfile: backend/Dockerfile
     container_name: bingxi-backend
+    # 通过 .env 文件加载环境变量（密钥从 .env 读取，避免硬编码）
+    env_file:
+      - .env
     environment:
-      # Database Config
+      # Database Config（非密钥配置）
       - DATABASE__HOST=db
       - DATABASE__PORT=5432
       - DATABASE__USERNAME=bingxi
-      - DATABASE_PASSWORD=bingxi_password
       - DATABASE__NAME=bingxi
-      # Auth Config
-      - JWT_SECRET=change-me-to-a-secure-secret-in-production-at-least-32-bytes
-      - COOKIE_SECRET=change-me-to-a-secure-secret-in-production-at-least-32-bytes
-      - AUDIT_SECRET_KEY=change-me-to-a-secure-secret-in-production-at-least-32-bytes
+      # Auth Config（密钥通过环境变量插值引用，实际值来自 .env 文件）
+      - JWT_SECRET=${JWT_SECRET}
+      - COOKIE_SECRET=${COOKIE_SECRET}
+      - AUDIT_SECRET_KEY=${AUDIT_SECRET_KEY}
       # Server Config
       - SERVER__HOST=0.0.0.0
       - SERVER__PORT=8082
@@ -57,6 +88,18 @@ services:
       db:
         condition: service_healthy
     restart: unless-stopped
+    # 资源限制：后端服务内存上限 512M、CPU 上限 1 核心
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+          cpus: '1.0'
+    # 日志限制：防止单服务日志撑满磁盘
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
 
   frontend:
     build:
@@ -68,6 +111,18 @@ services:
     depends_on:
       - backend
     restart: unless-stopped
+    # 资源限制：前端静态资源服务内存上限 256M、CPU 上限 0.5 核心
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+          cpus: '0.5'
+    # 日志限制：防止单服务日志撑满磁盘
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
 
 volumes:
   pgdata:

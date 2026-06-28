@@ -8,7 +8,7 @@
 #
 # 工作流拓扑：
 #   ci-info → [ci-fmt-rust, ci-fmt-fe, ci-lint-rust, ci-lint-fe, ci-type-check,
-#              ci-test-rust, ci-test-fe, ci-audit, ci-deps,
+#              ci-test-rust, ci-test-fe, ci-e2e, ci-audit, ci-deps,
 #              ci-build-rust, ci-build-fe] → [package-release] → [github-release]
 #                                                                 → [notify]
 # ==============================================================================
@@ -360,6 +360,7 @@ jobs:
     # （clippy rendered 警告包含行号/路径，不同 run 间略有差异，导致 strict 模式 comm -23
     # 误报新警告）。改为 continue-on-error 让 clippy 警告被报告但不阻塞 CI。
     # clippy 警告仍会在 step summary 和 artifact 中可见，便于运维监控。
+    # TODO(tech-debt): baseline 机制稳定后移除 continue-on-error，让 clippy 阻塞 CI。
     continue-on-error: true
     # 启用 contents: write 以便"提交 baseline 文件"步骤能 push 自动建立的基线
     # PR #238 引入的 baseline 自动 commit 机制因缺此权限而失效，导致基线未纳入版本控制
@@ -810,6 +811,27 @@ jobs:
     # PR #238 引入的 baseline 自动 commit 机制因缺此权限而失效，导致基线未纳入版本控制
     permissions:
       contents: write
+    # 集成测试依赖 PostgreSQL，使用 service container 提供数据库实例
+    # 批次 21 修复：移除 --lib 跳过 47 个集成测试的问题
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: bingxi
+          POSTGRES_PASSWORD: bingxi_test
+          POSTGRES_DB: bingxi_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    env:
+      # 集成测试所需的数据库连接串（指向 service container）
+      DATABASE_URL: postgres://bingxi:bingxi_test@localhost:5432/bingxi_test
+      # 审计模块所需的密钥（仅测试用途，禁止用于生产）
+      AUDIT_SECRET_KEY: test-only-audit-secret-do-not-use-in-production-32b
     steps:
       - name: 检出代码
         uses: actions/checkout@v5
@@ -845,14 +867,12 @@ jobs:
 
       - name: 运行 cargo test（严格化 + baseline 机制）
         working-directory: backend
-        # TODO(tech-debt): 当前 --lib 仅运行 lib crate 单元测试（src/ 下），
-        # 跳过了 backend/tests/ 下 47 个集成测试二进制。
-        # 集成测试需要 PostgreSQL 服务容器 + DATABASE_URL 环境变量 + migration 初始化。
-        # 未来添加 services.postgres + migration 步骤后，改为 `cargo test` 运行全部测试。
+        # 批次 21 修复：已添加 Postgres service container + DATABASE_URL 环境变量，
+        # 移除 --lib 参数，运行全部测试（lib 单元测试 + backend/tests/ 下集成测试）
         run: |
           mkdir -p reports
           set +e
-          cargo test --lib --jobs 1 -- --test-threads=1 2>&1 \
+          cargo test --jobs 1 -- --test-threads=1 2>&1 \
             | tee reports/cargo-test-output.txt
           EXIT_CODE=$?
           set -e
@@ -1082,14 +1102,58 @@ jobs:
           retention-days: 90
 
 # ==============================================================================
-# Job 9: 依赖审计（不阻塞但记录）
+# Job 8.5: 前端 E2E 测试（Playwright）
+# ==============================================================================
+  ci-e2e:
+    name: 🎭 前端 E2E 测试
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    needs: [ci-info, ci-build-fe]
+    steps:
+      - name: 检出代码
+        uses: actions/checkout@v5
+
+      - name: 安装 Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'pnpm'
+          cache-dependency-path: frontend/pnpm-lock.yaml
+
+      - name: 安装 pnpm
+        run: npm install -g pnpm@9
+
+      - name: 安装依赖
+        working-directory: frontend
+        run: pnpm install --frozen-lockfile
+
+      - name: 安装 Playwright 浏览器
+        working-directory: frontend
+        run: pnpm exec playwright install --with-deps chromium
+
+      - name: 运行 E2E 测试
+        working-directory: frontend
+        run: pnpm exec playwright test
+
+      - name: 上传测试报告
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: frontend/playwright-report/
+          retention-days: 7
+
+# ==============================================================================
+# Job 9: 依赖审计（严格化，发现命令错误时阻塞 CI）
 # ==============================================================================
   ci-audit:
     name: 🛡️ 依赖审计
     runs-on: ubuntu-latest
     timeout-minutes: 15
     needs: ci-info
-    continue-on-error: true
+    # 批次 21 修复：移除 continue-on-error，让审计命令本身失败时阻塞 CI。
+    # 注意：审计步骤内部使用 set +e 捕获漏洞，发现漏洞不会让步骤失败，
+    # 只有 cargo audit / npm audit 命令本身异常时才会阻塞。
     steps:
       - name: 检出代码
         uses: actions/checkout@v5
@@ -1212,6 +1276,8 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     needs: ci-info
+    # 批次 21 评估：ci-deps 仅生成 cargo tree / npm ls 依赖图用于记录归档，
+    # 属 informational job，保留 continue-on-error 避免依赖图生成异常阻塞主流程。
     continue-on-error: true
     steps:
       - name: 检出代码
@@ -1545,6 +1611,7 @@ jobs:
       ci-type-check,
       ci-test-rust,
       ci-test-fe,
+      ci-e2e,
       ci-build-rust,
       ci-build-fe
     ]
@@ -1771,6 +1838,7 @@ jobs:
       ci-type-check,
       ci-test-rust,
       ci-test-fe,
+      ci-e2e,
       ci-audit,
       ci-deps,
       ci-build-rust,
@@ -1798,6 +1866,7 @@ jobs:
           echo "🔬  前端类型检查:    ${{ needs.ci-type-check.result }}"
           echo "🧪  Rust 测试:       ${{ needs.ci-test-rust.result }}"
           echo "🧪  前端测试:        ${{ needs.ci-test-fe.result }}"
+          echo "🎭  前端 E2E 测试:   ${{ needs.ci-e2e.result }}"
           echo "🛡️  依赖审计:        ${{ needs.ci-audit.result }}"
           echo "📦  依赖图:          ${{ needs.ci-deps.result }}"
           echo "🏗️  Rust 后端构建:   ${{ needs.ci-build-rust.result }}"
@@ -1815,6 +1884,7 @@ jobs:
             [ci-type-check]="${{ needs.ci-type-check.result }}"
             [ci-test-rust]="${{ needs.ci-test-rust.result }}"
             [ci-test-fe]="${{ needs.ci-test-fe.result }}"
+            [ci-e2e]="${{ needs.ci-e2e.result }}"
             [ci-build-rust]="${{ needs.ci-build-rust.result }}"
             [ci-build-fe]="${{ needs.ci-build-fe.result }}"
           )
@@ -1845,6 +1915,7 @@ jobs:
           echo "  - frontend-type-check-report  vue-tsc 报告"
           echo "  - backend-test-report   cargo test 报告"
           echo "  - frontend-test-report  vitest 报告"
+          echo "  - playwright-report     Playwright E2E 报告（7 天保留）"
           echo "  - backend-build-log     cargo build 详细日志"
           echo "  - frontend-build-log    vite build 详细日志"
           echo "  - dependency-audit-reports  cargo audit + npm audit"

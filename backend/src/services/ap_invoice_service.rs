@@ -520,7 +520,8 @@ impl ApInvoiceService {
             .paginate(&*self.db, page_size);
 
         let total = paginator.num_items().await?;
-        let items = paginator.fetch_page(page).await?;
+        // SeaORM fetch_page 为 0-indexed，HTTP 层 page 为 1-indexed，需减 1 对齐
+        let items = paginator.fetch_page(page.saturating_sub(1)).await?;
 
         Ok((items, total))
     }

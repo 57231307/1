@@ -180,6 +180,9 @@ pub async fn test_database_connection(
         name: payload.name,
         username: payload.username,
         password: payload.password,
+        // v5 审计批次 21：test_database_connection 不接收前端 ssl_mode 参数，
+        // 使用 None 让 to_connection_string 回退到默认 prefer
+        ssl_mode: None,
     };
     audit::log_security_event(
         SecurityEvent::TestDatabaseConnection,

@@ -120,7 +120,8 @@ impl OperationLogService {
             .paginate(&*self.db, page_size);
 
         let total = paginator.num_items().await?;
-        let logs = paginator.fetch_page(page).await?;
+        // SeaORM fetch_page 为 0-indexed，HTTP 层 page 为 1-indexed，需减 1 对齐
+        let logs = paginator.fetch_page(page.saturating_sub(1)).await?;
 
         Ok((logs, total))
     }
@@ -140,7 +141,7 @@ impl OperationLogService {
             .paginate(&*self.db, page_size);
 
         let total = paginator.num_items().await?;
-        let logs = paginator.fetch_page(page).await?;
+        let logs = paginator.fetch_page(page.saturating_sub(1)).await?;
 
         Ok((logs, total))
     }
@@ -160,7 +161,7 @@ impl OperationLogService {
             .paginate(&*self.db, page_size);
 
         let total = paginator.num_items().await?;
-        let logs = paginator.fetch_page(page).await?;
+        let logs = paginator.fetch_page(page.saturating_sub(1)).await?;
 
         Ok((logs, total))
     }
