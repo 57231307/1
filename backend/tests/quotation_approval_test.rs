@@ -63,7 +63,8 @@ fn test_approver_role_code_mapping() {
 
 #[test]
 fn test_approver_role_partial_eq() {
-    assert_eq!(ApproverRole::Salesperson, ApproverRole::Salesperson);
+    // P0 修复（批次 5，2026-06-27）：删除恒真断言 assert_eq!(Salesperson, Salesperson)，
+    // 保留下方有意义的 assert_ne! 校验（验证不同变体之间不等）
     assert_ne!(ApproverRole::Salesperson, ApproverRole::SalesManager);
     assert_ne!(ApproverRole::SalesManager, ApproverRole::GeneralManager);
 }

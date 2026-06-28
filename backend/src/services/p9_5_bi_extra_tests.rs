@@ -174,7 +174,8 @@ mod tests {
 
     #[test]
     fn test_bi07_vip_is_top() {
-        assert_eq!(CustomerTier::VIP, CustomerTier::VIP);
+        // P0 修复（批次 5，2026-06-27）：删除恒真断言 assert_eq!(VIP, VIP)，
+        // 保留下方有意义的语义校验：VIP >= A（验证排序）
         let max = CustomerTier::VIP;
         assert!(max >= CustomerTier::A);
     }
@@ -204,17 +205,23 @@ mod tests {
 
     #[test]
     fn test_bi11_abc_class_a() {
-        assert_eq!(ABCClass::A, ABCClass::A);
+        // P0 修复（批次 5，2026-06-27）：原 assert_eq!(A, A) 为恒真断言，
+        // 改为验证 Debug 输出格式，确保枚举变体表示符合预期
+        assert_eq!(format!("{:?}", ABCClass::A), "A");
     }
 
     #[test]
     fn test_bi12_abc_class_b() {
-        assert_eq!(ABCClass::B, ABCClass::B);
+        // P0 修复（批次 5，2026-06-27）：原 assert_eq!(B, B) 为恒真断言，
+        // 改为验证 Debug 输出格式
+        assert_eq!(format!("{:?}", ABCClass::B), "B");
     }
 
     #[test]
     fn test_bi13_abc_class_c() {
-        assert_eq!(ABCClass::C, ABCClass::C);
+        // P0 修复（批次 5，2026-06-27）：原 assert_eq!(C, C) 为恒真断言，
+        // 改为验证 Debug 输出格式
+        assert_eq!(format!("{:?}", ABCClass::C), "C");
     }
 
     // ============= 财务指标 =============

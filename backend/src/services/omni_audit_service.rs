@@ -132,9 +132,13 @@ impl OmniAuditEngine {
                     duration_ms: ActiveValue::Set(Some(msg.duration_ms)),
                     old_value: ActiveValue::Set(msg.old_value),
                     new_value: ActiveValue::Set(msg.new_value),
-                    created_at: ActiveValue::Set(Some(Utc::now().with_timezone(
-                        &chrono::FixedOffset::east_opt(0).expect("UTC offset 0 is always valid"),
-                    ))),
+                    created_at: ActiveValue::Set(Some(
+                        // P0 修复（批次 5，2026-06-27）：原 .expect("UTC offset 0 is always valid")
+                        // 在 spawn 任务中构成真实 panic 触发点，若触发会导致审计引擎整个 spawn 任务死亡。
+                        // 改用 DateTime::fixed_offset() 直接将 UTC 时间转为 FixedOffset 时区（UTC+0），
+                        // 无需依赖 east_opt 返回 Option，消除 panic 风险。
+                        Utc::now().fixed_offset(),
+                    )),
                 };
 
                 // 使用 exec_without_returning 避免 last_insert_id 解析问题
