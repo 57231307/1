@@ -1,4 +1,6 @@
+use futures::FutureExt;
 use sea_orm::DatabaseConnection;
+use std::panic::AssertUnwindSafe;
 use std::sync::Arc;
 use std::sync::atomic::AtomicU32;
 
@@ -94,7 +96,25 @@ impl AppState {
         // 启动审计日志清理任务（后台任务，失败不阻塞启动）
         let cleanup_clone = audit_cleanup.clone();
         tokio::spawn(async move {
-            cleanup_clone.start_cleanup_task();
+            // 批次 8（2026-06-28）：启动器 spawn panic 隔离
+            // start_cleanup_task 内部已创建自己的 spawn + catch_unwind（批次 7），
+            // 此处仅保护启动器调用本身，确保即使调用 panic 也不会传播到 runtime。
+            let result = AssertUnwindSafe(async {
+                cleanup_clone.start_cleanup_task();
+            })
+            .catch_unwind()
+            .await;
+            if let Err(panic_payload) = result {
+                let panic_msg = panic_payload
+                    .downcast_ref::<String>()
+                    .map(|s| s.as_str())
+                    .or_else(|| panic_payload.downcast_ref::<&'static str>().copied())
+                    .unwrap_or("<非字符串 panic payload>");
+                tracing::error!(
+                    panic = %panic_msg,
+                    "⚠ 审计清理启动器 spawn panic 已被隔离"
+                );
+            }
         });
 
         // P2-B 修复：cookie_secret 长度不足 32 字节时 fail-fast，禁止自动补 0 弱化密钥

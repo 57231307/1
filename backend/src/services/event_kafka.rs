@@ -14,12 +14,14 @@
 //! - publish/subscribe 全部使用 `tracing::error!` 记录中文日志，CI 抓得到。
 
 use std::collections::BTreeMap;
+use std::panic::AssertUnwindSafe;
 use std::pin::Pin;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
 use std::time::Duration;
 
 use futures::stream::Stream;
+use futures::FutureExt;
 use rskafka::client::partition::{Compression, OffsetAt, PartitionClient, UnknownTopicHandling};
 use rskafka::client::{Client, ClientBuilder};
 use rskafka::record::Record;
@@ -272,8 +274,27 @@ impl KafkaBackend {
 
         // 后台消费任务：拉取所有 partition，反序列化后推入 mpsc
         tokio::spawn(async move {
-            if let Err(e) = run_consumer_loop(client, config, tx.clone()).await {
-                tracing::error!("Kafka 消费循环退出: {}", e);
+            // 批次 8（2026-06-28）：间接长期循环任务 panic 隔离
+            // run_consumer_loop 内部有 loop，panic 会导致 Kafka 消费永久停止。
+            // spawn 块层面 catch_unwind：若 panic 则记录日志后 spawn 退出
+            // （不是理想恢复，但至少不会 panic 传播到 tokio runtime）。
+            let result = AssertUnwindSafe(async {
+                if let Err(e) = run_consumer_loop(client, config, tx.clone()).await {
+                    tracing::error!("Kafka 消费循环退出: {}", e);
+                }
+            })
+            .catch_unwind()
+            .await;
+            if let Err(panic_payload) = result {
+                let panic_msg = panic_payload
+                    .downcast_ref::<String>()
+                    .map(|s| s.as_str())
+                    .or_else(|| panic_payload.downcast_ref::<&'static str>().copied())
+                    .unwrap_or("<非字符串 panic payload>");
+                tracing::error!(
+                    panic = %panic_msg,
+                    "⚠ Kafka 消费循环 spawn panic 已被隔离（跨进程事件消费停止）"
+                );
             }
         });
 

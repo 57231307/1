@@ -3,6 +3,8 @@
 //! 业务事件发布与订阅的统一接口
 
 use async_trait::async_trait;
+use futures::FutureExt;
+use std::panic::AssertUnwindSafe;
 use std::sync::Arc;
 
 /// 业务事件（重新导出 kafka 模块）
@@ -52,10 +54,26 @@ impl EventBus {
             let handler = handler.clone();
             tokio::spawn(async move {
                 while let Some(event) = stream.recv().await {
-                    if event.event_type == handler.event_type() {
-                        if let Err(e) = handler.handle(&event).await {
-                            tracing::error!("Event handler failed: {}", e);
+                    // 批次 8（2026-06-28）：单次事件处理 panic 隔离
+                    let result = AssertUnwindSafe(async {
+                        if event.event_type == handler.event_type() {
+                            if let Err(e) = handler.handle(&event).await {
+                                tracing::error!("Event handler failed: {}", e);
+                            }
                         }
+                    })
+                    .catch_unwind()
+                    .await;
+                    if let Err(panic_payload) = result {
+                        let panic_msg = panic_payload
+                            .downcast_ref::<String>()
+                            .map(|s| s.as_str())
+                            .or_else(|| panic_payload.downcast_ref::<&'static str>().copied())
+                            .unwrap_or("<非字符串 panic payload>");
+                        tracing::error!(
+                            panic = %panic_msg,
+                            "⚠ 事件订阅 spawn panic 已被隔离，继续运行（不退出循环）"
+                        );
                     }
                 }
             });

@@ -191,8 +191,24 @@ impl OmniAuditEngine {
     pub fn log(&self, msg: OmniAuditMessage) {
         let sender = self.sender.clone();
         tokio::spawn(async move {
-            if let Err(e) = sender.send(msg).await {
-                tracing::error!("投递审计日志至 Channel 失败: {}", e);
+            // 批次 8（2026-06-28）：一次性 spawn panic 隔离
+            let result = AssertUnwindSafe(async {
+                if let Err(e) = sender.send(msg).await {
+                    tracing::error!("投递审计日志至 Channel 失败: {}", e);
+                }
+            })
+            .catch_unwind()
+            .await;
+            if let Err(panic_payload) = result {
+                let panic_msg = panic_payload
+                    .downcast_ref::<String>()
+                    .map(|s| s.as_str())
+                    .or_else(|| panic_payload.downcast_ref::<&'static str>().copied())
+                    .unwrap_or("<非字符串 panic payload>");
+                tracing::error!(
+                    panic = %panic_msg,
+                    "⚠ 审计日志投递 spawn panic 已被隔离"
+                );
             }
         });
     }

@@ -175,20 +175,39 @@ impl EventBackend for BroadcastBackend {
         let mut broadcast_rx = self.sender.subscribe();
         tokio::spawn(async move {
             loop {
-                match broadcast_rx.recv().await {
-                    Ok(event) => {
-                        if tx.send(event).await.is_err() {
-                            // 订阅者断开，停止桥接
-                            break;
+                // 批次 8（2026-06-28）：单次事件处理 panic 隔离
+                // 用返回值控制是否继续循环（catch_unwind 内不能 break 跨闭包）
+                let result = AssertUnwindSafe(async {
+                    match broadcast_rx.recv().await {
+                        Ok(event) => {
+                            if tx.send(event).await.is_err() {
+                                return false; // 订阅者断开，停止桥接
+                            }
+                        }
+                        Err(broadcast::error::RecvError::Lagged(n)) => {
+                            tracing::warn!("Broadcast 桥接 lagged 跳过 {} 条事件", n);
+                        }
+                        Err(broadcast::error::RecvError::Closed) => {
+                            return false; // channel 关闭，退出
                         }
                     }
-                    Err(broadcast::error::RecvError::Lagged(n)) => {
-                        // Lagged：跳过丢失事件，继续接收
-                        tracing::warn!("Broadcast 桥接 lagged 跳过 {} 条事件", n);
-                    }
-                    Err(broadcast::error::RecvError::Closed) => {
-                        // channel 关闭，退出
-                        break;
+                    true
+                })
+                .catch_unwind()
+                .await;
+                match result {
+                    Ok(true) => {} // 继续
+                    Ok(false) => break, // 正常退出
+                    Err(panic_payload) => {
+                        let panic_msg = panic_payload
+                            .downcast_ref::<String>()
+                            .map(|s| s.as_str())
+                            .or_else(|| panic_payload.downcast_ref::<&'static str>().copied())
+                            .unwrap_or("<非字符串 panic payload>");
+                        tracing::error!(
+                            panic = %panic_msg,
+                            "⚠ Broadcast 桥接 spawn panic 已被隔离，继续运行（不退出循环）"
+                        );
                     }
                 }
             }
@@ -296,8 +315,24 @@ impl EventBus {
         if kind == 1 {
             if let Some(k) = kafka {
                 tokio::spawn(async move {
-                    if let Err(e) = k.publish(event).await {
-                        tracing::error!("事件投递到 Kafka 失败: {}（已写入本地兜底）", e);
+                    // 批次 8（2026-06-28）：一次性 spawn panic 隔离
+                    let result = AssertUnwindSafe(async {
+                        if let Err(e) = k.publish(event).await {
+                            tracing::error!("事件投递到 Kafka 失败: {}（已写入本地兜底）", e);
+                        }
+                    })
+                    .catch_unwind()
+                    .await;
+                    if let Err(panic_payload) = result {
+                        let panic_msg = panic_payload
+                            .downcast_ref::<String>()
+                            .map(|s| s.as_str())
+                            .or_else(|| panic_payload.downcast_ref::<&'static str>().copied())
+                            .unwrap_or("<非字符串 panic payload>");
+                        tracing::error!(
+                            panic = %panic_msg,
+                            "⚠ Kafka 事件投递 spawn panic 已被隔离（已有本地 channel 兜底）"
+                        );
                     }
                 });
             }
@@ -355,13 +390,34 @@ pub async fn init_event_bus_with_kafka_config(kafka_cfg: &KafkaSettings) {
             };
             let backend_for_consumer = backend.clone();
             let _consumer_handle = tokio::spawn(async move {
+                // 批次 8（2026-06-28）：单次事件处理 panic 隔离
                 match backend_for_consumer.subscribe().await {
                     Ok(mut stream) => {
                         use futures::stream::StreamExt;
                         while let Some(event) = stream.next().await {
-                            if local_tx.send(event).is_err() {
-                                tracing::warn!("Kafka 消费桥接：本地 channel 已关闭，停止消费");
-                                break;
+                            let result = AssertUnwindSafe(async {
+                                if local_tx.send(event).is_err() {
+                                    tracing::warn!("Kafka 消费桥接：本地 channel 已关闭，停止消费");
+                                    return false;
+                                }
+                                true
+                            })
+                            .catch_unwind()
+                            .await;
+                            match result {
+                                Ok(true) => {} // 继续
+                                Ok(false) => break, // channel 关闭，退出
+                                Err(panic_payload) => {
+                                    let panic_msg = panic_payload
+                                        .downcast_ref::<String>()
+                                        .map(|s| s.as_str())
+                                        .or_else(|| panic_payload.downcast_ref::<&'static str>().copied())
+                                        .unwrap_or("<非字符串 panic payload>");
+                                    tracing::error!(
+                                        panic = %panic_msg,
+                                        "⚠ Kafka 消费桥接 spawn panic 已被隔离，继续运行（不退出循环）"
+                                    );
+                                }
                             }
                         }
                     }

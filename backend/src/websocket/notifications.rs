@@ -18,9 +18,10 @@ use axum::extract::ws::{Message, WebSocket, WebSocketUpgrade};
 use axum::extract::Query;
 use axum::response::IntoResponse;
 use dashmap::DashMap;
-use futures::{SinkExt, StreamExt};
+use futures::{FutureExt, SinkExt, StreamExt};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
+use std::panic::AssertUnwindSafe;
 use std::sync::Arc;
 use tokio::sync::broadcast;
 
@@ -250,55 +251,69 @@ async fn handle_socket(socket: WebSocket, auth: AuthInfo) {
     // 接收客户端消息任务
     let recv_task = tokio::spawn(async move {
         while let Some(msg) = receiver.next().await {
-            match msg {
-                Ok(Message::Text(text)) => {
-                    // 处理客户端消息
-                    if let Ok(ws_msg) = serde_json::from_str::<WsMessage>(&text) {
-                        match ws_msg {
-                            WsMessage::Ping { timestamp } => {
-                                tracing::debug!(
-                                    "收到 ping：tenant_id={}, timestamp={}",
-                                    auth.tenant_id,
-                                    timestamp
-                                );
-                                // pong 由 send_task 发送（共享 sender 不便，这里仅记录）
+            // 批次 8（2026-06-28）：单次消息处理 panic 隔离
+            let result = AssertUnwindSafe(async {
+                match msg {
+                    Ok(Message::Text(text)) => {
+                        if let Ok(ws_msg) = serde_json::from_str::<WsMessage>(&text) {
+                            match ws_msg {
+                                WsMessage::Ping { timestamp } => {
+                                    tracing::debug!(
+                                        "收到 ping：tenant_id={}, timestamp={}",
+                                        auth.tenant_id,
+                                        timestamp
+                                    );
+                                }
+                                WsMessage::MarkAsRead { id } => {
+                                    tracing::info!(
+                                        "客户端标记已读：tenant_id={}, user_id={}, id={}",
+                                        auth.tenant_id,
+                                        auth.user_id,
+                                        id
+                                    );
+                                }
+                                _ => {
+                                    tracing::warn!("收到不支持的客户端消息类型");
+                                }
                             }
-                            WsMessage::MarkAsRead { id } => {
-                                tracing::info!(
-                                    "客户端标记已读：tenant_id={}, user_id={}, id={}",
-                                    auth.tenant_id,
-                                    auth.user_id,
-                                    id
-                                );
-                                // TODO(P4+): 实际调用 notification_service.mark_as_read()
-                            }
-                            _ => {
-                                tracing::warn!("收到不支持的客户端消息类型");
-                            }
+                        } else {
+                            tracing::warn!("客户端消息 JSON 解析失败: {}", text);
                         }
-                    } else {
-                        tracing::warn!("客户端消息 JSON 解析失败: {}", text);
                     }
+                    Ok(Message::Close(_)) => {
+                        tracing::info!(
+                            "客户端主动关闭：tenant_id={}, user_id={}",
+                            auth.tenant_id,
+                            auth.user_id
+                        );
+                        return false; // break
+                    }
+                    Ok(Message::Ping(_)) => {}
+                    Ok(Message::Pong(_)) => {}
+                    Err(e) => {
+                        tracing::error!("WebSocket 接收错误: {}", e);
+                        return false; // break
+                    }
+                    _ => {}
                 }
-                Ok(Message::Close(_)) => {
-                    tracing::info!(
-                        "客户端主动关闭：tenant_id={}, user_id={}",
-                        auth.tenant_id,
-                        auth.user_id
+                true
+            })
+            .catch_unwind()
+            .await;
+            match result {
+                Ok(true) => {}
+                Ok(false) => break,
+                Err(panic_payload) => {
+                    let panic_msg = panic_payload
+                        .downcast_ref::<String>()
+                        .map(|s| s.as_str())
+                        .or_else(|| panic_payload.downcast_ref::<&'static str>().copied())
+                        .unwrap_or("<非字符串 panic payload>");
+                    tracing::error!(
+                        panic = %panic_msg,
+                        "⚠ WebSocket 接收 spawn panic 已被隔离，继续运行（不退出循环）"
                     );
-                    break;
                 }
-                Ok(Message::Ping(_)) => {
-                    // axum 自动处理 Ping 帧 → Pong 帧
-                }
-                Ok(Message::Pong(_)) => {
-                    // 心跳响应（一般由 send_task 处理）
-                }
-                Err(e) => {
-                    tracing::error!("WebSocket 接收错误: {}", e);
-                    break;
-                }
-                _ => {}
             }
         }
     });
@@ -306,9 +321,30 @@ async fn handle_socket(socket: WebSocket, auth: AuthInfo) {
     // 推送消息任务（接收 broadcast 并写入 socket）
     let send_task = tokio::spawn(async move {
         while let Ok(msg) = rx.recv().await {
-            if sender.send(Message::Text(msg)).await.is_err() {
-                tracing::debug!("WebSocket 发送失败，连接可能已关闭");
-                break;
+            // 批次 8（2026-06-28）：单次消息推送 panic 隔离
+            let result = AssertUnwindSafe(async {
+                if sender.send(Message::Text(msg)).await.is_err() {
+                    tracing::debug!("WebSocket 发送失败，连接可能已关闭");
+                    return false;
+                }
+                true
+            })
+            .catch_unwind()
+            .await;
+            match result {
+                Ok(true) => {}
+                Ok(false) => break,
+                Err(panic_payload) => {
+                    let panic_msg = panic_payload
+                        .downcast_ref::<String>()
+                        .map(|s| s.as_str())
+                        .or_else(|| panic_payload.downcast_ref::<&'static str>().copied())
+                        .unwrap_or("<非字符串 panic payload>");
+                    tracing::error!(
+                        panic = %panic_msg,
+                        "⚠ WebSocket 发送 spawn panic 已被隔离，继续运行（不退出循环）"
+                    );
+                }
             }
         }
     });

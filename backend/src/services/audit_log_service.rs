@@ -16,9 +16,11 @@ use crate::middleware::audit_context::AuditContext;
 use crate::models::audit_log::{self, OperationType, Severity};
 use crate::utils::error::AppError;
 use chrono::Utc;
+use futures::FutureExt;
 use sea_orm::*;
 use serde::Serialize;
 use serde_json::Value;
+use std::panic::AssertUnwindSafe;
 use std::sync::Arc;
 
 crate::define_service!(AuditLogService);
@@ -216,17 +218,33 @@ impl AuditLogService {
     pub fn record_async(self: Arc<Self>, event: AuditEvent, ctx: Option<AuditContext>) {
         let db = self.db.clone();
         tokio::spawn(async move {
-            let log = build_active_model(&event, ctx.as_ref());
-            match log.insert(db.as_ref()).await {
-                Ok(_) => {}
-                Err(e) => {
-                    tracing::error!(
-                        user_id = ?event.user_id,
-                        operation = event.operation_type.as_str(),
-                        error = %e,
-                        "异步审计日志落库失败"
-                    );
+            // 批次 8（2026-06-28）：一次性 spawn panic 隔离
+            let result = AssertUnwindSafe(async {
+                let log = build_active_model(&event, ctx.as_ref());
+                match log.insert(db.as_ref()).await {
+                    Ok(_) => {}
+                    Err(e) => {
+                        tracing::error!(
+                            user_id = ?event.user_id,
+                            operation = event.operation_type.as_str(),
+                            error = %e,
+                            "异步审计日志落库失败"
+                        );
+                    }
                 }
+            })
+            .catch_unwind()
+            .await;
+            if let Err(panic_payload) = result {
+                let panic_msg = panic_payload
+                    .downcast_ref::<String>()
+                    .map(|s| s.as_str())
+                    .or_else(|| panic_payload.downcast_ref::<&'static str>().copied())
+                    .unwrap_or("<非字符串 panic payload>");
+                tracing::error!(
+                    panic = %panic_msg,
+                    "⚠ 异步审计日志落库 spawn panic 已被隔离（单条日志丢失）"
+                );
             }
         });
     }

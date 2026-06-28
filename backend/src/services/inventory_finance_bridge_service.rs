@@ -2,8 +2,10 @@
 use crate::services::event_bus::{BusinessEvent, EVENT_BUS};
 use crate::services::voucher_service::{CreateVoucherRequest, VoucherItemRequest, VoucherService};
 use crate::utils::error::AppError;
+use futures::FutureExt;
 use rust_decimal::Decimal;
 use sea_orm::DatabaseConnection;
+use std::panic::AssertUnwindSafe;
 use std::sync::Arc;
 use tracing::{error, info};
 
@@ -60,6 +62,10 @@ impl InventoryFinanceBridgeService {
 
         tokio::spawn(async move {
             while let Ok(event) = receiver.recv().await {
+                // 批次 8（2026-06-28）：单次事件处理 panic 隔离
+                // 库存财务桥接监听器 panic 会导致库存交易不再生成会计凭证，
+                // 财务报表与库存数据不一致。
+                let result = AssertUnwindSafe(async {
                 if let BusinessEvent::InventoryTransactionCreated {
                     transaction_id,
                     transaction_type,
@@ -103,6 +109,20 @@ impl InventoryFinanceBridgeService {
                             transaction_id, e
                         );
                     }
+                }
+                })
+                .catch_unwind()
+                .await;
+                if let Err(panic_payload) = result {
+                    let panic_msg = panic_payload
+                        .downcast_ref::<String>()
+                        .map(|s| s.as_str())
+                        .or_else(|| panic_payload.downcast_ref::<&'static str>().copied())
+                        .unwrap_or("<非字符串 panic payload>");
+                    tracing::error!(
+                        panic = %panic_msg,
+                        "⚠ 库存财务桥接 spawn panic 已被隔离，继续运行（不退出循环）"
+                    );
                 }
             }
         });
