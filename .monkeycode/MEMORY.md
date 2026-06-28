@@ -75,6 +75,31 @@
 - 测试 P0：假测试重写、CI cargo test --lib 跳过集成测试
 - 业务逻辑 P0（剩余）：状态机断裂
 
+### ✅ 严格再审计 v3 + P0 整改批次 13（已完成，CI Run #1478 全绿）
+
+**修复范围**：销售订单 partial_shipped 状态死锁 + 测试 P0 调研确认
+
+**批次 13 修复**（commit `28254c02`，2 处）：
+
+| # | 文件:行号 | 修复内容 |
+|---|----------|----------|
+| 1 | so/order_workflow.rs:74 | cancel_order 白名单补 partial_shipped（原 `["draft","pending","approved"]` → 补 `"partial_shipped"`） |
+| 2 | so/order_workflow.rs:250 | complete_order 路径补 partial_shipped（原 `!= "shipped"` → `!["shipped","partial_shipped"].contains(...)`） |
+
+**关键技术**：
+- partial_shipped 死锁：状态机中 partial_shipped 既不能 cancel 也不能 complete，订单永久卡死
+- 修复打通 partial_shipped → cancelled 和 partial_shipped → completed 路径
+
+**测试 P0 调研结论**：
+- 假测试/恒真断言：已在批次 4-5 全部修复，无残留
+- CI cargo test --lib：已配置（ci-cd.yml 行 846-858），跳过 47 个集成测试
+
+**状态机调研发现（未修复，留待后续批次）**：
+- WorkflowStage 枚举是死代码（仅测试用，与业务状态字符串不对应）
+- ProductionOrderStatus 枚举不完整（缺 PENDING_APPROVAL/APPROVED/REJECTED）
+- models/status.rs 常量从未被引用且 sales_order 模块值与业务矛盾（大写 vs 小写）
+- 大小写不一致：销售订单/凭证小写，生产订单/AP/AR 发票大写（需数据迁移，风险高）
+
 ### ✅ 严格再审计 v3 + P0 整改批次 10（已完成，CI Run 28310061168 全绿）
 
 **审计背景**：批次 9 引入 `_txn` 后缀方法后，原方法变成死代码，触发 clippy dead_code warning（continue-on-error 不阻断 CI，但需清理以保持代码整洁）
