@@ -69,7 +69,9 @@ impl SalesService {
             .ok_or_else(|| AppError::not_found("订单不存在"))?;
 
         // 检查订单状态是否允许取消
-        if !["draft", "pending", "approved"].contains(&order.status.as_str()) {
+        // 批次 13（2026-06-28）：补 partial_shipped 状态，防止部分发货订单无法取消（死锁）。
+        // 已发货部分需通过退货流程处理，取消仅作用于剩余未发货部分。
+        if !["draft", "pending", "approved", "partial_shipped"].contains(&order.status.as_str()) {
             return Err(AppError::business("当前状态不允许取消".to_string()));
         }
 
@@ -245,7 +247,7 @@ impl SalesService {
             .await?
             .ok_or_else(|| AppError::not_found(format!("销售订单 {} 不存在", order_id)))?;
 
-        if order.status != "shipped" {
+        if !["shipped", "partial_shipped"].contains(&order.status.as_str()) {
             return Err(AppError::business(format!(
                 "订单状态为 {}，无法完成",
                 order.status
