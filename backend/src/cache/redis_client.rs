@@ -134,7 +134,7 @@ impl CacheStats {
 
 /// 业务缓存门面
 ///
-/// 提供租户隔离的键命名、JSON 序列化、TTL 控制与 graceful degradation。
+/// 提供命名空间隔离的键命名、JSON 序列化、TTL 控制与 graceful degradation。
 /// 任何 Redis 错误都会被吞掉并按 fallback 计入统计，调用方始终拿到 Option。
 pub struct CacheService {
     backend: Arc<dyn CacheBackend>,

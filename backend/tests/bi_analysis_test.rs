@@ -7,9 +7,9 @@
 mod tests {
     use bingxi_backend::services::bi_analysis_service::BiAnalysisService;
 
-    /// 单元测试：BI service 多租户隔离
+    /// 单元测试：BI service KPI 查询参数校验
     #[tokio::test]
-    async fn test_tenant_isolation_kpi() {
+    async fn test_kpi_summary_invalid_input() {
         assert!(BiAnalysisService::kpi_summary(0).await.is_err());
         assert!(BiAnalysisService::kpi_summary(-1).await.is_err());
         assert!(BiAnalysisService::kpi_summary(1).await.is_ok());

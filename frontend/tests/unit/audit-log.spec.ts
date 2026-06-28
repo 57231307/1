@@ -39,7 +39,6 @@ import AuditLogView from '@/views/system/audit-log/index.vue'
 const sampleLogs = [
   {
     id: 1,
-    tenant_id: 1,
     user_id: 7,
     username: 'alice',
     operation_type: 'LOGIN',
@@ -57,7 +56,6 @@ const sampleLogs = [
   },
   {
     id: 2,
-    tenant_id: 1,
     user_id: 8,
     username: 'bob',
     operation_type: 'UPDATE',

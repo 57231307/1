@@ -1,7 +1,6 @@
 -- 创建报表模板表
 CREATE TABLE IF NOT EXISTS report_templates (
     id SERIAL PRIMARY KEY,
-    tenant_id INTEGER NOT NULL DEFAULT 0,
     name VARCHAR(200) NOT NULL,
     code VARCHAR(100) NOT NULL,
     report_type VARCHAR(50) NOT NULL,
@@ -16,8 +15,7 @@ CREATE TABLE IF NOT EXISTS report_templates (
     created_by INTEGER NOT NULL DEFAULT 0,
     created_at TIMESTAMPTZ WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMPTZ WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    UNIQUE(tenant_id, code)
+    UNIQUE(code)
 );
 
-CREATE INDEX IF NOT EXISTS idx_report_templates_tenant ON report_templates(tenant_id);
 CREATE INDEX IF NOT EXISTS idx_report_templates_type ON report_templates(report_type);

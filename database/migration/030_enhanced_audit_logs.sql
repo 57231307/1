@@ -4,7 +4,6 @@
 -- 1. 资金操作详细日志表
 CREATE TABLE IF NOT EXISTS "financial_audit_logs" (
     "id" BIGSERIAL PRIMARY KEY,
-    "tenant_id" INTEGER NOT NULL DEFAULT 1,
     "trace_id" VARCHAR(100),
     "user_id" INTEGER,
     "username" VARCHAR(100),
@@ -42,7 +41,6 @@ CREATE TABLE IF NOT EXISTS "financial_audit_logs" (
 -- 2. 权限变更详细日志表
 CREATE TABLE IF NOT EXISTS "permission_audit_logs" (
     "id" BIGSERIAL PRIMARY KEY,
-    "tenant_id" INTEGER NOT NULL DEFAULT 1,
     "trace_id" VARCHAR(100),
     "operator_user_id" INTEGER NOT NULL,
     "operator_username" VARCHAR(100) NOT NULL,
@@ -65,7 +63,6 @@ CREATE TABLE IF NOT EXISTS "permission_audit_logs" (
 -- 3. 安全事件详细日志表
 CREATE TABLE IF NOT EXISTS "security_audit_logs" (
     "id" BIGSERIAL PRIMARY KEY,
-    "tenant_id" INTEGER NOT NULL DEFAULT 1,
     "trace_id" VARCHAR(100),
     "event" VARCHAR(50) NOT NULL,               -- LOGIN_SUCCESS, LOGIN_FAILURE, LOGOUT, PASSWORD_CHANGE
     "username" VARCHAR(100),
@@ -99,7 +96,6 @@ CREATE TABLE IF NOT EXISTS "security_audit_logs" (
 -- 4. 性能监控日志表
 CREATE TABLE IF NOT EXISTS "performance_logs" (
     "id" BIGSERIAL PRIMARY KEY,
-    "tenant_id" INTEGER NOT NULL DEFAULT 1,
     "trace_id" VARCHAR(100),
     "endpoint" VARCHAR(500) NOT NULL,
     "method" VARCHAR(10) NOT NULL,
@@ -129,7 +125,6 @@ CREATE TABLE IF NOT EXISTS "performance_logs" (
 -- 5. 系统健康日志表
 CREATE TABLE IF NOT EXISTS "system_health_logs" (
     "id" BIGSERIAL PRIMARY KEY,
-    "tenant_id" INTEGER NOT NULL DEFAULT 1,
     "cpu_usage_percent" DECIMAL(5,2),
     "memory_usage_percent" DECIMAL(5,2),
     "disk_usage_percent" DECIMAL(5,2),
@@ -160,7 +155,6 @@ CREATE TABLE IF NOT EXISTS "system_health_logs" (
 -- 6. 业务操作详细日志表
 CREATE TABLE IF NOT EXISTS "business_audit_logs" (
     "id" BIGSERIAL PRIMARY KEY,
-    "tenant_id" INTEGER NOT NULL DEFAULT 1,
     "trace_id" VARCHAR(100),
     "module" VARCHAR(100) NOT NULL,
     "operation" VARCHAR(100) NOT NULL,
@@ -183,36 +177,30 @@ CREATE TABLE IF NOT EXISTS "business_audit_logs" (
 );
 
 -- 创建索引
-CREATE INDEX IF NOT EXISTS idx_financial_audit_logs_tenant_id ON "financial_audit_logs"("tenant_id");
 CREATE INDEX IF NOT EXISTS idx_financial_audit_logs_user_id ON "financial_audit_logs"("user_id");
 CREATE INDEX IF NOT EXISTS idx_financial_audit_logs_operation ON "financial_audit_logs"("operation");
 CREATE INDEX IF NOT EXISTS idx_financial_audit_logs_financial_type ON "financial_audit_logs"("financial_type");
 CREATE INDEX IF NOT EXISTS idx_financial_audit_logs_financial_no ON "financial_audit_logs"("financial_no");
 CREATE INDEX IF NOT EXISTS idx_financial_audit_logs_created_at ON "financial_audit_logs"("created_at");
 
-CREATE INDEX IF NOT EXISTS idx_permission_audit_logs_tenant_id ON "permission_audit_logs"("tenant_id");
 CREATE INDEX IF NOT EXISTS idx_permission_audit_logs_operator_user_id ON "permission_audit_logs"("operator_user_id");
 CREATE INDEX IF NOT EXISTS idx_permission_audit_logs_target_user_id ON "permission_audit_logs"("target_user_id");
 CREATE INDEX IF NOT EXISTS idx_permission_audit_logs_operation ON "permission_audit_logs"("operation");
 CREATE INDEX IF NOT EXISTS idx_permission_audit_logs_created_at ON "permission_audit_logs"("created_at");
 
-CREATE INDEX IF NOT EXISTS idx_security_audit_logs_tenant_id ON "security_audit_logs"("tenant_id");
 CREATE INDEX IF NOT EXISTS idx_security_audit_logs_user_id ON "security_audit_logs"("user_id");
 CREATE INDEX IF NOT EXISTS idx_security_audit_logs_event ON "security_audit_logs"("event");
 CREATE INDEX IF NOT EXISTS idx_security_audit_logs_risk_level ON "security_audit_logs"("risk_level");
 CREATE INDEX IF NOT EXISTS idx_security_audit_logs_ip_address ON "security_audit_logs"("ip_address");
 CREATE INDEX IF NOT EXISTS idx_security_audit_logs_created_at ON "security_audit_logs"("created_at");
 
-CREATE INDEX IF NOT EXISTS idx_performance_logs_tenant_id ON "performance_logs"("tenant_id");
 CREATE INDEX IF NOT EXISTS idx_performance_logs_endpoint ON "performance_logs"("endpoint");
 CREATE INDEX IF NOT EXISTS idx_performance_logs_total_duration_ms ON "performance_logs"("total_duration_ms");
 CREATE INDEX IF NOT EXISTS idx_performance_logs_created_at ON "performance_logs"("created_at");
 
-CREATE INDEX IF NOT EXISTS idx_system_health_logs_tenant_id ON "system_health_logs"("tenant_id");
 CREATE INDEX IF NOT EXISTS idx_system_health_logs_db_status ON "system_health_logs"("db_status");
 CREATE INDEX IF NOT EXISTS idx_system_health_logs_created_at ON "system_health_logs"("created_at");
 
-CREATE INDEX IF NOT EXISTS idx_business_audit_logs_tenant_id ON "business_audit_logs"("tenant_id");
 CREATE INDEX IF NOT EXISTS idx_business_audit_logs_module ON "business_audit_logs"("module");
 CREATE INDEX IF NOT EXISTS idx_business_audit_logs_operation ON "business_audit_logs"("operation");
 CREATE INDEX IF NOT EXISTS idx_business_audit_logs_resource_type ON "business_audit_logs"("resource_type");

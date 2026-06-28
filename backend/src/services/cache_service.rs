@@ -7,7 +7,7 @@
 //!
 //! ## 关键设计
 //!
-//! - **多租户隔离**：key 必须以 `tenant:{id}:` 开头，避免跨租户数据串味
+//! - **命名空间隔离**：key 必须以 `module:` 开头，避免跨模块数据串味
 //! - **TTL 失效**：通过 `moka::future::Cache` 的 expire_after 实现
 //! - **容量上限**：默认 10000 条，超过 LRU 淘汰
 //! - **指标埋点**：`hit` / `miss` 计数
@@ -123,10 +123,10 @@ impl CacheService {
         self.inner.invalidate(key).await;
     }
 
-    /// 按前缀失效（多租户场景：失效某租户全部缓存）
+    /// 按前缀失效（按模块命名空间批量失效缓存）
     pub async fn invalidate_prefix(&self, prefix: &str) {
         // moka 不支持原生前缀失效，采用全量失效的近似
-        // 业务侧建议使用 `tenant:{id}:module:` 命名空间，失效时使用整租户清理
+        // 业务侧建议使用 `module:subsystem:` 命名空间，失效时按模块清理
         let _ = prefix;
         self.inner.invalidate_all();
     }

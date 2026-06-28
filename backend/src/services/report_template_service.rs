@@ -69,7 +69,7 @@ pub struct ReportTemplateService {
 }
 
 // P0-B 安全修复：DANGEROUS_KEYWORDS / SENSITIVE_TABLES 常量及配套检查方法
-// （check_dangerous_keywords / check_sensitive_tables / add_tenant_filter / log_sql_execution）
+// （check_dangerous_keywords / check_sensitive_tables / log_sql_execution）
 // 全部删除。execute_sql_report 走 SimpleQuery 协议，黑名单无法阻止分号切割攻击；
 // 统一在 create / update / execute 入口拒绝 data_source_sql，彻底关闭 SQL 注入攻击面。
 

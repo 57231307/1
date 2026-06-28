@@ -44,7 +44,6 @@ const sampleItems = [
     calls: 100,
     rows_examined: 50,
     database_name: 'bingxi_erp',
-    tenant_id: 1,
     captured_at: '2026-06-18T08:00:00Z',
   },
   {
@@ -54,7 +53,6 @@ const sampleItems = [
     calls: 25,
     rows_examined: 1000,
     database_name: 'bingxi_erp',
-    tenant_id: 1,
     captured_at: '2026-06-18T08:05:00Z',
   },
 ]

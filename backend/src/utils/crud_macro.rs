@@ -52,13 +52,13 @@ macro_rules! impl_generate_no {
 ///
 /// 要求目标 Service 实现以下方法：
 /// - `list(query) -> PaginatedResponse<T>`
-/// - `get(id) -> T`（如返回 Option，需使用 `define_tenant_crud_handlers!` 变体）
+/// - `get(id) -> T`（如返回 Option，需使用 `define_tuple_crud_handlers!` 变体）
 /// - `create(req) -> T`
 /// - `update(id, req) -> T`
 /// - `delete(id) -> ()`
 ///
-/// 另有 `define_tenant_crud_handlers!` 变体适用于返回元组 `(Vec<T>, u64)` 与
-/// `Option<T>` 的 Service（不再做租户隔离，仅保留接口形态差异）。
+/// 另有 `define_tuple_crud_handlers!` 变体适用于返回元组 `(Vec<T>, u64)` 与
+/// `Option<T>` 的 Service（接口形态差异：list 返回元组、get_by_id 返回 Option、create 注入 user_id）。
 #[macro_export]
 macro_rules! define_crud_handlers {
     (
@@ -163,7 +163,7 @@ macro_rules! define_crud_handlers {
 
 /// 返回元组与 Option 的 CRUD Handler 生成宏
 ///
-/// 与 `define_crud_handlers!` 的差异（仅接口形态不同，不再涉及租户隔离）：
+/// 与 `define_crud_handlers!` 的差异（仅接口形态不同）：
 /// - `list(query) -> (Vec<T>, u64)` 返回元组，由宏包装为 `{items, total}` 结构
 /// - `get_by_id(id) -> Option<T>` 返回 `Option<T>`，由宏转换为未找到错误
 /// - `create(user_id, req) -> T` 接收额外的 `user_id`（用于审计字段写入）
@@ -171,7 +171,7 @@ macro_rules! define_crud_handlers {
 ///
 /// 适用于 Service 返回元组与 Option 形态的业务对象（如报表订阅、邮件模板等）。
 #[macro_export]
-macro_rules! define_tenant_crud_handlers {
+macro_rules! define_tuple_crud_handlers {
     (
         $service_ty:ty,
         $create_req:ty,

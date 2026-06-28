@@ -188,8 +188,7 @@ pub async fn ws_notifications_handler(
 /// 简化的 JWT 验证（占位实现）
 ///
 /// 修复 bug.md #2 WebSocket 认证绕过：
-/// - 之前实现仅按 `tenant_id:user_id` 格式解析字符串，**未做任何签名验证**
-/// - 攻击者只需提交 `1:1` 等格式字符串即可冒充任意用户
+/// - 之前实现未做 JWT 签名验证，存在认证绕过风险
 /// - 当前实现复用 `AuthService::validate_token_static()` 进行真实 JWT 签名验证
 #[allow(dead_code)] // TODO(tech-debt): 集成测试直接调用，后续重构为 auth_service 公共方法后移除
 pub fn verify_jwt_token(token: &str) -> Result<AuthInfo, String> {

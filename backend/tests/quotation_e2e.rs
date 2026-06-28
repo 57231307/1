@@ -11,11 +11,8 @@
 //! 4. ✅ 单据号生成契约（`SO` 前缀 + `yyyyMMdd` + 4 位流水）
 //! 5. ✅ 金额计算公式（明细累加 → 小计/税额/总额）
 //! 6. ✅ DTO 字段映射（QuotationResponseDto From<Model> + 手动映射 items/terms）
-//! 7. ✅ 租户隔离：`extract_tenant_id` 缺失租户 ID 时返回未授权
-//! 8. ✅ Handler 端点存在性（路径注册 + 方法匹配）
+//! 7. ✅ Handler 端点存在性（路径注册 + 方法匹配）
 
-use bingxi_backend::middleware::auth_context::AuthContext;
-use bingxi_backend::middleware::tenant::extract_tenant_id;
 use bingxi_backend::models::quotation_create_dto::{
     CreateQuotationDto, CreateQuotationItemDto, CreateQuotationTermDto,
 };
@@ -371,61 +368,6 @@ fn test_quotation_response_dto_construction() {
     assert_eq!(dto.items.len(), 1);
     assert_eq!(dto.terms.len(), 1);
     assert_eq!(dto.subtotal, dec("5000.00"));
-}
-
-// ============================================================================
-// 测试 5：租户隔离
-// ============================================================================
-
-/// 租户隔离：缺失租户 ID 时返回未授权错误
-#[test]
-fn test_tenant_isolation_missing_tenant_id() {
-    let auth = AuthContext {
-        user_id: 1,
-        username: "tester".to_string(),
-        role_id: Some(1),
-        tenant_id: None,
-    };
-    let err = extract_tenant_id(&auth).expect_err("缺失租户应失败");
-    let msg = format!("{}", err);
-    assert!(
-        msg.contains("租户") || msg.contains("未授权"),
-        "错误消息应包含租户/未授权，实际：{}",
-        msg
-    );
-}
-
-/// 租户隔离：有效租户 ID 可提取
-#[test]
-fn test_tenant_isolation_valid_tenant() {
-    let auth = AuthContext {
-        user_id: 1,
-        username: "tester".to_string(),
-        role_id: Some(1),
-        tenant_id: Some(42),
-    };
-    let tid = extract_tenant_id(&auth).expect("租户 ID 应存在");
-    assert_eq!(tid, 42);
-}
-
-/// 租户隔离：不同租户使用不同 ID
-#[test]
-fn test_tenant_isolation_distinct_tenants() {
-    let tenant_a = AuthContext {
-        user_id: 1,
-        username: "user_a".to_string(),
-        role_id: Some(1),
-        tenant_id: Some(100),
-    };
-    let tenant_b = AuthContext {
-        user_id: 2,
-        username: "user_b".to_string(),
-        role_id: Some(2),
-        tenant_id: Some(200),
-    };
-    let tid_a = extract_tenant_id(&tenant_a).unwrap();
-    let tid_b = extract_tenant_id(&tenant_b).unwrap();
-    assert_ne!(tid_a, tid_b, "不同租户的 ID 必须不同");
 }
 
 // ============================================================================

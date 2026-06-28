@@ -137,7 +137,7 @@ pub mod ai;
 pub mod report;
 // P2-4 AI 分析深化（工艺优化 + 质量预测）持久化
 pub mod ai_extend_service;
-// 多租户SaaS模块
+// 扩展能力模块
 pub mod api_key_service;
 pub mod webhook_service;
 // 消息通知模块

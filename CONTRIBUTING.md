@@ -288,7 +288,6 @@ pub async fn get_inventory(id: i64) -> Result<InventoryItem, InventoryError> {
 - 严禁 `unwrap()` / `expect()` 在生产代码中使用
 - 业务错误返回用户可读消息
 - 系统错误记录详细日志 + 返回通用消息
-- 严禁使用 `auth.tenant_id.unwrap_or(0)`，必须使用 `extract_tenant_id(&auth)?`
 
 ### TypeScript / Vue 前端
 
@@ -374,7 +373,7 @@ BEGIN;
 COMMENT ON TABLE inventory IS '库存表';
 
 -- 添加索引（使用 CONCURRENTLY 在线创建）
-CREATE INDEX CONCURRENTLY idx_inventory_tenant_id ON inventory(tenant_id);
+CREATE INDEX CONCURRENTLY idx_inventory_warehouse_product ON inventory(warehouse_id, product_id);
 
 COMMIT;
 ```
@@ -387,7 +386,7 @@ COMMIT;
 | 列 | snake_case | `total_amount` |
 | 主键 | `id` | `id BIGSERIAL PRIMARY KEY` |
 | 外键 | `<table>_id` | `user_id` |
-| 索引 | `idx_<table>_<col>` | `idx_inventory_tenant_id` |
+| 索引 | `idx_<table>_<col>` | `idx_inventory_warehouse` |
 | 唯一索引 | `uniq_<table>_<col>` | `uniq_users_email` |
 | 时间戳 | `<verb>_at` | `created_at` / `updated_at` / `deleted_at` |
 | 布尔 | `is_<adj>` 或 `has_<noun>` | `is_active` / `has_children` |
@@ -702,7 +701,6 @@ PR 创建后会自动运行：
 
 - [ ] 输入验证
 - [ ] 权限检查
-- [ ] 多租户隔离
 - [ ] SQL 注入防护
 - [ ] XSS 防护
 - [ ] 敏感信息保护

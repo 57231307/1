@@ -92,7 +92,7 @@ pub mod logistics_handler;
 pub mod mrp_handler;
 pub mod piece_split_handler;
 pub mod production_order_handler;
-// 多租户SaaS模块
+// 扩展能力模块
 pub mod api_gateway_handler;
 pub mod api_key_handler;
 pub mod webhook_handler;

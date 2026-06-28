@@ -77,7 +77,6 @@ END $$;
 -- 5. 确保 omni_audit_logs 表存在
 CREATE TABLE IF NOT EXISTS "omni_audit_logs" (
     "id" SERIAL PRIMARY KEY,
-    "tenant_id" INTEGER NOT NULL DEFAULT 1,
     "user_id" INTEGER,
     "username" VARCHAR(100),
     "module" VARCHAR(100) NOT NULL,
@@ -99,7 +98,6 @@ CREATE TABLE IF NOT EXISTS "omni_audit_logs" (
 );
 
 -- 创建索引
-CREATE INDEX IF NOT EXISTS idx_omni_audit_logs_tenant_id ON "omni_audit_logs"("tenant_id");
 CREATE INDEX IF NOT EXISTS idx_omni_audit_logs_user_id ON "omni_audit_logs"("user_id");
 CREATE INDEX IF NOT EXISTS idx_omni_audit_logs_module ON "omni_audit_logs"("module");
 CREATE INDEX IF NOT EXISTS idx_omni_audit_logs_action ON "omni_audit_logs"("action");

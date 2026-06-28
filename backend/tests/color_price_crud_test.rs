@@ -1,6 +1,6 @@
 //! P0-5 面料多色号定价扩展 - 集成测试
 //!
-//! 测试色号价格 CRUD、列表、详情、更新、软删除、多租户隔离
+//! 测试色号价格 CRUD、列表、详情、更新、软删除
 //! 关联 spec: docs/superpowers/specs/2026-06-16-color-price-extension-design.md
 //!
 //! BE-D/TS-T 修复（2026-06-26 第三/五优先级）：
@@ -95,16 +95,6 @@ mod crud_tests {
         match &active.is_active {
             sea_orm::ActiveValue::Set(v) => assert!(!*v), // clippy: 用 assert!(!...) 替代 assert_eq!(*v, false)
             _ => panic!("软删除应设置 is_active = Set(false)"),
-        }
-    }
-
-    /// 测试 5: 多租户隔离语义验证（tenant_id 必须为正数）
-    #[test]
-    fn test_tenant_isolation_semantics() {
-        // 多租户：所有查询必须带 tenant_id > 0
-        let tenant_ids: Vec<i64> = vec![1, 999, 10000];
-        for tenant_id in tenant_ids {
-            assert!(tenant_id > 0, "tenant_id 必须为正数，当前: {}", tenant_id);
         }
     }
 }
