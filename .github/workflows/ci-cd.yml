@@ -1117,11 +1117,19 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: ${{ env.NODE_VERSION }}
-          cache: 'pnpm'
-          cache-dependency-path: frontend/pnpm-lock.yaml
 
       - name: 安装 pnpm
         run: npm install -g pnpm@9
+
+      - name: 缓存 pnpm store
+        uses: actions/cache@v5
+        with:
+          path: |
+            frontend/node_modules
+            ~/.local/share/pnpm/store
+          key: e2e-pnpm-${{ hashFiles('frontend/pnpm-lock.yaml') }}
+          restore-keys: |
+            e2e-pnpm-
 
       - name: 安装依赖
         working-directory: frontend

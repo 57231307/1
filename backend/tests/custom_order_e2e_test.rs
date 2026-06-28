@@ -26,7 +26,7 @@ mod tests {
 
         for exp in expected {
             let next = next_status(current).expect("状态转换应成功");
-            assert_eq!(next.as_str(), *exp, "状态应推进到 {}", exp);
+            assert_eq!(next.as_str(), exp, "状态应推进到 {}", exp);
             current = next.as_str();
         }
     }
