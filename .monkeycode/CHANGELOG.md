@@ -18,13 +18,26 @@
 - 修改 117 个文件：middleware（AuthContext/AppClaims/JWT）+ model（37 文件 tenant_id 字段 + 6 文件 Relation）+ handler（86 处 extract_tenant_id 调用）+ service（66 处过滤 + 35 处写入）+ WebSocket + CRUD 宏 + 基础设施层（observability/telemetry/cache/messaging/search/business_metrics）
 - 变更统计：629 insertions / 3143 deletions
 
-**前端删除**（commit `735231b8`，CI run 28324540311）：
+**前端删除**（commit `735231b8`，CI run 28324586489 全绿）：
 - 删除 6 个文件（5 视图 + tenant-billing.ts API）
 - 修改 16 个文件：router + MainLayout + advanced/system views + i18n + API 类型字段 + websocket JSDoc
 - 变更统计：2 insertions / 1170 deletions
 
+**残留彻底清理**（commit `c932ac6a`，CI run 28325510600 全绿 14/15 + Clippy continue-on-error）：
+- 35 文件变更（47 insertions / 11924 deletions）
+- 宏重命名：`define_tenant_crud_handlers!` → `define_tuple_crud_handlers!`（消除误导性命名，实际差异是返回元组而非租户隔离）
+- 源码注释清理：mod.rs × 3 / cache_service / redis_client / websocket / report_template_service
+- 测试文件清理：bi_analysis_test / websocket_test / quotation_e2e / color_price_crud_test / color_card_crud_test / audit-log.spec / slow-query.spec
+- SQL 脚本清理：022_fix_missing_tables（3 表 tenant_id 列 + 3 索引 + INSERT）+ 007/024/026/030
+- 文档清理：README.md / CONTRIBUTING.md / project_rules.md / e2e README × 2 / LICENSE
+- 临时文件清理：.tmp_scans/ 5 个文件 + migration_improvements.sql + 006_tenant_saas.sql
+- **验证**：全局 grep 确认所有非迁移代码 100% 无 tenant 残留（历史迁移文件由 m0029 负责清理）
+
 **项目规则变更**：
 - MEMORY.md 第 8 条"租户隔离"规则已标记删除
+- project_rules.md "四.1 租户隔离"规则段已删除
+- CONTRIBUTING.md 租户隔离规则 + 索引示例 + 代码审查清单已删除
+- LICENSE "多租户管理功能"条款已删除
 - `extract_tenant_id` 函数、`AuthContext.tenant_id`、`AppClaims.tenant_id` 均已移除
 - 项目不再支持多租户
 

@@ -5,11 +5,11 @@
 
 ### 2026-06-28 完整删除租户功能 + v4 审计整改（进行中）
 
-**状态**：🔧 租户功能删除完成（后端 + 前端 + 文档），待 CI 全绿后继续 v4 审计整改
+**状态**：✅ 租户功能彻底删除完成（后端 + 前端 + 文档 + 残留清理），CI 全绿，待继续 v4 审计整改
 **当前任务**：完整删除租户功能（用户指令"完整删除租户功能及相关文件和代码"）
-**main 当前 HEAD**：`735231b8`（前端租户删除，CI run 28324540311 进行中）
+**main 当前 HEAD**：`c932ac6a`（残留清理完成，CI run 28325510600 全绿 14/15 + Clippy continue-on-error）
 
-#### 租户功能删除（✅ 后端 + 前端已完成）
+#### 租户功能删除（✅ 后端 + 前端 + 残留清理 全部完成）
 
 **数据库迁移**（m0029_drop_tenant_columns）：
 - DROP 51 个 tenant_id 索引 + DROP COLUMN tenant_id（35 张业务表）+ DROP TABLE（7 张租户管理表）
@@ -19,12 +19,25 @@
 - AuthContext.tenant_id / AppClaims.tenant_id / extract_tenant_id / 86 处调用 / 66 处过滤 / 35 处写入 全部删除
 - middleware/tenant.rs / 7 个 tenant_*.rs model / 3 个 handler / 2 个 service / 1 个 routes 全部删除
 
-**前端清理**（commit `735231b8`，CI run 28324540311 进行中）：
+**前端清理**（commit `735231b8`，CI run 28324586489 ✅ 全绿）：
 - 删除 6 文件 + 修改 16 文件（2 insertions / 1170 deletions）
 - 5 个视图 + tenant-billing.ts API + 路由 + 菜单 + i18n + API 类型字段 全部删除
 
+**残留彻底清理**（commit `c932ac6a`，CI run 28325510600 ✅ 14/15 + Clippy continue-on-error）：
+- 35 文件变更（47 insertions / 11924 deletions）
+- 宏重命名：`define_tenant_crud_handlers!` → `define_tuple_crud_handlers!`（+ 2 调用方更新）
+- 源码注释清理：mod.rs × 3 / cache_service / redis_client / websocket / report_template_service
+- 测试文件清理：bi_analysis_test / websocket_test / quotation_e2e / color_price_crud_test / color_card_crud_test / audit-log.spec / slow-query.spec
+- SQL 脚本清理：022_fix_missing_tables（3 表 tenant_id 列 + 3 索引 + INSERT）+ 007/024/026/030
+- 文档清理：README.md / CONTRIBUTING.md / project_rules.md / e2e README × 2 / LICENSE
+- 临时文件清理：.tmp_scans/ 5 个文件 + migration_improvements.sql + 006_tenant_saas.sql
+- **验证**：全局 grep 确认所有非迁移代码 100% 无 tenant 残留（历史迁移文件由 m0029 负责清理）
+
 **项目规则变更**：
 - MEMORY.md 第 8 条"租户隔离"规则已标记删除
+- project_rules.md "四.1 租户隔离"规则段已删除
+- CONTRIBUTING.md 租户隔离规则 + 索引示例 + 代码审查清单已删除
+- LICENSE "多租户管理功能"条款已删除
 - 项目不再支持多租户
 
 #### v4 审计报告（已完成，待整改）
