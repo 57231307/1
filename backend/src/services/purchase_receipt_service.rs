@@ -319,9 +319,15 @@ impl PurchaseReceiptService {
         req: CreateReceiptItemRequest,
         user_id: i32,
     ) -> Result<purchase_receipt_item::Model, AppError> {
-        // 1. 查询入库单
+        // 批次 19（2026-06-28）：补全事务边界，明细写与总金额重算原子化。
+        // 原实现明细 insert 与 calculate_receipt_total 非原子，且均用 &*self.db 无锁，
+        // 并发 add_receipt_item 会导致总金额丢失更新。
+        let txn = (*self.db).begin().await?;
+
+        // 1. 查询入库单（加 lock_exclusive 串行化并发明细操作）
         let receipt = purchase_receipt::Entity::find_by_id(receipt_id)
-            .one(&*self.db)
+            .lock_exclusive()
+            .one(&txn)
             .await?
             .ok_or_else(|| AppError::not_found(format!("采购入库单 {}", receipt_id)))?;
 
@@ -353,11 +359,13 @@ impl PurchaseReceiptService {
             notes: Set(req.notes),
             ..Default::default()
         }
-        .insert(&*self.db)
+        .insert(&txn)
         .await?;
 
-        // 5. 更新入库单总金额
-        self.calculate_receipt_total(receipt_id).await?;
+        // 5. 更新入库单总金额（事务内调用 _txn 变体，保证明细写与重算原子性）
+        self.calculate_receipt_total_txn(receipt_id, &txn).await?;
+
+        txn.commit().await?;
 
         Ok(item)
     }
@@ -466,12 +474,21 @@ impl PurchaseReceiptService {
         Ok(())
     }
 
-    /// 计算入库单总金额
-    pub async fn calculate_receipt_total(&self, receipt_id: i32) -> Result<(), AppError> {
+    /// 计算入库单总金额（事务版本）
+    ///
+    /// 批次 19（2026-06-28）：新增 _txn 变体，接受外部事务参数，
+    /// 供已有事务的调用方使用，保证明细写与总金额重算原子性。
+    /// 内部 3 处 DB 句柄全部使用 txn，主表查询加 lock_exclusive 串行化并发重算，
+    /// 防止两个并发重算基于过期明细快照导致丢失更新。
+    pub async fn calculate_receipt_total_txn(
+        &self,
+        receipt_id: i32,
+        txn: &sea_orm::DatabaseTransaction,
+    ) -> Result<(), AppError> {
         // 1. 查询所有明细
         let items = purchase_receipt_item::Entity::find()
             .filter(purchase_receipt_item::Column::ReceiptId.eq(receipt_id))
-            .all(&*self.db)
+            .all(txn)
             .await?;
 
         // 2. 计算总和
@@ -485,9 +502,10 @@ impl PurchaseReceiptService {
             total_amount += item.amount.unwrap_or_default();
         }
 
-        // 3. 更新入库单
+        // 3. 更新入库单（加 lock_exclusive 串行化并发重算，防止丢失更新）
         let receipt = purchase_receipt::Entity::find_by_id(receipt_id)
-            .one(&*self.db)
+            .lock_exclusive()
+            .one(txn)
             .await?
             .ok_or_else(|| AppError::not_found(format!("采购入库单 {}", receipt_id)))?;
 
@@ -497,13 +515,24 @@ impl PurchaseReceiptService {
         receipt_active.total_amount = Set(total_amount);
         receipt_active.updated_at = Set(chrono::Utc::now());
         crate::services::audit_log_service::AuditLogService::update_with_audit(
-            &*self.db,
+            txn,
             "auto_audit",
             receipt_active,
             Some(0),
         )
         .await?;
 
+        Ok(())
+    }
+
+    /// 计算入库单总金额（便捷入口，内部自建事务）
+    ///
+    /// 批次 19（2026-06-28）：改为便捷入口，内部 begin + 调 _txn + commit。
+    /// 已在事务内的调用方应直接调用 calculate_receipt_total_txn 以复用事务。
+    pub async fn calculate_receipt_total(&self, receipt_id: i32) -> Result<(), AppError> {
+        let txn = (*self.db).begin().await?;
+        self.calculate_receipt_total_txn(receipt_id, &txn).await?;
+        txn.commit().await?;
         Ok(())
     }
 
