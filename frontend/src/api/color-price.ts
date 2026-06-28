@@ -243,7 +243,8 @@ export interface PagedResponse<T> {
 // 16 个 API 端点
 // ----------------------------------------------------------------------
 
-const BASE_URL = '/api/v1/erp/color-prices'
+// 端点路径相对于 baseURL（/api/v1/erp），不要重复添加前缀，否则会产生双重前缀
+const BASE_URL = '/color-prices'
 
 // 1. 列表
 export function listColorPrices(params: ListColorPricesQuery) {

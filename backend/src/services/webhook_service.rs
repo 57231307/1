@@ -5,6 +5,12 @@ use chrono::Utc;
 use sea_orm::*;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
+use tracing::error;
+
+/// Webhook 最大重试次数上限
+/// 超过该阈值后不再递增 retry_count，并将 last_error 置为失败原因，
+/// 防止计数器无上限增长导致 DB 字段溢出或被攻击者利用放大重试流量。
+const MAX_RETRY_COUNT: i32 = 5;
 
 /// Webhook负载
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -154,14 +160,25 @@ impl WebhookService {
             }
             Err(_) => {
                 final_model.last_status = Set(Some("ERROR".to_string()));
-                // 获取当前retry_count值并递增
+                // 获取当前 retry_count 值并判断是否已达上限
                 let current_count: i32 =
                     if let sea_orm::ActiveValue::Set(v) = &final_model.retry_count {
                         *v
                     } else {
                         0
                     };
-                final_model.retry_count = Set(current_count + 1);
+                // 重试上限保护：超过 MAX_RETRY_COUNT 后停止递增并标记永久失败，
+                // 防止 retry_count 无上限增长导致 DB 字段溢出或被攻击者放大重试流量
+                if current_count >= MAX_RETRY_COUNT {
+                    error!(
+                        current_count,
+                        max = MAX_RETRY_COUNT,
+                        "Webhook 已达最大重试次数上限，标记为永久失败"
+                    );
+                    final_model.last_status = Set(Some("FAILED_PERMANENT".to_string()));
+                } else {
+                    final_model.retry_count = Set(current_count + 1);
+                }
             }
         }
         final_model.update(self.db.as_ref()).await?;

@@ -1,4 +1,4 @@
-use sea_orm::{ActiveModelTrait, DatabaseConnection, EntityTrait, Set, TransactionTrait};
+use sea_orm::{ActiveModelTrait, DatabaseConnection, EntityTrait, QuerySelect, Set, TransactionTrait};
 use std::sync::Arc;
 
 use crate::models::ar_collection;
@@ -72,7 +72,9 @@ impl ArCollectionService {
 
         // 关联发票：更新发票的已收金额和未收金额
         if let Some(inv_id) = invoice_id {
+            // 加 lock_exclusive 串行化并发收款，防止 paid_amount 丢失更新
             let invoice = ar_invoice::Entity::find_by_id(inv_id)
+                .lock_exclusive()
                 .one(&txn)
                 .await?
                 .ok_or_else(|| AppError::not_found(format!("应收单 {} 不存在", inv_id)))?;

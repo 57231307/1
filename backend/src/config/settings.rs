@@ -255,6 +255,16 @@ impl AppSettings {
             }
         }
 
+        // v5 审计批次 21：WEBHOOK_SECRET 也走 validate_secret 校验
+        // 原仅校验 JWT/Cookie，WEBHOOK_SECRET 缺失校验导致弱密钥可绕过。
+        if let Some(webhook_secret) = &app_settings.auth.webhook_secret {
+            if !Self::validate_secret(webhook_secret) {
+                return Err(ConfigError::Message(
+                    "致命错误：WEBHOOK_SECRET 密钥强度不足或使用默认/弱模式密钥！生产环境必须提供至少 32 字节的安全随机密钥，且不能包含常见弱模式。".to_string(),
+                ));
+            }
+        }
+
         let env = app_settings.env.to_lowercase();
         if env == "production" && app_settings.auth.cookie_secret.is_none() {
             return Err(ConfigError::Message(
@@ -315,10 +325,19 @@ impl AppSettings {
             self.auth.previous_jwt_secret = Some(prev_secret);
         }
 
+        // v5 审计批次 21：WEBHOOK_SECRET 从环境变量加载（原仅靠 config.yaml，
+        // 部署场景下 webhook_secret 缺失会静默走 inherit_jwt_secret 兜底）
+        if let Ok(webhook_secret) = std::env::var("WEBHOOK_SECRET") {
+            self.auth.webhook_secret = Some(webhook_secret);
+        }
+
+        // v5 审计批次 21：AUDIT_SECRET_KEY 走 validate_secret 校验
+        // 原仅做长度校验（< 32 字节），无法拦截 placeholder/change-me 等弱模式密钥。
+        // 改用 validate_secret 后，与 JWT_SECRET / COOKIE_SECRET 共享同一套强度校验。
         if let Ok(audit_secret) = std::env::var("AUDIT_SECRET_KEY") {
-            if audit_secret.len() < 32 {
+            if !Self::validate_secret(&audit_secret) {
                 return Err(ConfigError::Message(
-                    "AUDIT_SECRET_KEY 必须至少 32 字节".to_string(),
+                    "致命错误：AUDIT_SECRET_KEY 密钥强度不足或使用默认/弱模式密钥！生产环境必须提供至少 32 字节的安全随机密钥，且不能包含常见弱模式。".to_string(),
                 ));
             }
         }
@@ -356,14 +375,30 @@ impl AppSettings {
             return false;
         }
 
+        // 弱密钥黑名单：覆盖常见占位符、文档示例、默认密钥模式
+        // v5 审计批次 21 扩展：新增 your_/your_jwt_secret/your_cookie_secret 等
+        // 占位符前缀，以及 placeholder/change-me/at-least-32 等文档示例片段，
+        // 防止 .env.example 或文档示例被原样复制到生产环境。
+        // 该黑名单适用于 JWT_SECRET / COOKIE_SECRET / WEBHOOK_SECRET / AUDIT_SECRET_KEY。
         let weak_patterns = [
             "change-in-production",
             "change-this",
+            "change-me",
             "local-dev",
             "your_secure",
+            "your_jwt_secret",
+            "your_cookie_secret",
+            "your_webhook_secret",
+            "your_audit_secret",
+            "your_",
             "default",
             "test",
             "example",
+            "placeholder",
+            "at-least-32",
+            "32-chars-long",
+            "32-bytes-long",
+            "secure-secret-in-production",
         ];
 
         let secret_lower = secret.to_lowercase();

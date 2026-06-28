@@ -1,14 +1,40 @@
 #!/bin/bash
 # 秉羲 ERP 远程部署/更新脚本
 # 用途：从开发机远程部署到服务器
+#
+# ==============================================================================
+# 安全提示（批次 21 修复）：推荐使用 SSH 密钥认证替代密码登录
+# ==============================================================================
+# 密码登录（sshpass）存在以下风险：
+#   1. 密码以明文形式通过环境变量传递，可能被 /proc/<pid>/environ 读取
+#   2. StrictHostKeyChecking=no 完全禁用主机密钥校验，易受中间人攻击
+#
+# SSH 密钥认证配置步骤：
+#   1. 生成密钥对：ssh-keygen -t ed25519 -C "deploy@bingxi"
+#   2. 上传公钥：ssh-copy-id -i ~/.ssh/deploy_ed25519.pub $SSH_USER@$SERVER_IP
+#   3. 设置环境变量 BINGXI_SSH_KEY=~/.ssh/deploy_ed25519
+#   4. 移除 BINGXI_SSH_PASS 环境变量（彻底弃用密码认证）
+#
+# 认证方式优先级：BINGXI_SSH_KEY（密钥，推荐）> BINGXI_SSH_PASS（密码，过渡回退）
+# ==============================================================================
 
 set -e
 
 SERVER_IP="${BINGXI_SERVER_IP:-111.230.99.236}"
 SSH_USER="${BINGXI_SSH_USER:-root}"
-SSH_PASS="${BINGXI_SSH_PASS}"
-if [ -z "$SSH_PASS" ]; then
-    echo "错误：请设置 BINGXI_SSH_PASS 环境变量"
+# 认证方式：优先使用 SSH 密钥（BINGXI_SSH_KEY），密码（BINGXI_SSH_PASS）作为过渡回退
+SSH_KEY="${BINGXI_SSH_KEY:-}"
+SSH_PASS="${BINGXI_SSH_PASS:-}"
+
+# 认证方式选择：密钥优先，密码回退
+if [[ -n "$SSH_KEY" ]]; then
+    SSH_AUTH_MODE="key"
+elif [[ -n "$SSH_PASS" ]]; then
+    # 密码认证回退（不推荐，仅用于过渡）
+    SSH_AUTH_MODE="password"
+    echo "警告：使用密码认证，建议尽快迁移到 SSH 密钥认证（设置 BINGXI_SSH_KEY 环境变量）" >&2
+else
+    echo "错误：请设置 BINGXI_SSH_KEY（推荐，SSH 密钥认证）或 BINGXI_SSH_PASS（密码，过渡回退）环境变量" >&2
     exit 1
 fi
 REPO="57231307/1"
@@ -32,16 +58,25 @@ log() { echo -e "${GREEN}[$(date '+%H:%M:%S')]${NC} $1"; }
 warn() { echo -e "${YELLOW}[$(date '+%H:%M:%S')]${NC} $1"; }
 error() { echo -e "${RED}[$(date '+%H:%M:%S')]${NC} $1"; exit 1; }
 
-# 检查依赖
+# 检查依赖（密钥认证无需 sshpass，密码认证才需要）
 check_deps() {
-    if ! command -v sshpass &>/dev/null; then
-        error "未安装 sshpass，请运行: apt-get install -y sshpass"
+    if [[ "$SSH_AUTH_MODE" == "password" ]]; then
+        if ! command -v sshpass &>/dev/null; then
+            error "未安装 sshpass，请运行: apt-get install -y sshpass，或改用 SSH 密钥认证（设置 BINGXI_SSH_KEY）"
+        fi
     fi
 }
 
-# SSH 命令封装
+# SSH 命令封装（密钥认证优先，密码认证回退）
+# StrictHostKeyChecking=accept-new：首次连接自动接受主机密钥，后续校验防止中间人攻击
 remote_exec() {
-    sshpass -p "$SSH_PASS" ssh -o StrictHostKeyChecking=no -o ConnectTimeout=10 "$SSH_USER@$SERVER_IP" "$1"
+    if [[ "$SSH_AUTH_MODE" == "key" ]]; then
+        # 使用 SSH 密钥认证（推荐）
+        ssh -i "$SSH_KEY" -o StrictHostKeyChecking=accept-new -o ConnectTimeout=10 "$SSH_USER@$SERVER_IP" "$1"
+    else
+        # 密码认证回退（不推荐，仅用于过渡）
+        sshpass -p "$SSH_PASS" ssh -o StrictHostKeyChecking=accept-new -o ConnectTimeout=10 "$SSH_USER@$SERVER_IP" "$1"
+    fi
 }
 
 # 获取最新版本
@@ -65,7 +100,7 @@ download_release() {
         local full_url="${MIRROR}${download_url}"
         log "尝试: ${full_url:0:80}..."
 
-        local result=$(sshpass -p "$SSH_PASS" ssh -o StrictHostKeyChecking=no "$SSH_USER@$SERVER_IP" "
+        local result=$(remote_exec "
             curl --http1.1 --ipv4 -L -C - --retry 3 --retry-delay 2 --connect-timeout 8 --max-time 1800 -o /tmp/bingxi-erp-latest.zip '$full_url' 2>&1 && echo 'SUCCESS' || echo 'FAILED'
         " 2>&1)
 

@@ -6,7 +6,8 @@ use axum::{
     extract::{Path, State},
     Json,
 };
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
+use validator::Validate;
 
 #[derive(Debug, Serialize)]
 pub struct InvoiceResponse {
@@ -29,6 +30,37 @@ pub struct InvoiceResponse {
 pub struct InvoiceListResponse {
     pub invoices: Vec<InvoiceResponse>,
     pub total: u64,
+}
+
+/// 创建发票请求 DTO
+/// 用于强类型校验 create_finance_invoice 的入参，
+/// 替代原先无类型校验的 serde_json::Value。
+#[derive(Debug, Deserialize, Validate)]
+pub struct CreateFinanceInvoiceDto {
+    /// 发票号：必填，长度至少 1
+    #[validate(length(min = 1, message = "发票号不能为空"))]
+    pub invoice_no: String,
+    /// 发票金额：必填，必须为非负数
+    #[validate(range(min = 0.0, message = "发票金额不能为负"))]
+    pub amount: f64,
+    /// 税额：必填，必须为非负数
+    #[validate(range(min = 0.0, message = "税额不能为负"))]
+    pub tax_amount: f64,
+    /// 价税合计：必填，必须为非负数
+    #[validate(range(min = 0.0, message = "价税合计不能为负"))]
+    pub total_amount: f64,
+}
+
+/// 更新发票请求 DTO
+/// 用于强类型校验 update_finance_invoice 的入参。
+/// 字段全部可选，仅更新提交的字段。
+#[derive(Debug, Deserialize, Serialize, Validate)]
+pub struct UpdateFinanceInvoiceDto {
+    /// 发票状态：可选；若提供则长度至少 1
+    #[validate(length(min = 1, message = "状态不能为空"))]
+    pub status: Option<String>,
+    /// 备注：可选
+    pub notes: Option<String>,
 }
 
 pub async fn list_finance_invoices(
@@ -97,33 +129,23 @@ pub async fn get_finance_invoice(
 
 pub async fn create_finance_invoice(
     State(state): State<AppState>,
-    Json(payload): Json<serde_json::Value>,
+    Json(payload): Json<CreateFinanceInvoiceDto>,
 ) -> Result<Json<ApiResponse<InvoiceResponse>>, AppError> {
+    // 强类型校验：替代原先无校验的 serde_json::Value
+    payload
+        .validate()
+        .map_err(|e| AppError::validation(e.to_string()))?;
+
     let service = FinanceInvoiceService::new(state.db.clone());
 
-    let invoice_no = payload
-        .get("invoice_no")
-        .and_then(|v| v.as_str())
-        .unwrap_or("")
-        .to_string();
-
-    let amount = payload
-        .get("amount")
-        .and_then(|v| v.as_f64())
-        .map(|f| rust_decimal::Decimal::from_f64_retain(f).unwrap_or_default())
-        .unwrap_or_default();
-
-    let tax_amount = payload
-        .get("tax_amount")
-        .and_then(|v| v.as_f64())
-        .map(|f| rust_decimal::Decimal::from_f64_retain(f).unwrap_or_default())
-        .unwrap_or_default();
-
-    let total_amount = payload
-        .get("total_amount")
-        .and_then(|v| v.as_f64())
-        .map(|f| rust_decimal::Decimal::from_f64_retain(f).unwrap_or_default())
-        .unwrap_or_default();
+    // 从 DTO 字段取值（替代原先的 payload.get(...).as_f64()）
+    let invoice_no = payload.invoice_no;
+    let amount =
+        rust_decimal::Decimal::from_f64_retain(payload.amount).unwrap_or_default();
+    let tax_amount =
+        rust_decimal::Decimal::from_f64_retain(payload.tax_amount).unwrap_or_default();
+    let total_amount =
+        rust_decimal::Decimal::from_f64_retain(payload.total_amount).unwrap_or_default();
 
     let invoice = service
         .create_invoice(invoice_no, amount, tax_amount, total_amount)
@@ -150,11 +172,21 @@ pub async fn create_finance_invoice(
 pub async fn update_finance_invoice(
     State(state): State<AppState>,
     Path(id): Path<i32>,
-    Json(payload): Json<serde_json::Value>,
+    Json(payload): Json<UpdateFinanceInvoiceDto>,
 ) -> Result<Json<ApiResponse<InvoiceResponse>>, AppError> {
+    // 强类型校验：替代原先无校验的 serde_json::Value
+    payload
+        .validate()
+        .map_err(|e| AppError::validation(e.to_string()))?;
+
     let service = FinanceInvoiceService::new(state.db.clone());
 
-    match service.update_invoice(id, payload).await {
+    // service.update_invoice 仍接收 serde_json::Value，
+    // 将强类型 DTO 序列化为 Value 传入以保持服务层签名兼容。
+    let payload_value = serde_json::to_value(&payload)
+        .map_err(|e| AppError::internal(format!("DTO 序列化失败：{}", e)))?;
+
+    match service.update_invoice(id, payload_value).await {
         Ok(Some(invoice)) => Ok(Json(ApiResponse::success(InvoiceResponse {
             id: invoice.id,
             invoice_no: invoice.invoice_no,

@@ -153,6 +153,11 @@ impl FundManagementService {
         user_id: i32,
         _remark: Option<String>,
     ) -> Result<(), AppError> {
+        // 输入校验：金额必须大于零，防止 0 或负数入账破坏账户余额一致性
+        if amount <= Decimal::ZERO {
+            return Err(AppError::validation("金额必须大于零"));
+        }
+
         info!(
             "用户 {} 正在向账户 {} 存款 {:.2}",
             user_id, account_id, amount
@@ -184,6 +189,11 @@ impl FundManagementService {
         user_id: i32,
         _remark: Option<String>,
     ) -> Result<(), AppError> {
+        // 输入校验：金额必须大于零，防止 0 或负数取款破坏账户余额一致性
+        if amount <= Decimal::ZERO {
+            return Err(AppError::validation("金额必须大于零"));
+        }
+
         info!(
             "用户 {} 正在从账户 {} 取款 {:.2}",
             user_id, account_id, amount
@@ -219,6 +229,11 @@ impl FundManagementService {
         user_id: i32,
         reason: String,
     ) -> Result<(), AppError> {
+        // 输入校验：冻结金额必须大于零，防止 0 或负数冻结破坏余额一致性
+        if amount <= Decimal::ZERO {
+            return Err(AppError::validation("金额必须大于零"));
+        }
+
         info!(
             "用户 {} 正在冻结账户 {} 资金 {:.2}，原因：{}",
             user_id, account_id, amount, reason
@@ -249,6 +264,11 @@ impl FundManagementService {
         amount: Decimal,
         user_id: i32,
     ) -> Result<(), AppError> {
+        // 输入校验：解冻金额必须大于零，防止 0 或负数解冻破坏余额一致性
+        if amount <= Decimal::ZERO {
+            return Err(AppError::validation("金额必须大于零"));
+        }
+
         info!(
             "用户 {} 正在解冻账户 {} 资金 {:.2}",
             user_id, account_id, amount
@@ -296,6 +316,17 @@ impl FundManagementService {
         req: crate::models::dto::fund_dto::TransferFundRequest,
         user_id: i32,
     ) -> Result<crate::models::fund_transfer_record::Model, AppError> {
+        // 输入校验：转账金额必须大于零，防止 0 或负数转账破坏账户余额一致性
+        if req.amount <= Decimal::ZERO {
+            return Err(AppError::validation("转账金额必须大于零"));
+        }
+        // 手续费可为 0 但不能为负
+        if let Some(fee) = req.fee {
+            if fee < Decimal::ZERO {
+                return Err(AppError::validation("手续费不能为负"));
+            }
+        }
+
         use sea_orm::TransactionTrait;
         let txn = self.db.begin().await?;
 
