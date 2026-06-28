@@ -9,7 +9,9 @@ use crate::services::po::UpdateOrderItemRequest;
 use crate::utils::error::AppError;
 use chrono::Utc;
 use rust_decimal::Decimal;
-use sea_orm::{ActiveModelTrait, ColumnTrait, EntityTrait, QueryFilter, Set, TransactionTrait};
+use sea_orm::{
+    ActiveModelTrait, ColumnTrait, EntityTrait, QueryFilter, QuerySelect, Set, TransactionTrait,
+};
 
 use super::order::PurchaseOrderService;
 
@@ -19,8 +21,9 @@ impl PurchaseOrderService {
         // 1. 开启事务保证数据一致性
         let txn = (*self.db).begin().await?;
 
-        // 2. 查询订单
+        // 2. 查询订单（加 lock_exclusive 串行化并发收货）
         let order = purchase_order::Entity::find_by_id(order_id)
+            .lock_exclusive()
             .one(&txn)
             .await?
             .ok_or_else(|| AppError::not_found(format!("采购订单 {}", order_id)))?;

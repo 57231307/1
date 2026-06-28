@@ -9,7 +9,7 @@ use chrono::{NaiveDate, Utc};
 use rust_decimal::Decimal;
 use sea_orm::{
     ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, Order, PaginatorTrait,
-    QueryFilter, QueryOrder, Set, TransactionTrait,
+    QueryFilter, QueryOrder, QuerySelect, Set, TransactionTrait,
 };
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
@@ -220,8 +220,9 @@ impl ApPaymentRequestService {
     ) -> Result<ap_payment_request::Model, AppError> {
         let txn = (*self.db).begin().await?;
 
-        // 1. 查询付款申请
+        // 1. 查询付款申请（加 lock_exclusive 串行化并发提交）
         let request = ap_payment_request::Entity::find_by_id(id)
+            .lock_exclusive()
             .one(&txn)
             .await?
             .ok_or_else(|| AppError::not_found(format!("付款申请 ID: {}", id)))?;
@@ -273,8 +274,9 @@ impl ApPaymentRequestService {
     ) -> Result<ap_payment_request::Model, AppError> {
         let txn = (*self.db).begin().await?;
 
-        // 1. 查询付款申请
+        // 1. 查询付款申请（加 lock_exclusive 串行化并发审批）
         let request = ap_payment_request::Entity::find_by_id(id)
+            .lock_exclusive()
             .one(&txn)
             .await?
             .ok_or_else(|| AppError::not_found(format!("付款申请 {}", id)))?;
@@ -321,8 +323,9 @@ impl ApPaymentRequestService {
     ) -> Result<ap_payment_request::Model, AppError> {
         let txn = (*self.db).begin().await?;
 
-        // 1. 查询付款申请
+        // 1. 查询付款申请（加 lock_exclusive 串行化并发拒绝）
         let request = ap_payment_request::Entity::find_by_id(id)
+            .lock_exclusive()
             .one(&txn)
             .await?
             .ok_or_else(|| AppError::not_found(format!("付款申请 {}", id)))?;

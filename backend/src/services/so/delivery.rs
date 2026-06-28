@@ -65,8 +65,9 @@ impl SalesService {
         // 开启事务
         let txn = (*self.db).begin().await?;
 
-        // 检查订单状态
+        // 检查订单状态（加 lock_exclusive 串行化并发发货）
         let order = sales_order::Entity::find_by_id(request.order_id)
+            .lock_exclusive()
             .one(&txn)
             .await?
             .ok_or_else(|| AppError::not_found("订单不存在"))?;
