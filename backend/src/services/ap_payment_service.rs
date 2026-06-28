@@ -9,7 +9,7 @@ use chrono::{Datelike, NaiveDate};
 use rust_decimal::Decimal;
 use sea_orm::{
     ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, Order, PaginatorTrait,
-    QueryFilter, QueryOrder, Set, TransactionTrait,
+    QueryFilter, QueryOrder, QuerySelect, Set, TransactionTrait,
 };
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
@@ -159,11 +159,17 @@ impl ApPaymentService {
     }
 
     /// 确认付款（执行支付）
+    ///
+    /// 批次 16（2026-06-28）：付款单状态门查询加 lock_exclusive，
+    /// 防止并发 confirm 同一付款单导致 ap_invoice paid_amount 重复累加（资金双重支付风险）。
+    /// 原状态门无锁，两并发 confirm 均通过 REGISTERED 检查，第二个 confirm 在 invoice lock 后
+    /// 读取已更新的 paid_amount 再次累加，导致应付单已付金额翻倍。
     pub async fn confirm(&self, id: i32, user_id: i32) -> Result<ap_payment::Model, AppError> {
         let txn = (*self.db).begin().await?;
 
-        // 1. 查询付款单
+        // 1. 查询付款单（加 lock_exclusive 串行化并发 confirm）
         let payment = ap_payment::Entity::find_by_id(id)
+            .lock_exclusive()
             .one(&txn)
             .await?
             .ok_or_else(|| AppError::not_found(format!("付款单 ID: {}", id)))?;
