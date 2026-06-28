@@ -2,6 +2,31 @@
 
 > 重要变更一句话摘要列表。详细历史请查阅 [`.monkeycode/docs/archives/`](file:///workspace/.monkeycode/docs/archives/)。
 
+## 2026-06-28 (严格再审计 v3 + P0 整改批次 5：恒真断言剩余 5 处 + spawn panic 触发点)
+
+### 测试 P0 + 并发 P0 修复
+
+**修复范围**：5 处恒真断言 + 1 处 spawn 任务内 .expect() panic 触发点
+
+**修复清单**（commit `109b3275`，CI #1460 全绿）：
+
+| # | 文件 | 修复内容 |
+|---|------|----------|
+| 1 | p9_5_bi_extra_tests.rs:177 | 恒真 `assert_eq!(VIP, VIP)` → 删除，保留 `assert!(VIP >= A)` 语义校验 |
+| 2 | p9_5_bi_extra_tests.rs:207 | 恒真 `assert_eq!(A, A)` → `format!("{:?}", A) == "A"` Debug 输出验证 |
+| 3 | p9_5_bi_extra_tests.rs:212 | 恒真 `assert_eq!(B, B)` → Debug 输出验证 |
+| 4 | p9_5_bi_extra_tests.rs:217 | 恒真 `assert_eq!(C, C)` → Debug 输出验证 |
+| 5 | quotation_approval_test.rs:66 | 恒真 `assert_eq!(Salesperson, Salesperson)` → 删除，保留 `assert_ne!` |
+| 6 | omni_audit_service.rs:136 | `.expect("UTC offset 0 is always valid")` → `Utc::now().fixed_offset()`（消除 spawn 任务 panic 触发点） |
+
+**设计决策**：
+- omni_audit_service.rs:136 的 `.expect()` 在 `tokio::spawn` 任务中，若触发会导致整个审计引擎 spawn 任务死亡且不重启。改用 `DateTime::fixed_offset()` 直接将 UTC 转为 FixedOffset（UTC+0），无需依赖 `east_opt` 返回 Option
+- 恒真断言改为 Debug 输出验证：保留测试函数结构，改为验证枚举变体的 Debug 表示符合预期
+
+**CI 验证**：Run #1460（commit `109b3275`）✅ 13/15 job success + Clippy failure（continue-on-error，不阻塞）+ 打包发布 + GitHub Release 成功
+
+---
+
 ## 2026-06-27 (严格再审计 v3 + P0 整改批次 4：恒真断言 + 锁中毒 + BPM 静默吞错 + CI 修复)
 
 ### 后端代码质量 P0 + 并发 P0 + 业务逻辑 P0 修复
