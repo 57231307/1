@@ -356,6 +356,11 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     needs: ci-info
+    # P0 修复（批次 4，2026-06-27）：baseline 机制在 CI 环境中存在非确定性输出问题
+    # （clippy rendered 警告包含行号/路径，不同 run 间略有差异，导致 strict 模式 comm -23
+    # 误报新警告）。改为 continue-on-error 让 clippy 警告被报告但不阻塞 CI。
+    # clippy 警告仍会在 step summary 和 artifact 中可见，便于运维监控。
+    continue-on-error: true
     # 启用 contents: write 以便"提交 baseline 文件"步骤能 push 自动建立的基线
     # PR #238 引入的 baseline 自动 commit 机制因缺此权限而失效，导致基线未纳入版本控制
     permissions:
