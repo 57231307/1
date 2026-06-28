@@ -5,12 +5,12 @@
 
 ### 2026-06-28 严格再审计 v3 + P0 整改（进行中）
 
-**状态**：🔧 整改中（批次 1-8 已完成，批次 9 待处理；spawn panic 隔离 100% 全覆盖）
+**状态**：🔧 整改中（批次 1-9 已完成，批次 10 待处理；spawn panic 隔离 100% 全覆盖 + 业务逻辑 P0 + FOR UPDATE 已修复）
 **审计报告**：[`.monkeycode/docs/audits/2026-06-27-strict-reaudit-v3.md`](file:///workspace/.monkeycode/docs/audits/2026-06-27-strict-reaudit-v3.md)
 **审计基线**：`origin/main` HEAD = `8a18bc3b`
 **审计方法**：9 个并行 search 子代理（新增并发/依赖/架构/性能维度）
 **审计结果**：1275 项发现（P0 ~285 / P1 ~350 / P2 ~380 / P3 ~260），比上次 230 项增加 454%
-**main 当前 HEAD**：`6cabfacb`（批次 8 修复）
+**main 当前 HEAD**：`a34e23d6`（批次 9 修复）
 
 #### 批次 1：回退项 + 安全关键（✅ 已完成）
 
@@ -123,11 +123,27 @@
 
 **里程碑**：全项目 16 处 tokio::spawn 的 catch_unwind 覆盖率从 0% → 100%（批次 7 修复 5 处 + 批次 8 修复 11 处）
 
-#### 批次 9：待处理
+#### 批次 9：业务逻辑 P0 + FOR UPDATE 修复（✅ 已完成，CI run 28309684557 全绿）
 
-- 业务逻辑 P0：状态机断裂、单号无锁、事务边界
-- 并发 P0（剩余）：无 FOR UPDATE
-- 测试 P0：假测试重写、CI cargo test --lib 跳过集成测试
+| # | 文件 | 修复内容 |
+|---|------|----------|
+| P0-1 | production_order_service.rs | `update_status` 拆分：COMPLETED 走专用事务路径；新增 `complete_production_order`（事务包裹状态变更 + 库存联动）；新增 `handle_production_completion_inventory_txn`（接受外部事务参数） |
+| P0-2 | ap_verification_service.rs | auto_verify/manual_verify/cancel 4 处查询加 `lock_exclusive()`，防止并发核销导致 paid_amount 丢失更新 |
+| P0-3 | number_generator.rs | 用 `pg_advisory_xact_lock` 串行化同前缀同日的单号生成；新增 `compute_advisory_lock_key` + 4 个单元测试 |
+| P0-4 | so/delivery.rs | `lock_inventory` 和 `reduce_inventory` 两处库存查询加 `lock_exclusive()`；UPDATE 加 `WHERE quantity_available >= quantity` 防御条件 + `rows_affected == 0` 错误处理 |
+| P0-5 | production_order_service.rs | 原材料库存查询和成品库存查询均加 `lock_exclusive()`；调用 `InventoryStockService::*_txn` 系列方法 |
+| CI 修复 | number_generator.rs | 函数签名 `db: &'db impl ConnectionTrait` → `db: &'db (impl ConnectionTrait + TransactionTrait)`（修复 `db.begin()`/`txn.commit()` 调用需要 TransactionTrait bound） |
+
+**CI 验证**：Run 28309684557（commit `a34e23d6`）✅ 14/15 job success + Clippy failure（continue-on-error，dead_code warning：`update_stock_quantity_with_optimistic_lock`/`list_stock_fabric` 未使用）+ 打包发布 + GitHub Release；Rust 后端构建 ✅ + Rust 单元测试 ✅
+
+**第一次 push 失败原因**：commit `bf26248f` 的 number_generator.rs 函数签名只约束 `ConnectionTrait`，但函数体调用 `db.begin()` 和 `txn.commit()` 需要 `TransactionTrait` bound。CI 🏗️ Rust 后端构建 ❌ failure（error[E0599] + error[E0282]）。修复后 commit `a34e23d6` 重新 push 通过。
+
+#### 批次 10：待处理
+
+- **dead_code 处理**（clippy warning）：`update_stock_quantity_with_optimistic_lock` 和 `list_stock_fabric`（inventory_stock_service.rs）因批次 9 改用 `_txn` 版本而变成未使用 → 评估保留/删除
+- **P1 事务边界修复**：AR/AP 发票、报价审批、销售订单工作流、凭证、销售退货
+- **测试 P0**：假测试重写、CI cargo test --lib 跳过集成测试
+- **业务逻辑 P0（剩余）**：状态机断裂
 
 ### 2026-06-25 第二次全面审计 - 项目全面审计（126 项错误）
 

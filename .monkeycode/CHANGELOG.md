@@ -2,6 +2,36 @@
 
 > 重要变更一句话摘要列表。详细历史请查阅 [`.monkeycode/docs/archives/`](file:///workspace/.monkeycode/docs/archives/)。
 
+## 2026-06-28 (严格再审计 v3 + P0 整改批次 9：业务逻辑 P0 + FOR UPDATE 修复)
+
+### 业务逻辑 P0 + 并发 P0 修复（5 项 P0）
+
+**修复范围**：生产订单完成跨表操作事务、AP 核销 FOR UPDATE、单号生成 advisory_xact_lock、销售发货扣库存 FOR UPDATE + 防御性 WHERE、生产订单完成扣原材料事务
+
+**修复清单**（commit `bf26248f` + 修复 commit `a34e23d6`，CI run 28309684557 全绿）：
+
+| # | 文件 | 修复内容 |
+|---|------|----------|
+| P0-1 | production_order_service.rs | `update_status` 拆分：COMPLETED 走专用事务路径；新增 `complete_production_order`（事务包裹状态变更 + 库存联动）；新增 `handle_production_completion_inventory_txn`（接受外部事务参数） |
+| P0-2 | ap_verification_service.rs | auto_verify/manual_verify/cancel 4 处查询加 `lock_exclusive()`，防止并发核销导致 paid_amount 丢失更新 |
+| P0-3 | number_generator.rs | 用 `pg_advisory_xact_lock` 串行化同前缀同日的单号生成；新增 `compute_advisory_lock_key` + 4 个单元测试 |
+| P0-4 | so/delivery.rs | `lock_inventory` 和 `reduce_inventory` 两处库存查询加 `lock_exclusive()`；UPDATE 加 `WHERE quantity_available >= quantity` 防御条件 + `rows_affected == 0` 错误处理 |
+| P0-5 | production_order_service.rs | 原材料库存查询和成品库存查询均加 `lock_exclusive()`；调用 `InventoryStockService::*_txn` 系列方法 |
+| CI 修复 | number_generator.rs | 函数签名 `db: &'db impl ConnectionTrait` → `db: &'db (impl ConnectionTrait + TransactionTrait)`（修复 `db.begin()`/`txn.commit()` 调用需要 TransactionTrait bound） |
+
+**关键技术**：
+- PostgreSQL `pg_advisory_xact_lock`：事务级咨询锁，事务结束自动释放，比 SEQUENCE 更灵活（保留 COUNT+1 格式）
+- `SeaORM::QuerySelect::lock_exclusive()`：实现 `SELECT ... FOR UPDATE`，防止并发丢失更新
+- 防御性 WHERE 条件：UPDATE 加 `WHERE quantity_available >= quantity`，双重防护即使绕过 SELECT FOR UPDATE
+- 事务边界重构：将"先提交状态变更 → 后执行库存联动"改为"事务内同时执行，任一失败回滚全部"
+- `DefaultHasher` 锁 key 计算：对 prefix + date 字符串做稳定哈希，取低 63 位作为 i64 advisory lock key
+
+**CI 验证**：Run 28309684557（commit `a34e23d6`）✅ 14/15 job success + Clippy failure（continue-on-error，dead_code warning：`update_stock_quantity_with_optimistic_lock`/`list_stock_fabric` 未使用，批次 10 处理）+ 打包发布 + GitHub Release；Rust 后端构建 ✅（release 编译通过，验证 TransactionTrait bound 修复）+ Rust 单元测试 ✅（advisory lock key 4 个测试通过）
+
+**待批次 10 处理**：clippy dead_code warning（`update_stock_quantity_with_optimistic_lock` 和 `list_stock_fabric` 因批次 9 改用 `_txn` 版本而变成未使用）
+
+---
+
 ## 2026-06-28 (严格再审计 v3 + P0 整改批次 8：spawn panic 隔离 100% 全覆盖)
 
 ### 并发 P0 修复（剩余 11 处 spawn panic 隔离，完成 100% 覆盖）

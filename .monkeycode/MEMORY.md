@@ -21,7 +21,40 @@
 
 ---
 
-## 当前任务状态（2026-06-28 严格再审计 v3 + P0 整改批次 8 已完成）
+## 当前任务状态（2026-06-28 严格再审计 v3 + P0 整改批次 9 已完成）
+
+### ✅ 严格再审计 v3 + P0 整改批次 9（已完成，CI Run 28309684557 全绿）
+
+- **审计报告**：[`.monkeycode/docs/audits/2026-06-27-strict-reaudit-v3.md`](file:///workspace/.monkeycode/docs/audits/2026-06-27-strict-reaudit-v3.md)
+- **审计基线**：`origin/main` HEAD = `8a18bc3b`
+- **审计方法**：9 个并行 search 子代理（新增并发/依赖/架构/性能维度）
+- **审计结果**：1275 项发现（P0 ~285 / P1 ~350 / P2 ~380 / P3 ~260），比上次 230 项增加 454%
+
+#### 批次 9 修复（✅ 已完成，5 项 P0，业务逻辑 P0 + FOR UPDATE 修复）
+
+**审计背景**：批次 7-8 完成 spawn panic 隔离 100% 覆盖后，批次 9 转向业务逻辑 P0 和并发 P0（FOR UPDATE）
+
+1. `production_order_service.rs`（P0-1）：`update_status` 拆分，COMPLETED 走专用事务路径；新增 `complete_production_order`（事务包裹状态变更 + 库存联动）；新增 `handle_production_completion_inventory_txn`（接受外部事务参数）；订单查询加 `lock_exclusive()` 防止并发完成同一订单
+2. `ap_verification_service.rs`（P0-2）：auto_verify/manual_verify/cancel 4 处 invoice/payment 查询加 `lock_exclusive()`，防止并发核销导致 paid_amount 丢失更新
+3. `number_generator.rs`（P0-3）：用 `pg_advisory_xact_lock` 串行化同前缀同日的单号生成；新增 `compute_advisory_lock_key`（DefaultHasher 哈希 prefix+date 取低 63 位）+ 4 个单元测试
+4. `so/delivery.rs`（P0-4）：`lock_inventory` 和 `reduce_inventory` 两处库存查询加 `lock_exclusive()`；UPDATE 加 `WHERE quantity_available >= quantity` 防御条件 + `rows_affected == 0` 错误处理
+5. `production_order_service.rs`（P0-5）：原材料库存查询和成品库存查询均加 `lock_exclusive()`；调用 `InventoryStockService::*_txn` 系列方法（`update_stock_quantity_with_optimistic_lock_txn` / `record_transaction_txn` / `create_stock_fabric_txn`）
+
+**技术方案**：
+- PostgreSQL `pg_advisory_xact_lock`：事务级咨询锁，事务结束自动释放，比 SEQUENCE 更灵活（保留 COUNT+1 格式，不破坏现有单号位数约定）
+- `SeaORM::QuerySelect::lock_exclusive()`：实现 `SELECT ... FOR UPDATE`，防止并发丢失更新
+- 防御性 WHERE 条件：UPDATE 加 `WHERE quantity_available >= quantity`，双重防护即使绕过 SELECT FOR UPDATE
+- 事务边界重构：将"先提交状态变更 → 后执行库存联动"改为"事务内同时执行，任一失败回滚全部"
+- `DefaultHasher` 锁 key 计算：对 prefix + date 字符串做稳定哈希，取低 63 位作为 i64 advisory lock key
+
+**CI 验证**：Run 28309684557（commit `a34e23d6`）✅ 14/15 job success + Clippy failure（continue-on-error，dead_code warning：`update_stock_quantity_with_optimistic_lock`/`list_stock_fabric` 未使用，批次 10 处理）+ 打包发布 + GitHub Release；Rust 后端构建 ✅（release 编译通过）+ Rust 单元测试 ✅（advisory lock key 4 个测试通过）
+
+**第一次 push 失败经验**：
+- commit `bf26248f` 的 number_generator.rs 函数签名 `db: &'db impl ConnectionTrait` 只约束 `ConnectionTrait`
+- 但函数体调用 `db.begin()` 和 `txn.commit()` 需要 `TransactionTrait` bound
+- CI 🏗️ Rust 后端构建 ❌ failure（error[E0599]: no method named `begin` found for reference `&impl ConnectionTrait`）
+- **修复**：`db: &'db impl ConnectionTrait` → `db: &'db (impl ConnectionTrait + TransactionTrait)`，commit `a34e23d6` 重新 push 通过
+- **经验**：`ConnectionTrait` 提供查询能力（`execute`/`query_one` 等），`TransactionTrait` 提供事务能力（`begin`/`commit`/`rollback`）；函数体内若需开启/提交事务，必须同时约束两个 trait
 
 ### ✅ 严格再审计 v3 + P0 整改批次 8（已完成，CI Run #1466 全绿）
 
@@ -174,11 +207,13 @@
 6. router/index.ts：导出 hasRoutePermission 函数供其他组件复用
 7. MainLayout 菜单 permission 过滤留作后续（路由守卫已保障安全性，用户点击无权限菜单会被拦截到 /403）→ **批次 6 已完成**（见上）
 
-#### 待处理（批次 9+）
+#### 待处理（批次 10+）
 
-- 业务逻辑 P0：状态机断裂、单号无锁、事务边界
-- 并发 P0（剩余）：无 FOR UPDATE（spawn panic 隔离已 100% 全覆盖）
-- 测试 P0：假测试重写、CI cargo test --lib 跳过集成测试
+- **dead_code 处理**（clippy warning）：`update_stock_quantity_with_optimistic_lock` 和 `list_stock_fabric`（inventory_stock_service.rs）因批次 9 改用 `_txn` 版本而变成未使用 → 评估保留/删除
+- **业务逻辑 P0（剩余）**：状态机断裂
+- **P1 事务边界修复**：AR/AP 发票、报价审批、销售订单工作流、凭证、销售退货
+- **测试 P0**：假测试重写、CI cargo test --lib 跳过集成测试
+- 并发 P0（spawn panic 隔离已 100% 全覆盖 + FOR UPDATE 已修复批次 9）
 
 ---
 
