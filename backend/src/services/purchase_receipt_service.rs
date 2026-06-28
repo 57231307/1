@@ -377,15 +377,21 @@ impl PurchaseReceiptService {
         req: UpdateReceiptItemRequest,
         user_id: i32,
     ) -> Result<purchase_receipt_item::Model, AppError> {
+        // 批次 19（2026-06-28）：补全事务边界，明细 update 与总金额重算原子化。
+        // 原实现明细 update_with_audit 与 calculate_receipt_total 非原子且均用 &*self.db，
+        // 并发 update_receipt_item 会导致总金额丢失更新。
+        let txn = (*self.db).begin().await?;
+
         // 1. 查询明细
         let item = purchase_receipt_item::Entity::find_by_id(item_id)
-            .one(&*self.db)
+            .one(&txn)
             .await?
             .ok_or_else(|| AppError::not_found(format!("入库明细 {}", item_id)))?;
 
-        // 2. 查询入库单
+        // 2. 查询入库单（加 lock_exclusive 串行化并发明细操作）
         let receipt = purchase_receipt::Entity::find_by_id(item.receipt_id)
-            .one(&*self.db)
+            .lock_exclusive()
+            .one(&txn)
             .await?
             .ok_or_else(|| AppError::not_found(format!("采购入库单 {}", item.receipt_id)))?;
 
@@ -404,7 +410,7 @@ impl PurchaseReceiptService {
             ));
         }
 
-        // 5. 更新明细
+        // 5. 更新明细（update_with_audit 传 &txn 纳入事务，保证原子性）
         let mut item_active: purchase_receipt_item::ActiveModel = item.into();
 
         if let Some(quantity) = req.quantity {
@@ -421,30 +427,38 @@ impl PurchaseReceiptService {
         }
 
         let item = crate::services::audit_log_service::AuditLogService::update_with_audit(
-            &*self.db,
+            &txn,
             "auto_audit",
             item_active,
             Some(0),
         )
         .await?;
 
-        // 6. 更新入库单总金额
-        self.calculate_receipt_total(receipt.id).await?;
+        // 6. 更新入库单总金额（事务内调用 _txn 变体，保证明细写与重算原子性）
+        self.calculate_receipt_total_txn(receipt.id, &txn).await?;
+
+        txn.commit().await?;
 
         Ok(item)
     }
 
     /// 删除入库明细
     pub async fn delete_receipt_item(&self, item_id: i32, user_id: i32) -> Result<(), AppError> {
+        // 批次 19（2026-06-28）：补全事务边界，明细 delete 与总金额重算原子化。
+        // 原实现明细 delete 与 calculate_receipt_total 非原子且均用 &*self.db，
+        // 并发 delete_receipt_item 会导致总金额丢失更新。
+        let txn = (*self.db).begin().await?;
+
         // 1. 查询明细
         let item = purchase_receipt_item::Entity::find_by_id(item_id)
-            .one(&*self.db)
+            .one(&txn)
             .await?
             .ok_or_else(|| AppError::not_found(format!("入库明细 {}", item_id)))?;
 
-        // 2. 查询入库单
+        // 2. 查询入库单（加 lock_exclusive 串行化并发明细操作）
         let receipt = purchase_receipt::Entity::find_by_id(item.receipt_id)
-            .one(&*self.db)
+            .lock_exclusive()
+            .one(&txn)
             .await?
             .ok_or_else(|| AppError::not_found(format!("采购入库单 {}", item.receipt_id)))?;
 
@@ -465,11 +479,13 @@ impl PurchaseReceiptService {
 
         // 5. 删除明细
         purchase_receipt_item::Entity::delete_by_id(item_id)
-            .exec(&*self.db)
+            .exec(&txn)
             .await?;
 
-        // 6. 更新入库单总金额
-        self.calculate_receipt_total(receipt.id).await?;
+        // 6. 更新入库单总金额（事务内调用 _txn 变体，保证明细写与重算原子性）
+        self.calculate_receipt_total_txn(receipt.id, &txn).await?;
+
+        txn.commit().await?;
 
         Ok(())
     }

@@ -219,9 +219,15 @@ impl PurchaseOrderService {
         req: CreateOrderItemRequest,
         user_id: i32,
     ) -> Result<purchase_order_item::Model, AppError> {
-        // 1. 查询订单
+        // 批次 19（2026-06-28）：补全事务边界，明细写与总金额重算原子化。
+        // 原实现明细 insert 与 calculate_order_total 非原子且均用 &*self.db，
+        // 并发 add_order_item 会导致总金额丢失更新。
+        let txn = (*self.db).begin().await?;
+
+        // 1. 查询订单（加 lock_exclusive 串行化并发明细操作）
         let order = purchase_order::Entity::find_by_id(order_id)
-            .one(&*self.db)
+            .lock_exclusive()
+            .one(&txn)
             .await?
             .ok_or_else(|| AppError::not_found(format!("采购订单 {}", order_id)))?;
 
@@ -274,11 +280,13 @@ impl PurchaseOrderService {
             created_at: Set(Utc::now()),
             updated_at: Set(Utc::now()),
         }
-        .insert(&*self.db)
+        .insert(&txn)
         .await?;
 
-        // 5. 更新订单总金额
-        self.calculate_order_total(order_id).await?;
+        // 5. 更新订单总金额（事务内调用 _txn 变体，保证明细写与重算原子性）
+        self.calculate_order_total_txn(order_id, &txn).await?;
+
+        txn.commit().await?;
 
         Ok(item)
     }
@@ -290,15 +298,21 @@ impl PurchaseOrderService {
         req: UpdateOrderItemRequest,
         user_id: i32,
     ) -> Result<purchase_order_item::Model, AppError> {
+        // 批次 19（2026-06-28）：补全事务边界，明细 update 与总金额重算原子化。
+        // 原实现明细 update_with_audit 与 calculate_order_total 非原子且均用 &*self.db，
+        // 并发 update_order_item 会导致总金额丢失更新。
+        let txn = (*self.db).begin().await?;
+
         // 1. 查询明细
         let item = purchase_order_item::Entity::find_by_id(item_id)
-            .one(&*self.db)
+            .one(&txn)
             .await?
             .ok_or_else(|| AppError::not_found(format!("订单明细 {}", item_id)))?;
 
-        // 2. 查询订单
+        // 2. 查询订单（加 lock_exclusive 串行化并发明细操作）
         let order = purchase_order::Entity::find_by_id(item.order_id)
-            .one(&*self.db)
+            .lock_exclusive()
+            .one(&txn)
             .await?
             .ok_or_else(|| AppError::not_found(format!("采购订单 {}", item.order_id)))?;
 
@@ -317,7 +331,7 @@ impl PurchaseOrderService {
             ));
         }
 
-        // 5. 更新明细
+        // 5. 更新明细（update_with_audit 传 &txn 纳入事务，保证原子性）
         let mut item_active: purchase_order_item::ActiveModel = item.into();
 
         if let Some(material_id) = req.material_id {
@@ -337,30 +351,38 @@ impl PurchaseOrderService {
         }
 
         let item = crate::services::audit_log_service::AuditLogService::update_with_audit(
-            &*self.db,
+            &txn,
             "auto_audit",
             item_active,
             Some(0),
         )
         .await?;
 
-        // 6. 更新订单总金额
-        self.calculate_order_total(order.id).await?;
+        // 6. 更新订单总金额（事务内调用 _txn 变体，保证明细写与重算原子性）
+        self.calculate_order_total_txn(order.id, &txn).await?;
+
+        txn.commit().await?;
 
         Ok(item)
     }
 
     /// 删除订单明细
     pub async fn delete_order_item(&self, item_id: i32, user_id: i32) -> Result<(), AppError> {
+        // 批次 19（2026-06-28）：补全事务边界，明细 delete 与总金额重算原子化。
+        // 原实现明细 delete 与 calculate_order_total 非原子且均用 &*self.db，
+        // 并发 delete_order_item 会导致总金额丢失更新。
+        let txn = (*self.db).begin().await?;
+
         // 1. 查询明细
         let item = purchase_order_item::Entity::find_by_id(item_id)
-            .one(&*self.db)
+            .one(&txn)
             .await?
             .ok_or_else(|| AppError::not_found(format!("订单明细 {}", item_id)))?;
 
-        // 2. 查询订单
+        // 2. 查询订单（加 lock_exclusive 串行化并发明细操作）
         let order = purchase_order::Entity::find_by_id(item.order_id)
-            .one(&*self.db)
+            .lock_exclusive()
+            .one(&txn)
             .await?
             .ok_or_else(|| AppError::not_found(format!("采购订单 {}", item.order_id)))?;
 
@@ -381,21 +403,32 @@ impl PurchaseOrderService {
 
         // 5. 删除明细
         purchase_order_item::Entity::delete_by_id(item_id)
-            .exec(&*self.db)
+            .exec(&txn)
             .await?;
 
-        // 6. 更新订单总金额
-        self.calculate_order_total(order.id).await?;
+        // 6. 更新订单总金额（事务内调用 _txn 变体，保证明细写与重算原子性）
+        self.calculate_order_total_txn(order.id, &txn).await?;
+
+        txn.commit().await?;
 
         Ok(())
     }
 
-    /// 计算订单总金额
-    pub async fn calculate_order_total(&self, order_id: i32) -> Result<(), AppError> {
+    /// 计算订单总金额（事务版本）
+    ///
+    /// 批次 19（2026-06-28）：新增 _txn 变体，接受外部事务参数，
+    /// 供已有事务的调用方使用，保证明细写与总金额重算原子性。
+    /// 内部 3 处 DB 句柄全部使用 txn，主表查询加 lock_exclusive 串行化并发重算，
+    /// 防止两个并发重算基于过期明细快照导致丢失更新。
+    pub async fn calculate_order_total_txn(
+        &self,
+        order_id: i32,
+        txn: &sea_orm::DatabaseTransaction,
+    ) -> Result<(), AppError> {
         // 1. 查询所有明细
         let items = purchase_order_item::Entity::find()
             .filter(purchase_order_item::Column::OrderId.eq(order_id))
-            .all(&*self.db)
+            .all(txn)
             .await?;
 
         // 2. 计算总和
@@ -409,9 +442,10 @@ impl PurchaseOrderService {
             total_quantity_alt += item.quantity_alt;
         }
 
-        // 3. 更新订单
+        // 3. 更新订单（加 lock_exclusive 串行化并发重算，防止丢失更新）
         let order = purchase_order::Entity::find_by_id(order_id)
-            .one(&*self.db)
+            .lock_exclusive()
+            .one(txn)
             .await?
             .ok_or_else(|| AppError::not_found(format!("采购订单 {}", order_id)))?;
 
@@ -421,13 +455,24 @@ impl PurchaseOrderService {
         order_active.total_quantity_alt = Set(total_quantity_alt);
         order_active.updated_at = Set(chrono::Utc::now());
         crate::services::audit_log_service::AuditLogService::update_with_audit(
-            &*self.db,
+            txn,
             "auto_audit",
             order_active,
             Some(0),
         )
         .await?;
 
+        Ok(())
+    }
+
+    /// 计算订单总金额（便捷入口，内部自建事务）
+    ///
+    /// 批次 19（2026-06-28）：改为便捷入口，内部 begin + 调 _txn + commit。
+    /// 已在事务内的调用方应直接调用 calculate_order_total_txn 以复用事务。
+    pub async fn calculate_order_total(&self, order_id: i32) -> Result<(), AppError> {
+        let txn = (*self.db).begin().await?;
+        self.calculate_order_total_txn(order_id, &txn).await?;
+        txn.commit().await?;
         Ok(())
     }
 }
