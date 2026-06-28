@@ -1,6 +1,8 @@
 use chrono::Utc;
+use futures::FutureExt;
 use sea_orm::{ActiveValue, DatabaseConnection, EntityTrait};
 use serde_json::Value;
+use std::panic::AssertUnwindSafe;
 use std::sync::Arc;
 use tokio::sync::mpsc;
 
@@ -74,81 +76,108 @@ impl OmniAuditEngine {
         tokio::spawn(async move {
             tracing::info!("OmniAudit 异步收集引擎已启动");
             while let Some(msg) = receiver.recv().await {
-                let payload_str = msg
-                    .payload
-                    .as_ref()
-                    .map(|p| p.to_string())
-                    .unwrap_or_default();
-                let sign_material = format!(
-                    "{}|{}|{}|{}",
-                    msg.trace_id, msg.event_type, msg.action, payload_str
-                );
-
-                // 使用 HMAC-SHA256 对关键字段进行签名
-                let _signature = crate::utils::hash::hmac_sha256_hex(
-                    secret_key_clone.as_bytes(),
-                    sign_material.as_bytes(),
-                );
-                if msg.status == "FAILED"
-                    || msg.status == "DENIED"
-                    || msg.event_type == "SECURITY_ALERT"
-                {
-                    tracing::warn!(
-                        "【审计告警】触发告警规则! 用户ID: {:?}, 事件: {}, 资源: {}, 状态: {}",
-                        msg.user_id,
-                        msg.event_name,
-                        msg.resource,
-                        msg.status
+                // 批次 7（2026-06-28）：单次消息处理 panic 隔离
+                // 防御性 catch_unwind：当前 spawn 块直接代码已无 .unwrap()/.expect()，
+                // 但调用链路（如未来重构引入的 panic）可能导致整个审计引擎 spawn 死亡，
+                // 确保单次 panic 不退出循环，继续处理后续消息。
+                let result = AssertUnwindSafe(async {
+                    let payload_str = msg
+                        .payload
+                        .as_ref()
+                        .map(|p| p.to_string())
+                        .unwrap_or_default();
+                    let sign_material = format!(
+                        "{}|{}|{}|{}",
+                        msg.trace_id, msg.event_type, msg.action, payload_str
                     );
-                }
 
-                let log = omni_audit_log::ActiveModel {
-                    id: ActiveValue::NotSet,
-                    tenant_id: ActiveValue::Set(msg.tenant_id), // 从消息携带的租户ID注入（修复硬编码违规）
-                    trace_id: ActiveValue::Set(Some(msg.trace_id)),
-                    span_id: ActiveValue::Set(None),
-                    parent_span_id: ActiveValue::Set(None),
-                    user_id: ActiveValue::Set(msg.user_id),
-                    username: ActiveValue::Set(msg.username),
-                    module: ActiveValue::Set(Some(msg.event_type)),
-                    action: ActiveValue::Set(Some(msg.event_name)),
-                    resource_type: ActiveValue::Set(msg.resource_type),
-                    resource_id: ActiveValue::Set(msg.resource_id),
-                    resource_name: ActiveValue::Set(msg.resource_name),
-                    description: ActiveValue::Set(msg.description),
-                    ip_address: ActiveValue::Set(msg.ip_address),
-                    user_agent: ActiveValue::Set(msg.user_agent),
-                    request_method: ActiveValue::Set(msg.request_method),
-                    request_path: ActiveValue::Set(msg.request_path),
-                    request_body: ActiveValue::Set(msg.request_body),
-                    response_status: ActiveValue::Set(Some(msg.status.parse::<i32>().unwrap_or(
-                        match msg.status.as_str() {
-                            "SUCCESS" => 200,
-                            "FAILED" => 500,
-                            "DENIED" => 403,
-                            _ => 0,
-                        },
-                    ))),
-                    duration_ms: ActiveValue::Set(Some(msg.duration_ms)),
-                    old_value: ActiveValue::Set(msg.old_value),
-                    new_value: ActiveValue::Set(msg.new_value),
-                    created_at: ActiveValue::Set(Some(
-                        // P0 修复（批次 5，2026-06-27）：原 .expect("UTC offset 0 is always valid")
-                        // 在 spawn 任务中构成真实 panic 触发点，若触发会导致审计引擎整个 spawn 任务死亡。
-                        // 改用 DateTime::fixed_offset() 直接将 UTC 时间转为 FixedOffset 时区（UTC+0），
-                        // 无需依赖 east_opt 返回 Option，消除 panic 风险。
-                        Utc::now().fixed_offset(),
-                    )),
-                };
+                    // 使用 HMAC-SHA256 对关键字段进行签名
+                    // 批次 7（2026-06-28）：hmac_sha256_hex 已改为返回 Result，
+                    // 签名失败时降级为空字符串，不阻断审计日志写入
+                    let _signature = match crate::utils::hash::hmac_sha256_hex(
+                        secret_key_clone.as_bytes(),
+                        sign_material.as_bytes(),
+                    ) {
+                        Ok(sig) => sig,
+                        Err(e) => {
+                            tracing::error!("HMAC 签名失败: {}（审计日志将不带签名）", e);
+                            String::new()
+                        }
+                    };
+                    if msg.status == "FAILED"
+                        || msg.status == "DENIED"
+                        || msg.event_type == "SECURITY_ALERT"
+                    {
+                        tracing::warn!(
+                            "【审计告警】触发告警规则! 用户ID: {:?}, 事件: {}, 资源: {}, 状态: {}",
+                            msg.user_id,
+                            msg.event_name,
+                            msg.resource,
+                            msg.status
+                        );
+                    }
 
-                // 使用 exec_without_returning 避免 last_insert_id 解析问题
-                if let Err(e) = omni_audit_log::Entity::insert(log)
-                    .exec_without_returning(db_clone.as_ref())
-                    .await
-                {
-                    tracing::error!("写入综合审计日志失败: {}", e);
-                } else {
-                    tracing::debug!("审计日志写入成功");
+                    let log = omni_audit_log::ActiveModel {
+                        id: ActiveValue::NotSet,
+                        tenant_id: ActiveValue::Set(msg.tenant_id),
+                        trace_id: ActiveValue::Set(Some(msg.trace_id)),
+                        span_id: ActiveValue::Set(None),
+                        parent_span_id: ActiveValue::Set(None),
+                        user_id: ActiveValue::Set(msg.user_id),
+                        username: ActiveValue::Set(msg.username),
+                        module: ActiveValue::Set(Some(msg.event_type)),
+                        action: ActiveValue::Set(Some(msg.event_name)),
+                        resource_type: ActiveValue::Set(msg.resource_type),
+                        resource_id: ActiveValue::Set(msg.resource_id),
+                        resource_name: ActiveValue::Set(msg.resource_name),
+                        description: ActiveValue::Set(msg.description),
+                        ip_address: ActiveValue::Set(msg.ip_address),
+                        user_agent: ActiveValue::Set(msg.user_agent),
+                        request_method: ActiveValue::Set(msg.request_method),
+                        request_path: ActiveValue::Set(msg.request_path),
+                        request_body: ActiveValue::Set(msg.request_body),
+                        response_status: ActiveValue::Set(Some(msg.status.parse::<i32>().unwrap_or(
+                            match msg.status.as_str() {
+                                "SUCCESS" => 200,
+                                "FAILED" => 500,
+                                "DENIED" => 403,
+                                _ => 0,
+                            },
+                        ))),
+                        duration_ms: ActiveValue::Set(Some(msg.duration_ms)),
+                        old_value: ActiveValue::Set(msg.old_value),
+                        new_value: ActiveValue::Set(msg.new_value),
+                        created_at: ActiveValue::Set(Some(
+                            // P0 修复（批次 5，2026-06-27）：原 .expect("UTC offset 0 is always valid")
+                            // 已改为 DateTime::fixed_offset()，消除 panic 风险
+                            Utc::now().fixed_offset(),
+                        )),
+                    };
+
+                    // 使用 exec_without_returning 避免 last_insert_id 解析问题
+                    if let Err(e) = omni_audit_log::Entity::insert(log)
+                        .exec_without_returning(db_clone.as_ref())
+                        .await
+                    {
+                        tracing::error!("写入综合审计日志失败: {}", e);
+                    } else {
+                        tracing::debug!("审计日志写入成功");
+                    }
+                })
+                .catch_unwind()
+                .await;
+
+                // 批次 7：panic 隔离后的结果处理
+                if let Err(panic_payload) = result {
+                    let panic_msg = panic_payload
+                        .downcast_ref::<String>()
+                        .map(|s| s.as_str())
+                        .or_else(|| panic_payload.downcast_ref::<&'static str>().copied())
+                        .unwrap_or("<非字符串 panic payload>");
+                    tracing::error!(
+                        panic = %panic_msg,
+                        "⚠ OmniAudit spawn 任务内 panic 已被隔离，审计引擎继续运行（不退出循环）"
+                    );
                 }
             }
         });

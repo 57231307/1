@@ -5,11 +5,13 @@ use crate::models::role;
 use crate::models::user;
 use crate::services::auth_service::AuthService;
 use crate::utils::error::AppError;
+use futures::FutureExt;
 use sea_orm::{
     ActiveModelTrait, ColumnTrait, ConnectOptions, ConnectionTrait, Database, DatabaseConnection,
     EntityTrait, PaginatorTrait, QueryFilter, Set,
 };
 use std::collections::HashMap;
+use std::panic::AssertUnwindSafe;
 use std::sync::Arc;
 use std::time::Duration;
 use tokio::sync::Mutex;
@@ -264,31 +266,50 @@ impl InitService {
         tokio::spawn(async move {
             use migration::{Migrator, MigratorTrait};
 
-            // 执行剩余迁移（从第 6 个开始）
-            if let Err(e) = Migrator::up(db_clone.as_ref(), None).await {
-                tracing::error!("后台迁移失败: {}", e);
-                get_init_tasks()
-                    .lock()
-                    .await
-                    .insert(task_id_clone, InitTaskStatus::Failed);
-                return;
-            }
+            // 批次 7（2026-06-28）：一次性 spawn 任务 panic 隔离
+            // 后台迁移任务 panic 会导致 task_id 永远停留在 Running，
+            // 前端永远显示"初始化中"且无人能再次触发迁移。
+            // 用 catch_unwind 包裹整个 async 块，panic 时也更新 task 状态为 Failed。
+            let result = AssertUnwindSafe(async {
+                // 执行剩余迁移（从第 6 个开始）
+                if let Err(e) = Migrator::up(db_clone.as_ref(), None).await {
+                    tracing::error!("后台迁移失败: {}", e);
+                    return InitTaskStatus::Failed;
+                }
 
-            // 创建默认数据
-            let service = InitService::new(db_clone);
-            if let Err(e) = service.initialize(&admin_username, &admin_password).await {
-                tracing::error!("创建默认数据失败: {}", e);
-                get_init_tasks()
-                    .lock()
-                    .await
-                    .insert(task_id_clone, InitTaskStatus::Failed);
-                return;
-            }
+                // 创建默认数据
+                let service = InitService::new(db_clone);
+                if let Err(e) = service.initialize(&admin_username, &admin_password).await {
+                    tracing::error!("创建默认数据失败: {}", e);
+                    return InitTaskStatus::Failed;
+                }
+
+                InitTaskStatus::Completed
+            })
+            .catch_unwind()
+            .await;
+
+            // 批次 7：统一更新 task 状态（业务失败 / panic 都更新为 Failed）
+            let final_status = match result {
+                Ok(status) => status,
+                Err(panic_payload) => {
+                    let panic_msg = panic_payload
+                        .downcast_ref::<String>()
+                        .map(|s| s.as_str())
+                        .or_else(|| panic_payload.downcast_ref::<&'static str>().copied())
+                        .unwrap_or("<非字符串 panic payload>");
+                    tracing::error!(
+                        panic = %panic_msg,
+                        "⚠ 后台初始化任务 panic 已被隔离，确保 task_id 状态不卡在 Running"
+                    );
+                    InitTaskStatus::Failed
+                }
+            };
 
             get_init_tasks()
                 .lock()
                 .await
-                .insert(task_id_clone, InitTaskStatus::Completed);
+                .insert(task_id_clone, final_status);
         });
 
         Ok(task_id)

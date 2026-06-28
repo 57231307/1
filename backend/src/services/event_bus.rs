@@ -12,10 +12,12 @@
 //! Kafka 不可达时**自动降级**到 `Broadcast`，并通过 `tracing::error!` 输出中文日志。
 
 use futures::stream::Stream;
+use futures::FutureExt;
 use sea_orm;
 use sea_orm::DatabaseConnection;
 use sea_orm::{ColumnTrait, EntityTrait, QueryFilter};
 use std::future::Future;
+use std::panic::AssertUnwindSafe;
 use std::pin::Pin;
 use std::sync::atomic::{AtomicU8, Ordering};
 use std::sync::{Arc, LazyLock};
@@ -399,6 +401,12 @@ pub async fn start_event_listener(db: Arc<DatabaseConnection>) {
 
     tokio::spawn(async move {
         while let Ok(event) = receiver.recv().await {
+            // 批次 7（2026-06-28）：单次事件处理 panic 隔离
+            // 主事件监听器是业务事件分发中枢，调用 8+ 个业务 service 方法
+            // （po_service.receive_order、ap_service.mark_as_paid、sales_service.approve_order 等），
+            // 任一 service 内部 panic 会导致整个事件分发永久停止，影响采购收货确认、
+            // AP/AR 发票状态更新、BPM 审批回写、低库存预警、缺料采购建议、财务指标计算。
+            let result = AssertUnwindSafe(async {
             match event {
                 BusinessEvent::PurchaseReceiptCompleted { order_id, .. } => {
                     tracing::info!(
@@ -725,6 +733,21 @@ pub async fn start_event_listener(db: Arc<DatabaseConnection>) {
                 }
                 #[allow(unreachable_patterns)]
                 _ => {}
+            }
+            });  // 批次 7：AssertUnwindSafe(async { ... }) 闭合
+            let result = result.catch_unwind().await;
+
+            // 批次 7：panic 隔离后的结果处理
+            if let Err(panic_payload) = result {
+                let panic_msg = panic_payload
+                    .downcast_ref::<String>()
+                    .map(|s| s.as_str())
+                    .or_else(|| panic_payload.downcast_ref::<&'static str>().copied())
+                    .unwrap_or("<非字符串 panic payload>");
+                tracing::error!(
+                    panic = %panic_msg,
+                    "⚠ 事件总线主监听器 spawn 任务内 panic 已被隔离，事件分发继续运行（不退出循环）"
+                );
             }
         }
     });

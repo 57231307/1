@@ -1,4 +1,6 @@
+use futures::FutureExt;
 use sea_orm::{ConnectionTrait, DatabaseConnection, Statement};
+use std::panic::AssertUnwindSafe;
 use std::sync::Arc;
 use tokio::time::{interval, Duration};
 
@@ -20,8 +22,26 @@ impl AuditCleanupService {
             let mut interval = interval(Duration::from_secs(24 * 60 * 60));
             loop {
                 interval.tick().await;
-                if let Err(e) = service.cleanup_expired_logs().await {
-                    tracing::error!("审计日志清理失败: {}", e);
+                // 批次 7（2026-06-28）：单次清理 panic 隔离
+                // 审计日志清理是长期循环任务，若 panic 会导致 omni_audit_logs / audit_logs
+                // 表无限增长，最终拖挂数据库。确保单次 panic 不退出循环。
+                let result = AssertUnwindSafe(async {
+                    if let Err(e) = service.cleanup_expired_logs().await {
+                        tracing::error!("审计日志清理失败: {}", e);
+                    }
+                })
+                .catch_unwind()
+                .await;
+                if let Err(panic_payload) = result {
+                    let panic_msg = panic_payload
+                        .downcast_ref::<String>()
+                        .map(|s| s.as_str())
+                        .or_else(|| panic_payload.downcast_ref::<&'static str>().copied())
+                        .unwrap_or("<非字符串 panic payload>");
+                    tracing::error!(
+                        panic = %panic_msg,
+                        "⚠ 审计日志清理 spawn 任务内 panic 已被隔离，清理循环继续运行（不退出）"
+                    );
                 }
             }
         });

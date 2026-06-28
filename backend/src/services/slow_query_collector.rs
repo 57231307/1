@@ -17,7 +17,9 @@
 //! 关联文档：[2026-06-18-p13-batch1-comprehensive-plan.md §2.2]
 
 use chrono::Utc;
+use futures::FutureExt;
 use sea_orm::{ActiveValue, ConnectionTrait, DatabaseConnection, EntityTrait, Set, Statement};
+use std::panic::AssertUnwindSafe;
 use std::sync::Arc;
 use std::time::Duration;
 use tokio::time::interval;
@@ -86,11 +88,28 @@ impl SlowQueryCollector {
                 interval_secs,
                 service.threshold_ms
             );
+            // 批次 7（2026-06-28）：定义 panic 隔离采集闭包
+            // 慢查询采集是长期循环任务，若 panic 会导致慢查询审计功能永久失效，
+            // 无法定位性能问题。确保单次 panic 不退出循环。
+            let run_collect = || async {
+                AssertUnwindSafe(async {
+                    if let Err(e) = service.collect_once().await {
+                        tracing::warn!("慢查询采集失败: {}", e);
+                    }
+                })
+                .catch_unwind()
+                .await
+            };
             // 首次立即执行（首屏不等待）
-            if let Err(e) = service.collect_once().await {
+            if let Err(panic_payload) = run_collect().await {
+                let panic_msg = panic_payload
+                    .downcast_ref::<String>()
+                    .map(|s| s.as_str())
+                    .or_else(|| panic_payload.downcast_ref::<&'static str>().copied())
+                    .unwrap_or("<非字符串 panic payload>");
                 tracing::warn!(
-                    "慢查询首屏采集失败（可能是 pg_stat_statements 不可用）: {}",
-                    e
+                    panic = %panic_msg,
+                    "慢查询首屏采集 panic 已被隔离（可能是 pg_stat_statements 不可用）"
                 );
             }
             // 定时循环
@@ -99,8 +118,16 @@ impl SlowQueryCollector {
             ticker.tick().await;
             loop {
                 ticker.tick().await;
-                if let Err(e) = service.collect_once().await {
-                    tracing::warn!("慢查询定期采集失败: {}", e);
+                if let Err(panic_payload) = run_collect().await {
+                    let panic_msg = panic_payload
+                        .downcast_ref::<String>()
+                        .map(|s| s.as_str())
+                        .or_else(|| panic_payload.downcast_ref::<&'static str>().copied())
+                        .unwrap_or("<非字符串 panic payload>");
+                    tracing::error!(
+                        panic = %panic_msg,
+                        "⚠ 慢查询采集 spawn 任务内 panic 已被隔离，采集循环继续运行（不退出）"
+                    );
                 }
             }
         });
