@@ -123,9 +123,13 @@ impl PurchaseReceiptService {
         req: UpdatePurchaseReceiptRequest,
         user_id: i32,
     ) -> Result<purchase_receipt::Model, AppError> {
-        // 1. 查询入库单
+        // 批次 18（2026-06-28）：补全事务边界，原实现无事务且 update_with_audit 传 &*self.db 非原子
+        let txn = (*self.db).begin().await?;
+
+        // 1. 查询入库单（加 lock_exclusive 串行化并发修改）
         let receipt = purchase_receipt::Entity::find_by_id(receipt_id)
-            .one(&*self.db)
+            .lock_exclusive()
+            .one(&txn)
             .await?
             .ok_or_else(|| AppError::not_found(format!("采购入库单 {}", receipt_id)))?;
 
@@ -144,7 +148,7 @@ impl PurchaseReceiptService {
             ));
         }
 
-        // 4. 更新入库单
+        // 4. 更新入库单（update_with_audit 传 &txn 纳入事务，保证原子性）
         let mut receipt_active: purchase_receipt::ActiveModel = receipt.into();
 
         if let Some(supplier_id) = req.supplier_id {
@@ -169,12 +173,14 @@ impl PurchaseReceiptService {
         receipt_active.updated_by = Set(Some(user_id));
 
         let receipt = crate::services::audit_log_service::AuditLogService::update_with_audit(
-            &*self.db,
+            &txn,
             "auto_audit",
             receipt_active,
-            Some(0),
+            Some(user_id),
         )
         .await?;
+
+        txn.commit().await?;
 
         Ok(receipt)
     }

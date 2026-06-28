@@ -24,7 +24,7 @@ use crate::services::so::{
 };
 use crate::utils::error::AppError;
 use sea_orm::{
-    ActiveModelTrait, ColumnTrait, EntityTrait, QueryFilter, TransactionTrait,
+    ActiveModelTrait, ColumnTrait, EntityTrait, QueryFilter, QuerySelect, TransactionTrait,
 };
 
 /// 销售订单 CRUD 子模块标记
@@ -373,9 +373,15 @@ impl SalesService {
         order_id: i32,
         request: UpdateSalesOrderRequest,
     ) -> Result<SalesOrderDetail, AppError> {
-        // 检查订单是否存在
+        // 批次 18（2026-06-28）：状态门查询移入事务内并加 lock_exclusive。
+        // 原实现先在事务外用 &*self.db 查询订单状态，再 begin() 开启事务，
+        // 并发 update_order 均通过状态检查后基于过期状态写入，导致状态门失效。
+        let txn = (*self.db).begin().await?;
+
+        // 检查订单是否存在（加 lock_exclusive 串行化并发修改，防止基于过期状态写入）
         let order = SalesOrderEntity::find_by_id(order_id)
-            .one(&*self.db)
+            .lock_exclusive()
+            .one(&txn)
             .await?
             .ok_or_else(|| AppError::not_found(format!("销售订单 {} 未找到", order_id)))?;
 
@@ -386,9 +392,6 @@ impl SalesService {
                 order.status
             )));
         }
-
-        // 开启事务
-        let txn = (*self.db).begin().await?;
 
         // 更新订单主表
         let mut order_update: sales_order::ActiveModel = order.into();

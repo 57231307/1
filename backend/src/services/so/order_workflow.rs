@@ -26,11 +26,16 @@ impl SalesService {
     pub async fn cancel_order(
         &self,
         order_id: i32,
-        _user_id: i32,
+        user_id: i32,
     ) -> Result<SalesOrderDetail, AppError> {
-        // 获取订单
+        // 批次 18（2026-06-28）：补全事务边界 + 审计日志 + lock_exclusive。
+        // 原实现完全无事务、无审计日志（直接 .update）、状态查询无锁，并发取消可能基于过期状态。
+        let txn = (*self.db).begin().await?;
+
+        // 获取订单（加 lock_exclusive 串行化并发取消）
         let order = SalesOrderEntity::find_by_id(order_id)
-            .one(&*self.db)
+            .lock_exclusive()
+            .one(&txn)
             .await?
             .ok_or_else(|| AppError::not_found("订单不存在"))?;
 
@@ -41,11 +46,20 @@ impl SalesService {
             return Err(AppError::business("当前状态不允许取消".to_string()));
         }
 
-        // 更新订单状态
+        // 更新订单状态（改用 update_with_audit 写入审计日志，传 &txn 纳入事务保证原子性）
         let mut order_update: sales_order::ActiveModel = order.into();
         order_update.status = sea_orm::ActiveValue::Set("cancelled".to_string());
         order_update.updated_at = sea_orm::ActiveValue::Set(chrono::Utc::now());
-        order_update.update(&*self.db).await?;
+
+        crate::services::audit_log_service::AuditLogService::update_with_audit(
+            &txn,
+            "auto_audit",
+            order_update,
+            Some(user_id),
+        )
+        .await?;
+
+        txn.commit().await?;
 
         self.get_order_detail(order_id).await
     }

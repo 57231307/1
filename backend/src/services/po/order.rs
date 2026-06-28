@@ -345,9 +345,13 @@ impl PurchaseOrderService {
         req: UpdatePurchaseOrderRequest,
         user_id: i32,
     ) -> Result<purchase_order::Model, AppError> {
-        // 1. 查询订单
+        // 批次 18（2026-06-28）：补全事务边界，原实现无事务且 update_with_audit 传 &*self.db 非原子
+        let txn = (*self.db).begin().await?;
+
+        // 1. 查询订单（加 lock_exclusive 串行化并发修改）
         let order = purchase_order::Entity::find_by_id(order_id)
-            .one(&*self.db)
+            .lock_exclusive()
+            .one(&txn)
             .await?
             .ok_or_else(|| AppError::not_found(format!("采购订单 {}", order_id)))?;
 
@@ -368,7 +372,7 @@ impl PurchaseOrderService {
             ));
         }
 
-        // 4. 更新订单
+        // 4. 更新订单（update_with_audit 传 &txn 纳入事务，保证原子性）
         let mut order_active: purchase_order::ActiveModel = order.into();
 
         if let Some(supplier_id) = req.supplier_id {
@@ -409,12 +413,14 @@ impl PurchaseOrderService {
         order_active.updated_at = Set(Utc::now());
 
         let order = crate::services::audit_log_service::AuditLogService::update_with_audit(
-            &*self.db,
+            &txn,
             "auto_audit",
             order_active,
-            Some(0),
+            Some(user_id),
         )
         .await?;
+
+        txn.commit().await?;
 
         Ok(order)
     }
