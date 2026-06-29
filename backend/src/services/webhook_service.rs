@@ -257,6 +257,7 @@ impl WebhookService {
     }
 
     /// 测试Webhook
+    #[allow(dead_code)] // TODO(tech-debt): 预留 API，待 webhook 测试端点接入后移除
     pub async fn test_webhook(
         &self,
         webhook_id: i32,

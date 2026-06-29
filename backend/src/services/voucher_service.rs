@@ -782,6 +782,7 @@ impl VoucherService {
 }
 
 /// 凭证详情（包含分录）
+#[allow(dead_code)] // TODO(tech-debt): 预留 API，待凭证详情查询接入后移除
 #[derive(Debug, Clone)]
 pub struct VoucherDetail {
     pub voucher: voucher::Model,
