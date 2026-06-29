@@ -5,8 +5,25 @@
 const puppeteer = require('puppeteer')
 const fs = require('fs')
 
-const BASE_URL = 'http://111.230.99.236'
-const LOGIN_CREDENTIALS = { username: 'admin', password: 'admin123' }
+// 批次 28 v7 P0-1 修复：移除硬编码生产 IP + admin/admin123 凭据。
+// 原值直接暴露生产服务器地址与默认管理员密码，攻击者扫描 GitHub 即可登录系统。
+// 改为强制要求环境变量，缺失时直接退出（fail-secure）。
+//   - TEST_BASE_URL：被测系统基础地址（如 http://localhost:3000）
+//   - TEST_ADMIN_USERNAME：管理员账号
+//   - TEST_ADMIN_PASSWORD：管理员密码
+if (!process.env.TEST_BASE_URL) {
+  console.error('ERROR: 必须设置 TEST_BASE_URL 环境变量（被测系统基础地址）')
+  process.exit(1)
+}
+if (!process.env.TEST_ADMIN_PASSWORD) {
+  console.error('ERROR: 必须设置 TEST_ADMIN_PASSWORD 环境变量（管理员密码）')
+  process.exit(1)
+}
+const BASE_URL = process.env.TEST_BASE_URL
+const LOGIN_CREDENTIALS = {
+  username: process.env.TEST_ADMIN_USERNAME || 'admin',
+  password: process.env.TEST_ADMIN_PASSWORD,
+}
 
 // 收集所有错误
 const errorReport = {

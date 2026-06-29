@@ -1,18 +1,28 @@
 #!/usr/bin/env node
 // P2-2 前端基线脚本 - 数据源表行数扫描
-// 用法：DB_PASSWORD=xxx node scripts/p2-2-perf-baseline.mjs
+// 用法：DB_HOST=xxx DB_PASSWORD=xxx node scripts/p2-2-perf-baseline.mjs
 // 安全：DB 密码从环境变量 DB_PASSWORD 读取，不入版本库
 // 输出：markdown 表格到 stdout，仅 SELECT，不修改数据
+// 批次 28 v7 P0-2 修复：移除硬编码生产数据库 IP，改用 DB_HOST 环境变量（fail-secure）
 
 import pg from 'pg'
 
-// 数据库连接配置（生产库 39.99.34.194:5432）
+// 数据库连接配置（host 通过环境变量注入）
+const DB_HOST = process.env.DB_HOST
+if (!DB_HOST) {
+  console.error('ERROR: 必须设置 DB_HOST 环境变量（数据库主机）')
+  process.exit(1)
+}
+if (!process.env.DB_PASSWORD) {
+  console.error('ERROR: 必须设置 DB_PASSWORD 环境变量（数据库密码）')
+  process.exit(1)
+}
 const config = {
-  host: '39.99.34.194',
-  port: 5432,
-  user: 'bingxi',
+  host: DB_HOST,
+  port: Number(process.env.DB_PORT || 5432),
+  user: process.env.DB_USER || 'bingxi',
   password: process.env.DB_PASSWORD,
-  database: 'bingxi_erp',
+  database: process.env.DB_NAME || 'bingxi_erp',
 }
 
 // 4 V2Table 页面对应数据源表

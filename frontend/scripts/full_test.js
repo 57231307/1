@@ -1,5 +1,20 @@
 import { chromium } from 'playwright'
 
+// 批次 28 v7 P0-2 修复：移除硬编码生产 IP + admin/admin123 凭据，改用环境变量（fail-secure）。
+// 原值直接暴露生产服务器地址与默认管理员密码，攻击者扫描 GitHub 即可登录系统。
+// 必需环境变量：TEST_BASE_URL / TEST_ADMIN_PASSWORD（TEST_ADMIN_USERNAME 默认 admin）
+if (!process.env.TEST_BASE_URL) {
+  console.error('ERROR: 必须设置 TEST_BASE_URL 环境变量（被测系统基础地址，如 http://localhost:3000）')
+  process.exit(1)
+}
+if (!process.env.TEST_ADMIN_PASSWORD) {
+  console.error('ERROR: 必须设置 TEST_ADMIN_PASSWORD 环境变量（管理员密码）')
+  process.exit(1)
+}
+const BASE_URL = process.env.TEST_BASE_URL
+const ADMIN_USERNAME = process.env.TEST_ADMIN_USERNAME || 'admin'
+const ADMIN_PASSWORD = process.env.TEST_ADMIN_PASSWORD
+
 const browser = await chromium.launch({ headless: true })
 const context = await browser.newContext()
 const page = await context.newPage()
@@ -42,7 +57,7 @@ page.on('response', (response) => {
 
 // 先登录
 console.log('=== 登录 ===')
-await page.goto('http://111.230.99.236/login', { waitUntil: 'networkidle', timeout: 30000 })
+await page.goto(`${BASE_URL}/login`, { waitUntil: 'networkidle', timeout: 30000 })
 await page.waitForTimeout(2000)
 
 // 填写登录表单
@@ -52,8 +67,8 @@ const usernameInput = await page.$(
 const passwordInput = await page.$('input[type="password"]')
 
 if (usernameInput && passwordInput) {
-  await usernameInput.fill('admin')
-  await passwordInput.fill('admin123')
+  await usernameInput.fill(ADMIN_USERNAME)
+  await passwordInput.fill(ADMIN_PASSWORD)
 
   const loginButton = await page.$('button[type="submit"], button:has-text("登录")')
   if (loginButton) {
@@ -123,7 +138,7 @@ for (const p of pagesToTest) {
   try {
     const errorsBefore = apiErrors.length + consoleErrors.length + pageErrors.length
 
-    await page.goto(`http://111.230.99.236${p.url}`, { waitUntil: 'networkidle', timeout: 15000 })
+    await page.goto(`${BASE_URL}${p.url}`, { waitUntil: 'networkidle', timeout: 15000 })
     await page.waitForTimeout(1500)
 
     const errorsAfter = apiErrors.length + consoleErrors.length + pageErrors.length

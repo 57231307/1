@@ -646,8 +646,9 @@ mod tests {
     #[test]
     fn to_connection_string_preserves_ip_host() {
         // 回退测试：确保 host 中合法的 IP 字符（数字、.）不会被错误编码
+        // 批次 28 v7 P0-2 修复：原测试数据使用真实生产 IP，已改为 RFC 5737 文档示例段
         let cfg = DatabaseConfig {
-            host: "39.99.34.194".to_string(),
+            host: "192.0.2.100".to_string(),
             port: "5432".to_string(),
             name: "bingxi".to_string(),
             username: "bingxi".to_string(),
@@ -658,7 +659,7 @@ mod tests {
         let s = cfg.to_connection_string();
         // 关键断言：host 段不应被编码
         assert!(
-            s.contains("@39.99.34.194:"),
+            s.contains("@192.0.2.100:"),
             "host 不应被 percent-encoding，连接串 = {}",
             s
         );
