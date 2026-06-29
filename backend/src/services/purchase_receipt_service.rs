@@ -549,6 +549,7 @@ impl PurchaseReceiptService {
     ///
     /// 批次 19（2026-06-28）：改为便捷入口，内部 begin + 调 _txn + commit。
     /// 已在事务内的调用方应直接调用 calculate_receipt_total_txn 以复用事务。
+    #[allow(dead_code)] // TODO(tech-debt): 公共入口暂未被 handler 调用，待路由接入后移除
     pub async fn calculate_receipt_total(&self, receipt_id: i32) -> Result<(), AppError> {
         let txn = (*self.db).begin().await?;
         self.calculate_receipt_total_txn(receipt_id, &txn).await?;

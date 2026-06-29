@@ -24,6 +24,7 @@ use super::{
     ReconciliationQuery, ReconciliationWithDetails, UpdateReconciliationRequest,
 };
 
+#[allow(dead_code)] // TODO(tech-debt): update/delete/confirm/dispute/close 方法待 handler 路由接入后移除
 impl ArReconciliationService {
     /// 创建对账单
     pub async fn create(
