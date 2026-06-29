@@ -2,6 +2,62 @@
 
 > 重要变更一句话摘要列表。详细历史请查阅 [`.monkeycode/docs/archives/`](file:///workspace/.monkeycode/docs/archives/)。
 
+## 2026-06-29 (v5 批次 22：业务逻辑状态机 + 前端路由权限 P0 修复)
+
+### 批次 22 完成：14 项 P0 修复（业务逻辑 6 + 前端路由 8）
+
+**修复范围**：维度 4 业务逻辑 6 项 P0 + 维度 10 前端路由 8 项 P0
+
+**修复清单**（分支 `fix/batch-22-p0-logic-routing`）：
+
+| # | 文件 | 修复内容 |
+|---|------|----------|
+| 1 | ap_invoice_service.rs:mark_as_paid | 状态门查询加 lock_exclusive 串行化并发 mark_as_paid，防止 paid_amount 重复累加（资金双重支付风险） |
+| 2 | ar_invoice_service.rs:mark_as_paid | 状态门查询加 lock_exclusive 串行化并发 mark_as_paid，防止 received_amount 重复累加（资金双重收款风险） |
+| 3 | ar_invoice_service.rs:create | 添加客户存在性校验 + 事务包裹，防止凭空创建 AR 发票（凭空挂账风险） |
+| 4 | production_order_service.rs:update_status | 非 COMPLETED 路径补全事务边界 + lock_exclusive + update_with_audit |
+| 5 | po/contract.rs:submit/approve/reject_order | 三方法补全事务边界 + lock_exclusive + 真实 user_id 审计 |
+| 6 | sales_contract_service.rs:approve/cancel | 完全重构为完整事务 + lock_exclusive + update_with_audit + 状态门校验 |
+| 7 | frontend/types/api.ts | LoginResponse.permissions 和 UserInfo.permissions 改为 readonly |
+| 8 | frontend/store/user.ts | login 和 fetchUserInfo 路径添加 Object.freeze 防止权限码被篡改 |
+| 9 | frontend/views/Login.vue | 新增 safeRedirect 函数防止 Open Redirect 攻击 |
+| 10 | frontend/router/index.ts | checkInitStatus 改为保守模式 + 路由守卫移除空权限放行 + 补齐 60+ 路由 meta.permission |
+| 11 | frontend/components/Layout/MainLayout.vue | 删除 bypassByEmptyPerms，canAccessMenu 改为只判断 isAdmin |
+| 12 | frontend/directives/permission.ts | 复用 hasRoutePermission 替代 permissions.includes |
+
+**关键技术**：
+- 状态门 lock_exclusive 修复模式：已有事务但状态门查询无锁 → 加 `.lock_exclusive()` 串行化并发
+- 前端权限严格化：readonly + Object.freeze 权限码 + 移除空权限放行 + hasRoutePermission 三处复用
+- 路由 meta.permission 补齐策略：业务相关映射到现有 11 个权限码，无独立权限码的加 TODO(tech-debt) 待批次 23 后端扩展
+
+**v5 报告偏差修正**（在修复过程中发现）：
+- 维度 4 P0-1/P0-2：状态门已存在，真实缺陷是缺 lock_exclusive
+- 维度 4 P0-3：状态枚举一致，仅事务边界缺失
+- 维度 4 P0-5：实际方法名是 approve_order/reject_order（不是 approve/cancel），已调用 update_with_audit
+- 维度 10 P0-1：beforeEach 已有 permission 校验（批次 3 修复）
+- 维度 10 P0-7：MainLayout 已复用 hasRoutePermission，主要修复是同步移除 bypassByEmptyPerms
+
+---
+
+## 2026-06-28 (v5 批次 21：低难度高收益 P0 修复 - 18 项 P0)
+
+### 批次 21 完成：18 项 P0 修复（已合并 main，root commit `1510bde7`）
+
+**修复范围**：维度 2 输入验证 6 项 + 维度 5 并发 2 项 + 维度 6 性能 3 项 + 维度 7 依赖 5 项 + 维度 9 前端 API 3 项 + 维度 11 测试 3 项 + 维度 15 部署运维 7 项（部分重叠）
+
+**修复清单**：
+- 维度 2：DTO 类型化 + Validate derive + webhook URL scheme 白名单 + 金额非负校验 + HTML 转义 + 重试次数上限
+- 维度 5：AR 收款加 lock_exclusive
+- 维度 6：分页偏移 off-by-one 修正（page*page_size → (page-1)*page_size）
+- 维度 7：强化 validate_secret（拒绝占位符模式）+ 配置文件密钥改用环境变量 + ssl_mode 默认 prefer（原 disable）
+- 维度 9：修正 baseURL 拼接（3 个前端 API 文件 51 个端点）
+- 维度 11：CI 移除 --lib（运行全部 47 个集成测试）+ E2E 渐进式严格化
+- 维度 15：docker-compose 改用 env_file + 资源/日志限制 + 非 root 用户
+
+**注**：批次 21 修复已包含在 root commit `1510bde7`（仓库重新初始化的快照提交），无独立 commit 历史。
+
+---
+
 ## 2026-06-28 (严格再审计 v5：16 维度并行审计 ~528 项发现)
 
 ### v5 严格审计完成

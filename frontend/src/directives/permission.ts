@@ -1,5 +1,7 @@
 import type { Directive, DirectiveBinding } from 'vue'
 import { useUserStore } from '@/store/user'
+// 批次 22 v5 P0-3 阶段 A：复用 router 守卫的 hasRoutePermission，保持行为一致
+import { hasRoutePermission } from '@/router'
 
 /**
  * 权限指令
@@ -25,13 +27,14 @@ export const permission: Directive = {
 
     // 从用户信息中获取权限列表
     const permissions = user.permissions || []
-
+    // 批次 22 v5 P0-3 阶段 A 修复：复用 router 守卫的 hasRoutePermission
+    // 与守卫行为一致：通配符 + read/view 等价，避免指令与守卫判断不一致
     let hasPermission = false
 
     if (Array.isArray(value)) {
-      hasPermission = value.some(perm => permissions.includes(perm))
+      hasPermission = value.some(perm => hasRoutePermission(perm, permissions))
     } else {
-      hasPermission = permissions.includes(value)
+      hasPermission = hasRoutePermission(value, permissions)
     }
 
     if (!hasPermission) {

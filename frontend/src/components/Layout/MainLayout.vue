@@ -247,23 +247,21 @@ const currentTitle = computed(() => (route.meta.title as string) || '')
 // 批次 6：用户权限与角色响应式派生
 const userPermissions = computed<string[]>(() => userStore.userInfo?.permissions || [])
 const isAdmin = computed<boolean>(() => userStore.userInfo?.role_name === 'admin')
-// 与守卫一致：用户未配置任何权限码（permissions 为空数组）时放行
-const bypassByEmptyPerms = computed<boolean>(() => userPermissions.value.length === 0)
 
 /**
  * 批次 6（2026-06-28）：菜单项可见性判定
  *
- * 与 router.beforeEach 守卫一致的宽松匹配规则：
- * 1. admin 角色直接通过
- * 2. 用户未配置任何权限码（permissions 为空）→ 放行
- * 3. 路由 meta.permission 不存在 → 放行（菜单 path 未配置 permission）
- * 4. 通过 hasRoutePermission 匹配（支持通配符、read/view 等价）
+ * 批次 22 v5 P0-7 修复：与守卫 P0-6 严格化保持一致，移除"空权限放行"。
+ * - admin 角色直接通过
+ * - 路由 meta.permission 不存在 → 放行（菜单 path 未配置 permission）
+ * - 通过 hasRoutePermission 匹配（支持通配符、read/view 等价）
+ * - 空权限码用户不再放行，与 router.beforeEach 守卫行为一致
  *
  * @param menuItemPath 菜单项 index（即路由 path，如 '/inventory'）
  * @returns 是否在菜单中显示
  */
 function canAccessMenu(menuItemPath: string): boolean {
-  if (isAdmin.value || bypassByEmptyPerms.value) return true
+  if (isAdmin.value) return true
   // 通过 router.resolve 找到匹配的叶子路由 record
   const resolved = router.resolve(menuItemPath)
   const leafRecord = resolved.matched[resolved.matched.length - 1]

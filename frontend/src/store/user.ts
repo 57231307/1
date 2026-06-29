@@ -21,9 +21,14 @@ export const useUserStore = defineStore('user', () => {
     // 后端 LoginResponse 顶层有 `permissions: Vec<String>` 字段（格式 "{resource}:{action}"），
     // 但原实现只取 `responseData.user`，丢弃了顶层 permissions，导致 v-permission 指令
     // 读 user.permissions 永远是 undefined。合并到 userInfo 使其生效。
+    //
+    // 批次 22 v5 P0-5 修复：对 permissions 字段添加 Object.freeze 运行时保护，
+    // 防止前端组件恶意修改权限码数组（如 push 注入 admin:write）。
+    // [...perms] 创建副本避免冻结后端原始数组，readonly 类型与 api.ts 对齐。
+    const perms = responseData.permissions || responseData.user?.permissions || []
     userInfo.value = {
       ...(responseData.user || {}),
-      permissions: responseData.permissions || responseData.user?.permissions,
+      permissions: Object.freeze([...perms]) as readonly string[],
     }
     return responseData
   }
@@ -40,6 +45,11 @@ export const useUserStore = defineStore('user', () => {
 
   async function fetchUserInfo() {
     const info = await getUserInfo()
+    // 批次 22 v5 P0-5 修复：对 permissions 字段添加 Object.freeze 运行时保护，
+    // 防止前端组件恶意修改权限码数组（如 push 注入 admin:write）。
+    if (info && info.permissions) {
+      ;(info as UserInfo).permissions = Object.freeze([...info.permissions]) as readonly string[]
+    }
     userInfo.value = info
     return info
   }

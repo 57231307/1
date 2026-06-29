@@ -363,13 +363,25 @@ impl ProductionOrderService {
             return self.complete_production_order(id, actual_quantity).await;
         }
 
+        // 批次 22（2026-06-28 v5 P0-3）：非 COMPLETED 路径补全事务 + lock_exclusive + update_with_audit
+        // 原 `update_status` 在非 COMPLETED 分支直接调用 `&*self.db` 进行查询和更新，
+        // 既没有事务边界也没有行锁，并发状态变更可能基于过期快照导致状态覆盖；
+        // 同时未走 update_with_audit 会导致状态变更丢失审计追溯。
+        // 改为：begin txn + lock_exclusive 查询 + 状态校验 + update_with_audit + commit。
+        let txn = (*self.db).begin().await?;
+
+        // 状态门查询加 lock_exclusive 串行化并发状态变更
         let model = ProductionOrderEntity::find_by_id(id)
-            .one(&*self.db)
+            .lock_exclusive()
+            .one(&txn)
             .await?
             .ok_or_else(|| AppError::not_found("生产订单不存在"))?;
 
         // 验证状态转换是否合法
         Self::validate_status_transition(&model.status, &status)?;
+
+        // 提取审计用户ID（update_status 入参无 user_id，使用订单创建者作为审计主体）
+        let audit_user_id = model.created_by;
 
         let mut active_model: ActiveModel = model.into();
         active_model.status = Set(status.clone());
@@ -380,7 +392,16 @@ impl ProductionOrderService {
             active_model.actual_start_date = Set(Some(chrono::Utc::now().date_naive()));
         }
 
-        let updated = active_model.update(&*self.db).await?;
+        // 走 update_with_audit 保留审计追溯
+        let updated = crate::services::audit_log_service::AuditLogService::update_with_audit(
+            &txn,
+            "auto_audit",
+            active_model,
+            Some(audit_user_id),
+        )
+        .await?;
+
+        txn.commit().await?;
 
         Ok(updated)
     }

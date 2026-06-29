@@ -194,6 +194,25 @@ const refreshLockStatus = async () => {
   }
 }
 
+/**
+ * 批次 22 v5 P0-2 修复：安全重定向白名单校验
+ *
+ * 防止 Open Redirect 漏洞：登录跳转参数 redirect 若被攻击者构造为
+ * 外部站点（如 //evil.com）或 javascript: 协议，可在登录后被引导至恶意站点。
+ * 本函数仅允许以单个 / 开头的相对路径，拒绝绝对 URL、协议相对 URL、反斜杠路径。
+ *
+ * @param raw 原始 redirect 参数（通常来自 route.query.redirect）
+ * @returns 安全的内部跳转路径
+ */
+function safeRedirect(raw: unknown): string {
+  if (typeof raw !== 'string' || !raw) return '/'
+  if (/^(https?:)?\/\//i.test(raw)) return '/'
+  if (/^\\\\/i.test(raw)) return '/'
+  if (!raw.startsWith('/')) return '/'
+  if (raw.startsWith('//') || raw.startsWith('/\\')) return '/'
+  return raw
+}
+
 async function handleLogin() {
   const form = formRef.value
   if (!form) return
@@ -218,7 +237,8 @@ async function handleLogin() {
       clearLockInfo()
       ElMessage.success('登录成功')
 
-      const redirect = (route.query.redirect as string) || '/'
+      // 批次 22 v5 P0-2：使用 safeRedirect 校验跳转目标，防止 Open Redirect
+      const redirect = safeRedirect(route.query.redirect)
       router.push(redirect)
     } catch (error: any) {
       ElMessage.error(error.message || '登录失败')
