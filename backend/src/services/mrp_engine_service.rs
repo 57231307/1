@@ -6,8 +6,8 @@ use chrono::{Duration, NaiveDate, Utc};
 use rust_decimal::Decimal;
 use sea_orm::DatabaseConnection;
 use sea_orm::{
-    ActiveModelTrait, ColumnTrait, EntityTrait, PaginatorTrait, QueryFilter, QueryOrder,
-    Set,
+    ActiveModelTrait, ColumnTrait, EntityTrait, PaginatorTrait, QueryFilter, QueryOrder, QuerySelect,
+    Set, TransactionTrait,
 };
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
@@ -603,8 +603,14 @@ impl MrpEngineService {
         &self,
         calculation_id: i32,
     ) -> Result<MrpResultModel, AppError> {
+        // 批次 25 v6 P0 修复：状态机 lock_exclusive 补全，串行化并发状态变更
+        // 原实现无 txn 无 lock，两并发 cancel 均通过状态检查后基于过期状态写入，
+        // 导致状态机被绕过、重复写入。
+        let txn = (*self.db).begin().await?;
+
         let result = MrpResultEntity::find_by_id(calculation_id)
-            .one(&*self.db)
+            .lock_exclusive()
+            .one(&txn)
             .await?
             .ok_or_else(|| AppError::not_found("MRP结果不存在"))?;
 
@@ -615,7 +621,9 @@ impl MrpEngineService {
         let mut active_model: MrpResultActiveModel = result.into();
         active_model.status = Set("CANCELLED".to_string());
         active_model.updated_at = Set(Utc::now());
-        let updated = active_model.update(&*self.db).await?;
+        let updated = active_model.update(&txn).await?;
+
+        txn.commit().await?;
         Ok(updated)
     }
 
