@@ -1,7 +1,8 @@
 -- P2-2 慢查询扫描
--- 用法：psql -h 39.99.34.194 -U bingxi -d bingxi_erp -f scripts/p2-2-slow-query.sql
+-- 用法：psql -h $DB_HOST -U bingxi -d bingxi_erp -f scripts/p2-2-slow-query.sql
 -- 输出：3 个查询结果，用于 Wave 4 P2-2 基线报告
 -- 说明：所有查询仅 SELECT，不修改数据
+-- 批次 28 v7 P0-2 修复：移除硬编码生产数据库 IP，改用 $DB_HOST 环境变量
 
 -- 1. 高 seq_scan 表（缺索引）
 \echo ''
