@@ -9,7 +9,7 @@ use chrono::Utc;
 use rust_decimal::Decimal;
 use sea_orm::{
     ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, PaginatorTrait, QueryFilter,
-    QueryOrder, Set, TransactionTrait,
+    QueryOrder, QuerySelect, Set, TransactionTrait,
 };
 use serde::Deserialize;
 use std::sync::Arc;
@@ -514,8 +514,13 @@ impl SalesReturnService {
         reason: String,
         _user_id: i32,
     ) -> Result<sales_return::Model, AppError> {
+        // 批次 25 v6 P0 修复：状态机 lock_exclusive 补全，串行化并发状态变更
+        // 事务包裹"查询 + 状态检查 + update_with_audit"，加 lock_exclusive 防止并发拒绝同一退货单导致状态不一致
+        let txn = (*self.db).begin().await?;
+
         let return_order = sales_return::Entity::find_by_id(return_id)
-            .one(&*self.db)
+            .lock_exclusive()
+            .one(&txn)
             .await?
             .ok_or_else(|| AppError::not_found(format!("销售退货单 {}", return_id)))?;
 
@@ -532,12 +537,14 @@ impl SalesReturnService {
         active_model.updated_at = Set(Utc::now());
 
         let return_order = crate::services::audit_log_service::AuditLogService::update_with_audit(
-            &*self.db,
+            &txn,
             "auto_audit",
             active_model,
-            Some(0),
+            Some(0), // TODO(tech-debt): 接入用户上下文后传入真实 user_id
         )
         .await?;
+
+        txn.commit().await?;
 
         Ok(return_order)
     }
@@ -548,8 +555,13 @@ impl SalesReturnService {
         return_id: i32,
         _user_id: i32,
     ) -> Result<sales_return::Model, AppError> {
+        // 批次 25 v6 P0 修复：状态机 lock_exclusive 补全，串行化并发状态变更
+        // 事务包裹"查询 + 状态检查 + update_with_audit"，加 lock_exclusive 防止并发执行同一退货单导致状态不一致
+        let txn = (*self.db).begin().await?;
+
         let return_order = sales_return::Entity::find_by_id(return_id)
-            .one(&*self.db)
+            .lock_exclusive()
+            .one(&txn)
             .await?
             .ok_or_else(|| AppError::not_found(format!("销售退货单 {}", return_id)))?;
 
@@ -565,12 +577,14 @@ impl SalesReturnService {
         active_model.updated_at = Set(Utc::now());
 
         let return_order = crate::services::audit_log_service::AuditLogService::update_with_audit(
-            &*self.db,
+            &txn,
             "auto_audit",
             active_model,
-            Some(0),
+            Some(0), // TODO(tech-debt): 接入用户上下文后传入真实 user_id
         )
         .await?;
+
+        txn.commit().await?;
 
         Ok(return_order)
     }

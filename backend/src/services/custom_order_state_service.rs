@@ -5,7 +5,7 @@
 //! 创建时间: 2026-06-17
 
 use chrono::Utc;
-use sea_orm::{ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter, QueryOrder, Set};
+use sea_orm::{ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter, QueryOrder, QuerySelect, Set, TransactionTrait};
 use std::sync::Arc;
 use thiserror::Error;
 
@@ -131,8 +131,14 @@ impl CustomOrderStateService {
         operator_id: i64,
         notes: Option<String>,
     ) -> Result<custom_order::Model, StateError> {
+        // 批次 25 v6 P0 修复：状态机 lock_exclusive 补全，串行化并发状态变更
+        // 原实现无 txn 无 lock，两并发 set_status 均通过状态检查后基于过期状态写入，
+        // 导致状态机被绕过、日志记录与主表状态不一致。
+        let txn = (*self.db).begin().await?;
+
         let order = Entity::find_by_id(order_id)
-            .one(&*self.db)
+            .lock_exclusive()
+            .one(&txn)
             .await?
             .ok_or(StateError::NotFound)?;
 
@@ -146,13 +152,13 @@ impl CustomOrderStateService {
         let mut active: ActiveModel = order.clone().into();
         active.status = Set(target.to_string());
         active.updated_at = Set(Utc::now());
-        let updated = active.update(&*self.db).await?;
+        let updated = active.update(&txn).await?;
 
         // 记录日志到第一个节点（如有）
         if let Some(first_node) = NodeEntity::find()
             .filter(process_node::Column::CustomOrderId.eq(order_id))
             .order_by_asc(process_node::Column::Sequence)
-            .one(&*self.db)
+            .one(&txn)
             .await?
         {
             let log = LogActive {
@@ -166,9 +172,10 @@ impl CustomOrderStateService {
                 log_content: Set(notes),
                 attachments: Set(serde_json::json!([])),
             };
-            log.insert(&*self.db).await?;
+            log.insert(&txn).await?;
         }
 
+        txn.commit().await?;
         Ok(updated)
     }
 

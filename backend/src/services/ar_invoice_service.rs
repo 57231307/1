@@ -243,8 +243,14 @@ impl ArInvoiceService {
     }
 
     pub async fn approve(&self, id: i32, user_id: i32) -> Result<ar_invoice::Model, AppError> {
+        // 批次 25 v6 P0 修复：状态机 lock_exclusive 补全，串行化并发状态变更
+        // 原实现状态门无 txn 无 lock，两并发 approve 均通过 DRAFT 检查后基于过期状态写入，
+        // 导致状态机被绕过、审计日志缺失。
+        let txn = (*self.db).begin().await?;
+
         let invoice = ar_invoice::Entity::find_by_id(id)
-            .one(&*self.db)
+            .lock_exclusive()
+            .one(&txn)
             .await?
             .ok_or_else(|| AppError::not_found("应收单不存在"))?;
 
@@ -259,7 +265,15 @@ impl ArInvoiceService {
         active_invoice.reviewed_at = sea_orm::ActiveValue::Set(Some(Utc::now()));
         active_invoice.updated_at = sea_orm::ActiveValue::Set(Utc::now());
 
-        let result = active_invoice.update(&*self.db).await?;
+        let result = crate::services::audit_log_service::AuditLogService::update_with_audit(
+            &txn,
+            "auto_audit",
+            active_invoice,
+            Some(user_id),
+        )
+        .await?;
+
+        txn.commit().await?;
 
         Ok(result)
     }

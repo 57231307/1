@@ -3,7 +3,7 @@ use crate::utils::error::AppError;
 use rust_decimal::Decimal;
 use sea_orm::{
     ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, IntoActiveModel,
-    Order, PaginatorTrait, QueryFilter, QueryOrder, QuerySelect, Set,
+    Order, PaginatorTrait, QueryFilter, QueryOrder, QuerySelect, Set, TransactionTrait,
 };
 use serde::Deserialize;
 use std::sync::Arc;
@@ -128,8 +128,12 @@ impl SalesPriceService {
     pub async fn approve_price(&self, id: i32, user_id: i32) -> Result<(), AppError> {
         info!("用户 {} 正在批准销售价格，ID: {}", user_id, id);
 
+        // 批次 25 v6 P0 修复：状态机 lock_exclusive 补全，串行化并发状态变更
+        let txn = (*self.db).begin().await?;
+
         let price_model = sales_price::Entity::find_by_id(id)
-            .one(&*self.db)
+            .lock_exclusive()
+            .one(&txn)
             .await?
             .ok_or_else(|| AppError::not_found(format!("销售价格 {} 未找到", id)))?;
 
@@ -145,7 +149,17 @@ impl SalesPriceService {
         price.status = Set("approved".to_string());
         price.approved_by = Set(Some(user_id));
         price.approved_at = Set(Some(chrono::Utc::now()));
-        price.save(&*self.db).await?;
+
+        // 使用 update_with_audit 在事务内同步写入审计日志
+        let _ = crate::services::audit_log_service::AuditLogService::update_with_audit(
+            &txn,
+            "auto_audit",
+            price,
+            Some(user_id),
+        )
+        .await?;
+
+        txn.commit().await?;
 
         info!("销售价格批准成功，ID: {}", id);
         Ok(())

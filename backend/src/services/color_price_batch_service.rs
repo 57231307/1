@@ -7,7 +7,8 @@
 use chrono::Utc;
 use rust_decimal::Decimal;
 use sea_orm::{
-    ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter, QueryOrder, Set,
+    ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter, QueryOrder,
+    QuerySelect, Set, TransactionTrait,
 };
 use std::sync::Arc;
 use thiserror::Error;
@@ -128,8 +129,12 @@ impl ColorPriceBatchService {
         approved_by: i64,
         dto: ApproveColorPriceDto,
     ) -> Result<product_color_price::Model, BatchError> {
+        // 批次 25 v6 P0 修复：状态机 lock_exclusive 补全，串行化并发状态变更
+        let txn = (*self.db).begin().await?;
+
         let existing = ColorPriceEntity::find_by_id(id)
-            .one(&*self.db)
+            .lock_exclusive()
+            .one(&txn)
             .await?
             .ok_or(BatchError::PriceNotFound(id))?;
 
@@ -149,11 +154,11 @@ impl ColorPriceBatchService {
             ))),
         };
 
-        // 找到最近一次历史
+        // 找到最近一次历史（在事务内查询以避免脏读）
         let last_history = color_price_history::Entity::find()
             .filter(color_price_history::Column::ProductColorPriceId.eq(id))
             .order_by_desc(color_price_history::Column::OperatedAt)
-            .one(&*self.db)
+            .one(&txn)
             .await?;
 
         let mut active: ColorPriceActive = existing.clone().into();
@@ -167,15 +172,25 @@ impl ColorPriceBatchService {
                 active.base_price = Set(h.new_price);
             }
         }
-        let result = active.update(&*self.db).await?;
+        // 使用 update_with_audit 在事务内同步写入审计日志
+        let result = crate::services::audit_log_service::AuditLogService::update_with_audit(
+            &txn,
+            "auto_audit",
+            active,
+            Some(approved_by as i32),
+        )
+        .await
+        .map_err(|e| BatchError::Validation(e.to_string()))?;
 
-        // 更新历史记录的 approved_by
+        // 更新历史记录的 approved_by（在事务内）
         if let Some(h) = last_history.as_ref() {
             let mut history_active: HistoryActive = h.clone().into();
             history_active.approved_by = Set(Some(approved_by));
             history_active.approved_at = Set(Some(Utc::now()));
-            history_active.update(&*self.db).await?;
+            history_active.update(&txn).await?;
         }
+
+        txn.commit().await?;
 
         Ok(result)
     }

@@ -94,6 +94,10 @@ impl InventoryCountService {
     }
 
     /// 审核库存盘点
+    // 批次 25 v6 P0 修复评估：本方法为桩实现，直接返回 NotImplemented，
+    // 不涉及 DB 查询或状态变更，无需 lock_exclusive 补全。
+    // 待 workflow 子模块接入真实实现时，须按状态机修复模式重构：
+    // txn + lock_exclusive + update_with_audit + commit（串行化并发状态变更）。
     pub async fn approve_count(
         &self,
         _count_id: i32,
@@ -106,6 +110,10 @@ impl InventoryCountService {
     }
 
     /// 完成库存盘点
+    // 批次 25 v6 P0 修复评估：本方法为桩实现，直接返回 NotImplemented，
+    // 不涉及 DB 查询或状态变更，无需 lock_exclusive 补全。
+    // 待 workflow 子模块接入真实实现时，须按状态机修复模式重构：
+    // txn + lock_exclusive + update_with_audit + commit（串行化并发状态变更）。
     pub async fn complete_count(&self, _count_id: i32) -> Result<InventoryCountDetail, AppError> {
         Err(AppError::NotImplemented(
             "inventory_count 子模块正在开发中".to_string(),

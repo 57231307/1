@@ -94,33 +94,69 @@ impl FinanceInvoiceService {
     }
 
     pub async fn approve_invoice(&self, id: i32) -> Result<Option<InvoiceModel>, AppError> {
-        let invoice = FinanceInvoice::find_by_id(id).one(self.db.as_ref()).await?;
+        // 批次 25 v6 P0 修复：状态机 lock_exclusive 补全，串行化并发状态变更
+        // 原实现状态门无 txn 无 lock，两并发 approve 均基于过期状态写入，
+        // 导致状态机被绕过、审计日志缺失。
+        let txn = (*self.db).begin().await?;
 
-        if let Some(invoice) = invoice {
+        let invoice = FinanceInvoice::find_by_id(id)
+            .lock_exclusive()
+            .one(&txn)
+            .await?;
+
+        let result = if let Some(invoice) = invoice {
             let mut active_model: ActiveModel = invoice.into();
             active_model.status = Set("approved".to_string());
             active_model.updated_at = Set(Utc::now());
 
-            let updated = active_model.update(self.db.as_ref()).await?;
-            Ok(Some(updated))
+            let updated = crate::services::audit_log_service::AuditLogService::update_with_audit(
+                &txn,
+                "auto_audit",
+                active_model,
+                Some(0), // TODO(tech-debt): 接入用户上下文后传入真实 user_id
+            )
+            .await?;
+            Some(updated)
         } else {
-            Ok(None)
-        }
+            None
+        };
+
+        txn.commit().await?;
+
+        Ok(result)
     }
 
     pub async fn verify_invoice(&self, id: i32) -> Result<Option<InvoiceModel>, AppError> {
-        let invoice = FinanceInvoice::find_by_id(id).one(self.db.as_ref()).await?;
+        // 批次 25 v6 P0 修复：状态机 lock_exclusive 补全，串行化并发状态变更
+        // 原实现状态门无 txn 无 lock，两并发 verify 均基于过期状态写入，
+        // 导致状态机被绕过、审计日志缺失。
+        let txn = (*self.db).begin().await?;
 
-        if let Some(invoice) = invoice {
+        let invoice = FinanceInvoice::find_by_id(id)
+            .lock_exclusive()
+            .one(&txn)
+            .await?;
+
+        let result = if let Some(invoice) = invoice {
             let mut active_model: ActiveModel = invoice.into();
             active_model.status = Set("verified".to_string());
             active_model.paid_date = Set(Some(Utc::now()));
             active_model.updated_at = Set(Utc::now());
 
-            let updated = active_model.update(self.db.as_ref()).await?;
-            Ok(Some(updated))
+            let updated = crate::services::audit_log_service::AuditLogService::update_with_audit(
+                &txn,
+                "auto_audit",
+                active_model,
+                Some(0), // TODO(tech-debt): 接入用户上下文后传入真实 user_id
+            )
+            .await?;
+            Some(updated)
         } else {
-            Ok(None)
-        }
+            None
+        };
+
+        txn.commit().await?;
+
+        Ok(result)
     }
 }

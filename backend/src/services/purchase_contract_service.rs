@@ -221,19 +221,38 @@ impl PurchaseContractService {
     pub async fn approve(&self, contract_id: i32, user_id: i32) -> Result<(), AppError> {
         info!("用户 {} 正在审核合同 {}", user_id, contract_id);
 
-        let contract = self.get_by_id(contract_id).await?;
+        // 批次 25 v6 P0 修复：状态机 lock_exclusive 补全，串行化并发状态变更
+        // 原实现无事务、无行锁，并发审核会基于过期状态通过状态检查后重复写入。
+        let txn = (*self.db).begin().await?;
 
+        // 1. 加 lock_exclusive 串行化并发状态变更
+        let contract = purchase_contract::Entity::find_by_id(contract_id)
+            .lock_exclusive()
+            .one(&txn)
+            .await?
+            .ok_or_else(|| AppError::not_found(format!("采购合同不存在：{}", contract_id)))?;
+
+        // 2. 检查状态
         if contract.status != "draft" {
             return Err(AppError::validation(
                 "只有草稿状态的合同才能审核".to_string(),
             ));
         }
 
+        // 3. 更新状态 + 审计日志（事务内原子提交）
         let mut contract_active: purchase_contract::ActiveModel = contract.into();
         contract_active.status = Set("active".to_string());
         contract_active.updated_at = Set(chrono::Utc::now());
 
-        contract_active.save(&*self.db).await?;
+        crate::services::audit_log_service::AuditLogService::update_with_audit(
+            &txn,
+            "auto_audit",
+            contract_active,
+            Some(user_id),
+        )
+        .await?;
+
+        txn.commit().await?;
 
         info!("合同 {} 审核成功", contract_id);
         Ok(())
@@ -251,19 +270,38 @@ impl PurchaseContractService {
             user_id, contract_id, reason
         );
 
-        let contract = self.get_by_id(contract_id).await?;
+        // 批次 25 v6 P0 修复：状态机 lock_exclusive 补全，串行化并发状态变更
+        // 原实现无事务、无行锁，并发取消会基于过期状态通过状态检查后重复写入。
+        let txn = (*self.db).begin().await?;
 
+        // 1. 加 lock_exclusive 串行化并发状态变更
+        let contract = purchase_contract::Entity::find_by_id(contract_id)
+            .lock_exclusive()
+            .one(&txn)
+            .await?
+            .ok_or_else(|| AppError::not_found(format!("采购合同不存在：{}", contract_id)))?;
+
+        // 2. 检查状态
         if contract.status != "active" && contract.status != "draft" {
             return Err(AppError::validation(
                 "只能取消活跃或草稿状态的合同".to_string(),
             ));
         }
 
+        // 3. 更新状态 + 审计日志（事务内原子提交）
         let mut contract_active: purchase_contract::ActiveModel = contract.into();
         contract_active.status = Set("cancelled".to_string());
         contract_active.updated_at = Set(chrono::Utc::now());
 
-        contract_active.save(&*self.db).await?;
+        crate::services::audit_log_service::AuditLogService::update_with_audit(
+            &txn,
+            "auto_audit",
+            contract_active,
+            Some(user_id),
+        )
+        .await?;
+
+        txn.commit().await?;
 
         info!("合同 {} 取消成功", contract_id);
         Ok(())

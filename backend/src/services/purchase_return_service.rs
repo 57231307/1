@@ -8,7 +8,7 @@ use chrono::Utc;
 use rust_decimal::Decimal;
 use sea_orm::{
     ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, Order, PaginatorTrait,
-    QueryFilter, QueryOrder, Set, TransactionTrait,
+    QueryFilter, QueryOrder, QuerySelect, Set, TransactionTrait,
 };
 use serde::Deserialize;
 use std::sync::Arc;
@@ -124,11 +124,18 @@ impl PurchaseReturnService {
         return_id: i32,
         _user_id: i32,
     ) -> Result<purchase_return::Model, AppError> {
+        // 批次 25 v6 P0 修复：状态机 lock_exclusive 补全，串行化并发状态变更
+        // 原实现无事务、无行锁，并发提交会基于过期状态通过状态检查后重复写入。
+        let txn = (*self.db).begin().await?;
+
+        // 1. 加 lock_exclusive 串行化并发状态变更
         let return_order = purchase_return::Entity::find_by_id(return_id)
-            .one(&*self.db)
+            .lock_exclusive()
+            .one(&txn)
             .await?
             .ok_or_else(|| AppError::not_found(format!("采购退货单 {}", return_id)))?;
 
+        // 2. 检查状态
         if return_order.return_status.as_deref() != Some("draft") {
             return Err(AppError::business(format!(
                 "退货单状态不允许提交，当前状态：{:?}",
@@ -136,17 +143,21 @@ impl PurchaseReturnService {
             )));
         }
 
+        // 3. 更新状态 + 审计日志（事务内原子提交）
         let mut return_active: purchase_return::ActiveModel = return_order.into();
         return_active.return_status = Set(Some("submitted".to_string()));
         return_active.updated_at = Set(Utc::now());
 
+        // TODO(tech-debt): submit_return 未透传 user_id，临时用 0；后续接入用户上下文
         let return_order = crate::services::audit_log_service::AuditLogService::update_with_audit(
-            &*self.db,
+            &txn,
             "auto_audit",
             return_active,
             Some(0),
         )
         .await?;
+
+        txn.commit().await?;
 
         Ok(return_order)
     }
@@ -292,11 +303,18 @@ impl PurchaseReturnService {
         reason: String,
         _user_id: i32,
     ) -> Result<purchase_return::Model, AppError> {
+        // 批次 25 v6 P0 修复：状态机 lock_exclusive 补全，串行化并发状态变更
+        // 原实现无事务、无行锁，并发拒绝会基于过期状态通过状态检查后重复写入。
+        let txn = (*self.db).begin().await?;
+
+        // 1. 加 lock_exclusive 串行化并发状态变更
         let return_order = purchase_return::Entity::find_by_id(return_id)
-            .one(&*self.db)
+            .lock_exclusive()
+            .one(&txn)
             .await?
             .ok_or_else(|| AppError::not_found(format!("采购退货单 {}", return_id)))?;
 
+        // 2. 检查状态
         if return_order.return_status.as_deref() != Some("submitted") {
             return Err(AppError::business(format!(
                 "退货单状态不允许拒绝，当前状态：{:?}",
@@ -304,18 +322,22 @@ impl PurchaseReturnService {
             )));
         }
 
+        // 3. 更新状态 + 审计日志（事务内原子提交）
         let mut return_active: purchase_return::ActiveModel = return_order.into();
         return_active.return_status = Set(Some("rejected".to_string()));
         return_active.reason_detail = Set(Some(reason));
         return_active.updated_at = Set(Utc::now());
 
+        // TODO(tech-debt): reject_return 未透传 user_id，临时用 0；后续接入用户上下文
         let return_order = crate::services::audit_log_service::AuditLogService::update_with_audit(
-            &*self.db,
+            &txn,
             "auto_audit",
             return_active,
             Some(0),
         )
         .await?;
+
+        txn.commit().await?;
 
         Ok(return_order)
     }
@@ -448,7 +470,7 @@ pub struct PurchaseReturnItemDto {
 impl PurchaseReturnService {
     /// 获取退货单明细列表
     pub async fn list_items(&self, return_id: i32) -> Result<Vec<PurchaseReturnItemDto>, AppError> {
-        use sea_orm::{JoinType, QuerySelect, RelationTrait};
+        use sea_orm::{JoinType, RelationTrait};
         let items = purchase_return_item::Entity::find()
             .column_as(product::Column::Code, "material_code")
             .column_as(product::Column::Name, "material_name")
