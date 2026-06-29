@@ -8,9 +8,23 @@ import { createMemoryHistory, createRouter } from 'vue-router'
 // 批次 29 v7 P0-7 修复：原测试用 LoginMock 自定义组件，未测试真实 Login.vue。
 // 改为 mount 真实 Login.vue，并 mock 依赖（userStore / securityApi / router），
 // 验证真实组件的渲染、表单校验、登录流程、错误处理。
+//
+// 批次 29 v7 P0-7 修复补丁：vi.mock 工厂函数会被 hoist 到文件顶部，
+// 此时顶层 const 变量尚未初始化（ReferenceError: Cannot access 'mockLogin' before initialization）。
+// 改用 vi.hoisted() 创建 mock 函数，确保 hoist 后变量仍可访问。
 
-// Mock userStore.login：默认 resolve，可通过 mockLoginReject 修改行为
-const mockLogin = vi.fn().mockResolvedValue(undefined)
+const { mockLogin, mockCheckLockStatus } = vi.hoisted(() => ({
+  mockLogin: vi.fn().mockResolvedValue(undefined),
+  mockCheckLockStatus: vi.fn().mockResolvedValue({
+    data: {
+      is_locked: false,
+      failed_attempts: 0,
+      locked_until: null,
+      max_attempts: 5,
+    },
+  }),
+}))
+
 vi.mock('@/store/user', () => ({
   useUserStore: () => ({
     login: mockLogin,
@@ -18,15 +32,6 @@ vi.mock('@/store/user', () => ({
   }),
 }))
 
-// Mock securityApi：默认返回未锁定
-const mockCheckLockStatus = vi.fn().mockResolvedValue({
-  data: {
-    is_locked: false,
-    failed_attempts: 0,
-    locked_until: null,
-    max_attempts: 5,
-  },
-})
 vi.mock('@/api/security', () => ({
   securityApi: {
     checkLockStatus: mockCheckLockStatus,
