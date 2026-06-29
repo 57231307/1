@@ -1,0 +1,45 @@
+# 测试环境配置文件模板
+# 用途：复制并重命名为 config.test.yaml 后用于集成测试
+# 安全提示：本文件为模板，所有敏感字段已留空，由环境变量或本地 config.test.yaml 覆盖
+# 生产环境必须通过环境变量注入敏感信息（DATABASE_PASSWORD/JWT_SECRET/COOKIE_SECRET/AUDIT_SECRET_KEY）
+# 批次 28 v7 P0-4 修复：原 config.test.yaml 含弱密码 bingxi123 已从版本库移除，仅保留此模板
+
+server:
+  host: "127.0.0.1"
+  port: "8083"
+
+database:
+  # ⚠️ 测试环境通过环境变量 DATABASE_URL 或 DATABASE_PASSWORD 注入密码
+  connection_string: "postgres://bingxi:${DATABASE_PASSWORD}@localhost:5432/bingxi"
+  host: "localhost"
+  port: 5432
+  name: "bingxi"
+  username: "bingxi"
+  password: "${DATABASE_PASSWORD}"
+  max_connections: 5
+  min_connections: 1
+  acquire_timeout_ms: 10000
+  idle_timeout_ms: 60000
+  max_lifetime_ms: 300000
+  ssl_mode: "disable"
+  ssl_ca: null
+
+auth:
+  # ⚠️ 测试环境密钥通过环境变量 JWT_SECRET / COOKIE_SECRET 注入
+  jwt_secret: "${JWT_SECRET}"
+  cookie_secret: "${COOKIE_SECRET}"
+  token_expiry_hours: 24
+
+grpc:
+  host: "127.0.0.1"
+  port: 50052
+
+log:
+  level: "debug"
+  dir: "./test_logs"
+
+cors:
+  allowed_origins:
+    - "http://localhost:3000"
+
+env: "test"

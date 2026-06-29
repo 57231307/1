@@ -1749,7 +1749,10 @@ jobs:
           cp release/backend/server release/bingxi-erp/backend/
           cp release/backend/bingxi release/bingxi-erp/backend/
           cp backend/.env.example release/bingxi-erp/backend/
-          cp backend/config.yaml release/bingxi-erp/backend/ 2>/dev/null || true
+          # 批次 28 v7 P0-3 修复：config.yaml 已从版本库移除，发布包改用 config.yaml.example 模板
+          # 实际生产配置由 deploy-latest.sh 在服务器上基于 /etc/bingxi/.env 生成
+          cp backend/config.yaml.example release/bingxi-erp/backend/config.yaml.example 2>/dev/null || true
+          cp backend/config.test.yaml.example release/bingxi-erp/backend/ 2>/dev/null || true
 
           cp -r release/frontend/dist release/bingxi-erp/frontend/
 

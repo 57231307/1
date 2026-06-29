@@ -158,6 +158,9 @@ pub(super) fn cmd_health() {
     println!("{} 后端服务", status_icon(backend_ok));
 
     // HTTP 检查
+    // 批次 28 v7 P0-5 修复：健康检查端点从 /api/v1/erp/health 改为 /health。
+    // 实际路由注册在 routes/mod.rs:359 和 routes/system.rs:196，均为顶层 /health。
+    // 原 /api/v1/erp/health 已不在路由表（仅 public_routes 白名单保留以兼容旧探针）。
     println!("\n检查 HTTP 接口...");
     match run_cmd(
         "curl",
@@ -167,7 +170,7 @@ pub(super) fn cmd_health() {
             "/dev/null",
             "-w",
             "%{http_code}",
-            "http://127.0.0.1:8082/api/v1/erp/health",
+            "http://127.0.0.1:8082/health",
         ],
     ) {
         Ok(code) => println!(

@@ -214,7 +214,10 @@ case "$1" in
         echo "迁移完成"
         ;;
     9|health)
-        curl -s http://127.0.0.1:8082/api/v1/erp/health 2>/dev/null | python3 -m json.tool 2>/dev/null || curl -s http://127.0.0.1:8082/api/v1/erp/health
+        # 批次 28 v7 P0-5 修复：健康检查端点从 /api/v1/erp/health 改为 /health。
+        # 实际路由注册在 routes/mod.rs:359 和 routes/system.rs:196，均为顶层 /health。
+        # 原 /api/v1/erp/health 返回 404，运维误以为服务异常。
+        curl -s http://127.0.0.1:8082/health 2>/dev/null | python3 -m json.tool 2>/dev/null || curl -s http://127.0.0.1:8082/health
         ;;
     0|version)
         echo "当前版本: $(cat $VERSION_FILE 2>/dev/null || echo 'unknown')"
