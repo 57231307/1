@@ -71,6 +71,7 @@ pub struct AutoMatchRequest {
     pub customer_id: Option<i32>,
     pub start_date: NaiveDate,
     pub end_date: NaiveDate,
+    #[allow(dead_code)] // TODO(tech-debt): 匹配策略字段待 vfy.rs 算法接入后启用
     pub match_strategy: Option<String>,
 }
 
@@ -146,6 +147,7 @@ pub struct GenerateReconciliationRequest {
     pub customer_id: i32,
     pub start_date: NaiveDate,
     pub end_date: NaiveDate,
+    #[allow(dead_code)] // TODO(tech-debt): 备注字段待 handler 接入后启用
     pub notes: Option<String>,
 }
 
