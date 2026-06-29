@@ -437,8 +437,13 @@ impl BomService {
     pub async fn submit(&self, id: i32) -> Result<BomModel, AppError> {
         info!("提交BOM审核，ID：{}", id);
 
+        // 批次 25 v6 P0 修复：状态机 lock_exclusive 补全，串行化并发状态变更
+        // 事务包裹"查询 + 状态检查 + update_with_audit"，加 lock_exclusive 防止并发提交同一 BOM 导致状态不一致
+        let txn = self.db.begin().await?;
+
         let bom = BomEntity::find_by_id(id)
-            .one(&*self.db)
+            .lock_exclusive()
+            .one(&txn)
             .await?
             .ok_or_else(|| AppError::not_found("BOM不存在"))?;
 
@@ -451,7 +456,15 @@ impl BomService {
         active.status = Set(BomStatus::Pending.to_string());
         active.updated_at = Set(Utc::now());
 
-        let updated = active.update(&*self.db).await?;
+        let updated = crate::services::audit_log_service::AuditLogService::update_with_audit(
+            &txn,
+            "auto_audit",
+            active,
+            Some(0), // TODO(tech-debt): 接入用户上下文后传入真实 user_id
+        )
+        .await?;
+
+        txn.commit().await?;
         Ok(updated)
     }
 
@@ -464,8 +477,13 @@ impl BomService {
     ) -> Result<BomModel, AppError> {
         info!("审核BOM，ID：{}，通过：{}", id, approved);
 
+        // 批次 25 v6 P0 修复：状态机 lock_exclusive 补全，串行化并发状态变更
+        // 事务包裹"查询 + 状态检查 + update_with_audit"，加 lock_exclusive 防止并发审批同一 BOM 导致状态不一致
+        let txn = self.db.begin().await?;
+
         let bom = BomEntity::find_by_id(id)
-            .one(&*self.db)
+            .lock_exclusive()
+            .one(&txn)
             .await?
             .ok_or_else(|| AppError::not_found("BOM不存在"))?;
 
@@ -485,7 +503,15 @@ impl BomService {
         }
         active.updated_at = Set(Utc::now());
 
-        let updated = active.update(&*self.db).await?;
+        let updated = crate::services::audit_log_service::AuditLogService::update_with_audit(
+            &txn,
+            "auto_audit",
+            active,
+            Some(0), // TODO(tech-debt): 接入用户上下文后传入真实 user_id
+        )
+        .await?;
+
+        txn.commit().await?;
         Ok(updated)
     }
 

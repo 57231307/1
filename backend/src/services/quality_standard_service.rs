@@ -3,7 +3,7 @@ use crate::utils::error::AppError;
 use chrono::NaiveDate;
 use sea_orm::{
     ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, Order, PaginatorTrait,
-    QueryFilter, QueryOrder, QuerySelect, Set,
+    QueryFilter, QueryOrder, QuerySelect, Set, TransactionTrait,
 };
 use std::sync::Arc;
 use tracing::info;
@@ -243,7 +243,14 @@ impl QualityStandardService {
     ) -> Result<(), AppError> {
         info!("用户 {} 正在审批质量标准：{}", user_id, standard_id);
 
-        let standard = self.get_standard_by_id(standard_id).await?;
+        // 批次 25 v6 P0 修复：状态机 lock_exclusive 补全，串行化并发状态变更
+        let txn = (*self.db).begin().await?;
+
+        let standard = quality_standard::Entity::find_by_id(standard_id)
+            .lock_exclusive()
+            .one(&txn)
+            .await?
+            .ok_or_else(|| AppError::not_found(format!("质量标准不存在：{}", standard_id)))?;
 
         if standard.status != "draft" && standard.status != "rejected" {
             return Err(AppError::validation("质量标准状态不允许审批".to_string()));
@@ -251,7 +258,15 @@ impl QualityStandardService {
 
         let mut standard_active: quality_standard::ActiveModel = standard.into();
         standard_active.status = Set("approved".to_string());
-        standard_active.save(&*self.db).await?;
+        crate::services::audit_log_service::AuditLogService::update_with_audit(
+            &txn,
+            "auto_audit",
+            standard_active,
+            Some(user_id),
+        )
+        .await?;
+
+        txn.commit().await?;
 
         info!("质量标准审批通过：{}", standard_id);
         Ok(())
@@ -261,7 +276,14 @@ impl QualityStandardService {
     pub async fn publish_standard(&self, standard_id: i32, user_id: i32) -> Result<(), AppError> {
         info!("用户 {} 正在发布质量标准：{}", user_id, standard_id);
 
-        let standard = self.get_standard_by_id(standard_id).await?;
+        // 批次 25 v6 P0 修复：状态机 lock_exclusive 补全，串行化并发状态变更
+        let txn = (*self.db).begin().await?;
+
+        let standard = quality_standard::Entity::find_by_id(standard_id)
+            .lock_exclusive()
+            .one(&txn)
+            .await?
+            .ok_or_else(|| AppError::not_found(format!("质量标准不存在：{}", standard_id)))?;
 
         if standard.status != "approved" {
             return Err(AppError::validation("质量标准未审批，无法发布".to_string()));
@@ -269,7 +291,15 @@ impl QualityStandardService {
 
         let mut standard_active: quality_standard::ActiveModel = standard.into();
         standard_active.status = Set("active".to_string());
-        standard_active.save(&*self.db).await?;
+        crate::services::audit_log_service::AuditLogService::update_with_audit(
+            &txn,
+            "auto_audit",
+            standard_active,
+            Some(user_id),
+        )
+        .await?;
+
+        txn.commit().await?;
 
         info!("质量标准发布成功：{}", standard_id);
         Ok(())

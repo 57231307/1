@@ -2,7 +2,8 @@ use crate::models::accounting_period;
 use crate::utils::error::AppError;
 use chrono::{TimeZone, Utc};
 use sea_orm::{
-    ActiveModelTrait, ColumnTrait, EntityTrait, PaginatorTrait, QueryFilter, QueryOrder, Set,
+    ActiveModelTrait, ColumnTrait, EntityTrait, PaginatorTrait, QueryFilter, QueryOrder,
+    QuerySelect, Set, TransactionTrait,
 };
 
 crate::define_service!(AccountingPeriodService);
@@ -71,8 +72,12 @@ impl AccountingPeriodService {
         period_id: i32,
         user_id: i32,
     ) -> Result<accounting_period::Model, AppError> {
+        // 批次 25 v6 P0 修复：状态机 lock_exclusive 补全，串行化并发状态变更
+        let txn = (*self.db).begin().await?;
+
         let period = accounting_period::Entity::find_by_id(period_id)
-            .one(self.db.as_ref())
+            .lock_exclusive()
+            .one(&txn)
             .await?
             .ok_or_else(|| {
                 AppError::not_found(format!("Accounting period {} not found", period_id))
@@ -90,7 +95,7 @@ impl AccountingPeriodService {
             .filter(crate::models::voucher::Column::VoucherDate.gte(start_date))
             .filter(crate::models::voucher::Column::VoucherDate.lte(end_date))
             .filter(crate::models::voucher::Column::Status.ne("posted"))
-            .count(self.db.as_ref())
+            .count(&txn)
             .await?;
 
         if unposted_vouchers > 0 {
@@ -100,12 +105,20 @@ impl AccountingPeriodService {
             )));
         }
 
-        // 1. 将当前期间设置为 CLOSED
+        // 1. 将当前期间设置为 CLOSED（事务内更新并写入审计日志）
         let mut active_period: accounting_period::ActiveModel = period.clone().into();
         active_period.status = Set("CLOSED".to_string());
         active_period.closed_at = Set(Some(Utc::now()));
         active_period.closed_by = Set(Some(user_id));
-        let closed_period = active_period.update(self.db.as_ref()).await?;
+        let closed_period = crate::services::audit_log_service::AuditLogService::update_with_audit(
+            &txn,
+            "auto_audit",
+            active_period,
+            Some(user_id),
+        )
+        .await?;
+
+        txn.commit().await?;
 
         // 2. 创建下一个期间并设置为 OPEN
         let next_month = if period.period == 12 {

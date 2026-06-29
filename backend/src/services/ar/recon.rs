@@ -9,7 +9,8 @@
 
 use chrono::Utc;
 use sea_orm::{
-    ActiveModelTrait, ColumnTrait, EntityTrait, PaginatorTrait, QueryFilter, QueryOrder, Set,
+    ActiveModelTrait, ColumnTrait, EntityTrait, PaginatorTrait, QueryFilter, QueryOrder,
+    QuerySelect, Set, TransactionTrait,
 };
 
 use crate::models::ar_reconciliation::{
@@ -177,8 +178,14 @@ impl ArReconciliationService {
         id: i32,
         confirmed_by: Option<i32>,
     ) -> Result<ReconciliationModel, AppError> {
+        // 批次 25 v6 P0 修复：状态机 lock_exclusive 补全，串行化并发状态变更
+        // 原实现状态变更无 txn 无 lock，两并发 confirm 同时通过门控后基于过期状态写入，
+        // 导致 confirmed_by/confirmed_at 被覆盖、状态机被并发破坏。
+        let txn = (*self.db).begin().await?;
+
         let model = ReconciliationEntity::find_by_id(id)
-            .one(&*self.db)
+            .lock_exclusive()
+            .one(&txn)
             .await?
             .ok_or_else(|| AppError::not_found("对账单不存在"))?;
 
@@ -189,15 +196,29 @@ impl ArReconciliationService {
         active_model.confirmed_at = Set(Some(Utc::now()));
         active_model.updated_at = Set(Utc::now());
 
-        let updated = active_model.update(&*self.db).await?;
+        let result = crate::services::audit_log_service::AuditLogService::update_with_audit(
+            &txn,
+            "auto_audit",
+            active_model,
+            confirmed_by,
+        )
+        .await?;
 
-        Ok(updated)
+        txn.commit().await?;
+
+        Ok(result)
     }
 
     /// 客户提出争议
     pub async fn dispute(&self, id: i32, reason: String) -> Result<ReconciliationModel, AppError> {
+        // 批次 25 v6 P0 修复：状态机 lock_exclusive 补全，串行化并发状态变更
+        // 原实现状态变更无 txn 无 lock，两并发 dispute 同时通过门控后基于过期状态写入，
+        // 导致 dispute_reason 被覆盖、状态机被并发破坏。
+        let txn = (*self.db).begin().await?;
+
         let model = ReconciliationEntity::find_by_id(id)
-            .one(&*self.db)
+            .lock_exclusive()
+            .one(&txn)
             .await?
             .ok_or_else(|| AppError::not_found("对账单不存在"))?;
 
@@ -206,15 +227,31 @@ impl ArReconciliationService {
         active_model.dispute_reason = Set(Some(reason));
         active_model.updated_at = Set(Utc::now());
 
-        let updated = active_model.update(&*self.db).await?;
+        // TODO(tech-debt): dispute 方法签名暂无 user_id 参数，先用 Some(0) 占位，
+        // 待认证上下文接入后改为真实 user_id。
+        let result = crate::services::audit_log_service::AuditLogService::update_with_audit(
+            &txn,
+            "auto_audit",
+            active_model,
+            Some(0),
+        )
+        .await?;
 
-        Ok(updated)
+        txn.commit().await?;
+
+        Ok(result)
     }
 
     /// 关闭对账单
     pub async fn close(&self, id: i32) -> Result<ReconciliationModel, AppError> {
+        // 批次 25 v6 P0 修复：状态机 lock_exclusive 补全，串行化并发状态变更
+        // 原实现状态变更无 txn 无 lock，状态门控（confirmed/disputed → closed）在并发场景下
+        // 会被竞态绕过：两并发 close 同时通过门控后基于过期状态写入。
+        let txn = (*self.db).begin().await?;
+
         let model = ReconciliationEntity::find_by_id(id)
-            .one(&*self.db)
+            .lock_exclusive()
+            .one(&txn)
             .await?
             .ok_or_else(|| AppError::not_found("对账单不存在"))?;
 
@@ -229,9 +266,19 @@ impl ArReconciliationService {
         active_model.reconciliation_status = Set(Some("closed".to_string()));
         active_model.updated_at = Set(Utc::now());
 
-        let updated = active_model.update(&*self.db).await?;
+        // TODO(tech-debt): close 方法签名暂无 user_id 参数，先用 Some(0) 占位，
+        // 待认证上下文接入后改为真实 user_id。
+        let result = crate::services::audit_log_service::AuditLogService::update_with_audit(
+            &txn,
+            "auto_audit",
+            active_model,
+            Some(0),
+        )
+        .await?;
 
-        Ok(updated)
+        txn.commit().await?;
+
+        Ok(result)
     }
 
     /// 更新对账单状态（通用）
