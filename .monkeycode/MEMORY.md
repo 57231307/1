@@ -21,19 +21,14 @@
 
 ---
 
-## 当前任务状态（2026-06-29 v5 批次 22 修复 - 进行中）
+## 当前任务状态（2026-06-29 v5 批次 23 准备 - 进行中）
 
-### 🔄 v5 批次 22：业务逻辑状态机 + 前端路由权限 P0 修复（进行中）
+### ✅ v5 批次 22：业务逻辑状态机 + 前端路由权限 P0 修复（已完成，已合并 main）
 
 **修复范围**：维度 4 业务逻辑 6 项 P0 + 维度 10 前端路由 8 项 P0（共 14 项 P0）
-**分支**：`fix/batch-22-p0-logic-routing`（基于 `origin/main` = `1510bde7`）
+**合并 commit**：`80d5f14a`（squash merge PR #264）
+**CI 验证**：Run 28341645850 全绿（Clippy/E2E continue-on-error 不阻塞，所有非 continue-on-error jobs 成功）
 **修复清单**：详见 [CHANGELOG.md 批次 22 章节](file:///workspace/.monkeycode/CHANGELOG.md)
-
-**已完成的修改**（11 个文件，未 commit）：
-- 后端 5 文件：ap_invoice_service.rs / ar_invoice_service.rs / production_order_service.rs / po/contract.rs / sales_contract_service.rs
-- 前端 6 文件：types/api.ts / store/user.ts / views/Login.vue / router/index.ts / MainLayout.vue / directives/permission.ts
-
-**待完成**：commit + push + CI 验证 + 合并 main + 删除分支
 
 ---
 
