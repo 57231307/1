@@ -1,13 +1,16 @@
 #!/bin/bash
 
-SERVER="http://111.230.99.236"
+# 批次 28 v7 P0-2 修复：移除硬编码生产 IP，改为 fail-secure 模式。
+# 原值直接暴露生产服务器地址，攻击者扫描 GitHub 即可定位生产环境进行攻击。
+# 必须设置 BINGXI_API_BASE 环境变量（如 http://localhost:8082 或 https://erp.example.com）。
+SERVER="${BINGXI_API_BASE:?必须设置 BINGXI_API_BASE 环境变量（被测系统基础地址）}"
 BASE_API="/api/v1/erp"
 
 # 登录获取 token
 echo "=== 登录获取 token ==="
 TOKEN=$(curl -s -X POST "${SERVER}${BASE_API}/auth/login" \
   -H "Content-Type: application/json" \
-  -d "{\"username\":\"admin\",\"password\":\"${BINGXI_ADMIN_PASSWORD:-admin123}\"}" | grep -o '"token":"[^"]*"' | cut -d'"' -f4)
+  -d "{\"username\":\"${BINGXI_ADMIN_USERNAME:-admin}\",\"password\":\"${BINGXI_ADMIN_PASSWORD:?必须设置 BINGXI_ADMIN_PASSWORD 环境变量}\"}" | grep -o '"token":"[^"]*"' | cut -d'"' -f4)
 
 echo "Token: ${TOKEN:0:50}..."
 echo ""
