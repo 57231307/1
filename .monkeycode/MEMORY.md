@@ -21,19 +21,20 @@
 
 ---
 
-## 当前任务状态（2026-06-29 批次 27 完成 - 开始批次 28）
+## 当前任务状态（2026-06-29 批次 28 完成 - 开始批次 29）
 
-### ✅ 批次 27 完成：v7 状态机 P0 漏修 + P1 事务边界泄漏 13 项
+### ✅ 批次 28 完成：v7 安全敏感信息 P0 6 项
 
-**修复分支**：`fix/batch-27-state-machine-missed-v7`（已合并删除）
-**合并 commit**：`4cdc339`（PR #269，CI 全绿）
-**修复清单**：见 [CHANGELOG.md 批次 27 章节](file:///workspace/.monkeycode/CHANGELOG.md)
+**修复分支**：`fix/batch-28-v7-security-p0`（已合并删除）
+**合并 commit**：`2f3ff95`（PR #270，CI 12/13 success，E2E continue-on-error 不阻塞）
+**修复清单**：见 [CHANGELOG.md 批次 28 章节](file:///workspace/.monkeycode/CHANGELOG.md)
 
 **关键技术决策**：
-1. **v7 复审发现批次 25/26 仍遗漏 7 项 P0**：ar/vfy.rs 2 项、ap_reconciliation_service.rs 2 项、color_card_crud_service.rs 3 项
-2. **P1 事务边界泄漏 6 项**：txn 内用 `&*self.db` 裸查询导致 TOCTOU 风险，全部改为 `&txn`
-3. **单号生成器签名升级**：`generate_reconciliation_no` 从 `&DatabaseConnection` 改为 `&(impl ConnectionTrait + TransactionTrait)`，支持在 txn 内调用
-4. **color_card_crud_service 错误转换**：用 `map_err(|e| CrudError::Validation(e.to_string()))` 将 AppError 转为 CrudError
+1. **P0-1 凭据硬编码 fail-secure**：comprehensive_test.cjs 改用 `TEST_BASE_URL` + `TEST_ADMIN_PASSWORD` 环境变量，缺失即 exit(1)
+2. **P0-2 生产 IP 多处硬编码**：7 处脚本（api-crud-test.sh / full_test.js / check_remaining_errors.js / p2-2-perf-baseline.mjs / p2-2-slow-query.sql / 生产日志 README / init_service 测试 IP）统一改用环境变量；init_service 测试 IP 改为 RFC 5737 文档示例段 192.0.2.100
+3. **P0-3/P0-4 配置文件从 git 移除**：`git rm --cached backend/config.yaml backend/config.test.yaml`，新增 `backend/config.test.yaml.example` 模板，`.gitignore` 添加忽略规则，CI 发布包改用 `*.example` 模板
+4. **P0-5 健康检查端点回归**：`快速部署/install.sh` + `backend/src/cli/util/service.rs` 从 `/api/v1/erp/health` 改为 `/health`（与 routes/mod.rs:359 一致）
+5. **P0-6 fix-server-config.sh 重写**：对齐 deploy-latest.sh 批次 24 模式（BINGXI_SERVER_IP fail-secure + BINGXI_SSH_KEY 优先 + StrictHostKeyChecking=accept-new + /health 端点）
 
 ### ✅ v7 全项目复审已完成
 
@@ -44,7 +45,7 @@
 
 **v7 修复批次规划**：
 - 批次 27 ✅：状态机 P0 漏修 + P1 事务边界泄漏（13 项）
-- 批次 28 ⬜：v7 安全敏感信息 P0（6 项）— 生产凭据硬编码、IP 硬编码、config.yaml 跟踪等
+- 批次 28 ✅：v7 安全敏感信息 P0（6 项）
 - 批次 29 ⬜：前后端类型契约 P0（8 项）— pnpm-lock、RefreshTokenResponse、TOTP 字段名、is_totp_enabled 等
 - 批次 30 ⬜：分页输入验证（30+ 文件）— saturating_sub + page_size clamp
 - 批次 31 ⬜：N+1 查询 + DTO 输入验证

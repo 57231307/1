@@ -2,6 +2,54 @@
 
 > 重要变更一句话摘要列表。详细历史请查阅 [`.monkeycode/docs/archives/`](file:///workspace/.monkeycode/docs/archives/)。
 
+## 2026-06-29 (批次 28 完成：v7 安全敏感信息 P0 6 项)
+
+### 批次 28 完成：v7 复审安全敏感信息 P0（6 项）
+
+**修复分支**：`fix/batch-28-v7-security-p0`
+**修复范围**：v7 复审发现的生产凭据/IP 硬编码 + 配置文件跟踪 + 健康检查端点回归 + 部署脚本未对齐
+**合并 commit**：`2f3ff95`（PR #270 squash merge，CI 12/13 success，E2E continue-on-error 不阻塞）
+
+#### P0 修复清单
+
+| # | 问题 | 文件 | 修复 |
+|---|------|------|------|
+| 1 | 硬编码生产 IP + admin/admin123 凭据 | frontend/scripts/comprehensive_test.cjs | fail-secure：TEST_BASE_URL + TEST_ADMIN_PASSWORD 环境变量 |
+| 2 | 多处脚本硬编码生产 IP `111.230.99.236` | 7 处脚本 | 统一改用环境变量（BINGXI_API_BASE / TEST_BASE_URL / BINGXI_SERVER_IP / DB_HOST） |
+| 2.1 | 硬编码生产数据库 IP `39.99.34.194` | backend/scripts/p2-2-slow-query.sql + frontend/scripts/p2-2-perf-baseline.mjs | 改用 $DB_HOST / DB_HOST 环境变量 |
+| 2.2 | init_service 单元测试用真实生产 IP | backend/src/services/init_service.rs | 改为 RFC 5737 文档示例段 192.0.2.100 |
+| 2.3 | 生产服务器日志 README 暴露真实 IP | 生产服务器日志/README.md | 脱敏为占位符（已脱敏，见内部文档） |
+| 3 | backend/config.yaml 被跟踪入 git 含生产配置 | backend/config.yaml + .gitignore + ci-cd.yml | `git rm --cached` + .gitignore 规则 + CI 发布改用 *.example |
+| 4 | backend/config.test.yaml 被跟踪含弱密码 bingxi123 | backend/config.test.yaml + config.test.yaml.example | `git rm --cached` + 新增模板（密码留空，环境变量注入） |
+| 5 | 健康检查端点回归 /api/v1/erp/health（返回 404） | 快速部署/install.sh + backend/src/cli/util/service.rs | 改为 /health（与 routes/mod.rs:359 一致） |
+| 6 | scripts/fix-server-config.sh 未对齐批次 24 | scripts/fix-server-config.sh | 重写：fail-secure IP + SSH 密钥优先 + StrictHostKeyChecking=accept-new + /health 端点 |
+
+#### 涉及文件（11 个）
+
+- frontend/scripts/comprehensive_test.cjs（P0-1）
+- frontend/scripts/full_test.js（P0-2）
+- frontend/scripts/check_remaining_errors.js（P0-2）
+- frontend/scripts/p2-2-perf-baseline.mjs（P0-2）
+- scripts/api-crud-test.sh（P0-2）
+- scripts/fix-server-config.sh（P0-6 重写）
+- 快速部署/install.sh（P0-5）
+- 生产服务器日志/README.md（P0-2 脱敏）
+- backend/scripts/p2-2-slow-query.sql（P0-2）
+- backend/src/services/init_service.rs（P0-2 测试 IP）
+- backend/src/cli/util/service.rs（P0-5）
+- .gitignore + .github/workflows/ci-cd.yml（P0-3/P0-4 配套）
+- backend/config.yaml（git rm --cached）
+- backend/config.test.yaml（git rm --cached）
+- backend/config.test.yaml.example（新增模板）
+
+#### 注意事项
+
+- **git 历史未清洗**：原提交历史中仍含 `111.230.99.236` / `39.99.34.194` / `admin123` / `bingxi123`，仅当前版本已脱敏。如需彻底清除需 `git filter-repo` 重写历史（影响所有协作者，需另行评估）。
+- **E2E 测试**：CI 中 E2E 持续 in_progress，最终未完成（continue-on-error 不阻塞合并）。E2E 问题不影响批次 28 修复的正确性。
+- **backend/config.yaml 在 git rm --cached 后仍保留本地文件**：开发者本地仍有 config.yaml 可用，仅不入版本库。
+
+---
+
 ## 2026-06-29 (批次 27 完成：v7 状态机 P0 漏修 + P1 事务边界泄漏 13 项)
 
 ### 批次 27 完成：v7 复审 P0 状态机漏修 + P1 事务边界泄漏（13 项）
