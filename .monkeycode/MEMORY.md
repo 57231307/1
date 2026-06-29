@@ -21,30 +21,55 @@
 
 ---
 
-## 当前任务状态（2026-06-28 租户功能完整删除 - 进行中）
+## 当前任务状态（2026-06-29 v5 批次 22 修复 - 进行中）
 
-### ✅ 严格再审计 v4（已完成，待 CI 验证）
+### 🔄 v5 批次 22：业务逻辑状态机 + 前端路由权限 P0 修复（进行中）
 
-**审计范围**：12 个并行 search 子代理覆盖后端 services/handlers/middleware/utils + 前端 src/tests/e2e + CI 配置
-**审计基线**：`origin/main` HEAD = `1b933af5`（批次 19 文档后）
-**审计产出**：[`.monkeycode/docs/audits/2026-06-28-strict-reaudit-v4.md`](file:///workspace/.monkeycode/docs/audits/2026-06-28-strict-reaudit-v4.md)
-**审计结果**：391 项发现（P0 85 / P1 138 / P2 105 / P3 63），12 个维度
+**修复范围**：维度 4 业务逻辑 6 项 P0 + 维度 10 前端路由 8 项 P0（共 14 项 P0）
+**分支**：`fix/batch-22-p0-logic-routing`（基于 `origin/main` = `1510bde7`）
+**修复清单**：详见 [CHANGELOG.md 批次 22 章节](file:///workspace/.monkeycode/CHANGELOG.md)
 
-**v4 相对 v3 的"更严格"体现**：
-1. 维度扩展 9 → 12（新增前端 API 类型安全、前端路由权限、测试质量深化）
-2. 检查深度：v3 检查"是否存在"；v4 检查"是否完整、一致、可用"
-3. 量化指标：测试覆盖率 38%、死代码 816 项、any 90 处、伪测试 80+ 个
+**已完成的修改**（11 个文件，未 commit）：
+- 后端 5 文件：ap_invoice_service.rs / ar_invoice_service.rs / production_order_service.rs / po/contract.rs / sales_contract_service.rs
+- 前端 6 文件：types/api.ts / store/user.ts / views/Login.vue / router/index.ts / MainLayout.vue / directives/permission.ts
 
-**v3 报告丢失说明**：v3 报告在 orphan commit 事件中丢失（远程 main 被 force push 重置为 orphan commit），v4 已替代并补充了 v3 的所有维度
+**待完成**：commit + push + CI 验证 + 合并 main + 删除分支
 
-**最高优先级风险（P0 85 项）**：
-1. 维度 9：`/inventory/counts` 12 个端点对用户返回 501（线上事故级）
-2. 维度 1：22 个状态机转换函数同时缺事务、缺审计日志、缺锁
-3. 维度 2：4 个 handler 完全无认证（logistics/greige_fabric/dye_recipe/dye_batch）
-4. 维度 11：v-permission 仅 1 文件使用，任何登录用户可提权为 admin
-5. 维度 12：80+ 伪测试 + CI `--lib` 跳过 47 个集成测试
+---
 
-**下一步**：按 v4 报告"五、批次修复建议"规划批次 21+（建议批次 21 修复维度 1 P0 的 22 个状态机转换函数）
+### ✅ v5 批次 21：低难度高收益 P0 修复（已完成，已合并 main）
+
+**修复范围**：18 项 P0（维度 2/5/6/7/9/11/15）
+**状态**：已包含在 root commit `1510bde7`（仓库重新初始化的快照提交）
+**修复内容**：输入验证 + AR 收款锁 + 分页偏移 + .env 强化 + 前端 baseURL + CI 移除 --lib + docker-compose 安全
+
+---
+
+### ✅ 严格再审计 v5（已完成，CI 全绿 15/15）
+
+**审计范围**：16 个并行 search 子代理（3 批：5+5+6）覆盖后端 services/handlers/middleware/utils + 前端 src/tests/e2e + CI 配置 + deploy 运维 + i18n + 可维护性指标
+**审计基线**：`839f8dc5`（feat: 全面审计项目问题）
+**审计产出**：[`.monkeycode/docs/audits/2026-06-28-strict-reaudit-v5.md`](file:///workspace/.monkeycode/docs/audits/2026-06-28-strict-reaudit-v5.md)
+**审计结果**：~528 项发现（P0 51 / P1 155 / P2 183 / P3 116），16 个维度
+
+**v5 相对 v4 的"更严格"体现**：
+1. 维度扩展 12 → 16（新增可维护性、i18n/可访问性、部署运维、残留租户检查 4 个维度）
+2. 检查深度：v4 检查"是否完整、一致、可用"；v5 进一步检查"是否健壮、可运维、可观测、可访问"
+3. 风险归因：v5 每项 P0 都明确给出业务影响与攻击向量
+
+**最高优先级风险 Top 10**：
+1. docker-compose 硬编码密钥（容器逃逸后获得所有密钥）→ 批次 21 已修复
+2. v-permission 覆盖率 < 1%（任何登录用户可提权为 admin）→ 批次 22 已修复
+3. 路由守卫不完整（任何登录用户可访问所有路由）→ 批次 22 已修复
+4. CI 跳过所有 47 个集成测试（集成缺陷全部漏到生产）→ 批次 21 已修复
+5. 3 个 API 文件 51 个端点路径错误（颜色卡/价格/定制订单全部 502）→ 批次 21 已修复
+6. 3 处分页偏移错误（分页数据错乱）→ 批次 21 已修复
+7. .env.example 占位符绕过校验（生产环境密钥校验失效）→ 批次 21 已修复
+8. webhook SSRF 绕过（内网探测/云元数据读取）→ 批次 21 已修复
+9. AR 收款并发丢失更新（应收账款重复收款）→ 批次 21 已修复
+10. frontend Dockerfile root 运行（容器提权风险）→ 批次 21 已修复
+
+**下一步**：批次 22 完成后启动批次 23（19 项 P0 + 155 项 P1：可维护性 + i18n + 死代码清理）
 
 ---
 

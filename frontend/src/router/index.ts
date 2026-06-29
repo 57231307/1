@@ -9,7 +9,7 @@ import { logger } from '@/utils/logger'
  *
  * - icon：Element Plus 图标组件名（与 MainLayout 菜单 icon 对齐）
  * - permission：访问该路由所需权限码（格式 "{resource}:{action}"，如 "inventory:read"）
- *   宽松模式：admin 角色绕过；用户未配置任何权限码时放行；支持 "*" 通配
+ *   批次 22 v5 P0-6 修复后为严格模式：admin 角色绕过；空权限码用户不再放行；支持 "*" 通配
  * - hidden：是否在菜单中隐藏（子页面如 detail/edit/create 等设为 true）
  */
 declare module 'vue-router' {
@@ -54,7 +54,7 @@ const routes: RouteRecordRaw[] = [
         path: 'system',
         name: 'System',
         component: () => import('@/views/system/index.vue'),
-        meta: { title: '系统管理', icon: 'Setting', requiresAuth: true },
+        meta: { title: '系统管理', icon: 'Setting', permission: 'users:read', requiresAuth: true }, // 批次 22（v5 P0-4）：补齐 meta.permission
       },
       {
         path: 'system/audit-log',
@@ -66,7 +66,7 @@ const routes: RouteRecordRaw[] = [
         path: 'system/slow-query',
         name: 'SystemSlowQuery',
         component: () => import('@/views/system/slow-query/index.vue'),
-        meta: { title: '慢查询审计', icon: 'Histogram', requiresAuth: true },
+        meta: { title: '慢查询审计', icon: 'Histogram', permission: 'audit:read', requiresAuth: true }, // 批次 22（v5 P0-4）：补齐 meta.permission
       },
       {
         path: 'finance',
@@ -210,13 +210,13 @@ const routes: RouteRecordRaw[] = [
         path: 'bpm',
         name: 'BPM',
         component: () => import('@/views/bpm/index.vue'),
-        meta: { title: '审批管理', icon: 'List', requiresAuth: true },
+        meta: { title: '审批管理', icon: 'List', permission: 'audit:read', requiresAuth: true }, // 批次 22（v5 P0-4）：补齐 meta.permission
       },
       {
         path: 'quality',
         name: 'Quality',
         component: () => import('@/views/quality/index.vue'),
-        meta: { title: '质量管理', icon: 'Cpu', requiresAuth: true },
+        meta: { title: '质量管理', icon: 'Cpu', permission: 'inventory:read', requiresAuth: true }, // 批次 22（v5 P0-4）：补齐 meta.permission
       },
       {
         path: 'purchase-ext',
@@ -234,81 +234,81 @@ const routes: RouteRecordRaw[] = [
         path: 'crm',
         name: 'CRM',
         component: () => import('@/views/crm/index.vue'),
-        meta: { title: '客户关系管理', icon: 'User', requiresAuth: true },
+        meta: { title: '客户关系管理', icon: 'User', permission: 'customers:read', requiresAuth: true }, // 批次 22（v5 P0-4）：补齐 meta.permission
       },
       {
         path: 'crm/pool',
         name: 'CRMPool',
         component: () => import('@/views/crm/pool.vue'),
-        meta: { title: '公海客户池', icon: 'User', requiresAuth: true },
+        meta: { title: '公海客户池', icon: 'User', permission: 'customers:read', requiresAuth: true }, // 批次 22（v5 P0-4）：补齐 meta.permission
       },
       {
         path: 'crm/assignment',
         name: 'CRMAssignment',
         component: () => import('@/views/crm/assignment.vue'),
-        meta: { title: '客户分配', icon: 'User', requiresAuth: true },
+        meta: { title: '客户分配', icon: 'User', permission: 'customers:read', requiresAuth: true }, // 批次 22（v5 P0-4）：补齐 meta.permission
       },
       {
         path: 'crm/detail/:id',
         name: 'CRMDetail',
         component: () => import('@/views/crm/detail.vue'),
-        meta: { title: '客户360视图', icon: 'User', requiresAuth: true, hidden: true },
+        meta: { title: '客户360视图', icon: 'User', permission: 'customers:read', requiresAuth: true, hidden: true }, // 批次 22（v5 P0-4）：补齐 meta.permission
       },
       // 新增路由 - CRM线索管理
       {
         path: 'crm/leads',
         name: 'CRMLeads',
         component: () => import('@/views/crm/leads/index.vue'),
-        meta: { title: '线索管理', icon: 'User', requiresAuth: true },
+        meta: { title: '线索管理', icon: 'User', permission: 'customers:read', requiresAuth: true }, // 批次 22（v5 P0-4）：补齐 meta.permission
       },
       // 新增路由 - CRM商机管理
       {
         path: 'crm/opportunities',
         name: 'CRMOpportunities',
         component: () => import('@/views/crm/opportunities/index.vue'),
-        meta: { title: '商机管理', icon: 'User', requiresAuth: true },
+        meta: { title: '商机管理', icon: 'User', permission: 'customers:read', requiresAuth: true }, // 批次 22（v5 P0-4）：补齐 meta.permission
       },
       {
         path: 'advanced',
         name: 'Advanced',
         component: () => import('@/views/advanced/index.vue'),
-        meta: { title: '高级功能', icon: 'Setting', requiresAuth: true },
+        meta: { title: '高级功能', icon: 'Setting', permission: 'users:read', requiresAuth: true }, // 批次 22（v5 P0-4）：补齐 meta.permission
       },
       {
         path: 'production',
         name: 'Production',
         component: () => import('@/views/production/index.vue'),
-        meta: { title: '生产计划', icon: 'Cpu', requiresAuth: true },
+        meta: { title: '生产计划', icon: 'Cpu', permission: 'inventory:read', requiresAuth: true }, // 批次 22（v5 P0-4）：补齐 meta.permission
       },
       {
         path: 'bom',
         name: 'Bom',
         component: () => import('@/views/bom/index.vue'),
-        meta: { title: 'BOM管理', icon: 'Cpu', requiresAuth: true },
+        meta: { title: 'BOM管理', icon: 'Cpu', permission: 'inventory:read', requiresAuth: true }, // 批次 22（v5 P0-4）：补齐 meta.permission
       },
       {
         path: 'mrp',
         name: 'Mrp',
         component: () => import('@/views/mrp/index.vue'),
-        meta: { title: 'MRP计算', icon: 'Cpu', requiresAuth: true },
+        meta: { title: 'MRP计算', icon: 'Cpu', permission: 'inventory:read', requiresAuth: true }, // 批次 22（v5 P0-4）：补齐 meta.permission
       },
       {
         path: 'mrp/history',
         name: 'MrpHistory',
         component: () => import('@/views/mrp/history.vue'),
-        meta: { title: 'MRP历史记录', icon: 'Cpu', requiresAuth: true, hidden: true },
+        meta: { title: 'MRP历史记录', icon: 'Cpu', permission: 'inventory:read', requiresAuth: true, hidden: true }, // 批次 22（v5 P0-4）：补齐 meta.permission
       },
       {
         path: 'capacity',
         name: 'Capacity',
         component: () => import('@/views/capacity/index.vue'),
-        meta: { title: '产能分析', icon: 'Cpu', requiresAuth: true },
+        meta: { title: '产能分析', icon: 'Cpu', permission: 'inventory:read', requiresAuth: true }, // 批次 22（v5 P0-4）：补齐 meta.permission
       },
       {
         path: 'material-shortage',
         name: 'MaterialShortage',
         component: () => import('@/views/material-shortage/index.vue'),
-        meta: { title: '缺料预警', icon: 'Cpu', requiresAuth: true },
+        meta: { title: '缺料预警', icon: 'Cpu', permission: 'inventory:read', requiresAuth: true }, // 批次 22（v5 P0-4）：补齐 meta.permission
       },
       {
         path: 'cost',
@@ -344,13 +344,13 @@ const routes: RouteRecordRaw[] = [
         path: 'notification',
         name: 'Notification',
         component: () => import('@/views/notification/index.vue'),
-        meta: { title: '通知中心', icon: 'Setting', requiresAuth: true },
+        meta: { title: '通知中心', icon: 'Setting', permission: 'users:read', requiresAuth: true }, // 批次 22（v5 P0-4）：补齐 meta.permission
       },
       {
         path: 'data-permission',
         name: 'DataPermission',
         component: () => import('@/views/dataPermission/index.vue'),
-        meta: { title: '数据权限管理', icon: 'Setting', requiresAuth: true },
+        meta: { title: '数据权限管理', icon: 'Setting', permission: 'users:read', requiresAuth: true }, // 批次 22（v5 P0-4）：补齐 meta.permission
       },
       {
         path: 'inventory-batch',
@@ -362,7 +362,7 @@ const routes: RouteRecordRaw[] = [
         path: 'five-dimension',
         name: 'FiveDimension',
         component: () => import('@/views/fiveDimension/index.vue'),
-        meta: { title: '五维管理', icon: 'Setting', requiresAuth: true },
+        meta: { title: '五维管理', icon: 'Setting', permission: 'users:read', requiresAuth: true }, // 批次 22（v5 P0-4）：补齐 meta.permission
       },
       {
         path: 'assist-accounting',
@@ -374,13 +374,13 @@ const routes: RouteRecordRaw[] = [
         path: 'business-trace',
         name: 'BusinessTrace',
         component: () => import('@/views/businessTrace/index.vue'),
-        meta: { title: '业务追溯', icon: 'List', requiresAuth: true },
+        meta: { title: '业务追溯', icon: 'List', permission: 'audit:read', requiresAuth: true }, // 批次 22（v5 P0-4）：补齐 meta.permission
       },
       {
         path: 'barcode-scanner',
         name: 'BarcodeScanner',
         component: () => import('@/views/barcodeScanner/index.vue'),
-        meta: { title: '扫码功能', icon: 'List', requiresAuth: true },
+        meta: { title: '扫码功能', icon: 'List', permission: 'inventory:read', requiresAuth: true }, // 批次 22（v5 P0-4）：补齐 meta.permission
       },
       {
         path: 'omni-audit',
@@ -392,19 +392,19 @@ const routes: RouteRecordRaw[] = [
         path: 'scheduling',
         name: 'Scheduling',
         component: () => import('@/views/scheduling/index.vue'),
-        meta: { title: '生产排程', icon: 'Cpu', requiresAuth: true },
+        meta: { title: '生产排程', icon: 'Cpu', permission: 'inventory:read', requiresAuth: true }, // 批次 22（v5 P0-4）：补齐 meta.permission
       },
       {
         path: 'scheduling/gantt',
         name: 'SchedulingGantt',
         component: () => import('@/views/scheduling/gantt.vue'),
-        meta: { title: '排程甘特图', icon: 'Cpu', requiresAuth: true, hidden: true },
+        meta: { title: '排程甘特图', icon: 'Cpu', permission: 'inventory:read', requiresAuth: true, hidden: true }, // 批次 22（v5 P0-4）：补齐 meta.permission
       },
       {
         path: 'components-demo',
         name: 'ComponentsDemo',
         component: () => import('@/views/components-demo/index.vue'),
-        meta: { title: '组件示例', icon: 'Setting', requiresAuth: true, hidden: true },
+        meta: { title: '组件示例', icon: 'Setting', permission: 'users:read', requiresAuth: true, hidden: true }, // 批次 22（v5 P0-4）：补齐 meta.permission
       },
       // 新增路由 - 凭证管理
       {
@@ -439,28 +439,28 @@ const routes: RouteRecordRaw[] = [
         path: 'report-templates',
         name: 'ReportTemplates',
         component: () => import('@/views/report-templates/index.vue'),
-        meta: { title: '报表中心', icon: 'Setting', requiresAuth: true },
+        meta: { title: '报表中心', icon: 'Setting', permission: 'audit:read', requiresAuth: true }, // 批次 22（v5 P0-4）：补齐 meta.permission
       },
       // 新增路由 - BPM流程定义
       {
         path: 'bpm/definitions',
         name: 'BPMDefinitions',
         component: () => import('@/views/bpm/definitions.vue'),
-        meta: { title: '流程定义管理', icon: 'List', requiresAuth: true, hidden: true },
+        meta: { title: '流程定义管理', icon: 'List', permission: 'audit:read', requiresAuth: true, hidden: true }, // 批次 22（v5 P0-4）：补齐 meta.permission
       },
       // 新增路由 - BPM流程模板
       {
         path: 'bpm/templates',
         name: 'BPMTemplates',
         component: () => import('@/views/bpm/templates.vue'),
-        meta: { title: '流程模板管理', icon: 'List', requiresAuth: true, hidden: true },
+        meta: { title: '流程模板管理', icon: 'List', permission: 'audit:read', requiresAuth: true, hidden: true }, // 批次 22（v5 P0-4）：补齐 meta.permission
       },
       // 新增路由 - BPM审批中心
       {
         path: 'bpm/approval',
         name: 'BPMApproval',
         component: () => import('@/views/bpm/approval/index.vue'),
-        meta: { title: '审批中心', icon: 'List', requiresAuth: true },
+        meta: { title: '审批中心', icon: 'List', permission: 'audit:read', requiresAuth: true }, // 批次 22（v5 P0-4）：补齐 meta.permission
       },
       // 新增路由 - 增强版应收对账
       {
@@ -481,33 +481,33 @@ const routes: RouteRecordRaw[] = [
         path: 'security',
         name: 'Security',
         component: () => import('@/views/security/index.vue'),
-        meta: { title: '安全管理', icon: 'Setting', requiresAuth: true },
+        meta: { title: '安全管理', icon: 'Setting', permission: 'users:read', requiresAuth: true }, // 批次 22（v5 P0-4）：补齐 meta.permission
       },
       // 新增路由 - 双因素认证(修复 user-profile 死链)
       {
         path: 'security/two-factor-setup',
         name: 'SecurityTwoFactorSetup',
         component: () => import('@/views/security/TwoFactorSetup.vue'),
-        meta: { title: '双因素认证', icon: 'Setting', requiresAuth: true, hidden: true },
+        meta: { title: '双因素认证', icon: 'Setting', permission: 'users:read', requiresAuth: true, hidden: true }, // 批次 22（v5 P0-4）：补齐 meta.permission
       },
       // 新增路由 - 修改密码(修复 user-profile 死链)
       {
         path: 'security/change-password',
         name: 'SecurityChangePassword',
         component: () => import('@/views/security/ChangePassword.vue'),
-        meta: { title: '修改密码', icon: 'Setting', requiresAuth: true, hidden: true },
+        meta: { title: '修改密码', icon: 'Setting', permission: 'users:read', requiresAuth: true, hidden: true }, // 批次 22（v5 P0-4）：补齐 meta.permission
       },
       {
         path: 'dye-recipe',
         name: 'DyeRecipe',
         component: () => import('@/views/dye-recipe/index.vue'),
-        meta: { title: '染色配方', icon: 'Cpu', requiresAuth: true },
+        meta: { title: '染色配方', icon: 'Cpu', permission: 'inventory:read', requiresAuth: true }, // 批次 22（v5 P0-4）：补齐 meta.permission
       },
       {
         path: 'dye-batch',
         name: 'DyeBatch',
         component: () => import('@/views/dye-batch/index.vue'),
-        meta: { title: '染色批次', icon: 'Cpu', requiresAuth: true },
+        meta: { title: '染色批次', icon: 'Cpu', permission: 'inventory:read', requiresAuth: true }, // 批次 22（v5 P0-4）：补齐 meta.permission
       },
       {
         path: 'purchase-contract',
@@ -538,14 +538,14 @@ const routes: RouteRecordRaw[] = [
         path: 'email',
         name: 'Email',
         component: () => import('@/views/email/index.vue'),
-        meta: { title: '邮件管理', icon: 'Setting', requiresAuth: true },
+        meta: { title: '邮件管理', icon: 'Setting', permission: 'users:read', requiresAuth: true }, // 批次 22（v5 P0-4）：补齐 meta.permission
       },
       // 新增路由 - 主备隔离监控
       {
         path: 'admin/failover',
         name: 'AdminFailover',
         component: () => import('@/views/admin/failover.vue'),
-        meta: { title: '主备隔离监控', icon: 'Setting', requiresAuth: true },
+        meta: { title: '主备隔离监控', icon: 'Setting', permission: 'users:read', requiresAuth: true }, // 批次 22（v5 P0-4）：补齐 meta.permission
       },
       // 新增路由 - 采购检验
       {
@@ -566,43 +566,43 @@ const routes: RouteRecordRaw[] = [
         path: 'logistics',
         name: 'Logistics',
         component: () => import('@/views/logistics/index.vue'),
-        meta: { title: '物流管理', icon: 'Box', requiresAuth: true },
+        meta: { title: '物流管理', icon: 'Box', permission: 'inventory:read', requiresAuth: true }, // 批次 22（v5 P0-4）：补齐 meta.permission
       },
       {
         path: 'quality-standards',
         name: 'QualityStandards',
         component: () => import('@/views/quality-standards/index.vue'),
-        meta: { title: '质量标准', icon: 'Cpu', requiresAuth: true },
+        meta: { title: '质量标准', icon: 'Cpu', permission: 'inventory:read', requiresAuth: true }, // 批次 22（v5 P0-4）：补齐 meta.permission
       },
       {
         path: 'data-import',
         name: 'DataImport',
         component: () => import('@/views/data-import/index.vue'),
-        meta: { title: '数据导入', icon: 'Setting', requiresAuth: true },
+        meta: { title: '数据导入', icon: 'Setting', permission: 'users:read', requiresAuth: true }, // 批次 22（v5 P0-4）：补齐 meta.permission
       },
       {
         path: 'print-templates',
         name: 'PrintTemplates',
         component: () => import('@/views/print-templates/index.vue'),
-        meta: { title: '打印模板', icon: 'Setting', requiresAuth: true },
+        meta: { title: '打印模板', icon: 'Setting', permission: 'users:read', requiresAuth: true }, // 批次 22（v5 P0-4）：补齐 meta.permission
       },
       {
         path: 'api-gateway',
         name: 'ApiGateway',
         component: () => import('@/views/api-gateway/index.vue'),
-        meta: { title: 'API网关', icon: 'Setting', requiresAuth: true },
+        meta: { title: 'API网关', icon: 'Setting', permission: 'users:read', requiresAuth: true }, // 批次 22（v5 P0-4）：补齐 meta.permission
       },
       {
         path: 'system-update',
         name: 'SystemUpdate',
         component: () => import('@/views/system-update/index.vue'),
-        meta: { title: '系统更新', icon: 'Setting', requiresAuth: true },
+        meta: { title: '系统更新', icon: 'Setting', permission: 'users:read', requiresAuth: true }, // 批次 22（v5 P0-4）：补齐 meta.permission
       },
       {
         path: 'system/profile',
         name: 'UserProfile',
         component: () => import('@/views/user-profile/index.vue'),
-        meta: { title: '个人信息', icon: 'Setting', requiresAuth: true, hidden: true },
+        meta: { title: '个人信息', icon: 'Setting', permission: 'users:read', requiresAuth: true, hidden: true }, // 批次 22（v5 P0-4）：补齐 meta.permission
       },
       // 报价单模块 - 列表 + 新建
       {
@@ -640,108 +640,108 @@ const routes: RouteRecordRaw[] = [
         path: 'custom-orders',
         name: 'CustomOrderList',
         component: () => import('@/views/custom-orders/list.vue'),
-        meta: { title: '定制订单管理', icon: 'Cpu', requiresAuth: true },
+        meta: { title: '定制订单管理', icon: 'Cpu', permission: 'inventory:read', requiresAuth: true }, // 批次 22（v5 P0-4）：补齐 meta.permission
       },
       {
         path: 'custom-orders/new',
         name: 'CustomOrderCreate',
         component: () => import('@/views/custom-orders/create.vue'),
-        meta: { title: '新建定制订单', icon: 'Cpu', requiresAuth: true, hidden: true },
+        meta: { title: '新建定制订单', icon: 'Cpu', permission: 'inventory:read', requiresAuth: true, hidden: true }, // 批次 22（v5 P0-4）：补齐 meta.permission
       },
       {
         path: 'custom-orders/:id',
         name: 'CustomOrderDetail',
         component: () => import('@/views/custom-orders/detail.vue'),
-        meta: { title: '定制订单详情', icon: 'Cpu', requiresAuth: true, hidden: true },
+        meta: { title: '定制订单详情', icon: 'Cpu', permission: 'inventory:read', requiresAuth: true, hidden: true }, // 批次 22（v5 P0-4）：补齐 meta.permission
       },
       {
         path: 'custom-orders/:id/track',
         name: 'CustomOrderTracking',
         component: () => import('@/views/custom-orders/tracking.vue'),
-        meta: { title: '工艺跟踪', icon: 'Cpu', requiresAuth: true, hidden: true },
+        meta: { title: '工艺跟踪', icon: 'Cpu', permission: 'inventory:read', requiresAuth: true, hidden: true }, // 批次 22（v5 P0-4）：补齐 meta.permission
       },
       // 色卡仓储管理模块（P0-4）
       {
         path: 'color-cards/list',
         name: 'ColorCardList',
         component: () => import('@/views/color-cards/list.vue'),
-        meta: { title: '色卡列表', icon: 'Goods', requiresAuth: true },
+        meta: { title: '色卡列表', icon: 'Goods', permission: 'inventory:read', requiresAuth: true }, // 批次 22（v5 P0-4）：补齐 meta.permission
       },
       {
         path: 'color-cards/create',
         name: 'ColorCardCreate',
         component: () => import('@/views/color-cards/create.vue'),
-        meta: { title: '新建色卡', icon: 'Goods', requiresAuth: true, hidden: true },
+        meta: { title: '新建色卡', icon: 'Goods', permission: 'inventory:read', requiresAuth: true, hidden: true }, // 批次 22（v5 P0-4）：补齐 meta.permission
       },
       {
         path: 'color-cards/detail/:id',
         name: 'ColorCardDetail',
         component: () => import('@/views/color-cards/detail.vue'),
-        meta: { title: '色卡详情', icon: 'Goods', requiresAuth: true, hidden: true },
+        meta: { title: '色卡详情', icon: 'Goods', permission: 'inventory:read', requiresAuth: true, hidden: true }, // 批次 22（v5 P0-4）：补齐 meta.permission
       },
       {
         path: 'color-cards/borrow',
         name: 'ColorCardBorrow',
         component: () => import('@/views/color-cards/borrow.vue'),
-        meta: { title: '色卡借出管理', icon: 'Goods', requiresAuth: true },
+        meta: { title: '色卡借出管理', icon: 'Goods', permission: 'inventory:read', requiresAuth: true }, // 批次 22（v5 P0-4）：补齐 meta.permission
       },
       // 面料多色号定价扩展模块（P0-5）
       {
         path: 'color-prices/list',
         name: 'ColorPriceList',
         component: () => import('@/views/color-prices/list.vue'),
-        meta: { title: '色号价格列表', icon: 'Goods', requiresAuth: true },
+        meta: { title: '色号价格列表', icon: 'Goods', permission: 'inventory:read', requiresAuth: true }, // 批次 22（v5 P0-4）：补齐 meta.permission
       },
       {
         path: 'color-prices/create',
         name: 'ColorPriceCreate',
         // 修复：原指向 list.vue（错配）→ 改为专用 create.vue
         component: () => import('@/views/color-prices/create.vue'),
-        meta: { title: '新建色号价格', icon: 'Goods', requiresAuth: true, hidden: true },
+        meta: { title: '新建色号价格', icon: 'Goods', permission: 'inventory:read', requiresAuth: true, hidden: true }, // 批次 22（v5 P0-4）：补齐 meta.permission
       },
       {
         path: 'color-prices/detail/:id',
         name: 'ColorPriceDetail',
         component: () => import('@/views/color-prices/detail.vue'),
-        meta: { title: '色号价格详情', icon: 'Goods', requiresAuth: true, hidden: true },
+        meta: { title: '色号价格详情', icon: 'Goods', permission: 'inventory:read', requiresAuth: true, hidden: true }, // 批次 22（v5 P0-4）：补齐 meta.permission
       },
       {
         path: 'color-prices/batch-adjust',
         name: 'ColorPriceBatchAdjust',
         component: () => import('@/views/color-prices/batch-adjust.vue'),
-        meta: { title: '批量调价', icon: 'Goods', requiresAuth: true },
+        meta: { title: '批量调价', icon: 'Goods', permission: 'inventory:read', requiresAuth: true }, // 批次 22（v5 P0-4）：补齐 meta.permission
       },
       // P2-4 AI 分析深化（工艺优化 + 质量预测）
       {
         path: 'ai-extend',
         name: 'AiExtendOverview',
         component: () => import('@/views/ai-extend/index.vue'),
-        meta: { title: 'AI 分析深化', icon: 'MagicStick', requiresAuth: true },
+        meta: { title: 'AI 分析深化', icon: 'MagicStick', permission: 'inventory:read', requiresAuth: true }, // 批次 22（v5 P0-4）：补齐 meta.permission
       },
       {
         path: 'ai-extend/process-optimization',
         name: 'AiExtendProcessOptimization',
         component: () => import('@/views/ai-extend/process-optimization.vue'),
-        meta: { title: 'AI 工艺优化', icon: 'MagicStick', requiresAuth: true },
+        meta: { title: 'AI 工艺优化', icon: 'MagicStick', permission: 'inventory:read', requiresAuth: true }, // 批次 22（v5 P0-4）：补齐 meta.permission
       },
       {
         path: 'ai-extend/process-detail/:id',
         name: 'AiExtendProcessDetail',
         component: () => import('@/views/ai-extend/process-detail.vue'),
-        meta: { title: '工艺优化详情', icon: 'MagicStick', requiresAuth: true, hidden: true },
+        meta: { title: '工艺优化详情', icon: 'MagicStick', permission: 'inventory:read', requiresAuth: true, hidden: true }, // 批次 22（v5 P0-4）：补齐 meta.permission
       },
       {
         path: 'ai-extend/quality-prediction',
         name: 'AiExtendQualityPrediction',
         component: () => import('@/views/ai-extend/quality-prediction.vue'),
-        meta: { title: 'AI 质量预测', icon: 'MagicStick', requiresAuth: true },
+        meta: { title: 'AI 质量预测', icon: 'MagicStick', permission: 'inventory:read', requiresAuth: true }, // 批次 22（v5 P0-4）：补齐 meta.permission
       },
       {
         // P3-4 BI 销售多维分析
         path: 'bi/sales-analysis',
         name: 'BiSalesAnalysis',
         component: () => import('@/views/bi/SalesAnalysis.vue'),
-        meta: { title: 'BI 销售多维分析', icon: 'Money', requiresAuth: true },
+        meta: { title: 'BI 销售多维分析', icon: 'Money', permission: 'sales:read', requiresAuth: true }, // 批次 22（v5 P0-4）：补齐 meta.permission
       },
     ],
   },
@@ -774,8 +774,18 @@ const router = createRouter({
 
 let initStatus: boolean | null = null
 
+/**
+ * 批次 22 v5 P0-8 修复：checkInitStatus 错误时默认 false（保守）
+ *
+ * 原实现 HTTP 错误或 catch 时默认 true，会导致后端 5xx/网络故障时
+ * 守卫放行 /setup 检查，未初始化系统被误判为已初始化，跳过 setup 流程。
+ * 现改为：仅 response.ok=true 且解析成功时设 true；否则保持 false，
+ * 由守卫将用户引导至 /setup 完成初始化（失败安全）。
+ */
 async function checkInitStatus(): Promise<boolean> {
   if (initStatus !== null) return initStatus
+  // 批次 22 v5 P0-8：默认 false（保守），仅明确成功才置 true
+  let result = false
   try {
     const controller = new AbortController()
     const timeout = setTimeout(() => controller.abort(), 3000)
@@ -791,16 +801,19 @@ async function checkInitStatus(): Promise<boolean> {
       // 1. setup 模式：返回 { initialized: false, message: "..." }
       // 2. 正常模式：返回 { code: 200, data: { initialized: true, ... } }
       if (data.code === 200 && data.data !== undefined) {
-        initStatus = !!data.data.initialized
+        result = !!data.data.initialized
       } else {
-        initStatus = !!data.initialized
+        result = !!data.initialized
       }
-      return initStatus
+    } else {
+      // 批次 22 v5 P0-8：HTTP 错误保持 false，记录日志
+      logger.error(`检查系统初始化状态失败：HTTP ${response.status}`)
     }
   } catch (error) {
+    // 批次 22 v5 P0-8：catch 时保持 false，记录日志
     logger.error('检查系统初始化状态失败:', error)
   }
-  initStatus = true
+  initStatus = result
   return initStatus
 }
 
@@ -831,7 +844,7 @@ export function resetInitStatus(initialized: boolean = true) {
  */
 export function hasRoutePermission(
   required: string | string[] | undefined,
-  userPermissions: string[]
+  userPermissions: readonly string[]
 ): boolean {
   if (!required) return true
   const requiredList = Array.isArray(required) ? required : [required]
@@ -888,15 +901,16 @@ router.beforeEach(async (to, _from, next) => {
       }
     }
 
-    // 批次 3：路由 meta.permission 权限码校验（宽松模式）
+    // 批次 3：路由 meta.permission 权限码校验
+    // 批次 22 v5 P0-6 修复：移除"空权限放行"，空权限码用户应被拒绝（保守安全）
     // - admin 角色绕过（与 v-permission 指令行为一致）
-    // - 用户未配置任何权限码时放行（避免锁死未配置权限的账户）
+    //   TODO(tech-debt): admin 绕过应改为显式 admin:* 权限码，下个迭代处理
     // - 权限码匹配支持通配符与 read/view 等价（兼容后端两套 action 命名）
     if (to.meta.permission && userStore.userInfo) {
       const user = userStore.userInfo
       if (user.role_name !== 'admin') {
         const userPerms = user.permissions || []
-        if (userPerms.length > 0 && !hasRoutePermission(to.meta.permission, userPerms)) {
+        if (!hasRoutePermission(to.meta.permission, userPerms)) {
           logger.warn(`权限不足：访问 ${to.path} 需要权限码 ${JSON.stringify(to.meta.permission)}，用户持有 ${JSON.stringify(userPerms)}`)
           next({ path: '/403' })
           return

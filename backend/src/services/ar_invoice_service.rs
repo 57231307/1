@@ -77,6 +77,14 @@ impl ArInvoiceService {
             customer_id, invoice_amount
         );
 
+        // 批次 22（2026-06-28 v5 P0-4）：校验客户存在性，防止凭空创建 AR 发票
+        // 原实现不验证 customer_id 是否真实存在，攻击者可传任意 customer_id 创建发票
+        let txn = (*self.db).begin().await?;
+        let _customer = crate::models::customer::Entity::find_by_id(customer_id)
+            .one(&txn)
+            .await?
+            .ok_or_else(|| AppError::not_found(format!("客户 {} 不存在", customer_id)))?;
+
         // 生成应收单编号
         let invoice_no = self.generate_invoice_no().await?;
 
@@ -107,7 +115,8 @@ impl ArInvoiceService {
             ..Default::default()
         };
 
-        let result = active_model.insert(&*self.db).await?;
+        let result = active_model.insert(&txn).await?;
+        txn.commit().await?;
         info!("应收单创建成功：no={}", result.invoice_no);
 
         Ok(result)
@@ -258,9 +267,13 @@ impl ArInvoiceService {
     /// 标记应收单为已收讫
     pub async fn mark_as_paid(&self, id: i32) -> Result<ar_invoice::Model, AppError> {
         // 批次 11（2026-06-28）：事务包裹"状态变更 + 审计日志"，保证原子性
+        // 批次 22（2026-06-28 v5 P0-2）：状态门查询加 lock_exclusive 串行化并发 mark_as_paid
+        // 原实现状态门无锁，两并发 mark_as_paid 均通过状态检查后基于过期状态写入，
+        // 导致 received_amount 重复累加（资金双重收款风险）。
         let txn = (*self.db).begin().await?;
 
         let invoice = ar_invoice::Entity::find_by_id(id)
+            .lock_exclusive()
             .one(&txn)
             .await?
             .ok_or_else(|| AppError::not_found("应收单不存在"))?;

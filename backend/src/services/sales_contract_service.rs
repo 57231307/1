@@ -188,28 +188,55 @@ impl SalesContractService {
     }
 
     /// 审核合同
+    ///
+    /// 批次 22（2026-06-28 v5 P0-6）：重构 approve 补全事务边界 + lock_exclusive + update_with_audit
+    /// 原 `approve` 在 `&*self.db` 上裸查询 + 裸 `save`，无事务边界也无行锁，
+    /// 并发审核同一合同可能基于过期快照导致状态覆盖；同时未走 update_with_audit 会丢失审计追溯。
+    /// 改为：begin txn + lock_exclusive 查询 + 状态校验 + update_with_audit(&txn, Some(user_id)) + commit。
     pub async fn approve(&self, contract_id: i32, user_id: i32) -> Result<(), AppError> {
         info!("用户 {} 正在审核销售合同 {}", user_id, contract_id);
 
-        let contract = self.get_by_id(contract_id).await?;
+        let txn = (*self.db).begin().await?;
+
+        // 状态门查询加 lock_exclusive 串行化并发 approve
+        let contract = sales_contract::Entity::find_by_id(contract_id)
+            .lock_exclusive()
+            .one(&txn)
+            .await?
+            .ok_or_else(|| AppError::not_found(format!("销售合同 {}", contract_id)))?;
 
         if contract.status != "draft" {
-            return Err(AppError::validation(
-                "只有草稿状态的合同才能审核".to_string(),
-            ));
+            return Err(AppError::business(format!(
+                "合同状态为{}，不可审核（仅草稿状态可审核）",
+                contract.status
+            )));
         }
 
         let mut contract_active: sales_contract::ActiveModel = contract.into();
         contract_active.status = Set("active".to_string());
         contract_active.updated_at = Set(chrono::Utc::now());
 
-        contract_active.save(&*self.db).await?;
+        // 走 update_with_audit 保留审计追溯
+        let _ = crate::services::audit_log_service::AuditLogService::update_with_audit(
+            &txn,
+            "auto_audit",
+            contract_active,
+            Some(user_id),
+        )
+        .await?;
+
+        txn.commit().await?;
 
         info!("销售合同 {} 审核成功", contract_id);
         Ok(())
     }
 
     /// 取消合同
+    ///
+    /// 批次 22（2026-06-28 v5 P0-6）：重构 cancel 补全事务边界 + lock_exclusive + update_with_audit
+    /// 原 `cancel` 在 `&*self.db` 上裸查询 + 裸 `save`，无事务边界也无行锁，
+    /// 并发取消同一合同可能基于过期快照导致状态覆盖；同时未走 update_with_audit 会丢失审计追溯。
+    /// 改为：begin txn + lock_exclusive 查询 + 状态校验 + update_with_audit(&txn, Some(user_id)) + commit。
     pub async fn cancel(
         &self,
         contract_id: i32,
@@ -221,19 +248,36 @@ impl SalesContractService {
             user_id, contract_id, reason
         );
 
-        let contract = self.get_by_id(contract_id).await?;
+        let txn = (*self.db).begin().await?;
+
+        // 状态门查询加 lock_exclusive 串行化并发 cancel
+        let contract = sales_contract::Entity::find_by_id(contract_id)
+            .lock_exclusive()
+            .one(&txn)
+            .await?
+            .ok_or_else(|| AppError::not_found(format!("销售合同 {}", contract_id)))?;
 
         if contract.status != "active" && contract.status != "draft" {
-            return Err(AppError::validation(
-                "只能取消活跃或草稿状态的合同".to_string(),
-            ));
+            return Err(AppError::business(format!(
+                "合同状态为{}，不可取消（仅活跃或草稿状态可取消）",
+                contract.status
+            )));
         }
 
         let mut contract_active: sales_contract::ActiveModel = contract.into();
         contract_active.status = Set("cancelled".to_string());
         contract_active.updated_at = Set(chrono::Utc::now());
 
-        contract_active.save(&*self.db).await?;
+        // 走 update_with_audit 保留审计追溯
+        let _ = crate::services::audit_log_service::AuditLogService::update_with_audit(
+            &txn,
+            "auto_audit",
+            contract_active,
+            Some(user_id),
+        )
+        .await?;
+
+        txn.commit().await?;
 
         info!("销售合同 {} 取消成功", contract_id);
         Ok(())

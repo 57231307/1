@@ -15,8 +15,11 @@ export interface LoginResponse {
    * FE-P-3 修复（2026-06-26 第二次审计第二优先级）：
    * 后端 LoginResponse 顶层返回 `permissions: Vec<String>`（格式 "{resource}:{action}"），
    * 前端用 `permissions.includes("xxx:yyy")` 判断权限。
+   *
+   * 批次 22 v5 P0-5 修复：类型改为 readonly，防止前端组件恶意修改权限码数组
+   * （如 push 注入 admin:write），运行时配合 Object.freeze 做深度防御。
    */
-  permissions?: string[]
+  readonly permissions?: readonly string[]
   csrf_token?: string
 }
 
@@ -32,7 +35,11 @@ export interface UserInfo {
   department_id?: number
   department_name?: string
   is_totp_enabled?: boolean
-  permissions?: string[]
+  /**
+   * 批次 22 v5 P0-5 修复：类型改为 readonly，防止前端组件恶意修改权限码数组
+   * （如 push 注入 admin:write），运行时配合 Object.freeze 做深度防御。
+   */
+  readonly permissions?: readonly string[]
 }
 
 export interface PageResult<T = any> {

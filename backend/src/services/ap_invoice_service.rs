@@ -9,7 +9,7 @@ use chrono::{Duration, NaiveDate, Utc};
 use rust_decimal::Decimal;
 use sea_orm::{
     ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, Order, PaginatorTrait,
-    QueryFilter, QueryOrder, Set, TransactionTrait,
+    QueryFilter, QueryOrder, QuerySelect, Set, TransactionTrait,
 };
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
@@ -381,10 +381,14 @@ impl ApInvoiceService {
         // 批次 11（2026-06-28）：事务包裹"状态变更 + 审计日志"，保证原子性
         // 原实现直接 &*self.db 调用 update_with_audit，内部 2 次独立写入非原子；
         // 异步事件驱动场景下若审计写入失败，发票已 PAID 但无审计，且难以发现。
+        // 批次 22（2026-06-28 v5 P0-1）：状态门查询加 lock_exclusive 串行化并发 mark_as_paid
+        // 原实现状态门无锁，两并发 mark_as_paid 均通过状态检查后基于过期状态写入，
+        // 导致 paid_amount 重复累加（资金双重支付风险）。
         let txn = (*self.db).begin().await?;
 
-        // 1. 查询应付单
+        // 1. 查询应付单（加 lock_exclusive 串行化并发 mark_as_paid）
         let invoice = ap_invoice::Entity::find_by_id(id)
+            .lock_exclusive()
             .one(&txn)
             .await?
             .ok_or_else(|| AppError::not_found(format!("应付单 {}", id)))?;
