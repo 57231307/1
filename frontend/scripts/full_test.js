@@ -138,7 +138,7 @@ for (const p of pagesToTest) {
   try {
     const errorsBefore = apiErrors.length + consoleErrors.length + pageErrors.length
 
-    await page.goto(`http://111.230.99.236${p.url}`, { waitUntil: 'networkidle', timeout: 15000 })
+    await page.goto(`${BASE_URL}${p.url}`, { waitUntil: 'networkidle', timeout: 15000 })
     await page.waitForTimeout(1500)
 
     const errorsAfter = apiErrors.length + consoleErrors.length + pageErrors.length
