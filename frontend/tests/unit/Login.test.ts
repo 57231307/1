@@ -1,20 +1,31 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { mount, flushPromises } from '@vue/test-utils'
-import { createPinia, setActivePinia } from 'pinia'
 import { createI18n } from 'vue-i18n'
 import ElementPlus from 'element-plus'
-import { createMemoryHistory, createRouter } from 'vue-router'
 
 // 批次 29 v7 P0-7 修复：原测试用 LoginMock 自定义组件，未测试真实 Login.vue。
 // 改为 mount 真实 Login.vue，并 mock 依赖（userStore / securityApi / router），
 // 验证真实组件的渲染、表单校验、登录流程、错误处理。
 //
-// 批次 29 v7 P0-7 修复补丁：vi.mock 工厂函数会被 hoist 到文件顶部，
+// 批次 29 v7 P0-7 修复补丁 1：vi.mock 工厂函数会被 hoist 到文件顶部，
 // 此时顶层 const 变量尚未初始化（ReferenceError: Cannot access 'mockLogin' before initialization）。
 // 改用 vi.hoisted() 创建 mock 函数，确保 hoist 后变量仍可访问。
+//
+// 批次 29 v7 P0-7 修复补丁 2：tests/setup.ts 全局 mock 了 vue-router，但只导出
+// useRouter/useRoute/createRouter/createWebHistory，未导出 createMemoryHistory，
+// 导致本测试导入 createMemoryHistory 失败。
+// 解决方案：本测试文件不依赖真实 vue-router，而是在本文件内重新 mock vue-router，
+// 用 spy 控制 useRouter().push 与 useRoute().query.redirect，覆盖 setup.ts 的 mock。
 
-const { mockLogin, mockCheckLockStatus } = vi.hoisted(() => ({
+const {
+  mockLogin,
+  mockCheckLockStatus,
+  pushSpy,
+  routeRef,
+} = vi.hoisted(() => ({
+  // userStore.login：默认 resolve，可通过 mockRejectedValueOnce 修改行为
   mockLogin: vi.fn().mockResolvedValue(undefined),
+  // securityApi.checkLockStatus：默认返回未锁定
   mockCheckLockStatus: vi.fn().mockResolvedValue({
     data: {
       is_locked: false,
@@ -23,6 +34,15 @@ const { mockLogin, mockCheckLockStatus } = vi.hoisted(() => ({
       max_attempts: 5,
     },
   }),
+  // useRouter().push 的 spy，用于断言跳转目标
+  pushSpy: vi.fn(),
+  // useRoute() 返回的响应式对象，测试中修改 query.redirect 测试不同场景
+  routeRef: {
+    path: '/login',
+    query: {} as Record<string, string>,
+    params: {} as Record<string, string>,
+    meta: {},
+  },
 }))
 
 vi.mock('@/store/user', () => ({
@@ -36,6 +56,22 @@ vi.mock('@/api/security', () => ({
   securityApi: {
     checkLockStatus: mockCheckLockStatus,
   },
+}))
+
+// 重新 mock vue-router，覆盖 tests/setup.ts 的全局 mock
+// 关键：提供 useRouter（返回带 pushSpy 的对象）+ useRoute（返回 routeRef）
+vi.mock('vue-router', () => ({
+  useRouter: () => ({
+    push: pushSpy,
+    replace: vi.fn(),
+    go: vi.fn(),
+    back: vi.fn(),
+    forward: vi.fn(),
+  }),
+  useRoute: () => routeRef,
+  // 保留其他可能被 Login.vue 间接引用的导出
+  RouterLink: { template: '<a><slot /></a>' },
+  RouterView: { template: '<div><slot /></div>' },
 }))
 
 // Mock logger（防止测试输出噪声）
@@ -89,37 +125,23 @@ const i18n = createI18n({
   },
 })
 
-// 创建测试用 router
-function createTestRouter() {
-  const router = createRouter({
-    history: createMemoryHistory(),
-    routes: [
-      { path: '/', name: 'home', component: { template: '<div>home</div>' } },
-      { path: '/login', name: 'login', component: Login },
-      { path: '/dashboard', name: 'dashboard', component: { template: '<div>dashboard</div>' } },
-    ],
-  })
-  return router
-}
-
-function mountLogin(redirect?: string) {
-  const router = createTestRouter()
-  const initialRoute = redirect ? `/login?redirect=${encodeURIComponent(redirect)}` : '/login'
-  router.push(initialRoute)
-
+function mountLogin() {
   const wrapper = mount(Login, {
     global: {
-      plugins: [i18n, router, ElementPlus],
+      plugins: [i18n, ElementPlus],
     },
   })
-  return { wrapper, router }
+  return { wrapper }
 }
 
 describe('Login.vue 真实组件测试', () => {
   beforeEach(() => {
-    setActivePinia(createPinia())
     mockLogin.mockClear()
+    mockLogin.mockResolvedValue(undefined) // 重置为默认 resolve
     mockCheckLockStatus.mockClear()
+    pushSpy.mockClear()
+    // 重置 routeRef.query
+    routeRef.query = {}
   })
 
   it('应该正确渲染登录页面（标题 + 用户名/密码输入框 + 登录按钮）', async () => {
@@ -168,9 +190,8 @@ describe('Login.vue 真实组件测试', () => {
   })
 
   it('登录失败时不应跳转路由（userStore.login reject 时 router.push 不执行）', async () => {
-    const { wrapper, router } = mountLogin()
+    const { wrapper } = mountLogin()
     await flushPromises()
-    const pushSpy = vi.spyOn(router, 'push')
     // 模拟登录失败
     mockLogin.mockRejectedValueOnce(new Error('用户名或密码错误'))
     const inputs = wrapper.findAll('input')
@@ -179,14 +200,15 @@ describe('Login.vue 真实组件测试', () => {
     await flushPromises()
     await wrapper.find('button').trigger('click')
     await flushPromises()
-    // 登录失败，不应 push 到 dashboard
+    // 登录失败，不应 push
     expect(pushSpy).not.toHaveBeenCalled()
   })
 
   it('登录成功后应跳转到 redirect 参数指定的安全路径', async () => {
-    const { wrapper, router } = mountLogin('/dashboard')
+    // 设置 route.query.redirect = '/dashboard'
+    routeRef.query = { redirect: '/dashboard' }
+    const { wrapper } = mountLogin()
     await flushPromises()
-    const pushSpy = vi.spyOn(router, 'push')
     const inputs = wrapper.findAll('input')
     await inputs[0].setValue('admin')
     await inputs[1].setValue('password123')
@@ -198,9 +220,10 @@ describe('Login.vue 真实组件测试', () => {
   })
 
   it('登录成功后 redirect 为外部 URL 时应回退到 /（防 Open Redirect）', async () => {
-    const { wrapper, router } = mountLogin('//evil.com')
+    // 设置 route.query.redirect = '//evil.com'（外部 URL）
+    routeRef.query = { redirect: '//evil.com' }
+    const { wrapper } = mountLogin()
     await flushPromises()
-    const pushSpy = vi.spyOn(router, 'push')
     const inputs = wrapper.findAll('input')
     await inputs[0].setValue('admin')
     await inputs[1].setValue('password123')

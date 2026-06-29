@@ -594,6 +594,13 @@ mod tests {
                     "user.list:write".to_string(),
                     "order:read".to_string(),
                 ],
+                // 批次 29 v7 P0-4+5：补全新增的 6 个字段（与生产构造保持一致）
+                phone: Some("13800000000".to_string()),
+                department_id: Some(1),
+                department_name: Some("研发部".to_string()),
+                is_totp_enabled: false,
+                real_name: Some("测试用户".to_string()),
+                avatar: None,
             },
             permissions: vec![
                 "user.list:read".to_string(),
