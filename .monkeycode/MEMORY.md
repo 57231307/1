@@ -21,20 +21,27 @@
 
 ---
 
-## 当前任务状态（2026-06-29 批次 28 完成 - 开始批次 29）
+## 当前任务状态（2026-06-29 批次 29 完成 - 开始批次 30）
 
-### ✅ 批次 28 完成：v7 安全敏感信息 P0 6 项
+### ✅ 批次 29 完成：v7 前后端类型契约 P0 8 项
 
-**修复分支**：`fix/batch-28-v7-security-p0`（已合并删除）
-**合并 commit**：`2f3ff95`（PR #270，CI 12/13 success，E2E continue-on-error 不阻塞）
-**修复清单**：见 [CHANGELOG.md 批次 28 章节](file:///workspace/.monkeycode/CHANGELOG.md)
+**修复分支**：`fix/batch-29-type-contract-p0`（已合并删除）
+**合并 commit**：`7f9b304`（PR #271，CI 12/13 success，E2E continue-on-error 不阻塞）
+**修复清单**：见 [CHANGELOG.md 批次 29 章节](file:///workspace/.monkeycode/CHANGELOG.md)
 
 **关键技术决策**：
-1. **P0-1 凭据硬编码 fail-secure**：comprehensive_test.cjs 改用 `TEST_BASE_URL` + `TEST_ADMIN_PASSWORD` 环境变量，缺失即 exit(1)
-2. **P0-2 生产 IP 多处硬编码**：7 处脚本（api-crud-test.sh / full_test.js / check_remaining_errors.js / p2-2-perf-baseline.mjs / p2-2-slow-query.sql / 生产日志 README / init_service 测试 IP）统一改用环境变量；init_service 测试 IP 改为 RFC 5737 文档示例段 192.0.2.100
-3. **P0-3/P0-4 配置文件从 git 移除**：`git rm --cached backend/config.yaml backend/config.test.yaml`，新增 `backend/config.test.yaml.example` 模板，`.gitignore` 添加忽略规则，CI 发布包改用 `*.example` 模板
-4. **P0-5 健康检查端点回归**：`快速部署/install.sh` + `backend/src/cli/util/service.rs` 从 `/api/v1/erp/health` 改为 `/health`（与 routes/mod.rs:359 一致）
-5. **P0-6 fix-server-config.sh 重写**：对齐 deploy-latest.sh 批次 24 模式（BINGXI_SERVER_IP fail-secure + BINGXI_SSH_KEY 优先 + StrictHostKeyChecking=accept-new + /health 端点）
+1. **P0-1 pnpm-lock.yaml 移除**：残留 vitest 2.1.9（CVSS 9.8），CI 实际使用 npm ci + package-lock.json，pnpm-lock 仅本地，加入 .gitignore
+2. **P0-2 RefreshTokenResponse 移除 token 字段**：对齐批次 24 LoginResponse 决策（access_token 走 httpOnly Cookie），后端 struct + 前端类型同步移除
+3. **P0-3 TOTP 字段名统一**：前端 `totp_code` → `totp_token`（对齐后端 auth_handler.rs:41）
+4. **P0-4+5 UserInfo 补全 6 字段**：phone / department_id / department_name / is_totp_enabled / real_name / avatar，build_with_permissions 新增 department JOIN 查询
+5. **P0-6 auth_flow.rs 集成测试重写**：6 个真实 JWT 测试（token 生成解码、auth header 格式、非法 token 拒绝、过期 token 拒绝、配置默认值、密钥一致性）
+6. **P0-7 Login.test.ts 重写**：mount 真实 Login.vue + mock 依赖（userStore/securityApi/logger/ElMessage），7 个测试用例（渲染、表单校验、登录流程、错误处理、Open Redirect 防护、锁定状态预检查）
+7. **P0-8 color-card.spec.ts E2E 重写**：真实业务流程（登录、表单填写、提交、等待响应、状态断言），对齐批次 28 P0-1 fail-secure 凭据
+
+**CI 修复要点**：
+- `vi.mock` 工厂函数被 hoist，顶层 const 变量未初始化 → 改用 `vi.hoisted()` 创建 mock 函数
+- `tests/setup.ts` 全局 mock vue-router 未导出 `createMemoryHistory` → 在测试文件内重新 mock 覆盖
+- Element Plus `form.validate` 在 jsdom 下不触发 `trigger:'blur'` → 调整测试预期为"login 被调用但参数为空"
 
 ### ✅ v7 全项目复审已完成
 
@@ -46,7 +53,7 @@
 **v7 修复批次规划**：
 - 批次 27 ✅：状态机 P0 漏修 + P1 事务边界泄漏（13 项）
 - 批次 28 ✅：v7 安全敏感信息 P0（6 项）
-- 批次 29 ⬜：前后端类型契约 P0（8 项）— pnpm-lock、RefreshTokenResponse、TOTP 字段名、is_totp_enabled 等
+- 批次 29 ✅：前后端类型契约 P0（8 项）— pnpm-lock、RefreshTokenResponse、TOTP 字段名、is_totp_enabled 等
 - 批次 30 ⬜：分页输入验证（30+ 文件）— saturating_sub + page_size clamp
 - 批次 31 ⬜：N+1 查询 + DTO 输入验证
 - 批次 32 ⬜：i18n + OpenAPI 文档（高工作量）
