@@ -524,7 +524,8 @@ pub struct SupplierApSummary {
 }
 
 /// 自动对账结果
-#[derive(Debug, Serialize)]
+// 批次 23（2026-06-29 v5 P0-1 修复补充）：新增 Clone 派生，支持 lock().await.clone() 模式
+#[derive(Debug, Clone, Serialize)]
 pub struct AutoReconciliationResult {
     pub reconciliation_id: i32,
     pub reconciliation_no: String,

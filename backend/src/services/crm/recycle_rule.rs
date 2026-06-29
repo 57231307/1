@@ -7,7 +7,7 @@
 //! 提供 list/create/update/delete 四个 CRUD 方法，使用 SeaORM 操作数据库。
 
 use chrono::{DateTime, Utc};
-use sea_orm::{ActiveModelTrait, DatabaseConnection, EntityTrait, QueryOrder, Set};
+use sea_orm::{ActiveModelTrait, DatabaseConnection, EntityTrait, Order, QueryOrder, Set};
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 
@@ -71,7 +71,7 @@ impl RecycleRuleService {
     /// 获取回收规则列表（按 id 升序）
     pub async fn list_rules(&self) -> Result<Vec<RecycleRule>, AppError> {
         let rules = RecycleRuleEntity::find()
-            .order_by(crm_recycle_rule::Column::Id, QueryOrder::Asc)
+            .order_by(crm_recycle_rule::Column::Id, Order::Asc)
             .all(&*self.db)
             .await?;
         Ok(rules.into_iter().map(Self::to_dto).collect())
