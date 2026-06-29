@@ -21,7 +21,20 @@
 
 ---
 
-## 当前任务状态（2026-06-29 批次 25 完成 - 开始批次 26）
+## 当前任务状态（2026-06-29 批次 26 完成 - 开始 v7 复审）
+
+### ✅ 批次 26 完成：P1 状态机 lock_exclusive 补全 27 项
+
+**修复分支**：`fix/batch-26-p1-state-machine-lock`（已合并删除）
+**合并 commit**：`90db83a`（PR #268，CI 全绿，前端 E2E continue-on-error 不阻塞）
+**修复清单**：见 [CHANGELOG.md 批次 26 章节](file:///workspace/.monkeycode/CHANGELOG.md)
+**修复模式**：与批次 25 一致，`txn + lock_exclusive + find_by_id + 状态校验 + 状态变更 + commit`
+
+**关键技术决策**：
+1. **P1 最小改动模式**：已有 txn 的方法仅在 `find_by_id(id).one(&txn)` 之间加 `.lock_exclusive()`
+2. **裸 `&*self.db` 查询需重构**：将 txn 提前到状态门之前（如 delete_receipt、cancel、reject_adjustment 等）
+3. **原无 txn 的 P1 方法**：custom_order_crud::cancel、quotation::cancel、inventory_adjustment::reject_adjustment、budget_management::approve_plan/execute_plan 新增完整 txn + lock + commit
+4. **CI dead_code 级联修复**：3 轮修复 7 处级联警告，全部使用 `#[allow(dead_code)]` + TODO(tech-debt) 注释策略
 
 ### ✅ 批次 25 完成：状态机 lock_exclusive 补全 P0 25 项
 
@@ -36,12 +49,11 @@
 3. **桩实现处理**：inventory_count_service approve_count/complete_count 仅添加注释说明未来实现须遵循的修复模式
 4. **误报识别**：material_shortage_service update_status 是只读方法（无 DB 写入），不需要 lock_exclusive
 
-**待执行（批次 26）**：
-1. 创建修复分支 `fix/batch-26-p1-state-machine-lock`
-2. 修复 P1 27 项（有 txn 但无 lock 的状态变更方法）
-3. P1 修复清单见 [`.monkeycode/docs/audits/2026-06-29-batch25-state-machine-fix-list.md`](file:///workspace/.monkeycode/docs/audits/2026-06-29-batch25-state-machine-fix-list.md) 第四节 P1 汇总表
-4. 提交 + push + CI 监控 + 合并 + 删除分支
-5. 之后进行 v7 复审（循环直到无问题）
+**待执行（v7 复审）**：
+1. 启动 v7 全项目严格复审（覆盖 16 维度，关注 v6 已修复项验证 + 新发现）
+2. 复审结果按 P0/P1/P2 优先级分级
+3. 对复审出来的问题按修复流程继续修复（修复 → CI → 合并 → 删除分支 → 复审下一批）
+4. 循环直到复审无问题
 
 ---
 
