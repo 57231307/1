@@ -60,6 +60,15 @@ export default {
     failed: 'Incorrect username or password',
     locked: 'Account locked, please retry in 30 minutes',
     networkError: 'Network error, please retry later',
+    /* Batch 23 v5 P0-1: keys added when wiring Login.vue to i18n (with placeholders) */
+    formLabel: 'Login form',
+    usernameRequired: 'Please enter username',
+    passwordRequired: 'Please enter password',
+    lockedAlert: 'Account locked, please retry in {minutes} minutes',
+    failedAttempts: 'Login failed {count} times, account locked',
+    remainingTime: 'Remaining: {minutes}m {seconds}s',
+    unlocked: 'Account unlocked, please log in again',
+    failedFallback: 'Login failed',
   },
 
   /* ============ Dashboard ============ */

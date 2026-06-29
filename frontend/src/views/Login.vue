@@ -7,12 +7,13 @@
 <template>
   <div class="login-container">
     <div class="login-card">
-      <h2 class="login-title">面料管理系统</h2>
+      <!-- 批次 23 v5 P0-1：标题接入 i18n -->
+      <h2 class="login-title">{{ $t('login.subtitle') }}</h2>
 
       <!-- 账号锁定提示（红色 alert + 倒计时） -->
       <el-alert
         v-if="lockInfo.isLocked"
-        :title="`账号已被锁定，请 ${lockInfo.remainingMinutes} 分钟后再试`"
+        :title="$t('login.lockedAlert', { minutes: lockInfo.remainingMinutes })"
         type="error"
         :closable="false"
         show-icon
@@ -20,29 +21,40 @@
       >
         <template #default>
           <div class="lock-content">
-            <div>连续登录失败 {{ lockInfo.failedAttempts }} 次，账号已锁定</div>
+            <div>{{ $t('login.failedAttempts', { count: lockInfo.failedAttempts }) }}</div>
             <div v-if="lockInfo.remainingMinutes > 0" class="lock-countdown">
-              剩余等待时间：{{ lockInfo.remainingMinutes }} 分 {{ lockInfo.remainingSeconds }} 秒
+              {{ $t('login.remainingTime', { minutes: lockInfo.remainingMinutes, seconds: lockInfo.remainingSeconds }) }}
             </div>
           </div>
         </template>
       </el-alert>
 
-      <el-form ref="formRef" :model="loginForm" :rules="rules" @submit.prevent="handleLogin">
-        <el-form-item prop="username">
+      <!-- 批次 23 v5 P0-2：表单可访问性 - 添加 role="form" 与 aria-label，供屏幕阅读器识别表单用途 -->
+      <el-form
+        ref="formRef"
+        :model="loginForm"
+        :rules="rules"
+        role="form"
+        :aria-label="$t('login.formLabel')"
+        @submit.prevent="handleLogin"
+      >
+        <!-- P0-2：el-form-item 与 el-input 均补 aria-label，确保无 label 文本时屏幕阅读器仍可朗读字段用途 -->
+        <el-form-item prop="username" :aria-label="$t('login.username')">
           <el-input
             v-model="loginForm.username"
-            placeholder="用户名"
+            :placeholder="$t('login.username')"
+            :aria-label="$t('login.username')"
             prefix-icon="User"
             size="large"
             @blur="handleUsernameBlur"
           />
         </el-form-item>
-        <el-form-item prop="password">
+        <el-form-item prop="password" :aria-label="$t('login.password')">
           <el-input
             v-model="loginForm.password"
             type="password"
-            placeholder="密码"
+            :placeholder="$t('login.password')"
+            :aria-label="$t('login.password')"
             prefix-icon="Lock"
             size="large"
             show-password
@@ -58,7 +70,7 @@
             :disabled="lockInfo.isLocked"
             @click="handleLogin"
           >
-            登录
+            {{ $t('login.submit') }}
           </el-button>
         </el-form-item>
       </el-form>
@@ -69,6 +81,7 @@
 <script setup lang="ts">
 import { reactive, ref, onUnmounted } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
+import { useI18n } from 'vue-i18n'
 import { ElMessage, type FormInstance, type FormRules } from 'element-plus'
 import { useUserStore } from '@/store/user'
 import { securityApi } from '@/api/security'
@@ -77,6 +90,8 @@ import { logger } from '@/utils/logger'
 const router = useRouter()
 const route = useRoute()
 const userStore = useUserStore()
+/* 批次 23 v5 P0-1：useScope: 'global' 确保读取根 i18n messages（资源在 i18n/index.ts 全局注册） */
+const { t } = useI18n({ useScope: 'global' })
 
 const formRef = ref<FormInstance>()
 const loading = ref(false)
@@ -87,8 +102,10 @@ const loginForm = reactive({
 })
 
 const rules: FormRules = {
-  username: [{ required: true, message: '请输入用户名', trigger: 'blur' }],
-  password: [{ required: true, message: '请输入密码', trigger: 'blur' }],
+  /* 批次 23 v5 P0-1：校验提示走 i18n。注意 rules 在 setup 初始化时一次性求值，切换语言后不会自动刷新；
+     如需动态响应语言切换，可将 message 改为函数形式，留作后续迭代优化。 */
+  username: [{ required: true, message: t('login.usernameRequired'), trigger: 'blur' }],
+  password: [{ required: true, message: t('login.passwordRequired'), trigger: 'blur' }],
 }
 
 /** 账号锁定信息 */
@@ -153,7 +170,7 @@ const startCountdown = () => {
     const remainMs = lockInfo.lockEndAt - Date.now()
     if (remainMs <= 0) {
       clearLockInfo()
-      ElMessage.info('账号已解除锁定，请重新登录')
+      ElMessage.info(t('login.unlocked'))
       return
     }
     lockInfo.remainingMinutes = Math.floor(remainMs / 60000)
@@ -220,7 +237,7 @@ async function handleLogin() {
   await form.validate(async valid => {
     if (!valid) return
     if (lockInfo.isLocked) {
-      ElMessage.warning(`账号已被锁定，请 ${lockInfo.remainingMinutes} 分钟后再试`)
+      ElMessage.warning(t('login.lockedAlert', { minutes: lockInfo.remainingMinutes }))
       return
     }
 
@@ -235,13 +252,13 @@ async function handleLogin() {
 
       // 登录成功清空锁定提示
       clearLockInfo()
-      ElMessage.success('登录成功')
+      ElMessage.success(t('login.success'))
 
       // 批次 22 v5 P0-2：使用 safeRedirect 校验跳转目标，防止 Open Redirect
       const redirect = safeRedirect(route.query.redirect)
       router.push(redirect)
     } catch (error: any) {
-      ElMessage.error(error.message || '登录失败')
+      ElMessage.error(error.message || t('login.failedFallback'))
       // 登录失败后异步检查账号是否被锁定
       refreshLockStatus()
     } finally {

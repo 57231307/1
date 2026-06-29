@@ -12,6 +12,14 @@ use crate::utils::error::AppError;
 use sea_orm::*;
 use std::sync::Arc;
 
+// 批次 23（2026-06-29 v5 P0-2）：BPM 条件正则改为 LazyLock 全局编译一次
+// 原实现每次调用 evaluate_bpm_condition 都执行 Regex::new，涉及 NFA→DFA 构造开销。
+// BPM 审批是中频操作，每次审批可能扫描多条带条件的边，重复编译正则是性能瓶颈。
+static BPM_CONDITION_RE: std::sync::LazyLock<regex::Regex> = std::sync::LazyLock::new(|| {
+    regex::Regex::new(r"\$\{(\w+)\}\s*(==|!=|>|<|>=|<=)\s*(.+)")
+        .expect("BPM 条件正则编译失败（应为静态合法模式）")
+});
+
 /// 评估 BPM 边条件表达式
 /// 支持的条件格式:
 /// - `${amount} > 10000` - 变量数值比较
@@ -27,10 +35,8 @@ fn evaluate_bpm_condition(condition: &str, variables: &Option<serde_json::Value>
         return true; // 无条件默认通过
     }
 
-    // 提取变量名和比较操作: ${var_name} operator value
-    let re = regex::Regex::new(r"\$\{(\w+)\}\s*(==|!=|>|<|>=|<=)\s*(.+)").unwrap();
-
-    if let Some(caps) = re.captures(condition) {
+    // 提取变量名和比较操作: ${var_name} operator value（使用全局编译的正则）
+    if let Some(caps) = BPM_CONDITION_RE.captures(condition) {
         let var_name = caps.get(1).map(|m| m.as_str()).unwrap_or("");
         let operator = caps.get(2).map(|m| m.as_str()).unwrap_or("");
         let expected_value = caps.get(3).map(|m| m.as_str()).unwrap_or("").trim();

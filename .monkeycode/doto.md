@@ -3,6 +3,42 @@
 > 本文件记录**当前任务**与**历史任务索引**。
 > 详细历史请查阅 [`.monkeycode/docs/archives/`](file:///workspace/.monkeycode/docs/archives/)。
 
+### 2026-06-29 v5 批次 23：可维护性 + i18n/可访问性 + 死代码 P0 修复（✅ 代码完成，待 commit/push/CI）
+
+**当前任务**：修复 v5 审计批次 23 全部 8 项 P0（维度 8 死代码 1 + 维度 13 可维护性 5 + 维度 14 i18n/可访问性 2）
+
+**分支**：`fix/batch-23-maintainability-i18n`（基于 `origin/main` = `7f821146`）
+**工作区状态**：18 个文件已修改/新增，待 commit + push + CI 验证
+
+**修复清单**：
+
+| # | 维度 | 文件 | 修复内容 |
+|---|------|------|----------|
+| 1 | 13 P0-1 | `ap_reconciliation_service.rs` | Arc::try_unwrap().unwrap() → lock().await.clone()，避免 future 取消时 panic |
+| 2 | 13 P0-2 | `bpm_service.rs` | 新增 LazyLock 全局正则 BPM_CONDITION_RE，替代每次调用重新编译 |
+| 3 | 13 P0-3 | `admin_checker.rs` | ADMIN_ROLE_CODE 常量替代硬编码 "admin"；fail-open 修复为 fail-closed |
+| 4 | 8 P0-1 | `routes/inventory.rs` | 移除 12 个返回 501 的 inventory_count 端点 + 注释 inventory_count_handler 导入 |
+| 5 | 13 P0-4 | `handlers/missing_handlers.rs` + 9 个新文件 | CRM 回收规则内存存储 → PostgreSQL（SeaORM 模型 + migration + service） |
+| 6 | 13 P0-5 | （无需修复） | 调研确认 create_payment 仅 53 行，非 v5 报告描述的 172 行 |
+| 7 | 14 P0-1 | `views/Login.vue` + `locales/{zh-CN,en-US}.ts` + `i18n/index.ts` | 登录页 i18n 接入示范，新增 7 个 login 命名空间 key |
+| 8 | 14 P0-2 | `views/Login.vue` | 表单元素添加 aria-label 可访问性属性 |
+
+**验证状态**：代码完成，遵循 CI/CD Only 原则未本地编译。下一步：commit + push 触发 CI 验证。
+**详细记录**：见 [CHANGELOG.md 批次 23 章节](file:///workspace/.monkeycode/CHANGELOG.md)
+
+---
+
+### 2026-06-29 v5 批次 23 维度 13 P0-4 专项：CRM 回收规则内存存储迁移（✅ 代码完成，待 CI 验证）
+
+**修复内容**：
+- 新增 SeaORM 模型 `backend/src/models/crm_recycle_rule.rs`（表 `crm_recycle_rules`）
+- 新增迁移 `m0030_create_crm_recycle_rules`（建表 + 插入 3 条初始规则：30天标准/90天高价值/7天快速回收）
+- 新增服务 `backend/src/services/crm/recycle_rule.rs`（`RecycleRuleService` list/create/update/delete）
+- 重构 `handlers/missing_handlers.rs`：移除 `static RECYCLE_RULES`/`RECYCLE_RULE_NEXT_ID` + 4 handler 改为调用 service
+- 注册模型/迁移/服务模块到 `models/mod.rs`、`migration/src/lib.rs`、`services/crm/mod.rs`
+
+---
+
 ### 2026-06-28 v5 严格审计 + 整改（进行中）
 
 **状态**：✅ v5 审计报告完成并已上传仓库，CI 全绿 15/15

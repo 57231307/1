@@ -21,7 +21,26 @@
 
 ---
 
-## 当前任务状态（2026-06-29 v5 批次 23 准备 - 进行中）
+## 当前任务状态（2026-06-29 v5 批次 23 修复完成 - 待 CI 验证）
+
+### 🔄 v5 批次 23：可维护性 + i18n/可访问性 + 死代码 P0 修复（代码完成，待 commit/push/CI）
+
+**修复范围**：维度 8 死代码 1 项 P0 + 维度 13 可维护性 5 项 P0 + 维度 14 i18n/可访问性 2 项 P0（共 8 项 P0）
+**分支**：`fix/batch-23-maintainability-i18n`（基于 `origin/main` = `7f821146`）
+**工作区状态**：18 个文件已修改/新增，待 commit + push + CI 验证
+**修复清单**：详见 [CHANGELOG.md 批次 23 章节](file:///workspace/.monkeycode/CHANGELOG.md)
+
+**关键修复**：
+- 维度 13 P0-1：`ap_reconciliation_service.rs` Arc::try_unwrap → lock().await.clone()
+- 维度 13 P0-2：`bpm_service.rs` LazyLock 全局正则
+- 维度 13 P0-3：`admin_checker.rs` ADMIN_ROLE_CODE 常量 + fail-closed 修复
+- 维度 8 P0-1：`routes/inventory.rs` 移除 12 个 501 NotImplemented 端点
+- 维度 13 P0-4：CRM 回收规则内存存储 → PostgreSQL 持久化（9 个新文件）
+- 维度 13 P0-5：调研确认无需修复（实际 53 行非 172 行）
+- 维度 14 P0-1：`views/Login.vue` i18n 接入示范
+- 维度 14 P0-2：`views/Login.vue` aria-label 可访问性修复
+
+---
 
 ### ✅ v5 批次 22：业务逻辑状态机 + 前端路由权限 P0 修复（已完成，已合并 main）
 

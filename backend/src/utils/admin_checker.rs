@@ -5,6 +5,10 @@ use sea_orm::{ActiveModelTrait, DatabaseConnection, EntityTrait};
 use std::sync::LazyLock;
 use tracing::warn;
 
+/// 管理员角色编码常量（批次 23 v5 P0-3：消除硬编码字符串）
+/// 作为角色编码的单一真相源，避免多处硬编码 "admin" 导致不一致。
+pub const ADMIN_ROLE_CODE: &str = "admin";
+
 /// 管理员角色检查缓存条目
 #[derive(Clone)]
 struct AdminCacheEntry {
@@ -59,14 +63,18 @@ pub async fn is_admin_role(db: &DatabaseConnection, role_id: i32) -> bool {
     }
 
     // 从数据库查询
+    // 批次 23（2026-06-29 v5 P0-3）：使用 ADMIN_ROLE_CODE 常量替代硬编码 "admin"
+    // 批次 23（2026-06-29 v5 P0-3）：修复 fail-open 安全漏洞
+    //   原实现：数据库表不存在时返回 true（允许访问），系统未初始化时任何 role_id 都被视为管理员，
+    //   存在权限绕过风险。改为 fail-closed（拒绝访问），确保系统未初始化时不放行。
     let is_admin = match role::Entity::find_by_id(role_id).one(db).await {
-        Ok(Some(role)) => role.code == "admin",
+        Ok(Some(role)) => role.code == ADMIN_ROLE_CODE,
         Ok(None) => false,
         Err(e) => {
             let err_msg = format!("{}", e);
             if err_msg.contains("does not exist") || err_msg.contains("relation") {
-                warn!("数据库表不存在，系统可能未初始化，允许访问: {}", e);
-                true
+                warn!("数据库表不存在，系统可能未初始化，拒绝访问（fail-closed）: {}", e);
+                false
             } else {
                 warn!("查询角色失败: {}", e);
                 false
