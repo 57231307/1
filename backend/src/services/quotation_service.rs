@@ -368,7 +368,15 @@ impl QuotationService {
         id: i64,
         user_id: i64,
     ) -> Result<sales_quotation::Model, ServiceError> {
-        let existing = self.get_by_id(id).await?;
+        // 批次 26 v6 P1 修复：状态机 lock_exclusive 补全，串行化并发状态变更
+        // 原状态门查询用 self.get_by_id 裸查询无行锁，且 update 也用裸连接，无事务保护。
+        // 改为在事务内用 find_by_id(id).lock_exclusive() 串行化并发状态变更，update 一并纳入事务。
+        let txn = (*self.db).begin().await?;
+        let existing = QuotationEntity::find_by_id(id)
+            .lock_exclusive()
+            .one(&txn)
+            .await?
+            .ok_or(ServiceError::NotFound)?;
         if existing.status == "converted" {
             return Err(ServiceError::InvalidState);
         }
@@ -381,7 +389,8 @@ impl QuotationService {
         active.updated_at = Set(Utc::now());
         // 备注 created_by 引用仅作审计
         let _ = user_id;
-        let updated = active.update(&*self.db).await?;
+        let updated = active.update(&txn).await?;
+        txn.commit().await?;
         Ok(updated)
     }
 

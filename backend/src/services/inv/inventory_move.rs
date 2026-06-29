@@ -11,7 +11,7 @@
 
 use sea_orm::{
     ActiveModelTrait, ColumnTrait, EntityTrait, Order, PaginatorTrait, QueryFilter, QueryOrder,
-    TransactionTrait,
+    QuerySelect, TransactionTrait,
 };
 
 use crate::models::dto::PageRequest;
@@ -358,9 +358,14 @@ impl InventoryTransferService {
         approved: bool,
         notes: Option<String>,
     ) -> Result<InventoryTransferDetail, AppError> {
-        // 检查调拨单是否存在
+        // 批次 26 v6 P1 修复：状态机 lock_exclusive 补全，串行化并发状态变更
+        // 开启事务
+        let txn = (*self.db).begin().await?;
+
+        // 检查调拨单是否存在（行锁，串行化并发状态变更）
         let transfer = InventoryTransferEntity::find_by_id(transfer_id)
-            .one(&*self.db)
+            .lock_exclusive()
+            .one(&txn)
             .await?
             .ok_or_else(|| AppError::not_found(format!("库存调拨单 {} 未找到", transfer_id)))?;
 
@@ -370,9 +375,6 @@ impl InventoryTransferService {
                 "只有待审核状态的调拨单可以审核".to_string(),
             ));
         }
-
-        // 开启事务
-        let txn = (*self.db).begin().await?;
 
         // 更新调拨单状态
         let mut transfer_update: inventory_transfer::ActiveModel = transfer.into();

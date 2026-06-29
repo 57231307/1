@@ -142,8 +142,17 @@ impl SalesContractService {
             user_id, contract_id, req.execution_type, req.execution_amount
         );
 
-        // 获取合同
-        let contract = self.get_by_id(contract_id).await?;
+        // 批次 26 v6 P1 修复：状态机 lock_exclusive 补全，串行化并发状态变更
+        // 原实现先在事务外用 get_by_id 裸查询合同状态，再 begin() 开启事务，
+        // 并发 execute 均通过状态检查后基于过期状态写入，导致状态门失效。
+        let txn = (*self.db).begin().await?;
+
+        // 获取合同（加 lock_exclusive 串行化并发状态变更）
+        let contract = sales_contract::Entity::find_by_id(contract_id)
+            .lock_exclusive()
+            .one(&txn)
+            .await?
+            .ok_or_else(|| AppError::not_found(format!("销售合同 {}", contract_id)))?;
 
         // 检查合同状态
         if contract.status != "active" {
@@ -161,9 +170,6 @@ impl SalesContractService {
                 ))
             }
         }
-
-        // 开启事务
-        let txn = (*self.db).begin().await?;
 
         // 更新合同状态
         let mut contract_active: sales_contract::ActiveModel = contract.into();

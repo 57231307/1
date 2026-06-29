@@ -21,28 +21,31 @@
 
 ---
 
-## 当前任务状态（2026-06-29 批次 24 完成 - 待 CI 验证 + 批次 25）
+## 当前任务状态（2026-06-29 批次 25 完成 - 开始批次 26）
 
-### ✅ 批次 24 完成：v6 低难度高收益 P0 修复（18 项）
+### ✅ 批次 25 完成：状态机 lock_exclusive 补全 P0 25 项
 
-**修复分支**：`fix/batch-24-low-effort-p0`
-**修改文件**：18 个（backend 9 + frontend 4 + deploy 1 + 删除 1 + 配置 1 + monkeycode 2）
-**修复清单**：见 [CHANGELOG.md 批次 24 章节](file:///workspace/.monkeycode/CHANGELOG.md)
+**修复分支**：`fix/batch-25-state-machine-lock`（已合并删除）
+**合并 commit**：`536187d`（PR #267，CI 16/16 全绿）
+**修复清单**：见 [CHANGELOG.md 批次 25 章节](file:///workspace/.monkeycode/CHANGELOG.md)
+**修复模式**：`txn + lock_exclusive + find_by_id + 状态校验 + 状态变更 + commit`，串行化并发状态变更
 
 **关键技术决策**：
-1. **ADMIN_ROLE_CODE 单一真相源辐射完成**：admin_checker.rs → init_service.rs + role_handler.rs，硬编码 "admin" 彻底消除
-2. **前后端类型契约对齐**：UserInfo 补全 role_name + permissions 字段，前端路由守卫不再失效
-3. **部署脚本 fail-secure**：敏感变量 `${VAR:?err}` 形式，缺失即退出，移除硬编码 IP/密码
-4. **WebSocket 全局单例修复**：`OnceLock<NotificationBroadcaster>` + `get_notification_broadcaster()` 全局访问；handle_socket 不再创建本地 ConnectionManager；NotificationService.create_notification 后调用 broadcaster 推送，修复 v5 标注"已修实际未修"的 6 项部分修复之一
-5. **vitest 升级** ^2.1.0 → ^4.1.8：修复 CVSS 9.8 漏洞（GHSA-5xrq-8626-4rwp）
-6. **分页 off-by-one**：SeaORM `paginator.fetch_page(page)` 是 0-indexed，需 `page.saturating_sub(1)`
-7. **越权审批修复**：ap_payment_request_service 查询 role 表 role_code 实现分级审批
+1. **统一 lock_exclusive 修复模式**：所有 P0 状态变更方法套用参考实现（ar_invoice_service::mark_as_paid）
+2. **user_id 透传策略**：有 user_id 参数的直接透传到 update_with_audit；无 user_id 的用 Some(0) + TODO 注释
+3. **桩实现处理**：inventory_count_service approve_count/complete_count 仅添加注释说明未来实现须遵循的修复模式
+4. **误报识别**：material_shortage_service update_status 是只读方法（无 DB 写入），不需要 lock_exclusive
 
-**待执行**：
-1. git add + commit + push 触发 CI
-2. 监控 CI 全绿
-3. squash merge 到 main + 删除修复分支
-4. 开始批次 25 修复（20 项中等难度 P0：状态机 lock_exclusive 补全）
+**待执行（批次 26）**：
+1. 创建修复分支 `fix/batch-26-p1-state-machine-lock`
+2. 修复 P1 27 项（有 txn 但无 lock 的状态变更方法）
+3. P1 修复清单见 [`.monkeycode/docs/audits/2026-06-29-batch25-state-machine-fix-list.md`](file:///workspace/.monkeycode/docs/audits/2026-06-29-batch25-state-machine-fix-list.md) 第四节 P1 汇总表
+4. 提交 + push + CI 监控 + 合并 + 删除分支
+5. 之后进行 v7 复审（循环直到无问题）
+
+---
+
+### ✅ 批次 24 完成：v6 低难度高收益 P0 修复（18 项）
 
 ---
 

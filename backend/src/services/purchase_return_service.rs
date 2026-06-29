@@ -168,8 +168,15 @@ impl PurchaseReturnService {
         return_id: i32,
         user_id: i32,
     ) -> Result<purchase_return::Model, AppError> {
+        // 批次 26 v6 P1 修复：状态机 lock_exclusive 补全，串行化并发状态变更
+        // 原实现先在事务外用 &*self.db 裸查询退货单状态，再 begin() 开启事务，
+        // 并发 approve_return 均通过状态检查后基于过期状态写入，导致状态门失效。
+        let txn = (*self.db).begin().await?;
+
+        // 获取退货单（加 lock_exclusive 串行化并发状态变更）
         let return_order = purchase_return::Entity::find_by_id(return_id)
-            .one(&*self.db)
+            .lock_exclusive()
+            .one(&txn)
             .await?
             .ok_or_else(|| AppError::not_found(format!("采购退货单 {}", return_id)))?;
 
@@ -189,9 +196,6 @@ impl PurchaseReturnService {
         if item_count == 0 {
             return Err(AppError::business("退货单至少需要一行明细".to_string()));
         }
-
-        // 开启事务
-        let txn = (*self.db).begin().await?;
 
         let mut return_active: purchase_return::ActiveModel = return_order.into();
         return_active.return_status = Set(Some("approved".to_string()));

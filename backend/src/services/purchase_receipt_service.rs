@@ -187,9 +187,15 @@ impl PurchaseReceiptService {
 
     /// 删除采购入库单（仅 DRAFT 状态）
     pub async fn delete_receipt(&self, receipt_id: i32, user_id: i32) -> Result<(), AppError> {
-        // 1. 查询入库单
+        // 批次 26 v6 P1 修复：状态机 lock_exclusive 补全，串行化并发状态变更
+        // 原实现状态门用裸查询 &*self.db 无锁，且 txn 仅包裹删除；
+        // 改为将状态门查询移入 txn 并加 lock_exclusive，防止并发删除/确认同入库单。
+        let txn = (*self.db).begin().await?;
+
+        // 1. 查询入库单（加 lock_exclusive 串行化并发 delete_receipt）
         let receipt = purchase_receipt::Entity::find_by_id(receipt_id)
-            .one(&*self.db)
+            .lock_exclusive()
+            .one(&txn)
             .await?
             .ok_or_else(|| AppError::not_found(format!("采购入库单 {}", receipt_id)))?;
 
@@ -207,8 +213,6 @@ impl PurchaseReceiptService {
                 "只能删除自己创建的入库单".to_string(),
             ));
         }
-
-        let txn = (*self.db).begin().await?;
 
         // 4. 先删除明细
         purchase_receipt_item::Entity::delete_many()

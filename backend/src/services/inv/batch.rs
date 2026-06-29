@@ -10,7 +10,7 @@
 use sea_orm::sea_query::{BinOper, Expr};
 use sea_orm::{
     ActiveModelTrait, ColumnTrait, EntityTrait, IntoActiveModel, Order, QueryFilter, QueryOrder,
-    TransactionTrait,
+    QuerySelect, TransactionTrait,
 };
 
 use crate::models::inventory_stock::{self, Entity as InventoryStockEntity};
@@ -30,9 +30,14 @@ impl InventoryTransferService {
         &self,
         transfer_id: i32,
     ) -> Result<InventoryTransferDetail, AppError> {
-        // 检查调拨单是否存在
+        // 批次 26 v6 P1 修复：状态机 lock_exclusive 补全，串行化并发状态变更
+        // 开启事务
+        let txn = (*self.db).begin().await?;
+
+        // 检查调拨单是否存在（行锁，串行化并发状态变更）
         let transfer = InventoryTransferEntity::find_by_id(transfer_id)
-            .one(&*self.db)
+            .lock_exclusive()
+            .one(&txn)
             .await?
             .ok_or_else(|| AppError::not_found(format!("库存调拨单 {} 未找到", transfer_id)))?;
 
@@ -42,9 +47,6 @@ impl InventoryTransferService {
                 "只有已审核状态的调拨单可以发出".to_string(),
             ));
         }
-
-        // 开启事务
-        let txn = (*self.db).begin().await?;
 
         // 获取调拨明细项
         let items = InventoryTransferItemEntity::find()
@@ -218,9 +220,14 @@ impl InventoryTransferService {
         &self,
         transfer_id: i32,
     ) -> Result<InventoryTransferDetail, AppError> {
-        // 检查调拨单是否存在
+        // 批次 26 v6 P1 修复：状态机 lock_exclusive 补全，串行化并发状态变更
+        // 开启事务
+        let txn = (*self.db).begin().await?;
+
+        // 检查调拨单是否存在（行锁，串行化并发状态变更）
         let transfer = InventoryTransferEntity::find_by_id(transfer_id)
-            .one(&*self.db)
+            .lock_exclusive()
+            .one(&txn)
             .await?
             .ok_or_else(|| AppError::not_found(format!("库存调拨单 {} 未找到", transfer_id)))?;
 
@@ -230,9 +237,6 @@ impl InventoryTransferService {
                 "只有已发出状态的调拨单可以接收".to_string(),
             ));
         }
-
-        // 开启事务
-        let txn = (*self.db).begin().await?;
 
         // 获取调拨明细项
         let items = InventoryTransferItemEntity::find()

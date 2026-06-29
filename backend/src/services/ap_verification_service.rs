@@ -309,8 +309,9 @@ impl ApVerificationService {
     ) -> Result<ap_verification::Model, AppError> {
         let txn = (*self.db).begin().await?;
 
-        // 1. 查询核销单
+        // 1. 查询核销单（批次 26 v6 P1 修复：状态机 lock_exclusive 补全，串行化并发状态变更）
         let verification = ap_verification::Entity::find_by_id(id)
+            .lock_exclusive()
             .one(&txn)
             .await?
             .ok_or_else(|| AppError::not_found(format!("核销单 ID: {}", id)))?;
