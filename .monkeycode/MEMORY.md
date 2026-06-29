@@ -21,17 +21,46 @@
 
 ---
 
-## 当前任务状态（2026-06-29 v5 批次 23 修复完成 - 待 CI 验证）
+## 当前任务状态（2026-06-29 v6 全项目复审完成 - 待批次 24 修复）
 
-### 🔄 v5 批次 23：可维护性 + i18n/可访问性 + 死代码 P0 修复（代码完成，待 commit/push/CI）
+### ✅ v6 全项目严格复审（已完成，5 并行子代理覆盖 16 维度）
+
+**审计基线**：main HEAD = `def14dad`（v5 批次 21-23 已修复 51 项 P0）
+**审计产出**：[`.monkeycode/docs/audits/2026-06-29-strict-reaudit-v6.md`](file:///workspace/.monkeycode/docs/audits/2026-06-29-strict-reaudit-v6.md)
+**审计结果**：103 项发现（P0=52 / P1=39 / P2=12），相比 v5 减少 425 项
+
+**v5 批次 21-23 修复验证**：
+- ✅ 完全修复 45 项
+- ⚠️ 部分修复 6 项：WebSocket 单例、ADMIN_ROLE_CODE 真相源、i18n、状态机 lock_exclusive、死代码、CI 阻塞
+
+**v6 新发现 52 项 P0 主要分布**：
+1. 状态机/并发修复不彻底（27 项）：mark_as_paid 已修但 approve/cancel/update/delete 漏修
+2. 前后端类型契约不一致（5 项）：UserInfo/LoginResponse 字段不对齐导致前端权限路由失效
+3. 部署运维安全（4 项）：部署脚本硬编码 IP/密码/SSL 禁用
+4. 依赖漏洞（2 项）：vitest CVSS 9.8
+5. N+1 查询（4 项）：批量操作逐条查询
+6. 测试质量（4 项）：假阳性测试不验证真实组件
+7. i18n 系统化缺失（4 项）：仅 Login.vue 接入
+8. 其他（2 项）：webhook 输入验证、init_service 硬编码 admin
+
+**维度 16 彻底清理**：租户残留零发现，m0029 迁移完整
+
+**下一步**：按批次 24 → 25 → 26 顺序修复
+- 批次 24：低难度高收益 P0（约 18 项）
+- 批次 25：中等难度 P0（约 20 项，状态机 lock_exclusive 补全）
+- 批次 26：高难度 P0 + P1（N+1/测试/i18n/可维护性）
+
+---
+
+### ✅ v5 批次 23：可维护性 + i18n/可访问性 + 死代码 P0 修复（已完成，已合并 main）
 
 **修复范围**：维度 8 死代码 1 项 P0 + 维度 13 可维护性 5 项 P0 + 维度 14 i18n/可访问性 2 项 P0（共 8 项 P0）
-**分支**：`fix/batch-23-maintainability-i18n`（基于 `origin/main` = `7f821146`）
-**工作区状态**：18 个文件已修改/新增，待 commit + push + CI 验证
+**合并 commit**：`def14dad`（squash merge PR #265）
+**CI 验证**：Run 28343375442 全绿（13 success + 1 Clippy failure continue-on-error 不阻塞 + 2 skipped release）
 **修复清单**：详见 [CHANGELOG.md 批次 23 章节](file:///workspace/.monkeycode/CHANGELOG.md)
 
 **关键修复**：
-- 维度 13 P0-1：`ap_reconciliation_service.rs` Arc::try_unwrap → lock().await.clone()
+- 维度 13 P0-1：`ap_reconciliation_service.rs` Arc::try_unwrap → lock().await.clone()（补充 AutoReconciliationResult 加 Clone 派生）
 - 维度 13 P0-2：`bpm_service.rs` LazyLock 全局正则
 - 维度 13 P0-3：`admin_checker.rs` ADMIN_ROLE_CODE 常量 + fail-closed 修复
 - 维度 8 P0-1：`routes/inventory.rs` 移除 12 个 501 NotImplemented 端点
@@ -39,6 +68,8 @@
 - 维度 13 P0-5：调研确认无需修复（实际 53 行非 172 行）
 - 维度 14 P0-1：`views/Login.vue` i18n 接入示范
 - 维度 14 P0-2：`views/Login.vue` aria-label 可访问性修复
+
+**下一步**：v5 报告批次 21-23 全部完成（51 项 P0 已修复），开始 v6 全项目复审
 
 ---
 

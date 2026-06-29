@@ -2,6 +2,37 @@
 
 > 重要变更一句话摘要列表。详细历史请查阅 [`.monkeycode/docs/archives/`](file:///workspace/.monkeycode/docs/archives/)。
 
+## 2026-06-29 (v6 全项目严格复审完成)
+
+### v6 复审完成：103 项发现（P0=52 / P1=39 / P2=12）
+
+**审计基线**：main HEAD = `def14dad`（v5 批次 21-23 已修复 51 项 P0 并合并）
+**审计方式**：5 个并行子代理覆盖 16 维度，只读静态审计
+**审计产出**：[`.monkeycode/docs/audits/2026-06-29-strict-reaudit-v6.md`](file:///workspace/.monkeycode/docs/audits/2026-06-29-strict-reaudit-v6.md)
+
+**v5 批次 21-23 修复验证**：
+- ✅ 完全修复 45 项
+- ⚠️ 部分修复 6 项：WebSocket 单例破坏（CHANGELOG 标注已修实际未修）、ADMIN_ROLE_CODE 真相源未辐射到 init_service.rs、i18n 仅修 Login.vue、状态机 lock_exclusive 多文件"部分修复"模式、死代码清理不彻底、CI 阻塞策略未实施
+
+**v6 新发现 52 项 P0 关键风险**：
+1. 前后端类型契约不一致（5 项）：UserInfo/LoginResponse 字段不对齐 → 前端 admin 路由绕过失效 + 刷新页面权限丢失
+2. 部署脚本安全（4 项）：硬编码生产 IP + 默认密码 + SSL 禁用 + 健康检查端点错误
+3. 状态机 lock_exclusive 漏修（27 项）：mark_as_paid 已修但 approve/cancel/update/delete 漏修
+4. vitest CVSS 9.8 漏洞（2 项）
+5. N+1 查询（4 项）：CRM 公海批量领取 / 采购入库明细 / 应付自动对账 / 应收全客户对账
+6. 测试质量（4 项）：假阳性测试不验证真实组件
+7. i18n 系统化缺失（4 项）：仅 Login.vue 接入，其余 50+ 表单未涉及
+8. 其他（2 项）：webhook 输入验证、init_service 硬编码 admin
+
+**维度 16 彻底清理**：租户残留零发现，m0029 迁移完整覆盖 36 个业务表 + 7 个租户管理表
+
+**修复计划**：
+- 批次 24：低难度高收益 P0（18 项）—— 前后端类型契约 + 部署脚本安全 + vitest 升级 + 分页 off-by-one + 越权审批 + 孤立文件清理
+- 批次 25：中等难度 P0（20 项）—— 状态机 lock_exclusive 补全 + 事务边界修复
+- 批次 26：高难度 P0 + P1（14 项 P0 + 39 项 P1）—— N+1 优化 + 测试重写 + i18n 系统化 + 可维护性
+
+---
+
 ## 2026-06-29 (v5 批次 23：可维护性 + i18n/可访问性 + 死代码 P0 修复)
 
 ### 批次 23 完成：8 项 P0 修复（可维护性 5 + 死代码 1 + i18n/可访问性 2）
