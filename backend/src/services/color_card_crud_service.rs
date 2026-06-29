@@ -8,7 +8,7 @@
 use chrono::Utc;
 use sea_orm::{
     ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, PaginatorTrait, QueryFilter,
-    QueryOrder, Set, TransactionTrait,
+    QueryOrder, QuerySelect, Set, TransactionTrait,
 };
 use std::sync::Arc;
 use thiserror::Error;
@@ -132,12 +132,23 @@ impl ColorCardCrudService {
     }
 
     /// 更新色卡（仅 active 状态可更新）
+    ///
+    /// 批次 27 v7 P0 修复：状态机 lock_exclusive 补全，串行化并发状态变更
+    /// 原实现完全无 txn 无 lock，并发 update 同时通过 active 状态检查后基于过期快照写入，
+    /// 导致字段覆盖；色卡档案被并发修改无审计追溯。
     pub async fn update(
         &self,
         id: i64,
         dto: UpdateColorCardDto,
     ) -> Result<color_card::Model, CrudError> {
-        let existing = self.get_by_id(id).await?;
+        let txn = self.db.begin().await?;
+
+        // 1. 查询色卡（加 lock_exclusive 串行化并发 update）
+        let existing = ColorCardEntity::find_by_id(id)
+            .lock_exclusive()
+            .one(&txn)
+            .await?
+            .ok_or(CrudError::NotFound)?;
         if existing.status != "active" {
             return Err(CrudError::InvalidState);
         }
@@ -164,17 +175,38 @@ impl ColorCardCrudService {
         }
         active.updated_at = Set(Utc::now());
 
-        let result = active.update(&*self.db).await?;
+        // TODO(tech-debt): update 方法签名暂无 user_id 参数，先用 Some(0) 占位，
+        // 待认证上下文接入后改为真实 user_id。
+        let result = crate::services::audit_log_service::AuditLogService::update_with_audit(
+            &txn,
+            "auto_audit",
+            active,
+            Some(0),
+        )
+        .await
+        .map_err(|e| CrudError::Validation(e.to_string()))?;
+
+        txn.commit().await?;
         Ok(result)
     }
 
     /// 归档色卡（soft delete，状态变为 archived）
+    ///
+    /// 批次 27 v7 P0 修复：状态机 lock_exclusive 补全，串行化并发状态变更
+    /// 原实现完全无 txn 无 lock，并发 archive 重复归档，状态机失效。
     pub async fn archive(
         &self,
         id: i64,
         _dto: ArchiveColorCardDto,
     ) -> Result<color_card::Model, CrudError> {
-        let existing = self.get_by_id(id).await?;
+        let txn = self.db.begin().await?;
+
+        // 1. 查询色卡（加 lock_exclusive 串行化并发 archive）
+        let existing = ColorCardEntity::find_by_id(id)
+            .lock_exclusive()
+            .one(&txn)
+            .await?
+            .ok_or(CrudError::NotFound)?;
         if existing.status == "archived" {
             return Err(CrudError::InvalidState);
         }
@@ -183,19 +215,52 @@ impl ColorCardCrudService {
         active.status = Set("archived".to_string());
         active.updated_at = Set(Utc::now());
 
-        let result = active.update(&*self.db).await?;
+        // TODO(tech-debt): archive 方法签名暂无 user_id 参数，先用 Some(0) 占位，
+        // 待认证上下文接入后改为真实 user_id。
+        let result = crate::services::audit_log_service::AuditLogService::update_with_audit(
+            &txn,
+            "auto_audit",
+            active,
+            Some(0),
+        )
+        .await
+        .map_err(|e| CrudError::Validation(e.to_string()))?;
+
+        txn.commit().await?;
         Ok(result)
     }
 
     /// 标记色卡为遗失
+    ///
+    /// 批次 27 v7 P0 修复：状态机 lock_exclusive 补全，串行化并发状态变更
+    /// 原实现完全无 txn 无 lock，且无状态门检查（任意状态色卡均可被标记遗失）。
     #[allow(dead_code)] // TODO(tech-debt): 当前未接入路由，后续如需直接标记色卡遗失可接入 CRUD 路由
     pub async fn mark_lost(&self, id: i64) -> Result<color_card::Model, CrudError> {
-        let existing = self.get_by_id(id).await?;
+        let txn = self.db.begin().await?;
+
+        // 1. 查询色卡（加 lock_exclusive 串行化并发 mark_lost）
+        let existing = ColorCardEntity::find_by_id(id)
+            .lock_exclusive()
+            .one(&txn)
+            .await?
+            .ok_or(CrudError::NotFound)?;
+
         let mut active: ColorCardActive = existing.into();
         active.status = Set("lost".to_string());
         active.updated_at = Set(Utc::now());
 
-        let result = active.update(&*self.db).await?;
+        // TODO(tech-debt): mark_lost 方法签名暂无 user_id 参数，先用 Some(0) 占位，
+        // 待认证上下文接入后改为真实 user_id。
+        let result = crate::services::audit_log_service::AuditLogService::update_with_audit(
+            &txn,
+            "auto_audit",
+            active,
+            Some(0),
+        )
+        .await
+        .map_err(|e| CrudError::Validation(e.to_string()))?;
+
+        txn.commit().await?;
         Ok(result)
     }
 

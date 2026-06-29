@@ -10,7 +10,9 @@
 
 use chrono::Utc;
 use rust_decimal::Decimal;
-use sea_orm::{ActiveModelTrait, ColumnTrait, EntityTrait, QueryFilter, Set, TransactionTrait};
+use sea_orm::{
+    ActiveModelTrait, ColumnTrait, EntityTrait, QueryFilter, QuerySelect, Set, TransactionTrait,
+};
 use tracing::info;
 
 use crate::models::ar_collection;
@@ -79,7 +81,8 @@ impl ArReconciliationService {
             let total_invoices: Decimal = invoices.iter().map(|inv| inv.invoice_amount).sum();
             let total_collections: Decimal = collections.iter().map(|c| c.collection_amount).sum();
 
-            let reconciliation_no = generate_reconciliation_no(&self.db).await?;
+            // 批次 27 v7 P1 修复：事务边界泄漏，单号生成移入 txn，避免断号/重复
+            let reconciliation_no = generate_reconciliation_no(&txn).await?;
             let closing_balance = opening_balance + total_invoices - total_collections;
 
             let reconciliation = ActiveModel {
@@ -455,7 +458,8 @@ impl ArReconciliationService {
             .await?
             .ok_or_else(|| AppError::not_found(format!("客户 {} 不存在", req.customer_id)))?;
 
-        let reconciliation_no = generate_reconciliation_no(&self.db).await?;
+        // 批次 27 v7 P1 修复：事务边界泄漏，单号生成移入 txn，避免断号/重复
+        let reconciliation_no = generate_reconciliation_no(&txn).await?;
 
         let invoices = ar_invoice::Entity::find()
             .filter(ar_invoice::Column::CustomerId.eq(req.customer_id))
@@ -565,13 +569,20 @@ impl ArReconciliationService {
     }
 
     /// 客户确认对账单（带状态校验）
+    ///
+    /// 批次 27 v7 P0 修复：状态机 lock_exclusive 补全，串行化并发状态变更
+    /// 原实现完全无 txn 无 lock，两并发 customer_confirm 同时通过状态门后基于过期状态写入，
+    /// 导致 confirmed_by/confirmed_at 被覆盖、审计日志完全丢失（未走 update_with_audit）。
     pub async fn customer_confirm(
         &self,
         id: i32,
         user_id: i32,
     ) -> Result<crate::models::ar_reconciliation::Model, AppError> {
+        let txn = (*self.db).begin().await?;
+
         let model = ReconciliationEntity::find_by_id(id)
-            .one(&*self.db)
+            .lock_exclusive()
+            .one(&txn)
             .await?
             .ok_or_else(|| AppError::not_found("对账单不存在"))?;
 
@@ -592,21 +603,36 @@ impl ArReconciliationService {
         active_model.confirmed_at = Set(Some(Utc::now()));
         active_model.updated_at = Set(Utc::now());
 
-        let updated = active_model.update(&*self.db).await?;
+        let updated = crate::services::audit_log_service::AuditLogService::update_with_audit(
+            &txn,
+            "auto_audit",
+            active_model,
+            Some(user_id),
+        )
+        .await?;
+
+        txn.commit().await?;
 
         info!("客户确认对账单成功：id={}", id);
         Ok(updated)
     }
 
     /// 客户提出争议（带状态校验）
+    ///
+    /// 批次 27 v7 P0 修复：状态机 lock_exclusive 补全，串行化并发状态变更
+    /// 原实现完全无 txn 无 lock，两并发 customer_dispute 同时通过状态门后基于过期状态写入，
+    /// 导致 dispute_reason 被覆盖、审计日志完全丢失（未走 update_with_audit）。
     pub async fn customer_dispute(
         &self,
         id: i32,
         reason: String,
-        _user_id: i32,
+        user_id: i32,
     ) -> Result<crate::models::ar_reconciliation::Model, AppError> {
+        let txn = (*self.db).begin().await?;
+
         let model = ReconciliationEntity::find_by_id(id)
-            .one(&*self.db)
+            .lock_exclusive()
+            .one(&txn)
             .await?
             .ok_or_else(|| AppError::not_found("对账单不存在"))?;
 
@@ -623,7 +649,15 @@ impl ArReconciliationService {
         active_model.dispute_reason = Set(Some(reason.clone()));
         active_model.updated_at = Set(Utc::now());
 
-        let updated = active_model.update(&*self.db).await?;
+        let updated = crate::services::audit_log_service::AuditLogService::update_with_audit(
+            &txn,
+            "auto_audit",
+            active_model,
+            Some(user_id),
+        )
+        .await?;
+
+        txn.commit().await?;
 
         info!("客户对账单提出争议：id={}, reason={}", id, reason);
         Ok(updated)

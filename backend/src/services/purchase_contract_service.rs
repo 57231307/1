@@ -164,13 +164,15 @@ impl PurchaseContractService {
         }
 
         // 计算已执行金额并验证不超过合同总额
+        // 批次 27 v7 P1 修复：事务边界泄漏，原实现 executed_amount 用 &*self.db 裸查询
+        // 存在 TOCTOU 风险（并发 execute 同一合同时，超合同总额校验可被绕过）
         let total_amount = contract.total_amount.unwrap_or(Decimal::ZERO);
         if total_amount > Decimal::ZERO {
             let executed_amount = crate::models::purchase_contract_execution::Entity::find()
                 .filter(
                     crate::models::purchase_contract_execution::Column::ContractId.eq(contract_id),
                 )
-                .all(&*self.db)
+                .all(&txn)
                 .await?
                 .iter()
                 .map(|e| e.amount)

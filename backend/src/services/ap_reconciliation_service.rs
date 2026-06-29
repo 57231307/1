@@ -10,7 +10,7 @@ use futures::stream::{self, StreamExt};
 use rust_decimal::Decimal;
 use sea_orm::{
     ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, Order, PaginatorTrait,
-    QueryFilter, QueryOrder, Set, TransactionTrait,
+    QueryFilter, QueryOrder, QuerySelect, Set, TransactionTrait,
 };
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
@@ -110,6 +110,10 @@ impl ApReconciliationService {
     }
 
     /// 确认对账单
+    ///
+    /// 批次 27 v7 P0 修复：状态机 lock_exclusive 补全，串行化并发状态变更
+    /// 原实现已有 txn 但状态门查询未加 lock_exclusive，两并发 confirm_reconciliation 同时通过
+    /// PENDING 检查后基于过期状态写入，导致 confirmed_by/confirmed_at 被覆盖。
     pub async fn confirm_reconciliation(
         &self,
         id: i32,
@@ -117,8 +121,9 @@ impl ApReconciliationService {
     ) -> Result<ap_reconciliation::Model, AppError> {
         let txn = (*self.db).begin().await?;
 
-        // 1. 查询对账单
+        // 1. 查询对账单（加 lock_exclusive 串行化并发 confirm_reconciliation）
         let reconciliation = ap_reconciliation::Entity::find_by_id(id)
+            .lock_exclusive()
             .one(&txn)
             .await?
             .ok_or_else(|| AppError::not_found(format!("对账单 {}", id)))?;
@@ -143,7 +148,7 @@ impl ApReconciliationService {
                 &txn,
                 "auto_audit",
                 reconciliation_active,
-                Some(0),
+                Some(user_id),
             )
             .await?;
 
@@ -153,6 +158,10 @@ impl ApReconciliationService {
     }
 
     /// 提出争议
+    ///
+    /// 批次 27 v7 P0 修复：状态机 lock_exclusive 补全，串行化并发状态变更
+    /// 原实现已有 txn 但状态门查询未加 lock_exclusive，两并发 dispute 同时通过门控后
+    /// 基于过期状态写入，导致 disputed_reason 被覆盖。
     pub async fn dispute(
         &self,
         id: i32,
@@ -161,8 +170,9 @@ impl ApReconciliationService {
     ) -> Result<ap_reconciliation::Model, AppError> {
         let txn = (*self.db).begin().await?;
 
-        // 1. 查询对账单
+        // 1. 查询对账单（加 lock_exclusive 串行化并发 dispute）
         let reconciliation = ap_reconciliation::Entity::find_by_id(id)
+            .lock_exclusive()
             .one(&txn)
             .await?
             .ok_or_else(|| AppError::not_found(format!("对账单 {}", id)))?;
@@ -185,7 +195,7 @@ impl ApReconciliationService {
                 &txn,
                 "auto_audit",
                 reconciliation_active,
-                Some(0),
+                Some(user_id),
             )
             .await?;
 
