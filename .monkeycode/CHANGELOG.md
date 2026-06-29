@@ -2,6 +2,45 @@
 
 > 重要变更一句话摘要列表。详细历史请查阅 [`.monkeycode/docs/archives/`](file:///workspace/.monkeycode/docs/archives/)。
 
+## 2026-06-29 (批次 27 完成：v7 状态机 P0 漏修 + P1 事务边界泄漏 13 项)
+
+### 批次 27 完成：v7 复审 P0 状态机漏修 + P1 事务边界泄漏（13 项）
+
+**修复分支**：`fix/batch-27-state-machine-missed-v7`
+**修复范围**：v7 复审发现批次 25/26 仍遗漏的状态机方法
+**合并 commit**：`4cdc339`（PR #269 squash merge，CI 全绿）
+
+#### P0 状态机漏修（7 项）
+
+| # | 文件 | 方法 | 类型 |
+|---|------|------|------|
+| 1 | services/ar/vfy.rs | customer_confirm | 完全无 txn 无 lock |
+| 2 | services/ar/vfy.rs | customer_dispute | 完全无 txn 无 lock（_user_id 改 user_id 透传审计） |
+| 3 | services/ap_reconciliation_service.rs | confirm_reconciliation | 有 txn 漏 lock |
+| 4 | services/ap_reconciliation_service.rs | dispute | 有 txn 漏 lock |
+| 5 | services/color_card_crud_service.rs | update | 完全无 txn 无 lock |
+| 6 | services/color_card_crud_service.rs | archive | 完全无 txn 无 lock |
+| 7 | services/color_card_crud_service.rs | mark_lost | 完全无 txn 无 lock |
+
+#### P1 事务边界泄漏（6 项）
+
+| # | 文件 | 方法 | 修复 |
+|---|------|------|------|
+| 8 | services/purchase_contract_service.rs | execute | executed_amount 查询 `&*self.db` → `&txn` |
+| 9 | services/sales_return_service.rs | submit_return | items_count 查询 `&*self.db` → `&txn` |
+| 10 | services/purchase_return_service.rs | approve_return | item_count 查询 `&*self.db` → `&txn` |
+| 11 | services/ar_collection_service.rs | create_collection | 单号生成器 `&*self.db` → `&txn` |
+| 12 | services/ar/vfy.rs | auto_match | generate_reconciliation_no(&self.db) → `&txn` |
+| 13 | services/ar/vfy.rs | generate_reconciliation | 同上 |
+
+#### 辅助修改
+
+- `ar/mod.rs::generate_reconciliation_no` 签名从 `&DatabaseConnection` 改为 `&(impl ConnectionTrait + TransactionTrait)`，支持传入 txn
+- 三个文件新增 `QuerySelect` import
+- `ar/mod.rs` 新增 `ConnectionTrait + TransactionTrait` import
+
+---
+
 ## 2026-06-29 (批次 26 完成：状态机 lock_exclusive 补全 P1 27 项)
 
 ### 批次 26 完成：P1 状态机 lock_exclusive 补全（27 项）

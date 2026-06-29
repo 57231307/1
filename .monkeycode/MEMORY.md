@@ -21,20 +21,34 @@
 
 ---
 
-## 当前任务状态（2026-06-29 批次 26 完成 - 开始 v7 复审）
+## 当前任务状态（2026-06-29 批次 27 完成 - 开始批次 28）
 
-### ✅ 批次 26 完成：P1 状态机 lock_exclusive 补全 27 项
+### ✅ 批次 27 完成：v7 状态机 P0 漏修 + P1 事务边界泄漏 13 项
 
-**修复分支**：`fix/batch-26-p1-state-machine-lock`（已合并删除）
-**合并 commit**：`90db83a`（PR #268，CI 全绿，前端 E2E continue-on-error 不阻塞）
-**修复清单**：见 [CHANGELOG.md 批次 26 章节](file:///workspace/.monkeycode/CHANGELOG.md)
-**修复模式**：与批次 25 一致，`txn + lock_exclusive + find_by_id + 状态校验 + 状态变更 + commit`
+**修复分支**：`fix/batch-27-state-machine-missed-v7`（已合并删除）
+**合并 commit**：`4cdc339`（PR #269，CI 全绿）
+**修复清单**：见 [CHANGELOG.md 批次 27 章节](file:///workspace/.monkeycode/CHANGELOG.md)
 
 **关键技术决策**：
-1. **P1 最小改动模式**：已有 txn 的方法仅在 `find_by_id(id).one(&txn)` 之间加 `.lock_exclusive()`
-2. **裸 `&*self.db` 查询需重构**：将 txn 提前到状态门之前（如 delete_receipt、cancel、reject_adjustment 等）
-3. **原无 txn 的 P1 方法**：custom_order_crud::cancel、quotation::cancel、inventory_adjustment::reject_adjustment、budget_management::approve_plan/execute_plan 新增完整 txn + lock + commit
-4. **CI dead_code 级联修复**：3 轮修复 7 处级联警告，全部使用 `#[allow(dead_code)]` + TODO(tech-debt) 注释策略
+1. **v7 复审发现批次 25/26 仍遗漏 7 项 P0**：ar/vfy.rs 2 项、ap_reconciliation_service.rs 2 项、color_card_crud_service.rs 3 项
+2. **P1 事务边界泄漏 6 项**：txn 内用 `&*self.db` 裸查询导致 TOCTOU 风险，全部改为 `&txn`
+3. **单号生成器签名升级**：`generate_reconciliation_no` 从 `&DatabaseConnection` 改为 `&(impl ConnectionTrait + TransactionTrait)`，支持在 txn 内调用
+4. **color_card_crud_service 错误转换**：用 `map_err(|e| CrudError::Validation(e.to_string()))` 将 AppError 转为 CrudError
+
+### ✅ v7 全项目复审已完成
+
+**审计基线**：main HEAD `1667134`
+**审计报告**：[`.monkeycode/docs/audits/2026-06-29-strict-reaudit-v7.md`](file:///workspace/.monkeycode/docs/audits/2026-06-29-strict-reaudit-v7.md)
+**审计结果**：P0=24 / P1=32 / P2=29 项
+**回归验证**：批次 24/25/26 修复全部 PASS（批次 24 部分回归：vitest 升级遗漏 pnpm-lock.yaml、UserInfo 仅补 2/6 字段）
+
+**v7 修复批次规划**：
+- 批次 27 ✅：状态机 P0 漏修 + P1 事务边界泄漏（13 项）
+- 批次 28 ⬜：v7 安全敏感信息 P0（6 项）— 生产凭据硬编码、IP 硬编码、config.yaml 跟踪等
+- 批次 29 ⬜：前后端类型契约 P0（8 项）— pnpm-lock、RefreshTokenResponse、TOTP 字段名、is_totp_enabled 等
+- 批次 30 ⬜：分页输入验证（30+ 文件）— saturating_sub + page_size clamp
+- 批次 31 ⬜：N+1 查询 + DTO 输入验证
+- 批次 32 ⬜：i18n + OpenAPI 文档（高工作量）
 
 ### ✅ 批次 25 完成：状态机 lock_exclusive 补全 P0 25 项
 
