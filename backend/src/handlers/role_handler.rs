@@ -3,7 +3,7 @@ use crate::services::role_permission_service::RolePermissionService;
 use crate::services::role_permission_service::{
     AssignPermissionRequest, CreateRoleRequest, UpdateRoleRequest,
 };
-use crate::utils::admin_checker::is_admin_role;
+use crate::utils::admin_checker::{is_admin_role, ADMIN_ROLE_CODE};
 use crate::utils::app_state::AppState;
 use crate::utils::error::AppError;
 use crate::utils::response::ApiResponse;
@@ -17,8 +17,9 @@ use serde::{Deserialize, Serialize};
 ///
 /// 设计原因：`permission_middleware` 仅做资源类型级粗粒度权限（roles:create 等），
 /// 拥有 `roles:read` 权限的低权限用户也能通过粗粒度校验进入处理器，造成权限提升。
-/// 修复方案：所有写处理器顶部调用 `require_admin_role`，强制要求 `role.code == "admin"`。
+/// 修复方案：所有写处理器顶部调用 `require_admin_role`，强制要求 `role.code == ADMIN_ROLE_CODE`。
 /// 防御深度：与全局 `permission_middleware` 形成"粗粒度 + 细粒度 admin 校验"双重防线。
+/// 批次 24 v6 P1-1 修复：错误提示与注释改用 ADMIN_ROLE_CODE 常量，避免硬编码 "admin"。
 async fn require_admin_role(
     state: &AppState,
     auth: &AuthContext,
@@ -27,9 +28,10 @@ async fn require_admin_role(
         .role_id
         .ok_or_else(|| AppError::permission_denied("用户未分配角色，无法执行该操作"))?;
     if !is_admin_role(&state.db, role_id).await {
-        return Err(AppError::permission_denied(
-            "该操作仅限管理员（code=admin）执行",
-        ));
+        return Err(AppError::permission_denied(format!(
+            "该操作仅限管理员（code={}）执行",
+            ADMIN_ROLE_CODE
+        )));
     }
     Ok(())
 }

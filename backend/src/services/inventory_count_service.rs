@@ -12,6 +12,10 @@
 //! - `workflow`  — 审批与完成
 //! - `items`     — 明细项管理
 
+// 批次 24 v6 P0 修复：batch 23 移除 inventory_count 路由后整个模块成为死代码。
+// 按"死代码处理规范"业务文件允许的方式保留文件级 allow，待 inventory_count 功能重新接入后逐项移除。
+// TODO(tech-debt): 业务接入或重评估后逐项移除；rustc 1.94+ 编译时由编译器报告具体死代码位置。
+#![allow(dead_code)]
 
 use sea_orm::DatabaseConnection;
 use std::sync::Arc;

@@ -257,11 +257,13 @@ impl WebhookService {
     }
 
     /// 测试Webhook
+    #[allow(dead_code)] // TODO(tech-debt): 预留 API，待 webhook 测试端点接入后移除
     pub async fn test_webhook(
         &self,
         webhook_id: i32,
     ) -> Result<WebhookDeliveryResult, AppError> {
-        let webhook = Webhook::find_by_id(webhook_id)
+        // 仅校验 webhook 存在性，不绑定变量（后续 trigger_webhook 只需要 id）
+        let _ = Webhook::find_by_id(webhook_id)
             .one(self.db.as_ref())
             .await?
             .ok_or_else(|| AppError::business("Webhook 不存在"))?;

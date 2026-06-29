@@ -51,12 +51,15 @@ pub async fn inventory_transfer_print_html(
     render_print_html("inventory_transfer", doc_id).await
 }
 
+#[allow(dead_code)] // TODO(tech-debt): batch 23 移除 inventory_count 路由后未引用，待功能恢复后移除
 pub async fn inventory_count_print_html(
     Path(doc_id): Path<i32>,
     State(_): State<AppState>,
 ) -> Result<Html<String>, AppError> {
     render_print_html("inventory_count", doc_id).await
 }
+// 注：inventory_count_print_html 当前未被路由引用（batch 23 已移除 inventory_count 路由），
+// 保留函数以备后续 inventory_count 功能恢复后重新挂载。
 
 /// 打印模板列表响应
 #[derive(serde::Serialize)]

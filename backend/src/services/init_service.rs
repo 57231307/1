@@ -4,6 +4,7 @@ use crate::models::department;
 use crate::models::role;
 use crate::models::user;
 use crate::services::auth_service::AuthService;
+use crate::utils::admin_checker::ADMIN_ROLE_CODE;
 use crate::utils::error::AppError;
 use futures::FutureExt;
 use sea_orm::{
@@ -341,9 +342,10 @@ impl InitService {
     }
 
     async fn create_default_roles(&self) -> Result<role::Model, InitError> {
-        // 先检查admin角色是否已存在
+        // 批次 24 v6 P0-1 修复：使用 ADMIN_ROLE_CODE 常量替代硬编码 "admin"，
+        // 与 admin_checker.rs 保持单一真相源，避免角色编码变更时多处不同步。
         let existing_admin = role::Entity::find()
-            .filter(role::Column::Code.eq("admin"))
+            .filter(role::Column::Code.eq(ADMIN_ROLE_CODE))
             .one(self.db.as_ref())
             .await
             .map_err(|e| {
@@ -363,7 +365,7 @@ impl InitService {
         let admin_role = role::ActiveModel {
             id: Set(0),
             name: Set("管理员".to_string()),
-            code: Set("admin".to_string()),
+            code: Set(ADMIN_ROLE_CODE.to_string()),
             description: Set(Some("系统管理员".to_string())),
             permissions: Set(Some("[\"*\"]".to_string())),
             is_system: Set(true),

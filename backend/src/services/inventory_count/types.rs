@@ -2,6 +2,10 @@
 //!
 //! 拆分自 inventory_count_service.rs（2026-06-05）
 
+// 批次 24 v6 P0 修复：batch 23 移除 inventory_count 路由后整个模块成为死代码。
+// TODO(tech-debt): 业务接入或重评估后逐项移除；rustc 1.94+ 编译时由编译器报告具体死代码位置。
+#![allow(dead_code)]
+
 use rust_decimal::Decimal;
 use serde::{Deserialize, Serialize};
 

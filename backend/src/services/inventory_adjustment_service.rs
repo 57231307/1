@@ -330,7 +330,10 @@ impl InventoryAdjustmentService {
             .paginate(&*self.db, page_size);
 
         let total = paginator.num_items().await?;
-        let adjustments = paginator.fetch_page(page).await?;
+        // 批次 24 v6 P1-3 修复：分页偏移 off-by-one。
+        // SeaORM paginator.fetch_page 是 0-indexed，传入 page=1 实际查询第二页。
+        // 改为 page.saturating_sub(1)，与 ap_reconciliation_service.rs:411 写法一致。
+        let adjustments = paginator.fetch_page(page.saturating_sub(1)).await?;
 
         Ok((adjustments, total))
     }

@@ -15,6 +15,29 @@ use crate::models::notification::{
 };
 use crate::models::notification_setting::{self, Entity as NotificationSettingEntity};
 use crate::utils::error::AppError;
+use crate::websocket::notifications::{
+    get_notification_broadcaster, NotificationPayload,
+};
+
+/// 将数据库 notification::Model 转为 WebSocket 推送载荷
+///
+/// 批次 24 v6 P0-2 修复：通知创建后实时推送至在线 ws 客户端
+fn build_payload_from_notification(n: &notification::Model) -> NotificationPayload {
+    let priority_value = match n.priority {
+        NotificationPriority::Low => 1,
+        NotificationPriority::Normal => 5,
+        NotificationPriority::High => 8,
+        NotificationPriority::Urgent => 10,
+    };
+    NotificationPayload {
+        id: n.id as i64,
+        title: n.title.clone(),
+        content: n.content.clone(),
+        category: format!("{:?}", n.notification_type).to_lowercase(),
+        priority: priority_value,
+        created_at: n.created_at.to_rfc3339(),
+    }
+}
 
 /// 创建通知请求
 #[derive(Debug, Clone)]
@@ -67,6 +90,13 @@ impl NotificationService {
         };
 
         let notification = active_model.insert(&*self.db).await?;
+
+        // 批次 24 v6 P0-2 修复：通知创建后实时推送至在线 ws 客户端
+        // 广播失败不影响通知创建本身（如所有订阅者已掉线，broadcast 返回 SendError，忽略即可）
+        let payload = build_payload_from_notification(&notification);
+        get_notification_broadcaster()
+            .broadcast_notification(notification.user_id as i64, &payload);
+
         Ok(notification)
     }
 
@@ -102,6 +132,12 @@ impl NotificationService {
                 updated_at: Set(now),
             };
             let notification = active_model.insert(self.db.as_ref()).await?;
+
+            // 批次 24 v6 P0-2 修复：每条通知创建后实时推送至在线 ws 客户端
+            let payload = build_payload_from_notification(&notification);
+            get_notification_broadcaster()
+                .broadcast_notification(notification.user_id as i64, &payload);
+
             notifications.push(notification);
         }
 

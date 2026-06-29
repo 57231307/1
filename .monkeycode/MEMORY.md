@@ -21,7 +21,30 @@
 
 ---
 
-## 当前任务状态（2026-06-29 v6 全项目复审完成 - 待批次 24 修复）
+## 当前任务状态（2026-06-29 批次 24 完成 - 待 CI 验证 + 批次 25）
+
+### ✅ 批次 24 完成：v6 低难度高收益 P0 修复（18 项）
+
+**修复分支**：`fix/batch-24-low-effort-p0`
+**修改文件**：18 个（backend 9 + frontend 4 + deploy 1 + 删除 1 + 配置 1 + monkeycode 2）
+**修复清单**：见 [CHANGELOG.md 批次 24 章节](file:///workspace/.monkeycode/CHANGELOG.md)
+
+**关键技术决策**：
+1. **ADMIN_ROLE_CODE 单一真相源辐射完成**：admin_checker.rs → init_service.rs + role_handler.rs，硬编码 "admin" 彻底消除
+2. **前后端类型契约对齐**：UserInfo 补全 role_name + permissions 字段，前端路由守卫不再失效
+3. **部署脚本 fail-secure**：敏感变量 `${VAR:?err}` 形式，缺失即退出，移除硬编码 IP/密码
+4. **WebSocket 全局单例修复**：`OnceLock<NotificationBroadcaster>` + `get_notification_broadcaster()` 全局访问；handle_socket 不再创建本地 ConnectionManager；NotificationService.create_notification 后调用 broadcaster 推送，修复 v5 标注"已修实际未修"的 6 项部分修复之一
+5. **vitest 升级** ^2.1.0 → ^4.1.8：修复 CVSS 9.8 漏洞（GHSA-5xrq-8626-4rwp）
+6. **分页 off-by-one**：SeaORM `paginator.fetch_page(page)` 是 0-indexed，需 `page.saturating_sub(1)`
+7. **越权审批修复**：ap_payment_request_service 查询 role 表 role_code 实现分级审批
+
+**待执行**：
+1. git add + commit + push 触发 CI
+2. 监控 CI 全绿
+3. squash merge 到 main + 删除修复分支
+4. 开始批次 25 修复（20 项中等难度 P0：状态机 lock_exclusive 补全）
+
+---
 
 ### ✅ v6 全项目严格复审（已完成，5 并行子代理覆盖 16 维度）
 

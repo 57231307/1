@@ -409,7 +409,9 @@ impl VoucherService {
     }
 
     /// 提交凭证
-    pub async fn submit(&self, id: i32, _user_id: i32) -> Result<voucher::Model, AppError> {
+    // 批次 24 v6 P1-4 修复：将 _user_id 改为 user_id，传入审计日志追溯操作人。
+    // 原签名用下划线前缀表示未使用，导致审计日志 user_id 硬编码为 0 无法追溯。
+    pub async fn submit(&self, id: i32, user_id: i32) -> Result<voucher::Model, AppError> {
         info!("提交凭证 ID: {}", id);
 
         let voucher = self.get_by_id(id).await?.voucher;
@@ -429,12 +431,13 @@ impl VoucherService {
         // 批次 11（2026-06-28）：事务包裹"凭证状态更新 + 审计日志"，保证原子性
         // 原 update_with_audit(&*self.db, ...) 内部 2 次独立写入非原子，
         // 审计插入失败会导致"凭证已提交但审计缺失"
+        // 批次 24 v6 P1-4 修复：user_id 从 0 改为传入的真实值
         let txn = (*self.db).begin().await?;
         let updated = crate::services::audit_log_service::AuditLogService::update_with_audit(
             &txn,
             "auto_audit",
             active_model,
-            Some(0),
+            Some(user_id),
         )
         .await?;
         txn.commit().await?;
@@ -779,6 +782,7 @@ impl VoucherService {
 }
 
 /// 凭证详情（包含分录）
+#[allow(dead_code)] // TODO(tech-debt): 预留 API，待凭证详情查询接入后移除
 #[derive(Debug, Clone)]
 pub struct VoucherDetail {
     pub voucher: voucher::Model,

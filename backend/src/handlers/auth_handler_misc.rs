@@ -205,7 +205,11 @@ pub async fn refresh_token(
         Json(ApiResponse::success(RefreshTokenResponse {
             token: new_token,
             csrf_token,
-            expires_in: 7200,
+            // 批次 24 v6 P1-1 修复：expires_in 从 7200 改为 1800，
+            // 与上方 access_token Cookie max_age(minutes(30)) = 1800 秒对齐。
+            // 原 7200 秒（2 小时）会导致前端误以为 token 有效期 2 小时，
+            // 实际 30 分钟就过期，在 30min~2h 之间的请求会收到 401。
+            expires_in: 1800,
         })),
     )
         .into_response())
@@ -279,12 +283,12 @@ pub async fn get_current_user(
         })?;
 
     match user {
-        Some(u) => Ok(Json(ApiResponse::success(UserInfo {
-            id: u.id,
-            username: u.username,
-            email: u.email,
-            role_id: u.role_id,
-        }))),
+        // 批次 24 v6 P0-2 修复：使用 build_with_permissions 补全 role_name 和 permissions，
+        // 解决前端刷新页面后 role_name/permissions 缺失导致路由守卫 admin 绕过失效 + 403 跳转问题。
+        Some(u) => {
+            let user_info = UserInfo::build_with_permissions(state.db.as_ref(), &u).await;
+            Ok(Json(ApiResponse::success(user_info)))
+        }
         None => Err(AppError::not_found("用户不存在")),
     }
 }

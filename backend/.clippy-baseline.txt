@@ -425,6 +425,7 @@
    | -------------------------- associated function in this implementation
    | --------------------------- associated function in this implementation
    | ----------------------------- associated items in this implementation
+   | ------------------------------ associated function in this implementation
    | ------------------------------ associated functions in this implementation
    | ------------------------------ methods in this implementation
    | -------------------------------- methods in this implementation
@@ -584,6 +585,7 @@
   --> src/utils/unwrap_safe.rs:65:8
   --> src/utils/unwrap_safe.rs:76:8
   --> src/websocket/mod.rs:18:25
+  = note: requested on the command line with `-W dead-code`
   = note: requested on the command line with `-W unused-imports`
   |
   |                                                                     ^^^^^^^^^^

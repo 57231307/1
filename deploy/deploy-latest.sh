@@ -20,7 +20,10 @@
 
 set -e
 
-SERVER_IP="${BINGXI_SERVER_IP:-111.230.99.236}"
+# 批次 24 v6 P0-1 修复：移除硬编码生产服务器 IP 默认值。
+# 原默认值 111.230.99.236 暴露了真实生产 IP，攻击者扫描 GitHub 即可获取。
+# 改为强制要求设置环境变量，缺失时直接退出（fail-secure）。
+SERVER_IP="${BINGXI_SERVER_IP:?必须设置 BINGXI_SERVER_IP 环境变量（生产服务器 IP）}"
 SSH_USER="${BINGXI_SSH_USER:-root}"
 # 认证方式：优先使用 SSH 密钥（BINGXI_SSH_KEY），密码（BINGXI_SSH_PASS）作为过渡回退
 SSH_KEY="${BINGXI_SSH_KEY:-}"
@@ -173,10 +176,15 @@ deploy_remote() {
             DB_PORT=\${DATABASE__PORT:-5432}
             DB_NAME=\${DATABASE__NAME:-bingxi}
             DB_USER=\${DATABASE__USERNAME:-bingxi}
-            DB_PASS=\${DATABASE__PASSWORD:-bingxi123}
-            JWT=\${JWT_SECRET:-default_jwt_secret}
-            COOKIE=\${COOKIE_SECRET:-default_cookie_secret}
-            CONN_STR=\"postgres://\${DB_USER}:\${DB_PASS}@\${DB_HOST}:\${DB_PORT}/\${DB_NAME}?sslmode=disable\"
+            # 批次 24 v6 P0-2 修复：移除硬编码默认密码/密钥。
+            # 原默认值 bingxi123/default_jwt_secret/default_cookie_secret 极易被字典爆破或 JWT 伪造。
+            # 改为强制要求设置环境变量，缺失时直接退出（fail-secure）。
+            DB_PASS=\${DATABASE__PASSWORD:?必须设置 DATABASE__PASSWORD}
+            JWT=\${JWT_SECRET:?必须设置 JWT_SECRET}
+            COOKIE=\${COOKIE_SECRET:?必须设置 COOKIE_SECRET}
+            # 批次 24 v6 P0-3 修复：数据库连接强制 SSL（原 sslmode=disable 明文传输）。
+            # 生产环境数据库流量含密码和业务数据，必须加密防止中间人嗅探。
+            CONN_STR=\"postgres://\${DB_USER}:\${DB_PASS}@\${DB_HOST}:\${DB_PORT}/\${DB_NAME}?sslmode=require\"
 
             cat > /opt/bingxi-erp/backend/config.yaml << EOF
 server:
@@ -192,7 +200,8 @@ database:
   password: \"\${DB_PASS}\"
   max_connections: 50
   min_connections: 5
-  ssl_mode: \"disable\"
+  # 批次 24 v6 P0-3 修复：生产环境强制 SSL（原 disable 明文传输）
+  ssl_mode: \"require\"
 
 auth:
   jwt_secret: \"\${JWT}\"
@@ -252,7 +261,10 @@ EOF
         rm -rf /tmp/bingxi-deploy /tmp/bingxi-erp-latest.zip
 
         # 健康检查
-        curl -s http://127.0.0.1:8082/api/v1/erp/health
+        # 批次 24 v6 P0-4 修复：健康检查端点路径从 /api/v1/erp/health 改为 /health。
+        # 原路径返回 404，运维误以为部署成功但实际无法判断服务健康状态。
+        # 实际路由注册在 routes/mod.rs:359 和 routes/system.rs:196，均为顶层 /health。
+        curl -s http://127.0.0.1:8082/health
     "
 }
 
