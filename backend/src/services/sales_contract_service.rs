@@ -107,9 +107,13 @@ impl SalesContractService {
         let total = query.clone().count(&*self.db).await?;
 
         // 分页和排序
+        // 批次 24 v6 P1-2 修复：分页偏移 off-by-one。
+        // 原代码 offset=(page * page_size)，当 page=1（HTTP 第一页）时 offset=page_size，
+        // 跳过第一页数据。改为 ((page - 1) * page_size)，与 production_order_service.rs:279
+        // 的 paginator.fetch_page(query.page - 1) 0-indexed 写法一致。
         let contracts = query
             .order_by(sales_contract::Column::Id, Order::Desc)
-            .offset((params.page * params.page_size) as u64)
+            .offset(((params.page.saturating_sub(1)) * params.page_size) as u64)
             .limit(params.page_size as u64)
             .all(&*self.db)
             .await?;

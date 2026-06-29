@@ -414,47 +414,54 @@ impl ApPaymentRequestService {
     }
 
     /// 检查审批权限（按金额分级）
+    // 批次 24 v6 P1-1 修复：原实现仅判断 role_id 是否存在，所有有角色的用户都能审批任意金额，
+    // 存在严重越权漏洞（普通员工可审批 50 万+ 付款）。
+    // 改为查询 role 表获取 role_code，按角色 code 实现分级审批：
+    //   - admin：可审批任意金额（系统管理员）
+    //   - manager：可审批 10 万以下（部门经理）
+    //   - operator 及其他：无审批权限
     pub async fn check_approval_permission(
         &self,
         amount: &Decimal,
         user_id: i32,
     ) -> Result<(), AppError> {
-        // 查询用户角色
+        // 查询用户
         let user = crate::models::user::Entity::find_by_id(user_id)
             .one(&*self.db)
             .await?
             .ok_or_else(|| AppError::not_found(format!("用户 {}", user_id)))?;
 
-        // 获取用户角色（简化处理，使用 role_id 判断）
-        // 安全提示：当前实现仅检查 role_id 是否存在，未区分角色类型。
-        // TODO(tech-debt): 未来查询 role 表获取 role_code，按角色 code 实现分级审批：
-        //   - 10 万以下：role_code = "finance_manager"（财务经理）
-        //   - 10-50 万：role_code = "general_manager"（总经理）
-        //   - 50 万以上：role_code = "chairman"（董事长）
-        // 当前所有有角色的用户都能审批任意金额，存在越权风险。
-        let has_role = user.role_id.is_some();
+        // 查询角色 code
+        let role_code = if let Some(role_id) = user.role_id {
+            crate::models::role::Entity::find_by_id(role_id)
+                .one(&*self.db)
+                .await?
+                .map(|r| r.code)
+                .unwrap_or_default()
+        } else {
+            String::new()
+        };
 
         // 按金额分级审批
-        // 注意：当前 3 个分支都判断 !has_role，未区分角色，待接入 role_code 后实现真正的分级
         if amount <= &Decimal::new(100000, 0) {
-            // 10 万以下：财务经理审批
-            if !has_role {
+            // 10 万以下：admin 或 manager 可审批
+            if role_code != "admin" && role_code != "manager" {
                 return Err(AppError::permission_denied(
-                    "财务经理才能审批 10 万元以下的付款".to_string(),
+                    "仅管理员或部门经理可审批 10 万元以下的付款".to_string(),
                 ));
             }
         } else if amount <= &Decimal::new(500000, 0) {
-            // 10-50 万：总经理审批
-            if !has_role {
+            // 10-50 万：仅 admin 可审批
+            if role_code != "admin" {
                 return Err(AppError::permission_denied(
-                    "总经理才能审批 50 万元以下的付款".to_string(),
+                    "仅管理员可审批 10-50 万元的付款".to_string(),
                 ));
             }
         } else {
-            // 50 万以上：董事长审批
-            if !has_role {
+            // 50 万以上：仅 admin 可审批
+            if role_code != "admin" {
                 return Err(AppError::permission_denied(
-                    "董事长才能审批 50 万元以上的付款".to_string(),
+                    "仅管理员可审批 50 万元以上的付款".to_string(),
                 ));
             }
         }

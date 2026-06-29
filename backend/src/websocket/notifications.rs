@@ -18,7 +18,7 @@ use futures::{FutureExt, SinkExt, StreamExt};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::panic::AssertUnwindSafe;
-use std::sync::Arc;
+use std::sync::{Arc, OnceLock};
 use tokio::sync::broadcast;
 
 use crate::services::auth_service::AuthService;
@@ -140,10 +140,26 @@ impl NotificationBroadcaster {
     }
 
     /// 获取连接管理器（供 ws handler 注册连接）
-    #[allow(dead_code)] // TODO(tech-debt): ws handler 接入注册连接后移除
     pub fn manager(&self) -> ConnectionManager {
         self.manager.clone()
     }
+}
+
+/// 全局 NotificationBroadcaster 单例
+///
+/// 批次 24 v6 P0-2 修复：WebSocket 单例破坏
+/// - 原实现：handle_socket 创建本地 `ConnectionManager::new()`，
+///   与 NotificationBroadcaster 内部 manager 是两个不同实例，
+///   即使 broadcast_notification 被调用也无法到达 ws 客户端。
+/// - 修复后：所有 ws handler 通过本全局单例获取 manager，保证广播与订阅共享同一份数据。
+static NOTIFICATION_BROADCASTER: OnceLock<NotificationBroadcaster> = OnceLock::new();
+
+/// 获取全局 NotificationBroadcaster 单例
+///
+/// - ws handler 通过此函数注册连接（subscribe）
+/// - notification_service 通过此函数广播新通知（send → broadcast_notification）
+pub fn get_notification_broadcaster() -> &'static NotificationBroadcaster {
+    NOTIFICATION_BROADCASTER.get_or_init(NotificationBroadcaster::new)
 }
 
 /// WebSocket 升级端点
@@ -216,7 +232,9 @@ pub fn verify_jwt_token(token: &str) -> Result<AuthInfo, String> {
 
 /// 处理 WebSocket 连接
 async fn handle_socket(socket: WebSocket, auth: AuthInfo) {
-    let manager = ConnectionManager::new();
+    // 批次 24 v6 P0-2 修复：使用全局 NotificationBroadcaster 的 manager，
+    // 与 notification_service 的 broadcast_notification 共享同一份数据。
+    let manager = get_notification_broadcaster().manager();
     let mut rx = manager.register(auth.user_id);
     let (mut sender, mut receiver) = socket.split();
 

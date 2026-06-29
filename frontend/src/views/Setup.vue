@@ -61,6 +61,13 @@
           <el-form-item label="数据库密码" prop="password">
             <el-input v-model="dbConfig.password" type="password" placeholder="请输入密码" />
           </el-form-item>
+          <el-form-item label="初始化令牌" prop="init_token">
+            <el-input
+              v-model="dbConfig.init_token"
+              type="password"
+              placeholder="请输入服务器配置的 INIT_TOKEN"
+            />
+          </el-form-item>
         </el-form>
         <div class="step-actions">
           <el-button @click="prevStep">上一步</el-button>
@@ -171,12 +178,17 @@ const dbConfig = ref({
   name: 'bingxi',
   username: 'bingxi',
   password: '',
+  // 批次 24 v6 P0-3 修复：添加 init_token 字段。
+  // 后端 init_token_middleware 强制要求 X-Init-Token 头匹配环境变量 INIT_TOKEN，
+  // 否则返回 401（fail-secure）。原 Setup.vue 未传此头导致首次部署初始化必然失败。
+  init_token: '',
 })
 const dbRules = {
   host: [{ required: true, message: '请输入数据库主机', trigger: 'blur' }],
   port: [{ required: true, message: '请输入数据库端口', trigger: 'blur' }],
   name: [{ required: true, message: '请输入数据库名称', trigger: 'blur' }],
   username: [{ required: true, message: '请输入数据库用户', trigger: 'blur' }],
+  init_token: [{ required: true, message: '请输入初始化令牌', trigger: 'blur' }],
 }
 
 // 管理员配置
@@ -276,9 +288,15 @@ async function testConnection() {
 async function install() {
   installing.value = true
   try {
+    // 批次 24 v6 P0-3 修复：添加 X-Init-Token 请求头。
+    // 后端 init_token_middleware 强制校验此头与 INIT_TOKEN 环境变量匹配，
+    // 缺失或不匹配时返回 401，防止未授权的初始化操作。
     const res = await fetch('/api/v1/erp/init/initialize-with-db', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Init-Token': dbConfig.value.init_token,
+      },
       body: JSON.stringify({
         db_config: dbConfig.value,
         admin_username: adminConfig.value.username,

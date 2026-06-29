@@ -28,7 +28,9 @@ database:
   acquire_timeout_ms: 30000
   idle_timeout_ms: 300000
   max_lifetime_ms: 1800000
-  ssl_mode: "disable"
+  # 批次 24 v6 P0-3 修复：生产环境强制 SSL（原 disable 明文传输数据库密码和业务数据）。
+  # 开发环境可设为 "prefer" 或 "disable"，生产环境必须 "require" 或 "verify-full"。
+  ssl_mode: "require"
   ssl_ca: null
 
 auth:

@@ -2,6 +2,45 @@
 
 > 重要变更一句话摘要列表。详细历史请查阅 [`.monkeycode/docs/archives/`](file:///workspace/.monkeycode/docs/archives/)。
 
+## 2026-06-29 (批次 24 完成：v6 低难度高收益 P0 修复 18 项)
+
+### 批次 24 完成：18 项低难度高收益 P0 修复
+
+**修复分支**：`fix/batch-24-low-effort-p0`
+**修复范围**：v6 报告低难度高收益 18 项 P0/P1
+**修复清单**：
+
+| # | 维度 | 文件 | 修复内容 |
+|---|------|------|----------|
+| 1 | 13 P0-1 | init_service.rs:345-368 | 消除硬编码 "admin"，使用 `ADMIN_ROLE_CODE` 常量替代（filter + Set code），与 admin_checker.rs 保持单一真相源 |
+| 2 | 13 P1-1 | role_handler.rs | import 改为 `use crate::utils::admin_checker::{is_admin_role, ADMIN_ROLE_CODE}`，错误提示改用 `format!` 动态拼接 ADMIN_ROLE_CODE |
+| 3 | 9 P0-2 | auth_handler.rs | UserInfo 补全 role_name + permissions 字段；新增 `build_with_permissions` 方法（查询 role + role_permission 表） |
+| 4 | 9 P0-1 | api.ts + user.ts | LoginResponse 删除 token/refresh_token/expires_in 死字段；删除 `if (responseData.token)` 死代码分支 |
+| 5 | 9 P0-2 | auth_handler_misc.rs | get_current_user 使用 build_with_permissions，前端刷新页面不丢权限 |
+| 6 | 9 P1-1 | auth_handler_misc.rs | RefreshTokenResponse expires_in 从 7200 改为 1800，与 Cookie max_age(minutes(30))=1800 对齐 |
+| 7 | 10 P0-3 | Setup.vue | dbConfig 新增 init_token 字段；install() 添加 X-Init-Token 请求头；表单添加初始化令牌输入框 |
+| 8 | 7 P0-1 | frontend/package.json | vitest 从 ^2.1.0 升级至 ^4.1.8（修复 GHSA-5xrq-8626-4rwp CVSS 9.8 漏洞） |
+| 9 | 7 P0-2 | frontend/package.json | @vitest/coverage-v8 从 ^2.1.0 升级至 ^4.1.8 |
+| 10 | 15 P0-1 | deploy/deploy-latest.sh | 移除硬编码生产 IP，改用 `${BINGXI_SERVER_IP:?错误}` fail-secure |
+| 11 | 15 P0-2 | deploy/deploy-latest.sh | 移除硬编码默认密码，DATABASE__PASSWORD/JWT_SECRET/COOKIE_SECRET 全部 fail-secure |
+| 12 | 15 P0-3 | deploy-latest.sh + config.yaml.example | SSL 从 disable 改为 require |
+| 13 | 15 P0-4 | deploy/deploy-latest.sh | 健康检查端点从 /api/v1/erp/health 改为 /health |
+| 14 | 4 P1-2 | sales_contract_service.rs | 分页 off-by-one：offset 改为 `((page.saturating_sub(1)) * page_size)` |
+| 15 | 4 P1-3 | inventory_adjustment_service.rs | 分页 off-by-one：fetch_page 改为 `fetch_page(page.saturating_sub(1))` |
+| 16 | 4 P1-4 | voucher_service.rs | submit 签名从 `_user_id` 改为 `user_id`，审计 Some(0) 改为 Some(user_id) |
+| 17 | 4 P1-1 | ap_payment_request_service.rs | 越权审批修复：查询 role_code 实现分级审批（≤10万 manager/admin，>50万 admin） |
+| 18 | 6 P0-2 | notifications.rs + notification_service.rs | 删除孤立文件 audit_middleware.rs；WebSocket 单例修复：handle_socket 改用全局 broadcaster；NotificationService 创建通知后调用 broadcaster 推送给在线 ws 客户端（build_payload_from_notification 辅助函数） |
+
+**关键技术决策**：
+- `ADMIN_ROLE_CODE` 单一真相源辐射完成（admin_checker.rs → init_service.rs + role_handler.rs）
+- 前后端类型契约对齐：UserInfo 补全 role_name/permissions 解决前端路由守卫失效
+- 部署脚本 fail-secure 原则：所有敏感变量缺失即退出，不再回退到不安全默认值
+- WebSocket 全局单例：用 `OnceLock<NotificationBroadcaster>` 替代 handle_socket 本地 `ConnectionManager::new()`，修复 v5 标注"已修实际未修"的 6 项部分修复之一
+
+**待验证**：CI/CD 全绿后合并到 main，删除修复分支。
+
+---
+
 ## 2026-06-29 (v6 全项目严格复审完成)
 
 ### v6 复审完成：103 项发现（P0=52 / P1=39 / P2=12）

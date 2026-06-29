@@ -63,6 +63,61 @@ pub struct UserInfo {
     pub username: String,
     pub email: Option<String>,
     pub role_id: Option<i32>,
+    /// 批次 24 v6 P0-2 修复：补全 role_name 字段，前端路由守卫依赖此字段判断 admin 绕过。
+    /// 从 role 表 JOIN 获取，None 表示用户未分配角色或角色不存在。
+    pub role_name: Option<String>,
+    /// 批次 24 v6 P0-2 修复：补全 permissions 字段，前端刷新页面后从 /auth/me 获取权限列表。
+    /// 与 LoginResponse 顶层 permissions 格式一致（`"{resource}:{action}"`）。
+    pub permissions: Vec<String>,
+}
+
+impl UserInfo {
+    /// 批次 24 v6 P0-2 修复：构建包含 role_name 和 permissions 的 UserInfo。
+    /// 此函数供 login 和 get_current_user 共用，确保前后端类型契约一致。
+    ///
+    /// - `role_name`：从 role 表 code 字段获取（None 表示未分配角色）
+    /// - `permissions`：从 role_permission 表查询 allowed=true 的记录，格式 `"{resource}:{action}"`
+    pub async fn build_with_permissions(
+        db: &sea_orm::DatabaseConnection,
+        user: crate::models::user::Model,
+    ) -> Self {
+        let role_name = if let Some(role_id) = user.role_id {
+            crate::models::role::Entity::find_by_id(role_id)
+                .one(db)
+                .await
+                .ok()
+                .flatten()
+                .map(|r| r.code)
+        } else {
+            None
+        };
+
+        let permissions: Vec<String> = if let Some(role_id) = user.role_id {
+            crate::models::role_permission::Entity::find()
+                .filter(crate::models::role_permission::Column::RoleId.eq(role_id))
+                .filter(crate::models::role_permission::Column::Allowed.eq(true))
+                .all(db)
+                .await
+                .map(|perms| {
+                    perms
+                        .into_iter()
+                        .map(|p| format!("{}:{}", p.resource_type, p.action))
+                        .collect()
+                })
+                .unwrap_or_default()
+        } else {
+            Vec::new()
+        };
+
+        UserInfo {
+            id: user.id,
+            username: user.username,
+            email: user.email,
+            role_id: user.role_id,
+            role_name,
+            permissions,
+        }
+    }
 }
 
 #[utoipa::path(
@@ -280,33 +335,12 @@ pub async fn login(
             let user_svc = crate::services::user_service::UserService::new(state.db.clone());
             let _ = user_svc.update_last_login(user.id).await;
 
-            // 安全漏洞 #14 修复：将权限列表转换为 `Vec<String>` 资源标识符
+            // 批次 24 v6 P0-2 修复：使用统一的 build_with_permissions 构建 UserInfo，
+            // 确保登录响应与 /auth/me 响应字段一致（均含 role_name 和 permissions）。
+            // 安全漏洞 #14 修复：权限列表转换为 `Vec<String>` 资源标识符
             // 格式 `"{resource}:{action}"`，避免暴露内部 `resource_id` 主键
-            // 并便于前端直接 `permissions.includes("user.list:read")` 判断
-            let permissions: Vec<String> = if let Some(role_id) = user.role_id {
-                let role_perms = crate::models::role_permission::Entity::find()
-                    .filter(crate::models::role_permission::Column::RoleId.eq(role_id))
-                    .filter(crate::models::role_permission::Column::Allowed.eq(true))
-                    .all(state.db.as_ref())
-                    .await
-                    .map_err(|e| {
-                        tracing::error!("Failed to query role permissions: {}", e);
-                        AppError::internal("查询权限失败")
-                    })?
-                    .into_iter()
-                    .map(|p| format!("{}:{}", p.resource_type, p.action))
-                    .collect();
-                role_perms
-            } else {
-                Vec::new()
-            };
-
-            let user_info = UserInfo {
-                id: user.id,
-                username: user.username,
-                email: user.email,
-                role_id: user.role_id,
-            };
+            let user_info = UserInfo::build_with_permissions(state.db.as_ref(), user).await;
+            let permissions = user_info.permissions.clone();
 
             // 生成 CSRF Token，使用 JWT claims 中的 session_id 作为会话标识
             let claims =
@@ -518,6 +552,12 @@ mod tests {
                 username: "test_user".to_string(),
                 email: Some("test@example.com".to_string()),
                 role_id: Some(1),
+                role_name: Some("admin".to_string()),
+                permissions: vec![
+                    "user.list:read".to_string(),
+                    "user.list:write".to_string(),
+                    "order:read".to_string(),
+                ],
             },
             permissions: vec![
                 "user.list:read".to_string(),
