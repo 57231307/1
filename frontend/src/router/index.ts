@@ -844,7 +844,7 @@ export function resetInitStatus(initialized: boolean = true) {
  */
 export function hasRoutePermission(
   required: string | string[] | undefined,
-  userPermissions: string[]
+  userPermissions: readonly string[]
 ): boolean {
   if (!required) return true
   const requiredList = Array.isArray(required) ? required : [required]

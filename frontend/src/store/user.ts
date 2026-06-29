@@ -47,10 +47,15 @@ export const useUserStore = defineStore('user', () => {
     const info = await getUserInfo()
     // 批次 22 v5 P0-5 修复：对 permissions 字段添加 Object.freeze 运行时保护，
     // 防止前端组件恶意修改权限码数组（如 push 注入 admin:write）。
+    // permissions 为 readonly 属性，通过解构创建新对象赋值，避免直接赋值类型错误。
     if (info && info.permissions) {
-      ;(info as UserInfo).permissions = Object.freeze([...info.permissions]) as readonly string[]
+      userInfo.value = {
+        ...info,
+        permissions: Object.freeze([...info.permissions]) as readonly string[],
+      }
+    } else {
+      userInfo.value = info
     }
-    userInfo.value = info
     return info
   }
 

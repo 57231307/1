@@ -245,7 +245,8 @@ const activeMenu = computed(() => route.path)
 const currentTitle = computed(() => (route.meta.title as string) || '')
 
 // 批次 6：用户权限与角色响应式派生
-const userPermissions = computed<string[]>(() => userStore.userInfo?.permissions || [])
+// 批次 22 v5 P0-5：permissions 为 readonly string[]，computed 类型同步
+const userPermissions = computed<readonly string[]>(() => userStore.userInfo?.permissions || [])
 const isAdmin = computed<boolean>(() => userStore.userInfo?.role_name === 'admin')
 
 /**
