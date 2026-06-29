@@ -109,6 +109,7 @@ impl ConnectionManager {
     }
 
     /// 当前连接数（监控用）
+    #[allow(dead_code)] // TODO(tech-debt): 监控端点接入后移除
     pub fn connection_count(&self) -> usize {
         self.senders.len()
     }
