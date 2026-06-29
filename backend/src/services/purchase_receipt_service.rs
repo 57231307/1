@@ -187,9 +187,15 @@ impl PurchaseReceiptService {
 
     /// 删除采购入库单（仅 DRAFT 状态）
     pub async fn delete_receipt(&self, receipt_id: i32, user_id: i32) -> Result<(), AppError> {
-        // 1. 查询入库单
+        // 批次 26 v6 P1 修复：状态机 lock_exclusive 补全，串行化并发状态变更
+        // 原实现状态门用裸查询 &*self.db 无锁，且 txn 仅包裹删除；
+        // 改为将状态门查询移入 txn 并加 lock_exclusive，防止并发删除/确认同入库单。
+        let txn = (*self.db).begin().await?;
+
+        // 1. 查询入库单（加 lock_exclusive 串行化并发 delete_receipt）
         let receipt = purchase_receipt::Entity::find_by_id(receipt_id)
-            .one(&*self.db)
+            .lock_exclusive()
+            .one(&txn)
             .await?
             .ok_or_else(|| AppError::not_found(format!("采购入库单 {}", receipt_id)))?;
 
@@ -207,8 +213,6 @@ impl PurchaseReceiptService {
                 "只能删除自己创建的入库单".to_string(),
             ));
         }
-
-        let txn = (*self.db).begin().await?;
 
         // 4. 先删除明细
         purchase_receipt_item::Entity::delete_many()
@@ -545,6 +549,7 @@ impl PurchaseReceiptService {
     ///
     /// 批次 19（2026-06-28）：改为便捷入口，内部 begin + 调 _txn + commit。
     /// 已在事务内的调用方应直接调用 calculate_receipt_total_txn 以复用事务。
+    #[allow(dead_code)] // TODO(tech-debt): 公共入口暂未被 handler 调用，待路由接入后移除
     pub async fn calculate_receipt_total(&self, receipt_id: i32) -> Result<(), AppError> {
         let txn = (*self.db).begin().await?;
         self.calculate_receipt_total_txn(receipt_id, &txn).await?;

@@ -8,7 +8,7 @@ use chrono::Utc;
 use rust_decimal::Decimal;
 use sea_orm::{
     ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, Order, QueryFilter, QueryOrder,
-    Set, TransactionTrait,
+    QuerySelect, Set, TransactionTrait,
 };
 use serde::Deserialize;
 use std::sync::Arc;
@@ -129,7 +129,9 @@ impl PurchaseInspectionService {
     ) -> Result<purchase_inspection::Model, AppError> {
         let txn = (*self.db).begin().await?;
 
+        // 批次 26 v6 P1 修复：状态机 lock_exclusive 补全，串行化并发状态变更
         let inspection = purchase_inspection::Entity::find_by_id(inspection_id)
+            .lock_exclusive()
             .one(&txn)
             .await?
             .ok_or_else(|| AppError::not_found(format!("采购质检单 {}", inspection_id)))?;

@@ -250,8 +250,15 @@ impl SalesReturnService {
         return_id: i32,
         _user_id: i32,
     ) -> Result<sales_return::Model, AppError> {
+        // 批次 26 v6 P1 修复：状态机 lock_exclusive 补全，串行化并发状态变更
+        // 原实现先在事务外用 &*self.db 裸查询退货单状态，再 begin() 开启事务，
+        // 并发 submit_return 均通过状态检查后基于过期状态写入，导致状态门失效。
+        let txn = (*self.db).begin().await?;
+
+        // 获取退货单（加 lock_exclusive 串行化并发状态变更）
         let return_order = sales_return::Entity::find_by_id(return_id)
-            .one(&*self.db)
+            .lock_exclusive()
+            .one(&txn)
             .await?
             .ok_or_else(|| AppError::not_found(format!("销售退货单 {}", return_id)))?;
 
@@ -271,9 +278,6 @@ impl SalesReturnService {
         if items_count == 0 {
             return Err(AppError::business("退货单没有明细，无法提交".to_string()));
         }
-
-        // 开启事务，更新退货单总金额和状态
-        let txn = (*self.db).begin().await?;
 
         // 更新退货单总金额
         self.update_return_totals(return_id, &txn).await?;
@@ -309,7 +313,9 @@ impl SalesReturnService {
     ) -> Result<sales_return::Model, AppError> {
         let txn = (*self.db).begin().await?;
 
+        // 批次 26 v6 P1 修复：状态机 lock_exclusive 补全，串行化并发状态变更
         let return_order = sales_return::Entity::find_by_id(return_id)
+            .lock_exclusive()
             .one(&txn)
             .await?
             .ok_or_else(|| AppError::not_found(format!("销售退货单 {}", return_id)))?;

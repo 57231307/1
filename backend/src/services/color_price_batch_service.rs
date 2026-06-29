@@ -38,6 +38,7 @@ pub struct ColorPriceBatchService {
     db: Arc<DatabaseConnection>,
 }
 
+#[allow(dead_code)] // TODO(tech-debt): 未被 handler 调用的方法待路由接入后移除
 impl ColorPriceBatchService {
     pub fn new(db: Arc<DatabaseConnection>) -> Self {
         Self { db }

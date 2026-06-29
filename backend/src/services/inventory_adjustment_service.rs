@@ -6,7 +6,7 @@ use rust_decimal::Decimal;
 use sea_orm::DatabaseConnection;
 use sea_orm::{
     ActiveModelTrait, ColumnTrait, EntityTrait, IntoActiveModel, Order, PaginatorTrait,
-    QueryFilter, QueryOrder, Set, TransactionTrait,
+    QueryFilter, QueryOrder, QuerySelect, Set, TransactionTrait,
 };
 use std::sync::Arc;
 
@@ -162,8 +162,10 @@ impl InventoryAdjustmentService {
         // 开启事务
         let txn = (*self.db).begin().await?;
 
-        // 获取调整单
+        // 批次 26 v6 P1 修复：状态机 lock_exclusive 补全，串行化并发状态变更
+        // 原状态门查询未加行锁，并发审核可能双写状态。
         let adjustment_model = inventory_adjustment::Entity::find_by_id(adjustment_id)
+            .lock_exclusive()
             .one(&txn)
             .await?
             .ok_or_else(|| AppError::not_found(format!("调整单 {} 不存在", adjustment_id)))?;
@@ -299,8 +301,14 @@ impl InventoryAdjustmentService {
         &self,
         adjustment_id: i32,
     ) -> Result<inventory_adjustment::Model, AppError> {
+        // 批次 26 v6 P1 修复：状态机 lock_exclusive 补全，串行化并发状态变更
+        // 原状态门查询用 &*self.db 裸查询无行锁，且 update 也用裸连接，无事务保护。
+        // 改为在事务内用 find_by_id(id).lock_exclusive() 串行化并发状态变更，update 一并纳入事务。
+        let txn = (*self.db).begin().await?;
+
         let adjustment_model = inventory_adjustment::Entity::find_by_id(adjustment_id)
-            .one(&*self.db)
+            .lock_exclusive()
+            .one(&txn)
             .await?
             .ok_or_else(|| AppError::not_found(format!("调整单 {} 不存在", adjustment_id)))?;
 
@@ -316,7 +324,9 @@ impl InventoryAdjustmentService {
         adjustment.status = Set("rejected".to_string());
         adjustment.updated_at = Set(Utc::now());
 
-        adjustment.update(&*self.db).await.map_err(AppError::from)
+        let updated = adjustment.update(&txn).await.map_err(AppError::from)?;
+        txn.commit().await?;
+        Ok(updated)
     }
 
     /// 查询所有调整单（分页）

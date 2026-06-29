@@ -7,7 +7,7 @@
 use chrono::Utc;
 use sea_orm::{
     ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, PaginatorTrait, QueryFilter,
-    QueryOrder, Set, TransactionTrait,
+    QueryOrder, QuerySelect, Set, TransactionTrait,
 };
 use std::sync::Arc;
 use thiserror::Error;
@@ -219,7 +219,17 @@ impl CustomOrderCrudService {
         dto: CancelCustomOrderDto,
         _user_id: i64,
     ) -> Result<custom_order::Model, CrudError> {
-        let existing = self.get_by_id(id).await?;
+        // 批次 26 v6 P1 修复：状态机 lock_exclusive 补全，串行化并发状态变更
+        // 原实现无事务、无行锁，并发 cancel 会基于过期状态通过状态检查后重复写入。
+        let txn = self.db.begin().await?;
+
+        // 加 lock_exclusive 串行化并发状态变更
+        let existing = CustomOrderEntity::find_by_id(id)
+            .lock_exclusive()
+            .one(&txn)
+            .await?
+            .ok_or(CrudError::NotFound)?;
+
         if existing.status == "completed" || existing.status == "cancelled" {
             return Err(CrudError::InvalidState);
         }
@@ -228,7 +238,8 @@ impl CustomOrderCrudService {
         active.status = Set("cancelled".to_string());
         active.updated_at = Set(Utc::now());
         let _ = dto.reason; // 取消原因可记录到 process_log（暂存）
-        let updated = active.update(&*self.db).await?;
+        let updated = active.update(&txn).await?;
+        txn.commit().await?;
         Ok(updated)
     }
 

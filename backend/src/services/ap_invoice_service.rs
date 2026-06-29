@@ -340,8 +340,9 @@ impl ApInvoiceService {
     pub async fn approve(&self, id: i32, user_id: i32) -> Result<ap_invoice::Model, AppError> {
         let txn = (*self.db).begin().await?;
 
-        // 1. 查询应付单
+        // 1. 查询应付单（批次 26 v6 P1 修复：状态机 lock_exclusive 补全，串行化并发状态变更）
         let invoice = ap_invoice::Entity::find_by_id(id)
+            .lock_exclusive()
             .one(&txn)
             .await?
             .ok_or_else(|| AppError::not_found(format!("应付单 {}", id)))?;
@@ -433,8 +434,9 @@ impl ApInvoiceService {
     ) -> Result<ap_invoice::Model, AppError> {
         let txn = (*self.db).begin().await?;
 
-        // 1. 查询应付单
+        // 1. 查询应付单（批次 26 v6 P1 修复：状态机 lock_exclusive 补全，串行化并发状态变更）
         let invoice = ap_invoice::Entity::find_by_id(id)
+            .lock_exclusive()
             .one(&txn)
             .await?
             .ok_or_else(|| AppError::not_found(format!("应付单 {}", id)))?;

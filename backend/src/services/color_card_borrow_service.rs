@@ -7,7 +7,7 @@
 use chrono::Utc;
 use sea_orm::{
     ActiveModelTrait, ColumnTrait, Condition, DatabaseConnection, EntityTrait, PaginatorTrait,
-    QueryFilter, QueryOrder, Set, TransactionTrait,
+    QueryFilter, QueryOrder, QuerySelect, Set, TransactionTrait,
 };
 use std::sync::Arc;
 use thiserror::Error;
@@ -145,7 +145,16 @@ impl ColorCardBorrowService {
         actual_return_at: Option<chrono::DateTime<Utc>>,
         notes: Option<String>,
     ) -> Result<color_card_borrow_record::Model, BorrowError> {
-        let existing = self.get_by_id(record_id).await?;
+        // 批次 26 v6 P1 修复：状态机 lock_exclusive 补全，串行化并发状态变更
+        // 开启事务
+        let txn = self.db.begin().await?;
+
+        // 检查借出记录是否存在（行锁，串行化并发状态变更）
+        let existing = BorrowEntity::find_by_id(record_id)
+            .lock_exclusive()
+            .one(&txn)
+            .await?
+            .ok_or(BorrowError::RecordNotFound)?;
 
         // 状态机校验
         let current = BorrowStatus::from_str(&existing.status)
@@ -165,7 +174,8 @@ impl ColorCardBorrowService {
         }
         active.updated_at = Set(Utc::now());
 
-        let result = active.update(&*self.db).await?;
+        let result = active.update(&txn).await?;
+        txn.commit().await?;
         Ok(result)
     }
 
@@ -180,7 +190,16 @@ impl ColorCardBorrowService {
             return Err(BorrowError::Validation("赔付金额必须 > 0".to_string()));
         }
 
-        let existing = self.get_by_id(record_id).await?;
+        // 批次 26 v6 P1 修复：状态机 lock_exclusive 补全，串行化并发状态变更
+        // 开启事务
+        let txn = self.db.begin().await?;
+
+        // 检查借出记录是否存在（行锁，串行化并发状态变更）
+        let existing = BorrowEntity::find_by_id(record_id)
+            .lock_exclusive()
+            .one(&txn)
+            .await?
+            .ok_or(BorrowError::RecordNotFound)?;
         let current = BorrowStatus::from_str(&existing.status)
             .ok_or_else(|| BorrowError::InvalidState(format!("未知状态: {}", existing.status)))?;
         if current != BorrowStatus::Borrowed {
@@ -189,8 +208,6 @@ impl ColorCardBorrowService {
                 existing.status
             )));
         }
-
-        let txn = self.db.begin().await?;
 
         // 1. 更新借出记录
         let mut active: BorrowActive = existing.clone().into();
@@ -230,7 +247,16 @@ impl ColorCardBorrowService {
             }
         }
 
-        let existing = self.get_by_id(record_id).await?;
+        // 批次 26 v6 P1 修复：状态机 lock_exclusive 补全，串行化并发状态变更
+        // 开启事务
+        let txn = self.db.begin().await?;
+
+        // 检查借出记录是否存在（行锁，串行化并发状态变更）
+        let existing = BorrowEntity::find_by_id(record_id)
+            .lock_exclusive()
+            .one(&txn)
+            .await?
+            .ok_or(BorrowError::RecordNotFound)?;
         let current = BorrowStatus::from_str(&existing.status)
             .ok_or_else(|| BorrowError::InvalidState(format!("未知状态: {}", existing.status)))?;
         if current != BorrowStatus::Borrowed {
@@ -249,7 +275,8 @@ impl ColorCardBorrowService {
         active.actual_return_at = Set(Some(Utc::now()));
         active.updated_at = Set(Utc::now());
 
-        let result = active.update(&*self.db).await?;
+        let result = active.update(&txn).await?;
+        txn.commit().await?;
         Ok(result)
     }
 

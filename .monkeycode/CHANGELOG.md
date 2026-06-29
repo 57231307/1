@@ -2,6 +2,64 @@
 
 > 重要变更一句话摘要列表。详细历史请查阅 [`.monkeycode/docs/archives/`](file:///workspace/.monkeycode/docs/archives/)。
 
+## 2026-06-29 (批次 25 完成：状态机 lock_exclusive 补全 P0 25 项)
+
+### 批次 25 完成：状态机 lock_exclusive 补全（25 项 P0 + 1 项误报）
+
+**修复分支**：`fix/batch-25-state-machine-lock`
+**修复范围**：v6 报告状态机 lock_exclusive 漏修方法（P0=25 项完全无 txn 无 lock）
+**参考实现**：`ar_invoice_service.rs::mark_as_paid`（txn + lock_exclusive + 状态校验 + update_with_audit + commit）
+**合并 commit**：`536187d`（PR #267 squash merge，CI 16/16 全绿）
+
+**修复清单**：
+
+#### 第一波 P0 资金/合同类（14 项）
+
+| # | 文件 | 方法 | 状态转换 |
+|---|------|------|----------|
+| 1 | ar_invoice_service.rs | approve | DRAFT → APPROVED |
+| 2 | finance_invoice_service.rs | approve_invoice | → approved |
+| 3 | finance_invoice_service.rs | verify_invoice | → verified |
+| 4 | purchase_contract_service.rs | approve | draft → active |
+| 5 | purchase_contract_service.rs | cancel | → cancelled |
+| 6 | purchase_return_service.rs | submit_return | draft → submitted |
+| 7 | purchase_return_service.rs | reject_return | → rejected |
+| 8 | sales_return_service.rs | reject_return | → REJECTED |
+| 9 | sales_return_service.rs | execute_return | → COMPLETED |
+| 10 | bom_service.rs | submit | → Pending |
+| 11 | bom_service.rs | approve | Pending → Active/Inactive |
+| 12 | ar/recon.rs | confirm | → confirmed |
+| 13 | ar/recon.rs | dispute | → disputed |
+| 14 | ar/recon.rs | close | → closed |
+
+#### 第二波 P0 价格/期间类（11 项）
+
+| # | 文件 | 方法 | 状态转换 |
+|---|------|------|----------|
+| 15 | color_price_batch_service.rs | approve | → approved |
+| 16 | purchase_price_service.rs | approve_price | → approved |
+| 17 | sales_price_service.rs | approve_price | → approved |
+| 18 | accounting_period_service.rs | close_period | → closed |
+| 19 | quality_standard_service.rs | approve_standard | → approved |
+| 20 | quality_standard_service.rs | publish_standard | → published |
+| 21 | custom_order_state_service.rs | set_status | 状态变更 |
+| 22 | mrp_engine_service.rs | cancel_calculation | → cancelled |
+| 23-24 | inventory_count_service.rs | approve_count + complete_count | 桩实现，仅添加注释 |
+
+#### 误报（1 项，不纳入修复）
+
+| 文件 | 方法 | 原因 |
+|------|------|------|
+| material_shortage_service.rs | update_status | 只读方法，注释明确"租户配置表已删除，状态不再持久化，仅返回严重程度"，无 DB 写入 |
+
+**关键技术决策**：
+- 统一修复模式：`txn = begin()` + `find_by_id(id).lock_exclusive().one(&txn)` + 状态校验 + 状态变更 + `txn.commit()`，串行化并发状态变更
+- 部分方法有 `user_id` 参数的透传到 `update_with_audit(&txn, "auto_audit", active, Some(user_id))`；无 `user_id` 的用 `Some(0)` + TODO 注释
+- 桩实现（inventory_count_service）仅添加注释说明未来实现须遵循的 5 步并发安全修复模式
+- `ar/recon.rs` confirm 使用 `confirmed_by` 参数；dispute/close 无 user_id 用 `Some(0)` + TODO
+
+---
+
 ## 2026-06-29 (批次 24 完成：v6 低难度高收益 P0 修复 18 项)
 
 ### 批次 24 完成：18 项低难度高收益 P0 修复

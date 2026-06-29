@@ -414,7 +414,15 @@ impl VoucherService {
     pub async fn submit(&self, id: i32, user_id: i32) -> Result<voucher::Model, AppError> {
         info!("提交凭证 ID: {}", id);
 
-        let voucher = self.get_by_id(id).await?.voucher;
+        // 批次 26 v6 P1 修复：状态机 lock_exclusive 补全，串行化并发状态变更
+        // 原状态门查询用 self.get_by_id 裸查询，未加行锁，并发提交可能双写状态。
+        // 改为在事务内用 find_by_id(id).lock_exclusive() 串行化并发状态变更。
+        let txn = (*self.db).begin().await?;
+        let voucher = voucher::Entity::find_by_id(id)
+            .lock_exclusive()
+            .one(&txn)
+            .await?
+            .ok_or_else(|| AppError::not_found(format!("凭证不存在：{}", id)))?;
 
         if voucher.status != "draft" {
             return Err(AppError::bad_request(
@@ -432,7 +440,6 @@ impl VoucherService {
         // 原 update_with_audit(&*self.db, ...) 内部 2 次独立写入非原子，
         // 审计插入失败会导致"凭证已提交但审计缺失"
         // 批次 24 v6 P1-4 修复：user_id 从 0 改为传入的真实值
-        let txn = (*self.db).begin().await?;
         let updated = crate::services::audit_log_service::AuditLogService::update_with_audit(
             &txn,
             "auto_audit",
@@ -450,7 +457,15 @@ impl VoucherService {
     pub async fn review(&self, id: i32, user_id: i32) -> Result<voucher::Model, AppError> {
         info!("审核凭证 ID: {}", id);
 
-        let voucher = self.get_by_id(id).await?.voucher;
+        // 批次 26 v6 P1 修复：状态机 lock_exclusive 补全，串行化并发状态变更
+        // 原状态门查询用 self.get_by_id 裸查询，未加行锁，并发审核可能双写状态。
+        // 改为在事务内用 find_by_id(id).lock_exclusive() 串行化并发状态变更。
+        let txn = (*self.db).begin().await?;
+        let voucher = voucher::Entity::find_by_id(id)
+            .lock_exclusive()
+            .one(&txn)
+            .await?
+            .ok_or_else(|| AppError::not_found(format!("凭证不存在：{}", id)))?;
 
         if voucher.status != "submitted" {
             return Err(AppError::bad_request("只有已提交的凭证可以审核"));
@@ -465,7 +480,6 @@ impl VoucherService {
         active_model.reviewed_at = sea_orm::Set(Some(chrono::Utc::now()));
 
         // 批次 11（2026-06-28）：事务包裹"凭证审核状态更新 + 审计日志"，保证原子性
-        let txn = (*self.db).begin().await?;
         let updated = crate::services::audit_log_service::AuditLogService::update_with_audit(
             &txn,
             "auto_audit",
@@ -483,7 +497,15 @@ impl VoucherService {
     pub async fn post(&self, id: i32, user_id: i32) -> Result<voucher::Model, AppError> {
         info!("凭证过账 ID: {}", id);
 
-        let voucher = self.get_by_id(id).await?.voucher;
+        // 批次 26 v6 P1 修复：状态机 lock_exclusive 补全，串行化并发状态变更
+        // 原状态门查询用 self.get_by_id 裸查询，未加行锁，并发过账可能双写状态。
+        // 改为在事务内用 find_by_id(id).lock_exclusive() 串行化并发状态变更。
+        let txn = (*self.db).begin().await?;
+        let voucher = voucher::Entity::find_by_id(id)
+            .lock_exclusive()
+            .one(&txn)
+            .await?
+            .ok_or_else(|| AppError::not_found(format!("凭证不存在：{}", id)))?;
 
         if voucher.status != "reviewed" {
             return Err(AppError::bad_request("只有已审核的凭证可以过账"));
@@ -494,9 +516,6 @@ impl VoucherService {
             self.db.clone(),
         );
         period_svc.check_date_locked(voucher.voucher_date).await?;
-
-        // 开启事务
-        let txn = (*self.db).begin().await?;
 
         // 1. 验证凭证
         self.validate_voucher_in_transaction(id, &txn).await?;

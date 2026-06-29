@@ -4,7 +4,7 @@ use chrono::NaiveDate;
 use rust_decimal::Decimal;
 use sea_orm::{
     ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, Order, PaginatorTrait,
-    QueryFilter, QueryOrder, QuerySelect, Set,
+    QueryFilter, QueryOrder, QuerySelect, Set, TransactionTrait,
 };
 use serde::Serialize;
 use std::sync::Arc;
@@ -296,7 +296,15 @@ impl BudgetManagementService {
     ) -> Result<(), AppError> {
         info!("用户 {} 正在审批预算方案：{}", user_id, plan_id);
 
-        let plan = self.get_plan_by_id(plan_id).await?;
+        // 批次 26 v6 P1 修复：状态机 lock_exclusive 补全，串行化并发状态变更
+        // 原状态门查询用 self.get_plan_by_id 裸查询无行锁，且 save 也用裸连接，无事务保护。
+        // 改为在事务内用 find_by_id(id).lock_exclusive() 串行化并发状态变更，save 一并纳入事务。
+        let txn = (*self.db).begin().await?;
+        let plan = budget_plan::Entity::find_by_id(plan_id)
+            .lock_exclusive()
+            .one(&txn)
+            .await?
+            .ok_or_else(|| AppError::not_found(format!("预算方案不存在：{}", plan_id)))?;
 
         if plan.status.as_deref() != Some("draft") && plan.status.as_deref() != Some("rejected") {
             return Err(AppError::validation("预算方案状态不允许审批".to_string()));
@@ -304,7 +312,8 @@ impl BudgetManagementService {
 
         let mut plan_active: budget_plan::ActiveModel = plan.into();
         plan_active.status = Set(Some("approved".to_string()));
-        plan_active.save(&*self.db).await?;
+        plan_active.save(&txn).await?;
+        txn.commit().await?;
 
         info!("预算方案审批通过：{}", plan_id);
         Ok(())
@@ -318,12 +327,21 @@ impl BudgetManagementService {
     ) -> Result<(), AppError> {
         info!("用户 {} 正在执行预算方案：{}", user_id, req.plan_id);
 
-        let plan = self.get_plan_by_id(req.plan_id).await?;
+        // 批次 26 v6 P1 修复：状态机 lock_exclusive 补全，串行化并发状态变更
+        // 原状态门查询用 self.get_plan_by_id 裸查询无行锁，并发执行可能与 approve_plan 竞态。
+        // 改为在事务内用 find_by_id(id).lock_exclusive() 串行化并发状态变更。
+        let txn = (*self.db).begin().await?;
+        let plan = budget_plan::Entity::find_by_id(req.plan_id)
+            .lock_exclusive()
+            .one(&txn)
+            .await?
+            .ok_or_else(|| AppError::not_found(format!("预算方案不存在：{}", req.plan_id)))?;
 
         if plan.status.as_deref() != Some("approved") {
             return Err(AppError::validation("预算方案未审批，无法执行".to_string()));
         }
 
+        txn.commit().await?;
         info!("预算方案执行成功：{}", req.plan_id);
         Ok(())
     }

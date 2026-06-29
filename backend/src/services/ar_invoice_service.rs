@@ -327,7 +327,9 @@ impl ArInvoiceService {
         // 批次 11（2026-06-28）：事务包裹"取消状态变更 + 审计日志"，保证原子性
         let txn = (*self.db).begin().await?;
 
+        // 批次 26 v6 P1 修复：状态机 lock_exclusive 补全，串行化并发状态变更
         let invoice = ar_invoice::Entity::find_by_id(id)
+            .lock_exclusive()
             .one(&txn)
             .await?
             .ok_or_else(|| AppError::not_found("应收单不存在"))?;
