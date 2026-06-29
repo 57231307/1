@@ -11,11 +11,13 @@ export { loadCsrfToken, clearCsrfToken } from '@/utils/storage'
 type LoginResponseWithCsrf = LoginResponse & { csrf_token?: string }
 
 /**
- * 刷新 Token 响应：包含新 access_token 与可选的 CSRF Token
+ * 刷新 Token 响应：批次 29 v7 P0-2 修复，对齐后端 RefreshTokenResponse
+ * - access_token 通过 httpOnly Cookie 由后端 Set-Cookie 写入，前端不可读也不应读
+ * - 仅返回 csrf_token（前端读取用于后续请求头）和 expires_in（用于过期前预刷新）
  */
 interface RefreshTokenResponse {
-  token: string
   csrf_token?: string
+  expires_in?: number
 }
 
 export function login(data: LoginRequest): Promise<LoginResponse> {
@@ -38,8 +40,11 @@ export function logout(): Promise<void> {
  * - 不再从请求体带 refresh_token，浏览器会自动通过 httpOnly Cookie 发送
  * - 后端刷新成功后通过 Set-Cookie 头更新 access_token / csrf_token
  * - 入参保留 refreshToken 字符串参数以兼容历史调用，Wave B-3 后该参数已无效
+ *
+ * 批次 29 v7 P0-2 修复：返回类型移除 token 字段，对齐后端 RefreshTokenResponse。
+ * access_token 通过 httpOnly Cookie 传递，前端不可读也不应读。
  */
-export function refreshToken(_refreshToken: string): Promise<{ token: string; csrf_token?: string }> {
+export function refreshToken(_refreshToken: string): Promise<{ csrf_token?: string; expires_in?: number }> {
   return request.post<RefreshTokenResponse>('/auth/refresh', {}).then(res => {
     // Cookie 已由后端 Set-Cookie 写入，前端无需再保存
     return res

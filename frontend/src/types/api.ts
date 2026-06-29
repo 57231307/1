@@ -3,7 +3,12 @@ export type { ApiResponse, PaginatedResponse, ErrorResponse, EmptyResponse } fro
 export interface LoginRequest {
   username: string
   password: string
-  totp_code?: string
+  /**
+   * 批次 29 v7 P0-3 修复：TOTP 字段名从 totp_code 改为 totp_token，对齐后端 LoginRequest。
+   * 原前端 totp_code 与后端 totp_token 不一致，登录时 2FA 验证码无法正确传递，
+   * 导致开启了 TOTP 的用户无法登录。
+   */
+  totp_token?: string
 }
 
 export interface LoginResponse {
