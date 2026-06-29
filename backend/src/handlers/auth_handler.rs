@@ -69,6 +69,22 @@ pub struct UserInfo {
     /// 批次 24 v6 P0-2 修复：补全 permissions 字段，前端刷新页面后从 /auth/me 获取权限列表。
     /// 与 LoginResponse 顶层 permissions 格式一致（`"{resource}:{action}"`）。
     pub permissions: Vec<String>,
+    /// 批次 29 v7 P0-5 修复：补全 phone 字段（users 表已有此列），前端用户中心展示用
+    pub phone: Option<String>,
+    /// 批次 29 v7 P0-5 修复：补全 department_id 字段（users 表已有此列），前端用户中心展示用
+    pub department_id: Option<i32>,
+    /// 批次 29 v7 P0-5 修复：补全 department_name 字段，从 departments 表 JOIN 获取。
+    /// None 表示用户未分配部门或部门不存在。
+    pub department_name: Option<String>,
+    /// 批次 29 v7 P0-4 修复：补全 is_totp_enabled 字段（users 表已有此列）。
+    /// 前端 2FA 检测依赖此字段，缺失会导致前端恒判 false，已开启 2FA 的用户也被引导再次设置。
+    pub is_totp_enabled: bool,
+    /// 批次 29 v7 P0-5 修复：real_name 字段当前 users 表无对应列，暂返回 None。
+    /// TODO(tech-debt): 后续若新增 real_name 列，需在此处补全查询。
+    pub real_name: Option<String>,
+    /// 批次 29 v7 P0-5 修复：avatar 字段当前 users 表无对应列，暂返回 None。
+    /// TODO(tech-debt): 后续若新增 avatar 列，需在此处补全查询。
+    pub avatar: Option<String>,
 }
 
 impl UserInfo {
@@ -77,6 +93,7 @@ impl UserInfo {
     ///
     /// - `role_name`：从 role 表 code 字段获取（None 表示未分配角色）
     /// - `permissions`：从 role_permission 表查询 allowed=true 的记录，格式 `"{resource}:{action}"`
+    /// - `department_name`：批次 29 v7 P0-5 新增，从 departments 表 JOIN 获取
     pub async fn build_with_permissions(
         db: &sea_orm::DatabaseConnection,
         user: &crate::models::user::Model,
@@ -109,6 +126,18 @@ impl UserInfo {
             Vec::new()
         };
 
+        // 批次 29 v7 P0-5 修复：JOIN departments 表获取 department_name
+        let department_name = if let Some(dept_id) = user.department_id {
+            crate::models::department::Entity::find_by_id(dept_id)
+                .one(db)
+                .await
+                .ok()
+                .flatten()
+                .map(|d| d.name)
+        } else {
+            None
+        };
+
         UserInfo {
             id: user.id,
             username: user.username.clone(),
@@ -116,6 +145,13 @@ impl UserInfo {
             role_id: user.role_id,
             role_name,
             permissions,
+            phone: user.phone.clone(),
+            department_id: user.department_id,
+            department_name,
+            is_totp_enabled: user.is_totp_enabled,
+            // 批次 29 v7 P0-5：users 表当前无 real_name / avatar 列，暂返回 None
+            real_name: None,
+            avatar: None,
         }
     }
 }
@@ -558,6 +594,13 @@ mod tests {
                     "user.list:write".to_string(),
                     "order:read".to_string(),
                 ],
+                // 批次 29 v7 P0-4+5：补全新增的 6 个字段（与生产构造保持一致）
+                phone: Some("13800000000".to_string()),
+                department_id: Some(1),
+                department_name: Some("研发部".to_string()),
+                is_totp_enabled: false,
+                real_name: Some("测试用户".to_string()),
+                avatar: None,
             },
             permissions: vec![
                 "user.list:read".to_string(),

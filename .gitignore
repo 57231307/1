@@ -33,6 +33,10 @@ config.production.yaml
 backend/config.yaml
 backend/config.test.yaml
 
+# 批次 29 v7 P0-1 修复：CI 实际使用 npm ci + package-lock.json，
+# pnpm-lock.yaml 残留 vitest 2.1.9（CVSS 9.8），且未在 CI 中使用，移除避免混淆
+frontend/pnpm-lock.yaml
+
 # 忽略系统文件
 .DS_Store
 Thumbs.db

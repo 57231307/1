@@ -23,7 +23,6 @@ use utoipa::ToSchema;
 
 #[derive(Debug, Serialize)]
 pub struct RefreshTokenResponse {
-    pub token: String,
     pub csrf_token: String,
     pub expires_in: u64,
 }
@@ -203,13 +202,16 @@ pub async fn refresh_token(
     Ok((
         jar,
         Json(ApiResponse::success(RefreshTokenResponse {
-            token: new_token,
             csrf_token,
             // 批次 24 v6 P1-1 修复：expires_in 从 7200 改为 1800，
             // 与上方 access_token Cookie max_age(minutes(30)) = 1800 秒对齐。
             // 原 7200 秒（2 小时）会导致前端误以为 token 有效期 2 小时，
             // 实际 30 分钟就过期，在 30min~2h 之间的请求会收到 401。
             expires_in: 1800,
+            // 批次 29 v7 P0-2 修复：移除 token 字段，对齐批次 24 LoginResponse 决策。
+            // access_token 通过 httpOnly Cookie 传递，前端不可读也不应读。
+            // 原字段返回 access_token 会导致前端用旧 token 覆盖 Cookie 中的新 token，
+            // 绕过 httpOnly 保护，增加 XSS 窃取风险。
         })),
     )
         .into_response())
