@@ -6,7 +6,7 @@
 //! 1. 会计期间（CRUD + 关闭）— 复用 `accounting_period` 模型
 //! 2. MRP 计算历史 — 复用 `MrpEngineService`
 //! 3. 销售用户列表 — 复用 `user` 模型 + role 过滤
-//! 4. CRM 公海回收规则 — 内存存储（对应数据库表 `crm_recycle_rules` 后续可平滑迁移）
+//! 4. CRM 公海回收规则 — 数据库持久化（批次 23 v5 P0-4：迁移至 `crm_recycle_rules` 表）
 
 use axum::{
     extract::{Path, State},
@@ -17,13 +17,14 @@ use sea_orm::{
     ActiveModelTrait, ColumnTrait, EntityTrait, PaginatorTrait, QueryFilter, QueryOrder, Set,
 };
 use serde::{Deserialize, Serialize};
-use std::sync::LazyLock;
-use tokio::sync::RwLock;
 use validator::Validate;
 
 use crate::middleware::auth_context::AuthContext;
 use crate::models::accounting_period;
 use crate::models::user;
+use crate::services::crm::recycle_rule::{
+    CreateRecycleRulePayload, RecycleRule, RecycleRuleService, UpdateRecycleRulePayload,
+};
 use crate::services::mrp_engine_service::MrpEngineService;
 use crate::utils::app_state::AppState;
 use crate::utils::error::AppError;
@@ -398,85 +399,34 @@ pub async fn get_sales_users(
 }
 
 // ============================================================================
-// 4. CRM 公海回收规则（内存存储）
+// 4. CRM 公海回收规则（数据库持久化）
 // ============================================================================
-
-/// CRM 回收规则 DTO
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct RecycleRule {
-    pub id: i32,
-    pub name: String,
-    /// 未跟进超过 N 天后自动回收到公海
-    pub days: i32,
-    pub is_enabled: bool,
-}
-
-/// 全局内存存储：回收规则。后续可平滑迁移到 `crm_recycle_rules` 表。
-static RECYCLE_RULES: LazyLock<RwLock<Vec<RecycleRule>>> = LazyLock::new(|| {
-    let initial = vec![
-        RecycleRule {
-            id: 1,
-            name: "标准回收规则（30 天未跟进）".to_string(),
-            days: 30,
-            is_enabled: true,
-        },
-        RecycleRule {
-            id: 2,
-            name: "高价值客户延长（90 天未跟进）".to_string(),
-            days: 90,
-            is_enabled: true,
-        },
-        RecycleRule {
-            id: 3,
-            name: "快速回收（7 天未跟进）".to_string(),
-            days: 7,
-            is_enabled: false,
-        },
-    ];
-    RwLock::new(initial)
-});
-
-/// 全局自增 ID
-static RECYCLE_RULE_NEXT_ID: LazyLock<RwLock<i32>> = LazyLock::new(|| RwLock::new(4));
+// 批次 23 v5 P0-4 修复：原 `static RECYCLE_RULES: LazyLock<RwLock<Vec<RecycleRule>>>`
+// 内存存储会导致进程重启后丢失运行时修改，已迁移至数据库 `crm_recycle_rules` 表。
+//
+// 类型 `RecycleRule` / `CreateRecycleRulePayload` / `UpdateRecycleRulePayload` 已
+// 下沉至 `services/crm/recycle_rule.rs`，本文件仅保留 handler 薄封装，
+// 具体 CRUD 逻辑由 `RecycleRuleService` 承载。
 
 /// 获取回收规则列表
 pub async fn get_recycle_rules(
-    State(_state): State<AppState>,
+    State(state): State<AppState>,
     _auth: AuthContext,
 ) -> Result<Json<ApiResponse<Vec<RecycleRule>>>, AppError> {
-    let rules = RECYCLE_RULES.read().await;
-    Ok(Json(ApiResponse::success(rules.clone())))
+    let service = RecycleRuleService::new(state.db.clone());
+    let rules = service.list_rules().await?;
+    Ok(Json(ApiResponse::success(rules)))
 }
 
 /// 创建回收规则
-#[derive(Debug, Deserialize, Validate)]
-pub struct CreateRecycleRulePayload {
-    #[validate(length(min = 1, max = 100, message = "规则名称不能为空"))]
-    pub name: String,
-    #[validate(range(min = 1, max = 365, message = "回收天数必须在 1-365 之间"))]
-    pub days: i32,
-    pub is_enabled: Option<bool>,
-}
-
 pub async fn create_recycle_rule(
-    State(_state): State<AppState>,
+    State(state): State<AppState>,
     _auth: AuthContext,
     Json(payload): Json<CreateRecycleRulePayload>,
 ) -> Result<Json<ApiResponse<RecycleRule>>, AppError> {
     payload.validate()?;
-
-    let mut next_id_guard = RECYCLE_RULE_NEXT_ID.write().await;
-    let mut rules = RECYCLE_RULES.write().await;
-
-    let new_rule = RecycleRule {
-        id: *next_id_guard,
-        name: payload.name,
-        days: payload.days,
-        is_enabled: payload.is_enabled.unwrap_or(true),
-    };
-    *next_id_guard += 1;
-    rules.push(new_rule.clone());
-
+    let service = RecycleRuleService::new(state.db.clone());
+    let new_rule = service.create_rule(payload).await?;
     Ok(Json(ApiResponse::success_with_message(
         new_rule,
         "回收规则创建成功",
@@ -484,57 +434,29 @@ pub async fn create_recycle_rule(
 }
 
 /// 更新回收规则
-#[derive(Debug, Deserialize, Validate)]
-pub struct UpdateRecycleRulePayload {
-    #[validate(length(min = 1, max = 100, message = "规则名称不能为空"))]
-    pub name: Option<String>,
-    #[validate(range(min = 1, max = 365, message = "回收天数必须在 1-365 之间"))]
-    pub days: Option<i32>,
-    pub is_enabled: Option<bool>,
-}
-
 pub async fn update_recycle_rule(
-    State(_state): State<AppState>,
+    State(state): State<AppState>,
     Path(id): Path<i32>,
     _auth: AuthContext,
     Json(payload): Json<UpdateRecycleRulePayload>,
 ) -> Result<Json<ApiResponse<RecycleRule>>, AppError> {
     payload.validate()?;
-
-    let mut rules = RECYCLE_RULES.write().await;
-    let rule = rules
-        .iter_mut()
-        .find(|r| r.id == id)
-        .ok_or_else(|| AppError::not_found(format!("回收规则 {} 不存在", id)))?;
-
-    if let Some(name) = payload.name {
-        rule.name = name;
-    }
-    if let Some(days) = payload.days {
-        rule.days = days;
-    }
-    if let Some(enabled) = payload.is_enabled {
-        rule.is_enabled = enabled;
-    }
-
+    let service = RecycleRuleService::new(state.db.clone());
+    let rule = service.update_rule(id, payload).await?;
     Ok(Json(ApiResponse::success_with_message(
-        rule.clone(),
+        rule,
         "回收规则更新成功",
     )))
 }
 
 /// 删除回收规则
 pub async fn delete_recycle_rule(
-    State(_state): State<AppState>,
+    State(state): State<AppState>,
     Path(id): Path<i32>,
     _auth: AuthContext,
 ) -> Result<Json<ApiResponse<()>>, AppError> {
-    let mut rules = RECYCLE_RULES.write().await;
-    let pos = rules
-        .iter()
-        .position(|r| r.id == id)
-        .ok_or_else(|| AppError::not_found(format!("回收规则 {} 不存在", id)))?;
-    rules.remove(pos);
+    let service = RecycleRuleService::new(state.db.clone());
+    service.delete_rule(id).await?;
     Ok(Json(ApiResponse::success_with_message(
         (),
         "回收规则删除成功",

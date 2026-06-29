@@ -60,6 +60,15 @@ export default {
     failed: '用户名或密码错误',
     locked: '账户已锁定，请 30 分钟后再试',
     networkError: '网络异常，请稍后重试',
+    /* 批次 23 v5 P0-1：Login.vue 接入 i18n 时新增的 key（含动态占位符） */
+    formLabel: '登录表单',
+    usernameRequired: '请输入用户名',
+    passwordRequired: '请输入密码',
+    lockedAlert: '账号已被锁定，请 {minutes} 分钟后再试',
+    failedAttempts: '连续登录失败 {count} 次，账号已锁定',
+    remainingTime: '剩余等待时间：{minutes} 分 {seconds} 秒',
+    unlocked: '账号已解除锁定，请重新登录',
+    failedFallback: '登录失败',
   },
 
   /* ============ Dashboard ============ */

@@ -3,6 +3,12 @@ import { createI18n } from 'vue-i18n'
 import zhCN from '../locales/zh-CN'
 import enUS from '../locales/en-US'
 
+// TODO(tech-debt): 批次 23 v5 P0-1 仅完成 Login.vue 示范接入，
+// 其余 .vue 文件的硬编码文本待后续迭代逐步替换为 $t() 调用。
+// 4506 行资源文件已就绪，key 命名遵循 {module}.{field} 模式。
+// 已在 main.ts 通过 app.use(i18n) 挂载，globalInjection: true 已开启，
+// 模板内可直接使用 $t()，<script setup> 内通过 useI18n({ useScope: 'global' }) 取 t。
+
 export type LocaleCode = 'zh-CN' | 'en-US'
 
 /* 支持的语言 */

@@ -2,6 +2,68 @@
 
 > 重要变更一句话摘要列表。详细历史请查阅 [`.monkeycode/docs/archives/`](file:///workspace/.monkeycode/docs/archives/)。
 
+## 2026-06-29 (v5 批次 23：可维护性 + i18n/可访问性 + 死代码 P0 修复)
+
+### 批次 23 完成：8 项 P0 修复（可维护性 5 + 死代码 1 + i18n/可访问性 2）
+
+**修复范围**：维度 8 死代码 1 项 P0 + 维度 13 可维护性 5 项 P0 + 维度 14 i18n/可访问性 2 项 P0（共 8 项 P0）
+
+**修复清单**（分支 `fix/batch-23-maintainability-i18n`）：
+
+| # | 维度 | 文件 | 修复内容 |
+|---|------|------|----------|
+| 1 | 13 P0-1 | ap_reconciliation_service.rs:413 | `Arc::try_unwrap().unwrap()` 改为 `lock().await.clone()` 模式，避免 future 取消时 strong_count > 1 导致 panic（auto_reconcile 是低频批处理，clone 成本可接受） |
+| 2 | 13 P0-2 | bpm_service.rs:18-21 | 新增 `static BPM_CONDITION_RE: LazyLock<Regex>` 全局编译一次，替代每次调用 `evaluate_bpm_condition` 重新 `Regex::new`（NFA→DFA 构造开销） |
+| 3 | 13 P0-3 | admin_checker.rs:10,70-83 | 新增 `ADMIN_ROLE_CODE` 常量消除硬编码 "admin"；修复 fail-open 安全漏洞：数据库表不存在时从返回 `true` 改为返回 `false`（fail-closed，防止系统未初始化时任何 role_id 被视为管理员） |
+| 4 | 8 P0-1 | routes/inventory.rs | 移除 12 个返回 501 NotImplemented 的 inventory_count 端点（service facade 11 方法全部 NotImplemented，4 个子模块各仅 1 行 TODO 占位）；保留路由注释 + TODO(tech-debt) 说明待实现后恢复 |
+| 5 | 13 P0-4 | handlers/missing_handlers.rs + 9 个新文件 | CRM 回收规则内存存储迁移至 PostgreSQL：新增 SeaORM 模型 + migration m0030 + RecycleRuleService + 4 handler 改为薄封装调用 service（详见下方专项） |
+| 6 | 13 P0-5 | （调研确认无需修复） | 调研发现 `create_payment` 实际仅 53 行（非 v5 报告描述的 172 行），描述与实际不符，已无需拆分 |
+| 7 | 14 P0-1 | views/Login.vue + locales/zh-CN.ts + locales/en-US.ts | 登录页 i18n 接入示范：所有硬编码中文改为 `$t()` 调用；新增 7 个 login 命名空间 key（formLabel/usernameRequired/passwordRequired/lockedAlert/failedAttempts/remainingTime/unlocked/failedFallback）；i18n/index.ts 添加 TODO 注释说明后续接入计划 |
+| 8 | 14 P0-2 | views/Login.vue | 表单可访问性修复：所有表单元素添加 `aria-label` 属性，屏幕阅读器可正确识别字段用途 |
+
+**关键技术**：
+- **Arc::try_unwrap panic 修复模式**：`Arc::try_unwrap().unwrap()` 依赖"所有 clone 已 drop"的隐含契约，future 取消时 strong_count > 1 导致 panic；改为 `lock().await.clone()` 模式安全且无 panic 风险
+- **LazyLock 全局正则模式**：`static RE: LazyLock<Regex> = LazyLock::new(|| Regex::new(...).expect("..."))` 编译一次全局复用，与项目 `auth_service.rs` / `admin_checker.rs` 已有 `LazyLock` 模式一致
+- **fail-closed 安全原则**：数据库错误时应拒绝访问而非放行；与项目批次 1 `bpm_service.rs` fail-open → fail-closed 修复一致
+- **CRM 规则持久化模式**：static 内存 → SeaORM 模型 + migration + service 分层；初始数据通过 `INSERT ... ON CONFLICT DO NOTHING` 幂等写入
+- **i18n 接入模式**：硬编码中文 → `$t('namespace.key')`；命名空间隔离避免冲突；登录页作为示范，后续按相同模式接入其他页面
+
+**v5 报告偏差修正**（在修复过程中发现）：
+- 维度 13 P0-3：`role_permission_service.rs` 无硬编码，真正问题在 `admin_checker.rs`（"admin" 字符串 + fail-open 漏洞）
+- 维度 13 P0-4：实际位置是 `handlers/missing_handlers.rs`（非 `services/crm/pool.rs`）
+- 维度 13 P0-5：`create_payment` 仅 53 行（非 172 行），描述与实际不符，无需拆分
+- 维度 8 P0-1：inventory_count 模型已存在但 service 全部 NotImplemented
+
+---
+
+### 批次 23 维度 13 P0-4 专项：CRM 公海回收规则持久化修复
+
+**问题**：`handlers/missing_handlers.rs` 第 400-542 行使用 `static RECYCLE_RULES: LazyLock<RwLock<Vec<RecycleRule>>>` + `static RECYCLE_RULE_NEXT_ID` 全局内存存储，进程重启后所有运行时修改丢失，恢复为 3 条硬编码初始规则。
+
+**修复方案**：将内存存储迁移至 PostgreSQL `crm_recycle_rules` 表，使用 SeaORM 进行 CRUD。
+
+**变更清单**：
+
+| 类型 | 文件 | 变更 |
+|------|------|------|
+| 新增 | `backend/src/models/crm_recycle_rule.rs` | SeaORM 模型，表名 `crm_recycle_rules`，字段 id/name/days/is_enabled/created_at/updated_at |
+| 修改 | `backend/src/models/mod.rs` | 注册 `pub mod crm_recycle_rule;` |
+| 新增 | `backend/migration/src/m0030_create_crm_recycle_rules.rs` | 迁移入口，引用外部 SQL |
+| 新增 | `backend/migrations/20260629000001_create_crm_recycle_rules/up.sql` | 建表 + 插入 3 条初始规则（30天标准/90天高价值/7天快速回收） |
+| 新增 | `backend/migrations/20260629000001_create_crm_recycle_rules/down.sql` | 回滚脚本 |
+| 修改 | `backend/migration/src/lib.rs` | 注册 m0030 迁移 |
+| 新增 | `backend/src/services/crm/recycle_rule.rs` | `RecycleRuleService`（list/create/update/delete）+ DTO + Payload |
+| 修改 | `backend/src/services/crm/mod.rs` | 注册 `pub mod recycle_rule;` |
+| 修改 | `backend/src/handlers/missing_handlers.rs` | 移除 static 内存存储 + 4 handler 改为调用 `RecycleRuleService`；移除 `LazyLock`/`RwLock` import |
+
+**技术要点**：
+- RecycleRule DTO 字段与数据库表一一对应（含 created_at/updated_at）
+- 初始规则数据通过迁移 SQL 的 `INSERT ... ON CONFLICT DO NOTHING` 写入，确保幂等
+- handler 改为薄封装，业务逻辑下沉至 service，符合项目分层规范
+- 路由 `routes/crm.rs` 无需改动（handler 函数签名保持不变）
+
+---
+
 ## 2026-06-29 (v5 批次 22：业务逻辑状态机 + 前端路由权限 P0 修复)
 
 ### 批次 22 完成：14 项 P0 修复（业务逻辑 6 + 前端路由 8）

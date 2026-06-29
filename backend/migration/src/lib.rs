@@ -29,6 +29,8 @@ pub mod m0026_extend_audit_log;
 pub mod m0027_enable_pg_stat_statements;
 pub mod m0028_create_slow_query_log;
 pub mod m0029_drop_tenant_columns;
+// 批次 23 v5 P0-4：CRM 公海回收规则持久化迁移
+pub mod m0030_create_crm_recycle_rules;
 
 pub struct Migrator;
 
@@ -65,6 +67,7 @@ impl MigratorTrait for Migrator {
             Box::new(m0027_enable_pg_stat_statements::Migration),
             Box::new(m0028_create_slow_query_log::Migration),
             Box::new(m0029_drop_tenant_columns::Migration),
+            Box::new(m0030_create_crm_recycle_rules::Migration),
         ]
     }
 }

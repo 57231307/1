@@ -145,6 +145,8 @@ pub mod approval_node;
 pub mod approval_template;
 pub mod audit_alert_rule;
 pub mod audit_log;
+// CRM 公海回收规则模块（批次 23 v5 P0-4：内存存储迁移至数据库）
+pub mod crm_recycle_rule;
 pub mod crm_lead;
 pub mod crm_opportunity;
 pub mod logistics_waybill;

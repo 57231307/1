@@ -410,7 +410,10 @@ impl ApReconciliationService {
             })
             .await;
 
-        let results = Arc::try_unwrap(results).unwrap().into_inner();
+        // 批次 23（2026-06-29 v5 P0-1）：避免 Arc::try_unwrap().unwrap() 在 future 被取消时 panic
+        // 原 try_unwrap 依赖"所有 clone 已 drop"的隐含契约，future 取消时 strong_count > 1 导致 panic。
+        // 改为 lock().await.clone() 模式，安全且无 panic 风险（auto_reconcile 是低频批处理，clone 成本可接受）。
+        let results = results.lock().await.clone();
         Ok(results)
     }
 
@@ -521,7 +524,8 @@ pub struct SupplierApSummary {
 }
 
 /// 自动对账结果
-#[derive(Debug, Serialize)]
+// 批次 23（2026-06-29 v5 P0-1 修复补充）：新增 Clone 派生，支持 lock().await.clone() 模式
+#[derive(Debug, Clone, Serialize)]
 pub struct AutoReconciliationResult {
     pub reconciliation_id: i32,
     pub reconciliation_no: String,
