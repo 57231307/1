@@ -13,7 +13,7 @@
 
 use chrono::NaiveDate;
 use rust_decimal::Decimal;
-use sea_orm::DatabaseConnection;
+use sea_orm::{ConnectionTrait, DatabaseConnection, TransactionTrait};
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 
@@ -171,8 +171,11 @@ impl ArReconciliationService {
 // =====================================================
 
 /// 为对账单生成对账单号（共用）
+///
+/// 支持传入 `DatabaseConnection` 或 `DatabaseTransaction`，
+/// 便于调用方在事务内生成单号（避免单号生成与主事务不一致导致断号）。
 pub(crate) async fn generate_reconciliation_no(
-    db: &DatabaseConnection,
+    db: &(impl ConnectionTrait + TransactionTrait),
 ) -> Result<String, AppError> {
     DocumentNumberGenerator::generate_no(
         db,

@@ -47,8 +47,9 @@ impl ArCollectionService {
             .await?
             .map(|c| c.customer_name);
 
+        // 批次 27 v7 P1 修复：事务边界泄漏，单号生成移入 txn，避免断号/重复
         let collection_no = DocumentNumberGenerator::generate_no(
-            &*self.db,
+            &txn,
             "COL",
             ar_collection::Entity,
             ar_collection::Column::CollectionNo,

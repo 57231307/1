@@ -188,9 +188,11 @@ impl PurchaseReturnService {
         }
 
         // 检查是否有退货明细
+        // 批次 27 v7 P1 修复：事务边界泄漏，原实现 count 用 &*self.db 裸查询
+        // 存在 TOCTOU 风险（并发 approve + add_item 时计数读快照不一致，可绕过"明细非空"校验）
         let item_count = purchase_return_item::Entity::find()
             .filter(purchase_return_item::Column::ReturnId.eq(return_id))
-            .count(&*self.db)
+            .count(&txn)
             .await?;
 
         if item_count == 0 {
