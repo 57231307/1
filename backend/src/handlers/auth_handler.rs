@@ -79,7 +79,7 @@ impl UserInfo {
     /// - `permissions`：从 role_permission 表查询 allowed=true 的记录，格式 `"{resource}:{action}"`
     pub async fn build_with_permissions(
         db: &sea_orm::DatabaseConnection,
-        user: crate::models::user::Model,
+        user: &crate::models::user::Model,
     ) -> Self {
         let role_name = if let Some(role_id) = user.role_id {
             crate::models::role::Entity::find_by_id(role_id)
@@ -111,8 +111,8 @@ impl UserInfo {
 
         UserInfo {
             id: user.id,
-            username: user.username,
-            email: user.email,
+            username: user.username.clone(),
+            email: user.email.clone(),
             role_id: user.role_id,
             role_name,
             permissions,
@@ -339,7 +339,7 @@ pub async fn login(
             // 确保登录响应与 /auth/me 响应字段一致（均含 role_name 和 permissions）。
             // 安全漏洞 #14 修复：权限列表转换为 `Vec<String>` 资源标识符
             // 格式 `"{resource}:{action}"`，避免暴露内部 `resource_id` 主键
-            let user_info = UserInfo::build_with_permissions(state.db.as_ref(), user).await;
+            let user_info = UserInfo::build_with_permissions(state.db.as_ref(), &user).await;
             let permissions = user_info.permissions.clone();
 
             // 生成 CSRF Token，使用 JWT claims 中的 session_id 作为会话标识

@@ -286,7 +286,7 @@ pub async fn get_current_user(
         // 批次 24 v6 P0-2 修复：使用 build_with_permissions 补全 role_name 和 permissions，
         // 解决前端刷新页面后 role_name/permissions 缺失导致路由守卫 admin 绕过失效 + 403 跳转问题。
         Some(u) => {
-            let user_info = UserInfo::build_with_permissions(state.db.as_ref(), u).await;
+            let user_info = UserInfo::build_with_permissions(state.db.as_ref(), &u).await;
             Ok(Json(ApiResponse::success(user_info)))
         }
         None => Err(AppError::not_found("用户不存在")),
