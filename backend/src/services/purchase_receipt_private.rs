@@ -24,16 +24,32 @@ impl PurchaseReceiptService {
             .all(txn)
             .await?;
 
+        // v11 批次 38 修复：批量查询本入库单关联的所有订单明细，避免循环内逐个 find_by_id（N+1 查询）
+        let order_item_ids: Vec<i32> = items
+            .iter()
+            .filter_map(|i| i.order_item_id)
+            .collect();
+        let mut order_item_map: std::collections::HashMap<i32, crate::models::purchase_order_item::Model> =
+            if order_item_ids.is_empty() {
+                std::collections::HashMap::new()
+            } else {
+                crate::models::purchase_order_item::Entity::find()
+                    .filter(crate::models::purchase_order_item::Column::Id.is_in(order_item_ids))
+                    .all(txn)
+                    .await?
+                    .into_iter()
+                    .map(|oi| (oi.id, oi))
+                    .collect()
+            };
+
         // 2. 更新每个订单明细的已入库数量
         for item in items {
             if let Some(order_item_id) = item.order_item_id {
-                let order_item =
-                    crate::models::purchase_order_item::Entity::find_by_id(order_item_id)
-                        .one(txn)
-                        .await?
-                        .ok_or_else(|| {
-                            AppError::not_found(format!("订单明细 {}", order_item_id))
-                        })?;
+                let order_item = order_item_map
+                    .remove(&order_item_id)
+                    .ok_or_else(|| {
+                        AppError::not_found(format!("订单明细 {}", order_item_id))
+                    })?;
 
                 // 累加已入库数量
                 let new_received = order_item.received_quantity + item.quantity;
@@ -46,6 +62,7 @@ impl PurchaseReceiptService {
                 active_order_item.received_quantity_alt =
                     sea_orm::ActiveValue::Set(new_received_alt);
                 active_order_item.updated_at = sea_orm::ActiveValue::Set(chrono::Utc::now());
+                // update_with_audit 需逐条执行以生成审计日志
                 crate::services::audit_log_service::AuditLogService::update_with_audit(
                     txn,
                     "auto_audit",
@@ -56,7 +73,7 @@ impl PurchaseReceiptService {
             }
         }
 
-        // 3. 更新采购订单状态
+        // 3. 更新采购订单状态（重新查询最新订单明细，因为上方 update 已修改 received_quantity）
         let all_order_items = crate::models::purchase_order_item::Entity::find()
             .filter(crate::models::purchase_order_item::Column::OrderId.eq(order_id))
             .all(txn)

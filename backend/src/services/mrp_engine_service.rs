@@ -536,13 +536,31 @@ impl MrpEngineService {
         result_ids: Vec<i32>,
         order_type: String,
     ) -> Result<Vec<MrpResultModel>, AppError> {
-        let mut updated_results = Vec::new();
+        if result_ids.is_empty() {
+            return Ok(Vec::new());
+        }
 
+        // 先确定新状态（与原逻辑一致：无效订单类型提前返回）
+        let new_status = match order_type.as_str() {
+            "PURCHASE" => "CONFIRMED",
+            "PRODUCTION" => "RELEASED",
+            _ => return Err(AppError::validation("无效的订单类型")),
+        };
+
+        // v11 批次 38 修复：批量查询所有 MRP 结果，避免循环内逐个 find_by_id（N+1 查询）
+        let results = MrpResultEntity::find()
+            .filter(crate::models::mrp_result::Column::Id.is_in(result_ids.clone()))
+            .all(&*self.db)
+            .await?;
+        // 按 id 索引，保持与 result_ids 顺序一致的输出
+        let mut result_map: std::collections::HashMap<i32, MrpResultModel> =
+            results.into_iter().map(|r| (r.id, r)).collect();
+
+        let mut updated_results = Vec::new();
         for id in result_ids {
-            let result = MrpResultEntity::find_by_id(id)
-                .one(&*self.db)
-                .await?
-                .ok_or_else(|| AppError::not_found("MRP结果不存在"))?;
+            let result = result_map
+                .remove(&id)
+                .ok_or_else(|| AppError::not_found(format!("MRP结果 {} 不存在", id)))?;
 
             if result.status != "PLANNED" {
                 return Err(AppError::validation(format!(
@@ -552,15 +570,10 @@ impl MrpEngineService {
             }
 
             let mut active_model: crate::models::mrp_result::ActiveModel = result.into();
-            let new_status = match order_type.as_str() {
-                "PURCHASE" => "CONFIRMED",
-                "PRODUCTION" => "RELEASED",
-                _ => return Err(AppError::validation("无效的订单类型")),
-            };
-
             active_model.status = Set(new_status.to_string());
             active_model.updated_at = Set(Utc::now());
 
+            // update 需逐条执行以返回更新后的 Model（ActiveModelTrait::update 返回最新行）
             let updated = active_model.update(&*self.db).await?;
 
             updated_results.push(updated);

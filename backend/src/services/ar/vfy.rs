@@ -49,34 +49,77 @@ impl ArReconciliationService {
             customer::Entity::find().all(&txn).await?
         };
 
-        let mut results = Vec::new();
-
-        for cust in customers {
-            let invoices = ar_invoice::Entity::find()
-                .filter(ar_invoice::Column::CustomerId.eq(cust.id))
+        // v11 批次 38 修复：批量预加载所有客户的发票和收款，避免循环内按客户逐个查询（N+1，3N 次查询）
+        // 发票：取 InvoiceDate <= end_date 且非 CANCELLED 的全部发票，循环内按 [start,end] / <start 分桶
+        // 收款：取 [start,end] 内 CONFIRMED 的全部收款
+        let customer_ids: Vec<i32> = customers.iter().map(|c| c.id).collect();
+        let all_invoices = if customer_ids.is_empty() {
+            Vec::new()
+        } else {
+            ar_invoice::Entity::find()
+                .filter(ar_invoice::Column::CustomerId.is_in(customer_ids.clone()))
                 .filter(ar_invoice::Column::Status.ne("CANCELLED"))
-                .filter(ar_invoice::Column::InvoiceDate.gte(req.start_date))
                 .filter(ar_invoice::Column::InvoiceDate.lte(req.end_date))
                 .all(&txn)
-                .await?;
+                .await?
+        };
+        // 按 customer_id 分组（Vec 保留原顺序，后续再按 invoice_date 过滤）
+        let invoices_by_customer: std::collections::HashMap<i32, Vec<&ar_invoice::Model>> = {
+            let mut map: std::collections::HashMap<i32, Vec<&ar_invoice::Model>> =
+                std::collections::HashMap::new();
+            for inv in &all_invoices {
+                map.entry(inv.customer_id).or_default().push(inv);
+            }
+            map
+        };
 
-            let collections = ar_collection::Entity::find()
-                .filter(ar_collection::Column::CustomerId.eq(cust.id))
+        let all_collections = if customer_ids.is_empty() {
+            Vec::new()
+        } else {
+            ar_collection::Entity::find()
+                .filter(ar_collection::Column::CustomerId.is_in(customer_ids))
                 .filter(ar_collection::Column::Status.eq("CONFIRMED"))
                 .filter(ar_collection::Column::CollectionDate.gte(req.start_date))
                 .filter(ar_collection::Column::CollectionDate.lte(req.end_date))
                 .all(&txn)
-                .await?;
-
-            let opening_balance: Decimal = ar_invoice::Entity::find()
-                .filter(ar_invoice::Column::CustomerId.eq(cust.id))
-                .filter(ar_invoice::Column::Status.ne("CANCELLED"))
-                .filter(ar_invoice::Column::InvoiceDate.lt(req.start_date))
-                .all(&txn)
                 .await?
-                .iter()
-                .map(|inv| inv.unpaid_amount)
-                .sum();
+        };
+        let collections_by_customer: std::collections::HashMap<i32, Vec<&ar_collection::Model>> = {
+            let mut map: std::collections::HashMap<i32, Vec<&ar_collection::Model>> =
+                std::collections::HashMap::new();
+            for c in &all_collections {
+                map.entry(c.customer_id).or_default().push(c);
+            }
+            map
+        };
+
+        let mut results = Vec::new();
+
+        for cust in customers {
+            // 从批量预加载结果中取本客户的发票，按 InvoiceDate 分桶：
+            // - 期内存量 invoices：InvoiceDate >= start_date（<= end_date 已在批量查询过滤）
+            // - 期初余额 opening_balance：InvoiceDate < start_date 的 unpaid_amount 求和
+            let (invoices, opening_balance): (Vec<ar_invoice::Model>, Decimal) = {
+                let cust_invoices = invoices_by_customer.get(&cust.id).cloned().unwrap_or_default();
+                let mut period_invoices = Vec::new();
+                let mut opening = Decimal::ZERO;
+                for inv in cust_invoices {
+                    if inv.invoice_date >= req.start_date {
+                        period_invoices.push(inv.clone());
+                    } else {
+                        opening += inv.unpaid_amount;
+                    }
+                }
+                (period_invoices, opening)
+            };
+
+            let collections: Vec<ar_collection::Model> = collections_by_customer
+                .get(&cust.id)
+                .cloned()
+                .unwrap_or_default()
+                .into_iter()
+                .cloned()
+                .collect();
 
             let total_invoices: Decimal = invoices.iter().map(|inv| inv.invoice_amount).sum();
             let total_collections: Decimal = collections.iter().map(|c| c.collection_amount).sum();

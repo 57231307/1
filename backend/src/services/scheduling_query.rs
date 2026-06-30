@@ -228,25 +228,35 @@ impl SchedulingService {
         if let Some(details_json) = &model.schedule_details {
             if let Ok(details) = serde_json::from_value::<Vec<ScheduleDetail>>(details_json.clone())
             {
-                for detail in &details {
-                    if let Ok(Some(order)) = ProductionOrderEntity::find_by_id(detail.order_id)
-                        .one(&txn)
+                if !details.is_empty() {
+                    // v11 批次 38 修复：批量查询所有相关生产订单，避免循环内逐个 find_by_id（N+1 查询）
+                    let order_ids: Vec<i32> = details.iter().map(|d| d.order_id).collect();
+                    let orders = ProductionOrderEntity::find()
+                        .filter(crate::models::production_order::Column::Id.is_in(order_ids))
+                        .all(&txn)
                         .await
-                        .map_err(|e| AppError::database(e.to_string()))
-                    {
-                        use crate::models::production_order::ActiveModel;
-                        let mut active: ActiveModel = order.into();
-                        active.planned_start_date = Set(detail.start_date);
-                        active.planned_end_date = Set(detail.end_date);
-                        active.work_center_id = Set(Some(detail.work_center_id));
-                        // 自动将DRAFT状态更新为SCHEDULED
-                        if let sea_orm::ActiveValue::Set(s) = &active.status {
-                            if s == "DRAFT" {
-                                active.status = Set("SCHEDULED".to_string());
+                        .map_err(|e| AppError::database(e.to_string()))?;
+                    let order_map: std::collections::HashMap<i32, crate::models::production_order::Model> =
+                        orders.into_iter().map(|o| (o.id, o)).collect();
+
+                    for detail in &details {
+                        // 从批量查询结果中取（若订单不存在则跳过，保持与原 if let Ok(Some) 语义一致）
+                        if let Some(order) = order_map.get(&detail.order_id) {
+                            use crate::models::production_order::ActiveModel;
+                            // 克隆 Model 再转为 ActiveModel，避免借用冲突
+                            let mut active: ActiveModel = order.clone().into();
+                            active.planned_start_date = Set(detail.start_date);
+                            active.planned_end_date = Set(detail.end_date);
+                            active.work_center_id = Set(Some(detail.work_center_id));
+                            // 自动将DRAFT状态更新为SCHEDULED
+                            if let sea_orm::ActiveValue::Set(s) = &active.status {
+                                if s == "DRAFT" {
+                                    active.status = Set("SCHEDULED".to_string());
+                                }
                             }
+                            active.updated_at = Set(Utc::now());
+                            active.update(&txn).await?;
                         }
-                        active.updated_at = Set(Utc::now());
-                        active.update(&txn).await?;
                     }
                 }
             }
