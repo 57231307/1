@@ -20,8 +20,13 @@ if (!process.env.TEST_ADMIN_PASSWORD) {
   process.exit(1)
 }
 const BASE_URL = process.env.TEST_BASE_URL
+// v9 P1-4 修复：fail-secure 模式，username 也必须从环境变量注入
+if (!process.env.TEST_ADMIN_USERNAME) {
+  console.error('ERROR: 必须设置 TEST_ADMIN_USERNAME 环境变量（管理员用户名）')
+  process.exit(1)
+}
 const LOGIN_CREDENTIALS = {
-  username: process.env.TEST_ADMIN_USERNAME || 'admin',
+  username: process.env.TEST_ADMIN_USERNAME,
   password: process.env.TEST_ADMIN_PASSWORD,
 }
 

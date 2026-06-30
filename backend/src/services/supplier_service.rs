@@ -207,7 +207,7 @@ impl SupplierService {
 
         // 分页
         let page = params.page.unwrap_or(1);
-        let page_size = params.page_size.unwrap_or(20);
+        let page_size = params.page_size.unwrap_or(20).clamp(1, 100);
 
         let paginator = query.paginate(&*self.db, page_size);
         let total = paginator.num_items().await?;

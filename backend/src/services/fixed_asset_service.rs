@@ -137,7 +137,7 @@ impl FixedAssetService {
         // 分页和排序
         let assets = query
             .order_by(fixed_asset::Column::Id, Order::Desc)
-            .offset((params.page * params.page_size) as u64)
+            .offset((params.page.saturating_sub(1) * params.page_size) as u64)
             .limit(params.page_size as u64)
             .all(&*self.db)
             .await?;

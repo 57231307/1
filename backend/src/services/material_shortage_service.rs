@@ -380,7 +380,7 @@ impl MaterialShortageService {
         };
 
         let total = filtered.len() as u64;
-        let start = (page * page_size) as usize;
+        let start = (page.saturating_sub(1) * page_size) as usize;
         let paged = filtered
             .into_iter()
             .skip(start)

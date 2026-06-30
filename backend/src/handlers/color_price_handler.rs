@@ -11,6 +11,7 @@ use axum::{
 use rust_decimal::Decimal;
 use serde_json::json;
 use std::str::FromStr;
+use validator::Validate;
 
 use crate::middleware::auth_context::AuthContext;
 use crate::models::color_price_dto::{
@@ -392,6 +393,9 @@ pub async fn create_customer_special_price(
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     use crate::models::customer_color_price;
     use sea_orm::{ActiveModelTrait, Set};
+
+    // 激活 CreateCustomerColorPriceDto 的 Validate 注解，校验入参
+    dto.validate()?;
 
     let now = chrono::Utc::now();
     let active = customer_color_price::ActiveModel {

@@ -49,7 +49,7 @@ impl ColorPriceSeasonalService {
         query: &ListSeasonalRulesQuery,
     ) -> Result<(Vec<seasonal_price_rule::Model>, u64), SeasonalError> {
         let page = query.page.unwrap_or(1);
-        let page_size = query.page_size.unwrap_or(20);
+        let page_size = query.page_size.unwrap_or(20).clamp(1, 100);
 
         let mut q = RuleEntity::find();
 

@@ -5,7 +5,8 @@
 //! 创建时间: 2026-06-16
 
 use chrono::Utc;
-use sea_orm::{ActiveModelTrait, ColumnTrait, EntityTrait, QueryFilter};
+// v9 P1-G 修复：移除未使用的 ActiveModelTrait、QueryFilter import
+use sea_orm::{ColumnTrait, EntityTrait};
 use serde::{Deserialize, Serialize};
 
 use crate::middleware::auth_context::AuthContext;

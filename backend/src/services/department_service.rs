@@ -48,7 +48,7 @@ impl DepartmentService {
         let total = q.clone().count(&*self.db).await?;
 
         let page = query.page.unwrap_or(1);
-        let page_size = query.page_size.unwrap_or(10);
+        let page_size = query.page_size.unwrap_or(10).clamp(1, 100);
 
         // 应用分页和排序
         let departments = q

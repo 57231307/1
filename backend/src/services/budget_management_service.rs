@@ -120,7 +120,7 @@ impl BudgetManagementService {
 
         let items = query
             .order_by(budget_management::Column::Id, Order::Desc)
-            .offset((params.page * params.page_size) as u64)
+            .offset((params.page.saturating_sub(1) * params.page_size) as u64)
             .limit(params.page_size as u64)
             .all(&*self.db)
             .await?;
@@ -238,7 +238,7 @@ impl BudgetManagementService {
 
         let plans = query
             .order_by(budget_plan::Column::Id, Order::Desc)
-            .offset((page * page_size) as u64)
+            .offset((page.saturating_sub(1) * page_size) as u64)
             .limit(page_size as u64)
             .all(&*self.db)
             .await?;

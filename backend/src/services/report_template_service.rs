@@ -256,7 +256,7 @@ impl ReportTemplateService {
         query: ReportTemplateQuery,
     ) -> Result<(Vec<ReportTemplateModel>, u64), AppError> {
         let page = query.page.unwrap_or(1);
-        let page_size = query.page_size.unwrap_or(20);
+        let page_size = query.page_size.unwrap_or(20).clamp(1, 100);
 
         let mut select = ReportTemplateEntity::find()
             .filter(crate::models::report_template::Column::Status.eq("ACTIVE"));

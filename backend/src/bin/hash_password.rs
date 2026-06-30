@@ -4,9 +4,11 @@ use argon2::{
 };
 
 fn main() {
+    // v9 P1-2 修复：fail-secure 模式，缺失参数时直接退出，禁止 fallback 弱密码
     let password = std::env::args().nth(1).unwrap_or_else(|| {
-        eprintln!("Warning: No password provided, using default 'admin123' (DEVELOPMENT ONLY)");
-        "admin123".to_string()
+        eprintln!("错误：未提供密码参数。用法：hash_password <password>");
+        eprintln!("fail-secure 模式：禁止使用默认弱密码。");
+        std::process::exit(1);
     });
 
     let salt = SaltString::generate(&mut OsRng);

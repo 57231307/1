@@ -9,6 +9,7 @@ use axum::{
     Json,
 };
 use serde::Deserialize;
+use validator::Validate;
 
 use crate::middleware::auth_context::AuthContext;
 use crate::models::after_sales as after_sales_model;
@@ -168,6 +169,9 @@ pub async fn create_custom_order(
 ) -> Result<Json<ApiResponse<CustomOrderListItem>>, AppError> {
     let user_id = auth.user_id as i64;
     let service = CustomOrderCrudService::from_state(&state);
+
+    // 激活 CreateCustomOrderDto 的 Validate 注解，校验入参
+    dto.validate()?;
 
     let created = service
         .create_draft(dto, user_id)
@@ -387,6 +391,8 @@ pub async fn add_process_node(
     Json(dto): Json<CreateProcessNodeDto>,
 ) -> Result<Json<ApiResponse<ProcessNodeInfo>>, AppError> {
     let service = CustomOrderProcessService::from_state(&state);
+    // 激活 CreateProcessNodeDto 的 Validate 注解，校验入参
+    dto.validate()?;
     let node = service
         .add_node(id, dto)
         .await

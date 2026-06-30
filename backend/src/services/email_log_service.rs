@@ -135,7 +135,7 @@ impl EmailLogService {
         query: EmailLogQuery,
     ) -> Result<(Vec<EmailLogModel>, u64), AppError> {
         let page = query.page.unwrap_or(1);
-        let page_size = query.page_size.unwrap_or(20);
+        let page_size = query.page_size.unwrap_or(20).clamp(1, 100);
 
         let mut select = EmailLogEntity::find();
 

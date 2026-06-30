@@ -45,12 +45,24 @@ impl PurchaseOrderService {
             .await?;
 
         // 5. 创建库存服务实例（使用事务版本的静态方法）
+        // 批量查询订单明细涉及的产品，避免循环内 N+1 查询
+        let product_ids: Vec<i32> = order_items.iter().map(|item| item.product_id).collect();
+        let products = if product_ids.is_empty() {
+            Vec::new()
+        } else {
+            product::Entity::find()
+                .filter(product::Column::Id.is_in(product_ids))
+                .all(&txn)
+                .await?
+        };
+        let product_map: std::collections::HashMap<i32, product::Model> =
+            products.into_iter().map(|p| (p.id, p)).collect();
+
         // 6. 遍历订单明细，执行库存入库
         for item in &order_items {
-            // 查询产品信息获取批次相关字段
-            let product = product::Entity::find_by_id(item.product_id)
-                .one(&txn)
-                .await?
+            // 从批量查询结果中获取产品信息
+            let product = product_map
+                .get(&item.product_id)
                 .ok_or_else(|| {
                     AppError::not_found(format!("产品 ID {} 不存在", item.product_id))
                 })?;

@@ -201,12 +201,24 @@ impl InventoryAdjustmentService {
             .all(&txn)
             .await?;
 
+        // 批量查询调整明细涉及的库存，避免循环内 N+1 查询
+        let stock_ids: Vec<i32> = items.iter().map(|item| item.stock_id).collect();
+        let stocks = if stock_ids.is_empty() {
+            Vec::new()
+        } else {
+            inventory_stock::Entity::find()
+                .filter(inventory_stock::Column::Id.is_in(stock_ids))
+                .all(&txn)
+                .await?
+        };
+        let stock_map: std::collections::HashMap<i32, inventory_stock::Model> =
+            stocks.into_iter().map(|s| (s.id, s)).collect();
+
         // 更新库存数量
         let mut transaction_events = Vec::new();
         for item in items {
-            let stock_model = inventory_stock::Entity::find_by_id(item.stock_id)
-                .one(&txn)
-                .await?
+            let stock_model = stock_map
+                .get(&item.stock_id)
                 .ok_or_else(|| AppError::not_found(format!("库存 ID {} 不存在", item.stock_id)))?;
 
             let quantity_before = stock_model.quantity_on_hand;
