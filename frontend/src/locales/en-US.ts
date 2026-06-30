@@ -252,9 +252,19 @@ export default {
   message: {
     saveSuccess: 'Saved successfully',
     saveFailed: 'Save failed',
+    createSuccess: 'Created successfully',
+    createFailed: 'Creation failed',
+    updateSuccess: 'Updated successfully',
+    updateFailed: 'Update failed',
     deleteSuccess: 'Deleted successfully',
     deleteConfirm: 'Are you sure to delete?',
     deleteFailed: 'Delete failed',
+    operationSuccess: 'Operation successful',
+    loadFailed: 'Loading failed',
+    confirmTitle: 'Confirm',
+    deleteConfirmTitle: 'Delete Confirmation',
+    auditConfirmTitle: 'Audit Confirmation',
+    rejectConfirmTitle: 'Confirm Rejection',
     importSuccess: 'Imported successfully',
     importFailed: 'Import failed',
     exportSuccess: 'Exported successfully',
@@ -262,5 +272,53 @@ export default {
     networkError: 'Network error',
     permissionDenied: 'Permission denied',
     sessionExpired: 'Session expired, please login again',
+  },
+
+  /* ============ AI Extend ============ */
+  aiExtend: {
+    qualityPrediction: {
+      loadListFailed: 'Failed to load list',
+      productIdRequired: 'Please enter product ID',
+      confirmDelete: 'Delete quality prediction record of product {name}?',
+      global: 'Global',
+    },
+    process: {
+      invalidId: 'Invalid process optimization ID',
+      loadDetailFailed: 'Failed to load detail',
+      confirmDelete: 'Delete this process optimization record?',
+      createFailed: 'Creation failed',
+    },
+  },
+
+  /* ============ Budget ============ */
+  budget: {
+    validation: {
+      budgetNoRequired: 'Please enter budget number',
+      nameRequired: 'Please enter budget name',
+      periodRequired: 'Please enter period',
+      totalAmountRequired: 'Please enter total budget amount',
+    },
+    confirmAudit: 'Audit budget "{name}"?',
+    auditSuccess: 'Audit successful',
+  },
+
+  /* ============ Inventory Transfer ============ */
+  inventoryTransfer: {
+    approvePassed: 'Approval passed',
+    confirmReject: 'Reject this transfer order?',
+    rejected: 'Rejected',
+  },
+
+  /* ============ Cost ============ */
+  cost: {
+    validation: {
+      collectionDateRequired: 'Please select collection date',
+      directMaterialRequired: 'Please enter direct material',
+      directLaborRequired: 'Please enter direct labor',
+      manufacturingOverheadRequired: 'Please enter manufacturing overhead',
+    },
+    confirmDelete: 'Delete collection order "{name}"?',
+    confirmAction: '{action} this cost collection?',
+    actionConfirmTitle: '{action} Confirmation',
   },
 };

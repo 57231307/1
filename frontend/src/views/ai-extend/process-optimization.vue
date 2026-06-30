@@ -4,6 +4,7 @@
  */
 import { onMounted, reactive, ref, computed } from 'vue'
 import { useRouter } from 'vue-router'
+import { useI18n } from 'vue-i18n'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import {
   listProcessOptimizations,
@@ -13,6 +14,9 @@ import {
   type AiProcessOptimization,
   type ProcessOptRequest,
 } from '@/api/ai-extend'
+
+// 批次 34 v9 P1：接入 i18n，替换硬编码中文 ElMessage
+const { t } = useI18n({ useScope: 'global' })
 
 const router = useRouter()
 const loading = ref(false)
@@ -52,7 +56,7 @@ async function load() {
     items.value = res.items
     total.value = res.total
   } catch (e) {
-    ElMessage.error('加载列表失败')
+    ElMessage.error(t('message.loadFailed'))
   } finally {
     loading.value = false
   }
@@ -85,20 +89,20 @@ async function submitCreate() {
     await load()
     router.push(`/ai-extend/process-detail/${resp.id}`)
   } catch (e) {
-    ElMessage.error('创建失败')
+    ElMessage.error(t('message.createFailed'))
   } finally {
     submitting.value = false
   }
 }
 
 async function handleDelete(row: AiProcessOptimization) {
-  await ElMessageBox.confirm(`确定删除色号 ${row.color_no} 的工艺优化记录？`, '确认', { type: 'warning' })
+  await ElMessageBox.confirm(`确定删除色号 ${row.color_no} 的工艺优化记录？`, t('message.confirmTitle'), { type: 'warning' })
   try {
     await deleteProcessOptimization(row.id)
     ElMessage.success('已删除')
     await load()
   } catch (e) {
-    ElMessage.error('删除失败')
+    ElMessage.error(t('message.deleteFailed'))
   }
 }
 

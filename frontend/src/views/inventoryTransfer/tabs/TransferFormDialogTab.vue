@@ -89,6 +89,7 @@
 
 <script setup lang="ts">
 import { ref, reactive, watch } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { ElMessage } from 'element-plus'
 import type { FormInstance } from 'element-plus'
 import { Plus, Delete } from '@element-plus/icons-vue'
@@ -100,6 +101,9 @@ import {
 import type { Warehouse } from '@/api/warehouse'
 import type { Product } from '@/api/product'
 import { logger } from '@/utils/logger'
+
+// 批次 34 v9 P1：接入 i18n，替换硬编码中文 ElMessage
+const { t } = useI18n({ useScope: 'global' })
 
 interface Props {
   modelValue: boolean
@@ -189,7 +193,7 @@ const handleSubmit = async () => {
     } else {
       await createInventoryTransfer(formData as Partial<InventoryTransferEntity>)
     }
-    ElMessage.success('操作成功')
+    ElMessage.success(t('message.operationSuccess'))
     emit('update:modelValue', false)
     emit('submitted')
   } catch (error) {

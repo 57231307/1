@@ -4,10 +4,14 @@
  */
 import { onMounted, ref, computed } from 'vue'
 import { useRouter } from 'vue-router'
+import { useI18n } from 'vue-i18n'
 import { ElMessage } from 'element-plus'
 import { DataAnalysis, Document, MagicStick } from '@element-plus/icons-vue'
 import { getAiSummary, getAiHealth, RISK_LEVEL_LABELS, RISK_LEVEL_COLORS, TREND_LABELS, SOURCE_LABELS } from '@/api/ai-extend'
 import type { AiSummary } from '@/api/ai-extend'
+
+// 批次 34 v9 P1：接入 i18n，替换硬编码中文 ElMessage
+const { t } = useI18n({ useScope: 'global' })
 
 const router = useRouter()
 const summary = ref<AiSummary | null>(null)
@@ -21,7 +25,7 @@ async function load() {
     summary.value = s
     health.value = h
   } catch (e) {
-    ElMessage.error('加载概览失败')
+    ElMessage.error(t('message.loadFailed'))
   } finally {
     loading.value = false
   }

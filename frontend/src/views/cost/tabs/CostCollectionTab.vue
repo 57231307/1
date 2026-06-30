@@ -194,6 +194,7 @@
 
 <script setup lang="ts">
 import { ref, reactive, computed, onMounted } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { ElMessage, ElMessageBox, type FormInstance, type FormRules } from 'element-plus'
 import { Plus, Download } from '@element-plus/icons-vue'
 import {
@@ -206,6 +207,9 @@ import {
   type CostCollection,
 } from '@/api/cost'
 import { logger } from '@/utils/logger'
+
+// 批次 34 v9 P1：接入 i18n，替换硬编码中文 ElMessage
+const { t } = useI18n({ useScope: 'global' })
 
 const loading = ref(false)
 const submitLoading = ref(false)
@@ -235,10 +239,10 @@ const form = reactive<Partial<CostCollection>>({
 })
 
 const rules: FormRules = {
-  collection_date: [{ required: true, message: '请选择归集日期', trigger: 'change' }],
-  direct_material: [{ required: true, message: '请输入直接材料', trigger: 'blur' }],
-  direct_labor: [{ required: true, message: '请输入直接人工', trigger: 'blur' }],
-  manufacturing_overhead: [{ required: true, message: '请输入制造费用', trigger: 'blur' }],
+  collection_date: [{ required: true, message: t('cost.validation.collectionDateRequired'), trigger: 'change' }],
+  direct_material: [{ required: true, message: t('cost.validation.directMaterialRequired'), trigger: 'blur' }],
+  direct_labor: [{ required: true, message: t('cost.validation.directLaborRequired'), trigger: 'blur' }],
+  manufacturing_overhead: [{ required: true, message: t('cost.validation.manufacturingOverheadRequired'), trigger: 'blur' }],
 }
 
 const totalCost = computed(() => {
@@ -334,10 +338,10 @@ const handleSubmit = async () => {
       }
       if (form.id) {
         await updateCostCollection(form.id, data)
-        ElMessage.success('更新成功')
+        ElMessage.success(t('message.updateSuccess'))
       } else {
         await createCostCollection(data)
-        ElMessage.success('创建成功')
+        ElMessage.success(t('message.createSuccess'))
       }
       dialogVisible.value = false
       fetchCollections()
@@ -353,11 +357,11 @@ const handleSubmit = async () => {
 const handleDelete = async (row: CostCollection) => {
   if (!row.id) return
   try {
-    await ElMessageBox.confirm(`确定删除归集单 "${row.collection_no}" 吗？`, '删除确认', {
+    await ElMessageBox.confirm(t('cost.confirmDelete', { name: row.collection_no }), t('message.deleteConfirmTitle'), {
       type: 'warning',
     })
     await deleteCollectionApi(row.id)
-    ElMessage.success('删除成功')
+    ElMessage.success(t('message.deleteSuccess'))
     fetchCollections()
   } catch (e) {
     if (e !== 'cancel') {
@@ -371,7 +375,7 @@ const auditCollection = async (row: CostCollection, approved: boolean) => {
   if (!row.id) return
   try {
     const text = approved ? '通过' : '驳回'
-    await ElMessageBox.confirm(`确定${text}该成本归集吗？`, `${text}确认`, { type: 'info' })
+    await ElMessageBox.confirm(t('cost.confirmAction', { action: text }), t('cost.actionConfirmTitle', { action: text }), { type: 'info' })
     await auditCollectionApi(row.id, approved)
     ElMessage.success(`${text}成功`)
     fetchCollections()
@@ -405,7 +409,7 @@ const handleExport = () => {
   link.href = URL.createObjectURL(blob)
   link.download = `成本归集_${new Date().toISOString().split('T')[0]}.csv`
   link.click()
-  ElMessage.success('导出成功')
+  ElMessage.success(t('message.exportSuccess'))
   logger.info('成本归集列表已导出')
 }
 
