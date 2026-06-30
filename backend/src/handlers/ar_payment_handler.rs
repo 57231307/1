@@ -10,6 +10,16 @@ use validator::Validate;
 use crate::utils::error::AppError;
 use crate::utils::response::ApiResponse;
 
+/// 批次 31 v7 P1-6 修复：validator range 不支持 Decimal，用 custom 函数验证金额范围
+fn validate_amount_range(amount: &rust_decimal::Decimal) -> Result<(), validator::ValidationError> {
+    let zero = rust_decimal::Decimal::ZERO;
+    let max = rust_decimal::Decimal::new(1_000_000_000, 0); // 10 亿
+    if *amount <= zero || *amount > max {
+        return Err(validator::ValidationError::new("收款金额必须为正且不超过10亿"));
+    }
+    Ok(())
+}
+
 /// 收款查询参数
 #[derive(Debug, Deserialize)]
 pub struct ArPaymentQuery {
@@ -25,7 +35,7 @@ pub struct ArPaymentQuery {
 #[derive(Debug, Deserialize, Validate)]
 pub struct CreateArPaymentRequest {
     pub customer_id: i32,
-    #[validate(range(min = 0.01, max = 1000000000, message = "收款金额必须为正且不超过10亿"))]
+    #[validate(custom(function = "validate_amount_range"))]
     pub amount: rust_decimal::Decimal,
     #[validate(length(min = 1, max = 50, message = "收款方式长度必须在1到50字符之间"))]
     pub payment_method: String,

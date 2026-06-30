@@ -131,7 +131,7 @@ impl CustomOrderQualityService {
         page: u64,
         page_size: u64,
     ) -> Result<(Vec<quality_issue::Model>, u64), QualityError> {
-        let mut query = Entity::find()
+        let query = Entity::find()
             .filter(quality_issue::Column::CustomOrderId.eq(order_id));
 
         let paginator = query
