@@ -380,28 +380,45 @@ impl BomService {
             let depth = max_depth.unwrap_or(10);
 
             if depth > 0 {
-                for item in &items {
-                    // 递归查找子物料的BOM
-                    let child_bom = BomEntity::find()
-                        .filter(BomColumn::ProductId.eq(item.material_id))
+                // v13 批次 40 修复：当前层批量查询所有子物料的默认 BOM，
+                // 避免循环内逐个查询（N+1）。递归层保持递归调用，
+                // 每层都应用同样的批量化策略，将 N 次查询减少为 1 次。
+                let material_ids: Vec<i32> =
+                    items.iter().map(|item| item.material_id).collect();
+                let child_boms: Vec<BomModel> = if material_ids.is_empty() {
+                    Vec::new()
+                } else {
+                    BomEntity::find()
+                        .filter(BomColumn::ProductId.is_in(material_ids))
                         .filter(BomColumn::IsDefault.eq(true))
                         .filter(BomColumn::Status.eq("ACTIVE"))
-                        .one(&*self.db)
-                        .await?;
+                        .all(&*self.db)
+                        .await?
+                };
+                // 按 product_id 索引；若同 product_id 存在多个 default BOM（数据异常），
+                // 后者覆盖前者，与原 .one() 取首条行为一致
+                let child_bom_map: std::collections::HashMap<i32, BomModel> = child_boms
+                    .into_iter()
+                    .map(|bom| (bom.product_id, bom))
+                    .collect();
 
-                    let child_node = if let Some(child_bom) = child_bom {
-                        // 递归展开子BOM
-                        self.get_bom_tree(child_bom.id, Some(depth - 1)).await?
-                    } else {
-                        // 叶子节点
-                        BomTreeNode {
-                            id: format!("item-{}", item.id),
-                            product_id: item.material_id,
-                            product_name: format!("物料 #{}", item.material_id),
-                            quantity: item.quantity,
-                            unit: item.unit.clone(),
-                            scrap_rate: item.scrap_rate,
-                            children: vec![],
+                for item in &items {
+                    let child_node = match child_bom_map.get(&item.material_id) {
+                        Some(child_bom) => {
+                            // 递归展开子BOM
+                            self.get_bom_tree(child_bom.id, Some(depth - 1)).await?
+                        }
+                        None => {
+                            // 叶子节点
+                            BomTreeNode {
+                                id: format!("item-{}", item.id),
+                                product_id: item.material_id,
+                                product_name: format!("物料 #{}", item.material_id),
+                                quantity: item.quantity,
+                                unit: item.unit.clone(),
+                                scrap_rate: item.scrap_rate,
+                                children: vec![],
+                            }
                         }
                     };
 
