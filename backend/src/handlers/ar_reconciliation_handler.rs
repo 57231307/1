@@ -445,7 +445,7 @@ pub async fn list_results(
 ) -> Result<Json<ApiResponse<JsonValue>>, AppError> {
     let service = ArReconciliationService::new(state.db.clone());
     let page = params.page.unwrap_or(1).max(1);
-    let page_size = params.page_size.unwrap_or(20).clamp(1, 100).max(1);
+    let page_size = params.page_size.unwrap_or(20).clamp(1, 100); // v10 P2-4 修复：移除冗余 max(1)（clamp 已保证 >=1）
     let query = ReconciliationQuery {
         status: None,
         customer_id: params.customer_id,
@@ -493,7 +493,7 @@ pub async fn list_confirmations(
 ) -> Result<Json<ApiResponse<JsonValue>>, AppError> {
     let service = ArReconciliationService::new(state.db.clone());
     let page = params.page.unwrap_or(1).max(1);
-    let page_size = params.page_size.unwrap_or(20).clamp(1, 100).max(1);
+    let page_size = params.page_size.unwrap_or(20).clamp(1, 100); // v10 P2-4 修复：移除冗余 max(1)（clamp 已保证 >=1）
     let query = ReconciliationQuery {
         status: Some("confirmed".to_string()),
         customer_id: params.customer_id,
@@ -567,7 +567,7 @@ pub async fn list_disputes(
 ) -> Result<Json<ApiResponse<JsonValue>>, AppError> {
     let service = ArReconciliationService::new(state.db.clone());
     let page = params.page.unwrap_or(1).max(1);
-    let page_size = params.page_size.unwrap_or(20).clamp(1, 100).max(1);
+    let page_size = params.page_size.unwrap_or(20).clamp(1, 100); // v10 P2-4 修复：移除冗余 max(1)（clamp 已保证 >=1）
     let query = ReconciliationQuery {
         status: Some("disputed".to_string()),
         customer_id: params.customer_id,

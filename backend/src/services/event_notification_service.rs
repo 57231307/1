@@ -363,36 +363,7 @@ impl EventNotificationService {
         Ok(())
     }
 
-    /// 库存盘点提醒
-    pub async fn notify_inventory_count(
-        &self,
-        user_id: i32,
-        warehouse_name: &str,
-        count_id: i32,
-    ) -> Result<(), AppError> {
-        let should_internal = self
-            .setting_service
-            .should_send_internal(user_id, "INVENTORY")
-            .await?;
-
-        if should_internal {
-            self.notification_service
-                .create_notification(CreateNotificationRequest {
-                    user_id,
-                    notification_type: NotificationType::Internal,
-                    title: "库存盘点提醒".to_string(),
-                    content: format!("{} 的库存盘点任务已创建，请及时完成", warehouse_name),
-                    priority: NotificationPriority::Normal,
-                    business_type: Some("INVENTORY".to_string()),
-                    business_id: Some(count_id),
-                    action_url: Some(format!("/inventory/counts/{}", count_id)),
-                    sender_id: Some(0),
-                    sender_name: Some("系统".to_string()),
-                })
-                .await?;
-        }
-        Ok(())
-    }
+    // v10 P1-3 修复：删除 notify_inventory_count 死代码（inventory_count_service 已在 v9 P1-F 删除）
 
     // ========== 采购相关通知 ==========
 

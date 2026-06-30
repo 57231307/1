@@ -1,13 +1,9 @@
 //! 库存盘点服务（inv/count）
 //!
-//! 占位模块。原 `inventory_transfer_service.rs` 不包含独立的"库存盘点"方法。
-//! 库存盘点业务已由顶层 `services/inventory_count_service.rs` 独立提供（含盘盈盘亏处理、
-//! 盘点差异生成库存调整单等完整流程）。
-//! 本模块保留扩展空间，可用于后续：
+//! 占位模块，保留扩展空间，可用于后续：
 //! - 调拨前自动盘点（冻结库存）
 //! - 调拨后盘点对账
 //! - 抽盘 + 复盘工作流
 //!
-//! 实际盘点请使用：
-//! - `crate::services::inventory_count_service::InventoryCountService`
-
+//! v10 P1-3 修复：原 `inventory_count_service.rs` 已在 v9 P1-F 删除（死代码清理），
+//! 本模块文档不再引用已删除的模块。

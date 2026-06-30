@@ -380,7 +380,7 @@ impl BpmService {
         query: TaskQuery,
     ) -> Result<PageResponse<bpm_task::Model>, AppError> {
         let page = query.page.unwrap_or(1);
-        let page_size = query.page_size.unwrap_or(10);
+        let page_size = query.page_size.unwrap_or(10).clamp(1, 100); // v10 P1-1 修复：page_size clamp(1,100) 防 DoS
 
         let mut stmt = bpm_task::Entity::find();
 

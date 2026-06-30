@@ -253,7 +253,7 @@ impl VoucherService {
 
         let total = query.clone().count(&*self.db).await?;
         let page = params.page.unwrap_or(1);
-        let page_size = params.page_size.unwrap_or(20);
+        let page_size = params.page_size.unwrap_or(20).clamp(1, 100); // v10 P1-1 修复：page_size clamp(1,100) 防 DoS
         let vouchers = query
             .order_by(voucher::Column::VoucherDate, Order::Desc)
             .offset(page.saturating_sub(1) * page_size)

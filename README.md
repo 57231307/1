@@ -374,8 +374,8 @@ cd 1
 createdb bingxi_erp
 createdb bingxi_erp_test
 
-# 创建用户
-psql -U postgres -c "CREATE USER bingxi WITH PASSWORD 'bingxi';"
+# 创建用户（密码请自行设定，禁止使用弱密码；此处仅为占位符）
+psql -U postgres -c "CREATE USER bingxi WITH PASSWORD '<your-strong-db-password>';"
 psql -U postgres -c "GRANT ALL PRIVILEGES ON DATABASE bingxi_erp TO bingxi;"
 psql -U postgres -c "GRANT ALL PRIVILEGES ON DATABASE bingxi_erp_test TO bingxi;"
 ```
