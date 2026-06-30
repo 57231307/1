@@ -343,12 +343,49 @@ impl ApReconciliationService {
         use crate::models::supplier;
 
         let suppliers = supplier::Entity::find().all(&*self.db).await?;
+        let supplier_ids: Vec<i32> = suppliers.iter().map(|s| s.id).collect();
+
+        // v12 批次 39 修复：批量预加载所有供应商的发票数和付款数，避免 for_each_concurrent 内逐个 count（N+1，2N 次查询）
+        let invoice_counts = if supplier_ids.is_empty() {
+            std::collections::HashMap::<i32, usize>::new()
+        } else {
+            ap_invoice::Entity::find()
+                .filter(ap_invoice::Column::SupplierId.is_in(supplier_ids.clone()))
+                .filter(ap_invoice::Column::InvoiceDate.gte(start_date))
+                .filter(ap_invoice::Column::InvoiceDate.lte(end_date))
+                .all(&*self.db)
+                .await?
+                .into_iter()
+                .fold(std::collections::HashMap::<i32, usize>::new(), |mut acc, inv| {
+                    *acc.entry(inv.supplier_id).or_default() += 1;
+                    acc
+                })
+        };
+        let payment_counts = if supplier_ids.is_empty() {
+            std::collections::HashMap::<i32, usize>::new()
+        } else {
+            ap_payment::Entity::find()
+                .filter(ap_payment::Column::SupplierId.is_in(supplier_ids))
+                .filter(ap_payment::Column::PaymentDate.gte(start_date))
+                .filter(ap_payment::Column::PaymentDate.lte(end_date))
+                .all(&*self.db)
+                .await?
+                .into_iter()
+                .fold(std::collections::HashMap::<i32, usize>::new(), |mut acc, pay| {
+                    *acc.entry(pay.supplier_id).or_default() += 1;
+                    acc
+                })
+        };
+
         let results = Arc::new(Mutex::new(Vec::new()));
 
         stream::iter(suppliers)
             .for_each_concurrent(10, |sup| {
                 let results = results.clone();
                 let db = self.db.clone();
+                // v12 批次 39 修复：克隆预加载的计数 map 供并发任务读取（避免在闭包内查询 DB）
+                let invoice_counts = invoice_counts.clone();
+                let payment_counts = payment_counts.clone();
                 async move {
                     let service = ApReconciliationService::new(db.clone());
                     let req = GenerateReconciliationRequest {
@@ -363,23 +400,9 @@ impl ApReconciliationService {
 
                     let result = match service.generate_reconciliation(req, user_id).await {
                         Ok(rec) => {
-                            let invoice_count = ap_invoice::Entity::find()
-                                .filter(ap_invoice::Column::SupplierId.eq(sup.id))
-                                .filter(ap_invoice::Column::InvoiceDate.gte(start_date))
-                                .filter(ap_invoice::Column::InvoiceDate.lte(end_date))
-                                .count(&*db)
-                                .await
-                                .unwrap_or_default()
-                                as usize;
-
-                            let payment_count = ap_payment::Entity::find()
-                                .filter(ap_payment::Column::SupplierId.eq(sup.id))
-                                .filter(ap_payment::Column::PaymentDate.gte(start_date))
-                                .filter(ap_payment::Column::PaymentDate.lte(end_date))
-                                .count(&*db)
-                                .await
-                                .unwrap_or_default()
-                                as usize;
+                            // v12 批次 39 修复：从预加载的计数 map 中取，避免循环内逐个 count（N+1）
+                            let invoice_count = invoice_counts.get(&sup.id).copied().unwrap_or(0);
+                            let payment_count = payment_counts.get(&sup.id).copied().unwrap_or(0);
 
                             AutoReconciliationResult {
                                 reconciliation_id: rec.id,
