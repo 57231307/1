@@ -6,7 +6,7 @@
 
 use crate::models::crm_lead;
 use crate::utils::error::AppError;
-use sea_orm::{EntityTrait, Set};
+use sea_orm::{ColumnTrait, EntityTrait, QueryFilter, Set};
 
 use super::cust::CrmService;
 
@@ -23,34 +23,45 @@ impl CrmService {
             return Ok(0);
         }
 
+        // v11 批次 37 修复：批量查询所有线索，避免循环内逐个 find_by_id（N+1 查询）
+        let leads = crm_lead::Entity::find()
+            .filter(crm_lead::Column::Id.is_in(lead_ids.clone()))
+            .all(&*self.db)
+            .await?;
+        let lead_map: std::collections::HashMap<i32, crm_lead::Model> =
+            leads.into_iter().map(|l| (l.id, l)).collect();
+
         let mut claimed = 0;
         for lid in lead_ids {
-            // 验证线索存在且在公海
-            let lead = crm_lead::Entity::find_by_id(lid).one(&*self.db).await?;
-
-            if let Some(l) = lead {
-                if l.lead_status.as_deref() != Some("pool") {
-                    tracing::warn!("线索 {} 不在公海中", lid);
+            // 优先从批量查询结果中取
+            let lead = match lead_map.get(&lid) {
+                Some(l) => l.clone(),
+                None => {
+                    tracing::warn!("线索 {} 不存在", lid);
                     continue;
                 }
+            };
 
-                // 领取：更新状态为 new，并更新 owner_id
-                let mut lead_active: crm_lead::ActiveModel = l.into();
-                lead_active.lead_status = Set(Some("new".to_string()));
-                lead_active.owner_id = Set(user_id);
-                lead_active.owner_name = Set(format!("用户{}", user_id));
-                lead_active.updated_at = Set(Some(chrono::Utc::now()));
-                crate::services::audit_log_service::AuditLogService::update_with_audit(
-                    &*self.db,
-                    "auto_audit",
-                    lead_active,
-                    Some(0),
-                )
-                .await?;
-                claimed += 1;
-            } else {
-                tracing::warn!("线索 {} 不存在", lid);
+            if lead.lead_status.as_deref() != Some("pool") {
+                tracing::warn!("线索 {} 不在公海中", lid);
+                continue;
             }
+
+            // 领取：更新状态为 new，并更新 owner_id
+            // 注：update_with_audit 需逐条执行以生成审计日志，此处保留循环
+            let mut lead_active: crm_lead::ActiveModel = lead.into();
+            lead_active.lead_status = Set(Some("new".to_string()));
+            lead_active.owner_id = Set(user_id);
+            lead_active.owner_name = Set(format!("用户{}", user_id));
+            lead_active.updated_at = Set(Some(chrono::Utc::now()));
+            crate::services::audit_log_service::AuditLogService::update_with_audit(
+                &*self.db,
+                "auto_audit",
+                lead_active,
+                Some(0),
+            )
+            .await?;
+            claimed += 1;
         }
 
         Ok(claimed)

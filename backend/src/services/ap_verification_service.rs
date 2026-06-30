@@ -464,21 +464,29 @@ impl ApVerificationService {
             .all(&*self.db)
             .await?;
 
-        // 过滤掉已核销的付款单
-        let mut result = Vec::new();
-        for payment in payments {
-            let verified_amount: Decimal = ap_verification_item::Entity::find()
-                .filter(ap_verification_item::Column::PaymentId.eq(payment.id))
+        // v11 批次 37 修复：批量查询所有付款单的核销明细，按 payment_id 分组求和，避免循环内逐个查询（N+1）
+        let payment_ids: Vec<i32> = payments.iter().map(|p| p.id).collect();
+        let verified_items = if payment_ids.is_empty() {
+            Vec::new()
+        } else {
+            ap_verification_item::Entity::find()
+                .filter(ap_verification_item::Column::PaymentId.is_in(payment_ids))
                 .all(&*self.db)
                 .await?
-                .iter()
-                .map(|item| item.verify_amount)
-                .sum();
-
-            if verified_amount < payment.payment_amount {
-                result.push(payment);
-            }
+        };
+        let mut verified_map: std::collections::HashMap<i32, Decimal> =
+            std::collections::HashMap::new();
+        for item in &verified_items {
+            *verified_map.entry(item.payment_id).or_insert(Decimal::ZERO) += item.verify_amount;
         }
+
+        // 过滤掉已核销的付款单
+        let result = payments
+            .into_iter()
+            .filter(|p| {
+                verified_map.get(&p.id).copied().unwrap_or(Decimal::ZERO) < p.payment_amount
+            })
+            .collect();
 
         Ok(result)
     }

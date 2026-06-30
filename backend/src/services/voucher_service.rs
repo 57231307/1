@@ -632,14 +632,29 @@ impl VoucherService {
         use std::collections::HashMap;
         let mut balance_map: HashMap<i32, (Decimal, Decimal)> = HashMap::new();
 
-        for item in &items {
-            // 查找科目 ID 和余额方向
-            use crate::models::account_subject;
-            let subject_code = &item.subject_code;
-            let subject = account_subject::Entity::find()
-                .filter(account_subject::Column::Code.eq(subject_code))
-                .one(txn)
+        // v11 批次 37 修复：批量查询所有科目，避免循环内逐个查询（N+1，同一科目可能重复查询）
+        use crate::models::account_subject;
+        let subject_codes: Vec<String> =
+            items.iter().map(|item| item.subject_code.clone()).collect();
+        let subjects = if subject_codes.is_empty() {
+            Vec::new()
+        } else {
+            account_subject::Entity::find()
+                .filter(account_subject::Column::Code.is_in(subject_codes))
+                .all(txn)
                 .await?
+        };
+        // v11 批次 37 修复：构建 code→Model 和 id→Model 两个引用映射，供下方两个循环复用
+        let subject_by_code: HashMap<&str, &account_subject::Model> =
+            subjects.iter().map(|s| (s.code.as_str(), s)).collect();
+        let subject_by_id: HashMap<i32, &account_subject::Model> =
+            subjects.iter().map(|s| (s.id, s)).collect();
+
+        for item in &items {
+            // 查找科目 ID 和余额方向（从批量查询结果中取）
+            let subject_code = &item.subject_code;
+            let subject = subject_by_code
+                .get(subject_code.as_str())
                 .ok_or_else(|| AppError::bad_request(format!("科目不存在：{}", subject_code)))?;
 
             let entry = balance_map
@@ -658,10 +673,9 @@ impl VoucherService {
         // 更新或创建余额记录
         use crate::models::account_balance;
         for (subject_id, (debit_amount, credit_amount)) in balance_map {
-            // 获取科目信息以确定余额方向
-            let subject = account_subject::Entity::find_by_id(subject_id)
-                .one(txn)
-                .await?
+            // 获取科目信息以确定余额方向（复用批量查询结果，避免 N+1）
+            let subject = subject_by_id
+                .get(&subject_id)
                 .ok_or_else(|| AppError::bad_request(format!("科目不存在：{}", subject_id)))?;
 
             let balance_direction = subject.balance_direction.as_deref().unwrap_or("借");

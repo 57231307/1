@@ -200,13 +200,26 @@ impl CustomOrderProcessService {
             .all(&*self.db)
             .await?;
 
-        let mut result = Vec::new();
-        for n in nodes {
-            let logs = LogEntity::find()
-                .filter(process_log::Column::ProcessNodeId.eq(n.id))
+        // v11 批次 37 修复：批量查询所有节点的日志，按 node_id 分组，避免循环内逐个查询（N+1）
+        let node_ids: Vec<_> = nodes.iter().map(|n| n.id).collect();
+        let all_logs = if node_ids.is_empty() {
+            Vec::new()
+        } else {
+            LogEntity::find()
+                .filter(process_log::Column::ProcessNodeId.is_in(node_ids))
                 .order_by_desc(process_log::Column::LogTime)
                 .all(&*self.db)
-                .await?;
+                .await?
+        };
+        let mut logs_map: std::collections::HashMap<i32, Vec<process_log::Model>> =
+            std::collections::HashMap::new();
+        for log in all_logs {
+            logs_map.entry(log.process_node_id).or_default().push(log);
+        }
+
+        let mut result = Vec::new();
+        for n in nodes {
+            let logs = logs_map.remove(&n.id).unwrap_or_default();
             result.push((n, logs));
         }
         Ok(result)

@@ -214,15 +214,25 @@ impl NotificationService {
         notification_ids: Vec<i32>,
         user_id: i32,
     ) -> Result<usize, AppError> {
-        let mut count = 0;
-        for id in notification_ids {
-            if let Err(e) = self.mark_as_read(id, user_id).await {
-                tracing::warn!("标记通知 {} 已读失败: {}", id, e);
-            } else {
-                count += 1;
-            }
+        if notification_ids.is_empty() {
+            return Ok(0);
         }
-        Ok(count)
+        // v11 批次 37 修复：用 update_many 批量更新，避免循环内逐个 find_by_id + update（N+1）
+        // 参考 mark_all_as_read 的批量模式，增加 Id.is_in 过滤指定通知
+        let now = Utc::now();
+        let result = notification::Entity::update_many()
+            .filter(notification::Column::Id.is_in(notification_ids))
+            .filter(notification::Column::UserId.eq(user_id))
+            .filter(notification::Column::Status.eq(NotificationStatus::Unread))
+            .set(notification::ActiveModel {
+                status: Set(NotificationStatus::Read),
+                read_at: Set(Some(now)),
+                updated_at: Set(now),
+                ..Default::default()
+            })
+            .exec(self.db.as_ref())
+            .await?;
+        Ok(result.rows_affected as usize)
     }
 
     /// 标记所有通知为已读（使用批量更新优化）
