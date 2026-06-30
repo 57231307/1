@@ -5,6 +5,7 @@ use axum::{
     Json,
 };
 use serde::{Deserialize, Serialize};
+use validator::Validate;
 
 use crate::utils::error::AppError;
 use crate::utils::response::ApiResponse;
@@ -20,13 +21,18 @@ pub struct ArPaymentQuery {
 }
 
 /// 创建收款请求
-#[derive(Debug, Deserialize)]
+/// 批次 31 v7 P1-6 修复：添加 Validate + 字段验证
+#[derive(Debug, Deserialize, Validate)]
 pub struct CreateArPaymentRequest {
     pub customer_id: i32,
+    #[validate(range(min = 0.01, max = 1000000000, message = "收款金额必须为正且不超过10亿"))]
     pub amount: rust_decimal::Decimal,
+    #[validate(length(min = 1, max = 50, message = "收款方式长度必须在1到50字符之间"))]
     pub payment_method: String,
     pub payment_date: chrono::NaiveDate,
+    #[validate(length(max = 50, message = "银行账号长度不能超过50字符"))]
     pub bank_account: Option<String>,
+    #[validate(length(max = 500, message = "备注长度不能超过500字符"))]
     pub remark: Option<String>,
     pub invoice_ids: Option<Vec<i32>>,
 }

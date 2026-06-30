@@ -15,14 +15,21 @@ use axum::{
 use chrono::{DateTime, Utc};
 use rust_decimal::Decimal;
 use serde::{Deserialize, Serialize};
+use validator::Validate;
 
-#[derive(Debug, Deserialize)]
+/// 通用财务支付请求 DTO
+/// 批次 31 v7 P1-6 修复：添加 Validate + 字段验证
+#[derive(Debug, Deserialize, Validate)]
 pub struct CreatePaymentRequest {
+    #[validate(length(max = 50, message = "支付单号长度不能超过50字符"))]
     pub payment_no: Option<String>,
     pub invoice_id: Option<i32>,
+    #[validate(range(min = 0.01, max = 1000000000, message = "支付金额必须为正且不超过10亿"))]
     pub amount: Decimal,
     pub payment_date: Option<DateTime<Utc>>,
+    #[validate(length(max = 50, message = "支付方式长度不能超过50字符"))]
     pub payment_method: Option<String>,
+    #[validate(length(max = 500, message = "备注长度不能超过500字符"))]
     pub notes: Option<String>,
 }
 

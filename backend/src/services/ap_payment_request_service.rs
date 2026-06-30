@@ -47,10 +47,20 @@ impl ApPaymentRequestService {
         let request_no = self.generate_request_no().await?;
 
         // 2. 验证应付单是否存在且有效
+        // 批次 31 v7 P1-1 修复：原循环内逐条 find_by_id（N 次查询），
+        // 改为批量查询所有 invoice_id（1 次查询），消除 N+1 问题。
+        let invoice_ids: Vec<i32> = req.items.iter().map(|i| i.invoice_id).collect();
+        let invoices = ap_invoice::Entity::find()
+            .filter(ap_invoice::Column::Id.is_in(invoice_ids))
+            .all(&txn)
+            .await?;
+        // 构建 invoice_id -> Model 的映射，便于循环内 O(1) 查找
+        let invoice_map: std::collections::HashMap<i32, ap_invoice::Model> =
+            invoices.into_iter().map(|inv| (inv.id, inv)).collect();
+
         for item in &req.items {
-            let invoice = ap_invoice::Entity::find_by_id(item.invoice_id)
-                .one(&txn)
-                .await?
+            let invoice = invoice_map
+                .get(&item.invoice_id)
                 .ok_or_else(|| AppError::not_found(format!("应付单 ID: {}", item.invoice_id)))?;
 
             // 检查应付单状态
