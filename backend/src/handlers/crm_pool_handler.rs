@@ -50,7 +50,7 @@ pub async fn list_pool(
     let service = CrmService::new(state.db.clone());
 
     let page = params.page.unwrap_or(1);
-    let page_size = params.page_size.unwrap_or(20);
+    let page_size = params.page_size.unwrap_or(20).clamp(1, 100);
 
     // 查询公海客户（owner_id为空或特定状态的线索）
     let query = crate::models::dto::crm_dto::LeadQuery {

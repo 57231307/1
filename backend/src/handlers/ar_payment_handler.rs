@@ -67,7 +67,7 @@ pub async fn list_payments(
     let service = crate::services::ar_service::ArService::new(state.db.clone());
 
     let page = query.page.unwrap_or(1);
-    let page_size = query.page_size.unwrap_or(10);
+    let page_size = query.page_size.unwrap_or(10).clamp(1, 100);
 
     let (payments, total) = service
         .list_payments(
@@ -114,6 +114,8 @@ pub async fn create_payment(
     State(state): State<AppState>,
     Json(payload): Json<CreateArPaymentRequest>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
+    // v8 P1-C 修复：调用 DTO 验证，激活 Validate 注解
+    payload.validate()?;
     let service = crate::services::ar_service::ArService::new(state.db.clone());
 
     let payment = service

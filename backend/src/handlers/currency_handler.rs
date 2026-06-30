@@ -142,7 +142,7 @@ pub async fn list_exchange_rates(
 ) -> Result<Json<ApiResponse<Vec<ExchangeRateResponse>>>, AppError> {
     let service = CurrencyService::new(state.db);
     let page = query.page.unwrap_or(1);
-    let page_size = query.page_size.unwrap_or(20);
+    let page_size = query.page_size.unwrap_or(20).clamp(1, 100);
 
     let (models, _total) = service
         .list_exchange_rates(query.from_currency, page, page_size)
@@ -231,7 +231,7 @@ pub async fn get_exchange_rate_history(
 ) -> Result<Json<ApiResponse<Vec<ExchangeRateHistoryResponse>>>, AppError> {
     let service = CurrencyService::new(state.db);
     let page = query.page.unwrap_or(1);
-    let page_size = query.page_size.unwrap_or(20);
+    let page_size = query.page_size.unwrap_or(20).clamp(1, 100);
 
     let (models, _total) = service
         .get_exchange_rate_history(

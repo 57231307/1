@@ -108,7 +108,7 @@ pub async fn list_customers(
 {
     let page_req = PageRequest {
         page: query.page.unwrap_or(1),
-        page_size: query.page_size.unwrap_or(20),
+        page_size: query.page_size.unwrap_or(20).clamp(1, 100),
     };
 
     // 获取数据权限过滤器

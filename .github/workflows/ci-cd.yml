@@ -356,12 +356,9 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     needs: ci-info
-    # P0 修复（批次 4，2026-06-27）：baseline 机制在 CI 环境中存在非确定性输出问题
-    # （clippy rendered 警告包含行号/路径，不同 run 间略有差异，导致 strict 模式 comm -23
-    # 误报新警告）。改为 continue-on-error 让 clippy 警告被报告但不阻塞 CI。
-    # clippy 警告仍会在 step summary 和 artifact 中可见，便于运维监控。
-    # TODO(tech-debt): baseline 机制稳定后移除 continue-on-error，让 clippy 阻塞 CI。
-    continue-on-error: true
+    # v8 P1-1 修复（2026-06-30）：移除 continue-on-error，恢复 clippy 阻塞 CI 能力。
+    # 项目规范要求 cargo clippy --all-targets -- -D warnings，clippy 警告必须让 CI 失败。
+    # baseline 机制仍保留用于区分"新警告"与"历史警告"，但不再因误报而跳过。
     # 启用 contents: write 以便"提交 baseline 文件"步骤能 push 自动建立的基线
     # PR #238 引入的 baseline 自动 commit 机制因缺此权限而失效，导致基线未纳入版本控制
     permissions:
@@ -408,7 +405,8 @@ jobs:
           set +e
 
           # 1. 跑 clippy 并收集所有警告
-          cargo clippy --all-targets --message-format=json 2>reports/clippy-stderr.txt \
+          # v8 P1-1 修复：添加 -- -D warnings，警告即错误，对齐项目规范
+          cargo clippy --all-targets --message-format=json -- -D warnings 2>reports/clippy-stderr.txt \
             | tee reports/clippy-output.json > /dev/null
           # 合并 stderr 中可能的警告
           cat reports/clippy-stderr.txt >> reports/clippy-output.json 2>/dev/null || true

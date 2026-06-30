@@ -134,7 +134,7 @@ pub async fn list_color_prices(
 
     let (items, total) = service.list(&query).await.map_err(crud_err)?;
     let page = query.page.unwrap_or(1);
-    let page_size = query.page_size.unwrap_or(20);
+    let page_size = query.page_size.unwrap_or(20).clamp(1, 100);
     let list: Vec<ColorPriceListItem> = items.into_iter().map(model_to_list_item).collect();
 
     Ok(Json(ApiResponse::success(PagedResponse {
@@ -434,7 +434,7 @@ pub async fn list_seasonal_rules(
         "items": items,
         "total": total,
         "page": query.page.unwrap_or(1),
-        "page_size": query.page_size.unwrap_or(20),
+        "page_size": query.page_size.unwrap_or(20).clamp(1, 100),
     }))))
 }
 

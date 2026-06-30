@@ -237,7 +237,7 @@ pub async fn list_reports(
         .unwrap_or(20);
 
     let query_params = IndicatorQueryParams {
-        page: page - 1,
+        page: page.saturating_sub(1),
         page_size,
         ..Default::default()
     };

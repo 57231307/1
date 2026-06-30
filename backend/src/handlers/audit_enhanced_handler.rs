@@ -60,7 +60,7 @@ pub async fn list_audit_logs(
     Query(query): Query<AuditLogQuery>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     let page = query.page.unwrap_or(1);
-    let page_size = query.page_size.unwrap_or(20);
+    let page_size = query.page_size.unwrap_or(20).clamp(1, 100);
 
     use crate::models::audit_log;
     use sea_orm::{ColumnTrait, EntityTrait, PaginatorTrait, QueryFilter, QueryOrder};

@@ -113,7 +113,7 @@ pub fn inventory() -> Router<AppState> {
         // 涉及文件：
         //   - services/inventory_count_service.rs（facade，11 方法 NotImplemented）
         //   - services/inventory_count/{query,commands,workflow,items}.rs（4 个 TODO 占位）
-        //   - handlers/inventory_count_handler.rs（handler 层）
+        //   - handlers/inventory_count_handler.rs（v8 P1-2 已删除，git 历史可检索）
         //   - models/inventory_count.rs + inventory_count_item.rs（模型已就绪）
         // .route("/counts", get(inventory_count_handler::list_counts))
         // .route(

@@ -130,6 +130,8 @@ pub async fn create_location(
     _auth: AuthContext,
     Json(req): Json<CreateLocationRequest>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
+    // v8 P1-C 修复：调用 DTO 验证，激活 Validate 注解
+    req.validate()?;
     let active_location = location_model::ActiveModel {
         id: Default::default(),
         warehouse_id: sea_orm::ActiveValue::Set(req.warehouse_id),
