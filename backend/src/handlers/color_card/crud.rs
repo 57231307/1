@@ -30,7 +30,8 @@ pub async fn list_color_cards(
 ) -> Result<Json<ApiResponse<PagedResponse<ColorCardListItem>>>, AppError> {
     let service = ColorCardCrudService::from_state(&state);
     let page = query.page.unwrap_or(1);
-    let page_size = query.page_size.unwrap_or(20);
+    // v11 批次 36 修复：page_size clamp 防止 DoS
+    let page_size = query.page_size.unwrap_or(20).clamp(1, 100);
 
     let (items, total) = service
         .list(

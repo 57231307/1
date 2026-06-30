@@ -142,8 +142,10 @@ pub async fn get_stock_by_product(
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     let service = InventoryStockService::new(state.db.clone());
 
+    // v11 批次 36 修复：page_size clamp 防止 DoS（PageRequest 自带 limit 方法但此处未调用，直接透传原始值）
+    let page_size = query.page_size.clamp(1, 100);
     let (stocks, total) = service
-        .get_stock_by_product(product_id, query.page, query.page_size)
+        .get_stock_by_product(product_id, query.page, page_size)
         .await
         .map_err(|e| AppError::internal(format!("查询产品库存失败: {}", e)))?;
 
@@ -151,7 +153,7 @@ pub async fn get_stock_by_product(
         "list": stocks,
         "total": total,
         "page": query.page,
-        "page_size": query.page_size,
+        "page_size": page_size,
     });
 
     Ok(Json(ApiResponse::success(result)))

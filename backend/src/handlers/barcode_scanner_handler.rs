@@ -138,7 +138,8 @@ pub async fn scan_history(
     _auth: AuthContext,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     let page = params.page.unwrap_or_default();
-    let page_size = params.page_size.unwrap_or(20);
+    // v11 批次 36 修复：page_size clamp 防止 DoS（用户传超大值导致内存爆炸）
+    let page_size = params.page_size.unwrap_or(20).clamp(1, 100);
 
     let mut query = inventory_piece::Entity::find();
 

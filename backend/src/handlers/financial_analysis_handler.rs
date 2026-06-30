@@ -55,7 +55,8 @@ pub async fn get_indicators(
     let service = FinancialAnalysisService::new(state.db.clone());
 
     let page = params.page;
-    let page_size = params.page_size;
+    // v11 批次 36 修复：page_size clamp 防止 DoS（i64 无 unwrap_or，直接 clamp；负值经 as u64 会放大为 u64::MAX）
+    let page_size = params.page_size.clamp(1, 100);
 
     let query = IndicatorQueryParams {
         indicator_type: params.indicator_type,
@@ -234,7 +235,8 @@ pub async fn list_reports(
     let page_size = params
         .get("page_size")
         .and_then(|v| v.as_i64())
-        .unwrap_or(20);
+        .unwrap_or(20)
+        .clamp(1, 100); // v11 批次 36 修复：防止 DoS
 
     let query_params = IndicatorQueryParams {
         page: page.saturating_sub(1),
