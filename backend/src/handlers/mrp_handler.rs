@@ -208,7 +208,7 @@ pub async fn get_mrp_results(
     let service = MrpEngineService::new(state.db.clone());
 
     let page = query.page.unwrap_or(1);
-    let page_size = query.page_size.unwrap_or(20);
+    let page_size = query.page_size.unwrap_or(20).clamp(1, 100);
 
     let (results, total) = service
         .get_results(

@@ -47,7 +47,7 @@ pub async fn list_notifications(
     let service = NotificationService::new(state.db.clone());
 
     let page = query.page.unwrap_or(1);
-    let page_size = query.page_size.unwrap_or(20);
+    let page_size = query.page_size.unwrap_or(20).clamp(1, 100);
 
     let status = query.status.and_then(|s| match s.as_str() {
         "UNREAD" => Some(NotificationStatus::Unread),

@@ -151,7 +151,7 @@ pub async fn get_trends(
     let indicator_id: i32 = params
         .indicator_id
         .ok_or_else(|| AppError::validation("财务分析请求缺少指标ID"))?;
-    let limit = params.page_size.unwrap_or(50);
+    let limit = params.page_size.unwrap_or(50).clamp(1, 100);
 
     let trends = service.get_trends(indicator_id, limit).await?;
 

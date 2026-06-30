@@ -64,7 +64,7 @@ pub async fn list_shortage_alerts(
     let service = MaterialShortageService::new(state.db.clone());
 
     let page = params.page.unwrap_or(1).saturating_sub(1);
-    let page_size = params.page_size.unwrap_or(20);
+    let page_size = params.page_size.unwrap_or(20).clamp(1, 100);
 
     let (items, total) = service
         .list_alerts(params.level.as_deref(), page, page_size)

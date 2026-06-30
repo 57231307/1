@@ -407,7 +407,7 @@ impl FundManagementService {
         let records = query
             .order_by(fund_transfer_record::Column::TransferDate, Order::Desc)
             .paginate(&*self.db, page_size)
-            .fetch_page(page - 1)
+            .fetch_page(page.saturating_sub(1))
             .await?;
 
         Ok(records)

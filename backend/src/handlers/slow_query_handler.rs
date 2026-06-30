@@ -84,7 +84,7 @@ pub async fn list_slow_queries(
 ) -> Result<Json<ApiResponse<SlowQueryListResponse>>, AppError> {
     // 防御式分页参数：unwrap_or(1).max(1) 显式调用 Ord::max 避免 ExprTrait 歧义
     let page = std::cmp::Ord::max(params.page.unwrap_or(1), 1);
-    let page_size = params.page_size.unwrap_or(20).clamp(1, 200);
+    let page_size = params.page_size.unwrap_or(20).clamp(1, 100);
 
     let mut q = slow_query::Entity::find();
 
@@ -122,7 +122,7 @@ pub async fn list_slow_queries(
         .await
         .map_err(|e| AppError::internal(format!("统计慢查询失败: {}", e)))?;
     let logs = paginator
-        .fetch_page(page - 1)
+        .fetch_page(page.saturating_sub(1))
         .await
         .map_err(|e| AppError::internal(format!("查询慢查询失败: {}", e)))?;
 

@@ -54,7 +54,7 @@ pub async fn list_standards(
         inspection_type: params.inspection_type,
         status: params.status,
         page: params.page.unwrap_or_default(),
-        page_size: params.page_size.unwrap_or(10),
+        page_size: params.page_size.unwrap_or(10).clamp(1, 100),
     };
 
     let (standards, _total) = service.get_standards_list(query_params).await?;
@@ -89,7 +89,7 @@ pub async fn list_records(
         inspection_type: params.inspection_result,
         status: None,
         page: params.page.unwrap_or_default(),
-        page_size: params.page_size.unwrap_or(10),
+        page_size: params.page_size.unwrap_or(10).clamp(1, 100),
     };
 
     let (records, _total) = service.get_records_list(query_params).await?;
@@ -139,7 +139,7 @@ pub async fn list_defects(
         inspection_type: None,
         status: params.status,
         page: params.page.unwrap_or_default(),
-        page_size: params.page_size.unwrap_or(10),
+        page_size: params.page_size.unwrap_or(10).clamp(1, 100),
     };
 
     let (defects, _total) = service.get_defects_list(query_params).await?;

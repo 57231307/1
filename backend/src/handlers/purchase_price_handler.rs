@@ -47,7 +47,7 @@ pub async fn list_prices(
         supplier_id: params.supplier_id,
         status: params.status,
         page: params.page.unwrap_or_default(),
-        page_size: params.page_size.unwrap_or(10),
+        page_size: params.page_size.unwrap_or(10).clamp(1, 100),
     };
 
     let (prices, _total) = service.get_prices_list(query_params).await?;

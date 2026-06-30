@@ -235,7 +235,7 @@ pub async fn list_process_optimizations_by_color(
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     let svc = AiExtendService::new(state.db);
     let items =
-        svc.list_process_optimizations_by_color(&q.color_no, &q.fabric_type, q.limit.unwrap_or(20)).await?;
+        svc.list_process_optimizations_by_color(&q.color_no, &q.fabric_type, q.limit.unwrap_or(20).clamp(1, 100)).await?;
     Ok(Json(ApiResponse::success(serde_json::json!({
         "items": items,
     }))))
@@ -256,7 +256,7 @@ pub async fn list_quality_predictions_by_product(
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     let svc = AiExtendService::new(state.db);
     let items =
-        svc.list_quality_predictions_by_product(q.product_id, q.limit.unwrap_or(20)).await?;
+        svc.list_quality_predictions_by_product(q.product_id, q.limit.unwrap_or(20).clamp(1, 100)).await?;
     Ok(Json(ApiResponse::success(serde_json::json!({
         "items": items,
     }))))

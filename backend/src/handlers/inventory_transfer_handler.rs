@@ -42,7 +42,7 @@ pub async fn list_transfers(
 
     let page_req = PageRequest {
         page: query.page.unwrap_or(1),
-        page_size: query.page_size.unwrap_or(10),
+        page_size: query.page_size.unwrap_or(10).clamp(1, 100),
     };
 
     let transfers = transfer_service

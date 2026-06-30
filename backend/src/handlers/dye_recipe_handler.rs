@@ -80,7 +80,7 @@ pub async fn list_dye_recipes(
     Query(query): Query<DyeRecipeListQuery>,
 ) -> Result<Json<ApiResponse<Vec<dye_recipe::Model>>>, AppError> {
     let page = query.page.unwrap_or(1);
-    let page_size = query.page_size.unwrap_or(20);
+    let page_size = query.page_size.unwrap_or(20).clamp(1, 100);
 
     let mut q = dye_recipe::Entity::find().filter(dye_recipe::Column::IsDeleted.eq(false));
 
@@ -104,7 +104,7 @@ pub async fn list_dye_recipes(
 
     let paginator = q.paginate(&*state.db, page_size);
     let total = paginator.num_items().await?;
-    let recipes = paginator.fetch_page(page - 1).await?;
+    let recipes = paginator.fetch_page(page.saturating_sub(1)).await?;
     Ok(Json(ApiResponse::success_paginated(
         recipes, total, page, page_size,
     )))

@@ -51,7 +51,7 @@ pub async fn list_statistics(
         statistic_type: params.statistic_type,
         period: params.period,
         page: params.page.unwrap_or_default(),
-        page_size: params.page_size.unwrap_or(10),
+        page_size: params.page_size.unwrap_or(10).clamp(1, 100),
     };
 
     let (statistics, _total) = service.get_statistics_list(query_params).await?;
@@ -86,7 +86,7 @@ pub async fn get_rankings(
 
     let service = SalesAnalysisService::new(state.db.clone());
     let rankings = service
-        .get_rankings(params.period.as_deref(), params.limit.unwrap_or(10))
+        .get_rankings(params.period.as_deref(), params.limit.unwrap_or(10).clamp(1, 100))
         .await?;
     info!("销售排名查询成功，共 {} 条记录", rankings.len());
 
@@ -104,7 +104,7 @@ pub async fn get_targets(
     let (targets, _total) = service
         .get_targets(
             params.page.unwrap_or_default(),
-            params.page_size.unwrap_or(10),
+            params.page_size.unwrap_or(10).clamp(1, 100),
         )
         .await?;
     info!("销售目标查询成功，共 {} 条记录", targets.len());

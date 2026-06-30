@@ -26,7 +26,7 @@ pub async fn list_transactions(
     let service = InventoryStockService::new(state.db.clone());
 
     let page = params.page.unwrap_or_default();
-    let page_size = params.page_size.unwrap_or(20);
+    let page_size = params.page_size.unwrap_or(20).clamp(1, 100);
 
     let (transactions, _total) = service
         .list_transactions(
@@ -94,7 +94,7 @@ pub async fn get_inventory_summary(
     let service = InventoryStockService::new(state.db.clone());
 
     let page = params.page.unwrap_or(1);
-    let page_size = params.page_size.unwrap_or(20).min(100);
+    let page_size = params.page_size.unwrap_or(20).clamp(1, 100);
 
     let (summary_items, total) = service
         .get_inventory_summary(

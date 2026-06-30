@@ -36,7 +36,7 @@ pub async fn list_indicators(
             category: params.category,
             status: params.status,
             page: params.page.unwrap_or_default(),
-            page_size: params.page_size.unwrap_or(10),
+            page_size: params.page_size.unwrap_or(10).clamp(1, 100),
         };
 
     let (indicators, _total) = service.get_indicators_list(query_params).await?;
@@ -120,7 +120,7 @@ pub async fn list_ratings(
     info!("用户 {} 正在查询供应商评级列表", auth.user_id);
 
     let page = params.page.unwrap_or(1) as u64;
-    let page_size = params.page_size.unwrap_or(20) as u64;
+    let page_size = params.page_size.unwrap_or(20).clamp(1, 100) as u64;
 
     let service = SupplierEvaluationService::new(state.db.clone());
     let (ratings, total) = service.list_ratings(page, page_size).await?;
@@ -148,7 +148,7 @@ pub async fn get_rankings(
 
     let service = SupplierEvaluationService::new(state.db.clone());
     let rankings = service
-        .get_supplier_rankings(params.limit.unwrap_or(10))
+        .get_supplier_rankings(params.limit.unwrap_or(10).clamp(1, 100))
         .await?;
     info!("供应商排名榜查询成功，共 {} 条记录", rankings.len());
 
@@ -176,7 +176,7 @@ pub async fn list_evaluation_records(
             params.supplier_id,
             params.period,
             params.page.unwrap_or(1),
-            params.page_size.unwrap_or(20),
+            params.page_size.unwrap_or(20).clamp(1, 100),
         )
         .await?;
     info!("评估记录列表查询成功，共 {} 条记录", records.len());
@@ -212,7 +212,7 @@ pub async fn list_evaluations(
             params.supplier_id,
             params.period,
             params.page.unwrap_or(1),
-            params.page_size.unwrap_or(20),
+            params.page_size.unwrap_or(20).clamp(1, 100),
         )
         .await?;
     info!("评估列表查询成功，共 {} 条记录", records.len());

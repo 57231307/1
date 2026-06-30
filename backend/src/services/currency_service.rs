@@ -88,7 +88,7 @@ impl CurrencyService {
             .order_by_desc(crate::models::exchange_rate::Column::EffectiveDate)
             .paginate(&*self.db, page_size);
 
-        let models = paginator.fetch_page(page - 1).await?;
+        let models = paginator.fetch_page(page.saturating_sub(1)).await?;
 
         Ok((models, total))
     }
@@ -166,7 +166,7 @@ impl CurrencyService {
             .order_by_desc(crate::models::exchange_rate::Column::EffectiveDate)
             .paginate(&*self.db, page_size);
 
-        let models = paginator.fetch_page(page - 1).await?;
+        let models = paginator.fetch_page(page.saturating_sub(1)).await?;
 
         let history: Vec<ExchangeRateHistoryModel> = models
             .into_iter()

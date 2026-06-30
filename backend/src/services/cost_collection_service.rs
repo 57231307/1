@@ -148,7 +148,7 @@ impl CostCollectionService {
         let total = query.clone().count(&*self.db).await?;
         let collections = query
             .order_by(cost_collection::Column::CollectionDate, Order::Desc)
-            .offset((page - 1) * page_size)
+            .offset(page.saturating_sub(1) * page_size)
             .limit(page_size)
             .all(&*self.db)
             .await?;

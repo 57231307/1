@@ -138,7 +138,7 @@ pub async fn execute_custom_report(
     let service = ReportTemplateService::new(state.db.clone());
 
     let page = params.page.unwrap_or(1);
-    let page_size = params.page_size.unwrap_or(20);
+    let page_size = params.page_size.unwrap_or(20).clamp(1, 100);
 
     let (headers, data, total) = service
         .execute_custom_report(

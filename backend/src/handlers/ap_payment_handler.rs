@@ -51,7 +51,7 @@ pub async fn list_payments(
             params.start_date,
             params.end_date,
             params.page.unwrap_or(1),
-            params.page_size.unwrap_or(20),
+            params.page_size.unwrap_or(20).clamp(1, 100),
         )
         .await?;
 
@@ -61,7 +61,7 @@ pub async fn list_payments(
         payments,
         total,
         params.page.unwrap_or(1),
-        params.page_size.unwrap_or(20),
+        params.page_size.unwrap_or(20).clamp(1, 100),
     ))
     .map_err(|e| AppError::internal(e.to_string()))?;
 

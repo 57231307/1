@@ -256,7 +256,7 @@ impl VoucherService {
         let page_size = params.page_size.unwrap_or(20);
         let vouchers = query
             .order_by(voucher::Column::VoucherDate, Order::Desc)
-            .offset((page - 1) * page_size)
+            .offset(page.saturating_sub(1) * page_size)
             .limit(page_size)
             .all(&*self.db)
             .await?;

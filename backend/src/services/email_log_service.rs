@@ -156,7 +156,7 @@ impl EmailLogService {
         let items = select
             .order_by_desc(crate::models::email_log::Column::CreatedAt)
             .paginate(&*self.db, page_size)
-            .fetch_page(page - 1)
+            .fetch_page(page.saturating_sub(1))
             .await?;
 
         Ok((items, total))

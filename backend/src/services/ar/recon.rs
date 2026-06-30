@@ -90,7 +90,7 @@ impl ArReconciliationService {
             .order_by_desc(crate::models::ar_reconciliation::Column::CreatedAt)
             .paginate(&*self.db, query.page_size);
 
-        let models = paginator.fetch_page(query.page - 1).await?;
+        let models = paginator.fetch_page(query.page.saturating_sub(1)).await?;
 
         Ok((models, total))
     }

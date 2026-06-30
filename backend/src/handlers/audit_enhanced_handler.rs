@@ -83,7 +83,7 @@ pub async fn list_audit_logs(
         .paginate(state.db.as_ref(), page_size);
 
     let total = paginator.num_items().await?;
-    let logs = paginator.fetch_page(page - 1).await?;
+    let logs = paginator.fetch_page(page.saturating_sub(1)).await?;
 
     let items: Vec<AuditLogItem> = logs
         .into_iter()

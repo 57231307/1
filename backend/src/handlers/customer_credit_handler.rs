@@ -64,7 +64,7 @@ pub async fn list_credits(
         credit_level: params.credit_level,
         status: params.status,
         page: params.page.unwrap_or_default(),
-        page_size: params.page_size.unwrap_or(10),
+        page_size: params.page_size.unwrap_or(10).clamp(1, 100),
     };
 
     let (credits, _total) = service.get_list(query_params).await?;

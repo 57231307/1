@@ -80,17 +80,20 @@ pub async fn list_batches(
     _auth: AuthContext,
 ) -> Result<Json<ApiResponse<PaginatedResponse<inventory_stock::Model>>>, AppError> {
     let page = query.page.unwrap_or(1);
-    let page_size = query.page_size.unwrap_or(20);
+    let page_size = query.page_size.unwrap_or(20).clamp(1, 100);
 
     // 使用库存服务查询批次
-    let batches = inventory_stock::Entity::find()
+    // 批次 30 v7 P1-5 修复：拆分 paginator 以便调用 num_items() 获取真实总数
+    let paginator = inventory_stock::Entity::find()
         .filter(inventory_stock::Column::BatchNo.ne(""))
-        .paginate(&*state.db, page_size)
-        .fetch_page(page - 1)
+        .paginate(&*state.db, page_size);
+    let batches = paginator
+        .fetch_page(page.saturating_sub(1))
         .await
         .map_err(|e| AppError::database(format!("获取批次列表失败：{}", e)))?;
 
-    let total = batches.len() as u64;
+    let total = paginator.num_items().await
+        .map_err(|e| AppError::database(format!("获取批次总数失败：{}", e)))?;
     let paginated = PaginatedResponse::new(batches, total, page, page_size);
     Ok(Json(ApiResponse::success(paginated)))
 }

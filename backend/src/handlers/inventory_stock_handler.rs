@@ -210,7 +210,7 @@ pub async fn list_stock(
     let (stock_list, _total) = service
         .list_stock(
             params.page.unwrap_or_default(),
-            params.page_size.unwrap_or(20),
+            params.page_size.unwrap_or(20).clamp(1, 100),
             params.warehouse_id,
             params.product_id,
         )

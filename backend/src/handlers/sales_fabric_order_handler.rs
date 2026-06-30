@@ -96,7 +96,7 @@ pub async fn list_fabric_orders(
     Query(query): Query<FabricOrderQuery>,
 ) -> Result<Json<ApiResponse<PaginatedResponse<serde_json::Value>>>, AppError> {
     let page = query.page.unwrap_or(1);
-    let page_size = query.page_size.unwrap_or(20);
+    let page_size = query.page_size.unwrap_or(20).clamp(1, 100);
 
     let mut query_builder = sales_order::Entity::find();
 
@@ -116,7 +116,7 @@ pub async fn list_fabric_orders(
     let paginator = query_builder
         .order_by(sales_order::Column::CreatedAt, Order::Desc)
         .paginate(&*state.db, page_size);
-    let orders = paginator.fetch_page(page - 1).await?;
+    let orders = paginator.fetch_page(page.saturating_sub(1)).await?;
     let total = paginator.num_items().await?;
 
     let orders_json: Vec<serde_json::Value> = orders

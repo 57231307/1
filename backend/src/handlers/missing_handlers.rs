@@ -268,7 +268,7 @@ pub async fn get_mrp_history(
     axum::extract::Query(params): axum::extract::Query<MrpHistoryListQuery>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     let page = params.page.unwrap_or(1).max(1);
-    let page_size = params.page_size.unwrap_or(20).clamp(1, 200);
+    let page_size = params.page_size.unwrap_or(20).clamp(1, 100);
 
     let mrp_service = MrpEngineService::new(state.db.clone());
     let (results, total) = mrp_service

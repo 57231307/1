@@ -195,7 +195,7 @@ impl CustomerService {
         let total = query.clone().count(&*self.db).await?;
 
         // 分页排序
-        let offset = (page_req.page - 1) * page_req.page_size;
+        let offset = page_req.page.saturating_sub(1) * page_req.page_size;
         let customers = query
             .order_by(customer::Column::CreatedAt, Order::Desc)
             .offset(offset)
@@ -252,7 +252,7 @@ impl CustomerService {
         let total = query.clone().count(&*self.db).await?;
 
         // 分页排序
-        let offset = (page_req.page - 1) * page_req.page_size;
+        let offset = page_req.page.saturating_sub(1) * page_req.page_size;
 
         // 根据数据权限过滤字段
         let customers = if let Some(filter) = permission_filter {
