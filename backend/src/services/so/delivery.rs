@@ -239,16 +239,40 @@ impl SalesService {
         items: &[ShipOrderItemRequest],
         txn: &sea_orm::DatabaseTransaction,
     ) -> Result<(), AppError> {
+        if items.is_empty() {
+            return Ok(());
+        }
+
+        // v11 批次 38 修复：批量查询所有预留记录和库存记录，避免循环内逐个查询（N+1，最坏 2N 次查询）
+        let product_ids: Vec<i32> = items.iter().map(|i| i.product_id).collect();
+
+        // 批量查询该订单所有 pending 预留记录，按 product_id 索引（取每组第一条，与原 .one() 语义一致）
+        let reservations = inventory_reservation::Entity::find()
+            .filter(inventory_reservation::Column::OrderId.eq(order_id))
+            .filter(inventory_reservation::Column::ProductId.is_in(product_ids.clone()))
+            .filter(inventory_reservation::Column::Status.eq("pending"))
+            .all(txn)
+            .await?;
+        let reservation_map: std::collections::HashMap<i32, &inventory_reservation::Model> =
+            reservations
+                .iter()
+                .fold(std::collections::HashMap::new(), |mut acc, r| {
+                    // 仅保留每个 product_id 的第一条（与原 .one() 语义一致）
+                    acc.entry(r.product_id).or_insert(r);
+                    acc
+                });
+
+        // 批量查询所有相关库存记录，按 product_id 索引
+        let stocks = inventory_stock::Entity::find()
+            .filter(inventory_stock::Column::ProductId.is_in(product_ids))
+            .all(txn)
+            .await?;
+        let stock_map: std::collections::HashMap<i32, &inventory_stock::Model> =
+            stocks.iter().map(|s| (s.product_id, s)).collect();
+
         for item in items {
             // 优先从预留记录查询
-            let reservation = inventory_reservation::Entity::find()
-                .filter(inventory_reservation::Column::OrderId.eq(order_id))
-                .filter(inventory_reservation::Column::ProductId.eq(item.product_id))
-                .filter(inventory_reservation::Column::Status.eq("pending"))
-                .one(txn)
-                .await?;
-
-            if let Some(res) = reservation {
+            if let Some(res) = reservation_map.get(&item.product_id) {
                 if res.quantity < item.quantity {
                     return Err(AppError::business(format!(
                         "产品 {} 预留数量 {} 小于发货数量 {}",
@@ -259,23 +283,21 @@ impl SalesService {
             }
 
             // 没有预留记录时直接查询库存
-            let stock = inventory_stock::Entity::find()
-                .filter(inventory_stock::Column::ProductId.eq(item.product_id))
-                .one(txn)
-                .await?;
-
-            if let Some(s) = stock {
-                if s.quantity_available < item.quantity {
+            match stock_map.get(&item.product_id) {
+                Some(s) => {
+                    if s.quantity_available < item.quantity {
+                        return Err(AppError::business(format!(
+                            "产品 {} 库存 {} 小于发货数量 {}",
+                            item.product_id, s.quantity_available, item.quantity
+                        )));
+                    }
+                }
+                None => {
                     return Err(AppError::business(format!(
-                        "产品 {} 库存 {} 小于发货数量 {}",
-                        item.product_id, s.quantity_available, item.quantity
+                        "产品 {} 库存不存在",
+                        item.product_id
                     )));
                 }
-            } else {
-                return Err(AppError::business(format!(
-                    "产品 {} 库存不存在",
-                    item.product_id
-                )));
             }
         }
         Ok(())
