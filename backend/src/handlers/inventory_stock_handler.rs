@@ -11,7 +11,7 @@ use axum::{
 };
 use chrono::Utc;
 use rust_decimal::Decimal;
-use sea_orm::EntityTrait;
+use sea_orm::{ColumnTrait, EntityTrait, QueryFilter};
 use serde::{Deserialize, Serialize};
 use validator::Validate as _; // 仅用于 `ListStockParams::validate()` 方法解析
 
@@ -234,12 +234,28 @@ pub async fn list_stock(
 
     // 发送库存预警通知
     if let Some(ref event_service) = state.event_notification_service {
+        // 批量查询低于 reorder_point 的库存对应的 product，避免循环内 N+1 查询
+        let alert_product_ids: Vec<i32> = stock_responses
+            .iter()
+            .filter(|stock| stock.quantity_on_hand < stock.reorder_point)
+            .map(|stock| stock.product_id)
+            .collect();
+        let product_map: std::collections::HashMap<i32, product::Model> =
+            if alert_product_ids.is_empty() {
+                std::collections::HashMap::new()
+            } else {
+                // 沿用原逻辑：DB 错误时静默跳过（unwrap_or_default 返回空集合）
+                let products = product::Entity::find()
+                    .filter(product::Column::Id.is_in(alert_product_ids))
+                    .all(&*state.db)
+                    .await
+                    .unwrap_or_default();
+                products.into_iter().map(|p| (p.id, p)).collect()
+            };
+
         for stock in &stock_responses {
             if stock.quantity_on_hand < stock.reorder_point {
-                if let Ok(Some(product)) = product::Entity::find_by_id(stock.product_id)
-                    .one(&*state.db)
-                    .await
-                {
+                if let Some(product) = product_map.get(&stock.product_id) {
                     let _ = event_service
                         .notify_inventory_alert(
                             0, // 系统通知，不指定特定用户
@@ -319,11 +335,26 @@ pub async fn check_low_stock(
 
     // 发送库存预警通知
     if let Some(ref event_service) = state.event_notification_service {
+        // 批量查询 product，避免循环内 N+1 查询
+        let product_ids: Vec<i32> = stock_responses
+            .iter()
+            .map(|stock| stock.product_id)
+            .collect();
+        let product_map: std::collections::HashMap<i32, product::Model> =
+            if product_ids.is_empty() {
+                std::collections::HashMap::new()
+            } else {
+                // 沿用原逻辑：DB 错误时静默跳过（unwrap_or_default 返回空集合）
+                let products = product::Entity::find()
+                    .filter(product::Column::Id.is_in(product_ids))
+                    .all(&*state.db)
+                    .await
+                    .unwrap_or_default();
+                products.into_iter().map(|p| (p.id, p)).collect()
+            };
+
         for stock in &stock_responses {
-            if let Ok(Some(product)) = product::Entity::find_by_id(stock.product_id)
-                .one(&*state.db)
-                .await
-            {
+            if let Some(product) = product_map.get(&stock.product_id) {
                 let _ = event_service
                     .notify_inventory_alert(
                         0,

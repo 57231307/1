@@ -166,7 +166,7 @@ pub async fn get_pending_tasks_for_monitor(
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     let service = BpmService::new(state.db.clone());
     let page = query.page.unwrap_or(1);
-    let page_size = query.page_size.unwrap_or(20);
+    let page_size = query.page_size.unwrap_or(20).clamp(1, 100);
     let tasks = service
         .get_pending_tasks_for_monitor(page, page_size)
         .await?;
@@ -180,7 +180,7 @@ pub async fn list_instances_for_monitor(
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     let service = BpmService::new(state.db.clone());
     let page = query.page.unwrap_or(1);
-    let page_size = query.page_size.unwrap_or(20);
+    let page_size = query.page_size.unwrap_or(20).clamp(1, 100);
     let instances = service
         .list_instances_for_monitor(query.status, page, page_size)
         .await?;

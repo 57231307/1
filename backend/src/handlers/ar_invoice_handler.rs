@@ -63,7 +63,7 @@ pub async fn list_ar_invoices(
             params.customer_id,
             params.status,
             params.page.unwrap_or(1),
-            params.page_size.unwrap_or(20),
+            params.page_size.unwrap_or(20).clamp(1, 100),
         )
         .await?;
 

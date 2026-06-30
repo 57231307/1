@@ -3,7 +3,8 @@ use axum::{
     extract::{Path, Query, State},
     Json,
 };
-use serde::{Deserialize, Serialize};
+// v9 P1-G 修复：移除未使用的 Serialize import
+use serde::Deserialize;
 use validator::Validate;
 
 use crate::middleware::auth_context::AuthContext;

@@ -475,9 +475,15 @@ describe('UserTab', () => {
 import { test, expect } from '@playwright/test'
 
 test('用户登录流程', async ({ page }) => {
+  // v9 P1-1 修复：对齐项目 fail-secure 模式，凭据从环境变量注入
+  const TEST_USERNAME = process.env.TEST_USERNAME
+  const TEST_PASSWORD = process.env.TEST_PASSWORD
+  if (!TEST_USERNAME || !TEST_PASSWORD) {
+    throw new Error('E2E 测试需要环境变量 TEST_USERNAME / TEST_PASSWORD（fail-secure 模式）')
+  }
   await page.goto('http://localhost:5173/login')
-  await page.fill('input[name=username]', 'admin')
-  await page.fill('input[name=password]', 'Admin@123456')
+  await page.fill('input[name=username]', TEST_USERNAME)
+  await page.fill('input[name=password]', TEST_PASSWORD)
   await page.click('button[type=submit]')
 
   await expect(page).toHaveURL('http://localhost:5173/dashboard')

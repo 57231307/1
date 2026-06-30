@@ -189,6 +189,8 @@ pub async fn forward_trace(
         })
         .collect();
 
+    // v9 P1-C 修复：当前接口全量返回无分页，total=len 正确。
+    // 注意：若后续添加分页，需改为 COUNT(*) 查询，否则 total 退化为当前页条数。
     let total = trace_responses.len() as u64;
 
     Ok(Json(ApiResponse::success_with_message(
@@ -236,6 +238,8 @@ pub async fn backward_trace(
         })
         .collect();
 
+    // v9 P1-C 修复：当前接口全量返回无分页，total=len 正确。
+    // 注意：若后续添加分页，需改为 COUNT(*) 查询，否则 total 退化为当前页条数。
     let total = trace_responses.len() as u64;
 
     Ok(Json(ApiResponse::success_with_message(

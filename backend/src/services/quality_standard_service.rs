@@ -77,7 +77,7 @@ impl QualityStandardService {
 
         let standards = query
             .order_by(quality_standard::Column::Id, Order::Desc)
-            .offset((params.page * params.page_size) as u64)
+            .offset((params.page.saturating_sub(1) * params.page_size) as u64)
             .limit(params.page_size as u64)
             .all(&*self.db)
             .await?;
