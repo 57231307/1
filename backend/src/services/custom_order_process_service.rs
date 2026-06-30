@@ -211,7 +211,7 @@ impl CustomOrderProcessService {
                 .all(&*self.db)
                 .await?
         };
-        let mut logs_map: std::collections::HashMap<i32, Vec<process_log::Model>> =
+        let mut logs_map: std::collections::HashMap<i64, Vec<process_log::Model>> =
             std::collections::HashMap::new();
         for log in all_logs {
             logs_map.entry(log.process_node_id).or_default().push(log);
