@@ -395,8 +395,9 @@ impl BomService {
                         .all(&*self.db)
                         .await?
                 };
-                // 按 product_id 索引；若同 product_id 存在多个 default BOM（数据异常），
-                // 后者覆盖前者，与原 .one() 取首条行为一致
+                // 按 product_id 索引；正常数据下 product_id + is_default + ACTIVE 唯一。
+                // 若同 product_id 存在多个 default BOM（数据异常），后者覆盖前者，
+                // 与原 .one() 均为非确定行为（无 ORDER BY），差异不暴露。
                 let child_bom_map: std::collections::HashMap<i32, BomModel> = child_boms
                     .into_iter()
                     .map(|bom| (bom.product_id, bom))

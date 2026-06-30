@@ -3,7 +3,7 @@
 //! 包含采购订单的收货确认（含库存入库联动）、收货单号生成等。
 //! 拆分自原 `purchase_order_service.rs`。
 
-use crate::models::{product, purchase_order, purchase_order_item, status};
+use crate::models::{inventory_stock, product, purchase_order, purchase_order_item, status};
 use crate::services::po::CreateOrderItemRequest;
 use crate::services::po::UpdateOrderItemRequest;
 use crate::utils::error::AppError;
@@ -58,6 +58,22 @@ impl PurchaseOrderService {
         let product_map: std::collections::HashMap<i32, product::Model> =
             products.into_iter().map(|p| (p.id, p)).collect();
 
+        // v14 批次 41 修复：批量查询所有订单明细对应的库存记录（同一 warehouse_id），
+        // 避免循环内逐个调用 find_by_product_and_warehouse_txn（N+1 查询）
+        let stock_product_ids: Vec<i32> =
+            order_items.iter().map(|item| item.product_id).collect();
+        let existing_stocks = if stock_product_ids.is_empty() {
+            Vec::new()
+        } else {
+            inventory_stock::Entity::find()
+                .filter(inventory_stock::Column::WarehouseId.eq(order.warehouse_id))
+                .filter(inventory_stock::Column::ProductId.is_in(stock_product_ids))
+                .all(&txn)
+                .await?
+        };
+        let stock_map: std::collections::HashMap<i32, inventory_stock::Model> =
+            existing_stocks.into_iter().map(|s| (s.product_id, s)).collect();
+
         // 6. 遍历订单明细，执行库存入库
         for item in &order_items {
             // 从批量查询结果中获取产品信息
@@ -73,15 +89,8 @@ impl PurchaseOrderService {
 
             // 只处理有入库数量的明细
             if receive_quantity_meters > Decimal::ZERO {
-                // 查找现有库存记录（使用事务版本）
-                let existing_stock = crate::services::inventory_stock_service::InventoryStockService::find_by_product_and_warehouse_txn(
-                    &txn, item.product_id, order.warehouse_id,
-                )
-                .await
-                .map_err(|e| {
-                    tracing::error!("查询库存失败: 产品ID={}, 仓库ID={}, 错误: {}", item.product_id, order.warehouse_id, e);
-                    AppError::internal(format!("查询库存失败: {}", e))
-                })?;
+                // 从批量查询结果中获取现有库存记录
+                let existing_stock = stock_map.get(&item.product_id).cloned();
 
                 let before_quantity_meters;
                 let before_quantity_kg;
