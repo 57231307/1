@@ -151,6 +151,8 @@ pub async fn occupy_credit(
     auth: AuthContext,
     Json(req): Json<CreditAmountRequest>,
 ) -> Result<Json<ApiResponse<String>>, AppError> {
+    // v8 P1-C 修复：调用 DTO 验证，激活 Validate 注解
+    req.validate()?;
     info!(
         "用户 {} 正在占用客户 {} 的信用额度 {:.2}",
         auth.user_id, customer_id, req.amount
@@ -175,6 +177,8 @@ pub async fn release_credit(
     auth: AuthContext,
     Json(req): Json<CreditAmountRequest>,
 ) -> Result<Json<ApiResponse<String>>, AppError> {
+    // v8 P1-C 修复：调用 DTO 验证，激活 Validate 注解
+    req.validate()?;
     info!(
         "用户 {} 正在释放客户 {} 的信用额度 {:.2}",
         auth.user_id, customer_id, req.amount
@@ -199,6 +203,8 @@ pub async fn adjust_credit_limit(
     auth: AuthContext,
     Json(req): Json<CreditLimitAdjustmentRequestDto>,
 ) -> Result<Json<ApiResponse<String>>, AppError> {
+    // v8 P1-C 修复：调用 DTO 验证，激活 Validate 注解
+    req.validate()?;
     info!(
         "用户 {} 正在调整客户 {} 的信用额度",
         auth.user_id, customer_id

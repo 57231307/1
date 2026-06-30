@@ -212,7 +212,7 @@ pub async fn list_boms(
         status: query.status,
         is_default: query.is_default,
         page: query.page.unwrap_or(1),
-        page_size: query.page_size.unwrap_or(20),
+        page_size: query.page_size.unwrap_or(20).clamp(1, 100),
     };
 
     let (boms, total) = service.list(bom_query).await?;
@@ -236,7 +236,7 @@ pub async fn list_boms(
         response.clone(),
         total,
         query.page.unwrap_or(1),
-        query.page_size.unwrap_or(20),
+        query.page_size.unwrap_or(20).clamp(1, 100),
     )))
 }
 

@@ -207,6 +207,8 @@ pub async fn withdraw(
     auth: AuthContext,
     Json(req): Json<FundTransactionRequest>,
 ) -> Result<Json<ApiResponse<String>>, AppError> {
+    // v8 P1-C 修复：调用 DTO 验证，激活 Validate 注解
+    req.validate()?;
     info!(
         "用户 {} 正在从账户 {} 取款 {:.2}",
         auth.username, id, req.amount
@@ -229,6 +231,8 @@ pub async fn freeze_funds(
     auth: AuthContext,
     Json(req): Json<FreezeFundsRequest>,
 ) -> Result<Json<ApiResponse<String>>, AppError> {
+    // v8 P1-C 修复：调用 DTO 验证，激活 Validate 注解
+    req.validate()?;
     info!(
         "用户 {} 正在冻结账户 {} 资金 {:.2}，原因：{}",
         auth.username, id, req.amount, req.reason
@@ -251,6 +255,8 @@ pub async fn unfreeze_funds(
     auth: AuthContext,
     Json(req): Json<FundTransactionRequest>,
 ) -> Result<Json<ApiResponse<String>>, AppError> {
+    // v8 P1-C 修复：调用 DTO 验证，激活 Validate 注解
+    req.validate()?;
     info!(
         "用户 {} 正在解冻账户 {} 资金 {:.2}",
         auth.username, id, req.amount

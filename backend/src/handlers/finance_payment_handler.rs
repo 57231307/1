@@ -87,6 +87,8 @@ pub async fn create_payment(
     auth: AuthContext,
     Json(payload): Json<CreatePaymentRequest>,
 ) -> Result<Json<ApiResponse<PaymentResponse>>, AppError> {
+    // v8 P1-C 修复：调用 DTO 验证，激活 Validate 注解
+    payload.validate()?;
     let service = FinancePaymentService::new(state.db.clone());
 
     // 自动生成付款单号
@@ -128,7 +130,7 @@ pub async fn list_payments(
     let (payments, total) = service
         .list_payments(
             params.page.unwrap_or_default(),
-            params.page_size.unwrap_or(20),
+            params.page_size.unwrap_or(20).clamp(1, 100),
             params.status,
         )
         .await
@@ -150,7 +152,7 @@ pub async fn list_payments(
         payments: payment_responses,
         total,
         page: params.page.unwrap_or_default(),
-        page_size: params.page_size.unwrap_or(20),
+        page_size: params.page_size.unwrap_or(20).clamp(1, 100),
     })))
 }
 

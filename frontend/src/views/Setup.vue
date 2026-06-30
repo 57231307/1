@@ -235,7 +235,7 @@ async function checkEnvironment() {
   checking.value = true
   try {
     // 检查后端API服务
-    const healthRes = await fetch('/api/v1/erp/health')
+    const healthRes = await fetch('/health')
     const healthData = await healthRes.json()
     envChecks.value[0].status = healthRes.ok && healthData.status === 'healthy'
 

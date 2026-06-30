@@ -20,7 +20,8 @@ pub mod health_handler;
 pub mod init_handler;
 pub mod inventory_adjustment_handler;
 pub mod inventory_batch_handler;
-pub mod inventory_count_handler;
+// v8 P1-2 修复：inventory_count_handler 整个模块为死代码（批次 23 路由已注释），
+// 已删除文件。如需恢复，从 git 历史中检索。
 pub mod inventory_reservation_handler;
 pub mod inventory_stock_handler;
 pub mod inventory_stock_handler_dto;
