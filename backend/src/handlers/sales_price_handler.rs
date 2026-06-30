@@ -42,7 +42,7 @@ pub async fn list_prices(
         customer_type: params.customer_type,
         status: params.status,
         page: params.page.unwrap_or_default(),
-        page_size: params.page_size.unwrap_or(10),
+        page_size: params.page_size.unwrap_or(10).clamp(1, 100),
     };
 
     let (prices, _total) = service.get_prices_list(query_params).await?;
@@ -128,7 +128,7 @@ pub async fn list_strategies(
     info!("用户 {} 正在查询销售价格策略", auth.user_id);
 
     let page = params.page.unwrap_or(1) as u64;
-    let page_size = params.page_size.unwrap_or(20) as u64;
+    let page_size = params.page_size.unwrap_or(20).clamp(1, 100) as u64;
 
     let service = SalesPriceService::new(state.db.clone());
     let (strategies, total) = service.list_strategies(page, page_size).await?;

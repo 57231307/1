@@ -97,7 +97,7 @@ pub async fn list_locations(
     Query(query): Query<LocationListQuery>,
 ) -> Result<Json<ApiResponse<PaginatedResponse<serde_json::Value>>>, AppError> {
     let page = query.page.unwrap_or(1);
-    let page_size = query.page_size.unwrap_or(10);
+    let page_size = query.page_size.unwrap_or(10).clamp(1, 100);
 
     let mut query_builder = LocationEntity::find();
 
@@ -106,7 +106,7 @@ pub async fn list_locations(
     }
 
     let paginator = query_builder.paginate(&*state.db, page_size);
-    let locations = paginator.fetch_page(page - 1).await?;
+    let locations = paginator.fetch_page(page.saturating_sub(1)).await?;
     let total = paginator.num_items().await?;
 
     let locations_json: Vec<serde_json::Value> = locations

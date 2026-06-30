@@ -26,7 +26,7 @@ pub async fn list_purchase_returns(
     let (returns, total) = service
         .list_returns(
             params.page.unwrap_or(1),
-            params.page_size.unwrap_or(20),
+            params.page_size.unwrap_or(20).clamp(1, 100),
             params.status,
             params.supplier_id,
         )
@@ -36,7 +36,7 @@ pub async fn list_purchase_returns(
         returns,
         total,
         params.page.unwrap_or(1),
-        params.page_size.unwrap_or(20),
+        params.page_size.unwrap_or(20).clamp(1, 100),
     ))
     .map_err(|e| AppError::internal(e.to_string()))?;
 

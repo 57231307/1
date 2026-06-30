@@ -87,7 +87,7 @@ impl CrmService {
             .paginate(&*self.db, page_size);
 
         let total = paginator.num_items().await?;
-        let items: Vec<crm_lead::Model> = paginator.fetch_page(page - 1).await?;
+        let items: Vec<crm_lead::Model> = paginator.fetch_page(page.saturating_sub(1)).await?;
 
         Ok(serde_json::json!({
             "data": items,

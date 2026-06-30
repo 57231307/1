@@ -69,7 +69,7 @@ pub async fn list_sales_returns(
 ) -> Result<Json<ApiResponse<PaginatedResponse<crate::models::sales_return::Model>>>, AppError> {
     let service = SalesReturnService::new(state.db.clone());
     let page = params.page.unwrap_or(1);
-    let page_size = params.page_size.unwrap_or(20);
+    let page_size = params.page_size.unwrap_or(20).clamp(1, 100);
 
     let (items, total) = service
         .list_returns(

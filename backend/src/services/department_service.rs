@@ -53,7 +53,7 @@ impl DepartmentService {
         // 应用分页和排序
         let departments = q
             .order_by(department::Column::Name, Order::Asc)
-            .offset((page - 1) * page_size)
+            .offset(page.saturating_sub(1) * page_size)
             .limit(page_size)
             .into_model::<department::Model>()
             .all(&*self.db)

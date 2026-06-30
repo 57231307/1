@@ -151,7 +151,7 @@ pub async fn list_products(
     let product_service = ProductService::new(state.db.clone());
 
     let page = query.page.unwrap_or(1);
-    let page_size = query.page_size.unwrap_or(10);
+    let page_size = query.page_size.unwrap_or(10).clamp(1, 100);
 
     let (products, total) = product_service
         .list_products(

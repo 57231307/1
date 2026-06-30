@@ -66,7 +66,7 @@ pub async fn list_contracts(
         status: params.status,
         supplier_id: params.supplier_id,
         page: params.page.unwrap_or_default(),
-        page_size: params.page_size.unwrap_or(10),
+        page_size: params.page_size.unwrap_or(10).clamp(1, 100),
     };
 
     let (contracts, _total) = service.get_list(query_params).await?;

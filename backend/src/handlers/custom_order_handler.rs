@@ -118,7 +118,7 @@ pub async fn list_custom_orders(
 ) -> Result<Json<ApiResponse<PagedResponse<CustomOrderListItem>>>, AppError> {
     let service = CustomOrderCrudService::from_state(&state);
     let page = query.page.unwrap_or(1);
-    let page_size = query.page_size.unwrap_or(20);
+    let page_size = query.page_size.unwrap_or(20).clamp(1, 100);
 
     let (items, total) = service
         .list(
@@ -571,7 +571,7 @@ pub async fn list_quality_issues(
 ) -> Result<Json<ApiResponse<PagedResponse<QualityIssueInfo>>>, AppError> {
     let service = CustomOrderQualityService::from_state(&state);
     let page = query.page.unwrap_or(1);
-    let page_size = query.page_size.unwrap_or(20);
+    let page_size = query.page_size.unwrap_or(20).clamp(1, 100);
     let (items, total) = service
         .list_by_order(id, page, page_size)
         .await
@@ -658,7 +658,7 @@ pub async fn list_after_sales(
 ) -> Result<Json<ApiResponse<PagedResponse<AfterSalesInfo>>>, AppError> {
     let service = CustomOrderAfterSalesService::from_state(&state);
     let page = query.page.unwrap_or(1);
-    let page_size = query.page_size.unwrap_or(20);
+    let page_size = query.page_size.unwrap_or(20).clamp(1, 100);
     let (items, total) = service
         .list_by_order(id, page, page_size)
         .await

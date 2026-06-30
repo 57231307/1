@@ -35,7 +35,7 @@ pub async fn list_orders(
 
     let page_req = PageRequest {
         page: query.page.unwrap_or(1),
-        page_size: query.page_size.unwrap_or(10),
+        page_size: query.page_size.unwrap_or(10).clamp(1, 100),
     };
 
     let orders = sales_service
@@ -348,7 +348,7 @@ pub async fn get_order_history(
             state.db.clone(),
         );
     let page = query.page.unwrap_or(1);
-    let page_size = query.page_size.unwrap_or(20);
+    let page_size = query.page_size.unwrap_or(20).clamp(1, 100);
 
     let (histories, total) = history_service
         .get_history_by_order(id, page, page_size)

@@ -70,7 +70,7 @@ pub async fn list_accounts(
         account_type: params.account_type,
         status: params.status,
         page: params.page.unwrap_or_default(),
-        page_size: params.page_size.unwrap_or(10),
+        page_size: params.page_size.unwrap_or(10).clamp(1, 100),
     };
 
     let (accounts, _total) = service.get_accounts_list(query_params).await?;
@@ -288,7 +288,7 @@ pub async fn list_transfer_records(
             params.to_account_id,
             params.status,
             params.page.unwrap_or(1),
-            params.page_size.unwrap_or(20),
+            params.page_size.unwrap_or(20).clamp(1, 100),
         )
         .await?;
     Ok(Json(ApiResponse::success(records)))

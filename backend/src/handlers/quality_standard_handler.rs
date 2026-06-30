@@ -91,7 +91,7 @@ pub async fn list_standards(
         standard_type: params.standard_type,
         status: params.status,
         page: params.page.unwrap_or_default(),
-        page_size: params.page_size.unwrap_or(10),
+        page_size: params.page_size.unwrap_or(10).clamp(1, 100),
     };
 
     let (standards, _total) = service.get_standards_list(query_params).await?;

@@ -41,7 +41,7 @@ impl WarehouseService {
         // 应用分页和排序
         let warehouses = q
             .order_by(warehouse::Column::WarehouseCode, Order::Asc)
-            .offset((page - 1) * page_size)
+            .offset(page.saturating_sub(1) * page_size)
             .limit(page_size)
             .into_model::<warehouse::Model>()
             .all(&*self.db)

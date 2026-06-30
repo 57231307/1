@@ -182,7 +182,7 @@ impl BomService {
 
         let boms = select
             .order_by_desc(BomColumn::CreatedAt)
-            .offset((query.page - 1) * query.page_size)
+            .offset(query.page.saturating_sub(1) * query.page_size)
             .limit(query.page_size)
             .all(&*self.db)
             .await?;

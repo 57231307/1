@@ -82,7 +82,7 @@ pub async fn list_dye_batches(
     Query(query): Query<DyeBatchListQuery>,
 ) -> Result<Json<ApiResponse<Vec<dye_batch::Model>>>, AppError> {
     let page = query.page.unwrap_or(1);
-    let page_size = query.page_size.unwrap_or(20);
+    let page_size = query.page_size.unwrap_or(20).clamp(1, 100);
 
     let mut q = dye_batch::Entity::find().filter(dye_batch::Column::IsDeleted.eq(false));
 
@@ -100,7 +100,7 @@ pub async fn list_dye_batches(
 
     let paginator = q.paginate(&*state.db, page_size);
     let total = paginator.num_items().await?;
-    let batches = paginator.fetch_page(page - 1).await?;
+    let batches = paginator.fetch_page(page.saturating_sub(1)).await?;
     Ok(Json(ApiResponse::success_paginated(
         batches,
         total,

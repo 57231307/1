@@ -466,7 +466,7 @@ impl MrpEngineService {
         let results = select
             .order_by_desc(crate::models::mrp_result::Column::CreatedAt)
             .paginate(&*self.db, page_size)
-            .fetch_page(page - 1)
+            .fetch_page(page.saturating_sub(1))
             .await?;
 
         Ok((results, total))

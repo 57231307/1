@@ -211,7 +211,7 @@ impl SupplierService {
 
         let paginator = query.paginate(&*self.db, page_size);
         let total = paginator.num_items().await?;
-        let data = paginator.fetch_page(page - 1).await?;
+        let data = paginator.fetch_page(page.saturating_sub(1)).await?;
 
         Ok(PaginatedResponse::new(data, total, page, page_size))
     }

@@ -371,7 +371,7 @@ pub async fn list_scheduled_orders(
         date_from: query.date_from,
         date_to: query.date_to,
         page: query.page.unwrap_or(1),
-        page_size: query.page_size.unwrap_or(20),
+        page_size: query.page_size.unwrap_or(20).clamp(1, 100),
     };
 
     let (orders, total) = service.list_scheduled_orders(query_params).await?;
@@ -397,7 +397,7 @@ pub async fn list_scheduled_orders(
         response,
         total,
         query.page.unwrap_or(1),
-        query.page_size.unwrap_or(20),
+        query.page_size.unwrap_or(20).clamp(1, 100),
     )))
 }
 
@@ -434,7 +434,7 @@ pub async fn get_schedule_history(
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     let service = SchedulingService::new(state.db.clone());
     let page = query.page.unwrap_or(1);
-    let page_size = query.page_size.unwrap_or(20);
+    let page_size = query.page_size.unwrap_or(20).clamp(1, 100);
 
     let (items, total) = service.get_schedule_history(page, page_size).await?;
 

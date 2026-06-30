@@ -100,7 +100,7 @@ pub async fn list_quotations(
 ) -> Result<Json<ApiResponse<ListQuotationsResponse>>, AppError> {
     let service = QuotationService::from_state(&state);
     let page = query.page.unwrap_or(1);
-    let page_size = query.page_size.unwrap_or(20).min(100);
+    let page_size = query.page_size.unwrap_or(20).clamp(1, 100);
 
     let (items, total) = service
         .list(

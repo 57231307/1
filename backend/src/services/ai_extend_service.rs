@@ -201,7 +201,7 @@ impl AiExtendService {
         let total = select.clone().count(&*self.db).await?;
         let items = select
             .order_by_desc(ProcessColumn::CreatedAt)
-            .offset((page - 1) * page_size)
+            .offset(page.saturating_sub(1) * page_size)
             .limit(page_size)
             .all(&*self.db)
             .await?;
@@ -379,7 +379,7 @@ impl AiExtendService {
         let total = select.clone().count(&*self.db).await?;
         let items = select
             .order_by_desc(QualityColumn::CreatedAt)
-            .offset((page - 1) * page_size)
+            .offset(page.saturating_sub(1) * page_size)
             .limit(page_size)
             .all(&*self.db)
             .await?;

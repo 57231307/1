@@ -210,7 +210,7 @@ impl PurchaseInspectionService {
             .paginate(&*self.db, page_size);
 
         let total = paginator.num_items().await?;
-        let items = paginator.fetch_page(page - 1).await?;
+        let items = paginator.fetch_page(page.saturating_sub(1)).await?;
 
         Ok((items, total))
     }

@@ -64,7 +64,7 @@ impl OrderChangeHistoryService {
         page: u64,
         page_size: u64,
     ) -> Result<(Vec<sales_order_change_history::Model>, u64), AppError> {
-        let offset = (page - 1) * page_size;
+        let offset = page.saturating_sub(1) * page_size;
 
         let histories = sales_order_change_history::Entity::find()
             .filter(sales_order_change_history::Column::OrderId.eq(order_id))

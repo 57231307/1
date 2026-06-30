@@ -214,7 +214,7 @@ pub async fn list_users(
     let (users, total) = user_service
         .list_users(
             params.page.unwrap_or_default(),
-            params.page_size.unwrap_or(20),
+            params.page_size.unwrap_or(20).clamp(1, 100),
         )
         .await?;
 
@@ -224,7 +224,7 @@ pub async fn list_users(
         users: user_responses,
         total,
         page: params.page.unwrap_or_default(),
-        page_size: params.page_size.unwrap_or(20),
+        page_size: params.page_size.unwrap_or(20).clamp(1, 100),
     })))
 }
 

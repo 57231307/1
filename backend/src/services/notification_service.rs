@@ -169,7 +169,7 @@ impl NotificationService {
 
         let notifications = query
             .order_by(notification::Column::CreatedAt, Order::Desc)
-            .offset((page - 1) * page_size)
+            .offset(page.saturating_sub(1) * page_size)
             .limit(page_size)
             .all(&*self.db)
             .await?;

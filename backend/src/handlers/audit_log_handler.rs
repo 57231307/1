@@ -108,7 +108,7 @@ pub async fn list_audit_logs(
     Query(query): Query<AuditLogListQuery>,
 ) -> Result<Json<ApiResponse<AuditLogListResponse>>, AppError> {
     let page = std::cmp::Ord::max(query.page.unwrap_or(1), 1);
-    let page_size = query.page_size.unwrap_or(20).clamp(1, 200);
+    let page_size = query.page_size.unwrap_or(20).clamp(1, 100);
 
     let mut q = audit_log::Entity::find();
 
@@ -156,7 +156,7 @@ pub async fn list_audit_logs(
         .await
         .map_err(|e| AppError::internal(format!("统计审计日志失败: {}", e)))?;
     let logs = paginator
-        .fetch_page(page - 1)
+        .fetch_page(page.saturating_sub(1))
         .await
         .map_err(|e| AppError::internal(format!("查询审计日志失败: {}", e)))?;
 

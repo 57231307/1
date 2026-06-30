@@ -64,7 +64,7 @@ pub async fn list_login_logs(
     use sea_orm::{ColumnTrait, EntityTrait, PaginatorTrait, QueryFilter, QueryOrder};
 
     let page = query.page.unwrap_or(1);
-    let page_size = query.page_size.unwrap_or(20);
+    let page_size = query.page_size.unwrap_or(20).clamp(1, 100);
 
     let mut query_builder = log_login::Entity::find();
 
@@ -83,7 +83,7 @@ pub async fn list_login_logs(
     let logs = query_builder
         .order_by_desc(log_login::Column::LoginTime)
         .paginate(state.db.as_ref(), page_size)
-        .fetch_page(page - 1)
+        .fetch_page(page.saturating_sub(1))
         .await?;
 
     let items: Vec<LoginLogItem> = logs

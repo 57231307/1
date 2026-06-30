@@ -96,7 +96,7 @@ pub async fn search_logs(
 
     let page: u64 = filter.page.unwrap_or(1);
     let page_size: u64 = filter.page_size.unwrap_or(20).clamp(1, 100);
-    let offset: u64 = if page > 0 { (page - 1) * page_size } else { 0 };
+    let offset: u64 = page.saturating_sub(1) * page_size;
 
     let sql = "SELECT * FROM omni_audit_logs ORDER BY id DESC LIMIT $1 OFFSET $2";
     let rows = (*state.db)
@@ -123,9 +123,25 @@ pub async fn search_logs(
         items.push(item);
     }
 
+    // 批次 30 v7 P1-4 修复：原 total = items.len() 仅返回当前页记录数，
+    // 分页或空表时严重错误。改为 COUNT(*) 查询真实总数。
+    // 当前 search_logs 的 SQL 无 WHERE 条件，直接 COUNT(*) 即可；
+    // 若未来添加过滤条件，需同步更新 count_sql 保留 WHERE 子句。
+    let count_sql = "SELECT COUNT(*) as total FROM omni_audit_logs";
+    let count_result = (*state.db)
+        .query_one(sea_orm::Statement::from_string(
+            sea_orm::DatabaseBackend::Postgres,
+            count_sql,
+        ))
+        .await?;
+    let total: u64 = match count_result {
+        Some(r) => r.try_get::<i64>("", "total").unwrap_or(0) as u64,
+        None => 0,
+    };
+
     let res = serde_json::json!({
         "items": items,
-        "total": items.len() as u64
+        "total": total,
     });
 
     Ok(Json(ApiResponse::success(res)))

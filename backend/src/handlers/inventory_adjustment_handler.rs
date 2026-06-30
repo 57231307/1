@@ -282,7 +282,7 @@ pub async fn list_adjustments(
     let (adjustments, total) = service
         .list_adjustments(
             params.page.unwrap_or_default(),
-            params.page_size.unwrap_or(20),
+            params.page_size.unwrap_or(20).clamp(1, 100),
         )
         .await
         .map_err(|e| AppError::internal(e.to_string()))?;
@@ -303,7 +303,7 @@ pub async fn list_adjustments(
             .collect(),
         total,
         page: params.page.unwrap_or_default(),
-        page_size: params.page_size.unwrap_or(20),
+        page_size: params.page_size.unwrap_or(20).clamp(1, 100),
     })))
 }
 

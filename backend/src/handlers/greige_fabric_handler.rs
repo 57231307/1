@@ -101,7 +101,7 @@ pub async fn list_greige_fabrics(
     Query(query): Query<GreigeFabricListQuery>,
 ) -> Result<Json<ApiResponse<Vec<greige_fabric::Model>>>, AppError> {
     let page = query.page.unwrap_or(1);
-    let page_size = query.page_size.unwrap_or(20);
+    let page_size = query.page_size.unwrap_or(20).clamp(1, 100);
 
     let mut q = greige_fabric::Entity::find().filter(greige_fabric::Column::IsDeleted.eq(false));
 
@@ -131,7 +131,7 @@ pub async fn list_greige_fabrics(
 
     let paginator = q.paginate(&*state.db, page_size);
     let total = paginator.num_items().await?;
-    let fabrics = paginator.fetch_page(page - 1).await?;
+    let fabrics = paginator.fetch_page(page.saturating_sub(1)).await?;
     Ok(Json(ApiResponse::success_paginated(
         fabrics, total, page, page_size,
     )))

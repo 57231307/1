@@ -56,7 +56,7 @@ pub async fn sales_by_customer(
     _auth: AuthContext,
     Query(q): Query<ByCustomerQuery>,
 ) -> Result<Json<ApiResponse<BiResponse<Vec<CustomerRank>>>>, AppError> {
-    let limit = q.limit.unwrap_or(10);
+    let limit = q.limit.unwrap_or(10).clamp(1, 100);
     let data = BiAnalysisService::sales_by_customer(limit)
         .await
         .map_err(|e| AppError::BusinessError(format!("查询失败: {}", e)))?;
@@ -70,7 +70,7 @@ pub async fn sales_by_product(
     _auth: AuthContext,
     Query(q): Query<ByCustomerQuery>,
 ) -> Result<Json<ApiResponse<BiResponse<Vec<ProductRank>>>>, AppError> {
-    let limit = q.limit.unwrap_or(10);
+    let limit = q.limit.unwrap_or(10).clamp(1, 100);
     let data = BiAnalysisService::sales_by_product(limit)
         .await
         .map_err(|e| AppError::BusinessError(format!("查询失败: {}", e)))?;

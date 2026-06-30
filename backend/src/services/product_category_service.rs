@@ -47,7 +47,7 @@ impl ProductCategoryService {
         // 应用分页和排序
         let categories = q
             .order_by(product_category::Column::Name, Order::Asc)
-            .offset((page - 1) * page_size)
+            .offset(page.saturating_sub(1) * page_size)
             .limit(page_size)
             .into_model::<product_category::Model>()
             .all(&*self.db)

@@ -164,7 +164,7 @@ pub async fn get_recommendations(
     let rec_type = query
         .recommendation_type
         .unwrap_or_else(|| "all".to_string());
-    let limit = query.limit.unwrap_or(10);
+    let limit = query.limit.unwrap_or(10).clamp(1, 100);
 
     let recommendations = service
         .generate_recommendations(rec_type, limit)

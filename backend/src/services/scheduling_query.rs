@@ -140,7 +140,7 @@ impl SchedulingService {
         let orders = select
             .order_by_asc(crate::models::production_order::Column::Priority)
             .paginate(&*self.db, query.page_size)
-            .fetch_page(query.page - 1)
+            .fetch_page(query.page.saturating_sub(1))
             .await?;
 
         let mut results: Vec<ScheduledOrder> = Vec::new();
@@ -187,7 +187,7 @@ impl SchedulingService {
 
         let total = paginator.num_items().await?;
 
-        let items = paginator.fetch_page(page - 1).await?;
+        let items = paginator.fetch_page(page.saturating_sub(1)).await?;
 
         Ok((items, total))
     }

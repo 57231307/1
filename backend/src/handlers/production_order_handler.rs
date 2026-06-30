@@ -168,7 +168,7 @@ pub async fn list_production_orders(
         status: query.status,
         product_id: query.product_id,
         page: query.page.unwrap_or(1),
-        page_size: query.page_size.unwrap_or(20),
+        page_size: query.page_size.unwrap_or(20).clamp(1, 100),
     };
 
     let (models, total) = service.list(query_params).await?;
@@ -197,7 +197,7 @@ pub async fn list_production_orders(
         responses,
         total,
         query.page.unwrap_or(1),
-        query.page_size.unwrap_or(20),
+        query.page_size.unwrap_or(20).clamp(1, 100),
     )))
 }
 
