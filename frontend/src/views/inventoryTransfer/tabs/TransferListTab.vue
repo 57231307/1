@@ -143,9 +143,13 @@
 
 <script setup lang="ts">
 import { ref, reactive, onMounted, defineEmits } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { ElMessage } from 'element-plus'
 import { Document, Clock, CircleCheck, Money, Plus } from '@element-plus/icons-vue'
 import { listInventoryTransfers, type InventoryTransferEntity } from '@/api/inventoryTransfer'
+
+// 批次 34 v9 P1：接入 i18n，替换硬编码中文 ElMessage
+const { t } = useI18n({ useScope: 'global' })
 
 const emit = defineEmits<{
   openForm: [mode: 'create' | 'edit' | 'view', row: InventoryTransferEntity | null]
@@ -204,7 +208,7 @@ const fetchTransfers = async () => {
     stats.approved = transfers.value.filter(t => t.status === 'approved').length
     stats.totalAmount = transfers.value.reduce((sum, t) => sum + (t.total_amount || 0), 0)
   } catch (error) {
-    ElMessage.error((error as Error).message || '获取调拨单失败')
+    ElMessage.error((error as Error).message || t('message.loadFailed'))
     transfers.value = []
     total.value = 0
   } finally {

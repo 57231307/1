@@ -252,9 +252,19 @@ export default {
   message: {
     saveSuccess: '保存成功',
     saveFailed: '保存失败',
+    createSuccess: '创建成功',
+    createFailed: '创建失败',
+    updateSuccess: '更新成功',
+    updateFailed: '更新失败',
     deleteSuccess: '删除成功',
     deleteConfirm: '确定要删除吗？',
     deleteFailed: '删除失败',
+    operationSuccess: '操作成功',
+    loadFailed: '加载失败',
+    confirmTitle: '确认',
+    deleteConfirmTitle: '删除确认',
+    auditConfirmTitle: '审核确认',
+    rejectConfirmTitle: '确认驳回',
     importSuccess: '导入成功',
     importFailed: '导入失败',
     exportSuccess: '导出成功',
@@ -262,5 +272,53 @@ export default {
     networkError: '网络异常',
     permissionDenied: '权限不足',
     sessionExpired: '会话已过期，请重新登录',
+  },
+
+  /* ============ AI 扩展 ============ */
+  aiExtend: {
+    qualityPrediction: {
+      loadListFailed: '加载列表失败',
+      productIdRequired: '请填写产品 ID',
+      confirmDelete: '确定删除产品 {name} 的质量预测记录？',
+      global: '全局',
+    },
+    process: {
+      invalidId: '无效的工艺优化 ID',
+      loadDetailFailed: '加载详情失败',
+      confirmDelete: '确定删除此工艺优化记录？',
+      createFailed: '创建失败',
+    },
+  },
+
+  /* ============ 预算管理 ============ */
+  budget: {
+    validation: {
+      budgetNoRequired: '请输入预算编号',
+      nameRequired: '请输入预算名称',
+      periodRequired: '请输入期间',
+      totalAmountRequired: '请输入预算总额',
+    },
+    confirmAudit: '确定审核预算 "{name}" 吗？',
+    auditSuccess: '审核成功',
+  },
+
+  /* ============ 库存调拨 ============ */
+  inventoryTransfer: {
+    approvePassed: '审批通过',
+    confirmReject: '确定要驳回此调拨单吗？',
+    rejected: '已驳回',
+  },
+
+  /* ============ 成本管理 ============ */
+  cost: {
+    validation: {
+      collectionDateRequired: '请选择归集日期',
+      directMaterialRequired: '请输入直接材料',
+      directLaborRequired: '请输入直接人工',
+      manufacturingOverheadRequired: '请输入制造费用',
+    },
+    confirmDelete: '确定删除归集单 "{name}" 吗？',
+    confirmAction: '确定{action}该成本归集吗？',
+    actionConfirmTitle: '{action}确认',
   },
 };

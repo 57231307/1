@@ -120,6 +120,7 @@
 
 <script setup lang="ts">
 import { ref, reactive, onMounted } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { ElMessage, ElMessageBox, type FormInstance, type FormRules } from 'element-plus'
 import { Plus, Download } from '@element-plus/icons-vue'
 import {
@@ -131,6 +132,9 @@ import {
   type Budget,
 } from '@/api/budget'
 import { logger } from '@/utils/logger'
+
+// 批次 34 v9 P1：接入 i18n，替换硬编码中文 ElMessage
+const { t } = useI18n({ useScope: 'global' })
 
 const loading = ref(false)
 const submitLoading = ref(false)
@@ -159,10 +163,10 @@ const form = reactive<Partial<Budget>>({
 })
 
 const rules: FormRules = {
-  budget_no: [{ required: true, message: '请输入预算编号', trigger: 'blur' }],
-  name: [{ required: true, message: '请输入预算名称', trigger: 'blur' }],
-  period: [{ required: true, message: '请输入期间', trigger: 'blur' }],
-  total_amount: [{ required: true, message: '请输入预算总额', trigger: 'blur' }],
+  budget_no: [{ required: true, message: t('budget.validation.budgetNoRequired'), trigger: 'blur' }],
+  name: [{ required: true, message: t('budget.validation.nameRequired'), trigger: 'blur' }],
+  period: [{ required: true, message: t('budget.validation.periodRequired'), trigger: 'blur' }],
+  total_amount: [{ required: true, message: t('budget.validation.totalAmountRequired'), trigger: 'blur' }],
 }
 
 const getStatusLabel = (status: Budget['status']) => {
@@ -242,10 +246,10 @@ const handleSubmit = async () => {
     try {
       if (form.id) {
         await updateBudget(form.id, form)
-        ElMessage.success('更新成功')
+        ElMessage.success(t('message.updateSuccess'))
       } else {
         await createBudget(form)
-        ElMessage.success('创建成功')
+        ElMessage.success(t('message.createSuccess'))
       }
       dialogVisible.value = false
       fetchBudgets()
@@ -260,9 +264,9 @@ const handleSubmit = async () => {
 
 const approveBudget = async (row: Budget) => {
   try {
-    await ElMessageBox.confirm(`确定审核预算 "${row.name}" 吗？`, '审核确认', { type: 'info' })
+    await ElMessageBox.confirm(t('budget.confirmAudit', { name: row.name }), t('message.auditConfirmTitle'), { type: 'info' })
     await approveBudgetApi(row.id)
-    ElMessage.success('审核成功')
+    ElMessage.success(t('budget.auditSuccess'))
     fetchBudgets()
   } catch (e) {
     if (e !== 'cancel') {
@@ -274,9 +278,9 @@ const approveBudget = async (row: Budget) => {
 
 const handleDelete = async (row: Budget) => {
   try {
-    await ElMessageBox.confirm(`确定删除预算 "${row.name}" 吗？`, '删除确认', { type: 'warning' })
+    await ElMessageBox.confirm(`确定删除预算 "${row.name}" 吗？`, t('message.deleteConfirmTitle'), { type: 'warning' })
     await deleteBudgetApi(row.id)
-    ElMessage.success('删除成功')
+    ElMessage.success(t('message.deleteSuccess'))
     fetchBudgets()
   } catch (e) {
     if (e !== 'cancel') {
@@ -306,7 +310,7 @@ const handleExport = () => {
   link.href = URL.createObjectURL(blob)
   link.download = `预算列表_${new Date().toISOString().split('T')[0]}.csv`
   link.click()
-  ElMessage.success('导出成功')
+  ElMessage.success(t('message.exportSuccess'))
   logger.info('预算列表已导出')
 }
 

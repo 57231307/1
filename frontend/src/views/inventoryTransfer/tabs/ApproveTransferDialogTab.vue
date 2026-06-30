@@ -42,10 +42,14 @@
 
 <script setup lang="ts">
 import { ref, reactive, watch } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import type { FormInstance } from 'element-plus'
 import { approveInventoryTransfer, type InventoryTransferEntity } from '@/api/inventoryTransfer'
 import { logger } from '@/utils/logger'
+
+// 批次 34 v9 P1：接入 i18n，替换硬编码中文 ElMessage
+const { t } = useI18n({ useScope: 'global' })
 
 interface Props {
   modelValue: boolean
@@ -81,7 +85,7 @@ const handlePass = async () => {
   submitLoading.value = true
   try {
     await approveInventoryTransfer(props.currentRow.id as number)
-    ElMessage.success('审批通过')
+    ElMessage.success(t('inventoryTransfer.approvePassed'))
     emit('update:modelValue', false)
     emit('submitted')
   } catch (error) {
@@ -95,11 +99,11 @@ const handlePass = async () => {
 const handleReject = async () => {
   if (!props.currentRow) return
   try {
-    await ElMessageBox.confirm('确定要驳回此调拨单吗？', '确认驳回', { type: 'warning' })
+    await ElMessageBox.confirm(t('inventoryTransfer.confirmReject'), t('message.rejectConfirmTitle'), { type: 'warning' })
     submitLoading.value = true
     // reject 接口未在 api/inventoryTransfer 中实现，复用 approve 接口
     await approveInventoryTransfer(props.currentRow.id as number)
-    ElMessage.success('已驳回')
+    ElMessage.success(t('inventoryTransfer.rejected'))
     emit('update:modelValue', false)
     emit('submitted')
   } catch (error) {

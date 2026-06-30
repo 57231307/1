@@ -3,6 +3,7 @@
  * P2-4 质量预测列表 + 创建
  */
 import { onMounted, reactive, ref, computed } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import {
   listQualityPredictions,
@@ -17,6 +18,9 @@ import {
   type QualityPredRequest,
 } from '@/api/ai-extend'
 import AIPredictionChart from '@/components/ai/AIPredictionChart.vue'
+
+// 批次 34 v9 P1：接入 i18n，替换硬编码中文 ElMessage
+const { t } = useI18n({ useScope: 'global' })
 
 const loading = ref(false)
 const items = ref<AiQualityPrediction[]>([])
@@ -64,7 +68,7 @@ async function load() {
     items.value = res.items
     total.value = res.total
   } catch (e) {
-    ElMessage.error('加载列表失败')
+    ElMessage.error(t('aiExtend.qualityPrediction.loadListFailed'))
   } finally {
     loading.value = false
   }
@@ -79,7 +83,7 @@ function openCreate() {
 
 async function submitCreate() {
   if (form.product_id === undefined || form.product_id === null) {
-    ElMessage.warning('请填写产品 ID')
+    ElMessage.warning(t('aiExtend.qualityPrediction.productIdRequired'))
     return
   }
   submitting.value = true
@@ -93,7 +97,7 @@ async function submitCreate() {
     await load()
     showDetail(items.value[0])
   } catch (e) {
-    ElMessage.error('创建失败')
+    ElMessage.error(t('message.createFailed'))
   } finally {
     submitting.value = false
   }
@@ -110,13 +114,13 @@ async function handleAck(row: AiQualityPrediction) {
 }
 
 async function handleDelete(row: AiQualityPrediction) {
-  await ElMessageBox.confirm(`确定删除产品 ${row.product_id ?? '全局'} 的质量预测记录？`, '确认', { type: 'warning' })
+  await ElMessageBox.confirm(t('aiExtend.qualityPrediction.confirmDelete', { name: row.product_id ?? t('aiExtend.qualityPrediction.global') }), t('message.confirmTitle'), { type: 'warning' })
   try {
     await deleteQualityPrediction(row.id)
     ElMessage.success('已删除')
     await load()
   } catch (e) {
-    ElMessage.error('删除失败')
+    ElMessage.error(t('message.deleteFailed'))
   }
 }
 
