@@ -177,6 +177,10 @@ export default {
       phone: 'Phone',
       role: 'Role',
       lastLogin: 'Last Login',
+      // Batch 32 v7 P0-2: User management ElMessage i18n keys
+      updateSuccess: 'Updated successfully',
+      createSuccess: 'Created successfully',
+      deleteSuccess: 'Deleted successfully',
     },
     role: {
       title: 'Role Management',

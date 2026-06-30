@@ -177,6 +177,10 @@ export default {
       phone: '手机号',
       role: '角色',
       lastLogin: '最后登录',
+      // 批次 32 v7 P0-2：用户管理 ElMessage 国际化 key
+      updateSuccess: '更新成功',
+      createSuccess: '创建成功',
+      deleteSuccess: '删除成功',
     },
     role: {
       title: '角色管理',

@@ -115,6 +115,7 @@
 
 <script setup lang="ts">
 import { ref, reactive, onMounted } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Plus } from '@element-plus/icons-vue'
 import type { FormInstance, FormRules } from 'element-plus'
@@ -125,6 +126,9 @@ import {
   deleteUser as deleteUserApi,
   type User,
 } from '@/api/user'
+
+// 批次 32 v7 P0-2：接入 i18n，替换硬编码中文 ElMessage
+const { t } = useI18n({ useScope: 'global' })
 
 const users = ref<User[]>([])
 const userTotal = ref(0)
@@ -241,7 +245,7 @@ const submitUser = async () => {
         department_id: userForm.department_id,
         status: userForm.status,
       })
-      ElMessage.success('更新成功')
+      ElMessage.success(t('system.user.updateSuccess'))
     } else {
       await createUser({
         username: userForm.username,
@@ -251,7 +255,7 @@ const submitUser = async () => {
         email: userForm.email,
         department_id: userForm.department_id,
       })
-      ElMessage.success('创建成功')
+      ElMessage.success(t('system.user.createSuccess'))
     }
     userDialogVisible.value = false
     fetchUsers()
@@ -266,7 +270,7 @@ const deleteUser = async (row: User) => {
   try {
     await ElMessageBox.confirm(`确定删除用户 "${row.username}"?`, '删除确认', { type: 'warning' })
     await deleteUserApi(row.id)
-    ElMessage.success('删除成功')
+    ElMessage.success(t('system.user.deleteSuccess'))
     fetchUsers()
   } catch (e: any) {
     if (e !== 'cancel') ElMessage.error(e.message || '删除失败')
