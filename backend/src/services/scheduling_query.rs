@@ -248,11 +248,11 @@ impl SchedulingService {
                             active.planned_start_date = Set(detail.start_date);
                             active.planned_end_date = Set(detail.end_date);
                             active.work_center_id = Set(Some(detail.work_center_id));
-                            // 自动将DRAFT状态更新为SCHEDULED
-                            if let sea_orm::ActiveValue::Set(s) = &active.status {
-                                if s == "DRAFT" {
-                                    active.status = Set("SCHEDULED".to_string());
-                                }
+                            // v12 批次 39 修复：原代码用 `if let ActiveValue::Set(s)` 判断状态，
+                            // 但 order.clone().into() 会将所有字段设为 ActiveValue::Unchanged（非 Set），
+                            // 导致 DRAFT 订单永远不会被升级为 SCHEDULED。改为直接读取 order.status 判断。
+                            if order.status == "DRAFT" {
+                                active.status = Set("SCHEDULED".to_string());
                             }
                             active.updated_at = Set(Utc::now());
                             active.update(&txn).await?;
