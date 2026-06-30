@@ -13,7 +13,18 @@ use axum::{
 };
 use rust_decimal::Decimal;
 use serde::{Deserialize, Serialize};
+use validator::Validate;
 use tracing::info;
+
+/// 批次 31 v7 P1-6 修复：validator range 不支持 Decimal，用 custom 函数验证金额范围
+fn validate_amount_range(amount: &Decimal) -> Result<(), validator::ValidationError> {
+    let zero = Decimal::ZERO;
+    let max = Decimal::new(1_000_000_000, 0); // 10 亿
+    if *amount <= zero || *amount > max {
+        return Err(validator::ValidationError::new("金额必须为正且不超过10亿"));
+    }
+    Ok(())
+}
 
 /// 客户信用查询参数 DTO
 #[derive(Debug, Deserialize)]
@@ -37,16 +48,22 @@ pub struct CreditRatingRequestDto {
 }
 
 /// 信用额度调整请求 DTO
-#[derive(Debug, Deserialize)]
+/// 批次 31 v7 P1-6 修复：添加 Validate + 字段验证
+#[derive(Debug, Deserialize, Validate)]
 pub struct CreditLimitAdjustmentRequestDto {
+    #[validate(length(min = 1, max = 20, message = "调整类型长度必须在1到20字符之间"))]
     pub adjustment_type: String,
+    #[validate(custom(function = "validate_amount_range"))]
     pub amount: Decimal,
+    #[validate(length(min = 1, max = 500, message = "调整原因不能为空且不超过500字符"))]
     pub reason: String,
 }
 
 /// 占用/释放信用额度请求 DTO
-#[derive(Debug, Deserialize)]
+/// 批次 31 v7 P1-6 修复：添加 Validate + 字段验证
+#[derive(Debug, Deserialize, Validate)]
 pub struct CreditAmountRequest {
+    #[validate(custom(function = "validate_amount_range"))]
     pub amount: Decimal,
 }
 

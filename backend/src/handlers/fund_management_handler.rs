@@ -10,7 +10,18 @@ use axum::{
 };
 use rust_decimal::Decimal;
 use serde::Deserialize;
+use validator::Validate;
 use tracing::info;
+
+/// 批次 31 v7 P1-6 修复：validator range 不支持 Decimal，用 custom 函数验证金额范围
+fn validate_amount_range(amount: &rust_decimal::Decimal) -> Result<(), validator::ValidationError> {
+    let zero = rust_decimal::Decimal::ZERO;
+    let max = rust_decimal::Decimal::new(1_000_000_000, 0); // 10 亿
+    if *amount <= zero || *amount > max {
+        return Err(validator::ValidationError::new("金额必须为正且不超过10亿"));
+    }
+    Ok(())
+}
 
 /// 资金账户查询参数 DTO
 #[derive(Debug, Deserialize)]
@@ -34,16 +45,22 @@ pub struct CreateFundAccountRequest {
 }
 
 /// 存款/取款请求 DTO
-#[derive(Debug, Deserialize)]
+/// 批次 31 v7 P1-6 修复：添加 Validate + 字段验证
+#[derive(Debug, Deserialize, Validate)]
 pub struct FundTransactionRequest {
+    #[validate(custom(function = "validate_amount_range"))]
     pub amount: Decimal,
+    #[validate(length(max = 500, message = "备注长度不能超过500字符"))]
     pub remark: Option<String>,
 }
 
 /// 冻结资金请求 DTO
-#[derive(Debug, Deserialize)]
+/// 批次 31 v7 P1-6 修复：添加 Validate + 字段验证
+#[derive(Debug, Deserialize, Validate)]
 pub struct FreezeFundsRequest {
+    #[validate(custom(function = "validate_amount_range"))]
     pub amount: Decimal,
+    #[validate(length(min = 1, max = 500, message = "冻结原因不能为空且不超过500字符"))]
     pub reason: String,
 }
 
