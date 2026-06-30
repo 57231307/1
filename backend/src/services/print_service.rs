@@ -45,7 +45,7 @@ impl PrintService {
             "purchase_order" => self.get_purchase_order_print_data(doc_id).await,
             "purchase_receipt" => self.get_purchase_receipt_print_data(doc_id).await,
             "inventory_transfer" => self.get_inventory_transfer_print_data(doc_id).await,
-            "inventory_count" => self.get_inventory_count_print_data(doc_id).await,
+            // v10 P1-3 修复：删除 inventory_count 分支（inventory_count_service 已在 v9 P1-F 删除）
             "voucher" => self.get_voucher_print_data(doc_id).await,
             _ => Err(AppError::not_found(format!(
                 "Unknown document type: {}",
@@ -125,19 +125,7 @@ impl PrintService {
         })
     }
 
-    async fn get_inventory_count_print_data(&self, id: i32) -> Result<PrintData, AppError> {
-        let mut data = HashMap::new();
-        data.insert(
-            "count_no".to_string(),
-            serde_json::json!(format!("CT-{:06}", id)),
-        );
-
-        Ok(PrintData {
-            template: "inventory_count".to_string(),
-            data,
-            items: Vec::new(),
-        })
-    }
+    // v10 P1-3 修复：删除 get_inventory_count_print_data 死代码（inventory_count_service 已在 v9 P1-F 删除）
 
     async fn get_voucher_print_data(&self, id: i32) -> Result<PrintData, AppError> {
         let mut data = HashMap::new();

@@ -204,6 +204,10 @@ impl ApVerificationService {
 
         // 1. 验证所有应付单和付款单
         let mut total_amount = Decimal::ZERO;
+        // v10 P1-4 修复：保存第一次循环已查询（带行锁）的 invoice，供第二次循环复用，
+        // 避免循环内重复 find_by_id（N+1 查询）。行锁在事务内持续到 commit，复用安全。
+        let mut invoice_map: std::collections::HashMap<i32, ap_invoice::Model> =
+            std::collections::HashMap::new();
 
         for item in &req.items {
             // 验证应付单
@@ -237,6 +241,9 @@ impl ApVerificationService {
             }
 
             total_amount += item.verify_amount;
+
+            // v10 P1-4 修复：保存到 map 供第二次循环复用（若 invoice_id 重复，后一次覆盖前一次，验证均已通过）
+            invoice_map.insert(item.invoice_id, invoice);
         }
 
         // 2. 创建核销单
@@ -271,10 +278,15 @@ impl ApVerificationService {
             .await?;
 
             // 更新应付单
-            let mut invoice = ap_invoice::Entity::find_by_id(item.invoice_id)
-                .one(&txn)
-                .await?
-                .ok_or_else(|| AppError::not_found(format!("应付单 {}", item.invoice_id)))?;
+            // v10 P1-4 修复：优先复用第一次循环已查询（带行锁）的 invoice，避免重复 find_by_id
+            // 若 invoice_id 重复（map 已 remove），回退到 find_by_id 查最新值（与原逻辑一致，保留累加正确性）
+            let mut invoice = match invoice_map.remove(&item.invoice_id) {
+                Some(inv) => inv,
+                None => ap_invoice::Entity::find_by_id(item.invoice_id)
+                    .one(&txn)
+                    .await?
+                    .ok_or_else(|| AppError::not_found(format!("应付单 {}", item.invoice_id)))?,
+            };
 
             invoice.paid_amount += item.verify_amount;
             invoice.unpaid_amount = invoice.amount - invoice.paid_amount;
