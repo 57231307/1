@@ -2,7 +2,7 @@
 //!
 //! 采购退货服务层，负责采购退货的核心业务逻辑
 
-use crate::models::{product, purchase_return, purchase_return_item};
+use crate::models::{inventory_stock, product, purchase_return, purchase_return_item};
 use crate::utils::error::AppError;
 use chrono::Utc;
 use rust_decimal::Decimal;
@@ -219,6 +219,28 @@ impl PurchaseReturnService {
             .all(&txn)
             .await?;
 
+        // v14 批次 41 修复：批量查询所有退货明细对应的库存记录（同一 warehouse_id），
+        // 避免循环内逐个调用 find_by_product_and_warehouse_txn（N+1 查询）。
+        // 若 return_order.warehouse_id 为 None，stock_map 为空，循环内逐项 continue（保留原行为）。
+        let stock_map: std::collections::HashMap<i32, inventory_stock::Model> =
+            match return_order.warehouse_id {
+                Some(warehouse_id) => {
+                    let product_ids: Vec<i32> =
+                        items.iter().map(|item| item.product_id).collect();
+                    if product_ids.is_empty() {
+                        std::collections::HashMap::new()
+                    } else {
+                        let stocks = inventory_stock::Entity::find()
+                            .filter(inventory_stock::Column::WarehouseId.eq(warehouse_id))
+                            .filter(inventory_stock::Column::ProductId.is_in(product_ids))
+                            .all(&txn)
+                            .await?;
+                        stocks.into_iter().map(|s| (s.product_id, s)).collect()
+                    }
+                }
+                None => std::collections::HashMap::new(),
+            };
+
         for item in items {
             // return_order.warehouse_id 在采购退货单创建时应必填；缺失时跳过该项
             let Some(warehouse_id) = return_order.warehouse_id else {
@@ -229,11 +251,7 @@ impl PurchaseReturnService {
                 );
                 continue;
             };
-            let existing_stock = crate::services::inventory_stock_service::InventoryStockService::find_by_product_and_warehouse_txn(
-                &txn, item.product_id, warehouse_id,
-            )
-            .await
-            ?;
+            let existing_stock = stock_map.get(&item.product_id).cloned();
 
             if let Some(s) = existing_stock {
                 if s.quantity_meters < item.quantity {

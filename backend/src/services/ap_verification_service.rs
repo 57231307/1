@@ -66,25 +66,20 @@ impl ApVerificationService {
             .all(&txn)
             .await?;
 
-        // v13 批次 40 修复：原代码第 91-97 行循环内逐个查询已核销金额（N+1 查询），
-        // 复用第 64-67 行已批量查询的 existing_verification_payments 构建 amount map，
-        // 循环内直接 map.get 替代重新查询。保留 available_payments 过滤策略
-        // （排除任何有核销记录的付款），行为与原代码一致。
-        let verified_amount_map: std::collections::HashMap<i32, Decimal> =
-            existing_verification_payments
-                .iter()
-                .fold(
-                    std::collections::HashMap::new(),
-                    |mut acc, item| {
-                        *acc.entry(item.payment_id).or_insert(Decimal::ZERO) +=
-                            item.verify_amount;
-                        acc
-                    },
-                );
+        // v13 批次 40 修复 + v14 批次 41 清理：
+        // 原代码第 91-97 行循环内逐个查询已核销金额（N+1 查询）。
+        // 批量查询已得到 existing_verification_payments，按 payment_id 分组取
+        // 已核销付款 id 集合（verified_payment_ids），过滤掉任何有核销记录的付款。
+        // 由于 available_payments 已过滤掉所有有核销记录的付款，循环内
+        // verified_amount 必为 0，无需再查/再减，remaining 直接等于 payment_amount。
+        let verified_payment_ids: std::collections::HashSet<i32> = existing_verification_payments
+            .iter()
+            .map(|item| item.payment_id)
+            .collect();
 
         let available_payments: Vec<ap_payment::Model> = payments
             .into_iter()
-            .filter(|p| !verified_amount_map.contains_key(&p.id))
+            .filter(|p| !verified_payment_ids.contains(&p.id))
             .collect();
 
         // 4. 逐个匹配核销
@@ -96,15 +91,9 @@ impl ApVerificationService {
             .collect();
 
         for payment in available_payments.iter() {
+            // available_payments 已过滤掉所有有核销记录的付款，
+            // remaining 直接等于 payment_amount（无需减 verified_amount）
             let mut remaining = payment.payment_amount;
-
-            // 复用上方批量查询结果，避免循环内 N+1 查询
-            let verified_amount = verified_amount_map
-                .get(&payment.id)
-                .copied()
-                .unwrap_or(Decimal::ZERO);
-
-            remaining -= verified_amount;
 
             if remaining <= Decimal::ZERO {
                 continue;

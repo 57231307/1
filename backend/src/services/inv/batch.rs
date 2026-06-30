@@ -248,11 +248,24 @@ impl InventoryTransferService {
         let product_ids: Vec<i32> = items.iter().map(|item| item.product_id).collect();
         let stocks = InventoryStockEntity::find()
             .filter(inventory_stock::Column::WarehouseId.eq(transfer.to_warehouse_id))
-            .filter(inventory_stock::Column::ProductId.is_in(product_ids))
+            .filter(inventory_stock::Column::ProductId.is_in(product_ids.clone()))
             .all(&txn)
             .await?;
         let stock_map: std::collections::HashMap<i32, inventory_stock::Model> =
             stocks.into_iter().map(|s| (s.product_id, s)).collect();
+
+        // v14 批次 41 修复：批量获取源仓库库存记录，避免循环内逐个查询（N+1）
+        let source_stocks = if product_ids.is_empty() {
+            Vec::new()
+        } else {
+            InventoryStockEntity::find()
+                .filter(inventory_stock::Column::WarehouseId.eq(transfer.from_warehouse_id))
+                .filter(inventory_stock::Column::ProductId.is_in(product_ids))
+                .all(&txn)
+                .await?
+        };
+        let source_stock_map: std::collections::HashMap<i32, inventory_stock::Model> =
+            source_stocks.into_iter().map(|s| (s.product_id, s)).collect();
 
         // 增加目标仓库库存
         for item in items {
@@ -275,11 +288,8 @@ impl InventoryTransferService {
                 // 增加库存（带乐观锁）
                 let new_quantity_meters = quantity_meters + item.quantity;
                 // Calculate kg increase proportionally based on source stock
-                let source_stock = InventoryStockEntity::find()
-                    .filter(inventory_stock::Column::WarehouseId.eq(transfer.from_warehouse_id))
-                    .filter(inventory_stock::Column::ProductId.eq(item.product_id))
-                    .one(&txn)
-                    .await?;
+                // v14 批次 41 修复：从批量查询结果复用，避免循环内逐个查询（N+1）
+                let source_stock = source_stock_map.get(&item.product_id).cloned();
                 let source_kg_per_meter = if let Some(ref src) = source_stock {
                     if src.quantity_meters > rust_decimal::Decimal::ZERO {
                         src.quantity_kg / src.quantity_meters
