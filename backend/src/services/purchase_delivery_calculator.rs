@@ -5,8 +5,8 @@
 use chrono::{Datelike, NaiveDate};
 use rust_decimal::Decimal;
 use sea_orm::{
-    ColumnTrait, ConnectionTrait, DatabaseConnection, EntityTrait, FromQueryResult, PaginatorTrait,
-    QueryFilter, Statement,
+    ColumnTrait, ConnectionTrait, DatabaseConnection, EntityTrait, FromQueryResult, QueryFilter,
+    Statement,
 };
 use std::sync::Arc;
 
@@ -139,14 +139,26 @@ impl PurchaseDeliveryCalculator {
 
         let mut total_days = 0;
 
-        for item in items {
-            // 查询产品的BOM复杂度
-            // BOM 数量查询失败时默认为 0
-            let bom_count = BomEntity::find()
-                .filter(BomColumn::ProductId.eq(item.product_id))
-                .count(&*self.db)
+        // v15 批次 42 修复：批量查询所有产品的 BOM 数量，避免循环内逐个 count（N+1 查询）
+        let product_ids: Vec<i32> = items.iter().map(|i| i.product_id).collect();
+        let bom_counts: std::collections::HashMap<i32, usize> = if product_ids.is_empty() {
+            std::collections::HashMap::new()
+        } else {
+            BomEntity::find()
+                .filter(BomColumn::ProductId.is_in(product_ids))
+                .all(&*self.db)
                 .await
-                .unwrap_or_default();
+                .unwrap_or_default()
+                .into_iter()
+                .fold(std::collections::HashMap::new(), |mut acc, bom| {
+                    *acc.entry(bom.product_id).or_insert(0) += 1;
+                    acc
+                })
+        };
+
+        for item in items {
+            // 从批量查询结果获取 BOM 数量（缺失时默认 0，与原 unwrap_or_default 语义一致）
+            let bom_count = bom_counts.get(&item.product_id).copied().unwrap_or(0);
 
             // 基础生产天数
             let base_days = if bom_count > 0 {

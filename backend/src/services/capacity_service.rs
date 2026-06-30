@@ -175,24 +175,41 @@ impl CapacityService {
             .all(&*self.db)
             .await?;
 
-        let mut results = Vec::new();
-
-        for wc in work_centers {
-            let daily_capacity = wc.daily_capacity.unwrap_or(Decimal::ZERO);
-
-            // 查询该工作中心下处于排产/生产中的订单需求
+        // v15 批次 42 修复：批量查询所有工作中心的订单，避免循环内逐个查询（N+1）
+        let wc_ids: Vec<i32> = work_centers.iter().map(|wc| wc.id).collect();
+        let all_orders = if wc_ids.is_empty() {
+            Vec::new()
+        } else {
             let mut order_query = ProductionOrderEntity::find()
-                .filter(ProductionOrderColumn::WorkCenterId.eq(wc.id))
+                .filter(ProductionOrderColumn::WorkCenterId.is_in(wc_ids))
                 .filter(ProductionOrderColumn::Status.is_in(vec!["SCHEDULED", "IN_PROGRESS"]));
-
             if let Some(from) = query.date_from {
                 order_query = order_query.filter(ProductionOrderColumn::PlannedEndDate.gte(from));
             }
             if let Some(to) = query.date_to {
                 order_query = order_query.filter(ProductionOrderColumn::PlannedStartDate.lte(to));
             }
+            order_query.all(&*self.db).await?
+        };
+        let orders_by_wc: std::collections::HashMap<i32, Vec<crate::models::production_order::Model>> =
+            all_orders.into_iter().fold(
+                std::collections::HashMap::new(),
+                |mut acc, o| {
+                    // work_center_id 为 Option<i32>，None 时丢弃（与原 WorkCenterId.eq(wc.id) 语义一致）
+                    if let Some(wc_id) = o.work_center_id {
+                        acc.entry(wc_id).or_default().push(o);
+                    }
+                    acc
+                },
+            );
 
-            let orders = order_query.all(&*self.db).await?;
+        let mut results = Vec::new();
+
+        for wc in work_centers {
+            let daily_capacity = wc.daily_capacity.unwrap_or(Decimal::ZERO);
+
+            // 从批量查询结果获取该工作中心的订单
+            let orders = orders_by_wc.get(&wc.id).cloned().unwrap_or_default();
 
             let mut planned_quantity = Decimal::ZERO;
             let mut in_progress_quantity = Decimal::ZERO;
