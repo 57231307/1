@@ -195,7 +195,10 @@ impl CapacityService {
             all_orders.into_iter().fold(
                 std::collections::HashMap::new(),
                 |mut acc, o| {
-                    acc.entry(o.work_center_id).or_default().push(o);
+                    // work_center_id 为 Option<i32>，None 时丢弃（与原 WorkCenterId.eq(wc.id) 语义一致）
+                    if let Some(wc_id) = o.work_center_id {
+                        acc.entry(wc_id).or_default().push(o);
+                    }
                     acc
                 },
             );
