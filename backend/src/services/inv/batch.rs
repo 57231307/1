@@ -385,11 +385,8 @@ impl InventoryTransferService {
             } else {
                 // 如果目标仓库没有库存记录，创建新记录
                 // 需要从源仓库的库存记录中获取面料行业字段
-                let source_stock = InventoryStockEntity::find()
-                    .filter(inventory_stock::Column::WarehouseId.eq(transfer.from_warehouse_id))
-                    .filter(inventory_stock::Column::ProductId.eq(item.product_id))
-                    .one(&txn)
-                    .await?;
+                // v15 批次 42 修复：复用循环外批量查询的 source_stock_map，避免循环内逐个查询（N+1）
+                let source_stock = source_stock_map.get(&item.product_id).cloned();
 
                 let batch_no = source_stock
                     .as_ref()

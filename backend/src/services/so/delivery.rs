@@ -311,20 +311,31 @@ impl SalesService {
         user_id: i32,
         txn: &sea_orm::DatabaseTransaction,
     ) -> Result<(), AppError> {
-        for item in items {
-            let existing_reservation = inventory_reservation::Entity::find()
+        // v15 批次 42 修复：循环外批量查询该订单所有已存在的 pending 预留记录，
+        // 避免循环内逐个查询（N+1）
+        let product_ids: Vec<i32> = items.iter().map(|i| i.product_id).collect();
+        let existing_reservation_ids: std::collections::HashSet<i32> = if product_ids.is_empty() {
+            std::collections::HashSet::new()
+        } else {
+            inventory_reservation::Entity::find()
                 .filter(inventory_reservation::Column::OrderId.eq(order_id))
-                .filter(inventory_reservation::Column::ProductId.eq(item.product_id))
+                .filter(inventory_reservation::Column::ProductId.is_in(product_ids))
                 .filter(inventory_reservation::Column::Status.eq("pending"))
-                .one(txn)
-                .await?;
+                .all(txn)
+                .await?
+                .into_iter()
+                .map(|r| r.product_id)
+                .collect()
+        };
 
-            if existing_reservation.is_some() {
+        for item in items {
+            if existing_reservation_ids.contains(&item.product_id) {
                 tracing::info!("产品 {} 已存在预留记录，跳过创建", item.product_id);
                 continue;
             }
 
             // 批次 9（2026-06-28）：加 FOR UPDATE 行锁，防止并发锁定导致超扣
+            // 行锁必须按行获取，保留循环内逐个查询
             let stock = inventory_stock::Entity::find()
                 .filter(inventory_stock::Column::ProductId.eq(item.product_id))
                 .lock_exclusive()
