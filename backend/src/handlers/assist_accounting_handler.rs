@@ -117,7 +117,8 @@ pub async fn query_assist_records(
     let service = AssistAccountingService::new(state.db.clone());
 
     let page = params.page.unwrap_or_default();
-    let page_size = params.page_size.unwrap_or(20);
+    // v11 批次 36 修复：page_size clamp 防止 DoS
+    let page_size = params.page_size.unwrap_or(20).clamp(1, 100);
 
     let (records, total) = service
         .query_assist_records(
