@@ -89,7 +89,8 @@ pub async fn list_vouchers(
         batch_no: params.batch_no,
         color_no: params.color_no,
         page: params.page,
-        page_size: params.page_size,
+        // v10 P1-1 修复：page_size clamp(1,100) 防 DoS
+        page_size: params.page_size.map(|ps| ps.clamp(1, 100)),
     };
 
     let (vouchers, total) = service

@@ -92,7 +92,7 @@ impl AssignmentHistoryService {
         query: AssignmentHistoryQuery,
     ) -> Result<(Vec<AssignmentHistoryModel>, u64), AppError> {
         let page = query.page.unwrap_or(1);
-        let page_size = query.page_size.unwrap_or(20);
+        let page_size = query.page_size.unwrap_or(20).clamp(1, 100); // v10 P1-1 修复：page_size clamp(1,100) 防 DoS
 
         let mut select = AssignmentHistoryEntity::find();
 

@@ -11,7 +11,7 @@ global:
   smtp_smarthost: 'smtp.example.com:587'
   smtp_from: 'alert@bingxi.com'
   smtp_auth_username: 'alert@bingxi.com'
-  smtp_auth_password: 'your_password'
+  smtp_auth_password: '${SMTP_AUTH_PASSWORD}'  # v10 P1-5 修复：改为环境变量引用，禁止硬编码密码
   smtp_require_tls: true
 
 # 告警模板

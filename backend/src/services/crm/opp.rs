@@ -77,7 +77,7 @@ impl CrmService {
         query: crate::models::dto::crm_dto::OpportunityQuery,
     ) -> Result<serde_json::Value, AppError> {
         let page = query.page.unwrap_or(1).max(1);
-        let page_size = query.page_size.unwrap_or(20).max(1);
+        let page_size = query.page_size.unwrap_or(20).clamp(1, 100); // v10 P2-3 修复：crm 模块统一 clamp(1,100) 防 DoS
 
         let mut q = crm_opportunity::Entity::find();
 

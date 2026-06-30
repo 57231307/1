@@ -56,7 +56,8 @@ pub async fn get_five_dimension_stats(
         grade: params.grade,
         warehouse_id: params.warehouse_id,
         page: params.page,
-        page_size: params.page_size,
+        // v10 P1-1 修复：page_size clamp(1,100) 防 DoS
+        page_size: params.page_size.map(|ps| ps.clamp(1, 100)),
     };
 
     let stats = service.get_stats(query).await?;
@@ -95,7 +96,8 @@ pub async fn search_five_dimension(
         keyword: params.keyword,
         search_type: params.search_type,
         page: params.page,
-        page_size: params.page_size,
+        // v10 P1-1 修复：page_size clamp(1,100) 防 DoS
+        page_size: params.page_size.map(|ps| ps.clamp(1, 100)),
     };
 
     let (items, total) = service.search(search_params).await?;
@@ -122,7 +124,8 @@ pub async fn list_five_dimension_stats(
         grade: params.grade,
         warehouse_id: params.warehouse_id,
         page: params.page,
-        page_size: params.page_size,
+        // v10 P1-1 修复：page_size clamp(1,100) 防 DoS
+        page_size: params.page_size.map(|ps| ps.clamp(1, 100)),
     };
 
     let stats = service.get_stats(query).await?;
