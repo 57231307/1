@@ -174,7 +174,7 @@
    --> src/services/p9_5_inventory_extra_tests.rs:247:23
    --> src/services/p9_5_sales_extra_tests.rs:170:25
    --> src/services/p9_5_sales_extra_tests.rs:256:13
-   --> src/services/po/receipt.rs:484:18
+   --> src/services/po/receipt.rs:472:18
    --> src/services/product_category_service.rs:168:18
    --> src/services/purchase_receipt_dto.rs:122:9
    --> src/services/purchase_receipt_service.rs:548:18
@@ -585,7 +585,6 @@
   --> src/utils/unwrap_safe.rs:65:8
   --> src/utils/unwrap_safe.rs:76:8
   --> src/websocket/mod.rs:18:25
-   = note: requested on the command line with `-W unused-imports`
   = note: requested on the command line with `-W dead-code`
   = note: requested on the command line with `-W unused-imports`
   |
@@ -1134,7 +1133,7 @@
 47 |     pub supplier_id: Option<i32>,
 47 |     struct CustomerCredit {
 470 |     pub async fn export_excel_bytes(
-484 |     pub async fn calculate_order_total(&self, order_id: i32) -> Result<(), AppError> {
+472 |     pub async fn calculate_order_total(&self, order_id: i32) -> Result<(), AppError> {
 48 |         pub customer_id: i64,
 48 |     pub change_reason: String,
 48 |     pub fn with_cache(db: Arc<DatabaseConnection>, cache: Arc<CacheService>) -> Self {

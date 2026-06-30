@@ -449,13 +449,17 @@ jobs:
             BASELINE_COUNT=$(wc -l < .clippy-baseline.txt)
             echo "基线警告数: $BASELINE_COUNT"
 
-            # 找出新警告（不在基线中）
-            comm -23 reports/clippy-current.txt .clippy-baseline.txt > reports/clippy-new.txt
+            # v9 修复：只比较警告摘要行（warning:/error: 开头），忽略代码片段行
+            # 代码片段含行号与代码内容，任何行号偏移都会导致虚假"新警告"。
+            # 摘要行（如 "warning: method `foo` is never used"）与位置无关，比较更稳健。
+            grep -E '^(warning|error):' reports/clippy-current.txt | sort -u > reports/clippy-current-summary.txt
+            grep -E '^(warning|error):' .clippy-baseline.txt | sort -u > reports/clippy-baseline-summary.txt
+            comm -23 reports/clippy-current-summary.txt reports/clippy-baseline-summary.txt > reports/clippy-new.txt
             NEW_COUNT=$(wc -l < reports/clippy-new.txt)
             echo "新增警告数: $NEW_COUNT"
 
             # 找出已修复警告（基线有但当前没有）
-            comm -13 reports/clippy-current.txt .clippy-baseline.txt > reports/clippy-fixed.txt
+            comm -13 reports/clippy-current-summary.txt reports/clippy-baseline-summary.txt > reports/clippy-fixed.txt
             FIXED_COUNT=$(wc -l < reports/clippy-fixed.txt)
             echo "已修复警告数: $FIXED_COUNT"
           fi
