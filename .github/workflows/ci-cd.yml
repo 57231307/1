@@ -405,8 +405,10 @@ jobs:
           set +e
 
           # 1. 跑 clippy 并收集所有警告
-          # v8 P1-1 修复：添加 -- -D warnings，警告即错误，对齐项目规范
-          cargo clippy --all-targets --message-format=json -- -D warnings 2>reports/clippy-stderr.txt \
+          # v8 P1-1 修复：移除 continue-on-error，让 baseline 机制判定新警告时阻塞 CI。
+          # 注意：不加 -- -D warnings（历史基线警告会直接让 clippy 退出非零码，
+          # 导致 JSON 输出不完整）。baseline 机制已通过 NEW_COUNT > 0 判定来阻塞新警告。
+          cargo clippy --all-targets --message-format=json 2>reports/clippy-stderr.txt \
             | tee reports/clippy-output.json > /dev/null
           # 合并 stderr 中可能的警告
           cat reports/clippy-stderr.txt >> reports/clippy-output.json 2>/dev/null || true
