@@ -52,11 +52,12 @@ pub async fn scan_to_ship_get(
         Some(b) => b,
         None => {
             // 返回空列表或扫码历史记录
+            // v13 批次 40 修复：page_size clamp(1,100) 统一规范，防止前端误用超大值
             return Ok(Json(ApiResponse::success(serde_json::json!({
                 "items": [],
                 "total": 0,
                 "page": query.page.unwrap_or(1),
-                "page_size": query.page_size.unwrap_or(20)
+                "page_size": query.page_size.unwrap_or(20).clamp(1, 100)
             }))));
         }
     };
