@@ -16,7 +16,7 @@
         </div>
       </template>
       <p class="description">
-        监控冰溪 ERP 核心功能（数据库 / 缓存）的主备状态，自动切换与回切由
+        监控秉羲 ERP 核心功能（数据库 / 缓存）的主备状态，自动切换与回切由
         <code>FailoverCall</code> trait + 熔断器保障。
       </p>
     </el-card>

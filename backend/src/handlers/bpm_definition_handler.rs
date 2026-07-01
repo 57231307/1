@@ -1,3 +1,8 @@
+// P0 1-1 修复（批次 53）：BPM 流程定义/模板路由已从生产路由 system.rs 移除，
+// 原因是对应服务方法在 bpm_service_stub.rs 中返回 "Not implemented"，
+// 不应作为生产端点暴露。保留文件与函数供后续真实业务实现接入。
+// 各函数标注 #[allow(dead_code)] 以通过 CI clippy -D warnings 检查。
+
 use crate::models::dto::bpm_dto::{
     CreateBpmTemplateRequest, CreateProcessDefinitionRequest, CreateVersionRequest,
     ProcessDefinitionQuery, TemplateQuery, UpdateProcessDefinitionRequest,
@@ -12,6 +17,7 @@ use axum::{
 };
 
 /// 创建流程定义
+#[allow(dead_code)] // TODO(tech-debt): BPM 流程定义真实实现接入后移除
 pub async fn create_process_definition(
     State(state): State<AppState>,
     Json(req): Json<CreateProcessDefinitionRequest>,
@@ -22,6 +28,7 @@ pub async fn create_process_definition(
 }
 
 /// 获取流程定义列表
+#[allow(dead_code)] // TODO(tech-debt): BPM 流程定义真实实现接入后移除
 pub async fn list_process_definitions(
     State(state): State<AppState>,
     Query(query): Query<ProcessDefinitionQuery>,
@@ -32,6 +39,7 @@ pub async fn list_process_definitions(
 }
 
 /// 获取单个流程定义
+#[allow(dead_code)] // TODO(tech-debt): BPM 流程定义真实实现接入后移除
 pub async fn get_process_definition(
     State(state): State<AppState>,
     Path(id): Path<i32>,
@@ -42,6 +50,7 @@ pub async fn get_process_definition(
 }
 
 /// 更新流程定义
+#[allow(dead_code)] // TODO(tech-debt): BPM 流程定义真实实现接入后移除
 pub async fn update_process_definition(
     State(state): State<AppState>,
     Path(id): Path<i32>,
@@ -53,6 +62,7 @@ pub async fn update_process_definition(
 }
 
 /// 删除流程定义
+#[allow(dead_code)] // TODO(tech-debt): BPM 流程定义真实实现接入后移除
 pub async fn delete_process_definition(
     State(state): State<AppState>,
     Path(id): Path<i32>,
@@ -63,6 +73,7 @@ pub async fn delete_process_definition(
 }
 
 /// 创建新版本
+#[allow(dead_code)] // TODO(tech-debt): BPM 流程定义真实实现接入后移除
 pub async fn create_version(
     State(state): State<AppState>,
     Path(_id): Path<i32>,
@@ -74,6 +85,7 @@ pub async fn create_version(
 }
 
 /// 获取版本列表
+#[allow(dead_code)] // TODO(tech-debt): BPM 流程定义真实实现接入后移除
 pub async fn list_versions(
     State(state): State<AppState>,
     Path(id): Path<i32>,
@@ -84,6 +96,7 @@ pub async fn list_versions(
 }
 
 /// 激活指定版本
+#[allow(dead_code)] // TODO(tech-debt): BPM 流程定义真实实现接入后移除
 pub async fn activate_version(
     State(state): State<AppState>,
     Path((id, _version)): Path<(i32, String)>,
@@ -95,6 +108,7 @@ pub async fn activate_version(
 
 /// 通过版本 ID 激活版本（简化路径别名）
 /// 前端调用：`POST /bpm/versions/:version/activate`
+#[allow(dead_code)] // TODO(tech-debt): BPM 流程定义真实实现接入后移除
 pub async fn activate_version_by_id(
     State(state): State<AppState>,
     Path(version): Path<i32>,
@@ -105,6 +119,7 @@ pub async fn activate_version_by_id(
 }
 
 /// 保存为模板
+#[allow(dead_code)] // TODO(tech-debt): BPM 流程定义真实实现接入后移除
 pub async fn save_as_template(
     State(state): State<AppState>,
     Path(id): Path<i32>,
@@ -118,6 +133,7 @@ pub async fn save_as_template(
 }
 
 /// 获取模板列表
+#[allow(dead_code)] // TODO(tech-debt): BPM 流程定义真实实现接入后移除
 pub async fn list_templates(
     State(state): State<AppState>,
     Query(query): Query<TemplateQuery>,
@@ -128,6 +144,7 @@ pub async fn list_templates(
 }
 
 /// 从模板创建流程定义
+#[allow(dead_code)] // TODO(tech-debt): BPM 流程定义真实实现接入后移除
 pub async fn create_from_template(
     State(state): State<AppState>,
     Path(template_id): Path<i32>,

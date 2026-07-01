@@ -1,4 +1,4 @@
-/* 中文（简体）翻译 - 冰溪 ERP */
+/* 中文（简体）翻译 - 秉羲 ERP */
 /* 命名空间：{module}.{section}.{key} */
 export default {
   /* ============ 通用 ============ */
@@ -47,8 +47,8 @@ export default {
 
   /* ============ 登录 ============ */
   login: {
-    title: '冰溪 ERP',
-    subtitle: '面料行业管理系统',
+    title: '秉羲 ERP',
+    subtitle: '秉羲 ERP 系统',
     username: '用户名',
     password: '密码',
     captcha: '验证码',

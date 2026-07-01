@@ -870,7 +870,7 @@ export function hasRoutePermission(
 router.beforeEach(async (to, _from, next) => {
   const title = to.meta.title as string
   if (title) {
-    document.title = `${title} - 面料管理系统`
+    document.title = `${title} - 秉羲 ERP`
   }
 
   if (to.path === '/setup') {

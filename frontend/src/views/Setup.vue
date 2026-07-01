@@ -2,7 +2,7 @@
   <div class="setup-container">
     <div class="setup-card">
       <div class="setup-header">
-        <h1>面料管理系统</h1>
+        <h1>秉羲 ERP</h1>
         <p class="subtitle">系统初始化向导</p>
       </div>
 

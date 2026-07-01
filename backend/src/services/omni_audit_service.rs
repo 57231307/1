@@ -99,7 +99,8 @@ impl OmniAuditEngine {
                     // 使用 HMAC-SHA256 对关键字段进行签名
                     // 批次 7（2026-06-28）：hmac_sha256_hex 已改为返回 Result，
                     // 签名失败时降级为空字符串，不阻断审计日志写入
-                    let _signature = match crate::utils::hash::hmac_sha256_hex(
+                    // P0 8-2 修复（批次 53）：签名持久化至 signature 列，实现防篡改
+                    let signature = match crate::utils::hash::hmac_sha256_hex(
                         secret_key_clone.as_bytes(),
                         sign_material.as_bytes(),
                     ) {
@@ -156,6 +157,8 @@ impl OmniAuditEngine {
                             // 已改为 DateTime::fixed_offset()，消除 panic 风险
                             Utc::now().fixed_offset(),
                         )),
+                        // P0 8-2 修复（批次 53）：持久化 HMAC-SHA256 签名，实现审计日志防篡改
+                        signature: ActiveValue::Set(Some(signature)),
                     };
 
                     // 使用 exec_without_returning 避免 last_insert_id 解析问题

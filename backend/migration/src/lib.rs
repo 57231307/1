@@ -31,6 +31,8 @@ pub mod m0028_create_slow_query_log;
 pub mod m0029_drop_tenant_columns;
 // 批次 23 v5 P0-4：CRM 公海回收规则持久化迁移
 pub mod m0030_create_crm_recycle_rules;
+// P0 8-2（批次 53）：omni_audit_logs 添加 HMAC-SHA256 防篡改签名列
+pub mod m0031_add_signature_to_omni_audit_logs;
 
 pub struct Migrator;
 
@@ -68,6 +70,7 @@ impl MigratorTrait for Migrator {
             Box::new(m0028_create_slow_query_log::Migration),
             Box::new(m0029_drop_tenant_columns::Migration),
             Box::new(m0030_create_crm_recycle_rules::Migration),
+            Box::new(m0031_add_signature_to_omni_audit_logs::Migration),
         ]
     }
 }

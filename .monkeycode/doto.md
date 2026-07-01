@@ -3,6 +3,33 @@
 > 本文件记录**当前任务**与**历史任务索引**。
 > 详细历史请查阅 [`.monkeycode/docs/archives/`](file:///workspace/.monkeycode/docs/archives/)。
 
+### 2026-07-01 批次 52 完成：数据链路 + 接口交互 P0 修复 11 项（✅ 已合并 main，CI 12/13 关键检查全绿，E2E continue-on-error）
+
+**修复分支**：`fix/v19-audit-batch52`（已合并删除）
+**合并 commit**：`faeb88f`（PR #295 squash merge）
+**main HEAD**：`faeb88f`
+**修复范围**：数据链路 P0（5-1/5-2/5-3/5-4/5-5）+ 接口交互 P0（2-1/2-2/2-3/2-4/2-5/2-6）
+
+**修复清单**：
+- P0 5-1：ap_payment_service.rs confirm commit 后补发 PaymentCompleted 事件
+- P0 5-2：inventory_stock_txn.rs record_transaction_txn 事件发布移到 commit 后（4 调用方）
+- P0 5-3：bpm_service.rs 3 处 BpmProcessFinished publish 移到 commit 后
+- P0 5-4：inventory_finance_bridge_service.rs 7 处除法除零守卫
+- P0 5-5：purchase_receipt_service.rs auto_generate 失败日志升级补偿提示
+- P0 2-1：barcode_scanner_handler.rs 分页 off-by-one 修复
+- P0 2-2：inventory_stock 系列 2 处 off-by-one 修复（handler + service 4 文件）
+- P0 2-3：3 处 _total 丢弃改用 PaginatedResponse 包装
+- P0 2-4：success_paginated 返回类型改为 ApiResponse<PaginatedResponse<T>>，9 处调用方对齐
+- P0 2-5：前端 ap.ts 类型对齐 PaginatedResponse<APInvoice>
+- P0 2-6：quotation_handler + color_price_handler 2 处全表加载改分页
+- 编译修复：color_price_handler.rs 补充 QueryFilter trait 导入
+
+**CI 结果**：Rust 构建/Clippy/单元测试/格式 全部 success；前端构建/测试/lint/类型检查 全部 success；E2E continue-on-error 不阻塞
+
+**当前状态**：批次 52 已合并 main，进入批次 53（侧边栏 + 代码质量 P0 + 8-2 签名持久化）
+
+---
+
 ### 2026-07-01 批次 51 完成：业务逻辑 P0 修复 6 项（✅ 已合并 main，CI 12/13 关键检查全绿，E2E continue-on-error）
 
 **修复分支**：`fix/v19-audit-batch51`（已合并删除）
