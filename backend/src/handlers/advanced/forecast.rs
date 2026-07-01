@@ -6,7 +6,6 @@ use axum::{extract::State, Json};
 use rust_decimal::prelude::ToPrimitive;
 use sea_orm::EntityTrait;
 use serde::{Deserialize, Serialize};
-use std::sync::Arc;
 
 use crate::middleware::auth_context::AuthContext;
 use crate::models::product::Entity as ProductEntity;
@@ -14,7 +13,6 @@ use crate::services::ai::AiAnalysisService;
 use crate::utils::app_state::AppState;
 use crate::utils::error::AppError;
 use crate::utils::response::ApiResponse;
-use sea_orm::DatabaseConnection;
 
 // ============================================================================
 // 销售预测 - 使用真实时间序列算法（移动平均 + 指数平滑）
@@ -121,6 +119,23 @@ pub async fn inventory_optimization(
         .count();
 
     let mut items: Vec<InventorySuggestion> = Vec::new();
+
+    // v16 批次 44 修复：循环外批量查询所有产品名称，避免循环内逐个查询（N+1）
+    let product_ids: Vec<i32> = suggestions.iter().map(|s| s.product_id).collect();
+    let product_name_map: std::collections::HashMap<i32, String> = if product_ids.is_empty() {
+        std::collections::HashMap::new()
+    } else {
+        use sea_orm::ColumnTrait;
+        ProductEntity::find()
+            .filter(crate::models::product::Column::Id.is_in(product_ids))
+            .all(&*db)
+            .await
+            .unwrap_or_default()
+            .into_iter()
+            .map(|p| (p.id, p.name))
+            .collect()
+    };
+
     for s in suggestions {
         let current = s.current_stock.to_f64().unwrap_or(0.0);
         let reorder_point = s.reorder_point.to_f64().unwrap_or(0.0);
@@ -138,10 +153,11 @@ pub async fn inventory_optimization(
             "low"
         };
 
-        let product_name = match get_product_name(&db, s.product_id).await {
-            Ok(name) => name,
-            Err(_) => format!("产品 {}", s.product_id),
-        };
+        // v16 批次 44 修复：从批量查询结果获取产品名称（O(1) 查找）
+        let product_name = product_name_map
+            .get(&s.product_id)
+            .cloned()
+            .unwrap_or_else(|| format!("产品 {}", s.product_id));
 
         items.push(InventorySuggestion {
             product_name,
@@ -163,21 +179,6 @@ pub async fn inventory_optimization(
 
     let response = InventoryOptimizationResponse { summary, items };
     Ok(Json(ApiResponse::success(response)))
-}
-
-// ============================================================================
-// 辅助函数
-// ============================================================================
-
-async fn get_product_name(
-    db: &Arc<DatabaseConnection>,
-    product_id: i32,
-) -> Result<String, AppError> {
-    match ProductEntity::find_by_id(product_id).one(&**db).await {
-        Ok(Some(product)) => Ok(product.name),
-        Ok(None) => Ok(format!("产品 #{}", product_id)),
-        Err(e) => Err(AppError::database(e.to_string())),
-    }
 }
 
 // ============================================================================

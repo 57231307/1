@@ -220,6 +220,23 @@ impl ApPaymentService {
             // 计算每个应付单应分摊的付款金额（按申请金额比例）
             let total_apply_amount: Decimal = items.iter().map(|item| item.apply_amount).sum();
 
+            // v16 批次 44 修复：循环外批量查询并锁定所有关联的应付单，避免循环内逐个 lock_exclusive（N+1）
+            let invoice_ids: Vec<i32> = items.iter().map(|item| item.invoice_id).collect();
+            let mut invoice_map: std::collections::HashMap<i32, ap_invoice::Model> =
+                if total_apply_amount <= Decimal::ZERO || invoice_ids.is_empty() {
+                    std::collections::HashMap::new()
+                } else {
+                    use sea_orm::QuerySelect;
+                    ap_invoice::Entity::find()
+                        .filter(ap_invoice::Column::Id.is_in(invoice_ids))
+                        .lock_exclusive()
+                        .all(&txn)
+                        .await?
+                        .into_iter()
+                        .map(|inv| (inv.id, inv))
+                        .collect()
+                };
+
             for item in items {
                 if total_apply_amount > Decimal::ZERO {
                     let ratio = item
@@ -231,14 +248,8 @@ impl ApPaymentService {
                         .checked_mul(ratio)
                         .unwrap_or_default();
 
-                    // 更新应付单
-                    use sea_orm::QuerySelect;
-                    let invoice = ap_invoice::Entity::find_by_id(item.invoice_id)
-                        .lock_exclusive()
-                        .one(&txn)
-                        .await?;
-
-                    if let Some(mut inv) = invoice {
+                    // v16 批次 44 修复：从批量查询结果获取应付单（O(1) 查找）
+                    if let Some(mut inv) = invoice_map.remove(&item.invoice_id) {
                         inv.paid_amount = inv
                             .paid_amount
                             .checked_add(paid_amount)

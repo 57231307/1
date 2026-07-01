@@ -113,9 +113,26 @@ pub async fn batch_assign(
     let mut failed_count = 0;
     let mut errors = Vec::new();
 
+    // v16 批次 44 修复：循环外批量查询所有 lead，避免循环内逐个 get_lead（N+1 查询）
+    let lead_ids = req.lead_ids.clone();
+    let lead_map: std::collections::HashMap<i32, crate::models::crm_lead::Model> =
+        if lead_ids.is_empty() {
+            std::collections::HashMap::new()
+        } else {
+            use sea_orm::{ColumnTrait, EntityTrait};
+            crate::models::crm_lead::Entity::find()
+                .filter(crate::models::crm_lead::Column::Id.is_in(lead_ids))
+                .all(&*state.db)
+                .await
+                .unwrap_or_default()
+                .into_iter()
+                .map(|l| (l.id, l))
+                .collect()
+        };
+
     for lead_id in &req.lead_ids {
-        match crm_service.get_lead(*lead_id).await {
-            Ok(lead) => {
+        match lead_map.get(lead_id) {
+            Some(lead) => {
                 // 检查是否可以分配
                 if lead.lead_status.as_deref() == Some("converted") {
                     errors.push(format!("客户 {} 已转化为客户，无法分配", lead_id));
@@ -159,8 +176,8 @@ pub async fn batch_assign(
                     }
                 }
             }
-            Err(e) => {
-                errors.push(format!("获取客户 {} 失败: {}", lead_id, e));
+            None => {
+                errors.push(format!("获取客户 {} 失败: 线索不存在", lead_id));
                 failed_count += 1;
             }
         }
