@@ -460,6 +460,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             let app_state_clone3 = app_state.clone();
             let app_state_clone4 = app_state.clone();
             let app_state_clone5 = app_state.clone();
+            let app_state_clone6 = app_state.clone();
             crate::services::event_bus::start_event_listener(app_state.db.clone()).await;
             crate::services::event_bus::init_event_bus_with_kafka_config(&settings.kafka).await;
             let app = create_router(app_state)
@@ -550,6 +551,17 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 .layer(axum::middleware::from_fn_with_state(app_state_clone3, request_validator_middleware))
                 .layer(axum::middleware::from_fn_with_state(app_state_clone2, permission_middleware))
                 .layer(axum::middleware::from_fn_with_state(app_state_clone5, csrf_middleware))
+                // P0 8-1 修复：omni_audit_middleware 全局挂载（取代各业务路由局部挂载）
+                // 执行顺序：auth → omni_audit → csrf → permission → request_validator → handler
+                // 设计要点：
+                // 1. 在 auth_middleware 之后执行，可读取 AuthContext（已认证用户信息）
+                // 2. 在 csrf/permission 之前执行，确保即使被 csrf/permission 拦截也能留下审计日志
+                // 3. omni_audit.rs 内部已跳过 PUBLIC_PATHS（登录/刷新含密码）及 metrics/health/swagger/static
+                // 4. 配合 P0 8-5（audit_log/omni_audit 查询接口 admin 校验），形成完整审计闭环
+                .layer(axum::middleware::from_fn_with_state(
+                    app_state_clone6,
+                    crate::middleware::omni_audit::omni_audit_middleware,
+                ))
                 .layer(axum::middleware::from_fn_with_state(app_state_clone, auth_middleware))
                 .layer(SetResponseHeaderLayer::overriding(
                     axum::http::header::X_CONTENT_TYPE_OPTIONS,

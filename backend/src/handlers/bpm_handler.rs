@@ -20,10 +20,12 @@ pub async fn start_process(
 
 pub async fn approve_task(
     State(state): State<AppState>,
+    auth: crate::middleware::auth_context::AuthContext,
     Json(req): Json<ApproveTaskRequest>,
 ) -> Result<Json<ApiResponse<String>>, AppError> {
     let service = BpmService::new(state.db.clone());
-    service.approve_task(req).await?;
+    // P0 8-4 修复：传入真实认证用户 user_id 用于审计追溯（防止代审追溯丢失）
+    service.approve_task(req, Some(auth.user_id)).await?;
     Ok(Json(ApiResponse::success(
         "Task processed successfully".to_string(),
     )))
@@ -271,6 +273,7 @@ pub struct ExecuteApprovalRequest {
 /// 执行审批
 pub async fn execute_approval(
     State(state): State<AppState>,
+    auth: crate::middleware::auth_context::AuthContext,
     Json(req): Json<ExecuteApprovalRequest>,
 ) -> Result<Json<ApiResponse<String>>, AppError> {
     let service = BpmService::new(state.db.clone());
@@ -282,6 +285,7 @@ pub async fn execute_approval(
         approval_opinion: req.approval_opinion,
         attachment_urls: None,
     };
-    service.approve_task(approve_req).await?;
+    // P0 8-4 修复：传入真实认证用户 user_id 用于审计追溯（防止代审追溯丢失）
+    service.approve_task(approve_req, Some(auth.user_id)).await?;
     Ok(Json(ApiResponse::success("审批执行成功".to_string())))
 }

@@ -835,18 +835,22 @@ impl ProductionOrderService {
                         // P0 修复（批次 4，2026-06-27）：原 `let _ = ...` 静默吞掉
                         // BPM 任务审批错误，改为 warn 日志记录，确保运维可观测。
                         if let Err(e) = bpm_service
-                            .approve_task(crate::models::dto::bpm_dto::ApproveTaskRequest {
-                                task_id: task.id,
-                                handler_id: user_id,
-                                handler_name: user_name.to_string(),
-                                action: if approved {
-                                    "approve".to_string()
-                                } else {
-                                    "reject".to_string()
+                            .approve_task(
+                                crate::models::dto::bpm_dto::ApproveTaskRequest {
+                                    task_id: task.id,
+                                    handler_id: user_id,
+                                    handler_name: user_name.to_string(),
+                                    action: if approved {
+                                        "approve".to_string()
+                                    } else {
+                                        "reject".to_string()
+                                    },
+                                    approval_opinion: opinion.clone(),
+                                    attachment_urls: None,
                                 },
-                                approval_opinion: opinion.clone(),
-                                attachment_urls: None,
-                            })
+                                // P0 8-4 修复：传入真实操作用户 user_id 用于 BPM 审计追溯
+                                Some(user_id),
+                            )
                             .await
                         {
                             tracing::warn!(

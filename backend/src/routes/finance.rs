@@ -31,7 +31,7 @@ use crate::handlers::{
 use crate::utils::app_state::AppState;
 
 /// 财务主路由（path 前缀以 /payments、/invoices、/accounting-periods、/reports、/audit 区分）
-pub fn finance(state: AppState) -> Router<AppState> {
+pub fn finance() -> Router<AppState> {
     Router::new()
         .route("/payments", get(finance_payment_handler::list_payments))
         .route("/payments", post(finance_payment_handler::create_payment))
@@ -108,10 +108,8 @@ pub fn finance(state: AppState) -> Router<AppState> {
         .route("/audit/track", post(omni_audit_handler::track_event))
         .route("/audit/stats", get(omni_audit_handler::get_dashboard_stats))
         .route("/audit/search", get(omni_audit_handler::search_logs))
-        .layer(axum::middleware::from_fn_with_state(
-            state.clone(),
-            crate::middleware::omni_audit::omni_audit_middleware,
-        ))
+    // P0 8-1 修复：omni_audit_middleware 已全局挂载（见 main.rs 中间件链），
+    // 此处移除局部挂载避免重复审计。
 }
 
 /// 总账路由（path 前缀以 /subjects、/vouchers 区分）
@@ -729,7 +727,7 @@ pub fn exchange_rates() -> Router<AppState> {
 /// 最终 path = `/api/v1/erp/finance/accounting-periods` 等。
 pub fn routes(state: AppState) -> Router<AppState> {
     Router::new()
-        .merge(finance(state.clone()))
+        .merge(finance())
         // 显式使用 middleware 抑制未使用警告
         .layer(middleware::from_fn_with_state(
             state.clone(),
