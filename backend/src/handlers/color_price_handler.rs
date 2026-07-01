@@ -376,7 +376,7 @@ pub async fn list_customer_special_prices(
     Query(query): Query<ListCustomerColorPricesQuery>,
 ) -> Result<Json<ApiResponse<PaginatedResponse<customer_color_price::Model>>>, AppError> {
     use chrono::Utc;
-    use sea_orm::{ColumnTrait, Condition, EntityTrait, PaginatorTrait};
+    use sea_orm::{ColumnTrait, Condition, EntityTrait, PaginatorTrait, QueryFilter};
 
     // 页码采用 1-based 约定，page_size clamp 防止 DoS
     let page = query.page.unwrap_or(1);
