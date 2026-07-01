@@ -303,9 +303,19 @@ impl ArInvoiceService {
         }
 
         let mut active_invoice: ar_invoice::ActiveModel = invoice.clone().into();
-        active_invoice.status = sea_orm::ActiveValue::Set("PAID".to_string());
-        active_invoice.received_amount = sea_orm::ActiveValue::Set(invoice.invoice_amount);
-        active_invoice.unpaid_amount = sea_orm::ActiveValue::Set(Decimal::ZERO);
+        // P0 3-2 修复（2026-07-01 八维度审计）：mark_as_paid 仅负责状态变更，
+        // 不再覆盖 received_amount/unpaid_amount。金额累加由 ar_collection_service.confirm 完成。
+        // 原实现直接 Set received_amount = invoice_amount 覆盖部分收款记录，
+        // 丢失本次收款金额审计信息，且误调用会掩盖资金缺口。
+        // 根据 received_amount vs invoice_amount 判断最终状态：
+        // - received_amount >= invoice_amount → PAID（已收齐）
+        // - received_amount > 0 但 < invoice_amount → PARTIAL_PAID（部分收款）
+        let new_status = if invoice.received_amount >= invoice.invoice_amount {
+            "PAID".to_string()
+        } else {
+            "PARTIAL_PAID".to_string()
+        };
+        active_invoice.status = sea_orm::ActiveValue::Set(new_status);
         active_invoice.updated_at = sea_orm::ActiveValue::Set(Utc::now());
 
         let result = crate::services::audit_log_service::AuditLogService::update_with_audit(

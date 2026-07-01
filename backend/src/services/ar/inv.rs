@@ -177,7 +177,10 @@ impl ArReconciliationService {
         )
         .await?;
 
-        // 8. 写入 ar_invoices 表（状态直接置为 APPROVED，业务联动无需走 DRAFT 流程）
+        // 8. 写入 ar_invoices 表
+        // P0 3-5 修复（2026-07-01 八维度审计）：销售→AR 走 DRAFT 待审，
+        // 由 AR 审批节点确认后转 APPROVED，与手动创建路径（ar_invoice_service::create）对齐。
+        // 原 APPROVED 跳过审批违反业务流程，且 approve 方法的状态门（仅 DRAFT 可审）无法生效。
         let active = ArInvoiceActive {
             invoice_no: Set(invoice_no),
             invoice_date: Set(invoice_date),
@@ -194,8 +197,8 @@ impl ArReconciliationService {
             batch_no: Set(None),
             color_no: Set(None),
             sales_order_no: Set(Some(order.order_no.clone())),
-            status: Set("APPROVED".to_string()),
-            approval_status: Set("APPROVED".to_string()),
+            status: Set("DRAFT".to_string()),
+            approval_status: Set("PENDING".to_string()),
             created_by: Set(user_id),
             ..Default::default()
         };

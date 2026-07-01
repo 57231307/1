@@ -3,6 +3,23 @@
 > 本文件记录**当前任务**与**历史任务索引**。
 > 详细历史请查阅 [`.monkeycode/docs/archives/`](file:///workspace/.monkeycode/docs/archives/)。
 
+### 2026-07-01 批次 51 完成：业务逻辑 P0 修复 6 项（✅ 待推送 CI）
+
+**修复分支**：`fix/v19-audit-batch51`
+**修复范围**：业务逻辑 P0（3-1/3-2/3-3/3-4/3-5/3-6）
+
+**修复清单**：
+- P0 3-1：ap_invoice_service.rs 自动生成 AP 发票 PENDING→DRAFT，与 approve 状态机对齐
+- P0 3-2：ar_invoice_service.rs mark_as_paid 不再覆盖 received_amount，按累加结果判断 PAID/PARTIAL_PAID
+- P0 3-3：AR/AP mark_as_paid 状态门黑名单→白名单（AR: APPROVED/PARTIAL_PAID；AP: AUDITED/PARTIAL_PAID）
+- P0 3-4：bpm_service.rs 监控查询 4 处大写→小写，与任务状态写入侧一致
+- P0 3-5：ar/inv.rs create_receivable APPROVED→DRAFT，走 AR 审批流程
+- P0 3-6：po/receipt.rs receive_order 增加 receipt_id 幂等校验 + event_bus.rs 传 receipt_id
+
+**当前状态**：批次 51 代码完成，待提交推送 CI
+
+---
+
 ### 2026-07-01 批次 50 完成：操作审计 P0 修复 3 项（✅ 已合并 main，CI 12/13 关键检查全绿，E2E continue-on-error）
 
 **修复分支**：`fix/v19-audit-batch50`（已合并删除）
