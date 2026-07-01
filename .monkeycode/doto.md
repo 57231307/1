@@ -3,6 +3,28 @@
 > 本文件记录**当前任务**与**历史任务索引**。
 > 详细历史请查阅 [`.monkeycode/docs/archives/`](file:///workspace/.monkeycode/docs/archives/)。
 
+### 2026-07-01 v18 批次 48 完成：v5 重新审核 P0 阻断级修复 8 项（✅ 已合并 main，CI 全绿）
+
+**当前任务**：v5 重新审核发现的 8 项 P0 阻断级问题全部修复完成
+**修复分支**：`fix/v18-audit-batch48`（已合并删除）
+**合并 commit**：`57a91c3`（PR #291 squash merge，CI 13/13 success 全绿）
+**main HEAD**：`57a91c3`
+
+**修复清单**：
+
+| # | 问题 | 文件 | 修复内容 |
+|---|------|------|----------|
+| P0-1/2/3 | 分页 off-by-one（3 处） | ap_verification_service / ap_payment_service / ap_reconciliation_service | `fetch_page(page)` → `fetch_page(page.saturating_sub(1))`，SeaORM 0-indexed 转换 |
+| P0-4 | .env.example 占位符绕过校验 | 根 `.env.example` | 三处中文占位符 → `value-placeholder-change-me`（命中 validate_secret 黑名单） |
+| P0-5 | 付款审批硬编码 | ap_payment_request_service + admin_checker | 金额阈值（10万/50万）+ 角色编码常量化，新增 `MANAGER_ROLE_CODE` |
+| P0-6/7 | Docker 容器无法启动 | frontend/nginx.conf + frontend/Dockerfile | `listen 80` → `8080`，`EXPOSE 80` → `8080`；根 Dockerfile 经 COPY 间接修复 |
+| P0-8 | deploy.sh SSL/健康端点未同步 | deploy/deploy.sh | `sslmode=disable` → `require`（2 处），`/api/v1/erp/health` → `/health`（2 处） |
+
+**工作流**：修复 → commit → push → 创建 PR #291 → CI 13/13 全绿 → squash merge → 删除分支 → 更新文档
+**下一步**：v5 P0 全部清零，可进入 v19 复审或继续 P1 高危级修复批次
+
+---
+
 ### 2026-06-29 v5 批次 23：可维护性 + i18n/可访问性 + 死代码 P0 修复（✅ 代码完成，待 commit/push/CI）
 
 **当前任务**：修复 v5 审计批次 23 全部 8 项 P0（维度 8 死代码 1 + 维度 13 可维护性 5 + 维度 14 i18n/可访问性 2）

@@ -21,7 +21,32 @@
 
 ---
 
-## 当前任务状态（2026-06-29 批次 29 完成 - 开始批次 30）
+## 当前任务状态（2026-07-01 批次 48 完成 - v5 P0 全部清零）
+
+### ✅ 批次 48 完成：v5 重新审核 P0 阻断级修复 8 项
+
+**修复分支**：`fix/v18-audit-batch48`（已合并删除）
+**合并 commit**：`57a91c3`（PR #291 squash merge，CI 13/13 success 全绿）
+**main HEAD**：`57a91c3`
+**修复清单**：见 [CHANGELOG.md 批次 48 章节](file:///workspace/.monkeycode/CHANGELOG.md)
+
+**v5 重新审核结果**（基线 `839f8dc5`，16 维度）：
+- v5 P0 修复率：批次 48 修复 8 项后，v5 新发现 P0 全部清零
+- v5 历史批次（21-47）已修复 36/51 项 P0，批次 48 补齐最后 8 项新发现 P0
+- 仍存大量 P1 高危级（CRUD 事务原子性、并发锁、DTO 校验、前端权限、测试质量等）
+
+**关键技术决策（批次 48）**：
+1. **SeaORM 分页 0-indexed**：`paginator.fetch_page(page)` 是 0-indexed，调用方传 1-indexed page，需 `page.saturating_sub(1)` 转换
+2. **validate_secret 黑名单**：占位符含 "placeholder"/"change-me" 命中黑名单；中文占位符因 to_lowercase 后不含英文黑名单词而绕过
+3. **Docker 非 root + 特权端口冲突**：`USER nginx/appuser` 后无法 `listen 80`（<1024 需 root），改 `listen 8080`
+4. **角色编码常量化**：`ADMIN_ROLE_CODE`/`MANAGER_ROLE_CODE` 作为单一真相源
+5. **金额阶梯常量化**：审批阈值提取为模块级常量，避免多处独立硬编码
+
+**下一步**：v5 P0 已清零，可进入 v19 复审或继续 P1 高危级修复批次
+
+---
+
+## 历史任务状态（2026-06-29 批次 29 完成）
 
 ### ✅ 批次 29 完成：v7 前后端类型契约 P0 8 项
 
