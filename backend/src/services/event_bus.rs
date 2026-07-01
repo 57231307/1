@@ -686,23 +686,22 @@ pub async fn start_event_listener(db: Arc<DatabaseConnection>) {
                         .collect::<Vec<i32>>();
 
                     let notify_count = notify_user_ids.len();
-                    for user_id in notify_user_ids {
-                        if let Err(e) = notification_service
-                            .notify_inventory_alert(
-                                user_id,
-                                &product_name,
-                                product_id,
-                                &format!("{}米", current_quantity),
-                                &format!("{}米", reorder_point),
-                            )
-                            .await
-                        {
-                            tracing::error!(
-                                "发送低库存预警通知失败: 用户ID={}, 错误={}",
-                                user_id,
-                                e
-                            );
-                        }
+                    // v17 批次 47 修复：改用批量通知方法，循环外一次获取所有用户设置（避免 N+1）
+                    if let Err(e) = notification_service
+                        .notify_inventory_alert_batch(
+                            &notify_user_ids,
+                            &product_name,
+                            product_id,
+                            &format!("{}米", current_quantity),
+                            &format!("{}米", reorder_point),
+                        )
+                        .await
+                    {
+                        tracing::error!(
+                            "发送低库存预警批量通知失败: 通知人数={}, 错误={}",
+                            notify_count,
+                            e
+                        );
                     }
                     tracing::info!(
                         "低库存预警通知已发送: 产品={}, 仓库ID={}, 通知人数={}",

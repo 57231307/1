@@ -253,18 +253,36 @@ pub async fn list_stock(
                 products.into_iter().map(|p| (p.id, p)).collect()
             };
 
+        // v17 批次 47 修复：循环外预先查询 user_id=0 的通知设置（1 次查询），
+        // 避免循环内每个产品都查一次设置（N+1 查询）
+        let setting = event_service.get_setting_for_user(0).await.ok();
+
         for stock in &stock_responses {
             if stock.quantity_on_hand < stock.reorder_point {
                 if let Some(product) = product_map.get(&stock.product_id) {
-                    let _ = event_service
-                        .notify_inventory_alert(
-                            0, // 系统通知，不指定特定用户
-                            &product.name,
-                            product.id,
-                            &stock.quantity_on_hand.to_string(),
-                            &stock.reorder_point.to_string(),
-                        )
-                        .await;
+                    if let Some(ref s) = setting {
+                        let _ = event_service
+                            .notify_inventory_alert_with_setting(
+                                0, // 系统通知，不指定特定用户
+                                s,
+                                &product.name,
+                                product.id,
+                                &stock.quantity_on_hand.to_string(),
+                                &stock.reorder_point.to_string(),
+                            )
+                            .await;
+                    } else {
+                        // 设置查询失败时回退到原方法（兼容性保留）
+                        let _ = event_service
+                            .notify_inventory_alert(
+                                0,
+                                &product.name,
+                                product.id,
+                                &stock.quantity_on_hand.to_string(),
+                                &stock.reorder_point.to_string(),
+                            )
+                            .await;
+                    }
                 }
             }
         }
@@ -353,17 +371,35 @@ pub async fn check_low_stock(
                 products.into_iter().map(|p| (p.id, p)).collect()
             };
 
+        // v17 批次 47 修复：循环外预先查询 user_id=0 的通知设置（1 次查询），
+        // 避免循环内每个产品都查一次设置（N+1 查询）
+        let setting = event_service.get_setting_for_user(0).await.ok();
+
         for stock in &stock_responses {
             if let Some(product) = product_map.get(&stock.product_id) {
-                let _ = event_service
-                    .notify_inventory_alert(
-                        0,
-                        &product.name,
-                        product.id,
-                        &stock.quantity_on_hand.to_string(),
-                        &stock.reorder_point.to_string(),
-                    )
-                    .await;
+                if let Some(ref s) = setting {
+                    let _ = event_service
+                        .notify_inventory_alert_with_setting(
+                            0,
+                            s,
+                            &product.name,
+                            product.id,
+                            &stock.quantity_on_hand.to_string(),
+                            &stock.reorder_point.to_string(),
+                        )
+                        .await;
+                } else {
+                    // 设置查询失败时回退到原方法（兼容性保留）
+                    let _ = event_service
+                        .notify_inventory_alert(
+                            0,
+                            &product.name,
+                            product.id,
+                            &stock.quantity_on_hand.to_string(),
+                            &stock.reorder_point.to_string(),
+                        )
+                        .await;
+                }
             }
         }
     }
