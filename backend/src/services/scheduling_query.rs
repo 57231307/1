@@ -144,10 +144,25 @@ impl SchedulingService {
             .await?;
 
         let mut results: Vec<ScheduledOrder> = Vec::new();
+
+        // v16 批次 44 修复：批量查询所有 work_center，避免循环内逐个查询（N+1）
+        let wc_ids: Vec<i32> = orders.iter().filter_map(|o| o.work_center_id).collect();
+        let wc_map: std::collections::HashMap<i32, String> = if wc_ids.is_empty() {
+            std::collections::HashMap::new()
+        } else {
+            WorkCenterEntity::find()
+                .filter(crate::models::work_center::Column::Id.is_in(wc_ids))
+                .all(&*self.db)
+                .await?
+                .into_iter()
+                .map(|wc| (wc.id, wc.name))
+                .collect()
+        };
+
         for order in orders {
-            let wc_name = self
-                .get_work_center_name(order.work_center_id)
-                .await
+            let wc_name = order
+                .work_center_id
+                .and_then(|id| wc_map.get(&id).cloned())
                 .unwrap_or_else(|| "未分配".to_string());
 
             results.push(ScheduledOrder {

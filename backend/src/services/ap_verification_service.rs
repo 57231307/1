@@ -201,18 +201,45 @@ impl ApVerificationService {
 
         // 1. 验证所有应付单和付款单
         let mut total_amount = Decimal::ZERO;
-        // v10 P1-4 修复：保存第一次循环已查询（带行锁）的 invoice，供第二次循环复用，
-        // 避免循环内重复 find_by_id（N+1 查询）。行锁在事务内持续到 commit，复用安全。
+
+        // v16 批次 44 修复：循环外批量查询并锁定所有 invoice 和 payment，
+        // 避免循环内逐个 find_by_id + lock_exclusive（N+1 查询）
+        // 行锁在事务内持续到 commit，批量锁定与逐个锁定效果一致
+        let invoice_ids: Vec<i32> = req.items.iter().map(|i| i.invoice_id).collect();
+        let payment_ids: Vec<i32> = req.items.iter().map(|i| i.payment_id).collect();
         let mut invoice_map: std::collections::HashMap<i32, ap_invoice::Model> =
-            std::collections::HashMap::new();
+            if invoice_ids.is_empty() {
+                std::collections::HashMap::new()
+            } else {
+                use sea_orm::QuerySelect;
+                ap_invoice::Entity::find()
+                    .filter(ap_invoice::Column::Id.is_in(invoice_ids))
+                    .lock_exclusive()
+                    .all(&txn)
+                    .await?
+                    .into_iter()
+                    .map(|inv| (inv.id, inv))
+                    .collect()
+            };
+        let payment_map: std::collections::HashMap<i32, ap_payment::Model> =
+            if payment_ids.is_empty() {
+                std::collections::HashMap::new()
+            } else {
+                use sea_orm::QuerySelect;
+                ap_payment::Entity::find()
+                    .filter(ap_payment::Column::Id.is_in(payment_ids))
+                    .lock_exclusive()
+                    .all(&txn)
+                    .await?
+                    .into_iter()
+                    .map(|p| (p.id, p))
+                    .collect()
+            };
 
         for item in &req.items {
-            // 验证应付单
-            // 批次 9（2026-06-28）：加 FOR UPDATE 行锁，防止并发核销导致 paid_amount 丢失更新
-            let invoice = ap_invoice::Entity::find_by_id(item.invoice_id)
-                .lock_exclusive()
-                .one(&txn)
-                .await?
+            // 验证应付单（v16 批次 44 修复：从批量查询结果获取）
+            let invoice = invoice_map
+                .get(&item.invoice_id)
                 .ok_or_else(|| AppError::not_found(format!("应付单 {}", item.invoice_id)))?;
 
             if invoice.unpaid_amount < item.verify_amount {
@@ -222,12 +249,9 @@ impl ApVerificationService {
                 )));
             }
 
-            // 验证付款单
-            // 批次 9（2026-06-28）：加 FOR UPDATE 行锁，防止并发核销复用同一付款单导致超额核销
-            let payment = ap_payment::Entity::find_by_id(item.payment_id)
-                .lock_exclusive()
-                .one(&txn)
-                .await?
+            // 验证付款单（v16 批次 44 修复：从批量查询结果获取）
+            let payment = payment_map
+                .get(&item.payment_id)
                 .ok_or_else(|| AppError::not_found(format!("付款单 ID: {}", item.payment_id)))?;
 
             if payment.payment_status != "CONFIRMED" {
@@ -238,9 +262,6 @@ impl ApVerificationService {
             }
 
             total_amount += item.verify_amount;
-
-            // v10 P1-4 修复：保存到 map 供第二次循环复用（若 invoice_id 重复，后一次覆盖前一次，验证均已通过）
-            invoice_map.insert(item.invoice_id, invoice);
         }
 
         // 2. 创建核销单
@@ -337,13 +358,33 @@ impl ApVerificationService {
             .await?;
 
         // 4. 恢复应付单状态
+        // v16 批次 44 修复：循环外批量查询并锁定所有 invoice，避免循环内逐个 lock_exclusive（N+1）
+        let invoice_ids: Vec<i32> = items.iter().map(|i| i.invoice_id).collect();
+        let mut invoice_map: std::collections::HashMap<i32, ap_invoice::Model> =
+            if invoice_ids.is_empty() {
+                std::collections::HashMap::new()
+            } else {
+                use sea_orm::QuerySelect;
+                ap_invoice::Entity::find()
+                    .filter(ap_invoice::Column::Id.is_in(invoice_ids))
+                    .lock_exclusive()
+                    .all(&txn)
+                    .await?
+                    .into_iter()
+                    .map(|inv| (inv.id, inv))
+                    .collect()
+            };
+
         for item in items {
-            // 批次 9（2026-06-28）：加 FOR UPDATE 行锁，防止并发取消核销导致 paid_amount 丢失更新
-            let mut invoice = ap_invoice::Entity::find_by_id(item.invoice_id)
-                .lock_exclusive()
-                .one(&txn)
-                .await?
-                .ok_or_else(|| AppError::not_found(format!("应付单 {}", item.invoice_id)))?;
+            // v16 批次 44 修复：优先从批量查询结果获取，若 invoice_id 重复（map 已 remove）回退到 find_by_id
+            let mut invoice = match invoice_map.remove(&item.invoice_id) {
+                Some(inv) => inv,
+                None => ap_invoice::Entity::find_by_id(item.invoice_id)
+                    .lock_exclusive()
+                    .one(&txn)
+                    .await?
+                    .ok_or_else(|| AppError::not_found(format!("应付单 {}", item.invoice_id)))?,
+            };
 
             invoice.paid_amount -= item.verify_amount;
             invoice.unpaid_amount = invoice.amount - invoice.paid_amount;
