@@ -256,10 +256,13 @@ impl PurchaseOrderService {
         // P0 3-6 修复：入库成功后标记入库单为 COMPLETED，作为幂等键防止重复入库
         if let Some(rid) = receipt_id {
             use crate::models::purchase_receipt;
-            let mut receipt_active: purchase_receipt::ActiveModel = Default::default();
-            receipt_active.id = Set(rid);
-            receipt_active.receipt_status = Set("COMPLETED".to_string());
-            receipt_active.updated_at = Set(now);
+            // 使用结构体初始化器语法（避免 clippy::field_reassign_with_default）
+            let receipt_active = purchase_receipt::ActiveModel {
+                id: Set(rid),
+                receipt_status: Set("COMPLETED".to_string()),
+                updated_at: Set(now),
+                ..Default::default()
+            };
             purchase_receipt::Entity::update(receipt_active)
                 .exec(&txn)
                 .await?;
