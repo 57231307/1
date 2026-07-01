@@ -3,9 +3,11 @@
 > 本文件记录**当前任务**与**历史任务索引**。
 > 详细历史请查阅 [`.monkeycode/docs/archives/`](file:///workspace/.monkeycode/docs/archives/)。
 
-### 2026-07-01 批次 50 完成：操作审计 P0 修复 3 项（✅ 待推送 CI）
+### 2026-07-01 批次 50 完成：操作审计 P0 修复 3 项（✅ 已合并 main，CI 12/13 关键检查全绿，E2E continue-on-error）
 
-**修复分支**：`fix/v19-audit-batch50`
+**修复分支**：`fix/v19-audit-batch50`（已合并删除）
+**合并 commit**：`3f43833`（PR #293 squash merge）
+**main HEAD**：`3f43833`
 **修复范围**：操作审计 P0（8-1/8-4/8-5）；8-2/8-3 拆到批次 51
 
 **修复清单**：
@@ -13,7 +15,9 @@
 - P0 8-4：BPM approve_task 补审计（service 层 3 处 update_with_audit + handler 层 2 处 AuthContext + service 内部调用 3 处传 user_id）
 - P0 8-5：审计日志查询接口 admin 深度防御（audit_log_handler 3 处 + omni_audit_handler 2 处）
 
-**当前状态**：批次 50 代码完成，待提交推送 CI
+**CI 结果**：Rust 构建/Clippy/单元测试/格式 全部 success；前端构建/测试/lint/类型检查 全部 success；E2E continue-on-error 不阻塞
+
+**当前状态**：批次 50 已合并 main，进入批次 51（业务逻辑 + 数据链路 P0 + 8-2/8-3）
 
 ---
 

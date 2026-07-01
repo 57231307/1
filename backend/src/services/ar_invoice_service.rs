@@ -292,9 +292,12 @@ impl ArInvoiceService {
             .await?
             .ok_or_else(|| AppError::not_found("应收单不存在"))?;
 
-        if invoice.status == "PAID" || invoice.status == "CANCELLED" {
+        // P0 3-3 修复（2026-07-01 八维度审计）：状态门改为白名单，仅 APPROVED/PARTIAL_PAID 可标记 PAID，
+        // 堵住 DRAFT 直接跳过审核标记已收讫的漏洞。
+        // AR 审核后状态为 APPROVED（见 approve 方法），与 AP 的 AUDITED 命名不同。
+        if !["APPROVED", "PARTIAL_PAID"].contains(&invoice.status.as_str()) {
             return Err(AppError::bad_request(format!(
-                "应收单状态为{}，不可标记为已收讫",
+                "应收单状态为{}，不可标记为已收讫（仅 APPROVED/PARTIAL_PAID 可标记）",
                 invoice.status
             )));
         }
