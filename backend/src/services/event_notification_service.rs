@@ -38,6 +38,14 @@ impl EventNotificationService {
         }
     }
 
+    /// 获取指定用户的通知设置（v17 批次 47 新增：供 handler 循环外预加载设置）
+    pub async fn get_setting_for_user(
+        &self,
+        user_id: i32,
+    ) -> Result<crate::models::user_notification_setting::Model, AppError> {
+        self.setting_service.get_or_create_default(user_id).await
+    }
+
     // ========== 订单相关通知 ==========
 
     /// 根据用户ID查询邮箱
@@ -333,6 +341,116 @@ impl EventNotificationService {
             .setting_service
             .should_send_internal(user_id, "INVENTORY")
             .await?;
+
+        if should_internal {
+            self.notification_service
+                .create_notification(CreateNotificationRequest {
+                    user_id,
+                    notification_type: NotificationType::Internal,
+                    title: "库存预警".to_string(),
+                    content: format!(
+                        "产品 '{}' 当前库存 {}，已低于预警阈值 {}",
+                        product_name, current_stock, threshold
+                    ),
+                    priority: NotificationPriority::Urgent,
+                    business_type: Some("INVENTORY".to_string()),
+                    business_id: Some(product_id),
+                    action_url: Some(format!("/inventory/stock/{}", product_id)),
+                    sender_id: Some(0),
+                    sender_name: Some("系统".to_string()),
+                })
+                .await?;
+        }
+
+        if should_email {
+            let html = EmailTemplate::inventory_alert(product_name, current_stock, threshold);
+            self.send_email_notification(user_id, "库存预警通知", html)
+                .await;
+        }
+
+        Ok(())
+    }
+
+    /// 库存预警批量通知（多用户单产品）
+    ///
+    /// v17 批次 47 新增：循环外批量获取用户通知设置，避免循环内逐个查询（N+1）。
+    /// 用于 event_bus 中同一产品预警通知给多个用户的场景。
+    pub async fn notify_inventory_alert_batch(
+        &self,
+        user_ids: &[i32],
+        product_name: &str,
+        product_id: i32,
+        current_stock: &str,
+        threshold: &str,
+    ) -> Result<(), AppError> {
+        if user_ids.is_empty() {
+            return Ok(());
+        }
+        // 批量获取所有用户的通知设置
+        let setting_map = self
+            .setting_service
+            .get_or_create_default_batch(user_ids)
+            .await?;
+
+        for &user_id in user_ids {
+            let (should_email, should_internal) = setting_map
+                .get(&user_id)
+                .map(|s| {
+                    (
+                        UserNotificationSettingService::should_send_email_from_setting(s, "INVENTORY"),
+                        UserNotificationSettingService::should_send_internal_from_setting(
+                            s, "INVENTORY",
+                        ),
+                    )
+                })
+                .unwrap_or((false, true));
+
+            if should_internal {
+                self.notification_service
+                    .create_notification(CreateNotificationRequest {
+                        user_id,
+                        notification_type: NotificationType::Internal,
+                        title: "库存预警".to_string(),
+                        content: format!(
+                            "产品 '{}' 当前库存 {}，已低于预警阈值 {}",
+                            product_name, current_stock, threshold
+                        ),
+                        priority: NotificationPriority::Urgent,
+                        business_type: Some("INVENTORY".to_string()),
+                        business_id: Some(product_id),
+                        action_url: Some(format!("/inventory/stock/{}", product_id)),
+                        sender_id: Some(0),
+                        sender_name: Some("系统".to_string()),
+                    })
+                    .await?;
+            }
+
+            if should_email {
+                let html = EmailTemplate::inventory_alert(product_name, current_stock, threshold);
+                self.send_email_notification(user_id, "库存预警通知", html)
+                    .await;
+            }
+        }
+        Ok(())
+    }
+
+    /// 库存预警通知（基于已查询的设置，避免循环内重复查库）
+    ///
+    /// v17 批次 47 新增：接收已查询的 user_notification_setting::Model，
+    /// 用于多产品循环预警同一用户的场景（handler 中 user_id=0 的批量预警）。
+    pub async fn notify_inventory_alert_with_setting(
+        &self,
+        user_id: i32,
+        setting: &crate::models::user_notification_setting::Model,
+        product_name: &str,
+        product_id: i32,
+        current_stock: &str,
+        threshold: &str,
+    ) -> Result<(), AppError> {
+        let should_email =
+            UserNotificationSettingService::should_send_email_from_setting(setting, "INVENTORY");
+        let should_internal =
+            UserNotificationSettingService::should_send_internal_from_setting(setting, "INVENTORY");
 
         if should_internal {
             self.notification_service

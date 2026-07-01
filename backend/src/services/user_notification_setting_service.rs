@@ -213,4 +213,28 @@ impl UserNotificationSettingService {
         notification_type_str == notification_type::INTERNAL
             || notification_type_str == notification_type::BOTH
     }
+
+    /// 纯函数：基于已查询的设置判断是否发送邮件通知（不查数据库）
+    ///
+    /// v17 批次 47 新增：与 should_send_email 逻辑一致，但接收已查询的 setting model，
+    /// 避免在循环内重复查询数据库。
+    pub fn should_send_email_from_setting(
+        setting: &user_notification_setting::Model,
+        notification_category: &str,
+    ) -> bool {
+        if !setting.email_enabled {
+            return false;
+        }
+        let notification_type_str = match notification_category {
+            "ORDER" => &setting.order_notification_type,
+            "APPROVAL" => &setting.approval_notification_type,
+            "INVENTORY" => &setting.inventory_notification_type,
+            "PURCHASE" => &setting.purchase_notification_type,
+            "FINANCE" => &setting.finance_notification_type,
+            "SYSTEM" => &setting.system_notification_type,
+            _ => notification_type::BOTH,
+        };
+        notification_type_str == notification_type::EMAIL
+            || notification_type_str == notification_type::BOTH
+    }
 }
