@@ -312,20 +312,9 @@ pub async fn delete_user(
     // 3. 正在使用中的用户不允许删除
 
     // 软删除：将 is_active 标记为 false
+    // P0 7-3 修复：JWT 吊销逻辑已下沉到 UserService::delete_user 内部，
+    //    作为单一真相源保证任何调用方都自动获得吊销保护。
     user_service.delete_user(id).await?;
-
-    // 安全漏洞 #9 修复：吊销该用户的所有活跃 JWT
-    //    软删除成功后立即调用 `revoke_user_jtis` 标记该用户，
-    //    后续该用户的任何 iat < revoked_at 的 Token 一律拒绝。
-    //    防止被删除用户的旧 JWT 在剩余有效期（最长 2 小时）内继续使用。
-    //    失败不阻塞主业务流（best-effort）。
-    if let Err(e) = auth_service::revoke_user_jtis(id, "USER_DELETED").await {
-        tracing::warn!(
-            "[SECURITY] 吊销已删除用户 {} 的活跃 JWT 失败：{}",
-            id,
-            e
-        );
-    }
 
     // 记录审计：谁删了谁
     audit::log_security_event(
@@ -418,6 +407,23 @@ pub async fn change_password(
     user_model.updated_at = sea_orm::Set(chrono::Utc::now());
 
     user_model.update(state.db.as_ref()).await?;
+
+    // P0 7-4 修复：密码修改成功后吊销该用户的所有活跃 JWT
+    //    防止攻击者持有的旧 Token 在剩余有效期（最长 2 小时）内继续访问。
+    //    auth_middleware 会拒绝该用户 iat < revoked_at 的 Token，
+    //    迫使用户使用新密码重新登录获取新 Token。
+    //    吊销属 best-effort，失败仅 warn，不阻塞密码修改主流程。
+    if let Err(e) = auth_service::revoke_user_jtis(auth.user_id, "PASSWORD_CHANGED").await {
+        tracing::warn!(
+            target: "security_audit",
+            event = "TOKEN_REVOKE_FAILED",
+            user_id = auth.user_id,
+            username = %auth.username,
+            error = %e,
+            "[SECURITY] 修改密码后吊销用户 {} 的活跃 JWT 失败",
+            auth.user_id
+        );
+    }
 
     // 记录审计：密码修改成功
     let event = AuditEvent {

@@ -5,9 +5,37 @@ use axum::{
 use serde::{Deserialize, Serialize};
 
 use crate::middleware::auth_context::AuthContext;
+use crate::utils::admin_checker::is_admin_role;
 use crate::utils::app_state::AppState;
 use crate::utils::error::AppError;
 use crate::utils::response::ApiResponse;
+
+/// P0 7-1 修复：要求调用者具备 admin 角色，否则拒绝并记录审计日志
+///
+/// 安全原因：原 `check_lock_status`、`unlock_account`、`unlock_account_by_id`
+/// 三个 handler 仅使用 `_auth: AuthContext`（下划线前缀表示参数被忽略），
+/// 导致任意登录用户均可查询他人锁定状态或解锁任意账号，属水平/垂直越权。
+async fn require_admin_role(
+    state: &AppState,
+    auth: &AuthContext,
+) -> Result<(), AppError> {
+    let role_id = auth
+        .role_id
+        .ok_or_else(|| AppError::permission_denied("用户未分配角色，无法执行该操作"))?;
+    if !is_admin_role(&state.db, role_id).await {
+        tracing::warn!(
+            target: "security_audit",
+            event = "AUTHORIZATION_DENIED",
+            user_id = auth.user_id,
+            username = %auth.username,
+            "[SECURITY] 非 admin 用户调用登录安全敏感接口被拒绝"
+        );
+        return Err(AppError::permission_denied(
+            "该操作仅限管理员（code=admin）执行",
+        ));
+    }
+    Ok(())
+}
 
 #[derive(Debug, Deserialize)]
 pub struct LoginLogQuery {
@@ -111,12 +139,34 @@ pub async fn list_login_logs(
 
 pub async fn check_lock_status(
     State(state): State<AppState>,
-    _auth: AuthContext,
+    auth: AuthContext,
     Query(params): Query<std::collections::HashMap<String, String>>,
 ) -> Result<Json<ApiResponse<LockStatus>>, AppError> {
     let username = params
         .get("username")
         .ok_or_else(|| AppError::bad_request("缺少 username 参数"))?;
+
+    // P0 7-1 修复：水平越权防护
+    // 普通用户仅能查询自己的锁定状态；admin 可查询任意用户。
+    // 缺角色直接拒绝（避免 role_id=0 误匹配"超级管理员"角色）。
+    let is_admin = if let Some(role_id) = auth.role_id {
+        is_admin_role(&state.db, role_id).await
+    } else {
+        false
+    };
+    if !is_admin && auth.username != *username {
+        tracing::warn!(
+            target: "security_audit",
+            event = "AUTHORIZATION_DENIED",
+            user_id = auth.user_id,
+            username = %auth.username,
+            requested_username = %username,
+            "[SECURITY] 非 admin 用户尝试查询他人锁定状态被拒绝"
+        );
+        return Err(AppError::permission_denied(
+            "仅管理员可查询其他用户的锁定状态",
+        ));
+    }
 
     use crate::models::log_login;
     use chrono::{Duration, Utc};
@@ -156,9 +206,12 @@ pub async fn check_lock_status(
 
 pub async fn unlock_account(
     State(state): State<AppState>,
-    _auth: AuthContext,
+    auth: AuthContext,
     Json(params): Json<serde_json::Value>,
 ) -> Result<Json<ApiResponse<()>>, AppError> {
+    // P0 7-1 修复：解锁账号属敏感操作，仅 admin 可执行
+    require_admin_role(&state, &auth).await?;
+
     let username = params
         .get("username")
         .and_then(|v| v.as_str())
@@ -318,9 +371,12 @@ pub async fn get_locked_accounts(
 
 pub async fn unlock_account_by_id(
     State(state): State<AppState>,
-    _auth: AuthContext,
+    auth: AuthContext,
     Path(id): Path<i32>,
 ) -> Result<Json<ApiResponse<()>>, AppError> {
+    // P0 7-1 修复：按 ID 解锁账号属敏感操作，仅 admin 可执行
+    require_admin_role(&state, &auth).await?;
+
     use crate::models::{log_login, user};
     use sea_orm::{ColumnTrait, EntityTrait, QueryFilter};
 
