@@ -493,22 +493,37 @@ impl ProductionOrderService {
                 .all(txn)
                 .await?;
 
+            // v16 批次 43 修复：循环外批量查询并锁定所有原材料在默认仓库的库存记录，
+            // 避免循环内逐个 lock_exclusive 查询（N+1 查询）
+            // 批次 9（2026-06-28）：FOR UPDATE 行锁批量获取，同样防止并发扣减丢失更新
+            let material_ids: Vec<i32> = bom_items.iter().map(|b| b.material_id).collect();
+            let stock_map: std::collections::HashMap<i32, crate::models::inventory_stock::Model> =
+                if material_ids.is_empty() {
+                    std::collections::HashMap::new()
+                } else {
+                    InventoryStockEntity::find()
+                        .filter(
+                            crate::models::inventory_stock::Column::ProductId.is_in(material_ids),
+                        )
+                        .filter(
+                            crate::models::inventory_stock::Column::WarehouseId
+                                .eq(default_warehouse.id),
+                        )
+                        .lock_exclusive()
+                        .all(txn)
+                        .await?
+                        .into_iter()
+                        .map(|s| (s.product_id, s))
+                        .collect()
+                };
+
             for bom_item in bom_items {
                 let consumption_qty = bom_item.quantity * production_qty;
 
-                // 查找该原材料在默认仓库的库存记录
-                // 批次 9（2026-06-28）：加 FOR UPDATE 行锁，防止并发扣减原材料库存丢失更新
-                let stock_record = InventoryStockEntity::find()
-                    .filter(
-                        crate::models::inventory_stock::Column::ProductId.eq(bom_item.material_id),
-                    )
-                    .filter(
-                        crate::models::inventory_stock::Column::WarehouseId
-                            .eq(default_warehouse.id),
-                    )
-                    .lock_exclusive()
-                    .one(txn)
-                    .await?
+                // v16 批次 43 修复：从批量查询结果获取库存记录（O(1) 查找）
+                let stock_record = stock_map
+                    .get(&bom_item.material_id)
+                    .cloned()
                     .ok_or_else(|| {
                         AppError::business(format!(
                             "原材料(ID={})在默认仓库中无库存记录，无法扣减",

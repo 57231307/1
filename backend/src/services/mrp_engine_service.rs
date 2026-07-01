@@ -122,6 +122,116 @@ impl MrpEngineService {
         })
     }
 
+    /// v16 批次 43 修复：批量获取多个产品的库存信息，避免循环内逐个查询（N+1）
+    async fn get_stock_info_batch(
+        &self,
+        product_ids: &[i32],
+    ) -> Result<std::collections::HashMap<i32, StockInfo>, AppError> {
+        if product_ids.is_empty() {
+            return Ok(std::collections::HashMap::new());
+        }
+
+        let stocks = InventoryStockEntity::find()
+            .filter(crate::models::inventory_stock::Column::ProductId.is_in(product_ids.to_vec()))
+            .all(&*self.db)
+            .await?;
+
+        // 按 product_id 聚合（一个产品可能有多条库存记录，与 get_stock_info 语义一致）
+        let mut agg: std::collections::HashMap<i32, (Decimal, Decimal, Decimal)> =
+            std::collections::HashMap::new();
+        for stock in stocks {
+            let qty = if stock.quantity_meters > Decimal::ZERO {
+                stock.quantity_meters
+            } else {
+                stock.quantity_on_hand
+            };
+            let entry = agg
+                .entry(stock.product_id)
+                .or_insert((Decimal::ZERO, Decimal::ZERO, Decimal::ZERO));
+            entry.0 += qty; // on_hand
+            entry.1 += stock.quantity_incoming; // in_transit
+            entry.2 += stock.reorder_point; // safety_stock
+        }
+
+        let mut result = std::collections::HashMap::new();
+        for (product_id, (on_hand, in_transit, safety_stock)) in agg {
+            let available = on_hand - safety_stock;
+            let available = if available > Decimal::ZERO {
+                available
+            } else {
+                Decimal::ZERO
+            };
+            result.insert(
+                product_id,
+                StockInfo {
+                    on_hand,
+                    in_transit,
+                    safety_stock,
+                    available,
+                },
+            );
+        }
+
+        Ok(result)
+    }
+
+    /// v16 批次 43 修复：带缓存的库存查询，先查 cache 未命中再查数据库并写入 cache
+    async fn get_stock_info_cached(
+        &self,
+        product_id: i32,
+        cache: &mut std::collections::HashMap<i32, StockInfo>,
+    ) -> Result<StockInfo, AppError> {
+        if let Some(info) = cache.get(&product_id) {
+            return Ok(info.clone());
+        }
+        let info = self.get_stock_info(product_id).await?;
+        cache.insert(product_id, info.clone());
+        Ok(info)
+    }
+
+    /// v16 批次 43 修复：基于已知 StockInfo 计算物料需求（避免重复查询库存）
+    fn calculate_requirement_with_stock(
+        &self,
+        product_id: i32,
+        required_quantity: Decimal,
+        required_date: NaiveDate,
+        source_type: String,
+        source_id: Option<i32>,
+        consider_safety_stock: bool,
+        consider_in_transit: bool,
+        bom_level: i32,
+        stock_info: &StockInfo,
+    ) -> MaterialRequirement {
+        let mut available = stock_info.available;
+        if consider_in_transit {
+            available += stock_info.in_transit;
+        }
+
+        let shortage = if required_quantity > available {
+            required_quantity - available
+        } else {
+            Decimal::ZERO
+        };
+
+        MaterialRequirement {
+            product_id,
+            required_quantity,
+            required_date,
+            on_hand_quantity: stock_info.on_hand,
+            in_transit_quantity: stock_info.in_transit,
+            safety_stock: if consider_safety_stock {
+                stock_info.safety_stock
+            } else {
+                Decimal::ZERO
+            },
+            available_quantity: available,
+            shortage_quantity: shortage,
+            source_type,
+            source_id,
+            bom_level,
+        }
+    }
+
     /// 计算单个物料需求
     #[allow(clippy::too_many_arguments)]
     pub async fn calculate_requirement(
@@ -193,6 +303,8 @@ impl MrpEngineService {
         consider_safety_stock: bool,
         consider_in_transit: bool,
         results: &mut Vec<MaterialRequirement>,
+        // v16 批次 43 修复：传入共享库存缓存，避免递归中重复查询同一产品的库存
+        stock_cache: &mut std::collections::HashMap<i32, StockInfo>,
     ) -> Result<(), AppError> {
         if current_level > max_level {
             return Ok(());
@@ -225,18 +337,21 @@ impl MrpEngineService {
             let lead_time = Duration::days(lead_time_days);
             let material_date = required_date - lead_time;
 
-            let requirement = self
-                .calculate_requirement(
-                    item.material_id,
-                    quantity_with_scrap,
-                    material_date,
-                    source_type.to_string(),
-                    source_id,
-                    consider_safety_stock,
-                    consider_in_transit,
-                    current_level,
-                )
+            // v16 批次 43 修复：使用缓存查询库存，避免递归中重复查询
+            let stock_info = self
+                .get_stock_info_cached(item.material_id, stock_cache)
                 .await?;
+            let requirement = self.calculate_requirement_with_stock(
+                item.material_id,
+                quantity_with_scrap,
+                material_date,
+                source_type.to_string(),
+                source_id,
+                consider_safety_stock,
+                consider_in_transit,
+                current_level,
+                &stock_info,
+            );
 
             results.push(requirement);
 
@@ -251,6 +366,7 @@ impl MrpEngineService {
                 consider_safety_stock,
                 consider_in_transit,
                 results,
+                stock_cache,
             ))
             .await?;
         }
@@ -272,6 +388,10 @@ impl MrpEngineService {
     ) -> Result<Vec<MaterialRequirement>, AppError> {
         let mut requirements = Vec::new();
 
+        // v16 批次 43 修复：创建库存缓存，递归展开 BOM 时共享缓存避免重复查询
+        let mut stock_cache: std::collections::HashMap<i32, StockInfo> =
+            std::collections::HashMap::new();
+
         self.explode_bom_recursive(
             product_id,
             parent_quantity,
@@ -283,6 +403,7 @@ impl MrpEngineService {
             consider_safety_stock,
             consider_in_transit,
             &mut requirements,
+            &mut stock_cache,
         )
         .await?;
 
@@ -393,6 +514,12 @@ impl MrpEngineService {
         let mut all_results = Vec::new();
         let mut all_requirements = Vec::new();
 
+        // v16 批次 43 修复：循环外批量预加载所有顶层 product_id 的库存信息，
+        // 避免循环内重复调用 calculate_requirement 查询同一产品库存（N+1 查询）
+        let top_product_ids: Vec<i32> =
+            request.items.iter().map(|i| i.product_id).collect();
+        let top_stock_map = self.get_stock_info_batch(&top_product_ids).await?;
+
         for item in request.items {
             let results = self
                 .run_mrp_calculation(
@@ -408,18 +535,27 @@ impl MrpEngineService {
 
             all_results.extend(results);
 
-            let requirement = self
-                .calculate_requirement(
-                    item.product_id,
-                    item.required_quantity,
-                    item.required_date,
-                    request.source_type.clone(),
-                    request.source_id,
-                    request.consider_safety_stock,
-                    request.consider_in_transit,
-                    0,
-                )
-                .await?;
+            // v16 批次 43 修复：顶层物料需求直接使用预加载的库存信息，避免重复查询
+            let stock_info = top_stock_map
+                .get(&item.product_id)
+                .cloned()
+                .unwrap_or(StockInfo {
+                    on_hand: Decimal::ZERO,
+                    in_transit: Decimal::ZERO,
+                    safety_stock: Decimal::ZERO,
+                    available: Decimal::ZERO,
+                });
+            let requirement = self.calculate_requirement_with_stock(
+                item.product_id,
+                item.required_quantity,
+                item.required_date,
+                request.source_type.clone(),
+                request.source_id,
+                request.consider_safety_stock,
+                request.consider_in_transit,
+                0,
+                &stock_info,
+            );
 
             all_requirements.push(requirement);
         }
@@ -497,10 +633,23 @@ impl MrpEngineService {
 
         let mrp_results = select.all(&*self.db).await?;
 
+        // v16 批次 43 修复：循环外批量查询所有 product_id 的库存信息，避免循环内逐个查询（N+1）
+        let product_ids: Vec<i32> = mrp_results.iter().map(|r| r.product_id).collect();
+        let stock_map = self.get_stock_info_batch(&product_ids).await?;
+
         let mut requirements = Vec::new();
 
         for result in mrp_results {
-            let stock_info = self.get_stock_info(result.product_id).await?;
+            // v16 批次 43 修复：从批量查询结果获取库存信息（O(1) 查找）
+            let stock_info = stock_map
+                .get(&result.product_id)
+                .cloned()
+                .unwrap_or(StockInfo {
+                    on_hand: Decimal::ZERO,
+                    in_transit: Decimal::ZERO,
+                    safety_stock: Decimal::ZERO,
+                    available: Decimal::ZERO,
+                });
 
             let shortage = if result.required_quantity > stock_info.available {
                 result.required_quantity - stock_info.available
