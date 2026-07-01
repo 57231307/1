@@ -132,17 +132,30 @@ impl PurchaseReceiptService {
             .all(txn)
             .await?;
 
+        // v16 批次 43 修复：循环外批量查询所有 product_id 在 receipt.warehouse_id 的库存记录，
+        // 避免循环内逐个调用 find_by_product_and_warehouse_txn（N+1 查询）
+        let product_ids: Vec<i32> = items.iter().map(|i| i.product_id).collect();
+        let stock_map: std::collections::HashMap<i32, crate::models::inventory_stock::Model> =
+            if product_ids.is_empty() {
+                std::collections::HashMap::new()
+            } else {
+                crate::models::inventory_stock::Entity::find()
+                    .filter(crate::models::inventory_stock::Column::WarehouseId.eq(receipt.warehouse_id))
+                    .filter(crate::models::inventory_stock::Column::ProductId.is_in(product_ids))
+                    .all(txn)
+                    .await?
+                    .into_iter()
+                    .map(|s| (s.product_id, s))
+                    .collect()
+            };
+
         for item in items {
             let batch_no = item.batch_no.unwrap_or_else(|| "DEFAULT".to_string());
             let color_no = item.color_code.unwrap_or_else(|| "DEFAULT".to_string());
             let grade = item.grade.unwrap_or_else(|| "一等品".to_string());
 
-            let existing_stock = InventoryStockService::find_by_product_and_warehouse_txn(
-                txn,
-                item.product_id,
-                receipt.warehouse_id,
-            )
-            .await?;
+            // v16 批次 43 修复：从批量查询结果获取库存记录（O(1) 查找）
+            let existing_stock = stock_map.get(&item.product_id).cloned();
 
             let stock_model = if let Some(stock) = existing_stock {
                 let new_quantity_meters = stock.quantity_meters + item.quantity;
