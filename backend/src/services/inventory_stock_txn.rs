@@ -190,18 +190,4 @@ impl InventoryStockService {
 
         Ok(transaction)
     }
-
-    /// 查找库存（事务版本）
-    pub async fn find_by_product_and_warehouse_txn(
-        txn: &sea_orm::DatabaseTransaction,
-        product_id: i32,
-        warehouse_id: i32,
-    ) -> Result<Option<inventory_stock::Model>, AppError> {
-        inventory_stock::Entity::find()
-            .filter(inventory_stock::Column::ProductId.eq(product_id))
-            .filter(inventory_stock::Column::WarehouseId.eq(warehouse_id))
-            .one(txn)
-            .await
-            .map_err(AppError::from)
-    }
 }
