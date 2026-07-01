@@ -27,6 +27,8 @@ pub struct Model {
     pub old_value: Option<serde_json::Value>,
     pub new_value: Option<serde_json::Value>,
     pub created_at: Option<DateTimeWithTimeZone>,
+    /// HMAC-SHA256 防篡改签名（trace_id|event_type|action|payload）
+    pub signature: Option<String>,
 }
 
 #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]

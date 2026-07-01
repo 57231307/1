@@ -1,4 +1,4 @@
-/* vue-i18n 入口配置 - 冰溪 ERP (P4-4) */
+/* vue-i18n 入口配置 - 秉羲 ERP (P4-4) */
 import { createI18n } from 'vue-i18n'
 import zhCN from '../locales/zh-CN'
 import enUS from '../locales/en-US'

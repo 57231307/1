@@ -1,4 +1,4 @@
-// 冰溪 ERP token 存储工具
+// 秉羲 ERP token 存储工具
 //
 // Wave B-3 安全加固（OWASP A07:2021 XSS 防护）：
 // - access_token / refresh_token 由后端写入 httpOnly Cookie，
