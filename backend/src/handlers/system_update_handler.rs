@@ -1,11 +1,47 @@
 //! 系统更新处理器
 
+use crate::middleware::auth_context::AuthContext;
 use crate::services::system_update_service::{LocalRelease, SystemUpdateService, UpdateError};
+use crate::utils::admin_checker::is_admin_role;
+use crate::utils::app_state::AppState;
 use crate::utils::error::AppError;
 use crate::utils::response::ApiResponse;
-use axum::{extract::Multipart, Json};
+use axum::{
+    extract::{Multipart, State},
+    Json,
+};
 use std::path::PathBuf;
 use tokio::fs;
+
+/// P0 7-2 修复：要求调用者具备 admin 角色，否则拒绝并记录审计日志
+///
+/// 安全原因：原 `download_and_update`、`upload_and_update`、`rollback_version`、
+/// `apply_local_update` 四个 handler 完全未注入 `AuthContext`，仅靠全局
+/// `permission_middleware` 做 RBAC，缺少 handler 层深度防御。
+/// 系统更新属高危操作（涉及二进制替换、版本回滚，可导致 RCE），
+/// 必须在 handler 层显式校验 admin 角色，防止权限中间件被绕过或配置错误时
+/// 任意登录用户上传/应用恶意更新包。
+async fn require_admin_role(
+    state: &AppState,
+    auth: &AuthContext,
+) -> Result<(), AppError> {
+    let role_id = auth
+        .role_id
+        .ok_or_else(|| AppError::permission_denied("用户未分配角色，无法执行该操作"))?;
+    if !is_admin_role(&state.db, role_id).await {
+        tracing::warn!(
+            target: "security_audit",
+            event = "AUTHORIZATION_DENIED",
+            user_id = auth.user_id,
+            username = %auth.username,
+            "[SECURITY] 非 admin 用户调用系统更新敏感接口被拒绝"
+        );
+        return Err(AppError::permission_denied(
+            "系统更新操作仅限管理员（code=admin）执行",
+        ));
+    }
+    Ok(())
+}
 
 fn verify_zip_magic(data: &[u8]) -> bool {
     data.starts_with(&[0x50, 0x4B, 0x03, 0x04])
@@ -87,7 +123,13 @@ pub async fn check_for_updates() -> Result<Json<ApiResponse<CheckUpdateResponse>
     )))
 }
 
-pub async fn download_and_update() -> Result<Json<ApiResponse<UpdateResult>>, AppError> {
+pub async fn download_and_update(
+    State(state): State<AppState>,
+    auth: AuthContext,
+) -> Result<Json<ApiResponse<UpdateResult>>, AppError> {
+    // P0 7-2 修复：远程下载并应用更新属高危操作，仅 admin 可执行
+    require_admin_role(&state, &auth).await?;
+
     let service = SystemUpdateService::new();
 
     match service.download_and_update().await {
@@ -138,8 +180,13 @@ pub async fn get_update_status() -> Json<ApiResponse<UpdateStatusResponse>> {
 }
 
 pub async fn upload_and_update(
+    State(state): State<AppState>,
+    auth: AuthContext,
     mut multipart: Multipart,
 ) -> Result<Json<ApiResponse<UpdateResult>>, AppError> {
+    // P0 7-2 修复：上传并应用更新包属高危操作（可导致 RCE），仅 admin 可执行
+    require_admin_role(&state, &auth).await?;
+
     let mut update_file_path: Option<PathBuf> = None;
 
     const MAX_UPDATE_SIZE: usize = 100 * 1024 * 1024;
@@ -236,8 +283,13 @@ pub struct RollbackRequest {
 }
 
 pub async fn rollback_version(
+    State(state): State<AppState>,
+    auth: AuthContext,
     Json(payload): Json<RollbackRequest>,
 ) -> Result<Json<ApiResponse<UpdateResult>>, AppError> {
+    // P0 7-2 修复：版本回滚属高危操作，仅 admin 可执行
+    require_admin_role(&state, &auth).await?;
+
     let service = SystemUpdateService::new();
 
     match service.rollback_to_version(&payload.version) {
@@ -303,8 +355,13 @@ pub struct ApplyLocalUpdateRequest {
 }
 
 pub async fn apply_local_update(
+    State(state): State<AppState>,
+    auth: AuthContext,
     Json(payload): Json<ApplyLocalUpdateRequest>,
 ) -> Result<Json<ApiResponse<UpdateResult>>, AppError> {
+    // P0 7-2 修复：应用本地更新包属高危操作，仅 admin 可执行
+    require_admin_role(&state, &auth).await?;
+
     let service = SystemUpdateService::new();
 
     let releases = service

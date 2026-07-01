@@ -277,6 +277,11 @@ impl UserService {
     /// 将用户设置为非激活状态，不物理删除数据
     /// 保留用户历史记录和关联数据
     ///
+    /// # 安全
+    /// 软删除成功后立即吊销该用户的所有活跃 JWT，防止被删除用户的旧 Token
+    /// 在剩余有效期（最长 2 小时）内继续访问系统。吊销属 best-effort，失败仅记录
+    /// warn 日志，不阻塞删除主流程。
+    ///
     /// # 参数
     /// - `user_id`: 用户 ID
     ///
@@ -301,6 +306,23 @@ impl UserService {
         // 失效缓存：is_active 变化使缓存值陈旧
         if let Some(cache) = &self.cache {
             cache.invalidate(&Self::cache_key(user_id)).await;
+        }
+
+        // P0 7-3 修复：吊销该用户的所有活跃 JWT
+        //    将吊销逻辑下沉到 service 层作为单一真相源，保证任何调用方
+        //    （handler / 定时任务 / 其他 service）都能自动获得吊销保护。
+        //    auth_middleware 会拒绝该用户 iat < revoked_at 的 Token。
+        if let Err(e) =
+            crate::services::auth_service::revoke_user_jtis(user_id, "USER_DELETED").await
+        {
+            tracing::warn!(
+                target: "security_audit",
+                event = "TOKEN_REVOKE_FAILED",
+                user_id = user_id,
+                error = %e,
+                "[SECURITY] 吊销已删除用户 {} 的活跃 JWT 失败",
+                user_id
+            );
         }
 
         Ok(())
