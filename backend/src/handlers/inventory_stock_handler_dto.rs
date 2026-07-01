@@ -134,7 +134,7 @@ pub struct ListTransactionParams {
     pub end_date: Option<chrono::NaiveDateTime>,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Clone, Serialize)]
 pub struct TransactionResponse {
     pub id: i32,
     pub transaction_type: String,

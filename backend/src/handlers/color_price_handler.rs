@@ -20,6 +20,7 @@ use crate::models::color_price_dto::{
 };
 use crate::models::color_price_history_dto::PriceHistoryItem;
 use crate::models::color_price_tier_dto::CreatePriceTierDto;
+use crate::models::customer_color_price;
 use crate::models::customer_color_price_dto::{
     CreateCustomerColorPriceDto, ListCustomerColorPricesQuery,
 };
@@ -33,7 +34,7 @@ use crate::services::color_price_seasonal_service::{ColorPriceSeasonalService, S
 use crate::services::color_price_tier_service::{ColorPriceTierService, TierError};
 use crate::utils::app_state::AppState;
 use crate::utils::error::AppError;
-use crate::utils::response::ApiResponse;
+use crate::utils::response::{ApiResponse, PaginatedResponse};
 
 // ----------------------------------------------------------------------
 // 错误转换辅助
@@ -368,21 +369,54 @@ pub async fn delete_tier(
 // ----------------------------------------------------------------------
 
 /// GET /api/v1/erp/color-prices/customer-special - 客户专属价列表
+/// 支持按 customer_id / product_id / color_id / active_only 过滤，分页查询避免全表加载导致 OOM
 pub async fn list_customer_special_prices(
     _auth: AuthContext,
     State(state): State<AppState>,
-    Query(_query): Query<ListCustomerColorPricesQuery>,
-) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
-    use crate::models::customer_color_price;
-    use sea_orm::EntityTrait;
-    let items: Vec<customer_color_price::Model> = customer_color_price::Entity::find()
-        .all(&*state.db)
+    Query(query): Query<ListCustomerColorPricesQuery>,
+) -> Result<Json<ApiResponse<PaginatedResponse<customer_color_price::Model>>>, AppError> {
+    use chrono::Utc;
+    use sea_orm::{ColumnTrait, Condition, EntityTrait, PaginatorTrait, QueryFilter};
+
+    // 页码采用 1-based 约定，page_size clamp 防止 DoS
+    let page = query.page.unwrap_or(1);
+    let page_size = query.page_size.unwrap_or(20).clamp(1, 100);
+
+    let mut q = customer_color_price::Entity::find();
+
+    if let Some(customer_id) = query.customer_id {
+        q = q.filter(customer_color_price::Column::CustomerId.eq(customer_id));
+    }
+    if let Some(product_id) = query.product_id {
+        q = q.filter(customer_color_price::Column::ProductId.eq(product_id));
+    }
+    if let Some(color_id) = query.color_id {
+        q = q.filter(customer_color_price::Column::ColorId.eq(color_id));
+    }
+    // active_only=true 时只返回有效期内（valid_until 为空或未过期）的记录
+    if query.active_only == Some(true) {
+        let today = Utc::now().date_naive();
+        q = q.filter(
+            Condition::any()
+                .add(customer_color_price::Column::ValidUntil.is_null())
+                .add(customer_color_price::Column::ValidUntil.gte(today)),
+        );
+    }
+
+    let paginator = q.paginate(&*state.db, page_size);
+    let total = paginator
+        .num_items()
         .await
         .map_err(|e| AppError::database(e.to_string()))?;
-    Ok(Json(ApiResponse::success(json!({
-        "items": items,
-        "total": items.len(),
-    }))))
+    // fetch_page 接收 0-based 页码，需将 1-based page 转换
+    let items = paginator
+        .fetch_page(page.saturating_sub(1))
+        .await
+        .map_err(|e| AppError::database(e.to_string()))?;
+
+    Ok(Json(ApiResponse::success(PaginatedResponse::new(
+        items, total, page, page_size,
+    ))))
 }
 
 /// POST /api/v1/erp/color-prices/customer-special - 新建客户专属价
@@ -391,7 +425,6 @@ pub async fn create_customer_special_price(
     State(state): State<AppState>,
     Json(dto): Json<CreateCustomerColorPriceDto>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
-    use crate::models::customer_color_price;
     use sea_orm::{ActiveModelTrait, Set};
 
     // 激活 CreateCustomerColorPriceDto 的 Validate 注解，校验入参

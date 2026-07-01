@@ -127,6 +127,8 @@ impl BpmService {
         let instance = instance_model.insert(&txn).await?;
 
         let mut task_ids = vec![];
+        // P0 5-3 修复：事务内仅收集待发事件，commit 成功后再 publish，避免 commit 失败产生幻事件
+        let mut pending_event: Option<crate::services::event_bus::BusinessEvent> = None;
         if let Some(flow_def) = definition.config {
             if let Some(nodes) = flow_def.get("nodes").and_then(|n| n.as_array()) {
                 // Find start_event or first user_task
@@ -198,7 +200,8 @@ impl BpmService {
                     instance_active.completed_at = Set(Some(chrono::Utc::now()));
                     instance_active.update(&txn).await?;
 
-                    crate::services::event_bus::EVENT_BUS.publish(
+                    // P0 5-3 修复：事务内仅收集事件，commit 后再 publish
+                    pending_event = Some(
                         crate::services::event_bus::BusinessEvent::BpmProcessFinished {
                             business_type: req.business_type.clone(),
                             business_id: req.business_id,
@@ -210,6 +213,11 @@ impl BpmService {
         }
 
         txn.commit().await?;
+
+        // P0 5-3 修复：commit 成功后发布 BPM 流程结束事件
+        if let Some(ev) = pending_event {
+            crate::services::event_bus::EVENT_BUS.publish(ev);
+        }
 
         Ok(StartProcessResponse {
             instance_id: instance.id,
@@ -224,6 +232,8 @@ impl BpmService {
         user_id: Option<i32>,
     ) -> Result<(), AppError> {
         let txn = self.db.begin().await?;
+        // P0 5-3 修复：事务内仅收集待发事件，commit 成功后再 publish，避免 commit 失败产生幻事件
+        let mut pending_event: Option<crate::services::event_bus::BusinessEvent> = None;
 
         let task = bpm_task::Entity::find_by_id(req.task_id)
             .one(&txn)
@@ -285,7 +295,8 @@ impl BpmService {
                 Some(instance.business_type.clone()),
                 Some(instance.business_id),
             ) {
-                crate::services::event_bus::EVENT_BUS.publish(
+                // P0 5-3 修复：事务内仅收集事件，commit 后再 publish
+                pending_event = Some(
                     crate::services::event_bus::BusinessEvent::BpmProcessFinished {
                         business_type: b_type,
                         business_id: b_id,
@@ -386,7 +397,8 @@ impl BpmService {
                     Some(instance.business_type.clone()),
                     Some(instance.business_id),
                 ) {
-                    crate::services::event_bus::EVENT_BUS.publish(
+                    // P0 5-3 修复：事务内仅收集事件，commit 后再 publish
+                    pending_event = Some(
                         crate::services::event_bus::BusinessEvent::BpmProcessFinished {
                             business_type: b_type,
                             business_id: b_id,
@@ -398,6 +410,11 @@ impl BpmService {
         }
 
         txn.commit().await?;
+
+        // P0 5-3 修复：commit 成功后发布 BPM 流程结束事件
+        if let Some(ev) = pending_event {
+            crate::services::event_bus::EVENT_BUS.publish(ev);
+        }
         Ok(())
     }
 

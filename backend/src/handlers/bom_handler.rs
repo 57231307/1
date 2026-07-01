@@ -16,7 +16,7 @@ use crate::services::bom_service::{
 };
 use crate::utils::app_state::AppState;
 use crate::utils::error::AppError;
-use crate::utils::response::ApiResponse;
+use crate::utils::response::{ApiResponse, PaginatedResponse};
 
 /// 创建BOM请求
 #[derive(Debug, Clone, Deserialize, Serialize, Validate)]
@@ -204,7 +204,7 @@ pub async fn get_bom(
 pub async fn list_boms(
     State(state): State<AppState>,
     Query(query): Query<ListBomsQuery>,
-) -> Result<Json<ApiResponse<Vec<BomResponse>>>, AppError> {
+) -> Result<Json<ApiResponse<PaginatedResponse<BomResponse>>>, AppError> {
     let service = BomService::new(state.db.clone());
 
     let bom_query = BomQuery {

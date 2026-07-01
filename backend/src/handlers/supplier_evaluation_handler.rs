@@ -7,7 +7,7 @@ use crate::services::supplier_evaluation_service::{
 };
 use crate::utils::app_state::AppState;
 use crate::utils::error::AppError;
-use crate::utils::ApiResponse;
+use crate::utils::{ApiResponse, PaginatedResponse};
 use axum::{
     extract::{Path, Query, State},
     Json,
@@ -116,7 +116,7 @@ pub async fn list_ratings(
     State(state): State<AppState>,
     auth: AuthContext,
     Query(params): Query<EvaluationRecordQuery>,
-) -> Result<Json<ApiResponse<Vec<supplier_evaluation::Model>>>, AppError> {
+) -> Result<Json<ApiResponse<PaginatedResponse<supplier_evaluation::Model>>>, AppError> {
     info!("用户 {} 正在查询供应商评级列表", auth.user_id);
 
     let page = params.page.unwrap_or(1) as u64;

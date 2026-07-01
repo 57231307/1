@@ -4,6 +4,7 @@
 //! 包含入库单创建、确认、更新等全流程管理
 
 use crate::models::{purchase_receipt, purchase_receipt_item};
+use crate::services::event_bus::EVENT_BUS;
 use crate::services::purchase_receipt_dto::{
     CreatePurchaseReceiptRequest, CreateReceiptItemRequest, UpdatePurchaseReceiptRequest,
     UpdateReceiptItemRequest,
@@ -292,20 +293,30 @@ impl PurchaseReceiptService {
         .await?;
 
         // 6. 更新库存（在事务内执行，保证原子性）
-        self.update_inventory_txn(&receipt, &txn).await?;
+        // P0 5-2 修复：update_inventory_txn 不再在内部 publish 事件，改为返回收集到的库存流水事件，
+        // 由本处在 commit 成功后统一 publish，避免事务回滚时幻事件
+        let pending_events = self.update_inventory_txn(&receipt, &txn).await?;
 
         // 7. 提交事务
         txn.commit().await?;
 
+        // P0 5-2 修复：commit 成功后统一发布库存流水事件，避免事务回滚时幻事件
+        for ev in pending_events {
+            EVENT_BUS.publish(ev);
+        }
+
         // 8. 自动生成应付账款（事务外执行，失败不影响入库）
+        // P0 5-5 修复：auto_generate_from_receipt 内部自建事务、不接受外部 txn，无法纳入主事务。
+        // 失败时改为 warn 级补偿提示，明确需人工补生成应付单，避免仅 error 日志无补偿指引
+        // 导致入库成功但应付账款缺失的问题被遗漏。
         let ap_service =
             crate::services::ap_invoice_service::ApInvoiceService::new(self.db.clone());
         if let Err(e) = ap_service
             .auto_generate_from_receipt(receipt.id, user_id)
             .await
         {
-            tracing::error!(
-                "自动生成应付账单失败 (入库单 {}): {}",
+            tracing::warn!(
+                "⚠ 入库单 {} 已确认成功，但自动生成应付账单失败，需人工补生成应付单：{}",
                 receipt.receipt_no,
                 e
             );

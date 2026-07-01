@@ -20,7 +20,7 @@ use crate::services::production_order_service::{
 };
 use crate::utils::app_state::AppState;
 use crate::utils::error::AppError;
-use crate::utils::response::ApiResponse;
+use crate::utils::response::{ApiResponse, PaginatedResponse};
 
 /// 创建生产订单请求
 #[derive(Debug, Deserialize, Validate)]
@@ -161,7 +161,7 @@ pub async fn list_production_orders(
     State(state): State<AppState>,
     _auth: AuthContext,
     Query(query): Query<ListProductionOrdersQuery>,
-) -> Result<Json<ApiResponse<Vec<ProductionOrderResponse>>>, AppError> {
+) -> Result<Json<ApiResponse<PaginatedResponse<ProductionOrderResponse>>>, AppError> {
     let service = ProductionOrderService::new(state.db.clone());
 
     let query_params = ProductionOrderQuery {

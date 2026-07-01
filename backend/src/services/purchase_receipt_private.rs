@@ -7,6 +7,7 @@ use rust_decimal::Decimal;
 use sea_orm::{ColumnTrait, EntityTrait, QueryFilter, Set};
 
 use crate::models::{purchase_receipt, purchase_receipt_item};
+use crate::services::event_bus::BusinessEvent;
 use crate::utils::error::AppError;
 
 use super::purchase_receipt_service::PurchaseReceiptService;
@@ -124,8 +125,13 @@ impl PurchaseReceiptService {
         &self,
         receipt: &purchase_receipt::Model,
         txn: &sea_orm::DatabaseTransaction,
-    ) -> Result<(), AppError> {
+    ) -> Result<Vec<BusinessEvent>, AppError> {
         use crate::services::inventory_stock_service::InventoryStockService;
+
+        // P0 5-2 修复：本函数不 commit 事务（由调用方 confirm_receipt commit），
+        // 收集 record_transaction_txn 返回的库存流水事件交给调用方，
+        // 在 commit 成功后统一 publish，避免事务回滚时幻事件
+        let mut pending_events: Vec<BusinessEvent> = Vec::new();
 
         let items = purchase_receipt_item::Entity::find()
             .filter(purchase_receipt_item::Column::ReceiptId.eq(receipt.id))
@@ -192,7 +198,9 @@ impl PurchaseReceiptService {
                 .await?
             };
 
-            InventoryStockService::record_transaction_txn(
+            // P0 5-2 修复：record_transaction_txn 不再在函数内 publish 事件，
+            // 改为返回 (Model, Option<BusinessEvent>)，由本函数收集后交给调用方在 commit 后统一 publish
+            let (_, txn_event) = InventoryStockService::record_transaction_txn(
                 txn,
                 "PURCHASE_RECEIPT".to_string(),
                 item.product_id,
@@ -214,7 +222,10 @@ impl PurchaseReceiptService {
                 Some(receipt.created_by),
             )
             .await?;
+            if let Some(ev) = txn_event {
+                pending_events.push(ev);
+            }
         }
-        Ok(())
+        Ok(pending_events)
     }
 }

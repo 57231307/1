@@ -3,6 +3,7 @@
 //! 采购退货服务层，负责采购退货的核心业务逻辑
 
 use crate::models::{inventory_stock, product, purchase_return, purchase_return_item};
+use crate::services::event_bus::{BusinessEvent, EVENT_BUS};
 use crate::utils::error::AppError;
 use chrono::Utc;
 use rust_decimal::Decimal;
@@ -173,6 +174,10 @@ impl PurchaseReturnService {
         // 并发 approve_return 均通过状态检查后基于过期状态写入，导致状态门失效。
         let txn = (*self.db).begin().await?;
 
+        // P0 5-2 修复：收集 record_transaction_txn 返回的库存流水事件，
+        // 在 commit 成功后统一 publish，避免事务回滚时幻事件
+        let mut pending_events: Vec<BusinessEvent> = Vec::new();
+
         // 获取退货单（加 lock_exclusive 串行化并发状态变更）
         let return_order = purchase_return::Entity::find_by_id(return_id)
             .lock_exclusive()
@@ -268,7 +273,9 @@ impl PurchaseReturnService {
                     &txn, s.id, new_quantity_meters, new_quantity_kg, s.version,
                 ).await?;
 
-                crate::services::inventory_stock_service::InventoryStockService::record_transaction_txn(
+                // P0 5-2 修复：record_transaction_txn 不再在函数内 publish 事件，
+                // 改为返回 (Model, Option<BusinessEvent>)，由调用方在 commit 后统一 publish
+                let (_, txn_event) = crate::services::inventory_stock_service::InventoryStockService::record_transaction_txn(
                     &txn,
                     "PURCHASE_RETURN".to_string(),
                     item.product_id,
@@ -289,6 +296,9 @@ impl PurchaseReturnService {
                     Some("采购退货扣减库存".to_string()),
                     Some(user_id),
                 ).await?;
+                if let Some(ev) = txn_event {
+                    pending_events.push(ev);
+                }
             } else {
                 return Err(AppError::business(format!(
                     "产品 {} 在仓库 {} 没有库存记录，无法退货",
@@ -299,6 +309,11 @@ impl PurchaseReturnService {
 
         // 2. 提交事务（库存扣减和状态更新在同一事务内）
         txn.commit().await?;
+
+        // P0 5-2 修复：commit 成功后统一发布库存流水事件，避免事务回滚时幻事件
+        for ev in pending_events {
+            EVENT_BUS.publish(ev);
+        }
 
         // 3. 自动生成应付红字账单（冲销）- 在事务外执行，失败不影响库存扣减
         let ap_service =

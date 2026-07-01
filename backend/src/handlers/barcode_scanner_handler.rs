@@ -138,7 +138,8 @@ pub async fn scan_history(
     Query(params): Query<ScanHistoryQuery>,
     _auth: AuthContext,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
-    let page = params.page.unwrap_or_default();
+    // 页码采用 1-based 约定，与全局分页契约保持一致
+    let page = params.page.unwrap_or(1);
     // v11 批次 36 修复：page_size clamp 防止 DoS（用户传超大值导致内存爆炸）
     let page_size = params.page_size.unwrap_or(20).clamp(1, 100);
 
@@ -166,7 +167,8 @@ pub async fn scan_history(
         .paginate(&*state.db, page_size);
 
     let total = paginator.num_items().await?;
-    let items = paginator.fetch_page(page).await?;
+    // fetch_page 接收 0-based 页码，需将 1-based page 转换
+    let items = paginator.fetch_page(page.saturating_sub(1)).await?;
 
     info!(
         "扫码历史查询 page={} page_size={} total={}",

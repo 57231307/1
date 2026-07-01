@@ -17,7 +17,7 @@ use crate::services::mrp_engine_service::{
 };
 use crate::utils::app_state::AppState;
 use crate::utils::error::AppError;
-use crate::utils::response::ApiResponse;
+use crate::utils::response::{ApiResponse, PaginatedResponse};
 
 /// MRP计算请求
 #[derive(Debug, Deserialize, Validate)]
@@ -204,7 +204,7 @@ pub async fn get_mrp_results(
     State(state): State<AppState>,
     _auth: AuthContext,
     Query(query): Query<MrpResultQuery>,
-) -> Result<Json<ApiResponse<Vec<MrpResultResponse>>>, AppError> {
+) -> Result<Json<ApiResponse<PaginatedResponse<MrpResultResponse>>>, AppError> {
     let service = MrpEngineService::new(state.db.clone());
 
     let page = query.page.unwrap_or(1);

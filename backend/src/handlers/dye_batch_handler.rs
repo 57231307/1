@@ -14,7 +14,7 @@ use crate::middleware::auth_context::AuthContext;
 use crate::models::dye_batch;
 use crate::utils::app_state::AppState;
 use crate::utils::error::AppError;
-use crate::utils::response::ApiResponse;
+use crate::utils::response::{ApiResponse, PaginatedResponse};
 
 /// 缸号状态枚举
 #[derive(Debug, Clone, PartialEq)]
@@ -80,7 +80,7 @@ pub struct UpdateDyeBatchRequest {
 pub async fn list_dye_batches(
     State(state): State<AppState>,
     Query(query): Query<DyeBatchListQuery>,
-) -> Result<Json<ApiResponse<Vec<dye_batch::Model>>>, AppError> {
+) -> Result<Json<ApiResponse<PaginatedResponse<dye_batch::Model>>>, AppError> {
     let page = query.page.unwrap_or(1);
     let page_size = query.page_size.unwrap_or(20).clamp(1, 100);
 

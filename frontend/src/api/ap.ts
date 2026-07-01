@@ -1,5 +1,5 @@
 import { request } from './request'
-import type { ApiResponse, QueryParams } from '@/types/api'
+import type { ApiResponse, PaginatedResponse, QueryParams } from '@/types/api'
 
 export interface APInvoice {
   id: number
@@ -75,7 +75,9 @@ export interface APReconciliation {
   created_at: string
 }
 
-export function listAPInvoices(params?: QueryParams): Promise<ApiResponse<APInvoice[]>> {
+export function listAPInvoices(
+  params?: QueryParams
+): Promise<ApiResponse<PaginatedResponse<APInvoice>>> {
   return request.get('/ap/invoices', { params })
 }
 

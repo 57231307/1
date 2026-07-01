@@ -98,11 +98,17 @@ impl<T: Serialize> ApiResponse<T> {
         total: u64,
         page: u64,
         page_size: u64,
-    ) -> ApiResponse<Vec<T>> {
+    ) -> ApiResponse<PaginatedResponse<T>> {
+        // data 字段统一放置 PaginatedResponse 结构，便于前端直接消费分页元数据
         ApiResponse {
             code: Some(200),
-            data: Some(data),
-            message: Some(format!("共 {} 条记录，第 {}/{} 页", total, page, page_size)),
+            data: Some(PaginatedResponse {
+                items: data,
+                total,
+                page,
+                page_size,
+            }),
+            message: None,
         }
     }
 

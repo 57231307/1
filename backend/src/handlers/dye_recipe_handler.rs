@@ -14,7 +14,7 @@ use crate::middleware::auth_context::AuthContext;
 use crate::models::dye_recipe;
 use crate::utils::app_state::AppState;
 use crate::utils::error::AppError;
-use crate::utils::response::ApiResponse;
+use crate::utils::response::{ApiResponse, PaginatedResponse};
 
 #[derive(Debug, Deserialize)]
 pub struct DyeRecipeListQuery {
@@ -78,7 +78,7 @@ pub struct CreateVersionRequest {
 pub async fn list_dye_recipes(
     State(state): State<AppState>,
     Query(query): Query<DyeRecipeListQuery>,
-) -> Result<Json<ApiResponse<Vec<dye_recipe::Model>>>, AppError> {
+) -> Result<Json<ApiResponse<PaginatedResponse<dye_recipe::Model>>>, AppError> {
     let page = query.page.unwrap_or(1);
     let page_size = query.page_size.unwrap_or(20).clamp(1, 100);
 

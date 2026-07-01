@@ -209,6 +209,10 @@ impl ApPaymentService {
         )
         .await?;
 
+        // P0 5-1 修复：收集本次付款完全结清的应付单（invoice_id, 分摊已付金额），
+        // 在 commit 成功后补发 PaymentCompleted 事件，触发 event_bus 监听器自动标记 PAID
+        let mut fully_paid_invoices: Vec<(i32, Decimal)> = Vec::new();
+
         // 5. 更新关联的应付单已付金额
         if let Some(request_id) = payment.request_id {
             // 查询付款申请明细
@@ -260,7 +264,8 @@ impl ApPaymentService {
                             .unwrap_or(inv.amount);
 
                         // 更新应付状态
-                        inv.invoice_status = if inv.unpaid_amount <= Decimal::ZERO {
+                        let became_fully_paid = inv.unpaid_amount <= Decimal::ZERO;
+                        inv.invoice_status = if became_fully_paid {
                             "PAID".to_string()
                         } else {
                             "PARTIAL_PAID".to_string()
@@ -274,12 +279,29 @@ impl ApPaymentService {
                             Some(0),
                         )
                         .await?;
+
+                        // P0 5-1 修复：记录已完全结清的应付单，commit 后补发 PaymentCompleted 事件
+                        if became_fully_paid {
+                            fully_paid_invoices.push((item.invoice_id, paid_amount));
+                        }
                     }
                 }
             }
         }
 
         txn.commit().await?;
+
+        // P0 5-1 修复：commit 成功后补发 PaymentCompleted 事件，
+        // 触发 event_bus 监听器（event_bus.rs）自动将关联 AP 发票标记为 PAID
+        for (invoice_id, paid_amount) in fully_paid_invoices {
+            crate::services::event_bus::EVENT_BUS.publish(
+                crate::services::event_bus::BusinessEvent::PaymentCompleted {
+                    payment_id: payment.id,
+                    invoice_id,
+                    amount: paid_amount,
+                },
+            );
+        }
 
         // 6. 预算核销（非阻断）
         // 通过付款申请找到关联的应付单，再通过应付单的来源找到采购入库单的部门信息

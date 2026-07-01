@@ -4,7 +4,7 @@ use crate::models::product;
 use crate::services::inventory_stock_service::InventoryStockService;
 use crate::utils::app_state::AppState;
 use crate::utils::error::AppError;
-use crate::utils::response::ApiResponse;
+use crate::utils::response::{ApiResponse, PaginatedResponse};
 use axum::{
     extract::{Path, Query, State},
     Json,
@@ -200,20 +200,19 @@ pub async fn list_stock(
     State(state): State<AppState>,
     auth: AuthContext,
     Query(params): Query<ListStockParams>,
-) -> Result<Json<crate::utils::response::ApiResponse<Vec<serde_json::Value>>>, AppError> {
+) -> Result<Json<ApiResponse<PaginatedResponse<serde_json::Value>>>, AppError> {
     if let Err(e) = params.validate() {
         return Err(AppError::validation(e.to_string()));
     }
 
     let service = InventoryStockService::new(state.db.clone());
 
-    let (stock_list, _total) = service
-        .list_stock(
-            params.page.unwrap_or_default(),
-            params.page_size.unwrap_or(20).clamp(1, 100),
-            params.warehouse_id,
-            params.product_id,
-        )
+    // 页码采用 1-based 约定，由 service 内部转换为 0-based
+    let page = params.page.unwrap_or(1);
+    let page_size = params.page_size.unwrap_or(20).clamp(1, 100);
+
+    let (stock_list, total) = service
+        .list_stock(page, page_size, params.warehouse_id, params.product_id)
         .await?;
 
     let stock_responses: Vec<StockResponse> = stock_list
@@ -320,7 +319,7 @@ pub async fn list_stock(
     }
 
     Ok(Json(crate::utils::response::ApiResponse::success(
-        stock_json,
+        PaginatedResponse::new(stock_json, total, page, page_size),
     )))
 }
 

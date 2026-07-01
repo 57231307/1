@@ -4,6 +4,7 @@
 //! 拆分自原 `purchase_order_service.rs`。
 
 use crate::models::{inventory_stock, product, purchase_order, purchase_order_item, status};
+use crate::services::event_bus::{BusinessEvent, EVENT_BUS};
 use crate::services::po::CreateOrderItemRequest;
 use crate::services::po::UpdateOrderItemRequest;
 use crate::utils::error::AppError;
@@ -28,6 +29,10 @@ impl PurchaseOrderService {
     ) -> Result<purchase_order::Model, AppError> {
         // 1. 开启事务保证数据一致性
         let txn = (*self.db).begin().await?;
+
+        // P0 5-2 修复：收集 record_transaction_txn 返回的库存流水事件，
+        // 在 commit 成功后统一 publish，避免事务回滚时幻事件
+        let mut pending_events: Vec<BusinessEvent> = Vec::new();
 
         // P0 3-6 修复：幂等校验——若指定了 receipt_id 且入库单已 COMPLETED，直接返回当前订单
         // 防止事件重投或并发触发导致重复入库
@@ -178,7 +183,9 @@ impl PurchaseOrderService {
                 };
 
                 // 记录库存流水（使用事务版本，正确的前后数量）
-                crate::services::inventory_stock_service::InventoryStockService::record_transaction_txn(
+                // P0 5-2 修复：record_transaction_txn 不再在函数内 publish 事件，
+                // 改为返回 (Model, Option<BusinessEvent>)，由调用方在 commit 后统一 publish
+                let (_, txn_event) = crate::services::inventory_stock_service::InventoryStockService::record_transaction_txn(
                     &txn,
                     "PURCHASE_RECEIPT".to_string(),
                     item.product_id,
@@ -204,6 +211,9 @@ impl PurchaseOrderService {
                     tracing::error!("记录库存流水失败: 产品ID={}, 仓库ID={}, 错误: {}", item.product_id, order.warehouse_id, e);
                     AppError::internal(format!("记录库存流水失败: {}", e))
                 })?;
+                if let Some(ev) = txn_event {
+                    pending_events.push(ev);
+                }
 
                 // 更新订单明细已入库数量（累加而非覆盖）
                 let mut item_active: purchase_order_item::ActiveModel = item.clone().into();
@@ -270,6 +280,11 @@ impl PurchaseOrderService {
 
         // 8. 提交事务
         txn.commit().await?;
+
+        // P0 5-2 修复：commit 成功后统一发布库存流水事件，避免事务回滚时幻事件
+        for ev in pending_events {
+            EVENT_BUS.publish(ev);
+        }
 
         Ok(order)
     }

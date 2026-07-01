@@ -252,6 +252,13 @@ impl InventoryFinanceBridgeService {
         color_no: &str,
         created_by: Option<i32>,
     ) -> Result<(), AppError> {
+        // P0 5-4 修复：除零保护，quantity_meters 为 0 时拒绝生成凭证，
+        // 避免 amount / quantity_meters 裸除法触发 panic 导致监听器任务异常
+        if quantity_meters.is_zero() {
+            return Err(AppError::validation(
+                "quantity_meters 不能为 0，无法计算单价",
+            ));
+        }
         let product_name = self
             .get_product_name(product_id)
             .await
@@ -338,6 +345,13 @@ impl InventoryFinanceBridgeService {
         color_no: &str,
         created_by: Option<i32>,
     ) -> Result<(), AppError> {
+        // P0 5-4 修复：除零保护，quantity_meters 为 0 时拒绝生成凭证，
+        // 避免 amount / quantity_meters 裸除法触发 panic 导致监听器任务异常
+        if quantity_meters.is_zero() {
+            return Err(AppError::validation(
+                "quantity_meters 不能为 0，无法计算单价",
+            ));
+        }
         let product_name = self
             .get_product_name(product_id)
             .await
@@ -424,6 +438,13 @@ impl InventoryFinanceBridgeService {
         color_no: &str,
         created_by: Option<i32>,
     ) -> Result<(), AppError> {
+        // P0 5-4 修复：除零保护，quantity_meters 为 0 时拒绝生成凭证，
+        // 避免 amount / quantity_meters 裸除法触发 panic 导致监听器任务异常
+        if quantity_meters.is_zero() {
+            return Err(AppError::validation(
+                "quantity_meters 不能为 0，无法计算单价",
+            ));
+        }
         let product_name = self
             .get_product_name(product_id)
             .await
@@ -546,6 +567,13 @@ impl InventoryFinanceBridgeService {
         color_no: &str,
         created_by: Option<i32>,
     ) -> Result<(), AppError> {
+        // P0 5-4 修复：除零保护，quantity_meters 为 0 时拒绝生成凭证，
+        // 避免 amount / quantity_meters 裸除法触发 panic 导致监听器任务异常
+        if quantity_meters.is_zero() {
+            return Err(AppError::validation(
+                "quantity_meters 不能为 0，无法计算单价",
+            ));
+        }
         let product_name = self
             .get_product_name(product_id)
             .await
@@ -631,6 +659,13 @@ impl InventoryFinanceBridgeService {
         color_no: &str,
         created_by: Option<i32>,
     ) -> Result<(), AppError> {
+        // P0 5-4 修复：除零保护，quantity_meters 为 0 时拒绝生成凭证，
+        // 避免 amount / quantity_meters 裸除法触发 panic 导致监听器任务异常
+        if quantity_meters.is_zero() {
+            return Err(AppError::validation(
+                "quantity_meters 不能为 0，无法计算单价",
+            ));
+        }
         let product_name = self
             .get_product_name(product_id)
             .await

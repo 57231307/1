@@ -6,7 +6,7 @@ use crate::services::sales_price_service::{
 };
 use crate::utils::app_state::AppState;
 use crate::utils::error::AppError;
-use crate::utils::ApiResponse;
+use crate::utils::{ApiResponse, PaginatedResponse};
 use axum::{
     extract::{Path, Query, State},
     Json,
@@ -124,7 +124,7 @@ pub async fn list_strategies(
     Query(params): Query<StrategiesQuery>,
     State(state): State<AppState>,
     auth: AuthContext,
-) -> Result<Json<ApiResponse<Vec<sales_price::Model>>>, AppError> {
+) -> Result<Json<ApiResponse<PaginatedResponse<sales_price::Model>>>, AppError> {
     info!("用户 {} 正在查询销售价格策略", auth.user_id);
 
     let page = params.page.unwrap_or(1) as u64;

@@ -10,7 +10,7 @@ use chrono::Utc;
 
 use crate::models::inventory_stock;
 use crate::models::inventory_transaction;
-use crate::services::event_bus::{BusinessEvent, EVENT_BUS};
+use crate::services::event_bus::BusinessEvent;
 use crate::utils::error::AppError;
 
 use super::inventory_stock_service::InventoryStockService;
@@ -146,7 +146,7 @@ impl InventoryStockService {
         quantity_after_kg: Option<Decimal>,
         notes: Option<String>,
         created_by: Option<i32>,
-    ) -> Result<inventory_transaction::Model, AppError> {
+    ) -> Result<(inventory_transaction::Model, Option<BusinessEvent>), AppError> {
         let active_transaction = inventory_transaction::ActiveModel {
             id: Set(0),
             transaction_type: Set(transaction_type),
@@ -186,8 +186,10 @@ impl InventoryStockService {
             color_no: transaction.color_no.clone(),
             created_by: transaction.created_by,
         };
-        EVENT_BUS.publish(event);
 
-        Ok(transaction)
+        // P0 5-2 修复：移除事务内的 EVENT_BUS.publish(event) 调用。
+        // 原实现在此处直接 publish，但事务由调用方 commit，commit 失败时事件已发造成幻事件。
+        // 现将构造好的事件作为返回值的一部分交给调用方，由调用方在 commit 成功后统一 publish。
+        Ok((transaction, Some(event)))
     }
 }

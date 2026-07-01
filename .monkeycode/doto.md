@@ -3,9 +3,11 @@
 > 本文件记录**当前任务**与**历史任务索引**。
 > 详细历史请查阅 [`.monkeycode/docs/archives/`](file:///workspace/.monkeycode/docs/archives/)。
 
-### 2026-07-01 批次 51 完成：业务逻辑 P0 修复 6 项（✅ 待推送 CI）
+### 2026-07-01 批次 51 完成：业务逻辑 P0 修复 6 项（✅ 已合并 main，CI 12/13 关键检查全绿，E2E continue-on-error）
 
-**修复分支**：`fix/v19-audit-batch51`
+**修复分支**：`fix/v19-audit-batch51`（已合并删除）
+**合并 commit**：`9d80c0a`（PR #294 squash merge）
+**main HEAD**：`9d80c0a`
 **修复范围**：业务逻辑 P0（3-1/3-2/3-3/3-4/3-5/3-6）
 
 **修复清单**：
@@ -15,8 +17,11 @@
 - P0 3-4：bpm_service.rs 监控查询 4 处大写→小写，与任务状态写入侧一致
 - P0 3-5：ar/inv.rs create_receivable APPROVED→DRAFT，走 AR 审批流程
 - P0 3-6：po/receipt.rs receive_order 增加 receipt_id 幂等校验 + event_bus.rs 传 receipt_id
+- clippy 修复：receipt_active 改用结构体初始化器语法避免 field_reassign_with_default
 
-**当前状态**：批次 51 代码完成，待提交推送 CI
+**CI 结果**：Rust 构建/Clippy/单元测试/格式 全部 success；前端构建/测试/lint/类型检查 全部 success；E2E continue-on-error 不阻塞
+
+**当前状态**：批次 51 已合并 main，进入批次 52（数据链路 + 接口交互 P0）
 
 ---
 

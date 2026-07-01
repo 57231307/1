@@ -15,18 +15,13 @@ export interface ApiResponse<T = unknown> {
 }
 
 /**
- * 分页响应结构
+ * 分页响应结构（对应后端 PaginatedResponse<T>，作为 ApiResponse.data 字段的内容）
  */
 export interface PaginatedResponse<T = unknown> {
-  code: number
-  message: string
-  data: {
-    items: T[]
-    total: number
-    page: number
-    page_size: number
-  }
-  timestamp: string
+  items: T[]
+  total: number
+  page: number
+  page_size: number
 }
 
 /**
