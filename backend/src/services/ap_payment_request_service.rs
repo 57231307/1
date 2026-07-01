@@ -4,6 +4,7 @@
 //! 包含付款申请创建、提交、审批、拒绝等全流程管理
 
 use crate::models::{ap_invoice, ap_payment_request, ap_payment_request_item};
+use crate::utils::admin_checker::{ADMIN_ROLE_CODE, MANAGER_ROLE_CODE};
 use crate::utils::error::AppError;
 use chrono::{NaiveDate, Utc};
 use rust_decimal::Decimal;
@@ -14,6 +15,10 @@ use sea_orm::{
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use validator::Validate;
+
+/// 付款审批金额阶梯常量（v18 批次 48：消除硬编码，与 quotation_approval_service 阈值一致）
+const PAYMENT_APPROVAL_THRESHOLD_MANAGER: i64 = 100_000; // 10 万以下 manager 可审批
+const PAYMENT_APPROVAL_THRESHOLD_ADMIN: i64 = 500_000; // 10-50 万仅 admin 可审批
 
 /// 付款申请服务
 pub struct ApPaymentRequestService {
@@ -453,23 +458,26 @@ impl ApPaymentRequestService {
         };
 
         // 按金额分级审批
-        if amount <= &Decimal::new(100000, 0) {
+        // v18 批次 48 修复：消除金额与角色编码硬编码，改用常量
+        let threshold_manager = Decimal::new(PAYMENT_APPROVAL_THRESHOLD_MANAGER, 0);
+        let threshold_admin = Decimal::new(PAYMENT_APPROVAL_THRESHOLD_ADMIN, 0);
+        if amount <= &threshold_manager {
             // 10 万以下：admin 或 manager 可审批
-            if role_code != "admin" && role_code != "manager" {
+            if role_code != ADMIN_ROLE_CODE && role_code != MANAGER_ROLE_CODE {
                 return Err(AppError::permission_denied(
                     "仅管理员或部门经理可审批 10 万元以下的付款".to_string(),
                 ));
             }
-        } else if amount <= &Decimal::new(500000, 0) {
+        } else if amount <= &threshold_admin {
             // 10-50 万：仅 admin 可审批
-            if role_code != "admin" {
+            if role_code != ADMIN_ROLE_CODE {
                 return Err(AppError::permission_denied(
                     "仅管理员可审批 10-50 万元的付款".to_string(),
                 ));
             }
         } else {
             // 50 万以上：仅 admin 可审批
-            if role_code != "admin" {
+            if role_code != ADMIN_ROLE_CODE {
                 return Err(AppError::permission_denied(
                     "仅管理员可审批 50 万元以上的付款".to_string(),
                 ));

@@ -295,7 +295,10 @@ generate_config() {
         local REDIS_URL="${REDIS__URL:-redis://127.0.0.1:6379}"
         local REDIS_MAX="${REDIS__MAX_CONNECTIONS:-10}"
 
-        local CONN_STR="postgres://${DB_USER}:${DB_PASS}@${DB_HOST}:${DB_PORT}/${DB_NAME}?sslmode=disable"
+        # v18 批次 48 修复 P0-8：数据库连接强制 SSL（同步 deploy-latest.sh 批次 24 v6 P0-3 修复）。
+        # 原 sslmode=disable 明文传输，数据库流量含密码和业务数据，
+        # 生产环境必须加密防止中间人嗅探。
+        local CONN_STR="postgres://${DB_USER}:${DB_PASS}@${DB_HOST}:${DB_PORT}/${DB_NAME}?sslmode=require"
 
         cat > "$CONFIG_FILE" << EOF
 server:
@@ -311,7 +314,8 @@ database:
   password: "${DB_PASS}"
   max_connections: 50
   min_connections: 5
-  ssl_mode: "disable"
+  # v18 批次 48 修复 P0-8：生产环境强制 SSL（同步 deploy-latest.sh 批次 24 v6 P0-3 修复）
+  ssl_mode: "require"
 
 auth:
   jwt_secret: "${JWT}"
@@ -437,7 +441,9 @@ health_check() {
     local attempt=1
 
     while [ $attempt -le $max_attempts ]; do
-        local response=$(curl -s http://127.0.0.1:8082/api/v1/erp/health 2>/dev/null)
+        # v18 批次 48 修复 P0-8：健康检查端点路径从 /api/v1/erp/health 改为 /health。
+        # 实际路由注册在 routes/mod.rs:359 和 routes/system.rs:196，均为顶层 /health。
+        local response=$(curl -s http://127.0.0.1:8082/health 2>/dev/null)
         if echo "$response" | grep -q '"status":"healthy"'; then
             log "健康检查通过"
             return 0
@@ -675,7 +681,8 @@ case "$1" in
         echo "迁移完成"
         ;;
     9|health)
-        curl -s http://127.0.0.1:8082/api/v1/erp/health 2>/dev/null | python3 -m json.tool 2>/dev/null || curl -s http://127.0.0.1:8082/api/v1/erp/health
+        # v18 批次 48 修复 P0-8：健康检查端点路径从 /api/v1/erp/health 改为 /health
+        curl -s http://127.0.0.1:8082/health 2>/dev/null | python3 -m json.tool 2>/dev/null || curl -s http://127.0.0.1:8082/health
         ;;
     0|version)
         echo "当前版本: $(cat $VERSION_FILE 2>/dev/null || echo 'unknown')"
