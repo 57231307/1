@@ -563,11 +563,19 @@ impl EventNotificationService {
         title: &str,
         content: &str,
     ) -> Result<(), AppError> {
+        // v16 批次 45 修复：循环外批量获取用户通知设置，避免循环内逐个查询（N+1）
+        let setting_map = self
+            .setting_service
+            .get_or_create_default_batch(&user_ids)
+            .await?;
+
         for user_id in user_ids {
-            let should_internal = self
-                .setting_service
-                .should_send_internal(user_id, "SYSTEM")
-                .await?;
+            let should_internal = setting_map
+                .get(&user_id)
+                .map(|s| {
+                    UserNotificationSettingService::should_send_internal_from_setting(s, "SYSTEM")
+                })
+                .unwrap_or(true);
 
             if should_internal {
                 self.notification_service
@@ -603,11 +611,19 @@ impl EventNotificationService {
     ) -> Result<(), AppError> {
         let category = business_type.as_deref().unwrap_or("SYSTEM");
 
+        // v16 批次 45 修复：循环外批量获取用户通知设置，避免循环内逐个查询（N+1）
+        let setting_map = self
+            .setting_service
+            .get_or_create_default_batch(&user_ids)
+            .await?;
+
         for user_id in user_ids {
-            let should_internal = self
-                .setting_service
-                .should_send_internal(user_id, category)
-                .await?;
+            let should_internal = setting_map
+                .get(&user_id)
+                .map(|s| {
+                    UserNotificationSettingService::should_send_internal_from_setting(s, category)
+                })
+                .unwrap_or(true);
 
             if should_internal {
                 self.notification_service

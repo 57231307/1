@@ -143,4 +143,73 @@ impl UserNotificationSettingService {
         Ok(notification_type_str == notification_type::INTERNAL
             || notification_type_str == notification_type::BOTH)
     }
+
+    /// 批量获取或创建默认设置（避免循环内逐个查询 N+1）
+    ///
+    /// v16 批次 45 新增：一次 IN 查询获取所有已存在的设置，对缺失的用户逐个创建默认记录。
+    /// 查询部分批量化，创建部分仅对缺失项执行。
+    pub async fn get_or_create_default_batch(
+        &self,
+        user_ids: &[i32],
+    ) -> Result<std::collections::HashMap<i32, user_notification_setting::Model>, AppError> {
+        if user_ids.is_empty() {
+            return Ok(std::collections::HashMap::new());
+        }
+        // 批量查询已存在的设置
+        let existing = user_notification_setting::Entity::find()
+            .filter(user_notification_setting::Column::UserId.is_in(user_ids.to_vec()))
+            .all(&*self.db)
+            .await?;
+        let mut map: std::collections::HashMap<i32, user_notification_setting::Model> = existing
+            .into_iter()
+            .map(|s| (s.user_id, s))
+            .collect();
+        // 为缺失的用户创建默认设置
+        let now = chrono::Utc::now();
+        for &user_id in user_ids {
+            if !map.contains_key(&user_id) {
+                let active_model = user_notification_setting::ActiveModel {
+                    user_id: Set(user_id),
+                    email_enabled: Set(true),
+                    internal_enabled: Set(true),
+                    order_notification_type: Set(notification_type::BOTH.to_string()),
+                    approval_notification_type: Set(notification_type::BOTH.to_string()),
+                    inventory_notification_type: Set(notification_type::BOTH.to_string()),
+                    purchase_notification_type: Set(notification_type::BOTH.to_string()),
+                    finance_notification_type: Set(notification_type::BOTH.to_string()),
+                    system_notification_type: Set(notification_type::INTERNAL.to_string()),
+                    created_at: Set(now),
+                    updated_at: Set(now),
+                    ..Default::default()
+                };
+                let model = active_model.insert(&*self.db).await?;
+                map.insert(user_id, model);
+            }
+        }
+        Ok(map)
+    }
+
+    /// 纯函数：基于已查询的设置判断是否发送站内通知（不查数据库）
+    ///
+    /// v16 批次 45 新增：与 should_send_internal 逻辑一致，但接收已查询的 setting model，
+    /// 避免在循环内重复查询数据库。
+    pub fn should_send_internal_from_setting(
+        setting: &user_notification_setting::Model,
+        notification_category: &str,
+    ) -> bool {
+        if !setting.internal_enabled {
+            return false;
+        }
+        let notification_type_str = match notification_category {
+            "ORDER" => &setting.order_notification_type,
+            "APPROVAL" => &setting.approval_notification_type,
+            "INVENTORY" => &setting.inventory_notification_type,
+            "PURCHASE" => &setting.purchase_notification_type,
+            "FINANCE" => &setting.finance_notification_type,
+            "SYSTEM" => &setting.system_notification_type,
+            _ => notification_type::BOTH,
+        };
+        notification_type_str == notification_type::INTERNAL
+            || notification_type_str == notification_type::BOTH
+    }
 }

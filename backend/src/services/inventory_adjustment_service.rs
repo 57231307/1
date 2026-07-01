@@ -269,26 +269,21 @@ impl InventoryAdjustmentService {
                 )));
             }
 
-            // 获取更新后的库存记录
-            let updated_stock = inventory_stock::Entity::find_by_id(item.stock_id)
-                .one(&txn)
-                .await?
-                .ok_or_else(|| AppError::not_found(format!("库存 ID {} 不存在", item.stock_id)))?;
-
-            // 收集库存交易事件数据，供审核通过后发布
+            // v16 批次 45 修复：product_id/batch_no/color_no 在上方 update_many 中未变更，
+            // 直接从循环前批量查询的 stock_map 取值，避免循环内 find_by_id（N+1 查询）
             let quantity_change = item.quantity_after - quantity_before;
             transaction_events.push(BusinessEvent::InventoryTransactionCreated {
                 transaction_id: adjustment_id,
                 transaction_type: "INVENTORY_ADJUSTMENT".to_string(),
-                product_id: updated_stock.product_id,
+                product_id: stock_model.product_id,
                 warehouse_id: adjustment_model.warehouse_id,
                 quantity_meters: quantity_change,
                 quantity_kg: Decimal::ZERO,
                 source_bill_type: Some("inventory_adjustment".to_string()),
                 source_bill_no: Some(adjustment_model.adjustment_no.clone()),
                 source_bill_id: Some(adjustment_id),
-                batch_no: updated_stock.batch_no.clone(),
-                color_no: updated_stock.color_no.clone(),
+                batch_no: stock_model.batch_no.clone(),
+                color_no: stock_model.color_no.clone(),
                 created_by: Some(approved_by),
             });
         }
