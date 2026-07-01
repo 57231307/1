@@ -14,6 +14,7 @@ use std::sync::Arc;
 use crate::models::production_order::{
     ActiveModel, Entity as ProductionOrderEntity, Model as ProductionOrderModel,
 };
+use crate::services::event_bus::{BusinessEvent, EVENT_BUS};
 use crate::utils::error::AppError;
 
 use crate::models::bom::{Column as BomColumn, Entity as BomEntity};
@@ -440,9 +441,17 @@ impl ProductionOrderService {
         let updated = active_model.update(&txn).await?;
 
         // 在同一事务内执行库存联动（含原材料扣减 + 成品入库）
-        Self::handle_production_completion_inventory_txn(&txn, &updated).await?;
+        // P0 5-2 修复：handle_production_completion_inventory_txn 不再在内部 publish 事件，
+        // 改为返回收集到的库存流水事件，由本处在 commit 成功后统一 publish，避免事务回滚时幻事件
+        let pending_events =
+            Self::handle_production_completion_inventory_txn(&txn, &updated).await?;
 
         txn.commit().await?;
+
+        // P0 5-2 修复：commit 成功后统一发布库存流水事件，避免事务回滚时幻事件
+        for ev in pending_events {
+            EVENT_BUS.publish(ev);
+        }
 
         Ok(updated)
     }
@@ -459,8 +468,13 @@ impl ProductionOrderService {
     async fn handle_production_completion_inventory_txn(
         txn: &sea_orm::DatabaseTransaction,
         order: &ProductionOrderModel,
-    ) -> Result<(), AppError> {
+    ) -> Result<Vec<BusinessEvent>, AppError> {
         use crate::services::inventory_stock_service::InventoryStockService;
+
+        // P0 5-2 修复：本函数不 commit 事务（由调用方 complete_production_order commit），
+        // 收集 record_transaction_txn 返回的库存流水事件交给调用方，
+        // 在 commit 成功后统一 publish，避免事务回滚时幻事件
+        let mut pending_events: Vec<BusinessEvent> = Vec::new();
 
         // 查询默认成品仓库（取第一个激活的仓库）
         let default_warehouse = WarehouseEntity::find()
@@ -562,7 +576,9 @@ impl ProductionOrderService {
                 .await?;
 
                 // 记录库存流水：生产消耗
-                InventoryStockService::record_transaction_txn(
+                // P0 5-2 修复：record_transaction_txn 不再在函数内 publish 事件，
+                // 改为返回 (Model, Option<BusinessEvent>)，由本函数收集后交给调用方在 commit 后统一 publish
+                let (_, txn_event) = InventoryStockService::record_transaction_txn(
                     txn,
                     "PRODUCTION_CONSUMPTION".to_string(),
                     bom_item.material_id,
@@ -584,6 +600,9 @@ impl ProductionOrderService {
                     Some(order.created_by),
                 )
                 .await?;
+                if let Some(ev) = txn_event {
+                    pending_events.push(ev);
+                }
             }
         }
 
@@ -628,7 +647,9 @@ impl ProductionOrderService {
                 .await?;
 
                 // 记录库存流水：生产入库
-                InventoryStockService::record_transaction_txn(
+                // P0 5-2 修复：record_transaction_txn 不再在函数内 publish 事件，
+                // 改为返回 (Model, Option<BusinessEvent>)，由本函数收集后交给调用方在 commit 后统一 publish
+                let (_, txn_event) = InventoryStockService::record_transaction_txn(
                     txn,
                     "PRODUCTION_OUTPUT".to_string(),
                     order.product_id,
@@ -650,6 +671,9 @@ impl ProductionOrderService {
                     Some(order.created_by),
                 )
                 .await?;
+                if let Some(ev) = txn_event {
+                    pending_events.push(ev);
+                }
             }
             None => {
                 // 创建新的库存记录
@@ -678,7 +702,9 @@ impl ProductionOrderService {
                 .await?;
 
                 // 记录库存流水：生产入库
-                InventoryStockService::record_transaction_txn(
+                // P0 5-2 修复：record_transaction_txn 不再在函数内 publish 事件，
+                // 改为返回 (Model, Option<BusinessEvent>)，由本函数收集后交给调用方在 commit 后统一 publish
+                let (_, txn_event) = InventoryStockService::record_transaction_txn(
                     txn,
                     "PRODUCTION_OUTPUT".to_string(),
                     order.product_id,
@@ -700,6 +726,9 @@ impl ProductionOrderService {
                     Some(order.created_by),
                 )
                 .await?;
+                if let Some(ev) = txn_event {
+                    pending_events.push(ev);
+                }
             }
         }
 
@@ -709,7 +738,7 @@ impl ProductionOrderService {
             production_qty
         );
 
-        Ok(())
+        Ok(pending_events)
     }
 
     /// 提交生产订单审批

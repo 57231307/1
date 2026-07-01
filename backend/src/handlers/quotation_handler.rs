@@ -7,7 +7,7 @@
 use chrono::Utc;
 // v9 P1-G 修复（修正）：仅移除未使用的 ActiveModelTrait（测试模块内有独立 import）。
 // 保留 QueryFilter（主代码大量使用 .filter()）；保留 ColumnTrait（Column.eq 需要其支持）。
-use sea_orm::{ColumnTrait, EntityTrait, QueryFilter};
+use sea_orm::{ColumnTrait, EntityTrait, PaginatorTrait, QueryFilter};
 use serde::{Deserialize, Serialize};
 
 use crate::middleware::auth_context::AuthContext;
@@ -23,7 +23,7 @@ use crate::services::quotation_pricing_service::{PricingContext, QuotationPricin
 use crate::services::quotation_service::{QuotationService, ServiceError};
 use crate::utils::app_state::AppState;
 use crate::utils::error::AppError;
-use crate::utils::response::ApiResponse;
+use crate::utils::response::{ApiResponse, PaginatedResponse};
 
 use axum::{
     extract::{Path, Query, State},
@@ -427,23 +427,39 @@ pub async fn calculate_price(
 // 色号价格
 // ----------------------------------------------------------------------
 
+/// 色号价格列表分页查询参数
+#[derive(Debug, Deserialize)]
+pub struct ColorPriceListQuery {
+    pub page: Option<u64>,
+    pub page_size: Option<u64>,
+}
+
 /// GET /api/v1/erp/quotations/color-prices/:product_color_id
-/// 列出该 product_color 下的所有价格档
+/// 列出该 product_color 下的所有价格档（分页查询，避免全表加载导致 OOM）
 pub async fn list_color_prices(
     _auth: AuthContext,
     State(state): State<AppState>,
     Path(product_color_id): Path<i64>,
-) -> Result<Json<ApiResponse<Vec<product_color_price::Model>>>, AppError> {
-    // product_color_id 实际为 product_id + color_id 拼接：传 0 时返回所有
-    let items: Vec<product_color_price::Model> = if product_color_id == 0 {
-        product_color_price::Entity::find().all(&*state.db).await?
-    } else {
-        product_color_price::Entity::find()
-            .filter(product_color_price::Column::ProductId.eq(product_color_id))
-            .all(&*state.db)
-            .await?
-    };
-    Ok(Json(ApiResponse::success(items)))
+    Query(query): Query<ColorPriceListQuery>,
+) -> Result<Json<ApiResponse<PaginatedResponse<product_color_price::Model>>>, AppError> {
+    // 页码采用 1-based 约定，page_size clamp 防止 DoS
+    let page = query.page.unwrap_or(1);
+    let page_size = query.page_size.unwrap_or(20).clamp(1, 100);
+
+    let mut q = product_color_price::Entity::find();
+    // product_color_id 实际为 product_id + color_id 拼接：传 0 时不按产品过滤
+    if product_color_id != 0 {
+        q = q.filter(product_color_price::Column::ProductId.eq(product_color_id));
+    }
+
+    let paginator = q.paginate(&*state.db, page_size);
+    let total = paginator.num_items().await?;
+    // fetch_page 接收 0-based 页码，需将 1-based page 转换
+    let items = paginator.fetch_page(page.saturating_sub(1)).await?;
+
+    Ok(Json(ApiResponse::success(PaginatedResponse::new(
+        items, total, page, page_size,
+    ))))
 }
 
 /// POST /api/v1/erp/quotations/color-prices/:product_color_id

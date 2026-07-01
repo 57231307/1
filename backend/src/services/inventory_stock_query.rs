@@ -131,9 +131,12 @@ impl InventoryStockService {
         }
 
         // 并行执行分页查询：同时获取总数和当前页数据，提升性能
+        // page 语义为 1-based，fetch_page 接收 0-based，需做转换
         let paginator = query.paginate(&*self.db, page_size);
-        let (total, transactions) =
-            tokio::try_join!(paginator.num_items(), paginator.fetch_page(page))?;
+        let (total, transactions) = tokio::try_join!(
+            paginator.num_items(),
+            paginator.fetch_page(page.saturating_sub(1))
+        )?;
 
         Ok((transactions, total))
     }

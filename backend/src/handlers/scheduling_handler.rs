@@ -16,7 +16,7 @@ use crate::services::scheduling_service::{
 };
 use crate::utils::app_state::AppState;
 use crate::utils::error::AppError;
-use crate::utils::response::ApiResponse;
+use crate::utils::response::{ApiResponse, PaginatedResponse};
 
 /// 自动排程请求体
 #[derive(Debug, Deserialize)]
@@ -360,7 +360,7 @@ pub async fn list_scheduled_orders(
     State(state): State<AppState>,
     _auth: AuthContext,
     Query(query): Query<ScheduledOrdersQuery>,
-) -> Result<Json<ApiResponse<Vec<ScheduledOrderResponse>>>, AppError> {
+) -> Result<Json<ApiResponse<PaginatedResponse<ScheduledOrderResponse>>>, AppError> {
     let service = SchedulingService::new(state.db.clone());
 
     let query_params = ScheduledOrderQuery {

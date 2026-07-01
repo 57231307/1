@@ -7,7 +7,7 @@ use crate::models::dto::PageRequest;
 use crate::services::inventory_stock_service::InventoryStockService;
 use crate::utils::app_state::AppState;
 use crate::utils::error::AppError;
-use crate::utils::response::ApiResponse;
+use crate::utils::response::{ApiResponse, PaginatedResponse};
 use axum::{
     extract::{Path, Query, State},
     Json,
@@ -22,13 +22,14 @@ pub async fn list_transactions(
     State(state): State<AppState>,
     _auth: AuthContext,
     Query(params): Query<ListTransactionParams>,
-) -> Result<Json<crate::utils::response::ApiResponse<Vec<TransactionResponse>>>, AppError> {
+) -> Result<Json<ApiResponse<PaginatedResponse<TransactionResponse>>>, AppError> {
     let service = InventoryStockService::new(state.db.clone());
 
-    let page = params.page.unwrap_or_default();
+    // 页码采用 1-based 约定，由 service 内部转换为 0-based
+    let page = params.page.unwrap_or(1);
     let page_size = params.page_size.unwrap_or(20).clamp(1, 100);
 
-    let (transactions, _total) = service
+    let (transactions, total) = service
         .list_transactions(
             page,
             page_size,
@@ -65,7 +66,7 @@ pub async fn list_transactions(
         .collect();
 
     Ok(Json(crate::utils::response::ApiResponse::success(
-        transaction_responses,
+        PaginatedResponse::new(transaction_responses, total, page, page_size),
     )))
 }
 

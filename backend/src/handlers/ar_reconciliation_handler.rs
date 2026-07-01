@@ -15,7 +15,7 @@ use crate::services::ar::{
 };
 use crate::utils::app_state::AppState;
 use crate::utils::error::AppError;
-use crate::utils::response::ApiResponse;
+use crate::utils::response::{ApiResponse, PaginatedResponse};
 
 #[derive(Debug, Deserialize)]
 pub struct CreateReconciliationApiRequest {
@@ -29,7 +29,7 @@ pub struct CreateReconciliationApiRequest {
     pub total_collections: Decimal,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Clone, Serialize)]
 pub struct ReconciliationResponse {
     pub id: i32,
     pub reconciliation_no: String,
@@ -104,24 +104,28 @@ pub async fn list_reconciliations(
     State(state): State<AppState>,
     _auth: AuthContext,
     Query(query): Query<ListReconciliationsQuery>,
-) -> Result<Json<ApiResponse<Vec<ReconciliationResponse>>>, AppError> {
+) -> Result<Json<ApiResponse<PaginatedResponse<ReconciliationResponse>>>, AppError> {
     let service = ArReconciliationService::new(state.db);
+    let page = query.page.unwrap_or(1);
+    let page_size = query.page_size.unwrap_or(20).clamp(1, 100);
     let req = ReconciliationQuery {
         status: query.status,
         customer_id: query.customer_id,
-        page: query.page.unwrap_or(1),
-        page_size: query.page_size.unwrap_or(20).clamp(1, 100),
+        page,
+        page_size,
     };
 
     service
         .list(req)
         .await
-        .map(|(models, _total)| {
+        .map(|(models, total)| {
             let responses: Vec<ReconciliationResponse> = models
                 .into_iter()
                 .map(ReconciliationResponse::from)
                 .collect();
-            Json(ApiResponse::success(responses))
+            Json(ApiResponse::success(PaginatedResponse::new(
+                responses, total, page, page_size,
+            )))
         })
         .map_err(|e| {
             tracing::error!("获取对账单列表失败: {}", e);

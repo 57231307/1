@@ -14,7 +14,7 @@ use crate::middleware::auth_context::AuthContext;
 use crate::models::greige_fabric;
 use crate::utils::app_state::AppState;
 use crate::utils::error::AppError;
-use crate::utils::response::ApiResponse;
+use crate::utils::response::{ApiResponse, PaginatedResponse};
 
 #[derive(Debug, Deserialize)]
 pub struct GreigeFabricListQuery {
@@ -99,7 +99,7 @@ pub struct StockOutRequest {
 pub async fn list_greige_fabrics(
     State(state): State<AppState>,
     Query(query): Query<GreigeFabricListQuery>,
-) -> Result<Json<ApiResponse<Vec<greige_fabric::Model>>>, AppError> {
+) -> Result<Json<ApiResponse<PaginatedResponse<greige_fabric::Model>>>, AppError> {
     let page = query.page.unwrap_or(1);
     let page_size = query.page_size.unwrap_or(20).clamp(1, 100);
 
