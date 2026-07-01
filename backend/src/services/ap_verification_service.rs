@@ -147,6 +147,24 @@ impl ApVerificationService {
         .await?;
 
         // 6. 创建核销明细并更新应付单和付款单
+        // v17 批次 46 修复：循环外批量查询并锁定所有 invoice，避免循环内逐个 find_by_id + lock_exclusive（N+1）
+        // 使用 get_mut + clone 模式，同一 invoice_id 重复核销时复用 map 中已更新的值，无需回退查询
+        let invoice_ids: Vec<i32> = verification_items.iter().map(|i| i.invoice_id).collect();
+        let mut invoice_map: std::collections::HashMap<i32, ap_invoice::Model> =
+            if invoice_ids.is_empty() {
+                std::collections::HashMap::new()
+            } else {
+                use sea_orm::QuerySelect;
+                ap_invoice::Entity::find()
+                    .filter(ap_invoice::Column::Id.is_in(invoice_ids))
+                    .lock_exclusive()
+                    .all(&txn)
+                    .await?
+                    .into_iter()
+                    .map(|inv| (inv.id, inv))
+                    .collect()
+            };
+
         for item_dto in verification_items {
             let _item = ap_verification_item::ActiveModel {
                 verification_id: Set(verification.id),
@@ -159,12 +177,9 @@ impl ApVerificationService {
             .insert(&txn)
             .await?;
 
-            // 更新应付单
-            // 批次 9（2026-06-28）：加 FOR UPDATE 行锁，防止并发核销导致 paid_amount 丢失更新
-            let mut invoice = ap_invoice::Entity::find_by_id(item_dto.invoice_id)
-                .lock_exclusive()
-                .one(&txn)
-                .await?
+            // 更新应付单（v17 批次 46 修复：从批量查询结果获取，get_mut 复用已更新值）
+            let invoice = invoice_map
+                .get_mut(&item_dto.invoice_id)
                 .ok_or_else(|| AppError::not_found(format!("应付单 {}", item_dto.invoice_id)))?;
 
             invoice.paid_amount += item_dto.verify_amount;
@@ -176,7 +191,7 @@ impl ApVerificationService {
                 invoice.invoice_status = "PARTIAL_PAID".to_string();
             }
 
-            let invoice_active: ap_invoice::ActiveModel = invoice.into();
+            let invoice_active: ap_invoice::ActiveModel = invoice.clone().into();
             crate::services::audit_log_service::AuditLogService::update_with_audit(
                 &txn,
                 "auto_audit",
@@ -296,15 +311,11 @@ impl ApVerificationService {
             .await?;
 
             // 更新应付单
-            // v10 P1-4 修复：优先复用第一次循环已查询（带行锁）的 invoice，避免重复 find_by_id
-            // 若 invoice_id 重复（map 已 remove），回退到 find_by_id 查最新值（与原逻辑一致，保留累加正确性）
-            let mut invoice = match invoice_map.remove(&item.invoice_id) {
-                Some(inv) => inv,
-                None => ap_invoice::Entity::find_by_id(item.invoice_id)
-                    .one(&txn)
-                    .await?
-                    .ok_or_else(|| AppError::not_found(format!("应付单 {}", item.invoice_id)))?,
-            };
+            // v17 批次 46 修复：改用 get_mut + clone，同一 invoice_id 重复时复用 map 中已更新的值，
+            // 无需回退到 find_by_id（消除重复 invoice_id 场景的 N+1 查询）
+            let invoice = invoice_map
+                .get_mut(&item.invoice_id)
+                .ok_or_else(|| AppError::not_found(format!("应付单 {}", item.invoice_id)))?;
 
             invoice.paid_amount += item.verify_amount;
             invoice.unpaid_amount = invoice.amount - invoice.paid_amount;
@@ -315,7 +326,7 @@ impl ApVerificationService {
                 invoice.invoice_status = "PARTIAL_PAID".to_string();
             }
 
-            let invoice_active: ap_invoice::ActiveModel = invoice.into();
+            let invoice_active: ap_invoice::ActiveModel = invoice.clone().into();
             crate::services::audit_log_service::AuditLogService::update_with_audit(
                 &txn,
                 "auto_audit",
@@ -376,15 +387,11 @@ impl ApVerificationService {
             };
 
         for item in items {
-            // v16 批次 44 修复：优先从批量查询结果获取，若 invoice_id 重复（map 已 remove）回退到 find_by_id
-            let mut invoice = match invoice_map.remove(&item.invoice_id) {
-                Some(inv) => inv,
-                None => ap_invoice::Entity::find_by_id(item.invoice_id)
-                    .lock_exclusive()
-                    .one(&txn)
-                    .await?
-                    .ok_or_else(|| AppError::not_found(format!("应付单 {}", item.invoice_id)))?,
-            };
+            // v17 批次 46 修复：改用 get_mut + clone，同一 invoice_id 重复时复用 map 中已更新的值，
+            // 无需回退到 find_by_id（消除重复 invoice_id 场景的 N+1 查询）
+            let invoice = invoice_map
+                .get_mut(&item.invoice_id)
+                .ok_or_else(|| AppError::not_found(format!("应付单 {}", item.invoice_id)))?;
 
             invoice.paid_amount -= item.verify_amount;
             invoice.unpaid_amount = invoice.amount - invoice.paid_amount;
@@ -396,7 +403,7 @@ impl ApVerificationService {
                 invoice.invoice_status = "PARTIAL_PAID".to_string();
             }
 
-            let invoice_active: ap_invoice::ActiveModel = invoice.into();
+            let invoice_active: ap_invoice::ActiveModel = invoice.clone().into();
             crate::services::audit_log_service::AuditLogService::update_with_audit(
                 &txn,
                 "auto_audit",

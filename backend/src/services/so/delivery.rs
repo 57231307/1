@@ -328,19 +328,35 @@ impl SalesService {
                 .collect()
         };
 
+        // v17 批次 46 修复：循环外批量锁定所有需锁定的 product_id 的库存，避免循环内逐个 lock_exclusive（N+1）
+        // PostgreSQL SELECT FOR UPDATE 支持 WHERE IN 批量加锁，行锁在事务内持续到 commit
+        let need_lock_product_ids: Vec<i32> = items
+            .iter()
+            .map(|i| i.product_id)
+            .filter(|pid| !existing_reservation_ids.contains(pid))
+            .collect();
+        let stock_map: std::collections::HashMap<i32, inventory_stock::Model> =
+            if need_lock_product_ids.is_empty() {
+                std::collections::HashMap::new()
+            } else {
+                inventory_stock::Entity::find()
+                    .filter(inventory_stock::Column::ProductId.is_in(need_lock_product_ids))
+                    .lock_exclusive()
+                    .all(txn)
+                    .await?
+                    .into_iter()
+                    .map(|s| (s.product_id, s))
+                    .collect()
+            };
+
         for item in items {
             if existing_reservation_ids.contains(&item.product_id) {
                 tracing::info!("产品 {} 已存在预留记录，跳过创建", item.product_id);
                 continue;
             }
 
-            // 批次 9（2026-06-28）：加 FOR UPDATE 行锁，防止并发锁定导致超扣
-            // 行锁必须按行获取，保留循环内逐个查询
-            let stock = inventory_stock::Entity::find()
-                .filter(inventory_stock::Column::ProductId.eq(item.product_id))
-                .lock_exclusive()
-                .one(txn)
-                .await?;
+            // v17 批次 46 修复：从批量查询结果获取（行锁已在批量查询时获取）
+            let stock = stock_map.get(&item.product_id).cloned();
 
             if let Some(s) = stock {
                 if s.quantity_available < item.quantity {
