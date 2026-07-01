@@ -125,7 +125,7 @@ pub async fn inventory_optimization(
     let product_name_map: std::collections::HashMap<i32, String> = if product_ids.is_empty() {
         std::collections::HashMap::new()
     } else {
-        use sea_orm::ColumnTrait;
+        use sea_orm::{ColumnTrait, QueryFilter};
         ProductEntity::find()
             .filter(crate::models::product::Column::Id.is_in(product_ids))
             .all(&*db)

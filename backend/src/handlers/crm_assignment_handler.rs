@@ -119,7 +119,7 @@ pub async fn batch_assign(
         if lead_ids.is_empty() {
             std::collections::HashMap::new()
         } else {
-            use sea_orm::{ColumnTrait, EntityTrait};
+            use sea_orm::{ColumnTrait, EntityTrait, QueryFilter};
             crate::models::crm_lead::Entity::find()
                 .filter(crate::models::crm_lead::Column::Id.is_in(lead_ids))
                 .all(&*state.db)
