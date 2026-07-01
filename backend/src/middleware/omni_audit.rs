@@ -10,6 +10,7 @@ use std::net::SocketAddr;
 use std::time::Instant;
 
 use crate::middleware::auth_context::AuthContext;
+use crate::middleware::public_routes::is_public_path;
 use crate::services::omni_audit_service::OmniAuditMessage;
 use crate::services::sensitive_action_alert::SensitiveActionAlert;
 use crate::utils::app_state::AppState;
@@ -166,8 +167,19 @@ pub async fn omni_audit_middleware(
     }
 
     // 发送审计日志
-    // 忽略一些高频无用接口，比如 prometheus metrics, health check
-    if !uri.starts_with("/metrics") && !uri.starts_with("/health") {
+    // P0 8-1 修复：全局挂载后需跳过以下路径避免敏感信息泄露与无意义审计：
+    // 1. PUBLIC_PATHS（登录/刷新含密码字段，不应进审计日志）
+    // 2. /metrics、/health（高频探针，无业务价值）
+    // 3. /swagger-ui、/api-docs（API 文档静态资源）
+    // 4. /static（前端静态资源）
+    let should_skip_audit = is_public_path(&uri)
+        || uri.starts_with("/metrics")
+        || uri.starts_with("/health")
+        || uri.starts_with("/swagger-ui")
+        || uri.starts_with("/api-docs")
+        || uri.starts_with("/static");
+
+    if !should_skip_audit {
         // 根据 URI 推断模块
         let module = infer_module_from_path(&uri);
 

@@ -218,7 +218,11 @@ impl BpmService {
         })
     }
 
-    pub async fn approve_task(&self, req: ApproveTaskRequest) -> Result<(), AppError> {
+    pub async fn approve_task(
+        &self,
+        req: ApproveTaskRequest,
+        user_id: Option<i32>,
+    ) -> Result<(), AppError> {
         let txn = self.db.begin().await?;
 
         let task = bpm_task::Entity::find_by_id(req.task_id)
@@ -252,7 +256,15 @@ impl BpmService {
         task_active.approval_opinion = Set(req.approval_opinion);
         task_active.handled_at = Set(Some(chrono::Utc::now()));
         task_active.updated_at = Set(Some(chrono::Utc::now()));
-        task_active.update(&txn).await?;
+        // P0 8-4 修复：task 状态变更纳入审计（update_with_audit 在事务内同步写审计日志，
+        // 记录真实操作者 user_id，而非前端传入的 handler_id，防止代审追溯丢失）
+        let _ = crate::services::audit_log_service::AuditLogService::update_with_audit(
+            &txn,
+            "bpm_task",
+            task_active,
+            user_id,
+        )
+        .await?;
 
         if req.action == "reject" {
             // End instance if rejected
@@ -260,7 +272,14 @@ impl BpmService {
             instance_active.status = Set(Some("TERMINATED".to_string()));
             instance_active.completed_at = Set(Some(chrono::Utc::now()));
             instance_active.updated_at = Set(Some(chrono::Utc::now()));
-            instance_active.update(&txn).await?;
+            // P0 8-4 修复：instance 终止状态变更纳入审计
+            let _ = crate::services::audit_log_service::AuditLogService::update_with_audit(
+                &txn,
+                "bpm_process_instance",
+                instance_active,
+                user_id,
+            )
+            .await?;
 
             if let (Some(b_type), Some(b_id)) = (
                 Some(instance.business_type.clone()),
@@ -354,7 +373,14 @@ impl BpmService {
                     instance.clone().into();
                 instance_active.status = Set(Some("COMPLETED".to_string()));
                 instance_active.completed_at = Set(Some(chrono::Utc::now()));
-                instance_active.update(&txn).await?;
+                // P0 8-4 修复：instance 完成状态变更纳入审计
+                let _ = crate::services::audit_log_service::AuditLogService::update_with_audit(
+                    &txn,
+                    "bpm_process_instance",
+                    instance_active,
+                    user_id,
+                )
+                .await?;
 
                 if let (Some(b_type), Some(b_id)) = (
                     Some(instance.business_type.clone()),

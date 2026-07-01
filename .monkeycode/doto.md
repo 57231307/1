@@ -3,6 +3,36 @@
 > 本文件记录**当前任务**与**历史任务索引**。
 > 详细历史请查阅 [`.monkeycode/docs/archives/`](file:///workspace/.monkeycode/docs/archives/)。
 
+### 2026-07-01 批次 50 完成：操作审计 P0 修复 3 项（✅ 待推送 CI）
+
+**修复分支**：`fix/v19-audit-batch50`
+**修复范围**：操作审计 P0（8-1/8-4/8-5）；8-2/8-3 拆到批次 51
+
+**修复清单**：
+- P0 8-1：omni_audit_middleware 全局挂载（main.rs 中间件链）+ 跳过 PUBLIC_PATHS/swagger/metrics + finance.rs 移除局部挂载
+- P0 8-4：BPM approve_task 补审计（service 层 3 处 update_with_audit + handler 层 2 处 AuthContext + service 内部调用 3 处传 user_id）
+- P0 8-5：审计日志查询接口 admin 深度防御（audit_log_handler 3 处 + omni_audit_handler 2 处）
+
+**当前状态**：批次 50 代码完成，待提交推送 CI
+
+---
+
+### 2026-07-01 批次 49 完成：安全防护 P0 修复 4 项（✅ 已合并 main，CI 12/12 关键检查全绿）
+
+**修复分支**：`fix/v19-audit-batch49`（已合并删除）
+**合并 commit**：`88ab52a`（PR #292 squash merge）
+**main HEAD**：`88ab52a`
+
+**修复清单**：
+- P0 7-1：login_security_handler.rs 三处 handler 越权防护（check_lock_status/unlock_account/unlock_account_by_id）
+- P0 7-2：system_update_handler.rs 四处 handler 增加 admin 深度防御（download_and_update/upload_and_update/rollback_version/apply_local_update）
+- P0 7-3：user_service.rs delete_user JWT 吊销下沉到 service 层
+- P0 7-4：user_handler.rs change_password 修改密码后吊销旧 JWT
+
+**当前状态**：批次 49 完成，进入批次 50（操作审计 P0：5 项）
+
+---
+
 ### 2026-07-01 八维度专项审计完成：223 项发现，P0×36（待修复批次规划）
 
 **审计基线**：main HEAD `57a91c3`
@@ -11,13 +41,12 @@
 
 **发现统计**：P0×36 / P1×76 / P2×59 / P3×52，共 223 项
 
-**修复批次建议**：
-- 批次 49：安全 + 审计 P0（9 项）
-- 批次 50：业务 + 链路 P0（11 项）
-- 批次 51：接口 + 前端 + 代码 P0（10 项）
-- 批次 52：测试 P0（6 项）
-
-**当前状态**：审计完成，等待用户指示开始修复
+**修复批次建议**（按 P0 维度重新规划）：
+- 批次 49：安全防护 P0（4 项）✅ 已完成
+- 批次 50：操作审计 P0（3 项：8-1/8-4/8-5）✅ 已完成（8-2/8-3 拆到批次 51）
+- 批次 51：业务逻辑 + 数据链路 P0（11 项）+ 8-2 签名持久化 + 8-3 delete 审计
+- 批次 52：接口交互 + 侧边栏 + 代码质量 P0（10 项）
+- 批次 53：测试资产 P0（6 项）
 
 ---
 

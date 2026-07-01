@@ -1,6 +1,7 @@
 use crate::middleware::auth_context::AuthContext;
 use crate::services::omni_audit_query_service::{AuditQueryFilter, AuditStats};
 use crate::services::omni_audit_service::OmniAuditMessage;
+use crate::utils::admin_checker::is_admin_role;
 use crate::utils::app_state::AppState;
 use crate::utils::error::AppError;
 use crate::utils::response::ApiResponse;
@@ -9,6 +10,32 @@ use axum::{
     Json,
 };
 use serde::Deserialize;
+
+/// P0 8-5 修复：omni_audit 查询接口要求 admin 角色
+///
+/// 安全原因：get_dashboard_stats 和 search_logs 查询全系统审计日志，
+/// 含敏感操作记录，必须限制为 admin 角色。
+async fn require_admin_role(
+    state: &AppState,
+    auth: &AuthContext,
+) -> Result<(), AppError> {
+    let role_id = auth
+        .role_id
+        .ok_or_else(|| AppError::permission_denied("用户未分配角色，无法查询审计日志"))?;
+    if !is_admin_role(&state.db, role_id).await {
+        tracing::warn!(
+            target: "security_audit",
+            event = "AUTHORIZATION_DENIED",
+            user_id = auth.user_id,
+            username = %auth.username,
+            "[SECURITY] 非 admin 用户尝试查询 omni_audit 日志被拒绝"
+        );
+        return Err(AppError::permission_denied(
+            "查询审计日志仅限管理员（code=admin）执行",
+        ));
+    }
+    Ok(())
+}
 
 #[derive(Debug, Deserialize)]
 pub struct TrackEventRequest {
@@ -63,7 +90,11 @@ pub async fn track_event(
 /// 获取审计可视化大屏统计数据
 pub async fn get_dashboard_stats(
     State(state): State<AppState>,
+    auth: AuthContext,
 ) -> Result<Json<ApiResponse<AuditStats>>, AppError> {
+    // P0 8-5 修复：审计大屏数据含全系统操作统计，仅限 admin
+    require_admin_role(&state, &auth).await?;
+
     use sea_orm::ConnectionTrait;
 
     let sql = "SELECT COUNT(*) as total FROM omni_audit_logs";
@@ -90,8 +121,12 @@ pub async fn get_dashboard_stats(
 /// 复杂条件检索审计日志
 pub async fn search_logs(
     State(state): State<AppState>,
+    auth: AuthContext,
     Query(filter): Query<AuditQueryFilter>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
+    // P0 8-5 修复：审计日志检索含全系统操作记录，仅限 admin
+    require_admin_role(&state, &auth).await?;
+
     use sea_orm::ConnectionTrait;
 
     let page: u64 = filter.page.unwrap_or(1);

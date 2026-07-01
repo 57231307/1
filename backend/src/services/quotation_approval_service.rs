@@ -281,14 +281,18 @@ impl QuotationApprovalService {
                             // P0 修复（批次 4，2026-06-27）：原 `let _ = ...` 静默吞掉
                             // BPM 任务审批错误，改为 warn 日志记录，确保运维可观测。
                             if let Err(e) = bpm_service
-                                .approve_task(crate::models::dto::bpm_dto::ApproveTaskRequest {
-                                    task_id: task.id,
-                                    handler_id: approver_id,
-                                    handler_name: format!("user_{}", approver_id),
-                                    action: "approve".to_string(),
-                                    approval_opinion: None,
-                                    attachment_urls: None,
-                                })
+                                .approve_task(
+                                    crate::models::dto::bpm_dto::ApproveTaskRequest {
+                                        task_id: task.id,
+                                        handler_id: approver_id,
+                                        handler_name: format!("user_{}", approver_id),
+                                        action: "approve".to_string(),
+                                        approval_opinion: None,
+                                        attachment_urls: None,
+                                    },
+                                    // P0 8-4 修复：传入真实操作用户 approver_id 用于 BPM 审计追溯
+                                    Some(approver_id),
+                                )
                                 .await
                             {
                                 tracing::warn!(
@@ -371,14 +375,18 @@ impl QuotationApprovalService {
                             // P0 修复（批次 4，2026-06-27）：原 `let _ = ...` 静默吞掉
                             // BPM 任务审批错误，改为 warn 日志记录，确保运维可观测。
                             if let Err(e) = bpm_service
-                                .approve_task(crate::models::dto::bpm_dto::ApproveTaskRequest {
-                                    task_id: task.id,
-                                    handler_id: approver_id,
-                                    handler_name: format!("user_{}", approver_id),
-                                    action: "reject".to_string(),
-                                    approval_opinion: Some(reason.clone()),
-                                    attachment_urls: None,
-                                })
+                                .approve_task(
+                                    crate::models::dto::bpm_dto::ApproveTaskRequest {
+                                        task_id: task.id,
+                                        handler_id: approver_id,
+                                        handler_name: format!("user_{}", approver_id),
+                                        action: "reject".to_string(),
+                                        approval_opinion: Some(reason.clone()),
+                                        attachment_urls: None,
+                                    },
+                                    // P0 8-4 修复：传入真实操作用户 approver_id 用于 BPM 审计追溯
+                                    Some(approver_id),
+                                )
                                 .await
                             {
                                 tracing::warn!(

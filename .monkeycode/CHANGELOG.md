@@ -2,6 +2,43 @@
 
 > 重要变更一句话摘要列表。详细历史请查阅 [`.monkeycode/docs/archives/`](file:///workspace/.monkeycode/docs/archives/)。
 
+## 2026-07-01 (批次 50 完成：操作审计 P0 修复 3 项)
+
+### 批次 50 完成：操作审计 P0 修复（3 项）
+
+**修复分支**：`fix/v19-audit-batch50`
+**修复范围**：八维度专项审计批次 50 — 操作审计 P0（8-1/8-4/8-5）
+**拆分说明**：8-2（签名持久化需 DB 迁移）和 8-3（30+ 处 delete 工作量大）拆到批次 51
+
+**修复清单**：
+
+| # | 问题 | 文件 | 修复 |
+|---|------|------|------|
+| P0 8-1 | omni_audit_middleware 仅 finance 3 端点局部挂载，700+ 端点无审计 | main.rs + middleware/omni_audit.rs + routes/finance.rs | main.rs 中间件链全局挂载 omni_audit_middleware（auth 之后执行）；omni_audit.rs 跳过 PUBLIC_PATHS/metrics/health/swagger-ui/api-docs/static 避免敏感信息泄露；finance.rs 移除局部挂载避免重复审计 |
+| P0 8-4 | BPM 审批核心方法 approve_task 无审计 | services/bpm_service.rs + handlers/bpm_handler.rs + services/production_order_service.rs + services/quotation_approval_service.rs | approve_task 签名增加 user_id 参数，3 处 update（task/reject instance/complete instance）改用 update_with_audit 纳入事务；2 个 handler（approve_task/execute_approval）增加 AuthContext 传真实 user_id；3 处 service 内部调用（production_order/quotation×2）传 Some(user_id) |
+| P0 8-5 | 审计日志查询路由无权限保护 | handlers/audit_log_handler.rs + handlers/omni_audit_handler.rs | 新增 require_admin_role 辅助函数；list_audit_logs/get_audit_log/export_audit_logs 3 处 + get_dashboard_stats/search_logs 2 处增加 admin 角色深度防御 |
+
+---
+
+## 2026-07-01 (批次 49 完成：安全防护 P0 修复 4 项)
+
+### 批次 49 完成：安全防护 P0 修复（4 项）
+
+**修复分支**：`fix/v19-audit-batch49`（已合并删除）
+**合并 commit**：`88ab52a`（PR #292 squash merge，CI 12/12 关键检查 success 全绿，E2E continue-on-error）
+**修复范围**：八维度专项审计批次 49 — 安全防护 P0（4 项）
+
+**修复清单**：
+
+| # | 问题 | 文件 | 修复 |
+|---|------|------|------|
+| P0 7-1 | 登录安全接口水平/垂直越权 | login_security_handler.rs | check_lock_status 普通用户仅查自己/admin 可查任意；unlock_account/unlock_account_by_id 仅 admin，新增 require_admin_role 辅助函数 |
+| P0 7-2 | 系统更新接口无 admin 校验（RCE 风险） | system_update_handler.rs | download_and_update/upload_and_update/rollback_version/apply_local_update 4 处增加 AuthContext + require_admin_role 深度防御 |
+| P0 7-3 | 删除用户未吊销 JWT（5 分钟窗口） | user_service.rs | delete_user 中追加 revoke_user_jtis(user_id, "USER_DELETED")，下沉到 service 层作为单一真相源，移除 handler 重复调用 |
+| P0 7-4 | 修改密码未吊销旧 JWT（2 小时窗口） | user_handler.rs | change_password 密码更新后追加 revoke_user_jtis(auth.user_id, "PASSWORD_CHANGED") |
+
+---
+
 ## 2026-07-01 (八维度专项审计完成：223 项发现，P0×36)
 
 ### 八维度专项审计完成

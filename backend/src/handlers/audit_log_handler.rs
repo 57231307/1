@@ -16,9 +16,37 @@ use serde::{Deserialize, Serialize};
 
 use crate::middleware::auth_context::AuthContext;
 use crate::models::audit_log;
+use crate::utils::admin_checker::is_admin_role;
 use crate::utils::app_state::AppState;
 use crate::utils::error::AppError;
 use crate::utils::response::ApiResponse;
+
+/// P0 8-5 修复：审计日志查询要求 admin 角色
+///
+/// 安全原因：审计日志含全系统操作记录（含其他用户敏感操作），
+/// 仅依赖全局 permission_middleware 的 RBAC 不够（管理员可能误配 audit-logs:read 权限），
+/// 在 handler 层增加 admin 角色深度防御，确保合规要求。
+async fn require_admin_role(
+    state: &AppState,
+    auth: &AuthContext,
+) -> Result<(), AppError> {
+    let role_id = auth
+        .role_id
+        .ok_or_else(|| AppError::permission_denied("用户未分配角色，无法查询审计日志"))?;
+    if !is_admin_role(&state.db, role_id).await {
+        tracing::warn!(
+            target: "security_audit",
+            event = "AUTHORIZATION_DENIED",
+            user_id = auth.user_id,
+            username = %auth.username,
+            "[SECURITY] 非 admin 用户尝试查询审计日志被拒绝"
+        );
+        return Err(AppError::permission_denied(
+            "查询审计日志仅限管理员（code=admin）执行",
+        ));
+    }
+    Ok(())
+}
 
 /// 列表查询参数（全部可选）
 #[derive(Debug, Default, Deserialize)]
@@ -104,9 +132,12 @@ pub struct AuditLogListResponse {
 /// 分页 + 多维筛选（时间范围 / user_id / operation_type / severity / resource_type / request_id）
 pub async fn list_audit_logs(
     State(state): State<AppState>,
-    _auth: AuthContext,
+    auth: AuthContext,
     Query(query): Query<AuditLogListQuery>,
 ) -> Result<Json<ApiResponse<AuditLogListResponse>>, AppError> {
+    // P0 8-5 修复：审计日志查询仅限 admin
+    require_admin_role(&state, &auth).await?;
+
     let page = std::cmp::Ord::max(query.page.unwrap_or(1), 1);
     let page_size = query.page_size.unwrap_or(20).clamp(1, 100);
 
@@ -189,9 +220,12 @@ pub struct AuditLogDetailResponse {
 /// GET /api/v1/erp/audit-logs/{id}
 pub async fn get_audit_log(
     State(state): State<AppState>,
-    _auth: AuthContext,
+    auth: AuthContext,
     Path(id): Path<i32>,
 ) -> Result<Json<ApiResponse<AuditLogDetailResponse>>, AppError> {
+    // P0 8-5 修复：审计日志详情查询仅限 admin
+    require_admin_role(&state, &auth).await?;
+
     let log = audit_log::Entity::find_by_id(id)
         .one(state.db.as_ref())
         .await
@@ -216,6 +250,9 @@ pub async fn export_audit_logs(
     auth: AuthContext,
     Query(query): Query<AuditLogListQuery>,
 ) -> Result<axum::response::Response, AppError> {
+    // P0 8-5 修复：审计日志导出仅限 admin
+    require_admin_role(&state, &auth).await?;
+
     let mut q = audit_log::Entity::find();
     if let Some(start) = &query.start_time {
         if let Ok(ts) = start.parse::<DateTime<Utc>>() {
