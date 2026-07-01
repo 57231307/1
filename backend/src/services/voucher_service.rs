@@ -672,6 +672,23 @@ impl VoucherService {
 
         // 更新或创建余额记录
         use crate::models::account_balance;
+        // v16 批次 45 修复：循环外批量锁定查询所有余额记录，避免循环内逐个 lock 查询（N+1）
+        let all_subject_ids: Vec<i32> = balance_map.keys().copied().collect();
+        let existing_balances: Vec<account_balance::Model> = if all_subject_ids.is_empty() {
+            Vec::new()
+        } else {
+            account_balance::Entity::find()
+                .filter(account_balance::Column::SubjectId.is_in(all_subject_ids))
+                .filter(account_balance::Column::Period.eq(&period))
+                .lock(sea_orm::sea_query::LockType::Update)
+                .all(txn)
+                .await?
+        };
+        let mut balance_record_map: HashMap<i32, account_balance::Model> = existing_balances
+            .into_iter()
+            .map(|b| (b.subject_id, b))
+            .collect();
+
         for (subject_id, (debit_amount, credit_amount)) in balance_map {
             // 获取科目信息以确定余额方向（复用批量查询结果，避免 N+1）
             let subject = subject_by_id
@@ -680,13 +697,8 @@ impl VoucherService {
 
             let balance_direction = subject.balance_direction.as_deref().unwrap_or("借");
 
-            // 使用 SELECT FOR UPDATE 锁定余额记录，防止并发更新
-            let existing = account_balance::Entity::find()
-                .filter(account_balance::Column::SubjectId.eq(subject_id))
-                .filter(account_balance::Column::Period.eq(&period))
-                .lock(sea_orm::sea_query::LockType::Update)
-                .one(txn)
-                .await?;
+            // v16 批次 45 修复：从批量查询结果获取余额记录（带行锁）
+            let existing = balance_record_map.remove(&subject_id);
 
             if let Some(balance) = existing {
                 // 更新现有余额
