@@ -539,7 +539,7 @@ impl MrpEngineService {
             let stock_info = top_stock_map
                 .get(&item.product_id)
                 .cloned()
-                .unwrap_or_else(|| StockInfo {
+                .unwrap_or(StockInfo {
                     on_hand: Decimal::ZERO,
                     in_transit: Decimal::ZERO,
                     safety_stock: Decimal::ZERO,
@@ -644,7 +644,7 @@ impl MrpEngineService {
             let stock_info = stock_map
                 .get(&result.product_id)
                 .cloned()
-                .unwrap_or_else(|| StockInfo {
+                .unwrap_or(StockInfo {
                     on_hand: Decimal::ZERO,
                     in_transit: Decimal::ZERO,
                     safety_stock: Decimal::ZERO,
