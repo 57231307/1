@@ -9,6 +9,10 @@ use tracing::warn;
 /// 作为角色编码的单一真相源，避免多处硬编码 "admin" 导致不一致。
 pub const ADMIN_ROLE_CODE: &str = "admin";
 
+/// 部门经理角色编码常量（v18 批次 48：消除硬编码字符串）
+/// 用于付款审批等需要 manager 角色判定的场景
+pub const MANAGER_ROLE_CODE: &str = "manager";
+
 /// 管理员角色检查缓存条目
 #[derive(Clone)]
 struct AdminCacheEntry {
