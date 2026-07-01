@@ -165,9 +165,10 @@ impl UserNotificationSettingService {
             .map(|s| (s.user_id, s))
             .collect();
         // 为缺失的用户创建默认设置
+        use std::collections::hash_map::Entry;
         let now = chrono::Utc::now();
         for &user_id in user_ids {
-            if !map.contains_key(&user_id) {
+            if let Entry::Vacant(e) = map.entry(user_id) {
                 let active_model = user_notification_setting::ActiveModel {
                     user_id: Set(user_id),
                     email_enabled: Set(true),
@@ -183,7 +184,7 @@ impl UserNotificationSettingService {
                     ..Default::default()
                 };
                 let model = active_model.insert(&*self.db).await?;
-                map.insert(user_id, model);
+                e.insert(model);
             }
         }
         Ok(map)
