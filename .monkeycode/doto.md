@@ -3,9 +3,28 @@
 > 本文件记录**当前任务**与**历史任务索引**。
 > 详细历史请查阅 [`.monkeycode/docs/archives/`](file:///workspace/.monkeycode/docs/archives/)。
 
-### 2026-07-01 批次 50 完成：操作审计 P0 修复 3 项（✅ 待推送 CI）
+### 2026-07-01 批次 51 完成：业务逻辑 P0 修复 6 项（✅ 待推送 CI）
 
-**修复分支**：`fix/v19-audit-batch50`
+**修复分支**：`fix/v19-audit-batch51`
+**修复范围**：业务逻辑 P0（3-1/3-2/3-3/3-4/3-5/3-6）
+
+**修复清单**：
+- P0 3-1：ap_invoice_service.rs 自动生成 AP 发票 PENDING→DRAFT，与 approve 状态机对齐
+- P0 3-2：ar_invoice_service.rs mark_as_paid 不再覆盖 received_amount，按累加结果判断 PAID/PARTIAL_PAID
+- P0 3-3：AR/AP mark_as_paid 状态门黑名单→白名单（AR: APPROVED/PARTIAL_PAID；AP: AUDITED/PARTIAL_PAID）
+- P0 3-4：bpm_service.rs 监控查询 4 处大写→小写，与任务状态写入侧一致
+- P0 3-5：ar/inv.rs create_receivable APPROVED→DRAFT，走 AR 审批流程
+- P0 3-6：po/receipt.rs receive_order 增加 receipt_id 幂等校验 + event_bus.rs 传 receipt_id
+
+**当前状态**：批次 51 代码完成，待提交推送 CI
+
+---
+
+### 2026-07-01 批次 50 完成：操作审计 P0 修复 3 项（✅ 已合并 main，CI 12/13 关键检查全绿，E2E continue-on-error）
+
+**修复分支**：`fix/v19-audit-batch50`（已合并删除）
+**合并 commit**：`3f43833`（PR #293 squash merge）
+**main HEAD**：`3f43833`
 **修复范围**：操作审计 P0（8-1/8-4/8-5）；8-2/8-3 拆到批次 51
 
 **修复清单**：
@@ -13,7 +32,9 @@
 - P0 8-4：BPM approve_task 补审计（service 层 3 处 update_with_audit + handler 层 2 处 AuthContext + service 内部调用 3 处传 user_id）
 - P0 8-5：审计日志查询接口 admin 深度防御（audit_log_handler 3 处 + omni_audit_handler 2 处）
 
-**当前状态**：批次 50 代码完成，待提交推送 CI
+**CI 结果**：Rust 构建/Clippy/单元测试/格式 全部 success；前端构建/测试/lint/类型检查 全部 success；E2E continue-on-error 不阻塞
+
+**当前状态**：批次 50 已合并 main，进入批次 51（业务逻辑 + 数据链路 P0 + 8-2/8-3）
 
 ---
 

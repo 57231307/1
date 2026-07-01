@@ -2,11 +2,32 @@
 
 > 重要变更一句话摘要列表。详细历史请查阅 [`.monkeycode/docs/archives/`](file:///workspace/.monkeycode/docs/archives/)。
 
+## 2026-07-01 (批次 51 完成：业务逻辑 P0 修复 6 项)
+
+### 批次 51 完成：业务逻辑 P0 修复（6 项）
+
+**修复分支**：`fix/v19-audit-batch51`
+**修复范围**：八维度专项审计批次 51 — 业务逻辑 P0（3-1/3-2/3-3/3-4/3-5/3-6）
+
+**修复清单**：
+
+| # | 问题 | 文件 | 修复 |
+|---|------|------|------|
+| P0 3-1 | AP 发票状态机断裂，自动生成应付单死锁在 PENDING | services/ap_invoice_service.rs | auto_generate_from_receipt/return 初始状态 PENDING→DRAFT，与 approve 状态机（DRAFT→AUDITED）对齐 |
+| P0 3-2 | AR mark_as_paid 覆盖部分收款记录 | services/ar_invoice_service.rs | mark_as_paid 不再覆盖 received_amount/unpaid_amount，仅根据 received_amount vs invoice_amount 判断 PAID/PARTIAL_PAID，金额累加由 ar_collection_service.confirm 完成 |
+| P0 3-3 | AR/AP mark_as_paid 状态门漏洞，DRAFT 可直接标记 PAID | services/ar_invoice_service.rs + services/ap_invoice_service.rs | 状态门黑名单（仅排除 PAID/CANCELLED）改为白名单（AR: APPROVED/PARTIAL_PAID；AP: AUDITED/PARTIAL_PAID） |
+| P0 3-4 | BPM 监控统计大小写不一致，任务统计永远返回 0 | services/bpm_service.rs | 监控查询 4 处大写（PENDING/COMPLETED/REJECTED）改为小写，与任务状态写入侧一致 |
+| P0 3-5 | create_receivable 跳过审批，销售→AR 直接设 APPROVED | services/ar/inv.rs | create_receivable 初始状态 APPROVED→DRAFT，approval_status APPROVED→PENDING，走 AR 审批流程 |
+| P0 3-6 | 重复库存入库（事件重投无幂等） | services/po/receipt.rs + services/event_bus.rs | receive_order 增加 receipt_id 参数，入口校验 receipt_status != COMPLETED 幂等返回，入库成功后标记 COMPLETED；事件监听器传 receipt_id |
+
+---
+
 ## 2026-07-01 (批次 50 完成：操作审计 P0 修复 3 项)
 
 ### 批次 50 完成：操作审计 P0 修复（3 项）
 
-**修复分支**：`fix/v19-audit-batch50`
+**修复分支**：`fix/v19-audit-batch50`（已合并删除）
+**合并 commit**：`3f43833`（PR #293 squash merge，CI 12/13 关键检查 success 全绿，E2E continue-on-error）
 **修复范围**：八维度专项审计批次 50 — 操作审计 P0（8-1/8-4/8-5）
 **拆分说明**：8-2（签名持久化需 DB 迁移）和 8-3（30+ 处 delete 工作量大）拆到批次 51
 

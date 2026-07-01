@@ -17,9 +17,40 @@ use super::order::PurchaseOrderService;
 
 impl PurchaseOrderService {
     /// 标记采购订单为已收货（含库存入库联动）
-    pub async fn receive_order(&self, order_id: i32) -> Result<purchase_order::Model, AppError> {
+    ///
+    /// P0 3-6 修复（2026-07-01 八维度审计）：增加 receipt_id 参数做幂等校验。
+    /// 原实现只接收 order_id，事件重投会导致重复入库。
+    /// 现通过 receipt_id 查询入库单 receipt_status，若已 COMPLETED 则幂等返回。
+    pub async fn receive_order(
+        &self,
+        order_id: i32,
+        receipt_id: Option<i32>,
+    ) -> Result<purchase_order::Model, AppError> {
         // 1. 开启事务保证数据一致性
         let txn = (*self.db).begin().await?;
+
+        // P0 3-6 修复：幂等校验——若指定了 receipt_id 且入库单已 COMPLETED，直接返回当前订单
+        // 防止事件重投或并发触发导致重复入库
+        if let Some(rid) = receipt_id {
+            use crate::models::purchase_receipt;
+            let receipt = purchase_receipt::Entity::find_by_id(rid)
+                .one(&txn)
+                .await?
+                .ok_or_else(|| AppError::not_found(format!("入库单 {}", rid)))?;
+            if receipt.receipt_status == "COMPLETED" {
+                tracing::info!(
+                    "入库单 {} 已 COMPLETED，跳过重复入库（幂等返回），订单 {}",
+                    rid,
+                    order_id
+                );
+                let order = purchase_order::Entity::find_by_id(order_id)
+                    .one(&*self.db)
+                    .await?
+                    .ok_or_else(|| AppError::not_found(format!("采购订单 {}", order_id)))?;
+                txn.commit().await?;
+                return Ok(order);
+            }
+        }
 
         // 2. 查询订单（加 lock_exclusive 串行化并发收货）
         let order = purchase_order::Entity::find_by_id(order_id)
@@ -221,6 +252,21 @@ impl PurchaseOrderService {
             Some(0),
         )
         .await?;
+
+        // P0 3-6 修复：入库成功后标记入库单为 COMPLETED，作为幂等键防止重复入库
+        if let Some(rid) = receipt_id {
+            use crate::models::purchase_receipt;
+            // 使用结构体初始化器语法（避免 clippy::field_reassign_with_default）
+            let receipt_active = purchase_receipt::ActiveModel {
+                id: Set(rid),
+                receipt_status: Set("COMPLETED".to_string()),
+                updated_at: Set(now),
+                ..Default::default()
+            };
+            purchase_receipt::Entity::update(receipt_active)
+                .exec(&txn)
+                .await?;
+        }
 
         // 8. 提交事务
         txn.commit().await?;

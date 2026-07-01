@@ -628,17 +628,19 @@ impl BpmService {
         let total_tasks = bpm_task::Entity::find().count(&*self.db).await?;
 
         let pending_tasks = bpm_task::Entity::find()
-            .filter(bpm_task::Column::Status.eq("PENDING"))
+            // P0 3-4 修复：任务状态写入为小写（pending/completed/rejected），
+            // 查询需用小写匹配，原大写导致统计永远返回 0
+            .filter(bpm_task::Column::Status.eq("pending"))
             .count(&*self.db)
             .await?;
 
         let completed_tasks = bpm_task::Entity::find()
-            .filter(bpm_task::Column::Status.eq("COMPLETED"))
+            .filter(bpm_task::Column::Status.eq("completed"))
             .count(&*self.db)
             .await?;
 
         let rejected_tasks = bpm_task::Entity::find()
-            .filter(bpm_task::Column::Status.eq("REJECTED"))
+            .filter(bpm_task::Column::Status.eq("rejected"))
             .count(&*self.db)
             .await?;
 
@@ -677,7 +679,8 @@ impl BpmService {
         page: u64,
         page_size: u64,
     ) -> Result<PageResponse<bpm_task::Model>, AppError> {
-        let stmt = bpm_task::Entity::find().filter(bpm_task::Column::Status.eq("PENDING"));
+        // P0 3-4 修复：任务状态写入为小写，查询用小写匹配
+        let stmt = bpm_task::Entity::find().filter(bpm_task::Column::Status.eq("pending"));
 
         let paginator = stmt.paginate(&*self.db, page_size);
         let total = paginator.num_items().await?;

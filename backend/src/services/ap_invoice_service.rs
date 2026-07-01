@@ -96,9 +96,11 @@ impl ApInvoiceService {
             amount: Set(receipt.total_amount),
             paid_amount: Set(Decimal::ZERO),
             unpaid_amount: Set(receipt.total_amount),
-            // P1-10 修复（2026-06-25 综合审计）：自动生成 AP 发票保留 PENDING 状态，
-            // 触发审批环节，原 AUDITED 跳过审批违反业务流程。
-            invoice_status: Set("PENDING".to_string()),
+            // P0 3-1 修复（2026-07-01 八维度审计）：自动生成 AP 发票初始为 DRAFT，
+            // 经 approve 流程审核后转 AUDITED 才能进入付款环节。
+            // 原 PENDING 状态不在 approve 状态机枚举内（仅 DRAFT→AUDITED），
+            // 导致自动生成的应付单死锁在 PENDING 永远无法审批。
+            invoice_status: Set("DRAFT".to_string()),
             currency: Set(crate::constants::DEFAULT_CURRENCY.to_string()),
             exchange_rate: Set(DEFAULT_BASE_CURRENCY_EXCHANGE_RATE),
             // P1-10 修复：tax_amount 应从源单据税额传递。
@@ -176,8 +178,8 @@ impl ApInvoiceService {
             amount: Set(amount),
             paid_amount: Set(Decimal::ZERO),
             unpaid_amount: Set(amount),
-            // P1-10 修复：保留 PENDING 状态触发审批环节
-            invoice_status: Set("PENDING".to_string()),
+            // P0 3-1 修复：初始为 DRAFT，经 approve 流程审核后转 AUDITED
+            invoice_status: Set("DRAFT".to_string()),
             currency: Set(crate::constants::DEFAULT_CURRENCY.to_string()),
             exchange_rate: Set(DEFAULT_BASE_CURRENCY_EXCHANGE_RATE),
             // P1-10 修复：从退货单明细汇总税额（负数红字）
@@ -395,9 +397,11 @@ impl ApInvoiceService {
             .ok_or_else(|| AppError::not_found(format!("应付单 {}", id)))?;
 
         // 2. 检查状态
-        if invoice.invoice_status == "PAID" || invoice.invoice_status == "CANCELLED" {
+        // P0 3-3 修复（2026-07-01 八维度审计）：状态门改为白名单，仅 AUDITED/PARTIAL_PAID 可标记 PAID，
+        // 堵住 DRAFT/PENDING 直接跳过审核标记已付清的漏洞。
+        if !["AUDITED", "PARTIAL_PAID"].contains(&invoice.invoice_status.as_str()) {
             return Err(AppError::business(format!(
-                "应付单状态为{}，不可标记为已付清",
+                "应付单状态为{}，不可标记为已付清（仅 AUDITED/PARTIAL_PAID 可标记）",
                 invoice.invoice_status
             )));
         }

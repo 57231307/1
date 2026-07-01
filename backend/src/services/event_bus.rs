@@ -464,14 +464,16 @@ pub async fn start_event_listener(db: Arc<DatabaseConnection>) {
             // AP/AR 发票状态更新、BPM 审批回写、低库存预警、缺料采购建议、财务指标计算。
             let result = AssertUnwindSafe(async {
             match event {
-                BusinessEvent::PurchaseReceiptCompleted { order_id, .. } => {
+                BusinessEvent::PurchaseReceiptCompleted { receipt_id, order_id, .. } => {
                     tracing::info!(
-                        "Event received: PurchaseReceiptCompleted for order {}",
-                        order_id
+                        "Event received: PurchaseReceiptCompleted for order {}, receipt {}",
+                        order_id,
+                        receipt_id
                     );
                     let po_service =
                         crate::services::po::order::PurchaseOrderService::new(db.clone());
-                    match po_service.receive_order(order_id).await {
+                    // P0 3-6 修复：传入 receipt_id 做幂等校验，防止事件重投导致重复入库
+                    match po_service.receive_order(order_id, Some(receipt_id)).await {
                         Ok(_) => tracing::info!(
                             "Successfully updated purchase order {} status to RECEIVED",
                             order_id
