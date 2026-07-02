@@ -49,19 +49,22 @@ pub struct TrackEventRequest {
 }
 
 /// 接收前端发来的 UI 埋点事件
+///
+/// P2 7-13 修复：原 auth: Option<AuthContext> 允许匿名调用，无速率限制，
+/// 可被注入垃圾审计日志污染 omni_audit_logs 表。
+/// 改为 auth: AuthContext 要求登录态，匿名请求由 auth_middleware 返回 401 拦截。
+/// 速率限制由全局 rate_limit_by_ip 中间件提供（已在 main.rs 挂载）。
 pub async fn track_event(
-    auth: Option<AuthContext>,
+    auth: AuthContext,
     State(state): State<AppState>,
     Json(req): Json<TrackEventRequest>,
 ) -> Result<Json<ApiResponse<()>>, AppError> {
-    // 未登录场景下 user_id 为 None，避免与系统用户（id=0）混淆
-    let user_id = auth.map(|a| a.user_id);
     let trace_id = uuid::Uuid::new_v4().to_string();
 
     state.omni_audit.log(OmniAuditMessage {
         trace_id,
-        user_id,
-        username: None,
+        user_id: Some(auth.user_id),
+        username: Some(auth.username.clone()),
         event_type: req.event_type,
         event_name: req.event_name,
         resource: req.resource,

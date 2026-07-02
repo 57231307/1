@@ -50,7 +50,9 @@ pub async fn omni_audit_middleware(
         .headers()
         .get("x-forwarded-for")
         .and_then(|v| v.to_str().ok())
-        .map(|s| s.to_string());
+        // P2 7-11 修复：X-Forwarded-For 可能含多个 IP（"client, proxy1, proxy2"），
+        // 取首段（最原始客户端 IP）并 trim 空格，与 audit_context.rs 保持一致
+        .map(|s| s.split(',').next().unwrap_or("").trim().to_string());
     let x_real_ip = req
         .headers()
         .get("x-real-ip")
@@ -96,8 +98,10 @@ pub async fn omni_audit_middleware(
         };
 
         // 截断过长的请求体
-        let truncated_body = if body_for_audit.len() > 5000 {
-            format!("{}...", &body_for_audit[..5000])
+        // P2 7-12 修复：原 &body_for_audit[..5000] 按字节切片，切到 UTF-8 多字节字符
+        // 中间会 panic。改为 chars().take(5000).collect() 按 Unicode 字符截断。
+        let truncated_body = if body_for_audit.chars().count() > 5000 {
+            format!("{}...", body_for_audit.chars().take(5000).collect::<String>())
         } else {
             body_for_audit
         };
@@ -171,10 +175,11 @@ pub async fn omni_audit_middleware(
             uri,
             status_code.as_u16(),
             duration_secs,
-            if response_body.len() > 500 {
-                &response_body[..500]
+            // P2 7-12 修复：原 &response_body[..500] 按字节切片可能 panic，改为 chars 截断
+            if response_body.chars().count() > 500 {
+                response_body.chars().take(500).collect::<String>()
             } else {
-                &response_body
+                response_body.clone()
             }
         );
     }
@@ -206,8 +211,9 @@ pub async fn omni_audit_middleware(
         );
 
         // 截断过长的响应内容
-        let truncated_response = if response_body.len() > 2000 {
-            format!("{}...", &response_body[..2000])
+        // P2 7-12 修复：原 &response_body[..2000] 按字节切片可能 panic，改为 chars 截断
+        let truncated_response = if response_body.chars().count() > 2000 {
+            format!("{}...", response_body.chars().take(2000).collect::<String>())
         } else {
             response_body.clone()
         };
