@@ -226,6 +226,15 @@ impl ApPaymentService {
             // 计算每个应付单应分摊的付款金额（按申请金额比例）
             let total_apply_amount: Decimal = items.iter().map(|item| item.apply_amount).sum();
 
+            // P1 3-12/5-6 修复（批次 63）：分摊总额为 0 时提前报错
+            // 原实现 total_apply_amount==0 时 unwrap_or_default 返回 0，paid_amount=0 但状态改 PARTIAL_PAID，
+            // 导致应付单状态与金额不一致（无付款却标记部分付款）。
+            if total_apply_amount <= Decimal::ZERO && !items.is_empty() {
+                return Err(AppError::business(
+                    "付款申请明细分摊总额必须大于 0，请检查申请明细的 apply_amount",
+                ));
+            }
+
             // v16 批次 44 修复：循环外批量查询并锁定所有关联的应付单，避免循环内逐个 lock_exclusive（N+1）
             let invoice_ids: Vec<i32> = items.iter().map(|item| item.invoice_id).collect();
             let mut invoice_map: std::collections::HashMap<i32, ap_invoice::Model> =

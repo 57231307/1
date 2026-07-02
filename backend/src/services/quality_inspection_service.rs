@@ -178,6 +178,12 @@ impl QualityInspectionService {
             user_id, req.inspection_no
         );
 
+        // P1 5-3 修复（批次 63）：整体包裹 txn，质检记录与入库单状态更新原子化
+        // 原实现质检记录用 &*self.db 插入，入库单状态更新也用 &*self.db，
+        // 两者非事务包裹，并发或中途失败会导致质检记录已创建但入库单状态未更新（数据不一致）。
+        use sea_orm::TransactionTrait;
+        let txn = (*self.db).begin().await?;
+
         let active_model = quality_inspection_record::ActiveModel {
             inspection_no: Set(req.inspection_no),
             inspection_type: Set(req.inspection_type),
@@ -199,21 +205,21 @@ impl QualityInspectionService {
             ..Default::default()
         };
 
-        let result = active_model.insert(&*self.db).await?;
+        let result = active_model.insert(&txn).await?;
         info!("质量检验记录创建成功：{}", result.inspection_no);
 
         // 如果是采购入库的质检，同步更新入库单状态
         if result.related_type.as_deref() == Some("PURCHASE_RECEIPT") {
             if let Some(receipt_id) = result.related_id {
                 let receipt = crate::models::purchase_receipt::Entity::find_by_id(receipt_id)
-                    .one(&*self.db)
+                    .one(&txn)
                     .await?;
 
                 if let Some(r) = receipt {
                     let mut receipt_active: crate::models::purchase_receipt::ActiveModel = r.into();
                     receipt_active.inspection_status = Set(result.inspection_result.clone());
                     crate::services::audit_log_service::AuditLogService::update_with_audit(
-                        &*self.db,
+                        &txn,
                         "auto_audit",
                         receipt_active,
                         // P1 1-1 修复（批次 59b）：原 Some(0) 占位符改为真实操作人 user_id
@@ -223,6 +229,8 @@ impl QualityInspectionService {
                 }
             }
         }
+
+        txn.commit().await?;
 
         Ok(result)
     }

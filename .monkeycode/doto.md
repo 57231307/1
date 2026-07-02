@@ -3,7 +3,62 @@
 > 本文件记录**当前任务**与**历史任务索引**。
 > 详细历史请查阅 [`.monkeycode/docs/archives/`](file:///workspace/.monkeycode/docs/archives/)。
 
-### 2026-07-02 批次 59 完成：审计日志质量修复（8-15/8-8/1-1 部分）（✅ 已合并 main，CI 12/13 全绿，E2E continue-on-error）
+### 2026-07-02 批次 62 完成：业务流断点修复（3-7/3-11/5-1/5-2/5-5/1-3）（✅ 已合并 main，CI 12/13 全绿，E2E continue-on-error）
+
+**修复分支**：`fix/v19-batch62-business-flow`（已合并删除）
+**合并 commit**：`f46760ab`（PR #306 squash merge）
+**main HEAD**：`f46760ab`
+**修复范围**：P1 业务流断点 5 项
+
+**修复清单**：
+- P1 5-5/1-3：销售退货红字应收单事务一致性
+  - `ar_invoice_service.rs`：新增 `create_credit_memo` 方法（支持负金额 + 外部事务 + 幂等检查）
+  - `sales_return_service.rs`：`approve_return` 红字 AR 生成从 commit 后移入事务内，失败则整体回滚
+  - 原实现在 commit 后调用 `create`（强制 amount>0），红字金额（负数）注定失败，且失败仅 tracing::error 不回滚，导致账实不符
+- P1 3-7/5-1：销售发货→AR 业务流补全
+  - `so/delivery.rs`：`ship_order` 全额发货时在 commit 前调用 `create_receivable` 生成 AR，commit 后发布 `SalesOrderShipped` 事件
+  - 原实现发货后不生成 AR，财务报表应收账款余额与销售发货数据不一致
+- P1 5-2：SalesOrderShipped 事件监听器业务逻辑补全
+  - `event_bus.rs`：监听器从空壳（仅打日志）改为发布 `FinancialIndicatorUpdate` 事件，触发财务指标计算服务刷新应收/收入指标
+- P1 3-11：submit_order BPM 启动失败补偿机制
+  - `so/order_workflow.rs`：BPM 启动失败时补偿回滚订单状态为 draft 并返回错误，用户可重新提交
+  - 原实现失败仅 warn 不阻断，导致订单已提交但无审批流（业务流断点）
+  - `BpmService::start_process` 内部独立事务（不支持外部 txn），故采用补偿机制
+
+**关键技术决策**：
+1. **create_credit_memo vs create**：红字应收单需支持负金额，原 `create` 强制 `amount > 0`，故新增专用方法
+2. **create_receivable 幂等检查**：同 order_id 不重复创建 AR，部分发货不生成（避免冲突），全额发货时统一生成
+3. **事件发布时机**：必须在 `txn.commit()` 之后，避免消费者读到未提交数据
+4. **BPM 补偿机制**：`BpmService::start_process` 内部独立事务无法与订单状态更新共用事务，故 commit 成功后调用 BPM，BPM 失败则开启新事务回滚订单状态
+
+**改动文件**：5 文件
+- backend/src/services/ar_invoice_service.rs（新增 create_credit_memo）
+- backend/src/services/sales_return_service.rs（approve_return 红字 AR 移入事务内）
+- backend/src/services/so/delivery.rs（ship_order 补 create_receivable + 事件发布）
+- backend/src/services/event_bus.rs（SalesOrderShipped 监听器补业务逻辑）
+- backend/src/services/so/order_workflow.rs（submit_order BPM 补偿回滚）
+
+**下一步**：进入批次 63（事务边界原子性 3-4/3-12/5-3/5-4/5-6）
+
+---
+
+### 2026-07-02 批次 61 完成：状态机 lock_exclusive 补齐（3-1/3-2/3-3/3-5/5-20/5-21）✅
+
+**main HEAD**：`866bd21e`（PR #305）
+
+---
+
+### 2026-07-02 批次 60 完成：单号生成器统一 ✅
+
+**main HEAD**：`a092222c`（PR #303）
+
+---
+
+### 2026-07-02 批次 59b 完成：审计日志 user_id 透传（1-1 类别 A+B，45 处）✅
+
+**main HEAD**：`c083c511`（PR #304）
+
+---
 
 **修复分支**：`fix/v19-audit-batch59`（已合并删除）
 **合并 commit**：`074449a`（PR #302 squash merge）
