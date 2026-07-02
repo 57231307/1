@@ -28,11 +28,14 @@ impl ApVerificationService {
 
     // 生成核销单号
     // 格式：VER + 年月日 + 三位序号（VER20260315001）
+    // P1 5-11 修复（批次 60）：改用宏的 txn 变体（5 参数），调用方传入外层 txn，
+    // 确保单号生成的 advisory_xact_lock 与 INSERT 在同一事务内，锁覆盖完整临界区
     crate::impl_generate_no!(
         generate_verification_no,
         "VER",
         ap_verification::Entity,
-        ap_verification::Column::VerificationNo
+        ap_verification::Column::VerificationNo,
+        txn
     );
 
     /// 自动核销（按到期日优先匹配）
@@ -130,7 +133,8 @@ impl ApVerificationService {
         }
 
         // 5. 创建核销单
-        let verification_no = self.generate_verification_no().await?;
+        // P1 5-11 修复（批次 60）：传入外层 txn，确保单号生成与 INSERT 在同一事务内
+        let verification_no = self.generate_verification_no(&txn).await?;
         let verification_date = Utc::now().naive_utc().date();
 
         let verification = ap_verification::ActiveModel {
@@ -280,7 +284,8 @@ impl ApVerificationService {
         }
 
         // 2. 创建核销单
-        let verification_no = self.generate_verification_no().await?;
+        // P1 5-11 修复（批次 60）：传入外层 txn，确保单号生成与 INSERT 在同一事务内
+        let verification_no = self.generate_verification_no(&txn).await?;
         let verification_date = Utc::now().naive_utc().date();
 
         let verification = ap_verification::ActiveModel {
