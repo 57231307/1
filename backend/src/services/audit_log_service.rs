@@ -211,6 +211,7 @@ impl AuditLogService {
         C: ConnectionTrait,
         <E as EntityTrait>::Model:
             Serialize + serde::de::DeserializeOwned + Sync + Send + Clone,
+        <<E as EntityTrait>::PrimaryKey as sea_orm::PrimaryKeyTrait>::ValueType: From<i32>,
     {
         // 1. 查询 old_value 快照（删除前）
         let old_model = E::find_by_id(record_id)
@@ -256,6 +257,7 @@ impl AuditLogService {
         C: ConnectionTrait,
         <E as EntityTrait>::Model:
             Serialize + serde::de::DeserializeOwned + Sync + Send + Clone,
+        <<E as EntityTrait>::PrimaryKey as sea_orm::PrimaryKeyTrait>::ValueType: From<i64>,
     {
         // 1. 查询 old_value 快照（删除前）
         let old_model = E::find_by_id(record_id)
