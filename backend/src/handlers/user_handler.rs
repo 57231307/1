@@ -467,6 +467,16 @@ pub async fn change_password(
     // 获取当前用户信息
     let user = user_service.find_by_id(auth.user_id).await?;
 
+    // P1 8-15 修复：捕获旧密码哈希的 SHA-256 摘要前 8 位作为审计指纹
+    // 修复背景：原 before/after 仅占位 {"action":"change_password"}，无真实哈希指纹，
+    // 无法检测密码是否被篡改或绕过审计修改。
+    let old_hash_fingerprint = {
+        use sha2::{Digest, Sha256};
+        let mut hasher = Sha256::new();
+        hasher.update(user.password_hash.as_bytes());
+        format!("{:x}", hasher.finalize())[..8].to_string()
+    };
+
     // 验证原密码
     let is_valid = AuthService::verify_password(&req.old_password, &user.password_hash)
         .map_err(|e| AppError::internal(e.to_string()))?;
@@ -503,6 +513,14 @@ pub async fn change_password(
     // 哈希新密码
     let new_password_hash = AuthService::hash_password(&req.new_password)
         .map_err(|e| AppError::internal(e.to_string()))?;
+
+    // P1 8-15 修复：计算新密码哈希的 SHA-256 摘要前 8 位
+    let new_hash_fingerprint = {
+        use sha2::{Digest, Sha256};
+        let mut hasher = Sha256::new();
+        hasher.update(new_password_hash.as_bytes());
+        format!("{:x}", hasher.finalize())[..8].to_string()
+    };
 
     // 更新密码
     use sea_orm::ActiveModelTrait;
@@ -541,8 +559,17 @@ pub async fn change_password(
         description: Some("用户修改密码成功".to_string()),
         request_method: Some("PUT".to_string()),
         request_path: Some("/api/v1/erp/users/change-password".to_string()),
-        before_snapshot: Some(serde_json::json!({"action": "change_password"})),
-        after_snapshot: Some(serde_json::json!({"action": "change_password", "status": "success"})),
+        // P1 8-15 修复：before/after 记录 password_hash 的 SHA-256 摘要前 8 位
+        // 不记录完整哈希避免泄露，仅记录指纹用于检测密码是否被篡改
+        before_snapshot: Some(serde_json::json!({
+            "action": "change_password",
+            "hash_fingerprint": old_hash_fingerprint,
+        })),
+        after_snapshot: Some(serde_json::json!({
+            "action": "change_password",
+            "status": "success",
+            "hash_fingerprint": new_hash_fingerprint,
+        })),
     };
     let svc = Arc::new(AuditLogService::new(state.db.clone()));
     svc.record_async(event, audit_ctx.map(|e| e.0));

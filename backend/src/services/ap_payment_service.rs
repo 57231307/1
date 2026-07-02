@@ -149,7 +149,8 @@ impl ApPaymentService {
             &txn,
             "auto_audit",
             payment_active,
-            Some(0),
+            // P1 1-1 修复：Some(0) 改 Some(user_id)，审计日志记录真实操作人
+            Some(user_id),
         )
         .await?;
 
@@ -205,7 +206,8 @@ impl ApPaymentService {
             &txn,
             "auto_audit",
             payment_active,
-            Some(0),
+            // P1 1-1 修复：Some(0) 改 Some(user_id)，审计日志记录真实操作人
+            Some(user_id),
         )
         .await?;
 
@@ -276,7 +278,8 @@ impl ApPaymentService {
                             &txn,
                             "auto_audit",
                             invoice_active,
-                            Some(0),
+                            // P1 1-1 修复：Some(0) 改 Some(user_id)，审计日志记录真实操作人
+                            Some(user_id),
                         )
                         .await?;
 
