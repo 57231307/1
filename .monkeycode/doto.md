@@ -3,6 +3,95 @@
 > 本文件记录**当前任务**与**历史任务索引**。
 > 详细历史请查阅 [`.monkeycode/docs/archives/`](file:///workspace/.monkeycode/docs/archives/)。
 
+### 2026-07-02 批次 59 完成：审计日志质量修复（8-15/8-8/1-1 部分）（✅ 待 CI 验证）
+
+**修复分支**：`fix/v19-audit-batch59`
+**修复范围**：审计日志质量修复 3 项（8-15/8-8/1-1 部分），延后项拆到批次 59b
+
+**修复清单**：
+- P2 8-15：change_password 审计记录哈希指纹（user_handler.rs）
+  - 用 SHA-256 摘要前 8 位替代占位 JSON `{"action":"change_password"}`
+  - before/after_snapshot 记录 old/new password_hash 的 SHA-256 指纹
+  - 导入 sha2 crate（Cargo.toml 已有依赖）
+- P2 8-8：update_with_audit 补 before_snapshot（audit_log_service.rs）
+  - update 前查询 old_model 序列化为 before_snapshot
+  - update 后用 new_model 序列化为 after_snapshot
+  - 填充 old_value/new_value（旧字段兼容）+ before_snapshot/after_snapshot（推荐字段）
+  - 仅 i32 主键支持 before_snapshot 查询；i64 主键保持 None（避免泛型膨胀）
+  - 新增 trait bound `PrimaryKeyValueType: From<i32>`（i64 主键仍可调用，因 i64: From<i32>）
+- P1 1-1（部分）：ap_payment_service.rs 3 处 Some(0) 改 Some(user_id)
+  - update 方法第 152 行
+  - confirm 方法第 209 行（payment 状态变更）
+  - confirm 方法第 282 行（invoice 状态变更）
+
+**延后项**（拆到批次 59b）：
+- 1-1（剩余）：40+ 处 Some(0) 改 Some(user_id)（bom_service/purchase_return/quality_inspection/voucher_service/ar_invoice/sales_return/color_card_crud/inventory_adjustment/ap_verification/crm/supplier 等 13+ 文件）
+  - bom_service submit/approve 方法签名无 user_id 参数，需补参数并由 handler 注入
+  - purchase_return update_return/submit_return/reject_return 方法签名有 `_user_id`（下划线前缀未使用）
+- 8-9：delete_with_audit 增加 audit_ctx 参数（30 文件 35 处调用方更新）
+- 8-5：search_logs 验证 HMAC-SHA256 签名（omni_audit_log 表未存 payload，验签时无法重建签名材料，需先修复签名逻辑）
+
+**改动文件**：3 文件
+- backend/src/handlers/user_handler.rs（8-15 哈希指纹）
+- backend/src/services/ap_payment_service.rs（1-1 三处 Some(0)）
+- backend/src/services/audit_log_service.rs（8-8 before_snapshot）
+
+**当前状态**：批次 59 代码完成，待 commit + push + CI 验证
+
+---
+
+### 2026-07-02 批次 57+58 完成：P1 安全认证核验 + 操作审计覆盖补齐（✅ 已合并 main，CI 12/13 全绿，E2E continue-on-error）
+
+**修复分支**：`fix/v19-audit-batch57`（已合并删除）
+**合并 commit**：`0c279bc`（PR #301 squash merge）
+**main HEAD**：`0c279bc`
+
+**批次 57（7-1/7-2/7-3/7-4/7-5）**：经核验 5 项 P1 在代码中均已有修复实现（含 P1 7-X 修复注释），无需代码变更
+- 7-1：refresh_token JWT 形式 + 轮换（auth_handler_misc.rs:108-128）
+- 7-2：reset_password 调 revoke_user_jtis（init_service.rs:586-598）
+- 7-3：logout 调 revoke_jti Redis 黑名单（auth_handler_session.rs:94-108）
+- 7-4：rate_limit_by_ip 全局挂载（main.rs:568-577）
+- 7-5：omni_audit 敏感路径脱敏（omni_audit.rs:85-103）
+
+**批次 58（8-1/8-2/8-3/8-4/8-6/8-7）**：操作审计覆盖补齐 6 项 P1
+- 8-1：update_user 补审计日志（before/after_snapshot，operation=Update）
+- 8-2：create_user 补审计日志（after_snapshot，operation=Create）
+- 8-3：role_handler 5 个写操作（create/update/delete_role + assign/remove_permission）补审计日志
+- 8-4：batch_create/update/delete 接收 user_id + 汇总审计日志；Some(0) 改 Some(user_id)
+- 8-6：export_csv/excel 补审计日志（operation=Export，原仅 tracing::info）
+- 8-7：delete_user 改用 record_async（原 log_security_event 仅 tracing）+ before_snapshot
+- Clippy 修复：SecurityEvent::UserDeleted 添加项级 `#[allow(dead_code)]` + TODO（8-7 后变体不再被构造）
+
+**改动文件**：7 文件，450 insertions，69 deletions
+
+**当前状态**：批次 57+58 已合并 main，进入批次 59（审计日志质量修复）
+
+---
+
+### 2026-07-02 批次 56 完成：P1/P2/P3 审计报告与 21 批次修复规划文档（✅ 已合并 main，CI 13/13 全绿）
+
+**修复分支**：`fix/v19-audit-batch56`（已合并删除）
+**合并 commit**：`3998bb00`（PR #299 squash merge，CI bot 后续自动提交版本号 `9ad2d47`）
+**main HEAD**：`9ad2d47`
+**修复范围**：纯文档变更，P1/P2/P3 审计报告 + 21 批次修复规划
+
+**产出文件**：
+- `docs/audits/2026-07-02-p1-p2-p3-audit.md`：149 项审计清单（P1×50 / P2×68 / P3×31）
+- `docs/audits/2026-07-02-p1-p2-p3-fix-plan.md`：21 批次修复规划（P1×11 批 / P2×8 批 / P3×2 批）
+
+**后续批次规划**（按规划文件执行）：
+- 批次 57：安全认证链路（7-1/7-2/7-3/7-4/7-5）
+- 批次 58：操作审计覆盖（8-1/8-2/8-3/8-4/8-6/8-7）
+- 批次 59：审计日志质量（1-1/8-8/8-9/8-5/8-15）
+- 批次 60：单号生成器统一（3-6/3-8/3-13/5-9/5-10/5-11）
+- 批次 61：状态机 lock_exclusive（3-1/3-2/3-3/3-5/5-20/5-21）
+- 批次 62-67：业务流断点/事务边界/接口越权/测试资产/E2E/BPM 占位
+- 批次 68-75：P2 修复 8 批
+- 批次 76-77：P3 修复 2 批
+- 每阶段完成后全项目复审，循环直到无问题
+
+---
+
 ### 2026-07-02 批次 55 完成：测试资产 P0 修复 5 项（✅ 已合并 main，CI 12/13 关键检查全绿，E2E continue-on-error）
 
 **修复分支**：`fix/v19-audit-batch55`（已合并删除）

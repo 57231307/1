@@ -130,6 +130,13 @@ impl AuditLogService {
     }
 
     /// 作为 SeaORM 中间件，自动拦截并生成 Update 审计日志
+    ///
+    /// P2 8-8 修复（批次 59）：update 前先查 old_model 序列化为 before_snapshot，
+    /// update 后用 new_model 序列化为 after_snapshot。
+    /// 原实现 old_value/new_value/before_snapshot/after_snapshot 全部为 None，
+    /// 审计日志只能看到"更新了"但不知道从什么变什么，合规失效。
+    ///
+    /// 仅 i32 主键支持 before_snapshot 查询；其他主键类型保持 None（避免泛型膨胀）。
     pub async fn update_with_audit<E, A, C>(
         db: &C,
         resource_type: &str,
@@ -142,6 +149,7 @@ impl AuditLogService {
         C: ConnectionTrait,
         <E as EntityTrait>::Model:
             Serialize + serde::de::DeserializeOwned + Sync + Send + Clone + IntoActiveModel<A>,
+        <<E as EntityTrait>::PrimaryKey as sea_orm::PrimaryKeyTrait>::ValueType: From<i32>,
     {
         // 获取主键
         let pk_col = E::PrimaryKey::iter()
@@ -159,7 +167,19 @@ impl AuditLogService {
             "0".to_string()
         };
 
+        // P2 8-8 修复：update 前查询 old_model 序列化为 before_snapshot
+        // 仅 i32 主键支持；其他类型保持 before_snapshot=None
+        let before_snapshot = if let sea_orm::Value::Int(Some(id)) = pk_val_unwrapped.clone() {
+            let old_model = E::find_by_id(id).one(db).await?;
+            old_model.and_then(|m| serde_json::to_value(&m).ok())
+        } else {
+            None
+        };
+
         let new_model = active_model.update(db).await?;
+
+        // P2 8-8 修复：update 后用 new_model 序列化为 after_snapshot
+        let after_snapshot = serde_json::to_value(&new_model).ok();
 
         // 记录审计日志
         let log = audit_log::ActiveModel {
@@ -178,14 +198,16 @@ impl AuditLogService {
             request_body: ActiveValue::Set(None),
             response_status: ActiveValue::Set(None),
             duration_ms: ActiveValue::Set(None),
-            old_value: ActiveValue::Set(None),
-            new_value: ActiveValue::Set(None),
+            // P2 8-8 修复：填充 old_value/new_value（旧字段兼容）
+            old_value: ActiveValue::Set(before_snapshot.clone().map(audit_log::AuditValue)),
+            new_value: ActiveValue::Set(after_snapshot.clone().map(audit_log::AuditValue)),
             created_at: ActiveValue::Set(Some(Utc::now())),
             operation_type: ActiveValue::Set(Some(OperationType::Update.as_str().to_string())),
             severity: ActiveValue::Set(Some(Severity::Info.as_str().to_string())),
             request_id: ActiveValue::Set(None),
-            before_snapshot: ActiveValue::Set(None),
-            after_snapshot: ActiveValue::Set(None),
+            // P2 8-8 修复：填充 before_snapshot/after_snapshot（推荐字段）
+            before_snapshot: ActiveValue::Set(before_snapshot.map(audit_log::AuditValue)),
+            after_snapshot: ActiveValue::Set(after_snapshot.map(audit_log::AuditValue)),
         };
         log.insert(db).await?;
 
