@@ -22,9 +22,8 @@ export const permission: Directive = {
       return
     }
 
-    // 如果用户是管理员，拥有所有权限
-    if (user.role_name === 'admin') return
-
+    // P2 1-12 修复：删除 role_name === 'admin' 硬编码绕过，
+    // 改为后端为 system 角色注入 *:* 通配权限，hasRoutePermission 自动处理通配符
     // 从用户信息中获取权限列表
     const permissions = user.permissions || []
     // 批次 22 v5 P0-3 阶段 A 修复：复用 router 守卫的 hasRoutePermission

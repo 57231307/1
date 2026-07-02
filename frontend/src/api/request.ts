@@ -108,7 +108,9 @@ class Request {
           }
           return Promise.reject(new Error(safeMessage))
         }
-        return res as any
+        // P2 1-11 修复：原 `return res as any` 丢失类型信息
+        // 拦截器返回 ApiResponse 而非 AxiosResponse，用 unknown 断言满足 axios 类型系统
+        return res as unknown as AxiosResponse
       },
       async error => {
         const originalRequest = error.config
@@ -180,23 +182,25 @@ class Request {
   }
 
   public get<T = unknown>(url: string, config?: AxiosRequestConfig): Promise<T> {
-    return this.instance.get(url, config).then(res => res.data!)
+    // P2 1-11 修复：拦截器已返回 ApiResponse 完整对象（非 AxiosResponse.data），
+    // 直接断言为 T，避免原 `res.data!` 丢失 ApiResponse 外层结构
+    return this.instance.get(url, config).then(res => res as unknown as T)
   }
 
-  public post<T = unknown>(url: string, data?: any, config?: AxiosRequestConfig): Promise<T> {
-    return this.instance.post(url, data, config).then(res => res.data!)
+  public post<T = unknown>(url: string, data?: unknown, config?: AxiosRequestConfig): Promise<T> {
+    return this.instance.post(url, data, config).then(res => res as unknown as T)
   }
 
-  public put<T = unknown>(url: string, data?: any, config?: AxiosRequestConfig): Promise<T> {
-    return this.instance.put(url, data, config).then(res => res.data!)
+  public put<T = unknown>(url: string, data?: unknown, config?: AxiosRequestConfig): Promise<T> {
+    return this.instance.put(url, data, config).then(res => res as unknown as T)
   }
 
   public delete<T = unknown>(url: string, config?: AxiosRequestConfig): Promise<T> {
-    return this.instance.delete(url, config).then(res => res.data!)
+    return this.instance.delete(url, config).then(res => res as unknown as T)
   }
 
-  public patch<T = unknown>(url: string, data?: any, config?: AxiosRequestConfig): Promise<T> {
-    return this.instance.patch(url, data, config).then(res => res.data!)
+  public patch<T = unknown>(url: string, data?: unknown, config?: AxiosRequestConfig): Promise<T> {
+    return this.instance.patch(url, data, config).then(res => res as unknown as T)
   }
 }
 

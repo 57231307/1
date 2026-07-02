@@ -110,18 +110,34 @@ impl UserInfo {
         };
 
         let permissions: Vec<String> = if let Some(role_id) = user.role_id {
-            crate::models::role_permission::Entity::find()
-                .filter(crate::models::role_permission::Column::RoleId.eq(role_id))
-                .filter(crate::models::role_permission::Column::Allowed.eq(true))
-                .all(db)
+            // P2 1-12 修复：系统管理员角色（is_system=true）注入 *:* 通配权限，
+            // 替代前端 role_name === 'admin' 字符串硬编码绕过，统一走权限码校验
+            let role_model = crate::models::role::Entity::find_by_id(role_id)
+                .one(db)
                 .await
-                .map(|perms| {
-                    perms
-                        .into_iter()
-                        .map(|p| format!("{}:{}", p.resource_type, p.action))
-                        .collect()
-                })
-                .unwrap_or_default()
+                .ok()
+                .flatten();
+
+            if let Some(ref role) = role_model {
+                if role.is_system {
+                    vec!["*:*".to_string()]
+                } else {
+                    crate::models::role_permission::Entity::find()
+                        .filter(crate::models::role_permission::Column::RoleId.eq(role_id))
+                        .filter(crate::models::role_permission::Column::Allowed.eq(true))
+                        .all(db)
+                        .await
+                        .map(|perms| {
+                            perms
+                                .into_iter()
+                                .map(|p| format!("{}:{}", p.resource_type, p.action))
+                                .collect()
+                        })
+                        .unwrap_or_default()
+                }
+            } else {
+                Vec::new()
+            }
         } else {
             Vec::new()
         };

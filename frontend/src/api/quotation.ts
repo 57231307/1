@@ -200,7 +200,8 @@ export interface ListResponse {
 export function listQuotations(
   params: QuotationListQuery = {}
 ): Promise<ApiResponse<QuotationResponseDto[]>> {
-  return request.get('/quotations', { params }) as any
+  // P2 1-11 修复：去掉 as any，使用显式泛型传递类型契约
+  return request.get<ApiResponse<QuotationResponseDto[]>>('/quotations', { params })
 }
 
 /**
@@ -208,7 +209,7 @@ export function listQuotations(
  * @param id 报价单 ID
  */
 export function getQuotation(id: number): Promise<ApiResponse<QuotationResponseDto>> {
-  return request.get(`/quotations/${id}`) as any
+  return request.get<ApiResponse<QuotationResponseDto>>(`/quotations/${id}`)
 }
 
 /**
@@ -218,7 +219,7 @@ export function getQuotation(id: number): Promise<ApiResponse<QuotationResponseD
 export function createQuotation(
   data: CreateQuotationDto
 ): Promise<ApiResponse<QuotationResponseDto>> {
-  return request.post('/quotations', data) as any
+  return request.post<ApiResponse<QuotationResponseDto>>('/quotations', data)
 }
 
 /**
@@ -230,7 +231,7 @@ export function updateQuotation(
   id: number,
   data: CreateQuotationDto
 ): Promise<ApiResponse<QuotationResponseDto>> {
-  return request.put(`/quotations/${id}`, data) as any
+  return request.put<ApiResponse<QuotationResponseDto>>(`/quotations/${id}`, data)
 }
 
 /**
@@ -238,7 +239,7 @@ export function updateQuotation(
  * @param id 报价单 ID
  */
 export function submitQuotation(id: number): Promise<ApiResponse<null>> {
-  return request.post(`/quotations/${id}/submit`) as any
+  return request.post<ApiResponse<null>>(`/quotations/${id}/submit`)
 }
 
 /**
@@ -246,7 +247,7 @@ export function submitQuotation(id: number): Promise<ApiResponse<null>> {
  * @param id 报价单 ID
  */
 export function approveQuotation(id: number): Promise<ApiResponse<null>> {
-  return request.post(`/quotations/${id}/approve`) as any
+  return request.post<ApiResponse<null>>(`/quotations/${id}/approve`)
 }
 
 /**
@@ -255,7 +256,7 @@ export function approveQuotation(id: number): Promise<ApiResponse<null>> {
  * @param reason 拒绝原因
  */
 export function rejectQuotation(id: number, reason: string): Promise<ApiResponse<null>> {
-  return request.post(`/quotations/${id}/reject`, { reason }) as any
+  return request.post<ApiResponse<null>>(`/quotations/${id}/reject`, { reason })
 }
 
 /**
@@ -263,7 +264,7 @@ export function rejectQuotation(id: number, reason: string): Promise<ApiResponse
  * @param id 报价单 ID
  */
 export function cancelQuotation(id: number): Promise<ApiResponse<null>> {
-  return request.post(`/quotations/${id}/cancel`) as any
+  return request.post<ApiResponse<null>>(`/quotations/${id}/cancel`)
 }
 
 /**
@@ -271,7 +272,7 @@ export function cancelQuotation(id: number): Promise<ApiResponse<null>> {
  * @param id 报价单 ID
  */
 export function convertQuotation(id: number): Promise<ApiResponse<ConvertResponse>> {
-  return request.post(`/quotations/${id}/convert`) as any
+  return request.post<ApiResponse<ConvertResponse>>(`/quotations/${id}/convert`)
 }
 
 /**
@@ -279,7 +280,7 @@ export function convertQuotation(id: number): Promise<ApiResponse<ConvertRespons
  * @param id 报价单 ID
  */
 export function getQuotationTerms(id: number): Promise<ApiResponse<QuotationTermResponseDto[]>> {
-  return request.get(`/quotations/${id}/terms`) as any
+  return request.get<ApiResponse<QuotationTermResponseDto[]>>(`/quotations/${id}/terms`)
 }
 
 /**
@@ -291,21 +292,21 @@ export function setQuotationTerms(
   id: number,
   terms: CreateQuotationTermDto[]
 ): Promise<ApiResponse<QuotationTermResponseDto[]>> {
-  return request.put(`/quotations/${id}/terms`, { terms }) as any
+  return request.put<ApiResponse<QuotationTermResponseDto[]>>(`/quotations/${id}/terms`, { terms })
 }
 
 /**
  * 列出即将过期的报价单
  */
 export function listExpiringQuotations(): Promise<ApiResponse<QuotationResponseDto[]>> {
-  return request.get('/quotations/expiring') as any
+  return request.get<ApiResponse<QuotationResponseDto[]>>('/quotations/expiring')
 }
 
 /**
  * 列出已过期的报价单
  */
 export function listExpiredQuotations(): Promise<ApiResponse<QuotationResponseDto[]>> {
-  return request.get('/quotations/expired') as any
+  return request.get<ApiResponse<QuotationResponseDto[]>>('/quotations/expired')
 }
 
 /**
@@ -315,15 +316,16 @@ export function listExpiredQuotations(): Promise<ApiResponse<QuotationResponseDt
 export function calculatePrice(
   data: CalculatePriceRequest
 ): Promise<ApiResponse<CalculatePriceResponse>> {
-  return request.post('/quotations/calculate-price', data) as any
+  return request.post<ApiResponse<CalculatePriceResponse>>('/quotations/calculate-price', data)
 }
 
 /**
  * 获取色号价格
  * @param productColorId 产品色号 ID
  */
-export function getColorPrices(productColorId: number): Promise<ApiResponse<any[]>> {
-  return request.get(`/quotations/color-prices/${productColorId}`) as any
+// P2 1-11 修复：去掉 as any 和 any 类型，使用 unknown 占位（后端返回结构待定义 DTO）
+export function getColorPrices(productColorId: number): Promise<ApiResponse<unknown[]>> {
+  return request.get<ApiResponse<unknown[]>>(`/quotations/color-prices/${productColorId}`)
 }
 
 /**
@@ -331,8 +333,11 @@ export function getColorPrices(productColorId: number): Promise<ApiResponse<any[
  * @param productColorId 产品色号 ID
  * @param data 价格数据
  */
-export function setColorPrice(productColorId: number, data: any): Promise<ApiResponse<any>> {
-  return request.post(`/quotations/color-prices/${productColorId}`, data) as any
+export function setColorPrice(
+  productColorId: number,
+  data: unknown
+): Promise<ApiResponse<unknown>> {
+  return request.post<ApiResponse<unknown>>(`/quotations/color-prices/${productColorId}`, data)
 }
 
 /** 状态码 - 状态标签映射 */

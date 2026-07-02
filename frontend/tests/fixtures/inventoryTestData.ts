@@ -1,8 +1,8 @@
 /**
  * 库存台账测试数据生成(与 scripts/gen-test-data.ts 同步)
  *
- * 该模块与 scripts/gen-test-data.ts 保持完全一致,放在 src 目录下
- * 以便 vue 文件直接 import(避免 scripts 目录未纳入 tsconfig include 范围)。
+ * P2 1-10 修复：原位于 frontend/src/views/inventory/tabs/testData.ts（生产 src 下），
+ * 被生产 bundle 打包并污染 localStorage。已迁移至 frontend/tests/fixtures/ 仅测试使用。
  *
  * 生成 1 万行与原表格列结构一致的库存台账测试数据。
  */

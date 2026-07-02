@@ -856,6 +856,8 @@ export function hasRoutePermission(
       const upSep = up.indexOf(':')
       const upResource = upSep > 0 ? up.slice(0, upSep) : up
       const upAction = upSep > 0 ? up.slice(upSep + 1) : ''
+      // P2 1-12 修复：支持 *:* 超级通配权限（系统管理员角色由后端注入）
+      if (upResource === '*' && upAction === '*') return true
       if (upResource !== reqResource) return false
       if (upAction === '*') return true
       if (upAction === reqAction) return true
@@ -903,18 +905,16 @@ router.beforeEach(async (to, _from, next) => {
 
     // 批次 3：路由 meta.permission 权限码校验
     // 批次 22 v5 P0-6 修复：移除"空权限放行"，空权限码用户应被拒绝（保守安全）
-    // - admin 角色绕过（与 v-permission 指令行为一致）
-    //   TODO(tech-debt): admin 绕过应改为显式 admin:* 权限码，下个迭代处理
-    // - 权限码匹配支持通配符与 read/view 等价（兼容后端两套 action 命名）
+    // P2 1-12 修复：删除 role_name !== 'admin' 字符串硬编码绕过，
+    // 改为后端为 system 角色注入 *:* 通配权限，统一走 hasRoutePermission 权限码校验
+    // - 权限码匹配支持通配符（*:* 超级通配 / resource:* 资源通配）与 read/view 等价
     if (to.meta.permission && userStore.userInfo) {
       const user = userStore.userInfo
-      if (user.role_name !== 'admin') {
-        const userPerms = user.permissions || []
-        if (!hasRoutePermission(to.meta.permission, userPerms)) {
-          logger.warn(`权限不足：访问 ${to.path} 需要权限码 ${JSON.stringify(to.meta.permission)}，用户持有 ${JSON.stringify(userPerms)}`)
-          next({ path: '/403' })
-          return
-        }
+      const userPerms = user.permissions || []
+      if (!hasRoutePermission(to.meta.permission, userPerms)) {
+        logger.warn(`权限不足：访问 ${to.path} 需要权限码 ${JSON.stringify(to.meta.permission)}，用户持有 ${JSON.stringify(userPerms)}`)
+        next({ path: '/403' })
+        return
       }
     }
   }

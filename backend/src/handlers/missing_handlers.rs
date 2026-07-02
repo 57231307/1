@@ -390,7 +390,9 @@ pub async fn get_sales_users(
         .map(|u| SalesUser {
             id: u.id,
             username: u.username.clone(),
-            real_name: Some(u.username),
+            // P2 1-9 修复：原 Some(u.username) 将登录账号误写入真实姓名字段
+            // User 模型当前无 real_name 字段，置为 None 避免语义错误
+            real_name: None,
             email: u.email,
             phone: u.phone,
         })
