@@ -86,47 +86,35 @@ impl VoucherService {
     }
 
     /// 创建凭证
+    ///
+    /// P2 1-6 修复：原函数 138 行混合 8 职责（期间校验+借贷平衡+单号+事务+主表+科目校验+分录循环+提交），
+    /// 拆为 validate_voucher_create_req / precheck_subjects_exist_txn / insert_voucher_items_txn 3 个私有方法
     pub async fn create(
         &self,
         req: CreateVoucherRequest,
         user_id: i32,
     ) -> Result<voucher::Model, AppError> {
-        // 校验期间锁定
-        let period_svc = crate::services::accounting_period_service::AccountingPeriodService::new(
-            self.db.clone(),
-        );
-        period_svc.check_date_locked(req.voucher_date).await?;
+        // 1. 校验期间锁定 + 借贷平衡
+        Self::validate_voucher_create_req(&req, self.db.clone()).await?;
 
         info!(
             "创建凭证：type={}, date={}",
             req.voucher_type, req.voucher_date
         );
 
-        // 验证借贷平衡
-        let total_debit: Decimal = req.items.iter().map(|i| i.debit).sum();
-        let total_credit: Decimal = req.items.iter().map(|i| i.credit).sum();
-
-        if total_debit != total_credit {
-            warn!("凭证借贷不平衡：借={}, 贷={}", total_debit, total_credit);
-            return Err(AppError::bad_request(format!(
-                "凭证借贷不平衡：借方 {} != 贷方 {}",
-                total_debit, total_credit
-            )));
-        }
-
-        // 生成凭证编号
+        // 2. 生成凭证编号
         let voucher_no = self
             .generate_voucher_no(&req.voucher_type, req.voucher_date)
             .await?;
 
-        // 开启事务
+        // 3. 开启事务
         let txn = self
             .db
             .begin()
             .await
             .map_err(|e| AppError::internal(e.to_string()))?;
 
-        // 创建凭证主表
+        // 4. 创建凭证主表
         let active_model = voucher::ActiveModel {
             voucher_no: sea_orm::Set(voucher_no),
             voucher_type: sea_orm::Set(req.voucher_type),
@@ -148,46 +136,97 @@ impl VoucherService {
             .map_err(|e| AppError::internal(e.to_string()))?;
         info!("凭证创建成功：no={}", voucher.voucher_no);
 
-        // 批量校验科目是否存在（优化N+1查询）
-        {
-            let mut subject_codes = std::collections::HashSet::new();
-            for item_req in &req.items {
-                if let Some(ref subject_code) = item_req.subject_code {
-                    if !subject_code.is_empty() {
-                        subject_codes.insert(subject_code.clone());
-                    }
-                }
-            }
-            if !subject_codes.is_empty() {
-                let existing_subjects = account_subject::Entity::find()
-                    .filter(
-                        account_subject::Column::Code
-                            .is_in(subject_codes.iter().cloned().collect::<Vec<_>>()),
-                    )
-                    .filter(account_subject::Column::Status.eq("active"))
-                    .all(&txn)
-                    .await
-                    .map_err(|e| {
-                        tracing::error!("批量查询科目失败: {}", e);
-                        AppError::internal(format!("批量查询科目失败: {}", e))
-                    })?;
-                let existing_codes: std::collections::HashSet<String> =
-                    existing_subjects.into_iter().map(|s| s.code).collect();
-                for code in subject_codes {
-                    if !existing_codes.contains(&code) {
-                        return Err(AppError::bad_request(format!(
-                            "科目不存在或已停用：{}",
-                            code
-                        )));
-                    }
+        // 5. 批量校验科目是否存在
+        Self::precheck_subjects_exist_txn(&req.items, &txn).await?;
+
+        // 6. 批量插入凭证分录
+        Self::insert_voucher_items_txn(voucher.id, &req.items, &txn).await?;
+
+        // 7. 提交事务
+        txn.commit()
+            .await
+            .map_err(|e| AppError::internal(e.to_string()))?;
+
+        info!("凭证分录创建成功，共 {} 条", req.items.len());
+
+        Ok(voucher)
+    }
+
+    /// P2 1-6 修复：校验期间锁定 + 借贷平衡（从 create 抽取）
+    async fn validate_voucher_create_req(
+        req: &CreateVoucherRequest,
+        db: Arc<DatabaseConnection>,
+    ) -> Result<(), AppError> {
+        // 校验期间锁定
+        let period_svc = crate::services::accounting_period_service::AccountingPeriodService::new(db);
+        period_svc.check_date_locked(req.voucher_date).await?;
+
+        // 验证借贷平衡
+        let total_debit: Decimal = req.items.iter().map(|i| i.debit).sum();
+        let total_credit: Decimal = req.items.iter().map(|i| i.credit).sum();
+
+        if total_debit != total_credit {
+            warn!("凭证借贷不平衡：借={}, 贷={}", total_debit, total_credit);
+            return Err(AppError::bad_request(format!(
+                "凭证借贷不平衡：借方 {} != 贷方 {}",
+                total_debit, total_credit
+            )));
+        }
+
+        Ok(())
+    }
+
+    /// P2 1-6 修复：批量校验科目是否存在（从 create 抽取）
+    async fn precheck_subjects_exist_txn(
+        items: &[VoucherItemRequest],
+        txn: &sea_orm::DatabaseTransaction,
+    ) -> Result<(), AppError> {
+        let mut subject_codes = std::collections::HashSet::new();
+        for item_req in items {
+            if let Some(ref subject_code) = item_req.subject_code {
+                if !subject_code.is_empty() {
+                    subject_codes.insert(subject_code.clone());
                 }
             }
         }
+        if subject_codes.is_empty() {
+            return Ok(());
+        }
 
-        // 创建凭证分录
-        for (index, item_req) in req.items.iter().enumerate() {
+        let existing_subjects = account_subject::Entity::find()
+            .filter(
+                account_subject::Column::Code
+                    .is_in(subject_codes.iter().cloned().collect::<Vec<_>>()),
+            )
+            .filter(account_subject::Column::Status.eq("active"))
+            .all(txn)
+            .await
+            .map_err(|e| {
+                tracing::error!("批量查询科目失败: {}", e);
+                AppError::internal(format!("批量查询科目失败: {}", e))
+            })?;
+        let existing_codes: std::collections::HashSet<String> =
+            existing_subjects.into_iter().map(|s| s.code).collect();
+        for code in subject_codes {
+            if !existing_codes.contains(&code) {
+                return Err(AppError::bad_request(format!(
+                    "科目不存在或已停用：{}",
+                    code
+                )));
+            }
+        }
+        Ok(())
+    }
+
+    /// P2 1-6 修复：批量插入凭证分录（从 create 抽取）
+    async fn insert_voucher_items_txn(
+        voucher_id: i32,
+        items: &[VoucherItemRequest],
+        txn: &sea_orm::DatabaseTransaction,
+    ) -> Result<(), AppError> {
+        for (index, item_req) in items.iter().enumerate() {
             let item_active_model = voucher_item::ActiveModel {
-                voucher_id: sea_orm::Set(voucher.id),
+                voucher_id: sea_orm::Set(voucher_id),
                 line_no: sea_orm::Set(item_req.line_no.unwrap_or((index + 1) as i32)),
                 subject_code: sea_orm::Set(item_req.subject_code.clone().unwrap_or_default()),
                 subject_name: sea_orm::Set(item_req.subject_name.clone().unwrap_or_default()),
@@ -211,19 +250,11 @@ impl VoucherService {
             };
 
             item_active_model
-                .insert(&txn)
+                .insert(txn)
                 .await
                 .map_err(|e| AppError::internal(e.to_string()))?;
         }
-
-        // 提交事务
-        txn.commit()
-            .await
-            .map_err(|e| AppError::internal(e.to_string()))?;
-
-        info!("凭证分录创建成功，共 {} 条", req.items.len());
-
-        Ok(voucher)
+        Ok(())
     }
 
     /// 查询凭证列表

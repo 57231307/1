@@ -12,6 +12,11 @@ use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use validator::Validate;
 
+// P2 1-8 修复：手机号正则全局编译一次，避免每次 validate_mobile_phone 调用都重新编译（NFA→DFA 开销）
+static MOBILE_PHONE_RE: std::sync::LazyLock<regex::Regex> = std::sync::LazyLock::new(|| {
+    regex::Regex::new(r"^1[3-9]\d{9}$").expect("手机号正则表达式编译失败（应为静态合法模式）")
+});
+
 /// 供应商服务
 pub struct SupplierService {
     db: Arc<DatabaseConnection>,
@@ -680,8 +685,8 @@ pub struct CreateContactRequest {
 }
 
 fn validate_mobile_phone(phone: &str) -> Result<(), validator::ValidationError> {
-    let re = regex::Regex::new(r"^1[3-9]\d{9}$").expect("手机号正则表达式编译失败");
-    if re.is_match(phone) {
+    // P2 1-8 修复：使用全局编译的 LazyLock<Regex>，避免每次调用都编译正则
+    if MOBILE_PHONE_RE.is_match(phone) {
         Ok(())
     } else {
         Err(validator::ValidationError::new("mobile_phone"))
