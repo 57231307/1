@@ -1,28 +1,5 @@
 import { describe, it, expect } from 'vitest'
-
-// 示例工具函数
-function formatCurrency(amount: number): string {
-  return new Intl.NumberFormat('zh-CN', {
-    style: 'currency',
-    currency: 'CNY',
-    minimumFractionDigits: 2,
-  }).format(amount)
-}
-
-function formatDate(date: Date): string {
-  return date.toLocaleDateString('zh-CN')
-}
-
-function debounce<T extends (...args: any[]) => any>(
-  fn: T,
-  delay: number
-): (...args: Parameters<T>) => void {
-  let timer: ReturnType<typeof setTimeout> | null = null
-  return (...args: Parameters<T>) => {
-    if (timer) clearTimeout(timer)
-    timer = setTimeout(() => fn(...args), delay)
-  }
-}
+import { formatCurrency, formatDate, debounce } from '@/utils'
 
 describe('工具函数测试', () => {
   describe('formatCurrency', () => {

@@ -1,36 +1,35 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { describe, it, expect, vi } from 'vitest'
 
-// 测试 request 模块中的纯函数逻辑
+// Mock @/router 以避免加载完整路由配置（含 MainLayout 等重组件）
+vi.mock('@/router', () => ({
+  default: { push: vi.fn() },
+}))
+
+// Mock @/api/auth 以避免循环依赖和副作用
+vi.mock('@/api/auth', () => ({
+  refreshToken: vi.fn(),
+}))
+
+import {
+  SAFE_ERROR_MESSAGES,
+  getSafeErrorMessage,
+  shouldRetry,
+} from '@/api/request'
+
+// 测试 request 模块中的纯函数逻辑（从源文件真实导入）
 describe('Request 工具函数测试', () => {
-  // 由于 request.ts 有副作用（创建 axios 实例），我们测试其中的纯函数逻辑
-
-  const SAFE_ERROR_MESSAGES: Record<number, string> = {
-    400: '请求参数错误',
-    401: '未授权，请重新登录',
-    403: '拒绝访问',
-    404: '资源不存在',
-    429: '请求过于频繁',
-    500: '服务器内部错误',
-    502: '网关错误',
-    503: '服务暂时不可用',
-  }
-
-  function getSafeErrorMessage(codeOrStatus?: number): string {
-    if (codeOrStatus && SAFE_ERROR_MESSAGES[codeOrStatus]) {
-      return SAFE_ERROR_MESSAGES[codeOrStatus]
-    }
-    if (codeOrStatus === 401) {
-      return '未授权，请重新登录'
-    }
-    return '请求失败，请稍后重试'
-  }
-
-  function shouldRetry(error: any): boolean {
-    if (error.response) {
-      return [502, 503, 504].includes(error.response.status)
-    }
-    return error.code === 'ECONNABORTED' || error.code === 'NETWORK_ERROR' || !error.response
-  }
+  describe('SAFE_ERROR_MESSAGES', () => {
+    it('应该包含所有预定义状态码消息', () => {
+      expect(SAFE_ERROR_MESSAGES[400]).toBe('请求参数错误')
+      expect(SAFE_ERROR_MESSAGES[401]).toBe('未授权，请重新登录')
+      expect(SAFE_ERROR_MESSAGES[403]).toBe('拒绝访问')
+      expect(SAFE_ERROR_MESSAGES[404]).toBe('资源不存在')
+      expect(SAFE_ERROR_MESSAGES[429]).toBe('请求过于频繁')
+      expect(SAFE_ERROR_MESSAGES[500]).toBe('服务器内部错误')
+      expect(SAFE_ERROR_MESSAGES[502]).toBe('网关错误')
+      expect(SAFE_ERROR_MESSAGES[503]).toBe('服务暂时不可用')
+    })
+  })
 
   describe('getSafeErrorMessage', () => {
     it('应该返回对应状态码的错误消息', () => {
@@ -89,32 +88,6 @@ describe('Request 工具函数测试', () => {
 
     it('应该重试无 response 的错误', () => {
       expect(shouldRetry({})).toBe(true)
-    })
-  })
-
-  describe('ApiResponse 类型验证', () => {
-    it('应该正确解析成功响应', () => {
-      const response = {
-        code: 200,
-        data: { id: 1, name: 'test' },
-        message: 'success',
-      }
-      expect(response.code).toBe(200)
-      expect(response.data).toEqual({ id: 1, name: 'test' })
-    })
-
-    it('应该正确解析分页响应', () => {
-      const response = {
-        code: 200,
-        data: {
-          list: [{ id: 1 }, { id: 2 }],
-          total: 100,
-          page: 1,
-          page_size: 10,
-        },
-      }
-      expect(response.data.list).toHaveLength(2)
-      expect(response.data.total).toBe(100)
     })
   })
 })

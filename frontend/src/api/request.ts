@@ -200,7 +200,7 @@ class Request {
   }
 }
 
-const SAFE_ERROR_MESSAGES: Record<number, string> = {
+export const SAFE_ERROR_MESSAGES: Record<number, string> = {
   400: '请求参数错误',
   401: '未授权，请重新登录',
   403: '拒绝访问',
@@ -211,14 +211,14 @@ const SAFE_ERROR_MESSAGES: Record<number, string> = {
   503: '服务暂时不可用',
 }
 
-function shouldRetry(error: any): boolean {
+export function shouldRetry(error: any): boolean {
   if (error.response) {
     return [502, 503, 504].includes(error.response.status)
   }
   return error.code === 'ECONNABORTED' || error.code === 'NETWORK_ERROR' || !error.response
 }
 
-function getSafeErrorMessage(codeOrStatus?: number): string {
+export function getSafeErrorMessage(codeOrStatus?: number): string {
   if (codeOrStatus && SAFE_ERROR_MESSAGES[codeOrStatus]) {
     return SAFE_ERROR_MESSAGES[codeOrStatus]
   }

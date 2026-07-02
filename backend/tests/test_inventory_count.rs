@@ -1,50 +1,8 @@
-//! 库存盘点模块单元测试
-
-#[test]
-fn test_count_difference_calculation() {
-    let system_qty = 100;
-    let actual_qty = 95;
-    let diff_qty = actual_qty - system_qty;
-
-    assert_eq!(diff_qty, -5);
-}
-
-#[test]
-fn test_count_variance_detection() {
-    let test_cases = vec![
-        (100, 100, false), // 无差异
-        (100, 95, true),   // 盘亏
-        (100, 105, true),  // 盘盈
-        (0, 0, false),     // 零库存
-    ];
-
-    for (system, actual, has_variance) in test_cases {
-        let variance = system != actual;
-        assert_eq!(variance, has_variance, "系统：{}, 实际：{}", system, actual);
-    }
-}
-
-#[test]
-fn test_count_status_transition() {
-    let valid_transitions = vec![
-        ("draft", "approved"),
-        ("approved", "in_progress"),
-        ("in_progress", "completed"),
-    ];
-
-    for (from, to) in valid_transitions {
-        assert!(
-            is_valid_transition(from, to),
-            "无效的状态转换：{} -> {}",
-            from,
-            to
-        );
-    }
-}
-
-fn is_valid_transition(from: &str, to: &str) -> bool {
-    matches!(
-        (from, to),
-        ("draft", "approved") | ("approved", "in_progress") | ("in_progress", "completed")
-    )
-}
+//! 库存盘点模块测试骨架（P1 批 65 测试资产清理）
+//!
+//! 原文件含 3 个伪测试（测算术减法 / 测 Vec 遍历 / 测本地 is_valid_transition 函数），
+//! 均不调用任何 Service 方法，已于批次 65 删除。
+//!
+//! InventoryCountService 当前为占位模块（见 services/inv/count.rs），
+//! 尚未实现任何业务方法，无法在无 DB 环境下编写真实单元测试。
+//! 待 Service 实现后，在此添加真实业务方法测试。
