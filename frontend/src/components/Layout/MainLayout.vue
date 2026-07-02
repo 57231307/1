@@ -298,6 +298,10 @@ function canAccessMenu(menuItemPath: string): boolean {
  *
  * 当子菜单项全部因权限不足被隐藏时，父级 el-sub-menu 也应隐藏，
  * 避免出现"空菜单组"破坏用户体验。每个 key 对应 template 中 el-sub-menu 的 index。
+ *
+ * TODO(tech-debt) P3 4-7：当前 subMenus 映射为硬编码 path 列表，与 router/index.ts
+ * 路由定义存在重复维护风险。后续应改为基于路由表 children 自动派生（与 4-3 侧边栏
+ * 动态化一同处理）。当前实现已基于 canAccessMenu 动态计算可见性，功能正常。
  */
 const visibleSubMenu = computed<Record<string, boolean>>(() => {
   // 子菜单 index 与其下属菜单项 path 的映射

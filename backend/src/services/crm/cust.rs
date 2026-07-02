@@ -182,7 +182,7 @@ impl CrmService {
             .next_follow_date
             .as_ref()
             .and_then(|s| chrono::NaiveDate::parse_from_str(s, "%Y-%m-%d").ok())
-            .map(|d| d.and_hms_opt(0, 0, 0).unwrap().and_utc());
+            .map(|d| d.and_hms_opt(0, 0, 0).expect("合法时分秒").and_utc());
 
         let follow_up = customer_followup::ActiveModel {
             id: Set(uuid::Uuid::new_v4().to_string()),

@@ -65,8 +65,9 @@ impl ReportEngineService {
 
         for day_offset in 0..366i64 {
             let candidate_date = (start.date_naive() + chrono::Duration::days(day_offset))
+                // P3 1-16 修复：unwrap → expect，语义更清晰
                 .and_hms_opt(0, 0, 0)
-                .unwrap()
+                .expect("合法时分秒")
                 .and_utc();
 
             // 解析时间字段（chrono 不会失败，0 仅为防御默认值）
@@ -107,8 +108,9 @@ impl ReportEngineService {
 
                     let candidate = candidate_date
                         .date_naive()
+                        // P3 1-16 修复：unwrap → expect，语义更清晰
                         .and_hms_opt(h as u32, mn as u32, 0)
-                        .unwrap()
+                        .expect("合法时分秒")
                         .and_utc();
 
                     if candidate > now {

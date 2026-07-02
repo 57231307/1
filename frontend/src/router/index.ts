@@ -19,6 +19,8 @@ declare module 'vue-router' {
     icon?: string
     permission?: string | string[]
     hidden?: boolean
+    // P3 4-6 修复：新增 public 标识，公开路由免登录/初始化检查（如 /403 /404 /login）
+    public?: boolean
   }
 }
 
@@ -753,13 +755,15 @@ const routes: RouteRecordRaw[] = [
     path: '/403',
     name: '403',
     component: () => import('@/views/403.vue'),
-    meta: { title: '无权限' },
+    // P3 4-6 修复：补全 meta，标识为公开路由免初始化检查
+    meta: { title: '无权限', hidden: true, public: true },
   },
   {
     path: '/404',
     name: '404',
     component: () => import('@/views/404.vue'),
-    meta: { title: '页面不存在' },
+    // P3 4-6 修复：补全 meta，标识为公开路由免初始化检查
+    meta: { title: '页面不存在', hidden: true, public: true },
   },
   {
     path: '/:pathMatch(.*)*',
@@ -880,7 +884,8 @@ router.beforeEach(async (to, _from, next) => {
     return
   }
 
-  if (to.path !== '/login' && to.path !== '/404' && to.path !== '/403') {
+  // P3 4-6 修复：用 meta.public 替代字符串硬编码列表，公开路由免初始化检查
+  if (!to.meta.public && to.path !== '/login') {
     const initialized = await checkInitStatus()
     if (!initialized) {
       next({ path: '/setup' })

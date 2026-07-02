@@ -230,12 +230,19 @@ impl InventoryStockService {
         Ok(low_stock_items)
     }
 
-    pub async fn delete_stock(&self, id: i32) -> Result<(), AppError> {
+    pub async fn delete_stock(&self, id: i32, user_id: Option<i32>) -> Result<(), AppError> {
+        // P3 3-31/5-28 修复：软删除改用 update_with_audit，补审计日志
+        // 原实现直接 active_model.update(&*self.db) 绕过审计中间件
         let stock = self.find_by_id(id).await?;
         let mut active_model: inventory_stock::ActiveModel = stock.into();
         active_model.stock_status = Set("已删除".to_string());
         active_model.updated_at = Set(Utc::now());
-        active_model.update(&*self.db).await?;
+        crate::services::audit_log_service::AuditLogService::update_with_audit::<
+            inventory_stock::Entity,
+            _,
+            _,
+        >(&*self.db, "inventory_stock", active_model, user_id)
+        .await?;
         Ok(())
     }
 

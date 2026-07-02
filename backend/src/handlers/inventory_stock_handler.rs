@@ -178,7 +178,7 @@ pub async fn update_stock(
 
 pub async fn delete_stock(
     State(state): State<AppState>,
-    _auth: AuthContext,
+    auth: AuthContext,
     Path(id): Path<i32>,
 ) -> Result<Json<ApiResponse<()>>, AppError> {
     let service = InventoryStockService::new(state.db.clone());
@@ -189,7 +189,7 @@ pub async fn delete_stock(
         .map_err(|e| AppError::not_found(e.to_string()))?;
 
     service
-        .delete_stock(id)
+        .delete_stock(id, Some(auth.user_id))
         .await
         .map_err(|e| AppError::internal(e.to_string()))?;
 
