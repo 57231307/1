@@ -88,6 +88,15 @@ pub async fn track_event(
 }
 
 /// 获取审计可视化大屏统计数据
+///
+/// P2 8-11 修复：原 get_dashboard_stats 仅 total_events 真实查询，
+/// ui_clicks_today / api_calls_today / security_alerts_today 全部硬编码为 0，
+/// 大屏数据完全失真。
+///
+/// 新实现按以下启发式区分事件来源：
+/// - ui_clicks_today：request_method IS NULL（track_event 上报的 UI 事件不带请求方法）
+/// - api_calls_today：request_method IS NOT NULL（omni_audit_middleware 拦截的 HTTP 请求）
+/// - security_alerts_today：response_status = 403（DENIED）或 >= 500（FAILED）
 pub async fn get_dashboard_stats(
     State(state): State<AppState>,
     auth: AuthContext,
@@ -97,28 +106,48 @@ pub async fn get_dashboard_stats(
 
     use sea_orm::ConnectionTrait;
 
-    let sql = "SELECT COUNT(*) as total FROM omni_audit_logs";
+    // P2 8-11 修复：单条 SQL 一次性统计 4 个指标，避免 4 次往返
+    let sql = "SELECT
+        (SELECT COUNT(*) FROM omni_audit_logs WHERE created_at > NOW() - INTERVAL '24 hours') AS total_events_today,
+        (SELECT COUNT(*) FROM omni_audit_logs WHERE created_at > NOW() - INTERVAL '24 hours' AND request_method IS NULL) AS ui_clicks_today,
+        (SELECT COUNT(*) FROM omni_audit_logs WHERE created_at > NOW() - INTERVAL '24 hours' AND request_method IS NOT NULL) AS api_calls_today,
+        (SELECT COUNT(*) FROM omni_audit_logs WHERE created_at > NOW() - INTERVAL '24 hours' AND (response_status = 403 OR response_status >= 500)) AS security_alerts_today";
     let result = (*state.db)
         .query_one(sea_orm::Statement::from_string(
             sea_orm::DatabaseBackend::Postgres,
             sql,
         ))
         .await?;
-    // DB 查询失败应传播错误而非吞掉为 0，避免大屏数据失真
-    let total: i64 = match result {
-        Some(r) => r.try_get::<i64>("", "total")?,
-        None => 0,
+
+    let stats = match result {
+        Some(r) => AuditStats {
+            total_events_today: r.try_get::<i64>("", "total_events_today")?,
+            ui_clicks_today: r.try_get::<i64>("", "ui_clicks_today")?,
+            api_calls_today: r.try_get::<i64>("", "api_calls_today")?,
+            security_alerts_today: r.try_get::<i64>("", "security_alerts_today")?,
+        },
+        None => AuditStats {
+            total_events_today: 0,
+            ui_clicks_today: 0,
+            api_calls_today: 0,
+            security_alerts_today: 0,
+        },
     };
 
-    Ok(Json(ApiResponse::success(AuditStats {
-        total_events_today: total,
-        ui_clicks_today: 0,
-        api_calls_today: 0,
-        security_alerts_today: 0,
-    })))
+    Ok(Json(ApiResponse::success(stats)))
 }
 
 /// 复杂条件检索审计日志
+///
+/// P2 8-10 修复：原 search_logs 完全忽略 AuditQueryFilter 过滤条件，
+/// SQL 固定 `SELECT * ORDER BY id DESC LIMIT`，审计查询形同虚设。
+/// 新实现根据 filter 动态构造 WHERE 子句，支持 user_id/event_type/
+/// start_date/end_date/keyword 五个维度的组合过滤。
+///
+/// P2 8-12 修复：原 search_logs 用 `SELECT *` 返回所有字段，含
+/// request_body/payload 等敏感数据。新实现改为显式字段列表，敏感字段
+/// （request_body/user_agent/ip_address）仅在 filter.include_sensitive=true
+/// 时返回。审计大屏默认 false，admin 显式传 include_sensitive=true 才返回。
 pub async fn search_logs(
     State(state): State<AppState>,
     auth: AuthContext,
@@ -133,40 +162,124 @@ pub async fn search_logs(
     let page_size: u64 = filter.page_size.unwrap_or(20).clamp(1, 100);
     let offset: u64 = page.saturating_sub(1) * page_size;
 
-    let sql = "SELECT * FROM omni_audit_logs ORDER BY id DESC LIMIT $1 OFFSET $2";
+    // P2 8-10 修复：动态构造 WHERE 子句
+    let mut where_clauses: Vec<String> = Vec::new();
+    // WHERE 子句绑定的参数（不含 LIMIT/OFFSET），用于 count 查询复用
+    let mut where_params: Vec<sea_orm::Value> = Vec::new();
+    let mut param_idx = 1u32;
+
+    if let Some(user_id) = filter.user_id {
+        where_clauses.push(format!("user_id = ${}", param_idx));
+        where_params.push(user_id.into());
+        param_idx += 1;
+    }
+    if let Some(ref event_type) = filter.event_type {
+        where_clauses.push(format!("module = ${}", param_idx));
+        where_params.push(event_type.clone().into());
+        param_idx += 1;
+    }
+    if let Some(start_date) = filter.start_date {
+        where_clauses.push(format!("created_at >= ${}::date", param_idx));
+        where_params.push(start_date.into());
+        param_idx += 1;
+    }
+    if let Some(end_date) = filter.end_date {
+        where_clauses.push(format!("created_at < (${}::date + INTERVAL '1 day')", param_idx));
+        where_params.push(end_date.into());
+        param_idx += 1;
+    }
+    if let Some(ref keyword) = filter.keyword {
+        // keyword 模糊匹配 description / resource_name / username 三个文本字段
+        // 注意三个 ILIKE 共用同一个占位符 $param_idx，故只需绑定一次
+        where_clauses.push(format!(
+            "(description ILIKE ${} OR resource_name ILIKE ${} OR username ILIKE ${})",
+            param_idx, param_idx, param_idx
+        ));
+        let kw = format!("%{}%", keyword);
+        where_params.push(kw.into());
+        param_idx += 1;
+    }
+
+    let where_sql = if where_clauses.is_empty() {
+        String::new()
+    } else {
+        format!(" WHERE {}", where_clauses.join(" AND "))
+    };
+
+    // P2 8-12 修复：显式字段列表，敏感字段仅在 include_sensitive=true 时返回
+    let sensitive_fields = if filter.include_sensitive {
+        ", request_body, user_agent, ip_address"
+    } else {
+        ""
+    };
+    let select_fields = format!(
+        "id, trace_id, user_id, username, module, action, resource_type, resource_id, \
+         resource_name, description, request_method, request_path, response_status, \
+         duration_ms, created_at{}",
+        sensitive_fields
+    );
+
+    // 列表查询 SQL（WHERE 参数 + LIMIT/OFFSET 参数）
+    let list_sql = format!(
+        "SELECT {} FROM omni_audit_logs{} ORDER BY id DESC LIMIT ${} OFFSET ${}",
+        select_fields,
+        where_sql,
+        param_idx,
+        param_idx + 1
+    );
+    let mut list_params = where_params.clone();
+    list_params.push(page_size.into());
+    list_params.push(offset.into());
+
     let rows = (*state.db)
         .query_all(sea_orm::Statement::from_sql_and_values(
             sea_orm::DatabaseBackend::Postgres,
-            sql,
-            vec![page_size.into(), offset.into()],
+            list_sql,
+            list_params,
         ))
         .await?;
 
     let mut items = Vec::new();
     for row in rows {
         // DB 字段读取失败应传播错误而非吞掉，避免审计数据失真
-        let item = serde_json::json!({
+        let mut item = serde_json::json!({
             "id": row.try_get_by_index::<i64>(0).unwrap_or(0),
             "trace_id": row.try_get::<String>("", "trace_id").unwrap_or_default(),
             "user_id": row.try_get::<i32>("", "user_id").unwrap_or(0),
+            "username": row.try_get::<String>("", "username").unwrap_or_default(),
             "module": row.try_get::<String>("", "module").unwrap_or_default(),
             "action": row.try_get::<String>("", "action").unwrap_or_default(),
+            "resource_type": row.try_get::<String>("", "resource_type").unwrap_or_default(),
+            "resource_id": row.try_get::<String>("", "resource_id").unwrap_or_default(),
+            "resource_name": row.try_get::<String>("", "resource_name").unwrap_or_default(),
+            "description": row.try_get::<String>("", "description").unwrap_or_default(),
+            "request_method": row.try_get::<String>("", "request_method").unwrap_or_default(),
+            "request_path": row.try_get::<String>("", "request_path").unwrap_or_default(),
             "response_status": row.try_get::<i32>("", "response_status").unwrap_or(0),
             "duration_ms": row.try_get::<i32>("", "duration_ms").unwrap_or(0),
             "created_at": row.try_get::<String>("", "created_at").unwrap_or_default(),
         });
+        if filter.include_sensitive {
+            item["request_body"] = serde_json::Value::String(
+                row.try_get::<String>("", "request_body").unwrap_or_default(),
+            );
+            item["user_agent"] = serde_json::Value::String(
+                row.try_get::<String>("", "user_agent").unwrap_or_default(),
+            );
+            item["ip_address"] = serde_json::Value::String(
+                row.try_get::<String>("", "ip_address").unwrap_or_default(),
+            );
+        }
         items.push(item);
     }
 
-    // 批次 30 v7 P1-4 修复：原 total = items.len() 仅返回当前页记录数，
-    // 分页或空表时严重错误。改为 COUNT(*) 查询真实总数。
-    // 当前 search_logs 的 SQL 无 WHERE 条件，直接 COUNT(*) 即可；
-    // 若未来添加过滤条件，需同步更新 count_sql 保留 WHERE 子句。
-    let count_sql = "SELECT COUNT(*) as total FROM omni_audit_logs";
+    // P2 8-10 修复：count_sql 复用 WHERE 子句和参数，确保分页 total 与列表数据一致
+    let count_sql = format!("SELECT COUNT(*) as total FROM omni_audit_logs{}", where_sql);
     let count_result = (*state.db)
-        .query_one(sea_orm::Statement::from_string(
+        .query_one(sea_orm::Statement::from_sql_and_values(
             sea_orm::DatabaseBackend::Postgres,
             count_sql,
+            where_params,
         ))
         .await?;
     let total: u64 = match count_result {

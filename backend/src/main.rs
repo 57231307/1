@@ -417,7 +417,19 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 db.clone(),
             )?);
             let audit_cleanup = Arc::new(
-                crate::services::audit_cleanup_service::AuditCleanupService::new(db.clone(), 999),
+                // P2 8-13 修复：原 retention_days 硬编码 999（约 2.7 年），实际无清理效果，
+                // omni_audit_logs 表无限膨胀拖累查询性能。
+                // 改为环境变量配置，默认 365 天（1 年热保留），符合审计日志保留最佳实践。
+                // 生产环境可通过 AUDIT_RETENTION_DAYS 覆盖；归档逻辑（1-3 年冷数据迁移）
+                // 作为后续技术债单独实现。
+                crate::services::audit_cleanup_service::AuditCleanupService::new(
+                    db.clone(),
+                    std::env::var("AUDIT_RETENTION_DAYS")
+                        .ok()
+                        .and_then(|v| v.parse::<i32>().ok())
+                        .filter(|d| *d > 0)
+                        .unwrap_or(365),
+                ),
             );
 
             // P13 批 1 B-慢查询审计：启动后台采集任务（默认 5 分钟间隔）。
