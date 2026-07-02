@@ -239,6 +239,29 @@ impl CustomerCreditService {
         Ok(order_amount <= credit.available_credit)
     }
 
+    /// P2 3-20 修复：事务内检查信用额度是否可用，避免 TOCTOU
+    ///
+    /// 原 check_credit_available 用 self.db 查询，与订单提交事务隔离，
+    /// 并发场景下可能在查询后、提交前信用额度被调整，导致超卖。
+    /// 新增 _txn 变体，在订单提交事务内查询信用额度。
+    pub async fn check_credit_available_txn(
+        &self,
+        txn: &sea_orm::DatabaseTransaction,
+        customer_id: i32,
+        order_amount: Decimal,
+    ) -> Result<bool, AppError> {
+        let credit = match self.get_by_customer_id_txn(txn, customer_id).await? {
+            Some(c) => c,
+            None => return Ok(true),
+        };
+
+        if credit.status != "active" {
+            return Ok(false);
+        }
+
+        Ok(order_amount <= credit.available_credit)
+    }
+
     /// 检查信用预警
     pub async fn check_credit_warning(&self, customer_id: i32) -> Result<Option<String>, AppError> {
         let credit = match self.get_by_customer_id(customer_id).await? {

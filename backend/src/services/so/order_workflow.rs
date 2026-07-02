@@ -88,7 +88,7 @@ impl SalesService {
             )));
         }
 
-        // 客户信用度复检（信用表与订单表独立，用 self.db 不影响事务一致性）
+        // 客户信用度复检（P2 3-20 修复：改用 _txn 变体在事务内查询，避免 TOCTOU）
         let credit_service =
             crate::services::customer_credit_service::CustomerCreditService::new(self.db.clone());
         let total_amount_decimal = {
@@ -100,7 +100,7 @@ impl SalesService {
                 .unwrap_or_else(|_| Decimal::from(0))
         };
         let credit_available = credit_service
-            .check_credit_available(order.customer_id, total_amount_decimal)
+            .check_credit_available_txn(&txn, order.customer_id, total_amount_decimal)
             .await
             .map_err(|e| AppError::business(format!("信用检查失败: {}", e)))?;
         if !credit_available {

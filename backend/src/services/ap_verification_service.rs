@@ -403,11 +403,18 @@ impl ApVerificationService {
             invoice.paid_amount -= item.verify_amount;
             invoice.unpaid_amount = invoice.amount - invoice.paid_amount;
 
-            // 恢复应付状态
-            if invoice.paid_amount <= Decimal::ZERO {
-                invoice.invoice_status = "AUDITED".to_string();
-            } else {
+            // P2 3-15 修复：取消核销后状态恢复应区分 PAID/PARTIAL_PAID/AUDITED 三态，
+            // 原实现 paid_amount<=0 一律设 AUDITED，但若 paid_amount 仍等于 amount
+            // （即仅取消部分核销且全额仍付清）应保留 PAID 语义。
+            // - paid_amount >= amount：仍有全额付款 → PAID
+            // - 0 < paid_amount < amount：部分付款 → PARTIAL_PAID
+            // - paid_amount <= 0：无付款 → AUDITED
+            if invoice.paid_amount >= invoice.amount {
+                invoice.invoice_status = "PAID".to_string();
+            } else if invoice.paid_amount > Decimal::ZERO {
                 invoice.invoice_status = "PARTIAL_PAID".to_string();
+            } else {
+                invoice.invoice_status = "AUDITED".to_string();
             }
 
             let invoice_active: ap_invoice::ActiveModel = invoice.clone().into();

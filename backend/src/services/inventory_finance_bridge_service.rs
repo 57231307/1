@@ -754,6 +754,18 @@ impl InventoryFinanceBridgeService {
             .await?
             .ok_or_else(|| AppError::not_found(format!("产品不存在: {}", product_id)))?;
 
-        Ok((product.name, product.cost_price.unwrap_or(Decimal::ZERO)))
+        // P2 3-17 修复：原 cost_price.unwrap_or(Decimal::ZERO) 在产品未设置成本价时
+        // 静默返回 0，导致 calculate_inventory_amount 金额计算为 0 却无任何提示，
+        // 财务报表失真。改为记录 warn 日志，仍返回 ZERO 不阻断流程（避免破坏现有批次），
+        // 但留下审计痕迹便于运维排查。
+        let cost_price = product.cost_price.unwrap_or(Decimal::ZERO);
+        if cost_price <= Decimal::ZERO {
+            tracing::warn!(
+                product_id,
+                product_name = %product.name,
+                "P2 3-17: 产品未设置成本价，金额计算将为 0，请先维护成本价"
+            );
+        }
+        Ok((product.name, cost_price))
     }
 }

@@ -167,4 +167,44 @@ impl AccountingPeriodService {
 
         Ok(())
     }
+
+    /// P2 3-22 修复：事务内校验指定日期是否在已结账的期间内，避免 TOCTOU
+    ///
+    /// 原 check_date_locked 在 ar_collection_service 等调用方的事务外执行，
+    /// 并发场景下可能在检查后、commit 前期间被关闭，导致历史数据被篡改。
+    /// 新增 _txn 变体，在调用方事务内执行校验。
+    pub async fn check_date_locked_txn(
+        &self,
+        txn: &sea_orm::DatabaseTransaction,
+        date: chrono::NaiveDate,
+    ) -> Result<(), AppError> {
+        let dt = Utc.from_utc_datetime(
+            &date
+                .and_hms_opt(0, 0, 0)
+                .ok_or_else(|| AppError::bad_request(format!("Invalid date: {:?}", date)))?,
+        );
+
+        let period = accounting_period::Entity::find()
+            .filter(accounting_period::Column::StartDate.lte(dt))
+            .filter(accounting_period::Column::EndDate.gte(dt))
+            .one(txn)
+            .await?;
+
+        if let Some(p) = period {
+            if p.status == "CLOSED" {
+                return Err(AppError::business(format!(
+                    "日期 {} 属于已结账的财务期间 ({})，该期间的数据已被锁定，不可修改或新增。",
+                    date.format("%Y-%m-%d"),
+                    p.period_name
+                )));
+            }
+        } else {
+            return Err(AppError::business(format!(
+                "日期 {} 不在任何已设置的会计期间内，请先创建对应的会计期间。",
+                date.format("%Y-%m-%d")
+            )));
+        }
+
+        Ok(())
+    }
 }

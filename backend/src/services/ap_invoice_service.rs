@@ -177,7 +177,10 @@ impl ApInvoiceService {
             payment_terms: Set(payment_terms),
             amount: Set(amount),
             paid_amount: Set(Decimal::ZERO),
-            unpaid_amount: Set(amount),
+            // P2 3-16 修复：红字应付单（amount 为负数）不需要再支付，
+            // unpaid_amount 不能等于 amount（负数），应为 0。
+            // 原 unpaid_amount: Set(amount) 导致待支付金额为负数，业务语义错误。
+            unpaid_amount: Set(Decimal::ZERO),
             // P0 3-1 修复：初始为 DRAFT，经 approve 流程审核后转 AUDITED
             invoice_status: Set("DRAFT".to_string()),
             currency: Set(crate::constants::DEFAULT_CURRENCY.to_string()),
