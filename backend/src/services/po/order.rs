@@ -448,12 +448,12 @@ impl PurchaseOrderService {
             ));
         }
 
-        // 4. 删除订单（级联删除明细）
-        purchase_order::Entity::delete_by_id(order_id)
-            .exec(&*self.db)
-            .await?;
-
-        Ok(())
+        // 4. 删除订单（级联删除明细）（P0 8-3 修复：补审计日志）
+        crate::services::audit_log_service::AuditLogService::delete_with_audit::<
+            purchase_order::Entity,
+            _,
+        >(&*self.db, "purchase_order", order_id, Some(user_id))
+        .await
     }
 
     /// 关闭采购订单

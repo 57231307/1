@@ -188,10 +188,12 @@ impl CrmService {
 
     /// 删除线索
     pub async fn delete_lead(&self, lead_id: i32) -> Result<(), AppError> {
-        crm_lead::Entity::delete_by_id(lead_id)
-            .exec(&*self.db)
-            .await?;
-        Ok(())
+        // P0 8-3 修复：delete 操作补审计日志
+        crate::services::audit_log_service::AuditLogService::delete_with_audit::<
+            crm_lead::Entity,
+            _,
+        >(&*self.db, "crm_lead", lead_id, Some(0))
+        .await
     }
 
     /// 更新线索状态

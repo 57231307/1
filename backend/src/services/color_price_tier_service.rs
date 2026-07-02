@@ -84,12 +84,15 @@ impl ColorPriceTierService {
 
     /// 删除阶梯价
     pub async fn delete(&self, id: i64) -> Result<(), TierError> {
-        let existing = TierEntity::find_by_id(id)
-            .one(&*self.db)
-            .await?
-            .ok_or(TierError::NotFound)?;
-        let _: TierActive = existing.into();
-        TierEntity::delete_by_id(id).exec(&*self.db).await?;
-        Ok(())
+        // P0 8-3 修复：delete 操作补审计日志（i64 主键变体）
+        crate::services::audit_log_service::AuditLogService::delete_with_audit_i64::<
+            TierEntity,
+            _,
+        >(&*self.db, "color_price_tier", id, Some(0))
+        .await
+        .map_err(|e| match e {
+            crate::utils::error::AppError::NotFound(_) => TierError::NotFound,
+            other => TierError::Validation(other.to_string()),
+        })
     }
 }

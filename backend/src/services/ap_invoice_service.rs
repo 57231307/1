@@ -328,10 +328,12 @@ impl ApInvoiceService {
             )));
         }
 
-        // 3. 删除应付单
-        ap_invoice::Entity::delete_by_id(invoice.id)
-            .exec(&txn)
-            .await?;
+        // 3. 删除应付单（P0 8-3 修复：补审计日志，事务内 find→delete→audit 三步原子）
+        crate::services::audit_log_service::AuditLogService::delete_with_audit::<
+            ap_invoice::Entity,
+            _,
+        >(&txn, "ap_invoice", invoice.id, Some(0))
+        .await?;
 
         txn.commit().await?;
 

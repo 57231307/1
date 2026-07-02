@@ -155,13 +155,12 @@ impl ProductCategoryService {
             return Err(AppError::business("该类别存在子类别，无法删除".to_string()));
         }
 
-        let result = ProductCategoryEntity::delete_by_id(id)
-            .exec(&*self.db)
-            .await?;
-        if result.rows_affected == 0 {
-            return Err(AppError::not_found(format!("产品类别 ID {} 不存在", id)));
-        }
-        Ok(())
+        // P0 8-3 修复：delete 操作补审计日志
+        crate::services::audit_log_service::AuditLogService::delete_with_audit::<
+            ProductCategoryEntity,
+            _,
+        >(&*self.db, "product_category", id, Some(0))
+        .await
     }
 
     /// 根据名称查询产品类别

@@ -506,10 +506,12 @@ impl SalesReturnService {
             .exec(&txn)
             .await?;
 
-        // 再删除退货单
-        sales_return::Entity::delete_by_id(return_id)
-            .exec(&txn)
-            .await?;
+        // 再删除退货单（P0 8-3 修复：补审计日志）
+        crate::services::audit_log_service::AuditLogService::delete_with_audit::<
+            sales_return::Entity,
+            _,
+        >(&txn, "sales_return", return_id, Some(0))
+        .await?;
 
         txn.commit().await?;
         Ok(())

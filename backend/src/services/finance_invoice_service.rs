@@ -87,10 +87,12 @@ impl FinanceInvoiceService {
     }
 
     pub async fn delete_invoice(&self, id: i32) -> Result<(), AppError> {
-        FinanceInvoice::delete_by_id(id)
-            .exec(self.db.as_ref())
-            .await?;
-        Ok(())
+        // P0 8-3 修复：delete 操作补审计日志
+        crate::services::audit_log_service::AuditLogService::delete_with_audit::<
+            FinanceInvoice,
+            _,
+        >(self.db.as_ref(), "finance_invoice", id, Some(0))
+        .await
     }
 
     pub async fn approve_invoice(&self, id: i32) -> Result<Option<InvoiceModel>, AppError> {

@@ -335,10 +335,12 @@ pub async fn delete_fabric_order(
     State(state): State<AppState>,
     Path(id): Path<i32>,
 ) -> Result<Json<ApiResponse<()>>, AppError> {
-    sales_order::Entity::delete_by_id(id)
-        .exec(&*state.db)
-        .await
-        .map_err(|e| AppError::bad_request(format!("删除订单失败：{}", e)))?;
+    // P0 8-3 修复：delete 操作补审计日志
+    crate::services::audit_log_service::AuditLogService::delete_with_audit::<
+        sales_order::Entity,
+        _,
+    >(&*state.db, "sales_fabric_order", id, Some(0))
+    .await?;
 
     Ok(Json(ApiResponse::success_with_message((), "订单删除成功")))
 }
