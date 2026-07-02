@@ -359,6 +359,16 @@ pub async fn delete_role(
         .get_role_detail(id)
         .await
         .map_err(|e| AppError::internal(e.to_string()))?;
+
+    // P1 2-3 修复（批次 64）：系统内置角色禁止删除
+    // 原实现仅 require_admin_role，未检查 is_system 字段，
+    // admin 角色被删除后系统永久锁定（无管理员可操作）。
+    if old_role.is_system {
+        return Err(AppError::bad_request(
+            "系统内置角色不可删除",
+        ));
+    }
+
     let before_snapshot = serde_json::json!({
         "role_id": old_role.id,
         "name": old_role.name,

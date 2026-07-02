@@ -151,6 +151,23 @@ pub async fn batch_delete_products(
     auth: AuthContext,
     Json(payload): Json<BatchDeleteProductsPayload>,
 ) -> Result<Json<ApiResponse<BatchResponse<()>>>, AppError> {
+    // P1 2-1/2-2 修复（批次 64）：批量删除显式校验 products:delete 权限
+    // 原实现路由用 POST /products/batch/delete，permission 中间件按 POST→create 映射，
+    // 持 products:create 权限即可批量删除，越权删除漏洞。
+    // 修复：handler 内显式校验 products:delete 权限（已有 auth 参数）。
+    let role_permission_service =
+        crate::services::role_permission_service::RolePermissionService::new(state.db.clone());
+    let role_id = auth
+        .role_id
+        .ok_or_else(|| AppError::permission_denied("用户未分配角色，无法执行批量删除操作"))?;
+    let has_permission = role_permission_service
+        .check_permission(role_id, "products", "delete", None)
+        .await
+        .map_err(|e| AppError::internal(e.to_string()))?;
+    if !has_permission {
+        return Err(AppError::permission_denied("没有批量删除产品的权限"));
+    }
+
     let service = BatchService::new(state.db.clone());
 
     let result = service

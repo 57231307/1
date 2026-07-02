@@ -70,7 +70,7 @@
     <el-card v-if="selectedRows.length > 0" shadow="hover" class="batch-bar">
       <span class="selected-info">已选 {{ selectedRows.length }} 项</span>
       <el-button
-        v-permission="'inventory:stock:edit'"
+        v-permission="'inventory:adjust'"
         type="primary"
         size="small"
         @click="handleBatchAdjust"
@@ -78,7 +78,7 @@
         <el-icon><Edit /></el-icon> 批量调整
       </el-button>
       <el-button
-        v-permission="'inventory:stock:delete'"
+        v-permission="'inventory:adjust'"
         type="danger"
         size="small"
         @click="handleBatchDelete"

@@ -51,11 +51,13 @@ pub async fn request_validator_middleware(
     // 对状态变更方法记录未认证请求的日志
     if is_state_changing_method(&method) {
         // 检查是否有 Cookie 认证信息
+        // P1 2-5 修复（批次 64）：cookie 名从 jwt= 改为 access_token=
+        // 原实现检查 "jwt="（旧版），但 auth.rs 实际用 access_token，状态变更请求认证识别失效
         let has_cookie = request
             .headers()
             .get("cookie")
             .and_then(|h| h.to_str().ok())
-            .map(|h| h.contains("jwt="))
+            .map(|h| h.contains("access_token=") || h.contains("jwt="))
             .unwrap_or(false);
 
         if !has_cookie {

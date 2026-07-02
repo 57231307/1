@@ -280,8 +280,9 @@ function canAccessMenu(menuItemPath: string): boolean {
   // 通过 router.resolve 找到匹配的叶子路由 record
   const resolved = router.resolve(menuItemPath)
   const leafRecord = resolved.matched[resolved.matched.length - 1]
-  // 路由不存在 → 放行（避免菜单异常消失）
-  if (!leafRecord) return true
+  // P1 4-1 修复（批次 64）：路由不存在 → 保守隐藏（return false）
+  // 原实现 return true，菜单 path 配置错误或路由未注册时放行，菜单可见性泄露
+  if (!leafRecord) return false
   // P0 4-2 修复：hidden 路由不在菜单显示（详情/编辑/创建等子页面）
   // 必须在 admin 判断之前，否则 admin 仍会看到 hidden 路由
   if (leafRecord.meta?.hidden) return false
