@@ -503,6 +503,7 @@ mod tests {
                 business_type: "purchase_order".to_string(),
                 business_id: 1,
                 approved: true,
+                approver_id: 0,
             },
             BusinessEvent::LowStockAlert {
                 product_id: 1,

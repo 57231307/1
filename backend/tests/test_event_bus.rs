@@ -92,6 +92,7 @@ async fn test_event_bus_default_uses_broadcast() {
         business_type: "purchase_order".to_string(),
         business_id: 42,
         approved: true,
+        approver_id: 0,
     };
     bus.publish(sent.clone());
 
@@ -105,6 +106,7 @@ async fn test_event_bus_default_uses_broadcast() {
             business_type,
             business_id,
             approved,
+            approver_id: _,
         } => {
             assert_eq!(business_type, "purchase_order");
             assert_eq!(business_id, 42);
@@ -214,6 +216,7 @@ async fn test_business_event_serde_round_trip_all_variants() {
             business_type: "sales_order".to_string(),
             business_id: 7,
             approved: false,
+            approver_id: 0,
         },
         BusinessEvent::LowStockAlert {
             product_id: 1,
