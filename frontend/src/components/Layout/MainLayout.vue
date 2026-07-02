@@ -251,7 +251,7 @@ const currentTitle = computed(() => (route.meta.title as string) || '')
 // 批次 6：用户权限与角色响应式派生
 // 批次 22 v5 P0-5：permissions 为 readonly string[]，computed 类型同步
 const userPermissions = computed<readonly string[]>(() => userStore.userInfo?.permissions || [])
-const isAdmin = computed<boolean>(() => userStore.userInfo?.role_name === 'admin')
+// P2 1-12 修复：删除 isAdmin computed（role_name === 'admin' 硬编码），统一走 *:* 通配权限
 
 // P0 4-3 修复：维护子菜单展开状态供 aria-expanded 使用（WCAG 无障碍）
 const openedMenus = ref<string[]>([])
@@ -287,7 +287,8 @@ function canAccessMenu(menuItemPath: string): boolean {
   // 必须在 admin 判断之前，否则 admin 仍会看到 hidden 路由
   if (leafRecord.meta?.hidden) return false
   // 以下保持原权限校验逻辑
-  if (isAdmin.value) return true
+  // P2 1-12 修复：删除 isAdmin 硬编码绕过，统一走 hasRoutePermission
+  // 后端为 system 角色注入 *:* 通配权限，hasRoutePermission 自动放行
   const required = leafRecord.meta?.permission as string | string[] | undefined
   return hasRoutePermission(required, userPermissions.value)
 }

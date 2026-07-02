@@ -5,7 +5,7 @@
  * 沙箱环境无 GUI 浏览器,无法采集真实指标。本测试只覆盖"代码层逻辑正确性"。
  */
 import { describe, expect, it } from 'vitest'
-import { generateStocks, loadOrGenerateStocks, persistStocks } from '@/views/inventory/tabs/testData'
+import { generateStocks, loadOrGenerateStocks, persistStocks } from '../fixtures/inventoryTestData'
 
 describe('POC - testData.ts 数据生成器', () => {
   it('默认生成 10000 行', () => {
