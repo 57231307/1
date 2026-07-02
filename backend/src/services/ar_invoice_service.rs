@@ -441,6 +441,12 @@ impl ArInvoiceService {
         if invoice.status == "CANCELLED" {
             return Err(AppError::bad_request("单据已取消"));
         }
+        // P1 3-4 修复（批次 63）：状态门拒绝已 PAID 发票被取消
+        // 原实现仅检查 CANCELLED，已收讫发票可被取消，导致 received_amount 与状态不一致。
+        // 参考 ap_invoice_service.cancel 的 PAID 拒绝逻辑。
+        if invoice.status == "PAID" {
+            return Err(AppError::bad_request("已收讫的应收单不可取消"));
+        }
 
         let mut active_invoice: ar_invoice::ActiveModel = invoice.into();
         active_invoice.status = Set("CANCELLED".to_string());
