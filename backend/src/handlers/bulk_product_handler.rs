@@ -1,5 +1,6 @@
 //! 批量操作 Handler
 
+use crate::middleware::auth_context::AuthContext;
 use crate::services::batch_service::{
     BatchCreateProductRequest, BatchService, BatchUpdateProductRequest,
 };
@@ -43,12 +44,13 @@ pub struct BatchResponse<T> {
 /// 批量创建产品
 pub async fn batch_create_products(
     State(state): State<AppState>,
+    auth: AuthContext,
     Json(payload): Json<BatchCreateProductsPayload>,
 ) -> Result<Json<ApiResponse<BatchResponse<Vec<serde_json::Value>>>>, AppError> {
     let service = BatchService::new(state.db.clone());
 
     let result = service
-        .batch_create_products(payload.products)
+        .batch_create_products(auth.user_id, payload.products)
         .await
         .map_err(|e| AppError::bad_request(e.to_string()))?;
 
@@ -94,12 +96,13 @@ pub async fn batch_create_products(
 /// 批量更新产品
 pub async fn batch_update_products(
     State(state): State<AppState>,
+    auth: AuthContext,
     Json(payload): Json<BatchUpdateProductsPayload>,
 ) -> Result<Json<ApiResponse<BatchResponse<Vec<serde_json::Value>>>>, AppError> {
     let service = BatchService::new(state.db.clone());
 
     let result = service
-        .batch_update_products(payload.products)
+        .batch_update_products(auth.user_id, payload.products)
         .await
         .map_err(|e| AppError::bad_request(e.to_string()))?;
 
@@ -145,12 +148,13 @@ pub async fn batch_update_products(
 /// 批量删除产品
 pub async fn batch_delete_products(
     State(state): State<AppState>,
+    auth: AuthContext,
     Json(payload): Json<BatchDeleteProductsPayload>,
 ) -> Result<Json<ApiResponse<BatchResponse<()>>>, AppError> {
     let service = BatchService::new(state.db.clone());
 
     let result = service
-        .batch_delete_products(payload.ids)
+        .batch_delete_products(auth.user_id, payload.ids)
         .await
         .map_err(|e| AppError::bad_request(e.to_string()))?;
 

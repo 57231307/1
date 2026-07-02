@@ -1,4 +1,7 @@
+use crate::middleware::audit_context::AuditContext;
 use crate::middleware::auth_context::AuthContext;
+use crate::models::audit_log::{OperationType, Severity};
+use crate::services::audit_log_service::{AuditEvent, AuditLogService};
 use crate::services::role_permission_service::RolePermissionService;
 use crate::services::role_permission_service::{
     AssignPermissionRequest, CreateRoleRequest, UpdateRoleRequest,
@@ -8,10 +11,11 @@ use crate::utils::app_state::AppState;
 use crate::utils::error::AppError;
 use crate::utils::response::ApiResponse;
 use axum::{
-    extract::{Path, State},
+    extract::{Extension, Path, State},
     Json,
 };
 use serde::{Deserialize, Serialize};
+use std::sync::Arc;
 
 /// C-1 修复：处理器内部的 admin 角色二次校验
 ///
@@ -182,15 +186,16 @@ pub async fn get_role(
 pub async fn create_role(
     State(state): State<AppState>,
     auth: AuthContext,
+    audit_ctx: Option<Extension<AuditContext>>,
     Json(payload): Json<CreateRolePayload>,
 ) -> Result<Json<ApiResponse<RoleDetailResponse>>, AppError> {
     require_admin_role(&state, &auth).await?;
     let service = RolePermissionService::new(state.db.clone());
 
     let request = CreateRoleRequest {
-        name: payload.name,
-        code: payload.code,
-        description: payload.description,
+        name: payload.name.clone(),
+        code: payload.code.clone(),
+        description: payload.description.clone(),
         is_system: payload.is_system,
     };
 
@@ -198,6 +203,33 @@ pub async fn create_role(
         .create_role(request)
         .await
         .map_err(|e| AppError::internal(e.to_string()))?;
+
+    // P1 8-3 修复：create_role 补审计日志
+    let event = AuditEvent {
+        user_id: Some(auth.user_id),
+        username: Some(auth.username.clone()),
+        operation_type: OperationType::Create,
+        severity: Severity::Info,
+        resource_type: Some("role".to_string()),
+        resource_id: Some(role.id.to_string()),
+        resource_name: Some(role.name.clone()),
+        description: Some(format!(
+            "管理员 {} 创建角色 {}（code={}）",
+            auth.username, role.name, role.code
+        )),
+        request_method: Some("POST".to_string()),
+        request_path: Some("/api/v1/erp/roles".to_string()),
+        before_snapshot: None,
+        after_snapshot: Some(serde_json::json!({
+            "role_id": role.id,
+            "name": role.name,
+            "code": role.code,
+            "description": role.description,
+            "is_system": role.is_system,
+        })),
+    };
+    let svc = Arc::new(AuditLogService::new(state.db.clone()));
+    svc.record_async(event, audit_ctx.map(|e| e.0));
 
     let permissions = role.permission_list.map(|perms| {
         perms
@@ -228,16 +260,30 @@ pub async fn create_role(
 pub async fn update_role(
     State(state): State<AppState>,
     auth: AuthContext,
+    audit_ctx: Option<Extension<AuditContext>>,
     Path(id): Path<i32>,
     Json(payload): Json<UpdateRolePayload>,
 ) -> Result<Json<ApiResponse<RoleDetailResponse>>, AppError> {
     require_admin_role(&state, &auth).await?;
     let service = RolePermissionService::new(state.db.clone());
 
+    // P1 8-3 修复：更新前查询旧角色信息作为 before_snapshot
+    let old_role = service
+        .get_role_detail(id)
+        .await
+        .map_err(|e| AppError::internal(e.to_string()))?;
+    let before_snapshot = serde_json::json!({
+        "role_id": old_role.id,
+        "name": old_role.name,
+        "code": old_role.code,
+        "description": old_role.description,
+        "is_system": old_role.is_system,
+    });
+
     let request = UpdateRoleRequest {
-        name: payload.name,
-        code: payload.code,
-        description: payload.description,
+        name: payload.name.clone(),
+        code: payload.code.clone(),
+        description: payload.description.clone(),
         is_system: payload.is_system,
     };
 
@@ -245,6 +291,33 @@ pub async fn update_role(
         .update_role(id, request)
         .await
         .map_err(|e| AppError::internal(e.to_string()))?;
+
+    // P1 8-3 修复：update_role 补审计日志
+    let event = AuditEvent {
+        user_id: Some(auth.user_id),
+        username: Some(auth.username.clone()),
+        operation_type: OperationType::Update,
+        severity: Severity::Info,
+        resource_type: Some("role".to_string()),
+        resource_id: Some(id.to_string()),
+        resource_name: Some(role.name.clone()),
+        description: Some(format!(
+            "管理员 {} 更新角色 {}（id={}）",
+            auth.username, role.name, id
+        )),
+        request_method: Some("PUT".to_string()),
+        request_path: Some(format!("/api/v1/erp/roles/{}", id)),
+        before_snapshot: Some(before_snapshot),
+        after_snapshot: Some(serde_json::json!({
+            "role_id": role.id,
+            "name": role.name,
+            "code": role.code,
+            "description": role.description,
+            "is_system": role.is_system,
+        })),
+    };
+    let svc = Arc::new(AuditLogService::new(state.db.clone()));
+    svc.record_async(event, audit_ctx.map(|e| e.0));
 
     let permissions = role.permission_list.map(|perms| {
         perms
@@ -275,15 +348,50 @@ pub async fn update_role(
 pub async fn delete_role(
     State(state): State<AppState>,
     auth: AuthContext,
+    audit_ctx: Option<Extension<AuditContext>>,
     Path(id): Path<i32>,
 ) -> Result<Json<ApiResponse<()>>, AppError> {
     require_admin_role(&state, &auth).await?;
     let service = RolePermissionService::new(state.db.clone());
 
+    // P1 8-3 修复：删除前查询旧角色信息作为 before_snapshot
+    let old_role = service
+        .get_role_detail(id)
+        .await
+        .map_err(|e| AppError::internal(e.to_string()))?;
+    let before_snapshot = serde_json::json!({
+        "role_id": old_role.id,
+        "name": old_role.name,
+        "code": old_role.code,
+        "description": old_role.description,
+        "is_system": old_role.is_system,
+    });
+
     service
         .delete_role(id)
         .await
         .map_err(|e| AppError::internal(e.to_string()))?;
+
+    // P1 8-3 修复：delete_role 补审计日志
+    let event = AuditEvent {
+        user_id: Some(auth.user_id),
+        username: Some(auth.username.clone()),
+        operation_type: OperationType::Delete,
+        severity: Severity::Warn,
+        resource_type: Some("role".to_string()),
+        resource_id: Some(id.to_string()),
+        resource_name: Some(old_role.name.clone()),
+        description: Some(format!(
+            "管理员 {} 删除角色 {}（id={}）",
+            auth.username, old_role.name, id
+        )),
+        request_method: Some("DELETE".to_string()),
+        request_path: Some(format!("/api/v1/erp/roles/{}", id)),
+        before_snapshot: Some(before_snapshot),
+        after_snapshot: None,
+    };
+    let svc = Arc::new(AuditLogService::new(state.db.clone()));
+    svc.record_async(event, audit_ctx.map(|e| e.0));
 
     Ok(Json(ApiResponse::success(())))
 }
@@ -292,6 +400,7 @@ pub async fn delete_role(
 pub async fn assign_permission(
     State(state): State<AppState>,
     auth: AuthContext,
+    audit_ctx: Option<Extension<AuditContext>>,
     Path(role_id): Path<i32>,
     Json(payload): Json<AssignPermissionPayload>,
 ) -> Result<Json<ApiResponse<PermissionResponse>>, AppError> {
@@ -311,17 +420,36 @@ pub async fn assign_permission(
         .await
         .map_err(|e| AppError::internal(e.to_string()))?;
 
-    // 记录权限变更日志
-    tracing::warn!(
-        target: "permission_audit",
-        "[权限分配] 操作人: {}({}) | 角色ID: {} | 资源类型: {} | 操作: {} | 允许: {}",
-        auth.username,
-        auth.user_id,
-        role_id,
-        payload.resource_type,
-        payload.action,
-        payload.allowed
-    );
+    // P1 8-3 修复：assign_permission 改用 record_async 落库审计日志（原仅 tracing::warn）
+    let event = AuditEvent {
+        user_id: Some(auth.user_id),
+        username: Some(auth.username.clone()),
+        operation_type: OperationType::Update,
+        severity: Severity::Warn,
+        resource_type: Some("role_permission".to_string()),
+        resource_id: Some(perm.id.to_string()),
+        resource_name: Some(format!(
+            "role_id={}/resource_type={}/action={}",
+            role_id, payload.resource_type, payload.action
+        )),
+        description: Some(format!(
+            "管理员 {} 为角色 id={} 分配权限：resource_type={} action={} allowed={}",
+            auth.username, role_id, payload.resource_type, payload.action, payload.allowed
+        )),
+        request_method: Some("POST".to_string()),
+        request_path: Some(format!("/api/v1/erp/roles/{}/permissions", role_id)),
+        before_snapshot: None,
+        after_snapshot: Some(serde_json::json!({
+            "permission_id": perm.id,
+            "role_id": role_id,
+            "resource_type": payload.resource_type,
+            "resource_id": payload.resource_id,
+            "action": payload.action,
+            "allowed": payload.allowed,
+        })),
+    };
+    let svc = Arc::new(AuditLogService::new(state.db.clone()));
+    svc.record_async(event, audit_ctx.map(|e| e.0));
 
     Ok(Json(ApiResponse::success(PermissionResponse {
         id: perm.id,
@@ -336,6 +464,7 @@ pub async fn assign_permission(
 pub async fn remove_permission(
     State(state): State<AppState>,
     auth: AuthContext,
+    audit_ctx: Option<Extension<AuditContext>>,
     Path(id): Path<i32>,
 ) -> Result<Json<ApiResponse<()>>, AppError> {
     require_admin_role(&state, &auth).await?;
@@ -346,14 +475,29 @@ pub async fn remove_permission(
         .await
         .map_err(|e| AppError::internal(e.to_string()))?;
 
-    // 记录权限移除日志
-    tracing::warn!(
-        target: "permission_audit",
-        "[权限移除] 操作人: {}({}) | 权限ID: {}",
-        auth.username,
-        auth.user_id,
-        id
-    );
+    // P1 8-3 修复：remove_permission 改用 record_async 落库审计日志（原仅 tracing::warn）
+    let event = AuditEvent {
+        user_id: Some(auth.user_id),
+        username: Some(auth.username.clone()),
+        operation_type: OperationType::Delete,
+        severity: Severity::Warn,
+        resource_type: Some("role_permission".to_string()),
+        resource_id: Some(id.to_string()),
+        resource_name: None,
+        description: Some(format!(
+            "管理员 {} 移除权限 id={}",
+            auth.username, id
+        )),
+        request_method: Some("DELETE".to_string()),
+        request_path: Some(format!("/api/v1/erp/roles/permissions/{}", id)),
+        before_snapshot: Some(serde_json::json!({
+            "permission_id": id,
+            "action": "remove",
+        })),
+        after_snapshot: None,
+    };
+    let svc = Arc::new(AuditLogService::new(state.db.clone()));
+    svc.record_async(event, audit_ctx.map(|e| e.0));
 
     Ok(Json(ApiResponse::success(())))
 }

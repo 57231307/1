@@ -1,7 +1,9 @@
 //! 批量操作服务
 //! 提供批量创建、更新、删除功能
 
+use crate::models::audit_log::{OperationType, Severity};
 use crate::models::product;
+use crate::services::audit_log_service::{AuditEvent, AuditLogService};
 use crate::utils::error::AppError;
 use sea_orm::DatabaseConnection;
 use sea_orm::{ActiveModelTrait, EntityTrait, Set};
@@ -76,8 +78,11 @@ impl BatchService {
     }
 
     /// 批量创建产品
+    ///
+    /// P1 8-4 修复：接收 user_id 参数，操作完成后记录汇总审计日志
     pub async fn batch_create_products(
         &self,
+        user_id: i32,
         requests: Vec<BatchCreateProductRequest>,
     ) -> Result<BatchResult<product::Model>, AppError> {
         let mut created = 0;
@@ -145,6 +150,34 @@ impl BatchService {
             }
         }
 
+        // P1 8-4 修复：批量创建完成后记录汇总审计日志
+        let event = AuditEvent {
+            user_id: Some(user_id),
+            username: None,
+            operation_type: OperationType::Create,
+            severity: if failed == 0 { Severity::Info } else { Severity::Warn },
+            resource_type: Some("product_batch".to_string()),
+            resource_id: None,
+            resource_name: Some(format!("batch_create_{}", chrono::Utc::now().timestamp())),
+            description: Some(format!(
+                "批量创建产品：总数={} 成功={} 失败={}",
+                requests.len(),
+                created,
+                failed
+            )),
+            request_method: Some("POST".to_string()),
+            request_path: Some("/api/v1/erp/products/batch/create".to_string()),
+            before_snapshot: None,
+            after_snapshot: Some(serde_json::json!({
+                "total": requests.len(),
+                "created": created,
+                "failed": failed,
+                "failed_indexes": errors.iter().map(|e| e.index).collect::<Vec<_>>(),
+            })),
+        };
+        let svc = Arc::new(AuditLogService::new(self.db.clone()));
+        svc.record_async(event, None);
+
         Ok(BatchResult {
             success: failed == 0,
             total: requests.len(),
@@ -157,8 +190,11 @@ impl BatchService {
     }
 
     /// 批量更新产品
+    ///
+    /// P1 8-4 修复：接收 user_id 参数，操作完成后记录汇总审计日志
     pub async fn batch_update_products(
         &self,
+        user_id: i32,
         requests: Vec<BatchUpdateProductRequest>,
     ) -> Result<BatchResult<product::Model>, AppError> {
         let mut updated = 0;
@@ -231,6 +267,34 @@ impl BatchService {
             }
         }
 
+        // P1 8-4 修复：批量更新完成后记录汇总审计日志
+        let event = AuditEvent {
+            user_id: Some(user_id),
+            username: None,
+            operation_type: OperationType::Update,
+            severity: if failed == 0 { Severity::Info } else { Severity::Warn },
+            resource_type: Some("product_batch".to_string()),
+            resource_id: None,
+            resource_name: Some(format!("batch_update_{}", chrono::Utc::now().timestamp())),
+            description: Some(format!(
+                "批量更新产品：总数={} 成功={} 失败={}",
+                requests.len(),
+                updated,
+                failed
+            )),
+            request_method: Some("PUT".to_string()),
+            request_path: Some("/api/v1/erp/products/batch/update".to_string()),
+            before_snapshot: None,
+            after_snapshot: Some(serde_json::json!({
+                "total": requests.len(),
+                "updated": updated,
+                "failed": failed,
+                "failed_indexes": errors.iter().map(|e| e.index).collect::<Vec<_>>(),
+            })),
+        };
+        let svc = Arc::new(AuditLogService::new(self.db.clone()));
+        svc.record_async(event, None);
+
         Ok(BatchResult {
             success: failed == 0,
             total: requests.len(),
@@ -243,16 +307,23 @@ impl BatchService {
     }
 
     /// 批量删除产品
-    pub async fn batch_delete_products(&self, ids: Vec<i32>) -> Result<BatchResult<()>, AppError> {
+    ///
+    /// P1 8-4 修复：接收 user_id 参数，Some(0) 改为 Some(user_id)
+    pub async fn batch_delete_products(
+        &self,
+        user_id: i32,
+        ids: Vec<i32>,
+    ) -> Result<BatchResult<()>, AppError> {
         let mut failed = 0;
         let mut errors = Vec::new();
 
         for (index, id) in ids.iter().enumerate() {
             // P0 8-3 修复：delete 操作补审计日志
+            // P1 8-4 修复：user_id 从 Some(0) 改为 Some(user_id)，避免审计操作人丢失
             let result = crate::services::audit_log_service::AuditLogService::delete_with_audit::<
                 product::Entity,
                 _,
-            >(self.db.as_ref(), "product", *id, Some(0))
+            >(self.db.as_ref(), "product", *id, Some(user_id))
             .await;
 
             match result {
