@@ -173,6 +173,7 @@ impl AccountingPeriodService {
     /// 原 check_date_locked 在 ar_collection_service 等调用方的事务外执行，
     /// 并发场景下可能在检查后、commit 前期间被关闭，导致历史数据被篡改。
     /// 新增 _txn 变体，在调用方事务内执行校验。
+    #[allow(dead_code)] // TODO(tech-debt): ArCollectionService::create_collection 接入 handler 后移除
     pub async fn check_date_locked_txn(
         &self,
         txn: &sea_orm::DatabaseTransaction,
