@@ -25,6 +25,9 @@ macro_rules! define_service {
 /// - 带 txn 变体：用调用方传入的 `&DatabaseTransaction`，适用于单号生成 + INSERT
 ///   在同一事务内的场景。P1 5-10 修复（批次 60）：txn 变体改调 `generate_no_with_txn`
 ///   而非 `generate_no`，避免在 savepoint 上获取 advisory_xact_lock 导致锁提前释放。
+///
+/// 注：SeaORM `Entity` 是 unit struct，直接用路径作为值即可，无需 `::default()`
+/// （clippy `default_constructed_unit_struct` lint）。
 #[macro_export]
 macro_rules! impl_generate_no {
     ($fn_name:ident, $prefix:expr, $entity:ty, $column:expr) => {
@@ -32,7 +35,7 @@ macro_rules! impl_generate_no {
             $crate::utils::number_generator::DocumentNumberGenerator::generate_no(
                 &*self.db,
                 $prefix,
-                <$entity>::default(),
+                <$entity>,
                 $column,
             )
             .await
@@ -48,7 +51,7 @@ macro_rules! impl_generate_no {
             $crate::utils::number_generator::DocumentNumberGenerator::generate_no_with_txn(
                 $conn,
                 $prefix,
-                <$entity>::default(),
+                <$entity>,
                 $column,
             )
             .await

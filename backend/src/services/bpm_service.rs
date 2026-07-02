@@ -110,7 +110,7 @@ impl BpmService {
         let instance_no = crate::utils::number_generator::DocumentNumberGenerator::generate_no_with_txn(
             &txn,
             "BPM",
-            bpm_process_instance::Entity::default(),
+            bpm_process_instance::Entity,
             bpm_process_instance::Column::InstanceNo,
         )
         .await?;
@@ -173,7 +173,7 @@ impl BpmService {
                             crate::utils::number_generator::DocumentNumberGenerator::generate_no_with_txn(
                                 &txn,
                                 "TSK",
-                                bpm_task::Entity::default(),
+                                bpm_task::Entity,
                                 bpm_task::Column::TaskNo,
                             )
                             .await?
@@ -356,7 +356,7 @@ impl BpmService {
                                         crate::utils::number_generator::DocumentNumberGenerator::generate_no_with_txn(
                                             &txn,
                                             "TSK",
-                                            bpm_task::Entity::default(),
+                                            bpm_task::Entity,
                                             bpm_task::Column::TaskNo,
                                         )
                                         .await?

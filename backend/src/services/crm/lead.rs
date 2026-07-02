@@ -31,7 +31,7 @@ impl CrmService {
             crate::utils::number_generator::DocumentNumberGenerator::generate_no_with_txn(
                 &txn,
                 "LD",
-                crm_lead::Entity::default(),
+                crm_lead::Entity,
                 crm_lead::Column::LeadNo,
             )
             .await?

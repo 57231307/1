@@ -102,7 +102,7 @@ impl SalesService {
                 crate::utils::number_generator::DocumentNumberGenerator::generate_no_with_txn(
                     &txn,
                     "DN",
-                    sales_delivery::Entity::default(),
+                    sales_delivery::Entity,
                     sales_delivery::Column::DeliveryNo,
                 )
                 .await?
@@ -231,7 +231,7 @@ impl SalesService {
                 crate::utils::number_generator::DocumentNumberGenerator::generate_no_with_txn(
                     &txn,
                     "DN",
-                    sales_delivery::Entity::default(),
+                    sales_delivery::Entity,
                     sales_delivery::Column::DeliveryNo,
                 )
                 .await?
