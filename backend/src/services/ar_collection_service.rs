@@ -29,17 +29,19 @@ impl ArCollectionService {
             return Err(AppError::bad_request("收款金额必须大于零"));
         }
 
-        // 检查期间锁定
+        // P2 3-22 修复：期间锁定检查移入事务内，避免 TOCTOU
+        // 原实现在 txn.begin() 之前用 self.db 检查，并发场景下可能在检查后、commit 前
+        // 期间被关闭，导致历史数据被篡改。改为在 txn 内用 _txn 变体执行校验。
+        let txn = (*self.db).begin().await?;
+
         let period_svc = crate::services::accounting_period_service::AccountingPeriodService::new(
             self.db.clone(),
         );
         let now_date = Utc::now().date_naive();
         period_svc
-            .check_date_locked(now_date)
+            .check_date_locked_txn(&txn, now_date)
             .await
             .map_err(|e| AppError::business(e.to_string()))?;
-
-        let txn = (*self.db).begin().await?;
 
         // 查找客户名称
         let customer_name = crate::models::customer::Entity::find_by_id(customer_id)

@@ -28,6 +28,27 @@ impl PurchaseReceiptService {
         Self { db }
     }
 
+    /// P2 3-19 修复：检查 user_id 是否为管理员（用于绕过 created_by owner 检查）
+    ///
+    /// 原 update_receipt/delete_receipt/confirm_receipt/add_receipt_item/
+    /// update_receipt_item/delete_receipt_item 6 处均硬编码 `created_by != user_id`
+    /// 无管理员绕过，admin 无法管理他人创建的入库单。
+    /// 新增此辅助方法，admin 角色可绕过 owner 检查。
+    async fn is_admin_user(&self, user_id: i32) -> Result<bool, AppError> {
+        use crate::models::user;
+        use sea_orm::EntityTrait;
+
+        let user = user::Entity::find_by_id(user_id)
+            .one(&*self.db)
+            .await?
+            .ok_or_else(|| AppError::not_found("用户不存在"))?;
+        if let Some(role_id) = user.role_id {
+            Ok(crate::utils::admin_checker::is_admin_role(&self.db, role_id).await)
+        } else {
+            Ok(false)
+        }
+    }
+
     // 生成入库单号
     // 格式：GR + 年月日 + 三位序号（GR20260315001）
     crate::impl_generate_no!(
@@ -147,8 +168,8 @@ impl PurchaseReceiptService {
             )));
         }
 
-        // 3. 检查权限
-        if receipt.created_by != user_id {
+        // 3. 检查权限（P2 3-19 修复：admin 可绕过 owner 检查）
+        if !self.is_admin_user(user_id).await? && receipt.created_by != user_id {
             return Err(AppError::permission_denied(
                 "只能修改自己创建的入库单".to_string(),
             ));
@@ -213,8 +234,8 @@ impl PurchaseReceiptService {
             )));
         }
 
-        // 3. 检查权限
-        if receipt.created_by != user_id {
+        // 3. 检查权限（P2 3-19 修复：admin 可绕过 owner 检查）
+        if !self.is_admin_user(user_id).await? && receipt.created_by != user_id {
             return Err(AppError::permission_denied(
                 "只能删除自己创建的入库单".to_string(),
             ));
@@ -362,8 +383,8 @@ impl PurchaseReceiptService {
             )));
         }
 
-        // 3. 检查权限
-        if receipt.created_by != user_id {
+        // 3. 检查权限（P2 3-19 修复：admin 可绕过 owner 检查）
+        if !self.is_admin_user(user_id).await? && receipt.created_by != user_id {
             return Err(AppError::permission_denied(
                 "只能为自己创建的入库单添加明细".to_string(),
             ));
@@ -426,8 +447,8 @@ impl PurchaseReceiptService {
             )));
         }
 
-        // 4. 检查权限
-        if receipt.created_by != user_id {
+        // 4. 检查权限（P2 3-19 修复：admin 可绕过 owner 检查）
+        if !self.is_admin_user(user_id).await? && receipt.created_by != user_id {
             return Err(AppError::permission_denied(
                 "只能修改自己创建的入库明细".to_string(),
             ));
@@ -494,8 +515,8 @@ impl PurchaseReceiptService {
             )));
         }
 
-        // 4. 检查权限
-        if receipt.created_by != user_id {
+        // 4. 检查权限（P2 3-19 修复：admin 可绕过 owner 检查）
+        if !self.is_admin_user(user_id).await? && receipt.created_by != user_id {
             return Err(AppError::permission_denied(
                 "只能删除自己创建的入库明细".to_string(),
             ));

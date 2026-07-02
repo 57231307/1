@@ -17,7 +17,9 @@ app.use(i18n)
 
 /* FE-P-1 修复（2026-06-26 第二次审计第二优先级）：
  * 注册 v-permission 和 v-role 全局指令，使组件中的
- * `<el-button v-permission="'inventory:stock:edit'">` 等使用生效。
+ * `<el-button v-permission="'inventory:update'">` 等使用生效。
+ * 权限码格式为两段式 `{resource}:{action}`（如 `inventory:update`、`inventory:delete`）。
+ * P2 4-4 修复：原注释示例 `'inventory:stock:edit'` 为三段式，与权限码规范不符，修正为两段式。
  * 原指令定义在 directives/permission.ts 但未在 main.ts 注册，
  * Vue 静默忽略 v-permission，按钮永远显示。 */
 app.directive('permission', permission)

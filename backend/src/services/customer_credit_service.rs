@@ -76,6 +76,23 @@ impl CustomerCreditService {
         Ok(credit)
     }
 
+    /// P2 3-20 修复：事务内查询客户信用评级，避免 TOCTOU
+    ///
+    /// 原 check_credit_available 用 self.db 查询信用额度，与订单提交事务隔离，
+    /// 并发场景下可能在查询后、提交前信用额度被调整，导致超卖。
+    /// 新增 _txn 变体，在订单提交事务内查询信用额度。
+    pub async fn get_by_customer_id_txn(
+        &self,
+        txn: &sea_orm::DatabaseTransaction,
+        customer_id: i32,
+    ) -> Result<Option<customer_credit::Model>, AppError> {
+        let credit = customer_credit::Entity::find()
+            .filter(customer_credit::Column::CustomerId.eq(customer_id))
+            .one(txn)
+            .await?;
+        Ok(credit)
+    }
+
     /// 获取信用评级列表（分页）
     pub async fn get_list(
         &self,
