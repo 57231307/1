@@ -2,6 +2,26 @@
 
 > 重要变更一句话摘要列表。详细历史请查阅 [`.monkeycode/docs/archives/`](file:///workspace/.monkeycode/docs/archives/)。
 
+## 2026-07-02 (批次 70 完成：超长函数拆分 P2 修复 5 项)
+
+### 批次 70 完成：超长函数拆分（1-4/1-5/1-6/1-7/1-8）
+
+**修复分支**：`fix/v19-batch70-func-split`（已合并删除）
+**合并 commit**：`38f7963f`（PR #314 squash merge，CI 12/13 全绿，E2E continue-on-error）
+**修复范围**：P2 超长函数拆分 + 正则预编译 5 项
+
+**修复清单**：
+
+| # | 问题 | 文件 | 修复 |
+|---|------|------|------|
+| P2 1-4 | handle_production_completion_inventory_txn 275 行混合 5 职责 | services/production_order_service.rs | 拆为 fetch_default_warehouse_txn / deduct_raw_materials_txn / increase_finished_goods_txn 3 个私有方法 |
+| P2 1-5 | approve_return 167 行混合 6 职责 | services/sales_return_service.rs | 拆为 validate_and_lock_submitted_txn / apply_stock_inbound_txn（&self 方法）/ mark_approved_txn / generate_red_ar_txn 4 个方法 |
+| P2 1-6 | create 138 行混合 8 职责 | services/voucher_service.rs | 抽取 validate_voucher_create_req / precheck_subjects_exist_txn / insert_voucher_items_txn 3 个私有方法 |
+| P2 1-7 | products/customers 分支结果收集代码重复 | services/import_export_service.rs | 抽取 record_import_result 静态方法消除重复 |
+| P2 1-8 | validate_mobile_phone 每次调用编译正则 | services/supplier_service.rs | 改为模块级 static MOBILE_PHONE_RE: LazyLock<Regex> |
+
+---
+
 ## 2026-07-01 (批次 51 完成：业务逻辑 P0 修复 6 项)
 
 ### 批次 51 完成：业务逻辑 P0 修复（6 项）

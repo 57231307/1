@@ -3,6 +3,33 @@
 > 本文件记录**当前任务**与**历史任务索引**。
 > 详细历史请查阅 [`.monkeycode/docs/archives/`](file:///workspace/.monkeycode/docs/archives/)。
 
+### 2026-07-02 批次 70 完成：超长函数拆分（1-4/1-5/1-6/1-7/1-8）（✅ 已合并 main，CI 12/13 全绿）
+
+**修复分支**：`fix/v19-batch70-func-split`（已合并删除）
+**合并 commit**：`38f7963f`（PR #314 squash merge）
+**main HEAD**：`ff498435`（含进度表文档更新）
+**修复范围**：P2 超长函数拆分 5 项
+
+**修复清单**：
+- P2 1-4：production_order_service `handle_production_completion_inventory_txn`（275 行）拆为 `fetch_default_warehouse_txn` / `deduct_raw_materials_txn` / `increase_finished_goods_txn` 3 个私有方法
+- P2 1-5：sales_return_service `approve_return`（167 行）拆为 `validate_and_lock_submitted_txn` / `apply_stock_inbound_txn`（&self 方法）/ `mark_approved_txn` / `generate_red_ar_txn` 4 个方法
+- P2 1-6：voucher_service `create`（138 行）抽取 `validate_voucher_create_req` / `precheck_subjects_exist_txn` / `insert_voucher_items_txn` 3 个私有方法
+- P2 1-7：import_export_service 抽取 `record_import_result` 静态方法消除 products/customers 分支重复（原泛型闭包方案复杂度过高，改为更简单方案）
+- P2 1-8：supplier_service `validate_mobile_phone` 正则改为模块级 `static MOBILE_PHONE_RE: LazyLock<Regex>`，全局编译一次
+
+**改动文件**：5 文件（production_order_service.rs / sales_return_service.rs / voucher_service.rs / import_export_service.rs / supplier_service.rs）
+
+**关键发现**：
+1. `InventoryStockService::record_transaction`（位于 inventory_stock_query.rs）内部使用 `self.db`（非 txn 路径），是批次 27 v7 P1 修复中提及的遗留事务边界问题
+2. 1-5 `apply_stock_inbound_txn` 必须改为 `&self` 方法（不能用 `Self::` 关联函数），以便访问 `self.db` 创建 `InventoryStockService` 实例
+3. 1-5 `generate_red_ar_txn` 接受 `db: &Arc<DatabaseConnection>` 参数以创建 `ArInvoiceService`（`create_credit_memo` 接受外部 txn 参数，db 仅用于构造）
+4. 1-7 原审计建议泛型 `import_batch<F>`，因 Rust async 闭包复杂度过高（需要 `Pin<Box<dyn Future>>` 等），改为更简单的 `record_import_result` 静态方法，仅消除结果收集重复代码
+5. CI 结果：12/13 job success（一次通过，无需修复），E2E continue-on-error
+
+**下一步**：进入批次 71（前端类型契约与生产代码清理 1-9/1-10/1-11/1-12）
+
+---
+
 ### 2026-07-02 批次 69 完成：缓存语义与事件修复（5-15/5-16/5-17/5-18/5-19/3-21）（✅ 已合并 main，CI 12/13 全绿）
 
 **修复分支**：`fix/v19-batch69-cache-event`（已合并删除）

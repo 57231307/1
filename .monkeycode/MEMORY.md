@@ -21,13 +21,13 @@
 
 ---
 
-## 当前任务状态（2026-07-02 批次 69 完成 - v19 P2 缓存语义与事件修复）
+## 当前任务状态（2026-07-02 批次 70 完成 - v19 P2 超长函数拆分）
 
-### ✅ 批次 69 完成：缓存语义与事件修复（5-15/5-16/5-17/5-18/5-19/3-21）
+### ✅ 批次 70 完成：超长函数拆分（1-4/1-5/1-6/1-7/1-8）
 
-**修复分支**：`fix/v19-batch69-cache-event`（已合并删除）
-**合并 commit**：`50de3cf6`（PR #313 squash merge，CI 12/13 全绿，E2E continue-on-error）
-**main HEAD**：`e7eef720`（含批次 69 代码 + 进度表文档更新）
+**修复分支**：`fix/v19-batch70-func-split`（已合并删除）
+**合并 commit**：`38f7963f`（PR #314 squash merge，CI 12/13 全绿，E2E continue-on-error）
+**main HEAD**：`ff498435`（含批次 70 代码 + 进度表文档更新）
 
 **v19 P1/P2/P3 修复进度**（基线审计 `docs/audits/2026-07-02-p1-p2-p3-audit.md`，149 项）：
 - 批次 49-55（✅）：P0×36
@@ -44,14 +44,15 @@
 - 批次 66（✅）：E2E 环境补齐 auth mock（6-7）→ main `ea69d747`
 - 批次 67（✅）：BPM 定义占位实现（1-2）→ main `739b500b`
 - 批次 68（✅）：N+1 查询优化（9 项）→ main `edd257a3`
-- **批次 69（✅）**：缓存语义与事件修复（6 项）→ main `50de3cf6`
-- 批次 70-75（待启动）：P2 修复 6 批
+- 批次 69（✅）：缓存语义与事件修复（6 项）→ main `50de3cf6`
+- **批次 70（✅）**：超长函数拆分（5 项）→ main `38f7963f`
+- 批次 71-75（待启动）：P2 修复 5 批
 - 批次 76-77（待启动）：P3 修复 2 批
 - 延后项：批次 59c（8-9 delete audit_ctx）、59d（8-5 验签）、67.5+（1-1 类别 C 62 处）
 
-**P1 阶段已全部完成**（批次 49-67，含 59b）。**P2 阶段进行中**（批次 68-69 已完成，剩余 70-75）。
+**P1 阶段已全部完成**（批次 49-67，含 59b）。**P2 阶段进行中**（批次 68-70 已完成，剩余 71-75）。
 
-**下一步**：进入批次 70（超长函数拆分，1-4/1-5/1-6/1-7/1-8，production_order_service.rs / sales_return_service.rs / voucher_service.rs / import_export_service.rs / supplier_service.rs）
+**下一步**：进入批次 71（前端类型契约与生产代码清理，1-9/1-10/1-11/1-12，frontend/src/api/quotation.ts / request.ts / views/inventory/tabs/testData.ts / router/index.ts / missing_handlers.rs）
 
 ---
 
