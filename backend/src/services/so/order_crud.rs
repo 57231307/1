@@ -568,8 +568,12 @@ impl SalesService {
             .exec(&txn)
             .await?;
 
-        // 删除订单主表
-        SalesOrderEntity::delete_by_id(order_id).exec(&txn).await?;
+        // 删除订单主表（P0 8-3 修复：补审计日志）
+        crate::services::audit_log_service::AuditLogService::delete_with_audit::<
+            SalesOrderEntity,
+            _,
+        >(&txn, "sales_order", order_id, Some(0))
+        .await?;
 
         // 提交事务
         txn.commit().await?;

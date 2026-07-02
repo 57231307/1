@@ -250,16 +250,12 @@ impl CostCollectionService {
     }
 
     pub async fn delete(&self, id: i32, _user_id: i32) -> Result<(), AppError> {
-        let _collection = cost_collection::Entity::find_by_id(id)
-            .one(&*self.db)
-            .await?
-            .ok_or_else(|| AppError::not_found("成本归集记录不存在"))?;
-
-        cost_collection::Entity::delete_by_id(id)
-            .exec(&*self.db)
-            .await?;
-
-        Ok(())
+        // P0 8-3 修复：delete 操作补审计日志（find→delete→audit 三步由 delete_with_audit 原子完成）
+        crate::services::audit_log_service::AuditLogService::delete_with_audit::<
+            cost_collection::Entity,
+            _,
+        >(&*self.db, "cost_collection", id, Some(0))
+        .await
     }
 
     /// 获取成本分析汇总

@@ -442,10 +442,12 @@ impl InventoryAdjustmentService {
             .exec(&txn)
             .await?;
 
-        // 再删除主表
-        inventory_adjustment::Entity::delete_by_id(adjustment_id)
-            .exec(&txn)
-            .await?;
+        // 再删除主表（P0 8-3 修复：补审计日志）
+        crate::services::audit_log_service::AuditLogService::delete_with_audit::<
+            inventory_adjustment::Entity,
+            _,
+        >(&txn, "inventory_adjustment", adjustment_id, Some(0))
+        .await?;
 
         txn.commit().await?;
         Ok(())

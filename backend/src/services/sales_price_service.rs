@@ -233,15 +233,12 @@ impl SalesPriceService {
     /// 删除销售价格
     pub async fn delete_price(&self, id: i32) -> Result<(), AppError> {
         info!("删除销售价格，ID: {}", id);
-
-        let result = sales_price::Entity::delete_by_id(id)
-            .exec(&*self.db)
-            .await?;
-
-        if result.rows_affected == 0 {
-            return Err(AppError::not_found(format!("销售价格 {} 未找到", id)));
-        }
-
+        // P0 8-3 修复：delete 操作补审计日志
+        crate::services::audit_log_service::AuditLogService::delete_with_audit::<
+            sales_price::Entity,
+            _,
+        >(&*self.db, "sales_price", id, Some(0))
+        .await?;
         info!("销售价格删除成功，ID: {}", id);
         Ok(())
     }

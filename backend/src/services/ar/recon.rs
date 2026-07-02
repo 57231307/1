@@ -144,11 +144,12 @@ impl ArReconciliationService {
             ));
         }
 
-        ReconciliationEntity::delete_by_id(id)
-            .exec(&*self.db)
-            .await?;
-
-        Ok(())
+        // P0 8-3 修复：delete 操作补审计日志
+        crate::services::audit_log_service::AuditLogService::delete_with_audit::<
+            ReconciliationEntity,
+            _,
+        >(&*self.db, "ar_reconciliation", id, Some(0))
+        .await
     }
 
     /// 发送对账单

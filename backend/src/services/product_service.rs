@@ -219,10 +219,12 @@ impl ProductService {
 
     /// 删除产品
     pub async fn delete_product(&self, id: i32) -> Result<(), AppError> {
-        let result = ProductEntity::delete_by_id(id).exec(&*self.db).await?;
-        if result.rows_affected == 0 {
-            return Err(AppError::not_found(format!("产品 ID {} 不存在", id)));
-        }
+        // P0 8-3 修复：delete 操作补审计日志
+        crate::services::audit_log_service::AuditLogService::delete_with_audit::<
+            ProductEntity,
+            _,
+        >(&*self.db, "product", id, Some(0))
+        .await?;
 
         // 失效缓存：产品删除后缓存值无效
         if let Some(cache) = &self.cache {
@@ -458,11 +460,12 @@ impl ProductService {
 
     /// 删除产品色号
     pub async fn delete_product_color(&self, id: i32) -> Result<(), AppError> {
-        let result = ProductColorEntity::delete_by_id(id).exec(&*self.db).await?;
-        if result.rows_affected == 0 {
-            return Err(AppError::not_found(format!("产品色号 ID {} 不存在", id)));
-        }
-        Ok(())
+        // P0 8-3 修复：delete 操作补审计日志
+        crate::services::audit_log_service::AuditLogService::delete_with_audit::<
+            ProductColorEntity,
+            _,
+        >(&*self.db, "product_color", id, Some(0))
+        .await
     }
 
     // ========== 数据导入导出方法 ==========

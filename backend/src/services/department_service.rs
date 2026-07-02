@@ -194,11 +194,12 @@ impl DepartmentService {
             )));
         }
 
-        let result = DepartmentEntity::delete_by_id(id).exec(&*self.db).await?;
-        if result.rows_affected == 0 {
-            return Err(AppError::not_found(format!("部门 ID {} 不存在", id)));
-        }
-        Ok(())
+        // P0 8-3 修复：delete 操作补审计日志
+        crate::services::audit_log_service::AuditLogService::delete_with_audit::<
+            DepartmentEntity,
+            _,
+        >(&*self.db, "department", id, Some(0))
+        .await
     }
 
     /// 获取部门树形结构

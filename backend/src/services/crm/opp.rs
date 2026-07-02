@@ -232,11 +232,12 @@ impl CrmService {
             }
         }
 
-        crm_opportunity::Entity::delete_by_id(opportunity_id)
-            .exec(&*self.db)
-            .await?;
-
-        Ok(())
+        // P0 8-3 修复：delete 操作补审计日志
+        crate::services::audit_log_service::AuditLogService::delete_with_audit::<
+            crm_opportunity::Entity,
+            _,
+        >(&*self.db, "crm_opportunity", opportunity_id, Some(0))
+        .await
     }
 
     /// 商机转订单（赢单流程）

@@ -221,10 +221,12 @@ impl PurchaseReceiptService {
             .exec(&txn)
             .await?;
 
-        // 5. 删除入库单
-        purchase_receipt::Entity::delete_by_id(receipt_id)
-            .exec(&txn)
-            .await?;
+        // 5. 删除入库单（P0 8-3 修复：补审计日志）
+        crate::services::audit_log_service::AuditLogService::delete_with_audit::<
+            purchase_receipt::Entity,
+            _,
+        >(&txn, "purchase_receipt", receipt_id, Some(user_id))
+        .await?;
 
         txn.commit().await?;
         Ok(())

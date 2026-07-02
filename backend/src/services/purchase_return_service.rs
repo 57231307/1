@@ -712,7 +712,12 @@ impl PurchaseReturnService {
             .exec(&txn)
             .await?;
 
-        purchase_return::Entity::delete_by_id(id).exec(&txn).await?;
+        // P0 8-3 修复：delete 操作补审计日志
+        crate::services::audit_log_service::AuditLogService::delete_with_audit::<
+            purchase_return::Entity,
+            _,
+        >(&txn, "purchase_return", id, Some(0))
+        .await?;
 
         txn.commit().await?;
         Ok(())

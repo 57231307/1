@@ -124,10 +124,11 @@ impl RecycleRuleService {
 
     /// 删除回收规则
     pub async fn delete_rule(&self, id: i32) -> Result<(), AppError> {
-        let result = RecycleRuleEntity::delete_by_id(id).exec(&*self.db).await?;
-        if result.rows_affected == 0 {
-            return Err(AppError::not_found(format!("回收规则 {} 不存在", id)));
-        }
-        Ok(())
+        // P0 8-3 修复：delete 操作补审计日志
+        crate::services::audit_log_service::AuditLogService::delete_with_audit::<
+            RecycleRuleEntity,
+            _,
+        >(&*self.db, "crm_recycle_rule", id, Some(0))
+        .await
     }
 }

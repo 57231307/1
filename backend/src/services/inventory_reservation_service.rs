@@ -147,10 +147,11 @@ impl InventoryReservationService {
             )));
         }
 
-        InventoryReservationEntity::delete_by_id(reservation_id)
-            .exec(&*self.db)
-            .await?;
-
-        Ok(())
+        // P0 8-3 修复：delete 操作补审计日志
+        crate::services::audit_log_service::AuditLogService::delete_with_audit::<
+            InventoryReservationEntity,
+            _,
+        >(&*self.db, "inventory_reservation", reservation_id, Some(0))
+        .await
     }
 }

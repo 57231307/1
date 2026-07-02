@@ -244,12 +244,12 @@ pub async fn delete_batch(
     Path(id): Path<i32>,
     _auth: AuthContext,
 ) -> Result<Json<ApiResponse<()>>, AppError> {
-    use sea_orm::EntityTrait;
-
-    inventory_stock::Entity::delete_by_id(id)
-        .exec(&*state.db)
-        .await
-        .map_err(|e| AppError::bad_request(format!("删除批次失败：{}", e)))?;
+    // P0 8-3 修复：delete 操作补审计日志
+    crate::services::audit_log_service::AuditLogService::delete_with_audit::<
+        inventory_stock::Entity,
+        _,
+    >(&*state.db, "inventory_batch", id, Some(0))
+    .await?;
     Ok(Json(ApiResponse::success_with_message((), "批次删除成功")))
 }
 

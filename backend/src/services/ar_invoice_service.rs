@@ -225,7 +225,7 @@ impl ArInvoiceService {
         Ok(result)
     }
 
-    pub async fn delete(&self, id: i32, _user_id: i32) -> Result<(), AppError> {
+    pub async fn delete(&self, id: i32, user_id: i32) -> Result<(), AppError> {
         let invoice = ar_invoice::Entity::find_by_id(id)
             .one(&*self.db)
             .await?
@@ -237,9 +237,12 @@ impl ArInvoiceService {
             ));
         }
 
-        ar_invoice::Entity::delete_by_id(id).exec(&*self.db).await?;
-
-        Ok(())
+        // P0 8-3 修复：delete 操作补审计日志
+        crate::services::audit_log_service::AuditLogService::delete_with_audit::<
+            ar_invoice::Entity,
+            _,
+        >(&*self.db, "ar_invoice", id, Some(user_id))
+        .await
     }
 
     pub async fn approve(&self, id: i32, user_id: i32) -> Result<ar_invoice::Model, AppError> {

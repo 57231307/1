@@ -192,6 +192,121 @@ impl AuditLogService {
         Ok(new_model)
     }
 
+    /// 作为 SeaORM 中间件，自动拦截并生成 Delete 审计日志（P0 8-3）
+    ///
+    /// 三步原子操作（同一事务/连接内）：
+    /// 1. 查询 old_value 快照（删除前）
+    /// 2. 删除记录
+    /// 3. 写审计日志（含 before_snapshot）
+    ///
+    /// 适用于主键类型为 `i32` 的实体（绝大多数业务表）。
+    pub async fn delete_with_audit<E, C>(
+        db: &C,
+        resource_type: &str,
+        record_id: i32,
+        user_id: Option<i32>,
+    ) -> Result<(), AppError>
+    where
+        E: EntityTrait,
+        C: ConnectionTrait,
+        <E as EntityTrait>::Model:
+            Serialize + serde::de::DeserializeOwned + Sync + Send + Clone,
+    {
+        Self::delete_with_audit_inner::<E, C, i32>(db, resource_type, record_id, user_id).await
+    }
+
+    /// `delete_with_audit` 的 `i64` 主键变体（如 color_price_tier / crm_recycle_rule）
+    #[allow(dead_code)] // TODO(tech-debt): 业务接入后移除
+    pub async fn delete_with_audit_i64<E, C>(
+        db: &C,
+        resource_type: &str,
+        record_id: i64,
+        user_id: Option<i32>,
+    ) -> Result<(), AppError>
+    where
+        E: EntityTrait,
+        C: ConnectionTrait,
+        <E as EntityTrait>::Model:
+            Serialize + serde::de::DeserializeOwned + Sync + Send + Clone,
+    {
+        Self::delete_with_audit_inner::<E, C, i64>(db, resource_type, record_id, user_id).await
+    }
+
+    /// 内部泛型实现：find → delete → 审计日志三步原子
+    async fn delete_with_audit_inner<E, C, PK>(
+        db: &C,
+        resource_type: &str,
+        record_id: PK,
+        user_id: Option<i32>,
+    ) -> Result<(), AppError>
+    where
+        E: EntityTrait,
+        C: ConnectionTrait,
+        PK: sea_orm::sea_query::value::IntoValueTuple
+            + Clone
+            + Send
+            + Sync
+            + std::fmt::Debug,
+        <E as EntityTrait>::Model:
+            Serialize + serde::de::DeserializeOwned + Sync + Send + Clone,
+    {
+        // 1. 查询 old_value 快照（删除前）
+        let old_model = E::find_by_id(record_id.clone())
+            .one(db)
+            .await?
+            .ok_or_else(|| {
+                AppError::not_found(format!("{} 记录不存在", resource_type))
+            })?;
+
+        let before_snapshot = serde_json::to_value(&old_model).ok();
+        let record_id_str = format!("{:?}", record_id);
+
+        // 2. 删除记录
+        let result = E::delete_by_id(record_id).exec(db).await?;
+        if result.rows_affected == 0 {
+            return Err(AppError::not_found(format!(
+                "{} ID {} 不存在",
+                resource_type, record_id_str
+            )));
+        }
+
+        // 3. 写审计日志（Delete 操作，before_snapshot 保留删除前快照）
+        let log = audit_log::ActiveModel {
+            id: ActiveValue::NotSet,
+            user_id: ActiveValue::Set(user_id),
+            username: ActiveValue::Set(None),
+            action: ActiveValue::Set("DELETE".to_string()),
+            resource_type: ActiveValue::Set(Some(resource_type.to_string())),
+            resource_id: ActiveValue::Set(Some(record_id_str)),
+            resource_name: ActiveValue::Set(None),
+            description: ActiveValue::Set(None),
+            ip_address: ActiveValue::Set(None),
+            user_agent: ActiveValue::Set(None),
+            request_method: ActiveValue::Set(None),
+            request_path: ActiveValue::Set(None),
+            request_body: ActiveValue::Set(None),
+            response_status: ActiveValue::Set(None),
+            duration_ms: ActiveValue::Set(None),
+            old_value: ActiveValue::Set(
+                before_snapshot.clone().map(audit_log::AuditValue),
+            ),
+            new_value: ActiveValue::Set(None),
+            created_at: ActiveValue::Set(Some(Utc::now())),
+            operation_type: ActiveValue::Set(Some(
+                OperationType::Delete.as_str().to_string(),
+            )),
+            severity: ActiveValue::Set(Some(Severity::Info.as_str().to_string())),
+            request_id: ActiveValue::Set(None),
+            before_snapshot: ActiveValue::Set(
+                before_snapshot.map(audit_log::AuditValue),
+            ),
+            after_snapshot: ActiveValue::Set(None),
+        };
+        log.insert(db).await?;
+
+        Ok(())
+    }
+
     /// 同步记录审计事件（不接管业务事务）
     ///
     /// 调用方负责异常处理；推荐使用 `record_async` 在 tokio runtime 中异步落库。

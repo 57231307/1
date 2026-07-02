@@ -248,9 +248,12 @@ impl BatchService {
         let mut errors = Vec::new();
 
         for (index, id) in ids.iter().enumerate() {
-            let result = product::Entity::delete_by_id(*id)
-                .exec(self.db.as_ref())
-                .await;
+            // P0 8-3 修复：delete 操作补审计日志
+            let result = crate::services::audit_log_service::AuditLogService::delete_with_audit::<
+                product::Entity,
+                _,
+            >(self.db.as_ref(), "product", *id, Some(0))
+            .await;
 
             match result {
                 Ok(_) => {

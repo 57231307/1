@@ -434,9 +434,12 @@ impl InventoryTransferService {
             .filter(inventory_transfer_item::Column::TransferId.eq(transfer_id))
             .exec(&txn)
             .await?;
-        InventoryTransferEntity::delete_by_id(transfer_id)
-            .exec(&txn)
-            .await?;
+        // P0 8-3 修复：delete 操作补审计日志
+        crate::services::audit_log_service::AuditLogService::delete_with_audit::<
+            InventoryTransferEntity,
+            _,
+        >(&txn, "inventory_transfer", transfer_id, Some(0))
+        .await?;
         txn.commit().await?;
         Ok(())
     }

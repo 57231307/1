@@ -201,6 +201,11 @@ pub async fn delete_location(
     _auth: AuthContext,
     Path(id): Path<i32>,
 ) -> Result<Json<ApiResponse<()>>, AppError> {
-    LocationEntity::delete_by_id(id).exec(&*state.db).await?;
+    // P0 8-3 修复：delete 操作补审计日志
+    crate::services::audit_log_service::AuditLogService::delete_with_audit::<
+        LocationEntity,
+        _,
+    >(&*state.db, "warehouse_location", id, Some(0))
+    .await?;
     Ok(Json(ApiResponse::success_with_message((), "库位删除成功")))
 }

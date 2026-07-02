@@ -148,10 +148,11 @@ impl WarehouseService {
 
     /// 删除仓库
     pub async fn delete(&self, id: i32) -> Result<(), AppError> {
-        let result = WarehouseEntity::delete_by_id(id).exec(&*self.db).await?;
-        if result.rows_affected == 0 {
-            return Err(AppError::not_found(format!("仓库 ID {} 不存在", id)));
-        }
-        Ok(())
+        // P0 8-3 修复：delete 操作补审计日志
+        crate::services::audit_log_service::AuditLogService::delete_with_audit::<
+            WarehouseEntity,
+            _,
+        >(&*self.db, "warehouse", id, Some(0))
+        .await
     }
 }

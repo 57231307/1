@@ -217,10 +217,12 @@ impl ApPaymentRequestService {
             )));
         }
 
-        // 3. 删除付款申请（级联删除明细）
-        ap_payment_request::Entity::delete_by_id(request.id)
-            .exec(&txn)
-            .await?;
+        // 3. 删除付款申请（级联删除明细）（P0 8-3 修复：补审计日志）
+        crate::services::audit_log_service::AuditLogService::delete_with_audit::<
+            ap_payment_request::Entity,
+            _,
+        >(&txn, "ap_payment_request", request.id, Some(0))
+        .await?;
 
         txn.commit().await?;
 

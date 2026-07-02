@@ -141,9 +141,12 @@ pub async fn delete_waybill(
         ));
     }
 
-    logistics_waybill::Entity::delete_by_id(id)
-        .exec(&*state.db)
-        .await?;
+    // P0 8-3 修复：delete 操作补审计日志
+    crate::services::audit_log_service::AuditLogService::delete_with_audit::<
+        logistics_waybill::Entity,
+        _,
+    >(&*state.db, "logistics_waybill", id, Some(0))
+    .await?;
 
     Ok(Json(ApiResponse::success_with_message((), "运单删除成功")))
 }

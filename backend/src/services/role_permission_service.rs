@@ -259,8 +259,12 @@ impl RolePermissionService {
             .exec(&txn)
             .await?;
 
-        // 删除角色
-        RoleEntity::delete_by_id(role_id).exec(&txn).await?;
+        // 删除角色（P0 8-3 修复：补审计日志）
+        crate::services::audit_log_service::AuditLogService::delete_with_audit::<
+            RoleEntity,
+            _,
+        >(&txn, "role", role_id, Some(0))
+        .await?;
 
         // 提交事务
         txn.commit().await?;
@@ -368,11 +372,12 @@ impl RolePermissionService {
             }
         }
 
-        RolePermissionEntity::delete_by_id(permission_id)
-            .exec(&*self.db)
-            .await?;
-
-        Ok(())
+        // P0 8-3 修复：delete 操作补审计日志
+        crate::services::audit_log_service::AuditLogService::delete_with_audit::<
+            RolePermissionEntity,
+            _,
+        >(&*self.db, "role_permission", permission_id, Some(0))
+        .await
     }
 
     /// 检查角色是否为管理员角色（带缓存）
