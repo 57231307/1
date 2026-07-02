@@ -23,7 +23,7 @@ use argon2::{
     Argon2,
 };
 use chrono::{DateTime, Duration, Utc};
-use jsonwebtoken::{decode, encode, DecodingKey, EncodingKey, Header, Validation};
+use jsonwebtoken::{decode, encode, Algorithm, DecodingKey, EncodingKey, Header, Validation};
 use redis::aio::ConnectionManager;
 use redis::AsyncCommands;
 use sea_orm::DatabaseConnection;
@@ -156,7 +156,7 @@ impl AuthService {
             session_id: uuid::Uuid::new_v4().to_string(),
         };
 
-        encode(&Header::default(), &claims, &self.encoding_key)
+        encode(&Header::new(Algorithm::HS256), &claims, &self.encoding_key)
             .map_err(|e| AuthError::TokenGenerationError(e.to_string()))
     }
 
@@ -186,9 +186,10 @@ impl AuthService {
         session_id: &str,
     ) -> Result<String, AuthError> {
         let now = Utc::now();
-        // refresh_token 的 exp = refresh_exp = 7 天后
+        // refresh_token 的 exp = refresh_exp = 2 天后
+        // P2 7-9 修复：原 7 天有效期缩短至 2 天，降低 refresh_token 被盗用后的有效窗口
         // 使 validate_token_static（验证 exp）能通过，同时 refresh_exp 检查也通过
-        let refresh_exp = now + Duration::days(7);
+        let refresh_exp = now + Duration::days(2);
 
         let claims = AppClaims {
             sub: user_id,
@@ -200,7 +201,7 @@ impl AuthService {
             session_id: session_id.to_string(),
         };
 
-        encode(&Header::default(), &claims, &self.encoding_key)
+        encode(&Header::new(Algorithm::HS256), &claims, &self.encoding_key)
             .map_err(|e| AuthError::TokenGenerationError(e.to_string()))
     }
 
@@ -218,9 +219,10 @@ impl AuthService {
     /// - `Err(AuthError::InvalidToken)`: 令牌无效或已过期
     pub fn validate_token_static(token: &str, secret: &str) -> Result<AppClaims, AuthError> {
         let decoding_key = DecodingKey::from_secret(secret.as_bytes());
-        let mut validation = Validation::default();
+        let mut validation = Validation::new(Algorithm::HS256);
         validation.validate_exp = true;
-        validation.leeway = 60;
+        // P2 7-10 修复：leeway 从 60 秒降至 5 秒，避免 Token 过期后仍有 60 秒有效窗口
+        validation.leeway = 5;
 
         let token_data = decode::<AppClaims>(token, &decoding_key, &validation)
             .map_err(|e| AuthError::InvalidToken(e.to_string()))?;
@@ -240,9 +242,10 @@ impl AuthService {
     /// - `Err(AuthError::InvalidToken)`: 令牌无效或已过期
     #[allow(dead_code)] // TODO(tech-debt): 业务接入后移除
     pub fn validate_token(&self, token: &str) -> Result<AppClaims, AuthError> {
-        let mut validation = Validation::default();
+        let mut validation = Validation::new(Algorithm::HS256);
         validation.validate_exp = true;
-        validation.leeway = 60;
+        // P2 7-10 修复：leeway 从 60 秒降至 5 秒
+        validation.leeway = 5;
 
         let token_data = decode::<AppClaims>(token, &self.decoding_key, &validation)
             .map_err(|e| AuthError::InvalidToken(e.to_string()))?;

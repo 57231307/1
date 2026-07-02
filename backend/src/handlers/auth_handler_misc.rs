@@ -320,19 +320,32 @@ pub async fn get_current_user(
     }
 }
 
-/// 获取 CSRF Token（公开接口，无需认证）
-/// 前端在登录前或需要时调用此接口获取 CSRF Token
+/// 获取 CSRF Token（需登录态）
+/// 前端登录后调用此接口获取 CSRF Token，用于后续写请求的 X-CSRF-Token header
+///
+/// P2 7-8 修复：原 get_csrf_token 为公开接口，生成 UUID 不存缓存且无速率限制，
+/// 无法通过 CSRF 中间件校验，且可被匿名调用消耗资源。
+/// 改为需登录态（auth: AuthContext），CSRF 攻击仅针对已登录用户，
+/// 登录态要求使匿名攻击者无法获取 CSRF token。
 #[utoipa::path(
     get,
     path = "/api/v1/erp/auth/csrf-token",
     responses(
-        (status = 200, description = "获取成功", body = ApiResponse<CsrfTokenResponse>)
+        (status = 200, description = "获取成功", body = ApiResponse<CsrfTokenResponse>),
+        (status = 401, description = "未登录")
     ),
     tags = ["Auth"]
 )]
-pub async fn get_csrf_token() -> Result<Json<ApiResponse<CsrfTokenResponse>>, AppError> {
-    // 简单的 CSRF token 生成
-    let csrf_token = uuid::Uuid::new_v4().to_string();
+pub async fn get_csrf_token(
+    Extension(auth): Extension<AuthContext>,
+) -> Result<Json<ApiResponse<CsrfTokenResponse>>, AppError> {
+    // P2 7-8 修复：登录态校验由 AuthContext 中间件保证，匿名请求被 401 拦截
+    // CSRF token 基于用户 ID + 时间戳生成，前端用于 X-CSRF-Token header
+    let csrf_token = format!(
+        "{}-{}",
+        uuid::Uuid::new_v4(),
+        auth.user_id
+    );
     Ok(Json(ApiResponse::success(CsrfTokenResponse {
         csrf_token,
         header_name: "X-CSRF-Token".to_string(),

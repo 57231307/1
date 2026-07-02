@@ -34,6 +34,9 @@ pub struct LoginRequest {
     #[validate(length(min = 3, max = 50, message = "用户名长度必须在3到50个字符之间"))]
     pub username: String,
     // TS-S-5 安全加固（2026-06-26）：密码长度校验
+    // P2 7-7 修复：登录入口仅做基本格式检查（min=6），不强制 PasswordPolicy（min_length=8）。
+    // 原因：密码策略在注册/修改时强制，若登录入口也强制 min=8，历史密码长度 6-7 的用户将无法登录。
+    // 密码强度验证在 change_password / reset_password / register 接口由 PasswordPolicy 强制执行。
     #[validate(length(min = 6, max = 128, message = "密码长度必须在6到128个字符之间"))]
     pub password: String,
     // 可选：如果用户开启了 TOTP，则必须在登录时传入此项
@@ -469,13 +472,16 @@ pub async fn login(
                 .max_age(CookieDuration::minutes(30))
                 .build();
 
-            // refresh_token: httpOnly，7 天有效期（用于续签 access_token）
+            // refresh_token: httpOnly，2 天有效期（用于续签 access_token）
+            // P2 7-9 修复：原 7 天有效期无 IP 绑定，被窃取后可任意 IP 使用 7 天。
+            // 缩短至 2 天降低被盗用窗口；IP 绑定 + user_agent 绑定作为后续技术债
+            // （需 AppClaims 增加字段 + refresh handler 验证，涉及 token 结构变更）。
             let refresh_cookie = Cookie::build(("refresh_token", refresh_token))
                 .path("/")
                 .http_only(true)
                 .secure(is_production)
                 .same_site(SameSite::Strict)
-                .max_age(CookieDuration::days(7))
+                .max_age(CookieDuration::days(2))
                 .build();
 
             // csrf_token: 必须可被前端 JS 读取以注入 X-CSRF-Token 头，
