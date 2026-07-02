@@ -28,11 +28,11 @@ macro_rules! define_service {
 ///
 /// 注：`$entity` 是 `ty` metavariable，不能直接用在表达式上下文，必须用
 /// `<$entity>::default()` 创建实例。SeaORM `Entity` 是 unit struct，`::default()`
-/// 会触发 clippy `default_constructed_unit_struct` lint，故在函数上加 allow。
+/// 会触发 clippy `default_constructed_unit_structs` lint，故在函数上加 allow。
 #[macro_export]
 macro_rules! impl_generate_no {
     ($fn_name:ident, $prefix:expr, $entity:ty, $column:expr) => {
-        #[allow(clippy::default_constructed_unit_struct)]
+        #[allow(clippy::default_constructed_unit_structs)]
         pub async fn $fn_name(&self) -> Result<String, $crate::utils::error::AppError> {
             $crate::utils::number_generator::DocumentNumberGenerator::generate_no(
                 &*self.db,
@@ -44,7 +44,7 @@ macro_rules! impl_generate_no {
         }
     };
     ($fn_name:ident, $prefix:expr, $entity:ty, $column:expr, $conn:ident) => {
-        #[allow(clippy::default_constructed_unit_struct)]
+        #[allow(clippy::default_constructed_unit_structs)]
         pub async fn $fn_name(
             &self,
             $conn: &sea_orm::DatabaseTransaction,
