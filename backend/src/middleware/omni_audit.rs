@@ -82,11 +82,24 @@ pub async fn omni_audit_middleware(
         // 重新构建请求
         let req = Request::from_parts(parts, Body::from(body_bytes));
 
-        // 截断过长的请求体
-        let truncated_body = if body_str.len() > 5000 {
-            format!("{}...", &body_str[..5000])
+        // P1 7-5 修复：敏感路径请求体脱敏
+        // 修复背景：原完整记录请求体，change_password / reset_password / create_user /
+        // setup_totp / enable_totp 等敏感路径的请求体含明文密码，被写入 omni_audit_logs.request_body，
+        // 数据库泄露即可获取所有用户密码。
+        // 修复方案：维护敏感路径匹配，命中时 request_body 脱敏为 "[REDACTED]"，
+        // 保留审计痕迹但不泄露明文密码。
+        let is_sensitive_path = is_sensitive_request_body_path(&uri);
+        let body_for_audit = if is_sensitive_path {
+            "[REDACTED]".to_string()
         } else {
             body_str
+        };
+
+        // 截断过长的请求体
+        let truncated_body = if body_for_audit.len() > 5000 {
+            format!("{}...", &body_for_audit[..5000])
+        } else {
+            body_for_audit
         };
 
         (req, Some(truncated_body))
@@ -247,6 +260,41 @@ pub async fn omni_audit_middleware(
     }
 
     Ok(response)
+}
+
+/// 判断请求路径是否为敏感路径（请求体含密码等敏感信息，需脱敏）
+///
+/// P1 7-5 修复：以下路径的请求体含明文密码/TOTP 密钥等敏感信息，
+/// 审计日志中需脱敏为 "[REDACTED]"，防止数据库泄露时暴露用户密码。
+///
+/// 匹配规则：
+/// - change-password / reset_password：含新旧密码
+/// - create_user / update_user：含初始密码
+/// - login / refresh：已通过 is_public_path 跳过审计，此处冗余匹配作双保险
+/// - setup-totp / enable-totp / verify-totp：含 TOTP 验证码（短期敏感）
+fn is_sensitive_request_body_path(uri: &str) -> bool {
+    // 标准化：去除 query string，统一小写匹配
+    let path = uri.split('?').next().unwrap_or(uri).to_lowercase();
+    const SENSITIVE_PATTERNS: &[&str] = &[
+        "/auth/change-password",
+        "/auth/reset-password",
+        "/auth/reset_password",
+        "/users/change-password",
+        "/users/reset-password",
+        "/init/reset-password",
+        "/init/reset_password",
+        "/setup-totp",
+        "/enable-totp",
+        "/verify-totp",
+        "/totp/setup",
+        "/totp/enable",
+        "/totp/verify",
+        "/totp/disable",
+    ];
+    // 精确匹配或 ends_with 匹配（兼容不同前缀）
+    SENSITIVE_PATTERNS
+        .iter()
+        .any(|p| path == *p || path.ends_with(p))
 }
 
 /// 根据请求路径推断模块名称

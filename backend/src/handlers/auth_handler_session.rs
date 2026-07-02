@@ -85,12 +85,27 @@ pub async fn logout(
 
                 if exp > now {
                     let ttl = std::time::Duration::from_secs((exp - now) as u64);
-                    // 将 Token 加入黑名单
+                    // 将 Token 加入进程内黑名单（兼容单实例）
                     state
                         .cache
                         .get_token_blacklist()
                         .set(token.to_string(), true, Some(ttl));
-                    tracing::info!("Token blacklisted for user {}", claims.username);
+
+                    // P1 7-3 修复：同时吊销 JTI 到 Redis 分布式黑名单
+                    // 修复背景：原 logout 仅写进程内 state.cache 黑名单，多实例部署时
+                    // 登出后 token 在其他实例仍可用（最长 2 小时）。
+                    // 修复方案：与 refresh_token 流程对齐，调用 revoke_jti 写入 Redis，
+                    // 使所有实例通过 is_jti_revoked 检测到吊销状态。
+                    crate::services::auth_service::revoke_jti(
+                        &claims.session_id,
+                        claims.exp.timestamp(),
+                    )
+                    .await;
+                    tracing::info!(
+                        "Token blacklisted + JTI revoked for user {} (session_id={})",
+                        claims.username,
+                        claims.session_id
+                    );
                 }
             }
             Err(e) => {

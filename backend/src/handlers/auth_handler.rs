@@ -412,14 +412,22 @@ pub async fn login(
             let csrf_token = uuid::Uuid::new_v4().to_string();
             state.cache.set_csrf_token(
                 csrf_token.clone(),
-                session_id,
+                session_id.clone(),
                 csrf_ip,
                 user.id,
                 None, // 使用默认 TTL (1800s)
             );
 
-            // 生成 refresh_token (简单的随机字符串)
-            let refresh_token = uuid::Uuid::new_v4().to_string();
+            // 生成 refresh_token：JWT 形式（P1 7-1 修复）
+            // 修复背景：原用 uuid::Uuid::new_v4().to_string() 纯 UUID，但 refresh_token 接口
+            // 用 validate_token_static（JWT 验证）校验，纯 UUID 必然验证失败，
+            // 导致 access_token 30 分钟过期后用户永远无法刷新。
+            // 修复方案：refresh_token 改用 JWT 形式，session_id 与 access_token 共享，
+            // 便于 refresh 时统一吊销旧会话；exp = refresh_exp = 7 天。
+            // 复用函数开头已创建的 auth_service（authenticate 调用所用）
+            let refresh_token = auth_service
+                .generate_refresh_token(user.id, &user.username, user.role_id, &session_id)
+                .map_err(|e| AppError::internal(format!("生成刷新令牌失败：{}", e)))?;
 
             // 安全漏洞 #10 + #13 修复：LoginResponse 不再返回 token / refresh_token
             // - access_token 已在 httpOnly Cookie 写入

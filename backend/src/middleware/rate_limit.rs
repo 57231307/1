@@ -248,10 +248,29 @@ pub async fn rate_limit_by_ip(
     req: Request<Body>,
     next: Next,
 ) -> Result<Response, AppError> {
+    // P1 7-4 修复：IP 提取与 omni_audit.rs 对齐，支持 X-Real-IP / X-Forwarded-For
+    // 修复背景：原仅依赖 ConnectInfo<SocketAddr>，但 main.rs 的 axum::serve 未调用
+    // into_make_service_with_connect_info，导致 ConnectInfo 始终为 None，所有请求
+    // 被聚合到 "unknown_ip" 单一 key，限流失效。
+    // 修复方案：优先从反向代理头 X-Real-IP / X-Forwarded-For 提取，回退到 ConnectInfo。
     let ip = req
-        .extensions()
-        .get::<axum::extract::ConnectInfo<SocketAddr>>()
-        .map(|info| info.0.ip().to_string())
+        .headers()
+        .get("x-real-ip")
+        .and_then(|v| v.to_str().ok())
+        .map(|s| s.to_string())
+        .filter(|s| !s.is_empty())
+        .or_else(|| {
+            req.headers()
+                .get("x-forwarded-for")
+                .and_then(|v| v.to_str().ok())
+                .map(|s| s.split(',').next().unwrap_or("").trim().to_string())
+                .filter(|s| !s.is_empty())
+        })
+        .or_else(|| {
+            req.extensions()
+                .get::<axum::extract::ConnectInfo<SocketAddr>>()
+                .map(|info| info.0.ip().to_string())
+        })
         .unwrap_or_else(|| "unknown_ip".to_string());
 
     let user_id = req
