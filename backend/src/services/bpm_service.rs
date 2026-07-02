@@ -244,7 +244,10 @@ impl BpmService {
         // P0 5-3 修复：事务内仅收集待发事件，commit 成功后再 publish，避免 commit 失败产生幻事件
         let mut pending_event: Option<crate::services::event_bus::BusinessEvent> = None;
 
+        // P1 3-5 修复（批次 61）：task 查询加 lock_exclusive，串行化并发审批同一任务
+        // 原实现仅 txn 无行锁，两并发 approve_task 同时读到 pending 状态，竞态后双写。
         let task = bpm_task::Entity::find_by_id(req.task_id)
+            .lock_exclusive()
             .one(&txn)
             .await?
             .ok_or_else(|| AppError::not_found("Task not found"))?;

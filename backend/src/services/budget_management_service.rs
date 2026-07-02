@@ -175,7 +175,18 @@ impl BudgetManagementService {
     ) -> Result<budget_management::Model, AppError> {
         info!("用户 {} 正在更新预算科目：{}", user_id, id);
 
-        let mut item: budget_management::ActiveModel = self.get_item_by_id(id).await?.into();
+        // P1 5-21 修复（批次 61）：状态机 lock_exclusive 补全 + 审计日志
+        // 原实现无 txn 无 lock 无审计，直接 save(&*self.db)，并发更新竞态 + 操作无追溯。
+        // 改为 txn + lock_exclusive + update_with_audit。
+        let txn = (*self.db).begin().await?;
+
+        let item_model = budget_management::Entity::find_by_id(id)
+            .lock_exclusive()
+            .one(&txn)
+            .await?
+            .ok_or_else(|| AppError::not_found(format!("预算科目不存在：{}", id)))?;
+
+        let mut item: budget_management::ActiveModel = item_model.into();
 
         if let Some(item_name) = req.item_name {
             item.item_name = Set(item_name);
@@ -187,8 +198,17 @@ impl BudgetManagementService {
             item.status = Set(status);
         }
 
-        item.save(&*self.db).await?;
-        let updated = self.get_item_by_id(id).await?;
+        let updated =
+            crate::services::audit_log_service::AuditLogService::update_with_audit(
+                &txn,
+                "auto_audit",
+                item,
+                Some(user_id),
+            )
+            .await?;
+
+        txn.commit().await?;
+
         info!("预算科目更新成功：{}", id);
         Ok(updated)
     }

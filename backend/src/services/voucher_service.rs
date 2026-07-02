@@ -292,8 +292,21 @@ impl VoucherService {
     ) -> Result<voucher::Model, AppError> {
         info!("更新凭证 ID: {}, 操作用户: {}", id, user_id);
 
-        let voucher_record = self.get_by_id(id).await?;
-        let voucher_model = voucher_record.voucher;
+        // P1 5-20 修复（批次 61）：状态门移入 txn + lock_exclusive
+        // 原实现状态门在事务外（self.get_by_id 裸查询），并发 update 会竞态绕过 draft 状态门控。
+        // 改为在 txn 内用 find_by_id(id).lock_exclusive() 串行化并发状态变更。
+        let txn = self
+            .db
+            .begin()
+            .await
+            .map_err(|e| AppError::internal(e.to_string()))?;
+
+        let voucher_model = voucher::Entity::find_by_id(id)
+            .lock_exclusive()
+            .one(&txn)
+            .await
+            .map_err(|e| AppError::internal(e.to_string()))?
+            .ok_or_else(|| AppError::not_found(format!("凭证不存在：{}", id)))?;
 
         if voucher_model.status != "draft" {
             warn!("只有草稿状态的凭证可以更新：{}", voucher_model.voucher_no);
@@ -302,13 +315,7 @@ impl VoucherService {
             ));
         }
 
-        let txn = self
-            .db
-            .begin()
-            .await
-            .map_err(|e| AppError::internal(e.to_string()))?;
-
-        let mut active_model: voucher::ActiveModel = voucher_model.clone().into_active_model();
+        let mut active_model: voucher::ActiveModel = voucher_model.into_active_model();
 
         if let Some(voucher_type) = req.voucher_type {
             active_model.voucher_type = sea_orm::Set(voucher_type);

@@ -101,8 +101,13 @@ impl ArReconciliationService {
         id: i32,
         req: UpdateReconciliationRequest,
     ) -> Result<ReconciliationModel, AppError> {
+        // P1 3-1 修复（批次 61）：状态机 lock_exclusive 补全，串行化并发更新
+        // 原实现无 txn 无 lock，并发更新会导致 closing_balance 计算基于过期数据。
+        let txn = (*self.db).begin().await?;
+
         let model = ReconciliationEntity::find_by_id(id)
-            .one(&*self.db)
+            .lock_exclusive()
+            .one(&txn)
             .await?
             .ok_or_else(|| AppError::not_found("对账单不存在"))?;
 
@@ -125,7 +130,18 @@ impl ArReconciliationService {
 
         active_model.updated_at = Set(Utc::now());
 
-        let updated = active_model.update(&*self.db).await?;
+        // TODO(tech-debt): update 方法签名暂无 user_id 参数，先用 Some(0) 占位，
+        // 待认证上下文接入后改为真实 user_id。
+        let updated =
+            crate::services::audit_log_service::AuditLogService::update_with_audit(
+                &txn,
+                "auto_audit",
+                active_model,
+                Some(0),
+            )
+            .await?;
+
+        txn.commit().await?;
 
         Ok(updated)
     }
@@ -154,8 +170,13 @@ impl ArReconciliationService {
 
     /// 发送对账单
     pub async fn send(&self, id: i32) -> Result<ReconciliationModel, AppError> {
+        // P1 3-3 修复（批次 61）：状态机 lock_exclusive 补全，串行化并发发送
+        // 原实现无 txn 无 lock，状态门在事务外，并发 send 会竞态绕过 draft 状态门控。
+        let txn = (*self.db).begin().await?;
+
         let model = ReconciliationEntity::find_by_id(id)
-            .one(&*self.db)
+            .lock_exclusive()
+            .one(&txn)
             .await?
             .ok_or_else(|| AppError::not_found("对账单不存在"))?;
 
@@ -169,7 +190,18 @@ impl ArReconciliationService {
         active_model.reconciliation_status = Set(Some("sent".to_string()));
         active_model.updated_at = Set(Utc::now());
 
-        let updated = active_model.update(&*self.db).await?;
+        // TODO(tech-debt): send 方法签名暂无 user_id 参数，先用 Some(0) 占位，
+        // 待认证上下文接入后改为真实 user_id。
+        let updated =
+            crate::services::audit_log_service::AuditLogService::update_with_audit(
+                &txn,
+                "auto_audit",
+                active_model,
+                Some(0),
+            )
+            .await?;
+
+        txn.commit().await?;
 
         Ok(updated)
     }
@@ -289,16 +321,42 @@ impl ArReconciliationService {
         id: i32,
         status: &str,
     ) -> Result<ReconciliationModel, AppError> {
+        // P1 3-2 修复（批次 61）：状态机 lock_exclusive 补全 + 状态白名单
+        // 原实现无 txn 无 lock，且无状态白名单，任意字符串都能写入 reconciliation_status，
+        // 可能导致状态机被非法值破坏。改为 txn + lock_exclusive + 白名单校验。
+        let txn = (*self.db).begin().await?;
+
         let model = ReconciliationEntity::find_by_id(id)
-            .one(&*self.db)
+            .lock_exclusive()
+            .one(&txn)
             .await?
             .ok_or_else(|| AppError::not_found("对账单不存在"))?;
+
+        // 状态白名单：仅允许合法的状态值
+        let allowed_statuses = ["draft", "sent", "confirmed", "disputed", "closed"];
+        if !allowed_statuses.contains(&status) {
+            return Err(AppError::business(format!(
+                "非法的对账单状态：{}，允许的状态：{:?}",
+                status, allowed_statuses
+            )));
+        }
 
         let mut active_model: ActiveModel = model.into();
         active_model.reconciliation_status = Set(Some(status.to_string()));
         active_model.updated_at = Set(Utc::now());
 
-        let updated = active_model.update(&*self.db).await?;
+        // TODO(tech-debt): update_status 方法签名暂无 user_id 参数，先用 Some(0) 占位，
+        // 待认证上下文接入后改为真实 user_id。
+        let updated =
+            crate::services::audit_log_service::AuditLogService::update_with_audit(
+                &txn,
+                "auto_audit",
+                active_model,
+                Some(0),
+            )
+            .await?;
+
+        txn.commit().await?;
 
         Ok(updated)
     }
