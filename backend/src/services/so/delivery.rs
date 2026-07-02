@@ -588,18 +588,29 @@ impl SalesService {
             .all(txn)
             .await?;
 
+        // P2 5-14 修复：按 (product_id, warehouse_id) 聚合后批量更新库存，
+        // 原为循环内逐条 update_many 导致 N 个=N 次 UPDATE；聚合后仅 G 次 UPDATE（G=唯一 product+warehouse 组合数）
+        use std::collections::HashMap;
+        let mut grouped: HashMap<(i32, i32), Decimal> = HashMap::new();
         for res in reservations {
+            *grouped
+                .entry((res.product_id, res.warehouse_id))
+                .or_insert(Decimal::ZERO) += res.quantity;
+        }
+
+        let now = chrono::Utc::now();
+        for ((product_id, warehouse_id), total_qty) in grouped {
             inventory_stock::Entity::update_many()
-                .filter(inventory_stock::Column::ProductId.eq(res.product_id))
-                .filter(inventory_stock::Column::WarehouseId.eq(res.warehouse_id))
+                .filter(inventory_stock::Column::ProductId.eq(product_id))
+                .filter(inventory_stock::Column::WarehouseId.eq(warehouse_id))
                 .col_expr(
                     inventory_stock::Column::QuantityAvailable,
                     sea_orm::sea_query::Expr::col(inventory_stock::Column::QuantityAvailable)
-                        .add(res.quantity),
+                        .add(total_qty),
                 )
                 .col_expr(
                     inventory_stock::Column::UpdatedAt,
-                    sea_orm::sea_query::Expr::val(chrono::Utc::now()).into(),
+                    sea_orm::sea_query::Expr::val(now).into(),
                 )
                 .exec(txn)
                 .await?;

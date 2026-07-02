@@ -51,32 +51,45 @@ impl CrmService {
         &self,
         customer_id: i32,
     ) -> Result<super::CustomerRelationSummary, AppError> {
+        // P2 3-25 修复：改用数据库聚合 sum/count/max，避免查所有订单/跟进后内存计算（大客户性能问题）
+        use sea_orm::sea_query::Expr;
+
         // 统计商机数（线索不直接关联 customer_id，商机关联）
         let total_opportunities = CrmOpportunityEntity::find()
             .filter(crm_opportunity::Column::CustomerId.eq(customer_id))
             .count(&*self.db)
             .await? as i64;
 
-        // 统计订单数与金额
-        let orders = SalesOrderEntity::find()
+        // 订单数 + 订单总金额（单次聚合查询，原为 all() 拉全表后内存 len()+sum()）
+        let order_agg = SalesOrderEntity::find()
             .filter(SalesOrderColumn::CustomerId.eq(customer_id))
-            .all(&*self.db)
+            .select_only()
+            .column_as(Expr::col(SalesOrderColumn::Id).count(), "order_count")
+            .column_as(
+                Expr::col(SalesOrderColumn::TotalAmount).sum(),
+                "total_amount",
+            )
+            .into_tuple::<(i64, Option<rust_decimal::Decimal>)>()
+            .one(&*self.db)
             .await?;
-        let total_orders = orders.len() as i64;
-        let total_order_amount: Option<rust_decimal::Decimal> = if orders.is_empty() {
-            None
-        } else {
-            Some(orders.iter().map(|o| o.total_amount).sum())
-        };
+        let (total_orders, total_order_amount) = order_agg.unwrap_or((0, None));
 
-        // 统计跟进次数与最近跟进时间
-        let follow_ups = CustomerFollowupEntity::find()
+        // 跟进次数 + 最近跟进时间（单次聚合查询，原为 all() 拉全表后内存 len()+first()）
+        let follow_up_agg = CustomerFollowupEntity::find()
             .filter(customer_followup::Column::CustomerId.eq(customer_id))
-            .order_by(customer_followup::Column::FollowUpAt, sea_orm::Order::Desc)
-            .all(&*self.db)
+            .select_only()
+            .column_as(
+                Expr::col(customer_followup::Column::Id).count(),
+                "follow_up_count",
+            )
+            .column_as(
+                Expr::col(customer_followup::Column::FollowUpAt).max(),
+                "last_interaction_at",
+            )
+            .into_tuple::<(i64, Option<chrono::DateTime<chrono::Utc>>)>()
+            .one(&*self.db)
             .await?;
-        let follow_up_count = follow_ups.len() as i64;
-        let last_interaction_at = follow_ups.first().map(|f| f.follow_up_at);
+        let (follow_up_count, last_interaction_at) = follow_up_agg.unwrap_or((0, None));
 
         Ok(super::CustomerRelationSummary {
             customer_id,
@@ -193,14 +206,15 @@ impl CrmService {
     /// 计算 RFM 评分（R: 最近一次消费, F: 消费频率, M: 消费金额）
     /// 评分范围 1-5，3 个维度综合 = 平均分
     pub async fn compute_rfm_score(&self, customer_id: i32) -> Result<f64, AppError> {
-        // R: Recency - 最近一次订单距今天数
-        let recent_order = SalesOrderEntity::find()
+        // P2 3-23 修复：合并原 3 次独立查询（recent_order / count / all）为 1 次查询，内存计算 R/F/M
+        let orders = SalesOrderEntity::find()
             .filter(SalesOrderColumn::CustomerId.eq(customer_id))
             .order_by(SalesOrderColumn::CreatedAt, sea_orm::Order::Desc)
-            .one(&*self.db)
+            .all(&*self.db)
             .await?;
 
-        let r_score = if let Some(order) = recent_order {
+        // R: Recency - 最近一次订单距今天数（orders 已按 CreatedAt 倒序，first 即最近）
+        let r_score = orders.first().map(|order| {
             let days_since = (chrono::Utc::now() - order.created_at).num_days();
             match days_since {
                 0..=30 => 5.0,
@@ -209,16 +223,10 @@ impl CrmService {
                 91..=180 => 2.0,
                 _ => 1.0,
             }
-        } else {
-            1.0
-        };
+        }).unwrap_or(1.0);
 
         // F: Frequency - 历史订单数
-        let order_count = SalesOrderEntity::find()
-            .filter(SalesOrderColumn::CustomerId.eq(customer_id))
-            .count(&*self.db)
-            .await?;
-
+        let order_count = orders.len() as u64;
         let f_score = match order_count {
             0 => 1.0,
             1..=2 => 2.0,
@@ -228,14 +236,11 @@ impl CrmService {
         };
 
         // M: Monetary - 总消费金额
-        let orders = SalesOrderEntity::find()
-            .filter(SalesOrderColumn::CustomerId.eq(customer_id))
-            .all(&*self.db)
-            .await?;
-        let total_amount: f64 = orders
-            .iter()
-            .map(|o| o.total_amount.to_string().parse::<f64>().unwrap_or(0.0))
-            .sum();
+        // P2 3-24 修复：直接 Decimal 求和再转 f64，避免原 total_amount.to_string().parse::<f64>() 的精度丢失
+        use rust_decimal::prelude::ToPrimitive;
+        let total_amount_decimal: rust_decimal::Decimal =
+            orders.iter().map(|o| o.total_amount).sum();
+        let total_amount: f64 = total_amount_decimal.to_f64().unwrap_or(0.0);
 
         let m_score = match total_amount {
             t if t >= 1_000_000.0 => 5.0,

@@ -68,20 +68,20 @@ impl PurchaseReceiptService {
         .insert(&txn)
         .await?;
 
-        // 3. 创建入库明细
+        // 3. 创建入库明细（P2 5-13/3-18 修复：改用 insert_many 批量插入，原为循环内逐条 insert 导致 N 条=N 次 INSERT）
         let mut total_quantity = Decimal::new(0, 0);
         let mut total_quantity_alt = Decimal::new(0, 0);
         let mut total_amount = Decimal::new(0, 0);
 
+        let mut item_active_models: Vec<purchase_receipt_item::ActiveModel> =
+            Vec::with_capacity(req.items.len());
         for item_req in req.items {
-            let amount =
-                item_req.quantity * item_req.unit_price.unwrap_or_else(|| Decimal::new(0, 0));
+            let amount = item_req.quantity * item_req.unit_price.unwrap_or_else(|| Decimal::new(0, 0));
             total_quantity += item_req.quantity;
             total_quantity_alt += item_req.quantity_alt;
-
             total_amount += amount;
 
-            purchase_receipt_item::ActiveModel {
+            item_active_models.push(purchase_receipt_item::ActiveModel {
                 receipt_id: Set(receipt.id),
                 order_item_id: Set(item_req.order_item_id),
                 product_id: Set(item_req.material_id),
@@ -93,9 +93,13 @@ impl PurchaseReceiptService {
                 amount: Set(Some(amount)),
                 notes: Set(item_req.notes),
                 ..Default::default()
-            }
-            .insert(&txn)
-            .await?;
+            });
+        }
+
+        if !item_active_models.is_empty() {
+            purchase_receipt_item::Entity::insert_many(item_active_models)
+                .exec(&txn)
+                .await?;
         }
 
         // 4. 更新入库单总金额和数量
