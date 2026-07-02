@@ -23,8 +23,8 @@ import { defineConfig, devices } from '@playwright/test'
  * - use.headless: true（沙箱无 X server）
  * - webServer: CI 中自动启动 dev server（reuseExistingServer: !CI）
  *
- * 注：原 tests/views/ 下的 5 个冒烟测试（inventory/production/quality/quotation/sales）
- * 已迁移至 e2e/smoke/ 子目录统一管理；如未迁移，可通过 projects 配置额外覆盖。
+ * 注：5 个冒烟测试（inventory/production/quality/quotation/sales）位于 e2e/smoke/
+ * 子目录，由 Playwright 统一发现和运行（testDir: './e2e' 递归扫描）。
  */
 export default defineConfig({
   testDir: './e2e',

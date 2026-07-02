@@ -27,10 +27,11 @@ pub enum CalcError {
 /// 客户等级折扣
 pub fn customer_level_discount(level: Option<&str>) -> Decimal {
     match level {
-        Some("VIP") => Decimal::new(95, 3),     // 95 折
-        Some("GOLD") => Decimal::new(90, 3),    // 9 折
-        Some("SILVER") => Decimal::new(95, 3),  // 95 折
-        _ => Decimal::new(100, 3),              // 100%（NORMAL/无）
+        // P0 6-2 修复：scale 3 → 2（原 0.095 应为 0.95，导致价格被错误地缩小 10 倍）
+        Some("VIP") => Decimal::new(95, 2),     // 0.95（95 折）
+        Some("GOLD") => Decimal::new(90, 2),    // 0.90（9 折）
+        Some("SILVER") => Decimal::new(95, 2),  // 0.95（95 折）
+        _ => Decimal::new(100, 2),              // 1.00（100%，NORMAL/无折扣）
     }
 }
 
@@ -303,25 +304,26 @@ mod tests {
     #[test]
     fn test_vip_discount() {
         let d = customer_level_discount(Some("VIP"));
-        assert_eq!(d, Decimal::new(95, 3)); // 95 折 = 0.95
+        // P0 6-2 修复：0.95（原 Decimal::new(95, 3) = 0.095 是 bug）
+        assert_eq!(d, Decimal::new(95, 2)); // 95 折 = 0.95
     }
 
     #[test]
     fn test_normal_no_discount() {
         let d = customer_level_discount(Some("NORMAL"));
-        assert_eq!(d, Decimal::new(100, 3)); // 100%
+        assert_eq!(d, Decimal::new(100, 2)); // 1.00 = 100%
     }
 
     #[test]
     fn test_gold_discount() {
         let d = customer_level_discount(Some("GOLD"));
-        assert_eq!(d, Decimal::new(90, 3)); // 9 折
+        assert_eq!(d, Decimal::new(90, 2)); // 0.90 = 9 折
     }
 
     #[test]
     fn test_none_discount() {
         let d = customer_level_discount(None);
-        assert_eq!(d, Decimal::new(100, 3));
+        assert_eq!(d, Decimal::new(100, 2)); // 1.00 = 100%
     }
 
     #[test]

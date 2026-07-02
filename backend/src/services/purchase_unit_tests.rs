@@ -45,7 +45,7 @@ mod tests {
         }
 
         fn is_completable(&self) -> bool {
-            self.received_qty >= self.quantity
+            !self.quantity.is_zero() && self.received_qty >= self.quantity
         }
     }
 

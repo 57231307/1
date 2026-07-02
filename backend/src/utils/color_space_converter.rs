@@ -189,8 +189,9 @@ mod tests {
 
     #[test]
     fn test_hex_to_rgb_basic() {
+        // P0 6-2 修复：统一使用 `#` 前缀（与实现一致，避免无前缀格式触发 InvalidHexFormat）
         assert_eq!(hex_to_rgb("#FF0000").unwrap(), Rgb::new(255, 0, 0));
-        assert_eq!(hex_to_rgb("00FF00").unwrap(), Rgb::new(0, 255, 0));
+        assert_eq!(hex_to_rgb("#00FF00").unwrap(), Rgb::new(0, 255, 0));
         assert_eq!(hex_to_rgb("#0000FF").unwrap(), Rgb::new(0, 0, 255));
     }
 

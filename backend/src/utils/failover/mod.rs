@@ -153,9 +153,12 @@ pub trait FailoverCall<T: Send, E: Send>: Send + Sync {
                 self.record_primary_success();
                 Ok(v)
             }
-            Ok(Err(e)) => {
+            Ok(Err(_e)) => {
+                // P0 6-2 修复：主调用返回错误时应切换至备用（与超时行为一致），
+                // 而非直接返回 PrimaryFailed。PrimaryFailed 仅在备用也失败时由
+                // try_backup 返回 BackupFailed 间接体现。
                 self.record_primary_failure();
-                Err(FailoverError::PrimaryFailed(e))
+                self.try_backup().await
             }
             Err(_) => {
                 self.record_primary_failure();

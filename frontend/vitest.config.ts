@@ -8,14 +8,14 @@ export default defineConfig({
     globals: true,
     environment: 'jsdom',
     include: ['tests/**/*.{test,spec}.{js,mjs,cjs,ts,mts,cts,jsx,tsx}'],
-    // 排除 Playwright 冒烟测试（tests/views/），由 @playwright/test 运行
+    // 排除 Playwright E2E 测试（e2e/），由 @playwright/test 运行
     exclude: [
       'node_modules',
       'dist',
       '.idea',
       '.git',
       '.cache',
-      'tests/views/**',
+      'e2e/**',
     ],
     coverage: {
       provider: 'v8',

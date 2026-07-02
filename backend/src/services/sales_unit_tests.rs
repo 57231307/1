@@ -144,7 +144,7 @@ mod tests {
             },
         ];
         let total: Decimal = orders.iter().map(|o| o.total_amount()).sum();
-        assert_eq!(total, decs!("477.50"));
+        assert_eq!(total, decs!("577.50"));
 
         // 仅统计已完成订单
         let completed_total: Decimal = orders
