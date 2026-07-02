@@ -76,6 +76,23 @@ impl InventoryStockService {
         stock_status: String,
         quality_status: String,
     ) -> Result<inventory_stock::Model, AppError> {
+        // P2 5-23 修复：service 层校验仓库/产品存在性，外键完整性不再仅依赖数据库
+        use crate::models::{product, warehouse};
+        use sea_orm::EntityTrait;
+
+        let _warehouse = warehouse::Entity::find_by_id(warehouse_id)
+            .one(&*self.db)
+            .await?
+            .ok_or_else(|| {
+                AppError::validation(format!("仓库不存在: {}", warehouse_id))
+            })?;
+        let _product = product::Entity::find_by_id(product_id)
+            .one(&*self.db)
+            .await?
+            .ok_or_else(|| {
+                AppError::validation(format!("产品不存在: {}", product_id))
+            })?;
+
         let active_stock = inventory_stock::ActiveModel {
             id: Default::default(),
             warehouse_id: Set(warehouse_id),
@@ -271,6 +288,23 @@ impl InventoryStockService {
         shelf_no: Option<String>,
         layer_no: Option<String>,
     ) -> Result<inventory_stock::Model, AppError> {
+        // P2 5-23 修复：service 层校验仓库/产品存在性，外键完整性不再仅依赖数据库
+        use crate::models::{product, warehouse};
+        use sea_orm::EntityTrait;
+
+        let _warehouse = warehouse::Entity::find_by_id(warehouse_id)
+            .one(&*self.db)
+            .await?
+            .ok_or_else(|| {
+                AppError::validation(format!("仓库不存在: {}", warehouse_id))
+            })?;
+        let _product = product::Entity::find_by_id(product_id)
+            .one(&*self.db)
+            .await?
+            .ok_or_else(|| {
+                AppError::validation(format!("产品不存在: {}", product_id))
+            })?;
+
         // 自动计算公斤数（如果提供了克重和幅宽）
         let final_quantity_kg =
             Self::calculate_quantity_kg(quantity_meters, gram_weight, width, quantity_kg);

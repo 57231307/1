@@ -317,95 +317,90 @@ impl ApPaymentService {
 
         // 6. 预算核销（非阻断）
         // 通过付款申请找到关联的应付单，再通过应付单的来源找到采购入库单的部门信息
+        // P2 5-22 修复：移除原 _request 死查询（结果未使用），串行查询链由 4 次降为 3 次
         if let Some(request_id) = payment.request_id {
-            // 查询付款申请
-            if let Ok(Some(_request)) = ap_payment_request::Entity::find_by_id(request_id)
-                .one(&*self.db)
+            // 查询付款申请明细，获取关联的应付单（原实现先查 request 主表但结果 _request 未使用，已移除）
+            if let Ok(items) = ap_payment_request_item::Entity::find()
+                .filter(ap_payment_request_item::Column::RequestId.eq(request_id))
+                .all(&*self.db)
                 .await
             {
-                // 查询付款申请明细，获取关联的应付单
-                if let Ok(items) = ap_payment_request_item::Entity::find()
-                    .filter(ap_payment_request_item::Column::RequestId.eq(request_id))
-                    .all(&*self.db)
-                    .await
-                {
-                    // 获取第一个应付单的部门信息
-                    if let Some(first_item) = items.first() {
-                        if let Ok(Some(invoice)) =
-                            ap_invoice::Entity::find_by_id(first_item.invoice_id)
-                                .one(&*self.db)
-                                .await
-                        {
-                            // 从应付单的 source_type 和 source_id 找到采购入库单的部门
-                            let department_id =
-                                if invoice.source_type.as_deref() == Some("PURCHASE_RECEIPT") {
-                                    if let Some(receipt_id) = invoice.source_id {
-                                        if let Ok(Some(receipt)) =
-                                            crate::models::purchase_receipt::Entity::find_by_id(
-                                                receipt_id,
-                                            )
-                                            .one(&*self.db)
-                                            .await
-                                        {
-                                            receipt.department_id.unwrap_or(1)
-                                        } else {
-                                            1
-                                        }
+                // 获取第一个应付单的部门信息
+                if let Some(first_item) = items.first() {
+                    if let Ok(Some(invoice)) =
+                        ap_invoice::Entity::find_by_id(first_item.invoice_id)
+                            .one(&*self.db)
+                            .await
+                    {
+                        // 从应付单的 source_type 和 source_id 找到采购入库单的部门
+                        let department_id =
+                            if invoice.source_type.as_deref() == Some("PURCHASE_RECEIPT") {
+                                if let Some(receipt_id) = invoice.source_id {
+                                    if let Ok(Some(receipt)) =
+                                        crate::models::purchase_receipt::Entity::find_by_id(
+                                            receipt_id,
+                                        )
+                                        .one(&*self.db)
+                                        .await
+                                    {
+                                        receipt.department_id.unwrap_or(1)
                                     } else {
                                         1
                                     }
                                 } else {
                                     1
-                                };
+                                }
+                            } else {
+                                1
+                            };
 
-                            // 查找预算方案
-                            let budget_service = crate::services::budget_management_service::BudgetManagementService::new(self.db.clone());
-                            match budget_service
-                                .get_available_plan_by_department(department_id)
-                                .await
-                            {
-                                Ok(Some(plan)) => {
-                                    // 核销预算
-                                    match budget_service
-                                        .write_off_budget(
-                                            department_id,
-                                            plan.id,
-                                            payment.payment_amount,
-                                            "ap_payment".to_string(),
-                                            payment.id,
-                                            user_id,
-                                        )
-                                        .await
-                                    {
-                                        Ok(_) => {
-                                            tracing::info!(
-                                                "付款单 {} 预算核销成功，部门ID={}, 方案ID={}, 金额={}",
-                                                payment.payment_no, department_id, plan.id, payment.payment_amount
-                                            );
-                                        }
-                                        Err(e) => {
-                                            tracing::warn!(
-                                                "付款单 {} 预算核销失败：{}",
-                                                payment.payment_no,
-                                                e
-                                            );
-                                        }
+                        // 查找预算方案
+                        let budget_service = crate::services::budget_management_service::BudgetManagementService::new(self.db.clone());
+                        match budget_service
+                            .get_available_plan_by_department(department_id)
+                            .await
+                        {
+                            Ok(Some(plan)) => {
+                                // 核销预算
+                                match budget_service
+                                    .write_off_budget(
+                                        department_id,
+                                        plan.id,
+                                        payment.payment_amount,
+                                        "ap_payment".to_string(),
+                                        payment.id,
+                                        user_id,
+                                    )
+                                    .await
+                                {
+                                    Ok(_) => {
+                                        tracing::info!(
+                                            "付款单 {} 预算核销成功，部门ID={}, 方案ID={}, 金额={}",
+                                            payment.payment_no, department_id, plan.id, payment.payment_amount
+                                        );
+                                    }
+                                    Err(e) => {
+                                        tracing::warn!(
+                                            "付款单 {} 预算核销失败：{}",
+                                            payment.payment_no,
+                                            e
+                                        );
                                     }
                                 }
-                                Ok(None) => {
-                                    tracing::warn!(
-                                        "付款单 {} 未找到部门 {} 的预算方案，跳过预算核销",
-                                        payment.payment_no,
-                                        department_id
-                                    );
-                                }
-                                Err(e) => {
-                                    tracing::warn!(
-                                        "付款单 {} 查询预算方案失败：{}，跳过预算核销",
-                                        payment.payment_no,
-                                        e
-                                    );
-                                }
+                            }
+                            Ok(None) => {
+                                tracing::warn!(
+                                    "付款单 {} 未找到部门 {} 的预算方案，跳过预算核销",
+                                    payment.payment_no,
+                                    department_id
+                                );
+                            }
+                            Err(e) => {
+                                tracing::warn!(
+                                    "付款单 {} 查询预算方案失败：{}，跳过预算核销",
+                                    payment.payment_no,
+                                    e
+                                );
                             }
                         }
                     }

@@ -259,10 +259,11 @@ impl InventoryFinanceBridgeService {
                 "quantity_meters 不能为 0，无法计算单价",
             ));
         }
-        let product_name = self
-            .get_product_name(product_id)
+        // P2 5-12 修复：合并产品名称+成本价为单次查询（原为 2 次 product 查询）
+        let (product_name, cost_price) = self
+            .get_product_info(product_id)
             .await
-            .unwrap_or_else(|_| format!("产品{}", product_id));
+            .unwrap_or_else(|_| (format!("产品{}", product_id), Decimal::ZERO));
         let warehouse_name = self
             .get_warehouse_name(warehouse_id)
             .await
@@ -273,9 +274,7 @@ impl InventoryFinanceBridgeService {
             product_name, quantity_meters, quantity_kg, batch_no, color_no, warehouse_name
         );
 
-        let amount = self
-            .calculate_inventory_amount(product_id, quantity_meters)
-            .await?;
+        let amount = cost_price * quantity_meters;
 
         let voucher_request = CreateVoucherRequest {
             voucher_type: "记".to_string(),
@@ -352,10 +351,11 @@ impl InventoryFinanceBridgeService {
                 "quantity_meters 不能为 0，无法计算单价",
             ));
         }
-        let product_name = self
-            .get_product_name(product_id)
+        // P2 5-12 修复：合并产品名称+成本价为单次查询
+        let (product_name, cost_price) = self
+            .get_product_info(product_id)
             .await
-            .unwrap_or_else(|_| format!("产品{}", product_id));
+            .unwrap_or_else(|_| (format!("产品{}", product_id), Decimal::ZERO));
         let warehouse_name = self
             .get_warehouse_name(warehouse_id)
             .await
@@ -366,9 +366,7 @@ impl InventoryFinanceBridgeService {
             product_name, quantity_meters, quantity_kg, batch_no, color_no, warehouse_name
         );
 
-        let amount = self
-            .calculate_inventory_amount(product_id, quantity_meters)
-            .await?;
+        let amount = cost_price * quantity_meters;
 
         let voucher_request = CreateVoucherRequest {
             voucher_type: "记".to_string(),
@@ -445,10 +443,11 @@ impl InventoryFinanceBridgeService {
                 "quantity_meters 不能为 0，无法计算单价",
             ));
         }
-        let product_name = self
-            .get_product_name(product_id)
+        // P2 5-12 修复：合并产品名称+成本价为单次查询
+        let (product_name, cost_price) = self
+            .get_product_info(product_id)
             .await
-            .unwrap_or_else(|_| format!("产品{}", product_id));
+            .unwrap_or_else(|_| (format!("产品{}", product_id), Decimal::ZERO));
         let warehouse_name = self
             .get_warehouse_name(warehouse_id)
             .await
@@ -459,9 +458,7 @@ impl InventoryFinanceBridgeService {
             product_name, quantity_meters, quantity_kg, batch_no, color_no, warehouse_name
         );
 
-        let amount = self
-            .calculate_inventory_amount(product_id, quantity_meters.abs())
-            .await?;
+        let amount = cost_price * quantity_meters.abs();
 
         let voucher_request = if quantity_meters > Decimal::ZERO {
             // 盘盈：借：库存商品，贷：待处理财产损溢
@@ -574,10 +571,11 @@ impl InventoryFinanceBridgeService {
                 "quantity_meters 不能为 0，无法计算单价",
             ));
         }
-        let product_name = self
-            .get_product_name(product_id)
+        // P2 5-12 修复：合并产品名称+成本价为单次查询
+        let (product_name, cost_price) = self
+            .get_product_info(product_id)
             .await
-            .unwrap_or_else(|_| format!("产品{}", product_id));
+            .unwrap_or_else(|_| (format!("产品{}", product_id), Decimal::ZERO));
         let warehouse_name = self
             .get_warehouse_name(warehouse_id)
             .await
@@ -588,9 +586,7 @@ impl InventoryFinanceBridgeService {
             product_name, quantity_meters, quantity_kg, batch_no, color_no, warehouse_name
         );
 
-        let amount = self
-            .calculate_inventory_amount(product_id, quantity_meters)
-            .await?;
+        let amount = cost_price * quantity_meters;
 
         let voucher_request = CreateVoucherRequest {
             voucher_type: "记".to_string(),
@@ -666,10 +662,11 @@ impl InventoryFinanceBridgeService {
                 "quantity_meters 不能为 0，无法计算单价",
             ));
         }
-        let product_name = self
-            .get_product_name(product_id)
+        // P2 5-12 修复：合并产品名称+成本价为单次查询
+        let (product_name, cost_price) = self
+            .get_product_info(product_id)
             .await
-            .unwrap_or_else(|_| format!("产品{}", product_id));
+            .unwrap_or_else(|_| (format!("产品{}", product_id), Decimal::ZERO));
         let warehouse_name = self
             .get_warehouse_name(warehouse_id)
             .await
@@ -680,9 +677,7 @@ impl InventoryFinanceBridgeService {
             product_name, quantity_meters, quantity_kg, batch_no, color_no, warehouse_name
         );
 
-        let amount = self
-            .calculate_inventory_amount(product_id, quantity_meters)
-            .await?;
+        let amount = cost_price * quantity_meters;
 
         let voucher_request = CreateVoucherRequest {
             voucher_type: "记".to_string(),
@@ -735,19 +730,6 @@ impl InventoryFinanceBridgeService {
         Ok(())
     }
 
-    /// 获取产品名称
-    async fn get_product_name(&self, product_id: i32) -> Result<String, AppError> {
-        use crate::models::product;
-        use sea_orm::EntityTrait;
-
-        let product = product::Entity::find_by_id(product_id)
-            .one(&*self.db)
-            .await?
-            .ok_or_else(|| AppError::not_found(format!("产品不存在: {}", product_id)))?;
-
-        Ok(product.name)
-    }
-
     /// 获取仓库名称
     async fn get_warehouse_name(&self, warehouse_id: i32) -> Result<String, AppError> {
         use crate::models::warehouse;
@@ -761,18 +743,9 @@ impl InventoryFinanceBridgeService {
         Ok(warehouse.name)
     }
 
-    /// 计算库存金额（使用产品成本价 x 数量）
-    async fn calculate_inventory_amount(
-        &self,
-        product_id: i32,
-        quantity_meters: Decimal,
-    ) -> Result<Decimal, AppError> {
-        let unit_price = self.get_product_cost_price(product_id).await?;
-        Ok(unit_price * quantity_meters)
-    }
-
-    /// 获取产品成本价
-    async fn get_product_cost_price(&self, product_id: i32) -> Result<Decimal, AppError> {
+    /// 一次性获取产品名称与成本价（P2 5-12 修复：合并原 get_product_name + get_product_cost_price 两次查询为单次）
+    /// 返回 (name, cost_price)；产品不存在时返回 Err（与原 calculate_inventory_amount 行为一致）
+    async fn get_product_info(&self, product_id: i32) -> Result<(String, Decimal), AppError> {
         use crate::models::product;
         use sea_orm::EntityTrait;
 
@@ -781,6 +754,6 @@ impl InventoryFinanceBridgeService {
             .await?
             .ok_or_else(|| AppError::not_found(format!("产品不存在: {}", product_id)))?;
 
-        Ok(product.cost_price.unwrap_or(Decimal::ZERO))
+        Ok((product.name, product.cost_price.unwrap_or(Decimal::ZERO)))
     }
 }
