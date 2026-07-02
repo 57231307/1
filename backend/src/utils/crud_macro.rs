@@ -35,7 +35,7 @@ macro_rules! impl_generate_no {
             $crate::utils::number_generator::DocumentNumberGenerator::generate_no(
                 &*self.db,
                 $prefix,
-                <$entity>,
+                $entity,
                 $column,
             )
             .await
@@ -51,7 +51,7 @@ macro_rules! impl_generate_no {
             $crate::utils::number_generator::DocumentNumberGenerator::generate_no_with_txn(
                 $conn,
                 $prefix,
-                <$entity>,
+                $entity,
                 $column,
             )
             .await
