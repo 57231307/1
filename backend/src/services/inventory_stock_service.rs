@@ -6,7 +6,7 @@ use chrono::Utc;
 use rust_decimal::Decimal;
 use sea_orm::DatabaseConnection;
 use sea_orm::{
-    ActiveModelTrait, ColumnTrait, EntityTrait, PaginatorTrait, QueryFilter, Set,
+    ActiveModelTrait, ColumnTrait, EntityTrait, PaginatorTrait, QueryFilter, Set, TransactionTrait,
 };
 use std::sync::Arc;
 
@@ -165,6 +165,10 @@ impl InventoryStockService {
         product_id: Option<i32>,
         batch_no: Option<String>,
     ) -> Result<Vec<inventory_stock::Model>, AppError> {
+        // P2 5-15/3-21 修复：查询改为 txn 内执行，commit 后批量 publish
+        // 原实现查询无 txn 包裹，事件可能在查询后、发布前数据已变化（幻事件/过期值）
+        let txn = self.db.begin().await?;
+
         // 实现基于仓库和批次的精确低库存检查
         let mut query = inventory_stock::Entity::find()
             // 只检查正常状态的库存
@@ -191,26 +195,36 @@ impl InventoryStockService {
             query = query.filter(inventory_stock::Column::BatchNo.eq(batch));
         }
 
-        let low_stock_items = query.all(&*self.db).await?;
+        // txn 内查询，保证一致性快照
+        let low_stock_items = query.all(&txn).await?;
 
-        // 触发低库存预警事件
-        for item in &low_stock_items {
-            let event = BusinessEvent::LowStockAlert {
-                product_id: item.product_id,
-                warehouse_id: item.warehouse_id,
-                current_quantity: item.quantity_available,
-                reorder_point: item.reorder_point,
-                reorder_quantity: item.reorder_quantity,
-            };
+        // 收集待发布事件，commit 成功后再批量 publish
+        let pending_events: Vec<BusinessEvent> = low_stock_items
+            .iter()
+            .map(|item| {
+                tracing::info!(
+                    "检测到低库存: 产品ID={}, 仓库ID={}, 当前库存={}, 补货点={}, 补货量={}",
+                    item.product_id,
+                    item.warehouse_id,
+                    item.quantity_available,
+                    item.reorder_point,
+                    item.reorder_quantity
+                );
+                BusinessEvent::LowStockAlert {
+                    product_id: item.product_id,
+                    warehouse_id: item.warehouse_id,
+                    current_quantity: item.quantity_available,
+                    reorder_point: item.reorder_point,
+                    reorder_quantity: item.reorder_quantity,
+                }
+            })
+            .collect();
+
+        txn.commit().await?;
+
+        // P2 5-15/3-21 修复：commit 成功后批量 publish，避免幻事件
+        for event in pending_events {
             EVENT_BUS.publish(event);
-            tracing::info!(
-                "触发低库存预警事件: 产品ID={}, 仓库ID={}, 当前库存={}, 补货点={}, 补货量={}",
-                item.product_id,
-                item.warehouse_id,
-                item.quantity_available,
-                item.reorder_point,
-                item.reorder_quantity
-            );
         }
 
         Ok(low_stock_items)

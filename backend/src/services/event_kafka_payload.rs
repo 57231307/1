@@ -55,6 +55,8 @@ pub mod payload_serde {
             business_type: String,
             business_id: i32,
             approved: bool,
+            /// P2 5-18 修复：审批人 ID（从 BPM 事件 payload 携带）
+            approver_id: i32,
         },
         LowStockAlert {
             product_id: i32,
@@ -159,10 +161,12 @@ pub mod payload_serde {
                     business_type,
                     business_id,
                     approved,
+                    approver_id,
                 } => Self::BpmProcessFinished {
                     business_type: business_type.clone(),
                     business_id: *business_id,
                     approved: *approved,
+                    approver_id: *approver_id,
                 },
                 BusinessEvent::LowStockAlert {
                     product_id,
@@ -301,10 +305,12 @@ pub mod payload_serde {
                     business_type,
                     business_id,
                     approved,
+                    approver_id,
                 } => Self::BpmProcessFinished {
                     business_type,
                     business_id,
                     approved,
+                    approver_id,
                 },
                 EventPayload::LowStockAlert {
                     product_id,

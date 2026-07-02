@@ -211,11 +211,13 @@ impl BpmService {
                     instance_active.update(&txn).await?;
 
                     // P0 5-3 修复：事务内仅收集事件，commit 后再 publish
+                    // P2 5-18 修复：携带 initiator_id 作为 approver_id（start_process 自动完成时审批人=发起人）
                     pending_event = Some(
                         crate::services::event_bus::BusinessEvent::BpmProcessFinished {
                             business_type: req.business_type.clone(),
                             business_id: req.business_id,
                             approved: true,
+                            approver_id: req.initiator_id,
                         },
                     );
                 }
@@ -309,11 +311,13 @@ impl BpmService {
                 Some(instance.business_id),
             ) {
                 // P0 5-3 修复：事务内仅收集事件，commit 后再 publish
+                // P2 5-18 修复：携带 approver_id（拒绝操作的实际审批人）
                 pending_event = Some(
                     crate::services::event_bus::BusinessEvent::BpmProcessFinished {
                         business_type: b_type,
                         business_id: b_id,
                         approved: false,
+                        approver_id: user_id.unwrap_or(0),
                     },
                 );
             }
@@ -416,11 +420,13 @@ impl BpmService {
                     Some(instance.business_id),
                 ) {
                     // P0 5-3 修复：事务内仅收集事件，commit 后再 publish
+                    // P2 5-18 修复：携带 approver_id（最后节点审批通过的实际审批人）
                     pending_event = Some(
                         crate::services::event_bus::BusinessEvent::BpmProcessFinished {
                             business_type: b_type,
                             business_id: b_id,
                             approved: true,
+                            approver_id: user_id.unwrap_or(0),
                         },
                     );
                 }

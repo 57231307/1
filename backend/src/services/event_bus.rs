@@ -79,6 +79,8 @@ pub enum BusinessEvent {
         business_type: String,
         business_id: i32,
         approved: bool,
+        /// P2 5-18 修复：审批人 ID（从 BPM 事件 payload 携带，替代原硬编码 0）
+        approver_id: i32,
     },
     LowStockAlert {
         product_id: i32,
@@ -562,18 +564,21 @@ pub async fn start_event_listener(db: Arc<DatabaseConnection>) {
                     business_type,
                     business_id,
                     approved,
+                    approver_id,
                 } => {
                     tracing::info!(
-                        "处理BPM流程结束事件: type={}, id={}, approved={}",
+                        "处理BPM流程结束事件: type={}, id={}, approved={}, approver_id={}",
                         business_type,
                         business_id,
-                        approved
+                        approved,
+                        approver_id
                     );
                     if business_type == "purchase_order" {
                         if approved {
                             let po_service =
                                 crate::services::po::order::PurchaseOrderService::new(db.clone());
-                            if let Err(e) = po_service.approve_order(business_id, 0).await {
+                            // P2 5-18 修复：使用事件携带的 approver_id 替代硬编码 0
+                            if let Err(e) = po_service.approve_order(business_id, approver_id).await {
                                 tracing::error!(
                                     "Failed to approve purchase_order {} via BPM: {}",
                                     business_id,
@@ -589,7 +594,7 @@ pub async fn start_event_listener(db: Arc<DatabaseConnection>) {
                             let po_service =
                                 crate::services::po::order::PurchaseOrderService::new(db.clone());
                             if let Err(e) = po_service
-                                .reject_order(business_id, "BPM审批拒绝".to_string(), 0)
+                                .reject_order(business_id, "BPM审批拒绝".to_string(), approver_id)
                                 .await
                             {
                                 tracing::error!(
@@ -603,7 +608,7 @@ pub async fn start_event_listener(db: Arc<DatabaseConnection>) {
                         if approved {
                             let sales_service =
                                 crate::services::so::order::SalesService::new(db.clone());
-                            if let Err(e) = sales_service.approve_order(business_id, 0).await {
+                            if let Err(e) = sales_service.approve_order(business_id, approver_id).await {
                                 tracing::error!(
                                     "Failed to approve sales_order {} via BPM: {}",
                                     business_id,
@@ -619,7 +624,7 @@ pub async fn start_event_listener(db: Arc<DatabaseConnection>) {
                             let sales_service =
                                 crate::services::so::order::SalesService::new(db.clone());
                             match sales_service
-                                .reject_order(business_id, "BPM审批拒绝".to_string(), 0)
+                                .reject_order(business_id, "BPM审批拒绝".to_string(), approver_id)
                                 .await
                             {
                                 Ok(_) => tracing::info!(
@@ -689,15 +694,41 @@ pub async fn start_event_listener(db: Arc<DatabaseConnection>) {
                         .map(|p| p.name)
                         .unwrap_or_else(|| format!("产品{}", product_id));
 
-                    // 查询仓库管理员和采购相关人员（通过 role_id 关联角色表）
-                    let notify_user_ids = crate::models::user::Entity::find()
-                        .filter(crate::models::user::Column::IsActive.eq(true))
+                    // P2 5-19 修复：按角色过滤通知用户，仅通知 admin 和 manager 角色
+                    // 原实现查所有 is_active 用户，无关角色也收低库存预警
+                    // 系统无 user_role 表，通过 user.role_id 关联 role.code 过滤
+                    use crate::utils::admin_checker::{ADMIN_ROLE_CODE, MANAGER_ROLE_CODE};
+
+                    // 1. 查询 admin 和 manager 角色的 ID
+                    let target_role_ids: Vec<i32> = crate::models::role::Entity::find()
+                        .filter(
+                            crate::models::role::Column::Code
+                                .eq(ADMIN_ROLE_CODE)
+                                .or(crate::models::role::Column::Code.eq(MANAGER_ROLE_CODE)),
+                        )
                         .all(db.as_ref())
                         .await
                         .unwrap_or_default()
                         .into_iter()
-                        .map(|u| u.id)
-                        .collect::<Vec<i32>>();
+                        .map(|r| r.id)
+                        .collect();
+
+                    // 2. 查询这些角色下的 active 用户
+                    let notify_user_ids = if target_role_ids.is_empty() {
+                        Vec::new()
+                    } else {
+                        crate::models::user::Entity::find()
+                            .filter(crate::models::user::Column::IsActive.eq(true))
+                            .filter(
+                                crate::models::user::Column::RoleId.is_in(target_role_ids),
+                            )
+                            .all(db.as_ref())
+                            .await
+                            .unwrap_or_default()
+                            .into_iter()
+                            .map(|u| u.id)
+                            .collect::<Vec<i32>>()
+                    };
 
                     let notify_count = notify_user_ids.len();
                     // v17 批次 47 修复：改用批量通知方法，循环外一次获取所有用户设置（避免 N+1）
