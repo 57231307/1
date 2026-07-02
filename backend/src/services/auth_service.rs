@@ -160,6 +160,50 @@ impl AuthService {
             .map_err(|e| AuthError::TokenGenerationError(e.to_string()))
     }
 
+    /// 生成 JWT 形式的刷新令牌（P1 7-1 修复）
+    ///
+    /// 修复背景：原 login 生成 `uuid::Uuid::new_v4().to_string()` 纯 UUID 作为 refresh_token，
+    /// 但 refresh_token 接口用 `validate_token_static`（JWT 验证）校验，纯 UUID 必然验证失败，
+    /// 导致 access_token 30 分钟过期后用户永远无法刷新。
+    ///
+    /// 修复方案：refresh_token 改用 JWT 形式，exp = refresh_exp = 7 天，
+    /// session_id 与 access_token 共享，便于 refresh 时统一吊销旧会话。
+    ///
+    /// # 参数
+    /// - `user_id`: 用户 ID
+    /// - `username`: 用户名
+    /// - `role_id`: 角色 ID（可选）
+    /// - `session_id`: 会话 ID（与 access_token 共享，便于统一吊销）
+    ///
+    /// # 返回
+    /// - `Ok(token)`: 生成的 JWT 刷新令牌（exp=7d, refresh_exp=7d）
+    /// - `Err(AuthError::TokenGenerationError)`: 生成失败
+    pub fn generate_refresh_token(
+        &self,
+        user_id: i32,
+        username: &str,
+        role_id: Option<i32>,
+        session_id: &str,
+    ) -> Result<String, AuthError> {
+        let now = Utc::now();
+        // refresh_token 的 exp = refresh_exp = 7 天后
+        // 使 validate_token_static（验证 exp）能通过，同时 refresh_exp 检查也通过
+        let refresh_exp = now + Duration::days(7);
+
+        let claims = AppClaims {
+            sub: user_id,
+            username: username.to_string(),
+            role_id,
+            exp: refresh_exp,
+            iat: now,
+            refresh_exp,
+            session_id: session_id.to_string(),
+        };
+
+        encode(&Header::default(), &claims, &self.encoding_key)
+            .map_err(|e| AuthError::TokenGenerationError(e.to_string()))
+    }
+
     /// 静态方法：验证 JWT 令牌
     ///
     /// 不依赖 AuthService 实例，使用提供的密钥验证令牌

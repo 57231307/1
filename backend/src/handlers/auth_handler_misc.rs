@@ -105,6 +105,24 @@ pub async fn refresh_token(
         .generate_token(claims.sub, &claims.username, claims.role_id)
         .map_err(|e| AppError::internal(format!("生成令牌失败：{}", e)))?;
 
+    // 提取新 access_token 的 session_id，用于生成新 refresh_token（P1 7-1 修复：refresh_token 轮换）
+    let new_claims_for_session =
+        AuthService::validate_token_static(&new_token, &state.jwt_secret).map_err(|e| {
+            tracing::error!("Failed to decode new JWT token: {}", e);
+            AppError::internal("Internal server error")
+        })?;
+    let new_session_id = new_claims_for_session.session_id;
+
+    // 生成新的 refresh_token（JWT 形式，与新 access_token 共享 session_id）
+    let new_refresh_token = auth_service
+        .generate_refresh_token(
+            claims.sub,
+            &claims.username,
+            claims.role_id,
+            &new_session_id,
+        )
+        .map_err(|e| AppError::internal(format!("生成刷新令牌失败：{}", e)))?;
+
     // Refresh Token 轮换：先将旧 Token 的 JTI（session_id）加入黑名单
     let expires_at = claims.exp.timestamp();
     crate::services::auth_service::revoke_jti(&claims.session_id, expires_at).await;
@@ -126,12 +144,7 @@ pub async fn refresh_token(
 
     // 生成新的 CSRF Token (use same session_id derivation as login)
     // Wave 3 安全漏洞 #7 修复：TTL 缩短到 1800s，IP 绑定，强制轮换
-    let new_claims =
-        AuthService::validate_token_static(&new_token, &state.jwt_secret).map_err(|e| {
-            tracing::error!("Failed to decode new JWT token: {}", e);
-            AppError::internal("Internal server error")
-        })?;
-    let new_session_id = new_claims.session_id;
+    // 注：new_session_id 已在上方提取（P1 7-1 修复：refresh_token 轮换时复用）
 
     // 提取客户端 IP（Wave 3 #7：IP 绑定到 CSRF Token）
     // 优先从 X-Real-IP / X-Forwarded-For 取（与 audit_context 中间件一致）
@@ -179,6 +192,17 @@ pub async fn refresh_token(
         .same_site(SameSite::Strict)
         .max_age(CookieDuration::minutes(30))
         .build();
+    // P1 7-1 修复：refresh_token 轮换，写入新 refresh_token（JWT 形式）
+    let new_refresh = axum_extra::extract::cookie::Cookie::build((
+        "refresh_token",
+        new_refresh_token,
+    ))
+    .path("/")
+    .http_only(true)
+    .secure(is_production)
+    .same_site(SameSite::Strict)
+    .max_age(CookieDuration::days(7))
+    .build();
     let new_csrf = axum_extra::extract::cookie::Cookie::build(("csrf_token", csrf_token.clone()))
         .path("/")
         .http_only(false)
@@ -196,6 +220,7 @@ pub async fn refresh_token(
 
     let jar = jar
         .add(new_access)
+        .add(new_refresh)
         .add(new_csrf)
         .add(legacy_jwt);
 

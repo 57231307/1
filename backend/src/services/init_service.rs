@@ -571,6 +571,8 @@ impl InitService {
             .map_err(|e| InitError::HashError(e.to_string()))?;
 
         // 4) 更新密码 + 写日志（service 层不持有 actor 信息，handler 层已记录 actor+target 全量审计）
+        // 注意：需在吊销 JWT 之前完成密码更新，确保吊销时用户已存在且密码已变更
+        let user_id = user.id; // 保存 user_id 供后续吊销使用
         let mut user_model: user::ActiveModel = user.into();
         user_model.password_hash = Set(password_hash);
         user_model.updated_at = Set(chrono::Utc::now());
@@ -580,10 +582,26 @@ impl InitService {
             .await
             .map_err(|e| InitError::DatabaseError(format!("更新密码失败: {}", e)))?;
 
+        // P1 7-2 修复：管理员重置密码后吊销目标用户所有活跃 JWT
+        // 修复背景：原 reset_password 成功后未调 revoke_user_jtis，旧 JWT 最长 2 小时仍可用，
+        // 被重置密码的账号在密码变更后仍可用旧密码登录态访问系统。
+        // 修复方案：与 change_password 对齐，调用 revoke_user_jtis 吊销该用户所有 JTI。
+        if let Err(e) =
+            crate::services::auth_service::revoke_user_jtis(user_id, "PASSWORD_RESET_BY_ADMIN")
+                .await
+        {
+            tracing::warn!(
+                "[SECURITY] password reset succeeded for user_id={} but failed to revoke active JWTs: {}",
+                user_id,
+                e
+            );
+        }
+
         // 安全审计：service 层落库成功时记录日志，便于运维排查（handler 层已异步写入 audit_log 表）
         tracing::info!(
-            "[SECURITY] password reset succeeded for username={} (service-layer audit)",
-            username
+            "[SECURITY] password reset succeeded for username={} (user_id={}, JWTs revoked)",
+            username,
+            user_id
         );
 
         Ok(())

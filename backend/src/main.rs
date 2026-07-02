@@ -34,6 +34,7 @@ use crate::middleware::auth::auth_middleware;
 use crate::middleware::csrf::csrf_middleware;
 use crate::middleware::init_token::init_token_middleware;
 use crate::middleware::permission::permission_middleware;
+use crate::middleware::rate_limit::rate_limit_by_ip;
 use crate::middleware::request_validator::request_validator_middleware;
 use crate::routes::create_router;
 use crate::services::init_service::{DatabaseConfig, InitService};
@@ -461,6 +462,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             let app_state_clone4 = app_state.clone();
             let app_state_clone5 = app_state.clone();
             let app_state_clone6 = app_state.clone();
+            let app_state_clone7 = app_state.clone();
             crate::services::event_bus::start_event_listener(app_state.db.clone()).await;
             crate::services::event_bus::init_event_bus_with_kafka_config(&settings.kafka).await;
             let app = create_router(app_state)
@@ -563,6 +565,16 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                     crate::middleware::omni_audit::omni_audit_middleware,
                 ))
                 .layer(axum::middleware::from_fn_with_state(app_state_clone, auth_middleware))
+                // P1 7-4 修复：全局挂载 rate_limit_by_ip（180 req/min）
+                // 修复背景：rate_limit_by_ip 中间件已实现但未在 main.rs 全局挂载，
+                // 所有业务 API 无限流，可被 DoS。
+                // 修复方案：挂载在最外层（auth_middleware 之外），对所有请求生效，
+                // 包括未认证请求，防止匿名 DoS。
+                // 执行顺序（从外到内）：rate_limit → auth → omni_audit → csrf → permission → request_validator → handler
+                .layer(axum::middleware::from_fn_with_state(
+                    app_state_clone7,
+                    rate_limit_by_ip,
+                ))
                 .layer(SetResponseHeaderLayer::overriding(
                     axum::http::header::X_CONTENT_TYPE_OPTIONS,
                     HeaderValue::from_static("nosniff"),
