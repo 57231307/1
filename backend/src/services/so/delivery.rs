@@ -96,7 +96,17 @@ impl SalesService {
         // 创建发货单
         let delivery = sales_delivery::ActiveModel {
             id: Default::default(),
-            delivery_no: Set(format!("DN{}", chrono::Utc::now().format("%Y%m%d%H%M%S"))),
+            // P1 3-8 修复（批次 60）：改用 DocumentNumberGenerator 保证并发唯一性
+            // 原实现基于时间戳，同秒并发会产生重复单号
+            delivery_no: Set(
+                crate::utils::number_generator::DocumentNumberGenerator::generate_no_with_txn(
+                    &txn,
+                    "DN",
+                    sales_delivery::Entity,
+                    sales_delivery::Column::DeliveryNo,
+                )
+                .await?
+            ),
             order_id: Set(request.order_id),
             customer_id: Set(order.customer_id),
             warehouse_id: Set(warehouse.id),
@@ -211,9 +221,21 @@ impl SalesService {
         warehouse_id: i32,
         user_id: i32,
     ) -> Result<sales_delivery::Model, AppError> {
+        // P1 3-8 修复（批次 60）：包裹事务，确保单号生成的 advisory_xact_lock
+        // 与 INSERT 在同一事务内，锁覆盖完整临界区
+        let txn = (*self.db).begin().await?;
         let delivery = sales_delivery::ActiveModel {
             id: Default::default(),
-            delivery_no: Set(format!("DN{}", chrono::Utc::now().format("%Y%m%d%H%M%S"))),
+            // P1 3-8 修复（批次 60）：改用 DocumentNumberGenerator 保证并发唯一性
+            delivery_no: Set(
+                crate::utils::number_generator::DocumentNumberGenerator::generate_no_with_txn(
+                    &txn,
+                    "DN",
+                    sales_delivery::Entity,
+                    sales_delivery::Column::DeliveryNo,
+                )
+                .await?
+            ),
             order_id: Set(order_id),
             customer_id: Set(0),
             warehouse_id: Set(warehouse_id),
@@ -226,7 +248,8 @@ impl SalesService {
             created_at: Set(chrono::Utc::now()),
             updated_at: Set(chrono::Utc::now()),
         };
-        let delivery = delivery.insert(&*self.db).await?;
+        let delivery = delivery.insert(&txn).await?;
+        txn.commit().await?;
         Ok(delivery)
     }
 

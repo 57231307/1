@@ -18,9 +18,21 @@ macro_rules! define_service {
 
 /// 通用单号生成函数宏
 /// 用于减少各个 service 中重复的 generate_*_no 函数模板代码
+///
+/// 提供两个变体：
+/// - 无 txn 变体：用 `&*self.db`，适用于单号生成 + INSERT 不在同一事务的场景
+///   （依赖数据库 UNIQUE 约束做最终去重防御）
+/// - 带 txn 变体：用调用方传入的 `&DatabaseTransaction`，适用于单号生成 + INSERT
+///   在同一事务内的场景。P1 5-10 修复（批次 60）：txn 变体改调 `generate_no_with_txn`
+///   而非 `generate_no`，避免在 savepoint 上获取 advisory_xact_lock 导致锁提前释放。
+///
+/// 注：`$entity` 是 `ty` metavariable，不能直接用在表达式上下文，必须用
+/// `<$entity>::default()` 创建实例。SeaORM `Entity` 是 unit struct，`::default()`
+/// 会触发 clippy `default_constructed_unit_structs` lint，故在函数上加 allow。
 #[macro_export]
 macro_rules! impl_generate_no {
     ($fn_name:ident, $prefix:expr, $entity:ty, $column:expr) => {
+        #[allow(clippy::default_constructed_unit_structs)]
         pub async fn $fn_name(&self) -> Result<String, $crate::utils::error::AppError> {
             $crate::utils::number_generator::DocumentNumberGenerator::generate_no(
                 &*self.db,
@@ -32,11 +44,14 @@ macro_rules! impl_generate_no {
         }
     };
     ($fn_name:ident, $prefix:expr, $entity:ty, $column:expr, $conn:ident) => {
+        #[allow(clippy::default_constructed_unit_structs)]
         pub async fn $fn_name(
             &self,
             $conn: &sea_orm::DatabaseTransaction,
         ) -> Result<String, $crate::utils::error::AppError> {
-            $crate::utils::number_generator::DocumentNumberGenerator::generate_no(
+            // P1 5-10 修复（批次 60）：调用 generate_no_with_txn 直接在传入 txn 上获取
+            // advisory_xact_lock，避免在 savepoint 上加锁导致锁提前释放
+            $crate::utils::number_generator::DocumentNumberGenerator::generate_no_with_txn(
                 $conn,
                 $prefix,
                 <$entity>::default(),

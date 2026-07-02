@@ -19,10 +19,23 @@ impl CrmService {
         req: crate::models::dto::crm_dto::CreateLeadRequest,
         user_id: i32,
     ) -> Result<crm_lead::Model, AppError> {
-        // 生成线索编号（如果未提供）
-        let lead_no = req
-            .lead_no
-            .unwrap_or_else(|| format!("LD{}", chrono::Utc::now().format("%Y%m%d%H%M%S")));
+        // P1 3-13 修复（批次 60）：包裹事务，确保单号生成的 advisory_xact_lock
+        // 与 INSERT 在同一事务内，锁覆盖完整临界区
+        let txn = (*self.db).begin().await?;
+
+        // 生成线索编号（如果用户提供则用用户的，否则用 DocumentNumberGenerator 生成）
+        // P1 3-13 修复（批次 60）：原实现基于时间戳，同秒并发会产生重复单号
+        let lead_no = if let Some(custom_no) = req.lead_no {
+            custom_no
+        } else {
+            crate::utils::number_generator::DocumentNumberGenerator::generate_no_with_txn(
+                &txn,
+                "LD",
+                crm_lead::Entity,
+                crm_lead::Column::LeadNo,
+            )
+            .await?
+        };
         let lead_source = req.lead_source.unwrap_or_else(|| "OTHER".to_string());
         let owner_id = user_id;
         let owner_name = format!("用户{}", user_id);
@@ -62,9 +75,10 @@ impl CrmService {
             updated_at: Set(Some(now)),
             ..Default::default()
         }
-        .insert(&*self.db)
+        .insert(&txn)
         .await?;
 
+        txn.commit().await?;
         Ok(lead)
     }
 
