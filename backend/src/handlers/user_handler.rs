@@ -382,6 +382,27 @@ pub async fn delete_user(
     // 检查用户是否存在
     let existing_user = user_service.find_by_id(id).await?;
 
+    // P1 2-4 修复（批次 64）：保护最后一个 admin 禁止删除
+    // 原实现未保护最后一个 admin，admin 被删除后系统永久锁定（无管理员可操作）。
+    // 修复：被删除用户是 admin 角色时，查询活跃 admin 用户数量，仅剩 1 个则禁止删除。
+    if let Some(user_role_id) = existing_user.role_id {
+        if is_admin_role(&state.db, user_role_id).await {
+            use crate::models::user;
+            use sea_orm::{ColumnTrait, EntityTrait, PaginatorTrait, QueryFilter};
+            let active_admin_count = user::Entity::find()
+                .filter(user::Column::RoleId.eq(user_role_id))
+                .filter(user::Column::IsActive.eq(true))
+                .count(&*state.db)
+                .await
+                .map_err(|e| AppError::internal(e.to_string()))?;
+            if active_admin_count <= 1 {
+                return Err(AppError::bad_request(
+                    "系统仅剩最后一个管理员，禁止删除（删除后系统将永久锁定）",
+                ));
+            }
+        }
+    }
+
     // 这里可以添加更多禁止删除的逻辑，例如：
     // 1. 系统管理员不允许删除
     // 2. 有特殊权限的用户不允许删除
