@@ -141,6 +141,7 @@ impl CacheService {
     ///
     /// P2 5-17 修复：原实现忽略 ttl 参数（let _ = ttl），统一使用 default_ttl
     /// 现改为记录 per-key 过期时间戳，get 时检查并清理过期 entry
+    #[allow(dead_code)] // TODO(tech-debt): 业务模块接入后移除
     pub async fn set_with_ttl(&self, key: String, value: Vec<u8>, ttl: Duration) {
         if !self.enabled {
             return;
@@ -158,6 +159,7 @@ impl CacheService {
     /// 失效指定 key
     ///
     /// P2 5-16 修复：同步清理 key 索引和自定义 TTL
+    #[allow(dead_code)] // TODO(tech-debt): 业务模块接入后移除
     pub async fn invalidate(&self, key: &str) {
         self.key_index.write().await.remove(key);
         self.custom_expirations.write().await.remove(key);
