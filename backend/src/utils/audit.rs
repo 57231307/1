@@ -23,6 +23,9 @@ pub enum SecurityEvent {
     /// 鉴权失败（角色不足 / 资源越权）
     AuthorizationDenied,
     /// 用户被删除（软删除 + 吊销其所有活跃 JWT）
+    // P1 8-7 修复：delete_user 改用 AuditLogService::record_async 落库，
+    // 此变体当前无业务引用，保留以供未来 log_security_event 接入 DB 写入时使用。
+    #[allow(dead_code)] // TODO(tech-debt): log_security_event 接入 DB 写入后恢复引用
     UserDeleted,
     /// 测试数据库连接（数据库敏感探测行为）
     TestDatabaseConnection,
