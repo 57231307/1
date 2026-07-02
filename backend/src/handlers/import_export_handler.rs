@@ -13,9 +13,12 @@ use axum::{
     Json,
 };
 use serde::Deserialize;
+use std::sync::Arc;
 use validator::Validate;
 
 use crate::middleware::auth_context::AuthContext;
+use crate::models::audit_log::{OperationType, Severity};
+use crate::services::audit_log_service::{AuditEvent, AuditLogService};
 use crate::services::import_export_service::{ExportQuery, ImportExportService, MAX_CSV_BYTES};
 use crate::utils::app_state::AppState;
 use crate::utils::error::AppError;
@@ -202,18 +205,41 @@ pub async fn export_csv(
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     let service = ImportExportService::new(state.db.clone());
 
-    tracing::info!(
-        "数据导出请求: user_id={}, export_type={}, status={:?}, date_from={:?}, date_to={:?}",
-        auth.user_id,
-        export_type,
-        query.status,
-        query.date_from,
-        query.date_to
-    );
-
     let (headers, data) = service.export_data(&export_type, &query).await?;
 
     let csv_content = ImportExportService::generate_csv(&headers, &data)?;
+
+    // P1 8-6 修复：export_csv 补审计日志（原仅 tracing::info）
+    // 修复背景：原 export_csv 仅 tracing::info 输出，未调 audit_log_service，
+    // 数据导出无审计落库，无法追溯谁导出了什么数据。
+    let event = AuditEvent {
+        user_id: Some(auth.user_id),
+        username: Some(auth.username.clone()),
+        operation_type: OperationType::Export,
+        severity: Severity::Info,
+        resource_type: Some(export_type.clone()),
+        resource_id: None,
+        resource_name: Some(format!("{}.csv", export_type)),
+        description: Some(format!(
+            "用户 {} 导出 {} 数据为 CSV（共 {} 条）",
+            auth.username,
+            export_type,
+            data.len()
+        )),
+        request_method: Some("GET".to_string()),
+        request_path: Some(format!("/api/v1/erp/export/csv/{}", export_type)),
+        before_snapshot: None,
+        after_snapshot: Some(serde_json::json!({
+            "export_type": export_type,
+            "format": "csv",
+            "total": data.len(),
+            "status_filter": query.status,
+            "date_from": query.date_from,
+            "date_to": query.date_to,
+        })),
+    };
+    let svc = Arc::new(AuditLogService::new(state.db.clone()));
+    svc.record_async(event, None);
 
     Ok(Json(ApiResponse::success(serde_json::json!({
         "filename": format!("{}.csv", export_type),
@@ -232,18 +258,39 @@ pub async fn export_excel_type(
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     let service = ImportExportService::new(state.db.clone());
 
-    tracing::info!(
-        "数据导出请求: user_id={}, export_type={}, status={:?}, date_from={:?}, date_to={:?}",
-        auth.user_id,
-        export_type,
-        query.status,
-        query.date_from,
-        query.date_to
-    );
-
     let (headers, data) = service.export_data(&export_type, &query).await?;
 
     let csv_content = ImportExportService::generate_csv(&headers, &data)?;
+
+    // P1 8-6 修复：export_excel_type 补审计日志（原仅 tracing::info）
+    let event = AuditEvent {
+        user_id: Some(auth.user_id),
+        username: Some(auth.username.clone()),
+        operation_type: OperationType::Export,
+        severity: Severity::Info,
+        resource_type: Some(export_type.clone()),
+        resource_id: None,
+        resource_name: Some(format!("{}.xlsx", export_type)),
+        description: Some(format!(
+            "用户 {} 导出 {} 数据为 Excel（共 {} 条）",
+            auth.username,
+            export_type,
+            data.len()
+        )),
+        request_method: Some("GET".to_string()),
+        request_path: Some(format!("/api/v1/erp/export/excel/{}", export_type)),
+        before_snapshot: None,
+        after_snapshot: Some(serde_json::json!({
+            "export_type": export_type,
+            "format": "excel",
+            "total": data.len(),
+            "status_filter": query.status,
+            "date_from": query.date_from,
+            "date_to": query.date_to,
+        })),
+    };
+    let svc = Arc::new(AuditLogService::new(state.db.clone()));
+    svc.record_async(event, None);
 
     Ok(Json(ApiResponse::success(serde_json::json!({
         "filename": format!("{}.xlsx", export_type),
