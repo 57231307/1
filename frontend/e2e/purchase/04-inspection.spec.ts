@@ -3,6 +3,7 @@
 // 覆盖范围：采购质检全流程（3 用例）
 
 import { test, expect } from '@playwright/test'
+import { applyAuthMocks } from '../smoke/_helpers'
 
 /**
  * 测试套件：采购质检
@@ -13,7 +14,9 @@ import { test, expect } from '@playwright/test'
  * 3. 质检不合格 → 进入退货流程
  */
 test.describe('04 采购质检', () => {
-  test.beforeEach(async ({ page }) => {
+  test.beforeEach(async ({ page, context }) => {
+    // P1 6-7 修复（批次 66）：注入 auth mock + mock 业务 API，避免 CI 无后端 timeout
+    await applyAuthMocks(context)
     await page.goto('/')
   })
 

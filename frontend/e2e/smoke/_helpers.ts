@@ -71,12 +71,42 @@ export async function mockInitStatus(context: BrowserContext): Promise<void> {
 }
 
 /**
- * 一站式应用所有 auth mock
+ * P1 6-7 修复（批次 66）：拦截 /api/v1/erp/* 业务 API 返回空数据
+ *
+ * 设计原因：CI 环境无后端，spec 直接 page.goto('/purchase/order/list') 会触发
+ * 前端发起 /api/v1/erp/purchase/orders 等业务 API 请求，无响应会导致断言超时。
+ * 此函数注册在 mockAuthMe / mockInitStatus 之后，对未匹配的业务 API 返回空分页数据。
+ * 已被前面 route handler 命中的 /auth/me、/init/status 通过 route.fallback() 放行。
+ */
+export async function mockBusinessApi(context: BrowserContext): Promise<void> {
+  await context.route('**/api/v1/erp/**', route => {
+    const url = route.request().url()
+    // 已被 mockAuthMe / mockInitStatus 处理的请求放行到下一个 handler
+    if (url.includes('/auth/me') || url.includes('/init/status')) {
+      return route.fallback()
+    }
+    // 其他业务 API 返回空分页数据，避免前端 catch 长时间等待
+    return route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        code: 200,
+        message: 'success',
+        data: { items: [], total: 0, page: 1, page_size: 20 },
+        timestamp: new Date().toISOString(),
+      }),
+    })
+  })
+}
+
+/**
+ * 一站式应用所有 auth mock + 业务 API mock
  */
 export async function applyAuthMocks(context: BrowserContext): Promise<void> {
   await injectAuthToken(context)
   await mockAuthMe(context)
   await mockInitStatus(context)
+  await mockBusinessApi(context)
 }
 
 /**

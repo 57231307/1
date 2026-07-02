@@ -3,6 +3,7 @@
 // 覆盖范围：采购入库全流程（4 用例）
 
 import { test, expect } from '@playwright/test'
+import { applyAuthMocks } from '../smoke/_helpers'
 
 /**
  * 测试套件：采购入库
@@ -14,7 +15,9 @@ import { test, expect } from '@playwright/test'
  * 4. 库存自动增加验证
  */
 test.describe('03 采购入库', () => {
-  test.beforeEach(async ({ page }) => {
+  test.beforeEach(async ({ page, context }) => {
+    // P1 6-7 修复（批次 66）：注入 auth mock + mock 业务 API，避免 CI 无后端 timeout
+    await applyAuthMocks(context)
     await page.goto('/')
   })
 

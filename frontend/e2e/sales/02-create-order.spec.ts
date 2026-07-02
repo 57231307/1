@@ -3,6 +3,7 @@
 // 覆盖范围：销售订单创建全流程（5 用例）
 
 import { test, expect } from '@playwright/test'
+import { applyAuthMocks } from '../smoke/_helpers'
 
 /**
  * 测试套件：销售订单创建
@@ -15,7 +16,9 @@ import { test, expect } from '@playwright/test'
  * 5. 批次要求
  */
 test.describe('02 创建销售订单', () => {
-  test.beforeEach(async ({ page }) => {
+  test.beforeEach(async ({ page, context }) => {
+    // P1 6-7 修复（批次 66）：注入 auth mock + mock 业务 API，避免 CI 无后端 timeout
+    await applyAuthMocks(context)
     await page.goto('/')
   })
 
