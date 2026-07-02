@@ -3,7 +3,162 @@
 > 本文件记录**当前任务**与**历史任务索引**。
 > 详细历史请查阅 [`.monkeycode/docs/archives/`](file:///workspace/.monkeycode/docs/archives/)。
 
-### 2026-07-02 批次 62 完成：业务流断点修复（3-7/3-11/5-1/5-2/5-5/1-3）（✅ 已合并 main，CI 12/13 全绿，E2E continue-on-error）
+### 2026-07-02 批次 67 完成：BPM 定义占位实现（1-2）（✅ 已合并 main，CI 13/13 全绿）
+
+**修复分支**：`fix/v19-batch67-bpm-stub`（已合并删除）
+**合并 commit**：`739b500b`（PR #311 squash merge）
+**main HEAD**：`739b500b`
+**修复范围**：P1 1-2，bpm_service_stub.rs 9 个占位方法真实实现
+
+**修复清单**：
+- P1 1-2：BPM 流程定义/版本/模板管理真实实现
+  - service 层（bpm_service_stub.rs）：实现 9 个方法 CRUD 逻辑
+    - create/get/update/delete/list_process_definition：直接操作表
+    - list_process_versions：查询同 code 的所有版本
+    - activate_process_version：事务内将同 code 其他记录置为 INACTIVE
+    - save_as_template：复制定义为模板（category = __TEMPLATE__）
+    - list_templates：查询模板记录
+    - create_from_template：复制模板为新定义
+    - 删除 create_process_version（签名缺陷，handler 改用 create_process_definition）
+  - handler 层（bpm_definition_handler.rs）：
+    - 移除所有 #[allow(dead_code)] 标注
+    - 添加字段映射（code→process_key, name→process_name, config.nodes→nodes, PageResponse.data→list）
+    - create_version 改为先查询原定义再调用 create_process_definition
+  - 路由（routes/system.rs）：bpm() 函数注册 8 条新路由
+  - BpmService.db 字段改为 pub(crate)，允许 bpm_service_stub.rs 访问
+  - 所有 category != __TEMPLATE__ 过滤显式包含 IS NULL 条件（SQL NULL 语义）
+
+**改动文件**：4 文件（bpm_service_stub.rs / bpm_definition_handler.rs / routes/system.rs / bpm_service.rs）
+
+**关键发现**：
+1. BpmService.db 字段原为私有，bpm_service_stub.rs 在另一模块无法访问，需改为 pub(crate)
+2. create_process_version 方法签名只接收 CreateVersionRequest（无 definition_id），无法实现真实版本复制，故删除并改用 create_process_definition
+3. 模板标识通过 category 字段特殊值 __TEMPLATE__ 实现，无需新增表/字段
+4. SQL 中 NULL != 'x' 结果为 NULL（非 true），category IS NULL 的记录需显式包含在过滤条件中
+5. axum 链式调用 .put()/.delete() 是 MethodRouter 方法，不需要 routing::{put, delete} 函数
+6. CI 结果：13/13 job 全部 success（含 E2E 也 success），0 failure
+
+**下一步**：进入批次 68（N+1 查询优化，P2 修复开始）
+
+---
+
+### 2026-07-02 批次 66 完成：E2E 环境补齐 auth mock（6-7）（✅ 已合并 main，CI 14/14 全绿）
+
+**修复分支**：`fix/v19-batch66-e2e-auth`（已合并删除）
+**合并 commit**：`ea69d747`（PR #310 squash merge）
+**main HEAD**：`ea69d747`
+**修复范围**：P1 6-7，14 个 purchase/sales E2E spec 补 auth mock
+
+**修复清单**：
+- P1 6-7：14 个 spec beforeEach 注入 applyAuthMocks + mock 业务 API
+  - `frontend/e2e/smoke/_helpers.ts` 新增 `mockBusinessApi`：通配 `/api/v1/erp/*` 返回空分页数据，对 `auth/me` + `init/status` 调 `route.fallback()` 放行给已注册的 handler
+  - `applyAuthMocks` 末尾调用 `mockBusinessApi`，一站式注入全部 mock
+  - 14 个 spec（purchase 7 + sales 7）beforeEach 改为解构 `{ page, context }` + 调用 `applyAuthMocks(context)`
+
+**改动文件**：16 文件（_helpers.ts 1 + spec 14 + 规划文档 1）
+
+**关键发现**：
+1. 14 个 spec 原本只有 `page.goto('/')` 无任何 auth mock，CI 无后端时全部 timeout
+2. `_helpers.ts` 已有 `applyAuthMocks`（injectAuthToken + mockAuthMe + mockInitStatus），但缺少业务 API mock
+3. Playwright `context.route` 按注册顺序匹配，先注册的先命中；`route.fallback()` 放行给下一个 handler
+4. CI 结果：14/14 job 全部 success（含 E2E 也 success），2 skipped（PR 分支不发布）
+
+**下一步**：进入批次 67（BPM 定义占位实现 1-2）
+
+---
+
+### 2026-07-02 批次 65 完成：测试资产伪测试清理（6-1/6-2/6-3/6-4/6-5/6-6）（✅ 已合并 main，CI 12/13 全绿）
+
+**修复分支**：`fix/v19-batch65-test-cleanup`（已合并删除）
+**合并 commit**：`ef47106f`（PR #309 squash merge）
+**main HEAD**：`ef47106f`
+**修复范围**：P1 测试资产清理 6 项，净删除 495 行伪测试代码
+
+**修复清单**：
+- P1 6-1：quotation_e2e.rs 删除 15 个伪测试，保留 7 个真实测试
+- P1 6-2：test_utils_response.rs 删除 7 个标准库测试，保留 5 个真实 ApiResponse 测试
+- P1 6-3：test_inventory_count.rs 删除全部 3 个伪测试（InventoryCountService 为占位模块）
+- P1 6-4：test_quality_standard.rs 删除 9 个伪测试（含逻辑错误的 can_approve），保留 1 个构造签名测试
+- P1 6-5：frontend utils.test.ts 改真实导入（src/utils/index.ts 新增 formatCurrency/formatDate/debounce 导出）
+- P1 6-6：frontend request.test.ts 改真实导入（src/api/request.ts 添加 export）
+
+**改动文件**：9 文件（后端测试 4 + 前端测试 2 + 前端源 2 + 文档 1）
+
+**关键发现**：
+1. InventoryCountService（services/inv/count.rs）是纯占位模块，无任何业务方法实现
+2. QualityStandardService 的 approve_standard 允许 draft 或 rejected，原伪测试 can_approve 仅允许 draft，逻辑不一致
+3. 前端 @/utils 原本不导出 formatCurrency/formatDate/debounce，@/api/request 原本不导出三个纯函数
+
+**下一步**：进入批次 66（E2E 环境补齐 6-7，14 个 purchase/sales E2E spec）
+
+---
+
+### 2026-07-02 批次 64 完成：接口越权防护修复（2-1/2-2/2-3/2-4/2-5/4-1/4-2）✅
+
+**main HEAD**：`5d20ff58`（PR #308）
+
+**修复分支**：`fix/v19-batch64-authz`（已合并删除）
+**合并 commit**：`5d20ff58`（PR #308 squash merge）
+**main HEAD**：`5d20ff58`
+**修复范围**：P1 接口越权防护 7 项，跨前后端
+
+**修复清单**：
+- P1 2-1/2-2：批量删除越权 + AuthContext 鉴权
+  - `bulk_product_handler.rs`：batch_delete_products 显式校验 products:delete 权限
+  - 原实现路由用 POST /products/batch/delete，permission 中间件按 POST→create 映射，越权删除
+- P1 2-3：delete_role 系统角色保护
+  - `role_handler.rs`：delete_role 查询 old_role 后检查 is_system 字段
+- P1 2-4：delete_user 最后一个 admin 保护
+  - `user_handler.rs`：查询活跃 admin 用户数量，仅剩 1 个则禁止删除
+- P1 2-5：cookie 名修正
+  - `middleware/request_validator.rs`：cookie 检查从 jwt= 改为 access_token=（兼容两者）
+- P1 4-1：canAccessMenu 保守隐藏
+  - `MainLayout.vue`：路由不存在时 return false（保守隐藏）
+- P1 4-2：StockTab 权限码统一两段式
+  - `StockTab.vue`：三段式 inventory:stock:edit/delete 改为两段式 inventory:adjust
+
+**改动文件**：7 文件（后端 4 + 前端 2 + 文档 1）
+
+**下一步**：进入批次 65（测试资产伪测试清理 6-1/6-2/6-3/6-4/6-5/6-6）
+
+---
+
+### 2026-07-02 批次 63 完成：事务边界原子性修复（3-4/3-12/5-3/5-4/5-6）✅
+
+**main HEAD**：`50989f4a`（PR #307）
+
+**修复分支**：`fix/v19-batch63-txn-boundary`（已合并删除）
+**合并 commit**：`50989f4a`（PR #307 squash merge）
+**main HEAD**：`50989f4a`
+**修复范围**：P1 事务边界原子性 5 项（3-12/5-6 同一处）
+
+**修复清单**：
+- P1 3-4：ar_invoice cancel 状态门拒绝 PAID
+  - `ar_invoice_service.rs`：cancel 方法状态门增加 PAID 拒绝
+  - 原实现仅检查 CANCELLED，已收讫发票可被取消，导致 received_amount 与状态不一致
+- P1 3-12/5-6：ap_payment 分摊总额为 0 提前校验
+  - `ap_payment_service.rs`：total_apply_amount==0 时提前 return Err
+  - 原实现 unwrap_or_default 返回 0，paid_amount=0 但状态改 PARTIAL_PAID
+- P1 5-3：quality_inspection create_record 整体包裹 txn
+  - `quality_inspection_service.rs`：质检记录插入与入库单状态更新原子化
+- P1 5-4：finance_payment create_payment 整体包裹 txn
+  - `finance_payment_service.rs`：发票存在性检查与付款插入原子化
+
+**改动文件**：4 文件
+- backend/src/services/ar_invoice_service.rs（cancel 状态门）
+- backend/src/services/ap_payment_service.rs（分摊总额校验）
+- backend/src/services/quality_inspection_service.rs（create_record 事务包裹）
+- backend/src/services/finance_payment_service.rs（create_payment 事务包裹）
+
+**下一步**：进入批次 64（接口越权防护 2-1/2-2/2-3/2-4/2-5/4-1/4-2，7 文件）
+
+---
+
+### 2026-07-02 批次 62 完成：业务流断点修复（3-7/3-11/5-1/5-2/5-5/1-3）✅
+
+**main HEAD**：`f46760ab`（PR #306）
+
+---
 
 **修复分支**：`fix/v19-batch62-business-flow`（已合并删除）
 **合并 commit**：`f46760ab`（PR #306 squash merge）
