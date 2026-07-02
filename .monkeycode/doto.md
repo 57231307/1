@@ -3,6 +3,63 @@
 > 本文件记录**当前任务**与**历史任务索引**。
 > 详细历史请查阅 [`.monkeycode/docs/archives/`](file:///workspace/.monkeycode/docs/archives/)。
 
+### 2026-07-02 批次 69 完成：缓存语义与事件修复（5-15/5-16/5-17/5-18/5-19/3-21）（✅ 已合并 main，CI 12/13 全绿）
+
+**修复分支**：`fix/v19-batch69-cache-event`（已合并删除）
+**合并 commit**：`50de3cf6`（PR #313 squash merge）
+**main HEAD**：`e7eef720`（含进度表文档更新）
+**修复范围**：P2 缓存语义与事件修复 6 项
+
+**修复清单**：
+- P2 5-15/3-21：inventory_stock_service check_low_stock 改为 txn 内查询，commit 后批量 publish（避免幻事件/过期值）
+- P2 5-16：cache_service invalidate_prefix 实现真实前缀失效（维护 key_index HashSet<String>，原为 invalidate_all 全量失效）
+- P2 5-17：cache_service set_with_ttl 实现真实 per-entry TTL（维护 custom_expirations HashMap<String, Instant>，原忽略 ttl 参数）
+- P2 5-18：BpmProcessFinished 事件添加 approver_id 字段，4 个文件同步修改（event_bus.rs / event_kafka_payload.rs / event_kafka.rs / bpm_service.rs + test_event_bus.rs）
+- P2 5-19：LowStockAlert 通知按角色过滤（admin/manager，系统无 user_role 表，使用 user.role_id + role.code 替代）
+
+**改动文件**：7 文件（cache_service.rs / inventory_stock_service.rs / event_bus.rs / bpm_service.rs / event_kafka_payload.rs / event_kafka.rs / test_event_bus.rs）
+
+**关键发现**：
+1. check_low_stock 使用 txn 需要导入 TransactionTrait（原导入缺少该 trait，导致 E0599 和 E0282 编译错误）
+2. moka 0.12 不支持原生前缀失效和 per-entry TTL，通过维护 key_index（HashSet）和 custom_expirations（HashMap<String, Instant>）实现
+3. 系统无 user_role 表，user.role_id 关联 role.code（admin/manager/operator），5-19 使用 role.code 过滤替代 user_role 表
+4. BpmProcessFinished 事件修改涉及 5 个文件（event_bus 定义/处理 + event_kafka_payload 序列化 + event_kafka 测试 + bpm_service 3 个 publish 站点 + test_event_bus 测试）
+5. CI 结果：12/13 job success（Rust 构建/Clippy/单元测试/格式 全绿，前端全绿），E2E continue-on-error
+
+**下一步**：进入批次 70（超长函数拆分 1-4/1-5/1-6/1-7/1-8）
+
+---
+
+### 2026-07-02 批次 68 完成：N+1 查询优化（5-12/5-13/5-14/5-22/5-23/3-18/3-23/3-24/3-25）（✅ 已合并 main，CI 12/13 全绿）
+
+**修复分支**：`fix/v19-batch68-n1-query`（已合并删除）
+**合并 commit**：`edd257a3`（PR #312 squash merge）
+**main HEAD**：`e2aa9910`（含进度表文档更新）
+**修复范围**：P2 N+1 查询与批量优化 9 项
+
+**修复清单**：
+- P2 5-12：inventory_finance_bridge_service 合并 get_product_name + get_product_cost_price 为单次 get_product_info（5 个调用点，2 次 product 查询→1 次）
+- P2 5-13/3-18：purchase_receipt_service create_receipt 明细改用 insert_many（N 次 INSERT→1 次）
+- P2 5-14：so/delivery release_reservations 按 (product_id, warehouse_id) 聚合后批量 update_many（N 次 UPDATE→G 次）
+- P2 5-22：ap_payment_service 移除预算核销链中 _request 死查询（4 次串行查询→3 次）
+- P2 5-23：inventory_stock_service create_stock / create_stock_fabric 新增仓库与产品存在性校验
+- P2 3-23：crm/cust compute_rfm_score 3 次查询合并为 1 次（内存计算 R/F/M）
+- P2 3-24：crm/cust Decimal→String→f64 改为 Decimal::to_f64（避免精度丢失）
+- P2 3-25：crm/cust get_customer_relation_summary 改用数据库聚合 count()+sum()+max()
+
+**改动文件**：6 文件（inventory_finance_bridge_service.rs / purchase_receipt_service.rs / so/delivery.rs / ap_payment_service.rs / crm/cust.rs / inventory_stock_service.rs）
+
+**关键发现**：
+1. inventory_finance_bridge 5 个 create_*_voucher 方法均重复查询 product（get_product_name + calculate_inventory_amount→get_product_cost_price），合并为 get_product_info 单次查询
+2. ap_payment 预算核销链中 _request 查询结果完全未使用（下划线前缀），属死代码
+3. SeaORM `column_as(Expr::col().count()/sum()/max(), "alias")` + `into_tuple::<T>()` 是数据库聚合的标准模式（参考 dashboard_service.rs）
+4. Decimal→String→f64 经 to_string() 丢失精度，改用 ToPrimitive::to_f64() 直接转换
+5. CI 结果：12/13 job success（Rust 构建/Clippy/单元测试/格式 全绿，前端全绿），E2E continue-on-error
+
+**下一步**：进入批次 69（缓存语义与事件修复 5-15/5-16/5-17/5-18/5-19/3-21）
+
+---
+
 ### 2026-07-02 批次 67 完成：BPM 定义占位实现（1-2）（✅ 已合并 main，CI 13/13 全绿）
 
 **修复分支**：`fix/v19-batch67-bpm-stub`（已合并删除）
