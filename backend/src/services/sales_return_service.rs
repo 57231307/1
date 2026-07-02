@@ -310,6 +310,9 @@ impl SalesReturnService {
     }
 
     /// 审批销售退货单
+    ///
+    /// P2 1-5 修复：原函数 167 行混合 6 职责（lock+校验+总金额更新+批量库存入库+状态变更+AR 生成），
+    /// 拆为 validate_and_lock_submitted_txn / apply_stock_inbound_txn / mark_approved_txn / generate_red_ar_txn 4 个私有方法
     pub async fn approve_return(
         &self,
         return_id: i32,
@@ -317,10 +320,46 @@ impl SalesReturnService {
     ) -> Result<sales_return::Model, AppError> {
         let txn = (*self.db).begin().await?;
 
-        // 批次 26 v6 P1 修复：状态机 lock_exclusive 补全，串行化并发状态变更
+        // 1. lock_exclusive + 状态校验 + 获取明细
+        let (return_order, items) =
+            Self::validate_and_lock_submitted_txn(&txn, return_id).await?;
+
+        // 2. 更新退货单总金额
+        self.update_return_totals(return_id, &txn).await?;
+
+        // 3. 批量库存入库
+        self.apply_stock_inbound_txn(&txn, &return_order, &items, user_id)
+            .await?;
+
+        // 4. 状态变更（APPROVED）
+        let return_order = Self::mark_approved_txn(&txn, return_order, user_id).await?;
+
+        // 5. P1 5-5/1-3 修复（批次 62）：红字应收单生成移入事务内，失败则整体回滚
+        // 原实现在 commit 后调用 ar_invoice_service.create，但 create 强制 amount > 0，
+        // 红字金额（负数）注定失败，且失败仅 tracing::error 不回滚，导致账实不符。
+        // 改用 create_credit_memo（支持负金额 + 外部事务 + 幂等检查），在 commit 前调用。
+        Self::generate_red_ar_txn(&self.db, &txn, &return_order, user_id).await?;
+
+        txn.commit().await?;
+
+        tracing::info!(
+            "成功自动生成红字应收单 (退货单 {})",
+            return_order.return_no
+        );
+
+        Ok(return_order)
+    }
+
+    /// P2 1-5 修复：lock_exclusive + 状态校验 + 获取明细（从 approve_return 抽取）
+    ///
+    /// 批次 26 v6 P1 修复：状态机 lock_exclusive 补全，串行化并发状态变更
+    async fn validate_and_lock_submitted_txn(
+        txn: &sea_orm::DatabaseTransaction,
+        return_id: i32,
+    ) -> Result<(sales_return::Model, Vec<sales_return_item::Model>), AppError> {
         let return_order = sales_return::Entity::find_by_id(return_id)
             .lock_exclusive()
-            .one(&txn)
+            .one(txn)
             .await?
             .ok_or_else(|| AppError::not_found(format!("销售退货单 {}", return_id)))?;
 
@@ -334,19 +373,31 @@ impl SalesReturnService {
         // 获取明细记录
         let items = sales_return_item::Entity::find()
             .filter(sales_return_item::Column::ReturnId.eq(return_id))
-            .all(&txn)
+            .all(txn)
             .await?;
 
-        // 更新退货单总金额
-        self.update_return_totals(return_id, &txn).await?;
+        Ok((return_order, items))
+    }
 
+    /// P2 1-5 修复：批量库存入库（从 approve_return 抽取）
+    ///
+    /// 批量获取商品信息和库存记录（优化 N+1 查询），循环更新或创建库存记录并记录 SALES_RETURN 流水
+    async fn apply_stock_inbound_txn(
+        &self,
+        txn: &sea_orm::DatabaseTransaction,
+        return_order: &sales_return::Model,
+        items: &[sales_return_item::Model],
+        user_id: i32,
+    ) -> Result<(), AppError> {
+        // 保留原行为：record_transaction 内部使用 self.db（非 txn 路径）
+        // 注：这是批次 27 v7 P1 修复中提及的遗留事务边界问题，本次 1-5 拆分不改变语义
         let stock_service = InventoryStockService::new(self.db.clone());
 
         // 批量获取商品信息和库存记录（优化N+1查询）
         let product_ids: Vec<i32> = items.iter().map(|item| item.product_id).collect();
         let products = product::Entity::find()
             .filter(product::Column::Id.is_in(product_ids.clone()))
-            .all(&txn)
+            .all(txn)
             .await?;
         let product_map: std::collections::HashMap<i32, product::Model> =
             products.into_iter().map(|p| (p.id, p)).collect();
@@ -354,12 +405,12 @@ impl SalesReturnService {
         let stocks = inventory_stock::Entity::find()
             .filter(inventory_stock::Column::WarehouseId.eq(return_order.warehouse_id))
             .filter(inventory_stock::Column::ProductId.is_in(product_ids))
-            .all(&txn)
+            .all(txn)
             .await?;
         let stock_map: std::collections::HashMap<i32, inventory_stock::Model> =
             stocks.into_iter().map(|s| (s.product_id, s)).collect();
 
-        for item in &items {
+        for item in items {
             // 获取商品信息
             let _product_info = product_map
                 .get(&item.product_id)
@@ -383,7 +434,7 @@ impl SalesReturnService {
                 stock_update.quantity_available = Set(new_avail);
                 stock_update.updated_at = Set(Utc::now());
                 crate::services::audit_log_service::AuditLogService::update_with_audit(
-                    &txn,
+                    txn,
                     "auto_audit",
                     stock_update,
                     // P1 1-1 修复（批次 59b）：原 Some(0) 占位符改为真实操作人 user_id
@@ -404,7 +455,7 @@ impl SalesReturnService {
                     version: Set(0),
                     ..Default::default()
                 };
-                new_stock.insert(&txn).await?;
+                new_stock.insert(txn).await?;
             }
 
             // 增加库存交易记录
@@ -432,14 +483,23 @@ impl SalesReturnService {
                 .await?;
         }
 
-        let mut active_model: sales_return::ActiveModel = return_order.clone().into();
+        Ok(())
+    }
+
+    /// P2 1-5 修复：状态变更（APPROVED）（从 approve_return 抽取）
+    async fn mark_approved_txn(
+        txn: &sea_orm::DatabaseTransaction,
+        return_order: sales_return::Model,
+        user_id: i32,
+    ) -> Result<sales_return::Model, AppError> {
+        let mut active_model: sales_return::ActiveModel = return_order.into();
         active_model.status = Set("APPROVED".to_string());
         active_model.approved_by = Set(Some(user_id));
         active_model.approved_at = Set(Some(Utc::now()));
         active_model.updated_at = Set(Utc::now());
 
         let return_order = crate::services::audit_log_service::AuditLogService::update_with_audit(
-            &txn,
+            txn,
             "auto_audit",
             active_model,
             // P1 1-1 修复（批次 59b）：原 Some(0) 占位符改为真实操作人 user_id
@@ -447,11 +507,20 @@ impl SalesReturnService {
         )
         .await?;
 
-        // P1 5-5/1-3 修复（批次 62）：红字应收单生成移入事务内，失败则整体回滚
-        // 原实现在 commit 后调用 ar_invoice_service.create，但 create 强制 amount > 0，
-        // 红字金额（负数）注定失败，且失败仅 tracing::error 不回滚，导致账实不符。
-        // 改用 create_credit_memo（支持负金额 + 外部事务 + 幂等检查），在 commit 前调用。
-        let ar_invoice_service = ArInvoiceService::new(self.db.clone());
+        Ok(return_order)
+    }
+
+    /// P2 1-5 修复：红字应收单生成（从 approve_return 抽取）
+    ///
+    /// P1 5-5/1-3 修复（批次 62）：红字应收单生成移入事务内，失败则整体回滚
+    /// 使用 create_credit_memo（支持负金额 + 外部事务 + 幂等检查）
+    async fn generate_red_ar_txn(
+        db: &Arc<DatabaseConnection>,
+        txn: &sea_orm::DatabaseTransaction,
+        return_order: &sales_return::Model,
+        user_id: i32,
+    ) -> Result<(), AppError> {
+        let ar_invoice_service = ArInvoiceService::new(db.clone());
         let invoice_date = Utc::now().date_naive();
         let due_date = invoice_date + chrono::Duration::days(30);
         let ar_request = CreateArInvoiceRequest {
@@ -469,17 +538,10 @@ impl SalesReturnService {
         };
 
         ar_invoice_service
-            .create_credit_memo(ar_request, user_id, &txn)
+            .create_credit_memo(ar_request, user_id, txn)
             .await?;
 
-        txn.commit().await?;
-
-        tracing::info!(
-            "成功自动生成红字应收单 (退货单 {})",
-            return_order.return_no
-        );
-
-        Ok(return_order)
+        Ok(())
     }
 
     /// 获取退货单详情

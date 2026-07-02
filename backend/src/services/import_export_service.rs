@@ -358,35 +358,19 @@ impl ImportExportService {
         let mut failed = 0u64;
         let mut errors = Vec::new();
 
+        // P2 1-7 修复：抽取重复的"结果收集"逻辑为 record_import_result 方法
+        // 原 "products" 和 "customers" 两个 match 分支的结果收集代码完全相同
         match import_type {
             "products" => {
                 for (idx, row) in data.iter().enumerate() {
-                    match self.import_product_row(row, user_id).await {
-                        Ok(_) => imported += 1,
-                        Err(e) => {
-                            failed += 1;
-                            errors.push(ImportError {
-                                row: (idx + 1) as u64,
-                                field: None,
-                                message: e.to_string(),
-                            });
-                        }
-                    }
+                    let result = self.import_product_row(row, user_id).await;
+                    Self::record_import_result(idx, result, &mut imported, &mut failed, &mut errors);
                 }
             }
             "customers" => {
                 for (idx, row) in data.iter().enumerate() {
-                    match self.import_customer_row(row, user_id).await {
-                        Ok(_) => imported += 1,
-                        Err(e) => {
-                            failed += 1;
-                            errors.push(ImportError {
-                                row: (idx + 1) as u64,
-                                field: None,
-                                message: e.to_string(),
-                            });
-                        }
-                    }
+                    let result = self.import_customer_row(row, user_id).await;
+                    Self::record_import_result(idx, result, &mut imported, &mut failed, &mut errors);
                 }
             }
             _ => {
@@ -402,6 +386,27 @@ impl ImportExportService {
             failed,
             errors,
         })
+    }
+
+    /// P2 1-7 修复：记录单行导入结果，消除 "products"/"customers" 分支中重复的 imported/failed/errors 收集代码
+    fn record_import_result(
+        idx: usize,
+        result: Result<(), AppError>,
+        imported: &mut u64,
+        failed: &mut u64,
+        errors: &mut Vec<ImportError>,
+    ) {
+        match result {
+            Ok(_) => *imported += 1,
+            Err(e) => {
+                *failed += 1;
+                errors.push(ImportError {
+                    row: (idx + 1) as u64,
+                    field: None,
+                    message: e.to_string(),
+                });
+            }
+        }
     }
 
     /// 导入产品行

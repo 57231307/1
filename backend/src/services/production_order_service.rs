@@ -465,25 +465,22 @@ impl ProductionOrderService {
     /// 批次 9（2026-06-28）：从原 `handle_production_completion_inventory` 改造而来，
     /// 接受外部事务参数，所有查询/更新都在 `txn` 上执行；原材料库存查询加 FOR UPDATE 行锁，
     /// 防止并发完成多个生产订单时原材料库存被并发扣减导致丢失更新。
+    ///
+    /// P2 1-4 修复：原函数 275 行混合 5 职责（仓库查询+数量校验+原材料扣减+成品入库+日志），
+    /// 拆为 fetch_default_warehouse_txn / deduct_raw_materials_txn / increase_finished_goods_txn 3 个私有方法
     async fn handle_production_completion_inventory_txn(
         txn: &sea_orm::DatabaseTransaction,
         order: &ProductionOrderModel,
     ) -> Result<Vec<BusinessEvent>, AppError> {
-        use crate::services::inventory_stock_service::InventoryStockService;
-
         // P0 5-2 修复：本函数不 commit 事务（由调用方 complete_production_order commit），
         // 收集 record_transaction_txn 返回的库存流水事件交给调用方，
         // 在 commit 成功后统一 publish，避免事务回滚时幻事件
         let mut pending_events: Vec<BusinessEvent> = Vec::new();
 
-        // 查询默认成品仓库（取第一个激活的仓库）
-        let default_warehouse = WarehouseEntity::find()
-            .filter(crate::models::warehouse::Column::IsActive.eq(true))
-            .one(txn)
-            .await?
-            .ok_or_else(|| AppError::business("未找到可用仓库，无法执行库存联动"))?;
+        // 1. 查询默认成品仓库
+        let default_warehouse = Self::fetch_default_warehouse_txn(txn).await?;
 
-        // 优先使用实际完成数量，否则使用计划数量
+        // 2. 校验生产数量
         let production_qty = order.actual_quantity.unwrap_or(order.planned_quantity);
         if production_qty.is_zero() {
             return Err(AppError::business(
@@ -491,7 +488,52 @@ impl ProductionOrderService {
             ));
         }
 
-        // ========== 1. 扣减原材料库存 ==========
+        // 3. 扣减原材料库存
+        pending_events.extend(
+            Self::deduct_raw_materials_txn(txn, order, &default_warehouse, production_qty).await?,
+        );
+
+        // 4. 增加成品库存
+        pending_events.extend(
+            Self::increase_finished_goods_txn(txn, order, &default_warehouse, production_qty)
+                .await?,
+        );
+
+        tracing::info!(
+            "生产订单 {} 完成库存联动：成品入库 {}，已扣减原材料库存",
+            order.order_no,
+            production_qty
+        );
+
+        Ok(pending_events)
+    }
+
+    /// P2 1-4 修复：查询默认成品仓库（取第一个激活的仓库，从 handle_production_completion_inventory_txn 抽取）
+    async fn fetch_default_warehouse_txn(
+        txn: &sea_orm::DatabaseTransaction,
+    ) -> Result<crate::models::warehouse::Model, AppError> {
+        WarehouseEntity::find()
+            .filter(crate::models::warehouse::Column::IsActive.eq(true))
+            .one(txn)
+            .await?
+            .ok_or_else(|| AppError::business("未找到可用仓库，无法执行库存联动"))
+    }
+
+    /// P2 1-4 修复：扣减原材料库存（从 handle_production_completion_inventory_txn 抽取）
+    ///
+    /// 查询产品默认BOM，按BOM用量 × 生产数量扣减原材料库存，记录 PRODUCTION_CONSUMPTION 流水
+    /// v16 批次 43 修复：循环外批量查询并锁定所有原材料库存记录，避免 N+1 查询
+    /// 批次 9（2026-06-28）：FOR UPDATE 行锁批量获取，防止并发扣减丢失更新
+    async fn deduct_raw_materials_txn(
+        txn: &sea_orm::DatabaseTransaction,
+        order: &ProductionOrderModel,
+        default_warehouse: &crate::models::warehouse::Model,
+        production_qty: Decimal,
+    ) -> Result<Vec<BusinessEvent>, AppError> {
+        use crate::services::inventory_stock_service::InventoryStockService;
+
+        let mut pending_events: Vec<BusinessEvent> = Vec::new();
+
         // 查询该产品的默认BOM
         let bom = BomEntity::find()
             .filter(BomColumn::ProductId.eq(order.product_id))
@@ -606,7 +648,23 @@ impl ProductionOrderService {
             }
         }
 
-        // ========== 2. 增加成品库存 ==========
+        Ok(pending_events)
+    }
+
+    /// P2 1-4 修复：增加成品库存（从 handle_production_completion_inventory_txn 抽取）
+    ///
+    /// 查询成品产品信息（克重/幅宽），在默认仓库更新或创建库存记录，记录 PRODUCTION_OUTPUT 流水
+    /// 批次 9（2026-06-28）：加 FOR UPDATE 行锁，防止并发入库丢失更新
+    async fn increase_finished_goods_txn(
+        txn: &sea_orm::DatabaseTransaction,
+        order: &ProductionOrderModel,
+        default_warehouse: &crate::models::warehouse::Model,
+        production_qty: Decimal,
+    ) -> Result<Vec<BusinessEvent>, AppError> {
+        use crate::services::inventory_stock_service::InventoryStockService;
+
+        let mut pending_events: Vec<BusinessEvent> = Vec::new();
+
         // 查询成品产品信息以获取克重和幅宽
         let product = ProductEntity::find_by_id(order.product_id)
             .one(txn)
@@ -731,12 +789,6 @@ impl ProductionOrderService {
                 }
             }
         }
-
-        tracing::info!(
-            "生产订单 {} 完成库存联动：成品入库 {}，已扣减原材料库存",
-            order.order_no,
-            production_qty
-        );
 
         Ok(pending_events)
     }
