@@ -81,7 +81,7 @@ impl PurchaseReturnService {
         &self,
         return_id: i32,
         req: UpdatePurchaseReturnRequest,
-        _user_id: i32,
+        user_id: i32,
     ) -> Result<purchase_return::Model, AppError> {
         let return_order = purchase_return::Entity::find_by_id(return_id)
             .one(&*self.db)
@@ -112,7 +112,8 @@ impl PurchaseReturnService {
             &*self.db,
             "auto_audit",
             return_active,
-            Some(0),
+            // P1 1-1 修复（批次 59b）：原 Some(0) 占位符改为真实操作人 user_id
+            Some(user_id),
         )
         .await?;
 
@@ -123,7 +124,7 @@ impl PurchaseReturnService {
     pub async fn submit_return(
         &self,
         return_id: i32,
-        _user_id: i32,
+        user_id: i32,
     ) -> Result<purchase_return::Model, AppError> {
         // 批次 25 v6 P0 修复：状态机 lock_exclusive 补全，串行化并发状态变更
         // 原实现无事务、无行锁，并发提交会基于过期状态通过状态检查后重复写入。
@@ -154,7 +155,8 @@ impl PurchaseReturnService {
             &txn,
             "auto_audit",
             return_active,
-            Some(0),
+            // P1 1-1 修复（批次 59b）：原 Some(0) 占位符改为真实操作人 user_id
+            Some(user_id),
         )
         .await?;
 
@@ -214,7 +216,8 @@ impl PurchaseReturnService {
             &txn,
             "auto_audit",
             return_active,
-            Some(0),
+            // P1 1-1 修复（批次 59b）：原 Some(0) 占位符改为真实操作人 user_id
+            Some(user_id),
         )
         .await?;
 
@@ -340,7 +343,7 @@ impl PurchaseReturnService {
         &self,
         return_id: i32,
         reason: String,
-        _user_id: i32,
+        user_id: i32,
     ) -> Result<purchase_return::Model, AppError> {
         // 批次 25 v6 P0 修复：状态机 lock_exclusive 补全，串行化并发状态变更
         // 原实现无事务、无行锁，并发拒绝会基于过期状态通过状态检查后重复写入。
@@ -372,7 +375,8 @@ impl PurchaseReturnService {
             &txn,
             "auto_audit",
             return_active,
-            Some(0),
+            // P1 1-1 修复（批次 59b）：原 Some(0) 占位符改为真实操作人 user_id
+            Some(user_id),
         )
         .await?;
 

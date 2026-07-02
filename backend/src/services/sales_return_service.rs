@@ -192,7 +192,7 @@ impl SalesReturnService {
         &self,
         return_id: i32,
         req: UpdateSalesReturnRequest,
-        _user_id: i32,
+        user_id: i32,
     ) -> Result<sales_return::Model, AppError> {
         let return_order = sales_return::Entity::find_by_id(return_id)
             .one(&*self.db)
@@ -237,7 +237,8 @@ impl SalesReturnService {
             &*self.db,
             "auto_audit",
             active_model,
-            Some(0),
+            // P1 1-1 修复（批次 59b）：原 Some(0) 占位符改为真实操作人 user_id
+            Some(user_id),
         )
         .await?;
 
@@ -248,7 +249,7 @@ impl SalesReturnService {
     pub async fn submit_return(
         &self,
         return_id: i32,
-        _user_id: i32,
+        user_id: i32,
     ) -> Result<sales_return::Model, AppError> {
         // 批次 26 v6 P1 修复：状态机 lock_exclusive 补全，串行化并发状态变更
         // 原实现先在事务外用 &*self.db 裸查询退货单状态，再 begin() 开启事务，
@@ -298,7 +299,8 @@ impl SalesReturnService {
             &txn,
             "auto_audit",
             active_model,
-            Some(0),
+            // P1 1-1 修复（批次 59b）：原 Some(0) 占位符改为真实操作人 user_id
+            Some(user_id),
         )
         .await?;
 
@@ -384,7 +386,8 @@ impl SalesReturnService {
                     &txn,
                     "auto_audit",
                     stock_update,
-                    Some(0),
+                    // P1 1-1 修复（批次 59b）：原 Some(0) 占位符改为真实操作人 user_id
+                    Some(user_id),
                 )
                 .await?;
             } else {
@@ -439,7 +442,8 @@ impl SalesReturnService {
             &txn,
             "auto_audit",
             active_model,
-            Some(0),
+            // P1 1-1 修复（批次 59b）：原 Some(0) 占位符改为真实操作人 user_id
+            Some(user_id),
         )
         .await?;
 
@@ -522,7 +526,7 @@ impl SalesReturnService {
         &self,
         return_id: i32,
         reason: String,
-        _user_id: i32,
+        user_id: i32,
     ) -> Result<sales_return::Model, AppError> {
         // 批次 25 v6 P0 修复：状态机 lock_exclusive 补全，串行化并发状态变更
         // 事务包裹"查询 + 状态检查 + update_with_audit"，加 lock_exclusive 防止并发拒绝同一退货单导致状态不一致
@@ -550,7 +554,8 @@ impl SalesReturnService {
             &txn,
             "auto_audit",
             active_model,
-            Some(0), // TODO(tech-debt): 接入用户上下文后传入真实 user_id
+            // P1 1-1 修复（批次 59b）：原 Some(0) 占位符改为真实操作人 user_id
+            Some(user_id),
         )
         .await?;
 
@@ -563,7 +568,7 @@ impl SalesReturnService {
     pub async fn execute_return(
         &self,
         return_id: i32,
-        _user_id: i32,
+        user_id: i32,
     ) -> Result<sales_return::Model, AppError> {
         // 批次 25 v6 P0 修复：状态机 lock_exclusive 补全，串行化并发状态变更
         // 事务包裹"查询 + 状态检查 + update_with_audit"，加 lock_exclusive 防止并发执行同一退货单导致状态不一致
@@ -590,7 +595,8 @@ impl SalesReturnService {
             &txn,
             "auto_audit",
             active_model,
-            Some(0), // TODO(tech-debt): 接入用户上下文后传入真实 user_id
+            // P1 1-1 修复（批次 59b）：原 Some(0) 占位符改为真实操作人 user_id
+            Some(user_id),
         )
         .await?;
 

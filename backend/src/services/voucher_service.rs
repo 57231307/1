@@ -484,7 +484,8 @@ impl VoucherService {
             &txn,
             "auto_audit",
             active_model,
-            Some(0),
+            // P1 1-1 修复（批次 59b）：原 Some(0) 占位符改为真实操作人 user_id
+            Some(user_id),
         )
         .await?;
         txn.commit().await?;
@@ -532,7 +533,8 @@ impl VoucherService {
             &txn,
             "auto_audit",
             active_model,
-            Some(0),
+            // P1 1-1 修复（批次 59b）：原 Some(0) 占位符改为真实操作人 user_id
+            Some(user_id),
         )
         .await?;
 

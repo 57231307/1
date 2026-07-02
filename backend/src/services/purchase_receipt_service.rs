@@ -107,7 +107,8 @@ impl PurchaseReceiptService {
             &txn,
             "auto_audit",
             receipt_active,
-            Some(0),
+            // P1 1-1 修复（批次 59b）：原 Some(0) 占位符改为真实操作人 user_id
+            Some(user_id),
         )
         .await?;
 
@@ -290,7 +291,8 @@ impl PurchaseReceiptService {
             &txn,
             "auto_audit",
             receipt_active,
-            Some(0),
+            // P1 1-1 修复（批次 59b）：原 Some(0) 占位符改为真实操作人 user_id
+            Some(user_id),
         )
         .await?;
 
@@ -447,7 +449,8 @@ impl PurchaseReceiptService {
             &txn,
             "auto_audit",
             item_active,
-            Some(0),
+            // P1 1-1 修复（批次 59b）：原 Some(0) 占位符改为真实操作人 user_id
+            Some(user_id),
         )
         .await?;
 
