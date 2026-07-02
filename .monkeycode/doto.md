@@ -3,22 +3,28 @@
 > 本文件记录**当前任务**与**历史任务索引**。
 > 详细历史请查阅 [`.monkeycode/docs/archives/`](file:///workspace/.monkeycode/docs/archives/)。
 
-### 2026-07-01 批次 54 进行中：8-3 delete 审计（30 处 delete 调用迁移）
+### 2026-07-01 批次 54 完成：8-3 delete 审计 30 处（✅ 已合并 main，CI 12/13 关键检查全绿，E2E continue-on-error）
 
-**修复分支**：`fix/v19-audit-batch54`（已创建，待 commit + push + PR + CI）
+**修复分支**：`fix/v19-audit-batch54`（已合并删除）
+**合并 commit**：`fdf26e4d`（PR #297 squash merge）
+**main HEAD**：`fdf26e4d`
 **修复范围**：操作审计 P0 8-3（delete 操作完全无审计日志）
 
-**修复内容**：
+**修复清单**：
 - 新增 `delete_with_audit<E, C>` + `delete_with_audit_i64<E, C>` 函数（`audit_log_service.rs`）
   - 三步原子：find old_value 快照 → delete → 写审计日志
   - 支持 i32 / i64 两类主键
-- 迁移 30 处 delete 调用（5 handler + 25 service）：
-  - handler 层下沉 delete：logistics_waybill / warehouse_location / inventory_batch / sales_fabric_order / （inventory_stock 已通过 service）
+  - 补充 PrimaryKey ValueType From<i32/i64> trait bound（CI 失败后修复）
+  - 复用 OperationType::Delete 枚举
+- 迁移 30 处 delete 调用（4 handler + 26 service）：
+  - handler 层：logistics_waybill / warehouse_location / inventory_batch / sales_fabric_order
   - service 层：role / role_permission / product / product_color / product_category / warehouse / department / sales_price / ar_invoice / ap_invoice / ap_payment_request / ar_reconciliation / cost_collection / finance_invoice / inventory_reservation / inventory_adjustment / inventory_transfer / purchase_order / purchase_receipt / purchase_return / sales_order / sales_return / crm_lead / crm_opportunity / crm_recycle_rule / color_price_tier / batch_delete_products（循环）
-  - 保留业务规则检查（状态门 / 权限门），仅替换最终 delete_by_id 调用
-  - 主表删除审计覆盖子表批量删除（如 sales_order_item / purchase_receipt_item）
+  - 保留业务规则检查（状态门/权限门），仅替换最终 delete_by_id 调用
+  - 主表删除审计覆盖子表批量删除
 
-**待办**：commit + push + 创建 PR + 监控 CI + 合并 + 删除分支 + 进入批次 55（测试资产 P0）
+**CI 结果**：Rust 构建/Clippy/单元测试/格式 全部 success；前端构建/测试/lint/类型检查 全部 success；E2E continue-on-error 不阻塞
+
+**当前状态**：批次 54 已合并 main，进入批次 55（测试资产 P0 6 项）
 
 ---
 

@@ -43,6 +43,10 @@ pub fn chunk_ids<T: Clone>(ids: &[T], chunk_size: usize) -> Vec<Vec<T>> {
     if chunk_size == 0 {
         return vec![ids.to_vec()];
     }
+    // P0 6-2 修复：空列表返回 1 个空 chunk（而非 0 个），保证调用方至少能迭代一次
+    if ids.is_empty() {
+        return vec![Vec::new()];
+    }
     ids.chunks(chunk_size).map(|c| c.to_vec()).collect()
 }
 

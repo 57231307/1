@@ -26,6 +26,7 @@ pub mod cache;
 
 /// 主备调用错误
 #[derive(Debug, Error)]
+#[allow(dead_code)] // TODO(tech-debt): 主备隔离服务尚未全量上线，部分错误变体（PrimaryFailed/PrimaryTimeout/BothFailed/BothTimeout/CircuitOpen）待业务接入后逐项移除
 pub enum FailoverError<E> {
     /// 主调用失败
     #[error("主调用失败: {0}")]
@@ -153,9 +154,12 @@ pub trait FailoverCall<T: Send, E: Send>: Send + Sync {
                 self.record_primary_success();
                 Ok(v)
             }
-            Ok(Err(e)) => {
+            Ok(Err(_e)) => {
+                // P0 6-2 修复：主调用返回错误时应切换至备用（与超时行为一致），
+                // 而非直接返回 PrimaryFailed。PrimaryFailed 仅在备用也失败时由
+                // try_backup 返回 BackupFailed 间接体现。
                 self.record_primary_failure();
-                Err(FailoverError::PrimaryFailed(e))
+                self.try_backup().await
             }
             Err(_) => {
                 self.record_primary_failure();
