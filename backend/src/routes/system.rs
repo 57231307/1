@@ -16,8 +16,8 @@ use axum::{
 };
 
 use crate::handlers::{
-    ai_extend_handler, bpm_handler, dashboard_handler, health_handler, init_handler,
-    system_update_handler,
+    ai_extend_handler, bpm_definition_handler, bpm_handler, dashboard_handler, health_handler,
+    init_handler, system_update_handler,
 };
 use crate::websocket;
 
@@ -152,6 +152,44 @@ pub fn bpm() -> Router<AppState> {
         )
         .route("/bpm/tasks/:task_id/urge", post(bpm_handler::urge_task))
         .route("/bpm/approval/execute", post(bpm_handler::execute_approval))
+        // 批次 67（P1 1-2 修复）：BPM 流程定义/版本/模板管理路由
+        // 原 stub 占位未注册，现 service 层已实现真实逻辑
+        .route(
+            "/bpm/definitions",
+            get(bpm_definition_handler::list_process_definitions)
+                .post(bpm_definition_handler::create_process_definition),
+        )
+        .route(
+            "/bpm/definitions/:id",
+            get(bpm_definition_handler::get_process_definition)
+                .put(bpm_definition_handler::update_process_definition)
+                .delete(bpm_definition_handler::delete_process_definition),
+        )
+        .route(
+            "/bpm/definitions/:id/versions",
+            get(bpm_definition_handler::list_versions)
+                .post(bpm_definition_handler::create_version),
+        )
+        .route(
+            "/bpm/definitions/:id/versions/:version/activate",
+            post(bpm_definition_handler::activate_version),
+        )
+        .route(
+            "/bpm/definitions/:id/template",
+            post(bpm_definition_handler::save_as_template),
+        )
+        .route(
+            "/bpm/versions/:version_id/activate",
+            post(bpm_definition_handler::activate_version_by_id),
+        )
+        .route(
+            "/bpm/templates",
+            get(bpm_definition_handler::list_templates),
+        )
+        .route(
+            "/bpm/templates/:template_id/create",
+            post(bpm_definition_handler::create_from_template),
+        )
 }
 
 /// 健康检查路由（path 前缀 /health）
