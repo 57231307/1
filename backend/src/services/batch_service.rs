@@ -212,7 +212,7 @@ impl BatchService {
                 "total": requests.len(),
                 "created": created,
                 "failed": 0,
-                "failed_indexes": [] as Vec<usize>,
+                "failed_indexes": errors.iter().map(|e| e.index).collect::<Vec<_>>(),
             })),
         };
         let svc = Arc::new(AuditLogService::new(self.db.clone()));
@@ -403,7 +403,7 @@ impl BatchService {
                 "total": requests.len(),
                 "updated": updated,
                 "failed": 0,
-                "failed_indexes": [] as Vec<usize>,
+                "failed_indexes": errors.iter().map(|e| e.index).collect::<Vec<_>>(),
             })),
         };
         let svc = Arc::new(AuditLogService::new(self.db.clone()));
