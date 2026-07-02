@@ -1,6 +1,10 @@
 //! 采购域路由
 //!
 //! 处理采购订单、采购合同、采购价格、采购收货、采购检验、采购退货、供应商、供应商评估等采购相关接口。
+//!
+//! P2 2-11 文档标注：本模块中 `POST /resource/:id/{action}` 形式的端点为"动作端点"，
+//! 语义上等价于状态变更（approve/cancel/submit 等），RESTful 规范应为 `PATCH /resource/:id` + body `{status}`。
+//! 短期保留 POST 动作端点以兼容前端；长期计划重构为 PATCH 统一状态变更语义。
 
 use crate::utils::app_state::AppState;
 use axum::{

@@ -70,7 +70,8 @@ pub async fn list_assets(
         keyword: params.keyword,
         status: params.status,
         asset_category: params.asset_category,
-        page: params.page.unwrap_or_default(),
+        // P2 2-12 修复：分页默认值统一为 page=1，原 unwrap_or_default() 默认 0 不符合分页语义
+        page: params.page.unwrap_or(1).clamp(1, 10000),
         page_size: params.page_size.unwrap_or(10).clamp(1, 100),
     };
 

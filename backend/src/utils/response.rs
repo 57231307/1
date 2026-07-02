@@ -69,20 +69,10 @@ impl<T> From<PaginatedResponse<T>> for ApiResponse<Vec<T>> {
     }
 }
 
-// 为 PaginatedResponse<T> 实现 IntoResponse
-impl<T: Serialize> IntoResponse for PaginatedResponse<T> {
-    fn into_response(self) -> Response {
-        ApiResponse {
-            code: Some(200),
-            data: Some(self.items),
-            message: Some(format!(
-                "共 {} 条记录，第 {}/{} 页",
-                self.total, self.page, self.page_size
-            )),
-        }
-        .into_response()
-    }
-}
+// P2 2-10 修复：移除 PaginatedResponse<T> 的 IntoResponse 实现
+// 原实现将 items 放入 data、total/page 拼接到 message，丢失结构化分页信息。
+// 新代码必须使用 ApiResponse::success(PaginatedResponse<T>) 或 ApiResponse::success_paginated，
+// 确保分页元数据（total/page/page_size）以结构化形式保留在 data 字段中。
 
 impl<T: Serialize> ApiResponse<T> {
     pub fn success(data: T) -> Self {

@@ -12,7 +12,9 @@ use crate::utils::error::AppError;
 use crate::utils::response::ApiResponse;
 use axum::extract::Query;
 use axum::{extract::State, Extension, Json};
+use serde::Serialize;
 use std::collections::HashMap;
+use utoipa::ToSchema;
 
 #[derive(Debug, serde::Deserialize)]
 pub struct TestDatabaseRequest {
@@ -349,7 +351,7 @@ pub async fn get_task_status(
     State(state): State<AppState>,
     auth: AuthContext,
     Query(params): Query<HashMap<String, String>>,
-) -> Result<Json<serde_json::Value>, AppError> {
+) -> Result<Json<ApiResponse<TaskStatusResponse>>, AppError> {
     // 1) 强制要求管理员角色（深度防御：与 test_database_connection / reset_admin_password 一致）
     require_admin_role(&state, &auth).await?;
 
@@ -372,10 +374,21 @@ pub async fn get_task_status(
         InitTaskStatus::Failed => "failed",
     };
 
-    Ok(Json(serde_json::json!({
-        "task_id": task_id,
-        "status": status_str,
+    // P2 2-7 修复：原返回 Json<serde_json::Value> 未用 ApiResponse 包装，与项目响应规范不一致。
+    // 改为返回 ApiResponse<TaskStatusResponse>，保持与项目其他接口的响应结构统一。
+    Ok(Json(ApiResponse::success(TaskStatusResponse {
+        task_id: task_id.clone(),
+        status: status_str.to_string(),
     })))
+}
+
+/// P2 2-7 修复：初始化任务状态响应 DTO，替代原 serde_json::Value 手拼 JSON
+#[derive(Debug, Serialize, ToSchema)]
+pub struct TaskStatusResponse {
+    /// 任务 ID
+    pub task_id: String,
+    /// 任务状态：running / completed / failed
+    pub status: String,
 }
 
 #[derive(Debug, serde::Deserialize)]
