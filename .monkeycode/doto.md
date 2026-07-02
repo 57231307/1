@@ -3,6 +3,35 @@
 > 本文件记录**当前任务**与**历史任务索引**。
 > 详细历史请查阅 [`.monkeycode/docs/archives/`](file:///workspace/.monkeycode/docs/archives/)。
 
+### 2026-07-02 批次 55 完成：测试资产 P0 修复 5 项（✅ 已合并 main，CI 12/13 关键检查全绿，E2E continue-on-error）
+
+**修复分支**：`fix/v19-audit-batch55`（已合并删除）
+**合并 commit**：`2ecec6bd`（PR #298 squash merge）
+**main HEAD**：`2ecec6bd`
+**修复范围**：测试资产 P0（6-1/6-2/6-3/6-4/6-5 已完成，6-6 延后至批次 56）
+
+**修复清单**：
+- P0 6-1：删除 p9_5 系列 5 个伪测试文件（100 个玩具断言）+ mod.rs 5 行 `#[cfg(test)] pub mod` 声明
+- P0 6-2：修复 10 个 baseline 失败测试 + 清空 `.test-baseline.txt`（零基线债务）
+  - ar_unit_tests: 账龄分桶 days=0 时间竞态（0→"0-30" 桶）
+  - business_metrics: 23 指标 >= 20 断言通过（仅清基线）
+  - purchase_unit_tests: is_completable() 零数量除零守卫
+  - sales_unit_tests: 477.50 → 577.50 算术错误
+  - color_space_converter: 统一 `#` 前缀（与实现一致）
+  - failover: call() 主调用错误时切换备用（与超时行为一致），违反主备隔离原则
+  - n_plus_one: chunk_ids 空列表返回 1 个空 chunk（而非 0 个）
+  - **price_calculator: customer_level_discount scale 3→2（生产代码 bug，VIP 客户价格被错误缩小 10 倍）**
+- P0 6-3：删除 tests/integration/ 死代码目录（4 文件，Cargo.toml 无 `[[test]]` 配置）
+- P0 6-4：删除 tests/test_bpm_workflow.rs（4 个伪测试）
+- P0 6-5：迁移 5 个冒烟测试 tests/views/ → e2e/smoke/ + vitest exclude + playwright 注释更新
+- Clippy 修复：failover FailoverError enum 添加项级 `#[allow(dead_code)]` + TODO（call() 修复后 5 个变体变为死代码）
+
+**CI 结果**：Rust 构建/Clippy/单元测试/格式 全部 success；前端构建/测试/lint/类型检查 全部 success；E2E continue-on-error 不阻塞
+
+**当前状态**：批次 55 已合并 main，进入批次 56（6-6 E2E 环境补齐，延后项）
+
+---
+
 ### 2026-07-01 批次 54 完成：8-3 delete 审计 30 处（✅ 已合并 main，CI 12/13 关键检查全绿，E2E continue-on-error）
 
 **修复分支**：`fix/v19-audit-batch54`（已合并删除）
