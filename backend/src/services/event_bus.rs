@@ -483,8 +483,20 @@ pub async fn start_event_listener(db: Arc<DatabaseConnection>) {
                         }
                     }
                 }
-                BusinessEvent::SalesOrderShipped { order_id, .. } => {
-                    tracing::info!("Event received: SalesOrderShipped for order {}", order_id);
+                BusinessEvent::SalesOrderShipped { order_id, customer_id, .. } => {
+                    tracing::info!(
+                        "Event received: SalesOrderShipped for order {}, customer {}",
+                        order_id,
+                        customer_id
+                    );
+                    // P1 5-2 修复（批次 62）：销售发货事件触发财务指标刷新
+                    // 原监听器仅打日志无业务逻辑，销售发货→AR 生成后财务指标（应收/收入）未更新，
+                    // 导致财务看板数据滞后。发布 FinancialIndicatorUpdate 事件触发财务指标计算服务刷新。
+                    let period = chrono::Utc::now().format("%Y-%m").to_string();
+                    EVENT_BUS.publish(BusinessEvent::FinancialIndicatorUpdate {
+                        period,
+                        trigger_source: format!("sales_shipped:{}", order_id),
+                    });
                 }
                 BusinessEvent::PaymentCompleted { invoice_id, .. } => {
                     tracing::info!(

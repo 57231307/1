@@ -135,9 +135,12 @@ impl SalesService {
 
         txn.commit().await?;
 
-        // 启动审批工作流（BPM）—— 事务外，失败不阻断已提交状态
-        // P0 修复（批次 4，2026-06-27）：原 `let _ = ...` 静默吞掉 BPM 启动错误，
-        // 改为 warn 日志记录，保留兼容性（不阻断主流程），确保运维可观测。
+        // P1 3-11 修复（批次 62）：BPM 启动失败时补偿回滚订单状态
+        // 原实现 BPM 启动在 commit 后，失败仅 warn 不阻断，导致订单已提交但无审批流，
+        // 业务流断点（订单卡在 pending 状态无人审批）。
+        // 修复：BPM 启动失败时将订单状态补偿回滚为 draft 并返回错误，用户可重新提交。
+        // BpmService::start_process 内部独立事务（不支持外部 txn），无法与订单状态更新共用事务，
+        // 故采用补偿机制：commit 成功后调用 BPM，BPM 失败则开启新事务回滚订单状态。
         let bpm_service = crate::services::bpm_service::BpmService::new(self.db.clone());
         if let Err(e) = bpm_service
             .start_process(crate::models::dto::bpm_dto::StartProcessRequest {
@@ -154,11 +157,35 @@ impl SalesService {
             })
             .await
         {
-            tracing::warn!(
+            tracing::error!(
                 error = %e,
                 order_id = order_id,
-                "BPM 启动销售订单审批流程失败（不阻断主流程）"
+                "BPM 启动销售订单审批流程失败，开始补偿回滚订单状态"
             );
+            // 补偿：开启新事务回滚订单状态为 draft，使用户可重新提交
+            let compensating_txn = (*self.db).begin().await?;
+            let order_for_rollback = SalesOrderEntity::find_by_id(order_id)
+                .lock_exclusive()
+                .one(&compensating_txn)
+                .await?
+                .ok_or_else(|| {
+                    AppError::not_found(format!("补偿回滚时销售订单 {} 不存在", order_id))
+                })?;
+            let mut rollback_model: sales_order::ActiveModel = order_for_rollback.into();
+            rollback_model.status = sea_orm::ActiveValue::Set("draft".to_string());
+            rollback_model.updated_at = sea_orm::ActiveValue::Set(chrono::Utc::now());
+            crate::services::audit_log_service::AuditLogService::update_with_audit(
+                &compensating_txn,
+                "auto_audit",
+                rollback_model,
+                Some(user_id),
+            )
+            .await?;
+            compensating_txn.commit().await?;
+            return Err(AppError::business(format!(
+                "BPM 审批流程启动失败，订单已回滚为草稿状态，请重新提交：{}",
+                e
+            )));
         }
 
         Ok(order)
