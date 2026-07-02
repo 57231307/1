@@ -249,12 +249,13 @@ impl CostCollectionService {
         Ok(result)
     }
 
-    pub async fn delete(&self, id: i32, _user_id: i32) -> Result<(), AppError> {
+    pub async fn delete(&self, id: i32, user_id: i32) -> Result<(), AppError> {
         // P0 8-3 修复：delete 操作补审计日志（find→delete→audit 三步由 delete_with_audit 原子完成）
+        // P1 1-1 修复（批次 59b）：原 Some(0) 占位符改为真实操作人 user_id
         crate::services::audit_log_service::AuditLogService::delete_with_audit::<
             cost_collection::Entity,
             _,
-        >(&*self.db, "cost_collection", id, Some(0))
+        >(&*self.db, "cost_collection", id, Some(user_id))
         .await
     }
 

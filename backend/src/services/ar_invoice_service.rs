@@ -178,7 +178,7 @@ impl ArInvoiceService {
         &self,
         id: i32,
         req: UpdateArInvoiceRequest,
-        _user_id: i32,
+        user_id: i32,
     ) -> Result<ar_invoice::Model, AppError> {
         // 批次 11（2026-06-28）：事务包裹"实体更新 + 审计日志"，保证原子性
         // 原 update_with_audit(&*self.db, ...) 内部 2 次独立写入（实体 update + 审计 insert），
@@ -216,7 +216,8 @@ impl ArInvoiceService {
             &txn,
             "auto_audit",
             active_invoice,
-            Some(0),
+            // P1 1-1 修复（批次 59b）：原 Some(0) 占位符改为真实操作人 user_id
+            Some(user_id),
         )
         .await?;
 
@@ -338,7 +339,7 @@ impl ArInvoiceService {
         &self,
         id: i32,
         _reason: String,
-        _user_id: i32,
+        user_id: i32,
     ) -> Result<ar_invoice::Model, AppError> {
         // 批次 11（2026-06-28）：事务包裹"取消状态变更 + 审计日志"，保证原子性
         let txn = (*self.db).begin().await?;
@@ -362,7 +363,8 @@ impl ArInvoiceService {
             &txn,
             "auto_audit",
             active_invoice,
-            Some(0),
+            // P1 1-1 修复（批次 59b）：原 Some(0) 占位符改为真实操作人 user_id
+            Some(user_id),
         )
         .await?;
 

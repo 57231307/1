@@ -324,7 +324,8 @@ impl SupplierService {
             &*self.db,
             "auto_audit",
             supplier_active,
-            Some(0),
+            // P1 1-1 修复（批次 59b）：原 Some(0) 占位符改为真实操作人 user_id
+            Some(user_id),
         )
         .await?;
         Ok(updated)
@@ -401,7 +402,8 @@ impl SupplierService {
             &*self.db,
             "auto_audit",
             supplier_active,
-            Some(0),
+            // P1 1-1 修复（批次 59b）：原 Some(0) 占位符改为真实操作人 user_id
+            Some(user_id),
         )
         .await?;
         Ok(updated)
@@ -460,7 +462,7 @@ impl SupplierService {
         &self,
         contact_id: i32,
         req: UpdateContactRequest,
-        _user_id: i32,
+        user_id: i32,
     ) -> Result<supplier_contact::Model, AppError> {
         let contact = self.get_contact(contact_id).await?;
         let supplier_id = contact.supplier_id;
@@ -506,7 +508,8 @@ impl SupplierService {
             &*self.db,
             "auto_audit",
             contact_active,
-            Some(0),
+            // P1 1-1 修复（批次 59b）：原 Some(0) 占位符改为真实操作人 user_id
+            Some(user_id),
         )
         .await?;
         Ok(updated)

@@ -82,7 +82,7 @@ impl PurchaseInspectionService {
         &self,
         inspection_id: i32,
         req: UpdatePurchaseInspectionRequest,
-        _user_id: i32,
+        user_id: i32,
     ) -> Result<purchase_inspection::Model, AppError> {
         let inspection = purchase_inspection::Entity::find_by_id(inspection_id)
             .one(&*self.db)
@@ -113,7 +113,8 @@ impl PurchaseInspectionService {
             &*self.db,
             "auto_audit",
             inspection_active,
-            Some(0),
+            // P1 1-1 修复（批次 59b）：原 Some(0) 占位符改为真实操作人 user_id
+            Some(user_id),
         )
         .await?;
 
@@ -125,7 +126,7 @@ impl PurchaseInspectionService {
         &self,
         inspection_id: i32,
         req: CompleteInspectionRequest,
-        _user_id: i32,
+        user_id: i32,
     ) -> Result<purchase_inspection::Model, AppError> {
         let txn = (*self.db).begin().await?;
 
@@ -160,7 +161,8 @@ impl PurchaseInspectionService {
             &txn,
             "auto_audit",
             inspection_active,
-            Some(0),
+            // P1 1-1 修复（批次 59b）：原 Some(0) 占位符改为真实操作人 user_id
+            Some(user_id),
         )
         .await?;
 

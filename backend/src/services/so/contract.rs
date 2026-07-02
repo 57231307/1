@@ -17,7 +17,7 @@ impl SalesService {
         &self,
         order_id: i32,
         reason: String,
-        _user_id: i32,
+        user_id: i32,
     ) -> Result<(), AppError> {
         let order = sales_order::Entity::find_by_id(order_id)
             .one(&*self.db)
@@ -50,7 +50,8 @@ impl SalesService {
             &txn,
             "auto_audit",
             order_update,
-            Some(0),
+            // P1 1-1 修复（批次 59b）：原 Some(0) 占位符改为真实操作人 user_id
+            Some(user_id),
         )
         .await?;
 

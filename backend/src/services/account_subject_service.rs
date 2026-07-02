@@ -229,7 +229,7 @@ impl AccountSubjectService {
         &self,
         id: i32,
         req: UpdateSubjectRequest,
-        _user_id: i32,
+        user_id: i32,
     ) -> Result<account_subject::Model, AppError> {
         info!("更新会计科目 ID: {}", id);
 
@@ -255,7 +255,8 @@ impl AccountSubjectService {
             &*self.db,
             "auto_audit",
             active_model,
-            Some(0),
+            // P1 1-1 修复（批次 59b）：原 Some(0) 占位符改为真实操作人 user_id
+            Some(user_id),
         )
         .await?;
         info!("会计科目更新成功：id={}", result.id);
