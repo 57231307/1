@@ -26,6 +26,7 @@ pub mod cache;
 
 /// 主备调用错误
 #[derive(Debug, Error)]
+#[allow(dead_code)] // TODO(tech-debt): 主备隔离服务尚未全量上线，部分错误变体（PrimaryFailed/PrimaryTimeout/BothFailed/BothTimeout/CircuitOpen）待业务接入后逐项移除
 pub enum FailoverError<E> {
     /// 主调用失败
     #[error("主调用失败: {0}")]
