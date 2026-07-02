@@ -7,6 +7,7 @@ use crate::services::audit_log_service::{AuditEvent, AuditLogService};
 use crate::utils::error::AppError;
 use sea_orm::DatabaseConnection;
 use sea_orm::{ActiveModelTrait, EntityTrait, Set};
+use sea_orm::TransactionTrait;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 
@@ -30,7 +31,8 @@ pub struct BatchError {
 }
 
 /// 产品批量创建请求
-#[derive(Debug, Deserialize, Clone)]
+// P2 2-9 修复：补 Serialize derive，满足 validator::Validate 宏的 add_param 约束
+#[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct BatchCreateProductRequest {
     pub name: String,
     pub code: String,
@@ -54,7 +56,8 @@ pub struct BatchCreateProductRequest {
 }
 
 /// 产品批量更新请求
-#[derive(Debug, Deserialize, Clone)]
+// P2 2-9 修复：补 Serialize derive，满足 validator::Validate 宏的 add_param 约束
+#[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct BatchUpdateProductRequest {
     pub id: i32,
     pub name: Option<String>,
@@ -80,13 +83,15 @@ impl BatchService {
     /// 批量创建产品
     ///
     /// P1 8-4 修复：接收 user_id 参数，操作完成后记录汇总审计日志
+    /// P2 2-9 修复：用 db.begin() 包裹批量操作，任一失败则整体回滚，避免部分写入
     pub async fn batch_create_products(
         &self,
         user_id: i32,
         requests: Vec<BatchCreateProductRequest>,
     ) -> Result<BatchResult<product::Model>, AppError> {
+        // P2 2-9 修复：整体包裹事务，任一失败回滚全部
+        let txn = self.db.begin().await?;
         let mut created = 0;
-        let mut failed = 0;
         let mut data = Vec::new();
         let mut errors = Vec::new();
 
@@ -135,35 +140,72 @@ impl BatchService {
                 batch_level: sea_orm::ActiveValue::NotSet,
             };
 
-            match product.insert(self.db.as_ref()).await {
+            match product.insert(&txn).await {
                 Ok(model) => {
                     created += 1;
                     data.push(model);
                 }
                 Err(e) => {
-                    failed += 1;
+                    // P2 2-9 修复：事务内任一失败则整体回滚，避免部分写入
+                    txn.rollback().await.ok();
                     errors.push(BatchError {
                         index,
                         message: e.to_string(),
                     });
+                    let failed = errors.len();
+                    // 审计日志记录在主连接上（非事务），确保回滚后仍可追溯
+                    let event = AuditEvent {
+                        user_id: Some(user_id),
+                        username: None,
+                        operation_type: OperationType::Create,
+                        severity: Severity::Warn,
+                        resource_type: Some("product_batch".to_string()),
+                        resource_id: None,
+                        resource_name: Some(format!("batch_create_{}", chrono::Utc::now().timestamp())),
+                        description: Some(format!(
+                            "批量创建产品（已回滚）：总数={} 成功=0 失败={} 首错索引={}",
+                            requests.len(), failed, index
+                        )),
+                        request_method: Some("POST".to_string()),
+                        request_path: Some("/api/v1/erp/products/batch/create".to_string()),
+                        before_snapshot: None,
+                        after_snapshot: Some(serde_json::json!({
+                            "total": requests.len(),
+                            "created": 0,
+                            "failed": failed,
+                            "rolled_back": true,
+                            "failed_indexes": errors.iter().map(|e| e.index).collect::<Vec<_>>(),
+                        })),
+                    };
+                    let svc = Arc::new(AuditLogService::new(self.db.clone()));
+                    svc.record_async(event, None);
+                    return Ok(BatchResult {
+                        success: false,
+                        total: requests.len(),
+                        created: 0,
+                        updated: 0,
+                        failed,
+                        data: vec![],
+                        errors,
+                    });
                 }
             }
         }
+        txn.commit().await?;
 
         // P1 8-4 修复：批量创建完成后记录汇总审计日志
         let event = AuditEvent {
             user_id: Some(user_id),
             username: None,
             operation_type: OperationType::Create,
-            severity: if failed == 0 { Severity::Info } else { Severity::Warn },
+            severity: Severity::Info,
             resource_type: Some("product_batch".to_string()),
             resource_id: None,
             resource_name: Some(format!("batch_create_{}", chrono::Utc::now().timestamp())),
             description: Some(format!(
-                "批量创建产品：总数={} 成功={} 失败={}",
+                "批量创建产品：总数={} 成功={} 失败=0",
                 requests.len(),
-                created,
-                failed
+                created
             )),
             request_method: Some("POST".to_string()),
             request_path: Some("/api/v1/erp/products/batch/create".to_string()),
@@ -171,7 +213,7 @@ impl BatchService {
             after_snapshot: Some(serde_json::json!({
                 "total": requests.len(),
                 "created": created,
-                "failed": failed,
+                "failed": 0,
                 "failed_indexes": errors.iter().map(|e| e.index).collect::<Vec<_>>(),
             })),
         };
@@ -179,11 +221,11 @@ impl BatchService {
         svc.record_async(event, None);
 
         Ok(BatchResult {
-            success: failed == 0,
+            success: true,
             total: requests.len(),
             created,
             updated: 0,
-            failed,
+            failed: 0,
             data,
             errors,
         })
@@ -192,20 +234,22 @@ impl BatchService {
     /// 批量更新产品
     ///
     /// P1 8-4 修复：接收 user_id 参数，操作完成后记录汇总审计日志
+    /// P2 2-9 修复：用 db.begin() 包裹批量操作，任一失败则整体回滚，避免部分写入
     pub async fn batch_update_products(
         &self,
         user_id: i32,
         requests: Vec<BatchUpdateProductRequest>,
     ) -> Result<BatchResult<product::Model>, AppError> {
+        // P2 2-9 修复：整体包裹事务，任一失败回滚全部
+        let txn = self.db.begin().await?;
         let mut updated = 0;
-        let mut failed = 0;
         let mut data = Vec::new();
         let mut errors = Vec::new();
 
         for (index, req) in requests.iter().enumerate() {
-            // 检查产品是否存在
+            // 检查产品是否存在（事务内查询）
             let existing = product::Entity::find_by_id(req.id)
-                .one(self.db.as_ref())
+                .one(&txn)
                 .await?;
 
             match existing {
@@ -243,44 +287,116 @@ impl BatchService {
                     }
                     product.updated_at = Set(chrono::Utc::now());
 
-                    match product.update(self.db.as_ref()).await {
+                    match product.update(&txn).await {
                         Ok(model) => {
                             updated += 1;
                             data.push(model);
                         }
                         Err(e) => {
-                            failed += 1;
+                            // P2 2-9 修复：事务内任一失败则整体回滚，避免部分写入
+                            txn.rollback().await.ok();
                             errors.push(BatchError {
                                 index,
                                 message: e.to_string(),
+                            });
+                            let failed = errors.len();
+                            let event = AuditEvent {
+                                user_id: Some(user_id),
+                                username: None,
+                                operation_type: OperationType::Update,
+                                severity: Severity::Warn,
+                                resource_type: Some("product_batch".to_string()),
+                                resource_id: None,
+                                resource_name: Some(format!("batch_update_{}", chrono::Utc::now().timestamp())),
+                                description: Some(format!(
+                                    "批量更新产品（已回滚）：总数={} 成功=0 失败={} 首错索引={}",
+                                    requests.len(), failed, index
+                                )),
+                                request_method: Some("PUT".to_string()),
+                                request_path: Some("/api/v1/erp/products/batch/update".to_string()),
+                                before_snapshot: None,
+                                after_snapshot: Some(serde_json::json!({
+                                    "total": requests.len(),
+                                    "updated": 0,
+                                    "failed": failed,
+                                    "rolled_back": true,
+                                    "failed_indexes": errors.iter().map(|e| e.index).collect::<Vec<_>>(),
+                                })),
+                            };
+                            let svc = Arc::new(AuditLogService::new(self.db.clone()));
+                            svc.record_async(event, None);
+                            return Ok(BatchResult {
+                                success: false,
+                                total: requests.len(),
+                                created: 0,
+                                updated: 0,
+                                failed,
+                                data: vec![],
+                                errors,
                             });
                         }
                     }
                 }
                 None => {
-                    failed += 1;
+                    // P2 2-9 修复：产品不存在也视为失败，回滚全部
+                    txn.rollback().await.ok();
                     errors.push(BatchError {
                         index,
                         message: format!("产品 ID {} 不存在", req.id),
                     });
+                    let failed = errors.len();
+                    let event = AuditEvent {
+                        user_id: Some(user_id),
+                        username: None,
+                        operation_type: OperationType::Update,
+                        severity: Severity::Warn,
+                        resource_type: Some("product_batch".to_string()),
+                        resource_id: None,
+                        resource_name: Some(format!("batch_update_{}", chrono::Utc::now().timestamp())),
+                        description: Some(format!(
+                            "批量更新产品（已回滚-产品不存在）：总数={} 失败={} 首错索引={}",
+                            requests.len(), failed, index
+                        )),
+                        request_method: Some("PUT".to_string()),
+                        request_path: Some("/api/v1/erp/products/batch/update".to_string()),
+                        before_snapshot: None,
+                        after_snapshot: Some(serde_json::json!({
+                            "total": requests.len(),
+                            "updated": 0,
+                            "failed": failed,
+                            "rolled_back": true,
+                            "failed_indexes": errors.iter().map(|e| e.index).collect::<Vec<_>>(),
+                        })),
+                    };
+                    let svc = Arc::new(AuditLogService::new(self.db.clone()));
+                    svc.record_async(event, None);
+                    return Ok(BatchResult {
+                        success: false,
+                        total: requests.len(),
+                        created: 0,
+                        updated: 0,
+                        failed,
+                        data: vec![],
+                        errors,
+                    });
                 }
             }
         }
+        txn.commit().await?;
 
         // P1 8-4 修复：批量更新完成后记录汇总审计日志
         let event = AuditEvent {
             user_id: Some(user_id),
             username: None,
             operation_type: OperationType::Update,
-            severity: if failed == 0 { Severity::Info } else { Severity::Warn },
+            severity: Severity::Info,
             resource_type: Some("product_batch".to_string()),
             resource_id: None,
             resource_name: Some(format!("batch_update_{}", chrono::Utc::now().timestamp())),
             description: Some(format!(
-                "批量更新产品：总数={} 成功={} 失败={}",
+                "批量更新产品：总数={} 成功={} 失败=0",
                 requests.len(),
-                updated,
-                failed
+                updated
             )),
             request_method: Some("PUT".to_string()),
             request_path: Some("/api/v1/erp/products/batch/update".to_string()),
@@ -288,7 +404,7 @@ impl BatchService {
             after_snapshot: Some(serde_json::json!({
                 "total": requests.len(),
                 "updated": updated,
-                "failed": failed,
+                "failed": 0,
                 "failed_indexes": errors.iter().map(|e| e.index).collect::<Vec<_>>(),
             })),
         };
@@ -296,11 +412,11 @@ impl BatchService {
         svc.record_async(event, None);
 
         Ok(BatchResult {
-            success: failed == 0,
+            success: true,
             total: requests.len(),
             created: 0,
             updated,
-            failed,
+            failed: 0,
             data,
             errors,
         })

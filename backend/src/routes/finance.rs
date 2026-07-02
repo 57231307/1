@@ -3,6 +3,10 @@
 //! 处理财务、AP/AR 应付应收、凭证/总账、固定资产、预算、资金管理、财务分析、币种等财务相关接口。
 //!
 //! 路由设计说明：所有子 router 内部 path 都已加上各自独立前缀
+//!
+//! P2 2-11 文档标注：本模块中 `POST /resource/:id/{action}` 形式的端点为"动作端点"，
+//! 语义上等价于状态变更（approve/cancel/submit/verify/reject/close 等），RESTful 规范应为 `PATCH /resource/:id` + body `{status}`。
+//! 短期保留 POST 动作端点以兼容前端；长期计划重构为 PATCH 统一状态变更语义。
 //!（`/fixed-assets`、`/budgets`、`/financial-analysis`、
 //!  `/fund-management`、`/ar-reconciliations`、`/ar-reconciliations-enhanced`、
 //!  `/ar-reconciliation-alias`、`/currencies`、`/exchange-rates` 等），

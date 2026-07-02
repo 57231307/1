@@ -1,6 +1,10 @@
 //! 销售域路由
 //!
 //! 处理销售订单、销售合同、销售价格、销售退货、面料销售订单等销售相关接口。
+//!
+//! P2 2-11 文档标注：本模块中 `POST /resource/:id/{action}` 形式的端点为"动作端点"，
+//! 语义上等价于状态变更（submit/approve/cancel 等），RESTful 规范应为 `PATCH /resource/:id` + body `{status}`。
+//! 短期保留 POST 动作端点以兼容前端；长期计划重构为 PATCH 统一状态变更语义。
 
 use crate::utils::app_state::AppState;
 use axum::{
