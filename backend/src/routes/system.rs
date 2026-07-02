@@ -11,7 +11,7 @@ use crate::middleware::init_token::init_token_middleware;
 use crate::utils::app_state::AppState;
 use axum::{
     middleware,
-    routing::{delete, get, post, put},
+    routing::{get, post},
     Router,
 };
 

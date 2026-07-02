@@ -176,16 +176,12 @@ impl BpmService {
         })
     }
 
-    /// 创建新版本
-    ///
-    /// 批次 67 说明：原 `create_process_version` 方法签名只接收 `CreateVersionRequest`
-    ///（无 definition_id），无法实现真实的版本复制逻辑。现 handler 层 `create_version`
-    /// 直接调用 `create_process_definition` 完成版本创建，此 service 方法已废弃并删除。
-    /// 保留此注释说明设计决策，避免后续误添加。
-
     /// 获取流程定义的所有版本
     ///
     /// 按 definition_id 查询其 code，再查询同 code 的所有记录
+    ///
+    /// 批次 67 说明：原 `create_process_version` 方法已删除（签名缺陷），
+    /// handler 层 `create_version` 改用 `create_process_definition` 完成版本创建。
     pub async fn list_process_versions(
         &self,
         definition_id: i32,
