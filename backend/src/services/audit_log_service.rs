@@ -212,7 +212,35 @@ impl AuditLogService {
         <E as EntityTrait>::Model:
             Serialize + serde::de::DeserializeOwned + Sync + Send + Clone,
     {
-        Self::delete_with_audit_inner::<E, C, i32>(db, resource_type, record_id, user_id).await
+        // 1. 查询 old_value 快照（删除前）
+        let old_model = E::find_by_id(record_id)
+            .one(db)
+            .await?
+            .ok_or_else(|| {
+                AppError::not_found(format!("{} 记录不存在", resource_type))
+            })?;
+
+        let before_snapshot = serde_json::to_value(&old_model).ok();
+        let record_id_str = record_id.to_string();
+
+        // 2. 删除记录
+        let result = E::delete_by_id(record_id).exec(db).await?;
+        if result.rows_affected == 0 {
+            return Err(AppError::not_found(format!(
+                "{} ID {} 不存在",
+                resource_type, record_id_str
+            )));
+        }
+
+        // 3. 写审计日志（Delete 操作，before_snapshot 保留删除前快照）
+        Self::insert_delete_audit_log(
+            db,
+            resource_type,
+            &record_id_str,
+            user_id,
+            before_snapshot,
+        )
+        .await
     }
 
     /// `delete_with_audit` 的 `i64` 主键变体（如 color_price_tier / crm_recycle_rule）
@@ -229,29 +257,8 @@ impl AuditLogService {
         <E as EntityTrait>::Model:
             Serialize + serde::de::DeserializeOwned + Sync + Send + Clone,
     {
-        Self::delete_with_audit_inner::<E, C, i64>(db, resource_type, record_id, user_id).await
-    }
-
-    /// 内部泛型实现：find → delete → 审计日志三步原子
-    async fn delete_with_audit_inner<E, C, PK>(
-        db: &C,
-        resource_type: &str,
-        record_id: PK,
-        user_id: Option<i32>,
-    ) -> Result<(), AppError>
-    where
-        E: EntityTrait,
-        C: ConnectionTrait,
-        PK: sea_orm::sea_query::value::IntoValueTuple
-            + Clone
-            + Send
-            + Sync
-            + std::fmt::Debug,
-        <E as EntityTrait>::Model:
-            Serialize + serde::de::DeserializeOwned + Sync + Send + Clone,
-    {
         // 1. 查询 old_value 快照（删除前）
-        let old_model = E::find_by_id(record_id.clone())
+        let old_model = E::find_by_id(record_id)
             .one(db)
             .await?
             .ok_or_else(|| {
@@ -259,7 +266,7 @@ impl AuditLogService {
             })?;
 
         let before_snapshot = serde_json::to_value(&old_model).ok();
-        let record_id_str = format!("{:?}", record_id);
+        let record_id_str = record_id.to_string();
 
         // 2. 删除记录
         let result = E::delete_by_id(record_id).exec(db).await?;
@@ -270,14 +277,35 @@ impl AuditLogService {
             )));
         }
 
-        // 3. 写审计日志（Delete 操作，before_snapshot 保留删除前快照）
+        // 3. 写审计日志
+        Self::insert_delete_audit_log(
+            db,
+            resource_type,
+            &record_id_str,
+            user_id,
+            before_snapshot,
+        )
+        .await
+    }
+
+    /// 内部辅助：写入 DELETE 类型的审计日志（before_snapshot 保留删除前快照）
+    async fn insert_delete_audit_log<C>(
+        db: &C,
+        resource_type: &str,
+        record_id_str: &str,
+        user_id: Option<i32>,
+        before_snapshot: Option<Value>,
+    ) -> Result<(), AppError>
+    where
+        C: ConnectionTrait,
+    {
         let log = audit_log::ActiveModel {
             id: ActiveValue::NotSet,
             user_id: ActiveValue::Set(user_id),
             username: ActiveValue::Set(None),
             action: ActiveValue::Set("DELETE".to_string()),
             resource_type: ActiveValue::Set(Some(resource_type.to_string())),
-            resource_id: ActiveValue::Set(Some(record_id_str)),
+            resource_id: ActiveValue::Set(Some(record_id_str.to_string())),
             resource_name: ActiveValue::Set(None),
             description: ActiveValue::Set(None),
             ip_address: ActiveValue::Set(None),
@@ -303,7 +331,6 @@ impl AuditLogService {
             after_snapshot: ActiveValue::Set(None),
         };
         log.insert(db).await?;
-
         Ok(())
     }
 

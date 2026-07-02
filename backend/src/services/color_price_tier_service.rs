@@ -92,9 +92,6 @@ impl ColorPriceTierService {
         .await
         .map_err(|e| match e {
             crate::utils::error::AppError::NotFound(_) => TierError::NotFound,
-            crate::utils::error::AppError::DatabaseError(msg) => {
-                TierError::Database(sea_orm::DbErr::Query(msg))
-            }
             other => TierError::Validation(other.to_string()),
         })
     }
