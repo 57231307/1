@@ -412,7 +412,7 @@ pub async fn login(
             let csrf_token = uuid::Uuid::new_v4().to_string();
             state.cache.set_csrf_token(
                 csrf_token.clone(),
-                session_id,
+                session_id.clone(),
                 csrf_ip,
                 user.id,
                 None, // 使用默认 TTL (1800s)
