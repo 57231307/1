@@ -31,7 +31,8 @@ pub struct BatchError {
 }
 
 /// 产品批量创建请求
-#[derive(Debug, Deserialize, Clone)]
+// P2 2-9 修复：补 Serialize derive，满足 validator::Validate 宏的 add_param 约束
+#[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct BatchCreateProductRequest {
     pub name: String,
     pub code: String,
@@ -55,7 +56,8 @@ pub struct BatchCreateProductRequest {
 }
 
 /// 产品批量更新请求
-#[derive(Debug, Deserialize, Clone)]
+// P2 2-9 修复：补 Serialize derive，满足 validator::Validate 宏的 add_param 约束
+#[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct BatchUpdateProductRequest {
     pub id: i32,
     pub name: Option<String>,
