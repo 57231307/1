@@ -4,8 +4,8 @@ use chrono::{NaiveDate, Utc};
 // 应收账款业务逻辑层
 
 use sea_orm::{
-    ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, Order, PaginatorTrait,
-    QueryFilter, QueryOrder, QuerySelect, TransactionTrait,
+    ActiveModelTrait, ColumnTrait, DatabaseConnection, DatabaseTransaction, EntityTrait, Order,
+    PaginatorTrait, QueryFilter, QueryOrder, QuerySelect, TransactionTrait,
 };
 use std::sync::Arc;
 use tracing::info;
@@ -118,6 +118,93 @@ impl ArInvoiceService {
         let result = active_model.insert(&txn).await?;
         txn.commit().await?;
         info!("应收单创建成功：no={}", result.invoice_no);
+
+        Ok(result)
+    }
+
+    /// 创建红字应收单（销售退货专用，支持负金额 + 外部事务）
+    ///
+    /// P1 5-5/1-3 修复（批次 62）：原 `approve_return` 在 commit 后调用 `create`，
+    /// 但 `create` 强制 `invoice_amount > 0`，红字金额（负数）注定失败。
+    /// 本方法专为销售退货红字冲减设计：
+    /// - 接受 `txn: &DatabaseTransaction`，与调用方共用事务（失败则整体回滚）
+    /// - 允许 `invoice_amount < 0`（红字冲减）
+    /// - 幂等检查：同 `source_type=SALES_RETURN` + `source_bill_id` 不重复创建
+    pub async fn create_credit_memo(
+        &self,
+        req: CreateArInvoiceRequest,
+        user_id: i32,
+        txn: &DatabaseTransaction,
+    ) -> Result<ar_invoice::Model, AppError> {
+        let customer_id = req
+            .customer_id
+            .ok_or_else(|| AppError::validation("客户ID不能为空"))?;
+        let source_bill_id = req.source_bill_id.unwrap_or(0);
+
+        let invoice_amount = req
+            .invoice_amount
+            .ok_or_else(|| AppError::validation("发票金额不能为空"))?;
+        // 红字允许负数，但不允许 0
+        if invoice_amount == Decimal::ZERO {
+            return Err(AppError::validation("红字应收单金额不能为零"));
+        }
+
+        // 幂等检查：同退货单不重复创建红字应收单
+        let exists = ar_invoice::Entity::find()
+            .filter(ar_invoice::Column::SourceType.eq("SALES_RETURN"))
+            .filter(ar_invoice::Column::SourceBillId.eq(source_bill_id))
+            .one(txn)
+            .await?;
+        if exists.is_some() {
+            return Err(AppError::business(
+                "该退货单已生成红字应收单，请勿重复创建",
+            ));
+        }
+
+        // 在外部事务内生成单号（避免 savepoint 锁提前释放）
+        let invoice_no =
+            crate::utils::number_generator::DocumentNumberGenerator::generate_no_with_txn(
+                txn,
+                "AR",
+                ar_invoice::Entity,
+                ar_invoice::Column::InvoiceNo,
+            )
+            .await?;
+
+        info!(
+            "创建红字应收单：customer_id={}, amount={}, source_bill_id={}",
+            customer_id, invoice_amount, source_bill_id
+        );
+
+        let active_model = ar_invoice::ActiveModel {
+            invoice_no: sea_orm::Set(invoice_no),
+            invoice_date: sea_orm::Set(
+                req.invoice_date
+                    .unwrap_or_else(|| chrono::Utc::now().date_naive()),
+            ),
+            due_date: sea_orm::Set(
+                req.due_date
+                    .unwrap_or_else(|| chrono::Utc::now().date_naive()),
+            ),
+            customer_id: sea_orm::Set(customer_id),
+            customer_name: sea_orm::Set(req.customer_name),
+            source_type: sea_orm::Set(req.source_type),
+            source_bill_id: sea_orm::Set(req.source_bill_id),
+            source_bill_no: sea_orm::Set(req.source_bill_no),
+            invoice_amount: sea_orm::Set(invoice_amount),
+            received_amount: sea_orm::Set(Decimal::ZERO),
+            unpaid_amount: sea_orm::Set(invoice_amount),
+            batch_no: sea_orm::Set(req.batch_no),
+            color_no: sea_orm::Set(req.color_no),
+            sales_order_no: sea_orm::Set(req.sales_order_no),
+            status: sea_orm::Set("DRAFT".to_string()),
+            approval_status: sea_orm::Set("PENDING".to_string()),
+            created_by: sea_orm::Set(user_id),
+            ..Default::default()
+        };
+
+        let result = active_model.insert(txn).await?;
+        info!("红字应收单创建成功：no={}", result.invoice_no);
 
         Ok(result)
     }

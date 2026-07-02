@@ -447,9 +447,10 @@ impl SalesReturnService {
         )
         .await?;
 
-        txn.commit().await?;
-
-        // 生成应收单 (红字，因为是退货)
+        // P1 5-5/1-3 修复（批次 62）：红字应收单生成移入事务内，失败则整体回滚
+        // 原实现在 commit 后调用 ar_invoice_service.create，但 create 强制 amount > 0，
+        // 红字金额（负数）注定失败，且失败仅 tracing::error 不回滚，导致账实不符。
+        // 改用 create_credit_memo（支持负金额 + 外部事务 + 幂等检查），在 commit 前调用。
         let ar_invoice_service = ArInvoiceService::new(self.db.clone());
         let invoice_date = Utc::now().date_naive();
         let due_date = invoice_date + chrono::Duration::days(30);
@@ -467,15 +468,16 @@ impl SalesReturnService {
             sales_order_no: None,
         };
 
-        if let Err(e) = ar_invoice_service.create(ar_request, user_id).await {
-            tracing::error!(
-                "自动生成红字应收单失败 (退货单 {}): {}",
-                return_order.return_no,
-                e
-            );
-        } else {
-            tracing::info!("成功自动生成红字应收单 (退货单 {})", return_order.return_no);
-        }
+        ar_invoice_service
+            .create_credit_memo(ar_request, user_id, &txn)
+            .await?;
+
+        txn.commit().await?;
+
+        tracing::info!(
+            "成功自动生成红字应收单 (退货单 {})",
+            return_order.return_no
+        );
 
         Ok(return_order)
     }

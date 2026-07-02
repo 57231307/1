@@ -90,6 +90,11 @@ impl SalesService {
             .ok_or_else(|| AppError::not_found("仓库不存在"))?;
 
         // 检查库存是否充足
+        // P1 3-7/5-1 修复（批次 62）：保存发货明细快照用于事件发布
+        // request.items 在下方 for 循环被 move，提前克隆事件所需字段
+        let shipped_items_snapshot: Vec<(i32, rust_decimal::Decimal)> =
+            request.items.iter().map(|i| (i.product_id, i.quantity)).collect();
+
         self.check_inventory(request.order_id, &request.items, &txn)
             .await?;
 
@@ -185,6 +190,21 @@ impl SalesService {
             "partial_shipped"
         };
 
+        // P1 3-7/5-1 修复（批次 62）：保存发货上下文用于 AR 生成和事件发布
+        // order 在下方 .into() 被消费，提前保存所需字段
+        let ship_customer_id = order.customer_id;
+        let ship_order_total = order.total_amount;
+        let ship_order_id = request.order_id;
+        let ship_items_for_event: Vec<crate::services::event_bus::ShippedItem> =
+            shipped_items_snapshot
+                .iter()
+                .map(|(pid, qty)| crate::services::event_bus::ShippedItem {
+                    product_id: *pid,
+                    quantity: *qty,
+                })
+                .collect();
+        let is_full_shipment = is_fully_shipped;
+
         let mut order_update: sales_order::ActiveModel = order.into();
         order_update.status = Set(new_status.to_string());
         order_update.ship_date = Set(Some(chrono::Utc::now()));
@@ -198,8 +218,48 @@ impl SalesService {
         )
         .await?;
 
+        // P1 3-7/5-1 修复（批次 62）：销售→AR 业务流补全
+        // 原实现 ship_order 在 commit 后未调用 create_receivable，销售发货→应收账款业务流断点，
+        // 财务报表应收账款余额与销售发货数据不一致。
+        // 修复：全额发货时在 commit 前调用 create_receivable 生成 AR（与订单状态更新共用事务），
+        // 部分发货不生成（避免与 create_receivable 的幂等检查冲突；部分发货的 AR 在最终全额发货时统一生成）。
+        if is_full_shipment {
+            // 查询客户账期（payment_terms <= 0 时 create_receivable 内部回退 30 天）
+            let customer = crate::models::customer::Entity::find_by_id(ship_customer_id)
+                .one(&txn)
+                .await?
+                .ok_or_else(|| {
+                    AppError::not_found(format!("客户 {} 不存在", ship_customer_id))
+                })?;
+            let payment_terms = customer.payment_terms;
+
+            let ar_service =
+                crate::services::ar::ArReconciliationService::new(self.db.clone());
+            ar_service
+                .create_receivable(
+                    ship_customer_id,
+                    ship_order_id,
+                    ship_order_total,
+                    payment_terms,
+                    user_id,
+                    &txn,
+                )
+                .await?;
+        }
+
         // 提交事务
         txn.commit().await?;
+
+        // P1 5-1 修复（批次 62）：commit 后发布 SalesOrderShipped 事件
+        // 事件发布必须在 commit 之后，避免消费者读到未提交数据。
+        // 监听器（event_bus.rs）消费此事件触发财务指标刷新（5-2 修复）。
+        crate::services::event_bus::EVENT_BUS
+            .publish(crate::services::event_bus::BusinessEvent::SalesOrderShipped {
+                order_id: ship_order_id,
+                customer_id: ship_customer_id,
+                items: ship_items_for_event,
+            });
+
         Ok(())
     }
 
