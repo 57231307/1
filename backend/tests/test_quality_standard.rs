@@ -1,129 +1,22 @@
-//! 质量标准审批流程单元测试
+//! 质量标准审批流程测试（P1 批 65 测试资产清理）
+//!
+//! 原文件含 9 个伪测试（测数组断言 / 测 String::is_empty / 测 NaiveDate 比较 /
+//! 测本地 can_approve/can_publish 函数），均不调用 QualityStandardService 任何方法，
+//! 已于批次 65 删除。其中本地 can_approve 的逻辑（仅允许 draft）与真实 Service
+//! 的 approve_standard（允许 draft 或 rejected）不一致，属于错误的伪测试。
+//!
+//! QualityStandardService 的所有业务方法（get_standards_list / create_standard /
+//! approve_standard / publish_standard 等）均需要数据库连接，
+//! 无法在无 DB 的集成测试环境中调用，完整业务流程由 CI 集成环境执行。
+//!
+//! 保留下来的真实测试：QualityStandardService 构造函数签名编译期断言。
 
-use chrono::{NaiveDate, Utc};
+use bingxi_backend::services::quality_standard_service::QualityStandardService;
+use std::sync::Arc;
 
-// 测试用的模拟数据和辅助函数
-
+/// 验证 QualityStandardService 构造函数签名：fn(Arc<DatabaseConnection>) -> QualityStandardService
 #[test]
-fn test_quality_standard_status_flow() {
-    // 测试状态流转逻辑：draft -> approved -> published
-    let valid_status_flow = ["draft", "approved", "published"];
-    let invalid_status_flow = ["draft", "published", "approved"];
-
-    // 验证状态顺序
-    assert_eq!(valid_status_flow[0], "draft");
-    assert_eq!(valid_status_flow[1], "approved");
-    assert_eq!(valid_status_flow[2], "published");
-
-    // 验证无效流程的问题
-    assert_eq!(invalid_status_flow[0], "draft");
-    assert_eq!(invalid_status_flow[1], "published");
-    assert_ne!(invalid_status_flow[1], "approved");
-}
-
-#[test]
-fn test_quality_standard_validation() {
-    // 测试标准编码格式验证
-    let valid_code = "QS2024001".to_string();
-    let invalid_code = String::new();
-
-    assert!(!valid_code.is_empty());
-    assert!(invalid_code.is_empty());
-
-    // 版本格式验证
-    let valid_version = "1.0";
-    let valid_version2 = "2.1.3";
-    let invalid_version = "v1";
-
-    assert!(valid_version.contains('.'));
-    assert!(valid_version2.contains('.'));
-    assert!(!invalid_version.contains('.'));
-}
-
-#[test]
-fn test_approval_comment_validation() {
-    // 测试审批意见验证
-    let empty_comment: Option<String> = None;
-    let short_comment = Some("同意".to_string());
-    let long_comment = Some("这个质量标准的内容符合要求，审批通过".to_string());
-
-    assert!(empty_comment.is_none());
-    assert!(short_comment.as_ref().unwrap().len() >= 2);
-    assert!(long_comment.as_ref().unwrap().len() > 10);
-}
-
-#[test]
-fn test_effective_date_validation() {
-    // 测试生效日期和失效日期的逻辑
-    let effective_date = NaiveDate::from_ymd_opt(2024, 1, 1).unwrap();
-    let expiry_date = NaiveDate::from_ymd_opt(2024, 12, 31).unwrap();
-    let invalid_expiry_date = NaiveDate::from_ymd_opt(2023, 12, 31).unwrap();
-
-    // 生效日期必须早于失效日期
-    assert!(effective_date < expiry_date);
-    assert!(effective_date > invalid_expiry_date);
-}
-
-#[test]
-fn test_standard_type_validation() {
-    // 测试标准类型验证
-    let valid_types = ["product", "process"];
-    let invalid_type = "service";
-
-    assert!(valid_types.contains(&"product"));
-    assert!(valid_types.contains(&"process"));
-    assert!(!valid_types.contains(&invalid_type));
-}
-
-#[test]
-fn test_can_approve_standard() {
-    // 测试是否可以审批标准的逻辑
-    assert!(can_approve("draft"));
-    assert!(!can_approve("approved"));
-    assert!(!can_approve("published"));
-    assert!(!can_approve("rejected"));
-}
-
-#[test]
-fn test_can_publish_standard() {
-    // 测试是否可以发布标准的逻辑
-    assert!(!can_publish("draft"));
-    assert!(can_publish("approved"));
-    assert!(!can_publish("published"));
-    assert!(!can_publish("rejected"));
-}
-
-#[test]
-fn test_approval_timestamp() {
-    // 测试审批时间戳逻辑
-    let now = Utc::now();
-    let earlier = now - chrono::Duration::hours(1);
-
-    assert!(earlier < now);
-}
-
-// 模拟审批权限函数
-fn can_approve(status: &str) -> bool {
-    matches!(status, "draft")
-}
-
-// 模拟发布权限函数
-fn can_publish(status: &str) -> bool {
-    matches!(status, "approved")
-}
-
-#[test]
-fn test_attachments_handling() {
-    // 测试附件处理逻辑
-    let no_attachments: Vec<String> = vec![];
-    let single_attachment = ["document.pdf".to_string()];
-    let multiple_attachments = [
-        "specification.pdf".to_string(),
-        "image.jpg".to_string(),
-        "manual.docx".to_string(),
-    ];
-
-    assert_eq!(no_attachments.len(), 0);
-    assert_eq!(single_attachment.len(), 1);
-    assert_eq!(multiple_attachments.len(), 3);
+fn test_quality_standard_service_constructor_signature() {
+    let _: fn(Arc<sea_orm::DatabaseConnection>) -> QualityStandardService =
+        QualityStandardService::new;
 }

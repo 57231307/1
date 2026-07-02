@@ -1,21 +1,17 @@
-//! 销售报价单端到端集成测试（P12 批 1 P0 port PR-A4）
+//! 销售报价单集成测试（P1 批 65 测试资产清理）
 //!
-//! 本测试聚焦**跨方法调用链 + 业务规则 + 端点契约**，不依赖真实数据库连接。
-//! 端到端 DB 测试（create → submit → approve → convert 真实写库）由 CI 集成环境执行，
-//! 单元测试聚焦业务规则正确性。
+//! 本文件原含大量同义反复伪测试（测试本地变量/标准库 format! 宏/Decimal 运算），
+//! 不调用 QuotationService 任何方法，已于批次 65 清理。
 //!
-//! 覆盖场景：
-//! 1. ✅ 状态机转换规则（DRAFT → SUBMITTED → APPROVED → CONVERTED）
-//! 2. ✅ 状态机非法转换（DRAFT 不能直接 APPROVED、APPROVED 不能 CANCEL）
-//! 3. ✅ 报价单状态常量与 plan 一致
-//! 4. ✅ 单据号生成契约（`SO` 前缀 + `yyyyMMdd` + 4 位流水）
-//! 5. ✅ 金额计算公式（明细累加 → 小计/税额/总额）
-//! 6. ✅ DTO 字段映射（QuotationResponseDto From<Model> + 手动映射 items/terms）
-//! 7. ✅ Handler 端点存在性（路径注册 + 方法匹配）
+//! QuotationService 的业务方法（create_draft / list / update / cancel / submit / approve 等）
+//! 均需要数据库连接，无法在无 DB 的集成测试环境中调用，完整业务流程由 CI 集成环境执行。
+//!
+//! 保留下来的真实测试：
+//! 1. DTO 构造与字段映射（UpdateQuotationDto / QuotationResponseDto / Item / Term）
+//! 2. DTO 序列化契约（serde_json 输出包含正确字段）
+//! 3. Service 构造函数签名编译期断言（QuotationService / QuotationConvertService）
+//! 4. AppError 错误类型契约（validation / not_found）
 
-use bingxi_backend::models::quotation_create_dto::{
-    CreateQuotationDto, CreateQuotationItemDto, CreateQuotationTermDto,
-};
 use bingxi_backend::models::quotation_response_dto::{
     QuotationItemResponseDto, QuotationResponseDto, QuotationTermResponseDto,
 };
@@ -28,193 +24,12 @@ use rust_decimal::Decimal;
 use std::str::FromStr;
 use std::sync::Arc;
 
-// ============================================================================
-// 测试辅助函数
-// ============================================================================
-
-/// 构造测试用报价单 DTO
-fn build_test_dto() -> CreateQuotationDto {
-    CreateQuotationDto {
-        customer_id: 1001,
-        sales_user_id: 2002,
-        quotation_date: NaiveDate::from_ymd_opt(2026, 6, 18).unwrap(),
-        valid_until: NaiveDate::from_ymd_opt(2026, 7, 18).unwrap(),
-        currency: "CNY".to_string(),
-        exchange_rate: dec("1.0"),
-        base_currency: "CNY".to_string(),
-        price_terms: "FOB".to_string(),
-        incoterms_version: Some("2020".to_string()),
-        incoterm_location: Some("Shanghai".to_string()),
-        tax_inclusive: true,
-        tax_rate: dec("13.0"),
-        moq: None,
-        lead_time_days: Some(15),
-        customer_level: Some("A".to_string()),
-        notes: Some("E2E 测试单".to_string()),
-        items: vec![CreateQuotationItemDto {
-            product_id: 1,
-            color_id: None,
-            specification: Some("幅宽1.5m".to_string()),
-            unit: "米".to_string(),
-            quantity: dec("100"),
-            unit_price: dec("50.00"),
-            unit_price_with_tax: dec("56.50"),
-            tier_pricing: None,
-            discount_rate: None,
-            notes: None,
-        }],
-        terms: Some(vec![CreateQuotationTermDto {
-            term_type: "payment".to_string(),
-            term_key: "T/T".to_string(),
-            term_value: "30%预付 70%发货后付".to_string(),
-            sequence: 1,
-        }]),
-    }
-}
-
 fn dec(s: &str) -> Decimal {
     Decimal::from_str(s).expect("测试金额格式错误")
 }
 
 // ============================================================================
-// 测试 1：状态机转换规则
-// ============================================================================
-
-/// 端到端状态机：完整转换链必须按 DRAFT → SUBMITTED → APPROVED → CONVERTED
-#[test]
-fn test_state_machine_full_chain() {
-    let chain: [&str; 4] = ["DRAFT", "SUBMITTED", "APPROVED", "CONVERTED"];
-    assert_eq!(chain.len(), 4);
-    assert_eq!(chain[0], "DRAFT");
-    assert_eq!(chain[1], "SUBMITTED");
-    assert_eq!(chain[2], "APPROVED");
-    assert_eq!(chain[3], "CONVERTED");
-}
-
-/// 状态机：所有合法状态常量
-#[test]
-fn test_state_machine_all_states_defined() {
-    let all_states = [
-        "DRAFT",
-        "SUBMITTED",
-        "APPROVED",
-        "REJECTED",
-        "CONVERTED",
-        "CANCELLED",
-        "EXPIRED",
-    ];
-    assert_eq!(all_states.len(), 7);
-    assert!(all_states.contains(&"DRAFT"));
-    assert!(all_states.contains(&"SUBMITTED"));
-    assert!(all_states.contains(&"APPROVED"));
-    assert!(all_states.contains(&"REJECTED"));
-    assert!(all_states.contains(&"CONVERTED"));
-    assert!(all_states.contains(&"CANCELLED"));
-    assert!(all_states.contains(&"EXPIRED"));
-}
-
-/// 状态机：DRAFT 不能直接 APPROVED（必须先 submit）
-#[test]
-fn test_state_machine_draft_cannot_approve_directly() {
-    // 业务规则：DRAFT → SUBMITTED → APPROVED
-    // 因此 DRAFT 状态调用 approve() 应当返回 validation 错误
-    let draft_status = "DRAFT";
-    let allowed_to_approve = draft_status == "SUBMITTED";
-    assert!(!allowed_to_approve, "DRAFT 状态不能直接 APPROVED");
-}
-
-/// 状态机：APPROVED 状态不能再 cancel
-#[test]
-fn test_state_machine_approved_cannot_cancel() {
-    // 业务规则：APPROVED 之后的合法状态只有 CONVERTED / EXPIRED
-    // 不允许 CANCELLED（已经审批通过，不能取消）
-    let approved_status = "APPROVED";
-    let cancellable = approved_status == "DRAFT" || approved_status == "SUBMITTED";
-    assert!(!cancellable, "APPROVED 状态不能 CANCEL");
-}
-
-/// 状态机：CONVERTED 状态不能再修改
-#[test]
-fn test_state_machine_converted_is_terminal() {
-    // CONVERTED 是终态：不能再 update / cancel / submit
-    let converted_status = "CONVERTED";
-    assert!(converted_status != "DRAFT");
-    assert!(converted_status != "SUBMITTED");
-    assert!(converted_status != "APPROVED");
-    assert!(converted_status != "CANCELLED");
-}
-
-/// 状态机：DRAFT / SUBMITTED 状态可 cancel
-#[test]
-fn test_state_machine_cancel_allowed_in_draft_and_submitted() {
-    for status in ["DRAFT", "SUBMITTED"] {
-        let cancellable = status == "DRAFT" || status == "SUBMITTED";
-        assert!(cancellable, "{} 状态应可取消", status);
-    }
-}
-
-// ============================================================================
-// 测试 2：单据号生成契约
-// ============================================================================
-
-/// 验证销售订单号生成契约：`SO{yyyyMMdd}{4 位流水}`
-#[test]
-fn test_sales_order_no_contract() {
-    let prefix = "SO";
-    let today = "20260618";
-    let serial = 1_usize;
-    let order_no = format!("{}{}{:0width$}", prefix, today, serial, width = 4);
-    assert_eq!(order_no, "SO202606180001");
-
-    // 多位流水测试
-    let serial2 = 1234_usize;
-    let order_no2 = format!("{}{}{:0width$}", prefix, today, serial2, width = 4);
-    assert_eq!(order_no2, "SO202606181234");
-}
-
-/// 验证销售订单号最小宽度：1 位流水补零到 4 位
-#[test]
-fn test_sales_order_no_width_padding() {
-    let order_no = format!("SO{:0width$}", 1, width = 4);
-    assert_eq!(order_no, "SO0001");
-}
-
-// ============================================================================
-// 测试 3：金额计算公式
-// ============================================================================
-
-/// 金额计算：明细累加得到小计/税额/总额
-#[test]
-fn test_amount_calculation_from_items() {
-    let dto = build_test_dto();
-    // 1 条明细：quantity=100, unit_price=50, unit_price_with_tax=56.5
-    // subtotal = 100 * 50 = 5000
-    // amount_with_tax = 100 * 56.5 = 5650
-    // tax_amount = 5650 - 5000 = 650
-    // total = 5650
-    let item = &dto.items[0];
-    let subtotal = item.quantity * item.unit_price;
-    let amount_with_tax = item.quantity * item.unit_price_with_tax;
-    let tax_amount = amount_with_tax - subtotal;
-    let total = amount_with_tax;
-    assert_eq!(subtotal, dec("5000.00"));
-    assert_eq!(tax_amount, dec("650.00"));
-    assert_eq!(total, dec("5650.00"));
-}
-
-/// 金额计算：多明细累加
-#[test]
-fn test_amount_calculation_multi_items() {
-    let item1_qty = dec("100");
-    let item1_price = dec("50.00");
-    let item2_qty = dec("200");
-    let item2_price = dec("30.00");
-    let total = item1_qty * item1_price + item2_qty * item2_price;
-    assert_eq!(total, dec("11000.00"));
-}
-
-// ============================================================================
-// 测试 4：DTO 字段映射
+// 测试 1：DTO 字段映射
 // ============================================================================
 
 /// DTO 字段映射：UpdateQuotationDto 字段类型
@@ -285,7 +100,7 @@ fn test_response_dto_serializable() {
     assert!(json2.contains("\"term_type\":\"payment\""));
 }
 
-/// DTO 字段映射：QuotationResponseDto 完整构造
+/// DTO 字段映射：QuotationResponseDto 完整构造（From<Model> + 手动映射 items/terms）
 #[test]
 fn test_quotation_response_dto_construction() {
     use bingxi_backend::models::sales_quotation::Model as QuotationModel;
@@ -371,7 +186,7 @@ fn test_quotation_response_dto_construction() {
 }
 
 // ============================================================================
-// 测试 6：Service 装配路径
+// 测试 2：Service 构造函数签名编译期断言
 // ============================================================================
 
 /// 验证 Service 构造签名：fn(Arc<DatabaseConnection>) -> QuotationService
@@ -387,72 +202,8 @@ fn test_convert_service_constructor_signature() {
         QuotationConvertService::new;
 }
 
-/// 验证 Service 方法签名（编译期断言）
-#[test]
-fn test_service_method_signatures() {
-    // QuotationService::list: async fn(i32, QuotationQueryParams) -> Result<(Vec<Model>, u64), AppError>
-    // QuotationService::get_by_id: async fn(i32, i32) -> Result<Model, AppError>
-    // QuotationService::create: async fn(i32, i32, QuotationCreateDto) -> Result<Model, AppError>
-    // QuotationService::update: async fn(i32, i32, i32, QuotationUpdateDto) -> Result<Model, AppError>
-    // QuotationService::cancel: async fn(i32, i32, i32, Option<String>) -> Result<Model, AppError>
-    // QuotationService::submit: async fn(i32, i32, i32) -> Result<Model, AppError>
-    // QuotationService::approve: async fn(i32, i32, i32) -> Result<Model, AppError>
-    // QuotationService::reject: async fn(i32, i32, i32, String) -> Result<Model, AppError>
-    // 这里只断言公开方法存在（编译期）
-    let svc_phantom: Option<QuotationService> = None;
-    let _ = svc_phantom;
-}
-
 // ============================================================================
-// 测试 7：报价单转销售订单业务规则
-// ============================================================================
-
-/// 报价转订单前置条件：状态必须为 APPROVED
-#[test]
-fn test_convert_requires_approved() {
-    // 业务规则：只有 APPROVED 状态可以转销售订单
-    let non_approved = ["DRAFT", "SUBMITTED", "REJECTED", "CANCELLED", "EXPIRED"];
-    for status in non_approved {
-        assert_ne!(
-            status,
-            "APPROVED",
-            "{} 状态不应可转订单",
-            status
-        );
-    }
-}
-
-/// 报价转订单前置条件：valid_until 未过期
-#[test]
-fn test_convert_requires_valid_until_not_expired() {
-    // 业务规则：valid_until >= today 才可转
-    let today = chrono::Utc::now().date_naive();
-    let expired_date = NaiveDate::from_ymd_opt(2020, 1, 1).unwrap();
-    let future_date = NaiveDate::from_ymd_opt(2030, 1, 1).unwrap();
-    assert!(expired_date < today, "测试用例：过期日期应早于今天");
-    assert!(future_date >= today, "测试用例：未来日期应不早于今天");
-}
-
-/// 销售订单默认状态：转换后默认 draft
-#[test]
-fn test_converted_sales_order_default_status() {
-    // PR-A4 实现：转换后 sales_order.status = "draft"
-    // 由 QuotationConvertService 写入，业务方可后续 submit/approve
-    let default_status = "draft";
-    assert_eq!(default_status, "draft");
-}
-
-/// 转换后订单金额计算：paid_amount=0, balance_amount=total
-#[test]
-fn test_converted_order_balance_amount() {
-    let total = dec("5650.00");
-    let paid = Decimal::ZERO;
-    let balance = total - paid;
-    assert_eq!(balance, dec("5650.00"));
-}
-
-// ============================================================================
-// 测试 8：错误类型契约
+// 测试 3：错误类型契约
 // ============================================================================
 
 /// AppError::validation 错误类型契约
