@@ -162,6 +162,7 @@ pub async fn get_current_user_profile(
 pub async fn create_user(
     State(state): State<AppState>,
     auth: AuthContext,
+    audit_ctx: Option<Extension<AuditContext>>,
     Json(payload): Json<CreateUserRequest>,
 ) -> Result<Json<ApiResponse<UserResponse>>, AppError> {
     require_admin_role(&state, &auth).await?;
@@ -182,6 +183,36 @@ pub async fn create_user(
             payload.department_id,
         )
         .await?;
+
+    // P1 8-2 修复：create_user 补审计日志（after_snapshot）
+    // 修复背景：原 create_user 完全无审计日志，无法追溯谁创建了用户。
+    // 修复方案：调 record_async，operation=Create，after_snapshot=用户信息（含 role_id/department_id）。
+    let after_snapshot = serde_json::json!({
+        "id": user.id,
+        "username": user.username,
+        "email": user.email,
+        "phone": user.phone,
+        "role_id": user.role_id,
+        "department_id": user.department_id,
+        "is_active": user.is_active,
+    });
+    let audit_event = AuditEvent {
+        user_id: Some(auth.user_id),
+        username: Some(auth.username.clone()),
+        operation_type: OperationType::Create,
+        severity: Severity::Info,
+        resource_type: Some("user".to_string()),
+        resource_id: Some(user.id.to_string()),
+        resource_name: Some(user.username.clone()),
+        description: Some(format!("管理员 {} 创建用户 {}", auth.username, user.username)),
+        request_method: Some("POST".to_string()),
+        request_path: Some("/api/v1/erp/users".to_string()),
+        before_snapshot: None,
+        after_snapshot: Some(after_snapshot),
+    };
+    let svc = Arc::new(AuditLogService::new(state.db.clone()));
+    svc.record_async(audit_event, audit_ctx.map(|e| e.0));
+
     Ok(Json(ApiResponse::success(user.into())))
 }
 
@@ -240,6 +271,7 @@ use axum::extract::Query;
 pub async fn update_user(
     State(state): State<AppState>,
     auth: AuthContext,
+    audit_ctx: Option<Extension<AuditContext>>,
     Path(id): Path<i32>,
     Json(req): Json<UpdateUserRequest>,
 ) -> Result<Json<ApiResponse<UserResponse>>, AppError> {
@@ -260,16 +292,58 @@ pub async fn update_user(
 
     let user_service = UserService::new(state.db.clone());
 
+    // P1 8-1 修复：update_user 前查询 before_snapshot（role_id/status 变更需审计）
+    // 修复背景：原 update_user 完全无审计日志，role_id 变更（权限提升/降级）、
+    // status 变更（启用/禁用）未审计，无法追溯权限变更历史。
+    let before_user = user_service.find_by_id(id).await.ok();
+
     let user = user_service
         .update_user(
             id,
-            req.email,
-            req.phone,
+            req.email.clone(),
+            req.phone.clone(),
             req.role_id,
             req.department_id,
             req.status,
         )
         .await?;
+
+    // 构造审计日志
+    let before_snapshot = before_user.as_ref().map(|u| serde_json::json!({
+        "id": u.id,
+        "username": u.username,
+        "email": u.email,
+        "phone": u.phone,
+        "role_id": u.role_id,
+        "department_id": u.department_id,
+        "is_active": u.is_active,
+    }));
+    let after_snapshot = serde_json::json!({
+        "id": user.id,
+        "username": user.username,
+        "email": user.email,
+        "phone": user.phone,
+        "role_id": user.role_id,
+        "department_id": user.department_id,
+        "is_active": user.is_active,
+    });
+    let audit_event = AuditEvent {
+        user_id: Some(auth.user_id),
+        username: Some(auth.username.clone()),
+        operation_type: OperationType::Update,
+        severity: Severity::Info,
+        resource_type: Some("user".to_string()),
+        resource_id: Some(user.id.to_string()),
+        resource_name: Some(user.username.clone()),
+        description: Some(format!("管理员 {} 更新用户 {} 信息", auth.username, user.username)),
+        request_method: Some("PUT".to_string()),
+        request_path: Some(format!("/api/v1/erp/users/{}", id)),
+        before_snapshot,
+        after_snapshot: Some(after_snapshot),
+    };
+    let svc = Arc::new(AuditLogService::new(state.db.clone()));
+    svc.record_async(audit_event, audit_ctx.map(|e| e.0));
+
     Ok(Json(ApiResponse::success(user.into())))
 }
 
@@ -304,7 +378,8 @@ pub async fn delete_user(
     let user_service = UserService::new(state.db.clone());
 
     // 检查用户是否存在
-    user_service.find_by_id(id).await?;
+    // P1 8-7 修复：保存 before_snapshot 用于审计（原仅 log_security_event 不落库）
+    let before_user = user_service.find_by_id(id).await?;
 
     // 这里可以添加更多禁止删除的逻辑，例如：
     // 1. 系统管理员不允许删除
@@ -316,17 +391,38 @@ pub async fn delete_user(
     //    作为单一真相源保证任何调用方都自动获得吊销保护。
     user_service.delete_user(id).await?;
 
-    // 记录审计：谁删了谁
-    audit::log_security_event(
-        SecurityEvent::UserDeleted,
-        auth.user_id,
-        &auth.username,
-        auth.role_id,
-        Some(&format!("user_id={}", id)),
-        None,
-        audit_ctx.as_deref(),
-    )
-    .await;
+    // P1 8-7 修复：delete_user 改用 record_async + before_snapshot
+    // 修复背景：原仅调 log_security_event（只 tracing 不落库），软删除无 before_snapshot，
+    // 无法追溯被删除用户的完整信息。
+    // 修复方案：调 record_async，operation=Delete，before_snapshot=用户完整信息。
+    let before_snapshot = serde_json::json!({
+        "id": before_user.id,
+        "username": before_user.username,
+        "email": before_user.email,
+        "phone": before_user.phone,
+        "role_id": before_user.role_id,
+        "department_id": before_user.department_id,
+        "is_active": before_user.is_active,
+    });
+    let audit_event = AuditEvent {
+        user_id: Some(auth.user_id),
+        username: Some(auth.username.clone()),
+        operation_type: OperationType::Delete,
+        severity: Severity::Warning,
+        resource_type: Some("user".to_string()),
+        resource_id: Some(id.to_string()),
+        resource_name: Some(before_user.username.clone()),
+        description: Some(format!(
+            "管理员 {} 软删除用户 {} (id={})",
+            auth.username, before_user.username, id
+        )),
+        request_method: Some("DELETE".to_string()),
+        request_path: Some(format!("/api/v1/erp/users/{}", id)),
+        before_snapshot: Some(before_snapshot),
+        after_snapshot: Some(serde_json::json!({"is_active": false, "deleted": true})),
+    };
+    let svc = Arc::new(AuditLogService::new(state.db.clone()));
+    svc.record_async(audit_event, audit_ctx.map(|e| e.0));
 
     Ok(Json(ApiResponse::success(DeleteUserResponse {
         success: true,

@@ -1,4 +1,7 @@
+use crate::middleware::audit_context::AuditContext;
 use crate::middleware::auth_context::AuthContext;
+use crate::models::audit_log::{OperationType, Severity};
+use crate::services::audit_log_service::{AuditEvent, AuditLogService};
 use crate::services::role_permission_service::RolePermissionService;
 use crate::services::role_permission_service::{
     AssignPermissionRequest, CreateRoleRequest, UpdateRoleRequest,
@@ -8,10 +11,11 @@ use crate::utils::app_state::AppState;
 use crate::utils::error::AppError;
 use crate::utils::response::ApiResponse;
 use axum::{
-    extract::{Path, State},
+    extract::{Extension, Path, State},
     Json,
 };
 use serde::{Deserialize, Serialize};
+use std::sync::Arc;
 
 /// C-1 修复：处理器内部的 admin 角色二次校验
 ///
@@ -182,6 +186,7 @@ pub async fn get_role(
 pub async fn create_role(
     State(state): State<AppState>,
     auth: AuthContext,
+    audit_ctx: Option<Extension<AuditContext>>,
     Json(payload): Json<CreateRolePayload>,
 ) -> Result<Json<ApiResponse<RoleDetailResponse>>, AppError> {
     require_admin_role(&state, &auth).await?;
@@ -198,6 +203,30 @@ pub async fn create_role(
         .create_role(request)
         .await
         .map_err(|e| AppError::internal(e.to_string()))?;
+
+    // P1 8-3 修复：create_role 补审计日志
+    let after_snapshot = serde_json::json!({
+        "id": role.id,
+        "name": role.name,
+        "code": role.code,
+        "is_system": role.is_system,
+    });
+    let audit_event = AuditEvent {
+        user_id: Some(auth.user_id),
+        username: Some(auth.username.clone()),
+        operation_type: OperationType::Create,
+        severity: Severity::Info,
+        resource_type: Some("role".to_string()),
+        resource_id: Some(role.id.to_string()),
+        resource_name: Some(role.name.clone()),
+        description: Some(format!("管理员 {} 创建角色 {}", auth.username, role.name)),
+        request_method: Some("POST".to_string()),
+        request_path: Some("/api/v1/erp/roles".to_string()),
+        before_snapshot: None,
+        after_snapshot: Some(after_snapshot),
+    };
+    let svc = Arc::new(AuditLogService::new(state.db.clone()));
+    svc.record_async(audit_event, audit_ctx.map(|e| e.0));
 
     let permissions = role.permission_list.map(|perms| {
         perms

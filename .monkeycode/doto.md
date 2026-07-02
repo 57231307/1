@@ -3,6 +3,55 @@
 > 本文件记录**当前任务**与**历史任务索引**。
 > 详细历史请查阅 [`.monkeycode/docs/archives/`](file:///workspace/.monkeycode/docs/archives/)。
 
+### 2026-07-02 批次 57 完成：安全认证链路修复 5 项（✅ 已合并 main，CI 12/13 关键检查全绿，E2E continue-on-error）
+
+**修复分支**：`fix/v19-audit-batch57`（已合并删除）
+**合并 commit**：`b05f39e6`（PR #300 squash merge）
+**main HEAD**：`b05f39e6`
+**修复范围**：P1 安全认证链路（7-1/7-2/7-3/7-4/7-5）
+
+**修复清单**：
+- P1 7-1：refresh_token 流程断裂
+  - auth_service.rs 新增 `generate_refresh_token`（JWT 形式，exp=7d, session_id 与 access_token 共享）
+  - auth_handler.rs login 用 `generate_refresh_token` 替代纯 UUID
+  - auth_handler_misc.rs refresh_token 实现 refresh_token 轮换（生成新 refresh_token + 写入 Cookie）
+- P1 7-2：reset_password 后吊销 JWT
+  - init_service.rs reset_password 成功后调 `revoke_user_jtis(user_id, "PASSWORD_RESET_BY_ADMIN")`
+- P1 7-3：logout 改用 Redis JTI 黑名单
+  - auth_handler_session.rs logout 验证 token 后调 `revoke_jti`（与 refresh_token 流程对齐）
+- P1 7-4：main.rs 全局挂载 rate_limit_by_ip
+  - main.rs 中间件链最外层挂载 rate_limit_by_ip（180 req/min）
+  - rate_limit.rs rate_limit_by_ip 支持 X-Real-IP / X-Forwarded-For（原仅依赖 ConnectInfo）
+- P1 7-5：omni_audit 敏感路径请求体脱敏
+  - omni_audit.rs 新增 `is_sensitive_request_body_path` 函数
+  - change-password / reset_password / setup-totp / enable-totp 等路径请求体脱敏为 "[REDACTED]"
+
+**当前状态**：批次 57 已合并 main，进入批次 58（操作审计覆盖补齐）
+
+---
+
+### 2026-07-02 批次 56 完成：P1/P2/P3 审计报告与批次修复规划文档（✅ 已合并 main，CI 12/13 关键检查全绿，E2E continue-on-error）
+
+**修复分支**：`fix/v19-audit-batch56`（已合并删除）
+**合并 commit**：`3998bb00`（PR #299 squash merge）
+**main HEAD**：`3998bb00`
+**修复范围**：P1/P2/P3 全量规划（149 项问题，21 批次修复路线图）
+
+**修复清单**：
+- 新增 `docs/audits/2026-07-02-p1-p2-p3-audit.md`（336 行）：八维度审计报告
+  - P1×50 / P2×68 / P3×31 = 149 项（跨维度去重后约 137 项）
+  - 每项含 `文件:行` + `问题描述` + `建议修复`
+- 新增 `docs/audits/2026-07-02-p1-p2-p3-fix-plan.md`（260 行）：21 批次修复规划
+  - 第一阶段 P1（批次 57-67，11 批）
+  - 第二阶段 P2（批次 68-75，8 批）
+  - 第三阶段 P3（批次 76-77，2 批）
+  - 每阶段完成后全项目复审，循环直到无问题
+- 包含进度跟踪表和验证标准
+
+**当前状态**：批次 56 已合并 main，P1/P2/P3 规划文件已保存在仓库 `docs/audits/` 目录
+
+---
+
 ### 2026-07-02 批次 55 完成：测试资产 P0 修复 5 项（✅ 已合并 main，CI 12/13 关键检查全绿，E2E continue-on-error）
 
 **修复分支**：`fix/v19-audit-batch55`（已合并删除）
