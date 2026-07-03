@@ -504,11 +504,13 @@ const handleDispose = (row: FixedAsset) => {
 // v3 复审 P1-2：提交资产处置请求，成功后刷新列表
 const submitDisposal = async () => {
   if (!disposalFormRef.value || !disposalTargetId.value) return
+  // 提取到局部变量，避免闭包内 ref.value 重新推断为 number | undefined
+  const assetId = disposalTargetId.value
   await disposalFormRef.value.validate(async valid => {
     if (!valid) return
     disposalSubmitting.value = true
     try {
-      await disposeAsset(disposalTargetId.value, { ...disposalForm })
+      await disposeAsset(assetId, { ...disposalForm })
       ElMessage.success('处置成功')
       disposalDialogVisible.value = false
       fetchAssets()
