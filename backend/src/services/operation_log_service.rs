@@ -50,7 +50,7 @@ impl OperationLogService {
         request: CreateOperationLogRequest,
     ) -> Result<operation_log::Model, AppError> {
         let log = operation_log::ActiveModel {
-            id: Set(0),
+            id: Default::default(),
             user_id: Set(request.user_id),
             username: Set(request.username),
             module: Set(request.module),

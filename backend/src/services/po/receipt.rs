@@ -340,7 +340,7 @@ impl PurchaseOrderService {
         let quantity_alt_ordered = req.quantity_alt_ordered.unwrap_or(Decimal::ZERO);
 
         let item = purchase_order_item::ActiveModel {
-            id: Set(0),
+            id: Default::default(),
             order_id: Set(order_id),
             line_no: Set(1),
             // material_id 缺失时拒绝创建收货行项，避免脏 product_id=0 记录

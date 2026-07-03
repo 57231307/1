@@ -355,11 +355,11 @@ pub async fn approve_production_order(
 /// 删除生产订单（软删除）
 pub async fn delete_production_order(
     State(state): State<AppState>,
-    _auth: AuthContext,
+    auth: AuthContext,
     Path(id): Path<i32>,
 ) -> Result<Json<ApiResponse<String>>, AppError> {
     let service = ProductionOrderService::new(state.db.clone());
-    service.delete(id).await?;
+    service.delete(id, auth.user_id).await?;
     Ok(Json(ApiResponse::success("生产订单已取消".to_string())))
 }
 

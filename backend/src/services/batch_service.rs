@@ -107,7 +107,7 @@ impl BatchService {
                 .and_then(|s| s.parse::<rust_decimal::Decimal>().ok());
 
             let product = product::ActiveModel {
-                id: Set(0),
+                id: Default::default(),
                 name: Set(req.name.clone()),
                 code: Set(req.code.clone()),
                 category_id: Set(req.category_id),

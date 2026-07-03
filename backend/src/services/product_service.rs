@@ -366,7 +366,7 @@ impl ProductService {
         extra_cost: f64,
     ) -> Result<product_color::Model, AppError> {
         let active_model = product_color::ActiveModel {
-            id: Set(0),
+            id: Default::default(),
             product_id: Set(product_id),
             color_no: Set(color_no),
             color_name: Set(color_name),

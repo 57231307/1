@@ -148,7 +148,7 @@ impl InventoryStockService {
         created_by: Option<i32>,
     ) -> Result<(inventory_transaction::Model, Option<BusinessEvent>), AppError> {
         let active_transaction = inventory_transaction::ActiveModel {
-            id: Set(0),
+            id: Default::default(),
             transaction_type: Set(transaction_type),
             product_id: Set(product_id),
             warehouse_id: Set(warehouse_id),

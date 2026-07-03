@@ -363,7 +363,7 @@ impl InitService {
 
         // 如果不存在，则创建角色
         let admin_role = role::ActiveModel {
-            id: Set(0),
+            id: Default::default(),
             name: Set("管理员".to_string()),
             code: Set(ADMIN_ROLE_CODE.to_string()),
             description: Set(Some("系统管理员".to_string())),
@@ -379,7 +379,7 @@ impl InitService {
 
         // 创建其他角色
         let manager_role = role::ActiveModel {
-            id: Set(0),
+            id: Default::default(),
             name: Set("部门经理".to_string()),
             code: Set("manager".to_string()),
             description: Set(Some("部门经理".to_string())),
@@ -392,7 +392,7 @@ impl InitService {
         };
 
         let operator_role = role::ActiveModel {
-            id: Set(0),
+            id: Default::default(),
             name: Set("操作员".to_string()),
             code: Set("operator".to_string()),
             description: Set(Some("操作员".to_string())),
@@ -433,7 +433,7 @@ impl InitService {
 
         // 如果不存在，则创建部门
         let dept = department::ActiveModel {
-            id: Set(0),
+            id: Default::default(),
             name: Set("总经办".to_string()),
             code: Set("D001".to_string()),
             parent_id: Set(None),
@@ -459,7 +459,7 @@ impl InitService {
         let dept_models: Vec<department::ActiveModel> = departments
             .into_iter()
             .map(|(name, code, sort)| department::ActiveModel {
-                id: Set(0),
+                id: Default::default(),
                 name: Set(name.to_string()),
                 code: Set(code.to_string()),
                 parent_id: Set(None),
@@ -506,7 +506,7 @@ impl InitService {
         }
 
         let user = user::ActiveModel {
-            id: Set(0),
+            id: Default::default(),
             username: Set(username.to_string()),
             password_hash: Set(password_hash.to_string()),
             email: Set(Some("admin@example.com".to_string())),

@@ -45,7 +45,7 @@ impl PurchaseReturnService {
         let return_no = self.generate_return_no().await?;
 
         let return_order = purchase_return::ActiveModel {
-            id: Set(0),
+            id: Default::default(),
             return_no: Set(return_no),
             receipt_id: Set(req.receipt_id),
             order_id: Set(req.order_id),
@@ -565,7 +565,7 @@ impl PurchaseReturnService {
         let total_amount = taxable_amount + tax_amount;
 
         let item = purchase_return_item::ActiveModel {
-            id: Set(0),
+            id: Default::default(),
             return_id: Set(return_id),
             line_no: Set(req.line_no),
             product_id: Set(req.material_id),

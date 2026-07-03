@@ -160,7 +160,7 @@ impl BusinessTraceService {
             .collect::<Vec<_>>());
 
         let active_snapshot = business_trace_snapshot::ActiveModel {
-            id: Set(0),
+            id: Default::default(),
             trace_chain_id: Set(trace_chain_id.to_string()),
             five_dimension_id: Set(first_trace.five_dimension_id.clone()),
             product_id: Set(first_trace.product_id),

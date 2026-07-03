@@ -5,8 +5,8 @@ use crate::utils::number_generator::DocumentNumberGenerator;
 
 use chrono::Datelike;
 use sea_orm::{
-    ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, IntoActiveModel, ModelTrait,
-    Order, PaginatorTrait, QueryFilter, QueryOrder, QuerySelect, TransactionTrait,
+    ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, IntoActiveModel, Order,
+    PaginatorTrait, QueryFilter, QueryOrder, QuerySelect, TransactionTrait,
 };
 use std::sync::Arc;
 use tracing::{info, warn};
@@ -423,12 +423,22 @@ impl VoucherService {
     }
 
     /// 删除凭证
-    pub async fn delete(&self, id: i32) -> Result<(), AppError> {
+    // 批次 93 P1-3 修复：补 user_id 参数 + txn + lock_exclusive + 审计日志
+    pub async fn delete(&self, id: i32, user_id: i32) -> Result<(), AppError> {
         info!("删除凭证 ID: {}", id);
 
-        let voucher = self.get_by_id(id).await?.voucher;
+        // 批次 93 P1-3 修复：状态门 + delete 移入同一事务，补 lock_exclusive 串行化并发
+        // 原实现 get_by_id 在 self.db → 状态门 → delete 在 self.db，
+        // 状态门与 delete 跨事务边界，并发 delete + submit 会竞态绕过 draft 状态门控。
+        let txn = (*self.db).begin().await?;
 
-        // 只有草稿状态可以删除
+        let voucher = voucher::Entity::find_by_id(id)
+            .lock_exclusive()
+            .one(&txn)
+            .await?
+            .ok_or_else(|| AppError::not_found(format!("凭证不存在：{}", id)))?;
+
+        // 只有草稿状态可以删除（状态门在 txn 内，基于 lock_exclusive 读出的 model）
         if voucher.status != "draft" {
             warn!("只有草稿状态的凭证可以删除：{}", voucher.voucher_no);
             return Err(AppError::bad_request(
@@ -439,8 +449,16 @@ impl VoucherService {
         // 保留凭证号用于日志
         let voucher_no = voucher.voucher_no.clone();
 
-        // 删除分录（CASCADE 会自动删除）
-        let _ = voucher.delete(&*self.db).await?;
+        // 删除凭证（含审计日志）；分录由数据库 CASCADE 自动删除
+        crate::services::audit_log_service::AuditLogService::delete_with_audit::<voucher::Entity, _>(
+            &txn,
+            "voucher",
+            id,
+            Some(user_id),
+        )
+        .await?;
+
+        txn.commit().await?;
 
         info!("凭证删除成功：no={}", voucher_no);
         Ok(())

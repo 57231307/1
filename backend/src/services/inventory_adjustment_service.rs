@@ -79,7 +79,7 @@ impl InventoryAdjustmentService {
 
         // 创建调整单主表
         let adjustment = inventory_adjustment::ActiveModel {
-            id: Set(0),
+            id: Default::default(),
             adjustment_no: Set(adjustment_no),
             warehouse_id: Set(request.warehouse_id),
             adjustment_date: Set(request.adjustment_date),
@@ -127,7 +127,7 @@ impl InventoryAdjustmentService {
             let amount = item_req.unit_cost.map(|cost| cost * item_req.quantity);
 
             let item = inventory_adjustment_item::ActiveModel {
-                id: Set(0),
+                id: Default::default(),
                 adjustment_id: Set(adjustment_model.id),
                 stock_id: Set(item_req.stock_id),
                 quantity: Set(item_req.quantity),
@@ -512,7 +512,7 @@ impl InventoryAdjustmentService {
         let txn = (*self.db).begin().await?;
 
         let item = inventory_adjustment_item::ActiveModel {
-            id: Set(0),
+            id: Default::default(),
             adjustment_id: Set(adjustment_id),
             stock_id: Set(req.stock_id),
             quantity: Set(req.quantity),
@@ -591,20 +591,33 @@ impl InventoryAdjustmentService {
     }
 
     /// 删除调整单明细
+    // 批次 93 P1-9 修复：find + 状态门移入同一事务，补 lock_exclusive 串行化并发
     pub async fn delete_item(&self, item_id: i32) -> Result<(), AppError> {
+        // 批次 93 P1-9 修复：find + get_adjustment + 状态门移入 txn + lock_exclusive，消除 TOCTOU 风险
+        // 原实现 find_by_id 在 self.db → get_adjustment 在 self.db → 状态门 → begin txn，
+        // 状态门在事务外，并发 delete_item + approve_adjustment 会竞态绕过 pending 状态门控。
+        let txn = (*self.db).begin().await?;
+
         let item_model = inventory_adjustment_item::Entity::find_by_id(item_id)
-            .one(&*self.db)
+            .lock_exclusive()
+            .one(&txn)
             .await?
             .ok_or_else(|| AppError::not_found(format!("调整单明细 {} 不存在", item_id)))?;
 
-        let detail = self.get_adjustment(item_model.adjustment_id).await?;
-        if detail.adjustment.status != "pending" {
+        // 在 txn 内查询所属调整单并加锁，状态门基于锁读出的 model
+        let adjustment_model = inventory_adjustment::Entity::find_by_id(item_model.adjustment_id)
+            .lock_exclusive()
+            .one(&txn)
+            .await?
+            .ok_or_else(|| {
+                AppError::not_found(format!("调整单 {} 不存在", item_model.adjustment_id))
+            })?;
+
+        if adjustment_model.status != "pending" {
             return Err(AppError::business(
                 "只有待审核状态的调整单可以删除明细".to_string(),
             ));
         }
-
-        let txn = (*self.db).begin().await?;
 
         inventory_adjustment_item::Entity::delete_by_id(item_id)
             .exec(&txn)
@@ -618,7 +631,7 @@ impl InventoryAdjustmentService {
         let total_quantity: Decimal = items.iter().map(|i| i.quantity).sum();
 
         let mut adjustment: inventory_adjustment::ActiveModel =
-            detail.adjustment.into_active_model();
+            adjustment_model.into_active_model();
         adjustment.total_quantity = Set(total_quantity);
         adjustment.updated_at = Set(Utc::now());
         adjustment.update(&txn).await?;

@@ -126,10 +126,10 @@ pub async fn update_sales_return(
 pub async fn delete_sales_return(
     State(state): State<AppState>,
     Path(id): Path<i32>,
-    _auth: AuthContext,
+    auth: AuthContext,
 ) -> Result<Json<ApiResponse<()>>, AppError> {
     let service = SalesReturnService::new(state.db.clone());
-    service.delete_return(id).await?;
+    service.delete_return(id, auth.user_id).await?;
     Ok(Json(ApiResponse::success_with_message(
         (),
         "销售退货单已删除",

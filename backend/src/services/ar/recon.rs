@@ -34,7 +34,7 @@ impl ArReconciliationService {
         let closing_balance = req.opening_balance + req.total_invoices - req.total_collections;
 
         let active_model = ActiveModel {
-            id: Set(0),
+            id: Default::default(),
             reconciliation_no: Set(req.reconciliation_no),
             reconciliation_date: Set(Utc::now().date_naive()),
             period_start: Set(req.period_start),
@@ -148,12 +148,18 @@ impl ArReconciliationService {
 
     /// 删除对账单
     pub async fn delete(&self, id: i32, user_id: i32) -> Result<(), AppError> {
+        // 批次 93 P1-2 修复：状态门 + delete 移入同一事务，补 lock_exclusive 串行化并发
+        // 原实现 find_by_id 在 self.db → 状态门 → delete_with_audit 在 self.db，
+        // 状态门与 delete 跨事务边界，并发 delete + send 会竞态绕过 draft 状态门控。
+        let txn = (*self.db).begin().await?;
+
         let model = ReconciliationEntity::find_by_id(id)
-            .one(&*self.db)
+            .lock_exclusive()
+            .one(&txn)
             .await?
             .ok_or_else(|| AppError::not_found("对账单不存在"))?;
 
-        // 只有草稿状态的对账单可以删除
+        // 只有草稿状态的对账单可以删除（状态门在 txn 内，基于 lock_exclusive 读出的 model）
         if model.reconciliation_status.as_deref() != Some("draft") {
             return Err(AppError::business(
                 "只有草稿状态的对账单可以删除".to_string(),
@@ -165,8 +171,11 @@ impl ArReconciliationService {
         crate::services::audit_log_service::AuditLogService::delete_with_audit::<
             ReconciliationEntity,
             _,
-        >(&*self.db, "ar_reconciliation", id, Some(user_id))
-        .await
+        >(&txn, "ar_reconciliation", id, Some(user_id))
+        .await?;
+
+        txn.commit().await?;
+        Ok(())
     }
 
     /// 发送对账单
