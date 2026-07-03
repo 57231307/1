@@ -81,3 +81,15 @@ export function setupTotp(): Promise<ApiResponse<TotpSetupResponse>> {
 export function enableTotp(token: string): Promise<ApiResponse<boolean>> {
   return request.post<ApiResponse<boolean>>('/auth/totp/enable', { token })
 }
+
+/**
+ * 批次 94 P2-12 修复：服务端生成并返回 2FA 恢复码
+ * 调 POST /api/v1/erp/auth/totp/recovery-codes
+ *
+ * 安全要求：恢复码必须由服务端使用密码学安全随机源生成后返回，
+ * 禁止在客户端生成（客户端 Math.random 非密码学安全，且无法被服务端记录哈希后存储）。
+ * 返回字符串数组，前端仅负责展示与提示用户保存。
+ */
+export function generateRecoveryCodes(): Promise<ApiResponse<string[]>> {
+  return request.post<ApiResponse<string[]>>('/auth/totp/recovery-codes', {})
+}

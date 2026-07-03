@@ -204,6 +204,8 @@ import {
   approveQualityStandard,
   listQualityRecords,
   createQualityRecord,
+  // 批次 94 P2-12 修复：补全 updateQualityRecord 用于实现更新功能
+  updateQualityRecord,
   listDefects,
   getQualityStandardVersions,
   type QualityStandard,
@@ -453,7 +455,8 @@ const submitRecord = async () => {
   recordSubmitLoading.value = true
   try {
     if (recordForm.id) {
-      ElMessage.info('更新功能待实现')
+      // 批次 94 P2-12 修复：原占位"更新功能待实现"，现接入真实更新 API
+      await updateQualityRecord(recordForm.id, recordForm as Partial<QualityRecord>)
     } else {
       await createQualityRecord(recordForm as Partial<QualityRecord>)
     }

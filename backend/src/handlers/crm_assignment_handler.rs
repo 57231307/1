@@ -57,7 +57,9 @@ pub async fn assign_customer(
         ..Default::default()
     };
 
-    let updated_lead = crm_service.update_lead(req.lead_id, update_req).await?;
+    let updated_lead = crm_service
+        .update_lead(req.lead_id, update_req, auth.user_id)
+        .await?;
 
     // 记录分配历史
     history_service
@@ -146,7 +148,10 @@ pub async fn batch_assign(
                     ..Default::default()
                 };
 
-                match crm_service.update_lead(*lead_id, update_req).await {
+                match crm_service
+                    .update_lead(*lead_id, update_req, auth.user_id)
+                    .await
+                {
                     Ok(_) => {
                         // 记录分配历史
                         let _ = history_service

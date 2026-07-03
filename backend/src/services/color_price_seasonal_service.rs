@@ -15,6 +15,7 @@ use crate::models::seasonal_price_rule::{self, ActiveModel as RuleActive, Entity
 use crate::models::seasonal_price_rule_dto::{
     CreateSeasonalRuleDto, ListSeasonalRulesQuery, UpdateSeasonalRuleDto,
 };
+use crate::utils::error::AppError;
 
 /// 业务错误
 #[derive(Debug, Error)]
@@ -165,13 +166,16 @@ impl ColorPriceSeasonalService {
     }
 
     /// 删除规则
-    pub async fn delete(&self, id: i64) -> Result<(), SeasonalError> {
-        let existing = self.get_by_id(id).await?;
-        let mut active: RuleActive = existing.into();
-        active.is_active = Set(false);
-        active.updated_at = Set(Utc::now());
-        active.update(&*self.db).await?;
-        Ok(())
+    // 批次 94 P2-5 修复：补 user_id 参数 + 使用 delete_with_audit_i64 记录审计日志
+    // 原实现仅软删除（is_active=false）无审计日志，改为物理删除 + 审计日志，满足合规追溯要求
+    pub async fn delete(&self, id: i64, user_id: i32) -> Result<(), AppError> {
+        crate::services::audit_log_service::AuditLogService::delete_with_audit_i64::<RuleEntity, _>(
+            &*self.db,
+            "color_price_seasonal",
+            id,
+            Some(user_id),
+        )
+        .await
     }
 
     // ----------------------------------------------------------------------

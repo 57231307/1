@@ -260,7 +260,8 @@ pub async fn list_stock(
             if stock.quantity_on_hand < stock.reorder_point {
                 if let Some(product) = product_map.get(&stock.product_id) {
                     if let Some(ref s) = setting {
-                        let _ = event_service
+                        // 批次 94 P2-11：原 let _ = 静默吞错，通知发送失败时无任何日志，改为 warn 日志记录
+                        if let Err(e) = event_service
                             .notify_inventory_alert_with_setting(
                                 0, // 系统通知，不指定特定用户
                                 s,
@@ -269,10 +270,14 @@ pub async fn list_stock(
                                 &stock.quantity_on_hand.to_string(),
                                 &stock.reorder_point.to_string(),
                             )
-                            .await;
+                            .await
+                        {
+                            tracing::warn!("批次 94 P2-11：库存预警通知(with_setting)发送失败: {}", e);
+                        }
                     } else {
                         // 设置查询失败时回退到原方法（兼容性保留）
-                        let _ = event_service
+                        // 批次 94 P2-11：原 let _ = 静默吞错，通知发送失败时无任何日志，改为 warn 日志记录
+                        if let Err(e) = event_service
                             .notify_inventory_alert(
                                 0,
                                 &product.name,
@@ -280,7 +285,10 @@ pub async fn list_stock(
                                 &stock.quantity_on_hand.to_string(),
                                 &stock.reorder_point.to_string(),
                             )
-                            .await;
+                            .await
+                        {
+                            tracing::warn!("批次 94 P2-11：库存预警通知发送失败: {}", e);
+                        }
                     }
                 }
             }
@@ -377,7 +385,8 @@ pub async fn check_low_stock(
         for stock in &stock_responses {
             if let Some(product) = product_map.get(&stock.product_id) {
                 if let Some(ref s) = setting {
-                    let _ = event_service
+                    // 批次 94 P2-11：原 let _ = 静默吞错，通知发送失败时无任何日志，改为 warn 日志记录
+                    if let Err(e) = event_service
                         .notify_inventory_alert_with_setting(
                             0,
                             s,
@@ -386,10 +395,14 @@ pub async fn check_low_stock(
                             &stock.quantity_on_hand.to_string(),
                             &stock.reorder_point.to_string(),
                         )
-                        .await;
+                        .await
+                    {
+                        tracing::warn!("批次 94 P2-11：库存预警通知(with_setting)发送失败: {}", e);
+                    }
                 } else {
                     // 设置查询失败时回退到原方法（兼容性保留）
-                    let _ = event_service
+                    // 批次 94 P2-11：原 let _ = 静默吞错，通知发送失败时无任何日志，改为 warn 日志记录
+                    if let Err(e) = event_service
                         .notify_inventory_alert(
                             0,
                             &product.name,
@@ -397,7 +410,10 @@ pub async fn check_low_stock(
                             &stock.quantity_on_hand.to_string(),
                             &stock.reorder_point.to_string(),
                         )
-                        .await;
+                        .await
+                    {
+                        tracing::warn!("批次 94 P2-11：库存预警通知发送失败: {}", e);
+                    }
                 }
             }
         }

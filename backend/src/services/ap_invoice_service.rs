@@ -330,7 +330,8 @@ impl ApInvoiceService {
     /// 删除应付单（仅草稿状态）
     ///
     /// 批次 86 v2 复审 P2-5 修复：find_by_id 后追加 lock_exclusive 串行化并发状态变更
-    pub async fn delete(&self, id: i32) -> Result<(), AppError> {
+    // 批次 94 P2-10：注入真实操作人 user_id 用于审计日志
+    pub async fn delete(&self, id: i32, user_id: i32) -> Result<(), AppError> {
         let txn = (*self.db).begin().await?;
 
         // 1. 查询应付单（加 lock_exclusive 串行化）
@@ -349,10 +350,11 @@ impl ApInvoiceService {
         }
 
         // 3. 删除应付单（P0 8-3 修复：补审计日志，事务内 find→delete→audit 三步原子）
+        // 批次 94 P2-10：原 Some(0) 占位改为真实操作人 user_id，便于审计追踪
         crate::services::audit_log_service::AuditLogService::delete_with_audit::<
             ap_invoice::Entity,
             _,
-        >(&txn, "ap_invoice", invoice.id, Some(0))
+        >(&txn, "ap_invoice", invoice.id, Some(user_id))
         .await?;
 
         txn.commit().await?;

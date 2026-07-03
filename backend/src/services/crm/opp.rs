@@ -141,6 +141,7 @@ impl CrmService {
         &self,
         opportunity_id: i32,
         req: crate::models::dto::crm_dto::UpdateOpportunityRequest,
+        user_id: i32,
     ) -> Result<crm_opportunity::Model, AppError> {
         let opportunity = self.get_opportunity(opportunity_id).await?;
 
@@ -215,7 +216,8 @@ impl CrmService {
             &*self.db,
             "auto_audit",
             opportunity_active,
-            Some(0),
+            // 批次 94 P2-10：原 Some(0) 占位改为真实操作人 user_id，便于审计追踪
+            Some(user_id),
         )
         .await?;
 
@@ -223,7 +225,11 @@ impl CrmService {
     }
 
     /// 删除商机
-    pub async fn delete_opportunity(&self, opportunity_id: i32) -> Result<(), AppError> {
+    pub async fn delete_opportunity(
+        &self,
+        opportunity_id: i32,
+        user_id: i32,
+    ) -> Result<(), AppError> {
         let opportunity = self.get_opportunity(opportunity_id).await?;
 
         if let Some(status) = &opportunity.opportunity_status {
@@ -233,10 +239,11 @@ impl CrmService {
         }
 
         // P0 8-3 修复：delete 操作补审计日志
+        // 批次 94 P2-10：原 Some(0) 占位改为真实操作人 user_id，便于审计追踪
         crate::services::audit_log_service::AuditLogService::delete_with_audit::<
             crm_opportunity::Entity,
             _,
-        >(&*self.db, "crm_opportunity", opportunity_id, Some(0))
+        >(&*self.db, "crm_opportunity", opportunity_id, Some(user_id))
         .await
     }
 

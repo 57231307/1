@@ -69,8 +69,8 @@ macro_rules! impl_generate_no {
 /// - `list(query) -> PaginatedResponse<T>`
 /// - `get(id) -> T`（如返回 Option，需使用 `define_tuple_crud_handlers!` 变体）
 /// - `create(req) -> T`
-/// - `update(id, req) -> T`
-/// - `delete(id) -> ()`
+/// - `update(id, user_id, req) -> T`（批次 94 P2-10：注入 user_id 用于审计日志）
+/// - `delete(id, user_id) -> ()`（批次 94 P2-10：注入 user_id 用于审计日志）
 ///
 /// 另有 `define_tuple_crud_handlers!` 变体适用于返回元组 `(Vec<T>, u64)` 与
 /// `Option<T>` 的 Service（接口形态差异：list 返回元组、get_by_id 返回 Option、create 注入 user_id）。
@@ -139,7 +139,7 @@ macro_rules! define_crud_handlers {
 
         pub async fn update(
             axum::extract::State(state): axum::extract::State<$crate::utils::app_state::AppState>,
-            _auth: $crate::middleware::auth_context::AuthContext,
+            auth: $crate::middleware::auth_context::AuthContext,
             axum::extract::Path(id): axum::extract::Path<$id_ty>,
             axum::Json(req): axum::Json<$update_req>,
         ) -> Result<
@@ -150,7 +150,8 @@ macro_rules! define_crud_handlers {
                 return Err($crate::utils::error::AppError::validation(e.to_string()));
             }
             let service = <$service_ty>::new(state.db.clone());
-            let item = service.update(id, req).await?;
+            // 批次 94 P2-10：注入真实操作人 user_id 用于审计日志
+            let item = service.update(id, auth.user_id, req).await?;
             Ok(axum::Json(
                 $crate::utils::response::ApiResponse::success_with_message(
                     serde_json::to_value(item).map_err($crate::utils::error::AppError::from)?,
@@ -161,14 +162,15 @@ macro_rules! define_crud_handlers {
 
         pub async fn delete(
             axum::extract::State(state): axum::extract::State<$crate::utils::app_state::AppState>,
-            _auth: $crate::middleware::auth_context::AuthContext,
+            auth: $crate::middleware::auth_context::AuthContext,
             axum::extract::Path(id): axum::extract::Path<$id_ty>,
         ) -> Result<
             axum::Json<$crate::utils::response::ApiResponse<()>>,
             $crate::utils::error::AppError,
         > {
             let service = <$service_ty>::new(state.db.clone());
-            service.delete(id).await?;
+            // 批次 94 P2-10：注入真实操作人 user_id 用于审计日志
+            service.delete(id, auth.user_id).await?;
             Ok(axum::Json(
                 $crate::utils::response::ApiResponse::success_with_message((), "删除成功"),
             ))

@@ -151,7 +151,8 @@ pub async fn delete_ap_invoice(
     info!("用户 {} 删除应付单 ID: {}", auth.username, id);
 
     let service = ApInvoiceService::new(state.db.clone());
-    service.delete(id).await?;
+    // 批次 94 P2-10：注入真实操作人 user_id 用于审计日志
+    service.delete(id, auth.user_id).await?;
 
     info!("用户 {} 删除应付单成功", auth.username);
 

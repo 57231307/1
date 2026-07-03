@@ -152,7 +152,8 @@ impl SalesPriceService {
 
         // 使用 update_with_audit 在事务内同步写入审计日志
         // P2-3 修复（批次 84 v1 复审）：有意忽略返回的 ActiveModel（字段已通过 Set 表达更新意图），仅传播错误
-        let _ = crate::services::audit_log_service::AuditLogService::update_with_audit(
+        // 批次 94 P2-11：审计日志为关键路径，错误已通过 ? 传播；去掉 let _ = 直接丢弃 ActiveModel 返回值
+        crate::services::audit_log_service::AuditLogService::update_with_audit(
             &txn,
             "auto_audit",
             price,
@@ -232,13 +233,16 @@ impl SalesPriceService {
     }
 
     /// 删除销售价格
-    pub async fn delete_price(&self, id: i32) -> Result<(), AppError> {
-        info!("删除销售价格，ID: {}", id);
+    ///
+    /// 批次 94 P2-10：补 user_id 参数，将 Some(0) 占位符改为真实操作人 user_id，
+    /// 保证审计日志能追溯实际删除人。
+    pub async fn delete_price(&self, id: i32, user_id: i32) -> Result<(), AppError> {
+        info!("删除销售价格，ID: {}，操作人: {}", id, user_id);
         // P0 8-3 修复：delete 操作补审计日志
         crate::services::audit_log_service::AuditLogService::delete_with_audit::<
             sales_price::Entity,
             _,
-        >(&*self.db, "sales_price", id, Some(0))
+        >(&*self.db, "sales_price", id, Some(user_id))
         .await?;
         info!("销售价格删除成功，ID: {}", id);
         Ok(())

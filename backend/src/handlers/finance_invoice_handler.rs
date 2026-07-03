@@ -1,3 +1,4 @@
+use crate::middleware::auth_context::AuthContext;
 use crate::services::finance_invoice_service::FinanceInvoiceService;
 use crate::utils::app_state::AppState;
 use crate::utils::error::AppError;
@@ -218,12 +219,14 @@ pub async fn update_finance_invoice(
 
 pub async fn delete_finance_invoice(
     State(state): State<AppState>,
+    auth: AuthContext,
     Path(id): Path<i32>,
 ) -> Result<Json<ApiResponse<()>>, AppError> {
     let service = FinanceInvoiceService::new(state.db.clone());
 
+    // 批次 94 P2-10：注入真实操作人 user_id 用于审计日志
     service
-        .delete_invoice(id)
+        .delete_invoice(id, auth.user_id)
         .await
         .map_err(|e| AppError::internal(e.to_string()))?;
 
@@ -232,11 +235,13 @@ pub async fn delete_finance_invoice(
 
 pub async fn approve_finance_invoice(
     State(state): State<AppState>,
+    auth: AuthContext,
     Path(id): Path<i32>,
 ) -> Result<Json<ApiResponse<InvoiceResponse>>, AppError> {
     let service = FinanceInvoiceService::new(state.db.clone());
 
-    match service.approve_invoice(id).await {
+    // 批次 94 P2-10：注入真实操作人 user_id 用于审计日志
+    match service.approve_invoice(id, auth.user_id).await {
         Ok(Some(invoice)) => Ok(Json(ApiResponse::success(InvoiceResponse {
             id: invoice.id,
             invoice_no: invoice.invoice_no,
@@ -259,11 +264,13 @@ pub async fn approve_finance_invoice(
 
 pub async fn verify_invoice(
     State(state): State<AppState>,
+    auth: AuthContext,
     Path(id): Path<i32>,
 ) -> Result<Json<ApiResponse<InvoiceResponse>>, AppError> {
     let service = FinanceInvoiceService::new(state.db.clone());
 
-    match service.verify_invoice(id).await {
+    // 批次 94 P2-10：注入真实操作人 user_id 用于审计日志
+    match service.verify_invoice(id, auth.user_id).await {
         Ok(Some(invoice)) => Ok(Json(ApiResponse::success(InvoiceResponse {
             id: invoice.id,
             invoice_no: invoice.invoice_no,

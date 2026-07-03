@@ -18,6 +18,7 @@ impl PurchaseReceiptService {
         order_id: i32,
         receipt_id: i32,
         txn: &sea_orm::DatabaseTransaction,
+        user_id: i32,
     ) -> Result<(), AppError> {
         // 1. 获取入库单明细
         let items = purchase_receipt_item::Entity::find()
@@ -64,11 +65,12 @@ impl PurchaseReceiptService {
                     sea_orm::ActiveValue::Set(new_received_alt);
                 active_order_item.updated_at = sea_orm::ActiveValue::Set(chrono::Utc::now());
                 // update_with_audit 需逐条执行以生成审计日志
+                // 批次 94 P2-10：原 Some(0) 占位改为真实操作人 user_id，便于审计追踪
                 crate::services::audit_log_service::AuditLogService::update_with_audit(
                     txn,
                     "auto_audit",
                     active_order_item,
-                    Some(0),
+                    Some(user_id),
                 )
                 .await?;
             }
@@ -110,11 +112,12 @@ impl PurchaseReceiptService {
         let mut active_order: crate::models::purchase_order::ActiveModel = order.into();
         active_order.order_status = Set(new_status.to_string());
         active_order.updated_at = Set(chrono::Utc::now());
+        // 批次 94 P2-10：原 Some(0) 占位改为真实操作人 user_id，便于审计追踪
         crate::services::audit_log_service::AuditLogService::update_with_audit(
             txn,
             "auto_audit",
             active_order,
-            Some(0),
+            Some(user_id),
         )
         .await?;
 

@@ -22,6 +22,7 @@ use crate::services::slow_query_collector::SlowQueryCollector;
 use crate::utils::app_state::AppState;
 use crate::utils::error::AppError;
 use crate::utils::response::ApiResponse;
+use crate::utils::sql_escape::safe_like_pattern;
 
 /// 列表查询参数（全部可选）
 // P1-14 修复（2026-06-25）：路由已挂载至 system::routes()，函数标记已移除。
@@ -108,7 +109,8 @@ pub async fn list_slow_queries(
     // 关键词模糊搜索
     if let Some(kw) = &params.keyword {
         if !kw.trim().is_empty() {
-            let pattern = format!("%{}%", kw);
+            // 批次 94 P2-3 修复：LIKE 模式注入，转义 % _ \ 特殊字符
+            let pattern = safe_like_pattern(kw);
             q = q.filter(slow_query::Column::QueryText.like(pattern));
         }
     }

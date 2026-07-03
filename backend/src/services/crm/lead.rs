@@ -125,6 +125,7 @@ impl CrmService {
         &self,
         lead_id: i32,
         req: crate::models::dto::crm_dto::UpdateLeadRequest,
+        user_id: i32,
     ) -> Result<crm_lead::Model, AppError> {
         let lead = self.get_lead(lead_id).await?;
         let mut lead_active: crm_lead::ActiveModel = lead.into();
@@ -193,7 +194,8 @@ impl CrmService {
             &*self.db,
             "auto_audit",
             lead_active,
-            Some(0),
+            // 批次 94 P2-10：原 Some(0) 占位改为真实操作人 user_id，便于审计追踪
+            Some(user_id),
         )
         .await?;
 
@@ -201,27 +203,34 @@ impl CrmService {
     }
 
     /// 删除线索
-    pub async fn delete_lead(&self, lead_id: i32) -> Result<(), AppError> {
+    pub async fn delete_lead(&self, lead_id: i32, user_id: i32) -> Result<(), AppError> {
         // P0 8-3 修复：delete 操作补审计日志
+        // 批次 94 P2-10：原 Some(0) 占位改为真实操作人 user_id，便于审计追踪
         crate::services::audit_log_service::AuditLogService::delete_with_audit::<
             crm_lead::Entity,
             _,
-        >(&*self.db, "crm_lead", lead_id, Some(0))
+        >(&*self.db, "crm_lead", lead_id, Some(user_id))
         .await
     }
 
     /// 更新线索状态
-    pub async fn update_lead_status(&self, lead_id: i32, status: &str) -> Result<(), AppError> {
+    pub async fn update_lead_status(
+        &self,
+        lead_id: i32,
+        status: &str,
+        user_id: i32,
+    ) -> Result<(), AppError> {
         let lead = self.get_lead(lead_id).await?;
         let mut lead_active: crm_lead::ActiveModel = lead.into();
         lead_active.lead_status = Set(Some(status.to_string()));
         lead_active.updated_at = Set(Some(chrono::Utc::now()));
 
+        // 批次 94 P2-10：原 Some(0) 占位改为真实操作人 user_id，便于审计追踪
         crate::services::audit_log_service::AuditLogService::update_with_audit(
             &*self.db,
             "auto_audit",
             lead_active,
-            Some(0),
+            Some(user_id),
         )
         .await?;
 

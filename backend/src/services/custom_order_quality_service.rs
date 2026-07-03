@@ -12,6 +12,7 @@ use thiserror::Error;
 use crate::models::quality_issue::{self, ActiveModel, Entity};
 use crate::models::quality_issue_dto::{ReportQualityIssueDto, ResolveQualityIssueDto};
 use crate::utils::app_state::AppState;
+use crate::utils::error::AppError;
 
 /// 业务错误
 #[derive(Debug, Error)]
@@ -98,11 +99,13 @@ impl CustomOrderQualityService {
     }
 
     /// 解决异常
+    // 批次 94 P2-15 修复：移除 let _ = dto.operator_id 占位，用 update_with_audit 记录 operator_id 到审计日志；
+    // 返回类型改为 AppError 以兼容审计服务（update_with_audit 返回 AppError）
     pub async fn resolve_issue(
         &self,
         id: i64,
         dto: ResolveQualityIssueDto,
-    ) -> Result<quality_issue::Model, QualityError> {
+    ) -> Result<quality_issue::Model, AppError> {
         // P2-6 修复（批次 84 v1 复审）：状态门 + update 移入单一事务，加 lock_exclusive 串行化
         // 原实现状态门查询在 self.db 上、update 也在 self.db 上，无事务边界，
         // 并发场景下可能在状态检查通过后、update 前发生状态变更，导致已关闭异常被重复解决。
@@ -112,12 +115,10 @@ impl CustomOrderQualityService {
             .lock_exclusive()
             .one(&txn)
             .await?
-            .ok_or(QualityError::NotFound)?;
+            .ok_or_else(|| AppError::not_found("异常记录不存在"))?;
 
         if existing.status == "closed" {
-            return Err(QualityError::InvalidState(
-                "已关闭的异常不可再次解决".to_string(),
-            ));
+            return Err(AppError::business("已关闭的异常不可再次解决".to_string()));
         }
 
         let now = Utc::now();
@@ -126,9 +127,15 @@ impl CustomOrderQualityService {
         active.resolved_at = Set(Some(now));
         active.status = Set("resolved".to_string());
         active.updated_at = Set(now);
-        let _ = dto.operator_id; // 操作人可记录到 audit_log
-
-        let updated = active.update(&txn).await?;
+        // 批次 94 P2-15 修复：用 update_with_audit 替换 active.update，记录 operator_id 到审计日志
+        // quality_issue 模型无 operator_id 字段，操作人只能通过 audit_log 追溯
+        let updated = crate::services::audit_log_service::AuditLogService::update_with_audit(
+            &txn,
+            "quality_issue",
+            active,
+            Some(dto.operator_id as i32),
+        )
+        .await?;
         txn.commit().await?;
         Ok(updated)
     }

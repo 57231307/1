@@ -369,9 +369,13 @@ impl SalesService {
     }
 
     /// 更新销售订单
+    ///
+    /// 批次 94 P2-10：补 user_id 参数，将 Some(0) 占位符改为真实操作人 user_id，
+    /// 保证订单更新审计日志能追溯实际操作人。
     pub async fn update_order(
         &self,
         order_id: i32,
+        user_id: i32,
         request: UpdateSalesOrderRequest,
     ) -> Result<SalesOrderDetail, AppError> {
         // 批次 18（2026-06-28）：状态门查询移入事务内并加 lock_exclusive。
@@ -412,13 +416,12 @@ impl SalesService {
             order_update.notes = sea_orm::ActiveValue::Set(Some(notes));
         }
         order_update.updated_at = sea_orm::ActiveValue::Set(chrono::Utc::now());
-        // TODO(tech-debt) P3 3-27：update_order 方法签名暂无 user_id 参数，
-        // 先用 Some(0) 占位，待认证上下文中间件接入后改为真实 user_id。
+        // 批次 94 P2-10：原 Some(0) 占位符改为真实操作人 user_id（P3 3-27 TODO 已解决）
         crate::services::audit_log_service::AuditLogService::update_with_audit(
             &txn,
             "auto_audit",
             order_update,
-            Some(0),
+            Some(user_id),
         )
         .await?;
 
@@ -524,11 +527,12 @@ impl SalesService {
             order_update.total_amount = sea_orm::ActiveValue::Set(total_amount);
             order_update.balance_amount = sea_orm::ActiveValue::Set(total_amount);
             order_update.updated_at = sea_orm::ActiveValue::Set(chrono::Utc::now());
+            // 批次 94 P2-10：原 Some(0) 占位符改为真实操作人 user_id
             crate::services::audit_log_service::AuditLogService::update_with_audit(
                 &txn,
                 "auto_audit",
                 order_update,
-                Some(0),
+                Some(user_id),
             )
             .await?;
         }
@@ -541,7 +545,10 @@ impl SalesService {
     }
 
     /// 删除销售订单
-    pub async fn delete_order(&self, order_id: i32) -> Result<(), AppError> {
+    ///
+    /// 批次 94 P2-10：补 user_id 参数，将 Some(0) 占位符改为真实操作人 user_id，
+    /// 保证订单删除审计日志能追溯实际操作人。
+    pub async fn delete_order(&self, order_id: i32, user_id: i32) -> Result<(), AppError> {
         // 批次 26 v6 P1 修复：状态机 lock_exclusive 补全，串行化并发状态变更
         // 原实现先在事务外用 &*self.db 裸查询订单状态，再 begin() 开启事务，
         // 并发 delete_order 均通过状态检查后基于过期状态删除，导致状态门失效。
@@ -572,10 +579,11 @@ impl SalesService {
             .await?;
 
         // 删除订单主表（P0 8-3 修复：补审计日志）
+        // 批次 94 P2-10：原 Some(0) 占位符改为真实操作人 user_id
         crate::services::audit_log_service::AuditLogService::delete_with_audit::<
             SalesOrderEntity,
             _,
-        >(&txn, "sales_order", order_id, Some(0))
+        >(&txn, "sales_order", order_id, Some(user_id))
         .await?;
 
         // 提交事务

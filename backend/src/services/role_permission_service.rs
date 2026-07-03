@@ -174,6 +174,7 @@ impl RolePermissionService {
         &self,
         role_id: i32,
         request: UpdateRoleRequest,
+        user_id: i32,
     ) -> Result<RoleDetail, AppError> {
         let role = RoleEntity::find_by_id(role_id)
             .one(&*self.db)
@@ -218,7 +219,8 @@ impl RolePermissionService {
             &*self.db,
             "auto_audit",
             role_update,
-            Some(0),
+            // 批次 94 P2-10：原 Some(0) 占位改为真实操作人 user_id，便于审计追踪
+            Some(user_id),
         )
         .await?;
 
@@ -226,7 +228,7 @@ impl RolePermissionService {
     }
 
     /// 删除角色
-    pub async fn delete_role(&self, role_id: i32) -> Result<(), AppError> {
+    pub async fn delete_role(&self, role_id: i32, user_id: i32) -> Result<(), AppError> {
         let role = RoleEntity::find_by_id(role_id)
             .one(&*self.db)
             .await?
@@ -260,10 +262,11 @@ impl RolePermissionService {
             .await?;
 
         // 删除角色（P0 8-3 修复：补审计日志）
+        // 批次 94 P2-10：原 Some(0) 占位改为真实操作人 user_id，便于审计追踪
         crate::services::audit_log_service::AuditLogService::delete_with_audit::<
             RoleEntity,
             _,
-        >(&txn, "role", role_id, Some(0))
+        >(&txn, "role", role_id, Some(user_id))
         .await?;
 
         // 提交事务
@@ -276,6 +279,7 @@ impl RolePermissionService {
     pub async fn assign_permission(
         &self,
         request: AssignPermissionRequest,
+        user_id: i32,
     ) -> Result<RolePermissionDetail, AppError> {
         // 检查角色是否存在
         let role = RoleEntity::find_by_id(request.role_id)
@@ -312,7 +316,8 @@ impl RolePermissionService {
                     &*self.db,
                     "auto_audit",
                     perm_update,
-                    Some(0),
+                    // 批次 94 P2-10：原 Some(0) 占位改为真实操作人 user_id，便于审计追踪
+                    Some(user_id),
                 )
                 .await?;
 
@@ -355,7 +360,11 @@ impl RolePermissionService {
     }
 
     /// 移除权限
-    pub async fn remove_permission(&self, permission_id: i32) -> Result<(), AppError> {
+    pub async fn remove_permission(
+        &self,
+        permission_id: i32,
+        user_id: i32,
+    ) -> Result<(), AppError> {
         let permission = RolePermissionEntity::find_by_id(permission_id)
             .one(&*self.db)
             .await?
@@ -373,10 +382,11 @@ impl RolePermissionService {
         }
 
         // P0 8-3 修复：delete 操作补审计日志
+        // 批次 94 P2-10：原 Some(0) 占位改为真实操作人 user_id，便于审计追踪
         crate::services::audit_log_service::AuditLogService::delete_with_audit::<
             RolePermissionEntity,
             _,
-        >(&*self.db, "role_permission", permission_id, Some(0))
+        >(&*self.db, "role_permission", permission_id, Some(user_id))
         .await
     }
 

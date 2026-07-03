@@ -72,3 +72,12 @@ export function executePurchaseContract(id: number): Promise<ApiResponse<void>> 
 export function cancelPurchaseContract(id: number): Promise<ApiResponse<void>> {
   return request.put(`/purchase/purchase-contracts/${id}/cancel`)
 }
+
+// 批次 94 P2-12 修复：补全采购合同导出接口（原缺失，导致 usePcProc 导出占位假成功）
+// 返回 blob，前端用 URL.createObjectURL 触发下载
+export function exportPurchaseContracts(params?: QueryParams): Promise<Blob> {
+  return request.get('/purchase/purchase-contracts/export', {
+    params,
+    responseType: 'blob',
+  })
+}

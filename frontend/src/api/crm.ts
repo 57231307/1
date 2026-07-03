@@ -114,3 +114,12 @@ export interface CustomerSummary {
 export function getCustomerSummary(customerId: number): Promise<ApiResponse<CustomerSummary>> {
   return request.get(`/crm/customers/${customerId}/summary`)
 }
+
+// 批次 94 P2-12 修复：补全 CRM 线索导出接口（原缺失，导致 leads/index.vue 导出占位假成功）
+// 返回 blob，前端用 URL.createObjectURL 触发下载
+export function exportLeads(params?: QueryParams): Promise<Blob> {
+  return request.get('/crm/leads/export', {
+    params,
+    responseType: 'blob',
+  })
+}

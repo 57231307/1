@@ -56,11 +56,13 @@ pub struct ShortageSummaryParams {
 }
 
 /// GET /api/v1/erp/material-shortage/alerts - 缺料预警列表
+// 批次 94 P2-8 修复：_auth → auth，记录鉴权审计日志（避免 unused 警告）
 pub async fn list_shortage_alerts(
     State(state): State<AppState>,
-    _auth: AuthContext,
+    auth: AuthContext,
     Query(params): Query<ShortageAlertParams>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
+    tracing::debug!(user_id = auth.user_id, "缺料预警列表查询");
     let service = MaterialShortageService::new(state.db.clone());
 
     let page = params.page.unwrap_or(1).saturating_sub(1);
@@ -79,22 +81,26 @@ pub async fn list_shortage_alerts(
 }
 
 /// POST /api/v1/erp/material-shortage/check - 手动触发缺料检查
+// 批次 94 P2-8 修复：_auth → auth，记录鉴权审计日志（避免 unused 警告）
 pub async fn check_material_shortage(
     State(state): State<AppState>,
-    _auth: AuthContext,
+    auth: AuthContext,
     Json(payload): Json<ShortageCheckRequest>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
+    tracing::debug!(user_id = auth.user_id, "手动触发缺料检查");
     let service = MaterialShortageService::new(state.db.clone());
     let summary = service.detect_shortages(payload).await?;
     Ok(Json(ApiResponse::success(serde_json::to_value(summary)?)))
 }
 
 /// GET /api/v1/erp/material-shortage/summary - 缺料汇总
+// 批次 94 P2-8 修复：_auth → auth，记录鉴权审计日志（避免 unused 警告）
 pub async fn get_shortage_summary(
     State(state): State<AppState>,
-    _auth: AuthContext,
+    auth: AuthContext,
     Query(params): Query<ShortageSummaryParams>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
+    tracing::debug!(user_id = auth.user_id, "缺料汇总查询");
     let service = MaterialShortageService::new(state.db.clone());
 
     let product_ids = params
@@ -132,11 +138,13 @@ pub struct SaveThresholdConfigRequest {
 }
 
 /// POST /api/v1/erp/material-shortage/threshold - 保存预警阈值配置
+// 批次 94 P2-8 修复：_auth → auth，记录鉴权审计日志（避免 unused 警告）
 pub async fn save_threshold_config(
     State(state): State<AppState>,
-    _auth: AuthContext,
+    auth: AuthContext,
     Json(payload): Json<SaveThresholdConfigRequest>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
+    tracing::debug!(user_id = auth.user_id, "保存缺料预警阈值配置");
     let service = MaterialShortageService::new(state.db.clone());
 
     // 加载现有配置
@@ -162,10 +170,12 @@ pub async fn save_threshold_config(
 }
 
 /// GET /api/v1/erp/material-shortage/threshold - 获取预警阈值配置
+// 批次 94 P2-8 修复：_auth → auth，记录鉴权审计日志（避免 unused 警告）
 pub async fn get_threshold_config(
     State(state): State<AppState>,
-    _auth: AuthContext,
+    auth: AuthContext,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
+    tracing::debug!(user_id = auth.user_id, "获取缺料预警阈值配置");
     let service = MaterialShortageService::new(state.db.clone());
 
     let config = service.load_threshold_config().await?;
@@ -173,11 +183,13 @@ pub async fn get_threshold_config(
 }
 
 /// GET /api/v1/erp/material-shortage/replenishment - 获取补货建议
+// 批次 94 P2-8 修复：_auth → auth，记录鉴权审计日志（避免 unused 警告）
 pub async fn get_replenishment_suggestions(
     State(state): State<AppState>,
-    _auth: AuthContext,
+    auth: AuthContext,
     Query(params): Query<ShortageSummaryParams>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
+    tracing::debug!(user_id = auth.user_id, "获取缺料补货建议");
     let service = MaterialShortageService::new(state.db.clone());
 
     let product_ids = params
@@ -214,12 +226,14 @@ pub async fn get_replenishment_suggestions(
 }
 
 /// PUT /api/v1/erp/material-shortage/:id/status - 更新缺料预警状态
+// 批次 94 P2-8 修复：_auth → auth，记录鉴权审计日志（避免 unused 警告）
 pub async fn update_shortage_status(
     State(state): State<AppState>,
-    _auth: AuthContext,
+    auth: AuthContext,
     Path(id): Path<i32>,
     Json(req): Json<UpdateStatusRequest>,
 ) -> Result<Json<ApiResponse<MaterialShortageDto>>, AppError> {
+    tracing::debug!(user_id = auth.user_id, id = id, "更新缺料预警状态");
     // 校验状态值
     let valid = matches!(req.status.as_str(), "pending" | "notified" | "resolved");
     if !valid {

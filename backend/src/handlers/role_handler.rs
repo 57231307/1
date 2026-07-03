@@ -288,7 +288,7 @@ pub async fn update_role(
     };
 
     let role = service
-        .update_role(id, request)
+        .update_role(id, request, auth.user_id)
         .await
         .map_err(|e| AppError::internal(e.to_string()))?;
 
@@ -378,7 +378,7 @@ pub async fn delete_role(
     });
 
     service
-        .delete_role(id)
+        .delete_role(id, auth.user_id)
         .await
         .map_err(|e| AppError::internal(e.to_string()))?;
 
@@ -426,7 +426,7 @@ pub async fn assign_permission(
     };
 
     let perm = service
-        .assign_permission(request)
+        .assign_permission(request, auth.user_id)
         .await
         .map_err(|e| AppError::internal(e.to_string()))?;
 
@@ -481,7 +481,7 @@ pub async fn remove_permission(
     let service = RolePermissionService::new(state.db.clone());
 
     service
-        .remove_permission(id)
+        .remove_permission(id, auth.user_id)
         .await
         .map_err(|e| AppError::internal(e.to_string()))?;
 

@@ -5,7 +5,7 @@
 // 行为完全保持一致（仅结构重构）
 import { ElMessage } from 'element-plus'
 import { useRouter } from 'vue-router'
-import { setupTotp, enableTotp } from '@/api/auth'
+import { setupTotp, enableTotp, generateRecoveryCodes } from '@/api/auth'
 import { useUserStore } from '@/store/user'
 import { logger } from '@/utils/logger'
 
@@ -76,8 +76,16 @@ export const useTfaProc = () => {
       const res = await enableTotp(token)
       if (res.code === 200 || res.code === 0) {
         ElMessage.success(res.message || '2FA 已成功启用')
-        // 生成 10 个格式良好的占位恢复码（后续可由后端补全）
-        tfa.recoveryCodes = generateRecoveryCodes()
+        // 批次 94 P2-12 修复：原客户端生成占位恢复码（Math.random 非密码学安全且服务端无记录），
+        // 改为调用服务端 API 获取恢复码（服务端使用密码学安全随机源生成并存储哈希）
+        try {
+          const codesRes = await generateRecoveryCodes()
+          tfa.recoveryCodes = codesRes.data || []
+        } catch (e) {
+          logger.error('获取恢复码失败:', e)
+          ElMessage.warning('2FA 已启用，但恢复码获取失败，请稍后在设置页重新生成')
+          tfa.recoveryCodes = []
+        }
         // 刷新用户信息，确保 is_totp_enabled 同步
         try {
           await userStore.fetchUserInfo()
@@ -105,21 +113,6 @@ export const useTfaProc = () => {
     } finally {
       tfa.enableLoading = false
     }
-  }
-
-  // 生成 10 个格式良好的占位恢复码（8 位大写字母+数字）
-  const generateRecoveryCodes = (): string[] => {
-    const codes: string[] = []
-    const charset = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'
-    for (let i = 0; i < 10; i++) {
-      let code = ''
-      for (let j = 0; j < 8; j++) {
-        code += charset[Math.floor(Math.random() * charset.length)]
-      }
-      // 格式化为 XXXX-XXXX 便于阅读
-      codes.push(`${code.slice(0, 4)}-${code.slice(4)}`)
-    }
-    return codes
   }
 
   // 复制恢复码

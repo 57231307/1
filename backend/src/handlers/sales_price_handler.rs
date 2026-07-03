@@ -162,7 +162,8 @@ pub async fn delete_price(
     info!("用户 {} 正在删除销售价格，ID: {}", auth.user_id, id);
 
     let service = SalesPriceService::new(state.db.clone());
-    service.delete_price(id).await?;
+    // 批次 94 P2-10：传入真实操作人 user_id 用于审计日志
+    service.delete_price(id, auth.user_id).await?;
     info!("销售价格删除成功，ID: {}", id);
 
     Ok(Json(ApiResponse::success(())))

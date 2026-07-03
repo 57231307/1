@@ -183,6 +183,7 @@ pub async fn create_quotation(
 }
 
 /// PUT /api/v1/erp/quotations/:id
+// 批次 94 P2-13 修复：移除 let _ = auth; 占位，注入 auth.user_id 到 service.update 用于审计日志
 pub async fn update_quotation(
     auth: AuthContext,
     State(state): State<AppState>,
@@ -195,8 +196,7 @@ pub async fn update_quotation(
     }
 
     let service = QuotationService::from_state(&state);
-    let model = service.update(id, dto).await?;
-    let _ = auth; // 暂时未使用，预留给审计日志
+    let model = service.update(id, dto, auth.user_id as i64).await?;
     Ok(Json(ApiResponse::success_with_message(
         QuotationResponseDto::from(model),
         "报价单更新成功",

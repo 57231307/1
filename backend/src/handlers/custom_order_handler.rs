@@ -620,10 +620,8 @@ pub async fn resolve_quality_issue(
     Json(dto): Json<ResolveQualityIssueDto>,
 ) -> Result<Json<ApiResponse<QualityIssueInfo>>, AppError> {
     let service = CustomOrderQualityService::from_state(&state);
-    let issue = service
-        .resolve_issue(id, dto)
-        .await
-        .map_err(quality_err)?;
+    // 批次 94 P2-15 修复：resolve_issue 返回类型改为 AppError，无需 map_err(quality_err) 转换
+    let issue = service.resolve_issue(id, dto).await?;
     Ok(Json(ApiResponse::success(QualityIssueInfo {
         id: issue.id,
         issue_type: issue.issue_type,

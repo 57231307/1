@@ -5,6 +5,7 @@ use crate::utils::admin_checker::is_admin_role;
 use crate::utils::app_state::AppState;
 use crate::utils::error::AppError;
 use crate::utils::response::ApiResponse;
+use crate::utils::sql_escape::safe_like_pattern;
 use axum::{
     extract::{Query, State},
     Json,
@@ -223,7 +224,8 @@ pub async fn search_logs(
             "(description ILIKE ${} OR resource_name ILIKE ${} OR username ILIKE ${})",
             param_idx, param_idx, param_idx
         ));
-        let kw = format!("%{}%", keyword);
+        // 批次 94 P2-3 修复：LIKE 模式注入，转义 % _ \ 特殊字符
+        let kw = safe_like_pattern(keyword);
         where_params.push(kw.into());
         param_idx += 1;
     }

@@ -149,6 +149,8 @@ impl InventoryTransferService {
     pub async fn create_transfer(
         &self,
         request: CreateInventoryTransferRequest,
+        // 批次 94 P2-10：注入真实操作人 user_id 用于审计日志
+        user_id: i32,
     ) -> Result<InventoryTransferDetail, AppError> {
         // 开启事务
         let txn = (*self.db).begin().await?;
@@ -243,7 +245,8 @@ impl InventoryTransferService {
             &txn,
             "auto_audit",
             transfer_update,
-            Some(0),
+            // 批次 94 P2-10：原 Some(0) 占位改为真实操作人 user_id，便于审计追踪
+            Some(user_id),
         )
         .await?;
 
@@ -259,6 +262,8 @@ impl InventoryTransferService {
         &self,
         transfer_id: i32,
         request: UpdateInventoryTransferRequest,
+        // 批次 94 P2-10：注入真实操作人 user_id 用于审计日志
+        user_id: i32,
     ) -> Result<InventoryTransferDetail, AppError> {
         // 检查调拨单是否存在
         let transfer = InventoryTransferEntity::find_by_id(transfer_id)
@@ -287,7 +292,8 @@ impl InventoryTransferService {
             &txn,
             "auto_audit",
             transfer_update,
-            Some(0),
+            // 批次 94 P2-10：原 Some(0) 占位改为真实操作人 user_id，便于审计追踪
+            Some(user_id),
         )
         .await?;
 
@@ -339,7 +345,8 @@ impl InventoryTransferService {
                 &txn,
                 "auto_audit",
                 transfer_update,
-                Some(0),
+                // 批次 94 P2-10：原 Some(0) 占位改为真实操作人 user_id，便于审计追踪
+                Some(user_id),
             )
             .await?;
         }
@@ -357,6 +364,8 @@ impl InventoryTransferService {
         transfer_id: i32,
         approved: bool,
         notes: Option<String>,
+        // 批次 94 P2-10：注入真实操作人 user_id 用于审计日志
+        user_id: i32,
     ) -> Result<InventoryTransferDetail, AppError> {
         // 批次 26 v6 P1 修复：状态机 lock_exclusive 补全，串行化并发状态变更
         // 开启事务
@@ -393,7 +402,8 @@ impl InventoryTransferService {
             &txn,
             "auto_audit",
             transfer_update,
-            Some(0),
+            // 批次 94 P2-10：原 Some(0) 占位改为真实操作人 user_id，便于审计追踪
+            Some(user_id),
         )
         .await?;
 
@@ -413,7 +423,12 @@ impl InventoryTransferService {
     );
 
     /// 删除调拨单（仅 pending/rejected 状态）
-    pub async fn delete_transfer(&self, transfer_id: i32) -> Result<(), AppError> {
+    pub async fn delete_transfer(
+        &self,
+        transfer_id: i32,
+        // 批次 94 P2-10：注入真实操作人 user_id 用于审计日志
+        user_id: i32,
+    ) -> Result<(), AppError> {
         let transfer = InventoryTransferEntity::find_by_id(transfer_id)
             .one(&*self.db)
             .await?
@@ -435,10 +450,11 @@ impl InventoryTransferService {
             .exec(&txn)
             .await?;
         // P0 8-3 修复：delete 操作补审计日志
+        // 批次 94 P2-10：原 Some(0) 占位改为真实操作人 user_id，便于审计追踪
         crate::services::audit_log_service::AuditLogService::delete_with_audit::<
             InventoryTransferEntity,
             _,
-        >(&txn, "inventory_transfer", transfer_id, Some(0))
+        >(&txn, "inventory_transfer", transfer_id, Some(user_id))
         .await?;
         txn.commit().await?;
         Ok(())

@@ -440,11 +440,12 @@ pub async fn calculate_bom_requirements(
 /// PUT /api/v1/erp/boms/:id/submit - 提交BOM审核
 pub async fn submit_bom(
     State(state): State<AppState>,
-    _auth: AuthContext,
+    auth: AuthContext,
     Path(id): Path<i32>,
 ) -> Result<Json<ApiResponse<BomResponse>>, AppError> {
     let service = BomService::new(state.db.clone());
-    let bom = service.submit(id).await?;
+    // 批次 94 P2-10：注入真实操作人 user_id 用于审计日志
+    let bom = service.submit(id, auth.user_id).await?;
 
     Ok(Json(ApiResponse::success_with_message(
         BomResponse {
@@ -472,12 +473,15 @@ pub struct ApproveBomRequest {
 /// PUT /api/v1/erp/boms/:id/approve - 审核BOM
 pub async fn approve_bom(
     State(state): State<AppState>,
-    _auth: AuthContext,
+    auth: AuthContext,
     Path(id): Path<i32>,
     Json(req): Json<ApproveBomRequest>,
 ) -> Result<Json<ApiResponse<BomResponse>>, AppError> {
     let service = BomService::new(state.db.clone());
-    let bom = service.approve(id, req.approved, req.remark).await?;
+    // 批次 94 P2-10：注入真实操作人 user_id 用于审计日志
+    let bom = service
+        .approve(id, req.approved, req.remark, auth.user_id)
+        .await?;
 
     Ok(Json(ApiResponse::success_with_message(
         BomResponse {

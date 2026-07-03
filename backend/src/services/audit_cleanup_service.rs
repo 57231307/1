@@ -1,5 +1,5 @@
 use futures::FutureExt;
-use sea_orm::{ConnectionTrait, DatabaseConnection, Statement};
+use sea_orm::{ConnectionTrait, DatabaseBackend, DatabaseConnection, Statement};
 use std::panic::AssertUnwindSafe;
 use std::sync::Arc;
 use tokio::time::{interval, Duration};
@@ -49,16 +49,14 @@ impl AuditCleanupService {
 
     /// 清理过期的审计日志
     pub async fn cleanup_expired_logs(&self) -> Result<u64, sea_orm::DbErr> {
-        let sql = format!(
-            "DELETE FROM omni_audit_logs WHERE created_at < NOW() - INTERVAL '{} days'",
-            self.retention_days
+        // 批次 94 P2-1 修复：原 format! 拼接 SQL 存在注入风险，改用参数化绑定
+        let stmt = Statement::from_sql_and_values(
+            DatabaseBackend::Postgres,
+            "DELETE FROM omni_audit_logs WHERE created_at < NOW() - ($1 * INTERVAL '1 day')",
+            [self.retention_days.into()],
         );
 
-        let result = self
-            .db
-            .as_ref()
-            .execute_unprepared(&sql)
-            .await?;
+        let result = self.db.as_ref().execute(stmt).await?;
 
         let deleted_count = result.rows_affected();
 
@@ -71,16 +69,14 @@ impl AuditCleanupService {
         }
 
         // 同时清理 audit_logs 表
-        let sql = format!(
-            "DELETE FROM audit_logs WHERE created_at < NOW() - INTERVAL '{} days'",
-            self.retention_days
+        // 批次 94 P2-1 修复：format! 拼接 SQL 改用参数化绑定
+        let stmt = Statement::from_sql_and_values(
+            DatabaseBackend::Postgres,
+            "DELETE FROM audit_logs WHERE created_at < NOW() - ($1 * INTERVAL '1 day')",
+            [self.retention_days.into()],
         );
 
-        let result = self
-            .db
-            .as_ref()
-            .execute_unprepared(&sql)
-            .await?;
+        let result = self.db.as_ref().execute(stmt).await?;
 
         let deleted_count2 = result.rows_affected();
         if deleted_count2 > 0 {

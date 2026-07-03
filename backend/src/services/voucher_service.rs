@@ -578,7 +578,8 @@ impl VoucherService {
         self.validate_voucher_in_transaction(id, &txn).await?;
 
         // 2. 更新科目余额
-        self.update_account_balances(id, &txn).await?;
+        // 批次 94 P2-10：传入 user_id 用于余额变更审计日志
+        self.update_account_balances(id, user_id, &txn).await?;
 
         // 3. 更新凭证状态
         let mut active_model: voucher::ActiveModel = voucher.into_active_model();
@@ -660,9 +661,13 @@ impl VoucherService {
     /// 根据会计制度正确计算期末余额
     /// - 借方科目：期末余额 = 期初余额(借) + 本期借方发生 - 本期贷方发生
     /// - 贷方科目：期末余额 = 期初余额(贷) + 本期贷方发生 - 本期借方发生
+    ///
+    /// 批次 94 P2-10：补 user_id 参数，将 Some(0) 占位符改为真实操作人 user_id，
+    /// 保证余额变更审计日志能追溯实际操作人。
     async fn update_account_balances(
         &self,
         voucher_id: i32,
+        user_id: i32,
         txn: &sea_orm::DatabaseTransaction,
     ) -> Result<(), AppError> {
         info!("更新科目余额 voucher_id={}", voucher_id);
@@ -815,7 +820,8 @@ impl VoucherService {
                     txn,
                     "auto_audit",
                     active_model,
-                    Some(0),
+                    // 批次 94 P2-10：原 Some(0) 占位符改为真实操作人 user_id
+                    Some(user_id),
                 )
                 .await?;
             } else {

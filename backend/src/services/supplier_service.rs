@@ -456,11 +456,12 @@ impl SupplierService {
         &self,
         supplier_id: i32,
         req: CreateContactRequest,
-        _user_id: i32,
+        user_id: i32,
     ) -> Result<supplier_contact::Model, AppError> {
         // 如果设置为主要联系人，先将其他联系人取消主要联系人状态
+        // 批次 94 P2-10：透传 user_id 用于审计日志
         if req.is_primary {
-            self.clear_primary_contacts(supplier_id).await?;
+            self.clear_primary_contacts(supplier_id, user_id).await?;
         }
 
         let contact = supplier_contact::ActiveModel {
@@ -495,8 +496,9 @@ impl SupplierService {
         let mut contact_active: supplier_contact::ActiveModel = contact.into();
 
         // 如果设置为主要联系人，先将其他联系人取消主要联系人状态
+        // 批次 94 P2-10：透传 user_id 用于审计日志
         if let Some(true) = req.is_primary {
-            self.clear_primary_contacts(supplier_id).await?;
+            self.clear_primary_contacts(supplier_id, user_id).await?;
         }
 
         if let Some(name) = req.contact_name {
@@ -584,7 +586,7 @@ impl SupplierService {
     }
 
     /// 取消所有主要联系人
-    async fn clear_primary_contacts(&self, supplier_id: i32) -> Result<(), AppError> {
+    async fn clear_primary_contacts(&self, supplier_id: i32, user_id: i32) -> Result<(), AppError> {
         let contacts = supplier_contact::Entity::find()
             .filter(supplier_contact::Column::SupplierId.eq(supplier_id))
             .filter(supplier_contact::Column::IsPrimary.eq(true))
@@ -594,11 +596,12 @@ impl SupplierService {
         for contact in contacts {
             let mut contact_active: supplier_contact::ActiveModel = contact.into();
             contact_active.is_primary = Set(false);
+            // 批次 94 P2-10：原 Some(0) 占位改为真实操作人 user_id，便于审计追踪
             crate::services::audit_log_service::AuditLogService::update_with_audit(
                 &*self.db,
                 "auto_audit",
                 contact_active,
-                Some(0),
+                Some(user_id),
             )
             .await?;
         }

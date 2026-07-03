@@ -432,11 +432,13 @@ pub async fn update_adjustment(
 /// 删除调整单
 pub async fn delete_adjustment(
     State(state): State<AppState>,
+    auth: AuthContext,
     Path(id): Path<i32>,
 ) -> Result<Json<ApiResponse<()>>, AppError> {
     let service = InventoryAdjustmentService::new(state.db.clone());
+    // 批次 94 P2-10：注入真实操作人 user_id 用于审计日志
     service
-        .delete_adjustment(id)
+        .delete_adjustment(id, auth.user_id)
         .await
         .map_err(|e| AppError::bad_request(e.to_string()))?;
     Ok(Json(ApiResponse::success(())))

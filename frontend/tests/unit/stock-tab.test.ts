@@ -51,6 +51,16 @@ vi.mock('@/api/warehouse', () => ({
   },
 }))
 
+// 批次 94 P2-12 修复：StockTab.vue 新增 inventoryApi 导入（updateStock/deleteStock），
+// 需 mock @/api/inventory 避免触发 request.ts → router 初始化链
+vi.mock('@/api/inventory', () => ({
+  inventoryApi: {
+    updateStock: vi.fn().mockResolvedValue({ code: 200, data: {}, message: 'success' }),
+    deleteStock: vi.fn().mockResolvedValue({ code: 200, data: {}, message: 'success' }),
+    createStockAdjustment: vi.fn().mockResolvedValue({ code: 200, data: {}, message: 'success' }),
+  },
+}))
+
 // 局部 mock element-plus：保留真实 export
 vi.mock('element-plus', async (importOriginal) => {
   const actual = await importOriginal<typeof import('element-plus')>()

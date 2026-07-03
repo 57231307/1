@@ -18,6 +18,7 @@ use crate::models::color_card_create_dto::{
     ArchiveColorCardDto, CreateColorCardDto, UpdateColorCardDto,
 };
 use crate::utils::app_state::AppState;
+use crate::utils::sql_escape::safe_like_pattern;
 
 /// 业务错误
 #[derive(Debug, Error)]
@@ -106,7 +107,8 @@ impl ColorCardCrudService {
             query = query.filter(color_card::Column::Status.eq(s));
         }
         if let Some(k) = keyword {
-            let pattern = format!("%{}%", k);
+            // 批次 94 P2-2 修复：LIKE 模式注入，转义 % _ \ 特殊字符
+            let pattern = safe_like_pattern(&k);
             query = query.filter(color_card::Column::CardName.like(pattern));
         }
 

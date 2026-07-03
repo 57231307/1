@@ -100,6 +100,14 @@ export function createQualityRecord(
   return request.post('/production/quality-inspection/records', data)
 }
 
+// 批次 94 P2-12 修复：补全质检记录更新接口（原先前端 API 模块缺失，导致 index.vue 更新占位）
+export function updateQualityRecord(
+  id: number,
+  data: Partial<QualityRecord>
+): Promise<ApiResponse<QualityRecord>> {
+  return request.put(`/production/quality-inspection/records/${id}`, data)
+}
+
 export function listDefects(params?: QueryParams): Promise<ApiResponse<Defect[]>> {
   return request.get('/production/quality-inspection/defects', { params })
 }

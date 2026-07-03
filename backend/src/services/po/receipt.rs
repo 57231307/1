@@ -259,6 +259,9 @@ impl PurchaseOrderService {
             &txn,
             "auto_audit",
             order_active,
+            // 批次 94 P2-10：receive_order 由 PurchaseReceiptCompleted 事件触发，
+            // 该事件未携带 user_id（参见 event_bus::BusinessEvent::PurchaseReceiptCompleted），
+            // 事件驱动场景下无用户上下文，暂保留 Some(0)。
             Some(0),
         )
         .await?;
@@ -367,7 +370,8 @@ impl PurchaseOrderService {
         .await?;
 
         // 5. 更新订单总金额（事务内调用 _txn 变体，保证明细写与重算原子性）
-        self.calculate_order_total_txn(order_id, &txn).await?;
+        // 批次 94 P2-10：透传 user_id 用于审计日志
+        self.calculate_order_total_txn(order_id, &txn, user_id).await?;
 
         txn.commit().await?;
 
@@ -443,7 +447,8 @@ impl PurchaseOrderService {
         .await?;
 
         // 6. 更新订单总金额（事务内调用 _txn 变体，保证明细写与重算原子性）
-        self.calculate_order_total_txn(order.id, &txn).await?;
+        // 批次 94 P2-10：透传 user_id 用于审计日志
+        self.calculate_order_total_txn(order.id, &txn, user_id).await?;
 
         txn.commit().await?;
 
@@ -491,7 +496,8 @@ impl PurchaseOrderService {
             .await?;
 
         // 6. 更新订单总金额（事务内调用 _txn 变体，保证明细写与重算原子性）
-        self.calculate_order_total_txn(order.id, &txn).await?;
+        // 批次 94 P2-10：透传 user_id 用于审计日志
+        self.calculate_order_total_txn(order.id, &txn, user_id).await?;
 
         txn.commit().await?;
 
@@ -508,6 +514,7 @@ impl PurchaseOrderService {
         &self,
         order_id: i32,
         txn: &sea_orm::DatabaseTransaction,
+        user_id: i32,
     ) -> Result<(), AppError> {
         // 1. 查询所有明细
         let items = purchase_order_item::Entity::find()
@@ -538,11 +545,12 @@ impl PurchaseOrderService {
         order_active.total_quantity = Set(total_quantity);
         order_active.total_quantity_alt = Set(total_quantity_alt);
         order_active.updated_at = Set(chrono::Utc::now());
+        // 批次 94 P2-10：原 Some(0) 占位改为真实操作人 user_id，便于审计追踪
         crate::services::audit_log_service::AuditLogService::update_with_audit(
             txn,
             "auto_audit",
             order_active,
-            Some(0),
+            Some(user_id),
         )
         .await?;
 
@@ -553,9 +561,14 @@ impl PurchaseOrderService {
     ///
     /// 批次 19（2026-06-28）：改为便捷入口，内部 begin + 调 _txn + commit。
     /// 已在事务内的调用方应直接调用 calculate_order_total_txn 以复用事务。
-    pub async fn calculate_order_total(&self, order_id: i32) -> Result<(), AppError> {
+    pub async fn calculate_order_total(
+        &self,
+        order_id: i32,
+        user_id: i32,
+    ) -> Result<(), AppError> {
         let txn = (*self.db).begin().await?;
-        self.calculate_order_total_txn(order_id, &txn).await?;
+        // 批次 94 P2-10：透传 user_id 用于审计日志
+        self.calculate_order_total_txn(order_id, &txn, user_id).await?;
         txn.commit().await?;
         Ok(())
     }

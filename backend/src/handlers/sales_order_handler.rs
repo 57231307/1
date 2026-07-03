@@ -177,9 +177,13 @@ pub async fn create_order(
     // 订单创建成功后发送通知
     if let Some(event_service) = &state.event_notification_service {
         if let Some(created_by) = order.created_by {
-            let _ = event_service
+            // 批次 94 P2-11：原 let _ = 静默吞错，通知发送失败时无任何日志，改为 warn 日志记录
+            if let Err(e) = event_service
                 .notify_order_submitted(created_by, &order.order_no, order.id)
-                .await;
+                .await
+            {
+                tracing::warn!("批次 94 P2-11：订单创建通知发送失败: {}", e);
+            }
         }
     }
 
@@ -195,12 +199,15 @@ pub async fn create_order(
 /// PUT /api/v1/erp/sales/orders/:id
 pub async fn update_order(
     State(state): State<AppState>,
-    _auth: AuthContext,
+    auth: AuthContext,
     Path(id): Path<i32>,
     Json(request): Json<UpdateSalesOrderRequest>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     let sales_service = SalesService::new(state.db.clone());
-    let order = sales_service.update_order(id, request).await?;
+    // 批次 94 P2-10：传入真实操作人 user_id 用于审计日志
+    let order = sales_service
+        .update_order(id, auth.user_id, request)
+        .await?;
     let order_json = serde_json::to_value(order)
         .map_err(|e| AppError::internal(format!("序列化失败: {}", e)))?;
     Ok(Json(ApiResponse::success_with_message(
@@ -213,11 +220,12 @@ pub async fn update_order(
 /// DELETE /api/v1/erp/sales/orders/:id
 pub async fn delete_order(
     State(state): State<AppState>,
-    _auth: AuthContext,
+    auth: AuthContext,
     Path(id): Path<i32>,
 ) -> Result<Json<ApiResponse<()>>, AppError> {
     let sales_service = SalesService::new(state.db.clone());
-    sales_service.delete_order(id).await?;
+    // 批次 94 P2-10：传入真实操作人 user_id 用于审计日志
+    sales_service.delete_order(id, auth.user_id).await?;
     Ok(Json(ApiResponse::success_with_message(
         (),
         "销售订单删除成功",
@@ -238,9 +246,13 @@ pub async fn submit_order(
     // 订单提交成功后发送通知给申请人
     if let Some(event_service) = &state.event_notification_service {
         if let Some(created_by) = order.created_by {
-            let _ = event_service
+            // 批次 94 P2-11：原 let _ = 静默吞错，通知发送失败时无任何日志，改为 warn 日志记录
+            if let Err(e) = event_service
                 .notify_order_submitted(created_by, &order.order_no, order.id)
-                .await;
+                .await
+            {
+                tracing::warn!("批次 94 P2-11：订单提交通知发送失败: {}", e);
+            }
         }
     }
 
@@ -265,9 +277,13 @@ pub async fn approve_order(
     // 订单审批成功后发送通知给申请人
     if let Some(event_service) = &state.event_notification_service {
         if let Some(created_by) = order.created_by {
-            let _ = event_service
+            // 批次 94 P2-11：原 let _ = 静默吞错，通知发送失败时无任何日志，改为 warn 日志记录
+            if let Err(e) = event_service
                 .notify_order_approved(created_by, &order.order_no, order.id, &auth.username)
-                .await;
+                .await
+            {
+                tracing::warn!("批次 94 P2-11：订单审批通知发送失败: {}", e);
+            }
         }
     }
 
@@ -296,9 +312,13 @@ pub async fn ship_order(
     // 订单发货成功后发送通知给申请人
     if let Some(event_service) = &state.event_notification_service {
         if let Some(created_by) = order.created_by {
-            let _ = event_service
+            // 批次 94 P2-11：原 let _ = 静默吞错，通知发送失败时无任何日志，改为 warn 日志记录
+            if let Err(e) = event_service
                 .notify_order_shipped(created_by, &order.order_no, order.id)
-                .await;
+                .await
+            {
+                tracing::warn!("批次 94 P2-11：订单发货通知发送失败: {}", e);
+            }
         }
     }
 
@@ -324,9 +344,13 @@ pub async fn complete_order(
     // 订单完成后发送通知给申请人
     if let Some(event_service) = &state.event_notification_service {
         if let Some(created_by) = order.created_by {
-            let _ = event_service
+            // 批次 94 P2-11：原 let _ = 静默吞错，通知发送失败时无任何日志，改为 warn 日志记录
+            if let Err(e) = event_service
                 .notify_order_completed(created_by, &order.order_no, order.id)
-                .await;
+                .await
+            {
+                tracing::warn!("批次 94 P2-11：订单完成通知发送失败: {}", e);
+            }
         }
     }
 

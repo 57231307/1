@@ -430,7 +430,11 @@ impl InventoryAdjustmentService {
     }
 
     /// 删除调整单（仅 pending 状态）
-    pub async fn delete_adjustment(&self, adjustment_id: i32) -> Result<(), AppError> {
+    pub async fn delete_adjustment(
+        &self,
+        adjustment_id: i32,
+        user_id: i32,
+    ) -> Result<(), AppError> {
         // P1-12 修复（批次 79 v1 复审）：状态门移入单一事务，加 lock_exclusive 串行化
         // 原实现状态门查询在 self.db 上、delete 在 txn 上，
         // 并发场景下可能在状态检查通过后、delete 前发生状态变更，导致已审批/已驳回单被误删。
@@ -455,10 +459,11 @@ impl InventoryAdjustmentService {
             .await?;
 
         // 再删除主表（P0 8-3 修复：补审计日志）
+        // 批次 94 P2-10：原 Some(0) 占位改为真实操作人 user_id，便于审计追踪
         crate::services::audit_log_service::AuditLogService::delete_with_audit::<
             inventory_adjustment::Entity,
             _,
-        >(&txn, "inventory_adjustment", adjustment_id, Some(0))
+        >(&txn, "inventory_adjustment", adjustment_id, Some(user_id))
         .await?;
 
         txn.commit().await?;

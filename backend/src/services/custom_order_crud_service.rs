@@ -249,10 +249,17 @@ impl CustomOrderCrudService {
             return Err(CrudError::InvalidState);
         }
 
+        let existing_notes = existing.notes.clone();
         let mut active: CustomOrderActive = existing.into();
         active.status = Set("cancelled".to_string());
         active.updated_at = Set(Utc::now());
-        let _ = dto.reason; // 取消原因可记录到 process_log（暂存）
+        // 批次 94 P2-14 修复：将 dto.reason 记录到 notes 字段（原 let _ = dto.reason 占位丢弃）
+        // 追加取消原因到现有 notes（保留原有备注，避免覆盖）
+        let new_notes = match existing_notes {
+            Some(n) if !n.is_empty() => format!("{}\n取消原因: {}", n, dto.reason),
+            _ => format!("取消原因: {}", dto.reason),
+        };
+        active.notes = Set(Some(new_notes));
         let updated = active.update(&txn).await?;
         txn.commit().await?;
         Ok(updated)

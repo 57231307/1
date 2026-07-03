@@ -156,6 +156,14 @@ export const inventoryApi = {
 
   getStockById: (id: number) => request.get<ApiResponse<InventoryStock>>(`/inventory/stock/${id}`),
 
+  // 批次 94 P2-12 修复：补全库存记录更新接口（原缺失，导致 StockTab 编辑占位）
+  updateStock: (id: number, data: Partial<InventoryStock>) =>
+    request.put<ApiResponse<InventoryStock>>(`/inventory/stock/${id}`, data),
+
+  // 批次 94 P2-12 修复：补全库存记录删除接口（原缺失，导致 StockTab 删除/批量删除占位）
+  deleteStock: (id: number) =>
+    request.delete<ApiResponse<void>>(`/inventory/stock/${id}`),
+
   getStockByProduct: (productId: number) =>
     request.get<ApiResponse<InventoryStock[]>>(`/inventory/stock/product/${productId}`),
 

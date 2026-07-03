@@ -248,7 +248,7 @@ pub async fn create_product(
 /// 更新产品
 pub async fn update_product(
     State(state): State<AppState>,
-    _auth: AuthContext,
+    auth: AuthContext,
     Path(id): Path<i32>,
     Json(req): Json<UpdateProductRequest>,
 ) -> Result<Json<ApiResponse<product::Model>>, AppError> {
@@ -279,6 +279,8 @@ pub async fn update_product(
             req.finish,
             req.min_order_quantity,
             req.lead_time,
+            // 批次 94 P2-10：注入真实操作人 user_id 用于审计日志
+            auth.user_id,
         )
         .await?;
 
@@ -291,11 +293,12 @@ pub async fn update_product(
 /// 删除产品
 pub async fn delete_product(
     State(state): State<AppState>,
-    _auth: AuthContext,
+    auth: AuthContext,
     Path(id): Path<i32>,
 ) -> Result<Json<ApiResponse<()>>, AppError> {
     let product_service = ProductService::new(state.db.clone());
-    product_service.delete_product(id).await?;
+    // 批次 94 P2-10：注入真实操作人 user_id 用于审计日志
+    product_service.delete_product(id, auth.user_id).await?;
     Ok(Json(ApiResponse::success_with_message((), "产品删除成功")))
 }
 
@@ -342,7 +345,7 @@ pub async fn create_product_color(
 /// 更新产品色号
 pub async fn update_product_color(
     State(state): State<AppState>,
-    _auth: AuthContext,
+    auth: AuthContext,
     Path((_product_id, color_id)): Path<(i32, i32)>,
     Json(req): Json<UpdateProductColorRequest>,
 ) -> Result<Json<ApiResponse<product_color::Model>>, AppError> {
@@ -357,6 +360,8 @@ pub async fn update_product_color(
             req.dye_formula,
             req.extra_cost,
             req.is_active,
+            // 批次 94 P2-10：注入真实操作人 user_id 用于审计日志
+            auth.user_id,
         )
         .await?;
 
@@ -369,11 +374,14 @@ pub async fn update_product_color(
 /// 删除产品色号
 pub async fn delete_product_color(
     State(state): State<AppState>,
-    _auth: AuthContext,
+    auth: AuthContext,
     Path((_product_id, color_id)): Path<(i32, i32)>,
 ) -> Result<Json<ApiResponse<()>>, AppError> {
     let product_service = ProductService::new(state.db.clone());
-    product_service.delete_product_color(color_id).await?;
+    // 批次 94 P2-10：注入真实操作人 user_id 用于审计日志
+    product_service
+        .delete_product_color(color_id, auth.user_id)
+        .await?;
     Ok(Json(ApiResponse::success_with_message((), "色号删除成功")))
 }
 

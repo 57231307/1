@@ -6,9 +6,10 @@ use crate::models::product;
 use crate::services::audit_log_service::{AuditEvent, AuditLogService};
 use crate::utils::error::AppError;
 use sea_orm::DatabaseConnection;
-use sea_orm::{ActiveModelTrait, EntityTrait, Set};
+use sea_orm::{ActiveModelTrait, ColumnTrait, EntityTrait, QueryFilter, Set};
 use sea_orm::TransactionTrait;
 use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 use std::sync::Arc;
 
 /// 批量操作结果
@@ -246,11 +247,22 @@ impl BatchService {
         let mut data = Vec::new();
         let mut errors = Vec::new();
 
+        // 批次 94 P2-4 修复：N+1 查询改批量查询 + HashMap 索引
+        // 原循环内 find_by_id 逐条查询，N 个产品触发 N 次查询；
+        // 改为事务内一次性 is_in 批量查询，构建 HashMap 供循环内 O(1) 查找。
+        let batch_ids: Vec<i32> = requests.iter().map(|r| r.id).collect();
+        let existing_products = product::Entity::find()
+            .filter(product::Column::Id.is_in(batch_ids))
+            .all(&txn)
+            .await?;
+        let product_map: HashMap<i32, product::Model> = existing_products
+            .into_iter()
+            .map(|p| (p.id, p))
+            .collect();
+
         for (index, req) in requests.iter().enumerate() {
-            // 检查产品是否存在（事务内查询）
-            let existing = product::Entity::find_by_id(req.id)
-                .one(&txn)
-                .await?;
+            // 从批量查询结果中获取产品，避免循环内逐条查询
+            let existing = product_map.get(&req.id).cloned();
 
             match existing {
                 Some(product_model) => {
