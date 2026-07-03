@@ -41,19 +41,22 @@
 | P1-12 | delete_adjustment 事务外状态检查 | inventory_adjustment_service.rs:426-449 | find_by_id + 状态检查移入 txn + lock_exclusive |
 | P1-13 | reject_order 事务外状态检查 | so/contract.rs:16-60 | 同上模式 |
 
-### 批次 80：错误处理修复（P1，4 项）
+### 批次 80：错误处理修复（P1，4 项 + P1-15 合并）✅ 已完成
 
 **主题**：expect panic 风险 + 静默吞错 + 事务包裹
 **级别**：P1
-**项数**：4
+**项数**：4 + P1-15 合并
+**修复分支**：`fix/v19-batch80-error-handling-p1`（已合并删除）
+**合并 commit**：`0bee1d78`（PR #323 squash merge，CI 12/13 全绿，E2E continue-on-error）
+**影响范围**：5 文件 +83/-19
 
 | # | 问题 | 文件 | 修复 |
 |---|------|------|------|
 | P1-3 | report 模块 4 处 .expect("合法时分秒") panic | report/ds.rs:260,264 + report/job.rs:70,113 | 改为 ok_or_else(\|\| AppError::internal("时分秒非法"))? |
-| P1-4a | failover_service 2 处 let _ = 静默吞错 | failover_service.rs:233,246 | 改为 if let Err(e) = ... { tracing::warn!(...); } |
-| P1-4b | event_notification_service let _ = 静默吞错 | event_notification_service.rs:67 | 同上 |
+| P1-4a | failover_service 2 处 let _ = 静默吞错 | failover_service.rs:233,246 | 合并 P1-15：用 txn 包裹 find + update/insert，失败 map_err()? 返回 Err |
+| P1-4b | event_notification_service let _ = 静默吞错 | event_notification_service.rs:67 | 改为 if let Err(e) = ... { tracing::warn!(...); } |
 | P1-4c | bpm_service let _ = 静默吞错 | bpm_service.rs:829 | 同上 |
-| P1-15 | failover_service.update_circuit_status 未用事务 | failover_service.rs:233,246 | 用 txn 包裹，失败返回 Err |
+| P1-15 | failover_service.update_circuit_status 未用事务 | failover_service.rs:233,246 | 合并 P1-4a：用 txn 包裹，失败返回 Err |
 
 ### 批次 81：Json<Value> 强类型 DTO 改造（P1，22 处）
 

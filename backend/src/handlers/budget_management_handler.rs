@@ -13,6 +13,50 @@ use chrono::NaiveDate;
 use rust_decimal::Decimal;
 use serde::Deserialize;
 use tracing::info;
+use validator::Validate;
+
+/// P1-2a 修复（批次 81 v1 复审）：创建预算请求 DTO
+/// 替代 create_budget 中的 Json<serde_json::Value>，提供强类型校验
+#[derive(Debug, Deserialize, Validate)]
+pub struct CreateBudgetDto {
+    /// 预算编码：可选
+    pub item_code: Option<String>,
+    /// 预算名称：必填，长度至少 1
+    #[validate(length(min = 1, message = "预算名称不能为空"))]
+    pub item_name: String,
+    /// 预算类型：可选
+    pub item_type: Option<String>,
+    /// 预算年度：可选
+    pub budget_year: Option<i32>,
+    /// 计划金额：必填
+    pub planned_amount: Decimal,
+    /// 备注：可选
+    pub remark: Option<String>,
+}
+
+/// P1-2a 修复（批次 81 v1 复审）：更新预算请求 DTO
+/// 替代 update_budget 中的 Json<serde_json::Value>，所有字段可选
+#[derive(Debug, Deserialize, Validate)]
+pub struct UpdateBudgetDto {
+    /// 预算名称：可选
+    pub item_name: Option<String>,
+    /// 预算类型：可选
+    pub item_type: Option<String>,
+    /// 计划金额：可选
+    pub planned_amount: Option<Decimal>,
+    /// 状态：可选
+    pub status: Option<String>,
+    /// 备注：可选
+    pub remark: Option<String>,
+}
+
+/// P1-2a 修复（批次 81 v1 复审）：审批预算请求 DTO
+/// 替代 approve_budget 中的 Json<serde_json::Value>
+#[derive(Debug, Deserialize, Validate)]
+pub struct ApproveBudgetDto {
+    /// 审批意见：可选
+    pub opinion: Option<String>,
+}
 
 /// 预算科目查询参数 DTO
 #[derive(Debug, Deserialize)]
@@ -458,52 +502,24 @@ pub async fn list_budgets(
 pub async fn create_budget(
     State(state): State<AppState>,
     auth: AuthContext,
-    Json(req): Json<serde_json::Value>,
+    Json(req): Json<CreateBudgetDto>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     info!("用户 {} 创建预算", auth.username);
 
+    // P1-2a 修复（批次 81 v1 复审）：强类型 DTO + validator 替代 Json<Value>
+    req.validate()
+        .map_err(|e| AppError::validation(e.to_string()))?;
+
     let service = BudgetManagementService::new(state.db.clone());
 
-    let item_code = req
-        .get("item_code")
-        .and_then(|v| v.as_str())
-        .map(|s| s.to_string());
-
-    let item_name = req
-        .get("item_name")
-        .and_then(|v| v.as_str())
-        .unwrap_or("")
-        .to_string();
-
-    let item_type = req
-        .get("item_type")
-        .and_then(|v| v.as_str())
-        .map(|s| s.to_string());
-
-    let budget_year = req
-        .get("budget_year")
-        .and_then(|v| v.as_i64())
-        .map(|y| y as i32);
-
-    let planned_amount = req
-        .get("planned_amount")
-        .and_then(|v| v.as_f64())
-        .map(|f| rust_decimal::Decimal::from_f64_retain(f).unwrap_or_default())
-        .unwrap_or_default();
-
-    let remark = req
-        .get("remark")
-        .and_then(|v| v.as_str())
-        .map(|s| s.to_string());
-
     let create_req = crate::services::budget_management_service::CreateBudgetItemRequest {
-        item_code,
-        item_name,
-        item_type,
+        item_code: req.item_code,
+        item_name: req.item_name,
+        item_type: req.item_type,
         parent_id: None,
-        budget_year,
-        planned_amount,
-        remark,
+        budget_year: req.budget_year,
+        planned_amount: req.planned_amount,
+        remark: req.remark,
     };
 
     let item = service.create_item(create_req, auth.user_id).await?;
@@ -519,43 +535,22 @@ pub async fn update_budget(
     Path(id): Path<i32>,
     State(state): State<AppState>,
     auth: AuthContext,
-    Json(req): Json<serde_json::Value>,
+    Json(req): Json<UpdateBudgetDto>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     info!("用户 {} 更新预算: ID={}", auth.username, id);
 
+    // P1-2a 修复（批次 81 v1 复审）：强类型 DTO + validator 替代 Json<Value>
+    req.validate()
+        .map_err(|e| AppError::validation(e.to_string()))?;
+
     let service = BudgetManagementService::new(state.db.clone());
 
-    let item_name = req
-        .get("item_name")
-        .and_then(|v| v.as_str())
-        .map(|s| s.to_string());
-
-    let item_type = req
-        .get("item_type")
-        .and_then(|v| v.as_str())
-        .map(|s| s.to_string());
-
-    let planned_amount = req
-        .get("planned_amount")
-        .and_then(|v| v.as_f64())
-        .map(|f| rust_decimal::Decimal::from_f64_retain(f).unwrap_or_default());
-
-    let status = req
-        .get("status")
-        .and_then(|v| v.as_str())
-        .map(|s| s.to_string());
-
-    let remark = req
-        .get("remark")
-        .and_then(|v| v.as_str())
-        .map(|s| s.to_string());
-
     let update_req = crate::services::budget_management_service::UpdateBudgetItemRequest {
-        item_name,
-        item_type,
-        planned_amount,
-        status,
-        remark,
+        item_name: req.item_name,
+        item_type: req.item_type,
+        planned_amount: req.planned_amount,
+        status: req.status,
+        remark: req.remark,
     };
 
     let item = service.update_item(id, update_req, auth.user_id).await?;
@@ -599,18 +594,17 @@ pub async fn approve_budget(
     Path(id): Path<i32>,
     State(state): State<AppState>,
     auth: AuthContext,
-    Json(req): Json<serde_json::Value>,
+    Json(req): Json<ApproveBudgetDto>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     info!("用户 {} 审批预算: ID={}", auth.username, id);
 
+    // P1-2a 修复（批次 81 v1 复审）：强类型 DTO + validator 替代 Json<Value>
+    req.validate()
+        .map_err(|e| AppError::validation(e.to_string()))?;
+
     let service = BudgetManagementService::new(state.db.clone());
 
-    let opinion = req
-        .get("opinion")
-        .and_then(|v| v.as_str())
-        .map(|s| s.to_string());
-
-    service.approve_plan(id, auth.user_id, opinion).await?;
+    service.approve_plan(id, auth.user_id, req.opinion).await?;
 
     Ok(Json(ApiResponse::success_with_message(
         serde_json::json!({"id": id}),

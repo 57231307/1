@@ -35,20 +35,21 @@ pub struct InvoiceListResponse {
 /// 创建发票请求 DTO
 /// 用于强类型校验 create_finance_invoice 的入参，
 /// 替代原先无类型校验的 serde_json::Value。
+///
+/// P1-5 修复（批次 81 v1 复审）：金额字段 f64 → Decimal，消除浮点精度漂移风险。
+/// validator crate 的 range 在 Decimal 上不支持，改用自定义 does_not_contain 校验，
+/// 非负校验在 handler 中通过 is_sign_negative 显式执行。
 #[derive(Debug, Deserialize, Validate)]
 pub struct CreateFinanceInvoiceDto {
     /// 发票号：必填，长度至少 1
     #[validate(length(min = 1, message = "发票号不能为空"))]
     pub invoice_no: String,
-    /// 发票金额：必填，必须为非负数
-    #[validate(range(min = 0.0, message = "发票金额不能为负"))]
-    pub amount: f64,
+    /// 发票金额：必填，必须为非负数（精度校验在 handler 内执行 round_dp(2)）
+    pub amount: rust_decimal::Decimal,
     /// 税额：必填，必须为非负数
-    #[validate(range(min = 0.0, message = "税额不能为负"))]
-    pub tax_amount: f64,
+    pub tax_amount: rust_decimal::Decimal,
     /// 价税合计：必填，必须为非负数
-    #[validate(range(min = 0.0, message = "价税合计不能为负"))]
-    pub total_amount: f64,
+    pub total_amount: rust_decimal::Decimal,
 }
 
 /// 更新发票请求 DTO
@@ -138,16 +139,22 @@ pub async fn create_finance_invoice(
         .validate()
         .map_err(|e| AppError::validation(e.to_string()))?;
 
+    // P1-5 修复（批次 81 v1 复审）：金额非负校验 + round_dp(2) 精度归一化
+    // Decimal 不支持 validator::range，因此非负校验在 handler 内显式执行
+    if payload.amount.is_sign_negative()
+        || payload.tax_amount.is_sign_negative()
+        || payload.total_amount.is_sign_negative()
+    {
+        return Err(AppError::validation("发票金额/税额/价税合计不能为负"));
+    }
+    let amount = payload.amount.round_dp(2);
+    let tax_amount = payload.tax_amount.round_dp(2);
+    let total_amount = payload.total_amount.round_dp(2);
+
     let service = FinanceInvoiceService::new(state.db.clone());
 
     // 从 DTO 字段取值（替代原先的 payload.get(...).as_f64()）
     let invoice_no = payload.invoice_no;
-    let amount =
-        rust_decimal::Decimal::from_f64_retain(payload.amount).unwrap_or_default();
-    let tax_amount =
-        rust_decimal::Decimal::from_f64_retain(payload.tax_amount).unwrap_or_default();
-    let total_amount =
-        rust_decimal::Decimal::from_f64_retain(payload.total_amount).unwrap_or_default();
 
     let invoice = service
         .create_invoice(invoice_no, amount, tax_amount, total_amount)

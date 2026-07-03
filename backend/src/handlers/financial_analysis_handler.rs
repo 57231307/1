@@ -9,6 +9,7 @@ use axum::{
 use sea_orm::QueryOrder;
 use serde::Deserialize;
 use tracing::info;
+use validator::Validate;
 
 use crate::middleware::auth_context::AuthContext;
 use crate::models::{financial_analysis, financial_analysis_result};
@@ -18,6 +19,45 @@ use crate::services::financial_analysis_service::{
 use crate::utils::app_state::AppState;
 use crate::utils::error::AppError;
 use crate::utils::response::ApiResponse;
+
+/// P1-2c 修复（批次 81 v1 复审）：创建财务指标请求 DTO
+/// 替代 create_indicator 中的 Json<serde_json::Value>，提供强类型校验
+#[derive(Debug, Deserialize, Validate)]
+pub struct CreateIndicatorDto {
+    /// 指标名称：必填，长度至少 1
+    #[validate(length(min = 1, max = 100, message = "指标名称长度必须在1到100字符之间"))]
+    pub name: String,
+    /// 指标编码：可选，缺失时由 service 层自动生成
+    #[validate(length(max = 50, message = "指标编码长度不能超过50字符"))]
+    pub code: Option<String>,
+    /// 指标类型：可选，缺失时默认 "ratio"
+    #[validate(length(max = 30, message = "指标类型长度不能超过30字符"))]
+    pub indicator_type: Option<String>,
+    /// 公式：可选
+    pub formula: Option<String>,
+    /// 单位：可选
+    pub unit: Option<String>,
+    /// 描述/备注：可选
+    pub description: Option<String>,
+}
+
+/// P1-2c 修复（批次 81 v1 复审）：创建财务趋势数据请求 DTO
+/// 替代 create_trend 中的 Json<serde_json::Value>，提供强类型校验
+#[derive(Debug, Deserialize, Validate)]
+pub struct CreateTrendDto {
+    /// 分析类型：可选，缺失时默认 "trend"
+    #[validate(length(max = 30, message = "分析类型长度不能超过30字符"))]
+    pub analysis_type: Option<String>,
+    /// 周期：必填，长度至少 1（如 "2026-07"）
+    #[validate(length(min = 1, max = 20, message = "周期长度必须在1到20字符之间"))]
+    pub period: String,
+    /// 指标 ID：必填
+    pub indicator_id: i32,
+    /// 指标值：必填
+    pub value: rust_decimal::Decimal,
+    /// 目标值：可选
+    pub target_value: Option<rust_decimal::Decimal>,
+}
 
 /// 财务趋势查询参数
 #[derive(Debug, Deserialize)]
@@ -81,50 +121,27 @@ pub async fn get_indicators(
 pub async fn create_indicator(
     State(state): State<AppState>,
     auth: AuthContext,
-    Json(req): Json<serde_json::Value>,
+    Json(req): Json<CreateIndicatorDto>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
+    // P1-2c 修复（批次 81 v1 复审）：强类型 DTO + validator 替代 Json<Value>
+    req.validate()
+        .map_err(|e| AppError::validation(e.to_string()))?;
+
     let service = FinancialAnalysisService::new(state.db.clone());
 
-    let indicator_name = req
-        .get("name")
-        .and_then(|v| v.as_str())
-        .unwrap_or("")
-        .to_string();
+    // code 缺失时由 service 层自动生成（保持原逻辑）
+    let indicator_code = req.code.unwrap_or_else(|| {
+        format!("IND_{}", chrono::Utc::now().timestamp())
+    });
+    let indicator_type = req.indicator_type.unwrap_or_else(|| "ratio".to_string());
 
-    let indicator_code = req
-        .get("code")
-        .and_then(|v| v.as_str())
-        .unwrap_or(&format!("IND_{}", chrono::Utc::now().timestamp()))
-        .to_string();
-
-    let indicator_type = req
-        .get("indicator_type")
-        .and_then(|v| v.as_str())
-        .unwrap_or("ratio")
-        .to_string();
-
-    let formula = req
-        .get("formula")
-        .and_then(|v| v.as_str())
-        .map(|s| s.to_string());
-
-    let unit = req
-        .get("unit")
-        .and_then(|v| v.as_str())
-        .map(|s| s.to_string());
-
-    let remark = req
-        .get("description")
-        .and_then(|v| v.as_str())
-        .map(|s| s.to_string());
-
-    let create_req = crate::services::financial_analysis_service::CreateIndicatorRequest {
-        indicator_name,
+    let create_req = CreateIndicatorRequest {
+        indicator_name: req.name,
         indicator_code,
         indicator_type,
-        formula,
-        unit,
-        remark,
+        formula: req.formula,
+        unit: req.unit,
+        remark: req.description,
     };
 
     let indicator = service.create_indicator(create_req, auth.user_id).await?;
@@ -168,46 +185,23 @@ pub async fn get_trends(
 pub async fn create_trend(
     State(state): State<AppState>,
     auth: AuthContext,
-    Json(req): Json<serde_json::Value>,
+    Json(req): Json<CreateTrendDto>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
+    // P1-2c 修复（批次 81 v1 复审）：强类型 DTO + validator 替代 Json<Value>
+    req.validate()
+        .map_err(|e| AppError::validation(e.to_string()))?;
+
     let service = FinancialAnalysisService::new(state.db.clone());
 
-    let analysis_type = req
-        .get("analysis_type")
-        .and_then(|v| v.as_str())
-        .unwrap_or("trend")
-        .to_string();
-
-    let period = req
-        .get("period")
-        .and_then(|v| v.as_str())
-        .unwrap_or("")
-        .to_string();
-
-    // indicator_id 必填，缺失或非整数时直接拒绝（避免静默用 0 写入脏数据）
-    let indicator_id = req
-        .get("indicator_id")
-        .and_then(|v| v.as_i64())
-        .ok_or_else(|| AppError::validation("创建财务趋势数据时必须提供 indicator_id"))?
-        as i32;
-
-    let indicator_value = req
-        .get("value")
-        .and_then(|v| v.as_f64())
-        .map(|f| rust_decimal::Decimal::from_f64_retain(f).unwrap_or_default())
-        .unwrap_or_default();
-
-    let target_value = req
-        .get("target_value")
-        .and_then(|v| v.as_f64())
-        .map(|f| rust_decimal::Decimal::from_f64_retain(f).unwrap_or_default());
+    // analysis_type 缺失时默认 "trend"（保持原逻辑）
+    let analysis_type = req.analysis_type.unwrap_or_else(|| "trend".to_string());
 
     let analysis_req = crate::services::financial_analysis_service::FinancialAnalysisRequest {
         analysis_type,
-        period,
-        indicator_id,
-        indicator_value,
-        target_value,
+        period: req.period,
+        indicator_id: req.indicator_id,
+        indicator_value: req.value,
+        target_value: req.target_value,
     };
 
     let result = service
