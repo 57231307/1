@@ -324,8 +324,9 @@ pub(crate) fn parse_json_field(json: &str, field: &str) -> Option<String> {
 
 /// 获取当前时间戳
 pub(crate) fn timestamp() -> u64 {
+    // P3 1-17 修复：原 .unwrap() 在系统时间异常时 panic，改为 .unwrap_or_default() 安全降级
     std::time::SystemTime::now()
         .duration_since(std::time::SystemTime::UNIX_EPOCH)
-        .unwrap()
+        .unwrap_or_default()
         .as_secs()
 }

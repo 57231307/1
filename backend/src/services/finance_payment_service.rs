@@ -38,6 +38,10 @@ impl FinancePaymentService {
         if amount <= Decimal::ZERO {
             return Err(AppError::business("付款金额必须大于零"));
         }
+        // P3 3-30 修复：金额精度校验，最多 2 位小数（货币精度）
+        if amount.round_dp(2) != amount {
+            return Err(AppError::business("付款金额精度不能超过 2 位小数"));
+        }
 
         // P1 5-4 修复（批次 63）：整体包裹 txn，发票存在性检查与付款插入原子化
         // 原实现发票检查用 &*self.db，付款插入也用 &*self.db，无事务包裹，

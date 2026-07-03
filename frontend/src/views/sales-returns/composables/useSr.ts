@@ -13,6 +13,7 @@ import { salesReturnApi } from '@/api/sales-return'
 import { salesApi } from '@/api/sales'
 import { listCustomers } from '@/api/customer'
 import { productApi } from '@/api/product'
+import logger from '@/utils/logger'
 
 /**
  * 销售退货 composable
@@ -70,7 +71,7 @@ export function useSr() {
       const res = await salesApi.getOrderList({ status: 'completed' })
       salesOrderList.value = res.data?.list || []
     } catch (error: any) {
-      console.error('加载销售订单失败:', error)
+      logger.error('加载销售订单失败', error)
     }
   }
 
@@ -80,7 +81,7 @@ export function useSr() {
       const res = await listCustomers()
       customerList.value = res.data?.list || []
     } catch (error: any) {
-      console.error('加载客户列表失败:', error)
+      logger.error('加载客户列表失败', error)
     }
   }
 
@@ -90,7 +91,7 @@ export function useSr() {
       const res = await productApi.list()
       productList.value = res.data?.list || []
     } catch (error: any) {
-      console.error('加载产品列表失败:', error)
+      logger.error('加载产品列表失败', error)
     }
   }
 

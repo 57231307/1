@@ -412,6 +412,8 @@ impl SalesService {
             order_update.notes = sea_orm::ActiveValue::Set(Some(notes));
         }
         order_update.updated_at = sea_orm::ActiveValue::Set(chrono::Utc::now());
+        // TODO(tech-debt) P3 3-27：update_order 方法签名暂无 user_id 参数，
+        // 先用 Some(0) 占位，待认证上下文中间件接入后改为真实 user_id。
         crate::services::audit_log_service::AuditLogService::update_with_audit(
             &txn,
             "auto_audit",

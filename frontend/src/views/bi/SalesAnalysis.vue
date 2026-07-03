@@ -24,6 +24,7 @@ import {
   getDrilldownYearToMonth,
 } from '@/api/bi'
 import type { KpiSummary, TimeSeriesPoint, CustomerRank, ProductRank, RegionStat, ProfitAnalysis } from '@/api/bi'
+import logger from '@/utils/logger'
 
 const kpi = ref<KpiSummary | null>(null)
 const trend = ref<TimeSeriesPoint[]>([])
@@ -67,7 +68,7 @@ async function loadAll() {
     renderCharts()
   } catch (e) {
     ElMessage.error('加载 BI 数据失败')
-    console.error(e)
+    logger.error('加载 BI 数据失败', e)
   }
 }
 
