@@ -1,8 +1,8 @@
 
 use chrono::Utc;
 use sea_orm::{
-    ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, Order,
-    PaginatorTrait, QueryFilter, QueryOrder, QuerySelect, TransactionTrait,
+    ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, ModelTrait, Order,
+    PaginatorTrait, QueryFilter, QueryOrder, QuerySelect, Set, TransactionTrait,
 };
 use std::sync::Arc;
 
@@ -440,4 +440,208 @@ impl CustomerService {
             .map_err(AppError::from)
     }
 
+    // ==================== 客户联系人管理方法（批次 90b P2-12） ====================
+
+    /// 获取客户联系人列表
+    ///
+    /// 主联系人排在最前，其余按姓名升序。补 LIMIT 兜底（与批次 87 LIMIT 模式一致）。
+    pub async fn list_customer_contacts(
+        &self,
+        customer_id: i32,
+    ) -> Result<Vec<crate::models::customer_contact::Model>, AppError> {
+        use crate::models::customer_contact;
+
+        let contacts = customer_contact::Entity::find()
+            .filter(customer_contact::Column::CustomerId.eq(customer_id))
+            .order_by(customer_contact::Column::IsPrimary, Order::Desc)
+            .order_by(customer_contact::Column::Name, Order::Asc)
+            .limit(10_000)
+            .all(&*self.db)
+            .await?;
+        Ok(contacts)
+    }
+
+    /// 创建客户联系人
+    ///
+    /// 若 is_primary=true，事务内先将其他联系人取消主联系人状态，再插入新主联系人，
+    /// 保证"每个客户最多一个主联系人"的部分唯一索引约束不被触发。
+    pub async fn create_customer_contact(
+        &self,
+        customer_id: i32,
+        req: CreateCustomerContactRequest,
+        user_id: i32,
+    ) -> Result<crate::models::customer_contact::Model, AppError> {
+        use crate::models::customer_contact;
+
+        let txn = (*self.db).begin().await?;
+
+        // 若设置为主联系人，先将其他联系人取消主联系人状态
+        if req.is_primary {
+            self.clear_primary_contacts_txn(customer_id, &txn).await?;
+        }
+
+        let now = Utc::now();
+        let contact = customer_contact::ActiveModel {
+            customer_id: Set(customer_id),
+            name: Set(req.name),
+            title: Set(req.title),
+            phone: Set(req.phone),
+            email: Set(req.email),
+            is_primary: Set(req.is_primary),
+            remarks: Set(req.remarks),
+            created_by: Set(Some(user_id)),
+            created_at: Set(now.into()),
+            updated_at: Set(now.into()),
+            ..Default::default()
+        }
+        .insert(&txn)
+        .await?;
+
+        txn.commit().await?;
+        Ok(contact)
+    }
+
+    /// 更新客户联系人
+    ///
+    /// 若 is_primary 由非主改为主，事务内先将其他联系人取消主联系人状态。
+    pub async fn update_customer_contact(
+        &self,
+        contact_id: i32,
+        req: UpdateCustomerContactRequest,
+        user_id: i32,
+    ) -> Result<crate::models::customer_contact::Model, AppError> {
+        use crate::models::customer_contact;
+
+        let txn = (*self.db).begin().await?;
+
+        let contact = customer_contact::Entity::find_by_id(contact_id)
+            .one(&txn)
+            .await?
+            .ok_or_else(|| AppError::not_found(format!("联系人 {} 不存在", contact_id)))?;
+
+        let customer_id = contact.customer_id;
+        let mut contact_active: customer_contact::ActiveModel = contact.into();
+
+        // 若设置为主联系人，先将其他联系人取消主联系人状态
+        if let Some(true) = req.is_primary {
+            self.clear_primary_contacts_txn(customer_id, &txn).await?;
+        }
+
+        if let Some(name) = req.name {
+            contact_active.name = Set(name);
+        }
+        if let Some(title) = req.title {
+            contact_active.title = Set(Some(title));
+        }
+        if let Some(phone) = req.phone {
+            contact_active.phone = Set(phone);
+        }
+        if let Some(email) = req.email {
+            contact_active.email = Set(Some(email));
+        }
+        if let Some(is_primary) = req.is_primary {
+            contact_active.is_primary = Set(is_primary);
+        }
+        if let Some(remarks) = req.remarks {
+            contact_active.remarks = Set(Some(remarks));
+        }
+        contact_active.updated_at = Set(Utc::now().into());
+
+        let updated = crate::services::audit_log_service::AuditLogService::update_with_audit(
+            &txn,
+            "auto_audit",
+            contact_active,
+            Some(user_id),
+        )
+        .await?;
+
+        txn.commit().await?;
+        Ok(updated)
+    }
+
+    /// 删除客户联系人
+    pub async fn delete_customer_contact(&self, contact_id: i32) -> Result<(), AppError> {
+        use crate::models::customer_contact;
+
+        let contact = customer_contact::Entity::find_by_id(contact_id)
+            .one(&*self.db)
+            .await?
+            .ok_or_else(|| AppError::not_found(format!("联系人 {} 不存在", contact_id)))?;
+        contact.delete(&*self.db).await?;
+        Ok(())
+    }
+
+    /// 取消指定客户的所有主联系人状态（事务内）
+    ///
+    /// 由 create/update 调用，保证"每个客户最多一个主联系人"约束。
+    async fn clear_primary_contacts_txn(
+        &self,
+        customer_id: i32,
+        txn: &sea_orm::DatabaseTransaction,
+    ) -> Result<(), AppError> {
+        use crate::models::customer_contact;
+
+        let primary_contacts = customer_contact::Entity::find()
+            .filter(customer_contact::Column::CustomerId.eq(customer_id))
+            .filter(customer_contact::Column::IsPrimary.eq(true))
+            .all(txn)
+            .await?;
+
+        for contact in primary_contacts {
+            let mut active: customer_contact::ActiveModel = contact.into();
+            active.is_primary = Set(false);
+            active.updated_at = Set(Utc::now().into());
+            // P3 注：取消主联系人状态属内部状态调整，不走 update_with_audit
+            // 防止审计日志膨胀（一次 create_contact 即产生 N 条审计记录）
+            active.update(txn).await?;
+        }
+
+        Ok(())
+    }
+
+}
+
+/// 创建客户联系人请求 DTO（批次 90b P2-12）
+#[derive(Debug, serde::Deserialize, validator::Validate)]
+pub struct CreateCustomerContactRequest {
+    /// 联系人姓名：必填，长度 1-50
+    #[validate(length(min = 1, max = 50, message = "联系人姓名长度必须在1到50个字符之间"))]
+    pub name: String,
+    /// 职务：可选，长度上限 100
+    #[validate(length(max = 100, message = "职务长度不能超过100个字符"))]
+    pub title: Option<String>,
+    /// 联系电话：必填，长度 1-50（兼容手机/座机/国际号码，宽松校验）
+    #[validate(length(min = 1, max = 50, message = "联系电话长度必须在1到50个字符之间"))]
+    pub phone: String,
+    /// 联系邮箱：可选，需符合邮箱格式
+    #[validate(email(message = "邮箱格式不正确"))]
+    pub email: Option<String>,
+    /// 是否主要联系人：默认 false
+    #[serde(default)]
+    pub is_primary: bool,
+    /// 备注：可选，长度上限 500
+    #[validate(length(max = 500, message = "备注长度不能超过500个字符"))]
+    pub remarks: Option<String>,
+}
+
+/// 更新客户联系人请求 DTO（批次 90b P2-12）
+#[derive(Debug, serde::Deserialize, validator::Validate)]
+pub struct UpdateCustomerContactRequest {
+    /// 联系人姓名：可选
+    #[validate(length(min = 1, max = 50, message = "联系人姓名长度必须在1到50个字符之间"))]
+    pub name: Option<String>,
+    /// 职务：可选
+    #[validate(length(max = 100, message = "职务长度不能超过100个字符"))]
+    pub title: Option<String>,
+    /// 联系电话：可选
+    #[validate(length(min = 1, max = 50, message = "联系电话长度必须在1到50个字符之间"))]
+    pub phone: Option<String>,
+    /// 联系邮箱：可选
+    #[validate(email(message = "邮箱格式不正确"))]
+    pub email: Option<String>,
+    /// 是否主要联系人：可选
+    pub is_primary: Option<bool>,
+    /// 备注：可选
+    #[validate(length(max = 500, message = "备注长度不能超过500个字符"))]
+    pub remarks: Option<String>,
 }

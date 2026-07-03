@@ -185,9 +185,14 @@ pub fn crm_customers() -> Router<AppState> {
                 .delete(crm_customer_handler::delete_customer),
         )
         .route("/customers/:id/tags", post(crm_customer_handler::add_tags))
+        // 批次 90b P2-12：联系人 CRUD（GET 既有，新增 POST/PUT/DELETE）
         .route(
             "/customers/:id/contacts",
-            get(crm_customer_handler::list_contacts),
+            get(crm_customer_handler::list_contacts).post(crm_customer_handler::create_contact),
+        )
+        .route(
+            "/customers/:id/contacts/:contact_id",
+            put(crm_customer_handler::update_contact).delete(crm_customer_handler::delete_contact),
         )
 }
 

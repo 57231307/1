@@ -39,6 +39,8 @@ pub mod m0032_add_notes_to_custom_orders;
 pub mod m0033_add_gain_loss_to_fixed_asset_disposals;
 // 批次 88 PH-2：固定资产折旧期间记录表（占位符实现）
 pub mod m0034_create_fixed_asset_depreciation_records;
+// 批次 90b P2-12：客户联系人表（占位符实现）
+pub mod m0035_create_customer_contacts;
 
 pub struct Migrator;
 
@@ -80,6 +82,7 @@ impl MigratorTrait for Migrator {
             Box::new(m0032_add_notes_to_custom_orders::Migration),
             Box::new(m0033_add_gain_loss_to_fixed_asset_disposals::Migration),
             Box::new(m0034_create_fixed_asset_depreciation_records::Migration),
+            Box::new(m0035_create_customer_contacts::Migration),
         ]
     }
 }

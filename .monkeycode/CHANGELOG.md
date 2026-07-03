@@ -2,6 +2,89 @@
 
 > 重要变更一句话摘要列表。详细历史请查阅 [`.monkeycode/docs/archives/`](file:///workspace/.monkeycode/docs/archives/)。
 
+## 2026-07-03 (v3 复审 P2-5 修复：清理 custom-orders 视图 any 类型断言)
+
+### v3 复审 P2-5 完成：custom-orders 视图 17 处 any 类型断言清理
+
+**修复范围**：基于批次 89 P1-7 已定义的 CustomOrderListItem/CustomOrderDetail/CustomOrderProcessNode 接口，清理 4 个 vue 文件中遗留的 any 类型断言，新增时间线相关类型定义
+
+**类型定义新增**（`frontend/src/api/custom-order.ts`）：
+- `NodeLog`：节点日志接口（id/action/operator_id/before_status/after_status/log_content/log_time/attachments）
+- `TimelineProcessNode`：扩展 CustomOrderProcessNode，增加 `logs: NodeLog[]`
+- `OrderTimeline`：时间线响应（order_no/current_status/nodes）
+- `getTimeline` 返回类型注解为 `Promise<ApiResponse<OrderTimeline>>`
+
+**any 清理清单**（17 处，4 文件）：
+
+| 文件 | 处理 |
+|------|------|
+| list.vue | formatAmount 参数收紧 / res 删 any + 断言兼容分页结构 / handleAdvance·handleCancel row: CustomOrderListItem / 2 处 catch (e: unknown) |
+| detail.vue | order ref<any> → CustomOrderDetailWithRelations \| null（扩展 quality_issues/after_sales）/ res 删 any + 断言 / 2 处 catch (e: unknown) + order.value null 守卫 |
+| tracking.vue | allLogs n:TimelineProcessNode l:NodeLog a/b:NodeLog / formatDate / getBarWidth:CustomOrderProcessNode / res 删 any |
+| create.vue | res 删 any + 断言兼容 res.id / catch (e: unknown) |
+
+**关键技术处理**：
+- list.vue：listCustomOrders 声明 `ApiResponse<CustomOrderListItem[]>` 与代码 `res.data?.items` 分页取值不一致，用 `as unknown as` 断言保持运行时逻辑不变
+- detail.vue：模板使用 order.quality_issues/after_sales（不在 CustomOrderDetail 接口），定义本地交叉类型 `CustomOrderDetailWithRelations`；模板 v-if="order" 守卫；handleAdvance/handleCancel 加 `if (!order.value) return` null 守卫
+- create.vue：res.id 在 ApiResponse 上不存在，用 `(res as unknown as { id?: number }).id` 断言保留历史取值
+- catch (e: unknown) 统一模式：`const msg = e instanceof Error ? e.message : String(e)`
+- 残留 2 处 ref<any>（list.vue orders / tracking.vue timeline）不在任务清单，且 `@typescript-eslint/no-explicit-any` 为 warn 不阻塞 CI，按任务约束保留
+
+**遵循约束**：不修改 API 函数逻辑（仅类型注解）、不改变运行时行为（优先类型断言）、不本地构建（通过 CI 验证）
+
+---
+
+## 2026-07-03 (v3 复审 P2-6 修复：批次 88 占位符功能 Tier 1 单元测试补充)
+
+### v3 复审 P2-6 完成：批次 88 占位符功能纯逻辑单元测试补充（6 个测试）
+
+**修复范围**：为批次 88 新增的 3 项占位符功能（PH-1 custom_order notes / PH-3 fixed_asset disposal gain_loss / PH-2 fixed_asset 折旧期间记录）补充 Tier 1 纯逻辑单元测试，CI 友好（不依赖数据库）
+
+**新增测试清单**（2 文件，6 个测试函数）：
+
+| # | 测试函数 | 文件 | 验证内容 |
+|---|---------|------|----------|
+| 1 | test_disposal_gain_loss_positive | fixed_asset_service.rs | 处置价值 > 账面净值 → gain_loss=1000（收益正数） |
+| 2 | test_disposal_gain_loss_negative | fixed_asset_service.rs | 处置价值 < 账面净值 → gain_loss=-1000（损失负数） |
+| 3 | test_disposal_gain_loss_zero | fixed_asset_service.rs | 处置价值 = 账面净值 → gain_loss=0 |
+| 4 | test_calculate_asset_depreciation_round_dp | fixed_asset_service.rs | 10000/36 round_dp(2) = 277.78（四舍五入，非 277.7777...） |
+| 5 | test_notes_field_in_create_dto | custom_order_crud_service.rs | CreateCustomOrderDto.notes 类型 Option<String> + 透传正确 |
+| 6 | test_notes_default_when_none | custom_order_crud_service.rs | notes=None 时 DTO 字段为 None |
+
+**关键说明**：
+- dispose/calculate_asset_depreciation/create_draft 需数据库事务，纯单元测试仅验证计算公式与 DTO 字段透传逻辑（注释标注"完整事务流程需集成测试"）
+- 任务描述中 round_dp(2) 期望值 277.77 为笔误，rust_decimal round_dp 采用 MidpointAwayFromZero 四舍五入，10000/36=277.7777... 第 3 位 7≥5 进位，正确结果 277.78
+- custom_order_crud_service.rs 首次新增 #[cfg(test)] mod tests（含 make_test_dto 辅助函数）
+- 未修改生产代码，仅新增测试
+
+---
+
+## 2026-07-03 (批次 89 完成：v3 复审 P1 修复 8 项)
+
+### 批次 89 完成：v3 第三轮复审 P1 修复（8 项）
+
+**合并 commit**：`ab55eeb`（PR #332 squash merge，CI 12/13 全绿，E2E continue-on-error）
+**修复分支**：`fix/v19-batch89-v3-p1-fix`（已合并删除）
+
+**修复清单**：
+
+| # | 问题 | 文件 | 修复 |
+|---|------|------|------|
+| P1-1 | fixed_asset_service id:Set(0) 主键冲突（批次 88 引入） | fixed_asset_service.rs | depreciate/dispose 中 id: Set(0) → Default::default()（2 处） |
+| P1-2 | 前端缺少资产处置能力 | asset.ts + AssetListTab.vue | 新增 DisposalRequest 接口 + disposeAsset 函数 + 处置按钮+对话框+表单校验 |
+| P1-3 | 折旧记录查询 API 缺失 | fixed_asset_service.rs + handler + finance.rs | 新增 list_depreciation_records + handler + GET /fixed-assets/:id/depreciation-records |
+| P1-4 | 定制订单创建页无备注输入 | custom-orders/create.vue | 新增 notes textarea 输入控件 |
+| P1-5 | 定制订单详情页无备注展示 | custom-orders/detail.vue | el-descriptions 新增备注 item |
+| P1-6 | csp_middleware 死代码 | middleware/csp.rs | 添加 #[allow(dead_code)] + TODO 注释 |
+| P1-7 | 前端定制订单响应类型缺失 | custom-order.ts | 新增 CustomOrderListItem/Detail/ProcessNode 接口 + 6 个 API 函数补返回类型注解 |
+| P1-8 | 处置记录查询 API 缺失 | fixed_asset_service.rs + handler + finance.rs | 新增 list_disposals + handler + GET /fixed-assets/disposals |
+
+**CI 修复**：
+- 第一次推送（e73052c）：前端类型检查失败 — AssetListTab.vue(511,26) `number | undefined` 不能赋给 `number`（闭包内 ref.value 重新推断）
+- 第二次推送（d0f7f7f）：提取局部变量 assetId 解决，12/13 全绿
+
+---
+
 ## 2026-07-03 (批次 77 完成：测试边界与审计清理 P3 修复 7 项 + 延后 6 项)
 
 ### 批次 77 完成：测试边界与审计清理（6-8/6-12/7-14/7-17/8-17/8-19/8-20）

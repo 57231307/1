@@ -13,12 +13,27 @@ export interface Contact {
   id: number
   customer_id: number
   name: string
-  title: string
+  title: string | null
   phone: string
-  email: string
+  email: string | null
   is_primary: boolean
-  created_at: string
+  remarks?: string | null
+  created_at?: string
+  updated_at?: string
 }
+
+/** 联系人创建请求（批次 90b P2-12） */
+export interface ContactInput {
+  name: string
+  title?: string
+  phone: string
+  email?: string
+  is_primary?: boolean
+  remarks?: string
+}
+
+/** 联系人更新请求（批次 90b P2-12） */
+export type ContactUpdate = Partial<ContactInput>
 
 export interface CustomerWithTags {
   id: number
@@ -252,6 +267,19 @@ export const crmEnhancedApi = {
   // 释放客户到公海池（P1-5 补齐，与后端 /pool/recycle 对应）
   recycleToPool: (data: { customer_ids: number[]; reason?: string }) =>
     request.post<ApiResponse<void>>('/crm/pool/recycle', data),
+
+  // 联系人 CRUD（批次 90b P2-12：替代 detail.vue "新增联系人功能待实现" 占位符）
+  listContacts: (customerId: number) =>
+    request.get<ApiResponse<Contact[]>>(`/crm/customers/${customerId}/contacts`),
+
+  createContact: (customerId: number, data: ContactInput) =>
+    request.post<ApiResponse<Contact>>(`/crm/customers/${customerId}/contacts`, data),
+
+  updateContact: (customerId: number, contactId: number, data: ContactUpdate) =>
+    request.put<ApiResponse<Contact>>(`/crm/customers/${customerId}/contacts/${contactId}`, data),
+
+  deleteContact: (customerId: number, contactId: number) =>
+    request.delete<ApiResponse<void>>(`/crm/customers/${customerId}/contacts/${contactId}`),
 }
 
 export default crmEnhancedApi
