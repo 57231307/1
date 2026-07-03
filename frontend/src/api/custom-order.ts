@@ -4,6 +4,7 @@
 // 端点路径相对于 baseURL（/api/v1/erp），不要重复添加前缀，否则会产生双重前缀
 
 import { request } from './request'
+import type { ApiResponse } from '@/types/api'
 
 // 状态枚举（使用显式索引签名以支持外部字符串索引）
 export const CUSTOM_ORDER_STATUS: { [key: string]: string } = {
@@ -198,6 +199,51 @@ export interface AfterSalesQueryParams {
   type?: string
 }
 
+// v3 复审 P1-7：定制订单响应类型定义，对齐后端 response DTO
+
+/** 定制订单列表项（对齐后端 CustomOrderListItemResponse） */
+export interface CustomOrderListItem {
+  id: number
+  order_no: string
+  customer_id: number
+  product_id: number
+  color_id?: number
+  spec: string
+  quantity: number
+  unit: string
+  status: string
+  expected_delivery_date?: string
+  actual_delivery_date?: string
+  total_amount?: number
+  currency: string
+  sales_order_id?: number
+  created_at: string
+  notes?: string
+}
+
+/** 定制订单工艺节点（详情接口返回结构） */
+export interface CustomOrderProcessNode {
+  id: number
+  node_type: string
+  node_name: string
+  sequence: number
+  status: string
+  planned_start_date?: string
+  planned_end_date?: string
+  actual_start_date?: string
+  actual_end_date?: string
+  notes?: string
+}
+
+/** 定制订单详情（对齐后端 CustomOrderDetailResponse，含 notes + process_nodes） */
+export interface CustomOrderDetail extends CustomOrderListItem {
+  yarn_spec?: string
+  dye_method?: string
+  finishing_method?: string
+  updated_at: string
+  process_nodes: CustomOrderProcessNode[]
+}
+
 // 列表查询
 export function listCustomOrders(params: {
   page?: number
@@ -205,34 +251,42 @@ export function listCustomOrders(params: {
   status?: string
   customer_id?: number
   keyword?: string
-}) {
+}): Promise<ApiResponse<CustomOrderListItem[]>> {
   return request.get('/custom-orders', { params })
 }
 
 // 创建草稿
-export function createCustomOrder(data: CustomOrderCreateDto) {
+export function createCustomOrder(
+  data: CustomOrderCreateDto
+): Promise<ApiResponse<CustomOrderListItem>> {
   return request.post('/custom-orders', data)
 }
 
 // 详情
-export function getCustomOrder(id: number) {
+export function getCustomOrder(id: number): Promise<ApiResponse<CustomOrderDetail>> {
   return request.get(`/custom-orders/${id}`)
 }
 
 // 更新
-export function updateCustomOrder(id: number, data: CustomOrderUpdateDto) {
+export function updateCustomOrder(
+  id: number,
+  data: CustomOrderUpdateDto
+): Promise<ApiResponse<CustomOrderListItem>> {
   return request.put(`/custom-orders/${id}`, data)
 }
 
 // 取消
-export function cancelCustomOrder(id: number, reason: string) {
+export function cancelCustomOrder(id: number, reason: string): Promise<ApiResponse<void>> {
   return request.delete(`/custom-orders/${id}`, {
     data: { reason },
   })
 }
 
 // 推进状态
-export function advanceCustomOrder(id: number, data: CustomOrderAdvanceDto) {
+export function advanceCustomOrder(
+  id: number,
+  data: CustomOrderAdvanceDto
+): Promise<ApiResponse<CustomOrderListItem>> {
   return request.post(`/custom-orders/${id}/advance`, data)
 }
 

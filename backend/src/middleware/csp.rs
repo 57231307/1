@@ -35,6 +35,10 @@ pub const CSP_POLICY: &str = "default-src 'self'; \
 /// CSP 中间件
 ///
 /// 把 `Content-Security-Policy` 头注入到所有响应。
+///
+/// v3 P1-6 修复：当前 CSP 头通过 main.rs 的 SetResponseHeaderLayer 全局注入，
+/// 此中间件函数未挂载到路由。保留以备路由级精细化覆盖时使用。
+#[allow(dead_code)] // TODO(tech-debt): 路由级 CSP 精细化覆盖接入后移除
 pub async fn csp_middleware(req: Request, next: Next) -> Response {
     let mut response = next.run(req).await;
     let headers = response.headers_mut();

@@ -21,30 +21,46 @@
 
 ---
 
-## 当前任务状态（2026-07-03 批次 86 完成 - v2 复审 P2 加固）
+## 当前任务状态（2026-07-03 批次 89 修复中 - v3 第三轮复审 P1 修复）
 
-### ✅ 批次 86 完成：v2 复审 P2 加固 + 前端占位符补全（19 项 + 2 扩展）
+### 🔄 批次 89 进行中：v3 复审 P1 修复（8 项）
 
-**修复分支**：`fix/v19-batch86-p2-hardening`（已合并删除）
-**合并 commit**：`df8c424d`（PR #329 squash merge，CI 12/13 全绿，E2E continue-on-error）
-**main HEAD**：`df8c424d`
+**修复分支**：`fix/v19-batch89-v3-p1-fix`
+**基线 main HEAD**：`37a1dfe`（v3 复审报告 + 修复规划）
 
-**v2 复审批次进度**（基线 `docs/audits/2026-07-03-reaudit-v2.md`，56 项）：
+**v3 复审结果**（基线 `docs/audits/2026-07-03-reaudit-v3.md`，36 项：P0=1, P1=8, P2=12, P3=15）：
+- 批次 89（🔄）：P1×8 修复中
+- 批次 90（⬜）：P2×12 待启动
+- 批次 91（⬜）：P3×15 待评估
+- P0 特殊处理（⬜）：api_gateway 11 端点占位
+
+**批次 89 P1 修复清单（8 项）**：
+1. P1-1：fixed_asset_service id:Set(0) → Default::default()（2 处，避免主键冲突）
+2. P1-2：前端 disposeAsset API + 处置对话框（asset.ts + AssetListTab.vue）
+3. P1-3：折旧记录查询 API（service list_depreciation_records + handler + 路由）
+4. P1-4：custom-orders/create.vue notes 输入控件
+5. P1-5：custom-orders/detail.vue notes 展示
+6. P1-6：csp_middleware 死代码 #[allow(dead_code)] + TODO 注释
+7. P1-7：前端 CustomOrderListItem/Detail 响应类型定义
+8. P1-8：处置记录查询 API（service list_disposals + handler + 路由）
+
+---
+
+### ✅ 批次 88 完成：占位符功能实现（PH-1/PH-2/PH-3，3 项 schema 变更）
+
+**修复分支**：`fix/v19-batch88-placeholder-impl`（已合并删除）
+**合并 commit**：`32302ca`（PR #331 squash merge，CI 12/13 全绿，E2E continue-on-error）
+
+**v2 复审批次进度**（基线 `docs/audits/2026-07-03-reaudit-v2.md`，56 项 + 3 占位符）：
 - 批次 85（✅）：P1×9 事务边界 TOCTOU + 并发竞态 → main `10f661d`
-- 批次 86（✅）：P2×19 加固（lock_exclusive + 精度 + N+1 + 前端 + 安全）+ 前端占位符 EX-1/EX-2 → main `df8c424d`
-- 批次 87（待启动）：P3×28 清理（错误处理 + 金额 + LIMIT + 测试 + IP 提取）
-- 批次 88（待启动）：占位符 PH-1/PH-2/PH-3（需 schema 变更）
+- 批次 86（✅）：P2×19 加固 + 前端占位符 EX-1/EX-2 → main `df8c424d`
+- 批次 87（✅）：P3×28 清理（8 维度）→ main `cdec49e`
+- 批次 88（✅）：占位符 PH-1/PH-2/PH-3（3 项 schema 变更）→ main `32302ca`
 
-**批次 86 关键修复**：
-1. P2-1~P2-9：9 处 update/delete 加 lock_exclusive 串行化（role_service / ar_invoice / ap_invoice / ap_payment_request / customer_credit_limit / fixed_asset delete）
-2. P2-10/P2-11：金额精度校验（ar_invoice round_dp(2) + sales_fabric_order DTO f64→Decimal）
-3. P2-12/P2-13：ai/rec.rs 全表加载补 LIMIT 10_000
-4. P2-14~P2-16：前端 8 个 API 文件 `ApiResponse<any>` → 显式接口
-5. P2-17：22 个 .vue 文件编辑/删除按钮补齐 v-permission（含 PrdTbl.vue h() 渲染函数用 `can()` 辅助函数替代）
-6. P2-18：inventory-store.test.ts 6 处 `as any` → 显式类型断言
-7. P2-19：main.rs TraceLayer IP 提取优先级对齐 audit_context（X-Real-IP → X-Forwarded-For → ConnectInfo）
-8. EX-1：sales-ext/tabs/PriceTab.vue 占位符补全为完整编辑对话框
-9. EX-2：sales-ext/tabs/ReturnTab.vue 占位符补全为完整编辑对话框
+**批次 88 关键修复**（3 占位符）：
+1. PH-1：custom_order notes 字段（migration m0032 + model + service create/update + response DTO + handler 6 处构造补全）
+2. PH-3：fixed_asset disposal gain_loss 字段（migration m0033 + model + service dispose 持久化损益）
+3. PH-2：fixed_asset 折旧期间记录表（migration m0034 新建表 + Entity + service depreciate 插入记录 + 前端补传 period 参数）
 
 **用户扩展指令（2026-07-03）**：修复过程中遇到的占位符功能需全部实现，未接入功能/中间件需真实接入，未完善功能需评估完善，全部纳入复审计划。
 

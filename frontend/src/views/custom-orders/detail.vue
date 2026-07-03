@@ -62,6 +62,8 @@
             <el-descriptions-item label="关联销售订单">{{ order.sales_order_id || '-' }}</el-descriptions-item>
             <el-descriptions-item label="创建时间">{{ order.created_at }}</el-descriptions-item>
             <el-descriptions-item label="更新时间" :span="2">{{ order.updated_at }}</el-descriptions-item>
+            <!-- v3 复审 P1-5：展示订单备注 -->
+            <el-descriptions-item label="备注" :span="2">{{ order.notes || '-' }}</el-descriptions-item>
           </el-descriptions>
         </el-tab-pane>
 

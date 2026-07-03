@@ -178,8 +178,16 @@ pub fn fixed_assets() -> Router<AppState> {
             post(fixed_asset_handler::dispose_asset),
         )
         .route(
+            "/fixed-assets/:id/depreciation-records",
+            get(fixed_asset_handler::list_depreciation_records),
+        )
+        .route(
             "/fixed-assets/batch-depreciate",
             post(fixed_asset_handler::batch_depreciate),
+        )
+        .route(
+            "/fixed-assets/disposals",
+            get(fixed_asset_handler::list_disposals),
         )
 }
 
