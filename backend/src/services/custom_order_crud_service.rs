@@ -165,12 +165,24 @@ impl CustomOrderCrudService {
     }
 
     /// 更新定制订单（仅 draft 状态可更新）
+    ///
+    /// 批次 85 v2 复审 P1-1 修复：状态门 + update 移入单一事务 + lock_exclusive 串行化
+    /// 原实现状态门在 self.db 查询、update 也在 self.db，无 txn 无 lock，存在 TOCTOU
+    /// （并发 update 与 cancel 会基于过期状态通过检查后重复写入）
     pub async fn update(
         &self,
         id: i64,
         dto: UpdateCustomOrderDto,
     ) -> Result<custom_order::Model, CrudError> {
-        let existing = self.get_by_id(id).await?;
+        let txn = self.db.begin().await?;
+
+        // 加 lock_exclusive 串行化并发状态变更
+        let existing = CustomOrderEntity::find_by_id(id)
+            .lock_exclusive()
+            .one(&txn)
+            .await?
+            .ok_or(CrudError::NotFound)?;
+
         if existing.status != "draft" {
             return Err(CrudError::InvalidState);
         }
@@ -208,7 +220,8 @@ impl CustomOrderCrudService {
             let _ = v;
         }
         active.updated_at = Set(Utc::now());
-        let updated = active.update(&*self.db).await?;
+        let updated = active.update(&txn).await?;
+        txn.commit().await?;
         Ok(updated)
     }
 

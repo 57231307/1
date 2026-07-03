@@ -208,17 +208,26 @@ impl QuotationService {
     }
 
     /// 更新报价单（仅 draft / rejected 状态可更新）
+    ///
+    /// 批次 85 v2 复审 P1-2 修复：状态门移入 txn + lock_exclusive，重算 update 移入 txn
+    /// 原实现状态门在 txn 外查询（self.db），且 line 360 重算后 update 在 txn commit 后用 self.db，
+    /// 存在 TOCTOU（并发 update/cancel 会基于过期状态通过检查）和非原子性（commit 后 update 失败导致状态不一致）
     pub async fn update(
         &self,
         id: i64,
         dto: UpdateQuotationDto,
     ) -> Result<sales_quotation::Model, ServiceError> {
-        let existing = self.get_by_id(id).await?;
+        let txn = self.db.begin().await?;
+
+        // 加 lock_exclusive 串行化并发状态变更
+        let existing = QuotationEntity::find_by_id(id)
+            .lock_exclusive()
+            .one(&txn)
+            .await?
+            .ok_or(ServiceError::NotFound)?;
         if !["draft", "rejected"].contains(&existing.status.as_str()) {
             return Err(ServiceError::InvalidState);
         }
-
-        let txn = self.db.begin().await?;
 
         let mut active: QuotationActive = existing.clone().into();
         if let Some(v) = dto.customer_id {
@@ -334,12 +343,10 @@ impl QuotationService {
             }
         }
 
-        txn.commit().await?;
-
-        // 重算 subtotal/tax/total
+        // 重算 subtotal/tax/total（在 txn 内查询和 update，保证原子性）
         let recalc_items: Vec<sales_quotation_item::Model> = ItemEntity::find()
             .filter(sales_quotation_item::Column::QuotationId.eq(id))
-            .all(&*self.db)
+            .all(&txn)
             .await?;
         let subtotal: Decimal = recalc_items
             .iter()
@@ -357,8 +364,9 @@ impl QuotationService {
         re_active.tax_amount = Set(tax_amount);
         re_active.total_amount = Set(total_amount);
         re_active.updated_at = Set(Utc::now());
-        let final_model = re_active.update(&*self.db).await?;
+        let final_model = re_active.update(&txn).await?;
 
+        txn.commit().await?;
         Ok(final_model)
     }
 
