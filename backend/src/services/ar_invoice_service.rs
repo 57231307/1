@@ -314,8 +314,16 @@ impl ArInvoiceService {
     }
 
     pub async fn delete(&self, id: i32, user_id: i32) -> Result<(), AppError> {
+        // P1 1-14 修复（批次 78 v1 复审）：状态门 + delete 用事务包裹，消除 TOCTOU
+        // 原实现状态门查询在 self.db 上、delete_with_audit 也在 self.db 上，
+        // 两者之间无事务边界，并发场景下可能在状态检查通过后、delete 之前
+        // 发生 approve/cancel 等状态变更，导致已审批/已取消的发票被误删。
+        // 改为在单一事务内 lock_exclusive + 状态检查 + delete_with_audit 串行化。
+        let txn = (*self.db).begin().await?;
+
         let invoice = ar_invoice::Entity::find_by_id(id)
-            .one(&*self.db)
+            .lock_exclusive()
+            .one(&txn)
             .await?
             .ok_or_else(|| AppError::not_found("应收单不存在"))?;
 
@@ -325,12 +333,15 @@ impl ArInvoiceService {
             ));
         }
 
-        // P0 8-3 修复：delete 操作补审计日志
+        // P0 8-3 修复：delete 操作补审计日志（在事务内执行，保证原子性）
         crate::services::audit_log_service::AuditLogService::delete_with_audit::<
             ar_invoice::Entity,
             _,
-        >(&*self.db, "ar_invoice", id, Some(user_id))
-        .await
+        >(&txn, "ar_invoice", id, Some(user_id))
+        .await?;
+
+        txn.commit().await?;
+        Ok(())
     }
 
     pub async fn approve(&self, id: i32, user_id: i32) -> Result<ar_invoice::Model, AppError> {
@@ -370,7 +381,15 @@ impl ArInvoiceService {
     }
 
     /// 标记应收单为已收讫
-    pub async fn mark_as_paid(&self, id: i32) -> Result<ar_invoice::Model, AppError> {
+    ///
+    /// `user_id` 为触发本次状态变更的操作人 ID，用于审计日志透传。
+    /// 通常由事件总线监听 `CollectionCompleted` 事件后调用，
+    /// 事件 payload 携带收款操作人 ID。
+    pub async fn mark_as_paid(
+        &self,
+        id: i32,
+        user_id: i32,
+    ) -> Result<ar_invoice::Model, AppError> {
         // 批次 11（2026-06-28）：事务包裹"状态变更 + 审计日志"，保证原子性
         // 批次 22（2026-06-28 v5 P0-2）：状态门查询加 lock_exclusive 串行化并发 mark_as_paid
         // 原实现状态门无锁，两并发 mark_as_paid 均通过状态检查后基于过期状态写入，
@@ -413,7 +432,8 @@ impl ArInvoiceService {
             &txn,
             "auto_audit",
             active_invoice,
-            Some(0),
+            // P1 1-1 修复（批次 78 v1 复审）：原 Some(0) 占位符改为真实操作人 user_id
+            Some(user_id),
         )
         .await?;
 

@@ -490,6 +490,7 @@ mod tests {
                 collection_id: 1,
                 invoice_id: Some(2),
                 amount: Decimal::from(20),
+                user_id: 0,
             },
             BusinessEvent::PurchaseOrderApproved {
                 order_id: 1,

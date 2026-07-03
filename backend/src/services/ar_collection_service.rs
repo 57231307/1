@@ -128,6 +128,8 @@ impl ArCollectionService {
             collection_id: collection_model.id,
             invoice_id,
             amount,
+            // P1 1-1 修复（批次 78 v1 复审）：透传收款操作人 ID 给 mark_as_paid 审计
+            user_id,
         });
 
         let period = format!("{:04}-{:02}", now_date.year(), now_date.month());
