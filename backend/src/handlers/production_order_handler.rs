@@ -64,7 +64,7 @@ pub struct UpdateProductionOrderStatusDto {
 /// 仅允许以下状态值，避免任意字符串写入数据库
 /// 白名单与 production_order_service::validate_status_transition 保持一致
 fn validate_production_order_status(
-    status: &String,
+    status: &str,
 ) -> Result<(), validator::ValidationError> {
     const ALLOWED: &[&str] = &[
         "DRAFT",
@@ -73,7 +73,7 @@ fn validate_production_order_status(
         "COMPLETED",
         "CANCELLED",
     ];
-    if !ALLOWED.contains(&status.as_str()) {
+    if !ALLOWED.contains(&status) {
         return Err(validator::ValidationError::new(
             "生产订单状态不在允许的白名单内",
         ));
