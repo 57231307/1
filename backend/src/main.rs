@@ -688,10 +688,15 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     info!("HTTP 地址: {}", http_addr);
     info!("===========================================");
 
-    let http_server = axum::serve(tokio::net::TcpListener::bind(http_addr).await?, app)
-        .with_graceful_shutdown(async {
-            shutdown_signal().await;
-        });
+    // P2-12b 修复（批次 83 v1 复审）：启用 into_make_service_with_connect_info
+    // 使 ConnectInfo<SocketAddr> 扩展可用，rate_limit/anti_brute_force 等 IP 提取链路可命中兜底
+    let http_server = axum::serve(
+        tokio::net::TcpListener::bind(http_addr).await?,
+        app.into_make_service_with_connect_info::<SocketAddr>(),
+    )
+    .with_graceful_shutdown(async {
+        shutdown_signal().await;
+    });
 
     if let Err(e) = http_server.await {
         warn!("HTTP 服务器错误: {}", e);

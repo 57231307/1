@@ -1,6 +1,10 @@
-//! 定制订单端到端集成测试
+//! 定制订单状态机转换测试
 //!
-//! 覆盖完整生命周期：创建 → 推进 → 异常 → 售后 → 完成
+//! P2-11c 修复（批次 83 v1 复审）：原文件名 custom_order_e2e_test 暗示端到端集成测试，
+//! 但实际仅测试 process_state_machine::next_status 状态转换函数，重命名为
+//! custom_order_state_machine_test 以准确反映测试范围。
+//! 与 custom_order_state_test.rs 职责区分：本文件聚焦生命周期推进序列，
+//! custom_order_state_test.rs 聚焦转换矩阵合法性。
 //! 创建时间: 2026-06-17
 
 #[cfg(test)]

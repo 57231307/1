@@ -142,17 +142,20 @@ pub async fn refresh_token(
     // 注：new_session_id 已在上方提取（P1 7-1 修复：refresh_token 轮换时复用）
 
     // 提取客户端 IP（Wave 3 #7：IP 绑定到 CSRF Token）
-    // 优先从 X-Real-IP / X-Forwarded-For 取（与 audit_context 中间件一致）
+    // P2-12c 修复（批次 83 v1 复审）：IP 提取统一优先级（X-Real-IP → X-Forwarded-For）
+    // 原实现优先 X-Forwarded-For（可被客户端伪造），且不 split/trim，与 audit_context 不一致
+    // 本 handler 仅接收 HeaderMap（无 ConnectInfo extension），与 audit_context::extract_client_ip
+    // 优先级保持一致：X-Real-IP → X-Forwarded-For(first, trim) → "unknown"
     let refresh_ip = headers
-        .get("X-Forwarded-For")
-        .and_then(|h| h.to_str().ok())
-        .map(|s| s.split(',').next().unwrap_or("").trim().to_string())
+        .get("x-real-ip")
+        .and_then(|v| v.to_str().ok())
         .filter(|s| !s.is_empty())
+        .map(|s| s.to_string())
         .or_else(|| {
             headers
-                .get("X-Real-IP")
-                .and_then(|h| h.to_str().ok())
-                .map(|s| s.to_string())
+                .get("x-forwarded-for")
+                .and_then(|v| v.to_str().ok())
+                .and_then(|s| s.split(',').next().map(|s| s.trim().to_string()))
                 .filter(|s| !s.is_empty())
         })
         .unwrap_or_else(|| "unknown".to_string());

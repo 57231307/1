@@ -130,13 +130,10 @@ pub async fn auth_middleware(
 ) -> Result<Response, Response> {
     let path = request.uri().path().to_string();
     let method = request.method().clone();
-    let client_ip = request
-        .headers()
-        .get("x-forwarded-for")
-        .or_else(|| request.headers().get("x-real-ip"))
-        .and_then(|v| v.to_str().ok())
-        .unwrap_or("unknown")
-        .to_string();
+    // P2-12c 修复（批次 83 v1 复审）：复用 audit_context 公开的 extract_client_ip helper
+    // 原实现优先级错误（X-Forwarded-For → X-Real-IP），且不 split/trim X-Forwarded-For
+    // 统一优先级：X-Real-IP → X-Forwarded-For(first, trim) → ConnectInfo → "unknown"
+    let client_ip = crate::middleware::audit_context::extract_client_ip(&request);
 
     // 公共路径跳过认证
     let is_public = is_public_path(&path);
