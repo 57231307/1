@@ -403,7 +403,8 @@ const handlePreview = async (row: PrintTemplate) => {
   currentPreviewTemplate.value = row
   try {
     const res = await previewPrintTemplate(row.id)
-    previewData.value = res.data || ''
+    // P2-16 修复回归（批次 86）：res.data 是 PrintTemplatePreviewResult，取 html 字段
+    previewData.value = res.data?.html || ''
   } catch (error: any) {
     ElMessage.error(error.message || '预览失败')
     previewData.value = ''

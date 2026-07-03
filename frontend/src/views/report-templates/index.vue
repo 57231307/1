@@ -337,7 +337,17 @@ const handlePreview = async (row: ReportTemplate) => {
   previewVisible.value = true
   try {
     const res = await previewReportTemplate(row.id)
-    previewData.value = res.data || ''
+    // P2-16 修复回归（批次 86）：res.data 是 ReportTemplatePreviewResult（结构化），
+    // 渲染为 HTML 表格字符串供 v-html + DOMPurify 使用
+    if (res.data && res.data.fields && res.data.rows) {
+      const headerHtml = res.data.fields.map(f => `<th>${f}</th>`).join('')
+      const bodyHtml = res.data.rows
+        .map((r: Record<string, unknown>) => `<tr>${res.data!.fields.map(f => `<td>${String(r[f] ?? '')}</td>`).join('')}</tr>`)
+        .join('')
+      previewData.value = `<table border="1" cellpadding="4" cellspacing="0" style="border-collapse:collapse;width:100%"><thead><tr>${headerHtml}</tr></thead><tbody>${bodyHtml}</tbody></table>`
+    } else {
+      previewData.value = ''
+    }
   } catch (error: any) {
     ElMessage.error(error.message || '预览失败')
     previewData.value = ''
