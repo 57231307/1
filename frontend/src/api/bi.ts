@@ -1,12 +1,49 @@
 // P3-4 BI 多维分析 API 客户端（16 端点）
 // 8 维度聚合 + 4 钻取 + 4 切片/上卷
 // 创建时间: 2026-06-17
+//
+// 批次 86 v2 复审 P2-14 修复：5 处 BiResponseData<any> → 显式接口 / unknown
 
 import { request } from './request'
 
 // =====================================================
 // 公共类型
 // =====================================================
+
+/** 钻取：订单明细行（钻取端点返回） */
+export interface DrilldownOrderItem {
+  order_id: number
+  order_no: string
+  order_date: string
+  total_amount: number
+  quantity: number
+  status: string
+  [key: string]: unknown
+}
+
+/** 切片/切块结果（通用聚合返回，由后端按维度动态返回） */
+export interface SliceDiceResult {
+  dimension: string
+  values: Array<Record<string, unknown>>
+  [key: string]: unknown
+}
+
+/** 上卷结果 */
+export interface RollupResult {
+  from: string
+  to: string
+  values: Array<Record<string, unknown>>
+  [key: string]: unknown
+}
+
+/** 透视结果 */
+export interface PivotResult {
+  row: string
+  col: string
+  measure: string
+  cells: Array<Record<string, unknown>>
+  [key: string]: unknown
+}
 
 /** 时间序列点 */
 export interface TimeSeriesPoint {
@@ -157,14 +194,14 @@ export function getDrilldownMonthToDay(year: number, month: number) {
 
 /** 钻取：客户 → 订单 */
 export function getDrilldownCustomerToOrder(customerId: number) {
-  return request.get<BiResponseData<any>>(
+  return request.get<BiResponseData<DrilldownOrderItem[]>>(
     `/bi/sales/drilldown/customer-to-order/${customerId}`,
   )
 }
 
 /** 钻取：产品 → 订单 */
 export function getDrilldownProductToOrder(productId: number) {
-  return request.get<BiResponseData<any>>(
+  return request.get<BiResponseData<DrilldownOrderItem[]>>(
     `/bi/sales/drilldown/product-to-order/${productId}`,
   )
 }
@@ -174,21 +211,21 @@ export function getDrilldownProductToOrder(productId: number) {
 // =====================================================
 
 /** 切片 */
-export function postSlice(dimension: string, filters: Record<string, any>) {
-  return request.post<BiResponseData<any>>('/bi/sales/slice', { dimension, filters })
+export function postSlice(dimension: string, filters: Record<string, unknown>) {
+  return request.post<BiResponseData<SliceDiceResult>>('/bi/sales/slice', { dimension, filters })
 }
 
 /** 切块 */
-export function postDice(filters: Record<string, any>) {
-  return request.post<BiResponseData<any>>('/bi/sales/dice', { filters })
+export function postDice(filters: Record<string, unknown>) {
+  return request.post<BiResponseData<SliceDiceResult>>('/bi/sales/dice', { filters })
 }
 
 /** 上卷 */
 export function postRollup(from: string, to: string) {
-  return request.post<BiResponseData<any>>('/bi/sales/rollup', { from, to })
+  return request.post<BiResponseData<RollupResult>>('/bi/sales/rollup', { from, to })
 }
 
 /** 透视 */
 export function postPivot(row: string, col: string, measure: string) {
-  return request.post<BiResponseData<any>>('/bi/sales/pivot', { row, col, measure })
+  return request.post<BiResponseData<PivotResult>>('/bi/sales/pivot', { row, col, measure })
 }

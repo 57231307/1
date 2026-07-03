@@ -12,6 +12,7 @@ mod services;
 mod utils;
 mod websocket; // P3-2 WebSocket 实时通信（lib crate bingxi_backend::websocket 的镜像引用）
 
+use axum::extract::ConnectInfo;
 use axum::extract::DefaultBodyLimit;
 use axum::http::{HeaderValue, Method, Request};
 use axum::{
@@ -510,13 +511,34 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 .layer(
                     TraceLayer::new_for_http()
                         .on_request(|request: &Request<_>, _span: &Span| {
-                            let client_ip = request
-                                .headers()
-                                .get("x-forwarded-for")
-                                .or_else(|| request.headers().get("x-real-ip"))
+                            // P2-19 修复（批次 86 v2 复审）：IP 提取优先级对齐 audit_context
+                            // 原顺序 X-Forwarded-For → X-Real-IP（可被客户端伪造）
+                            // 统一为：X-Real-IP → X-Forwarded-For(first, trim) → ConnectInfo → "unknown"
+                            let h = request.headers();
+                            let client_ip = h
+                                .get("x-real-ip")
                                 .and_then(|v| v.to_str().ok())
-                                .unwrap_or("unknown")
-                                .to_string();
+                                .filter(|s| !s.is_empty())
+                                .map(|s| s.to_string())
+                                .or_else(|| {
+                                    h.get("x-forwarded-for")
+                                        .and_then(|v| v.to_str().ok())
+                                        .and_then(|forwarded| {
+                                            forwarded
+                                                .split(',')
+                                                .next()
+                                                .map(|first| first.trim())
+                                                .filter(|s| !s.is_empty())
+                                                .map(|s| s.to_string())
+                                        })
+                                })
+                                .or_else(|| {
+                                    request
+                                        .extensions()
+                                        .get::<ConnectInfo<SocketAddr>>()
+                                        .map(|ci| ci.0.ip().to_string())
+                                })
+                                .unwrap_or_else(|| "unknown".to_string());
                             let user_agent = request
                                 .headers()
                                 .get("user-agent")

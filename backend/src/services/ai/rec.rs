@@ -11,7 +11,7 @@
 use chrono::{Duration, Utc};
 use rust_decimal::prelude::ToPrimitive;
 use rust_decimal::Decimal;
-use sea_orm::{ColumnTrait, EntityTrait, QueryFilter};
+use sea_orm::{ColumnTrait, EntityTrait, QueryFilter, QuerySelect};
 use std::collections::HashMap;
 
 use crate::models::inventory_stock::{
@@ -167,8 +167,14 @@ impl AiAnalysisService {
     /// A 类: 累计销售额占比 0-80%
     /// B 类: 累计销售额占比 80-95%
     /// C 类: 累计销售额占比 95-100%
+    ///
+    /// 批次 86 v2 复审 P2-12 修复：加 LIMIT 兜底防止全表加载内存爆炸
+    /// 原 `.find().all()` 无限制加载所有库存记录，大表会 OOM
     pub async fn get_abc_classification(&self) -> Result<Vec<AbcClassification>, AppError> {
-        let stocks = InventoryStockEntity::find().all(&*self.db).await?;
+        let stocks = InventoryStockEntity::find()
+            .limit(10_000)
+            .all(&*self.db)
+            .await?;
 
         let start_date = Utc::now().date_naive() - Duration::days(90);
         let transactions = InventoryTransactionEntity::find()
@@ -611,11 +617,16 @@ impl AiAnalysisService {
     }
 
     /// 基于库存水平的价格调整推荐
+    ///
+    /// 批次 86 v2 复审 P2-13 修复：加 LIMIT 兜底防止全表加载内存爆炸
     async fn generate_price_recommendations(
         &self,
         limit: usize,
     ) -> Result<Vec<SmartRecommendation>, AppError> {
-        let stocks = InventoryStockEntity::find().all(&*self.db).await?;
+        let stocks = InventoryStockEntity::find()
+            .limit(10_000)
+            .all(&*self.db)
+            .await?;
 
         let start_date = Utc::now().date_naive() - Duration::days(30);
         let transactions = InventoryTransactionEntity::find()

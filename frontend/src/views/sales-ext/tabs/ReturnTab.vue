@@ -58,8 +58,10 @@
             <el-button size="small" link @click="viewReturn(row as unknown as SalesReturn)"
               >查看</el-button
             >
+            <!-- P2-17 修复（批次 86 v2 复审）：编辑按钮补齐 v-permission -->
             <el-button
               v-if="row.status === 'draft'"
+              v-permission="'sales_return:update'"
               size="small"
               link
               @click="openReturnDialog(row as unknown as SalesReturn)"
@@ -69,6 +71,97 @@
         </el-table-column>
       </el-table>
     </el-card>
+
+    <!-- 扩展指令（批次 86）：补全退货编辑对话框，替换原占位符 -->
+    <el-dialog
+      v-model="returnDialogVisible"
+      :title="returnForm.id ? '编辑销售退货' : '新建销售退货'"
+      width="800px"
+    >
+      <el-form ref="returnFormRef" :model="returnForm" :rules="returnRules" label-width="100px">
+        <el-row :gutter="20">
+          <el-col :span="12">
+            <el-form-item label="退货单号" prop="returnNo">
+              <el-input v-model="returnForm.returnNo" :disabled="!!returnForm.id" />
+            </el-form-item>
+          </el-col>
+          <el-col :span="12">
+            <el-form-item label="客户" prop="customerName">
+              <el-input v-model="returnForm.customerName" placeholder="客户名称" />
+            </el-form-item>
+          </el-col>
+        </el-row>
+        <el-row :gutter="20">
+          <el-col :span="12">
+            <el-form-item label="关联订单号" prop="salesOrderNo">
+              <el-input v-model="returnForm.salesOrderNo" placeholder="销售订单号" />
+            </el-form-item>
+          </el-col>
+          <el-col :span="12">
+            <el-form-item label="退货日期" prop="returnDate">
+              <el-date-picker
+                v-model="returnForm.returnDate"
+                type="date"
+                style="width: 100%"
+                value-format="YYYY-MM-DD"
+              />
+            </el-form-item>
+          </el-col>
+        </el-row>
+        <el-form-item label="退货原因" prop="reason">
+          <el-input v-model="returnForm.reason" type="textarea" />
+        </el-form-item>
+        <el-divider>退货明细</el-divider>
+        <el-table :data="returnForm.items" border style="width: 100%">
+          <el-table-column prop="productName" label="产品名称" min-width="150">
+            <template #default="{ row }">
+              <el-input v-model="row.productName" placeholder="产品名称" />
+            </template>
+          </el-table-column>
+          <el-table-column prop="productCode" label="产品编码" width="120">
+            <template #default="{ row }">
+              <el-input v-model="row.productCode" placeholder="编码" />
+            </template>
+          </el-table-column>
+          <el-table-column prop="quantity" label="数量" width="100">
+            <template #default="{ row }">
+              <el-input-number v-model="row.quantity" :min="0" style="width: 100%" />
+            </template>
+          </el-table-column>
+          <el-table-column prop="unitPrice" label="单价" width="100">
+            <template #default="{ row }">
+              <el-input-number v-model="row.unitPrice" :min="0" :precision="2" style="width: 100%" />
+            </template>
+          </el-table-column>
+          <el-table-column label="金额" width="100">
+            <template #default="{ row }">
+              {{ formatMoney((row.quantity || 0) * (row.unitPrice || 0)) }}
+            </template>
+          </el-table-column>
+          <el-table-column prop="reason" label="退货原因" min-width="120">
+            <template #default="{ row }">
+              <el-input v-model="row.reason" placeholder="退货原因" />
+            </template>
+          </el-table-column>
+          <el-table-column label="操作" width="80">
+            <template #default="{ $index }">
+              <el-button size="small" link type="danger" @click="removeReturnItem($index)"
+                >删除</el-button
+              >
+            </template>
+          </el-table-column>
+        </el-table>
+        <el-button type="primary" link style="margin-top: 8px" @click="addReturnItem"
+          >添加产品</el-button
+        >
+      </el-form>
+      <template #footer>
+        <el-button @click="returnDialogVisible = false">取消</el-button>
+        <el-button type="primary" :loading="returnSubmitLoading" @click="submitReturn"
+          >确定</el-button
+        >
+      </template>
+    </el-dialog>
 
     <!-- 退货详情对话框 -->
     <el-dialog v-model="returnViewVisible" title="销售退货详情" width="800px">
@@ -120,7 +213,8 @@
 import { reactive, ref, onMounted } from 'vue'
 import { ElMessage } from 'element-plus'
 import { Plus } from '@element-plus/icons-vue'
-import { salesReturnApi, type SalesReturn } from '@/api/sales-return'
+import type { FormInstance, FormRules } from 'element-plus'
+import { salesReturnApi, type SalesReturn, type SalesReturnItem } from '@/api/sales-return'
 
 const salesReturns = ref<SalesReturn[]>([])
 const returnLoading = ref(false)
@@ -185,10 +279,98 @@ const resetReturnQuery = () => {
   fetchSalesReturns()
 }
 
-const openReturnDialog = (_row?: SalesReturn) => {
-  // 销售退货创建/编辑对话框在原文件中存在；
-  // 完整迁移请参考 purchase-ext/tabs/ReturnTab.vue 的实现模式。
-  ElMessage.info('请使用行内编辑或参考 purchase-ext/tabs/ReturnTab.vue 实现')
+// 扩展指令（批次 86）：补全退货编辑表单状态与提交逻辑，替换原占位符
+const returnDialogVisible = ref(false)
+const returnFormRef = ref<FormInstance>()
+const returnSubmitLoading = ref(false)
+const returnForm = reactive({
+  id: 0,
+  returnNo: '',
+  customerId: 0,
+  customerName: '',
+  salesOrderId: 0,
+  salesOrderNo: '',
+  returnDate: '',
+  reason: '',
+  status: 'draft',
+  items: [] as SalesReturnItem[],
+})
+
+const returnRules: FormRules = {
+  returnNo: [{ required: true, message: '请输入退货单号', trigger: 'blur' }],
+  customerName: [{ required: true, message: '请输入客户名称', trigger: 'blur' }],
+  returnDate: [{ required: true, message: '请选择退货日期', trigger: 'change' }],
+  reason: [{ required: true, message: '请输入退货原因', trigger: 'blur' }],
+}
+
+const openReturnDialog = async (row?: SalesReturn) => {
+  if (row) {
+    const res = await salesReturnApi.getById(row.id!)
+    Object.assign(returnForm, res.data!)
+  } else {
+    Object.assign(returnForm, {
+      id: 0,
+      returnNo: '',
+      customerId: 0,
+      customerName: '',
+      salesOrderId: 0,
+      salesOrderNo: '',
+      returnDate: '',
+      reason: '',
+      status: 'draft',
+      items: [
+        {
+          productId: 0,
+          productName: '',
+          productCode: '',
+          quantity: 0,
+          unitPrice: 0,
+          reason: '',
+        } as SalesReturnItem,
+      ],
+    })
+  }
+  returnDialogVisible.value = true
+}
+
+const submitReturn = async () => {
+  const valid = await returnFormRef.value?.validate()
+  if (!valid) return
+
+  returnSubmitLoading.value = true
+  try {
+    if (returnForm.id) {
+      await salesReturnApi.update(returnForm.id, returnForm)
+      ElMessage.success('更新成功')
+    } else {
+      await salesReturnApi.create(returnForm)
+      ElMessage.success('创建成功')
+    }
+    returnDialogVisible.value = false
+    fetchSalesReturns()
+  } catch (error) {
+    const err = error as { message?: string }
+    ElMessage.error(err.message || '操作失败')
+  } finally {
+    returnSubmitLoading.value = false
+  }
+}
+
+const addReturnItem = () => {
+  returnForm.items.push({
+    productId: 0,
+    productName: '',
+    productCode: '',
+    quantity: 0,
+    unitPrice: 0,
+    reason: '',
+  } as SalesReturnItem)
+}
+
+const removeReturnItem = (index: number) => {
+  if (returnForm.items.length > 1) {
+    returnForm.items.splice(index, 1)
+  }
 }
 
 const returnViewVisible = ref(false)

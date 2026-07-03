@@ -153,8 +153,10 @@
         <el-table-column label="操作" width="250" align="center" fixed="right">
           <template #default="{ row }">
             <el-button type="primary" link size="small" @click="handleView(row)">查看</el-button>
+            <!-- P2-17 修复（批次 86 v2 复审）：编辑按钮补齐 v-permission -->
             <el-button
               v-if="row.lead_status !== 'CONVERTED'"
+              v-permission="'crm_lead:update'"
               type="primary"
               link
               size="small"

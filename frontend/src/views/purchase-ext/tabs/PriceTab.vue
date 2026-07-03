@@ -54,7 +54,12 @@
         </el-table-column>
         <el-table-column label="操作" width="180" fixed="right">
           <template #default="{ row }">
-            <el-button size="small" link @click="openPriceDialog(row as unknown as PurchasePrice)"
+            <!-- P2-17 修复（批次 86 v2 复审）：编辑按钮补齐 v-permission -->
+            <el-button
+              v-permission="'purchase_price:update'"
+              size="small"
+              link
+              @click="openPriceDialog(row as unknown as PurchasePrice)"
               >编辑</el-button
             >
           </template>

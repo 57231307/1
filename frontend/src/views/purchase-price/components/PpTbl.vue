@@ -39,8 +39,10 @@
           <el-button type="primary" link size="small" @click="emit('view', row as any)"
             >查看</el-button
           >
+          <!-- P2-17 修复（批次 86 v2 复审）：编辑按钮补齐 v-permission -->
           <el-button
             v-if="row.status === 'active'"
+            v-permission="'purchase_price:update'"
             type="primary"
             link
             size="small"

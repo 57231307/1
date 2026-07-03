@@ -172,18 +172,65 @@ export function getUnverifiedARPayments(): Promise<ApiResponse<ARPayment[]>> {
   return request.get('/ar/verifications/unverified/payments')
 }
 
-export function getARStatisticsReport(params?: QueryParams): Promise<ApiResponse<any>> {
+// P2-15 修复（批次 86 v2 复审）：4 处报表 ApiResponse<any> → 显式接口
+
+/** AR 统计报表汇总行 */
+export interface ARStatisticsReport {
+  total_invoice_amount: number
+  total_received_amount: number
+  total_unreceived_amount: number
+  total_verified_amount: number
+  total_unverified_amount: number
+  invoice_count: number
+  overdue_count: number
+  [key: string]: unknown
+}
+
+/** AR 日报表行 */
+export interface ARDailyReport {
+  date: string
+  invoice_amount: number
+  received_amount: number
+  verified_amount: number
+  invoice_count: number
+  [key: string]: unknown
+}
+
+/** AR 月报表行 */
+export interface ARMonthlyReport {
+  month: string
+  invoice_amount: number
+  received_amount: number
+  verified_amount: number
+  invoice_count: number
+  [key: string]: unknown
+}
+
+/** AR 账龄报表行 */
+export interface ARAgingReport {
+  customer_id: number
+  customer_name: string
+  age_0_30: number
+  age_31_60: number
+  age_61_90: number
+  age_91_180: number
+  age_180_plus: number
+  total_amount: number
+  [key: string]: unknown
+}
+
+export function getARStatisticsReport(params?: QueryParams): Promise<ApiResponse<ARStatisticsReport>> {
   return request.get('/ar/reports/statistics', { params })
 }
 
-export function getARDailyReport(date: string): Promise<ApiResponse<any>> {
+export function getARDailyReport(date: string): Promise<ApiResponse<ARDailyReport>> {
   return request.get('/ar/reports/daily', { params: { date } })
 }
 
-export function getARMonthlyReport(year: number, month: number): Promise<ApiResponse<any>> {
+export function getARMonthlyReport(year: number, month: number): Promise<ApiResponse<ARMonthlyReport>> {
   return request.get('/ar/reports/monthly', { params: { year, month } })
 }
 
-export function getARAgingReport(): Promise<ApiResponse<any>> {
+export function getARAgingReport(): Promise<ApiResponse<ARAgingReport>> {
   return request.get('/ar/reports/aging')
 }

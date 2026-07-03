@@ -48,15 +48,18 @@ pub struct CreateFabricOrderRequest {
 }
 
 /// 销售订单明细请求（面料行业版）
+///
+/// 批次 86 v2 复审 P2-11 修复：金额/数量字段 f64 → Decimal（消除精度漂移），
+/// 在 handler 入口添加非负校验 + round_dp(2) 精度校验
 #[derive(Debug, Deserialize)]
 pub struct FabricOrderItemRequest {
     pub product_id: i32,
     pub product_name: Option<String>,
-    pub quantity_meters: f64,
-    pub quantity_kg: f64,
-    pub unit_price_meters: f64,
-    pub gram_weight: Option<f64>,
-    pub width: Option<f64>,
+    pub quantity_meters: rust_decimal::Decimal,
+    pub quantity_kg: rust_decimal::Decimal,
+    pub unit_price_meters: rust_decimal::Decimal,
+    pub gram_weight: Option<rust_decimal::Decimal>,
+    pub width: Option<rust_decimal::Decimal>,
     pub color_no: String,
     pub batch_no: Option<String>,
     pub dye_lot_no: Option<String>,
@@ -66,12 +69,12 @@ pub struct FabricOrderItemRequest {
     pub color_name: Option<String>,
     pub batch_requirement: Option<String>,
     pub dye_lot_requirement: Option<String>,
-    pub base_price: Option<f64>,
+    pub base_price: Option<rust_decimal::Decimal>,
     pub paper_tube_weight: Option<rust_decimal::Decimal>,
     pub is_net_weight: Option<bool>,
-    pub color_extra_cost: Option<f64>,
-    pub grade_price_diff: Option<f64>,
-    pub final_price: Option<f64>,
+    pub color_extra_cost: Option<rust_decimal::Decimal>,
+    pub grade_price_diff: Option<rust_decimal::Decimal>,
+    pub final_price: Option<rust_decimal::Decimal>,
 }
 
 /// 更新销售订单请求
@@ -157,6 +160,63 @@ pub async fn create_fabric_order(
     use chrono::Utc;
     use rust_decimal::Decimal;
 
+    // P2-11 修复（批次 86 v2 复审）：金额/数量非负校验 + round_dp(2) 精度校验
+    for (idx, item) in req.items.iter().enumerate() {
+        if item.quantity_meters < Decimal::ZERO {
+            return Err(AppError::validation(format!(
+                "第 {} 项 quantity_meters 不能为负数",
+                idx + 1
+            )));
+        }
+        if item.quantity_kg < Decimal::ZERO {
+            return Err(AppError::validation(format!(
+                "第 {} 项 quantity_kg 不能为负数",
+                idx + 1
+            )));
+        }
+        if item.unit_price_meters < Decimal::ZERO {
+            return Err(AppError::validation(format!(
+                "第 {} 项 unit_price_meters 不能为负数",
+                idx + 1
+            )));
+        }
+        // 金额字段最多 2 位小数（货币精度）
+        if item.unit_price_meters.round_dp(2) != item.unit_price_meters {
+            return Err(AppError::validation(format!(
+                "第 {} 项 unit_price_meters 精度不能超过 2 位小数",
+                idx + 1
+            )));
+        }
+        if let Some(p) = item.base_price {
+            if p < Decimal::ZERO {
+                return Err(AppError::validation(format!(
+                    "第 {} 项 base_price 不能为负数",
+                    idx + 1
+                )));
+            }
+            if p.round_dp(2) != p {
+                return Err(AppError::validation(format!(
+                    "第 {} 项 base_price 精度不能超过 2 位小数",
+                    idx + 1
+                )));
+            }
+        }
+        if let Some(p) = item.final_price {
+            if p < Decimal::ZERO {
+                return Err(AppError::validation(format!(
+                    "第 {} 项 final_price 不能为负数",
+                    idx + 1
+                )));
+            }
+            if p.round_dp(2) != p {
+                return Err(AppError::validation(format!(
+                    "第 {} 项 final_price 精度不能超过 2 位小数",
+                    idx + 1
+                )));
+            }
+        }
+    }
+
     // 开启事务
     let txn = state
         .db
@@ -173,9 +233,10 @@ pub async fn create_fabric_order(
     let mut total_quantity_kg = Decimal::ZERO;
 
     for item in &req.items {
-        let quantity_meters = Decimal::from_f64_retain(item.quantity_meters).unwrap_or_default();
-        let unit_price = Decimal::from_f64_retain(item.unit_price_meters).unwrap_or_default();
-        let quantity_kg = Decimal::from_f64_retain(item.quantity_kg).unwrap_or_default();
+        // P2-11 修复：字段已是 Decimal，无需 from_f64_retain 转换
+        let quantity_meters = item.quantity_meters;
+        let unit_price = item.unit_price_meters;
+        let quantity_kg = item.quantity_kg;
 
         let amount = quantity_meters * unit_price;
         total_amount += amount;
@@ -217,17 +278,13 @@ pub async fn create_fabric_order(
 
     // 创建订单明细
     for item in &req.items {
-        let quantity_meters = Decimal::from_f64_retain(item.quantity_meters).unwrap_or_default();
-        let quantity_kg = Decimal::from_f64_retain(item.quantity_kg).unwrap_or_default();
-        let base_price_val =
-            Decimal::from_f64_retain(item.base_price.unwrap_or(item.unit_price_meters))
-                .unwrap_or_default();
-        let color_extra =
-            Decimal::from_f64_retain(item.color_extra_cost.unwrap_or(0.0)).unwrap_or_default();
-        let grade_diff =
-            Decimal::from_f64_retain(item.grade_price_diff.unwrap_or(0.0)).unwrap_or_default();
-        let final_p = Decimal::from_f64_retain(item.final_price.unwrap_or(item.unit_price_meters))
-            .unwrap_or_default();
+        // P2-11 修复：字段已是 Decimal，无需 from_f64_retain 转换
+        let quantity_meters = item.quantity_meters;
+        let quantity_kg = item.quantity_kg;
+        let base_price_val = item.base_price.unwrap_or(item.unit_price_meters);
+        let color_extra = item.color_extra_cost.unwrap_or_default();
+        let grade_diff = item.grade_price_diff.unwrap_or_default();
+        let final_p = item.final_price.unwrap_or(item.unit_price_meters);
         let subtotal = quantity_meters * final_p;
 
         let order_item = sales_order_item::ActiveModel {
@@ -252,12 +309,8 @@ pub async fn create_fabric_order(
             grade_required: Set(item.grade.clone()),
             quantity_meters: Set(quantity_meters),
             quantity_kg: Set(quantity_kg),
-            gram_weight: Set(Some(
-                Decimal::from_f64_retain(item.gram_weight.unwrap_or(0.0)).unwrap_or_default(),
-            )),
-            width: Set(Some(
-                Decimal::from_f64_retain(item.width.unwrap_or(0.0)).unwrap_or_default(),
-            )),
+            gram_weight: Set(item.gram_weight),
+            width: Set(item.width),
             batch_requirement: Set(item.batch_requirement.clone()),
             dye_lot_requirement: Set(item.dye_lot_requirement.clone()),
             base_price: Set(Some(base_price_val)),

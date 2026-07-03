@@ -26,8 +26,9 @@
         </el-table-column>
         <el-table-column label="操作" width="150" fixed="right">
           <template #default="{ row }">
-            <el-button size="small" link @click="openDeptDialog(row as any)">编辑</el-button>
-            <el-button size="small" link type="danger" @click="deleteDept(row as any)"
+            <!-- P2-17 修复（批次 86 v2 复审）：编辑/删除按钮补齐 v-permission -->
+            <el-button v-permission="'department:update'" size="small" link @click="openDeptDialog(row as any)">编辑</el-button>
+            <el-button v-permission="'department:delete'" size="small" link type="danger" @click="deleteDept(row as any)"
               >删除</el-button
             >
           </template>

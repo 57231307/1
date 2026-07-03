@@ -46,10 +46,19 @@ export function deletePrintTemplate(id: number): Promise<ApiResponse<void>> {
   return request.delete(`/print-templates/${id}`)
 }
 
+// P2-16 修复（批次 86 v2 复审）：previewPrintTemplate ApiResponse<any> → 显式接口
+
+/** 打印模板预览结果 */
+export interface PrintTemplatePreviewResult {
+  html: string
+  variables: Record<string, unknown>
+  [key: string]: unknown
+}
+
 export function previewPrintTemplate(
   id: number,
-  data?: Record<string, any>
-): Promise<ApiResponse<any>> {
+  data?: Record<string, unknown>
+): Promise<ApiResponse<PrintTemplatePreviewResult>> {
   return request.post(`/print-templates/${id}/preview`, data)
 }
 

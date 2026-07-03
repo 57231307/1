@@ -25,7 +25,8 @@
         </el-table-column>
         <el-table-column label="操作" width="200" fixed="right">
           <template #default="{ row }">
-            <el-button size="small" link @click="openWebhookDialog(row as unknown as WebhookRow)"
+            <!-- P2-17 修复（批次 86 v2 复审）：编辑/删除按钮补齐 v-permission -->
+            <el-button v-permission="'webhook:update'" size="small" link @click="openWebhookDialog(row as unknown as WebhookRow)"
               >编辑</el-button
             >
             <el-button
@@ -36,6 +37,7 @@
               >测试</el-button
             >
             <el-button
+              v-permission="'webhook:delete'"
               size="small"
               link
               type="danger"
