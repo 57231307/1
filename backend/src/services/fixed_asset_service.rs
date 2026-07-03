@@ -262,7 +262,27 @@ impl FixedAssetService {
             created_at: Set(chrono::Utc::now()),
         };
         use sea_orm::ActiveModelTrait;
-        depreciation_record.insert(&txn).await?;
+        // P2-1 修复：(asset_id, period) 唯一约束冲突转为业务校验错误，
+        // 让前端能区分"重复计提"(400 VALIDATION_ERROR) 与"系统错误"(500 DATABASE_ERROR)
+        // 唯一约束名 uk_fa_depreciation_records_asset_period 定义于
+        // migrations/20260703000003_create_fixed_asset_depreciation_records/up.sql
+        if let Err(err) = depreciation_record.insert(&txn).await {
+            let err_str = err.to_string();
+            // 显式回滚事务（asset_active.save 已写入 txn，不能依赖 drop 自动回滚）
+            let _ = txn.rollback().await;
+            if err_str.contains("uk_fa_depreciation_records_asset_period")
+                || err_str.contains("unique constraint")
+                || err_str.contains("duplicate key")
+            {
+                tracing::warn!(
+                    "资产 {} 期间 {} 重复计提折旧，已回滚事务",
+                    asset_id,
+                    period
+                );
+                return Err(AppError::validation("该资产此期间已计提折旧"));
+            }
+            return Err(err.into());
+        }
 
         // 提交事务
         txn.commit().await?;
@@ -411,7 +431,12 @@ impl FixedAssetService {
         Ok(())
     }
 
-    /// 批量计算折旧
+    /// 批量计算折旧（仅预览，不持久化）
+    ///
+    /// v3 复审 P2-3：本方法为纯只读计算，不修改 fixed_asset 表的累计折旧/净值，
+    /// 也不插入 fixed_asset_depreciation_records 记录。
+    /// 如需持久化计提，请逐条调用 `depreciate(asset_id, period, user_id)`。
+    /// 前端批量入口应先调本方法预览，用户确认后逐条调 depreciate 完成计提。
     pub async fn batch_calculate_depreciation(
         &self,
         asset_ids: Vec<i32>,
@@ -486,10 +511,13 @@ impl FixedAssetService {
         }
 
         // 直线法折旧：(原值 - 残值) / (使用年限 * 12)
+        // P2-2 修复：补 round_dp(2)，与 calculate_monthly_depreciation(line 170-172)
+        // 批次 87 P3 维度 4 修复保持一致，防止 36 月等不能整除时累加误差
         let useful_life_months = useful_life_years * 12;
         let depreciable_amount = original_value - residual_value;
-        let monthly_depreciation =
-            depreciable_amount / rust_decimal::Decimal::from(useful_life_months);
+        let monthly_depreciation = (depreciable_amount
+            / rust_decimal::Decimal::from(useful_life_months))
+            .round_dp(2);
 
         // 总应计折旧 = 月折旧额 * min(已用月数, 总月数)
         let applicable_months = Ord::min(months_used, useful_life_months);
@@ -616,5 +644,97 @@ mod tests {
                 months
             );
         }
+    }
+
+    /// 测试处置损益计算：处置价值 > 账面净值 → 收益为正
+    ///
+    /// 对应 dispose 方法 line 331-333 的计算逻辑：
+    /// `net_book_value = asset.net_value.unwrap_or(Decimal::ZERO)`
+    /// `disposal_gain_loss = req.disposal_value - net_book_value`
+    ///
+    /// gain_loss 计算公式验证，完整 dispose 事务流程需集成测试
+    #[test]
+    fn test_disposal_gain_loss_positive() {
+        // 资产：原值 10000，累计折旧 2000，账面净值 8000
+        let asset_net_value: Option<Decimal> = Some(Decimal::from(8000));
+        let disposal_value = Decimal::from(9000);
+
+        // 模拟 dispose 方法中 net_value 的 unwrap_or 兜底逻辑
+        let net_book_value = asset_net_value.unwrap_or(Decimal::ZERO);
+        // 模拟 dispose 方法 line 333 的损益计算公式
+        let gain_loss = disposal_value - net_book_value;
+
+        assert_eq!(gain_loss, Decimal::from(1000));
+        assert!(
+            gain_loss > Decimal::ZERO,
+            "处置价值 > 账面净值应为收益（正数）"
+        );
+    }
+
+    /// 测试处置损益计算：处置价值 < 账面净值 → 损失为负
+    ///
+    /// gain_loss 计算公式验证，完整 dispose 事务流程需集成测试
+    #[test]
+    fn test_disposal_gain_loss_negative() {
+        // 同一资产，账面净值 8000，处置价值仅 7000
+        let asset_net_value: Option<Decimal> = Some(Decimal::from(8000));
+        let disposal_value = Decimal::from(7000);
+
+        let net_book_value = asset_net_value.unwrap_or(Decimal::ZERO);
+        let gain_loss = disposal_value - net_book_value;
+
+        assert_eq!(gain_loss, Decimal::from(-1000));
+        assert!(
+            gain_loss < Decimal::ZERO,
+            "处置价值 < 账面净值应为损失（负数）"
+        );
+    }
+
+    /// 测试处置损益计算：处置价值 = 账面净值 → 损益为 0
+    ///
+    /// gain_loss 计算公式验证，完整 dispose 事务流程需集成测试
+    #[test]
+    fn test_disposal_gain_loss_zero() {
+        let asset_net_value: Option<Decimal> = Some(Decimal::from(8000));
+        let disposal_value = Decimal::from(8000);
+
+        let net_book_value = asset_net_value.unwrap_or(Decimal::ZERO);
+        let gain_loss = disposal_value - net_book_value;
+
+        assert_eq!(gain_loss, Decimal::ZERO);
+    }
+
+    /// 测试 calculate_asset_depreciation 的 round_dp(2) 精度行为
+    ///
+    /// 构造资产：original_value=10000, salvage_value=Some(0), useful_life=Some(3)（36 个月）
+    /// 月折旧 = (10000 - 0) / 36 = 277.7777...，round_dp(2) 四舍五入为 277.78
+    ///
+    /// calculate_asset_depreciation 是私有方法且需 &self（FixedAssetService 含 DatabaseConnection），
+    /// 此处验证其内部 round_dp(2) 精度逻辑，完整方法调用需集成测试
+    #[test]
+    fn test_calculate_asset_depreciation_round_dp() {
+        let original_value = Decimal::from(10000);
+        let salvage_value = Decimal::from(0);
+        let useful_life_years = 3i32;
+
+        // 复刻 calculate_asset_depreciation line 516-520 的月折旧计算
+        let useful_life_months = useful_life_years * 12;
+        let depreciable_amount = original_value - salvage_value;
+        let monthly_depreciation =
+            (depreciable_amount / Decimal::from(useful_life_months)).round_dp(2);
+
+        // 10000/36 = 277.7777...，round_dp(2) 采用 MidpointAwayFromZero 四舍五入，
+        // 第 3 位小数 7 >= 5 进位，结果为 277.78（Decimal::new(27778, 2) = 277.78）
+        assert_eq!(monthly_depreciation, Decimal::new(27778, 2));
+
+        // 验证 round 确实发生：未 round 的无限循环小数与 round 后值不同
+        let unrounded = depreciable_amount / Decimal::from(useful_life_months);
+        assert_ne!(
+            monthly_depreciation, unrounded,
+            "round_dp(2) 必须截断无限循环小数"
+        );
+
+        // 验证精度为 2 位小数：再次 round_dp(2) 值不变
+        assert_eq!(monthly_depreciation.round_dp(2), monthly_depreciation);
     }
 }

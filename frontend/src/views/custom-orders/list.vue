@@ -72,6 +72,17 @@
             {{ row.expected_delivery_date || '-' }}
           </template>
         </el-table-column>
+        <!-- v3 复审 P2-4：新增备注列，使用 show-overflow-tooltip 处理长文本 -->
+        <el-table-column
+          prop="notes"
+          label="备注"
+          min-width="160"
+          show-overflow-tooltip
+        >
+          <template #default="{ row }">
+            {{ row.notes || '-' }}
+          </template>
+        </el-table-column>
         <el-table-column prop="created_at" label="创建时间" width="170" />
         <el-table-column label="操作" width="240" fixed="right">
           <template #default="{ row }">
@@ -126,6 +137,7 @@ import {
   CUSTOM_ORDER_STATUS as STATUS_LABELS,
   CUSTOM_ORDER_STATUS_COLORS as STATUS_COLORS,
 } from '@/api/custom-order'
+import type { CustomOrderListItem } from '@/api/custom-order'
 import logger from '@/utils/logger'
 
 const router = useRouter()
@@ -134,7 +146,7 @@ const orders = ref<any[]>([])
 const pagination = ref({ page: 1, page_size: 20, total: 0 })
 const filters = ref({ status: '', keyword: '' })
 
-function formatAmount(val: any) {
+function formatAmount(val: number | string | null | undefined) {
   if (val === null || val === undefined) return '0.00'
   return Number(val).toFixed(2)
 }
@@ -142,13 +154,19 @@ function formatAmount(val: any) {
 async function loadData() {
   loading.value = true
   try {
-    const res: any = await listCustomOrders({
+    const res = await listCustomOrders({
       page: pagination.value.page,
       page_size: pagination.value.page_size,
       ...filters.value,
     })
-    orders.value = res.data?.items || res.items || []
-    pagination.value.total = res.data?.total || res.total || 0
+    // P2-5：后端列表返回分页结构 { data: { items, total } }，与 API 声明简化为数组存在差异，断言兼容历史取值逻辑
+    const payload = res as unknown as {
+      data?: { items?: CustomOrderListItem[]; total?: number }
+      items?: CustomOrderListItem[]
+      total?: number
+    }
+    orders.value = payload.data?.items || payload.items || []
+    pagination.value.total = payload.data?.total || payload.total || 0
   } catch (e) {
     logger.error('加载定制订单失败', e)
     ElMessage.error('加载定制订单失败')
@@ -176,7 +194,7 @@ function goTracking(id: number) {
   router.push(`/custom-orders/${id}/track`)
 }
 
-async function handleAdvance(row: any) {
+async function handleAdvance(row: CustomOrderListItem) {
   try {
     await ElMessageBox.confirm(`确定推进订单 ${row.order_no} 到下一阶段？`, '确认推进', {
       type: 'warning',
@@ -185,14 +203,15 @@ async function handleAdvance(row: any) {
     await advanceCustomOrder(row.id, { operator_id: 1, notes: '状态推进' })
     ElMessage.success('推进成功')
     loadData()
-  } catch (e: any) {
+  } catch (e: unknown) {
     if (e !== 'cancel') {
-      ElMessage.error(e?.message || '推进失败')
+      const msg = e instanceof Error ? e.message : String(e)
+      ElMessage.error(msg || '推进失败')
     }
   }
 }
 
-async function handleCancel(row: any) {
+async function handleCancel(row: CustomOrderListItem) {
   try {
     const { value: reason } = await ElMessageBox.prompt('请输入取消原因', '取消定制订单', {
       confirmButtonText: '确定',
@@ -203,9 +222,10 @@ async function handleCancel(row: any) {
     await cancelCustomOrder(row.id, reason)
     ElMessage.success('取消成功')
     loadData()
-  } catch (e: any) {
+  } catch (e: unknown) {
     if (e !== 'cancel') {
-      ElMessage.error(e?.message || '取消失败')
+      const msg = e instanceof Error ? e.message : String(e)
+      ElMessage.error(msg || '取消失败')
     }
   }
 }

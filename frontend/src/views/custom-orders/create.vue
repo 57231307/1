@@ -154,12 +154,14 @@ async function handleSubmit() {
       product_id: form.value.product_id,
       custom_requirements,
     }
-    const res: any = await createCustomOrder(payload)
-    const orderId = res.data?.id || res.id
+    const res = await createCustomOrder(payload)
+    // P2-5：res.id 兼容历史取值（ApiResponse 无 id 字段），用断言保留运行时逻辑
+    const orderId = res.data?.id || (res as unknown as { id?: number }).id
     ElMessage.success('创建成功')
     router.push(`/custom-orders/${orderId}`)
-  } catch (e: any) {
-    ElMessage.error(e?.message || '创建失败')
+  } catch (e: unknown) {
+    const msg = e instanceof Error ? e.message : String(e)
+    ElMessage.error(msg || '创建失败')
   } finally {
     submitting.value = false
   }

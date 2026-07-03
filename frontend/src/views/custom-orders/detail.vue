@@ -97,14 +97,21 @@ import {
   CUSTOM_ORDER_STATUS as STATUS_LABELS,
   CUSTOM_ORDER_STATUS_COLORS as STATUS_COLORS,
 } from '@/api/custom-order'
+import type { CustomOrderDetail } from '@/api/custom-order'
 import ProcessFlow from '@/components/ProcessFlow.vue'
 import QualityCheck from '@/components/QualityCheck.vue'
 import logger from '@/utils/logger'
 import AfterSalesPanel from '@/components/AfterSalesPanel.vue'
 
+// P2-5：详情页 order 类型，扩展模板使用但 CustomOrderDetail 未声明的关联字段
+type CustomOrderDetailWithRelations = CustomOrderDetail & {
+  quality_issues?: unknown[]
+  after_sales?: unknown[]
+}
+
 const route = useRoute()
 const loading = ref(false)
-const order = ref<any>({})
+const order = ref<CustomOrderDetailWithRelations | null>(null)
 const activeTab = ref('info')
 
 async function loadData() {
@@ -112,8 +119,8 @@ async function loadData() {
   if (!id) return
   loading.value = true
   try {
-    const res: any = await getCustomOrder(id)
-    order.value = res.data || res
+    const res = await getCustomOrder(id)
+    order.value = (res.data || res) as unknown as CustomOrderDetailWithRelations
   } catch (e) {
     logger.error('加载订单失败', e)
     ElMessage.error('加载订单失败')
@@ -123,17 +130,22 @@ async function loadData() {
 }
 
 async function handleAdvance() {
+  if (!order.value) return
   try {
     await ElMessageBox.confirm('确定推进到下一阶段？', '确认推进', { type: 'warning' })
     await advanceCustomOrder(order.value.id, { operator_id: 1, notes: '状态推进' })
     ElMessage.success('推进成功')
     loadData()
-  } catch (e: any) {
-    if (e !== 'cancel') ElMessage.error(e?.message || '推进失败')
+  } catch (e: unknown) {
+    if (e !== 'cancel') {
+      const msg = e instanceof Error ? e.message : String(e)
+      ElMessage.error(msg || '推进失败')
+    }
   }
 }
 
 async function handleCancel() {
+  if (!order.value) return
   try {
     const { value: reason } = await ElMessageBox.prompt('请输入取消原因', '取消订单', {
       inputPattern: /\S+/,
@@ -142,8 +154,11 @@ async function handleCancel() {
     await cancelCustomOrder(order.value.id, reason)
     ElMessage.success('取消成功')
     loadData()
-  } catch (e: any) {
-    if (e !== 'cancel') ElMessage.error(e?.message || '取消失败')
+  } catch (e: unknown) {
+    if (e !== 'cancel') {
+      const msg = e instanceof Error ? e.message : String(e)
+      ElMessage.error(msg || '取消失败')
+    }
   }
 }
 
