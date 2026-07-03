@@ -181,11 +181,22 @@ impl AuditLogService {
         // P2 8-8 修复：update 后用 new_model 序列化为 after_snapshot
         let after_snapshot = serde_json::to_value(&new_model).ok();
 
+        // P3 8-20 修复：如果有 user_id，查询 users 表填充 username
+        let username = if let Some(uid) = user_id {
+            use crate::models::user;
+            user::Entity::find_by_id(uid)
+                .one(db)
+                .await?
+                .map(|u| u.username)
+        } else {
+            None
+        };
+
         // 记录审计日志
         let log = audit_log::ActiveModel {
             id: ActiveValue::NotSet,
             user_id: ActiveValue::Set(user_id),
-            username: ActiveValue::Set(None),
+            username: ActiveValue::Set(username),
             action: ActiveValue::Set("UPDATE".to_string()),
             resource_type: ActiveValue::Set(Some(resource_type.to_string())),
             resource_id: ActiveValue::Set(Some(record_id)),

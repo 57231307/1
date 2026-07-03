@@ -323,7 +323,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let db_result = Database::connect(db_opts).await;
 
-    let app = match db_result {
+    let mut app = match db_result {
         Ok(db) => {
             info!("数据库连接成功，启动完整模式");
 
@@ -605,10 +605,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                     axum::http::header::CONTENT_SECURITY_POLICY,
                     HeaderValue::from_static("default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; connect-src 'self' ws: wss:; font-src 'self' data:; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'; upgrade-insecure-requests;"),
                 ))
-                .layer(SetResponseHeaderLayer::overriding(
-                    axum::http::header::STRICT_TRANSPORT_SECURITY,
-                    HeaderValue::from_static("max-age=31536000; includeSubDomains; preload"),
-                ))
+                // P3 7-14 修复：HSTS 头移到 match 后条件注入，仅 production 环境生效
                 .layer(SetResponseHeaderLayer::overriding(
                     axum::http::header::REFERRER_POLICY,
                     HeaderValue::from_static("strict-origin-when-cross-origin"),
@@ -661,10 +658,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                         axum::http::header::CONTENT_SECURITY_POLICY,
                         HeaderValue::from_static("default-src 'self'; script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; connect-src 'self' ws: wss:; font-src 'self' data:; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none';"),
                     ))
-                    .layer(SetResponseHeaderLayer::overriding(
-                        axum::http::header::STRICT_TRANSPORT_SECURITY,
-                        HeaderValue::from_static("max-age=31536000; includeSubDomains; preload"),
-                    ))
+                    // P3 7-14 修复：HSTS 头移到 match 后条件注入，仅 production 环境生效
                     .layer(SetResponseHeaderLayer::overriding(
                         axum::http::header::REFERRER_POLICY,
                         HeaderValue::from_static("strict-origin-when-cross-origin"),
@@ -675,6 +669,15 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                     ))
         }
     };
+
+    // P3 7-14 修复：HSTS 头仅在 production 环境注入
+    // 原实现无条件注入，但 HTTP 模式下浏览器会忽略 HSTS 头，开发环境无效
+    if crate::utils::config::is_production() {
+        app = app.layer(SetResponseHeaderLayer::overriding(
+            axum::http::header::STRICT_TRANSPORT_SECURITY,
+            HeaderValue::from_static("max-age=31536000; includeSubDomains; preload"),
+        ));
+    }
 
     let http_addr: SocketAddr =
         format!("{}:{}", settings.server.host, settings.server.port).parse()?;

@@ -19,7 +19,6 @@ use axum::{
 use axum_extra::extract::cookie::SameSite;
 use serde::{Deserialize, Serialize};
 use time::Duration as CookieDuration;
-use utoipa::ToSchema;
 
 #[derive(Debug, Serialize)]
 pub struct RefreshTokenResponse {
@@ -27,11 +26,7 @@ pub struct RefreshTokenResponse {
     pub expires_in: u64,
 }
 
-#[derive(Debug, Serialize, ToSchema)]
-pub struct CsrfTokenResponse {
-    pub csrf_token: String,
-    pub header_name: String,
-}
+// P3 7-17 修复：已删除 CsrfTokenResponse（仅被 get_csrf_token 使用，一并清理）
 
 // Wave 3 安全漏洞 #7 修复：CSRF IP 绑定 + 强制轮换。
 // 仅抑制 `clippy::redundant_clone`：`token.clone()` / `csrf_token.clone()`
@@ -320,34 +315,6 @@ pub async fn get_current_user(
     }
 }
 
-/// 获取 CSRF Token（需登录态）
-/// 前端登录后调用此接口获取 CSRF Token，用于后续写请求的 X-CSRF-Token header
-///
-/// P2 7-8 修复：原 get_csrf_token 为公开接口，生成 UUID 不存缓存且无速率限制，
-/// 无法通过 CSRF 中间件校验，且可被匿名调用消耗资源。
-/// 改为需登录态（auth: AuthContext），CSRF 攻击仅针对已登录用户，
-/// 登录态要求使匿名攻击者无法获取 CSRF token。
-#[utoipa::path(
-    get,
-    path = "/api/v1/erp/auth/csrf-token",
-    responses(
-        (status = 200, description = "获取成功", body = ApiResponse<CsrfTokenResponse>),
-        (status = 401, description = "未登录")
-    ),
-    tags = ["Auth"]
-)]
-pub async fn get_csrf_token(
-    Extension(auth): Extension<AuthContext>,
-) -> Result<Json<ApiResponse<CsrfTokenResponse>>, AppError> {
-    // P2 7-8 修复：登录态校验由 AuthContext 中间件保证，匿名请求被 401 拦截
-    // CSRF token 基于用户 ID + 时间戳生成，前端用于 X-CSRF-Token header
-    let csrf_token = format!(
-        "{}-{}",
-        uuid::Uuid::new_v4(),
-        auth.user_id
-    );
-    Ok(Json(ApiResponse::success(CsrfTokenResponse {
-        csrf_token,
-        header_name: "X-CSRF-Token".to_string(),
-    })))
-}
+// P3 7-17 修复：已删除 get_csrf_token 死代码接口
+// 原实现生成 token 不存缓存，前端拿到后无法通过 CSRF 中间件校验。
+// CSRF token 已通过 login/refresh 的 Set-Cookie 头下发，前端从 cookie 读取。

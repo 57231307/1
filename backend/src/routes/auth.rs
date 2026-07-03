@@ -19,7 +19,9 @@ pub fn routes() -> Router<AppState> {
         .route("/login", post(auth_handler::login))
         .route("/logout", post(auth_handler_session::logout))
         .route("/refresh", post(auth_handler_misc::refresh_token))
-        .route("/csrf-token", get(auth_handler_misc::get_csrf_token))
+        // P3 7-17 修复：删除 get_csrf_token 死代码接口
+        // 原实现生成 token 不存缓存，前端拿到后无法通过 CSRF 中间件校验。
+        // CSRF token 已通过 login/refresh 的 Set-Cookie 头下发，前端从 cookie 读取。
         .route("/totp/setup", get(auth_handler_misc::setup_totp))
         .route("/totp/enable", post(auth_handler_misc::enable_totp))
         .route("/me", get(auth_handler_misc::get_current_user))

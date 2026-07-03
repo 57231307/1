@@ -10,6 +10,7 @@ use axum::{
     Json,
 };
 use serde::Deserialize;
+use validator::Validate;
 
 /// P0 8-5 修复：omni_audit 查询接口要求 admin 角色
 ///
@@ -37,14 +38,21 @@ async fn require_admin_role(
     Ok(())
 }
 
-#[derive(Debug, Deserialize)]
+// P3 8-19 修复：添加 validator 长度校验，防止超长字段污染审计日志或触发 DB 错误
+#[derive(Debug, Deserialize, validator::Validate)]
 pub struct TrackEventRequest {
+    #[validate(length(max = 64))]
     pub event_type: String,
+    #[validate(length(max = 128))]
     pub event_name: String,
+    #[validate(length(max = 64))]
     pub resource: String,
+    #[validate(length(max = 64))]
     pub action: String,
+    /// payload 上限 10KB（在 handler 中校验序列化后字节数）
     pub payload: Option<serde_json::Value>,
     pub duration_ms: Option<i32>,
+    #[validate(length(max = 32))]
     pub status: Option<String>,
 }
 
@@ -59,6 +67,19 @@ pub async fn track_event(
     State(state): State<AppState>,
     Json(req): Json<TrackEventRequest>,
 ) -> Result<Json<ApiResponse<()>>, AppError> {
+    // P3 8-19 修复：字段长度校验
+    req.validate()
+        .map_err(|e| AppError::validation(format!("埋点事件字段校验失败: {}", e)))?;
+    // P3 8-19 修复：payload 上限 10KB
+    if let Some(ref payload) = req.payload {
+        let payload_size = serde_json::to_string(payload)
+            .map(|s| s.len())
+            .unwrap_or(usize::MAX);
+        if payload_size > 10_240 {
+            return Err(AppError::validation("payload 超过 10KB 上限"));
+        }
+    }
+
     let trace_id = uuid::Uuid::new_v4().to_string();
 
     state.omni_audit.log(OmniAuditMessage {
@@ -161,9 +182,16 @@ pub async fn search_logs(
 
     use sea_orm::ConnectionTrait;
 
-    let page: u64 = filter.page.unwrap_or(1);
+    // P3 8-17 修复：page 上限 1000，防止深度分页全表扫描
+    let page: u64 = filter.page.unwrap_or(1).min(1000);
     let page_size: u64 = filter.page_size.unwrap_or(20).clamp(1, 100);
     let offset: u64 = page.saturating_sub(1) * page_size;
+
+    // P3 8-17 修复：强制日期范围限制（默认近 30 天），防止全表扫描
+    let now = chrono::Utc::now().date_naive();
+    let default_start = now - chrono::Duration::days(30);
+    let start_date = filter.start_date.unwrap_or(default_start);
+    let end_date = filter.end_date.unwrap_or(now);
 
     // P2 8-10 修复：动态构造 WHERE 子句
     let mut where_clauses: Vec<String> = Vec::new();
@@ -181,16 +209,13 @@ pub async fn search_logs(
         where_params.push(event_type.clone().into());
         param_idx += 1;
     }
-    if let Some(start_date) = filter.start_date {
-        where_clauses.push(format!("created_at >= ${}::date", param_idx));
-        where_params.push(start_date.into());
-        param_idx += 1;
-    }
-    if let Some(end_date) = filter.end_date {
-        where_clauses.push(format!("created_at < (${}::date + INTERVAL '1 day')", param_idx));
-        where_params.push(end_date.into());
-        param_idx += 1;
-    }
+    // P3 8-17 修复：日期范围改为强制（已在上文设置默认值近 30 天）
+    where_clauses.push(format!("created_at >= ${}::date", param_idx));
+    where_params.push(start_date.into());
+    param_idx += 1;
+    where_clauses.push(format!("created_at < (${}::date + INTERVAL '1 day')", param_idx));
+    where_params.push(end_date.into());
+    param_idx += 1;
     if let Some(ref keyword) = filter.keyword {
         // keyword 模糊匹配 description / resource_name / username 三个文本字段
         // 注意三个 ILIKE 共用同一个占位符 $param_idx，故只需绑定一次

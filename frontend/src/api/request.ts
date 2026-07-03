@@ -29,7 +29,7 @@ const CSRF_PUBLIC_PREFIXES = [
   '/auth/login',
   '/auth/refresh',
   '/auth/logout',
-  '/auth/csrf-token',
+  // P3 7-17 修复：删除 /auth/csrf-token（接口已删除，CSRF token 通过 login/refresh Set-Cookie 下发）
   '/init',
   '/health',
   '/ready',

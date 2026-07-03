@@ -1,3 +1,5 @@
+// P3 6-8 修复：将 if (await X.isVisible()) 弱断言改为 await expect(X).toBeVisible() 强断言
+// 注：本文件已全部使用强断言，无需修改 if 模式
 // 报价单 E2E 冒烟测试
 // - 覆盖：列表页 / 新建页 / 详情页 / 审批页
 // - 沙箱无 backend，全部走 API mock
