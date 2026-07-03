@@ -483,7 +483,6 @@ pub async fn get_timeline(
     State(state): State<AppState>,
     Path(id): Path<i64>,
 ) -> Result<Json<ApiResponse<ProcessTimeline>>, AppError> {
-    use sea_orm::EntityTrait;
     let crud_svc = CustomOrderCrudService::from_state(&state);
     let process_svc = CustomOrderProcessService::from_state(&state);
 

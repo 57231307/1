@@ -158,6 +158,7 @@ impl FixedAssetService {
     ///
     /// 保留此异步包装用于 handler 直接调用（如 GET /api/v1/erp/fixed-assets/:id/depreciation/preview）。
     /// 事务内请直接调用 `Self::calc_monthly_depreciation_for(&asset)`，避免事务外重复读。
+    #[allow(dead_code)] // TODO(tech-debt): 折旧预览 API 接入后移除（depreciate 已改用纯计算函数）
     pub async fn calculate_monthly_depreciation(&self, asset_id: i32) -> Result<Decimal, AppError> {
         let asset = self.get_by_id(asset_id).await?;
         Self::calc_monthly_depreciation_for(&asset)
