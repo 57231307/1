@@ -32,6 +32,8 @@ pub struct Model {
     pub created_by: Option<i64>,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
+    /// 批次 88 PH-1 占位符实现：订单备注（TEXT，可选）
+    pub notes: Option<String>,
 }
 
 #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]

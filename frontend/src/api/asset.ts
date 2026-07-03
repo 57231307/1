@@ -67,8 +67,9 @@ export function deleteAsset(id: number): Promise<ApiResponse<void>> {
   return request.delete(`/fixed-assets/${id}`)
 }
 
-export function depreciateAsset(id: number): Promise<ApiResponse<FixedAsset>> {
-  return request.post(`/fixed-assets/${id}/depreciate`)
+export function depreciateAsset(id: number, period: string): Promise<ApiResponse<FixedAsset>> {
+  // 批次 88 PH-2：补传 period 参数（YYYY-MM 格式），后端 DepreciateRequest 必填
+  return request.post(`/fixed-assets/${id}/depreciate`, { period })
 }
 
 export interface Budget {

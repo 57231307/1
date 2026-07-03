@@ -92,6 +92,8 @@ impl CustomOrderCrudService {
             created_by: Set(Some(user_id)),
             created_at: Set(now),
             updated_at: Set(now),
+            // 批次 88 PH-1 占位符实现：消费 DTO notes 字段，持久化到 custom_orders.notes
+            notes: Set(dto.notes),
         };
         let result = active.insert(&txn).await?;
 
@@ -216,8 +218,8 @@ impl CustomOrderCrudService {
             active.total_amount = Set(Some(v));
         }
         if let Some(v) = dto.notes {
-            // 暂存到 yarn_spec 字段（无 notes 字段；如有需要扩展 schema）
-            let _ = v;
+            // 批次 88 PH-1 占位符实现：持久化 notes 到 custom_orders.notes 列
+            active.notes = Set(Some(v));
         }
         active.updated_at = Set(Utc::now());
         let updated = active.update(&txn).await?;

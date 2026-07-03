@@ -118,6 +118,8 @@ pub mod sales_delivery;
 pub mod sales_delivery_item;
 // 固定资产处置模块
 pub mod fixed_asset_disposal;
+// 批次 88 PH-2：固定资产折旧期间记录模块
+pub mod fixed_asset_depreciation_record;
 // 资金转账记录模块
 pub mod fund_transfer_record;
 // 面料行业核心模块

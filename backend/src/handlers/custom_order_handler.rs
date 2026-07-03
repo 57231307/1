@@ -150,6 +150,8 @@ pub async fn list_custom_orders(
             currency: m.currency,
             sales_order_id: m.sales_order_id,
             created_at: m.created_at,
+            // 批次 88 PH-1 占位符实现：透传 notes 字段
+            notes: m.notes,
         })
         .collect();
 
@@ -194,6 +196,8 @@ pub async fn create_custom_order(
         currency: created.currency,
         sales_order_id: created.sales_order_id,
         created_at: created.created_at,
+        // 批次 88 PH-1 占位符实现：透传 notes 字段
+        notes: created.notes,
     })))
 }
 
@@ -243,6 +247,8 @@ pub async fn get_custom_order(
         created_by: order.created_by,
         created_at: order.created_at,
         updated_at: order.updated_at,
+        // 批次 88 PH-1 占位符实现：透传 notes 字段
+        notes: order.notes,
         process_nodes: nodes
             .into_iter()
             .map(|n| ProcessNodeInfo {
@@ -313,6 +319,8 @@ pub async fn update_custom_order(
         currency: updated.currency,
         sales_order_id: updated.sales_order_id,
         created_at: updated.created_at,
+        // 批次 88 PH-1 占位符实现：透传 notes 字段
+        notes: updated.notes,
     })))
 }
 
@@ -345,6 +353,8 @@ pub async fn cancel_custom_order(
         currency: updated.currency,
         sales_order_id: updated.sales_order_id,
         created_at: updated.created_at,
+        // 批次 88 PH-1 占位符实现：透传 notes 字段
+        notes: updated.notes,
     })))
 }
 
@@ -380,6 +390,8 @@ pub async fn advance_custom_order(
         currency: updated.currency,
         sales_order_id: updated.sales_order_id,
         created_at: updated.created_at,
+        // 批次 88 PH-1 占位符实现：透传 notes 字段
+        notes: updated.notes,
     })))
 }
 

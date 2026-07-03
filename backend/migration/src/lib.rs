@@ -33,6 +33,12 @@ pub mod m0029_drop_tenant_columns;
 pub mod m0030_create_crm_recycle_rules;
 // P0 8-2（批次 53）：omni_audit_logs 添加 HMAC-SHA256 防篡改签名列
 pub mod m0031_add_signature_to_omni_audit_logs;
+// 批次 88 PH-1：custom_orders 添加 notes 列（占位符实现）
+pub mod m0032_add_notes_to_custom_orders;
+// 批次 88 PH-3：fixed_asset_disposals 添加 gain_loss 列（占位符实现）
+pub mod m0033_add_gain_loss_to_fixed_asset_disposals;
+// 批次 88 PH-2：固定资产折旧期间记录表（占位符实现）
+pub mod m0034_create_fixed_asset_depreciation_records;
 
 pub struct Migrator;
 
@@ -71,6 +77,9 @@ impl MigratorTrait for Migrator {
             Box::new(m0029_drop_tenant_columns::Migration),
             Box::new(m0030_create_crm_recycle_rules::Migration),
             Box::new(m0031_add_signature_to_omni_audit_logs::Migration),
+            Box::new(m0032_add_notes_to_custom_orders::Migration),
+            Box::new(m0033_add_gain_loss_to_fixed_asset_disposals::Migration),
+            Box::new(m0034_create_fixed_asset_depreciation_records::Migration),
         ]
     }
 }
