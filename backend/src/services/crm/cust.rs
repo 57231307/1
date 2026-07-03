@@ -179,13 +179,14 @@ impl CrmService {
         let content = req.content.clone().unwrap_or_default();
         let follow_up_at = chrono::Utc::now();
         // P3 维度 3 修复（批次 87）：消除 expect panic，使用 unwrap_or 兜底
+        // CI 修复：and_hms_opt 返回 Option<NaiveDateTime>，兜底需用 NaiveDateTime::default
         let next_follow_up_at: Option<chrono::DateTime<chrono::Utc>> = req
             .next_follow_date
             .as_ref()
             .and_then(|s| chrono::NaiveDate::parse_from_str(s, "%Y-%m-%d").ok())
             .map(|d| {
                 d.and_hms_opt(0, 0, 0)
-                    .unwrap_or_else(chrono::NaiveTime::default)
+                    .unwrap_or_else(chrono::NaiveDateTime::default)
                     .and_utc()
             });
 
