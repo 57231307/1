@@ -9,7 +9,8 @@ pub(super) fn cmd_clean(clean_type: &str) {
 
     if clean_type == "logs" || clean_type == "all" {
         println!("清理旧日志 (30天前)...");
-        let _ = run_cmd(
+        // 批次 92 P3-8：清理类操作失败仅告警
+        if let Err(e) = run_cmd(
             "find",
             &[
                 &get_log_dir(),
@@ -19,13 +20,15 @@ pub(super) fn cmd_clean(clean_type: &str) {
                 "+30",
                 "-delete",
             ],
-        );
+        ) {
+            println!("[WARN] 清理日志失败（可忽略）: {}", e);
+        }
         println!("[OK] 日志清理完成");
     }
 
     if clean_type == "backups" || clean_type == "all" {
         println!("清理旧备份 (90天前)...");
-        let _ = run_cmd(
+        if let Err(e) = run_cmd(
             "find",
             &[
                 &get_backup_dir(),
@@ -35,14 +38,20 @@ pub(super) fn cmd_clean(clean_type: &str) {
                 "+90",
                 "-delete",
             ],
-        );
+        ) {
+            println!("[WARN] 清理备份失败（可忽略）: {}", e);
+        }
         println!("[OK] 备份清理完成");
     }
 
     if clean_type == "temp" || clean_type == "all" {
         println!("清理临时文件...");
-        let _ = run_cmd("rm", &["-rf", "/tmp/release-*.tar.gz"]);
-        let _ = run_cmd("rm", &["-rf", "/tmp/bingxi-erp"]);
+        if let Err(e) = run_cmd("rm", &["-rf", "/tmp/release-*.tar.gz"]) {
+            println!("[WARN] 清理 release tar 失败（可忽略）: {}", e);
+        }
+        if let Err(e) = run_cmd("rm", &["-rf", "/tmp/bingxi-erp"]) {
+            println!("[WARN] 清理 bingxi-erp 临时目录失败（可忽略）: {}", e);
+        }
         println!("[OK] 临时文件清理完成");
     }
 

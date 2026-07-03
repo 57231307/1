@@ -12,7 +12,6 @@ use serde::Deserialize;
 use validator::Validate;
 
 use crate::middleware::auth_context::AuthContext;
-use crate::models::after_sales as after_sales_model;
 use crate::models::custom_order_create_dto::{CancelCustomOrderDto, CreateCustomOrderDto, UpdateCustomOrderDto};
 use crate::models::custom_order_response_dto::{
     CustomOrderDetail, CustomOrderListItem, PagedResponse, ProcessNodeInfo, ProcessNodeWithLogs,
@@ -532,9 +531,6 @@ pub async fn get_timeline(
                 .collect(),
         })
         .collect();
-
-    // 避免未使用变量警告
-    let _ = after_sales_model::Entity::find();
 
     Ok(Json(ApiResponse::success(ProcessTimeline {
         order_id: order.id,

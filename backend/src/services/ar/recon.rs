@@ -100,6 +100,7 @@ impl ArReconciliationService {
         &self,
         id: i32,
         req: UpdateReconciliationRequest,
+        user_id: i32,
     ) -> Result<ReconciliationModel, AppError> {
         // P1 3-1 修复（批次 61）：状态机 lock_exclusive 补全，串行化并发更新
         // 原实现无 txn 无 lock，并发更新会导致 closing_balance 计算基于过期数据。
@@ -130,14 +131,13 @@ impl ArReconciliationService {
 
         active_model.updated_at = Set(Utc::now());
 
-        // TODO(tech-debt): update 方法签名暂无 user_id 参数，先用 Some(0) 占位，
-        // 待认证上下文接入后改为真实 user_id。
+        // 批次 92 P3-9：user_id 从 handler AuthContext 注入
         let updated =
             crate::services::audit_log_service::AuditLogService::update_with_audit(
                 &txn,
                 "auto_audit",
                 active_model,
-                Some(0),
+                Some(user_id),
             )
             .await?;
 
@@ -147,7 +147,7 @@ impl ArReconciliationService {
     }
 
     /// 删除对账单
-    pub async fn delete(&self, id: i32) -> Result<(), AppError> {
+    pub async fn delete(&self, id: i32, user_id: i32) -> Result<(), AppError> {
         let model = ReconciliationEntity::find_by_id(id)
             .one(&*self.db)
             .await?
@@ -161,15 +161,16 @@ impl ArReconciliationService {
         }
 
         // P0 8-3 修复：delete 操作补审计日志
+        // 批次 92 P3-9：user_id 从 handler AuthContext 注入
         crate::services::audit_log_service::AuditLogService::delete_with_audit::<
             ReconciliationEntity,
             _,
-        >(&*self.db, "ar_reconciliation", id, Some(0))
+        >(&*self.db, "ar_reconciliation", id, Some(user_id))
         .await
     }
 
     /// 发送对账单
-    pub async fn send(&self, id: i32) -> Result<ReconciliationModel, AppError> {
+    pub async fn send(&self, id: i32, user_id: i32) -> Result<ReconciliationModel, AppError> {
         // P1 3-3 修复（批次 61）：状态机 lock_exclusive 补全，串行化并发发送
         // 原实现无 txn 无 lock，状态门在事务外，并发 send 会竞态绕过 draft 状态门控。
         let txn = (*self.db).begin().await?;
@@ -190,14 +191,13 @@ impl ArReconciliationService {
         active_model.reconciliation_status = Set(Some("sent".to_string()));
         active_model.updated_at = Set(Utc::now());
 
-        // TODO(tech-debt): send 方法签名暂无 user_id 参数，先用 Some(0) 占位，
-        // 待认证上下文接入后改为真实 user_id。
+        // 批次 92 P3-9：user_id 从 handler AuthContext 注入
         let updated =
             crate::services::audit_log_service::AuditLogService::update_with_audit(
                 &txn,
                 "auto_audit",
                 active_model,
-                Some(0),
+                Some(user_id),
             )
             .await?;
 
@@ -244,7 +244,12 @@ impl ArReconciliationService {
     }
 
     /// 客户提出争议
-    pub async fn dispute(&self, id: i32, reason: String) -> Result<ReconciliationModel, AppError> {
+    pub async fn dispute(
+        &self,
+        id: i32,
+        reason: String,
+        user_id: i32,
+    ) -> Result<ReconciliationModel, AppError> {
         // 批次 25 v6 P0 修复：状态机 lock_exclusive 补全，串行化并发状态变更
         // 原实现状态变更无 txn 无 lock，两并发 dispute 同时通过门控后基于过期状态写入，
         // 导致 dispute_reason 被覆盖、状态机被并发破坏。
@@ -261,13 +266,12 @@ impl ArReconciliationService {
         active_model.dispute_reason = Set(Some(reason));
         active_model.updated_at = Set(Utc::now());
 
-        // TODO(tech-debt): dispute 方法签名暂无 user_id 参数，先用 Some(0) 占位，
-        // 待认证上下文接入后改为真实 user_id。
+        // 批次 92 P3-9：user_id 从 handler AuthContext 注入
         let result = crate::services::audit_log_service::AuditLogService::update_with_audit(
             &txn,
             "auto_audit",
             active_model,
-            Some(0),
+            Some(user_id),
         )
         .await?;
 
@@ -277,7 +281,7 @@ impl ArReconciliationService {
     }
 
     /// 关闭对账单
-    pub async fn close(&self, id: i32) -> Result<ReconciliationModel, AppError> {
+    pub async fn close(&self, id: i32, user_id: i32) -> Result<ReconciliationModel, AppError> {
         // 批次 25 v6 P0 修复：状态机 lock_exclusive 补全，串行化并发状态变更
         // 原实现状态变更无 txn 无 lock，状态门控（confirmed/disputed → closed）在并发场景下
         // 会被竞态绕过：两并发 close 同时通过门控后基于过期状态写入。
@@ -300,13 +304,12 @@ impl ArReconciliationService {
         active_model.reconciliation_status = Set(Some("closed".to_string()));
         active_model.updated_at = Set(Utc::now());
 
-        // TODO(tech-debt): close 方法签名暂无 user_id 参数，先用 Some(0) 占位，
-        // 待认证上下文接入后改为真实 user_id。
+        // 批次 92 P3-9：user_id 从 handler AuthContext 注入
         let result = crate::services::audit_log_service::AuditLogService::update_with_audit(
             &txn,
             "auto_audit",
             active_model,
-            Some(0),
+            Some(user_id),
         )
         .await?;
 
@@ -320,6 +323,7 @@ impl ArReconciliationService {
         &self,
         id: i32,
         status: &str,
+        user_id: i32,
     ) -> Result<ReconciliationModel, AppError> {
         // P1 3-2 修复（批次 61）：状态机 lock_exclusive 补全 + 状态白名单
         // 原实现无 txn 无 lock，且无状态白名单，任意字符串都能写入 reconciliation_status，
@@ -345,14 +349,13 @@ impl ArReconciliationService {
         active_model.reconciliation_status = Set(Some(status.to_string()));
         active_model.updated_at = Set(Utc::now());
 
-        // TODO(tech-debt): update_status 方法签名暂无 user_id 参数，先用 Some(0) 占位，
-        // 待认证上下文接入后改为真实 user_id。
+        // 批次 92 P3-9：user_id 从 handler AuthContext 注入
         let updated =
             crate::services::audit_log_service::AuditLogService::update_with_audit(
                 &txn,
                 "auto_audit",
                 active_model,
-                Some(0),
+                Some(user_id),
             )
             .await?;
 

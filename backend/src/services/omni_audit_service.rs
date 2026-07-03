@@ -52,10 +52,13 @@ impl OmniAuditEngine {
         // 仅在 cfg!(test) 或 ENV=test/development 时作为兜底默认密钥使用。
         const TEST_DEFAULT_KEY: &str = "test-only-audit-secret-do-not-use-in-production-32b";
 
-        let secret_key = std::env::var("AUDIT_SECRET_KEY")
-            .unwrap_or_else(|_| {
+        // 批次 92 P3-7：用 match 替代 unwrap_or_else，使生产环境缺失密钥时
+        // 能直接 return Err 从 OmniAuditEngine::new 返回（闭包内的 return 仅从闭包返回）
+        let secret_key = match std::env::var("AUDIT_SECRET_KEY") {
+            Ok(k) => k,
+            Err(_) => {
                 // 安全修复：未设置 AUDIT_SECRET_KEY 时，仅在测试/开发环境回退默认密钥
-                // 生产环境必须设置 AUDIT_SECRET_KEY 环境变量，否则启动 panic
+                // 生产环境必须设置 AUDIT_SECRET_KEY 环境变量，否则返回 Err 由调用方决定终止
                 let env = std::env::var("ENV").unwrap_or_default();
                 // cfg!(test) 覆盖单元测试场景；ENV=test/development 覆盖集成测试/开发场景
                 if cfg!(test) || env == "test" || env == "development" {
@@ -65,9 +68,13 @@ impl OmniAuditEngine {
                     );
                     TEST_DEFAULT_KEY.to_string()
                 } else {
-                    panic!("未设置 AUDIT_SECRET_KEY 环境变量，生产环境必须设置强密钥（至少32字节）");
+                    return Err(format!(
+                        "未设置 AUDIT_SECRET_KEY 环境变量，生产环境必须设置强密钥（至少32字节）；当前 ENV={}",
+                        env
+                    ));
                 }
-            });
+            }
+        };
 
         if secret_key.len() < 32 {
             return Err("AUDIT_SECRET_KEY 长度必须至少 32 字节".to_string());
