@@ -17,7 +17,8 @@
         </el-breadcrumb>
       </div>
       <div class="header-actions">
-        <el-button type="primary" @click="handleCreate">
+        <!-- P2-10 修复（批次 82 v1 复审）：补齐 v-permission 按钮权限 -->
+        <el-button v-permission="'suppliers:create'" type="primary" @click="handleCreate">
           <el-icon><Plus /></el-icon>
           新建供应商
         </el-button>

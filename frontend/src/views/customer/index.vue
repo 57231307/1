@@ -19,7 +19,8 @@
         </el-breadcrumb>
       </div>
       <div class="header-actions">
-        <el-button type="primary" @click="openCreateDialog">
+        <!-- P2-10 修复（批次 82 v1 复审）：补齐 v-permission 按钮权限 -->
+        <el-button v-permission="'customers:create'" type="primary" @click="openCreateDialog">
           <el-icon><Plus /></el-icon>
           新建客户
         </el-button>

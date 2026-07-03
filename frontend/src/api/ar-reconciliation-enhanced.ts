@@ -72,6 +72,34 @@ export interface DisputeRecord {
   created_by?: string
 }
 
+// P2-9c 修复（批次 82 v1 复审）：自动对账结果列表查询参数强类型化
+export interface AutoReconResultQueryParams {
+  page?: number
+  page_size?: number
+  task_id?: number
+  match_status?: string
+  customer_name?: string
+  status?: string
+  start_date?: string
+  end_date?: string
+}
+
+// P2-9c 修复（批次 82 v1 复审）：客户确认列表查询参数强类型化
+export interface ConfirmationQueryParams {
+  page?: number
+  page_size?: number
+  reconciliation_id?: number
+  confirm_status?: string
+}
+
+// P2-9c 修复（批次 82 v1 复审）：争议记录列表查询参数强类型化
+export interface DisputeQueryParams {
+  page?: number
+  page_size?: number
+  status?: string
+  dispute_type?: string
+}
+
 export function autoReconcile(params: {
   start_date: string
   end_date: string
@@ -81,7 +109,7 @@ export function autoReconcile(params: {
 }
 
 export function getAutoReconciliationResults(
-  params?: any
+  params?: AutoReconResultQueryParams
 ): Promise<ApiResponse<PageResult<AutoReconciliationResult>>> {
   return request.get('/ar-reconciliations-enhanced/auto-match', { params })
 }
@@ -104,7 +132,7 @@ export function sendCustomerConfirmation(id: number): Promise<ApiResponse<{ mess
 }
 
 export function getCustomerConfirmations(
-  params?: any
+  params?: ConfirmationQueryParams
 ): Promise<ApiResponse<PageResult<CustomerConfirmation>>> {
   return request.get('/ar-reconciliations-enhanced/confirmations', { params })
 }
@@ -120,7 +148,9 @@ export function createDispute(data: Partial<DisputeRecord>): Promise<ApiResponse
   return request.post('/ar-reconciliations-enhanced/disputes', data)
 }
 
-export function getDisputes(params?: any): Promise<ApiResponse<PageResult<DisputeRecord>>> {
+export function getDisputes(
+  params?: DisputeQueryParams
+): Promise<ApiResponse<PageResult<DisputeRecord>>> {
   return request.get('/ar-reconciliations-enhanced/disputes', { params })
 }
 

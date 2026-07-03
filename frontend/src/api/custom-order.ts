@@ -71,6 +71,133 @@ export const AFTER_SALES_STATUS: Record<string, string> = {
   rejected: '已拒绝',
 }
 
+// P2-9a 修复（批次 82 v1 复审）：定制订单 API 强类型化，替代 11 处 any
+// 字段与后端 DTO 对齐：custom_order_create_dto.rs / custom_order_update_dto.rs /
+// quality_issue_dto.rs / custom_order_aftersales_service.rs
+
+/** 创建定制订单请求（对齐后端 CreateCustomOrderDto） */
+export interface CustomOrderCreateDto {
+  customer_id: number
+  product_id: number
+  color_id?: number
+  spec: string
+  quantity: number
+  unit: string
+  custom_requirements?: unknown
+  yarn_spec?: string
+  dye_method?: string
+  finishing_method?: string
+  expected_delivery_date?: string
+  sales_order_id?: number
+  total_amount?: number
+  currency?: string
+  notes?: string
+}
+
+/** 更新定制订单请求（对齐后端 UpdateCustomOrderDto） */
+export interface CustomOrderUpdateDto {
+  spec?: string
+  quantity?: number
+  unit?: string
+  custom_requirements?: unknown
+  yarn_spec?: string
+  dye_method?: string
+  finishing_method?: string
+  expected_delivery_date?: string
+  total_amount?: number
+  notes?: string
+}
+
+/** 推进订单状态请求（对齐后端 AdvanceStatusDto）
+ * TODO(tech-debt): 后端 target_status 为必填，但现有调用方未传，
+ * 待 custom-orders 视图接入状态选择器后改为必填 */
+export interface CustomOrderAdvanceDto {
+  target_status?: string
+  operator_id: number
+  notes?: string
+}
+
+/** 添加工艺节点请求（对齐后端 CreateProcessNodeDto） */
+export interface ProcessNodeCreateDto {
+  node_type: string
+  node_name: string
+  sequence: number
+  planned_start_date?: string
+  planned_end_date?: string
+}
+
+/** 更新工艺节点请求（对齐后端 UpdateProcessNodeDto） */
+export interface ProcessNodeUpdateDto {
+  status?: string
+  operator_id?: number
+  actual_start_date?: string
+  actual_end_date?: string
+  notes?: string
+}
+
+/** 推进工艺节点请求（对齐后端 AdvanceNodeDto） */
+export interface ProcessNodeAdvanceDto {
+  action: string
+  operator_id: number
+  notes?: string
+  attachments?: string[]
+}
+
+/** 添加节点日志请求（对齐后端 AddProcessLogDto） */
+export interface NodeLogCreateDto {
+  action: string
+  operator_id: number
+  before_status?: string
+  after_status?: string
+  log_content?: string
+  attachments?: string[]
+}
+
+/** 上报质量异常请求（对齐后端 ReportQualityIssueDto）
+ * 注意：custom_order_id 通过 URL 路径参数传递，请求体中可选 */
+export interface QualityIssueCreateDto {
+  custom_order_id?: number
+  process_node_id?: number
+  issue_type: string
+  severity: string
+  description: string
+  color_delta_e?: number
+  color_fastness_grade?: number
+}
+
+/** 质量异常列表查询参数 */
+export interface QualityIssueQueryParams {
+  page?: number
+  page_size?: number
+  status?: string
+  severity?: string
+}
+
+/** 创建售后工单请求（对齐后端 CreateAfterSalesDto）
+ * 注意：custom_order_id 通过 URL 路径参数传递，请求体中可选 */
+export interface AfterSalesCreateDto {
+  custom_order_id?: number
+  customer_id?: number
+  issue_type: string
+  description: string
+  refund_amount?: number
+}
+
+/** 更新售后工单请求（对齐后端 UpdateAfterSalesDto） */
+export interface AfterSalesUpdateDto {
+  status?: string
+  resolution?: string
+  refund_amount?: number
+}
+
+/** 售后列表查询参数 */
+export interface AfterSalesQueryParams {
+  page?: number
+  page_size?: number
+  status?: string
+  type?: string
+}
+
 // 列表查询
 export function listCustomOrders(params: {
   page?: number
@@ -83,7 +210,7 @@ export function listCustomOrders(params: {
 }
 
 // 创建草稿
-export function createCustomOrder(data: any) {
+export function createCustomOrder(data: CustomOrderCreateDto) {
   return request.post('/custom-orders', data)
 }
 
@@ -93,7 +220,7 @@ export function getCustomOrder(id: number) {
 }
 
 // 更新
-export function updateCustomOrder(id: number, data: any) {
+export function updateCustomOrder(id: number, data: CustomOrderUpdateDto) {
   return request.put(`/custom-orders/${id}`, data)
 }
 
@@ -105,27 +232,27 @@ export function cancelCustomOrder(id: number, reason: string) {
 }
 
 // 推进状态
-export function advanceCustomOrder(id: number, data: { operator_id: number; notes?: string }) {
+export function advanceCustomOrder(id: number, data: CustomOrderAdvanceDto) {
   return request.post(`/custom-orders/${id}/advance`, data)
 }
 
 // 添加工艺节点
-export function addProcessNode(orderId: number, data: any) {
+export function addProcessNode(orderId: number, data: ProcessNodeCreateDto) {
   return request.post(`/custom-orders/${orderId}/nodes`, data)
 }
 
 // 更新工艺节点
-export function updateProcessNode(orderId: number, nodeId: number, data: any) {
+export function updateProcessNode(orderId: number, nodeId: number, data: ProcessNodeUpdateDto) {
   return request.put(`/custom-orders/${orderId}/nodes/${nodeId}`, data)
 }
 
 // 推进工艺节点
-export function advanceProcessNode(orderId: number, nodeId: number, data: any) {
+export function advanceProcessNode(orderId: number, nodeId: number, data: ProcessNodeAdvanceDto) {
   return request.post(`/custom-orders/${orderId}/nodes/${nodeId}/advance`, data)
 }
 
 // 添加节点日志
-export function addNodeLog(orderId: number, nodeId: number, data: any) {
+export function addNodeLog(orderId: number, nodeId: number, data: NodeLogCreateDto) {
   return request.post(`/custom-orders/${orderId}/nodes/${nodeId}/logs`, data)
 }
 
@@ -135,12 +262,12 @@ export function getTimeline(orderId: number) {
 }
 
 // 上报质量异常
-export function reportQualityIssue(orderId: number, data: any) {
+export function reportQualityIssue(orderId: number, data: QualityIssueCreateDto) {
   return request.post(`/custom-orders/${orderId}/issues`, data)
 }
 
 // 列出异常
-export function listQualityIssues(orderId: number, params?: any) {
+export function listQualityIssues(orderId: number, params?: QualityIssueQueryParams) {
   return request.get(`/custom-orders/${orderId}/issues`, { params })
 }
 
@@ -150,16 +277,16 @@ export function resolveQualityIssue(issueId: number, data: { resolution: string;
 }
 
 // 创建售后
-export function createAfterSales(orderId: number, data: any) {
+export function createAfterSales(orderId: number, data: AfterSalesCreateDto) {
   return request.post(`/custom-orders/${orderId}/after-sales`, data)
 }
 
 // 列出售后
-export function listAfterSales(orderId: number, params?: any) {
+export function listAfterSales(orderId: number, params?: AfterSalesQueryParams) {
   return request.get(`/custom-orders/${orderId}/after-sales`, { params })
 }
 
 // 更新售后
-export function updateAfterSales(afterSalesId: number, data: any) {
+export function updateAfterSales(afterSalesId: number, data: AfterSalesUpdateDto) {
   return request.put(`/custom-orders/after-sales/${afterSalesId}`, data)
 }

@@ -79,6 +79,7 @@ export interface PurchaseReceiptQueryParams {
   page_size?: number
   keyword?: string
   supplier_id?: number
+  warehouse_id?: number
   status?: string
   receipt_date_from?: string
   receipt_date_to?: string

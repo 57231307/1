@@ -138,8 +138,14 @@ async function handleSubmit() {
       ? { note: customReqText.value }
       : null
 
+    // P2-9a 修复配套：表单验证通过后 narrowing 必填字段，满足 CustomOrderCreateDto 类型
+    if (!form.value.customer_id || !form.value.product_id) {
+      throw new Error('客户和产品为必填项')
+    }
     const payload = {
       ...form.value,
+      customer_id: form.value.customer_id,
+      product_id: form.value.product_id,
       custom_requirements,
     }
     const res: any = await createCustomOrder(payload)

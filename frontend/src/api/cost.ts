@@ -21,6 +21,17 @@ export interface CostCollection {
   updated_at?: string
 }
 
+// P2-9c 修复（批次 82 v1 复审）：成本归集列表查询参数强类型化
+export interface CostCollectionQueryParams {
+  page?: number
+  page_size?: number
+  keyword?: string
+  batch_no?: string
+  status?: string
+  period?: string
+  type?: string
+}
+
 // TODO(tech-debt): 前端接入后移除（后端端点保留）
 export const deleteCollection = (id: number) => request.delete(`/production/cost-collections/${id}`)
 
@@ -29,7 +40,7 @@ export const auditCollection = (id: number, approved: boolean, comment?: string)
   request.post(`/production/cost-collections/${id}/audit`, { approved, comment })
 
 // 成本归集列表查询（重命名自 listCollections）
-export const listCostCollections = (params?: any) =>
+export const listCostCollections = (params?: CostCollectionQueryParams) =>
   request.get('/production/cost-collections', { params })
 
 // 创建成本归集（重命名自 createCollection）

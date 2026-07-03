@@ -85,19 +85,21 @@
 | P1-2o | sales_contract_handler Json<Value> | sales_contract_handler.rs:189 | 强类型 DTO + validator |
 | P1-5 | finance_invoice_handler 金额字段 f64 | finance_invoice_handler.rs:45,48,51 | f64 → Decimal + round_dp(2) 校验 |
 
-### 批次 82：前端类型清理 + 按钮权限（P2，5 项）
+### 批次 82：前端类型清理 + 按钮权限（P2，5 项）✅ 已完成
 
 **主题**：前端 API any 类型清理 + v-permission 按钮权限补齐
 **级别**：P2
 **项数**：5
+**修复分支**：`fix/v19-batch82-frontend-types-p2`
+**影响范围**：约 20 文件（API 类型定义 + .vue 按钮权限）
 
 | # | 问题 | 文件 | 修复 |
 |---|------|------|------|
-| P2-9a | custom-order.ts 11 处 data: any | custom-order.ts | 定义 CustomOrderCreateDto 等接口 |
+| P2-9a | custom-order.ts 11 处 data: any | custom-order.ts | 定义 11 个 DTO 接口（CustomOrderCreateDto 等）对齐后端 |
 | P2-9b | inventory.ts:175 返回类型含 any | inventory.ts | 定义 InventoryReportSummary / Detail 接口 |
-| P2-9c | 13+ API 文件 params?: any | 多文件 | 参照 InventoryQueryParams 模式补齐 |
+| P2-9c | 13+ API 文件 params?: any | 14 个 API 文件 | 定义 17 个 QueryParams 接口 + 3 处其他 any 清理 |
 | P2-9d | types/api.ts:56 PageResult<T = any> | types/api.ts | 改为 PageResult<T = unknown> |
-| P2-10 | v-permission 覆盖率极低 | 多 .vue 文件 | CRUD 按钮批量补齐 v-permission |
+| P2-10 | v-permission 覆盖率极低 | 8 个 .vue 文件 | 顶部"新建"按钮补齐 v-permission（覆盖率 1→9 文件） |
 
 ### 批次 83：安全一致性 + 测试质量（P2，6 项）
 
@@ -145,7 +147,7 @@
 | 79 | CRUD TOCTOU 修复 | P1 | 8 | ✅ 已完成 |
 | 80 | 错误处理修复 | P1 | 4 | ✅ 已完成 |
 | 81 | Json<Value> 强类型 DTO 改造 | P1 | 22 | ✅ 已完成 |
-| 82 | 前端类型清理 + 按钮权限 | P2 | 5 | 待启动 |
+| 82 | 前端类型清理 + 按钮权限 | P2 | 5 | ✅ 已完成 |
 | 83 | 安全一致性 + 测试质量 | P2 | 6 | 待启动 |
 | 84 | P2/P3 杂项清理 | P2/P3 | 14 | 待启动 |
 

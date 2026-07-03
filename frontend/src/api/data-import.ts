@@ -9,7 +9,8 @@ export interface ImportTemplate {
   module: 'customer' | 'supplier' | 'product' | 'inventory' | 'sales' | 'purchase' | 'finance'
   file_format: 'xlsx' | 'csv' | 'json'
   columns: ImportColumn[]
-  sample_data: any[]
+  // P2-9c 修复（批次 82 v1 复审）：样本数据结构不固定，any[] → unknown[]
+  sample_data: unknown[]
   status: 'active' | 'inactive'
   created_at: string
   updated_at: string

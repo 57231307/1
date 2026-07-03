@@ -53,7 +53,8 @@ export interface UserInfo {
   readonly permissions?: readonly string[]
 }
 
-export interface PageResult<T = any> {
+// P2-9d 修复（批次 82 v1 复审）：默认泛型 any → unknown，强制调用方显式指定泛型类型
+export interface PageResult<T = unknown> {
   list: T[]
   total: number
   page: number
