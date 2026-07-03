@@ -75,6 +75,18 @@ impl WarehouseService {
             }
         };
 
+        // 批次 93 P1 扩展：接入 manager（解析为 manager_id，与 update 方法对齐）
+        let manager_id = match req.manager {
+            Some(m) if !m.is_empty() => match m.parse::<i32>() {
+                Ok(parsed) => Some(parsed),
+                Err(e) => {
+                    tracing::warn!("仓库经理ID解析失败: {} ({})", m, e);
+                    return Err(AppError::bad_request(format!("仓库经理ID格式错误：{}", m)));
+                }
+            },
+            _ => None,
+        };
+
         let active_model = warehouse::ActiveModel {
             id: NotSet,
             warehouse_code: Set(code),
@@ -88,9 +100,10 @@ impl WarehouseService {
             postal_code: Set(None),
             phone: Set(req.phone),
             email: Set(None),
-            manager_id: Set(None),
+            manager_id: Set(manager_id),
             is_active: Set(true),
-            notes: Set(None),
+            // 批次 93 P1 扩展：接入 description（写入 notes 列，实现原 TODO 占位）
+            notes: Set(req.description),
             created_at: Set(Utc::now()),
             updated_at: Set(Utc::now()),
         };
