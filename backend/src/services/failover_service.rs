@@ -227,7 +227,8 @@ impl FailoverService {
         // 并发场景下两调用方都可能落到 else 分支导致重复 insert。
         // 改为用 txn 包裹 find + update/insert，失败返回 Err。
         let now = Utc::now();
-        let txn = (*self.db)
+        let txn = self
+            .db
             .begin()
             .await
             .map_err(|e| format!("开启事务失败: {}", e))?;
