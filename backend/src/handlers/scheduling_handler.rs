@@ -332,9 +332,10 @@ pub async fn adjust_schedule_task(
 
     // 返回前端期望的 ScheduleTask 形态（id/order_no/start_time/end_time）
     let format_date = |d: chrono::NaiveDate| -> String {
-        // P3 维度 3 修复（批次 87）：消除 expect panic，常量 (0,0,0) 必然合法，用 unwrap_or 兜底
+        // P3 维度 3 修复（批次 87）：消除 expect panic，常量 (0,0,0) 必然合法，用 unwrap_or_default 兜底
+        // CI 修复：用 unwrap_or_default 替代 unwrap_or_else(T::default)（clippy::unwrap_or_default 建议）
         let time =
-            chrono::NaiveTime::from_hms_opt(0, 0, 0).unwrap_or_else(chrono::NaiveTime::default);
+            chrono::NaiveTime::from_hms_opt(0, 0, 0).unwrap_or_default();
         chrono::NaiveDateTime::new(d, time)
             .and_utc()
             .to_rfc3339()
