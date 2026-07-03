@@ -497,6 +497,6 @@ pub async fn delete_seasonal_rule(
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     let service = ColorPriceSeasonalService::from_state(&state);
 
-    service.delete(id, auth.user_id).await.map_err(seasonal_err)?;
+    service.delete(id, auth.user_id).await?;
     Ok(Json(ApiResponse::success(json!({ "deleted": id }))))
 }

@@ -169,7 +169,7 @@ impl ColorPriceSeasonalService {
     // 批次 94 P2-5 修复：补 user_id 参数 + 使用 delete_with_audit_i64 记录审计日志
     // 原实现仅软删除（is_active=false）无审计日志，改为物理删除 + 审计日志，满足合规追溯要求
     pub async fn delete(&self, id: i64, user_id: i32) -> Result<(), AppError> {
-        crate::services::audit_log_service::AuditLogService::delete_with_audit_i64::<RuleEntity>(
+        crate::services::audit_log_service::AuditLogService::delete_with_audit_i64::<RuleEntity, _>(
             &*self.db,
             "color_price_seasonal",
             id,
