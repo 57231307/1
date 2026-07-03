@@ -247,8 +247,9 @@ impl FixedAssetService {
 
         // 批次 88 PH-2 占位符实现：插入折旧期间记录
         // (asset_id, period) 唯一约束防止同一资产同一期间重复计提
+        // v3 P1-1 修复：id: Set(0) 会覆盖 SERIAL 默认值导致第二次插入主键冲突，改为 Default::default()
         let depreciation_record = crate::models::fixed_asset_depreciation_record::ActiveModel {
-            id: Set(0),
+            id: Default::default(),
             asset_id: Set(asset_id),
             period: Set(period.to_string()),
             depreciation_amount: Set(monthly_depreciation),
@@ -312,8 +313,9 @@ impl FixedAssetService {
         let disposal_gain_loss = req.disposal_value - net_book_value;
 
         // 创建处置记录
+        // v3 P1-1 修复：id: Set(0) 会覆盖 SERIAL 默认值导致第二次插入主键冲突，改为 Default::default()
         let disposal = crate::models::fixed_asset_disposal::ActiveModel {
-            id: Set(0),
+            id: Default::default(),
             disposal_no: Set(disposal_no),
             asset_id: Set(asset_id),
             disposal_type: Set(req.disposal_type),
@@ -344,6 +346,38 @@ impl FixedAssetService {
             asset_id, req.disposal_value
         );
         Ok(())
+    }
+
+    /// 查询指定资产的折旧历史记录
+    ///
+    /// v3 复审 P1-3：折旧记录查询 API
+    /// 按 created_at 倒序返回，补 .limit(10_000) 兜底（与批次 87 LIMIT 模式一致）
+    pub async fn list_depreciation_records(
+        &self,
+        asset_id: i32,
+    ) -> Result<Vec<crate::models::fixed_asset_depreciation_record::Model>, AppError> {
+        let records = crate::models::fixed_asset_depreciation_record::Entity::find()
+            .filter(crate::models::fixed_asset_depreciation_record::Column::AssetId.eq(asset_id))
+            .order_by_desc(crate::models::fixed_asset_depreciation_record::Column::CreatedAt)
+            .limit(10_000)
+            .all(&*self.db)
+            .await?;
+        Ok(records)
+    }
+
+    /// 查询资产处置记录列表
+    ///
+    /// v3 复审 P1-8：处置记录查询 API
+    /// 按 created_at 倒序返回，补 .limit(10_000) 兜底（与批次 87 LIMIT 模式一致）
+    pub async fn list_disposals(
+        &self,
+    ) -> Result<Vec<crate::models::fixed_asset_disposal::Model>, AppError> {
+        let disposals = crate::models::fixed_asset_disposal::Entity::find()
+            .order_by_desc(crate::models::fixed_asset_disposal::Column::CreatedAt)
+            .limit(10_000)
+            .all(&*self.db)
+            .await?;
+        Ok(disposals)
     }
 
     /// 删除资产（仅支持未使用状态）

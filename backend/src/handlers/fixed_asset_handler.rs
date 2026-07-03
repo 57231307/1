@@ -213,6 +213,49 @@ pub async fn delete_asset(
     Ok(Json(ApiResponse::success(message)))
 }
 
+/// 查询指定资产的折旧历史记录
+///
+/// v3 复审 P1-3：折旧记录查询 API
+/// GET /api/v1/erp/fixed-assets/:id/depreciation-records
+pub async fn list_depreciation_records(
+    Path(id): Path<i32>,
+    State(state): State<AppState>,
+    auth: AuthContext,
+) -> Result<Json<ApiResponse<Vec<crate::models::fixed_asset_depreciation_record::Model>>>, AppError>
+{
+    info!(
+        "用户 {} 正在查询资产 {} 的折旧历史记录",
+        auth.user_id, id
+    );
+
+    let service = FixedAssetService::new(state.db.clone());
+    let records = service.list_depreciation_records(id).await?;
+    info!(
+        "资产 {} 折旧记录查询成功，共 {} 条记录",
+        id,
+        records.len()
+    );
+
+    Ok(Json(ApiResponse::success(records)))
+}
+
+/// 查询资产处置记录列表
+///
+/// v3 复审 P1-8：处置记录查询 API
+/// GET /api/v1/erp/fixed-assets/disposals
+pub async fn list_disposals(
+    State(state): State<AppState>,
+    auth: AuthContext,
+) -> Result<Json<ApiResponse<Vec<crate::models::fixed_asset_disposal::Model>>>, AppError> {
+    info!("用户 {} 正在查询资产处置记录列表", auth.user_id);
+
+    let service = FixedAssetService::new(state.db.clone());
+    let disposals = service.list_disposals().await?;
+    info!("资产处置记录查询成功，共 {} 条记录", disposals.len());
+
+    Ok(Json(ApiResponse::success(disposals)))
+}
+
 /// PUT /api/v1/erp/fixed-assets/:id - 更新固定资产
 pub async fn update_asset(
     Path(id): Path<i32>,

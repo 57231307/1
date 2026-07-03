@@ -72,6 +72,21 @@ export function depreciateAsset(id: number, period: string): Promise<ApiResponse
   return request.post(`/fixed-assets/${id}/depreciate`, { period })
 }
 
+// 资产处置请求（对齐后端 DisposeRequest）
+// v3 复审 P1-2：新增资产处置能力，支持出售/报废/转移
+export interface DisposalRequest {
+  disposal_type: string // SALE 出售 / SCRAP 报废 / TRANSFER 转移
+  disposal_value: number
+  disposal_date: string
+  reason: string
+  buyer_info?: string
+}
+
+// 资产处置：将指定资产标记为已处置并记录处置信息
+export function disposeAsset(id: number, data: DisposalRequest): Promise<ApiResponse<string>> {
+  return request.post(`/fixed-assets/${id}/dispose`, data)
+}
+
 export interface Budget {
   id: number
   budget_code: string

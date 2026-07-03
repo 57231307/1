@@ -74,11 +74,20 @@
             <el-tag :type="getStatusType(row.status)">{{ getStatusLabel(row.status) }}</el-tag>
           </template>
         </el-table-column>
-        <el-table-column label="操作" width="180" fixed="right">
+        <el-table-column label="操作" width="240" fixed="right">
           <template #default="{ row }">
             <el-button type="primary" link size="small" @click="openDialog(row)">编辑</el-button>
             <el-button type="success" link size="small" @click="handleDepreciate(row)"
               >折旧</el-button
+            >
+            <!-- v3 复审 P1-2：在用资产可处置，处置后状态置为 disposed -->
+            <el-button
+              v-if="row.status === 'active'"
+              type="warning"
+              link
+              size="small"
+              @click="handleDispose(row)"
+              >处置</el-button
             >
             <el-button type="danger" link size="small" @click="handleDelete(row)">删除</el-button>
           </template>
@@ -193,6 +202,58 @@
         <el-button type="primary" :loading="submitLoading" @click="handleSubmit">确定</el-button>
       </template>
     </el-dialog>
+
+    <!-- v3 复审 P1-2：资产处置对话框 -->
+    <el-dialog v-model="disposalDialogVisible" title="资产处置" width="520px">
+      <el-form
+        ref="disposalFormRef"
+        :model="disposalForm"
+        :rules="disposalRules"
+        label-width="100px"
+      >
+        <el-form-item label="处置方式" prop="disposal_type">
+          <el-select v-model="disposalForm.disposal_type" placeholder="选择处置方式" style="width: 100%">
+            <el-option label="出售" value="SALE" />
+            <el-option label="报废" value="SCRAP" />
+            <el-option label="转移" value="TRANSFER" />
+          </el-select>
+        </el-form-item>
+        <el-form-item label="处置价值" prop="disposal_value">
+          <el-input-number
+            v-model="disposalForm.disposal_value"
+            :min="0"
+            :precision="2"
+            style="width: 100%"
+          />
+        </el-form-item>
+        <el-form-item label="处置日期" prop="disposal_date">
+          <el-date-picker
+            v-model="disposalForm.disposal_date"
+            type="date"
+            placeholder="选择处置日期"
+            value-format="YYYY-MM-DD"
+            style="width: 100%"
+          />
+        </el-form-item>
+        <el-form-item label="处置原因" prop="reason">
+          <el-input
+            v-model="disposalForm.reason"
+            type="textarea"
+            :rows="3"
+            placeholder="请输入处置原因"
+          />
+        </el-form-item>
+        <el-form-item label="买方信息">
+          <el-input v-model="disposalForm.buyer_info" placeholder="买方/接收方信息（可选）" />
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <el-button @click="disposalDialogVisible = false">取消</el-button>
+        <el-button type="warning" :loading="disposalSubmitting" @click="submitDisposal"
+          >确认处置</el-button
+        >
+      </template>
+    </el-dialog>
   </div>
 </template>
 
@@ -206,9 +267,11 @@ import {
   updateAsset,
   deleteAsset as deleteAssetApi,
   depreciateAsset,
+  disposeAsset,
   type FixedAsset,
   type FixedAssetCreateRequest,
   type FixedAssetUpdateRequest,
+  type DisposalRequest,
 } from '@/api/asset'
 import { logger } from '@/utils/logger'
 
@@ -218,6 +281,26 @@ const dialogVisible = ref(false)
 const assetList = ref<FixedAsset[]>([])
 const total = ref(0)
 const formRef = ref<FormInstance>()
+
+// v3 复审 P1-2：资产处置对话框相关状态
+const disposalDialogVisible = ref(false)
+const disposalSubmitting = ref(false)
+const disposalFormRef = ref<FormInstance>()
+const disposalTargetId = ref<number | undefined>(undefined)
+const disposalForm = reactive<DisposalRequest>({
+  disposal_type: 'SALE',
+  disposal_value: 0,
+  disposal_date: new Date().toISOString().split('T')[0],
+  reason: '',
+  buyer_info: '',
+})
+
+const disposalRules: FormRules = {
+  disposal_type: [{ required: true, message: '请选择处置方式', trigger: 'change' }],
+  disposal_value: [{ required: true, message: '请输入处置价值', trigger: 'blur' }],
+  disposal_date: [{ required: true, message: '请选择处置日期', trigger: 'change' }],
+  reason: [{ required: true, message: '请输入处置原因', trigger: 'blur' }],
+}
 
 const queryForm = reactive({
   asset_code: '',
@@ -405,6 +488,37 @@ const handleDepreciate = async (row: FixedAsset) => {
       ElMessage.error(err.message || '折旧失败')
     }
   }
+}
+
+// v3 复审 P1-2：打开资产处置对话框，记录待处置资产 ID 并重置表单
+const handleDispose = (row: FixedAsset) => {
+  disposalTargetId.value = row.id
+  disposalForm.disposal_type = 'SALE'
+  disposalForm.disposal_value = 0
+  disposalForm.disposal_date = new Date().toISOString().split('T')[0]
+  disposalForm.reason = ''
+  disposalForm.buyer_info = ''
+  disposalDialogVisible.value = true
+}
+
+// v3 复审 P1-2：提交资产处置请求，成功后刷新列表
+const submitDisposal = async () => {
+  if (!disposalFormRef.value || !disposalTargetId.value) return
+  await disposalFormRef.value.validate(async valid => {
+    if (!valid) return
+    disposalSubmitting.value = true
+    try {
+      await disposeAsset(disposalTargetId.value, { ...disposalForm })
+      ElMessage.success('处置成功')
+      disposalDialogVisible.value = false
+      fetchAssets()
+    } catch (e) {
+      const err = e as Error
+      ElMessage.error(err.message || '处置失败')
+    } finally {
+      disposalSubmitting.value = false
+    }
+  })
 }
 
 const handleDepreciateAll = () => {

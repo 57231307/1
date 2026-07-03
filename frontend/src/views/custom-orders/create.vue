@@ -81,6 +81,10 @@
             placeholder="例如：特殊克重 220g/m²，幅宽 1.6m，要求 4 级色牢度"
           />
         </el-form-item>
+        <!-- v3 复审 P1-4：新增订单备注输入控件 -->
+        <el-form-item label="备注">
+          <el-input type="textarea" v-model="form.notes" :rows="2" placeholder="请输入订单备注" />
+        </el-form-item>
         <el-form-item>
           <el-button type="primary" :loading="submitting" @click="handleSubmit">保存草稿</el-button>
           <el-button @click="$router.back()">取消</el-button>
@@ -115,6 +119,8 @@ const form = ref({
   total_amount: undefined as number | undefined,
   currency: 'CNY',
   sales_order_id: undefined as number | undefined,
+  // v3 复审 P1-4：新增订单备注字段
+  notes: '',
 })
 
 const rules = {
