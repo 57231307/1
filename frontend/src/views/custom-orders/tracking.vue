@@ -85,6 +85,7 @@ import { ref, computed, onMounted, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { getTimeline, CUSTOM_ORDER_STATUS as STATUS_LABELS, CUSTOM_ORDER_STATUS_COLORS as STATUS_COLORS } from '@/api/custom-order'
+import type { TimelineProcessNode, NodeLog, CustomOrderProcessNode } from '@/api/custom-order'
 import logger from '@/utils/logger'
 
 const route = useRoute()
@@ -95,11 +96,11 @@ const orderId = computed(() => Number(route.params.id))
 const allLogs = computed(() => {
   if (!timeline.value?.nodes) return []
   return timeline.value.nodes
-    .flatMap((n: any) => (n.logs || []).map((l: any) => ({ ...l, node_name: n.node_name })))
-    .sort((a: any, b: any) => new Date(b.log_time).getTime() - new Date(a.log_time).getTime())
+    .flatMap((n: TimelineProcessNode) => (n.logs || []).map((l: NodeLog) => ({ ...l, node_name: n.node_name })))
+    .sort((a: NodeLog, b: NodeLog) => new Date(b.log_time).getTime() - new Date(a.log_time).getTime())
 })
 
-function formatDate(d: any) {
+function formatDate(d: string | Date | null | undefined) {
   if (!d) return ''
   return new Date(d).toLocaleString('zh-CN')
 }
@@ -131,7 +132,7 @@ function getLogColor(action: string) {
   return 'info'
 }
 
-function getBarWidth(node: any) {
+function getBarWidth(node: CustomOrderProcessNode) {
   if (node.status === 'completed') return '100%'
   if (node.status === 'in_progress') return '60%'
   if (node.status === 'blocked') return '40%'
@@ -143,7 +144,7 @@ async function loadData() {
   if (!id) return
   loading.value = true
   try {
-    const res: any = await getTimeline(id)
+    const res = await getTimeline(id)
     timeline.value = res.data || res
   } catch (e) {
     logger.error('加载时间线失败', e)

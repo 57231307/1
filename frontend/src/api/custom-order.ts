@@ -244,6 +244,32 @@ export interface CustomOrderDetail extends CustomOrderListItem {
   process_nodes: CustomOrderProcessNode[]
 }
 
+// v3 复审 P2-5：时间线相关类型，供 tracking.vue 替代 any
+
+/** 节点日志（对齐后端 ProcessLogResponse，tracking.vue 时间线日志项） */
+export interface NodeLog {
+  id: number
+  action: string
+  operator_id: number
+  before_status?: string
+  after_status?: string
+  log_content?: string
+  log_time: string
+  attachments?: string[]
+}
+
+/** 时间线工艺节点（扩展 CustomOrderProcessNode，含节点日志） */
+export interface TimelineProcessNode extends CustomOrderProcessNode {
+  logs: NodeLog[]
+}
+
+/** 订单时间线响应（getTimeline 返回结构） */
+export interface OrderTimeline {
+  order_no: string
+  current_status: string
+  nodes: TimelineProcessNode[]
+}
+
 // 列表查询
 export function listCustomOrders(params: {
   page?: number
@@ -311,7 +337,7 @@ export function addNodeLog(orderId: number, nodeId: number, data: NodeLogCreateD
 }
 
 // 获取时间线
-export function getTimeline(orderId: number) {
+export function getTimeline(orderId: number): Promise<ApiResponse<OrderTimeline>> {
   return request.get(`/custom-orders/${orderId}/timeline`)
 }
 
