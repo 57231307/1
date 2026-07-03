@@ -184,6 +184,10 @@ impl FixedAssetService {
     }
 
     /// 计提折旧
+    ///
+    /// 批次 85 v2 复审 P1-4 修复：状态门移入 txn + lock_exclusive 串行化
+    /// 原实现状态门在 self.db 查询（get_by_id），txn 在状态门后才开始，存在 TOCTOU
+    /// （并发 dispose/depreciate 会基于过期状态通过检查后重复写入）
     pub async fn depreciate(
         &self,
         asset_id: i32,
@@ -195,8 +199,15 @@ impl FixedAssetService {
             user_id, asset_id, period
         );
 
-        // 获取资产
-        let asset = self.get_by_id(asset_id).await?;
+        // 开启事务，状态门 + update 在同一事务内
+        let txn = (*self.db).begin().await?;
+
+        // 加 lock_exclusive 串行化并发状态变更
+        let asset = fixed_asset::Entity::find_by_id(asset_id)
+            .lock_exclusive()
+            .one(&txn)
+            .await?
+            .ok_or_else(|| AppError::not_found(format!("固定资产不存在：{}", asset_id)))?;
 
         // 检查资产状态
         if asset.status != "active" {
@@ -205,15 +216,12 @@ impl FixedAssetService {
             ));
         }
 
-        // 计算月折旧额
+        // 计算月折旧额（只读操作，在 self.db 上查询安全；状态已在 txn 内校验）
         let monthly_depreciation = self.calculate_monthly_depreciation(asset_id).await?;
 
         if monthly_depreciation <= Decimal::ZERO {
             return Err(AppError::validation("月折旧额不能为零"));
         }
-
-        // 开启事务
-        let txn = (*self.db).begin().await?;
 
         // 保留需要使用的字段值，避免 moved value 错误
         let accumulated_depreciation = asset.accumulated_depreciation;
@@ -242,6 +250,10 @@ impl FixedAssetService {
     }
 
     /// 资产处置
+    ///
+    /// 批次 85 v2 复审 P1-5 修复：状态门移入 txn + lock_exclusive 串行化
+    /// 原实现状态门在 self.db 查询（get_by_id），txn 在状态门后才开始，存在 TOCTOU
+    /// （并发 dispose/depreciate 会基于过期状态通过检查后重复写入）
     pub async fn dispose(
         &self,
         asset_id: i32,
@@ -250,7 +262,15 @@ impl FixedAssetService {
     ) -> Result<(), AppError> {
         info!("用户 {} 正在处置资产 {}", user_id, asset_id);
 
-        let asset = self.get_by_id(asset_id).await?;
+        // 开启事务，状态门 + update 在同一事务内
+        let txn = (*self.db).begin().await?;
+
+        // 加 lock_exclusive 串行化并发状态变更
+        let asset = fixed_asset::Entity::find_by_id(asset_id)
+            .lock_exclusive()
+            .one(&txn)
+            .await?
+            .ok_or_else(|| AppError::not_found(format!("固定资产不存在：{}", asset_id)))?;
 
         // 检查资产状态
         if asset.status != "active" {
@@ -258,9 +278,6 @@ impl FixedAssetService {
                 "只有活跃状态的资产才能处置".to_string(),
             ));
         }
-
-        // 开启事务
-        let txn = (*self.db).begin().await?;
 
         // 生成处置单号
         let disposal_no = format!("D{}{}", chrono::Local::now().format("%Y%m%d"), asset_id);

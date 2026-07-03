@@ -2,7 +2,7 @@
 use chrono::Utc;
 use sea_orm::{
     ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, Order,
-    PaginatorTrait, QueryFilter, QueryOrder, QuerySelect,
+    PaginatorTrait, QueryFilter, QueryOrder, QuerySelect, TransactionTrait,
 };
 use std::sync::Arc;
 
@@ -88,6 +88,9 @@ impl CustomerService {
     }
 
     /// 创建客户
+    ///
+    /// 批次 85 v2 复审 P1-6 修复：检查编码存在 + insert 移入单一事务 + lock_exclusive 串行化
+    /// 原实现检查编码和 insert 在 self.db 上分别执行，无 txn 无 lock，并发创建相同编码的客户会通过检查后重复插入
     #[allow(clippy::too_many_arguments)]
     pub async fn create_customer(
         &self,
@@ -110,10 +113,13 @@ impl CustomerService {
         notes: Option<String>,
         created_by: Option<i32>,
     ) -> Result<customer::Model, AppError> {
-        // 检查客户编码是否已存在
+        let txn = (*self.db).begin().await?;
+
+        // 检查客户编码是否已存在（加 lock_exclusive 防止并发创建相同编码）
         let existing = CustomerEntity::find()
             .filter(customer::Column::CustomerCode.eq(&customer_code))
-            .one(&*self.db)
+            .lock_exclusive()
+            .one(&txn)
             .await?;
 
         if existing.is_some() {
@@ -150,7 +156,9 @@ impl CustomerService {
             inspection_standard: sea_orm::ActiveValue::NotSet,
         };
 
-        customer.insert(&*self.db).await.map_err(AppError::from)
+        let result = customer.insert(&txn).await.map_err(AppError::from)?;
+        txn.commit().await?;
+        Ok(result)
     }
 
     /// 获取客户详情

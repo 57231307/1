@@ -8,7 +8,7 @@ use crate::utils::error::AppError;
 use chrono::Utc;
 use sea_orm::{
     ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, PaginatorTrait, QueryFilter,
-    Set,
+    QuerySelect, Set, TransactionTrait,
 };
 use serde_json::Value;
 use std::sync::Arc;
@@ -121,6 +121,9 @@ impl DataPermissionService {
     }
 
     /// 设置数据权限
+    ///
+    /// 批次 85 v2 复审 P1-8 修复：find + update/insert 移入单一事务 + lock_exclusive 串行化
+    /// 原实现 find + update/insert 在 self.db 上分别执行，无 txn 无 lock，并发设置相同权限会基于过期状态 upsert
     pub async fn set_data_permission(
         &self,
         role_id: i32,
@@ -130,10 +133,14 @@ impl DataPermissionService {
         allowed_fields: Option<Value>,
         hidden_fields: Option<Value>,
     ) -> Result<data_permission::Model, AppError> {
+        let txn = (*self.db).begin().await?;
+
+        // 加 lock_exclusive 串行化并发 upsert
         let existing = DataPermissionEntity::find()
             .filter(data_permission::Column::RoleId.eq(role_id))
             .filter(data_permission::Column::ResourceType.eq(&resource_type))
-            .one(&*self.db)
+            .lock_exclusive()
+            .one(&txn)
             .await?;
 
         let permission = if let Some(existing) = existing {
@@ -144,7 +151,7 @@ impl DataPermissionService {
             active_model.hidden_fields = Set(hidden_fields);
             active_model.is_enabled = Set(true);
             active_model.updated_at = Set(Utc::now());
-            active_model.update(&*self.db).await?
+            active_model.update(&txn).await?
         } else {
             let active_model = data_permission::ActiveModel {
                 id: Default::default(),
@@ -158,9 +165,10 @@ impl DataPermissionService {
                 created_at: Set(Utc::now()),
                 updated_at: Set(Utc::now()),
             };
-            active_model.insert(&*self.db).await?
+            active_model.insert(&txn).await?
         };
 
+        txn.commit().await?;
         Ok(permission)
     }
 

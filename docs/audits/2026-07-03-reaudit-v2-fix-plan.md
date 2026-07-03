@@ -76,12 +76,28 @@
 
 **延后项**（按 v1 经验，部分 P3 项可能延后到下一迭代，需在 PR 描述中明确标注）
 
+### 批次 88：占位符功能实现（批次 85 评估发现，3 项）
+
+**主题**：批次 85 P1 修复过程中发现的占位符/未完善功能实现
+**级别**：功能完善（需 schema 变更）
+**项数**：3
+**修复分支**：`fix/v19-batch88-placeholder-impl`
+
+| # | 文件 | 占位符 | 评估 | 实现方案 |
+|---|------|--------|------|----------|
+| PH-1 | custom_order_crud_service.rs:218-220 | `if let Some(v) = dto.notes { let _ = v; }` 注释"暂存到 yarn_spec 字段（无 notes 字段；如有需要扩展 schema）" | custom_order 模型无 notes 字段，DTO 有 notes 但被丢弃 | 新增 migration 添加 notes 列 + 修改 ActiveModel + update 方法接入 notes 字段 |
+| PH-2 | fixed_asset_service.rs:191 depreciate | `period: &str` 参数只用于日志，未按期间记录折旧 | 无折旧期间记录表，无法跟踪每个期间的折旧 | 新增 fixed_asset_depreciation_records 表 + migration + 折旧时插入期间记录 |
+| PH-3 | fixed_asset_service.rs:287 dispose | `let _disposal_gain_loss = req.disposal_value - net_book_value;` 计算后未使用 | fixed_asset_disposal 模型无 gain_loss 字段 | 新增 migration 添加 gain_loss 列 + 修改 ActiveModel + dispose 方法写入 gain_loss |
+
+**说明**：这 3 项占位符实现都需要 schema 变更（migration），超出 P1 事务边界修复范围，安排到专门批次以降低 CI 失败风险。
+
 ## 进度跟踪
 
 | 批次 | 主题 | 级别 | 项数 | 状态 |
 |------|------|------|------|------|
-| 85 | 事务边界 TOCTOU + 并发竞态 | P1 | 9 | ⬜ 待启动 |
+| 85 | 事务边界 TOCTOU + 并发竞态 | P1 | 9 | 🔄 修复中 |
 | 86 | P2 加固（lock_exclusive + 精度 + N+1 + 前端 + 安全） | P2 | 19 | ⬜ 待启动 |
 | 87 | P3 清理（错误处理 + 金额 + LIMIT + 测试） | P3 | 28 | ⬜ 待启动 |
+| 88 | 占位符功能实现（schema 变更） | 功能完善 | 3 | ⬜ 待启动 |
 
 **全部完成后**：v3 第三轮复审，循环直到无问题
