@@ -1,4 +1,5 @@
 pub mod customer;
+pub mod customer_contact;
 pub mod customer_followup;
 pub mod department;
 pub mod dto;

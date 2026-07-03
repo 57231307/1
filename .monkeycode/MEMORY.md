@@ -21,28 +21,57 @@
 
 ---
 
-## 当前任务状态（2026-07-03 批次 89 修复中 - v3 第三轮复审 P1 修复）
+## 当前任务状态（2026-07-03 v3 复审 P2 进行中 - P2-5 custom-orders any 清理完成）
 
-### 🔄 批次 89 进行中：v3 复审 P1 修复（8 项）
+### 🔄 v3 复审 P2-5 完成：清理 custom-orders 视图 any 类型断言（17 处，5 文件）
 
-**修复分支**：`fix/v19-batch89-v3-p1-fix`
-**基线 main HEAD**：`37a1dfe`（v3 复审报告 + 修复规划）
+**修复范围**：基于批次 89 P1-7 已定义的定制订单响应类型，清理 4 个 vue 文件（list/detail/tracking/create）中遗留的 any 类型断言
 
-**v3 复审结果**（基线 `docs/audits/2026-07-03-reaudit-v3.md`，36 项：P0=1, P1=8, P2=12, P3=15）：
-- 批次 89（🔄）：P1×8 修复中
-- 批次 90（⬜）：P2×12 待启动
+**修改文件**（5 个）：
+- `frontend/src/api/custom-order.ts`：新增 NodeLog/TimelineProcessNode/OrderTimeline 接口 + getTimeline 返回类型注解
+- `frontend/src/views/custom-orders/list.vue`：6 处 any 清理
+- `frontend/src/views/custom-orders/detail.vue`：4 处 any 清理 + CustomOrderDetailWithRelations 扩展类型（含 quality_issues/after_sales）
+- `frontend/src/views/custom-orders/tracking.vue`：5 处 any 清理
+- `frontend/src/views/custom-orders/create.vue`：2 处 any 清理
+
+**关键处理**：
+- list.vue：listCustomOrders 返回类型 `ApiResponse<CustomOrderListItem[]>` 与代码 `res.data?.items` 分页取值不一致，用 as unknown as 断言保持运行时
+- detail.vue：模板用 quality_issues/after_sales（CustomOrderDetail 接口未声明），定义交叉类型 `CustomOrderDetailWithRelations` + v-if="order" 守卫 + handleAdvance/handleCancel 加 `if (!order.value) return` null 守卫
+- create.vue：res.id 在 ApiResponse 上不存在，用 `(res as unknown as { id?: number }).id` 断言保留历史取值
+- catch (e: unknown) 统一模式：`e instanceof Error ? e.message : String(e)`
+- 残留 2 处 ref<any>（list.vue orders / tracking.vue timeline）不在任务清单，`@typescript-eslint/no-explicit-any` 为 warn（CI 用 --max-warnings 999999 不阻塞），按任务约束保留
+
+**eslint 规则备忘**：`@typescript-eslint/no-explicit-any` 当前为 warn（非 error），CI lint 用 `--max-warnings 999999` 且只看 errorCount，warn 不阻塞 CI。历史 800+ any 逐步收紧，详见 `docs/tech-debt/no-explicit-any-rollout.md`
+
+**下一步**：commit + push 触发 CI 验证（vue-tsc 类型检查是关键门禁，exit code 非 0 即失败）
+
+---
+
+### ✅ 批次 89 完成：v3 复审 P1 修复（8 项）
+
+**修复分支**：`fix/v19-batch89-v3-p1-fix`（已合并删除）
+**合并 commit**：`ab55eeb`（PR #332 squash merge，CI 12/13 全绿，E2E continue-on-error）
+**main HEAD**：`ab55eeb`
+
+**v3 复审批次进度**（基线 `docs/audits/2026-07-03-reaudit-v3.md`，36 项：P0=1, P1=8, P2=12, P3=15）：
+- 批次 89（✅）：P1×8 修复 → main `ab55eeb`
+- 批次 90（🔄）：P2×12 待启动
 - 批次 91（⬜）：P3×15 待评估
 - P0 特殊处理（⬜）：api_gateway 11 端点占位
 
-**批次 89 P1 修复清单（8 项）**：
-1. P1-1：fixed_asset_service id:Set(0) → Default::default()（2 处，避免主键冲突）
-2. P1-2：前端 disposeAsset API + 处置对话框（asset.ts + AssetListTab.vue）
-3. P1-3：折旧记录查询 API（service list_depreciation_records + handler + 路由）
-4. P1-4：custom-orders/create.vue notes 输入控件
-5. P1-5：custom-orders/detail.vue notes 展示
+**批次 89 关键修复**（8 项 P1）：
+1. P1-1：fixed_asset_service id:Set(0) → Default::default()（2 处，避免主键冲突，这是批次 88 引入的 P1 bug）
+2. P1-2：前端 disposeAsset API + 处置对话框（asset.ts DisposalRequest + AssetListTab.vue 处置按钮+对话框+表单校验+submitDisposal）
+3. P1-3：折旧记录查询 API（service list_depreciation_records + handler + GET /fixed-assets/:id/depreciation-records 路由）
+4. P1-4：custom-orders/create.vue notes textarea 输入控件
+5. P1-5：custom-orders/detail.vue el-descriptions 备注 item 展示
 6. P1-6：csp_middleware 死代码 #[allow(dead_code)] + TODO 注释
-7. P1-7：前端 CustomOrderListItem/Detail 响应类型定义
-8. P1-8：处置记录查询 API（service list_disposals + handler + 路由）
+7. P1-7：前端 CustomOrderListItem/Detail/ProcessNode 响应类型定义 + 6 个 API 函数补返回类型注解
+8. P1-8：处置记录查询 API（service list_disposals + handler + GET /fixed-assets/disposals 路由）
+
+**CI 修复**：
+- 第一次推送（e73052c）：前端类型检查失败 — AssetListTab.vue(511,26) `number | undefined` 不能赋给 `number`（闭包内 ref.value 重新推断）
+- 第二次推送（d0f7f7f）：提取局部变量 assetId 解决，12/13 全绿
 
 ---
 

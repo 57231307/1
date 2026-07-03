@@ -3,6 +3,54 @@
 > 本文件记录**当前任务**与**历史任务索引**。
 > 详细历史请查阅 [`.monkeycode/docs/archives/`](file:///workspace/.monkeycode/docs/archives/)。
 
+### 2026-07-03 v3 复审 P2-5 完成：清理 custom-orders 视图 any 类型断言（17 处，5 文件）
+
+**修复范围**：基于批次 89 P1-7 已定义的 CustomOrderListItem/CustomOrderDetail/CustomOrderProcessNode 接口，清理 4 个 vue 文件中遗留的 any 类型断言
+
+**修改文件**（5 个）：
+1. `frontend/src/api/custom-order.ts`：新增 NodeLog/TimelineProcessNode/OrderTimeline 接口 + getTimeline 返回类型注解
+2. `frontend/src/views/custom-orders/list.vue`：6 处 any 清理（formatAmount/res/handleAdvance/handleCancel/2 catch）
+3. `frontend/src/views/custom-orders/detail.vue`：4 处 any 清理（order ref/res/2 catch）+ 扩展类型 CustomOrderDetailWithRelations
+4. `frontend/src/views/custom-orders/tracking.vue`：5 处 any 清理（allLogs n/l/a/b + formatDate + getBarWidth + res）
+5. `frontend/src/views/custom-orders/create.vue`：2 处 any 清理（res/catch）
+
+**关键技术处理**：
+- list.vue：listCustomOrders 返回类型与代码分页取值不一致，用 as unknown as 断言保持运行时
+- detail.vue：模板用 quality_issues/after_sales（接口未声明），定义交叉类型 + v-if 守卫 + order.value null 守卫
+- create.vue：res.id 断言兼容 ApiResponse 无 id 字段
+- catch (e: unknown) 统一用 `e instanceof Error ? e.message : String(e)`
+- 残留 2 处 ref<any>（orders/timeline）不在任务清单，no-explicit-any 为 warn 不阻塞 CI，保留
+
+**下一步**：commit + push 触发 CI 验证（CI/CD Only 原则）
+
+---
+
+### 2026-07-03 v3 复审 P2-6 完成：批次 88 占位符功能 Tier 1 纯逻辑单元测试补充（6 个测试，2 文件）
+
+**修复范围**：为批次 88 新增的 3 项占位符功能（PH-1 custom_order notes / PH-3 fixed_asset disposal gain_loss / PH-2 fixed_asset 折旧期间记录）补充 Tier 1 纯逻辑单元测试，不依赖数据库，CI 友好
+
+**新增测试清单**（6 个测试函数）：
+
+文件 1：`backend/src/services/fixed_asset_service.rs`（在已有 tests mod 内追加 4 个）
+1. `test_disposal_gain_loss_positive`：处置价值 9000 > 账面净值 8000 → gain_loss = 1000（收益正数）
+2. `test_disposal_gain_loss_negative`：处置价值 7000 < 账面净值 8000 → gain_loss = -1000（损失负数）
+3. `test_disposal_gain_loss_zero`：处置价值 8000 = 账面净值 8000 → gain_loss = 0
+4. `test_calculate_asset_depreciation_round_dp`：10000/36 round_dp(2) = 277.78（验证精度截断）
+
+文件 2：`backend/src/services/custom_order_crud_service.rs`（首次新增 tests mod，含 make_test_dto 辅助函数 + 2 个测试）
+5. `test_notes_field_in_create_dto`：验证 CreateCustomOrderDto.notes 字段类型 Option<String> + 透传正确
+6. `test_notes_default_when_none`：验证 notes=None 时 DTO 字段为 None
+
+**关键说明**：
+- dispose/calculate_asset_depreciation/create_draft 方法需数据库事务，纯单元测试仅验证计算公式与 DTO 字段透传逻辑，测试注释标注"完整事务流程需集成测试"
+- 任务描述中 round_dp(2) 期望值 277.77 为笔误：rust_decimal round_dp 采用 MidpointAwayFromZero 四舍五入，10000/36=277.7777... 第 3 位 7≥5 进位，正确结果 277.78
+- 遵循项目规则：测试注释用中文、未修改生产代码、不依赖本地 cargo test（通过 CI 验证）
+- 参考现有 test_depreciation_calculation_logic 写法风格（纯算术逻辑验证，不调用 service 方法）
+
+**下一步**：commit + push 触发 CI 验证（遵循 CI/CD Only 原则）
+
+---
+
 ### 2026-07-03 批次 77 完成：测试边界与审计清理 P3（6-8/6-12/7-14/7-17/8-17/8-19/8-20）（✅ 已合并 main，CI 13/15 全绿，E2E cancelled 不阻塞）
 
 **main HEAD**：`f0a495f1`（规划文档标注完成）

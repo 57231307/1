@@ -116,14 +116,28 @@
                 </div>
               </template>
 
-              <el-table :data="customer.contacts" stripe>
+              <el-table :data="contacts" stripe v-loading="contactsLoading">
                 <el-table-column prop="name" label="姓名" width="120" />
-                <el-table-column prop="title" label="职务" width="150" />
+                <el-table-column prop="title" label="职务" width="150">
+                  <template #default="{ row }">{{ row.title || '-' }}</template>
+                </el-table-column>
                 <el-table-column prop="phone" label="电话" width="140" />
-                <el-table-column prop="email" label="邮箱" min-width="180" />
+                <el-table-column prop="email" label="邮箱" min-width="180">
+                  <template #default="{ row }">{{ row.email || '-' }}</template>
+                </el-table-column>
                 <el-table-column prop="is_primary" label="主联系人" width="100" align="center">
                   <template #default="{ row }">
                     <el-tag v-if="row.is_primary" type="warning" size="small">主</el-tag>
+                  </template>
+                </el-table-column>
+                <el-table-column label="操作" width="160" align="center">
+                  <template #default="{ row }">
+                    <el-button size="small" link type="primary" @click="handleEditContact(row)">
+                      编辑
+                    </el-button>
+                    <el-button size="small" link type="danger" @click="handleDeleteContact(row)">
+                      删除
+                    </el-button>
                   </template>
                 </el-table-column>
               </el-table>
@@ -188,15 +202,61 @@
         <FollowUpTab ref="followUpRef" :customer-id="customerId" @updated="fetchCustomer360" />
       </template>
     </div>
+
+    <!-- 批次 90b P2-12：联系人新增/编辑对话框（替代占位符） -->
+    <el-dialog
+      v-model="contactDialogVisible"
+      :title="contactDialogTitle"
+      width="500px"
+      @closed="resetContactForm"
+    >
+      <el-form
+        ref="contactFormRef"
+        :model="contactForm"
+        :rules="contactFormRules"
+        label-width="80px"
+      >
+        <el-form-item label="姓名" prop="name">
+          <el-input v-model="contactForm.name" placeholder="请输入联系人姓名" maxlength="50" />
+        </el-form-item>
+        <el-form-item label="职务" prop="title">
+          <el-input v-model="contactForm.title" placeholder="请输入职务" maxlength="100" />
+        </el-form-item>
+        <el-form-item label="电话" prop="phone">
+          <el-input v-model="contactForm.phone" placeholder="请输入联系电话" maxlength="50" />
+        </el-form-item>
+        <el-form-item label="邮箱" prop="email">
+          <el-input v-model="contactForm.email" placeholder="请输入邮箱" maxlength="100" />
+        </el-form-item>
+        <el-form-item label="主联系人" prop="is_primary">
+          <el-switch v-model="contactForm.is_primary" />
+        </el-form-item>
+        <el-form-item label="备注" prop="remarks">
+          <el-input
+            v-model="contactForm.remarks"
+            type="textarea"
+            :rows="2"
+            placeholder="备注（可选）"
+            maxlength="500"
+          />
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <el-button @click="contactDialogVisible = false">取消</el-button>
+        <el-button type="primary" :loading="contactSubmitting" @click="submitContactForm">
+          确定
+        </el-button>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { ElMessage } from 'element-plus'
+import { ElMessage, ElMessageBox, type FormInstance, type FormRules } from 'element-plus'
 import { Back, Plus } from '@element-plus/icons-vue'
-import crmEnhancedApi, { type Customer360 } from '@/api/crm-enhanced'
+import crmEnhancedApi, { type Contact, type Customer360 } from '@/api/crm-enhanced'
 import { logger } from '@/utils/logger'
 import FollowUpTab from './tabs/FollowUpTab.vue'
 import TagsPanelTab from './tabs/TagsPanelTab.vue'
@@ -208,6 +268,29 @@ const loading = ref(false)
 const customer = ref<Customer360 | null>(null)
 const customerId = Number(route.params.id)
 const followUpRef = ref<InstanceType<typeof FollowUpTab> | null>(null)
+
+// 批次 90b P2-12：联系人列表与对话框状态
+const contacts = ref<Contact[]>([])
+const contactsLoading = ref(false)
+const contactDialogVisible = ref(false)
+const contactDialogTitle = ref('新增联系人')
+const contactSubmitting = ref(false)
+const contactFormRef = ref<FormInstance | null>(null)
+const editingContactId = ref<number | null>(null)
+const contactForm = ref({
+  name: '',
+  title: '',
+  phone: '',
+  email: '',
+  is_primary: false,
+  remarks: '',
+})
+
+const contactFormRules: FormRules = {
+  name: [{ required: true, message: '请输入联系人姓名', trigger: 'blur' }],
+  phone: [{ required: true, message: '请输入联系电话', trigger: 'blur' }],
+  email: [{ type: 'email', message: '邮箱格式不正确', trigger: 'blur' }],
+}
 
 const formatCurrency = (amount: number) => `¥${(amount || 0).toFixed(2)}`
 
@@ -238,12 +321,110 @@ const fetchCustomer360 = async () => {
   }
 }
 
+// 批次 90b P2-12：拉取联系人列表（独立于 360 视图，避免每次刷新 360 都重复请求）
+const fetchContacts = async () => {
+  contactsLoading.value = true
+  try {
+    const res = await crmEnhancedApi.listContacts(customerId)
+    contacts.value = res.data || []
+  } catch (error) {
+    const msg = error instanceof Error ? error.message : String(error)
+    ElMessage.error(msg || '获取联系人列表失败')
+  } finally {
+    contactsLoading.value = false
+  }
+}
+
 const handleBack = () => {
   router.back()
 }
 
+// 批次 90b P2-12：打开新增联系人对话框
 const handleAddContact = () => {
-  ElMessage.info('新增联系人功能待实现')
+  editingContactId.value = null
+  contactDialogTitle.value = '新增联系人'
+  contactDialogVisible.value = true
+}
+
+// 批次 90b P2-12：打开编辑联系人对话框
+const handleEditContact = (row: Contact) => {
+  editingContactId.value = row.id
+  contactDialogTitle.value = '编辑联系人'
+  contactForm.value = {
+    name: row.name || '',
+    title: row.title || '',
+    phone: row.phone || '',
+    email: row.email || '',
+    is_primary: !!row.is_primary,
+    remarks: '',
+  }
+  contactDialogVisible.value = true
+}
+
+// 批次 90b P2-12：删除联系人
+const handleDeleteContact = async (row: Contact) => {
+  try {
+    await ElMessageBox.confirm(`确定删除联系人 "${row.name}"？`, '确认删除', {
+      type: 'warning',
+    })
+    await crmEnhancedApi.deleteContact(customerId, row.id)
+    ElMessage.success('删除成功')
+    fetchContacts()
+  } catch (error) {
+    if (error === 'cancel') return
+    const msg = error instanceof Error ? error.message : String(error)
+    ElMessage.error(msg || '删除失败')
+  }
+}
+
+// 批次 90b P2-12：重置表单
+const resetContactForm = () => {
+  contactForm.value = {
+    name: '',
+    title: '',
+    phone: '',
+    email: '',
+    is_primary: false,
+    remarks: '',
+  }
+  editingContactId.value = null
+  contactFormRef.value?.clearValidate()
+}
+
+// 批次 90b P2-12：提交表单（新增/编辑）
+const submitContactForm = async () => {
+  if (!contactFormRef.value) return
+  // Element Plus validate(callback) 形式下外层 await 不会等待 callback 内 async，故改为 try/catch 形式
+  try {
+    await contactFormRef.value.validate()
+  } catch {
+    return // 校验失败，el-form 会自动显示错误
+  }
+  contactSubmitting.value = true
+  try {
+    const payload = {
+      name: contactForm.value.name,
+      title: contactForm.value.title || undefined,
+      phone: contactForm.value.phone,
+      email: contactForm.value.email || undefined,
+      is_primary: contactForm.value.is_primary,
+      remarks: contactForm.value.remarks || undefined,
+    }
+    if (editingContactId.value === null) {
+      await crmEnhancedApi.createContact(customerId, payload)
+      ElMessage.success('联系人创建成功')
+    } else {
+      await crmEnhancedApi.updateContact(customerId, editingContactId.value, payload)
+      ElMessage.success('联系人更新成功')
+    }
+    contactDialogVisible.value = false
+    fetchContacts()
+  } catch (error) {
+    const msg = error instanceof Error ? error.message : String(error)
+    ElMessage.error(msg || '操作失败')
+  } finally {
+    contactSubmitting.value = false
+  }
 }
 
 onMounted(() => {
@@ -253,6 +434,7 @@ onMounted(() => {
     return
   }
   fetchCustomer360()
+  fetchContacts()
   logger.info('客户详情页加载完成', { customerId })
 })
 </script>

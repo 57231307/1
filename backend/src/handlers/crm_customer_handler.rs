@@ -11,6 +11,9 @@ use validator::Validate;
 
 use crate::middleware::auth_context::AuthContext;
 use crate::models::dto::crm_dto::{CreateLeadRequest, LeadQuery, UpdateLeadRequest};
+use crate::services::customer_service::{
+    CreateCustomerContactRequest, CustomerService, UpdateCustomerContactRequest,
+};
 use crate::services::crm::cust::CrmService;
 use crate::utils::app_state::AppState;
 use crate::utils::error::AppError;
@@ -135,30 +138,80 @@ pub async fn add_tags(
 }
 
 /// GET /api/v1/erp/crm/customers/:id/contacts - 获取联系人列表
+///
+/// 批次 90b P2-12：原实现从 crm_lead 拼接 JSON 伪联系人，改为查 customer_contacts 表真实数据。
 pub async fn list_contacts(
     State(state): State<AppState>,
     _auth: AuthContext,
     Path(customer_id): Path<i32>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
-    let service = CrmService::new(state.db.clone());
-    let lead = service.get_lead(customer_id).await?;
+    let service = CustomerService::new(state.db.clone());
+    let contacts = service.list_customer_contacts(customer_id).await?;
 
-    // 将线索的联系人信息作为单个联系人返回
-    let contacts = vec![serde_json::json!({
-        "id": lead.id,
-        "name": lead.contact_name,
-        "title": lead.contact_title,
-        "phone": lead.mobile_phone,
-        "tel": lead.tel_phone,
-        "email": lead.email,
-        "wechat": lead.wechat,
-        "qq": lead.qq,
-    })];
+    Ok(Json(ApiResponse::success(serde_json::to_value(contacts)?)))
+}
 
-    Ok(Json(ApiResponse::success(serde_json::json!({
-        "items": contacts,
-        "total": contacts.len()
-    }))))
+/// POST /api/v1/erp/crm/customers/:id/contacts - 创建联系人
+///
+/// 批次 90b P2-12：实现前端 detail.vue "新增联系人" 占位符的真实后端。
+#[axum::debug_handler]
+pub async fn create_contact(
+    State(state): State<AppState>,
+    auth: AuthContext,
+    Path(customer_id): Path<i32>,
+    Json(req): Json<CreateCustomerContactRequest>,
+) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
+    req.validate().map_err(|e| AppError::validation(e.to_string()))?;
+
+    let service = CustomerService::new(state.db.clone());
+    let contact = service
+        .create_customer_contact(customer_id, req, auth.user_id)
+        .await?;
+
+    Ok(Json(ApiResponse::success_with_message(
+        serde_json::to_value(contact)?,
+        "联系人创建成功",
+    )))
+}
+
+/// PUT /api/v1/erp/crm/customers/:id/contacts/:contact_id - 更新联系人
+///
+/// 批次 90b P2-12：实现联系人编辑功能。
+#[axum::debug_handler]
+pub async fn update_contact(
+    Path((_customer_id, contact_id)): Path<(i32, i32)>,
+    State(state): State<AppState>,
+    auth: AuthContext,
+    Json(req): Json<UpdateCustomerContactRequest>,
+) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
+    req.validate().map_err(|e| AppError::validation(e.to_string()))?;
+
+    let service = CustomerService::new(state.db.clone());
+    let contact = service
+        .update_customer_contact(contact_id, req, auth.user_id)
+        .await?;
+
+    Ok(Json(ApiResponse::success_with_message(
+        serde_json::to_value(contact)?,
+        "联系人更新成功",
+    )))
+}
+
+/// DELETE /api/v1/erp/crm/customers/:id/contacts/:contact_id - 删除联系人
+///
+/// 批次 90b P2-12：实现联系人删除功能。
+pub async fn delete_contact(
+    Path((_customer_id, contact_id)): Path<(i32, i32)>,
+    State(state): State<AppState>,
+    _auth: AuthContext,
+) -> Result<Json<ApiResponse<()>>, AppError> {
+    let service = CustomerService::new(state.db.clone());
+    service.delete_customer_contact(contact_id).await?;
+
+    Ok(Json(ApiResponse::success_with_message(
+        (),
+        "联系人删除成功",
+    )))
 }
 
 /// GET /api/v1/erp/crm/tags - 获取标签列表
