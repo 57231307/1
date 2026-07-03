@@ -104,6 +104,21 @@ export function regenerateApiKey(id: number): Promise<ApiResponse<ApiKey>> {
   return request.post(`/api-gateway/keys/${id}/regenerate`)
 }
 
-export function getApiStats(): Promise<ApiResponse<any>> {
+// P2-16 修复（批次 86 v2 复审）：getApiStats ApiResponse<any> → 显式接口
+
+/** API 网关统计 */
+export interface ApiStats {
+  total_endpoints: number
+  active_endpoints: number
+  inactive_endpoints: number
+  total_keys: number
+  active_keys: number
+  total_requests: number
+  total_errors: number
+  avg_response_time_ms: number
+  [key: string]: unknown
+}
+
+export function getApiStats(): Promise<ApiResponse<ApiStats>> {
   return request.get('/api-gateway/stats')
 }

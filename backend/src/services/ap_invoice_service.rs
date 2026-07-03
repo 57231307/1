@@ -254,6 +254,8 @@ impl ApInvoiceService {
     }
 
     /// 更新应付单（仅草稿状态）
+    ///
+    /// 批次 86 v2 复审 P2-4 修复：find_by_id 后追加 lock_exclusive 串行化并发状态变更
     pub async fn update(
         &self,
         id: i32,
@@ -262,8 +264,9 @@ impl ApInvoiceService {
     ) -> Result<ap_invoice::Model, AppError> {
         let txn = (*self.db).begin().await?;
 
-        // 1. 查询应付单
+        // 1. 查询应付单（加 lock_exclusive 串行化）
         let invoice = ap_invoice::Entity::find_by_id(id)
+            .lock_exclusive()
             .one(&txn)
             .await?
             .ok_or_else(|| AppError::not_found(format!("应付单 {}", id)))?;
@@ -325,11 +328,14 @@ impl ApInvoiceService {
     }
 
     /// 删除应付单（仅草稿状态）
+    ///
+    /// 批次 86 v2 复审 P2-5 修复：find_by_id 后追加 lock_exclusive 串行化并发状态变更
     pub async fn delete(&self, id: i32) -> Result<(), AppError> {
         let txn = (*self.db).begin().await?;
 
-        // 1. 查询应付单
+        // 1. 查询应付单（加 lock_exclusive 串行化）
         let invoice = ap_invoice::Entity::find_by_id(id)
+            .lock_exclusive()
             .one(&txn)
             .await?
             .ok_or_else(|| AppError::not_found(format!("应付单 {}", id)))?;

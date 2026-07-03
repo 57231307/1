@@ -20,7 +20,10 @@
     <el-table-column label="操作" width="250">
       <template #default="{ row }">
         <el-button size="small" @click="emit('view', row)">详情</el-button>
-        <el-button size="small" @click="emit('edit', row)">编辑</el-button>
+        <!-- P2-17 修复（批次 86 v2 复审）：编辑按钮补齐 v-permission -->
+        <el-button v-permission="'sales_return:update'" size="small" @click="emit('edit', row)"
+          >编辑</el-button
+        >
         <el-button
           v-if="row.status === 'PENDING'"
           size="small"

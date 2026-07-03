@@ -61,8 +61,9 @@
         <el-table-column prop="created_at" label="创建时间" width="160" />
         <el-table-column label="操作" width="150" fixed="right">
           <template #default="{ row }">
-            <el-button size="small" link @click="openUserDialog(row as any)">编辑</el-button>
-            <el-button size="small" link type="danger" @click="deleteUser(row as any)"
+            <!-- P2-17 修复（批次 86 v2 复审）：编辑/删除按钮补齐 v-permission -->
+            <el-button v-permission="'user:update'" size="small" link @click="openUserDialog(row as any)">编辑</el-button>
+            <el-button v-permission="'user:delete'" size="small" link type="danger" @click="deleteUser(row as any)"
               >删除</el-button
             >
           </template>

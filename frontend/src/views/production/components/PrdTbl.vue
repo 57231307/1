@@ -26,9 +26,25 @@ import { ElTag, ElButton } from 'element-plus'
 import V2Table from '@/components/V2Table/index.vue'
 import type { ColumnDef } from '@/components/V2Table/types'
 import { PRODUCTION_ORDER_STATUS, type ProductionOrder } from '@/api/production'
+// P2-17 修复（批次 86 v2 复审）：h() 渲染函数无法使用 v-permission 指令，
+// 改为复用 router 守卫的 hasRoutePermission + useUserStore 做权限判断，
+// 行为与 v-permission 指令保持一致（无权限则不渲染该按钮）
+import { hasRoutePermission } from '@/router'
+import { useUserStore } from '@/store/user'
 
 // 状态 el-tag 类型别名（与 element-plus 类型保持一致）
 type ElTagType = 'primary' | 'success' | 'warning' | 'info' | 'danger'
+
+/**
+ * 权限检查辅助函数（与 v-permission 指令行为等价）
+ * @param required 所需权限码
+ * @returns 当前用户是否持有该权限
+ */
+const can = (required: string): boolean => {
+  const userStore = useUserStore()
+  const permissions = userStore.userInfo?.permissions || []
+  return hasRoutePermission(required, permissions)
+}
 
 /**
  * 生产管理订单表组件
@@ -107,12 +123,18 @@ const columns: ColumnDef[] = [
         ),
       ]
       if (row.status === 'draft') {
+        // P2-17 修复（批次 86 v2 复审）：编辑/删除按钮加权限检查
+        // （h() 渲染函数无法用 v-permission 指令，改为 can() 条件 push）
+        if (can('production_order:update')) {
+          buttons.push(
+            h(
+              ElButton,
+              { type: 'success', link: true, size: 'small', onClick: () => emit('open-edit', row) },
+              { default: () => '编辑' }
+            )
+          )
+        }
         buttons.push(
-          h(
-            ElButton,
-            { type: 'success', link: true, size: 'small', onClick: () => emit('open-edit', row) },
-            { default: () => '编辑' }
-          ),
           h(
             ElButton,
             {
@@ -122,13 +144,17 @@ const columns: ColumnDef[] = [
               onClick: () => emit('status-change', row, 'planned'),
             },
             { default: () => '计划' }
-          ),
-          h(
-            ElButton,
-            { type: 'danger', link: true, size: 'small', onClick: () => emit('delete', row) },
-            { default: () => '删除' }
           )
         )
+        if (can('production_order:delete')) {
+          buttons.push(
+            h(
+              ElButton,
+              { type: 'danger', link: true, size: 'small', onClick: () => emit('delete', row) },
+              { default: () => '删除' }
+            )
+          )
+        }
       }
       if (row.status === 'planned') {
         buttons.push(

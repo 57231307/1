@@ -43,10 +43,21 @@ export function deleteReportTemplate(id: number): Promise<ApiResponse<void>> {
   return request.delete(`/report-templates/${id}`)
 }
 
+// P2-16 修复（批次 86 v2 复审）：previewReportTemplate ApiResponse<any> → 显式接口
+
+/** 报表模板预览结果 */
+export interface ReportTemplatePreviewResult {
+  template_id: number
+  fields: string[]
+  rows: Array<Record<string, unknown>>
+  total: number
+  [key: string]: unknown
+}
+
 export function previewReportTemplate(
   id: number,
-  params?: Record<string, any>
-): Promise<ApiResponse<any>> {
+  params?: Record<string, unknown>
+): Promise<ApiResponse<ReportTemplatePreviewResult>> {
   return request.get(`/report-templates/${id}/preview`, { params })
 }
 

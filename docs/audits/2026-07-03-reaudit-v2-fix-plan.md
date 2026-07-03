@@ -14,6 +14,16 @@
 4. P2 维度 1 的"有 txn 但无 lock_exclusive"9 项与 P1 同类问题，作为加固项合并到批次 85 后段或单独批次 86 处理
 5. 全部完成后启动 v3 第三轮复审
 
+## 扩展指令（2026-07-03 用户追加）
+
+在批次修复过程中同步处理以下情况，并纳入复审计划：
+1. **未完善功能**：评估并补全（如占位 TODO 注释、stub 返回）
+2. **占位符功能**：全部真实实现，不留 stub
+3. **未真实接入的功能/中间件**：进行真实接入（如定义但未挂载的中间件、未调用的 helper）
+4. **未实现的功能/中间件**：补全真实实现
+
+发现的所有扩展项汇总到本文件末尾"扩展完善清单"章节，随批次修复同步推进，并在 v3 复审中重点验证。
+
 ## 批次规划
 
 ### 批次 85：P1 修复 — 事务边界 TOCTOU + 并发竞态（9 项）
@@ -95,9 +105,34 @@
 
 | 批次 | 主题 | 级别 | 项数 | 状态 |
 |------|------|------|------|------|
-| 85 | 事务边界 TOCTOU + 并发竞态 | P1 | 9 | 🔄 修复中 |
-| 86 | P2 加固（lock_exclusive + 精度 + N+1 + 前端 + 安全） | P2 | 19 | ⬜ 待启动 |
+| 85 | 事务边界 TOCTOU + 并发竞态 | P1 | 9 | ✅ 已完成（main `10f661d`） |
+| 86 | P2 加固（lock_exclusive + 精度 + N+1 + 前端 + 安全） | P2 | 19 | 🔄 修复中 |
 | 87 | P3 清理（错误处理 + 金额 + LIMIT + 测试） | P3 | 28 | ⬜ 待启动 |
 | 88 | 占位符功能实现（schema 变更） | 功能完善 | 3 | ⬜ 待启动 |
 
 **全部完成后**：v3 第三轮复审，循环直到无问题
+
+## 扩展完善清单（2026-07-03 用户追加指令）
+
+在批次修复过程中同步评估并完善占位符/未接入功能，以下为已发现项及处理状态：
+
+### 批次 86 中发现并已处理（前端占位符）
+
+| # | 文件 | 占位符 | 处理状态 |
+|---|------|--------|---------|
+| EX-1 | [sales-ext/tabs/PriceTab.vue](file:///workspace/frontend/src/views/sales-ext/tabs/PriceTab.vue) | `openPriceDialog` 仅显示 `ElMessage.info('请使用行内编辑')`，无编辑对话框 | ✅ 已补全：添加价格编辑对话框 + 表单校验 + create/update 提交逻辑 |
+| EX-2 | [sales-ext/tabs/ReturnTab.vue](file:///workspace/frontend/src/views/sales-ext/tabs/ReturnTab.vue) | `openReturnDialog` 仅显示 `ElMessage.info('请使用行内编辑或参考 purchase-ext/tabs/ReturnTab.vue 实现')`，无编辑对话框 | ✅ 已补全：添加退货编辑对话框 + 明细表格 + 表单校验 + create/update 提交逻辑 |
+
+### 批次 88 规划（后端占位符，需 schema 变更）
+
+| # | 文件 | 占位符 | 评估 | 计划 |
+|---|------|--------|------|------|
+| PH-1 | [custom_order_crud_service.rs:218-220](file:///workspace/backend/src/services/custom_order_crud_service.rs) | `if let Some(v) = dto.notes { let _ = v; }` 注释"暂存到 yarn_spec 字段" | DTO 有 notes 字段但被丢弃 | 批次 88：新增 migration 添加 notes 列 |
+| PH-2 | [fixed_asset_service.rs:191](file:///workspace/backend/src/services/fixed_asset_service.rs) | `period: &str` 参数只用于日志，未按期间记录折旧 | 无折旧期间记录表 | 批次 88：新增 fixed_asset_depreciation_records 表 |
+| PH-3 | [fixed_asset_service.rs:287](file:///workspace/backend/src/services/fixed_asset_service.rs) | `let _disposal_gain_loss = req.disposal_value - net_book_value;` 计算后未使用 | fixed_asset_disposal 模型无 gain_loss 字段 | 批次 88：新增 migration 添加 gain_loss 列 |
+
+### v3 复审重点验证项
+
+1. 前端 EX-1/EX-2 占位符补全后的功能完整性（对话框交互、表单校验、API 调用）
+2. 后端 PH-1/PH-2/PH-3 在批次 88 完成后的真实接入
+3. 全项目扫描其他占位符/stub/未接入中间件（`TODO`、`FIXME`、`let _ =`、`stub`、`占位` 等模式）

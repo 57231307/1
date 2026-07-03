@@ -33,8 +33,10 @@
           <el-button type="primary" link size="small" @click="emit('view', row as any)"
             >查看</el-button
           >
+          <!-- P2-17 修复（批次 86 v2 复审）：编辑/删除按钮补齐 v-permission -->
           <el-button
             v-if="row.status === 'draft'"
+            v-permission="'purchase_contract:update'"
             type="primary"
             link
             size="small"
@@ -67,6 +69,7 @@
           >
           <el-button
             v-if="row.status === 'draft'"
+            v-permission="'purchase_contract:delete'"
             type="danger"
             link
             size="small"

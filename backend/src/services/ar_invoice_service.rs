@@ -274,9 +274,12 @@ impl ArInvoiceService {
         // 批次 11（2026-06-28）：事务包裹"实体更新 + 审计日志"，保证原子性
         // 原 update_with_audit(&*self.db, ...) 内部 2 次独立写入（实体 update + 审计 insert），
         // 无事务包裹时若审计插入失败会导致"实体已变更但审计缺失"
+        // 批次 86 v2 复审 P2-3 修复：find_by_id 后追加 lock_exclusive 串行化并发状态变更
+        // 批次 86 v2 复审 P2-10 修复：补 invoice_amount round_dp(2) 精度校验（v1 批次 84 P2-4 遗漏）
         let txn = (*self.db).begin().await?;
 
         let invoice = ar_invoice::Entity::find_by_id(id)
+            .lock_exclusive()
             .one(&txn)
             .await?
             .ok_or_else(|| AppError::not_found("应收单不存在"))?;
@@ -296,6 +299,10 @@ impl ArInvoiceService {
             active_invoice.due_date = sea_orm::ActiveValue::Set(date);
         }
         if let Some(amt) = req.invoice_amount {
+            // P2-10 修复（批次 86 v2 复审）：金额精度校验，最多 2 位小数（货币精度）
+            if amt.round_dp(2) != amt {
+                return Err(AppError::validation("应收单金额精度不能超过 2 位小数"));
+            }
             let new_unpaid = (amt - invoice.received_amount).max(Decimal::ZERO);
             active_invoice.invoice_amount = sea_orm::ActiveValue::Set(amt);
             active_invoice.unpaid_amount = sea_orm::ActiveValue::Set(new_unpaid);

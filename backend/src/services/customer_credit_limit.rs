@@ -295,11 +295,20 @@ impl CustomerCreditService {
     }
 
     /// 停用客户信用
+    ///
+    /// 批次 86 v2 复审 P2-8 修复：find + 状态门 + update 移入单一事务 + lock_exclusive 串行化
+    /// 原实现 find（get_by_customer_id 内部 self.db）+ update 在 self.db 上分别执行，无 txn 无 lock，
+    /// 存在 TOCTOU（并发占用/释放额度会基于过期状态通过检查后停用）
     pub async fn deactivate(&self, customer_id: i32, user_id: i32) -> Result<(), AppError> {
         info!("用户 {} 正在停用客户 {} 的信用", user_id, customer_id);
 
-        let credit = self
-            .get_by_customer_id(customer_id)
+        let txn = (*self.db).begin().await?;
+
+        // 加 lock_exclusive 串行化并发状态变更（基于 customer_id 直接查询主键索引）
+        let credit = customer_credit::Entity::find()
+            .filter(customer_credit::Column::CustomerId.eq(customer_id))
+            .lock_exclusive()
+            .one(&txn)
             .await?
             .ok_or_else(|| AppError::not_found(format!("客户 {} 的信用评级不存在", customer_id)))?;
 
@@ -313,7 +322,8 @@ impl CustomerCreditService {
         credit_active.status = Set("inactive".to_string());
         // 注意：customer_credit 模型没有 updated_by 字段
 
-        credit_active.save(&*self.db).await?;
+        credit_active.save(&txn).await?;
+        txn.commit().await?;
 
         info!("客户 {} 信用停用成功", customer_id);
         Ok(())

@@ -36,8 +36,10 @@
             <el-button size="small" link @click="viewContract(row as unknown as PurchaseContract)"
               >查看</el-button
             >
+            <!-- P2-17 修复（批次 86 v2 复审）：编辑按钮补齐 v-permission -->
             <el-button
               v-if="row.status === 'draft'"
+              v-permission="'purchase_contract:update'"
               size="small"
               link
               @click="openContractDialog(row as unknown as PurchaseContract)"

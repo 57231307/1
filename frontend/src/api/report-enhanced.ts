@@ -134,10 +134,21 @@ export function exportReport(
   })
 }
 
+// P2-16 修复（批次 86 v2 复审）：previewReport ApiResponse<any> → 显式接口
+
+/** 报表预览结果 */
+export interface ReportPreviewResult {
+  template_id: number
+  fields: string[]
+  rows: Array<Record<string, unknown>>
+  total: number
+  [key: string]: unknown
+}
+
 export function previewReport(
   templateId: number,
-  params?: Record<string, any>
-): Promise<ApiResponse<any>> {
+  params?: Record<string, unknown>
+): Promise<ApiResponse<ReportPreviewResult>> {
   return request.get(`/reports/enhanced/templates/${templateId}/preview`, { params })
 }
 

@@ -54,10 +54,11 @@
             <el-table-column prop="updated_at" label="更新时间" width="160" align="center" />
             <el-table-column label="操作" width="200" align="center" fixed="right">
               <template #default="{ row }">
-                <el-button type="primary" link size="small" @click="openEditRuleDialog(row)"
+                <!-- P2-17 修复（批次 86 v2 复审）：编辑/删除按钮补齐 v-permission -->
+                <el-button v-permission="'crm_assignment:update'" type="primary" link size="small" @click="openEditRuleDialog(row)"
                   >编辑</el-button
                 >
-                <el-button type="danger" link size="small" @click="handleDeleteRule(row)"
+                <el-button v-permission="'crm_assignment:delete'" type="danger" link size="small" @click="handleDeleteRule(row)"
                   >删除</el-button
                 >
               </template>

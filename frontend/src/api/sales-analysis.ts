@@ -52,6 +52,16 @@ export interface SalesExportQueryParams {
   format?: string
 }
 
+// P2-16 修复（批次 86 v2 复审）：销售趋势 ApiResponse<any> → SalesTrendResult
+export interface SalesTrendResult {
+  period: string
+  amount: number
+  order_count: number
+  profit: number
+  growth_rate: number
+  [key: string]: unknown
+}
+
 export const salesAnalysisApi = {
   getStats: (params?: SalesStatsQueryParams) =>
     request.get<ApiResponse<SalesStats>>('/sales-analysis/stats', { params }),
@@ -68,7 +78,7 @@ export const salesAnalysisApi = {
     request.put<ApiResponse<SalesTarget>>(`/sales-analysis/targets/${period}`, data),
 
   getTrendData: (params?: { period?: string }) =>
-    request.get<ApiResponse<any>>('/sales-analysis/trend', { params }),
+    request.get<ApiResponse<SalesTrendResult[]>>('/sales-analysis/trend', { params }),
 
   exportReport: (params?: SalesExportQueryParams) =>
     request.get<Blob>('/sales-analysis/export', { params, responseType: 'blob' }),

@@ -321,10 +321,21 @@ impl FixedAssetService {
     }
 
     /// 删除资产（仅支持未使用状态）
+    ///
+    /// 批次 86 v2 复审 P2-9 修复：find + 状态门 + delete 移入单一事务 + lock_exclusive 串行化
+    /// 原实现 find（get_by_id 内部 self.db）+ delete 在 self.db 上分别执行，无 txn 无 lock，
+    /// 存在 TOCTOU（并发 depreciate/dispose 会基于过期状态通过检查后被误删）
     pub async fn delete(&self, asset_id: i32, user_id: i32) -> Result<(), AppError> {
         info!("用户 {} 正在删除资产 {}", user_id, asset_id);
 
-        let asset = self.get_by_id(asset_id).await?;
+        let txn = (*self.db).begin().await?;
+
+        // 加 lock_exclusive 串行化并发状态变更
+        let asset = fixed_asset::Entity::find_by_id(asset_id)
+            .lock_exclusive()
+            .one(&txn)
+            .await?
+            .ok_or_else(|| AppError::not_found(format!("固定资产不存在：{}", asset_id)))?;
 
         if asset.status != "inactive" {
             return Err(AppError::validation("只能删除未使用状态的资产".to_string()));
@@ -332,8 +343,9 @@ impl FixedAssetService {
 
         fixed_asset::Entity::delete_many()
             .filter(fixed_asset::Column::Id.eq(asset_id))
-            .exec(&*self.db)
+            .exec(&txn)
             .await?;
+        txn.commit().await?;
 
         info!("资产 {} 删除成功", asset_id);
         Ok(())

@@ -2,7 +2,10 @@ use crate::models::role;
 use crate::utils::error::AppError;
 use chrono::Utc;
 use sea_orm::DatabaseConnection;
-use sea_orm::{ActiveModelTrait, ColumnTrait, EntityTrait, PaginatorTrait, QueryFilter, Set};
+use sea_orm::{
+    ActiveModelTrait, ColumnTrait, EntityTrait, PaginatorTrait, QueryFilter, QuerySelect, Set,
+    TransactionTrait,
+};
 use std::sync::Arc;
 
 #[derive(Debug, Clone)]
@@ -56,6 +59,10 @@ impl RoleService {
     }
 
     /// 更新角色信息
+    ///
+    /// 批次 86 v2 复审 P2-1 修复：find + 状态门 + update 移入单一事务 + lock_exclusive 串行化
+    /// 原实现全程用 self.db，无 txn 无 lock，存在 TOCTOU
+    /// （并发 update/delete 会基于过期状态通过检查后写入）
     pub async fn update_role(
         &self,
         role_id: i32,
@@ -65,8 +72,12 @@ impl RoleService {
         permissions: Option<String>,
         is_system: Option<bool>,
     ) -> Result<role::Model, AppError> {
+        let txn = (*self.db).begin().await?;
+
+        // 加 lock_exclusive 串行化并发状态变更
         let role_model = role::Entity::find_by_id(role_id)
-            .one(&*self.db)
+            .lock_exclusive()
+            .one(&txn)
             .await?
             .ok_or_else(|| AppError::not_found(format!("角色 ID {} 不存在", role_id)))?;
 
@@ -94,13 +105,21 @@ impl RoleService {
         }
 
         role_active.updated_at = Set(Utc::now());
-        role_active.update(&*self.db).await
+        let result = role_active.update(&txn).await?;
+        txn.commit().await?;
+        Ok(result)
     }
 
     /// 删除角色
+    ///
+    /// 批次 86 v2 复审 P2-2 修复：find + 状态门 + delete 移入单一事务 + lock_exclusive 串行化
     pub async fn delete_role(&self, role_id: i32) -> Result<(), AppError> {
+        let txn = (*self.db).begin().await?;
+
+        // 加 lock_exclusive 串行化并发状态变更
         let role_model = role::Entity::find_by_id(role_id)
-            .one(&*self.db)
+            .lock_exclusive()
+            .one(&txn)
             .await?
             .ok_or_else(|| AppError::not_found(format!("角色 ID {} 不存在", role_id)))?;
 
@@ -110,7 +129,8 @@ impl RoleService {
         }
 
         let role_active: role::ActiveModel = role_model.into();
-        role_active.delete(&*self.db).await?;
+        role_active.delete(&txn).await?;
+        txn.commit().await?;
         Ok(())
     }
 

@@ -18,6 +18,14 @@ vi.mock('pinia', async (importOriginal) => {
 import { setActivePinia, createPinia } from 'pinia'
 import { useInventoryStore } from '@/store/inventory'
 import { inventoryApi } from '@/api/inventory'
+// P2-18 修复（批次 86 v2 复审）：清理 6 处 as any，改为显式类型断言
+import type { ApiResponse } from '@/types/api'
+import type { InventoryStock, StockAlert } from '@/api/inventory'
+
+// 测试用响应类型别名（提升可读性）
+type StockListResponse = ApiResponse<{ list: InventoryStock[]; total: number }>
+type StockAlertsResponse = ApiResponse<StockAlert[]>
+type AdjustmentResponse = ApiResponse<{ id: number; adjustment_no: string }>
 
 describe('Inventory Store 测试', () => {
   beforeEach(() => {
@@ -40,7 +48,7 @@ describe('Inventory Store 测试', () => {
     ]
     vi.mocked(inventoryApi.getStockList).mockResolvedValue({
       data: { list: mockStocks, total: 2 },
-    } as any)
+    } as unknown as StockListResponse)
 
     const store = useInventoryStore()
     await store.fetchStocks()
@@ -65,18 +73,19 @@ describe('Inventory Store 测试', () => {
   })
 
   it('fetchStocks 应该设置 loading 状态', async () => {
-    let resolvePromise: (value: any) => void
-    const promise = new Promise((resolve) => {
+    // P2-18 修复：promise 类型显式声明，避免 as any
+    let resolvePromise: (value: StockListResponse) => void
+    const promise = new Promise<StockListResponse>((resolve) => {
       resolvePromise = resolve
     })
-    vi.mocked(inventoryApi.getStockList).mockReturnValue(promise as any)
+    vi.mocked(inventoryApi.getStockList).mockReturnValue(promise)
 
     const store = useInventoryStore()
     const fetchPromise = store.fetchStocks()
 
     expect(store.loading).toBe(true)
 
-    resolvePromise!({ data: { list: [], total: 0 } })
+    resolvePromise!({ code: 0, message: 'ok', data: { list: [], total: 0 } })
     await fetchPromise
 
     expect(store.loading).toBe(false)
@@ -86,7 +95,7 @@ describe('Inventory Store 测试', () => {
     const mockAlerts = [{ id: 1, product_name: '面料A', alert_type: 'low_stock' }]
     vi.mocked(inventoryApi.getStockAlerts).mockResolvedValue({
       data: mockAlerts,
-    } as any)
+    } as unknown as StockAlertsResponse)
 
     const store = useInventoryStore()
     await store.fetchAlerts()
@@ -108,10 +117,12 @@ describe('Inventory Store 测试', () => {
   })
 
   it('createAdjustment 应该创建调整并刷新列表', async () => {
-    vi.mocked(inventoryApi.createStockAdjustment).mockResolvedValue({} as any)
+    vi.mocked(inventoryApi.createStockAdjustment).mockResolvedValue(
+      {} as unknown as AdjustmentResponse
+    )
     vi.mocked(inventoryApi.getStockList).mockResolvedValue({
       data: { list: [{ id: 1 }], total: 1 },
-    } as any)
+    } as unknown as StockListResponse)
 
     const store = useInventoryStore()
     // P2-11a 修复（批次 83 v1 复审）：夹具对齐 StockAdjustmentData 契约

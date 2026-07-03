@@ -45,6 +45,15 @@ export interface ProductQueryParams extends QueryParams {
   max_price?: number
 }
 
+/** 产品导入结果 */
+export interface ProductImportResult {
+  total: number
+  success: number
+  failed: number
+  errors: Array<{ row: number; message: string }>
+  [key: string]: unknown
+}
+
 export const productApi = {
   list: (params?: ProductQueryParams) =>
     request.get<ApiResponse<{ list: Product[]; total: number }>>('/products', { params }),
@@ -93,15 +102,17 @@ export const productApi = {
   deleteColor: (productId: number, colorId: number) =>
     request.delete<ApiResponse<null>>(`/products/${productId}/colors/${colorId}`),
 
+  // P2-16 修复（批次 86 v2 复审）：批量创建颜色 ApiResponse<any> → ProductColor[]
   batchCreateColors: (productId: number, colors: Partial<ProductColor>[]) =>
-    request.post<ApiResponse<any>>(`/products/${productId}/colors/batch`, colors),
+    request.post<ApiResponse<ProductColor[]>>(`/products/${productId}/colors/batch`, colors),
 
   getImportTemplate: () => request.get<Blob>('/products/import-template', { responseType: 'blob' }),
 
+  // P2-16 修复：导入结果 ApiResponse<any> → ProductImportResult
   importProducts: (file: File) => {
     const formData = new FormData()
     formData.append('file', file)
-    return request.post<ApiResponse<any>>('/products/import', formData, {
+    return request.post<ApiResponse<ProductImportResult>>('/products/import', formData, {
       headers: { 'Content-Type': 'multipart/form-data' },
     })
   },
