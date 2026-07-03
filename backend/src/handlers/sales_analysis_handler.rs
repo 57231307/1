@@ -50,7 +50,7 @@ pub async fn list_statistics(
     let query_params = crate::services::sales_analysis_service::SalesStatisticQueryParams {
         statistic_type: params.statistic_type,
         period: params.period,
-        page: params.page.unwrap_or_default(),
+        page: params.page.unwrap_or(1).max(1),
         page_size: params.page_size.unwrap_or(10).clamp(1, 100),
     };
 
@@ -103,7 +103,7 @@ pub async fn get_targets(
     let service = SalesAnalysisService::new(state.db.clone());
     let (targets, _total) = service
         .get_targets(
-            params.page.unwrap_or_default(),
+            params.page.unwrap_or(1).max(1),
             params.page_size.unwrap_or(10).clamp(1, 100),
         )
         .await?;

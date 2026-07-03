@@ -147,7 +147,7 @@ pub async fn list_budget_items(
     let query_params = crate::services::budget_management_service::BudgetItemQueryParams {
         item_type: params.item_type,
         status: params.status,
-        page: params.page.unwrap_or_default(),
+        page: params.page.unwrap_or(1).max(1),
         // v11 批次 36 修复：page_size clamp 防止 DoS
         page_size: params.page_size.unwrap_or(10).clamp(1, 100),
     };
@@ -263,7 +263,7 @@ pub async fn list_plans(
         .get_plans_list(
             None,
             None,
-            params.page.unwrap_or_default(),
+            params.page.unwrap_or(1).max(1),
             // v11 批次 36 修复：page_size clamp 防止 DoS
             params.page_size.unwrap_or(10).clamp(1, 100),
         )

@@ -233,7 +233,7 @@ impl FiveDimensionService {
         params: FiveDimensionSearchParams,
     ) -> Result<(Vec<FiveDimensionStats>, u64), AppError> {
         // 分页参数默认 0（首页），与全局分页约定一致
-        let page = params.page.unwrap_or_default();
+        let page = params.page.unwrap_or(1).max(1);
         let page_size = params.page_size.unwrap_or(20).clamp(1, 100); // v10 P1-1 修复：page_size clamp(1,100) 防 DoS
 
         let mut query = FiveDimensionQuery {

@@ -86,7 +86,7 @@ pub async fn list_accounts(
     let query_params = crate::services::fund_management_service::FundAccountQueryParams {
         account_type: params.account_type,
         status: params.status,
-        page: params.page.unwrap_or_default(),
+        page: params.page.unwrap_or(1).max(1),
         page_size: params.page_size.unwrap_or(10).clamp(1, 100),
     };
 

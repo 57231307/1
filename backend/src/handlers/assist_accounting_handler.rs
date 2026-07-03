@@ -116,7 +116,7 @@ pub async fn query_assist_records(
 ) -> Result<Json<ApiResponse<AssistRecordListResponse>>, AppError> {
     let service = AssistAccountingService::new(state.db.clone());
 
-    let page = params.page.unwrap_or_default();
+    let page = params.page.unwrap_or(1).max(1);
     // v11 批次 36 修复：page_size clamp 防止 DoS
     let page_size = params.page_size.unwrap_or(20).clamp(1, 100);
 

@@ -71,6 +71,10 @@ impl ArInvoiceService {
         if invoice_amount <= Decimal::ZERO {
             return Err(AppError::validation("发票金额必须大于零"));
         }
+        // P2-4 修复（批次 84 v1 复审）：金额精度校验，最多 2 位小数（货币精度）
+        if invoice_amount.round_dp(2) != invoice_amount {
+            return Err(AppError::validation("发票金额精度不能超过 2 位小数"));
+        }
 
         info!(
             "创建应收单：customer_id={}, amount={}",

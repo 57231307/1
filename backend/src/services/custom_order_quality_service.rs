@@ -5,7 +5,7 @@
 //! 创建时间: 2026-06-17
 
 use chrono::Utc;
-use sea_orm::{ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, PaginatorTrait, QueryFilter, QueryOrder, Set};
+use sea_orm::{ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, PaginatorTrait, QueryFilter, QueryOrder, QuerySelect, Set, TransactionTrait};
 use std::sync::Arc;
 use thiserror::Error;
 
@@ -103,13 +103,21 @@ impl CustomOrderQualityService {
         id: i64,
         dto: ResolveQualityIssueDto,
     ) -> Result<quality_issue::Model, QualityError> {
+        // P2-6 修复（批次 84 v1 复审）：状态门 + update 移入单一事务，加 lock_exclusive 串行化
+        // 原实现状态门查询在 self.db 上、update 也在 self.db 上，无事务边界，
+        // 并发场景下可能在状态检查通过后、update 前发生状态变更，导致已关闭异常被重复解决。
+        let txn = (*self.db).begin().await?;
+
         let existing = Entity::find_by_id(id)
-            .one(&*self.db)
+            .lock_exclusive()
+            .one(&txn)
             .await?
             .ok_or(QualityError::NotFound)?;
 
         if existing.status == "closed" {
-            return Err(QualityError::InvalidState("已关闭的异常不可再次解决".to_string()));
+            return Err(QualityError::InvalidState(
+                "已关闭的异常不可再次解决".to_string(),
+            ));
         }
 
         let now = Utc::now();
@@ -120,7 +128,8 @@ impl CustomOrderQualityService {
         active.updated_at = Set(now);
         let _ = dto.operator_id; // 操作人可记录到 audit_log
 
-        let updated = active.update(&*self.db).await?;
+        let updated = active.update(&txn).await?;
+        txn.commit().await?;
         Ok(updated)
     }
 

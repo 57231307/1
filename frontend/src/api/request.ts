@@ -1,5 +1,5 @@
 import axios from 'axios'
-import type { AxiosInstance, AxiosRequestConfig, AxiosResponse } from 'axios'
+import type { AxiosError, AxiosInstance, AxiosRequestConfig, AxiosResponse } from 'axios'
 import { ElMessage } from 'element-plus'
 // Wave B-3：移除 access_token / refresh_token 的 localStorage 引用
 // - 凭据由后端写入 httpOnly Cookie，前端 JS 不可读
@@ -39,9 +39,11 @@ const CSRF_PUBLIC_PREFIXES = [
 
 /**
  * 判断 URL 是否属于公开路径（不需要携带 X-CSRF-Token 头）
+ * P3-3 修复（批次 84 v1 复审）：改为 startsWith 前缀匹配，避免子串误匹配
+ * （原 includes 会将 /auth/login-xxx 误判为 /auth/login 公开路径）
  */
 function isCsrfPublicPath(url: string): boolean {
-  return CSRF_PUBLIC_PREFIXES.some(prefix => url.includes(prefix))
+  return CSRF_PUBLIC_PREFIXES.some(prefix => url === prefix || url.startsWith(prefix + '/'))
 }
 
 class Request {
@@ -215,11 +217,14 @@ export const SAFE_ERROR_MESSAGES: Record<number, string> = {
   503: '服务暂时不可用',
 }
 
-export function shouldRetry(error: any): boolean {
+// P3-2 修复（批次 84 v1 复审）：error 类型从 any 改为 AxiosError，简化 else 分支
+// 原 `!error.response` 在 else 分支恒为 true（死代码），此处显式表达"无 response 时默认重试"
+export function shouldRetry(error: AxiosError): boolean {
   if (error.response) {
     return [502, 503, 504].includes(error.response.status)
   }
-  return error.code === 'ECONNABORTED' || error.code === 'NETWORK_ERROR' || !error.response
+  // 无 response 时为网络错误或超时（ECONNABORTED / NETWORK_ERROR 等），默认重试
+  return true
 }
 
 export function getSafeErrorMessage(codeOrStatus?: number): string {

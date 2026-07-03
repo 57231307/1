@@ -139,6 +139,13 @@
 | P3-7 | sales_analysis_service 全表加载 | sales_analysis_service.rs:223 | 加 LIMIT 兜底或改数据库聚合 |
 | P3-8 | ci-deps continue-on-error | ci-cd.yml:1354 | 补充 TODO 注释 |
 
+**批次 84 修复说明**：
+- **P2-1**：经调查，`inventory_reservation_service.rs` 的 `lock_reservation` 和 `release_reservation` 已在批次 79（P1-8）修复事务边界，状态门 + update 已在单一事务内 + `lock_exclusive` 串行化。无需再次修改。
+- **P2-3**：实际找到 7 处（非 5 处），bpm_service.rs 实有 3 处。修复策略：保留 `let _ =` Rust 惯用法（CI 不警告），在每处补充注释说明"有意忽略返回的 ActiveModel"。
+- **P2-4**：聚焦 4 处关键修复（ar_invoice_service / ap_invoice_service create+update / fund_management deposit+withdraw），其余 5 处（voucher/assist_accounting/cost_collection/budget）延后到下一迭代。
+- **P3-4**：已在批次 82 处理主要 any 类型，剩余的多接口字段 any 属低优先级，延后处理。
+- **P3-5**：18 个测试文件重命名需先评估 `quotation_e2e.rs` 与 `quotation_e2e_test.rs` 的合并（两者内容不同），延后到下一迭代。
+
 ## 进度跟踪
 
 | 批次 | 主题 | 级别 | 项数 | 状态 |
@@ -149,7 +156,7 @@
 | 81 | Json<Value> 强类型 DTO 改造 | P1 | 22 | ✅ 已完成 |
 | 82 | 前端类型清理 + 按钮权限 | P2 | 5 | ✅ 已完成 |
 | 83 | 安全一致性 + 测试质量 | P2 | 6 | ✅ 已完成 |
-| 84 | P2/P3 杂项清理 | P2/P3 | 14 | 待启动 |
+| 84 | P2/P3 杂项清理 | P2/P3 | 14 | ✅ 已完成（P3-4/P3-5 延后） |
 
 **P1 完成后**：第二轮复审
 **P2 完成后**：第二轮复审

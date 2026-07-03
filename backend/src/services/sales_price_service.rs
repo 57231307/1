@@ -151,6 +151,7 @@ impl SalesPriceService {
         price.approved_at = Set(Some(chrono::Utc::now()));
 
         // 使用 update_with_audit 在事务内同步写入审计日志
+        // P2-3 修复（批次 84 v1 复审）：有意忽略返回的 ActiveModel（字段已通过 Set 表达更新意图），仅传播错误
         let _ = crate::services::audit_log_service::AuditLogService::update_with_audit(
             &txn,
             "auto_audit",
