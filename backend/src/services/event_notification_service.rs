@@ -64,9 +64,20 @@ impl EventNotificationService {
     async fn send_email_notification(&self, user_id: i32, subject: &str, html_content: String) {
         if let Some(email_service) = &self.email_service {
             if let Some(email) = self.get_user_email(user_id).await {
-                let _ = email_service
+                // P1-4b 修复（批次 80 v1 复审）：原 let _ = 静默吞错，
+                // 邮件发送失败时无任何日志，难以排查通知丢失原因。
+                // 改为 if let Err(e) = ... { tracing::warn!(...); }
+                if let Err(e) = email_service
                     .send_html_email(vec![email], subject.to_string(), html_content)
-                    .await;
+                    .await
+                {
+                    tracing::warn!(
+                        user_id = user_id,
+                        subject = subject,
+                        error = %e,
+                        "邮件通知发送失败（best-effort，不影响主业务流）"
+                    );
+                }
             }
         }
     }
