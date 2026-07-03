@@ -20,7 +20,8 @@
             <el-button type="success" @click="openTransferDialog()">
               <el-icon><Money /></el-icon>资金转账
             </el-button>
-            <el-button type="primary" @click="openDialog('create')">
+            <!-- P2-10 修复（批次 82 v1 复审）：补齐 v-permission 按钮权限 -->
+            <el-button v-permission="'finance:create'" type="primary" @click="openDialog('create')">
               <el-icon><Plus /></el-icon>新建账户
             </el-button>
           </div>

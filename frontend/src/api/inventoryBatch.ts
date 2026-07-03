@@ -69,7 +69,19 @@ export interface TransferBatchRequest {
   remarks?: string
 }
 
-export function listBatches(params?: any) {
+// P2-9c 修复（批次 82 v1 复审）：库存批次列表查询参数强类型化
+export interface InventoryBatchQueryParams {
+  page?: number
+  page_size?: number
+  keyword?: string
+  productId?: number
+  warehouseId?: number
+  batchNo?: string
+  stockStatus?: string
+  qualityStatus?: string
+}
+
+export function listBatches(params?: InventoryBatchQueryParams) {
   return request.get('/inventory/batches', { params })
 }
 

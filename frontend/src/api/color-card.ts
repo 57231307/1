@@ -262,8 +262,9 @@ export function listBorrowRecords(params: {
 
 // ============== 扫码查询 ==============
 
+// P2-9c 修复（批次 82 v1 复审）：扫码查询返回类型 any → unknown
 export function scanColorCode(code: string) {
-  return request.get<{ data: any }>(`/color-cards/scan/${encodeURIComponent(code)}`)
+  return request.get<{ data: unknown }>(`/color-cards/scan/${encodeURIComponent(code)}`)
 }
 
 export function exportColorCardUrl(cardId: number) {

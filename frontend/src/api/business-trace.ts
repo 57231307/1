@@ -28,12 +28,29 @@ export interface FullTraceChainResponse {
   [key: string]: any
 }
 
+// P2-9c 修复（批次 82 v1 复审）：业务追溯查询参数强类型化
+export interface TraceQueryParams {
+  trace_chain_id?: string
+  business_type?: string
+  business_id?: number
+  five_dimension_id?: number
+}
+
 export const getTraceByFiveDimension = (fiveDimensionId: number | string) =>
   request.get(`/business-trace/five-dimension/${fiveDimensionId}`)
 
-export const forwardTrace = (params?: any) => request.get('/business-trace/forward', { params })
+export const forwardTrace = (params?: TraceQueryParams) =>
+  request.get('/business-trace/forward', { params })
 
-export const backwardTrace = (params?: any) => request.get('/business-trace/backward', { params })
+export const backwardTrace = (params?: TraceQueryParams) =>
+  request.get('/business-trace/backward', { params })
 
-export const createTraceSnapshot = (traceChainId: string, data?: any) =>
+// P2-9c 修复（批次 82 v1 复审）：创建追溯快照请求 DTO
+export interface TraceSnapshotCreateDto {
+  snapshot_type?: string
+  remark?: string
+  metadata?: unknown
+}
+
+export const createTraceSnapshot = (traceChainId: string, data?: TraceSnapshotCreateDto) =>
   request.post(`/business-trace/snapshot/${traceChainId}`, data)

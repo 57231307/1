@@ -125,6 +125,28 @@ export interface StockAlert {
   alert_level: 'warning' | 'danger'
 }
 
+// P2-9b 修复（批次 82 v1 复审）：库存报表返回类型强类型化，替代 { summary: any; details: any[] }
+export interface InventoryReportSummary {
+  total_quantity: number
+  total_amount: number
+  warehouse_count: number
+  product_count: number
+  low_stock_count: number
+}
+
+export interface InventoryReportDetail {
+  product_id: number
+  product_name: string
+  product_code: string
+  warehouse_id: number
+  warehouse_name: string
+  quantity: number
+  amount: number
+  unit?: string
+  status?: string
+  batch_no?: string
+}
+
 export const inventoryApi = {
   getStockList: (params?: InventoryQueryParams) =>
     request.get<ApiResponse<{ list: InventoryStock[]; total: number }>>('/inventory/stock', {
@@ -172,7 +194,7 @@ export const inventoryApi = {
 
   getInventoryReport: (params: InventoryReportParams) =>
     request.get<
-      ApiResponse<{ summary: any; details: any[] }>
+      ApiResponse<{ summary: InventoryReportSummary; details: InventoryReportDetail[] }>
     >('/inventory/stock/summary', {
       params,
     }),

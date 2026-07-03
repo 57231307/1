@@ -35,7 +35,17 @@ export interface TransferItem {
   remark?: string
 }
 
-export function listInventoryTransfers(params?: any) {
+// P2-9c 修复（批次 82 v1 复审）：库存调拨列表查询参数强类型化
+export interface InventoryTransferQueryParams {
+  page?: number
+  page_size?: number
+  keyword?: string
+  from_warehouse_id?: number
+  to_warehouse_id?: number
+  status?: string
+}
+
+export function listInventoryTransfers(params?: InventoryTransferQueryParams) {
   return request.get('/inventory/transfers', { params })
 }
 

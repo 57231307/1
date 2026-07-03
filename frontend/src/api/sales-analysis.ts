@@ -35,8 +35,25 @@ export interface SalesTarget {
   status: string
 }
 
+// P2-9c 修复（批次 82 v1 复审）：销售统计列表查询参数强类型化
+export interface SalesStatsQueryParams {
+  period?: string
+  start_date?: string
+  end_date?: string
+  category_id?: number
+}
+
+// P2-9c 修复（批次 82 v1 复审）：销售报表导出查询参数强类型化
+export interface SalesExportQueryParams {
+  period?: string
+  start_date?: string
+  end_date?: string
+  category_id?: number
+  format?: string
+}
+
 export const salesAnalysisApi = {
-  getStats: (params?: any) =>
+  getStats: (params?: SalesStatsQueryParams) =>
     request.get<ApiResponse<SalesStats>>('/sales-analysis/stats', { params }),
 
   getProductRanking: (params?: { type?: string }) =>
@@ -53,6 +70,6 @@ export const salesAnalysisApi = {
   getTrendData: (params?: { period?: string }) =>
     request.get<ApiResponse<any>>('/sales-analysis/trend', { params }),
 
-  exportReport: (params?: any) =>
+  exportReport: (params?: SalesExportQueryParams) =>
     request.get<Blob>('/sales-analysis/export', { params, responseType: 'blob' }),
 }

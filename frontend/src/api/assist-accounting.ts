@@ -39,10 +39,32 @@ export interface AssistSummaryResponse {
   [key: string]: any
 }
 
-export const listAssistDimensions = (params?: any) =>
+// P2-9c 修复（批次 82 v1 复审）：辅助核算维度列表查询参数强类型化
+export interface AssistDimensionQueryParams {
+  page?: number
+  page_size?: number
+  dimension_code?: string
+}
+
+// P2-9c 修复（批次 82 v1 复审）：辅助核算记录列表查询参数强类型化
+export interface AssistRecordQueryParams {
+  page?: number
+  page_size?: number
+  dimension_code?: string
+  business_type?: string
+  accounting_period?: string
+}
+
+// P2-9c 修复（批次 82 v1 复审）：辅助核算汇总查询参数强类型化
+export interface AssistSummaryQueryParams {
+  dimension_code?: string
+  accounting_period?: string
+}
+
+export const listAssistDimensions = (params?: AssistDimensionQueryParams) =>
   request.get('/assist-accounting/dimensions', { params })
 
-export const listAssistRecords = (params?: any) =>
+export const listAssistRecords = (params?: AssistRecordQueryParams) =>
   request.get('/assist-accounting/records', { params })
 
 export const queryAssistRecords = listAssistRecords
@@ -50,5 +72,5 @@ export const queryAssistRecords = listAssistRecords
 export const getAssistRecordsByFiveDimension = (fiveDimensionId: number) =>
   request.get(`/assist-accounting/records/five-dimension/${fiveDimensionId}`)
 
-export const getAssistSummary = (params?: any) =>
+export const getAssistSummary = (params?: AssistSummaryQueryParams) =>
   request.get('/assist-accounting/summary', { params })

@@ -76,7 +76,8 @@
         <el-form-item>
           <el-button type="primary" @click="handleQuery">查询</el-button>
           <el-button @click="handleReset">重置</el-button>
-          <el-button type="primary" @click="emit('openForm', 'create', null)">
+          <!-- P2-10 修复（批次 82 v1 复审）：补齐 v-permission 按钮权限 -->
+          <el-button v-permission="'inventory:create'" type="primary" @click="emit('openForm', 'create', null)">
             <el-icon><Plus /></el-icon>新建
           </el-button>
         </el-form-item>

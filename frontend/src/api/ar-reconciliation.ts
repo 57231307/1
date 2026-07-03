@@ -30,7 +30,18 @@ export interface ReconciliationDetail {
   remark?: string
 }
 
-export function listArReconciliations(params?: any) {
+// P2-9c 修复（批次 82 v1 复审）：应收对账列表查询参数强类型化
+export interface ArReconciliationQueryParams {
+  page?: number
+  page_size?: number
+  keyword?: string
+  customer_id?: number
+  status?: string
+  start_date?: string
+  end_date?: string
+}
+
+export function listArReconciliations(params?: ArReconciliationQueryParams) {
   return request.get('/ar-reconciliations', { params })
 }
 

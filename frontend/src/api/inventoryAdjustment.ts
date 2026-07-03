@@ -34,7 +34,17 @@ export interface AdjustmentItem {
   remark?: string
 }
 
-export function listInventoryAdjustments(params?: any) {
+// P2-9c 修复（批次 82 v1 复审）：库存调整列表查询参数强类型化
+export interface InventoryAdjustmentQueryParams {
+  page?: number
+  page_size?: number
+  keyword?: string
+  warehouse_id?: number
+  adjustment_type?: string
+  status?: string
+}
+
+export function listInventoryAdjustments(params?: InventoryAdjustmentQueryParams) {
   return request.get('/inventory/adjustments', { params })
 }
 

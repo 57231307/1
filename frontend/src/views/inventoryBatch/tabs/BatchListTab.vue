@@ -48,7 +48,8 @@
           </el-form-item>
         </el-form>
         <div class="actions">
-          <el-button type="primary" @click="handleCreate">新建批次</el-button>
+          <!-- P2-10 修复（批次 82 v1 复审）：补齐 v-permission 按钮权限 -->
+          <el-button v-permission="'inventory:create'" type="primary" @click="handleCreate">新建批次</el-button>
         </div>
       </div>
 

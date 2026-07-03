@@ -31,7 +31,18 @@ export interface CountItem {
   remark?: string
 }
 
-export const listInventoryCounts = (params?: any) => request.get('/inventory/counts', { params })
+// P2-9c 修复（批次 82 v1 复审）：库存盘点列表查询参数强类型化
+export interface InventoryCountQueryParams {
+  page?: number
+  page_size?: number
+  keyword?: string
+  warehouse_id?: number
+  status?: string
+  count_date?: string
+}
+
+export const listInventoryCounts = (params?: InventoryCountQueryParams) =>
+  request.get('/inventory/counts', { params })
 
 export const getInventoryCount = (id: number) => request.get(`/inventory/counts/${id}`)
 
