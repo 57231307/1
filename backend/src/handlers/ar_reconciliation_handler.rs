@@ -158,14 +158,14 @@ pub struct UpdateStatusRequest {
 
 pub async fn update_reconciliation_status(
     State(state): State<AppState>,
-    _auth: AuthContext,
+    auth: AuthContext,
     Path(id): Path<i32>,
     Json(req): Json<UpdateStatusRequest>,
 ) -> Result<Json<ApiResponse<ReconciliationResponse>>, AppError> {
     let service = ArReconciliationService::new(state.db);
 
     service
-        .update_status(id, &req.status)
+        .update_status(id, &req.status, auth.user_id)
         .await
         .map(|model| Json(ApiResponse::success(ReconciliationResponse::from(model))))
         .map_err(|e| {
@@ -476,7 +476,7 @@ pub async fn send_confirmation(
     info!("用户 {} 发送对账单 ID: {} 给客户确认", auth.username, id);
 
     let service = ArReconciliationService::new(state.db.clone());
-    let reconciliation = service.send(id).await?;
+    let reconciliation = service.send(id, auth.user_id).await?;
 
     info!(
         "用户 {} 发送对账单成功：{}",
@@ -555,7 +555,7 @@ pub async fn update_confirmation_status(
     );
 
     let service = ArReconciliationService::new(state.db.clone());
-    let reconciliation = service.update_status(id, &req.status).await?;
+    let reconciliation = service.update_status(id, &req.status, auth.user_id).await?;
 
     Ok(Json(ApiResponse::success_with_message(
         serde_json::to_value(reconciliation)?,
@@ -649,7 +649,7 @@ pub async fn resolve_dispute(
 
     let service = ArReconciliationService::new(state.db.clone());
     let target_status = req.status.as_deref().unwrap_or("resolved");
-    let reconciliation = service.update_status(id, target_status).await?;
+    let reconciliation = service.update_status(id, target_status, auth.user_id).await?;
 
     Ok(Json(ApiResponse::success_with_message(
         serde_json::to_value(reconciliation)?,

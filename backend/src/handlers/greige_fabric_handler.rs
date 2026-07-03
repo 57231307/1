@@ -87,7 +87,6 @@ pub struct StockInRequest {
 }
 
 #[derive(Debug, Deserialize)]
-#[allow(dead_code)] // TODO(tech-debt): 坯布出库 handler 路由挂载后移除
 pub struct StockOutRequest {
     pub weight_kg: Option<f64>,
     pub length_m: Option<f64>,
@@ -397,6 +396,11 @@ pub async fn stock_out(
 
     update_fabric.status = Set(Some(new_status));
     update_fabric.updated_at = Set(crate::utils::date_utils::utc_now_fixed());
+
+    // 同步更新备注（若请求提供则覆盖，否则保留原值）
+    if let Some(remarks) = req.remarks {
+        update_fabric.remarks = Set(Some(remarks));
+    }
 
     let updated = update_fabric.update(&*state.db).await?;
     Ok(Json(ApiResponse::success_with_message(updated, "坯布出库成功")))

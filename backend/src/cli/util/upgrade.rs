@@ -2,6 +2,11 @@
 //!
 //! 同时承载两个内部辅助函数 `get_latest_version`、`deploy_release`，
 //! 它们由本文件内的 `cmd_upgrade` / `cmd_deploy` 使用。
+//!
+//! 批次 92 P3-8：原 20 处 `let _ = run_cmd(...)` 静默吞错已全部改为
+//! `if let Err(e) = ... { println!("[ERROR]/[WARN] ...") }` 模式：
+//! - 关键路径（stop/start/mv/cp/chmod/mkdir）失败记录 [ERROR]
+//! - 清理路径（rm -rf temp）失败记录 [WARN]
 
 use super::{
     build_release_url, download_with_mirrors, fetch_with_mirrors, get_backup_dir, get_install_dir,
@@ -71,8 +76,10 @@ pub(super) fn cmd_upgrade(version: Option<String>, no_backup: bool) {
     println!("\n部署新版本...");
     deploy_release(&download_path);
 
-    // 清理
-    let _ = run_cmd("rm", &["-f", &download_path]);
+    // 清理下载包（非关键路径）
+    if let Err(e) = run_cmd("rm", &["-f", &download_path]) {
+        println!("[WARN] 清理下载包失败（可忽略）: {}", e);
+    }
 
     println!("\n[OK] 升级完成");
     println!("新版本: {}", target);
@@ -107,35 +114,32 @@ pub(super) fn cmd_rollback() {
     }
 
     println!("停止服务...");
-    let _ = run_cmd("systemctl", &["stop", super::SERVICE_NAME]);
+    if let Err(e) = run_cmd("systemctl", &["stop", super::SERVICE_NAME]) {
+        println!("[ERROR] 停止服务失败（继续回滚）: {}", e);
+    }
     std::thread::sleep(std::time::Duration::from_secs(2));
 
     println!("恢复旧版本...");
-    let _ = run_cmd(
-        "mv",
-        &[
-            &server_old,
-            &format!("{}/backend/server", get_install_dir()),
-        ],
-    );
-    let _ = run_cmd(
-        "mv",
-        &[
-            &bingxi_old,
-            &format!("{}/backend/bingxi", get_install_dir()),
-        ],
-    );
-    let _ = run_cmd(
-        "chmod",
-        &["+x", &format!("{}/backend/server", get_install_dir())],
-    );
-    let _ = run_cmd(
-        "chmod",
-        &["+x", &format!("{}/backend/bingxi", get_install_dir())],
-    );
+    let server_path = format!("{}/backend/server", get_install_dir());
+    let bingxi_path = format!("{}/backend/bingxi", get_install_dir());
+
+    if let Err(e) = run_cmd("mv", &[&server_old, &server_path]) {
+        println!("[ERROR] 恢复 server 失败: {}", e);
+    }
+    if let Err(e) = run_cmd("mv", &[&bingxi_old, &bingxi_path]) {
+        println!("[ERROR] 恢复 bingxi 失败: {}", e);
+    }
+    if let Err(e) = run_cmd("chmod", &["+x", &server_path]) {
+        println!("[ERROR] chmod server 失败: {}", e);
+    }
+    if let Err(e) = run_cmd("chmod", &["+x", &bingxi_path]) {
+        println!("[ERROR] chmod bingxi 失败: {}", e);
+    }
 
     println!("启动服务...");
-    let _ = run_cmd("systemctl", &["start", super::SERVICE_NAME]);
+    if let Err(e) = run_cmd("systemctl", &["start", super::SERVICE_NAME]) {
+        println!("[ERROR] 启动服务失败: {}", e);
+    }
 
     std::thread::sleep(std::time::Duration::from_secs(3));
 
@@ -160,81 +164,78 @@ fn get_latest_version() -> Option<String> {
 /// 部署发布包
 fn deploy_release(package: &str) {
     println!("停止服务...");
-    let _ = run_cmd("systemctl", &["stop", super::SERVICE_NAME]);
+    if let Err(e) = run_cmd("systemctl", &["stop", super::SERVICE_NAME]) {
+        println!("[ERROR] 停止服务失败（继续部署）: {}", e);
+    }
     std::thread::sleep(std::time::Duration::from_secs(2));
 
     println!("解压更新包...");
-    let _ = run_cmd("tar", &["-xzf", package, "-C", "/tmp"]);
+    if let Err(e) = run_cmd("tar", &["-xzf", package, "-C", "/tmp"]) {
+        println!("[ERROR] 解压失败，终止部署: {}", e);
+        return;
+    }
 
     let extract_dir = "/tmp/bingxi-erp";
+    let install_dir = get_install_dir();
 
     // 备份旧文件
     println!("备份旧文件...");
     let ts = timestamp();
-    let old_backup = format!("{}/old.{}", get_install_dir(), ts);
-    let _ = run_cmd("mkdir", &["-p", &old_backup]);
-    let _ = run_cmd(
-        "cp",
-        &[
-            "-r",
-            &format!("{}/backend/server", get_install_dir()),
-            &old_backup,
-        ],
-    );
-    let _ = run_cmd(
-        "cp",
-        &[
-            "-r",
-            &format!("{}/backend/bingxi", get_install_dir()),
-            &old_backup,
-        ],
-    );
+    let old_backup = format!("{}/old.{}", install_dir, ts);
+    if let Err(e) = run_cmd("mkdir", &["-p", &old_backup]) {
+        println!("[ERROR] 创建旧文件备份目录失败，终止部署: {}", e);
+        return;
+    }
+    let server_src = format!("{}/backend/server", install_dir);
+    let bingxi_src = format!("{}/backend/bingxi", install_dir);
+    if let Err(e) = run_cmd("cp", &["-r", &server_src, &old_backup]) {
+        println!("[ERROR] 备份 server 失败: {}", e);
+    }
+    if let Err(e) = run_cmd("cp", &["-r", &bingxi_src, &old_backup]) {
+        println!("[ERROR] 备份 bingxi 失败: {}", e);
+    }
 
     // 更新后端
     println!("更新后端...");
-    let _ = run_cmd(
-        "cp",
-        &[
-            &format!("{}/backend/server", extract_dir),
-            &format!("{}/backend/server", get_install_dir()),
-        ],
-    );
-    let _ = run_cmd(
-        "cp",
-        &[
-            &format!("{}/backend/bingxi", extract_dir),
-            &format!("{}/backend/bingxi", get_install_dir()),
-        ],
-    );
-    let _ = run_cmd(
-        "chmod",
-        &["+x", &format!("{}/backend/server", get_install_dir())],
-    );
-    let _ = run_cmd(
-        "chmod",
-        &["+x", &format!("{}/backend/bingxi", get_install_dir())],
-    );
+    let new_server = format!("{}/backend/server", extract_dir);
+    let new_bingxi = format!("{}/backend/bingxi", extract_dir);
+    let dst_server = format!("{}/backend/server", install_dir);
+    let dst_bingxi = format!("{}/backend/bingxi", install_dir);
+
+    if let Err(e) = run_cmd("cp", &["-r", &new_server, &dst_server]) {
+        println!("[ERROR] 覆盖 server 失败: {}", e);
+    }
+    if let Err(e) = run_cmd("cp", &["-r", &new_bingxi, &dst_bingxi]) {
+        println!("[ERROR] 覆盖 bingxi 失败: {}", e);
+    }
+    if let Err(e) = run_cmd("chmod", &["+x", &dst_server]) {
+        println!("[ERROR] chmod server 失败: {}", e);
+    }
+    if let Err(e) = run_cmd("chmod", &["+x", &dst_bingxi]) {
+        println!("[ERROR] chmod bingxi 失败: {}", e);
+    }
 
     // 更新前端
     println!("更新前端...");
-    let _ = run_cmd(
-        "rm",
-        &["-rf", &format!("{}/frontend/dist", get_install_dir())],
-    );
-    let _ = run_cmd(
-        "mv",
-        &[
-            &format!("{}/frontend/dist", extract_dir),
-            &format!("{}/frontend/dist", get_install_dir()),
-        ],
-    );
+    let frontend_dist = format!("{}/frontend/dist", install_dir);
+    if let Err(e) = run_cmd("rm", &["-rf", &frontend_dist]) {
+        println!("[WARN] 清理旧前端 dist 失败（继续 mv 覆盖）: {}", e);
+    }
+    let new_dist = format!("{}/frontend/dist", extract_dir);
+    if let Err(e) = run_cmd("mv", &[&new_dist, &frontend_dist]) {
+        println!("[ERROR] 移动新前端 dist 失败: {}", e);
+    }
 
-    // 清理
-    let _ = run_cmd("rm", &["-rf", extract_dir]);
+    // 清理解压目录（非关键路径）
+    if let Err(e) = run_cmd("rm", &["-rf", extract_dir]) {
+        println!("[WARN] 清理解压目录失败（可忽略）: {}", e);
+    }
 
     // 启动
     println!("启动服务...");
-    let _ = run_cmd("systemctl", &["start", super::SERVICE_NAME]);
+    if let Err(e) = run_cmd("systemctl", &["start", super::SERVICE_NAME]) {
+        println!("[ERROR] 启动服务失败: {}", e);
+    }
 
     std::thread::sleep(std::time::Duration::from_secs(3));
 

@@ -35,6 +35,7 @@ pub struct CreateWarehouseRequest {
     pub manager: Option<String>,
     pub phone: Option<String>,
     pub capacity: Option<i32>,
+    #[allow(dead_code)] // TODO(tech-debt): WarehouseService::create 未将 description 写入 notes 列，后续接入
     pub description: Option<String>,
 }
 

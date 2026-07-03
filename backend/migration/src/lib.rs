@@ -43,6 +43,8 @@ pub mod m0034_create_fixed_asset_depreciation_records;
 pub mod m0035_create_customer_contacts;
 // 批次 91 P0-1：API 端点管理表
 pub mod m0036_create_api_endpoints;
+// 批次 92 P3-12/P3-13：fixed_asset_depreciation_records 外键 RESTRICT + 冗余索引清理
+pub mod m0037_alter_fa_depreciation_records_fk;
 
 pub struct Migrator;
 
@@ -86,6 +88,7 @@ impl MigratorTrait for Migrator {
             Box::new(m0034_create_fixed_asset_depreciation_records::Migration),
             Box::new(m0035_create_customer_contacts::Migration),
             Box::new(m0036_create_api_endpoints::Migration),
+            Box::new(m0037_alter_fa_depreciation_records_fk::Migration),
         ]
     }
 }

@@ -3,7 +3,6 @@ pub mod audit_context;
 pub mod auth;
 pub mod auth_context;
 pub mod csrf;
-pub mod data_permission;
 pub mod metrics;
 pub mod omni_audit;
 pub mod permission;
@@ -22,3 +21,4 @@ pub mod init_token;
 // v3 P2-7~P2-10：删除 4 个未挂载的 dead middleware 文件
 // operation_log / trace / logger_middleware / security_headers
 // 功能已分别被 omni_audit_middleware / trace_context_middleware / TraceLayer / SetResponseHeaderLayer 替代
+// v3 P3-2/P3-15：data_permission / validation 占位空文件清理

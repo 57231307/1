@@ -132,7 +132,7 @@ pub async fn get_color_card(
 
 /// PUT /api/v1/erp/color-cards/:id - 更新色卡
 pub async fn update_color_card(
-    _auth: AuthContext,
+    auth: AuthContext,
     State(state): State<AppState>,
     Path(id): Path<i64>,
     Json(dto): Json<UpdateColorCardDto>,
@@ -140,7 +140,7 @@ pub async fn update_color_card(
     let service = ColorCardCrudService::from_state(&state);
 
     let updated = service
-        .update(id, dto)
+        .update(id, dto, auth.user_id)
         .await
         .map_err(crud_err)?;
 
@@ -160,7 +160,7 @@ pub async fn update_color_card(
 
 /// DELETE /api/v1/erp/color-cards/:id - 归档色卡
 pub async fn archive_color_card(
-    _auth: AuthContext,
+    auth: AuthContext,
     State(state): State<AppState>,
     Path(id): Path<i64>,
     Json(dto): Json<ArchiveColorCardDto>,
@@ -168,7 +168,7 @@ pub async fn archive_color_card(
     let service = ColorCardCrudService::from_state(&state);
 
     let updated = service
-        .archive(id, dto)
+        .archive(id, dto, auth.user_id)
         .await
         .map_err(crud_err)?;
 

@@ -9,7 +9,11 @@ pub(super) fn cmd_backup(backup_type: &str) {
     println!("=== 开始备份 ===\n");
     println!("备份目录: {}", backup_dir);
 
-    let _ = run_cmd("mkdir", &["-p", &backup_dir]);
+    // 批次 92 P3-8：原 `let _ = run_cmd(...)` 静默吞错，关键路径失败应中止
+    if let Err(e) = run_cmd("mkdir", &["-p", &backup_dir]) {
+        println!("[ERROR] 创建备份目录失败，终止备份: {}", e);
+        return;
+    }
 
     // 备份数据库
     if backup_type == "database" || backup_type == "all" {
@@ -46,9 +50,16 @@ pub(super) fn cmd_backup(backup_type: &str) {
         let env_file = "/etc/bingxi/.env";
         let service_file = format!("/etc/systemd/system/{}.service", super::SERVICE_NAME);
 
-        let _ = run_cmd("cp", &["-r", &config_dir, &backup_dir]);
-        let _ = run_cmd("cp", &["-r", env_file, &backup_dir]);
-        let _ = run_cmd("cp", &["-r", &service_file, &backup_dir]);
+        // 批次 92 P3-8：cp 失败应记录错误（不中止，尽量备份剩余文件）
+        if let Err(e) = run_cmd("cp", &["-r", &config_dir, &backup_dir]) {
+            println!("[ERROR] 备份 config.yaml 失败: {}", e);
+        }
+        if let Err(e) = run_cmd("cp", &["-r", env_file, &backup_dir]) {
+            println!("[ERROR] 备份 .env 失败: {}", e);
+        }
+        if let Err(e) = run_cmd("cp", &["-r", &service_file, &backup_dir]) {
+            println!("[ERROR] 备份 service 文件失败: {}", e);
+        }
 
         println!("[OK] 配置文件备份完成");
     }
@@ -56,11 +67,16 @@ pub(super) fn cmd_backup(backup_type: &str) {
     // 压缩
     println!("\n压缩备份...");
     let tar_file = format!("{}/backup_{}.tar.gz", get_backup_dir(), ts);
-    let _ = run_cmd(
+    if let Err(e) = run_cmd(
         "tar",
         &["-czf", &tar_file, "-C", &get_backup_dir(), &ts.to_string()],
-    );
-    let _ = run_cmd("rm", &["-rf", &backup_dir]);
+    ) {
+        println!("[ERROR] 压缩失败: {}", e);
+    }
+    // 清理临时目录（非关键路径，失败仅告警）
+    if let Err(e) = run_cmd("rm", &["-rf", &backup_dir]) {
+        println!("[WARN] 清理临时备份目录失败（可忽略）: {}", e);
+    }
 
     println!("\n[OK] 备份完成: {}", tar_file);
 }
@@ -75,8 +91,15 @@ pub(super) fn cmd_restore(file: &str) {
     }
 
     let temp_dir = "/tmp/bingxi_restore";
-    let _ = run_cmd("rm", &["-rf", temp_dir]);
-    let _ = run_cmd("mkdir", &["-p", temp_dir]);
+    // 清理旧临时目录（非关键路径）
+    if let Err(e) = run_cmd("rm", &["-rf", temp_dir]) {
+        println!("[WARN] 清理旧临时目录失败（可忽略）: {}", e);
+    }
+    // 创建临时目录（关键路径）
+    if let Err(e) = run_cmd("mkdir", &["-p", temp_dir]) {
+        println!("[ERROR] 创建临时目录失败，终止恢复: {}", e);
+        return;
+    }
 
     println!("解压备份...");
     if let Err(e) = run_cmd("tar", &["-xzf", file, "-C", temp_dir]) {
@@ -122,12 +145,19 @@ pub(super) fn cmd_restore(file: &str) {
             } else {
                 format!("{}/backend/{}", get_install_dir(), name)
             };
-            let _ = run_cmd("cp", &[&src, &dst]);
-            println!("[OK] 恢复: {}", name);
+            // 批次 92 P3-8：cp 失败应记录错误
+            if let Err(e) = run_cmd("cp", &[&src, &dst]) {
+                println!("[ERROR] 恢复 {} 失败: {}", name, e);
+            } else {
+                println!("[OK] 恢复: {}", name);
+            }
         }
     }
 
-    let _ = run_cmd("rm", &["-rf", temp_dir]);
+    // 清理临时目录（非关键路径）
+    if let Err(e) = run_cmd("rm", &["-rf", temp_dir]) {
+        println!("[WARN] 清理临时目录失败（可忽略）: {}", e);
+    }
 
     println!("\n[OK] 恢复完成，请重启服务: bingxi restart");
 }

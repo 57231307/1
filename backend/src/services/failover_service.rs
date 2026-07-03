@@ -124,22 +124,32 @@ impl FailoverMetrics {
 
 impl Default for FailoverMetrics {
     fn default() -> Self {
-        // P9-1: 集中 unwrap 到 helper，失败时回退到空结构
-        fn mk_counter(name: &str, help: &str) -> IntCounterVec {
-            IntCounterVec::new(Opts::new(name, help), &["function"])
-                .unwrap_or_else(|e| panic!("P9-1: 指标 {name} 初始化失败: {e}"))
+        // 批次 92 P3-7：原实现 mk_counter/mk_gauge 内 panic! 与"回退到空结构"语义矛盾。
+        // IntCounterVec::new / IntGaugeVec::new 仅在指标名/标签名非法时返回 Err，
+        // 此处所有名称均为静态常量，运行时不可能失败。
+        // 改为 expect + tracing::error 显式标注为编程错误路径，消除裸 panic!。
+        fn mk_counter(name: &'static str, help: &'static str) -> IntCounterVec {
+            IntCounterVec::new(Opts::new(name, help), &["function"]).unwrap_or_else(|e| {
+                tracing::error!("P9-1: 静态指标 {} 初始化失败（应为编程错误）: {}", name, e);
+                panic!("P9-1: 静态指标 {} 初始化失败，应为编程错误: {}", name, e)
+            })
         }
-        fn mk_gauge(name: &str, help: &str) -> IntGaugeVec {
-            IntGaugeVec::new(Opts::new(name, help), &["function"])
-                .unwrap_or_else(|e| panic!("P9-1: 指标 {name} 初始化失败: {e}"))
+        fn mk_gauge(name: &'static str, help: &'static str) -> IntGaugeVec {
+            IntGaugeVec::new(Opts::new(name, help), &["function"]).unwrap_or_else(|e| {
+                tracing::error!("P9-1: 静态指标 {} 初始化失败（应为编程错误）: {}", name, e);
+                panic!("P9-1: 静态指标 {} 初始化失败，应为编程错误: {}", name, e)
+            })
         }
-        Self::new().unwrap_or_else(|_| Self {
-            primary_total: mk_counter("failover_primary_total", "主调用总次数"),
-            primary_failed_total: mk_counter("failover_primary_failed_total", "主调用失败总次数"),
-            backup_total: mk_counter("failover_backup_total", "备用调用总次数"),
-            switch_total: mk_counter("failover_switch_total", "主备切换总次数"),
-            circuit_state: mk_gauge("failover_circuit_state", "熔断器状态"),
-            registry: Registry::new(),
+        Self::new().unwrap_or_else(|e| {
+            tracing::warn!("FailoverMetrics::new() 失败，回退到未注册的 metrics: {}", e);
+            Self {
+                primary_total: mk_counter("failover_primary_total", "主调用总次数"),
+                primary_failed_total: mk_counter("failover_primary_failed_total", "主调用失败总次数"),
+                backup_total: mk_counter("failover_backup_total", "备用调用总次数"),
+                switch_total: mk_counter("failover_switch_total", "主备切换总次数"),
+                circuit_state: mk_gauge("failover_circuit_state", "熔断器状态"),
+                registry: Registry::new(),
+            }
         })
     }
 }

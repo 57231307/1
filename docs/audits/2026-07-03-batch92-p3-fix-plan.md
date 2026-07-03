@@ -144,7 +144,49 @@
 
 | 子批 | 项 | 状态 |
 |------|----|----|
-| A | 1, 2, 3, 4, 5, 15 | ⬜ 待修复 |
-| B | 7, 8 | ⬜ 待修复 |
-| C | 9, 10, 11, 12, 13, 14 | ⬜ 待修复 |
+| A | 1, 2, 3, 4, 5, 15 | ✅ 代码完成 |
+| B | 7, 8 | ✅ 代码完成 |
+| C | 9, 10, 11, 12, 13, 14 | ✅ 代码完成 |
 | 提交 | PR + CI + 合并 | ⬜ 待执行 |
+
+## 实施记录
+
+### 子批 A 死代码/占位清理（已完成）
+- 项 1：`custom_order_handler.rs` 删除占位 `let _ = Entity::find()` + 未使用的 use
+- 项 2+15：删除 `middleware/validation.rs`、`middleware/data_permission.rs` 占位文件 + 移除 mod.rs 引用
+- 项 3：`print_handler.rs` 删除 `inventory_count_print_html` 函数 + `routes/inventory.rs` 删除已注释路由块
+- 项 4：`failover_handler.rs` 删除 `init_global_metrics` 死代码（懒加载已实现）
+- 项 5：`greige_fabric_handler.rs` 删除过时 `#[allow(dead_code)]` 标注，并在 stock_out 中实际使用 `req.remarks`
+
+### 子批 B panic/吞错修复（已完成）
+- 项 7：
+  - `omni_audit_service.rs`：panic! 改为 `match` 表达式 + `return Err`（闭包 return 陷阱修复）
+  - `failover_service.rs`：panic 前加 `tracing::error!` 日志，`unwrap_or_else` 修复错误变量捕获
+- 项 8：`cli/util/{backup,service,misc,upgrade}.rs` 共 36 处 `let _ = run_cmd(...)` 改为带日志的错误处理
+  - 关键路径（mkdir、stop/reload nginx、tar 解压、mv 覆盖）：失败时 `return` 中止
+  - 清理路径（rm -rf temp、find/rm）：失败仅告警
+
+### 子批 C 业务逻辑修复（已完成）
+- 项 9：占位 user_id 全部替换为真实注入
+  - `ar/recon.rs`：6 个方法签名补 `user_id: i32`，删除 `Some(0)` 占位
+  - `color_card_crud_service.rs`：3 个方法签名补 `user_id: i32`
+  - `ar_reconciliation_handler.rs`：4 处调用注入 `auth.user_id`
+  - `color_card/crud.rs`：2 处调用注入 `auth.user_id`
+- 项 10：`fixed_asset_service.rs` 拆出纯计算函数
+  - 新增 `fn calc_monthly_depreciation_for(asset: &Model) -> Result<Decimal, AppError>`
+  - `calculate_monthly_depreciation(asset_id)` 改为异步包装（handler 入口保留）
+  - `depreciate` 改用 `Self::calc_monthly_depreciation_for(&asset)?`，消除事务外重复读
+- 项 11：`batch_calculate_depreciation` 加保护
+  - 入口校验：空列表返回空，>10_000 拒绝
+  - 查询改用 `.paginate(&*self.db, 1000)` 流式拉取
+- 项 12+13：新建 m0037 迁移
+  - `migrations/20260703000006_alter_fa_depreciation_records_fk/up.sql`：外键 ON DELETE RESTRICT + DROP 冗余索引
+  - `down.sql`：恢复默认外键 + 恢复冗余索引
+  - `migration/src/m0037_alter_fa_depreciation_records_fk.rs`：迁移实现
+  - `migration/src/lib.rs`：注册 m0037
+- 项 14：折旧"已足额折旧"短路
+  - `depreciate` 函数加 `accumulated_depreciation >= depreciable_cap` 短路
+  - `new_accumulated` 封顶到 `depreciable_cap`（最后一期可能小于月折旧额）
+  - 折旧记录 `depreciation_amount` 改用 `actual_depreciation`（封顶后实际计提额）
+  - 零值校验改为 `return Ok(())`（已足额折旧或使用寿命为 0 时幂等返回）
+

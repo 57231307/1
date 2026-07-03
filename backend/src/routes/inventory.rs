@@ -104,49 +104,6 @@ pub fn inventory() -> Router<AppState> {
             "/transfers/:id/print",
             get(print_handler::inventory_transfer_print_html),
         )
-        // 批次 23（2026-06-29 v5 维度 8 P0-1）：移除 inventory_count 12 个 HTTP 端点
-        // 原因：inventory_count_service facade 11 个方法全部返回 NotImplemented，
-        // 4 个子模块（query/commands/workflow/items）各仅 1 行 TODO 占位，
-        // 生产环境调用这 12 个端点必返回 501，属于线上事故级缺陷。
-        // 决策：暂时移除路由注册（service 实现后可恢复），避免暴露空端点。
-        // TODO(tech-debt): inventory_count 子模块完整实现后恢复以下路由注册。
-        // 涉及文件：
-        //   - services/inventory_count_service.rs（facade，11 方法 NotImplemented）
-        //   - services/inventory_count/{query,commands,workflow,items}.rs（4 个 TODO 占位）
-        //   - handlers/inventory_count_handler.rs（v8 P1-2 已删除，git 历史可检索）
-        //   - models/inventory_count.rs + inventory_count_item.rs（模型已就绪）
-        // .route("/counts", get(inventory_count_handler::list_counts))
-        // .route(
-        //     "/counts/generate-no",
-        //     get(inventory_count_handler::generate_no),
-        // )
-        // .route("/counts", post(inventory_count_handler::create_count))
-        // .route(
-        //     "/counts/:id",
-        //     get(inventory_count_handler::get_count)
-        //         .put(inventory_count_handler::update_count)
-        //         .delete(inventory_count_handler::delete_count),
-        // )
-        // .route(
-        //     "/counts/:id/approve",
-        //     post(inventory_count_handler::approve_count),
-        // )
-        // .route(
-        //     "/counts/:id/complete",
-        //     post(inventory_count_handler::complete_count),
-        // )
-        // .route(
-        //     "/counts/:id/items",
-        //     get(inventory_count_handler::list_items).post(inventory_count_handler::add_item),
-        // )
-        // .route(
-        //     "/counts/items/:item_id",
-        //     put(inventory_count_handler::update_item).delete(inventory_count_handler::delete_item),
-        // )
-        // .route(
-        //     "/counts/:id/print",
-        //     get(print_handler::inventory_count_print_html),
-        // )
         .route(
             "/adjustments",
             get(inventory_adjustment_handler::list_adjustments),

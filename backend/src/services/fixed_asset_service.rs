@@ -154,10 +154,23 @@ impl FixedAssetService {
         Ok(asset)
     }
 
-    /// 计算月折旧额
+    /// 计算月折旧额（按 asset_id 查询资产后调用纯计算函数）
+    ///
+    /// 保留此异步包装用于 handler 直接调用（如 GET /api/v1/erp/fixed-assets/:id/depreciation/preview）。
+    /// 事务内请直接调用 `Self::calc_monthly_depreciation_for(&asset)`，避免事务外重复读。
+    #[allow(dead_code)] // TODO(tech-debt): 折旧预览 API 接入后移除（depreciate 已改用纯计算函数）
     pub async fn calculate_monthly_depreciation(&self, asset_id: i32) -> Result<Decimal, AppError> {
         let asset = self.get_by_id(asset_id).await?;
+        Self::calc_monthly_depreciation_for(&asset)
+    }
 
+    /// 计算月折旧额（纯计算函数，无 IO）
+    ///
+    /// 批次 92 P3-10 修复：从 `calculate_monthly_depreciation` 拆出纯计算部分，
+    /// 供 `depreciate` 事务内复用已 lock_exclusive 读出的 asset，
+    /// 消除事务外重复 `self.get_by_id(asset_id)` 读取（原实现存在 TOCTOU 风险：
+    /// 事务外读到的 asset 可能已被并发 depreciate/dispose 修改）。
+    fn calc_monthly_depreciation_for(asset: &fixed_asset::Model) -> Result<Decimal, AppError> {
         let residual_value = asset.salvage_value.unwrap_or(Decimal::ZERO);
 
         let monthly_depreciation = match asset.depreciation_method.as_deref() {
@@ -219,11 +232,21 @@ impl FixedAssetService {
             ));
         }
 
-        // 计算月折旧额（只读操作，在 self.db 上查询安全；状态已在 txn 内校验）
-        let monthly_depreciation = self.calculate_monthly_depreciation(asset_id).await?;
+        // 计算月折旧额（批次 92 P3-10 修复：复用事务内已 lock_exclusive 读出的 asset，
+        // 调用纯计算函数 calc_monthly_depreciation_for，消除事务外重复 self.get_by_id 读取）
+        let monthly_depreciation = Self::calc_monthly_depreciation_for(&asset)?;
 
+        // 批次 92 P3-14 修复：零值改为正常返回（useful_life=0 或已折旧完毕均可能产生 0）
+        // 原实现 `return Err("月折旧额不能为零")` 会把"已足额折旧"误判为业务错误，
+        // 让前端误以为计提失败；改为 Ok 后调用方按幂等处理。
         if monthly_depreciation <= Decimal::ZERO {
-            return Err(AppError::validation("月折旧额不能为零"));
+            info!(
+                "资产 {} 月折旧额为 0（已足额折旧或使用寿命为 0），跳过本次计提",
+                asset_id
+            );
+            // 显式回滚事务（无写入但保持事务语义清晰）
+            txn.rollback().await?;
+            return Ok(());
         }
 
         // 保留需要使用的字段值，避免 moved value 错误
@@ -234,8 +257,24 @@ impl FixedAssetService {
         let net_value_before = asset.net_value;
         let depreciation_method = asset.depreciation_method.clone();
 
-        // 计算新的累计折旧
-        let new_accumulated = accumulated_depreciation + monthly_depreciation;
+        // 批次 92 P3-14 修复：已足额折旧短路
+        // 若累计折旧已达可折旧上限（原值 - 残值），跳过本次计提避免超额折旧。
+        // 可折旧上限 = original_value - residual_value
+        let depreciable_cap = original_value - residual_value;
+        if accumulated_depreciation >= depreciable_cap {
+            info!(
+                "资产 {} 已足额折旧（累计={} 可折旧上限={}），跳过本次计提",
+                asset_id, accumulated_depreciation, depreciable_cap
+            );
+            txn.rollback().await?;
+            return Ok(());
+        }
+
+        // 计算新的累计折旧（批次 92 P3-14：封顶到 depreciable_cap，防止最后一期溢出残值）
+        let raw_new_accumulated = accumulated_depreciation + monthly_depreciation;
+        let new_accumulated = raw_new_accumulated.min(depreciable_cap);
+        // 实际计提额（封顶后可能小于月折旧额）
+        let actual_depreciation = new_accumulated - accumulated_depreciation;
         // 净值 = 原值 - 累计折旧，不能低于残值
         let new_net_value = (original_value - new_accumulated).max(residual_value);
 
@@ -252,7 +291,8 @@ impl FixedAssetService {
             id: Default::default(),
             asset_id: Set(asset_id),
             period: Set(period.to_string()),
-            depreciation_amount: Set(monthly_depreciation),
+            // 批次 92 P3-14：使用封顶后的实际计提额，而非月折旧额（最后一期可能小于月折旧额）
+            depreciation_amount: Set(actual_depreciation),
             accumulated_before: Set(accumulated_depreciation),
             accumulated_after: Set(new_accumulated),
             net_value_before: Set(net_value_before),
@@ -288,8 +328,8 @@ impl FixedAssetService {
         txn.commit().await?;
 
         info!(
-            "资产 {} 折旧计提成功，月折旧额：{}",
-            asset_id, monthly_depreciation
+            "资产 {} 折旧计提成功，实际计提额：{}（月折旧额：{}，累计：{} -> {}）",
+            asset_id, actual_depreciation, monthly_depreciation, accumulated_depreciation, new_accumulated
         );
         Ok(())
     }
@@ -437,6 +477,10 @@ impl FixedAssetService {
     /// 也不插入 fixed_asset_depreciation_records 记录。
     /// 如需持久化计提，请逐条调用 `depreciate(asset_id, period, user_id)`。
     /// 前端批量入口应先调本方法预览，用户确认后逐条调 depreciate 完成计提。
+    ///
+    /// 批次 92 P3-11 修复：
+    /// - 入口加 asset_ids 长度校验（>10_000 拒绝），防止 IN 列表过长拖垮 DB
+    /// - 查询改用 `.paginate(&*self.db, 1000)` 流式拉取，避免一次性 `.all()` 内存峰值
     pub async fn batch_calculate_depreciation(
         &self,
         asset_ids: Vec<i32>,
@@ -445,17 +489,35 @@ impl FixedAssetService {
     ) -> Result<Vec<DepreciationResult>, AppError> {
         use chrono::NaiveDate;
 
+        // 批次 92 P3-11：长度校验，防止超大 IN 列表
+        if asset_ids.is_empty() {
+            return Ok(Vec::new());
+        }
+        if asset_ids.len() > 10_000 {
+            return Err(AppError::validation(format!(
+                "批量计算折旧的资产数量超限（{} > 10000），请分批调用",
+                asset_ids.len()
+            )));
+        }
+
         let calc_date = calculation_date
             .parse::<NaiveDate>()
             .map_err(|_| AppError::validation("日期格式错误"))?;
 
-        // 批量查询所有固定资产
-        let assets = fixed_asset::Entity::find()
+        // 批次 92 P3-11：流式分页查询，避免一次性加载全部资产到内存
+        // page_size=1000 在 IN(asset_ids) 过滤下，每页 IO 成本可控
+        let paginator = fixed_asset::Entity::find()
             .filter(fixed_asset::Column::Id.is_in(asset_ids.clone()))
-            .all(&*self.db)
-            .await?;
-        let asset_map: HashMap<i32, fixed_asset::Model> =
-            assets.into_iter().map(|a| (a.id, a)).collect();
+            .paginate(&*self.db, 1000);
+
+        let mut asset_map: HashMap<i32, fixed_asset::Model> = HashMap::new();
+        let num_pages = paginator.num_pages().await?;
+        for page_idx in 0..num_pages {
+            let page_items = paginator.fetch_page(page_idx).await?;
+            for a in page_items {
+                asset_map.insert(a.id, a);
+            }
+        }
 
         let mut results = Vec::new();
 

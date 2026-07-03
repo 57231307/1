@@ -87,7 +87,10 @@ pub(super) fn cmd_restart() {
     println!("=== 重启服务 ===\n");
 
     println!("停止服务...");
-    let _ = run_cmd("systemctl", &["stop", SERVICE_NAME]);
+    // 批次 92 P3-8：stop 失败应告警（不中止，继续尝试 start）
+    if let Err(e) = run_cmd("systemctl", &["stop", SERVICE_NAME]) {
+        println!("[ERROR] 停止服务失败（继续尝试启动）: {}", e);
+    }
     std::thread::sleep(std::time::Duration::from_secs(1));
 
     println!("启动服务...");
@@ -96,7 +99,10 @@ pub(super) fn cmd_restart() {
         Err(e) => println!("[ERROR] 重启失败: {}", e),
     }
 
-    let _ = run_cmd("systemctl", &["reload", "nginx"]);
+    // reload nginx 失败非致命（可能未安装 nginx）
+    if let Err(e) = run_cmd("systemctl", &["reload", "nginx"]) {
+        println!("[WARN] reload nginx 失败（可忽略）: {}", e);
+    }
 
     std::thread::sleep(std::time::Duration::from_secs(2));
 
