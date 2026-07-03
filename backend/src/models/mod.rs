@@ -158,6 +158,7 @@ pub mod sales_return;
 pub mod sales_return_item;
 pub mod slow_query;
 // 扩展能力模块
+pub mod api_endpoint;
 pub mod api_key;
 pub mod webhook;
 // 消息通知模块

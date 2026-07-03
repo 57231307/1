@@ -14,6 +14,12 @@ pub struct ApiResponse<T> {
     pub data: Option<T>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub message: Option<String>,
+    /// 分页总数（可选，仅列表分页接口由后端顶层返回）
+    ///
+    /// 批次 91 P0-1：部分前端页面（如 api-gateway）从 ApiResponse 顶层读取 total，
+    /// 而非从 data.items.total 读取。该字段为可选，不影响不需要 total 的端点。
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub total: Option<u64>,
 }
 
 impl<T> Default for ApiResponse<T> {
@@ -22,6 +28,7 @@ impl<T> Default for ApiResponse<T> {
             code: Some(500),
             data: None,
             message: None,
+            total: None,
         }
     }
 }
@@ -65,6 +72,7 @@ impl<T> From<PaginatedResponse<T>> for ApiResponse<Vec<T>> {
             code: Some(200),
             data: Some(paginated.items),
             message: None,
+            total: Some(paginated.total),
         }
     }
 }
@@ -80,6 +88,7 @@ impl<T: Serialize> ApiResponse<T> {
             code: Some(200),
             data: Some(data),
             message: None,
+            total: None,
         }
     }
 
@@ -99,6 +108,7 @@ impl<T: Serialize> ApiResponse<T> {
                 page_size,
             }),
             message: None,
+            total: None,
         }
     }
 
@@ -107,6 +117,7 @@ impl<T: Serialize> ApiResponse<T> {
             code: Some(200),
             data: Some(data),
             message: Some(message.to_string()),
+            total: None,
         }
     }
 
@@ -115,6 +126,7 @@ impl<T: Serialize> ApiResponse<T> {
             code: Some(500),
             data: None,
             message: Some(message.into()),
+            total: None,
         }
     }
 
@@ -123,6 +135,7 @@ impl<T: Serialize> ApiResponse<T> {
             code: Some(status.as_u16()),
             data: None,
             message: Some(message.into()),
+            total: None,
         }
     }
 }
