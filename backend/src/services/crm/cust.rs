@@ -178,11 +178,16 @@ impl CrmService {
         let follow_up_type = req.r#type.clone().unwrap_or_else(|| "general".to_string());
         let content = req.content.clone().unwrap_or_default();
         let follow_up_at = chrono::Utc::now();
+        // P3 维度 3 修复（批次 87）：消除 expect panic，使用 unwrap_or 兜底
         let next_follow_up_at: Option<chrono::DateTime<chrono::Utc>> = req
             .next_follow_date
             .as_ref()
             .and_then(|s| chrono::NaiveDate::parse_from_str(s, "%Y-%m-%d").ok())
-            .map(|d| d.and_hms_opt(0, 0, 0).expect("合法时分秒").and_utc());
+            .map(|d| {
+                d.and_hms_opt(0, 0, 0)
+                    .unwrap_or_else(chrono::NaiveTime::default)
+                    .and_utc()
+            });
 
         let follow_up = customer_followup::ActiveModel {
             id: Set(uuid::Uuid::new_v4().to_string()),

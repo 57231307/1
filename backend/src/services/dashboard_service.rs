@@ -131,9 +131,10 @@ impl DashboardService {
         // 缓存未命中，从数据库并行获取
         let now = Utc::now();
         use chrono::Datelike;
+        // P3 维度 3 修复（批次 87）：消除嵌套 expect，常量日期必然合法
         let start_of_month = chrono::NaiveDate::from_ymd_opt(now.year(), now.month(), 1)
             .unwrap_or_else(|| {
-                chrono::NaiveDate::from_ymd_opt(2020, 1, 1).expect("valid fallback date")
+                chrono::NaiveDate::from_ymd_opt(2020, 1, 1).unwrap_or_default()
             });
 
         let db = self.db.as_ref();

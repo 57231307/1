@@ -375,7 +375,8 @@ impl FinancialAnalysisService {
                         period,
                         indicator.id,
                         value,
-                        Some(Decimal::try_new(60, 2).unwrap()), // 目标值 60%
+                        // P3 维度 3 修复（批次 87）：消除 unwrap panic 风险，直接用 new 构造（scale=2 在合法范围）
+                        Some(Decimal::new(60, 2)), // 目标值 60%
                         user_id,
                     )
                     .await?;

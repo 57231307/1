@@ -370,6 +370,7 @@ impl SchedulingService {
         );
 
         // 计算日期范围
+        // P3 维度 3 修复（批次 87）：消除 unwrap，改用 if let 显式模式匹配
         let (start_date, end_date) = if result
             .schedule_details
             .as_ref()
@@ -377,8 +378,7 @@ impl SchedulingService {
             .unwrap_or(true)
         {
             (now.date_naive(), now.date_naive())
-        } else {
-            let details = result.schedule_details.as_ref().unwrap();
+        } else if let Some(details) = result.schedule_details.as_ref() {
             let min_start = details
                 .iter()
                 .map(|d| d.start_date.unwrap_or(d.planned_start))
@@ -390,6 +390,8 @@ impl SchedulingService {
                 .max()
                 .unwrap_or(now.date_naive());
             (min_start, max_end)
+        } else {
+            (now.date_naive(), now.date_naive())
         };
 
         let active_model = SchedulingActiveModel {
