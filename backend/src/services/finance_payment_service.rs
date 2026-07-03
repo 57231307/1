@@ -69,7 +69,7 @@ impl FinancePaymentService {
         }
 
         let active_payment = finance_payment::ActiveModel {
-            id: Set(0),
+            id: Default::default(),
             payment_no: Set(payment_no),
             invoice_id: Set(invoice_id),
             amount: Set(amount),

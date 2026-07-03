@@ -130,7 +130,7 @@ impl ArReconciliationService {
             let closing_balance = opening_balance + total_invoices - total_collections;
 
             let reconciliation = ActiveModel {
-                id: Set(0),
+                id: Default::default(),
                 reconciliation_no: Set(reconciliation_no.clone()),
                 reconciliation_date: Set(Utc::now().date_naive()),
                 period_start: Set(req.start_date),
@@ -169,7 +169,7 @@ impl ArReconciliationService {
 
                     // 创建发票明细
                     let inv_item = crate::models::ar_reconciliation_item::ActiveModel {
-                        id: Set(0),
+                        id: Default::default(),
                         reconciliation_id: Set(rec_model.id),
                         item_type: Set("INVOICE".to_string()),
                         document_type: Set(Some("SALES_INVOICE".to_string())),
@@ -188,7 +188,7 @@ impl ArReconciliationService {
 
                     // 创建收款明细
                     let col_item = crate::models::ar_reconciliation_item::ActiveModel {
-                        id: Set(0),
+                        id: Default::default(),
                         reconciliation_id: Set(rec_model.id),
                         item_type: Set("RECEIPT".to_string()),
                         document_type: Set(Some("COLLECTION".to_string())),
@@ -224,7 +224,7 @@ impl ArReconciliationService {
                     let matched = std::cmp::min(inv.invoice_amount, coll.collection_amount);
 
                     let inv_item = crate::models::ar_reconciliation_item::ActiveModel {
-                        id: Set(0),
+                        id: Default::default(),
                         reconciliation_id: Set(rec_model.id),
                         item_type: Set("INVOICE".to_string()),
                         document_type: Set(Some("SALES_INVOICE".to_string())),
@@ -246,7 +246,7 @@ impl ArReconciliationService {
                     inv_item.insert(&txn).await?;
 
                     let col_item = crate::models::ar_reconciliation_item::ActiveModel {
-                        id: Set(0),
+                        id: Default::default(),
                         reconciliation_id: Set(rec_model.id),
                         item_type: Set("RECEIPT".to_string()),
                         document_type: Set(Some("COLLECTION".to_string())),
@@ -271,7 +271,7 @@ impl ArReconciliationService {
                 } else {
                     // 未匹配发票
                     let inv_item = crate::models::ar_reconciliation_item::ActiveModel {
-                        id: Set(0),
+                        id: Default::default(),
                         reconciliation_id: Set(rec_model.id),
                         item_type: Set("INVOICE".to_string()),
                         document_type: Set(Some("SALES_INVOICE".to_string())),
@@ -293,7 +293,7 @@ impl ArReconciliationService {
             // 剩余未匹配收款
             for coll in remaining_collections {
                 let col_item = crate::models::ar_reconciliation_item::ActiveModel {
-                    id: Set(0),
+                    id: Default::default(),
                     reconciliation_id: Set(rec_model.id),
                     item_type: Set("RECEIPT".to_string()),
                     document_type: Set(Some("COLLECTION".to_string())),
@@ -536,7 +536,7 @@ impl ArReconciliationService {
         let closing_balance = opening_balance + total_invoices - total_collections;
 
         let reconciliation = ActiveModel {
-            id: Set(0),
+            id: Default::default(),
             reconciliation_no: Set(reconciliation_no),
             reconciliation_date: Set(Utc::now().date_naive()),
             period_start: Set(req.start_date),
@@ -562,7 +562,7 @@ impl ArReconciliationService {
         // 创建发票明细行
         for inv in &invoices {
             let item = crate::models::ar_reconciliation_item::ActiveModel {
-                id: Set(0),
+                id: Default::default(),
                 reconciliation_id: Set(rec_model.id),
                 item_type: Set("INVOICE".to_string()),
                 document_type: Set(Some("SALES_INVOICE".to_string())),
@@ -583,7 +583,7 @@ impl ArReconciliationService {
         // 创建收款明细行
         for coll in &collections {
             let item = crate::models::ar_reconciliation_item::ActiveModel {
-                id: Set(0),
+                id: Default::default(),
                 reconciliation_id: Set(rec_model.id),
                 item_type: Set("RECEIPT".to_string()),
                 document_type: Set(Some("COLLECTION".to_string())),

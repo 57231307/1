@@ -5,8 +5,8 @@ use crate::utils::response::PaginatedResponse;
 use chrono::{NaiveDate, Utc};
 use rust_decimal::Decimal;
 use sea_orm::{
-    ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, ModelTrait, Order,
-    PaginatorTrait, QueryFilter, QueryOrder, Set, TransactionTrait,
+    ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, Order, PaginatorTrait,
+    QueryFilter, QueryOrder, QuerySelect, Set, TransactionTrait,
 };
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
@@ -337,8 +337,9 @@ impl SupplierService {
     }
 
     /// 删除供应商
-    pub async fn delete_supplier(&self, id: i32) -> Result<(), AppError> {
-        // 检查是否有交易记录
+    // 批次 93 P1-5 修复：补 user_id 参数 + txn + lock_exclusive + 审计日志
+    pub async fn delete_supplier(&self, id: i32, user_id: i32) -> Result<(), AppError> {
+        // 检查是否有交易记录（只读校验，可在事务外做）
         let can_delete = self.can_delete_supplier(id).await?;
         if !can_delete {
             return Err(AppError::validation(
@@ -346,8 +347,28 @@ impl SupplierService {
             ));
         }
 
-        let supplier = self.get_supplier(id).await?;
-        supplier.delete(&*self.db).await?;
+        // 批次 93 P1-5 修复：get + delete 移入同一事务，补 lock_exclusive 串行化并发
+        // 原实现 get_supplier 在 self.db → delete 在 self.db，两步非原子，
+        // 并发场景下 get 与 delete 之间可能出现关联交易记录插入，绕过 can_delete 门控。
+        let txn = (*self.db).begin().await?;
+
+        // lock_exclusive 串行化并发删除；锁持有至 txn 提交，model 仅用于持锁与存在性校验
+        supplier::Entity::find_by_id(id)
+            .lock_exclusive()
+            .one(&txn)
+            .await?
+            .ok_or_else(|| AppError::not_found(format!("供应商 {} 不存在", id)))?;
+
+        // 删除供应商（含审计日志）
+        crate::services::audit_log_service::AuditLogService::delete_with_audit::<supplier::Entity, _>(
+            &txn,
+            "supplier",
+            id,
+            Some(user_id),
+        )
+        .await?;
+
+        txn.commit().await?;
         Ok(())
     }
 
@@ -521,9 +542,36 @@ impl SupplierService {
     }
 
     /// 删除供应商联系人
-    pub async fn delete_supplier_contact(&self, contact_id: i32) -> Result<(), AppError> {
-        let contact = self.get_contact(contact_id).await?;
-        contact.delete(&*self.db).await?;
+    // 批次 93 P1-6 修复：补 user_id 参数 + txn + lock_exclusive + 审计日志
+    pub async fn delete_supplier_contact(
+        &self,
+        contact_id: i32,
+        user_id: i32,
+    ) -> Result<(), AppError> {
+        // 批次 93 P1-6 修复：get + delete 移入同一事务，补 lock_exclusive 串行化并发
+        // 原实现 get_contact 在 self.db → delete 在 self.db，两步非原子，存在 TOCTOU 风险。
+        let txn = (*self.db).begin().await?;
+
+        // lock_exclusive 串行化并发删除；锁持有至 txn 提交，model 仅用于持锁与存在性校验
+        supplier_contact::Entity::find_by_id(contact_id)
+            .lock_exclusive()
+            .one(&txn)
+            .await?
+            .ok_or_else(|| AppError::not_found(format!("联系人 {} 不存在", contact_id)))?;
+
+        // 删除联系人（含审计日志）
+        crate::services::audit_log_service::AuditLogService::delete_with_audit::<
+            supplier_contact::Entity,
+            _,
+        >(
+            &txn,
+            "supplier_contact",
+            contact_id,
+            Some(user_id),
+        )
+        .await?;
+
+        txn.commit().await?;
         Ok(())
     }
 

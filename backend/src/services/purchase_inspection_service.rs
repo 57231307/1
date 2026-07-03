@@ -43,7 +43,7 @@ impl PurchaseInspectionService {
         let inspection_no = self.generate_inspection_no().await?;
 
         let inspection = purchase_inspection::ActiveModel {
-            id: Set(0),
+            id: Default::default(),
             inspection_no: Set(inspection_no),
             receipt_id: Set(req.receipt_id),
             order_id: Set(req.order_id),

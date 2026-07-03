@@ -45,7 +45,7 @@ impl RoleService {
         is_system: bool,
     ) -> Result<role::Model, AppError> {
         let active_role = role::ActiveModel {
-            id: Set(0),
+            id: Default::default(),
             name: Set(name),
             code: Set(code),
             description: Set(description),

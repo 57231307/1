@@ -189,7 +189,7 @@ impl PurchaseContractService {
 
         // 创建执行记录
         let execution = crate::models::purchase_contract_execution::ActiveModel {
-            id: Set(0),
+            id: Default::default(),
             contract_id: Set(contract_id),
             execution_no: Set(format!(
                 "PCE{}{}",

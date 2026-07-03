@@ -330,21 +330,36 @@ impl ProductionOrderService {
     }
 
     /// 删除生产订单（软删除 - 设为取消状态）
-    pub async fn delete(&self, id: i32) -> Result<(), AppError> {
+    // 批次 93 P1-4 修复：补 user_id 参数 + txn + lock_exclusive + 审计日志
+    pub async fn delete(&self, id: i32, user_id: i32) -> Result<(), AppError> {
+        // 批次 93 P1-4 修复：状态门 + 软删除移入同一事务，补 lock_exclusive 串行化并发
+        // 原实现 find_by_id 在 self.db → validate_status_transition → update 在 self.db，
+        // 状态门与 update 跨事务边界，并发 delete + update_status 会竞态绕过状态门控。
+        let txn = (*self.db).begin().await?;
+
         let model = ProductionOrderEntity::find_by_id(id)
-            .one(&*self.db)
+            .lock_exclusive()
+            .one(&txn)
             .await?
             .ok_or_else(|| AppError::not_found("生产订单不存在"))?;
 
-        // 验证是否可以取消
+        // 验证是否可以取消（状态门在 txn 内，基于 lock_exclusive 读出的 model）
         Self::validate_status_transition(&model.status, "CANCELLED")?;
 
         let mut active_model: ActiveModel = model.into();
         active_model.status = Set("CANCELLED".to_string());
         active_model.updated_at = Set(Utc::now());
 
-        active_model.update(&*self.db).await?;
+        // 走 update_with_audit 保留审计追溯（软删除即状态变更）
+        crate::services::audit_log_service::AuditLogService::update_with_audit(
+            &txn,
+            "auto_audit",
+            active_model,
+            Some(user_id),
+        )
+        .await?;
 
+        txn.commit().await?;
         Ok(())
     }
 

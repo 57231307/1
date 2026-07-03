@@ -179,7 +179,7 @@ impl PurchaseOrderService {
         let tax_amount = (amount * tax_rate / Decimal::new(100, 0)).round_dp(2);
 
         purchase_order_item::ActiveModel {
-            id: Set(0),
+            id: Default::default(),
             order_id: Set(order.id),
             product_id: Set(material_id),
             quantity: Set(suggested_quantity),
@@ -287,7 +287,7 @@ impl PurchaseOrderService {
         let tax_amount = (amount * tax_rate / Decimal::new(100, 0)).round_dp(2);
 
         purchase_order_item::ActiveModel {
-            id: Set(0),
+            id: Default::default(),
             order_id: Set(order.id),
             product_id: Set(product_id),
             quantity: Set(quantity),

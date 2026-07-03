@@ -370,7 +370,7 @@ pub async fn delete_voucher(
     info!("用户 {} 删除凭证 ID: {}", auth.username, id);
 
     let service = VoucherService::new(state.db.clone());
-    service.delete(id).await?;
+    service.delete(id, auth.user_id).await?;
     info!("用户 {} 删除凭证成功", auth.username);
 
     Ok(Json(ApiResponse::success_with_message((), "凭证删除成功")))

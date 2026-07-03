@@ -140,7 +140,7 @@ impl UserService {
         }
 
         let active_user = user::ActiveModel {
-            id: Set(0),
+            id: Default::default(),
             username: Set(username),
             password_hash: Set(password_hash),
             email: Set(email),

@@ -84,10 +84,10 @@ pub async fn update_supplier(
 pub async fn delete_supplier(
     Path(id): Path<i32>,
     State(state): State<AppState>,
-    _auth: AuthContext,
+    auth: AuthContext,
 ) -> Result<Json<ApiResponse<()>>, AppError> {
     let service = SupplierService::new(state.db.clone());
-    service.delete_supplier(id).await?;
+    service.delete_supplier(id, auth.user_id).await?;
 
     Ok(Json(ApiResponse::success_with_message(
         (),
@@ -186,10 +186,12 @@ pub async fn update_supplier_contact(
 pub async fn delete_supplier_contact(
     Path((_supplier_id, contact_id)): Path<(i32, i32)>,
     State(state): State<AppState>,
-    _auth: AuthContext,
+    auth: AuthContext,
 ) -> Result<Json<ApiResponse<()>>, AppError> {
     let service = SupplierService::new(state.db.clone());
-    service.delete_supplier_contact(contact_id).await?;
+    service
+        .delete_supplier_contact(contact_id, auth.user_id)
+        .await?;
 
     Ok(Json(ApiResponse::success_with_message(
         (),

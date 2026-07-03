@@ -566,12 +566,20 @@ impl SalesReturnService {
     }
 
     /// 删除退货单
-    pub async fn delete_return(&self, return_id: i32) -> Result<(), AppError> {
+    // 批次 93 P1-7 修复：补 user_id 参数 + lock_exclusive + 状态门移入 txn + 审计 user_id
+    pub async fn delete_return(&self, return_id: i32, user_id: i32) -> Result<(), AppError> {
+        // 批次 93 P1-7 修复：状态门 + delete 移入同一事务，补 lock_exclusive 串行化并发
+        // 原实现 find_by_id 在 self.db → 状态门 → begin txn，
+        // 状态门在事务外，并发 delete + submit 会竞态绕过 DRAFT 状态门控。
+        let txn = (*self.db).begin().await?;
+
         let return_order = sales_return::Entity::find_by_id(return_id)
-            .one(&*self.db)
+            .lock_exclusive()
+            .one(&txn)
             .await?
             .ok_or_else(|| AppError::not_found(format!("销售退货单 {}", return_id)))?;
 
+        // 状态门在 txn 内，基于 lock_exclusive 读出的 model
         if return_order.status != "DRAFT" {
             return Err(AppError::business(format!(
                 "退货单状态不允许删除，当前状态：{}",
@@ -579,19 +587,17 @@ impl SalesReturnService {
             )));
         }
 
-        let txn = (*self.db).begin().await?;
-
         // 先删除明细
         sales_return_item::Entity::delete_many()
             .filter(sales_return_item::Column::ReturnId.eq(return_id))
             .exec(&txn)
             .await?;
 
-        // 再删除退货单（P0 8-3 修复：补审计日志）
+        // 再删除退货单（P0 8-3 修复：补审计日志；批次 93 P1-7：user_id 从 handler AuthContext 注入）
         crate::services::audit_log_service::AuditLogService::delete_with_audit::<
             sales_return::Entity,
             _,
-        >(&txn, "sales_return", return_id, Some(0))
+        >(&txn, "sales_return", return_id, Some(user_id))
         .await?;
 
         txn.commit().await?;
@@ -732,13 +738,18 @@ impl SalesReturnService {
     }
 
     /// 删除退货单明细
+    // 批次 93 P1-8 修复：find + delete 移入同一事务，补 lock_exclusive 串行化并发
     pub async fn delete_return_item(&self, item_id: i32) -> Result<(), AppError> {
+        // 批次 93 P1-8 修复：find 移入 txn + lock_exclusive，消除 TOCTOU 风险
+        // 原实现 find_by_id 在 self.db → begin txn → delete_by_id 在 txn，
+        // find 与 delete 跨事务边界，并发删除同一明细可能双写 / return_id 读取过期。
+        let txn = (*self.db).begin().await?;
+
         let item = sales_return_item::Entity::find_by_id(item_id)
-            .one(&*self.db)
+            .lock_exclusive()
+            .one(&txn)
             .await?
             .ok_or_else(|| AppError::not_found(format!("退货明细 {}", item_id)))?;
-
-        let txn = (*self.db).begin().await?;
 
         sales_return_item::Entity::delete_by_id(item_id)
             .exec(&txn)

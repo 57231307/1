@@ -39,7 +39,7 @@ impl AssistAccountingService {
 
         for (i, (code, name, desc)) in dimensions.iter().enumerate() {
             let dimension = assist_accounting_dimension::ActiveModel {
-                id: Set(0),
+                id: Default::default(),
                 dimension_code: Set(code.to_string()),
                 dimension_name: Set(name.to_string()),
                 description: Set(Some(desc.to_string())),
@@ -90,7 +90,7 @@ impl AssistAccountingService {
         created_by: Option<i32>,
     ) -> Result<assist_accounting_record::Model, AppError> {
         let active_record = assist_accounting_record::ActiveModel {
-            id: Set(0),
+            id: Default::default(),
             business_type: Set(business_type),
             business_no: Set(business_no),
             business_id: Set(business_id),
