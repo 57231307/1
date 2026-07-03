@@ -41,6 +41,8 @@ pub mod m0033_add_gain_loss_to_fixed_asset_disposals;
 pub mod m0034_create_fixed_asset_depreciation_records;
 // 批次 90b P2-12：客户联系人表（占位符实现）
 pub mod m0035_create_customer_contacts;
+// 批次 91 P0-1：API 端点管理表
+pub mod m0036_create_api_endpoints;
 
 pub struct Migrator;
 
@@ -83,6 +85,7 @@ impl MigratorTrait for Migrator {
             Box::new(m0033_add_gain_loss_to_fixed_asset_disposals::Migration),
             Box::new(m0034_create_fixed_asset_depreciation_records::Migration),
             Box::new(m0035_create_customer_contacts::Migration),
+            Box::new(m0036_create_api_endpoints::Migration),
         ]
     }
 }

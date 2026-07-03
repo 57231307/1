@@ -120,6 +120,91 @@ impl ApiKeyService {
         Ok(())
     }
 
+    /// 按 ID 获取 API 密钥（批次 91 P0-1）
+    pub async fn get_api_key_by_id(&self, id: i32) -> Result<Option<api_key::Model>, AppError> {
+        ApiKey::find_by_id(id)
+            .one(self.db.as_ref())
+            .await
+            .map_err(AppError::from)
+    }
+
+    /// 更新 API 密钥（批次 91 P0-1）
+    ///
+    /// 仅更新传入的字段，未传入的字段保持不变。
+    pub async fn update_api_key(
+        &self,
+        id: i32,
+        name: Option<String>,
+        permissions: Option<String>,
+        rate_limit_per_minute: Option<i32>,
+        expires_at: Option<Option<chrono::DateTime<chrono::Utc>>>,
+        is_active: Option<bool>,
+    ) -> Result<api_key::Model, AppError> {
+        let key = ApiKey::find_by_id(id)
+            .one(self.db.as_ref())
+            .await?
+            .ok_or_else(|| AppError::business("API 密钥不存在"))?;
+
+        let mut active_model: ApiKeyActiveModel = key.into();
+        if let Some(name) = name {
+            active_model.name = Set(name);
+        }
+        if let Some(permissions) = permissions {
+            active_model.permissions = Set(Some(permissions));
+        }
+        if let Some(rate_limit) = rate_limit_per_minute {
+            active_model.rate_limit_per_minute = Set(rate_limit);
+        }
+        if let Some(expires_at) = expires_at {
+            active_model.expires_at = Set(expires_at);
+        }
+        if let Some(is_active) = is_active {
+            active_model.is_active = Set(is_active);
+        }
+        active_model.updated_at = Set(Utc::now());
+
+        active_model.update(self.db.as_ref()).await.map_err(AppError::from)
+    }
+
+    /// 重新生成 API 密钥（批次 91 P0-1）
+    ///
+    /// 生成新的明文密钥 + 哈希，旧 key_hash 加入黑名单。
+    /// 返回 (更新后的 model, 新明文密钥)。
+    pub async fn regenerate_api_key(
+        &self,
+        id: i32,
+        cache: Option<&AppCache>,
+    ) -> Result<(api_key::Model, String), AppError> {
+        let key = ApiKey::find_by_id(id)
+            .one(self.db.as_ref())
+            .await?
+            .ok_or_else(|| AppError::business("API 密钥不存在"))?;
+
+        // 旧 key_hash 加入黑名单
+        if let Some(cache) = cache {
+            let blacklist_key = format!("{}{}", API_KEY_BLACKLIST_PREFIX, key.key_hash);
+            cache.get_token_blacklist().set(
+                blacklist_key,
+                true,
+                Some(Duration::from_secs(API_KEY_BLACKLIST_TTL_SECS)),
+            );
+        }
+
+        // 生成新密钥
+        let plain_key = Self::generate_api_key();
+        let key_hash = Self::hash_api_key(&plain_key);
+        let key_prefix = plain_key[..8].to_string();
+
+        let mut active_model: ApiKeyActiveModel = key.into();
+        active_model.key_hash = Set(key_hash);
+        active_model.key_prefix = Set(key_prefix);
+        active_model.is_active = Set(true);
+        active_model.updated_at = Set(Utc::now());
+
+        let model = active_model.update(self.db.as_ref()).await?;
+        Ok((model, plain_key))
+    }
+
     /// 检查 API Key 是否已被撤销（漏洞 #5 修复）
     ///
     /// 流程：
