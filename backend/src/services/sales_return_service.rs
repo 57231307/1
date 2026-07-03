@@ -152,9 +152,16 @@ impl SalesReturnService {
         return_id: i32,
         req: CreateSalesReturnItemRequest,
     ) -> Result<sales_return_item::Model, AppError> {
-        // 验证退货单存在且为草稿状态
+        // P1-6 修复（批次 79 v1 复审）：状态门 + insert 移入单一事务，加 lock_exclusive 串行化
+        // 原实现状态门用 self.db 裸查询无锁、insert 用 txn，
+        // 并发场景下可能在状态检查通过后、insert 之前发生 approve/submit 状态变更，
+        // 导致已审批退货单被追加明细。
+        let txn = (*self.db).begin().await?;
+
+        // 验证退货单存在且为草稿状态（加 lock_exclusive 串行化并发状态变更）
         let return_order = sales_return::Entity::find_by_id(return_id)
-            .one(&*self.db)
+            .lock_exclusive()
+            .one(&txn)
             .await?
             .ok_or_else(|| AppError::not_found(format!("销售退货单 {}", return_id)))?;
 
@@ -164,8 +171,6 @@ impl SalesReturnService {
                 return_order.status
             )));
         }
-
-        let txn = (*self.db).begin().await?;
 
         let item = sales_return_item::ActiveModel {
             return_id: Set(return_id),
@@ -194,8 +199,14 @@ impl SalesReturnService {
         req: UpdateSalesReturnRequest,
         user_id: i32,
     ) -> Result<sales_return::Model, AppError> {
+        // P1-7 修复（批次 79 v1 复审）：状态门 + update 移入单一事务，加 lock_exclusive 串行化
+        // 原实现状态门用 self.db 裸查询、update_with_audit 也用 self.db，无事务边界，
+        // 并发场景下可能在状态检查通过后、update 之前发生状态变更导致已审批单被篡改。
+        let txn = (*self.db).begin().await?;
+
         let return_order = sales_return::Entity::find_by_id(return_id)
-            .one(&*self.db)
+            .lock_exclusive()
+            .one(&txn)
             .await?
             .ok_or_else(|| AppError::not_found(format!("销售退货单 {}", return_id)))?;
 
@@ -234,13 +245,15 @@ impl SalesReturnService {
 
         active_model.updated_at = Set(Utc::now());
         let return_order = crate::services::audit_log_service::AuditLogService::update_with_audit(
-            &*self.db,
+            &txn,
             "auto_audit",
             active_model,
             // P1 1-1 修复（批次 59b）：原 Some(0) 占位符改为真实操作人 user_id
             Some(user_id),
         )
         .await?;
+
+        txn.commit().await?;
 
         Ok(return_order)
     }

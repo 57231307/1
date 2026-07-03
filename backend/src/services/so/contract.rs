@@ -9,7 +9,7 @@
 use crate::models::{customer, sales_order};
 use crate::services::so::order::SalesService;
 use crate::utils::error::AppError;
-use sea_orm::{EntityTrait, Set, TransactionTrait};
+use sea_orm::{EntityTrait, QuerySelect, Set, TransactionTrait};
 
 impl SalesService {
     /// 拒绝销售订单
@@ -19,8 +19,14 @@ impl SalesService {
         reason: String,
         user_id: i32,
     ) -> Result<(), AppError> {
+        // P1-13 修复（批次 79 v1 复审）：状态门 + 客户校验移入单一事务，加 lock_exclusive 串行化
+        // 原实现状态门用 self.db 裸查询、客户校验也用 self.db，txn 只包裹 release + update，
+        // 并发场景下可能在状态检查通过后、update 前发生状态变更（如已 approve），导致已审批单被拒绝。
+        let txn = (*self.db).begin().await?;
+
         let order = sales_order::Entity::find_by_id(order_id)
-            .one(&*self.db)
+            .lock_exclusive()
+            .one(&txn)
             .await?
             .ok_or_else(|| AppError::not_found("订单不存在"))?;
 
@@ -31,13 +37,11 @@ impl SalesService {
             )));
         }
 
-        // 校验客户存在（保持与原业务一致）
+        // 校验客户存在（保持与原业务一致，在事务内执行）
         let _customer = customer::Entity::find_by_id(order.customer_id)
-            .one(&*self.db)
+            .one(&txn)
             .await?
             .ok_or_else(|| AppError::not_found("客户不存在"))?;
-
-        let txn = (*self.db).begin().await?;
 
         // 释放库存预留
         self.release_reservations(order_id, &txn).await?;
