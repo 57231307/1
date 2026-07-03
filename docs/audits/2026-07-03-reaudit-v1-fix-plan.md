@@ -21,11 +21,14 @@
 | P1-1 | mark_as_paid 审计 user_id 仍为 Some(0) | ar_invoice_service.rs:416 | 函数签名增加 user_id + CollectionCompleted 事件透传 user_id + ar_collection_service.create_collection 发布时携带 user_id + 同步 event_kafka_payload/event_kafka/test_event_bus |
 | P1-14 | ar_invoice_service.delete 未用事务包裹 | ar_invoice_service.rs:316-334 | 用 txn 包裹 delete_with_audit，状态检查改用 lock_exclusive 串行化 |
 
-### 批次 79：CRUD + 状态检查 TOCTOU 修复（P1，8 项）
+### 批次 79：CRUD + 状态检查 TOCTOU 修复（P1，8 项）✅ 已完成
 
 **主题**：8 处辅助方法事务 + lock_exclusive 修复
 **级别**：P1
 **项数**：8
+**修复分支**：`fix/v19-batch79-crud-toctou-p1`（已合并删除）
+**合并 commit**：`e01b09dd`（PR #322 squash merge，CI 12/13 全绿，E2E continue-on-error）
+**影响范围**：4 文件 +87/-29
 
 | # | 问题 | 文件 | 修复 |
 |---|------|------|------|

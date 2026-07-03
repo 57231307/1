@@ -11,7 +11,10 @@
 //! - Prometheus 指标导出
 
 use chrono::Utc;
-use sea_orm::{QuerySelect, ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter, Set};
+use sea_orm::{
+    ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter, QuerySelect, Set,
+    TransactionTrait,
+};
 use std::sync::Arc;
 use tracing::info;
 
@@ -219,18 +222,31 @@ impl FailoverService {
         current_state: &str,
         circuit_state: &str,
     ) -> Result<(), String> {
-        use sea_orm::ActiveModelTrait;
+        // P1-15 + P1-4a 修复（批次 80 v1 复审）：
+        // 原实现 let _ = ...update/insert(&self.db) 静默吞错，且 find + update/insert 不在同一事务，
+        // 并发场景下两调用方都可能落到 else 分支导致重复 insert。
+        // 改为用 txn 包裹 find + update/insert，失败返回 Err。
         let now = Utc::now();
-        if let Ok(Some(existing)) = status_model::Entity::find()
-            .filter(status_model::Column::FunctionName.eq(function_name))
-            .one(&self.db)
+        let txn = (*self.db)
+            .begin()
             .await
-        {
+            .map_err(|e| format!("开启事务失败: {}", e))?;
+
+        let existing = status_model::Entity::find()
+            .filter(status_model::Column::FunctionName.eq(function_name))
+            .one(&txn)
+            .await
+            .map_err(|e| format!("查询主备状态失败: {}", e))?;
+
+        if let Some(existing) = existing {
             let mut active: status_model::ActiveModel = existing.into();
             active.current_state = Set(current_state.to_string());
             active.circuit_state = Set(circuit_state.to_string());
             active.updated_at = Set(now);
-            let _ = active.update(&self.db).await;
+            active
+                .update(&txn)
+                .await
+                .map_err(|e| format!("更新主备状态失败: {}", e))?;
         } else {
             let active = status_model::ActiveModel {
                 function_name: Set(function_name.to_string()),
@@ -243,8 +259,15 @@ impl FailoverService {
                 updated_at: Set(now),
                 ..Default::default()
             };
-            let _ = active.insert(&self.db).await;
+            active
+                .insert(&txn)
+                .await
+                .map_err(|e| format!("插入主备状态失败: {}", e))?;
         }
+
+        txn.commit()
+            .await
+            .map_err(|e| format!("提交事务失败: {}", e))?;
         Ok(())
     }
 

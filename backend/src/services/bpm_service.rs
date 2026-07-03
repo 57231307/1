@@ -826,7 +826,10 @@ impl BpmService {
         if let Some(assignee_id) = task.actual_handler_id {
             let notification_service =
                 crate::services::notification_service::NotificationService::new(self.db.clone());
-            let _ = notification_service
+            // P1-4c 修复（批次 80 v1 复审）：原 let _ = 静默吞错，
+            // 通知创建失败时无任何日志，催办通知丢失难以排查。
+            // 改为 if let Err(e) = ... { tracing::warn!(...); }
+            if let Err(e) = notification_service
                 .create_notification(
                     crate::services::notification_service::CreateNotificationRequest {
                         user_id: assignee_id,
@@ -844,7 +847,15 @@ impl BpmService {
                         sender_name: Some("系统".to_string()),
                     },
                 )
-                .await;
+                .await
+            {
+                tracing::warn!(
+                    task_id = task_id,
+                    assignee_id = assignee_id,
+                    error = %e,
+                    "BPM 任务催办通知发送失败（best-effort，不影响主业务流）"
+                );
+            }
         }
 
         Ok(())

@@ -256,12 +256,25 @@ impl ReportEngineService {
         if let Some(date_range) = &req.date_range {
             select = select.filter(
                 crate::models::sales_order_item::Column::CreatedAt
-                    // P3 1-16 修复：unwrap → expect，语义更清晰
-                    .gte(date_range.start.and_hms_opt(0, 0, 0).expect("合法时分秒").and_utc()),
+                    // P1-3 修复（批次 80 v1 复审）：expect 改为 ok_or_else 返回 AppError，
+                    // 避免 0/0/0/23/59/59 边界输入导致 panic
+                    .gte(
+                        date_range
+                            .start
+                            .and_hms_opt(0, 0, 0)
+                            .ok_or_else(|| AppError::internal("报表日期范围起始时分秒非法"))?
+                            .and_utc(),
+                    ),
             );
             select = select.filter(
                 crate::models::sales_order_item::Column::CreatedAt
-                    .lte(date_range.end.and_hms_opt(23, 59, 59).expect("合法时分秒").and_utc()),
+                    .lte(
+                        date_range
+                            .end
+                            .and_hms_opt(23, 59, 59)
+                            .ok_or_else(|| AppError::internal("报表日期范围结束时分秒非法"))?
+                            .and_utc(),
+                    ),
             );
         }
 

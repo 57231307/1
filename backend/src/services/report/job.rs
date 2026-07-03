@@ -65,9 +65,10 @@ impl ReportEngineService {
 
         for day_offset in 0..366i64 {
             let candidate_date = (start.date_naive() + chrono::Duration::days(day_offset))
-                // P3 1-16 修复：unwrap → expect，语义更清晰
+                // P1-3 修复（批次 80 v1 复审）：expect 改为 ok_or_else 返回 AppError，
+                // 0,0,0 始终合法，但保持防御性返回错误而非 panic
                 .and_hms_opt(0, 0, 0)
-                .expect("合法时分秒")
+                .ok_or_else(|| AppError::internal("cron 候选日期时分秒非法"))?
                 .and_utc();
 
             // 解析时间字段（chrono 不会失败，0 仅为防御默认值）
@@ -108,9 +109,10 @@ impl ReportEngineService {
 
                     let candidate = candidate_date
                         .date_naive()
-                        // P3 1-16 修复：unwrap → expect，语义更清晰
+                        // P1-3 修复（批次 80 v1 复审）：expect 改为 ok_or_else 返回 AppError，
+                        // h/mn 来自 cron 表达式解析，理论上合法但保持防御性返回错误而非 panic
                         .and_hms_opt(h as u32, mn as u32, 0)
-                        .expect("合法时分秒")
+                        .ok_or_else(|| AppError::internal("cron 候选时间时分秒非法"))?
                         .and_utc();
 
                     if candidate > now {
