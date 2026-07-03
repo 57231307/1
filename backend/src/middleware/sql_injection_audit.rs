@@ -3,15 +3,9 @@
 //! 检测请求路径、查询参数及文本类请求体中是否包含已知危险模式。
 //! 注意：仅做粗粒度审计，主要防护依赖参数化查询（SeaORM 已默认使用参数化查询）。
 //!
-//! 使用方式（在路由注册处按需挂载到 router.layer(...)）：
-//! ```ignore
-//! use axum::middleware as axum_middleware;
-//! use crate::middleware::sql_injection_audit::sql_injection_audit_middleware;
-//!
-//! Router::new()
-//!     .route("/api/v1/...", get(handler))
-//!     .layer(axum_middleware::from_fn(sql_injection_audit_middleware))
-//! ```
+//! P2-12a 修复（批次 83 v1 复审）：本中间件已由 `routes/mod.rs::create_router`
+//! 全局挂载在最外层 layer，覆盖所有路由（含 /api/v1/erp/* 及基础设施路由）。
+//! 新增路由无需重复挂载，否则会导致同一请求被审计两次（性能损耗 + 重复 WARN 日志）。
 //!
 //! 设计要点：
 //! 1. TS-S-4 安全加固（2026-06-26）：对文本类请求体（Content-Type: application/json、

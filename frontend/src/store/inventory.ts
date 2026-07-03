@@ -36,7 +36,8 @@ export const useInventoryStore = defineStore('inventory', () => {
     }
   }
 
-  const createAdjustment = async (data: any) => {
+  // P2-11a 修复（批次 83 v1 复审）：收紧 createAdjustment 参数类型，对齐 StockAdjustmentData 契约
+  const createAdjustment = async (data: import('@/api/inventory').StockAdjustmentData) => {
     try {
       await inventoryApi.createStockAdjustment(data)
       await fetchStocks()

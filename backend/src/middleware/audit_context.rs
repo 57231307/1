@@ -47,7 +47,8 @@ impl AuditContext {
 }
 
 /// 提取客户端 IP（X-Real-IP → X-Forwarded-For → ConnectInfo）
-fn extract_ip(request: &Request<Body>) -> String {
+/// P2-12c 修复（批次 83 v1 复审）：公开为统一 helper，供 auth_middleware 复用
+pub fn extract_client_ip(request: &Request<Body>) -> String {
     let h = request.headers();
     if let Some(real_ip) = h
         .get("x-real-ip")
@@ -92,7 +93,7 @@ pub async fn audit_context_middleware(mut request: Request<Body>, next: Next) ->
         .map(|ctx| ctx.trace_id.clone())
         .unwrap_or_else(|| Uuid::new_v4().simple().to_string());
 
-    let ip_address = extract_ip(&request);
+    let ip_address = extract_client_ip(&request);
     let user_agent = extract_user_agent(&request);
 
     let audit_ctx = AuditContext {

@@ -114,9 +114,17 @@ describe('Inventory Store 测试', () => {
     } as any)
 
     const store = useInventoryStore()
-    const result = await store.createAdjustment({ product_id: 1, quantity: 10 })
+    // P2-11a 修复（批次 83 v1 复审）：夹具对齐 StockAdjustmentData 契约
+    const adjustmentData = {
+      warehouse_id: 1,
+      product_id: 1,
+      adjustment_quantity: 10,
+      adjustment_type: 'increase' as const,
+      reason: '测试调整',
+    }
+    const result = await store.createAdjustment(adjustmentData)
 
-    expect(inventoryApi.createStockAdjustment).toHaveBeenCalledWith({ product_id: 1, quantity: 10 })
+    expect(inventoryApi.createStockAdjustment).toHaveBeenCalledWith(adjustmentData)
     expect(inventoryApi.getStockList).toHaveBeenCalled()
     expect(result).toBe(true)
   })
@@ -126,7 +134,14 @@ describe('Inventory Store 测试', () => {
     vi.mocked(inventoryApi.createStockAdjustment).mockRejectedValue(new Error('Failed'))
 
     const store = useInventoryStore()
-    const result = await store.createAdjustment({ product_id: 1, quantity: 10 })
+    // P2-11a 修复（批次 83 v1 复审）：夹具对齐 StockAdjustmentData 契约
+    const result = await store.createAdjustment({
+      warehouse_id: 1,
+      product_id: 1,
+      adjustment_quantity: 10,
+      adjustment_type: 'increase',
+      reason: '测试调整',
+    })
 
     expect(result).toBe(false)
     expect(consoleSpy).toHaveBeenCalled()

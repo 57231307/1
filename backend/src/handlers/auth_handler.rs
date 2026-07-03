@@ -224,13 +224,29 @@ pub async fn login(
         )));
     }
 
-    // Extract client IP for logging
-    let client_ip = headers
-        .get("X-Forwarded-For")
-        .and_then(|h| h.to_str().ok())
-        .or_else(|| headers.get("X-Real-IP").and_then(|h| h.to_str().ok()))
-        .unwrap_or("unknown")
-        .to_string();
+    // P2-12c 修复（批次 83 v1 复审）：IP 提取统一优先级（X-Real-IP → X-Forwarded-For）
+    // 原实现优先 X-Forwarded-For（可被客户端伪造），且不 split/trim，与 audit_context 不一致
+    // 优先复用 audit_context 中间件已提取的 IP（已统一优先级），回退到 headers-only 提取
+    let client_ip = audit_ctx
+        .as_ref()
+        .map(|e| e.0.ip_address.clone())
+        .filter(|s| !s.is_empty() && s != "unknown")
+        .unwrap_or_else(|| {
+            // headers-only 回退：与 audit_context::extract_client_ip 优先级一致
+            headers
+                .get("x-real-ip")
+                .and_then(|v| v.to_str().ok())
+                .filter(|s| !s.is_empty())
+                .map(|s| s.to_string())
+                .or_else(|| {
+                    headers
+                        .get("x-forwarded-for")
+                        .and_then(|v| v.to_str().ok())
+                        .and_then(|s| s.split(',').next().map(|s| s.trim().to_string()))
+                        .filter(|s| !s.is_empty())
+                })
+                .unwrap_or_else(|| "unknown".to_string())
+        });
     let user_agent = headers
         .get(axum::http::header::USER_AGENT)
         .and_then(|h| h.to_str().ok())

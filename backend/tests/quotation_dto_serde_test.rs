@@ -1,10 +1,11 @@
-//! 销售报价单 Handler 集成测试
+//! 销售报价单 DTO/请求体 serde 测试
+//!
+//! P2-11b 修复（批次 83 v1 复审）：原文件名 quotation_handler_test 暗示 Handler 集成测试，
+//! 但实际仅测试反序列化/Default，重命名为 quotation_dto_serde_test 以准确反映测试范围。
+//! 完整 HTTP 集成测试见 quotation_e2e_test.rs。
 //!
 //! Week 2 任务 9 - 销售报价单模块
 //! 关联计划: 2026-06-16-sales-quotation-plan.md Task 9
-//!
-//! 注：完整 HTTP 集成测试需要启动 AppState / 路由，
-//! 本测试仅覆盖 DTO/请求体的反序列化和校验逻辑。
 
 use bingxi_backend::models::quotation_response_dto::QuotationResponseDto;
 use bingxi_backend::services::quotation_pricing_service::{CustomerLevel, PricingContext};
