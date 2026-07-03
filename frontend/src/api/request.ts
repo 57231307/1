@@ -217,14 +217,14 @@ export const SAFE_ERROR_MESSAGES: Record<number, string> = {
   503: '服务暂时不可用',
 }
 
-// P3-2 修复（批次 84 v1 复审）：error 类型从 any 改为 AxiosError，移除死分支 !error.response
-// （原 !error.response 在 if (error.response) 后恒为 false，属于死代码）
+// P3-2 修复（批次 84 v1 复审）：error 类型从 any 改为 AxiosError，简化 else 分支
+// 原 `!error.response` 在 else 分支恒为 true（死代码），此处显式表达"无 response 时默认重试"
 export function shouldRetry(error: AxiosError): boolean {
   if (error.response) {
     return [502, 503, 504].includes(error.response.status)
   }
-  // 无 response 时为网络错误或超时，按 code 判定
-  return error.code === 'ECONNABORTED' || error.code === 'NETWORK_ERROR'
+  // 无 response 时为网络错误或超时（ECONNABORTED / NETWORK_ERROR 等），默认重试
+  return true
 }
 
 export function getSafeErrorMessage(codeOrStatus?: number): string {
