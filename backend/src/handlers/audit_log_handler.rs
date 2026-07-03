@@ -20,6 +20,7 @@ use crate::utils::admin_checker::is_admin_role;
 use crate::utils::app_state::AppState;
 use crate::utils::error::AppError;
 use crate::utils::response::ApiResponse;
+use crate::utils::sql_escape::safe_like_pattern;
 
 /// P0 8-5 修复：审计日志查询要求 admin 角色
 ///
@@ -169,7 +170,8 @@ pub async fn list_audit_logs(
         q = q.filter(audit_log::Column::RequestId.eq(rid.clone()));
     }
     if let Some(kw) = &query.keyword {
-        let pattern = format!("%{}%", kw);
+        // 批次 94 P2-3 修复：LIKE 模式注入，转义 % _ \ 特殊字符
+        let pattern = safe_like_pattern(kw);
         q = q.filter(
             audit_log::Column::ResourceId
                 .like(pattern.clone())

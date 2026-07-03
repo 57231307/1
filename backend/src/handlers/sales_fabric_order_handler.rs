@@ -11,6 +11,7 @@ use serde::Deserialize;
 
 use crate::models::sales_order;
 use crate::models::sales_order_item;
+use crate::middleware::auth_context::AuthContext;
 use crate::utils::app_state::AppState;
 use crate::utils::error::AppError;
 use crate::utils::response::{ApiResponse, PaginatedResponse};
@@ -386,13 +387,15 @@ pub async fn update_fabric_order(
 /// 删除销售订单
 pub async fn delete_fabric_order(
     State(state): State<AppState>,
+    auth: AuthContext,
     Path(id): Path<i32>,
 ) -> Result<Json<ApiResponse<()>>, AppError> {
     // P0 8-3 修复：delete 操作补审计日志
+    // 批次 94 P2-10：原 Some(0) 占位改为真实操作人 user_id，便于审计追踪
     crate::services::audit_log_service::AuditLogService::delete_with_audit::<
         sales_order::Entity,
         _,
-    >(&*state.db, "sales_fabric_order", id, Some(0))
+    >(&*state.db, "sales_fabric_order", id, Some(auth.user_id))
     .await?;
 
     Ok(Json(ApiResponse::success_with_message((), "订单删除成功")))

@@ -123,12 +123,13 @@ impl RecycleRuleService {
     }
 
     /// 删除回收规则
-    pub async fn delete_rule(&self, id: i32) -> Result<(), AppError> {
+    pub async fn delete_rule(&self, id: i32, user_id: i32) -> Result<(), AppError> {
         // P0 8-3 修复：delete 操作补审计日志
+        // 批次 94 P2-10：原 Some(0) 占位改为真实操作人 user_id，便于审计追踪
         crate::services::audit_log_service::AuditLogService::delete_with_audit::<
             RecycleRuleEntity,
             _,
-        >(&*self.db, "crm_recycle_rule", id, Some(0))
+        >(&*self.db, "crm_recycle_rule", id, Some(user_id))
         .await
     }
 }

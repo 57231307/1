@@ -19,11 +19,13 @@ pub struct ArReportQuery {
 
 /// 获取统计报表
 /// GET /api/v1/erp/ar/reports/statistics
+// 批次 94 P2-7 修复：_auth → auth，记录鉴权审计日志（避免 unused 警告）
 pub async fn get_statistics_report(
-    _auth: AuthContext,
+    auth: AuthContext,
     State(state): State<AppState>,
     Query(query): Query<ArReportQuery>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
+    tracing::debug!(user_id = auth.user_id, "AR 统计报表查询");
     let service = crate::services::ar_service::ArService::new(state.db.clone());
 
     let report = service
@@ -36,11 +38,13 @@ pub async fn get_statistics_report(
 
 /// 获取日报表
 /// GET /api/v1/erp/ar/reports/daily
+// 批次 94 P2-7 修复：_auth → auth，记录鉴权审计日志（避免 unused 警告）
 pub async fn get_daily_report(
-    _auth: AuthContext,
+    auth: AuthContext,
     State(state): State<AppState>,
     Query(query): Query<ArReportQuery>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
+    tracing::debug!(user_id = auth.user_id, "AR 日报表查询");
     let service = crate::services::ar_service::ArService::new(state.db.clone());
 
     let report = service
@@ -53,11 +57,13 @@ pub async fn get_daily_report(
 
 /// 获取月报表
 /// GET /api/v1/erp/ar/reports/monthly
+// 批次 94 P2-7 修复：_auth → auth，记录鉴权审计日志（避免 unused 警告）
 pub async fn get_monthly_report(
-    _auth: AuthContext,
+    auth: AuthContext,
     State(state): State<AppState>,
     Query(query): Query<ArReportQuery>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
+    tracing::debug!(user_id = auth.user_id, "AR 月报表查询");
     let service = crate::services::ar_service::ArService::new(state.db.clone());
 
     let report = service
@@ -70,11 +76,13 @@ pub async fn get_monthly_report(
 
 /// 获取账龄报表
 /// GET /api/v1/erp/ar/reports/aging
+// 批次 94 P2-7 修复：_auth → auth，记录鉴权审计日志（避免 unused 警告）
 pub async fn get_aging_report(
-    _auth: AuthContext,
+    auth: AuthContext,
     State(state): State<AppState>,
     Query(query): Query<ArReportQuery>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
+    tracing::debug!(user_id = auth.user_id, "AR 账龄报表查询");
     let service = crate::services::ar_service::ArService::new(state.db.clone());
 
     let report = service

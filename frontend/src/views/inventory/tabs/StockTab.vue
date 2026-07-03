@@ -120,6 +120,8 @@ import V2Table from '@/components/V2Table/index.vue'
 import type { ColumnDef } from '@/components/V2Table/types'
 import { loadIfNot, createLazyLoader } from '@/utils/lazy-loader'
 import { logger } from '@/utils/logger'
+// 批次 94 P2-12 修复：导入 inventoryApi 用于实现编辑/删除/批量调整/批量删除
+import { inventoryApi } from '@/api/inventory'
 
 interface Warehouse {
   id: number
@@ -328,38 +330,163 @@ const handleView = (row: StockRow) => {
   ElMessage.info(`查看 ${row.product_name} 详情`)
 }
 
-const handleEdit = (row: StockRow) => {
-  ElMessage.info(`编辑 ${row.product_name}（待对接表单对话框）`)
+// 批次 94 P2-12 修复：实现编辑功能（原占位，调用 inventoryApi.updateStock）
+const handleEdit = async (row: StockRow) => {
+  try {
+    const { value } = await ElMessageBox.prompt(
+      `请输入 ${row.product_name} 的新数量（当前：${row.quantity}）`,
+      '编辑库存数量',
+      {
+        confirmButtonText: '确定',
+        cancelButtonText: '取消',
+        inputPlaceholder: '请输入新数量',
+        inputValue: String(row.quantity),
+        inputPattern: /^\d+(\.\d+)?$/,
+        inputErrorMessage: '请输入有效的数字',
+      }
+    )
+    const newQuantity = Number(value)
+    await inventoryApi.updateStock(row.id, { quantity: newQuantity })
+    ElMessage.success('编辑成功')
+    refresh()
+  } catch (error) {
+    if (error !== 'cancel') {
+      const err = error as Error
+      logger.error('编辑库存失败', err.message)
+      ElMessage.error(err.message || '编辑失败')
+    }
+  }
 }
 
+// 批次 94 P2-12 修复：实现删除功能（原占位，调用 inventoryApi.deleteStock）
 const handleDelete = async (row: StockRow) => {
   try {
     await ElMessageBox.confirm(`确认删除库存记录 ${row.product_code}？`, '删除确认', {
       type: 'warning',
     })
-    ElMessage.success('已删除（占位，待对接 API）')
+    await inventoryApi.deleteStock(row.id)
+    ElMessage.success('已删除')
     refresh()
-  } catch {
-    /* 用户取消 */
+  } catch (error) {
+    if (error !== 'cancel') {
+      const err = error as Error
+      logger.error('删除库存失败', err.message)
+      ElMessage.error(err.message || '删除失败')
+    }
   }
 }
 
-const handleBatchAdjust = () => {
-  ElMessage.info(`批量调整 ${selectedRows.value.length} 条记录（待对接）`)
+// 批次 94 P2-12 修复：实现批量调整功能（原占位，循环调用 inventoryApi.createStockAdjustment）
+const handleBatchAdjust = async () => {
+  if (selectedRows.value.length === 0) {
+    ElMessage.warning('请先选择要调整的记录')
+    return
+  }
+  try {
+    const { value: typeStr } = await ElMessageBox.prompt(
+      '请输入调整类型（increase 增加 / decrease 减少）',
+      '批量调整',
+      {
+        confirmButtonText: '下一步',
+        cancelButtonText: '取消',
+        inputPlaceholder: 'increase 或 decrease',
+        inputPattern: /^(increase|decrease)$/,
+        inputErrorMessage: '请输入 increase 或 decrease',
+      }
+    )
+    const { value: qtyStr } = await ElMessageBox.prompt(
+      '请输入调整数量',
+      '批量调整',
+      {
+        confirmButtonText: '下一步',
+        cancelButtonText: '取消',
+        inputPlaceholder: '调整数量',
+        inputPattern: /^\d+(\.\d+)?$/,
+        inputErrorMessage: '请输入有效的数字',
+      }
+    )
+    const { value: reason } = await ElMessageBox.prompt(
+      '请输入调整原因',
+      '批量调整',
+      {
+        confirmButtonText: '确定',
+        cancelButtonText: '取消',
+        inputPlaceholder: '调整原因',
+        inputPattern: /\S+/,
+        inputErrorMessage: '原因不能为空',
+      }
+    )
+    const adjustmentQuantity = Number(qtyStr)
+    let successCount = 0
+    let failCount = 0
+    for (const row of selectedRows.value) {
+      try {
+        await inventoryApi.createStockAdjustment({
+          warehouse_id: row.warehouse_id,
+          product_id: row.product_id,
+          batch_no: row.batch_no,
+          adjustment_quantity: adjustmentQuantity,
+          adjustment_type: typeStr as 'increase' | 'decrease',
+          reason,
+        })
+        successCount++
+      } catch (error) {
+        failCount++
+        logger.error(`调整库存记录 ${row.product_code} 失败`, (error as Error).message)
+      }
+    }
+    if (failCount === 0) {
+      ElMessage.success(`批量调整成功（共 ${successCount} 条）`)
+    } else {
+      ElMessage.warning(`批量调整完成：成功 ${successCount} 条，失败 ${failCount} 条`)
+    }
+    selectedRows.value = []
+    refresh()
+  } catch (error) {
+    if (error !== 'cancel') {
+      const err = error as Error
+      logger.error('批量调整失败', err.message)
+      ElMessage.error(err.message || '批量调整失败')
+    }
+  }
 }
 
+// 批次 94 P2-12 修复：实现批量删除功能（原占位，循环调用 inventoryApi.deleteStock）
 const handleBatchDelete = async () => {
+  if (selectedRows.value.length === 0) {
+    ElMessage.warning('请先选择要删除的记录')
+    return
+  }
   try {
     await ElMessageBox.confirm(
       `确认批量删除选中的 ${selectedRows.value.length} 条记录？`,
       '批量删除',
       { type: 'warning' }
     )
-    ElMessage.success('批量删除成功（占位）')
+    let successCount = 0
+    let failCount = 0
+    for (const row of selectedRows.value) {
+      try {
+        await inventoryApi.deleteStock(row.id)
+        successCount++
+      } catch (error) {
+        failCount++
+        logger.error(`删除库存记录 ${row.product_code} 失败`, (error as Error).message)
+      }
+    }
+    if (failCount === 0) {
+      ElMessage.success(`批量删除成功（共 ${successCount} 条）`)
+    } else {
+      ElMessage.warning(`批量删除完成：成功 ${successCount} 条，失败 ${failCount} 条`)
+    }
     selectedRows.value = []
     refresh()
-  } catch {
-    /* 用户取消 */
+  } catch (error) {
+    if (error !== 'cancel') {
+      const err = error as Error
+      logger.error('批量删除失败', err.message)
+      ElMessage.error(err.message || '批量删除失败')
+    }
   }
 }
 

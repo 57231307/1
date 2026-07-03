@@ -65,6 +65,7 @@ impl SalesReturnService {
         &self,
         return_id: i32,
         txn: &sea_orm::DatabaseTransaction,
+        user_id: i32,
     ) -> Result<(), AppError> {
         use sea_orm::ColumnTrait;
         let items = crate::models::sales_return_item::Entity::find()
@@ -89,11 +90,12 @@ impl SalesReturnService {
 
         let mut return_active: crate::models::sales_return::ActiveModel = return_order.into();
         return_active.total_amount = sea_orm::ActiveValue::Set(total);
+        // 批次 94 P2-10：原 Some(0) 占位改为真实操作人 user_id，便于审计追踪
         crate::services::audit_log_service::AuditLogService::update_with_audit(
             txn,
             "auto_audit",
             return_active,
-            Some(0),
+            Some(user_id),
         )
         .await?;
         Ok(())
@@ -151,6 +153,7 @@ impl SalesReturnService {
         &self,
         return_id: i32,
         req: CreateSalesReturnItemRequest,
+        user_id: i32,
     ) -> Result<sales_return_item::Model, AppError> {
         // P1-6 修复（批次 79 v1 复审）：状态门 + insert 移入单一事务，加 lock_exclusive 串行化
         // 原实现状态门用 self.db 裸查询无锁、insert 用 txn，
@@ -185,7 +188,8 @@ impl SalesReturnService {
         let item = item.insert(&txn).await?;
 
         // 更新退货单总金额
-        self.update_return_totals(return_id, &txn).await?;
+        // 批次 94 P2-10：透传 user_id 用于审计日志
+        self.update_return_totals(return_id, &txn, user_id).await?;
 
         txn.commit().await?;
 
@@ -296,7 +300,8 @@ impl SalesReturnService {
         }
 
         // 更新退货单总金额
-        self.update_return_totals(return_id, &txn).await?;
+        // 批次 94 P2-10：透传 user_id 用于审计日志
+        self.update_return_totals(return_id, &txn, user_id).await?;
 
         // 更新状态为已提交
         let return_order = sales_return::Entity::find_by_id(return_id)
@@ -338,7 +343,8 @@ impl SalesReturnService {
             Self::validate_and_lock_submitted_txn(&txn, return_id).await?;
 
         // 2. 更新退货单总金额
-        self.update_return_totals(return_id, &txn).await?;
+        // 批次 94 P2-10：透传 user_id 用于审计日志
+        self.update_return_totals(return_id, &txn, user_id).await?;
 
         // 3. 批量库存入库
         self.apply_stock_inbound_txn(&txn, &return_order, &items, user_id)
@@ -708,6 +714,7 @@ impl SalesReturnService {
         quantity: Option<Decimal>,
         unit_price: Option<Decimal>,
         reason: Option<String>,
+        user_id: i32,
     ) -> Result<sales_return_item::Model, AppError> {
         let item = sales_return_item::Entity::find_by_id(item_id)
             .one(&*self.db)
@@ -731,7 +738,8 @@ impl SalesReturnService {
         let item = active_model.insert(&txn).await?;
 
         // 更新退货单总金额
-        self.update_return_totals(item.return_id, &txn).await?;
+        // 批次 94 P2-10：透传 user_id 用于审计日志
+        self.update_return_totals(item.return_id, &txn, user_id).await?;
 
         txn.commit().await?;
         Ok(item)
@@ -739,7 +747,7 @@ impl SalesReturnService {
 
     /// 删除退货单明细
     // 批次 93 P1-8 修复：find + delete 移入同一事务，补 lock_exclusive 串行化并发
-    pub async fn delete_return_item(&self, item_id: i32) -> Result<(), AppError> {
+    pub async fn delete_return_item(&self, item_id: i32, user_id: i32) -> Result<(), AppError> {
         // 批次 93 P1-8 修复：find 移入 txn + lock_exclusive，消除 TOCTOU 风险
         // 原实现 find_by_id 在 self.db → begin txn → delete_by_id 在 txn，
         // find 与 delete 跨事务边界，并发删除同一明细可能双写 / return_id 读取过期。
@@ -751,12 +759,17 @@ impl SalesReturnService {
             .await?
             .ok_or_else(|| AppError::not_found(format!("退货明细 {}", item_id)))?;
 
-        sales_return_item::Entity::delete_by_id(item_id)
-            .exec(&txn)
-            .await?;
+        // 批次 94 P2-6 修复：用 delete_with_audit 记录审计日志（原 delete_by_id 无审计）
+        // delete_with_audit 内部 find_by_id + delete + 写审计日志；行已被 lock_exclusive 锁定，重复查询安全
+        crate::services::audit_log_service::AuditLogService::delete_with_audit::<
+            sales_return_item::Entity,
+            _,
+        >(&txn, "sales_return_item", item_id, Some(user_id))
+        .await?;
 
         // 更新退货单总金额
-        self.update_return_totals(item.return_id, &txn).await?;
+        // 批次 94 P2-10：透传 user_id 用于审计日志
+        self.update_return_totals(item.return_id, &txn, user_id).await?;
 
         txn.commit().await?;
         Ok(())

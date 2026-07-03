@@ -218,7 +218,7 @@
 import { ref, reactive, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Plus, Upload, Download, Search, Refresh } from '@element-plus/icons-vue'
-import { listLeads, type Lead } from '@/api/crm'
+import { listLeads, exportLeads, type Lead } from '@/api/crm'
 import { listUsers, type User } from '@/api/user'
 import type { ApiResponse, PageResult } from '@/types/api'
 import { logger } from '@/utils/logger'
@@ -363,8 +363,23 @@ const handleImport = () => {
   ElMessage.info('导入功能开发中')
 }
 
-const handleExport = () => {
-  ElMessage.success('导出成功')
+// 批次 94 P2-12 修复：原占位假成功，现接入真实导出 API 并触发浏览器下载
+const handleExport = async () => {
+  try {
+    const blob = await exportLeads(queryParams)
+    const url = window.URL.createObjectURL(new Blob([blob]))
+    const link = document.createElement('a')
+    link.href = url
+    link.setAttribute('download', `CRM线索_${new Date().toISOString().split('T')[0]}.xlsx`)
+    document.body.appendChild(link)
+    link.click()
+    document.body.removeChild(link)
+    window.URL.revokeObjectURL(url)
+    ElMessage.success('导出成功')
+  } catch (error) {
+    logger.error('导出失败:', error)
+    ElMessage.error('导出失败')
+  }
 }
 
 const handleSelectionChange = (selection: LeadRow[]) => {

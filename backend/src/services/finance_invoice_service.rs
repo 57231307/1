@@ -86,16 +86,21 @@ impl FinanceInvoiceService {
         }
     }
 
-    pub async fn delete_invoice(&self, id: i32) -> Result<(), AppError> {
+    pub async fn delete_invoice(&self, id: i32, user_id: i32) -> Result<(), AppError> {
         // P0 8-3 修复：delete 操作补审计日志
+        // 批次 94 P2-10：原 Some(0) 占位改为真实操作人 user_id，便于审计追踪
         crate::services::audit_log_service::AuditLogService::delete_with_audit::<
             FinanceInvoice,
             _,
-        >(self.db.as_ref(), "finance_invoice", id, Some(0))
+        >(self.db.as_ref(), "finance_invoice", id, Some(user_id))
         .await
     }
 
-    pub async fn approve_invoice(&self, id: i32) -> Result<Option<InvoiceModel>, AppError> {
+    pub async fn approve_invoice(
+        &self,
+        id: i32,
+        user_id: i32,
+    ) -> Result<Option<InvoiceModel>, AppError> {
         // 批次 25 v6 P0 修复：状态机 lock_exclusive 补全，串行化并发状态变更
         // 原实现状态门无 txn 无 lock，两并发 approve 均基于过期状态写入，
         // 导致状态机被绕过、审计日志缺失。
@@ -111,11 +116,12 @@ impl FinanceInvoiceService {
             active_model.status = Set("approved".to_string());
             active_model.updated_at = Set(Utc::now());
 
+            // 批次 94 P2-10：原 Some(0) 占位改为真实操作人 user_id，便于审计追踪
             let updated = crate::services::audit_log_service::AuditLogService::update_with_audit(
                 &txn,
                 "auto_audit",
                 active_model,
-                Some(0), // TODO(tech-debt): 接入用户上下文后传入真实 user_id
+                Some(user_id),
             )
             .await?;
             Some(updated)
@@ -128,7 +134,11 @@ impl FinanceInvoiceService {
         Ok(result)
     }
 
-    pub async fn verify_invoice(&self, id: i32) -> Result<Option<InvoiceModel>, AppError> {
+    pub async fn verify_invoice(
+        &self,
+        id: i32,
+        user_id: i32,
+    ) -> Result<Option<InvoiceModel>, AppError> {
         // 批次 25 v6 P0 修复：状态机 lock_exclusive 补全，串行化并发状态变更
         // 原实现状态门无 txn 无 lock，两并发 verify 均基于过期状态写入，
         // 导致状态机被绕过、审计日志缺失。
@@ -145,11 +155,12 @@ impl FinanceInvoiceService {
             active_model.paid_date = Set(Some(Utc::now()));
             active_model.updated_at = Set(Utc::now());
 
+            // 批次 94 P2-10：原 Some(0) 占位改为真实操作人 user_id，便于审计追踪
             let updated = crate::services::audit_log_service::AuditLogService::update_with_audit(
                 &txn,
                 "auto_audit",
                 active_model,
-                Some(0), // TODO(tech-debt): 接入用户上下文后传入真实 user_id
+                Some(user_id),
             )
             .await?;
             Some(updated)

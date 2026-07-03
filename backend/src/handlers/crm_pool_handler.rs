@@ -137,7 +137,10 @@ pub async fn claim_from_pool(
         ..Default::default()
     };
 
-    let updated_lead = service.update_lead(req.lead_id, update_req).await?;
+    // 批次 94 P2-10：注入真实操作人 user_id 用于审计日志
+    let updated_lead = service
+        .update_lead(req.lead_id, update_req, auth.user_id)
+        .await?;
 
     // 记录领取日志
     tracing::info!(
@@ -175,7 +178,10 @@ pub async fn recycle_to_pool(
         ..Default::default()
     };
 
-    let updated_lead = service.update_lead(req.lead_id, update_req).await?;
+    // 批次 94 P2-10：注入真实操作人 user_id 用于审计日志
+    let updated_lead = service
+        .update_lead(req.lead_id, update_req, auth.user_id)
+        .await?;
 
     // 记录回收日志
     tracing::info!(

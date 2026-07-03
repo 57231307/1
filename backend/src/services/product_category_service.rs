@@ -93,9 +93,13 @@ impl ProductCategoryService {
     }
 
     /// 更新产品类别
+    ///
+    /// 批次 94 P2-10：补 user_id 参数，将 Some(0) 占位符改为真实操作人 user_id，
+    /// 保证审计日志能追溯实际更新人。
     pub async fn update(
         &self,
         id: i32,
+        user_id: i32,
         req: crate::handlers::product_category_handler::UpdateProductCategoryRequest,
     ) -> Result<product_category::Model, AppError> {
         let mut category: product_category::ActiveModel = ProductCategoryEntity::find_by_id(id)
@@ -137,14 +141,17 @@ impl ProductCategoryService {
             &*self.db,
             "auto_audit",
             category,
-            Some(0),
+            Some(user_id),
         )
         .await?;
         Ok(result)
     }
 
     /// 删除产品类别
-    pub async fn delete(&self, id: i32) -> Result<(), AppError> {
+    ///
+    /// 批次 94 P2-10：补 user_id 参数，将 Some(0) 占位符改为真实操作人 user_id，
+    /// 保证审计日志能追溯实际删除人。
+    pub async fn delete(&self, id: i32, user_id: i32) -> Result<(), AppError> {
         // 检查是否有子类别
         let children_count = ProductCategoryEntity::find()
             .filter(product_category::Column::ParentId.eq(id))
@@ -159,7 +166,7 @@ impl ProductCategoryService {
         crate::services::audit_log_service::AuditLogService::delete_with_audit::<
             ProductCategoryEntity,
             _,
-        >(&*self.db, "product_category", id, Some(0))
+        >(&*self.db, "product_category", id, Some(user_id))
         .await
     }
 

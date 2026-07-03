@@ -20,6 +20,7 @@ use crate::models::mrp_result::{
 };
 use crate::models::product::Entity as ProductEntity;
 use crate::utils::error::AppError;
+use crate::utils::sql_escape::safe_like_pattern;
 
 /// MRP计算请求
 #[derive(Debug, Clone, Deserialize)]
@@ -743,7 +744,8 @@ impl MrpEngineService {
         if let Some(kw) = keyword {
             let trimmed = kw.trim();
             if !trimmed.is_empty() {
-                let pattern = format!("%{}%", trimmed);
+                // 批次 94 P2-2 修复：LIKE 模式注入，转义 % _ \ 特殊字符
+                let pattern = safe_like_pattern(trimmed);
                 query = query.filter(
                     crate::models::product::Column::Name
                         .like(&pattern)

@@ -24,6 +24,7 @@ use crate::models::sales_quotation_term::{
     self, ActiveModel as TermActive, Entity as TermEntity,
 };
 use crate::utils::app_state::AppState;
+use crate::utils::error::AppError;
 
 /// 业务错误
 #[derive(Debug, Error)]
@@ -215,11 +216,13 @@ impl QuotationService {
     /// 批次 85 v2 复审 P1-2 修复：状态门移入 txn + lock_exclusive，重算 update 移入 txn
     /// 原实现状态门在 txn 外查询（self.db），且 line 360 重算后 update 在 txn commit 后用 self.db，
     /// 存在 TOCTOU（并发 update/cancel 会基于过期状态通过检查）和非原子性（commit 后 update 失败导致状态不一致）
+    // 批次 94 P2-13 修复：补 user_id 参数 + 用 update_with_audit 记录审计日志；返回类型改为 AppError 以兼容审计服务
     pub async fn update(
         &self,
         id: i64,
         dto: UpdateQuotationDto,
-    ) -> Result<sales_quotation::Model, ServiceError> {
+        user_id: i64,
+    ) -> Result<sales_quotation::Model, AppError> {
         let txn = self.db.begin().await?;
 
         // 加 lock_exclusive 串行化并发状态变更
@@ -227,9 +230,9 @@ impl QuotationService {
             .lock_exclusive()
             .one(&txn)
             .await?
-            .ok_or(ServiceError::NotFound)?;
+            .ok_or_else(|| AppError::not_found("报价单不存在"))?;
         if !["draft", "rejected"].contains(&existing.status.as_str()) {
-            return Err(ServiceError::InvalidState);
+            return Err(AppError::validation("当前状态不允许此操作".to_string()));
         }
 
         let mut active: QuotationActive = existing.clone().into();
@@ -282,13 +285,20 @@ impl QuotationService {
             active.notes = Set(Some(v));
         }
         active.updated_at = Set(Utc::now());
-        let updated = active.update(&txn).await?;
+        // 批次 94 P2-13 修复：用 update_with_audit 记录审计日志（原 active.update 无审计）
+        let updated = crate::services::audit_log_service::AuditLogService::update_with_audit(
+            &txn,
+            "quotation",
+            active,
+            Some(user_id as i32),
+        )
+        .await?;
 
         // 如果 dto.items 存在，全量替换明细
         if let Some(items) = dto.items {
             // 校验：非空
             if items.is_empty() {
-                return Err(ServiceError::Validation("明细至少 1 条".to_string()));
+                return Err(AppError::validation("明细至少 1 条".to_string()));
             }
             // 删除旧明细
             ItemEntity::delete_many()
@@ -378,11 +388,12 @@ impl QuotationService {
     }
 
     /// 取消报价单（任意非 converted 状态可取消）
+    // 批次 94 P2-13 修复：移除 let _ = user_id 占位，用 update_with_audit 记录审计日志；返回类型改为 AppError
     pub async fn cancel(
         &self,
         id: i64,
         user_id: i64,
-    ) -> Result<sales_quotation::Model, ServiceError> {
+    ) -> Result<sales_quotation::Model, AppError> {
         // 批次 26 v6 P1 修复：状态机 lock_exclusive 补全，串行化并发状态变更
         // 原状态门查询用 self.get_by_id 裸查询无行锁，且 update 也用裸连接，无事务保护。
         // 改为在事务内用 find_by_id(id).lock_exclusive() 串行化并发状态变更，update 一并纳入事务。
@@ -391,9 +402,9 @@ impl QuotationService {
             .lock_exclusive()
             .one(&txn)
             .await?
-            .ok_or(ServiceError::NotFound)?;
+            .ok_or_else(|| AppError::not_found("报价单不存在"))?;
         if existing.status == "converted" {
-            return Err(ServiceError::InvalidState);
+            return Err(AppError::validation("当前状态不允许此操作".to_string()));
         }
         if existing.status == "cancelled" {
             return Ok(existing);
@@ -402,9 +413,14 @@ impl QuotationService {
         let mut active: QuotationActive = existing.into();
         active.status = Set("cancelled".to_string());
         active.updated_at = Set(Utc::now());
-        // 备注 created_by 引用仅作审计
-        let _ = user_id;
-        let updated = active.update(&txn).await?;
+        // 批次 94 P2-13 修复：用 update_with_audit 记录审计日志（原 active.update 无审计，user_id 仅占位丢弃）
+        let updated = crate::services::audit_log_service::AuditLogService::update_with_audit(
+            &txn,
+            "quotation",
+            active,
+            Some(user_id as i32),
+        )
+        .await?;
         txn.commit().await?;
         Ok(updated)
     }

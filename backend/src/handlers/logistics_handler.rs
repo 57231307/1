@@ -9,6 +9,7 @@ use serde::Deserialize;
 
 use crate::models::logistics_waybill;
 use crate::models::sales_order;
+use crate::middleware::auth_context::AuthContext;
 use crate::utils::app_state::AppState;
 use crate::utils::error::AppError;
 use crate::utils::response::ApiResponse;
@@ -126,6 +127,7 @@ pub async fn get_waybill(
 pub async fn delete_waybill(
     Path(id): Path<i32>,
     State(state): State<AppState>,
+    auth: AuthContext,
 ) -> Result<Json<ApiResponse<()>>, AppError> {
     let waybill = logistics_waybill::Entity::find_by_id(id)
         .one(&*state.db)
@@ -142,10 +144,11 @@ pub async fn delete_waybill(
     }
 
     // P0 8-3 修复：delete 操作补审计日志
+    // 批次 94 P2-10：原 Some(0) 占位改为真实操作人 user_id，便于审计追踪
     crate::services::audit_log_service::AuditLogService::delete_with_audit::<
         logistics_waybill::Entity,
         _,
-    >(&*state.db, "logistics_waybill", id, Some(0))
+    >(&*state.db, "logistics_waybill", id, Some(auth.user_id))
     .await?;
 
     Ok(Json(ApiResponse::success_with_message((), "运单删除成功")))

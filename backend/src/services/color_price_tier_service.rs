@@ -83,12 +83,13 @@ impl ColorPriceTierService {
     }
 
     /// 删除阶梯价
-    pub async fn delete(&self, id: i64) -> Result<(), TierError> {
+    pub async fn delete(&self, id: i64, user_id: i32) -> Result<(), TierError> {
         // P0 8-3 修复：delete 操作补审计日志（i64 主键变体）
+        // 批次 94 P2-10：原 Some(0) 占位改为真实操作人 user_id，便于审计追踪
         crate::services::audit_log_service::AuditLogService::delete_with_audit_i64::<
             TierEntity,
             _,
-        >(&*self.db, "color_price_tier", id, Some(0))
+        >(&*self.db, "color_price_tier", id, Some(user_id))
         .await
         .map_err(|e| match e {
             crate::utils::error::AppError::NotFound(_) => TierError::NotFound,

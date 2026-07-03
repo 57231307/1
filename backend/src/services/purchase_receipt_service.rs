@@ -299,7 +299,8 @@ impl PurchaseReceiptService {
         // 4. 检查是否有关联的采购订单
         if let Some(order_id) = receipt.order_id {
             // 已实现: 更新采购订单的已入库数量
-            self.update_order_received_quantity(order_id, receipt_id, &txn)
+            // 批次 94 P2-10：透传 user_id 用于审计日志
+            self.update_order_received_quantity(order_id, receipt_id, &txn, user_id)
                 .await?;
         }
 

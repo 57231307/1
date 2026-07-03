@@ -198,11 +198,12 @@ pub async fn list_return_items(
 pub async fn create_return_item(
     State(state): State<AppState>,
     Path(id): Path<i32>,
-    _auth: AuthContext,
+    auth: AuthContext,
     Json(req): Json<CreateSalesReturnItemRequest>,
 ) -> Result<Json<ApiResponse<crate::models::sales_return_item::Model>>, AppError> {
     let service = SalesReturnService::new(state.db.clone());
-    let item = service.add_return_item(id, req).await?;
+    // 批次 94 P2-10：注入真实操作人 user_id 用于审计日志
+    let item = service.add_return_item(id, req, auth.user_id).await?;
     Ok(Json(ApiResponse::success(item)))
 }
 
@@ -210,12 +211,13 @@ pub async fn create_return_item(
 pub async fn update_return_item(
     State(state): State<AppState>,
     Path((_id, item_id)): Path<(i32, i32)>,
-    _auth: AuthContext,
+    auth: AuthContext,
     Json(req): Json<UpdateReturnItemRequest>,
 ) -> Result<Json<ApiResponse<crate::models::sales_return_item::Model>>, AppError> {
     let service = SalesReturnService::new(state.db.clone());
+    // 批次 94 P2-10：注入真实操作人 user_id 用于审计日志
     let item = service
-        .update_return_item(item_id, req.quantity, req.unit_price, req.reason)
+        .update_return_item(item_id, req.quantity, req.unit_price, req.reason, auth.user_id)
         .await?;
     Ok(Json(ApiResponse::success(item)))
 }
@@ -224,10 +226,11 @@ pub async fn update_return_item(
 pub async fn delete_return_item(
     State(state): State<AppState>,
     Path((_id, item_id)): Path<(i32, i32)>,
-    _auth: AuthContext,
+    auth: AuthContext,
 ) -> Result<Json<ApiResponse<()>>, AppError> {
     let service = SalesReturnService::new(state.db.clone());
-    service.delete_return_item(item_id).await?;
+    // 批次 94 P2-10：注入真实操作人 user_id 用于审计日志
+    service.delete_return_item(item_id, auth.user_id).await?;
     Ok(Json(ApiResponse::success(())))
 }
 

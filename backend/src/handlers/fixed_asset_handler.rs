@@ -310,17 +310,18 @@ pub async fn batch_depreciate(
     info!("用户 {} 正在批量计算折旧", auth.username);
 
     let service = FixedAssetService::new(state.db.clone());
+    // 批次 94 P2-9 修复：移除 DTO 中的 user_id 字段，改用 auth.user_id（鉴权上下文真实操作人）
     let results = service
-        .batch_calculate_depreciation(req.asset_ids, req.calculation_date, req.user_id)
+        .batch_calculate_depreciation(req.asset_ids, req.calculation_date, auth.user_id)
         .await?;
 
     Ok(Json(ApiResponse::success(results)))
 }
 
 /// 折旧计算请求
+// 批次 94 P2-9 修复：移除 user_id 字段（鉴权信息应来自 AuthContext 而非请求体，避免伪造）
 #[derive(Debug, Deserialize)]
 pub struct BatchDepreciateRequest {
     pub asset_ids: Vec<i32>,
     pub calculation_date: String,
-    pub user_id: i32,
 }

@@ -284,7 +284,8 @@ impl BpmService {
         // P0 8-4 修复：task 状态变更纳入审计（update_with_audit 在事务内同步写审计日志，
         // 记录真实操作者 user_id，而非前端传入的 handler_id，防止代审追溯丢失）
         // P2-3 修复（批次 84 v1 复审）：有意忽略返回的 ActiveModel（字段已通过 Set 表达更新意图），仅传播错误
-        let _ = crate::services::audit_log_service::AuditLogService::update_with_audit(
+        // 批次 94 P2-11：审计日志为关键路径，错误已通过 ? 传播；去掉 let _ = 直接丢弃 ActiveModel 返回值
+        crate::services::audit_log_service::AuditLogService::update_with_audit(
             &txn,
             "bpm_task",
             task_active,
@@ -300,7 +301,8 @@ impl BpmService {
             instance_active.updated_at = Set(Some(chrono::Utc::now()));
             // P0 8-4 修复：instance 终止状态变更纳入审计
             // P2-3 修复（批次 84 v1 复审）：有意忽略返回的 ActiveModel（字段已通过 Set 表达更新意图），仅传播错误
-            let _ = crate::services::audit_log_service::AuditLogService::update_with_audit(
+            // 批次 94 P2-11：审计日志为关键路径，错误已通过 ? 传播；去掉 let _ = 直接丢弃 ActiveModel 返回值
+            crate::services::audit_log_service::AuditLogService::update_with_audit(
                 &txn,
                 "bpm_process_instance",
                 instance_active,
@@ -410,7 +412,8 @@ impl BpmService {
                 instance_active.completed_at = Set(Some(chrono::Utc::now()));
                 // P0 8-4 修复：instance 完成状态变更纳入审计
                 // P2-3 修复（批次 84 v1 复审）：有意忽略返回的 ActiveModel（字段已通过 Set 表达更新意图），仅传播错误
-                let _ = crate::services::audit_log_service::AuditLogService::update_with_audit(
+                // 批次 94 P2-11：审计日志为关键路径，错误已通过 ? 传播；去掉 let _ = 直接丢弃 ActiveModel 返回值
+                crate::services::audit_log_service::AuditLogService::update_with_audit(
                     &txn,
                     "bpm_process_instance",
                     instance_active,

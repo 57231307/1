@@ -14,6 +14,7 @@ use crate::services::inv::{
 use crate::utils::error::AppError;
 use crate::utils::number_generator::DocumentNumberGenerator;
 use crate::utils::response::ApiResponse;
+use crate::middleware::auth_context::AuthContext;
 
 /// 查询参数
 #[derive(Debug, Deserialize)]
@@ -81,10 +82,12 @@ pub async fn get_transfer(
 /// 创建库存调拨
 pub async fn create_transfer(
     State(state): State<AppState>,
+    auth: AuthContext,
     Json(request): Json<CreateInventoryTransferRequest>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     let transfer_service = InventoryTransferService::new(state.db.clone());
-    let transfer = transfer_service.create_transfer(request).await?;
+    // 批次 94 P2-10：注入真实操作人 user_id 用于审计日志
+    let transfer = transfer_service.create_transfer(request, auth.user_id).await?;
     let transfer_json = serde_json::to_value(transfer)
         .map_err(|e| AppError::internal(format!("序列化失败: {}", e)))?;
     Ok(Json(ApiResponse::success_with_message(
@@ -96,11 +99,15 @@ pub async fn create_transfer(
 /// 更新库存调拨
 pub async fn update_transfer(
     State(state): State<AppState>,
+    auth: AuthContext,
     Path(id): Path<i32>,
     Json(request): Json<UpdateInventoryTransferRequest>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     let transfer_service = InventoryTransferService::new(state.db.clone());
-    let transfer = transfer_service.update_transfer(id, request).await?;
+    // 批次 94 P2-10：注入真实操作人 user_id 用于审计日志
+    let transfer = transfer_service
+        .update_transfer(id, request, auth.user_id)
+        .await?;
     let transfer_json = serde_json::to_value(transfer)
         .map_err(|e| AppError::internal(format!("序列化失败: {}", e)))?;
     Ok(Json(ApiResponse::success_with_message(
@@ -112,12 +119,14 @@ pub async fn update_transfer(
 /// 审核库存调拨
 pub async fn approve_transfer(
     State(state): State<AppState>,
+    auth: AuthContext,
     Path(id): Path<i32>,
     Json(request): Json<ApproveTransferRequest>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     let transfer_service = InventoryTransferService::new(state.db.clone());
+    // 批次 94 P2-10：注入真实操作人 user_id 用于审计日志
     let transfer = transfer_service
-        .approve_transfer(id, request.approved, request.notes)
+        .approve_transfer(id, request.approved, request.notes, auth.user_id)
         .await?;
     let transfer_json = serde_json::to_value(transfer)
         .map_err(|e| AppError::internal(format!("序列化失败: {}", e)))?;
@@ -165,11 +174,13 @@ pub async fn receive_transfer(
 /// 删除库存调拨
 pub async fn delete_transfer(
     State(state): State<AppState>,
+    auth: AuthContext,
     Path(id): Path<i32>,
 ) -> Result<Json<ApiResponse<()>>, AppError> {
     let transfer_service = InventoryTransferService::new(state.db.clone());
+    // 批次 94 P2-10：注入真实操作人 user_id 用于审计日志
     transfer_service
-        .delete_transfer(id)
+        .delete_transfer(id, auth.user_id)
         .await
         .map_err(|e| AppError::bad_request(e.to_string()))?;
     Ok(Json(ApiResponse::success_with_message(

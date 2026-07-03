@@ -138,9 +138,13 @@ import {
   CUSTOM_ORDER_STATUS_COLORS as STATUS_COLORS,
 } from '@/api/custom-order'
 import type { CustomOrderListItem } from '@/api/custom-order'
+// 批次 94 P2-12 修复：导入 useUserStore 用于获取真实操作人 ID（原硬编码为 1）
+import { useUserStore } from '@/store/user'
 import logger from '@/utils/logger'
 
 const router = useRouter()
+// 批次 94 P2-12 修复：获取用户 store 以读取当前登录用户 ID
+const userStore = useUserStore()
 const loading = ref(false)
 const orders = ref<any[]>([])
 const pagination = ref({ page: 1, page_size: 20, total: 0 })
@@ -199,8 +203,13 @@ async function handleAdvance(row: CustomOrderListItem) {
     await ElMessageBox.confirm(`确定推进订单 ${row.order_no} 到下一阶段？`, '确认推进', {
       type: 'warning',
     })
-    // 实际操作人 ID 需从 auth store 获取（此处使用 1 占位）
-    await advanceCustomOrder(row.id, { operator_id: 1, notes: '状态推进' })
+    // 批次 94 P2-12 修复：原硬编码 operator_id: 1，改为从 userStore 获取真实当前用户 ID
+    const operatorId = userStore.userInfo?.id
+    if (!operatorId) {
+      ElMessage.error('无法获取当前用户信息，请重新登录后重试')
+      return
+    }
+    await advanceCustomOrder(row.id, { operator_id: operatorId, notes: '状态推进' })
     ElMessage.success('推进成功')
     loadData()
   } catch (e: unknown) {

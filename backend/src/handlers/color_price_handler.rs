@@ -354,13 +354,14 @@ pub async fn create_tier(
 
 /// DELETE /api/v1/erp/color-prices/tiers/item/:tier_id - 删除阶梯价
 pub async fn delete_tier(
-    _auth: AuthContext,
+    auth: AuthContext,
     State(state): State<AppState>,
     Path(tier_id): Path<i64>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     let service = ColorPriceTierService::from_state(&state);
 
-    service.delete(tier_id).await.map_err(tier_err)?;
+    // 批次 94 P2-10：注入真实操作人 user_id 用于审计日志
+    service.delete(tier_id, auth.user_id).await.map_err(tier_err)?;
     Ok(Json(ApiResponse::success(json!({ "deleted": tier_id }))))
 }
 
@@ -487,14 +488,15 @@ pub async fn create_seasonal_rule(
     Ok(Json(ApiResponse::success(json!(m))))
 }
 
-/// DELETE /api/v1/erp/color-prices/seasonal-rules/:id - 软删除季节规则
+/// DELETE /api/v1/erp/color-prices/seasonal-rules/:id - 物理删除季节规则 + 审计日志
+// 批次 94 P2-5 修复：_auth → auth，注入 auth.user_id 到 service.delete 用于审计日志
 pub async fn delete_seasonal_rule(
-    _auth: AuthContext,
+    auth: AuthContext,
     State(state): State<AppState>,
     Path(id): Path<i64>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     let service = ColorPriceSeasonalService::from_state(&state);
 
-    service.delete(id).await.map_err(seasonal_err)?;
+    service.delete(id, auth.user_id).await.map_err(seasonal_err)?;
     Ok(Json(ApiResponse::success(json!({ "deleted": id }))))
 }

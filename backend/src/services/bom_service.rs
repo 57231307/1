@@ -452,7 +452,7 @@ impl BomService {
     }
 
     /// 提交BOM审核：将状态由 DRAFT/INACTIVE 流转为 PENDING
-    pub async fn submit(&self, id: i32) -> Result<BomModel, AppError> {
+    pub async fn submit(&self, id: i32, user_id: i32) -> Result<BomModel, AppError> {
         info!("提交BOM审核，ID：{}", id);
 
         // 批次 25 v6 P0 修复：状态机 lock_exclusive 补全，串行化并发状态变更
@@ -474,11 +474,12 @@ impl BomService {
         active.status = Set(BomStatus::Pending.to_string());
         active.updated_at = Set(Utc::now());
 
+        // 批次 94 P2-10：原 Some(0) 占位改为真实操作人 user_id，便于审计追踪
         let updated = crate::services::audit_log_service::AuditLogService::update_with_audit(
             &txn,
             "auto_audit",
             active,
-            Some(0), // TODO(tech-debt): 接入用户上下文后传入真实 user_id
+            Some(user_id),
         )
         .await?;
 
@@ -492,6 +493,7 @@ impl BomService {
         id: i32,
         approved: bool,
         remark: Option<String>,
+        user_id: i32,
     ) -> Result<BomModel, AppError> {
         info!("审核BOM，ID：{}，通过：{}", id, approved);
 
@@ -525,7 +527,8 @@ impl BomService {
             &txn,
             "auto_audit",
             active,
-            Some(0), // TODO(tech-debt): 接入用户上下文后传入真实 user_id
+            // 批次 94 P2-10：原 Some(0) 占位改为真实操作人 user_id，便于审计追踪
+            Some(user_id),
         )
         .await?;
 

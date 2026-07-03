@@ -455,10 +455,11 @@ pub async fn update_recycle_rule(
 pub async fn delete_recycle_rule(
     State(state): State<AppState>,
     Path(id): Path<i32>,
-    _auth: AuthContext,
+    auth: AuthContext,
 ) -> Result<Json<ApiResponse<()>>, AppError> {
     let service = RecycleRuleService::new(state.db.clone());
-    service.delete_rule(id).await?;
+    // 批次 94 P2-10：注入真实操作人 user_id 用于审计日志
+    service.delete_rule(id, auth.user_id).await?;
     Ok(Json(ApiResponse::success_with_message(
         (),
         "回收规则删除成功",

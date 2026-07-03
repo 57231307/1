@@ -7,6 +7,7 @@ use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 
 use crate::utils::error::AppError;
+use crate::utils::sql_escape::safe_like_pattern;
 
 // ============================================================================
 // 安全漏洞 #8：导入端点请求体大小限制常量
@@ -607,7 +608,8 @@ impl ImportExportService {
             db_query = db_query.filter(ProductCol::Status.eq(status.clone()));
         }
         if let Some(keyword) = &query.keyword {
-            let like = format!("%{}%", keyword);
+            // 批次 94 P2-2 修复：LIKE 模式注入，转义 % _ \ 特殊字符
+            let like = safe_like_pattern(keyword);
             db_query = db_query.filter(
                 ProductCol::Name
                     .like(like.clone())
@@ -670,7 +672,8 @@ impl ImportExportService {
             db_query = db_query.filter(CustomerCol::Status.eq(status.clone()));
         }
         if let Some(keyword) = &query.keyword {
-            let like = format!("%{}%", keyword);
+            // 批次 94 P2-2 修复：LIKE 模式注入，转义 % _ \ 特殊字符
+            let like = safe_like_pattern(keyword);
             db_query = db_query.filter(
                 CustomerCol::CustomerName
                     .like(like.clone())
@@ -730,7 +733,8 @@ impl ImportExportService {
         let mut db_query = StockEntity::find();
 
         if let Some(keyword) = &query.keyword {
-            let like = format!("%{}%", keyword);
+            // 批次 94 P2-2 修复：LIKE 模式注入，转义 % _ \ 特殊字符
+            let like = safe_like_pattern(keyword);
             db_query = db_query.filter(
                 StockCol::BatchNo
                     .like(like.clone())

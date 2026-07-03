@@ -10,6 +10,8 @@ import {
   deletePurchaseContract,
   approvePurchaseContract,
   executePurchaseContract,
+  // 批次 94 P2-12 修复：导入 exportPurchaseContracts 用于实现真实导出
+  exportPurchaseContracts,
   type PurchaseContract,
 } from '@/api/purchase-contract'
 import { logger } from '@/utils/logger'
@@ -71,9 +73,23 @@ export function usePcProc(refresh: RefreshCallbacks) {
     }
   }
 
-  /** 导出（占位） */
-  const handleExport = () => {
-    ElMessage.success('导出成功')
+  /** 导出（批次 94 P2-12 修复：原占位假成功，现接入真实导出 API 并触发浏览器下载） */
+  const handleExport = async () => {
+    try {
+      const blob = await exportPurchaseContracts()
+      const url = window.URL.createObjectURL(new Blob([blob]))
+      const link = document.createElement('a')
+      link.href = url
+      link.setAttribute('download', `采购合同_${new Date().toISOString().split('T')[0]}.xlsx`)
+      document.body.appendChild(link)
+      link.click()
+      document.body.removeChild(link)
+      window.URL.revokeObjectURL(url)
+      ElMessage.success('导出成功')
+    } catch (error) {
+      logger.error('导出失败:', error)
+      ElMessage.error('导出失败')
+    }
   }
 
   return {

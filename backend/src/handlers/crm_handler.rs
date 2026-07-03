@@ -121,11 +121,13 @@ pub async fn get_lead(
 
 pub async fn update_lead(
     State(state): State<AppState>,
+    auth: AuthContext,
     Path(id): Path<i32>,
     Json(req): Json<UpdateLeadRequest>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     let service = CrmService::new(state.db.clone());
-    let res = service.update_lead(id, req).await?;
+    // 批次 94 P2-10：注入真实操作人 user_id 用于审计日志
+    let res = service.update_lead(id, req, auth.user_id).await?;
     let value =
         serde_json::to_value(res).map_err(|e| AppError::internal(format!("序列化失败: {}", e)))?;
     Ok(Json(ApiResponse::success(value)))
@@ -133,16 +135,18 @@ pub async fn update_lead(
 
 pub async fn delete_lead(
     State(state): State<AppState>,
+    auth: AuthContext,
     Path(id): Path<i32>,
 ) -> Result<Json<ApiResponse<String>>, AppError> {
     let service = CrmService::new(state.db.clone());
-    service.delete_lead(id).await?;
+    // 批次 94 P2-10：注入真实操作人 user_id 用于审计日志
+    service.delete_lead(id, auth.user_id).await?;
     Ok(Json(ApiResponse::success("删除成功".to_string())))
 }
 
 pub async fn update_lead_status(
     State(state): State<AppState>,
-    _auth: AuthContext,
+    auth: AuthContext,
     Path(id): Path<i32>,
     Json(payload): Json<UpdateLeadStatusDto>,
 ) -> Result<Json<ApiResponse<String>>, AppError> {
@@ -152,7 +156,8 @@ pub async fn update_lead_status(
         .map_err(|e| AppError::validation(e.to_string()))?;
 
     let service = CrmService::new(state.db.clone());
-    service.update_lead_status(id, &payload.status).await?;
+    // 批次 94 P2-10：注入真实操作人 user_id 用于审计日志
+    service.update_lead_status(id, &payload.status, auth.user_id).await?;
     Ok(Json(ApiResponse::success("状态更新成功".to_string())))
 }
 
@@ -250,11 +255,13 @@ pub async fn get_opportunity(
 
 pub async fn update_opportunity(
     State(state): State<AppState>,
+    auth: AuthContext,
     Path(id): Path<i32>,
     Json(req): Json<UpdateOpportunityRequest>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     let service = CrmService::new(state.db.clone());
-    let res = service.update_opportunity(id, req).await?;
+    // 批次 94 P2-10：注入真实操作人 user_id 用于审计日志
+    let res = service.update_opportunity(id, req, auth.user_id).await?;
     let value =
         serde_json::to_value(res).map_err(|e| AppError::internal(format!("序列化失败: {}", e)))?;
     Ok(Json(ApiResponse::success(value)))
@@ -262,10 +269,12 @@ pub async fn update_opportunity(
 
 pub async fn delete_opportunity(
     State(state): State<AppState>,
+    auth: AuthContext,
     Path(id): Path<i32>,
 ) -> Result<Json<ApiResponse<String>>, AppError> {
     let service = CrmService::new(state.db.clone());
-    service.delete_opportunity(id).await?;
+    // 批次 94 P2-10：注入真实操作人 user_id 用于审计日志
+    service.delete_opportunity(id, auth.user_id).await?;
     Ok(Json(ApiResponse::success("删除成功".to_string())))
 }
 
