@@ -1,6 +1,6 @@
 use sea_orm::{
     ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, Order, QueryFilter, QueryOrder,
-    Set,
+    QuerySelect, Set, TransactionTrait,
 };
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
@@ -114,16 +114,22 @@ impl FieldPermissionService {
     }
 
     /// 创建字段权限
+    ///
+    /// 批次 85 v2 复审 P1-7 修复：检查存在 + insert 移入单一事务 + lock_exclusive 串行化
+    /// 原实现检查存在和 insert 在 self.db 上分别执行，无 txn 无 lock，并发创建相同规则会通过检查后重复插入
     pub async fn create_field_permission(
         &self,
         request: CreateFieldPermissionRequest,
     ) -> Result<FieldPermissionDetail, AppError> {
-        // 检查是否已存在相同的权限规则
+        let txn = (*self.db).begin().await?;
+
+        // 检查是否已存在相同的权限规则（加 lock_exclusive 防止并发创建相同规则）
         let existing = FieldPermissionEntity::find()
             .filter(field_permission::Column::RoleId.eq(request.role_id))
             .filter(field_permission::Column::ResourceType.eq(&request.resource_type))
             .filter(field_permission::Column::FieldName.eq(&request.field_name))
-            .one(&*self.db)
+            .lock_exclusive()
+            .one(&txn)
             .await?;
 
         if existing.is_some() {
@@ -147,7 +153,8 @@ impl FieldPermissionService {
             updated_at: Set(chrono::Utc::now()),
         };
 
-        let entity = permission.insert(&*self.db).await?;
+        let entity = permission.insert(&txn).await?;
+        txn.commit().await?;
 
         Ok(FieldPermissionDetail {
             id: entity.id,

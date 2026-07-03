@@ -5,7 +5,7 @@ use chrono::NaiveDate;
 
 use sea_orm::{
     ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, Order, PaginatorTrait,
-    QueryFilter, QueryOrder, QuerySelect,
+    QueryFilter, QueryOrder, QuerySelect, TransactionTrait,
 };
 use std::sync::Arc;
 use tracing::info;
@@ -385,6 +385,9 @@ impl CostCollectionService {
     }
 
     /// 审核成本归集
+    ///
+    /// 批次 85 v2 复审 P1-3 修复：用 txn 包裹 find + 状态门 + update，加 lock_exclusive 串行化
+    /// 原实现全程无 txn 无 lock_exclusive，并发审核会基于过期状态通过检查后重复写入
     pub async fn audit(
         &self,
         id: i32,
@@ -392,8 +395,12 @@ impl CostCollectionService {
         _comment: Option<String>,
         _user_id: i32,
     ) -> Result<cost_collection::Model, AppError> {
+        let txn = (*self.db).begin().await?;
+
+        // 加 lock_exclusive 串行化并发状态变更
         let collection = cost_collection::Entity::find_by_id(id)
-            .one(&*self.db)
+            .lock_exclusive()
+            .one(&txn)
             .await?
             .ok_or_else(|| AppError::not_found("成本归集"))?;
 
@@ -412,7 +419,8 @@ impl CostCollectionService {
             ..Default::default()
         };
 
-        let updated = active_model.update(&*self.db).await?;
+        let updated = active_model.update(&txn).await?;
+        txn.commit().await?;
         Ok(updated)
     }
 }
