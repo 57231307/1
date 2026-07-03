@@ -394,7 +394,9 @@ const handleDelete = async (row: FixedAsset) => {
 const handleDepreciate = async (row: FixedAsset) => {
   try {
     await ElMessageBox.confirm('确定对该资产计提折旧吗？', '计提折旧', { type: 'info' })
-    await depreciateAsset(row.id)
+    // 批次 88 PH-2：补传当前期间（YYYY-MM 格式），后端按期间记录折旧明细
+    const currentPeriod = new Date().toISOString().slice(0, 7)
+    await depreciateAsset(row.id, currentPeriod)
     ElMessage.success('折旧成功')
     fetchAssets()
   } catch (e) {

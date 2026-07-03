@@ -1,69 +1,58 @@
 #![allow(dead_code)]
 // TODO(tech-debt): 业务接入或重评估后逐项移除；rustc 1.94+ 编译时由编译器报告具体死代码位置。
 
-//! 固定资产处置 Model
+//! 固定资产折旧期间记录 Entity（批次 88 PH-2 占位符实现）
 //!
-//! 固定资产处置模块
+//! 按期间记录每笔折旧计提明细，支持审计追溯。
+//! (asset_id, period) 唯一约束防止同一资产同一期间重复计提。
 
-use chrono::{DateTime, NaiveDate, Utc};
+use chrono::{DateTime, Utc};
 use rust_decimal::Decimal;
 use sea_orm::entity::prelude::*;
 use serde::{Deserialize, Serialize};
 
-/// 固定资产处置 Entity
+/// 固定资产折旧期间记录 Entity
 #[derive(Clone, Debug, PartialEq, DeriveEntityModel, Serialize, Deserialize)]
-#[sea_orm(table_name = "fixed_asset_disposals")]
+#[sea_orm(table_name = "fixed_asset_depreciation_records")]
 pub struct Model {
-    /// 处置单 ID（主键）
+    /// 记录 ID（主键）
     #[sea_orm(primary_key)]
     pub id: i32,
-
-    /// 处置单号
-    #[sea_orm(unique)]
-    pub disposal_no: String,
 
     /// 固定资产 ID（外键）
     pub asset_id: i32,
 
-    /// 处置日期
-    pub disposal_date: NaiveDate,
+    /// 折旧期间（YYYY-MM 格式）
+    pub period: String,
 
-    /// 处置方式：SALE=出售，SCRAP=报废，TRANSFER=转让
-    pub disposal_type: String,
+    /// 本期折旧额
+    pub depreciation_amount: Decimal,
 
-    /// 处置数量
-    pub quantity: i32,
+    /// 本期前累计折旧
+    pub accumulated_before: Decimal,
 
-    /// 处置金额
-    pub disposal_amount: Decimal,
+    /// 本期后累计折旧
+    pub accumulated_after: Decimal,
 
-    /// 批次 88 PH-3 占位符实现：处置损益 = disposal_amount - 处置时账面净值
-    /// （正数为收益，负数为损失）
-    pub gain_loss: Option<Decimal>,
+    /// 本期前账面净值
+    pub net_value_before: Option<Decimal>,
 
-    /// 处置原因
-    pub disposal_reason: String,
+    /// 本期后账面净值
+    pub net_value_after: Option<Decimal>,
 
-    /// 处置状态：DRAFT=草稿，APPROVED=已审批，COMPLETED=已完成
-    pub status: String,
-
-    /// 备注
-    pub remarks: Option<String>,
+    /// 折旧方法（如 straight_line）
+    pub depreciation_method: Option<String>,
 
     /// 创建人 ID
     pub created_by: i32,
 
     /// 创建时间
     pub created_at: DateTime<Utc>,
-
-    /// 更新时间
-    pub updated_at: DateTime<Utc>,
 }
 
-/// 固定资产处置关联关系
 #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
 pub enum Relation {
-    /// 处置 - 固定资产（多对一）
+    /// 记录 - 固定资产（多对一）
     #[sea_orm(
         belongs_to = "super::fixed_asset::Entity",
         from = "Column::AssetId",
@@ -71,7 +60,7 @@ pub enum Relation {
     )]
     FixedAsset,
 
-    /// 处置 - 用户（创建人，多对一）
+    /// 记录 - 用户（创建人，多对一）
     #[sea_orm(
         belongs_to = "super::user::Entity",
         from = "Column::CreatedBy",

@@ -230,6 +230,9 @@ impl FixedAssetService {
         let accumulated_depreciation = asset.accumulated_depreciation;
         let original_value = asset.original_value;
         let residual_value = asset.salvage_value.unwrap_or(Decimal::ZERO);
+        // 批次 88 PH-2：保留 net_value / depreciation_method，用于折旧记录表插入
+        let net_value_before = asset.net_value;
+        let depreciation_method = asset.depreciation_method.clone();
 
         // 计算新的累计折旧
         let new_accumulated = accumulated_depreciation + monthly_depreciation;
@@ -241,6 +244,24 @@ impl FixedAssetService {
         asset_active.accumulated_depreciation = Set(new_accumulated);
         asset_active.net_value = Set(Some(new_net_value));
         asset_active.save(&txn).await?;
+
+        // 批次 88 PH-2 占位符实现：插入折旧期间记录
+        // (asset_id, period) 唯一约束防止同一资产同一期间重复计提
+        let depreciation_record = crate::models::fixed_asset_depreciation_record::ActiveModel {
+            id: Set(0),
+            asset_id: Set(asset_id),
+            period: Set(period.to_string()),
+            depreciation_amount: Set(monthly_depreciation),
+            accumulated_before: Set(accumulated_depreciation),
+            accumulated_after: Set(new_accumulated),
+            net_value_before: Set(net_value_before),
+            net_value_after: Set(Some(new_net_value)),
+            depreciation_method: Set(depreciation_method),
+            created_by: Set(user_id),
+            created_at: Set(chrono::Utc::now()),
+        };
+        use sea_orm::ActiveModelTrait;
+        depreciation_record.insert(&txn).await?;
 
         // 提交事务
         txn.commit().await?;
@@ -287,7 +308,8 @@ impl FixedAssetService {
 
         // 计算处置损益
         let net_book_value = asset.net_value.unwrap_or(Decimal::ZERO);
-        let _disposal_gain_loss = req.disposal_value - net_book_value;
+        // 批次 88 PH-3 占位符实现：计算结果持久化到 fixed_asset_disposals.gain_loss 列
+        let disposal_gain_loss = req.disposal_value - net_book_value;
 
         // 创建处置记录
         let disposal = crate::models::fixed_asset_disposal::ActiveModel {
@@ -297,6 +319,7 @@ impl FixedAssetService {
             disposal_type: Set(req.disposal_type),
             disposal_date: Set(req.disposal_date),
             disposal_amount: Set(req.disposal_value), // 使用 disposal_amount
+            gain_loss: Set(Some(disposal_gain_loss)), // 批次 88 PH-3：持久化处置损益
             disposal_reason: Set(req.reason),         // 使用 disposal_reason
             quantity: Set(1),                         // 处置数量默认为1
             status: Set("COMPLETED".to_string()),

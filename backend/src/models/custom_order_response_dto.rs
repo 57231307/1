@@ -24,6 +24,8 @@ pub struct CustomOrderListItem {
     pub currency: String,
     pub sales_order_id: Option<i64>,
     pub created_at: DateTime<Utc>,
+    /// 批次 88 PH-1 占位符实现：订单备注
+    pub notes: Option<String>,
 }
 
 /// 定制订单详情响应（包含节点/异常/售后）
@@ -50,6 +52,8 @@ pub struct CustomOrderDetail {
     pub created_by: Option<i64>,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
+    /// 批次 88 PH-1 占位符实现：订单备注
+    pub notes: Option<String>,
 
     /// 工艺节点列表
     pub process_nodes: Vec<ProcessNodeInfo>,
