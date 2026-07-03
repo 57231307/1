@@ -198,11 +198,13 @@ async fn test_business_event_serde_round_trip_all_variants() {
             collection_id: 1,
             invoice_id: Some(2),
             amount: Decimal::from(500),
+            user_id: 0,
         },
         BusinessEvent::CollectionCompleted {
             collection_id: 2,
             invoice_id: None,
             amount: Decimal::from(0),
+            user_id: 0,
         },
         BusinessEvent::PurchaseOrderApproved {
             order_id: 1,

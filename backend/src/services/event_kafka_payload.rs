@@ -42,6 +42,8 @@ pub mod payload_serde {
             collection_id: i32,
             invoice_id: Option<i32>,
             amount: Decimal,
+            /// P1 1-1 修复（批次 78 v1 复审）：收款操作人 ID
+            user_id: i32,
         },
         PurchaseOrderApproved {
             order_id: i32,
@@ -138,10 +140,12 @@ pub mod payload_serde {
                     collection_id,
                     invoice_id,
                     amount,
+                    user_id,
                 } => Self::CollectionCompleted {
                     collection_id: *collection_id,
                     invoice_id: *invoice_id,
                     amount: *amount,
+                    user_id: *user_id,
                 },
                 BusinessEvent::PurchaseOrderApproved {
                     order_id,
@@ -282,10 +286,12 @@ pub mod payload_serde {
                     collection_id,
                     invoice_id,
                     amount,
+                    user_id,
                 } => Self::CollectionCompleted {
                     collection_id,
                     invoice_id,
                     amount,
+                    user_id,
                 },
                 EventPayload::PurchaseOrderApproved {
                     order_id,

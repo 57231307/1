@@ -66,6 +66,9 @@ pub enum BusinessEvent {
         collection_id: i32,
         invoice_id: Option<i32>,
         amount: rust_decimal::Decimal,
+        /// P1 1-1 修复（批次 78 v1 复审）：收款操作人 ID
+        /// 用于 mark_as_paid 审计日志透传，替代原硬编码 Some(0)
+        user_id: i32,
     },
     PurchaseOrderApproved {
         order_id: i32,
@@ -532,12 +535,14 @@ pub async fn start_event_listener(db: Arc<DatabaseConnection>) {
                 }
                 BusinessEvent::CollectionCompleted {
                     invoice_id: Some(inv_id),
+                    user_id,
                     ..
                 } => {
                     tracing::info!("Event received: CollectionCompleted for invoice {}", inv_id);
                     let ar_service =
                         crate::services::ar_invoice_service::ArInvoiceService::new(db.clone());
-                    match ar_service.mark_as_paid(inv_id).await {
+                    // P1 1-1 修复（批次 78 v1 复审）：透传事件携带的收款操作人 user_id
+                    match ar_service.mark_as_paid(inv_id, user_id).await {
                         Ok(_) => tracing::info!(
                             "Successfully updated ar_invoice {} status to PAID",
                             inv_id
