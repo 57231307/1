@@ -12,7 +12,8 @@ mod services;
 mod utils;
 mod websocket; // P3-2 WebSocket 实时通信（lib crate bingxi_backend::websocket 的镜像引用）
 
-use axum::extract::ConnectInfo;
+// P3 维度 12 CI 修复：TraceLayer 改用 audit_context::extract_client_ip 后，
+// ConnectInfo 不再在 main.rs 中直接使用（omni_audit.rs 各自导入）
 use axum::extract::DefaultBodyLimit;
 use axum::http::{HeaderValue, Method, Request};
 use axum::{
