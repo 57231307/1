@@ -274,7 +274,8 @@ impl InventoryFinanceBridgeService {
             product_name, quantity_meters, quantity_kg, batch_no, color_no, warehouse_name
         );
 
-        let amount = cost_price * quantity_meters;
+        // P3 维度 4 修复（批次 87）：金额计算补 round_dp(2) 精度归一化
+        let amount = (cost_price * quantity_meters).round_dp(2);
 
         let voucher_request = CreateVoucherRequest {
             voucher_type: "记".to_string(),
@@ -296,7 +297,8 @@ impl InventoryFinanceBridgeService {
                     Some(summary.clone()),
                     Some(quantity_meters),
                     Some(quantity_kg),
-                    Some(amount / quantity_meters),
+                    // P3 维度 4 修复（批次 87）：单价计算补 round_dp(2)
+                    Some((amount / quantity_meters).round_dp(2)),
                 ),
                 // 贷：应付账款
                 Self::make_voucher_item(
@@ -366,7 +368,8 @@ impl InventoryFinanceBridgeService {
             product_name, quantity_meters, quantity_kg, batch_no, color_no, warehouse_name
         );
 
-        let amount = cost_price * quantity_meters;
+        // P3 维度 4 修复（批次 87）：金额计算补 round_dp(2) 精度归一化
+        let amount = (cost_price * quantity_meters).round_dp(2);
 
         let voucher_request = CreateVoucherRequest {
             voucher_type: "记".to_string(),
@@ -388,7 +391,8 @@ impl InventoryFinanceBridgeService {
                     Some(summary.clone()),
                     Some(quantity_meters),
                     Some(quantity_kg),
-                    Some(amount / quantity_meters),
+                    // P3 维度 4 修复（批次 87）：单价计算补 round_dp(2)
+                    Some((amount / quantity_meters).round_dp(2)),
                 ),
                 // 贷：库存商品
                 Self::make_voucher_item(
@@ -400,7 +404,8 @@ impl InventoryFinanceBridgeService {
                     Some(summary.clone()),
                     Some(quantity_meters),
                     Some(quantity_kg),
-                    Some(amount / quantity_meters),
+                    // P3 维度 4 修复（批次 87）：单价计算补 round_dp(2)
+                    Some((amount / quantity_meters).round_dp(2)),
                 ),
             ],
         };
@@ -458,7 +463,8 @@ impl InventoryFinanceBridgeService {
             product_name, quantity_meters, quantity_kg, batch_no, color_no, warehouse_name
         );
 
-        let amount = cost_price * quantity_meters.abs();
+        // P3 维度 4 修复（批次 87）：金额计算补 round_dp(2) 精度归一化
+        let amount = (cost_price * quantity_meters.abs()).round_dp(2);
 
         let voucher_request = if quantity_meters > Decimal::ZERO {
             // 盘盈：借：库存商品，贷：待处理财产损溢
@@ -481,7 +487,8 @@ impl InventoryFinanceBridgeService {
                         Some(summary.clone()),
                         Some(quantity_meters),
                         Some(quantity_kg),
-                        Some(amount / quantity_meters),
+                        // P3 维度 4 修复（批次 87）：单价计算补 round_dp(2)
+                    Some((amount / quantity_meters).round_dp(2)),
                     ),
                     Self::make_voucher_item(
                         2,
@@ -528,7 +535,8 @@ impl InventoryFinanceBridgeService {
                         Some(summary.clone()),
                         Some(-quantity_meters),
                         Some(-quantity_kg),
-                        Some(amount / (-quantity_meters)),
+                        // P3 维度 4 修复（批次 87）：单价计算补 round_dp(2)
+                        Some((amount / (-quantity_meters)).round_dp(2)),
                     ),
                 ],
             }
@@ -586,7 +594,8 @@ impl InventoryFinanceBridgeService {
             product_name, quantity_meters, quantity_kg, batch_no, color_no, warehouse_name
         );
 
-        let amount = cost_price * quantity_meters;
+        // P3 维度 4 修复（批次 87）：金额计算补 round_dp(2) 精度归一化
+        let amount = (cost_price * quantity_meters).round_dp(2);
 
         let voucher_request = CreateVoucherRequest {
             voucher_type: "记".to_string(),
@@ -608,7 +617,8 @@ impl InventoryFinanceBridgeService {
                     Some(summary.clone()),
                     Some(quantity_meters),
                     Some(quantity_kg),
-                    Some(amount / quantity_meters),
+                    // P3 维度 4 修复（批次 87）：单价计算补 round_dp(2)
+                    Some((amount / quantity_meters).round_dp(2)),
                 ),
                 // 贷：生产成本
                 Self::make_voucher_item(
@@ -677,7 +687,8 @@ impl InventoryFinanceBridgeService {
             product_name, quantity_meters, quantity_kg, batch_no, color_no, warehouse_name
         );
 
-        let amount = cost_price * quantity_meters;
+        // P3 维度 4 修复（批次 87）：金额计算补 round_dp(2) 精度归一化
+        let amount = (cost_price * quantity_meters).round_dp(2);
 
         let voucher_request = CreateVoucherRequest {
             voucher_type: "记".to_string(),
@@ -699,7 +710,8 @@ impl InventoryFinanceBridgeService {
                     Some(summary.clone()),
                     Some(quantity_meters),
                     Some(quantity_kg),
-                    Some(amount / quantity_meters),
+                    // P3 维度 4 修复（批次 87）：单价计算补 round_dp(2)
+                    Some((amount / quantity_meters).round_dp(2)),
                 ),
                 // 贷：库存商品
                 Self::make_voucher_item(
@@ -711,7 +723,8 @@ impl InventoryFinanceBridgeService {
                     Some(summary.clone()),
                     Some(quantity_meters),
                     Some(quantity_kg),
-                    Some(amount / quantity_meters),
+                    // P3 维度 4 修复（批次 87）：单价计算补 round_dp(2)
+                    Some((amount / quantity_meters).round_dp(2)),
                 ),
             ],
         };

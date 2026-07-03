@@ -343,7 +343,11 @@ impl ApReconciliationService {
     ) -> Result<Vec<AutoReconciliationResult>, AppError> {
         use crate::models::supplier;
 
-        let suppliers = supplier::Entity::find().all(&*self.db).await?;
+        // P3 维度 6 修复（批次 87）：补 LIMIT 兜底防止全表加载
+        let suppliers = supplier::Entity::find()
+            .limit(10_000)
+            .all(&*self.db)
+            .await?;
         let supplier_ids: Vec<i32> = suppliers.iter().map(|s| s.id).collect();
 
         // v12 批次 39 修复：批量预加载所有供应商的发票数和付款数，避免 for_each_concurrent 内逐个 count（N+1，2N 次查询）

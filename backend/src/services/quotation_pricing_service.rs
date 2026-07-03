@@ -166,16 +166,18 @@ impl QuotationPricingService {
         let tier = Self::match_tier(base_price, ctx.quantity, cp.min_quantity);
 
         // 3. 客户等级折扣
+        // P3 维度 4 修复（批次 87）：金额计算补 round_dp(2) 精度归一化
         let discount_rate = ctx.customer_level.discount_rate();
-        let discount_amount = tier.unit_price * discount_rate;
-        let unit_price = tier.unit_price - discount_amount;
+        let discount_amount = (tier.unit_price * discount_rate).round_dp(2);
+        let unit_price = (tier.unit_price - discount_amount).round_dp(2);
 
         // 4. 含税计算（默认 13% 增值税）
         let tax_rate = Decimal::new(13, 2);
-        let unit_price_with_tax = unit_price * (Decimal::ONE + tax_rate / Decimal::from(100));
+        let unit_price_with_tax =
+            (unit_price * (Decimal::ONE + tax_rate / Decimal::from(100))).round_dp(2);
 
         // 5. 最终金额
-        let final_amount = unit_price * ctx.quantity;
+        let final_amount = (unit_price * ctx.quantity).round_dp(2);
 
         Ok(PricingResult {
             unit_price,

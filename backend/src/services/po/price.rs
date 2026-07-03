@@ -172,10 +172,11 @@ impl PurchaseOrderService {
         .await?;
 
         // 7. 创建订单明细
+        // P3 维度 4 修复（批次 87）：金额计算补 round_dp(2) 精度归一化
         let unit_price = product.cost_price.unwrap_or(Decimal::ZERO);
-        let amount = suggested_quantity * unit_price;
+        let amount = (suggested_quantity * unit_price).round_dp(2);
         let tax_rate = Decimal::new(13, 2); // 13% 增值税
-        let tax_amount = amount * tax_rate / Decimal::new(100, 0);
+        let tax_amount = (amount * tax_rate / Decimal::new(100, 0)).round_dp(2);
 
         purchase_order_item::ActiveModel {
             id: Set(0),
@@ -278,11 +279,12 @@ impl PurchaseOrderService {
         .await?;
 
         // 6. 创建订单明细
+        // P3 维度 4 修复（批次 87）：金额计算补 round_dp(2) 精度归一化
         let quantity = reorder_quantity;
         let unit_price = product.cost_price.unwrap_or(Decimal::ZERO);
-        let amount = quantity * unit_price;
+        let amount = (quantity * unit_price).round_dp(2);
         let tax_rate = Decimal::new(13, 2); // 13% 增值税
-        let tax_amount = amount * tax_rate / Decimal::new(100, 0);
+        let tax_amount = (amount * tax_rate / Decimal::new(100, 0)).round_dp(2);
 
         purchase_order_item::ActiveModel {
             id: Set(0),

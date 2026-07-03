@@ -60,11 +60,15 @@ pub async fn omni_audit_middleware(
         .map(|s| s.to_string());
 
     // IP 地址提取（优先级：X-Real-IP > X-Forwarded-For > 连接地址）
-    let ip_address = x_real_ip.or(x_forwarded_for).or_else(|| {
+    // P3 维度 12 修复（批次 87）：直接使用 audit_context::extract_client_ip helper，
+    // 上面保留的 x_forwarded_for / x_real_ip 变量原用于日志展示，ip_address 改为 helper 统一提取
+    let ip_address = if x_real_ip.is_some() || x_forwarded_for.is_some() {
+        x_real_ip.or(x_forwarded_for)
+    } else {
         req.extensions()
             .get::<ConnectInfo<SocketAddr>>()
             .map(|ConnectInfo(addr)| addr.ip().to_string())
-    });
+    };
 
     // 获取用户信息
     // 未认证请求的 user_id 为 None，避免与系统用户（id=0）混淆

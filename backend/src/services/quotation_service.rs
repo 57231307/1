@@ -126,16 +126,19 @@ impl QuotationService {
                 quantity: Set(item_dto.quantity),
                 unit_price: Set(item_dto.unit_price),
                 unit_price_with_tax: Set(item_dto.unit_price_with_tax),
-                amount: Set(item_dto.quantity * item_dto.unit_price),
-                amount_with_tax: Set(item_dto.quantity * item_dto.unit_price_with_tax),
+                // P3 维度 4 修复（批次 87）：金额计算补 round_dp(2) 精度归一化
+                amount: Set((item_dto.quantity * item_dto.unit_price).round_dp(2)),
+                amount_with_tax: Set(
+                    (item_dto.quantity * item_dto.unit_price_with_tax).round_dp(2),
+                ),
                 tier_pricing: Set(item_dto
                     .tier_pricing
                     .as_ref()
                     .and_then(|v| serde_json::from_value(v.clone()).ok())),
                 discount_rate: Set(item_dto.discount_rate),
-                discount_amount: Set(item_dto
-                    .discount_rate
-                    .map(|r| item_dto.quantity * item_dto.unit_price * r / Decimal::from(100))),
+                discount_amount: Set(item_dto.discount_rate.map(|r| {
+                    (item_dto.quantity * item_dto.unit_price * r / Decimal::from(100)).round_dp(2)
+                })),
                 notes: Set(item_dto.notes.clone()),
                 sequence: Set(idx as i32),
             };
@@ -307,16 +310,20 @@ impl QuotationService {
                     quantity: Set(item_dto.quantity),
                     unit_price: Set(item_dto.unit_price),
                     unit_price_with_tax: Set(item_dto.unit_price_with_tax),
-                    amount: Set(item_dto.quantity * item_dto.unit_price),
-                    amount_with_tax: Set(item_dto.quantity * item_dto.unit_price_with_tax),
+                    // P3 维度 4 修复（批次 87）：金额计算补 round_dp(2) 精度归一化
+                    amount: Set((item_dto.quantity * item_dto.unit_price).round_dp(2)),
+                    amount_with_tax: Set(
+                        (item_dto.quantity * item_dto.unit_price_with_tax).round_dp(2),
+                    ),
                     tier_pricing: Set(item_dto
                         .tier_pricing
                         .as_ref()
                         .and_then(|v| serde_json::from_value(v.clone()).ok())),
                     discount_rate: Set(item_dto.discount_rate),
-                    discount_amount: Set(item_dto
-                        .discount_rate
-                        .map(|r| item_dto.quantity * item_dto.unit_price * r / Decimal::from(100))),
+                    discount_amount: Set(item_dto.discount_rate.map(|r| {
+                        (item_dto.quantity * item_dto.unit_price * r / Decimal::from(100))
+                            .round_dp(2)
+                    })),
                     notes: Set(item_dto.notes.clone()),
                     sequence: Set(idx as i32),
                 };
@@ -422,19 +429,23 @@ impl QuotationService {
         &self,
         dto: &CreateQuotationDto,
     ) -> Result<(Decimal, Decimal, Decimal), ServiceError> {
-        let subtotal: Decimal = dto.items.iter().map(|i: &CreateQuotationItemDto| {
-            i.quantity * i.unit_price
-        }).sum();
+        // P3 维度 4 修复（批次 87）：金额计算补 round_dp(2) 精度归一化
+        let subtotal: Decimal = dto
+            .items
+            .iter()
+            .map(|i: &CreateQuotationItemDto| (i.quantity * i.unit_price).round_dp(2))
+            .sum::<Decimal>()
+            .round_dp(2);
 
         let tax_amount = if dto.tax_inclusive {
             // 含税：报价单小计已含税，差额为 0
             Decimal::ZERO
         } else {
             // 不含税：税额 = 小计 * 税率
-            subtotal * dto.tax_rate / Decimal::from(100)
+            (subtotal * dto.tax_rate / Decimal::from(100)).round_dp(2)
         };
 
-        let total_amount = subtotal + tax_amount;
+        let total_amount = (subtotal + tax_amount).round_dp(2);
         Ok((subtotal, tax_amount, total_amount))
     }
 

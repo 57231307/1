@@ -10,6 +10,7 @@ export interface TraceRecord {
   created_at?: string
 }
 
+// P3 维度 9 修复（批次 87）：索引签名 any → unknown
 export interface TraceChainResponse {
   id?: number
   trace_chain_id: string
@@ -18,14 +19,14 @@ export interface TraceChainResponse {
   business_id: number
   relation_type: string
   created_at?: string
-  [key: string]: any
+  [key: string]: unknown
 }
 
 export interface FullTraceChainResponse {
   trace_chain_id: string
   five_dimension_id: number
   traces: TraceChainResponse[]
-  [key: string]: any
+  [key: string]: unknown
 }
 
 // P2-9c 修复（批次 82 v1 复审）：业务追溯查询参数强类型化

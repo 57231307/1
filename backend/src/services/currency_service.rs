@@ -236,7 +236,8 @@ impl CurrencyService {
             }
         };
 
-        let converted_amount = amount * rate;
+        // P3 维度 4 修复（批次 87）：汇率换算补 round_dp(2) 精度归一化
+        let converted_amount = (amount * rate).round_dp(2);
 
         Ok(ConversionResult {
             from_currency: from_currency.to_string(),

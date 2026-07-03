@@ -232,7 +232,9 @@ pub async fn login(
         .map(|e| e.0.ip_address.clone())
         .filter(|s| !s.is_empty() && s != "unknown")
         .unwrap_or_else(|| {
-            // headers-only 回退：与 audit_context::extract_client_ip 优先级一致
+            // P3 维度 12 修复（批次 87）：headers-only 降级路径
+            // 此处仅有 HeaderMap 引用（无 Request<Body>），无法直接调用 audit_context::extract_client_ip
+            // 优先级与 audit_context::extract_client_ip 一致：X-Real-IP → X-Forwarded-For → "unknown"
             headers
                 .get("x-real-ip")
                 .and_then(|v| v.to_str().ok())

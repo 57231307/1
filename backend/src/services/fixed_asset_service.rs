@@ -164,9 +164,12 @@ impl FixedAssetService {
             Some("straight_line") | None => {
                 // 平均年限法：(原值 - 残值) / (使用年限 * 12)
                 // 使用年限缺失时按 0 处理 → 0 * 12 = 0 → 不折旧（业务接受）
+                // P3 维度 4 修复（批次 87）：月折旧补 round_dp(2) 防止累加误差
                 let useful_life_months = asset.useful_life.unwrap_or_default() as u32 * 12;
                 if useful_life_months > 0 {
-                    (asset.original_value - residual_value) / Decimal::from(useful_life_months)
+                    ((asset.original_value - residual_value)
+                        / Decimal::from(useful_life_months))
+                    .round_dp(2)
                 } else {
                     Decimal::ZERO
                 }
@@ -404,8 +407,9 @@ impl FixedAssetService {
     ) -> Result<rust_decimal::Decimal, AppError> {
         use chrono::Datelike;
 
+        // P3 维度 3 修复（批次 87）：消除嵌套 expect，常量日期必然合法
         let purchase_date = asset.purchase_date.unwrap_or_else(|| {
-            chrono::NaiveDate::from_ymd_opt(2020, 1, 1).expect("valid fallback date")
+            chrono::NaiveDate::from_ymd_opt(2020, 1, 1).unwrap_or_default()
         });
         // useful_life 缺失时按 0 年处理 → 不折旧（守卫见下）
         let useful_life_years = asset.useful_life.unwrap_or_default();
