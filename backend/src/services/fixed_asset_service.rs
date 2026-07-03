@@ -656,11 +656,10 @@ mod tests {
     #[test]
     fn test_disposal_gain_loss_positive() {
         // 资产：原值 10000，累计折旧 2000，账面净值 8000
-        let asset_net_value: Option<Decimal> = Some(Decimal::from(8000));
+        // net_book_value 对应 dispose 方法中 asset.net_value.unwrap_or(Decimal::ZERO)
+        let net_book_value = Decimal::from(8000);
         let disposal_value = Decimal::from(9000);
 
-        // 模拟 dispose 方法中 net_value 的 unwrap_or 兜底逻辑
-        let net_book_value = asset_net_value.unwrap_or(Decimal::ZERO);
         // 模拟 dispose 方法 line 333 的损益计算公式
         let gain_loss = disposal_value - net_book_value;
 
@@ -677,10 +676,9 @@ mod tests {
     #[test]
     fn test_disposal_gain_loss_negative() {
         // 同一资产，账面净值 8000，处置价值仅 7000
-        let asset_net_value: Option<Decimal> = Some(Decimal::from(8000));
+        let net_book_value = Decimal::from(8000);
         let disposal_value = Decimal::from(7000);
 
-        let net_book_value = asset_net_value.unwrap_or(Decimal::ZERO);
         let gain_loss = disposal_value - net_book_value;
 
         assert_eq!(gain_loss, Decimal::from(-1000));
@@ -695,10 +693,9 @@ mod tests {
     /// gain_loss 计算公式验证，完整 dispose 事务流程需集成测试
     #[test]
     fn test_disposal_gain_loss_zero() {
-        let asset_net_value: Option<Decimal> = Some(Decimal::from(8000));
+        let net_book_value = Decimal::from(8000);
         let disposal_value = Decimal::from(8000);
 
-        let net_book_value = asset_net_value.unwrap_or(Decimal::ZERO);
         let gain_loss = disposal_value - net_book_value;
 
         assert_eq!(gain_loss, Decimal::ZERO);
