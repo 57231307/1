@@ -96,8 +96,8 @@ impl QuotationApprovalService {
     ///
     /// 批次 85 v2 复审 P1-9 说明：submit 的状态门为预检查 + 金额判定（事务外查询），
     /// 真正的状态变更在 self_approve / submit_to_bpm 内各自的事务中完成：
-    /// - self_approve：lock_exclusive + 状态检查（P1-9 修复）
-    /// - submit_to_bpm：lock_exclusive + 状态检查（已有）
+    ///   - self_approve：lock_exclusive + 状态检查（P1-9 修复）
+    ///   - submit_to_bpm：lock_exclusive + 状态检查（已有）
     /// 因此 submit 的预检查无 lock 是可接受的，最终一致性由子方法保证
     pub async fn submit(&self, quotation_id: i64, user_id: i32) -> Result<sales_quotation::Model, AppError> {
         let quotation = QuotationEntity::find_by_id(quotation_id)
