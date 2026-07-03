@@ -310,10 +310,10 @@ impl FixedAssetService {
             let err_str = err.to_string();
             // 显式回滚事务（asset_active.save 已写入 txn，不能依赖 drop 自动回滚）
             let _ = txn.rollback().await;
-            if err_str.contains("uk_fa_depreciation_records_asset_period")
-                || err_str.contains("unique constraint")
-                || err_str.contains("duplicate key")
-            {
+            // 批次 95 P3-11 修复：收紧唯一约束匹配，仅匹配特定约束名
+            // uk_fa_depreciation_records_asset_period，避免吞掉其他表的其他唯一约束冲突
+            // （原实现包含 "unique constraint"/"duplicate key" 宽泛匹配，会把无关唯一冲突误判为重复计提）
+            if err_str.contains("uk_fa_depreciation_records_asset_period") {
                 tracing::warn!(
                     "资产 {} 期间 {} 重复计提折旧，已回滚事务",
                     asset_id,

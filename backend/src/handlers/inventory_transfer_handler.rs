@@ -42,7 +42,7 @@ pub async fn list_transfers(
     let transfer_service = InventoryTransferService::new(state.db.clone());
 
     let page_req = PageRequest {
-        page: query.page.unwrap_or(1),
+        page: query.page.unwrap_or(1).max(1), // 批次 95 P3-3~8：分页 clamp 防 DoS
         page_size: query.page_size.unwrap_or(10).clamp(1, 100),
     };
 

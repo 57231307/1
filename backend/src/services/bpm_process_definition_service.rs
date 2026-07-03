@@ -5,6 +5,10 @@
 //! 批次 67（P1 1-2 修复）：将原占位实现（全部返回 `Err("Not implemented")`）
 //! 替换为真实 CRUD 逻辑，参考 `bpm_service.rs` 中已有 instance/task 模式。
 //!
+//! 批次 95 P3-15 修复：原文件名 `bpm_service_stub.rs` 含 "stub" 误导
+//! （实际已为真实实现），重命名为 `bpm_process_definition_service.rs`
+//! 以准确反映内容（流程定义/版本/模板管理）。
+//!
 //! 设计说明：
 //! - 流程定义 CRUD：直接操作 `bpm_process_definition` 表
 //! - 版本管理：基于同一 `code` 的多记录实现，`activate_process_version`

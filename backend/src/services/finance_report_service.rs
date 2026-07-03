@@ -628,12 +628,19 @@ impl FinanceReportService {
             }
         }
 
+        // 批次 95 P3-2 修复：and_hms_opt 返回 Option，原 .unwrap() 在非法参数时 panic。
+        // 虽然此处 0,0,0 / 23,59,59 是合法值不会触发 panic，但保留 unwrap 不符合错误处理规范。
+        // 改为 ok_or_else + ? 将失败显式传播为 AppError（函数返回 Result）。
         let start = chrono::DateTime::<chrono::Utc>::from_naive_utc_and_offset(
-            start_date.and_hms_opt(0, 0, 0).unwrap(),
+            start_date
+                .and_hms_opt(0, 0, 0)
+                .ok_or_else(|| AppError::internal("批次 95 P3-2: 起始日期时间构造失败".to_string()))?,
             chrono::Utc,
         );
         let end = chrono::DateTime::<chrono::Utc>::from_naive_utc_and_offset(
-            end_date.and_hms_opt(23, 59, 59).unwrap(),
+            end_date
+                .and_hms_opt(23, 59, 59)
+                .ok_or_else(|| AppError::internal("批次 95 P3-2: 结束日期时间构造失败".to_string()))?,
             chrono::Utc,
         );
         let records = query

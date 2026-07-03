@@ -135,7 +135,7 @@ pub async fn list_color_prices(
     let service = ColorPriceCrudService::from_state(&state);
 
     let (items, total) = service.list(&query).await.map_err(crud_err)?;
-    let page = query.page.unwrap_or(1);
+    let page = query.page.unwrap_or(1).max(1); // 批次 95 P3-3~8：分页 clamp 防 DoS
     let page_size = query.page_size.unwrap_or(20).clamp(1, 100);
     let list: Vec<ColorPriceListItem> = items.into_iter().map(model_to_list_item).collect();
 
@@ -380,7 +380,7 @@ pub async fn list_customer_special_prices(
     use sea_orm::{ColumnTrait, Condition, EntityTrait, PaginatorTrait, QueryFilter};
 
     // 页码采用 1-based 约定，page_size clamp 防止 DoS
-    let page = query.page.unwrap_or(1);
+    let page = query.page.unwrap_or(1).max(1); // 批次 95 P3-3~8：分页 clamp 防 DoS
     let page_size = query.page_size.unwrap_or(20).clamp(1, 100);
 
     let mut q = customer_color_price::Entity::find();
@@ -471,7 +471,7 @@ pub async fn list_seasonal_rules(
     Ok(Json(ApiResponse::success(json!({
         "items": items,
         "total": total,
-        "page": query.page.unwrap_or(1),
+        "page": query.page.unwrap_or(1).max(1), // 批次 95 P3-3~8：分页 clamp 防 DoS
         "page_size": query.page_size.unwrap_or(20).clamp(1, 100),
     }))))
 }

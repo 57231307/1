@@ -25,7 +25,7 @@ pub async fn list_inspections(
     let service = PurchaseInspectionService::new(state.db.clone());
     let (inspections, total) = service
         .list_inspections(
-            params.page.unwrap_or(1),
+            params.page.unwrap_or(1).max(1), // 批次 95 P3-3~8：分页 clamp 防 DoS
             params.page_size.unwrap_or(20).clamp(1, 100),
             params.status,
             params.supplier_id,
@@ -35,7 +35,7 @@ pub async fn list_inspections(
     let result = serde_json::to_value(PaginatedResponse::new(
         inspections,
         total,
-        params.page.unwrap_or(1),
+        params.page.unwrap_or(1).max(1), // 批次 95 P3-3~8：分页 clamp 防 DoS
         params.page_size.unwrap_or(20).clamp(1, 100),
     ))
     .map_err(|e| AppError::internal(e.to_string()))?;

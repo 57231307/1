@@ -122,10 +122,14 @@ pub(super) fn cmd_logs(lines: u16, follow: bool, log_type: &str) {
             if follow {
                 args.push("-f");
             }
-            let _ = Command::new("journalctl")
+            // 批次 95 P3-12：原 let _ = 静默吞错，改为 warn 日志告警
+            if let Err(e) = Command::new("journalctl")
                 .args(&args)
                 .stdin(std::process::Stdio::inherit())
-                .status();
+                .status()
+            {
+                tracing::warn!("执行 journalctl 查看后端日志失败: {}", e);
+            }
         }
         "frontend" => {
             let path = format!("{}/frontend/logs/error.log", get_install_dir());
@@ -134,20 +138,28 @@ pub(super) fn cmd_logs(lines: u16, follow: bool, log_type: &str) {
                 args.push("-f");
             }
             args.push(&path);
-            let _ = Command::new("tail")
+            // 批次 95 P3-12：原 let _ = 静默吞错，改为 warn 日志告警
+            if let Err(e) = Command::new("tail")
                 .args(&args)
                 .stdin(std::process::Stdio::inherit())
-                .status();
+                .status()
+            {
+                tracing::warn!("执行 tail 查看前端日志失败: {}", e);
+            }
         }
         "system" => {
             let mut args = vec!["-n", &lines_str];
             if follow {
                 args.push("-f");
             }
-            let _ = Command::new("journalctl")
+            // 批次 95 P3-12：原 let _ = 静默吞错，改为 warn 日志告警
+            if let Err(e) = Command::new("journalctl")
                 .args(&args)
                 .stdin(std::process::Stdio::inherit())
-                .status();
+                .status()
+            {
+                tracing::warn!("执行 journalctl 查看系统日志失败: {}", e);
+            }
         }
         _ => {
             println!("[ERROR] 未知日志类型: {}", log_type);

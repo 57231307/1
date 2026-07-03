@@ -56,7 +56,7 @@ pub async fn scan_to_ship_get(
             return Ok(Json(ApiResponse::success(serde_json::json!({
                 "items": [],
                 "total": 0,
-                "page": query.page.unwrap_or(1),
+                "page": query.page.unwrap_or(1).max(1), // 批次 95 P3-3~8：分页 clamp 防 DoS
                 "page_size": query.page_size.unwrap_or(20).clamp(1, 100)
             }))));
         }
@@ -139,7 +139,7 @@ pub async fn scan_history(
     _auth: AuthContext,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     // 页码采用 1-based 约定，与全局分页契约保持一致
-    let page = params.page.unwrap_or(1);
+    let page = params.page.unwrap_or(1).max(1); // 批次 95 P3-3~8：分页 clamp 防 DoS
     // v11 批次 36 修复：page_size clamp 防止 DoS（用户传超大值导致内存爆炸）
     let page_size = params.page_size.unwrap_or(20).clamp(1, 100);
 

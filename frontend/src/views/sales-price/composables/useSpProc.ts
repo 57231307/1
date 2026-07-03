@@ -7,7 +7,13 @@
  */
 import { ref, reactive } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { approveSalesPrice, getPriceHistory, type SalesPrice } from '@/api/sales-price'
+import {
+  approveSalesPrice,
+  getPriceHistory,
+  listPricingStrategies,
+  type SalesPrice,
+  type PricingStrategy,
+} from '@/api/sales-price'
 import { getPriceTypeLabel, getStatusLabel } from './spFmts'
 
 /** 刷新回调 */
@@ -26,6 +32,11 @@ export function useSpProc(refresh: RefreshCallbacks) {
   // 历史记录对话框状态
   const historyVisible = ref(false)
   const historyList = ref<SalesPrice[]>([])
+
+  // 价格策略对话框状态（批次 95 P3-17 修复）
+  const strategyVisible = ref(false)
+  const strategyList = ref<PricingStrategy[]>([])
+  const strategyLoading = ref(false)
 
   /** 审批 */
   const handleApprove = async (row: SalesPrice) => {
@@ -58,9 +69,18 @@ export function useSpProc(refresh: RefreshCallbacks) {
     }
   }
 
-  /** 价格策略（占位功能） */
-  const handleStrategy = () => {
-    ElMessage.info('价格策略功能开发中')
+  /** 价格策略（批次 95 P3-17 修复：拉取策略列表并打开对话框） */
+  const handleStrategy = async () => {
+    strategyVisible.value = true
+    strategyLoading.value = true
+    try {
+      const res = await listPricingStrategies()
+      strategyList.value = res.data || []
+    } catch (error: any) {
+      ElMessage.error(error.message || '获取价格策略失败')
+    } finally {
+      strategyLoading.value = false
+    }
   }
 
   /** 导出 CSV */
@@ -114,9 +134,13 @@ export function useSpProc(refresh: RefreshCallbacks) {
     historyVisible,
     historyList,
     handleHistory,
+    // 价格策略（批次 95 P3-17 修复）
+    strategyVisible,
+    strategyList,
+    strategyLoading,
+    handleStrategy,
     // 流程
     handleApprove,
-    handleStrategy,
     handleExport,
   })
 }

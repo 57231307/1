@@ -184,7 +184,8 @@ pub async fn search_logs(
     use sea_orm::ConnectionTrait;
 
     // P3 8-17 修复：page 上限 1000，防止深度分页全表扫描
-    let page: u64 = filter.page.unwrap_or(1).min(1000);
+    // 批次 95 P3-3~8 修复：补 max(1) 下限，防止 page=0 被接受
+    let page: u64 = filter.page.unwrap_or(1).max(1).min(1000);
     let page_size: u64 = filter.page_size.unwrap_or(20).clamp(1, 100);
     let offset: u64 = page.saturating_sub(1) * page_size;
 

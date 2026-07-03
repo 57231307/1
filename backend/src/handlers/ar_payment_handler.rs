@@ -66,7 +66,7 @@ pub async fn list_payments(
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     let service = crate::services::ar_service::ArService::new(state.db.clone());
 
-    let page = query.page.unwrap_or(1);
+    let page = query.page.unwrap_or(1).max(1); // 批次 95 P3-3~8：分页 clamp 防 DoS
     let page_size = query.page_size.unwrap_or(10).clamp(1, 100);
 
     let (payments, total) = service

@@ -28,7 +28,7 @@ pub async fn list_color_items(
     Query(query): Query<ListItemsQuery>,
 ) -> Result<Json<ApiResponse<PagedResponse<ColorItemInfo>>>, AppError> {
     let service = ColorCardItemService::from_state(&state);
-    let page = query.page.unwrap_or(1);
+    let page = query.page.unwrap_or(1).max(1); // 批次 95 P3-3~8：分页 clamp 防 DoS
     // v11 批次 36 修复：page_size clamp 防止 DoS
     let page_size = query.page_size.unwrap_or(100).clamp(1, 100);
 

@@ -101,7 +101,7 @@ pub async fn list_login_logs(
     use crate::models::log_login;
     use sea_orm::{ColumnTrait, EntityTrait, PaginatorTrait, QueryFilter, QueryOrder};
 
-    let page = query.page.unwrap_or(1);
+    let page = query.page.unwrap_or(1).max(1); // 批次 95 P3-3~8：分页 clamp 防 DoS
     let page_size = query.page_size.unwrap_or(20).clamp(1, 100);
 
     let mut query_builder = log_login::Entity::find();

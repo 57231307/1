@@ -131,7 +131,7 @@ pub async fn list_ratings(
 ) -> Result<Json<ApiResponse<PaginatedResponse<supplier_evaluation::Model>>>, AppError> {
     info!("用户 {} 正在查询供应商评级列表", auth.user_id);
 
-    let page = params.page.unwrap_or(1) as u64;
+    let page = params.page.unwrap_or(1).max(1) as u64; // 批次 95 P3-3~8：分页 clamp 防 DoS
     let page_size = params.page_size.unwrap_or(20).clamp(1, 100) as u64;
 
     let service = SupplierEvaluationService::new(state.db.clone());
@@ -187,7 +187,7 @@ pub async fn list_evaluation_records(
         .get_evaluation_records(
             params.supplier_id,
             params.period,
-            params.page.unwrap_or(1),
+            params.page.unwrap_or(1).max(1), // 批次 95 P3-3~8：分页 clamp 防 DoS
             params.page_size.unwrap_or(20).clamp(1, 100),
         )
         .await?;
@@ -223,7 +223,7 @@ pub async fn list_evaluations(
         .get_evaluation_records(
             params.supplier_id,
             params.period,
-            params.page.unwrap_or(1),
+            params.page.unwrap_or(1).max(1), // 批次 95 P3-3~8：分页 clamp 防 DoS
             params.page_size.unwrap_or(20).clamp(1, 100),
         )
         .await?;

@@ -2,9 +2,14 @@
 // 拆分自 sales-analysis/index.vue（P14 批 2 I-3 第 6 批）
 // 业务领域：销售分析（stats + 4 个排行榜 + 趋势周期 + 排名类型 + 销售目标）
 // 行为完全保持一致（仅结构重构）
-import { reactive, ref } from 'vue'
+import { reactive, ref, watch } from 'vue'
 import { salesAnalysisApi } from '@/api/sales-analysis'
-import type { ProductRanking, CustomerRanking, SalesTarget } from '@/api/sales-analysis'
+import type {
+  ProductRanking,
+  CustomerRanking,
+  SalesTarget,
+  SalesTrendResult,
+} from '@/api/sales-analysis'
 import { logger } from '@/utils/logger'
 
 /** 销售分析主业务 composable（返回 reactive 包装的字段，父组件可直接 .字段 解包） */
@@ -36,6 +41,9 @@ export const useSa = () => {
 
   // 销售目标
   const salesTargets = ref<SalesTarget[]>([])
+
+  // 销售趋势数据（批次 95 P3-20 修复：供 SaTrend 折线图渲染）
+  const trendData = ref<SalesTrendResult[]>([])
 
   // 获取统计数据
   const getStats = async () => {
@@ -79,6 +87,21 @@ export const useSa = () => {
     }
   }
 
+  // 获取销售趋势数据（批次 95 P3-20 修复：按当前趋势周期拉取）
+  const getTrendData = async () => {
+    try {
+      const res = await salesAnalysisApi.getTrendData({ period: trendPeriod.value })
+      trendData.value = res.data || []
+    } catch (error) {
+      logger.error('获取销售趋势数据失败:', error)
+    }
+  }
+
+  // 趋势周期变化时重新拉取趋势数据（批次 95 P3-20 修复）
+  watch(trendPeriod, () => {
+    getTrendData()
+  })
+
   return reactive({
     stats,
     trendPeriod,
@@ -87,9 +110,11 @@ export const useSa = () => {
     productRanking,
     customerRanking,
     salesTargets,
+    trendData,
     getStats,
     getProductRanking,
     getCustomerRanking,
     getSalesTargets,
+    getTrendData,
   })
 }

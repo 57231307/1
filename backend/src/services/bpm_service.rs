@@ -84,7 +84,7 @@ fn evaluate_bpm_condition(condition: &str, variables: &Option<serde_json::Value>
 }
 
 pub struct BpmService {
-    // 批次 67：db 字段改为 pub(crate)，允许 bpm_service_stub.rs 等 crate 内其他模块访问
+    // 批次 67：db 字段改为 pub(crate)，允许 bpm_process_definition_service.rs 等 crate 内其他模块访问
     pub(crate) db: Arc<DatabaseConnection>,
 }
 

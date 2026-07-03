@@ -171,9 +171,27 @@
 
 | 子批 | 项 | 状态 |
 |------|----|----|
-| A | 1, 2, 3, 4 | ⬜ 待修复 |
-| B | 5, 6, 7, 8, 9, 13 | ⬜ 待修复 |
-| C | 10 | ⬜ 待修复 |
-| D | 11, 14, 15 | ⬜ 待修复 |
-| E | 12 | ⬜ 待修复 |
-| 提交 | PR + CI + 合并 | ⬜ 待执行 |
+| A | 1, 2, 3, 4 | ✅ 已完成（SQL 参数化 + LIKE safe_like_pattern 9处 + N+1 is_in 批量查询） |
+| B | 5, 6, 7, 8, 9, 13 | ✅ 已完成（handler auth 接入 + service 审计补全 + 占位符实现） |
+| C | 10 | ✅ 已完成（约 40 处 Some(0) 推广 + define_crud_handlers! 宏修改） |
+| D | 11, 14, 15 | ✅ 已完成（let _ = 吞错修复约 20 处 + cancel reason/operator_id 占位实现） |
+| E | 12 | ✅ 已完成（6 前端文件 + 5 个 API 函数） |
+| 提交 | PR + CI + 合并 | ✅ 已完成（main `b71e7a2`，PR #338） |
+
+## 实施记录（2026-07-03）
+
+### CI 修复（首次 push 后 2 项失败）
+
+1. **Rust 后端构建失败**（2 处编译错误）：
+   - `color_price_handler.rs:500` — `map_err(seasonal_err)` 类型不匹配（service.delete 已返回 AppError），去掉 map_err
+   - `color_price_seasonal_service.rs:172` — `delete_with_audit_i64::<RuleEntity>` 缺第二个泛型参数 C，改为 `<RuleEntity, _>`
+
+2. **前端测试失败**（stock-tab.test.ts）：
+   - StockTab.vue 新增 `import { inventoryApi }` 触发 request.ts → router 初始化链
+   - 修复：添加 `vi.mock('@/api/inventory')` mock updateStock/deleteStock/createStockAdjustment
+
+### CI 结果
+
+- 首次 push（commit `1d081c1`）：Rust 后端构建失败 + 前端测试失败
+- 修复 push（commit `0fe2221`）：12 项必检全绿，E2E continue-on-error 非阻塞
+- Squash merge：main `b71e7a2`，PR #338

@@ -25,7 +25,12 @@
 
     <SaStat :stats="sa.stats" />
 
-    <SaTrend :period="sa.trendPeriod" @update:period="(v: string) => (sa.trendPeriod = v)" />
+    <SaTrend
+      :period="sa.trendPeriod"
+      :data="sa.trendData"
+      :composition="sa.productRanking"
+      @update:period="(v: string) => (sa.trendPeriod = v)"
+    />
 
     <el-row :gutter="20" class="ranking-row">
       <el-col :xs="24" :lg="12">
@@ -68,6 +73,7 @@ onMounted(() => {
   sa.getProductRanking()
   sa.getCustomerRanking()
   sa.getSalesTargets()
+  sa.getTrendData()
 })
 </script>
 

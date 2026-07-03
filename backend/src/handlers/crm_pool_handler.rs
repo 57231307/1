@@ -49,7 +49,7 @@ pub async fn list_pool(
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     let service = CrmService::new(state.db.clone());
 
-    let page = params.page.unwrap_or(1);
+    let page = params.page.unwrap_or(1).max(1); // 批次 95 P3-3~8：分页 clamp 防 DoS
     let page_size = params.page_size.unwrap_or(20).clamp(1, 100);
 
     // 查询公海客户（owner_id为空或特定状态的线索）

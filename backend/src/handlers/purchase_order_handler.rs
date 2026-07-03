@@ -31,7 +31,7 @@ pub async fn list_orders(
     let service = PurchaseOrderService::new(state.db.clone());
     let (orders, _total) = service
         .list_orders(
-            params.page.unwrap_or(1),
+            params.page.unwrap_or(1).max(1), // 批次 95 P3-3~8：分页 clamp 防 DoS
             params.page_size.unwrap_or(20).clamp(1, 100),
             params.status,
             params.supplier_id,

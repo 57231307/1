@@ -310,7 +310,7 @@ pub async fn list_transfer_records(
             params.from_account_id,
             params.to_account_id,
             params.status,
-            params.page.unwrap_or(1),
+            params.page.unwrap_or(1).max(1), // 批次 95 P3-3~8：分页 clamp 防 DoS
             params.page_size.unwrap_or(20).clamp(1, 100),
         )
         .await?;
