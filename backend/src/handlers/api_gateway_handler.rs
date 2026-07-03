@@ -16,7 +16,7 @@ use axum::{
 use chrono::Utc;
 use serde::Deserialize;
 use serde_json::{json, Value};
-use sea_orm::{ColumnTrait, EntityTrait, PaginatorTrait, QueryFilter, QueryOrder, QuerySelect};
+use sea_orm::{ActiveModelTrait, ColumnTrait, EntityTrait, PaginatorTrait, QueryFilter, QueryOrder, QuerySelect};
 
 use crate::middleware::auth_context::AuthContext;
 use crate::models::{api_endpoint, log_api_access};
@@ -96,6 +96,7 @@ fn endpoint_to_json(m: api_endpoint::Model) -> Value {
 
 /// 将 log_api_access::Model 转换为前端期望的 JSON 结构
 fn log_to_json(m: log_api_access::Model) -> Value {
+    let ip = m.ip_address.unwrap_or_default();
     json!({
         "id": m.id,
         "endpoint_id": null,
@@ -107,8 +108,8 @@ fn log_to_json(m: log_api_access::Model) -> Value {
         "status_code": m.status_code.unwrap_or(0),
         "response_time": m.execution_time,
         "duration": m.execution_time,
-        "ip_address": m.ip_address.unwrap_or_default(),
-        "client_ip": m.ip_address.unwrap_or_default(),
+        "ip_address": &ip,
+        "client_ip": &ip,
         "user_agent": m.user_agent.unwrap_or_default(),
         "user_id": m.user_id.unwrap_or(0),
         "user_name": m.username.unwrap_or_default(),
@@ -130,7 +131,8 @@ fn key_to_json(m: &crate::models::api_key::Model) -> Value {
         "inactive"
     } else if m
         .expires_at
-        .map(|e| e < Utc::now())
+        .as_ref()
+        .map(|e| *e < Utc::now())
         .unwrap_or(false)
     {
         "expired"
@@ -140,18 +142,18 @@ fn key_to_json(m: &crate::models::api_key::Model) -> Value {
 
     json!({
         "id": m.id,
-        "key_name": m.name,
-        "api_key": m.key_prefix,
-        "app_id": m.key_prefix,
+        "key_name": &m.name,
+        "api_key": &m.key_prefix,
+        "app_id": &m.key_prefix,
         "description": "",
         "permissions": permissions,
         "rate_limit": m.rate_limit_per_minute,
-        "expires_at": m.expires_at.map(|d| d.to_rfc3339()).unwrap_or_default(),
+        "expires_at": m.expires_at.as_ref().map(|d| d.to_rfc3339()).unwrap_or_default(),
         "status": status,
         "created_by": 0,
         "created_by_name": "",
         "created_at": m.created_at.to_rfc3339(),
-        "last_used_at": m.last_used_at.map(|d| d.to_rfc3339()).unwrap_or_default(),
+        "last_used_at": m.last_used_at.as_ref().map(|d| d.to_rfc3339()).unwrap_or_default(),
     })
 }
 
