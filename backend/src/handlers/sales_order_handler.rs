@@ -5,6 +5,7 @@ use axum::{
     Json,
 };
 use serde::Deserialize;
+use validator::Validate;
 
 use crate::models::dto::PageRequest;
 use crate::models::sales_order;
@@ -22,6 +23,14 @@ pub struct SalesOrderQuery {
     pub status: Option<String>,
     pub customer_id: Option<i32>,
     pub order_no: Option<String>,
+}
+
+/// P1-2d 修复（批次 81 v1 复审）：创建发货请求 DTO
+/// 替代 create_delivery 中的 Json<serde_json::Value>，提供强类型校验
+#[derive(Debug, Deserialize, Validate)]
+pub struct CreateDeliveryDto {
+    /// 仓库 ID：可选，缺失时默认 0（保持原向后兼容逻辑）
+    pub warehouse_id: Option<i32>,
 }
 
 /// 获取销售订单列表
@@ -490,16 +499,17 @@ pub async fn create_delivery(
     auth: AuthContext,
     State(state): State<AppState>,
     Path(id): Path<i32>,
-    Json(payload): Json<serde_json::Value>,
+    Json(payload): Json<CreateDeliveryDto>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
+    // P1-2d 修复（批次 81 v1 复审）：强类型 DTO + validator 替代 Json<Value>
+    payload
+        .validate()
+        .map_err(|e| AppError::validation(e.to_string()))?;
+
     let sales_service = SalesService::new(state.db.clone());
 
-    // 从 payload 中提取 warehouse_id；缺失时默认为 0（向后兼容）
-    let warehouse_id = payload
-        .get("warehouse_id")
-        .and_then(|v| v.as_i64())
-        .map(|v| v as i32)
-        .unwrap_or_default();
+    // warehouse_id 缺失时默认为 0（保持原向后兼容逻辑）
+    let warehouse_id = payload.warehouse_id.unwrap_or_default();
 
     let delivery = sales_service
         .create_delivery(id, warehouse_id, auth.user_id)

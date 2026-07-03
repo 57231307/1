@@ -14,6 +14,7 @@ use axum::{
 };
 use serde::Deserialize;
 use tracing::info;
+use validator::Validate;
 
 #[derive(Debug, Deserialize)]
 pub struct EvaluationIndicatorQuery {
@@ -21,6 +22,17 @@ pub struct EvaluationIndicatorQuery {
     pub status: Option<String>,
     pub page: Option<i64>,
     pub page_size: Option<i64>,
+}
+
+/// P1-2k 修复（批次 81 v1 复审）：更新供应商评估请求 DTO
+/// 替代 update_evaluation 中的 Json<serde_json::Value>，提供强类型校验
+#[derive(Debug, Deserialize, Validate)]
+pub struct UpdateEvaluationDto {
+    /// 评分：可选，0-100
+    pub score: Option<rust_decimal::Decimal>,
+    /// 备注：可选
+    #[validate(length(max = 500, message = "备注长度不能超过500字符"))]
+    pub remark: Option<String>,
 }
 
 pub async fn list_indicators(
@@ -258,9 +270,13 @@ pub async fn update_evaluation(
     Path(id): Path<i32>,
     State(state): State<AppState>,
     auth: AuthContext,
-    Json(req): Json<serde_json::Value>,
+    Json(req): Json<UpdateEvaluationDto>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     info!("用户 {} 更新评估: ID={}", auth.username, id);
+
+    // P1-2k 修复（批次 81 v1 复审）：强类型 DTO + validator 替代 Json<Value>
+    req.validate()
+        .map_err(|e| AppError::validation(e.to_string()))?;
 
     let service = SupplierEvaluationService::new(state.db.clone());
 
@@ -271,12 +287,11 @@ pub async fn update_evaluation(
     use sea_orm::ActiveModelTrait;
     let mut active_model: crate::models::supplier_evaluation_record::ActiveModel = record.into();
 
-    if let Some(score) = req.get("score").and_then(|v| v.as_f64()) {
-        active_model.score =
-            sea_orm::Set(rust_decimal::Decimal::from_f64_retain(score).unwrap_or_default());
+    if let Some(score) = req.score {
+        active_model.score = sea_orm::Set(score);
     }
-    if let Some(remark) = req.get("remark").and_then(|v| v.as_str()) {
-        active_model.remark = sea_orm::Set(Some(remark.to_string()));
+    if let Some(remark) = req.remark {
+        active_model.remark = sea_orm::Set(Some(remark));
     }
 
     let updated = active_model.update(&*state.db).await?;

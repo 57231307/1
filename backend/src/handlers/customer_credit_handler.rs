@@ -37,13 +37,31 @@ pub struct CreditQuery {
 }
 
 /// 创建/更新信用评级请求 DTO
-#[derive(Debug, Deserialize, Serialize)]
+///
+/// P1-2b 修复（批次 81 v1 复审）：添加 Validate + 字段校验，用于 create_credit
+#[derive(Debug, Deserialize, Serialize, Validate)]
 pub struct CreditRatingRequestDto {
     pub customer_id: i32,
+    #[validate(length(max = 20, message = "信用等级长度不能超过20字符"))]
     pub credit_level: Option<String>,
     pub credit_score: Option<i32>,
+    #[validate(custom(function = "validate_amount_range"))]
     pub credit_limit: Decimal,
     pub credit_days: Option<i32>,
+    #[validate(length(max = 500, message = "备注长度不能超过500字符"))]
+    pub remark: Option<String>,
+}
+
+/// P1-2b 修复（批次 81 v1 复审）：更新客户信用请求 DTO
+/// 用于 update_credit，所有字段可选（仅更新提交的字段）
+#[derive(Debug, Deserialize, Serialize, Validate)]
+pub struct UpdateCreditDto {
+    #[validate(length(max = 20, message = "信用等级长度不能超过20字符"))]
+    pub credit_level: Option<String>,
+    pub credit_score: Option<i32>,
+    pub credit_limit: Option<Decimal>,
+    pub credit_days: Option<i32>,
+    #[validate(length(max = 500, message = "备注长度不能超过500字符"))]
     pub remark: Option<String>,
 }
 
@@ -249,47 +267,23 @@ pub async fn deactivate_credit(
 pub async fn create_credit(
     State(state): State<AppState>,
     auth: AuthContext,
-    Json(req): Json<serde_json::Value>,
+    Json(req): Json<CreditRatingRequestDto>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     info!("用户 {} 创建客户信用", auth.username);
 
+    // P1-2b 修复（批次 81 v1 复审）：强类型 DTO + validator 替代 Json<Value>
+    req.validate()
+        .map_err(|e| AppError::validation(e.to_string()))?;
+
     let service = CustomerCreditService::new(state.db.clone());
 
-    // 客户 ID 缺失时返回 4xx 错误，避免静默写入 customer_id=0 记录
-    let customer_id: i32 = req
-        .get("customer_id")
-        .and_then(|v| v.as_i64())
-        .and_then(|v| i32::try_from(v).ok())
-        .ok_or_else(|| AppError::validation("信用调整请求缺少客户ID"))?;
-
-    let credit_limit = req
-        .get("credit_limit")
-        .and_then(|v| v.as_f64())
-        .map(|f| Decimal::try_from(f).unwrap_or_default())
-        .unwrap_or_default();
-
-    let credit_level = req
-        .get("credit_level")
-        .and_then(|v| v.as_str())
-        .map(|s| s.to_string());
-
-    let credit_score = req
-        .get("credit_score")
-        .and_then(|v| v.as_i64())
-        .map(|s| s as i32);
-
-    let credit_days = req
-        .get("credit_days")
-        .and_then(|v| v.as_i64())
-        .map(|d| d as i32);
-
     let rating_req = crate::services::customer_credit_service::CreditRatingRequest {
-        customer_id,
-        credit_level,
-        credit_score,
-        credit_limit,
-        credit_days,
-        remark: None,
+        customer_id: req.customer_id,
+        credit_level: req.credit_level,
+        credit_score: req.credit_score,
+        credit_limit: req.credit_limit,
+        credit_days: req.credit_days,
+        remark: req.remark,
     };
 
     let credit = service.set_credit_rating(rating_req, auth.user_id).await?;
@@ -305,39 +299,24 @@ pub async fn update_credit(
     Path(id): Path<i32>,
     State(state): State<AppState>,
     auth: AuthContext,
-    Json(req): Json<serde_json::Value>,
+    Json(req): Json<UpdateCreditDto>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     info!("用户 {} 更新客户信用: ID={}", auth.username, id);
 
+    // P1-2b 修复（批次 81 v1 复审）：强类型 DTO + validator 替代 Json<Value>
+    req.validate()
+        .map_err(|e| AppError::validation(e.to_string()))?;
+
     let service = CustomerCreditService::new(state.db.clone());
-
-    let credit_limit = req
-        .get("credit_limit")
-        .and_then(|v| v.as_f64())
-        .map(|f| Decimal::try_from(f).unwrap_or_default());
-
-    let credit_level = req
-        .get("credit_level")
-        .and_then(|v| v.as_str())
-        .map(|s| s.to_string());
-
-    let credit_score = req
-        .get("credit_score")
-        .and_then(|v| v.as_i64())
-        .map(|i| i as i32);
-
-    let credit_days = req
-        .get("credit_days")
-        .and_then(|v| v.as_i64())
-        .map(|i| i as i32);
 
     let rating_req = crate::services::customer_credit_service::CreditRatingRequest {
         customer_id: id,
-        credit_level,
-        credit_score,
-        credit_limit: credit_limit.unwrap_or_default(),
-        credit_days,
-        remark: None,
+        credit_level: req.credit_level,
+        credit_score: req.credit_score,
+        // update 时 credit_limit 可选；缺失则用 0（service 层会保留原值或覆盖）
+        credit_limit: req.credit_limit.unwrap_or_default(),
+        credit_days: req.credit_days,
+        remark: req.remark,
     };
 
     let credit = service.set_credit_rating(rating_req, auth.user_id).await?;

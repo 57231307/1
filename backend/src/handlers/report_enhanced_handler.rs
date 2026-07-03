@@ -7,6 +7,7 @@ use axum::{
     Json,
 };
 use serde::Deserialize;
+use validator::Validate;
 
 use crate::middleware::auth_context::AuthContext;
 use crate::services::report_subscription_service::{
@@ -20,6 +21,14 @@ use crate::services::report_template_service::{
 use crate::utils::app_state::AppState;
 use crate::utils::error::AppError;
 use crate::utils::response::ApiResponse;
+
+/// P1-2n 修复（批次 81 v1 复审）：切换报表订阅启用状态请求 DTO
+/// 替代 toggle_subscription 中的 Json<serde_json::Value>，提供强类型校验
+#[derive(Debug, Deserialize, Validate)]
+pub struct ToggleSubscriptionDto {
+    /// 是否启用：必填
+    pub enabled: bool,
+}
 
 /// 报表执行查询参数
 #[derive(Debug, Deserialize)]
@@ -288,15 +297,17 @@ pub async fn toggle_subscription(
     State(state): State<AppState>,
     auth: AuthContext,
     Path(id): Path<i32>,
-    Json(req): Json<serde_json::Value>,
+    Json(req): Json<ToggleSubscriptionDto>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
+    // P1-2n 修复（批次 81 v1 复审）：强类型 DTO + validator 替代 Json<Value>
+    req.validate()
+        .map_err(|e| AppError::validation(e.to_string()))?;
+
     let service = ReportSubscriptionService::new(state.db.clone());
 
-    let enabled = req.get("enabled").and_then(|v| v.as_bool()).unwrap_or(true);
+    let subscription = service.toggle(id, req.enabled).await?;
 
-    let subscription = service.toggle(id, enabled).await?;
-
-    let action = if enabled { "启用" } else { "禁用" };
+    let action = if req.enabled { "启用" } else { "禁用" };
     tracing::info!(
         "用户 {} {}报表订阅: {}",
         auth.username,

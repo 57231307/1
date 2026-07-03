@@ -12,6 +12,7 @@ use axum::{
 };
 use serde::{Deserialize, Serialize};
 use tracing::info;
+use validator::Validate;
 
 /// 合同查询参数 DTO
 #[derive(Debug, Deserialize)]
@@ -33,6 +34,17 @@ pub struct CreateContractRequestDto {
     pub payment_terms: Option<String>,
     pub delivery_date: chrono::NaiveDate,
     pub remark: Option<String>,
+}
+
+/// P1-2m 修复（批次 81 v1 复审）：更新采购合同请求 DTO
+/// 替代 update_contract 中的 Json<serde_json::Value>，提供强类型校验
+#[derive(Debug, Deserialize, Serialize, Validate)]
+pub struct UpdateContractDto {
+    /// 合同名称：可选
+    #[validate(length(max = 200, message = "合同名称长度不能超过200字符"))]
+    pub contract_name: Option<String>,
+    /// 付款条款：可选
+    pub payment_terms: Option<String>,
 }
 
 /// 合同执行请求 DTO
@@ -188,9 +200,13 @@ pub async fn update_contract(
     Path(id): Path<i32>,
     State(state): State<AppState>,
     auth: AuthContext,
-    Json(req): Json<serde_json::Value>,
+    Json(req): Json<UpdateContractDto>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     info!("用户 {} 更新采购合同: ID={}", auth.username, id);
+
+    // P1-2m 修复（批次 81 v1 复审）：强类型 DTO + validator 替代 Json<Value>
+    req.validate()
+        .map_err(|e| AppError::validation(e.to_string()))?;
 
     let service = PurchaseContractService::new(state.db.clone());
 
@@ -205,11 +221,11 @@ pub async fn update_contract(
     }
 
     // 更新字段
-    if let Some(name) = req.get("contract_name").and_then(|v| v.as_str()) {
-        contract.contract_name = name.to_string();
+    if let Some(name) = req.contract_name {
+        contract.contract_name = name;
     }
-    if let Some(terms) = req.get("payment_terms").and_then(|v| v.as_str()) {
-        contract.payment_terms = Some(terms.to_string());
+    if let Some(terms) = req.payment_terms {
+        contract.payment_terms = Some(terms);
     }
 
     // 保存更新

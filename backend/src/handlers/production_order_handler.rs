@@ -48,6 +48,39 @@ pub struct UpdateProductionOrderPayload {
     pub remarks: Option<String>,
 }
 
+/// P1-2f 修复（批次 81 v1 复审）：更新生产订单状态请求 DTO
+/// 替代 update_production_order_status 中的 Json<serde_json::Value>，
+/// 提供强类型校验 + 状态白名单校验
+#[derive(Debug, Deserialize, Validate)]
+pub struct UpdateProductionOrderStatusDto {
+    /// 状态：必填，必须命中白名单
+    #[validate(custom(function = "validate_production_order_status"))]
+    pub status: String,
+    /// 实际产量：可选，字符串形式以便解析 Decimal
+    pub actual_quantity: Option<String>,
+}
+
+/// P1-2f 修复（批次 81 v1 复审）：生产订单状态白名单校验
+/// 仅允许以下状态值，避免任意字符串写入数据库
+/// 白名单与 production_order_service::validate_status_transition 保持一致
+fn validate_production_order_status(
+    status: &str,
+) -> Result<(), validator::ValidationError> {
+    const ALLOWED: &[&str] = &[
+        "DRAFT",
+        "SCHEDULED",
+        "IN_PROGRESS",
+        "COMPLETED",
+        "CANCELLED",
+    ];
+    if !ALLOWED.contains(&status) {
+        return Err(validator::ValidationError::new(
+            "生产订单状态不在允许的白名单内",
+        ));
+    }
+    Ok(())
+}
+
 /// 生产订单响应
 #[derive(Debug, Serialize)]
 pub struct ProductionOrderResponse {
@@ -400,22 +433,22 @@ pub async fn update_production_order_status(
     State(state): State<AppState>,
     _auth: AuthContext,
     Path(id): Path<i32>,
-    Json(payload): Json<serde_json::Value>,
+    Json(payload): Json<UpdateProductionOrderStatusDto>,
 ) -> Result<Json<ApiResponse<ProductionOrderResponse>>, AppError> {
+    // P1-2f 修复（批次 81 v1 复审）：强类型 DTO + validator + 状态白名单 替代 Json<Value>
+    payload
+        .validate()
+        .map_err(|e| AppError::validation(e.to_string()))?;
+
     let service = ProductionOrderService::new(state.db.clone());
 
-    let status = payload
-        .get("status")
-        .and_then(|v| v.as_str())
-        .ok_or_else(|| AppError::validation("状态不能为空"))?;
-
     let actual_quantity = payload
-        .get("actual_quantity")
-        .and_then(|v| v.as_str())
+        .actual_quantity
+        .as_deref()
         .and_then(|s| s.parse::<Decimal>().ok());
 
     let model = service
-        .update_status(id, status.to_string(), actual_quantity)
+        .update_status(id, payload.status, actual_quantity)
         .await?;
 
     let response = ProductionOrderResponse {

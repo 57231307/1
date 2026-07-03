@@ -12,6 +12,16 @@ use axum::{
     Json,
 };
 use serde::Deserialize;
+use validator::Validate;
+
+/// P1-2g 修复（批次 81 v1 复审）：更新线索状态请求 DTO
+/// 替代 update_lead_status 中的 Json<serde_json::Value>，提供强类型校验
+#[derive(Debug, Deserialize, Validate)]
+pub struct UpdateLeadStatusDto {
+    /// 状态：必填，长度至少 1
+    #[validate(length(min = 1, max = 30, message = "状态长度必须在1到30字符之间"))]
+    pub status: String,
+}
 
 pub async fn create_lead(
     State(state): State<AppState>,
@@ -134,14 +144,15 @@ pub async fn update_lead_status(
     State(state): State<AppState>,
     _auth: AuthContext,
     Path(id): Path<i32>,
-    Json(payload): Json<serde_json::Value>,
+    Json(payload): Json<UpdateLeadStatusDto>,
 ) -> Result<Json<ApiResponse<String>>, AppError> {
-    let status = payload
-        .get("status")
-        .and_then(|s| s.as_str())
-        .unwrap_or("NEW");
+    // P1-2g 修复（批次 81 v1 复审）：强类型 DTO + validator 替代 Json<Value>
+    payload
+        .validate()
+        .map_err(|e| AppError::validation(e.to_string()))?;
+
     let service = CrmService::new(state.db.clone());
-    service.update_lead_status(id, status).await?;
+    service.update_lead_status(id, &payload.status).await?;
     Ok(Json(ApiResponse::success("状态更新成功".to_string())))
 }
 

@@ -8,6 +8,7 @@ use axum::{
     Json,
 };
 use serde::Deserialize;
+use validator::Validate;
 
 use crate::middleware::auth_context::AuthContext;
 use crate::services::five_dimension_service::{
@@ -17,6 +18,15 @@ use crate::services::five_dimension_service::{
 use crate::utils::app_state::AppState;
 use crate::utils::error::AppError;
 use crate::utils::response::ApiResponse;
+
+/// P1-2l 修复（批次 81 v1 复审）：解析五维ID请求 DTO
+/// 替代 parse_five_dimension_id 中的 Json<serde_json::Value>，提供强类型校验
+#[derive(Debug, Deserialize, Validate)]
+pub struct ParseFiveDimensionIdDto {
+    /// 五维编码：必填，长度至少 1
+    #[validate(length(min = 1, max = 200, message = "五维编码长度必须在1到200字符之间"))]
+    pub five_dimension_id: String,
+}
 
 /// 五维统计请求参数
 #[derive(Debug, Deserialize)]
@@ -152,16 +162,15 @@ pub async fn get_five_dimension_summary(
 pub async fn parse_five_dimension_id(
     State(state): State<AppState>,
     _auth: AuthContext,
-    Json(req): Json<serde_json::Value>,
+    Json(req): Json<ParseFiveDimensionIdDto>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
+    // P1-2l 修复（批次 81 v1 复审）：强类型 DTO + validator 替代 Json<Value>
+    req.validate()
+        .map_err(|e| AppError::validation(e.to_string()))?;
+
     let service = FiveDimensionService::new(state.db.clone());
 
-    let five_dimension_id = req
-        .get("five_dimension_id")
-        .and_then(|v| v.as_str())
-        .ok_or_else(|| AppError::validation("缺少five_dimension_id参数"))?;
-
-    let stats = service.get_stats_by_id(five_dimension_id).await?;
+    let stats = service.get_stats_by_id(&req.five_dimension_id).await?;
 
     match stats {
         Some(stats) => Ok(Json(ApiResponse::success(serde_json::json!({
