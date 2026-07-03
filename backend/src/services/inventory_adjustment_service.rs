@@ -385,8 +385,14 @@ impl InventoryAdjustmentService {
         adjustment_id: i32,
         req: UpdateAdjustmentRequest,
     ) -> Result<inventory_adjustment::Model, AppError> {
+        // P1-11 修复（批次 79 v1 复审）：状态门 + update 移入单一事务，加 lock_exclusive 串行化
+        // 原实现状态门查询在 self.db 上、update 也在 self.db 上，无事务边界，
+        // 并发场景下可能在状态检查通过后、update 前发生状态变更，导致已审批/已驳回单被篡改。
+        let txn = (*self.db).begin().await?;
+
         let adjustment_model = inventory_adjustment::Entity::find_by_id(adjustment_id)
-            .one(&*self.db)
+            .lock_exclusive()
+            .one(&txn)
             .await?
             .ok_or_else(|| AppError::not_found(format!("调整单 {} 不存在", adjustment_id)))?;
 
@@ -418,14 +424,21 @@ impl InventoryAdjustmentService {
         }
         active.updated_at = Set(Utc::now());
 
-        let updated = active.update(&*self.db).await?;
+        let updated = active.update(&txn).await?;
+        txn.commit().await?;
         Ok(updated)
     }
 
     /// 删除调整单（仅 pending 状态）
     pub async fn delete_adjustment(&self, adjustment_id: i32) -> Result<(), AppError> {
+        // P1-12 修复（批次 79 v1 复审）：状态门移入单一事务，加 lock_exclusive 串行化
+        // 原实现状态门查询在 self.db 上、delete 在 txn 上，
+        // 并发场景下可能在状态检查通过后、delete 前发生状态变更，导致已审批/已驳回单被误删。
+        let txn = (*self.db).begin().await?;
+
         let adjustment_model = inventory_adjustment::Entity::find_by_id(adjustment_id)
-            .one(&*self.db)
+            .lock_exclusive()
+            .one(&txn)
             .await?
             .ok_or_else(|| AppError::not_found(format!("调整单 {} 不存在", adjustment_id)))?;
 
@@ -434,8 +447,6 @@ impl InventoryAdjustmentService {
                 "只有待审核状态的调整单可以删除".to_string(),
             ));
         }
-
-        let txn = (*self.db).begin().await?;
 
         // 先删除明细
         inventory_adjustment_item::Entity::delete_many()

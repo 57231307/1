@@ -7,16 +7,19 @@
 
 ## 批次规划
 
-### 批次 78：mark_as_paid user_id 透传 + ar_invoice delete 事务（P1，2 项）
+### 批次 78：mark_as_paid user_id 透传 + ar_invoice delete 事务（P1，2 项）✅ 已完成
 
 **主题**：审计日志 user_id 透传遗漏项 + delete 事务包裹
 **级别**：P1
 **项数**：2
+**修复分支**：`fix/v19-batch78-mark-as-paid-p1`（已合并删除）
+**合并 commit**：`f98f2717`（PR #321 squash merge，CI 12/13 全绿，E2E continue-on-error）
+**影响范围**：6 文件 +43/-7
 
 | # | 问题 | 文件 | 修复 |
 |---|------|------|------|
-| P1-1 | mark_as_paid 审计 user_id 仍为 Some(0) | ar_invoice_service.rs:416 | 函数签名增加 user_id + 调用方 ar_collection_service.confirm 透传 |
-| P1-14 | ar_invoice_service.delete 未用事务包裹 | ar_invoice_service.rs:316-334 | 用 txn 包裹 delete_with_audit |
+| P1-1 | mark_as_paid 审计 user_id 仍为 Some(0) | ar_invoice_service.rs:416 | 函数签名增加 user_id + CollectionCompleted 事件透传 user_id + ar_collection_service.create_collection 发布时携带 user_id + 同步 event_kafka_payload/event_kafka/test_event_bus |
+| P1-14 | ar_invoice_service.delete 未用事务包裹 | ar_invoice_service.rs:316-334 | 用 txn 包裹 delete_with_audit，状态检查改用 lock_exclusive 串行化 |
 
 ### 批次 79：CRUD + 状态检查 TOCTOU 修复（P1，8 项）
 

@@ -1,5 +1,8 @@
 use chrono::Utc;
-use sea_orm::{ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter};
+use sea_orm::{
+    ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter, QuerySelect,
+    TransactionTrait,
+};
 use std::sync::Arc;
 
 use crate::models::inventory_reservation::{self, Entity as InventoryReservationEntity};
@@ -48,8 +51,14 @@ impl InventoryReservationService {
         &self,
         reservation_id: i32,
     ) -> Result<inventory_reservation::Model, AppError> {
+        // P1-8 修复（批次 79 v1 复审）：状态门 + update 移入单一事务，加 lock_exclusive 串行化
+        // 原实现状态门查询在 self.db 上、update 也在 self.db 上，无事务边界，
+        // 并发场景下可能在状态检查通过后、update 前发生状态变更，导致已锁定/已释放预留被重复锁定。
+        let txn = (*self.db).begin().await?;
+
         let reservation = InventoryReservationEntity::find_by_id(reservation_id)
-            .one(&*self.db)
+            .lock_exclusive()
+            .one(&txn)
             .await?
             .ok_or_else(|| AppError::not_found(format!("库存预留 {} 未找到", reservation_id)))?;
 
@@ -64,10 +73,13 @@ impl InventoryReservationService {
         reservation_update.status = sea_orm::ActiveValue::Set("locked".to_string());
         reservation_update.updated_at = sea_orm::ActiveValue::Set(Utc::now());
 
-        reservation_update
-            .update(&*self.db)
+        let result = reservation_update
+            .update(&txn)
             .await
-            .map_err(AppError::from)
+            .map_err(AppError::from)?;
+
+        txn.commit().await?;
+        Ok(result)
     }
 
     /// 释放预留（从 locked 到 released）
@@ -75,8 +87,14 @@ impl InventoryReservationService {
         &self,
         reservation_id: i32,
     ) -> Result<inventory_reservation::Model, AppError> {
+        // P1-9 修复（批次 79 v1 复审）：状态门 + update 移入单一事务，加 lock_exclusive 串行化
+        // 原实现状态门查询在 self.db 上、update 也在 self.db 上，无事务边界，
+        // 并发场景下可能在状态检查通过后、update 前发生状态变更，导致已释放预留被重复释放。
+        let txn = (*self.db).begin().await?;
+
         let reservation = InventoryReservationEntity::find_by_id(reservation_id)
-            .one(&*self.db)
+            .lock_exclusive()
+            .one(&txn)
             .await?
             .ok_or_else(|| AppError::not_found(format!("库存预留 {} 未找到", reservation_id)))?;
 
@@ -92,10 +110,13 @@ impl InventoryReservationService {
         reservation_update.released_at = sea_orm::ActiveValue::Set(Some(Utc::now()));
         reservation_update.updated_at = sea_orm::ActiveValue::Set(Utc::now());
 
-        reservation_update
-            .update(&*self.db)
+        let result = reservation_update
+            .update(&txn)
             .await
-            .map_err(AppError::from)
+            .map_err(AppError::from)?;
+
+        txn.commit().await?;
+        Ok(result)
     }
 
     /// 获取预留列表
@@ -134,8 +155,14 @@ impl InventoryReservationService {
         reservation_id: i32,
         user_id: i32,
     ) -> Result<(), AppError> {
+        // P1-10 修复（批次 79 v1 复审）：状态门 + delete_with_audit 移入单一事务，加 lock_exclusive 串行化
+        // 原实现状态门查询在 self.db 上、delete_with_audit 也在 self.db 上，无事务边界，
+        // 并发场景下可能在状态检查通过后、delete 前发生状态变更，导致已锁定预留被误删。
+        let txn = (*self.db).begin().await?;
+
         let reservation = InventoryReservationEntity::find_by_id(reservation_id)
-            .one(&*self.db)
+            .lock_exclusive()
+            .one(&txn)
             .await?
             .ok_or_else(|| AppError::not_found(format!("库存预留 {} 未找到", reservation_id)))?;
 
@@ -152,7 +179,10 @@ impl InventoryReservationService {
         crate::services::audit_log_service::AuditLogService::delete_with_audit::<
             InventoryReservationEntity,
             _,
-        >(&*self.db, "inventory_reservation", reservation_id, Some(user_id))
-        .await
+        >(&txn, "inventory_reservation", reservation_id, Some(user_id))
+        .await?;
+
+        txn.commit().await?;
+        Ok(())
     }
 }
