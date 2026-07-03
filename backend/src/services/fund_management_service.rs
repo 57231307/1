@@ -157,6 +157,10 @@ impl FundManagementService {
         if amount <= Decimal::ZERO {
             return Err(AppError::validation("金额必须大于零"));
         }
+        // P2-4 修复（批次 84 v1 复审）：金额精度校验，最多 2 位小数（货币精度）
+        if amount.round_dp(2) != amount {
+            return Err(AppError::validation("金额精度不能超过 2 位小数"));
+        }
 
         info!(
             "用户 {} 正在向账户 {} 存款 {:.2}",
@@ -192,6 +196,10 @@ impl FundManagementService {
         // 输入校验：金额必须大于零，防止 0 或负数取款破坏账户余额一致性
         if amount <= Decimal::ZERO {
             return Err(AppError::validation("金额必须大于零"));
+        }
+        // P2-4 修复（批次 84 v1 复审）：金额精度校验，最多 2 位小数（货币精度）
+        if amount.round_dp(2) != amount {
+            return Err(AppError::validation("金额精度不能超过 2 位小数"));
         }
 
         info!(

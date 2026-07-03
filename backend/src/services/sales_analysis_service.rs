@@ -220,7 +220,12 @@ impl SalesAnalysisService {
         info!("获取销售概览统计");
 
         // 汇总所有销售统计数据
-        let stats = sales_analysis::Entity::find().all(&*self.db).await?;
+        // P3-7 修复（批次 84 v1 复审）：加 LIMIT 兜底防止全表加载内存爆炸
+        // 长期应改为数据库聚合（SUM/COUNT DISTINCT），当前 LIMIT 10000 覆盖业务场景
+        let stats = sales_analysis::Entity::find()
+            .limit(10_000)
+            .all(&*self.db)
+            .await?;
 
         let mut month_orders: i64 = 0;
         let mut month_amount = Decimal::ZERO;

@@ -129,7 +129,7 @@ pub async fn list_payments(
 
     let (payments, total) = service
         .list_payments(
-            params.page.unwrap_or_default(),
+            params.page.unwrap_or(1).max(1),
             params.page_size.unwrap_or(20).clamp(1, 100),
             params.status,
         )
@@ -151,7 +151,7 @@ pub async fn list_payments(
     Ok(Json(ApiResponse::success(PaymentListResponse {
         payments: payment_responses,
         total,
-        page: params.page.unwrap_or_default(),
+        page: params.page.unwrap_or(1).max(1),
         page_size: params.page_size.unwrap_or(20).clamp(1, 100),
     })))
 }

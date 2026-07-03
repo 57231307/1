@@ -206,6 +206,13 @@ impl ApInvoiceService {
     ) -> Result<ap_invoice::Model, AppError> {
         let txn = (*self.db).begin().await?;
 
+        // P2-4 修复（批次 84 v1 复审）：金额精度校验，最多 2 位小数（货币精度）
+        if let Some(amount) = req.amount {
+            if amount.round_dp(2) != amount {
+                return Err(AppError::validation("应付单金额精度不能超过 2 位小数"));
+            }
+        }
+
         // 1. 生成应付单号
         let invoice_no = self.generate_invoice_no().await?;
 
@@ -286,6 +293,10 @@ impl ApInvoiceService {
             invoice_active.payment_terms = Set(payment_terms);
         }
         if let Some(amount) = req.amount {
+            // P2-4 修复（批次 84 v1 复审）：金额精度校验，最多 2 位小数（货币精度）
+            if amount.round_dp(2) != amount {
+                return Err(AppError::validation("应付单金额精度不能超过 2 位小数"));
+            }
             invoice_active.amount = Set(amount);
             invoice_active.unpaid_amount = Set(amount - original_paid_amount);
         }

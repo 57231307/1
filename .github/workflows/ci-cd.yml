@@ -1351,6 +1351,9 @@ jobs:
     needs: ci-info
     # 批次 21 评估：ci-deps 仅生成 cargo tree / npm ls 依赖图用于记录归档，
     # 属 informational job，保留 continue-on-error 避免依赖图生成异常阻塞主流程。
+    # P3-8 修复（批次 84 v1 复审）：TODO(tech-debt) 后续应移除 job 级 continue-on-error，
+    # 改为对单个非关键 step 使用 if: always() + continue-on-error 精细控制，
+    # 让 cargo tree --locked 失败时能暴露 lockfile 漂移问题。
     continue-on-error: true
     steps:
       - name: 检出代码

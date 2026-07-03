@@ -81,7 +81,7 @@ impl AuditLogService {
     ///
     /// 旧接口（P0 起即存在）：保留以兼容历史调用方。
     #[allow(clippy::too_many_arguments)]
-    #[allow(dead_code, reason = "保留兼容历史调用方")]
+    #[allow(dead_code)] // TODO(tech-debt): 保留兼容历史调用方，后续接入新审计 API 后移除
     pub async fn log_change(
         &self,
         resource_type: &str,

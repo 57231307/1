@@ -40,6 +40,12 @@ export default defineConfig({
     trace: 'off',
     screenshot: 'only-on-failure',
   },
+  // P3-6 修复（批次 84 v1 复审）：文档化"前端独立冒烟测试"策略
+  // 本配置仅启动前端 vite dev server，不启动后端服务，原因：
+  // 1. E2E 测试套件存在已知设计缺陷（v5 报告 11-P0-3/P1），大部分测试依赖后端 API + DB 数据
+  // 2. CI 中启动后端需要 PostgreSQL + 迁移，成本高且与单元测试重叠
+  // 3. 当前 E2E 定位为"前端独立冒烟测试"（页面渲染/路由守卫/表单交互），不覆盖业务流程
+  // TODO(tech-debt): 批次 23 真实测试改造后，改为 webServer 数组同时启动前端 + 后端
   // 自动启动 vite dev server 并等待端口就绪
   // CI 中 reuseExistingServer: false 确保使用全新实例
   // 本地开发时 reuseExistingServer: true 复用已启动的 dev server

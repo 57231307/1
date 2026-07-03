@@ -41,7 +41,7 @@ pub async fn list_prices(
         product_id: params.product_id,
         customer_type: params.customer_type,
         status: params.status,
-        page: params.page.unwrap_or_default(),
+        page: params.page.unwrap_or(1).max(1),
         page_size: params.page_size.unwrap_or(10).clamp(1, 100),
     };
 

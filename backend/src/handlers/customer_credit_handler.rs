@@ -98,7 +98,7 @@ pub async fn list_credits(
         customer_id: params.customer_id,
         credit_level: params.credit_level,
         status: params.status,
-        page: params.page.unwrap_or_default(),
+        page: params.page.unwrap_or(1).max(1),
         page_size: params.page_size.unwrap_or(10).clamp(1, 100),
     };
 
