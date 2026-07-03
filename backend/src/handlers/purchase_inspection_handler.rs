@@ -14,7 +14,7 @@ use axum::{
     extract::{Path, Query, State},
     Json,
 };
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use validator::Validate;
 
 /// 查询采购质检单列表
@@ -128,7 +128,8 @@ pub struct InspectionQueryParams {
 
 /// P1-2i 修复（批次 81 v1 复审）：创建质检明细请求 DTO
 /// 替代 create_inspection_item 中的 Json<serde_json::Value>，提供强类型校验
-#[derive(Debug, Deserialize, Validate)]
+/// 需要 Serialize：handler 将 DTO 序列化为 Value 回显给前端
+#[derive(Debug, Deserialize, Serialize, Validate)]
 pub struct CreateInspectionItemDto {
     /// 产品 ID：必填
     pub product_id: i32,
@@ -146,7 +147,8 @@ pub struct CreateInspectionItemDto {
 
 /// P1-2i 修复（批次 81 v1 复审）：更新质检明细请求 DTO
 /// 替代 update_inspection_item 中的 Json<serde_json::Value>，所有字段可选
-#[derive(Debug, Deserialize, Validate)]
+/// 需要 Serialize：handler 将 DTO 序列化为 Value 回显给前端
+#[derive(Debug, Deserialize, Serialize, Validate)]
 pub struct UpdateInspectionItemDto {
     /// 合格数量：可选
     pub qualified_quantity: Option<rust_decimal::Decimal>,
