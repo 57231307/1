@@ -3,12 +3,22 @@ use axum::{
     Json,
 };
 use serde::{Deserialize, Serialize};
+use validator::Validate;
 
 use crate::middleware::auth_context::AuthContext;
 use crate::utils::admin_checker::is_admin_role;
 use crate::utils::app_state::AppState;
 use crate::utils::error::AppError;
 use crate::utils::response::ApiResponse;
+
+/// P1-2e 修复（批次 81 v1 复审）：解锁账号请求 DTO
+/// 替代 unlock_account 中的 Json<serde_json::Value>，提供强类型校验
+#[derive(Debug, Deserialize, Validate)]
+pub struct UnlockAccountDto {
+    /// 用户名：必填，长度至少 1
+    #[validate(length(min = 1, max = 64, message = "用户名长度必须在1到64字符之间"))]
+    pub username: String,
+}
 
 /// P0 7-1 修复：要求调用者具备 admin 角色，否则拒绝并记录审计日志
 ///
@@ -207,26 +217,26 @@ pub async fn check_lock_status(
 pub async fn unlock_account(
     State(state): State<AppState>,
     auth: AuthContext,
-    Json(params): Json<serde_json::Value>,
+    Json(params): Json<UnlockAccountDto>,
 ) -> Result<Json<ApiResponse<()>>, AppError> {
     // P0 7-1 修复：解锁账号属敏感操作，仅 admin 可执行
     require_admin_role(&state, &auth).await?;
 
-    let username = params
-        .get("username")
-        .and_then(|v| v.as_str())
-        .ok_or_else(|| AppError::bad_request("缺少 username 参数"))?;
+    // P1-2e 修复（批次 81 v1 复审）：强类型 DTO + validator 替代 Json<Value>
+    params
+        .validate()
+        .map_err(|e| AppError::validation(e.to_string()))?;
 
     use crate::models::log_login;
     use sea_orm::{ColumnTrait, EntityTrait, QueryFilter};
 
     log_login::Entity::delete_many()
-        .filter(log_login::Column::Username.eq(username))
+        .filter(log_login::Column::Username.eq(&params.username))
         .filter(log_login::Column::Status.eq("FAILED"))
         .exec(state.db.as_ref())
         .await?;
 
-    tracing::info!("管理员手动解锁账号: {}", username);
+    tracing::info!("管理员手动解锁账号: {}", params.username);
 
     Ok(Json(ApiResponse::success_with_message((), "账号已解锁")))
 }

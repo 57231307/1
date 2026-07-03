@@ -13,6 +13,23 @@ use axum::{
 };
 use serde::{Deserialize, Serialize};
 use tracing::info;
+use validator::Validate;
+
+/// P1-2j 修复（批次 81 v1 复审）：更新固定资产请求 DTO
+/// 替代 update_asset 中的 Json<serde_json::Value>，提供强类型校验
+#[derive(Debug, Deserialize, Validate)]
+pub struct UpdateAssetDto {
+    /// 资产名称：可选
+    #[validate(length(max = 100, message = "资产名称长度不能超过100字符"))]
+    pub asset_name: Option<String>,
+    /// 资产类别：可选
+    #[validate(length(max = 50, message = "资产类别长度不能超过50字符"))]
+    pub asset_category: Option<String>,
+    /// 规格型号：可选
+    pub specification: Option<String>,
+    /// 使用地点：可选
+    pub use_location: Option<String>,
+}
 
 /// 资产查询参数 DTO
 #[derive(Debug, Deserialize)]
@@ -201,9 +218,13 @@ pub async fn update_asset(
     Path(id): Path<i32>,
     State(state): State<AppState>,
     auth: AuthContext,
-    Json(req): Json<serde_json::Value>,
+    Json(req): Json<UpdateAssetDto>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     info!("用户 {} 更新固定资产: ID={}", auth.username, id);
+
+    // P1-2j 修复（批次 81 v1 复审）：强类型 DTO + validator 替代 Json<Value>
+    req.validate()
+        .map_err(|e| AppError::validation(e.to_string()))?;
 
     let service = FixedAssetService::new(state.db.clone());
 
@@ -211,17 +232,17 @@ pub async fn update_asset(
     let mut asset = service.get_by_id(id).await?;
 
     // 更新字段
-    if let Some(name) = req.get("asset_name").and_then(|v| v.as_str()) {
-        asset.asset_name = name.to_string();
+    if let Some(name) = req.asset_name {
+        asset.asset_name = name;
     }
-    if let Some(category) = req.get("asset_category").and_then(|v| v.as_str()) {
-        asset.asset_category = Some(category.to_string());
+    if let Some(category) = req.asset_category {
+        asset.asset_category = Some(category);
     }
-    if let Some(spec) = req.get("specification").and_then(|v| v.as_str()) {
-        asset.specification = Some(spec.to_string());
+    if let Some(spec) = req.specification {
+        asset.specification = Some(spec);
     }
-    if let Some(location) = req.get("use_location").and_then(|v| v.as_str()) {
-        asset.use_location = Some(location.to_string());
+    if let Some(location) = req.use_location {
+        asset.use_location = Some(location);
     }
 
     // 保存更新

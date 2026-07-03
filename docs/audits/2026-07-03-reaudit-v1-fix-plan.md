@@ -58,11 +58,13 @@
 | P1-4c | bpm_service let _ = 静默吞错 | bpm_service.rs:829 | 同上 |
 | P1-15 | failover_service.update_circuit_status 未用事务 | failover_service.rs:233,246 | 合并 P1-4a：用 txn 包裹，失败返回 Err |
 
-### 批次 81：Json<Value> 强类型 DTO 改造（P1，22 处）
+### 批次 81：Json<Value> 强类型 DTO 改造（P1，22 处）✅ 已完成
 
 **主题**：21 个 handler Json<Value> → 强类型 DTO + validator + 金额字段 f64 → Decimal
 **级别**：P1
 **项数**：22
+**修复分支**：`fix/v19-batch81-json-dto-p1`
+**影响范围**：15 文件（15 个 handler）
 
 | # | 问题 | 文件 | 修复 |
 |---|------|------|------|
@@ -139,10 +141,10 @@
 
 | 批次 | 主题 | 级别 | 项数 | 状态 |
 |------|------|------|------|------|
-| 78 | mark_as_paid user_id + delete 事务 | P1 | 2 | 待启动 |
-| 79 | CRUD TOCTOU 修复 | P1 | 8 | 待启动 |
-| 80 | 错误处理修复 | P1 | 4 | 待启动 |
-| 81 | Json<Value> 强类型 DTO 改造 | P1 | 22 | 待启动 |
+| 78 | mark_as_paid user_id + delete 事务 | P1 | 2 | ✅ 已完成 |
+| 79 | CRUD TOCTOU 修复 | P1 | 8 | ✅ 已完成 |
+| 80 | 错误处理修复 | P1 | 4 | ✅ 已完成 |
+| 81 | Json<Value> 强类型 DTO 改造 | P1 | 22 | ✅ 已完成 |
 | 82 | 前端类型清理 + 按钮权限 | P2 | 5 | 待启动 |
 | 83 | 安全一致性 + 测试质量 | P2 | 6 | 待启动 |
 | 84 | P2/P3 杂项清理 | P2/P3 | 14 | 待启动 |

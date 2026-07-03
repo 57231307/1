@@ -7,6 +7,7 @@ use axum::{
     Json,
 };
 use serde::Deserialize;
+use validator::Validate;
 
 use crate::middleware::auth_context::AuthContext;
 use crate::models::dto::crm_dto::{CreateLeadRequest, LeadQuery, UpdateLeadRequest};
@@ -23,6 +24,27 @@ pub struct CustomerQueryParams {
     pub status: Option<String>,
     #[allow(dead_code)] // TODO(tech-debt): 客户查询模块接入业务后移除
     pub keyword: Option<String>,
+}
+
+/// P1-2h 修复（批次 81 v1 复审）：添加标签请求 DTO
+/// 替代 add_tags 中的 Json<serde_json::Value>，提供强类型校验
+#[derive(Debug, Deserialize, Validate)]
+pub struct AddTagsDto {
+    /// 标签列表：必填，至少 1 个标签
+    #[validate(length(min = 1, message = "标签列表不能为空"))]
+    pub tags: Vec<String>,
+}
+
+/// P1-2h 修复（批次 81 v1 复审）：创建标签请求 DTO
+/// 替代 create_tag 中的 Json<serde_json::Value>，提供强类型校验
+#[derive(Debug, Deserialize, Validate)]
+pub struct CreateTagDto {
+    /// 标签名称：必填，长度至少 1
+    #[validate(length(min = 1, max = 30, message = "标签名称长度必须在1到30字符之间"))]
+    pub name: String,
+    /// 颜色：可选，缺失时默认 "#1890ff"
+    #[validate(length(max = 20, message = "颜色长度不能超过20字符"))]
+    pub color: Option<String>,
 }
 
 /// POST /api/v1/erp/crm/customers - 创建客户（通过线索）
@@ -95,22 +117,16 @@ pub async fn add_tags(
     State(state): State<AppState>,
     _auth: AuthContext,
     Path(id): Path<i32>,
-    Json(req): Json<serde_json::Value>,
+    Json(req): Json<AddTagsDto>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
+    // P1-2h 修复（批次 81 v1 复审）：强类型 DTO + validator 替代 Json<Value>
+    req.validate()
+        .map_err(|e| AppError::validation(e.to_string()))?;
+
     let service = CrmService::new(state.db.clone());
 
-    let tags = req
-        .get("tags")
-        .and_then(|v| v.as_array())
-        .map(|arr| {
-            arr.iter()
-                .filter_map(|v| v.as_str().map(|s| s.to_string()))
-                .collect::<Vec<String>>()
-        })
-        .unwrap_or_default();
-
     let update_req = UpdateLeadRequest {
-        tags: Some(tags),
+        tags: Some(req.tags),
         ..Default::default()
     };
 
@@ -165,12 +181,16 @@ pub async fn list_tags(
 pub async fn create_tag(
     _state: State<AppState>,
     _auth: AuthContext,
-    Json(req): Json<serde_json::Value>,
+    Json(req): Json<CreateTagDto>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
+    // P1-2h 修复（批次 81 v1 复审）：强类型 DTO + validator 替代 Json<Value>
+    req.validate()
+        .map_err(|e| AppError::validation(e.to_string()))?;
+
     let tag = serde_json::json!({
         "id": chrono::Utc::now().timestamp(),
-        "name": req.get("name").and_then(|v| v.as_str()).unwrap_or(""),
-        "color": req.get("color").and_then(|v| v.as_str()).unwrap_or("#1890ff"),
+        "name": req.name,
+        "color": req.color.unwrap_or_else(|| "#1890ff".to_string()),
     });
     Ok(Json(ApiResponse::success(tag)))
 }

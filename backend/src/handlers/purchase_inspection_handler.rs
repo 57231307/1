@@ -126,6 +126,37 @@ pub struct InspectionQueryParams {
     pub supplier_id: Option<i32>,
 }
 
+/// P1-2i 修复（批次 81 v1 复审）：创建质检明细请求 DTO
+/// 替代 create_inspection_item 中的 Json<serde_json::Value>，提供强类型校验
+#[derive(Debug, Deserialize, Validate)]
+pub struct CreateInspectionItemDto {
+    /// 产品 ID：必填
+    pub product_id: i32,
+    /// 检验项目名称：必填
+    #[validate(length(min = 1, max = 100, message = "检验项目名称长度必须在1到100字符之间"))]
+    pub item_name: String,
+    /// 合格数量：必填
+    pub qualified_quantity: rust_decimal::Decimal,
+    /// 不合格数量：必填
+    pub unqualified_quantity: rust_decimal::Decimal,
+    /// 备注：可选
+    #[validate(length(max = 500, message = "备注长度不能超过500字符"))]
+    pub remark: Option<String>,
+}
+
+/// P1-2i 修复（批次 81 v1 复审）：更新质检明细请求 DTO
+/// 替代 update_inspection_item 中的 Json<serde_json::Value>，所有字段可选
+#[derive(Debug, Deserialize, Validate)]
+pub struct UpdateInspectionItemDto {
+    /// 合格数量：可选
+    pub qualified_quantity: Option<rust_decimal::Decimal>,
+    /// 不合格数量：可选
+    pub unqualified_quantity: Option<rust_decimal::Decimal>,
+    /// 备注：可选
+    #[validate(length(max = 500, message = "备注长度不能超过500字符"))]
+    pub remark: Option<String>,
+}
+
 // =====================================================
 // 质检明细 Handler
 // =====================================================
@@ -151,8 +182,12 @@ pub async fn create_inspection_item(
     Path(id): Path<i32>,
     State(state): State<AppState>,
     auth: AuthContext,
-    Json(req): Json<serde_json::Value>,
+    Json(req): Json<CreateInspectionItemDto>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
+    // P1-2i 修复（批次 81 v1 复审）：强类型 DTO + validator 替代 Json<Value>
+    req.validate()
+        .map_err(|e| AppError::validation(e.to_string()))?;
+
     let service = PurchaseInspectionService::new(state.db.clone());
     let _inspection = service.get_inspection(id).await?;
 
@@ -161,7 +196,7 @@ pub async fn create_inspection_item(
     Ok(Json(ApiResponse::success_with_message(
         serde_json::json!({
             "inspection_id": id,
-            "item": req
+            "item": serde_json::to_value(&req).unwrap_or(serde_json::Value::Null)
         }),
         "质检明细创建成功",
     )))
@@ -172,8 +207,12 @@ pub async fn update_inspection_item(
     Path((id, item_id)): Path<(i32, i32)>,
     State(state): State<AppState>,
     auth: AuthContext,
-    Json(req): Json<serde_json::Value>,
+    Json(req): Json<UpdateInspectionItemDto>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
+    // P1-2i 修复（批次 81 v1 复审）：强类型 DTO + validator 替代 Json<Value>
+    req.validate()
+        .map_err(|e| AppError::validation(e.to_string()))?;
+
     let service = PurchaseInspectionService::new(state.db.clone());
     let _inspection = service.get_inspection(id).await?;
 
@@ -183,7 +222,7 @@ pub async fn update_inspection_item(
         serde_json::json!({
             "inspection_id": id,
             "item_id": item_id,
-            "updated": req
+            "updated": serde_json::to_value(&req).unwrap_or(serde_json::Value::Null)
         }),
         "质检明细更新成功",
     )))
