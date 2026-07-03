@@ -17,19 +17,19 @@
 // - 消费时校验 token 绑定的 IP 与请求 IP 是否一致；不一致返回 403 + 业务码
 //   `CSRF_IP_MISMATCH`。IP 来源：X-Real-IP → X-Forwarded-For → ConnectInfo → "unknown"。
 
+use crate::middleware::audit_context::extract_client_ip as extract_client_ip_helper;
 use crate::middleware::public_routes::is_public_path;
 use crate::utils::app_state::AppState;
 use crate::utils::cache::CsrfConsumeResult;
 use axum::{
     body::Body,
-    extract::{ConnectInfo, State},
+    extract::State,
     http::{Method, Request, StatusCode},
     middleware::Next,
     response::{IntoResponse, Response},
     Json,
 };
 use serde_json::json;
-use std::net::SocketAddr;
 
 /// CSRF 请求头名称（小写形式，对应 HTTP/2 规范）
 const CSRF_HDR_NAME: &str = "x-csrf-token";
@@ -54,35 +54,15 @@ const CSRF_IP_MISMATCH_MSG: &str = "CSRF Token IP 不匹配";
 
 /// 从请求中提取客户端 IP（Wave 3 #7）
 ///
-/// 优先级与 [crate::middleware::audit_context::extract_ip] 一致：
-/// X-Real-IP → X-Forwarded-For（取首段）→ ConnectInfo(SocketAddr) → "unknown"。
+/// P3 维度 12 修复（批次 87）：复用 audit_context::extract_client_ip helper，
+/// 消除重复实现。原内部三级降级链（X-Real-IP → X-Forwarded-For → ConnectInfo → unknown）
+/// 已提取为公开 helper，本函数仅作转发保留以减少调用方改动。
+///
 /// 失败时的"unknown"与 [cache::consume_csrf_token] 的 IP 比对语义：
 /// 若登录时也是 unknown（无 IP header 场景），则能正常消费；
 /// 若登录时有 IP 但消费时 unknown，则触发 IP 不匹配（符合预期：IP 失配即拒绝）。
 fn extract_client_ip(request: &Request<Body>) -> String {
-    let headers = request.headers();
-    if let Some(real_ip) = headers
-        .get("x-real-ip")
-        .and_then(|v| v.to_str().ok())
-        .filter(|s| !s.is_empty())
-    {
-        return real_ip.to_string();
-    }
-    if let Some(forwarded) = headers
-        .get("x-forwarded-for")
-        .and_then(|v| v.to_str().ok())
-    {
-        if let Some(first) = forwarded.split(',').next() {
-            let trimmed = first.trim();
-            if !trimmed.is_empty() {
-                return trimmed.to_string();
-            }
-        }
-    }
-    if let Some(ConnectInfo(addr)) = request.extensions().get::<ConnectInfo<SocketAddr>>() {
-        return addr.ip().to_string();
-    }
-    "unknown".to_string()
+    extract_client_ip_helper(request)
 }
 
 /// CSRF 验证中间件

@@ -9,7 +9,7 @@
 
 use chrono::{Duration, NaiveDate, Utc};
 use rust_decimal::prelude::ToPrimitive;
-use sea_orm::{ColumnTrait, EntityTrait, QueryFilter};
+use sea_orm::{ColumnTrait, EntityTrait, QueryFilter, QuerySelect};
 use std::collections::HashMap;
 
 use crate::models::inventory_stock::Entity as InventoryStockEntity;
@@ -115,7 +115,11 @@ impl AiAnalysisService {
         }
 
         // --- 库存异常检测 (IQR 方法) ---
-        let all_stocks = InventoryStockEntity::find().all(&*self.db).await?;
+        // P3 维度 6 修复（批次 87）：补 LIMIT 兜底防止全表加载 OOM
+        let all_stocks = InventoryStockEntity::find()
+            .limit(10_000)
+            .all(&*self.db)
+            .await?;
 
         // 收集所有库存量用于 IQR 计算
         let stock_quantities: Vec<f64> = all_stocks

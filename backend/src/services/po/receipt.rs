@@ -329,13 +329,14 @@ impl PurchaseOrderService {
         }
 
         // 4. 创建明细
+        // P3 维度 4 修复（批次 87）：金额计算补 round_dp(2) 精度归一化
         let quantity_ordered = req.quantity_ordered.unwrap_or(Decimal::ZERO);
         let unit_price = req.unit_price.unwrap_or(Decimal::ZERO);
-        let amount = quantity_ordered * unit_price;
+        let amount = (quantity_ordered * unit_price).round_dp(2);
         let tax_percent = req.tax_rate.unwrap_or(Decimal::new(13, 2));
-        let tax_amount = amount * tax_percent / Decimal::new(100, 0);
+        let tax_amount = (amount * tax_percent / Decimal::new(100, 0)).round_dp(2);
         let discount_percent = req.discount_percent.unwrap_or(Decimal::ZERO);
-        let discount_amount = amount * discount_percent / Decimal::new(100, 0);
+        let discount_amount = (amount * discount_percent / Decimal::new(100, 0)).round_dp(2);
         let quantity_alt_ordered = req.quantity_alt_ordered.unwrap_or(Decimal::ZERO);
 
         let item = purchase_order_item::ActiveModel {

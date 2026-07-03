@@ -58,14 +58,26 @@
         <el-table-column prop="updated_at" label="更新时间" width="180" />
         <el-table-column label="操作" width="280" fixed="right">
           <template #default="{ row }">
-            <el-button type="primary" link size="small" @click="handleEdit(row as any)"
+            <!-- P3 维度 10 修复（批次 87）：编辑/复制/设默认/删除按钮补齐 v-permission -->
+            <el-button
+              v-permission="'bom:update'"
+              type="primary"
+              link
+              size="small"
+              @click="handleEdit(row as any)"
               >编辑</el-button
             >
-            <el-button type="primary" link size="small" @click="handleCopy(row as any)"
+            <el-button
+              v-permission="'bom:create'"
+              type="primary"
+              link
+              size="small"
+              @click="handleCopy(row as any)"
               >复制</el-button
             >
             <el-button
               v-if="!row.is_default"
+              v-permission="'bom:update'"
               type="success"
               link
               size="small"
@@ -73,7 +85,12 @@
             >
               设为默认
             </el-button>
-            <el-button type="danger" link size="small" @click="handleDelete(row as any)"
+            <el-button
+              v-permission="'bom:delete'"
+              type="danger"
+              link
+              size="small"
+              @click="handleDelete(row as any)"
               >删除</el-button
             >
           </template>

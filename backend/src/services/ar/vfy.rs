@@ -46,7 +46,8 @@ impl ArReconciliationService {
                 .await?
                 .ok_or_else(|| AppError::not_found(format!("客户 {} 不存在", cid)))?]
         } else {
-            customer::Entity::find().all(&txn).await?
+            // P3 维度 6 修复（批次 87）：补 LIMIT 兜底防止全表加载
+            customer::Entity::find().limit(10_000).all(&txn).await?
         };
 
         // v11 批次 38 修复：批量预加载所有客户的发票和收款，避免循环内按客户逐个查询（N+1，3N 次查询）

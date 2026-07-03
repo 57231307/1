@@ -12,7 +12,8 @@ mod services;
 mod utils;
 mod websocket; // P3-2 WebSocket 实时通信（lib crate bingxi_backend::websocket 的镜像引用）
 
-use axum::extract::ConnectInfo;
+// P3 维度 12 CI 修复：TraceLayer 改用 audit_context::extract_client_ip 后，
+// ConnectInfo 不再在 main.rs 中直接使用（omni_audit.rs 各自导入）
 use axum::extract::DefaultBodyLimit;
 use axum::http::{HeaderValue, Method, Request};
 use axum::{
@@ -511,34 +512,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 .layer(
                     TraceLayer::new_for_http()
                         .on_request(|request: &Request<_>, _span: &Span| {
-                            // P2-19 修复（批次 86 v2 复审）：IP 提取优先级对齐 audit_context
-                            // 原顺序 X-Forwarded-For → X-Real-IP（可被客户端伪造）
-                            // 统一为：X-Real-IP → X-Forwarded-For(first, trim) → ConnectInfo → "unknown"
-                            let h = request.headers();
-                            let client_ip = h
-                                .get("x-real-ip")
-                                .and_then(|v| v.to_str().ok())
-                                .filter(|s| !s.is_empty())
-                                .map(|s| s.to_string())
-                                .or_else(|| {
-                                    h.get("x-forwarded-for")
-                                        .and_then(|v| v.to_str().ok())
-                                        .and_then(|forwarded| {
-                                            forwarded
-                                                .split(',')
-                                                .next()
-                                                .map(|first| first.trim())
-                                                .filter(|s| !s.is_empty())
-                                                .map(|s| s.to_string())
-                                        })
-                                })
-                                .or_else(|| {
-                                    request
-                                        .extensions()
-                                        .get::<ConnectInfo<SocketAddr>>()
-                                        .map(|ci| ci.0.ip().to_string())
-                                })
-                                .unwrap_or_else(|| "unknown".to_string());
+                            // P3 维度 12 修复（批次 87）：复用 audit_context::extract_client_ip helper，
+                            // 消除 IP 提取逻辑重复（原批次 86 内联实现 30 行 → 单行 helper 调用）
+                            let client_ip =
+                                crate::middleware::audit_context::extract_client_ip(request);
                             let user_agent = request
                                 .headers()
                                 .get("user-agent")

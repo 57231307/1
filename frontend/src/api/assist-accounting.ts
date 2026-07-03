@@ -16,10 +16,11 @@ export interface AssistDimension {
   type: string
 }
 
+// P3 维度 9 修复（批次 87）：索引签名 any → unknown
 export interface AssistDimensionResponse {
   dimension_code: string
   dimension_name: string
-  [key: string]: any
+  [key: string]: unknown
 }
 
 export interface AssistRecordResponse {
@@ -29,14 +30,14 @@ export interface AssistRecordResponse {
   dimension_code: string
   business_type: string
   amount: number
-  [key: string]: any
+  [key: string]: unknown
 }
 
 export interface AssistSummaryResponse {
   dimension_code: string
   dimension_name: string
   total_amount: number
-  [key: string]: any
+  [key: string]: unknown
 }
 
 // P2-9c 修复（批次 82 v1 复审）：辅助核算维度列表查询参数强类型化

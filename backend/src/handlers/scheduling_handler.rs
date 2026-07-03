@@ -332,11 +332,10 @@ pub async fn adjust_schedule_task(
 
     // 返回前端期望的 ScheduleTask 形态（id/order_no/start_time/end_time）
     let format_date = |d: chrono::NaiveDate| -> String {
-        // from_hms_opt 仅在小时/分钟/秒不合法时返回 None；常量 (0,0,0) 必然成功，使用 unwrap 等价于
-        // "把已知合法的时间转换为 NaiveDateTime"，遇到非法值会 panic 是合理行为。
-        // 保留 unwrap 是为了在 P9-1 阶段不破坏既有返回逻辑；同时此处已有等价 unwrap_or 兜底版本，详见 format_date_safe。
-        let time = chrono::NaiveTime::from_hms_opt(0, 0, 0)
-            .expect("P9-1: 时间常量 (0,0,0) 始终合法，解析失败需立即排查");
+        // P3 维度 3 修复（批次 87）：消除 expect panic，常量 (0,0,0) 必然合法，用 unwrap_or_default 兜底
+        // CI 修复：用 unwrap_or_default 替代 unwrap_or_else(T::default)（clippy::unwrap_or_default 建议）
+        let time =
+            chrono::NaiveTime::from_hms_opt(0, 0, 0).unwrap_or_default();
         chrono::NaiveDateTime::new(d, time)
             .and_utc()
             .to_rfc3339()

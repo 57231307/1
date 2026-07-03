@@ -80,18 +80,19 @@ impl CostCollectionService {
             + req.dyeing_fee;
 
         // 计算单位成本
+        // P3 维度 4 修复（批次 87）：单位成本补 round_dp(2) 精度归一化
         let unit_cost_meters = req.output_quantity_meters.as_ref().and_then(|q| {
             if q.is_zero() {
                 None
             } else {
-                Some(total_cost / *q)
+                Some((total_cost / *q).round_dp(2))
             }
         });
         let unit_cost_kg = req.output_quantity_kg.as_ref().and_then(|q| {
             if q.is_zero() {
                 None
             } else {
-                Some(total_cost / *q)
+                Some((total_cost / *q).round_dp(2))
             }
         });
 

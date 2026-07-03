@@ -149,7 +149,8 @@ impl RoleService {
     }
 
     /// 获取所有角色（不分页）
+    /// P3 维度 6 修复（批次 87）：补 LIMIT 兜底防止全表加载
     pub async fn get_all_roles(&self) -> Result<Vec<role::Model>, AppError> {
-        role::Entity::find().all(&*self.db).await
+        role::Entity::find().limit(10_000).all(&*self.db).await
     }
 }

@@ -197,7 +197,11 @@ impl FinancialAnalysisService {
             .await?;
 
         // 获取所有科目信息
-        let subjects = account_subject::Entity::find().all(&*self.db).await?;
+        // P3 维度 6 修复（批次 87）：补 LIMIT 兜底防止全表加载
+        let subjects = account_subject::Entity::find()
+            .limit(10_000)
+            .all(&*self.db)
+            .await?;
 
         // 构建科目 ID -> 科目信息的映射
         let subject_map: std::collections::HashMap<i32, &account_subject::Model> =
@@ -375,7 +379,8 @@ impl FinancialAnalysisService {
                         period,
                         indicator.id,
                         value,
-                        Some(Decimal::try_new(60, 2).unwrap()), // 目标值 60%
+                        // P3 维度 3 修复（批次 87）：消除 unwrap panic 风险，直接用 new 构造（scale=2 在合法范围）
+                        Some(Decimal::new(60, 2)), // 目标值 60%
                         user_id,
                     )
                     .await?;

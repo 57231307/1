@@ -21,7 +21,36 @@
 
 ---
 
-## 当前任务状态（2026-07-02 批次 70 完成 - v19 P2 超长函数拆分）
+## 当前任务状态（2026-07-03 批次 86 完成 - v2 复审 P2 加固）
+
+### ✅ 批次 86 完成：v2 复审 P2 加固 + 前端占位符补全（19 项 + 2 扩展）
+
+**修复分支**：`fix/v19-batch86-p2-hardening`（已合并删除）
+**合并 commit**：`df8c424d`（PR #329 squash merge，CI 12/13 全绿，E2E continue-on-error）
+**main HEAD**：`df8c424d`
+
+**v2 复审批次进度**（基线 `docs/audits/2026-07-03-reaudit-v2.md`，56 项）：
+- 批次 85（✅）：P1×9 事务边界 TOCTOU + 并发竞态 → main `10f661d`
+- 批次 86（✅）：P2×19 加固（lock_exclusive + 精度 + N+1 + 前端 + 安全）+ 前端占位符 EX-1/EX-2 → main `df8c424d`
+- 批次 87（待启动）：P3×28 清理（错误处理 + 金额 + LIMIT + 测试 + IP 提取）
+- 批次 88（待启动）：占位符 PH-1/PH-2/PH-3（需 schema 变更）
+
+**批次 86 关键修复**：
+1. P2-1~P2-9：9 处 update/delete 加 lock_exclusive 串行化（role_service / ar_invoice / ap_invoice / ap_payment_request / customer_credit_limit / fixed_asset delete）
+2. P2-10/P2-11：金额精度校验（ar_invoice round_dp(2) + sales_fabric_order DTO f64→Decimal）
+3. P2-12/P2-13：ai/rec.rs 全表加载补 LIMIT 10_000
+4. P2-14~P2-16：前端 8 个 API 文件 `ApiResponse<any>` → 显式接口
+5. P2-17：22 个 .vue 文件编辑/删除按钮补齐 v-permission（含 PrdTbl.vue h() 渲染函数用 `can()` 辅助函数替代）
+6. P2-18：inventory-store.test.ts 6 处 `as any` → 显式类型断言
+7. P2-19：main.rs TraceLayer IP 提取优先级对齐 audit_context（X-Real-IP → X-Forwarded-For → ConnectInfo）
+8. EX-1：sales-ext/tabs/PriceTab.vue 占位符补全为完整编辑对话框
+9. EX-2：sales-ext/tabs/ReturnTab.vue 占位符补全为完整编辑对话框
+
+**用户扩展指令（2026-07-03）**：修复过程中遇到的占位符功能需全部实现，未接入功能/中间件需真实接入，未完善功能需评估完善，全部纳入复审计划。
+
+---
+
+## 历史任务状态（2026-07-02 批次 70 完成 - v19 P2 超长函数拆分）
 
 ### ✅ 批次 70 完成：超长函数拆分（1-4/1-5/1-6/1-7/1-8）
 
