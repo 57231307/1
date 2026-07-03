@@ -53,7 +53,7 @@ export function useArRec() {
     try {
       const res: any = await getAutoReconciliationResults({
         page: pagination.value.page,
-        pageSize: pagination.value.pageSize,
+        page_size: pagination.value.pageSize,
         customer_name: searchForm.value.customer_name || undefined,
         status: searchForm.value.match_status || undefined,
         start_date: searchForm.value.start_date || undefined,
@@ -122,7 +122,7 @@ export function useArRec() {
     try {
       const res: any = await getCustomerConfirmations({
         page: 1,
-        pageSize: 20,
+        page_size: 20,
       })
       confirmData.value = res.data?.list || []
       confirmTotal.value = res.data?.total || 0

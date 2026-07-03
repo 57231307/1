@@ -78,6 +78,10 @@ export interface AutoReconResultQueryParams {
   page_size?: number
   task_id?: number
   match_status?: string
+  customer_name?: string
+  status?: string
+  start_date?: string
+  end_date?: string
 }
 
 // P2-9c 修复（批次 82 v1 复审）：客户确认列表查询参数强类型化

@@ -36,6 +36,7 @@ export interface ArReconciliationQueryParams {
   page_size?: number
   keyword?: string
   customer_id?: number
+  customer_name?: string
   status?: string
   start_date?: string
   end_date?: string

@@ -53,6 +53,7 @@ export interface AssistRecordQueryParams {
   dimension_code?: string
   business_type?: string
   accounting_period?: string
+  warehouse_id?: number
 }
 
 // P2-9c 修复（批次 82 v1 复审）：辅助核算汇总查询参数强类型化

@@ -38,15 +38,9 @@ export interface ReceiptItem {
   remark?: string
 }
 
-// P2-9c 修复（批次 82 v1 复审）：采购入库列表查询参数强类型化
-export interface PurchaseReceiptQueryParams {
-  page?: number
-  page_size?: number
-  keyword?: string
-  supplier_id?: number
-  warehouse_id?: number
-  status?: string
-}
+// P2-9c 修复（批次 82 v1 复审）：PurchaseReceiptQueryParams 已在 purchase.ts 定义，此处复用避免重复导出
+import type { PurchaseReceiptQueryParams } from './purchase'
+export type { PurchaseReceiptQueryParams }
 
 export function listPurchaseReceipts(params?: PurchaseReceiptQueryParams) {
   return request.get<ApiResponse<{ list: PurchaseReceiptEntity[]; total: number }>>(

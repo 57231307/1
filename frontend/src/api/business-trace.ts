@@ -34,6 +34,9 @@ export interface TraceQueryParams {
   business_type?: string
   business_id?: number
   five_dimension_id?: number
+  supplier_id?: number
+  customer_id?: number
+  batch_no?: string
 }
 
 export const getTraceByFiveDimension = (fiveDimensionId: number | string) =>

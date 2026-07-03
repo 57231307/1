@@ -129,7 +129,7 @@ const fetchBatches = async () => {
   try {
     const res = (await listBatches({
       page: pagination.page,
-      pageSize: pagination.pageSize,
+      page_size: pagination.pageSize,
       ...queryParams,
     })) as unknown as { data?: { list?: InventoryBatch[]; total?: number } }
     const d = res.data

@@ -80,7 +80,7 @@ const loadData = async () => {
   try {
     const res: any = await listArReconciliations({
       page: pagination.value.page,
-      pageSize: pagination.value.pageSize,
+      page_size: pagination.value.pageSize,
       ...searchForm.value,
     })
     tableData.value = res.data!.list

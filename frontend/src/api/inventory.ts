@@ -132,6 +132,7 @@ export interface InventoryReportSummary {
   warehouse_count: number
   product_count: number
   low_stock_count: number
+  alert_count: number
 }
 
 export interface InventoryReportDetail {

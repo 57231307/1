@@ -42,7 +42,7 @@ export function useArDisp(loadData: () => Promise<void>) {
     }
     disputes.value = []
     try {
-      const res: any = await getDisputes({ page: 1, pageSize: 10 })
+      const res: any = await getDisputes({ page: 1, page_size: 10 })
       disputes.value = res.data?.list || []
       disputesTotal.value = res.data?.total || 0
     } catch {
