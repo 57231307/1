@@ -132,6 +132,23 @@
 | 98 | P2 修复（v5 复审：分页 clamp 100+处/金额精度校验抽取/吞错改日志/前端 any 清理 113 处）+ 3 条 CI 修复 | P2 | 30+ | ✅ 已完成（main `e7fb8ee`，PR #342） |
 | 99 | P3 修复（v5 复审：占位模块清理 3 处 + dead_code TODO 评估 8 文件 23 处，删除 1 处真死代码）| P3 | 4 | ✅ 已完成（main `4761359`，PR #343） |
 | 100 | P3-A 修复（v5 复审：状态字符串常量化 4 文件 70 处，新增 status.rs 3 模块 14 常量）| P3 | 1 | ✅ 已完成（main `61e2da2`，PR #344） |
+| 101 | v6 P2 修复（customer TOCTOU + purchase_return/receipt 审计 user_id + finance_invoice 状态门）| P2 | 7 | ✅ 已完成（main `835b990`，PR #345） |
+
+### v6 第六轮复审结果（2026-07-04）
+
+**复审维度 1-4**：TOCTOU / 死代码 / 占位符 / 错误处理
+- v5 修复验证通过，无回归
+- 新发现 7 P2（✅ 批次 101 已修复）+ 10 P3（⏳ 待修复）
+
+### 批次 101 详细修复项（v6 第六轮复审 P2）
+
+| # | 文件 | 修复 |
+|---|------|------|
+| P2-1/P2-2 | customer_service.rs | update_customer + delete_customer 改为事务+锁+审计（begin txn + lock_exclusive + update_with_audit + commit），新增 user_id 参数 |
+| P2-3/P2-4/P2-5 | purchase_return_service.rs | update_item/delete/update_return_totals 3 处 `Some(0)` → `Some(user_id)`，5 方法签名新增 user_id 参数 |
+| P2-6 | purchase_receipt_service.rs | calculate_receipt_total_txn 的 `Some(0)` → `Some(user_id)`，3 处内部调用方补传 |
+| P2-7 | finance_invoice_service.rs | approve_invoice 添加状态门（status != "pending" 拒绝重复审批） |
+| 配套 | customer_handler.rs / purchase_return_handler.rs | 调用方补传 auth.user_id |
 
 ### 批次 99 详细修复项（v5 第五轮复审 P3 — 部分修复）
 

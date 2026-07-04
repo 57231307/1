@@ -62,6 +62,89 @@ pub mod payment {
     pub const PAYMENT_PARTIAL_PAID: &str = "PARTIAL_PAID";
 }
 
+/// 应收账款专属状态常量（批次 102 v6 P3-1 修复）
+///
+/// ar_service.rs 中三类模型的状态字段值：
+/// - ar_collection.status：小写（pending/confirmed/cancelled）
+/// - ar_reconciliation.reconciliation_status：大写（COMPLETED/CANCELLED）
+/// - ar_reconciliation_item.match_status：大写（MATCHED）
+///
+/// ar_invoice.status 复用 common::STATUS_* 与 payment::PAYMENT_*（与 ar_invoice_service.rs 保持一致）
+pub mod ar {
+    /// 收款单待确认（ar_collection.status，小写值）
+    pub const COLLECTION_PENDING: &str = "pending";
+
+    /// 收款单已确认（ar_collection.status，小写值）
+    pub const COLLECTION_CONFIRMED: &str = "confirmed";
+
+    /// 收款单已取消（ar_collection.status，小写值）
+    ///
+    /// 预留：ar_service.rs 当前未实现收款单取消操作，待后续接入 cancel_collection 方法时使用。
+    #[allow(dead_code)] // TODO(tech-debt): ar_service 接入收款单取消操作后移除
+    pub const COLLECTION_CANCELLED: &str = "cancelled";
+
+    /// 核销单已完成（ar_reconciliation.reconciliation_status，大写值）
+    pub const RECONCILIATION_COMPLETED: &str = "COMPLETED";
+
+    /// 核销单已取消（ar_reconciliation.reconciliation_status，大写值）
+    pub const RECONCILIATION_CANCELLED: &str = "CANCELLED";
+
+    /// 核销明细已匹配（ar_reconciliation_item.match_status，大写值）
+    pub const MATCH_MATCHED: &str = "MATCHED";
+}
+
+/// 应付发票专属状态常量（批次 102 v6 P3-2 修复）
+///
+/// ap_invoice.invoice_status 字段值（大写）：
+/// - DRAFT：草稿（与 common::STATUS_DRAFT 同值，但语义独立，单独定义便于维护）
+/// - AUDITED：已审核（ap_invoice 专属，非通用审批状态）
+/// - PAID：已付款（与 payment::PAYMENT_PAID 同值）
+/// - PARTIAL_PAID：部分付款（与 payment::PAYMENT_PARTIAL_PAID 同值）
+/// - CANCELLED：已取消（与 common::STATUS_CANCELLED 同值）
+///
+/// 复用策略：DRAFT/PAID/PARTIAL_PAID/CANCELLED 直接引用 common/payment 模块常量，
+/// 仅 AUDITED 在本模块单独定义。
+pub mod ap_invoice {
+    /// 已审核（ap_invoice 专属状态，区别于通用 APPROVED）
+    pub const INVOICE_AUDITED: &str = "AUDITED";
+}
+
+/// 应付付款申请专属审批状态常量（批次 102 v6 P3-3 修复）
+///
+/// ap_payment_request.approval_status 字段值（大写）：
+/// - DRAFT：草稿（与 common::STATUS_DRAFT 同值，复用）
+/// - APPROVING：审批中（ap_payment_request 专属）
+/// - APPROVED：已审批（与 common::STATUS_APPROVED 同值，复用）
+/// - REJECTED：已拒绝（与 approval::REJECTED 同值，但 approval 模块为 dead_code，
+///   此处单独定义避免依赖 dead_code 模块）
+pub mod ap_payment_request {
+    /// 审批中（ap_payment_request 专属状态）
+    pub const APPROVAL_APPROVING: &str = "APPROVING";
+
+    /// 已拒绝（避免依赖 dead_code 的 approval::REJECTED，单独定义）
+    pub const APPROVAL_REJECTED: &str = "REJECTED";
+}
+
+/// 凭证状态常量（批次 102 v6 P3-1 修复）
+///
+/// voucher.status 字段值（小写，凭证专属状态机）：
+/// draft → submitted → reviewed → posted
+///
+/// 注意：与 ar_invoice / ap_invoice 的大写状态值不同，凭证全部用小写。
+pub mod voucher {
+    /// 草稿：凭证初始状态，可编辑
+    pub const VOUCHER_DRAFT: &str = "draft";
+
+    /// 已提交：等待审核
+    pub const VOUCHER_SUBMITTED: &str = "submitted";
+
+    /// 已审核：审核通过，等待过账
+    pub const VOUCHER_REVIEWED: &str = "reviewed";
+
+    /// 已过账：已记入账簿，不可再修改
+    pub const VOUCHER_POSTED: &str = "posted";
+}
+
 // 采购订单状态（历史模块，待业务接入后逐项移除 allow）
 #[allow(dead_code)] // TODO(tech-debt): 业务代码当前用字符串字面量，未来应统一引用此常量
 pub mod purchase_order {

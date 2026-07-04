@@ -25,6 +25,12 @@ use tracing::info;
 use crate::models::{ar_collection, ar_invoice, ar_reconciliation, ar_reconciliation_item};
 use crate::utils::error::AppError;
 
+// 批次 102 v6 P3-1 修复：状态字符串常量化，引用 crate::models::status
+// - ar_collection.status（小写）→ ar::COLLECTION_*
+// - ar_reconciliation.reconciliation_status（大写）→ ar::RECONCILIATION_*
+// - ar_reconciliation_item.match_status（大写 MATCHED）→ ar::MATCH_MATCHED
+// - ar_invoice.status（大写）→ 复用 common::STATUS_* / payment::PAYMENT_*（与 ar_invoice_service.rs 一致）
+
 /// 应收账款服务
 pub struct ArService {
     db: Arc<DatabaseConnection>,
@@ -141,7 +147,7 @@ impl ArService {
             collection_amount: Set(amount),
             collection_method: Set(Some(payment_method)),
             bank_account: Set(bank_account),
-            status: Set("pending".to_string()),
+            status: Set(crate::models::status::ar::COLLECTION_PENDING.to_string()),
             created_by: Set(user_id),
             created_at: Set(now),
             updated_at: Set(now),
@@ -176,7 +182,7 @@ impl ArService {
                 let invoice = invoice_map.get(&inv_id).ok_or_else(|| {
                     AppError::not_found(format!("应收单 {} 不存在", inv_id))
                 })?;
-                if invoice.status == "CANCELLED" {
+                if invoice.status == crate::models::status::common::STATUS_CANCELLED {
                     return Err(AppError::bad_request(format!(
                         "应收单 {} 已取消，无法关联收款",
                         inv_id
@@ -195,9 +201,9 @@ impl ArService {
                 let new_received = invoice.received_amount + allocate;
                 let new_unpaid = (invoice.invoice_amount - new_received).max(Decimal::ZERO);
                 let new_status = if new_unpaid == Decimal::ZERO {
-                    "PAID".to_string()
+                    crate::models::status::payment::PAYMENT_PAID.to_string()
                 } else if new_received > Decimal::ZERO {
-                    "PARTIAL_PAID".to_string()
+                    crate::models::status::payment::PAYMENT_PARTIAL_PAID.to_string()
                 } else {
                     invoice.status.clone()
                 };
@@ -264,7 +270,7 @@ impl ArService {
             .await?
             .ok_or_else(|| AppError::not_found(format!("收款单 {} 不存在", payment_id)))?;
 
-        if collection.status != "pending" {
+        if collection.status != crate::models::status::ar::COLLECTION_PENDING {
             return Err(AppError::bad_request(
                 "非 pending 状态的收款单不可修改",
             ));
@@ -311,7 +317,7 @@ impl ArService {
             .await?
             .ok_or_else(|| AppError::not_found(format!("收款单 {} 不存在", payment_id)))?;
 
-        if collection.status != "pending" {
+        if collection.status != crate::models::status::ar::COLLECTION_PENDING {
             return Err(AppError::bad_request(format!(
                 "收款单状态为 {}，仅 pending 状态可确认",
                 collection.status
@@ -319,7 +325,7 @@ impl ArService {
         }
 
         let mut active: ar_collection::ActiveModel = collection.into();
-        active.status = Set("confirmed".to_string());
+        active.status = Set(crate::models::status::ar::COLLECTION_CONFIRMED.to_string());
         active.confirmed_by = Set(Some(user_id));
         active.confirmed_at = Set(Some(Utc::now()));
         active.updated_at = Set(Utc::now());
@@ -435,7 +441,7 @@ impl ArService {
 
         // 查询所有未核销发票（按客户 + 到期日）
         let invoices = ar_invoice::Entity::find()
-            .filter(ar_invoice::Column::Status.ne("CANCELLED"))
+            .filter(ar_invoice::Column::Status.ne(crate::models::status::common::STATUS_CANCELLED))
             .filter(ar_invoice::Column::UnpaidAmount.gt(Decimal::ZERO))
             .order_by(ar_invoice::Column::CustomerId, Order::Asc)
             .order_by(ar_invoice::Column::DueDate, Order::Asc)
@@ -444,7 +450,7 @@ impl ArService {
 
         // 查询所有已确认未核销收款（按客户 + 日期）
         let payments = ar_collection::Entity::find()
-            .filter(ar_collection::Column::Status.eq("confirmed"))
+            .filter(ar_collection::Column::Status.eq(crate::models::status::ar::COLLECTION_CONFIRMED))
             .order_by(ar_collection::Column::CustomerId, Order::Asc)
             .order_by(ar_collection::Column::CollectionDate, Order::Asc)
             .all(&txn)
@@ -547,7 +553,7 @@ impl ArService {
                     total_invoices: Set(matched_items.iter().map(|(_, a)| *a).sum()),
                     total_collections: Set(matched_items.iter().map(|(_, a)| *a).sum()),
                     closing_balance: Set(Decimal::ZERO),
-                    reconciliation_status: Set(Some("COMPLETED".to_string())),
+                    reconciliation_status: Set(Some(crate::models::status::ar::RECONCILIATION_COMPLETED.to_string())),
                     confirmed_by: Set(Some(user_id)),
                     confirmed_at: Set(Some(now)),
                     created_by: Set(Some(user_id)),
@@ -585,7 +591,7 @@ impl ArService {
                         document_date: Set(Some(inv.invoice_date)),
                         amount: Set(verify_amount),
                         matched_amount: Set(Some(verify_amount)),
-                        match_status: Set("MATCHED".to_string()),
+                        match_status: Set(crate::models::status::ar::MATCH_MATCHED.to_string()),
                         matched_item_id: Set(None),
                         remarks: Set(None),
                         created_at: Set(now),
@@ -605,7 +611,7 @@ impl ArService {
                         document_date: Set(Some(payment.collection_date)),
                         amount: Set(-verify_amount),
                         matched_amount: Set(Some(verify_amount)),
-                        match_status: Set("MATCHED".to_string()),
+                        match_status: Set(crate::models::status::ar::MATCH_MATCHED.to_string()),
                         matched_item_id: Set(None),
                         remarks: Set(None),
                         created_at: Set(now),
@@ -623,9 +629,9 @@ impl ArService {
                     invoice.unpaid_amount =
                         (invoice.invoice_amount - invoice.received_amount).max(Decimal::ZERO);
                     if invoice.unpaid_amount == Decimal::ZERO {
-                        invoice.status = "PAID".to_string();
+                        invoice.status = crate::models::status::payment::PAYMENT_PAID.to_string();
                     } else {
-                        invoice.status = "PARTIAL_PAID".to_string();
+                        invoice.status = crate::models::status::payment::PAYMENT_PARTIAL_PAID.to_string();
                     }
                     let inv_active: ar_invoice::ActiveModel = invoice.clone().into();
                     crate::services::audit_log_service::AuditLogService::update_with_audit::<
@@ -682,7 +688,7 @@ impl ArService {
             .await?
             .ok_or_else(|| AppError::not_found(format!("应收单 {}", invoice_id)))?;
 
-        if invoice.status == "CANCELLED" {
+        if invoice.status == crate::models::status::common::STATUS_CANCELLED {
             return Err(AppError::bad_request("应收单已取消，无法核销"));
         }
         if invoice.unpaid_amount < amount {
@@ -698,7 +704,7 @@ impl ArService {
             .await?
             .ok_or_else(|| AppError::not_found(format!("收款单 {}", payment_id)))?;
 
-        if payment.status != "confirmed" {
+        if payment.status != crate::models::status::ar::COLLECTION_CONFIRMED {
             return Err(AppError::business(format!(
                 "收款单 {} 状态为 {}，未确认不可核销",
                 payment.collection_no, payment.status
@@ -747,7 +753,7 @@ impl ArService {
             total_invoices: Set(amount),
             total_collections: Set(amount),
             closing_balance: Set(Decimal::ZERO),
-            reconciliation_status: Set(Some("COMPLETED".to_string())),
+            reconciliation_status: Set(Some(crate::models::status::ar::RECONCILIATION_COMPLETED.to_string())),
             confirmed_by: Set(Some(user_id)),
             confirmed_at: Set(Some(now)),
             created_by: Set(Some(user_id)),
@@ -768,7 +774,7 @@ impl ArService {
             document_date: Set(Some(invoice.invoice_date)),
             amount: Set(amount),
             matched_amount: Set(Some(amount)),
-            match_status: Set("MATCHED".to_string()),
+            match_status: Set(crate::models::status::ar::MATCH_MATCHED.to_string()),
             matched_item_id: Set(None),
             remarks: Set(remark.clone()),
             created_at: Set(now),
@@ -788,7 +794,7 @@ impl ArService {
             document_date: Set(Some(payment.collection_date)),
             amount: Set(-amount),
             matched_amount: Set(Some(amount)),
-            match_status: Set("MATCHED".to_string()),
+            match_status: Set(crate::models::status::ar::MATCH_MATCHED.to_string()),
             matched_item_id: Set(None),
             remarks: Set(remark),
             created_at: Set(now),
@@ -803,9 +809,9 @@ impl ArService {
         let new_received = invoice.received_amount + amount;
         let new_unpaid = (invoice.invoice_amount - new_received).max(Decimal::ZERO);
         let new_status = if new_unpaid == Decimal::ZERO {
-            "PAID".to_string()
+            crate::models::status::payment::PAYMENT_PAID.to_string()
         } else {
-            "PARTIAL_PAID".to_string()
+            crate::models::status::payment::PAYMENT_PARTIAL_PAID.to_string()
         };
         inv_active.received_amount = Set(new_received);
         inv_active.unpaid_amount = Set(new_unpaid);
@@ -832,7 +838,7 @@ impl ArService {
             "invoice_id": invoice_id,
             "payment_id": payment_id,
             "amount": amount.to_string(),
-            "status": "COMPLETED",
+            "status": crate::models::status::ar::RECONCILIATION_COMPLETED,
             "verified_by": user_id,
             "verified_at": now,
             "invoice_status": new_status,
@@ -855,7 +861,7 @@ impl ArService {
             .await?
             .ok_or_else(|| AppError::not_found(format!("核销单 {} 不存在", verification_id)))?;
 
-        if reconciliation.reconciliation_status.as_deref() != Some("COMPLETED") {
+        if reconciliation.reconciliation_status.as_deref() != Some(crate::models::status::ar::RECONCILIATION_COMPLETED) {
             return Err(AppError::bad_request(format!(
                 "核销单状态为 {:?}，仅 COMPLETED 状态可取消",
                 reconciliation.reconciliation_status
@@ -901,11 +907,11 @@ impl ArService {
                 (invoice.invoice_amount - invoice.received_amount).max(Decimal::ZERO);
             // 状态恢复
             if invoice.received_amount >= invoice.invoice_amount {
-                invoice.status = "PAID".to_string();
+                invoice.status = crate::models::status::payment::PAYMENT_PAID.to_string();
             } else if invoice.received_amount > Decimal::ZERO {
-                invoice.status = "PARTIAL_PAID".to_string();
+                invoice.status = crate::models::status::payment::PAYMENT_PARTIAL_PAID.to_string();
             } else {
-                invoice.status = "APPROVED".to_string();
+                invoice.status = crate::models::status::common::STATUS_APPROVED.to_string();
             }
             let inv_active: ar_invoice::ActiveModel = invoice.clone().into();
             crate::services::audit_log_service::AuditLogService::update_with_audit::<
@@ -918,7 +924,7 @@ impl ArService {
 
         // 更新核销单状态
         let mut rec_active: ar_reconciliation::ActiveModel = reconciliation.into();
-        rec_active.reconciliation_status = Set(Some("CANCELLED".to_string()));
+        rec_active.reconciliation_status = Set(Some(crate::models::status::ar::RECONCILIATION_CANCELLED.to_string()));
         rec_active.confirmed_by = Set(None);
         rec_active.confirmed_at = Set(None);
         rec_active.updated_at = Set(now);
@@ -944,7 +950,7 @@ impl ArService {
         query: serde_json::Value,
     ) -> Result<serde_json::Value, AppError> {
         let mut q = ar_invoice::Entity::find()
-            .filter(ar_invoice::Column::Status.ne("CANCELLED"))
+            .filter(ar_invoice::Column::Status.ne(crate::models::status::common::STATUS_CANCELLED))
             .filter(ar_invoice::Column::UnpaidAmount.gt(Decimal::ZERO));
 
         if let Some(cid) = query.get("customer_id").and_then(|v| v.as_i64()) {
@@ -969,7 +975,7 @@ impl ArService {
         query: serde_json::Value,
     ) -> Result<serde_json::Value, AppError> {
         let mut q = ar_collection::Entity::find()
-            .filter(ar_collection::Column::Status.eq("confirmed"));
+            .filter(ar_collection::Column::Status.eq(crate::models::status::ar::COLLECTION_CONFIRMED));
 
         if let Some(cid) = query.get("customer_id").and_then(|v| v.as_i64()) {
             q = q.filter(ar_collection::Column::CustomerId.eq(cid as i32));
@@ -1021,7 +1027,7 @@ impl ArService {
         customer_id: Option<i32>,
     ) -> Result<serde_json::Value, AppError> {
         let mut q = ar_invoice::Entity::find()
-            .filter(ar_invoice::Column::Status.ne("CANCELLED"));
+            .filter(ar_invoice::Column::Status.ne(crate::models::status::common::STATUS_CANCELLED));
 
         if let Some(cid) = customer_id {
             q = q.filter(ar_invoice::Column::CustomerId.eq(cid));
@@ -1077,7 +1083,7 @@ impl ArService {
         customer_id: Option<i32>,
     ) -> Result<serde_json::Value, AppError> {
         let mut q = ar_invoice::Entity::find()
-            .filter(ar_invoice::Column::Status.ne("CANCELLED"));
+            .filter(ar_invoice::Column::Status.ne(crate::models::status::common::STATUS_CANCELLED));
 
         if let Some(cid) = customer_id {
             q = q.filter(ar_invoice::Column::CustomerId.eq(cid));
@@ -1131,7 +1137,7 @@ impl ArService {
         customer_id: Option<i32>,
     ) -> Result<serde_json::Value, AppError> {
         let mut q = ar_invoice::Entity::find()
-            .filter(ar_invoice::Column::Status.ne("CANCELLED"));
+            .filter(ar_invoice::Column::Status.ne(crate::models::status::common::STATUS_CANCELLED));
 
         if let Some(cid) = customer_id {
             q = q.filter(ar_invoice::Column::CustomerId.eq(cid));
@@ -1185,7 +1191,7 @@ impl ArService {
         customer_id: Option<i32>,
     ) -> Result<serde_json::Value, AppError> {
         let mut q = ar_invoice::Entity::find()
-            .filter(ar_invoice::Column::Status.ne("CANCELLED"))
+            .filter(ar_invoice::Column::Status.ne(crate::models::status::common::STATUS_CANCELLED))
             .filter(ar_invoice::Column::UnpaidAmount.gt(Decimal::ZERO));
 
         if let Some(cid) = customer_id {

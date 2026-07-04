@@ -15,6 +15,8 @@ use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use validator::Validate;
 
+// 批次 102 v6 P3-2 修复：状态字符串常量化，引用 crate::models::status
+
 /// 默认本位币汇率（CNY 本位币 = 1.0）。
 ///
 /// 历史缺陷（P0-1，2026-06-25 综合审计）：自动生成 AP 发票时曾误用
@@ -100,7 +102,7 @@ impl ApInvoiceService {
             // 经 approve 流程审核后转 AUDITED 才能进入付款环节。
             // 原 PENDING 状态不在 approve 状态机枚举内（仅 DRAFT→AUDITED），
             // 导致自动生成的应付单死锁在 PENDING 永远无法审批。
-            invoice_status: Set("DRAFT".to_string()),
+            invoice_status: Set(crate::models::status::common::STATUS_DRAFT.to_string()),
             currency: Set(crate::constants::DEFAULT_CURRENCY.to_string()),
             exchange_rate: Set(DEFAULT_BASE_CURRENCY_EXCHANGE_RATE),
             // P1-10 修复：tax_amount 应从源单据税额传递。
@@ -182,7 +184,7 @@ impl ApInvoiceService {
             // 原 unpaid_amount: Set(amount) 导致待支付金额为负数，业务语义错误。
             unpaid_amount: Set(Decimal::ZERO),
             // P0 3-1 修复：初始为 DRAFT，经 approve 流程审核后转 AUDITED
-            invoice_status: Set("DRAFT".to_string()),
+            invoice_status: Set(crate::models::status::common::STATUS_DRAFT.to_string()),
             currency: Set(crate::constants::DEFAULT_CURRENCY.to_string()),
             exchange_rate: Set(DEFAULT_BASE_CURRENCY_EXCHANGE_RATE),
             // P1-10 修复：从退货单明细汇总税额（负数红字）
@@ -236,7 +238,7 @@ impl ApInvoiceService {
             amount: Set(req.amount.unwrap_or(Decimal::ZERO)),
             paid_amount: Set(Decimal::ZERO),
             unpaid_amount: Set(req.amount.unwrap_or(Decimal::ZERO)),
-            invoice_status: Set("DRAFT".to_string()),
+            invoice_status: Set(crate::models::status::common::STATUS_DRAFT.to_string()),
             currency: Set(req.currency.unwrap_or_else(|| crate::constants::DEFAULT_CURRENCY.to_string())),
             exchange_rate: Set(req.exchange_rate.unwrap_or(DEFAULT_BASE_CURRENCY_EXCHANGE_RATE)),
             tax_amount: Set(req.tax_amount.unwrap_or(Decimal::ZERO)),
@@ -272,7 +274,7 @@ impl ApInvoiceService {
             .ok_or_else(|| AppError::not_found(format!("应付单 {}", id)))?;
 
         // 2. 检查状态（仅草稿可修改）
-        if invoice.invoice_status != "DRAFT" {
+        if invoice.invoice_status != crate::models::status::common::STATUS_DRAFT {
             return Err(AppError::business(format!(
                 "应付单状态为{}，不可修改",
                 invoice.invoice_status
@@ -342,7 +344,7 @@ impl ApInvoiceService {
             .ok_or_else(|| AppError::not_found(format!("应付单 {}", id)))?;
 
         // 2. 检查状态（仅草稿可删除）
-        if invoice.invoice_status != "DRAFT" {
+        if invoice.invoice_status != crate::models::status::common::STATUS_DRAFT {
             return Err(AppError::business(format!(
                 "应付单状态为{}，不可删除",
                 invoice.invoice_status
@@ -374,7 +376,7 @@ impl ApInvoiceService {
             .ok_or_else(|| AppError::not_found(format!("应付单 {}", id)))?;
 
         // 2. 检查状态
-        if invoice.invoice_status != "DRAFT" {
+        if invoice.invoice_status != crate::models::status::common::STATUS_DRAFT {
             return Err(AppError::business(format!(
                 "应付单状态为{}，不可审核",
                 invoice.invoice_status
@@ -384,7 +386,7 @@ impl ApInvoiceService {
         // 3. 审核应付单
         let now = Utc::now();
         let mut invoice_active: ap_invoice::ActiveModel = invoice.into();
-        invoice_active.invoice_status = Set("AUDITED".to_string());
+        invoice_active.invoice_status = Set(crate::models::status::ap_invoice::INVOICE_AUDITED.to_string());
         invoice_active.approved_by = Set(Some(user_id));
         invoice_active.approved_at = Set(Some(now));
         invoice_active.updated_at = Set(now);
@@ -427,7 +429,12 @@ impl ApInvoiceService {
         // 2. 检查状态
         // P0 3-3 修复（2026-07-01 八维度审计）：状态门改为白名单，仅 AUDITED/PARTIAL_PAID 可标记 PAID，
         // 堵住 DRAFT/PENDING 直接跳过审核标记已付清的漏洞。
-        if !["AUDITED", "PARTIAL_PAID"].contains(&invoice.invoice_status.as_str()) {
+        if ![
+            crate::models::status::ap_invoice::INVOICE_AUDITED,
+            crate::models::status::payment::PAYMENT_PARTIAL_PAID,
+        ]
+        .contains(&invoice.invoice_status.as_str())
+        {
             return Err(AppError::business(format!(
                 "应付单状态为{}，不可标记为已付清（仅 AUDITED/PARTIAL_PAID 可标记）",
                 invoice.invoice_status
@@ -437,7 +444,7 @@ impl ApInvoiceService {
         // 3. 更新状态
         let now = Utc::now();
         let mut invoice_active: ap_invoice::ActiveModel = invoice.into();
-        invoice_active.invoice_status = Set("PAID".to_string());
+        invoice_active.invoice_status = Set(crate::models::status::payment::PAYMENT_PAID.to_string());
         invoice_active.updated_at = Set(now);
 
         // 批次 97 P1-2 修复：原 Some(0) 占位符改为真实操作人 user_id
@@ -472,7 +479,12 @@ impl ApInvoiceService {
             .ok_or_else(|| AppError::not_found(format!("应付单 {}", id)))?;
 
         // 2. 检查状态（已审核或部分付款可取消）
-        if !["AUDITED", "PARTIAL_PAID"].contains(&invoice.invoice_status.as_str()) {
+        if ![
+            crate::models::status::ap_invoice::INVOICE_AUDITED,
+            crate::models::status::payment::PAYMENT_PARTIAL_PAID,
+        ]
+        .contains(&invoice.invoice_status.as_str())
+        {
             return Err(AppError::business(format!(
                 "应付单状态为{}，不可取消",
                 invoice.invoice_status
@@ -489,7 +501,7 @@ impl ApInvoiceService {
         // 4. 取消应付单
         let now = Utc::now();
         let mut invoice_active: ap_invoice::ActiveModel = invoice.into();
-        invoice_active.invoice_status = Set("CANCELLED".to_string());
+        invoice_active.invoice_status = Set(crate::models::status::common::STATUS_CANCELLED.to_string());
         invoice_active.cancelled_by = Set(Some(user_id));
         invoice_active.cancelled_at = Set(Some(now));
         invoice_active.cancelled_reason = Set(Some(reason));
@@ -575,8 +587,8 @@ impl ApInvoiceService {
 
         // 查询未付清的应付单
         let invoices = query
-            .filter(ap_invoice::Column::InvoiceStatus.ne("PAID"))
-            .filter(ap_invoice::Column::InvoiceStatus.ne("CANCELLED"))
+            .filter(ap_invoice::Column::InvoiceStatus.ne(crate::models::status::payment::PAYMENT_PAID))
+            .filter(ap_invoice::Column::InvoiceStatus.ne(crate::models::status::common::STATUS_CANCELLED))
             .all(&*self.db)
             .await?;
 
@@ -636,7 +648,7 @@ impl ApInvoiceService {
 
         // 查询所有有效应付单
         let invoices = query
-            .filter(ap_invoice::Column::InvoiceStatus.ne("CANCELLED"))
+            .filter(ap_invoice::Column::InvoiceStatus.ne(crate::models::status::common::STATUS_CANCELLED))
             .all(&*self.db)
             .await?;
 

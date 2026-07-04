@@ -112,9 +112,9 @@ impl ReportEngineService {
             // 分页
             if y_pos < 20.0 {
                 let (new_page, new_layer) = doc.add_page(Mm(297.0), Mm(210.0), "Layer 1");
+                // 批次 102 v6 P3-7 修复：删除冗余 `let _ = new_layer;`（new_layer 已作为 get_layer 参数使用）
                 let _layer = doc.get_page(new_page).get_layer(new_layer);
                 y_pos = 280.0;
-                let _ = new_layer;
             }
         }
 
