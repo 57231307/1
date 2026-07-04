@@ -182,6 +182,21 @@
 - 批次 108：ar/recon 路由接入 + webhook handler 实现
 - 批次 109+：P2 项按业务驱动逐项接入
 
+### 批次 104 详细修复项（search_api.rs 接入 SearchClient）
+
+| # | 文件 | 修复 |
+|---|------|------|
+| P0-1 | routes/search_api.rs | 3 个 handler 从 stub 真实接入 SearchClient：注入 State<AppState>，调用 search_client.search()，反序列化为对应 Doc 类型，错误处理从 StatusCode 改为 AppError + ApiResponse |
+| P0-1 | utils/app_state.rs | AppState 新增 search_client: Arc<dyn SearchClient> 字段；新增 init_search_client() 函数根据 ELASTICSEARCH_URL 环境变量决定使用 mock 或 real 客户端 |
+| P0-1 | search/elastic.rs | 移除已接入项的 dead_code 标注：indices / SalesOrderItemDoc / SearchResult / SearchHit / SearchClient trait / SearchError / ElasticClient / real()；保留 DocType（预留公共 API）/ SearchSyncer（PG→ES 同步未接入）/ doc_count（仅测试用）标注 |
+| 配套 | .env.example | 新增 ELASTICSEARCH_URL 配置示例（空值默认 mock，配置后启用真实 ES）|
+| 测试 | routes/search_api.rs | 新增 test_search_sales_orders_with_mock_client 端到端测试，验证 mock 客户端索引+搜索流程 |
+
+**设计决策**：
+- 采用可降级方案：CI 环境无 ES 时使用 mock 客户端（内存 HashMap），生产环境通过 ELASTICSEARCH_URL 切换为真实客户端
+- `ElasticClient::real()` 当前仍为 stub（使用 mock storage），后续批次接入 reqwest 直连 ES REST API
+- SearchSyncer（PG→ES 写入同步）保留 dead_code 标注，纳入批次 110+ 接入 customer_service / sales_order_service / product_service 写入流程
+
 
 ### v6 第六轮复审结果（2026-07-04）
 
