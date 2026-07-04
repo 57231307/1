@@ -89,7 +89,7 @@ impl QualityInspectionService {
 
         let standards = query
             .order_by(quality_inspection::Column::Id, Order::Desc)
-            .offset((params.page.saturating_sub(1) * params.page_size) as u64)
+            .offset((params.page.clamp(1, 1000).saturating_sub(1) * params.page_size) as u64)
             .limit(params.page_size as u64)
             .all(&*self.db)
             .await?;
@@ -160,7 +160,7 @@ impl QualityInspectionService {
 
         let records = query
             .order_by(quality_inspection_record::Column::Id, Order::Desc)
-            .offset((params.page.saturating_sub(1) * params.page_size) as u64)
+            .offset((params.page.clamp(1, 1000).saturating_sub(1) * params.page_size) as u64)
             .limit(params.page_size as u64)
             .all(&*self.db)
             .await?;
@@ -281,7 +281,7 @@ impl QualityInspectionService {
 
         let defects = query
             .order_by(unqualified_product::Column::Id, Order::Desc)
-            .offset((params.page.saturating_sub(1) * params.page_size) as u64)
+            .offset((params.page.clamp(1, 1000).saturating_sub(1) * params.page_size) as u64)
             .limit(params.page_size as u64)
             .all(&*self.db)
             .await?;

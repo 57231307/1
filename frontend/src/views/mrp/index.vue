@@ -183,8 +183,9 @@ const searchProducts = async (query: string) => {
     try {
       const res = await getProductsForMrp({ keyword: query })
       productOptions.value = res.data || []
-    } catch (e: any) {
-      ElMessage.error(e.message || '获取产品列表失败')
+    } catch (e: unknown) {
+      // 批次 98 P2-D 修复（v5 复审）：原 catch (e: any) 改为 unknown + 类型守卫
+      ElMessage.error((e instanceof Error ? e.message : String(e)) || '获取产品列表失败')
     } finally {
       productLoading.value = false
     }
@@ -205,8 +206,9 @@ const handleCalculate = async () => {
       resultVisible.value = true
       selectedMaterials.value = []
       ElMessage.success('MRP 计算完成')
-    } catch (e: any) {
-      ElMessage.error(e.message || 'MRP 计算失败')
+    } catch (e: unknown) {
+      // 批次 98 P2-D 修复（v5 复审）：原 catch (e: any) 改为 unknown + 类型守卫
+      ElMessage.error((e instanceof Error ? e.message : String(e)) || 'MRP 计算失败')
     } finally {
       calcLoading.value = false
     }
@@ -253,9 +255,10 @@ const handleConvert = async (orderType: 'purchase' | 'production') => {
     })
 
     ElMessage.success(`成功创建 ${res.data.order_ids.length} 个${typeLabel}`)
-  } catch (e: any) {
+  } catch (e: unknown) {
+    // 批次 98 P2-D 修复（v5 复审）：原 catch (e: any) 改为 unknown + 类型守卫
     if (e !== 'cancel') {
-      ElMessage.error(e.message || '转换失败')
+      ElMessage.error((e instanceof Error ? e.message : String(e)) || '转换失败')
     }
   }
 }

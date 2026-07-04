@@ -181,7 +181,7 @@ impl AiExtendService {
         &self,
         q: ListProcessOptQuery,
     ) -> Result<ProcessOptListVo, AppError> {
-        let page = q.page.unwrap_or(1).max(1);
+        let page = q.page.unwrap_or(1).clamp(1, 1000);
         let page_size = q.page_size.unwrap_or(20).clamp(1, 100);
 
         let mut select = ProcessEntity::find();
@@ -359,7 +359,7 @@ impl AiExtendService {
         &self,
         q: ListQualityPredQuery,
     ) -> Result<QualityPredListVo, AppError> {
-        let page = q.page.unwrap_or(1).max(1);
+        let page = q.page.unwrap_or(1).clamp(1, 1000);
         let page_size = q.page_size.unwrap_or(20).clamp(1, 100);
 
         let mut select = QualityEntity::find();

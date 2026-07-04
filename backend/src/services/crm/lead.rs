@@ -87,7 +87,7 @@ impl CrmService {
         &self,
         query: crate::models::dto::crm_dto::LeadQuery,
     ) -> Result<serde_json::Value, AppError> {
-        let page = query.page.unwrap_or(1).max(1);
+        let page = query.page.unwrap_or(1).clamp(1, 1000);
         let page_size = query.page_size.unwrap_or(20).clamp(1, 100); // v10 P2-3 修复：crm 模块统一 clamp(1,100) 防 DoS
 
         let mut q = crm_lead::Entity::find();
@@ -101,7 +101,8 @@ impl CrmService {
             .paginate(&*self.db, page_size);
 
         let total = paginator.num_items().await?;
-        let items: Vec<crm_lead::Model> = paginator.fetch_page(page.saturating_sub(1)).await?;
+        // 批次 98 P2-A 修复（v5 复审）：page clamp 防 DoS
+        let items: Vec<crm_lead::Model> = paginator.fetch_page(page.clamp(1, 1000).saturating_sub(1)).await?;
 
         Ok(serde_json::json!({
             "data": items,

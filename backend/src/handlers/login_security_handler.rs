@@ -121,7 +121,8 @@ pub async fn list_login_logs(
     let logs = query_builder
         .order_by_desc(log_login::Column::LoginTime)
         .paginate(state.db.as_ref(), page_size)
-        .fetch_page(page.saturating_sub(1))
+        // 批次 98 P2-A 修复（v5 复审）：page clamp 防 DoS
+        .fetch_page(page.clamp(1, 1000).saturating_sub(1))
         .await?;
 
     let items: Vec<LoginLogItem> = logs

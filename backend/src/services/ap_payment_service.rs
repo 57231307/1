@@ -471,7 +471,8 @@ impl ApPaymentService {
 
         let total = paginator.num_items().await?;
         // v18 批次 48 修复：调用方传 1-indexed page，SeaORM fetch_page 是 0-indexed，需 saturating_sub(1)
-        let items = paginator.fetch_page(page.saturating_sub(1)).await?;
+        // 批次 98 P2-A 修复（v5 复审）：page clamp 防 DoS
+        let items = paginator.fetch_page(page.clamp(1, 1000).saturating_sub(1)).await?;
 
         Ok((items, total))
     }

@@ -110,8 +110,9 @@ async function loadData() {
   try {
     const res = await getQuotation(id)
     quotation.value = res.data as QuotationResponseDto
-  } catch (e: any) {
-    ElMessage.error(e?.message || '加载报价单失败')
+  } catch (e: unknown) {
+    // 批次 98 P2-D 修复（v5 复审）：原 catch (e: any) 改为 unknown + 类型守卫
+    ElMessage.error((e instanceof Error ? e.message : String(e)) || '加载报价单失败')
     quotation.value = null
   } finally {
     loading.value = false

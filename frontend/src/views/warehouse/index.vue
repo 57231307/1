@@ -270,8 +270,9 @@ const fetchData = async () => {
     const res = await warehouseApi.list(queryParams)
     warehouses.value = res.data!.list || []
     total.value = res.data?.total || 0
-  } catch (error: any) {
-    ElMessage.error(error.message || '获取仓库列表失败')
+  } catch (error: unknown) {
+    // 批次 98 P2-D 修复（v5 复审）：原 catch (error: any) 改为 unknown + 类型守卫
+    ElMessage.error((error instanceof Error ? error.message : String(error)) || '获取仓库列表失败')
     warehouses.value = []
     total.value = 0
   } finally {
@@ -327,9 +328,10 @@ const handleDelete = async (row: Warehouse) => {
     await warehouseApi.delete(row.id)
     ElMessage.success('删除成功')
     fetchData()
-  } catch (error: any) {
+  } catch (error: unknown) {
+    // 批次 98 P2-D 修复（v5 复审）：原 catch (error: any) 改为 unknown + 类型守卫
     if (error !== 'cancel') {
-      ElMessage.error(error.message || '删除失败')
+      ElMessage.error((error instanceof Error ? error.message : String(error)) || '删除失败')
     }
   }
 }
@@ -351,8 +353,9 @@ const handleSubmit = async () => {
       }
       dialogVisible.value = false
       fetchData()
-    } catch (error: any) {
-      ElMessage.error(error.message || '操作失败')
+    } catch (error: unknown) {
+      // 批次 98 P2-D 修复（v5 复审）：原 catch (error: any) 改为 unknown + 类型守卫
+      ElMessage.error((error instanceof Error ? error.message : String(error)) || '操作失败')
     } finally {
       submitLoading.value = false
     }

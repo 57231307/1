@@ -11,7 +11,8 @@ export interface ReportField {
 export interface ReportFilterCondition {
   field: string
   operator: 'eq' | 'ne' | 'gt' | 'lt' | 'gte' | 'lte' | 'contains' | 'in' | 'between'
-  value: any
+  // 批次 98 P2-D 修复（v5 复审）：原 any 改为联合类型，覆盖所有 operator 的取值
+  value: string | number | boolean | string[] | number[] | null
 }
 
 export interface ReportTemplateField {

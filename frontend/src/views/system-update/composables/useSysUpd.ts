@@ -77,7 +77,8 @@ export function useSysUpd() {
     try {
       const res = await getCurrentVersion()
       currentVersion.value = res.data
-    } catch (error: any) {
+    } catch (error: unknown) {
+      // 批次 98 P2-D 修复（v5 复审）：原 catch (error: any) 改为 unknown + 类型守卫
       logger.error('获取当前版本失败:', error)
     }
   }
@@ -92,8 +93,9 @@ export function useSysUpd() {
       } else {
         ElMessage.info('当前已是最新版本')
       }
-    } catch (error: any) {
-      ElMessage.error(error.message || '检查更新失败')
+    } catch (error: unknown) {
+      // 批次 98 P2-D 修复（v5 复审）：原 catch (error: any) 改为 unknown + 类型守卫
+      ElMessage.error((error instanceof Error ? error.message : String(error)) || '检查更新失败')
     }
   }
 
@@ -104,8 +106,9 @@ export function useSysUpd() {
       const res = await listSystemVersions(versionQuery)
       versions.value = res.data || []
       versionTotal.value = res.total || 0
-    } catch (error: any) {
-      ElMessage.error(error.message || '获取版本列表失败')
+    } catch (error: unknown) {
+      // 批次 98 P2-D 修复（v5 复审）：原 catch (error: any) 改为 unknown + 类型守卫
+      ElMessage.error((error instanceof Error ? error.message : String(error)) || '获取版本列表失败')
     } finally {
       versionLoading.value = false
     }
@@ -118,8 +121,9 @@ export function useSysUpd() {
       const res = await listUpdateTasks(taskQuery)
       tasks.value = res.data || []
       taskTotal.value = res.total || 0
-    } catch (error: any) {
-      ElMessage.error(error.message || '获取任务列表失败')
+    } catch (error: unknown) {
+      // 批次 98 P2-D 修复（v5 复审）：原 catch (error: any) 改为 unknown + 类型守卫
+      ElMessage.error((error instanceof Error ? error.message : String(error)) || '获取任务列表失败')
     } finally {
       taskLoading.value = false
     }
@@ -132,8 +136,9 @@ export function useSysUpd() {
       const res = await listSystemBackups(backupQuery)
       backups.value = res.data || []
       backupTotal.value = res.total || 0
-    } catch (error: any) {
-      ElMessage.error(error.message || '获取备份列表失败')
+    } catch (error: unknown) {
+      // 批次 98 P2-D 修复（v5 复审）：原 catch (error: any) 改为 unknown + 类型守卫
+      ElMessage.error((error instanceof Error ? error.message : String(error)) || '获取备份列表失败')
     } finally {
       backupLoading.value = false
     }
@@ -153,8 +158,9 @@ export function useSysUpd() {
       ElMessage.success('备份任务已创建')
       await fetchBackups()
       return true
-    } catch (error: any) {
-      ElMessage.error(error.message || '创建备份失败')
+    } catch (error: unknown) {
+      // 批次 98 P2-D 修复（v5 复审）：原 catch (error: any) 改为 unknown + 类型守卫
+      ElMessage.error((error instanceof Error ? error.message : String(error)) || '创建备份失败')
       return false
     } finally {
       backupSubmitLoading.value = false

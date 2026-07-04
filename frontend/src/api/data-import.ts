@@ -21,7 +21,8 @@ export interface ImportColumn {
   label: string
   type: 'string' | 'number' | 'date' | 'boolean'
   required: boolean
-  default_value?: any
+  // 批次 98 P2-D 修复（v5 复审）：原 any 改为联合类型，与 type 字段一致
+  default_value?: string | number | boolean | null
   validation_rule?: string
 }
 

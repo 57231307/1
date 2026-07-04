@@ -281,7 +281,7 @@ pub async fn list_adjustments(
 
     let (adjustments, total) = service
         .list_adjustments(
-            params.page.unwrap_or(1).max(1),
+            params.page.unwrap_or(1).clamp(1, 1000),
             params.page_size.unwrap_or(20).clamp(1, 100),
         )
         .await
@@ -302,7 +302,7 @@ pub async fn list_adjustments(
             })
             .collect(),
         total,
-        page: params.page.unwrap_or(1).max(1),
+        page: params.page.unwrap_or(1).clamp(1, 1000),
         page_size: params.page_size.unwrap_or(20).clamp(1, 100),
     })))
 }

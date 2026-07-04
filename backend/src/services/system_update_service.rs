@@ -318,7 +318,10 @@ impl SystemUpdateService {
         self.log_update("步骤4: 应用更新");
         if let Err(e) = self.apply_files(&extract_dir) {
             self.log_update(&format!("应用更新文件失败: {}，正在回滚", e));
-            let _ = self.rollback(&backup_path); // 尽量回滚
+            // 批次 98 P2-C 修复（v5 复审）：吞错改日志记录，便于事后排查回滚失败
+            if let Err(rollback_err) = self.rollback(&backup_path) {
+                tracing::warn!("应用更新失败后回滚也失败: {}", rollback_err);
+            }
             return Err(UpdateError::ValidationError(format!(
                 "应用文件失败并已回滚: {}",
                 e
@@ -436,7 +439,10 @@ impl SystemUpdateService {
                         if let Ok(metadata) = fs::metadata(&outpath) {
                             let mut perms = metadata.permissions();
                             perms.set_mode(mode);
-                            let _ = fs::set_permissions(&outpath, perms);
+                            // 批次 98 P2-C 修复（v5 复审）：吞错改日志记录，权限设置失败不阻塞解压
+                            if let Err(e) = fs::set_permissions(&outpath, perms) {
+                                tracing::warn!("设置文件权限失败 {:?}: {}", outpath, e);
+                            }
                         }
                     }
                 }
@@ -483,7 +489,10 @@ impl SystemUpdateService {
                     // Windows 下尝试重命名运行中的文件，而不是直接删除
                     let old_dst = self.app_dir.join(format!("{}.old", dir));
                     if old_dst.exists() {
-                        let _ = fs::remove_dir_all(&old_dst); // 尽量清理之前的遗留
+                        // 批次 98 P2-C 修复（v5 复审）：吞错改日志记录，清理旧 .old 目录失败不阻塞更新
+                        if let Err(e) = fs::remove_dir_all(&old_dst) {
+                            tracing::warn!("清理旧 .old 目录失败 {:?}: {}", old_dst, e);
+                        }
                     }
                     if let Err(e) = fs::rename(&dst, &old_dst) {
                         // 如果重命名失败，退退回直接删除（对非运行中的文件有效）
@@ -579,7 +588,10 @@ impl SystemUpdateService {
             .append(true)
             .open(&log_file)
         {
-            let _ = file.write_all(log_entry.as_bytes());
+            // 批次 98 P2-C 修复（v5 复审）：吞错改日志记录，日志写入失败不应阻塞业务
+            if let Err(e) = file.write_all(log_entry.as_bytes()) {
+                tracing::warn!("写入更新日志失败 {:?}: {}", log_file, e);
+            }
         }
     }
 

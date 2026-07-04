@@ -147,8 +147,9 @@ const fetchUsers = async () => {
     const res = await listUsers(userQuery)
     users.value = res.data?.list || []
     userTotal.value = res.data?.total || 0
-  } catch (e: any) {
-    ElMessage.error(e.message || '获取用户列表失败')
+  } catch (e: unknown) {
+    // 批次 98 P2-D 修复（v5 复审）：原 catch (e: any) 改为 unknown + 类型守卫
+    ElMessage.error((e instanceof Error ? e.message : String(e)) || '获取用户列表失败')
   } finally {
     userLoading.value = false
   }
@@ -260,8 +261,9 @@ const submitUser = async () => {
     }
     userDialogVisible.value = false
     fetchUsers()
-  } catch (e: any) {
-    ElMessage.error(e.message || '操作失败')
+  } catch (e: unknown) {
+    // 批次 98 P2-D 修复（v5 复审）：原 catch (e: any) 改为 unknown + 类型守卫
+    ElMessage.error((e instanceof Error ? e.message : String(e)) || '操作失败')
   } finally {
     userSubmitLoading.value = false
   }
@@ -273,8 +275,9 @@ const deleteUser = async (row: User) => {
     await deleteUserApi(row.id)
     ElMessage.success(t('system.user.deleteSuccess'))
     fetchUsers()
-  } catch (e: any) {
-    if (e !== 'cancel') ElMessage.error(e.message || '删除失败')
+  } catch (e: unknown) {
+    // 批次 98 P2-D 修复（v5 复审）：原 catch (e: any) 改为 unknown + 类型守卫
+    if (e !== 'cancel') ElMessage.error((e instanceof Error ? e.message : String(e)) || '删除失败')
   }
 }
 

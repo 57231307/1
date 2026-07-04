@@ -117,8 +117,9 @@ const loadDepartments = async () => {
     const [listRes, treeRes] = await Promise.all([listDepartments(), getDepartmentTree()])
     departmentList.value = listRes.data || []
     deptTreeData.value = treeRes.data || []
-  } catch (error: any) {
-    ElMessage.error(error.message || '加载部门列表失败')
+  } catch (error: unknown) {
+    // 批次 98 P2-D 修复（v5 复审）：原 catch (error: any) 改为 unknown + 类型守卫
+    ElMessage.error((error instanceof Error ? error.message : String(error)) || '加载部门列表失败')
   } finally {
     loading.value = false
   }
@@ -166,9 +167,10 @@ const handleDelete = async (row: any) => {
     await deleteDepartment(row.id)
     ElMessage.success('删除成功')
     await loadDepartments()
-  } catch (error: any) {
+  } catch (error: unknown) {
+    // 批次 98 P2-D 修复（v5 复审）：原 catch (error: any) 改为 unknown + 类型守卫
     if (error !== 'cancel') {
-      ElMessage.error(error.message || '删除失败')
+      ElMessage.error((error instanceof Error ? error.message : String(error)) || '删除失败')
     }
   }
 }

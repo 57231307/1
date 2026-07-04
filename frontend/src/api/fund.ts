@@ -1,7 +1,10 @@
 import { request } from './request'
 import type { ApiResponse, QueryParams } from '@/types/api'
 
-export const FUND_ACCOUNT_STATUS: Record<string, { label: string; type: any }> = {
+// 批次 98 P2-D 修复（v5 复审）：原 type: any 改为 Element Plus Tag type 联合类型
+export type FundAccountStatusType = 'success' | 'info' | 'warning' | 'danger' | 'primary'
+
+export const FUND_ACCOUNT_STATUS: Record<string, { label: string; type: FundAccountStatusType }> = {
   active: { label: '正常', type: 'success' },
   inactive: { label: '停用', type: 'info' },
   frozen: { label: '冻结', type: 'warning' },

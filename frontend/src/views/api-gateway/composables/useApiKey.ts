@@ -56,8 +56,9 @@ export function useApiKey() {
       const res = await listApiKeys(keyQuery)
       keys.value = res.data || []
       keyTotal.value = res.total || 0
-    } catch (error: any) {
-      ElMessage.error(error.message || '获取密钥失败')
+    } catch (error: unknown) {
+      // 批次 98 P2-D 修复（v5 复审）：原 catch (error: any) 改为 unknown + 类型守卫
+      ElMessage.error((error instanceof Error ? error.message : String(error)) || '获取密钥失败')
     } finally {
       keyLoading.value = false
     }
@@ -104,8 +105,9 @@ export function useApiKey() {
         ElMessage.success('操作成功')
         keyDialogVisible.value = false
         await fetchKeys()
-      } catch (error: any) {
-        ElMessage.error(error.message || '操作失败')
+      } catch (error: unknown) {
+        // 批次 98 P2-D 修复（v5 复审）：原 catch (error: any) 改为 unknown + 类型守卫
+        ElMessage.error((error instanceof Error ? error.message : String(error)) || '操作失败')
       } finally {
         keySubmitLoading.value = false
       }
@@ -118,8 +120,9 @@ export function useApiKey() {
       await deleteApiKey(row.id)
       ElMessage.success('删除成功')
       await fetchKeys()
-    } catch (error: any) {
-      if (error !== 'cancel') ElMessage.error(error.message || '删除失败')
+    } catch (error: unknown) {
+      // 批次 98 P2-D 修复（v5 复审）：原 catch (error: any) 改为 unknown + 类型守卫
+      if (error !== 'cancel') ElMessage.error((error instanceof Error ? error.message : String(error)) || '删除失败')
     }
   }
 
@@ -131,8 +134,9 @@ export function useApiKey() {
       await regenerateApiKey(row.id)
       ElMessage.success('重新生成成功')
       await fetchKeys()
-    } catch (error: any) {
-      if (error !== 'cancel') ElMessage.error(error.message || '重新生成失败')
+    } catch (error: unknown) {
+      // 批次 98 P2-D 修复（v5 复审）：原 catch (error: any) 改为 unknown + 类型守卫
+      if (error !== 'cancel') ElMessage.error((error instanceof Error ? error.message : String(error)) || '重新生成失败')
     }
   }
 
@@ -157,8 +161,9 @@ export function useApiKey() {
       await updateApiKey(row.id, { status: nextStatus })
       ElMessage.success('操作成功')
       await fetchKeys()
-    } catch (error: any) {
-      if (error !== 'cancel') ElMessage.error(error.message || '操作失败')
+    } catch (error: unknown) {
+      // 批次 98 P2-D 修复（v5 复审）：原 catch (error: any) 改为 unknown + 类型守卫
+      if (error !== 'cancel') ElMessage.error((error instanceof Error ? error.message : String(error)) || '操作失败')
     }
   }
 

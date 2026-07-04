@@ -244,7 +244,7 @@ pub async fn list_users(
 
     let (users, total) = user_service
         .list_users(
-            params.page.unwrap_or(1).max(1),
+            params.page.unwrap_or(1).clamp(1, 1000),
             params.page_size.unwrap_or(20).clamp(1, 100),
         )
         .await?;
@@ -254,7 +254,7 @@ pub async fn list_users(
     Ok(Json(ApiResponse::success(UserListResponse {
         users: user_responses,
         total,
-        page: params.page.unwrap_or(1).max(1),
+        page: params.page.unwrap_or(1).clamp(1, 1000),
         page_size: params.page_size.unwrap_or(20).clamp(1, 100),
     })))
 }

@@ -257,8 +257,10 @@ async function handleLogin() {
       // 批次 22 v5 P0-2：使用 safeRedirect 校验跳转目标，防止 Open Redirect
       const redirect = safeRedirect(route.query.redirect)
       router.push(redirect)
-    } catch (error: any) {
-      ElMessage.error(error.message || t('login.failedFallback'))
+    } catch (error: unknown) {
+      // 批次 98 P2-D 修复（v5 复审）：原 catch (error: any) 改为 unknown + 类型守卫
+      const message = error instanceof Error ? error.message : String(error)
+      ElMessage.error(message || t('login.failedFallback'))
       // 登录失败后异步检查账号是否被锁定
       refreshLockStatus()
     } finally {

@@ -194,8 +194,9 @@ const fetchData = async () => {
     const res = await bomApi.list(queryParams)
     boms.value = res.data!.list || []
     total.value = res.data?.total || 0
-  } catch (error: any) {
-    ElMessage.error(error.message || '获取 BOM 列表失败')
+  } catch (error: unknown) {
+    // 批次 98 P2-D 修复（v5 复审）：原 catch (error: any) 改为 unknown + 类型守卫
+    ElMessage.error((error instanceof Error ? error.message : String(error)) || '获取 BOM 列表失败')
     boms.value = []
     total.value = 0
   } finally {
@@ -256,9 +257,10 @@ const handleCopy = async (row: Bom) => {
     await bomApi.copy(row.id)
     ElMessage.success('复制成功')
     fetchData()
-  } catch (error: any) {
+  } catch (error: unknown) {
+    // 批次 98 P2-D 修复（v5 复审）：原 catch (error: any) 改为 unknown + 类型守卫
     if (error !== 'cancel') {
-      ElMessage.error(error.message || '复制失败')
+      ElMessage.error((error instanceof Error ? error.message : String(error)) || '复制失败')
     }
   }
 }
@@ -272,9 +274,10 @@ const handleSetDefault = async (row: Bom) => {
     await bomApi.setDefault(row.id)
     ElMessage.success('设置成功')
     fetchData()
-  } catch (error: any) {
+  } catch (error: unknown) {
+    // 批次 98 P2-D 修复（v5 复审）：原 catch (error: any) 改为 unknown + 类型守卫
     if (error !== 'cancel') {
-      ElMessage.error(error.message || '设置失败')
+      ElMessage.error((error instanceof Error ? error.message : String(error)) || '设置失败')
     }
   }
 }
@@ -289,9 +292,10 @@ const handleDelete = async (row: Bom) => {
     await bomApi.delete(row.id)
     ElMessage.success('删除成功')
     fetchData()
-  } catch (error: any) {
+  } catch (error: unknown) {
+    // 批次 98 P2-D 修复（v5 复审）：原 catch (error: any) 改为 unknown + 类型守卫
     if (error !== 'cancel') {
-      ElMessage.error(error.message || '删除失败')
+      ElMessage.error((error instanceof Error ? error.message : String(error)) || '删除失败')
     }
   }
 }
@@ -307,8 +311,9 @@ const handleSubmit = async (data: any) => {
     }
     dialogVisible.value = false
     fetchData()
-  } catch (error: any) {
-    ElMessage.error(error.message || '操作失败')
+  } catch (error: unknown) {
+    // 批次 98 P2-D 修复（v5 复审）：原 catch (error: any) 改为 unknown + 类型守卫
+    ElMessage.error((error instanceof Error ? error.message : String(error)) || '操作失败')
   }
 }
 

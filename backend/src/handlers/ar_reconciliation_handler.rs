@@ -106,7 +106,7 @@ pub async fn list_reconciliations(
     Query(query): Query<ListReconciliationsQuery>,
 ) -> Result<Json<ApiResponse<PaginatedResponse<ReconciliationResponse>>>, AppError> {
     let service = ArReconciliationService::new(state.db);
-    let page = query.page.unwrap_or(1).max(1); // 批次 95 P3-3~8：分页 clamp 防 DoS
+    let page = query.page.unwrap_or(1).clamp(1, 1000); // 批次 95 P3-3~8：分页 clamp 防 DoS
     let page_size = query.page_size.unwrap_or(20).clamp(1, 100);
     let req = ReconciliationQuery {
         status: query.status,
@@ -448,7 +448,7 @@ pub async fn list_results(
     Query(params): Query<ListResultsQuery>,
 ) -> Result<Json<ApiResponse<JsonValue>>, AppError> {
     let service = ArReconciliationService::new(state.db.clone());
-    let page = params.page.unwrap_or(1).max(1);
+    let page = params.page.unwrap_or(1).clamp(1, 1000);
     let page_size = params.page_size.unwrap_or(20).clamp(1, 100); // v10 P2-4 修复：移除冗余 max(1)（clamp 已保证 >=1）
     let query = ReconciliationQuery {
         status: None,
@@ -496,7 +496,7 @@ pub async fn list_confirmations(
     Query(params): Query<ListResultsQuery>,
 ) -> Result<Json<ApiResponse<JsonValue>>, AppError> {
     let service = ArReconciliationService::new(state.db.clone());
-    let page = params.page.unwrap_or(1).max(1);
+    let page = params.page.unwrap_or(1).clamp(1, 1000);
     let page_size = params.page_size.unwrap_or(20).clamp(1, 100); // v10 P2-4 修复：移除冗余 max(1)（clamp 已保证 >=1）
     let query = ReconciliationQuery {
         status: Some("confirmed".to_string()),
@@ -570,7 +570,7 @@ pub async fn list_disputes(
     Query(params): Query<ListResultsQuery>,
 ) -> Result<Json<ApiResponse<JsonValue>>, AppError> {
     let service = ArReconciliationService::new(state.db.clone());
-    let page = params.page.unwrap_or(1).max(1);
+    let page = params.page.unwrap_or(1).clamp(1, 1000);
     let page_size = params.page_size.unwrap_or(20).clamp(1, 100); // v10 P2-4 修复：移除冗余 max(1)（clamp 已保证 >=1）
     let query = ReconciliationQuery {
         status: Some("disputed".to_string()),

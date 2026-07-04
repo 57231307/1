@@ -53,7 +53,7 @@ pub async fn list_standards(
     let query_params = crate::services::quality_inspection_service::QualityInspectionQueryParams {
         inspection_type: params.inspection_type,
         status: params.status,
-        page: params.page.unwrap_or(1).max(1),
+        page: params.page.unwrap_or(1).clamp(1, 1000),
         page_size: params.page_size.unwrap_or(10).clamp(1, 100),
     };
 
@@ -88,7 +88,7 @@ pub async fn list_records(
     let query_params = crate::services::quality_inspection_service::QualityInspectionQueryParams {
         inspection_type: params.inspection_result,
         status: None,
-        page: params.page.unwrap_or(1).max(1),
+        page: params.page.unwrap_or(1).clamp(1, 1000),
         page_size: params.page_size.unwrap_or(10).clamp(1, 100),
     };
 
@@ -138,7 +138,7 @@ pub async fn list_defects(
     let query_params = crate::services::quality_inspection_service::QualityInspectionQueryParams {
         inspection_type: None,
         status: params.status,
-        page: params.page.unwrap_or(1).max(1),
+        page: params.page.unwrap_or(1).clamp(1, 1000),
         page_size: params.page_size.unwrap_or(10).clamp(1, 100),
     };
 

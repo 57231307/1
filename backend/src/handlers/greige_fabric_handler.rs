@@ -130,7 +130,8 @@ pub async fn list_greige_fabrics(
 
     let paginator = q.paginate(&*state.db, page_size);
     let total = paginator.num_items().await?;
-    let fabrics = paginator.fetch_page(page.saturating_sub(1)).await?;
+    // 批次 98 P2-A 修复（v5 复审）：page clamp 防 DoS
+    let fabrics = paginator.fetch_page(page.clamp(1, 1000).saturating_sub(1)).await?;
     Ok(Json(ApiResponse::success_paginated(
         fabrics, total, page, page_size,
     )))

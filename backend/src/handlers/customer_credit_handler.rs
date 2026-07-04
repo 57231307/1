@@ -16,15 +16,8 @@ use serde::{Deserialize, Serialize};
 use validator::Validate;
 use tracing::info;
 
-/// 批次 31 v7 P1-6 修复：validator range 不支持 Decimal，用 custom 函数验证金额范围
-fn validate_amount_range(amount: &Decimal) -> Result<(), validator::ValidationError> {
-    let zero = Decimal::ZERO;
-    let max = Decimal::new(1_000_000_000, 0); // 10 亿
-    if *amount <= zero || *amount > max {
-        return Err(validator::ValidationError::new("金额必须为正且不超过10亿"));
-    }
-    Ok(())
-}
+// 批次 98 P2-B 修复（v5 复审）：本地 validate_amount_range 已抽取到 utils::validator 模块，
+// 统一追加 round_dp(2) 精度校验。#[validate(custom)] 引用改为 crate::utils::validator::validate_amount_range。
 
 /// 客户信用查询参数 DTO
 #[derive(Debug, Deserialize)]
@@ -45,7 +38,7 @@ pub struct CreditRatingRequestDto {
     #[validate(length(max = 20, message = "信用等级长度不能超过20字符"))]
     pub credit_level: Option<String>,
     pub credit_score: Option<i32>,
-    #[validate(custom(function = "validate_amount_range"))]
+    #[validate(custom(function = "crate::utils::validator::validate_amount_range"))]
     pub credit_limit: Decimal,
     pub credit_days: Option<i32>,
     #[validate(length(max = 500, message = "备注长度不能超过500字符"))]
@@ -71,7 +64,7 @@ pub struct UpdateCreditDto {
 pub struct CreditLimitAdjustmentRequestDto {
     #[validate(length(min = 1, max = 20, message = "调整类型长度必须在1到20字符之间"))]
     pub adjustment_type: String,
-    #[validate(custom(function = "validate_amount_range"))]
+    #[validate(custom(function = "crate::utils::validator::validate_amount_range"))]
     pub amount: Decimal,
     #[validate(length(min = 1, max = 500, message = "调整原因不能为空且不超过500字符"))]
     pub reason: String,
@@ -81,7 +74,7 @@ pub struct CreditLimitAdjustmentRequestDto {
 /// 批次 31 v7 P1-6 修复：添加 Validate + 字段验证
 #[derive(Debug, Deserialize, Validate)]
 pub struct CreditAmountRequest {
-    #[validate(custom(function = "validate_amount_range"))]
+    #[validate(custom(function = "crate::utils::validator::validate_amount_range"))]
     pub amount: Decimal,
 }
 

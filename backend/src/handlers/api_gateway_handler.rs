@@ -70,7 +70,7 @@ pub struct UpdateApiKeyGwRequest {
 // ============== 辅助函数 ==============
 
 fn page_offset(query: &ApiGwQuery) -> (u64, u64) {
-    let page = query.page.unwrap_or(1).max(1);
+    let page = query.page.unwrap_or(1).clamp(1, 1000);
     let page_size = query.page_size.unwrap_or(20).clamp(1, 200);
     ((page - 1) * page_size, page_size)
 }

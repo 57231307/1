@@ -202,9 +202,16 @@ export function deleteColorItem(cardId: number, itemId: number) {
   )
 }
 
+// 批次 98 P2-D 修复（v5 复审）：原 errors: any[] 改为显式错误项接口
+export interface BatchImportError {
+  row: number
+  message: string
+  field?: string
+}
+
 export function batchImportItems(cardId: number, items: Partial<ColorItemInfo>[]) {
   return request.post<
-    { data: { success_count: number; failed_count: number; errors: any[]; total_colors: number } }
+    { data: { success_count: number; failed_count: number; errors: BatchImportError[]; total_colors: number } }
   >(
     `/color-cards/${cardId}/items/batch`,
     { items },

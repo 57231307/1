@@ -40,8 +40,9 @@ export function useSysUpdProc(refresh: RefreshCallbacks) {
       ElMessage.success('下载任务已创建')
       await refresh.fetchVersions()
       await refresh.fetchTasks()
-    } catch (error: any) {
-      if (error !== 'cancel') ElMessage.error(error.message || '下载失败')
+    } catch (error: unknown) {
+      // 批次 98 P2-D 修复（v5 复审）：原 catch (error: any) 改为 unknown + 类型守卫
+      if (error !== 'cancel') ElMessage.error((error instanceof Error ? error.message : String(error)) || '下载失败')
     }
   }
 
@@ -57,8 +58,9 @@ export function useSysUpdProc(refresh: RefreshCallbacks) {
       ElMessage.success('安装任务已创建')
       await refresh.fetchVersions()
       await refresh.fetchTasks()
-    } catch (error: any) {
-      if (error !== 'cancel') ElMessage.error(error.message || '安装失败')
+    } catch (error: unknown) {
+      // 批次 98 P2-D 修复（v5 复审）：原 catch (error: any) 改为 unknown + 类型守卫
+      if (error !== 'cancel') ElMessage.error((error instanceof Error ? error.message : String(error)) || '安装失败')
     }
   }
 
@@ -69,8 +71,9 @@ export function useSysUpdProc(refresh: RefreshCallbacks) {
       await cancelUpdateTask(row.id)
       ElMessage.success('任务已取消')
       await refresh.fetchTasks()
-    } catch (error: any) {
-      if (error !== 'cancel') ElMessage.error(error.message || '取消失败')
+    } catch (error: unknown) {
+      // 批次 98 P2-D 修复（v5 复审）：原 catch (error: any) 改为 unknown + 类型守卫
+      if (error !== 'cancel') ElMessage.error((error instanceof Error ? error.message : String(error)) || '取消失败')
     }
   }
 
@@ -83,8 +86,9 @@ export function useSysUpdProc(refresh: RefreshCallbacks) {
       await rollbackUpdate(row.from_version)
       ElMessage.success('回滚任务已创建')
       await refresh.fetchTasks()
-    } catch (error: any) {
-      if (error !== 'cancel') ElMessage.error(error.message || '回滚失败')
+    } catch (error: unknown) {
+      // 批次 98 P2-D 修复（v5 复审）：原 catch (error: any) 改为 unknown + 类型守卫
+      if (error !== 'cancel') ElMessage.error((error instanceof Error ? error.message : String(error)) || '回滚失败')
     }
   }
 
@@ -95,8 +99,9 @@ export function useSysUpdProc(refresh: RefreshCallbacks) {
       await deleteSystemBackup(row.id)
       ElMessage.success('删除成功')
       await refresh.fetchBackups()
-    } catch (error: any) {
-      if (error !== 'cancel') ElMessage.error(error.message || '删除失败')
+    } catch (error: unknown) {
+      // 批次 98 P2-D 修复（v5 复审）：原 catch (error: any) 改为 unknown + 类型守卫
+      if (error !== 'cancel') ElMessage.error((error instanceof Error ? error.message : String(error)) || '删除失败')
     }
   }
 
@@ -109,8 +114,9 @@ export function useSysUpdProc(refresh: RefreshCallbacks) {
       await restoreFromBackup(row.id)
       ElMessage.success('恢复任务已创建')
       await refresh.fetchTasks()
-    } catch (error: any) {
-      if (error !== 'cancel') ElMessage.error(error.message || '恢复失败')
+    } catch (error: unknown) {
+      // 批次 98 P2-D 修复（v5 复审）：原 catch (error: any) 改为 unknown + 类型守卫
+      if (error !== 'cancel') ElMessage.error((error instanceof Error ? error.message : String(error)) || '恢复失败')
     }
   }
 
@@ -123,8 +129,9 @@ export function useSysUpdProc(refresh: RefreshCallbacks) {
       link.download = `backup_${row.backup_code}.zip`
       link.click()
       ElMessage.success('备份下载成功')
-    } catch (error: any) {
-      ElMessage.error(error.message || '下载失败')
+    } catch (error: unknown) {
+      // 批次 98 P2-D 修复（v5 复审）：原 catch (error: any) 改为 unknown + 类型守卫
+      ElMessage.error((error instanceof Error ? error.message : String(error)) || '下载失败')
     }
   }
 

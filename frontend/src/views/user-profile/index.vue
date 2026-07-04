@@ -227,8 +227,9 @@ const loadUserProfile = async () => {
     if (res.data) {
       Object.assign(profileForm, res.data)
     }
-  } catch (error: any) {
-    ElMessage.error(error.message || '加载个人信息失败')
+  } catch (error: unknown) {
+    // 批次 98 P2-D 修复（v5 复审）：原 catch (error: any) 改为 unknown + 类型守卫
+    ElMessage.error((error instanceof Error ? error.message : String(error)) || '加载个人信息失败')
   }
 }
 
@@ -256,8 +257,9 @@ const handleAvatarChange = async (uploadFile: UploadFile) => {
       profileForm.avatar = res.data.avatar_url
       ElMessage.success('头像上传成功')
     }
-  } catch (error: any) {
-    ElMessage.error(error.message || '头像上传失败')
+  } catch (error: unknown) {
+    // 批次 98 P2-D 修复（v5 复审）：原 catch (error: any) 改为 unknown + 类型守卫
+    ElMessage.error((error instanceof Error ? error.message : String(error)) || '头像上传失败')
   }
 }
 
@@ -278,8 +280,9 @@ const handleSaveProfile = async () => {
       }
       await updateUserProfile(updateData)
       ElMessage.success('个人信息保存成功')
-    } catch (error: any) {
-      ElMessage.error(error.message || '保存失败')
+    } catch (error: unknown) {
+      // 批次 98 P2-D 修复（v5 复审）：原 catch (error: any) 改为 unknown + 类型守卫
+      ElMessage.error((error instanceof Error ? error.message : String(error)) || '保存失败')
     } finally {
       profileLoading.value = false
     }
@@ -298,8 +301,9 @@ const handleChangePassword = async () => {
       ElMessage.success('密码修改成功')
       // 清空表单
       passwordFormRef.value?.resetFields()
-    } catch (error: any) {
-      ElMessage.error(error.message || '密码修改失败')
+    } catch (error: unknown) {
+      // 批次 98 P2-D 修复（v5 复审）：原 catch (error: any) 改为 unknown + 类型守卫
+      ElMessage.error((error instanceof Error ? error.message : String(error)) || '密码修改失败')
     } finally {
       passwordLoading.value = false
     }

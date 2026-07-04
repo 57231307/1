@@ -37,7 +37,7 @@ pub async fn list_verifications(
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     let service = crate::services::ar_service::ArService::new(state.db.clone());
 
-    let page = query.page.unwrap_or(1).max(1); // 批次 95 P3-3~8：分页 clamp 防 DoS
+    let page = query.page.unwrap_or(1).clamp(1, 1000); // 批次 95 P3-3~8：分页 clamp 防 DoS
     // v12 批次 39 修复：page_size clamp(1,100) 防 DoS（即便 service 当前为空实现，前置防护避免未来埋雷）
     let page_size = query.page_size.unwrap_or(10).clamp(1, 100);
 

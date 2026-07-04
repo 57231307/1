@@ -113,7 +113,8 @@ impl SalesContractService {
         // 的 paginator.fetch_page(query.page - 1) 0-indexed 写法一致。
         let contracts = query
             .order_by(sales_contract::Column::Id, Order::Desc)
-            .offset(((params.page.saturating_sub(1)) * params.page_size) as u64)
+            // 批次 98 P2-A 修复（v5 复审）：page clamp 防 DoS
+            .offset(((params.page.max(1).min(1000).saturating_sub(1)) * params.page_size) as u64)
             .limit(params.page_size as u64)
             .all(&*self.db)
             .await?;

@@ -88,7 +88,8 @@ pub async fn list_batches(
         .filter(inventory_stock::Column::BatchNo.ne(""))
         .paginate(&*state.db, page_size);
     let batches = paginator
-        .fetch_page(page.saturating_sub(1))
+        // 批次 98 P2-A 修复（v5 复审）：page clamp 防 DoS
+        .fetch_page(page.clamp(1, 1000).saturating_sub(1))
         .await
         .map_err(|e| AppError::database(format!("获取批次列表失败：{}", e)))?;
 

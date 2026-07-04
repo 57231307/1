@@ -272,8 +272,9 @@ const fetchPendingTasks = async () => {
   try {
     const res = await bpmApi.queryTasks({ status: 'pending' })
     pendingTasks.value = res.data?.list || []
-  } catch (error: any) {
-    ElMessage.error(error.message || '获取待处理任务失败')
+  } catch (error: unknown) {
+    // 批次 98 P2-D 修复（v5 复审）：原 catch (error: any) 改为 unknown + 类型守卫
+    ElMessage.error((error instanceof Error ? error.message : String(error)) || '获取待处理任务失败')
     pendingTasks.value = []
   }
 }
@@ -282,8 +283,9 @@ const fetchInitiatedProcesses = async () => {
   try {
     const res = await bpmApi.listInstancesForMonitor()
     initiatedProcesses.value = res.data?.list || []
-  } catch (error: any) {
-    ElMessage.error(error.message || '获取发起流程失败')
+  } catch (error: unknown) {
+    // 批次 98 P2-D 修复（v5 复审）：原 catch (error: any) 改为 unknown + 类型守卫
+    ElMessage.error((error instanceof Error ? error.message : String(error)) || '获取发起流程失败')
     initiatedProcesses.value = []
   }
 }
@@ -292,8 +294,9 @@ const fetchProcessedTasks = async () => {
   try {
     const res = await bpmApi.queryTasks({ status: 'completed' })
     processedTasks.value = res.data?.list || []
-  } catch (error: any) {
-    ElMessage.error(error.message || '获取已处理任务失败')
+  } catch (error: unknown) {
+    // 批次 98 P2-D 修复（v5 复审）：原 catch (error: any) 改为 unknown + 类型守卫
+    ElMessage.error((error instanceof Error ? error.message : String(error)) || '获取已处理任务失败')
     processedTasks.value = []
   }
 }
@@ -302,8 +305,9 @@ const fetchProcessInstances = async () => {
   try {
     const res = await bpmApi.listInstancesForMonitor()
     processInstances.value = res.data?.list || []
-  } catch (error: any) {
-    ElMessage.error(error.message || '获取流程实例失败')
+  } catch (error: unknown) {
+    // 批次 98 P2-D 修复（v5 复审）：原 catch (error: any) 改为 unknown + 类型守卫
+    ElMessage.error((error instanceof Error ? error.message : String(error)) || '获取流程实例失败')
     processInstances.value = []
   }
 }

@@ -17,15 +17,8 @@ use rust_decimal::Decimal;
 use serde::{Deserialize, Serialize};
 use validator::Validate;
 
-/// 批次 31 v7 P1-6 修复：validator range 不支持 Decimal，用 custom 函数验证金额范围
-fn validate_amount_range(amount: &Decimal) -> Result<(), validator::ValidationError> {
-    let zero = Decimal::ZERO;
-    let max = Decimal::new(1_000_000_000, 0); // 10 亿
-    if *amount <= zero || *amount > max {
-        return Err(validator::ValidationError::new("支付金额必须为正且不超过10亿"));
-    }
-    Ok(())
-}
+// 批次 98 P2-B 修复（v5 复审）：本地 validate_amount_range 已抽取到 utils::validator 模块，
+// 统一追加 round_dp(2) 精度校验。#[validate(custom)] 引用改为 crate::utils::validator::validate_amount_range。
 
 /// 通用财务支付请求 DTO
 /// 批次 31 v7 P1-6 修复：添加 Validate + 字段验证
@@ -34,7 +27,7 @@ pub struct CreatePaymentRequest {
     #[validate(length(max = 50, message = "支付单号长度不能超过50字符"))]
     pub payment_no: Option<String>,
     pub invoice_id: Option<i32>,
-    #[validate(custom(function = "validate_amount_range"))]
+    #[validate(custom(function = "crate::utils::validator::validate_amount_range"))]
     pub amount: Decimal,
     pub payment_date: Option<DateTime<Utc>>,
     #[validate(length(max = 50, message = "支付方式长度不能超过50字符"))]
@@ -129,7 +122,7 @@ pub async fn list_payments(
 
     let (payments, total) = service
         .list_payments(
-            params.page.unwrap_or(1).max(1),
+            params.page.unwrap_or(1).clamp(1, 1000),
             params.page_size.unwrap_or(20).clamp(1, 100),
             params.status,
         )
@@ -151,7 +144,7 @@ pub async fn list_payments(
     Ok(Json(ApiResponse::success(PaymentListResponse {
         payments: payment_responses,
         total,
-        page: params.page.unwrap_or(1).max(1),
+        page: params.page.unwrap_or(1).clamp(1, 1000),
         page_size: params.page_size.unwrap_or(20).clamp(1, 100),
     })))
 }

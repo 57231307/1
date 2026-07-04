@@ -120,7 +120,8 @@ pub async fn list_fabric_orders(
     let paginator = query_builder
         .order_by(sales_order::Column::CreatedAt, Order::Desc)
         .paginate(&*state.db, page_size);
-    let orders = paginator.fetch_page(page.saturating_sub(1)).await?;
+    // 批次 98 P2-A 修复（v5 复审）：page clamp 防 DoS
+    let orders = paginator.fetch_page(page.clamp(1, 1000).saturating_sub(1)).await?;
     let total = paginator.num_items().await?;
 
     let orders_json: Vec<serde_json::Value> = orders

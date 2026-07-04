@@ -193,7 +193,8 @@ const handleDeleteItem = async (item: ColorItemInfo) => {
     await deleteColorItem(cardId.value, item.id)
     ElMessage.success('删除成功')
     loadData()
-  } catch (e: any) {
+  } catch (e: unknown) {
+    // 批次 98 P2-D 修复（v5 复审）：原 catch (e: any) 改为 unknown + 类型守卫
     if (e !== 'cancel') ElMessage.error('删除失败')
   }
 }
@@ -203,8 +204,9 @@ const handleScanItem = async (item: ColorItemInfo) => {
     const res: any = await scanColorCode(item.color_code)
     scanResult.value = res.data
     showScanDialog.value = true
-  } catch (e: any) {
-    ElMessage.error('扫码查询失败: ' + (e?.message || e))
+  } catch (e: unknown) {
+    // 批次 98 P2-D 修复（v5 复审）：原 catch (e: any) 改为 unknown + 类型守卫
+    ElMessage.error('扫码查询失败: ' + (e instanceof Error ? e.message : String(e)))
   }
 }
 

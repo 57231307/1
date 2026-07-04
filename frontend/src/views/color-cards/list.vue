@@ -162,8 +162,9 @@ const handleArchive = async (row: ColorCardListItem) => {
     await archiveColorCard(row.id)
     ElMessage.success('已归档')
     loadData()
-  } catch (e: any) {
-    if (e !== 'cancel') ElMessage.error('归档失败: ' + (e?.message || e))
+  } catch (e: unknown) {
+    // 批次 98 P2-D 修复（v5 复审）：原 catch (e: any) 改为 unknown + 类型守卫
+    if (e !== 'cancel') ElMessage.error('归档失败: ' + (e instanceof Error ? e.message : String(e)))
   }
 }
 

@@ -184,8 +184,9 @@ const handleMarkRead = async (item: Notification) => {
     ElMessage.success('已标为已读')
     fetchNotifications()
     fetchUnreadCount()
-  } catch (e: any) {
-    ElMessage.error(e.message || '操作失败')
+  } catch (e: unknown) {
+    // 批次 98 P2-D 修复（v5 复审）：原 catch (e: any) 改为 unknown + 类型守卫
+    ElMessage.error((e instanceof Error ? e.message : String(e)) || '操作失败')
   }
 }
 
@@ -195,8 +196,9 @@ const handleMarkAllRead = async () => {
     ElMessage.success('操作成功')
     fetchNotifications()
     fetchUnreadCount()
-  } catch (e: any) {
-    ElMessage.error(e.message || '操作失败')
+  } catch (e: unknown) {
+    // 批次 98 P2-D 修复（v5 复审）：原 catch (e: any) 改为 unknown + 类型守卫
+    ElMessage.error((e instanceof Error ? e.message : String(e)) || '操作失败')
   }
 }
 
@@ -214,9 +216,10 @@ const handleDelete = async (item: Notification) => {
     ElMessage.success('删除成功')
     fetchNotifications()
     fetchUnreadCount()
-  } catch (e: any) {
+  } catch (e: unknown) {
+    // 批次 98 P2-D 修复（v5 复审）：原 catch (e: any) 改为 unknown + 类型守卫
     if (e !== 'cancel') {
-      ElMessage.error(e.message || '删除失败')
+      ElMessage.error((e instanceof Error ? e.message : String(e)) || '删除失败')
     }
   }
 }
