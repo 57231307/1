@@ -27,6 +27,8 @@ use prometheus::{
 };
 use std::sync::Arc;
 
+use crate::services::business_metrics::BusinessMetrics;
+
 /// 监控指标注册表
 pub type MetricsRegistry = Registry;
 
@@ -307,6 +309,11 @@ impl Metrics {
 pub struct MetricsService {
     pub registry: Arc<MetricsRegistry>,
     pub metrics: Arc<Metrics>,
+    /// 批次 106 P1-2 修复：业务指标扩展（20+ erp_* 指标）
+    ///
+    /// 通过同一 Registry 注册，`/metrics` 端点 gather 时自动包含业务指标，
+    /// 无需新增端点。业务侧调用 `state.metrics.business_metrics.record_*(...)` 记录。
+    pub business_metrics: Arc<BusinessMetrics>,
 }
 
 impl MetricsService {
@@ -314,10 +321,13 @@ impl MetricsService {
     pub fn new() -> Result<Self, prometheus::Error> {
         let registry = Registry::new();
         let metrics = Metrics::new(&registry)?;
+        // 批次 106 P1-2 修复：业务指标注册到同一 Registry，/metrics 端点自动暴露
+        let business_metrics = BusinessMetrics::new(&registry)?;
 
         Ok(Self {
             registry: Arc::new(registry),
             metrics: Arc::new(metrics),
+            business_metrics: Arc::new(business_metrics),
         })
     }
 
@@ -581,5 +591,44 @@ mod tests {
 
         assert_eq!(create_user_count, 2);
         assert_eq!(approve_order_count, 1);
+    }
+
+    // ===== 批次 106 P1-2 新增：BusinessMetrics 接入验证 =====
+
+    #[test]
+    fn test_business_metrics_integrated_into_metrics_service() {
+        // 批次 106 P1-2 修复：验证 BusinessMetrics 已接入 MetricsService，
+        // 通过同一 Registry 注册，/metrics 端点 gather 时自动包含 erp_* 指标
+        let metrics_service = test_metrics_service();
+
+        // 业务指标可通过 state.metrics.business_metrics.record_*(...) 调用
+        metrics_service
+            .business_metrics
+            .record_order_created("pending");
+        metrics_service.business_metrics.record_cache_hit();
+        metrics_service.business_metrics.record_login(true);
+
+        // gather 后应包含 erp_* 指标家族
+        let gathered = metrics_service.gather();
+        let erp_metric_names: Vec<&str> = gathered
+            .iter()
+            .map(|f| f.get_name())
+            .filter(|name| name.starts_with("erp_"))
+            .collect();
+        assert!(
+            !erp_metric_names.is_empty(),
+            "gather 应包含 erp_* 指标，实际: {:?}",
+            erp_metric_names
+        );
+        assert!(
+            erp_metric_names.contains(&"erp_orders_total"),
+            "应包含 erp_orders_total，实际: {:?}",
+            erp_metric_names
+        );
+        assert!(
+            erp_metric_names.contains(&"erp_cache_hits_total"),
+            "应包含 erp_cache_hits_total，实际: {:?}",
+            erp_metric_names
+        );
     }
 }

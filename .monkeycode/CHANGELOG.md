@@ -2,6 +2,51 @@
 
 > 重要变更一句话摘要列表。详细历史请查阅 [`.monkeycode/docs/archives/`](file:///workspace/.monkeycode/docs/archives/)。
 
+## 2026-07-04 (批次 105 messaging/ 死代码模块删除完成)
+
+### 批次 105 完成：删除 messaging/ 死代码模块（PR #349，main `bc075ad`）
+
+**用户新规则批次 105 — messaging/ 占位模块删除**：
+
+| # | 修复要点 | 影响文件 |
+|---|---------|---------|
+| P1 | 删除 messaging/kafka.rs（444 行 trait + mock 占位模块，仅在自身测试中被引用） | messaging/kafka.rs（删除） |
+| P1 | 删除 messaging/bus.rs（111 行 mock 实现，无业务调用方） | messaging/bus.rs（删除） |
+| P1 | 删除 messaging/mod.rs（8 行模块声明） | messaging/mod.rs（删除） |
+| 配套 | lib.rs 移除 `pub mod messaging;` 模块声明 + 新增注释说明删除原因 | backend/src/lib.rs |
+
+**关键决策**：messaging/ 是 P9-7 设计阶段的 trait + mock 占位模块，与 services/event_kafka.rs（P11-H2 rskafka 0.5 真实集成）形成重复实现。按用户新规则和 project_rules.md 第六节"死代码处理规范"删除而非真实接入；真实 Kafka 集成路径已存在于 services/event_kafka.rs。
+
+## 2026-07-04 (批次 104 搜索 API 真实接入完成)
+
+### 批次 104 完成：search_api.rs 3 个搜索端点真实接入 SearchClient（PR #348，main `e0a8672`）
+
+**用户新规则批次 104 — 搜索 API 真实接入**：
+
+| # | 修复要点 | 影响文件 |
+|---|---------|---------|
+| P0-1 | 3 个 handler 从 stub 真实接入 SearchClient（注入 State<AppState>，调用 search_client.search()，反序列化为 Doc 类型） | routes/search_api.rs |
+| P0-1 | AppState 新增 search_client 字段 + init_search_client() 函数（根据 ELASTICSEARCH_URL 决定 mock/real 客户端） | utils/app_state.rs |
+| P0-1 | 移除已接入项的 dead_code 标注（indices / SalesOrderItemDoc / SearchResult / SearchHit / SearchClient trait / SearchError / ElasticClient / real()） | search/elastic.rs |
+| 配套 | mod.rs 仅 re-export 外部实际使用的项；.env.example 新增 ELASTICSEARCH_URL 配置示例 | search/mod.rs, .env.example |
+| 测试 | 新增 test_search_sales_orders_with_mock_client 端到端测试 | routes/search_api.rs |
+
+**设计决策**：采用可降级方案，CI 环境无 ES 时使用 mock 客户端，生产环境通过环境变量切换为真实客户端。
+
+## 2026-07-04 (批次 103 预留 API/占位符功能实现完成)
+
+### 批次 103 完成：用户新规则首批修复（PR #347，main `b788b11`）
+
+**用户新规则首批修复 — 预留 API/占位符功能真实接入**：
+
+| # | 修复要点 | 影响文件 |
+|---|---------|---------|
+| P0-3 | user_handler.rs 接入 PasswordPolicyService（is_common_password + contains_username_fragment + strength_feedback_zh） | 2 文件 |
+| P0-4 | purchase_return_service.rs 删除 2 处过时 TODO 注释 | 1 文件 |
+| P2-3 | role_handler.rs update_role/delete_role 添加 clear_admin_role_cache 调用 | 2 文件 |
+| P1-7 | routes/analytics.rs 删除 api_keys() 旧死路由 + 移除 unused import | 1 文件 |
+| CI 修复 | 删除 api_key_handler.rs 死代码模块 + 删除 ApiKeyService::list_api_keys 死方法 + 移除 unused get_password_feedback import | 4 文件（含 1 删除） |
+
 ## 2026-07-04 (批次 97 P1 修复完成)
 
 ### 批次 97 完成：P1 修复（16 项）+ 2 条 CI 修复（PR #341，main `f55e201`）

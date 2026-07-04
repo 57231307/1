@@ -35,24 +35,21 @@
 //! ```rust,ignore
 //! use crate::services::business_metrics::BusinessMetrics;
 //!
-//! let m = state.business_metrics.clone();
+//! // 批次 106 P1-2 修复：通过 state.metrics.business_metrics 访问
+//! let m = state.metrics.business_metrics.clone();
 //! m.record_order_created("pending");
 //! m.set_ar_balance(12345.67);
 //! ```
 
 use prometheus::{
-    Encoder, Histogram, HistogramOpts, HistogramVec, IntCounter, IntCounterVec, IntGauge,
-    Opts, Registry, TextEncoder,
+    Histogram, HistogramOpts, HistogramVec, IntCounter, IntCounterVec, IntGauge, Opts, Registry,
 };
-use std::sync::Arc;
 
 /// 业务指标集合
 ///
-/// BE-D 修复（2026-06-26 第三优先级）：
-/// BusinessMetrics 注册了 20+ Prometheus 指标，但当前业务代码尚未接入
-/// 读取路径（state.business_metrics 未在 handler 中使用）。
-/// 保留结构体供 metrics 暴露端点接入后使用，项级 allow + TODO。
-#[allow(dead_code)] // TODO(tech-debt): metrics 暴露端点 / 中间件接入后移除；rustc 1.94+ 编译时由编译器报告具体死代码位置。
+/// 批次 106 P1-2 修复（2026-07-04）：BusinessMetrics 已接入 MetricsService，
+/// 通过同一 Registry 注册，/metrics 端点自动暴露 20+ erp_* 指标。
+/// 业务侧调用路径：`state.metrics.business_metrics.record_*(...)`。
 #[derive(Debug, Clone)]
 pub struct BusinessMetrics {
     // ===== 业务核心指标 =====
@@ -114,7 +111,6 @@ pub struct BusinessMetrics {
     pub http_response_size_bytes: Histogram,
 }
 
-#[allow(dead_code)] // TODO(tech-debt): metrics 暴露端点 / 中间件接入后移除；rustc 1.94+ 编译时由编译器报告具体死代码位置。
 impl BusinessMetrics {
     /// 创建并注册所有业务指标
     pub fn new(registry: &Registry) -> Result<Self, prometheus::Error> {
@@ -356,19 +352,13 @@ impl BusinessMetrics {
     }
 }
 
-/// 指标导出辅助函数
-#[allow(dead_code)] // TODO(tech-debt): metrics 暴露端点接入后移除
-pub fn render_prometheus_metrics(registry: &Registry) -> Result<String, prometheus::Error> {
-    let encoder = TextEncoder::new();
-    let mut buf = Vec::new();
-    encoder.encode(&registry.gather(), &mut buf)?;
-    String::from_utf8(buf).map_err(|e| prometheus::Error::Msg(e.to_string()))
-}
-
-/// 指标注册表构建器
-#[allow(dead_code)] // TODO(tech-debt): metrics 暴露端点接入后移除
-pub fn build_registry_and_metrics() -> Result<(Arc<Registry>, BusinessMetrics), prometheus::Error> {
-    let registry = Arc::new(Registry::new());
+/// 指标注册表构建器（仅测试用）
+///
+/// 批次 106 P1-2 修复：原 pub fn 改为 #[cfg(test)]，避免生产代码死代码。
+/// 生产环境通过 `MetricsService::new()` 内部构造 BusinessMetrics 并注册到同一 Registry。
+#[cfg(test)]
+pub fn build_registry_and_metrics() -> Result<(std::sync::Arc<Registry>, BusinessMetrics), prometheus::Error> {
+    let registry = std::sync::Arc::new(Registry::new());
     let metrics = BusinessMetrics::new(&registry)?;
     Ok((registry, metrics))
 }
@@ -376,6 +366,7 @@ pub fn build_registry_and_metrics() -> Result<(Arc<Registry>, BusinessMetrics), 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::sync::Arc;
 
     // P9-1: 测试夹具 helper，统一 build_registry_and_metrics 的 expect
     fn build_metrics() -> (Arc<prometheus::Registry>, BusinessMetrics) {

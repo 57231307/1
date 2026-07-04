@@ -33,8 +33,7 @@ pub mod webhook_signature;
 pub mod color_space_converter;
 // P0-5 面料多色号定价扩展 - 价格计算引擎
 pub mod price_calculator;
-// P4-1 性能优化 - N+1 查询修复工具集
-pub mod n_plus_one;
+// 批次 106 修复：n_plus_one 工具模块已删除（删除 performance_optimizer 后零业务引用）
 // P4-2 安全加固 - 令牌桶限流算法
 pub mod token_bucket;
 // P9-1 关键路径 unwrap 清理 - 统一 expect/unwrap 集中化工具

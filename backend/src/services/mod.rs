@@ -5,8 +5,7 @@ pub mod auth;
 pub mod batch_service;
 // P4-1 性能优化 - 进程内 LRU 缓存
 pub mod cache_service;
-// P4-1 性能优化 - N+1 修复 + 缓存穿透示例
-pub mod performance_optimizer;
+// 批次 106 修复：performance_optimizer 模块已删除（死代码样板，能力已被 utils/n_plus_one + cache_service + slow_query 中间件覆盖）
 // P3-4 数据仓库/BI 关键路径 demo
 pub mod bi_analysis_service;
 // P4-3 监控告警 - 业务指标扩展（20+ 指标）
@@ -94,7 +93,7 @@ pub mod fund_management_service;
 pub mod metrics_service;
 pub mod omni_audit_query_service;
 pub mod omni_audit_service;
-pub mod operation_log_service;
+// 批次 106 修复：operation_log_service 模块已删除（零业务引用，已被 omni_audit_service 完全替代）
 pub mod order_change_history_service;
 pub mod purchase_contract_service;
 pub mod purchase_delivery_calculator;
