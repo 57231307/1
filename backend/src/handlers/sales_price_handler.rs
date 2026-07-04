@@ -127,7 +127,7 @@ pub async fn list_strategies(
 ) -> Result<Json<ApiResponse<PaginatedResponse<sales_price::Model>>>, AppError> {
     info!("用户 {} 正在查询销售价格策略", auth.user_id);
 
-    let page = params.page.unwrap_or(1) as u64;
+    let page = params.page.unwrap_or(1).max(1) as u64; // 批次 95 P3-3~8：分页 clamp 防 DoS
     let page_size = params.page_size.unwrap_or(20).clamp(1, 100) as u64;
 
     let service = SalesPriceService::new(state.db.clone());

@@ -67,6 +67,39 @@
     <SpView v-model:visible="spProc.viewDialogVisible" :view-data="spProc.viewData" />
 
     <SpHistory v-model:visible="spProc.historyVisible" :history-list="spProc.historyList" />
+
+    <!-- 价格策略对话框（批次 95 P3-17 修复：展示阶梯/批量/合同策略列表） -->
+    <el-dialog
+      :model-value="spProc.strategyVisible"
+      title="价格策略"
+      width="800px"
+      @update:model-value="(v: boolean) => (spProc.strategyVisible = v)"
+    >
+      <el-table v-loading="spProc.strategyLoading" :data="spProc.strategyList" border>
+        <el-table-column prop="name" label="策略名称" min-width="120" show-overflow-tooltip />
+        <el-table-column
+          prop="description"
+          label="描述"
+          min-width="180"
+          show-overflow-tooltip
+        />
+        <el-table-column prop="type" label="类型" width="100" align="center">
+          <template #default="{ row }">
+            {{ row.type === 'tiered' ? '阶梯定价' : row.type === 'volume' ? '批量定价' : '合同定价' }}
+          </template>
+        </el-table-column>
+        <el-table-column prop="status" label="状态" width="80" align="center">
+          <template #default="{ row }">
+            <el-tag :type="row.status === 'active' ? 'success' : 'info'">
+              {{ row.status === 'active' ? '活跃' : '停用' }}
+            </el-tag>
+          </template>
+        </el-table-column>
+        <el-table-column label="规则数" width="80" align="center">
+          <template #default="{ row }">{{ row.rules?.length || 0 }}</template>
+        </el-table-column>
+      </el-table>
+    </el-dialog>
   </div>
 </template>
 

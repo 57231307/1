@@ -80,7 +80,8 @@ pub mod voucher_service;
 pub mod audit_log_service;
 pub mod bpm_service;
 pub mod bpm_service_dto;
-pub mod bpm_service_stub;
+// 批次 95 P3-15：bpm_service_stub.rs 重命名为 bpm_process_definition_service.rs（消除 stub 误导）
+pub mod bpm_process_definition_service;
 pub mod budget_management_service;
 pub mod cost_collection_service;
 pub mod customer_credit_evaluate;

@@ -65,7 +65,8 @@ pub async fn list_shortage_alerts(
     tracing::debug!(user_id = auth.user_id, "缺料预警列表查询");
     let service = MaterialShortageService::new(state.db.clone());
 
-    let page = params.page.unwrap_or(1).saturating_sub(1);
+    // 批次 95 P3-3~8 修复：max(1) 保证页码 >=1（防止 page=0 被接受），saturating_sub(1) 转 0-based offset
+    let page = params.page.unwrap_or(1).max(1).saturating_sub(1);
     let page_size = params.page_size.unwrap_or(20).clamp(1, 100);
 
     let (items, total) = service

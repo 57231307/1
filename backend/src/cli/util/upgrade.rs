@@ -123,17 +123,23 @@ pub(super) fn cmd_rollback() {
     let server_path = format!("{}/backend/server", get_install_dir());
     let bingxi_path = format!("{}/backend/bingxi", get_install_dir());
 
+    // 批次 95 P3-13 修复：恢复旧版本为关键路径，任一步失败立即中止回滚
+    // （避免后续 chmod/start 对缺失文件误操作）
     if let Err(e) = run_cmd("mv", &[&server_old, &server_path]) {
-        println!("[ERROR] 恢复 server 失败: {}", e);
+        println!("[ERROR] 恢复 server 失败，终止回滚: {}", e);
+        return;
     }
     if let Err(e) = run_cmd("mv", &[&bingxi_old, &bingxi_path]) {
-        println!("[ERROR] 恢复 bingxi 失败: {}", e);
+        println!("[ERROR] 恢复 bingxi 失败，终止回滚: {}", e);
+        return;
     }
     if let Err(e) = run_cmd("chmod", &["+x", &server_path]) {
-        println!("[ERROR] chmod server 失败: {}", e);
+        println!("[ERROR] chmod server 失败，终止回滚: {}", e);
+        return;
     }
     if let Err(e) = run_cmd("chmod", &["+x", &bingxi_path]) {
-        println!("[ERROR] chmod bingxi 失败: {}", e);
+        println!("[ERROR] chmod bingxi 失败，终止回滚: {}", e);
+        return;
     }
 
     println!("启动服务...");
@@ -202,17 +208,23 @@ fn deploy_release(package: &str) {
     let dst_server = format!("{}/backend/server", install_dir);
     let dst_bingxi = format!("{}/backend/bingxi", install_dir);
 
+    // 批次 95 P3-13 修复：覆盖二进制 + chmod 为关键路径，失败立即中止部署
+    // （避免启动残缺版本；服务保持停止状态等待运维介入）
     if let Err(e) = run_cmd("cp", &["-r", &new_server, &dst_server]) {
-        println!("[ERROR] 覆盖 server 失败: {}", e);
+        println!("[ERROR] 覆盖 server 失败，终止部署: {}", e);
+        return;
     }
     if let Err(e) = run_cmd("cp", &["-r", &new_bingxi, &dst_bingxi]) {
-        println!("[ERROR] 覆盖 bingxi 失败: {}", e);
+        println!("[ERROR] 覆盖 bingxi 失败，终止部署: {}", e);
+        return;
     }
     if let Err(e) = run_cmd("chmod", &["+x", &dst_server]) {
-        println!("[ERROR] chmod server 失败: {}", e);
+        println!("[ERROR] chmod server 失败，终止部署: {}", e);
+        return;
     }
     if let Err(e) = run_cmd("chmod", &["+x", &dst_bingxi]) {
-        println!("[ERROR] chmod bingxi 失败: {}", e);
+        println!("[ERROR] chmod bingxi 失败，终止部署: {}", e);
+        return;
     }
 
     // 更新前端
@@ -222,8 +234,10 @@ fn deploy_release(package: &str) {
         println!("[WARN] 清理旧前端 dist 失败（继续 mv 覆盖）: {}", e);
     }
     let new_dist = format!("{}/frontend/dist", extract_dir);
+    // 批次 95 P3-13 修复：移动前端 dist 为关键路径，失败立即中止部署（避免前端缺失上线）
     if let Err(e) = run_cmd("mv", &[&new_dist, &frontend_dist]) {
-        println!("[ERROR] 移动新前端 dist 失败: {}", e);
+        println!("[ERROR] 移动新前端 dist 失败，终止部署: {}", e);
+        return;
     }
 
     // 清理解压目录（非关键路径）

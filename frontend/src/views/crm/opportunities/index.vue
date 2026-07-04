@@ -190,6 +190,53 @@
       :opportunity-id="currentFollowId"
       @submitted="getList"
     />
+
+    <!-- 商机详情对话框（批次 95 P3-19 修复：参考 SpView.vue 的 el-descriptions 模式） -->
+    <el-dialog v-model="viewDialogVisible" title="商机详情" width="640px">
+      <el-descriptions v-if="viewData" :column="2" border>
+        <el-descriptions-item label="商机编号">{{
+          viewData.opportunity_no
+        }}</el-descriptions-item>
+        <el-descriptions-item label="商机名称">{{
+          viewData.opportunity_name || viewData.name || '-'
+        }}</el-descriptions-item>
+        <el-descriptions-item label="客户">{{
+          viewData.customer_name || '-'
+        }}</el-descriptions-item>
+        <el-descriptions-item label="负责人">{{
+          viewData.owner_name || '-'
+        }}</el-descriptions-item>
+        <el-descriptions-item label="预估金额">{{
+          formatCurrency(viewData.estimated_amount)
+        }}</el-descriptions-item>
+        <el-descriptions-item label="成交概率"
+          >{{ viewData.win_probability ?? viewData.probability ?? 0 }}%</el-descriptions-item
+        >
+        <el-descriptions-item label="商机阶段">
+          <el-tag :type="getStageType(viewData.opportunity_stage || '')">{{
+            getStageLabel(viewData.opportunity_stage || '')
+          }}</el-tag>
+        </el-descriptions-item>
+        <el-descriptions-item label="优先级">{{
+          viewData.priority || '-'
+        }}</el-descriptions-item>
+        <el-descriptions-item label="预计成交">{{
+          viewData.expected_close_date || '-'
+        }}</el-descriptions-item>
+        <el-descriptions-item label="最近跟进">{{
+          viewData.last_follow_up_date || '-'
+        }}</el-descriptions-item>
+        <el-descriptions-item label="创建人">{{
+          viewData.created_by_name || '-'
+        }}</el-descriptions-item>
+        <el-descriptions-item label="创建时间">{{
+          viewData.created_at || '-'
+        }}</el-descriptions-item>
+        <el-descriptions-item label="描述" :span="2">{{
+          viewData.description || '-'
+        }}</el-descriptions-item>
+      </el-descriptions>
+    </el-dialog>
   </div>
 </template>
 
@@ -215,6 +262,8 @@ interface OpportunityRow extends Opportunity {
   owner_name?: string
   last_follow_up_date?: string
   priority?: string
+  // 批次 95 P3-19 修复：补充列表/详情展示所需字段（后端返回，类型定义缺失）
+  win_probability?: number
 }
 
 const queryParams = reactive({
@@ -237,6 +286,10 @@ const formDialogTitle = ref('新建商机')
 const currentRow = ref<OpportunityRow | null>(null)
 const followDialogVisible = ref(false)
 const currentFollowId = ref<number | null>(null)
+
+// 查看详情对话框状态（批次 95 P3-19 修复）
+const viewDialogVisible = ref(false)
+const viewData = ref<OpportunityRow | null>(null)
 
 const getList = async () => {
   loading.value = true
@@ -308,8 +361,10 @@ const handleFormSubmitted = () => {
   getList()
 }
 
-const handleView = (_row: OpportunityRow) => {
-  // 查看详情（占位）
+// 查看详情（批次 95 P3-19 修复：打开详情对话框展示商机完整信息）
+const handleView = (row: OpportunityRow) => {
+  viewData.value = row
+  viewDialogVisible.value = true
 }
 
 const handleWin = async (row: OpportunityRow) => {

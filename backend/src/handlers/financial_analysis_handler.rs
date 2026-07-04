@@ -224,7 +224,7 @@ pub async fn list_reports(
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     let service = FinancialAnalysisService::new(state.db.clone());
 
-    let page = params.get("page").and_then(|v| v.as_i64()).unwrap_or(1);
+    let page = params.get("page").and_then(|v| v.as_i64()).unwrap_or(1).max(1); // 批次 95 P3-3~8：分页 clamp 防 DoS
 
     let page_size = params
         .get("page_size")

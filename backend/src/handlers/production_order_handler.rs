@@ -200,7 +200,7 @@ pub async fn list_production_orders(
     let query_params = ProductionOrderQuery {
         status: query.status,
         product_id: query.product_id,
-        page: query.page.unwrap_or(1),
+        page: query.page.unwrap_or(1).max(1), // 批次 95 P3-3~8：分页 clamp 防 DoS
         page_size: query.page_size.unwrap_or(20).clamp(1, 100),
     };
 
@@ -229,7 +229,7 @@ pub async fn list_production_orders(
     Ok(Json(ApiResponse::success_paginated(
         responses,
         total,
-        query.page.unwrap_or(1),
+        query.page.unwrap_or(1).max(1), // 批次 95 P3-3~8：分页 clamp 防 DoS
         query.page_size.unwrap_or(20).clamp(1, 100),
     )))
 }

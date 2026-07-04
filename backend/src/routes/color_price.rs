@@ -5,7 +5,7 @@
 //! 关联 spec: docs/superpowers/specs/2026-06-16-color-price-extension-design.md §4.1
 
 use axum::{
-    routing::{delete, get, post},
+    routing::{delete, get, post, put},
     Router,
 };
 
@@ -70,6 +70,8 @@ pub fn routes() -> Router<AppState> {
         )
         .route(
             "/seasonal-rules/:id",
-            delete(color_price_handler::delete_seasonal_rule),
+            get(color_price_handler::get_seasonal_rule)
+                .put(color_price_handler::update_seasonal_rule)
+                .delete(color_price_handler::delete_seasonal_rule),
         )
 }

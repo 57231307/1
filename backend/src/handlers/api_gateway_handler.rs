@@ -58,6 +58,8 @@ pub struct UpsertApiEndpointRequest {
 #[derive(Debug, Deserialize)]
 pub struct UpdateApiKeyGwRequest {
     pub key_name: Option<String>,
+    // 批次 95 CI 修复：api_keys 表无 description 列，保留占位待 schema 扩展后接入
+    #[allow(dead_code)]
     pub description: Option<String>,
     pub permissions: Option<Vec<String>>,
     pub rate_limit: Option<i32>,
@@ -119,7 +121,12 @@ fn log_to_json(m: log_api_access::Model) -> Value {
 }
 
 /// 将 api_key::Model 转换为前端期望的 JSON 结构
-fn key_to_json(m: &crate::models::api_key::Model) -> Value {
+///
+/// `created_by` 参数：API 密钥创建者用户 ID。
+/// 批次 95 P3-9 修复：原硬编码 0，现由调用方注入真实 user_id
+/// （create/regenerate 场景来自 AuthContext.user_id）。
+/// 注意：api_keys 表无 created_by 列，list/get 历史密钥无法回溯创建者，传 0 占位。
+fn key_to_json(m: &crate::models::api_key::Model, created_by: i32) -> Value {
     // permissions 字段为 JSON 字符串，解析为 string[]
     let permissions: Value = m
         .permissions
@@ -150,7 +157,7 @@ fn key_to_json(m: &crate::models::api_key::Model) -> Value {
         "rate_limit": m.rate_limit_per_minute,
         "expires_at": m.expires_at.as_ref().map(|d| d.to_rfc3339()).unwrap_or_default(),
         "status": status,
-        "created_by": 0,
+        "created_by": created_by,
         "created_by_name": "",
         "created_at": m.created_at.to_rfc3339(),
         "last_used_at": m.last_used_at.as_ref().map(|d| d.to_rfc3339()).unwrap_or_default(),
@@ -227,6 +234,9 @@ pub async fn create_api_endpoint(
         .ok_or_else(|| AppError::validation("method 为必填项"))?;
 
     // 唯一性检查（path + method）
+    // 批次 95 P3-10 修复：显式检查仅作友好提示；并发场景下 TOCTOU 由数据库唯一约束
+    // uk_api_endpoints_path_method 兜底（见 migrations/20260703000005_create_api_endpoints/up.sql），
+    // insert 阶段会 catch 该约束冲突并转为业务错误。
     let existing = api_endpoint::Entity::find()
         .filter(api_endpoint::Column::Path.eq(&path))
         .filter(api_endpoint::Column::Method.eq(&method))
@@ -255,7 +265,18 @@ pub async fn create_api_endpoint(
         ..Default::default()
     };
 
-    let m = active_model.insert(&*state.db).await?;
+    // 批次 95 P3-10：catch 唯一约束冲突（并发场景下显式 find 通过但 insert 冲突）
+    // 仅匹配特定约束名 uk_api_endpoints_path_method，避免吞掉其他系统错误
+    let m = match active_model.insert(&*state.db).await {
+        Ok(m) => m,
+        Err(err) => {
+            let err_str = err.to_string();
+            if err_str.contains("uk_api_endpoints_path_method") {
+                return Err(AppError::business("该路径+方法的端点已存在"));
+            }
+            return Err(err.into());
+        }
+    };
     Ok(Json(ApiResponse::success_with_message(
         endpoint_to_json(m),
         "端点创建成功",
@@ -491,7 +512,8 @@ pub async fn list_api_keys(
         .all(&*state.db)
         .await?;
 
-    let data: Vec<Value> = rows.iter().map(key_to_json).collect();
+    // 批次 95 P3-9：api_keys 表无 created_by 列，列表查询无法回溯创建者，传 0 占位
+    let data: Vec<Value> = rows.iter().map(|m| key_to_json(m, 0)).collect();
     Ok(Json(ApiResponse {
         code: Some(200),
         message: Some("success".to_string()),
@@ -504,7 +526,7 @@ pub async fn list_api_keys(
 #[axum::debug_handler]
 pub async fn create_api_key(
     State(state): State<AppState>,
-    _auth: AuthContext,
+    auth: AuthContext,
     Json(req): Json<CreateApiKeyGwRequest>,
 ) -> Result<Json<ApiResponse<Value>>, AppError> {
     let service = ApiKeyService::new(state.db.clone());
@@ -534,7 +556,8 @@ pub async fn create_api_key(
         )
         .await?;
 
-    let mut data = key_to_json(&model);
+    // 批次 95 P3-9：注入 AuthContext.user_id 作为真实创建者
+    let mut data = key_to_json(&model, auth.user_id);
     if let Some(obj) = data.as_object_mut() {
         obj.insert("plain_key".to_string(), Value::String(plain_key));
     }
@@ -556,7 +579,8 @@ pub async fn get_api_key(
         .get_api_key_by_id(id)
         .await?
         .ok_or_else(|| AppError::not_found(format!("API 密钥 {} 不存在", id)))?;
-    Ok(Json(ApiResponse::success(key_to_json(&model))))
+    // 批次 95 P3-9：api_keys 表无 created_by 列，传 0 占位
+    Ok(Json(ApiResponse::success(key_to_json(&model, 0))))
 }
 
 /// PUT /api-gateway/keys/:id — 更新 API 密钥
@@ -593,8 +617,9 @@ pub async fn update_api_key(
         )
         .await?;
 
+    // 批次 95 P3-9：api_keys 表无 created_by 列，传 0 占位
     Ok(Json(ApiResponse::success_with_message(
-        key_to_json(&model),
+        key_to_json(&model, 0),
         "密钥更新成功",
     )))
 }
@@ -617,7 +642,7 @@ pub async fn delete_api_key(
 #[axum::debug_handler]
 pub async fn regenerate_api_key(
     State(state): State<AppState>,
-    _auth: AuthContext,
+    auth: AuthContext,
     Path(id): Path<i32>,
 ) -> Result<Json<ApiResponse<Value>>, AppError> {
     let service = ApiKeyService::new(state.db.clone());
@@ -625,7 +650,8 @@ pub async fn regenerate_api_key(
         .regenerate_api_key(id, Some(&state.cache))
         .await?;
 
-    let mut data = key_to_json(&model);
+    // 批次 95 P3-9：注入 AuthContext.user_id（重新生成操作者）
+    let mut data = key_to_json(&model, auth.user_id);
     if let Some(obj) = data.as_object_mut() {
         obj.insert("plain_key".to_string(), Value::String(plain_key));
     }

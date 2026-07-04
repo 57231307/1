@@ -59,7 +59,7 @@ pub async fn list_audit_logs(
     _auth: AuthContext,
     Query(query): Query<AuditLogQuery>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
-    let page = query.page.unwrap_or(1);
+    let page = query.page.unwrap_or(1).max(1); // 批次 95 P3-3~8：分页 clamp 防 DoS
     let page_size = query.page_size.unwrap_or(20).clamp(1, 100);
 
     use crate::models::audit_log;

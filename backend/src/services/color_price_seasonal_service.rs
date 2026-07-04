@@ -39,9 +39,8 @@ impl ColorPriceSeasonalService {
     }
 
     pub fn from_state(state: &crate::utils::app_state::AppState) -> Self {
-        Self {
-            db: state.db.clone(),
-        }
+        // 批次 95 CI 修复：复用 new 构造函数，消除 new 的 dead_code 警告
+        Self::new(state.db.clone())
     }
 
     /// 列表查询

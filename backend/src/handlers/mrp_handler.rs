@@ -207,7 +207,7 @@ pub async fn get_mrp_results(
 ) -> Result<Json<ApiResponse<PaginatedResponse<MrpResultResponse>>>, AppError> {
     let service = MrpEngineService::new(state.db.clone());
 
-    let page = query.page.unwrap_or(1);
+    let page = query.page.unwrap_or(1).max(1); // 批次 95 P3-3~8：分页 clamp 防 DoS
     let page_size = query.page_size.unwrap_or(20).clamp(1, 100);
 
     let (results, total) = service

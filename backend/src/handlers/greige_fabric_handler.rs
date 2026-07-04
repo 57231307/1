@@ -99,7 +99,7 @@ pub async fn list_greige_fabrics(
     State(state): State<AppState>,
     Query(query): Query<GreigeFabricListQuery>,
 ) -> Result<Json<ApiResponse<PaginatedResponse<greige_fabric::Model>>>, AppError> {
-    let page = query.page.unwrap_or(1);
+    let page = query.page.unwrap_or(1).max(1); // 批次 95 P3-3~8：分页 clamp 防 DoS
     let page_size = query.page_size.unwrap_or(20).clamp(1, 100);
 
     let mut q = greige_fabric::Entity::find().filter(greige_fabric::Column::IsDeleted.eq(false));

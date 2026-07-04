@@ -81,7 +81,7 @@ pub async fn list_dye_batches(
     State(state): State<AppState>,
     Query(query): Query<DyeBatchListQuery>,
 ) -> Result<Json<ApiResponse<PaginatedResponse<dye_batch::Model>>>, AppError> {
-    let page = query.page.unwrap_or(1);
+    let page = query.page.unwrap_or(1).max(1); // 批次 95 P3-3~8：分页 clamp 防 DoS
     let page_size = query.page_size.unwrap_or(20).clamp(1, 100);
 
     let mut q = dye_batch::Entity::find().filter(dye_batch::Column::IsDeleted.eq(false));

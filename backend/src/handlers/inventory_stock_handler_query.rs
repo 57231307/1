@@ -26,7 +26,7 @@ pub async fn list_transactions(
     let service = InventoryStockService::new(state.db.clone());
 
     // 页码采用 1-based 约定，由 service 内部转换为 0-based
-    let page = params.page.unwrap_or(1);
+    let page = params.page.unwrap_or(1).max(1); // 批次 95 P3-3~8：分页 clamp 防 DoS
     let page_size = params.page_size.unwrap_or(20).clamp(1, 100);
 
     let (transactions, total) = service
@@ -94,7 +94,7 @@ pub async fn get_inventory_summary(
 > {
     let service = InventoryStockService::new(state.db.clone());
 
-    let page = params.page.unwrap_or(1);
+    let page = params.page.unwrap_or(1).max(1); // 批次 95 P3-3~8：分页 clamp 防 DoS
     let page_size = params.page_size.unwrap_or(20).clamp(1, 100);
 
     let (summary_items, total) = service

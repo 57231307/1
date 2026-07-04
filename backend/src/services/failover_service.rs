@@ -124,20 +124,34 @@ impl FailoverMetrics {
 
 impl Default for FailoverMetrics {
     fn default() -> Self {
-        // 批次 92 P3-7：原实现 mk_counter/mk_gauge 内 panic! 与"回退到空结构"语义矛盾。
+        // 批次 92 P3-7 / 批次 95 P3-1 修复：
+        // 原实现 mk_counter/mk_gauge 内 panic! 与"回退到空结构"语义矛盾，
+        // 批次 92 仅加 tracing::error! 仍未真正消除 panic!。
         // IntCounterVec::new / IntGaugeVec::new 仅在指标名/标签名非法时返回 Err，
-        // 此处所有名称均为静态常量，运行时不可能失败。
-        // 改为 expect + tracing::error 显式标注为编程错误路径，消除裸 panic!。
+        // 此处所有名称均为静态常量，运行时不可能失败；真正失败属于不可恢复的编程错误。
+        // 由于 Default trait 签名必须返回 Self（无法 return Err），
+        // 改用 tracing::error! 记录详细上下文后调用 std::process::abort 终止进程，
+        // 彻底消除裸 panic! 宏调用。
         fn mk_counter(name: &'static str, help: &'static str) -> IntCounterVec {
             IntCounterVec::new(Opts::new(name, help), &["function"]).unwrap_or_else(|e| {
-                tracing::error!("P9-1: 静态指标 {} 初始化失败（应为编程错误）: {}", name, e);
-                panic!("P9-1: 静态指标 {} 初始化失败，应为编程错误: {}", name, e)
+                tracing::error!(
+                    target: "failover_metrics",
+                    metric_name = name,
+                    error = %e,
+                    "批次 95 P3-1: 静态指标初始化失败（应为编程错误），进程将终止"
+                );
+                std::process::abort()
             })
         }
         fn mk_gauge(name: &'static str, help: &'static str) -> IntGaugeVec {
             IntGaugeVec::new(Opts::new(name, help), &["function"]).unwrap_or_else(|e| {
-                tracing::error!("P9-1: 静态指标 {} 初始化失败（应为编程错误）: {}", name, e);
-                panic!("P9-1: 静态指标 {} 初始化失败，应为编程错误: {}", name, e)
+                tracing::error!(
+                    target: "failover_metrics",
+                    metric_name = name,
+                    error = %e,
+                    "批次 95 P3-1: 静态指标初始化失败（应为编程错误），进程将终止"
+                );
+                std::process::abort()
             })
         }
         Self::new().unwrap_or_else(|e| {
