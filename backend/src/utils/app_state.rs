@@ -21,6 +21,7 @@ use crate::services::custom_order_process_service::CustomOrderProcessService;
 use crate::services::custom_order_quality_service::CustomOrderQualityService;
 use crate::services::custom_order_aftersales_service::CustomOrderAfterSalesService;
 use crate::search::SearchClient;
+use crate::services::cache_service::CacheService;
 use crate::utils::cache::AppCache;
 use crate::utils::di_container::DIContainer;
 
@@ -69,6 +70,15 @@ pub struct AppState {
     /// 当前为 mock 实现（内存 HashMap + 关键字 substring 匹配），
     /// 配置 ELASTICSEARCH_URL 后可切换为真实 ES 客户端。
     pub search_client: Arc<dyn SearchClient>,
+    /// 批次 107 P1-1 修复：进程内 L1 缓存（moka LRU + TTL）
+    ///
+    /// 设计为 L1 本地缓存，与 Redis L2 缓存形成多级缓存架构：
+    /// - L1（本字段）：进程内 moka 缓存，超低延迟，适合热点数据
+    /// - L2（state.cache 为 AppCache/Redis）：分布式缓存，跨实例共享
+    ///
+    /// 使用场景：Dashboard 聚合查询、配置类数据、报表热点数据
+    /// 关闭方式：CACHE_ENABLED=false
+    pub cache_service: Arc<CacheService>,
 }
 
 impl FromRef<AppState> for Key {
@@ -200,6 +210,9 @@ impl AppState {
             // 批次 104 P0-1 修复：搜索客户端初始化
             // 根据环境变量决定使用真实 ES 客户端或 mock 客户端
             search_client: init_search_client(),
+            // 批次 107 P1-1 修复：L1 本地缓存初始化
+            // 根据 CACHE_ENABLED 环境变量决定是否启用
+            cache_service: Arc::new(CacheService::new()),
         })
     }
 }
@@ -289,6 +302,8 @@ impl Default for AppState {
             email_send_counters: Arc::new(DashMap::new()),
             // 批次 104 P0-1 修复：测试环境使用 mock 搜索客户端
             search_client: init_search_client(),
+            // 批次 107 P1-1 修复：测试环境启用 L1 本地缓存
+            cache_service: Arc::new(CacheService::new()),
         }
     }
 }
