@@ -25,7 +25,7 @@ use crate::models::customer_color_price_dto::{
     CreateCustomerColorPriceDto, ListCustomerColorPricesQuery,
 };
 use crate::models::seasonal_price_rule_dto::{
-    CreateSeasonalRuleDto, ListSeasonalRulesQuery,
+    CreateSeasonalRuleDto, ListSeasonalRulesQuery, UpdateSeasonalRuleDto,
 };
 use crate::services::color_price_batch_service::{BatchError, ColorPriceBatchService};
 use crate::services::color_price_crud_service::{ColorPriceCrudService, CrudError};
@@ -499,4 +499,31 @@ pub async fn delete_seasonal_rule(
 
     service.delete(id, auth.user_id).await?;
     Ok(Json(ApiResponse::success(json!({ "deleted": id }))))
+}
+
+/// GET /api/v1/erp/color-prices/seasonal-rules/:id - 查询单个季节规则
+// 批次 95 CI 修复：实现 get handler，接入 service.get_by_id（消除 dead_code 警告）
+pub async fn get_seasonal_rule(
+    _auth: AuthContext,
+    State(state): State<AppState>,
+    Path(id): Path<i64>,
+) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
+    let service = ColorPriceSeasonalService::from_state(&state);
+
+    let m = service.get_by_id(id).await.map_err(seasonal_err)?;
+    Ok(Json(ApiResponse::success(json!(m))))
+}
+
+/// PUT /api/v1/erp/color-prices/seasonal-rules/:id - 更新季节规则
+// 批次 95 CI 修复：实现 update handler，接入 service.update（消除 dead_code 警告）
+pub async fn update_seasonal_rule(
+    _auth: AuthContext,
+    State(state): State<AppState>,
+    Path(id): Path<i64>,
+    Json(dto): Json<UpdateSeasonalRuleDto>,
+) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
+    let service = ColorPriceSeasonalService::from_state(&state);
+
+    let m = service.update(id, dto).await.map_err(seasonal_err)?;
+    Ok(Json(ApiResponse::success(json!(m))))
 }
