@@ -21,7 +21,7 @@
 
 ---
 
-## 当前任务状态（2026-07-04 批次 105 已合并 main `bc075ad` - 批次 106 待启动）
+## 当前任务状态（2026-07-04 批次 106 已合并 main `7f2cc82` - 批次 107 待启动）
 
 ### 🔴 用户新规则（2026-07-04 追加，最高优先级）
 
@@ -68,7 +68,19 @@
 
 **关键决策**：messaging/ 是占位模块而非"未接入功能"，正确处理是删除而非真实接入；真实 Kafka 集成路径是 services/event_kafka.rs（生产路径）
 
-**下一步**：启动批次 106（performance_optimizer 接入/删除 + business_metrics 端点暴露 + operation_log_service 评估）
+### ✅ 批次 106 删除 performance_optimizer/operation_log_service + business_metrics 真实接入（PR #350，main `7f2cc82`）
+
+**用户新规则批次 106 完成**：3 个预留模块按"真实接入或删除"原则处理
+- P1-1 删除 services/performance_optimizer.rs（154 行）：P4-1 样板代码零业务引用，load_by_ids 是占位实现（永远返回 Ok(vec![])），能力已被 utils/n_plus_one + cache_service + middleware/slow_query 覆盖；同步删除 utils/n_plus_one.rs（删除 performance_optimizer 后零业务引用）
+- P1-3 删除 services/operation_log_service.rs（399 行）：零业务引用，已被 omni_audit_service 完全替代（omni_audit_service 提供异步 channel + HMAC 签名 + panic 隔离 + 安全告警，能力更完善）；TODO 注释"审计日志中间件接入后移除"触发条件已满足（中间件已存在但用替代方案）
+- P1-2 business_metrics 真实接入 MetricsService：MetricsService 新增 `pub business_metrics: Arc<BusinessMetrics>` 字段，`MetricsService::new()` 内部构造 BusinessMetrics 并注册到同一 Registry，`/metrics` 端点 gather 时自动包含 20+ erp_* 指标，无需新增端点；移除 BusinessMetrics 的 4 处 `#[allow(dead_code)]` + TODO 标注；删除 render_prometheus_metrics（与 metrics_handler 重复）；build_registry_and_metrics 改为 `#[cfg(test)]` 仅测试用；新增 test_business_metrics_integrated_into_metrics_service 接入验证测试
+
+**关键决策**：
+- business_metrics 与 metrics_service.rs 互补不重复（前者 erp_* 业务指标，后者 http_*/db_* 基础设施指标），接入方式是共享 Registry 而非新增端点
+- performance_optimizer 是样板代码而非"未接入功能"，正确处理是删除而非真实接入
+- operation_log_service 的 TODO 触发条件已满足但接入的是替代方案（omni_audit_service），保留前提已不成立
+
+**下一步**：启动批次 107（cache_service 接入 + color_card 路由挂载）
 
 ### ✅ 批次 102 v6 P3 修复完成（PR #346，main `ed27a6c`）
 

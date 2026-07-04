@@ -2,6 +2,26 @@
 
 > 重要变更一句话摘要列表。详细历史请查阅 [`.monkeycode/docs/archives/`](file:///workspace/.monkeycode/docs/archives/)。
 
+## 2026-07-04 (批次 106 performance_optimizer/operation_log_service 删除 + business_metrics 真实接入完成)
+
+### 批次 106 完成：3 个预留模块按"真实接入或删除"原则处理（PR #350，main `7f2cc82`）
+
+**用户新规则批次 106 — 预留模块接入评估**：
+
+| # | 修复要点 | 影响文件 |
+|---|---------|---------|
+| P1-1 | 删除 performance_optimizer.rs（154 行 P4-1 样板代码，零业务引用，load_by_ids 占位实现） | services/performance_optimizer.rs（删除） |
+| P1-1 | 同步删除 n_plus_one.rs（删除 performance_optimizer 后零业务引用） | utils/n_plus_one.rs（删除） |
+| P1-3 | 删除 operation_log_service.rs（399 行，零业务引用，已被 omni_audit_service 完全替代） | services/operation_log_service.rs（删除） |
+| P1-2 | MetricsService 新增 business_metrics 字段 + 注册到同一 Registry + /metrics 自动暴露 erp_* 指标 | services/metrics_service.rs |
+| P1-2 | 移除 BusinessMetrics 的 4 处 dead_code 标注 + 删除 render_prometheus_metrics（重复）+ build_registry_and_metrics 改为 #[cfg(test)] | services/business_metrics.rs |
+| 测试 | 新增 test_business_metrics_integrated_into_metrics_service 接入验证测试 | services/metrics_service.rs |
+
+**关键决策**：
+- business_metrics 与 metrics_service.rs 互补不重复（erp_* 业务指标 vs http_*/db_* 基础设施指标），接入方式是共享 Registry 而非新增端点
+- performance_optimizer 是样板代码而非"未接入功能"，正确处理是删除而非真实接入
+- operation_log_service 的 TODO 触发条件已满足但接入的是替代方案（omni_audit_service），保留前提已不成立
+
 ## 2026-07-04 (批次 105 messaging/ 死代码模块删除完成)
 
 ### 批次 105 完成：删除 messaging/ 死代码模块（PR #349，main `bc075ad`）
