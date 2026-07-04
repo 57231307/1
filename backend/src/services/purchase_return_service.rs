@@ -154,7 +154,7 @@ impl PurchaseReturnService {
         return_active.return_status = Set(Some("submitted".to_string()));
         return_active.updated_at = Set(Utc::now());
 
-        // TODO(tech-debt): submit_return 未透传 user_id，临时用 0；后续接入用户上下文
+        // 批次 103 P0-4 修复：删除过时 TODO 注释（submit_return 已在批次 59b 透传 user_id）
         let return_order = crate::services::audit_log_service::AuditLogService::update_with_audit(
             &txn,
             "auto_audit",
@@ -374,7 +374,7 @@ impl PurchaseReturnService {
         return_active.reason_detail = Set(Some(reason));
         return_active.updated_at = Set(Utc::now());
 
-        // TODO(tech-debt): reject_return 未透传 user_id，临时用 0；后续接入用户上下文
+        // 批次 103 P0-4 修复：删除过时 TODO 注释（reject_return 已在批次 59b 透传 user_id）
         let return_order = crate::services::audit_log_service::AuditLogService::update_with_audit(
             &txn,
             "auto_audit",

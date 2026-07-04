@@ -6,7 +6,7 @@ use crate::services::role_permission_service::RolePermissionService;
 use crate::services::role_permission_service::{
     AssignPermissionRequest, CreateRoleRequest, UpdateRoleRequest,
 };
-use crate::utils::admin_checker::{is_admin_role, ADMIN_ROLE_CODE};
+use crate::utils::admin_checker::{clear_admin_role_cache, is_admin_role, ADMIN_ROLE_CODE};
 use crate::utils::app_state::AppState;
 use crate::utils::error::AppError;
 use crate::utils::response::ApiResponse;
@@ -292,6 +292,11 @@ pub async fn update_role(
         .await
         .map_err(|e| AppError::internal(e.to_string()))?;
 
+    // 批次 103 P2-3 修复：角色更新后清理 admin 缓存
+    // 原因：update_role 可能修改 role.code（如把普通角色改为 admin，或反向），
+    // 若不清理缓存，is_admin_role 在 TTL 内仍返回旧判定，导致权限校验错乱。
+    clear_admin_role_cache(Some(id));
+
     // P1 8-3 修复：update_role 补审计日志
     let event = AuditEvent {
         user_id: Some(auth.user_id),
@@ -381,6 +386,11 @@ pub async fn delete_role(
         .delete_role(id, auth.user_id)
         .await
         .map_err(|e| AppError::internal(e.to_string()))?;
+
+    // 批次 103 P2-3 修复：角色删除后清理 admin 缓存
+    // 原因：删除后 role_id 不再有效，但缓存中可能仍存在旧条目，
+    // 清理避免后续对已删除 role_id 的查询命中过期缓存返回错误判定。
+    clear_admin_role_cache(Some(id));
 
     // P1 8-3 修复：delete_role 补审计日志
     let event = AuditEvent {

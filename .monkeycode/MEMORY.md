@@ -21,7 +21,44 @@
 
 ---
 
-## 当前任务状态（2026-07-04 批次 101 v6 P2 修复完成 - 批次 102 v6 P3 待启动）
+## 当前任务状态（2026-07-04 批次 103 P0+P1+P2-3 修复完成 - 待 push CI 验证）
+
+### 🔴 用户新规则（2026-07-04 追加，最高优先级）
+
+> 对所有预留的 api 及预留的功能/占位符功能/路由进行实现，
+> 对所有未真实接入的功能等需要真实接入，
+> 对所有遇到的错误均进行统一修复，
+> 对所有的功能均需要真实接入。
+
+**执行要求**：
+- 所有 `#[allow(dead_code)] + TODO(tech-debt)` 标记的预留 API 逐个评估并真实接入业务或删除
+- 所有占位符功能（stub/placeholder/TODO 注释）真实实现
+- 所有未真实接入的功能/中间件进行真实接入
+- 所有遇到的错误统一修复
+
+### ⏳ 批次 103 预留 API/占位符功能实现（P0+P1+P2-3 完成 - 待 push CI 验证）
+
+**用户新规则首批修复项**（实现规划：`docs/audits/2026-07-04-batch103-placeholder-impl-plan.md`）：
+- P0-3：user_handler.rs 接入 PasswordPolicyService（is_common_password + contains_username_fragment + strength_feedback_zh）；password_policy_service.rs 移除 strength_feedback_zh 的 dead_code 标注
+- P0-4：purchase_return_service.rs 删除 2 处过时 TODO 注释（user_id 已在批次 59b 透传）
+- P2-3：role_handler.rs update_role/delete_role 添加 clear_admin_role_cache 调用；admin_checker.rs 移除 dead_code 标注
+- P1-7：routes/analytics.rs 删除 api_keys() 旧路由（死代码，前端已切换 api_gateway()）+ 移除 unused import
+
+**下一步**：amend commit → push → 创建 PR → 监控 CI → 合并 → 启动批次 104（search_api.rs 接入 Elasticsearch）
+
+### ✅ 批次 102 v6 P3 修复完成（PR #346，main `ed27a6c`）
+
+**v6 第六轮复审 P3 7 项全部修复完成**：
+- P3-1/P3-2/P3-3/P3-4：状态字符串常量化扩展 66 处（4 service 文件）+ 错误分类修复 2 处
+  - 新增 status.rs 4 模块：ar（6 常量）/ ap_invoice（1）/ ap_payment_request（2）/ voucher（4）
+  - ar_service.rs（33 处）/ ap_invoice_service.rs（14 处）/ ap_payment_request_service.rs（10 处）/ voucher_service.rs（9 处）
+  - voucher_service.rs 2 处科目不存在 bad_request → not_found
+- P3-5：删除 stock_ledger.rs 占位模块（MovementType 枚举未被业务引用）
+- P3-6：修正 inventory_stock_query.rs:270 注释（原注释"当前为 stub 实现"不准确）
+- P3-7：删除 report/exp.rs:117 冗余 `let _ = new_layer;`
+- CI 修复 1 条：COLLECTION_CANCELLED 加 dead_code allow（ar_service 未实现收款单取消操作）
+
+**下一步**：启动批次 103，全面扫描预留 API/占位符功能/未接入功能，制定实现计划。
 
 ### ✅ 批次 101 v6 P2 修复完成（PR #345，main `835b990`）
 

@@ -65,15 +65,6 @@ impl ApiKeyService {
         Ok((model, plain_key))
     }
 
-    /// 验证 API 密钥
-    pub async fn list_api_keys(&self) -> Result<Vec<api_key::Model>, AppError> {
-        ApiKey::find()
-            .filter(api_key::Column::IsActive.eq(true))
-            .all(self.db.as_ref())
-            .await
-            .map_err(AppError::from)
-    }
-
     /// 撤销 API 密钥
     ///
     /// 漏洞 #5 修复：撤销时同时将 `key_hash` 加入 `AppCache.token_blacklist` 缓存。
