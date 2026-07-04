@@ -64,7 +64,7 @@ impl SlowQueryRecorder {
                 "检测到慢查询",
             );
             if let Some(m) = &self.metrics {
-                m.record_slow_query(self.label, elapsed);
+                m.record_slow_query_metric(self.label, elapsed);
             }
         }
     }
@@ -73,14 +73,19 @@ impl SlowQueryRecorder {
 /// 慢查询指标 trait 扩展
 ///
 /// 业务侧 metrics_service 不一定实现该方法，故用 trait + 默认空实现避免破坏现有签名。
+/// 批次 97 P1-15 修复（v5 复审）：trait 方法重命名为 `record_slow_query_metric`，
+/// 避免与 MetricsService 的 inherent 方法 `record_slow_query(duration_secs, query_name)` 同名冲突。
 pub trait SlowQueryMetrics {
     /// 记录一次慢查询
-    fn record_slow_query(&self, label: &str, elapsed: Duration);
+    fn record_slow_query_metric(&self, label: &str, elapsed: Duration);
 }
 
 impl SlowQueryMetrics for MetricsService {
-    fn record_slow_query(&self, _label: &str, _elapsed: Duration) {
-        // 当前 MetricsService 由 P4-3 阶段扩展 Prometheus 指标；此处先 no-op
-        // 避免 P4-1 阶段对 metrics_service 签名产生破坏性变更
+    fn record_slow_query_metric(&self, label: &str, elapsed: Duration) {
+        // 真正接入 MetricsService 的 Prometheus 指标，替代原 no-op 占位实现。
+        // record_slow_query 是 Metrics（不是 MetricsService）的 inherent 方法，
+        // 通过 self.metrics（Arc<Metrics>）auto-deref 调用。
+        let duration_secs = elapsed.as_secs_f64();
+        self.metrics.record_slow_query(duration_secs, label);
     }
 }

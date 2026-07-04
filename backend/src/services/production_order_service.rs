@@ -589,7 +589,8 @@ impl ProductionOrderService {
                 };
 
             for bom_item in bom_items {
-                let consumption_qty = bom_item.quantity * production_qty;
+                // 批次 97 P1-10 修复（v5 复审）：数量计算补 round_dp(4) 防止精度漂移
+                let consumption_qty = (bom_item.quantity * production_qty).round_dp(4);
 
                 // v16 批次 43 修复：从批量查询结果获取库存记录（O(1) 查找）
                 let stock_record = stock_map

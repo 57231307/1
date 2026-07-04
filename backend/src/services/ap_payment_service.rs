@@ -305,12 +305,14 @@ impl ApPaymentService {
 
         // P0 5-1 修复：commit 成功后补发 PaymentCompleted 事件，
         // 触发 event_bus 监听器（event_bus.rs）自动将关联 AP 发票标记为 PAID
+        // 批次 97 P1-2 修复：透传付款操作人 user_id，供 mark_as_paid 审计日志使用
         for (invoice_id, paid_amount) in fully_paid_invoices {
             crate::services::event_bus::EVENT_BUS.publish(
                 crate::services::event_bus::BusinessEvent::PaymentCompleted {
                     payment_id: payment.id,
                     invoice_id,
                     amount: paid_amount,
+                    user_id,
                 },
             );
         }

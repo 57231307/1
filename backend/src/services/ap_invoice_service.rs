@@ -404,7 +404,11 @@ impl ApInvoiceService {
     }
 
     /// 标记应付单为已付清
-    pub async fn mark_as_paid(&self, id: i32) -> Result<ap_invoice::Model, AppError> {
+    ///
+    /// `user_id` 为触发本次状态变更的操作人 ID，用于审计日志透传。
+    /// 通常由事件总线监听 `PaymentCompleted` 事件后调用，
+    /// 事件 payload 携带付款操作人 ID。
+    pub async fn mark_as_paid(&self, id: i32, user_id: i32) -> Result<ap_invoice::Model, AppError> {
         // 批次 11（2026-06-28）：事务包裹"状态变更 + 审计日志"，保证原子性
         // 原实现直接 &*self.db 调用 update_with_audit，内部 2 次独立写入非原子；
         // 异步事件驱动场景下若审计写入失败，发票已 PAID 但无审计，且难以发现。
@@ -436,15 +440,13 @@ impl ApInvoiceService {
         invoice_active.invoice_status = Set("PAID".to_string());
         invoice_active.updated_at = Set(now);
 
-        // P1-11 部分修复（2026-06-25 综合审计）：
-        // mark_as_paid 由事件总线（event_bus.rs）在付款完成后异步触发，
-        // 事件驱动场景下无用户上下文，暂保留 Some(0)。
-        // TODO(tech-debt): 扩展事件载荷携带 user_id 后传入真实操作人。
+        // 批次 97 P1-2 修复：原 Some(0) 占位符改为真实操作人 user_id
+        // 事件总线 PaymentCompleted 事件携带付款操作人 ID，透传给审计日志
         let invoice = crate::services::audit_log_service::AuditLogService::update_with_audit(
             &txn,
             "auto_audit",
             invoice_active,
-            Some(0),
+            Some(user_id),
         )
         .await?;
 

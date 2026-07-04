@@ -32,6 +32,7 @@ pub mod payload_serde {
             payment_id: i32,
             invoice_id: i32,
             amount: Decimal,
+            user_id: i32,
         },
         InventoryAdjusted {
             product_id: i32,
@@ -122,10 +123,12 @@ pub mod payload_serde {
                     payment_id,
                     invoice_id,
                     amount,
+                    user_id,
                 } => Self::PaymentCompleted {
                     payment_id: *payment_id,
                     invoice_id: *invoice_id,
                     amount: *amount,
+                    user_id: *user_id,
                 },
                 BusinessEvent::InventoryAdjusted {
                     product_id,
@@ -268,10 +271,12 @@ pub mod payload_serde {
                     payment_id,
                     invoice_id,
                     amount,
+                    user_id,
                 } => Self::PaymentCompleted {
                     payment_id,
                     invoice_id,
                     amount,
+                    user_id,
                 },
                 EventPayload::InventoryAdjusted {
                     product_id,

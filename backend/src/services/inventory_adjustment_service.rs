@@ -123,8 +123,8 @@ impl InventoryAdjustmentService {
                 quantity_before - item_req.quantity
             };
 
-            // 计算调整金额
-            let amount = item_req.unit_cost.map(|cost| cost * item_req.quantity);
+            // 计算调整金额（批次 97 P1-5 修复：补 round_dp(2) 防止精度漂移）
+            let amount = item_req.unit_cost.map(|cost| (cost * item_req.quantity).round_dp(2));
 
             let item = inventory_adjustment_item::ActiveModel {
                 id: Default::default(),
@@ -512,7 +512,8 @@ impl InventoryAdjustmentService {
         } else {
             quantity_before - req.quantity
         };
-        let amount = req.unit_cost.map(|cost| cost * req.quantity);
+        // 批次 97 P1-5 修复：补 round_dp(2) 防止精度漂移
+        let amount = req.unit_cost.map(|cost| (cost * req.quantity).round_dp(2));
 
         let txn = (*self.db).begin().await?;
 
@@ -579,7 +580,8 @@ impl InventoryAdjustmentService {
         } else {
             quantity_before - req.quantity
         };
-        let amount = req.unit_cost.map(|cost| cost * req.quantity);
+        // 批次 97 P1-5 修复：补 round_dp(2) 防止精度漂移
+        let amount = req.unit_cost.map(|cost| (cost * req.quantity).round_dp(2));
 
         let mut active: inventory_adjustment_item::ActiveModel = item_model.into_active_model();
         active.stock_id = Set(req.stock_id);

@@ -46,6 +46,7 @@ async fn test_broadcast_backend_publish_subscribe() {
         payment_id: 100,
         invoice_id: 200,
         amount: Decimal::from_str("999.99").unwrap(),
+        user_id: 1,
     };
     backend
         .publish(event.clone())
@@ -59,6 +60,7 @@ async fn test_broadcast_backend_publish_subscribe() {
             payment_id,
             invoice_id,
             amount,
+            user_id,
         } => {
             assert_eq!(payment_id, 100, "payment_id 不一致");
             assert_eq!(invoice_id, 200, "invoice_id 不一致");
@@ -67,6 +69,7 @@ async fn test_broadcast_backend_publish_subscribe() {
                 Decimal::from_str("999.99").unwrap(),
                 "amount 不一致"
             );
+            assert_eq!(user_id, 1, "user_id 不一致");
         }
         other => panic!("事件类型不匹配: {:?}", other),
     }
@@ -188,6 +191,7 @@ async fn test_business_event_serde_round_trip_all_variants() {
             payment_id: 1,
             invoice_id: 2,
             amount: Decimal::from_str("1234.56").unwrap(),
+            user_id: 10,
         },
         BusinessEvent::InventoryAdjusted {
             product_id: 1,

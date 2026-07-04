@@ -95,8 +95,9 @@ impl InventoryTransferService {
                 // 扣减库存（带乐观锁）
                 let new_quantity_meters = quantity_meters - item.quantity;
                 // Calculate kg reduction proportionally
+                // 批次 97 P1-12 修复（v5 复审）：kg 计算补 round_dp(4) 防止精度漂移
                 let new_quantity_kg = if quantity_meters > rust_decimal::Decimal::ZERO {
-                    quantity_kg - (quantity_kg * item.quantity / quantity_meters)
+                    (quantity_kg - (quantity_kg * item.quantity / quantity_meters)).round_dp(4)
                 } else {
                     quantity_kg
                 };
@@ -299,7 +300,8 @@ impl InventoryTransferService {
                 } else {
                     rust_decimal::Decimal::ZERO
                 };
-                let new_quantity_kg = quantity_kg + (item.quantity * source_kg_per_meter);
+                // 批次 97 P1-12 修复（v5 复审）：kg 计算补 round_dp(4) 防止精度漂移
+                let new_quantity_kg = (quantity_kg + (item.quantity * source_kg_per_meter)).round_dp(4);
 
                 // 使用乐观锁条件更新：只有 version 匹配时才更新
                 let update_result = inventory_stock::Entity::update_many()
@@ -439,7 +441,8 @@ impl InventoryTransferService {
                     production_date: sea_orm::ActiveValue::Set(production_date),
                     expiry_date: sea_orm::ActiveValue::Set(expiry_date),
                     quantity_meters: sea_orm::ActiveValue::Set(item.quantity),
-                    quantity_kg: sea_orm::ActiveValue::Set(item.quantity * source_kg_per_meter),
+                    // 批次 97 P1-12 修复（v5 复审）：kg 计算补 round_dp(4) 防止精度漂移
+                    quantity_kg: sea_orm::ActiveValue::Set((item.quantity * source_kg_per_meter).round_dp(4)),
                     gram_weight: sea_orm::ActiveValue::Set(gram_weight),
                     width: sea_orm::ActiveValue::Set(width),
                     location_id: sea_orm::ActiveValue::NotSet,
@@ -464,7 +467,8 @@ impl InventoryTransferService {
                     dye_lot_no: sea_orm::ActiveValue::Set(dye_lot_no),
                     grade: sea_orm::ActiveValue::Set(grade),
                     quantity_meters: sea_orm::ActiveValue::Set(item.quantity),
-                    quantity_kg: sea_orm::ActiveValue::Set(item.quantity * source_kg_per_meter),
+                    // 批次 97 P1-12 修复（v5 复审）：kg 计算补 round_dp(4) 防止精度漂移
+                    quantity_kg: sea_orm::ActiveValue::Set((item.quantity * source_kg_per_meter).round_dp(4)),
                     source_bill_type: sea_orm::ActiveValue::Set(Some("TRANSFER".to_string())),
                     source_bill_no: sea_orm::ActiveValue::Set(Some(transfer.transfer_no.clone())),
                     source_bill_id: sea_orm::ActiveValue::Set(Some(transfer_id)),
@@ -475,8 +479,9 @@ impl InventoryTransferService {
                         rust_decimal::Decimal::ZERO,
                     )),
                     quantity_after_meters: sea_orm::ActiveValue::Set(Some(item.quantity)),
+                    // 批次 97 P1-12 修复（v5 复审）：kg 计算补 round_dp(4) 防止精度漂移
                     quantity_after_kg: sea_orm::ActiveValue::Set(Some(
-                        item.quantity * source_kg_per_meter,
+                        (item.quantity * source_kg_per_meter).round_dp(4),
                     )),
                     notes: sea_orm::ActiveValue::Set(Some(format!(
                         "调拨入库（新建库存） - 调拨单号: {}",

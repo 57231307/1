@@ -279,7 +279,10 @@ impl QuotationApprovalService {
         txn.commit().await?;
 
         // 完成 BPM 任务（事务外，容错）
-        if let Some(instance_id) = updated.approval_instance_id {
+        // 批次 97 P1-3 修复（v5 复审 + clippy 修复）：原 `let _ = instance_id;` 占位抑制
+        // 改用 is_some() 判断（与下方 reject 方法一致），instance_id 已持久化在
+        // updated.approval_instance_id 字段，无需在 if-let 中绑定未使用变量。
+        if updated.approval_instance_id.is_some() {
             let bpm_service = BpmService::new(self.db.clone());
             if let Ok(Some(instance)) = bpm_service
                 .get_process_by_business("quotation", updated.id as i32)
@@ -324,8 +327,6 @@ impl QuotationApprovalService {
                     }
                 }
             }
-            // 注：instance_id 字段记录 BPM 流程实例 id，仅作为引用保留
-            let _ = instance_id;
         }
 
         Ok(updated)

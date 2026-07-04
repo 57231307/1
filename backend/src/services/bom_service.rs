@@ -543,12 +543,13 @@ impl BomService {
         parent_quantity: Decimal,
         requirements: &mut Vec<BomRequirement>,
     ) {
-        let required_quantity = parent_quantity * node.quantity;
+        // 批次 97 P1-8 修复（v5 复审）：数量计算补 round_dp(4) 防止精度漂移（BOM 数量保留 4 位小数）
+        let required_quantity = (parent_quantity * node.quantity).round_dp(4);
         let scrap_multiplier = match node.scrap_rate {
             Some(rate) if rate > Decimal::ZERO => Decimal::ONE + (rate / Decimal::from(100)),
             _ => Decimal::ONE,
         };
-        let actual_quantity = required_quantity * scrap_multiplier;
+        let actual_quantity = (required_quantity * scrap_multiplier).round_dp(4);
 
         if node.children.is_empty() {
             // 叶子节点，添加到需求列表
