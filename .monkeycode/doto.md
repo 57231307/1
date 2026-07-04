@@ -3,10 +3,34 @@
 > 本文件记录**当前任务**与**历史任务索引**。
 > 详细历史请查阅 [`.monkeycode/docs/archives/`](file:///workspace/.monkeycode/docs/archives/)。
 
-## 🔄 当前任务：v5 第五轮复审（待启动）
+## 🔄 当前任务：批次 97 P1 修复（待启动）
 
-批次 95 P3 修复（PR #339）已合并 main `c9d03cb`，v4 复审 44 项发现全部修复完成（批次 93/94/95）。
-下一步：启动 v5 第五轮复审，循环直到无问题。
+批次 96 P0 修复（PR #340）已合并 main `acac30a`，v5 复审 P0 17 项全部修复完成。
+下一步：启动批次 97 P1 修复（14 项）。
+
+### 批次 97 P1 修复清单（14 项）
+
+**子批 A — 并发与审计追溯（3 项）**：
+- P1-1: `services/voucher_service.rs:387` `id: Set(0)` → `id: NotSet`（并发 update 主键冲突）
+- P1-2: `services/ap_invoice_service.rs:447` `mark_as_paid` 调用 `update_with_audit` 硬编码 `Some(0)` 作为 operator_id，扩展 event_bus 载荷携带 user_id
+- P1-3: `services/quotation_approval_service.rs:328` `let _ = instance_id;` 丢弃 BPM 流程实例 ID，持久化 BPM instance_id
+
+**子批 B — 金额精度校验（10 项）**：
+- P1-4: `services/purchase_return_service.rs:561-565` 金额计算未做 round_dp(2)
+- P1-5: `services/inventory_adjustment_service.rs:127,515,582` 3 处金额/数量计算未做 round_dp
+- P1-6: `services/so/order_crud.rs:220-224,447-451` 2 处金额计算未做 round_dp(2)
+- P1-7: `services/sales_return_service.rs:83` 金额计算未做 round_dp(2)
+- P1-8: `services/bom_service.rs:546,551` 2 处数量计算未做 round_dp(4)
+- P1-9: `services/material_shortage_service.rs:217-218` 数量计算未做 round_dp(4)
+- P1-10: `services/production_order_service.rs:592` 金额计算未做 round_dp(2)
+- P1-11: `services/mrp_engine_service.rs:325,328` 2 处数量计算未做 round_dp(4)
+- P1-12: `services/inv/batch.rs:99,302,442,467,479` 5 处金额/数量计算未做 round_dp
+- P1-13: `services/sales_analysis_service.rs:405` 金额计算未做 round_dp(2)
+
+**子批 C — 中间件接入（3 项）**：
+- P1-14: `middleware/csp.rs:42` `csp_middleware` 已定义但 `main.rs` 用 `SetResponseHeaderLayer` 注入，函数成为死代码（删除或挂载二选一）
+- P1-15: `middleware/slow_query.rs:27,36,47,76` `SlowQueryRecorder` / `SlowQueryMetrics` 全套定义但无业务调用链接入（接入或删除二选一）
+- P1-16: `utils/app_state.rs:45,179,268` `state.rate_limiter` 字段构造初始化但全代码无读取引用（死字段删除）
 
 ### 复审维度（基于历次复审经验）：
 1. 事务边界 TOCTOU（lock_exclusive 是否覆盖所有 update/delete）
@@ -22,6 +46,20 @@
 11. 测试质量（as any / 测试命名）
 12. 安全性（IP 提取 / SQL 注入 / XSS）
 13. Clippy baseline 残留警告清理
+
+---
+
+### 2026-07-04 批次 96 P0 修复完成 + 1 条 CI clippy 警告修复（PR #340，main `acac30a`）
+
+**P0 修复（17 项）+ CI clippy 修复（1 条）**：
+- 子批 A（P0-1）：ArService 真实实现（替换 250 行占位代码，16 方法全部接入真实数据库）
+  - 收款管理 5 方法 + 核销管理 7 方法 + 报表管理 4 方法
+  - 事务 + lock_exclusive + update_with_audit + round_dp(2) + check_date_locked_txn + 批量查询避免 N+1 + 事件发布
+- 子批 B（P0-2~17）：前端 v-permission 补齐（18 文件 40 处按钮）
+  - edit 16 / delete 16 / approve 6 / other 7
+- CI clippy 1 条修复：`create_payment.remark` → `_remark`（ar_collections 表无 remark 列）
+
+**CI 结果**：12/12 必检全绿（Clippy/构建/单元测试/格式/前端构建/ESLint/类型检查/前端测试/依赖审计 全部 success），E2E 非阻塞
 
 ---
 

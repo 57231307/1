@@ -21,20 +21,23 @@
 
 ---
 
-## 当前任务状态（2026-07-04 批次 95 完成 - v5 第五轮复审待启动）
+## 当前任务状态（2026-07-04 批次 96 完成 - 批次 97 P1 修复待启动）
 
-### ✅ 批次 95 P3 修复完成（PR #339，main `c9d03cb`）
+### ✅ 批次 96 P0 修复完成（PR #340，main `acac30a`）
 
-**v4 复审 44 项发现全部修复完成**：批次 93（P1×9）+ 批次 94（P2×15）+ 批次 95（P3×20）+ 5 条 CI clippy 警告修复
+**v5 复审 P0 17 项全部修复完成**：
+- 子批 A（P0-1）：ArService 真实实现（替换 250 行占位代码，16 方法全部接入真实数据库）
+- 子批 B（P0-2~17）：前端 v-permission 补齐（18 文件 40 处按钮）
+- CI clippy 修复 1 条：`create_payment.remark` → `_remark`（ar_collections 表无 remark 列）
 
-**关键修复模式（v4 复审周期累积）**：
-- Clippy baseline 文本变化：合并警告（`fields a, b, c are never read`）修复部分字段后文本变化（`field b is never read`），新文本不在 baseline 中触发新增警告，需逐条定位
-- `define_crud_handlers!` 宏 vs 手写 handler：手写 handler 易遗漏 get/update 导致 service 方法 dead_code，需补全 handler 接入
-- 占位字段规范：DB 无对应列时按 `#[allow(dead_code)] + TODO` 模式标记（参照 warehouse_handler.rs capacity / api_gateway_handler.rs description）
-- TOCTOU 修复模式：`begin txn + find_by_id(id).lock_exclusive().one(&txn) + 状态门 + update + commit`
-- 分页 clamp 防 DoS：`page.clamp(1, 1000)` + `page_size.clamp(1, 100)`，注意 clippy `clamp-like pattern` lint（避免 `.max(x).min(y)`）
+**关键修复模式（v5 复审周期累积）**：
+- ArService 实现模式：基于 ar_invoice/ar_collection/ar_reconciliation/ar_reconciliation_item 模型，事务 + lock_exclusive + update_with_audit + round_dp(2) + check_date_locked_txn + 批量查询避免 N+1 + 事件发布
+- 自动核销策略：按客户分组 + 未核销发票按到期日升序 + 已确认收款按日期升序 + 贪心匹配
+- 取消核销状态恢复：区分 PAID/PARTIAL_PAID/APPROVED 三态
+- 前端 v-permission 指令位置：`<el-button` 之后、其他属性之前；已带 `v-if` 的按钮，v-permission 放置在 v-if 之前
+- 占位字段规范：DB 无对应列时按 `#[allow(dead_code)] + TODO` 或参数改名 `_xxx` 模式标记
 
-**下一步**：启动 v5 第五轮复审，循环直到无问题。复审维度见 doto.md。
+**下一步**：启动批次 97 P1 修复（14 项），详见 doto.md。
 
 ---
 

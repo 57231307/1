@@ -2,6 +2,41 @@
 
 > 重要变更一句话摘要列表。详细历史请查阅 [`.monkeycode/docs/archives/`](file:///workspace/.monkeycode/docs/archives/)。
 
+## 2026-07-04 (批次 96 P0 修复完成 + v5 第五轮复审启动)
+
+### 批次 96 完成：P0 修复（17 项）+ 1 条 CI clippy 警告修复（PR #340，main `acac30a`）
+
+**子批 A — P0-1 ArService 真实实现（1 项）**：
+替换 `services/ar_service.rs` 250 行占位代码，基于 `ar_invoice`/`ar_collection`/`ar_reconciliation`/`ar_reconciliation_item` 模型实现真实数据库读写：
+- 收款管理（5 方法）：list_payments / get_payment / create_payment / update_payment / confirm_payment
+- 核销管理（7 方法）：list_verifications / get_verification / auto_verify / manual_verify / cancel_verification / get_unverified_invoices / get_unverified_payments
+- 报表管理（4 方法）：get_statistics_report / get_daily_report / get_monthly_report / get_aging_report
+
+**修复模式**：
+- 事务包裹所有写操作，状态变更加 lock_exclusive 串行化
+- update_with_audit 记录审计日志
+- round_dp(2) 金额精度校验
+- check_date_locked_txn 期间锁定检查（避免 TOCTOU）
+- 批量查询避免 N+1
+- 事件发布 CollectionCompleted + FinancialIndicatorUpdate
+
+**子批 B — P0-2~17 前端 v-permission 补齐（16 项，40 处）**：
+为 18 个视图文件中的 40 处编辑/删除/审批按钮补充 `v-permission` 指令：
+- edit: 16 处 / delete: 16 处 / approve: 6 处 / other: 7 处（转交/催办/撤回/取消/调拨/停用启用）
+- 涉及文件：departments / warehouse / email / dataPermission / accountSubject / budget / api-gateway / print-templates / bpm / financial-analysis / cost / quotations / ai-extend / inventoryBatch
+
+**CI clippy 修复（1 条新警告）**：
+1. `ar_service.rs`: `create_payment` 的 `remark` 参数未被使用（ar_collections 表无 remark 列），改名 `_remark` + 注释说明（参照 UpdateApiKeyGwRequest.description 占位规范）
+
+**关键技术点**：
+- ArService 自动核销策略：按客户分组 + 未核销发票按到期日升序 + 已确认收款按日期升序 + 贪心匹配
+- 取消核销状态恢复：区分 PAID/PARTIAL_PAID/APPROVED 三态
+- 前端 v-permission 指令位置：`<el-button` 之后、其他属性之前；已带 `v-if` 的按钮，v-permission 放置在 v-if 之前
+
+**进度跟踪**：v5 复审 P0 17 项全部修复完成，下一步启动批次 97 P1 修复
+
+---
+
 ## 2026-07-04 (批次 95 P3 修复完成 + 5 条 CI clippy 警告修复)
 
 ### 批次 95 完成：P3 修复（20 项）+ 5 条 CI clippy 警告修复（PR #339，main `c9d03cb`）
