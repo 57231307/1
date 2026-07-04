@@ -61,7 +61,7 @@ onMounted(load)
       <h2>工艺优化详情</h2>
       <div class="header-right">
         <el-button @click="router.back()">返回</el-button>
-        <el-button v-if="model" type="danger" @click="handleDelete">删除记录</el-button>
+        <el-button v-permission="'ai_process_optimization:delete'" v-if="model" type="danger" @click="handleDelete">删除记录</el-button>
       </div>
     </div>
 

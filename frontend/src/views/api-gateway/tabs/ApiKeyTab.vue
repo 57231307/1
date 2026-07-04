@@ -55,10 +55,10 @@
       <el-table-column prop="last_used_at" label="最后使用" width="160" />
       <el-table-column label="操作" width="200" fixed="right">
         <template #default="{ row }">
-          <el-button type="warning" link size="small" @click="emit('toggle-key', row)">
+          <el-button v-permission="'api_key:update'" type="warning" link size="small" @click="emit('toggle-key', row)">
             {{ row.status === 'active' ? '停用' : '启用' }}
           </el-button>
-          <el-button type="danger" link size="small" @click="emit('delete-key', row)"
+          <el-button v-permission="'api_key:delete'" type="danger" link size="small" @click="emit('delete-key', row)"
             >删除</el-button
           >
         </template>

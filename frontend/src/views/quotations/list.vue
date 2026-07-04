@@ -87,6 +87,7 @@
           <template #default="{ row }">
             <el-button link type="primary" @click="goDetail(row)">查看</el-button>
             <el-button
+              v-permission="'quotation:update'"
               v-if="row.status === 'draft' || row.status === 'rejected'"
               link
               type="primary"
@@ -102,7 +103,7 @@
             >
               转订单
             </el-button>
-            <el-button v-if="row.status === 'draft'" link type="danger" @click="handleCancel(row)">
+            <el-button v-permission="'quotation:cancel'" v-if="row.status === 'draft'" link type="danger" @click="handleCancel(row)">
               取消
             </el-button>
           </template>

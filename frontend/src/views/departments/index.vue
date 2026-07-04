@@ -24,8 +24,8 @@
       </el-table-column>
       <el-table-column label="操作" width="200">
         <template #default="{ row }">
-          <el-button size="small" @click="handleEdit(row as any)">编辑</el-button>
-          <el-button size="small" type="danger" @click="handleDelete(row as any)">删除</el-button>
+          <el-button v-permission="'department:update'" size="small" @click="handleEdit(row as any)">编辑</el-button>
+          <el-button v-permission="'department:delete'" size="small" type="danger" @click="handleDelete(row as any)">删除</el-button>
         </template>
       </el-table-column>
     </el-table>

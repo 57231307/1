@@ -61,8 +61,8 @@
           <template #default="{ row }">
             <el-button type="primary" link size="small" @click="executeReport(row)">执行</el-button>
             <el-button type="success" link size="small" @click="viewReport(row)">查看</el-button>
-            <el-button type="warning" link size="small" @click="editReport(row)">编辑</el-button>
-            <el-button type="danger" link size="small" @click="deleteReport(row)">删除</el-button>
+            <el-button v-permission="'financial_report:update'" type="warning" link size="small" @click="editReport(row)">编辑</el-button>
+            <el-button v-permission="'financial_report:delete'" type="danger" link size="small" @click="deleteReport(row)">删除</el-button>
           </template>
         </el-table-column>
       </el-table>

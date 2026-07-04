@@ -25,12 +25,12 @@
       <el-table-column prop="created_at" label="创建时间" min-width="160" />
       <el-table-column label="操作" width="320" fixed="right">
         <template #default="{ row }">
-          <el-button size="small" @click="emit('edit', row)">编辑</el-button>
+          <el-button v-permission="'bpm_definition:update'" size="small" @click="emit('edit', row)">编辑</el-button>
           <el-button size="small" type="primary" @click="emit('versions', row)">版本</el-button>
           <el-button size="small" type="success" @click="emit('save-as-template', row)">
             保存为模板
           </el-button>
-          <el-button size="small" type="danger" @click="emit('delete', row)">删除</el-button>
+          <el-button v-permission="'bpm_definition:delete'" size="small" type="danger" @click="emit('delete', row)">删除</el-button>
         </template>
       </el-table-column>
     </el-table>

@@ -83,7 +83,7 @@
           <template #default="{ row }">
             <el-button type="primary" link size="small" @click="handlePreview(row)">预览</el-button>
             <el-button type="primary" link size="small" @click="handleCopy(row)">复制</el-button>
-            <el-button type="primary" link size="small" @click="openDialog(row)">编辑</el-button>
+            <el-button v-permission="'print_template:update'" type="primary" link size="small" @click="openDialog(row)">编辑</el-button>
             <el-button
               v-if="!row.is_default"
               type="success"
@@ -92,7 +92,7 @@
               @click="handleSetDefault(row)"
               >设为默认</el-button
             >
-            <el-button type="danger" link size="small" @click="handleDelete(row)">删除</el-button>
+            <el-button v-permission="'print_template:delete'" type="danger" link size="small" @click="handleDelete(row)">删除</el-button>
           </template>
         </el-table-column>
       </el-table>

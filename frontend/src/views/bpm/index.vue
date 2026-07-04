@@ -91,16 +91,16 @@
             </el-table-column>
             <el-table-column label="操作" width="180" fixed="right">
               <template #default="{ row }">
-                <el-button type="primary" link size="small" @click="handleApprove(row as any)"
+                <el-button v-permission="'bpm_task:approve'" type="primary" link size="small" @click="handleApprove(row as any)"
                   >审批</el-button
                 >
                 <el-button type="warning" link size="small" @click="handleDetail(row as any)"
                   >详情</el-button
                 >
-                <el-button type="info" link size="small" @click="handleTransfer(row as any)"
+                <el-button v-permission="'bpm_task:transfer'" type="info" link size="small" @click="handleTransfer(row as any)"
                   >转交</el-button
                 >
-                <el-button type="danger" link size="small" @click="handleUrge(row as any)"
+                <el-button v-permission="'bpm_task:urge'" type="danger" link size="small" @click="handleUrge(row as any)"
                   >催办</el-button
                 >
               </template>
@@ -132,7 +132,7 @@
                 <el-button type="primary" link size="small" @click="handleTrace(row as any)"
                   >追溯</el-button
                 >
-                <el-button type="info" link size="small" @click="handleCancel(row as any)"
+                <el-button v-permission="'bpm_process:cancel'" type="info" link size="small" @click="handleCancel(row as any)"
                   >撤回</el-button
                 >
               </template>

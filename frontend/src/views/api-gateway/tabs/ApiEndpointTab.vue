@@ -62,10 +62,10 @@
       </el-table-column>
       <el-table-column label="操作" width="180" fixed="right">
         <template #default="{ row }">
-          <el-button type="primary" link size="small" @click="emit('edit-endpoint', row)"
+          <el-button v-permission="'api_endpoint:update'" type="primary" link size="small" @click="emit('edit-endpoint', row)"
             >编辑</el-button
           >
-          <el-button type="danger" link size="small" @click="emit('delete-endpoint', row)"
+          <el-button v-permission="'api_endpoint:delete'" type="danger" link size="small" @click="emit('delete-endpoint', row)"
             >删除</el-button
           >
         </template>

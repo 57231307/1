@@ -70,8 +70,9 @@
         <el-table-column prop="remark" label="备注" min-width="150" show-overflow-tooltip />
         <el-table-column label="操作" width="180" fixed="right">
           <template #default="{ row }">
-            <el-button type="primary" link size="small" @click="openDialog(row)">编辑</el-button>
+            <el-button v-permission="'cost_collection:update'" type="primary" link size="small" @click="openDialog(row)">编辑</el-button>
             <el-button
+              v-permission="'cost_collection:approve'"
               v-if="row.status === 'draft' || row.status === 'pending'"
               type="success"
               link
@@ -80,6 +81,7 @@
               >审核</el-button
             >
             <el-button
+              v-permission="'cost_collection:approve'"
               v-if="row.status === 'pending'"
               type="warning"
               link
@@ -87,7 +89,7 @@
               @click="auditCollection(row, false)"
               >驳回</el-button
             >
-            <el-button type="danger" link size="small" @click="handleDelete(row)">删除</el-button>
+            <el-button v-permission="'cost_collection:delete'" type="danger" link size="small" @click="handleDelete(row)">删除</el-button>
           </template>
         </el-table-column>
       </el-table>
