@@ -2,6 +2,8 @@
 //!
 //! 提供生产订单的CRUD操作和状态管理
 
+// 批次 100 P3-A 修复（v5 复审）：状态字符串常量化，引用 crate::models::status
+
 use chrono::Utc;
 use rust_decimal::Decimal;
 use sea_orm::DatabaseConnection;
@@ -139,14 +141,36 @@ impl ProductionOrderService {
     /// 验证状态转换是否合法
     fn validate_status_transition(current_status: &str, new_status: &str) -> Result<(), AppError> {
         let valid_transitions = std::collections::HashMap::from([
-            ("DRAFT", vec!["SCHEDULED", "PENDING_APPROVAL", "CANCELLED"]),
-            ("SCHEDULED", vec!["IN_PROGRESS", "CANCELLED"]),
-            ("IN_PROGRESS", vec!["COMPLETED", "CANCELLED"]),
-            ("COMPLETED", vec![]),
-            ("CANCELLED", vec![]),
-            ("PENDING_APPROVAL", vec!["APPROVED", "REJECTED"]),
-            ("APPROVED", vec!["SCHEDULED"]),
-            ("REJECTED", vec!["DRAFT"]),
+            (crate::models::status::common::STATUS_DRAFT, vec![
+                crate::models::status::production::PRODUCTION_SCHEDULED,
+                crate::models::status::production::PRODUCTION_PENDING_APPROVAL,
+                crate::models::status::common::STATUS_CANCELLED,
+            ]),
+            (crate::models::status::production::PRODUCTION_SCHEDULED, vec![
+                crate::models::status::production::PRODUCTION_IN_PROGRESS,
+                crate::models::status::common::STATUS_CANCELLED,
+            ]),
+            (crate::models::status::production::PRODUCTION_IN_PROGRESS, vec![
+                crate::models::status::common::STATUS_COMPLETED,
+                crate::models::status::common::STATUS_CANCELLED,
+            ]),
+            (crate::models::status::common::STATUS_COMPLETED, vec![]),
+            (crate::models::status::common::STATUS_CANCELLED, vec![]),
+            (
+                crate::models::status::production::PRODUCTION_PENDING_APPROVAL,
+                vec![
+                    crate::models::status::common::STATUS_APPROVED,
+                    crate::models::status::production::PRODUCTION_REJECTED,
+                ],
+            ),
+            (
+                crate::models::status::common::STATUS_APPROVED,
+                vec![crate::models::status::production::PRODUCTION_SCHEDULED],
+            ),
+            (
+                crate::models::status::production::PRODUCTION_REJECTED,
+                vec![crate::models::status::common::STATUS_DRAFT],
+            ),
         ]);
 
         if let Some(allowed) = valid_transitions.get(current_status) {
@@ -178,7 +202,7 @@ impl ProductionOrderService {
         let has_bom = BomEntity::find()
             .filter(BomColumn::ProductId.eq(req.product_id))
             .filter(BomColumn::IsDefault.eq(true))
-            .filter(BomColumn::Status.eq("ACTIVE"))
+            .filter(BomColumn::Status.eq(crate::models::status::common::STATUS_ACTIVE))
             .one(&*self.db)
             .await?
             .is_some();
@@ -224,7 +248,7 @@ impl ProductionOrderService {
             planned_quantity: Set(req.planned_quantity.unwrap_or_default()),
             planned_start_date: Set(req.planned_start_date),
             planned_end_date: Set(req.planned_end_date),
-            status: Set("DRAFT".to_string()),
+            status: Set(crate::models::status::common::STATUS_DRAFT.to_string()),
             // 优先级可选项；0 = 最低优先级（业务接受默认值）
             priority: Set(req.priority.unwrap_or_default()),
             work_center_id: Set(req.work_center_id),
@@ -294,7 +318,11 @@ impl ProductionOrderService {
             .ok_or_else(|| AppError::not_found("生产订单不存在"))?;
 
         // 只允许编辑草稿和已排产状态的订单
-        if !matches!(model.status.as_str(), "DRAFT" | "SCHEDULED") {
+        if !matches!(
+            model.status.as_str(),
+            crate::models::status::common::STATUS_DRAFT
+                | crate::models::status::production::PRODUCTION_SCHEDULED
+        ) {
             return Err(AppError::business(format!(
                 "不允许编辑 {} 状态的生产订单",
                 model.status
@@ -344,10 +372,10 @@ impl ProductionOrderService {
             .ok_or_else(|| AppError::not_found("生产订单不存在"))?;
 
         // 验证是否可以取消（状态门在 txn 内，基于 lock_exclusive 读出的 model）
-        Self::validate_status_transition(&model.status, "CANCELLED")?;
+        Self::validate_status_transition(&model.status, crate::models::status::common::STATUS_CANCELLED)?;
 
         let mut active_model: ActiveModel = model.into();
-        active_model.status = Set("CANCELLED".to_string());
+        active_model.status = Set(crate::models::status::common::STATUS_CANCELLED.to_string());
         active_model.updated_at = Set(Utc::now());
 
         // 走 update_with_audit 保留审计追溯（软删除即状态变更）
@@ -375,7 +403,7 @@ impl ProductionOrderService {
         actual_quantity: Option<Decimal>,
     ) -> Result<ProductionOrderModel, AppError> {
         // COMPLETED 走事务包裹的专用路径
-        if status == "COMPLETED" {
+        if status == crate::models::status::common::STATUS_COMPLETED {
             return self.complete_production_order(id, actual_quantity).await;
         }
 
@@ -404,7 +432,7 @@ impl ProductionOrderService {
         active_model.updated_at = Set(Utc::now());
 
         // 如果状态变为生产中，设置实际开始日期
-        if status == "IN_PROGRESS" {
+        if status == crate::models::status::production::PRODUCTION_IN_PROGRESS {
             active_model.actual_start_date = Set(Some(chrono::Utc::now().date_naive()));
         }
 
@@ -443,10 +471,10 @@ impl ProductionOrderService {
             .ok_or_else(|| AppError::not_found("生产订单不存在"))?;
 
         // 验证状态转换是否合法
-        Self::validate_status_transition(&model.status, "COMPLETED")?;
+        Self::validate_status_transition(&model.status, crate::models::status::common::STATUS_COMPLETED)?;
 
         let mut active_model: ActiveModel = model.into();
-        active_model.status = Set("COMPLETED".to_string());
+        active_model.status = Set(crate::models::status::common::STATUS_COMPLETED.to_string());
         active_model.actual_end_date = Set(Some(chrono::Utc::now().date_naive()));
         active_model.updated_at = Set(Utc::now());
         if let Some(qty) = actual_quantity {
@@ -553,7 +581,7 @@ impl ProductionOrderService {
         let bom = BomEntity::find()
             .filter(BomColumn::ProductId.eq(order.product_id))
             .filter(BomColumn::IsDefault.eq(true))
-            .filter(BomColumn::Status.eq("ACTIVE"))
+            .filter(BomColumn::Status.eq(crate::models::status::common::STATUS_ACTIVE))
             .one(txn)
             .await?;
 
@@ -829,11 +857,11 @@ impl ProductionOrderService {
             .ok_or_else(|| AppError::not_found("生产订单不存在"))?;
 
         // 验证状态转换是否合法
-        Self::validate_status_transition(&model.status, "PENDING_APPROVAL")?;
+        Self::validate_status_transition(&model.status, crate::models::status::production::PRODUCTION_PENDING_APPROVAL)?;
 
         // 更新状态为审批中
         let mut active_model: ActiveModel = model.into();
-        active_model.status = Set("PENDING_APPROVAL".to_string());
+        active_model.status = Set(crate::models::status::production::PRODUCTION_PENDING_APPROVAL.to_string());
         active_model.updated_at = Set(Utc::now());
 
         let updated = active_model.update(&txn).await?;
@@ -896,7 +924,11 @@ impl ProductionOrderService {
             .ok_or_else(|| AppError::not_found("生产订单不存在"))?;
 
         // 验证状态转换是否合法
-        let new_status = if approved { "APPROVED" } else { "REJECTED" };
+        let new_status = if approved {
+            crate::models::status::common::STATUS_APPROVED
+        } else {
+            crate::models::status::production::PRODUCTION_REJECTED
+        };
         Self::validate_status_transition(&model.status, new_status)?;
 
         let mut active_model: ActiveModel = model.into();
@@ -919,7 +951,7 @@ impl ProductionOrderService {
             let tasks = bpm_service
                 .query_user_tasks(crate::models::dto::bpm_dto::TaskQuery {
                     user_id: Some(user_id),
-                    status: Some("PENDING".to_string()),
+                    status: Some(crate::models::status::common::STATUS_PENDING.to_string()),
                     page: Some(1),
                     page_size: Some(10),
                 })
