@@ -126,6 +126,7 @@
 | 92 | P3 修复（死代码/panic/吞错/占位user_id/折旧逻辑） | P3 | 15 | ✅ 已完成（main `e23104d`，PR #336） |
 | 93 | P1 修复（id:Set(0) 推广 + delete TOCTOU） | P1 | 9 | ✅ 已完成（main `980dec0`，PR #337） |
 | 94 | P2 修复（SQL注入+N+1+审计user_id+吞错+占位符） | P2 | 15 | ✅ 已完成（main `b71e7a2`，PR #338） |
+| 95 | P3 修复（panic/unwrap/分页clamp/TOCTOU/CLI/前端占位）+ 5 条 CI clippy 修复 | P3 | 20 | ✅ 已完成（main `c9d03cb`，PR #339） |
 
 ## 扩展完善清单（2026-07-03 用户追加指令）
 
