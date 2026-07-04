@@ -21,7 +21,59 @@
 
 ---
 
-## 当前任务状态（2026-07-04 批次 98 P2 修复完成 - 批次 99 P3 待启动）
+## 当前任务状态（2026-07-04 批次 101 v6 P2 修复完成 - 批次 102 v6 P3 待启动）
+
+### ✅ 批次 101 v6 P2 修复完成（PR #345，main `835b990`）
+
+**v6 第六轮复审 P2 7 项全部修复完成**：
+- v6 复审维度 1-4 验证：v5 修复无回归，新发现 7 P2 + 10 P3
+- P2-1/P2-2：customer_service update_customer + delete_customer 改为事务+锁+审计（begin txn + lock_exclusive + update_with_audit + commit），新增 user_id 参数；delete_customer 增加状态门（已 inactive 拒绝重复软删除）
+- P2-3/P2-4/P2-5：purchase_return_service 3 处 `Some(0)` → `Some(user_id)`（update_item/delete/update_return_totals），5 个方法签名新增 user_id 参数
+- P2-6：purchase_receipt_service calculate_receipt_total_txn 的 `Some(0)` → `Some(user_id)`，3 处内部调用方补传
+- P2-7：finance_invoice_service approve_invoice 添加状态门（status != "pending" 拒绝重复审批，注意 finance_invoice 状态值是小写 "pending"）
+- 配套：customer_handler.rs / purchase_return_handler.rs 调用方补传 auth.user_id
+
+**下一步**：启动批次 102 v6 P3 修复（约 10 项），优先 P3-1/P3-2/P3-3 状态字符串常量化扩展（ar_service/ap_invoice/ap_payment_request）+ P3-4 voucher_service 错误分类。
+
+### ✅ 批次 100 P3-A 状态字符串常量化完成（PR #344，main `61e2da2`）
+
+**v5 复审 P3-A 修复完成**（状态字符串常量化，4 文件 70 处）：
+- 新增 `models/status.rs` 3 模块 14 常量：
+  - `common`: STATUS_DRAFT/PENDING/APPROVED/CANCELLED/COMPLETED/ACTIVE（通用状态）
+  - `production`: PRODUCTION_SCHEDULED/IN_PROGRESS/PENDING_APPROVAL/REJECTED（生产订单专属）
+  - `payment`: PAYMENT_REGISTERED/CONFIRMED/PAID/PARTIAL_PAID（付款专属）
+- 4 个 service 文件 70 处硬编码状态字符串替换为常量引用：
+  - production_order_service.rs（19 处）
+  - ap_payment_service.rs（8 处）
+  - ar_invoice_service.rs（15 处）
+  - finance_report_service.rs（11 处）
+- 保留 3 个历史模块（purchase_order/sales_order/approval）的 `#[allow(dead_code)] + TODO`
+
+**v5 复审 P3 修复进度汇总**：
+- ✅ B 占位模块清理（批次 99，3 处删除）
+- ✅ C dead_code TODO 评估（批次 99，23 处评估，1 处删除，22 处保留）
+- ✅ A 状态字符串常量化（批次 100，4 文件 70 处）
+- ⏳ D 前端占位符（13 明确 + 25 隐式，需逐个评估业务合理性）— 纳入 v6 复审
+- ⏳ E baseline 26 条残留（CI baseline 机制不阻塞，技术债）— 纳入 v6 复审
+- ⏳ F CI 配置严格化（5 行 3 类，需配合 E 完成）— 纳入 v6 复审
+
+**下一步**：启动 v6 第六轮全项目复审，检查 v5 修复是否引入新问题 + 评估 D/E/F 是否需要修复。
+
+### ✅ 批次 99 P3 部分修复完成（PR #343，main `4761359`）
+
+**v5 复审 P3 部分修复完成**（B 占位模块 + C dead_code 评估，4 项）：
+- B 章节（占位模块删除，3 处）：删除 `services/po/purchase_return.rs`（纯注释占位）+ `services/ar/pay.rs`（纯注释占位）+ `services/stock_query.rs`（结构占位，StockFilter 未被业务引用）+ 同步删除 3 处 mod 声明
+- C 章节（dead_code TODO 评估，8 文件 23 处 allow）：22 处保留（预留 API/半接线字段/模式样板），1 处删除（`auth_service.rs validate_token` 实例方法与 `validate_token_static` 重复实现）+ 同步删除 `decoding_key` 字段
+
+**关键评估结论**：
+- cache_service.rs / event_kafka.rs / performance_optimizer.rs / business_metrics.rs / operation_log_service.rs / ar/mod.rs / omni_audit_service.rs 的 22 处 `#[allow(dead_code)] + TODO` 均为预留 API，保留合理
+- auth_service.rs 的 `validate_token` 实例方法与 `validate_token_static` 功能等价（唯一区别是用 `self.decoding_key` 还是局部构造 `DecodingKey`），从未被外部调用，属重复实现真死代码
+
+**E/A/D/F 章节规划到批次 100**：
+- E baseline 26 条残留（CI baseline 机制 `comm -23` 不阻塞历史警告，技术债延后）
+- A 状态字符串常量化（53 处，需建状态常量模块 `models/status.rs`）
+- D 前端占位符（13 明确 + 25 隐式，需逐个评估业务合理性）
+- F CI 配置严格化（5 行 3 类：exit 0 / --max-warnings 999999 / continue-on-error，需配合 baseline 清理后才能移除）
 
 ### ✅ 批次 98 P2 修复完成（PR #342，main `e7fb8ee`）
 
