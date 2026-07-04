@@ -182,6 +182,23 @@
 - 批次 108：ar/recon 路由接入 + webhook handler 实现
 - 批次 109+：P2 项按业务驱动逐项接入
 
+### 批次 105 详细修复项（删除 messaging/ 死代码模块）
+
+**调研发现**：项目已用 `rskafka 0.5`（纯 Rust，无 C/C++ 依赖）在 `services/event_kafka.rs` 完成真实 Kafka 集成，
+`messaging/` 模块（P9-7 设计阶段占位）仅在自身测试中被引用，与生产路径重复，属于死代码。
+
+| # | 文件 | 修复 |
+|---|------|------|
+| 死代码清理 | messaging/kafka.rs | 删除整个文件（444 行 stub trait + mock producer，仅在 bus.rs:88 测试中引用） |
+| 死代码清理 | messaging/bus.rs | 删除整个文件（111 行 EventBus trait 抽象，无业务使用） |
+| 死代码清理 | messaging/mod.rs | 删除整个文件（8 行模块导出） |
+| 模块声明 | lib.rs | 移除 `pub mod messaging;` 声明，添加删除原因注释 |
+
+**设计决策**：
+- 不改用 `rdkafka`（需要 librdkafka + cmake-build + ssl-vendored，违反"CI/CD Only"约束）
+- 真实 Kafka 后端已在 `services/event_kafka.rs` 完整实现并经过集成测试（tests/test_event_bus.rs）
+- 18+ 个业务 service 已通过 `services::event_bus::EVENT_BUS.publish(...)` 真实接入
+
 ### 批次 104 详细修复项（search_api.rs 接入 SearchClient）
 
 | # | 文件 | 修复 |
