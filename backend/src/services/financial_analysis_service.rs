@@ -65,7 +65,7 @@ impl FinancialAnalysisService {
         let total = query.clone().count(&*self.db).await?;
 
         let indicators = query
-            .order_by(financial_indicator::Column::Id, Order::Desc)
+            .order_by(financial_analysis::Column::Id, Order::Desc)
             // 批次 98 P2-A 修复（v5 复审）：page clamp 防 DoS
             .offset((params.page.max(1).min(1000).saturating_sub(1) * params.page_size) as u64)
             .limit(params.page_size as u64)
