@@ -58,6 +58,8 @@ pub struct UpsertApiEndpointRequest {
 #[derive(Debug, Deserialize)]
 pub struct UpdateApiKeyGwRequest {
     pub key_name: Option<String>,
+    // 批次 95 CI 修复：api_keys 表无 description 列，保留占位待 schema 扩展后接入
+    #[allow(dead_code)]
     pub description: Option<String>,
     pub permissions: Option<Vec<String>>,
     pub rate_limit: Option<i32>,
