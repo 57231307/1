@@ -83,8 +83,9 @@ pub trait SlowQueryMetrics {
 impl SlowQueryMetrics for MetricsService {
     fn record_slow_query_metric(&self, label: &str, elapsed: Duration) {
         // 真正接入 MetricsService 的 Prometheus 指标，替代原 no-op 占位实现。
-        // 直接调用 inherent 方法（无 trait/inherent 同名冲突）。
+        // record_slow_query 是 Metrics（不是 MetricsService）的 inherent 方法，
+        // 通过 self.metrics（Arc<Metrics>）auto-deref 调用。
         let duration_secs = elapsed.as_secs_f64();
-        self.record_slow_query(duration_secs, label);
+        self.metrics.record_slow_query(duration_secs, label);
     }
 }
