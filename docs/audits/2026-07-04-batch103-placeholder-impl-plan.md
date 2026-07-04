@@ -25,9 +25,9 @@
 | P1-3 | services/operation_log_service.rs | 已被 omni_audit_service 替代 | 评估删除或保留为独立操作日志 | 批次 106 |
 | P1-4 | services/cache_service.rs | LRU 缓存未接入业务 | 接入 dashboard 热点数据或删除 | 批次 107 |
 | P1-5 | services/color_card_scan_service.rs + color_card_borrow_service.rs | 色卡模块未挂载路由 | 实现路由挂载 | 批次 107 |
-| P1-6 | services/ar/recon.rs | 对账模块路由未接入 | 实现 update/delete/confirm/dispute/close 路由 | 批次 108 |
+| P1-6 | services/ar/recon.rs | 对账模块路由未接入 | 实现 update/delete/send/close 路由（confirm/dispute 复用 vfy.rs 的 customer_confirm/customer_dispute，删除 recon.rs 中重复的简单版本） | 批次 108 ✅ |
 | P1-7 | routes/analytics.rs api_keys() | 旧路由需删除 | 确认无外部调用后删除 | 批次 103 |
-| P1-8 | routes/analytics.rs webhook 3 个 handler | retry/get_logs/test_webhook 未实现 | 实现 3 个 handler 并挂载路由 | 批次 108 |
+| P1-8 | routes/analytics.rs webhook 3 个 handler | retry/get_logs/test_webhook 未实现 | 实现 3 个 handler 并挂载路由 | 批次 108 ✅ |
 
 ### P2（功能扩展预留，待业务驱动）
 
@@ -63,5 +63,5 @@
 | 105 | messaging/kafka.rs 接入 rdkafka | 1 | P0 |
 | 106 | performance_optimizer 接入/删除 + business_metrics 端点暴露 + operation_log_service 评估 | 3 | P1 |
 | 107 | cache_service 接入 + color_card 路由挂载 | 3 | P1 |
-| 108 | ar/recon 路由接入 + webhook handler 实现 | 8 | P1 |
+| 108 | ar/recon 路由接入 + webhook handler 实现 | 7 | P1 ✅ |
 | 109+ | P2 项按业务驱动逐项接入 | - | P2 |

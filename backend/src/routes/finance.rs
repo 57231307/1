@@ -680,6 +680,15 @@ pub fn ar_reconciliation_alias() -> Router<AppState> {
 }
 
 /// 应收对账路由（path 前缀 /ar-reconciliations）
+///
+/// 批次 108 P1-6 修复：补齐 update/delete/send/confirm/dispute/close 6 端点，
+/// 接入 service::ar::recon 中已实现但未挂载路由的方法。
+/// - PUT    /:id           → update_reconciliation（仅草稿状态可更新）
+/// - DELETE /:id           → delete_reconciliation（仅草稿状态可删除）
+/// - POST   /:id/send      → send_reconciliation（draft → sent）
+/// - POST   /:id/confirm   → confirm_reconciliation（sent → confirmed，复用 enhanced 版本）
+/// - POST   /:id/dispute   → dispute_reconciliation（sent → disputed，复用 enhanced 版本）
+/// - POST   /:id/close     → close_reconciliation（confirmed/disputed → closed）
 pub fn ar_reconciliations() -> Router<AppState> {
     Router::new()
         .route(
@@ -689,11 +698,29 @@ pub fn ar_reconciliations() -> Router<AppState> {
         )
         .route(
             "/ar-reconciliations/:id",
-            get(ar_reconciliation_handler::get_reconciliation),
+            get(ar_reconciliation_handler::get_reconciliation)
+                .put(ar_reconciliation_handler::update_reconciliation)
+                .delete(ar_reconciliation_handler::delete_reconciliation),
         )
         .route(
             "/ar-reconciliations/:id/status",
             put(ar_reconciliation_handler::update_reconciliation_status),
+        )
+        .route(
+            "/ar-reconciliations/:id/send",
+            post(ar_reconciliation_handler::send_reconciliation),
+        )
+        .route(
+            "/ar-reconciliations/:id/confirm",
+            post(ar_reconciliation_handler::confirm_reconciliation),
+        )
+        .route(
+            "/ar-reconciliations/:id/dispute",
+            post(ar_reconciliation_handler::dispute_reconciliation),
+        )
+        .route(
+            "/ar-reconciliations/:id/close",
+            post(ar_reconciliation_handler::close_reconciliation),
         )
 }
 

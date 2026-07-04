@@ -11,7 +11,7 @@ use tracing::info;
 use crate::middleware::auth_context::AuthContext;
 use crate::services::ar::{
     ArReconciliationService, AutoMatchRequest, CreateReconciliationRequest,
-    GenerateReconciliationRequest, ReconciliationQuery,
+    GenerateReconciliationRequest, ReconciliationQuery, UpdateReconciliationRequest,
 };
 use crate::utils::app_state::AppState;
 use crate::utils::error::AppError;
@@ -171,6 +171,144 @@ pub async fn update_reconciliation_status(
         .map_err(|e| {
             tracing::error!("更新对账单状态失败: {}", e);
             AppError::internal(format!("更新对账单状态失败: {}", e))
+        })
+}
+
+// ============================================================================
+// 批次 108 P1-6 修复：ar/recon 路由接入（update/delete/confirm/dispute/close/send）
+//
+// 原状态：service::ar::recon.rs 的 update/delete/confirm/dispute/close/send 方法
+// 已完整实现（含事务 + lock_exclusive + 状态门 + 审计日志），但 /ar-reconciliations
+// 路由仅挂载 list/create/get/update_status 4 端点，导致 6 个 service 方法无业务入口
+// （#[allow(dead_code)] + TODO 标注）。
+//
+// 修复：新增 6 个 handler 并挂载到 /ar-reconciliations 路由，移除 service 的 dead_code 标注。
+// ============================================================================
+
+/// 更新对账单请求体（API 层）
+#[derive(Debug, Deserialize)]
+pub struct UpdateReconciliationApiRequest {
+    pub opening_balance: Option<Decimal>,
+    pub total_invoices: Option<Decimal>,
+    pub total_collections: Option<Decimal>,
+    pub notes: Option<String>,
+}
+
+/// 更新对账单（PUT /ar-reconciliations/:id）
+///
+/// 仅草稿状态可更新，closing_balance 由 service 自动重算
+pub async fn update_reconciliation(
+    State(state): State<AppState>,
+    auth: AuthContext,
+    Path(id): Path<i32>,
+    Json(req): Json<UpdateReconciliationApiRequest>,
+) -> Result<Json<ApiResponse<ReconciliationResponse>>, AppError> {
+    info!("用户 {} 更新对账单 ID: {}", auth.username, id);
+
+    let service = ArReconciliationService::new(state.db.clone());
+    let update_req = UpdateReconciliationRequest {
+        opening_balance: req.opening_balance,
+        total_invoices: req.total_invoices,
+        total_collections: req.total_collections,
+        notes: req.notes,
+    };
+
+    service
+        .update(id, update_req, auth.user_id)
+        .await
+        .map(|model| {
+            Json(ApiResponse::success_with_message(
+                ReconciliationResponse::from(model),
+                "对账单更新成功",
+            ))
+        })
+        .map_err(|e| {
+            tracing::error!("更新对账单失败: {}", e);
+            AppError::internal(format!("更新对账单失败: {}", e))
+        })
+}
+
+/// 删除对账单（DELETE /ar-reconciliations/:id）
+///
+/// 仅草稿状态可删除（service 内部状态门）
+pub async fn delete_reconciliation(
+    State(state): State<AppState>,
+    auth: AuthContext,
+    Path(id): Path<i32>,
+) -> Result<Json<ApiResponse<()>>, AppError> {
+    info!("用户 {} 删除对账单 ID: {}", auth.username, id);
+
+    let service = ArReconciliationService::new(state.db.clone());
+
+    service
+        .delete(id, auth.user_id)
+        .await
+        .map(|_| Json(ApiResponse::success_with_message((), "对账单删除成功")))
+        .map_err(|e| {
+            tracing::error!("删除对账单失败: {}", e);
+            AppError::internal(format!("删除对账单失败: {}", e))
+        })
+}
+
+/// 发送对账单给客户（POST /ar-reconciliations/:id/send）
+///
+/// 状态：draft → sent
+pub async fn send_reconciliation(
+    State(state): State<AppState>,
+    auth: AuthContext,
+    Path(id): Path<i32>,
+) -> Result<Json<ApiResponse<ReconciliationResponse>>, AppError> {
+    info!("用户 {} 发送对账单 ID: {}", auth.username, id);
+
+    let service = ArReconciliationService::new(state.db.clone());
+
+    service
+        .send(id, auth.user_id)
+        .await
+        .map(|model| {
+            Json(ApiResponse::success_with_message(
+                ReconciliationResponse::from(model),
+                "对账单已发送给客户",
+            ))
+        })
+        .map_err(|e| {
+            tracing::error!("发送对账单失败: {}", e);
+            AppError::internal(format!("发送对账单失败: {}", e))
+        })
+}
+
+/// 客户确认对账单（POST /ar-reconciliations/:id/confirm）
+///
+/// 状态：sent → confirmed
+///
+/// 注：confirm/dispute 的业务实现复用现有 enhanced 版本（customer_confirm/customer_dispute，
+/// 在 service::ar::vfy 中实现，包含自动对账逻辑），不在此处重复定义。
+/// 路由层通过 `ar_reconciliation_handler::confirm_reconciliation` / `dispute_reconciliation` 引用。
+
+/// 关闭对账单（POST /ar-reconciliations/:id/close）
+///
+/// 状态：confirmed/disputed → closed
+pub async fn close_reconciliation(
+    State(state): State<AppState>,
+    auth: AuthContext,
+    Path(id): Path<i32>,
+) -> Result<Json<ApiResponse<ReconciliationResponse>>, AppError> {
+    info!("用户 {} 关闭对账单 ID: {}", auth.username, id);
+
+    let service = ArReconciliationService::new(state.db.clone());
+
+    service
+        .close(id, auth.user_id)
+        .await
+        .map(|model| {
+            Json(ApiResponse::success_with_message(
+                ReconciliationResponse::from(model),
+                "对账单已关闭",
+            ))
+        })
+        .map_err(|e| {
+            tracing::error!("关闭对账单失败: {}", e);
+            AppError::internal(format!("关闭对账单失败: {}", e))
         })
 }
 

@@ -46,8 +46,10 @@ pub struct CreateReconciliationRequest {
 }
 
 /// 更新对账单请求
+///
+/// 批次 108 P1-6 修复：已通过 PUT /ar-reconciliations/:id 路由接入业务，
+/// 移除 dead_code 标注。
 #[derive(Debug, Clone)]
-#[allow(dead_code)] // TODO(tech-debt): update 方法待 handler 接入后移除
 pub struct UpdateReconciliationRequest {
     pub opening_balance: Option<Decimal>,
     pub total_invoices: Option<Decimal>,
