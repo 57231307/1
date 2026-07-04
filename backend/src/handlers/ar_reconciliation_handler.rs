@@ -277,13 +277,13 @@ pub async fn send_reconciliation(
         })
 }
 
-/// 客户确认对账单（POST /ar-reconciliations/:id/confirm）
-///
-/// 状态：sent → confirmed
-///
-/// 注：confirm/dispute 的业务实现复用现有 enhanced 版本（customer_confirm/customer_dispute，
-/// 在 service::ar::vfy 中实现，包含自动对账逻辑），不在此处重复定义。
-/// 路由层通过 `ar_reconciliation_handler::confirm_reconciliation` / `dispute_reconciliation` 引用。
+// 客户确认对账单（POST /ar-reconciliations/:id/confirm）
+//
+// 状态：sent → confirmed
+//
+// 注：confirm/dispute 的业务实现复用现有 enhanced 版本（customer_confirm/customer_dispute，
+// 在 service::ar::vfy 中实现，包含自动对账逻辑），不在此处重复定义。
+// 路由层通过 `ar_reconciliation_handler::confirm_reconciliation` / `dispute_reconciliation` 引用。
 
 /// 关闭对账单（POST /ar-reconciliations/:id/close）
 ///
