@@ -24,7 +24,9 @@ use super::{
     ReconciliationQuery, ReconciliationWithDetails, UpdateReconciliationRequest,
 };
 
-#[allow(dead_code)] // TODO(tech-debt): update/delete/confirm/dispute/close 方法待 handler 路由接入后移除
+/// 批次 108 P1-6 修复：update/delete/send/confirm/dispute/close 方法已通过
+/// /ar-reconciliations 路由接入业务（ar_reconciliation_handler.rs + routes/finance.rs），
+/// 移除 dead_code 标注。
 impl ArReconciliationService {
     /// 创建对账单
     pub async fn create(
@@ -213,80 +215,6 @@ impl ArReconciliationService {
         txn.commit().await?;
 
         Ok(updated)
-    }
-
-    /// 客户确认对账单
-    pub async fn confirm(
-        &self,
-        id: i32,
-        confirmed_by: Option<i32>,
-    ) -> Result<ReconciliationModel, AppError> {
-        // 批次 25 v6 P0 修复：状态机 lock_exclusive 补全，串行化并发状态变更
-        // 原实现状态变更无 txn 无 lock，两并发 confirm 同时通过门控后基于过期状态写入，
-        // 导致 confirmed_by/confirmed_at 被覆盖、状态机被并发破坏。
-        let txn = (*self.db).begin().await?;
-
-        let model = ReconciliationEntity::find_by_id(id)
-            .lock_exclusive()
-            .one(&txn)
-            .await?
-            .ok_or_else(|| AppError::not_found("对账单不存在"))?;
-
-        let mut active_model: ActiveModel = model.into();
-        active_model.reconciliation_status = Set(Some("confirmed".to_string()));
-        active_model.confirmed_by_customer = Set(Some(true));
-        active_model.confirmed_by = Set(confirmed_by);
-        active_model.confirmed_at = Set(Some(Utc::now()));
-        active_model.updated_at = Set(Utc::now());
-
-        let result = crate::services::audit_log_service::AuditLogService::update_with_audit(
-            &txn,
-            "auto_audit",
-            active_model,
-            confirmed_by,
-        )
-        .await?;
-
-        txn.commit().await?;
-
-        Ok(result)
-    }
-
-    /// 客户提出争议
-    pub async fn dispute(
-        &self,
-        id: i32,
-        reason: String,
-        user_id: i32,
-    ) -> Result<ReconciliationModel, AppError> {
-        // 批次 25 v6 P0 修复：状态机 lock_exclusive 补全，串行化并发状态变更
-        // 原实现状态变更无 txn 无 lock，两并发 dispute 同时通过门控后基于过期状态写入，
-        // 导致 dispute_reason 被覆盖、状态机被并发破坏。
-        let txn = (*self.db).begin().await?;
-
-        let model = ReconciliationEntity::find_by_id(id)
-            .lock_exclusive()
-            .one(&txn)
-            .await?
-            .ok_or_else(|| AppError::not_found("对账单不存在"))?;
-
-        let mut active_model: ActiveModel = model.into();
-        active_model.reconciliation_status = Set(Some("disputed".to_string()));
-        active_model.dispute_reason = Set(Some(reason));
-        active_model.updated_at = Set(Utc::now());
-
-        // 批次 92 P3-9：user_id 从 handler AuthContext 注入
-        let result = crate::services::audit_log_service::AuditLogService::update_with_audit(
-            &txn,
-            "auto_audit",
-            active_model,
-            Some(user_id),
-        )
-        .await?;
-
-        txn.commit().await?;
-
-        Ok(result)
     }
 
     /// 关闭对账单

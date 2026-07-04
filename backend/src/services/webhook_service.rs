@@ -10,7 +10,9 @@ use tracing::error;
 /// Webhook 最大重试次数上限
 /// 超过该阈值后不再递增 retry_count，并将 last_error 置为失败原因，
 /// 防止计数器无上限增长导致 DB 字段溢出或被攻击者利用放大重试流量。
-const MAX_RETRY_COUNT: i32 = 5;
+///
+/// 批次 108 P1-8：暴露为 pub crate 供 handler 在 /webhooks/:id/logs 响应中返回该上限值
+pub(crate) const MAX_RETRY_COUNT: i32 = 5;
 
 /// Webhook负载
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -256,8 +258,9 @@ impl WebhookService {
         }
     }
 
-    /// 测试Webhook
-    #[allow(dead_code)] // TODO(tech-debt): 预留 API，待 webhook 测试端点接入后移除
+    /// 测试 Webhook（批次 108 P1-8：已通过 POST /webhooks/:id/test 接入业务）
+    ///
+    /// 触发一次 test 事件，验证 webhook 配置正确性。
     pub async fn test_webhook(
         &self,
         webhook_id: i32,
@@ -276,6 +279,17 @@ impl WebhookService {
 
         self.trigger_webhook(webhook_id, "test", &test_payload)
             .await
+    }
+
+    /// 获取单个 Webhook 详情（批次 108 P1-8：为 GET /webhooks/:id/logs 提供数据源）
+    ///
+    /// 返回 webhooks 表中的执行状态字段（last_triggered_at / last_status / retry_count）。
+    /// 当前未独立持久化调用日志（无 webhook_logs 表），返回 webhook 自身的执行状态汇总。
+    pub async fn get_webhook(&self, id: i32) -> Result<webhook::Model, AppError> {
+        Webhook::find_by_id(id)
+            .one(self.db.as_ref())
+            .await?
+            .ok_or_else(|| AppError::business("Webhook 不存在"))
     }
 
     /// 删除 Webhook

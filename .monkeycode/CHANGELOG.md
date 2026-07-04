@@ -28,6 +28,23 @@
 
 ---
 
+## 2026-07-04 (批次 107 cache_service 真实接入 AppState 完成)
+
+### 批次 107 完成：cache_service L1 本地缓存真实接入 AppState（PR #351，main `c45f7e7`）
+
+**用户新规则批次 107 — cache_service 接入 + color_card 路由确认**：
+
+| # | 修复要点 | 影响文件 |
+|---|---------|---------|
+| P1-1 | utils/app_state.rs 新增 `cache_service: Arc<CacheService>` 字段，两个构造函数（with_secrets_and_cors 和 Default）均添加初始化 | utils/app_state.rs |
+| P1-1 | services/cache_service.rs 移除 5 处 dead_code 标注（new / set_with_ttl / invalidate / default_ttl / impl Default） | services/cache_service.rs |
+| 配套 | color_card 路由挂载状态确认：16 端点已完整实现，路由挂载在 `/api/v1/erp/color-cards`，无需修改 | routes/color_card.rs（无变更） |
+
+**关键决策**：
+- 两个同名 CacheService 区分：`services::cache_service::CacheService`（moka L1 本地缓存）vs `cache::redis_client::CacheService`（Redis L2 分布式缓存）
+- cache_service 设计为 L1 进程内缓存（moka LRU + TTL），与 state.cache（AppCache/Redis L2）形成多级缓存架构
+- L1 注入 AppState 而非全局单例，便于测试和未来按模块配置不同缓存策略
+
 ## 2026-07-04 (批次 106 performance_optimizer/operation_log_service 删除 + business_metrics 真实接入完成)
 
 ### 批次 106 完成：3 个预留模块按"真实接入或删除"原则处理（PR #350，main `7f2cc82`）

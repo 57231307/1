@@ -314,16 +314,23 @@ pub fn reports() -> Router<AppState> {
 
 /// Webhook 路由
 ///
-/// 注：main 上 webhook_handler 仅实现 `list_webhooks` / `create_webhook` / `delete_webhook`
-/// 三类基础操作；`retry_webhook` / `get_webhook_logs` / `test_webhook` 在 main 上未实现，
-/// 因此相关路由暂不挂载，避免编译期 E0425。
+/// 批次 108 P1-8 修复：补齐 retry/get_logs/test 3 端点，接入 service 中已实现的方法。
+/// - POST /:id/test  → test_webhook（触发一次 test 事件，验证配置正确性）
+/// - POST /:id/retry → retry_webhook（重试上一次失败的 webhook 调用）
+/// - GET  /:id/logs  → get_webhook_logs（返回 webhook 执行状态）
 pub fn webhooks() -> Router<AppState> {
     Router::new()
         .route(
             "/",
             get(webhook_handler::list_webhooks).post(webhook_handler::create_webhook),
         )
-        .route("/:id", delete(webhook_handler::delete_webhook))
+        .route(
+            "/:id",
+            delete(webhook_handler::delete_webhook),
+        )
+        .route("/:id/test", post(webhook_handler::test_webhook))
+        .route("/:id/retry", post(webhook_handler::retry_webhook))
+        .route("/:id/logs", get(webhook_handler::get_webhook_logs))
 }
 
 /// API 网关管理路由

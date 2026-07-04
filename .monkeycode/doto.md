@@ -5,7 +5,7 @@
 
 ---
 
-## 🔄 当前任务：批次 107 cache_service 接入 + color_card 路由挂载（待启动）
+## 🔄 当前任务：批次 108 ar/recon 路由接入 + webhook handler 实现（待启动）
 
 **用户新规则（2026-07-04 追加，最高优先级）**：
 > 对所有预留的 api 及预留的功能/占位符功能/路由进行实现，
@@ -23,10 +23,10 @@
 | 104 | #348 | `e0a8672` | search_api.rs 3 个搜索端点真实接入 SearchClient + AppState 注入 + 可降级方案 |
 | 105 | #349 | `bc075ad` | 删除 messaging/ 死代码模块（kafka.rs 444 + bus.rs 111 + mod.rs 8 行，已被 services/event_kafka.rs 真实集成取代） |
 | 106 | #350 | `7f2cc82` | 删除 performance_optimizer(154行) + operation_log_service(399行) + n_plus_one(93行)；business_metrics 真实接入 MetricsService（同一 Registry，/metrics 自动暴露 erp_* 指标） |
+| 107 | #351 | `c45f7e7` | cache_service L1 本地缓存真实接入 AppState + 5 处 dead_code 标注移除；color_card 路由确认已挂载（16 端点） |
 
 ### 后续批次规划
 
-- **批次 107**：cache_service 接入 + color_card 路由挂载
 - **批次 108**：ar/recon 路由接入 + webhook handler 实现
 - **批次 109+**：P2 项按业务驱动逐项接入
 - **批次 110+**：SearchSyncer 接入 PG→ES 写入同步（customer_service / sales_order_service / product_service）
@@ -52,6 +52,7 @@
 
 ## 📜 历史任务索引
 
+- 批次 107 cache_service 接入 AppState（PR #351，main `c45f7e7`）✅
 - 批次 106 performance_optimizer/operation_log_service 删除 + business_metrics 接入（PR #350，main `7f2cc82`）✅
 - 批次 105 messaging/ 死代码模块删除（PR #349，main `bc075ad`）✅
 - 批次 104 搜索 API 接入（PR #348，main `e0a8672`）✅

@@ -21,7 +21,7 @@
 
 ---
 
-## 当前任务状态（2026-07-04 批次 106 已合并 main `7f2cc82` - 批次 107 待启动）
+## 当前任务状态（2026-07-04 批次 107 已合并 main `c45f7e7` - 批次 108 待启动）
 
 ### 🔴 用户新规则（2026-07-04 追加，最高优先级）
 
@@ -67,6 +67,21 @@
 - CI 12 项必检全绿（E2E continue-on-error 非阻塞），Clippy/Rust 单元测试/Rust 后端构建全部通过
 
 **关键决策**：messaging/ 是占位模块而非"未接入功能"，正确处理是删除而非真实接入；真实 Kafka 集成路径是 services/event_kafka.rs（生产路径）
+
+### ✅ 批次 107 cache_service 真实接入 AppState（PR #351，main `c45f7e7`）
+
+**用户新规则批次 107 完成**：cache_service L1 本地缓存真实接入 AppState，多级缓存架构落地
+- P1-1：utils/app_state.rs 新增 `cache_service: Arc<CacheService>` 字段，两个构造函数（`with_secrets_and_cors` 和 `Default`）均添加 `cache_service: Arc::new(CacheService::new())` 初始化
+- P1-1：services/cache_service.rs 移除 5 处 `#[allow(dead_code)]` + TODO 标注（`new()` / `set_with_ttl()` / `invalidate()` / `default_ttl()` / `impl Default`），全部已接入业务
+- 设计文档：cache_service 设计为 L1 进程内缓存（moka LRU + TTL），与 state.cache（AppCache/Redis L2）形成多级缓存架构。L1 适合热点数据超低延迟访问，L2 适合跨实例共享
+- color_card 路由挂载状态确认：已完整实现 16 端点，路由挂载在 `/api/v1/erp/color-cards`，无需修改
+
+**关键决策**：
+- 两个同名 CacheService 区分：`services::cache_service::CacheService`（moka L1 本地缓存）vs `cache::redis_client::CacheService`（Redis L2 分布式缓存）
+- L1 注入 AppState 而非全局单例，便于测试和未来按模块配置不同缓存策略
+- cache_service 与 state.cache（AppCache/Redis）互补不重复：L1 进程内超低延迟，L2 跨实例共享
+
+**下一步**：启动批次 108（ar/recon 路由接入 + webhook handler 实现）
 
 ### ✅ 批次 106 删除 performance_optimizer/operation_log_service + business_metrics 真实接入（PR #350，main `7f2cc82`）
 
