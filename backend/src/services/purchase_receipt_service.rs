@@ -2,6 +2,9 @@
 //!
 //! 采购入库服务层，负责采购入库的核心业务逻辑
 //! 包含入库单创建、确认、更新等全流程管理
+//!
+// 批次 101 v6 复审 P2 修复：calculate_receipt_total_txn / calculate_receipt_total
+// 审计操作人 Some(0) 占位符改为真实 user_id，三处内部调用方同步透传 user_id（P2-6）。
 
 use crate::models::{purchase_receipt, purchase_receipt_item};
 use crate::services::event_bus::EVENT_BUS;
@@ -408,7 +411,8 @@ impl PurchaseReceiptService {
         .await?;
 
         // 5. 更新入库单总金额（事务内调用 _txn 变体，保证明细写与重算原子性）
-        self.calculate_receipt_total_txn(receipt_id, &txn).await?;
+        self.calculate_receipt_total_txn(receipt_id, &txn, user_id)
+            .await?;
 
         txn.commit().await?;
 
@@ -481,7 +485,8 @@ impl PurchaseReceiptService {
         .await?;
 
         // 6. 更新入库单总金额（事务内调用 _txn 变体，保证明细写与重算原子性）
-        self.calculate_receipt_total_txn(receipt.id, &txn).await?;
+        self.calculate_receipt_total_txn(receipt.id, &txn, user_id)
+            .await?;
 
         txn.commit().await?;
 
@@ -529,7 +534,8 @@ impl PurchaseReceiptService {
             .await?;
 
         // 6. 更新入库单总金额（事务内调用 _txn 变体，保证明细写与重算原子性）
-        self.calculate_receipt_total_txn(receipt.id, &txn).await?;
+        self.calculate_receipt_total_txn(receipt.id, &txn, user_id)
+            .await?;
 
         txn.commit().await?;
 
@@ -542,10 +548,15 @@ impl PurchaseReceiptService {
     /// 供已有事务的调用方使用，保证明细写与总金额重算原子性。
     /// 内部 3 处 DB 句柄全部使用 txn，主表查询加 lock_exclusive 串行化并发重算，
     /// 防止两个并发重算基于过期明细快照导致丢失更新。
+    ///
+    /// 批次 101 v6 复审 P2-6 修复：原 update_with_audit 调用 Some(0) 占位符导致审计日志操作人为 0，
+    /// 改为透传真实操作人 user_id。user_id 由调用方（add_receipt_item / update_receipt_item /
+    /// delete_receipt_item / calculate_receipt_total）注入。
     pub async fn calculate_receipt_total_txn(
         &self,
         receipt_id: i32,
         txn: &sea_orm::DatabaseTransaction,
+        user_id: i32,
     ) -> Result<(), AppError> {
         // 1. 查询所有明细
         let items = purchase_receipt_item::Entity::find()
@@ -580,7 +591,8 @@ impl PurchaseReceiptService {
             txn,
             "auto_audit",
             receipt_active,
-            Some(0),
+            // 批次 101 v6 复审 P2-6：原 Some(0) 占位改为真实操作人 user_id，便于审计追踪
+            Some(user_id),
         )
         .await?;
 
@@ -591,10 +603,17 @@ impl PurchaseReceiptService {
     ///
     /// 批次 19（2026-06-28）：改为便捷入口，内部 begin + 调 _txn + commit。
     /// 已在事务内的调用方应直接调用 calculate_receipt_total_txn 以复用事务。
+    ///
+    /// 批次 101 v6 复审 P2-6：透传 user_id 给 _txn 变体，保持审计日志操作人一致。
     #[allow(dead_code)] // TODO(tech-debt): 公共入口暂未被 handler 调用，待路由接入后移除
-    pub async fn calculate_receipt_total(&self, receipt_id: i32) -> Result<(), AppError> {
+    pub async fn calculate_receipt_total(
+        &self,
+        receipt_id: i32,
+        user_id: i32,
+    ) -> Result<(), AppError> {
         let txn = (*self.db).begin().await?;
-        self.calculate_receipt_total_txn(receipt_id, &txn).await?;
+        self.calculate_receipt_total_txn(receipt_id, &txn, user_id)
+            .await?;
         txn.commit().await?;
         Ok(())
     }

@@ -254,6 +254,8 @@ pub async fn update_customer(
             payload.customer_type,
             payload.status,
             payload.notes,
+            // 批次 101 v6 复审 P2-1：透传操作人 user_id 用于审计日志
+            auth.user_id,
         )
         .await?;
 
@@ -284,7 +286,8 @@ pub async fn delete_customer(
         return Err(AppError::permission_denied("无权删除该客户".to_string()));
     }
 
-    customer_service.delete_customer(id).await?;
+    // 批次 101 v6 复审 P2-2：透传操作人 user_id 用于审计日志
+    customer_service.delete_customer(id, auth.user_id).await?;
     Ok(Json(ApiResponse::success_with_message((), "客户删除成功")))
 }
 
