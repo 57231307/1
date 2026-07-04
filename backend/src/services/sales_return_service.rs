@@ -80,7 +80,8 @@ impl SalesReturnService {
             // Wait, sales_return_item doesn't have an `amount` field. We must use unit_price * quantity.
             let qty = item.quantity;
             let price = item.unit_price;
-            total += qty * price;
+            // 批次 97 P1-7 修复（v5 复审）：金额累加补 round_dp(2) 防止精度漂移
+            total += (qty * price).round_dp(2);
         }
 
         let return_order = crate::models::sales_return::Entity::find_by_id(return_id)

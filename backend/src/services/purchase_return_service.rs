@@ -558,11 +558,12 @@ impl PurchaseReturnService {
         let discount_percent = req.discount_percent.unwrap_or(Decimal::ZERO);
         let tax_percent = req.tax_rate.unwrap_or(Decimal::ZERO);
 
-        let subtotal = quantity * unit_price;
-        let discount_amount = subtotal * (discount_percent / Decimal::new(100, 0));
-        let taxable_amount = subtotal - discount_amount;
-        let tax_amount = taxable_amount * (tax_percent / Decimal::new(100, 0));
-        let total_amount = taxable_amount + tax_amount;
+        // 批次 97 P1-4 修复（v5 复审）：金额计算补 round_dp(2) 防止精度漂移
+        let subtotal = (quantity * unit_price).round_dp(2);
+        let discount_amount = (subtotal * (discount_percent / Decimal::new(100, 0))).round_dp(2);
+        let taxable_amount = (subtotal - discount_amount).round_dp(2);
+        let tax_amount = (taxable_amount * (tax_percent / Decimal::new(100, 0))).round_dp(2);
+        let total_amount = (taxable_amount + tax_amount).round_dp(2);
 
         let item = purchase_return_item::ActiveModel {
             id: Default::default(),
@@ -636,11 +637,12 @@ impl PurchaseReturnService {
         active_item.discount_percent = Set(discount_percent);
         active_item.tax_percent = Set(tax_percent);
 
-        let subtotal = quantity * unit_price;
-        let discount_amount = subtotal * (discount_percent / Decimal::new(100, 0));
-        let taxable_amount = subtotal - discount_amount;
-        let tax_amount = taxable_amount * (tax_percent / Decimal::new(100, 0));
-        let total_amount = taxable_amount + tax_amount;
+        // 批次 97 P1-4 修复（v5 复审）：金额计算补 round_dp(2) 防止精度漂移
+        let subtotal = (quantity * unit_price).round_dp(2);
+        let discount_amount = (subtotal * (discount_percent / Decimal::new(100, 0))).round_dp(2);
+        let taxable_amount = (subtotal - discount_amount).round_dp(2);
+        let tax_amount = (taxable_amount * (tax_percent / Decimal::new(100, 0))).round_dp(2);
+        let total_amount = (taxable_amount + tax_amount).round_dp(2);
 
         active_item.subtotal = Set(subtotal);
         active_item.discount_amount = Set(discount_amount);

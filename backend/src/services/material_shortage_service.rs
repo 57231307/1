@@ -214,8 +214,9 @@ impl MaterialShortageService {
                 if *bom_id == item.bom_id {
                     if let Some(&demand) = product_demands.get(product_id) {
                         let scrap_rate = item.scrap_rate.unwrap_or(Decimal::ZERO);
-                        let qty_per_unit = item.quantity * (Decimal::ONE + scrap_rate);
-                        let total_for_product = qty_per_unit * demand;
+                        // 批次 97 P1-9 修复（v5 复审）：数量计算补 round_dp(4) 防止精度漂移
+                        let qty_per_unit = (item.quantity * (Decimal::ONE + scrap_rate)).round_dp(4);
+                        let total_for_product = (qty_per_unit * demand).round_dp(4);
 
                         let entry = material_requirements.entry(item.material_id).or_insert((
                             Decimal::ZERO,

@@ -600,9 +600,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                     axum::http::header::X_XSS_PROTECTION,
                     HeaderValue::from_static("1; mode=block"),
                 ))
-                .layer(SetResponseHeaderLayer::overriding(
-                    axum::http::header::CONTENT_SECURITY_POLICY,
-                    HeaderValue::from_static("default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; connect-src 'self' ws: wss:; font-src 'self' data:; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'; upgrade-insecure-requests;"),
+                // 批次 97 P1-14 修复（v5 复审）：将 csp_middleware 真实挂载到全局路由，
+                // 替代原 SetResponseHeaderLayer::overriding(CONTENT_SECURITY_POLICY, ...)。
+                // csp_middleware 提供"仅在响应头尚未设置 CSP 时注入"语义，
+                // 支持路由级精细化覆盖（路由可自定义 CSP 头，中间件不覆盖）。
+                .layer(axum::middleware::from_fn(
+                    crate::middleware::csp::csp_middleware,
                 ))
                 // P3 7-14 修复：HSTS 头移到 match 后条件注入，仅 production 环境生效
                 .layer(SetResponseHeaderLayer::overriding(

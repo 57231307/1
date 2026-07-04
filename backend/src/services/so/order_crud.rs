@@ -217,11 +217,12 @@ impl SalesService {
                 .unwrap_or(rust_decimal::Decimal::ZERO);
             let tax_pct = item_req.tax_percent.unwrap_or(rust_decimal::Decimal::ZERO);
 
-            let item_subtotal = item_req.quantity * item_req.unit_price;
-            let item_discount = item_subtotal * (discount_pct / rust_decimal::Decimal::new(100, 0));
-            let item_after_discount = item_subtotal - item_discount;
-            let item_tax = item_after_discount * (tax_pct / rust_decimal::Decimal::new(100, 0));
-            let item_total = item_after_discount + item_tax;
+            // 批次 97 P1-6 修复（v5 复审）：金额计算补 round_dp(2) 防止精度漂移
+            let item_subtotal = (item_req.quantity * item_req.unit_price).round_dp(2);
+            let item_discount = (item_subtotal * (discount_pct / rust_decimal::Decimal::new(100, 0))).round_dp(2);
+            let item_after_discount = (item_subtotal - item_discount).round_dp(2);
+            let item_tax = (item_after_discount * (tax_pct / rust_decimal::Decimal::new(100, 0))).round_dp(2);
+            let item_total = (item_after_discount + item_tax).round_dp(2);
 
             subtotal += &item_subtotal;
             discount_amount += &item_discount;
@@ -444,12 +445,13 @@ impl SalesService {
                     .unwrap_or(rust_decimal::Decimal::ZERO);
                 let tax_pct = item_req.tax_percent.unwrap_or(rust_decimal::Decimal::ZERO);
 
-                let item_subtotal = item_req.quantity * item_req.unit_price;
+                // 批次 97 P1-6 修复（v5 复审）：金额计算补 round_dp(2) 防止精度漂移
+                let item_subtotal = (item_req.quantity * item_req.unit_price).round_dp(2);
                 let item_discount =
-                    item_subtotal * (discount_pct / rust_decimal::Decimal::new(100, 0));
-                let item_after_discount = item_subtotal - item_discount;
-                let item_tax = item_after_discount * (tax_pct / rust_decimal::Decimal::new(100, 0));
-                let item_total = item_after_discount + item_tax;
+                    (item_subtotal * (discount_pct / rust_decimal::Decimal::new(100, 0))).round_dp(2);
+                let item_after_discount = (item_subtotal - item_discount).round_dp(2);
+                let item_tax = (item_after_discount * (tax_pct / rust_decimal::Decimal::new(100, 0))).round_dp(2);
+                let item_total = (item_after_discount + item_tax).round_dp(2);
 
                 subtotal += &item_subtotal;
                 discount_amount += &item_discount;

@@ -322,10 +322,11 @@ impl MrpEngineService {
             .await?;
 
         for item in bom_items {
-            let base_quantity = parent_quantity * item.quantity;
+            // 批次 97 P1-11 修复（v5 复审）：数量计算补 round_dp(4) 防止精度漂移
+            let base_quantity = (parent_quantity * item.quantity).round_dp(4);
             let quantity_with_scrap = if let Some(scrap_rate) = item.scrap_rate {
                 if scrap_rate > Decimal::ZERO {
-                    base_quantity * (Decimal::ONE + (scrap_rate / Decimal::from(100)))
+                    (base_quantity * (Decimal::ONE + (scrap_rate / Decimal::from(100)))).round_dp(4)
                 } else {
                     base_quantity
                 }

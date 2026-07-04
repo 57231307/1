@@ -324,8 +324,9 @@ impl QuotationApprovalService {
                     }
                 }
             }
-            // 注：instance_id 字段记录 BPM 流程实例 id，仅作为引用保留
-            let _ = instance_id;
+            // 批次 97 P1-3 修复：instance_id 已持久化在 updated.approval_instance_id 字段，
+            // 此处 let _ = instance_id; 为冗余抑制（instance_id 在 if let 绑定后已在 BPM 任务审批中使用），
+            // 直接删除避免误导读者认为 instance_id 被丢弃。
         }
 
         Ok(updated)

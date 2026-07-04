@@ -433,6 +433,7 @@ mod tests {
             payment_id: 1,
             invoice_id: 2,
             amount: Decimal::from_str("100.50").unwrap(),
+            user_id: 100,
         }
     }
 
@@ -450,10 +451,12 @@ mod tests {
                 payment_id,
                 invoice_id,
                 amount,
+                user_id,
             } => {
                 assert_eq!(payment_id, 1);
                 assert_eq!(invoice_id, 2);
                 assert_eq!(amount, Decimal::from_str("100.50").unwrap());
+                assert_eq!(user_id, 100);
             }
             _ => panic!("事件类型不匹配"),
         }
@@ -480,6 +483,7 @@ mod tests {
                 payment_id: 1,
                 invoice_id: 2,
                 amount: Decimal::from(10),
+                user_id: 10,
             },
             BusinessEvent::InventoryAdjusted {
                 product_id: 1,

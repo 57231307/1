@@ -4,7 +4,6 @@ use std::panic::AssertUnwindSafe;
 use std::sync::Arc;
 use std::sync::atomic::AtomicU32;
 
-use crate::middleware::api_gateway::RateLimitStore;
 use crate::services::audit_cleanup_service::AuditCleanupService;
 use crate::services::data_permission_service::DataPermissionService;
 use crate::services::email_service::EmailService;
@@ -42,7 +41,6 @@ pub struct AppState {
     pub cache: Arc<AppCache>,
     pub metrics: Arc<MetricsService>,
     pub cookie_key: Key,
-    pub rate_limiter: Arc<RateLimitStore>,
     pub di_container: Arc<DIContainer>,
     pub email_service: Option<Arc<EmailService>>,
     pub event_notification_service: Option<Arc<EventNotificationService>>,
@@ -176,7 +174,6 @@ impl AppState {
             cache: AppCache::arc(),
             metrics: Arc::new(metrics),
             cookie_key,
-            rate_limiter: Arc::new(RateLimitStore::new()),
             di_container,
             email_service,
             event_notification_service,
@@ -265,7 +262,6 @@ impl Default for AppState {
             cache: AppCache::arc(),
             metrics: Arc::new(metrics),
             cookie_key,
-            rate_limiter: Arc::new(RateLimitStore::new()),
             di_container,
             email_service,
             event_notification_service,

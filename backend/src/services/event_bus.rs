@@ -56,6 +56,9 @@ pub enum BusinessEvent {
         payment_id: i32,
         invoice_id: i32,
         amount: rust_decimal::Decimal,
+        /// 批次 97 P1-2 修复：付款操作人 ID
+        /// 用于 mark_as_paid 审计日志透传，替代原硬编码 Some(0)
+        user_id: i32,
     },
     InventoryAdjusted {
         product_id: i32,
@@ -503,14 +506,15 @@ pub async fn start_event_listener(db: Arc<DatabaseConnection>) {
                         trigger_source: format!("sales_shipped:{}", order_id),
                     });
                 }
-                BusinessEvent::PaymentCompleted { invoice_id, .. } => {
+                BusinessEvent::PaymentCompleted { invoice_id, user_id, .. } => {
                     tracing::info!(
                         "Event received: PaymentCompleted for invoice {}",
                         invoice_id
                     );
                     let ap_service =
                         crate::services::ap_invoice_service::ApInvoiceService::new(db.clone());
-                    match ap_service.mark_as_paid(invoice_id).await {
+                    // 批次 97 P1-2 修复：透传事件携带的付款操作人 user_id
+                    match ap_service.mark_as_paid(invoice_id, user_id).await {
                         Ok(_) => tracing::info!(
                             "Successfully updated ap_invoice {} status to PAID",
                             invoice_id

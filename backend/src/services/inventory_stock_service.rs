@@ -150,11 +150,18 @@ impl InventoryStockService {
 
         // 并行执行分页查询：同时获取总数和当前页数据，提升性能
         // page 语义为 1-based，fetch_page 接收 0-based，需做转换
+        // 批次 97 P1-15 修复（v5 复审）：接入 SlowQueryRecorder 真实使用，
+        // 慢查询（>100ms）将记录到 tracing::warn! 与 Prometheus 指标。
+        let rec = crate::middleware::slow_query::SlowQueryRecorder::start(
+            "inventory_stock_list",
+            None,
+        );
         let paginator = query.paginate(&*self.db, page_size);
         let (total, stock_list) = tokio::try_join!(
             paginator.num_items(),
             paginator.fetch_page(page.saturating_sub(1))
         )?;
+        rec.finish();
 
         Ok((stock_list, total))
     }

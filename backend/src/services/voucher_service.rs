@@ -384,7 +384,9 @@ impl VoucherService {
 
             for (index, item_req) in items.iter().enumerate() {
                 let item_active = vi::ActiveModel {
-                    id: sea_orm::Set(0),
+                    // 批次 97 P1-1 修复：原 id: Set(0) 在并发 update 重写明细时
+                    // 可能触发主键约束异常（DB 自增列应使用 NotSet 让 DB 生成）
+                    id: sea_orm::ActiveValue::NotSet,
                     voucher_id: sea_orm::Set(id),
                     line_no: sea_orm::Set(item_req.line_no.unwrap_or((index + 1) as i32)),
                     subject_code: sea_orm::Set(item_req.subject_code.clone().unwrap_or_default()),

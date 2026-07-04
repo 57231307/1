@@ -1,4 +1,3 @@
-pub mod api_gateway;
 pub mod audit_context;
 pub mod auth;
 pub mod auth_context;
