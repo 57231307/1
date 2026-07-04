@@ -128,6 +128,32 @@
 | 94 | P2 修复（SQL注入+N+1+审计user_id+吞错+占位符） | P2 | 15 | ✅ 已完成（main `b71e7a2`，PR #338） |
 | 95 | P3 修复（panic/unwrap/分页clamp/TOCTOU/CLI/前端占位）+ 5 条 CI clippy 修复 | P3 | 20 | ✅ 已完成（main `c9d03cb`，PR #339） |
 | 96 | P0 修复（ArService 真实实现 + 前端 v-permission 补齐 40 处）+ 1 条 CI clippy 修复 | P0 | 17 | ✅ 已完成（main `acac30a`，PR #340） |
+| 97 | P1 修复（v5 复审：并发主键/事件 user_id/金额精度 10 处/中间件真实接入）+ 2 条 CI 修复 | P1 | 16 | ✅ 已完成（main `f55e201`，PR #341） |
+
+### 批次 97 详细修复项（v5 第五轮复审 P1）
+
+| # | 文件 | 问题 | 修复方案 |
+|---|------|------|---------|
+| P1-1 | voucher_service.rs:387 | `id: Set(0)` 在并发 update 重写明细时可能触发主键约束异常 | 改为 `ActiveValue::NotSet` 让 DB 自增列生成 |
+| P1-2 | event_bus.rs + ap_invoice_service.rs + ap_payment_service.rs + event_kafka_payload.rs + event_kafka.rs + test_event_bus.rs | PaymentCompleted 事件缺 user_id 字段，mark_as_paid 硬编码 `Some(0)` | 6 文件联动：枚举新增 user_id + mark_as_paid 签名扩展 + 事件发布透传 + 双向序列化 + 测试更新 |
+| P1-3 | quotation_approval_service.rs:282 | `let _ = instance_id;` 占位抑制 + 后续 `if let Some(instance_id)` 变量未使用 | 改用 `is_some()` 判断（与 reject 方法一致） |
+| P1-4 | purchase_return_service.rs:561,639 | 金额 5 项计算无 round_dp | 补 round_dp(2) |
+| P1-5 | inventory_adjustment_service.rs:127,515,582 | amount 计算无 round_dp | 3 处补 round_dp(2) |
+| P1-6 | so/order_crud.rs:220,447 | 销售订单金额 5 项计算无 round_dp | 2 处补 round_dp(2) |
+| P1-7 | sales_return_service.rs:83 | total 累加无 round_dp | 补 round_dp(2) |
+| P1-8 | bom_service.rs:546,551 | BOM 数量计算无 round_dp | 2 处补 round_dp(4) |
+| P1-9 | material_shortage_service.rs:217-218 | qty_per_unit/total 计算无 round_dp | 2 处补 round_dp(4) |
+| P1-10 | production_order_service.rs:592 | consumption_qty 计算无 round_dp | 补 round_dp(4) |
+| P1-11 | mrp_engine_service.rs:325,328 | base_quantity/quantity_with_scrap 计算无 round_dp | 2 处补 round_dp(4) |
+| P1-12 | inv/batch.rs:99,302,442,467,479 | quantity_kg 计算无 round_dp | 5 处补 round_dp(4) |
+| P1-13 | sales_analysis_service.rs:405 | v5 复审误报，line 405 已有 round_dp_with_strategy | 无需修改 |
+| P1-14 | middleware/csp.rs + main.rs:603-606 | csp_middleware 已定义但 main.rs 用 SetResponseHeaderLayer 注入，函数成为死代码 | 真实挂载 csp_middleware 到 main.rs production 路由，替代 SetResponseHeaderLayer(CONTENT_SECURITY_POLICY)；提供"仅在响应头未设置 CSP 时注入"语义，支持路由级精细化覆盖 |
+| P1-15 | middleware/slow_query.rs:81-86 + inventory_stock_service.rs | SlowQueryRecorder/SlowQueryMetrics 全套定义但无业务调用链接入 + SlowQueryMetrics impl 为 no-op | inventory_stock_service::list_stock 接入 SlowQueryRecorder；SlowQueryMetrics impl 真实委托给 Metrics::record_slow_query（通过 self.metrics.auto-deref） |
+| P1-16 | utils/app_state.rs:45,179,268 + middleware/api_gateway.rs | state.rate_limiter 字段构造初始化但全代码无读取引用，RateLimitStore 类型仅此一处使用 | 删除 rate_limiter 字段 + 2 处初始化 + 删除 middleware/api_gateway.rs 整个文件 + middleware/mod.rs 删除 pub mod 声明（实际限流由 MemoryRateLimiter/GLOBAL_LIMITER 提供） |
+
+**CI 修复（2 条）**：
+1. clippy: `unused variable: instance_id` — P1-3 修复删除 `let _ = instance_id;` 后变量未使用，改用 `is_some()` 判断
+2. build: `error[E0599]` — SlowQueryMetrics impl 内 `self.record_slow_query(...)` 找不到方法（record_slow_query 是 Metrics 的方法不是 MetricsService），改为 `self.metrics.record_slow_query(...)` auto-deref Arc<Metrics>
 
 ## 扩展完善清单（2026-07-03 用户追加指令）
 
