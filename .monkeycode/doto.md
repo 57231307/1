@@ -3,6 +3,40 @@
 > 本文件记录**当前任务**与**历史任务索引**。
 > 详细历史请查阅 [`.monkeycode/docs/archives/`](file:///workspace/.monkeycode/docs/archives/)。
 
+## 🔄 当前任务：v5 第五轮复审（待启动）
+
+批次 95 P3 修复（PR #339）已合并 main `c9d03cb`，v4 复审 44 项发现全部修复完成（批次 93/94/95）。
+下一步：启动 v5 第五轮复审，循环直到无问题。
+
+### 复审维度（基于历次复审经验）：
+1. 事务边界 TOCTOU（lock_exclusive 是否覆盖所有 update/delete）
+2. 输入验证（金额 round_dp / 字段长度 / 范围校验）
+3. 错误处理（panic/unwrap/expect / 错误吞没）
+4. 业务逻辑（金额计算 / 状态字符串常量化）
+5. 并发竞态（advisory_lock 覆盖）
+6. N+1 查询（LIMIT 兜底 / 显式 join）
+7. 死代码（unused field/function/variant）
+8. 占位符功能（TODO / stub / let _ =）
+9. 前端类型（any 清理 / 显式接口）
+10. 路由权限（v-permission 编辑/删除按钮）
+11. 测试质量（as any / 测试命名）
+12. 安全性（IP 提取 / SQL 注入 / XSS）
+13. Clippy baseline 残留警告清理
+
+---
+
+### 2026-07-04 批次 95 P3 修复完成 + 5 条 CI clippy 警告修复（PR #339，main `c9d03cb`）
+
+**P3 修复（20 项）+ CI clippy 修复（5 条）**：
+- 子批 A（项 1-8）：panic/unwrap/expect 替换；分页 clamp 防 DoS
+- 子批 B（项 9-16）：TOCTOU advisory_lock；CLI 配置清理；BPM 服务文件重命名（bpm_service_stub.rs → bpm_process_definition_service.rs）；v1.rs 移除占位 404 handler
+- 子批 C（项 17-20）：前端占位功能实现（/api-gateway/health 健康检查端点）
+- CI clippy 5 条修复详见 [CHANGELOG.md](file:///workspace/.monkeycode/CHANGELOG.md)
+
+**CI 结果**：12/12 必检全绿（Clippy/构建/单元测试/格式/前端构建/ESLint/类型检查/前端测试/依赖审计 全部 success），E2E 非阻塞
+
+---
+
 ### 2026-07-03 v3 复审 P2-5 完成：清理 custom-orders 视图 any 类型断言（17 处，5 文件）
 
 **修复范围**：基于批次 89 P1-7 已定义的 CustomOrderListItem/CustomOrderDetail/CustomOrderProcessNode 接口，清理 4 个 vue 文件中遗留的 any 类型断言

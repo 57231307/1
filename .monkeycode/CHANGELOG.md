@@ -2,6 +2,30 @@
 
 > 重要变更一句话摘要列表。详细历史请查阅 [`.monkeycode/docs/archives/`](file:///workspace/.monkeycode/docs/archives/)。
 
+## 2026-07-04 (批次 95 P3 修复完成 + 5 条 CI clippy 警告修复)
+
+### 批次 95 完成：P3 修复（20 项）+ 5 条 CI clippy 警告修复（PR #339，main `c9d03cb`）
+
+**P3 修复内容（20 项，3 子批）**：
+- 子批 A（项 1-8）：panic/unwrap/expect 替换为 ?/.ok()/.context()；分页 clamp 防 DoS（color_price / omni_audit / warehouse 等）
+- 子批 B（项 9-16）：TOCTOU 修复（advisory_lock）；CLI 配置清理；BPM 服务文件重命名（bpm_service_stub.rs → bpm_process_definition_service.rs）；v1.rs 移除占位 404 handler
+- 子批 C（项 17-20）：前端占位功能实现（/api-gateway/health 健康检查端点）
+
+**CI clippy 修复（5 条新警告）**：
+1. `omni_audit_handler.rs`: `.max(1).min(1000)` → `.clamp(1, 1000)`（clamp-like pattern lint）
+2. `color_price_handler.rs`: 新增 `get_seasonal_rule` + `update_seasonal_rule` handler（消除 `associated items new/get_by_id/update never used`）
+3. `routes/color_price.rs`: 注册 GET/PUT `/seasonal-rules/:id` 路由
+4. `color_price_seasonal_service.rs`: `from_state` 复用 `new` 构造函数（消除 `new` dead_code）+ `SeasonalError::NotFound` 被构造（消除 `variant never constructed`）
+5. `api_gateway_handler.rs`: `UpdateApiKeyGwRequest.description` 加 `#[allow(dead_code)]` + TODO 注释（api_keys 表无 description 列，参照 warehouse_handler.rs capacity 字段占位规范）
+
+**关键技术点**：
+- Clippy baseline 机制已知限制：baseline 中合并警告（如 `fields manager, capacity, and description are never read`）因部分字段修复后文本变化（变为 `field description is never read`），新文本不在 baseline 中被判定为新增警告，需逐条定位修复
+- `define_crud_handlers!` 宏 vs 手写 handler：seasonal rules 使用手写 handler 导致 service 方法未被调用触发 dead_code，需补全 get/update handler 接入
+
+**进度跟踪**：v4 复审 44 项发现全部修复完成（批次 93/94/95），下一步启动 v5 第五轮复审
+
+---
+
 ## 2026-07-03 (v3 复审 P2-5 修复：清理 custom-orders 视图 any 类型断言)
 
 ### v3 复审 P2-5 完成：custom-orders 视图 17 处 any 类型断言清理

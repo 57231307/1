@@ -21,7 +21,24 @@
 
 ---
 
-## 当前任务状态（2026-07-03 v3 复审 P2 进行中 - P2-5 custom-orders any 清理完成）
+## 当前任务状态（2026-07-04 批次 95 完成 - v5 第五轮复审待启动）
+
+### ✅ 批次 95 P3 修复完成（PR #339，main `c9d03cb`）
+
+**v4 复审 44 项发现全部修复完成**：批次 93（P1×9）+ 批次 94（P2×15）+ 批次 95（P3×20）+ 5 条 CI clippy 警告修复
+
+**关键修复模式（v4 复审周期累积）**：
+- Clippy baseline 文本变化：合并警告（`fields a, b, c are never read`）修复部分字段后文本变化（`field b is never read`），新文本不在 baseline 中触发新增警告，需逐条定位
+- `define_crud_handlers!` 宏 vs 手写 handler：手写 handler 易遗漏 get/update 导致 service 方法 dead_code，需补全 handler 接入
+- 占位字段规范：DB 无对应列时按 `#[allow(dead_code)] + TODO` 模式标记（参照 warehouse_handler.rs capacity / api_gateway_handler.rs description）
+- TOCTOU 修复模式：`begin txn + find_by_id(id).lock_exclusive().one(&txn) + 状态门 + update + commit`
+- 分页 clamp 防 DoS：`page.clamp(1, 1000)` + `page_size.clamp(1, 100)`，注意 clippy `clamp-like pattern` lint（避免 `.max(x).min(y)`）
+
+**下一步**：启动 v5 第五轮复审，循环直到无问题。复审维度见 doto.md。
+
+---
+
+## 历史任务状态（2026-07-03 v3 复审 P2 进行中 - P2-5 custom-orders any 清理完成）
 
 ### 🔄 v3 复审 P2-5 完成：清理 custom-orders 视图 any 类型断言（17 处，5 文件）
 
