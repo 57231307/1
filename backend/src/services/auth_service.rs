@@ -64,7 +64,6 @@ pub struct AppClaims {
 pub struct AuthService {
     db: Arc<DatabaseConnection>,
     encoding_key: EncodingKey,
-    decoding_key: DecodingKey,
 }
 
 impl AuthService {
@@ -77,7 +76,6 @@ impl AuthService {
         Self {
             db,
             encoding_key: EncodingKey::from_secret(secret.as_bytes()),
-            decoding_key: DecodingKey::from_secret(secret.as_bytes()),
         }
     }
 
@@ -225,29 +223,6 @@ impl AuthService {
         validation.leeway = 5;
 
         let token_data = decode::<AppClaims>(token, &decoding_key, &validation)
-            .map_err(|e| AuthError::InvalidToken(e.to_string()))?;
-
-        Ok(token_data.claims)
-    }
-
-    /// 验证 JWT 令牌
-    ///
-    /// 使用 AuthService 实例的解码密钥验证令牌
-    ///
-    /// # 参数
-    /// - `token`: JWT 令牌字符串
-    ///
-    /// # 返回
-    /// - `Ok(claims)`: 验证成功，返回令牌声明
-    /// - `Err(AuthError::InvalidToken)`: 令牌无效或已过期
-    #[allow(dead_code)] // TODO(tech-debt): 业务接入后移除
-    pub fn validate_token(&self, token: &str) -> Result<AppClaims, AuthError> {
-        let mut validation = Validation::new(Algorithm::HS256);
-        validation.validate_exp = true;
-        // P2 7-10 修复：leeway 从 60 秒降至 5 秒
-        validation.leeway = 5;
-
-        let token_data = decode::<AppClaims>(token, &self.decoding_key, &validation)
             .map_err(|e| AuthError::InvalidToken(e.to_string()))?;
 
         Ok(token_data.claims)
