@@ -16,6 +16,8 @@ use crate::models::{account_subject, voucher, voucher_item};
 use crate::utils::error::AppError;
 use rust_decimal::Decimal;
 
+// 批次 102 v6 P3-1 修复：状态字符串常量化，引用 crate::models::status::voucher
+
 /// 创建凭证请求
 #[derive(Debug, Clone)]
 pub struct CreateVoucherRequest {
@@ -125,7 +127,7 @@ impl VoucherService {
             source_bill_no: sea_orm::Set(req.source_bill_no),
             batch_no: sea_orm::Set(req.batch_no),
             color_no: sea_orm::Set(req.color_no),
-            status: sea_orm::Set("draft".to_string()),
+            status: sea_orm::Set(crate::models::status::voucher::VOUCHER_DRAFT.to_string()),
             created_by: sea_orm::Set(user_id),
             ..Default::default()
         };
@@ -339,7 +341,7 @@ impl VoucherService {
             .map_err(|e| AppError::internal(e.to_string()))?
             .ok_or_else(|| AppError::not_found(format!("凭证不存在：{}", id)))?;
 
-        if voucher_model.status != "draft" {
+        if voucher_model.status != crate::models::status::voucher::VOUCHER_DRAFT {
             warn!("只有草稿状态的凭证可以更新：{}", voucher_model.voucher_no);
             return Err(AppError::bad_request(
                 "只有草稿状态的凭证可以更新".to_string(),
@@ -441,7 +443,7 @@ impl VoucherService {
             .ok_or_else(|| AppError::not_found(format!("凭证不存在：{}", id)))?;
 
         // 只有草稿状态可以删除（状态门在 txn 内，基于 lock_exclusive 读出的 model）
-        if voucher.status != "draft" {
+        if voucher.status != crate::models::status::voucher::VOUCHER_DRAFT {
             warn!("只有草稿状态的凭证可以删除：{}", voucher.voucher_no);
             return Err(AppError::bad_request(
                 "只有草稿状态的凭证可以删除".to_string(),
@@ -482,7 +484,7 @@ impl VoucherService {
             .await?
             .ok_or_else(|| AppError::not_found(format!("凭证不存在：{}", id)))?;
 
-        if voucher.status != "draft" {
+        if voucher.status != crate::models::status::voucher::VOUCHER_DRAFT {
             return Err(AppError::bad_request(
                 "只有草稿状态的凭证可以提交".to_string(),
             ));
@@ -492,7 +494,7 @@ impl VoucherService {
         self.validate_voucher(id).await?;
 
         let mut active_model: voucher::ActiveModel = voucher.into_active_model();
-        active_model.status = sea_orm::Set("submitted".to_string());
+        active_model.status = sea_orm::Set(crate::models::status::voucher::VOUCHER_SUBMITTED.to_string());
 
         // 批次 11（2026-06-28）：事务包裹"凭证状态更新 + 审计日志"，保证原子性
         // 原 update_with_audit(&*self.db, ...) 内部 2 次独立写入非原子，
@@ -525,7 +527,7 @@ impl VoucherService {
             .await?
             .ok_or_else(|| AppError::not_found(format!("凭证不存在：{}", id)))?;
 
-        if voucher.status != "submitted" {
+        if voucher.status != crate::models::status::voucher::VOUCHER_SUBMITTED {
             return Err(AppError::bad_request("只有已提交的凭证可以审核"));
         }
 
@@ -533,7 +535,7 @@ impl VoucherService {
         self.validate_voucher(id).await?;
 
         let mut active_model: voucher::ActiveModel = voucher.into_active_model();
-        active_model.status = sea_orm::Set("reviewed".to_string());
+        active_model.status = sea_orm::Set(crate::models::status::voucher::VOUCHER_REVIEWED.to_string());
         active_model.reviewed_by = sea_orm::Set(Some(user_id));
         active_model.reviewed_at = sea_orm::Set(Some(chrono::Utc::now()));
 
@@ -566,7 +568,7 @@ impl VoucherService {
             .await?
             .ok_or_else(|| AppError::not_found(format!("凭证不存在：{}", id)))?;
 
-        if voucher.status != "reviewed" {
+        if voucher.status != crate::models::status::voucher::VOUCHER_REVIEWED {
             return Err(AppError::bad_request("只有已审核的凭证可以过账"));
         }
 
@@ -585,7 +587,7 @@ impl VoucherService {
 
         // 3. 更新凭证状态
         let mut active_model: voucher::ActiveModel = voucher.into_active_model();
-        active_model.status = sea_orm::Set("posted".to_string());
+        active_model.status = sea_orm::Set(crate::models::status::voucher::VOUCHER_POSTED.to_string());
         active_model.posted_by = sea_orm::Set(Some(user_id));
         active_model.posted_at = sea_orm::Set(Some(chrono::Utc::now()));
         let updated = crate::services::audit_log_service::AuditLogService::update_with_audit(
@@ -720,7 +722,8 @@ impl VoucherService {
             let subject_code = &item.subject_code;
             let subject = subject_by_code
                 .get(subject_code.as_str())
-                .ok_or_else(|| AppError::bad_request(format!("科目不存在：{}", subject_code)))?;
+                // 批次 102 v6 P3-4 修复：科目不存在属于资源未找到，应为 not_found 而非 bad_request
+                .ok_or_else(|| AppError::not_found(format!("科目不存在：{}", subject_code)))?;
 
             let entry = balance_map
                 .entry(subject.id)
@@ -758,7 +761,8 @@ impl VoucherService {
             // 获取科目信息以确定余额方向（复用批量查询结果，避免 N+1）
             let subject = subject_by_id
                 .get(&subject_id)
-                .ok_or_else(|| AppError::bad_request(format!("科目不存在：{}", subject_id)))?;
+                // 批次 102 v6 P3-4 修复：科目不存在属于资源未找到，应为 not_found 而非 bad_request
+                .ok_or_else(|| AppError::not_found(format!("科目不存在：{}", subject_id)))?;
 
             let balance_direction = subject.balance_direction.as_deref().unwrap_or("借");
 

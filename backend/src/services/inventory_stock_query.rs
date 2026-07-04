@@ -267,8 +267,10 @@ impl InventoryStockService {
 
     /// 获取库存告警
     ///
-    /// BE-P 待评估（2026-06-26）：当前为 stub 实现，alert_type 总是返回 "normal"。
-    /// 后续接入真实低库存/超期/临界阈值预警逻辑时，应同步引入 SQL 分页或批量限制，
+    /// 批次 102 v6 P3-6 修复：修正注释（原注释称"当前为 stub 实现"不准确）。
+    /// 实际查询逻辑已实现（inner_join product/warehouse + filter by warehouse_id/product_id），
+    /// 但 alert_type 字段仍硬编码为 "normal"，待接入真实低库存/超期/临界阈值预警逻辑。
+    /// 后续接入真实告警阈值时，应同步引入 SQL 分页或批量限制，
     /// 避免库存数据量增长后全量加载导致内存压力。
     pub async fn get_stock_alerts(
         &self,

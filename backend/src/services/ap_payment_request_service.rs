@@ -16,6 +16,8 @@ use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use validator::Validate;
 
+// 批次 102 v6 P3-3 修复：状态字符串常量化，引用 crate::models::status
+
 /// 付款审批金额阶梯常量（v18 批次 48：消除硬编码，与 quotation_approval_service 阈值一致）
 const PAYMENT_APPROVAL_THRESHOLD_MANAGER: i64 = 100_000; // 10 万以下 manager 可审批
 const PAYMENT_APPROVAL_THRESHOLD_ADMIN: i64 = 500_000; // 10-50 万仅 admin 可审批
@@ -69,7 +71,9 @@ impl ApPaymentRequestService {
                 .ok_or_else(|| AppError::not_found(format!("应付单 ID: {}", item.invoice_id)))?;
 
             // 检查应付单状态
-            if invoice.invoice_status == "DRAFT" || invoice.invoice_status == "CANCELLED" {
+            if invoice.invoice_status == crate::models::status::common::STATUS_DRAFT
+                || invoice.invoice_status == crate::models::status::common::STATUS_CANCELLED
+            {
                 return Err(AppError::business(format!(
                     "应付单{}状态为{}，不可申请付款",
                     invoice.invoice_no, invoice.invoice_status
@@ -94,7 +98,7 @@ impl ApPaymentRequestService {
             payment_type: Set(req.payment_type),
             payment_method: Set(req.payment_method),
             request_amount: Set(req.request_amount),
-            approval_status: Set("DRAFT".to_string()),
+            approval_status: Set(crate::models::status::common::STATUS_DRAFT.to_string()),
             currency: Set(req.currency.unwrap_or_else(|| crate::constants::DEFAULT_CURRENCY.to_string())),
             exchange_rate: Set(req.exchange_rate.unwrap_or(Decimal::new(1, 0))),
             expected_payment_date: Set(req.expected_payment_date),
@@ -146,7 +150,7 @@ impl ApPaymentRequestService {
             .ok_or_else(|| AppError::not_found(format!("付款申请 {}", id)))?;
 
         // 2. 检查状态（仅草稿可修改）
-        if request.approval_status != "DRAFT" {
+        if request.approval_status != crate::models::status::common::STATUS_DRAFT {
             return Err(AppError::business(format!(
                 "付款申请状态为{}，不可修改",
                 request.approval_status
@@ -217,7 +221,12 @@ impl ApPaymentRequestService {
             .ok_or_else(|| AppError::not_found(format!("付款申请 {}", id)))?;
 
         // 2. 检查状态（仅草稿或被拒可删除）
-        if !["DRAFT", "REJECTED"].contains(&request.approval_status.as_str()) {
+        if ![
+            crate::models::status::common::STATUS_DRAFT,
+            crate::models::status::ap_payment_request::APPROVAL_REJECTED,
+        ]
+        .contains(&request.approval_status.as_str())
+        {
             return Err(AppError::business(format!(
                 "付款申请状态为{}，不可删除",
                 request.approval_status
@@ -253,7 +262,7 @@ impl ApPaymentRequestService {
             .ok_or_else(|| AppError::not_found(format!("付款申请 ID: {}", id)))?;
 
         // 2. 检查状态（仅草稿可提交）
-        if request.approval_status != "DRAFT" {
+        if request.approval_status != crate::models::status::common::STATUS_DRAFT {
             return Err(AppError::business(format!(
                 "付款申请状态为{}，不可提交",
                 request.approval_status
@@ -273,7 +282,7 @@ impl ApPaymentRequestService {
         // 4. 提交付款申请
         let now = Utc::now();
         let mut request_active: ap_payment_request::ActiveModel = request.into();
-        request_active.approval_status = Set("APPROVING".to_string());
+        request_active.approval_status = Set(crate::models::status::ap_payment_request::APPROVAL_APPROVING.to_string());
         request_active.submitted_by = Set(Some(user_id));
         request_active.submitted_at = Set(Some(now));
         request_active.updated_at = Set(now);
@@ -308,7 +317,7 @@ impl ApPaymentRequestService {
             .ok_or_else(|| AppError::not_found(format!("付款申请 {}", id)))?;
 
         // 2. 检查状态
-        if request.approval_status != "APPROVING" {
+        if request.approval_status != crate::models::status::ap_payment_request::APPROVAL_APPROVING {
             return Err(AppError::business(format!(
                 "付款申请状态为{}，不可审批",
                 request.approval_status
@@ -322,7 +331,7 @@ impl ApPaymentRequestService {
         // 4. 审批通过
         let now = Utc::now();
         let mut request_active: ap_payment_request::ActiveModel = request.into();
-        request_active.approval_status = Set("APPROVED".to_string());
+        request_active.approval_status = Set(crate::models::status::common::STATUS_APPROVED.to_string());
         request_active.approved_by = Set(Some(user_id));
         request_active.approved_at = Set(Some(now));
         request_active.updated_at = Set(now);
@@ -358,7 +367,7 @@ impl ApPaymentRequestService {
             .ok_or_else(|| AppError::not_found(format!("付款申请 {}", id)))?;
 
         // 2. 检查状态
-        if request.approval_status != "APPROVING" {
+        if request.approval_status != crate::models::status::ap_payment_request::APPROVAL_APPROVING {
             return Err(AppError::business(format!(
                 "付款申请状态为{}，不可拒绝",
                 request.approval_status
@@ -368,7 +377,7 @@ impl ApPaymentRequestService {
         // 3. 拒绝付款申请
         let now = Utc::now();
         let mut request_active: ap_payment_request::ActiveModel = request.into();
-        request_active.approval_status = Set("REJECTED".to_string());
+        request_active.approval_status = Set(crate::models::status::ap_payment_request::APPROVAL_REJECTED.to_string());
         request_active.rejected_by = Set(Some(user_id));
         request_active.rejected_at = Set(Some(now));
         request_active.rejected_reason = Set(Some(reason));
