@@ -33,21 +33,22 @@ use std::sync::Arc;
 use tokio::sync::Mutex;
 
 /// 3 个核心索引
-#[allow(dead_code)] // TODO(tech-debt): P9-8 搜索模块接入业务后移除
+///
+/// 批次 104 P0-1 修复：已接入 search_api.rs，移除 dead_code 标注
 pub mod indices {
     /// 销售订单索引
-    #[allow(dead_code)] // TODO(tech-debt): P9-8 搜索模块接入业务后移除
     pub const SALES_ORDERS: &str = "sales_orders";
     /// 客户索引
-    #[allow(dead_code)] // TODO(tech-debt): P9-8 搜索模块接入业务后移除
     pub const CUSTOMERS: &str = "customers";
     /// 产品索引
-    #[allow(dead_code)] // TODO(tech-debt): P9-8 搜索模块接入业务后移除
     pub const PRODUCTS: &str = "products";
 }
 
 /// 文档类型
-#[allow(dead_code)] // TODO(tech-debt): P9-8 搜索模块接入业务后移除
+///
+/// 批次 104 P0-1 修复：DocType enum 当前未被业务直接引用，
+/// 保留为公共 API 供未来路由分发或批量操作使用。
+#[allow(dead_code)] // TODO(tech-debt): 批次 104 已接入 search_api，DocType 保留为公共 API 预留
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum DocType {
     SalesOrder,
@@ -55,7 +56,7 @@ pub enum DocType {
     Product,
 }
 
-#[allow(dead_code)] // TODO(tech-debt): P9-8 搜索模块接入业务后移除
+#[allow(dead_code)] // TODO(tech-debt): 批次 104 已接入 search_api，DocType 保留为公共 API 预留
 impl DocType {
     pub fn index(&self) -> &'static str {
         match self {
@@ -87,7 +88,8 @@ pub struct SalesOrderDoc {
 }
 
 /// 销售订单明细
-#[allow(dead_code)] // TODO(tech-debt): P9-8 搜索模块接入业务后移除
+///
+/// 批次 104 P0-1 修复：作为 SalesOrderDoc.items 字段类型，已间接接入业务
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SalesOrderItemDoc {
     pub product_id: i32,
@@ -172,7 +174,8 @@ impl SearchQuery {
 }
 
 /// 搜索结果
-#[allow(dead_code)] // TODO(tech-debt): P9-8 搜索模块接入业务后移除
+///
+/// 批次 104 P0-1 修复：已接入 search_api.rs，移除 dead_code 标注
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SearchResult<T> {
     pub total: i64,
@@ -181,7 +184,8 @@ pub struct SearchResult<T> {
 }
 
 /// 单个命中
-#[allow(dead_code)] // TODO(tech-debt): P9-8 搜索模块接入业务后移除
+///
+/// 批次 104 P0-1 修复：已接入 search_api.rs，移除 dead_code 标注
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SearchHit<T> {
     pub id: String,
@@ -195,7 +199,8 @@ pub struct SearchHit<T> {
 /// 全部方法使用 `serde_json::Value` 而非泛型 `T`，避免 async trait 含泛型参数
 /// 触发 E0038 trait not dyn compatible（`Arc<dyn SearchClient>` 用法需要 dyn 兼容）。
 /// 调用方在传参前 `serde_json::to_value(doc)?` 即可。
-#[allow(dead_code)] // TODO(tech-debt): P9-8 搜索模块接入业务后移除
+///
+/// 批次 104 P0-1 修复：已接入 AppState.search_client + search_api.rs，移除 dead_code 标注
 #[async_trait]
 pub trait SearchClient: Send + Sync {
     /// 索引文档
@@ -225,7 +230,8 @@ pub trait SearchClient: Send + Sync {
 }
 
 /// 搜索错误
-#[allow(dead_code)] // TODO(tech-debt): P9-8 搜索模块接入业务后移除
+///
+/// 批次 104 P0-1 修复：已接入 search_api.rs 错误处理，移除 dead_code 标注
 #[derive(Debug, thiserror::Error)]
 pub enum SearchError {
     #[error("连接失败: {0}")]
@@ -239,7 +245,8 @@ pub enum SearchError {
 }
 
 /// ES 客户端（mock 实现）
-#[allow(dead_code)] // TODO(tech-debt): P9-8 搜索模块接入业务后移除
+///
+/// 批次 104 P0-1 修复：已接入 AppState.init_search_client()，移除 dead_code 标注
 pub struct ElasticClient {
     /// 模拟索引数据：index -> (id -> doc_json)
     storage: Arc<Mutex<HashMap<String, HashMap<String, serde_json::Value>>>>,
@@ -254,7 +261,10 @@ impl ElasticClient {
     }
 
     /// 创建真实客户端（需启用 elasticsearch crate）
-    #[allow(dead_code)] // TODO(tech-debt): P9-8 启用真实 Elasticsearch 客户端后移除
+    ///
+    /// 批次 104 P0-1 修复：已接入 AppState.init_search_client()，
+    /// 当 ELASTICSEARCH_URL 环境变量配置时调用此方法。
+    /// 当前仍为 stub 实现（使用 mock storage），后续批次接入 reqwest 直连 ES REST API。
     pub fn real(_url: String) -> Self {
         Self {
             storage: Arc::new(Mutex::new(HashMap::new())),
@@ -262,6 +272,9 @@ impl ElasticClient {
     }
 
     /// 已索引文档数
+    ///
+    /// 批次 104 P0-1 修复：仅测试用，未被业务调用
+    #[allow(dead_code)] // TODO(tech-debt): 仅测试辅助方法，后续接入监控端点后移除
     pub async fn doc_count(&self, index: &str) -> usize {
         self.storage
             .lock()
@@ -353,7 +366,10 @@ impl SearchClient for ElasticClient {
 }
 
 /// 业务同步器：将 PG 写入同步到 ES
-#[allow(dead_code)] // TODO(tech-debt): P9-8 搜索模块接入业务后移除
+///
+/// 批次 104 P0-1 修复：搜索 API 已接入，但 PG→ES 写入同步尚未接入业务 service。
+/// 后续批次（110+）接入 customer_service / sales_order_service / product_service 写入流程后移除标注。
+#[allow(dead_code)] // TODO(tech-debt): 批次 110+ 接入 PG→ES 写入同步后移除
 pub struct SearchSyncer {
     client: Arc<dyn SearchClient>,
 }
@@ -379,7 +395,10 @@ impl SearchSyncer {
     }
 
     /// 同步产品
-    #[allow(dead_code)] // TODO(tech-debt): P9-8 接入产品同步调用后移除
+    ///
+    /// 批次 104 P0-1 修复：sync_product 当前未被业务调用，保留 dead_code 标注。
+    /// 后续批次（110+）接入 product_service 写入流程后移除。
+    #[allow(dead_code)] // TODO(tech-debt): 批次 110+ 接入 product_service 同步后移除
     pub async fn sync_product(&self, doc: &ProductDoc) -> Result<(), SearchError> {
         let id = doc.id.to_string();
         let value = serde_json::to_value(doc).map_err(|e| SearchError::Serialize(e.to_string()))?;

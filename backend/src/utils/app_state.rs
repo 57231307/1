@@ -20,6 +20,7 @@ use crate::services::custom_order_state_service::CustomOrderStateService;
 use crate::services::custom_order_process_service::CustomOrderProcessService;
 use crate::services::custom_order_quality_service::CustomOrderQualityService;
 use crate::services::custom_order_aftersales_service::CustomOrderAfterSalesService;
+use crate::search::SearchClient;
 use crate::utils::cache::AppCache;
 use crate::utils::di_container::DIContainer;
 
@@ -64,6 +65,10 @@ pub struct AppState {
     /// M-1 修复：每用户每小时邮件发送配额计数器
     /// key = (user_id, hour_bucket_secs)，value = 已发送封数
     pub email_send_counters: Arc<DashMap<(i32, u64), Arc<AtomicU32>>>,
+    /// 批次 104 P0-1 修复：搜索客户端（Elasticsearch 集成）
+    /// 当前为 mock 实现（内存 HashMap + 关键字 substring 匹配），
+    /// 配置 ELASTICSEARCH_URL 后可切换为真实 ES 客户端。
+    pub search_client: Arc<dyn SearchClient>,
 }
 
 impl FromRef<AppState> for Key {
@@ -192,6 +197,9 @@ impl AppState {
             custom_order_aftersales: Arc::new(CustomOrderAfterSalesService::new(db.clone())),
             // M-1 修复：邮件发送配额计数器
             email_send_counters: Arc::new(DashMap::new()),
+            // 批次 104 P0-1 修复：搜索客户端初始化
+            // 根据环境变量决定使用真实 ES 客户端或 mock 客户端
+            search_client: init_search_client(),
         })
     }
 }
@@ -279,6 +287,27 @@ impl Default for AppState {
             custom_order_aftersales,
             // M-1 修复：测试环境也使用独立配额计数器
             email_send_counters: Arc::new(DashMap::new()),
+            // 批次 104 P0-1 修复：测试环境使用 mock 搜索客户端
+            search_client: init_search_client(),
         }
+    }
+}
+
+/// 批次 104 P0-1 修复：初始化搜索客户端
+///
+/// 根据环境变量 `ELASTICSEARCH_URL` 决定客户端类型：
+/// - 未设置或为空：使用 mock 客户端（内存 HashMap，适用于开发/测试/CI 环境）
+/// - 已设置：使用真实 ES 客户端（reqwest 直连 ES REST API，生产环境）
+///
+/// 设计原因：避免强制依赖 Elasticsearch 服务器，CI 环境无 ES 时仍可运行。
+/// 生产环境通过环境变量切换为真实客户端。
+fn init_search_client() -> Arc<dyn SearchClient> {
+    let es_url = std::env::var("ELASTICSEARCH_URL").unwrap_or_default();
+    if es_url.is_empty() {
+        tracing::info!("ELASTICSEARCH_URL 未配置，使用 mock 搜索客户端（内存存储）");
+        Arc::new(crate::search::ElasticClient::mock())
+    } else {
+        tracing::info!("ELASTICSEARCH_URL 已配置（{}），使用真实 Elasticsearch 客户端", es_url);
+        Arc::new(crate::search::ElasticClient::real(es_url))
     }
 }
