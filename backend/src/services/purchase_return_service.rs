@@ -1,6 +1,10 @@
 //! 采购退货 Service
 //!
 //! 采购退货服务层，负责采购退货的核心业务逻辑
+//!
+// 批次 101 v6 复审 P2 修复：update_item / delete / update_return_totals 三处审计操作人
+// Some(0) 占位符改为真实 user_id，调用方 create_item / update_item / delete_item / delete
+// 同步添加 user_id 参数透传（P2-3 / P2-4 / P2-5）。
 
 use crate::models::{inventory_stock, product, purchase_return, purchase_return_item};
 use crate::services::event_bus::{BusinessEvent, EVENT_BUS};
@@ -539,6 +543,7 @@ impl PurchaseReturnService {
         &self,
         return_id: i32,
         req: CreateReturnItemRequest,
+        user_id: i32,
     ) -> Result<purchase_return_item::Model, AppError> {
         let txn = self.db.begin().await?;
 
@@ -588,17 +593,21 @@ impl PurchaseReturnService {
         .insert(&txn)
         .await?;
 
-        self.update_return_totals(return_id, &txn).await?;
+        self.update_return_totals(return_id, &txn, user_id).await?;
         txn.commit().await?;
 
         Ok(item)
     }
 
     /// 更新退货单明细
+    ///
+    /// 批次 101 v6 复审 P2-3 修复：原 update_with_audit 调用 Some(0) 占位符导致审计日志操作人为 0，
+    /// 改为透传真实操作人 user_id。
     pub async fn update_item(
         &self,
         item_id: i32,
         req: UpdateReturnItemRequest,
+        user_id: i32,
     ) -> Result<purchase_return_item::Model, AppError> {
         let txn = self.db.begin().await?;
 
@@ -660,11 +669,12 @@ impl PurchaseReturnService {
             &txn,
             "auto_audit",
             active_item,
-            Some(0),
+            // 批次 101 v6 复审 P2-3：原 Some(0) 占位改为真实操作人 user_id，便于审计追踪
+            Some(user_id),
         )
         .await?;
 
-        self.update_return_totals(updated_item.return_id, &txn)
+        self.update_return_totals(updated_item.return_id, &txn, user_id)
             .await?;
         txn.commit().await?;
 
@@ -672,7 +682,10 @@ impl PurchaseReturnService {
     }
 
     /// 删除退货单明细
-    pub async fn delete_item(&self, item_id: i32) -> Result<(), AppError> {
+    ///
+    /// 批次 101 v6 复审 P2-5 修复：透传 user_id 给 update_return_totals，使合计重算的审计日志
+    /// 操作人为真实用户（原 Some(0) 占位导致审计追溯失效）。
+    pub async fn delete_item(&self, item_id: i32, user_id: i32) -> Result<(), AppError> {
         let txn = self.db.begin().await?;
 
         let item = purchase_return_item::Entity::find_by_id(item_id)
@@ -695,13 +708,18 @@ impl PurchaseReturnService {
             .exec(&txn)
             .await?;
 
-        self.update_return_totals(item.return_id, &txn).await?;
+        self.update_return_totals(item.return_id, &txn, user_id)
+            .await?;
         txn.commit().await?;
 
         Ok(())
     }
 
-    pub async fn delete(&self, id: i32) -> Result<(), AppError> {
+    /// 删除采购退货单
+    ///
+    /// 批次 101 v6 复审 P2-4 修复：原 delete_with_audit 调用 Some(0) 占位符导致审计日志操作人为 0，
+    /// 改为透传真实操作人 user_id。
+    pub async fn delete(&self, id: i32, user_id: i32) -> Result<(), AppError> {
         let txn = self.db.begin().await?;
 
         let ret = purchase_return::Entity::find_by_id(id)
@@ -723,7 +741,13 @@ impl PurchaseReturnService {
         crate::services::audit_log_service::AuditLogService::delete_with_audit::<
             purchase_return::Entity,
             _,
-        >(&txn, "purchase_return", id, Some(0))
+        >(
+            &txn,
+            "purchase_return",
+            id,
+            // 批次 101 v6 复审 P2-4：原 Some(0) 占位改为真实操作人 user_id，便于审计追踪
+            Some(user_id),
+        )
         .await?;
 
         txn.commit().await?;
@@ -731,10 +755,14 @@ impl PurchaseReturnService {
     }
 
     /// 更新主单合计金额和数量
+    ///
+    /// 批次 101 v6 复审 P2-5 修复：原 update_with_audit 调用 Some(0) 占位符导致审计日志操作人为 0，
+    /// 改为透传真实操作人 user_id。user_id 由调用方（create_item / update_item / delete_item）注入。
     async fn update_return_totals(
         &self,
         return_id: i32,
         txn: &sea_orm::DatabaseTransaction,
+        user_id: i32,
     ) -> Result<(), AppError> {
         let items = purchase_return_item::Entity::find()
             .filter(purchase_return_item::Column::ReturnId.eq(return_id))
@@ -766,7 +794,8 @@ impl PurchaseReturnService {
             txn,
             "auto_audit",
             active_return,
-            Some(0),
+            // 批次 101 v6 复审 P2-5：原 Some(0) 占位改为真实操作人 user_id，便于审计追踪
+            Some(user_id),
         )
         .await?;
 

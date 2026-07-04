@@ -1,3 +1,5 @@
+// 批次 101 v6 复审 P2 修复：update_customer / delete_customer 改为事务 + lock_exclusive +
+// update_with_audit，补全审计日志与 TOCTOU 防护（P2-1 / P2-2）。
 
 use chrono::Utc;
 use sea_orm::{
@@ -338,6 +340,10 @@ impl CustomerService {
     }
 
     /// 更新客户信息
+    ///
+    /// 批次 101 v6 复审 P2-1 修复：原实现裸查询 + 裸更新无事务、无 lock_exclusive、无审计日志，
+    /// 并发更新会基于过期状态写入，且无审计追溯。改为事务内 lock_exclusive 串行化 +
+    /// update_with_audit 落审计日志。
     #[allow(clippy::too_many_arguments)]
     pub async fn update_customer(
         &self,
@@ -358,9 +364,14 @@ impl CustomerService {
         customer_type: Option<String>,
         status: Option<String>,
         notes: Option<String>,
+        user_id: i32,
     ) -> Result<customer::Model, AppError> {
+        let txn = (*self.db).begin().await?;
+
+        // 加 lock_exclusive 串行化并发更新，防止 TOCTOU
         let customer = CustomerEntity::find_by_id(customer_id)
-            .one(&*self.db)
+            .lock_exclusive()
+            .one(&txn)
             .await?
             .ok_or_else(|| AppError::not_found(format!("客户 {} 未找到", customer_id)))?;
 
@@ -417,27 +428,63 @@ impl CustomerService {
 
         customer_update.updated_at = sea_orm::ActiveValue::Set(Utc::now());
 
-        customer_update
-            .update(&*self.db)
-            .await
-            .map_err(AppError::from)
+        // 事务内 update_with_audit，原子写入客户变更 + 审计日志
+        let updated = crate::services::audit_log_service::AuditLogService::update_with_audit(
+            &txn,
+            "customer",
+            customer_update,
+            Some(user_id),
+        )
+        .await?;
+
+        txn.commit().await?;
+
+        Ok(updated)
     }
 
     /// 删除客户（软删除，将状态改为 inactive）
-    pub async fn delete_customer(&self, customer_id: i32) -> Result<customer::Model, AppError> {
+    ///
+    /// 批次 101 v6 复审 P2-2 修复：原实现无事务、无 lock_exclusive、无状态门、无审计日志，
+    /// 并发软删除会重复写审计日志缺失。改为事务内 lock_exclusive + 状态门（已 inactive 拒绝）+
+    /// update_with_audit 落审计日志。
+    pub async fn delete_customer(
+        &self,
+        customer_id: i32,
+        user_id: i32,
+    ) -> Result<customer::Model, AppError> {
+        let txn = (*self.db).begin().await?;
+
+        // 加 lock_exclusive 串行化并发软删除，防止 TOCTOU
         let customer = CustomerEntity::find_by_id(customer_id)
-            .one(&*self.db)
+            .lock_exclusive()
+            .one(&txn)
             .await?
             .ok_or_else(|| AppError::not_found(format!("客户 {} 未找到", customer_id)))?;
+
+        // 状态门：已 inactive 的客户拒绝重复软删除
+        if customer.status == "inactive" {
+            return Err(AppError::business(format!(
+                "客户 {} 已删除，无需重复操作",
+                customer_id
+            )));
+        }
 
         let mut customer_update: customer::ActiveModel = customer.into();
         customer_update.status = sea_orm::ActiveValue::Set("inactive".to_string());
         customer_update.updated_at = sea_orm::ActiveValue::Set(Utc::now());
 
-        customer_update
-            .update(&*self.db)
-            .await
-            .map_err(AppError::from)
+        // 事务内 update_with_audit，原子写入软删除 + 审计日志
+        let updated = crate::services::audit_log_service::AuditLogService::update_with_audit(
+            &txn,
+            "customer",
+            customer_update,
+            Some(user_id),
+        )
+        .await?;
+
+        txn.commit().await?;
+
+        Ok(updated)
     }
 
     // ==================== 客户联系人管理方法（批次 90b P2-12） ====================

@@ -1,3 +1,6 @@
+// 批次 101 v6 复审 P2 修复：approve_invoice 补全状态门，仅 "pending" 状态可审批，
+// 防止已审批/已核销等状态被重复审批（P2-7）。
+
 use crate::models::finance_invoice::Model as InvoiceModel;
 use crate::models::finance_invoice::{self, ActiveModel, Entity as FinanceInvoice};
 use crate::utils::error::AppError;
@@ -104,6 +107,10 @@ impl FinanceInvoiceService {
         // 批次 25 v6 P0 修复：状态机 lock_exclusive 补全，串行化并发状态变更
         // 原实现状态门无 txn 无 lock，两并发 approve 均基于过期状态写入，
         // 导致状态机被绕过、审计日志缺失。
+        //
+        // 批次 101 v6 复审 P2-7 修复：原实现缺少状态门，已审批/已核销/已取消的发票
+        // 仍可被重复审批。新增状态门：仅 "pending" 状态可审批（finance_invoice 状态值
+        // 为小写，与 ar_invoice 的大写 "DRAFT" 不同，已通过 grep 确认）。
         let txn = (*self.db).begin().await?;
 
         let invoice = FinanceInvoice::find_by_id(id)
@@ -112,6 +119,14 @@ impl FinanceInvoiceService {
             .await?;
 
         let result = if let Some(invoice) = invoice {
+            // 状态门：仅 "pending" 状态可审批，防止已审批/已核销等状态被重复审批
+            if invoice.status != "pending" {
+                return Err(AppError::bad_request(format!(
+                    "只能审批待审批状态的财务发票，当前状态：{}",
+                    invoice.status
+                )));
+            }
+
             let mut active_model: ActiveModel = invoice.into();
             active_model.status = Set("approved".to_string());
             active_model.updated_at = Set(Utc::now());

@@ -164,10 +164,11 @@ pub async fn reject_purchase_return(
 pub async fn delete_purchase_return(
     Path(id): Path<i32>,
     State(state): State<AppState>,
-    _auth: AuthContext,
+    auth: AuthContext,
 ) -> Result<Json<ApiResponse<()>>, AppError> {
     let service = PurchaseReturnService::new(state.db.clone());
-    service.delete(id).await?;
+    // 批次 101 v6 复审 P2-4：透传操作人 user_id 用于审计日志
+    service.delete(id, auth.user_id).await?;
     Ok(Json(ApiResponse::success_with_message(
         (),
         "采购退货单已删除",
@@ -208,32 +209,35 @@ pub async fn list_purchase_return_items(
 
 pub async fn create_purchase_return_item(
     State(state): State<AppState>,
-    _auth: AuthContext,
+    auth: AuthContext,
     Path(id): Path<i32>,
     Json(req): Json<CreateReturnItemRequest>,
 ) -> Result<Json<ApiResponse<crate::models::purchase_return_item::Model>>, AppError> {
     let service = PurchaseReturnService::new(state.db.clone());
-    let item = service.create_item(id, req).await?;
+    // 批次 101 v6 复审 P2-5：透传操作人 user_id 给 update_return_totals 用于审计日志
+    let item = service.create_item(id, req, auth.user_id).await?;
     Ok(Json(ApiResponse::success(item)))
 }
 
 pub async fn update_purchase_return_item(
     State(state): State<AppState>,
-    _auth: AuthContext,
+    auth: AuthContext,
     Path((_id, item_id)): Path<(i32, i32)>,
     Json(req): Json<UpdateReturnItemRequest>,
 ) -> Result<Json<ApiResponse<crate::models::purchase_return_item::Model>>, AppError> {
     let service = PurchaseReturnService::new(state.db.clone());
-    let item = service.update_item(item_id, req).await?;
+    // 批次 101 v6 复审 P2-3：透传操作人 user_id 用于审计日志
+    let item = service.update_item(item_id, req, auth.user_id).await?;
     Ok(Json(ApiResponse::success(item)))
 }
 
 pub async fn delete_purchase_return_item(
     State(state): State<AppState>,
-    _auth: AuthContext,
+    auth: AuthContext,
     Path((_id, item_id)): Path<(i32, i32)>,
 ) -> Result<Json<ApiResponse<()>>, AppError> {
     let service = PurchaseReturnService::new(state.db.clone());
-    service.delete_item(item_id).await?;
+    // 批次 101 v6 复审 P2-5：透传操作人 user_id 给 update_return_totals 用于审计日志
+    service.delete_item(item_id, auth.user_id).await?;
     Ok(Json(ApiResponse::success(())))
 }
