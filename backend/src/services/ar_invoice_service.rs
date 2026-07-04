@@ -1,3 +1,5 @@
+// 批次 100 P3-A 修复（v5 复审）：状态字符串常量化，引用 crate::models::status
+
 use chrono::{NaiveDate, Utc};
 // 应收单 Service
 //
@@ -113,8 +115,8 @@ impl ArInvoiceService {
             batch_no: sea_orm::Set(req.batch_no),
             color_no: sea_orm::Set(req.color_no),
             sales_order_no: sea_orm::Set(req.sales_order_no),
-            status: sea_orm::Set("DRAFT".to_string()),
-            approval_status: sea_orm::Set("PENDING".to_string()),
+            status: sea_orm::Set(crate::models::status::common::STATUS_DRAFT.to_string()),
+            approval_status: sea_orm::Set(crate::models::status::common::STATUS_PENDING.to_string()),
             created_by: sea_orm::Set(user_id),
             ..Default::default()
         };
@@ -201,8 +203,8 @@ impl ArInvoiceService {
             batch_no: sea_orm::Set(req.batch_no),
             color_no: sea_orm::Set(req.color_no),
             sales_order_no: sea_orm::Set(req.sales_order_no),
-            status: sea_orm::Set("DRAFT".to_string()),
-            approval_status: sea_orm::Set("PENDING".to_string()),
+            status: sea_orm::Set(crate::models::status::common::STATUS_DRAFT.to_string()),
+            approval_status: sea_orm::Set(crate::models::status::common::STATUS_PENDING.to_string()),
             created_by: sea_orm::Set(user_id),
             ..Default::default()
         };
@@ -284,7 +286,7 @@ impl ArInvoiceService {
             .await?
             .ok_or_else(|| AppError::not_found("应收单不存在"))?;
 
-        if invoice.status != "DRAFT" {
+        if invoice.status != crate::models::status::common::STATUS_DRAFT {
             return Err(AppError::bad_request(
                 "非草稿状态的应收单无法修改".to_string(),
             ));
@@ -338,7 +340,7 @@ impl ArInvoiceService {
             .await?
             .ok_or_else(|| AppError::not_found("应收单不存在"))?;
 
-        if invoice.status != "DRAFT" {
+        if invoice.status != crate::models::status::common::STATUS_DRAFT {
             return Err(AppError::bad_request(
                 "非草稿状态的应收单无法删除".to_string(),
             ));
@@ -367,13 +369,13 @@ impl ArInvoiceService {
             .await?
             .ok_or_else(|| AppError::not_found("应收单不存在"))?;
 
-        if invoice.status != "DRAFT" {
+        if invoice.status != crate::models::status::common::STATUS_DRAFT {
             return Err(AppError::bad_request("只能审批草稿状态的应收单"));
         }
 
         let mut active_invoice: ar_invoice::ActiveModel = invoice.into();
-        active_invoice.status = sea_orm::ActiveValue::Set("APPROVED".to_string());
-        active_invoice.approval_status = sea_orm::ActiveValue::Set("APPROVED".to_string());
+        active_invoice.status = sea_orm::ActiveValue::Set(crate::models::status::common::STATUS_APPROVED.to_string());
+        active_invoice.approval_status = sea_orm::ActiveValue::Set(crate::models::status::common::STATUS_APPROVED.to_string());
         active_invoice.reviewed_by = sea_orm::ActiveValue::Set(Some(user_id));
         active_invoice.reviewed_at = sea_orm::ActiveValue::Set(Some(Utc::now()));
         active_invoice.updated_at = sea_orm::ActiveValue::Set(Utc::now());
@@ -416,7 +418,12 @@ impl ArInvoiceService {
         // P0 3-3 修复（2026-07-01 八维度审计）：状态门改为白名单，仅 APPROVED/PARTIAL_PAID 可标记 PAID，
         // 堵住 DRAFT 直接跳过审核标记已收讫的漏洞。
         // AR 审核后状态为 APPROVED（见 approve 方法），与 AP 的 AUDITED 命名不同。
-        if !["APPROVED", "PARTIAL_PAID"].contains(&invoice.status.as_str()) {
+        if ![
+            crate::models::status::common::STATUS_APPROVED,
+            crate::models::status::payment::PAYMENT_PARTIAL_PAID,
+        ]
+        .contains(&invoice.status.as_str())
+        {
             return Err(AppError::bad_request(format!(
                 "应收单状态为{}，不可标记为已收讫（仅 APPROVED/PARTIAL_PAID 可标记）",
                 invoice.status
@@ -432,9 +439,9 @@ impl ArInvoiceService {
         // - received_amount >= invoice_amount → PAID（已收齐）
         // - received_amount > 0 但 < invoice_amount → PARTIAL_PAID（部分收款）
         let new_status = if invoice.received_amount >= invoice.invoice_amount {
-            "PAID".to_string()
+            crate::models::status::payment::PAYMENT_PAID.to_string()
         } else {
-            "PARTIAL_PAID".to_string()
+            crate::models::status::payment::PAYMENT_PARTIAL_PAID.to_string()
         };
         active_invoice.status = sea_orm::ActiveValue::Set(new_status);
         active_invoice.updated_at = sea_orm::ActiveValue::Set(Utc::now());
@@ -469,18 +476,18 @@ impl ArInvoiceService {
             .await?
             .ok_or_else(|| AppError::not_found("应收单不存在"))?;
 
-        if invoice.status == "CANCELLED" {
+        if invoice.status == crate::models::status::common::STATUS_CANCELLED {
             return Err(AppError::bad_request("单据已取消"));
         }
         // P1 3-4 修复（批次 63）：状态门拒绝已 PAID 发票被取消
         // 原实现仅检查 CANCELLED，已收讫发票可被取消，导致 received_amount 与状态不一致。
         // 参考 ap_invoice_service.cancel 的 PAID 拒绝逻辑。
-        if invoice.status == "PAID" {
+        if invoice.status == crate::models::status::payment::PAYMENT_PAID {
             return Err(AppError::bad_request("已收讫的应收单不可取消"));
         }
 
         let mut active_invoice: ar_invoice::ActiveModel = invoice.into();
-        active_invoice.status = Set("CANCELLED".to_string());
+        active_invoice.status = Set(crate::models::status::common::STATUS_CANCELLED.to_string());
         active_invoice.updated_at = Set(Utc::now());
 
         let result = crate::services::audit_log_service::AuditLogService::update_with_audit(

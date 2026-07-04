@@ -2,6 +2,8 @@
 //!
 //! 提供资产负债表、利润表、现金流量表等财务报表功能
 
+// 批次 100 P3-A 修复（v5 复审）：状态字符串常量化，引用 crate::models::status
+
 use crate::models::{
     account_subject, assist_accounting_record, customer_credit, finance_invoice, finance_payment,
     fixed_asset, inventory_stock, voucher, voucher_item,
@@ -164,8 +166,8 @@ impl FinanceReportService {
         // 1. 流动资产
         // 应收账款
         let ar_total = finance_invoice::Entity::find()
-            .filter(finance_invoice::Column::Status.ne("CANCELLED"))
-            .filter(finance_invoice::Column::Status.ne("COMPLETED"))
+            .filter(finance_invoice::Column::Status.ne(crate::models::status::common::STATUS_CANCELLED))
+            .filter(finance_invoice::Column::Status.ne(crate::models::status::common::STATUS_COMPLETED))
             .select_only()
             .column_as(
                 Expr::col(finance_invoice::Column::TotalAmount).sum(),
@@ -179,7 +181,7 @@ impl FinanceReportService {
 
         // 现金/银行存款（收款总额）
         let total_received = finance_payment::Entity::find()
-            .filter(finance_payment::Column::Status.eq("COMPLETED"))
+            .filter(finance_payment::Column::Status.eq(crate::models::status::common::STATUS_COMPLETED))
             .select_only()
             .column_as(Expr::col(finance_payment::Column::Amount).sum(), "total")
             .into_tuple::<Option<Decimal>>()
@@ -190,7 +192,7 @@ impl FinanceReportService {
 
         // 应付账款
         let _ap_total = finance_payment::Entity::find()
-            .filter(finance_payment::Column::Status.eq("PENDING"))
+            .filter(finance_payment::Column::Status.eq(crate::models::status::common::STATUS_PENDING))
             .select_only()
             .column_as(Expr::col(finance_payment::Column::Amount).sum(), "total")
             .into_tuple::<Option<Decimal>>()
@@ -203,7 +205,7 @@ impl FinanceReportService {
 
         // 库存资产（按成本估算）
         let inventory_total = inventory_stock::Entity::find()
-            .filter(inventory_stock::Column::StockStatus.eq("ACTIVE"))
+            .filter(inventory_stock::Column::StockStatus.eq(crate::models::status::common::STATUS_ACTIVE))
             .select_only()
             .column_as(
                 Expr::col(inventory_stock::Column::QuantityAvailable).sum(),
@@ -217,7 +219,7 @@ impl FinanceReportService {
 
         // 固定资产净值
         let fixed_asset_total = fixed_asset::Entity::find()
-            .filter(fixed_asset::Column::Status.eq("ACTIVE"))
+            .filter(fixed_asset::Column::Status.eq(crate::models::status::common::STATUS_ACTIVE))
             .select_only()
             .column_as(Expr::col(fixed_asset::Column::NetValue).sum(), "total")
             .into_tuple::<Option<Decimal>>()
@@ -295,7 +297,7 @@ impl FinanceReportService {
     ) -> Result<IncomeStatement, AppError> {
         // 营业收入（已完成的发票）
         let total_revenue = finance_invoice::Entity::find()
-            .filter(finance_invoice::Column::Status.eq("COMPLETED"))
+            .filter(finance_invoice::Column::Status.eq(crate::models::status::common::STATUS_COMPLETED))
             .filter(finance_invoice::Column::InvoiceDate.gte(start_date))
             .filter(finance_invoice::Column::InvoiceDate.lte(end_date))
             .select_only()
@@ -311,7 +313,7 @@ impl FinanceReportService {
 
         // 营业成本（已完成的付款）
         let total_expenses = finance_payment::Entity::find()
-            .filter(finance_payment::Column::Status.eq("COMPLETED"))
+            .filter(finance_payment::Column::Status.eq(crate::models::status::common::STATUS_COMPLETED))
             .filter(finance_payment::Column::PaymentDate.gte(start_date))
             .filter(finance_payment::Column::PaymentDate.lte(end_date))
             .select_only()
@@ -379,7 +381,7 @@ impl FinanceReportService {
     ) -> Result<CashFlowStatement, AppError> {
         // 经营活动现金流
         let cash_receipts = finance_payment::Entity::find()
-            .filter(finance_payment::Column::Status.eq("COMPLETED"))
+            .filter(finance_payment::Column::Status.eq(crate::models::status::common::STATUS_COMPLETED))
             .filter(finance_payment::Column::PaymentDate.gte(start_date))
             .filter(finance_payment::Column::PaymentDate.lte(end_date))
             .select_only()
@@ -391,7 +393,7 @@ impl FinanceReportService {
             .unwrap_or(Decimal::ZERO);
 
         let cash_payments = finance_payment::Entity::find()
-            .filter(finance_payment::Column::Status.eq("PENDING"))
+            .filter(finance_payment::Column::Status.eq(crate::models::status::common::STATUS_PENDING))
             .filter(finance_payment::Column::PaymentDate.gte(start_date))
             .filter(finance_payment::Column::PaymentDate.lte(end_date))
             .select_only()
@@ -462,7 +464,7 @@ impl FinanceReportService {
         let period_str = period.unwrap_or_else(|| chrono::Utc::now().format("%Y-%m").to_string());
 
         let subjects = account_subject::Entity::find()
-            .filter(account_subject::Column::Status.eq("ACTIVE"))
+            .filter(account_subject::Column::Status.eq(crate::models::status::common::STATUS_ACTIVE))
             .all(self.db.as_ref())
             .await?;
 

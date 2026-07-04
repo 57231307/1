@@ -3,6 +3,8 @@
 //! 付款服务层，负责付款执行的核心业务逻辑
 //! 包含付款单创建、确认、付款计划等管理
 
+// 批次 100 P3-A 修复（v5 复审）：状态字符串常量化，引用 crate::models::status
+
 use crate::models::{ap_invoice, ap_payment, ap_payment_request, ap_payment_request_item};
 use crate::utils::error::AppError;
 use chrono::{Datelike, NaiveDate};
@@ -52,7 +54,7 @@ impl ApPaymentService {
             .await?
             .ok_or_else(|| AppError::not_found(format!("付款申请 {}", req.request_id)))?;
 
-        if request.approval_status != "APPROVED" {
+        if request.approval_status != crate::models::status::common::STATUS_APPROVED {
             return Err(AppError::business(format!(
                 "付款申请状态为{}，未审批通过不可创建付款单",
                 request.approval_status
@@ -77,7 +79,7 @@ impl ApPaymentService {
             request_id: Set(Some(req.request_id)),
             payment_method: Set(request.payment_method.clone()),
             payment_amount: Set(request.request_amount),
-            payment_status: Set("REGISTERED".to_string()),
+            payment_status: Set(crate::models::status::payment::PAYMENT_REGISTERED.to_string()),
             currency: Set(request.currency.clone()),
             exchange_rate: Set(request.exchange_rate),
             bank_name: Set(request.bank_name.clone()),
@@ -111,7 +113,7 @@ impl ApPaymentService {
             .ok_or_else(|| AppError::not_found(format!("付款单 {}", id)))?;
 
         // 2. 检查状态（仅已登记可修改）
-        if payment.payment_status != "REGISTERED" {
+        if payment.payment_status != crate::models::status::payment::PAYMENT_REGISTERED {
             return Err(AppError::business(format!(
                 "付款单状态为{}，不可修改",
                 payment.payment_status
@@ -176,7 +178,7 @@ impl ApPaymentService {
             .ok_or_else(|| AppError::not_found(format!("付款单 ID: {}", id)))?;
 
         // 2. 检查状态
-        if payment.payment_status != "REGISTERED" {
+        if payment.payment_status != crate::models::status::payment::PAYMENT_REGISTERED {
             return Err(AppError::business(format!(
                 "付款单状态为{}，不可确认",
                 payment.payment_status
@@ -197,7 +199,7 @@ impl ApPaymentService {
         // 4. 确认付款
         let now = chrono::Utc::now();
         let mut payment_active: ap_payment::ActiveModel = payment.into();
-        payment_active.payment_status = Set("CONFIRMED".to_string());
+        payment_active.payment_status = Set(crate::models::status::payment::PAYMENT_CONFIRMED.to_string());
         payment_active.confirmed_by = Set(Some(user_id));
         payment_active.confirmed_at = Set(Some(now));
         payment_active.updated_at = Set(now);
@@ -277,9 +279,9 @@ impl ApPaymentService {
                         // 更新应付状态
                         let became_fully_paid = inv.unpaid_amount <= Decimal::ZERO;
                         inv.invoice_status = if became_fully_paid {
-                            "PAID".to_string()
+                            crate::models::status::payment::PAYMENT_PAID.to_string()
                         } else {
-                            "PARTIAL_PAID".to_string()
+                            crate::models::status::payment::PAYMENT_PARTIAL_PAID.to_string()
                         };
 
                         let invoice_active: ap_invoice::ActiveModel = inv.into();
@@ -492,7 +494,7 @@ impl ApPaymentService {
 
         // 查询已审批的付款申请
         let requests = query
-            .filter(ap_payment_request::Column::ApprovalStatus.eq("APPROVED"))
+            .filter(ap_payment_request::Column::ApprovalStatus.eq(crate::models::status::common::STATUS_APPROVED))
             .filter(ap_payment_request::Column::ExpectedPaymentDate.between(start_date, end_date))
             .order_by(ap_payment_request::Column::ExpectedPaymentDate, Order::Asc)
             .all(&*self.db)
