@@ -130,6 +130,41 @@
 | 96 | P0 修复（ArService 真实实现 + 前端 v-permission 补齐 40 处）+ 1 条 CI clippy 修复 | P0 | 17 | ✅ 已完成（main `acac30a`，PR #340） |
 | 97 | P1 修复（v5 复审：并发主键/事件 user_id/金额精度 10 处/中间件真实接入）+ 2 条 CI 修复 | P1 | 16 | ✅ 已完成（main `f55e201`，PR #341） |
 | 98 | P2 修复（v5 复审：分页 clamp 100+处/金额精度校验抽取/吞错改日志/前端 any 清理 113 处）+ 3 条 CI 修复 | P2 | 30+ | ✅ 已完成（main `e7fb8ee`，PR #342） |
+| 99 | P3 修复（v5 复审：占位模块清理 3 处 + dead_code TODO 评估 8 文件 23 处，删除 1 处真死代码）| P3 | 4 | ✅ 已完成（main `4761359`，PR #343） |
+
+### 批次 99 详细修复项（v5 第五轮复审 P3 — 部分修复）
+
+#### B 章节：占位模块删除（3 处）
+
+| 文件 | 行数 | 占位类型 | 处理 |
+|------|------|---------|------|
+| services/po/purchase_return.rs | 16 | 纯注释占位（无代码，业务已由 purchase_return_service.rs 提供） | 删除文件 + po/mod.rs 删除 `pub mod purchase_return;` |
+| services/ar/pay.rs | 13 | 纯注释占位（无代码，业务已由 ar_collection_service.rs 提供） | 删除文件 + ar/mod.rs 删除 `pub mod pay;` |
+| services/stock_query.rs | 92 | 结构占位（StockFilter struct 未被业务引用，baseline dead_code） | 删除文件 + services/mod.rs 删除 `pub mod stock_query;` |
+
+#### C 章节：dead_code TODO 评估（8 文件 23 处 allow）
+
+| 文件 | allow 数 | 评估结论 |
+|------|----------|---------|
+| cache_service.rs | 5 | 保留（缓存核心 API：new/set_with_ttl/invalidate/default_ttl/Default，预留业务接入） |
+| event_kafka.rs | 3 | 保留（Kafka 信封序列化预留，KafkaBackend 已激活但信封通道待接入） |
+| performance_optimizer.rs | 6 | 保留（P4-1 性能优化模式样板，待真实 service 采纳） |
+| business_metrics.rs | 4 | 保留（Prometheus 指标基础设施，待 /metrics 端点暴露） |
+| operation_log_service.rs | 3 | 保留（审计日志写路径预留，读路径已由 audit_enhanced_handler 激活） |
+| auth_service.rs | 3 | **删除 1 处**（validate_token 实例方法与 validate_token_static 重复实现）+ 同步删除 decoding_key 字段；保留 2 处（cleanup_revoked_users/unrevoke_user 预留策略入口） |
+| ar/mod.rs | 3 | 保留（handler 已透传、service 未消费的半接线字段：UpdateReconciliationRequest/match_strategy/notes） |
+| omni_audit_service.rs | 1 | 保留（已激活审计引擎的密钥注入扩展点） |
+
+**评估汇总**：23 处 allow 中 22 处保留（预留 API/半接线字段/模式样板），1 处删除（重复实现真死代码）。
+
+#### E/A/D/F 章节规划到批次 100
+
+| 章节 | 项数 | 延后理由 |
+|------|------|---------|
+| E baseline 26 条残留 | 26 | CI baseline 机制（comm -23）不阻塞历史警告，技术债延后 |
+| A 状态字符串常量化 | 53 | 需先建状态常量模块（如 models/status.rs），再分文件替换 |
+| D 前端占位符 | 13 明确 + 25 隐式 | 需逐个评估业务合理性（真占位 vs 合理提示） |
+| F CI 配置严格化 | 5 行（3 类）| 需配合 baseline 清理后才能移除 exit 0/--max-warnings 999999/continue-on-error |
 
 ### 批次 98 详细修复项（v5 第五轮复审 P2）
 
