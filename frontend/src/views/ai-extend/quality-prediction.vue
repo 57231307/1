@@ -246,8 +246,8 @@ onMounted(load)
         <el-table-column label="操作" width="200" fixed="right">
           <template #default="{ row }">
             <el-button size="small" @click="showDetail(row)">详情</el-button>
-            <el-button v-if="!row.is_acknowledged" type="success" size="small" @click="handleAck(row)">确认</el-button>
-            <el-button type="danger" size="small" @click="handleDelete(row)">删除</el-button>
+            <el-button v-permission="'ai_quality_prediction:approve'" v-if="!row.is_acknowledged" type="success" size="small" @click="handleAck(row)">确认</el-button>
+            <el-button v-permission="'ai_quality_prediction:delete'" type="danger" size="small" @click="handleDelete(row)">删除</el-button>
           </template>
         </el-table-column>
       </el-table>

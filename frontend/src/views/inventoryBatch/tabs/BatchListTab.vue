@@ -88,9 +88,9 @@
         <el-table-column label="操作" fixed="right" width="220">
           <template #default="{ row }">
             <el-button link type="primary" @click="handleView(row)">查看</el-button>
-            <el-button link type="primary" @click="handleEdit(row)">编辑</el-button>
-            <el-button link type="primary" @click="handleTransfer(row)">调拨</el-button>
-            <el-button link type="danger" @click="handleDelete(row)">删除</el-button>
+            <el-button v-permission="'inventory:update'" link type="primary" @click="handleEdit(row)">编辑</el-button>
+            <el-button v-permission="'inventory:transfer'" link type="primary" @click="handleTransfer(row)">调拨</el-button>
+            <el-button v-permission="'inventory:delete'" link type="danger" @click="handleDelete(row)">删除</el-button>
           </template>
         </el-table-column>
       </el-table>

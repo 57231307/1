@@ -32,8 +32,8 @@
           </el-table-column>
           <el-table-column label="操作" width="200" fixed="right">
             <template #default="{ row }">
-              <el-button size="small" @click="handleEditTemplate(row as any)">编辑</el-button>
-              <el-button size="small" type="danger" @click="handleDeleteTemplate(row as any)"
+              <el-button v-permission="'email_template:update'" size="small" @click="handleEditTemplate(row as any)">编辑</el-button>
+              <el-button v-permission="'email_template:delete'" size="small" type="danger" @click="handleDeleteTemplate(row as any)"
                 >删除</el-button
               >
             </template>
