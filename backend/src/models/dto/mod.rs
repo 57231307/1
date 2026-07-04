@@ -48,7 +48,7 @@ impl PageRequest {
 
     /// 获取每页数量（限制最大 100）
     pub fn limit(&self) -> u64 {
-        self.page_size.max(1).min(100)
+        self.page_size.clamp(1, 100)
     }
 }
 
