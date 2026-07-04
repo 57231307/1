@@ -91,7 +91,8 @@ impl ArService {
         payment_method: String,
         payment_date: NaiveDate,
         bank_account: Option<String>,
-        remark: Option<String>,
+        // 批次 96 CI 修复：ar_collections 表无 remark 列，备注暂不持久化（schema 扩展后接入）
+        _remark: Option<String>,
         invoice_ids: Option<Vec<i32>>,
         user_id: i32,
     ) -> Result<serde_json::Value, AppError> {
