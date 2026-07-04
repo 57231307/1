@@ -10,7 +10,7 @@ use crate::utils::admin_checker::is_admin_role;
 use crate::utils::app_state::AppState;
 use crate::utils::audit::{self, SecurityEvent};
 use crate::utils::error::AppError;
-use crate::utils::password_validator::{get_password_feedback, validate_password};
+use crate::utils::password_validator::validate_password;
 // 批次 103 P0-3 修复：接入 PasswordPolicyService 的 is_common_password / contains_username_fragment / strength_feedback_zh
 use crate::services::auth::password_policy_service::{
     contains_username_fragment, is_common_password, strength_feedback_zh,

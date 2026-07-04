@@ -477,6 +477,7 @@ pub async fn get_api_stats(
 //
 // list/create/delete 原通过 pub use 复用 api_key_handler，但前端期望的字段名
 // 与 api_key_handler::ApiKeyResponse 不一致（key_name vs name 等）。
+// 批次 103 P1-7 修复：api_key_handler 模块已删除（死代码，业务全部迁移到 api_gateway_handler）。
 // 批次 91 P0-1 重新实现 keys 端点，统一返回前端期望的结构。
 
 /// GET /api-gateway/keys — 列出 API 密钥（分页）
