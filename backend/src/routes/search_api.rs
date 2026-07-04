@@ -16,7 +16,7 @@ use axum::Json;
 use serde::{Deserialize, Serialize};
 
 use crate::search::{
-    indices, CustomerDoc, ProductDoc, SalesOrderDoc, SearchClient, SearchQuery,
+    indices, CustomerDoc, ProductDoc, SalesOrderDoc, SearchQuery,
 };
 use crate::utils::app_state::AppState;
 use crate::utils::error::AppError;

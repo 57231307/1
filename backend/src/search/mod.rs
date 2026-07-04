@@ -5,6 +5,6 @@
 pub mod elastic;
 
 pub use elastic::{
-    CustomerDoc, DocType, ElasticClient, ProductDoc, SalesOrderDoc, SalesOrderItemDoc, SearchClient,
-    SearchError, SearchHit, SearchQuery, SearchResult, SearchSyncer,
+    indices, CustomerDoc, DocType, ElasticClient, ProductDoc, SalesOrderDoc, SalesOrderItemDoc,
+    SearchClient, SearchError, SearchHit, SearchQuery, SearchResult, SearchSyncer,
 };
