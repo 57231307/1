@@ -21,7 +21,7 @@
 
 ---
 
-## 当前任务状态（2026-07-04 批次 102 v6 P3 修复完成 - 批次 103 全面实现预留 API 待启动）
+## 当前任务状态（2026-07-04 批次 103 P0+P1+P2-3 修复完成 - 待 push CI 验证）
 
 ### 🔴 用户新规则（2026-07-04 追加，最高优先级）
 
@@ -35,6 +35,16 @@
 - 所有占位符功能（stub/placeholder/TODO 注释）真实实现
 - 所有未真实接入的功能/中间件进行真实接入
 - 所有遇到的错误统一修复
+
+### ⏳ 批次 103 预留 API/占位符功能实现（P0+P1+P2-3 完成 - 待 push CI 验证）
+
+**用户新规则首批修复项**（实现规划：`docs/audits/2026-07-04-batch103-placeholder-impl-plan.md`）：
+- P0-3：user_handler.rs 接入 PasswordPolicyService（is_common_password + contains_username_fragment + strength_feedback_zh）；password_policy_service.rs 移除 strength_feedback_zh 的 dead_code 标注
+- P0-4：purchase_return_service.rs 删除 2 处过时 TODO 注释（user_id 已在批次 59b 透传）
+- P2-3：role_handler.rs update_role/delete_role 添加 clear_admin_role_cache 调用；admin_checker.rs 移除 dead_code 标注
+- P1-7：routes/analytics.rs 删除 api_keys() 旧路由（死代码，前端已切换 api_gateway()）+ 移除 unused import
+
+**下一步**：amend commit → push → 创建 PR → 监控 CI → 合并 → 启动批次 104（search_api.rs 接入 Elasticsearch）
 
 ### ✅ 批次 102 v6 P3 修复完成（PR #346，main `ed27a6c`）
 
