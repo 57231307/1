@@ -8,7 +8,10 @@ pub mod config;
 pub mod constants;
 pub mod database;
 pub mod handlers;
-pub mod messaging; // P9-7 Kafka 集成
+// 批次 105 修复：messaging/ 模块已删除
+// 原因：messaging/ 是 P9-7 设计阶段的 trait + mock 占位模块，仅在自身测试中被引用，
+// 无任何业务代码使用。P11-H2 已用 rskafka 完成真实 Kafka 集成（services/event_kafka.rs），
+// 形成重复实现。根据用户新规则和 project_rules.md 第六节"死代码处理规范"删除。
 pub mod middleware;
 pub mod models;
 pub mod observability;
