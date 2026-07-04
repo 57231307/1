@@ -416,7 +416,7 @@ impl SupplierEvaluationService {
             query = query.filter(supplier_evaluation_record::Column::EvaluationPeriod.eq(p));
         }
 
-        let offset = ((page.max(1).min(1000) - 1) * page_size) as u64;
+        let offset = ((page.clamp(1, 1000) - 1) * page_size) as u64;
         let limit = page_size as u64;
         let records = query
             .order_by(supplier_evaluation_record::Column::Id, Order::Desc)

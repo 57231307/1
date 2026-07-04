@@ -129,6 +129,51 @@
 | 95 | P3 修复（panic/unwrap/分页clamp/TOCTOU/CLI/前端占位）+ 5 条 CI clippy 修复 | P3 | 20 | ✅ 已完成（main `c9d03cb`，PR #339） |
 | 96 | P0 修复（ArService 真实实现 + 前端 v-permission 补齐 40 处）+ 1 条 CI clippy 修复 | P0 | 17 | ✅ 已完成（main `acac30a`，PR #340） |
 | 97 | P1 修复（v5 复审：并发主键/事件 user_id/金额精度 10 处/中间件真实接入）+ 2 条 CI 修复 | P1 | 16 | ✅ 已完成（main `f55e201`，PR #341） |
+| 98 | P2 修复（v5 复审：分页 clamp 100+处/金额精度校验抽取/吞错改日志/前端 any 清理 113 处） | P2 | 30+ | 🔄 进行中（PR #342，commit `00bca18`） |
+
+### 批次 98 详细修复项（v5 第五轮复审 P2）
+
+#### 子批 A：分页 clamp 系统性整改（约 100 处）
+
+| 类别 | 文件数 | 处数 | 修复模式 |
+|------|--------|------|---------|
+| Handler 批量替换 | 35 | 56 | `.page.unwrap_or(1).max(1)` → `.page.unwrap_or(1).clamp(1, 1000)` |
+| Service `fetch_page` u64 | 22 | 22 | `fetch_page(page.saturating_sub(1))` → `fetch_page(page.clamp(1, 1000).saturating_sub(1))` |
+| Service `offset` i64 | 11 | 11 | `params.page.saturating_sub(1) * params.page_size` → `.max(1).min(1000).saturating_sub(1) * params.page_size` |
+| 特殊位置 | 3 | 3 | financial_analysis_handler i64 / inventory_stock_handler_query 透传前 clamp / supplier_evaluation_service:288 paginator |
+| DTO 层 | 1 | 已存在 | `PageRequest::page_clamped()` 已在批次 94 引入（main b71e7a2） |
+
+防 DoS：page=u64::MAX 触发 offset 溢出导致 DB 全表扫描。
+
+#### 子批 B：金额精度校验补齐（6 处）
+
+| # | 文件 | 修复 |
+|---|------|------|
+| B-1 | 新增 `backend/src/utils/validator.rs` | 抽取统一 `validate_amount_range` + `validate_quantity_range`，追加 `round_dp(2)`（金额）/ `round_dp(4)`（数量）精度校验 |
+| B-2 | `backend/src/utils/mod.rs` | 注册 `pub mod validator;` |
+| B-3 | `handlers/ar_payment_handler.rs` | 删除本地 `validate_amount_range`，`#[validate(custom)]` 改为 `crate::utils::validator::validate_amount_range` |
+| B-4 | `handlers/finance_payment_handler.rs` | 同上 |
+| B-5 | `handlers/fund_management_handler.rs` | 同上 |
+| B-6 | `handlers/customer_credit_handler.rs` | 同上 |
+
+#### 子批 C：吞错修复（9 处）
+
+| # | 文件 | 处数 | 修复 |
+|---|------|------|------|
+| C-1 | `services/system_update_service.rs` | 4 | `let _ = ...` 吞错改 `if let Err(e) = ... { tracing::warn!(...) }` 日志记录（rollback/权限设置/清理 .old/写日志） |
+| C-2 | `services/crm/opp.rs` | 1 | 父级校验去掉冗余 `let _ =`，明确通过 `?` 传播 |
+| C-3 | `services/department_service.rs` | 2 | 同上（create + update 父部门校验） |
+| C-4 | `services/product_category_service.rs` | 2 | 同上（create + update 父类别校验） |
+
+#### 子批 D：前端 any 清理（113 处）
+
+| 类别 | 文件数 | 处数 | 修复 |
+|------|--------|------|------|
+| API 模块字段 any → 显式接口 | 7 | 9 | quotation TierPricingItem / report-enhanced 联合类型 / data-import 联合类型 / color-card BatchImportError / fund FundAccountStatusType / mrp MrpSupplyDetail / bpm-enhanced Record<string, unknown> |
+| View `catch (error: any)` → `catch (error: unknown)` + 类型守卫 | 30 | 103 | `error instanceof Error ? error.message : String(error)`，覆盖 Login / user-profile / departments / system-update / print-templates / report-templates / bom / quality / inventory / bpm / mrp 等关键页面 |
+| Login.vue catch | 1 | 1 | 单独修复 |
+
+**总计**：112 文件，603 insertions(+)，367 deletions(-)
 
 ### 批次 97 详细修复项（v5 第五轮复审 P1）
 

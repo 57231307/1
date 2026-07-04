@@ -38,7 +38,7 @@ impl PageRequest {
     /// 批次 98 P2 修复（v5 复审）：获取经 clamp 的页码
     /// 上限 1000 防止深度分页 DoS（page=u64::MAX 触发 offset 溢出导致 DB 全表扫描）
     pub fn page_clamped(&self) -> u64 {
-        self.page.max(1).min(1000)
+        self.page.clamp(1, 1000)
     }
 
     /// 获取偏移量（基于 clamp 后的页码计算）

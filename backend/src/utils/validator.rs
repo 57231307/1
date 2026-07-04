@@ -33,28 +33,3 @@ pub fn validate_amount_range(amount: &Decimal) -> Result<(), ValidationError> {
 
     Ok(())
 }
-
-/// 数量范围 + 精度校验
-///
-/// - 范围：(0, 10 亿]
-/// - 精度：`round_dp(4)`，数量最多 4 位小数（重量/长度等连续量精度规范）
-///
-/// # 错误
-///
-/// - `"数量必须为正且不超过10亿"`：数量 <= 0 或 > 10 亿
-/// - `"数量精度不能超过4位小数"`：数量小数位 > 4
-pub fn validate_quantity_range(amount: &Decimal) -> Result<(), ValidationError> {
-    let zero = Decimal::ZERO;
-    let max = Decimal::new(1_000_000_000, 0); // 10 亿
-
-    if *amount <= zero || *amount > max {
-        return Err(ValidationError::new("数量必须为正且不超过10亿"));
-    }
-
-    // 批次 98 P2-B 修复（v5 复审）：精度校验，数量最多 4 位小数
-    if amount.round_dp(4) != *amount {
-        return Err(ValidationError::new("数量精度不能超过4位小数"));
-    }
-
-    Ok(())
-}

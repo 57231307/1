@@ -95,7 +95,7 @@ pub async fn get_indicators(
     let service = FinancialAnalysisService::new(state.db.clone());
 
     // 批次 98 P2-A 修复（v5 复审）：page clamp 防 DoS
-    let page = params.page.max(1).min(1000);
+    let page = params.page.clamp(1, 1000);
     // v11 批次 36 修复：page_size clamp 防止 DoS（i64 无 unwrap_or，直接 clamp；负值经 as u64 会放大为 u64::MAX）
     let page_size = params.page_size.clamp(1, 100);
 
@@ -226,7 +226,7 @@ pub async fn list_reports(
     let service = FinancialAnalysisService::new(state.db.clone());
 
     // 批次 98 P2-A 修复（v5 复审）：page clamp 防 DoS
-    let page = params.get("page").and_then(|v| v.as_i64()).unwrap_or(1).max(1).min(1000); // 批次 95 P3-3~8：分页 clamp 防 DoS
+    let page = params.get("page").and_then(|v| v.as_i64()).unwrap_or(1).clamp(1, 1000); // 批次 95 P3-3~8：分页 clamp 防 DoS
 
     let page_size = params
         .get("page_size")

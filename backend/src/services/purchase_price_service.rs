@@ -64,7 +64,7 @@ impl PurchasePriceService {
         let prices = query
             .order_by(purchase_price::Column::Id, Order::Desc)
             // 批次 98 P2-A 修复（v5 复审）：page clamp 防 DoS
-            .offset((params.page.max(1).min(1000).saturating_sub(1) * params.page_size) as u64)
+            .offset((params.page.clamp(1, 1000).saturating_sub(1) * params.page_size) as u64)
             .limit(params.page_size as u64)
             .all(&*self.db)
             .await?;
