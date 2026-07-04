@@ -27,6 +27,21 @@ export type CustomerLevel = 'VIP' | 'NORMAL'
 /** 贸易条款类型 */
 export type TermType = 'logistics' | 'payment' | 'sample' | 'inspection'
 
+/**
+ * 阶梯定价项（批次 98 P2-D 修复 v5 复审：原 any 改为显式接口）
+ * 后端 tier_pricing 字段为 JSON 数组，每项描述一个数量区间的单价
+ */
+export interface TierPricingItem {
+  /** 起订数量（含） */
+  min_quantity: number
+  /** 截止数量（含，可选 -1 表示无上限） */
+  max_quantity?: number
+  /** 单价（不含税） */
+  unit_price: number
+  /** 单价（含税） */
+  unit_price_with_tax?: number
+}
+
 /** 创建报价单 DTO（与后端 CreateQuotationDto 一致） */
 export interface CreateQuotationDto {
   customer_id: number
@@ -58,7 +73,7 @@ export interface CreateQuotationItemDto {
   quantity: number
   unit_price: number
   unit_price_with_tax: number
-  tier_pricing?: any
+  tier_pricing?: TierPricingItem[]
   discount_rate?: number
   notes?: string
 }
@@ -126,7 +141,7 @@ export interface QuotationItemResponseDto {
   unit_price_with_tax: number
   amount: number
   amount_with_tax: number
-  tier_pricing?: any
+  tier_pricing?: TierPricingItem[]
   discount_rate?: number
   discount_amount?: number
   notes?: string

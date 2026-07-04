@@ -163,8 +163,9 @@ const fetchHistory = async () => {
     const res = await getMrpHistory(queryForm)
     historyList.value = res.data?.list || []
     total.value = res.data?.total || 0
-  } catch (e: any) {
-    ElMessage.error(e.message || '获取历史记录失败')
+  } catch (e: unknown) {
+    // 批次 98 P2-D 修复（v5 复审）：原 catch (e: any) 改为 unknown + 类型守卫
+    ElMessage.error((e instanceof Error ? e.message : String(e)) || '获取历史记录失败')
   } finally {
     loading.value = false
   }
@@ -175,8 +176,9 @@ const viewResult = async (row: MrpHistoryRecord) => {
     const res = await getMrpResult(row.id)
     currentResult.value = res.data || null
     resultVisible.value = true
-  } catch (e: any) {
-    ElMessage.error(e.message || '获取计算结果失败')
+  } catch (e: unknown) {
+    // 批次 98 P2-D 修复（v5 复审）：原 catch (e: any) 改为 unknown + 类型守卫
+    ElMessage.error((e instanceof Error ? e.message : String(e)) || '获取计算结果失败')
   }
 }
 

@@ -26,7 +26,7 @@ pub async fn list_transactions(
     let service = InventoryStockService::new(state.db.clone());
 
     // 页码采用 1-based 约定，由 service 内部转换为 0-based
-    let page = params.page.unwrap_or(1).max(1); // 批次 95 P3-3~8：分页 clamp 防 DoS
+    let page = params.page.unwrap_or(1).clamp(1, 1000); // 批次 95 P3-3~8：分页 clamp 防 DoS
     let page_size = params.page_size.unwrap_or(20).clamp(1, 100);
 
     let (transactions, total) = service
@@ -94,7 +94,7 @@ pub async fn get_inventory_summary(
 > {
     let service = InventoryStockService::new(state.db.clone());
 
-    let page = params.page.unwrap_or(1).max(1); // 批次 95 P3-3~8：分页 clamp 防 DoS
+    let page = params.page.unwrap_or(1).clamp(1, 1000); // 批次 95 P3-3~8：分页 clamp 防 DoS
     let page_size = params.page_size.unwrap_or(20).clamp(1, 100);
 
     let (summary_items, total) = service
@@ -145,15 +145,17 @@ pub async fn get_stock_by_product(
 
     // v11 批次 36 修复：page_size clamp 防止 DoS（PageRequest 自带 limit 方法但此处未调用，直接透传原始值）
     let page_size = query.page_size.clamp(1, 100);
+    // 批次 98 P2-A 修复（v5 复审）：page clamp 防 DoS
+    let page = query.page.clamp(1, 1000);
     let (stocks, total) = service
-        .get_stock_by_product(product_id, query.page, page_size)
+        .get_stock_by_product(product_id, page, page_size)
         .await
         .map_err(|e| AppError::internal(format!("查询产品库存失败: {}", e)))?;
 
     let result = serde_json::json!({
         "list": stocks,
         "total": total,
-        "page": query.page,
+        "page": page,
         "page_size": page_size,
     });
 

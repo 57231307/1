@@ -211,7 +211,7 @@ pub async fn list_boms(
         product_id: query.product_id,
         status: query.status,
         is_default: query.is_default,
-        page: query.page.unwrap_or(1).max(1), // 批次 95 P3-3~8：分页 clamp 防 DoS
+        page: query.page.unwrap_or(1).clamp(1, 1000), // 批次 95 P3-3~8：分页 clamp 防 DoS
         page_size: query.page_size.unwrap_or(20).clamp(1, 100),
     };
 
@@ -235,7 +235,7 @@ pub async fn list_boms(
     Ok(Json(ApiResponse::success_paginated(
         response.clone(),
         total,
-        query.page.unwrap_or(1).max(1), // 批次 95 P3-3~8：分页 clamp 防 DoS
+        query.page.unwrap_or(1).clamp(1, 1000), // 批次 95 P3-3~8：分页 clamp 防 DoS
         query.page_size.unwrap_or(20).clamp(1, 100),
     )))
 }

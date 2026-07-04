@@ -25,6 +25,19 @@ export interface MrpMaterialRequirement {
   warehouse_name?: string
 }
 
+/**
+ * 批次 98 P2-D 修复（v5 复审）：原 supply_details: any[] 改为显式接口
+ * 描述物料供应来源明细（库存/在途/计划订单）
+ */
+export interface MrpSupplyDetail {
+  source_type: 'stock' | 'in_transit' | 'planned_order'
+  source_id?: number
+  source_no?: string
+  available_quantity: number
+  suggested_quantity: number
+  expected_date?: string
+}
+
 export interface MrpCalculationParams {
   product_ids: number[]
   demand_quantity: number
@@ -107,6 +120,6 @@ export function exportMrpResult(id: number): Promise<void> {
 export function getMaterialRequirementDetail(
   calculationId: number,
   materialId: number
-): Promise<ApiResponse<MrpMaterialRequirement & { supply_details: any[] }>> {
+): Promise<ApiResponse<MrpMaterialRequirement & { supply_details: MrpSupplyDetail[] }>> {
   return request.get(`/production/mrp-history/${calculationId}/materials/${materialId}`)
 }

@@ -101,7 +101,7 @@ pub async fn list_quotations(
     Query(query): Query<ListQuotationsQuery>,
 ) -> Result<Json<ApiResponse<ListQuotationsResponse>>, AppError> {
     let service = QuotationService::from_state(&state);
-    let page = query.page.unwrap_or(1).max(1); // 批次 95 P3-3~8：分页 clamp 防 DoS
+    let page = query.page.unwrap_or(1).clamp(1, 1000); // 批次 95 P3-3~8：分页 clamp 防 DoS
     let page_size = query.page_size.unwrap_or(20).clamp(1, 100);
 
     let (items, total) = service
@@ -443,7 +443,7 @@ pub async fn list_color_prices(
     Query(query): Query<ColorPriceListQuery>,
 ) -> Result<Json<ApiResponse<PaginatedResponse<product_color_price::Model>>>, AppError> {
     // 页码采用 1-based 约定，page_size clamp 防止 DoS
-    let page = query.page.unwrap_or(1).max(1); // 批次 95 P3-3~8：分页 clamp 防 DoS
+    let page = query.page.unwrap_or(1).clamp(1, 1000); // 批次 95 P3-3~8：分页 clamp 防 DoS
     let page_size = query.page_size.unwrap_or(20).clamp(1, 100);
 
     let mut q = product_color_price::Entity::find();
@@ -455,7 +455,8 @@ pub async fn list_color_prices(
     let paginator = q.paginate(&*state.db, page_size);
     let total = paginator.num_items().await?;
     // fetch_page 接收 0-based 页码，需将 1-based page 转换
-    let items = paginator.fetch_page(page.saturating_sub(1)).await?;
+    // 批次 98 P2-A 修复（v5 复审）：page clamp 防 DoS
+    let items = paginator.fetch_page(page.clamp(1, 1000).saturating_sub(1)).await?;
 
     Ok(Json(ApiResponse::success(PaginatedResponse::new(
         items, total, page, page_size,

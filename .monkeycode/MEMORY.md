@@ -21,7 +21,22 @@
 
 ---
 
-## 当前任务状态（2026-07-04 批次 96 完成 - 批次 97 P1 修复待启动）
+## 当前任务状态（2026-07-04 批次 97 P1 修复完成 - 批次 98 P2 待启动）
+
+### ✅ 批次 97 P1 修复完成（PR #341，main `f55e201`）
+
+**v5 复审 P1 16 项全部修复完成**：
+- P1-1：voucher_service.rs `id:Set(0)` → `NotSet`（并发主键冲突）
+- P1-2：PaymentCompleted 事件扩展 user_id 字段（6 文件联动，替代 mark_as_paid 硬编码 Some(0)）
+- P1-3：quotation_approval_service.rs `let _ = instance_id;` 占位修复（改用 is_some() 判断）
+- P1-4~13：金额/数量计算补 round_dp（10 处，金额 round_dp(2) / 数量 round_dp(4)）
+- P1-14：csp_middleware 真实挂载到 main.rs（替代 SetResponseHeaderLayer，支持路由级精细化覆盖）
+- P1-15：SlowQueryRecorder 接入 inventory_stock_service + SlowQueryMetrics impl 真实委托给 Metrics::record_slow_query
+- P1-16：删除死字段 rate_limiter + RateLimitStore 类型 + api_gateway.rs 文件
+
+**CI 修复（2 条）**：
+1. clippy: P1-3 修复后 instance_id 变量未使用，改用 is_some() 判断
+2. build: SlowQueryMetrics impl 内 `self.record_slow_query(...)` 找不到方法（record_slow_query 是 Metrics 的方法不是 MetricsService），改为 `self.metrics.record_slow_query(...)` auto-deref Arc<Metrics>
 
 ### ✅ 批次 96 P0 修复完成（PR #340，main `acac30a`）
 

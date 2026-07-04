@@ -141,7 +141,7 @@ pub async fn list_exchange_rates(
     Query(query): Query<ListExchangeRatesQuery>,
 ) -> Result<Json<ApiResponse<Vec<ExchangeRateResponse>>>, AppError> {
     let service = CurrencyService::new(state.db);
-    let page = query.page.unwrap_or(1).max(1); // 批次 95 P3-3~8：分页 clamp 防 DoS
+    let page = query.page.unwrap_or(1).clamp(1, 1000); // 批次 95 P3-3~8：分页 clamp 防 DoS
     let page_size = query.page_size.unwrap_or(20).clamp(1, 100);
 
     let (models, _total) = service
@@ -230,7 +230,7 @@ pub async fn get_exchange_rate_history(
     Query(query): Query<ExchangeRateHistoryQuery>,
 ) -> Result<Json<ApiResponse<Vec<ExchangeRateHistoryResponse>>>, AppError> {
     let service = CurrencyService::new(state.db);
-    let page = query.page.unwrap_or(1).max(1); // 批次 95 P3-3~8：分页 clamp 防 DoS
+    let page = query.page.unwrap_or(1).clamp(1, 1000); // 批次 95 P3-3~8：分页 clamp 防 DoS
     let page_size = query.page_size.unwrap_or(20).clamp(1, 100);
 
     let (models, _total) = service

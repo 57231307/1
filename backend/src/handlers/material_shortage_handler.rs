@@ -66,7 +66,7 @@ pub async fn list_shortage_alerts(
     let service = MaterialShortageService::new(state.db.clone());
 
     // 批次 95 P3-3~8 修复：max(1) 保证页码 >=1（防止 page=0 被接受），saturating_sub(1) 转 0-based offset
-    let page = params.page.unwrap_or(1).max(1).saturating_sub(1);
+    let page = params.page.unwrap_or(1).clamp(1, 1000).saturating_sub(1);
     let page_size = params.page_size.unwrap_or(20).clamp(1, 100);
 
     let (items, total) = service

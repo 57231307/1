@@ -135,7 +135,7 @@ pub async fn list_color_prices(
     let service = ColorPriceCrudService::from_state(&state);
 
     let (items, total) = service.list(&query).await.map_err(crud_err)?;
-    let page = query.page.unwrap_or(1).max(1); // 批次 95 P3-3~8：分页 clamp 防 DoS
+    let page = query.page.unwrap_or(1).clamp(1, 1000); // 批次 95 P3-3~8：分页 clamp 防 DoS
     let page_size = query.page_size.unwrap_or(20).clamp(1, 100);
     let list: Vec<ColorPriceListItem> = items.into_iter().map(model_to_list_item).collect();
 
@@ -380,7 +380,7 @@ pub async fn list_customer_special_prices(
     use sea_orm::{ColumnTrait, Condition, EntityTrait, PaginatorTrait, QueryFilter};
 
     // 页码采用 1-based 约定，page_size clamp 防止 DoS
-    let page = query.page.unwrap_or(1).max(1); // 批次 95 P3-3~8：分页 clamp 防 DoS
+    let page = query.page.unwrap_or(1).clamp(1, 1000); // 批次 95 P3-3~8：分页 clamp 防 DoS
     let page_size = query.page_size.unwrap_or(20).clamp(1, 100);
 
     let mut q = customer_color_price::Entity::find();
@@ -410,8 +410,9 @@ pub async fn list_customer_special_prices(
         .await
         .map_err(|e| AppError::database(e.to_string()))?;
     // fetch_page 接收 0-based 页码，需将 1-based page 转换
+    // 批次 98 P2-A 修复（v5 复审）：page clamp 防 DoS
     let items = paginator
-        .fetch_page(page.saturating_sub(1))
+        .fetch_page(page.clamp(1, 1000).saturating_sub(1))
         .await
         .map_err(|e| AppError::database(e.to_string()))?;
 
@@ -471,7 +472,7 @@ pub async fn list_seasonal_rules(
     Ok(Json(ApiResponse::success(json!({
         "items": items,
         "total": total,
-        "page": query.page.unwrap_or(1).max(1), // 批次 95 P3-3~8：分页 clamp 防 DoS
+        "page": query.page.unwrap_or(1).clamp(1, 1000), // 批次 95 P3-3~8：分页 clamp 防 DoS
         "page_size": query.page_size.unwrap_or(20).clamp(1, 100),
     }))))
 }

@@ -9,7 +9,8 @@ export interface ProcessDefinition {
   version: number
   status: 'draft' | 'active' | 'suspended' | 'deprecated'
   category?: string
-  form_schema?: any
+  // 批次 98 P2-D 修复（v5 复审）：原 any 改为 Record<string, unknown>，动态 JSON Schema 字段
+  form_schema?: Record<string, unknown>
   nodes?: ProcessNode[]
   created_at: string
   updated_at: string
@@ -53,7 +54,8 @@ export interface ApprovalAction {
   action: 'approve' | 'reject' | 'transfer' | 'delegate'
   comment?: string
   target_user_id?: number
-  variables?: any
+  // 批次 98 P2-D 修复（v5 复审）：原 any 改为 Record<string, unknown>，与 types/bpm.ts 保持一致
+  variables?: Record<string, unknown>
 }
 
 export interface ApprovalTask {

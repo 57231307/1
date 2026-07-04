@@ -101,7 +101,7 @@ pub async fn list_login_logs(
     use crate::models::log_login;
     use sea_orm::{ColumnTrait, EntityTrait, PaginatorTrait, QueryFilter, QueryOrder};
 
-    let page = query.page.unwrap_or(1).max(1); // 批次 95 P3-3~8：分页 clamp 防 DoS
+    let page = query.page.unwrap_or(1).clamp(1, 1000); // 批次 95 P3-3~8：分页 clamp 防 DoS
     let page_size = query.page_size.unwrap_or(20).clamp(1, 100);
 
     let mut query_builder = log_login::Entity::find();
@@ -121,7 +121,8 @@ pub async fn list_login_logs(
     let logs = query_builder
         .order_by_desc(log_login::Column::LoginTime)
         .paginate(state.db.as_ref(), page_size)
-        .fetch_page(page.saturating_sub(1))
+        // 批次 98 P2-A 修复（v5 复审）：page clamp 防 DoS
+        .fetch_page(page.clamp(1, 1000).saturating_sub(1))
         .await?;
 
     let items: Vec<LoginLogItem> = logs

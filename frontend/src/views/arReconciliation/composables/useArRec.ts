@@ -83,7 +83,8 @@ export function useArRec() {
       })
       ElMessage.success('自动对账任务已启动')
       await loadData()
-    } catch (error: any) {
+    } catch (error: unknown) {
+      // 批次 98 P2-D 修复（v5 复审）：原 catch (error: any) 改为 unknown + 类型守卫
       if (error !== 'cancel') {
         ElMessage.error('启动对账失败')
       }
@@ -110,7 +111,8 @@ export function useArRec() {
       await ElMessageBox.confirm('确认向客户发送对账确认请求？', '提示', { type: 'info' })
       await sendCustomerConfirmation(row.id)
       ElMessage.success('确认请求已发送')
-    } catch (error: any) {
+    } catch (error: unknown) {
+      // 批次 98 P2-D 修复（v5 复审）：原 catch (error: any) 改为 unknown + 类型守卫
       if (error !== 'cancel') {
         ElMessage.error('发送确认请求失败')
       }
@@ -143,7 +145,8 @@ export function useArRec() {
       await updateConfirmationStatus(row.id, { status })
       ElMessage.success('操作成功')
       await handleViewConfirmations()
-    } catch (error: any) {
+    } catch (error: unknown) {
+      // 批次 98 P2-D 修复（v5 复审）：原 catch (error: any) 改为 unknown + 类型守卫
       if (error !== 'cancel') {
         ElMessage.error('操作失败')
       }

@@ -219,8 +219,9 @@ const fetchData = async () => {
     const res = await listReportTemplates(listQuery)
     list.value = res.data || []
     total.value = res.total || 0
-  } catch (error: any) {
-    ElMessage.error(error.message || '获取数据失败')
+  } catch (error: unknown) {
+    // 批次 98 P2-D 修复（v5 复审）：原 catch (error: any) 改为 unknown + 类型守卫
+    ElMessage.error((error instanceof Error ? error.message : String(error)) || '获取数据失败')
   } finally {
     listLoading.value = false
   }
@@ -296,8 +297,9 @@ const handleSubmit = async () => {
       ElMessage.success('操作成功')
       dialogVisible.value = false
       fetchData()
-    } catch (error: any) {
-      ElMessage.error(error.message || '操作失败')
+    } catch (error: unknown) {
+      // 批次 98 P2-D 修复（v5 复审）：原 catch (error: any) 改为 unknown + 类型守卫
+      ElMessage.error((error instanceof Error ? error.message : String(error)) || '操作失败')
     } finally {
       submitLoading.value = false
     }
@@ -310,8 +312,9 @@ const handleDelete = async (row: ReportTemplate) => {
     await deleteReportTemplate(row.id)
     ElMessage.success('删除成功')
     fetchData()
-  } catch (error: any) {
-    if (error !== 'cancel') ElMessage.error(error.message || '删除失败')
+  } catch (error: unknown) {
+    // 批次 98 P2-D 修复（v5 复审）：原 catch (error: any) 改为 unknown + 类型守卫
+    if (error !== 'cancel') ElMessage.error((error instanceof Error ? error.message : String(error)) || '删除失败')
   }
 }
 
@@ -348,8 +351,9 @@ const handlePreview = async (row: ReportTemplate) => {
     } else {
       previewData.value = ''
     }
-  } catch (error: any) {
-    ElMessage.error(error.message || '预览失败')
+  } catch (error: unknown) {
+    // 批次 98 P2-D 修复（v5 复审）：原 catch (error: any) 改为 unknown + 类型守卫
+    ElMessage.error((error instanceof Error ? error.message : String(error)) || '预览失败')
     previewData.value = ''
   } finally {
     previewLoading.value = false
@@ -364,8 +368,9 @@ const handleGenerate = async (row: ReportTemplate) => {
     link.download = `${row.template_name}_${new Date().toISOString().split('T')[0]}.${row.format}`
     link.click()
     ElMessage.success('报表生成成功')
-  } catch (error: any) {
-    ElMessage.error(error.message || '生成失败')
+  } catch (error: unknown) {
+    // 批次 98 P2-D 修复（v5 复审）：原 catch (error: any) 改为 unknown + 类型守卫
+    ElMessage.error((error instanceof Error ? error.message : String(error)) || '生成失败')
   }
 }
 

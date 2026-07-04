@@ -212,8 +212,9 @@ const fetchData = async () => {
     const res = await listQualityStandards(listQuery)
     list.value = res.data || []
     total.value = res.total || 0
-  } catch (error: any) {
-    ElMessage.error(error.message || '获取数据失败')
+  } catch (error: unknown) {
+    // 批次 98 P2-D 修复（v5 复审）：原 catch (error: any) 改为 unknown + 类型守卫
+    ElMessage.error((error instanceof Error ? error.message : String(error)) || '获取数据失败')
   } finally {
     listLoading.value = false
   }
@@ -283,8 +284,9 @@ const handleSubmit = async () => {
       ElMessage.success('操作成功')
       dialogVisible.value = false
       fetchData()
-    } catch (error: any) {
-      ElMessage.error(error.message || '操作失败')
+    } catch (error: unknown) {
+      // 批次 98 P2-D 修复（v5 复审）：原 catch (error: any) 改为 unknown + 类型守卫
+      ElMessage.error((error instanceof Error ? error.message : String(error)) || '操作失败')
     } finally {
       submitLoading.value = false
     }
@@ -297,8 +299,9 @@ const handleDelete = async (row: QualityStandard) => {
     await deleteQualityStandard(row.id)
     ElMessage.success('删除成功')
     fetchData()
-  } catch (error: any) {
-    if (error !== 'cancel') ElMessage.error(error.message || '删除失败')
+  } catch (error: unknown) {
+    // 批次 98 P2-D 修复（v5 复审）：原 catch (error: any) 改为 unknown + 类型守卫
+    if (error !== 'cancel') ElMessage.error((error instanceof Error ? error.message : String(error)) || '删除失败')
   }
 }
 
@@ -308,8 +311,9 @@ const handleApprove = async (row: QualityStandard) => {
     await approveQualityStandard(row.id)
     ElMessage.success('审批成功')
     fetchData()
-  } catch (error: any) {
-    if (error !== 'cancel') ElMessage.error(error.message || '审批失败')
+  } catch (error: unknown) {
+    // 批次 98 P2-D 修复（v5 复审）：原 catch (error: any) 改为 unknown + 类型守卫
+    if (error !== 'cancel') ElMessage.error((error instanceof Error ? error.message : String(error)) || '审批失败')
   }
 }
 
@@ -321,8 +325,9 @@ const handlePublish = async (row: QualityStandard) => {
     await publishQualityStandard(row.id)
     ElMessage.success('发布成功')
     fetchData()
-  } catch (error: any) {
-    if (error !== 'cancel') ElMessage.error(error.message || '发布失败')
+  } catch (error: unknown) {
+    // 批次 98 P2-D 修复（v5 复审）：原 catch (error: any) 改为 unknown + 类型守卫
+    if (error !== 'cancel') ElMessage.error((error instanceof Error ? error.message : String(error)) || '发布失败')
   }
 }
 
@@ -332,8 +337,9 @@ const handleArchive = async (row: QualityStandard) => {
     await archiveQualityStandard(row.id)
     ElMessage.success('归档成功')
     fetchData()
-  } catch (error: any) {
-    if (error !== 'cancel') ElMessage.error(error.message || '归档失败')
+  } catch (error: unknown) {
+    // 批次 98 P2-D 修复（v5 复审）：原 catch (error: any) 改为 unknown + 类型守卫
+    if (error !== 'cancel') ElMessage.error((error instanceof Error ? error.message : String(error)) || '归档失败')
   }
 }
 

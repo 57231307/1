@@ -108,7 +108,7 @@ pub async fn list_customers(
 ) -> Result<Json<ApiResponse<crate::utils::response::PaginatedResponse<serde_json::Value>>>, AppError>
 {
     let page_req = PageRequest {
-        page: query.page.unwrap_or(1).max(1), // 批次 95 P3-3~8：分页 clamp 防 DoS
+        page: query.page.unwrap_or(1).clamp(1, 1000), // 批次 95 P3-3~8：分页 clamp 防 DoS
         page_size: query.page_size.unwrap_or(20).clamp(1, 100),
     };
 

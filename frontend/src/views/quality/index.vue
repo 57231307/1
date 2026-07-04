@@ -343,8 +343,9 @@ const submitStandard = async () => {
       ElMessage.success('操作成功')
       standardDialogVisible.value = false
       fetchStandards()
-    } catch (e: any) {
-      ElMessage.error(e.message || '操作失败')
+    } catch (e: unknown) {
+      // 批次 98 P2-D 修复（v5 复审）：原 catch (e: any) 改为 unknown + 类型守卫
+      ElMessage.error((e instanceof Error ? e.message : String(e)) || '操作失败')
     } finally {
       standardSubmitLoading.value = false
     }
@@ -377,8 +378,9 @@ const confirmApprove = async () => {
       ElMessage.success('审批成功')
       approveDialogVisible.value = false
       fetchStandards()
-    } catch (e: any) {
-      ElMessage.error(e.message || '操作失败')
+    } catch (e: unknown) {
+      // 批次 98 P2-D 修复（v5 复审）：原 catch (e: any) 改为 unknown + 类型守卫
+      ElMessage.error((e instanceof Error ? e.message : String(e)) || '操作失败')
     } finally {
       approveSubmitLoading.value = false
     }
@@ -391,8 +393,9 @@ const rejectStandard = async () => {
     await ElMessageBox.confirm('确定要驳回此标准吗？', '确认驳回', { type: 'warning' })
     ElMessage.info('驳回功能待后端实现')
     approveDialogVisible.value = false
-  } catch (e: any) {
-    if (e !== 'cancel') ElMessage.error(e.message || '操作失败')
+  } catch (e: unknown) {
+    // 批次 98 P2-D 修复（v5 复审）：原 catch (e: any) 改为 unknown + 类型守卫
+    if (e !== 'cancel') ElMessage.error((e instanceof Error ? e.message : String(e)) || '操作失败')
   }
 }
 
@@ -406,8 +409,9 @@ const viewVersionHistory = async (row: QualityStandard) => {
     const res: any = await getQualityStandardVersions(row.id)
     versionHistoryList.value = res.data! || []
     versionHistoryVisible.value = true
-  } catch (e: any) {
-    ElMessage.error(e.message || '获取版本历史失败')
+  } catch (e: unknown) {
+    // 批次 98 P2-D 修复（v5 复审）：原 catch (e: any) 改为 unknown + 类型守卫
+    ElMessage.error((e instanceof Error ? e.message : String(e)) || '获取版本历史失败')
   } finally {
     versionHistoryLoading.value = false
   }
@@ -463,8 +467,9 @@ const submitRecord = async () => {
     ElMessage.success('操作成功')
     recordDialogVisible.value = false
     fetchRecords()
-  } catch (e: any) {
-    ElMessage.error(e.message || '操作失败')
+  } catch (e: unknown) {
+    // 批次 98 P2-D 修复（v5 复审）：原 catch (e: any) 改为 unknown + 类型守卫
+    ElMessage.error((e instanceof Error ? e.message : String(e)) || '操作失败')
   } finally {
     recordSubmitLoading.value = false
   }

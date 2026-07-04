@@ -35,14 +35,20 @@ impl PageRequest {
         Self { page, page_size }
     }
 
-    /// 获取偏移量
+    /// 批次 98 P2 修复（v5 复审）：获取经 clamp 的页码
+    /// 上限 1000 防止深度分页 DoS（page=u64::MAX 触发 offset 溢出导致 DB 全表扫描）
+    pub fn page_clamped(&self) -> u64 {
+        self.page.clamp(1, 1000)
+    }
+
+    /// 获取偏移量（基于 clamp 后的页码计算）
     pub fn offset(&self) -> u64 {
-        (self.page.saturating_sub(1)) * self.page_size
+        (self.page_clamped().saturating_sub(1)) * self.limit()
     }
 
     /// 获取每页数量（限制最大 100）
     pub fn limit(&self) -> u64 {
-        self.page_size.min(100)
+        self.page_size.clamp(1, 100)
     }
 }
 

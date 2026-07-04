@@ -107,7 +107,7 @@ pub async fn list_borrow_records(
     Query(query): Query<ListBorrowRecordsQuery>,
 ) -> Result<Json<ApiResponse<PagedResponse<BorrowRecordInfo>>>, AppError> {
     let service = ColorCardBorrowService::from_state(&state);
-    let page = query.page.unwrap_or(1).max(1); // 批次 95 P3-3~8：分页 clamp 防 DoS
+    let page = query.page.unwrap_or(1).clamp(1, 1000); // 批次 95 P3-3~8：分页 clamp 防 DoS
     // v12 批次 39 修复：page_size clamp(1,100) 保证回显值与 service 实际查询值一致（service 层已有 clamp 兜底）
     let page_size = query.page_size.unwrap_or(20).clamp(1, 100);
 

@@ -303,8 +303,9 @@ async function loadExisting() {
         terms: (data.terms || []) as CreateQuotationTermDto[],
       })
     }
-  } catch (e: any) {
-    ElMessage.error(e?.message || '加载报价单失败')
+  } catch (e: unknown) {
+    // 批次 98 P2-D 修复（v5 复审）：原 catch (e: any) 改为 unknown + 类型守卫
+    ElMessage.error((e instanceof Error ? e.message : String(e)) || '加载报价单失败')
   } finally {
     loading.value = false
   }
@@ -339,8 +340,9 @@ async function handleSaveDraft() {
       ElMessage.success('草稿保存成功')
       router.push(`/quotations/${(res.data as any).id}`)
     }
-  } catch (e: any) {
-    ElMessage.error(e?.message || '保存失败')
+  } catch (e: unknown) {
+    // 批次 98 P2-D 修复（v5 复审）：原 catch (e: any) 改为 unknown + 类型守卫
+    ElMessage.error((e instanceof Error ? e.message : String(e)) || '保存失败')
   } finally {
     submitting.value = false
   }
@@ -370,8 +372,9 @@ async function handleSubmit() {
     await submitQuotation(quotationId)
     ElMessage.success('已提交审批')
     router.push(`/quotations/${quotationId}`)
-  } catch (e: any) {
-    ElMessage.error(e?.message || '提交失败')
+  } catch (e: unknown) {
+    // 批次 98 P2-D 修复（v5 复审）：原 catch (e: any) 改为 unknown + 类型守卫
+    ElMessage.error((e instanceof Error ? e.message : String(e)) || '提交失败')
   } finally {
     submitting.value = false
   }

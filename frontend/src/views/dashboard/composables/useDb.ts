@@ -30,8 +30,9 @@ export const useDb = () => {
     try {
       const res = await dashboardApi.getOverview()
       stats.value = res.data! || {}
-    } catch (error: any) {
-      ElMessage.error(error.message || '获取仪表盘数据失败')
+    } catch (error: unknown) {
+      // 批次 98 P2-D 修复（v5 复审）：原 catch (error: any) 改为 unknown + 类型守卫
+      ElMessage.error((error instanceof Error ? error.message : String(error)) || '获取仪表盘数据失败')
       stats.value = {}
     }
   }
@@ -45,7 +46,8 @@ export const useDb = () => {
       ])
       trendData.value = salesRes.data?.trends || []
       categoryDistribution.value = inventoryRes.data?.categoryDistribution || []
-    } catch (error: any) {
+    } catch (error: unknown) {
+      // 批次 98 P2-D 修复（v5 复审）：原 catch (error: any) 改为 unknown + 类型守卫
       logger.error('获取图表数据失败:', error)
       trendData.value = []
       categoryDistribution.value = []

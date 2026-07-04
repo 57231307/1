@@ -61,7 +61,7 @@ pub async fn list_collections(
         .get_list(
             params.batch_no,
             params.color_no,
-            params.page.unwrap_or(1).max(1), // 批次 95 P3-3~8：分页 clamp 防 DoS
+            params.page.unwrap_or(1).clamp(1, 1000), // 批次 95 P3-3~8：分页 clamp 防 DoS
             params.page_size.unwrap_or(20).clamp(1, 100),
         )
         .await?;

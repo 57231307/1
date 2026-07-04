@@ -117,8 +117,9 @@ const fetchRoles = async () => {
     const res = await listRoles()
     const d = res.data as any
     roles.value = d?.items || d?.data || d || []
-  } catch (e: any) {
-    ElMessage.error(e.message || '获取角色列表失败')
+  } catch (e: unknown) {
+    // 批次 98 P2-D 修复（v5 复审）：原 catch (e: any) 改为 unknown + 类型守卫
+    ElMessage.error((e instanceof Error ? e.message : String(e)) || '获取角色列表失败')
   } finally {
     roleLoading.value = false
   }
@@ -186,8 +187,9 @@ const submitRole = async () => {
     }
     roleDialogVisible.value = false
     fetchRoles()
-  } catch (e: any) {
-    ElMessage.error(e.message || '操作失败')
+  } catch (e: unknown) {
+    // 批次 98 P2-D 修复（v5 复审）：原 catch (e: any) 改为 unknown + 类型守卫
+    ElMessage.error((e instanceof Error ? e.message : String(e)) || '操作失败')
   } finally {
     roleSubmitLoading.value = false
   }
@@ -199,8 +201,9 @@ const deleteRole = async (row: Role) => {
     await deleteRoleApi(row.id)
     ElMessage.success('删除成功')
     fetchRoles()
-  } catch (e: any) {
-    if (e !== 'cancel') ElMessage.error(e.message || '删除失败')
+  } catch (e: unknown) {
+    // 批次 98 P2-D 修复（v5 复审）：原 catch (e: any) 改为 unknown + 类型守卫
+    if (e !== 'cancel') ElMessage.error((e instanceof Error ? e.message : String(e)) || '删除失败')
   }
 }
 
@@ -259,8 +262,9 @@ const submitPermissions = async () => {
     await assignPermission(currentRoleId.value, { permission_ids: checkedPermissions.value })
     ElMessage.success('权限配置成功')
     permissionDialogVisible.value = false
-  } catch (e: any) {
-    ElMessage.error(e.message || '配置失败')
+  } catch (e: unknown) {
+    // 批次 98 P2-D 修复（v5 复审）：原 catch (e: any) 改为 unknown + 类型守卫
+    ElMessage.error((e instanceof Error ? e.message : String(e)) || '配置失败')
   } finally {
     permissionSubmitLoading.value = false
   }

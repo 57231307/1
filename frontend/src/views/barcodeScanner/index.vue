@@ -67,9 +67,10 @@ const handleScan = async () => {
     scanResult.value = res.data!.data
     scanSuccess.value = true
     scanMessage.value = '扫码成功'
-  } catch (error: any) {
+  } catch (error: unknown) {
+    // 批次 98 P2-D 修复（v5 复审）：原 catch (error: any) 改为 unknown + 类型守卫
     scanSuccess.value = false
-    scanMessage.value = error.response?.data?.message || '扫码失败'
+    scanMessage.value = (error as { response?: { data?: { message?: string } } }).response?.data?.message || '扫码失败'
     scanResult.value = null
   } finally {
     loading.value = false
@@ -95,9 +96,10 @@ const handleScanToShip = async () => {
     scanMessage.value = res.data!.data.message
     scanResult.value = null
     barcodeInput.value = ''
-  } catch (error: any) {
+  } catch (error: unknown) {
+    // 批次 98 P2-D 修复（v5 复审）：原 catch (error: any) 改为 unknown + 类型守卫
     scanSuccess.value = false
-    scanMessage.value = error.response?.data?.message || '发货失败'
+    scanMessage.value = (error as { response?: { data?: { message?: string } } }).response?.data?.message || '发货失败'
   } finally {
     loading.value = false
   }

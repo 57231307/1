@@ -363,7 +363,7 @@ pub async fn list_follow_ups(
     Query(params): Query<FollowUpQuery>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     let service = CrmService::new(state.db.clone());
-    let page = params.page.unwrap_or(1).max(1); // 批次 95 P3-3~8：分页 clamp 防 DoS
+    let page = params.page.unwrap_or(1).clamp(1, 1000); // 批次 95 P3-3~8：分页 clamp 防 DoS
     let page_size = params.page_size.unwrap_or(20).clamp(1, 100);
     let page_resp = service.list_follow_ups(id, page, page_size).await?;
     Ok(Json(ApiResponse::success(serde_json::to_value(page_resp)?)))

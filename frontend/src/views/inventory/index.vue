@@ -139,8 +139,9 @@ const fetchData = async () => {
       warehouseCount: summary.warehouse_count || 0,
       lowStockCount: summary.low_stock_count || 0,
     }
-  } catch (error: any) {
-    ElMessage.error(error.message || '获取库存列表失败')
+  } catch (error: unknown) {
+    // 批次 98 P2-D 修复（v5 复审）：原 catch (error: any) 改为 unknown + 类型守卫
+    ElMessage.error((error instanceof Error ? error.message : String(error)) || '获取库存列表失败')
     stocks.value = []
     total.value = 0
   } finally {
@@ -153,8 +154,9 @@ const fetchAlerts = async () => {
     const { inventoryApi } = await import('@/api/inventory')
     const res = await inventoryApi.getStockAlerts()
     alerts.value = res.data || []
-  } catch (error: any) {
-    ElMessage.error(error.message || '获取库存预警失败')
+  } catch (error: unknown) {
+    // 批次 98 P2-D 修复（v5 复审）：原 catch (error: any) 改为 unknown + 类型守卫
+    ElMessage.error((error instanceof Error ? error.message : String(error)) || '获取库存预警失败')
     alerts.value = []
   }
 }
@@ -164,8 +166,9 @@ const fetchTransfers = async () => {
     const { inventoryApi } = await import('@/api/inventory')
     const res = await inventoryApi.getTransfers(queryParams)
     transfers.value = res.data?.list || []
-  } catch (error: any) {
-    ElMessage.error(error.message || '获取调拨记录失败')
+  } catch (error: unknown) {
+    // 批次 98 P2-D 修复（v5 复审）：原 catch (error: any) 改为 unknown + 类型守卫
+    ElMessage.error((error instanceof Error ? error.message : String(error)) || '获取调拨记录失败')
     transfers.value = []
   }
 }
@@ -175,8 +178,9 @@ const fetchWarehouses = async () => {
     const { warehouseApi } = await import('@/api/warehouse')
     const res = await warehouseApi.list({ page: 1, page_size: 1000 })
     warehouses.value = res.data?.list || []
-  } catch (error: any) {
-    ElMessage.error(error.message || '获取仓库列表失败')
+  } catch (error: unknown) {
+    // 批次 98 P2-D 修复（v5 复审）：原 catch (error: any) 改为 unknown + 类型守卫
+    ElMessage.error((error instanceof Error ? error.message : String(error)) || '获取仓库列表失败')
     warehouses.value = []
   }
 }
@@ -254,8 +258,9 @@ const onSubmitAdjustment = async (form: any) => {
     ElMessage.success('库存调整成功')
     adjustmentDialogVisible.value = false
     fetchData()
-  } catch (error: any) {
-    ElMessage.error(error.message || '库存调整失败')
+  } catch (error: unknown) {
+    // 批次 98 P2-D 修复（v5 复审）：原 catch (error: any) 改为 unknown + 类型守卫
+    ElMessage.error((error instanceof Error ? error.message : String(error)) || '库存调整失败')
   }
 }
 
@@ -290,8 +295,9 @@ const onSubmitTransfer = async (form: any) => {
     if (activeTab.value === 'transfer') {
       fetchTransfers()
     }
-  } catch (error: any) {
-    ElMessage.error(error.message || '创建调拨单失败')
+  } catch (error: unknown) {
+    // 批次 98 P2-D 修复（v5 复审）：原 catch (error: any) 改为 unknown + 类型守卫
+    ElMessage.error((error instanceof Error ? error.message : String(error)) || '创建调拨单失败')
   }
 }
 

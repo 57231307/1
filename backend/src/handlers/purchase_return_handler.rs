@@ -25,7 +25,7 @@ pub async fn list_purchase_returns(
     let service = PurchaseReturnService::new(state.db.clone());
     let (returns, total) = service
         .list_returns(
-            params.page.unwrap_or(1).max(1), // 批次 95 P3-3~8：分页 clamp 防 DoS
+            params.page.unwrap_or(1).clamp(1, 1000), // 批次 95 P3-3~8：分页 clamp 防 DoS
             params.page_size.unwrap_or(20).clamp(1, 100),
             params.status,
             params.supplier_id,
@@ -35,7 +35,7 @@ pub async fn list_purchase_returns(
     let result = serde_json::to_value(PaginatedResponse::new(
         returns,
         total,
-        params.page.unwrap_or(1).max(1), // 批次 95 P3-3~8：分页 clamp 防 DoS
+        params.page.unwrap_or(1).clamp(1, 1000), // 批次 95 P3-3~8：分页 clamp 防 DoS
         params.page_size.unwrap_or(20).clamp(1, 100),
     ))
     .map_err(|e| AppError::internal(e.to_string()))?;

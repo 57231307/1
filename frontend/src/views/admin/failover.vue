@@ -82,8 +82,9 @@ async function loadData() {
     statuses.value = statusRes.statuses || []
     events.value = statusRes.events || []
     health.value = healthRes.data || { database: 'unknown', cache: 'unknown' }
-  } catch (err: any) {
-    ElMessage.error(`加载失败: ${err.message || err}`)
+  } catch (err: unknown) {
+    // 批次 98 P2-D 修复（v5 复审）：原 catch (err: any) 改为 unknown + 类型守卫
+    ElMessage.error(`加载失败: ${err instanceof Error ? err.message : String(err)}`)
   } finally {
     loading.value = false
   }
@@ -104,9 +105,10 @@ async function handleSwitch(functionName: string) {
     const res = await triggerSwitch(functionName)
     ElMessage.success(res.data || '切换成功')
     await loadData()
-  } catch (err: any) {
+  } catch (err: unknown) {
+    // 批次 98 P2-D 修复（v5 复审）：原 catch (err: any) 改为 unknown + 类型守卫
     if (err !== 'cancel') {
-      ElMessage.error(`切换失败: ${err.message || err}`)
+      ElMessage.error(`切换失败: ${err instanceof Error ? err.message : String(err)}`)
     }
   }
 }

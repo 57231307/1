@@ -99,7 +99,7 @@ pub async fn list_fabric_orders(
     State(state): State<AppState>,
     Query(query): Query<FabricOrderQuery>,
 ) -> Result<Json<ApiResponse<PaginatedResponse<serde_json::Value>>>, AppError> {
-    let page = query.page.unwrap_or(1).max(1); // 批次 95 P3-3~8：分页 clamp 防 DoS
+    let page = query.page.unwrap_or(1).clamp(1, 1000); // 批次 95 P3-3~8：分页 clamp 防 DoS
     let page_size = query.page_size.unwrap_or(20).clamp(1, 100);
 
     let mut query_builder = sales_order::Entity::find();
@@ -120,7 +120,8 @@ pub async fn list_fabric_orders(
     let paginator = query_builder
         .order_by(sales_order::Column::CreatedAt, Order::Desc)
         .paginate(&*state.db, page_size);
-    let orders = paginator.fetch_page(page.saturating_sub(1)).await?;
+    // 批次 98 P2-A 修复（v5 复审）：page clamp 防 DoS
+    let orders = paginator.fetch_page(page.clamp(1, 1000).saturating_sub(1)).await?;
     let total = paginator.num_items().await?;
 
     let orders_json: Vec<serde_json::Value> = orders

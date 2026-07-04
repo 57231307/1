@@ -50,7 +50,7 @@ pub async fn list_payments(
             params.payment_method,
             params.start_date,
             params.end_date,
-            params.page.unwrap_or(1).max(1), // 批次 95 P3-3~8：分页 clamp 防 DoS
+            params.page.unwrap_or(1).clamp(1, 1000), // 批次 95 P3-3~8：分页 clamp 防 DoS
             params.page_size.unwrap_or(20).clamp(1, 100),
         )
         .await?;
@@ -60,7 +60,7 @@ pub async fn list_payments(
     let result = serde_json::to_value(PaginatedResponse::new(
         payments,
         total,
-        params.page.unwrap_or(1).max(1), // 批次 95 P3-3~8：分页 clamp 防 DoS
+        params.page.unwrap_or(1).clamp(1, 1000), // 批次 95 P3-3~8：分页 clamp 防 DoS
         params.page_size.unwrap_or(20).clamp(1, 100),
     ))
     .map_err(|e| AppError::internal(e.to_string()))?;

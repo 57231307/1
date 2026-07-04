@@ -121,7 +121,8 @@ impl CustomerCreditService {
         // 分页和排序
         let credits = query
             .order_by(customer_credit::Column::Id, Order::Desc)
-            .offset((params.page.saturating_sub(1) * params.page_size) as u64)
+            // 批次 98 P2-A 修复（v5 复审）：page clamp 防 DoS
+            .offset((params.page.clamp(1, 1000).saturating_sub(1) * params.page_size) as u64)
             .limit(params.page_size as u64)
             .all(&*self.db)
             .await?;

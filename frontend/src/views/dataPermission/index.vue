@@ -275,8 +275,9 @@ const handleSavePermission = async () => {
       ElMessage.success('保存成功')
       permissionDialogVisible.value = false
       fetchPermissions()
-    } catch (e: any) {
-      ElMessage.error(e.message || '保存失败')
+    } catch (e: unknown) {
+      // 批次 98 P2-D 修复（v5 复审）：原 catch (e: any) 改为 unknown + 类型守卫
+      ElMessage.error((e instanceof Error ? e.message : String(e)) || '保存失败')
     } finally {
       submitLoading.value = false
     }
@@ -296,9 +297,10 @@ const handleDeletePermission = async (row: DataPermissionRole) => {
     await deleteDataPermissionByRole(row.roleId, row.resourceType)
     ElMessage.success('删除成功')
     fetchPermissions()
-  } catch (e: any) {
+  } catch (e: unknown) {
+    // 批次 98 P2-D 修复（v5 复审）：原 catch (e: any) 改为 unknown + 类型守卫
     if (e !== 'cancel') {
-      ElMessage.error(e.message || '删除失败')
+      ElMessage.error((e instanceof Error ? e.message : String(e)) || '删除失败')
     }
   }
 }

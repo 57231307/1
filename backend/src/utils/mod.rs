@@ -43,3 +43,5 @@ pub mod unwrap_safe;
 pub mod audit;
 // 低危 #2 SSRF 防护 - Webhook URL 内网白名单校验
 pub mod ssrf_guard;
+// 批次 98 P2-B 修复（v5 复审）：通用金额/数量范围 + 精度校验
+pub mod validator;

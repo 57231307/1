@@ -19,8 +19,8 @@ impl CrmService {
         req: crate::models::dto::crm_dto::CreateOpportunityRequest,
         user_id: i32,
     ) -> Result<crm_opportunity::Model, AppError> {
-        // 验证客户存在
-        let _ = customer::Entity::find_by_id(req.customer_id)
+        // 验证客户存在（批次 98 P2-C 修复 v5 复审：去掉冗余 let _ = ，明确父级校验已通过 ? 传播错误）
+        customer::Entity::find_by_id(req.customer_id)
             .one(&*self.db)
             .await?
             .ok_or_else(|| AppError::not_found(format!("客户 {} 不存在", req.customer_id)))?;
@@ -76,7 +76,7 @@ impl CrmService {
         &self,
         query: crate::models::dto::crm_dto::OpportunityQuery,
     ) -> Result<serde_json::Value, AppError> {
-        let page = query.page.unwrap_or(1).max(1);
+        let page = query.page.unwrap_or(1).clamp(1, 1000);
         let page_size = query.page_size.unwrap_or(20).clamp(1, 100); // v10 P2-3 修复：crm 模块统一 clamp(1,100) 防 DoS
 
         let mut q = crm_opportunity::Entity::find();
@@ -90,7 +90,8 @@ impl CrmService {
             .paginate(&*self.db, page_size);
 
         let total = paginator.num_items().await?;
-        let items: Vec<crm_opportunity::Model> = paginator.fetch_page(page.saturating_sub(1)).await?;
+        // 批次 98 P2-A 修复（v5 复审）：page clamp 防 DoS
+        let items: Vec<crm_opportunity::Model> = paginator.fetch_page(page.clamp(1, 1000).saturating_sub(1)).await?;
 
         Ok(serde_json::json!({
             "data": items,

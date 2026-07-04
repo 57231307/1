@@ -189,7 +189,8 @@ pub async fn list_audit_logs(
         .await
         .map_err(|e| AppError::internal(format!("统计审计日志失败: {}", e)))?;
     let logs = paginator
-        .fetch_page(page.saturating_sub(1))
+        // 批次 98 P2-A 修复（v5 复审）：page clamp 防 DoS
+        .fetch_page(page.clamp(1, 1000).saturating_sub(1))
         .await
         .map_err(|e| AppError::internal(format!("查询审计日志失败: {}", e)))?;
 

@@ -43,7 +43,7 @@ pub async fn list_orders(
     let sales_service = SalesService::new(state.db.clone());
 
     let page_req = PageRequest {
-        page: query.page.unwrap_or(1).max(1), // 批次 95 P3-3~8：分页 clamp 防 DoS
+        page: query.page.unwrap_or(1).clamp(1, 1000), // 批次 95 P3-3~8：分页 clamp 防 DoS
         page_size: query.page_size.unwrap_or(10).clamp(1, 100),
     };
 
@@ -380,7 +380,7 @@ pub async fn get_order_history(
         crate::services::order_change_history_service::OrderChangeHistoryService::new(
             state.db.clone(),
         );
-    let page = query.page.unwrap_or(1).max(1); // 批次 95 P3-3~8：分页 clamp 防 DoS
+    let page = query.page.unwrap_or(1).clamp(1, 1000); // 批次 95 P3-3~8：分页 clamp 防 DoS
     let page_size = query.page_size.unwrap_or(20).clamp(1, 100);
 
     let (histories, total) = history_service

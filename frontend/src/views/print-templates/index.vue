@@ -275,8 +275,9 @@ const fetchData = async () => {
     const res = await listPrintTemplates(listQuery)
     list.value = res.data || []
     total.value = res.total || 0
-  } catch (error: any) {
-    ElMessage.error(error.message || '获取数据失败')
+  } catch (error: unknown) {
+    // 批次 98 P2-D 修复（v5 复审）：原 catch (error: any) 改为 unknown + 类型守卫
+    ElMessage.error((error instanceof Error ? error.message : String(error)) || '获取数据失败')
   } finally {
     listLoading.value = false
   }
@@ -360,8 +361,9 @@ const handleSubmit = async () => {
       ElMessage.success('操作成功')
       dialogVisible.value = false
       fetchData()
-    } catch (error: any) {
-      ElMessage.error(error.message || '操作失败')
+    } catch (error: unknown) {
+      // 批次 98 P2-D 修复（v5 复审）：原 catch (error: any) 改为 unknown + 类型守卫
+      ElMessage.error((error instanceof Error ? error.message : String(error)) || '操作失败')
     } finally {
       submitLoading.value = false
     }
@@ -374,8 +376,9 @@ const handleDelete = async (row: PrintTemplate) => {
     await deletePrintTemplate(row.id)
     ElMessage.success('删除成功')
     fetchData()
-  } catch (error: any) {
-    if (error !== 'cancel') ElMessage.error(error.message || '删除失败')
+  } catch (error: unknown) {
+    // 批次 98 P2-D 修复（v5 复审）：原 catch (error: any) 改为 unknown + 类型守卫
+    if (error !== 'cancel') ElMessage.error((error instanceof Error ? error.message : String(error)) || '删除失败')
   }
 }
 
@@ -405,8 +408,9 @@ const handlePreview = async (row: PrintTemplate) => {
     const res = await previewPrintTemplate(row.id)
     // P2-16 修复回归（批次 86）：res.data 是 PrintTemplatePreviewResult，取 html 字段
     previewData.value = res.data?.html || ''
-  } catch (error: any) {
-    ElMessage.error(error.message || '预览失败')
+  } catch (error: unknown) {
+    // 批次 98 P2-D 修复（v5 复审）：原 catch (error: any) 改为 unknown + 类型守卫
+    ElMessage.error((error instanceof Error ? error.message : String(error)) || '预览失败')
     previewData.value = ''
   } finally {
     previewLoading.value = false
@@ -418,8 +422,9 @@ const handlePrint = async () => {
   try {
     await printTemplate(currentPreviewTemplate.value.id, {})
     ElMessage.success('打印任务已发送')
-  } catch (error: any) {
-    ElMessage.error(error.message || '打印失败')
+  } catch (error: unknown) {
+    // 批次 98 P2-D 修复（v5 复审）：原 catch (error: any) 改为 unknown + 类型守卫
+    ElMessage.error((error instanceof Error ? error.message : String(error)) || '打印失败')
   }
 }
 
@@ -429,8 +434,9 @@ const handleSetDefault = async (row: PrintTemplate) => {
     await setDefaultPrintTemplate(row.id)
     ElMessage.success('设置成功')
     fetchData()
-  } catch (error: any) {
-    if (error !== 'cancel') ElMessage.error(error.message || '设置失败')
+  } catch (error: unknown) {
+    // 批次 98 P2-D 修复（v5 复审）：原 catch (error: any) 改为 unknown + 类型守卫
+    if (error !== 'cancel') ElMessage.error((error instanceof Error ? error.message : String(error)) || '设置失败')
   }
 }
 
@@ -439,8 +445,9 @@ const handleCopy = async (row: PrintTemplate) => {
     await copyPrintTemplate(row.id)
     ElMessage.success('复制成功')
     fetchData()
-  } catch (error: any) {
-    ElMessage.error(error.message || '复制失败')
+  } catch (error: unknown) {
+    // 批次 98 P2-D 修复（v5 复审）：原 catch (error: any) 改为 unknown + 类型守卫
+    ElMessage.error((error instanceof Error ? error.message : String(error)) || '复制失败')
   }
 }
 
