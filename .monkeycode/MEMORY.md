@@ -21,7 +21,7 @@
 
 ---
 
-## 当前任务状态（2026-07-04 批次 103 P0+P1+P2-3 修复完成 - 待 push CI 验证）
+## 当前任务状态（2026-07-04 批次 105 已合并 main `bc075ad` - 批次 106 待启动）
 
 ### 🔴 用户新规则（2026-07-04 追加，最高优先级）
 
@@ -36,15 +36,39 @@
 - 所有未真实接入的功能/中间件进行真实接入
 - 所有遇到的错误统一修复
 
-### ⏳ 批次 103 预留 API/占位符功能实现（P0+P1+P2-3 完成 - 待 push CI 验证）
+### ✅ 批次 103 预留 API/占位符功能实现（PR #347，main `b788b11`）
 
-**用户新规则首批修复项**（实现规划：`docs/audits/2026-07-04-batch103-placeholder-impl-plan.md`）：
+**用户新规则首批修复完成**（实现规划：`docs/audits/2026-07-04-batch103-placeholder-impl-plan.md`）：
 - P0-3：user_handler.rs 接入 PasswordPolicyService（is_common_password + contains_username_fragment + strength_feedback_zh）；password_policy_service.rs 移除 strength_feedback_zh 的 dead_code 标注
 - P0-4：purchase_return_service.rs 删除 2 处过时 TODO 注释（user_id 已在批次 59b 透传）
 - P2-3：role_handler.rs update_role/delete_role 添加 clear_admin_role_cache 调用；admin_checker.rs 移除 dead_code 标注
 - P1-7：routes/analytics.rs 删除 api_keys() 旧路由（死代码，前端已切换 api_gateway()）+ 移除 unused import
+- CI clippy 修复（8 个新警告）：删除 api_key_handler.rs 死代码模块 + 删除 ApiKeyService::list_api_keys 死方法 + 移除 unused get_password_feedback import
 
-**下一步**：amend commit → push → 创建 PR → 监控 CI → 合并 → 启动批次 104（search_api.rs 接入 Elasticsearch）
+### ✅ 批次 104 search_api.rs 真实接入 SearchClient（PR #348，main `e0a8672`）
+
+**用户新规则批次 104 完成**：3 个搜索端点从 stub 真实接入 SearchClient
+- P0-1：routes/search_api.rs 3 个 handler 从 stub 真实接入 SearchClient（注入 State<AppState>，调用 search_client.search()，反序列化为对应 Doc 类型，错误处理从 StatusCode 改为 AppError + ApiResponse）
+- P0-1：utils/app_state.rs 新增 search_client: Arc<dyn SearchClient> 字段 + init_search_client() 函数（根据 ELASTICSEARCH_URL 环境变量决定 mock 或 real 客户端）
+- P0-1：search/elastic.rs 移除已接入项的 dead_code 标注（indices / SalesOrderItemDoc / SearchResult / SearchHit / SearchClient trait / SearchError / ElasticClient / real()）
+- 配套：search/mod.rs 仅 re-export 外部实际使用的项；.env.example 新增 ELASTICSEARCH_URL 配置示例
+- 测试：新增 test_search_sales_orders_with_mock_client 端到端测试
+- CI clippy 修复 2 轮（re-export indices / 移除 unused imports）
+
+**设计决策**：采用可降级方案，CI 环境无 ES 时使用 mock 客户端，生产环境通过环境变量切换为真实客户端。`ElasticClient::real()` 仍为 stub，后续批次接入 reqwest 直连 ES REST API。
+
+### ✅ 批次 105 删除 messaging/ 死代码模块（PR #349，main `bc075ad`）
+
+**用户新规则批次 105 完成**：删除 messaging/ 死代码模块（kafka.rs 444 行 + bus.rs 111 行 + mod.rs 8 行）
+- 调研发现：messaging/ 是 P9-7 设计阶段的 trait + mock 占位模块，仅在自身 bus.rs:88 测试中被引用，无任何业务代码使用
+- P11-H2 已用 rskafka 0.5（纯 Rust，无 librdkafka + cmake-build 依赖）在 services/event_kafka.rs 完成真实 Kafka 集成
+- messaging/ 与 services/event_kafka.rs 形成重复实现，根据用户新规则和 project_rules.md 第六节"死代码处理规范"删除
+- lib.rs 移除 `pub mod messaging;` 模块声明，新增注释说明删除原因
+- CI 12 项必检全绿（E2E continue-on-error 非阻塞），Clippy/Rust 单元测试/Rust 后端构建全部通过
+
+**关键决策**：messaging/ 是占位模块而非"未接入功能"，正确处理是删除而非真实接入；真实 Kafka 集成路径是 services/event_kafka.rs（生产路径）
+
+**下一步**：启动批次 106（performance_optimizer 接入/删除 + business_metrics 端点暴露 + operation_log_service 评估）
 
 ### ✅ 批次 102 v6 P3 修复完成（PR #346，main `ed27a6c`）
 
