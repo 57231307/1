@@ -78,6 +78,9 @@ pub mod ar {
     pub const COLLECTION_CONFIRMED: &str = "confirmed";
 
     /// 收款单已取消（ar_collection.status，小写值）
+    ///
+    /// 预留：ar_service.rs 当前未实现收款单取消操作，待后续接入 cancel_collection 方法时使用。
+    #[allow(dead_code)] // TODO(tech-debt): ar_service 接入收款单取消操作后移除
     pub const COLLECTION_CANCELLED: &str = "cancelled";
 
     /// 核销单已完成（ar_reconciliation.reconciliation_status，大写值）
