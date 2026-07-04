@@ -21,7 +21,22 @@
 
 ---
 
-## 当前任务状态（2026-07-04 批次 97 P1 修复完成 - 批次 98 P2 待启动）
+## 当前任务状态（2026-07-04 批次 98 P2 修复完成 - 批次 99 P3 待启动）
+
+### ✅ 批次 98 P2 修复完成（PR #342，main `e7fb8ee`）
+
+**v5 复审 P2 30+ 项全部修复完成**（4 子批 + 3 条 CI 修复）：
+- 子批 A（P2-A 分页 clamp）：35 个 handler 56 处 + 22 个 service 22 处 + 11 个 service offset 11 处 + 3 处特殊位置 + dto/mod.rs `page_clamped()` 方法（page.clamp(1,1000) + page_size.clamp(1,100)）
+- 子批 B（P2-B 金额精度校验）：新建 `utils/validator.rs` 抽取 `validate_amount_range`（含 round_dp(2) 精度校验），4 个 handler 改引用 `crate::utils::validator::validate_amount_range`
+- 子批 C（P2-C 吞错修复）：`system_update_service.rs` 4 处 `let _ = ...` → `if let Err(e) = ... { tracing::warn!(...) }`；`crm/opp.rs` + `department_service.rs`(2) + `product_category_service.rs`(2) 父级校验去掉冗余 `let _ =`
+- 子批 D（P2-D 前端 any 清理）：6 个 API 模块新增显式接口（TierPricingItem/MrpSupplyDetail/BatchImportError/FundAccountStatusType 等）+ Login.vue `catch (error: any)` → `catch (error: unknown)` + 30 个 view 文件 103 处 `catch (error: any)` → `catch (error: unknown)` + 类型守卫
+
+**CI 修复（3 条）**：
+1. build: `financial_analysis_service.rs:68` `financial_indicator::Column::Id` → `financial_analysis::Column::Id`（子代理误改模块名）
+2. clippy: 15 个文件 16 处 `.max(1).min(1000)` → `.clamp(1, 1000)`（clamp-like pattern 强制要求）
+3. clippy: `dto/mod.rs:51` `page_size.max(1).min(100)` → `.clamp(1, 100)` + `validator.rs` 删除未使用的 `validate_quantity_range`（dead_code）
+
+**关键经验**：clippy 对**所有** `.max(a).min(b)` / `.min(a).max(b)` 模式都报警 clamp-like pattern，不只是 `.max(1).min(1000)`。后续修复需扫描所有此类模式统一用 `.clamp(a, b)`。
 
 ### ✅ 批次 97 P1 修复完成（PR #341，main `f55e201`）
 

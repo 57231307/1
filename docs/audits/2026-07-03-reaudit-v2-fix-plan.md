@@ -129,7 +129,7 @@
 | 95 | P3 修复（panic/unwrap/分页clamp/TOCTOU/CLI/前端占位）+ 5 条 CI clippy 修复 | P3 | 20 | ✅ 已完成（main `c9d03cb`，PR #339） |
 | 96 | P0 修复（ArService 真实实现 + 前端 v-permission 补齐 40 处）+ 1 条 CI clippy 修复 | P0 | 17 | ✅ 已完成（main `acac30a`，PR #340） |
 | 97 | P1 修复（v5 复审：并发主键/事件 user_id/金额精度 10 处/中间件真实接入）+ 2 条 CI 修复 | P1 | 16 | ✅ 已完成（main `f55e201`，PR #341） |
-| 98 | P2 修复（v5 复审：分页 clamp 100+处/金额精度校验抽取/吞错改日志/前端 any 清理 113 处） | P2 | 30+ | 🔄 进行中（PR #342，commit `00bca18`） |
+| 98 | P2 修复（v5 复审：分页 clamp 100+处/金额精度校验抽取/吞错改日志/前端 any 清理 113 处）+ 3 条 CI 修复 | P2 | 30+ | ✅ 已完成（main `e7fb8ee`，PR #342） |
 
 ### 批次 98 详细修复项（v5 第五轮复审 P2）
 
