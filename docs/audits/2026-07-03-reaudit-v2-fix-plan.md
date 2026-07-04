@@ -127,6 +127,7 @@
 | 93 | P1 修复（id:Set(0) 推广 + delete TOCTOU） | P1 | 9 | ✅ 已完成（main `980dec0`，PR #337） |
 | 94 | P2 修复（SQL注入+N+1+审计user_id+吞错+占位符） | P2 | 15 | ✅ 已完成（main `b71e7a2`，PR #338） |
 | 95 | P3 修复（panic/unwrap/分页clamp/TOCTOU/CLI/前端占位）+ 5 条 CI clippy 修复 | P3 | 20 | ✅ 已完成（main `c9d03cb`，PR #339） |
+| 96 | P0 修复（ArService 真实实现 + 前端 v-permission 补齐 40 处）+ 1 条 CI clippy 修复 | P0 | 17 | ✅ 已完成（main `acac30a`，PR #340） |
 
 ## 扩展完善清单（2026-07-03 用户追加指令）
 
