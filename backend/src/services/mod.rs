@@ -44,7 +44,6 @@ pub mod inventory_stock_txn;
 // P9-2 拆分：库存子模块
 pub mod stock_ledger;
 pub mod stock_alert;
-pub mod stock_query;
 pub mod product_category_service;
 pub mod product_service;
 pub mod role_permission_service;

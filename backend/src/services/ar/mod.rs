@@ -24,7 +24,6 @@ use crate::utils::error::AppError;
 use crate::utils::number_generator::DocumentNumberGenerator;
 
 pub mod inv;
-pub mod pay;
 pub mod recon;
 pub mod vfy;
 
