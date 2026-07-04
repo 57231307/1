@@ -11,6 +11,10 @@ use crate::utils::app_state::AppState;
 use crate::utils::audit::{self, SecurityEvent};
 use crate::utils::error::AppError;
 use crate::utils::password_validator::{get_password_feedback, validate_password};
+// 批次 103 P0-3 修复：接入 PasswordPolicyService 的 is_common_password / contains_username_fragment / strength_feedback_zh
+use crate::services::auth::password_policy_service::{
+    contains_username_fragment, is_common_password, strength_feedback_zh,
+};
 use crate::utils::response::ApiResponse;
 use axum::{
     extract::{Extension, Path, State},
@@ -40,11 +44,19 @@ async fn require_admin_role(
 }
 
 fn validate_password_strength(password: &str) -> Result<(), ValidationError> {
-    let result = validate_password(password);
+    let mut result = validate_password(password);
+    // 批次 103 P0-3 修复：接入 PasswordPolicyService 的常见密码黑名单检查
+    if is_common_password(password) {
+        result.is_valid = false;
+        result
+            .errors
+            .push("密码不能是常见弱密码（如 password/123456/qwerty 等）".to_string());
+    }
     if result.is_valid {
         Ok(())
     } else {
-        let msg = get_password_feedback(&result);
+        // 批次 103 P0-3 修复：使用 strength_feedback_zh 生成中文反馈
+        let msg = strength_feedback_zh(&result);
         let mut err = ValidationError::new("password_strength");
         err.message = Some(std::borrow::Cow::Owned(msg));
         Err(err)
@@ -529,6 +541,13 @@ pub async fn change_password(
 
     if is_same {
         return Err(AppError::bad_request("新密码不能与原密码相同"));
+    }
+
+    // 批次 103 P0-3 修复：接入 PasswordPolicyService 的用户名片段检查
+    if contains_username_fragment(&req.new_password, &user.username) {
+        return Err(AppError::bad_request(
+            "密码不能包含用户名片段，请更换密码",
+        ));
     }
 
     // 哈希新密码

@@ -40,7 +40,9 @@ static ADMIN_ROLE_CACHE: LazyLock<DashMap<i32, AdminCacheEntry>> = LazyLock::new
 const ADMIN_CACHE_TTL_MINUTES: i64 = 5;
 
 /// 清除管理员角色缓存
-#[allow(dead_code)] // TODO(tech-debt): 角色 CRUD 调用接入后移除
+///
+/// 批次 103 P2-3 修复：已接入 role_handler::update_role / delete_role，移除 dead_code 标注。
+/// 角色更新/删除后必须清理缓存，避免使用过期的 admin 判定结果导致权限错乱。
 pub fn clear_admin_role_cache(role_id: Option<i32>) {
     if let Some(id) = role_id {
         ADMIN_ROLE_CACHE.remove(&id);

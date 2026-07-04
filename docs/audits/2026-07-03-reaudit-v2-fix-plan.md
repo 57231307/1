@@ -133,6 +133,55 @@
 | 99 | P3 修复（v5 复审：占位模块清理 3 处 + dead_code TODO 评估 8 文件 23 处，删除 1 处真死代码）| P3 | 4 | ✅ 已完成（main `4761359`，PR #343） |
 | 100 | P3-A 修复（v5 复审：状态字符串常量化 4 文件 70 处，新增 status.rs 3 模块 14 常量）| P3 | 1 | ✅ 已完成（main `61e2da2`，PR #344） |
 | 101 | v6 P2 修复（customer TOCTOU + purchase_return/receipt 审计 user_id + finance_invoice 状态门）| P2 | 7 | ✅ 已完成（main `835b990`，PR #345） |
+| 102 | v6 P3 修复（状态字符串常量化扩展 66 处 + 错误分类 2 处 + 占位模块清理 + 注释/冗余修复）+ 1 条 CI clippy 修复| P3 | 7 | ✅ 已完成（main `ed27a6c`，PR #346） |
+
+### 批次 102 详细修复项（v6 第六轮复审 P3）
+
+| # | 文件 | 修复 |
+|---|------|------|
+| P3-1 | ar_service.rs（33 处）| ar_collection/ar_reconciliation/ar_reconciliation_item/ar_invoice 状态字符串常量化，引用 status::ar/common/payment |
+| P3-2 | ap_invoice_service.rs（14 处）| invoice_status 全部常量化，引用 status::common/payment/ap_invoice |
+| P3-3 | ap_payment_request_service.rs（10 处）| approval_status 全部常量化，引用 status::common/ap_payment_request |
+| P3-1 | voucher_service.rs（9 处）| voucher.status 全部常量化，引用 status::voucher（小写状态机）|
+| P3-4 | voucher_service.rs（2 处）| 科目不存在 bad_request → not_found（错误分类修复）|
+| P3-5 | stock_ledger.rs | 删除占位模块（MovementType 枚举未被业务引用）+ mod.rs 删除声明 |
+| P3-6 | inventory_stock_query.rs:270 | 修正注释（原注释"当前为 stub 实现"不准确）|
+| P3-7 | report/exp.rs:117 | 删除冗余 `let _ = new_layer;` |
+| 配套 | models/status.rs | 新增 4 模块：ar（6 常量，COLLECTION_CANCELLED 加 dead_code allow）/ ap_invoice（1）/ ap_payment_request（2）/ voucher（4）|
+| 评估 | P3-8/P3-9/P3-10 | SlowQueryRecorder 已接入核心路径；po/receipt.rs 审计 user_id 评估为 P2 纳入批次 103；event_notification_service.rs sender_id 评估为合理（系统通知语义）|
+
+**CI 修复（1 条）**：clippy `constant COLLECTION_CANCELLED is never used` — ar_service 未实现收款单取消操作，加 `#[allow(dead_code)] + TODO(tech-debt)`
+
+### 用户新规则（2026-07-04 追加）
+
+> 对所有预留的 api 及预留的功能/占位符功能/路由进行实现，
+> 对所有未真实接入的功能等需要真实接入，
+> 对所有遇到的错误均进行统一修复，
+> 对所有的功能均需要真实接入。
+
+**执行计划**：批次 103 全面扫描预留 API/占位符功能/未接入功能，制定实现计划；批次 104+ 按计划分批实现。所有 `#[allow(dead_code)] + TODO(tech-debt)` 标记的预留 API 逐个评估并真实接入业务或删除。
+
+### 批次 103 详细修复项（预留 API/占位符功能实现 — P0+P1+P2-3）
+
+实现规划文档：`docs/audits/2026-07-04-batch103-placeholder-impl-plan.md`
+
+| # | 文件 | 修复 |
+|---|------|------|
+| P0-3 | user_handler.rs | 接入 PasswordPolicyService：`validate_password_strength` 增加 `is_common_password` 黑名单检查 + `strength_feedback_zh` 中文反馈；`change_password` 增加 `contains_username_fragment` 用户名片段检查 |
+| P0-3 | password_policy_service.rs | 移除 `strength_feedback_zh` 的 `#[allow(dead_code)]` 标注（已接入 user_handler）|
+| P0-4 | purchase_return_service.rs | 删除 2 处过时 TODO 注释（submit_return/reject_return 的 user_id 已在批次 59b 透传）|
+| P2-3 | role_handler.rs | `update_role` / `delete_role` 成功后调用 `clear_admin_role_cache(Some(id))` 清理缓存，避免 TTL 内使用过期 admin 判定 |
+| P2-3 | admin_checker.rs | 移除 `clear_admin_role_cache` 的 `#[allow(dead_code)]` 标注（已接入 role_handler）|
+| P1-7 | routes/analytics.rs | 删除 `api_keys()` 旧路由（前端已切换到 `api_gateway()`，`routes()` 未挂载 `api_keys()`，为死代码）+ 移除 unused `api_key_handler` import + 修正过时注释 |
+
+**后续批次**（按规划文档执行）：
+- 批次 104：search_api.rs 接入 Elasticsearch（3 个搜索端点）
+- 批次 105：messaging/kafka.rs 接入 rdkafka 真实客户端
+- 批次 106：performance_optimizer 接入/删除 + business_metrics 端点暴露 + operation_log_service 评估
+- 批次 107：cache_service 接入 + color_card 路由挂载
+- 批次 108：ar/recon 路由接入 + webhook handler 实现
+- 批次 109+：P2 项按业务驱动逐项接入
+
 
 ### v6 第六轮复审结果（2026-07-04）
 

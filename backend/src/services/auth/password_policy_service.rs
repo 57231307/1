@@ -178,7 +178,8 @@ pub fn contains_username_fragment(password: &str, username: &str) -> bool {
 }
 
 /// 生成密码强度反馈（多语言友好版）
-#[allow(dead_code)] // TODO(tech-debt): 密码策略模块接入业务后移除
+///
+/// 批次 103 P0-3 修复：已接入 user_handler::validate_password_strength，移除 dead_code 标注
 pub fn strength_feedback_zh(result: &PasswordValidationResult) -> String {
     if result.is_valid {
         format!(
