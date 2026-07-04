@@ -2,6 +2,33 @@
 
 > 重要变更一句话摘要列表。详细历史请查阅 [`.monkeycode/docs/archives/`](file:///workspace/.monkeycode/docs/archives/)。
 
+## 2026-07-04 (批次 97 P1 修复完成)
+
+### 批次 97 完成：P1 修复（16 项）+ 2 条 CI 修复（PR #341，main `f55e201`）
+
+**v5 第五轮复审 P1 修复 — 并发/金额精度/中间件真实接入**：
+
+| # | 修复要点 | 影响文件 |
+|---|---------|---------|
+| P1-1 | voucher_service.rs `id:Set(0)` → `NotSet`（并发主键冲突） | 1 文件 |
+| P1-2 | PaymentCompleted 事件扩展 user_id 字段（替代 mark_as_paid 硬编码 Some(0)） | 6 文件联动 |
+| P1-3 | quotation_approval_service.rs `let _ = instance_id;` 占位修复 | 1 文件 |
+| P1-4~13 | 金额/数量计算补 round_dp（10 处，金额 round_dp(2) / 数量 round_dp(4)） | 10 文件 |
+| P1-14 | csp_middleware 真实挂载到 main.rs（替代 SetResponseHeaderLayer） | 2 文件 |
+| P1-15 | SlowQueryRecorder 接入 inventory_stock_service + SlowQueryMetrics impl 真实委托 | 2 文件 |
+| P1-16 | 删除死字段 rate_limiter + RateLimitStore 类型 + api_gateway.rs 文件 | 3 文件（含 1 删除） |
+
+**CI 修复（2 条）**：
+1. clippy: `unused variable: instance_id` — P1-3 修复后变量未使用，改用 `is_some()` 判断
+2. build: `error[E0599]` — SlowQueryMetrics impl 内 `self.record_slow_query(...)` 找不到方法（record_slow_query 是 Metrics 的方法不是 MetricsService），改为 `self.metrics.record_slow_query(...)` auto-deref Arc<Metrics>
+
+**修复模式总结**：
+- 并发场景 id 主键冲突：DB 自增列使用 `ActiveValue::NotSet` 而非 `Set(0)`
+- 事件扩展字段：枚举字段 + 事件发布透传 + 双向序列化 + 测试更新 全套联动
+- 金额精度：金额类 `round_dp(2)`，数量类 `round_dp(4)`
+- 中间件真实接入：csp_middleware 替代 SetResponseHeaderLayer；SlowQueryRecorder 接入业务调用链
+- 死字段处理：删除 + 删除专用类型 + 删除模块声明（不留 #[allow(dead_code)]）
+
 ## 2026-07-04 (批次 96 P0 修复完成 + v5 第五轮复审启动)
 
 ### 批次 96 完成：P0 修复（17 项）+ 1 条 CI clippy 警告修复（PR #340，main `acac30a`）

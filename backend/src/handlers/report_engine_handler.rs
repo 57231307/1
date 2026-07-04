@@ -79,7 +79,7 @@ pub async fn execute_report(
     Query(query): Query<ExecuteReportQuery>,
 ) -> Result<Json<ApiResponse<ReportDataResponse>>, AppError> {
     let service = ReportEngineService::new(state.db);
-    let _page = query.page.unwrap_or(1).max(1); // 批次 95 P3-3~8：分页 clamp 防 DoS
+    let _page = query.page.unwrap_or(1).clamp(1, 1000); // 批次 95 P3-3~8：分页 clamp 防 DoS
     let _page_size = query.page_size.unwrap_or(50).clamp(1, 100);
 
     let req = crate::services::report::ExecuteReportRequest {
@@ -291,7 +291,7 @@ pub async fn aggregate_report(
         aggregation_field: request.aggregation_field,
     };
 
-    let _page = request.page.unwrap_or(1).max(1); // 批次 95 P3-3~8：分页 clamp 防 DoS
+    let _page = request.page.unwrap_or(1).clamp(1, 1000); // 批次 95 P3-3~8：分页 clamp 防 DoS
     let _page_size = request.page_size.unwrap_or(50).clamp(1, 100);
 
     match service.aggregate_data(aggregate_request).await {

@@ -369,7 +369,7 @@ pub async fn list_scheduled_orders(
         end_date: None,
         date_from: query.date_from,
         date_to: query.date_to,
-        page: query.page.unwrap_or(1).max(1), // 批次 95 P3-3~8：分页 clamp 防 DoS
+        page: query.page.unwrap_or(1).clamp(1, 1000), // 批次 95 P3-3~8：分页 clamp 防 DoS
         page_size: query.page_size.unwrap_or(20).clamp(1, 100),
     };
 
@@ -395,7 +395,7 @@ pub async fn list_scheduled_orders(
     Ok(Json(ApiResponse::success_paginated(
         response,
         total,
-        query.page.unwrap_or(1).max(1), // 批次 95 P3-3~8：分页 clamp 防 DoS
+        query.page.unwrap_or(1).clamp(1, 1000), // 批次 95 P3-3~8：分页 clamp 防 DoS
         query.page_size.unwrap_or(20).clamp(1, 100),
     )))
 }
@@ -432,7 +432,7 @@ pub async fn get_schedule_history(
     Query(query): Query<ScheduleHistoryQuery>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     let service = SchedulingService::new(state.db.clone());
-    let page = query.page.unwrap_or(1).max(1); // 批次 95 P3-3~8：分页 clamp 防 DoS
+    let page = query.page.unwrap_or(1).clamp(1, 1000); // 批次 95 P3-3~8：分页 clamp 防 DoS
     let page_size = query.page_size.unwrap_or(20).clamp(1, 100);
 
     let (items, total) = service.get_schedule_history(page, page_size).await?;

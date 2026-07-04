@@ -86,7 +86,7 @@ pub async fn list_accounts(
     let query_params = crate::services::fund_management_service::FundAccountQueryParams {
         account_type: params.account_type,
         status: params.status,
-        page: params.page.unwrap_or(1).max(1),
+        page: params.page.unwrap_or(1).clamp(1, 1000),
         page_size: params.page_size.unwrap_or(10).clamp(1, 100),
     };
 
@@ -310,7 +310,7 @@ pub async fn list_transfer_records(
             params.from_account_id,
             params.to_account_id,
             params.status,
-            params.page.unwrap_or(1).max(1), // 批次 95 P3-3~8：分页 clamp 防 DoS
+            params.page.unwrap_or(1).clamp(1, 1000), // 批次 95 P3-3~8：分页 clamp 防 DoS
             params.page_size.unwrap_or(20).clamp(1, 100),
         )
         .await?;
