@@ -668,6 +668,50 @@ impl ApInvoiceService {
 
         Ok(summary)
     }
+
+    /// 获取应付统计报表
+    ///
+    /// 批次 133 v9 复审 P1：原 handler get_statistics 返回 "统计报表功能开发中" 占位，
+    /// 现综合调用 get_balance_summary + get_aging_analysis + 按状态分组统计，
+    /// 返回完整统计报表（余额汇总 + 账龄分析 + 状态分布）。
+    pub async fn get_statistics(
+        &self,
+        supplier_id: Option<i32>,
+    ) -> Result<ApInvoiceStatistics, AppError> {
+        // 1. 余额汇总（排除已取消）
+        let balance_summary = self.get_balance_summary(supplier_id).await?;
+
+        // 2. 账龄分析（未付清的应付单）
+        let aging_analysis = self.get_aging_analysis(supplier_id).await?;
+
+        // 3. 按状态分组统计
+        let mut query = ap_invoice::Entity::find();
+        if let Some(sid) = supplier_id {
+            query = query.filter(ap_invoice::Column::SupplierId.eq(sid));
+        }
+        let all_invoices = query.all(&*self.db).await?;
+
+        let mut status_map: std::collections::BTreeMap<String, StatusStatItem> =
+            std::collections::BTreeMap::new();
+        for invoice in all_invoices {
+            let entry = status_map
+                .entry(invoice.invoice_status.clone())
+                .or_insert_with(|| StatusStatItem {
+                    status: invoice.invoice_status.clone(),
+                    invoice_count: 0,
+                    total_amount: Decimal::ZERO,
+                });
+            entry.invoice_count += 1;
+            entry.total_amount += invoice.amount;
+        }
+        let status_distribution: Vec<StatusStatItem> = status_map.into_values().collect();
+
+        Ok(ApInvoiceStatistics {
+            balance_summary,
+            aging_analysis,
+            status_distribution,
+        })
+    }
 }
 
 // =====================================================
@@ -815,6 +859,33 @@ pub struct BalanceSummary {
 
     /// 应付单数量
     pub invoice_count: i64,
+}
+
+/// 应付状态分布项（批次 133 v9 复审 P1）
+#[derive(Debug, Serialize, Deserialize)]
+pub struct StatusStatItem {
+    /// 状态（DRAFT/AUDITED/PARTIAL_PAID/PAID/CANCELLED）
+    pub status: String,
+    /// 该状态下的应付单数量
+    pub invoice_count: i64,
+    /// 该状态下的应付总金额
+    pub total_amount: Decimal,
+}
+
+/// 应付统计报表（批次 133 v9 复审 P1）
+///
+/// 综合 3 个维度的统计：
+/// 1. 余额汇总（balance_summary）：总应付 / 已付 / 未付 / 数量
+/// 2. 账龄分析（aging_analysis）：按账龄区间分组的未付清应付单
+/// 3. 状态分布（status_distribution）：按状态分组的应付单
+#[derive(Debug, Serialize, Deserialize)]
+pub struct ApInvoiceStatistics {
+    /// 余额汇总
+    pub balance_summary: BalanceSummary,
+    /// 账龄分析
+    pub aging_analysis: Vec<AgingAnalysisItem>,
+    /// 状态分布
+    pub status_distribution: Vec<StatusStatItem>,
 }
 
 #[cfg(test)]
