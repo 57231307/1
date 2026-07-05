@@ -470,9 +470,11 @@ impl ImportExportService {
     ///
     /// 批次 127 v8 复审 P2 修复：替代原 list_import_tasks 返回的空列表 vec![]。
     /// 按创建时间倒序返回最近 100 条任务记录。
-    pub async fn list_import_tasks(&self) -> Result<Vec<import_task::Model>, AppError> {
+    pub async fn list_import_tasks(
+        &self,
+    ) -> Result<Vec<crate::models::import_task::Model>, AppError> {
         use crate::models::import_task;
-        use sea_orm::QueryOrder;
+        use sea_orm::{QueryOrder, QuerySelect};
 
         let tasks = import_task::Entity::find()
             .order_by(import_task::Column::CreatedAt, sea_orm::Order::Desc)
