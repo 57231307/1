@@ -224,18 +224,27 @@ fn create_init_router() -> Router<()> {
 }
 
 async fn shutdown_signal() {
+    // 批次 114 P1-5：启动期 signal handler 安装失败改为优雅退出（原 `expect` 在 spawn 任务内 panic）
+    // Ctrl+C 信号处理器安装失败通常意味着运行环境异常（如非 TTY 容器），
+    // 此时进程无法响应 Ctrl+C，但服务自身可继续运行；改为日志 + 优雅退出避免 panic 影响 runtime。
     let ctrl_c = async {
-        tokio::signal::ctrl_c()
-            .await
-            .expect("failed to install Ctrl+C handler");
+        if let Err(e) = tokio::signal::ctrl_c().await {
+            tracing::error!(error = %e, "Ctrl+C 信号监听失败，进程将无法响应中断信号");
+            std::process::exit(1);
+        }
     };
 
     #[cfg(unix)]
     let terminate = async {
-        tokio::signal::unix::signal(tokio::signal::unix::SignalKind::terminate())
-            .expect("failed to install signal handler")
-            .recv()
-            .await;
+        match tokio::signal::unix::signal(tokio::signal::unix::SignalKind::terminate()) {
+            Ok(mut sig) => {
+                sig.recv().await;
+            }
+            Err(e) => {
+                tracing::error!(error = %e, "SIGTERM 信号监听失败，进程将无法响应终止信号");
+                std::process::exit(1);
+            }
+        }
     };
 
     #[cfg(not(unix))]

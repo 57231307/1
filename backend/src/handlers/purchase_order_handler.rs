@@ -165,7 +165,8 @@ pub async fn create_order(
 
         let amount = order.total_amount.to_string();
 
-        let _ = event_service
+        // 批次 114 P1-6：通知发送失败改 warn 日志（原 `let _ =` 静默吞错）
+        if let Err(e) = event_service
             .notify_purchase_order_created(
                 user_id,
                 &order.order_no,
@@ -173,7 +174,10 @@ pub async fn create_order(
                 &supplier_name,
                 &amount,
             )
-            .await;
+            .await
+        {
+            tracing::warn!(error = %e, order_id = order.id, "采购订单创建通知发送失败");
+        }
     }
 
     Ok(Json(ApiResponse::success_with_message(
@@ -267,7 +271,8 @@ pub async fn reject_order(
 
     // 发送审批拒绝通知
     if let Some(ref event_service) = state.event_notification_service {
-        let _ = event_service
+        // 批次 114 P1-6：通知发送失败改 warn 日志（原 `let _ =` 静默吞错）
+        if let Err(e) = event_service
             .notify_approval_result(
                 order.created_by,
                 &order.order_no,
@@ -275,7 +280,10 @@ pub async fn reject_order(
                 &auth.username,
                 Some(&req.reason),
             )
-            .await;
+            .await
+        {
+            tracing::warn!(error = %e, order_id = id, "采购订单审批拒绝通知发送失败");
+        }
     }
 
     Ok(Json(ApiResponse::success_with_message(

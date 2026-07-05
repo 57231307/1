@@ -154,7 +154,8 @@ pub async fn batch_assign(
                 {
                     Ok(_) => {
                         // 记录分配历史
-                        let _ = history_service
+                        // 批次 114 P1-6：历史记录失败改 warn 日志（原 `let _ =` 静默吞错）
+                        if let Err(e) = history_service
                             .create(
                                 auth.user_id,
                                 &auth.username,
@@ -171,7 +172,10 @@ pub async fn batch_assign(
                                     notes: req.notes.clone(),
                                 },
                             )
-                            .await;
+                            .await
+                        {
+                            tracing::warn!(error = %e, lead_id, "客户分配历史记录失败");
+                        }
 
                         assigned_count += 1;
                     }
