@@ -13,7 +13,7 @@
 
 use chrono::Datelike;
 use rust_decimal::Decimal;
-use sea_orm::{ConnectionTrait, DatabaseConnection, FromQueryResult, Statement};
+use sea_orm::{DatabaseConnection, FromQueryResult, Statement};
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 
@@ -634,7 +634,7 @@ impl BiAnalysisService {
                    AND to_char(order_date, 'YYYY') = $3
                    AND to_char(order_date, 'MM') = $2) as last_year
             "#,
-            [this_year.into(), month.into(), last_year.into()],
+            [this_year.clone().into(), month.clone().into(), last_year.into()],
         );
         let yoy_row: Option<YoYRow> = YoYRow::find_by_statement(yoy_stmt)
             .one(&*self.db)
