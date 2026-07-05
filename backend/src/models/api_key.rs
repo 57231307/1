@@ -18,6 +18,8 @@ pub struct Model {
     pub last_used_at: Option<DateTime<Utc>>,
     pub expires_at: Option<DateTime<Utc>>,
     pub is_active: bool,
+    /// 批次 112 P1-9：API 密钥创建者用户 ID（migration m0039 新增）
+    pub created_by: Option<i32>,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
 }

@@ -33,12 +33,15 @@ impl ApiKeyService {
     }
 
     /// 创建 API 密钥
+    ///
+    /// 批次 112 P1-9：新增 created_by 参数，注入真实创建者 user_id（原表无此列，handler 传 0 占位）
     pub async fn create_api_key(
         &self,
         name: &str,
         permissions: Option<&str>,
         rate_limit: i32,
         expires_days: Option<i64>,
+        created_by: i32,
     ) -> Result<(api_key::Model, String), AppError> {
         let plain_key = Self::generate_api_key();
         let key_hash = Self::hash_api_key(&plain_key);
@@ -56,6 +59,8 @@ impl ApiKeyService {
             last_used_at: Set(None),
             expires_at: Set(expires_at),
             is_active: Set(true),
+            // 批次 112 P1-9：持久化真实创建者 user_id
+            created_by: Set(Some(created_by)),
             created_at: Set(now),
             updated_at: Set(now),
             ..Default::default()
@@ -165,6 +170,8 @@ impl ApiKeyService {
         &self,
         id: i32,
         cache: Option<&AppCache>,
+        // 批次 112 P1-9：新增 regenerated_by 参数，更新 created_by 为重新生成操作者
+        regenerated_by: i32,
     ) -> Result<(api_key::Model, String), AppError> {
         let key = ApiKey::find_by_id(id)
             .one(self.db.as_ref())
@@ -190,6 +197,8 @@ impl ApiKeyService {
         active_model.key_hash = Set(key_hash);
         active_model.key_prefix = Set(key_prefix);
         active_model.is_active = Set(true);
+        // 批次 112 P1-9：重新生成时更新 created_by 为操作者（语义：新密钥的创建者）
+        active_model.created_by = Set(Some(regenerated_by));
         active_model.updated_at = Set(Utc::now());
 
         let model = active_model.update(self.db.as_ref()).await?;
