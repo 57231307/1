@@ -25,10 +25,18 @@ pub enum AlertType {
     /// 低于下限（可用量 < 补货点）
     LowStock,
     /// 高于上限
+    ///
+    /// TODO(tech-debt): inventory_stocks 表补充 max_stock_point 字段后接入
+    /// compute_alert_type 业务，移除 allow(dead_code)。
+    #[allow(dead_code)]
     OverStock,
     /// 即将过期（expiry_date 距今 ≤ 30 天）
     Expiring,
     /// 滞销
+    ///
+    /// TODO(tech-debt): inventory_stocks 表补充 last_movement_date 阈值字段后
+    /// 接入 compute_alert_type 业务，移除 allow(dead_code)。
+    #[allow(dead_code)]
     SlowMoving,
     /// 差异（库存状态非"正常"）
     Discrepancy,
