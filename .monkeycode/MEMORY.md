@@ -41,7 +41,7 @@
 
 ---
 
-## 二、当前任务状态（2026-07-05 批次 126 完成 - v8 复审 P2 print_handler 静态配置化 + inventory_stock_query alert_type 派生计算，继续 v8 复审 P2 剩余项）
+## 二、当前任务状态（2026-07-05 批次 127 完成 - v8 复审 P2 import_export_handler 接入 import_tasks 表，继续 v8 复审 P2 剩余项）
 
 > 用户最高优先级规则已在「一、规则 0」固化，本节仅记录修复进度。
 
@@ -118,6 +118,7 @@ v7 复审 P0/P1/P2 项全部修复完成（P0 4 项 + P1 10 项 + P2 13 项 = 27
 | 124 | #368 | `bbdf267` | v8 P1 SearchSyncer 接入 customer_service：PG→ES 写入同步（create/update/delete 事务提交后调用 sync_customer，最终一致性策略） | ✅ |
 | 125 | #369 | `c4a269f` | v8 P1 SearchSyncer 接入 sales_order_service + product_service：PG→ES 写入同步（含 Decimal→f64 转换 + 硬删除 ES 文档删除 + start_event_listener 签名扩展） | ✅ |
 | 126 | #370 | `2674df1` | v8 P2 print_handler 静态配置化（6 种内置打印模板）+ inventory_stock_query alert_type 派生计算（discrepancy/out_of_stock/low_stock/expiring/normal） | ✅ |
+| 127 | #371 | `66cbe81` | v8 P2 import_export_handler 接入 import_tasks 表：list_import_tasks 真实查询 + import_csv/import_excel 创建+更新任务记录 | ✅ |
 
 **批次 121 修复明细**：
 - 删除 event_kafka.rs 中 KafkaEventEnvelope struct + from_event + into_event（74 行，零业务调用方）
@@ -207,12 +208,34 @@ v7 复审 P0/P1/P2 项全部修复完成（P0 4 项 + P1 10 项 + P2 13 项 = 27
   - alert_type 派生计算基于库存数量/补货点/过期日期/库存状态
   - TODO(tech-debt): OverStock（高于上限）和 SlowMoving（滞销）暂未实现，因 inventory_stocks 表无 max_stock_point / last_movement_date 阈值字段，后续迭代补充字段后再接入
 
+**批次 127 修复明细**：
+- 新增 migration `m0041_create_import_tasks` + SQL：创建 import_tasks 表（id/import_type/status/total_rows/imported_rows/failed_rows/user_id/created_at/updated_at）+ 2 个索引（created_at DESC / user_id）
+- 新增 `models/import_task.rs` SeaORM entity model，在 `models/mod.rs` 注册
+- `services/import_export_service.rs`：ImportExportService 新增 3 个 task 管理方法
+  - `create_import_task(import_type, total_rows, user_id) -> i32`：导入前创建任务记录（status=running）
+  - `update_import_task(task_id, &ImportResult)`：导入完成更新 imported_rows/failed_rows/status（success/failed/partial）
+  - `list_import_tasks() -> Vec<import_task::Model>`：按 created_at DESC 倒序返回最近 100 条
+- `handlers/import_export_handler.rs`（3 处修改）：
+  - `import_csv`：解析 CSV 后 create_import_task，验证失败/导入完成两条路径均 update_import_task（tracing::warn! 降级不阻断）
+  - `import_excel`：同 import_csv 模式
+  - `list_import_tasks`：从 `vec![]` 占位改为调用 service.list_import_tasks() 真实查询 + Model→ImportTaskItem DTO 映射（i64→u64 安全转换，DateTime→RFC3339）
+- **状态判定规则**：failed==0→success；imported==0→failed；其他→partial
+- **CI 修复**：首次推送 3 个错误
+  - E0433: list_import_tasks 签名使用 import_task::Model 但 use 在函数体内 → 改用全路径 `crate::models::import_task::Model`
+  - E0282: handler 中 tasks 类型推导失败（级联错误）→ 修复 E0433 后自动解决
+  - E0599: `.limit(100)` 方法未找到 → 函数体内 `use sea_orm::{QueryOrder, QuerySelect}`
+- **设计决策**：
+  - task 创建时机：解析 CSV/Excel 后、验证前（确保验证失败也落库一条记录）
+  - task 更新失败不阻断主流程（仅 tracing::warn!），保证用户得到原始导入响应
+  - total_rows = 解析后的实际行数（不含表头），imported_rows/failed_rows 由 ImportResult 提供
+  - 限制 100 条记录避免列表过大（按 created_at DESC 倒序）
+
 ### 下一步：继续 v8 复审 P2 项修复
 
-按用户自动推进指令，继续处理 v8 复审剩余 P2 项（P1 全部完成 ✅，P2 已完成 2/5）：
+按用户自动推进指令，继续处理 v8 复审剩余 P2 项（P1 全部完成 ✅，P2 已完成 3/5）：
 - ✅ P2：print_handler 空列表占位真实接入（批次 126，静态配置化 6 种内置模板）
 - ✅ P2：inventory_stock_query alert_type 硬编码（批次 126，派生计算 discrepancy/out_of_stock/low_stock/expiring/normal）
-- ⏳ P2：import_export_handler list_import_tasks 空列表占位（需新建 import_tasks 表，下批次处理）
+- ✅ P2：import_export_handler list_import_tasks 空列表占位（批次 127，新建 import_tasks 表 + handler 真实接入）
 - ⏳ P2：report_enhanced_handler 硬编码字段定义
 - ⏳ P2：financial_analysis_handler 假执行状态
 

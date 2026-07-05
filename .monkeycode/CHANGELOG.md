@@ -6,6 +6,36 @@
 
 ---
 
+## 2026-07-05 (批次 127 v8 复审 P2 import_export_handler 接入 import_tasks 表完成)
+
+### 批次 127：v8 复审 P2 修复 — import_export_handler 接入 import_tasks 表
+
+**PR #371，main commit `66cbe81`，8 文件 +267 -14 行**
+
+| 修复项 | 内容 |
+|--------|------|
+| 新建 import_tasks 表 | migration m0041 + SQL（id/import_type/status/total_rows/imported_rows/failed_rows/user_id/created_at/updated_at）+ 2 索引 |
+| 新建 import_task entity | SeaORM model + models/mod.rs 注册 |
+| create_import_task 方法 | 导入前创建任务记录（status=running），返回 task_id |
+| update_import_task 方法 | 导入完成更新 imported_rows/failed_rows/status（success/failed/partial） |
+| list_import_tasks 方法 | 按 created_at DESC 倒序返回最近 100 条任务记录 |
+| import_csv handler | 解析 CSV 后 create_import_task，验证失败/导入完成两条路径均 update_import_task |
+| import_excel handler | 同 import_csv 模式 |
+| list_import_tasks handler | 从 vec![] 占位改为真实查询 + Model→ImportTaskItem DTO 映射 |
+
+**CI 修复**（首次推送 3 错误）：
+- E0433: list_import_tasks 签名使用 import_task::Model 但 use 在函数体内 → 改用全路径 `crate::models::import_task::Model`
+- E0282: handler 中 tasks 类型推导失败（级联错误）→ 修复 E0433 后自动解决
+- E0599: `.limit(100)` 方法未找到 → 函数体内 `use sea_orm::{QueryOrder, QuerySelect}`
+
+**关键决策**：
+- task 创建时机：解析后、验证前（确保验证失败也落库一条记录）
+- task 更新失败不阻断主流程（仅 tracing::warn!），保证用户得到原始导入响应
+- 状态判定：failed==0→success；imported==0→failed；其他→partial
+- 限制 100 条记录避免列表过大
+
+---
+
 ## 2026-07-05 (批次 126 v8 复审 P2 print_handler 静态配置化 + inventory_stock_query alert_type 派生计算完成)
 
 ### 批次 126：v8 复审 P2 修复 — print_handler 静态配置化 + inventory_stock_query alert_type 派生计算
