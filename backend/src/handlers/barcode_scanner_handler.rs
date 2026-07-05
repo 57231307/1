@@ -39,6 +39,9 @@ pub struct ScanInventoryParams {
 pub struct ScanHistoryQuery {
     pub page: Option<u64>,
     pub page_size: Option<u64>,
+    // 批次 113 P1-7：移除 scan_type 占位符（inventory_piece 表无 scan_type 列，无法直接 filter）
+    // scan_type 字段保留在 ScanHistoryQuery 中维持前端 API 契约，后续若新增 inventory_piece.scan_type 列再接入 filter
+    #[allow(dead_code)] // TODO(tech-debt): 后续 inventory_piece.scan_type 列落地后接入 filter
     pub scan_type: Option<String>,
     pub result: Option<String>,
 }

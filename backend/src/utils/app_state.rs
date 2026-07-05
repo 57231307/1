@@ -316,6 +316,9 @@ impl Default for AppState {
 ///
 /// 设计原因：避免强制依赖 Elasticsearch 服务器，CI 环境无 ES 时仍可运行。
 /// 生产环境通过环境变量切换为真实客户端。
+///
+/// 批次 123 v8 复审 P1 修复：原 real() 为 stub（返回 mock storage），
+/// 现已真实实现 reqwest 直连 ES REST API。索引初始化在 main.rs 启动时调用 ensure_indices()。
 fn init_search_client() -> Arc<dyn SearchClient> {
     let es_url = std::env::var("ELASTICSEARCH_URL").unwrap_or_default();
     if es_url.is_empty() {
