@@ -519,7 +519,8 @@ impl InventoryTransferService {
         &self,
         transfer_id: i32,
     ) -> Result<Vec<InventoryTransferItemDetail>, AppError> {
-        let _ = self.get_transfer_detail(transfer_id).await?;
+        // 批次 113 P1-8：移除 `let _ =` 显式丢弃，直接表达式语句校验存在性
+        self.get_transfer_detail(transfer_id).await?;
         let items = InventoryTransferItemEntity::find()
             .filter(inventory_transfer_item::Column::TransferId.eq(transfer_id))
             .order_by(inventory_transfer_item::Column::Id, Order::Asc)

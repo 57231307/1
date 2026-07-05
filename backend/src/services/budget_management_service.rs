@@ -538,7 +538,8 @@ impl BudgetManagementService {
         let mut plan_active: crate::models::budget_plan::ActiveModel = plan.clone().into();
         let current_amount = plan.total_amount;
         plan_active.total_amount = sea_orm::Set(current_amount + req.adjust_amount);
-        let _ = plan_active.update(&txn).await?;
+        // 批次 113 P1-8：移除 `let _ =` 显式丢弃，直接表达式语句执行 update
+        plan_active.update(&txn).await?;
 
         txn.commit().await?;
         Ok(adjustment)

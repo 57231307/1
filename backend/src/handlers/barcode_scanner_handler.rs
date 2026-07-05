@@ -145,9 +145,8 @@ pub async fn scan_history(
 
     let mut query = inventory_piece::Entity::find();
 
-    if let Some(scan_type) = &params.scan_type {
-        let _ = scan_type; // 占位符，保留过滤字段以便后续扩展
-    }
+    // 批次 113 P1-7：移除 scan_type 占位符（inventory_piece 表无 scan_type 列，无法直接 filter）
+    // scan_type 字段保留在 ScanHistoryQuery 中维持前端 API 契约，后续若新增 inventory_piece.scan_type 列再接入 filter
 
     if let Some(result) = &params.result {
         match result.as_str() {
