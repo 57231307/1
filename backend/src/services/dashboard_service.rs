@@ -2,8 +2,8 @@ use chrono::{DateTime, Utc};
 use rust_decimal::Decimal;
 use sea_orm::prelude::*;
 use sea_orm::{
-    sea_query::Expr, ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter,
-    QueryOrder, QuerySelect,
+    sea_query::Expr, ColumnTrait, DatabaseConnection, EntityTrait, FromQueryResult, QueryFilter,
+    QueryOrder, QuerySelect, Statement,
 };
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -13,6 +13,16 @@ use std::time::Duration;
 use crate::models::{inventory_stock, product, sales_order, warehouse};
 use crate::utils::cache::{AppCache, Cache};
 use crate::utils::error::AppError;
+
+// ==================== 批次 134 v9 P1 修复：销售统计 raw SQL 中间结构 ====================
+// 原 by_customer/by_product/by_salesperson 为 vec![] 占位，现使用 raw SQL 真实聚合。
+
+#[derive(Debug, FromQueryResult)]
+struct SalesByDimensionRow {
+    name: String,
+    total_amount: Option<Decimal>,
+    order_count: Option<i64>,
+}
 
 /// 仪表板概览数据
 #[derive(Debug, Serialize, Clone, Deserialize)]
@@ -208,6 +218,15 @@ impl DashboardService {
     }
 
     /// 获取销售统计数据
+    ///
+    /// 批次 134 v9 P1 修复：原 weekly_sales/monthly_sales/by_customer/by_product/by_salesperson
+    /// 5 个字段为 vec![] 占位，现真实聚合查询：
+    /// - daily_sales: 按日分组（保留原有 SeaORM 查询）
+    /// - weekly_sales: 按日聚合后内存派生为 ISO 周（IYYY-IW）
+    /// - monthly_sales: 按日聚合后内存派生为年月（YYYY-MM）
+    /// - by_customer: raw SQL 关联 customers 表按 customer_id 分组
+    /// - by_product: raw SQL 关联 sales_order_items + products 表按 product_id 分组
+    /// - by_salesperson: raw SQL 关联 users 表按 created_by 分组
     pub async fn get_sales_statistics(
         &self,
         start_date: Option<DateTime<Utc>>,
@@ -241,8 +260,7 @@ impl DashboardService {
             query = query.filter(sales_order::Column::OrderDate.lte(end.date_naive()));
         }
 
-        // 生成 daily_sales 示例（实际需 GROUP BY）
-        // 简化起见，按日分组聚合金额
+        // 1. daily_sales：按日分组聚合金额（保留原有 SeaORM 查询）
         let daily_results = query
             .clone()
             .select_only()
@@ -254,21 +272,63 @@ impl DashboardService {
             .all(self.db.as_ref())
             .await?;
 
-        let daily_sales = daily_results
-            .into_iter()
-            .map(|(date, amt)| SalesDataPoint {
+        // 1.1 daily_sales 列表 + 同时累计 weekly/monthly 聚合
+        let mut daily_sales: Vec<SalesDataPoint> = Vec::with_capacity(daily_results.len());
+        let mut weekly_map: std::collections::BTreeMap<String, Decimal> =
+            std::collections::BTreeMap::new();
+        let mut monthly_map: std::collections::BTreeMap<String, Decimal> =
+            std::collections::BTreeMap::new();
+
+        for (date, amt) in daily_results {
+            let amount = amt.unwrap_or(Decimal::ZERO);
+            daily_sales.push(SalesDataPoint {
                 date: date.to_string(),
-                amount: amt.unwrap_or(Decimal::ZERO).to_string(),
+                amount: amount.to_string(),
+            });
+
+            // 派生 ISO 周（IYYY-IW），使用 chrono IsoWeek
+            let iso = date.iso_week();
+            let week_key = format!("{}-{:02}", iso.year(), iso.week());
+            *weekly_map.entry(week_key).or_insert_with(|| Decimal::ZERO) += amount;
+
+            // 派生年月（YYYY-MM）
+            let month_key = format!("{}-{:02}", date.year(), date.month());
+            *monthly_map.entry(month_key).or_insert_with(|| Decimal::ZERO) += amount;
+        }
+
+        let weekly_sales: Vec<SalesDataPoint> = weekly_map
+            .into_iter()
+            .map(|(period, amount)| SalesDataPoint {
+                date: period,
+                amount: amount.to_string(),
             })
             .collect();
 
+        let monthly_sales: Vec<SalesDataPoint> = monthly_map
+            .into_iter()
+            .map(|(period, amount)| SalesDataPoint {
+                date: period,
+                amount: amount.to_string(),
+            })
+            .collect();
+
+        // 2. by_customer：按 customer_id 分组，关联 customers 表获取 customer_name
+        let by_customer = self.query_sales_by_dimension(start_date, end_date, "customer").await?;
+
+        // 3. by_product：按 product_id 分组，关联 sales_order_items + products 表
+        let by_product = self.query_sales_by_dimension(start_date, end_date, "product").await?;
+
+        // 4. by_salesperson：按 created_by 分组，关联 users 表获取 username
+        let by_salesperson =
+            self.query_sales_by_dimension(start_date, end_date, "salesperson").await?;
+
         let statistics = SalesStatistics {
             daily_sales,
-            weekly_sales: vec![],
-            monthly_sales: vec![],
-            by_customer: vec![],
-            by_product: vec![],
-            by_salesperson: vec![],
+            weekly_sales,
+            monthly_sales,
+            by_customer,
+            by_product,
+            by_salesperson,
         };
 
         // 缓存结果，有效期5分钟
@@ -281,6 +341,94 @@ impl DashboardService {
         }
 
         Ok(statistics)
+    }
+
+    /// 按维度（customer/product/salesperson）聚合销售统计
+    ///
+    /// 批次 134 v9 P1 修复：替代原 vec![] 占位。
+    /// 通过 raw SQL 关联对应主数据表，按维度字段分组聚合销售额与订单数。
+    /// 排除 CANCELLED/DRAFT 状态订单。
+    async fn query_sales_by_dimension(
+        &self,
+        start_date: Option<DateTime<Utc>>,
+        end_date: Option<DateTime<Utc>>,
+        dimension: &str,
+    ) -> Result<Vec<SalesByDimension>, AppError> {
+        // 动态拼接 SQL（dimension 为代码内常量，非用户输入，不存在 SQL 注入风险）
+        let sql = match dimension {
+            "customer" => r#"
+                SELECT
+                    COALESCE(c.customer_name, '未关联客户') as name,
+                    COALESCE(SUM(s.total_amount), 0) as total_amount,
+                    COUNT(s.id) as order_count
+                FROM sales_orders s
+                LEFT JOIN customers c ON c.id = s.customer_id
+                WHERE s.status NOT IN ('CANCELLED', 'DRAFT')
+            "#
+            .to_string(),
+            "product" => r#"
+                SELECT
+                    COALESCE(p.name, '未关联产品') as name,
+                    COALESCE(SUM(si.total_amount), 0) as total_amount,
+                    COUNT(DISTINCT si.order_id) as order_count
+                FROM sales_order_items si
+                INNER JOIN sales_orders s ON s.id = si.order_id
+                    AND s.status NOT IN ('CANCELLED', 'DRAFT')
+                LEFT JOIN products p ON p.id = si.product_id
+                WHERE 1=1
+            "#
+            .to_string(),
+            "salesperson" => r#"
+                SELECT
+                    COALESCE(u.username, '未关联销售员') as name,
+                    COALESCE(SUM(s.total_amount), 0) as total_amount,
+                    COUNT(s.id) as order_count
+                FROM sales_orders s
+                LEFT JOIN users u ON u.id = s.created_by
+                WHERE s.status NOT IN ('CANCELLED', 'DRAFT')
+            "#
+            .to_string(),
+            _ => return Ok(vec![]),
+        };
+
+        // 追加日期过滤与分组排序
+        let mut sql = sql;
+        let mut params: Vec<sea_orm::Value> = Vec::new();
+        let mut param_idx = 1;
+
+        if let Some(start) = start_date {
+            sql.push_str(&format!(" AND s.order_date >= ${} ", param_idx));
+            params.push(start.naive_utc().into());
+            param_idx += 1;
+        }
+        if let Some(end) = end_date {
+            sql.push_str(&format!(" AND s.order_date <= ${} ", param_idx));
+            params.push(end.naive_utc().into());
+            param_idx += 1;
+        }
+
+        sql.push_str(" GROUP BY name ORDER BY total_amount DESC LIMIT 20");
+
+        let stmt = Statement::from_sql_and_values(
+            sea_orm::DatabaseBackend::Postgres,
+            sql,
+            params,
+        );
+
+        let rows = SalesByDimensionRow::find_by_statement(stmt)
+            .all(self.db.as_ref())
+            .await?;
+
+        let results = rows
+            .into_iter()
+            .map(|r| SalesByDimension {
+                name: r.name,
+                amount: r.total_amount.unwrap_or(Decimal::ZERO).to_string(),
+                count: r.order_count.unwrap_or(0),
+            })
+            .collect();
+
+        Ok(results)
     }
 
     /// 获取库存统计数据
