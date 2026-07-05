@@ -4,8 +4,18 @@
 //! 可配置为使用 SendGrid、阿里云邮件推送、腾讯云邮件等服务
 
 use crate::utils::error::AppError;
+use base64::engine::general_purpose::STANDARD as BASE64_STANDARD;
+use base64::Engine;
+use chrono::Utc;
+use hmac::{Hmac, Mac};
+use percent_encoding::{utf8_percent_encode, AsciiSet, CONTROLS};
 use serde::{Deserialize, Serialize};
+use sha1::Sha1;
+use sha2::{Digest, Sha256};
 use std::collections::HashMap;
+
+type HmacSha1 = Hmac<Sha1>;
+type HmacSha256 = Hmac<Sha256>;
 
 /// HTML 特殊字符转义，防止 XSS 攻击
 fn escape_html(input: &str) -> String {
@@ -26,6 +36,45 @@ fn escape_html(input: &str) -> String {
 
 /// SendGrid 官方 API URL（硬编码，防止环境变量注入导致 API Key 泄露）
 const SENDGRID_API_URL: &str = "https://api.sendgrid.com/v3/mail/send";
+
+/// 阿里云邮件推送 DirectMail API 端点（硬编码，防止环境变量注入）
+const ALIYUN_DM_API_URL: &str = "https://dm.aliyuncs.com/";
+
+/// 腾讯云邮件服务 SES API 端点（硬编码，防止环境变量注入）
+const TENCENT_SES_API_URL: &str = "https://ses.tencentcloudapi.com/";
+
+/// 阿里云 RPC V1 签名需要二次编码的字符集
+/// 规则：RFC 3986 保留字符 + 部分阿里云特殊要求
+const ALIYUN_SIGNATURE_ENCODE_SET: &AsciiSet = &CONTROLS
+    .add(b' ')
+    .add(b'!')
+    .add(b'"')
+    .add(b'#')
+    .add(b'$')
+    .add(b'%')
+    .add(b'&')
+    .add(b'\'')
+    .add(b'(')
+    .add(b')')
+    .add(b'*')
+    .add(b'+')
+    .add(b',')
+    .add(b'/')
+    .add(b':')
+    .add(b';')
+    .add(b'<')
+    .add(b'=')
+    .add(b'>')
+    .add(b'?')
+    .add(b'@')
+    .add(b'[')
+    .add(b'\\')
+    .add(b']')
+    .add(b'^')
+    .add(b'`')
+    .add(b'{')
+    .add(b'|')
+    .add(b'}');
 
 /// 邮件配置
 #[derive(Debug, Clone, Deserialize)]
@@ -294,19 +343,319 @@ impl EmailService {
     }
 
     /// 通过阿里云邮件推送发送邮件
-    async fn send_via_aliyun(&self, _message: EmailMessage) -> Result<(), AppError> {
-        // 阿里云邮件推送实现
-        // 参考文档：https://help.aliyun.com/document_detail/29434.html
-        // 由于需要签名算法，这里提供框架，具体实现根据实际需求补充
-        tracing::info!("阿里云邮件推送功能待实现，请先配置 SendGrid 或其他邮件服务");
-        Err(AppError::business("阿里云邮件推送功能待实现".to_string()))
+    ///
+    /// 真实接入阿里云 DirectMail SingleSendMail API：
+    /// - API 端点：https://dm.aliyuncs.com/
+    /// - 签名算法：RPC V1（HMAC-SHA1 + Base64）
+    /// - 文档：https://help.aliyun.com/document_detail/29434.html
+    ///
+    /// api_key 格式：`<AccessKeyId>:<AccessKeySecret>`，冒号分隔两部分。
+    async fn send_via_aliyun(&self, message: EmailMessage) -> Result<(), AppError> {
+        // 解析 api_key：格式为 "<AccessKeyId>:<AccessKeySecret>"
+        let (_, access_key_secret) = self
+            .split_aliyun_credentials()
+            .ok_or_else(|| AppError::business("阿里云邮件配置 api_key 格式错误，应为 <AccessKeyId>:<AccessKeySecret>"))?;
+
+        // 构造业务参数
+        let to_address = message.to.join(",");
+        let mut params: Vec<(&str, String)> = vec![
+            ("Action", "SingleSendMail".to_string()),
+            ("AccountName", self.config.from_email.clone()),
+            ("AddressType", "1".to_string()),
+            ("ReplyToAddress", "false".to_string()),
+            ("ToAddress", to_address),
+            ("Subject", message.subject.clone()),
+            ("FromAlias", self.config.from_name.clone()),
+        ];
+        if let Some(html) = message.html_content {
+            params.push(("HtmlBody", html));
+        }
+        if let Some(text) = message.text_content {
+            params.push(("TextBody", text));
+        }
+
+        // 计算签名并构造完整请求 URL
+        let signature = self.aliyun_sign(&params, &access_key_secret)?;
+        let mut query = String::new();
+        for (k, v) in &params {
+            if !query.is_empty() {
+                query.push('&');
+            }
+            query.push_str(k);
+            query.push('=');
+            query.push_str(&utf8_percent_encode(v, ALIYUN_SIGNATURE_ENCODE_SET).to_string());
+        }
+        query.push_str(&format!(
+            "&Signature={}",
+            utf8_percent_encode(&signature, ALIYUN_SIGNATURE_ENCODE_SET)
+        ));
+
+        let url = format!("{}?{}", ALIYUN_DM_API_URL, query);
+
+        let response = self
+            .http_client
+            .get(&url)
+            .send()
+            .await
+            .map_err(|e| AppError::internal(format!("阿里云邮件发送请求失败: {}", e)))?;
+
+        let status = response.status();
+        let body = response.text().await.unwrap_or_else(|_| "未知错误".to_string());
+
+        if status.is_success() {
+            Ok(())
+        } else {
+            Err(AppError::internal(format!(
+                "阿里云邮件发送失败: HTTP {} - {}",
+                status, body
+            )))
+        }
     }
 
     /// 通过腾讯云邮件发送
-    async fn send_via_tencent(&self, _message: EmailMessage) -> Result<(), AppError> {
-        // 腾讯云邮件服务实现
-        tracing::info!("腾讯云邮件功能待实现，请先配置 SendGrid 或其他邮件服务");
-        Err(AppError::business("腾讯云邮件功能待实现"))
+    ///
+    /// 真实接入腾讯云邮件服务 SES SendMail API：
+    /// - API 端点：https://ses.tencentcloudapi.com/
+    /// - 签名算法：TC3-HMAC-SHA256（V3 签名）
+    /// - 文档：https://cloud.tencent.com/document/product/1288/51034
+    ///
+    /// api_key 格式：`<SecretId>:<SecretKey>`，冒号分隔两部分。
+    async fn send_via_tencent(&self, message: EmailMessage) -> Result<(), AppError> {
+        // 解析 api_key：格式为 "<SecretId>:<SecretKey>"
+        let (secret_id, secret_key) = self
+            .split_tencent_credentials()
+            .ok_or_else(|| AppError::business("腾讯云邮件配置 api_key 格式错误，应为 <SecretId>:<SecretKey>"))?;
+
+        // 构造请求体（SendMail API 入参）
+        #[derive(Serialize)]
+        #[serde(rename_all = "PascalCase")]
+        struct TencentSimple {
+            #[serde(rename = "Html")]
+            html: Option<String>,
+            #[serde(rename = "Text")]
+            text: Option<String>,
+        }
+
+        #[derive(Serialize)]
+        #[serde(rename_all = "PascalCase")]
+        struct TencentSendMailRequest {
+            from_email_address: String,
+            destination: Vec<String>,
+            subject: String,
+            simple: TencentSimple,
+        }
+
+        let request_body = TencentSendMailRequest {
+            from_email_address: format!("{} <{}>", self.config.from_name, self.config.from_email),
+            destination: message.to,
+            subject: message.subject,
+            simple: TencentSimple {
+                html: message.html_content,
+                text: message.text_content,
+            },
+        };
+
+        let payload = serde_json::to_string(&request_body)
+            .map_err(|e| AppError::internal(format!("腾讯云请求体序列化失败: {}", e)))?;
+
+        // 计算 V3 签名
+        let timestamp = Utc::now().timestamp();
+        let authorization = self.tencent_sign(
+            "SendMail",
+            "ses",
+            "2020-10-02",
+            timestamp,
+            &payload,
+            &secret_id,
+            &secret_key,
+        )?;
+
+        let response = self
+            .http_client
+            .post(TENCENT_SES_API_URL)
+            .header("X-TC-Action", "SendMail")
+            .header("X-TC-Region", "ap-guangzhou")
+            .header("X-TC-Timestamp", timestamp.to_string())
+            .header("X-TC-Version", "2020-10-02")
+            .header("Authorization", authorization)
+            .header("Content-Type", "application/json; charset=utf-8")
+            .body(payload)
+            .send()
+            .await
+            .map_err(|e| AppError::internal(format!("腾讯云邮件发送请求失败: {}", e)))?;
+
+        let status = response.status();
+        let body = response.text().await.unwrap_or_else(|_| "未知错误".to_string());
+
+        if status.is_success() {
+            // 腾讯云业务错误码在 200 响应 body 的 Response.Error 字段中
+            if body.contains("\"Error\"") {
+                Err(AppError::internal(format!(
+                    "腾讯云邮件发送业务失败: {}",
+                    body
+                )))
+            } else {
+                Ok(())
+            }
+        } else {
+            Err(AppError::internal(format!(
+                "腾讯云邮件发送失败: HTTP {} - {}",
+                status, body
+            )))
+        }
+    }
+
+    /// 解析阿里云 api_key 为 (AccessKeyId, AccessKeySecret)
+    fn split_aliyun_credentials(&self) -> Option<(String, String)> {
+        let key = self.config.api_key.as_str();
+        let idx = key.find(':')?;
+        if idx == 0 || idx == key.len() - 1 {
+            return None;
+        }
+        Some((
+            key[..idx].to_string(),
+            key[idx + 1..].to_string(),
+        ))
+    }
+
+    /// 解析腾讯云 api_key 为 (SecretId, SecretKey)
+    fn split_tencent_credentials(&self) -> Option<(String, String)> {
+        let key = self.config.api_key.as_str();
+        let idx = key.find(':')?;
+        if idx == 0 || idx == key.len() - 1 {
+            return None;
+        }
+        Some((
+            key[..idx].to_string(),
+            key[idx + 1..].to_string(),
+        ))
+    }
+
+    /// 阿里云 RPC V1 签名算法
+    ///
+    /// 规则：
+    /// 1. 将公共参数 + 业务参数合并，按参数名 ASCII 字典序排序
+    /// 2. 每个参数 URL 编码后用 `&` 拼接成 canonicalized query string
+    /// 3. 待签名字符串 = `GET&%2F&` + URL编码(canonicalized query string)
+    /// 4. Signature = BASE64(HMAC-SHA1(待签名字符串, AccessKeySecret + "&"))
+    fn aliyun_sign(
+        &self,
+        biz_params: &[(&str, String)],
+        access_key_secret: &str,
+    ) -> Result<String, AppError> {
+        // 公共参数
+        let timestamp = Utc::now()
+            .format("%Y-%m-%dT%H:%M:%SZ")
+            .to_string();
+        let signature_nonce = format!(
+            "{:016x}{:08x}",
+            Utc::now().timestamp_millis() as u64,
+            fastrand::u32(0..u32::MAX)
+        );
+
+        let mut all_params: Vec<(&str, String)> = vec![
+            ("Format", "JSON".to_string()),
+            ("Version", "2015-11-23".to_string()),
+            ("AccessKeyId", self.split_aliyun_credentials().map(|(k, _)| k).unwrap_or_default()),
+            ("SignatureMethod", "HMAC-SHA1".to_string()),
+            ("Timestamp", timestamp),
+            ("SignatureVersion", "1.0".to_string()),
+            ("SignatureNonce", signature_nonce),
+        ];
+        all_params.extend(biz_params.iter().cloned());
+
+        // 按参数名 ASCII 字典序排序（参数名相同时按值排序）
+        all_params.sort_by(|a, b| a.0.cmp(&b.0).then_with(|| a.1.cmp(&b.1)));
+
+        // 构造规范化请求字符串：每个参数 URL 编码后用 `&` 拼接
+        let canonicalized: String = all_params
+            .iter()
+            .map(|(k, v)| {
+                format!(
+                    "{}={}",
+                    utf8_percent_encode(k, ALIYUN_SIGNATURE_ENCODE_SET),
+                    utf8_percent_encode(v, ALIYUN_SIGNATURE_ENCODE_SET)
+                )
+            })
+            .collect::<Vec<_>>()
+            .join("&");
+
+        // 待签名字符串：GET&%2F&<URL编码的规范化字符串>
+        let string_to_sign = format!(
+            "GET&%2F&{}",
+            utf8_percent_encode(&canonicalized, ALIYUN_SIGNATURE_ENCODE_SET)
+        );
+
+        // HMAC-SHA1（key = AccessKeySecret + "&"）
+        let mut mac = HmacSha1::new_from_slice(format!("{}&", access_key_secret).as_bytes())
+            .map_err(|e| AppError::internal(format!("阿里云 HMAC 初始化失败: {}", e)))?;
+        mac.update(string_to_sign.as_bytes());
+        let signature = BASE64_STANDARD.encode(mac.finalize().into_bytes());
+
+        Ok(signature)
+    }
+
+    /// 腾讯云 TC3-HMAC-SHA256 V3 签名算法
+    ///
+    /// 规则：
+    /// 1. CanonicalRequest = Method\nURI\nQueryString\nCanonicalHeaders\nSignedHeaders\nHashedPayload
+    /// 2. CredentialScope = Date/Service/Version/tc3_request
+    /// 3. StringToSign = "TC3-HMAC-SHA256\nTimestamp\nCredentialScope\nHashedCanonicalRequest"
+    /// 4. SecretDate = HMAC-SHA256(Date, "TC3_SECRET_KEY")
+    /// 5. SecretService = HMAC-SHA256(SecretDate, Service)
+    /// 6. SecretSigning = HMAC-SHA256(SecretService, "tc3_request")
+    /// 7. Signature = HEX(HMAC-SHA256(SecretSigning, StringToSign))
+    ///
+    /// 注意：region 不参与 V3 签名（仅出现在 X-TC-Region 请求头），故函数不接收 region 参数。
+    #[allow(clippy::too_many_arguments)]
+    fn tencent_sign(
+        &self,
+        action: &str,
+        service: &str,
+        version: &str,
+        timestamp: i64,
+        payload: &str,
+        secret_id: &str,
+        secret_key: &str,
+    ) -> Result<String, AppError> {
+        let date = chrono::DateTime::<chrono::Utc>::from_timestamp(timestamp, 0)
+            .ok_or_else(|| AppError::internal("腾讯云签名时间戳无效"))?
+            .format("%Y-%m-%d")
+            .to_string();
+
+        // 1. CanonicalRequest
+        // POST 请求 URI 为 "/"，QueryString 为空
+        let canonical_headers = format!(
+            "content-type:application/json; charset=utf-8\nhost:{}\nx-tc-action:{}\n",
+            "ses.tencentcloudapi.com",
+            action.to_lowercase()
+        );
+        let signed_headers = "content-type;host;x-tc-action";
+        let hashed_payload = hex::encode(Sha256::digest(payload.as_bytes()));
+        let canonical_request = format!(
+            "POST\n/\n\n{}\n{}\n{}",
+            canonical_headers, signed_headers, hashed_payload
+        );
+
+        // 2. StringToSign
+        let credential_scope = format!("{}/{}/{}/tc3_request", date, service, version);
+        let hashed_canonical_request = hex::encode(Sha256::digest(canonical_request.as_bytes()));
+        let string_to_sign = format!(
+            "TC3-HMAC-SHA256\n{}\n{}\n{}",
+            timestamp, credential_scope, hashed_canonical_request
+        );
+
+        // 3. 多层 HMAC-SHA256（派生密钥链：SecretKey -> SecretDate -> SecretService -> SecretSigning）
+        let secret_date = hmac_sha256_bytes(secret_key.as_bytes(), date.as_bytes());
+        let secret_service = hmac_sha256_bytes(&secret_date, service.as_bytes());
+        let secret_signing = hmac_sha256_bytes(&secret_service, b"tc3_request");
+        let signature = hex::encode(hmac_sha256_bytes(&secret_signing, string_to_sign.as_bytes()));
+
+        // 4. Authorization
+        Ok(format!(
+            "TC3-HMAC-SHA256 Credential={}/{}, SignedHeaders={}, Signature={}",
+            secret_id, credential_scope, signed_headers, signature
+        ))
     }
 
     /// 检查邮件服务是否可用
@@ -322,9 +671,26 @@ impl EmailService {
                     .map_err(|e| AppError::internal(format!("健康检查请求失败: {}", e)))?;
                 Ok(response.status().is_success())
             }
+            "aliyun" => {
+                // 阿里云 DirectMail 无独立健康检查接口；
+                // 通过配置校验（api_key 冒号分隔且两部分非空）作为可达性检查
+                Ok(self.split_aliyun_credentials().is_some())
+            }
+            "tencent" => {
+                // 腾讯云 SES 无独立健康检查接口；
+                // 通过配置校验（api_key 冒号分隔且两部分非空）作为可达性检查
+                Ok(self.split_tencent_credentials().is_some())
+            }
             _ => Ok(true),
         }
     }
+}
+
+/// 计算 HMAC-SHA256，返回字节数组
+fn hmac_sha256_bytes(key: &[u8], data: &[u8]) -> Vec<u8> {
+    let mut mac = HmacSha256::new_from_slice(key).expect("HMAC-SHA256 key 长度错误");
+    mac.update(data);
+    mac.finalize().into_bytes().to_vec()
 }
 
 /// 邮件模板
