@@ -562,7 +562,7 @@ impl EmailService {
             ("SignatureVersion", "1.0".to_string()),
             ("SignatureNonce", signature_nonce),
         ];
-        all_params.extend(biz_params.iter().copied());
+        all_params.extend(biz_params.iter().cloned());
 
         // 按参数名 ASCII 字典序排序（参数名相同时按值排序）
         all_params.sort_by(|a, b| a.0.cmp(&b.0).then_with(|| a.1.cmp(&b.1)));
