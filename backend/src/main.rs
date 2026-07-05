@@ -266,6 +266,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // 避免 .env 文件意外覆盖部署期的环境配置。
     dotenvy::dotenv().ok();
 
+    // 初始化健康检查的启动时间（OnceLock 首次写入即锁定，确保 uptime 反映真实进程运行时间）
+    let _ = crate::handlers::health_handler::start_time_init();
+
     let settings = AppSettings::new()?;
 
     let log_level = settings.log.level.clone();
