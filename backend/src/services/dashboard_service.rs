@@ -710,7 +710,7 @@ impl DashboardService {
                     0.0
                 };
                 AgingData {
-                    age_range: range.to_string(),
+                    age_range: (*range).to_owned(),
                     quantity: qty.to_string(),
                     percentage,
                 }
@@ -748,12 +748,13 @@ impl DashboardService {
             .one(self.db.as_ref())
             .await?;
 
-        let sold = row
-            .and_then(|r| r.sold_quantity)
-            .unwrap_or(Decimal::ZERO);
-        let stock = row
-            .and_then(|r| r.stock_quantity)
-            .unwrap_or(Decimal::ZERO);
+        let (sold, stock) = match row {
+            Some(r) => (
+                r.sold_quantity.unwrap_or(Decimal::ZERO),
+                r.stock_quantity.unwrap_or(Decimal::ZERO),
+            ),
+            None => (Decimal::ZERO, Decimal::ZERO),
+        };
 
         if stock.is_zero() {
             return Ok("0.0000".to_string());
