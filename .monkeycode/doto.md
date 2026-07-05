@@ -5,7 +5,7 @@
 
 ---
 
-## 🔄 当前任务：v8 全项目复审修复进行中（批次 125 完成，继续批次 126+ v8 P2 项）
+## 🔄 当前任务：v8 全项目复审修复进行中（批次 126 完成，继续批次 127+ v8 P2 剩余项）
 
 > 用户最高优先级规则（2026-07-04 追加）已固化到 [MEMORY.md 一、规则 0](file:///workspace/.monkeycode/MEMORY.md)。
 > 本文件仅记录任务进度，规则不在此重复。
@@ -16,6 +16,7 @@
 
 | 批次 | PR | main commit | 内容 |
 |------|-----|-------------|------|
+| 126 | #370 | `2674df1` | v8 P2 print_handler 静态配置化（6 种内置打印模板）+ inventory_stock_query alert_type 派生计算（discrepancy/out_of_stock/low_stock/expiring/normal，3 文件 +181 -54 行）|
 | 125 | #369 | `c4a269f` | v8 P1 SearchSyncer 接入 sales_order_service + product_service：PG→ES 写入同步（含 Decimal→f64 转换 + 硬删除 ES 文档删除 + start_event_listener 签名扩展，8 文件 +225 -45 行；CI 修复：补导出 SalesOrderItemDoc）|
 | 124 | #368 | `bbdf267` | v8 P1 SearchSyncer 接入 customer_service：PG→ES 写入同步（create/update/delete 事务提交后调用 sync_customer，最终一致性策略，9 处 handler 调用点更新，5 文件 +82 -20 行）|
 | 123 | #367 | `a819ab4` | v8 P1 ElasticClient::real() 真实实现：ClientInner enum 双模式 + reqwest 直连 ES REST API + ensure_indices 启动时索引初始化（5 文件 +466 -75 行）|
@@ -50,20 +51,25 @@ P1 项全部修复完成（批次 121-125）：
 - 批次 124：SearchSyncer 接入 customer_service（PG→ES 写入同步）
 - 批次 125：SearchSyncer 接入 sales_order_service + product_service（PG→ES 写入同步）
 
+### v8 复审 P2 修复进度（2/5 完成）
+
+- ✅ 批次 126：print_handler 静态配置化 + inventory_stock_query alert_type 派生计算
+- ⏳ import_export_handler list_import_tasks 空列表占位（需新建 import_tasks 表）
+- ⏳ report_enhanced_handler 硬编码字段定义
+- ⏳ financial_analysis_handler 假执行状态
+
 ### 下一步：继续 v8 复审 P2 项修复
 
-批次 125 完成 v8 P1 SearchSyncer 接入 sales_order_service + product_service。P1 全部完成 ✅。按用户自动推进指令继续处理 v8 复审剩余 P2 项：
-- P2：print_handler 空列表占位真实接入
-- P2：import_export_handler 空列表占位真实接入
+批次 126 完成 v8 P2 修复 2/5。按用户自动推进指令继续处理 v8 复审剩余 P2 项：
+- P2：import_export_handler list_import_tasks 空列表占位（需新建 import_tasks 表，下批次处理）
 - P2：report_enhanced_handler 硬编码字段定义
 - P2：financial_analysis_handler 假执行状态
-- P2：inventory_stock_query alert_type 硬编码
 
 每批 1 commit → push → CI → 合并 → 删除分支 → 下一批，直到 v8 复审全部修复完成。完成后启动 v9 复审，循环直到复审没有问题。
 
 ### 后续批次规划
 
-- **批次 126+**：v8 全项目复审 P2 项分批修复
+- **批次 127+**：v8 全项目复审 P2 剩余项分批修复
 - **持续**：v8 复审完成后启动 v9 复审
 
 ### 复审维度（基于历次复审经验）

@@ -41,7 +41,7 @@
 
 ---
 
-## 二、当前任务状态（2026-07-05 批次 125 完成 - v8 复审 P1 SearchSyncer 接入 sales_order_service + product_service PG→ES 写入同步，继续 v8 复审 P2 项）
+## 二、当前任务状态（2026-07-05 批次 126 完成 - v8 复审 P2 print_handler 静态配置化 + inventory_stock_query alert_type 派生计算，继续 v8 复审 P2 剩余项）
 
 > 用户最高优先级规则已在「一、规则 0」固化，本节仅记录修复进度。
 
@@ -117,6 +117,7 @@ v7 复审 P0/P1/P2 项全部修复完成（P0 4 项 + P1 10 项 + P2 13 项 = 27
 | 123 | #367 | `a819ab4` | v8 P1 ElasticClient::real() 真实实现：ClientInner enum 双模式（Mock/Real）+ reqwest 直连 ES REST API + ensure_indices 启动时索引初始化 | ✅ |
 | 124 | #368 | `bbdf267` | v8 P1 SearchSyncer 接入 customer_service：PG→ES 写入同步（create/update/delete 事务提交后调用 sync_customer，最终一致性策略） | ✅ |
 | 125 | #369 | `c4a269f` | v8 P1 SearchSyncer 接入 sales_order_service + product_service：PG→ES 写入同步（含 Decimal→f64 转换 + 硬删除 ES 文档删除 + start_event_listener 签名扩展） | ✅ |
+| 126 | #370 | `2674df1` | v8 P2 print_handler 静态配置化（6 种内置打印模板）+ inventory_stock_query alert_type 派生计算（discrepancy/out_of_stock/low_stock/expiring/normal） | ✅ |
 
 **批次 121 修复明细**：
 - 删除 event_kafka.rs 中 KafkaEventEnvelope struct + from_event + into_event（74 行，零业务调用方）
@@ -186,14 +187,34 @@ v7 复审 P0/P1/P2 项全部修复完成（P0 4 项 + P1 10 项 + P2 13 项 = 27
   - Decimal→f64 转换：使用 `to_string().parse()` 避免 `Decimal::to_f64` 边界值精度损失
   - 字段映射：SalesOrderDoc.items.color_no 空字符串→None；ProductDoc.category/color_no 暂设 None（后续迭代 join product_category/product_color 表）
 
+**批次 126 修复明细**：
+- `handlers/print_handler.rs`：新增 `builtin_print_templates()` 静态函数返回 6 种内置打印模板
+  - 对应 PrintService 支持的 6 种单据类型：sales_order/sales_contract/purchase_order/purchase_receipt/inventory_transfer/voucher
+  - `list_print_templates`: 从原 `vec![]` 占位改为返回 `builtin_print_templates()`
+  - `get_print_template`: 从原硬编码 `Err(not_found)` 改为从内置列表按 id 查找，找不到时返回 404
+- `services/stock_alert.rs`：重写 AlertType 枚举
+  - 删除死代码 AlertLevel 枚举（sensitive_action_alert.rs 有独立 AlertLevel，本模块零业务调用方）
+  - AlertType 接入 inventory_stock_query.compute_alert_type 业务，移除 dead_code 标注
+  - 新增 OutOfStock 变体（缺货）+ code() 方法返回前端约定的稳定字符串
+  - 新增 ALERT_TYPE_NORMAL 常量 + EXPIRING_THRESHOLD_DAYS 常量（默认 30 天）
+- `services/inventory_stock_query.rs`：
+  - 新增 `compute_alert_type(s: &inventory_stock::Model) -> &'static str` 私有函数
+    判定优先级：discrepancy（状态异常）> out_of_stock（缺货）> low_stock（低于下限）> expiring（即将过期）> normal
+  - `get_stock_alerts`: alert_type 字段从硬编码 "normal" 改为 `compute_alert_type(&s)` 派生计算
+  - 返回字段新增 reorder_point / expiry_date / stock_status，便于前端展示阈值上下文
+- **设计说明**：
+  - 打印模板为系统内置，不需要动态 CRUD 管理（实际渲染逻辑在 PrintService.generate_pdf）
+  - alert_type 派生计算基于库存数量/补货点/过期日期/库存状态
+  - TODO(tech-debt): OverStock（高于上限）和 SlowMoving（滞销）暂未实现，因 inventory_stocks 表无 max_stock_point / last_movement_date 阈值字段，后续迭代补充字段后再接入
+
 ### 下一步：继续 v8 复审 P2 项修复
 
-按用户自动推进指令，继续处理 v8 复审剩余 P2 项（P1 全部完成 ✅）：
-- P2：print_handler 空列表占位真实接入
-- P2：import_export_handler 空列表占位真实接入
-- P2：report_enhanced_handler 硬编码字段定义
-- P2：financial_analysis_handler 假执行状态
-- P2：inventory_stock_query alert_type 硬编码
+按用户自动推进指令，继续处理 v8 复审剩余 P2 项（P1 全部完成 ✅，P2 已完成 2/5）：
+- ✅ P2：print_handler 空列表占位真实接入（批次 126，静态配置化 6 种内置模板）
+- ✅ P2：inventory_stock_query alert_type 硬编码（批次 126，派生计算 discrepancy/out_of_stock/low_stock/expiring/normal）
+- ⏳ P2：import_export_handler list_import_tasks 空列表占位（需新建 import_tasks 表，下批次处理）
+- ⏳ P2：report_enhanced_handler 硬编码字段定义
+- ⏳ P2：financial_analysis_handler 假执行状态
 
 ### 历史批次索引
 

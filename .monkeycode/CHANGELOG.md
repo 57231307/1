@@ -6,6 +6,30 @@
 
 ---
 
+## 2026-07-05 (批次 126 v8 复审 P2 print_handler 静态配置化 + inventory_stock_query alert_type 派生计算完成)
+
+### 批次 126：v8 复审 P2 修复 — print_handler 静态配置化 + inventory_stock_query alert_type 派生计算
+
+**PR #370，main commit `2674df1`，3 文件 +181 -54 行**
+
+| 修复项 | 内容 |
+|--------|------|
+| print_handler 静态配置化 | 新增 builtin_print_templates() 返回 6 种内置打印模板（对应 PrintService 支持的 6 种单据类型） |
+| list_print_templates | 从原 vec![] 占位改为返回内置模板列表 |
+| get_print_template | 从原硬编码 Err(not_found) 改为从内置列表按 id 查找 |
+| stock_alert.rs 重写 | 删除死代码 AlertLevel，AlertType 接入业务 + 新增 OutOfStock + code() 方法 |
+| compute_alert_type 函数 | 新增派生计算函数（discrepancy > out_of_stock > low_stock > expiring > normal 优先级） |
+| get_stock_alerts | alert_type 字段从硬编码 "normal" 改为 compute_alert_type(&s) 派生计算 |
+| 返回字段扩展 | 新增 reorder_point / expiry_date / stock_status 字段 |
+
+**关键决策**：
+- 打印模板为系统内置，不需要动态 CRUD 管理（实际渲染逻辑在 PrintService.generate_pdf）
+- alert_type 派生计算基于库存数量/补货点/过期日期/库存状态
+- 删除死代码 AlertLevel（sensitive_action_alert.rs 有独立 AlertLevel，本模块零业务调用方）
+- TODO(tech-debt): OverStock/SlowMoving 暂未实现，需补充 max_stock_point/last_movement_date 字段
+
+---
+
 ## 2026-07-05 (批次 125 v8 复审 P1 SearchSyncer 接入 sales_order_service + product_service PG→ES 写入同步完成，P1 全部完成 ✅)
 
 ### 批次 125：v8 复审 P1 修复 — SearchSyncer 接入 sales_order_service + product_service 实现 PG→ES 写入同步（批次 2/2）
