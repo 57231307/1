@@ -156,7 +156,7 @@ pub async fn list_contacts(
     _auth: AuthContext,
     Path(customer_id): Path<i32>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
-    let service = CustomerService::new(state.db.clone());
+    let service = CustomerService::new(state.db.clone(), state.search_client.clone());
     let contacts = service.list_customer_contacts(customer_id).await?;
 
     Ok(Json(ApiResponse::success(serde_json::to_value(contacts)?)))
@@ -174,7 +174,7 @@ pub async fn create_contact(
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     req.validate().map_err(|e| AppError::validation(e.to_string()))?;
 
-    let service = CustomerService::new(state.db.clone());
+    let service = CustomerService::new(state.db.clone(), state.search_client.clone());
     let contact = service
         .create_customer_contact(customer_id, req, auth.user_id)
         .await?;
@@ -197,7 +197,7 @@ pub async fn update_contact(
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     req.validate().map_err(|e| AppError::validation(e.to_string()))?;
 
-    let service = CustomerService::new(state.db.clone());
+    let service = CustomerService::new(state.db.clone(), state.search_client.clone());
     let contact = service
         .update_customer_contact(contact_id, req, auth.user_id)
         .await?;
@@ -216,7 +216,7 @@ pub async fn delete_contact(
     State(state): State<AppState>,
     _auth: AuthContext,
 ) -> Result<Json<ApiResponse<()>>, AppError> {
-    let service = CustomerService::new(state.db.clone());
+    let service = CustomerService::new(state.db.clone(), state.search_client.clone());
     service.delete_customer_contact(contact_id).await?;
 
     Ok(Json(ApiResponse::success_with_message(
