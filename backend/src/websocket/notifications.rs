@@ -107,12 +107,6 @@ impl ConnectionManager {
             let _ = tx.send(message);
         }
     }
-
-    /// 当前连接数（监控用）
-    #[allow(dead_code)] // TODO(tech-debt): 监控端点接入后移除
-    pub fn connection_count(&self) -> usize {
-        self.senders.len()
-    }
 }
 
 /// 全局 NotificationBroadcaster
@@ -387,15 +381,6 @@ mod tests {
         let json = serde_json::to_string(&msg).unwrap();
         assert!(json.contains("ping"));
         assert!(json.contains("1234567890"));
-    }
-
-    #[test]
-    fn test_connection_manager_register_unregister() {
-        let manager = ConnectionManager::new();
-        let _rx1 = manager.register(100);
-        assert_eq!(manager.connection_count(), 1);
-        manager.unregister(100);
-        // 注意：unregister 仅在无活跃订阅者时清理，可能延迟
     }
 
     #[test]

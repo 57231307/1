@@ -202,25 +202,43 @@ pub async fn delete_supplier_contact(
 // ==================== 供应商资质管理 Handler ====================
 
 /// 获取供应商资质列表
+///
+/// 批次 118 P2-9 修复：原 handler 返回硬编码空数组 `serde_json::json!([])`，
+/// 违反规则 0（真实实现强制）。改为真实调用 service.list_supplier_qualifications，
+/// 从 supplier_qualification 表查询并返回数据。
 pub async fn list_supplier_qualifications(
-    Path(_supplier_id): Path<i32>,
-    State(_state): State<AppState>,
+    Path(supplier_id): Path<i32>,
+    State(state): State<AppState>,
 ) -> Result<Json<ApiResponse<JsonValue>>, AppError> {
-    Ok(Json(ApiResponse::success(serde_json::json!([]))))
+    let service = SupplierService::new(state.db.clone());
+    let qualifications = service.list_supplier_qualifications(supplier_id).await?;
+
+    Ok(Json(ApiResponse::success(
+        serde_json::to_value(qualifications).map_err(AppError::from)?,
+    )))
 }
 
 /// 创建供应商资质
+///
+/// 批次 118 P2-9 修复：原 handler 返回拼接的假数据 `{"supplier_id": ..., "qualification": req}`，
+/// 违反规则 0（真实实现强制）。改为真实调用 service.create_supplier_qualification，
+/// 持久化到 supplier_qualification 表并返回真实记录。
 #[axum::debug_handler]
 pub async fn create_supplier_qualification(
     Path(supplier_id): Path<i32>,
-    State(_state): State<AppState>,
-    _auth: AuthContext,
+    State(state): State<AppState>,
+    auth: AuthContext,
     Json(req): Json<CreateQualificationRequest>,
 ) -> Result<Json<ApiResponse<JsonValue>>, AppError> {
     req.validate()?;
 
+    let service = SupplierService::new(state.db.clone());
+    let qualification = service
+        .create_supplier_qualification(supplier_id, req, auth.user_id)
+        .await?;
+
     Ok(Json(ApiResponse::success_with_message(
-        serde_json::json!({"supplier_id": supplier_id, "qualification": req}),
+        serde_json::to_value(qualification).map_err(AppError::from)?,
         "资质创建成功",
     )))
 }

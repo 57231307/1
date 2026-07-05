@@ -155,22 +155,15 @@ impl FixedAssetService {
         Ok(asset)
     }
 
-    /// 计算月折旧额（按 asset_id 查询资产后调用纯计算函数）
-    ///
-    /// 保留此异步包装用于 handler 直接调用（如 GET /api/v1/erp/fixed-assets/:id/depreciation/preview）。
-    /// 事务内请直接调用 `Self::calc_monthly_depreciation_for(&asset)`，避免事务外重复读。
-    #[allow(dead_code)] // TODO(tech-debt): 折旧预览 API 接入后移除（depreciate 已改用纯计算函数）
-    pub async fn calculate_monthly_depreciation(&self, asset_id: i32) -> Result<Decimal, AppError> {
-        let asset = self.get_by_id(asset_id).await?;
-        Self::calc_monthly_depreciation_for(&asset)
-    }
-
     /// 计算月折旧额（纯计算函数，无 IO）
     ///
     /// 批次 92 P3-10 修复：从 `calculate_monthly_depreciation` 拆出纯计算部分，
     /// 供 `depreciate` 事务内复用已 lock_exclusive 读出的 asset，
     /// 消除事务外重复 `self.get_by_id(asset_id)` 读取（原实现存在 TOCTOU 风险：
     /// 事务外读到的 asset 可能已被并发 depreciate/dispose 修改）。
+    ///
+    /// 批次 118 P2-8 修复：删除从未接入业务的 `calculate_monthly_depreciation` 异步包装
+    /// （depreciate 已直接调用此纯计算函数，预留的折旧预览 API 端点从未实现）。
     fn calc_monthly_depreciation_for(asset: &fixed_asset::Model) -> Result<Decimal, AppError> {
         let residual_value = asset.salvage_value.unwrap_or(Decimal::ZERO);
 
@@ -574,7 +567,7 @@ impl FixedAssetService {
         }
 
         // 直线法折旧：(原值 - 残值) / (使用年限 * 12)
-        // P2-2 修复：补 round_dp(2)，与 calculate_monthly_depreciation(line 170-172)
+        // P2-2 修复：补 round_dp(2)，与 calc_monthly_depreciation_for(line 167)
         // 批次 87 P3 维度 4 修复保持一致，防止 36 月等不能整除时累加误差
         let useful_life_months = useful_life_years * 12;
         let depreciable_amount = original_value - residual_value;

@@ -5,7 +5,7 @@
 //! - `aggregate_*_data`       4 类业务聚合（销售/采购/库存/财务）
 //! - `query_*_report`         4 类业务明细分页查询
 //! - `execute_report`         报表执行入口（支持缓存 + 数据加载）
-//! - 内部缓存：`generate_cache_key` / `get_cached_data` / `set_cached_data` / `cleanup_expired_cache`
+//! - 内部缓存：`generate_cache_key` / `get_cached_data` / `set_cached_data`
 //!
 //! 拆分自原 `report_engine_service.rs` 的"数据聚合"段。
 
@@ -432,17 +432,6 @@ impl ReportEngineService {
             },
         );
         Ok(())
-    }
-
-    /// 清理过期缓存
-    #[allow(dead_code)] // TODO(tech-debt): 业务接入后移除
-    pub async fn cleanup_expired_cache(&self) -> Result<u64, AppError> {
-        let mut cache = self.cache.write().await;
-        let now = Utc::now();
-        let initial_len = cache.len();
-        cache.retain(|_, entry| entry.expires_at > now);
-        let removed = initial_len - cache.len();
-        Ok(removed as u64)
     }
 
     /// 按数据源清除缓存

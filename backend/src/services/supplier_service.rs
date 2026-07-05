@@ -613,7 +613,9 @@ impl SupplierService {
     // ==================== 供应商资质管理方法 ====================
 
     /// 获取供应商资质列表
-    #[allow(dead_code)] // TODO(tech-debt): 供应商资质模块接入业务后移除
+    ///
+    /// 批次 118 P2-9 修复：移除 `#[allow(dead_code)]` 标记，
+    /// handler 已真实接入（supplier_handler.rs::list_supplier_qualifications）。
     pub async fn list_supplier_qualifications(
         &self,
         supplier_id: i32,
