@@ -5,7 +5,7 @@
 
 ---
 
-## 🔄 当前任务：v8 全项目复审修复进行中（批次 124 完成，继续批次 125+）
+## 🔄 当前任务：v8 全项目复审修复进行中（批次 125 完成，继续批次 126+ v8 P2 项）
 
 > 用户最高优先级规则（2026-07-04 追加）已固化到 [MEMORY.md 一、规则 0](file:///workspace/.monkeycode/MEMORY.md)。
 > 本文件仅记录任务进度，规则不在此重复。
@@ -16,6 +16,7 @@
 
 | 批次 | PR | main commit | 内容 |
 |------|-----|-------------|------|
+| 125 | #369 | `c4a269f` | v8 P1 SearchSyncer 接入 sales_order_service + product_service：PG→ES 写入同步（含 Decimal→f64 转换 + 硬删除 ES 文档删除 + start_event_listener 签名扩展，8 文件 +225 -45 行；CI 修复：补导出 SalesOrderItemDoc）|
 | 124 | #368 | `bbdf267` | v8 P1 SearchSyncer 接入 customer_service：PG→ES 写入同步（create/update/delete 事务提交后调用 sync_customer，最终一致性策略，9 处 handler 调用点更新，5 文件 +82 -20 行）|
 | 123 | #367 | `a819ab4` | v8 P1 ElasticClient::real() 真实实现：ClientInner enum 双模式 + reqwest 直连 ES REST API + ensure_indices 启动时索引初始化（5 文件 +466 -75 行）|
 | 122 | #366 | `f181e1b` | v8 P1 crm 标签真实接入：新增 crm_tag 表（m0040）+ list_tags/create_tag/delete_tag 真实持久化 + 路由路径 /crm-tags → /crm/tags 修复前端 404（8 文件 +161 -30 行）|
@@ -31,10 +32,6 @@
 | 112 | #356 | `6052810` | v7 P1-9 api_keys 表 created_by 列持久化（migration m0039） |
 | 111 | #355 + 621cb0a | `20a8ce7` | v7 P1-2 incoterms 接入 quotation_service + P1-10 audit/crm keyword/source |
 | 110 | #354 | `20a8c11` | v7 P0 webhook callback PUBLIC_PATHS + message_type/title + payload 接入 |
-| 109 | #353 | `21776c5` | v7 P1-1 ar_reconciliation notes 持久化 + webhook 事件不匹配 4xx + 4 处 dead_code |
-| 108 | #352 | `e73ddd7` | ar/recon 路由接入 + webhook handler 真实实现（test/retry/logs）+ 7 处 dead_code |
-| 107 | #351 | `c45f7e7` | cache_service L1 本地缓存真实接入 AppState + color_card 路由确认 |
-| 106 | #350 | `7f2cc82` | 删除 performance_optimizer/operation_log_service + business_metrics 接入 |
 
 ### v7 复审 P1 修复总结 ✅
 
@@ -44,19 +41,30 @@ P1 项全部修复完成（P1-1 ~ P1-10），详见 [MEMORY.md 二、章节](fil
 
 P2 项全部修复完成（P2-1 ~ P2-13，13/13 项），详见 [MEMORY.md 二、章节](file:///workspace/.monkeycode/MEMORY.md)。
 
-### 下一步：继续 v8 复审 P1/P2 修复
+### v8 复审 P1 修复总结 ✅
 
-批次 124 完成 v8 P1 SearchSyncer 接入 customer_service。按用户自动推进指令继续处理 v8 复审剩余项：
-- P1：SearchSyncer 接入 sales_order_service + product_service（批次 125，含 Decimal 转换 + join 查询）
-- P2：print_handler / import_export_handler 空列表占位真实接入
-- P2：report_enhanced_handler 硬编码字段定义 + financial_analysis_handler 假执行状态 + inventory_stock_query alert_type 硬编码
+P1 项全部修复完成（批次 121-125）：
+- 批次 121：删除 event_kafka KafkaEventEnvelope（死代码）
+- 批次 122：crm 标签真实接入（list_tags/create_tag/delete_tag 持久化）
+- 批次 123：ElasticClient::real() 真实实现（reqwest 直连 ES REST API）
+- 批次 124：SearchSyncer 接入 customer_service（PG→ES 写入同步）
+- 批次 125：SearchSyncer 接入 sales_order_service + product_service（PG→ES 写入同步）
+
+### 下一步：继续 v8 复审 P2 项修复
+
+批次 125 完成 v8 P1 SearchSyncer 接入 sales_order_service + product_service。P1 全部完成 ✅。按用户自动推进指令继续处理 v8 复审剩余 P2 项：
+- P2：print_handler 空列表占位真实接入
+- P2：import_export_handler 空列表占位真实接入
+- P2：report_enhanced_handler 硬编码字段定义
+- P2：financial_analysis_handler 假执行状态
+- P2：inventory_stock_query alert_type 硬编码
 
 每批 1 commit → push → CI → 合并 → 删除分支 → 下一批，直到 v8 复审全部修复完成。完成后启动 v9 复审，循环直到复审没有问题。
 
 ### 后续批次规划
 
-- **批次 123+**：v8 全项目复审 P1/P2 项分批修复
-- **持续**：SearchSyncer 接入 PG→ES 写入同步
+- **批次 126+**：v8 全项目复审 P2 项分批修复
+- **持续**：v8 复审完成后启动 v9 复审
 
 ### 复审维度（基于历次复审经验）
 

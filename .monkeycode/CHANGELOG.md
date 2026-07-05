@@ -6,6 +6,38 @@
 
 ---
 
+## 2026-07-05 (批次 125 v8 复审 P1 SearchSyncer 接入 sales_order_service + product_service PG→ES 写入同步完成，P1 全部完成 ✅)
+
+### 批次 125：v8 复审 P1 修复 — SearchSyncer 接入 sales_order_service + product_service 实现 PG→ES 写入同步（批次 2/2）
+
+**PR #369，main commit `c4a269f`，8 文件 +225 -45 行**
+
+| 修复项 | 内容 |
+|--------|------|
+| SalesService 注入 search_syncer | order.rs struct + new() 签名改为 new(db, search_client: Arc<dyn SearchClient>) |
+| SalesService CRUD 接入 ES | order_crud.rs 新增 decimal_to_f64 + build_sales_order_doc + sync_sales_order_to_es |
+| create_order / update_order | 事务提交后 get_order_detail 取最新数据 → sync_sales_order_to_es |
+| delete_order | 删除前保存 order_no_for_es，事务提交后调用 delete_sales_order（硬删除 ES 文档） |
+| ProductService 注入 search_syncer | product_service.rs struct + new() + build_product_doc + sync_product_to_es |
+| ProductService CRUD 接入 ES | create_product/update_product 同步 ES，delete_product 硬删除 ES 文档 |
+| SearchSyncer 扩展 | elastic.rs 移除 sync_sales_order/sync_product dead_code，新增 delete_sales_order/delete_product |
+| search/mod.rs 导出 | 新增导出 SalesOrderItemDoc 供 order_crud.build_sales_order_doc 使用 |
+| handler 调用点更新 | sales_order_handler.rs 16 处 + product_handler.rs 12 处改为 new(db, search_client) |
+| event_bus.rs 签名扩展 | start_event_listener 加 search_client 参数，2 处闭包内 SalesService::new 调用更新 |
+| main.rs 调用点更新 | start_event_listener(app_state.db.clone(), app_state.search_client.clone()) |
+
+**关键决策**：
+- 硬删除 vs 软删除：销售订单/产品硬删除需调用 ES delete_doc；客户软删除保留 ES 文档（批次 124 实现）
+- Decimal→f64 转换：使用 `to_string().parse()` 避免 `Decimal::to_f64` 边界值精度损失
+- 字段映射：SalesOrderDoc.items.color_no 空字符串→None；ProductDoc.category/color_no 暂设 None（后续迭代 join 关联表）
+- 最终一致性策略：PG 事务提交后再调用 ES 同步，ES 失败仅 tracing::warn! 不回滚 PG
+
+**CI 修复**：首次推送 Rust 后端构建失败 `error[E0432]: unresolved import crate::search::SalesOrderItemDoc`，根因 `search/mod.rs` 的 `pub use` 列表遗漏 `SalesOrderItemDoc` 导出，补导出后 CI 全绿
+
+**v8 复审 P1 全部完成 ✅**：批次 121（死代码清理）+ 122（crm 标签）+ 123（ElasticClient real）+ 124（SearchSyncer customer）+ 125（SearchSyncer order+product）
+
+---
+
 ## 2026-07-05 (批次 124 v8 复审 P1 SearchSyncer 接入 customer_service PG→ES 写入同步完成)
 
 ### 批次 124：v8 复审 P1 修复 — SearchSyncer 接入 customer_service 实现 PG→ES 写入同步（批次 1/2）

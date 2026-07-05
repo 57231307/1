@@ -41,7 +41,7 @@
 
 ---
 
-## 二、当前任务状态（2026-07-05 批次 124 完成 - v8 复审 P1 SearchSyncer 接入 customer_service PG→ES 写入同步，继续 v8 复审剩余项）
+## 二、当前任务状态（2026-07-05 批次 125 完成 - v8 复审 P1 SearchSyncer 接入 sales_order_service + product_service PG→ES 写入同步，继续 v8 复审 P2 项）
 
 > 用户最高优先级规则已在「一、规则 0」固化，本节仅记录修复进度。
 
@@ -116,6 +116,7 @@ v7 复审 P0/P1/P2 项全部修复完成（P0 4 项 + P1 10 项 + P2 13 项 = 27
 | 122 | #366 | `f181e1b` | v8 P1 crm 标签真实接入：新增 crm_tag 表 + list_tags/create_tag/delete_tag 真实持久化 + 路由路径 /crm-tags → /crm/tags 修复前端 404 | ✅ |
 | 123 | #367 | `a819ab4` | v8 P1 ElasticClient::real() 真实实现：ClientInner enum 双模式（Mock/Real）+ reqwest 直连 ES REST API + ensure_indices 启动时索引初始化 | ✅ |
 | 124 | #368 | `bbdf267` | v8 P1 SearchSyncer 接入 customer_service：PG→ES 写入同步（create/update/delete 事务提交后调用 sync_customer，最终一致性策略） | ✅ |
+| 125 | #369 | `c4a269f` | v8 P1 SearchSyncer 接入 sales_order_service + product_service：PG→ES 写入同步（含 Decimal→f64 转换 + 硬删除 ES 文档删除 + start_event_listener 签名扩展） | ✅ |
 
 **批次 121 修复明细**：
 - 删除 event_kafka.rs 中 KafkaEventEnvelope struct + from_event + into_event（74 行，零业务调用方）
@@ -165,12 +166,34 @@ v7 复审 P0/P1/P2 项全部修复完成（P0 4 项 + P1 10 项 + P2 13 项 = 27
   - 软删除保留 ES 文档（status=inactive 同步，便于搜索历史客户）
   - mock 模式（CI 环境）下同步到内存 HashMap，real 模式同步到真实 ES
 
-### 下一步：继续 v8 复审 P1/P2 修复
+**批次 125 修复明细**：
+- `services/so/order.rs`：SalesService struct 注入 `search_syncer: Arc<SearchSyncer>` 字段，`new()` 签名改为 `new(db, search_client: Arc<dyn SearchClient>)`
+- `services/so/order_crud.rs`：新增 `decimal_to_f64` 工具函数（Decimal→f64，使用 `to_string().parse()` 避免精度损失），新增 `build_sales_order_doc` 静态方法（SalesOrderDetail→SalesOrderDoc，items.color_no 空串→None），新增 `sync_sales_order_to_es` 私有方法
+- `create_order` / `update_order`：事务提交后调用 `get_order_detail` 取最新数据 → `sync_sales_order_to_es`（最终一致性策略）
+- `delete_order`：删除前保存 `order_no_for_es`，事务提交后调用 `search_syncer.delete_sales_order(order_no)`（硬删除 ES 文档）
+- `services/product_service.rs`：ProductService struct 注入 `search_syncer: Arc<SearchSyncer>`，`new()` 签名改为 `new(db, search_client: Arc<dyn SearchClient>)`，新增 `build_product_doc`（product::Model→ProductDoc，category/color_no/pantone_code 暂设 None，后续迭代 join 关联表）+ `sync_product_to_es`
+- `create_product`：insert 后 `sync_product_to_es("create")`
+- `update_product`：update_with_audit 后 `sync_product_to_es("update")`
+- `delete_product`：delete_with_audit 后 `search_syncer.delete_product(id)`（硬删除 ES 文档）
+- `search/elastic.rs`：移除 `sync_sales_order` / `sync_product` 的 `#[allow(dead_code)]`（已真实接入），新增 `delete_sales_order(order_no)` 和 `delete_product(product_id)` 方法（调用 `client.delete_doc`）
+- `search/mod.rs`：新增导出 `SalesOrderItemDoc` 供 `order_crud.build_sales_order_doc` 使用
+- `handlers/sales_order_handler.rs`（16 处）+ `handlers/product_handler.rs`（12 处）：调用点改为 `XxxService::new(state.db.clone(), state.search_client.clone())`
+- `services/event_bus.rs`：`start_event_listener` 签名扩展为 `(db, search_client: Arc<dyn SearchClient>)`，2 处闭包内 `SalesService::new(db.clone())` 改为 `SalesService::new(db.clone(), search_client.clone())`
+- `main.rs`：`start_event_listener` 调用点更新传入 `app_state.search_client.clone()`
+- **CI 修复**：首次推送 Rust 后端构建失败 `error[E0432]: unresolved import crate::search::SalesOrderItemDoc`，根因 `search/mod.rs` 的 `pub use` 列表遗漏 `SalesOrderItemDoc` 导出，补导出后 CI 全绿
+- **设计决策**：
+  - 硬删除 vs 软删除：销售订单/产品硬删除需调用 ES delete_doc；客户软删除保留 ES 文档（批次 124 实现）
+  - Decimal→f64 转换：使用 `to_string().parse()` 避免 `Decimal::to_f64` 边界值精度损失
+  - 字段映射：SalesOrderDoc.items.color_no 空字符串→None；ProductDoc.category/color_no 暂设 None（后续迭代 join product_category/product_color 表）
 
-按用户自动推进指令，继续处理 v8 复审剩余项：
-- P1：SearchSyncer 接入 sales_order_service + product_service（批次 125，含 Decimal 转换 + join 查询）
-- P2：print_handler / import_export_handler 空列表占位真实接入
-- P2：report_enhanced_handler 硬编码字段定义 + financial_analysis_handler 假执行状态 + inventory_stock_query alert_type 硬编码
+### 下一步：继续 v8 复审 P2 项修复
+
+按用户自动推进指令，继续处理 v8 复审剩余 P2 项（P1 全部完成 ✅）：
+- P2：print_handler 空列表占位真实接入
+- P2：import_export_handler 空列表占位真实接入
+- P2：report_enhanced_handler 硬编码字段定义
+- P2：financial_analysis_handler 假执行状态
+- P2：inventory_stock_query alert_type 硬编码
 
 ### 历史批次索引
 
