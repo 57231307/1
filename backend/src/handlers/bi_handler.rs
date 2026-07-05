@@ -84,7 +84,7 @@ pub async fn sales_by_product(
 pub async fn sales_by_region(
     State(state): State<AppState>,
     _auth: AuthContext,
-) -> Result<Json<ApiResponse<BiResponse<Vec<RegionStat>>>, AppError> {
+) -> Result<Json<ApiResponse<BiResponse<Vec<RegionStat>>>>, AppError> {
     let service = BiAnalysisService::new(state.db.clone());
     let data = service.sales_by_region().await?;
     Ok(Json(ApiResponse::success(BiResponse::success(data))))
@@ -95,7 +95,7 @@ pub async fn sales_by_region(
 pub async fn sales_by_category(
     State(state): State<AppState>,
     _auth: AuthContext,
-) -> Result<Json<ApiResponse<BiResponse<Vec<CategoryStat>>>, AppError> {
+) -> Result<Json<ApiResponse<BiResponse<Vec<CategoryStat>>>>, AppError> {
     let service = BiAnalysisService::new(state.db.clone());
     let data = service.sales_by_category().await?;
     Ok(Json(ApiResponse::success(BiResponse::success(data))))
