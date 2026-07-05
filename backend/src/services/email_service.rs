@@ -645,8 +645,8 @@ impl EmailService {
             timestamp, credential_scope, hashed_canonical_request
         );
 
-        // 3. 多层 HMAC-SHA256
-        let secret_date = hmac_sha256_bytes(b"TC3_SECRET_KEY", date.as_bytes());
+        // 3. 多层 HMAC-SHA256（派生密钥链：SecretKey -> SecretDate -> SecretService -> SecretSigning）
+        let secret_date = hmac_sha256_bytes(secret_key.as_bytes(), date.as_bytes());
         let secret_service = hmac_sha256_bytes(&secret_date, service.as_bytes());
         let secret_signing = hmac_sha256_bytes(&secret_service, b"tc3_request");
         let signature = hex::encode(hmac_sha256_bytes(&secret_signing, string_to_sign.as_bytes()));
