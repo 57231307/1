@@ -361,43 +361,10 @@ pub async fn get_available_fields(
     _auth: AuthContext,
     Path(template_type): Path<String>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
-    // 基于模板类型返回预定义的可用字段列表
-    let fields: Vec<serde_json::Value> = match template_type.to_lowercase().as_str() {
-        "sales" | "sales_daily" | "销售" => vec![
-            serde_json::json!({"field": "order_no", "title": "订单编号", "data_type": "string"}),
-            serde_json::json!({"field": "customer_name", "title": "客户名称", "data_type": "string"}),
-            serde_json::json!({"field": "order_date", "title": "订单日期", "data_type": "date"}),
-            serde_json::json!({"field": "total_amount", "title": "订单金额", "data_type": "decimal"}),
-            serde_json::json!({"field": "status", "title": "状态", "data_type": "string"}),
-        ],
-        "purchase" | "purchase_summary" | "采购" => vec![
-            serde_json::json!({"field": "order_no", "title": "采购单号", "data_type": "string"}),
-            serde_json::json!({"field": "supplier_name", "title": "供应商", "data_type": "string"}),
-            serde_json::json!({"field": "order_date", "title": "下单日期", "data_type": "date"}),
-            serde_json::json!({"field": "total_amount", "title": "采购金额", "data_type": "decimal"}),
-            serde_json::json!({"field": "delivery_date", "title": "交期", "data_type": "date"}),
-        ],
-        "inventory" | "inventory_status" | "库存" => vec![
-            serde_json::json!({"field": "product_code", "title": "产品编码", "data_type": "string"}),
-            serde_json::json!({"field": "product_name", "title": "产品名称", "data_type": "string"}),
-            serde_json::json!({"field": "quantity_available", "title": "可用库存", "data_type": "decimal"}),
-            serde_json::json!({"field": "quantity_reserved", "title": "预留库存", "data_type": "decimal"}),
-            serde_json::json!({"field": "warehouse", "title": "仓库", "data_type": "string"}),
-        ],
-        "financial" | "finance" | "财务" => vec![
-            serde_json::json!({"field": "payment_no", "title": "付款单号", "data_type": "string"}),
-            serde_json::json!({"field": "amount", "title": "金额", "data_type": "decimal"}),
-            serde_json::json!({"field": "payment_method", "title": "付款方式", "data_type": "string"}),
-            serde_json::json!({"field": "status", "title": "状态", "data_type": "string"}),
-            serde_json::json!({"field": "created_at", "title": "创建时间", "data_type": "datetime"}),
-        ],
-        "custom" | "自定义" => vec![
-            serde_json::json!({"field": "id", "title": "ID", "data_type": "string"}),
-            serde_json::json!({"field": "name", "title": "名称", "data_type": "string"}),
-            serde_json::json!({"field": "created_at", "title": "创建时间", "data_type": "datetime"}),
-        ],
-        _ => vec![serde_json::json!({"field": "*", "title": "全部字段", "data_type": "string"})],
-    };
+    // 批次 128 v8 复审 P2 修复：原硬编码 serde_json::json! 字段定义，
+    // 现调用 ReportTemplateService::available_fields_for_type 静态方法返回类型化 struct。
+    // 字段元数据绑定 DB schema，不宜放数据库动态管理（与 print_handler 批次 126 一致）。
+    let fields = ReportTemplateService::available_fields_for_type(&template_type);
 
     Ok(Json(ApiResponse::success(serde_json::json!({
         "template_type": template_type,

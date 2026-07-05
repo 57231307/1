@@ -63,6 +63,21 @@ pub struct ReportTemplateQuery {
     pub page_size: Option<u64>,
 }
 
+/// 报表字段定义（描述可用于自定义报表的字段元数据）
+///
+/// 批次 128 v8 复审 P2 修复：替代 report_enhanced_handler get_available_fields 中的
+/// 硬编码 serde_json::json! 字段定义。字段元数据绑定 DB schema，不宜放数据库动态管理，
+/// 采用静态配置化模式（与 print_handler 批次 126 一致）。
+#[derive(Debug, Clone, Serialize)]
+pub struct ReportFieldDefinition {
+    /// 字段名（对应 SQL 查询列名）
+    pub field: &'static str,
+    /// 字段标题（中文，前端展示）
+    pub title: &'static str,
+    /// 数据类型（string/decimal/date/datetime）
+    pub data_type: &'static str,
+}
+
 /// 报表模板 Service
 pub struct ReportTemplateService {
     db: Arc<DatabaseConnection>,
@@ -76,6 +91,61 @@ pub struct ReportTemplateService {
 impl ReportTemplateService {
     pub fn new(db: Arc<DatabaseConnection>) -> Self {
         Self { db }
+    }
+
+    /// 获取指定模板类型可用的字段定义
+    ///
+    /// 批次 128 v8 复审 P2 修复：替代 report_enhanced_handler get_available_fields 中的
+    /// 硬编码 serde_json::json! 字段定义。字段元数据绑定 DB schema（sales_orders 表有
+    /// order_no 列、purchase_orders 表有 order_no 列等），不宜放数据库动态管理，
+    /// 采用静态配置化模式（与 print_handler 批次 126 一致）。
+    ///
+    /// 支持的模板类型：
+    /// - sales / sales_daily / 销售：销售订单字段（订单编号/客户名称/订单日期/订单金额/状态）
+    /// - purchase / purchase_summary / 采购：采购订单字段（采购单号/供应商/下单日期/采购金额/交期）
+    /// - inventory / inventory_status / 库存：库存字段（产品编码/产品名称/可用库存/预留库存/仓库）
+    /// - financial / finance / 财务：财务字段（付款单号/金额/付款方式/状态/创建时间）
+    /// - custom / 自定义：通用字段（ID/名称/创建时间）
+    /// - 其他：返回通配符字段 `*`
+    pub fn available_fields_for_type(template_type: &str) -> Vec<ReportFieldDefinition> {
+        match template_type.to_lowercase().as_str() {
+            "sales" | "sales_daily" | "销售" => vec![
+                ReportFieldDefinition { field: "order_no", title: "订单编号", data_type: "string" },
+                ReportFieldDefinition { field: "customer_name", title: "客户名称", data_type: "string" },
+                ReportFieldDefinition { field: "order_date", title: "订单日期", data_type: "date" },
+                ReportFieldDefinition { field: "total_amount", title: "订单金额", data_type: "decimal" },
+                ReportFieldDefinition { field: "status", title: "状态", data_type: "string" },
+            ],
+            "purchase" | "purchase_summary" | "采购" => vec![
+                ReportFieldDefinition { field: "order_no", title: "采购单号", data_type: "string" },
+                ReportFieldDefinition { field: "supplier_name", title: "供应商", data_type: "string" },
+                ReportFieldDefinition { field: "order_date", title: "下单日期", data_type: "date" },
+                ReportFieldDefinition { field: "total_amount", title: "采购金额", data_type: "decimal" },
+                ReportFieldDefinition { field: "delivery_date", title: "交期", data_type: "date" },
+            ],
+            "inventory" | "inventory_status" | "库存" => vec![
+                ReportFieldDefinition { field: "product_code", title: "产品编码", data_type: "string" },
+                ReportFieldDefinition { field: "product_name", title: "产品名称", data_type: "string" },
+                ReportFieldDefinition { field: "quantity_available", title: "可用库存", data_type: "decimal" },
+                ReportFieldDefinition { field: "quantity_reserved", title: "预留库存", data_type: "decimal" },
+                ReportFieldDefinition { field: "warehouse", title: "仓库", data_type: "string" },
+            ],
+            "financial" | "finance" | "财务" => vec![
+                ReportFieldDefinition { field: "payment_no", title: "付款单号", data_type: "string" },
+                ReportFieldDefinition { field: "amount", title: "金额", data_type: "decimal" },
+                ReportFieldDefinition { field: "payment_method", title: "付款方式", data_type: "string" },
+                ReportFieldDefinition { field: "status", title: "状态", data_type: "string" },
+                ReportFieldDefinition { field: "created_at", title: "创建时间", data_type: "datetime" },
+            ],
+            "custom" | "自定义" => vec![
+                ReportFieldDefinition { field: "id", title: "ID", data_type: "string" },
+                ReportFieldDefinition { field: "name", title: "名称", data_type: "string" },
+                ReportFieldDefinition { field: "created_at", title: "创建时间", data_type: "datetime" },
+            ],
+            _ => vec![
+                ReportFieldDefinition { field: "*", title: "全部字段", data_type: "string" },
+            ],
+        }
     }
 
     /// 创建报表模板
