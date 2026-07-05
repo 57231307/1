@@ -3,7 +3,6 @@ pub mod app_state;
 pub mod cache;
 pub mod data_permission;
 pub mod date_utils;
-pub mod failover;
 pub mod path_utils;
 pub mod request_ext;
 

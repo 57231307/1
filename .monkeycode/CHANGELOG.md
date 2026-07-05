@@ -6,6 +6,26 @@
 
 ---
 
+## 2026-07-05 (批次 114 v7 复审 P1-6/P1-5 修复完成 + .monkeycode 文件夹整理优化)
+
+### 批次 114：v7 复审 P1 修复 — 通知路径 warn 日志化 + 启动期 expect 安全化 + 记忆文件整理
+
+**PR #358，main commit `36a9730`**
+
+| 修复项 | 内容 |
+|--------|------|
+| P1-6 | 10 处通知路径 `let _ =` 真实错误吞没 → `if let Err(e) = ... { tracing::warn!(...); }`：auth_handler(update_last_login) / purchase_return_handler(notify_approval_result reject) / inventory_adjustment_handler(notify_approval_result reject) / ap_payment_request_handler(notify_payment_request + notify_approval_result approve+reject) / purchase_receipt_handler(notify_purchase_arrived) / purchase_order_handler(notify_purchase_order_created + notify_approval_result reject) / crm_assignment_handler(history_service.create) |
+| P1-5 | 3 处启动期 expect 安全化：main.rs:shutdown_signal ctrl_c + SIGTERM expect → if let Err + tracing::error! + exit(1)；cli/migrate.rs:get_db_connection DATABASE_URL expect → unwrap_or_else + eprintln + exit(1) |
+| 记忆整理 | .monkeycode 文件夹整理优化：MEMORY.md 1791→395 行（规则 0 升级 + 用户习惯章节新增）；CHANGELOG.md 2039→302 行；doto.md 113→94 行；早期内容归档到 docs/archives/2026-07-05/ |
+
+**关键决策**：
+- 通知路径 warn 日志化修复模式：`let _ = svc.method().await;` → `if let Err(e) = svc.method().await { tracing::warn!(error=%e, context_id, "描述"); }`（错误可见可排查，不影响主业务流）
+- 启动期 expect 安全化修复模式：`.expect("msg")` → `unwrap_or_else(|_| { eprintln!("友好提示"); std::process::exit(1); })` 或 `match` + `tracing::error!` + `std::process::exit(1)`（避免 panic 拖垮 runtime）
+- Rust 2018+ 路径解析：`tracing::warn!` 宏可通过 crate 名路径直接调用，无需显式 `use tracing;`
+- 用户习惯固化：批次修复工作流 / 沟通偏好 / 记忆管理偏好 / CI 验证偏好 / 分支策略偏好 全部写入 MEMORY.md 第十二章
+
+---
+
 ## 2026-07-05 (批次 113 v7 复审 P1-1/P1-7/P1-8 修复完成)
 
 ### 批次 113：v7 复审 P1 修复 — webhook PUT 语义 + 占位符清理 + let _ = 检查存在性丢弃

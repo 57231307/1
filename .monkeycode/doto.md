@@ -5,13 +5,10 @@
 
 ---
 
-## 🔄 当前任务：v7 第七轮复审 P1 修复（批次 113 已完成，继续批次 114）
+## 🔄 当前任务：v7 第七轮复审 P1 修复（批次 114 已完成，继续批次 115）
 
-**用户新规则（2026-07-04 追加，最高优先级）**：
-> 对所有预留的 api 及预留的功能/占位符功能/路由进行实现，
-> 对所有未真实接入的功能等需要真实接入，
-> 对所有遇到的错误均进行统一修复，
-> 对所有的功能均需要真实接入。
+> 用户最高优先级规则（2026-07-04 追加）已固化到 [MEMORY.md 一、规则 0](file:///workspace/.monkeycode/MEMORY.md)。
+> 本文件仅记录任务进度，规则不在此重复。
 
 实现规划：`docs/audits/2026-07-04-batch103-placeholder-impl-plan.md`
 
@@ -19,6 +16,7 @@
 
 | 批次 | PR | main commit | 内容 |
 |------|-----|-------------|------|
+| 114 | #358 | `36a9730` | v7 P1-6 通知路径 warn 日志化（10 处）+ P1-5 启动期 expect 安全化（3 处中风险）+ .monkeycode 文件夹整理优化 |
 | 113 | #357 | `9d65a72` | v7 P1-1 webhook PUT 语义 + P1-7 占位符 2 处 + P1-8 let _ = 检查存在性 5 处 |
 | 112 | #356 | `6052810` | v7 P1-9 api_keys 表 created_by 列持久化（migration m0039） |
 | 111 | #355 + 621cb0a | `20a8ce7` | v7 P1-2 incoterms 接入 quotation_service + P1-10 audit/crm keyword/source |
@@ -33,34 +31,27 @@
 | 102 | #346 | `ed27a6c` | v6 P3 修复（状态字符串常量化扩展 66 处 + 错误分类修复） |
 | 101 | #345 | `835b990` | v6 P2 修复（customer/purchase_return 事务+锁+审计） |
 | 100 | #344 | `61e2da2` | v5 P3-A 状态字符串常量化（4 文件 70 处） |
-| 99 | #343 | `4761359` | v5 P3 占位模块清理 + dead_code TODO 评估 |
 
-### 批次 114 规划
+### 批次 115 规划
 
-**目标**：v7 复审 P1-6 + P1-5 中风险修复
+**目标**：v7 复审剩余 P1 项修复 — P1-3 failover/database.rs dead_code 真实接入
 
-- P1-6（8 处通知路径 let _ = 真实错误吞没）：
-  - `auth_handler.rs:409`
-  - `purchase_return_handler.rs:145`
-  - `inventory_adjustment_handler.rs:234`
-  - `ap_payment_request_handler.rs:252/287/331`
-  - `purchase_receipt_handler.rs:159`
-  - `purchase_order_handler.rs:168/270`
-  - `crm_assignment_handler.rs:157`
-  - 修复模式：`let _ = ...` → `if let Err(e) = ... { tracing::warn!(...) }`
+**背景**：`backend/src/utils/failover/database.rs` 整文件 4 处 dead_code，原因是备库 DB 连接功能未真实接入业务。
 
-- P1-5（3 处中风险 .unwrap()/.expect() 启动期 panic）：
-  - `main.rs:230/236` 启动期 expect
-  - `cli/migrate.rs:29` migration expect
-  - 修复模式：启动期 expect 改为 `unwrap_or_else(|e| { tracing::error!(...); std::process::exit(1); })`
+**修复方案**（待评估）：
+- 选项 A：真实接入备库 DB 连接 → 在 AppState 中装配 `failover_db: Option<DatabaseConnection>` + 健康检查端点
+- 选项 B：评估备库功能是否仍需要 → 若不需要则删除整个文件（git 保留历史）
+- 选项 C：若架构暂未确定 → 项级 `#[allow(dead_code)] + TODO(tech-debt)` 注释，下一迭代接入
+
+**修复模式参考**（来自批次 114）：
+- 启动期 expect 安全化：`unwrap_or_else(|_| { eprintln!("友好提示"); std::process::exit(1); })`
+- 通知路径 warn 日志化：`if let Err(e) = ... { tracing::warn!(error=%e, context, "描述"); }`
 
 ### 后续批次规划
 
-- **批次 115+**：v7 复审剩余 P1 项：
-  - P1-3：failover/database.rs 整文件 4 处 dead_code（需架构改动，备库 DB 连接）
-  - P1-4：cache/redis_client.rs 11 处辅助 API 未接入（需 AppState 装配 + 监控端点）
-  - P1-5：剩余 8 处低风险 .unwrap()/.expect()（保留并加注释）
-- **批次 116+**：v7 复审 P2 项修复
+- **批次 116**：v7 复审 P1-4 cache/redis_client.rs 11 处辅助 API 未接入（需 AppState 装配 + 监控端点）
+- **批次 117**：v7 复审 P1-5 剩余 8 处低风险 .unwrap()/.expect()（保留并加注释）
+- **批次 118+**：v7 复审 P2 项修复
 - **持续**：SearchSyncer 接入 PG→ES 写入同步
 
 ### 复审维度（基于历次复审经验）
