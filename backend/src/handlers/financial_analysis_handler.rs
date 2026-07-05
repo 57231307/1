@@ -6,13 +6,12 @@ use axum::{
     extract::{Path, Query, State},
     Json,
 };
-use sea_orm::QueryOrder;
 use serde::Deserialize;
 use tracing::info;
 use validator::Validate;
 
 use crate::middleware::auth_context::AuthContext;
-use crate::models::{financial_analysis, financial_analysis_result};
+use crate::models::financial_analysis;
 use crate::services::financial_analysis_service::{
     CreateIndicatorRequest, FinancialAnalysisService, IndicatorQueryParams,
 };
@@ -84,6 +83,16 @@ pub struct CreateReportRequest {
     #[allow(dead_code)] // TODO(tech-debt): 报表创建接口接入业务后移除
     pub indicators: Option<Vec<i32>>,
     pub description: Option<String>,
+}
+
+/// 执行财务分析报告查询参数
+///
+/// 批次 129 v8 复审 P2 修复：原 execute_report 无 period 参数，仅查询最新结果不执行计算。
+/// 现新增可选 period 参数（默认当前年月），调用 calculate_indicators 真实计算财务指标。
+#[derive(Debug, Deserialize)]
+pub struct ExecuteReportParams {
+    /// 分析期间（格式 YYYY-MM，缺失时默认当前年月）
+    pub period: Option<String>,
 }
 
 /// GET /api/v1/erp/financial-analysis/indicators - 获取财务指标列表
@@ -335,36 +344,74 @@ pub async fn get_report(
 }
 
 /// POST /api/v1/erp/financial-analysis/reports/:id/execute - 执行财务分析报告
+///
+/// 批次 129 v8 复审 P2 修复：原返回硬编码 "completed" + Utc::now() 假执行状态，
+/// 仅查询最新结果不执行任何计算。现调用 calculate_indicators 真实计算财务指标：
+/// 1. 读取指定期间的科目余额（account_balance）
+/// 2. 按科目代码前缀分类汇总（资产/负债/损益）
+/// 3. 计算流动比率/速动比率/资产负债率等指标
+/// 4. 落库到 financial_analysis_results 表
+/// 5. 返回当前指标的计算结果（非预查询的旧数据）
 pub async fn execute_report(
     State(state): State<AppState>,
     auth: AuthContext,
     Path(id): Path<i32>,
+    Query(params): Query<ExecuteReportParams>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
-    use sea_orm::{ColumnTrait, EntityTrait, QueryFilter};
+    use sea_orm::EntityTrait;
 
+    // 验证指标存在
     let indicator = financial_analysis::Entity::find_by_id(id)
         .one(state.db.as_ref())
         .await?
         .ok_or_else(|| AppError::not_found("财务分析报告不存在"))?;
 
-    // 查询该指标的最新分析结果
-    let latest_result = financial_analysis_result::Entity::find()
-        .filter(financial_analysis_result::Column::IndicatorId.eq(id))
-        .order_by(
-            financial_analysis_result::Column::CreatedAt,
-            sea_orm::Order::Desc,
-        )
-        .one(state.db.as_ref())
-        .await?;
+    let service = FinancialAnalysisService::new(state.db.clone());
 
-    info!("用户 {} 执行财务分析报告: ID={}", auth.username, id);
+    // 期间缺失时默认当前年月（格式 YYYY-MM）
+    let period = params
+        .period
+        .unwrap_or_else(|| chrono::Utc::now().format("%Y-%m").to_string());
+
+    // 真实执行：calculate_indicators 读取该期间科目余额，计算所有指标并落库
+    // 财务指标相互关联（流动比率需要流动资产+流动负债），无法孤立计算单个指标，
+    // 因此 calculate_indicators 会计算所有预定义指标，本接口从中筛选当前指标返回。
+    let all_results = service.calculate_indicators(&period, auth.user_id).await?;
+
+    // 从计算结果中筛选当前指标
+    let indicator_result = all_results.iter().find(|r| r.indicator_id == id);
+
+    let executed_at = chrono::Utc::now().to_rfc3339();
+    info!(
+        "用户 {} 执行财务分析报告: ID={}, 期间={}, 计算指标数={}, 当前指标结果={}",
+        auth.username,
+        id,
+        period,
+        all_results.len(),
+        if indicator_result.is_some() {
+            "有"
+        } else {
+            "无"
+        }
+    );
+
+    // 透明响应：有结果返回 completed + 计算值，无结果返回 no_data + 说明
+    let (status, message) = if indicator_result.is_some() {
+        ("completed", "财务分析报告执行成功")
+    } else {
+        (
+            "no_data",
+            "财务分析报告执行完成，但该指标无计算结果（可能缺少科目余额数据或指标未在预定义列表中）",
+        )
+    };
 
     Ok(Json(ApiResponse::success_with_message(
         serde_json::json!({
             "id": id,
             "name": indicator.indicator_name,
-            "status": "completed",
-            "latest_result": latest_result.map(|r| serde_json::json!({
+            "status": status,
+            "period": period,
+            "latest_result": indicator_result.map(|r| serde_json::json!({
                 "analysis_type": r.analysis_type,
                 "period": r.period,
                 "indicator_value": r.indicator_value,
@@ -374,8 +421,9 @@ pub async fn execute_report(
                 "trend": r.trend,
                 "analysis_date": r.analysis_date,
             })),
-            "executed_at": chrono::Utc::now().to_rfc3339(),
+            "executed_at": executed_at,
+            "total_indicators_computed": all_results.len(),
         }),
-        "财务分析报告执行成功",
+        message,
     )))
 }
