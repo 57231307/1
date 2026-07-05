@@ -480,8 +480,9 @@ impl SearchClient for ElasticClient {
                     .and_then(|h| h.get("hits"))
                     .and_then(|h| h.as_array())
                     .map(|arr| {
+                        // 闭包内所有路径均返回 Some，clippy 建议 .map 替代 .filter_map
                         arr.iter()
-                            .filter_map(|hit| {
+                            .map(|hit| {
                                 let id = hit
                                     .get("_id")
                                     .and_then(|v| v.as_str())
@@ -495,12 +496,12 @@ impl SearchClient for ElasticClient {
                                 let highlight = hit
                                     .get("highlight")
                                     .map(|h| serde_json::from_value(h.clone()).unwrap_or_default());
-                                Some(SearchHit {
+                                SearchHit {
                                     id,
                                     score,
                                     source,
                                     highlight,
-                                })
+                                }
                             })
                             .collect()
                     })
@@ -551,7 +552,9 @@ impl SearchClient for ElasticClient {
         docs: &[(String, serde_json::Value)],
     ) -> Result<usize, SearchError> {
         match &self.inner {
-            ClientInner::Mock(storage) => {
+            ClientInner::Mock(_) => {
+                // Mock 模式：逐条调用 index_doc 写入内存 HashMap
+                // （_ 表示不直接使用 storage 引用，避免 unused variable 警告）
                 let mut count = 0;
                 for (id, doc) in docs {
                     self.index_doc(index, id, doc).await?;
