@@ -248,6 +248,12 @@ pub fn emails() -> Router<AppState> {
 /// Webhook 集成路由（内部 path 保留 `/`、`/callback` 等，nest 装配时再加前缀）
 ///
 /// 最终 path = `/api/v1/erp/webhooks/integrations/...`（与前端一致）。
+///
+/// 批次 113 P1-1 修复 HTTP 语义：
+/// - 移除原 `PUT /integration/:id` 调用 `test_integration`（非幂等动作触发，违反 PUT 语义）
+/// - 新增 `PUT /:id` 调用 `update_integration`（真正的字段更新）
+/// - 保留 `DELETE /integration/:id` 调用 `delete_integration`
+/// - 保留 `POST /test-integration/:id` 作为唯一测试入口（动作触发语义）
 pub fn webhook_integrations() -> Router<AppState> {
     Router::new()
         .route(
@@ -256,9 +262,12 @@ pub fn webhook_integrations() -> Router<AppState> {
                 .post(webhook_integration_handler::create_integration),
         )
         .route(
+            "/:id",
+            put(webhook_integration_handler::update_integration),
+        )
+        .route(
             "/integration/:id",
-            put(webhook_integration_handler::test_integration)
-                .delete(webhook_integration_handler::delete_integration),
+            delete(webhook_integration_handler::delete_integration),
         )
         .route(
             "/callback",

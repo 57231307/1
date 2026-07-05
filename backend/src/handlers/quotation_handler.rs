@@ -317,8 +317,9 @@ pub async fn set_quotation_terms(
     use sea_orm::{ActiveModelTrait, Set, TransactionTrait};
 
     // 校验报价单存在
+    // 批次 113 P1-8：移除 `let _ =` 显式丢弃，直接表达式语句校验存在性
     let service = QuotationService::from_state(&state);
-    let _ = service.get_by_id(id).await?;
+    service.get_by_id(id).await?;
 
     let txn = state.db.begin().await?;
 

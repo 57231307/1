@@ -104,7 +104,8 @@ pub async fn test_database_connection(
 
     // 2) P1-1 修复（H-3，2026-06-25 综合审计）：port 范围校验
     //    仅允许 1-65535，防止任意端口枚举内网服务。
-    let port_num: u16 = match payload.port.parse::<u16>() {
+    // 批次 113 P1-7：变量名前缀 `_` 表示"校验后不参与后续逻辑"，移除冗余 `let _ = port_num;`
+    let _port_num: u16 = match payload.port.parse::<u16>() {
         Ok(p) if p > 0 => p,
         _ => {
             audit::log_security_event(
@@ -122,8 +123,6 @@ pub async fn test_database_connection(
             ));
         }
     };
-    // 防止未使用变量警告（port_num 用于校验，不参与后续逻辑）
-    let _ = port_num;
 
     // 3) P1-1 修复：初始化模式约束
     //    系统已初始化后拒绝调用 test_database_connection，收敛 SSRF 攻击面。

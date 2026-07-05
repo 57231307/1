@@ -18,6 +18,18 @@ pub struct CreateWebhookIntegrationRequest {
     pub is_active: Option<bool>,
 }
 
+/// 批次 113 P1-1：Webhook 集成更新请求 DTO
+///
+/// 全字段 Option，仅更新传入的字段，未传入字段保持不变。
+/// platform 字段不参与更新（前端语义：创建时确定平台，不可修改）。
+#[derive(Debug, Deserialize)]
+pub struct UpdateWebhookIntegrationRequest {
+    pub name: Option<String>,
+    pub webhook_url: Option<String>,
+    pub secret: Option<Option<String>>,
+    pub is_active: Option<bool>,
+}
+
 #[derive(Debug, Deserialize)]
 pub struct SendWebhookMessageRequest {
     pub integration_id: i32,
@@ -149,6 +161,65 @@ pub async fn delete_integration(
     Ok(Json(ApiResponse::success_with_message(
         (),
         "Webhook 集成已删除",
+    )))
+}
+
+/// 批次 113 P1-1：Webhook 集成更新 handler
+///
+/// 修复 HTTP 语义：原路由 `PUT /integration/:id` 调用 `test_integration`（非幂等的动作触发），
+/// 违反 PUT 的"整体替换/更新资源"语义。新增此 `update_integration` handler 实现真正的字段更新。
+///
+/// 路由调整：
+/// - `PUT /:id` → `update_integration`（新增，部分字段更新）
+/// - `DELETE /integration/:id` → `delete_integration`（保留，原路径不变）
+/// - `POST /test-integration/:id` → `test_integration`（保留，作为唯一测试入口）
+pub async fn update_integration(
+    State(state): State<AppState>,
+    _auth: AuthContext,
+    Path(id): Path<i32>,
+    Json(req): Json<UpdateWebhookIntegrationRequest>,
+) -> Result<Json<ApiResponse<WebhookIntegrationItem>>, AppError> {
+    use crate::models::webhook;
+    use chrono::Utc;
+    use sea_orm::{ActiveModelTrait, EntityTrait, Set};
+
+    // 查询现有记录（lock_exclusive 不需要，单条 update 原子）
+    let existing = webhook::Entity::find_by_id(id)
+        .one(state.db.as_ref())
+        .await?
+        .ok_or_else(|| AppError::not_found(format!("Webhook 集成 {} 不存在", id)))?;
+
+    let mut active: webhook::ActiveModel = existing.into();
+    if let Some(name) = req.name {
+        active.name = Set(name);
+    }
+    if let Some(url) = req.webhook_url {
+        active.url = Set(url);
+    }
+    if let Some(secret) = req.secret {
+        active.secret = Set(secret);
+    }
+    if let Some(is_active) = req.is_active {
+        active.is_active = Set(is_active);
+    }
+    active.updated_at = Set(Utc::now());
+
+    let updated = active.update(state.db.as_ref()).await?;
+
+    Ok(Json(ApiResponse::success_with_message(
+        WebhookIntegrationItem {
+            id: updated.id,
+            name: updated.name,
+            // platform 字段不在 webhook 表中，更新时无法返回原值，使用空字符串占位
+            // 前端如需展示 platform，应从 list 接口获取或在 update 响应中忽略此字段
+            platform: String::new(),
+            webhook_url: updated.url,
+            is_active: updated.is_active,
+            last_triggered_at: updated.last_triggered_at.map(|d| d.to_rfc3339()),
+            last_status: updated.last_status,
+            created_at: updated.created_at.to_rfc3339(),
+        },
+        "Webhook 集成更新成功",
     )))
 }
 

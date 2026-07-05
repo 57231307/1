@@ -260,8 +260,9 @@ impl WebhookService {
         &self,
         webhook_id: i32,
     ) -> Result<WebhookDeliveryResult, AppError> {
-        // 仅校验 webhook 存在性，不绑定变量（后续 trigger_webhook 只需要 id）
-        let _ = Webhook::find_by_id(webhook_id)
+        // 批次 113 P1-8：移除 `let _ =` 显式丢弃，直接表达式语句校验存在性
+        // 错误通过 `?` 传播，成功值（Model）作为表达式语句的副作用被丢弃
+        Webhook::find_by_id(webhook_id)
             .one(self.db.as_ref())
             .await?
             .ok_or_else(|| AppError::business("Webhook 不存在"))?;

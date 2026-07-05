@@ -476,7 +476,8 @@ impl InventoryAdjustmentService {
         adjustment_id: i32,
     ) -> Result<Vec<inventory_adjustment_item::Model>, AppError> {
         // 确认主单存在
-        let _ = self.get_adjustment(adjustment_id).await?;
+        // 批次 113 P1-8：移除 `let _ =` 显式丢弃，直接表达式语句校验存在性
+        self.get_adjustment(adjustment_id).await?;
 
         let items = inventory_adjustment_item::Entity::find()
             .filter(inventory_adjustment_item::Column::AdjustmentId.eq(adjustment_id))
