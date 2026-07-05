@@ -85,7 +85,7 @@ pub struct Model {
     pub business_id: Option<i32>,
     /// 跳转链接
     pub action_url: Option<String>,
-    /// 发送人 ID（系统通知为 0）
+    /// 发送人 ID（系统通知为 NULL，表示无具体发送人；sender_name 携带显示名）
     pub sender_id: Option<i32>,
     /// 发送人名称
     pub sender_name: Option<String>,

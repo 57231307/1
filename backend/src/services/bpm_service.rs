@@ -849,7 +849,7 @@ impl BpmService {
                         business_type: Some("BPM".to_string()),
                         business_id: Some(task.instance_id),
                         action_url: Some(format!("/bpm/tasks/{}", task_id)),
-                        sender_id: Some(0),
+                        sender_id: None,
                         sender_name: Some("系统".to_string()),
                     },
                 )
