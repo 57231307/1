@@ -249,6 +249,7 @@ impl DashboardService {
     ///
     /// 批次 134 v9 P1 修复：原 weekly_sales/monthly_sales/by_customer/by_product/by_salesperson
     /// 5 个字段为 vec![] 占位，现真实聚合查询：
+    ///
     /// - daily_sales: 按日分组（保留原有 SeaORM 查询）
     /// - weekly_sales: 按日聚合后内存派生为 ISO 周（IYYY-IW）
     /// - monthly_sales: 按日聚合后内存派生为年月（YYYY-MM）
@@ -374,6 +375,7 @@ impl DashboardService {
     /// 按维度（customer/product/salesperson）聚合销售统计
     ///
     /// 批次 134 v9 P1 修复：替代原 vec![] 占位。
+    ///
     /// 通过 raw SQL 关联对应主数据表，按维度字段分组聚合销售额与订单数。
     /// 排除 CANCELLED/DRAFT 状态订单。
     async fn query_sales_by_dimension(
@@ -462,9 +464,11 @@ impl DashboardService {
     ///
     /// 批次 135 v9 P1 修复：原 turnover_rate/by_category/aging_analysis 为硬编码占位，
     /// 现真实聚合查询：
+    ///
     /// - turnover_rate: 销售数量 / 库存数量（无量纲周转率）
     /// - by_category: raw SQL 关联 products + product_categories 表按品类分组
     /// - aging_analysis: raw SQL 按 last_movement_date/created_at 计算账龄区间
+    ///
     /// 同时修复 by_warehouse.value 从 "0.0" 改为按品类查询同款 SQL 聚合真实库存价值
     pub async fn get_inventory_statistics(
         &self,
@@ -650,7 +654,12 @@ impl DashboardService {
     /// 库存账龄分析（批次 135 v9 P1 修复）
     ///
     /// 按 last_movement_date（NULL 时回退 created_at）计算账龄区间：
-    /// 0-30天、31-60天、61-90天、90天以上。
+    ///
+    /// - 0-30天
+    /// - 31-60天
+    /// - 61-90天
+    /// - 90天以上
+    ///
     /// 返回每个区间的数量与百分比。
     async fn query_inventory_aging(&self) -> Result<Vec<AgingData>, AppError> {
         let stmt = Statement::from_sql_and_values(
@@ -723,8 +732,10 @@ impl DashboardService {
     /// 计算库存周转率（批次 135 v9 P1 修复）
     ///
     /// 周转率 = 销售数量 / 库存数量（无量纲）
+    ///
     /// - 销售数量：SUM(sales_order_items.quantity) WHERE 订单状态非 CANCELLED/DRAFT
     /// - 库存数量：SUM(inventory_stocks.quantity_meters) WHERE stock_status = 'active'
+    ///
     /// 返回保留 4 位小数的字符串。
     async fn query_turnover_rate(&self) -> Result<String, AppError> {
         let stmt = Statement::from_sql_and_values(
