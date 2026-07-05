@@ -7,6 +7,8 @@ pub mod elastic;
 // 批次 104 P0-1 修复：仅 re-export 外部实际使用的项
 // DocType / SalesOrderItemDoc / SearchError / SearchHit / SearchResult / SearchSyncer
 // 在 elastic.rs 内部为 pub，外部如需访问可通过 crate::search::elastic::X 路径
+// 批次 123 v8 复审 P1 修复：新增导出 ensure_indices 供 app_state 启动时调用
 pub use elastic::{
-    indices, CustomerDoc, ElasticClient, ProductDoc, SalesOrderDoc, SearchClient, SearchQuery,
+    ensure_indices, indices, CustomerDoc, ElasticClient, ProductDoc, SalesOrderDoc, SearchClient,
+    SearchQuery,
 };

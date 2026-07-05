@@ -505,6 +505,21 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             } else {
                 tracing::info!("辅助核算维度初始化完成（8 个维度：批次/色号/缸号/等级/车间/仓库/客户/供应商）");
             }
+            // 批次 123 v8 复审 P1 修复：启动时确保 ES 索引存在（幂等创建）
+            // 仅在配置了 ELASTICSEARCH_URL 时调用，CI 环境（未配置）跳过。
+            // 错误处理：用 tracing::warn! 降级（不阻塞启动），与 initialize_dimensions 一致。
+            let es_url = std::env::var("ELASTICSEARCH_URL").unwrap_or_default();
+            if !es_url.is_empty() {
+                if let Err(e) = crate::search::ensure_indices(&es_url).await {
+                    tracing::warn!(
+                        error = %e,
+                        url = %es_url,
+                        "ES 索引初始化失败（不阻塞启动，后续可手动 PUT mapping）"
+                    );
+                } else {
+                    tracing::info!("ES 索引初始化完成（3 个索引：sales_orders/customers/products）");
+                }
+            }
             let app = create_router(app_state)
                 // 安全漏洞 #8 修复：全局 HTTP 请求体大小限制（12MB）
                 // - 设计目的：兜底防止已认证用户发送 100MB+ 请求触发 OOM DoS
