@@ -6,6 +6,25 @@
 
 ---
 
+## 2026-07-05 (批次 119 v7 复审 P2 继续修复完成 - 8/9 项)
+
+### 批次 119：v7 复审 P2 修复 — 3 处死代码清理（token_bucket + data_permission + assist_accounting）
+
+**PR #363，main commit `fd4faf7`，4 文件 -274 行**
+
+| 修复项 | 内容 |
+|--------|------|
+| P2-2 删除 | utils/token_bucket.rs 整个文件删除（189 行）：TokenBucket + TokenBucketLimiter（生产限流已用 MemoryRateLimiter + Redis 双轨，零业务调用方） |
+| P2-5 删除 | data_permission_service.rs check_data_permission 方法 + data_scope 模块 4 个未接入常量（DEPT/DEPT_AND_BELOW/SELF/CUSTOM），仅保留 ALL；移除 PaginatorTrait 导入 |
+| P2-7 删除 | assist_accounting_service.rs create_assist_record 方法（58 行，零业务调用方）；移除 Decimal 导入；initialize_dimensions 保留待批次 120 接入 |
+
+**关键决策**：
+- P2-2/P2-5/P2-7（create_assist_record 部分）均为真死代码，按 grep 验证零业务调用 → 删除 → 清理导入 → 同步测试的成熟模式
+- P2-7 initialize_dimensions 暂留，批次 120 在 main.rs 启动时接入（初始化 8 个辅助核算维度，幂等实现）
+- v7 复审 P2 进度：9 项已完成 8 项，剩余 1 项复合项（P2-7 initialize_dimensions + P2-10 event_bus trait）
+
+---
+
 ## 2026-07-05 (批次 118 v7 复审 P2 部分修复完成 - 5/9 项)
 
 ### 批次 118：v7 复审 P2 修复 — 供应商资质端点真实接入 + 4 处死代码清理
