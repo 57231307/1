@@ -41,7 +41,7 @@
 
 ---
 
-## 二、当前任务状态（2026-07-05 批次 127 完成 - v8 复审 P2 import_export_handler 接入 import_tasks 表，继续 v8 复审 P2 剩余项）
+## 二、当前任务状态（2026-07-05 批次 128 完成 - v8 复审 P2 report_enhanced_handler 字段定义静态配置化，继续 v8 复审 P2 剩余项）
 
 > 用户最高优先级规则已在「一、规则 0」固化，本节仅记录修复进度。
 
@@ -119,6 +119,7 @@ v7 复审 P0/P1/P2 项全部修复完成（P0 4 项 + P1 10 项 + P2 13 项 = 27
 | 125 | #369 | `c4a269f` | v8 P1 SearchSyncer 接入 sales_order_service + product_service：PG→ES 写入同步（含 Decimal→f64 转换 + 硬删除 ES 文档删除 + start_event_listener 签名扩展） | ✅ |
 | 126 | #370 | `2674df1` | v8 P2 print_handler 静态配置化（6 种内置打印模板）+ inventory_stock_query alert_type 派生计算（discrepancy/out_of_stock/low_stock/expiring/normal） | ✅ |
 | 127 | #371 | `66cbe81` | v8 P2 import_export_handler 接入 import_tasks 表：list_import_tasks 真实查询 + import_csv/import_excel 创建+更新任务记录 | ✅ |
+| 128 | #372 | `09601cb` | v8 P2 report_enhanced_handler 字段定义静态配置化：ReportFieldDefinition struct + available_fields_for_type 静态方法替代硬编码 serde_json::json! | ✅ |
 
 **批次 121 修复明细**：
 - 删除 event_kafka.rs 中 KafkaEventEnvelope struct + from_event + into_event（74 行，零业务调用方）
@@ -230,13 +231,25 @@ v7 复审 P0/P1/P2 项全部修复完成（P0 4 项 + P1 10 项 + P2 13 项 = 27
   - total_rows = 解析后的实际行数（不含表头），imported_rows/failed_rows 由 ImportResult 提供
   - 限制 100 条记录避免列表过大（按 created_at DESC 倒序）
 
+**批次 128 修复明细**：
+- `services/report_template_service.rs`：新增 `ReportFieldDefinition` struct（field/title/data_type，&'static str）+ `available_fields_for_type(template_type: &str) -> Vec<ReportFieldDefinition>` 静态方法
+  - 集中管理 5 种模板类型 + 通配符的字段定义：sales/purchase/inventory/financial/custom
+  - 类型化 struct 替代 `serde_json::json!` 宏，编译时检查
+  - `&'static str` 避免运行时 String 分配，零成本抽象
+- `handlers/report_enhanced_handler.rs`：`get_available_fields` 从 38 行硬编码 match + `serde_json::json!` 块改为调用 `ReportTemplateService::available_fields_for_type(&template_type)`
+  - 返回 JSON 结构完全向后兼容（field/title/data_type 三字段不变）
+- **设计决策**：
+  - 字段元数据绑定 DB schema（sales_orders 表有 order_no 列等），不宜放数据库动态管理
+  - 采用静态配置化模式，与 print_handler 批次 126 一致
+  - 已存在 `report_definition` 表但零业务引用（死表），本批次未复活该表（字段定义与报表定义是不同概念，前者是 schema 元数据，后者是用户自定义报表模板）
+
 ### 下一步：继续 v8 复审 P2 项修复
 
-按用户自动推进指令，继续处理 v8 复审剩余 P2 项（P1 全部完成 ✅，P2 已完成 3/5）：
+按用户自动推进指令，继续处理 v8 复审剩余 P2 项（P1 全部完成 ✅，P2 已完成 4/5）：
 - ✅ P2：print_handler 空列表占位真实接入（批次 126，静态配置化 6 种内置模板）
 - ✅ P2：inventory_stock_query alert_type 硬编码（批次 126，派生计算 discrepancy/out_of_stock/low_stock/expiring/normal）
 - ✅ P2：import_export_handler list_import_tasks 空列表占位（批次 127，新建 import_tasks 表 + handler 真实接入）
-- ⏳ P2：report_enhanced_handler 硬编码字段定义
+- ✅ P2：report_enhanced_handler 硬编码字段定义（批次 128，静态配置化 ReportFieldDefinition struct）
 - ⏳ P2：financial_analysis_handler 假执行状态
 
 ### 历史批次索引

@@ -6,6 +6,26 @@
 
 ---
 
+## 2026-07-05 (批次 128 v8 复审 P2 report_enhanced_handler 字段定义静态配置化完成)
+
+### 批次 128：v8 复审 P2 修复 — report_enhanced_handler 字段定义静态配置化
+
+**PR #372，main commit `09601cb`，2 文件 +74 -37 行**
+
+| 修复项 | 内容 |
+|--------|------|
+| ReportFieldDefinition struct | 新增类型化 struct（field/title/data_type，&'static str）替代 serde_json::json! 宏 |
+| available_fields_for_type 方法 | ReportTemplateService 新增静态方法，集中管理 5 种模板类型 + 通配符字段定义 |
+| get_available_fields handler | 从 38 行硬编码 match + serde_json::json! 改为调用 service 静态方法 |
+| 向后兼容 | 返回 JSON 结构完全不变（field/title/data_type 三字段） |
+
+**关键决策**：
+- 字段元数据绑定 DB schema，不宜放数据库动态管理（与 print_handler 批次 126 一致）
+- &'static str 避免运行时 String 分配，零成本抽象
+- 已存在 report_definition 死表但未复活（字段定义 ≠ 报表定义，前者是 schema 元数据）
+
+---
+
 ## 2026-07-05 (批次 127 v8 复审 P2 import_export_handler 接入 import_tasks 表完成)
 
 ### 批次 127：v8 复审 P2 修复 — import_export_handler 接入 import_tasks 表
