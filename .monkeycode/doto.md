@@ -5,7 +5,7 @@
 
 ---
 
-## 🔄 当前任务：v7 第七轮全项目复审（批次 110 已完成，继续 P1 项修复）
+## 🔄 当前任务：v7 第七轮全项目复审（批次 112 已完成，继续 P1 项修复）
 
 **用户新规则（2026-07-04 追加，最高优先级）**：
 > 对所有预留的 api 及预留的功能/占位符功能/路由进行实现，
@@ -27,6 +27,39 @@
 | 108 | #352 | `e73ddd7` | ar/recon 路由接入（update/delete/send/close 4 端点 + 删除重复 confirm/dispute）+ webhook handler 真实实现（test/retry/logs 3 端点）+ 7 处 dead_code 标注移除 |
 | 109 | #353 | `21776c5` | v7 复审修复：ar_reconciliation notes 持久化（migration m0038）+ webhook 事件不匹配 4xx + 4 处 dead_code 接入（日期过滤/remark/customer_id 校验） |
 | 110 | #354 | `20a8c11` | v7 复审 P0 修复：webhook callback 加入 PUBLIC_PATHS + message_type/title/payload 接入业务（结构化日志 + 摘要回执） |
+| 111 | `621cb0a` + #355 | `20a8ce7` | v7 复审 P1 修复：incoterms 接入 quotation_service（校验+日志业务元数据）+ audit_enhanced start_date/end_date 日期过滤 + crm 公海池 keyword/source 接入 LeadQuery |
+| 112 | #356 | `6052810` | v7 复审 P1-9 修复：api_keys 表 created_by 列持久化（migration m0039 + model + service 参数 + handler 透传 auth.user_id） |
+
+### 已完成：批次 112 v7 复审 P1-9 修复
+
+**分支**：`fix/batch112-api-key-created-by-migration`（已合并并删除）
+
+修复项（v7 复审 P1-9）：
+- ✅ migration m0039：api_keys 新增 `created_by INTEGER` 列 + `idx_api_keys_created_by` 索引
+- ✅ api_key::Model 新增 `pub created_by: Option<i32>` 字段
+- ✅ ApiKeyService::create_api_key 新增 `created_by: i32` 参数，ActiveModel 显式 Set(Some(created_by))
+- ✅ ApiKeyService::regenerate_api_key 新增 `regenerated_by: i32` 参数，更新 created_by（语义：新密钥的创建者）
+- ✅ key_to_json 移除 created_by 参数，从 model.created_by.unwrap_or(0) 读取（NULL 历史数据兼容为 0）
+- ✅ handler create_api_key/regenerate_api_key 透传 auth.user_id 真实创建者
+- ✅ list_api_keys/get_api_key/update_api_key 移除传 0 占位
+
+### 已完成：批次 111 v7 复审 P1 修复
+
+修复项（v7 复审 P1-2 + P1-10）：
+- ✅ P1-2：utils/incoterms.rs 8 处 dead_code 全部接入业务
+  - quotation_service.validate_create/update 接入 Incoterms2020::from_code 校验
+  - 校验时记录贸易术语业务元数据（description/includes_insurance/includes_freight/requires_duty_paid）
+  - 通过 Incoterms2020::all() + code() 派生合法代码列表用于错误提示
+- ✅ P1-10(audit)：audit_enhanced_handler.rs start_date/end_date 接入 list_audit_logs 日期范围过滤
+  - 支持 ISO 8601 日期时间字符串和 "YYYY-MM-DD" 日期格式
+  - end_date 日期粒度视为当天 23:59:59，避免漏掉当天记录
+  - 删除 OperationLogQuery（零业务引用的真死代码）
+- ✅ P1-10(crm)：crm_pool_handler / crm_customer_handler dead_code 接入业务
+  - LeadQuery 新增 source / keyword 字段
+  - list_leads 服务接入 source 精确匹配 + keyword 模糊搜索（4 字段 OR）
+  - PoolQueryParams.source/keyword 透传到 LeadQuery
+  - CustomerQueryParams.keyword 透传到 LeadQuery
+  - PoolQueryParams.industry 保留 dead_code（crm_lead 表无 industry 列）
 
 ### 已完成：批次 110 v7 复审 P0 修复
 

@@ -21,7 +21,7 @@
 
 ---
 
-## 当前任务状态（2026-07-05 批次 110 进行中 - v7 复审 P0 修复完成待推送 CI）
+## 当前任务状态（2026-07-05 批次 112 完成 - v7 复审 P1 持续修复中）
 
 ### 🔴 用户新规则（2026-07-04 追加，最高优先级）
 
@@ -99,6 +99,38 @@
   - UpdateConfirmationStatusRequest.remark 接入 update_status 写入 notes
   - CreateDisputeApiRequest.customer_id 接入 create_dispute 校验客户一致性
   - update_status 新增 remark 参数，resolve_dispute 的 resolution 写入 notes
+
+### ✅ 批次 110 v7 复审 P0 修复（PR #354，main `20a8c11`）
+
+**v7 复审批次 110 完成**：v7 P0 修复 3 项
+- P0-1：webhook_integration_handler callback PUBLIC_PATHS（middleware/public_routes.rs 加入 `/api/v1/erp/webhooks/integrations/callback`）
+- P0-2：WebhookCallbackRequest.payload 移除 dead_code 标注，handle_generic_callback 接入 payload 业务（结构化日志 + 返回 payload_size/payload_keys 摘要）
+- P0-3：WebhookCallbackResult 新增 payload_size/payload_keys 字段（已接入业务）
+
+### ✅ 批次 111 v7 复审 P1 修复（621cb0a + PR #355，main `20a8ce7`）
+
+**v7 复审批次 111 完成**：v7 P1 修复 3 项
+- P1-2：incoterms.rs 8 处 dead_code 全部移除，quotation_service 接入 Incoterms2020 校验（validate_create + update 均调用 validate_price_terms 辅助方法）
+- P1-10(audit)：audit_enhanced_handler AuditLogQuery.start_date/end_date 移除 dead_code，list_audit_logs 接入日期范围过滤（支持 RFC3339 + YYYY-MM-DD）；删除 OperationLogQuery 死代码 struct
+- P1-10(crm)：LeadQuery 扩展 source/keyword 字段，list_leads 接入 source 精确匹配 + keyword LIKE 4 字段 OR 模糊搜索；crm_pool_handler / crm_customer_handler keyword 字段透传
+
+### ✅ 批次 112 v7 复审 P1-9 修复（PR #356，main `6052810`）
+
+**v7 复审批次 112 完成**：api_keys 表 created_by 列持久化
+- migration m0039：api_keys 新增 `created_by INTEGER` 列 + idx_api_keys_created_by 索引
+- model：`api_key::Model` 新增 `pub created_by: Option<i32>` 字段
+- service：`ApiKeyService::create_api_key` 新增 `created_by: i32` 参数；`regenerate_api_key` 新增 `regenerated_by: i32` 参数
+- handler：`key_to_json` 移除 created_by 参数，从 model.created_by 读取（NULL 兼容为 0）；create_api_key/regenerate_api_key 透传 auth.user_id
+- CI 12 项必检全绿（E2E 非阻塞），squash merge 到 main `6052810`
+
+**剩余 v7 复审 P1 待修复项**：
+- P1-1：webhook_integration_handler PUT 语义错误
+- P1-3：failover/database.rs 整文件 4 处 dead_code（需架构改动，备库 DB 连接）
+- P1-4：cache/redis_client.rs 11 处辅助 API 未接入
+- P1-5：生产代码中残留的 .unwrap() / .expect() panic 点
+- P1-6：let _ = 仍存在的真实错误吞没（5 处）
+- P1-7：let _ = 占位符明确未接入业务（2 处）
+- P1-8：let _ = 检查存在性但丢弃结果（5 处）
 
 ### ✅ 批次 106 删除 performance_optimizer/operation_log_service + business_metrics 真实接入（PR #350，main `7f2cc82`）
 

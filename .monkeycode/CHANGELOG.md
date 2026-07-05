@@ -2,6 +2,46 @@
 
 > 重要变更一句话摘要列表。详细历史请查阅 [`.monkeycode/docs/archives/`](file:///workspace/.monkeycode/docs/archives/)。
 
+## 2026-07-05 (批次 112 v7 复审 P1-9 修复完成)
+
+### 批次 112：v7 复审 P1-9 修复 — api_keys 表 created_by 列持久化
+
+**PR #356，main commit `6052810`**
+
+| 修复项 | 内容 |
+|--------|------|
+| migration m0039 | api_keys 新增 `created_by INTEGER` 列 + `idx_api_keys_created_by` 索引（m0039_add_created_by_to_api_keys.rs + up.sql/down.sql） |
+| model | `api_key::Model` 新增 `pub created_by: Option<i32>` 字段 |
+| service | `ApiKeyService::create_api_key` 新增 `created_by: i32` 参数；`regenerate_api_key` 新增 `regenerated_by: i32` 参数（语义：新密钥的创建者） |
+| handler | `key_to_json` 移除 created_by 参数，从 model.created_by.unwrap_or(0) 读取（NULL 历史数据兼容为 0）；create_api_key/regenerate_api_key 透传 auth.user_id |
+
+**关键决策**：
+- migration 模式：与 m0038 (ar_reconciliations.notes) 一致，使用 `ADD COLUMN IF NOT EXISTS` 幂等语句 + 索引
+- 历史数据兼容：created_by NULL 时 `unwrap_or(0)` 返回 0 保持前端显示兼容（前端原接收 0 占位）
+- regenerate 语义：重新生成视为新密钥的创建者变更，更新 created_by 为操作者（而非保留原 created_by）
+
+---
+
+## 2026-07-05 (批次 111 v7 复审 P1 修复完成)
+
+### 批次 111：v7 复审 P1 修复 — incoterms 接入 + audit 日期过滤 + crm 公海池 keyword/source 接入
+
+**PR #355（+ 621cb0a 直接提交），main commit `20a8ce7`**
+
+| 修复项 | 内容 |
+|--------|------|
+| P1-2 | utils/incoterms.rs 8 处 dead_code 全部接入业务：quotation_service.validate_create/update 接入 Incoterms2020::from_code 校验 + 业务元数据日志记录 + all()/code() 派生合法代码列表 |
+| P1-10(audit) | audit_enhanced_handler.rs start_date/end_date 接入 list_audit_logs 日期范围过滤（支持 RFC3339 和 YYYY-MM-DD 格式）；删除 OperationLogQuery（零业务引用真死代码） |
+| P1-10(crm) | crm_pool_handler / crm_customer_handler dead_code 接入：LeadQuery 新增 source/keyword 字段，list_leads 接入 source 精确匹配 + keyword 模糊搜索（4 字段 OR），PoolQueryParams.industry 保留 dead_code（表无对应列） |
+
+**关键决策**：
+- incoterms 接入方式：通过 validate_price_terms 辅助方法封装 Incoterms2020::from_code 调用，create/update 均复用
+- audit 日期过滤：支持 RFC3339 日期时间和 YYYY-MM-DD 日期两种格式，end_date 日期粒度视为当天 23:59:59
+- crm keyword 模糊搜索：匹配 company_name / contact_name / mobile_phone / email 四字段（OR 关系），使用 LIKE %keyword%
+- industry 字段：crm_lead 表无 industry 列，保留 dead_code 标注 + TODO 注释说明原因
+
+---
+
 ## 2026-07-05 (批次 110 v7 复审 P0 修复完成)
 
 ### 批次 110：v7 复审 P0 修复 — webhook callback PUBLIC_PATHS + message_type/title/payload 接入业务
