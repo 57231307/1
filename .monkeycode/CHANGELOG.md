@@ -6,6 +6,31 @@
 
 ---
 
+## 2026-07-05 (批次 124 v8 复审 P1 SearchSyncer 接入 customer_service PG→ES 写入同步完成)
+
+### 批次 124：v8 复审 P1 修复 — SearchSyncer 接入 customer_service 实现 PG→ES 写入同步（批次 1/2）
+
+**PR #368，main commit `bbdf267`，5 文件 +82 -20 行**
+
+| 修复项 | 内容 |
+|--------|------|
+| CustomerService 注入 search_syncer | 构造函数签名改为 new(db, search_client: Arc<dyn SearchClient>) |
+| build_customer_doc 工具函数 | customer::Model → CustomerDoc 字段映射（tier 映射 customer_type） |
+| sync_customer_to_es 私有方法 | 最终一致性策略，ES 失败仅 tracing::warn! 不回滚 PG |
+| create/update/delete 接入 | 事务提交后调用 sync_customer_to_es，软删除保留 ES 文档 |
+| SearchSyncer dead_code 移除 | struct 级别标注移除（sync_sales_order/sync_product 保留，批次 125 接入） |
+| search/mod.rs 导出 | 新增导出 SearchSyncer 供 customer_service 注入 |
+| handler 调用点更新 | customer_handler.rs 5 处 + crm_customer_handler.rs 4 处改为 new(db, search_client) |
+
+**关键决策**：
+- ES 同步失败仅 tracing::warn，不回滚 PG（最终一致性，PG 是主数据源）
+- 同步时机：事务提交后同步（避免 PG 回滚后 ES 残留脏数据）
+- 软删除保留 ES 文档（status=inactive 同步，便于搜索历史客户）
+- mock 模式（CI）同步到内存 HashMap，real 模式同步到真实 ES
+- 分批策略：批次 1 customer 接入（单表，简单），批次 2 sales_order + product（多表 join，复杂）
+
+---
+
 ## 2026-07-05 (批次 123 v8 复审 P1 ElasticClient::real() 真实实现完成)
 
 ### 批次 123：v8 复审 P1 修复 — ElasticClient::real() 真实实现 reqwest 直连 ES REST API + ensure_indices 索引初始化

@@ -41,7 +41,7 @@
 
 ---
 
-## 二、当前任务状态（2026-07-05 批次 123 完成 - v8 复审 P1 ElasticClient::real() 真实实现完成，继续 v8 复审剩余项）
+## 二、当前任务状态（2026-07-05 批次 124 完成 - v8 复审 P1 SearchSyncer 接入 customer_service PG→ES 写入同步，继续 v8 复审剩余项）
 
 > 用户最高优先级规则已在「一、规则 0」固化，本节仅记录修复进度。
 
@@ -115,6 +115,7 @@ v7 复审 P0/P1/P2 项全部修复完成（P0 4 项 + P1 10 项 + P2 13 项 = 27
 | 121 | #365 | `71b9bfb` | v8 死代码清理：删除 event_kafka KafkaEventEnvelope struct + from_event + into_event（零业务调用方），保留 event_type_name 标记 #[cfg(test)] | ✅ |
 | 122 | #366 | `f181e1b` | v8 P1 crm 标签真实接入：新增 crm_tag 表 + list_tags/create_tag/delete_tag 真实持久化 + 路由路径 /crm-tags → /crm/tags 修复前端 404 | ✅ |
 | 123 | #367 | `a819ab4` | v8 P1 ElasticClient::real() 真实实现：ClientInner enum 双模式（Mock/Real）+ reqwest 直连 ES REST API + ensure_indices 启动时索引初始化 | ✅ |
+| 124 | #368 | `bbdf267` | v8 P1 SearchSyncer 接入 customer_service：PG→ES 写入同步（create/update/delete 事务提交后调用 sync_customer，最终一致性策略） | ✅ |
 
 **批次 121 修复明细**：
 - 删除 event_kafka.rs 中 KafkaEventEnvelope struct + from_event + into_event（74 行，零业务调用方）
@@ -146,10 +147,28 @@ v7 复审 P0/P1/P2 项全部修复完成（P0 4 项 + P1 10 项 + P2 13 项 = 27
 - **CI clippy 修复**（首次推送 3 项新警告）：bulk_index Mock 分支 storage 改为 _、search Real 分支 filter_map 改为 map、barcode_scanner_handler ScanHistoryQuery.scan_type 加 #[allow(dead_code)] + TODO
 - **架构说明**：本批次仅完成 ES 客户端基础设施 + 索引初始化，SearchSyncer 接入 PG→ES 写入同步留待后续批次
 
+**批次 124 修复明细**：
+- `customer_service.rs`：CustomerService 注入 `search_syncer: Arc<SearchSyncer>` 字段，构造函数签名改为 `new(db, search_client: Arc<dyn SearchClient>)`
+- 新增 `build_customer_doc(model: &customer::Model) -> CustomerDoc` 字段映射工具函数
+  - tier 映射 customer_type（retail/wholesale/vip，更接近"等级"语义）
+  - 其余字段直接从 Model 取值（id/code/name/contact_person/phone/email/address）
+- 新增 `sync_customer_to_es(model, operation)` 私有方法（最终一致性策略，ES 失败仅 tracing::warn! 不回滚 PG）
+- `create_customer` / `update_customer` / `delete_customer` 事务提交后调用 `sync_customer_to_es`
+  - 软删除不删除 ES 文档，保留便于搜索历史客户（status 字段已同步）
+- `elastic.rs`：移除 `SearchSyncer` struct 级别 `#[allow(dead_code)]`（已接入 customer_service）
+- `elastic.rs`：`sync_sales_order` / `sync_product` 保留方法级 `#[allow(dead_code)]`（批次 125 接入）
+- `search/mod.rs`：新增导出 `SearchSyncer` 供 customer_service 注入
+- `customer_handler.rs`（5 处）+ `crm_customer_handler.rs`（4 处）：调用点改为 `CustomerService::new(state.db.clone(), state.search_client.clone())`
+- **设计决策**：
+  - ES 同步失败仅记录日志，不回滚 PG 事务（最终一致性，PG 是主数据源，ES 是搜索副本）
+  - 同步时机：事务提交后同步（避免 PG 回滚后 ES 残留脏数据）
+  - 软删除保留 ES 文档（status=inactive 同步，便于搜索历史客户）
+  - mock 模式（CI 环境）下同步到内存 HashMap，real 模式同步到真实 ES
+
 ### 下一步：继续 v8 复审 P1/P2 修复
 
 按用户自动推进指令，继续处理 v8 复审剩余项：
-- P1：SearchSyncer 接入 PG→ES 写入同步（customer_service/sales_order_service/product_service 写入后调用 syncer）
+- P1：SearchSyncer 接入 sales_order_service + product_service（批次 125，含 Decimal 转换 + join 查询）
 - P2：print_handler / import_export_handler 空列表占位真实接入
 - P2：report_enhanced_handler 硬编码字段定义 + financial_analysis_handler 假执行状态 + inventory_stock_query alert_type 硬编码
 
