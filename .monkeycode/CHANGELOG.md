@@ -6,6 +6,26 @@
 
 ---
 
+## 2026-07-05 (批次 121 v8 复审死代码清理首项完成)
+
+### 批次 121：v8 复审死代码清理 — 删除 KafkaEventEnvelope（report/ds+job 误删已恢复）
+
+**PR #365，main commit `71b9bfb`，1 文件 +5 -69 行**
+
+| 修复项 | 内容 |
+|--------|------|
+| v8 P1 死代码清理 | 删除 event_kafka.rs 中 KafkaEventEnvelope struct + from_event + into_event（74 行，零业务调用方，KafkaBackend.publish/subscribe 使用 EventPayload 而非信封结构） |
+| 保留项 | event_type_name 供测试断言使用，标记 #[cfg(test)] 避免非测试编译时 dead_code |
+
+**关键决策与教训**：
+- KafkaEventEnvelope 是早期设计遗留的信封结构，实际 publish/subscribe 使用 EventPayload，信封结构零业务调用方
+- **CI 失败教训**：首次误删 report/ds.rs + report/job.rs（v8 子代理误报为死代码），CI 报 `no method named 'execute_report' found for struct 'ReportEngineService'`
+- 根因：ds.rs 包含 `impl ReportEngineService { pub async fn execute_report ... }` 跨文件 impl 块，被 report_engine_handler 等调用
+- 修复：从 HEAD~1 恢复 ds.rs + job.rs + mod.rs，仅保留 KafkaEventEnvelope 删除，force push 后 CI 12 项必检全绿
+- **经验**：Rust 跨文件 `impl Struct` 块需谨慎评估，文件级 `#[allow(dead_code)]` 标记的是文件内部辅助方法，不代表整个文件是死代码
+
+---
+
 ## 2026-07-05 (批次 120 v7 复审 P2 全部修复完成 - 13/13 项)
 
 ### 批次 120：v7 复审 P2 最后 2 项修复 — 辅助核算维度真实接入 + event_bus trait 死代码删除

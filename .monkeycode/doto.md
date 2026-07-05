@@ -5,7 +5,7 @@
 
 ---
 
-## 🔄 当前任务：v7 复审 P0/P1/P2 全部修复完成，准备启动 v8 全项目复审
+## 🔄 当前任务：v8 全项目复审修复进行中（批次 121 完成，继续批次 122+）
 
 > 用户最高优先级规则（2026-07-04 追加）已固化到 [MEMORY.md 一、规则 0](file:///workspace/.monkeycode/MEMORY.md)。
 > 本文件仅记录任务进度，规则不在此重复。
@@ -16,6 +16,7 @@
 
 | 批次 | PR | main commit | 内容 |
 |------|-----|-------------|------|
+| 121 | #365 | `71b9bfb` | v8 死代码清理：删除 event_kafka KafkaEventEnvelope struct + from_event + into_event（74 行）；误删 report/ds+job 已恢复（CI 教训：跨文件 impl 块需谨慎评估）|
 | 120 | #364 | `4842e97` | v7 P2-7 initialize_dimensions 真实接入 main.rs 启动 + P2-10 删除 EventBackend trait + BroadcastBackend + BridgeStream + EventBackendType + backend_type（5 文件 +43 -481 行）|
 | 119 | #363 | `fd4faf7` | v7 P2-2 删除 token_bucket.rs 整个文件 + P2-5 删除 data_permission check_data_permission + 4 scope 常量 + P2-7 删除 assist_accounting create_assist_record（4 文件 -274 行）|
 | 118 | #362 | `01c4475` | v7 P2-9 supplier_handler 资质端点真实接入 + P2-6 cost_collection 3 函数删除 + P2-4 report/ds cleanup_expired_cache 删除 + P2-8 fixed_asset calculate_monthly_depreciation 删除 + P2-13 websocket connection_count 删除（7 文件 -183 行）|
@@ -40,17 +41,19 @@ P1 项全部修复完成（P1-1 ~ P1-10），详见 [MEMORY.md 二、章节](fil
 
 P2 项全部修复完成（P2-1 ~ P2-13，13/13 项），详见 [MEMORY.md 二、章节](file:///workspace/.monkeycode/MEMORY.md)。
 
-### 下一步：启动 v8 全项目复审
+### 下一步：继续 v8 复审 P1/P2 修复
 
-v7 复审 P0/P1/P2 项全部修复完成（P0 4 项 + P1 10 项 + P2 13 项 = 27 项）。
+批次 121 完成 v8 死代码清理首项（KafkaEventEnvelope）。按用户自动推进指令继续处理 v8 复审剩余项：
+- P1：crm_customer_handler list_tags 硬编码标签真实接入
+- P1：search/elastic.rs stub 实现真实接入（SearchSyncer 接入 PG→ES 写入同步）
+- P2：print_handler / import_export_handler 空列表占位真实接入
+- P2：report_enhanced_handler 硬编码字段定义 + financial_analysis_handler 假执行状态 + inventory_stock_query alert_type 硬编码
 
-按用户自动推进指令"修复完成后进行全项目复审，对复审出来的问题按这个流程进行继续评估修复。直到复审没有问题"，启动 v8 全项目复审：
-- 复审维度：事务边界 TOCTOU / 输入验证 / 错误处理 / 业务逻辑 / 并发竞态 / N+1 查询 / 死代码 / 占位符功能 / 前端类型 / 路由权限 / 测试质量 / 安全性 / Clippy baseline 残留 / 预留 API 真实接入
-- 复审完成后：对复审出来的问题按 P0/P1/P2 优先级分批修复，每批 1 commit → push → CI → 合并 → 删除分支 → 下一批，直到复审没有问题
+每批 1 commit → push → CI → 合并 → 删除分支 → 下一批，直到 v8 复审全部修复完成。完成后启动 v9 复审，循环直到复审没有问题。
 
 ### 后续批次规划
 
-- **批次 121+**：v8 全项目复审问题分批修复
+- **批次 122+**：v8 全项目复审 P1/P2 项分批修复
 - **持续**：SearchSyncer 接入 PG→ES 写入同步
 
 ### 复审维度（基于历次复审经验）
