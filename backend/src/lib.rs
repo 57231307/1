@@ -23,8 +23,6 @@ pub mod websocket; // P3-2 WebSocket 实时通信模块
 // P9-6 OpenTelemetry 一体化
 pub mod telemetry;
 
-pub mod cache; // P12 批 1：Redis 缓存层
-
 pub use services::auth_service::AuthService;
 pub use services::user_service::UserService;
 pub use utils::app_state::AppState;
