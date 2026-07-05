@@ -11,12 +11,12 @@
 //! 启动时通过 [`init_event_bus_with_kafka_config`] 注入 Kafka 配置；
 //! Kafka 不可达时**自动降级**到 `Broadcast`，并通过 `tracing::error!` 输出中文日志。
 //!
-//! 批次 120 P2-10 修复：删除未接入业务的 `EventBackend` trait + `BroadcastBackend`
-//! + `BridgeStream` + `EventBackendType` 枚举 + `backend_type()` 方法。
+//! 批次 120 P2-10 修复：删除未接入业务的 `EventBackend` trait、`BroadcastBackend`、
+//! `BridgeStream`、`EventBackendType` 枚举、`backend_type()` 方法。
 //! 原因：`KafkaBackend` 已绕过 trait 抽象走独立路径（`EventBusState.kafka` 字段
 //! 直接持有 `Arc<KafkaBackend>`），`BroadcastBackend` 从未被 `EVENT_BUS.publish`
-//! / `subscribe` 调用（这俩方法直接操作 `local_tx: broadcast::Sender`），
-//! trait + BroadcastBackend + BridgeStream + 类型别名全部为零业务调用方的死代码。
+//! 或 `subscribe` 调用（这俩方法直接操作 `local_tx: broadcast::Sender`），
+//! trait 与 BroadcastBackend 与 BridgeStream 与类型别名全部为零业务调用方的死代码。
 
 use futures::FutureExt;
 use sea_orm;
