@@ -746,14 +746,21 @@ impl SearchSyncer {
         Self { client }
     }
 
-    /// 同步销售订单
-    ///
-    /// 批次 124 状态：待批次 125 接入 sales_order_service 写入流程后移除 dead_code 标注
-    #[allow(dead_code)] // TODO(tech-debt): 批次 125 接入 sales_order_service 同步后移除
+    /// 同步销售订单（批次 125 已接入 sales_order_service.create/update）
     pub async fn sync_sales_order(&self, doc: &SalesOrderDoc) -> Result<(), SearchError> {
         let value = serde_json::to_value(doc).map_err(|e| SearchError::Serialize(e.to_string()))?;
         self.client
             .index_doc(indices::SALES_ORDERS, &doc.order_no, &value)
+            .await
+    }
+
+    /// 删除销售订单 ES 文档（批次 125 已接入 sales_order_service.delete_order）
+    ///
+    /// 设计说明：销售订单是硬删除（DELETE FROM），ES 文档也需删除。
+    /// 与客户软删除不同（客户保留 ES 文档便于搜索历史）。
+    pub async fn delete_sales_order(&self, order_no: &str) -> Result<(), SearchError> {
+        self.client
+            .delete_doc(indices::SALES_ORDERS, order_no)
             .await
     }
 
@@ -764,14 +771,19 @@ impl SearchSyncer {
         self.client.index_doc(indices::CUSTOMERS, &id, &value).await
     }
 
-    /// 同步产品
-    ///
-    /// 批次 124 状态：待批次 125 接入 product_service 写入流程后移除 dead_code 标注
-    #[allow(dead_code)] // TODO(tech-debt): 批次 125 接入 product_service 同步后移除
+    /// 同步产品（批次 125 已接入 product_service.create/update）
     pub async fn sync_product(&self, doc: &ProductDoc) -> Result<(), SearchError> {
         let id = doc.id.to_string();
         let value = serde_json::to_value(doc).map_err(|e| SearchError::Serialize(e.to_string()))?;
         self.client.index_doc(indices::PRODUCTS, &id, &value).await
+    }
+
+    /// 删除产品 ES 文档（批次 125 已接入 product_service.delete_product）
+    ///
+    /// 设计说明：产品是硬删除（DELETE FROM），ES 文档也需删除。
+    pub async fn delete_product(&self, product_id: i32) -> Result<(), SearchError> {
+        let id = product_id.to_string();
+        self.client.delete_doc(indices::PRODUCTS, &id).await
     }
 }
 

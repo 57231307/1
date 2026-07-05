@@ -148,7 +148,7 @@ pub async fn list_products(
     State(state): State<AppState>,
     Query(query): Query<ProductListQuery>,
 ) -> Result<Json<ApiResponse<PaginatedResponse<serde_json::Value>>>, AppError> {
-    let product_service = ProductService::new(state.db.clone());
+    let product_service = ProductService::new(state.db.clone(), state.search_client.clone());
 
     let page = query.page.unwrap_or(1).clamp(1, 1000); // 批次 95 P3-3~8：分页 clamp 防 DoS
     let page_size = query.page_size.unwrap_or(10).clamp(1, 100);
@@ -190,7 +190,7 @@ pub async fn get_product(
     _auth: AuthContext,
     Path(id): Path<i32>,
 ) -> Result<Json<ApiResponse<product::Model>>, AppError> {
-    let product_service = ProductService::new(state.db.clone());
+    let product_service = ProductService::new(state.db.clone(), state.search_client.clone());
     let product = product_service.get_product(id).await?;
     Ok(Json(ApiResponse::success(product)))
 }
@@ -206,7 +206,7 @@ pub async fn create_product(
         return Err(AppError::validation(e.to_string()));
     }
 
-    let product_service = ProductService::new(state.db.clone());
+    let product_service = ProductService::new(state.db.clone(), state.search_client.clone());
 
     // 自动生成产品编码
     let code = match req.code {
@@ -257,7 +257,7 @@ pub async fn update_product(
         return Err(AppError::validation(e.to_string()));
     }
 
-    let product_service = ProductService::new(state.db.clone());
+    let product_service = ProductService::new(state.db.clone(), state.search_client.clone());
 
     let product = product_service
         .update_product(
@@ -296,7 +296,7 @@ pub async fn delete_product(
     auth: AuthContext,
     Path(id): Path<i32>,
 ) -> Result<Json<ApiResponse<()>>, AppError> {
-    let product_service = ProductService::new(state.db.clone());
+    let product_service = ProductService::new(state.db.clone(), state.search_client.clone());
     // 批次 94 P2-10：注入真实操作人 user_id 用于审计日志
     product_service.delete_product(id, auth.user_id).await?;
     Ok(Json(ApiResponse::success_with_message((), "产品删除成功")))
@@ -310,7 +310,7 @@ pub async fn list_product_colors(
     _auth: AuthContext,
     Path(product_id): Path<i32>,
 ) -> Result<Json<ApiResponse<Vec<product_color::Model>>>, AppError> {
-    let product_service = ProductService::new(state.db.clone());
+    let product_service = ProductService::new(state.db.clone(), state.search_client.clone());
     let colors = product_service.list_product_colors(product_id).await?;
     Ok(Json(ApiResponse::success(colors)))
 }
@@ -322,7 +322,7 @@ pub async fn create_product_color(
     Path(product_id): Path<i32>,
     Json(req): Json<CreateProductColorRequest>,
 ) -> Result<Json<ApiResponse<product_color::Model>>, AppError> {
-    let product_service = ProductService::new(state.db.clone());
+    let product_service = ProductService::new(state.db.clone(), state.search_client.clone());
 
     let color = product_service
         .create_product_color(
@@ -349,7 +349,7 @@ pub async fn update_product_color(
     Path((_product_id, color_id)): Path<(i32, i32)>,
     Json(req): Json<UpdateProductColorRequest>,
 ) -> Result<Json<ApiResponse<product_color::Model>>, AppError> {
-    let product_service = ProductService::new(state.db.clone());
+    let product_service = ProductService::new(state.db.clone(), state.search_client.clone());
 
     let color = product_service
         .update_product_color(
@@ -377,7 +377,7 @@ pub async fn delete_product_color(
     auth: AuthContext,
     Path((_product_id, color_id)): Path<(i32, i32)>,
 ) -> Result<Json<ApiResponse<()>>, AppError> {
-    let product_service = ProductService::new(state.db.clone());
+    let product_service = ProductService::new(state.db.clone(), state.search_client.clone());
     // 批次 94 P2-10：注入真实操作人 user_id 用于审计日志
     product_service
         .delete_product_color(color_id, auth.user_id)
@@ -392,7 +392,7 @@ pub async fn batch_create_colors(
     Path(product_id): Path<i32>,
     Json(req): Json<BatchCreateColorsRequest>,
 ) -> Result<Json<ApiResponse<Vec<product_color::Model>>>, AppError> {
-    let product_service = ProductService::new(state.db.clone());
+    let product_service = ProductService::new(state.db.clone(), state.search_client.clone());
 
     let colors_input: Vec<_> = req
         .colors
@@ -426,7 +426,7 @@ pub async fn export_products(
     _auth: AuthContext,
     Query(query): Query<ExportProductsQuery>,
 ) -> Result<axum::response::Response, AppError> {
-    let product_service = ProductService::new(state.db.clone());
+    let product_service = ProductService::new(state.db.clone(), state.search_client.clone());
 
     let csv_data = product_service
         .export_products_to_csv(query.category_id, query.status, query.search)
@@ -457,7 +457,7 @@ pub async fn import_products(
     _auth: AuthContext,
     Json(req): Json<ImportProductsRequest>,
 ) -> Result<Json<ApiResponse<crate::utils::import_export::ImportResult>>, AppError> {
-    let product_service = ProductService::new(state.db.clone());
+    let product_service = ProductService::new(state.db.clone(), state.search_client.clone());
 
     let csv_bytes = req.csv_data.into_bytes();
 

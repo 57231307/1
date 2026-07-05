@@ -10,6 +10,7 @@ use std::sync::Arc;
 
 use crate::models::product::{self, Entity as ProductEntity};
 use crate::models::product_color::{self, Entity as ProductColorEntity};
+use crate::search::{ProductDoc, SearchClient, SearchSyncer};
 use crate::utils::error::AppError;
 use crate::utils::sql_escape::safe_like_pattern;
 
@@ -25,13 +26,62 @@ pub struct CreateProductColorInput {
 }
 
 /// 产品服务（面料行业版）
+///
+/// 批次 125 v8 复审 P1 修复：注入 search_syncer 实现 PG→ES 写入同步。
+/// - create/update/delete 事务提交后调用 sync_product / delete_product 同步到 ES
+/// - ES 同步失败仅记录 tracing::warn!（最终一致性），不回滚 PG 事务
 pub struct ProductService {
     db: Arc<DatabaseConnection>,
+    /// ES 同步器（PG→ES 写入同步），批次 125 接入
+    search_syncer: Arc<SearchSyncer>,
 }
 
 impl ProductService {
-    pub fn new(db: Arc<DatabaseConnection>) -> Self {
-        Self { db }
+    pub fn new(db: Arc<DatabaseConnection>, search_client: Arc<dyn SearchClient>) -> Self {
+        Self {
+            db,
+            search_syncer: Arc::new(SearchSyncer::new(search_client)),
+        }
+    }
+
+    /// 将 product::Model 转换为 ProductDoc 用于 ES 索引
+    ///
+    /// 批次 125 v8 复审 P1 修复：字段映射规则
+    /// - category: join product_category 表取 name（category_id 索引意义不大）
+    /// - color_no/pantone_code: 暂设 None（一对多关联复杂，后续迭代优化）
+    /// - price: standard_price Decimal → f64
+    /// - spec: specification 字段
+    fn build_product_doc(&self, model: &product::Model) -> ProductDoc {
+        ProductDoc {
+            id: model.id,
+            code: model.code.clone(),
+            name: model.name.clone(),
+            category: None, // 批次 125：暂设 None，后续迭代 join product_category
+            spec: model.specification.clone(),
+            unit: model.unit.clone(),
+            color_no: None, // 批次 125：暂设 None，后续迭代 join product_color
+            pantone_code: None, // 批次 125：暂设 None，后续迭代 join product_color
+            price: model
+                .standard_price
+                .map(|d| d.to_string().parse::<f64>().unwrap_or(0.0))
+                .unwrap_or(0.0),
+        }
+    }
+
+    /// 同步产品到 ES（最终一致性策略）
+    ///
+    /// 批次 125 v8 复审 P1 修复：ES 同步失败仅记录日志，不回滚 PG 事务。
+    async fn sync_product_to_es(&self, model: &product::Model, operation: &str) {
+        let doc = self.build_product_doc(model);
+        if let Err(e) = self.search_syncer.sync_product(&doc).await {
+            tracing::warn!(
+                error = %e,
+                product_id = model.id,
+                product_code = %model.code,
+                operation = operation,
+                "ES 产品同步失败（PG 已提交，最终一致性靠补偿任务修复）"
+            );
+        }
     }
 
     /// 生成产品编码
@@ -181,6 +231,10 @@ impl ProductService {
         };
 
         let result = active_model.insert(&*self.db).await?;
+
+        // 批次 125 v8 复审 P1 修复：PG 事务提交后同步到 ES（最终一致性）
+        self.sync_product_to_es(&result, "create").await;
+
         Ok(result)
     }
 
@@ -193,6 +247,17 @@ impl ProductService {
             _,
         >(&*self.db, "product", id, Some(user_id))
         .await?;
+
+        // 批次 125 v8 复审 P1 修复：PG 事务提交后删除 ES 文档（最终一致性）
+        // 产品是硬删除，ES 文档也需删除
+        if let Err(e) = self.search_syncer.delete_product(id).await {
+            tracing::warn!(
+                error = %e,
+                product_id = id,
+                operation = "delete",
+                "ES 产品删除失败（PG 已提交，最终一致性靠补偿任务修复）"
+            );
+        }
 
         Ok(())
     }
@@ -293,6 +358,9 @@ impl ProductService {
             Some(user_id),
         )
         .await?;
+
+        // 批次 125 v8 复审 P1 修复：PG 事务提交后同步到 ES（最终一致性）
+        self.sync_product_to_es(&result, "update").await;
 
         Ok(result)
     }

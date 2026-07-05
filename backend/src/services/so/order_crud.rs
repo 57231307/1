@@ -19,6 +19,7 @@ use crate::models::{
     sales_order_item,
     sales_order_item::Entity as SalesOrderItemEntity,
 };
+use crate::search::{SalesOrderDoc, SalesOrderItemDoc};
 use crate::services::so::{
     CreateSalesOrderRequest, SalesOrderDetail, UpdateSalesOrderRequest,
 };
@@ -30,9 +31,68 @@ use sea_orm::{
 /// 销售订单 CRUD 子模块标记
 pub const P92_CRUD_MODULE: &str = "sales_order_crud";
 
+/// Decimal → f64 转换工具函数
+///
+/// 批次 125 v8 复审 P1 修复：ES 索引字段为 f64，PG Decimal 需转换。
+/// 使用 to_string().parse() 避免精度损失（Decimal::to_f64 在某些边界值会丢精度）。
+fn decimal_to_f64(d: &rust_decimal::Decimal) -> f64 {
+    d.to_string().parse::<f64>().unwrap_or(0.0)
+}
+
 impl SalesService {
     // create_order / update_order / delete_order
     // 内容来自原 order.rs L277-610 + L611-777 + L778-814
+
+    /// 将 SalesOrderDetail 转换为 SalesOrderDoc 用于 ES 索引
+    ///
+    /// 批次 125 v8 复审 P1 修复：字段映射规则
+    /// - total_amount: Decimal → f64（decimal.to_string().parse::<f64>().unwrap_or(0.0)）
+    /// - items: 从 SalesOrderItemDetail 构建 SalesOrderItemDoc（quantity/unit_price Decimal→f64）
+    /// - items.color_no: String → Option<String>（空字符串转 None）
+    fn build_sales_order_doc(detail: &SalesOrderDetail) -> SalesOrderDoc {
+        let items: Vec<SalesOrderItemDoc> = detail
+            .items
+            .iter()
+            .map(|item| SalesOrderItemDoc {
+                product_id: item.product_id,
+                product_name: item.product_name.clone().unwrap_or_default(),
+                quantity: decimal_to_f64(&item.quantity),
+                unit_price: decimal_to_f64(&item.unit_price),
+                color_no: if item.color_no.is_empty() {
+                    None
+                } else {
+                    Some(item.color_no.clone())
+                },
+                pantone_code: item.pantone_code.clone(),
+            })
+            .collect();
+
+        SalesOrderDoc {
+            order_no: detail.order_no.clone(),
+            customer_id: detail.customer_id,
+            customer_name: detail.customer_name.clone().unwrap_or_default(),
+            total_amount: decimal_to_f64(&detail.total_amount),
+            status: detail.status.clone(),
+            created_at: detail.created_at,
+            items,
+        }
+    }
+
+    /// 同步销售订单到 ES（最终一致性策略）
+    ///
+    /// 批次 125 v8 复审 P1 修复：ES 同步失败仅记录日志，不回滚 PG 事务。
+    async fn sync_sales_order_to_es(&self, detail: &SalesOrderDetail, operation: &str) {
+        let doc = Self::build_sales_order_doc(detail);
+        if let Err(e) = self.search_syncer.sync_sales_order(&doc).await {
+            tracing::warn!(
+                error = %e,
+                order_id = detail.id,
+                order_no = %detail.order_no,
+                operation = operation,
+                "ES 销售订单同步失败（PG 已提交，最终一致性靠补偿任务修复）"
+            );
+        }
+    }
 
     pub async fn create_order(
         &self,
@@ -366,7 +426,12 @@ impl SalesService {
         txn.commit().await?;
 
         // 返回订单详情
-        self.get_order_detail(order_id).await
+        let detail = self.get_order_detail(order_id).await?;
+
+        // 批次 125 v8 复审 P1 修复：PG 事务提交后同步到 ES（最终一致性）
+        self.sync_sales_order_to_es(&detail, "create").await;
+
+        Ok(detail)
     }
 
     /// 更新销售订单
@@ -543,7 +608,12 @@ impl SalesService {
         txn.commit().await?;
 
         // 返回订单详情
-        self.get_order_detail(order_id).await
+        let detail = self.get_order_detail(order_id).await?;
+
+        // 批次 125 v8 复审 P1 修复：PG 事务提交后同步到 ES（最终一致性）
+        self.sync_sales_order_to_es(&detail, "update").await;
+
+        Ok(detail)
     }
 
     /// 删除销售订单
@@ -562,6 +632,9 @@ impl SalesService {
             .one(&txn)
             .await?
             .ok_or_else(|| AppError::not_found(format!("销售订单 {} 未找到", order_id)))?;
+
+        // 批次 125 v8 复审 P1 修复：删除前保存 order_no 用于 ES 文档删除
+        let order_no_for_es = order.order_no.clone();
 
         // 检查订单状态
         if order.status == "shipped" || order.status == "completed" {
@@ -590,6 +663,18 @@ impl SalesService {
 
         // 提交事务
         txn.commit().await?;
+
+        // 批次 125 v8 复审 P1 修复：PG 事务提交后删除 ES 文档（最终一致性）
+        // 销售订单是硬删除，ES 文档也需删除（与客户软删除不同）
+        if let Err(e) = self.search_syncer.delete_sales_order(&order_no_for_es).await {
+            tracing::warn!(
+                error = %e,
+                order_id = order_id,
+                order_no = %order_no_for_es,
+                operation = "delete",
+                "ES 销售订单删除失败（PG 已提交，最终一致性靠补偿任务修复）"
+            );
+        }
 
         Ok(())
     }

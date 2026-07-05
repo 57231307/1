@@ -40,7 +40,7 @@ pub async fn list_orders(
     State(state): State<AppState>,
     Query(query): Query<SalesOrderQuery>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
-    let sales_service = SalesService::new(state.db.clone());
+    let sales_service = SalesService::new(state.db.clone(), state.search_client.clone());
 
     let page_req = PageRequest {
         page: query.page.unwrap_or(1).clamp(1, 1000), // 批次 95 P3-3~8：分页 clamp 防 DoS
@@ -114,7 +114,7 @@ pub async fn get_order(
     State(state): State<AppState>,
     Path(id): Path<i32>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
-    let sales_service = SalesService::new(state.db.clone());
+    let sales_service = SalesService::new(state.db.clone(), state.search_client.clone());
     let order = sales_service.get_order_detail(id).await?;
     let mut order_json = serde_json::to_value(order)
         .map_err(|e| AppError::internal(format!("序列化失败: {}", e)))?;
@@ -171,7 +171,7 @@ pub async fn create_order(
         return Err(AppError::validation(e.to_string()));
     }
 
-    let sales_service = SalesService::new(state.db.clone());
+    let sales_service = SalesService::new(state.db.clone(), state.search_client.clone());
     let order = sales_service.create_order(request, auth.user_id).await?;
 
     // 订单创建成功后发送通知
@@ -203,7 +203,7 @@ pub async fn update_order(
     Path(id): Path<i32>,
     Json(request): Json<UpdateSalesOrderRequest>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
-    let sales_service = SalesService::new(state.db.clone());
+    let sales_service = SalesService::new(state.db.clone(), state.search_client.clone());
     // 批次 94 P2-10：传入真实操作人 user_id 用于审计日志
     let order = sales_service
         .update_order(id, auth.user_id, request)
@@ -223,7 +223,7 @@ pub async fn delete_order(
     auth: AuthContext,
     Path(id): Path<i32>,
 ) -> Result<Json<ApiResponse<()>>, AppError> {
-    let sales_service = SalesService::new(state.db.clone());
+    let sales_service = SalesService::new(state.db.clone(), state.search_client.clone());
     // 批次 94 P2-10：传入真实操作人 user_id 用于审计日志
     sales_service.delete_order(id, auth.user_id).await?;
     Ok(Json(ApiResponse::success_with_message(
@@ -239,7 +239,7 @@ pub async fn submit_order(
     State(state): State<AppState>,
     Path(id): Path<i32>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
-    let sales_service = SalesService::new(state.db.clone());
+    let sales_service = SalesService::new(state.db.clone(), state.search_client.clone());
     let user_id = auth.user_id;
     let order = sales_service.submit_order(id, user_id).await?;
 
@@ -271,7 +271,7 @@ pub async fn approve_order(
     State(state): State<AppState>,
     Path(id): Path<i32>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
-    let sales_service = SalesService::new(state.db.clone());
+    let sales_service = SalesService::new(state.db.clone(), state.search_client.clone());
     let order = sales_service.approve_order(id, auth.user_id).await?;
 
     // 订单审批成功后发送通知给申请人
@@ -303,7 +303,7 @@ pub async fn ship_order(
     Path(id): Path<i32>,
     Json(payload): Json<crate::services::so::delivery::ShipOrderRequest>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
-    let sales_service = SalesService::new(state.db.clone());
+    let sales_service = SalesService::new(state.db.clone(), state.search_client.clone());
     // 调用原有 ship_order(request, user_id)
     sales_service.ship_order(payload, auth.user_id).await?;
     // 重新获取订单详情用于通知
@@ -337,7 +337,7 @@ pub async fn complete_order(
     auth: AuthContext,
     Path(id): Path<i32>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
-    let sales_service = SalesService::new(state.db.clone());
+    let sales_service = SalesService::new(state.db.clone(), state.search_client.clone());
     // P1-11 修复（2026-06-25 综合审计）：传入真实操作人 ID 用于审计日志
     let order = sales_service.complete_order(id, auth.user_id).await?;
 
@@ -407,7 +407,7 @@ pub async fn export_orders(
     _auth: AuthContext,
     Query(query): Query<SalesOrderQuery>,
 ) -> Result<axum::response::Response, AppError> {
-    let sales_service = SalesService::new(state.db.clone());
+    let sales_service = SalesService::new(state.db.clone(), state.search_client.clone());
 
     let csv_data = sales_service
         .export_orders_to_csv(query.status, query.customer_id, query.order_no)
@@ -462,7 +462,7 @@ pub async fn reject_order(
     State(state): State<AppState>,
     Path(id): Path<i32>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
-    let sales_service = SalesService::new(state.db.clone());
+    let sales_service = SalesService::new(state.db.clone(), state.search_client.clone());
 
     sales_service
         .reject_order(id, "订单被拒绝".to_string(), _auth.user_id)
@@ -481,7 +481,7 @@ pub async fn cancel_order(
     State(state): State<AppState>,
     Path(id): Path<i32>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
-    let sales_service = SalesService::new(state.db.clone());
+    let sales_service = SalesService::new(state.db.clone(), state.search_client.clone());
 
     let _order = sales_service
         .cancel_order(id, auth.user_id)
@@ -502,7 +502,7 @@ pub async fn get_order_deliveries(
     State(state): State<AppState>,
     Path(id): Path<i32>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
-    let sales_service = SalesService::new(state.db.clone());
+    let sales_service = SalesService::new(state.db.clone(), state.search_client.clone());
 
     let deliveries = sales_service
         .get_order_deliveries(id)
@@ -530,7 +530,7 @@ pub async fn create_delivery(
         .validate()
         .map_err(|e| AppError::validation(e.to_string()))?;
 
-    let sales_service = SalesService::new(state.db.clone());
+    let sales_service = SalesService::new(state.db.clone(), state.search_client.clone());
 
     // warehouse_id 缺失时默认为 0（保持原向后兼容逻辑）
     let warehouse_id = payload.warehouse_id.unwrap_or_default();
@@ -554,7 +554,7 @@ pub async fn get_order_statistics(
     State(state): State<AppState>,
     Query(query): Query<serde_json::Value>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
-    let sales_service = SalesService::new(state.db.clone());
+    let sales_service = SalesService::new(state.db.clone(), state.search_client.clone());
 
     let statistics = sales_service
         .get_order_statistics(query)
