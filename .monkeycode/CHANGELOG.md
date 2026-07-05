@@ -6,6 +6,26 @@
 
 ---
 
+## 2026-07-05 (批次 117 v7 复审 P1-5 收尾完成 - P1 全部修复完成)
+
+### 批次 117：v7 复审 P1 修复 — 剩余 4 处生产代码 .unwrap()/.expect() 安全化
+
+**PR #361，main commit `dd19874`**
+
+| 修复项 | 内容 |
+|--------|------|
+| P1-5 收尾 | 4 处生产代码 `.unwrap()/.expect()` 安全化：webhook_signature.rs（返回 Result）+ webhook_service.rs（warn 降级）+ date_utils.rs（expect + 不变量注释）+ timeout.rs（expect + 不变量注释） |
+
+**关键决策**：
+- `sign_webhook_payload` 改为返回 `Result<String, String>`，调用方 `match` + `tracing::warn!` 降级（与 `hash.rs::hmac_sha256_hex` 一致）
+- `date_utils.rs` UTC+0/0,0,0 数学不变量改为 `expect` + 注释说明（比 `unwrap` 更明确）
+- `timeout.rs` fallback 中 `Response::builder` 改为 `expect` + 不变量注释（INTERNAL_SERVER_ERROR 500 永远合法）
+- v7 复审 P1 项至此全部修复完成（批次 114 修 3 处中风险 + 批次 117 修 4 处低风险）
+
+**v7 复审 P1 修复总结 ✅**：P1-1 ~ P1-10 全部完成
+
+---
+
 ## 2026-07-05 (批次 116 v7 复审 P1-4 修复完成)
 
 ### 批次 116：v7 复审 P1 修复 — 删除未接入业务的 Redis 缓存层模块
