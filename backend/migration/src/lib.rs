@@ -51,6 +51,9 @@ pub mod m0038_add_notes_to_ar_reconciliations;
 // 批次 112 P1-9：api_keys 添加 created_by 列（v7 复审修复）
 pub mod m0039_add_created_by_to_api_keys;
 
+// 批次 122 v8 复审 P1：CRM 标签字典表（替代 list_tags 硬编码 + create_tag/delete_tag 假实现）
+pub mod m0040_create_crm_tags;
+
 pub struct Migrator;
 
 #[async_trait::async_trait]
@@ -96,6 +99,7 @@ impl MigratorTrait for Migrator {
             Box::new(m0037_alter_fa_depreciation_records_fk::Migration),
             Box::new(m0038_add_notes_to_ar_reconciliations::Migration),
             Box::new(m0039_add_created_by_to_api_keys::Migration),
+            Box::new(m0040_create_crm_tags::Migration),
         ]
     }
 }

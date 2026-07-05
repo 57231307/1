@@ -6,10 +6,12 @@ use axum::{
     extract::{Path, Query, State},
     Json,
 };
+use sea_orm::{ActiveModelTrait, EntityTrait, Set};
 use serde::Deserialize;
 use validator::Validate;
 
 use crate::middleware::auth_context::AuthContext;
+use crate::models::crm_tag;
 use crate::models::dto::crm_dto::{CreateLeadRequest, LeadQuery, UpdateLeadRequest};
 use crate::services::customer_service::{
     CreateCustomerContactRequest, CustomerService, UpdateCustomerContactRequest,
@@ -39,7 +41,7 @@ pub struct AddTagsDto {
 }
 
 /// P1-2h 修复（批次 81 v1 复审）：创建标签请求 DTO
-/// 替代 create_tag 中的 Json<serde_json::Value>，提供强类型校验
+/// 批次 122 v8 复审 P1 修复：增加 category 字段，真实持久化到 crm_tag 表
 #[derive(Debug, Deserialize, Validate)]
 pub struct CreateTagDto {
     /// 标签名称：必填，长度至少 1
@@ -48,6 +50,9 @@ pub struct CreateTagDto {
     /// 颜色：可选，缺失时默认 "#1890ff"
     #[validate(length(max = 20, message = "颜色长度不能超过20字符"))]
     pub color: Option<String>,
+    /// 标签分类：可选，如 customer/lead/supplier
+    #[validate(length(max = 50, message = "分类长度不能超过50字符"))]
+    pub category: Option<String>,
 }
 
 /// POST /api/v1/erp/crm/customers - 创建客户（通过线索）
@@ -221,46 +226,64 @@ pub async fn delete_contact(
 }
 
 /// GET /api/v1/erp/crm/tags - 获取标签列表
+///
+/// 批次 122 v8 复审 P1 修复：原返回硬编码 5 个标签，改为查 crm_tag 表真实数据。
 pub async fn list_tags(
-    _state: State<AppState>,
+    State(state): State<AppState>,
     _auth: AuthContext,
-) -> Result<Json<ApiResponse<Vec<serde_json::Value>>>, AppError> {
-    // 返回预定义的标签列表
-    let tags = vec![
-        serde_json::json!({"id": 1, "name": "VIP", "color": "#f50"}),
-        serde_json::json!({"id": 2, "name": "重点客户", "color": "#2db7f5"}),
-        serde_json::json!({"id": 3, "name": "潜在客户", "color": "#87d068"}),
-        serde_json::json!({"id": 4, "name": "新客户", "color": "#108ee9"}),
-        serde_json::json!({"id": 5, "name": "流失客户", "color": "#f50"}),
-    ];
+) -> Result<Json<ApiResponse<Vec<crm_tag::Model>>>, AppError> {
+    let tags = crm_tag::Entity::find()
+        .all(&*state.db)
+        .await?;
     Ok(Json(ApiResponse::success(tags)))
 }
 
 /// POST /api/v1/erp/crm/tags - 创建标签
+///
+/// 批次 122 v8 复审 P1 修复：原 create_tag 仅用时间戳生成假 id 返回，不持久化。
+/// 现真实 INSERT 到 crm_tag 表，返回含 id/name/color/category/created_at 的完整记录。
 pub async fn create_tag(
-    _state: State<AppState>,
-    _auth: AuthContext,
+    State(state): State<AppState>,
+    auth: AuthContext,
     Json(req): Json<CreateTagDto>,
-) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
-    // P1-2h 修复（批次 81 v1 复审）：强类型 DTO + validator 替代 Json<Value>
+) -> Result<Json<ApiResponse<crm_tag::Model>>, AppError> {
     req.validate()
         .map_err(|e| AppError::validation(e.to_string()))?;
 
-    let tag = serde_json::json!({
-        "id": chrono::Utc::now().timestamp(),
-        "name": req.name,
-        "color": req.color.unwrap_or_else(|| "#1890ff".to_string()),
-    });
-    Ok(Json(ApiResponse::success(tag)))
+    let new_tag = crm_tag::ActiveModel {
+        name: Set(req.name),
+        color: Set(req.color.unwrap_or_else(|| "#1890ff".to_string())),
+        category: Set(req.category),
+        created_by: Set(Some(auth.user_id)),
+        ..Default::default()
+    };
+
+    let tag = new_tag.insert(&*state.db).await?;
+    Ok(Json(ApiResponse::success_with_message(
+        tag,
+        "标签创建成功",
+    )))
 }
 
 /// DELETE /api/v1/erp/crm/tags/:id - 删除标签
+///
+/// 批次 122 v8 复审 P1 修复：原 delete_tag 直接返回 {"deleted": true} 空操作。
+/// 现真实 DELETE FROM crm_tag WHERE id = ?，标签不存在时返回 404。
 pub async fn delete_tag(
-    _state: State<AppState>,
+    State(state): State<AppState>,
     _auth: AuthContext,
-    _id: Path<i32>,
+    Path(id): Path<i32>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
-    Ok(Json(ApiResponse::success(
-        serde_json::json!({"deleted": true}),
+    let result = crm_tag::Entity::delete_by_id(id)
+        .exec(&*state.db)
+        .await?;
+
+    if result.rows_affected == 0 {
+        return Err(AppError::not_found(format!("标签 {} 未找到", id)));
+    }
+
+    Ok(Json(ApiResponse::success_with_message(
+        serde_json::json!({"deleted": true, "id": id}),
+        "标签删除成功",
     )))
 }

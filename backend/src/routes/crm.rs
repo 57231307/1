@@ -5,7 +5,7 @@
 //!
 //! 路由设计说明：所有子 router 内部 path 都已加上各自独立前缀
 //!（`/customers`、`/customer-credits`、`/five-dimension`、`/sales-analysis`、
-//!  `/customers/enhanced`、`/crm-tags`、`/pool`、`/assignments`、
+//!  `/customers/enhanced`、`/crm/tags`、`/pool`、`/assignments`、
 //!  `/sales-users`、`/recycle-rules`、`/leads`、`/opportunities` 等），
 //!  这样 `routes()` 入口用 `merge` 组合时不会出现 path+method 重叠，
 //!  避免 axum 0.7 `Overlapping method route` panic。
@@ -196,16 +196,17 @@ pub fn crm_customers() -> Router<AppState> {
         )
 }
 
-/// CRM 标签路由（path 前缀 /crm-tags）
+/// CRM 标签路由（path 前缀 /crm/tags）
 ///
-/// 使用 `/crm-tags` 而不是 `/tags`，与潜在的其他域 `/tags` 不冲突。
+/// 批次 122 v8 复审 P1 修复：原路径 `/crm-tags` 与前端调用 `/crm/tags` 不一致导致 404。
+/// 现统一为 `/crm/tags` 和 `/crm/tags/:id`，与前端 crm-enhanced.ts 调用路径匹配。
 pub fn crm_tags() -> Router<AppState> {
     Router::new()
         .route(
-            "/crm-tags",
+            "/crm/tags",
             get(crm_customer_handler::list_tags).post(crm_customer_handler::create_tag),
         )
-        .route("/crm-tags/:id", delete(crm_customer_handler::delete_tag))
+        .route("/crm/tags/:id", delete(crm_customer_handler::delete_tag))
 }
 
 /// CRM 公海池路由（path 前缀 /pool）
