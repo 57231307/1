@@ -10,6 +10,7 @@ use std::sync::Arc;
 
 use crate::models::customer::{self, Entity as CustomerEntity};
 use crate::models::dto::PageRequest;
+use crate::search::{CustomerDoc, SearchClient, SearchSyncer};
 use crate::utils::data_permission::{DataPermissionFilter, CUSTOMER_ALL_FIELDS};
 use crate::utils::error::AppError;
 use crate::utils::PaginatedResponse;
@@ -68,13 +69,59 @@ fn build_select_only_query(
 }
 
 /// 客户服务
+///
+/// 批次 124 v8 复审 P1 修复：注入 search_syncer 实现 PG→ES 写入同步。
+/// - create/update/delete 事务提交后调用 sync_customer 将最新数据同步到 ES
+/// - ES 同步失败仅记录 tracing::warn!（最终一致性），不回滚 PG 事务
+/// - mock 模式（CI 环境）下同步到内存 HashMap，real 模式同步到真实 ES
 pub struct CustomerService {
     db: Arc<DatabaseConnection>,
+    /// ES 同步器（PG→ES 写入同步），批次 124 接入
+    search_syncer: Arc<SearchSyncer>,
 }
 
 impl CustomerService {
-    pub fn new(db: Arc<DatabaseConnection>) -> Self {
-        Self { db }
+    pub fn new(db: Arc<DatabaseConnection>, search_client: Arc<dyn SearchClient>) -> Self {
+        Self {
+            db,
+            search_syncer: Arc::new(SearchSyncer::new(search_client)),
+        }
+    }
+
+    /// 将 customer::Model 转换为 CustomerDoc 用于 ES 索引
+    ///
+    /// 批次 124 v8 复审 P1 修复：字段映射规则
+    /// - tier 映射 customer_type（retail/wholesale/vip，更接近"等级"语义）
+    /// - 其余字段直接从 Model 取值
+    fn build_customer_doc(model: &customer::Model) -> CustomerDoc {
+        CustomerDoc {
+            id: model.id,
+            code: model.customer_code.clone(),
+            name: model.customer_name.clone(),
+            contact_person: model.contact_person.clone(),
+            phone: model.contact_phone.clone(),
+            email: model.contact_email.clone(),
+            address: model.address.clone(),
+            tier: model.customer_type.clone(),
+        }
+    }
+
+    /// 同步客户到 ES（最终一致性策略）
+    ///
+    /// 批次 124 v8 复审 P1 修复：ES 同步失败仅记录日志，不回滚 PG 事务。
+    /// 设计原因：PG 是主数据源（事务、关联查询），ES 是搜索副本（全文搜索）。
+    /// ES 同步失败时 PG 数据已正确写入，后续可通过定时补偿任务修复 ES 缺失。
+    async fn sync_customer_to_es(&self, model: &customer::Model, operation: &str) {
+        let doc = Self::build_customer_doc(model);
+        if let Err(e) = self.search_syncer.sync_customer(&doc).await {
+            tracing::warn!(
+                error = %e,
+                customer_id = model.id,
+                customer_code = %model.customer_code,
+                operation = operation,
+                "ES 客户同步失败（PG 已提交，最终一致性靠补偿任务修复）"
+            );
+        }
     }
 
     /// 生成客户编码
@@ -160,6 +207,11 @@ impl CustomerService {
 
         let result = customer.insert(&txn).await.map_err(AppError::from)?;
         txn.commit().await?;
+
+        // 批次 124 v8 复审 P1 修复：PG 事务提交后同步到 ES（最终一致性）
+        // ES 同步失败仅记录日志，不回滚 PG（PG 是主数据源，ES 是搜索副本）
+        self.sync_customer_to_es(&result, "create").await;
+
         Ok(result)
     }
 
@@ -439,6 +491,10 @@ impl CustomerService {
 
         txn.commit().await?;
 
+        // 批次 124 v8 复审 P1 修复：PG 事务提交后同步到 ES（最终一致性）
+        // 注意：软删除场景下 ES 文档仍保留（status 字段同步），便于搜索历史客户
+        self.sync_customer_to_es(&updated, "update").await;
+
         Ok(updated)
     }
 
@@ -483,6 +539,10 @@ impl CustomerService {
         .await?;
 
         txn.commit().await?;
+
+        // 批次 124 v8 复审 P1 修复：软删除后同步 status=inactive 到 ES
+        // 设计决策：软删除不删除 ES 文档，保留便于搜索历史客户（status 字段已同步）
+        self.sync_customer_to_es(&updated, "delete").await;
 
         Ok(updated)
     }

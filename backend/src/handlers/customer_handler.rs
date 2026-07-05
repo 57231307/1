@@ -115,7 +115,7 @@ pub async fn list_customers(
     // 获取数据权限过滤器
     let permission_filter = get_permission_filter(&state, &auth, "customer").await;
 
-    let customer_service = CustomerService::new(state.db.clone());
+    let customer_service = CustomerService::new(state.db.clone(), state.search_client.clone());
     let result = customer_service
         .list_customers_with_filter(
             page_req,
@@ -145,7 +145,7 @@ pub async fn get_customer(
     // 获取数据权限过滤器
     let permission_filter = get_permission_filter(&state, &auth, "customer").await;
 
-    let customer_service = CustomerService::new(state.db.clone());
+    let customer_service = CustomerService::new(state.db.clone(), state.search_client.clone());
     let customer_json = customer_service
         .get_customer_with_filter(id, permission_filter)
         .await?;
@@ -161,7 +161,7 @@ pub async fn create_customer(
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     payload.validate()?;
 
-    let customer_service = CustomerService::new(state.db.clone());
+    let customer_service = CustomerService::new(state.db.clone(), state.search_client.clone());
 
     let credit_limit = payload
         .credit_limit
@@ -218,7 +218,7 @@ pub async fn update_customer(
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     payload.validate()?;
 
-    let customer_service = CustomerService::new(state.db.clone());
+    let customer_service = CustomerService::new(state.db.clone(), state.search_client.clone());
 
     // M-1 修复：检查数据权限
     // 使用 created_by 做数据隔离：
@@ -273,7 +273,7 @@ pub async fn delete_customer(
     Path(id): Path<i32>,
     auth: AuthContext,
 ) -> Result<Json<ApiResponse<()>>, AppError> {
-    let customer_service = CustomerService::new(state.db.clone());
+    let customer_service = CustomerService::new(state.db.clone(), state.search_client.clone());
 
     // M-1 修复：检查数据权限
     // 使用 created_by 做数据隔离：

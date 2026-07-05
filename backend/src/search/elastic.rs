@@ -735,9 +735,8 @@ fn products_mapping() -> serde_json::Value {
 
 /// 业务同步器：将 PG 写入同步到 ES
 ///
-/// 批次 104 P0-1 修复：搜索 API 已接入，但 PG→ES 写入同步尚未接入业务 service。
-/// 后续批次（110+）接入 customer_service / sales_order_service / product_service 写入流程后移除标注。
-#[allow(dead_code)] // TODO(tech-debt): 批次 110+ 接入 PG→ES 写入同步后移除
+/// 批次 124 v8 复审 P1 修复：SearchSyncer 已接入 customer_service 写入流程。
+/// sync_sales_order / sync_product 待批次 125 接入 sales_order_service / product_service 后移除标注。
 pub struct SearchSyncer {
     client: Arc<dyn SearchClient>,
 }
@@ -748,6 +747,9 @@ impl SearchSyncer {
     }
 
     /// 同步销售订单
+    ///
+    /// 批次 124 状态：待批次 125 接入 sales_order_service 写入流程后移除 dead_code 标注
+    #[allow(dead_code)] // TODO(tech-debt): 批次 125 接入 sales_order_service 同步后移除
     pub async fn sync_sales_order(&self, doc: &SalesOrderDoc) -> Result<(), SearchError> {
         let value = serde_json::to_value(doc).map_err(|e| SearchError::Serialize(e.to_string()))?;
         self.client
@@ -755,7 +757,7 @@ impl SearchSyncer {
             .await
     }
 
-    /// 同步客户
+    /// 同步客户（批次 124 已接入 customer_service.create/update/delete）
     pub async fn sync_customer(&self, doc: &CustomerDoc) -> Result<(), SearchError> {
         let id = doc.id.to_string();
         let value = serde_json::to_value(doc).map_err(|e| SearchError::Serialize(e.to_string()))?;
@@ -764,9 +766,8 @@ impl SearchSyncer {
 
     /// 同步产品
     ///
-    /// 批次 104 P0-1 修复：sync_product 当前未被业务调用，保留 dead_code 标注。
-    /// 后续批次（110+）接入 product_service 写入流程后移除。
-    #[allow(dead_code)] // TODO(tech-debt): 批次 110+ 接入 product_service 同步后移除
+    /// 批次 124 状态：待批次 125 接入 product_service 写入流程后移除 dead_code 标注
+    #[allow(dead_code)] // TODO(tech-debt): 批次 125 接入 product_service 同步后移除
     pub async fn sync_product(&self, doc: &ProductDoc) -> Result<(), SearchError> {
         let id = doc.id.to_string();
         let value = serde_json::to_value(doc).map_err(|e| SearchError::Serialize(e.to_string()))?;
