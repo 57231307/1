@@ -111,6 +111,11 @@ pub struct CreateOpportunityRequest {
 #[derive(Debug, Deserialize, Default)]
 pub struct LeadQuery {
     pub lead_status: Option<String>,
+    // 批次 111 P1-10：source / keyword 接入 list_leads 过滤（原 LeadQuery 仅有 lead_status）
+    /// 线索来源过滤（精确匹配 lead_source 列）
+    pub source: Option<String>,
+    /// 关键词模糊搜索（匹配 company_name / contact_name / mobile_phone / email）
+    pub keyword: Option<String>,
     pub page: Option<u64>,
     pub page_size: Option<u64>,
 }

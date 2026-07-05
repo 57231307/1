@@ -20,11 +20,11 @@ use crate::utils::response::ApiResponse;
 pub struct PoolQueryParams {
     pub page: Option<u64>,
     pub page_size: Option<u64>,
-    #[allow(dead_code)] // TODO(tech-debt): 公海客户模块接入业务后移除
+    // 批次 111 P1-10：source / keyword 接入 LeadQuery 过滤（移除 dead_code 标注）
     pub source: Option<String>,
-    #[allow(dead_code)] // TODO(tech-debt): 公海客户模块接入业务后移除
+    // 批次 111 P1-10：crm_lead 表无 industry 列，保留参数兼容前端但记录警告日志
+    #[allow(dead_code)] // TODO(tech-debt): 后续 crm_lead 表新增 industry 列后接入
     pub industry: Option<String>,
-    #[allow(dead_code)] // TODO(tech-debt): 公海客户模块接入业务后移除
     pub keyword: Option<String>,
 }
 
@@ -55,6 +55,9 @@ pub async fn list_pool(
     // 查询公海客户（owner_id为空或特定状态的线索）
     let query = crate::models::dto::crm_dto::LeadQuery {
         lead_status: Some("pool".to_string()),
+        // 批次 111 P1-10：透传 source / keyword 到 LeadQuery，由 list_leads 服务执行过滤
+        source: params.source,
+        keyword: params.keyword,
         page: Some(page),
         page_size: Some(page_size),
     };

@@ -96,6 +96,24 @@ impl CrmService {
             q = q.filter(crm_lead::Column::LeadStatus.eq(s));
         }
 
+        // 批次 111 P1-10：接入 source 过滤（精确匹配 lead_source 列）
+        if let Some(source) = query.source {
+            q = q.filter(crm_lead::Column::LeadSource.eq(source));
+        }
+
+        // 批次 111 P1-10：接入 keyword 模糊搜索
+        // 匹配 company_name / contact_name / mobile_phone / email 四个字段（OR 关系）
+        if let Some(keyword) = query.keyword {
+            let pattern = format!("%{}%", keyword);
+            q = q.filter(
+                sea_orm::Condition::any()
+                    .add(crm_lead::Column::CompanyName.like(&pattern))
+                    .add(crm_lead::Column::ContactName.like(&pattern))
+                    .add(crm_lead::Column::MobilePhone.like(&pattern))
+                    .add(crm_lead::Column::Email.like(&pattern)),
+            );
+        }
+
         let paginator = q
             .order_by(crm_lead::Column::CreatedAt, sea_orm::Order::Desc)
             .paginate(&*self.db, page_size);

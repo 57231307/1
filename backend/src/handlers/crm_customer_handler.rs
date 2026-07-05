@@ -25,7 +25,7 @@ pub struct CustomerQueryParams {
     pub page: Option<u64>,
     pub page_size: Option<u64>,
     pub status: Option<String>,
-    #[allow(dead_code)] // TODO(tech-debt): 客户查询模块接入业务后移除
+    // 批次 111 P1-10：keyword 接入 LeadQuery 模糊搜索（移除 dead_code 标注）
     pub keyword: Option<String>,
 }
 
@@ -73,6 +73,9 @@ pub async fn list_customers(
         page: params.page,
         page_size: params.page_size,
         lead_status: params.status,
+        // 批次 111 P1-10：透传 keyword 到 LeadQuery，由 list_leads 服务执行模糊搜索
+        source: None,
+        keyword: params.keyword,
     };
 
     let result = service.list_leads(query).await?;
