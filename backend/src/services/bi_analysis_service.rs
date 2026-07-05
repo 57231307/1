@@ -763,13 +763,16 @@ impl BiAnalysisService {
         let results = (1..=12)
             .map(|m| {
                 let period = format!("{}-{:02}", year, m);
-                period_map.remove(&period).unwrap_or_else(|| TimeSeriesPoint {
-                    period,
-                    total_amount: 0.0,
-                    order_count: 0,
-                    quantity: 0.0,
-                    profit_amount: 0.0,
-                })
+                match period_map.remove(&period) {
+                    Some(point) => point,
+                    None => TimeSeriesPoint {
+                        period,
+                        total_amount: 0.0,
+                        order_count: 0,
+                        quantity: 0.0,
+                        profit_amount: 0.0,
+                    },
+                }
             })
             .collect();
 
@@ -846,13 +849,16 @@ impl BiAnalysisService {
         let results = (1..=days_in_month)
             .map(|d| {
                 let period = format!("{}-{:02}-{:02}", year, month, d);
-                period_map.remove(&period).unwrap_or_else(|| TimeSeriesPoint {
-                    period,
-                    total_amount: 0.0,
-                    order_count: 0,
-                    quantity: 0.0,
-                    profit_amount: 0.0,
-                })
+                match period_map.remove(&period) {
+                    Some(point) => point,
+                    None => TimeSeriesPoint {
+                        period,
+                        total_amount: 0.0,
+                        order_count: 0,
+                        quantity: 0.0,
+                        profit_amount: 0.0,
+                    },
+                }
             })
             .collect();
 
