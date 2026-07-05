@@ -210,9 +210,9 @@ pub async fn update_integration(
         WebhookIntegrationItem {
             id: updated.id,
             name: updated.name,
-            // platform 字段不在 webhook 表中，更新时无法返回原值，使用空字符串占位
-            // 前端如需展示 platform，应从 list 接口获取或在 update 响应中忽略此字段
-            platform: String::new(),
+            // platform 字段不在 webhook 表中（API 层虚拟字段），
+            // 与 list 接口保持一致使用 "GENERIC"，避免空字符串污染前端展示
+            platform: "GENERIC".to_string(),
             webhook_url: updated.url,
             is_active: updated.is_active,
             last_triggered_at: updated.last_triggered_at.map(|d| d.to_rfc3339()),
