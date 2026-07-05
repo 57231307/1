@@ -4,6 +4,9 @@
 //! - 8 个维度聚合：by-time / by-customer / by-product / by-region / by-category / trend / profit / kpi
 //! - 4 个钻取：year-to-month / month-to-day / customer-to-order / product-to-order
 //! - 4 个切片/上卷：slice / dice / rollup / pivot
+//!
+//! v9 批次 130 修复：所有 handler 从静态方法调用改为实例方法调用，
+//! 通过 `state.db.clone()` 注入数据库连接到 BiAnalysisService。
 
 use axum::{
     extract::{Path, Query, State},
@@ -34,13 +37,14 @@ pub struct ByTimeQuery {
 }
 
 pub async fn sales_by_time(
-    State(_state): State<AppState>,
+    State(state): State<AppState>,
     _auth: AuthContext,
     Query(q): Query<ByTimeQuery>,
 ) -> Result<Json<ApiResponse<BiResponse<Vec<TimeSeriesPoint>>>>, AppError> {
-    let data = BiAnalysisService::sales_by_time(q.start_date, q.end_date, &q.granularity)
-        .await
-        .map_err(|e| AppError::BusinessError(format!("查询失败: {}", e)))?;
+    let service = BiAnalysisService::new(state.db.clone());
+    let data = service
+        .sales_by_time(q.start_date, q.end_date, &q.granularity)
+        .await?;
     Ok(Json(ApiResponse::success(BiResponse::success(data))))
 }
 
@@ -52,52 +56,48 @@ pub struct ByCustomerQuery {
 }
 
 pub async fn sales_by_customer(
-    State(_state): State<AppState>,
+    State(state): State<AppState>,
     _auth: AuthContext,
     Query(q): Query<ByCustomerQuery>,
 ) -> Result<Json<ApiResponse<BiResponse<Vec<CustomerRank>>>>, AppError> {
     let limit = q.limit.unwrap_or(10).clamp(1, 100);
-    let data = BiAnalysisService::sales_by_customer(limit)
-        .await
-        .map_err(|e| AppError::BusinessError(format!("查询失败: {}", e)))?;
+    let service = BiAnalysisService::new(state.db.clone());
+    let data = service.sales_by_customer(limit).await?;
     Ok(Json(ApiResponse::success(BiResponse::success(data))))
 }
 
 /// GET /api/v1/erp/bi/sales/by-product
 /// 按产品聚合
 pub async fn sales_by_product(
-    State(_state): State<AppState>,
+    State(state): State<AppState>,
     _auth: AuthContext,
     Query(q): Query<ByCustomerQuery>,
 ) -> Result<Json<ApiResponse<BiResponse<Vec<ProductRank>>>>, AppError> {
     let limit = q.limit.unwrap_or(10).clamp(1, 100);
-    let data = BiAnalysisService::sales_by_product(limit)
-        .await
-        .map_err(|e| AppError::BusinessError(format!("查询失败: {}", e)))?;
+    let service = BiAnalysisService::new(state.db.clone());
+    let data = service.sales_by_product(limit).await?;
     Ok(Json(ApiResponse::success(BiResponse::success(data))))
 }
 
 /// GET /api/v1/erp/bi/sales/by-region
 /// 按区域聚合
 pub async fn sales_by_region(
-    State(_state): State<AppState>,
+    State(state): State<AppState>,
     _auth: AuthContext,
-) -> Result<Json<ApiResponse<BiResponse<Vec<RegionStat>>>>, AppError> {
-    let data = BiAnalysisService::sales_by_region()
-        .await
-        .map_err(|e| AppError::BusinessError(format!("查询失败: {}", e)))?;
+) -> Result<Json<ApiResponse<BiResponse<Vec<RegionStat>>>, AppError> {
+    let service = BiAnalysisService::new(state.db.clone());
+    let data = service.sales_by_region().await?;
     Ok(Json(ApiResponse::success(BiResponse::success(data))))
 }
 
 /// GET /api/v1/erp/bi/sales/by-category
 /// 按品类聚合
 pub async fn sales_by_category(
-    State(_state): State<AppState>,
+    State(state): State<AppState>,
     _auth: AuthContext,
-) -> Result<Json<ApiResponse<BiResponse<Vec<CategoryStat>>>>, AppError> {
-    let data = BiAnalysisService::sales_by_category()
-        .await
-        .map_err(|e| AppError::BusinessError(format!("查询失败: {}", e)))?;
+) -> Result<Json<ApiResponse<BiResponse<Vec<CategoryStat>>>, AppError> {
+    let service = BiAnalysisService::new(state.db.clone());
+    let data = service.sales_by_category().await?;
     Ok(Json(ApiResponse::success(BiResponse::success(data))))
 }
 
@@ -109,38 +109,35 @@ pub struct TrendQuery {
 }
 
 pub async fn sales_trend(
-    State(_state): State<AppState>,
+    State(state): State<AppState>,
     _auth: AuthContext,
     Query(q): Query<TrendQuery>,
 ) -> Result<Json<ApiResponse<BiResponse<Vec<TimeSeriesPoint>>>>, AppError> {
     let days = q.days.unwrap_or(30);
-    let data = BiAnalysisService::sales_trend(days)
-        .await
-        .map_err(|e| AppError::BusinessError(format!("查询失败: {}", e)))?;
+    let service = BiAnalysisService::new(state.db.clone());
+    let data = service.sales_trend(days).await?;
     Ok(Json(ApiResponse::success(BiResponse::success(data))))
 }
 
 /// GET /api/v1/erp/bi/sales/profit
 /// 利润分析
 pub async fn profit_analysis(
-    State(_state): State<AppState>,
+    State(state): State<AppState>,
     _auth: AuthContext,
 ) -> Result<Json<ApiResponse<BiResponse<ProfitAnalysis>>>, AppError> {
-    let data = BiAnalysisService::profit_analysis()
-        .await
-        .map_err(|e| AppError::BusinessError(format!("查询失败: {}", e)))?;
+    let service = BiAnalysisService::new(state.db.clone());
+    let data = service.profit_analysis().await?;
     Ok(Json(ApiResponse::success(BiResponse::success(data))))
 }
 
 /// GET /api/v1/erp/bi/sales/kpi
 /// 核心 KPI
 pub async fn kpi_summary(
-    State(_state): State<AppState>,
+    State(state): State<AppState>,
     _auth: AuthContext,
 ) -> Result<Json<ApiResponse<BiResponse<KpiSummary>>>, AppError> {
-    let data = BiAnalysisService::kpi_summary()
-        .await
-        .map_err(|e| AppError::BusinessError(format!("查询失败: {}", e)))?;
+    let service = BiAnalysisService::new(state.db.clone());
+    let data = service.kpi_summary().await?;
     Ok(Json(ApiResponse::success(BiResponse::success(data))))
 }
 
@@ -156,13 +153,12 @@ pub struct DrillYearMonthQuery {
 }
 
 pub async fn drilldown_year_to_month(
-    State(_state): State<AppState>,
+    State(state): State<AppState>,
     _auth: AuthContext,
     Query(q): Query<DrillYearMonthQuery>,
 ) -> Result<Json<ApiResponse<BiResponse<Vec<TimeSeriesPoint>>>>, AppError> {
-    let data = BiAnalysisService::drilldown_year_to_month(q.year)
-        .await
-        .map_err(|e| AppError::BusinessError(format!("查询失败: {}", e)))?;
+    let service = BiAnalysisService::new(state.db.clone());
+    let data = service.drilldown_year_to_month(q.year).await?;
     Ok(Json(ApiResponse::success(BiResponse::success(data))))
 }
 
@@ -175,39 +171,36 @@ pub struct DrillMonthDayQuery {
 }
 
 pub async fn drilldown_month_to_day(
-    State(_state): State<AppState>,
+    State(state): State<AppState>,
     _auth: AuthContext,
     Query(q): Query<DrillMonthDayQuery>,
 ) -> Result<Json<ApiResponse<BiResponse<Vec<TimeSeriesPoint>>>>, AppError> {
-    let data = BiAnalysisService::drilldown_month_to_day(q.year, q.month)
-        .await
-        .map_err(|e| AppError::BusinessError(format!("查询失败: {}", e)))?;
+    let service = BiAnalysisService::new(state.db.clone());
+    let data = service.drilldown_month_to_day(q.year, q.month).await?;
     Ok(Json(ApiResponse::success(BiResponse::success(data))))
 }
 
 /// GET /api/v1/erp/bi/sales/drilldown/customer-to-order/:customer_id
 /// 钻取：客户 → 订单
 pub async fn drilldown_customer_to_order(
-    State(_state): State<AppState>,
+    State(state): State<AppState>,
     _auth: AuthContext,
     Path(customer_id): Path<i64>,
 ) -> Result<Json<ApiResponse<BiResponse<serde_json::Value>>>, AppError> {
-    let data = BiAnalysisService::drilldown_customer_to_order(customer_id)
-        .await
-        .map_err(|e| AppError::BusinessError(format!("查询失败: {}", e)))?;
+    let service = BiAnalysisService::new(state.db.clone());
+    let data = service.drilldown_customer_to_order(customer_id).await?;
     Ok(Json(ApiResponse::success(BiResponse::success(data))))
 }
 
 /// GET /api/v1/erp/bi/sales/drilldown/product-to-order/:product_id
 /// 钻取：产品 → 订单
 pub async fn drilldown_product_to_order(
-    State(_state): State<AppState>,
+    State(state): State<AppState>,
     _auth: AuthContext,
     Path(product_id): Path<i64>,
 ) -> Result<Json<ApiResponse<BiResponse<serde_json::Value>>>, AppError> {
-    let data = BiAnalysisService::drilldown_product_to_order(product_id)
-        .await
-        .map_err(|e| AppError::BusinessError(format!("查询失败: {}", e)))?;
+    let service = BiAnalysisService::new(state.db.clone());
+    let data = service.drilldown_product_to_order(product_id).await?;
     Ok(Json(ApiResponse::success(BiResponse::success(data))))
 }
 
@@ -224,13 +217,12 @@ pub struct SliceRequest {
 }
 
 pub async fn slice(
-    State(_state): State<AppState>,
+    State(state): State<AppState>,
     _auth: AuthContext,
     Json(body): Json<SliceRequest>,
 ) -> Result<Json<ApiResponse<BiResponse<serde_json::Value>>>, AppError> {
-    let data = BiAnalysisService::slice(&body.dimension, &body.filters)
-        .await
-        .map_err(|e| AppError::BusinessError(format!("查询失败: {}", e)))?;
+    let service = BiAnalysisService::new(state.db.clone());
+    let data = service.slice(&body.dimension, &body.filters).await?;
     Ok(Json(ApiResponse::success(BiResponse::success(data))))
 }
 
@@ -242,13 +234,12 @@ pub struct DiceRequest {
 }
 
 pub async fn dice(
-    State(_state): State<AppState>,
+    State(state): State<AppState>,
     _auth: AuthContext,
     Json(body): Json<DiceRequest>,
 ) -> Result<Json<ApiResponse<BiResponse<serde_json::Value>>>, AppError> {
-    let data = BiAnalysisService::dice(&body.filters)
-        .await
-        .map_err(|e| AppError::BusinessError(format!("查询失败: {}", e)))?;
+    let service = BiAnalysisService::new(state.db.clone());
+    let data = service.dice(&body.filters).await?;
     Ok(Json(ApiResponse::success(BiResponse::success(data))))
 }
 
@@ -261,13 +252,12 @@ pub struct RollupRequest {
 }
 
 pub async fn rollup(
-    State(_state): State<AppState>,
+    State(state): State<AppState>,
     _auth: AuthContext,
     Json(body): Json<RollupRequest>,
 ) -> Result<Json<ApiResponse<BiResponse<serde_json::Value>>>, AppError> {
-    let data = BiAnalysisService::rollup(&body.from, &body.to)
-        .await
-        .map_err(|e| AppError::BusinessError(format!("查询失败: {}", e)))?;
+    let service = BiAnalysisService::new(state.db.clone());
+    let data = service.rollup(&body.from, &body.to).await?;
     Ok(Json(ApiResponse::success(BiResponse::success(data))))
 }
 
@@ -281,12 +271,11 @@ pub struct PivotRequest {
 }
 
 pub async fn pivot(
-    State(_state): State<AppState>,
+    State(state): State<AppState>,
     _auth: AuthContext,
     Json(body): Json<PivotRequest>,
 ) -> Result<Json<ApiResponse<BiResponse<serde_json::Value>>>, AppError> {
-    let data = BiAnalysisService::pivot(&body.row, &body.col, &body.measure)
-        .await
-        .map_err(|e| AppError::BusinessError(format!("查询失败: {}", e)))?;
+    let service = BiAnalysisService::new(state.db.clone());
+    let data = service.pivot(&body.row, &body.col, &body.measure).await?;
     Ok(Json(ApiResponse::success(BiResponse::success(data))))
 }
