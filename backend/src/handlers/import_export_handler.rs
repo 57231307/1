@@ -19,7 +19,9 @@ use validator::Validate;
 use crate::middleware::auth_context::AuthContext;
 use crate::models::audit_log::{OperationType, Severity};
 use crate::services::audit_log_service::{AuditEvent, AuditLogService};
-use crate::services::import_export_service::{ExportQuery, ImportExportService, MAX_CSV_BYTES};
+use crate::services::import_export_service::{
+    ExportQuery, ImportExportService, ImportResult, MAX_CSV_BYTES,
+};
 use crate::utils::app_state::AppState;
 use crate::utils::error::AppError;
 use crate::utils::response::ApiResponse;
@@ -78,21 +80,38 @@ pub async fn import_csv(
     // 解析CSV数据
     let rows = ImportExportService::parse_csv(&req.data)?;
 
+    // 批次 127 v8 复审 P2 修复：导入前创建任务记录（status=running）
+    // 即使后续验证失败或导入异常，任务表也会落库一条记录，便于追溯历史导入行为。
+    let task_id = service
+        .create_import_task(&req.import_type, rows.len() as u64, auth.user_id)
+        .await?;
+
     // 验证数据
     let errors = ImportExportService::validate_import_data(&rows, &template);
 
     if !errors.is_empty() {
-        return Ok(Json(ApiResponse::success(serde_json::json!({
-            "imported": 0,
-            "failed": rows.len(),
-            "errors": errors,
-        }))));
+        // 验证失败：更新任务记录为 failed 状态（imported=0, failed=rows.len()）
+        let fail_result = ImportResult {
+            imported: 0,
+            failed: rows.len() as u64,
+            errors,
+        };
+        // 任务更新失败不阻断主流程（仅 tracing::warn!），保证用户得到原始验证错误响应
+        if let Err(e) = service.update_import_task(task_id, &fail_result).await {
+            tracing::warn!(error = %e, task_id, "更新导入任务记录为 failed 状态失败");
+        }
+        return Ok(Json(ApiResponse::success(serde_json::to_value(fail_result)?)));
     }
 
     // 执行实际导入
     let result = service
         .import_data(&req.import_type, &rows, auth.user_id)
         .await?;
+
+    // 导入完成：更新任务记录（status=success/failed/partial）
+    if let Err(e) = service.update_import_task(task_id, &result).await {
+        tracing::warn!(error = %e, task_id, "更新导入任务记录为完成状态失败");
+    }
 
     Ok(Json(ApiResponse::success_with_message(
         serde_json::to_value(result)?,
@@ -149,21 +168,36 @@ pub async fn import_excel(
     // 获取导入模板
     let template = ImportExportService::get_import_template(&req.import_type)?;
 
+    // 批次 127 v8 复审 P2 修复：导入前创建任务记录（status=running）
+    let task_id = service
+        .create_import_task(&req.import_type, req.data.len() as u64, auth.user_id)
+        .await?;
+
     // 验证数据
     let errors = ImportExportService::validate_import_data(&req.data, &template);
 
     if !errors.is_empty() {
-        return Ok(Json(ApiResponse::success(serde_json::json!({
-            "imported": 0,
-            "failed": req.data.len(),
-            "errors": errors,
-        }))));
+        // 验证失败：更新任务记录为 failed 状态
+        let fail_result = ImportResult {
+            imported: 0,
+            failed: req.data.len() as u64,
+            errors,
+        };
+        if let Err(e) = service.update_import_task(task_id, &fail_result).await {
+            tracing::warn!(error = %e, task_id, "更新导入任务记录为 failed 状态失败");
+        }
+        return Ok(Json(ApiResponse::success(serde_json::to_value(fail_result)?)));
     }
 
     // 执行实际导入
     let result = service
         .import_data(&req.import_type, &req.data, auth.user_id)
         .await?;
+
+    // 导入完成：更新任务记录
+    if let Err(e) = service.update_import_task(task_id, &result).await {
+        tracing::warn!(error = %e, task_id, "更新导入任务记录为完成状态失败");
+    }
 
     Ok(Json(ApiResponse::success_with_message(
         serde_json::to_value(result)?,
@@ -347,10 +381,27 @@ pub async fn list_import_templates(
 
 /// GET /api/v1/erp/data-import/tasks - 获取导入任务列表
 pub async fn list_import_tasks(
-    State(_state): State<AppState>,
+    State(state): State<AppState>,
 ) -> Result<Json<ApiResponse<Vec<ImportTaskItem>>>, AppError> {
-    // 导入任务功能暂返回空列表，后续可接入数据库任务记录
-    Ok(Json(ApiResponse::success(vec![])))
+    // 批次 127 v8 复审 P2 修复：原返回空列表 vec![]，现真实接入数据库查询
+    let service = ImportExportService::new(state.db.clone());
+    let tasks = service.list_import_tasks().await?;
+
+    // 将 Model 映射为 ImportTaskItem DTO（i64 → u64 转换，created_at → RFC3339 字符串）
+    let items = tasks
+        .into_iter()
+        .map(|t| ImportTaskItem {
+            id: t.id,
+            import_type: t.import_type,
+            status: t.status,
+            total_rows: t.total_rows.max(0) as u64,
+            imported_rows: t.imported_rows.max(0) as u64,
+            failed_rows: t.failed_rows.max(0) as u64,
+            created_at: t.created_at.to_rfc3339(),
+        })
+        .collect();
+
+    Ok(Json(ApiResponse::success(items)))
 }
 
 #[cfg(test)]

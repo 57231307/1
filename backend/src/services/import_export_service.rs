@@ -389,6 +389,101 @@ impl ImportExportService {
         })
     }
 
+    // ========================================================================
+    // 批次 127 v8 复审 P2 修复：导入任务记录管理
+    // ========================================================================
+    // 原 list_import_tasks 返回空列表 vec![]，import_csv/import_excel 不落库任务记录。
+    // 现新增 task 管理方法：create_import_task / update_import_task / list_import_tasks。
+    // handler 在导入前创建 task 记录（status=running），导入完成后更新统计 + 状态。
+
+    /// 创建导入任务记录（导入开始时调用）
+    ///
+    /// 批次 127 v8 复审 P2 修复：在 import_csv/import_excel 执行实际导入前创建任务记录，
+    /// status 初始化为 "running"，total_rows 为待导入行数。
+    /// 返回任务 ID 供后续 update_import_task 使用。
+    pub async fn create_import_task(
+        &self,
+        import_type: &str,
+        total_rows: u64,
+        user_id: i32,
+    ) -> Result<i32, AppError> {
+        use crate::models::import_task::{self, ActiveModel};
+        use sea_orm::ActiveValue::Set;
+        use chrono::Utc;
+
+        let now = Utc::now();
+        let active_model = ActiveModel {
+            import_type: Set(import_type.to_string()),
+            status: Set("running".to_string()),
+            total_rows: Set(total_rows as i64),
+            imported_rows: Set(0),
+            failed_rows: Set(0),
+            user_id: Set(Some(user_id)),
+            created_at: Set(now.into()),
+            updated_at: Set(now.into()),
+            ..Default::default()
+        };
+
+        let model = active_model.insert(&*self.db).await?;
+        Ok(model.id)
+    }
+
+    /// 更新导入任务记录（导入完成时调用）
+    ///
+    /// 批次 127 v8 复审 P2 修复：根据 ImportResult 更新任务的 imported_rows / failed_rows / status。
+    /// 状态判定规则：
+    /// - failed == 0 && imported > 0 → "success"
+    /// - imported == 0 && failed > 0 → "failed"
+    /// - imported > 0 && failed > 0 → "partial"
+    /// - 其他（imported == 0 && failed == 0）→ "success"（空导入视为成功）
+    pub async fn update_import_task(
+        &self,
+        task_id: i32,
+        result: &ImportResult,
+    ) -> Result<(), AppError> {
+        use crate::models::import_task::{self, ActiveModel};
+        use sea_orm::ActiveValue::Set;
+        use chrono::Utc;
+
+        let status = if result.failed == 0 {
+            "success"
+        } else if result.imported == 0 {
+            "failed"
+        } else {
+            "partial"
+        };
+
+        let active_model = ActiveModel {
+            id: Set(task_id),
+            status: Set(status.to_string()),
+            imported_rows: Set(result.imported as i64),
+            failed_rows: Set(result.failed as i64),
+            updated_at: Set(Utc::now().into()),
+            ..Default::default()
+        };
+
+        active_model.update(&*self.db).await?;
+        Ok(())
+    }
+
+    /// 获取导入任务列表（list_import_tasks handler 调用）
+    ///
+    /// 批次 127 v8 复审 P2 修复：替代原 list_import_tasks 返回的空列表 vec![]。
+    /// 按创建时间倒序返回最近 100 条任务记录。
+    pub async fn list_import_tasks(
+        &self,
+    ) -> Result<Vec<crate::models::import_task::Model>, AppError> {
+        use crate::models::import_task;
+        use sea_orm::{QueryOrder, QuerySelect};
+
+        let tasks = import_task::Entity::find()
+            .order_by(import_task::Column::CreatedAt, sea_orm::Order::Desc)
+            .limit(100)
+            .all(&*self.db)
+            .await?;
+        Ok(tasks)
+    }
+
     /// P2 1-7 修复：记录单行导入结果，消除 "products"/"customers" 分支中重复的 imported/failed/errors 收集代码
     fn record_import_result(
         idx: usize,

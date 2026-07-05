@@ -54,6 +54,9 @@ pub mod m0039_add_created_by_to_api_keys;
 // 批次 122 v8 复审 P1：CRM 标签字典表（替代 list_tags 硬编码 + create_tag/delete_tag 假实现）
 pub mod m0040_create_crm_tags;
 
+// 批次 127 v8 复审 P2：导入任务记录表（替代 list_import_tasks 空列表占位 + import_csv/import_excel 不落库）
+pub mod m0041_create_import_tasks;
+
 pub struct Migrator;
 
 #[async_trait::async_trait]
@@ -100,6 +103,7 @@ impl MigratorTrait for Migrator {
             Box::new(m0038_add_notes_to_ar_reconciliations::Migration),
             Box::new(m0039_add_created_by_to_api_keys::Migration),
             Box::new(m0040_create_crm_tags::Migration),
+            Box::new(m0041_create_import_tasks::Migration),
         ]
     }
 }
