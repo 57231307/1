@@ -6,6 +6,38 @@
 
 ---
 
+## 2026-07-05 (批次 129 v8 复审 P2 financial_analysis_handler execute_report 真实执行完成，v8 复审 P2 全部完成 5/5)
+
+### 批次 129：v8 复审 P2 修复 — financial_analysis_handler execute_report 真实执行
+
+**PR #373，main commit `8bd404b`，1 文件 +65 -17 行**
+
+| 修复项 | 内容 |
+|--------|------|
+| ExecuteReportParams struct | 新增查询参数 struct，支持可选 period（默认当前年月） |
+| calculate_indicators 真实调用 | execute_report 从假执行改为调用 service.calculate_indicators 真实计算财务指标 |
+| 透明响应 | 有结果返回 completed+计算值，无结果返回 no_data+说明 |
+| 字段新增 | 返回字段新增 period 和 total_indicators_computed |
+| 死代码清理 | 移除未使用的 use sea_orm::QueryOrder 和 financial_analysis_result 模块导入 |
+
+**关键决策**：
+- 财务指标相互关联（流动比率需流动资产+流动负债），calculate_indicators 计算所有预定义指标，本接口从中筛选当前指标返回
+- calculate_indicators 幂等：每次执行重新读取科目余额并落库新结果（保留历史趋势数据）
+- 透明 no_data 状态：自定义指标不在预定义列表中时返回 no_data 而非 completed，避免误导用户
+
+### v8 复审 P2 修复总结 ✅（5/5 全部完成）
+
+| 批次 | 修复项 | 状态 |
+|------|--------|------|
+| 126 | print_handler 静态配置化 + inventory_stock_query alert_type 派生计算 | ✅ |
+| 127 | import_export_handler 接入 import_tasks 表 | ✅ |
+| 128 | report_enhanced_handler 字段定义静态配置化 | ✅ |
+| 129 | financial_analysis_handler execute_report 真实执行 | ✅ |
+
+下一步：启动 v9 全项目复审，循环直到复审没有问题。
+
+---
+
 ## 2026-07-05 (批次 128 v8 复审 P2 report_enhanced_handler 字段定义静态配置化完成)
 
 ### 批次 128：v8 复审 P2 修复 — report_enhanced_handler 字段定义静态配置化

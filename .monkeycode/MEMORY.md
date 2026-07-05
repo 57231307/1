@@ -41,7 +41,7 @@
 
 ---
 
-## 二、当前任务状态（2026-07-05 批次 128 完成 - v8 复审 P2 report_enhanced_handler 字段定义静态配置化，继续 v8 复审 P2 剩余项）
+## 二、当前任务状态（2026-07-05 批次 129 完成 - v8 复审 P2 全部完成 5/5，启动 v9 全项目复审）
 
 > 用户最高优先级规则已在「一、规则 0」固化，本节仅记录修复进度。
 
@@ -120,6 +120,7 @@ v7 复审 P0/P1/P2 项全部修复完成（P0 4 项 + P1 10 项 + P2 13 项 = 27
 | 126 | #370 | `2674df1` | v8 P2 print_handler 静态配置化（6 种内置打印模板）+ inventory_stock_query alert_type 派生计算（discrepancy/out_of_stock/low_stock/expiring/normal） | ✅ |
 | 127 | #371 | `66cbe81` | v8 P2 import_export_handler 接入 import_tasks 表：list_import_tasks 真实查询 + import_csv/import_excel 创建+更新任务记录 | ✅ |
 | 128 | #372 | `09601cb` | v8 P2 report_enhanced_handler 字段定义静态配置化：ReportFieldDefinition struct + available_fields_for_type 静态方法替代硬编码 serde_json::json! | ✅ |
+| 129 | #373 | `8bd404b` | v8 P2 financial_analysis_handler execute_report 真实执行：调用 calculate_indicators 真实计算财务指标 + ExecuteReportParams 可选 period 参数 + 透明响应 completed/no_data | ✅ |
 
 **批次 121 修复明细**：
 - 删除 event_kafka.rs 中 KafkaEventEnvelope struct + from_event + into_event（74 行，零业务调用方）
@@ -243,14 +244,43 @@ v7 复审 P0/P1/P2 项全部修复完成（P0 4 项 + P1 10 项 + P2 13 项 = 27
   - 采用静态配置化模式，与 print_handler 批次 126 一致
   - 已存在 `report_definition` 表但零业务引用（死表），本批次未复活该表（字段定义与报表定义是不同概念，前者是 schema 元数据，后者是用户自定义报表模板）
 
-### 下一步：继续 v8 复审 P2 项修复
+**批次 129 修复明细**：
+- `handlers/financial_analysis_handler.rs`：重写 `execute_report` handler，从假执行状态改为调用 `calculate_indicators` 真实计算
+  - 新增 `ExecuteReportParams` struct（可选 `period` 参数，格式 YYYY-MM，缺失时默认当前年月）
+  - 验证指标存在（`financial_analysis::Entity::find_by_id`）
+  - 调用 `service.calculate_indicators(&period, auth.user_id)` 真实计算所有预定义财务指标
+    - 读取指定期间的科目余额（account_balance）
+    - 按科目代码前缀分类汇总（1xxx 资产 / 2xxx 负债 / 6xxx 损益）
+    - 计算流动比率/速动比率/资产负债率/应收账款周转率/应付账款周转率
+    - 落库到 financial_analysis_results 表
+  - 从计算结果中筛选当前指标 `all_results.iter().find(|r| r.indicator_id == id)`
+  - 透明响应：有结果返回 `completed` + 计算值；无结果返回 `no_data` + 说明（可能缺少科目余额或指标未在预定义列表中）
+  - 返回字段新增 `period` 和 `total_indicators_computed`，便于前端展示执行上下文
+- 移除未使用的 `use sea_orm::QueryOrder` 和 `financial_analysis_result` 模型导入
+- **设计决策**：
+  - 财务指标相互关联（流动比率需要流动资产 + 流动负债），无法孤立计算单个指标，因此 `calculate_indicators` 会计算所有预定义指标，本接口从中筛选当前指标返回
+  - `calculate_indicators` 是幂等的：每次执行会重新读取科目余额并落库新结果（不删除旧记录，保留历史趋势数据）
+  - 透明响应 `no_data` 状态：当指标不在预定义列表（CURRENT_RATIO/QUICK_RATIO/DEBT_ASSET_RATIO/AR_TURNOVER/AP_TURNOVER）中时，例如自定义指标，会返回 `no_data` 而非 `completed`，避免误导用户
 
-按用户自动推进指令，继续处理 v8 复审剩余 P2 项（P1 全部完成 ✅，P2 已完成 4/5）：
-- ✅ P2：print_handler 空列表占位真实接入（批次 126，静态配置化 6 种内置模板）
+### v8 复审 P2 修复总结
+
+P2 项全部修复完成（5/5）：
+- ✅ P2：print_handler 空列表占位（批次 126，静态配置化 6 种内置打印模板）
 - ✅ P2：inventory_stock_query alert_type 硬编码（批次 126，派生计算 discrepancy/out_of_stock/low_stock/expiring/normal）
 - ✅ P2：import_export_handler list_import_tasks 空列表占位（批次 127，新建 import_tasks 表 + handler 真实接入）
 - ✅ P2：report_enhanced_handler 硬编码字段定义（批次 128，静态配置化 ReportFieldDefinition struct）
-- ⏳ P2：financial_analysis_handler 假执行状态
+- ✅ P2：financial_analysis_handler 假执行状态（批次 129，调用 calculate_indicators 真实计算）
+
+### 下一步：启动 v9 全项目复审
+
+v8 复审 P0/P1/P2 项全部修复完成（P1 5 项 + P2 5 项 = 10 项）。启动 v9 全项目复审，循环直到复审没有问题。
+
+v9 复审维度（沿用 v8）：
+1. 死代码扫描（`#[allow(dead_code)]` + TODO 标记的预留 API/功能）
+2. 占位符 TODO 扫描（stub / placeholder / `let _ =` 占位）
+3. 未接入功能扫描（路由 → handler → service → model → DB 全链路检查）
+4. 硬编码假数据扫描（`vec![]` / `serde_json::json!` / 硬编码字符串状态）
+5. unwrap/expect 残留扫描（生产代码中的 panic 风险）
 
 ### 历史批次索引
 

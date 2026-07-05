@@ -5,7 +5,7 @@
 
 ---
 
-## 🔄 当前任务：v8 全项目复审修复进行中（批次 128 完成，继续批次 129+ v8 P2 剩余项）
+## 🔄 当前任务：v8 全项目复审 P2 全部完成（批次 129），启动 v9 全项目复审
 
 > 用户最高优先级规则（2026-07-04 追加）已固化到 [MEMORY.md 一、规则 0](file:///workspace/.monkeycode/MEMORY.md)。
 > 本文件仅记录任务进度，规则不在此重复。
@@ -16,6 +16,7 @@
 
 | 批次 | PR | main commit | 内容 |
 |------|-----|-------------|------|
+| 129 | #373 | `8bd404b` | v8 P2 financial_analysis_handler execute_report 真实执行：调用 calculate_indicators 真实计算财务指标 + ExecuteReportParams 可选 period 参数 + 透明响应 completed/no_data（1 文件 +65 -17 行，CI 一次通过）|
 | 128 | #372 | `09601cb` | v8 P2 report_enhanced_handler 字段定义静态配置化：ReportFieldDefinition struct + available_fields_for_type 静态方法替代硬编码 serde_json::json!（2 文件 +74 -37 行，无 CI 错误一次通过）|
 | 127 | #371 | `66cbe81` | v8 P2 import_export_handler 接入 import_tasks 表：list_import_tasks 真实查询 + import_csv/import_excel 创建+更新任务记录（m0041 migration + import_task model + 3 个 service 方法 + 3 处 handler 修改，8 文件 +267 -14 行；CI 修复：list_import_tasks 签名全路径 + QuerySelect trait）|
 | 126 | #370 | `2674df1` | v8 P2 print_handler 静态配置化（6 种内置打印模板）+ inventory_stock_query alert_type 派生计算（discrepancy/out_of_stock/low_stock/expiring/normal，3 文件 +181 -54 行）|
@@ -53,24 +54,20 @@ P1 项全部修复完成（批次 121-125）：
 - 批次 124：SearchSyncer 接入 customer_service（PG→ES 写入同步）
 - 批次 125：SearchSyncer 接入 sales_order_service + product_service（PG→ES 写入同步）
 
-### v8 复审 P2 修复进度（4/5 完成）
+### v8 复审 P2 修复总结 ✅（5/5 完成）
 
 - ✅ 批次 126：print_handler 静态配置化 + inventory_stock_query alert_type 派生计算
 - ✅ 批次 127：import_export_handler 接入 import_tasks 表（list_import_tasks 真实查询 + import_csv/import_excel 任务记录）
 - ✅ 批次 128：report_enhanced_handler 字段定义静态配置化（ReportFieldDefinition struct + available_fields_for_type 静态方法）
-- ⏳ financial_analysis_handler 假执行状态
+- ✅ 批次 129：financial_analysis_handler execute_report 真实执行（calculate_indicators 真实计算 + 透明响应 completed/no_data）
 
-### 下一步：继续 v8 复审 P2 项修复
+### 下一步：启动 v9 全项目复审
 
-批次 128 完成 v8 P2 修复 4/5。按用户自动推进指令继续处理 v8 复审剩余 P2 项：
-- P2：financial_analysis_handler 假执行状态
-
-每批 1 commit → push → CI → 合并 → 删除分支 → 下一批，直到 v8 复审全部修复完成。完成后启动 v9 复审，循环直到复审没有问题。
+v8 复审 P0/P1/P2 项全部修复完成（P1 5 项 + P2 5 项 = 10 项）。启动 v9 全项目复审，循环直到复审没有问题。
 
 ### 后续批次规划
 
-- **批次 127+**：v8 全项目复审 P2 剩余项分批修复
-- **持续**：v8 复审完成后启动 v9 复审
+- **批次 130+**：v9 全项目复审分批修复
 
 ### 复审维度（基于历次复审经验）
 
