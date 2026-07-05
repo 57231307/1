@@ -41,7 +41,7 @@
 
 ---
 
-## 二、当前任务状态（2026-07-05 批次 122 完成 - v8 复审 P1 crm 标签真实接入完成，继续 v8 复审剩余项）
+## 二、当前任务状态（2026-07-05 批次 123 完成 - v8 复审 P1 ElasticClient::real() 真实实现完成，继续 v8 复审剩余项）
 
 > 用户最高优先级规则已在「一、规则 0」固化，本节仅记录修复进度。
 
@@ -114,6 +114,7 @@ v7 复审 P0/P1/P2 项全部修复完成（P0 4 项 + P1 10 项 + P2 13 项 = 27
 |------|-----|-------------|--------|------|
 | 121 | #365 | `71b9bfb` | v8 死代码清理：删除 event_kafka KafkaEventEnvelope struct + from_event + into_event（零业务调用方），保留 event_type_name 标记 #[cfg(test)] | ✅ |
 | 122 | #366 | `f181e1b` | v8 P1 crm 标签真实接入：新增 crm_tag 表 + list_tags/create_tag/delete_tag 真实持久化 + 路由路径 /crm-tags → /crm/tags 修复前端 404 | ✅ |
+| 123 | #367 | `a819ab4` | v8 P1 ElasticClient::real() 真实实现：ClientInner enum 双模式（Mock/Real）+ reqwest 直连 ES REST API + ensure_indices 启动时索引初始化 | ✅ |
 
 **批次 121 修复明细**：
 - 删除 event_kafka.rs 中 KafkaEventEnvelope struct + from_event + into_event（74 行，零业务调用方）
@@ -129,10 +130,26 @@ v7 复审 P0/P1/P2 项全部修复完成（P0 4 项 + P1 10 项 + P2 13 项 = 27
 - **路由路径修复**：/crm-tags 改为 /crm/tags 匹配前端 crm-enhanced.ts 调用（原前端 404 bug）
 - 返回结构含 id/name/color/category/created_at 完整字段，匹配前端 CustomerTag interface
 
+**批次 123 修复明细**：
+- `elastic.rs`：新增 `ClientInner` enum 双模式（Mock 内存 HashMap / Real reqwest::Client），`ElasticClient` 改持有 `inner: ClientInner`
+- `ElasticClient::real(url)` 从 stub（返回 mock storage）改为真实创建 reqwest::Client（30s timeout），消除"日志显示真实但实际 mock"的误导
+- 4 个 SearchClient trait 方法全部支持 Real 模式：
+  - `index_doc`: PUT /{index}/_doc/{id}
+  - `search`: POST /{index}/_search，构建 ES Query DSL（multi_match + term filter + highlight）
+  - `delete_doc`: DELETE /{index}/_doc/{id}（404 视为幂等成功）
+  - `bulk_index`: POST /_bulk NDJSON 格式（action_header\n + source\n）
+- 新增 `ensure_indices(base_url)` async 函数 + 3 个索引 mapping 定义（sales_orders/customers/products）
+  - 索引幂等创建：PUT /{index} 返回 200（创建成功）或 400（已存在），均视为成功
+- `main.rs`：在 `initialize_dimensions` 之后调用 `ensure_indices()`（仅当 ELASTICSEARCH_URL 配置时，错误降级 tracing::warn! 不阻塞启动）
+- `search/mod.rs`：导出 `ensure_indices` 供 main.rs 调用
+- `app_state.rs`：更新 `init_search_client()` 注释说明 real() 已真实实现
+- **CI clippy 修复**（首次推送 3 项新警告）：bulk_index Mock 分支 storage 改为 _、search Real 分支 filter_map 改为 map、barcode_scanner_handler ScanHistoryQuery.scan_type 加 #[allow(dead_code)] + TODO
+- **架构说明**：本批次仅完成 ES 客户端基础设施 + 索引初始化，SearchSyncer 接入 PG→ES 写入同步留待后续批次
+
 ### 下一步：继续 v8 复审 P1/P2 修复
 
 按用户自动推进指令，继续处理 v8 复审剩余项：
-- P1：search/elastic.rs stub 实现真实接入（SearchSyncer 接入 PG→ES 写入同步）
+- P1：SearchSyncer 接入 PG→ES 写入同步（customer_service/sales_order_service/product_service 写入后调用 syncer）
 - P2：print_handler / import_export_handler 空列表占位真实接入
 - P2：report_enhanced_handler 硬编码字段定义 + financial_analysis_handler 假执行状态 + inventory_stock_query alert_type 硬编码
 

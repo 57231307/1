@@ -6,6 +6,33 @@
 
 ---
 
+## 2026-07-05 (批次 123 v8 复审 P1 ElasticClient::real() 真实实现完成)
+
+### 批次 123：v8 复审 P1 修复 — ElasticClient::real() 真实实现 reqwest 直连 ES REST API + ensure_indices 索引初始化
+
+**PR #367，main commit `a819ab4`，5 文件 +466 -75 行**
+
+| 修复项 | 内容 |
+|--------|------|
+| ClientInner enum 双模式 | 新增 Mock（内存 HashMap）/ Real（reqwest::Client）双模式枚举 |
+| ElasticClient::real() 真实实现 | 从 stub（返回 mock storage）改为创建 reqwest::Client（30s timeout），消除"日志显示真实但实际 mock"误导 |
+| index_doc Real 模式 | PUT /{index}/_doc/{id} |
+| search Real 模式 | POST /{index}/_search，构建 ES Query DSL（multi_match + term filter + highlight） |
+| delete_doc Real 模式 | DELETE /{index}/_doc/{id}（404 视为幂等成功） |
+| bulk_index Real 模式 | POST /_bulk NDJSON 格式（action_header\n + source\n 交替行） |
+| ensure_indices() 函数 | 启动时 PUT 3 个索引 mapping（sales_orders/customers/products），幂等创建（200 成功 / 400 已存在） |
+| main.rs 启动接入 | initialize_dimensions 之后调用 ensure_indices（仅 ELASTICSEARCH_URL 配置时，错误降级不阻塞启动） |
+| CI clippy 修复 | bulk_index Mock storage 改为 _、search filter_map 改为 map、scan_type 加 #[allow(dead_code)] |
+
+**关键决策**：
+- 采用 reqwest 直连 ES REST API 而非引入 elasticsearch crate（避免 alpha 版本依赖）
+- 索引幂等创建：PUT /{index} 返回 200（创建成功）或 400（已存在），均视为成功
+- ES _bulk NDJSON 格式：action_header\n + source\n 交替行
+- 启动期 ES 失败用 tracing::warn! 降级不阻塞（与 initialize_dimensions 一致策略）
+- 本批次仅完成 ES 客户端基础设施，SearchSyncer 接入 PG→ES 写入同步留待后续批次
+
+---
+
 ## 2026-07-05 (批次 122 v8 复审 P1 crm 标签真实接入完成)
 
 ### 批次 122：v8 复审 P1 修复 — CRM 标签真实接入 crm_tag 表 + 路由路径修复
