@@ -3,6 +3,7 @@
 //! 采购质检服务层，负责采购质检的核心业务逻辑
 
 use crate::models::purchase_inspection;
+use crate::models::purchase_inspection_item;
 use crate::utils::error::AppError;
 use chrono::Utc;
 use rust_decimal::Decimal;
@@ -229,6 +230,125 @@ impl PurchaseInspectionService {
 
         Ok(inspection)
     }
+
+    // =====================================================
+    // 质检明细 CRUD（批次 131 v9 复审 P0：替代 4 个占位端点）
+    // =====================================================
+
+    /// 获取质检明细列表
+    ///
+    /// 返回指定质检单下所有明细，按 id 升序排列。
+    pub async fn list_inspection_items(
+        &self,
+        inspection_id: i32,
+    ) -> Result<Vec<purchase_inspection_item::Model>, AppError> {
+        // 校验质检单存在
+        self.get_inspection(inspection_id).await?;
+
+        let items = purchase_inspection_item::Entity::find()
+            .filter(purchase_inspection_item::Column::InspectionId.eq(inspection_id))
+            .order_by(purchase_inspection_item::Column::Id, Order::Asc)
+            .all(&*self.db)
+            .await?;
+        Ok(items)
+    }
+
+    /// 创建质检明细
+    ///
+    /// 在指定质检单下新增一条明细记录（产品 + 检验项目 + 合格/不合格数量）。
+    pub async fn create_inspection_item(
+        &self,
+        inspection_id: i32,
+        req: CreateInspectionItemRequest,
+    ) -> Result<purchase_inspection_item::Model, AppError> {
+        // 校验质检单存在
+        self.get_inspection(inspection_id).await?;
+
+        let item = purchase_inspection_item::ActiveModel {
+            id: Default::default(),
+            inspection_id: Set(inspection_id),
+            product_id: Set(req.product_id),
+            item_name: Set(req.item_name),
+            qualified_quantity: Set(req.qualified_quantity),
+            unqualified_quantity: Set(req.unqualified_quantity),
+            remark: Set(req.remark),
+            created_at: Set(Utc::now()),
+            updated_at: Set(Utc::now()),
+        };
+        let item = item.insert(&*self.db).await?;
+        Ok(item)
+    }
+
+    /// 更新质检明细
+    ///
+    /// 更新指定明细的合格数量 / 不合格数量 / 备注（部分字段可选）。
+    pub async fn update_inspection_item(
+        &self,
+        inspection_id: i32,
+        item_id: i32,
+        req: UpdateInspectionItemRequest,
+    ) -> Result<purchase_inspection_item::Model, AppError> {
+        // 校验质检单存在
+        self.get_inspection(inspection_id).await?;
+
+        let item = purchase_inspection_item::Entity::find_by_id(item_id)
+            .one(&*self.db)
+            .await?
+            .ok_or_else(|| AppError::not_found(format!("质检明细 {}", item_id)))?;
+
+        // 校验明细归属指定质检单
+        if item.inspection_id != inspection_id {
+            return Err(AppError::validation(format!(
+                "明细 {} 不属于质检单 {}",
+                item_id, inspection_id
+            )));
+        }
+
+        let mut item_active: purchase_inspection_item::ActiveModel = item.into();
+        if let Some(q) = req.qualified_quantity {
+            item_active.qualified_quantity = Set(q);
+        }
+        if let Some(q) = req.unqualified_quantity {
+            item_active.unqualified_quantity = Set(q);
+        }
+        if let Some(remark) = req.remark {
+            item_active.remark = Set(Some(remark));
+        }
+        item_active.updated_at = Set(Utc::now());
+
+        let item = item_active.update(&*self.db).await?;
+        Ok(item)
+    }
+
+    /// 删除质检明细
+    ///
+    /// 删除指定明细，返回是否删除成功。
+    pub async fn delete_inspection_item(
+        &self,
+        inspection_id: i32,
+        item_id: i32,
+    ) -> Result<bool, AppError> {
+        // 校验质检单存在
+        self.get_inspection(inspection_id).await?;
+
+        let item = purchase_inspection_item::Entity::find_by_id(item_id)
+            .one(&*self.db)
+            .await?
+            .ok_or_else(|| AppError::not_found(format!("质检明细 {}", item_id)))?;
+
+        // 校验明细归属指定质检单
+        if item.inspection_id != inspection_id {
+            return Err(AppError::validation(format!(
+                "明细 {} 不属于质检单 {}",
+                item_id, inspection_id
+            )));
+        }
+
+        let res = purchase_inspection_item::Entity::delete_by_id(item_id)
+            .exec(&*self.db)
+            .await?;
+        Ok(res.rows_affected > 0)
+    }
 }
 
 // =====================================================
@@ -282,4 +402,34 @@ pub struct CompleteInspectionRequest {
 
     /// 质检结果
     pub inspection_result: String,
+}
+
+// =====================================================
+// 质检明细 DTO（批次 131 v9 复审 P0）
+// =====================================================
+
+/// 创建质检明细请求（service 层 DTO）
+#[derive(Debug, Deserialize)]
+pub struct CreateInspectionItemRequest {
+    /// 产品 ID
+    pub product_id: i32,
+    /// 检验项目名称
+    pub item_name: String,
+    /// 合格数量
+    pub qualified_quantity: Decimal,
+    /// 不合格数量
+    pub unqualified_quantity: Decimal,
+    /// 备注
+    pub remark: Option<String>,
+}
+
+/// 更新质检明细请求（service 层 DTO）
+#[derive(Debug, Default, Deserialize)]
+pub struct UpdateInspectionItemRequest {
+    /// 合格数量
+    pub qualified_quantity: Option<Decimal>,
+    /// 不合格数量
+    pub unqualified_quantity: Option<Decimal>,
+    /// 备注
+    pub remark: Option<String>,
 }

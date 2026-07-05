@@ -112,6 +112,8 @@ pub mod product_color_price;
 pub mod quotation_convert_dto;
 // 采购检验模块
 pub mod purchase_inspection;
+// 采购质检明细模块（批次 131 v9 复审 P0：替代 4 个明细 CRUD 端点占位）
+pub mod purchase_inspection_item;
 // 采购合同执行模块
 pub mod purchase_contract_execution;
 // 销售交货模块
