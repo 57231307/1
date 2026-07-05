@@ -6,6 +6,27 @@
 
 ---
 
+## 2026-07-05 (批次 118 v7 复审 P2 部分修复完成 - 5/9 项)
+
+### 批次 118：v7 复审 P2 修复 — 供应商资质端点真实接入 + 4 处死代码清理
+
+**PR #362，main commit `01c4475`，7 文件 -183 行**
+
+| 修复项 | 内容 |
+|--------|------|
+| P2-9 真实接入（核心） | supplier_handler.rs list/create_supplier_qualifications 真实调用 service，移除 `#[allow(dead_code)]` |
+| P2-6 删除 | cost_collection_service.rs 3 个 calculate 函数 + 10 个测试（业务已 inline） |
+| P2-4 删除 | report/ds.rs cleanup_expired_cache（无调用方） |
+| P2-8 删除 | fixed_asset_service.rs calculate_monthly_depreciation（depreciate 已用私有方法） |
+| P2-13 删除 | websocket/notifications.rs connection_count + 相关测试 |
+
+**关键决策**：
+- P2-9 违反规则 0（真实实现强制），优先级最高：handler 返回硬编码空数组/假数据，改为真实调用 service 持久化
+- P2-6/P2-4/P2-8/P2-13 均为真死代码，删除决策参考批次 115/116 模式（grep 验证零业务调用 → 删除 → 清理引用 → 同步测试）
+- v7 复审 P2 进度：9 项已完成 5 项（P2-1/3/4/6/8/9/11/12/13），剩余 4 项（P2-2/5/7/10）
+
+---
+
 ## 2026-07-05 (批次 117 v7 复审 P1-5 收尾完成 - P1 全部修复完成)
 
 ### 批次 117：v7 复审 P1 修复 — 剩余 4 处生产代码 .unwrap()/.expect() 安全化

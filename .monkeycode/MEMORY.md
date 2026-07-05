@@ -41,7 +41,7 @@
 
 ---
 
-## 二、当前任务状态（2026-07-05 批次 117 完成 - v7 复审 P1 全部修复完成，进入 P2）
+## 二、当前任务状态（2026-07-05 批次 118 完成 - v7 复审 P2 部分修复，继续 P2）
 
 > 用户最高优先级规则已在「一、规则 0」固化，本节仅记录修复进度。
 
@@ -72,7 +72,41 @@ P1 项全部修复完成（P1-1 ~ P1-10）：
 - P1-9 api_keys created_by 持久化 ✅（批次 112）
 - P1-10 audit 日期过滤 ✅（批次 111）
 
-### 下一步：v7 复审 P2 项修复（批次 118+）
+### v7 复审 P2 修复进度（批次 118 已完成 5 项，剩余 4 项）
+
+| 批次 | PR | main commit | 修复项 | 状态 |
+|------|-----|-------------|--------|------|
+| 118 | #362 | `01c4475` | P2-9 supplier_handler 资质端点真实接入 + P2-6 cost_collection 3 函数删除 + P2-4 report/ds cleanup_expired_cache 删除 + P2-8 fixed_asset calculate_monthly_depreciation 删除 + P2-13 websocket connection_count 删除 | ✅ |
+
+**批次 118 修复明细**：
+- P2-9（核心，违反规则 0）：supplier_handler.rs list/create_supplier_qualifications 真实调用 service，移除 service 的 `#[allow(dead_code)]`
+- P2-6 删除：cost_collection_service.rs 3 个 calculate 函数 + 10 个测试（业务已 inline）
+- P2-4 删除：report/ds.rs cleanup_expired_cache（无调用方）
+- P2-8 删除：fixed_asset_service.rs calculate_monthly_depreciation（depreciate 已用私有 calc_monthly_depreciation_for）
+- P2-13 删除：websocket/notifications.rs connection_count + 相关测试
+
+**P2 项状态总览**（v7 复审报告 P2 + batch103-placeholder-impl-plan.md P2 合并）：
+- P2-1 incoterms 接入 ✅（批次 111，归入 P1-2）
+- P2-2 token_bucket 限流算法 ⏳（剩余，批次 119+）
+- P2-3 admin_checker 缓存清理 ✅（批次 103）
+- P2-4 report/ds cleanup_expired_cache ✅（批次 118）
+- P2-5 data_permission check_data_permission + 4 scope 常量 ⏳（剩余，批次 119+）
+- P2-6 cost_collection 3 函数 ✅（批次 118）
+- P2-7 assist_accounting initialize_dimensions + create_assist_record ⏳（剩余，批次 119+）
+- P2-8 fixed_asset calculate_monthly_depreciation ✅（批次 118）
+- P2-9 supplier 资质端点真实接入 ✅（批次 118）
+- P2-10 event_bus EventBackend trait ⏳（剩余，批次 119+）
+- P2-11 cache/redis_client ✅（批次 116 删除）
+- P2-12 failover ✅（批次 115 删除）
+- P2-13 websocket connection_count ✅（批次 118）
+
+### 下一步：v7 复审 P2 剩余项修复（批次 119+）
+
+剩余 P2 项 4 个：
+- P2-2 utils/token_bucket.rs — 限流算法（接入或删除）
+- P2-5 data_permission_service.rs check_data_permission + 4 scope 常量（接入中间件或删除）
+- P2-7 assist_accounting_service.rs initialize_dimensions + create_assist_record（main.rs 启动调用或删除）
+- P2-10 event_bus.rs EventBackend trait + BroadcastBackend + EventBackendType + backend_type（删除，KafkaBackend 已绕过 trait）
 
 ### 历史批次索引
 
