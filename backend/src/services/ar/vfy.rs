@@ -149,6 +149,8 @@ impl ArReconciliationService {
                 created_by: Set(Some(user_id)),
                 created_at: Set(Utc::now()),
                 updated_at: Set(Utc::now()),
+                // 批次 109 P1-1：auto_match 无 notes 入参，设为 None
+                notes: Set(None),
             };
 
             let rec_model = reconciliation.insert(&txn).await?;
@@ -555,6 +557,8 @@ impl ArReconciliationService {
             created_by: Set(Some(user_id)),
             created_at: Set(Utc::now()),
             updated_at: Set(Utc::now()),
+            // 批次 109 P1-1：接入 notes 持久化（原 DTO 有字段但未写入 DB）
+            notes: Set(req.notes),
         };
 
         let rec_model = reconciliation.insert(&txn).await?;

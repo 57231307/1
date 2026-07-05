@@ -28,6 +28,8 @@ pub struct Model {
     pub created_by: Option<i32>,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
+    // 批次 109 P1-1：notes 列接入持久化（原 DTO 有字段但未持久化）
+    pub notes: Option<String>,
 }
 
 #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]

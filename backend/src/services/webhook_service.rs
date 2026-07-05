@@ -94,23 +94,18 @@ impl WebhookService {
             .ok_or_else(|| AppError::business("Webhook 不存在"))?;
 
         if !webhook.is_active {
-            return Ok(WebhookDeliveryResult {
-                success: false,
-                status_code: None,
-                response_body: None,
-                error: Some("Webhook已禁用".to_string()),
-            });
+            // 批次 109 P1-2：webhook 已禁用属于客户端配置错误，应返回 4xx 而非 200+success=false
+            return Err(AppError::business("Webhook 已禁用"));
         }
 
         // 检查事件是否匹配
         let events: Vec<&str> = webhook.events.split(',').collect();
         if !events.contains(&event) && !events.contains(&"*") {
-            return Ok(WebhookDeliveryResult {
-                success: false,
-                status_code: None,
-                response_body: None,
-                error: Some("事件不匹配".to_string()),
-            });
+            // 批次 109 P1-2：事件不匹配属于客户端配置错误，应返回 4xx 而非 200+success=false
+            return Err(AppError::business(format!(
+                "事件不匹配：webhook 订阅事件为 [{}]，触发事件为 {}",
+                webhook.events, event
+            )));
         }
 
         // 更新状态为发送中

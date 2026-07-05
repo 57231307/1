@@ -98,6 +98,9 @@ pub struct ListReconciliationsQuery {
     pub customer_id: Option<i32>,
     pub page: Option<u64>,
     pub page_size: Option<u64>,
+    // 批次 109 P3：日期范围过滤接入
+    pub start_date: Option<NaiveDate>,
+    pub end_date: Option<NaiveDate>,
 }
 
 pub async fn list_reconciliations(
@@ -113,6 +116,9 @@ pub async fn list_reconciliations(
         customer_id: query.customer_id,
         page,
         page_size,
+        // 批次 109 P3：日期范围过滤接入
+        start_date: query.start_date,
+        end_date: query.end_date,
     };
 
     service
@@ -164,8 +170,9 @@ pub async fn update_reconciliation_status(
 ) -> Result<Json<ApiResponse<ReconciliationResponse>>, AppError> {
     let service = ArReconciliationService::new(state.db);
 
+    // 批次 109 P3：update_status 新增 remark 参数，此 handler 无 remark 字段传 None
     service
-        .update_status(id, &req.status, auth.user_id)
+        .update_status(id, &req.status, auth.user_id, None)
         .await
         .map(|model| Json(ApiResponse::success(ReconciliationResponse::from(model))))
         .map_err(|e| {
@@ -357,9 +364,8 @@ pub struct ListResultsQuery {
     pub page: Option<u64>,
     pub page_size: Option<u64>,
     pub customer_id: Option<i32>,
-    #[allow(dead_code)] // TODO(tech-debt): 对账模块接入业务后移除
+    // 批次 109 P3：日期范围过滤接入（原标注 dead_code，现已接入 service.list）
     pub start_date: Option<NaiveDate>,
-    #[allow(dead_code)] // TODO(tech-debt): 对账模块接入业务后移除
     pub end_date: Option<NaiveDate>,
 }
 
@@ -373,7 +379,7 @@ pub struct CreateConfirmationRequest {
 #[derive(Debug, Deserialize)]
 pub struct UpdateConfirmationStatusRequest {
     pub status: String,
-    #[allow(dead_code)] // TODO(tech-debt): 对账模块接入业务后移除
+    // 批次 109 P3：remark 接入 notes 字段持久化（原标注 dead_code 未使用）
     pub remark: Option<String>,
 }
 
@@ -381,7 +387,7 @@ pub struct UpdateConfirmationStatusRequest {
 #[derive(Debug, Deserialize)]
 pub struct CreateDisputeApiRequest {
     pub reconciliation_id: Option<i32>,
-    #[allow(dead_code)] // TODO(tech-debt): 对账模块接入业务后移除
+    // 批次 109 P3：customer_id 用于校验与对账单的客户一致性（原标注 dead_code 未使用）
     pub customer_id: Option<i32>,
     pub reason: Option<String>,
     pub description: Option<String>,
@@ -593,6 +599,9 @@ pub async fn list_results(
         customer_id: params.customer_id,
         page,
         page_size,
+        // 批次 109 P3：日期范围过滤接入
+        start_date: params.start_date,
+        end_date: params.end_date,
     };
 
     let (items, total) = service.list(query).await?;
@@ -641,6 +650,9 @@ pub async fn list_confirmations(
         customer_id: params.customer_id,
         page,
         page_size,
+        // 批次 109 P3：日期范围过滤接入
+        start_date: params.start_date,
+        end_date: params.end_date,
     };
 
     let (items, total) = service.list(query).await?;
@@ -688,12 +700,15 @@ pub async fn update_confirmation_status(
     Json(req): Json<UpdateConfirmationStatusRequest>,
 ) -> Result<Json<ApiResponse<JsonValue>>, AppError> {
     info!(
-        "用户 {} 更新确认状态，ID: {}, 新状态: {}",
-        auth.username, id, req.status
+        "用户 {} 更新确认状态，ID: {}, 新状态: {}, 备注: {:?}",
+        auth.username, id, req.status, req.remark
     );
 
     let service = ArReconciliationService::new(state.db.clone());
-    let reconciliation = service.update_status(id, &req.status, auth.user_id).await?;
+    // 批次 109 P3：remark 透传到 service.update_status，写入 notes 字段
+    let reconciliation = service
+        .update_status(id, &req.status, auth.user_id, req.remark)
+        .await?;
 
     Ok(Json(ApiResponse::success_with_message(
         serde_json::to_value(reconciliation)?,
@@ -715,6 +730,9 @@ pub async fn list_disputes(
         customer_id: params.customer_id,
         page,
         page_size,
+        // 批次 109 P3：日期范围过滤接入
+        start_date: params.start_date,
+        end_date: params.end_date,
     };
 
     let (items, total) = service.list(query).await?;
@@ -748,6 +766,20 @@ pub async fn create_dispute(
     );
 
     let service = ArReconciliationService::new(state.db.clone());
+
+    // 批次 109 P3：customer_id 校验 — 若提供则校验与对账单的客户一致性，防止跨客户操作
+    if let Some(req_customer_id) = req.customer_id {
+        let reconciliation = service.get_by_id(reconciliation_id).await?.ok_or_else(|| {
+            AppError::not_found(format!("对账单 {} 不存在", reconciliation_id))
+        })?;
+        if reconciliation.customer_id != req_customer_id {
+            return Err(AppError::bad_request(format!(
+                "客户 ID 不匹配：对账单 {} 属于客户 {}，请求中客户 ID 为 {}",
+                reconciliation_id, reconciliation.customer_id, req_customer_id
+            )));
+        }
+    }
+
     let reconciliation = service
         .customer_dispute(reconciliation_id, reason, auth.user_id)
         .await?;
@@ -787,7 +819,10 @@ pub async fn resolve_dispute(
 
     let service = ArReconciliationService::new(state.db.clone());
     let target_status = req.status.as_deref().unwrap_or("resolved");
-    let reconciliation = service.update_status(id, target_status, auth.user_id).await?;
+    // 批次 109 P3：resolution 作为 remark 写入 notes 字段，记录解决方案
+    let reconciliation = service
+        .update_status(id, target_status, auth.user_id, Some(req.resolution))
+        .await?;
 
     Ok(Json(ApiResponse::success_with_message(
         serde_json::to_value(reconciliation)?,
