@@ -55,6 +55,8 @@ impl ArReconciliationService {
             created_by: Set(None),
             created_at: Set(Utc::now()),
             updated_at: Set(Utc::now()),
+            // 批次 109 P1-1：接入 notes 持久化（原 DTO 有字段但未写入 DB）
+            notes: Set(req.notes),
         };
 
         let model = active_model.insert(&*self.db).await?;
@@ -84,6 +86,18 @@ impl ArReconciliationService {
         if let Some(customer_id) = query.customer_id {
             select =
                 select.filter(crate::models::ar_reconciliation::Column::CustomerId.eq(customer_id));
+        }
+
+        // 批次 109 P3：按对账单日期范围过滤（原 ListResultsQuery.start_date/end_date 未使用）
+        if let Some(start_date) = query.start_date {
+            select = select.filter(
+                crate::models::ar_reconciliation::Column::ReconciliationDate.gte(start_date),
+            );
+        }
+        if let Some(end_date) = query.end_date {
+            select = select.filter(
+                crate::models::ar_reconciliation::Column::ReconciliationDate.lte(end_date),
+            );
         }
 
         let total = select.clone().count(&*self.db).await?;
@@ -124,6 +138,10 @@ impl ArReconciliationService {
         }
         if let Some(total_collections) = req.total_collections {
             active_model.total_collections = Set(total_collections);
+        }
+        // 批次 109 P1-1：接入 notes 持久化（原 DTO 有字段但未写入 DB）
+        if let Some(notes) = req.notes {
+            active_model.notes = Set(Some(notes));
         }
 
         let opening = *active_model.opening_balance.as_ref();
@@ -256,11 +274,15 @@ impl ArReconciliationService {
     }
 
     /// 更新对账单状态（通用）
+    ///
+    /// 批次 109 P3：新增 remark 参数，若提供则同步写入 notes 字段
+    /// （原 UpdateConfirmationStatusRequest.remark 标注 dead_code 未使用）
     pub async fn update_status(
         &self,
         id: i32,
         status: &str,
         user_id: i32,
+        remark: Option<String>,
     ) -> Result<ReconciliationModel, AppError> {
         // P1 3-2 修复（批次 61）：状态机 lock_exclusive 补全 + 状态白名单
         // 原实现无 txn 无 lock，且无状态白名单，任意字符串都能写入 reconciliation_status，
@@ -285,6 +307,11 @@ impl ArReconciliationService {
         let mut active_model: ActiveModel = model.into();
         active_model.reconciliation_status = Set(Some(status.to_string()));
         active_model.updated_at = Set(Utc::now());
+
+        // 批次 109 P3：remark 写入 notes 字段（原 UpdateConfirmationStatusRequest.remark 未使用）
+        if let Some(remark) = remark {
+            active_model.notes = Set(Some(remark));
+        }
 
         // 批次 92 P3-9：user_id 从 handler AuthContext 注入
         let updated =

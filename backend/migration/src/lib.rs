@@ -45,6 +45,8 @@ pub mod m0035_create_customer_contacts;
 pub mod m0036_create_api_endpoints;
 // 批次 92 P3-12/P3-13：fixed_asset_depreciation_records 外键 RESTRICT + 冗余索引清理
 pub mod m0037_alter_fa_depreciation_records_fk;
+// 批次 109 P1-1：ar_reconciliations 添加 notes 列（v7 复审修复）
+pub mod m0038_add_notes_to_ar_reconciliations;
 
 pub struct Migrator;
 
@@ -89,6 +91,7 @@ impl MigratorTrait for Migrator {
             Box::new(m0035_create_customer_contacts::Migration),
             Box::new(m0036_create_api_endpoints::Migration),
             Box::new(m0037_alter_fa_depreciation_records_fk::Migration),
+            Box::new(m0038_add_notes_to_ar_reconciliations::Migration),
         ]
     }
 }

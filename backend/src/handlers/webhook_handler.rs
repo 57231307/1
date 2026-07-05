@@ -170,10 +170,21 @@ pub async fn retry_webhook(
                 )))
             }
         }
-        Err(e) => {
-            tracing::error!("重试 Webhook 失败: {}", e);
-            Err(AppError::internal(format!("重试 Webhook 失败: {}", e)))
-        }
+        // 批次 109 P1-2：trigger_webhook 对"事件不匹配"/"webhook 已禁用"返回 BusinessError(400)，
+        // 对"webhook 不存在"返回 NotFound(404)，这些属于客户端错误，应直接透传而非包装为 500。
+        // 仅对数据库错误等内部异常记录 error 日志并包装为 500。
+        Err(e) => match &e {
+            AppError::BusinessError(_)
+            | AppError::ValidationError(_)
+            | AppError::NotFound(_)
+            | AppError::BadRequest(_)
+            | AppError::Unauthorized(_)
+            | AppError::PermissionDenied(_) => Err(e),
+            _ => {
+                tracing::error!("重试 Webhook 失败: {}", e);
+                Err(AppError::internal(format!("重试 Webhook 失败: {}", e)))
+            }
+        },
     }
 }
 

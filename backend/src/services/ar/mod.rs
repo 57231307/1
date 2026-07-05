@@ -64,6 +64,9 @@ pub struct ReconciliationQuery {
     pub customer_id: Option<i32>,
     pub page: u64,
     pub page_size: u64,
+    // 批次 109 P3：日期范围过滤接入（原 ListResultsQuery.start_date/end_date 未使用）
+    pub start_date: Option<chrono::NaiveDate>,
+    pub end_date: Option<chrono::NaiveDate>,
 }
 
 /// 自动对账请求
