@@ -62,11 +62,11 @@ pub struct CreateTrendDto {
 #[derive(Debug, Deserialize)]
 pub struct TrendQueryParams {
     pub indicator_id: Option<i32>,
-    #[allow(dead_code)] // TODO(tech-debt): 财务分析模块接入业务后移除
+    /// 起始日期（YYYY-MM-DD），按 analysis_date 过滤
     pub start_date: Option<String>,
-    #[allow(dead_code)] // TODO(tech-debt): 财务分析模块接入业务后移除
+    /// 结束日期（YYYY-MM-DD），按 analysis_date 过滤
     pub end_date: Option<String>,
-    #[allow(dead_code)] // TODO(tech-debt): 财务分析模块接入业务后移除
+    /// 分析期间（YYYY-MM），按 period 字段精确匹配
     pub period: Option<String>,
     pub page_size: Option<i64>,
 }
@@ -76,11 +76,11 @@ pub struct TrendQueryParams {
 pub struct CreateReportRequest {
     pub name: String,
     pub report_type: String,
-    #[allow(dead_code)] // TODO(tech-debt): 报表创建接口接入业务后移除
+    /// 报告期间起始（YYYY-MM-DD），写入 remark 字段作为报告期间元数据
     pub period_start: String,
-    #[allow(dead_code)] // TODO(tech-debt): 报表创建接口接入业务后移除
+    /// 报告期间结束（YYYY-MM-DD），写入 remark 字段作为报告期间元数据
     pub period_end: String,
-    #[allow(dead_code)] // TODO(tech-debt): 报表创建接口接入业务后移除
+    /// 关联指标 ID 列表（写入 remark 字段作为关联指标元数据）
     pub indicators: Option<Vec<i32>>,
     pub description: Option<String>,
 }
@@ -181,7 +181,15 @@ pub async fn get_trends(
         .ok_or_else(|| AppError::validation("财务分析请求缺少指标ID"))?;
     let limit = params.page_size.unwrap_or(50).clamp(1, 100);
 
-    let trends = service.get_trends(indicator_id, limit).await?;
+    let trends = service
+        .get_trends(
+            indicator_id,
+            limit,
+            params.start_date.as_deref(),
+            params.end_date.as_deref(),
+            params.period.as_deref(),
+        )
+        .await?;
 
     info!("财务趋势查询成功，共 {} 条记录", trends.len());
 
@@ -286,13 +294,28 @@ pub async fn create_report(
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     let service = FinancialAnalysisService::new(state.db.clone());
 
+    // 将 period_start/period_end/indicators/description 组合写入 remark 字段，
+    // 作为报告期间与关联指标的元数据（financial_analysis 表无独立字段）
+    let mut remark_parts: Vec<String> = Vec::new();
+    remark_parts.push(format!("期间: {} ~ {}", req.period_start, req.period_end));
+    if let Some(ref indicators) = req.indicators {
+        if !indicators.is_empty() {
+            let ids: Vec<String> = indicators.iter().map(|i| i.to_string()).collect();
+            remark_parts.push(format!("关联指标: {}", ids.join(",")));
+        }
+    }
+    if let Some(ref desc) = req.description {
+        remark_parts.push(format!("描述: {}", desc));
+    }
+    let remark = Some(remark_parts.join(" | "));
+
     let indicator_req = CreateIndicatorRequest {
         indicator_name: req.name.clone(),
         indicator_code: format!("RPT-{}", chrono::Utc::now().timestamp()),
         indicator_type: req.report_type.clone(),
         formula: None,
         unit: None,
-        remark: req.description,
+        remark,
     };
 
     let indicator = service
