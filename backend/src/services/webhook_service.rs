@@ -221,8 +221,15 @@ impl WebhookService {
         // 旧实现 SHA256(body || secret) 存在长度扩展攻击风险：攻击者可在不知 secret 的情况下
         // 推算 secret + padding 后的扩展摘要。
         if let Some(secret) = secret {
-            let signature = crate::utils::webhook_signature::sign_webhook_payload(body, secret);
-            request = request.header("X-Webhook-Signature", format!("sha256={}", signature));
+            // 批次 117 P1-5：sign_webhook_payload 返回 Result，失败时 warn 日志降级（不阻塞 webhook 发送）
+            match crate::utils::webhook_signature::sign_webhook_payload(body, secret) {
+                Ok(signature) => {
+                    request = request.header("X-Webhook-Signature", format!("sha256={}", signature));
+                }
+                Err(e) => {
+                    tracing::warn!(error = %e, webhook_url = %url, "Webhook 签名计算失败，跳过签名头");
+                }
+            }
         }
 
         request = request.body(body.to_string());

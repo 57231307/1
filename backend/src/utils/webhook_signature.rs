@@ -12,18 +12,22 @@ type HmacSha256 = Hmac<Sha256>;
 /// P1-B 修复：出站与入站使用同一份 HMAC-SHA256 实现，
 /// 避免旧实现 `SHA256(body || secret)` 的长度扩展攻击风险。
 ///
+/// 批次 117 P1-5 修复：原 `.expect()` 在 spawn 任务内构成 panic 触发点，
+/// 改为返回 Result，让调用方决定降级策略（与 utils/hash.rs::hmac_sha256_hex 一致）。
+///
 /// # 参数
 /// - `payload`: 请求体原始内容
 /// - `secret`: Webhook 密钥（作为 HMAC key）
 ///
 /// # 返回
-/// - hex 编码的 HMAC-SHA256 摘要（64 字符小写）
-pub fn sign_webhook_payload(payload: &str, secret: &str) -> String {
+/// - `Ok(String)`: hex 编码的 HMAC-SHA256 摘要（64 字符小写）
+/// - `Err(String)`: HMAC 初始化失败（密钥长度异常等）
+pub fn sign_webhook_payload(payload: &str, secret: &str) -> Result<String, String> {
     let mut mac = HmacSha256::new_from_slice(secret.as_bytes())
-        .expect("HMAC 接受任意长度密钥，初始化不会失败");
+        .map_err(|e| format!("HMAC 初始化失败: {}", e))?;
     mac.update(payload.as_bytes());
     let result = mac.finalize();
-    hex::encode(result.into_bytes())
+    Ok(hex::encode(result.into_bytes()))
 }
 
 /// 验证 Webhook 回调签名
@@ -42,7 +46,9 @@ pub fn verify_webhook_signature(
     signature: &str,
 ) -> Result<bool, crate::utils::error::AppError> {
     // P1-B 修复：复用 sign_webhook_payload 计算签名，确保出站/入站使用同一份算法
-    let computed = sign_webhook_payload(payload, secret);
+    // 批次 117 P1-5：sign_webhook_payload 返回 Result，签名计算失败时返回 401
+    let computed = sign_webhook_payload(payload, secret)
+        .map_err(crate::utils::error::AppError::internal)?;
 
     // 常量时间比较，防止时序攻击
     use subtle::ConstantTimeEq;
