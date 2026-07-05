@@ -415,16 +415,21 @@ pub async fn update_production_progress(
 }
 
 /// 获取生产订单操作日志
+///
+/// 批次 132 v9 复审 P1：原返回固定空列表 {logs: []}，
+/// 现真实查询 audit_logs 表，按 resource_id = order_id 过滤，按 created_at 倒序返回。
 pub async fn get_production_order_logs(
     State(state): State<AppState>,
     _auth: AuthContext,
     Path(id): Path<i32>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
-    let _service = ProductionOrderService::new(state.db.clone());
-    // 返回空日志列表，后续可扩展为从审计日志表查询
+    let service = ProductionOrderService::new(state.db.clone());
+    let logs = service.get_order_logs(id).await?;
+
     Ok(Json(ApiResponse::success(serde_json::json!({
         "order_id": id,
-        "logs": []
+        "logs": logs,
+        "total": logs.len()
     }))))
 }
 

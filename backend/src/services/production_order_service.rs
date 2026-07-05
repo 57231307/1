@@ -279,6 +279,29 @@ impl ProductionOrderService {
         Ok(model)
     }
 
+    /// 获取生产订单操作日志
+    ///
+    /// 批次 132 v9 复审 P1：原 get_production_order_logs handler 返回固定空列表，
+    /// 现真实查询 audit_logs 表，按 resource_id = order_id 过滤，按 created_at 倒序返回。
+    ///
+    /// production_order_service 的所有变更（update / update_status / delete / approve）
+    /// 都通过 update_with_audit 写入 audit_logs 表，resource_id 为订单 ID 的字符串形式。
+    /// 由于全项目 resource_type 统一为 "auto_audit"，无法按业务类型精确过滤，
+    /// 故仅按 resource_id 查询（同 ID 不同业务表的日志概率极低，可接受）。
+    pub async fn get_order_logs(
+        &self,
+        order_id: i32,
+    ) -> Result<Vec<crate::models::audit_log::Model>, AppError> {
+        use crate::models::audit_log::{Column as AuditColumn, Entity as AuditEntity};
+
+        let logs = AuditEntity::find()
+            .filter(AuditColumn::ResourceId.eq(order_id.to_string()))
+            .order_by_desc(AuditColumn::CreatedAt)
+            .all(&*self.db)
+            .await?;
+        Ok(logs)
+    }
+
     /// 获取生产订单列表
     pub async fn list(
         &self,
