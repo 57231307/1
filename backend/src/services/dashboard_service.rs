@@ -1,4 +1,4 @@
-use chrono::{DateTime, Utc};
+use chrono::{DateTime, Datelike, Utc};
 use rust_decimal::Decimal;
 use sea_orm::prelude::*;
 use sea_orm::{
@@ -394,7 +394,7 @@ impl DashboardService {
         // 追加日期过滤与分组排序
         let mut sql = sql;
         let mut params: Vec<sea_orm::Value> = Vec::new();
-        let mut param_idx = 1;
+        let mut param_idx = 1usize;
 
         if let Some(start) = start_date {
             sql.push_str(&format!(" AND s.order_date >= ${} ", param_idx));
@@ -404,7 +404,6 @@ impl DashboardService {
         if let Some(end) = end_date {
             sql.push_str(&format!(" AND s.order_date <= ${} ", param_idx));
             params.push(end.naive_utc().into());
-            param_idx += 1;
         }
 
         sql.push_str(" GROUP BY name ORDER BY total_amount DESC LIMIT 20");
