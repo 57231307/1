@@ -489,6 +489,22 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             let app_state_clone7 = app_state.clone();
             crate::services::event_bus::start_event_listener(app_state.db.clone()).await;
             crate::services::event_bus::init_event_bus_with_kafka_config(&settings.kafka).await;
+            // 批次 120 P2-7 修复：启动时初始化 8 个辅助核算维度（幂等实现）
+            // 原方法保留 `#[allow(dead_code)]` 标记，违反规则 0（真实实现强制）。
+            // 此处接入 main.rs 启动流程：服务启动时调用一次 initialize_dimensions，
+            // 内部先检查每个维度是否存在再插入，重启不会重复创建。
+            // 错误处理：用 tracing::warn! 降级（不阻塞启动），与 init_event_bus 一致。
+            let assist_svc = crate::services::assist_accounting_service::AssistAccountingService::new(
+                app_state.db.clone(),
+            );
+            if let Err(e) = assist_svc.initialize_dimensions().await {
+                tracing::warn!(
+                    error = %e,
+                    "辅助核算维度初始化失败（不阻塞启动，后续可手工插入维度记录）"
+                );
+            } else {
+                tracing::info!("辅助核算维度初始化完成（8 个维度：批次/色号/缸号/等级/车间/仓库/客户/供应商）");
+            }
             let app = create_router(app_state)
                 // 安全漏洞 #8 修复：全局 HTTP 请求体大小限制（12MB）
                 // - 设计目的：兜底防止已认证用户发送 100MB+ 请求触发 OOM DoS

@@ -23,7 +23,10 @@ impl AssistAccountingService {
     }
 
     /// 初始化 8 个辅助核算维度
-    #[allow(dead_code)] // TODO(tech-debt): 系统初始化脚本接入后移除
+    ///
+    /// 批次 120 P2-7 修复：原方法保留 `#[allow(dead_code)]` 标记，违反规则 0（真实实现强制）。
+    /// 已接入 main.rs 启动流程：服务启动时调用一次（在 init_event_bus_with_kafka_config 之后），
+    /// 内部先检查每个维度是否存在再插入，重启不会重复创建（幂等实现）。
     pub async fn initialize_dimensions(&self) -> Result<(), AppError> {
         let dimensions = [
             ("BATCH", "批次核算", "按生产批次进行辅助核算"),
