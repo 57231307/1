@@ -15,21 +15,9 @@ pub struct AuditLogQuery {
     pub table_name: Option<String>,
     pub action: Option<String>,
     pub user_id: Option<i32>,
-    #[allow(dead_code)] // TODO(tech-debt): 审计模块接入业务后移除
+    // 批次 111 P1-10：start_date / end_date 接入 list_audit_logs 的 created_at 日期范围过滤
     pub start_date: Option<String>,
-    #[allow(dead_code)] // TODO(tech-debt): 审计模块接入业务后移除
     pub end_date: Option<String>,
-    pub page: Option<u64>,
-    pub page_size: Option<u64>,
-}
-
-#[allow(dead_code)] // TODO(tech-debt): 审计模块接入业务后移除
-#[derive(Debug, Deserialize)]
-pub struct OperationLogQuery {
-    pub module: Option<String>,
-    pub action: Option<String>,
-    pub user_id: Option<i32>,
-    pub status: Option<String>,
     pub page: Option<u64>,
     pub page_size: Option<u64>,
 }
@@ -76,6 +64,31 @@ pub async fn list_audit_logs(
     }
     if let Some(user_id) = query.user_id {
         query_builder = query_builder.filter(audit_log::Column::UserId.eq(user_id));
+    }
+
+    // 批次 111 P1-10：接入 start_date / end_date 日期范围过滤（基于 created_at 列）
+    // 支持 ISO 8601 日期或日期时间字符串（如 "2026-07-01" 或 "2026-07-01T00:00:00Z"）
+    if let Some(start) = &query.start_date {
+        if let Ok(dt) = chrono::DateTime::parse_from_rfc3339(start) {
+            query_builder =
+                query_builder.filter(audit_log::Column::CreatedAt.gte(dt.with_timezone(&chrono::Utc)));
+        } else if let Ok(date) = chrono::NaiveDate::parse_from_str(start, "%Y-%m-%d") {
+            let dt = date.and_hms_opt(0, 0, 0).unwrap_or_default().and_utc();
+            query_builder = query_builder.filter(audit_log::Column::CreatedAt.gte(dt));
+        }
+    }
+    if let Some(end) = &query.end_date {
+        if let Ok(dt) = chrono::DateTime::parse_from_rfc3339(end) {
+            query_builder =
+                query_builder.filter(audit_log::Column::CreatedAt.lte(dt.with_timezone(&chrono::Utc)));
+        } else if let Ok(date) = chrono::NaiveDate::parse_from_str(end, "%Y-%m-%d") {
+            // 日期粒度的 end_date 视为当天 23:59:59，避免漏掉当天的审计记录
+            let dt = date
+                .and_hms_opt(23, 59, 59)
+                .unwrap_or_default()
+                .and_utc();
+            query_builder = query_builder.filter(audit_log::Column::CreatedAt.lte(dt));
+        }
     }
 
     let paginator = query_builder

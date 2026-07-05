@@ -2,6 +2,47 @@
 
 > 重要变更一句话摘要列表。详细历史请查阅 [`.monkeycode/docs/archives/`](file:///workspace/.monkeycode/docs/archives/)。
 
+## 2026-07-05 (批次 110 v7 复审 P0 修复完成)
+
+### 批次 110：v7 复审 P0 修复 — webhook callback PUBLIC_PATHS + message_type/title/payload 接入业务
+
+**PR #354，main commit `20a8c11`**
+
+| 修复项 | 内容 |
+|--------|------|
+| P0-1 | `/api/v1/erp/webhooks/integrations/callback` 加入 PUBLIC_PATHS（HMAC-SHA256 签名验证替代 JWT 认证），测试用例同步更新 |
+| P0-2 | `SendWebhookMessageRequest.message_type` / `title` 接入业务：send_wechat_message / send_dingtalk_message 根据 message_type 构建 text/markdown 不同 payload，钉钉 markdown 使用 title 字段 |
+| P0-3 | `WebhookCallbackRequest.payload` 接入业务：handle_generic_callback 将完整 payload 写入结构化日志（tracing::info! event_type + payload），返回 payload_size/payload_keys 摘要给调用方核对 |
+
+**关键决策**：
+- PUBLIC_PATHS 安全等价：HMAC-SHA256 签名验证（webhook_secret + X-Webhook-Signature 头）提供与 JWT 等价的身份认证保证
+- payload 持久化方案：当前先通过 tracing::info! 输出到日志聚合系统（项目无 webhook_logs 表，新增表需要 migration），后续接入 webhook_logs 表时可作为数据源迁移
+- payload 摘要返回 payload_size + payload_keys（顶层字段名最多 10 个），便于调用方核对回执是否与发送内容一致
+
+---
+
+## 2026-07-04 (批次 109 v7 复审修复完成)
+
+### 批次 109：v7 复审修复 — ar_reconciliation notes 持久化 + webhook 事件不匹配 4xx + 4 处 dead_code 接入
+
+**PR #353，main commit `21776c5`**
+
+| 修复项 | 内容 |
+|--------|------|
+| P1-1 | ar_reconciliation notes 字段持久化（migration m0038 + model + service create/update/generate/auto_match 接入） |
+| P1-2 | retry_webhook 事件不匹配从 200+success=false 改为 400 BusinessError（trigger_webhook + handler 透传客户端错误） |
+| P3-1 | ListResultsQuery.start_date/end_date 接入 ReconciliationQuery.list 日期过滤 |
+| P3-2 | UpdateConfirmationStatusRequest.remark 接入 update_status 写入 notes 字段 |
+| P3-3 | CreateDisputeApiRequest.customer_id 接入 create_dispute 校验客户一致性 |
+| P3-4 | resolve_dispute 的 resolution 作为 remark 写入 notes 字段 |
+
+**关键决策**：
+- trigger_webhook 区分客户端错误（4xx Err）与服务端错误（200+success=false），仅 webhook 已禁用/事件不匹配返回 4xx
+- update_status 新增 remark 参数而非新增方法，避免 API 分裂；现有调用方传 None 保持兼容
+- customer_id 校验为可选（若提供则校验），保持 API 向后兼容
+
+---
+
 ## 2026-07-04 (周期性安全审计 v7 完成)
 
 ### 安全审计 v7 完成：全代码库四维度高风险攻击面审计

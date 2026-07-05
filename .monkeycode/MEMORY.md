@@ -21,7 +21,7 @@
 
 ---
 
-## 当前任务状态（2026-07-04 批次 107 已合并 main `c45f7e7` - 批次 108 待启动）
+## 当前任务状态（2026-07-05 批次 110 进行中 - v7 复审 P0 修复完成待推送 CI）
 
 ### 🔴 用户新规则（2026-07-04 追加，最高优先级）
 
@@ -81,7 +81,24 @@
 - L1 注入 AppState 而非全局单例，便于测试和未来按模块配置不同缓存策略
 - cache_service 与 state.cache（AppCache/Redis）互补不重复：L1 进程内超低延迟，L2 跨实例共享
 
-**下一步**：启动批次 108（ar/recon 路由接入 + webhook handler 实现）
+**下一步**：继续 v7 复审其他维度（路由权限/前端类型/测试质量/安全性等），发现新问题按批次修复流程处理
+
+### ✅ 批次 109 v7 复审修复（PR #353，main `21776c5`）
+
+**v7 第七轮复审首批修复完成**：
+- P1-1：ar_reconciliation notes 字段持久化
+  - 新增 migration m0038：ar_reconciliations 表添加 notes TEXT 列
+  - model/service create/update/generate_reconciliation/auto_match 接入 notes 持久化
+  - handler: CreateReconciliationApiRequest/ReconciliationResponse 添加 notes 字段
+  - 移除 GenerateReconciliationRequest.notes 的 dead_code 标注
+- P1-2：retry_webhook 事件不匹配 HTTP 语义修复
+  - trigger_webhook 对 webhook 已禁用/事件不匹配 从 Ok(success:false) 改为 Err(BusinessError) 返回 400
+  - retry_webhook handler 对客户端错误透传，仅内部错误包装为 500
+- P3：4 处 dead_code 标注接入业务
+  - ListResultsQuery.start_date/end_date 接入 list 日期过滤
+  - UpdateConfirmationStatusRequest.remark 接入 update_status 写入 notes
+  - CreateDisputeApiRequest.customer_id 接入 create_dispute 校验客户一致性
+  - update_status 新增 remark 参数，resolve_dispute 的 resolution 写入 notes
 
 ### ✅ 批次 106 删除 performance_optimizer/operation_log_service + business_metrics 真实接入（PR #350，main `7f2cc82`）
 

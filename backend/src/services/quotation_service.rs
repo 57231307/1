@@ -258,6 +258,14 @@ impl QuotationService {
             active.base_currency = Set(v);
         }
         if let Some(v) = dto.price_terms {
+            // 批次 111 P1-2：更新时同样校验贸易术语合法性（原 update 未校验）
+            let incoterm = Self::validate_price_terms(&v)?;
+            tracing::info!(
+                quotation_id = id,
+                incoterm_code = %v,
+                incoterm_description = %incoterm.description(),
+                "报价单贸易术语已更新"
+            );
             active.price_terms = Set(v);
         }
         if let Some(v) = dto.incoterms_version {
@@ -475,13 +483,34 @@ impl QuotationService {
                 "有效期截止必须不早于报价日期".to_string(),
             ));
         }
-        if !["FOB", "CIF", "EXW", "DDP", "DAP"].contains(&dto.price_terms.as_str()) {
-            return Err(ServiceError::Validation(format!(
-                "不支持的价格条款: {}",
-                dto.price_terms
-            )));
-        }
+        // 批次 111 P1-2：接入 utils/incoterms.rs（原硬编码 ["FOB","CIF","EXW","DDP","DAP"]）
+        // 通过 Incoterms2020::from_code 完成解析+校验，并记录贸易术语业务元数据到日志
+        let incoterm = Self::validate_price_terms(&dto.price_terms)?;
+        tracing::info!(
+            incoterm_code = %dto.price_terms,
+            incoterm_description = %incoterm.description(),
+            includes_insurance = %incoterm.includes_insurance(),
+            includes_freight = %incoterm.includes_freight(),
+            requires_duty_paid = %incoterm.requires_duty_paid(),
+            "报价单贸易术语已校验"
+        );
         Ok(())
+    }
+
+    /// 校验价格条款（贸易术语）并返回解析后的 Incoterms2020 枚举
+    ///
+    /// 批次 111 P1-2：原 validate_create 使用硬编码 `["FOB","CIF","EXW","DDP","DAP"]` 列表，
+    /// 现接入 utils/incoterms.rs 的 Incoterms2020::from_code 完成解析+校验，
+    /// 同时通过 Incoterms2020::all() + code() 派生合法代码列表，避免重复维护。
+    fn validate_price_terms(code: &str) -> Result<crate::utils::incoterms::Incoterms2020, ServiceError> {
+        crate::utils::incoterms::Incoterms2020::from_code(code).map_err(|msg| {
+            // 派生合法代码列表用于错误提示（同时使用 all() + code() 接入业务）
+            let valid: Vec<&'static str> = crate::utils::incoterms::Incoterms2020::all()
+                .iter()
+                .map(|t| t.code())
+                .collect();
+            ServiceError::Validation(format!("{}（合法取值: {}）", msg, valid.join("/")))
+        })
     }
 }
 

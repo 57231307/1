@@ -5,7 +5,7 @@
 
 ---
 
-## 🔄 当前任务：批次 108 ar/recon 路由接入 + webhook handler 实现（待启动）
+## 🔄 当前任务：v7 第七轮全项目复审（批次 110 已完成，继续 P1 项修复）
 
 **用户新规则（2026-07-04 追加，最高优先级）**：
 > 对所有预留的 api 及预留的功能/占位符功能/路由进行实现，
@@ -24,13 +24,26 @@
 | 105 | #349 | `bc075ad` | 删除 messaging/ 死代码模块（kafka.rs 444 + bus.rs 111 + mod.rs 8 行，已被 services/event_kafka.rs 真实集成取代） |
 | 106 | #350 | `7f2cc82` | 删除 performance_optimizer(154行) + operation_log_service(399行) + n_plus_one(93行)；business_metrics 真实接入 MetricsService（同一 Registry，/metrics 自动暴露 erp_* 指标） |
 | 107 | #351 | `c45f7e7` | cache_service L1 本地缓存真实接入 AppState + 5 处 dead_code 标注移除；color_card 路由确认已挂载（16 端点） |
+| 108 | #352 | `e73ddd7` | ar/recon 路由接入（update/delete/send/close 4 端点 + 删除重复 confirm/dispute）+ webhook handler 真实实现（test/retry/logs 3 端点）+ 7 处 dead_code 标注移除 |
+| 109 | #353 | `21776c5` | v7 复审修复：ar_reconciliation notes 持久化（migration m0038）+ webhook 事件不匹配 4xx + 4 处 dead_code 接入（日期过滤/remark/customer_id 校验） |
+| 110 | #354 | `20a8c11` | v7 复审 P0 修复：webhook callback 加入 PUBLIC_PATHS + message_type/title/payload 接入业务（结构化日志 + 摘要回执） |
+
+### 已完成：批次 110 v7 复审 P0 修复
+
+**分支**：`fix/batch110-webhook-callback-public-msgtype-payload`（已合并并删除）
+
+修复项（v7 复审 P0 3 项）：
+- ✅ P0-1：webhook callback 路由加入 PUBLIC_PATHS（HMAC 签名验证替代 JWT 认证）
+- ✅ P0-2：`SendWebhookMessageRequest.message_type` / `title` 接入业务（企业微信/钉钉 text/markdown 不同 payload 构建）
+- ✅ P0-3：`WebhookCallbackRequest.payload` 接入业务（结构化日志持久化 + 回执摘要 payload_size/payload_keys）
+
+
 
 ### 后续批次规划
 
-- **批次 108**：ar/recon 路由接入 + webhook handler 实现
-- **批次 109+**：P2 项按业务驱动逐项接入
+- **v7 复审继续**：扫描全项目其他维度遗留问题（路由权限/前端类型/测试质量/安全性等）
+- **批次 110+**：P2 项按业务驱动逐项接入（基于 v7 复审结果优先级排序）
 - **批次 110+**：SearchSyncer 接入 PG→ES 写入同步（customer_service / sales_order_service / product_service）
-- **v7 第七轮复审**
 
 ### 复审维度（基于历次复审经验）：
 1. 事务边界 TOCTOU（lock_exclusive 是否覆盖所有 update/delete）
