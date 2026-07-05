@@ -279,7 +279,7 @@ pub async fn approve_order(
         if let Some(created_by) = order.created_by {
             // 批次 94 P2-11：原 let _ = 静默吞错，通知发送失败时无任何日志，改为 warn 日志记录
             if let Err(e) = event_service
-                .notify_order_approved(created_by, &order.order_no, order.id, &auth.username)
+                .notify_order_approved(created_by, &order.order_no, order.id, auth.user_id, &auth.username)
                 .await
             {
                 tracing::warn!("批次 94 P2-11：订单审批通知发送失败: {}", e);

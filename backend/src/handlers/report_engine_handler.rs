@@ -64,6 +64,12 @@ pub struct ExecuteReportQuery {
     pub template_id: String,
     pub page: Option<u64>,
     pub page_size: Option<u64>,
+    /// 过滤器 JSON 字符串（URL 编码，格式：[{"key":"k","label":"l","filter_type":"type","required":false}]）
+    pub filters_json: Option<String>,
+    /// 日期范围起始（YYYY-MM-DD）
+    pub date_start: Option<String>,
+    /// 日期范围结束（YYYY-MM-DD）
+    pub date_end: Option<String>,
 }
 
 #[derive(Debug, Serialize)]
@@ -82,11 +88,21 @@ pub async fn execute_report(
     let _page = query.page.unwrap_or(1).clamp(1, 1000); // 批次 95 P3-3~8：分页 clamp 防 DoS
     let _page_size = query.page_size.unwrap_or(50).clamp(1, 100);
 
+    // 解析 filters_json 为 Vec<ReportFilter>（失败时返回空列表，不阻塞查询）
+    let filters = query
+        .filters_json
+        .as_deref()
+        .and_then(|s| serde_json::from_str::<Vec<crate::services::report::ReportFilter>>(s).ok())
+        .unwrap_or_default();
+
+    // 解析 date_start / date_end 为 DateRange
+    let date_range = parse_date_range(query.date_start.as_deref(), query.date_end.as_deref());
+
     let req = crate::services::report::ExecuteReportRequest {
         template_id: query.template_id.clone(),
-        filters: vec![],
+        filters,
         parameters: None,
-        date_range: None,
+        date_range,
         format: "json".to_string(),
         use_cache: Some(false),
     };
@@ -144,6 +160,12 @@ pub async fn execute_report(
 pub struct ExportReportQuery {
     pub template_id: String,
     pub format: String,
+    /// 过滤器 JSON 字符串（URL 编码，格式：[{"key":"k","label":"l","filter_type":"type","required":false}]）
+    pub filters_json: Option<String>,
+    /// 日期范围起始（YYYY-MM-DD）
+    pub date_start: Option<String>,
+    /// 日期范围结束（YYYY-MM-DD）
+    pub date_end: Option<String>,
 }
 
 #[derive(Debug, Serialize)]
@@ -162,12 +184,20 @@ pub async fn export_report(
 
     let _export_format: ExportFormat = query.format.parse().unwrap_or(ExportFormat::Csv);
 
+    // 解析 filters_json 与 date_range（与 execute_report 一致）
+    let filters = query
+        .filters_json
+        .as_deref()
+        .and_then(|s| serde_json::from_str::<Vec<crate::services::report::ReportFilter>>(s).ok())
+        .unwrap_or_default();
+    let date_range = parse_date_range(query.date_start.as_deref(), query.date_end.as_deref());
+
     // 先执行报表获取数据
     let req = crate::services::report::ExecuteReportRequest {
         template_id: query.template_id.clone(),
-        filters: vec![],
+        filters,
         parameters: None,
-        date_range: None,
+        date_range,
         format: "json".to_string(),
         use_cache: Some(false),
     };
@@ -357,4 +387,23 @@ pub async fn clear_report_cache(
         message: "缓存已清除".to_string(),
     };
     Ok(Json(ApiResponse::success(response)))
+}
+
+/// 解析日期范围字符串为 DateRange
+///
+/// 同时提供 start 和 end（YYYY-MM-DD）时返回 Some(DateRange)，否则返回 None。
+/// 解析失败时返回 None（不阻塞查询）。
+fn parse_date_range(
+    start: Option<&str>,
+    end: Option<&str>,
+) -> Option<crate::services::report::DateRange> {
+    use chrono::NaiveDate;
+    let start_str = start?;
+    let end_str = end?;
+    let start_date = NaiveDate::parse_from_str(start_str, "%Y-%m-%d").ok()?;
+    let end_date = NaiveDate::parse_from_str(end_str, "%Y-%m-%d").ok()?;
+    Some(crate::services::report::DateRange {
+        start: start_date,
+        end: end_date,
+    })
 }

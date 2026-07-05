@@ -294,6 +294,7 @@ pub async fn approve_request(
                 request.created_by,
                 &request.request_no,
                 true,
+                auth.user_id,
                 &auth.username,
                 None,
             )
@@ -342,6 +343,7 @@ pub async fn reject_request(
                 request.created_by,
                 &request.request_no,
                 false,
+                auth.user_id,
                 &auth.username,
                 Some(&req.reason),
             )

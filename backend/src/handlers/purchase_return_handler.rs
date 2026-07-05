@@ -148,6 +148,7 @@ pub async fn reject_purchase_return(
                     created_by,
                     &return_order.return_no,
                     false,
+                    auth.user_id,
                     &auth.username,
                     Some(&req.reason),
                 )

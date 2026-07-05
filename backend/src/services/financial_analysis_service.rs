@@ -1,7 +1,7 @@
 use crate::models::financial_analysis;
 use crate::models::financial_analysis_result;
 use crate::utils::error::AppError;
-use chrono::Utc;
+use chrono::{NaiveDate, Utc};
 use rust_decimal::Decimal;
 use rust_decimal::RoundingStrategy;
 use sea_orm::{
@@ -156,14 +156,38 @@ impl FinancialAnalysisService {
         &self,
         indicator_id: i32,
         limit: i64,
+        start_date: Option<&str>,
+        end_date: Option<&str>,
+        period: Option<&str>,
     ) -> Result<Vec<financial_analysis_result::Model>, AppError> {
         info!(
-            "查询财务指标 {} 的趋势数据，限制：{} 条",
-            indicator_id, limit
+            "查询财务指标 {} 的趋势数据，限制：{} 条，start={:?}, end={:?}, period={:?}",
+            indicator_id, limit, start_date, end_date, period
         );
 
-        let results = financial_analysis_result::Entity::find()
-            .filter(financial_analysis_result::Column::IndicatorId.eq(indicator_id))
+        let mut query = financial_analysis_result::Entity::find()
+            .filter(financial_analysis_result::Column::IndicatorId.eq(indicator_id));
+
+        // 精确匹配 period（YYYY-MM 格式）
+        if let Some(p) = period {
+            query = query.filter(financial_analysis_result::Column::Period.eq(p));
+        }
+
+        // 日期范围过滤（analysis_date >= start_date）
+        if let Some(s) = start_date {
+            if let Ok(d) = NaiveDate::parse_from_str(s, "%Y-%m-%d") {
+                query = query.filter(financial_analysis_result::Column::AnalysisDate.gte(d));
+            }
+        }
+
+        // 日期范围过滤（analysis_date <= end_date）
+        if let Some(e) = end_date {
+            if let Ok(d) = NaiveDate::parse_from_str(e, "%Y-%m-%d") {
+                query = query.filter(financial_analysis_result::Column::AnalysisDate.lte(d));
+            }
+        }
+
+        let results = query
             .order_by(financial_analysis_result::Column::AnalysisDate, Order::Desc)
             .limit(limit as u64)
             .all(&*self.db)

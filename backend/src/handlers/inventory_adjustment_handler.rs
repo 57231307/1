@@ -237,6 +237,7 @@ pub async fn reject_adjustment(
                     created_by,
                     &detail.adjustment.adjustment_no,
                     false,
+                    auth.user_id,
                     &auth.username,
                     None,
                 )

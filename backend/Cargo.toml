@@ -88,6 +88,8 @@ printpdf = "0.7"
 
 # 监控
 prometheus = "0.13"
+# 系统信息（健康检查的内存/磁盘/uptime 真实数据）
+sysinfo = "0.31"
 
 # 并发数据结构
 dashmap = "5.5"
@@ -112,6 +114,7 @@ percent-encoding = "2.3.1"
 fastrand = "2.4.0"
 hex = "0.4.3"
 hmac = "0.12"
+sha1 = "0.10"
 sha2 = "0.10"
 subtle = "2.6"
 

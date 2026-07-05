@@ -277,6 +277,7 @@ pub async fn reject_order(
                 order.created_by,
                 &order.order_no,
                 false,
+                auth.user_id,
                 &auth.username,
                 Some(&req.reason),
             )

@@ -109,7 +109,7 @@ impl EventNotificationService {
                     business_type: Some("ORDER".to_string()),
                     business_id: Some(order_id),
                     action_url: Some(format!("/sales/orders/{}", order_id)),
-                    sender_id: Some(0),
+                    sender_id: None,
                     sender_name: Some("系统".to_string()),
                 })
                 .await?;
@@ -125,11 +125,14 @@ impl EventNotificationService {
     }
 
     /// 订单审批通过通知
+    ///
+    /// v10 P1 修复（批次 139）：原 sender_id: Some(0) 占位，现传入真实审批人 ID
     pub async fn notify_order_approved(
         &self,
         user_id: i32,
         order_no: &str,
         order_id: i32,
+        approver_id: i32,
         approver_name: &str,
     ) -> Result<(), AppError> {
         let should_internal = self
@@ -148,7 +151,7 @@ impl EventNotificationService {
                     business_type: Some("ORDER".to_string()),
                     business_id: Some(order_id),
                     action_url: Some(format!("/sales/orders/{}", order_id)),
-                    sender_id: Some(0),
+                    sender_id: Some(approver_id),
                     sender_name: Some(approver_name.to_string()),
                 })
                 .await?;
@@ -183,7 +186,7 @@ impl EventNotificationService {
                     business_type: Some("ORDER".to_string()),
                     business_id: Some(order_id),
                     action_url: Some(format!("/sales/orders/{}", order_id)),
-                    sender_id: Some(0),
+                    sender_id: None,
                     sender_name: Some("系统".to_string()),
                 })
                 .await?;
@@ -225,7 +228,7 @@ impl EventNotificationService {
                     business_type: Some("ORDER".to_string()),
                     business_id: Some(order_id),
                     action_url: Some(format!("/sales/orders/{}", order_id)),
-                    sender_id: Some(0),
+                    sender_id: None,
                     sender_name: Some("系统".to_string()),
                 })
                 .await?;
@@ -243,10 +246,13 @@ impl EventNotificationService {
     // ========== 审批相关通知 ==========
 
     /// 待审批任务通知
+    ///
+    /// v10 P1 修复（批次 139）：原 sender_id: Some(0) 占位，现传入真实申请人 ID
     pub async fn notify_pending_approval(
         &self,
         approver_user_id: i32,
         task_title: &str,
+        applicant_id: i32,
         applicant_name: &str,
         business_type: &str,
         business_id: i32,
@@ -273,7 +279,7 @@ impl EventNotificationService {
                     business_type: Some(business_type.to_string()),
                     business_id: Some(business_id),
                     action_url: Some(approval_url.clone()),
-                    sender_id: Some(0),
+                    sender_id: Some(applicant_id),
                     sender_name: Some(applicant_name.to_string()),
                 })
                 .await?;
@@ -290,11 +296,14 @@ impl EventNotificationService {
     }
 
     /// 审批结果通知
+    ///
+    /// v10 P1 修复（批次 139）：原 sender_id: Some(0) 占位，现传入真实审批人 ID
     pub async fn notify_approval_result(
         &self,
         user_id: i32,
         task_title: &str,
         approved: bool,
+        approver_id: i32,
         approver_name: &str,
         comment: Option<&str>,
     ) -> Result<(), AppError> {
@@ -326,7 +335,7 @@ impl EventNotificationService {
                 business_type: Some("APPROVAL".to_string()),
                 business_id: None,
                 action_url: None,
-                sender_id: Some(0),
+                sender_id: Some(approver_id),
                 sender_name: Some(approver_name.to_string()),
             })
             .await?;
@@ -367,7 +376,7 @@ impl EventNotificationService {
                     business_type: Some("INVENTORY".to_string()),
                     business_id: Some(product_id),
                     action_url: Some(format!("/inventory/stock/{}", product_id)),
-                    sender_id: Some(0),
+                    sender_id: None,
                     sender_name: Some("系统".to_string()),
                 })
                 .await?;
@@ -430,7 +439,7 @@ impl EventNotificationService {
                         business_type: Some("INVENTORY".to_string()),
                         business_id: Some(product_id),
                         action_url: Some(format!("/inventory/stock/{}", product_id)),
-                        sender_id: Some(0),
+                        sender_id: None,
                         sender_name: Some("系统".to_string()),
                     })
                     .await?;
@@ -477,7 +486,7 @@ impl EventNotificationService {
                     business_type: Some("INVENTORY".to_string()),
                     business_id: Some(product_id),
                     action_url: Some(format!("/inventory/stock/{}", product_id)),
-                    sender_id: Some(0),
+                    sender_id: None,
                     sender_name: Some("系统".to_string()),
                 })
                 .await?;
@@ -528,7 +537,7 @@ impl EventNotificationService {
                     business_type: Some("PURCHASE".to_string()),
                     business_id: Some(order_id),
                     action_url: Some(format!("/purchases/orders/{}", order_id)),
-                    sender_id: Some(0),
+                    sender_id: None,
                     sender_name: Some("系统".to_string()),
                 })
                 .await?;
@@ -577,7 +586,7 @@ impl EventNotificationService {
                     business_type: Some("PURCHASE".to_string()),
                     business_id: Some(order_id),
                     action_url: Some(format!("/purchases/orders/{}", order_id)),
-                    sender_id: Some(0),
+                    sender_id: None,
                     sender_name: Some("系统".to_string()),
                 })
                 .await?;
@@ -629,7 +638,7 @@ impl EventNotificationService {
                     business_type: Some("FINANCE".to_string()),
                     business_id: Some(invoice_id),
                     action_url: Some(format!("/finance/invoices/{}", invoice_id)),
-                    sender_id: Some(0),
+                    sender_id: None,
                     sender_name: Some("系统".to_string()),
                 })
                 .await?;
@@ -675,7 +684,7 @@ impl EventNotificationService {
                     business_type: Some("FINANCE".to_string()),
                     business_id: Some(request_id),
                     action_url: Some(format!("/finance/payment-requests/{}", request_id)),
-                    sender_id: Some(0),
+                    sender_id: None,
                     sender_name: Some("系统".to_string()),
                 })
                 .await?;
@@ -717,7 +726,7 @@ impl EventNotificationService {
                         business_type: Some("SYSTEM".to_string()),
                         business_id: None,
                         action_url: None,
-                        sender_id: Some(0),
+                        sender_id: None,
                         sender_name: Some("系统管理员".to_string()),
                     })
                     .await?;
@@ -765,7 +774,7 @@ impl EventNotificationService {
                         business_type: business_type.clone(),
                         business_id,
                         action_url: action_url.clone(),
-                        sender_id: Some(0),
+                        sender_id: None,
                         sender_name: Some("系统".to_string()),
                     })
                     .await?;
