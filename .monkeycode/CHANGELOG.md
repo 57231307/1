@@ -6,6 +6,28 @@
 
 ---
 
+## 2026-07-05 (批次 131 v9 复审 P0 purchase_inspection 4 个明细 CRUD 真实接入完成)
+
+### 批次 131：v9 复审 P0 修复 — purchase_inspection 4 个明细 CRUD 真实接入
+
+**PR #375，main commit `b141c66`，11 文件 +376 -26 行，CI 一次通过**
+
+| 修复项 | 内容 |
+|--------|------|
+| migration m0042 + SQL | 创建 purchase_inspection_items 表（id/inspection_id/product_id/item_name/qualified_quantity/unqualified_quantity/remark/created_at/updated_at + 2 个索引）|
+| entity 模型 | 新增 purchase_inspection_item.rs + 在 models/mod.rs 注册 |
+| PurchaseInspectionService 4 方法 | list_inspection_items / create_inspection_item / update_inspection_item / delete_inspection_item，所有方法内部校验质检单存在 + 明细归属正确 |
+| 2 个 service DTO | CreateInspectionItemRequest / UpdateInspectionItemRequest |
+| 4 个 handler 真实接入 | list_inspection_items 真实查询替代空列表；create/update/delete 真实落库替代仅记日志；handler DTO → service DTO 转换保留 validator 校验 |
+
+**关键决策**：
+- 明细表使用 inspection_id 外键关联 purchase_inspection 表，无数据库层 FK 约束（业务层校验）
+- update/delete 时校验明细归属指定质检单，防止跨单操作
+- 保留 handler 层 DTO（CreateInspectionItemDto / UpdateInspectionItemDto）的 validator 校验，service 层用独立 DTO 解耦
+- handler 返回真实落库的明细数据（serde_json::to_value(&item)?），替代硬编码 JSON
+
+---
+
 ## 2026-07-05 (批次 130 v9 复审 P0 bi_analysis_service 16 个方法真实接入数据库查询完成)
 
 ### 批次 130：v9 复审 P0 修复 — bi_analysis_service 16 个方法真实接入数据库查询
