@@ -152,6 +152,8 @@ pub mod audit_log;
 pub mod crm_recycle_rule;
 pub mod crm_lead;
 pub mod crm_opportunity;
+// 批次 122 v8 复审 P1 修复：CRM 标签字典表（替代 list_tags 硬编码 + create_tag/delete_tag 假实现）
+pub mod crm_tag;
 pub mod logistics_waybill;
 pub mod omni_audit_log;
 pub mod sales_return;
