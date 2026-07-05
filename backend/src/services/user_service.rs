@@ -13,7 +13,6 @@
 //! - 密码哈希由调用方处理，本模块不处理明文密码
 
 
-use crate::cache::CacheService;
 use crate::models::user;
 use crate::utils::error::AppError;
 use crate::utils::pagination::paginate_with_total;
@@ -27,8 +26,6 @@ use std::sync::Arc;
 #[derive(Debug, Clone)]
 pub struct UserService {
     db: Arc<DatabaseConnection>,
-    /// 可选 Redis 缓存（P12 批 1 性能优化）；未注入时退化为直查 DB
-    cache: Option<Arc<CacheService>>,
 }
 
 impl UserService {
@@ -37,24 +34,7 @@ impl UserService {
     /// # 参数
     /// - `db`: 数据库连接
     pub fn new(db: Arc<DatabaseConnection>) -> Self {
-        Self { db, cache: None }
-    }
-
-    /// 创建带 Redis 缓存层的用户服务（P12 批 1 性能优化）
-    ///
-    /// # 参数
-    /// - `db`: 数据库连接
-    /// - `cache`: Redis 缓存服务（已配置优雅降级）
-    pub fn with_cache(db: Arc<DatabaseConnection>, cache: Arc<CacheService>) -> Self {
-        Self {
-            db,
-            cache: Some(cache),
-        }
-    }
-
-    /// 构造用户缓存键（用户表为平台级）
-    fn cache_key(user_id: i32) -> String {
-        CacheService::build_key("user", &user_id.to_string())
+        Self { db }
     }
 
     /// 按用户名查找用户
@@ -82,27 +62,10 @@ impl UserService {
     /// - `Ok(user)`: 找到用户
     /// - `Err(DbErr::RecordNotFound)`: 用户不存在
     pub async fn find_by_id(&self, id: i32) -> Result<user::Model, AppError> {
-        let key = Self::cache_key(id);
-
-        // 1. 尝试读缓存（Redis 不可用时自动 fallback 到 None）
-        if let Some(cache) = &self.cache {
-            if let Some(cached) = cache.get_json::<user::Model>(&key).await {
-                return Ok(cached);
-            }
-        }
-
-        // 2. 缓存未命中，查 DB
-        let user = user::Entity::find_by_id(id)
+        user::Entity::find_by_id(id)
             .one(self.db.as_ref())
             .await?
-            .ok_or_else(|| AppError::not_found(format!("用户 ID {} 不存在", id)))?;
-
-        // 3. 回写缓存（仅在缓存启用时生效；错误不会冒泡）
-        if let Some(cache) = &self.cache {
-            cache.set_json(&key, &user, None).await;
-        }
-
-        Ok(user)
+            .ok_or_else(|| AppError::not_found(format!("用户 ID {} 不存在", id)))
     }
 
     /// 创建新用户
@@ -178,11 +141,6 @@ impl UserService {
 
         user.last_login_at = Set(Some(chrono::Utc::now()));
         user.update(self.db.as_ref()).await?;
-
-        // 失效缓存：最后登录时间变化使缓存值陈旧
-        if let Some(cache) = &self.cache {
-            cache.invalidate(&Self::cache_key(user_id)).await;
-        }
 
         Ok(())
     }
@@ -264,11 +222,6 @@ impl UserService {
             .await
             .map_err(AppError::from)?;
 
-        // 失效缓存：用户字段更新使缓存值陈旧
-        if let Some(cache) = &self.cache {
-            cache.invalidate(&Self::cache_key(user_id)).await;
-        }
-
         Ok(updated)
     }
 
@@ -302,11 +255,6 @@ impl UserService {
         user.is_active = Set(false);
         user.updated_at = Set(chrono::Utc::now());
         user.update(self.db.as_ref()).await?;
-
-        // 失效缓存：is_active 变化使缓存值陈旧
-        if let Some(cache) = &self.cache {
-            cache.invalidate(&Self::cache_key(user_id)).await;
-        }
 
         // P0 7-3 修复：吊销该用户的所有活跃 JWT
         //    将吊销逻辑下沉到 service 层作为单一真相源，保证任何调用方
