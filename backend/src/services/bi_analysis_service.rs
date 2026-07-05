@@ -824,7 +824,7 @@ impl BiAnalysisService {
             if month == 12 { 1 } else { month + 1 },
             1,
         )
-        .map(|next_month_first| (next_month_first - chrono::Duration::days(1)).day() as u32)
+        .map(|next_month_first| (next_month_first - chrono::Duration::days(1)).day())
         .unwrap_or(30);
 
         let mut period_map: std::collections::HashMap<String, TimeSeriesPoint> = std::collections::HashMap::new();
@@ -883,7 +883,7 @@ impl BiAnalysisService {
             ORDER BY order_date DESC
             LIMIT 100
             "#,
-            [(customer_id as i64).into()],
+            [customer_id.into()],
         );
 
         let rows = CustomerOrderRow::find_by_statement(stmt)
@@ -932,7 +932,7 @@ impl BiAnalysisService {
             ORDER BY s.order_date DESC
             LIMIT 100
             "#,
-            [(product_id as i64).into()],
+            [product_id.into()],
         );
 
         let rows = ProductOrderRow::find_by_statement(stmt)
@@ -1010,8 +1010,8 @@ impl BiAnalysisService {
             .and_then(|v| v.as_str())
             .and_then(|s| chrono::NaiveDate::parse_from_str(s, "%Y-%m-%d").ok());
 
-        let end = date_to.unwrap_or_else(|| chrono::Local::now().date_naive());
-        let start = date_from.unwrap_or_else(|| end - chrono::Duration::days(30));
+        let end = date_to.unwrap_or(chrono::Local::now().date_naive());
+        let start = date_from.unwrap_or(end - chrono::Duration::days(30));
 
         let data = self.sales_by_time(start, end, "day").await?;
 
