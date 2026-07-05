@@ -122,11 +122,9 @@ fn log_to_json(m: log_api_access::Model) -> Value {
 
 /// 将 api_key::Model 转换为前端期望的 JSON 结构
 ///
-/// `created_by` 参数：API 密钥创建者用户 ID。
-/// 批次 95 P3-9 修复：原硬编码 0，现由调用方注入真实 user_id
-/// （create/regenerate 场景来自 AuthContext.user_id）。
-/// 注意：api_keys 表无 created_by 列，list/get 历史密钥无法回溯创建者，传 0 占位。
-fn key_to_json(m: &crate::models::api_key::Model, created_by: i32) -> Value {
+/// 批次 112 P1-9：created_by 直接从 model.created_by 读取（migration m0039 新增列），
+/// 不再需要调用方传 0 占位。历史数据 created_by 为 NULL 时返回 0 保持前端兼容。
+fn key_to_json(m: &crate::models::api_key::Model) -> Value {
     // permissions 字段为 JSON 字符串，解析为 string[]
     let permissions: Value = m
         .permissions
@@ -157,7 +155,7 @@ fn key_to_json(m: &crate::models::api_key::Model, created_by: i32) -> Value {
         "rate_limit": m.rate_limit_per_minute,
         "expires_at": m.expires_at.as_ref().map(|d| d.to_rfc3339()).unwrap_or_default(),
         "status": status,
-        "created_by": created_by,
+        "created_by": m.created_by.unwrap_or(0),
         "created_by_name": "",
         "created_at": m.created_at.to_rfc3339(),
         "last_used_at": m.last_used_at.as_ref().map(|d| d.to_rfc3339()).unwrap_or_default(),
@@ -513,8 +511,8 @@ pub async fn list_api_keys(
         .all(&*state.db)
         .await?;
 
-    // 批次 95 P3-9：api_keys 表无 created_by 列，列表查询无法回溯创建者，传 0 占位
-    let data: Vec<Value> = rows.iter().map(|m| key_to_json(m, 0)).collect();
+    // 批次 112 P1-9：created_by 从 model.created_by 读取（migration m0039 新增列）
+    let data: Vec<Value> = rows.iter().map(key_to_json).collect();
     Ok(Json(ApiResponse {
         code: Some(200),
         message: Some("success".to_string()),
@@ -554,11 +552,13 @@ pub async fn create_api_key(
             permissions.as_deref(),
             rate_limit,
             expires_days,
+            // 批次 112 P1-9：注入真实创建者 user_id（migration m0039 持久化到 created_by 列）
+            auth.user_id,
         )
         .await?;
 
-    // 批次 95 P3-9：注入 AuthContext.user_id 作为真实创建者
-    let mut data = key_to_json(&model, auth.user_id);
+    // 批次 112 P1-9：key_to_json 直接从 model.created_by 读取
+    let mut data = key_to_json(&model);
     if let Some(obj) = data.as_object_mut() {
         obj.insert("plain_key".to_string(), Value::String(plain_key));
     }
@@ -580,8 +580,8 @@ pub async fn get_api_key(
         .get_api_key_by_id(id)
         .await?
         .ok_or_else(|| AppError::not_found(format!("API 密钥 {} 不存在", id)))?;
-    // 批次 95 P3-9：api_keys 表无 created_by 列，传 0 占位
-    Ok(Json(ApiResponse::success(key_to_json(&model, 0))))
+    // 批次 112 P1-9：created_by 从 model.created_by 读取
+    Ok(Json(ApiResponse::success(key_to_json(&model))))
 }
 
 /// PUT /api-gateway/keys/:id — 更新 API 密钥
@@ -618,9 +618,9 @@ pub async fn update_api_key(
         )
         .await?;
 
-    // 批次 95 P3-9：api_keys 表无 created_by 列，传 0 占位
+    // 批次 112 P1-9：created_by 从 model.created_by 读取
     Ok(Json(ApiResponse::success_with_message(
-        key_to_json(&model, 0),
+        key_to_json(&model),
         "密钥更新成功",
     )))
 }
@@ -648,11 +648,16 @@ pub async fn regenerate_api_key(
 ) -> Result<Json<ApiResponse<Value>>, AppError> {
     let service = ApiKeyService::new(state.db.clone());
     let (model, plain_key) = service
-        .regenerate_api_key(id, Some(&state.cache))
+        .regenerate_api_key(
+            id,
+            Some(&state.cache),
+            // 批次 112 P1-9：注入重新生成操作者 user_id，更新 created_by
+            auth.user_id,
+        )
         .await?;
 
-    // 批次 95 P3-9：注入 AuthContext.user_id（重新生成操作者）
-    let mut data = key_to_json(&model, auth.user_id);
+    // 批次 112 P1-9：key_to_json 直接从 model.created_by 读取
+    let mut data = key_to_json(&model);
     if let Some(obj) = data.as_object_mut() {
         obj.insert("plain_key".to_string(), Value::String(plain_key));
     }
