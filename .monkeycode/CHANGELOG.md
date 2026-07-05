@@ -6,6 +6,28 @@
 
 ---
 
+## 2026-07-05 (批次 120 v7 复审 P2 全部修复完成 - 13/13 项)
+
+### 批次 120：v7 复审 P2 最后 2 项修复 — 辅助核算维度真实接入 + event_bus trait 死代码删除
+
+**PR #364，main commit `4842e97`，5 文件 +43 -481 行**
+
+| 修复项 | 内容 |
+|--------|------|
+| P2-7 真实接入（核心，违反规则 0） | assist_accounting_service.rs initialize_dimensions 移除 `#[allow(dead_code)]`，main.rs 启动时调用一次初始化 8 个辅助核算维度（幂等实现，tracing::warn! 降级不阻塞启动） |
+| P2-10 删除 | event_bus.rs 删除 EventBackend trait + BroadcastBackend struct + impl + BridgeStream struct + impl + EventStream/SubscribeFuture 类型别名 + EventBusState.broadcast 字段 + backend_type() 方法 + EventBackendType 枚举；删除 tests/test_event_bus.rs（依赖被删除类型） |
+| clippy 修复 | 模块文档注释行首 `+ ` 被误判为 Markdown 列表项标记，改为顿号分隔 |
+
+**关键决策**：
+- P2-7 违反规则 0（真实实现强制），initialize_dimensions 在 main.rs 启动时接入（init_event_bus_with_kafka_config 之后），初始化批次/色号/缸号/等级/车间/仓库/客户/供应商 8 个维度
+- P2-10 KafkaBackend 已绕过 trait 抽象走独立路径，BroadcastBackend 从未被 EVENT_BUS.publish/subscribe 调用，trait + BroadcastBackend + BridgeStream + 类型别名全部为零业务调用方的死代码
+- 旧 API（EVENT_BUS.publish/subscribe/start_event_listener）保持完全兼容
+- v7 复审 P2 项至此全部修复完成（13/13 项）
+
+**v7 复审 P2 修复总结 ✅**：P2-1 ~ P2-13 全部完成
+
+---
+
 ## 2026-07-05 (批次 119 v7 复审 P2 继续修复完成 - 8/9 项)
 
 ### 批次 119：v7 复审 P2 修复 — 3 处死代码清理（token_bucket + data_permission + assist_accounting）

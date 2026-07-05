@@ -5,7 +5,7 @@
 
 ---
 
-## 🔄 当前任务：v7 第七轮复审 P2 部分修复完成，继续 P2 剩余项（批次 120 规划中）
+## 🔄 当前任务：v7 复审 P0/P1/P2 全部修复完成，准备启动 v8 全项目复审
 
 > 用户最高优先级规则（2026-07-04 追加）已固化到 [MEMORY.md 一、规则 0](file:///workspace/.monkeycode/MEMORY.md)。
 > 本文件仅记录任务进度，规则不在此重复。
@@ -16,6 +16,7 @@
 
 | 批次 | PR | main commit | 内容 |
 |------|-----|-------------|------|
+| 120 | #364 | `4842e97` | v7 P2-7 initialize_dimensions 真实接入 main.rs 启动 + P2-10 删除 EventBackend trait + BroadcastBackend + BridgeStream + EventBackendType + backend_type（5 文件 +43 -481 行）|
 | 119 | #363 | `fd4faf7` | v7 P2-2 删除 token_bucket.rs 整个文件 + P2-5 删除 data_permission check_data_permission + 4 scope 常量 + P2-7 删除 assist_accounting create_assist_record（4 文件 -274 行）|
 | 118 | #362 | `01c4475` | v7 P2-9 supplier_handler 资质端点真实接入 + P2-6 cost_collection 3 函数删除 + P2-4 report/ds cleanup_expired_cache 删除 + P2-8 fixed_asset calculate_monthly_depreciation 删除 + P2-13 websocket connection_count 删除（7 文件 -183 行）|
 | 117 | #361 | `dd19874` | v7 P1-5 收尾：4 处生产代码 .unwrap()/.expect() 安全化（webhook_signature 返回 Result + date_utils/timeout expect 加不变量注释） |
@@ -30,33 +31,27 @@
 | 108 | #352 | `e73ddd7` | ar/recon 路由接入 + webhook handler 真实实现（test/retry/logs）+ 7 处 dead_code |
 | 107 | #351 | `c45f7e7` | cache_service L1 本地缓存真实接入 AppState + color_card 路由确认 |
 | 106 | #350 | `7f2cc82` | 删除 performance_optimizer/operation_log_service + business_metrics 接入 |
-| 105 | #349 | `bc075ad` | 删除 messaging/ 死代码模块（kafka.rs + bus.rs + mod.rs） |
 
 ### v7 复审 P1 修复总结 ✅
 
 P1 项全部修复完成（P1-1 ~ P1-10），详见 [MEMORY.md 二、章节](file:///workspace/.monkeycode/MEMORY.md)。
 
-### v7 复审 P2 修复进度（批次 118-119 完成 8/9 项）
+### v7 复审 P2 修复总结 ✅
 
-已完成 P2 项：P2-1（归入 P1-2）/ P2-2 / P2-3 / P2-4 / P2-5 / P2-6 / P2-7（create_assist_record）/ P2-8 / P2-9 / P2-11 / P2-12 / P2-13
+P2 项全部修复完成（P2-1 ~ P2-13，13/13 项），详见 [MEMORY.md 二、章节](file:///workspace/.monkeycode/MEMORY.md)。
 
-剩余 P2 项（2 个，批次 120）：
-- **P2-7** assist_accounting_service.rs initialize_dimensions — 评估是否在 main.rs 启动时接入（初始化 8 个辅助核算维度）
-- **P2-10** event_bus.rs EventBackend trait + BroadcastBackend + EventBackendType + backend_type — 删除（KafkaBackend 已绕过 trait，删除范围大需谨慎处理）
+### 下一步：启动 v8 全项目复审
 
-### 批次 120 规划
+v7 复审 P0/P1/P2 项全部修复完成（P0 4 项 + P1 10 项 + P2 13 项 = 27 项）。
 
-**目标**：完成 v7 复审 P2 剩余 2 项，进入 v8 复审
-
-**修复方案**：
-- P2-7 initialize_dimensions：评估在 main.rs 启动时调用一次（初始化 8 个辅助核算维度，幂等实现）
-- P2-10 event_bus EventBackend trait：删除 trait + BroadcastBackend + BridgeStream + EventStream/SubscribeFuture 类型别名 + EventBusState.broadcast 字段 + backend_type 方法 + EventBackendType 枚举（旧 API EVENT_BUS.publish/subscribe/start_event_listener 保持完全兼容）
+按用户自动推进指令"修复完成后进行全项目复审，对复审出来的问题按这个流程进行继续评估修复。直到复审没有问题"，启动 v8 全项目复审：
+- 复审维度：事务边界 TOCTOU / 输入验证 / 错误处理 / 业务逻辑 / 并发竞态 / N+1 查询 / 死代码 / 占位符功能 / 前端类型 / 路由权限 / 测试质量 / 安全性 / Clippy baseline 残留 / 预留 API 真实接入
+- 复审完成后：对复审出来的问题按 P0/P1/P2 优先级分批修复，每批 1 commit → push → CI → 合并 → 删除分支 → 下一批，直到复审没有问题
 
 ### 后续批次规划
 
-- **批次 120**：v7 复审 P2 剩余项修复
+- **批次 121+**：v8 全项目复审问题分批修复
 - **持续**：SearchSyncer 接入 PG→ES 写入同步
-- **v8 复审**：v7 P2 全部修复完成后启动
 
 ### 复审维度（基于历次复审经验）
 

@@ -41,7 +41,7 @@
 
 ---
 
-## 二、当前任务状态（2026-07-05 批次 119 完成 - v7 复审 P2 部分修复，继续 P2）
+## 二、当前任务状态（2026-07-05 批次 120 完成 - v7 复审 P2 全部修复完成，准备启动 v8 复审）
 
 > 用户最高优先级规则已在「一、规则 0」固化，本节仅记录修复进度。
 
@@ -72,38 +72,37 @@ P1 项全部修复完成（P1-1 ~ P1-10）：
 - P1-9 api_keys created_by 持久化 ✅（批次 112）
 - P1-10 audit 日期过滤 ✅（批次 111）
 
-### v7 复审 P2 修复进度（批次 118-119 已完成 8 项，剩余 1 项）
+### v7 复审 P2 修复进度（批次 118-120 全部完成 ✅，13/13 项）
 
 | 批次 | PR | main commit | 修复项 | 状态 |
 |------|-----|-------------|--------|------|
 | 118 | #362 | `01c4475` | P2-9 supplier_handler 资质端点真实接入 + P2-6 cost_collection 3 函数删除 + P2-4 report/ds cleanup_expired_cache 删除 + P2-8 fixed_asset calculate_monthly_depreciation 删除 + P2-13 websocket connection_count 删除 | ✅ |
 | 119 | #363 | `fd4faf7` | P2-2 删除 token_bucket.rs 整个文件 + P2-5 删除 data_permission check_data_permission + 4 scope 常量 + P2-7 删除 assist_accounting create_assist_record | ✅ |
+| 120 | #364 | `4842e97` | P2-7 initialize_dimensions 真实接入 main.rs 启动 + P2-10 删除 EventBackend trait + BroadcastBackend + BridgeStream + EventBackendType + backend_type | ✅ |
 
-**批次 119 修复明细**：
-- P2-2 删除：token_bucket.rs 整个文件（189 行，含 TokenBucket + TokenBucketLimiter + 4 单元测试），生产限流已用 MemoryRateLimiter + Redis 双轨
-- P2-5 删除：data_permission_service.rs check_data_permission 方法 + data_scope 模块 4 个常量（DEPT/DEPT_AND_BELOW/SELF/CUSTOM），仅保留 ALL
-- P2-7 删除：assist_accounting_service.rs create_assist_record 方法（58 行，业务模块接入成本高且无业务需求）；initialize_dimensions 保留（批次 120 评估接入 main.rs 启动）
+**批次 120 修复明细**：
+- P2-7 真实接入：assist_accounting_service.rs initialize_dimensions 移除 `#[allow(dead_code)]`，main.rs 启动时调用一次（init_event_bus_with_kafka_config 之后），初始化 8 个辅助核算维度（批次/色号/缸号/等级/车间/仓库/客户/供应商），幂等实现，tracing::warn! 降级不阻塞启动
+- P2-10 删除：event_bus.rs 删除 EventBackend trait + BroadcastBackend struct + impl + BridgeStream struct + impl + EventStream/SubscribeFuture 类型别名 + EventBusState.broadcast 字段 + backend_type() 方法 + EventBackendType 枚举；删除 tests/test_event_bus.rs（依赖被删除类型）
+- clippy 修复：模块文档注释行首 `+ ` 被误判为 Markdown 列表项标记（doc_lazy_continuation lint），改为顿号分隔
 
-**P2 项状态总览**（v7 复审报告 P2 + batch103-placeholder-impl-plan.md P2 合并）：
+**P2 项状态总览**（v7 复审报告 P2 + batch103-placeholder-impl-plan.md P2 合并，全部完成 ✅）：
 - P2-1 incoterms 接入 ✅（批次 111，归入 P1-2）
 - P2-2 token_bucket 限流算法 ✅（批次 119 删除）
 - P2-3 admin_checker 缓存清理 ✅（批次 103）
 - P2-4 report/ds cleanup_expired_cache ✅（批次 118）
 - P2-5 data_permission check_data_permission + 4 scope 常量 ✅（批次 119 删除）
 - P2-6 cost_collection 3 函数 ✅（批次 118）
-- P2-7 assist_accounting create_assist_record ✅（批次 119 删除）；initialize_dimensions ⏳（批次 120 评估接入）
+- P2-7 assist_accounting create_assist_record ✅（批次 119 删除）；initialize_dimensions ✅（批次 120 真实接入 main.rs 启动）
 - P2-8 fixed_asset calculate_monthly_depreciation ✅（批次 118）
 - P2-9 supplier 资质端点真实接入 ✅（批次 118）
-- P2-10 event_bus EventBackend trait ⏳（剩余，批次 120）
+- P2-10 event_bus EventBackend trait ✅（批次 120 删除）
 - P2-11 cache/redis_client ✅（批次 116 删除）
 - P2-12 failover ✅（批次 115 删除）
 - P2-13 websocket connection_count ✅（批次 118）
 
-### 下一步：v7 复审 P2 剩余项修复（批次 120）
+### 下一步：启动 v8 全项目复审
 
-剩余 P2 项 2 个：
-- P2-7 assist_accounting_service.rs initialize_dimensions — 评估是否在 main.rs 启动时接入（初始化 8 个辅助核算维度）
-- P2-10 event_bus.rs EventBackend trait + BroadcastBackend + EventBackendType + backend_type — 删除（KafkaBackend 已绕过 trait 抽象走独立路径，删除范围较大需谨慎处理 EventBusState.broadcast 字段 + BridgeStream + EventStream/SubscribeFuture 类型别名）
+v7 复审 P0/P1/P2 项全部修复完成（P0 4 项 + P1 10 项 + P2 13 项 = 27 项），按用户自动推进指令启动 v8 全项目复审，对复审出来的问题按批次修复流程继续修复，直到复审没有问题。
 
 ### 历史批次索引
 
