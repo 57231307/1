@@ -24,6 +24,34 @@ struct SalesByDimensionRow {
     order_count: Option<i64>,
 }
 
+// ==================== 批次 135 v9 P1 修复：库存统计 raw SQL 中间结构 ====================
+// 原 by_category/aging_analysis 为 vec![] 占位，turnover_rate 为 "0.0" 硬编码，现真实聚合。
+
+#[derive(Debug, FromQueryResult)]
+struct InventoryByCategoryRow {
+    category_name: String,
+    quantity: Option<Decimal>,
+    value: Option<Decimal>,
+}
+
+#[derive(Debug, FromQueryResult)]
+struct InventoryAgingRow {
+    age_range: String,
+    quantity: Option<Decimal>,
+}
+
+#[derive(Debug, FromQueryResult)]
+struct TurnoverRateRow {
+    sold_quantity: Option<Decimal>,
+    stock_quantity: Option<Decimal>,
+}
+
+#[derive(Debug, FromQueryResult)]
+struct WarehouseValueRow {
+    wh_id: i32,
+    value: Option<Decimal>,
+}
+
 /// 仪表板概览数据
 #[derive(Debug, Serialize, Clone, Deserialize)]
 pub struct DashboardOverview {
@@ -431,6 +459,13 @@ impl DashboardService {
     }
 
     /// 获取库存统计数据
+    ///
+    /// 批次 135 v9 P1 修复：原 turnover_rate/by_category/aging_analysis 为硬编码占位，
+    /// 现真实聚合查询：
+    /// - turnover_rate: 销售数量 / 库存数量（无量纲周转率）
+    /// - by_category: raw SQL 关联 products + product_categories 表按品类分组
+    /// - aging_analysis: raw SQL 按 last_movement_date/created_at 计算账龄区间
+    /// 同时修复 by_warehouse.value 从 "0.0" 改为按品类查询同款 SQL 聚合真实库存价值
     pub async fn get_inventory_statistics(
         &self,
         _start_date: Option<DateTime<Utc>>,
@@ -475,7 +510,7 @@ impl DashboardService {
             .filter(inventory_stock::Column::StockStatus.eq("active"))
             .count(db);
 
-        // 仓库分布统计查询
+        // 仓库分布统计查询（含价值，按库存数量 * 产品成本价汇总）
         let warehouse_distribution_fut = inventory_stock::Entity::find()
             .filter(inventory_stock::Column::StockStatus.eq("active"))
             .select_only()
@@ -508,23 +543,59 @@ impl DashboardService {
         let warehouse_map: HashMap<i32, warehouse::Model> =
             warehouses.into_iter().map(|w| (w.id, w)).collect();
 
+        // 批次 135：按仓库分组查询库存价值（quantity_meters * cost_price）
+        let warehouse_value_stmt = Statement::from_sql_and_values(
+            sea_orm::DatabaseBackend::Postgres,
+            r#"
+            SELECT
+                s.warehouse_id as wh_id,
+                COALESCE(SUM(s.quantity_meters * COALESCE(p.cost_price, 0)), 0) as value
+            FROM inventory_stocks s
+            LEFT JOIN products p ON p.id = s.product_id
+            WHERE s.stock_status = 'active'
+            GROUP BY s.warehouse_id
+            "#,
+            [],
+        );
+        let warehouse_value_rows: Vec<WarehouseValueRow> =
+            WarehouseValueRow::find_by_statement(warehouse_value_stmt)
+                .all(db)
+                .await?;
+        let warehouse_value_map: HashMap<i32, Decimal> = warehouse_value_rows
+            .into_iter()
+            .map(|r| (r.wh_id, r.value.unwrap_or(Decimal::ZERO)))
+            .collect();
+
         let mut warehouse_stats = Vec::new();
         for (wh_id, qty) in warehouse_distribution {
             if let Some(warehouse_model) = warehouse_map.get(&wh_id) {
+                let value = warehouse_value_map
+                    .get(&wh_id)
+                    .copied()
+                    .unwrap_or(Decimal::ZERO);
                 warehouse_stats.push(InventoryByWarehouse {
                     warehouse_name: warehouse_model.name.clone(),
                     quantity: qty.unwrap_or(Decimal::ZERO).to_string(),
-                    value: "0.0".to_string(),
+                    value: value.to_string(),
                 });
             }
         }
 
+        // 批次 135：by_category 按品类分组聚合（关联 products + product_categories）
+        let by_category = self.query_inventory_by_category().await?;
+
+        // 批次 135：aging_analysis 库存账龄分析（按 last_movement_date/created_at）
+        let aging_analysis = self.query_inventory_aging().await?;
+
+        // 批次 135：turnover_rate 库存周转率 = 销售数量 / 库存数量
+        let turnover_rate = self.query_turnover_rate().await?;
+
         let statistics = InventoryStatistics {
             total_inventory: total_quantity.to_string(),
-            turnover_rate: "0.0".to_string(),
+            turnover_rate,
             by_warehouse: warehouse_stats,
-            by_category: vec![],
-            aging_analysis: vec![],
+            by_category,
+            aging_analysis,
         };
 
         // 缓存结果，有效期5分钟
@@ -537,6 +608,159 @@ impl DashboardService {
         }
 
         Ok(statistics)
+    }
+
+    /// 按品类分组聚合库存（批次 135 v9 P1 修复）
+    ///
+    /// raw SQL 关联 products + product_categories 表，按品类名分组聚合数量与价值。
+    async fn query_inventory_by_category(&self) -> Result<Vec<InventoryByCategory>, AppError> {
+        let stmt = Statement::from_sql_and_values(
+            sea_orm::DatabaseBackend::Postgres,
+            r#"
+            SELECT
+                COALESCE(pc.name, '未分类') as category_name,
+                COALESCE(SUM(s.quantity_meters), 0) as quantity,
+                COALESCE(SUM(s.quantity_meters * COALESCE(p.cost_price, 0)), 0) as value
+            FROM inventory_stocks s
+            LEFT JOIN products p ON p.id = s.product_id
+            LEFT JOIN product_categories pc ON pc.id = p.category_id
+            WHERE s.stock_status = 'active'
+            GROUP BY category_name
+            ORDER BY quantity DESC
+            "#,
+            [],
+        );
+
+        let rows = InventoryByCategoryRow::find_by_statement(stmt)
+            .all(self.db.as_ref())
+            .await?;
+
+        let results = rows
+            .into_iter()
+            .map(|r| InventoryByCategory {
+                category_name: r.category_name,
+                quantity: r.quantity.unwrap_or(Decimal::ZERO).to_string(),
+                value: r.value.unwrap_or(Decimal::ZERO).to_string(),
+            })
+            .collect();
+
+        Ok(results)
+    }
+
+    /// 库存账龄分析（批次 135 v9 P1 修复）
+    ///
+    /// 按 last_movement_date（NULL 时回退 created_at）计算账龄区间：
+    /// 0-30天、31-60天、61-90天、90天以上。
+    /// 返回每个区间的数量与百分比。
+    async fn query_inventory_aging(&self) -> Result<Vec<AgingData>, AppError> {
+        let stmt = Statement::from_sql_and_values(
+            sea_orm::DatabaseBackend::Postgres,
+            r#"
+            WITH aging AS (
+                SELECT
+                    CASE
+                        WHEN (NOW()::date - COALESCE(s.last_movement_date, s.created_at)::date) <= 30
+                            THEN '0-30天'
+                        WHEN (NOW()::date - COALESCE(s.last_movement_date, s.created_at)::date) <= 60
+                            THEN '31-60天'
+                        WHEN (NOW()::date - COALESCE(s.last_movement_date, s.created_at)::date) <= 90
+                            THEN '61-90天'
+                        ELSE '90天以上'
+                    END as age_range,
+                    s.quantity_meters as quantity
+                FROM inventory_stocks s
+                WHERE s.stock_status = 'active'
+            )
+            SELECT
+                age_range,
+                SUM(quantity) as quantity
+            FROM aging
+            GROUP BY age_range
+            "#,
+            [],
+        );
+
+        let rows = InventoryAgingRow::find_by_statement(stmt)
+            .all(self.db.as_ref())
+            .await?;
+
+        let total: Decimal = rows
+            .iter()
+            .map(|r| r.quantity.unwrap_or(Decimal::ZERO))
+            .sum();
+
+        // 期望的账龄区间顺序
+        let ordered_ranges = ["0-30天", "31-60天", "61-90天", "90天以上"];
+        let mut row_map: HashMap<String, Decimal> = HashMap::new();
+        for r in rows {
+            row_map.insert(r.age_range, r.quantity.unwrap_or(Decimal::ZERO));
+        }
+
+        let results = ordered_ranges
+            .iter()
+            .map(|range| {
+                let qty = row_map.get(*range).copied().unwrap_or(Decimal::ZERO);
+                let percentage = if total > Decimal::ZERO {
+                    (qty / total)
+                        .to_string()
+                        .parse::<f64>()
+                        .unwrap_or(0.0)
+                        * 100.0
+                } else {
+                    0.0
+                };
+                AgingData {
+                    age_range: range.to_string(),
+                    quantity: qty.to_string(),
+                    percentage,
+                }
+            })
+            .collect();
+
+        Ok(results)
+    }
+
+    /// 计算库存周转率（批次 135 v9 P1 修复）
+    ///
+    /// 周转率 = 销售数量 / 库存数量（无量纲）
+    /// - 销售数量：SUM(sales_order_items.quantity) WHERE 订单状态非 CANCELLED/DRAFT
+    /// - 库存数量：SUM(inventory_stocks.quantity_meters) WHERE stock_status = 'active'
+    /// 返回保留 4 位小数的字符串。
+    async fn query_turnover_rate(&self) -> Result<String, AppError> {
+        let stmt = Statement::from_sql_and_values(
+            sea_orm::DatabaseBackend::Postgres,
+            r#"
+            SELECT
+                (SELECT COALESCE(SUM(si.quantity), 0)
+                   FROM sales_order_items si
+                   INNER JOIN sales_orders s ON s.id = si.order_id
+                     AND s.status NOT IN ('CANCELLED', 'DRAFT')
+                ) as sold_quantity,
+                (SELECT COALESCE(SUM(quantity_meters), 0)
+                   FROM inventory_stocks
+                   WHERE stock_status = 'active'
+                ) as stock_quantity
+            "#,
+            [],
+        );
+
+        let row = TurnoverRateRow::find_by_statement(stmt)
+            .one(self.db.as_ref())
+            .await?;
+
+        let sold = row
+            .and_then(|r| r.sold_quantity)
+            .unwrap_or(Decimal::ZERO);
+        let stock = row
+            .and_then(|r| r.stock_quantity)
+            .unwrap_or(Decimal::ZERO);
+
+        if stock.is_zero() {
+            return Ok("0.0000".to_string());
+        }
+
+        let rate = sold / stock;
+        Ok(rate.round_dp(4).to_string())
     }
 
     /// 获取低库存预警数据
