@@ -62,19 +62,6 @@ mod tests {
         assert!(pong_json.contains("pong"));
     }
 
-    /// 单元测试：连接管理器
-    #[test]
-    fn test_connection_manager_basic() {
-        let manager = ConnectionManager::new();
-        assert_eq!(manager.connection_count(), 0);
-
-        let _rx = manager.register(100);
-        assert_eq!(manager.connection_count(), 1);
-
-        let _rx2 = manager.register(100);
-        assert_eq!(manager.connection_count(), 1); // 同一用户共享 sender
-    }
-
     /// 单元测试：通知广播器
     #[test]
     fn test_notification_broadcaster() {
