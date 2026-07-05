@@ -7,23 +7,19 @@ use crate::utils::admin_checker;
 use crate::utils::error::AppError;
 use chrono::Utc;
 use sea_orm::{
-    ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, PaginatorTrait, QueryFilter,
+    ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter,
     QuerySelect, Set, TransactionTrait,
 };
 use serde_json::Value;
 use std::sync::Arc;
 
 /// 数据范围类型常量
+///
+/// 批次 119 P2-5 修复：删除 4 个未接入业务的 scope 常量（DEPT/DEPT_AND_BELOW/SELF/CUSTOM），
+/// 仅保留 ALL（admin 角色使用）。如未来需要行级权限校验，应通过 data_permission 表的
+/// scope_type 字段动态读取，而非硬编码常量。
 pub mod data_scope {
     pub const ALL: &str = "ALL";
-    #[allow(dead_code)] // TODO(tech-debt): 数据权限范围常量接入 handler/校验后移除
-    pub const DEPT: &str = "DEPT";
-    #[allow(dead_code)] // TODO(tech-debt): 数据权限范围常量接入 handler/校验后移除
-    pub const DEPT_AND_BELOW: &str = "DEPT_AND_BELOW";
-    #[allow(dead_code)] // TODO(tech-debt): 数据权限范围常量接入 handler/校验后移除
-    pub const SELF: &str = "SELF";
-    #[allow(dead_code)] // TODO(tech-debt): 数据权限范围常量接入 handler/校验后移除
-    pub const CUSTOM: &str = "CUSTOM";
 }
 
 /// 数据权限查询结果
@@ -91,28 +87,6 @@ impl DataPermissionService {
                 })
             }),
         }))
-    }
-
-    /// 检查用户是否有数据权限
-    #[allow(dead_code)] // TODO(tech-debt): 数据权限检查接口接入业务后移除
-    pub async fn check_data_permission(
-        &self,
-        role_id: i32,
-        resource_type: &str,
-    ) -> Result<bool, AppError> {
-        // Admin 角色拥有全部权限（从数据库查询角色编码）
-        if self.is_admin_role(role_id).await? {
-            return Ok(true);
-        }
-
-        let count = DataPermissionEntity::find()
-            .filter(data_permission::Column::RoleId.eq(role_id))
-            .filter(data_permission::Column::ResourceType.eq(resource_type))
-            .filter(data_permission::Column::IsEnabled.eq(true))
-            .count(&*self.db)
-            .await?;
-
-        Ok(count > 0)
     }
 
     /// 检查角色是否为管理员角色（带缓存）
