@@ -6,6 +6,26 @@
 
 ---
 
+## 2026-07-05 (批次 115 v7 复审 P1-3 修复完成)
+
+### 批次 115：v7 复审 P1 修复 — 删除未接入业务的 failover 抽象模块
+
+**PR #359，main commit `e9f3996`**
+
+| 修复项 | 内容 |
+|--------|------|
+| P1-3 | 删除 `backend/src/utils/failover/` 整个目录（4 文件 1015 行）：mod.rs（FailoverCall trait + FailoverError）/ database.rs（FailoverDatabase 4 处 dead_code）/ cache.rs（FailoverCache）/ circuit_breaker.rs（CircuitBreaker） |
+| 测试清理 | 删除 2 个集成测试：`tests/failover_trait_test.rs` + `tests/failover_circuit_test.rs`（测试已删除的代码） |
+| 模块清理 | `backend/src/utils/mod.rs` 移除 `pub mod failover;` |
+
+**关键决策**：
+- 决策依据：用户规则 0「真实实现强制」+「禁止遗留占位代码」+「不使用的文件必须删除」
+- grep 验证：FailoverDatabase / FailoverCache / FailoverCall / CircuitBreaker 全部零业务调用
+- 项目已有独立的 FailoverService（services/failover_service.rs）被 failover_handler 真实调用，不依赖被删模块
+- 保留：failover_service.rs / failover_handler.rs / routes/failover.rs / config/failover.rs / models/failover_*
+
+---
+
 ## 2026-07-05 (批次 114 v7 复审 P1-6/P1-5 修复完成 + .monkeycode 文件夹整理优化)
 
 ### 批次 114：v7 复审 P1 修复 — 通知路径 warn 日志化 + 启动期 expect 安全化 + 记忆文件整理
