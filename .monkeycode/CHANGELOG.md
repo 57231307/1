@@ -6,6 +6,29 @@
 
 ---
 
+## 2026-07-05 (批次 122 v8 复审 P1 crm 标签真实接入完成)
+
+### 批次 122：v8 复审 P1 修复 — CRM 标签真实接入 crm_tag 表 + 路由路径修复
+
+**PR #366，main commit `f181e1b`，8 文件 +161 -30 行**
+
+| 修复项 | 内容 |
+|--------|------|
+| 新增 crm_tag 表 | migration m0040 + SQL up/down：id/name/color/category/created_by/created_at/updated_at + idx_crm_tag_category 索引 |
+| 初始化预定义标签 | VIP/重点客户/潜在客户/新客户/流失客户 5 个标签 ON CONFLICT DO NOTHING 保证向后兼容 |
+| 新增 crm_tag entity | backend/src/models/crm_tag.rs + models/mod.rs 注册 |
+| list_tags 真实接入 | 原返回硬编码 5 个标签，改为查 crm_tag 表真实数据，返回 Vec<crm_tag::Model> |
+| create_tag 真实接入 | 原用时间戳生成假 id 不持久化，改为 INSERT 到 crm_tag 表；CreateTagDto 增加 category 字段 |
+| delete_tag 真实接入 | 原直接返回 {deleted: true} 空操作，改为 DELETE FROM crm_tag，rows_affected == 0 时返回 404 |
+| 路由路径修复 | /crm-tags → /crm/tags 匹配前端 crm-enhanced.ts 调用（原前端 404 bug） |
+
+**关键决策**：
+- 选择专门标签表方案（方案 B）而非聚合去重（方案 A），因为前端 CustomerTag interface 期望 5 字段（id/name/color/category/created_at）且 addTagToCustomer/removeTagFromCustomer 使用 tagId 操作
+- 保留 crm_lead.tags TEXT[] 数组字段向后兼容（add_tags handler 仍覆盖式更新该数组）
+- 路由路径 /crm-tags 改为 /crm/tags 解决前后端路径不一致导致的 404
+
+---
+
 ## 2026-07-05 (批次 121 v8 复审死代码清理首项完成)
 
 ### 批次 121：v8 复审死代码清理 — 删除 KafkaEventEnvelope（report/ds+job 误删已恢复）

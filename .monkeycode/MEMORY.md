@@ -41,7 +41,7 @@
 
 ---
 
-## 二、当前任务状态（2026-07-05 批次 121 完成 - v8 复审死代码清理首项完成，继续 v8 复审 P1/P2 修复）
+## 二、当前任务状态（2026-07-05 批次 122 完成 - v8 复审 P1 crm 标签真实接入完成，继续 v8 复审剩余项）
 
 > 用户最高优先级规则已在「一、规则 0」固化，本节仅记录修复进度。
 
@@ -113,16 +113,25 @@ v7 复审 P0/P1/P2 项全部修复完成（P0 4 项 + P1 10 项 + P2 13 项 = 27
 | 批次 | PR | main commit | 修复项 | 状态 |
 |------|-----|-------------|--------|------|
 | 121 | #365 | `71b9bfb` | v8 死代码清理：删除 event_kafka KafkaEventEnvelope struct + from_event + into_event（零业务调用方），保留 event_type_name 标记 #[cfg(test)] | ✅ |
+| 122 | #366 | `f181e1b` | v8 P1 crm 标签真实接入：新增 crm_tag 表 + list_tags/create_tag/delete_tag 真实持久化 + 路由路径 /crm-tags → /crm/tags 修复前端 404 | ✅ |
 
 **批次 121 修复明细**：
 - 删除 event_kafka.rs 中 KafkaEventEnvelope struct + from_event + into_event（74 行，零业务调用方）
 - 保留 event_type_name 供测试断言使用，标记 #[cfg(test)] 避免非测试编译时 dead_code
 - **CI 失败教训**：首次误删 report/ds.rs + report/job.rs（v8 子代理误报为死代码），CI 报 `no method named 'execute_report' found for struct 'ReportEngineService'`。根因：ds.rs 包含 `impl ReportEngineService { pub async fn execute_report ... }` 跨文件 impl 块，被 report_engine_handler 等调用。修复：从 HEAD~1 恢复 ds.rs + job.rs + mod.rs，仅保留 KafkaEventEnvelope 删除，force push 后 CI 全绿
 
+**批次 122 修复明细**：
+- 新增 migration m0040 + SQL：创建 crm_tag 表（id/name/color/category/created_by/created_at/updated_at），初始化 5 个预定义标签（VIP/重点客户/潜在客户/新客户/流失客户）保证向后兼容
+- 新增 crm_tag entity 模型并在 models/mod.rs 注册
+- list_tags：原返回硬编码 5 个标签，改为查 crm_tag 表真实数据
+- create_tag：原用时间戳生成假 id 不持久化，改为 INSERT 到 crm_tag 表；CreateTagDto 增加 category 字段
+- delete_tag：原直接返回 {deleted: true} 空操作，改为 DELETE FROM crm_tag，不存在时返回 404
+- **路由路径修复**：/crm-tags 改为 /crm/tags 匹配前端 crm-enhanced.ts 调用（原前端 404 bug）
+- 返回结构含 id/name/color/category/created_at 完整字段，匹配前端 CustomerTag interface
+
 ### 下一步：继续 v8 复审 P1/P2 修复
 
 按用户自动推进指令，继续处理 v8 复审剩余项：
-- P1：crm_customer_handler list_tags 硬编码标签真实接入（查 customer_tag 表或 crm_lead.tags 聚合）
 - P1：search/elastic.rs stub 实现真实接入（SearchSyncer 接入 PG→ES 写入同步）
 - P2：print_handler / import_export_handler 空列表占位真实接入
 - P2：report_enhanced_handler 硬编码字段定义 + financial_analysis_handler 假执行状态 + inventory_stock_query alert_type 硬编码
