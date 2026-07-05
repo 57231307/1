@@ -5,7 +5,7 @@
 
 ---
 
-## 🔄 当前任务：v7 第七轮复审 P1 修复（批次 115 已完成，继续批次 116）
+## 🔄 当前任务：v7 第七轮复审 P1 修复（批次 116 已完成，继续批次 117）
 
 > 用户最高优先级规则（2026-07-04 追加）已固化到 [MEMORY.md 一、规则 0](file:///workspace/.monkeycode/MEMORY.md)。
 > 本文件仅记录任务进度，规则不在此重复。
@@ -16,6 +16,7 @@
 
 | 批次 | PR | main commit | 内容 |
 |------|-----|-------------|------|
+| 116 | #360 | `5e00b04` | v7 P1-4 删除未接入业务的 Redis 缓存层模块（2 文件 504 行 + 清理 user/product service cache 代码 105 行） |
 | 115 | #359 | `e9f3996` | v7 P1-3 删除未接入业务的 failover 抽象模块（4 文件 1015 行 + 2 集成测试） |
 | 114 | #358 | `36a9730` | v7 P1-6 通知路径 warn 日志化（10 处）+ P1-5 启动期 expect 安全化（3 处中风险）+ .monkeycode 文件夹整理优化 |
 | 113 | #357 | `9d65a72` | v7 P1-1 webhook PUT 语义 + P1-7 占位符 2 处 + P1-8 let _ = 检查存在性 5 处 |
@@ -30,25 +31,24 @@
 | 104 | #348 | `e0a8672` | search_api.rs 3 个搜索端点真实接入 SearchClient |
 | 103 | #347 | `b788b11` | 预留 API/占位符功能实现（PasswordPolicyService + admin 缓存 + 死路由） |
 | 102 | #346 | `ed27a6c` | v6 P3 修复（状态字符串常量化扩展 66 处 + 错误分类修复） |
-| 101 | #345 | `835b990` | v6 P2 修复（customer/purchase_return 事务+锁+审计） |
 
-### 批次 116 规划
+### 批次 117 规划
 
-**目标**：v7 复审剩余 P1 项修复 — P1-4 cache/redis_client.rs 辅助 API 真实接入
+**目标**：v7 复审剩余 P1 项修复 — P1-5 剩余 8 处低风险 .unwrap()/.expect() 保留并加注释
 
-**背景**：`backend/src/cache/redis_client.rs` 11 处辅助 API（如 health_check / stats / metrics 等）未接入业务，被标为 dead_code。
+**背景**：批次 114 已修复 3 处中风险启动期 expect，剩余 8 处低风险 .unwrap()/.expect() 分布在生产代码中，按规则 0「真实实现强制」需评估每一处。
 
 **修复方案**（待调研）：
-- 选项 A：真实接入 → 在 AppState 中装配 RedisClient + 暴露健康检查/监控端点
-- 选项 B：评估辅助 API 是否仍需要 → 若不需要则删除（git 保留历史）
-- 选项 C：项级 `#[allow(dead_code)] + TODO(tech-debt)` 注释，下一迭代接入
+- 选项 A：低风险 .unwrap()/.expect() 逐个评估，能改为优雅降级的改 warn 日志 + 默认值
+- 选项 B：保留并加项级 `#[allow(dead_code)] + TODO(tech-debt)` 注释（仅限编译器/clippy 报告的位置）
+- 选项 C：真实风险点改为 `match` + `tracing::error!` + 优雅降级
 
-**修复模式参考**（来自批次 115）：
-- 零业务调用的模块：直接删除整个文件/目录（git 保留历史），避免遗留占位代码
+**修复模式参考**（来自批次 114）：
+- 启动期 expect 安全化：`unwrap_or_else(|_| { eprintln!("友好提示"); std::process::exit(1); })`
+- 运行期 warn 日志化：`if let Err(e) = ... { tracing::warn!(error=%e, context, "描述"); }`
 
 ### 后续批次规划
 
-- **批次 117**：v7 复审 P1-5 剩余 8 处低风险 .unwrap()/.expect()（保留并加注释）
 - **批次 118+**：v7 复审 P2 项修复
 - **持续**：SearchSyncer 接入 PG→ES 写入同步
 

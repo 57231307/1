@@ -6,6 +6,26 @@
 
 ---
 
+## 2026-07-05 (批次 116 v7 复审 P1-4 修复完成)
+
+### 批次 116：v7 复审 P1 修复 — 删除未接入业务的 Redis 缓存层模块
+
+**PR #360，main commit `5e00b04`**
+
+| 修复项 | 内容 |
+|--------|------|
+| P1-4 | 删除 `backend/src/cache/` 整个目录（2 文件 504 行）：mod.rs + redis_client.rs（CacheService Redis 后端 + CacheBackend trait + RedisBackend + CacheStats + NullBackend + 5 单元测试） |
+| 代码清理 | 清理 `main.rs` / `lib.rs` 移除 cache 模块声明；清理 `user_service.rs` 移除 cache 字段 + with_cache() + cache_key() + 4 处 cache 调用；清理 `product_service.rs` 移除 cache 字段 + with_cache() + cache_key() + 3 处 cache 调用 |
+
+**关键决策**：
+- 决策依据：用户规则 0「真实实现强制」+「禁止遗留占位代码」+「不使用的文件必须删除」
+- `crate::cache::CacheService`（Redis 后端）的 `with_cache()` 从未被任何 handler/service 调用
+- `user_service` / `product_service` 的 cache 字段永远是 None，所有 cache 操作都不会执行
+- 11 处辅助 API（from_env / is_enabled / stats / snapshot / new / disabled / connect / ping 等）全部 dead_code
+- 保留：`utils/cache.rs::AppCache`（csrf/token_blacklist/dashboard 真实使用）+ `services/cache_service.rs::CacheService`（moka LRU，AppState 装配）
+
+---
+
 ## 2026-07-05 (批次 115 v7 复审 P1-3 修复完成)
 
 ### 批次 115：v7 复审 P1 修复 — 删除未接入业务的 failover 抽象模块
