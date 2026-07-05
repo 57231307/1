@@ -5,17 +5,29 @@
 
 ---
 
-## 🔄 当前任务：v8 全项目复审 P2 全部完成（批次 129），启动 v9 全项目复审
+## 🔄 当前任务：v9 全项目复审 P0/P1 修复中（批次 130 完成，进行批次 131+）
 
 > 用户最高优先级规则（2026-07-04 追加）已固化到 [MEMORY.md 一、规则 0](file:///workspace/.monkeycode/MEMORY.md)。
 > 本文件仅记录任务进度，规则不在此重复。
 
 实现规划：`docs/audits/2026-07-04-batch103-placeholder-impl-plan.md`
 
+### v9 复审结果（2 个并行子代理扫描）
+
+- **P0 阻塞（2 项）**：
+  1. `bi_analysis_service.rs` 16 个方法全部返回硬编码 mock 数据 ← **批次 130 已修复 ✅**
+  2. `purchase_inspection_handler.rs` 4 个明细 CRUD 端点全部占位 ← **批次 131 待修复**
+- **P1 重要（4 项）**：
+  1. `production_order_handler.rs:417-429` get_production_order_logs 固定空列表 ← 批次 132
+  2. `ap_invoice_handler.rs:301-314` get_statistics "统计报表功能开发中" 占位 ← 批次 133
+  3. `dashboard_service.rs:267-271` get_sales_statistics 5 字段 vec![] 占位 ← 批次 134
+  4. `dashboard_service.rs:377,379-380` get_inventory_statistics 3 字段硬编码占位 ← 批次 135
+
 ### 已完成批次（最近 15 个）
 
 | 批次 | PR | main commit | 内容 |
 |------|-----|-------------|------|
+| 130 | #374 | `2a42d3d` | v9 P0 bi_analysis_service 16 个方法真实接入数据库查询（SeaORM raw SQL + FromQueryResult + 11 中间结构体；bi_handler 16 handler 改实例方法注入 state.db；5 轮 CI 修复：所有权移动/未使用导入/语法错误/不必要类型转换/不必要闭包；2 文件 +962 -272 行）|
 | 129 | #373 | `8bd404b` | v8 P2 financial_analysis_handler execute_report 真实执行：调用 calculate_indicators 真实计算财务指标 + ExecuteReportParams 可选 period 参数 + 透明响应 completed/no_data（1 文件 +65 -17 行，CI 一次通过）|
 | 128 | #372 | `09601cb` | v8 P2 report_enhanced_handler 字段定义静态配置化：ReportFieldDefinition struct + available_fields_for_type 静态方法替代硬编码 serde_json::json!（2 文件 +74 -37 行，无 CI 错误一次通过）|
 | 127 | #371 | `66cbe81` | v8 P2 import_export_handler 接入 import_tasks 表：list_import_tasks 真实查询 + import_csv/import_excel 创建+更新任务记录（m0041 migration + import_task model + 3 个 service 方法 + 3 处 handler 修改，8 文件 +267 -14 行；CI 修复：list_import_tasks 签名全路径 + QuerySelect trait）|

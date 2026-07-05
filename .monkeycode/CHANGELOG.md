@@ -6,6 +6,39 @@
 
 ---
 
+## 2026-07-05 (批次 130 v9 复审 P0 bi_analysis_service 16 个方法真实接入数据库查询完成)
+
+### 批次 130：v9 复审 P0 修复 — bi_analysis_service 16 个方法真实接入数据库查询
+
+**PR #374，main commit `2a42d3d`，2 文件 +962 -272 行**
+
+| 修复项 | 内容 |
+|--------|------|
+| BiAnalysisService struct | 新增 `db: Arc<DatabaseConnection>` 字段 + `new(db)` 构造函数，16 个方法从静态方法改为实例方法 |
+| 11 个 FromQueryResult 中间结构体 | TimeSeriesRow / CustomerRankRow / ProductRankRow / RegionStatRow / CategoryStatRow / ProfitRow / KpiRow / CustomerOrderRow / ProductOrderRow / TotalRow / YoYRow / MoMRow |
+| dec_to_f64 工具函数 | Decimal → f64 安全转换（to_string().parse() 避免精度损失）|
+| 8 个维度聚合方法 | sales_by_time / sales_by_customer / sales_by_product / sales_by_region / sales_by_category / sales_trend / profit_analysis / kpi_summary 全部真实查询 sales_orders / sales_order_items / customers / products / product_categories 表 |
+| 4 个钻取方法 | drilldown_year_to_month / drilldown_month_to_day（缺失月份/日期补 0）/ drilldown_customer_to_order / drilldown_product_to_order |
+| 4 个切片/上卷/透视方法 | slice / dice / rollup / pivot 真实查询 + 动态 SQL 构建 |
+| bi_handler.rs | 16 个 handler 从 `BiAnalysisService::method()` 静态调用改为 `BiAnalysisService::new(state.db.clone()).method()` 实例调用 |
+| make_service 测试辅助 | DATABASE_URL 环境变量驱动，CI 无数据库时跳过测试 |
+
+**5 轮 CI 修复**：
+1. **commit af6f114**：修复所有权移动错误（`[this_year.into(), month.into(), last_year.into()]` 移动所有权后无法使用 → 改为 `clone().into()`）+ 移除未使用的 `ConnectionTrait` 导入
+2. **commit e2a54e8**：修复 sales_by_region/sales_by_category 返回类型 `Result<Json<ApiResponse<BiResponse<Vec<RegionStat>>>, AppError>` 缺少最后一个 `>` 的语法错误
+3. **commit 60a7a18**：修复 3 个 clippy 新增警告 — `(customer_id as i64).into()` 改 `customer_id.into()`（不必要的类型转换）+ `.day() as u32` 改 `.day()` + 2 处 `unwrap_or_else(|| chrono::Local::now().date_naive())` 改 `unwrap_or(...)`（不必要闭包）
+4. **commit 6018b74**：修复 1 个 clippy 警告 — `r.category.unwrap_or_else(|| "未分类".to_string())` 改 `unwrap_or("未分类".to_string())`
+5. **commit 1bff946**：修复最后 1 个 clippy 警告 — drilldown_year_to_month 和 drilldown_month_to_day 中 `unwrap_or_else(|| TimeSeriesPoint { period, ... })` 改为 `match` 表达式（虽然闭包捕获 period 非法 Copy，但 clippy 1.94.0 的 unnecessary_lazy_evaluations lint 仍标记）
+
+**关键决策**：
+- 使用 SeaORM raw SQL（`Statement::from_sql_and_values` + `FromQueryResult`）而非 Entity 查询，因为 BI 分析涉及多表 JOIN + 子查询 + 聚合，raw SQL 更直观
+- 排除 CANCELLED 和 DRAFT 状态的订单（不计入销售统计）
+- 利润 = 销售额 - 成本，成本 = SUM(sales_order_items.quantity * products.cost_price)
+- percentage 计算需要先查询总销售额，再用客户/品类销售额除以总销售额 * 100
+- 钻取方法补全缺失月份/日期：年→月补全 1-12 月，月→日补全 1-该月天数，缺失补 0
+
+---
+
 ## 2026-07-05 (批次 129 v8 复审 P2 financial_analysis_handler execute_report 真实执行完成，v8 复审 P2 全部完成 5/5)
 
 ### 批次 129：v8 复审 P2 修复 — financial_analysis_handler execute_report 真实执行

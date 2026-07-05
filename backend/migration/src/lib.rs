@@ -57,6 +57,9 @@ pub mod m0040_create_crm_tags;
 // 批次 127 v8 复审 P2：导入任务记录表（替代 list_import_tasks 空列表占位 + import_csv/import_excel 不落库）
 pub mod m0041_create_import_tasks;
 
+// 批次 131 v9 复审 P0：采购质检明细表（替代 4 个明细 CRUD 端点占位）
+pub mod m0042_create_purchase_inspection_items;
+
 pub struct Migrator;
 
 #[async_trait::async_trait]
@@ -104,6 +107,7 @@ impl MigratorTrait for Migrator {
             Box::new(m0039_add_created_by_to_api_keys::Migration),
             Box::new(m0040_create_crm_tags::Migration),
             Box::new(m0041_create_import_tasks::Migration),
+            Box::new(m0042_create_purchase_inspection_items::Migration),
         ]
     }
 }

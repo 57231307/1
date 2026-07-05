@@ -4,8 +4,8 @@
 
 use crate::middleware::auth_context::AuthContext;
 use crate::services::purchase_inspection_service::{
-    CompleteInspectionRequest, CreatePurchaseInspectionRequest, PurchaseInspectionService,
-    UpdatePurchaseInspectionRequest,
+    CompleteInspectionRequest, CreateInspectionItemRequest, CreatePurchaseInspectionRequest,
+    PurchaseInspectionService, UpdateInspectionItemRequest, UpdatePurchaseInspectionRequest,
 };
 use crate::utils::app_state::AppState;
 use crate::utils::error::AppError;
@@ -164,82 +164,112 @@ pub struct UpdateInspectionItemDto {
 // =====================================================
 
 /// 获取质检明细列表
+///
+/// 批次 131 v9 复审 P0：原返回硬编码空列表 {items: [], total: 0}，
+/// 现真实查询 purchase_inspection_items 表。
 pub async fn list_inspection_items(
     Path(id): Path<i32>,
     State(state): State<AppState>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     let service = PurchaseInspectionService::new(state.db.clone());
-    let _inspection = service.get_inspection(id).await?;
+    let items = service.list_inspection_items(id).await?;
 
-    // 暂时返回空列表，后续可扩展明细表
+    let total = items.len() as i64;
     Ok(Json(ApiResponse::success(serde_json::json!({
-        "items": [],
-        "total": 0,
+        "items": items,
+        "total": total,
         "inspection_id": id
     }))))
 }
 
 /// 创建质检明细
+///
+/// 批次 131 v9 复审 P0：原仅记日志不落库，现真实 INSERT purchase_inspection_items 表。
 pub async fn create_inspection_item(
     Path(id): Path<i32>,
     State(state): State<AppState>,
     auth: AuthContext,
     Json(req): Json<CreateInspectionItemDto>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
-    // P1-2i 修复（批次 81 v1 复审）：强类型 DTO + validator 替代 Json<Value>
     req.validate()
         .map_err(|e| AppError::validation(e.to_string()))?;
 
-    let service = PurchaseInspectionService::new(state.db.clone());
-    let _inspection = service.get_inspection(id).await?;
+    // handler DTO 转 service DTO
+    let svc_req = CreateInspectionItemRequest {
+        product_id: req.product_id,
+        item_name: req.item_name,
+        qualified_quantity: req.qualified_quantity,
+        unqualified_quantity: req.unqualified_quantity,
+        remark: req.remark,
+    };
 
-    tracing::info!("用户 {} 为质检单 {} 创建明细", auth.user_id, id);
+    let service = PurchaseInspectionService::new(state.db.clone());
+    let item = service.create_inspection_item(id, svc_req).await?;
+
+    tracing::info!("用户 {} 为质检单 {} 创建明细 {}", auth.user_id, id, item.id);
 
     Ok(Json(ApiResponse::success_with_message(
-        serde_json::json!({
-            "inspection_id": id,
-            "item": serde_json::to_value(&req).unwrap_or(serde_json::Value::Null)
-        }),
+        serde_json::to_value(&item)?,
         "质检明细创建成功",
     )))
 }
 
 /// 更新质检明细
+///
+/// 批次 131 v9 复审 P0：原仅记日志不更新，现真实 UPDATE purchase_inspection_items 表。
 pub async fn update_inspection_item(
     Path((id, item_id)): Path<(i32, i32)>,
     State(state): State<AppState>,
     auth: AuthContext,
     Json(req): Json<UpdateInspectionItemDto>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
-    // P1-2i 修复（批次 81 v1 复审）：强类型 DTO + validator 替代 Json<Value>
     req.validate()
         .map_err(|e| AppError::validation(e.to_string()))?;
 
-    let service = PurchaseInspectionService::new(state.db.clone());
-    let _inspection = service.get_inspection(id).await?;
+    // handler DTO 转 service DTO
+    let svc_req = UpdateInspectionItemRequest {
+        qualified_quantity: req.qualified_quantity,
+        unqualified_quantity: req.unqualified_quantity,
+        remark: req.remark,
+    };
 
-    tracing::info!("用户 {} 更新质检单 {} 的明细 {}", auth.user_id, id, item_id);
+    let service = PurchaseInspectionService::new(state.db.clone());
+    let item = service
+        .update_inspection_item(id, item_id, svc_req)
+        .await?;
+
+    tracing::info!(
+        "用户 {} 更新质检单 {} 的明细 {}",
+        auth.user_id,
+        id,
+        item_id
+    );
 
     Ok(Json(ApiResponse::success_with_message(
-        serde_json::json!({
-            "inspection_id": id,
-            "item_id": item_id,
-            "updated": serde_json::to_value(&req).unwrap_or(serde_json::Value::Null)
-        }),
+        serde_json::to_value(&item)?,
         "质检明细更新成功",
     )))
 }
 
 /// 删除质检明细
+///
+/// 批次 131 v9 复审 P0：原仅记日志不删除，现真实 DELETE purchase_inspection_items 表。
 pub async fn delete_inspection_item(
     Path((id, item_id)): Path<(i32, i32)>,
     State(state): State<AppState>,
     auth: AuthContext,
 ) -> Result<Json<ApiResponse<()>>, AppError> {
     let service = PurchaseInspectionService::new(state.db.clone());
-    let _inspection = service.get_inspection(id).await?;
+    let deleted = service.delete_inspection_item(id, item_id).await?;
 
-    tracing::info!("用户 {} 删除质检单 {} 的明细 {}", auth.user_id, id, item_id);
+    if deleted {
+        tracing::info!(
+            "用户 {} 删除质检单 {} 的明细 {}",
+            auth.user_id,
+            id,
+            item_id
+        );
+    }
 
     Ok(Json(ApiResponse::success_with_message(
         (),
