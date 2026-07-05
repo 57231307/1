@@ -28,6 +28,8 @@ use std::sync::{Arc, LazyLock};
 use tokio::sync::broadcast;
 
 use crate::config::settings::KafkaSettings;
+// 批次 125 v8 复审 P1 修复：start_event_listener 注入 search_client 用于 SalesService 实例化
+use crate::search::SearchClient;
 
 // ============================================================================
 // 公共类型（业务事件枚举）
@@ -333,12 +335,14 @@ pub async fn init_event_bus_with_kafka_config(kafka_cfg: &KafkaSettings) {
 // 旧 API：`start_event_listener`（保持完全兼容）
 // ============================================================================
 
-pub async fn start_event_listener(db: Arc<DatabaseConnection>) {
+pub async fn start_event_listener(db: Arc<DatabaseConnection>, search_client: Arc<dyn SearchClient>) {
     // 启动库存财务桥接服务监听器
     crate::services::inventory_finance_bridge_service::InventoryFinanceBridgeService::start_listener(db.clone());
 
     let mut receiver = EVENT_BUS.subscribe();
 
+    // 批次 125 v8 复审 P1 修复：search_client 移入 tokio::spawn 闭包，
+    // 供闭包内 SalesService::new(db, search_client) 实例化使用。
     tokio::spawn(async move {
         while let Ok(event) = receiver.recv().await {
             // 批次 7（2026-06-28）：单次事件处理 panic 隔离
@@ -492,7 +496,7 @@ pub async fn start_event_listener(db: Arc<DatabaseConnection>) {
                     } else if business_type == "sales_order" {
                         if approved {
                             let sales_service =
-                                crate::services::so::order::SalesService::new(db.clone());
+                                crate::services::so::order::SalesService::new(db.clone(), search_client.clone());
                             if let Err(e) = sales_service.approve_order(business_id, approver_id).await {
                                 tracing::error!(
                                     "Failed to approve sales_order {} via BPM: {}",
@@ -507,7 +511,7 @@ pub async fn start_event_listener(db: Arc<DatabaseConnection>) {
                             }
                         } else {
                             let sales_service =
-                                crate::services::so::order::SalesService::new(db.clone());
+                                crate::services::so::order::SalesService::new(db.clone(), search_client.clone());
                             match sales_service
                                 .reject_order(business_id, "BPM审批拒绝".to_string(), approver_id)
                                 .await

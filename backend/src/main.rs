@@ -487,7 +487,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             let app_state_clone5 = app_state.clone();
             let app_state_clone6 = app_state.clone();
             let app_state_clone7 = app_state.clone();
-            crate::services::event_bus::start_event_listener(app_state.db.clone()).await;
+            crate::services::event_bus::start_event_listener(app_state.db.clone(), app_state.search_client.clone()).await;
             crate::services::event_bus::init_event_bus_with_kafka_config(&settings.kafka).await;
             // 批次 120 P2-7 修复：启动时初始化 8 个辅助核算维度（幂等实现）
             // 原方法保留 `#[allow(dead_code)]` 标记，违反规则 0（真实实现强制）。
