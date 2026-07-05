@@ -1,5 +1,4 @@
 use chrono::Utc;
-use rust_decimal::Decimal;
 use sea_orm::DatabaseConnection;
 use sea_orm::{
     ActiveModelTrait, ColumnTrait, EntityTrait, Order, PaginatorTrait, QueryFilter, QueryOrder, Set,
@@ -61,63 +60,6 @@ impl AssistAccountingService {
         }
 
         Ok(())
-    }
-
-    /// 创建辅助核算记录
-    #[allow(dead_code)] // TODO(tech-debt): 业务模块接入自动生成辅助核算后移除
-    #[allow(clippy::too_many_arguments)]
-    pub async fn create_assist_record(
-        &self,
-        business_type: String,
-        business_no: String,
-        business_id: i32,
-        account_subject_id: i32,
-        debit_amount: Decimal,
-        credit_amount: Decimal,
-        five_dimension_id: String,
-        product_id: i32,
-        batch_no: String,
-        color_no: String,
-        dye_lot_no: Option<String>,
-        grade: String,
-        warehouse_id: i32,
-        quantity_meters: Decimal,
-        quantity_kg: Decimal,
-        workshop_id: Option<i32>,
-        customer_id: Option<i32>,
-        supplier_id: Option<i32>,
-        remarks: Option<String>,
-        created_by: Option<i32>,
-    ) -> Result<assist_accounting_record::Model, AppError> {
-        let active_record = assist_accounting_record::ActiveModel {
-            id: Default::default(),
-            business_type: Set(business_type),
-            business_no: Set(business_no),
-            business_id: Set(business_id),
-            account_subject_id: Set(account_subject_id),
-            debit_amount: Set(debit_amount),
-            credit_amount: Set(credit_amount),
-            five_dimension_id: Set(five_dimension_id),
-            product_id: Set(product_id),
-            batch_no: Set(batch_no),
-            color_no: Set(color_no),
-            dye_lot_no: Set(dye_lot_no),
-            grade: Set(grade),
-            workshop_id: Set(workshop_id),
-            warehouse_id: Set(warehouse_id),
-            customer_id: Set(customer_id),
-            supplier_id: Set(supplier_id),
-            quantity_meters: Set(quantity_meters),
-            quantity_kg: Set(quantity_kg),
-            remarks: Set(remarks),
-            created_at: Set(Utc::now()),
-            created_by: Set(created_by),
-        };
-
-        active_record
-            .insert(&*self.db)
-            .await
-            .map_err(AppError::from)
     }
 
     /// 按业务类型和业务单号查询辅助核算记录

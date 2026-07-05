@@ -33,8 +33,7 @@ pub mod color_space_converter;
 // P0-5 面料多色号定价扩展 - 价格计算引擎
 pub mod price_calculator;
 // 批次 106 修复：n_plus_one 工具模块已删除（删除 performance_optimizer 后零业务引用）
-// P4-2 安全加固 - 令牌桶限流算法
-pub mod token_bucket;
+// 批次 119 修复：token_bucket 模块已删除（生产限流已用 MemoryRateLimiter + Redis 双轨，TokenBucket 零业务引用）
 // P9-1 关键路径 unwrap 清理 - 统一 expect/unwrap 集中化工具
 pub mod unwrap_safe;
 // P0-Wave1 安全加固 - 安全事件审计
