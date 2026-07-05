@@ -231,7 +231,8 @@ pub async fn reject_adjustment(
     // 发送审批拒绝通知
     if let Some(ref event_service) = state.event_notification_service {
         if let Some(created_by) = detail.adjustment.created_by {
-            let _ = event_service
+            // 批次 114 P1-6：通知发送失败改 warn 日志（原 `let _ =` 静默吞错）
+            if let Err(e) = event_service
                 .notify_approval_result(
                     created_by,
                     &detail.adjustment.adjustment_no,
@@ -239,7 +240,10 @@ pub async fn reject_adjustment(
                     &auth.username,
                     None,
                 )
-                .await;
+                .await
+            {
+                tracing::warn!(error = %e, adjustment_id = id, "库存调整审批拒绝通知发送失败");
+            }
         }
     }
 

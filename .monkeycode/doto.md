@@ -5,7 +5,7 @@
 
 ---
 
-## 🔄 当前任务：v7 第七轮全项目复审（批次 112 已完成，继续 P1 项修复）
+## 🔄 当前任务：v7 第七轮复审 P1 修复（批次 113 已完成，继续批次 114）
 
 **用户新规则（2026-07-04 追加，最高优先级）**：
 > 对所有预留的 api 及预留的功能/占位符功能/路由进行实现，
@@ -15,70 +15,56 @@
 
 实现规划：`docs/audits/2026-07-04-batch103-placeholder-impl-plan.md`
 
-### 已完成批次
+### 已完成批次（最近 15 个）
 
 | 批次 | PR | main commit | 内容 |
 |------|-----|-------------|------|
-| 103 | #347 | `b788b11` | 预留 API/占位符功能实现（P0-3 密码策略 / P0-4 过时 TODO / P2-3 admin 缓存 / P1-7 死路由 + CI clippy 修复） |
-| 104 | #348 | `e0a8672` | search_api.rs 3 个搜索端点真实接入 SearchClient + AppState 注入 + 可降级方案 |
-| 105 | #349 | `bc075ad` | 删除 messaging/ 死代码模块（kafka.rs 444 + bus.rs 111 + mod.rs 8 行，已被 services/event_kafka.rs 真实集成取代） |
-| 106 | #350 | `7f2cc82` | 删除 performance_optimizer(154行) + operation_log_service(399行) + n_plus_one(93行)；business_metrics 真实接入 MetricsService（同一 Registry，/metrics 自动暴露 erp_* 指标） |
-| 107 | #351 | `c45f7e7` | cache_service L1 本地缓存真实接入 AppState + 5 处 dead_code 标注移除；color_card 路由确认已挂载（16 端点） |
-| 108 | #352 | `e73ddd7` | ar/recon 路由接入（update/delete/send/close 4 端点 + 删除重复 confirm/dispute）+ webhook handler 真实实现（test/retry/logs 3 端点）+ 7 处 dead_code 标注移除 |
-| 109 | #353 | `21776c5` | v7 复审修复：ar_reconciliation notes 持久化（migration m0038）+ webhook 事件不匹配 4xx + 4 处 dead_code 接入（日期过滤/remark/customer_id 校验） |
-| 110 | #354 | `20a8c11` | v7 复审 P0 修复：webhook callback 加入 PUBLIC_PATHS + message_type/title/payload 接入业务（结构化日志 + 摘要回执） |
-| 111 | `621cb0a` + #355 | `20a8ce7` | v7 复审 P1 修复：incoterms 接入 quotation_service（校验+日志业务元数据）+ audit_enhanced start_date/end_date 日期过滤 + crm 公海池 keyword/source 接入 LeadQuery |
-| 112 | #356 | `6052810` | v7 复审 P1-9 修复：api_keys 表 created_by 列持久化（migration m0039 + model + service 参数 + handler 透传 auth.user_id） |
+| 113 | #357 | `9d65a72` | v7 P1-1 webhook PUT 语义 + P1-7 占位符 2 处 + P1-8 let _ = 检查存在性 5 处 |
+| 112 | #356 | `6052810` | v7 P1-9 api_keys 表 created_by 列持久化（migration m0039） |
+| 111 | #355 + 621cb0a | `20a8ce7` | v7 P1-2 incoterms 接入 quotation_service + P1-10 audit/crm keyword/source |
+| 110 | #354 | `20a8c11` | v7 P0 webhook callback PUBLIC_PATHS + message_type/title + payload 接入 |
+| 109 | #353 | `21776c5` | v7 P1-1 ar_reconciliation notes 持久化 + webhook 事件不匹配 4xx + 4 处 dead_code |
+| 108 | #352 | `e73ddd7` | ar/recon 路由接入 + webhook handler 真实实现（test/retry/logs）+ 7 处 dead_code |
+| 107 | #351 | `c45f7e7` | cache_service L1 本地缓存真实接入 AppState + color_card 路由确认 |
+| 106 | #350 | `7f2cc82` | 删除 performance_optimizer/operation_log_service + business_metrics 接入 |
+| 105 | #349 | `bc075ad` | 删除 messaging/ 死代码模块（kafka.rs + bus.rs + mod.rs） |
+| 104 | #348 | `e0a8672` | search_api.rs 3 个搜索端点真实接入 SearchClient |
+| 103 | #347 | `b788b11` | 预留 API/占位符功能实现（PasswordPolicyService + admin 缓存 + 死路由） |
+| 102 | #346 | `ed27a6c` | v6 P3 修复（状态字符串常量化扩展 66 处 + 错误分类修复） |
+| 101 | #345 | `835b990` | v6 P2 修复（customer/purchase_return 事务+锁+审计） |
+| 100 | #344 | `61e2da2` | v5 P3-A 状态字符串常量化（4 文件 70 处） |
+| 99 | #343 | `4761359` | v5 P3 占位模块清理 + dead_code TODO 评估 |
 
-### 已完成：批次 112 v7 复审 P1-9 修复
+### 批次 114 规划
 
-**分支**：`fix/batch112-api-key-created-by-migration`（已合并并删除）
+**目标**：v7 复审 P1-6 + P1-5 中风险修复
 
-修复项（v7 复审 P1-9）：
-- ✅ migration m0039：api_keys 新增 `created_by INTEGER` 列 + `idx_api_keys_created_by` 索引
-- ✅ api_key::Model 新增 `pub created_by: Option<i32>` 字段
-- ✅ ApiKeyService::create_api_key 新增 `created_by: i32` 参数，ActiveModel 显式 Set(Some(created_by))
-- ✅ ApiKeyService::regenerate_api_key 新增 `regenerated_by: i32` 参数，更新 created_by（语义：新密钥的创建者）
-- ✅ key_to_json 移除 created_by 参数，从 model.created_by.unwrap_or(0) 读取（NULL 历史数据兼容为 0）
-- ✅ handler create_api_key/regenerate_api_key 透传 auth.user_id 真实创建者
-- ✅ list_api_keys/get_api_key/update_api_key 移除传 0 占位
+- P1-6（8 处通知路径 let _ = 真实错误吞没）：
+  - `auth_handler.rs:409`
+  - `purchase_return_handler.rs:145`
+  - `inventory_adjustment_handler.rs:234`
+  - `ap_payment_request_handler.rs:252/287/331`
+  - `purchase_receipt_handler.rs:159`
+  - `purchase_order_handler.rs:168/270`
+  - `crm_assignment_handler.rs:157`
+  - 修复模式：`let _ = ...` → `if let Err(e) = ... { tracing::warn!(...) }`
 
-### 已完成：批次 111 v7 复审 P1 修复
-
-修复项（v7 复审 P1-2 + P1-10）：
-- ✅ P1-2：utils/incoterms.rs 8 处 dead_code 全部接入业务
-  - quotation_service.validate_create/update 接入 Incoterms2020::from_code 校验
-  - 校验时记录贸易术语业务元数据（description/includes_insurance/includes_freight/requires_duty_paid）
-  - 通过 Incoterms2020::all() + code() 派生合法代码列表用于错误提示
-- ✅ P1-10(audit)：audit_enhanced_handler.rs start_date/end_date 接入 list_audit_logs 日期范围过滤
-  - 支持 ISO 8601 日期时间字符串和 "YYYY-MM-DD" 日期格式
-  - end_date 日期粒度视为当天 23:59:59，避免漏掉当天记录
-  - 删除 OperationLogQuery（零业务引用的真死代码）
-- ✅ P1-10(crm)：crm_pool_handler / crm_customer_handler dead_code 接入业务
-  - LeadQuery 新增 source / keyword 字段
-  - list_leads 服务接入 source 精确匹配 + keyword 模糊搜索（4 字段 OR）
-  - PoolQueryParams.source/keyword 透传到 LeadQuery
-  - CustomerQueryParams.keyword 透传到 LeadQuery
-  - PoolQueryParams.industry 保留 dead_code（crm_lead 表无 industry 列）
-
-### 已完成：批次 110 v7 复审 P0 修复
-
-**分支**：`fix/batch110-webhook-callback-public-msgtype-payload`（已合并并删除）
-
-修复项（v7 复审 P0 3 项）：
-- ✅ P0-1：webhook callback 路由加入 PUBLIC_PATHS（HMAC 签名验证替代 JWT 认证）
-- ✅ P0-2：`SendWebhookMessageRequest.message_type` / `title` 接入业务（企业微信/钉钉 text/markdown 不同 payload 构建）
-- ✅ P0-3：`WebhookCallbackRequest.payload` 接入业务（结构化日志持久化 + 回执摘要 payload_size/payload_keys）
-
-
+- P1-5（3 处中风险 .unwrap()/.expect() 启动期 panic）：
+  - `main.rs:230/236` 启动期 expect
+  - `cli/migrate.rs:29` migration expect
+  - 修复模式：启动期 expect 改为 `unwrap_or_else(|e| { tracing::error!(...); std::process::exit(1); })`
 
 ### 后续批次规划
 
-- **v7 复审继续**：扫描全项目其他维度遗留问题（路由权限/前端类型/测试质量/安全性等）
-- **批次 110+**：P2 项按业务驱动逐项接入（基于 v7 复审结果优先级排序）
-- **批次 110+**：SearchSyncer 接入 PG→ES 写入同步（customer_service / sales_order_service / product_service）
+- **批次 115+**：v7 复审剩余 P1 项：
+  - P1-3：failover/database.rs 整文件 4 处 dead_code（需架构改动，备库 DB 连接）
+  - P1-4：cache/redis_client.rs 11 处辅助 API 未接入（需 AppState 装配 + 监控端点）
+  - P1-5：剩余 8 处低风险 .unwrap()/.expect()（保留并加注释）
+- **批次 116+**：v7 复审 P2 项修复
+- **持续**：SearchSyncer 接入 PG→ES 写入同步
 
-### 复审维度（基于历次复审经验）：
+### 复审维度（基于历次复审经验）
+
 1. 事务边界 TOCTOU（lock_exclusive 是否覆盖所有 update/delete）
 2. 输入验证（金额 round_dp / 字段长度 / 范围校验）
 3. 错误处理（panic/unwrap/expect / 错误吞没）
@@ -98,16 +84,11 @@
 
 ## 📜 历史任务索引
 
-- 批次 107 cache_service 接入 AppState（PR #351，main `c45f7e7`）✅
-- 批次 106 performance_optimizer/operation_log_service 删除 + business_metrics 接入（PR #350，main `7f2cc82`）✅
-- 批次 105 messaging/ 死代码模块删除（PR #349，main `bc075ad`）✅
-- 批次 104 搜索 API 接入（PR #348，main `e0a8672`）✅
-- 批次 103 预留 API/占位符功能实现（PR #347，main `b788b11`）✅
-- 批次 102 v6 P3 修复（PR #346，main `ed27a6c`）✅
-- 批次 101 v6 P2 修复（PR #345，main `835b990`）✅
-- 批次 100 v5 P3-A 状态常量化（PR #344）✅
-- 批次 99 v5 P3 占位模块清理（PR #343）✅
-- 批次 98 v5 P2 修复（PR #342）✅
-- 批次 97 v5 P1 修复（PR #341）✅
-- 批次 96 v5 P0 修复（PR #340）✅
-- 批次 59b purchase_return user_id 透传 ✅
+详细历史：见 [CHANGELOG.md](file:///workspace/.monkeycode/CHANGELOG.md) 与 [docs/archives/](file:///workspace/.monkeycode/docs/archives/)
+
+| 批次范围 | 主要内容 | 状态 |
+|---------|----------|------|
+| 96-98 | v5 P0/P1/P2 修复（ArService 真实实现 + 状态机 lock_exclusive + 分页 clamp + 金额精度） | ✅ |
+| 85-95 | v2/v3/v4 复审 P0-P3 修复（事务边界 + spawn panic 隔离 + FOR UPDATE） | ✅ |
+| 49-84 | v19 P0/P1/P2/P3 修复（早期审计修复） | ✅ |
+| 1-48 | 早期修复（前端权限/路由/API 断链/安全漏洞） | ✅ |

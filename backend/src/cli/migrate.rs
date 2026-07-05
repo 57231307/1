@@ -26,7 +26,12 @@ pub enum MigrateCommand {
 
 /// 获取数据库连接
 async fn get_db_connection() -> Result<sea_orm::DatabaseConnection, Box<dyn std::error::Error>> {
-    let db_url = std::env::var("DATABASE_URL").expect("请设置 DATABASE_URL 环境变量");
+    // 批次 114 P1-5：DATABASE_URL 缺失改为优雅退出 + 友好提示（原 `expect` panic）
+    // migrate 是 CLI 子命令，缺失环境变量属于用户配置错误，应清晰提示并退出而非 panic。
+    let db_url = std::env::var("DATABASE_URL").unwrap_or_else(|_| {
+        eprintln!("错误：请设置 DATABASE_URL 环境变量（例如：export DATABASE_URL=postgres://user:pass@host:5432/dbname）");
+        std::process::exit(1);
+    });
 
     let mut opt = ConnectOptions::new(db_url);
     opt.max_connections(1)

@@ -156,9 +156,13 @@ pub async fn create_receipt(
                     String::new()
                 };
 
-                let _ = event_service
+                // 批次 114 P1-6：通知发送失败改 warn 日志（原 `let _ =` 静默吞错）
+                if let Err(e) = event_service
                     .notify_purchase_arrived(user_id, &order.order_no, order_id, &warehouse_name)
-                    .await;
+                    .await
+                {
+                    tracing::warn!(error = %e, order_id, "采购入库到达通知发送失败");
+                }
             }
         }
     }

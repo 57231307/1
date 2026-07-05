@@ -249,7 +249,8 @@ pub async fn submit_request(
             String::new()
         };
 
-        let _ = event_service
+        // 批次 114 P1-6：通知发送失败改 warn 日志（原 `let _ =` 静默吞错）
+        if let Err(e) = event_service
             .notify_payment_request(
                 auth.user_id,
                 &request.request_no,
@@ -257,7 +258,10 @@ pub async fn submit_request(
                 &supplier_name,
                 request.id,
             )
-            .await;
+            .await
+        {
+            tracing::warn!(error = %e, request_id = request.id, "付款申请提交通知发送失败");
+        }
     }
 
     info!(
@@ -284,7 +288,8 @@ pub async fn approve_request(
 
     // 发送审批通过通知
     if let Some(ref event_service) = state.event_notification_service {
-        let _ = event_service
+        // 批次 114 P1-6：通知发送失败改 warn 日志（原 `let _ =` 静默吞错）
+        if let Err(e) = event_service
             .notify_approval_result(
                 request.created_by,
                 &request.request_no,
@@ -292,7 +297,10 @@ pub async fn approve_request(
                 &auth.username,
                 None,
             )
-            .await;
+            .await
+        {
+            tracing::warn!(error = %e, request_id = id, "付款申请审批通过通知发送失败");
+        }
     }
 
     info!(
@@ -328,7 +336,8 @@ pub async fn reject_request(
 
     // 发送审批拒绝通知
     if let Some(ref event_service) = state.event_notification_service {
-        let _ = event_service
+        // 批次 114 P1-6：通知发送失败改 warn 日志（原 `let _ =` 静默吞错）
+        if let Err(e) = event_service
             .notify_approval_result(
                 request.created_by,
                 &request.request_no,
@@ -336,7 +345,10 @@ pub async fn reject_request(
                 &auth.username,
                 Some(&req.reason),
             )
-            .await;
+            .await
+        {
+            tracing::warn!(error = %e, request_id = id, "付款申请审批拒绝通知发送失败");
+        }
     }
 
     info!(

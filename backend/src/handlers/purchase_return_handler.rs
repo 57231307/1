@@ -142,7 +142,8 @@ pub async fn reject_purchase_return(
     // 发送审批拒绝通知
     if let Some(ref event_service) = state.event_notification_service {
         if let Some(created_by) = return_order.created_by {
-            let _ = event_service
+            // 批次 114 P1-6：通知发送失败改 warn 日志（原 `let _ =` 静默吞错）
+            if let Err(e) = event_service
                 .notify_approval_result(
                     created_by,
                     &return_order.return_no,
@@ -150,7 +151,10 @@ pub async fn reject_purchase_return(
                     &auth.username,
                     Some(&req.reason),
                 )
-                .await;
+                .await
+            {
+                tracing::warn!(error = %e, return_id = id, "采购退货审批拒绝通知发送失败");
+            }
         }
     }
 

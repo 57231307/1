@@ -405,8 +405,11 @@ pub async fn login(
             svc.record_async(login_event, audit_ctx.clone().map(|e| e.0));
 
             // Update last login timestamp
+            // 批次 114 P1-6：登录后更新最后登录时间失败改为 warn 日志（原 `let _ =` 静默吞错）
             let user_svc = crate::services::user_service::UserService::new(state.db.clone());
-            let _ = user_svc.update_last_login(user.id).await;
+            if let Err(e) = user_svc.update_last_login(user.id).await {
+                tracing::warn!(error = %e, user_id = user.id, "更新最后登录时间失败（不影响登录主流程）");
+            }
 
             // 批次 24 v6 P0-2 修复：使用统一的 build_with_permissions 构建 UserInfo，
             // 确保登录响应与 /auth/me 响应字段一致（均含 role_name 和 permissions）。
