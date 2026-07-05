@@ -418,7 +418,7 @@ impl BiAnalysisService {
                 product_id: r.product_id as i64,
                 product_name: r.product_name,
                 product_code: r.product_code,
-                category: r.category.unwrap_or_else(|| "未分类".to_string()),
+                category: r.category.unwrap_or("未分类".to_string()),
                 total_amount: dec_to_f64(r.total_amount),
                 quantity: dec_to_f64(r.quantity),
                 order_count: r.order_count.unwrap_or(0),
