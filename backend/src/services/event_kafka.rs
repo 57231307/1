@@ -58,51 +58,12 @@ impl From<&str> for KafkaError {
     }
 }
 
-/// 业务事件在 Kafka 上的线格式（JSON）
+/// 返回 `BusinessEvent` 对应的事件类型字符串
 ///
-/// 与 `BusinessEvent` 字段一一对应，单独建模：
-/// - `type` 字段做路由（消费端据此反序列化）；
-/// - 其余字段按 variant 填入 `data`。
-#[allow(dead_code)] // TODO(tech-debt): 报表/审计模块接入 Kafka 时启用
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct KafkaEventEnvelope {
-    /// 事件类型（与 `BusinessEvent` 变体名一一对应，例如
-    /// `PurchaseReceiptCompleted` / `MaterialShortageAlert` 等）
-    pub r#type: String,
-    /// 事件负载（按 type 反序列化为对应变体字段）
-    pub data: serde_json::Value,
-    /// 生产端时间戳（RFC3339）
-    #[serde(default)]
-    pub emitted_at: String,
-}
-
-impl KafkaEventEnvelope {
-    /// 把 `BusinessEvent` 包装为信封
-    ///
-    /// 通过 `EventPayload` 中转序列化（不修改原 `BusinessEvent`
-    /// 的 `derive` 列表，保持公共 API 最小改动）。
-    #[allow(dead_code)] // TODO(tech-debt): 报表/审计模块接入 Kafka 时启用
-    pub fn from_event(event: &BusinessEvent) -> Self {
-        let r#type = event_type_name(event).to_string();
-        let payload = EventPayload::from(event);
-        let data = serde_json::to_value(&payload).unwrap_or(serde_json::Value::Null);
-        Self {
-            r#type,
-            data,
-            emitted_at: chrono::Utc::now().to_rfc3339(),
-        }
-    }
-
-    /// 把信封还原为 `BusinessEvent`（失败时返回错误字符串）
-    pub fn into_event(self) -> Result<BusinessEvent, String> {
-        let payload: EventPayload = serde_json::from_value(self.data)
-            .map_err(|e| format!("反序列化 EventPayload 失败: {}", e))?;
-        BusinessEvent::try_from(payload)
-    }
-}
-
-/// 返回 `BusinessEvent` 对应的事件类型字符串（与 `KafkaEventEnvelope.type` 对应）
-#[allow(dead_code)] // TODO(tech-debt): 报表/审计模块接入 Kafka 时启用
+/// 批次 121 v8 复审修复：删除 KafkaEventEnvelope struct + from_event + into_event
+/// （零业务调用方，KafkaBackend.publish/subscribe 使用 EventPayload 而非信封结构）。
+/// 保留 event_type_name 供测试断言使用，标记 #[cfg(test)] 避免非测试编译时 dead_code。
+#[cfg(test)]
 fn event_type_name(event: &BusinessEvent) -> &'static str {
     match event {
         BusinessEvent::PurchaseReceiptCompleted { .. } => "PurchaseReceiptCompleted",
@@ -434,31 +395,6 @@ mod tests {
             invoice_id: 2,
             amount: Decimal::from_str("100.50").unwrap(),
             user_id: 100,
-        }
-    }
-
-    /// 验证 `KafkaEventEnvelope` 序列化 / 反序列化 round-trip 一致
-    #[test]
-    fn test_envelope_round_trip() {
-        let event = sample_event();
-        let envelope = KafkaEventEnvelope::from_event(&event);
-        let json = serde_json::to_string(&envelope).expect("序列化失败");
-        let de: KafkaEventEnvelope = serde_json::from_str(&json).expect("反序列化失败");
-        assert_eq!(de.r#type, "PaymentCompleted");
-        let restored = de.into_event().expect("还原事件失败");
-        match restored {
-            BusinessEvent::PaymentCompleted {
-                payment_id,
-                invoice_id,
-                amount,
-                user_id,
-            } => {
-                assert_eq!(payment_id, 1);
-                assert_eq!(invoice_id, 2);
-                assert_eq!(amount, Decimal::from_str("100.50").unwrap());
-                assert_eq!(user_id, 100);
-            }
-            _ => panic!("事件类型不匹配"),
         }
     }
 
