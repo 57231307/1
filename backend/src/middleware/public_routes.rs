@@ -14,6 +14,10 @@ pub const PUBLIC_PATHS: &[&str] = &[
     // 认证流程必需端点
     "/api/v1/erp/auth/login",
     "/api/v1/erp/auth/refresh",
+    // 批次 110 P0-1：Webhook 回调端点（第三方平台调用，无法持有 JWT）
+    // 安全等价：handle_generic_callback 内部通过 HMAC-SHA256 签名验证替代认证
+    // （X-Webhook-Signature 头 + webhook_secret 密钥校验）
+    "/api/v1/erp/webhooks/integrations/callback",
 ];
 
 /// 公开路径白名单（跳过 JWT 认证）
@@ -51,6 +55,10 @@ mod tests {
         // 登录/刷新必须公开（认证流程）
         assert!(is_public_path("/api/v1/erp/auth/login"));
         assert!(is_public_path("/api/v1/erp/auth/refresh"));
+        // 批次 110 P0-1：Webhook 回调端点公开（HMAC 签名验证替代认证）
+        assert!(is_public_path(
+            "/api/v1/erp/webhooks/integrations/callback"
+        ));
     }
 
     #[test]

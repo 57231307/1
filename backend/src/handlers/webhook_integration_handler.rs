@@ -21,17 +21,17 @@ pub struct CreateWebhookIntegrationRequest {
 #[derive(Debug, Deserialize)]
 pub struct SendWebhookMessageRequest {
     pub integration_id: i32,
-    #[allow(dead_code)] // TODO(tech-debt): Webhook 模块接入业务后移除
+    // 批次 110 P0-2：message_type 接入业务，支持 text/markdown 两种消息类型
     pub message_type: String,
     pub content: String,
-    #[allow(dead_code)] // TODO(tech-debt): Webhook 模块接入业务后移除
+    // 批次 110 P0-2：title 用于 markdown 类型消息的标题
     pub title: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
 pub struct WebhookCallbackRequest {
     pub event_type: String,
-    #[allow(dead_code)] // TODO(tech-debt): Webhook 模块接入业务后移除
+    // 批次 110 P0-3：payload 接入业务（持久化日志 + 回执摘要），不再标注 dead_code
     pub payload: serde_json::Value,
 }
 
@@ -60,6 +60,11 @@ pub struct WebhookCallbackResult {
     pub received: bool,
     pub event_type: String,
     pub processed_at: String,
+    /// 批次 110 P0-3：payload 处理回执摘要
+    /// - payload_size：原始 payload 序列化后的字节大小
+    /// - payload_keys：若 payload 为 Object，则记录其顶层字段名（最多 10 个），便于调用方核对
+    pub payload_size: usize,
+    pub payload_keys: Vec<String>,
 }
 
 pub async fn list_integrations(
@@ -156,13 +161,28 @@ pub async fn send_wechat_message(
         return Err(AppError::bad_request("消息内容不能为空"));
     }
 
-    // 构建企业微信消息格式
-    let payload = serde_json::json!({
-        "msgtype": "text",
-        "text": {
-            "content": req.content
+    // 批次 110 P0-2：根据 message_type 构建不同企业微信消息格式
+    // 支持 text（纯文本）和 markdown（markdown 格式）两种类型
+    let payload = match req.message_type.as_str() {
+        "text" => serde_json::json!({
+            "msgtype": "text",
+            "text": {
+                "content": req.content
+            }
+        }),
+        "markdown" => serde_json::json!({
+            "msgtype": "markdown",
+            "markdown": {
+                "content": req.content
+            }
+        }),
+        other => {
+            return Err(AppError::bad_request(format!(
+                "不支持的消息类型：{}，仅支持 text/markdown",
+                other
+            )));
         }
-    });
+    };
 
     // 通过WebhookService发送
     use crate::services::webhook_service::WebhookService;
@@ -200,13 +220,33 @@ pub async fn send_dingtalk_message(
         return Err(AppError::bad_request("消息内容不能为空"));
     }
 
-    // 构建钉钉消息格式
-    let payload = serde_json::json!({
-        "msgtype": "text",
-        "text": {
-            "content": req.content
+    // 批次 110 P0-2：根据 message_type 构建不同钉钉消息格式
+    // 支持 text（纯文本）和 markdown（markdown 格式，需 title）两种类型
+    let payload = match req.message_type.as_str() {
+        "text" => serde_json::json!({
+            "msgtype": "text",
+            "text": {
+                "content": req.content
+            }
+        }),
+        "markdown" => {
+            // 钉钉 markdown 消息需要 title 字段，若未提供则使用默认标题
+            let title = req.title.as_deref().unwrap_or("通知");
+            serde_json::json!({
+                "msgtype": "markdown",
+                "markdown": {
+                    "title": title,
+                    "text": req.content
+                }
+            })
         }
-    });
+        other => {
+            return Err(AppError::bad_request(format!(
+                "不支持的消息类型：{}，仅支持 text/markdown",
+                other
+            )));
+        }
+    };
 
     // 通过WebhookService发送
     use crate::services::webhook_service::WebhookService;
@@ -258,12 +298,33 @@ pub async fn handle_generic_callback(
     let req: WebhookCallbackRequest = serde_json::from_str(&body)
         .map_err(|e| AppError::validation(format!("无效的 JSON 格式：{}", e)))?;
 
-    tracing::info!("Webhook 签名验证通过：event_type={}", req.event_type);
+    // 批次 110 P0-3：将完整 payload 写入结构化日志（替代原仅记录 event_type 的占位实现）
+    // 第三方平台回调通常是异步业务事件的入口，payload 内含业务关键字段（订单号/付款号/状态变更等）。
+    // 在未独立持久化到 webhook_logs 表前，先通过 tracing 输出到日志聚合系统，便于：
+    // 1) 调用方核对回执摘要是否与发送内容一致
+    // 2) 业务侧通过日志检索回溯第三方回调历史
+    // 3) 后续接入 webhook_logs 表时可作为数据源迁移
+    tracing::info!(
+        event_type = %req.event_type,
+        payload = %req.payload,
+        "Webhook 签名验证通过，已接收第三方回调事件"
+    );
+
+    // 计算 payload 摘要：序列化字节大小 + 顶层字段名（若为 Object）
+    let payload_size = req.payload.to_string().len();
+    let payload_keys: Vec<String> = match &req.payload {
+        serde_json::Value::Object(map) => {
+            map.keys().take(10).cloned().collect()
+        }
+        _ => Vec::new(),
+    };
 
     let result = WebhookCallbackResult {
         received: true,
         event_type: req.event_type,
         processed_at: chrono::Utc::now().to_rfc3339(),
+        payload_size,
+        payload_keys,
     };
 
     Ok(Json(ApiResponse::success(result)))
