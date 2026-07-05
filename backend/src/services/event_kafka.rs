@@ -10,7 +10,7 @@
 //! 设计取舍：
 //! - rskafka 0.5 是纯 Rust 实现，无 C/C++ 依赖，CI 不需要 librdkafka；
 //! - 启动时连接超时 5s（避免启动卡死）；
-//! - 启动失败 → 返回 `Err`，由上层 `event_bus` 自动降级到 `BroadcastBackend`；
+//! - 启动失败 → 返回 `Err`，由上层 `event_bus` 自动降级到本地 `broadcast::Sender`（批次 120 P2-10 修复后已无 BroadcastBackend 抽象，仅保留 `local_tx: broadcast::Sender`）；
 //! - publish/subscribe 全部使用 `tracing::error!` 记录中文日志，CI 抓得到。
 
 use std::collections::BTreeMap;

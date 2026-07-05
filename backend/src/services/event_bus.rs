@@ -1,7 +1,7 @@
 //!
 //! 事件总线（P11-H2 Kafka 真实集成）
 //!
-//! 抽象 [`EventBackend`] trait，对外暴露双后端：
+//! 双后端实现：
 //! - `Broadcast`（默认，进程内 `tokio::sync::broadcast`，CI 友好）
 //! - `Kafka`（生产可启用，基于 `rskafka` 真实投递到 broker，跨服务可用）
 //!
@@ -10,25 +10,24 @@
 //!
 //! 启动时通过 [`init_event_bus_with_kafka_config`] 注入 Kafka 配置；
 //! Kafka 不可达时**自动降级**到 `Broadcast`，并通过 `tracing::error!` 输出中文日志。
+//!
+//! 批次 120 P2-10 修复：删除未接入业务的 `EventBackend` trait、`BroadcastBackend`、
+//! `BridgeStream`、`EventBackendType` 枚举、`backend_type()` 方法。
+//! 原因：`KafkaBackend` 已绕过 trait 抽象走独立路径（`EventBusState.kafka` 字段
+//! 直接持有 `Arc<KafkaBackend>`），`BroadcastBackend` 从未被 `EVENT_BUS.publish`
+//! 或 `subscribe` 调用（这俩方法直接操作 `local_tx: broadcast::Sender`），
+//! trait 与 BroadcastBackend 与 BridgeStream 与类型别名全部为零业务调用方的死代码。
 
-use futures::stream::Stream;
 use futures::FutureExt;
 use sea_orm;
 use sea_orm::DatabaseConnection;
 use sea_orm::{ColumnTrait, EntityTrait, QueryFilter};
-use std::future::Future;
 use std::panic::AssertUnwindSafe;
-use std::pin::Pin;
 use std::sync::atomic::{AtomicU8, Ordering};
 use std::sync::{Arc, LazyLock};
 use tokio::sync::broadcast;
 
 use crate::config::settings::KafkaSettings;
-
-// 类型别名：抽离超长 `Pin<Box<dyn Future<...>>>` 以满足 rustc
-// "very complex type used" 限制（clippy 配置见 .clippy.toml）。
-type EventStream = Box<dyn Stream<Item = BusinessEvent> + Send + Unpin>;
-type SubscribeFuture<'a> = Pin<Box<dyn Future<Output = Result<EventStream, String>> + Send + 'a>>;
 
 // ============================================================================
 // 公共类型（业务事件枚举）
@@ -126,126 +125,25 @@ pub enum BusinessEvent {
 }
 
 // ============================================================================
-// 后端抽象（P11-H2 新增）
+// 后端运行时容器
 // ============================================================================
-
-/// 事件总线后端抽象（dyn 兼容）
-///
-/// 使用 `Pin<Box<dyn Future>>` 而非 `async fn` 是为了在 stable Rust 下支持
-/// `Arc<dyn EventBackend>` 动态分发；调用方拿到的是一次性装箱的 future。
-#[allow(dead_code)] // TODO(tech-debt): P11-H2 Kafka 真实集成完全接入后移除
-pub trait EventBackend: Send + Sync {
-    /// 异步发布事件
-    fn publish<'a>(
-        &'a self,
-        event: BusinessEvent,
-    ) -> Pin<Box<dyn Future<Output = Result<(), String>> + Send + 'a>>;
-
-    /// 异步订阅事件，返回 `Box<dyn Stream>` 供上层消费
-    fn subscribe<'a>(&'a self) -> SubscribeFuture<'a>;
-}
-
-/// 进程内 Broadcast 后端（默认）
-#[derive(Clone)]
-#[allow(dead_code)] // TODO(tech-debt): P11-H2 进程内 Broadcast 兜底后端保留
-pub struct BroadcastBackend {
-    sender: broadcast::Sender<BusinessEvent>,
-}
-
-#[allow(dead_code)] // TODO(tech-debt): P11-H2 进程内 Broadcast 兜底后端保留
-impl BroadcastBackend {
-    pub fn new(capacity: usize) -> Self {
-        let (sender, _) = broadcast::channel(capacity);
-        Self { sender }
-    }
-}
-
-#[allow(dead_code)] // TODO(tech-debt): P11-H2 Kafka 真实集成完全接入后移除
-impl EventBackend for BroadcastBackend {
-    fn publish<'a>(
-        &'a self,
-        event: BusinessEvent,
-    ) -> Pin<Box<dyn Future<Output = Result<(), String>> + Send + 'a>> {
-        let result = self.sender.send(event);
-        Box::pin(async move {
-            match result {
-                Ok(_) => Ok(()),
-                Err(_) => Err("事件订阅者已全部断开，发送失败".to_string()),
-            }
-        })
-    }
-
-    fn subscribe<'a>(&'a self) -> SubscribeFuture<'a> {
-        // 启动桥接任务：把 broadcast::Receiver 转为 mpsc::Receiver
-        // （broadcast::Receiver 没有 poll_recv，不能直接实现 Stream，
-        // 所以走 tokio 任务 + mpsc 通道的桥接模式）
-        let (tx, rx) = tokio::sync::mpsc::channel::<BusinessEvent>(1024);
-        let mut broadcast_rx = self.sender.subscribe();
-        tokio::spawn(async move {
-            loop {
-                // 批次 8（2026-06-28）：单次事件处理 panic 隔离
-                // 用返回值控制是否继续循环（catch_unwind 内不能 break 跨闭包）
-                let result = AssertUnwindSafe(async {
-                    match broadcast_rx.recv().await {
-                        Ok(event) => {
-                            if tx.send(event).await.is_err() {
-                                return false; // 订阅者断开，停止桥接
-                            }
-                        }
-                        Err(broadcast::error::RecvError::Lagged(n)) => {
-                            tracing::warn!("Broadcast 桥接 lagged 跳过 {} 条事件", n);
-                        }
-                        Err(broadcast::error::RecvError::Closed) => {
-                            return false; // channel 关闭，退出
-                        }
-                    }
-                    true
-                })
-                .catch_unwind()
-                .await;
-                match result {
-                    Ok(true) => {} // 继续
-                    Ok(false) => break, // 正常退出
-                    Err(panic_payload) => {
-                        let panic_msg = panic_payload
-                            .downcast_ref::<String>()
-                            .map(|s| s.as_str())
-                            .or_else(|| panic_payload.downcast_ref::<&'static str>().copied())
-                            .unwrap_or("<非字符串 panic payload>");
-                        tracing::error!(
-                            panic = %panic_msg,
-                            "⚠ Broadcast 桥接 spawn panic 已被隔离，继续运行（不退出循环）"
-                        );
-                    }
-                }
-            }
-        });
-        let stream: EventStream = Box::new(BridgeStream { rx });
-        Box::pin(async move { Ok(stream) })
-    }
-}
-
-/// 把 mpsc::Receiver 包装为 Stream（mpsc 自身实现 Stream，直接代理）
-struct BridgeStream {
-    rx: tokio::sync::mpsc::Receiver<BusinessEvent>,
-}
-
-impl Stream for BridgeStream {
-    type Item = BusinessEvent;
-
-    fn poll_next(
-        mut self: Pin<&mut Self>,
-        cx: &mut std::task::Context<'_>,
-    ) -> std::task::Poll<Option<Self::Item>> {
-        self.rx.poll_recv(cx)
-    }
-}
+//
+// 批次 120 P2-10 修复：删除 EventBackend trait + BroadcastBackend + BridgeStream
+// + EventStream/SubscribeFuture 类型别名。原因：
+// - KafkaBackend 已绕过 trait 抽象走独立路径（EventBusState.kafka 字段直接持有
+//   `Arc<KafkaBackend>`，publish 时通过 `k.publish(event).await` 调用）
+// - BroadcastBackend 从未被 EVENT_BUS.publish/subscribe 调用（这俩方法直接操作
+//   `local_tx: broadcast::Sender`）
+// - trait + BroadcastBackend + BridgeStream + 类型别名全部为零业务调用方的死代码
+//
+// 保留的双后端切换逻辑：
+// - `backend_kind == 0`：仅本地 broadcast::Sender（默认，CI/开发环境）
+// - `backend_kind == 1`：本地 broadcast::Sender + Kafka 投递（生产环境）
+// - `local_tx` 始终存在，Kafka 模式下用于把 Kafka 消费到的事件桥接到本进程订阅者
 
 /// 实际选用的后端运行时容器
 struct EventBusState {
     backend_kind: AtomicU8, // 0 = Broadcast, 1 = Kafka
-    #[allow(dead_code)] // TODO(tech-debt): P11-H2 进程内 Broadcast 兜底后端保留
-    broadcast: BroadcastBackend,
     kafka: Option<Arc<crate::services::event_kafka::KafkaBackend>>,
     /// 始终存在的本地 channel，用于在 Kafka 模式下把 Kafka 消费到的事件
     /// 桥接到本进程的所有订阅者，保持 `subscribe() -> broadcast::Receiver` API
@@ -254,11 +152,9 @@ struct EventBusState {
 
 impl EventBusState {
     fn new() -> Self {
-        let broadcast = BroadcastBackend::new(1024);
         let (local_tx, _) = broadcast::channel(1024);
         Self {
             backend_kind: AtomicU8::new(0),
-            broadcast,
             kafka: None,
             local_tx,
         }
@@ -296,16 +192,6 @@ impl EventBus {
     /// 构造一个 `EventBus` 句柄（不会触发任何 IO）
     pub fn new() -> Self {
         Self
-    }
-
-    /// 当前后端类型（用于诊断 / 测试断言）
-    #[allow(dead_code)] // TODO(tech-debt): 后端类型诊断 API 接入后移除
-    pub fn backend_type(&self) -> EventBackendType {
-        let state = lock_event_bus_state();
-        match state.backend_kind.load(Ordering::Acquire) {
-            1 => EventBackendType::Kafka,
-            _ => EventBackendType::Broadcast,
-        }
     }
 
     /// 同步发布事件（保留旧 API 兼容）
@@ -358,16 +244,6 @@ impl Default for EventBus {
     fn default() -> Self {
         Self::new()
     }
-}
-
-/// 后端类型枚举
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-#[allow(dead_code)] // TODO(tech-debt): 后端类型诊断 API 接入后移除
-pub enum EventBackendType {
-    /// 进程内 Broadcast（默认，CI 友好）
-    Broadcast,
-    /// Kafka 真实后端（生产可启用）
-    Kafka,
 }
 
 /// 使用 Kafka 配置初始化事件总线（在 `main.rs` 启动时调用一次）
