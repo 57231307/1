@@ -115,6 +115,11 @@ impl CrmService {
             );
         }
 
+        // v11 批次 153 P2-A：接入 industry 过滤（精确匹配 industry 列）
+        if let Some(industry) = query.industry {
+            q = q.filter(crm_lead::Column::Industry.eq(industry));
+        }
+
         let paginator = q
             .order_by(crm_lead::Column::CreatedAt, sea_orm::Order::Desc)
             .paginate(&*self.db, page_size);

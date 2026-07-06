@@ -22,8 +22,7 @@ pub struct PoolQueryParams {
     pub page_size: Option<u64>,
     // 批次 111 P1-10：source / keyword 接入 LeadQuery 过滤（移除 dead_code 标注）
     pub source: Option<String>,
-    // 批次 111 P1-10：crm_lead 表无 industry 列，保留参数兼容前端但记录警告日志
-    #[allow(dead_code)] // TODO(tech-debt): 后续 crm_lead 表新增 industry 列后接入
+    // v11 批次 153 P2-A：接入 industry 过滤（crm_lead.industry 列已通过 m0043 迁移添加）
     pub industry: Option<String>,
     pub keyword: Option<String>,
 }
@@ -58,6 +57,8 @@ pub async fn list_pool(
         // 批次 111 P1-10：透传 source / keyword 到 LeadQuery，由 list_leads 服务执行过滤
         source: params.source,
         keyword: params.keyword,
+        // v11 批次 153 P2-A：透传 industry 到 LeadQuery
+        industry: params.industry,
         page: Some(page),
         page_size: Some(page_size),
     };

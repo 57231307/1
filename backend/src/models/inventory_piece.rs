@@ -50,6 +50,9 @@ pub struct Model {
 
     pub barcode: Option<String>,
 
+    /// 扫码类型（v11 批次 153 P2-A 新增）：SHIP=扫码发货，INVENTORY=扫码盘库
+    pub scan_type: Option<String>,
+
     /// 创建时间
     pub created_at: DateTime<Utc>,
 

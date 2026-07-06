@@ -39,9 +39,8 @@ pub struct ScanInventoryParams {
 pub struct ScanHistoryQuery {
     pub page: Option<u64>,
     pub page_size: Option<u64>,
-    // 批次 113 P1-7：移除 scan_type 占位符（inventory_piece 表无 scan_type 列，无法直接 filter）
-    // scan_type 字段保留在 ScanHistoryQuery 中维持前端 API 契约，后续若新增 inventory_piece.scan_type 列再接入 filter
-    #[allow(dead_code)] // TODO(tech-debt): 后续 inventory_piece.scan_type 列落地后接入 filter
+    // v11 批次 153 P2-A：接入 scan_type filter（inventory_piece.scan_type 列已通过 m0043 迁移添加）
+    // 值如 SHIP=扫码发货，INVENTORY=扫码盘库
     pub scan_type: Option<String>,
     pub result: Option<String>,
 }
@@ -148,8 +147,10 @@ pub async fn scan_history(
 
     let mut query = inventory_piece::Entity::find();
 
-    // 批次 113 P1-7：移除 scan_type 占位符（inventory_piece 表无 scan_type 列，无法直接 filter）
-    // scan_type 字段保留在 ScanHistoryQuery 中维持前端 API 契约，后续若新增 inventory_piece.scan_type 列再接入 filter
+    // v11 批次 153 P2-A：接入 scan_type filter（精确匹配 scan_type 列）
+    if let Some(scan_type) = &params.scan_type {
+        query = query.filter(inventory_piece::Column::ScanType.eq(scan_type));
+    }
 
     if let Some(result) = &params.result {
         match result.as_str() {

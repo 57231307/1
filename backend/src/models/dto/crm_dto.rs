@@ -116,6 +116,8 @@ pub struct LeadQuery {
     pub source: Option<String>,
     /// 关键词模糊搜索（匹配 company_name / contact_name / mobile_phone / email）
     pub keyword: Option<String>,
+    /// 行业过滤（v11 批次 153 P2-A 新增）：精确匹配 crm_lead.industry 列
+    pub industry: Option<String>,
     pub page: Option<u64>,
     pub page_size: Option<u64>,
 }
