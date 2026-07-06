@@ -215,7 +215,17 @@ impl UserService {
         }
         if let Some(status_val) = status {
             // 将 status 字符串转换为 is_active 布尔值
-            user.is_active = Set(status_val == "active");
+            let becoming_active = status_val == "active";
+            user.is_active = Set(becoming_active);
+
+            // v11 批次 145 P1-7：用户状态恢复为 active 时清除吊销标记
+            //
+            // 当用户从"禁用"恢复为"active"时，调用 unrevoke_user 清除进程内
+            // 吊销标记，允许用户重新登录获取新 Token。此为 best-effort 操作，
+            // 不阻塞用户更新主流程。
+            if becoming_active {
+                crate::services::auth_service::unrevoke_user(user_id).await;
+            }
         }
         user.updated_at = Set(chrono::Utc::now());
 

@@ -299,7 +299,6 @@ pub async fn create_plan(
                     .department_id
                     .ok_or_else(|| AppError::validation("预算编制请求缺少部门ID"))?,
                 total_amount: req.total_amount.unwrap_or(Decimal::ZERO),
-                items: vec![],
                 remark: req.remark,
             },
             auth.user_id,
