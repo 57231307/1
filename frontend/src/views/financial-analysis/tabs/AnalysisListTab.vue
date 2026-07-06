@@ -243,8 +243,18 @@ const executeReport = async (row: FinancialReport) => {
   }
 }
 
-const viewReport = (row: FinancialReport) => {
-  ElMessage.info('查看报表: ' + row.reportName)
+// 批次 157b P1-1 修复：展示报表详情（无独立 getReport API，使用行数据展示）
+const viewReport = async (row: FinancialReport) => {
+  const lines = [
+    `报表名称：${row.reportName || '-'}`,
+    `报表类型：${getReportTypeLabel(row.reportType)}`,
+    `会计期间：${row.period || '-'}`,
+    `状态：${getStatusLabel(row.status)}`,
+    `执行时间：${row.executedAt || '-'}`,
+    `创建时间：${row.createdAt || '-'}`,
+    `更新时间：${row.updatedAt || '-'}`,
+  ]
+  await ElMessageBox.alert(lines.join('\n'), '报表详情', { confirmButtonText: '关闭' })
 }
 
 const deleteReport = async (row: FinancialReport) => {

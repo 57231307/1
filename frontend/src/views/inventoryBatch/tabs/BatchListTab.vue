@@ -103,13 +103,52 @@
         @current-change="fetchBatches"
       />
     </el-card>
+
+    <!-- 批次 157b P1-1 修复：批次调拨对话框 -->
+    <el-dialog v-model="transferDialogVisible" title="批次调拨" width="480px">
+      <el-form ref="transferFormRef" :model="transferForm" :rules="transferRules" label-width="100px">
+        <el-form-item label="调出仓库">
+          <el-input :model-value="transferForm.fromWarehouseName" disabled />
+        </el-form-item>
+        <el-form-item label="目标仓库" prop="toWarehouseId">
+          <el-select v-model="transferForm.toWarehouseId" placeholder="请选择目标仓库" style="width: 100%">
+            <el-option
+              v-for="w in warehouseOptions"
+              :key="w.id"
+              :label="w.warehouse_name"
+              :value="w.id"
+            />
+          </el-select>
+        </el-form-item>
+        <el-form-item label="调拨数量(米)" prop="quantityMeters">
+          <el-input-number v-model="transferForm.quantityMeters" :min="0" style="width: 100%" />
+        </el-form-item>
+        <el-form-item label="调拨数量(kg)" prop="quantityKg">
+          <el-input-number v-model="transferForm.quantityKg" :min="0" style="width: 100%" />
+        </el-form-item>
+        <el-form-item label="备注">
+          <el-input v-model="transferForm.remarks" type="textarea" placeholder="选填" />
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <el-button @click="transferDialogVisible = false">取消</el-button>
+        <el-button type="primary" :loading="transferSubmitting" @click="onSubmitTransfer">确定</el-button>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
 <script setup lang="ts">
 import { ref, reactive, onMounted } from 'vue'
-import { ElMessage, ElMessageBox } from 'element-plus'
-import { listBatches, deleteBatch, type InventoryBatch } from '@/api/inventoryBatch'
+import { ElMessage, ElMessageBox, type FormInstance, type FormRules } from 'element-plus'
+import {
+  listBatches,
+  deleteBatch,
+  transferBatch,
+  type InventoryBatch,
+  type TransferBatchRequest,
+} from '@/api/inventoryBatch'
+import { warehouseApi, type Warehouse } from '@/api/warehouse'
 
 const emit = defineEmits<{ openForm: [row: InventoryBatch | null] }>()
 
@@ -155,8 +194,84 @@ const handleReset = () => {
 const handleCreate = () => emit('openForm', null)
 const handleView = (row: InventoryBatch) => emit('openForm', row)
 const handleEdit = (row: InventoryBatch) => emit('openForm', row)
-const handleTransfer = (row: InventoryBatch) => {
-  ElMessage.info(`为批次 ${row.batchNo} 创建调拨单`)
+
+// 批次 157b P1-1 修复：批次调拨接入 transferBatch API
+const transferDialogVisible = ref(false)
+const transferSubmitting = ref(false)
+const transferFormRef = ref<FormInstance>()
+const transferCurrentRow = ref<InventoryBatch | null>(null)
+const warehouseOptions = ref<Warehouse[]>([])
+const transferForm = reactive<{
+  fromWarehouseName: string
+  toWarehouseId: number | null
+  quantityMeters: number
+  quantityKg: number
+  remarks: string
+}>({
+  fromWarehouseName: '',
+  toWarehouseId: null,
+  quantityMeters: 0,
+  quantityKg: 0,
+  remarks: '',
+})
+const transferRules: FormRules = {
+  toWarehouseId: [{ required: true, message: '请选择目标仓库', trigger: 'change' }],
+  quantityMeters: [{ required: true, message: '请输入调拨数量(米)', trigger: 'blur' }],
+  quantityKg: [{ required: true, message: '请输入调拨数量(kg)', trigger: 'blur' }],
+}
+
+const fetchWarehouseOptions = async () => {
+  try {
+    const res = (await warehouseApi.list({ page: 1, page_size: 1000 })) as unknown as {
+      data?: { list?: Warehouse[] }
+    }
+    warehouseOptions.value = res.data?.list || []
+  } catch {
+    warehouseOptions.value = []
+  }
+}
+
+const handleTransfer = async (row: InventoryBatch) => {
+  transferCurrentRow.value = row
+  transferForm.fromWarehouseName = row.warehouseName || '-'
+  transferForm.toWarehouseId = null
+  transferForm.quantityMeters = row.quantityMeters || 0
+  transferForm.quantityKg = row.quantityKg || 0
+  transferForm.remarks = ''
+  if (warehouseOptions.value.length === 0) {
+    await fetchWarehouseOptions()
+  }
+  transferDialogVisible.value = true
+}
+
+const onSubmitTransfer = async () => {
+  if (!transferFormRef.value || !transferCurrentRow.value) return
+  const row = transferCurrentRow.value
+  await transferFormRef.value.validate(async valid => {
+    if (!valid) return
+    if (!row.warehouseId || !transferForm.toWarehouseId) {
+      ElMessage.warning('仓库信息不完整')
+      return
+    }
+    transferSubmitting.value = true
+    try {
+      const payload: TransferBatchRequest = {
+        fromWarehouseId: row.warehouseId,
+        toWarehouseId: transferForm.toWarehouseId,
+        quantityMeters: transferForm.quantityMeters,
+        quantityKg: transferForm.quantityKg,
+        remarks: transferForm.remarks || undefined,
+      }
+      await transferBatch(row.id as number, payload)
+      ElMessage.success('批次调拨成功')
+      transferDialogVisible.value = false
+      fetchBatches()
+    } catch (error) {
+      ElMessage.error((error as Error).message || '批次调拨失败')
+    } finally {
+      transferSubmitting.value = false
+    }
+  })
 }
 
 const handleDelete = async (row: InventoryBatch) => {
