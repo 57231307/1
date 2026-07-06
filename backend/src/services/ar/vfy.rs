@@ -152,14 +152,9 @@ impl ArReconciliationService {
 
             // v11 批次 154 P2-A：接入 match_strategy，控制匹配策略选择
             // None/"all"/"auto": 精确+日期（默认全部策略）；"exact": 仅精确金额匹配；"date"/"fuzzy": 仅日期顺序匹配
-            let run_exact = match req.match_strategy.as_deref().unwrap_or("all") {
-                "exact" | "all" | "auto" => true,
-                _ => false,
-            };
-            let run_date = match req.match_strategy.as_deref().unwrap_or("all") {
-                "date" | "fuzzy" | "all" | "auto" => true,
-                _ => false,
-            };
+            let strategy = req.match_strategy.as_deref().unwrap_or("all");
+            let run_exact = matches!(strategy, "exact" | "all" | "auto");
+            let run_date = matches!(strategy, "date" | "fuzzy" | "all" | "auto");
 
             let mut matched_count = 0usize;
             let mut unmatched_invoices: Vec<&ar_invoice::Model> = Vec::new();
