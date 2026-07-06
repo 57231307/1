@@ -78,7 +78,7 @@ impl SlowQueryCollector {
     /// - 任何异常仅记录 `tracing::warn!`，不向上传播
     ///
     /// 设计原则：采集任务启动失败不阻断 main（CI 容器可能未预装扩展）
-    #[allow(dead_code)] // TODO(tech-debt): 启动入口供 main.rs 调用，预留 API
+    // v11 批次 147 P2-B：移除失效的 dead_code 标注（被 main.rs:462 真实调用）
     pub fn start_collect_task(self: Arc<Self>, interval_secs: u64) {
         let service = self.clone();
         tokio::spawn(async move {
@@ -140,7 +140,7 @@ impl SlowQueryCollector {
     /// 3. 返回写入条数（便于 handler 端反馈）
     ///
     /// 错误处理：所有错误向上传播，由调用方决定是否降级
-    #[allow(dead_code)] // TODO(tech-debt): 手动触发入口供 handler 调用，预留 API
+    // v11 批次 147 P2-B：移除失效的 dead_code 标注（被 handlers/slow_query_handler.rs:226 真实调用）
     pub async fn collect_once(&self) -> Result<usize, sea_orm::DbErr> {
         // 使用 build_query_sql 拼接 SQL（便于单元测试覆盖）
         let sql = build_query_sql(self.threshold_ms, self.limit_rows);

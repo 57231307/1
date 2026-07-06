@@ -43,7 +43,9 @@ pub enum BorrowStatus {
     Damaged,
 }
 
-#[allow(dead_code)] // TODO(tech-debt): 色卡借还路由接入后移除
+// v11 批次 147 P2-B：移除失效的 dead_code 标注
+// - from_str 在 service 内部 line 160/203/260 调用
+// - is_terminal / as_str 在 tests/color_card_borrow_test.rs 调用
 impl BorrowStatus {
     pub fn as_str(&self) -> &'static str {
         match self {
@@ -76,7 +78,7 @@ pub struct ColorCardBorrowService {
     db: Arc<DatabaseConnection>,
 }
 
-#[allow(dead_code)] // TODO(tech-debt): 色卡借还路由接入后移除
+// v11 批次 147 P2-B：移除失效的 dead_code 标注（被 handlers/color_card/borrow.rs 真实调用）
 impl ColorCardBorrowService {
     pub fn new(db: Arc<DatabaseConnection>) -> Self {
         Self {

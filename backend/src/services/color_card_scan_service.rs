@@ -28,7 +28,7 @@ pub struct ColorCardScanService {
     db: Arc<DatabaseConnection>,
 }
 
-#[allow(dead_code)] // TODO(tech-debt): 色卡扫码路由接入后移除
+// v11 批次 147 P2-B：移除失效的 dead_code 标注（被 handlers/color_card/scan_export.rs 真实调用）
 impl ColorCardScanService {
     pub fn new(db: Arc<DatabaseConnection>) -> Self {
         Self { db }
