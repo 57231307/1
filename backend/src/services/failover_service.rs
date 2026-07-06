@@ -18,7 +18,6 @@ use sea_orm::{
 use std::sync::Arc;
 use tracing::info;
 
-use crate::config::failover::FailoverConfig;
 use crate::models::failover_event as event_model;
 use crate::models::failover_status as status_model;
 use prometheus::{Encoder, IntCounterVec, IntGaugeVec, Opts, Registry, TextEncoder};
@@ -174,20 +173,14 @@ impl Default for FailoverMetrics {
 pub struct FailoverService {
     /// 数据库连接
     pub db: DatabaseConnection,
-    /// 配置
-    pub config: FailoverConfig,
     /// Prometheus 指标
     pub metrics: Arc<FailoverMetrics>,
 }
 
 impl FailoverService {
     /// 创建服务实例
-    pub fn new(db: DatabaseConnection, config: FailoverConfig, metrics: Arc<FailoverMetrics>) -> Self {
-        Self {
-            db,
-            config,
-            metrics,
-        }
+    pub fn new(db: DatabaseConnection, metrics: Arc<FailoverMetrics>) -> Self {
+        Self { db, metrics }
     }
 
     /// 获取所有主备状态
