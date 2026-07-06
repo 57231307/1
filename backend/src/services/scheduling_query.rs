@@ -24,7 +24,7 @@ use sea_orm::{
 };
 
 /// P9-2 标记：排程查询子模块路径
-#[allow(dead_code)] // TODO(tech-debt): 排程诊断日志接入后移除
+// v11 批次 148 P2-A：接入 tracing 诊断日志，移除 dead_code 标注
 pub const P92_QRY_MODULE: &str = "scheduling_query";
 
 impl SchedulingService {
@@ -38,6 +38,14 @@ impl SchedulingService {
         date_from: Option<NaiveDate>,
         date_to: Option<NaiveDate>,
     ) -> Result<GanttData, AppError> {
+        // v11 批次 148 P2-A：接入 P92_QRY_MODULE 常量到 tracing 诊断日志
+        tracing::debug!(
+            module = P92_QRY_MODULE,
+            ?work_center_id,
+            ?date_from,
+            ?date_to,
+            "排程甘特图数据查询开始"
+        );
         // BE-P 优化（2026-06-26）：work_center_id 过滤下推到 SQL，避免全量加载后 retain
         let mut query = ProductionOrderEntity::find()
             .filter(crate::models::production_order::Column::Status.ne("CANCELLED"));
