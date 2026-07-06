@@ -17,6 +17,7 @@ use crate::services::color_card_scan_service::ColorCardScanService;
 use crate::utils::app_state::AppState;
 use crate::utils::error::AppError;
 use crate::utils::response::ApiResponse;
+use crate::utils::xlsx_export::{build_xlsx_response, XlsxTable};
 
 use super::error_map::{crud_err, item_err};
 
@@ -32,7 +33,7 @@ pub async fn scan_color_code(
     Ok(Json(ApiResponse::success(result)))
 }
 
-/// GET /api/v1/erp/color-cards/export/:id - 导出色卡为 CSV
+/// GET /api/v1/erp/color-cards/export/:id - 导出色卡为 xlsx
 pub async fn export_color_card(
     _auth: AuthContext,
     State(state): State<AppState>,
@@ -47,43 +48,55 @@ pub async fn export_color_card(
         .await
         .map_err(item_err)?;
 
-    // 构造 CSV
-    let mut csv = String::from("color_code,color_name,rgb_r,rgb_g,rgb_b,hex_value,cmyk_c,cmyk_m,cmyk_y,cmyk_k,lab_l,lab_a,lab_b,pantone_code,cncs_code,custom_code\n");
-    for item in items {
-        csv.push_str(&format!(
-            "{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{}\n",
-            item.color_code,
-            super::helpers::csv_escape(&item.color_name),
-            item.rgb_r,
-            item.rgb_g,
-            item.rgb_b,
-            item.hex_value,
-            item.cmyk_c.map(|d| d.to_string()).unwrap_or_default(),
-            item.cmyk_m.map(|d| d.to_string()).unwrap_or_default(),
-            item.cmyk_y.map(|d| d.to_string()).unwrap_or_default(),
-            item.cmyk_k.map(|d| d.to_string()).unwrap_or_default(),
-            item.lab_l.map(|d| d.to_string()).unwrap_or_default(),
-            item.lab_a.map(|d| d.to_string()).unwrap_or_default(),
-            item.lab_b.map(|d| d.to_string()).unwrap_or_default(),
-            item.pantone_code.clone().unwrap_or_default(),
-            item.cncs_code.clone().unwrap_or_default(),
-            item.custom_code.clone().unwrap_or_default(),
-        ));
-    }
+    // 规则 3：构造 xlsx 表格（字段名与原 CSV 保持一致）
+    let headers = vec![
+        "color_code".to_string(),
+        "color_name".to_string(),
+        "rgb_r".to_string(),
+        "rgb_g".to_string(),
+        "rgb_b".to_string(),
+        "hex_value".to_string(),
+        "cmyk_c".to_string(),
+        "cmyk_m".to_string(),
+        "cmyk_y".to_string(),
+        "cmyk_k".to_string(),
+        "lab_l".to_string(),
+        "lab_a".to_string(),
+        "lab_b".to_string(),
+        "pantone_code".to_string(),
+        "cncs_code".to_string(),
+        "custom_code".to_string(),
+    ];
+    let rows: Vec<Vec<String>> = items
+        .iter()
+        .map(|item| {
+            vec![
+                item.color_code.clone(),
+                item.color_name.clone(),
+                item.rgb_r.to_string(),
+                item.rgb_g.to_string(),
+                item.rgb_b.to_string(),
+                item.hex_value.clone(),
+                item.cmyk_c.map(|d| d.to_string()).unwrap_or_default(),
+                item.cmyk_m.map(|d| d.to_string()).unwrap_or_default(),
+                item.cmyk_y.map(|d| d.to_string()).unwrap_or_default(),
+                item.cmyk_k.map(|d| d.to_string()).unwrap_or_default(),
+                item.lab_l.map(|d| d.to_string()).unwrap_or_default(),
+                item.lab_a.map(|d| d.to_string()).unwrap_or_default(),
+                item.lab_b.map(|d| d.to_string()).unwrap_or_default(),
+                item.pantone_code.clone().unwrap_or_default(),
+                item.cncs_code.clone().unwrap_or_default(),
+                item.custom_code.clone().unwrap_or_default(),
+            ]
+        })
+        .collect();
+    let table = XlsxTable {
+        sheet_name: "色卡".to_string(),
+        headers,
+        rows,
+    };
 
-    let filename = format!("color-card-{}.csv", card.card_no.replace(['/', '\\', ' '], "_"));
+    let filename = format!("color-card-{}", card.card_no.replace(['/', '\\', ' '], "_"));
 
-    // BE-A/H 统一：CSV 导出保留为二进制下载（非 JSON），
-    // 错误用 AppError 表达，成功返回 200 + text/csv 响应体。
-    let mut response = axum::response::Response::new(axum::body::Body::from(csv));
-    response.headers_mut().insert(
-        axum::http::header::CONTENT_TYPE,
-        axum::http::HeaderValue::from_static("text/csv; charset=utf-8"),
-    );
-    response.headers_mut().insert(
-        axum::http::header::CONTENT_DISPOSITION,
-        axum::http::HeaderValue::from_str(&format!("attachment; filename=\"{}\"", filename))
-            .map_err(|e| AppError::internal(format!("构建下载头失败: {}", e)))?,
-    );
-    Ok(response)
+    build_xlsx_response(&table, &filename)
 }

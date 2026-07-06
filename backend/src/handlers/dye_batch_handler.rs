@@ -15,6 +15,7 @@ use crate::models::dye_batch;
 use crate::utils::app_state::AppState;
 use crate::utils::error::AppError;
 use crate::utils::response::{ApiResponse, PaginatedResponse};
+use crate::utils::xlsx_export::{build_xlsx_response, XlsxTable};
 
 /// 缸号状态枚举
 #[derive(Debug, Clone, PartialEq)]
@@ -319,7 +320,7 @@ pub async fn get_dye_batches_by_color(
     Ok(Json(ApiResponse::success(batches)))
 }
 
-/// GET /api/v1/erp/dye-batches/export - 导出缸号列表（CSV）
+/// GET /api/v1/erp/dye-batches/export - 导出缸号列表（xlsx）
 pub async fn export_dye_batches(
     State(state): State<AppState>,
     Query(query): Query<DyeBatchListQuery>,
@@ -340,34 +341,37 @@ pub async fn export_dye_batches(
 
     let batches = q.all(&*state.db).await?;
 
-    let mut buf: Vec<u8> = Vec::new();
-    buf.extend_from_slice(b"\xEF\xBB\xBF");
-    let header = "ID,缸号,色号,坯布ID,计划数量,状态,创建时间\n";
-    buf.extend_from_slice(header.as_bytes());
-    for b in &batches {
-        let line = format!(
-            "{},{},{},{},{},{},{}\n",
-            b.id,
-            b.batch_no,
-            b.color_no.clone().unwrap_or_default(),
-            b.greige_fabric_id
-                .map(|i| i.to_string())
-                .unwrap_or_default(),
-            b.planned_quantity
-                .map(|d| d.to_string())
-                .unwrap_or_default(),
-            b.status.clone().unwrap_or_default(),
-            b.created_at.format("%Y-%m-%d %H:%M:%S"),
-        );
-        buf.extend_from_slice(line.as_bytes());
-    }
+    let table = XlsxTable {
+        sheet_name: "缸号列表".to_string(),
+        headers: vec![
+            "ID".to_string(),
+            "缸号".to_string(),
+            "色号".to_string(),
+            "坯布ID".to_string(),
+            "计划数量".to_string(),
+            "状态".to_string(),
+            "创建时间".to_string(),
+        ],
+        rows: batches
+            .iter()
+            .map(|b| {
+                vec![
+                    b.id.to_string(),
+                    b.batch_no.clone(),
+                    b.color_no.clone().unwrap_or_default(),
+                    b.greige_fabric_id
+                        .map(|i| i.to_string())
+                        .unwrap_or_default(),
+                    b.planned_quantity
+                        .map(|d| d.to_string())
+                        .unwrap_or_default(),
+                    b.status.clone().unwrap_or_default(),
+                    b.created_at.format("%Y-%m-%d %H:%M:%S").to_string(),
+                ]
+            })
+            .collect(),
+    };
 
-    // BE-A/H 统一：CSV 导出保留为二进制下载（非 JSON），
-    // 错误用 AppError 表达，成功返回 200 + text/csv 响应体。
-    let mut response = axum::response::Response::new(axum::body::Body::from(buf));
-    response.headers_mut().insert(
-        axum::http::header::CONTENT_TYPE,
-        axum::http::HeaderValue::from_static("text/csv; charset=utf-8"),
-    );
-    Ok(response)
+    // 规则 3：导出统一使用 xlsx 格式，错误用 AppError 表达，成功返回 200 + xlsx 响应体
+    build_xlsx_response(&table, "dye_batches_export")
 }

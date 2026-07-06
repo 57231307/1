@@ -461,7 +461,7 @@ pub struct RejectOrderRequest {
 
 // ========== 数据导出接口 ==========
 
-use axum::http::header;
+use crate::utils::xlsx_export::{build_xlsx_response, XlsxTable};
 
 /// 导出采购订单
 pub async fn export_orders(
@@ -475,22 +475,33 @@ pub async fn export_orders(
         .export_orders_to_csv(query.status, query.supplier_id)
         .await?;
 
+    // 规则 3：将 service 返回的 CSV 解析为 xlsx 表格
+    let mut reader = csv::ReaderBuilder::new()
+        .has_headers(true)
+        .from_reader(csv_data.as_slice());
+    let headers: Vec<String> = reader
+        .headers()
+        .map_err(|e| AppError::internal(format!("CSV解析错误: {}", e)))?
+        .iter()
+        .map(|s| s.to_string())
+        .collect();
+    let mut rows: Vec<Vec<String>> = Vec::new();
+    for result in reader.records() {
+        let record = result.map_err(|e| AppError::internal(format!("CSV解析错误: {}", e)))?;
+        rows.push(record.iter().map(|s| s.to_string()).collect());
+    }
+    let table = XlsxTable {
+        sheet_name: "采购订单".to_string(),
+        headers,
+        rows,
+    };
+
     let filename = format!(
-        "purchase_orders_export_{}.csv",
+        "purchase_orders_export_{}",
         chrono::Utc::now().format("%Y%m%d_%H%M%S")
     );
 
-    let response = axum::response::Response::builder()
-        .status(axum::http::StatusCode::OK)
-        .header(header::CONTENT_TYPE, "text/csv; charset=utf-8")
-        .header(
-            header::CONTENT_DISPOSITION,
-            format!("attachment; filename=\"{}\"", filename),
-        )
-        .body(axum::body::Body::from(csv_data))
-        .map_err(|e| AppError::internal(format!("响应构建失败: {}", e)))?;
-
-    Ok(response)
+    build_xlsx_response(&table, &filename)
 }
 
 /// 生成采购订单号
