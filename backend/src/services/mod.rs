@@ -112,6 +112,8 @@ pub mod quotation_service;
 pub mod quotation_convert_service;
 pub mod system_update_service;
 pub mod totp_service;
+// v11 批次 143 P1-2：用户行为追踪分析服务
+pub mod tracking_service;
 // MRP生产计划模块
 pub mod bom_service;
 pub mod mrp_engine_service;
