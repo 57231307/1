@@ -7,6 +7,7 @@ use crate::services::sales_analysis_service::{
 use crate::utils::app_state::AppState;
 use crate::utils::error::AppError;
 use crate::utils::ApiResponse;
+use crate::utils::xlsx_export::{build_xlsx_response, XlsxTable};
 use axum::{
     extract::{Path, Query, State},
     Json,
@@ -189,12 +190,38 @@ pub async fn export_analysis(
     info!("正在导出销售分析报告");
     let service = SalesAnalysisService::new(state.db.clone());
     let bytes = service.export_report(params).await?;
-    // BE-A/H 统一：CSV 导出保留为二进制下载（非 JSON），
-    // 错误用 AppError 表达，成功返回 200 + text/csv 响应体。
-    let mut response = axum::response::Response::new(axum::body::Body::from(bytes));
-    response.headers_mut().insert(
-        axum::http::header::CONTENT_TYPE,
-        axum::http::HeaderValue::from_static("text/csv; charset=utf-8"),
+
+    // 规则 3：将 service 返回的 CSV 解析为 xlsx 表格
+    // service 返回的 CSV 带 UTF-8 BOM，需先去除再交给 csv 解析器
+    let csv_bytes: &[u8] = if bytes.starts_with(&[0xEF, 0xBB, 0xBF]) {
+        &bytes[3..]
+    } else {
+        &bytes
+    };
+    let mut reader = csv::ReaderBuilder::new()
+        .has_headers(true)
+        .from_reader(csv_bytes);
+    let headers: Vec<String> = reader
+        .headers()
+        .map_err(|e| AppError::internal(format!("CSV解析错误: {}", e)))?
+        .iter()
+        .map(|s| s.to_string())
+        .collect();
+    let mut rows: Vec<Vec<String>> = Vec::new();
+    for result in reader.records() {
+        let record = result.map_err(|e| AppError::internal(format!("CSV解析错误: {}", e)))?;
+        rows.push(record.iter().map(|s| s.to_string()).collect());
+    }
+    let table = XlsxTable {
+        sheet_name: "销售分析报告".to_string(),
+        headers,
+        rows,
+    };
+
+    let filename = format!(
+        "sales_analysis_export_{}",
+        chrono::Utc::now().format("%Y%m%d_%H%M%S")
     );
-    Ok(response)
+
+    build_xlsx_response(&table, &filename)
 }

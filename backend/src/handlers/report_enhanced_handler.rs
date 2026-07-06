@@ -264,9 +264,9 @@ pub async fn export_excel(
     let encoded = base64::engine::general_purpose::STANDARD.encode(&excel_content);
 
     Ok(Json(ApiResponse::success(serde_json::json!({
-        "filename": format!("{}.csv", title),
+        "filename": format!("{}.xlsx", title),
         "size": excel_content.len(),
-        "content_type": "text/csv",
+        "content_type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         "content": encoded,
         "message": "Excel导出成功"
     }))))
@@ -399,22 +399,18 @@ pub async fn export_template(
         summary: None,
     };
 
+    // 规则 3：所有非 PDF 导出统一使用 xlsx 格式（含原 csv 请求）
     let (content_type, encoded, ext) = match format.to_lowercase().as_str() {
         "pdf" => {
             let bytes = crate::services::export_service::ExportService::export_pdf(&export_data)?;
             let ct = "application/pdf".to_string();
             (ct, bytes, "pdf")
         }
-        "excel" | "xlsx" => {
+        _ => {
             let bytes = crate::services::export_service::ExportService::export_excel(&export_data)?;
             let ct =
                 "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet".to_string();
             (ct, bytes, "xlsx")
-        }
-        _ => {
-            let bytes = crate::services::export_service::ExportService::export_csv(&export_data)?;
-            let ct = "text/csv".to_string();
-            (ct, bytes, "csv")
         }
     };
 

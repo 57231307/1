@@ -3,11 +3,10 @@
 //! 提供：
 //! - GET    /api/v1/erp/audit-logs          分页 + 多维筛选
 //! - GET    /api/v1/erp/audit-logs/{id}      详情
-//! - GET    /api/v1/erp/audit-logs/export    CSV 导出
+//! - GET    /api/v1/erp/audit-logs/export    xlsx 导出
 
 use axum::{
     extract::{Path, Query, State},
-    http::{header, HeaderValue},
     Json,
 };
 use chrono::{DateTime, Utc};
@@ -21,6 +20,7 @@ use crate::utils::app_state::AppState;
 use crate::utils::error::AppError;
 use crate::utils::response::ApiResponse;
 use crate::utils::sql_escape::safe_like_pattern;
+use crate::utils::xlsx_export::{build_xlsx_response, XlsxTable};
 
 /// P0 8-5 修复：审计日志查询要求 admin 角色
 ///
@@ -247,7 +247,7 @@ pub async fn get_audit_log(
 
 /// GET /api/v1/erp/audit-logs/export
 ///
-/// 返回 CSV 格式（text/csv），前端直接 `window.URL.createObjectURL(blob)` 下载。
+/// 返回 xlsx 格式（Excel），前端直接 `window.URL.createObjectURL(blob)` 下载。
 pub async fn export_audit_logs(
     State(state): State<AppState>,
     auth: AuthContext,
@@ -312,53 +312,54 @@ pub async fn export_audit_logs(
         Arc::new(svc).record_async(event, None);
     }
 
-    // 构造 CSV（按列顺序：id/created_at/user_id/username/operation_type/severity/
+    // 构造 xlsx 表格（按列顺序：id/created_at/user_id/username/operation_type/severity/
     // resource_type/resource_id/description/ip_address/request_id）
-    let mut csv = String::from(
-        "id,created_at,user_id,username,operation_type,severity,resource_type,\
-         resource_id,description,ip_address,request_id\n",
-    );
-    for log in logs {
-        csv.push_str(&format!(
-            "{},{},{},{},{},{},{},{},{},{},{}\n",
-            log.id,
-            log.created_at
-                .map(|t| t.to_rfc3339())
-                .unwrap_or_default()
-                .replace(',', " "),
-            log.user_id
-                .map(|i| i.to_string())
-                .unwrap_or_default()
-                .replace(',', " "),
-            log.username.unwrap_or_default().replace(',', " "),
-            log.operation_type.unwrap_or_default().replace(',', " "),
-            log.severity.unwrap_or_default().replace(',', " "),
-            log.resource_type.unwrap_or_default().replace(',', " "),
-            log.resource_id.unwrap_or_default().replace(',', " "),
-            log.description.unwrap_or_default().replace(',', " "),
-            log.ip_address.unwrap_or_default().replace(',', " "),
-            log.request_id.unwrap_or_default().replace(',', " "),
-        ));
-    }
+    let table = XlsxTable {
+        sheet_name: "审计日志".to_string(),
+        headers: vec![
+            "ID".to_string(),
+            "创建时间".to_string(),
+            "用户ID".to_string(),
+            "用户名".to_string(),
+            "操作类型".to_string(),
+            "严重级别".to_string(),
+            "资源类型".to_string(),
+            "资源ID".to_string(),
+            "描述".to_string(),
+            "IP地址".to_string(),
+            "请求ID".to_string(),
+        ],
+        rows: logs
+            .into_iter()
+            .map(|log| {
+                vec![
+                    log.id.to_string(),
+                    log.created_at
+                        .map(|t| t.to_rfc3339())
+                        .unwrap_or_default(),
+                    log.user_id
+                        .map(|i| i.to_string())
+                        .unwrap_or_default(),
+                    log.username.unwrap_or_default(),
+                    log.operation_type.unwrap_or_default(),
+                    log.severity.unwrap_or_default(),
+                    log.resource_type.unwrap_or_default(),
+                    log.resource_id.unwrap_or_default(),
+                    log.description.unwrap_or_default(),
+                    log.ip_address.unwrap_or_default(),
+                    log.request_id.unwrap_or_default(),
+                ]
+            })
+            .collect(),
+    };
 
     let filename = format!(
-        "audit_logs_{}.csv",
+        "audit_logs_{}",
         chrono::Utc::now().format("%Y%m%d%H%M%S")
     );
 
-    // BE-A/H 统一：CSV 导出保留为二进制下载（非 JSON），
-    // 错误用 AppError 表达，成功返回 200 + text/csv 响应体。
-    let mut response = axum::response::Response::new(axum::body::Body::from(csv));
-    response.headers_mut().insert(
-        header::CONTENT_TYPE,
-        HeaderValue::from_static("text/csv; charset=utf-8"),
-    );
-    response.headers_mut().insert(
-        header::CONTENT_DISPOSITION,
-        HeaderValue::from_str(&format!("attachment; filename=\"{}\"", filename))
-            .map_err(|e| AppError::internal(format!("构建下载头失败: {}", e)))?,
-    );
-    Ok(response)
+    // 规则 3：导出统一使用 xlsx 格式，错误用 AppError 表达，成功返回 200 + xlsx 响应体
+    build_xlsx_response(&table, &filename)
 }
 
 #[cfg(test)]

@@ -1,7 +1,7 @@
 //! 色卡 Handler 内部辅助函数
 //!
 //! 任务编号: P14 批 2 I-3 第 9 批
-//! 集中 ListItemsQuery 查询参数 + Model → DTO 转换 + CSV 转义
+//! 集中 ListItemsQuery 查询参数 + Model → DTO 转换
 //! 行为完全保持一致（仅结构重构）
 
 use crate::models::color_card_borrow_record;
@@ -60,14 +60,5 @@ pub fn record_to_info(m: color_card_borrow_record::Model) -> BorrowRecordInfo {
         purpose: m.purpose,
         notes: m.notes,
         compensation_amount: m.compensation_amount,
-    }
-}
-
-/// CSV 单元格转义（含逗号/引号/换行则加双引号并转义内部引号）
-pub fn csv_escape(s: &str) -> String {
-    if s.contains(',') || s.contains('"') || s.contains('\n') {
-        format!("\"{}\"", s.replace('"', "\"\""))
-    } else {
-        s.to_string()
     }
 }

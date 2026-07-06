@@ -17,6 +17,7 @@ use tracing::info;
 use zip::{write::SimpleFileOptions, CompressionMethod, ZipWriter};
 
 use crate::utils::error::AppError;
+use crate::utils::xlsx_export::{build_xlsx, XlsxTable};
 
 use super::{ExcelExportResult, ExportFormat, PdfExportResult, ReportData, ReportEngineService};
 
@@ -398,56 +399,39 @@ impl ReportEngineService {
         result
     }
 
-    /// 导出 CSV
+    /// 导出 CSV（规则 3：实际输出 xlsx 格式）
     pub async fn export_csv(&self, data: &ReportData) -> Result<Vec<u8>, AppError> {
-        let mut output = Vec::new();
-
-        // 写入 BOM 以支持 Excel 打开 UTF-8 CSV
-        output.extend_from_slice(&[0xEF, 0xBB, 0xBF]);
-
-        // 写入表头
+        // 规则 3：CSV 导出升级为 xlsx 格式，字段名与原 CSV 保持一致
         let headers: Vec<String> = data.columns.iter().map(|c| c.label.clone()).collect();
-        writeln!(output, "{}", Self::encode_csv_row(&headers))
-            .map_err(|e| AppError::internal(format!("CSV 写入失败: {}", e)))?;
-
-        // 写入数据
-        for row in &data.rows {
-            let values: Vec<String> = data
-                .columns
-                .iter()
-                .map(|col| {
-                    row.get(&col.key)
-                        .map(|v| match v {
-                            serde_json::Value::String(s) => s.clone(),
-                            _ => v.to_string().trim_matches('"').to_string(),
-                        })
-                        .unwrap_or_default()
-                })
-                .collect();
-            writeln!(output, "{}", Self::encode_csv_row(&values))
-                .map_err(|e| AppError::internal(format!("CSV 写入失败: {}", e)))?;
-        }
-
-        info!(
-            "CSV 导出成功: rows={}, size={}",
-            data.total_rows,
-            output.len()
-        );
-        Ok(output)
-    }
-
-    fn encode_csv_row(values: &[String]) -> String {
-        values
+        let rows: Vec<Vec<String>> = data
+            .rows
             .iter()
-            .map(|v| {
-                if v.contains(',') || v.contains('"') || v.contains('\n') {
-                    format!("\"{}\"", v.replace('"', "\"\""))
-                } else {
-                    v.clone()
-                }
+            .map(|row| {
+                data.columns
+                    .iter()
+                    .map(|col| {
+                        row.get(&col.key)
+                            .map(|v| match v {
+                                serde_json::Value::String(s) => s.clone(),
+                                _ => v.to_string().trim_matches('"').to_string(),
+                            })
+                            .unwrap_or_default()
+                    })
+                    .collect()
             })
-            .collect::<Vec<_>>()
-            .join(",")
+            .collect();
+        let table = XlsxTable {
+            sheet_name: "报表".to_string(),
+            headers,
+            rows,
+        };
+        let bytes = build_xlsx(&table)?;
+        info!(
+            "xlsx 导出成功: rows={}, size={}",
+            data.total_rows,
+            bytes.len()
+        );
+        Ok(bytes)
     }
 
     /// 导出 JSON

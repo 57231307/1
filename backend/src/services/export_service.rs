@@ -3,6 +3,7 @@
 //! 提供PDF、Excel、CSV等格式的导出功能
 
 use crate::utils::error::AppError;
+use crate::utils::xlsx_export::{build_xlsx, XlsxTable};
 use serde::{Deserialize, Serialize};
 
 /// 导出格式
@@ -27,7 +28,8 @@ pub struct ExportData {
 pub struct ExportService;
 
 impl ExportService {
-    /// 导出为CSV格式
+    /// 导出为CSV格式（内部调试用，面向用户的导出已升级为 export_excel）
+    #[allow(dead_code)] // TODO(tech-debt): CSV 导出仅供内部调试；如长期不用可移除
     pub fn export_csv(data: &ExportData) -> Result<Vec<u8>, AppError> {
         let mut wtr = csv::WriterBuilder::new().from_writer(vec![]);
 
@@ -58,10 +60,23 @@ impl ExportService {
         Ok(bytes)
     }
 
-    /// 导出为Excel格式（简化实现，使用CSV格式）
+    /// 导出为 Excel 格式（xlsx）
     pub fn export_excel(data: &ExportData) -> Result<Vec<u8>, AppError> {
-        // 简化实现：返回CSV格式，实际项目中应使用xlsxwriter库
-        Self::export_csv(data)
+        // 规则 3：使用 rust_xlsxwriter 构建真正的 xlsx 文件
+        let mut rows = data.rows.clone();
+        // 追加汇总行（如有），与原 CSV 导出行为保持一致
+        if let Some(summary) = &data.summary {
+            rows.push(Vec::new()); // 空行分隔
+            for (key, value) in summary {
+                rows.push(vec![key.clone(), value.clone()]);
+            }
+        }
+        let table = XlsxTable {
+            sheet_name: data.title.clone(),
+            headers: data.headers.clone(),
+            rows,
+        };
+        build_xlsx(&table)
     }
 
     /// 导出为PDF格式（简化实现，生成文本格式）

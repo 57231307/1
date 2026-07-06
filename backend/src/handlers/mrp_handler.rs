@@ -18,6 +18,7 @@ use crate::services::mrp_engine_service::{
 use crate::utils::app_state::AppState;
 use crate::utils::error::AppError;
 use crate::utils::response::{ApiResponse, PaginatedResponse};
+use crate::utils::xlsx_export::build_xlsx_response;
 
 /// MRP计算请求
 #[derive(Debug, Deserialize, Validate)]
@@ -299,18 +300,20 @@ pub async fn cancel_calculation(
     Ok(Json(ApiResponse::success(to_result_response(&result))))
 }
 
-/// 导出 MRP 计算结果为 CSV
+/// 导出 MRP 计算结果为 xlsx
 pub async fn export_calculation(
     State(state): State<AppState>,
     _auth: AuthContext,
     Path(id): Path<i32>,
 ) -> Result<axum::response::Response, AppError> {
     let service = MrpEngineService::new(state.db.clone());
-    let bytes = service.export_calculation(id).await?;
-    axum::response::Response::builder()
-        .header(axum::http::header::CONTENT_TYPE, "text/csv; charset=utf-8")
-        .body(axum::body::Body::from(bytes))
-        .map_err(|e| AppError::internal(format!("导出响应构建失败: {e}")))
+    let table = service.export_calculation(id).await?;
+    let filename = format!(
+        "mrp_calculation_{}_{}",
+        id,
+        chrono::Utc::now().format("%Y%m%d_%H%M%S")
+    );
+    build_xlsx_response(&table, &filename)
 }
 
 /// 获取 MRP 计算中某物料的明细

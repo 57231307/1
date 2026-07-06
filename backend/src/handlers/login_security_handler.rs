@@ -10,6 +10,7 @@ use crate::utils::admin_checker::is_admin_role;
 use crate::utils::app_state::AppState;
 use crate::utils::error::AppError;
 use crate::utils::response::ApiResponse;
+use crate::utils::xlsx_export::{build_xlsx_response, XlsxTable};
 
 /// P1-2e 修复（批次 81 v1 复审）：解锁账号请求 DTO
 /// 替代 unlock_account 中的 Json<serde_json::Value>，提供强类型校验
@@ -441,33 +442,35 @@ pub async fn export_login_logs(
         .fetch_page(0)
         .await?;
 
-    let mut csv_content = "ID,用户名,登录类型,IP地址,浏览器,状态,失败原因,登录时间\n".to_string();
-    for log in &logs {
-        csv_content.push_str(&format!(
-            "{},{},{},{},{},{},{},{}\n",
-            log.id,
-            log.username,
-            log.login_type.as_deref().unwrap_or(""),
-            log.ip_address.as_deref().unwrap_or(""),
-            log.user_agent.as_deref().unwrap_or(""),
-            log.status,
-            log.fail_reason.as_deref().unwrap_or(""),
-            log.login_time.map(|t| t.to_rfc3339()).unwrap_or_default()
-        ));
-    }
+    let table = XlsxTable {
+        sheet_name: "登录日志".to_string(),
+        headers: vec![
+            "ID".to_string(),
+            "用户名".to_string(),
+            "登录类型".to_string(),
+            "IP地址".to_string(),
+            "浏览器".to_string(),
+            "状态".to_string(),
+            "失败原因".to_string(),
+            "登录时间".to_string(),
+        ],
+        rows: logs
+            .iter()
+            .map(|log| {
+                vec![
+                    log.id.to_string(),
+                    log.username.clone(),
+                    log.login_type.clone().unwrap_or_default(),
+                    log.ip_address.clone().unwrap_or_default(),
+                    log.user_agent.clone().unwrap_or_default(),
+                    log.status.clone(),
+                    log.fail_reason.clone().unwrap_or_default(),
+                    log.login_time.map(|t| t.to_rfc3339()).unwrap_or_default(),
+                ]
+            })
+            .collect(),
+    };
 
-    // P9-1 关键路径 unwrap 清理：HTTP 响应构建使用 map_err 把 I/O 错误转为 AppError
-    // 失败时返回 500 + 中文错误信息，避免生产 panic 暴露给前端
-    axum::response::Response::builder()
-        .status(200)
-        .header("Content-Type", "text/csv; charset=utf-8")
-        .header("Content-Disposition", "attachment; filename=login_logs.csv")
-        .body(axum::body::Body::from(csv_content))
-        .map_err(|e| {
-            tracing::error!(
-                error = %e,
-                "P9-1: 登录日志 CSV 响应构建失败（HTTP builder 错误）"
-            );
-            AppError::internal(format!("P9-1: 登录日志导出响应构建失败: {e}"))
-        })
+    // 规则 3：导出统一使用 xlsx 格式，错误用 AppError 表达，成功返回 200 + xlsx 响应体
+    build_xlsx_response(&table, "login_logs")
 }

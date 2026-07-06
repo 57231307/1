@@ -21,6 +21,7 @@ use crate::models::mrp_result::{
 use crate::models::product::Entity as ProductEntity;
 use crate::utils::error::AppError;
 use crate::utils::sql_escape::safe_like_pattern;
+use crate::utils::xlsx_export::XlsxTable;
 
 /// MRP计算请求
 #[derive(Debug, Clone, Deserialize)]
@@ -792,8 +793,8 @@ impl MrpEngineService {
         Ok(updated)
     }
 
-    /// 导出指定 MRP 计算编号下的所有结果为 CSV
-    pub async fn export_calculation(&self, calculation_id: i32) -> Result<Vec<u8>, AppError> {
+    /// 导出指定 MRP 计算编号下的所有结果为 xlsx 表格
+    pub async fn export_calculation(&self, calculation_id: i32) -> Result<XlsxTable, AppError> {
         // 兼容前端传入 id 形如 "MRP12345" 的计算编号
         let calculation_no = if calculation_id > 0 {
             format!("MRP{}", calculation_id)
@@ -817,49 +818,50 @@ impl MrpEngineService {
             Vec::new()
         };
 
-        let mut wtr = csv::WriterBuilder::new().from_writer(vec![]);
-        wtr.write_record([
-            "ID",
-            "计算编号",
-            "产品ID",
-            "需求数量",
-            "需求日期",
-            "来源类型",
-            "来源ID",
-            "计划订单数量",
-            "计划订单日期",
-            "状态",
-            "备注",
-            "创建时间",
-        ])
-        .map_err(|e| AppError::validation(format!("CSV写入错误: {}", e)))?;
+        // 规则 3：构造 xlsx 表格（字段名与原 CSV 保持一致）
+        let headers = vec![
+            "ID".to_string(),
+            "计算编号".to_string(),
+            "产品ID".to_string(),
+            "需求数量".to_string(),
+            "需求日期".to_string(),
+            "来源类型".to_string(),
+            "来源ID".to_string(),
+            "计划订单数量".to_string(),
+            "计划订单日期".to_string(),
+            "状态".to_string(),
+            "备注".to_string(),
+            "创建时间".to_string(),
+        ];
+        let rows: Vec<Vec<String>> = results
+            .iter()
+            .map(|r| {
+                vec![
+                    r.id.to_string(),
+                    r.calculation_no.clone(),
+                    r.product_id.to_string(),
+                    r.required_quantity.to_string(),
+                    r.required_date.map(|d| d.to_string()).unwrap_or_default(),
+                    r.source_type.clone(),
+                    r.source_id.map(|i| i.to_string()).unwrap_or_default(),
+                    r.planned_order_quantity
+                        .map(|q| q.to_string())
+                        .unwrap_or_default(),
+                    r.planned_order_date
+                        .map(|d| d.to_string())
+                        .unwrap_or_default(),
+                    r.status.clone(),
+                    r.remarks.clone().unwrap_or_default(),
+                    r.created_at.to_rfc3339(),
+                ]
+            })
+            .collect();
 
-        for r in &results {
-            wtr.write_record([
-                r.id.to_string(),
-                r.calculation_no.clone(),
-                r.product_id.to_string(),
-                r.required_quantity.to_string(),
-                r.required_date.map(|d| d.to_string()).unwrap_or_default(),
-                r.source_type.clone(),
-                r.source_id.map(|i| i.to_string()).unwrap_or_default(),
-                r.planned_order_quantity
-                    .map(|q| q.to_string())
-                    .unwrap_or_default(),
-                r.planned_order_date
-                    .map(|d| d.to_string())
-                    .unwrap_or_default(),
-                r.status.clone(),
-                r.remarks.clone().unwrap_or_default(),
-                r.created_at.to_rfc3339(),
-            ])
-            .map_err(|e| AppError::validation(format!("CSV写入错误: {}", e)))?;
-        }
-
-        let bytes = wtr
-            .into_inner()
-            .map_err(|e| AppError::validation(format!("CSV序列化错误: {}", e)))?;
-        Ok(bytes)
+        Ok(XlsxTable {
+            sheet_name: "MRP计算结果".to_string(),
+            headers,
+            rows,
+        })
     }
 
     /// 获取指定 MRP 计算中某物料的需求明细

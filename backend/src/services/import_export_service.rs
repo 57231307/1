@@ -8,6 +8,7 @@ use std::sync::Arc;
 
 use crate::utils::error::AppError;
 use crate::utils::sql_escape::safe_like_pattern;
+use crate::utils::xlsx_export::{build_xlsx, XlsxTable};
 
 // ============================================================================
 // 安全漏洞 #8：导入端点请求体大小限制常量
@@ -229,7 +230,8 @@ impl ImportExportService {
         Ok(rows)
     }
 
-    /// 生成CSV内容
+    /// 生成CSV内容（内部调试用，面向用户的导出已升级为 generate_xlsx）
+    #[allow(dead_code)] // TODO(tech-debt): CSV 导出仅供内部调试；如长期不用可移除
     pub fn generate_csv(headers: &[String], data: &[Vec<String>]) -> Result<String, AppError> {
         let mut wtr = csv::WriterBuilder::new().from_writer(vec![]);
 
@@ -248,6 +250,16 @@ impl ImportExportService {
             .map_err(|e| AppError::validation(format!("CSV序列化错误: {}", e)))?;
 
         String::from_utf8(data).map_err(|e| AppError::validation(format!("CSV编码错误: {}", e)))
+    }
+
+    /// 生成 xlsx 内容（规则 3：面向用户的导出统一使用 xlsx 格式）
+    pub fn generate_xlsx(headers: &[String], data: &[Vec<String>]) -> Result<Vec<u8>, AppError> {
+        let table = XlsxTable {
+            sheet_name: "数据导出".to_string(),
+            headers: headers.to_vec(),
+            rows: data.to_vec(),
+        };
+        build_xlsx(&table)
     }
 
     /// 验证导入数据

@@ -15,6 +15,7 @@ use crate::models::dye_recipe;
 use crate::utils::app_state::AppState;
 use crate::utils::error::AppError;
 use crate::utils::response::{ApiResponse, PaginatedResponse};
+use crate::utils::xlsx_export::{build_xlsx_response, XlsxTable};
 
 #[derive(Debug, Deserialize)]
 pub struct DyeRecipeListQuery {
@@ -450,11 +451,11 @@ pub async fn submit_dye_recipe(
     )))
 }
 
-/// GET /api/v1/erp/dye-recipes/export - 导出配方列表（CSV）
+/// GET /api/v1/erp/dye-recipes/export - 导出配方列表（xlsx）
 ///
-/// 注意：该接口返回 CSV 二进制流（非 JSON），无法套用 `Result<Json<ApiResponse<T>>, AppError>`。
-/// 此处返回 `Result<axum::response::Response, AppError>`：成功时手动构造带 `text/csv`
-/// Content-Type 的 200 响应；失败时通过 `?` 将 `sea_orm::DbErr` 自动转换为 `AppError`。
+/// 注意：该接口返回 xlsx 二进制流（非 JSON），无法套用 `Result<Json<ApiResponse<T>>, AppError>`。
+/// 此处返回 `Result<axum::response::Response, AppError>`：成功时通过 build_xlsx_response 构造带
+/// xlsx Content-Type 的 200 响应；失败时通过 `?` 将 `sea_orm::DbErr` 自动转换为 `AppError`。
 pub async fn export_dye_recipes(
     State(state): State<AppState>,
     Query(query): Query<DyeRecipeListQuery>,
@@ -481,35 +482,45 @@ pub async fn export_dye_recipes(
 
     let recipes = q.all(&*state.db).await?;
 
-    let mut buf: Vec<u8> = Vec::new();
-    buf.extend_from_slice(b"\xEF\xBB\xBF");
-    let header = "ID,配方编号,配方名称,色号,颜色名称,布种,染料类型,温度,时间,PH值,浴比,状态,版本\n";
-    buf.extend_from_slice(header.as_bytes());
-    for r in &recipes {
-        let line = format!(
-            "{},{},{},{},{},{},{},{},{},{},{},{},{}\n",
-            r.id,
-            r.recipe_no,
-            r.recipe_name.clone().unwrap_or_default(),
-            r.color_code.clone().unwrap_or_default(),
-            r.color_name.clone().unwrap_or_default(),
-            r.fabric_type.clone().unwrap_or_default(),
-            r.dye_type.clone().unwrap_or_default(),
-            r.temperature.map(|d| d.to_string()).unwrap_or_default(),
-            r.time_minutes.map(|i| i.to_string()).unwrap_or_default(),
-            r.ph_value.map(|d| d.to_string()).unwrap_or_default(),
-            r.liquor_ratio.map(|d| d.to_string()).unwrap_or_default(),
-            r.status.clone().unwrap_or_default(),
-            r.version.map(|i| i.to_string()).unwrap_or_default(),
-        );
-        buf.extend_from_slice(line.as_bytes());
-    }
+    let table = XlsxTable {
+        sheet_name: "染色配方列表".to_string(),
+        headers: vec![
+            "ID".to_string(),
+            "配方编号".to_string(),
+            "配方名称".to_string(),
+            "色号".to_string(),
+            "颜色名称".to_string(),
+            "布种".to_string(),
+            "染料类型".to_string(),
+            "温度".to_string(),
+            "时间".to_string(),
+            "PH值".to_string(),
+            "浴比".to_string(),
+            "状态".to_string(),
+            "版本".to_string(),
+        ],
+        rows: recipes
+            .iter()
+            .map(|r| {
+                vec![
+                    r.id.to_string(),
+                    r.recipe_no.clone(),
+                    r.recipe_name.clone().unwrap_or_default(),
+                    r.color_code.clone().unwrap_or_default(),
+                    r.color_name.clone().unwrap_or_default(),
+                    r.fabric_type.clone().unwrap_or_default(),
+                    r.dye_type.clone().unwrap_or_default(),
+                    r.temperature.map(|d| d.to_string()).unwrap_or_default(),
+                    r.time_minutes.map(|i| i.to_string()).unwrap_or_default(),
+                    r.ph_value.map(|d| d.to_string()).unwrap_or_default(),
+                    r.liquor_ratio.map(|d| d.to_string()).unwrap_or_default(),
+                    r.status.clone().unwrap_or_default(),
+                    r.version.map(|i| i.to_string()).unwrap_or_default(),
+                ]
+            })
+            .collect(),
+    };
 
-    // Response::new 默认状态码为 200 OK，无需显式引入 StatusCode
-    let mut response = axum::response::Response::new(axum::body::Body::from(buf));
-    response.headers_mut().insert(
-        axum::http::header::CONTENT_TYPE,
-        axum::http::HeaderValue::from_static("text/csv; charset=utf-8"),
-    );
-    Ok(response)
+    // 规则 3：导出统一使用 xlsx 格式，错误用 AppError 表达，成功返回 200 + xlsx 响应体
+    build_xlsx_response(&table, "dye_recipes_export")
 }

@@ -213,7 +213,7 @@ pub async fn download_template(
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     let template = ImportExportService::get_import_template(&import_type)?;
 
-    // 生成CSV模板内容
+    // 生成模板表头与示例行
     let headers: Vec<String> = template.columns.iter().map(|c| c.title.clone()).collect();
     let example_row: Vec<String> = template
         .columns
@@ -221,16 +221,20 @@ pub async fn download_template(
         .map(|c| c.example.clone().unwrap_or_default())
         .collect();
 
-    let csv_content = ImportExportService::generate_csv(&headers, &[example_row])?;
+    // 规则 3：模板导出统一使用 xlsx 格式
+    let xlsx_bytes = ImportExportService::generate_xlsx(&headers, &[example_row])?;
+    use base64::Engine;
+    let content = base64::engine::general_purpose::STANDARD.encode(&xlsx_bytes);
 
     Ok(Json(ApiResponse::success(serde_json::json!({
-        "filename": format!("{}_template.csv", import_type),
-        "content": csv_content,
+        "filename": format!("{}_template.xlsx", import_type),
+        "content": content,
+        "content_type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         "columns": template.columns,
     }))))
 }
 
-/// GET /api/v1/erp/export/csv/:export_type - CSV导出
+/// GET /api/v1/erp/export/csv/:export_type - 数据导出（xlsx）
 pub async fn export_csv(
     State(state): State<AppState>,
     auth: AuthContext,
@@ -241,7 +245,10 @@ pub async fn export_csv(
 
     let (headers, data) = service.export_data(&export_type, &query).await?;
 
-    let csv_content = ImportExportService::generate_csv(&headers, &data)?;
+    // 规则 3：导出统一使用 xlsx 格式
+    let xlsx_bytes = ImportExportService::generate_xlsx(&headers, &data)?;
+    use base64::Engine;
+    let content = base64::engine::general_purpose::STANDARD.encode(&xlsx_bytes);
 
     // P1 8-6 修复：export_csv 补审计日志（原仅 tracing::info）
     // 修复背景：原 export_csv 仅 tracing::info 输出，未调 audit_log_service，
@@ -253,9 +260,9 @@ pub async fn export_csv(
         severity: Severity::Info,
         resource_type: Some(export_type.clone()),
         resource_id: None,
-        resource_name: Some(format!("{}.csv", export_type)),
+        resource_name: Some(format!("{}.xlsx", export_type)),
         description: Some(format!(
-            "用户 {} 导出 {} 数据为 CSV（共 {} 条）",
+            "用户 {} 导出 {} 数据为 xlsx（共 {} 条）",
             auth.username,
             export_type,
             data.len()
@@ -265,58 +272,7 @@ pub async fn export_csv(
         before_snapshot: None,
         after_snapshot: Some(serde_json::json!({
             "export_type": export_type,
-            "format": "csv",
-            "total": data.len(),
-            "status_filter": query.status,
-            "date_from": query.date_from,
-            "date_to": query.date_to,
-        })),
-    };
-    let svc = Arc::new(AuditLogService::new(state.db.clone()));
-    svc.record_async(event, None);
-
-    Ok(Json(ApiResponse::success(serde_json::json!({
-        "filename": format!("{}.csv", export_type),
-        "content": csv_content,
-        "total": data.len(),
-        "exported_at": chrono::Utc::now().to_rfc3339(),
-    }))))
-}
-
-/// GET /api/v1/erp/export/excel/:export_type - Excel导出
-pub async fn export_excel_type(
-    State(state): State<AppState>,
-    auth: AuthContext,
-    Path(export_type): Path<String>,
-    Query(query): Query<ExportQuery>,
-) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
-    let service = ImportExportService::new(state.db.clone());
-
-    let (headers, data) = service.export_data(&export_type, &query).await?;
-
-    let csv_content = ImportExportService::generate_csv(&headers, &data)?;
-
-    // P1 8-6 修复：export_excel_type 补审计日志（原仅 tracing::info）
-    let event = AuditEvent {
-        user_id: Some(auth.user_id),
-        username: Some(auth.username.clone()),
-        operation_type: OperationType::Export,
-        severity: Severity::Info,
-        resource_type: Some(export_type.clone()),
-        resource_id: None,
-        resource_name: Some(format!("{}.xlsx", export_type)),
-        description: Some(format!(
-            "用户 {} 导出 {} 数据为 Excel（共 {} 条）",
-            auth.username,
-            export_type,
-            data.len()
-        )),
-        request_method: Some("GET".to_string()),
-        request_path: Some(format!("/api/v1/erp/export/excel/{}", export_type)),
-        before_snapshot: None,
-        after_snapshot: Some(serde_json::json!({
-            "export_type": export_type,
-            "format": "excel",
+            "format": "xlsx",
             "total": data.len(),
             "status_filter": query.status,
             "date_from": query.date_from,
@@ -328,8 +284,63 @@ pub async fn export_excel_type(
 
     Ok(Json(ApiResponse::success(serde_json::json!({
         "filename": format!("{}.xlsx", export_type),
-        "content": csv_content,
-        "content_type": "text/csv",
+        "content": content,
+        "content_type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        "total": data.len(),
+        "exported_at": chrono::Utc::now().to_rfc3339(),
+    }))))
+}
+
+/// GET /api/v1/erp/export/excel/:export_type - Excel导出（xlsx）
+pub async fn export_excel_type(
+    State(state): State<AppState>,
+    auth: AuthContext,
+    Path(export_type): Path<String>,
+    Query(query): Query<ExportQuery>,
+) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
+    let service = ImportExportService::new(state.db.clone());
+
+    let (headers, data) = service.export_data(&export_type, &query).await?;
+
+    // 规则 3：导出统一使用 xlsx 格式
+    let xlsx_bytes = ImportExportService::generate_xlsx(&headers, &data)?;
+    use base64::Engine;
+    let content = base64::engine::general_purpose::STANDARD.encode(&xlsx_bytes);
+
+    // P1 8-6 修复：export_excel_type 补审计日志（原仅 tracing::info）
+    let event = AuditEvent {
+        user_id: Some(auth.user_id),
+        username: Some(auth.username.clone()),
+        operation_type: OperationType::Export,
+        severity: Severity::Info,
+        resource_type: Some(export_type.clone()),
+        resource_id: None,
+        resource_name: Some(format!("{}.xlsx", export_type)),
+        description: Some(format!(
+            "用户 {} 导出 {} 数据为 xlsx（共 {} 条）",
+            auth.username,
+            export_type,
+            data.len()
+        )),
+        request_method: Some("GET".to_string()),
+        request_path: Some(format!("/api/v1/erp/export/excel/{}", export_type)),
+        before_snapshot: None,
+        after_snapshot: Some(serde_json::json!({
+            "export_type": export_type,
+            "format": "xlsx",
+            "total": data.len(),
+            "status_filter": query.status,
+            "date_from": query.date_from,
+            "date_to": query.date_to,
+        })),
+    };
+    let svc = Arc::new(AuditLogService::new(state.db.clone()));
+    svc.record_async(event, None);
+
+    Ok(Json(ApiResponse::success(serde_json::json!({
+        "filename": format!("{}.xlsx", export_type),
+        "content": content,
+        "content_type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         "total": data.len(),
         "exported_at": chrono::Utc::now().to_rfc3339(),
     }))))
