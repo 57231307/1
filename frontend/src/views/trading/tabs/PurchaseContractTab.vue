@@ -71,6 +71,7 @@ import { ElMessage, ElMessageBox } from 'element-plus'
 import { Plus } from '@element-plus/icons-vue'
 import {
   listTradingContracts,
+  getTradingContract,
   createTradingContract,
   approveTradingContract,
   executeTradingContract,
@@ -141,8 +142,29 @@ const openPurchaseContractDialog = async () => {
   }
 }
 
-const viewPurchaseContract = (row: TradingContract) => {
-  ElMessage.info(`查看采购合同: ${row.contract_no}`)
+// 批次 157a P1-1 修复：接入 getTradingContract API 展示采购合同详情
+const viewPurchaseContract = async (row: TradingContract) => {
+  try {
+    const res = await getTradingContract(row.id)
+    const d = res.data
+    if (!d) {
+      ElMessage.warning('未找到合同详情')
+      return
+    }
+    const lines = [
+      `合同编号：${d.contract_no}`,
+      `供应商：${d.supplier_name || '-'}`,
+      `合同日期：${d.contract_date}`,
+      `合同金额：¥${formatMoney(d.total_amount)}`,
+      `当前状态：${getContractStatusLabel(d.status)}`,
+    ]
+    await ElMessageBox.alert(lines.join('\n'), '采购合同详情', {
+      confirmButtonText: '关闭',
+    })
+  } catch (e) {
+    const err = e as { message?: string }
+    ElMessage.error(err.message || '获取合同详情失败')
+  }
 }
 
 const approvePurchaseContract = async (row: TradingContract) => {

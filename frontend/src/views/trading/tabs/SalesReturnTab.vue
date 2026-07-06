@@ -63,6 +63,7 @@ import { ElMessage, ElMessageBox } from 'element-plus'
 import { Plus } from '@element-plus/icons-vue'
 import {
   listTradingReturns,
+  getTradingReturn,
   createTradingReturn,
   approveTradingReturn,
   deleteTradingReturn,
@@ -130,8 +131,31 @@ const openSalesReturnDialog = async () => {
   }
 }
 
-const viewSalesReturn = (row: TradingReturn) => {
-  ElMessage.info(`查看销售退货: ${row.return_no}`)
+// 批次 157a P1-1 修复：接入 getTradingReturn API 展示销售退货详情
+const viewSalesReturn = async (row: TradingReturn) => {
+  try {
+    const res = await getTradingReturn(row.id)
+    const d = res.data
+    if (!d) {
+      ElMessage.warning('未找到退货详情')
+      return
+    }
+    const lines = [
+      `退货单号：${d.return_no}`,
+      `客户名称：${d.customer_name || '-'}`,
+      `关联订单：${d.order_no || '-'}`,
+      `退货日期：${d.return_date}`,
+      `退货金额：¥${formatMoney(d.total_amount)}`,
+      `当前状态：${getReturnStatusLabel(d.status)}`,
+      `退货原因：${d.reason || '-'}`,
+    ]
+    await ElMessageBox.alert(lines.join('\n'), '销售退货详情', {
+      confirmButtonText: '关闭',
+    })
+  } catch (e) {
+    const err = e as { message?: string }
+    ElMessage.error(err.message || '获取退货详情失败')
+  }
 }
 
 const approveSalesReturn = async (row: TradingReturn) => {

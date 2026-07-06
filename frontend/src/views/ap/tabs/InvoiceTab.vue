@@ -197,15 +197,19 @@
 import { ref, reactive, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Plus, Printer, Download } from '@element-plus/icons-vue'
+import printJS from 'print-js'
 import type { FormInstance, FormRules } from 'element-plus'
 import {
   listAPInvoices,
+  getAPInvoice,
   createAPInvoice,
   approveAPInvoice,
   cancelAPInvoice,
   getAPInvoiceStatusText,
   type APInvoice,
 } from '@/api/ap-invoice'
+import { exportToExcel } from '@/utils/export'
+import { logger } from '@/utils/logger'
 import type { Supplier } from '@/api/supplier'
 
 const invoices = ref<APInvoice[]>([])
@@ -314,8 +318,34 @@ const submitInvoice = async () => {
   }
 }
 
-const viewInvoice = (row: APInvoice) => {
-  ElMessage.info(`查看发票: ${row.invoice_no}`)
+// 批次 157a P1-1 修复：接入 getAPInvoice API 展示应付发票详情
+const viewInvoice = async (row: APInvoice) => {
+  try {
+    const res = await getAPInvoice(row.id)
+    const d = res.data
+    if (!d) {
+      ElMessage.warning('未找到发票详情')
+      return
+    }
+    const lines = [
+      `发票编号：${d.invoice_no}`,
+      `供应商名称：${d.supplier_name}`,
+      `发票日期：${d.invoice_date}`,
+      `到期日期：${d.due_date || '-'}`,
+      `发票金额：¥${formatMoney(d.invoice_amount)}`,
+      `税额：¥${formatMoney(d.tax_amount)}`,
+      `已核销金额：¥${formatMoney(d.verified_amount)}`,
+      `未核销金额：¥${formatMoney(d.unverified_amount)}`,
+      `当前状态：${getInvoiceStatusLabel(d.status)}`,
+      `备注：${d.remark || '-'}`,
+    ]
+    await ElMessageBox.alert(lines.join('\n'), '应付发票详情', {
+      confirmButtonText: '关闭',
+    })
+  } catch (e) {
+    const err = e as { message?: string }
+    ElMessage.error(err.message || '获取发票详情失败')
+  }
 }
 
 const approveInvoice = async (row: APInvoice) => {
@@ -346,12 +376,61 @@ const cancelInvoice = async (row: APInvoice) => {
   }
 }
 
+// 批次 157a P1-1 修复：实现应付发票打印（参考 ar 模块 printJS 实现）
 const handlePrintInvoices = () => {
-  ElMessage.info('打印功能请参考原实现')
+  if (invoices.value.length === 0) {
+    ElMessage.warning('没有可打印的数据')
+    return
+  }
+  const printData = invoices.value.map((item, index) => ({
+    序号: index + 1,
+    发票号: item.invoice_no,
+    供应商: item.supplier_name,
+    发票金额: `¥${item.invoice_amount}`,
+    税额: `¥${item.tax_amount}`,
+    状态: getInvoiceStatusLabel(item.status),
+    发票日期: item.invoice_date,
+  }))
+  printJS({
+    printable: printData,
+    properties: Object.keys(printData[0] || {}) as string[],
+    type: 'table',
+    header: '应付发票列表',
+    style: 'padding: 20px; font-size: 14px;',
+    headerStyle: 'font-size: 18px; font-weight: bold; margin-bottom: 20px;',
+    gridHeaderStyle: 'font-weight: bold; background-color: #f5f7fa;',
+    gridStyle: 'border-collapse: collapse; width: 100%;',
+  } as never)
 }
 
+// 批次 157a P1-1 修复：实现应付发票导出（规则 3：使用 .xlsx 格式，非 CSV）
 const handleExportInvoices = () => {
-  ElMessage.info('导出功能请参考原实现')
+  if (invoices.value.length === 0) {
+    ElMessage.warning('没有可导出的数据')
+    return
+  }
+  exportToExcel({
+    filename: '应付发票',
+    format: 'excel',
+    data: invoices.value as unknown as Record<string, unknown>[],
+    columns: [
+      { key: 'invoice_no', title: '发票号' },
+      { key: 'supplier_name', title: '供应商' },
+      { key: 'invoice_amount', title: '发票金额' },
+      { key: 'tax_amount', title: '税额' },
+      { key: 'verified_amount', title: '已核销金额' },
+      { key: 'unverified_amount', title: '未核销金额' },
+      {
+        key: 'status',
+        title: '状态',
+        formatter: (_v: unknown, row: Record<string, unknown>) =>
+          getInvoiceStatusLabel(String(row.status)),
+      },
+      { key: 'invoice_date', title: '发票日期' },
+      { key: 'due_date', title: '到期日' },
+    ],
+  })
+  logger.info('应付发票列表已导出')
 }
 
 const fetchSuppliers = async () => {

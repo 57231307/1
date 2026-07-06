@@ -323,8 +323,37 @@ const handleApprove = async (row: any) => {
   }
 }
 
-const handleDetail = (row: any) => {
-  ElMessage.info(`查看详情：${row.business_key}`)
+// 批次 157a P1-1 修复：接入 getInstanceDetail API 展示任务关联的流程实例详情
+const handleDetail = async (row: any) => {
+  try {
+    const instanceId = row.process_instance_id || row.instance_id
+    if (!instanceId) {
+      ElMessage.warning('未找到流程实例 ID')
+      return
+    }
+    const res = await bpmApi.getInstanceDetail(String(instanceId))
+    const d = res.data
+    if (!d) {
+      ElMessage.warning('未找到流程详情')
+      return
+    }
+    const lines = [
+      `实例 ID：${d.instance_id}`,
+      `流程名称：${d.process_name}`,
+      `发起人：${d.start_user}`,
+      `发起时间：${d.start_time}`,
+      `结束时间：${d.end_time || '-'}`,
+      `当前状态：${getProcessStatusText(d.status)}`,
+      `当前节点：${d.current_activities?.join(', ') || '-'}`,
+    ]
+    await ElMessageBox.alert(lines.join('\n'), '任务详情', {
+      confirmButtonText: '关闭',
+    })
+  } catch (e) {
+    if (e !== 'cancel') logger.error(String(e))
+    const err = e as Error
+    ElMessage.error(err.message || '获取详情失败')
+  }
 }
 
 const handleTransfer = async (row: any) => {
@@ -352,17 +381,87 @@ const handleUrge = async (row: any) => {
   }
 }
 
-const handleTrace = (row: any) => {
-  ElMessage.info(`追溯流程：${row.instance_id}`)
+// 批次 157a P1-1 修复：接入 getApprovalChain API 展示流程审批链追溯
+const handleTrace = async (row: any) => {
+  try {
+    const instanceId = row.instance_id || row.process_instance_id
+    if (!instanceId) {
+      ElMessage.warning('未找到流程实例 ID')
+      return
+    }
+    const res = await bpmApi.getApprovalChain(String(instanceId))
+    const chain = res.data || []
+    if (chain.length === 0) {
+      await ElMessageBox.alert('暂无审批链记录', '流程追溯', { confirmButtonText: '关闭' })
+      return
+    }
+    const lines = chain.map(
+      item =>
+        `${item.order}. ${item.approver_name} - ${item.status}${item.comment ? `（${item.comment}）` : ''}${item.approved_at ? ` @ ${item.approved_at}` : ''}`
+    )
+    await ElMessageBox.alert(lines.join('\n'), `流程追溯：${instanceId}`, {
+      confirmButtonText: '关闭',
+    })
+  } catch (e) {
+    if (e !== 'cancel') logger.error(String(e))
+    const err = e as Error
+    ElMessage.error(err.message || '获取审批链失败')
+  }
 }
+// TODO(tech-debt): 批次 157d 补全 cancelInstance API 后撤回流程真实接入
 const handleCancel = (row: any) => {
-  ElMessage.info(`撤回流程：${row.instance_id}`)
+  ElMessage.info(`撤回流程：${row.instance_id}（后端 cancelInstance 接口待补全）`)
 }
-const handleViewProcess = (row: any) => {
-  ElMessage.info(`查看流程：${row.instance_id}`)
+// 批次 157a P1-1 修复：接入 getInstanceDetail API 展示流程实例详情
+const handleViewProcess = async (row: any) => {
+  try {
+    const res = await bpmApi.getInstanceDetail(String(row.instance_id))
+    const d = res.data
+    if (!d) {
+      ElMessage.warning('未找到流程详情')
+      return
+    }
+    const lines = [
+      `实例 ID：${d.instance_id}`,
+      `流程名称：${d.process_name}`,
+      `发起人：${d.start_user}`,
+      `发起时间：${d.start_time}`,
+      `结束时间：${d.end_time || '-'}`,
+      `当前状态：${getProcessStatusText(d.status)}`,
+      `当前节点：${d.current_activities?.join(', ') || '-'}`,
+    ]
+    await ElMessageBox.alert(lines.join('\n'), '流程详情', {
+      confirmButtonText: '关闭',
+    })
+  } catch (e) {
+    if (e !== 'cancel') logger.error(String(e))
+    const err = e as Error
+    ElMessage.error(err.message || '获取流程详情失败')
+  }
 }
-const handleProcessImage = (row: any) => {
-  ElMessage.info(`查看流程图：${row.instance_id}`)
+// 批次 157a P1-1 修复：接入 getProcessVisualization API 展示流程图信息
+const handleProcessImage = async (row: any) => {
+  try {
+    const res = await bpmApi.getProcessVisualization(String(row.instance_id))
+    const d = res.data
+    if (!d) {
+      ElMessage.warning('未找到流程图信息')
+      return
+    }
+    const lines = [
+      `实例 ID：${d.instance_id}`,
+      `流程名称：${d.process_name}`,
+      `当前活动：${d.current_activity || '-'}`,
+      `活动历史：${d.activity_history?.join(' → ') || '-'}`,
+    ]
+    await ElMessageBox.alert(lines.join('\n'), `流程图：${row.instance_id}`, {
+      confirmButtonText: '关闭',
+    })
+  } catch (e) {
+    if (e !== 'cancel') logger.error(String(e))
+    const err = e as Error
+    ElMessage.error(err.message || '获取流程图失败')
+  }
 }
 
 onMounted(() => {
