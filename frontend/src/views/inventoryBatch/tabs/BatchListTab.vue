@@ -246,9 +246,9 @@ const handleTransfer = async (row: InventoryBatch) => {
 
 const onSubmitTransfer = async () => {
   if (!transferFormRef.value || !transferCurrentRow.value) return
+  const row = transferCurrentRow.value
   await transferFormRef.value.validate(async valid => {
     if (!valid) return
-    const row = transferCurrentRow.value
     if (!row.warehouseId || !transferForm.toWarehouseId) {
       ElMessage.warning('仓库信息不完整')
       return
