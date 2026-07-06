@@ -566,12 +566,32 @@ pub fn bi() -> Router<AppState> {
 
 /// 跟踪路由
 ///
-/// 注：main 上 tracking_handler 仅提供 `track_page_view` 基础接口（用于 POST /page-view），
-/// 其余 `get_page_view_stats` / `get_page_view_stats_by_day` / `get_popular_pages` /
-/// `record_behavior` / `get_funnel_analysis` / `get_user_path` 在 main 上未实现，
-/// 因此这些统计 / 行为分析路由暂不挂载，避免编译期 E0425。
+/// v11 批次 143 P1-2：真实实现追踪分析功能（7 个端点全部挂载）
+/// - POST /page-view — 记录页面访问
+/// - GET /page-view/stats — 页面访问统计
+/// - GET /page-view/stats/by-day — 按日统计
+/// - GET /popular-pages — 热门页面排行
+/// - POST /behavior — 记录用户行为
+/// - POST /funnel — 漏斗分析
+/// - GET /user-path — 用户路径分析
 pub fn tracking() -> Router<AppState> {
-    Router::new().route("/page-view", post(tracking_handler::track_page_view))
+    Router::new()
+        .route("/page-view", post(tracking_handler::track_page_view))
+        .route(
+            "/page-view/stats",
+            get(tracking_handler::get_page_view_stats),
+        )
+        .route(
+            "/page-view/stats/by-day",
+            get(tracking_handler::get_page_view_stats_by_day),
+        )
+        .route(
+            "/popular-pages",
+            get(tracking_handler::get_popular_pages),
+        )
+        .route("/behavior", post(tracking_handler::record_behavior))
+        .route("/funnel", post(tracking_handler::get_funnel_analysis))
+        .route("/user-path", get(tracking_handler::get_user_path))
 }
 
 /// 分析域统一入口

@@ -15,6 +15,8 @@ pub mod inventory_transaction;
 pub mod inventory_transfer;
 pub mod inventory_transfer_item;
 pub mod operation_log;
+// v11 批次 143 P1-2：用户行为追踪分析模块
+pub mod page_view;
 pub mod product;
 pub mod product_category;
 pub mod product_color;
@@ -32,6 +34,8 @@ pub mod quotation_response_dto;
 pub mod quotation_update_dto;
 pub mod status;
 pub mod user;
+// v11 批次 143 P1-2：用户行为追踪分析模块
+pub mod user_behavior;
 // MRP生产计划模块
 pub mod bom;
 pub mod bom_item;
