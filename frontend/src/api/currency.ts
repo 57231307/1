@@ -47,6 +47,11 @@ export function getBaseCurrency() {
   return request.get('/currencies/base')
 }
 
+// 批次 157d-1 修复：新增设置基础币种 API
+export function setBaseCurrency(id: number) {
+  return request.post(`/currencies/${id}/set-base`)
+}
+
 export function createExchangeRate(data: CreateExchangeRateRequest) {
   return request.post('/exchange-rates', data)
 }

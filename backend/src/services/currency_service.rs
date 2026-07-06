@@ -3,6 +3,7 @@ use rust_decimal::Decimal;
 use sea_orm::DatabaseConnection;
 use sea_orm::{
     ActiveModelTrait, ColumnTrait, EntityTrait, PaginatorTrait, QueryFilter, QueryOrder, Set,
+    TransactionTrait,
 };
 use std::sync::Arc;
 
@@ -68,6 +69,36 @@ impl CurrencyService {
             .await?;
 
         Ok(model)
+    }
+
+    /// 设置基础币种（本位币）：事务内先将所有币种 is_base 置 false，再将目标币种置 true
+    pub async fn set_base_currency(&self, currency_id: i32) -> Result<CurrencyModel, AppError> {
+        let txn = self.db.begin().await?;
+
+        // 校验目标币种存在
+        let target = CurrencyEntity::find_by_id(currency_id)
+            .one(&txn)
+            .await?
+            .ok_or_else(|| AppError::not_found(format!("币种不存在：{}", currency_id)))?;
+
+        // 先将所有币种 is_base 置 false
+        let all_currencies = CurrencyEntity::find().all(&txn).await?;
+        for c in all_currencies {
+            if c.is_base == Some(true) {
+                let mut active: crate::models::currency::ActiveModel = c.into();
+                active.is_base = Set(Some(false));
+                active.update(&txn).await?;
+            }
+        }
+
+        // 再将目标币种 is_base 置 true
+        let mut target_active: crate::models::currency::ActiveModel = target.into();
+        target_active.is_base = Set(Some(true));
+        let updated = target_active.update(&txn).await?;
+
+        txn.commit().await?;
+
+        Ok(updated)
     }
 
     pub async fn list_exchange_rates(

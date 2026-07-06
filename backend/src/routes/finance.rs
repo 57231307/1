@@ -730,6 +730,10 @@ pub fn currencies() -> Router<AppState> {
         .route("/currencies", get(currency_handler::list_currencies))
         .route("/currencies/base", get(currency_handler::get_base_currency))
         .route(
+            "/currencies/:id/set-base",
+            post(currency_handler::set_base_currency),
+        )
+        .route(
             "/currencies/rates/history",
             get(currency_enhanced_handler::get_exchange_rate_history),
         )

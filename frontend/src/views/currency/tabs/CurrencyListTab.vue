@@ -129,12 +129,13 @@
 
 <script setup lang="ts">
 import { ref, reactive, onMounted } from 'vue'
-import { ElMessage, type FormInstance, type FormRules } from 'element-plus'
+import { ElMessage, ElMessageBox, type FormInstance, type FormRules } from 'element-plus'
 import { Plus } from '@element-plus/icons-vue'
 import {
   listCurrencies,
   createCurrency,
   createExchangeRate,
+  setBaseCurrency,
   type Currency,
   type CreateCurrencyRequest,
   type CreateExchangeRateRequest,
@@ -250,8 +251,27 @@ const handleRateSubmit = async () => {
   })
 }
 
-const setBase = (_row: Currency) => {
-  ElMessage.info('请通过后端接口将指定币种设为基准币种')
+// 批次 157d-1 修复：接入 setBaseCurrency API
+const setBase = async (row: Currency) => {
+  if (!row.id) {
+    ElMessage.warning('币种 ID 不存在')
+    return
+  }
+  try {
+    await ElMessageBox.confirm(
+      `确认将 "${row.code} - ${row.name}" 设为基础币种（本位币）吗？此操作会取消其他币种的基础标记。`,
+      '设置基础币种',
+      { type: 'warning' }
+    )
+    await setBaseCurrency(row.id)
+    ElMessage.success('设置基础币种成功')
+    fetchCurrencies()
+  } catch (error) {
+    if (error !== 'cancel') {
+      const err = error as Error
+      ElMessage.error(err.message || '设置基础币种失败')
+    }
+  }
 }
 
 onMounted(() => {
