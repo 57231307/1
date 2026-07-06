@@ -201,21 +201,13 @@ pub async fn ai_summary(
 }
 
 /// GET /api/v1/erp/ai/health
-/// AI 服务健康检查
+/// AI 服务健康检查（v11 批次 155 P2-C：算法元信息下沉到 AiExtendService::algorithm_metadata）
 pub async fn ai_health() -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
+    use crate::services::ai_extend_service::AiExtendService;
     Ok(Json(ApiResponse::success(serde_json::json!({
         "status": "ok",
         "version": "P2-4",
-        "modules": {
-            "process_optimization": {
-                "algorithm": "k-NN + 加权平均",
-                "fallback": "典型参数表（80°C/45min/pH6.0/浴比1:8）",
-            },
-            "quality_prediction": {
-                "algorithm": "趋势分析 + 风险评分",
-                "fallback": "保守默认（合格率 95% / 置信度 0.3）",
-            },
-        },
+        "modules": AiExtendService::algorithm_metadata(),
     }))))
 }
 
