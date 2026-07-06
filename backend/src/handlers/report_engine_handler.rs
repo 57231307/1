@@ -321,6 +321,14 @@ pub async fn aggregate_report(
         aggregation_field: request.aggregation_field,
     };
 
+    // v11 批次 154 P2-A：接入 DataSource::as_str / AggregationType::as_str 到诊断日志
+    tracing::info!(
+        data_source = aggregate_request.data_source.as_str(),
+        aggregation_type = aggregate_request.aggregation_type.as_str(),
+        group_by_count = aggregate_request.group_by.len(),
+        "报表聚合查询开始"
+    );
+
     let _page = request.page.unwrap_or(1).clamp(1, 1000); // 批次 95 P3-3~8：分页 clamp 防 DoS
     let _page_size = request.page_size.unwrap_or(50).clamp(1, 100);
 
@@ -406,4 +414,21 @@ fn parse_date_range(
         start: start_date,
         end: end_date,
     })
+}
+
+/// POST /api/v1/erp/report-engine/templates - 创建自定义报表模板
+///
+/// v11 批次 154 P2-A：接入 CreateTemplateRequest，调用 create_custom_template 写入 DB
+pub async fn create_custom_template(
+    State(state): State<AppState>,
+    auth: AuthContext,
+    Json(req): Json<crate::services::report::CreateTemplateRequest>,
+) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
+    let service = ReportEngineService::new(state.db);
+    let template = service.create_custom_template(auth.user_id, req).await?;
+
+    Ok(Json(ApiResponse::success_with_message(
+        serde_json::to_value(template)?,
+        "自定义报表模板创建成功",
+    )))
 }

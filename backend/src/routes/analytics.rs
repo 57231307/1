@@ -310,7 +310,8 @@ pub fn reports() -> Router<AppState> {
     Router::new()
         .route(
             "/report-templates",
-            get(report_engine_handler::list_templates),
+            get(report_engine_handler::list_templates)
+                .post(report_engine_handler::create_custom_template),
         )
         .route("/execute", get(report_engine_handler::execute_report))
         .route("/export", get(report_engine_handler::export_report))
