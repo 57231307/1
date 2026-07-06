@@ -137,6 +137,11 @@ pub fn bpm() -> Router<AppState> {
             "/bpm/instances/:instance_id/detail",
             get(bpm_handler::get_instance_detail),
         )
+        // 批次 157d-3 新增：撤回流程实例
+        .route(
+            "/bpm/instances/:instance_id/cancel",
+            post(bpm_handler::cancel_instance),
+        )
         .route("/bpm/monitor/stats", get(bpm_handler::get_monitor_stats))
         .route(
             "/bpm/monitor/pending-tasks",

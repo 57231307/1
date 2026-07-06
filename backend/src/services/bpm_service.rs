@@ -448,6 +448,83 @@ impl BpmService {
         Ok(())
     }
 
+    /// 撤回流程实例（批次 157d-3 新增）：终止实例并取消所有待处理任务
+    pub async fn cancel_instance(
+        &self,
+        instance_id: i32,
+        user_id: Option<i32>,
+        cancel_reason: Option<String>,
+    ) -> Result<(), AppError> {
+        let txn = self.db.begin().await?;
+        let mut pending_event: Option<crate::services::event_bus::BusinessEvent> = None;
+
+        // 加行锁串行化并发撤回
+        let instance = bpm_process_instance::Entity::find_by_id(instance_id)
+            .lock_exclusive()
+            .one(&txn)
+            .await?
+            .ok_or_else(|| AppError::not_found("流程实例不存在"))?;
+
+        // 仅允许未结束的实例撤回
+        let cur_status = instance.status.as_deref().unwrap_or("");
+        if cur_status == "COMPLETED" || cur_status == "TERMINATED" || cur_status == "CANCELLED" {
+            return Err(AppError::validation("流程已结束，无法撤回"));
+        }
+
+        // 取消所有待处理任务
+        let pending_tasks = bpm_task::Entity::find()
+            .filter(bpm_task::Column::InstanceId.eq(instance_id))
+            .filter(bpm_task::Column::Status.eq("pending"))
+            .all(&txn)
+            .await?;
+
+        for task in pending_tasks {
+            let mut task_active: bpm_task::ActiveModel = task.into();
+            task_active.status = Set(Some("cancelled".to_string()));
+            task_active.approval_opinion = Set(cancel_reason.clone());
+            task_active.handled_at = Set(Some(chrono::Utc::now()));
+            task_active.updated_at = Set(Some(chrono::Utc::now()));
+            crate::services::audit_log_service::AuditLogService::update_with_audit(
+                &txn,
+                "bpm_task",
+                task_active,
+                user_id,
+            )
+            .await?;
+        }
+
+        // 更新实例状态为 CANCELLED
+        let mut instance_active: bpm_process_instance::ActiveModel = instance.clone().into();
+        instance_active.status = Set(Some("CANCELLED".to_string()));
+        instance_active.completed_at = Set(Some(chrono::Utc::now()));
+        instance_active.updated_at = Set(Some(chrono::Utc::now()));
+        instance_active.remarks = Set(cancel_reason);
+        crate::services::audit_log_service::AuditLogService::update_with_audit(
+            &txn,
+            "bpm_process_instance",
+            instance_active,
+            user_id,
+        )
+        .await?;
+
+        // 收集事件，commit 后再 publish
+        pending_event = Some(
+            crate::services::event_bus::BusinessEvent::BpmProcessFinished {
+                business_type: instance.business_type.clone(),
+                business_id: instance.business_id,
+                approved: false,
+                approver_id: user_id.unwrap_or(0),
+            },
+        );
+
+        txn.commit().await?;
+
+        if let Some(ev) = pending_event {
+            crate::services::event_bus::EVENT_BUS.publish(ev);
+        }
+        Ok(())
+    }
+
     pub async fn query_user_tasks(
         &self,
         query: TaskQuery,

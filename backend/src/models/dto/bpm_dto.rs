@@ -87,3 +87,10 @@ pub struct TaskQuery {
     pub page: Option<u64>,
     pub page_size: Option<u64>,
 }
+
+/// 撤回流程实例请求 DTO（批次 157d-3 新增）
+#[derive(Debug, Deserialize, Serialize)]
+pub struct CancelInstanceRequest {
+    /// 撤回原因（选填）
+    pub cancel_reason: Option<String>,
+}

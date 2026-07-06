@@ -1,4 +1,6 @@
-use crate::models::dto::bpm_dto::{ApproveTaskRequest, StartProcessRequest, TaskQuery};
+use crate::models::dto::bpm_dto::{
+    ApproveTaskRequest, CancelInstanceRequest, StartProcessRequest, TaskQuery,
+};
 use crate::services::bpm_service::BpmService;
 use crate::utils::app_state::AppState;
 use crate::utils::error::AppError;
@@ -29,6 +31,21 @@ pub async fn approve_task(
     Ok(Json(ApiResponse::success(
         "Task processed successfully".to_string(),
     )))
+}
+
+/// 撤回流程实例（批次 157d-3 新增）
+#[axum::debug_handler]
+pub async fn cancel_instance(
+    Path(instance_id): Path<i32>,
+    State(state): State<AppState>,
+    auth: crate::middleware::auth_context::AuthContext,
+    Json(req): Json<CancelInstanceRequest>,
+) -> Result<Json<ApiResponse<String>>, AppError> {
+    let service = BpmService::new(state.db.clone());
+    service
+        .cancel_instance(instance_id, Some(auth.user_id), req.cancel_reason)
+        .await?;
+    Ok(Json(ApiResponse::success("撤回成功".to_string())))
 }
 
 pub async fn query_tasks(

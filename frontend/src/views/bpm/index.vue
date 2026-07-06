@@ -408,9 +408,34 @@ const handleTrace = async (row: any) => {
     ElMessage.error(err.message || '获取审批链失败')
   }
 }
-// TODO(tech-debt): 批次 157d 补全 cancelInstance API 后撤回流程真实接入
-const handleCancel = (row: any) => {
-  ElMessage.info(`撤回流程：${row.instance_id}（后端 cancelInstance 接口待补全）`)
+// 批次 157d-3 修复：接入 cancelInstance API 真实撤回流程
+const handleCancel = async (row: any) => {
+  try {
+    const confirmRes = await ElMessageBox.confirm(
+      `确认撤回流程 ${row.instance_id}？撤回后该流程将终止，所有待处理任务将被取消。`,
+      '撤回确认',
+      {
+        type: 'warning',
+        confirmButtonText: '确定撤回',
+        cancelButtonText: '取消',
+        inputPlaceholder: '撤回原因（选填）',
+        showInput: true,
+        inputType: 'textarea',
+      }
+    )
+    const reason =
+      typeof confirmRes === 'string' && confirmRes.trim() ? confirmRes.trim() : undefined
+    // 后端 cancel_instance 接收 i32 主键 id（非字符串 instance_no）
+    await bpmApi.cancelInstance(row.id, reason)
+    ElMessage.success('撤回成功')
+    // 撤回按钮仅在 "我发起的" tab 内出现，刷新该列表即可
+    fetchInitiatedProcesses()
+  } catch (e: unknown) {
+    if (e === 'cancel' || e === 'close') return
+    const err = e as Error
+    ElMessage.error(err.message || '撤回失败')
+    logger.error('撤回流程失败', err.message)
+  }
 }
 // 批次 157a P1-1 修复：接入 getInstanceDetail API 展示流程实例详情
 const handleViewProcess = async (row: any) => {

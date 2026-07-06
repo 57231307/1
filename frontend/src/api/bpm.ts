@@ -107,4 +107,10 @@ export const bpmApi = {
     request.get<ApiResponse<{ list: BPMInstance[]; total: number }>>('/bpm/monitor/instances', {
       params,
     }),
+
+  // 批次 157d-3 新增：撤回流程实例（接收实例主键 id: number）
+  cancelInstance: (instanceId: number, cancelReason?: string) =>
+    request.post<ApiResponse<null>>(`/bpm/instances/${instanceId}/cancel`, {
+      cancel_reason: cancelReason,
+    }),
 }
