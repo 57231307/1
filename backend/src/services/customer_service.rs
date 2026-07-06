@@ -223,64 +223,7 @@ impl CustomerService {
             .ok_or_else(|| AppError::not_found(format!("客户 {} 未找到", customer_id)))
     }
 
-    /// 获取客户列表
-    #[allow(dead_code)] // TODO(tech-debt): CRM 客户模块统一迁移后接入，或删除
-    pub async fn list_customers(
-        &self,
-        page_req: PageRequest,
-        status: Option<String>,
-        customer_type: Option<String>,
-        keyword: Option<String>,
-    ) -> Result<PaginatedResponse<customer::Model>, AppError> {
-        let mut query = CustomerEntity::find();
-
-        // 状态筛选
-        if let Some(status) = status {
-            query = query.filter(customer::Column::Status.eq(status));
-        }
-
-        // 客户类型筛选
-        if let Some(customer_type) = customer_type {
-            query = query.filter(customer::Column::CustomerType.eq(customer_type));
-        }
-
-        // 关键词搜索
-        if let Some(keyword) = keyword {
-            query = query.filter(
-                customer::Column::CustomerName
-                    .contains(&keyword)
-                    .or(customer::Column::CustomerCode.contains(&keyword)),
-            );
-        }
-
-        // 总数
-        let total = query.clone().count(&*self.db).await?;
-
-        // 分页排序
-        let offset = page_req.page.saturating_sub(1) * page_req.page_size;
-        let customers = query
-            .order_by(customer::Column::CreatedAt, Order::Desc)
-            .offset(offset)
-            .limit(page_req.page_size)
-            .all(&*self.db)
-            .await?;
-
-        Ok(PaginatedResponse::new(
-            customers,
-            total,
-            page_req.page,
-            page_req.page_size,
-        ))
-    }
-
-    /// 获取客户列表（带数据权限过滤）
-    ///
-    /// # 参数
-    /// - `page_req`: 分页参数
-    /// - `status`: 状态筛选
-    /// - `customer_type`: 客户类型筛选
-    /// - `keyword`: 关键词搜索
-    /// - `permission_filter`: 数据权限过滤器，用于在数据库层面过滤字段
+    /// 获取客户列表（带数据权限过滤，permission_filter 用于在数据库层面过滤字段）。
     pub async fn list_customers_with_filter(
         &self,
         page_req: PageRequest,

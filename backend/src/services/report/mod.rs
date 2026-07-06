@@ -92,22 +92,7 @@ pub struct ReportParameter {
     pub description: Option<String>,
 }
 
-/// 创建自定义模板请求
-#[allow(dead_code)] // TODO(tech-debt): 自定义报表模板创建接口接入后移除
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct CreateTemplateRequest {
-    pub name: String,
-    pub description: String,
-    pub category: String,
-    pub data_source: String,
-    pub report_type: Option<String>,
-    pub columns: Vec<ReportColumn>,
-    pub filters: Vec<ReportFilter>,
-    pub parameters: Vec<ReportParameter>,
-    pub supported_formats: Vec<String>,
-}
-
-/// 数据源（业务枚举，handler 直接使用字符串变体名）
+/// 数据源枚举（业务枚举，handler 直接使用字符串变体名，已通过 serde 序列化）。
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, Hash)]
 #[serde(rename_all = "lowercase")]
 pub enum DataSource {
@@ -115,18 +100,6 @@ pub enum DataSource {
     Purchase,
     Inventory,
     Finance,
-}
-
-impl DataSource {
-    #[allow(dead_code)] // TODO(tech-debt): 数据源字符串序列化接入后移除
-    pub fn as_str(&self) -> &'static str {
-        match self {
-            DataSource::Sales => "sales",
-            DataSource::Purchase => "purchase",
-            DataSource::Inventory => "inventory",
-            DataSource::Finance => "finance",
-        }
-    }
 }
 
 impl std::str::FromStr for DataSource {
@@ -142,7 +115,7 @@ impl std::str::FromStr for DataSource {
     }
 }
 
-/// 聚合类型
+/// 聚合类型（已通过 serde 序列化，handler 直接使用枚举值）。
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "lowercase")]
 pub enum AggregationType {
@@ -153,21 +126,6 @@ pub enum AggregationType {
     Max,
     GroupBy,
     None,
-}
-
-impl AggregationType {
-    #[allow(dead_code)] // TODO(tech-debt): 聚合类型字符串序列化接入后移除
-    pub fn as_str(&self) -> &'static str {
-        match self {
-            AggregationType::Sum => "sum",
-            AggregationType::Average => "average",
-            AggregationType::Count => "count",
-            AggregationType::Min => "min",
-            AggregationType::Max => "max",
-            AggregationType::GroupBy => "group_by",
-            AggregationType::None => "none",
-        }
-    }
 }
 
 impl std::str::FromStr for AggregationType {

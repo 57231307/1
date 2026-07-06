@@ -232,40 +232,6 @@ impl ColorCardCrudService {
         Ok(result)
     }
 
-    /// 标记色卡为遗失
-    ///
-    /// 批次 27 v7 P0 修复：状态机 lock_exclusive 补全，串行化并发状态变更
-    /// 原实现完全无 txn 无 lock，且无状态门检查（任意状态色卡均可被标记遗失）。
-    #[allow(dead_code)] // TODO(tech-debt): 当前未接入路由，后续如需直接标记色卡遗失可接入 CRUD 路由
-    pub async fn mark_lost(&self, id: i64, user_id: i32) -> Result<color_card::Model, CrudError> {
-        let txn = self.db.begin().await?;
-
-        // 1. 查询色卡（加 lock_exclusive 串行化并发 mark_lost）
-        let existing = ColorCardEntity::find_by_id(id)
-            .lock_exclusive()
-            .one(&txn)
-            .await?
-            .ok_or(CrudError::NotFound)?;
-
-        let mut active: ColorCardActive = existing.into();
-        active.status = Set("lost".to_string());
-        active.updated_at = Set(Utc::now());
-
-        // 批次 92 P3-9：user_id 从 handler AuthContext 注入（mark_lost 暂未接入路由，
-        // 但签名已补全 user_id，待路由接入时直接传 auth.user_id）
-        let result = crate::services::audit_log_service::AuditLogService::update_with_audit(
-            &txn,
-            "auto_audit",
-            active,
-            Some(user_id),
-        )
-        .await
-        .map_err(|e| CrudError::Validation(e.to_string()))?;
-
-        txn.commit().await?;
-        Ok(result)
-    }
-
     /// 校验色卡类型
     fn validate_card_type(card_type: &str) -> Result<(), CrudError> {
         match card_type {

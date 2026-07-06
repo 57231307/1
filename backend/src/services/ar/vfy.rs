@@ -27,12 +27,7 @@ use super::{
 };
 
 impl ArReconciliationService {
-    /// 自动对账 - 按客户批量匹配发票和收款
-    ///
-    /// 匹配策略：
-    /// 1. 精确匹配：金额完全相等的发票和收款
-    /// 2. 日期匹配：同一客户在对账期间内的发票和收款按时间顺序配对
-    /// 3. 客户汇总：按客户汇总应收和实收，生成对账单
+    /// 自动对账：按客户批量匹配发票和收款，match_strategy 控制策略（exact/date/all，默认 all）。
     pub async fn auto_match(
         &self,
         req: AutoMatchRequest,
@@ -155,123 +150,162 @@ impl ArReconciliationService {
 
             let rec_model = reconciliation.insert(&txn).await?;
 
+            // v11 批次 154 P2-A：接入 match_strategy，控制匹配策略选择
+            // None/"all"/"auto": 精确+日期（默认全部策略）；"exact": 仅精确金额匹配；"date"/"fuzzy": 仅日期顺序匹配
+            let run_exact = match req.match_strategy.as_deref().unwrap_or("all") {
+                "exact" | "all" | "auto" => true,
+                _ => false,
+            };
+            let run_date = match req.match_strategy.as_deref().unwrap_or("all") {
+                "date" | "fuzzy" | "all" | "auto" => true,
+                _ => false,
+            };
+
             let mut matched_count = 0usize;
             let mut unmatched_invoices: Vec<&ar_invoice::Model> = Vec::new();
             let mut unmatched_collections: Vec<&ar_collection::Model> =
                 collections.iter().collect();
 
-            // 策略1: 精确金额匹配
-            for inv in &invoices {
-                let exact_match = unmatched_collections
-                    .iter()
-                    .position(|c| c.collection_amount == inv.invoice_amount);
+            // 策略1: 精确金额匹配（match_strategy=exact/all 时执行）
+            if run_exact {
+                for inv in &invoices {
+                    let exact_match = unmatched_collections
+                        .iter()
+                        .position(|c| c.collection_amount == inv.invoice_amount);
 
-                if let Some(idx) = exact_match {
-                    let coll = unmatched_collections.remove(idx);
+                    if let Some(idx) = exact_match {
+                        let coll = unmatched_collections.remove(idx);
 
-                    // 创建发票明细
-                    let inv_item = crate::models::ar_reconciliation_item::ActiveModel {
-                        id: Default::default(),
-                        reconciliation_id: Set(rec_model.id),
-                        item_type: Set("INVOICE".to_string()),
-                        document_type: Set(Some("SALES_INVOICE".to_string())),
-                        document_id: Set(Some(inv.id)),
-                        document_no: Set(Some(inv.invoice_no.clone())),
-                        document_date: Set(Some(inv.invoice_date)),
-                        amount: Set(inv.invoice_amount),
-                        matched_amount: Set(Some(inv.invoice_amount)),
-                        match_status: Set("MATCHED".to_string()),
-                        matched_item_id: Set(Some(coll.id)),
-                        remarks: Set(None),
-                        created_at: Set(Utc::now()),
-                        updated_at: Set(Utc::now()),
-                    };
-                    inv_item.insert(&txn).await?;
+                        // 创建发票明细
+                        let inv_item = crate::models::ar_reconciliation_item::ActiveModel {
+                            id: Default::default(),
+                            reconciliation_id: Set(rec_model.id),
+                            item_type: Set("INVOICE".to_string()),
+                            document_type: Set(Some("SALES_INVOICE".to_string())),
+                            document_id: Set(Some(inv.id)),
+                            document_no: Set(Some(inv.invoice_no.clone())),
+                            document_date: Set(Some(inv.invoice_date)),
+                            amount: Set(inv.invoice_amount),
+                            matched_amount: Set(Some(inv.invoice_amount)),
+                            match_status: Set("MATCHED".to_string()),
+                            matched_item_id: Set(Some(coll.id)),
+                            remarks: Set(None),
+                            created_at: Set(Utc::now()),
+                            updated_at: Set(Utc::now()),
+                        };
+                        inv_item.insert(&txn).await?;
 
-                    // 创建收款明细
-                    let col_item = crate::models::ar_reconciliation_item::ActiveModel {
-                        id: Default::default(),
-                        reconciliation_id: Set(rec_model.id),
-                        item_type: Set("RECEIPT".to_string()),
-                        document_type: Set(Some("COLLECTION".to_string())),
-                        document_id: Set(Some(coll.id)),
-                        document_no: Set(Some(coll.collection_no.clone())),
-                        document_date: Set(Some(coll.collection_date)),
-                        amount: Set(-coll.collection_amount),
-                        matched_amount: Set(Some(coll.collection_amount)),
-                        match_status: Set("MATCHED".to_string()),
-                        matched_item_id: Set(Some(inv.id)),
-                        remarks: Set(None),
-                        created_at: Set(Utc::now()),
-                        updated_at: Set(Utc::now()),
-                    };
-                    col_item.insert(&txn).await?;
+                        // 创建收款明细
+                        let col_item = crate::models::ar_reconciliation_item::ActiveModel {
+                            id: Default::default(),
+                            reconciliation_id: Set(rec_model.id),
+                            item_type: Set("RECEIPT".to_string()),
+                            document_type: Set(Some("COLLECTION".to_string())),
+                            document_id: Set(Some(coll.id)),
+                            document_no: Set(Some(coll.collection_no.clone())),
+                            document_date: Set(Some(coll.collection_date)),
+                            amount: Set(-coll.collection_amount),
+                            matched_amount: Set(Some(coll.collection_amount)),
+                            match_status: Set("MATCHED".to_string()),
+                            matched_item_id: Set(Some(inv.id)),
+                            remarks: Set(None),
+                            created_at: Set(Utc::now()),
+                            updated_at: Set(Utc::now()),
+                        };
+                        col_item.insert(&txn).await?;
 
-                    matched_count += 1;
-                } else {
-                    unmatched_invoices.push(inv);
+                        matched_count += 1;
+                    } else {
+                        unmatched_invoices.push(inv);
+                    }
                 }
+            } else {
+                // 跳过精确匹配，所有发票直接进入日期匹配阶段
+                unmatched_invoices = invoices.iter().collect();
             }
 
-            // 策略2: 日期顺序匹配（剩余未精确匹配的）
+            // 策略2: 日期顺序匹配（match_strategy=date/all 时执行）
             let mut remaining_collections = unmatched_collections.clone();
-            for inv in unmatched_invoices {
-                let date_match = remaining_collections.iter().position(|c| {
-                    let date_diff = (c.collection_date - inv.invoice_date).num_days().abs();
-                    date_diff <= 30
-                });
+            if run_date {
+                for inv in unmatched_invoices {
+                    let date_match = remaining_collections.iter().position(|c| {
+                        let date_diff = (c.collection_date - inv.invoice_date).num_days().abs();
+                        date_diff <= 30
+                    });
 
-                if let Some(idx) = date_match {
-                    let coll = remaining_collections.remove(idx);
-                    let matched = std::cmp::min(inv.invoice_amount, coll.collection_amount);
+                    if let Some(idx) = date_match {
+                        let coll = remaining_collections.remove(idx);
+                        let matched = std::cmp::min(inv.invoice_amount, coll.collection_amount);
 
-                    let inv_item = crate::models::ar_reconciliation_item::ActiveModel {
-                        id: Default::default(),
-                        reconciliation_id: Set(rec_model.id),
-                        item_type: Set("INVOICE".to_string()),
-                        document_type: Set(Some("SALES_INVOICE".to_string())),
-                        document_id: Set(Some(inv.id)),
-                        document_no: Set(Some(inv.invoice_no.clone())),
-                        document_date: Set(Some(inv.invoice_date)),
-                        amount: Set(inv.invoice_amount),
-                        matched_amount: Set(Some(matched)),
-                        match_status: Set(if matched == inv.invoice_amount {
-                            "MATCHED".to_string()
-                        } else {
-                            "PARTIAL".to_string()
-                        }),
-                        matched_item_id: Set(Some(coll.id)),
-                        remarks: Set(None),
-                        created_at: Set(Utc::now()),
-                        updated_at: Set(Utc::now()),
-                    };
-                    inv_item.insert(&txn).await?;
+                        let inv_item = crate::models::ar_reconciliation_item::ActiveModel {
+                            id: Default::default(),
+                            reconciliation_id: Set(rec_model.id),
+                            item_type: Set("INVOICE".to_string()),
+                            document_type: Set(Some("SALES_INVOICE".to_string())),
+                            document_id: Set(Some(inv.id)),
+                            document_no: Set(Some(inv.invoice_no.clone())),
+                            document_date: Set(Some(inv.invoice_date)),
+                            amount: Set(inv.invoice_amount),
+                            matched_amount: Set(Some(matched)),
+                            match_status: Set(if matched == inv.invoice_amount {
+                                "MATCHED".to_string()
+                            } else {
+                                "PARTIAL".to_string()
+                            }),
+                            matched_item_id: Set(Some(coll.id)),
+                            remarks: Set(None),
+                            created_at: Set(Utc::now()),
+                            updated_at: Set(Utc::now()),
+                        };
+                        inv_item.insert(&txn).await?;
 
-                    let col_item = crate::models::ar_reconciliation_item::ActiveModel {
-                        id: Default::default(),
-                        reconciliation_id: Set(rec_model.id),
-                        item_type: Set("RECEIPT".to_string()),
-                        document_type: Set(Some("COLLECTION".to_string())),
-                        document_id: Set(Some(coll.id)),
-                        document_no: Set(Some(coll.collection_no.clone())),
-                        document_date: Set(Some(coll.collection_date)),
-                        amount: Set(-coll.collection_amount),
-                        matched_amount: Set(Some(matched)),
-                        match_status: Set(if matched == coll.collection_amount {
-                            "MATCHED".to_string()
-                        } else {
-                            "PARTIAL".to_string()
-                        }),
-                        matched_item_id: Set(Some(inv.id)),
-                        remarks: Set(None),
-                        created_at: Set(Utc::now()),
-                        updated_at: Set(Utc::now()),
-                    };
-                    col_item.insert(&txn).await?;
+                        let col_item = crate::models::ar_reconciliation_item::ActiveModel {
+                            id: Default::default(),
+                            reconciliation_id: Set(rec_model.id),
+                            item_type: Set("RECEIPT".to_string()),
+                            document_type: Set(Some("COLLECTION".to_string())),
+                            document_id: Set(Some(coll.id)),
+                            document_no: Set(Some(coll.collection_no.clone())),
+                            document_date: Set(Some(coll.collection_date)),
+                            amount: Set(-coll.collection_amount),
+                            matched_amount: Set(Some(matched)),
+                            match_status: Set(if matched == coll.collection_amount {
+                                "MATCHED".to_string()
+                            } else {
+                                "PARTIAL".to_string()
+                            }),
+                            matched_item_id: Set(Some(inv.id)),
+                            remarks: Set(None),
+                            created_at: Set(Utc::now()),
+                            updated_at: Set(Utc::now()),
+                        };
+                        col_item.insert(&txn).await?;
 
-                    matched_count += 1;
-                } else {
-                    // 未匹配发票
+                        matched_count += 1;
+                    } else {
+                        // 未匹配发票
+                        let inv_item = crate::models::ar_reconciliation_item::ActiveModel {
+                            id: Default::default(),
+                            reconciliation_id: Set(rec_model.id),
+                            item_type: Set("INVOICE".to_string()),
+                            document_type: Set(Some("SALES_INVOICE".to_string())),
+                            document_id: Set(Some(inv.id)),
+                            document_no: Set(Some(inv.invoice_no.clone())),
+                            document_date: Set(Some(inv.invoice_date)),
+                            amount: Set(inv.invoice_amount),
+                            matched_amount: Set(None),
+                            match_status: Set("UNMATCHED".to_string()),
+                            matched_item_id: Set(None),
+                            remarks: Set(None),
+                            created_at: Set(Utc::now()),
+                            updated_at: Set(Utc::now()),
+                        };
+                        inv_item.insert(&txn).await?;
+                    }
+                }
+            } else {
+                // 跳过日期匹配，记录所有未匹配发票
+                for inv in unmatched_invoices {
                     let inv_item = crate::models::ar_reconciliation_item::ActiveModel {
                         id: Default::default(),
                         reconciliation_id: Set(rec_model.id),
@@ -332,14 +366,7 @@ impl ArReconciliationService {
         Ok(results)
     }
 
-    /// 计算账龄分析报告
-    ///
-    /// 分桶规则：
-    /// - 当期（未逾期）：due_date >= 今天
-    /// - 1-30天：今天 - due_date 在 1~30 天
-    /// - 31-60天：今天 - due_date 在 31~60 天
-    /// - 61-90天：今天 - due_date 在 61~90 天
-    /// - 90天以上：今天 - due_date > 90 天
+    /// 计算账龄分析报告（5 档：当期/1-30/31-60/61-90/90+ 天，按 due_date 与今天差值分桶）。
     pub async fn get_aging_report(
         &self,
         customer_id: Option<i32>,

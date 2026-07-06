@@ -345,7 +345,6 @@ pub struct TemplateExportRequest {
 }
 
 /// 报表导出请求（PDF/Excel 共用）
-#[allow(dead_code)] // TODO(tech-debt): 报表导出 API 接入前端后移除 dead_code 抑制
 #[derive(Debug, Deserialize)]
 pub struct ExportRequest {
     pub template_id: String,

@@ -45,10 +45,7 @@ pub struct CreateReconciliationRequest {
     pub notes: Option<String>,
 }
 
-/// 更新对账单请求
-///
-/// 批次 108 P1-6 修复：已通过 PUT /ar-reconciliations/:id 路由接入业务，
-/// 移除 dead_code 标注。
+/// 更新对账单请求（已通过 PUT /ar-reconciliations/:id 路由接入业务）。
 #[derive(Debug, Clone)]
 pub struct UpdateReconciliationRequest {
     pub opening_balance: Option<Decimal>,
@@ -75,7 +72,7 @@ pub struct AutoMatchRequest {
     pub customer_id: Option<i32>,
     pub start_date: NaiveDate,
     pub end_date: NaiveDate,
-    #[allow(dead_code)] // TODO(tech-debt): 匹配策略字段待 vfy.rs 算法接入后启用
+    // v11 批次 154 P2-A：match_strategy 已接入 vfy.rs auto_match 算法选择
     pub match_strategy: Option<String>,
 }
 
@@ -151,7 +148,7 @@ pub struct GenerateReconciliationRequest {
     pub customer_id: i32,
     pub start_date: NaiveDate,
     pub end_date: NaiveDate,
-    #[allow(dead_code)] // TODO(tech-debt): 备注字段待 handler 接入后启用
+    // v11 批次 154 P2-A：notes 已接入 vfy.rs / recon.rs 持久化到 DB
     pub notes: Option<String>,
 }
 
@@ -174,10 +171,7 @@ impl ArReconciliationService {
 // 共享内部辅助（供 vfy.rs 自动对账使用）
 // =====================================================
 
-/// 为对账单生成对账单号（共用）
-///
-/// 支持传入 `DatabaseConnection` 或 `DatabaseTransaction`，
-/// 便于调用方在事务内生成单号（避免单号生成与主事务不一致导致断号）。
+/// 为对账单生成对账单号（支持传入 Connection 或 Transaction，便于事务内生成避免断号）。
 pub(crate) async fn generate_reconciliation_no(
     db: &(impl ConnectionTrait + TransactionTrait),
 ) -> Result<String, AppError> {

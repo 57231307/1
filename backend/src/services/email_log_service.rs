@@ -103,25 +103,6 @@ impl EmailLogService {
         Ok(updated)
     }
 
-    /// 增加重试次数
-    #[allow(dead_code)] // TODO(tech-debt): 邮件重试调度任务接入后移除
-    pub async fn increment_retry(&self, id: i32) -> Result<(), AppError> {
-        let model = EmailLogEntity::find_by_id(id)
-            .one(&*self.db)
-            .await?
-            .ok_or_else(|| AppError::not_found("邮件记录不存在"))?;
-
-        let retry_count = model.retry_count + 1;
-        let mut active_model: ActiveModel = model.into();
-        active_model.retry_count = Set(retry_count);
-        active_model.status = Set("PENDING".to_string());
-        active_model.updated_at = Set(Utc::now());
-
-        active_model.update(&*self.db).await?;
-
-        Ok(())
-    }
-
     /// 获取邮件发送记录详情
     pub async fn get_by_id(&self, id: i32) -> Result<Option<EmailLogModel>, AppError> {
         let model = EmailLogEntity::find_by_id(id).one(&*self.db).await?;
