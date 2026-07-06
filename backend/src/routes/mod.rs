@@ -267,6 +267,8 @@ fn search_routes() -> Router<AppState> {
         .route("/search/sales-orders", get(search_api::search_sales_orders))
         .route("/search/customers", get(search_api::search_customers))
         .route("/search/products", get(search_api::search_products))
+        // v11 批次 156 P2-D：接入 DocType 公共 API
+        .route("/search/doc-types", get(search_api::list_doc_types))
 }
 
 /// 构建 ERP 根域子路由（共享 `/api/v1/erp` 前缀）

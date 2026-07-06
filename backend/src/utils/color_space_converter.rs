@@ -164,8 +164,7 @@ pub fn delta_e_76(lab1: Lab, lab2: Lab) -> f64 {
     (dl * dl + da * da + db * db).sqrt()
 }
 
-/// 判断色差是否在可接受范围内（ΔE ≤ 3.0）
-#[allow(dead_code)] // TODO(tech-debt): 仅测试调用；生产代码接入色卡匹配后移除
+/// 判断色差是否在可接受范围内（ΔE ≤ 3.0，GB/T 26377 行业标准）
 pub fn delta_e_is_acceptable(delta_e: f64) -> bool {
     delta_e <= 3.0
 }

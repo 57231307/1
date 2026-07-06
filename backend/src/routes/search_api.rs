@@ -16,7 +16,7 @@ use axum::Json;
 use serde::{Deserialize, Serialize};
 
 use crate::search::{
-    indices, CustomerDoc, ProductDoc, SalesOrderDoc, SearchQuery,
+    indices, CustomerDoc, DocType, ProductDoc, SalesOrderDoc, SearchQuery,
 };
 use crate::utils::app_state::AppState;
 use crate::utils::error::AppError;
@@ -159,6 +159,28 @@ pub async fn search_products(
         took_ms: result.took_ms,
         hits,
     })))
+}
+
+/// GET /search/doc-types - 列出可用文档类型 + 各索引文档数（v11 批次 156 P2-D：接入 DocType + doc_count 公共 API）
+pub async fn list_doc_types(
+    State(state): State<AppState>,
+) -> Result<Json<ApiResponse<Vec<serde_json::Value>>>, AppError> {
+    let types = vec![
+        DocType::SalesOrder,
+        DocType::Customer,
+        DocType::Product,
+    ];
+    let mut result: Vec<serde_json::Value> = Vec::with_capacity(types.len());
+    for t in &types {
+        let count = state.search_client.doc_count(t.index()).await;
+        result.push(serde_json::json!({
+            "type": format!("{:?}", t),
+            "index": t.index(),
+            "desc_zh": t.desc_zh(),
+            "doc_count": count,
+        }));
+    }
+    Ok(Json(ApiResponse::success(result)))
 }
 
 #[cfg(test)]
