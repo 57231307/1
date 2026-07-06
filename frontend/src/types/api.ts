@@ -9,6 +9,11 @@ export interface LoginRequest {
    * 导致开启了 TOTP 的用户无法登录。
    */
   totp_token?: string
+  /**
+   * v11 批次 141：恢复码登录。当用户开启 2FA 但丢失 TOTP 设备时，
+   * 可用恢复码替代 totp_token 进行登录（恢复码一次性使用，消耗后从用户列表删除）。
+   */
+  recovery_code?: string
 }
 
 export interface LoginResponse {

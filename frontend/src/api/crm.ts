@@ -27,7 +27,16 @@ export interface Opportunity {
   name: string
   customer_id: number
   customer_name: string
-  stage:
+  /** 商机阶段（后端字段名，大写值：QUALIFICATION/NEEDS_ANALYSIS/PROPOSAL/NEGOTIATION/CLOSED_WON/CLOSED_LOST） */
+  opportunity_stage?:
+    | 'QUALIFICATION'
+    | 'NEEDS_ANALYSIS'
+    | 'PROPOSAL'
+    | 'NEGOTIATION'
+    | 'CLOSED_WON'
+    | 'CLOSED_LOST'
+  /** @deprecated 向后兼容字段，新代码应使用 opportunity_stage */
+  stage?:
     | 'qualification'
     | 'needs_analysis'
     | 'value_proposition'
@@ -119,6 +128,15 @@ export function getCustomerSummary(customerId: number): Promise<ApiResponse<Cust
 // 返回 blob，前端用 URL.createObjectURL 触发下载
 export function exportLeads(params?: QueryParams): Promise<Blob> {
   return request.get('/crm/leads/export', {
+    params,
+    responseType: 'blob',
+  })
+}
+
+// v11 批次 141 修复：补全 CRM 商机导出接口（原缺失，导致 opportunities/index.vue 导出假成功）
+// 返回 blob，前端用 URL.createObjectURL 触发下载
+export function exportOpportunities(params?: QueryParams): Promise<Blob> {
+  return request.get('/crm/opportunities/export', {
     params,
     responseType: 'blob',
   })

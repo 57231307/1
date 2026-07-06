@@ -113,6 +113,8 @@ impl UserService {
             is_active: Set(true),
             totp_secret: Set(None),
             is_totp_enabled: Set(false),
+            // v11 批次 141：2FA 恢复码字段（初始为 None）
+            totp_recovery_codes: Set(None),
             last_login_at: Set(None),
             created_at: Set(chrono::Utc::now()),
             updated_at: Set(chrono::Utc::now()),

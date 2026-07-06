@@ -24,6 +24,11 @@ pub fn routes() -> Router<AppState> {
         // CSRF token 已通过 login/refresh 的 Set-Cookie 头下发，前端从 cookie 读取。
         .route("/totp/setup", get(auth_handler_misc::setup_totp))
         .route("/totp/enable", post(auth_handler_misc::enable_totp))
+        // v11 批次 141：2FA 恢复码生成端点（前端 generateRecoveryCodes API 真实接入）
+        .route(
+            "/totp/recovery-codes",
+            post(auth_handler_misc::generate_recovery_codes),
+        )
         .route("/me", get(auth_handler_misc::get_current_user))
         .layer(middleware::from_fn(rate_limit::anti_brute_force))
 }

@@ -244,7 +244,12 @@
 import { ref, reactive, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Plus, Download, Search, Refresh } from '@element-plus/icons-vue'
-import { listOpportunities, type Opportunity } from '@/api/crm'
+import {
+  listOpportunities,
+  updateOpportunity,
+  exportOpportunities,
+  type Opportunity,
+} from '@/api/crm'
 import { listUsers, type User } from '@/api/user'
 import { customerApi, type Customer } from '@/api/customer'
 import type { ApiResponse, PageResult } from '@/types/api'
@@ -258,7 +263,7 @@ const hasLoaded = createLazyLoader()
 // 实际接口字段名与类型定义不完全一致，扩展包含 UI 展示所需字段
 interface OpportunityRow extends Opportunity {
   opportunity_name?: string
-  opportunity_stage?: string
+  // v11 批次 141 修复：opportunity_stage 已从 Opportunity 继承（字面量联合类型），不再重复声明
   owner_name?: string
   last_follow_up_date?: string
   priority?: string
@@ -372,11 +377,15 @@ const handleWin = async (row: OpportunityRow) => {
     await ElMessageBox.confirm(`确认标记商机 "${row.opportunity_name}" 为成交？`, '提示', {
       type: 'warning',
     })
-    ElMessage.success('操作成功')
+    // v11 批次 141 修复：原占位假成功，现接入真实状态变更 API
+    // 后端 UpdateOpportunityRequest 字段名为 opportunity_stage，阶段值大写
+    await updateOpportunity(row.id, { opportunity_stage: 'CLOSED_WON' })
+    ElMessage.success('已标记为成交')
     getList()
   } catch (error) {
     if (error !== 'cancel') {
-      logger.warn('操作失败', (error as Error).message)
+      logger.warn('标记成交失败', (error as Error).message)
+      ElMessage.error('标记成交失败')
     }
   }
 }
@@ -386,17 +395,36 @@ const handleLost = async (row: OpportunityRow) => {
     await ElMessageBox.confirm(`确认标记商机 "${row.opportunity_name}" 为流失？`, '提示', {
       type: 'warning',
     })
-    ElMessage.success('操作成功')
+    // v11 批次 141 修复：原占位假成功，现接入真实状态变更 API
+    // 后端 UpdateOpportunityRequest 字段名为 opportunity_stage，阶段值大写
+    await updateOpportunity(row.id, { opportunity_stage: 'CLOSED_LOST' })
+    ElMessage.success('已标记为流失')
     getList()
   } catch (error) {
     if (error !== 'cancel') {
-      logger.warn('操作失败', (error as Error).message)
+      logger.warn('标记流失失败', (error as Error).message)
+      ElMessage.error('标记流失失败')
     }
   }
 }
 
-const handleExport = () => {
-  ElMessage.success('导出成功')
+// v11 批次 141 修复：原占位假成功，现接入真实导出 API 并触发浏览器下载
+const handleExport = async () => {
+  try {
+    const blob = await exportOpportunities(queryParams)
+    const url = window.URL.createObjectURL(new Blob([blob]))
+    const link = document.createElement('a')
+    link.href = url
+    link.setAttribute('download', `CRM商机_${new Date().toISOString().split('T')[0]}.xlsx`)
+    document.body.appendChild(link)
+    link.click()
+    document.body.removeChild(link)
+    window.URL.revokeObjectURL(url)
+    ElMessage.success('导出成功')
+  } catch (error) {
+    logger.error('导出失败:', error)
+    ElMessage.error('导出失败')
+  }
 }
 
 const handleSizeChange = (val: number) => {

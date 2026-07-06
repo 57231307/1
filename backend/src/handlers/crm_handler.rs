@@ -84,6 +84,33 @@ pub async fn list_leads(
     Ok(Json(ApiResponse::success(value)))
 }
 
+/// GET /api/v1/erp/crm/leads/export - 导出线索为 CSV
+///
+/// v11 批次 141 新增：前端 exportLeads API 真实接入。
+/// 返回 text/csv; charset=utf-8（含 UTF-8 BOM，Excel 兼容）。
+pub async fn export_leads(
+    _auth: AuthContext,
+    State(state): State<AppState>,
+    Query(query): Query<LeadQuery>,
+) -> Result<axum::response::Response, AppError> {
+    let service = CrmService::new(state.db.clone());
+    let csv = service.export_leads(query).await?;
+
+    let mut response = axum::response::Response::new(csv.into_bytes().into());
+    let headers = response.headers_mut();
+    headers.insert(
+        axum::http::header::CONTENT_TYPE,
+        axum::http::HeaderValue::from_static("text/csv; charset=utf-8"),
+    );
+    headers.insert(
+        axum::http::header::CONTENT_DISPOSITION,
+        axum::http::HeaderValue::from_static(
+            "attachment; filename=\"crm_leads_export.csv\"",
+        ),
+    );
+    Ok(response)
+}
+
 pub async fn get_lead(
     auth: AuthContext,
     State(state): State<AppState>,
@@ -218,6 +245,33 @@ pub async fn list_opportunities(
     }
 
     Ok(Json(ApiResponse::success(value)))
+}
+
+/// GET /api/v1/erp/crm/opportunities/export - 导出商机为 CSV
+///
+/// v11 批次 141 新增：前端 exportOpportunities API 真实接入。
+/// 返回 text/csv; charset=utf-8（含 UTF-8 BOM，Excel 兼容）。
+pub async fn export_opportunities(
+    _auth: AuthContext,
+    State(state): State<AppState>,
+    Query(query): Query<OpportunityQuery>,
+) -> Result<axum::response::Response, AppError> {
+    let service = CrmService::new(state.db.clone());
+    let csv = service.export_opportunities(query).await?;
+
+    let mut response = axum::response::Response::new(csv.into_bytes().into());
+    let headers = response.headers_mut();
+    headers.insert(
+        axum::http::header::CONTENT_TYPE,
+        axum::http::HeaderValue::from_static("text/csv; charset=utf-8"),
+    );
+    headers.insert(
+        axum::http::header::CONTENT_DISPOSITION,
+        axum::http::HeaderValue::from_static(
+            "attachment; filename=\"crm_opportunities_export.csv\"",
+        ),
+    );
+    Ok(response)
 }
 
 pub async fn get_opportunity(

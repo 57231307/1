@@ -24,7 +24,7 @@ export const useTfa = () => {
   // Step 3 加载状态（enableLoading 仍由父组件管，因为点击验证按钮的 loading 状态在父组件 UI）
   const enableLoading = ref(false)
 
-  // Step 4 数据：恢复码（后端目前未提供，使用占位）
+  // Step 4 数据：恢复码（v11 批次 141 已接入后端 POST /auth/totp/recovery-codes）
   const recoveryCodes = ref<string[]>([])
 
   // 当前用户是否已启用 2FA

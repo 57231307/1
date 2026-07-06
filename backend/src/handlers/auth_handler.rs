@@ -42,6 +42,9 @@ pub struct LoginRequest {
     // 可选：如果用户开启了 TOTP，则必须在登录时传入此项
     #[validate(length(max = 10, message = "TOTP令牌长度不能超过10个字符"))]
     pub totp_token: Option<String>,
+    // v11 批次 141：可选恢复码，当 totp_token 缺失时可用恢复码替代
+    #[validate(length(max = 32, message = "恢复码长度不能超过32个字符"))]
+    pub recovery_code: Option<String>,
 }
 
 // 安全漏洞 #14 修复：LoginResponse 的 permissions 字段改为 `Vec<String>` 资源标识符
@@ -307,40 +310,67 @@ pub async fn login(
         Ok((token, user)) => {
             // 验证 TOTP 逻辑 (如已开启)
             if user.is_totp_enabled {
-                let totp_token = match payload.totp_token {
-                    Some(ref t) => t,
-                    None => {
-                        // Record failed login (missing TOTP)
-                        record_login_attempt(
-                            &state,
-                            &payload.username,
-                            user.id,
-                            &client_ip,
-                            &user_agent,
-                            "FAILED",
-                            Some("TOTP token missing"),
-                        )
-                        .await;
-                        return Err(AppError::unauthorized("需要提供两步验证码"));
-                    }
-                };
-
                 let totp_service = TotpService::new(state.db.clone());
-                match totp_service.verify_login_totp(user.id, totp_token).await {
-                    Ok(true) => {} // 验证通过
-                    _ => {
-                        record_login_attempt(
-                            &state,
-                            &payload.username,
-                            user.id,
-                            &client_ip,
-                            &user_agent,
-                            "FAILED",
-                            Some("TOTP verification failed"),
-                        )
-                        .await;
-                        return Err(AppError::unauthorized("两步验证码错误"));
+
+                // v11 批次 141：优先验证 totp_token，缺失时尝试 recovery_code
+                if let Some(ref totp_token) = payload.totp_token {
+                    // 路径 A：TOTP 令牌验证
+                    match totp_service.verify_login_totp(user.id, totp_token).await {
+                        Ok(true) => {} // 验证通过
+                        _ => {
+                            record_login_attempt(
+                                &state,
+                                &payload.username,
+                                user.id,
+                                &client_ip,
+                                &user_agent,
+                                "FAILED",
+                                Some("TOTP verification failed"),
+                            )
+                            .await;
+                            return Err(AppError::unauthorized("两步验证码错误"));
+                        }
                     }
+                } else if let Some(ref recovery_code) = payload.recovery_code {
+                    // 路径 B：恢复码验证（v11 批次 141 新增）
+                    match totp_service
+                        .verify_recovery_code(user.id, recovery_code)
+                        .await
+                    {
+                        Ok(true) => {
+                            tracing::info!(
+                                user_id = user.id,
+                                username = %user.username,
+                                "用户通过恢复码登录（恢复码已消耗）"
+                            );
+                        }
+                        _ => {
+                            record_login_attempt(
+                                &state,
+                                &payload.username,
+                                user.id,
+                                &client_ip,
+                                &user_agent,
+                                "FAILED",
+                                Some("Recovery code verification failed"),
+                            )
+                            .await;
+                            return Err(AppError::unauthorized("恢复码无效或已使用"));
+                        }
+                    }
+                } else {
+                    // 两种验证方式都未提供
+                    record_login_attempt(
+                        &state,
+                        &payload.username,
+                        user.id,
+                        &client_ip,
+                        &user_agent,
+                        "FAILED",
+                        Some("TOTP token and recovery code both missing"),
+                    )
+                    .await;
+                    return Err(AppError::unauthorized("需要提供两步验证码或恢复码"));
                 }
             }
 
