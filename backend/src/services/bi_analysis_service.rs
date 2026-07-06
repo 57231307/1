@@ -210,10 +210,49 @@ struct MoMRow {
     last_month: Option<Decimal>,
 }
 
+/// 透视矩阵行（v11 批次 144 P1-3：动态 SQL 透视矩阵）
+#[derive(Debug, FromQueryResult)]
+struct PivotRow {
+    row_key: Option<String>,
+    row_label: Option<String>,
+    col_key: Option<String>,
+    col_label: Option<String>,
+    measure_value: Option<Decimal>,
+}
+
 /// Decimal → f64 安全转换（避免精度损失，使用 to_string().parse()）
 fn dec_to_f64(d: Option<Decimal>) -> f64 {
     d.map(|v| v.to_string().parse::<f64>().unwrap_or(0.0))
         .unwrap_or(0.0)
+}
+
+/// 维度到 SQL 表达式映射（v11 批次 144 P1-3：透视矩阵维度映射）
+///
+/// 返回 (key_expr, label_expr)：
+/// - key_expr: 用于 GROUP BY 的唯一标识（text 类型）
+/// - label_expr: 用于展示的可读标签
+///
+/// 支持的维度：
+/// - customer: 客户 ID + 客户名称
+/// - product: 产品 ID + 产品名称
+/// - region: 客户所在省份
+/// - category: 产品品类名称
+/// - time: 订单月份（YYYY-MM 格式）
+fn dim_to_expr(dim: &str) -> (&'static str, &'static str) {
+    match dim {
+        "customer" => ("c.id::text", "COALESCE(c.customer_name, '未知客户')"),
+        "product" => ("p.id::text", "COALESCE(p.name, '未知产品')"),
+        "region" => ("COALESCE(c.province, '未知')", "COALESCE(c.province, '未知')"),
+        "category" => (
+            "COALESCE(pc.name, '未分类')",
+            "COALESCE(pc.name, '未分类')",
+        ),
+        "time" => (
+            "to_char(s.order_date, 'YYYY-MM')",
+            "to_char(s.order_date, 'YYYY-MM')",
+        ),
+        _ => unreachable!(),
+    }
 }
 
 // ==================== Service ====================
@@ -1062,33 +1101,177 @@ impl BiAnalysisService {
 
     /// 透视（行列转换）
     ///
-    /// 按 row_dim × col_dim 构建二维聚合矩阵，measure 为度量字段（如 total_amount）。
-    /// 当前实现：返回 row_dim 维度下的聚合数据，matrix 字段保留为示例结构。
+    /// 按 row_dim × col_dim 构建二维聚合矩阵，measure 为度量字段。
+    ///
+    /// 支持的维度（row_dim / col_dim）：
+    /// - customer: 客户
+    /// - product: 产品
+    /// - region: 区域（客户所在省份）
+    /// - category: 品类
+    /// - time: 时间（按月聚合，YYYY-MM）
+    ///
+    /// 支持的度量（measure）：
+    /// - total_amount: 销售额
+    /// - order_count: 订单数
+    /// - quantity: 销售数量
+    /// - profit_amount: 利润（销售额 - 成本）
+    ///
+    /// 返回结构：
+    /// ```json
+    /// {
+    ///   "row_dim": "customer",
+    ///   "col_dim": "product",
+    ///   "measure": "total_amount",
+    ///   "rows": [{ "key": "1", "label": "客户A" }, ...],
+    ///   "columns": [{ "key": "10", "label": "产品X" }, ...],
+    ///   "matrix": { "1|10": 1500.0, "1|11": 2300.0, ... }
+    /// }
+    /// ```
+    ///
+    /// 实现说明（v11 批次 144 P1-3 修复）：
+    /// - 原实现返回占位 note 字段，col 维度分组未实现
+    /// - 现使用动态 SQL 构建真实的 row × col 交叉聚合矩阵
+    /// - 当任一维度为 product/category 时，需要关联 sales_order_items 表进行项级聚合
+    /// - 否则在订单级别聚合，避免因 JOIN 倍增导致 total_amount 重复计算
     pub async fn pivot(
         &self,
         row_dim: &str,
         col_dim: &str,
         measure: &str,
     ) -> Result<serde_json::Value, AppError> {
-        // 简化实现：按 row_dim 聚合，col_dim 维度作为列分组（需动态 SQL，当前返回 row 维度聚合）
-        let row_data: serde_json::Value = match row_dim {
-            "customer" => serde_json::to_value(self.sales_by_customer(10).await?)?,
-            "product" => serde_json::to_value(self.sales_by_product(10).await?)?,
-            "region" => serde_json::to_value(self.sales_by_region().await?)?,
-            "category" => serde_json::to_value(self.sales_by_category().await?)?,
-            _ => {
-                let end = chrono::Local::now().date_naive();
-                let start = end - chrono::Duration::days(30);
-                serde_json::to_value(self.sales_by_time(start, end, "day").await?)?
-            }
+        let valid_dims = ["customer", "product", "region", "category", "time"];
+        if !valid_dims.contains(&row_dim) {
+            return Err(AppError::validation(format!(
+                "不支持的行维度: {}",
+                row_dim
+            )));
+        }
+        if !valid_dims.contains(&col_dim) {
+            return Err(AppError::validation(format!(
+                "不支持的列维度: {}",
+                col_dim
+            )));
+        }
+        if row_dim == col_dim {
+            return Err(AppError::validation("行维度与列维度不能相同"));
+        }
+
+        let valid_measures = ["total_amount", "order_count", "quantity", "profit_amount"];
+        if !valid_measures.contains(&measure) {
+            return Err(AppError::validation(format!(
+                "不支持的度量: {}",
+                measure
+            )));
+        }
+
+        let (row_key_expr, row_label_expr) = dim_to_expr(row_dim);
+        let (col_key_expr, col_label_expr) = dim_to_expr(col_dim);
+
+        // 判断是否需要关联 sales_order_items（当任一维度为 product/category 时）
+        let needs_items =
+            matches!(row_dim, "product" | "category") || matches!(col_dim, "product" | "category");
+
+        let (joins, measure_expr) = if needs_items {
+            // 项级聚合：关联 sales_order_items / products / product_categories
+            let joins = r#"
+                LEFT JOIN sales_order_items si ON si.order_id = s.id
+                LEFT JOIN products p ON p.id = si.product_id
+                LEFT JOIN product_categories pc ON pc.id = p.category_id
+            "#;
+            let measure_expr = match measure {
+                "total_amount" => "COALESCE(SUM(si.total_amount), 0)",
+                "order_count" => "COUNT(DISTINCT s.id)::numeric",
+                "quantity" => "COALESCE(SUM(si.quantity), 0)",
+                "profit_amount" => {
+                    "COALESCE(SUM(si.total_amount), 0) - COALESCE(SUM(si.quantity * COALESCE(p.cost_price, 0)), 0)"
+                }
+                _ => unreachable!(),
+            };
+            (joins, measure_expr)
+        } else {
+            // 订单级聚合：不关联 sales_order_items，避免 total_amount 重复计算
+            let joins = "";
+            let measure_expr = match measure {
+                "total_amount" => "COALESCE(SUM(s.total_amount), 0)",
+                "order_count" => "COUNT(*)::numeric",
+                "quantity" => {
+                    "COALESCE(SUM((SELECT SUM(si.quantity) FROM sales_order_items si WHERE si.order_id = s.id)), 0)"
+                }
+                "profit_amount" => {
+                    "COALESCE(SUM(s.total_amount), 0) - COALESCE(SUM((SELECT SUM(si.quantity * COALESCE(p.cost_price, 0)) FROM sales_order_items si LEFT JOIN products p ON p.id = si.product_id WHERE si.order_id = s.id)), 0)"
+                }
+                _ => unreachable!(),
+            };
+            (joins, measure_expr)
         };
 
+        let sql = format!(
+            r#"
+            SELECT
+                {row_key} as row_key,
+                {row_label} as row_label,
+                {col_key} as col_key,
+                {col_label} as col_label,
+                {measure} as measure_value
+            FROM sales_orders s
+            LEFT JOIN customers c ON c.id = s.customer_id
+            {joins}
+            WHERE s.status NOT IN ('CANCELLED', 'DRAFT')
+            GROUP BY row_key, row_label, col_key, col_label
+            ORDER BY row_label ASC, col_label ASC
+            "#,
+            row_key = row_key_expr,
+            row_label = row_label_expr,
+            col_key = col_key_expr,
+            col_label = col_label_expr,
+            measure = measure_expr,
+            joins = joins,
+        );
+
+        let stmt = Statement::from_sql_and_values(sea_orm::DatabaseBackend::Postgres, sql, []);
+
+        let rows = PivotRow::find_by_statement(stmt).all(&*self.db).await?;
+
+        // 收集唯一的行/列键（保持有序），并构建矩阵
+        let mut row_set: std::collections::BTreeMap<String, String> =
+            std::collections::BTreeMap::new();
+        let mut col_set: std::collections::BTreeMap<String, String> =
+            std::collections::BTreeMap::new();
+        let mut matrix: std::collections::HashMap<String, f64> =
+            std::collections::HashMap::new();
+
+        for r in rows {
+            let row_key = r.row_key.unwrap_or_default();
+            let row_label = r.row_label.unwrap_or_else(|| row_key.clone());
+            let col_key = r.col_key.unwrap_or_default();
+            let col_label = r.col_label.unwrap_or_else(|| col_key.clone());
+            let value = dec_to_f64(r.measure_value);
+
+            row_set.entry(row_key.clone()).or_insert(row_label);
+            col_set.entry(col_key.clone()).or_insert(col_label);
+            matrix.insert(format!("{}|{}", row_key, col_key), value);
+        }
+
+        let rows_json: Vec<serde_json::Value> = row_set
+            .iter()
+            .map(|(k, v)| serde_json::json!({ "key": k, "label": v }))
+            .collect();
+        let cols_json: Vec<serde_json::Value> = col_set
+            .iter()
+            .map(|(k, v)| serde_json::json!({ "key": k, "label": v }))
+            .collect();
+        let matrix_json: serde_json::Value = matrix
+            .into_iter()
+            .map(|(k, v)| (k, serde_json::json!(v)))
+            .collect();
+
         Ok(serde_json::json!({
-            "row": row_dim,
-            "col": col_dim,
+            "row_dim": row_dim,
+            "col_dim": col_dim,
             "measure": measure,
-            "row_data": row_data,
-            "note": "透视矩阵需动态 SQL 构建，当前返回 row 维度聚合数据，col 维度分组待后续迭代实现",
+            "rows": rows_json,
+            "columns": cols_json,
+            "matrix": matrix_json,
         }))
     }
 }
@@ -1169,6 +1352,41 @@ mod tests {
     async fn test_rollup_invalid_level() {
         if let Some(service) = make_service().await {
             let result = service.rollup("invalid", "month").await;
+            assert!(result.is_err());
+        }
+    }
+
+    /// v11 批次 144 P1-3：透视矩阵参数校验测试
+    #[tokio::test]
+    async fn test_pivot_invalid_row_dim() {
+        if let Some(service) = make_service().await {
+            let result = service.pivot("invalid", "customer", "total_amount").await;
+            assert!(result.is_err());
+        }
+    }
+
+    #[tokio::test]
+    async fn test_pivot_invalid_col_dim() {
+        if let Some(service) = make_service().await {
+            let result = service.pivot("customer", "invalid", "total_amount").await;
+            assert!(result.is_err());
+        }
+    }
+
+    #[tokio::test]
+    async fn test_pivot_same_dim() {
+        if let Some(service) = make_service().await {
+            let result = service.pivot("customer", "customer", "total_amount").await;
+            assert!(result.is_err());
+        }
+    }
+
+    #[tokio::test]
+    async fn test_pivot_invalid_measure() {
+        if let Some(service) = make_service().await {
+            let result = service
+                .pivot("customer", "product", "invalid_measure")
+                .await;
             assert!(result.is_err());
         }
     }

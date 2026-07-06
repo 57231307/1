@@ -428,6 +428,7 @@ impl InventoryTransferService {
                     quantity_reserved: sea_orm::ActiveValue::Set(rust_decimal::Decimal::ZERO),
                     quantity_incoming: sea_orm::ActiveValue::Set(rust_decimal::Decimal::ZERO),
                     reorder_point: sea_orm::ActiveValue::Set(rust_decimal::Decimal::ZERO),
+                    max_stock_point: sea_orm::ActiveValue::Set(rust_decimal::Decimal::ZERO),
                     reorder_quantity: sea_orm::ActiveValue::Set(rust_decimal::Decimal::ZERO),
                     last_count_date: sea_orm::ActiveValue::NotSet,
                     last_movement_date: sea_orm::ActiveValue::NotSet,

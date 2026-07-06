@@ -40,6 +40,7 @@ pub async fn get_stock(
         quantity_available: stock.quantity_available,
         quantity_reserved: stock.quantity_reserved,
         reorder_point: stock.reorder_point,
+        max_stock_point: stock.max_stock_point,
         bin_location: stock.bin_location,
         created_at: stock.created_at,
         updated_at: stock.updated_at,
@@ -107,6 +108,7 @@ pub async fn create_stock(
         quantity_available: stock.quantity_available,
         quantity_reserved: stock.quantity_reserved,
         reorder_point: stock.reorder_point,
+        max_stock_point: stock.max_stock_point,
         bin_location: stock.bin_location,
         created_at: stock.created_at,
         updated_at: stock.updated_at,
@@ -148,6 +150,9 @@ pub async fn update_stock(
     if let Some(rop) = payload.reorder_point {
         active_model.reorder_point = Set(rop);
     }
+    if let Some(msp) = payload.max_stock_point {
+        active_model.max_stock_point = Set(msp);
+    }
     if let Some(roq) = payload.reorder_quantity {
         active_model.reorder_quantity = Set(roq);
     }
@@ -170,6 +175,7 @@ pub async fn update_stock(
         quantity_available: updated.quantity_available,
         quantity_reserved: updated.quantity_reserved,
         reorder_point: updated.reorder_point,
+        max_stock_point: updated.max_stock_point,
         bin_location: updated.bin_location,
         created_at: updated.created_at,
         updated_at: updated.updated_at,

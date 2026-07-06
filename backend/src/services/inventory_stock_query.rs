@@ -11,23 +11,27 @@ use sea_orm::{
 use crate::handlers::inventory_stock_handler_dto::InventorySummaryItem;
 use crate::models::{inventory_stock, inventory_transaction};
 use crate::services::event_bus::{BusinessEvent, EVENT_BUS};
-use crate::services::stock_alert::{AlertType, ALERT_TYPE_NORMAL, EXPIRING_THRESHOLD_DAYS};
+use crate::services::stock_alert::{
+    AlertType, ALERT_TYPE_NORMAL, EXPIRING_THRESHOLD_DAYS, SLOW_MOVING_THRESHOLD_DAYS,
+};
 use crate::utils::error::AppError;
 
 /// 根据库存 Model 派生计算 alert_type 字符串
 ///
 /// 批次 126 v8 复审 P2 修复：替换原硬编码 "normal"。
 ///
+/// v11 批次 144 P1-4 修复：扩展 OverStock（高于上限）和 SlowMoving（滞销）告警判定。
+/// - OverStock: max_stock_point > 0 && quantity_available > max_stock_point
+/// - SlowMoving: last_movement_date 距今 > SLOW_MOVING_THRESHOLD_DAYS 天
+///
 /// 判定优先级（高优先级先返回）：
 /// 1. stock_status != "正常" → discrepancy（盘点差异/状态异常）
 /// 2. quantity_available == 0 && reorder_point > 0 → out_of_stock（缺货）
 /// 3. reorder_point > 0 && quantity_available < reorder_point → low_stock（低于下限）
-/// 4. expiry_date 存在且距今 ≤ EXPIRING_THRESHOLD_DAYS 天 → expiring（即将过期）
-/// 5. 否则 → normal
-///
-/// 注意：OverStock（高于上限）和 SlowMoving（滞销）暂未实现，
-/// 因为 inventory_stocks 表无 max_stock_point / last_movement_date 阈值字段，
-/// 后续迭代补充字段后再接入。
+/// 4. max_stock_point > 0 && quantity_available > max_stock_point → over_stock（高于上限）
+/// 5. expiry_date 存在且距今 ≤ EXPIRING_THRESHOLD_DAYS 天 → expiring（即将过期）
+/// 6. last_movement_date 距今 > SLOW_MOVING_THRESHOLD_DAYS 天 → slow_moving（滞销）
+/// 7. 否则 → normal
 fn compute_alert_type(s: &inventory_stock::Model) -> &'static str {
     // 1. 状态异常优先（冻结/待检等）
     if s.stock_status != "正常" {
@@ -41,14 +45,33 @@ fn compute_alert_type(s: &inventory_stock::Model) -> &'static str {
     if s.reorder_point > Decimal::ZERO && s.quantity_available < s.reorder_point {
         return AlertType::LowStock.code();
     }
-    // 4. 即将过期（expiry_date 距今 ≤ 阈值天数）
+    // 4. 高于上限（可用量 > 库存上限，且设置了上限）
+    //
+    // v11 批次 144 P1-4：接入 max_stock_point 字段，实现 OverStock 告警。
+    if s.max_stock_point > Decimal::ZERO && s.quantity_available > s.max_stock_point {
+        return AlertType::OverStock.code();
+    }
+    // 5. 即将过期（expiry_date 距今 ≤ 阈值天数）
     if let Some(expiry) = s.expiry_date {
         let now = Utc::now();
         if (expiry - now).num_days() <= EXPIRING_THRESHOLD_DAYS {
             return AlertType::Expiring.code();
         }
     }
-    // 5. 正常
+    // 6. 滞销（最后一次库存变动距今 > 阈值天数）
+    //
+    // v11 批次 144 P1-4：接入 last_movement_date 字段，实现 SlowMoving 告警。
+    // last_movement_date 为 NULL 表示从未发生过库存变动（视为滞销）。
+    if let Some(last_move) = s.last_movement_date {
+        let now = Utc::now();
+        if (now - last_move).num_days() > SLOW_MOVING_THRESHOLD_DAYS {
+            return AlertType::SlowMoving.code();
+        }
+    } else if s.quantity_available > Decimal::ZERO {
+        // 有库存但从未发生过库存变动，视为滞销
+        return AlertType::SlowMoving.code();
+    }
+    // 7. 正常
     ALERT_TYPE_NORMAL
 }
 
@@ -308,11 +331,15 @@ impl InventoryStockService {
     ///
     /// 批次 126 v8 复审 P2 修复：alert_type 字段从硬编码 "normal" 改为派生计算。
     /// compute_alert_type 函数根据 stock_status / quantity_available / reorder_point /
-    /// expiry_date 派生告警类型（discrepancy/out_of_stock/low_stock/expiring/normal）。
+    /// expiry_date / max_stock_point / last_movement_date 派生告警类型
+    /// （discrepancy/out_of_stock/low_stock/over_stock/expiring/slow_moving/normal）。
     ///
-    /// 返回字段新增 reorder_point / expiry_date / stock_status，便于前端展示阈值上下文。
-    /// TODO(tech-debt): 后续接入 max_stock_point 字段后支持 OverStock 告警；
-    /// 接入 last_movement_date 阈值后支持 SlowMoving 滞销告警。
+    /// v11 批次 144 P1-4 修复：
+    /// - 接入 max_stock_point 字段，支持 OverStock（高于上限）告警
+    /// - 接入 last_movement_date 字段，支持 SlowMoving（滞销）告警
+    ///
+    /// 返回字段包含 reorder_point / max_stock_point / expiry_date / last_movement_date /
+    /// stock_status，便于前端展示阈值上下文。
     pub async fn get_stock_alerts(
         &self,
         query: serde_json::Value,
@@ -343,6 +370,7 @@ impl InventoryStockService {
             .into_iter()
             .map(|s| {
                 // 批次 126 v8 复审 P2 修复：派生计算 alert_type（替换硬编码 "normal"）
+                // v11 批次 144 P1-4：扩展 OverStock / SlowMoving 告警判定
                 let alert_type = compute_alert_type(&s);
                 serde_json::json!({
                     "id": s.id,
@@ -352,7 +380,9 @@ impl InventoryStockService {
                     "quantity_available": s.quantity_available.to_string(),
                     "quantity_reserved": s.quantity_reserved.to_string(),
                     "reorder_point": s.reorder_point.to_string(),
+                    "max_stock_point": s.max_stock_point.to_string(),
                     "expiry_date": s.expiry_date.map(|d| d.to_rfc3339()),
+                    "last_movement_date": s.last_movement_date.map(|d| d.to_rfc3339()),
                     "stock_status": s.stock_status,
                     "alert_type": alert_type,
                 })
