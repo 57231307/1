@@ -66,6 +66,7 @@ impl InventoryCountService {
     }
 
     /// 创建盘点单（事务内生成单号 + 主表 + 明细快照）
+    #[allow(clippy::default_constructed_unit_structs)]
     pub async fn create_count(&self, req: CreateCountRequest) -> Result<CountDetail, AppError> {
         let txn = (*self.db).begin().await?;
 
