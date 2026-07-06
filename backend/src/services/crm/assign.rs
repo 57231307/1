@@ -9,32 +9,27 @@
 
 use sea_orm::{
     ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, PaginatorTrait, QueryFilter,
-    QueryOrder, Set, TransactionTrait,
+    QueryOrder, QuerySelect, Set, TransactionTrait,
 };
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use tracing::info;
 
-use crate::models::{assignment_history, crm_lead, user};
+use crate::models::{crm_lead, user};
 use crate::services::assignment_history_service::{
     AssignmentHistoryService, CreateAssignmentHistoryRequest,
 };
 use crate::utils::error::AppError;
 
 /// 自动分配策略
-#[derive(Debug, Clone, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Default, Deserialize, PartialEq)]
 #[serde(rename_all = "lowercase")]
 pub enum AssignStrategy {
     /// 轮询：按销售列表顺序依次分配（默认）
+    #[default]
     RoundRobin,
     /// 抢单：销售主动认领一条未分配线索（FIFO，最早入库的优先）
     Claim,
-}
-
-impl Default for AssignStrategy {
-    fn default() -> Self {
-        Self::RoundRobin
-    }
 }
 
 /// 自动分配请求
