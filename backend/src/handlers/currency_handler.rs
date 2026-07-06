@@ -1,5 +1,5 @@
 use axum::{
-    extract::{Query, State},
+    extract::{Path, Query, State},
     http::StatusCode,
     Json,
 };
@@ -59,6 +59,16 @@ pub async fn get_base_currency(
         Some(model) => Ok(Json(ApiResponse::success(CurrencyResponse::from(model)))),
         None => Err(AppError::not_found("未设置本位币")),
     }
+}
+
+/// 设置基础币种（本位币）
+pub async fn set_base_currency(
+    Path(id): Path<i32>,
+    State(state): State<AppState>,
+) -> Result<Json<ApiResponse<CurrencyResponse>>, AppError> {
+    let service = CurrencyService::new(state.db);
+    let model = service.set_base_currency(id).await?;
+    Ok(Json(ApiResponse::success(CurrencyResponse::from(model))))
 }
 
 #[derive(Debug, Deserialize)]
