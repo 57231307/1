@@ -186,6 +186,14 @@ pub async fn send_email(
             log_service
                 .update_status(log.id, "FAILED", Some(e.to_string()), None)
                 .await?;
+            // v11 批次 154c P2-A：发送失败时累加重试计数，供重试调度任务识别待重试邮件
+            if let Err(retry_err) = log_service.increment_retry(log.id).await {
+                tracing::warn!(
+                    error = %retry_err,
+                    email_log_id = log.id,
+                    "累加邮件重试计数失败（不影响本次失败响应）"
+                );
+            }
 
             Err(e)
         }

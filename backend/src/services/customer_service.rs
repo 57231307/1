@@ -223,8 +223,7 @@ impl CustomerService {
             .ok_or_else(|| AppError::not_found(format!("客户 {} 未找到", customer_id)))
     }
 
-    /// 获取客户列表
-    #[allow(dead_code)] // TODO(tech-debt): CRM 客户模块统一迁移后接入，或删除
+    /// 获取客户列表（v11 批次 154c：已接入 list_customers_with_filter 的无过滤分支）
     pub async fn list_customers(
         &self,
         page_req: PageRequest,
@@ -275,12 +274,7 @@ impl CustomerService {
 
     /// 获取客户列表（带数据权限过滤）
     ///
-    /// # 参数
-    /// - `page_req`: 分页参数
-    /// - `status`: 状态筛选
-    /// - `customer_type`: 客户类型筛选
-    /// - `keyword`: 关键词搜索
-    /// - `permission_filter`: 数据权限过滤器，用于在数据库层面过滤字段
+    /// v11 批次 154c P2-A：当 permission_filter 为 None 时委托给 list_customers，真实接入该方法
     pub async fn list_customers_with_filter(
         &self,
         page_req: PageRequest,
@@ -289,6 +283,25 @@ impl CustomerService {
         keyword: Option<String>,
         permission_filter: Option<DataPermissionFilter>,
     ) -> Result<PaginatedResponse<serde_json::Value>, AppError> {
+        // v11 批次 154c P2-A：无权限过滤时委托给 list_customers，避免逻辑重复
+        if permission_filter.is_none() {
+            let paged = self
+                .list_customers(page_req, status, customer_type, keyword)
+                .await?;
+            // 转换 PaginatedResponse<customer::Model> → PaginatedResponse<serde_json::Value>
+            let items: Vec<serde_json::Value> = paged
+                .items
+                .into_iter()
+                .map(|c| serde_json::to_value(c).map_err(|e| AppError::internal(format!("序列化失败: {}", e))))
+                .collect::<Result<Vec<_>, _>>()?;
+            return Ok(PaginatedResponse::new(
+                items,
+                paged.total,
+                paged.page,
+                paged.page_size,
+            ));
+        }
+
         let mut query = CustomerEntity::find();
 
         // 状态筛选

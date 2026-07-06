@@ -37,9 +37,7 @@ pub struct OmniAuditMessage {
 
 pub struct OmniAuditEngine {
     sender: mpsc::Sender<OmniAuditMessage>,
-    // TODO(tech-debt): 当前异步任务内联使用 secret_key 字符串，未通过 self 字段读取；
-    // 后续如切换为可注入签名密钥，应改为 self.secret_key.as_slice() 调用并移除此标注。
-    #[allow(dead_code)] // TODO(tech-debt): 密钥注入式签名接入后移除
+    /// HMAC 签名密钥；通过 secret_key_fingerprint 暴露指纹供运维校验
     secret_key: Vec<u8>,
 }
 
@@ -225,5 +223,14 @@ impl OmniAuditEngine {
                 );
             }
         });
+    }
+
+    /// 返回 secret_key 的 SHA-256 指纹（前 16 hex 字符），用于运维验证密钥配置
+    pub fn secret_key_fingerprint(&self) -> String {
+        use sha2::{Digest, Sha256};
+        let mut hasher = Sha256::new();
+        hasher.update(&self.secret_key);
+        let hash = hasher.finalize();
+        hash.iter().take(8).map(|b| format!("{:02x}", b)).collect()
     }
 }
