@@ -8,7 +8,7 @@
 //!
 //! 拆分自原 `report_engine_service.rs` 的"报表模板管理"段。
 
-use sea_orm::{ColumnTrait, EntityTrait, QueryFilter};
+use sea_orm::{ActiveModelTrait, ColumnTrait, EntityTrait, QueryFilter};
 
 use crate::models::report_template::{self, Entity as ReportTemplateEntity};
 use crate::utils::error::AppError;
