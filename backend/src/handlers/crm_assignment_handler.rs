@@ -13,7 +13,7 @@ use crate::services::assignment_history_service::{
     AssignmentHistoryQuery, AssignmentHistoryService, CreateAssignmentHistoryRequest,
 };
 use crate::services::crm::assign::{
-    AutoAssignRequest, CrmAssignService, TransferLeadRequest,
+    AutoAssignRequest, ClaimLeadRequest, CrmAssignService, TransferLeadRequest,
 };
 use crate::services::crm::cust::CrmService;
 use crate::utils::app_state::AppState;
@@ -328,4 +328,33 @@ pub async fn list_workload(
     let workload = service.list_assignee_workload(&user_ids).await?;
 
     Ok(Json(ApiResponse::success(serde_json::to_value(workload)?)))
+}
+
+/// POST /api/v1/erp/crm/assignments/claim - 抢单模式认领线索
+///
+/// v10 P1 批次 140 新增：实现 assign 模块"保留扩展空间"中的抢单功能。
+/// 销售主动认领一条未分配线索（FIFO，最早入库的优先），写入分配历史 action="CLAIM"。
+pub async fn claim_lead(
+    State(state): State<AppState>,
+    auth: AuthContext,
+    Json(req): Json<ClaimLeadRequest>,
+) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
+    let service = CrmAssignService::new(state.db.clone());
+
+    let result = service
+        .claim_lead(req, auth.user_id, &auth.username)
+        .await?;
+
+    tracing::info!(
+        "用户 {} 抢单认领线索 {}，归属人从 {} 变更为 {}",
+        auth.username,
+        result.lead_id,
+        result.from_user_id,
+        result.to_user_id
+    );
+
+    Ok(Json(ApiResponse::success_with_message(
+        serde_json::to_value(result)?,
+        "线索认领成功",
+    )))
 }

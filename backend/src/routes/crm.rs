@@ -238,6 +238,23 @@ pub fn crm_assignments() -> Router<AppState> {
             "/assignments/history",
             get(crm_assignment_handler::list_assignment_history),
         )
+        // v10 P1 批次 140：assign 模块"保留扩展空间"功能真实接入
+        .route(
+            "/assignments/auto-assign",
+            post(crm_assignment_handler::auto_assign),
+        )
+        .route(
+            "/assignments/transfer",
+            post(crm_assignment_handler::transfer_lead),
+        )
+        .route(
+            "/assignments/claim",
+            post(crm_assignment_handler::claim_lead),
+        )
+        .route(
+            "/assignments/workload",
+            get(crm_assignment_handler::list_workload),
+        )
 }
 
 /// CRM 销售用户路由（path 前缀 /sales-users）

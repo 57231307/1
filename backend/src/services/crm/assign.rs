@@ -400,4 +400,122 @@ impl CrmAssignService {
         result.sort_by_key(|d| d.assigned_count);
         Ok(result)
     }
+
+    /// 抢单模式：单个销售主动认领一条未分配线索
+    ///
+    /// 业务规则：
+    /// 1. 若指定 lead_id，则认领该线索；否则自动选取最早入库的 lead_status='new' 线索
+    /// 2. 线索必须处于 'new' 状态（未分配），否则返回 validation 错误
+    /// 3. 认领人必须是活跃用户（is_active=true）
+    /// 4. 写入分配历史 action="CLAIM"，reason="manual_claim"
+    /// 5. 事务保证线索更新与历史记录的原子性
+    pub async fn claim_lead(
+        &self,
+        req: ClaimLeadRequest,
+        operator_id: i32,
+        operator_name: &str,
+    ) -> Result<TransferLeadResult, AppError> {
+        // 校验认领人存在且活跃
+        let claimer = user::Entity::find_by_id(req.user_id)
+            .one(&*self.db)
+            .await?
+            .ok_or_else(|| {
+                AppError::validation(format!("认领人用户 {} 不存在", req.user_id))
+            })?;
+
+        if !claimer.is_active {
+            return Err(AppError::validation(format!(
+                "认领人用户 {} 已停用，无法认领线索",
+                req.user_id
+            )));
+        }
+
+        // 获取待认领线索
+        let lead: crm_lead::Model = if let Some(lead_id) = req.lead_id {
+            // 指定线索 ID 认领
+            crm_lead::Entity::find_by_id(lead_id)
+                .one(&*self.db)
+                .await?
+                .ok_or_else(|| AppError::not_found(format!("线索 {} 不存在", lead_id)))?
+        } else {
+            // 自动选取最早入库的未分配线索（FIFO）
+            crm_lead::Entity::find()
+                .filter(crm_lead::Column::LeadStatus.eq("new"))
+                .order_by(crm_lead::Column::Id, sea_orm::Order::Asc)
+                .limit(1)
+                .all(&*self.db)
+                .await?
+                .into_iter()
+                .next()
+                .ok_or_else(|| {
+                    AppError::not_found("无可认领线索：当前没有 lead_status='new' 的未分配线索")
+                })?
+        };
+
+        // 校验线索状态
+        if lead.lead_status.as_deref() != Some("new") {
+            return Err(AppError::validation(format!(
+                "线索 {} 当前状态为 {:?}，非 'new' 状态无法认领",
+                lead.id, lead.lead_status
+            )));
+        }
+
+        if lead.owner_id == req.user_id {
+            return Err(AppError::validation(
+                "认领失败：线索当前归属人已是当前用户",
+            ));
+        }
+
+        let from_user_id = lead.owner_id;
+        let from_user_name = lead.owner_name.clone();
+        let now = chrono::Utc::now();
+
+        // 事务：更新线索归属人 + 写入认领历史
+        let txn = (*self.db).begin().await?;
+
+        let mut active: crm_lead::ActiveModel = lead.into();
+        active.owner_id = Set(claimer.id);
+        active.owner_name = Set(claimer.username.clone());
+        active.lead_status = Set(Some("assigned".to_string()));
+        active.updated_at = Set(Some(now));
+        active.updated_by = Set(Some(operator_id));
+        let updated = active.update(&txn).await?;
+
+        self.history_service
+            .create_with_txn(
+                &txn,
+                operator_id,
+                operator_name,
+                CreateAssignmentHistoryRequest {
+                    lead_id: updated.id,
+                    lead_no: updated.lead_no.clone(),
+                    company_name: updated.company_name.clone(),
+                    from_user_id: Some(from_user_id),
+                    from_user_name: Some(from_user_name.clone()),
+                    to_user_id: Some(claimer.id),
+                    to_user_name: Some(claimer.username.clone()),
+                    action: "CLAIM".to_string(),
+                    reason: Some("manual_claim".to_string()),
+                    notes: Some(format!("用户 {} 主动认领", operator_name)),
+                },
+            )
+            .await?;
+
+        txn.commit().await?;
+
+        info!(
+            "用户 {} 通过抢单模式认领线索 {}，归属人从 {} 变更为 {}",
+            operator_id, updated.id, from_user_id, claimer.id
+        );
+
+        Ok(TransferLeadResult {
+            lead_id: updated.id,
+            lead_no: updated.lead_no,
+            from_user_id,
+            from_user_name,
+            to_user_id: claimer.id,
+            to_user_name: claimer.username,
+            transferred_at: now,
+        })
+    }
 }
