@@ -106,6 +106,9 @@ pub struct Model {
     /// 标签
     pub tags: Option<Vec<String>>,
 
+    /// 行业（v11 批次 153 P2-A 新增）：客户所属行业，用于公海池按行业筛选
+    pub industry: Option<String>,
+
     /// 创建时间
     pub created_at: Option<DateTime<Utc>>,
 

@@ -59,6 +59,8 @@ pub mod m0041_create_import_tasks;
 
 // 批次 131 v9 复审 P0：采购质检明细表（替代 4 个明细 CRUD 端点占位）
 pub mod m0042_create_purchase_inspection_items;
+// v11 批次 153 P2-A：inventory_piece.scan_type + crm_lead.industry 列迁移
+pub mod m0043_add_scan_type_and_industry_columns;
 
 pub struct Migrator;
 
@@ -108,6 +110,7 @@ impl MigratorTrait for Migrator {
             Box::new(m0040_create_crm_tags::Migration),
             Box::new(m0041_create_import_tasks::Migration),
             Box::new(m0042_create_purchase_inspection_items::Migration),
+            Box::new(m0043_add_scan_type_and_industry_columns::Migration),
         ]
     }
 }

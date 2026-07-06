@@ -81,6 +81,8 @@ pub async fn list_customers(
         // 批次 111 P1-10：透传 keyword 到 LeadQuery，由 list_leads 服务执行模糊搜索
         source: None,
         keyword: params.keyword,
+        // v11 批次 153 P2-A：industry 字段新增，此处不过滤
+        industry: None,
     };
 
     let result = service.list_leads(query).await?;
