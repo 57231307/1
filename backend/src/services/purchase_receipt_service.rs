@@ -601,11 +601,7 @@ impl PurchaseReceiptService {
 
     /// 计算入库单总金额（便捷入口，内部自建事务）
     ///
-    /// 批次 19（2026-06-28）：改为便捷入口，内部 begin + 调 _txn + commit。
     /// 已在事务内的调用方应直接调用 calculate_receipt_total_txn 以复用事务。
-    ///
-    /// 批次 101 v6 复审 P2-6：透传 user_id 给 _txn 变体，保持审计日志操作人一致。
-    #[allow(dead_code)] // TODO(tech-debt): 公共入口暂未被 handler 调用，待路由接入后移除
     pub async fn calculate_receipt_total(
         &self,
         receipt_id: i32,

@@ -1,14 +1,11 @@
 //! 审计日志服务（P13 批 1 P3-2 增强版）
 //!
 //! 提供两类能力：
-//! 1. `log_change` / `update_with_audit`：旧的业务调用接口（保留兼容）
-//! 2. `record(event: AuditEvent)`：P13 增强通用接口
-//!    - 自动从 `AuditContext` 注入 `request_id` / `ip_address` / `user_agent`
-//!    - 异步落库（`tokio::spawn`）不阻塞业务事务
-//!    - 写库失败只记录日志，不向上传播
+//! 1. `update_with_audit`：SeaORM 中间件式 Update 审计
+//! 2. `record(event: AuditEvent)`：P13 增强通用接口（自动注入请求上下文 + 异步落库）
 //!
 //! 设计要点：
-//! - 列名兼容：旧的 `old_value` / `new_value` 与新的 `before_snapshot` / `after_snapshot` 双写
+//! - 列名兼容：`old_value` / `new_value` 与 `before_snapshot` / `after_snapshot` 双写
 //! - JSON 快照：使用 `audit_log::AuditValue` 包装，PostgreSQL 自动用 JSONB 列存储
 
 use crate::middleware::audit_context::AuditContext;
@@ -77,58 +74,6 @@ impl AuditEvent {
 }
 
 impl AuditLogService {
-    /// 计算两个 JSON 对象的 Diff 并记录审计日志
-    ///
-    /// 旧接口（P0 起即存在）：保留以兼容历史调用方。
-    #[allow(clippy::too_many_arguments)]
-    #[allow(dead_code)] // TODO(tech-debt): 保留兼容历史调用方，后续接入新审计 API 后移除
-    pub async fn log_change(
-        &self,
-        resource_type: &str,
-        resource_id: &str,
-        action: &str,
-        old_data: Option<Value>,
-        new_data: Option<Value>,
-        user_id: Option<i32>,
-        username: Option<String>,
-        ip_address: Option<String>,
-        user_agent: Option<String>,
-        request_method: Option<String>,
-        request_path: Option<String>,
-        description: Option<String>,
-    ) -> Result<(), AppError> {
-        let log = audit_log::ActiveModel {
-            id: ActiveValue::NotSet,
-            user_id: ActiveValue::Set(user_id),
-            username: ActiveValue::Set(username),
-            action: ActiveValue::Set(action.to_string()),
-            resource_type: ActiveValue::Set(Some(resource_type.to_string())),
-            resource_id: ActiveValue::Set(Some(resource_id.to_string())),
-            resource_name: ActiveValue::Set(None),
-            description: ActiveValue::Set(description),
-            ip_address: ActiveValue::Set(ip_address),
-            user_agent: ActiveValue::Set(user_agent),
-            request_method: ActiveValue::Set(request_method),
-            request_path: ActiveValue::Set(request_path),
-            request_body: ActiveValue::Set(None),
-            response_status: ActiveValue::Set(None),
-            duration_ms: ActiveValue::Set(None),
-            old_value: ActiveValue::Set(old_data.clone().map(audit_log::AuditValue)),
-            new_value: ActiveValue::Set(new_data.clone().map(audit_log::AuditValue)),
-            created_at: ActiveValue::Set(Some(Utc::now())),
-            operation_type: ActiveValue::Set(Some(
-                OperationType::parse(action).as_str().to_string(),
-            )),
-            severity: ActiveValue::Set(Some(Severity::Info.as_str().to_string())),
-            request_id: ActiveValue::Set(None),
-            before_snapshot: ActiveValue::Set(old_data.map(audit_log::AuditValue)),
-            after_snapshot: ActiveValue::Set(new_data.map(audit_log::AuditValue)),
-        };
-
-        log.insert(self.db.as_ref()).await?;
-        Ok(())
-    }
-
     /// 作为 SeaORM 中间件，自动拦截并生成 Update 审计日志
     ///
     /// P2 8-8 修复（批次 59）：update 前先查 old_model 序列化为 before_snapshot，

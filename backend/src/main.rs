@@ -429,6 +429,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             let omni_audit = Arc::new(crate::services::omni_audit_service::OmniAuditEngine::new(
                 db.clone(),
             )?);
+            // v11 批次 154c P2-A：启动时打印密钥指纹，供运维核对 AUDIT_SECRET_KEY 配置
+            tracing::info!(
+                fingerprint = %omni_audit.secret_key_fingerprint(),
+                "OmniAuditEngine 已初始化（secret_key 指纹前 16 hex 字符）"
+            );
             let audit_cleanup = Arc::new(
                 // P2 8-13 修复：原 retention_days 硬编码 999（约 2.7 年），实际无清理效果，
                 // omni_audit_logs 表无限膨胀拖累查询性能。

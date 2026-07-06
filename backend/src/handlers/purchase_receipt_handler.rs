@@ -345,6 +345,22 @@ pub async fn generate_no(
     }))))
 }
 
+/// POST /api/v1/erp/purchase/receipts/:id/recalculate - 手动重算入库单总金额（运维兜底入口）
+/// v11 批次 154c P2-A：接入 calculate_receipt_total，用于数据修复场景
+pub async fn recalculate_receipt_total(
+    auth: AuthContext,
+    Path(id): Path<i32>,
+    State(state): State<AppState>,
+) -> Result<Json<ApiResponse<()>>, AppError> {
+    let service = PurchaseReceiptService::new(state.db.clone());
+    service.calculate_receipt_total(id, auth.user_id).await?;
+
+    Ok(Json(ApiResponse::success_with_message(
+        (),
+        "入库单总金额重算成功",
+    )))
+}
+
 // =====================================================
 // 请求 DTO
 // =====================================================

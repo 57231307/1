@@ -103,8 +103,7 @@ impl EmailLogService {
         Ok(updated)
     }
 
-    /// 增加重试次数
-    #[allow(dead_code)] // TODO(tech-debt): 邮件重试调度任务接入后移除
+    /// 累加邮件重试计数并将状态重置为 PENDING，供重试调度任务识别待重试邮件
     pub async fn increment_retry(&self, id: i32) -> Result<(), AppError> {
         let model = EmailLogEntity::find_by_id(id)
             .one(&*self.db)

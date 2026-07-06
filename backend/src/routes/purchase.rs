@@ -85,6 +85,11 @@ pub fn purchases() -> Router<AppState> {
             "/receipts/:id/confirm",
             post(purchase_receipt_handler::confirm_receipt),
         )
+        // v11 批次 154c：手动重算入库单总金额（运维兜底入口）
+        .route(
+            "/receipts/:id/recalculate",
+            post(purchase_receipt_handler::recalculate_receipt_total),
+        )
         .route(
             "/receipts/:id/items",
             get(purchase_receipt_handler::list_receipt_items)
