@@ -40,7 +40,9 @@ pub struct CustomerRankingItem {
 #[derive(Debug, Clone, Deserialize)]
 pub struct ProductRankingParams {
     #[serde(rename = "type")]
-    #[allow(dead_code)] // TODO(tech-debt): 销售分析模块接入业务后移除
+    // v11 批次 152 P2-A：接入 dimension_type 字段，指定产品排名的维度
+    // - None 或 "product"：按产品维度排名（默认）
+    // - 其他值（如 "product_category"）：按指定维度排名，需数据库有对应 dimension_type 记录
     pub dimension_type: Option<String>,
     pub period: Option<String>,
     pub limit: Option<i64>,
@@ -49,7 +51,9 @@ pub struct ProductRankingParams {
 #[derive(Debug, Clone, Deserialize)]
 pub struct CustomerRankingParams {
     #[serde(rename = "type")]
-    #[allow(dead_code)] // TODO(tech-debt): 销售分析模块接入业务后移除
+    // v11 批次 152 P2-A：接入 dimension_type 字段，指定客户排名的维度
+    // - None 或 "customer"：按客户维度排名（默认）
+    // - 其他值（如 "customer_industry"）：按指定维度排名，需数据库有对应 dimension_type 记录
     pub dimension_type: Option<String>,
     pub period: Option<String>,
     pub limit: Option<i64>,
@@ -276,6 +280,10 @@ impl SalesAnalysisService {
     }
 
     /// 获取产品销售排名
+    ///
+    /// v11 批次 152 P2-A：接入 dimension_type 字段
+    /// - 默认 "product"：按产品维度排名
+    /// - 自定义值（如 "product_category"）：按指定维度排名
     pub async fn product_ranking(
         &self,
         params: ProductRankingParams,
@@ -283,9 +291,11 @@ impl SalesAnalysisService {
         info!("获取产品销售排名，参数：{:?}", params);
 
         let limit = params.limit.unwrap_or(10);
+        // v11 批次 152 P2-A：接入 dimension_type，默认 "product"
+        let dimension_type = params.dimension_type.unwrap_or_else(|| "product".to_string());
 
         let mut query = sales_analysis::Entity::find()
-            .filter(sales_analysis::Column::DimensionType.eq("product"));
+            .filter(sales_analysis::Column::DimensionType.eq(dimension_type));
 
         if let Some(p) = &params.period {
             query = query.filter(sales_analysis::Column::Period.eq(p));
@@ -323,6 +333,10 @@ impl SalesAnalysisService {
     }
 
     /// 获取客户销售排名
+    ///
+    /// v11 批次 152 P2-A：接入 dimension_type 字段
+    /// - 默认 "customer"：按客户维度排名
+    /// - 自定义值（如 "customer_industry"）：按指定维度排名
     pub async fn customer_ranking(
         &self,
         params: CustomerRankingParams,
@@ -330,9 +344,11 @@ impl SalesAnalysisService {
         info!("获取客户销售排名，参数：{:?}", params);
 
         let limit = params.limit.unwrap_or(10);
+        // v11 批次 152 P2-A：接入 dimension_type，默认 "customer"
+        let dimension_type = params.dimension_type.unwrap_or_else(|| "customer".to_string());
 
         let mut query = sales_analysis::Entity::find()
-            .filter(sales_analysis::Column::DimensionType.eq("customer"));
+            .filter(sales_analysis::Column::DimensionType.eq(dimension_type));
 
         if let Some(p) = &params.period {
             query = query.filter(sales_analysis::Column::Period.eq(p));
