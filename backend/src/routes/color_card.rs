@@ -27,6 +27,11 @@ pub fn routes() -> Router<AppState> {
                 .put(color_card::update_color_card)
                 .delete(color_card::archive_color_card),
         )
+        // v11 批次 154b：直接标记色卡为遗失（不同于借出记录遗失 /lost/:record_id）
+        .route(
+            "/:id/mark-lost",
+            post(color_card::mark_card_lost),
+        )
         // 色号 CRUD
         .route(
             "/:id/items",

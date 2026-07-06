@@ -185,3 +185,33 @@ pub async fn archive_color_card(
         created_at: updated.created_at,
     })))
 }
+
+/// POST /api/v1/erp/color-cards/:id/mark-lost - 直接标记色卡为遗失
+///
+/// v11 批次 154b P2-A：接入 ColorCardCrudService::mark_lost
+/// 与 /lost/:record_id（借出记录遗失）不同，此端点直接变更色卡状态为 "lost"
+pub async fn mark_card_lost(
+    auth: AuthContext,
+    State(state): State<AppState>,
+    Path(id): Path<i64>,
+) -> Result<Json<ApiResponse<ColorCardListItem>>, AppError> {
+    let service = ColorCardCrudService::from_state(&state);
+
+    let updated = service
+        .mark_lost(id, auth.user_id)
+        .await
+        .map_err(crud_err)?;
+
+    Ok(Json(ApiResponse::success(ColorCardListItem {
+        id: updated.id,
+        card_no: updated.card_no,
+        card_name: updated.card_name,
+        card_type: updated.card_type,
+        season: updated.season,
+        brand: updated.brand,
+        total_colors: updated.total_colors,
+        status: updated.status,
+        cover_image_url: updated.cover_image_url,
+        created_at: updated.created_at,
+    })))
+}
