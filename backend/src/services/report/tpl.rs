@@ -8,7 +8,7 @@
 //!
 //! 拆分自原 `report_engine_service.rs` 的"报表模板管理"段。
 
-use sea_orm::{ColumnTrait, EntityTrait, QueryFilter};
+use sea_orm::{ActiveModelTrait, ColumnTrait, EntityTrait, QueryFilter};
 
 use crate::models::report_template::{self, Entity as ReportTemplateEntity};
 use crate::utils::error::AppError;
@@ -777,5 +777,77 @@ impl ReportEngineService {
                 template_id
             )))
         }
+    }
+
+    /// 创建用户自定义报表模板
+    ///
+    /// v11 批次 154 P2-A：接入 CreateTemplateRequest，将自定义模板写入 report_templates 表
+    pub async fn create_custom_template(
+        &self,
+        user_id: i32,
+        req: super::CreateTemplateRequest,
+    ) -> Result<ReportTemplate, AppError> {
+        use chrono::Utc;
+        use sea_orm::Set;
+
+        // 生成唯一 code：custom_{user_id}_{timestamp}
+        let code = format!("custom_{}_{}", user_id, Utc::now().timestamp());
+        let template_id = format!("custom_{}", &code);
+
+        // 序列化 JSON 字段
+        let columns_json = serde_json::to_value(&req.columns)
+            .map_err(|e| AppError::internal(format!("序列化列定义失败: {}", e)))?;
+        let filters_json = serde_json::to_value(&req.filters)
+            .map_err(|e| AppError::internal(format!("序列化筛选条件失败: {}", e)))?;
+        let parameters_json = serde_json::to_value(&req.parameters)
+            .map_err(|e| AppError::internal(format!("序列化参数失败: {}", e)))?;
+        let formats_json = serde_json::to_value(&req.supported_formats)
+            .map_err(|e| AppError::internal(format!("序列化导出格式失败: {}", e)))?;
+
+        let now = Utc::now();
+        let active_model = report_template::ActiveModel {
+            id: Default::default(),
+            template_id: Set(Some(template_id.clone())),
+            name: Set(req.name.clone()),
+            code: Set(code.clone()),
+            report_type: Set(req.report_type.unwrap_or_else(|| "custom".to_string())),
+            category: Set(Some(req.category.clone())),
+            data_source: Set(Some(req.data_source.clone())),
+            columns: Set(columns_json),
+            filters: Set(Some(filters_json)),
+            parameters: Set(Some(parameters_json)),
+            supported_formats: Set(Some(formats_json)),
+            sort_by: Set(None),
+            sort_order: Set(Some("asc".to_string())),
+            data_source_sql: Set(None),
+            description: Set(Some(req.description.clone())),
+            is_public: Set(false),
+            status: Set("ACTIVE".to_string()),
+            created_by: Set(user_id),
+            created_at: Set(now),
+            updated_at: Set(now),
+        };
+
+        let model = active_model.insert(&*self.db).await?;
+        tracing::info!(
+            template_id = model.id,
+            code = %code,
+            user_id = user_id,
+            "自定义报表模板创建成功"
+        );
+
+        // 返回 ReportTemplate（与 get_template 返回格式一致）
+        Ok(ReportTemplate {
+            id: model.template_id.clone().unwrap_or(model.code.clone()),
+            name: model.name,
+            description: model.description.unwrap_or_default(),
+            category: model.category.unwrap_or_default(),
+            data_source: model.data_source.unwrap_or_default(),
+            report_type: model.report_type,
+            columns: req.columns,
+            filters: req.filters,
+            supported_formats: req.supported_formats,
+            parameters: req.parameters,
+        })
     }
 }

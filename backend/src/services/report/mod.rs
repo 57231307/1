@@ -92,8 +92,7 @@ pub struct ReportParameter {
     pub description: Option<String>,
 }
 
-/// 创建自定义模板请求
-#[allow(dead_code)] // TODO(tech-debt): 自定义报表模板创建接口接入后移除
+/// 创建自定义模板请求（v11 批次 154 P2-A：已接入 create_custom_template 方法）
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CreateTemplateRequest {
     pub name: String,
@@ -118,7 +117,7 @@ pub enum DataSource {
 }
 
 impl DataSource {
-    #[allow(dead_code)] // TODO(tech-debt): 数据源字符串序列化接入后移除
+    /// 返回数据源的字符串表示（v11 批次 154 P2-A：已接入 report_engine_handler 诊断日志）
     pub fn as_str(&self) -> &'static str {
         match self {
             DataSource::Sales => "sales",
@@ -156,7 +155,7 @@ pub enum AggregationType {
 }
 
 impl AggregationType {
-    #[allow(dead_code)] // TODO(tech-debt): 聚合类型字符串序列化接入后移除
+    /// 返回聚合类型的字符串表示（v11 批次 154 P2-A：已接入 report_engine_handler 诊断日志）
     pub fn as_str(&self) -> &'static str {
         match self {
             AggregationType::Sum => "sum",
