@@ -124,7 +124,7 @@ subtle = "2.6"
 csv = "1.3"
 
 # Excel 处理（v11 批次 142：规则 3 强制要求所有导出使用 xlsx 格式）
-rust_xlsxwriter = "3.6"
+rust_xlsxwriter = "0.95"
 
 # Excel处理
 migration = { version = "0.1.0", path = "migration" }
