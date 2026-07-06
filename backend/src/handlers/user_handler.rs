@@ -474,7 +474,7 @@ pub async fn delete_user(
         auth.role_id,
         Some(&existing_user.username),
         Some(&format!("user_id={}", id)),
-        audit_ctx.map(|e| &e.0),
+        None,
     )
     .await;
 
