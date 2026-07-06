@@ -95,6 +95,7 @@ pub async fn split_fabric_piece(
         weight: Set(req.cut_weight),
         status: Set("AVAILABLE".to_string()),
         remarks: Set(Some(format!("从布卷 {} 剪裁拆分而来", parent.piece_no))),
+        scan_type: Set(None), // v11 批次 153 P2-A：拆分产生的新布卷无扫码类型
         created_at: Set(Utc::now()),
         updated_at: Set(Utc::now()),
     };
