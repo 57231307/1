@@ -60,7 +60,7 @@ import { useArRec } from './composables/useArRec'
 import { useArDisp } from './composables/useArDisp'
 import { useArChart } from './composables/useArChart'
 import { type AutoReconciliationResult } from '@/api/ar-reconciliation-enhanced'
-import { request } from '@/api/request'
+import { listCustomersForSelect } from '@/api/customer'
 import { loadIfNot, createLazyLoader } from '@/utils/lazy-loader'
 import { logger } from '@/utils/logger'
 import ArFilter from './components/ArFilter.vue'
@@ -93,8 +93,9 @@ const onOpenDispute = () => {
 /** 加载客户下拉数据 */
 const loadCustomers = async () => {
   try {
-    const res: any = await request.get('/customers/select')
-    customerOptions.value = res.data || []
+    // v11 批次 146 P1-4 修复：改用 customer.ts 统一封装的 listCustomersForSelect，
+    // 避免绕过 API 层直接调用 request.get，并正确处理 PaginatedResponse → {label, value}[] 映射
+    customerOptions.value = await listCustomersForSelect()
   } catch {
     logger.warn('加载客户失败')
   }

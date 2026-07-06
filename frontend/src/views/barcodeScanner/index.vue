@@ -63,8 +63,11 @@ const handleScan = async () => {
   }
   loading.value = true
   try {
-    const res: any = await scanInventory(barcodeInput.value)
-    scanResult.value = res.data!.data
+    // v11 批次 146 P1-3 修复：拦截器已返回 ApiResponse 完整对象，
+    // res.data 即业务数据（ScanResult/ScanData），无需 res.data!.data 双层访问
+    const res = await scanInventory(barcodeInput.value)
+    const data = (res as any)?.data
+    scanResult.value = data ?? null
     scanSuccess.value = true
     scanMessage.value = '扫码成功'
   } catch (error: unknown) {
@@ -88,12 +91,15 @@ const handleScanToShip = async () => {
   }
   loading.value = true
   try {
-    const res: any = await scanToShip({
+    // v11 批次 146 P1-3 修复：拦截器已返回 ApiResponse 完整对象，
+    // res.data 即业务数据（ScanToShipResponse），无需 res.data!.data 双层访问
+    const res = await scanToShip({
       barcode: barcodeInput.value,
       order_id: Number(orderId.value),
     })
+    const data = (res as any)?.data
     scanSuccess.value = true
-    scanMessage.value = res.data!.data.message
+    scanMessage.value = data?.message || '发货成功'
     scanResult.value = null
     barcodeInput.value = ''
   } catch (error: unknown) {
