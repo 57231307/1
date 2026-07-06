@@ -263,7 +263,7 @@ const hasLoaded = createLazyLoader()
 // 实际接口字段名与类型定义不完全一致，扩展包含 UI 展示所需字段
 interface OpportunityRow extends Opportunity {
   opportunity_name?: string
-  opportunity_stage?: string
+  // v11 批次 141 修复：opportunity_stage 已从 Opportunity 继承（字面量联合类型），不再重复声明
   owner_name?: string
   last_follow_up_date?: string
   priority?: string

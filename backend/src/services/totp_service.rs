@@ -145,7 +145,7 @@ impl TotpService {
         user_id: i32,
     ) -> Result<Vec<String>, AppError> {
         use argon2::password_hash::rand_core::{OsRng, RngCore};
-        use argon2::password_hash::SaltString;
+        use argon2::password_hash::{PasswordHasher, SaltString};
         use argon2::{Algorithm as ArgonAlgorithm, Argon2, Params, Version};
 
         // 恢复码字符集（去除易混淆字符 0/O/1/I/L）
@@ -193,7 +193,7 @@ impl TotpService {
             .ok_or_else(|| AppError::not_found("User"))?;
         let mut active_user: user::ActiveModel = user_model.into();
         active_user.totp_recovery_codes = Set(Some(json));
-        active_user.updated_at = Set(Some(chrono::Utc::now()));
+        active_user.updated_at = Set(chrono::Utc::now());
         active_user.update(&*self.db).await?;
 
         // 返回明文恢复码（仅此一次返回）
@@ -209,7 +209,7 @@ impl TotpService {
         user_id: i32,
         code: &str,
     ) -> Result<bool, AppError> {
-        use argon2::password_hash::PasswordHash;
+        use argon2::password_hash::{PasswordHash, PasswordVerifier};
         use argon2::Argon2;
 
         let user_model = user::Entity::find_by_id(user_id)
@@ -247,7 +247,7 @@ impl TotpService {
                 .map_err(|e| AppError::internal(format!("序列化恢复码失败: {}", e)))?;
             let mut active_user: user::ActiveModel = user_model.into();
             active_user.totp_recovery_codes = Set(Some(new_json));
-            active_user.updated_at = Set(Some(chrono::Utc::now()));
+            active_user.updated_at = Set(chrono::Utc::now());
             active_user.update(&*self.db).await?;
             Ok(true)
         } else {
