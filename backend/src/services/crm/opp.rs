@@ -5,21 +5,13 @@
 
 use crate::models::{crm_opportunity, customer, sales_order};
 use crate::utils::error::AppError;
+use crate::utils::xlsx_export::XlsxTable;
 use sea_orm::{
     ActiveModelTrait, ColumnTrait, EntityTrait, PaginatorTrait, QueryFilter, QueryOrder, QuerySelect,
     Set, TransactionTrait,
 };
 
 use super::cust::CrmService;
-
-/// CSV 字段转义：字段包含逗号/引号/换行时用双引号包裹，内部引号双写
-fn csv_escape(s: &str) -> String {
-    if s.contains(',') || s.contains('"') || s.contains('\n') || s.contains('\r') {
-        format!("\"{}\"", s.replace('"', "\"\""))
-    } else {
-        s.to_string()
-    }
-}
 
 impl CrmService {
     /// 创建商机
@@ -110,15 +102,16 @@ impl CrmService {
         }))
     }
 
-    /// 导出商机为 CSV（UTF-8 BOM，Excel 兼容）
+    /// 导出商机为 xlsx（v11 批次 142 升级：CSV → xlsx，规则 3 强制要求）
     ///
-    /// v11 批次 141 新增：前端 exportOpportunities API 真实接入，原缺失导出路由。
-    /// 查询所有匹配条件（不分页）的商机，生成 CSV 字符串。
-    /// 导出字段：商机编号/商机名称/客户ID/商机阶段/预估金额/实际金额/预期成交日期/负责人/创建时间
+    /// v11 批次 141 新增：前端 exportOpportunities API 真实接入。
+    /// v11 批次 142 升级：导出格式从 CSV 升级为 xlsx（Excel 标准格式）。
+    /// 查询所有匹配条件（不分页）的商机，生成 XlsxTable。
+    /// 导出字段：商机编号/商机名称/客户ID/商机阶段/预估金额/实际金额/预期成交日期/实际成交日期/负责人/优先级/创建时间
     pub async fn export_opportunities(
         &self,
         query: crate::models::dto::crm_dto::OpportunityQuery,
-    ) -> Result<String, AppError> {
+    ) -> Result<XlsxTable, AppError> {
         let mut q = crm_opportunity::Entity::find();
 
         if let Some(s) = query.opportunity_stage {
@@ -132,32 +125,48 @@ impl CrmService {
             .all(&*self.db)
             .await?;
 
-        // UTF-8 BOM（Excel 正确识别中文）
-        let mut csv = String::from("\u{FEFF}");
-        csv.push_str("商机编号,商机名称,客户ID,商机阶段,预估金额,实际金额,预期成交日期,实际成交日期,负责人,优先级,创建时间\n");
+        let headers = vec![
+            "商机编号".to_string(),
+            "商机名称".to_string(),
+            "客户ID".to_string(),
+            "商机阶段".to_string(),
+            "预估金额".to_string(),
+            "实际金额".to_string(),
+            "预期成交日期".to_string(),
+            "实际成交日期".to_string(),
+            "负责人".to_string(),
+            "优先级".to_string(),
+            "创建时间".to_string(),
+        ];
 
-        for opp in opportunities {
-            csv.push_str(&format!(
-                "{},{},{},{},{},{},{},{},{},{},{}\n",
-                csv_escape(&opp.opportunity_no),
-                csv_escape(&opp.opportunity_name),
-                opp.customer_id,
-                csv_escape(opp.opportunity_stage.as_deref().unwrap_or("")),
-                opp.estimated_amount.map(|d| d.to_string()).unwrap_or_default(),
-                opp.actual_amount.map(|d| d.to_string()).unwrap_or_default(),
-                opp.expected_close_date
-                    .map(|d| d.to_string())
-                    .unwrap_or_default(),
-                opp.actual_close_date
-                    .map(|d| d.to_string())
-                    .unwrap_or_default(),
-                csv_escape(&opp.owner_name),
-                csv_escape(opp.priority.as_deref().unwrap_or("")),
-                opp.created_at.map(|t| t.to_rfc3339()).unwrap_or_default(),
-            ));
-        }
+        let rows: Vec<Vec<String>> = opportunities
+            .iter()
+            .map(|opp| {
+                vec![
+                    opp.opportunity_no.clone(),
+                    opp.opportunity_name.clone(),
+                    opp.customer_id.to_string(),
+                    opp.opportunity_stage.clone().unwrap_or_default(),
+                    opp.estimated_amount.map(|d| d.to_string()).unwrap_or_default(),
+                    opp.actual_amount.map(|d| d.to_string()).unwrap_or_default(),
+                    opp.expected_close_date
+                        .map(|d| d.to_string())
+                        .unwrap_or_default(),
+                    opp.actual_close_date
+                        .map(|d| d.to_string())
+                        .unwrap_or_default(),
+                    opp.owner_name.clone(),
+                    opp.priority.clone().unwrap_or_default(),
+                    opp.created_at.map(|t| t.to_rfc3339()).unwrap_or_default(),
+                ]
+            })
+            .collect();
 
-        Ok(csv)
+        Ok(XlsxTable {
+            sheet_name: "商机列表".to_string(),
+            headers,
+            rows,
+        })
     }
 
     /// 获取商机详情
