@@ -22,6 +22,11 @@ pub struct Model {
     pub quantity_shipped: Decimal,
     pub quantity_incoming: Decimal,
     pub reorder_point: Decimal,
+    /// 库存上限（高于此值触发 OverStock 告警，0 表示未设置）
+    ///
+    /// v11 批次 144 P1-4：新增字段，用于 compute_alert_type 判定"高于上限"告警。
+    #[sea_orm(column_type = "Decimal(Some((12, 2)))")]
+    pub max_stock_point: Decimal,
     pub reorder_quantity: Decimal,
     pub bin_location: Option<String>,
     pub last_count_date: Option<DateTime<Utc>>,

@@ -51,6 +51,8 @@ pub struct StockResponse {
     pub quantity_available: Decimal,
     pub quantity_reserved: Decimal,
     pub reorder_point: Decimal,
+    /// 库存上限（v11 批次 144 P1-4：新增，支持 OverStock 告警阈值展示）
+    pub max_stock_point: Decimal,
     pub bin_location: Option<String>,
     pub created_at: chrono::DateTime<chrono::Utc>,
     pub updated_at: chrono::DateTime<chrono::Utc>,
@@ -62,6 +64,8 @@ pub struct UpdateStockWithVersionRequest {
     pub quantity_available: Option<Decimal>,
     pub quantity_reserved: Option<Decimal>,
     pub reorder_point: Option<Decimal>,
+    /// 库存上限（v11 批次 144 P1-4：新增，支持 OverStock 告警阈值配置）
+    pub max_stock_point: Option<Decimal>,
     pub reorder_quantity: Option<Decimal>,
     pub bin_location: Option<String>,
     pub version: i32,

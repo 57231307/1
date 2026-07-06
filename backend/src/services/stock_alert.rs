@@ -13,30 +13,33 @@
 //!   本模块的 AlertLevel 仅测试使用，零业务调用方，按死代码处理规范删除）
 //! - AlertType 接入 inventory_stock_query.compute_alert_type 业务，移除 dead_code 标注
 //! - 新增 OutOfStock 变体（缺货）+ code() 方法返回前端约定的稳定字符串
+//!
+//! ## v11 批次 144 P1-5 修复
+//! - OverStock / SlowMoving 变体接入 compute_alert_type 业务，移除 dead_code 标注
+//! - 新增 SLOW_MOVING_THRESHOLD_DAYS 常量（滞销阈值天数，默认 90 天）
 
 /// 预警类型
 ///
 /// 批次 126 v8 复审 P2 修复：接入 inventory_stock_query.get_stock_alerts 业务，
 /// compute_alert_type 函数根据库存数量/补货点/过期日期派生 AlertType。
+///
+/// v11 批次 144 P1-5 修复：OverStock / SlowMoving 接入 compute_alert_type 业务，
+/// 移除 dead_code 标注。
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum AlertType {
     /// 缺货（可用量为 0 且设置了补货点）
     OutOfStock,
     /// 低于下限（可用量 < 补货点）
     LowStock,
-    /// 高于上限
+    /// 高于上限（可用量 > max_stock_point，且设置了上限）
     ///
-    /// TODO(tech-debt): inventory_stocks 表补充 max_stock_point 字段后接入
-    /// compute_alert_type 业务，移除 allow(dead_code)。
-    #[allow(dead_code)]
+    /// v11 批次 144 P1-5：接入 compute_alert_type 业务，移除 dead_code 标注。
     OverStock,
-    /// 即将过期（expiry_date 距今 ≤ 30 天）
+    /// 即将过期（expiry_date 距今 ≤ EXPIRING_THRESHOLD_DAYS 天）
     Expiring,
-    /// 滞销
+    /// 滞销（last_movement_date 距今 > SLOW_MOVING_THRESHOLD_DAYS 天，或从未发生过库存变动）
     ///
-    /// TODO(tech-debt): inventory_stocks 表补充 last_movement_date 阈值字段后
-    /// 接入 compute_alert_type 业务，移除 allow(dead_code)。
-    #[allow(dead_code)]
+    /// v11 批次 144 P1-5：接入 compute_alert_type 业务，移除 dead_code 标注。
     SlowMoving,
     /// 差异（库存状态非"正常"）
     Discrepancy,
@@ -81,6 +84,14 @@ pub const ALERT_TYPE_NORMAL: &str = "normal";
 /// 批次 126 v8 复审 P2 修复：expiry_date 距当前时间 ≤ 此天数视为"即将过期"。
 /// TODO(tech-debt): 后续可改为从配置读取，支持按产品类别差异化配置。
 pub const EXPIRING_THRESHOLD_DAYS: i64 = 30;
+
+/// 滞销阈值天数（默认 90 天）
+///
+/// v11 批次 144 P1-4/P1-5 新增：last_movement_date 距当前时间 > 此天数视为"滞销"。
+/// 当 last_movement_date 为 NULL 且 quantity_available > 0 时，也视为滞销
+/// （有库存但从未发生过库存变动）。
+/// TODO(tech-debt): 后续可改为从配置读取，支持按产品类别差异化配置。
+pub const SLOW_MOVING_THRESHOLD_DAYS: i64 = 90;
 
 #[cfg(test)]
 mod tests {
