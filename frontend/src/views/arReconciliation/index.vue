@@ -28,7 +28,7 @@ import {
   type ArReconciliationEntity,
   type ReconciliationDetail,
 } from '@/api/ar-reconciliation'
-import { request } from '@/api/request'
+import { listCustomersForSelect } from '@/api/customer'
 import { logger } from '@/utils/logger'
 
 const tableData = ref<ArReconciliationEntity[]>([])
@@ -94,8 +94,9 @@ const loadData = async () => {
 
 const loadCustomers = async () => {
   try {
-    const res: any = await request.get('/customers/select')
-    customerOptions.value = res.data!
+    // v11 批次 146 P1-4 修复：改用 customer.ts 统一封装的 listCustomersForSelect，
+    // 避免绕过 API 层直接调用 request.get，并正确处理 PaginatedResponse → {label, value}[] 映射
+    customerOptions.value = await listCustomersForSelect()
   } catch (error) {
     logger.warn('加载客户失败')
   }

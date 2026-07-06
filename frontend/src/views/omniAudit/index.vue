@@ -61,8 +61,10 @@ const getStatusClass = (value: string) => {
 const loadStats = async () => {
   loading.value = true
   try {
-    const res: any = await getDashboardStats()
-    stats.value = res.data!.data
+    // v11 批次 146 P1-3 修复：拦截器已返回 ApiResponse 完整对象，
+    // res.data 即业务数据（AuditStats），无需 res.data!.data 双层访问
+    const res = await getDashboardStats()
+    stats.value = (res as any)?.data ?? null
   } catch (error) {
     ElMessage.error('加载统计数据失败')
   } finally {
@@ -73,7 +75,9 @@ const loadStats = async () => {
 const loadLogs = async () => {
   loading.value = true
   try {
-    const res: any = await searchLogs({
+    // v11 批次 146 P1-3 修复：拦截器已返回 ApiResponse 完整对象，
+    // res.data 即业务数据（含 items/total），无需 res.data!.data 双层访问
+    const res = await searchLogs({
       user_id: searchForm.value.user_id ? Number(searchForm.value.user_id) : undefined,
       event_type: searchForm.value.event_type || undefined,
       resource: searchForm.value.resource || undefined,
@@ -84,8 +88,9 @@ const loadLogs = async () => {
       page: pagination.value.page - 1,
       page_size: pagination.value.pageSize,
     })
-    logs.value = res.data!.data.items
-    total.value = res.data!.data.total
+    const data = (res as any)?.data ?? {}
+    logs.value = data.items || []
+    total.value = data.total || 0
   } catch (error) {
     ElMessage.error('加载日志失败')
   } finally {
