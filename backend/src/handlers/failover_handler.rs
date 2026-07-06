@@ -11,7 +11,6 @@ use once_cell::sync::OnceCell;
 use serde::Deserialize;
 use serde_json::json;
 use std::sync::Arc;
-use tracing::warn;
 
 use crate::services::failover_service::{FailoverMetrics, FailoverService};
 use crate::utils::app_state::AppState;
@@ -101,23 +100,14 @@ pub async fn health_check(
 
 /// 构建 FailoverService（从 AppState 推断）
 ///
-/// 如果配置加载失败则使用默认配置，仅在 AppState 未初始化时返回错误。
+/// v11 P1-6 修复（批次 143）：原 `FailoverConfig` 加载逻辑已删除，
+/// 因 failover 执行器在 v8 已删除，配置层（DatabaseFailoverConfig / CacheFailoverConfig /
+/// MonitoringFailoverConfig）从未被业务读取，属纯死代码。
+/// FailoverService 现仅依赖 DB 连接 + Prometheus metrics 单例，
+/// 业务能力（状态查询 / 事件记录 / 手动切换 / 健康检查）保持不变。
 fn build_service(state: &AppState) -> Result<FailoverService, AppError> {
-    // 从环境变量加载配置
-    let config = match crate::config::failover::FailoverConfig::load_from_env() {
-        Ok(c) => c,
-        Err(e) => {
-            warn!("[failover] 配置加载失败，使用默认配置: {}", e);
-            crate::config::failover::FailoverConfig::default_for_test()
-        }
-    };
-
     let metrics = get_global_metrics();
-    Ok(FailoverService::new(
-        (*state.db).clone(),
-        config,
-        metrics,
-    ))
+    Ok(FailoverService::new((*state.db).clone(), metrics))
 }
 
 /// 获取全局 metrics 单例
