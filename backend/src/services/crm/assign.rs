@@ -21,13 +21,40 @@ use crate::services::assignment_history_service::{
 };
 use crate::utils::error::AppError;
 
+/// 自动分配策略
+#[derive(Debug, Clone, Deserialize, PartialEq)]
+#[serde(rename_all = "lowercase")]
+pub enum AssignStrategy {
+    /// 轮询：按销售列表顺序依次分配（默认）
+    RoundRobin,
+    /// 抢单：销售主动认领一条未分配线索（FIFO，最早入库的优先）
+    Claim,
+}
+
+impl Default for AssignStrategy {
+    fn default() -> Self {
+        Self::RoundRobin
+    }
+}
+
 /// 自动分配请求
 #[derive(Debug, Clone, Deserialize)]
 pub struct AutoAssignRequest {
-    /// 参与轮询的销售用户 ID 列表（必须非空，否则返回 validation 错误）
+    /// 参与轮询的销售用户 ID 列表（round_robin 必填，claim 模式可空）
     pub assignee_user_ids: Vec<i32>,
     /// 限制本次自动分配的线索数量（缺失时默认 100，上限 1000 防 DoS）
     pub limit: Option<u64>,
+    /// 分配策略（缺失时默认 round_robin）
+    pub strategy: Option<AssignStrategy>,
+}
+
+/// 抢单请求（单个销售主动认领）
+#[derive(Debug, Clone, Deserialize)]
+pub struct ClaimLeadRequest {
+    /// 主动认领的销售用户 ID（通常由 handler 从 auth.user_id 注入，但保留参数以支持代他人认领）
+    pub user_id: i32,
+    /// 可选：指定认领的线索 ID（缺失时自动选取最早入库的未分配线索）
+    pub lead_id: Option<i32>,
 }
 
 /// 自动分配结果
