@@ -27,7 +27,8 @@ pub use borrow::{
     return_color_card,
 };
 pub use crud::{
-    archive_color_card, create_color_card, get_color_card, list_color_cards, update_color_card,
+    archive_color_card, create_color_card, get_color_card, list_color_cards, mark_card_lost,
+    update_color_card,
 };
 pub use items::{
     batch_import_items, create_color_item, delete_color_item, list_color_items, update_color_item,

@@ -232,11 +232,9 @@ impl ColorCardCrudService {
         Ok(result)
     }
 
-    /// 标记色卡为遗失
+    /// 标记色卡为遗失（v11 批次 154b：已接入 POST /:id/mark-lost 路由）
     ///
     /// 批次 27 v7 P0 修复：状态机 lock_exclusive 补全，串行化并发状态变更
-    /// 原实现完全无 txn 无 lock，且无状态门检查（任意状态色卡均可被标记遗失）。
-    #[allow(dead_code)] // TODO(tech-debt): 当前未接入路由，后续如需直接标记色卡遗失可接入 CRUD 路由
     pub async fn mark_lost(&self, id: i64, user_id: i32) -> Result<color_card::Model, CrudError> {
         let txn = self.db.begin().await?;
 
