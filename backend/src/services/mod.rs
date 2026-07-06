@@ -34,7 +34,8 @@ pub mod five_dimension_service;
 pub mod init_service;
 pub mod inv;
 pub mod inventory_adjustment_service;
-// v9 P1-F 修复：inventory_count service 和子模块已删除（死代码，handler 已在 v8 P1-2 删除）
+// v11 批次 143 P1-1：inventory_count_service 真实实现（盘点单 CRUD + 差异计算 + 审批流）
+pub mod inventory_count_service;
 pub mod inventory_finance_bridge_service;
 pub mod inventory_reservation_service;
 pub mod inventory_stock_query;

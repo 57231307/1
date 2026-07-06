@@ -13,10 +13,9 @@ use axum::{
     Router,
 };
 
-// 批次 23（2026-06-29 v5 维度 8 P0-1）：inventory_count_handler 暂未使用（路由已注释）
-// TODO(tech-debt): inventory_count 子模块实现后恢复导入
+// v11 批次 143 P1-1：inventory_count_handler 已真实实现（盘点单 CRUD + 差异计算 + 审批流）
 use crate::handlers::{
-    inventory_adjustment_handler, inventory_batch_handler,
+    inventory_adjustment_handler, inventory_batch_handler, inventory_count_handler,
     inventory_reservation_handler, inventory_stock_handler, inventory_stock_handler_fabric,
     inventory_stock_handler_query, inventory_transfer_handler, logistics_handler, print_handler,
 };
@@ -148,6 +147,34 @@ pub fn inventory() -> Router<AppState> {
         .route(
             "/reservations/:id",
             delete(inventory_reservation_handler::delete_reservation),
+        )
+        // v11 批次 143 P1-1：库存盘点路由
+        .route(
+            "/counts",
+            get(inventory_count_handler::list_counts)
+                .post(inventory_count_handler::create_count),
+        )
+        .route(
+            "/counts/:id",
+            get(inventory_count_handler::get_count)
+                .put(inventory_count_handler::update_count)
+                .delete(inventory_count_handler::delete_count),
+        )
+        .route(
+            "/counts/:id/record",
+            post(inventory_count_handler::record_count_items),
+        )
+        .route(
+            "/counts/:id/submit",
+            post(inventory_count_handler::submit_for_approval),
+        )
+        .route(
+            "/counts/:id/approve",
+            post(inventory_count_handler::approve_count),
+        )
+        .route(
+            "/counts/:id/reject",
+            post(inventory_count_handler::reject_count),
         )
 }
 

@@ -1,5 +1,6 @@
 #![allow(dead_code)]
-// TODO(tech-debt): 业务接入或重评估后逐项移除；rustc 1.94+ 编译时由编译器报告具体死代码位置。
+// v11 批次 143 P1-1：inventory_count 模型已接入业务（盘点单 CRUD + 审批流），
+// 保留文件级 dead_code 抑制以符合 models/ 目录例外规范（SeaORM 派生宏字段）
 
 use chrono::{DateTime, Utc};
 use sea_orm::entity::prelude::*;
