@@ -76,7 +76,10 @@ pub struct SalesTargetDto {
 #[derive(Debug, Clone, Default, Deserialize)]
 pub struct ExportParams {
     pub period: Option<String>,
-    #[allow(dead_code)] // TODO(tech-debt): 销售分析导出模块接入业务后移除
+    // v11 批次 151 P2-A：接入 format 字段，指定导出格式
+    // - None 或 "xlsx"：xlsx 格式（默认，规则 3 合规）
+    // - "csv"：拒绝（规则 3 禁止 CSV 作为最终交付格式）
+    // - 其他值：validation 错误
     pub format: Option<String>,
 }
 
@@ -421,9 +424,31 @@ impl SalesAnalysisService {
         })
     }
 
-    /// 导出销售分析报告（返回 xlsx 字节流）
+    /// 导出销售分析报告
+    ///
+    /// v11 批次 151 P2-A：接入 ExportParams.format 字段，直接返回 xlsx 字节流
+    /// - None 或 "xlsx"：返回 xlsx 字节流（规则 3 合规）
+    /// - "csv"：拒绝（规则 3 禁止 CSV 作为最终交付格式）
+    /// - 其他值：validation 错误
     pub async fn export_report(&self, params: ExportParams) -> Result<Vec<u8>, AppError> {
         info!("导出销售分析报告，参数：{:?}", params);
+
+        // v11 批次 151 P2-A：接入 format 字段校验
+        let format = params.format.as_deref().unwrap_or("xlsx").to_lowercase();
+        match format.as_str() {
+            "xlsx" => {}
+            "csv" => {
+                return Err(AppError::validation(
+                    "CSV 格式已禁用，请使用 xlsx 格式导出（规则 3 合规）",
+                ));
+            }
+            other => {
+                return Err(AppError::validation(format!(
+                    "不支持的导出格式：{}，当前仅支持 xlsx",
+                    other
+                )));
+            }
+        }
 
         let mut query = sales_analysis::Entity::find();
         if let Some(p) = &params.period {
@@ -431,28 +456,43 @@ impl SalesAnalysisService {
         }
         let records = query.all(&*self.db).await?;
 
-        // 简单生成 CSV 格式（UTF-8 BOM），前端/Excel 打开可直接识别
-        let mut buf: Vec<u8> = Vec::new();
-        buf.extend_from_slice(b"\xEF\xBB\xBF");
-        let header = "ID,统计类型,周期,维度类型,维度ID,维度名称,订单数,总金额,总数量,毛利率\n";
-        buf.extend_from_slice(header.as_bytes());
-        for r in &records {
-            let line = format!(
-                "{},{},{},{},{},{},{},{},{},{}\n",
-                r.id,
-                r.statistic_type,
-                r.period,
-                r.dimension_type,
-                r.dimension_id.map(|i| i.to_string()).unwrap_or_default(),
-                r.dimension_name.clone().unwrap_or_default(),
-                r.order_count,
-                r.total_amount,
-                r.total_qty,
-                r.gross_profit_rate,
-            );
-            buf.extend_from_slice(line.as_bytes());
-        }
+        // v11 批次 151 P2-A：直接构建 xlsx 字节流，消除原 CSV 中间步骤
+        // 表头与原 CSV 保持一致，确保导出字段不丢失
+        let headers: Vec<String> = vec![
+            "ID".to_string(),
+            "统计类型".to_string(),
+            "周期".to_string(),
+            "维度类型".to_string(),
+            "维度ID".to_string(),
+            "维度名称".to_string(),
+            "订单数".to_string(),
+            "总金额".to_string(),
+            "总数量".to_string(),
+            "毛利率".to_string(),
+        ];
+        let rows: Vec<Vec<String>> = records
+            .iter()
+            .map(|r| {
+                vec![
+                    r.id.to_string(),
+                    r.statistic_type.clone(),
+                    r.period.clone(),
+                    r.dimension_type.clone(),
+                    r.dimension_id.map(|i| i.to_string()).unwrap_or_default(),
+                    r.dimension_name.clone().unwrap_or_default(),
+                    r.order_count.to_string(),
+                    r.total_amount.to_string(),
+                    r.total_qty.to_string(),
+                    r.gross_profit_rate.to_string(),
+                ]
+            })
+            .collect();
 
-        Ok(buf)
+        let table = crate::utils::xlsx_export::XlsxTable {
+            sheet_name: "销售分析报告".to_string(),
+            headers,
+            rows,
+        };
+        crate::utils::xlsx_export::build_xlsx(&table)
     }
 }

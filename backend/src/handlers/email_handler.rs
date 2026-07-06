@@ -40,7 +40,9 @@ pub struct SendEmailRequest {
     pub html_content: Option<String>,
     pub text_content: Option<String>,
     pub template_id: Option<i32>,
-    #[allow(dead_code)] // TODO(tech-debt): 邮件模块接入业务后移除
+    // v11 批次 151 P2-A：接入模板参数渲染
+    // 当 template_id 和 template_params 同时提供时，加载模板并用 params 替换 {{key}} 占位符
+    // template_params 应为 JSON 对象（如 {"name": "张三", "order_no": "ORD001"}）
     pub template_params: Option<serde_json::Value>,
 }
 
@@ -96,6 +98,41 @@ pub async fn send_email(
         .email_service
         .as_ref()
         .ok_or_else(|| AppError::business("邮件服务未配置"))?;
+
+    // v11 批次 151 P2-A：接入 template_params 模板参数渲染
+    // 当 template_id 存在时，加载模板并用 template_params 替换占位符 {{key}}
+    let mut req = req;
+    if let Some(template_id) = req.template_id {
+        let template_service = EmailTemplateService::new(state.db.clone());
+        let template = template_service
+            .get_by_id(template_id)
+            .await?
+            .ok_or_else(|| AppError::not_found("邮件模板不存在"))?;
+
+        if !template.is_active {
+            return Err(AppError::business("邮件模板已停用，无法使用"));
+        }
+
+        // template_params 必须配合 template_id 使用，且必须为 JSON 对象
+        if let Some(params) = req.template_params.clone() {
+            if !params.is_object() {
+                return Err(AppError::validation(
+                    "template_params 必须为 JSON 对象（如 {\"name\": \"张三\"}）",
+                ));
+            }
+            // 用 params 渲染 subject_template 和 body_template
+            req.subject = render_template(&template.subject_template, &params);
+            req.html_content = Some(render_template(&template.body_template, &params));
+        } else {
+            // 仅提供 template_id 无 params：直接使用模板原始内容（不替换占位符）
+            req.subject = template.subject_template;
+            req.html_content = Some(template.body_template);
+        }
+    } else if req.template_params.is_some() {
+        return Err(AppError::validation(
+            "template_params 必须配合 template_id 使用",
+        ));
+    }
 
     let log_service = EmailLogService::new(state.db.clone());
 
@@ -183,4 +220,67 @@ pub async fn get_email_statistics(
     Ok(Json(ApiResponse::success(serde_json::to_value(
         statistics,
     )?)))
+}
+
+/// 渲染邮件模板：将 {{key}} / {{ key }} 占位符替换为 params 中对应的值
+///
+/// v11 批次 151 P2-A：接入 SendEmailRequest.template_params
+/// - params 必须为 JSON 对象，key 为占位符名称，value 为替换值
+/// - value 为字符串时直接替换；为其他类型时使用 JSON 字符串表示
+/// - 模板中未匹配到 params 的占位符保持原样（不删除，便于排查模板问题）
+fn render_template(template: &str, params: &serde_json::Value) -> String {
+    let mut result = template.to_string();
+    if let Some(obj) = params.as_object() {
+        for (key, value) in obj {
+            // 转换 value 为字符串：字符串类型去掉引号，其他类型使用 JSON 表示
+            let replacement = if let Some(s) = value.as_str() {
+                s.to_string()
+            } else {
+                value.to_string()
+            };
+            // 替换 {{ key }} 和 {{key}} 两种格式
+            let pattern_with_spaces = format!("{{{{ {} }}}}", key);
+            let pattern_without_spaces = format!("{{{{{}}}}}", key);
+            result = result.replace(&pattern_with_spaces, &replacement);
+            result = result.replace(&pattern_without_spaces, &replacement);
+        }
+    }
+    result
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn 测试渲染模板_基本替换() {
+        let template = "你好 {{name}}，订单号 {{order_no}} 已确认";
+        let params = serde_json::json!({"name": "张三", "order_no": "ORD001"});
+        let result = render_template(template, &params);
+        assert_eq!(result, "你好 张三，订单号 ORD001 已确认");
+    }
+
+    #[test]
+    fn 测试渲染模板_带空格占位符() {
+        let template = "你好 {{ name }}，订单号 {{ order_no }} 已确认";
+        let params = serde_json::json!({"name": "李四", "order_no": "ORD002"});
+        let result = render_template(template, &params);
+        assert_eq!(result, "你好 李四，订单号 ORD002 已确认");
+    }
+
+    #[test]
+    fn 测试渲染模板_未匹配占位符保持原样() {
+        let template = "你好 {{name}}，{{unknown_key}}";
+        let params = serde_json::json!({"name": "王五"});
+        let result = render_template(template, &params);
+        assert_eq!(result, "你好 王五，{{unknown_key}}");
+    }
+
+    #[test]
+    fn 测试渲染模板_非字符串值使用_json表示() {
+        let template = "数量：{{count}}，金额：{{amount}}";
+        let params = serde_json::json!({"count": 100, "amount": 99.5});
+        let result = render_template(template, &params);
+        assert_eq!(result, "数量：100，金额：99.5");
+    }
 }
