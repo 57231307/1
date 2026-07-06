@@ -34,7 +34,6 @@ pub async fn approve_task(
 }
 
 /// 撤回流程实例（批次 157d-3 新增）
-#[axum::debug_handler]
 pub async fn cancel_instance(
     Path(instance_id): Path<i32>,
     State(state): State<AppState>,

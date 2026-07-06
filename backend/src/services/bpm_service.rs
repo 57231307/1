@@ -456,7 +456,6 @@ impl BpmService {
         cancel_reason: Option<String>,
     ) -> Result<(), AppError> {
         let txn = self.db.begin().await?;
-        let mut pending_event: Option<crate::services::event_bus::BusinessEvent> = None;
 
         // 加行锁串行化并发撤回
         let instance = bpm_process_instance::Entity::find_by_id(instance_id)
@@ -471,7 +470,11 @@ impl BpmService {
             return Err(AppError::validation("流程已结束，无法撤回"));
         }
 
-        // 取消所有待处理任务
+        // 先捕获事件所需字段，避免后续 instance 被 move 后无法引用
+        let business_type = instance.business_type.clone();
+        let business_id = instance.business_id;
+
+        // 取消所有待处理任务（每次循环 clone reason 以移交所有权给 Set）
         let pending_tasks = bpm_task::Entity::find()
             .filter(bpm_task::Column::InstanceId.eq(instance_id))
             .filter(bpm_task::Column::Status.eq("pending"))
@@ -494,7 +497,7 @@ impl BpmService {
         }
 
         // 更新实例状态为 CANCELLED
-        let mut instance_active: bpm_process_instance::ActiveModel = instance.clone().into();
+        let mut instance_active: bpm_process_instance::ActiveModel = instance.into();
         instance_active.status = Set(Some("CANCELLED".to_string()));
         instance_active.completed_at = Set(Some(chrono::Utc::now()));
         instance_active.updated_at = Set(Some(chrono::Utc::now()));
@@ -507,21 +510,17 @@ impl BpmService {
         )
         .await?;
 
-        // 收集事件，commit 后再 publish
-        pending_event = Some(
-            crate::services::event_bus::BusinessEvent::BpmProcessFinished {
-                business_type: instance.business_type.clone(),
-                business_id: instance.business_id,
-                approved: false,
-                approver_id: user_id.unwrap_or(0),
-            },
-        );
+        // 收集事件，commit 后再 publish（撤回必然发布流程结束事件，无需 Option 包装）
+        let pending_event = crate::services::event_bus::BusinessEvent::BpmProcessFinished {
+            business_type,
+            business_id,
+            approved: false,
+            approver_id: user_id.unwrap_or_default(),
+        };
 
         txn.commit().await?;
 
-        if let Some(ev) = pending_event {
-            crate::services::event_bus::EVENT_BUS.publish(ev);
-        }
+        crate::services::event_bus::EVENT_BUS.publish(pending_event);
         Ok(())
     }
 
