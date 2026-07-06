@@ -91,18 +91,49 @@
         </el-table-column>
       </el-table>
     </el-card>
+
+    <!-- 批次 157c P1-1 修复：添加阶梯价对话框 -->
+    <el-dialog v-model="tierDialogVisible" title="添加阶梯价" width="480px">
+      <el-form ref="tierFormRef" :model="tierForm" :rules="tierRules" label-width="100px">
+        <el-form-item label="起订量" prop="min_quantity">
+          <el-input-number v-model="tierForm.min_quantity" :min="1" style="width: 100%" />
+        </el-form-item>
+        <el-form-item label="上限">
+          <el-input-number v-model="tierForm.max_quantity" :min="0" style="width: 100%" placeholder="0 表示无限" />
+        </el-form-item>
+        <el-form-item label="阶梯价" prop="tier_price">
+          <el-input-number v-model="tierForm.tier_price" :min="0" :precision="4" style="width: 100%" />
+        </el-form-item>
+        <el-form-item label="客户等级">
+          <el-select v-model="tierForm.customer_level" placeholder="通用（留空）" clearable style="width: 100%">
+            <el-option label="VIP" value="VIP" />
+            <el-option label="A" value="A" />
+            <el-option label="B" value="B" />
+            <el-option label="C" value="C" />
+          </el-select>
+        </el-form-item>
+        <el-form-item label="顺序">
+          <el-input-number v-model="tierForm.sequence" :min="1" style="width: 100%" />
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <el-button @click="tierDialogVisible = false">取消</el-button>
+        <el-button type="primary" :loading="tierSubmitting" @click="onSubmitTier">确定</el-button>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+import { ref, reactive, onMounted } from 'vue'
 import { useRoute } from 'vue-router'
-import { ElMessage, ElMessageBox } from 'element-plus'
+import { ElMessage, ElMessageBox, type FormInstance, type FormRules } from 'element-plus'
 import { Plus } from '@element-plus/icons-vue'
 import {
   getColorPrice,
   getColorPriceHistory,
   listTiers,
+  createTier,
   deleteTier,
   formatPrice,
   getLevelLabel,
@@ -114,6 +145,7 @@ import {
   type ColorPriceDetail,
   type PriceHistoryItem,
   type PriceTier,
+  type CreatePriceTierDto,
 } from '@/api/color-price'
 import PriceHistoryChart from '@/components/PriceHistoryChart.vue'
 
@@ -140,8 +172,61 @@ const loadData = async () => {
   }
 }
 
+// 批次 157c P1-1 修复：添加阶梯价对话框接入 createTier API
+const tierDialogVisible = ref(false)
+const tierSubmitting = ref(false)
+const tierFormRef = ref<FormInstance>()
+const tierForm = reactive<{
+  min_quantity: number
+  max_quantity: number | null
+  tier_price: number
+  customer_level: string | null
+  sequence: number
+}>({
+  min_quantity: 1,
+  max_quantity: null,
+  tier_price: 0,
+  customer_level: null,
+  sequence: 1,
+})
+const tierRules: FormRules = {
+  min_quantity: [{ required: true, message: '请输入起订量', trigger: 'blur' }],
+  tier_price: [{ required: true, message: '请输入阶梯价', trigger: 'blur' }],
+}
+
 const handleAddTier = () => {
-  ElMessage.info('请通过批量调价页或 API 创建阶梯价')
+  tierForm.min_quantity = 1
+  tierForm.max_quantity = null
+  tierForm.tier_price = 0
+  tierForm.customer_level = null
+  tierForm.sequence = (tiers.value.length || 0) + 1
+  tierDialogVisible.value = true
+}
+
+const onSubmitTier = async () => {
+  if (!tierFormRef.value) return
+  await tierFormRef.value.validate(async valid => {
+    if (!valid) return
+    tierSubmitting.value = true
+    try {
+      const payload: CreatePriceTierDto = {
+        product_color_price_id: priceId,
+        min_quantity: tierForm.min_quantity,
+        max_quantity: tierForm.max_quantity && tierForm.max_quantity > 0 ? tierForm.max_quantity : null,
+        tier_price: tierForm.tier_price,
+        customer_level: tierForm.customer_level || null,
+        sequence: tierForm.sequence,
+      }
+      await createTier(payload)
+      ElMessage.success('阶梯价添加成功')
+      tierDialogVisible.value = false
+      loadData()
+    } catch (e: any) {
+      ElMessage.error('添加失败：' + (e?.message || '未知错误'))
+    } finally {
+      tierSubmitting.value = false
+    }
+  })
 }
 
 const handleDeleteTier = async (row: PriceTier) => {

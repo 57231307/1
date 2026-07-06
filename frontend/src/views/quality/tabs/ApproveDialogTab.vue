@@ -102,7 +102,8 @@ const handleReject = async () => {
   if (!props.currentRow) return
   try {
     await ElMessageBox.confirm('确定要驳回此标准吗？', '确认驳回', { type: 'warning' })
-    ElMessage.info('驳回功能待后端实现')
+    // TODO(tech-debt): 批次 157d 后端补全 rejectQualityStandard API 后接入真实驳回流程
+    ElMessage.info('驳回功能待后端 API 补全（批次 157d）')
     emit('update:modelValue', false)
   } catch (error) {
     if (error !== 'cancel') {
