@@ -10,7 +10,7 @@
 use crate::utils::error::AppError;
 use axum::http::{header, HeaderValue};
 use axum::response::Response;
-use rust_xlsxwriter::{Format, FormatBorder, Workbook};
+use rust_xlsxwriter::{Format, FormatAlign, FormatBorder, Workbook};
 
 /// xlsx 表格数据（标题行 + 数据行）
 pub struct XlsxTable {
@@ -36,18 +36,18 @@ pub fn build_xlsx(table: &XlsxTable) -> Result<Vec<u8>, AppError> {
         .set_name(&table.sheet_name)
         .map_err(|e| AppError::internal(format!("xlsx 工作表名称错误: {}", e)))?;
 
-    // 标题行格式：加粗 + 浅灰背景 + 边框
+    // 标题行格式：加粗 + 浅灰背景 + 边框 + 居中对齐
     let header_format = Format::new()
         .set_bold()
         .set_background_color("#E0E0E0")
         .set_border(FormatBorder::Thin)
-        .set_align_center()
-        .set_vertical_align_center();
+        .set_align(FormatAlign::Center)
+        .set_align(FormatAlign::VerticalCenter);
 
-    // 数据行格式：边框
+    // 数据行格式：边框 + 垂直居中
     let data_format = Format::new()
         .set_border(FormatBorder::Thin)
-        .set_vertical_align_center();
+        .set_align(FormatAlign::VerticalCenter);
 
     // 写入标题行
     for (col, header) in table.headers.iter().enumerate() {
