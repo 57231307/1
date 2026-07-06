@@ -174,6 +174,10 @@ fn quality_standards_routes() -> Router<AppState> {
             post(quality_standard_handler::approve_standard),
         )
         .route(
+            "/quality-standards/:id/reject",
+            post(quality_standard_handler::reject_standard),
+        )
+        .route(
             "/quality-standards/:id/publish",
             post(quality_standard_handler::publish_standard),
         )

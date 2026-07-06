@@ -273,6 +273,43 @@ impl QualityStandardService {
         Ok(())
     }
 
+    /// 质量标准驳回（批次 157d-2 新增）
+    pub async fn reject_standard(
+        &self,
+        standard_id: i32,
+        user_id: i32,
+        _reject_reason: Option<String>,
+    ) -> Result<(), AppError> {
+        info!("用户 {} 正在驳回质量标准：{}", user_id, standard_id);
+
+        let txn = (*self.db).begin().await?;
+
+        let standard = quality_standard::Entity::find_by_id(standard_id)
+            .lock_exclusive()
+            .one(&txn)
+            .await?
+            .ok_or_else(|| AppError::not_found(format!("质量标准不存在：{}", standard_id)))?;
+
+        if standard.status != "draft" && standard.status != "approved" {
+            return Err(AppError::validation("质量标准状态不允许驳回".to_string()));
+        }
+
+        let mut standard_active: quality_standard::ActiveModel = standard.into();
+        standard_active.status = Set("rejected".to_string());
+        crate::services::audit_log_service::AuditLogService::update_with_audit(
+            &txn,
+            "auto_audit",
+            standard_active,
+            Some(user_id),
+        )
+        .await?;
+
+        txn.commit().await?;
+
+        info!("质量标准已驳回：{}", standard_id);
+        Ok(())
+    }
+
     /// 质量标准发布
     pub async fn publish_standard(&self, standard_id: i32, user_id: i32) -> Result<(), AppError> {
         info!("用户 {} 正在发布质量标准：{}", user_id, standard_id);

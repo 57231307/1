@@ -78,6 +78,13 @@ pub struct QualityApproveRequest {
     pub approval_comment: Option<String>,
 }
 
+/// 质量标准驳回请求 DTO（批次 157d-2 新增）
+#[derive(Debug, Deserialize)]
+pub struct QualityRejectRequest {
+    /// 驳回原因
+    pub reject_reason: Option<String>,
+}
+
 /// 获取质量标准列表
 pub async fn list_standards(
     Query(params): Query<QualityStandardQuery>,
@@ -199,6 +206,25 @@ pub async fn approve_standard(
 
     info!("质量标准审批成功：{}", id);
     Ok(Json(ApiResponse::success("审批成功".to_string())))
+}
+
+/// 驳回质量标准（批次 157d-2 新增）
+#[axum::debug_handler]
+pub async fn reject_standard(
+    Path(id): Path<i32>,
+    State(state): State<AppState>,
+    auth: AuthContext,
+    Json(req): Json<QualityRejectRequest>,
+) -> Result<Json<ApiResponse<String>>, AppError> {
+    info!("用户 {} 正在驳回质量标准：{}", auth.username, id);
+
+    let service = QualityStandardService::new(state.db.clone());
+    service
+        .reject_standard(id, auth.user_id, req.reject_reason)
+        .await?;
+
+    info!("质量标准驳回成功：{}", id);
+    Ok(Json(ApiResponse::success("驳回成功".to_string())))
 }
 
 /// 发布质量标准

@@ -50,40 +50,49 @@ export interface Defect {
 export function listQualityStandards(
   params?: QueryParams
 ): Promise<ApiResponse<QualityStandard[]>> {
-  return request.get('/production/quality-standards', { params })
+  // 批次 157d-2 修复：后端 quality-standards 已从 /production 域提升到根级
+  return request.get('/quality-standards', { params })
 }
 
 export function getQualityStandard(id: number): Promise<ApiResponse<QualityStandard>> {
-  return request.get(`/production/quality-standards/${id}`)
+  return request.get(`/quality-standards/${id}`)
 }
 
 export function createQualityStandard(
   data: Partial<QualityStandard>
 ): Promise<ApiResponse<QualityStandard>> {
-  return request.post('/production/quality-standards', data)
+  return request.post('/quality-standards', data)
 }
 
 export function updateQualityStandard(
   id: number,
   data: Partial<QualityStandard>
 ): Promise<ApiResponse<QualityStandard>> {
-  return request.put(`/production/quality-standards/${id}`, data)
+  return request.put(`/quality-standards/${id}`, data)
 }
 
 export function deleteQualityStandard(id: number): Promise<ApiResponse<void>> {
-  return request.delete(`/production/quality-standards/${id}`)
+  return request.delete(`/quality-standards/${id}`)
 }
 
 export function approveQualityStandard(id: number): Promise<ApiResponse<void>> {
-  return request.post(`/production/quality-standards/${id}/approve`)
+  return request.post(`/quality-standards/${id}/approve`)
+}
+
+// 批次 157d-2 新增：驳回质量标准
+export function rejectQualityStandard(
+  id: number,
+  data?: { reject_reason?: string }
+): Promise<ApiResponse<void>> {
+  return request.post(`/quality-standards/${id}/reject`, data || {})
 }
 
 export function publishQualityStandard(id: number): Promise<ApiResponse<void>> {
-  return request.post(`/production/quality-standards/${id}/publish`)
+  return request.post(`/quality-standards/${id}/publish`)
 }
 
 export function getQualityStandardVersions(id: number): Promise<ApiResponse<QualityStandard[]>> {
-  return request.get(`/production/quality-standards/${id}/versions`)
+  return request.get(`/quality-standards/${id}/versions`)
 }
 
 export function listQualityRecords(params?: QueryParams): Promise<ApiResponse<QualityRecord[]>> {
