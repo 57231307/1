@@ -56,7 +56,7 @@ pub struct UpdateReportTemplateRequest {
 #[derive(Debug, Clone, Deserialize)]
 pub struct ReportTemplateQuery {
     pub report_type: Option<String>,
-    #[allow(dead_code)] // TODO(tech-debt): 报表模板模块接入业务后移除
+    // v11 批次 149 P2-A：接入 status filter（list 方法中默认 ACTIVE，支持传入 INACTIVE 查看已删除模板）
     pub status: Option<String>,
     pub keyword: Option<String>,
     pub page: Option<u64>,
@@ -328,8 +328,10 @@ impl ReportTemplateService {
         let page = query.page.unwrap_or(1);
         let page_size = query.page_size.unwrap_or(20).clamp(1, 100);
 
+        // v11 批次 149 P2-A：接入 status filter，默认 ACTIVE（软删除语义），管理员可传 INACTIVE 查看已删除模板
+        let status_filter = query.status.unwrap_or_else(|| "ACTIVE".to_string());
         let mut select = ReportTemplateEntity::find()
-            .filter(crate::models::report_template::Column::Status.eq("ACTIVE"));
+            .filter(crate::models::report_template::Column::Status.eq(status_filter));
 
         // 只显示公开模板或用户自己创建的模板
         select = select.filter(

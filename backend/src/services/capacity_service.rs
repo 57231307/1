@@ -103,7 +103,7 @@ pub struct CapacityOverview {
 pub struct LoadAnalysisQuery {
     pub date_from: Option<NaiveDate>,
     pub date_to: Option<NaiveDate>,
-    #[allow(dead_code)] // TODO(tech-debt): 报表模块接入后移除
+    // v11 批次 149 P2-A：接入 work_center_id filter（load_analysis 方法中使用）
     pub work_center_id: Option<i32>,
 }
 
@@ -170,10 +170,13 @@ impl CapacityService {
         &self,
         query: LoadAnalysisQuery,
     ) -> Result<Vec<CapacityLoadItem>, AppError> {
-        let work_centers = WorkCenterEntity::find()
-            .filter(WorkCenterColumn::Status.eq("ACTIVE"))
-            .all(&*self.db)
-            .await?;
+        // v11 批次 149 P2-A：接入 work_center_id filter，支持按工作中心筛选产能负荷
+        let mut wc_query = WorkCenterEntity::find()
+            .filter(WorkCenterColumn::Status.eq("ACTIVE"));
+        if let Some(wc_id) = query.work_center_id {
+            wc_query = wc_query.filter(WorkCenterColumn::Id.eq(wc_id));
+        }
+        let work_centers = wc_query.all(&*self.db).await?;
 
         // v15 批次 42 修复：批量查询所有工作中心的订单，避免循环内逐个查询（N+1）
         let wc_ids: Vec<i32> = work_centers.iter().map(|wc| wc.id).collect();
