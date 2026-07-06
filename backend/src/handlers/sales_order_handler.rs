@@ -414,10 +414,10 @@ pub async fn export_orders(
         .await
         .map_err(|e| AppError::internal(format!("导出失败: {}", e)))?;
 
-    // 规则 3：将 service 返回的 CSV 解析为 xlsx 表格
+    // 规则 3：将 service 返回的 CSV（Vec<u8>）解析为 xlsx 表格
     let mut reader = csv::ReaderBuilder::new()
         .has_headers(true)
-        .from_reader(csv_data.as_bytes());
+        .from_reader(std::io::Cursor::new(csv_data));
     let headers: Vec<String> = reader
         .headers()
         .map_err(|e| AppError::internal(format!("CSV解析错误: {}", e)))?
