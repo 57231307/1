@@ -897,7 +897,7 @@ impl VoucherService {
 }
 
 /// 凭证详情（包含分录）
-#[allow(dead_code)] // TODO(tech-debt): 预留 API，待凭证详情查询接入后移除
+// v11 批次 148 P2-A：移除失效的 dead_code 标注（get_by_id 方法返回 VoucherDetail，被 voucher_handler::get_voucher 真实调用）
 #[derive(Debug, Clone)]
 pub struct VoucherDetail {
     pub voucher: voucher::Model,

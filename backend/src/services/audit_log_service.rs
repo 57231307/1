@@ -57,7 +57,7 @@ pub struct AuditEvent {
 
 impl AuditEvent {
     /// 构造最小可用事件（仅指定操作类型 + 资源类型）
-    #[allow(dead_code)] // TODO(tech-debt): 业务接入后逐项移除；用于未来简化调用方（仅需 op + resource）
+    // v11 批次 148 P2-A：移除失效的 dead_code 标注（被 audit_log_service 单元测试 line 472/520/541 真实调用）
     pub fn new(operation_type: OperationType, resource_type: impl Into<String>) -> Self {
         Self {
             user_id: None,
