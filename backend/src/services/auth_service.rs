@@ -661,6 +661,7 @@ const REVOKED_USER_TTL_SECS: i64 = 7 * 24 * 60 * 60;
 /// v11 批次 145 P1-7：接入 app_state 初始化流程，每 24 小时清理一次过期吊销记录。
 /// 此任务为 best-effort，单次清理 panic 不会退出循环。
 pub fn start_revoked_user_cleanup_task() {
+    use futures::FutureExt;
     use std::panic::AssertUnwindSafe;
     use tokio::time::{interval, Duration};
 
