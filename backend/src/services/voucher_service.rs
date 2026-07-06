@@ -894,6 +894,29 @@ impl VoucherService {
         )
         .await
     }
+
+    /// 返回系统支持的凭证类型列表（v11 批次 155 P2-C：从 handler 下沉到 service 静态配置化）
+    pub fn available_voucher_types() -> Vec<VoucherTypeDefinition> {
+        vec![
+            VoucherTypeDefinition::new("记", "记账凭证"),
+            VoucherTypeDefinition::new("收", "收款凭证"),
+            VoucherTypeDefinition::new("付", "付款凭证"),
+            VoucherTypeDefinition::new("转", "转账凭证"),
+        ]
+    }
+}
+
+/// 凭证类型定义（v11 批次 155 P2-C：静态配置化，避免 handler 硬编码）
+#[derive(Debug, Clone, serde::Serialize)]
+pub struct VoucherTypeDefinition {
+    pub code: &'static str,
+    pub name: &'static str,
+}
+
+impl VoucherTypeDefinition {
+    pub fn new(code: &'static str, name: &'static str) -> Self {
+        Self { code, name }
+    }
 }
 
 /// 凭证详情（包含分录）

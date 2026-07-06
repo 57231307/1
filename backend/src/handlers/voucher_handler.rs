@@ -260,15 +260,11 @@ pub async fn post_voucher(
     )))
 }
 
-/// 获取凭证类型列表
-pub async fn get_voucher_types() -> Json<ApiResponse<Vec<serde_json::Value>>> {
-    let types = vec![
-        serde_json::json!({"code": "记", "name": "记账凭证"}),
-        serde_json::json!({"code": "收", "name": "收款凭证"}),
-        serde_json::json!({"code": "付", "name": "付款凭证"}),
-        serde_json::json!({"code": "转", "name": "转账凭证"}),
-    ];
-    Json(ApiResponse::success(types))
+/// 获取凭证类型列表（v11 批次 155 P2-C：下沉到 VoucherService::available_voucher_types 静态配置化）
+pub async fn get_voucher_types() -> Json<ApiResponse<Vec<crate::services::voucher_service::VoucherTypeDefinition>>> {
+    Json(ApiResponse::success(
+        crate::services::voucher_service::VoucherService::available_voucher_types(),
+    ))
 }
 
 /// 生成凭证编号

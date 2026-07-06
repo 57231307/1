@@ -517,4 +517,18 @@ impl AiExtendService {
             "latest_quality_predictions": latest_qual,
         }))
     }
+
+    /// 返回 AI 模块算法元信息（v11 批次 155 P2-C：从 handler 下沉到 service，避免描述脱钩）
+    pub fn algorithm_metadata() -> serde_json::Value {
+        serde_json::json!({
+            "process_optimization": {
+                "algorithm": "k-NN + 加权平均",
+                "fallback": "典型参数表（80°C/45min/pH6.0/浴比1:8）",
+            },
+            "quality_prediction": {
+                "algorithm": "趋势分析 + 风险评分",
+                "fallback": "保守默认（合格率 95% / 置信度 0.3）",
+            },
+        })
+    }
 }
