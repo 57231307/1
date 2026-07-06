@@ -473,6 +473,19 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 info!("慢查询采集任务已禁用（slow_query.enabled=false）");
             }
 
+            // v11 批次 156 P2-D：启动 admin 角色缓存清理后台任务（每 10 分钟清理过期条目）
+            {
+                tokio::spawn(async move {
+                    let interval = std::time::Duration::from_secs(600);
+                    loop {
+                        tokio::time::sleep(interval).await;
+                        crate::utils::admin_checker::cleanup_expired_admin_cache();
+                        tracing::debug!("admin 角色缓存过期条目清理完成");
+                    }
+                });
+                info!("admin 角色缓存清理任务已启动（间隔 600 秒）");
+            }
+
             let app_state = match crate::utils::app_state::AppState::with_secrets_and_cors(
                 db,
                 omni_audit,

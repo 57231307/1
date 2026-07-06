@@ -261,8 +261,7 @@ impl FieldValidator {
         }
     }
 
-    /// 验证最大长度
-    #[allow(dead_code)] // TODO(tech-debt): Excel 导入功能接入后移除
+    /// 验证字段最大长度（v11 批次 156 P2-D：已被 product_service CSV 导入接入）
     pub fn max_length(value: &str, field_name: &str, max_len: usize) -> Result<(), String> {
         if value.len() > max_len {
             Err(format!("{} 长度不能超过 {} 个字符", field_name, max_len))

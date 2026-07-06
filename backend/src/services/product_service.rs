@@ -670,6 +670,11 @@ impl ProductService {
                 result.add_error(row_num, "产品编码".to_string(), e, code.clone());
                 continue;
             }
+            // v11 批次 156 P2-D：接入 FieldValidator::max_length 校验编码长度
+            if let Err(e) = FieldValidator::max_length(code, "产品编码", 50) {
+                result.add_error(row_num, "产品编码".to_string(), e, code.clone());
+                continue;
+            }
 
             let name = match row.get("产品名称") {
                 Some(v) => v,
@@ -684,6 +689,11 @@ impl ProductService {
                 }
             };
             if let Err(e) = FieldValidator::required(name, "产品名称") {
+                result.add_error(row_num, "产品名称".to_string(), e, name.clone());
+                continue;
+            }
+            // v11 批次 156 P2-D：接入 FieldValidator::max_length 校验名称长度
+            if let Err(e) = FieldValidator::max_length(name, "产品名称", 200) {
                 result.add_error(row_num, "产品名称".to_string(), e, name.clone());
                 continue;
             }

@@ -61,10 +61,11 @@ impl CustomOrderQualityService {
             if delta_e < rust_decimal::Decimal::ZERO {
                 return Err(QualityError::Validation("色差 ΔE 不能为负数".to_string()));
             }
-            // ΔE > 1.0 提示为可感知色差（行业规则）
-            if delta_e > rust_decimal::Decimal::from(5) {
+            // v11 批次 156 P2-D：接入 color_space_converter::delta_e_is_acceptable 判定可接受色差
+            let delta_e_f64 = delta_e.to_string().parse::<f64>().unwrap_or(f64::MAX);
+            if !crate::utils::color_space_converter::delta_e_is_acceptable(delta_e_f64) {
                 tracing::warn!(
-                    "GB/T 26377-2022 提示：色差 ΔE={} 超过行业警告阈值 5.0",
+                    "GB/T 26377-2022 提示：色差 ΔE={} 超过可接受阈值 3.0",
                     delta_e
                 );
             }

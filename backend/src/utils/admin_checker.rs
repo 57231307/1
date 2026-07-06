@@ -51,8 +51,7 @@ pub fn clear_admin_role_cache(role_id: Option<i32>) {
     }
 }
 
-/// 清理过期的管理员角色缓存条目
-#[allow(dead_code)] // TODO(tech-debt): 缓存清理定时任务接入后移除
+/// 清理过期的管理员角色缓存条目（v11 批次 156 P2-D：main.rs 后台任务每 10 分钟调用）
 pub fn cleanup_expired_admin_cache() {
     ADMIN_ROLE_CACHE.retain(|_, entry| !entry.is_expired());
 }

@@ -465,6 +465,19 @@ pub async fn delete_user(
     let svc = Arc::new(AuditLogService::new(state.db.clone()));
     svc.record_async(event, audit_ctx.map(|e| e.0));
 
+    // v11 批次 156 P2-D：同时调用 log_security_event 接入 SecurityEvent::UserDeleted 变体
+    // 双写策略：AuditLogService 落库（可追溯）+ log_security_event tracing 日志（结构化告警）
+    audit::log_security_event(
+        audit::SecurityEvent::UserDeleted,
+        auth.user_id,
+        &auth.username,
+        auth.role_id,
+        Some(&existing_user.username),
+        Some(&format!("user_id={}", id)),
+        None,
+    )
+    .await;
+
     Ok(Json(ApiResponse::success(DeleteUserResponse {
         success: true,
     })))

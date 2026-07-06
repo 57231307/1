@@ -41,11 +41,7 @@ pub mod indices {
     pub const PRODUCTS: &str = "products";
 }
 
-/// 文档类型
-///
-/// 批次 104 P0-1 修复：DocType enum 当前未被业务直接引用，
-/// 保留为公共 API 供未来路由分发或批量操作使用。
-#[allow(dead_code)] // TODO(tech-debt): 批次 104 已接入 search_api，DocType 保留为公共 API 预留
+/// 文档类型（v11 批次 156 P2-D：通过 /search/doc-types 端点暴露公共 API）
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum DocType {
     SalesOrder,
@@ -53,7 +49,6 @@ pub enum DocType {
     Product,
 }
 
-#[allow(dead_code)] // TODO(tech-debt): 批次 104 已接入 search_api，DocType 保留为公共 API 预留
 impl DocType {
     pub fn index(&self) -> &'static str {
         match self {
@@ -224,6 +219,9 @@ pub trait SearchClient: Send + Sync {
         index: &str,
         docs: &[(String, serde_json::Value)],
     ) -> Result<usize, SearchError>;
+
+    /// 已索引文档数（v11 批次 156 P2-D：接入 search_api::list_doc_types 公共端点）
+    async fn doc_count(&self, index: &str) -> usize;
 }
 
 /// 搜索错误
@@ -286,10 +284,7 @@ impl ElasticClient {
         }
     }
 
-    /// 已索引文档数
-    ///
-    /// 批次 104 P0-1 修复：仅测试用，未被业务调用
-    #[allow(dead_code)] // TODO(tech-debt): 仅测试辅助方法，后续接入监控端点后移除
+    /// 已索引文档数（v11 批次 156 P2-D：接入 SearchClient trait + search_api::list_doc_types）
     pub async fn doc_count(&self, index: &str) -> usize {
         match &self.inner {
             ClientInner::Mock(storage) => {
@@ -301,7 +296,6 @@ impl ElasticClient {
                     .unwrap_or(0)
             }
             ClientInner::Real { base_url, http } => {
-                // 调用 ES _count API 获取文档数
                 let url = format!("{}/{}/_count", base_url, index);
                 match http.get(&url).send().await {
                     Ok(resp) if resp.status().is_success() => {
@@ -619,6 +613,11 @@ impl SearchClient for ElasticClient {
                 Ok(count)
             }
         }
+    }
+
+    /// v11 批次 156 P2-D：trait 方法委托给 ElasticClient::doc_count 固有方法
+    async fn doc_count(&self, index: &str) -> usize {
+        ElasticClient::doc_count(self, index).await
     }
 }
 
