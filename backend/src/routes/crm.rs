@@ -288,6 +288,11 @@ pub fn crm_business() -> Router<AppState> {
             post(crate::handlers::crm_handler::create_lead)
                 .get(crate::handlers::crm_handler::list_leads),
         )
+        // v11 批次 141：导出线索为 CSV（注册在 /:id 之前避免路径参数匹配）
+        .route(
+            "/leads/export",
+            get(crate::handlers::crm_handler::export_leads),
+        )
         .route(
             "/leads/:id",
             get(crate::handlers::crm_handler::get_lead)
@@ -310,6 +315,11 @@ pub fn crm_business() -> Router<AppState> {
             "/opportunities",
             post(crate::handlers::crm_handler::create_opportunity)
                 .get(crate::handlers::crm_handler::list_opportunities),
+        )
+        // v11 批次 141：导出商机为 CSV（注册在 /:id 之前避免路径参数匹配）
+        .route(
+            "/opportunities/export",
+            get(crate::handlers::crm_handler::export_opportunities),
         )
         .route(
             "/opportunities/:id",

@@ -218,7 +218,13 @@
 import { ref, reactive, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Plus, Upload, Download, Search, Refresh } from '@element-plus/icons-vue'
-import { listLeads, exportLeads, type Lead } from '@/api/crm'
+import {
+  listLeads,
+  exportLeads,
+  updateLeadStatus,
+  convertLead,
+  type Lead,
+} from '@/api/crm'
 import { listUsers, type User } from '@/api/user'
 import type { ApiResponse, PageResult } from '@/types/api'
 import { logger } from '@/utils/logger'
@@ -322,11 +328,14 @@ const handleContact = async (row: LeadRow) => {
     await ElMessageBox.confirm(`确认标记线索 "${row.contact_name}" 为已联系？`, '提示', {
       type: 'warning',
     })
-    ElMessage.success('操作成功')
+    // v11 批次 141 修复：原占位假成功，现接入真实状态变更 API
+    await updateLeadStatus(row.id, { status: 'contacted' })
+    ElMessage.success('已标记为已联系')
     getList()
   } catch (error) {
     if (error !== 'cancel') {
-      logger.warn('操作失败', (error as Error).message)
+      logger.warn('标记已联系失败', (error as Error).message)
+      ElMessage.error('标记已联系失败')
     }
   }
 }
@@ -336,11 +345,14 @@ const handleConvert = async (row: LeadRow) => {
     await ElMessageBox.confirm(`确认将线索 "${row.contact_name}" 转化为客户？`, '提示', {
       type: 'warning',
     })
-    ElMessage.success('转化成功')
+    // v11 批次 141 修复：原占位假成功，现接入真实转化 API
+    await convertLead(row.id)
+    ElMessage.success('线索转化成功')
     getList()
   } catch (error) {
     if (error !== 'cancel') {
       logger.warn('转化失败', (error as Error).message)
+      ElMessage.error('转化失败')
     }
   }
 }
@@ -350,11 +362,14 @@ const handleLost = async (row: LeadRow) => {
     await ElMessageBox.confirm(`确认标记线索 "${row.contact_name}" 为流失？`, '提示', {
       type: 'warning',
     })
-    ElMessage.success('操作成功')
+    // v11 批次 141 修复：原占位假成功，现接入真实状态变更 API
+    await updateLeadStatus(row.id, { status: 'lost' })
+    ElMessage.success('已标记为流失')
     getList()
   } catch (error) {
     if (error !== 'cancel') {
-      logger.warn('操作失败', (error as Error).message)
+      logger.warn('标记流失失败', (error as Error).message)
+      ElMessage.error('标记流失失败')
     }
   }
 }

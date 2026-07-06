@@ -6,11 +6,20 @@
 use crate::models::{crm_lead, crm_opportunity, customer};
 use crate::utils::error::AppError;
 use sea_orm::{
-    ActiveModelTrait, ColumnTrait, EntityTrait, PaginatorTrait, QueryFilter, QueryOrder, Set,
-    TransactionTrait,
+    ActiveModelTrait, ColumnTrait, EntityTrait, PaginatorTrait, QueryFilter, QueryOrder, QuerySelect,
+    Set, TransactionTrait,
 };
 
 use super::cust::CrmService;
+
+/// CSV 字段转义：字段包含逗号/引号/换行时用双引号包裹，内部引号双写
+fn csv_escape(s: &str) -> String {
+    if s.contains(',') || s.contains('"') || s.contains('\n') || s.contains('\r') {
+        format!("\"{}\"", s.replace('"', "\"\""))
+    } else {
+        s.to_string()
+    }
+}
 
 impl CrmService {
     /// 创建线索
@@ -128,6 +137,68 @@ impl CrmService {
             "page": page,
             "page_size": page_size,
         }))
+    }
+
+    /// 导出线索为 CSV（UTF-8 BOM，Excel 兼容）
+    ///
+    /// v11 批次 141 新增：前端 exportLeads API 真实接入，原缺失导出路由。
+    /// 查询所有匹配条件（不分页）的线索，生成 CSV 字符串。
+    /// 导出字段：线索编号/公司名称/联系人/手机号/邮箱/线索来源/线索状态/负责人/创建时间
+    pub async fn export_leads(
+        &self,
+        query: crate::models::dto::crm_dto::LeadQuery,
+    ) -> Result<String, AppError> {
+        let mut q = crm_lead::Entity::find();
+
+        if let Some(s) = query.lead_status {
+            q = q.filter(crm_lead::Column::LeadStatus.eq(s));
+        }
+        if let Some(source) = query.source {
+            q = q.filter(crm_lead::Column::LeadSource.eq(source));
+        }
+        if let Some(keyword) = query.keyword {
+            let pattern = format!("%{}%", keyword);
+            q = q.filter(
+                sea_orm::Condition::any()
+                    .add(crm_lead::Column::CompanyName.like(&pattern))
+                    .add(crm_lead::Column::ContactName.like(&pattern))
+                    .add(crm_lead::Column::MobilePhone.like(&pattern))
+                    .add(crm_lead::Column::Email.like(&pattern)),
+            );
+        }
+
+        // 限制导出最大 10000 条，防止 DoS
+        let leads: Vec<crm_lead::Model> = q
+            .order_by(crm_lead::Column::CreatedAt, sea_orm::Order::Desc)
+            .limit(10000)
+            .all(&*self.db)
+            .await?;
+
+        // UTF-8 BOM（Excel 正确识别中文）
+        let mut csv = String::from("\u{FEFF}");
+        csv.push_str("线索编号,公司名称,联系人,职位,手机号,座机,邮箱,线索来源,线索状态,负责人,优先级,创建时间\n");
+
+        for lead in leads {
+            csv.push_str(&format!(
+                "{},{},{},{},{},{},{},{},{},{},{},{}\n",
+                csv_escape(&lead.lead_no),
+                csv_escape(lead.company_name.as_deref().unwrap_or("")),
+                csv_escape(&lead.contact_name),
+                csv_escape(lead.contact_title.as_deref().unwrap_or("")),
+                csv_escape(lead.mobile_phone.as_deref().unwrap_or("")),
+                csv_escape(lead.tel_phone.as_deref().unwrap_or("")),
+                csv_escape(lead.email.as_deref().unwrap_or("")),
+                csv_escape(&lead.lead_source),
+                csv_escape(lead.lead_status.as_deref().unwrap_or("")),
+                csv_escape(&lead.owner_name),
+                csv_escape(lead.priority.as_deref().unwrap_or("")),
+                lead.created_at
+                    .map(|t| t.to_rfc3339())
+                    .unwrap_or_default(),
+            ));
+        }
+
+        Ok(csv)
     }
 
     /// 获取线索详情

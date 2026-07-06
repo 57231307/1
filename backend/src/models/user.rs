@@ -21,6 +21,8 @@ pub struct Model {
     // TOTP 二次验证字段
     pub totp_secret: Option<String>,
     pub is_totp_enabled: bool,
+    // v11 批次 141：TOTP 恢复码哈希数组（JSON 格式，bcrypt 哈希）
+    pub totp_recovery_codes: Option<String>,
 
     pub last_login_at: Option<DateTime<Utc>>,
     pub created_at: DateTime<Utc>,

@@ -6,11 +6,20 @@
 use crate::models::{crm_opportunity, customer, sales_order};
 use crate::utils::error::AppError;
 use sea_orm::{
-    ActiveModelTrait, ColumnTrait, EntityTrait, PaginatorTrait, QueryFilter, QueryOrder, Set,
-    TransactionTrait,
+    ActiveModelTrait, ColumnTrait, EntityTrait, PaginatorTrait, QueryFilter, QueryOrder, QuerySelect,
+    Set, TransactionTrait,
 };
 
 use super::cust::CrmService;
+
+/// CSV 字段转义：字段包含逗号/引号/换行时用双引号包裹，内部引号双写
+fn csv_escape(s: &str) -> String {
+    if s.contains(',') || s.contains('"') || s.contains('\n') || s.contains('\r') {
+        format!("\"{}\"", s.replace('"', "\"\""))
+    } else {
+        s.to_string()
+    }
+}
 
 impl CrmService {
     /// 创建商机
@@ -99,6 +108,56 @@ impl CrmService {
             "page": page,
             "page_size": page_size,
         }))
+    }
+
+    /// 导出商机为 CSV（UTF-8 BOM，Excel 兼容）
+    ///
+    /// v11 批次 141 新增：前端 exportOpportunities API 真实接入，原缺失导出路由。
+    /// 查询所有匹配条件（不分页）的商机，生成 CSV 字符串。
+    /// 导出字段：商机编号/商机名称/客户ID/商机阶段/预估金额/实际金额/预期成交日期/负责人/创建时间
+    pub async fn export_opportunities(
+        &self,
+        query: crate::models::dto::crm_dto::OpportunityQuery,
+    ) -> Result<String, AppError> {
+        let mut q = crm_opportunity::Entity::find();
+
+        if let Some(s) = query.opportunity_stage {
+            q = q.filter(crm_opportunity::Column::OpportunityStage.eq(s));
+        }
+
+        // 限制导出最大 10000 条，防止 DoS
+        let opportunities: Vec<crm_opportunity::Model> = q
+            .order_by(crm_opportunity::Column::CreatedAt, sea_orm::Order::Desc)
+            .limit(10000)
+            .all(&*self.db)
+            .await?;
+
+        // UTF-8 BOM（Excel 正确识别中文）
+        let mut csv = String::from("\u{FEFF}");
+        csv.push_str("商机编号,商机名称,客户ID,商机阶段,预估金额,实际金额,预期成交日期,实际成交日期,负责人,优先级,创建时间\n");
+
+        for opp in opportunities {
+            csv.push_str(&format!(
+                "{},{},{},{},{},{},{},{},{},{},{}\n",
+                csv_escape(&opp.opportunity_no),
+                csv_escape(&opp.opportunity_name),
+                opp.customer_id,
+                csv_escape(opp.opportunity_stage.as_deref().unwrap_or("")),
+                opp.estimated_amount.map(|d| d.to_string()).unwrap_or_default(),
+                opp.actual_amount.map(|d| d.to_string()).unwrap_or_default(),
+                opp.expected_close_date
+                    .map(|d| d.to_string())
+                    .unwrap_or_default(),
+                opp.actual_close_date
+                    .map(|d| d.to_string())
+                    .unwrap_or_default(),
+                csv_escape(&opp.owner_name),
+                csv_escape(opp.priority.as_deref().unwrap_or("")),
+                opp.created_at.map(|t| t.to_rfc3339()).unwrap_or_default(),
+            ));
+        }
+
+        Ok(csv)
     }
 
     /// 获取商机详情
