@@ -42,17 +42,59 @@
         </el-table-column>
       </el-table>
     </el-card>
+
+    <!-- 批次 157c P1-1 修复：采购价格编辑对话框 -->
+    <el-dialog v-model="priceDialogVisible" :title="priceDialogTitle" width="520px">
+      <el-form ref="priceFormRef" :model="priceForm" :rules="priceRules" label-width="100px">
+        <el-form-item label="产品名称" prop="product_name">
+          <el-input v-model="priceForm.product_name" placeholder="请输入产品名称" />
+        </el-form-item>
+        <el-form-item label="供应商名称">
+          <el-input v-model="priceForm.supplier_name" placeholder="请输入供应商名称" />
+        </el-form-item>
+        <el-form-item label="价格" prop="price">
+          <el-input-number v-model="priceForm.price" :min="0" :precision="4" style="width: 100%" />
+        </el-form-item>
+        <el-form-item label="币种" prop="currency">
+          <el-select v-model="priceForm.currency" style="width: 100%">
+            <el-option label="人民币 (CNY)" value="CNY" />
+            <el-option label="美元 (USD)" value="USD" />
+            <el-option label="欧元 (EUR)" value="EUR" />
+          </el-select>
+        </el-form-item>
+        <el-form-item label="单位" prop="unit">
+          <el-input v-model="priceForm.unit" placeholder="如：米、千克" />
+        </el-form-item>
+        <el-form-item label="生效日期" prop="effective_date">
+          <el-date-picker v-model="priceForm.effective_date" type="date" value-format="YYYY-MM-DD" style="width: 100%" />
+        </el-form-item>
+        <el-form-item label="失效日期">
+          <el-date-picker v-model="priceForm.expiry_date" type="date" value-format="YYYY-MM-DD" style="width: 100%" />
+        </el-form-item>
+        <el-form-item label="状态" prop="status">
+          <el-select v-model="priceForm.status" style="width: 100%">
+            <el-option label="有效" value="active" />
+            <el-option label="无效" value="inactive" />
+          </el-select>
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <el-button @click="priceDialogVisible = false">取消</el-button>
+        <el-button type="primary" :loading="priceSubmitting" @click="onSubmitPrice">确定</el-button>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
-import { ElMessage } from 'element-plus'
+import { ref, reactive, onMounted } from 'vue'
+import { ElMessage, type FormInstance, type FormRules } from 'element-plus'
 import { Plus } from '@element-plus/icons-vue'
 import {
   listTradingPrices,
   getTradingPrice,
   createTradingPrice,
+  updateTradingPrice,
   type TradingPrice,
 } from '@/api/trading-price'
 
@@ -84,20 +126,94 @@ const fetchPurchasePrices = async () => {
   }
 }
 
+// 批次 157c P1-1 修复：采购价格编辑/新建对话框接入 updateTradingPrice/createTradingPrice
+const priceDialogVisible = ref(false)
+const priceSubmitting = ref(false)
+const priceDialogTitle = ref('新建采购价格')
+const priceFormRef = ref<FormInstance>()
+const priceEditingId = ref<number | null>(null)
+const priceForm = reactive<Omit<TradingPrice, 'id'>>({
+  product_name: '',
+  supplier_name: '',
+  price: 0,
+  currency: 'CNY',
+  unit: '米',
+  effective_date: new Date().toISOString().slice(0, 10),
+  expiry_date: '',
+  status: 'active',
+})
+const priceRules: FormRules = {
+  product_name: [{ required: true, message: '请输入产品名称', trigger: 'blur' }],
+  price: [{ required: true, message: '请输入价格', trigger: 'blur' }],
+  currency: [{ required: true, message: '请选择币种', trigger: 'change' }],
+  unit: [{ required: true, message: '请输入单位', trigger: 'blur' }],
+  effective_date: [{ required: true, message: '请选择生效日期', trigger: 'change' }],
+  status: [{ required: true, message: '请选择状态', trigger: 'change' }],
+}
+
+const resetPriceForm = () => {
+  priceEditingId.value = null
+  priceForm.product_name = ''
+  priceForm.supplier_name = ''
+  priceForm.price = 0
+  priceForm.currency = 'CNY'
+  priceForm.unit = '米'
+  priceForm.effective_date = new Date().toISOString().slice(0, 10)
+  priceForm.expiry_date = ''
+  priceForm.status = 'active'
+}
+
 const openPurchasePriceDialog = async (row?: TradingPrice) => {
-  try {
-    if (row) {
+  resetPriceForm()
+  if (row) {
+    try {
       const res = await getTradingPrice(row.id)
-      ElMessage.info(`编辑价格: ${res.data?.product_name || row.product_name}`)
-    } else {
-      await createTradingPrice({ type: 'purchase', status: 'active' })
-      ElMessage.success('已创建')
-      fetchPurchasePrices()
+      const d = res.data
+      if (d) {
+        priceEditingId.value = d.id
+        priceForm.product_name = d.product_name
+        priceForm.supplier_name = d.supplier_name || ''
+        priceForm.price = d.price
+        priceForm.currency = d.currency
+        priceForm.unit = d.unit
+        priceForm.effective_date = d.effective_date
+        priceForm.expiry_date = d.expiry_date || ''
+        priceForm.status = d.status
+      }
+      priceDialogTitle.value = '编辑采购价格'
+    } catch (e) {
+      const err = e as { message?: string }
+      ElMessage.error(err.message || '获取价格详情失败')
+      return
     }
-  } catch (e) {
-    const err = e as { message?: string }
-    ElMessage.error(err.message || '操作失败')
+  } else {
+    priceDialogTitle.value = '新建采购价格'
   }
+  priceDialogVisible.value = true
+}
+
+const onSubmitPrice = async () => {
+  if (!priceFormRef.value) return
+  await priceFormRef.value.validate(async valid => {
+    if (!valid) return
+    priceSubmitting.value = true
+    try {
+      if (priceEditingId.value !== null) {
+        await updateTradingPrice(priceEditingId.value, { ...priceForm })
+        ElMessage.success('更新成功')
+      } else {
+        await createTradingPrice({ ...priceForm, type: 'purchase' })
+        ElMessage.success('创建成功')
+      }
+      priceDialogVisible.value = false
+      fetchPurchasePrices()
+    } catch (e) {
+      const err = e as { message?: string }
+      ElMessage.error(err.message || '操作失败')
+    } finally {
+      priceSubmitting.value = false
+    }
+  })
 }
 
 defineExpose({ refresh: fetchPurchasePrices })

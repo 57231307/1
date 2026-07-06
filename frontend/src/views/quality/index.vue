@@ -391,7 +391,8 @@ const rejectStandard = async () => {
   if (!approveStandardItem.value!) return
   try {
     await ElMessageBox.confirm('确定要驳回此标准吗？', '确认驳回', { type: 'warning' })
-    ElMessage.info('驳回功能待后端实现')
+    // TODO(tech-debt): 批次 157d 后端补全 rejectQualityStandard API 后接入真实驳回流程
+    ElMessage.info('驳回功能待后端 API 补全（批次 157d）')
     approveDialogVisible.value = false
   } catch (e: unknown) {
     // 批次 98 P2-D 修复（v5 复审）：原 catch (e: any) 改为 unknown + 类型守卫
