@@ -223,6 +223,7 @@ import {
   exportLeads,
   updateLeadStatus,
   convertLead,
+  getLead,
   type Lead,
 } from '@/api/crm'
 import { listUsers, type User } from '@/api/user'
@@ -319,8 +320,30 @@ const handleFormSubmitted = () => {
   getList()
 }
 
-const handleView = (_row: LeadRow) => {
-  // 查看详情（占位）
+// 批次 157b P1-1 修复：接入 getLead API 展示线索详情
+const handleView = async (row: LeadRow) => {
+  try {
+    const res = (await getLead(row.id)) as unknown as { data?: LeadRow }
+    const d = res.data || row
+    const lines = [
+      `线索编号：${d.lead_no || '-'}`,
+      `公司名称：${d.company_name || '-'}`,
+      `联系人：${d.contact_name || '-'}`,
+      `手机号：${d.mobile_phone || '-'}`,
+      `线索来源：${getSourceLabel(d.lead_source || '')}`,
+      `线索状态：${getStatusLabel(d.lead_status || '')}`,
+      `优先级：${getPriorityLabel(d.priority || '')}`,
+      `负责人：${d.owner_name || '-'}`,
+      `最近跟进：${d.last_follow_up_date || '-'}`,
+      `下次跟进：${d.next_follow_up_date || '-'}`,
+      `需求描述：${d.requirement_desc || '-'}`,
+      `备注：${d.remarks || '-'}`,
+    ]
+    await ElMessageBox.alert(lines.join('\n'), '线索详情', { confirmButtonText: '关闭' })
+  } catch (error) {
+    logger.warn('获取线索详情失败', (error as Error).message)
+    ElMessage.error('获取线索详情失败')
+  }
 }
 
 const handleContact = async (row: LeadRow) => {
@@ -374,8 +397,9 @@ const handleLost = async (row: LeadRow) => {
   }
 }
 
+// TODO(tech-debt): 批次 157d 后端补全 importLeads API 后接入真实导入流程
 const handleImport = () => {
-  ElMessage.info('导入功能开发中')
+  ElMessage.info('导入功能待后端 API 补全（批次 157d）')
 }
 
 // 批次 94 P2-12 修复：原占位假成功，现接入真实导出 API 并触发浏览器下载

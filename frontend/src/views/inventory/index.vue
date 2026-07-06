@@ -89,8 +89,9 @@ import { ref, reactive, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Edit, RefreshRight, Download, Printer } from '@element-plus/icons-vue'
 import printJS from 'print-js'
+import { useRouter } from 'vue-router'
 import { loadIfNot, createLazyLoader } from '@/utils/lazy-loader'
-import { escapeCsvCell } from './composables/invFmts'
+import { exportToExcel } from '@/utils/export'
 import InventoryStockTab, { type StockQuery } from './tabs/InventoryStockTab.vue'
 import InventoryAlertTab from './tabs/InventoryAlertTab.vue'
 import InventoryTransferTab from './tabs/InventoryTransferTab.vue'
@@ -99,6 +100,7 @@ import AdjustmentDialog from './components/AdjustmentDialog.vue'
 import TransferDialog from './components/TransferDialog.vue'
 
 const hasLoaded = createLazyLoader()
+const router = useRouter()
 
 const loading = ref(false)
 const activeTab = ref('stock')
@@ -366,8 +368,9 @@ const handleView = async (row: any) => {
     )
   }
 }
+// 批次 157b P1-1 修复：采购按钮跳转到采购页面
 const handlePurchase = (row: any) => {
-  ElMessage.info(`采购：${row.product_name}`)
+  router.push({ name: 'Purchase', query: { product_name: row.product_name || '' } })
 }
 const handlePrint = () => {
   printJS({
@@ -377,24 +380,24 @@ const handlePrint = () => {
     header: '库存台账',
   })
 }
+// 批次 157b P1-1 修复：导出改为 .xls 格式（规则 3：禁止 CSV 作为最终交付格式）
 const handleExport = () => {
-  const csv = [
-    ['产品编码', '产品名称', '仓库', '数量', '状态'],
-    ...stocks.value.map(s => [
-      s.product_code,
-      s.product_name,
-      s.warehouse_name,
-      s.quantity,
-      s.status,
-    ]),
-  ]
-    .map(r => r.map(escapeCsvCell).join(','))
-    .join('\n')
-  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' })
-  const link = document.createElement('a')
-  link.href = URL.createObjectURL(blob)
-  link.download = `库存台账_${new Date().toISOString().split('T')[0]}.csv`
-  link.click()
+  if (stocks.value.length === 0) {
+    ElMessage.warning('没有可导出的数据')
+    return
+  }
+  exportToExcel({
+    filename: '库存台账',
+    format: 'excel',
+    data: stocks.value as unknown as Record<string, unknown>[],
+    columns: [
+      { key: 'product_code', title: '产品编码' },
+      { key: 'product_name', title: '产品名称' },
+      { key: 'warehouse_name', title: '仓库' },
+      { key: 'quantity', title: '数量' },
+      { key: 'status', title: '状态' },
+    ],
+  })
   ElMessage.success('导出成功')
 }
 
