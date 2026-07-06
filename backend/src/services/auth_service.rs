@@ -614,25 +614,102 @@ pub async fn is_user_token_revoked(user_id: i32, token_iat: i64) -> bool {
 
 /// 清理过期的用户吊销记录（建议定期调用）
 ///
-/// 当前实现为占位：因 revoked_at 永不过期（仅当用户重新激活时调用方应主动删除），
-/// 此函数保留接口以备后续策略调整（例如引入"吊销 TTL"）。
-#[allow(dead_code)] // TODO(tech-debt): 业务接入后移除
-pub async fn cleanup_revoked_users() {
-    // 当前策略：吊销记录永久保留，直至进程重启或显式 unregister。
-    // 保留此函数以备后续引入"自动解除封禁"等业务策略。
-    let table = REVOKED_USERS.read().await;
-    tracing::info!("当前用户吊销表条目数：{}", table.len());
+/// v11 批次 145 P1-7 修复：原实现为占位（仅打印日志），现实现真实 TTL 清理。
+///
+/// 清理策略：
+/// - 吊销记录超过 `REVOKED_USER_TTL_SECS`（默认 7 天）后自动清理
+/// - 理由：JWT 最长有效期 2 小时，7 天后所有旧 Token 已过期，吊销记录无意义
+/// - 清理后该用户的旧 Token 已自然过期，无需再保留吊销标记
+///
+/// 返回被清理的记录数。
+pub async fn cleanup_revoked_users() -> usize {
+    let now = chrono::Utc::now().timestamp();
+    let ttl = REVOKED_USER_TTL_SECS;
+    let cutoff = now - ttl;
+
+    let mut table = REVOKED_USERS.write().await;
+    let before = table.len();
+
+    // 保留 revoked_at >= cutoff 的记录（未过期的），移除已过期的
+    table.retain(|_, revoked_at| *revoked_at >= cutoff);
+
+    let removed = before - table.len();
+    if removed > 0 {
+        tracing::info!(
+            "已清理 {} 条过期用户吊销记录（TTL={}秒，剩余{}条）",
+            removed,
+            ttl,
+            table.len()
+        );
+    } else {
+        tracing::debug!(
+            "用户吊销记录清理完成：无过期记录（当前{}条）",
+            table.len()
+        );
+    }
+    removed
+}
+
+/// 吊销记录 TTL（秒），默认 7 天
+///
+/// v11 批次 145 P1-7：吊销记录超过此时间后自动清理。
+/// JWT 最长有效期 2 小时，7 天后所有旧 Token 已过期，吊销记录无意义。
+const REVOKED_USER_TTL_SECS: i64 = 7 * 24 * 60 * 60;
+
+/// 启动吊销记录定期清理后台任务
+///
+/// v11 批次 145 P1-7：接入 app_state 初始化流程，每 24 小时清理一次过期吊销记录。
+/// 此任务为 best-effort，单次清理 panic 不会退出循环。
+pub fn start_revoked_user_cleanup_task() {
+    use futures::FutureExt;
+    use std::panic::AssertUnwindSafe;
+    use tokio::time::{interval, Duration};
+
+    tokio::spawn(async move {
+        // 每 24 小时执行一次清理
+        let mut ticker = interval(Duration::from_secs(24 * 60 * 60));
+        // 跳过首次立即触发（启动时无需清理）
+        ticker.tick().await;
+        loop {
+            ticker.tick().await;
+            // 单次清理 panic 隔离，确保循环不退出
+            let result = AssertUnwindSafe(async {
+                cleanup_revoked_users().await;
+            })
+            .catch_unwind()
+            .await;
+            if let Err(panic_payload) = result {
+                let panic_msg = panic_payload
+                    .downcast_ref::<String>()
+                    .map(|s| s.as_str())
+                    .or_else(|| panic_payload.downcast_ref::<&'static str>().copied())
+                    .unwrap_or("<非字符串 panic payload>");
+                tracing::error!(
+                    panic = %panic_msg,
+                    "⚠ 用户吊销记录清理 spawn 任务内 panic 已被隔离，清理循环继续运行（不退出）"
+                );
+            }
+        }
+    });
 }
 
 /// 显式注销用户吊销标记（用于用户重新激活场景）
 ///
+/// v11 批次 145 P1-7 修复：接入 user_service.update_user 业务，
+/// 当用户状态从"禁用"恢复为"active"时调用此函数清除吊销标记，
+/// 允许用户重新登录获取新 Token。
+///
 /// # 参数
 /// - `user_id`: 需注销的用户 ID
-#[allow(dead_code)] // TODO(tech-debt): 业务接入后移除
 pub async fn unrevoke_user(user_id: i32) {
     let mut table = REVOKED_USERS.write().await;
     if table.remove(&user_id).is_some() {
-        tracing::info!("用户吊销标记已清除：user_id={}", user_id);
+        tracing::info!(
+            target: "security_audit",
+            event = "USER_UNREVOKED",
+            user_id = user_id,
+            "用户吊销标记已清除（用户重新激活）"
+        );
     }
 }
 
@@ -900,6 +977,73 @@ mod tests {
             !is_user_token_revoked(test_user_id, old_iat).await,
             "unrevoke 后旧 Token 应判定为有效"
         );
+    }
+
+    /// v11 批次 145 P1-7：测试 cleanup_revoked_users 清理过期吊销记录
+    ///
+    /// 由于 REVOKED_USERS 是进程内全局表，测试通过手动注入"过期"记录验证清理逻辑。
+    /// 过期记录（revoked_at < now - TTL）应被清理，未过期记录应保留。
+    #[tokio::test]
+    async fn test_cleanup_revoked_users_removes_expired() {
+        let test_user_id: i32 = 9_999_004;
+
+        // 清理前置状态
+        unrevoke_user(test_user_id).await;
+
+        // 注入一条"过期"吊销记录（revoked_at = now - TTL - 1 小时）
+        {
+            let mut table = REVOKED_USERS.write().await;
+            let expired_ts = chrono::Utc::now().timestamp() - REVOKED_USER_TTL_SECS - 3600;
+            table.insert(test_user_id, expired_ts);
+        }
+
+        // 验证过期记录存在
+        let old_iat = chrono::Utc::now().timestamp() - 60;
+        assert!(
+            is_user_token_revoked(test_user_id, old_iat).await,
+            "过期吊销记录在清理前应仍存在"
+        );
+
+        // 执行清理
+        let removed = cleanup_revoked_users().await;
+        assert!(
+            removed >= 1,
+            "应至少清理 1 条过期记录（实际清理 {} 条）",
+            removed
+        );
+
+        // 验证过期记录已被清理
+        assert!(
+            !is_user_token_revoked(test_user_id, old_iat).await,
+            "清理后过期吊销记录应被移除"
+        );
+    }
+
+    /// v11 批次 145 P1-7：测试 cleanup_revoked_users 保留未过期记录
+    #[tokio::test]
+    async fn test_cleanup_revoked_users_keeps_valid() {
+        let test_user_id: i32 = 9_999_005;
+
+        // 清理前置状态
+        unrevoke_user(test_user_id).await;
+
+        // 标记吊销（revoked_at = now，未过期）
+        revoke_user_jtis(test_user_id, "USER_DEACTIVATED")
+            .await
+            .expect("revoke_user_jtis 不应失败");
+
+        // 执行清理
+        let _removed = cleanup_revoked_users().await;
+
+        // 验证未过期记录仍存在
+        let old_iat = chrono::Utc::now().timestamp() - 60;
+        assert!(
+            is_user_token_revoked(test_user_id, old_iat).await,
+            "未过期吊销记录应被保留"
+        );
+
+        // 清理
+        unrevoke_user(test_user_id).await;
     }
 
     // =================================================================

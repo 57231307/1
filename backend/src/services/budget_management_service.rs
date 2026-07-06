@@ -35,7 +35,9 @@ pub struct BudgetItemQueryParams {
 }
 
 /// 创建预算科目请求
-#[allow(dead_code)] // TODO(tech-debt): 预算科目扩展字段（budget_year/planned_amount/remark）接入模型后移除
+///
+/// v11 批次 145 P1-8：移除 dead_code 标注，扩展字段已接入 budget_management 模型
+/// （对应 budget_items 表的 budget_year / planned_amount / remark 字段）
 #[derive(Debug, Clone)]
 pub struct CreateBudgetItemRequest {
     pub item_code: Option<String>,
@@ -48,7 +50,8 @@ pub struct CreateBudgetItemRequest {
 }
 
 /// 更新预算科目请求
-#[allow(dead_code)] // TODO(tech-debt): 预算科目扩展字段（planned_amount/remark）接入模型后移除
+///
+/// v11 批次 145 P1-8：移除 dead_code 标注，扩展字段已接入 budget_management 模型
 #[derive(Debug, Clone)]
 pub struct UpdateBudgetItemRequest {
     pub item_name: Option<String>,
@@ -59,6 +62,10 @@ pub struct UpdateBudgetItemRequest {
 }
 
 /// 创建预算方案请求
+///
+/// v11 批次 145 P1-8：移除 items 字段（handler 始终传 vec![]，无真实业务数据流，
+/// 且引入 budget_plan_items 表需新增模型/迁移/handler 接口，超出本批次范围）。
+/// 预算方案与预算科目的关联通过 budget_management.budget_year + budget_plan.budget_year 隐式关联。
 #[derive(Debug, Clone)]
 pub struct CreateBudgetPlanRequest {
     pub plan_no: String,
@@ -67,22 +74,13 @@ pub struct CreateBudgetPlanRequest {
     pub budget_type: String,
     pub department_id: i32,
     pub total_amount: Decimal,
-    /// 预算方案明细项列表（当前未使用）
-    #[allow(dead_code)] // TODO(tech-debt): 预算方案明细项接入业务后移除
-    pub items: Vec<BudgetPlanItemRequest>,
     pub remark: Option<String>,
 }
 
-/// 预算方案明细项请求
-#[allow(dead_code)] // TODO(tech-debt): 预算方案明细项接入业务后移除
-#[derive(Debug, Clone)]
-pub struct BudgetPlanItemRequest {
-    pub item_id: i32,
-    pub planned_amount: Decimal,
-}
-
 /// 预算执行请求
-#[allow(dead_code)] // TODO(tech-debt): 预算执行扩展字段（actual_amount/expense_type/expense_date/remark）接入业务后移除
+///
+/// v11 批次 145 P1-8：移除 dead_code 标注，execute_plan 现已真实接入 create_execution
+/// （actual_amount 作为 amount，expense_type/expense_date/remark 透传）
 #[derive(Debug, Clone)]
 pub struct BudgetExecuteRequest {
     pub plan_id: i32,
@@ -159,6 +157,10 @@ impl BudgetManagementService {
             item_type: Set(req.item_type.unwrap_or_else(|| "expense".to_string())),
             parent_id: Set(req.parent_id),
             status: Set("active".to_string()),
+            // v11 批次 145 P1-8：接入扩展字段（此前被丢弃，造成数据丢失）
+            budget_year: Set(req.budget_year),
+            planned_amount: Set(req.planned_amount),
+            remark: Set(req.remark),
             ..Default::default()
         };
 
@@ -197,6 +199,13 @@ impl BudgetManagementService {
         }
         if let Some(status) = req.status {
             item.status = Set(status);
+        }
+        // v11 批次 145 P1-8：接入扩展字段（此前被丢弃，更新无效）
+        if let Some(planned_amount) = req.planned_amount {
+            item.planned_amount = Set(planned_amount);
+        }
+        if let Some(remark) = req.remark {
+            item.remark = Set(Some(remark));
         }
 
         let updated =
@@ -341,16 +350,29 @@ impl BudgetManagementService {
     }
 
     /// 预算方案执行
+    ///
+    /// v11 批次 145 P1-8：真实接入 create_execution 逻辑
+    /// 原实现仅 lock_exclusive + 状态检查后直接 commit，BudgetExecuteRequest 的所有字段
+    /// （actual_amount/expense_type/expense_date/remark）均被丢弃，造成 dead_code 标注。
+    ///
+    /// 修复：
+    ///   1. lock_exclusive 串行化并发状态变更（保留批次 26 v6 P1 修复）
+    ///   2. 状态门检查通过后，在事务内插入 budget_execution 记录
+    ///      - execution_type = "使用"（表示预算实际支出）
+    ///      - amount = req.actual_amount
+    ///      - expense_type / expense_date / remark 透传
+    ///   3. plan 状态变更为 "active"（执行中）
     pub async fn execute_plan(
         &self,
         req: BudgetExecuteRequest,
         user_id: i32,
     ) -> Result<(), AppError> {
-        info!("用户 {} 正在执行预算方案：{}", user_id, req.plan_id);
+        info!(
+            "用户 {} 正在执行预算方案：{}，金额={}，费用类型={}",
+            user_id, req.plan_id, req.actual_amount, req.expense_type
+        );
 
         // 批次 26 v6 P1 修复：状态机 lock_exclusive 补全，串行化并发状态变更
-        // 原状态门查询用 self.get_plan_by_id 裸查询无行锁，并发执行可能与 approve_plan 竞态。
-        // 改为在事务内用 find_by_id(id).lock_exclusive() 串行化并发状态变更。
         let txn = (*self.db).begin().await?;
         let plan = budget_plan::Entity::find_by_id(req.plan_id)
             .lock_exclusive()
@@ -362,8 +384,37 @@ impl BudgetManagementService {
             return Err(AppError::validation("预算方案未审批，无法执行".to_string()));
         }
 
+        // v11 批次 145 P1-8：在事务内创建预算执行明细
+        // 内联插入（而非调用 self.create_execution），因为 create_execution 使用 &*self.db 而非 txn，
+        // 这里必须在 txn 内插入以保证与 plan 状态变更的原子性。
+        let active_execution = budget_execution::ActiveModel {
+            plan_id: Set(req.plan_id),
+            execution_type: Set("使用".to_string()),
+            amount: Set(req.actual_amount),
+            expense_type: Set(Some(req.expense_type.clone())),
+            expense_date: Set(req.expense_date),
+            related_document_type: Set(None),
+            related_document_id: Set(None),
+            remark: Set(req.remark.clone()),
+            created_by: Set(Some(user_id)),
+            ..Default::default()
+        };
+        let execution = active_execution.insert(&txn).await?;
+        info!(
+            "预算执行明细创建成功：ID={}，方案ID={}，金额={}",
+            execution.id, req.plan_id, req.actual_amount
+        );
+
+        // plan 状态变更为 "active"（执行中）
+        let mut plan_active: budget_plan::ActiveModel = plan.into();
+        plan_active.status = Set(Some("active".to_string()));
+        plan_active.save(&txn).await?;
+
         txn.commit().await?;
-        info!("预算方案执行成功：{}", req.plan_id);
+        info!(
+            "预算方案执行成功：方案ID={}，执行明细ID={}，金额={}",
+            req.plan_id, execution.id, req.actual_amount
+        );
         Ok(())
     }
 

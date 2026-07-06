@@ -130,6 +130,10 @@ impl AppState {
             }
         });
 
+        // v11 批次 145 P1-7：启动用户吊销记录定期清理任务（每 24 小时清理一次）
+        // 此任务为 best-effort，单次清理 panic 不会退出循环
+        crate::services::auth_service::start_revoked_user_cleanup_task();
+
         // P2-B 修复：cookie_secret 长度不足 32 字节时 fail-fast，禁止自动补 0 弱化密钥
         // 安全原因：补 0 / 截断会让攻击者仅需爆破 1-N 字节即可还原密钥，违背 fail-secure 原则
         if cookie_secret.len() < 32 {
