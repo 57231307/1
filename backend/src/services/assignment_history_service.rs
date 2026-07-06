@@ -86,6 +86,42 @@ impl AssignmentHistoryService {
         Ok(model)
     }
 
+    /// 在指定事务内创建分配历史记录
+    ///
+    /// v10 P1 批次 140 新增：供 `CrmAssignService::auto_assign_leads` / `transfer_lead`
+    /// 在事务内写入历史记录，确保线索更新与历史记录的原子性。
+    pub async fn create_with_txn<C>(
+        &self,
+        txn: &C,
+        user_id: i32,
+        user_name: &str,
+        req: CreateAssignmentHistoryRequest,
+    ) -> Result<AssignmentHistoryModel, AppError>
+    where
+        C: sea_orm::ConnectionTrait,
+    {
+        let now = Utc::now();
+        let active_model = ActiveModel {
+            id: Default::default(),
+            lead_id: Set(req.lead_id),
+            lead_no: Set(req.lead_no),
+            company_name: Set(req.company_name),
+            from_user_id: Set(req.from_user_id),
+            from_user_name: Set(req.from_user_name),
+            to_user_id: Set(req.to_user_id),
+            to_user_name: Set(req.to_user_name),
+            action: Set(req.action),
+            reason: Set(req.reason),
+            notes: Set(req.notes),
+            operated_by: Set(user_id),
+            operated_by_name: Set(user_name.to_string()),
+            created_at: Set(now),
+        };
+
+        let model = active_model.insert(txn).await?;
+        Ok(model)
+    }
+
     /// 查询分配历史列表
     pub async fn list(
         &self,

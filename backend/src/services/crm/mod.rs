@@ -6,7 +6,7 @@
 //! - `opp`     商机（opportunity）管理
 //! - `cust`    客户管理（增强 CRUD、360 视图、跟进记录、RFM 分析）
 //! - `pool`    公海（客户池）领取
-//! - `assign`  分配（assignment）占位
+//! - `assign`  分配（assignment）服务（v10 P1 批次 140 真实实现：自动分配 + 转移分配）
 //! - `recycle_rule` 公海回收规则 CRUD（批次 23 v5 P0-4：内存存储迁移至数据库）
 //!
 //! 兼容说明：原 `crate::services::crm::cust::*` 路径需要由上层

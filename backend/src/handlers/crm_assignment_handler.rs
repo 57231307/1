@@ -12,6 +12,9 @@ use crate::middleware::auth_context::AuthContext;
 use crate::services::assignment_history_service::{
     AssignmentHistoryQuery, AssignmentHistoryService, CreateAssignmentHistoryRequest,
 };
+use crate::services::crm::assign::{
+    AutoAssignRequest, CrmAssignService, TransferLeadRequest,
+};
 use crate::services::crm::cust::CrmService;
 use crate::utils::app_state::AppState;
 use crate::utils::error::AppError;
@@ -237,4 +240,92 @@ pub async fn list_assignment_history(
         "items": items,
         "total": total,
     }))))
+}
+
+/// POST /api/v1/erp/crm/assignments/auto-assign - 自动分配线索（轮询策略）
+///
+/// v10 P1 批次 140 新增：实现 assign 模块"保留扩展空间"中的自动分配功能。
+/// 将 lead_status='new' 的未分配线索按 round-robin 轮询分配给指定销售团队。
+pub async fn auto_assign(
+    State(state): State<AppState>,
+    auth: AuthContext,
+    Json(req): Json<AutoAssignRequest>,
+) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
+    let service = CrmAssignService::new(state.db.clone());
+
+    let result = service
+        .auto_assign_leads(req, auth.user_id, &auth.username)
+        .await?;
+
+    tracing::info!(
+        "用户 {} 触发自动分配：分配 {} 条线索，参与销售 {} 人",
+        auth.username,
+        result.assigned_count,
+        result.assignee_count
+    );
+
+    Ok(Json(ApiResponse::success_with_message(
+        serde_json::to_value(result)?,
+        "自动分配完成",
+    )))
+}
+
+/// POST /api/v1/erp/crm/assignments/transfer - 转移线索归属人
+///
+/// v10 P1 批次 140 新增：实现 assign 模块"保留扩展空间"中的转移分配功能。
+/// 将线索从当前归属人转移给新归属人，记录转移原因和备注（action="TRANSFER"）。
+pub async fn transfer_lead(
+    State(state): State<AppState>,
+    auth: AuthContext,
+    Json(req): Json<TransferLeadRequest>,
+) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
+    let service = CrmAssignService::new(state.db.clone());
+
+    let result = service
+        .transfer_lead(req, auth.user_id, &auth.username)
+        .await?;
+
+    tracing::info!(
+        "用户 {} 转移线索 {}：从用户 {} 转移给用户 {}",
+        auth.username,
+        result.lead_id,
+        result.from_user_id,
+        result.to_user_id
+    );
+
+    Ok(Json(ApiResponse::success_with_message(
+        serde_json::to_value(result)?,
+        "线索转移成功",
+    )))
+}
+
+/// GET /api/v1/erp/crm/assignments/workload - 查询销售用户线索负载
+///
+/// v10 P1 批次 140 新增：辅助端点，查询指定销售用户列表的当前活跃线索数，
+/// 用于自动分配前的预览（按负载升序排序，负载最少的优先分配）。
+#[derive(Debug, Deserialize)]
+pub struct WorkloadQuery {
+    /// 逗号分隔的用户 ID 列表（如 ?user_ids=1,2,3）
+    pub user_ids: String,
+}
+
+pub async fn list_workload(
+    State(state): State<AppState>,
+    _auth: AuthContext,
+    Query(query): Query<WorkloadQuery>,
+) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
+    let user_ids: Vec<i32> = query
+        .user_ids
+        .split(',')
+        .filter_map(|s| s.trim().parse::<i32>().ok())
+        .collect();
+
+    if user_ids.is_empty() {
+        return Err(AppError::validation("user_ids 参数不能为空"));
+    }
+
+    let service = CrmAssignService::new(state.db.clone());
+    let workload = service.list_assignee_workload(&user_ids).await?;
+
+    Ok(Json(ApiResponse::success(serde_json::to_value(workload)?)))
 }
