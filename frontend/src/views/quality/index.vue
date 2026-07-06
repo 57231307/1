@@ -202,6 +202,7 @@ import {
   createQualityStandard,
   updateQualityStandard,
   approveQualityStandard,
+  rejectQualityStandard,
   listQualityRecords,
   createQualityRecord,
   // 批次 94 P2-12 修复：补全 updateQualityRecord 用于实现更新功能
@@ -390,10 +391,20 @@ const confirmApprove = async () => {
 const rejectStandard = async () => {
   if (!approveStandardItem.value!) return
   try {
-    await ElMessageBox.confirm('确定要驳回此标准吗？', '确认驳回', { type: 'warning' })
-    // TODO(tech-debt): 批次 157d 后端补全 rejectQualityStandard API 后接入真实驳回流程
-    ElMessage.info('驳回功能待后端 API 补全（批次 157d）')
+    const reason = await ElMessageBox.prompt('请输入驳回原因', '确认驳回', {
+      type: 'warning',
+      confirmButtonText: '确定驳回',
+      cancelButtonText: '取消',
+      inputPlaceholder: '驳回原因（选填）',
+      inputType: 'textarea',
+    })
+    // 批次 157d-2 修复：接入 rejectQualityStandard API
+    await rejectQualityStandard(approveStandardItem.value!.id, {
+      reject_reason: reason.value || undefined,
+    })
+    ElMessage.success('驳回成功')
     approveDialogVisible.value = false
+    fetchStandards()
   } catch (e: unknown) {
     // 批次 98 P2-D 修复（v5 复审）：原 catch (e: any) 改为 unknown + 类型守卫
     if (e !== 'cancel') ElMessage.error((e instanceof Error ? e.message : String(e)) || '操作失败')

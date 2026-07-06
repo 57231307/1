@@ -41,7 +41,7 @@
 import { ref, reactive, watch } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import type { FormInstance, FormRules } from 'element-plus'
-import type { QualityStandard } from '@/api/quality'
+import { rejectQualityStandard, type QualityStandard } from '@/api/quality'
 import { logger } from '@/utils/logger'
 
 interface Props {
@@ -101,15 +101,29 @@ const handlePass = async () => {
 const handleReject = async () => {
   if (!props.currentRow) return
   try {
-    await ElMessageBox.confirm('确定要驳回此标准吗？', '确认驳回', { type: 'warning' })
-    // TODO(tech-debt): 批次 157d 后端补全 rejectQualityStandard API 后接入真实驳回流程
-    ElMessage.info('驳回功能待后端 API 补全（批次 157d）')
+    const reason = await ElMessageBox.prompt('请输入驳回原因', '确认驳回', {
+      type: 'warning',
+      confirmButtonText: '确定驳回',
+      cancelButtonText: '取消',
+      inputPlaceholder: '驳回原因（选填）',
+      inputType: 'textarea',
+    })
+    // 批次 157d-2 修复：接入 rejectQualityStandard API
+    submitLoading.value = true
+    await rejectQualityStandard(props.currentRow.id, {
+      reject_reason: reason.value || undefined,
+    })
+    ElMessage.success('驳回成功')
+    emit('submitted', props.currentRow)
     emit('update:modelValue', false)
   } catch (error) {
     if (error !== 'cancel') {
       const err = error as Error
       ElMessage.error(err.message || '操作失败')
+      logger.error('驳回失败', err.message)
     }
+  } finally {
+    submitLoading.value = false
   }
 }
 </script>
