@@ -47,9 +47,8 @@ pub struct FiveDimensionQuery {
     pub dye_lot_no: Option<String>,
     pub grade: Option<String>,
     pub warehouse_id: Option<i32>,
-    #[allow(dead_code)] // TODO(tech-debt): 五维分析分页接口接入业务后移除
+    // v11 批次 150 P2-A：接入 page/page_size 分页（get_stats 方法中使用内存分页）
     pub page: Option<u64>,
-    #[allow(dead_code)] // TODO(tech-debt): 五维分析分页接口接入业务后移除
     pub page_size: Option<u64>,
 }
 
@@ -73,10 +72,13 @@ impl FiveDimensionService {
     }
 
     /// 获取五维统计信息
+    ///
+    /// v11 批次 150 P2-A：接入 page/page_size 内存分页
+    /// 返回 (分页后的 items, 总数 total)
     pub async fn get_stats(
         &self,
         query: FiveDimensionQuery,
-    ) -> Result<Vec<FiveDimensionStats>, AppError> {
+    ) -> Result<(Vec<FiveDimensionStats>, u64), AppError> {
         let mut stock_query = InventoryStockEntity::find()
             .filter(StockColumn::StockStatus.eq("ACTIVE"))
             .filter(StockColumn::QuantityAvailable.gt(Decimal::ZERO));
@@ -184,7 +186,23 @@ impl FiveDimensionService {
         // 排序
         results.sort_by_key(|a| a.product_id);
 
-        Ok(results)
+        // v11 批次 150 P2-A：接入 page/page_size 内存分页
+        // page_size 为 None 时返回全量数据（供 get_summary 等内部方法使用）
+        let total = results.len() as u64;
+        let paged: Vec<FiveDimensionStats> = if let Some(page_size) = query.page_size {
+            let page = query.page.unwrap_or(1).max(1);
+            let page_size = page_size.clamp(1, 100);
+            let offset = ((page - 1) * page_size) as usize;
+            results
+                .into_iter()
+                .skip(offset)
+                .take(page_size as usize)
+                .collect()
+        } else {
+            results
+        };
+
+        Ok((paged, total))
     }
 
     /// 按五维ID查询统计
@@ -223,7 +241,7 @@ impl FiveDimensionService {
             page_size: None,
         };
 
-        let results = self.get_stats(query).await?;
+        let (results, _) = self.get_stats(query).await?;
         Ok(results.into_iter().next())
     }
 
@@ -283,17 +301,16 @@ impl FiveDimensionService {
             }
         }
 
-        let results = self.get_stats(query).await?;
-        // v9 P1-C 修复：当前接口全量返回无分页，total=len 正确。
-        // 注意：若后续添加分页，需改为 COUNT(*) 查询，否则 total 退化为当前页条数。
-        let total = results.len() as u64;
+        // v11 批次 150 P2-A：get_stats 已返回 (items, total)，直接透传
+        let (results, total) = self.get_stats(query).await?;
 
         Ok((results, total))
     }
 
     /// 获取五维统计汇总
     pub async fn get_summary(&self) -> Result<serde_json::Value, AppError> {
-        let all_stats = self
+        // v11 批次 150 P2-A：get_stats 已返回 (items, total) 元组，汇总需要全量数据，丢弃 total
+        let (all_stats, _) = self
             .get_stats(FiveDimensionQuery {
                 product_id: None,
                 batch_no: None,
