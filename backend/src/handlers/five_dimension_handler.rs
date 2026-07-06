@@ -73,8 +73,8 @@ pub async fn get_five_dimension_stats(
     let stats = service.get_stats(query).await?;
 
     Ok(Json(ApiResponse::success(serde_json::json!({
-        "items": stats,
-        "total": stats.len(),
+        "items": stats.0,
+        "total": stats.1,
     }))))
 }
 
@@ -141,8 +141,8 @@ pub async fn list_five_dimension_stats(
     let stats = service.get_stats(query).await?;
 
     Ok(Json(ApiResponse::success(serde_json::json!({
-        "items": stats,
-        "total": stats.len(),
+        "items": stats.0,
+        "total": stats.1,
     }))))
 }
 
