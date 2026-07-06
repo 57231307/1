@@ -2,7 +2,7 @@
 //!
 //! 提供客户分配历史的记录和查询功能
 
-use chrono::Utc;
+use chrono::{TimeZone, Utc};
 use sea_orm::{
     ActiveModelTrait, ColumnTrait, EntityTrait, PaginatorTrait, QueryFilter, QueryOrder,
     Set,
@@ -152,7 +152,7 @@ impl AssignmentHistoryService {
         if let Some(date_from) = &query.date_from {
             if let Ok(date) = chrono::NaiveDate::parse_from_str(date_from, "%Y-%m-%d") {
                 if let Some(naive_dt) = date.and_hms_opt(0, 0, 0) {
-                    let dt = chrono::DateTime::<Utc>::from_utc(naive_dt, Utc);
+                    let dt = Utc.from_utc_datetime(&naive_dt);
                     select =
                         select.filter(crate::models::assignment_history::Column::CreatedAt.gte(dt));
                 }
@@ -161,7 +161,7 @@ impl AssignmentHistoryService {
         if let Some(date_to) = &query.date_to {
             if let Ok(date) = chrono::NaiveDate::parse_from_str(date_to, "%Y-%m-%d") {
                 if let Some(naive_dt) = date.and_hms_opt(23, 59, 59) {
-                    let dt = chrono::DateTime::<Utc>::from_utc(naive_dt, Utc);
+                    let dt = Utc.from_utc_datetime(&naive_dt);
                     select =
                         select.filter(crate::models::assignment_history::Column::CreatedAt.lte(dt));
                 }
