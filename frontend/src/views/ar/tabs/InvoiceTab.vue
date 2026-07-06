@@ -198,6 +198,7 @@ import printJS from 'print-js'
 import type { FormInstance, FormRules } from 'element-plus'
 import {
   listARInvoices,
+  getARInvoice,
   createARInvoice,
   approveARInvoice,
   cancelARInvoice,
@@ -313,8 +314,34 @@ const submitInvoice = async () => {
   }
 }
 
-const viewInvoice = (row: ARInvoice) => {
-  ElMessage.info(`查看发票: ${row.invoice_no}`)
+// 批次 157a P1-1 修复：接入 getARInvoice API 展示应收发票详情
+const viewInvoice = async (row: ARInvoice) => {
+  try {
+    const res = await getARInvoice(row.id)
+    const d = res.data
+    if (!d) {
+      ElMessage.warning('未找到发票详情')
+      return
+    }
+    const lines = [
+      `发票编号：${d.invoice_no}`,
+      `客户名称：${d.customer_name}`,
+      `发票日期：${d.invoice_date}`,
+      `到期日期：${d.due_date || '-'}`,
+      `发票金额：¥${formatMoney(d.invoice_amount)}`,
+      `税额：¥${formatMoney(d.tax_amount)}`,
+      `已核销金额：¥${formatMoney(d.verified_amount)}`,
+      `未核销金额：¥${formatMoney(d.unverified_amount)}`,
+      `当前状态：${getInvoiceStatusLabel(d.status)}`,
+      `备注：${d.remark || '-'}`,
+    ]
+    await ElMessageBox.alert(lines.join('\n'), '应收发票详情', {
+      confirmButtonText: '关闭',
+    })
+  } catch (error) {
+    const err = error as Error
+    ElMessage.error(err.message || '获取发票详情失败')
+  }
 }
 
 const approveInvoice = async (row: ARInvoice) => {

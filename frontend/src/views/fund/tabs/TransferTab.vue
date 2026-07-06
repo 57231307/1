@@ -137,11 +137,12 @@
 
 <script setup lang="ts">
 import { ref, reactive, computed, onMounted } from 'vue'
-import { ElMessage, type FormInstance, type FormRules } from 'element-plus'
+import { ElMessage, ElMessageBox, type FormInstance, type FormRules } from 'element-plus'
 import { Money } from '@element-plus/icons-vue'
 import {
   listFundAccounts,
   listFundTransfers,
+  getFundTransfer,
   transferFund,
   type FundAccount,
   type FundTransferRecord,
@@ -276,8 +277,31 @@ const handleTransferSubmit = async () => {
   })
 }
 
-const viewTransferDetail = (row: FundTransferRecord) => {
-  ElMessage.info('查看转账详情: ' + row.transfer_no)
+// 批次 157a P1-1 修复：接入 getFundTransfer API 展示转账详情
+const viewTransferDetail = async (row: FundTransferRecord) => {
+  try {
+    const res = await getFundTransfer(row.id)
+    const d = res.data
+    if (!d) {
+      ElMessage.warning('未找到转账详情')
+      return
+    }
+    const lines = [
+      `转账编号：${d.transfer_no}`,
+      `转出账户：${d.from_account_name || '-'}`,
+      `转入账户：${d.to_account_name || '-'}`,
+      `转账金额：¥${d.amount.toFixed(2)}`,
+      `当前状态：${getTransferStatusLabel(d.status)}`,
+      `转账时间：${d.created_at}`,
+      `备注：${d.remark || '-'}`,
+    ]
+    await ElMessageBox.alert(lines.join('\n'), '转账详情', {
+      confirmButtonText: '关闭',
+    })
+  } catch (e) {
+    const err = e as Error
+    ElMessage.error(err.message || '获取转账详情失败')
+  }
 }
 
 const getTransferStatusType = (status: string) => {

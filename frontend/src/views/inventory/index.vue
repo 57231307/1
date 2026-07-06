@@ -86,7 +86,7 @@
 
 <script setup lang="ts">
 import { ref, reactive, onMounted } from 'vue'
-import { ElMessage } from 'element-plus'
+import { ElMessage, ElMessageBox } from 'element-plus'
 import { Edit, RefreshRight, Download, Printer } from '@element-plus/icons-vue'
 import printJS from 'print-js'
 import { loadIfNot, createLazyLoader } from '@/utils/lazy-loader'
@@ -302,14 +302,69 @@ const onSubmitTransfer = async (form: any) => {
 }
 
 const handleNewTransfer = () => handleTransfer()
+// 批次 157a P1-1 修复：调拨单详情无独立 API，直接展示列表行数据
 const handleViewTransfer = (row: any) => {
-  ElMessage.info(`查看调拨单：${row.transfer_no}`)
+  const lines = [
+    `调拨单号：${row.transfer_no}`,
+    `转出仓库：${row.from_warehouse_name || '-'}`,
+    `调入仓库：${row.to_warehouse_name || '-'}`,
+    `总数量：${row.total_quantity}`,
+    `状态：${row.status}`,
+    `创建人：${row.creator_name || '-'}`,
+    `创建时间：${row.created_at}`,
+  ]
+  ElMessageBox.alert(lines.join('\n'), '调拨单详情', { confirmButtonText: '关闭' })
 }
-const handleApproveTransfer = (row: any) => {
-  ElMessage.info(`审批调拨单：${row.transfer_no}`)
+// 批次 157a P1-1 修复：接入 approveTransfer API 完成调拨审批
+const handleApproveTransfer = async (row: any) => {
+  try {
+    await ElMessageBox.confirm(
+      `确定审批通过调拨单 ${row.transfer_no} 吗？`,
+      '审批确认',
+      { type: 'info' }
+    )
+    const { inventoryApi } = await import('@/api/inventory')
+    await inventoryApi.approveTransfer(row.id)
+    ElMessage.success('审批成功')
+    fetchTransfers()
+  } catch (error) {
+    if (error !== 'cancel') {
+      // 批次 98 P2-D 修复（v5 复审）：原 catch (error: any) 改为 unknown + 类型守卫
+      ElMessage.error(
+        (error instanceof Error ? error.message : String(error)) || '审批失败'
+      )
+    }
+  }
 }
-const handleView = (row: any) => {
-  ElMessage.info(`查看库存：${row.product_name}`)
+// 批次 157a P1-1 修复：接入 getStockById API 展示库存详情
+const handleView = async (row: any) => {
+  try {
+    const { inventoryApi } = await import('@/api/inventory')
+    const res = await inventoryApi.getStockById(row.id)
+    const d = res.data
+    if (!d) {
+      ElMessage.warning('未找到库存详情')
+      return
+    }
+    const lines = [
+      `产品编码：${d.product_code}`,
+      `产品名称：${d.product_name}`,
+      `仓库：${d.warehouse_name}`,
+      `批次号：${d.batch_no || '-'}`,
+      `颜色：${d.color_name || '-'}`,
+      `当前数量：${d.quantity} ${d.unit || ''}`,
+      `状态：${d.status}`,
+      `库位：${d.location || '-'}`,
+    ]
+    await ElMessageBox.alert(lines.join('\n'), '库存详情', {
+      confirmButtonText: '关闭',
+    })
+  } catch (error) {
+    // 批次 98 P2-D 修复（v5 复审）：原 catch (error: any) 改为 unknown + 类型守卫
+    ElMessage.error(
+      (error instanceof Error ? error.message : String(error)) || '获取库存详情失败'
+    )
+  }
 }
 const handlePurchase = (row: any) => {
   ElMessage.info(`采购：${row.product_name}`)

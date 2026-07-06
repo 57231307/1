@@ -267,12 +267,14 @@ import {
   updateAsset,
   deleteAsset as deleteAssetApi,
   depreciateAsset,
+  batchDepreciateAssets,
   disposeAsset,
   type FixedAsset,
   type FixedAssetCreateRequest,
   type FixedAssetUpdateRequest,
   type DisposalRequest,
 } from '@/api/asset'
+import { useUserStore } from '@/store/user'
 import { logger } from '@/utils/logger'
 
 const loading = ref(false)
@@ -523,8 +525,56 @@ const submitDisposal = async () => {
   })
 }
 
-const handleDepreciateAll = () => {
-  ElMessage.info('请逐个对资产计提折旧')
+// 批次 157a P1-1 修复：接入 batchDepreciateAssets API 实现批量计提折旧
+const handleDepreciateAll = async () => {
+  if (assetList.value.length === 0) {
+    ElMessage.warning('当前没有可计提折旧的资产')
+    return
+  }
+  const currentPeriod = new Date().toISOString().slice(0, 7)
+  try {
+    const { value: inputPeriod } = await ElMessageBox.prompt(
+      '请输入计提折旧的会计期间（YYYY-MM 格式，如 2026-07）：',
+      '批量计提折旧',
+      {
+        confirmButtonText: '确定',
+        cancelButtonText: '取消',
+        inputValue: currentPeriod,
+        inputPattern: /^\d{4}-\d{2}$/,
+        inputErrorMessage: '请输入有效的期间（YYYY-MM）',
+      }
+    )
+    const userStore = useUserStore()
+    const userId = userStore.userInfo?.id
+    if (!userId) {
+      ElMessage.error('无法获取当前用户信息，请重新登录')
+      return
+    }
+    const assetIds = assetList.value
+      .filter(a => a.status === 'in_use' || a.status === 'active')
+      .map(a => a.id)
+    if (assetIds.length === 0) {
+      ElMessage.warning('没有处于在用状态的资产可计提折旧')
+      return
+    }
+    await ElMessageBox.confirm(
+      `将对 ${assetIds.length} 项资产在 ${inputPeriod} 期间计提折旧，是否继续？`,
+      '批量计提确认',
+      { type: 'warning' }
+    )
+    await batchDepreciateAssets({
+      asset_ids: assetIds,
+      calculation_date: inputPeriod,
+      user_id: userId,
+    })
+    ElMessage.success(`已对 ${assetIds.length} 项资产计提折旧`)
+    fetchAssets()
+  } catch (e) {
+    if (e !== 'cancel') {
+      const err = e as Error
+      ElMessage.error(err.message || '批量计提折旧失败')
+    }
+  }
 }
 
 const handleExport = () => {
