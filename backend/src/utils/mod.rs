@@ -42,3 +42,5 @@ pub mod audit;
 pub mod ssrf_guard;
 // 批次 98 P2-B 修复（v5 复审）：通用金额/数量范围 + 精度校验
 pub mod validator;
+// v11 批次 142：xlsx 导出工具（规则 3 强制要求所有导出使用 xlsx 格式）
+pub mod xlsx_export;

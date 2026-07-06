@@ -5,21 +5,13 @@
 
 use crate::models::{crm_lead, crm_opportunity, customer};
 use crate::utils::error::AppError;
+use crate::utils::xlsx_export::XlsxTable;
 use sea_orm::{
     ActiveModelTrait, ColumnTrait, EntityTrait, PaginatorTrait, QueryFilter, QueryOrder, QuerySelect,
     Set, TransactionTrait,
 };
 
 use super::cust::CrmService;
-
-/// CSV 字段转义：字段包含逗号/引号/换行时用双引号包裹，内部引号双写
-fn csv_escape(s: &str) -> String {
-    if s.contains(',') || s.contains('"') || s.contains('\n') || s.contains('\r') {
-        format!("\"{}\"", s.replace('"', "\"\""))
-    } else {
-        s.to_string()
-    }
-}
 
 impl CrmService {
     /// 创建线索
@@ -139,15 +131,16 @@ impl CrmService {
         }))
     }
 
-    /// 导出线索为 CSV（UTF-8 BOM，Excel 兼容）
+    /// 导出线索为 xlsx（v11 批次 142 升级：CSV → xlsx，规则 3 强制要求）
     ///
-    /// v11 批次 141 新增：前端 exportLeads API 真实接入，原缺失导出路由。
-    /// 查询所有匹配条件（不分页）的线索，生成 CSV 字符串。
-    /// 导出字段：线索编号/公司名称/联系人/手机号/邮箱/线索来源/线索状态/负责人/创建时间
+    /// v11 批次 141 新增：前端 exportLeads API 真实接入。
+    /// v11 批次 142 升级：导出格式从 CSV 升级为 xlsx（Excel 标准格式）。
+    /// 查询所有匹配条件（不分页）的线索，生成 XlsxTable。
+    /// 导出字段：线索编号/公司名称/联系人/职位/手机号/座机/邮箱/线索来源/线索状态/负责人/优先级/创建时间
     pub async fn export_leads(
         &self,
         query: crate::models::dto::crm_dto::LeadQuery,
-    ) -> Result<String, AppError> {
+    ) -> Result<XlsxTable, AppError> {
         let mut q = crm_lead::Entity::find();
 
         if let Some(s) = query.lead_status {
@@ -174,31 +167,48 @@ impl CrmService {
             .all(&*self.db)
             .await?;
 
-        // UTF-8 BOM（Excel 正确识别中文）
-        let mut csv = String::from("\u{FEFF}");
-        csv.push_str("线索编号,公司名称,联系人,职位,手机号,座机,邮箱,线索来源,线索状态,负责人,优先级,创建时间\n");
+        let headers = vec![
+            "线索编号".to_string(),
+            "公司名称".to_string(),
+            "联系人".to_string(),
+            "职位".to_string(),
+            "手机号".to_string(),
+            "座机".to_string(),
+            "邮箱".to_string(),
+            "线索来源".to_string(),
+            "线索状态".to_string(),
+            "负责人".to_string(),
+            "优先级".to_string(),
+            "创建时间".to_string(),
+        ];
 
-        for lead in leads {
-            csv.push_str(&format!(
-                "{},{},{},{},{},{},{},{},{},{},{},{}\n",
-                csv_escape(&lead.lead_no),
-                csv_escape(lead.company_name.as_deref().unwrap_or("")),
-                csv_escape(&lead.contact_name),
-                csv_escape(lead.contact_title.as_deref().unwrap_or("")),
-                csv_escape(lead.mobile_phone.as_deref().unwrap_or("")),
-                csv_escape(lead.tel_phone.as_deref().unwrap_or("")),
-                csv_escape(lead.email.as_deref().unwrap_or("")),
-                csv_escape(&lead.lead_source),
-                csv_escape(lead.lead_status.as_deref().unwrap_or("")),
-                csv_escape(&lead.owner_name),
-                csv_escape(lead.priority.as_deref().unwrap_or("")),
-                lead.created_at
-                    .map(|t| t.to_rfc3339())
-                    .unwrap_or_default(),
-            ));
-        }
+        let rows: Vec<Vec<String>> = leads
+            .iter()
+            .map(|lead| {
+                vec![
+                    lead.lead_no.clone(),
+                    lead.company_name.clone().unwrap_or_default(),
+                    lead.contact_name.clone(),
+                    lead.contact_title.clone().unwrap_or_default(),
+                    lead.mobile_phone.clone().unwrap_or_default(),
+                    lead.tel_phone.clone().unwrap_or_default(),
+                    lead.email.clone().unwrap_or_default(),
+                    lead.lead_source.clone(),
+                    lead.lead_status.clone().unwrap_or_default(),
+                    lead.owner_name.clone(),
+                    lead.priority.clone().unwrap_or_default(),
+                    lead.created_at
+                        .map(|t| t.to_rfc3339())
+                        .unwrap_or_default(),
+                ]
+            })
+            .collect();
 
-        Ok(csv)
+        Ok(XlsxTable {
+            sheet_name: "线索列表".to_string(),
+            headers,
+            rows,
+        })
     }
 
     /// 获取线索详情
