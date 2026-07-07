@@ -59,8 +59,12 @@ export interface UserInfo {
 }
 
 // P2-9d 修复（批次 82 v1 复审）：默认泛型 any → unknown，强制调用方显式指定泛型类型
+// v11 批次 161 CI1 修复：添加可选 items 字段，对齐后端 PaginatedResponse 实际返回结构
+// （后端用 items: Vec<T>，前端用 list: T[]；useTableApi 运行时 fallback 兼容两者）
 export interface PageResult<T = unknown> {
   list: T[]
+  /** 后端 PaginatedResponse 使用 items 字段（可选，便于直接消费后端分页响应） */
+  items?: T[]
   total: number
   page: number
   page_size: number
