@@ -59,12 +59,13 @@
         <el-table-column label="操作" width="280" fixed="right">
           <template #default="{ row }">
             <!-- P3 维度 10 修复（批次 87）：编辑/复制/设默认/删除按钮补齐 v-permission -->
+            <!-- v11 批次 169 P2-1 修复：row as any 改为 row as Bom -->
             <el-button
               v-permission="'bom:update'"
               type="primary"
               link
               size="small"
-              @click="handleEdit(row as any)"
+              @click="handleEdit(row as Bom)"
               >编辑</el-button
             >
             <el-button
@@ -72,7 +73,7 @@
               type="primary"
               link
               size="small"
-              @click="handleCopy(row as any)"
+              @click="handleCopy(row as Bom)"
               >复制</el-button
             >
             <el-button
@@ -81,7 +82,7 @@
               type="success"
               link
               size="small"
-              @click="handleSetDefault(row as any)"
+              @click="handleSetDefault(row as Bom)"
             >
               设为默认
             </el-button>
@@ -90,7 +91,7 @@
               type="danger"
               link
               size="small"
-              @click="handleDelete(row as any)"
+              @click="handleDelete(row as Bom)"
               >删除</el-button
             >
           </template>
@@ -300,7 +301,8 @@ const handleDelete = async (row: Bom) => {
   }
 }
 
-const handleSubmit = async (data: any) => {
+// v11 批次 169 P2-1 修复：data: any 改为 Partial<Bom>
+const handleSubmit = async (data: Partial<Bom>) => {
   try {
     if (dialogMode.value === 'create') {
       await bomApi.create(data)

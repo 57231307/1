@@ -104,6 +104,7 @@ import { ref, watch } from 'vue'
 import { ElMessage } from 'element-plus'
 import type { FormInstance, FormRules } from 'element-plus'
 import { Plus } from '@element-plus/icons-vue'
+import type { Bom } from '@/api/bom'
 
 const props = defineProps<{
   formData: {
@@ -124,8 +125,9 @@ const props = defineProps<{
   mode: 'create' | 'edit'
 }>()
 
+// v11 批次 169 P2-1 修复：emit submit data: any 改为 Partial<Bom>
 const emit = defineEmits<{
-  submit: [data: any]
+  submit: [data: Partial<Bom>]
   cancel: []
 }>()
 
