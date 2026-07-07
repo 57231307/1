@@ -23,39 +23,22 @@
 <script setup lang="ts">
 import { ref, watch, onMounted, onBeforeUnmount, nextTick } from 'vue'
 import * as echarts from 'echarts'
-import type { ECharts } from 'echarts'
+import type {
+  ECharts,
+  ECElementEvent,
+  CallbackDataParams,
+  CustomSeriesRenderItemParams,
+  CustomSeriesRenderItemAPI,
+} from 'echarts'
 import type { GanttData, ScheduleTask } from '@/api/scheduling'
 import { statusColorMap, statusLabelMap, formatTime } from '../composables/schGFmts'
 
-/// 甘特图自定义 series 数据项
+/// 甘特图自定义 series 数据项（业务数据结构，附加 taskData 用于回调访问）
 interface GanttSeriesItem {
   name: string
   value: [number, number, number, number]
   itemStyle: { color: string }
   taskData: ScheduleTask
-}
-
-/// ECharts tooltip formatter 参数（仅声明使用到的字段）
-interface TooltipFormatterParams {
-  data: GanttSeriesItem
-}
-
-/// ECharts renderItem 参数（仅声明使用到的字段）
-interface RenderItemParams {
-  coordSys: { x: number; y: number; width: number; height: number }
-}
-
-/// ECharts renderItem API（仅声明使用到的字段）
-interface RenderItemApi {
-  value: (idx: number) => number
-  coord: (point: [number, number]) => [number, number]
-  size: (size: [number, number]) => [number, number]
-  style: () => unknown
-}
-
-/// ECharts 点击事件参数（仅声明使用到的字段）
-interface ChartClickParams {
-  data?: GanttSeriesItem
 }
 
 // 排产甘特图容器属性
@@ -114,8 +97,9 @@ const renderChart = (data: GanttData) => {
 
   const option = {
     tooltip: {
-      formatter: (params: TooltipFormatterParams) => {
-        const t = params.data.taskData
+      formatter: (params: CallbackDataParams) => {
+        const item = params.data as GanttSeriesItem
+        const t = item.taskData
         return `
           <div style="padding: 8px">
             <div style="font-weight: bold; margin-bottom: 4px">${t.order_no}</div>
@@ -151,10 +135,10 @@ const renderChart = (data: GanttData) => {
     series: [
       {
         type: 'custom',
-        renderItem: (params: RenderItemParams, api: RenderItemApi) => {
-          const catIndex = api.value(0)
-          const start = api.coord([api.value(1), catIndex])
-          const end = api.coord([api.value(2), catIndex])
+        renderItem: (params: CustomSeriesRenderItemParams, api: CustomSeriesRenderItemAPI) => {
+          const catIndex = api.value(0) as number
+          const start = api.coord([api.value(1) as number, catIndex])
+          const end = api.coord([api.value(2) as number, catIndex])
           const height = api.size([0, 1])[1] * 0.6
           const rectShape = echarts.graphic.clipRectByRect(
             {
@@ -191,9 +175,11 @@ const renderChart = (data: GanttData) => {
 
   chart.setOption(option, true)
 
-  chart.on('click', (params: ChartClickParams) => {
-    if (params.data?.taskData) {
-      emit('task-click', params.data.taskData)
+  chart.on('click', (params: ECElementEvent) => {
+    // ECElementEvent.data 类型为 unknown，断言为业务数据项（seriesData 由本组件构造，类型确定）
+    const item = params.data as GanttSeriesItem | undefined
+    if (item?.taskData) {
+      emit('task-click', item.taskData)
     }
   })
 }
