@@ -5,7 +5,7 @@
 
 ---
 
-## 🔄 当前任务：v11 前端 P2 修复（批次 160 已完成，P1 全部完成）
+## 🔄 当前任务：v11 前端 P2 修复（批次 161 已完成，P2-5 quality 分页接入完成）
 
 > 用户最高优先级规则（2026-07-04/06 追加）已固化到 [MEMORY.md 一、规则 0-4](file:///workspace/.monkeycode/MEMORY.md)。
 > 本文件仅记录任务进度，规则不在此重复。
@@ -34,16 +34,24 @@
   - 前端：inventory 模块 7 个文件 4 个核心状态从 any[] 改为 InventoryStock[]/StockAlert[]/InventoryTransfer[]/Warehouse[]
   - CI 修复：InventoryStockTab.vue 模板 wh.name 兜底删除（Warehouse 接口无 name 字段）
   - 2 轮 CI 修复：9e704a0→1bc06a5（最终全绿）
+- ✅ 批次 161：P2-5 quality 分页接入（CI 11/12 全绿，2 轮 CI 修复）
+  - 后端：quality_inspection_handler.rs list_records 返回 PaginatedResponse（含 total）
+  - 前端：quality.ts listQualityRecords 返回类型改为 PageResult<QualityRecord>
+  - 前端：quality/index.vue fetchRecords 解析 PaginatedResponse
+  - CI1 修复：PageResult 添加可选 items 字段（对齐后端 PaginatedResponse 实际返回结构）
+  - CI2 修复：8 个新 clippy 死代码警告（export_csv/export 删除 + 5 常量 + 3 字段 + 5 方法 allow）
+  - 2 轮 CI 修复：751491c→e5ad56c→35532c3（最终全绿）
 
 ### v11 剩余任务
 
-- ⏳ v11 前端 P2 其余项（5 类：P2-1 any 清理 / P2-2 i18n / P2-3 菜单硬编码 / P2-5 quality 分页 / P2-3 菜单硬编码）
+- ⏳ v11 前端 P2 其余项（3 类：P2-1 any 清理 / P2-2 i18n / P2-3 菜单硬编码推迟 P3）
 - ⏳ v12 全项目复审（v11 全部修复完成后）
 
 ### 已完成批次（最近 5 个）
 
 | 批次 | main commit | 内容 |
 |------|-------------|------|
+| 161 | `35532c3` | v11 前端 P2-5 quality 分页接入 + 8 个 clippy 死代码修复（4 文件 +15 -50 行，2 轮 CI 修复后全绿；含 PageResult items 字段 + export_csv 删除）|
 | 160 | `1bc06a5` | v11 前端 P2-6 custom-order AdvanceStatusDto 死代码清理 + P2-7 inventory any[] 类型化（10 文件 +82 -47 行，2 轮 CI 修复后全绿；含 InventoryStockTab.vue wh.name 兜底删除）|
 | 159 | `9eb589c` | v11 前端 P1-1 RecordTab handleView 占位 stub 真实接入 openRecordDialog + P2-4 budget.ts/cost.ts 过时 TODO(tech-debt) 注释清理（3 文件 +8 -8 行，CI 11/12 全绿，E2E 非阻塞）|
 | 158 | `f9796cb` | v11 P1 全项目项级 dead_code 按规则 0/1/2 真实接入（4 删 + 16 移除标注 + 19 接入业务 + 10 SeaORM 例外保留；4 轮 CI 修复后全绿；含 so_status unused import 修复 + baseline 补充 8/7）|

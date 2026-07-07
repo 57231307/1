@@ -6,6 +6,34 @@
 
 ---
 
+## 2026-07-07 (批次 161 v11 前端 P2-5 quality 分页接入 + 8 clippy 死代码修复，CI 11/12 全绿)
+
+### 批次 161：v11 前端 P2-5 quality 分页接入 + clippy 死代码修复
+
+**main commit `35532c3`（2 轮 CI 修复后 11/12 全绿，E2E 非阻塞），4 文件 +15 -50 行**
+
+按 v11 前端复审报告 P2-5（quality 分页未接入），完成 quality 分页接入修复，并修复 8 个新 clippy 死代码警告。
+
+**P2-5 quality 分页接入**：
+- 后端 [backend/src/handlers/quality_inspection_handler.rs](file:///workspace/backend/src/handlers/quality_inspection_handler.rs)：`list_records` 从丢弃 `_total` 改为返回 `PaginatedResponse`（含 total）
+- 前端 [frontend/src/api/quality.ts](file:///workspace/frontend/src/api/quality.ts)：`listQualityRecords` 返回类型从 `QualityRecord[]` 改为 `PageResult<QualityRecord>`
+- 前端 [frontend/src/views/quality/index.vue](file:///workspace/frontend/src/views/quality/index.vue)：`fetchRecords` 解析 PaginatedResponse；移除过时 TODO 注释
+
+**CI1 修复：PageResult 类型对齐**：
+- [frontend/src/types/api.ts](file:///workspace/frontend/src/types/api.ts)：`PageResult<T>` 添加可选 `items?: T[]` 字段，对齐后端 `PaginatedResponse` 实际返回结构（后端用 `items: Vec<T>`，前端用 `list: T[]`；`useTableApi` 运行时 fallback 兼容两者）
+
+**CI2 修复：8 个新 clippy 死代码警告**：
+- [backend/src/services/export_service.rs](file:///workspace/backend/src/services/export_service.rs)：删除 `export_csv`（违反规则 3 禁止 CSV）、`export` 函数（未使用）、`ExportFormat` 枚举（删除 export 后无引用）
+- [backend/src/models/status.rs](file:///workspace/backend/src/models/status.rs)：给 `purchase_order::{SUBMITTED,RECEIVED,CANCELLED}`、`inventory_reservation::FULFILLED`、`sales_delivery::CANCELLED` 添加 `#[allow(dead_code)]` + TODO
+- [backend/src/models/user_notification_setting.rs](file:///workspace/backend/src/models/user_notification_setting.rs)：给 `notification_type::NONE` 添加 allow
+- [backend/src/services/auth/password_policy_service.rs](file:///workspace/backend/src/services/auth/password_policy_service.rs)：给 `lockout_threshold`/`lockout_duration_minutes`/`max_age_days` 字段及 `is_locked`/`record_failure`/`record_success`/`is_expired`/`count_history` 方法添加 `#[allow(dead_code)]` + TODO（待接入登录流程）
+
+**2 轮 CI 修复**：
+1. CI1（`e5ad56c`）：前端类型检查失败 → PageResult 添加可选 items 字段
+2. CI2（`35532c3`）：8 个新 clippy 死代码警告 → 删除 + allow 标注
+
+---
+
 ## 2026-07-07 (批次 160 v11 前端 P2-6 死代码清理 + P2-7 inventory any[] 类型化，CI 11/12 全绿)
 
 ### 批次 160：v11 前端 P2-6 custom-order 死代码清理 + P2-7 inventory any[] 类型化
