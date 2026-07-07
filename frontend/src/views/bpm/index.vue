@@ -91,16 +91,16 @@
             </el-table-column>
             <el-table-column label="操作" width="180" fixed="right">
               <template #default="{ row }">
-                <el-button v-permission="'bpm_task:approve'" type="primary" link size="small" @click="handleApprove(row as any)"
+                <el-button v-permission="'bpm_task:approve'" type="primary" link size="small" @click="handleApprove(row as BPMTask)"
                   >审批</el-button
                 >
-                <el-button type="warning" link size="small" @click="handleDetail(row as any)"
+                <el-button type="warning" link size="small" @click="handleDetail(row as BPMTask)"
                   >详情</el-button
                 >
-                <el-button v-permission="'bpm_task:transfer'" type="info" link size="small" @click="handleTransfer(row as any)"
+                <el-button v-permission="'bpm_task:transfer'" type="info" link size="small" @click="handleTransfer(row as BPMTask)"
                   >转交</el-button
                 >
-                <el-button v-permission="'bpm_task:urge'" type="danger" link size="small" @click="handleUrge(row as any)"
+                <el-button v-permission="'bpm_task:urge'" type="danger" link size="small" @click="handleUrge(row as BPMTask)"
                   >催办</el-button
                 >
               </template>
@@ -129,10 +129,10 @@
             </el-table-column>
             <el-table-column label="操作" width="150">
               <template #default="{ row }">
-                <el-button type="primary" link size="small" @click="handleTrace(row as any)"
+                <el-button type="primary" link size="small" @click="handleTrace(row as BPMInstance)"
                   >追溯</el-button
                 >
-                <el-button v-permission="'bpm_process:cancel'" type="info" link size="small" @click="handleCancel(row as any)"
+                <el-button v-permission="'bpm_process:cancel'" type="info" link size="small" @click="handleCancel(row as BPMInstance)"
                   >撤回</el-button
                 >
               </template>
@@ -186,10 +186,10 @@
             </el-table-column>
             <el-table-column label="操作" width="150">
               <template #default="{ row }">
-                <el-button type="primary" link size="small" @click="handleViewProcess(row as any)"
+                <el-button type="primary" link size="small" @click="handleViewProcess(row as BPMInstance)"
                   >查看</el-button
                 >
-                <el-button type="info" link size="small" @click="handleProcessImage(row as any)"
+                <el-button type="info" link size="small" @click="handleProcessImage(row as BPMInstance)"
                   >流程图</el-button
                 >
               </template>
@@ -206,7 +206,11 @@ import { ref, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Clock, CircleCheck, Warning, Timer } from '@element-plus/icons-vue'
 import { bpmApi } from '@/api/bpm'
+import type { BPMTask, BPMInstance } from '@/api/bpm'
 import { logger } from '@/utils/logger'
+
+// v11 批次 162 P2-1 修复：el-tag type 联合字面量类型，替代 Record<string, any>
+type TagType = 'success' | 'warning' | 'info' | 'primary' | 'danger'
 
 const activeTab = ref('pending')
 
@@ -217,13 +221,14 @@ const stats = ref({
   avgProcessingTime: 4.5,
 })
 
-const pendingTasks = ref<any[]>([])
-const initiatedProcesses = ref<any[]>([])
-const processedTasks = ref<any[]>([])
-const processInstances = ref<any[]>([])
+// v11 批次 162 P2-1 修复：any[] 改为具体类型 BPMTask[]/BPMInstance[]
+const pendingTasks = ref<BPMTask[]>([])
+const initiatedProcesses = ref<BPMInstance[]>([])
+const processedTasks = ref<BPMTask[]>([])
+const processInstances = ref<BPMInstance[]>([])
 
-const getPriorityType = (priority: string) => {
-  const map: Record<string, any> = { high: 'danger', medium: 'warning', low: 'info' }
+const getPriorityType = (priority: string): TagType => {
+  const map: Record<string, TagType> = { high: 'danger', medium: 'warning', low: 'info' }
   return map[priority] || 'info'
 }
 
@@ -232,8 +237,8 @@ const getPriorityText = (priority: string) => {
   return map[priority] || priority
 }
 
-const getProcessStatusType = (status: string) => {
-  const map: Record<string, any> = {
+const getProcessStatusType = (status: string): TagType => {
+  const map: Record<string, TagType> = {
     running: 'primary',
     completed: 'success',
     cancelled: 'info',
@@ -312,7 +317,7 @@ const fetchProcessInstances = async () => {
   }
 }
 
-const handleApprove = async (row: any) => {
+const handleApprove = async (row: BPMTask) => {
   try {
     await ElMessageBox.confirm('确定审批通过此任务吗？', '确认', { type: 'info' })
     await bpmApi.approveTask({ task_id: row.task_id, comment: '同意' })
@@ -324,9 +329,9 @@ const handleApprove = async (row: any) => {
 }
 
 // 批次 157a P1-1 修复：接入 getInstanceDetail API 展示任务关联的流程实例详情
-const handleDetail = async (row: any) => {
+const handleDetail = async (row: BPMTask) => {
   try {
-    const instanceId = row.process_instance_id || row.instance_id
+    const instanceId = row.process_instance_id
     if (!instanceId) {
       ElMessage.warning('未找到流程实例 ID')
       return
@@ -356,7 +361,7 @@ const handleDetail = async (row: any) => {
   }
 }
 
-const handleTransfer = async (row: any) => {
+const handleTransfer = async (row: BPMTask) => {
   try {
     const { value: targetUserId } = await ElMessageBox.prompt('请输入接收人的用户 ID', '转交任务', {
       type: 'info',
@@ -371,7 +376,7 @@ const handleTransfer = async (row: any) => {
   }
 }
 
-const handleUrge = async (row: any) => {
+const handleUrge = async (row: BPMTask) => {
   try {
     await ElMessageBox.confirm('确定催办此任务吗？', '确认', { type: 'warning' })
     await bpmApi.urgeTask(row.task_id)
@@ -382,9 +387,10 @@ const handleUrge = async (row: any) => {
 }
 
 // 批次 157a P1-1 修复：接入 getApprovalChain API 展示流程审批链追溯
-const handleTrace = async (row: any) => {
+// v11 批次 162 P2-1 修复：row 联合类型 BPMTask | BPMInstance，替代 any
+const handleTrace = async (row: BPMTask | BPMInstance) => {
   try {
-    const instanceId = row.instance_id || row.process_instance_id
+    const instanceId = 'instance_id' in row ? row.instance_id : row.process_instance_id
     if (!instanceId) {
       ElMessage.warning('未找到流程实例 ID')
       return
@@ -409,7 +415,7 @@ const handleTrace = async (row: any) => {
   }
 }
 // 批次 157d-3 修复：接入 cancelInstance API 真实撤回流程
-const handleCancel = async (row: any) => {
+const handleCancel = async (row: BPMInstance) => {
   try {
     const confirmRes = await ElMessageBox.confirm(
       `确认撤回流程 ${row.instance_id}？撤回后该流程将终止，所有待处理任务将被取消。`,
@@ -438,7 +444,7 @@ const handleCancel = async (row: any) => {
   }
 }
 // 批次 157a P1-1 修复：接入 getInstanceDetail API 展示流程实例详情
-const handleViewProcess = async (row: any) => {
+const handleViewProcess = async (row: BPMInstance) => {
   try {
     const res = await bpmApi.getInstanceDetail(String(row.instance_id))
     const d = res.data
@@ -465,7 +471,7 @@ const handleViewProcess = async (row: any) => {
   }
 }
 // 批次 157a P1-1 修复：接入 getProcessVisualization API 展示流程图信息
-const handleProcessImage = async (row: any) => {
+const handleProcessImage = async (row: BPMInstance) => {
   try {
     const res = await bpmApi.getProcessVisualization(String(row.instance_id))
     const d = res.data
