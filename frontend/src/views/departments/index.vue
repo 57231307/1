@@ -24,8 +24,8 @@
       </el-table-column>
       <el-table-column label="操作" width="200">
         <template #default="{ row }">
-          <el-button v-permission="'department:update'" size="small" @click="handleEdit(row as any)">编辑</el-button>
-          <el-button v-permission="'department:delete'" size="small" type="danger" @click="handleDelete(row as any)">删除</el-button>
+          <el-button v-permission="'department:update'" size="small" @click="handleEdit(row as Department)">编辑</el-button>
+          <el-button v-permission="'department:delete'" size="small" type="danger" @click="handleDelete(row as Department)">删除</el-button>
         </template>
       </el-table-column>
     </el-table>
@@ -86,6 +86,7 @@ import {
   updateDepartment,
   deleteDepartment,
   getDepartmentTree,
+  type Department,
 } from '@/api/department'
 
 const loading = ref(false)
@@ -93,13 +94,25 @@ const submitLoading = ref(false)
 const dialogVisible = ref(false)
 const dialogMode = ref<'create' | 'edit'>('create')
 const formRef = ref<FormInstance>()
-const departmentList = ref<any[]>([])
-const deptTreeData = ref<any[]>([])
+// v11 批次 170 P2-1 修复：any[] 改为 Department[]
+const departmentList = ref<Department[]>([])
+const deptTreeData = ref<Department[]>([])
 
-const formData = reactive<any>({
+// v11 批次 170 P2-1 修复：reactive<any> 改为具体类型
+interface DeptFormData {
+  id: number | null
+  name: string
+  code: string
+  parent_id: number | undefined
+  manager_name: string
+  sort_order: number
+  status: number
+}
+
+const formData = reactive<DeptFormData>({
   name: '',
   code: '',
-  parent_id: null,
+  parent_id: undefined,
   manager_name: '',
   sort_order: 0,
   status: 1,
@@ -127,7 +140,7 @@ const loadDepartments = async () => {
 
 const getParentName = (parentId: number | null): string => {
   if (!parentId) return '-'
-  const dept = departmentList.value.find((d: any) => d.id === parentId)
+  const dept = departmentList.value.find((d: Department) => d.id === parentId)
   return dept?.name || '-'
 }
 
@@ -137,7 +150,7 @@ const handleCreate = () => {
     id: null,
     name: '',
     code: '',
-    parent_id: null,
+    parent_id: undefined,
     manager_name: '',
     sort_order: 0,
     status: 1,
@@ -145,7 +158,7 @@ const handleCreate = () => {
   dialogVisible.value = true
 }
 
-const handleEdit = (row: any) => {
+const handleEdit = (row: Department) => {
   dialogMode.value = 'edit'
   Object.assign(formData, {
     id: row.id,
@@ -159,7 +172,7 @@ const handleEdit = (row: any) => {
   dialogVisible.value = true
 }
 
-const handleDelete = async (row: any) => {
+const handleDelete = async (row: Department) => {
   if (!row.id) return
 
   try {
@@ -187,7 +200,7 @@ const handleSubmit = async () => {
         await createDepartment(formData)
         ElMessage.success('创建成功')
       } else {
-        await updateDepartment(formData.id, formData)
+        await updateDepartment(formData.id!, formData)
         ElMessage.success('更新成功')
       }
       dialogVisible.value = false
