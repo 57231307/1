@@ -244,7 +244,13 @@ async function handleResolveSubmit() {
   }
   submitting.value = true
   try {
-    await updateAfterSales(currentRecord.value.id, {
+    // v11 批次 167 CI1 修复：currentRecord.value 可能为 null，添加非空守卫
+    const recordId = currentRecord.value?.id
+    if (!recordId) {
+      ElMessage.warning('请先选择工单')
+      return
+    }
+    await updateAfterSales(recordId, {
       status: 'resolved',
       resolution: resolveForm.value.resolution,
     })
