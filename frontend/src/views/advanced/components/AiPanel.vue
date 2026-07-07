@@ -5,20 +5,28 @@
  * 包含：销售预测、库存优化建议、异常检测、智能推荐
  * 数据与函数全部由父组件通过 props 传入
  */
+// v11 批次 171 P2-1 修复：从 useAi 导入接口类型，替代 any
+import type {
+  ForecastResult,
+  InventoryResult,
+  AnomalyItem,
+  RecommendationItem,
+} from '../composables/useAi'
+
 interface Props {
   forecastPeriod: string
   forecastLoading: boolean
-  forecastResult: any
+  forecastResult: ForecastResult | null
   runSalesForecast: () => Promise<void>
   inventoryLoading: boolean
-  inventoryResult: any
+  inventoryResult: InventoryResult | null
   runInventoryOptimization: () => Promise<void>
   anomalyType: string
   anomalyLoading: boolean
-  anomalyResult: any
+  anomalyResult: AnomalyItem[] | null
   runAnomalyDetection: () => Promise<void>
   recommendLoading: boolean
-  recommendationResult: any
+  recommendationResult: RecommendationItem[] | null
   getRecommendations: () => Promise<void>
   formatMoney: (amount: number) => string
 }
