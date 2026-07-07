@@ -23,8 +23,8 @@ pub mod items;
 pub mod scan_export;
 
 pub use borrow::{
-    borrow_color_card, list_borrow_records, mark_damaged_color_card, mark_lost_color_card,
-    return_color_card,
+    borrow_color_card, get_borrow_record, list_borrow_records, mark_damaged_color_card,
+    mark_lost_color_card, return_color_card,
 };
 pub use crud::{
     archive_color_card, create_color_card, get_color_card, list_color_cards, mark_card_lost,
@@ -33,4 +33,4 @@ pub use crud::{
 pub use items::{
     batch_import_items, create_color_item, delete_color_item, list_color_items, update_color_item,
 };
-pub use scan_export::{export_color_card, scan_color_code};
+pub use scan_export::{export_color_card, scan_color_by_id, scan_color_code};

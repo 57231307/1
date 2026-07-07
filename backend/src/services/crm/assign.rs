@@ -21,27 +21,13 @@ use crate::services::assignment_history_service::{
 };
 use crate::utils::error::AppError;
 
-/// 自动分配策略
-#[derive(Debug, Clone, Default, Deserialize, PartialEq)]
-#[serde(rename_all = "lowercase")]
-pub enum AssignStrategy {
-    /// 轮询：按销售列表顺序依次分配（默认）
-    #[default]
-    RoundRobin,
-    /// 抢单：销售主动认领一条未分配线索（FIFO，最早入库的优先）
-    Claim,
-}
-
 /// 自动分配请求
 #[derive(Debug, Clone, Deserialize)]
 pub struct AutoAssignRequest {
-    /// 参与轮询的销售用户 ID 列表（round_robin 必填，claim 模式可空）
+    /// 参与轮询的销售用户 ID 列表
     pub assignee_user_ids: Vec<i32>,
     /// 限制本次自动分配的线索数量（缺失时默认 100，上限 1000 防 DoS）
     pub limit: Option<u64>,
-    /// 分配策略（缺失时默认 round_robin，当前仅实现 round_robin）
-    #[allow(dead_code)] // TODO(tech-debt): 抢单策略接入后移除
-    pub strategy: Option<AssignStrategy>,
 }
 
 /// 抢单请求（单个销售主动认领）
@@ -79,9 +65,6 @@ pub struct TransferLeadRequest {
     pub lead_id: i32,
     /// 新归属人用户 ID
     pub to_user_id: i32,
-    /// 新归属人姓名（前端透传，service 内部以 user 表为准二次校验，此处不读取）
-    #[allow(dead_code)] // TODO(tech-debt): 审计日志接入 to_user_name 后移除
-    pub to_user_name: String,
     /// 转移原因（必填，写入 assignment_history.reason）
     pub reason: String,
     /// 备注（可选）

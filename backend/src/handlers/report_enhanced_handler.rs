@@ -349,9 +349,6 @@ pub struct TemplateExportRequest {
 pub struct ExportRequest {
     pub template_id: String,
     pub title: Option<String>,
-    /// 导出格式（前端透传，后端按 handler 路由决定 PDF/Excel，暂不读取此字段）
-    #[allow(dead_code)] // TODO(tech-debt): 统一导出端点接入后移除
-    pub format: Option<String>,
 }
 
 /// GET /api/v1/erp/reports-enhanced/fields/:template_type - 获取指定模板类型可用的字段定义

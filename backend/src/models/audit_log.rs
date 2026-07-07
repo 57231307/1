@@ -28,21 +28,6 @@ pub enum OperationType {
 }
 
 impl OperationType {
-    /// 从字符串解析为枚举（大小写不敏感）
-    #[allow(dead_code)] // TODO(tech-debt): 预留 API，未来从字符串反序列化接入后移除
-    pub fn parse(value: &str) -> Self {
-        match value.to_ascii_uppercase().as_str() {
-            "CREATE" => Self::Create,
-            "UPDATE" => Self::Update,
-            "DELETE" => Self::Delete,
-            "LOGIN" => Self::Login,
-            "LOGOUT" => Self::Logout,
-            "EXPORT" => Self::Export,
-            "QUERY" | "READ" | "SELECT" | "LIST" => Self::Query,
-            _ => Self::Other,
-        }
-    }
-
     /// 序列化为大写字符串（持久化到数据库的稳定字符串）
     pub fn as_str(&self) -> &'static str {
         match self {
@@ -72,18 +57,6 @@ pub enum Severity {
 }
 
 impl Severity {
-    /// 从字符串解析为枚举
-    #[allow(dead_code)] // TODO(tech-debt): 预留 API，未来从字符串反序列化接入后移除
-    pub fn parse(value: &str) -> Self {
-        match value.to_ascii_uppercase().as_str() {
-            "INFO" => Self::Info,
-            "WARN" | "WARNING" => Self::Warn,
-            "ERROR" => Self::Error,
-            "CRITICAL" | "FATAL" => Self::Critical,
-            _ => Self::Info,
-        }
-    }
-
     /// 序列化为大写字符串
     pub fn as_str(&self) -> &'static str {
         match self {
@@ -155,20 +128,6 @@ impl ActiveModelBehavior for ActiveModel {}
 mod tests {
     use super::*;
 
-    /// 操作类型枚举解析正向用例
-    #[test]
-    fn test_op_type_parse_positive() {
-        assert_eq!(OperationType::parse("create"), OperationType::Create);
-        assert_eq!(OperationType::parse("UPDATE"), OperationType::Update);
-        assert_eq!(OperationType::parse("Delete"), OperationType::Delete);
-        assert_eq!(OperationType::parse("LOGIN"), OperationType::Login);
-        assert_eq!(OperationType::parse("logout"), OperationType::Logout);
-        assert_eq!(OperationType::parse("EXPORT"), OperationType::Export);
-        assert_eq!(OperationType::parse("read"), OperationType::Query);
-        assert_eq!(OperationType::parse("list"), OperationType::Query);
-        assert_eq!(OperationType::parse("unknown"), OperationType::Other);
-    }
-
     /// 操作类型枚举序列化为稳定字符串
     #[test]
     fn test_op_type_as_str() {
@@ -176,18 +135,6 @@ mod tests {
         assert_eq!(OperationType::Login.as_str(), "LOGIN");
         assert_eq!(OperationType::Export.as_str(), "EXPORT");
         assert_eq!(OperationType::Other.as_str(), "OTHER");
-    }
-
-    /// 严重级别枚举解析
-    #[test]
-    fn test_severity_parse_positive() {
-        assert_eq!(Severity::parse("info"), Severity::Info);
-        assert_eq!(Severity::parse("WARN"), Severity::Warn);
-        assert_eq!(Severity::parse("warning"), Severity::Warn);
-        assert_eq!(Severity::parse("ERROR"), Severity::Error);
-        assert_eq!(Severity::parse("CRITICAL"), Severity::Critical);
-        assert_eq!(Severity::parse("fatal"), Severity::Critical);
-        assert_eq!(Severity::parse("xxx"), Severity::Info);
     }
 
     /// 严重级别枚举序列化为稳定字符串

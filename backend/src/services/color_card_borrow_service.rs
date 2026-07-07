@@ -45,10 +45,9 @@ pub enum BorrowStatus {
 
 // v11 批次 147 P2-B：移除失效的 dead_code 标注
 // - from_str 在 service 内部 line 160/203/260 调用
-// - is_terminal / as_str 在 tests/color_card_borrow_test.rs 调用
+// - is_terminal / as_str 在业务中真实接入（v11 P1-5 真实实现）
 impl BorrowStatus {
-    /// 序列化为字符串（仅供集成测试使用，业务接入后移除 allow）
-    #[allow(dead_code)] // TODO(tech-debt): 业务接入状态序列化后移除
+    /// 序列化为字符串（持久化到数据库的稳定字符串）
     pub fn as_str(&self) -> &'static str {
         match self {
             Self::Borrowed => "borrowed",
@@ -70,8 +69,7 @@ impl BorrowStatus {
         }
     }
 
-    /// 是否为终态（仅供集成测试使用，业务接入状态校验后移除 allow）
-    #[allow(dead_code)] // TODO(tech-debt): 业务接入终态校验后移除
+    /// 是否为终态（终态不可再转换为其它状态）
     pub fn is_terminal(&self) -> bool {
         matches!(self, Self::Returned | Self::Lost | Self::Damaged)
     }
@@ -129,7 +127,7 @@ impl ColorCardBorrowService {
             borrowed_at: Set(now),
             expected_return_at: Set(expected_return_at),
             actual_return_at: Set(None),
-            status: Set("borrowed".to_string()),
+            status: Set(BorrowStatus::Borrowed.as_str().to_string()),
             purpose: Set(purpose),
             notes: Set(notes),
             compensation_amount: Set(None),
@@ -161,7 +159,7 @@ impl ColorCardBorrowService {
         // 状态机校验
         let current = BorrowStatus::from_str(&existing.status)
             .ok_or_else(|| BorrowError::InvalidState(format!("未知状态: {}", existing.status)))?;
-        if current != BorrowStatus::Borrowed {
+        if current.is_terminal() {
             return Err(BorrowError::InvalidState(format!(
                 "当前状态 {} 不允许归还操作",
                 existing.status
@@ -169,7 +167,7 @@ impl ColorCardBorrowService {
         }
 
         let mut active: BorrowActive = existing.into();
-        active.status = Set("returned".to_string());
+        active.status = Set(BorrowStatus::Returned.as_str().to_string());
         active.actual_return_at = Set(Some(actual_return_at.unwrap_or_else(Utc::now)));
         if let Some(n) = notes {
             active.notes = Set(Some(n));
@@ -204,7 +202,7 @@ impl ColorCardBorrowService {
             .ok_or(BorrowError::RecordNotFound)?;
         let current = BorrowStatus::from_str(&existing.status)
             .ok_or_else(|| BorrowError::InvalidState(format!("未知状态: {}", existing.status)))?;
-        if current != BorrowStatus::Borrowed {
+        if current.is_terminal() {
             return Err(BorrowError::InvalidState(format!(
                 "当前状态 {} 不允许登记遗失",
                 existing.status
@@ -213,7 +211,7 @@ impl ColorCardBorrowService {
 
         // 1. 更新借出记录
         let mut active: BorrowActive = existing.clone().into();
-        active.status = Set("lost".to_string());
+        active.status = Set(BorrowStatus::Lost.as_str().to_string());
         active.compensation_amount = Set(Some(compensation_amount));
         if let Some(n) = notes.clone() {
             active.notes = Set(Some(n));
@@ -228,7 +226,7 @@ impl ColorCardBorrowService {
             .await?
             .ok_or(BorrowError::ColorCardNotFound)?;
         let mut card_active: color_card::ActiveModel = card.into();
-        card_active.status = Set("lost".to_string());
+        card_active.status = Set(BorrowStatus::Lost.as_str().to_string());
         card_active.updated_at = Set(Utc::now());
         card_active.update(&txn).await?;
 
@@ -261,7 +259,7 @@ impl ColorCardBorrowService {
             .ok_or(BorrowError::RecordNotFound)?;
         let current = BorrowStatus::from_str(&existing.status)
             .ok_or_else(|| BorrowError::InvalidState(format!("未知状态: {}", existing.status)))?;
-        if current != BorrowStatus::Borrowed {
+        if current.is_terminal() {
             return Err(BorrowError::InvalidState(format!(
                 "当前状态 {} 不允许标记损坏",
                 existing.status
@@ -269,7 +267,7 @@ impl ColorCardBorrowService {
         }
 
         let mut active: BorrowActive = existing.into();
-        active.status = Set("damaged".to_string());
+        active.status = Set(BorrowStatus::Damaged.as_str().to_string());
         active.compensation_amount = Set(compensation_amount);
         if let Some(n) = notes {
             active.notes = Set(Some(n));
@@ -283,7 +281,6 @@ impl ColorCardBorrowService {
     }
 
     /// 按 ID 查询
-    #[allow(dead_code)] // TODO(tech-debt): 预留 API，handler 端点接入后移除
     pub async fn get_by_id(
         &self,
         record_id: i64,

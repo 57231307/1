@@ -5,23 +5,12 @@
 
 use sea_orm::{ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter};
 use std::sync::Arc;
-use thiserror::Error;
 
 use crate::models::color_card::{self, Entity as ColorCardEntity};
 use crate::models::color_card_item::{self, Entity as ItemEntity};
 use crate::models::color_card_response_dto::{PriceSummary, RecipeSummary, ScanResult};
 use crate::utils::app_state::AppState;
 use crate::utils::error::AppError;
-
-/// 业务错误
-#[allow(dead_code)] // TODO(tech-debt): 业务接入完整错误链后移除
-#[derive(Debug, Error)]
-pub enum ScanError {
-    #[error("色号不存在")]
-    ItemNotFound,
-    #[error("数据库错误: {0}")]
-    Database(#[from] sea_orm::DbErr),
-}
 
 /// 扫码查询服务
 pub struct ColorCardScanService {
@@ -128,7 +117,6 @@ impl ColorCardScanService {
     }
 
     /// 按色号 ID 扫码查询
-    #[allow(dead_code)] // TODO(tech-debt): 预留 API，handler 端点接入后移除
     pub async fn scan_by_id(
         &self,
         item_id: i64,

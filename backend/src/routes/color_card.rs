@@ -66,8 +66,15 @@ pub fn routes() -> Router<AppState> {
             "/borrow-records",
             get(color_card::list_borrow_records),
         )
+        // 借出记录详情（v11 P1-5 真实实现：接入 service.get_by_id）
+        .route(
+            "/borrow-records/:record_id",
+            get(color_card::get_borrow_record),
+        )
         // 扫码查询
         .route("/scan/:code", get(color_card::scan_color_code))
+        // 按 ID 扫码查询（v11 P1-5 真实实现：接入 service.scan_by_id）
+        .route("/scan-by-id/:id", get(color_card::scan_color_by_id))
         // 导出 CSV
         .route(
             "/export/:id",

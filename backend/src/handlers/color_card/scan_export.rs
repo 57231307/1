@@ -33,6 +33,18 @@ pub async fn scan_color_code(
     Ok(Json(ApiResponse::success(result)))
 }
 
+/// GET /api/v1/erp/color-cards/scan-by-id/:id - 按色号 ID 查询色号详情
+/// v11 P1-5 真实实现：接入 ColorCardScanService::scan_by_id，提供按 ID 查询端点
+pub async fn scan_color_by_id(
+    _auth: AuthContext,
+    State(state): State<AppState>,
+    Path(id): Path<i64>,
+) -> Result<Json<ApiResponse<ScanResult>>, AppError> {
+    let service = ColorCardScanService::from_state(&state);
+    let result = service.scan_by_id(id).await?;
+    Ok(Json(ApiResponse::success(result)))
+}
+
 /// GET /api/v1/erp/color-cards/export/:id - 导出色卡为 xlsx
 pub async fn export_color_card(
     _auth: AuthContext,

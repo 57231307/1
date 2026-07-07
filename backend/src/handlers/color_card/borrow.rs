@@ -124,3 +124,15 @@ pub async fn list_borrow_records(
         page_size,
     })))
 }
+
+/// GET /api/v1/erp/color-cards/borrow-records/:record_id - 借出记录详情
+/// v11 P1-5 真实实现：接入 ColorCardBorrowService::get_by_id，提供单条记录查询
+pub async fn get_borrow_record(
+    _auth: AuthContext,
+    State(state): State<AppState>,
+    Path(record_id): Path<i64>,
+) -> Result<Json<ApiResponse<BorrowRecordInfo>>, AppError> {
+    let service = ColorCardBorrowService::from_state(&state);
+    let record = service.get_by_id(record_id).await.map_err(borrow_err)?;
+    Ok(Json(ApiResponse::success(record_to_info(record))))
+}
