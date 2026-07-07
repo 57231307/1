@@ -143,24 +143,35 @@ import {
   setDataPermission,
   deleteDataPermissionByRole,
   listScopeTypes,
+  DEFAULT_SCOPE_TYPES,
   type DataPermissionRole,
   type ScopeType,
   type CustomCondition,
   type AllowedFields,
   type HiddenFields,
 } from '@/api/data-permission'
+import { listRoles } from '@/api/role'
 
-const roleList = ref([
-  { id: 1, name: '超级管理员' },
-  { id: 2, name: '财务主管' },
-  { id: 3, name: '销售主管' },
-  { id: 4, name: '采购员' },
-  { id: 5, name: '普通员工' },
-])
-
+const roleList = ref<Array<{ id: number; name: string }>>([])
 const selectedRoleId = ref('1')
 const permissionList = ref<DataPermissionRole[]>([])
 const scopeTypeList = ref<ScopeType[]>([])
+
+// v11 P1-5 修复：动态加载角色列表，避免硬编码
+const fetchRoles = async () => {
+  try {
+    const res = await listRoles()
+    if (res.data && Array.isArray(res.data)) {
+      roleList.value = res.data.map(r => ({ id: r.id, name: r.name }))
+      if (roleList.value.length > 0) {
+        selectedRoleId.value = String(roleList.value[0].id)
+      }
+    }
+  } catch (e) {
+    const err = e as Error
+    ElMessage.error(`角色列表加载失败：${err.message || '未知错误'}`)
+  }
+}
 
 const permissionDialogVisible = ref(false)
 const isEdit = ref(false)
@@ -199,23 +210,17 @@ const fetchPermissions = async () => {
 
 const fetchScopeTypes = async () => {
   try {
-    const res: any = await listScopeTypes()
-    if (res.data) {
-      scopeTypeList.value = res.data! || []
+    const res = await listScopeTypes()
+    if (res.data && Array.isArray(res.data) && res.data.length > 0) {
+      scopeTypeList.value = res.data
+    } else {
+      scopeTypeList.value = DEFAULT_SCOPE_TYPES
     }
   } catch (e) {
-    // 使用默认值
-    scopeTypeList.value = [
-      { value: 'ALL', label: '全部数据', description: '可以查看所有数据' },
-      { value: 'DEPT', label: '本部门数据', description: '只能查看本部门的数据' },
-      {
-        value: 'DEPT_AND_BELOW',
-        label: '本部门及以下',
-        description: '可以查看本部门及下级部门的数据',
-      },
-      { value: 'SELF', label: '仅本人数据', description: '只能查看自己创建的数据' },
-      { value: 'CUSTOM', label: '自定义', description: '通过自定义条件过滤数据' },
-    ]
+    // v11 P1-5 修复：API 失败时使用 API 层常量兜底，并告知用户
+    scopeTypeList.value = DEFAULT_SCOPE_TYPES
+    const err = e as Error
+    ElMessage.warning(`范围类型加载失败，已使用默认值：${err.message || '未知错误'}`)
   }
 }
 
@@ -307,7 +312,9 @@ const handleDeletePermission = async (row: DataPermissionRole) => {
 
 const hasLoaded = createLazyLoader()
 
-onMounted(() => {
+onMounted(async () => {
+  // 先加载角色列表（fetchRoles 会更新 selectedRoleId），再加载权限和范围类型
+  await fetchRoles()
   fetchPermissions()
   loadIfNot('scopeTypes', fetchScopeTypes, hasLoaded)
 })
