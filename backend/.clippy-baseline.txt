@@ -1431,6 +1431,7 @@ warning: struct `WorkCenterCapacity` is never constructed
 warning: this call to `as_ref.map(...)` does nothing
 warning: this expression creates a reference which is immediately dereferenced by the compiler
 warning: this function has too many arguments (10/7)
+warning: this function has too many arguments (8/7)
 warning: trait `SlowQueryMetrics` is never used
 warning: type alias `Auth` is never used
 warning: unreachable expression

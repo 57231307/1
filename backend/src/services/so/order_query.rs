@@ -10,7 +10,6 @@
 
 use super::order::SalesService;
 use crate::models::dto::PageRequest;
-use crate::models::status::sales_order as so_status;
 use crate::models::{
     sales_order,
     sales_order::Entity as SalesOrderEntity,
@@ -385,6 +384,8 @@ impl SalesService {
 #[cfg(test)]
 mod tests {
     use super::*;
+    // 批次 158 v11 修复 clippy：so_status 仅测试代码引用，use 移入测试模块避免 unused import 警告
+    use crate::models::status::sales_order as so_status;
 
     #[test]
     fn test_order_query_is_empty() {
