@@ -81,3 +81,16 @@ export const deleteDataPermissionByRole = (roleId: number, resourceType: string)
 
 export const listScopeTypes = () =>
   request.get<ApiResponse<ScopeType[]>>('/data-permissions/scope-types')
+
+/// 数据权限范围类型默认值（v11 P1-5：API 失败时的兜底常量，避免 view 层硬编码）
+export const DEFAULT_SCOPE_TYPES: ScopeType[] = [
+  { value: 'ALL', label: '全部数据', description: '可以查看所有数据' },
+  { value: 'DEPT', label: '本部门数据', description: '只能查看本部门的数据' },
+  {
+    value: 'DEPT_AND_BELOW',
+    label: '本部门及以下',
+    description: '可以查看本部门及下级部门的数据',
+  },
+  { value: 'SELF', label: '仅本人数据', description: '只能查看自己创建的数据' },
+  { value: 'CUSTOM', label: '自定义', description: '通过自定义条件过滤数据' },
+]
