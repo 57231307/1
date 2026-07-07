@@ -86,7 +86,8 @@
         <el-table-column prop="created_at" label="创建时间" width="180" align="center" />
         <el-table-column label="操作" width="250" align="center" fixed="right">
           <template #default="{ row }">
-            <el-button type="primary" link size="small" @click="handleView(row as any)"
+            <!-- v11 批次 168 P2-1 修复：row as any 改为 row as DyeRecipe -->
+            <el-button type="primary" link size="small" @click="handleView(row as DyeRecipe)"
               >查看</el-button
             >
             <el-button
@@ -94,7 +95,7 @@
               type="primary"
               link
               size="small"
-              @click="handleEdit(row as any)"
+              @click="handleEdit(row as DyeRecipe)"
               >编辑</el-button
             >
             <el-button
@@ -102,7 +103,7 @@
               type="success"
               link
               size="small"
-              @click="handleSubmit(row as any)"
+              @click="handleSubmit(row as DyeRecipe)"
               >提交</el-button
             >
             <el-button
@@ -110,10 +111,10 @@
               type="success"
               link
               size="small"
-              @click="handleApprove(row as any)"
+              @click="handleApprove(row as DyeRecipe)"
               >审批</el-button
             >
-            <el-button type="info" link size="small" @click="handleVersion(row as any)"
+            <el-button type="info" link size="small" @click="handleVersion(row as DyeRecipe)"
               >版本</el-button
             >
           </template>
@@ -201,7 +202,7 @@
         <el-table-column prop="created_at" label="创建时间" width="180" align="center" />
         <el-table-column label="操作" width="100" align="center">
           <template #default="{ row }">
-            <el-button type="primary" link size="small" @click="handleViewVersion(row as any)"
+            <el-button type="primary" link size="small" @click="handleViewVersion(row as DyeRecipe)"
               >查看</el-button
             >
           </template>
@@ -314,17 +315,17 @@ const handleCreate = () => {
 }
 
 // 查看
-const handleView = (_row: any) => {}
+const handleView = (_row: DyeRecipe) => {}
 
 // 编辑
-const handleEdit = (row: any) => {
+const handleEdit = (row: DyeRecipe) => {
   dialogTitle.value = '编辑染色配方'
   Object.assign(formData, row)
   dialogVisible.value = true
 }
 
 // 提交审批
-const handleSubmit = async (row: any) => {
+const handleSubmit = async (row: DyeRecipe) => {
   try {
     await ElMessageBox.confirm('确认提交该配方审批？', '提示', { type: 'warning' })
     await submitDyeRecipe(row.id)
@@ -336,7 +337,7 @@ const handleSubmit = async (row: any) => {
 }
 
 // 审批
-const handleApprove = async (row: any) => {
+const handleApprove = async (row: DyeRecipe) => {
   try {
     await ElMessageBox.confirm('确认审批通过该配方？', '提示', { type: 'warning' })
     await approveDyeRecipe(row.id)
@@ -348,7 +349,7 @@ const handleApprove = async (row: any) => {
 }
 
 // 版本历史
-const handleVersion = async (row: any) => {
+const handleVersion = async (row: DyeRecipe) => {
   try {
     const res = await getRecipeVersions(row.id)
     versionList.value = res.data || []
@@ -359,7 +360,7 @@ const handleVersion = async (row: any) => {
 }
 
 // 查看版本
-const handleViewVersion = (_row: any) => {}
+const handleViewVersion = (_row: DyeRecipe) => {}
 
 // 导出
 const handleExport = async () => {
