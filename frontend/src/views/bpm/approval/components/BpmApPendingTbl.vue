@@ -21,23 +21,23 @@
       </el-table-column>
       <el-table-column prop="priority" label="优先级" width="100">
         <template #default="{ row }">
-          <el-tag :type="getPriorityTypeFmt(row.priority) as any" size="small">{{
+          <el-tag :type="getPriorityTypeFmt(row.priority) as TagType" size="small">{{
             getPriorityTextFmt(row.priority)
           }}</el-tag>
         </template>
       </el-table-column>
       <el-table-column label="操作" width="220" fixed="right">
         <template #default="{ row }">
-          <el-button type="primary" link size="small" @click="emit('approve', row as any)"
+          <el-button type="primary" link size="small" @click="emit('approve', row as ApprovalTask)"
             >同意</el-button
           >
-          <el-button type="danger" link size="small" @click="emit('reject', row as any)"
+          <el-button type="danger" link size="small" @click="emit('reject', row as ApprovalTask)"
             >拒绝</el-button
           >
-          <el-button type="warning" link size="small" @click="emit('transfer', row as any)"
+          <el-button type="warning" link size="small" @click="emit('transfer', row as ApprovalTask)"
             >转交</el-button
           >
-          <el-button type="info" link size="small" @click="emit('view-chain', row as any)"
+          <el-button type="info" link size="small" @click="emit('view-chain', row as ApprovalTask)"
             >审批链</el-button
           >
         </template>

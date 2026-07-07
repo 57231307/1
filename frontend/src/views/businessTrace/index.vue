@@ -62,7 +62,8 @@ const handleFiveDimensionTrace = async () => {
   }
   loading.value = true
   try {
-    const res: any = await getTraceByFiveDimension(fiveDimensionId.value)
+    // v11 批次 182 P2-1 修复：const res: any 改为 as 具体类型
+    const res = (await getTraceByFiveDimension(fiveDimensionId.value)) as { data?: FullTraceChainResponse }
     traceResult.value = res.data!
     snapshotMessage.value = ''
   } catch (error) {
@@ -79,11 +80,12 @@ const handleForwardTrace = async () => {
   }
   loading.value = true
   try {
-    const res: any = await forwardTrace({
+    // v11 批次 182 P2-1 修复：const res: any 改为 as 具体类型
+    const res = (await forwardTrace({
       supplier_id: Number(forwardForm.value.supplier_id),
       batch_no: forwardForm.value.batch_no,
-    })
-    forwardResult.value = res.data.traces
+    })) as { data?: { traces?: TraceChainResponse[] } }
+    forwardResult.value = res.data?.traces || []
   } catch (error) {
     ElMessage.error('正向追溯失败')
   } finally {
@@ -98,11 +100,12 @@ const handleBackwardTrace = async () => {
   }
   loading.value = true
   try {
-    const res: any = await backwardTrace({
+    // v11 批次 182 P2-1 修复：const res: any 改为 as 具体类型
+    const res = (await backwardTrace({
       customer_id: Number(backwardForm.value.customer_id),
       batch_no: backwardForm.value.batch_no,
-    })
-    backwardResult.value = res.data.traces
+    })) as { data?: { traces?: TraceChainResponse[] } }
+    backwardResult.value = res.data?.traces || []
   } catch (error) {
     ElMessage.error('反向追溯失败')
   } finally {
@@ -117,7 +120,8 @@ const handleCreateSnapshot = async () => {
   }
   loading.value = true
   try {
-    const res: any = await createTraceSnapshot(traceResult.value.trace_chain_id)
+    // v11 批次 182 P2-1 修复：const res: any 改为 as 具体类型
+    const res = (await createTraceSnapshot(traceResult.value.trace_chain_id)) as { data?: string }
     snapshotMessage.value = res.data!
     ElMessage.success('快照创建成功')
   } catch (error) {
@@ -200,7 +204,7 @@ const handleCreateSnapshot = async () => {
                 :key="stage.stage_id"
                 :title="stage.stage_name"
                 :description="stage.bill_no"
-                :status="(stageStatusMap[stage.stage_type] || 'wait') as any"
+                :status="(stageStatusMap[stage.stage_type] || 'wait') as 'wait' | 'process' | 'finish' | 'error' | 'success'"
               >
                 <template #icon>
                   <div class="stage-icon">
