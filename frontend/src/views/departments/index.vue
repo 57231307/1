@@ -110,6 +110,7 @@ interface DeptFormData {
 }
 
 const formData = reactive<DeptFormData>({
+  id: null,
   name: '',
   code: '',
   parent_id: undefined,
