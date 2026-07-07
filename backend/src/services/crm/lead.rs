@@ -216,6 +216,101 @@ impl CrmService {
         })
     }
 
+    /// 批量导入线索（v11 批次 157d-4 新增）：解析 xlsx 字节并逐行创建线索
+    /// xlsx 列顺序与 export_leads 一致：线索编号/公司名称/联系人/职位/手机号/座机/邮箱/线索来源/线索状态/负责人/优先级/创建时间
+    /// 失败行不影响其他行，最终返回成功/失败统计与错误详情
+    pub async fn import_leads(
+        &self,
+        file_bytes: Vec<u8>,
+        user_id: i32,
+    ) -> Result<crate::models::dto::crm_dto::ImportLeadsResult, AppError> {
+        use calamine::{open_workbook_auto_from_rs, Data, Reader};
+        use std::io::Cursor;
+
+        let cursor = Cursor::new(file_bytes);
+        let mut workbook = open_workbook_auto_from_rs(cursor)
+            .map_err(|e| AppError::bad_request(format!("无法解析 xlsx 文件：{}", e)))?;
+
+        // 读取第一个 sheet
+        let sheet_name = workbook
+            .sheet_names()
+            .first()
+            .cloned()
+            .ok_or_else(|| AppError::bad_request("xlsx 文件无工作表".to_string()))?;
+        let range = workbook
+            .worksheet_range(&sheet_name)
+            .map_err(|e| AppError::bad_request(format!("读取工作表失败：{}", e)))?;
+
+        let mut rows = range.rows();
+        // 第一行为表头，跳过
+        let _header = rows.next();
+        let data_rows: Vec<&[Data]> = rows.collect();
+
+        let total = data_rows.len() as u32;
+        let mut success_count: u32 = 0;
+        let mut errors: Vec<crate::models::dto::crm_dto::ImportLeadError> = Vec::new();
+
+        for (idx, row) in data_rows.iter().enumerate() {
+            let row_no = (idx + 2) as u32; // 行号从 2 开始（1 为表头）
+            // 安全提取单元格字符串值
+            let cell_str = |i: usize| -> Option<String> {
+                row.get(i).and_then(|c| match c {
+                    Data::String(s) => {
+                        let t = s.trim();
+                        if t.is_empty() {
+                            None
+                        } else {
+                            Some(t.to_string())
+                        }
+                    }
+                    Data::Int(n) => Some(n.to_string()),
+                    Data::Float(f) => Some(f.to_string()),
+                    Data::DateTimeIso(s) | Data::DurationIso(s) => Some(s.clone()),
+                    _ => None,
+                })
+            };
+
+            let req = crate::models::dto::crm_dto::CreateLeadRequest {
+                lead_no: cell_str(0),
+                lead_source: cell_str(7),
+                lead_status: cell_str(8),
+                company_name: cell_str(1),
+                contact_name: cell_str(2),
+                contact_title: cell_str(3),
+                mobile_phone: cell_str(4),
+                tel_phone: cell_str(5),
+                email: cell_str(6),
+                wechat: None,
+                qq: None,
+                address: None,
+                product_interest: None,
+                estimated_quantity: None,
+                estimated_amount: None,
+                expected_delivery_date: None,
+                requirement_desc: None,
+                priority: cell_str(10),
+                rating: None,
+                tags: None,
+            };
+
+            match self.create_lead(req, user_id).await {
+                Ok(_) => success_count += 1,
+                Err(e) => errors.push(crate::models::dto::crm_dto::ImportLeadError {
+                    row: row_no,
+                    message: format!("{}", e),
+                }),
+            }
+        }
+
+        let failed_count = total - success_count;
+        Ok(crate::models::dto::crm_dto::ImportLeadsResult {
+            total,
+            success_count,
+            failed_count,
+            errors,
+        })
+    }
+
     /// 获取线索详情
     pub async fn get_lead(&self, lead_id: i32) -> Result<crm_lead::Model, AppError> {
         let lead = crm_lead::Entity::find_by_id(lead_id)

@@ -221,10 +221,12 @@ import { Plus, Upload, Download, Search, Refresh } from '@element-plus/icons-vue
 import {
   listLeads,
   exportLeads,
+  importLeads,
   updateLeadStatus,
   convertLead,
   getLead,
   type Lead,
+  type ImportLeadsResult,
 } from '@/api/crm'
 import { listUsers, type User } from '@/api/user'
 import type { ApiResponse, PageResult } from '@/types/api'
@@ -397,9 +399,38 @@ const handleLost = async (row: LeadRow) => {
   }
 }
 
-// TODO(tech-debt): 批次 157d 后端补全 importLeads API 后接入真实导入流程
+// v11 批次 157d-4 修复：接入 importLeads API 真实导入 xlsx 文件
 const handleImport = () => {
-  ElMessage.info('导入功能待后端 API 补全（批次 157d）')
+  const input = document.createElement('input')
+  input.type = 'file'
+  input.accept = '.xlsx'
+  input.onchange = async (event: Event) => {
+    const target = event.target as HTMLInputElement
+    const file = target.files?.[0]
+    if (!file) return
+    try {
+      const res = await importLeads(file)
+      const result = res.data
+      if (result.failed_count > 0) {
+        const errorLines = result.errors
+          .map((e) => `第${e.row}行：${e.message}`)
+          .join('\n')
+        await ElMessageBox.alert(
+          `总行数：${result.total}\n成功：${result.success_count}\n失败：${result.failed_count}\n\n失败详情：\n${errorLines}`,
+          '导入完成（部分失败）',
+          { confirmButtonText: '关闭' },
+        )
+      } else {
+        ElMessage.success(`导入成功：${result.success_count} 条`)
+      }
+      getList()
+    } catch (e: unknown) {
+      const err = e as Error
+      ElMessage.error(err.message || '导入失败')
+      logger.error('导入线索失败', err.message)
+    }
+  }
+  input.click()
 }
 
 // 批次 94 P2-12 修复：原占位假成功，现接入真实导出 API 并触发浏览器下载

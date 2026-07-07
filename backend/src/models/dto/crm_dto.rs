@@ -122,6 +122,28 @@ pub struct LeadQuery {
     pub page_size: Option<u64>,
 }
 
+/// 线索导入结果（v11 批次 157d-4 新增）
+#[derive(Debug, Serialize)]
+pub struct ImportLeadsResult {
+    /// 总行数（不含表头）
+    pub total: u32,
+    /// 成功导入数
+    pub success_count: u32,
+    /// 失败数
+    pub failed_count: u32,
+    /// 失败详情（行号 + 错误原因）
+    pub errors: Vec<ImportLeadError>,
+}
+
+/// 单行导入失败详情
+#[derive(Debug, Serialize)]
+pub struct ImportLeadError {
+    /// 行号（从 2 开始，1 为表头）
+    pub row: u32,
+    /// 错误原因
+    pub message: String,
+}
+
 #[derive(Debug, Deserialize)]
 pub struct OpportunityQuery {
     pub opportunity_stage: Option<String>,

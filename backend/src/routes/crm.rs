@@ -293,6 +293,11 @@ pub fn crm_business() -> Router<AppState> {
             "/leads/export",
             get(crate::handlers::crm_handler::export_leads),
         )
+        // v11 批次 157d-4：批量导入线索（xlsx），注册在 /:id 之前避免路径参数匹配
+        .route(
+            "/leads/import",
+            post(crate::handlers::crm_handler::import_leads),
+        )
         .route(
             "/leads/:id",
             get(crate::handlers::crm_handler::get_lead)

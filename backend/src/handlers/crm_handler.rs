@@ -1,14 +1,14 @@
 use crate::middleware::auth_context::AuthContext;
 use crate::models::dto::crm_dto::{
-    ConvertLeadRequest, CreateLeadRequest, CreateOpportunityRequest, FollowUpRequest, LeadQuery,
-    OpportunityQuery, UpdateLeadRequest, UpdateOpportunityRequest,
+    ConvertLeadRequest, CreateLeadRequest, CreateOpportunityRequest, FollowUpRequest,
+    ImportLeadsResult, LeadQuery, OpportunityQuery, UpdateLeadRequest, UpdateOpportunityRequest,
 };
 use crate::services::crm::cust::CrmService;
 use crate::utils::app_state::AppState;
 use crate::utils::error::AppError;
 use crate::utils::response::ApiResponse;
 use axum::{
-    extract::{Path, Query, State},
+    extract::{Multipart, Path, Query, State},
     Json,
 };
 use serde::Deserialize;
@@ -97,6 +97,45 @@ pub async fn export_leads(
     let service = CrmService::new(state.db.clone());
     let table = service.export_leads(query).await?;
     crate::utils::xlsx_export::build_xlsx_response(&table, "crm_leads_export")
+}
+
+/// POST /api/v1/erp/crm/leads/import - 批量导入线索（xlsx）
+///
+/// v11 批次 157d-4 新增：接收 Multipart xlsx 文件，后端用 calamine 解析并批量创建线索。
+/// 文件大小限制 10MB，列顺序与 export_leads 一致。
+pub async fn import_leads(
+    State(state): State<AppState>,
+    auth: AuthContext,
+    mut multipart: Multipart,
+) -> Result<Json<ApiResponse<ImportLeadsResult>>, AppError> {
+    const MAX_IMPORT_SIZE: usize = 10 * 1024 * 1024;
+
+    let mut file_bytes: Option<Vec<u8>> = None;
+
+    while let Some(field) = multipart.next_field().await.unwrap_or(None) {
+        let file_name = field.file_name().unwrap_or("").to_string();
+        // 仅接受 .xlsx 文件
+        if !file_name.ends_with(".xlsx") {
+            return Err(AppError::bad_request("仅支持 .xlsx 格式文件".to_string()));
+        }
+        let data = field
+            .bytes()
+            .await
+            .map_err(|e| AppError::bad_request(format!("文件上传失败：{}", e)))?;
+        if data.len() > MAX_IMPORT_SIZE {
+            return Err(AppError::bad_request(format!(
+                "文件大小超过限制 ({}MB)",
+                MAX_IMPORT_SIZE / 1024 / 1024
+            )));
+        }
+        file_bytes = Some(data.to_vec());
+        break;
+    }
+
+    let bytes = file_bytes.ok_or_else(|| AppError::bad_request("未收到文件".to_string()))?;
+    let service = CrmService::new(state.db.clone());
+    let result = service.import_leads(bytes, auth.user_id).await?;
+    Ok(Json(ApiResponse::success(result)))
 }
 
 pub async fn get_lead(

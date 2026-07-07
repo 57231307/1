@@ -21,6 +21,19 @@ export interface Lead {
   updated_at: string
 }
 
+/** 线索导入结果（v11 批次 157d-4） */
+export interface ImportLeadError {
+  row: number
+  message: string
+}
+
+export interface ImportLeadsResult {
+  total: number
+  success_count: number
+  failed_count: number
+  errors: ImportLeadError[]
+}
+
 export interface Opportunity {
   id: number
   opportunity_no: string
@@ -131,6 +144,13 @@ export function exportLeads(params?: QueryParams): Promise<Blob> {
     params,
     responseType: 'blob',
   })
+}
+
+// v11 批次 157d-4 新增：批量导入线索（xlsx），用 FormData 上传文件
+export function importLeads(file: File): Promise<ApiResponse<ImportLeadsResult>> {
+  const formData = new FormData()
+  formData.append('file', file)
+  return request.post('/crm/leads/import', formData)
 }
 
 // v11 批次 141 修复：补全 CRM 商机导出接口（原缺失，导致 opportunities/index.vue 导出假成功）
