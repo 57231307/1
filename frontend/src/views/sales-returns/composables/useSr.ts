@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
 /**
  * useSr.ts - 销售退货核心 composable
  * 任务编号: P14 批 2 I-3 第 7 批（拆分原 sales-returns/index.vue）
@@ -10,10 +9,62 @@ import { ref, reactive } from 'vue'
 import type { FormInstance } from 'element-plus'
 import { ElMessage } from 'element-plus'
 import { salesReturnApi } from '@/api/sales-return'
+import type { SalesReturn } from '@/api/sales-return'
 import { salesApi } from '@/api/sales'
 import { listCustomers } from '@/api/customer'
 import { productApi } from '@/api/product'
 import logger from '@/utils/logger'
+
+// v11 批次 163 P2-1 修复：定义具体类型替代 any
+interface SalesOrderOption {
+  id: number
+  order_no: string
+  customer_id: number
+  customer_name: string
+  items?: Array<{
+    product_id: number
+    product_name: string
+    product_code: string
+    unit_price: number
+  }>
+}
+
+interface CustomerOption {
+  id: number
+  name: string
+  [key: string]: unknown
+}
+
+interface ProductOption {
+  id: number
+  name: string
+  [key: string]: unknown
+}
+
+interface ReturnFormItem {
+  id: number | null
+  productId: number | null
+  productName: string
+  productCode: string
+  quantity: number
+  unitPrice: number
+  amount: number
+  reason: string
+}
+
+interface ReturnForm {
+  id: number | null
+  salesOrderId: number | null
+  salesOrderNo: string
+  customerId: number | null
+  customerName: string
+  returnDate: string
+  reason: string
+  remarks: string
+  items: ReturnFormItem[]
+  totalAmount: number
+  status: string
+}
 
 /**
  * 销售退货 composable
@@ -23,19 +74,19 @@ export function useSr() {
   // 列表 loading
   const loading = ref(false)
 
-  // 列表数据
-  const returnList = ref<any[]>([])
+  // v11 批次 163 P2-1 修复：any[] 改为具体类型 SalesReturn[]
+  const returnList = ref<SalesReturn[]>([])
 
   // 详情弹窗当前记录
-  const currentReturn = ref<any>({ items: [] })
+  const currentReturn = ref<SalesReturn | null>(null)
 
   // 销售订单/客户/产品下拉数据
-  const salesOrderList = ref<any[]>([])
-  const customerList = ref<any[]>([])
-  const productList = ref<any[]>([])
+  const salesOrderList = ref<SalesOrderOption[]>([])
+  const customerList = ref<CustomerOption[]>([])
+  const productList = ref<ProductOption[]>([])
 
   // 表单数据
-  const formData = reactive<any>({
+  const formData = reactive<ReturnForm>({
     id: null,
     salesOrderId: null,
     salesOrderNo: '',
@@ -44,7 +95,7 @@ export function useSr() {
     returnDate: '',
     reason: '',
     remarks: '',
-    items: [] as any[],
+    items: [],
     totalAmount: 0,
     status: 'PENDING',
   })
@@ -58,8 +109,9 @@ export function useSr() {
     try {
       const res = await salesReturnApi.list()
       returnList.value = res.data?.list || []
-    } catch (error: any) {
-      ElMessage.error(error.message || '加载退货列表失败')
+    } catch (error: unknown) {
+      // v11 批次 163 P2-1 修复：catch (error: any) 改为 unknown + 类型守卫
+      ElMessage.error((error instanceof Error ? error.message : String(error)) || '加载退货列表失败')
     } finally {
       loading.value = false
     }
@@ -69,9 +121,9 @@ export function useSr() {
   const loadSalesOrders = async () => {
     try {
       const res = await salesApi.getOrderList({ status: 'completed' })
-      salesOrderList.value = res.data?.list || []
-    } catch (error: any) {
-      logger.error('加载销售订单失败', error)
+      salesOrderList.value = (res.data?.list || []) as unknown as SalesOrderOption[]
+    } catch (error: unknown) {
+      logger.error('加载销售订单失败', error instanceof Error ? error.message : String(error))
     }
   }
 
@@ -79,9 +131,9 @@ export function useSr() {
   const loadCustomers = async () => {
     try {
       const res = await listCustomers()
-      customerList.value = res.data?.list || []
-    } catch (error: any) {
-      logger.error('加载客户列表失败', error)
+      customerList.value = (res.data?.list || []) as unknown as CustomerOption[]
+    } catch (error: unknown) {
+      logger.error('加载客户列表失败', error instanceof Error ? error.message : String(error))
     }
   }
 
@@ -89,9 +141,9 @@ export function useSr() {
   const loadProducts = async () => {
     try {
       const res = await productApi.list()
-      productList.value = res.data?.list || []
-    } catch (error: any) {
-      logger.error('加载产品列表失败', error)
+      productList.value = (res.data?.list || []) as unknown as ProductOption[]
+    } catch (error: unknown) {
+      logger.error('加载产品列表失败', error instanceof Error ? error.message : String(error))
     }
   }
 
@@ -106,25 +158,25 @@ export function useSr() {
       returnDate: new Date().toISOString().split('T')[0],
       reason: '',
       remarks: '',
-      items: [{ id: null, productId: null, quantity: 1, unitPrice: 0, reason: '' }],
+      items: [{ id: null, productId: null, productName: '', productCode: '', quantity: 1, unitPrice: 0, amount: 0, reason: '' }],
       totalAmount: 0,
       status: 'PENDING',
     })
   }
 
   // 用行数据填充表单为编辑态
-  const fillFormForEdit = (row: any) => {
+  const fillFormForEdit = (row: SalesReturn) => {
     Object.assign(formData, {
-      id: row.id,
-      salesOrderId: row.salesOrderId,
-      salesOrderNo: row.salesOrderNo,
-      customerId: row.customerId,
-      customerName: row.customerName,
-      returnDate: row.returnDate,
-      reason: row.reason,
+      id: row.id ?? null,
+      salesOrderId: row.salesOrderId ?? null,
+      salesOrderNo: row.salesOrderNo ?? '',
+      customerId: row.customerId ?? null,
+      customerName: row.customerName ?? '',
+      returnDate: row.returnDate ?? '',
+      reason: row.reason ?? '',
       items: row.items ? [...row.items] : [],
-      totalAmount: row.totalAmount,
-      status: row.status,
+      totalAmount: row.totalAmount ?? 0,
+      status: row.status ?? 'PENDING',
     })
   }
 
@@ -136,7 +188,8 @@ export function useSr() {
       formData.customerId = order.customer_id
       formData.customerName = order.customer_name
       if (order.items) {
-        formData.items = order.items.map((item: any) => ({
+        formData.items = order.items.map(item => ({
+          id: null,
           productId: item.product_id,
           productName: item.product_name,
           productCode: item.product_code,
@@ -172,7 +225,7 @@ export function useSr() {
 
   // 重算总金额
   const calculateTotal = () => {
-    formData.totalAmount = formData.items.reduce((sum: number, item: any) => {
+    formData.totalAmount = formData.items.reduce((sum, item) => {
       return sum + item.quantity * item.unitPrice
     }, 0)
   }
@@ -194,7 +247,7 @@ export function useSr() {
 
     const submitData = {
       ...formData,
-      items: formData.items.map((item: any) => ({
+      items: formData.items.map(item => ({
         productId: item.productId,
         quantity: item.quantity,
         unitPrice: item.unitPrice,
@@ -208,12 +261,16 @@ export function useSr() {
         await salesReturnApi.create(submitData)
         ElMessage.success('创建成功')
       } else {
-        await salesReturnApi.update(formData.id, submitData)
+        await salesReturnApi.update(formData.id as number, submitData)
         ElMessage.success('更新成功')
       }
       return true
-    } catch (error: any) {
-      ElMessage.error(error.message || (dialogMode === 'create' ? '创建失败' : '更新失败'))
+    } catch (error: unknown) {
+      // v11 批次 163 P2-1 修复：catch (error: any) 改为 unknown + 类型守卫
+      ElMessage.error(
+        (error instanceof Error ? error.message : String(error)) ||
+          (dialogMode === 'create' ? '创建失败' : '更新失败')
+      )
       return false
     }
   }

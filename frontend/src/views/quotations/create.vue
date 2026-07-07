@@ -203,7 +203,8 @@ function defaultValidUntil(): string {
 
 /** 表单数据 */
 const form = reactive<CreateQuotationDto>({
-  customer_id: undefined as any,
+  // v11 批次 163 P2-1 修复：undefined as any 改为类型断言
+  customer_id: undefined as unknown as number,
   sales_user_id: 0,
   quotation_date: todayStr(),
   valid_until: defaultValidUntil(),
@@ -233,12 +234,13 @@ const rules: FormRules = {
   exchange_rate: [{ required: true, message: '请输入汇率', trigger: 'blur' }],
   items: [
     {
-      validator: (_rule: any, value: any[], cb: any) => {
+      // v11 批次 163 P2-1 修复：validator 参数类型化（FormItemRule validator 签名）
+      validator: (_rule: unknown, value: CreateQuotationItemDto[], cb: (error?: Error) => void) => {
         if (!value || value.length === 0) {
           cb(new Error('请至少添加 1 个产品明细'))
           return
         }
-        const invalid = value.find((i: any) => !i.product_id || i.quantity <= 0 || i.unit_price < 0)
+        const invalid = value.find(i => !i.product_id || i.quantity <= 0 || i.unit_price < 0)
         if (invalid) {
           cb(new Error('明细行必须选择产品且数量 > 0'))
           return
@@ -266,8 +268,10 @@ const totalAmount = computed(() => subtotal.value + taxAmount.value)
 async function loadCustomers() {
   try {
     const res = await listCustomers({ page: 1, page_size: 1000 })
-    const data = (res.data as any) || {}
-    customers.value = data.list || data.items || []
+    // v11 批次 163 P2-1 修复：res.data as any 改为运行时安全访问
+    const data = (res.data || {}) as { list?: unknown[]; items?: unknown[] }
+    const list = data.list || data.items || []
+    customers.value = list as { id: number; name: string }[]
   } catch {
     customers.value = []
   }
@@ -334,11 +338,12 @@ async function handleSaveDraft() {
       const id = Number(props.quotationId || route.params.id)
       const res = await updateQuotation(id, form)
       ElMessage.success('草稿已更新')
-      router.push(`/quotations/${(res.data as any).id}`)
+      // v11 批次 163 P2-1 修复：res.data as any 改为 QuotationResponseDto
+      router.push(`/quotations/${res.data?.id ?? id}`)
     } else {
       const res = await createQuotation(form)
       ElMessage.success('草稿保存成功')
-      router.push(`/quotations/${(res.data as any).id}`)
+      router.push(`/quotations/${res.data?.id ?? ''}`)
     }
   } catch (e: unknown) {
     // 批次 98 P2-D 修复（v5 复审）：原 catch (e: any) 改为 unknown + 类型守卫
@@ -364,10 +369,11 @@ async function handleSubmit() {
     if (isEdit.value) {
       const id = Number(props.quotationId || route.params.id)
       const res = await updateQuotation(id, form)
-      quotationId = (res.data as any).id
+      // v11 批次 163 P2-1 修复：res.data as any 改为 QuotationResponseDto
+      quotationId = res.data?.id ?? id
     } else {
       const res = await createQuotation(form)
-      quotationId = (res.data as any).id
+      quotationId = res.data?.id ?? 0
     }
     await submitQuotation(quotationId)
     ElMessage.success('已提交审批')
