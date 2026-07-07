@@ -9,9 +9,23 @@ import { setupTotp, enableTotp, generateRecoveryCodes } from '@/api/auth'
 import { useUserStore } from '@/store/user'
 import { logger } from '@/utils/logger'
 
-/** TfaStep3 子组件暴露的接口（defineExpose 提供的 validate 方法） */
+/** TfaStep3 子组件暴露的接口（defineExpose 提供的 validate/setError 方法） */
 export interface TfaStep3Instance {
   validate: () => Promise<{ valid: boolean; token: string }>
+  setError: (msg: string) => void
+  clearError: () => void
+}
+
+/** v11 批次 172 P2-1 修复：定义 TFA 主状态接口，替代 tfa: any */
+export interface TfaState {
+  currentStep: number
+  setupLoading: boolean
+  qrCodeDataUrl: string
+  secretText: string
+  enableLoading: boolean
+  recoveryCodes: string[]
+  isEnabled: boolean
+  username: string
 }
 
 /** TwoFactorSetup 业务流程 composable */
@@ -20,7 +34,7 @@ export const useTfaProc = () => {
   const userStore = useUserStore()
 
   // 启动设置：调 GET /auth/totp/setup
-  const handleStartSetup = async (tfa: any) => {
+  const handleStartSetup = async (tfa: TfaState) => {
     tfa.setupLoading = true
     try {
       const res = await setupTotp()
@@ -39,21 +53,21 @@ export const useTfaProc = () => {
   }
 
   // 上一步
-  const handlePrevStep = (tfa: any) => {
+  const handlePrevStep = (tfa: TfaState) => {
     if (tfa.currentStep > 0) {
       tfa.currentStep -= 1
     }
   }
 
   // 下一步
-  const handleNextStep = (tfa: any) => {
+  const handleNextStep = (tfa: TfaState) => {
     if (tfa.currentStep < 3) {
       tfa.currentStep += 1
     }
   }
 
   // 复制密钥到剪贴板
-  const handleCopySecret = async (tfa: any) => {
+  const handleCopySecret = async (tfa: TfaState) => {
     try {
       await navigator.clipboard.writeText(tfa.secretText)
       ElMessage.success('密钥已复制到剪贴板')
@@ -64,7 +78,7 @@ export const useTfaProc = () => {
 
   // 验证并启用：调 POST /auth/totp/enable
   // 通过 tfaStep3Ref 调 TfaStep3 的 validate 方法获取 token
-  const handleVerifyAndEnable = async (tfa: any, tfaStep3Ref?: TfaStep3Instance | null) => {
+  const handleVerifyAndEnable = async (tfa: TfaState, tfaStep3Ref?: TfaStep3Instance | null) => {
     if (!tfaStep3Ref) {
       ElMessage.error('表单组件未就绪')
       return
@@ -94,21 +108,21 @@ export const useTfaProc = () => {
         }
         tfa.currentStep = 3
       } else {
-        // 将错误传给 TfaStep3
-        const tfa3 = tfaStep3Ref as any
-        if (tfa3 && typeof tfa3.setError === 'function') {
-          tfa3.setError(res.message || '验证失败，请重试')
+        // 将错误传给 TfaStep3（接口已扩展 setError，直接调用）
+        if (tfaStep3Ref && typeof tfaStep3Ref.setError === 'function') {
+          tfaStep3Ref.setError(res.message || '验证失败，请重试')
         } else {
           ElMessage.error(res.message || '验证失败，请重试')
         }
       }
-    } catch (error: any) {
+    } catch (error: unknown) {
+      // v11 批次 172 P2-1 修复：catch (error: any) 改为 unknown + 类型守卫
       logger.error('验证 TOTP 失败:', error)
-      const tfa3 = tfaStep3Ref as any
-      if (tfa3 && typeof tfa3.setError === 'function') {
-        tfa3.setError(error?.message || '验证失败，请检查令牌是否正确')
+      const errMsg = error instanceof Error ? error.message : String(error)
+      if (tfaStep3Ref && typeof tfaStep3Ref.setError === 'function') {
+        tfaStep3Ref.setError(errMsg || '验证失败，请检查令牌是否正确')
       } else {
-        ElMessage.error(error?.message || '验证失败，请检查令牌是否正确')
+        ElMessage.error(errMsg || '验证失败，请检查令牌是否正确')
       }
     } finally {
       tfa.enableLoading = false
@@ -116,7 +130,7 @@ export const useTfaProc = () => {
   }
 
   // 复制恢复码
-  const handleCopyRecovery = async (tfa: any) => {
+  const handleCopyRecovery = async (tfa: TfaState) => {
     try {
       await navigator.clipboard.writeText(tfa.recoveryCodes.join('\n'))
       ElMessage.success('恢复码已复制到剪贴板')

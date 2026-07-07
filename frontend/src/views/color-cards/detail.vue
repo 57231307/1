@@ -10,7 +10,7 @@
             <div style="color: #909399; margin-top: 4px">
               <span>{{ card?.card_no }}</span>
               <el-divider direction="vertical" />
-              <el-tag size="small" :type="(COLOR_CARD_STATUS_COLORS[card?.status || ''] as any)">
+              <el-tag size="small" :type="(COLOR_CARD_STATUS_COLORS[card?.status || ''] as TagType)">
                 {{ COLOR_CARD_STATUS[card?.status as keyof typeof COLOR_CARD_STATUS] || card?.status }}
               </el-tag>
             </div>
@@ -34,7 +34,7 @@
             <el-descriptions-item label="品牌">{{ card?.brand || '-' }}</el-descriptions-item>
             <el-descriptions-item label="色号总数">{{ card?.total_colors }}</el-descriptions-item>
             <el-descriptions-item label="状态">
-              <el-tag :type="(COLOR_CARD_STATUS_COLORS[card?.status || ''] as any)">
+              <el-tag :type="(COLOR_CARD_STATUS_COLORS[card?.status || ''] as TagType)">
                 {{ COLOR_CARD_STATUS[card?.status as keyof typeof COLOR_CARD_STATUS] || card?.status }}
               </el-tag>
             </el-descriptions-item>
@@ -130,6 +130,25 @@ import ColorCardGrid from '@/components/ColorCardGrid.vue'
 import ColorItemEditor from '@/components/ColorItemEditor.vue'
 import BorrowRecordTimeline from '@/components/BorrowRecordTimeline.vue'
 
+// v11 批次 173 P2-1 修复：扫码结果接口类型，替代 any
+interface ScanRecipeSummary {
+  recipe_name: string
+  color_no: string
+}
+interface ScanPriceSummary {
+  currency: string
+  base_price: number
+}
+interface ScanResult {
+  color_item?: ColorItemInfo
+  color_card_name?: string
+  recipe_summary?: ScanRecipeSummary
+  price_summary?: ScanPriceSummary
+}
+
+// v11 批次 173 P2-1 修复：el-tag type 类型
+type TagType = 'success' | 'warning' | 'info' | 'primary' | 'danger'
+
 const route = useRoute()
 const cardId = computed(() => Number(route.params.id))
 const loading = ref(false)
@@ -154,16 +173,20 @@ const importing = ref(false)
 const importText = ref('')
 
 const showScanDialog = ref(false)
-const scanResult = ref<any>(null)
+// v11 批次 173 P2-1 修复：ref<any>(null) 改为 ref<ScanResult | null>(null)
+const scanResult = ref<ScanResult | null>(null)
 
 const loadData = async () => {
   loading.value = true
   try {
-    const cardRes: any = await getColorCard(cardId.value)
+    // v11 批次 173 P2-1 修复：const res: any 改为 as 具体类型
+    const cardRes = (await getColorCard(cardId.value)) as { data: ColorCardDetail }
     card.value = cardRes.data
     items.value = cardRes.data.items || []
 
-    const recordsRes: any = await listBorrowRecords({ color_card_id: cardId.value, page_size: 50 })
+    const recordsRes = (await listBorrowRecords({ color_card_id: cardId.value, page_size: 50 })) as {
+      data?: { items?: BorrowRecordInfo[] }
+    }
     borrowRecords.value = recordsRes.data?.items || []
   } finally {
     loading.value = false
@@ -201,7 +224,8 @@ const handleDeleteItem = async (item: ColorItemInfo) => {
 
 const handleScanItem = async (item: ColorItemInfo) => {
   try {
-    const res: any = await scanColorCode(item.color_code)
+    // v11 批次 173 P2-1 修复：const res: any 改为 as { data: ScanResult }
+    const res = (await scanColorCode(item.color_code)) as { data: ScanResult }
     scanResult.value = res.data
     showScanDialog.value = true
   } catch (e: unknown) {
@@ -229,7 +253,10 @@ const handleBatchImport = async () => {
         hex_value: parts[5] || '#000000',
       }
     })
-    const res: any = await batchImportItems(cardId.value, items)
+    // v11 批次 173 P2-1 修复：const res: any 改为 as 具体类型
+    const res = (await batchImportItems(cardId.value, items)) as {
+      data?: { success_count?: number; failed_count?: number }
+    }
     ElMessage.success(`导入完成：成功 ${res.data?.success_count} 条，失败 ${res.data?.failed_count} 条`)
     showImportDialog.value = false
     importText.value = ''

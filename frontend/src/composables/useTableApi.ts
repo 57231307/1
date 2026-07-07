@@ -23,7 +23,8 @@ interface ListResponsePayload {
 
 export interface UseTableApiOptions {
   url: string
-  defaultParams?: Record<string, any>
+  // v11 批次 172 P2-1 修复：Record<string, any> 改为 Record<string, unknown>
+  defaultParams?: Record<string, unknown>
   defaultPageSize?: number
   pageKey?: string
   pageSizeKey?: string
@@ -31,26 +32,26 @@ export interface UseTableApiOptions {
   listKey?: string
   retryCount?: number
   retryDelay?: number
-  onError?: (err: any) => void
+  onError?: (err: unknown) => void
 }
 
-export interface UseTableApiReturn<T = any> {
+export interface UseTableApiReturn<T = unknown> {
   data: Ref<T[]>
   total: Ref<number>
   loading: Ref<boolean>
   page: Ref<number>
   pageSize: Ref<number>
-  queryParams: Ref<Record<string, any>>
+  queryParams: Ref<Record<string, unknown>>
   refresh: () => Promise<void>
   reset: () => void
-  setQueryParam: (key: string, value: any) => void
+  setQueryParam: (key: string, value: unknown) => void
 }
 
 /**
  * 通用表格数据获取 composable
  * 支持分页 / 筛选 / 排序 / loading / 错误重试
  */
-export function useTableApi<T = any>(
+export function useTableApi<T = unknown>(
   optionsOrUrl: UseTableApiOptions | string
 ): UseTableApiReturn<T> {
   const options: UseTableApiOptions = typeof optionsOrUrl === 'string'
@@ -75,28 +76,36 @@ export function useTableApi<T = any>(
   const loading = ref(false)
   const page = ref(1)
   const pageSize = ref(defaultPageSize)
-  const queryParams = ref<Record<string, any>>({ ...defaultParams })
+  // v11 批次 172 P2-1 修复：ref<Record<string, any>> 改为 Record<string, unknown>
+  const queryParams = ref<Record<string, unknown>>({ ...defaultParams })
 
   /**
    * 从响应中探测 list 和 total 字段
    * - 优先匹配 options.listKey 指定字段名
    * - 后备：list / items / data / results
    */
-  const detectList = (payload: any): T[] => {
-    if (Array.isArray(payload)) return payload
+  // v11 批次 172 P2-1 修复：payload: any 改为 payload: ListResponsePayload | unknown[]
+  const detectList = (payload: ListResponsePayload | unknown[]): T[] => {
+    if (Array.isArray(payload)) return payload as T[]
     // 优先按 listKey 指定的字段名取
-    if (listKey && Array.isArray(payload?.[listKey])) return payload[listKey]
-    if (Array.isArray(payload?.list)) return payload.list
-    if (Array.isArray(payload?.items)) return payload.items
-    if (Array.isArray(payload?.data)) return payload.data
-    if (Array.isArray(payload?.results)) return payload.results
+    const obj = payload as ListResponsePayload
+    if (listKey && Array.isArray(obj?.[listKey as keyof ListResponsePayload])) {
+      return obj[listKey as keyof ListResponsePayload] as unknown as T[]
+    }
+    if (Array.isArray(obj?.list)) return obj.list as unknown as T[]
+    if (Array.isArray(obj?.items)) return obj.items as unknown as T[]
+    if (Array.isArray(obj?.data)) return obj.data as unknown as T[]
+    if (Array.isArray(obj?.results)) return obj.results as unknown as T[]
     return []
   }
 
-  const detectTotal = (payload: any): number => {
-    if (typeof payload?.[totalKey] === 'number') return payload[totalKey]
-    if (typeof payload?.total === 'number') return payload.total
-    if (typeof payload?.count === 'number') return payload.count
+  const detectTotal = (payload: ListResponsePayload | unknown[]): number => {
+    const obj: ListResponsePayload = Array.isArray(payload) ? {} : payload
+    if (typeof obj?.[totalKey as keyof ListResponsePayload] === 'number') {
+      return obj[totalKey as keyof ListResponsePayload] as number
+    }
+    if (typeof obj?.total === 'number') return obj.total
+    if (typeof obj?.count === 'number') return obj.count
     return 0
   }
 
@@ -106,7 +115,8 @@ export function useTableApi<T = any>(
   const fetchData = async (attempt = 0): Promise<void> => {
     loading.value = true
     try {
-      const params: Record<string, any> = {
+      // v11 批次 172 P2-1 修复：params: Record<string, any> 改为 Record<string, unknown>
+      const params: Record<string, unknown> = {
         ...queryParams.value,
         [pageKey]: page.value,
         [pageSizeKey]: pageSize.value,
@@ -143,7 +153,8 @@ export function useTableApi<T = any>(
     pageSize.value = defaultPageSize
   }
 
-  const setQueryParam = (key: string, value: any): void => {
+  // v11 批次 172 P2-1 修复：value: any 改为 value: unknown
+  const setQueryParam = (key: string, value: unknown): void => {
     queryParams.value = { ...queryParams.value, [key]: value }
   }
 
