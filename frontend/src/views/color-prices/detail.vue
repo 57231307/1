@@ -19,13 +19,13 @@
               <span v-if="price">{{ formatPrice(price.base_price, price.currency) }}</span>
             </el-descriptions-item>
             <el-descriptions-item label="客户等级">
-              <el-tag v-if="price?.customer_level" :type="getLevelColor(price.customer_level) as any">
+              <el-tag v-if="price?.customer_level" :type="getLevelColor(price.customer_level) as TagType">
                 {{ getLevelLabel(price.customer_level) }}
               </el-tag>
               <span v-else>-</span>
             </el-descriptions-item>
             <el-descriptions-item label="季节">
-              <el-tag v-if="price?.season" :type="getSeasonColor(price.season) as any">
+              <el-tag v-if="price?.season" :type="getSeasonColor(price.season) as TagType">
                 {{ getSeasonLabel(price.season) }}
               </el-tag>
               <span v-else>-</span>
@@ -35,12 +35,12 @@
               {{ price?.effective_from }} ~ {{ price?.effective_to || '长期' }}
             </el-descriptions-item>
             <el-descriptions-item label="状态">
-              <el-tag :type="price?.is_active ? 'success' : 'info' as any">
+              <el-tag :type="price?.is_active ? 'success' : 'info' as TagType">
                 {{ price?.is_active ? '启用' : '禁用' }}
               </el-tag>
             </el-descriptions-item>
             <el-descriptions-item label="审批状态" :span="2">
-              <el-tag :type="getApprovalColor(price?.approval_status || '') as any">
+              <el-tag :type="getApprovalColor(price?.approval_status || '') as TagType">
                 {{ getApprovalLabel(price?.approval_status || '') }}
               </el-tag>
             </el-descriptions-item>
@@ -78,7 +78,7 @@
         <el-table-column prop="tier_price" label="阶梯价" width="120" />
         <el-table-column label="客户等级" width="120">
           <template #default="{ row }">
-            <el-tag v-if="row.customer_level" :type="getLevelColor(row.customer_level) as any">
+            <el-tag v-if="row.customer_level" :type="getLevelColor(row.customer_level) as TagType">
               {{ getLevelLabel(row.customer_level) }}
             </el-tag>
             <span v-else>通用</span>
@@ -149,6 +149,9 @@ import {
 } from '@/api/color-price'
 import PriceHistoryChart from '@/components/PriceHistoryChart.vue'
 
+// v11 批次 174 P2-1 修复：el-tag type 类型
+type TagType = 'success' | 'warning' | 'info' | 'primary' | 'danger'
+
 const route = useRoute()
 const loading = ref(false)
 const price = ref<ColorPriceDetail | null>(null)
@@ -165,8 +168,9 @@ const loadData = async () => {
     history.value = h.items
     const t = await listTiers(priceId)
     tiers.value = t.items
-  } catch (e: any) {
-    ElMessage.error('加载失败：' + (e?.message || '未知错误'))
+  } catch (e: unknown) {
+    // v11 批次 174 P2-1 修复：catch (e: any) 改为 unknown + 类型守卫
+    ElMessage.error('加载失败：' + (e instanceof Error ? e.message : String(e)))
   } finally {
     loading.value = false
   }
@@ -221,8 +225,9 @@ const onSubmitTier = async () => {
       ElMessage.success('阶梯价添加成功')
       tierDialogVisible.value = false
       loadData()
-    } catch (e: any) {
-      ElMessage.error('添加失败：' + (e?.message || '未知错误'))
+    } catch (e: unknown) {
+      // v11 批次 174 P2-1 修复：catch (e: any) 改为 unknown + 类型守卫
+      ElMessage.error('添加失败：' + (e instanceof Error ? e.message : String(e)))
     } finally {
       tierSubmitting.value = false
     }
@@ -235,9 +240,10 @@ const handleDeleteTier = async (row: PriceTier) => {
     await deleteTier(row.id)
     ElMessage.success('删除成功')
     loadData()
-  } catch (e: any) {
+  } catch (e: unknown) {
+    // v11 批次 174 P2-1 修复：catch (e: any) 改为 unknown + 类型守卫
     if (e === 'cancel') return
-    ElMessage.error('删除失败：' + (e?.message || '未知错误'))
+    ElMessage.error('删除失败：' + (e instanceof Error ? e.message : String(e)))
   }
 }
 

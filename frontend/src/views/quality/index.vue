@@ -214,6 +214,9 @@ import {
   type Defect,
 } from '@/api/quality'
 
+// v11 批次 173 P2-1 修复：el-tag type 类型
+type TagType = 'success' | 'warning' | 'info' | 'primary' | 'danger'
+
 // v11 批次 161 P2-5 修复：后端已支持分页（返回 PaginatedResponse 含 items+total），
 // RecordTab 通过 useTableApi 自动消费分页元数据，无需在此维护分页状态
 
@@ -231,7 +234,8 @@ const defectLoading = ref(false)
 const fetchStandards = async () => {
   standardLoading.value = true
   try {
-    const res: any = await listQualityStandards()
+    // v11 批次 173 P2-1 修复：const res: any 改为直接使用 API 返回类型
+    const res = await listQualityStandards()
     standards.value = res.data! || []
   } finally {
     standardLoading.value = false
@@ -253,7 +257,8 @@ const fetchRecords = async () => {
 const fetchDefects = async () => {
   defectLoading.value = true
   try {
-    const res: any = await listDefects()
+    // v11 批次 173 P2-1 修复：const res: any 改为直接使用 API 返回类型
+    const res = await listDefects()
     defects.value = res.data! || []
   } finally {
     defectLoading.value = false
@@ -270,8 +275,9 @@ const getStandardStatusLabel = (status: string) => {
   return map[status] || status
 }
 
-const getStandardStatusType = (status: string) => {
-  const map: Record<string, any> = {
+const getStandardStatusType = (status: string): TagType => {
+  // v11 批次 173 P2-1 修复：Record<string, any> 改为 Record<string, TagType>
+  const map: Record<string, TagType> = {
     draft: 'info',
     approved: 'warning',
     published: 'success',
@@ -419,7 +425,8 @@ const versionHistoryList = ref<QualityStandard[]>([])
 const viewVersionHistory = async (row: QualityStandard) => {
   versionHistoryLoading.value = true
   try {
-    const res: any = await getQualityStandardVersions(row.id)
+    // v11 批次 173 P2-1 修复：const res: any 改为直接使用 API 返回类型
+    const res = await getQualityStandardVersions(row.id)
     versionHistoryList.value = res.data! || []
     versionHistoryVisible.value = true
   } catch (e: unknown) {

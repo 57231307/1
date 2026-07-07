@@ -101,7 +101,7 @@
         <el-table-column prop="remarks" label="备注" min-width="150" show-overflow-tooltip />
         <el-table-column label="操作" width="200" align="center" fixed="right">
           <template #default="{ row }">
-            <el-button type="primary" link size="small" @click="handleView(row as any)"
+            <el-button type="primary" link size="small" @click="handleView(row as DyeBatch)"
               >查看</el-button
             >
             <el-button
@@ -109,7 +109,7 @@
               type="primary"
               link
               size="small"
-              @click="handleEdit(row as any)"
+              @click="handleEdit(row as DyeBatch)"
               >编辑</el-button
             >
             <el-button
@@ -117,7 +117,7 @@
               type="success"
               link
               size="small"
-              @click="handleComplete(row as any)"
+              @click="handleComplete(row as DyeBatch)"
               >完成</el-button
             >
             <el-button
@@ -125,7 +125,7 @@
               type="danger"
               link
               size="small"
-              @click="handleDelete(row as any)"
+              @click="handleDelete(row as DyeBatch)"
               >删除</el-button
             >
           </template>
@@ -338,17 +338,17 @@ const handleCreate = () => {
 }
 
 // 查看
-const handleView = (_row: any) => {}
+const handleView = (_row: DyeBatch) => {}
 
 // 编辑
-const handleEdit = (row: any) => {
+const handleEdit = (row: DyeBatch) => {
   dialogTitle.value = '编辑缸号'
   Object.assign(formData, row)
   dialogVisible.value = true
 }
 
 // 完成
-const handleComplete = async (row: any) => {
+const handleComplete = async (row: DyeBatch) => {
   try {
     await ElMessageBox.confirm('确认完成该缸号？', '提示', { type: 'warning' })
     await completeDyeBatch(row.id)
@@ -360,7 +360,7 @@ const handleComplete = async (row: any) => {
 }
 
 // 删除
-const handleDelete = async (row: any) => {
+const handleDelete = async (row: DyeBatch) => {
   try {
     await ElMessageBox.confirm('确认删除该缸号？', '提示', { type: 'warning' })
     await deleteDyeBatch(row.id)
