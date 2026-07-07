@@ -336,6 +336,37 @@ v9 复审维度（沿用 v8）：
 4. 硬编码假数据扫描（`vec![]` / `serde_json::json!` / 硬编码字符串状态）
 5. unwrap/expect 残留扫描（生产代码中的 panic 风险）
 
+### v11 复审 P1 dead_code 全量真实接入（批次 158，CI 验证中）
+
+**用户关键反馈**（2026-07-07）：
+- "为什么不按规则进行实现而是预留api?"
+- "为啥不按规则进行真实实现？"
+
+**修复方式**：撤回上一会话错误的 `#[allow(dead_code)]` 预留 API 方式，按规则 0/1/2 真实实现。
+
+**批次 158 修复分类（58 处项级 allow 标注）**：
+- 类 A 真死代码删除（4 条）：report/mod.rs ReportSubscription、report/job.rs infer_frequency、import_export_service.rs generate_csv
+- 类 B 误判死代码移除标注（16 条）：report/ds.rs 10 方法、websocket notifications、audit_log_service、export_service 等
+- 类 C 真实接入业务（19 条）：
+  - ar_service cancel_collection 方法 + POST /ar/payments/:id/cancel 路由
+  - ar/vfy.rs match_strategy 策略分支（exact/date_order/all）
+  - so/ 子模块状态常量接入 + 新增 inventory_reservation/sales_delivery 模块
+  - warehouse capacity 字段持久化（migration m0044）
+  - api_key description 字段持久化（migration m0044）
+  - password_policy_service 真实接入 change_password 流程（migration m0045 password_histories 表 + 密码历史校验 + build_password_blacklist 接入）
+  - cache.rs CachedValue.created_at 接入 evict_oldest LRU 淘汰策略
+  - status::approval 模块接入 color_price/budget_adjustment/ar_invoice（11 处字符串替换为常量，删除未使用的 DRAFT/CANCELLED）
+- 类 D SeaORM 模型例外（10 条）：models/ 下文件级 #![allow(dead_code)] 保留
+
+**main commit `b7b2baa`，16 文件 +313 -46 行**
+
+### v11 剩余任务
+
+- ⏳ 批次 158 CI 12/12 全绿验证
+- ⏳ v11 前端 P1-6 i18n 接入
+- ⏳ v11 前端 P2 次要（7 类）
+- ⏳ v12 全项目复审
+
 ### 历史批次索引
 
 | 批次范围 | 主要内容 | 状态 |

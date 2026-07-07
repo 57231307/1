@@ -6,6 +6,64 @@
 
 ---
 
+## 2026-07-07 (批次 158 v11 复审 P1 dead_code 全量真实接入完成)
+
+### 批次 158：v11 复审 P1 修复 — 全项目项级 dead_code 按规则 0/1/2 真实接入
+
+**main commit `b7b2baa`，16 文件 +313 -46 行，CI 验证中**
+
+撤回上一会话错误的 `#[allow(dead_code)]` 修复方式，对全项目所有 58 处项级 `#[allow(dead_code)]` 标注按规则 0/1/2 进行真实实现或删除。
+
+| 类别 | 数量 | 处理方式 | 典型项 |
+|------|------|----------|--------|
+| 类 A 真死代码 | 4 | 删除 | report/mod.rs ReportSubscription 结构体、report/job.rs infer_frequency、import_export_service.rs generate_csv |
+| 类 B 误判死代码 | 16 | 移除 allow 标注 | report/ds.rs 10 个方法、websocket notifications verify_jwt_token、audit_log_service delete_with_audit_i64 |
+| 类 C 真实接入业务 | 19 | 接入业务链路 | ar_service cancel_collection、password_policy_service 密码历史、cache.rs LRU 淘汰、status::approval 审批常量 |
+| 类 D SeaORM 模型例外 | 10 | 保留不动 | models/ 下文件级 #![allow(dead_code)]（SeaORM 派生宏需要） |
+
+**类 C 真实接入详情（19 项）**：
+
+1. **ar_service.rs cancel_collection 方法**（COLLECTION_CANCELLED 常量接入）
+   - 新增 POST /api/v1/erp/ar/payments/:id/cancel 路由
+   - 实现：仅 pending 状态可取消，校验未被核销单引用，状态置为 cancelled
+
+2. **ar/vfy.rs match_strategy 策略分支**
+   - 新增 exact/date_order/all 三种匹配策略，原硬编码 all 行为改为可选
+
+3. **so/ 子模块状态常量接入**（order_workflow/order_crud/order_query/delivery/contract）
+   - 字符串字面量替换为 so_status::DRAFT/PENDING/APPROVED 等常量
+   - 新增 inventory_reservation 和 sales_delivery 状态常量模块
+
+4. **warehouse capacity 字段持久化**（migration m0044 + model + service）
+   - CreateWarehouseRequest/UpdateWarehouseRequest.capacity 接入
+   - warehouses 表新增 capacity 列
+
+5. **api_key description 字段持久化**（migration m0044 + model + service）
+   - UpdateApiKeyGwRequest.description 接入
+   - api_keys 表新增 description 列
+
+6. **password_policy_service.rs 真实接入 change_password 流程**
+   - 新建 password_histories 表（migration m0045）
+   - 新建 password_history model
+   - 新增 load_history_from_db / save_to_db / count_history 方法
+   - change_password handler 接入密码历史校验 + 旧密码哈希持久化
+   - validate_password_strength 接入 build_password_blacklist 批量黑名单校验
+
+7. **cache.rs CachedValue.created_at 接入 evict_oldest LRU 淘汰策略**
+   - 原实现使用 retain 任意淘汰，现按 created_at 升序淘汰最旧 N 项
+
+8. **status::approval 模块接入 color_price / budget_adjustment / ar_invoice 业务**
+   - 11 处字符串字面量替换为 approval::PENDING/APPROVED/REJECTED 常量
+   - 删除未被业务引用的 DRAFT 和 CANCELLED 常量（按规则 6 死代码处理）
+
+**关键决策**：
+- 撤回上一会话错误的 `#[allow(dead_code)]` 预留 API 方式（用户反馈："为啥不按规则进行真实实现？"）
+- password_policy_service 整个服务从仅在测试中运行升级为真实接入 change_password 业务链路
+- cache.rs evict_oldest 从任意淘汰升级为基于 created_at 的 LRU 淘汰（修复隐性 bug）
+- status::approval 模块从 dead_code 升级为 11 处业务引用的活跃模块
+
+---
+
 ## 2026-07-05 (批次 131 v9 复审 P0 purchase_inspection 4 个明细 CRUD 真实接入完成)
 
 ### 批次 131：v9 复审 P0 修复 — purchase_inspection 4 个明细 CRUD 真实接入
