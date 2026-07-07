@@ -74,6 +74,7 @@
 
 | 批次 | main commit | 内容 |
 |------|-------------|------|
+| 184 | `42deb8cd` | v11 前端 P2-1 any 清理（16 处 → 0 处，4 文件：ReturnsTable + SpTbl + QuotationItemEditor + PrcTbl；CI 11/12 核心 success）|
 | 183-ci-v3 | `c1f9b708` | v11 前端 P2-1 SchGChart 真正接入 ECharts 5 官方类型（ECElementEvent/CustomSeriesRenderItemParams/CustomSeriesRenderItemAPI 从 'echarts' 导入，CallbackDataParams 从 'echarts/types/dist/shared' 导入；处理 size() 可选方法+联合类型；定义 CartesianCoordSys 接口补充 ECharts 类型定义不完整；CI 11/12 核心 success）|
 | 183-ci-v2 | `c714a8e9` | v11 前端 P2-1 SchGChart 使用 ECharts 官方类型替代自定义接口（CI 失败：CallbackDataParams 不从主包导出 + size() 可选 + coordSys 类型不完整，被 v3 替代）|
 | 183 | `4dedb8c1` | v11 前端 P2-1 any 清理（16 处 → 0 处，4 文件；SchGChart 自定义接口违规，被 ci-v2/v3 替代）|
