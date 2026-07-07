@@ -112,7 +112,7 @@ pub async fn import_leads(
 
     let mut file_bytes: Option<Vec<u8>> = None;
 
-    while let Some(field) = multipart.next_field().await.unwrap_or(None) {
+    if let Some(field) = multipart.next_field().await.unwrap_or(None) {
         let file_name = field.file_name().unwrap_or("").to_string();
         // 仅接受 .xlsx 文件
         if !file_name.ends_with(".xlsx") {
@@ -129,7 +129,6 @@ pub async fn import_leads(
             )));
         }
         file_bytes = Some(data.to_vec());
-        break;
     }
 
     let bytes = file_bytes.ok_or_else(|| AppError::bad_request("未收到文件".to_string()))?;
