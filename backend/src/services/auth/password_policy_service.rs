@@ -10,7 +10,7 @@
 
 use crate::models::password_history;
 use crate::utils::password_validator::{PasswordPolicy, PasswordValidationResult};
-use sea_orm::{ColumnTrait, DatabaseConnection, EntityTrait, PaginatorTrait, QueryFilter, QueryOrder, QuerySelect};
+use sea_orm::{ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, PaginatorTrait, QueryFilter, QueryOrder, QuerySelect};
 use std::collections::{HashSet, VecDeque};
 use std::sync::Arc;
 use tokio::sync::RwLock;
@@ -189,7 +189,6 @@ impl PasswordPolicyService {
             created_at: sea_orm::Set(now),
             ..Default::default()
         };
-        use sea_orm::ActiveModelTrait;
         active.insert(db).await?;
         Ok(())
     }

@@ -590,13 +590,8 @@ pub async fn change_password(
         .await;
     if !history_result.is_valid {
         // 取强度校验之外的历史相关错误
-        let history_errors: Vec<&String> = history_result
-            .errors
-            .iter()
-            .filter(|e| e.contains("历史"))
-            .collect();
-        if !history_errors.is_empty() {
-            return Err(AppError::bad_request(history_errors[0].clone()));
+        if let Some(history_err) = history_result.errors.iter().find(|e| e.contains("历史")) {
+            return Err(AppError::bad_request(history_err.clone()));
         }
     }
 
