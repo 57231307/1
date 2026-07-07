@@ -61,6 +61,9 @@
 import type { ApprovalTask } from '@/api/bpm-enhanced'
 import { isOverdue, getPriorityType, getPriorityText } from '../composables/bpmApFmts'
 
+// v11 批次 182 P2-1 修复：定义 TagType 替代 any
+type TagType = 'success' | 'warning' | 'info' | 'primary' | 'danger'
+
 // 分页字段类型
 interface Pgn {
   page: number

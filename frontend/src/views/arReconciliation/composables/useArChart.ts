@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
 /**
  * useArChart.ts - AR 对账账龄图表 composable
  * 任务编号: P14 批 1 B3 I-2
@@ -8,7 +7,7 @@
 import { ref, nextTick } from 'vue'
 import * as echarts from 'echarts'
 import { ElMessage } from 'element-plus'
-import { getAgingAnalysis, type AgingAnalysisResult } from '@/api/ar-reconciliation-enhanced'
+import { getAgingAnalysis, type AgingAnalysisResult, type AgingBucket } from '@/api/ar-reconciliation-enhanced'
 import { AGING_COLORS } from './arRecFmts'
 
 /**
@@ -31,10 +30,11 @@ export function useArChart() {
 
   const loadAgingAnalysis = async (endDate?: string) => {
     try {
-      const res: any = await getAgingAnalysis({
+      // v11 批次 182 P2-1 修复：const res: any 改为 as 具体类型
+      const res = (await getAgingAnalysis({
         customer_id: undefined,
         as_of_date: endDate || undefined,
-      })
+      })) as { data?: AgingAnalysisResult[] }
       agingData.value = res.data || []
       await nextTick()
       renderCharts()
@@ -52,20 +52,21 @@ export function useArChart() {
       pieChart = echarts.init(pieChartRef.value)
     }
 
-    const buckets =
+    const buckets: AgingBucket[] =
       agingData.value.length > 0 ? agingData.value[0].buckets : DEFAULT_BUCKETS
 
     const barOption = {
       title: { text: '账龄分析柱状图', left: 'center' },
       tooltip: { trigger: 'axis', formatter: '{b}: {c} 元' },
-      xAxis: { type: 'category', data: buckets.map((b: any) => b.label) },
+      xAxis: { type: 'category', data: buckets.map((b: AgingBucket) => b.label) },
       yAxis: { type: 'value', name: '金额（元）' },
       series: [
         {
           type: 'bar',
-          data: buckets.map((b: any) => b.amount),
+          data: buckets.map((b: AgingBucket) => b.amount),
           itemStyle: {
-            color: (params: any) => {
+            // v11 批次 182 P2-1 修复：(params: any) 改为 echarts 的回调参数类型
+            color: (params: { dataIndex: number }) => {
               return AGING_COLORS[params.dataIndex] || '#409eff'
             },
           },
@@ -86,7 +87,7 @@ export function useArChart() {
           avoidLabelOverlap: false,
           itemStyle: { borderRadius: 10, borderColor: '#fff', borderWidth: 2 },
           label: { show: true, formatter: '{b}: {d}%' },
-          data: buckets.map((b: any, i: number) => ({
+          data: buckets.map((b: AgingBucket, i: number) => ({
             value: b.amount,
             name: b.label,
             itemStyle: { color: AGING_COLORS[i] },

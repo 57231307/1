@@ -77,21 +77,25 @@ import { ElMessage } from 'element-plus'
 import { Delete, Check, Edit } from '@element-plus/icons-vue'
 import { logger } from '@/utils/logger'
 
+// v11 批次 182 P2-1 修复：通用组件保持泛化，icon 类型用 ComponentType，rows 用 unknown
+// icon 实际为 @element-plus/icons-vue 的组件对象，使用 Component 类型替代 any
+import type { Component } from 'vue'
+
 export interface BatchActionItem {
   key: string
   label: string
   type?: 'primary' | 'success' | 'warning' | 'danger' | 'info'
-  icon?: any
+  icon?: Component
   confirm?: boolean
   confirmTitle?: string
   confirmMessage?: string
   warningMessage?: string
-  handler?: (rows: any[]) => Promise<void> | void
+  handler?: (rows: unknown[]) => Promise<void> | void
   disabled?: boolean
 }
 
 interface Props {
-  selectedRows: any[]
+  selectedRows: unknown[]
   actions?: BatchActionItem[]
   showProgress?: boolean
 }
@@ -103,7 +107,7 @@ const props = withDefaults(defineProps<Props>(), {
 
 const emit = defineEmits<{
   clear: []
-  action: [key: string, rows: any[]]
+  action: [key: string, rows: unknown[]]
   complete: [key: string, success: boolean]
 }>()
 
@@ -200,9 +204,11 @@ const executeAction = async () => {
     emit('complete', currentAction.value.key, true)
     ElMessage.success('操作成功')
     handleClear()
-  } catch (error: any) {
+  } catch (error: unknown) {
+    // v11 批次 182 P2-1 修复：catch (error: any) 改为 catch (error: unknown) + 类型守卫
+    const errMsg = error instanceof Error ? error.message : String(error)
     progressStatus.value = 'exception'
-    progressText.value = `执行失败: ${error.message || '未知错误'}`
+    progressText.value = `执行失败: ${errMsg || '未知错误'}`
     emit('complete', currentAction.value.key, false)
     ElMessage.error('操作失败')
   } finally {
