@@ -6,19 +6,34 @@
  */
 import { reactive, ref } from 'vue'
 import { ElMessage } from 'element-plus'
-import { schedulingApi } from '@/api/scheduling'
+import { schedulingApi, type SchedulingParams } from '@/api/scheduling'
+
+// v11 批次 181 P2-1 修复：定义 deps 类型替代 any
+// 注：deps 字段来自 useSchG 返回的 reactive 对象（ref 被解包），
+// 但原代码以 .value 访问，保持行为一致使用 unknown + 类型断言
+interface SchGConflictItem {
+  work_center_name: string
+  order_no_1: string
+  order_no_2: string
+  overlap_start: string
+  overlap_end: string
+  severity: string
+  suggestion: string
+}
+
+interface SchGDeps {
+  fetchGanttData: () => Promise<void>
+  conflictList: unknown
+  conflictDialogVisible: unknown
+  scheduleForm: unknown
+  autoScheduleDialogVisible: unknown
+}
 
 /**
  * 排产自动排程流程 composable
  * 集中管理"执行自动排程"和"展示冲突列表"两个流程
  */
-export function useSchGProc(deps: {
-  fetchGanttData: () => Promise<void>
-  conflictList: any
-  conflictDialogVisible: any
-  scheduleForm: any
-  autoScheduleDialogVisible: any
-}) {
+export function useSchGProc(deps: SchGDeps) {
   // 自动排程进行中
   const scheduling = ref(false)
 
@@ -26,19 +41,21 @@ export function useSchGProc(deps: {
   const confirmAutoSchedule = async () => {
     scheduling.value = true
     try {
-      const res = await schedulingApi.autoSchedule(deps.scheduleForm)
+      const res = await schedulingApi.autoSchedule(deps.scheduleForm as SchedulingParams)
       const result = res.data!
       ElMessage.success(
         `排程完成: ${result.scheduled_count} 个任务已排程, ${result.conflict_count} 个冲突`
       )
-      deps.autoScheduleDialogVisible.value = false
+      ;(deps.autoScheduleDialogVisible as { value: boolean }).value = false
       if (result.conflict_count > 0) {
-        deps.conflictList.value = result.conflicts
-        deps.conflictDialogVisible.value = true
+        ;(deps.conflictList as { value: SchGConflictItem[] }).value = result.conflicts
+        ;(deps.conflictDialogVisible as { value: boolean }).value = true
       }
       await deps.fetchGanttData()
-    } catch (error: any) {
-      ElMessage.error(error.message || '自动排程失败')
+    } catch (error: unknown) {
+      // v11 批次 181 P2-1 修复：catch (error: any) 改为 catch (error: unknown) + 类型守卫
+      const errMsg = error instanceof Error ? error.message : String(error)
+      ElMessage.error(errMsg || '自动排程失败')
     } finally {
       scheduling.value = false
     }

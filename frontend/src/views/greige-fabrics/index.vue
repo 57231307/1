@@ -152,7 +152,10 @@ const loadGreigeFabrics = async () => {
   loading.value = true
   try {
     const res = await listGreigeFabrics()
-    greigeList.value = res.data! || []
+    // v11 批次 179 P2-1 修复：API 返回 GreigeFabric[]（snake_case 字段），
+    // 前端展示用 GreigeFabricRow（camelCase 字段），存在已知字段不匹配问题
+    // 使用 as unknown as 保持原行为，字段映射问题留待后续功能修复批次
+    greigeList.value = (res.data || []) as unknown as GreigeFabricRow[]
   } catch (error) {
     ElMessage.error('加载坯布列表失败')
   } finally {
@@ -164,7 +167,9 @@ const loadWarehouses = async () => {
   try {
     // v11 批次 179 P2-1 修复：res.data as any 改为类型守卫
     const res = await warehouseApi.list()
-    const d = res.data as { list?: WarehouseOption[] } | WarehouseOption[] | undefined
+    // API 返回 { list: Warehouse[]; total: number }，前端用 WarehouseOption（id+name）
+    // 使用 as unknown as 绕过字段不匹配（warehouse_name → name 映射问题）
+    const d = res.data as unknown as { list?: WarehouseOption[] } | WarehouseOption[] | undefined
     if (Array.isArray(d)) {
       warehouseList.value = d
     } else if (d && typeof d === 'object') {
@@ -227,10 +232,12 @@ const handleSubmit = async () => {
     submitLoading.value = true
     try {
       if (dialogMode.value === 'create') {
-        await createGreigeFabric(formData)
+        // v11 批次 179 P2-1 修复：GreigeFabricForm 与 Partial<GreigeFabric> 字段不匹配，使用 as unknown as
+        await createGreigeFabric(formData as unknown as Partial<import('@/api/greige-fabric').GreigeFabric>)
         ElMessage.success('创建成功')
       } else {
-        await updateGreigeFabric(formData.id, formData)
+        // edit 模式下 formData.id 由 handleEdit 从 row.id 赋值，确保非 null
+        await updateGreigeFabric(formData.id!, formData as unknown as Partial<import('@/api/greige-fabric').GreigeFabric>)
         ElMessage.success('更新成功')
       }
       dialogVisible.value = false

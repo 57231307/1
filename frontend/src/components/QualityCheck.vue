@@ -208,6 +208,7 @@ async function handleResolveSubmit() {
     ElMessage.warning('请输入解决方案')
     return
   }
+  if (!currentIssue.value) return
   submitting.value = true
   try {
     await resolveQualityIssue(currentIssue.value.id, {

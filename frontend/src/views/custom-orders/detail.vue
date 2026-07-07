@@ -104,8 +104,20 @@ import logger from '@/utils/logger'
 import AfterSalesPanel from '@/components/AfterSalesPanel.vue'
 
 // P2-5：详情页 order 类型，扩展模板使用但 CustomOrderDetail 未声明的关联字段
+// v11 批次 180 P2-1 修复：quality_issues 类型从 unknown[] 改为具体接口，与 QualityCheck.vue 的 QualityIssue 结构兼容
+interface QualityIssueItem {
+  id: number
+  issue_type: string
+  severity: string
+  description?: string
+  discovered_at?: string | number | Date
+  status: string
+  resolution?: string
+  [key: string]: unknown
+}
+
 type CustomOrderDetailWithRelations = CustomOrderDetail & {
-  quality_issues?: unknown[]
+  quality_issues?: QualityIssueItem[]
   after_sales?: AfterSales[]
 }
 

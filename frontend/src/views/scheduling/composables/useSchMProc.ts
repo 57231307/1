@@ -4,20 +4,30 @@
  * 提供排产自动排程的执行流程（参数构造 + API 调用 + 冲突更新）
  * 行为完全保持一致（仅结构重构）
  */
-import { reactive, ref } from 'vue'
+import { reactive, ref, type Ref } from 'vue'
 import { ElMessage } from 'element-plus'
-import { schedulingApi } from '@/api/scheduling'
+import { schedulingApi, type ConflictItem, type SchedulingParams } from '@/api/scheduling'
+
+// v11 批次 181 P2-1 修复：定义 deps 类型替代 any
+interface SchMStats {
+  pending: number
+  scheduled: number
+  running: number
+  conflicts: number
+}
+
+interface SchMDeps {
+  fetchTasks: () => Promise<void>
+  dateRange: Ref<[Date, Date] | null>
+  scheduleParams: Ref<SchedulingParams>
+  conflictList: Ref<ConflictItem[]>
+  stats: Ref<SchMStats>
+}
 
 /**
  * 排产管理自动排程流程 composable
  */
-export function useSchMProc(deps: {
-  fetchTasks: () => Promise<void>
-  dateRange: any
-  scheduleParams: any
-  conflictList: any
-  stats: any
-}) {
+export function useSchMProc(deps: SchMDeps) {
   // 自动排程进行中
   const scheduling = ref(false)
 
@@ -48,8 +58,10 @@ export function useSchMProc(deps: {
         deps.stats.value.conflicts = result.conflict_count
       }
       await deps.fetchTasks()
-    } catch (error: any) {
-      ElMessage.error(error.message || '自动排程失败')
+    } catch (error: unknown) {
+      // v11 批次 181 P2-1 修复：catch (error: any) 改为 catch (error: unknown) + 类型守卫
+      const errMsg = error instanceof Error ? error.message : String(error)
+      ElMessage.error(errMsg || '自动排程失败')
     } finally {
       scheduling.value = false
     }
