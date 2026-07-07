@@ -28,9 +28,9 @@
         <el-table-column label="操作" width="200" fixed="right">
           <template #default="{ row }">
             <!-- P2-17 修复（批次 86 v2 复审）：编辑/删除按钮补齐 v-permission -->
-            <el-button v-permission="'role:update'" size="small" link @click="openRoleDialog(row as any)">编辑</el-button>
-            <el-button size="small" link @click="openPermissionDialog(row as any)">权限</el-button>
-            <el-button v-permission="'role:delete'" size="small" link type="danger" @click="deleteRole(row as any)"
+            <el-button v-permission="'role:update'" size="small" link @click="openRoleDialog(row as Role)">编辑</el-button>
+            <el-button size="small" link @click="openPermissionDialog(row as Role)">权限</el-button>
+            <el-button v-permission="'role:delete'" size="small" link type="danger" @click="deleteRole(row as Role)"
               >删除</el-button
             >
           </template>
@@ -115,8 +115,9 @@ const fetchRoles = async () => {
   roleLoading.value = true
   try {
     const res = await listRoles()
-    const d = res.data as any
-    roles.value = d?.items || d?.data || d || []
+    // v11 批次 165 P2-1 修复：res.data as any 改为运行时安全访问
+    const d = res.data as { items?: Role[]; data?: Role[] } | Role[] | undefined
+    roles.value = (Array.isArray(d) ? d : d?.items || d?.data || []) as Role[]
   } catch (e: unknown) {
     // 批次 98 P2-D 修复（v5 复审）：原 catch (e: any) 改为 unknown + 类型守卫
     ElMessage.error((e instanceof Error ? e.message : String(e)) || '获取角色列表失败')
@@ -239,9 +240,14 @@ const fetchRolePermissions = async (roleId: number) => {
   }
 }
 
-const buildPermissionTree = (perms: Permission[]): any[] => {
-  const map = new Map<number, any>()
-  const tree: any[] = []
+// v11 批次 165 P2-1 修复：any[] 改为 PermissionTreeNode[]
+interface PermissionTreeNode extends Permission {
+  children: PermissionTreeNode[]
+}
+
+const buildPermissionTree = (perms: Permission[]): PermissionTreeNode[] => {
+  const map = new Map<number, PermissionTreeNode>()
+  const tree: PermissionTreeNode[] = []
   perms.forEach(p => map.set(p.id, { ...p, children: [] }))
   perms.forEach(p => {
     const node = map.get(p.id)!
@@ -252,7 +258,8 @@ const buildPermissionTree = (perms: Permission[]): any[] => {
   return tree
 }
 
-const handlePermissionCheck = (_: any, { checkedKeys }: any) => {
+// v11 批次 165 P2-1 修复：_: any, { checkedKeys }: any 改为具体类型
+const handlePermissionCheck = (_: unknown, { checkedKeys }: { checkedKeys: number[] }) => {
   checkedPermissions.value = checkedKeys
 }
 
