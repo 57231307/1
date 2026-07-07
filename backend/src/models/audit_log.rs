@@ -29,6 +29,7 @@ pub enum OperationType {
 
 impl OperationType {
     /// 从字符串解析为枚举（大小写不敏感）
+    #[allow(dead_code)] // TODO(tech-debt): 预留 API，未来从字符串反序列化接入后移除
     pub fn parse(value: &str) -> Self {
         match value.to_ascii_uppercase().as_str() {
             "CREATE" => Self::Create,

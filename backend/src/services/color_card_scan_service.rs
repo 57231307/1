@@ -35,9 +35,7 @@ impl ColorCardScanService {
     }
 
     pub fn from_state(state: &AppState) -> Self {
-        Self {
-            db: state.db.clone(),
-        }
+        Self::new(state.db.clone())
     }
 
     /// 按色号编码扫码查询（全局搜索）
@@ -130,6 +128,7 @@ impl ColorCardScanService {
     }
 
     /// 按色号 ID 扫码查询
+    #[allow(dead_code)] // TODO(tech-debt): 预留 API，handler 端点接入后移除
     pub async fn scan_by_id(
         &self,
         item_id: i64,

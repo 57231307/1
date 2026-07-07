@@ -39,7 +39,8 @@ pub struct AutoAssignRequest {
     pub assignee_user_ids: Vec<i32>,
     /// 限制本次自动分配的线索数量（缺失时默认 100，上限 1000 防 DoS）
     pub limit: Option<u64>,
-    /// 分配策略（缺失时默认 round_robin）
+    /// 分配策略（缺失时默认 round_robin，当前仅实现 round_robin）
+    #[allow(dead_code)] // TODO(tech-debt): 抢单策略接入后移除
     pub strategy: Option<AssignStrategy>,
 }
 
@@ -78,7 +79,8 @@ pub struct TransferLeadRequest {
     pub lead_id: i32,
     /// 新归属人用户 ID
     pub to_user_id: i32,
-    /// 新归属人姓名（前端透传，service 内部会以 user 表为准二次校验）
+    /// 新归属人姓名（前端透传，service 内部以 user 表为准二次校验，此处不读取）
+    #[allow(dead_code)] // TODO(tech-debt): 审计日志接入 to_user_name 后移除
     pub to_user_name: String,
     /// 转移原因（必填，写入 assignment_history.reason）
     pub reason: String,

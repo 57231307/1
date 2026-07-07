@@ -47,6 +47,8 @@ pub enum BorrowStatus {
 // - from_str 在 service 内部 line 160/203/260 调用
 // - is_terminal / as_str 在 tests/color_card_borrow_test.rs 调用
 impl BorrowStatus {
+    /// 序列化为字符串（仅供集成测试使用，业务接入后移除 allow）
+    #[allow(dead_code)] // TODO(tech-debt): 业务接入状态序列化后移除
     pub fn as_str(&self) -> &'static str {
         match self {
             Self::Borrowed => "borrowed",
@@ -68,6 +70,8 @@ impl BorrowStatus {
         }
     }
 
+    /// 是否为终态（仅供集成测试使用，业务接入状态校验后移除 allow）
+    #[allow(dead_code)] // TODO(tech-debt): 业务接入终态校验后移除
     pub fn is_terminal(&self) -> bool {
         matches!(self, Self::Returned | Self::Lost | Self::Damaged)
     }
@@ -81,15 +85,11 @@ pub struct ColorCardBorrowService {
 // v11 批次 147 P2-B：移除失效的 dead_code 标注（被 handlers/color_card/borrow.rs 真实调用）
 impl ColorCardBorrowService {
     pub fn new(db: Arc<DatabaseConnection>) -> Self {
-        Self {
-            db: db.clone(),
-        }
+        Self { db }
     }
 
     pub fn from_state(state: &AppState) -> Self {
-        Self {
-            db: state.db.clone(),
-        }
+        Self::new(state.db.clone())
     }
 
     /// 创建借出记录
@@ -283,6 +283,7 @@ impl ColorCardBorrowService {
     }
 
     /// 按 ID 查询
+    #[allow(dead_code)] // TODO(tech-debt): 预留 API，handler 端点接入后移除
     pub async fn get_by_id(
         &self,
         record_id: i64,
