@@ -26,10 +26,11 @@ import * as echarts from 'echarts'
 import type {
   ECharts,
   ECElementEvent,
-  CallbackDataParams,
   CustomSeriesRenderItemParams,
   CustomSeriesRenderItemAPI,
 } from 'echarts'
+// CallbackDataParams 不从 'echarts' 主包导出，需从官方类型定义文件导入
+import type { CallbackDataParams } from 'echarts/types/dist/shared'
 import type { GanttData, ScheduleTask } from '@/api/scheduling'
 import { statusColorMap, statusLabelMap, formatTime } from '../composables/schGFmts'
 
@@ -39,6 +40,16 @@ interface GanttSeriesItem {
   value: [number, number, number, number]
   itemStyle: { color: string }
   taskData: ScheduleTask
+}
+
+/// ECharts CustomSeriesRenderItemParamsCoordSys 类型仅声明了 type 字段，
+/// 但 cartesian2d 坐标系实际包含 x/y/width/height（ECharts 类型定义不完整）
+interface CartesianCoordSys {
+  type: string
+  x: number
+  y: number
+  width: number
+  height: number
 }
 
 // 排产甘特图容器属性
@@ -139,7 +150,13 @@ const renderChart = (data: GanttData) => {
           const catIndex = api.value(0) as number
           const start = api.coord([api.value(1) as number, catIndex])
           const end = api.coord([api.value(2) as number, catIndex])
-          const height = api.size([0, 1])[1] * 0.6
+          // ECharts 类型定义 size() 是可选方法，返回 number | number[]，
+          // 实际使用 cartesian2d 坐标系时一定存在且返回 number[]（[width, height]）
+          const sizeResult = api.size ? api.size([0, 1]) : [0, 0]
+          const height = (Array.isArray(sizeResult) ? sizeResult[1] : sizeResult) * 0.6
+          // ECharts CustomSeriesRenderItemParamsCoordSys 类型仅声明 type 字段，
+          // cartesian2d 坐标系实际包含 x/y/width/height（类型定义不完整，需断言）
+          const coordSys = params.coordSys as CartesianCoordSys
           const rectShape = echarts.graphic.clipRectByRect(
             {
               x: start[0],
@@ -148,10 +165,10 @@ const renderChart = (data: GanttData) => {
               height: height,
             },
             {
-              x: params.coordSys.x,
-              y: params.coordSys.y,
-              width: params.coordSys.width,
-              height: params.coordSys.height,
+              x: coordSys.x,
+              y: coordSys.y,
+              width: coordSys.width,
+              height: coordSys.height,
             }
           )
           return (
@@ -176,7 +193,7 @@ const renderChart = (data: GanttData) => {
   chart.setOption(option, true)
 
   chart.on('click', (params: ECElementEvent) => {
-    // ECElementEvent.data 类型为 unknown，断言为业务数据项（seriesData 由本组件构造，类型确定）
+    // ECElementEvent.data 类型为 OptionDataItem，断言为业务数据项（seriesData 由本组件构造，类型确定）
     const item = params.data as GanttSeriesItem | undefined
     if (item?.taskData) {
       emit('task-click', item.taskData)
