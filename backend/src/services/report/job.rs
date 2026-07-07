@@ -13,29 +13,6 @@ use crate::utils::error::AppError;
 use super::ReportEngineService;
 
 impl ReportEngineService {
-    /// 根据 cron 表达式推断订阅频率
-    #[allow(dead_code)] // TODO(tech-debt): 创建报表订阅接入后移除
-    fn infer_frequency(cron: &str) -> String {
-        let parts: Vec<&str> = cron.split_whitespace().collect();
-        if parts.len() != 5 {
-            return "DAILY".to_string();
-        }
-        // 简单判断：
-        // - 每天: 0 0 * * *
-        // - 每周: 0 0 * * 1
-        // - 每月: 0 0 1 * *
-        let day = parts[2];
-        let month = parts[3];
-        let weekday = parts[4];
-        if day == "1" && month == "*" && weekday == "*" {
-            "MONTHLY".to_string()
-        } else if weekday != "*" {
-            "WEEKLY".to_string()
-        } else {
-            "DAILY".to_string()
-        }
-    }
-
     /// 计算下次运行时间
     ///
     /// 支持标准 5 字段 cron 表达式（minute hour day-of-month month day-of-week）。

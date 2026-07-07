@@ -9,6 +9,9 @@ use crate::models::{
     inventory_reservation, inventory_stock, sales_delivery, sales_delivery_item, sales_order,
     sales_order_item, warehouse,
 };
+use crate::models::status::inventory_reservation as reservation_status;
+use crate::models::status::sales_delivery as delivery_status;
+use crate::models::status::sales_order as so_status;
 use crate::utils::error::AppError;
 use rust_decimal::Decimal;
 use sea_orm::{
@@ -72,7 +75,7 @@ impl SalesService {
             .await?
             .ok_or_else(|| AppError::not_found("订单不存在"))?;
 
-        if order.status != "approved" {
+        if order.status != so_status::APPROVED {
             return Err(AppError::business("只有已审批的订单才能发货"));
         }
 
@@ -116,7 +119,7 @@ impl SalesService {
             customer_id: Set(order.customer_id),
             warehouse_id: Set(warehouse.id),
             delivery_date: Set(chrono::Utc::now().date_naive()),
-            status: Set("shipped".to_string()),
+            status: Set(delivery_status::SHIPPED.to_string()),
             total_quantity: Set(request.items.iter().map(|i| i.quantity).sum()),
             total_amount: Set(Decimal::ZERO),
             remarks: Set(request.remarks),
@@ -185,9 +188,9 @@ impl SalesService {
         }
 
         let new_status = if is_fully_shipped {
-            "shipped"
+            so_status::SHIPPED
         } else {
-            "partial_shipped"
+            so_status::PARTIAL_SHIPPED
         };
 
         // P1 3-7/5-1 修复（批次 62）：保存发货上下文用于 AR 生成和事件发布
@@ -301,7 +304,7 @@ impl SalesService {
             customer_id: Set(0),
             warehouse_id: Set(warehouse_id),
             delivery_date: Set(chrono::Utc::now().date_naive()),
-            status: Set("pending".to_string()),
+            status: Set(delivery_status::PENDING.to_string()),
             total_quantity: Set(Decimal::ZERO),
             total_amount: Set(Decimal::ZERO),
             remarks: Set(None),
@@ -334,7 +337,7 @@ impl SalesService {
         let reservations = inventory_reservation::Entity::find()
             .filter(inventory_reservation::Column::OrderId.eq(order_id))
             .filter(inventory_reservation::Column::ProductId.is_in(product_ids.clone()))
-            .filter(inventory_reservation::Column::Status.eq("pending"))
+            .filter(inventory_reservation::Column::Status.eq(reservation_status::PENDING))
             .all(txn)
             .await?;
         let reservation_map: std::collections::HashMap<i32, &inventory_reservation::Model> =
@@ -404,7 +407,7 @@ impl SalesService {
             inventory_reservation::Entity::find()
                 .filter(inventory_reservation::Column::OrderId.eq(order_id))
                 .filter(inventory_reservation::Column::ProductId.is_in(product_ids))
-                .filter(inventory_reservation::Column::Status.eq("pending"))
+                .filter(inventory_reservation::Column::Status.eq(reservation_status::PENDING))
                 .all(txn)
                 .await?
                 .into_iter()
@@ -456,7 +459,7 @@ impl SalesService {
                     product_id: Set(item.product_id),
                     warehouse_id: Set(s.warehouse_id),
                     quantity: Set(item.quantity),
-                    status: Set("pending".to_string()),
+                    status: Set(reservation_status::PENDING.to_string()),
                     reserved_at: Set(chrono::Utc::now()),
                     released_at: Set(None),
                     notes: Set(None),
@@ -557,7 +560,7 @@ impl SalesService {
         inventory_reservation::Entity::update_many()
             .filter(inventory_reservation::Column::OrderId.eq(order_id))
             .filter(inventory_reservation::Column::ProductId.eq(product_id))
-            .filter(inventory_reservation::Column::Status.eq("pending"))
+            .filter(inventory_reservation::Column::Status.eq(reservation_status::PENDING))
             .col_expr(
                 inventory_reservation::Column::Status,
                 sea_orm::sea_query::Expr::val("consumed".to_string()).into(),
@@ -584,7 +587,7 @@ impl SalesService {
     ) -> Result<(), AppError> {
         let reservations = inventory_reservation::Entity::find()
             .filter(inventory_reservation::Column::OrderId.eq(order_id))
-            .filter(inventory_reservation::Column::Status.eq("pending"))
+            .filter(inventory_reservation::Column::Status.eq(reservation_status::PENDING))
             .all(txn)
             .await?;
 
@@ -618,10 +621,10 @@ impl SalesService {
 
         inventory_reservation::Entity::update_many()
             .filter(inventory_reservation::Column::OrderId.eq(order_id))
-            .filter(inventory_reservation::Column::Status.eq("pending"))
+            .filter(inventory_reservation::Column::Status.eq(reservation_status::PENDING))
             .col_expr(
                 inventory_reservation::Column::Status,
-                sea_orm::sea_query::Expr::val("cancelled".to_string()).into(),
+                sea_orm::sea_query::Expr::val(reservation_status::CANCELLED.to_string()).into(),
             )
             .col_expr(
                 inventory_reservation::Column::ReleasedAt,

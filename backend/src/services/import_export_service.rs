@@ -230,28 +230,6 @@ impl ImportExportService {
         Ok(rows)
     }
 
-    /// 生成CSV内容（内部调试用，面向用户的导出已升级为 generate_xlsx）
-    #[allow(dead_code)] // TODO(tech-debt): CSV 导出仅供内部调试；如长期不用可移除
-    pub fn generate_csv(headers: &[String], data: &[Vec<String>]) -> Result<String, AppError> {
-        let mut wtr = csv::WriterBuilder::new().from_writer(vec![]);
-
-        // 写入表头
-        wtr.write_record(headers)
-            .map_err(|e| AppError::validation(format!("CSV写入错误: {}", e)))?;
-
-        // 写入数据行
-        for row in data {
-            wtr.write_record(row)
-                .map_err(|e| AppError::validation(format!("CSV写入错误: {}", e)))?;
-        }
-
-        let data = wtr
-            .into_inner()
-            .map_err(|e| AppError::validation(format!("CSV序列化错误: {}", e)))?;
-
-        String::from_utf8(data).map_err(|e| AppError::validation(format!("CSV编码错误: {}", e)))
-    }
-
     /// 生成 xlsx 内容（规则 3：面向用户的导出统一使用 xlsx 格式）
     pub fn generate_xlsx(headers: &[String], data: &[Vec<String>]) -> Result<Vec<u8>, AppError> {
         let table = XlsxTable {

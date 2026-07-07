@@ -43,7 +43,6 @@ impl ReportEngineService {
     }
 
     /// 销售数据聚合
-    #[allow(dead_code)] // TODO(tech-debt): 业务接入后移除
     pub async fn aggregate_sales_data(
         &self,
         req: AggregateRequest,
@@ -128,7 +127,6 @@ impl ReportEngineService {
     }
 
     /// 采购数据聚合
-    #[allow(dead_code)] // TODO(tech-debt): 业务接入后移除
     pub async fn aggregate_purchase_data(
         &self,
         _req: AggregateRequest,
@@ -138,7 +136,6 @@ impl ReportEngineService {
     }
 
     /// 库存数据聚合
-    #[allow(dead_code)] // TODO(tech-debt): 业务接入后移除
     pub async fn aggregate_inventory_data(
         &self,
         _req: AggregateRequest,
@@ -191,7 +188,6 @@ impl ReportEngineService {
     }
 
     /// 财务数据聚合
-    #[allow(dead_code)] // TODO(tech-debt): 业务接入后移除
     pub async fn aggregate_finance_data(
         &self,
         _req: AggregateRequest,
@@ -245,7 +241,6 @@ impl ReportEngineService {
     }
 
     /// 查询销售报表
-    #[allow(dead_code)] // TODO(tech-debt): 业务接入后移除
     pub async fn query_sales_report(
         &self,
         template: &super::ReportTemplate,
@@ -313,7 +308,6 @@ impl ReportEngineService {
     }
 
     /// 查询库存报表
-    #[allow(dead_code)] // TODO(tech-debt): 业务接入后移除
     pub async fn query_inventory_report(
         &self,
         template: &super::ReportTemplate,
@@ -354,7 +348,6 @@ impl ReportEngineService {
     }
 
     /// 查询采购报表
-    #[allow(dead_code)] // TODO(tech-debt): 业务接入后移除
     pub async fn query_purchase_report(
         &self,
         template: &super::ReportTemplate,
@@ -381,7 +374,6 @@ impl ReportEngineService {
     // ==================================================
 
     /// 生成缓存键（基于 template_id + filters + parameters + date_range 的 SHA256）
-    #[allow(dead_code)] // TODO(tech-debt): 业务接入后移除
     pub(crate) fn generate_cache_key(&self, req: &ExecuteReportRequest) -> String {
         use std::collections::hash_map::DefaultHasher;
         use std::hash::{Hash, Hasher};
@@ -402,7 +394,6 @@ impl ReportEngineService {
     }
 
     /// 获取缓存数据
-    #[allow(dead_code)] // TODO(tech-debt): 业务接入后移除
     pub(crate) async fn get_cached_data(&self, key: &str) -> Result<Option<ReportData>, AppError> {
         let cache = self.cache.read().await;
         if let Some(entry) = cache.get(key) {
@@ -414,7 +405,6 @@ impl ReportEngineService {
     }
 
     /// 设置缓存数据
-    #[allow(dead_code)] // TODO(tech-debt): 业务接入后移除
     pub(crate) async fn set_cached_data(
         &self,
         key: String,

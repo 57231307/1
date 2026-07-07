@@ -58,8 +58,7 @@ pub struct UpsertApiEndpointRequest {
 #[derive(Debug, Deserialize)]
 pub struct UpdateApiKeyGwRequest {
     pub key_name: Option<String>,
-    // 批次 95 CI 修复：api_keys 表无 description 列，保留占位待 schema 扩展后接入
-    #[allow(dead_code)]
+    /// 批次 158 v11 真实接入：API 密钥描述（migration m0044 新增，原 #[allow(dead_code)] 移除）
     pub description: Option<String>,
     pub permissions: Option<Vec<String>>,
     pub rate_limit: Option<i32>,
@@ -615,6 +614,7 @@ pub async fn update_api_key(
             req.rate_limit,
             expires_at,
             is_active,
+            req.description,
         )
         .await?;
 

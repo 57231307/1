@@ -145,8 +145,7 @@ pub mod voucher {
     pub const VOUCHER_POSTED: &str = "posted";
 }
 
-// 采购订单状态（历史模块，待业务接入后逐项移除 allow）
-#[allow(dead_code)] // TODO(tech-debt): 业务代码当前用字符串字面量，未来应统一引用此常量
+// 采购订单状态
 pub mod purchase_order {
     /// 草稿
     pub const DRAFT: &str = "DRAFT";
@@ -174,7 +173,7 @@ pub mod purchase_order {
 // 批次 14（2026-06-28）：修正常量值为小写，与业务代码（order_workflow.rs/order_crud.rs/delivery.rs）一致；
 // 补全 partial_shipped 和 shipped 状态；删除业务中不存在的 PENDING_APPROVAL 和 CONFIRMED。
 // 原常量值大写（"DRAFT"）与业务小写（"draft"）矛盾，若被引用会查不到数据（隐性 P0 风险）。
-#[allow(dead_code)] // TODO(tech-debt): 业务代码当前用字符串字面量，未来应统一引用此常量
+// 批次 158 v11 真实接入：移除 allow 标注，业务代码引用常量替代字符串字面量（规则 0）
 pub mod sales_order {
     /// 草稿
     pub const DRAFT: &str = "draft";
@@ -190,6 +189,8 @@ pub mod sales_order {
     pub const COMPLETED: &str = "completed";
     /// 已取消
     pub const CANCELLED: &str = "cancelled";
+    /// 已拒绝（so/contract.rs reject_order 接入，批次 158 v11 真实接入）
+    pub const REJECTED: &str = "rejected";
 }
 
 // 通用审批状态（历史模块，待业务接入后逐项移除 allow）
@@ -205,4 +206,26 @@ pub mod approval {
     pub const REJECTED: &str = "REJECTED";
     /// 已取消
     pub const CANCELLED: &str = "CANCELLED";
+}
+
+// 库存预留状态（inventory_reservation.status，小写值）
+// 批次 158 v11 真实接入：so/delivery.rs 中库存预留状态字符串字面量统一引用此模块（规则 0）
+pub mod inventory_reservation {
+    /// 待处理（已创建预留，等待发货扣减）
+    pub const PENDING: &str = "pending";
+    /// 已完成（发货已扣减库存）
+    pub const FULFILLED: &str = "fulfilled";
+    /// 已取消（订单取消或库存不足释放）
+    pub const CANCELLED: &str = "cancelled";
+}
+
+// 销售发货状态（sales_delivery.status，小写值）
+// 批次 158 v11 真实接入：so/delivery.rs 中发货状态字符串字面量统一引用此模块（规则 0）
+pub mod sales_delivery {
+    /// 待处理
+    pub const PENDING: &str = "pending";
+    /// 已发货
+    pub const SHIPPED: &str = "shipped";
+    /// 已取消
+    pub const CANCELLED: &str = "cancelled";
 }

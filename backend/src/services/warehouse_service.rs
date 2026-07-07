@@ -104,6 +104,8 @@ impl WarehouseService {
             is_active: Set(true),
             // 批次 93 P1 扩展：接入 description（写入 notes 列，实现原 TODO 占位）
             notes: Set(req.description),
+            // 批次 158 v11 真实接入：capacity 字段持久化（原 #[allow(dead_code)] 移除）
+            capacity: Set(req.capacity),
             created_at: Set(Utc::now()),
             updated_at: Set(Utc::now()),
         };
@@ -149,6 +151,10 @@ impl WarehouseService {
         }
         if let Some(s) = req.status {
             wh.is_active = Set(s == "active");
+        }
+        // 批次 158 v11 真实接入：capacity 字段持久化（原 #[allow(dead_code)] 移除）
+        if let Some(c) = req.capacity {
+            wh.capacity = Set(Some(c));
         }
 
         wh.updated_at = Set(Utc::now());

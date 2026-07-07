@@ -10,6 +10,7 @@
 
 use super::order::SalesService;
 use crate::models::dto::PageRequest;
+use crate::models::status::sales_order as so_status;
 use crate::models::{
     sales_order,
     sales_order::Entity as SalesOrderEntity,
@@ -396,7 +397,7 @@ mod tests {
     fn test_order_query_with_filters() {
         let q = OrderQuery {
             customer_id: Some(100),
-            status: Some("approved".to_string()),
+            status: Some(so_status::APPROVED.to_string()),
             ..Default::default()
         };
         assert!(!q.is_empty());

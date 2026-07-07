@@ -305,40 +305,6 @@ pub struct ExcelExportResult {
     pub content: Vec<u8>,
 }
 
-/// 报表订阅
-#[allow(dead_code)] // TODO(tech-debt): 报表订阅调度接口接入后移除
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct ReportSubscription {
-    pub id: i32,
-    pub user_id: i32,
-    pub template_id: String,
-    pub template_name: String,
-    pub cron_expression: String,
-    pub format: String,
-    pub filters: Vec<ReportFilter>,
-    pub parameters: Option<serde_json::Value>,
-    pub recipients: Vec<String>,
-    pub enabled: bool,
-    pub next_run_at: Option<DateTime<Utc>>,
-    pub last_run_at: Option<DateTime<Utc>>,
-    pub last_status: Option<String>,
-    pub created_at: DateTime<Utc>,
-    pub updated_at: DateTime<Utc>,
-}
-
-/// 创建订阅请求
-#[allow(dead_code)] // TODO(tech-debt): 报表订阅创建接口接入后移除
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct CreateSubscriptionRequest {
-    pub template_id: String,
-    pub cron_expression: String,
-    pub format: String,
-    pub filters: Vec<ReportFilter>,
-    pub parameters: Option<serde_json::Value>,
-    pub recipients: Vec<String>,
-    pub enabled: bool,
-}
-
 // =====================================================
 // 共享 Service 结构体（子模块均通过 impl ReportEngineService 扩展）
 // =====================================================

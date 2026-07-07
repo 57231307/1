@@ -29,7 +29,6 @@ pub struct ExportService;
 
 impl ExportService {
     /// 导出为CSV格式（内部调试用，面向用户的导出已升级为 export_excel）
-    #[allow(dead_code)] // TODO(tech-debt): CSV 导出仅供内部调试；如长期不用可移除
     pub fn export_csv(data: &ExportData) -> Result<Vec<u8>, AppError> {
         let mut wtr = csv::WriterBuilder::new().from_writer(vec![]);
 

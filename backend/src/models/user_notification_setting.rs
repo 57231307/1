@@ -48,7 +48,6 @@ impl Related<super::user::Entity> for Entity {
 impl ActiveModelBehavior for ActiveModel {}
 
 /// 通知类型常量
-#[allow(dead_code)]
 pub mod notification_type {
     pub const EMAIL: &str = "email";
     pub const INTERNAL: &str = "internal";

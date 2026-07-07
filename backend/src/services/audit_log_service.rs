@@ -223,7 +223,6 @@ impl AuditLogService {
     }
 
     /// `delete_with_audit` 的 `i64` 主键变体（如 color_price_tier / crm_recycle_rule）
-    #[allow(dead_code)] // TODO(tech-debt): 业务接入后移除
     pub async fn delete_with_audit_i64<E, C>(
         db: &C,
         resource_type: &str,

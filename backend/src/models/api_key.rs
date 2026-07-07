@@ -20,6 +20,8 @@ pub struct Model {
     pub is_active: bool,
     /// 批次 112 P1-9：API 密钥创建者用户 ID（migration m0039 新增）
     pub created_by: Option<i32>,
+    /// 批次 158 v11 真实接入：API 密钥描述（migration m0044 新增，原 #[allow(dead_code)] 移除）
+    pub description: Option<String>,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
 }

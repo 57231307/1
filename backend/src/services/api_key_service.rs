@@ -127,6 +127,7 @@ impl ApiKeyService {
     /// 更新 API 密钥（批次 91 P0-1）
     ///
     /// 仅更新传入的字段，未传入的字段保持不变。
+    /// 批次 158 v11 真实接入：新增 description 参数持久化（原 #[allow(dead_code)] 移除）
     pub async fn update_api_key(
         &self,
         id: i32,
@@ -135,6 +136,7 @@ impl ApiKeyService {
         rate_limit_per_minute: Option<i32>,
         expires_at: Option<Option<chrono::DateTime<chrono::Utc>>>,
         is_active: Option<bool>,
+        description: Option<String>,
     ) -> Result<api_key::Model, AppError> {
         let key = ApiKey::find_by_id(id)
             .one(self.db.as_ref())
@@ -156,6 +158,10 @@ impl ApiKeyService {
         }
         if let Some(is_active) = is_active {
             active_model.is_active = Set(is_active);
+        }
+        // 批次 158 v11 真实接入：description 字段持久化
+        if let Some(desc) = description {
+            active_model.description = Set(Some(desc));
         }
         active_model.updated_at = Set(Utc::now());
 

@@ -16,6 +16,7 @@ use super::order::SalesService;
 use super::SalesOrderDetail;
 use crate::models::sales_order;
 use crate::models::sales_order::Entity as SalesOrderEntity;
+use crate::models::status::sales_order as so_status;
 use crate::utils::error::AppError;
 use sea_orm::{ActiveModelTrait, EntityTrait, QueryFilter, QuerySelect, TransactionTrait};
 
@@ -42,13 +43,21 @@ impl SalesService {
         // 检查订单状态是否允许取消
         // 批次 13（2026-06-28）：补 partial_shipped 状态，防止部分发货订单无法取消（死锁）。
         // 已发货部分需通过退货流程处理，取消仅作用于剩余未发货部分。
-        if !["draft", "pending", "approved", "partial_shipped"].contains(&order.status.as_str()) {
+        // 批次 158 v11 真实接入：引用 status::sales_order 常量替代字符串字面量（规则 0）
+        if ![
+            so_status::DRAFT,
+            so_status::PENDING,
+            so_status::APPROVED,
+            so_status::PARTIAL_SHIPPED,
+        ]
+        .contains(&order.status.as_str())
+        {
             return Err(AppError::business("当前状态不允许取消".to_string()));
         }
 
         // 更新订单状态（改用 update_with_audit 写入审计日志，传 &txn 纳入事务保证原子性）
         let mut order_update: sales_order::ActiveModel = order.into();
-        order_update.status = sea_orm::ActiveValue::Set("cancelled".to_string());
+        order_update.status = sea_orm::ActiveValue::Set(so_status::CANCELLED.to_string());
         order_update.updated_at = sea_orm::ActiveValue::Set(chrono::Utc::now());
 
         crate::services::audit_log_service::AuditLogService::update_with_audit(
@@ -81,7 +90,7 @@ impl SalesService {
             .await?
             .ok_or_else(|| AppError::not_found(format!("销售订单 {} 不存在", order_id)))?;
 
-        if order.status != "draft" {
+        if order.status != so_status::DRAFT {
             return Err(AppError::business(format!(
                 "订单状态为 {}，无法提交",
                 order.status
@@ -120,7 +129,7 @@ impl SalesService {
         }
 
         let mut order_update: sales_order::ActiveModel = order.into();
-        order_update.status = sea_orm::ActiveValue::Set("pending".to_string());
+        order_update.status = sea_orm::ActiveValue::Set(so_status::PENDING.to_string());
         order_update.updated_at = sea_orm::ActiveValue::Set(chrono::Utc::now());
 
         // P1-11 修复（2026-06-25 综合审计）：传入真实操作人 ID，
@@ -172,7 +181,7 @@ impl SalesService {
                     AppError::not_found(format!("补偿回滚时销售订单 {} 不存在", order_id))
                 })?;
             let mut rollback_model: sales_order::ActiveModel = order_for_rollback.into();
-            rollback_model.status = sea_orm::ActiveValue::Set("draft".to_string());
+            rollback_model.status = sea_orm::ActiveValue::Set(so_status::DRAFT.to_string());
             rollback_model.updated_at = sea_orm::ActiveValue::Set(chrono::Utc::now());
             crate::services::audit_log_service::AuditLogService::update_with_audit(
                 &compensating_txn,
@@ -207,7 +216,7 @@ impl SalesService {
             .await?
             .ok_or_else(|| AppError::not_found(format!("销售订单 {} 不存在", order_id)))?;
 
-        if order.status != "pending" {
+        if order.status != so_status::PENDING {
             return Err(AppError::business(format!(
                 "订单状态为 {}，无法审核",
                 order.status
@@ -215,7 +224,7 @@ impl SalesService {
         }
 
         let mut order_update: sales_order::ActiveModel = order.into();
-        order_update.status = sea_orm::ActiveValue::Set("approved".to_string());
+        order_update.status = sea_orm::ActiveValue::Set(so_status::APPROVED.to_string());
         order_update.approved_by = sea_orm::ActiveValue::Set(Some(user_id));
         order_update.approved_at = sea_orm::ActiveValue::Set(Some(chrono::Utc::now()));
         order_update.updated_at = sea_orm::ActiveValue::Set(chrono::Utc::now());
@@ -254,7 +263,7 @@ impl SalesService {
             .await?
             .ok_or_else(|| AppError::not_found(format!("销售订单 {} 不存在", order_id)))?;
 
-        if !["shipped", "partial_shipped"].contains(&order.status.as_str()) {
+        if ![so_status::SHIPPED, so_status::PARTIAL_SHIPPED].contains(&order.status.as_str()) {
             return Err(AppError::business(format!(
                 "订单状态为 {}，无法完成",
                 order.status
@@ -262,7 +271,7 @@ impl SalesService {
         }
 
         let mut order_update: sales_order::ActiveModel = order.into();
-        order_update.status = sea_orm::ActiveValue::Set("completed".to_string());
+        order_update.status = sea_orm::ActiveValue::Set(so_status::COMPLETED.to_string());
         order_update.updated_at = sea_orm::ActiveValue::Set(chrono::Utc::now());
 
         // P1-11 修复：传入真实操作人 ID

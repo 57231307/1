@@ -19,6 +19,7 @@ use crate::models::{
     sales_order_item,
     sales_order_item::Entity as SalesOrderItemEntity,
 };
+use crate::models::status::sales_order as so_status;
 use crate::search::{SalesOrderDoc, SalesOrderItemDoc};
 use crate::services::so::{
     CreateSalesOrderRequest, SalesOrderDetail, UpdateSalesOrderRequest,
@@ -212,7 +213,7 @@ impl SalesService {
             required_date: sea_orm::ActiveValue::Set(required_date),
             ship_date: sea_orm::ActiveValue::NotSet,
             status: sea_orm::ActiveValue::Set(
-                request.status.unwrap_or_else(|| "draft".to_string()),
+                request.status.unwrap_or_else(|| so_status::DRAFT.to_string()),
             ),
             subtotal: sea_orm::ActiveValue::Set(rust_decimal::Decimal::ZERO),
             tax_amount: sea_orm::ActiveValue::Set(rust_decimal::Decimal::ZERO),
@@ -457,7 +458,7 @@ impl SalesService {
             .ok_or_else(|| AppError::not_found(format!("销售订单 {} 未找到", order_id)))?;
 
         // 检查订单状态
-        if order.status == "shipped" || order.status == "completed" {
+        if order.status == so_status::SHIPPED || order.status == so_status::COMPLETED {
             return Err(AppError::business(format!(
                 "订单状态为{}，不允许修改",
                 order.status
@@ -637,7 +638,7 @@ impl SalesService {
         let order_no_for_es = order.order_no.clone();
 
         // 检查订单状态
-        if order.status == "shipped" || order.status == "completed" {
+        if order.status == so_status::SHIPPED || order.status == so_status::COMPLETED {
             return Err(AppError::business(format!(
                 "订单状态为{}，不允许删除",
                 order.status

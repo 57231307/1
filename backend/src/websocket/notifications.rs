@@ -201,7 +201,6 @@ pub async fn ws_notifications_handler(
 /// 修复 bug.md #2 WebSocket 认证绕过：
 /// - 之前实现未做 JWT 签名验证，存在认证绕过风险
 /// - 当前实现复用 `AuthService::validate_token_static()` 进行真实 JWT 签名验证
-#[allow(dead_code)] // TODO(tech-debt): 集成测试直接调用，后续重构为 auth_service 公共方法后移除
 pub fn verify_jwt_token(token: &str) -> Result<AuthInfo, String> {
     // 防御性检查：拒绝空 token 与过短 token（避免 jsonwebtoken panic）
     if token.is_empty() || token.len() < 16 {

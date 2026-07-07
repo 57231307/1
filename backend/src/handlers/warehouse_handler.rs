@@ -34,8 +34,7 @@ pub struct CreateWarehouseRequest {
     pub address: Option<String>,
     pub manager: Option<String>,
     pub phone: Option<String>,
-    // 批次 93 P1：warehouse 模型无 capacity 字段，保留占位待 schema 扩展
-    #[allow(dead_code)]
+    /// 仓库容量（批次 158 v11 真实接入：扩展 schema 持久化，原 #[allow(dead_code)] 移除）
     pub capacity: Option<i32>,
     // 批次 93 P1 扩展：description 已接入 WarehouseService::create（写入 notes 列）
     pub description: Option<String>,
@@ -49,8 +48,7 @@ pub struct UpdateWarehouseRequest {
     pub address: Option<String>,
     pub manager: Option<String>,
     pub phone: Option<String>,
-    // 批次 93 P1：warehouse 模型无 capacity 字段，保留占位待 schema 扩展
-    #[allow(dead_code)]
+    /// 仓库容量（批次 158 v11 真实接入：扩展 schema 持久化，原 #[allow(dead_code)] 移除）
     pub capacity: Option<i32>,
     pub status: Option<String>,
 }

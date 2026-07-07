@@ -7,6 +7,7 @@
 //! 拆分自原 `sales_service.rs`。
 
 use crate::models::{customer, sales_order};
+use crate::models::status::sales_order as so_status;
 use crate::services::so::order::SalesService;
 use crate::utils::error::AppError;
 use sea_orm::{EntityTrait, QuerySelect, Set, TransactionTrait};
@@ -30,7 +31,7 @@ impl SalesService {
             .await?
             .ok_or_else(|| AppError::not_found("订单不存在"))?;
 
-        if order.status != "pending" {
+        if order.status != so_status::PENDING {
             return Err(AppError::business(format!(
                 "订单状态为{}，不允许拒绝",
                 order.status
@@ -47,7 +48,7 @@ impl SalesService {
         self.release_reservations(order_id, &txn).await?;
 
         let mut order_update: sales_order::ActiveModel = order.into();
-        order_update.status = Set("rejected".to_string());
+        order_update.status = Set(so_status::REJECTED.to_string());
         order_update.notes = Set(Some(reason));
         order_update.updated_at = Set(chrono::Utc::now());
         crate::services::audit_log_service::AuditLogService::update_with_audit(
