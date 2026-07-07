@@ -245,6 +245,7 @@ export function useSr() {
       return false
     }
 
+    // v11 批次 163 CI1 修复：submitData 使用 as unknown as Partial<SalesReturn> 类型转换
     const submitData = {
       ...formData,
       items: formData.items.map(item => ({
@@ -254,7 +255,7 @@ export function useSr() {
         amount: item.quantity * item.unitPrice,
         reason: item.reason,
       })),
-    }
+    } as unknown as Partial<SalesReturn>
 
     try {
       if (dialogMode === 'create') {
