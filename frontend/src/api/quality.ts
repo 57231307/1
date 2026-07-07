@@ -1,5 +1,5 @@
 import { request } from './request'
-import type { ApiResponse, QueryParams } from '@/types/api'
+import type { ApiResponse, PageResult, QueryParams } from '@/types/api'
 
 export interface QualityStandard {
   id: number
@@ -95,7 +95,10 @@ export function getQualityStandardVersions(id: number): Promise<ApiResponse<Qual
   return request.get(`/quality-standards/${id}/versions`)
 }
 
-export function listQualityRecords(params?: QueryParams): Promise<ApiResponse<QualityRecord[]>> {
+// v11 批次 161 P2-5 修复：后端已返回 PaginatedResponse（含 items + total），改为 PageResult 类型
+export function listQualityRecords(
+  params?: QueryParams
+): Promise<ApiResponse<PageResult<QualityRecord>>> {
   return request.get('/production/quality-inspection/records', { params })
 }
 

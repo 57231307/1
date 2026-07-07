@@ -81,21 +81,24 @@ pub async fn list_records(
     Query(params): Query<RecordQuery>,
     State(state): State<AppState>,
     auth: AuthContext,
-) -> Result<Json<ApiResponse<Vec<quality_inspection_record::Model>>>, AppError> {
+) -> Result<Json<ApiResponse<crate::utils::response::PaginatedResponse<quality_inspection_record::Model>>>, AppError> {
     info!("用户 {} 正在查询质量检验记录列表", auth.user_id);
 
+    let page = params.page.unwrap_or(1).clamp(1, 1000) as u64;
+    let page_size = params.page_size.unwrap_or(10).clamp(1, 100) as u64;
     let service = QualityInspectionService::new(state.db.clone());
     let query_params = crate::services::quality_inspection_service::QualityInspectionQueryParams {
         inspection_type: params.inspection_result,
         status: None,
-        page: params.page.unwrap_or(1).clamp(1, 1000),
-        page_size: params.page_size.unwrap_or(10).clamp(1, 100),
+        page: page as i64,
+        page_size: page_size as i64,
     };
 
-    let (records, _total) = service.get_records_list(query_params).await?;
+    let (records, total) = service.get_records_list(query_params).await?;
     info!("质量检验记录列表查询成功，共 {} 条记录", records.len());
 
-    Ok(Json(ApiResponse::success(records)))
+    // v11 批次 161 P2-5 修复：返回 PaginatedResponse（含 total），替代原先丢弃 _total 的 Vec 返回
+    Ok(Json(ApiResponse::success_paginated(records, total, page, page_size)))
 }
 
 #[axum::debug_handler]

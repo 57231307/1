@@ -214,9 +214,8 @@ import {
   type Defect,
 } from '@/api/quality'
 
-// 检验记录列定义已下线（V2Table 改为 el-table，未使用此 columns）
-// TODO(tech-debt): 后端 listQualityRecords 暂未支持分页字段；待后端分页参数就绪后接入 page/size。
-// handlePageChange / handleSizeChange 已下线（V2Table 移除）
+// v11 批次 161 P2-5 修复：后端已支持分页（返回 PaginatedResponse 含 items+total），
+// RecordTab 通过 useTableApi 自动消费分页元数据，无需在此维护分页状态
 
 const activeTab = ref('standard')
 
@@ -242,8 +241,10 @@ const fetchStandards = async () => {
 const fetchRecords = async () => {
   recordLoading.value = true
   try {
-    const res: any = await listQualityRecords()
-    records.value = res.data! || []
+    // v11 批次 161 P2-5 修复：后端返回 PaginatedResponse（items + total）
+    const res = await listQualityRecords({ page: 1, page_size: 10 })
+    const data = res.data
+    records.value = data?.items || []
   } finally {
     recordLoading.value = false
   }

@@ -5,7 +5,7 @@
 
 ---
 
-## 🔄 当前任务：v11 前端 P2 修复（批次 159 已完成，P1 全部完成）
+## 🔄 当前任务：v11 前端 P2 修复（批次 160 已完成，P1 全部完成）
 
 > 用户最高优先级规则（2026-07-04/06 追加）已固化到 [MEMORY.md 一、规则 0-4](file:///workspace/.monkeycode/MEMORY.md)。
 > 本文件仅记录任务进度，规则不在此重复。
@@ -28,21 +28,23 @@
   - 类 C 真实接入业务（19 条）✅
   - 类 D SeaORM 模型例外（10 条）保留不动
   - 4 轮 CI 修复：b7b2baa→a502bc7→9ff0e21→f9796cb（最终全绿）
-- ✅ 批次 159：前端 P1-1 RecordTab handleView 占位 stub 真实接入 + P2-4 过时 TODO 清理（CI 11/12 全绿，E2E 非阻塞）
-  - RecordTab.vue handleView 从 ElMessage.info 占位改为接入 openRecordDialog(row) 显示详情
-  - renderCell 传入 row 参数，onClick 改为 () => handleView(row)
-  - budget.ts approveBudget 移除过时 TODO(tech-debt) 注释（已被 BudgetListTab.vue 接入）
-  - cost.ts deleteCollection/auditCollection 移除过时 TODO(tech-debt) 注释（已被 CostCollectionTab.vue 接入）
+- ✅ 批次 160：P2-6 custom-order AdvanceStatusDto 死代码清理 + P2-7 inventory any[] 类型化（CI 11/12 全绿，2 轮 CI 修复）
+  - 后端：删除未被任何 handler 使用的 AdvanceStatusDto 结构体
+  - 前端：CustomOrderAdvanceDto 移除 target_status 字段及过时 TODO(tech-debt) 注释
+  - 前端：inventory 模块 7 个文件 4 个核心状态从 any[] 改为 InventoryStock[]/StockAlert[]/InventoryTransfer[]/Warehouse[]
+  - CI 修复：InventoryStockTab.vue 模板 wh.name 兜底删除（Warehouse 接口无 name 字段）
+  - 2 轮 CI 修复：9e704a0→1bc06a5（最终全绿）
 
 ### v11 剩余任务
 
-- ⏳ v11 前端 P2 其余项（7 类，P2-4 已完成）
+- ⏳ v11 前端 P2 其余项（5 类：P2-1 any 清理 / P2-2 i18n / P2-3 菜单硬编码 / P2-5 quality 分页 / P2-3 菜单硬编码）
 - ⏳ v12 全项目复审（v11 全部修复完成后）
 
 ### 已完成批次（最近 5 个）
 
 | 批次 | main commit | 内容 |
 |------|-------------|------|
+| 160 | `1bc06a5` | v11 前端 P2-6 custom-order AdvanceStatusDto 死代码清理 + P2-7 inventory any[] 类型化（10 文件 +82 -47 行，2 轮 CI 修复后全绿；含 InventoryStockTab.vue wh.name 兜底删除）|
 | 159 | `9eb589c` | v11 前端 P1-1 RecordTab handleView 占位 stub 真实接入 openRecordDialog + P2-4 budget.ts/cost.ts 过时 TODO(tech-debt) 注释清理（3 文件 +8 -8 行，CI 11/12 全绿，E2E 非阻塞）|
 | 158 | `f9796cb` | v11 P1 全项目项级 dead_code 按规则 0/1/2 真实接入（4 删 + 16 移除标注 + 19 接入业务 + 10 SeaORM 例外保留；4 轮 CI 修复后全绿；含 so_status unused import 修复 + baseline 补充 8/7）|
 | 157 | `7dfc2ef` | v11 复审报告生成（后端 47 项 + 前端 16 类）|

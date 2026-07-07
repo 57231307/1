@@ -6,6 +6,42 @@
 
 ---
 
+## 2026-07-07 (批次 160 v11 前端 P2-6 死代码清理 + P2-7 inventory any[] 类型化，CI 11/12 全绿)
+
+### 批次 160：v11 前端 P2-6 custom-order 死代码清理 + P2-7 inventory any[] 类型化
+
+**main commit `1bc06a5`（2 轮 CI 修复后 11/12 全绿，E2E 非阻塞），10 文件 +82 -47 行**
+
+按 v11 前端复审报告 P2-6（custom-order target_status 必填但调用方未传）和 P2-7（inventory 主页全 any[] 状态），完成类型化修复。
+
+**P2-6 custom-order target_status 死代码清理**：
+- 复审报告认为 `target_status` 是后端必填字段，但调用方未传。实际核查发现：后端 `AdvanceStatusDto` 结构体定义了 `target_status: String`，但**未被任何 handler 使用**（死代码）；handler 实际使用 `AdvanceRequest`（不含 target_status），service.advance 自动判断下一状态。
+- 后端 [backend/src/models/custom_order_create_dto.rs](file:///workspace/backend/src/models/custom_order_create_dto.rs)：删除未被使用的 `AdvanceStatusDto` 结构体
+- 前端 [frontend/src/api/custom-order.ts](file:///workspace/frontend/src/api/custom-order.ts)：`CustomOrderAdvanceDto` 移除 `target_status` 字段及过时 `TODO(tech-debt)` 注释，与后端 `AdvanceRequest` 对齐
+
+**P2-7 inventory 主页全 any[] 状态类型化**：
+- [frontend/src/views/inventory/index.vue](file:///workspace/frontend/src/views/inventory/index.vue)：4 个核心状态 `stocks`/`alerts`/`transfers`/`warehouses` 从 `any[]` 改为 `InventoryStock[]`/`StockAlert[]`/`InventoryTransfer[]`/`Warehouse[]`；4 个函数 `row: any` 改为具体类型
+- [frontend/src/views/inventory/tabs/InventoryStockTab.vue](file:///workspace/frontend/src/views/inventory/tabs/InventoryStockTab.vue)：props/emit/formatter `row: any` 改为 `InventoryStock`
+- [frontend/src/views/inventory/tabs/InventoryAlertTab.vue](file:///workspace/frontend/src/views/inventory/tabs/InventoryAlertTab.vue)：props `alerts` 改为 `StockAlert[]`
+- [frontend/src/views/inventory/tabs/InventoryTransferTab.vue](file:///workspace/frontend/src/views/inventory/tabs/InventoryTransferTab.vue)：props `transfers` 改为 `InventoryTransfer[]`；typeMap 改为联合字面量类型
+- [frontend/src/views/inventory/components/TransferDialog.vue](file:///workspace/frontend/src/views/inventory/components/TransferDialog.vue)：props `warehouses` 改为 `Warehouse[]`
+- [frontend/src/views/inventory/composables/invFmts.ts](file:///workspace/frontend/src/views/inventory/composables/invFmts.ts)：`getWarehouseLabel` 参数从 `any` 改为 `Pick<Warehouse, 'warehouse_name'>`
+
+**2 轮 CI 修复**：
+- Run 1 (9e704a0)：前端类型检查失败 `error TS2339: Property 'name' does not exist on type 'Warehouse'`（InventoryStockTab.vue 模板 `wh.warehouse_name || wh.name` 兜底）
+- Run 2 (1bc06a5)：✅ 全绿（移除模板 `|| wh.name` 兜底）
+
+**v11 前端 P2 修复进度**：
+- P2-4（tech-debt TODO）：✅ 已完成（批次 159）
+- P2-6（custom-order target_status）：✅ 已完成（批次 160）
+- P2-7（inventory any[]）：✅ 已完成（批次 160）
+- P2-1（any 类型清理 379 处）：⏳ 待处理（工作量大，分批进行）
+- P2-2（i18n 接入）：⏳ 待处理（工作量大，分批进行）
+- P2-3（菜单硬编码）：⏳ 待处理
+- P2-5（quality 分页）：⏳ 待处理（依赖后端改造）
+
+---
+
 ## 2026-07-07 (批次 159 v11 前端 P1-1 占位 stub 真实接入 + P2-4 过时 TODO 清理，CI 11/12 全绿)
 
 ### 批次 159：v11 前端 P1-1 RecordTab handleView 占位 stub 真实接入 + P2-4 过时 TODO 清理
