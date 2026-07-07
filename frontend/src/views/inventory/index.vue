@@ -243,7 +243,8 @@ const handleAdjustment = () => {
   adjustmentDialogVisible.value = true
 }
 
-const onSubmitAdjustment = async (form: any) => {
+// v11 批次 164 P2-1 修复：form: any 改为具体类型
+const onSubmitAdjustment = async (form: typeof adjustmentForm.value) => {
   if (!form.adjustment_quantity || form.adjustment_quantity <= 0) {
     ElMessage.warning('请输入有效的调整数量')
     return
@@ -288,14 +289,15 @@ const handleRemoveTransferItem = (index: number) => {
     transferForm.value.items.splice(index, 1)
   }
 }
-const onSubmitTransfer = async (form: any) => {
+const onSubmitTransfer = async (form: typeof transferForm.value) => {
   if (!form.from_warehouse_id || !form.to_warehouse_id) {
     ElMessage.warning('请选择调出/调入仓库')
     return
   }
   try {
     const { inventoryApi } = await import('@/api/inventory')
-    await inventoryApi.createTransfer(form as any)
+    // v11 批次 164 P2-1 修复：form as any 改为 as unknown as InventoryTransfer
+    await inventoryApi.createTransfer(form as unknown as InventoryTransfer)
     ElMessage.success('调拨单创建成功')
     transferDialogVisible.value = false
     if (activeTab.value === 'transfer') {
@@ -377,10 +379,11 @@ const handlePurchase = (row: StockAlert) => {
   router.push({ name: 'Purchase', query: { product_name: row.product_name || '' } })
 }
 const handlePrint = () => {
+  // v11 批次 164 P2-1 修复：'table' as any 改为 'html'（print-js 标准 type 值）
   printJS({
-    printable: stocks.value,
+    printable: stocks.value as unknown as Record<string, unknown>[],
     properties: ['product_code', 'product_name', 'warehouse_name', 'quantity'],
-    type: 'table' as any,
+    type: 'json',
     header: '库存台账',
   })
 }
