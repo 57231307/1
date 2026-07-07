@@ -93,7 +93,7 @@ import { useRouter } from 'vue-router'
 import { loadIfNot, createLazyLoader } from '@/utils/lazy-loader'
 import { exportToExcel } from '@/utils/export'
 // v11 批次 160 P2-7 修复：导入具体接口类型替代 any[]
-import type { InventoryStock, StockAlert, InventoryTransfer } from '@/api/inventory'
+import type { InventoryStock, StockAlert, InventoryTransfer, TransferData } from '@/api/inventory'
 import type { Warehouse } from '@/api/warehouse'
 import InventoryStockTab, { type StockQuery } from './tabs/InventoryStockTab.vue'
 import InventoryAlertTab from './tabs/InventoryAlertTab.vue'
@@ -296,15 +296,24 @@ const onSubmitTransfer = async (form: typeof transferForm.value) => {
   }
   try {
     const { inventoryApi } = await import('@/api/inventory')
-    // v11 批次 164 P2-1 修复：form as any 改为 as unknown as InventoryTransfer
-    await inventoryApi.createTransfer(form as unknown as InventoryTransfer)
+    const transferData: TransferData = {
+      from_warehouse_id: form.from_warehouse_id,
+      to_warehouse_id: form.to_warehouse_id,
+      items: form.items
+        .filter(item => item.product_id !== null)
+        .map(item => ({
+          product_id: item.product_id as number,
+          quantity: item.quantity,
+        })),
+      remark: form.remark,
+    }
+    await inventoryApi.createTransfer(transferData)
     ElMessage.success('调拨单创建成功')
     transferDialogVisible.value = false
     if (activeTab.value === 'transfer') {
       fetchTransfers()
     }
   } catch (error: unknown) {
-    // 批次 98 P2-D 修复（v5 复审）：原 catch (error: any) 改为 unknown + 类型守卫
     ElMessage.error((error instanceof Error ? error.message : String(error)) || '创建调拨单失败')
   }
 }
@@ -379,9 +388,8 @@ const handlePurchase = (row: StockAlert) => {
   router.push({ name: 'Purchase', query: { product_name: row.product_name || '' } })
 }
 const handlePrint = () => {
-  // v11 批次 164 P2-1 修复：'table' as any 改为 'html'（print-js 标准 type 值）
   printJS({
-    printable: stocks.value as unknown as Record<string, unknown>[],
+    printable: stocks.value,
     properties: ['product_code', 'product_name', 'warehouse_name', 'quantity'],
     type: 'json',
     header: '库存台账',
@@ -396,7 +404,7 @@ const handleExport = () => {
   exportToExcel({
     filename: '库存台账',
     format: 'excel',
-    data: stocks.value as unknown as Record<string, unknown>[],
+    data: stocks.value.map((s): Record<string, unknown> => ({ ...s })),
     columns: [
       { key: 'product_code', title: '产品编码' },
       { key: 'product_name', title: '产品名称' },

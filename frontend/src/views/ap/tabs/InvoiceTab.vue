@@ -84,7 +84,7 @@
               type="primary"
               link
               size="small"
-              @click="viewInvoice(row as unknown as APInvoice)"
+              @click="viewInvoice(row as APInvoice)"
               >查看</el-button
             >
             <el-button
@@ -92,7 +92,7 @@
               type="success"
               link
               size="small"
-              @click="approveInvoice(row as unknown as APInvoice)"
+              @click="approveInvoice(row as APInvoice)"
               >审核</el-button
             >
             <el-button
@@ -100,7 +100,7 @@
               type="danger"
               link
               size="small"
-              @click="cancelInvoice(row as unknown as APInvoice)"
+              @click="cancelInvoice(row as APInvoice)"
               >取消</el-button
             >
           </template>
@@ -394,7 +394,7 @@ const handlePrintInvoices = () => {
   printJS({
     printable: printData,
     properties: Object.keys(printData[0] || {}) as string[],
-    type: 'table',
+    type: 'json',
     header: '应付发票列表',
     style: 'padding: 20px; font-size: 14px;',
     headerStyle: 'font-size: 18px; font-weight: bold; margin-bottom: 20px;',
@@ -412,7 +412,7 @@ const handleExportInvoices = () => {
   exportToExcel({
     filename: '应付发票',
     format: 'excel',
-    data: invoices.value as unknown as Record<string, unknown>[],
+    data: invoices.value.map((inv): Record<string, unknown> => ({ ...inv })),
     columns: [
       { key: 'invoice_no', title: '发票号' },
       { key: 'supplier_name', title: '供应商' },

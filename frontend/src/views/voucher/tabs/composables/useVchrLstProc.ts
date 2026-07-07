@@ -49,7 +49,7 @@ export function useVchrLstProc(
     printJS({
       printable: printData,
       properties: Object.keys(printData[0] || {}) as string[],
-      type: 'table',
+      type: 'json',
       header: '会计凭证列表',
       style: 'padding: 20px; font-size: 14px;',
       headerStyle: 'font-size: 18px; font-weight: bold; margin-bottom: 20px;',

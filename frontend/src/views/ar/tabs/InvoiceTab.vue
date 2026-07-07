@@ -385,7 +385,7 @@ const handlePrintInvoices = () => {
   printJS({
     printable: printData,
     properties: Object.keys(printData[0] || {}) as string[],
-    type: 'table',
+    type: 'json',
     header: '应收发票列表',
     style: 'padding: 20px; font-size: 14px;',
     headerStyle: 'font-size: 18px; font-weight: bold; margin-bottom: 20px;',

@@ -258,7 +258,7 @@ const handlePrintSubjects = () => {
   printJS({
     printable: printData,
     properties: Object.keys(printData[0] || {}) as string[],
-    type: 'table',
+    type: 'json',
     header: '会计科目表',
     style: 'padding: 20px; font-size: 14px;',
     headerStyle: 'font-size: 18px; font-weight: bold; margin-bottom: 20px;',
