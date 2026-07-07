@@ -12,8 +12,9 @@ use crate::utils::audit::{self, SecurityEvent};
 use crate::utils::error::AppError;
 use crate::utils::password_validator::validate_password;
 // 批次 103 P0-3 修复：接入 PasswordPolicyService 的 is_common_password / contains_username_fragment / strength_feedback_zh
+// 批次 158 v11 真实接入：build_password_blacklist 用于批量黑名单校验
 use crate::services::auth::password_policy_service::{
-    contains_username_fragment, is_common_password, strength_feedback_zh,
+    build_password_blacklist, contains_username_fragment, is_common_password, strength_feedback_zh,
 };
 use crate::utils::response::ApiResponse;
 use axum::{
@@ -51,6 +52,16 @@ fn validate_password_strength(password: &str) -> Result<(), ValidationError> {
         result
             .errors
             .push("密码不能是常见弱密码（如 password/123456/qwerty 等）".to_string());
+    }
+    // 批次 158 v11 真实接入：build_password_blacklist 批量黑名单校验
+    // 与 is_common_password 互补：is_common_password 用子串匹配（宽松），
+    // build_password_blacklist 用精确匹配（严格），双重防护
+    let blacklist = build_password_blacklist();
+    if blacklist.contains(password) {
+        result.is_valid = false;
+        result
+            .errors
+            .push("密码在系统黑名单中，请更换为更复杂的密码".to_string());
     }
     if result.is_valid {
         Ok(())
@@ -567,6 +578,28 @@ pub async fn change_password(
     let new_password_hash = AuthService::hash_password(&req.new_password)
         .map_err(|e| AppError::internal(e.to_string()))?;
 
+    // 批次 158 v11 真实接入：PasswordPolicyService 密码历史校验
+    // 从 DB 加载该用户最近 N 次密码哈希，禁止复用历史密码
+    let policy_svc = crate::services::auth::password_policy_service::PasswordPolicyService::new();
+    let history = policy_svc
+        .load_history_from_db(state.db.as_ref(), auth.user_id)
+        .await
+        .map_err(|e| AppError::internal(format!("加载密码历史失败: {}", e)))?;
+    let history_result = policy_svc
+        .validate_with_history(&req.new_password, &new_password_hash, &history)
+        .await;
+    if !history_result.is_valid {
+        // 取强度校验之外的历史相关错误
+        let history_errors: Vec<&String> = history_result
+            .errors
+            .iter()
+            .filter(|e| e.contains("历史"))
+            .collect();
+        if !history_errors.is_empty() {
+            return Err(AppError::bad_request(history_errors[0].clone()));
+        }
+    }
+
     // P1 8-15 修复：计算新密码哈希的 SHA-256 摘要前 8 位
     let new_hash_fingerprint = {
         use sha2::{Digest, Sha256};
@@ -577,11 +610,25 @@ pub async fn change_password(
 
     // 更新密码
     use sea_orm::ActiveModelTrait;
+    let old_password_hash = user.password_hash.clone();
     let mut user_model: crate::models::user::ActiveModel = user.into();
     user_model.password_hash = sea_orm::Set(new_password_hash);
     user_model.updated_at = sea_orm::Set(chrono::Utc::now());
 
     user_model.update(state.db.as_ref()).await?;
+
+    // 批次 158 v11 真实接入：将旧密码哈希持久化到 password_histories 表
+    // 密码修改成功后才写入历史，避免修改失败导致历史污染
+    if let Err(e) = policy_svc
+        .save_to_db(state.db.as_ref(), auth.user_id, old_password_hash)
+        .await
+    {
+        tracing::warn!(
+            user_id = auth.user_id,
+            error = %e,
+            "[SECURITY] 密码历史持久化失败（不影响密码修改主流程）"
+        );
+    }
 
     // P0 7-4 修复：密码修改成功后吊销该用户的所有活跃 JWT
     //    防止攻击者持有的旧 Token 在剩余有效期（最长 2 小时）内继续访问。

@@ -533,6 +533,10 @@ pub fn ar() -> Router<AppState> {
             post(ar_payment_handler::confirm_payment),
         )
         .route(
+            "/ar/payments/:id/cancel",
+            post(ar_payment_handler::cancel_payment),
+        )
+        .route(
             "/ar/verifications",
             get(ar_verification_handler::list_verifications),
         )

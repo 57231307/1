@@ -1,4 +1,6 @@
 use crate::models::{budget_execution, budget_management, budget_plan};
+// 批次 158 v11 真实接入：审批状态常量替代字符串字面量
+use crate::models::status::approval;
 use crate::utils::error::AppError;
 use chrono::NaiveDate;
 use rust_decimal::Decimal;
@@ -578,7 +580,7 @@ impl BudgetManagementService {
             budget_before: sea_orm::Set(plan.total_amount),
             budget_after: sea_orm::Set(plan.total_amount + req.adjust_amount),
             reason: sea_orm::Set(req.reason.unwrap_or_default()),
-            approval_status: sea_orm::Set("APPROVED".to_string()),
+            approval_status: sea_orm::Set(approval::APPROVED.to_string()),
             created_by: sea_orm::Set(user_id),
             ..Default::default()
         }

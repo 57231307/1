@@ -16,6 +16,8 @@ use thiserror::Error;
 use crate::models::color_price_dto::{
     CreateColorPriceDto, ListColorPricesQuery, UpdateColorPriceDto,
 };
+// 批次 158 v11 真实接入：审批状态常量替代字符串字面量
+use crate::models::status::approval;
 use crate::models::product_color_price::{
     self, ActiveModel as ColorPriceActive, Entity as ColorPriceEntity,
 };
@@ -85,7 +87,7 @@ impl ColorPriceCrudService {
             created_by: Set(Some(operated_by)),
             approved_by: Set(None),
             approved_at: Set(None),
-            approval_status: Set("APPROVED".to_string()),
+            approval_status: Set(approval::APPROVED.to_string()),
             created_at: Set(now),
             updated_at: Set(now),
         };

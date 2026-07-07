@@ -18,6 +18,8 @@ use crate::models::color_price_history::{self, ActiveModel as HistoryActive};
 use crate::models::product_color_price::{
     self, ActiveModel as ColorPriceActive, Entity as ColorPriceEntity,
 };
+// 批次 158 v11 真实接入：审批状态常量替代字符串字面量
+use crate::models::status::approval;
 
 /// 业务错误
 #[derive(Debug, Error)]
@@ -117,7 +119,7 @@ impl ColorPriceBatchService {
             if need_approval {
                 // 标记 PENDING，不更新 base_price
                 let mut active: ColorPriceActive = existing.into();
-                active.approval_status = Set("PENDING".to_string());
+                active.approval_status = Set(approval::PENDING.to_string());
                 active.updated_at = Set(Utc::now());
                 pending_update_models.push((active, item.price_id));
             } else {
@@ -126,7 +128,7 @@ impl ColorPriceBatchService {
                 active.base_price = Set(new_price);
                 active.approved_by = Set(Some(operated_by));
                 active.approved_at = Set(Some(Utc::now()));
-                active.approval_status = Set("APPROVED".to_string());
+                active.approval_status = Set(approval::APPROVED.to_string());
                 active.updated_at = Set(Utc::now());
                 auto_update_models.push((active, item.price_id));
             }
@@ -172,7 +174,7 @@ impl ColorPriceBatchService {
             .await?
             .ok_or(BatchError::PriceNotFound(id))?;
 
-        if existing.approval_status != "PENDING" {
+        if existing.approval_status != approval::PENDING {
             return Err(BatchError::Validation(format!(
                 "价格不处于待审批状态（当前: {}）",
                 existing.approval_status
@@ -180,8 +182,8 @@ impl ColorPriceBatchService {
         }
 
         let new_status = match dto.decision.as_str() {
-            "APPROVED" => "APPROVED",
-            "REJECTED" => "REJECTED",
+            approval::APPROVED => approval::APPROVED,
+            approval::REJECTED => approval::REJECTED,
             _ => return Err(BatchError::Validation(format!(
                 "无效的审批决定: {}（允许: APPROVED / REJECTED）",
                 dto.decision
@@ -201,7 +203,7 @@ impl ColorPriceBatchService {
         active.approved_at = Set(Some(Utc::now()));
         active.updated_at = Set(Utc::now());
 
-        if new_status == "APPROVED" {
+        if new_status == approval::APPROVED {
             if let Some(h) = last_history.as_ref() {
                 active.base_price = Set(h.new_price);
             }

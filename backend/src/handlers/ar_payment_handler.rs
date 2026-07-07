@@ -165,3 +165,20 @@ pub async fn confirm_payment(
 
     Ok(Json(ApiResponse::success(payment)))
 }
+
+/// 取消收款（批次 158 v11 真实接入）
+/// POST /api/v1/erp/ar/payments/:id/cancel
+pub async fn cancel_payment(
+    auth: AuthContext,
+    State(state): State<AppState>,
+    Path(id): Path<i32>,
+) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
+    let service = crate::services::ar_service::ArService::new(state.db.clone());
+
+    let payment = service
+        .cancel_collection(id, auth.user_id)
+        .await
+        .map_err(|e| AppError::internal(format!("取消收款失败: {}", e)))?;
+
+    Ok(Json(ApiResponse::success(payment)))
+}

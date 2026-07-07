@@ -36,6 +36,8 @@ pub mod status;
 pub mod user;
 // v11 批次 143 P1-2：用户行为追踪分析模块
 pub mod user_behavior;
+// 批次 158 v11 真实接入：密码策略服务 - 密码历史持久化
+pub mod password_history;
 // MRP生产计划模块
 pub mod bom;
 pub mod bom_item;

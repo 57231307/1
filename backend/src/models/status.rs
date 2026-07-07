@@ -7,9 +7,11 @@
 //! - 通用状态：DRAFT/PENDING/APPROVED/CANCELLED/COMPLETED/ACTIVE（多业务共用）
 //! - 生产订单专属：SCHEDULED/IN_PROGRESS/PENDING_APPROVAL/REJECTED
 //! - 付款专属：REGISTERED/CONFIRMED/PAID/PARTIAL_PAID
-//! - 采购订单状态：保留历史模块（dead_code，待业务接入）
-//! - 销售订单状态：保留历史模块（dead_code，待业务接入）
-//! - 通用审批状态：保留历史模块（dead_code，待业务接入）
+//! - 采购订单状态：批次 158 v11 真实接入 po/ 子模块
+//! - 销售订单状态：批次 158 v11 真实接入 so/ 子模块
+//! - 通用审批状态：批次 158 v11 真实接入 color_price / budget_adjustment / ar_invoice
+//! - 库存预留状态：批次 158 v11 真实接入 so/delivery
+//! - 销售发货状态：批次 158 v11 真实接入 so/delivery
 
 /// 通用状态常量（多业务共用）
 pub mod common {
@@ -79,8 +81,7 @@ pub mod ar {
 
     /// 收款单已取消（ar_collection.status，小写值）
     ///
-    /// 预留：ar_service.rs 当前未实现收款单取消操作，待后续接入 cancel_collection 方法时使用。
-    #[allow(dead_code)] // TODO(tech-debt): ar_service 接入收款单取消操作后移除
+    /// 批次 158 v11 真实接入：ar_service.rs cancel_collection 方法使用此常量将收款状态置为 cancelled
     pub const COLLECTION_CANCELLED: &str = "cancelled";
 
     /// 核销单已完成（ar_reconciliation.reconciliation_status，大写值）
@@ -193,19 +194,15 @@ pub mod sales_order {
     pub const REJECTED: &str = "rejected";
 }
 
-// 通用审批状态（历史模块，待业务接入后逐项移除 allow）
-#[allow(dead_code)] // TODO(tech-debt): 业务代码当前用字符串字面量，未来应统一引用此常量
+// 通用审批状态（批次 158 v11 真实接入：color_price / budget_adjustment / ar_invoice 业务引用）
+// 注：DRAFT 和 CANCELLED 在当前业务中无使用场景已删除；如未来审批流程扩展需要可重新添加
 pub mod approval {
-    /// 草稿
-    pub const DRAFT: &str = "DRAFT";
     /// 待审批
     pub const PENDING: &str = "PENDING";
     /// 已审批
     pub const APPROVED: &str = "APPROVED";
     /// 已拒绝
     pub const REJECTED: &str = "REJECTED";
-    /// 已取消
-    pub const CANCELLED: &str = "CANCELLED";
 }
 
 // 库存预留状态（inventory_reservation.status，小写值）

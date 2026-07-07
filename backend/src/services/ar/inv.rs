@@ -23,6 +23,8 @@ use crate::models::ar_invoice::{
 use crate::models::ar_reconciliation::{
     Entity as ReconciliationEntity, Model as ReconciliationModel,
 };
+// 批次 158 v11 真实接入：审批状态常量替代字符串字面量
+use crate::models::status::{approval, common};
 use crate::models::ar_reconciliation_item::{
     Entity as ReconciliationItemEntity, Model as ReconciliationItemModel,
 };
@@ -197,8 +199,8 @@ impl ArReconciliationService {
             batch_no: Set(None),
             color_no: Set(None),
             sales_order_no: Set(Some(order.order_no.clone())),
-            status: Set("DRAFT".to_string()),
-            approval_status: Set("PENDING".to_string()),
+            status: Set(common::STATUS_DRAFT.to_string()),
+            approval_status: Set(approval::PENDING.to_string()),
             created_by: Set(user_id),
             ..Default::default()
         };

@@ -12,6 +12,8 @@ use serde::{Deserialize, Serialize};
 
 use crate::middleware::auth_context::AuthContext;
 use crate::models::product_color_price;
+// 批次 158 v11 真实接入：审批状态常量替代字符串字面量
+use crate::models::status::approval;
 use crate::models::quotation_create_dto::CreateQuotationDto;
 use crate::models::quotation_response_dto::{
     QuotationItemResponseDto, QuotationResponseDto, QuotationTermResponseDto,
@@ -493,7 +495,7 @@ pub async fn set_color_price(
         created_by: None,
         approved_by: None,
         approved_at: None,
-        approval_status: "APPROVED".to_string(),
+        approval_status: approval::APPROVED.to_string(),
         created_at: Utc::now(),
         updated_at: Utc::now(),
     }

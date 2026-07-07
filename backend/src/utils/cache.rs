@@ -46,9 +46,7 @@ impl CacheStats {
 struct CachedValue<T> {
     value: T,
     expires_at: Option<Instant>,
-    // TODO(tech-debt): 当前仅在写入时填充但未在淘汰/统计路径中读取；后续接入缓存
-    // 过期分析或缓存命中率时间维度统计时再消费此字段并移除标注。
-    #[allow(dead_code)]
+    // 批次 158 v11 真实接入：evict_oldest 使用此字段实现 LRU 淘汰策略
     created_at: Instant,
 }
 
@@ -221,16 +219,30 @@ where
     }
 
     fn evict_oldest(&self, target_size: usize) {
-        let mut removed = 0u64;
+        // 批次 158 v11 真实接入：基于 created_at 的 LRU 淘汰策略
+        // 原实现使用 retain 任意淘汰，无法保证淘汰最旧缓存项；
+        // 现按 created_at 升序排序后淘汰最旧的 N 项，符合 LRU 语义
+        let current_size = self.storage.len();
+        if current_size <= target_size {
+            return;
+        }
+        let need_remove = current_size - target_size;
 
-        self.storage.retain(|_, _v| {
-            if target_size <= self.storage.len() - removed as usize {
+        // 收集所有 (key 引用, created_at) 并按 created_at 升序排序
+        let mut entries: Vec<(K, Instant)> = self
+            .storage
+            .iter()
+            .map(|e| (e.key().clone(), e.value().created_at))
+            .collect();
+        entries.sort_by_key(|(_, t)| *t);
+
+        // 淘汰最旧的 need_remove 项
+        let mut removed = 0u64;
+        for (key, _) in entries.into_iter().take(need_remove) {
+            if self.storage.remove(&key).is_some() {
                 removed += 1;
-                false
-            } else {
-                true
             }
-        });
+        }
 
         self.evictions.fetch_add(removed, Ordering::Relaxed);
     }

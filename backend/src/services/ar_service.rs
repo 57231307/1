@@ -341,6 +341,71 @@ impl ArService {
         Ok(collection_to_json(updated))
     }
 
+    /// 取消收款单（批次 158 v11 真实接入 COLLECTION_CANCELLED 常量）
+    ///
+    /// 业务规则：
+    /// - 仅 `pending` 状态的收款单可直接取消；`confirmed` 状态需先取消关联核销单后再操作
+    /// - 取消前校验该收款未被任何核销单引用（ar_reconciliation_item.item_type = 'RECEIPT'），
+    ///   避免取消后核销明细悬空
+    /// - 状态置为 `cancelled`，清空 confirmed_by/confirmed_at（pending 状态本应为空，防御性清理）
+    /// - 通过 update_with_audit 记录审计日志
+    pub async fn cancel_collection(
+        &self,
+        payment_id: i32,
+        user_id: i32,
+    ) -> Result<serde_json::Value, AppError> {
+        let txn = (*self.db).begin().await?;
+
+        let collection = ar_collection::Entity::find_by_id(payment_id)
+            .lock_exclusive()
+            .one(&txn)
+            .await?
+            .ok_or_else(|| AppError::not_found(format!("收款单 {} 不存在", payment_id)))?;
+
+        if collection.status != crate::models::status::ar::COLLECTION_PENDING {
+            return Err(AppError::bad_request(format!(
+                "收款单状态为 {}，仅 pending 状态可直接取消；confirmed 状态请先取消关联核销单",
+                collection.status
+            )));
+        }
+
+        // 校验：收款未被任何核销单引用（pending 状态通常未被核销，防御性检查）
+        let referenced_count = ar_reconciliation_item::Entity::find()
+            .filter(ar_reconciliation_item::Column::ItemType.eq("RECEIPT"))
+            .filter(ar_reconciliation_item::Column::DocumentId.eq(payment_id))
+            .count(&txn)
+            .await?;
+        if referenced_count > 0 {
+            return Err(AppError::bad_request(format!(
+                "收款单 {} 已被 {} 笔核销单引用，请先取消关联核销单",
+                payment_id, referenced_count
+            )));
+        }
+
+        let now = Utc::now();
+        let mut active: ar_collection::ActiveModel = collection.into();
+        active.status = Set(crate::models::status::ar::COLLECTION_CANCELLED.to_string());
+        active.confirmed_by = Set(None);
+        active.confirmed_at = Set(None);
+        active.updated_at = Set(now);
+
+        let updated = crate::services::audit_log_service::AuditLogService::update_with_audit::<
+            ar_collection::Entity,
+            _,
+            _,
+        >(&txn, "ar_collection", active, Some(user_id))
+        .await?;
+
+        txn.commit().await?;
+
+        info!(
+            "AR 收款单取消成功：payment_id={}, operator={}",
+            payment_id, user_id
+        );
+
+        Ok(collection_to_json(updated))
+    }
+
     // ========== 核销管理 ==========
     //
     // 核销基于 ar_reconciliation + ar_reconciliation_item 表实现：
