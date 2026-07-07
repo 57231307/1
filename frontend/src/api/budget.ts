@@ -40,7 +40,7 @@ export function deleteBudget(id: number): Promise<ApiResponse<void>> {
   return request.delete(`/budgets/${id}`)
 }
 
-// TODO(tech-debt): 前端接入后移除（后端端点保留）
+// v11 批次 159 P2-4 修复：已被 BudgetListTab.vue 接入使用，移除过时 TODO 注释
 export function approveBudget(id: number): Promise<ApiResponse<void>> {
   return request.post(`/budgets/${id}/approve`)
 }

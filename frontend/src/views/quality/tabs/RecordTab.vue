@@ -106,10 +106,10 @@ const columns: ColumnDef[] = [
     title: '操作',
     width: 120,
     fixed: 'right',
-    renderCell: () =>
+    renderCell: (row: QualityRecord) =>
       h(
         ElButton,
-        { type: 'primary', link: true, size: 'small', onClick: handleView },
+        { type: 'primary', link: true, size: 'small', onClick: () => handleView(row) },
         () => '查看'
       ),
   },
@@ -129,9 +129,9 @@ const openCreate = () => {
   actions?.openRecordDialog(null)
 }
 
-// 查看检验记录
-const handleView = () => {
-  ElMessage.info('查看检验记录')
+// 查看检验记录（v11 批次 159 P1-1 修复：接入 openRecordDialog 显示详情，替代占位 ElMessage.info）
+const handleView = (row: QualityRecord) => {
+  actions?.openRecordDialog(row)
 }
 
 // 导出 CSV

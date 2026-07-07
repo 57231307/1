@@ -32,10 +32,10 @@ export interface CostCollectionQueryParams {
   type?: string
 }
 
-// TODO(tech-debt): 前端接入后移除（后端端点保留）
+// v11 批次 159 P2-4 修复：已被 CostCollectionTab.vue 接入使用，移除过时 TODO 注释
 export const deleteCollection = (id: number) => request.delete(`/production/cost-collections/${id}`)
 
-// TODO(tech-debt): 前端接入后移除（后端端点保留）
+// v11 批次 159 P2-4 修复：已被 CostCollectionTab.vue 接入使用，移除过时 TODO 注释
 export const auditCollection = (id: number, approved: boolean, comment?: string) =>
   request.post(`/production/cost-collections/${id}/audit`, { approved, comment })
 
