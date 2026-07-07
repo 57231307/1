@@ -62,8 +62,9 @@
         <el-table-column label="操作" width="150" fixed="right">
           <template #default="{ row }">
             <!-- P2-17 修复（批次 86 v2 复审）：编辑/删除按钮补齐 v-permission -->
-            <el-button v-permission="'user:update'" size="small" link @click="openUserDialog(row as any)">编辑</el-button>
-            <el-button v-permission="'user:delete'" size="small" link type="danger" @click="deleteUser(row as any)"
+            <!-- v11 批次 166 P2-1 修复：row as any 改为 row as User -->
+            <el-button v-permission="'user:update'" size="small" link @click="openUserDialog(row as User)">编辑</el-button>
+            <el-button v-permission="'user:delete'" size="small" link type="danger" @click="deleteUser(row as User)"
               >删除</el-button
             >
           </template>
@@ -178,13 +179,14 @@ const userForm = reactive({
   status: 1,
 })
 
-const validateEmail = (_: any, v: string, cb: any) => {
+// v11 批次 166 P2-1 修复：validator 参数类型化（FormItemRule validator 签名）
+const validateEmail = (_rule: unknown, v: string, cb: (error?: Error) => void) => {
   v && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v) ? cb(new Error('邮箱格式错误')) : cb()
 }
-const validatePhone = (_: any, v: string, cb: any) => {
+const validatePhone = (_rule: unknown, v: string, cb: (error?: Error) => void) => {
   v && !/^1[3-9]\d{9}$/.test(v) ? cb(new Error('手机号格式错误')) : cb()
 }
-const validatePassword = (_: any, v: string, cb: any) => {
+const validatePassword = (_rule: unknown, v: string, cb: (error?: Error) => void) => {
   if (userForm.id && !v) {
     cb()
     return
