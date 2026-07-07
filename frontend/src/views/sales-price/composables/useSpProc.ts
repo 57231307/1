@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
 /**
  * useSpProc.ts - 销售价格流程操作 composable
  * 任务编号: P14 批 2 I-3 第 3 批（拆分原 sales-price/index.vue）
@@ -27,7 +26,8 @@ interface RefreshCallbacks {
 export function useSpProc(refresh: RefreshCallbacks) {
   // 查看详情对话框状态
   const viewDialogVisible = ref(false)
-  const viewData = ref<any>({})
+  // v11 批次 174 P2-1 修复：ref<any>({}) 改为 ref<SalesPrice>，初始空对象通过断言
+  const viewData = ref<SalesPrice>({} as SalesPrice)
 
   // 历史记录对话框状态
   const historyVisible = ref(false)
@@ -45,15 +45,17 @@ export function useSpProc(refresh: RefreshCallbacks) {
       await approveSalesPrice(row.id)
       ElMessage.success('审批成功')
       await refresh.getList()
-    } catch (error: any) {
-      if (error !== 'cancel' && error && error.message) {
-        ElMessage.error(error.message || '审批失败')
+    } catch (error: unknown) {
+      // v11 批次 174 P2-1 修复：catch (error: any) 改为 unknown + 类型守卫
+      if (error !== 'cancel') {
+        const errMsg = error instanceof Error ? error.message : String(error)
+        if (errMsg) ElMessage.error(errMsg || '审批失败')
       }
     }
   }
 
   /** 查看详情（弹出对话框） */
-  const handleView = (row: any) => {
+  const handleView = (row: SalesPrice) => {
     viewData.value = row
     viewDialogVisible.value = true
   }
@@ -64,8 +66,10 @@ export function useSpProc(refresh: RefreshCallbacks) {
       const res = await getPriceHistory(row.product_id)
       historyList.value = res.data || []
       historyVisible.value = true
-    } catch (error: any) {
-      ElMessage.error(error.message || '获取历史记录失败')
+    } catch (error: unknown) {
+      // v11 批次 174 P2-1 修复：catch (error: any) 改为 unknown + 类型守卫
+      const errMsg = error instanceof Error ? error.message : String(error)
+      ElMessage.error(errMsg || '获取历史记录失败')
     }
   }
 
@@ -76,8 +80,10 @@ export function useSpProc(refresh: RefreshCallbacks) {
     try {
       const res = await listPricingStrategies()
       strategyList.value = res.data || []
-    } catch (error: any) {
-      ElMessage.error(error.message || '获取价格策略失败')
+    } catch (error: unknown) {
+      // v11 批次 174 P2-1 修复：catch (error: any) 改为 unknown + 类型守卫
+      const errMsg = error instanceof Error ? error.message : String(error)
+      ElMessage.error(errMsg || '获取价格策略失败')
     } finally {
       strategyLoading.value = false
     }
@@ -100,7 +106,8 @@ export function useSpProc(refresh: RefreshCallbacks) {
         '到期日期',
         '状态',
       ],
-      ...list.map((item: any) => [
+      // v11 批次 174 P2-1 修复：(item: any) 改为 (item: SalesPrice)
+      ...list.map((item: SalesPrice) => [
         item.product_name,
         item.customer_name || '',
         item.price,
@@ -114,7 +121,8 @@ export function useSpProc(refresh: RefreshCallbacks) {
         getStatusLabel(item.status),
       ]),
     ]
-      .map((row: any[]) => row.map((cell: any) => `"${cell}"`).join(','))
+      // v11 批次 174 P2-1 修复：(row: any[]) 和 (cell: any) 改为 unknown 类型
+      .map((row: unknown[]) => row.map((cell: unknown) => `"${String(cell ?? '')}"`).join(','))
       .join('\n')
     const blob = new Blob(['\ufeff' + csvContent], { type: 'text/csv;charset=utf-8;' })
     const link = document.createElement('a')

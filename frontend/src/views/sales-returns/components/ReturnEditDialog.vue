@@ -183,22 +183,29 @@
 
 <script setup lang="ts">
 import { ref, watch, reactive } from 'vue'
-import type { FormInstance } from 'element-plus'
+import type { FormInstance, FormRules } from 'element-plus'
+// v11 批次 174 P2-1 修复：从 useSr 导入具体类型替代 any
+import type {
+  ReturnForm,
+  SalesOrderOption,
+  CustomerOption,
+  ProductOption,
+} from '../composables/useSr'
 
 const props = defineProps<{
   visible: boolean
   dialogMode: 'create' | 'edit'
-  formData: any
-  salesOrderList: any[]
-  customerList: any[]
-  productList: any[]
-  formRules: any
+  formData: ReturnForm
+  salesOrderList: SalesOrderOption[]
+  customerList: CustomerOption[]
+  productList: ProductOption[]
+  formRules: FormRules
   submitLoading: boolean
 }>()
 
 const emit = defineEmits<{
   (e: 'update:visible', val: boolean): void
-  (e: 'submit', data: any): void
+  (e: 'submit', data: ReturnForm): void
   (e: 'salesOrderChange', orderId: number): void
   (e: 'addItem'): void
   (e: 'removeItem', index: number): void
@@ -209,7 +216,8 @@ const emit = defineEmits<{
 const formRef = ref<FormInstance>()
 
 // 浅拷贝 props.formData 到 local（避免直接修改 prop）
-const localFormData = reactive<any>({})
+// v11 批次 174 P2-1 修复：reactive<any>({}) 改为 reactive<Partial<ReturnForm>>({})
+const localFormData = reactive<Partial<ReturnForm>>({})
 watch(
   () => props.formData,
   newVal => {
@@ -224,7 +232,8 @@ const onClose = (val: boolean) => {
 }
 
 const onSubmit = () => {
-  emit('submit', localFormData)
+  // v11 批次 174 P2-1 修复：localFormData 是 Partial<ReturnForm>，emit 期望 ReturnForm
+  emit('submit', localFormData as ReturnForm)
 }
 
 const onSalesOrderChange = (orderId: number) => {

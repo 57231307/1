@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
 /**
  * useScProc.ts - 销售合同流程操作 composable
  * 任务编号: P14 批 2 I-3 第 1 批（拆分原 sales-contract/index.vue）
@@ -31,9 +30,11 @@ export function useScProc(refresh: RefreshCallbacks) {
       await approveSalesContract(row.id)
       ElMessage.success('提交成功')
       await refresh.getList()
-    } catch (error: any) {
+    } catch (error: unknown) {
+      // v11 批次 174 P2-1 修复：catch (error: any) 改为 unknown + 类型守卫
       if (error !== 'cancel') {
-        ElMessage.error(error.message || '提交失败')
+        const errMsg = error instanceof Error ? error.message : String(error)
+        ElMessage.error(errMsg || '提交失败')
       }
     }
   }
@@ -45,9 +46,11 @@ export function useScProc(refresh: RefreshCallbacks) {
       await approveSalesContract(row.id)
       ElMessage.success('审批成功')
       await refresh.getList()
-    } catch (error: any) {
+    } catch (error: unknown) {
+      // v11 批次 174 P2-1 修复：catch (error: any) 改为 unknown + 类型守卫
       if (error !== 'cancel') {
-        ElMessage.error(error.message || '审批失败')
+        const errMsg = error instanceof Error ? error.message : String(error)
+        ElMessage.error(errMsg || '审批失败')
       }
     }
   }
@@ -59,9 +62,11 @@ export function useScProc(refresh: RefreshCallbacks) {
       await executeSalesContract(row.id)
       ElMessage.success('执行成功')
       await refresh.getList()
-    } catch (error: any) {
+    } catch (error: unknown) {
+      // v11 批次 174 P2-1 修复：catch (error: any) 改为 unknown + 类型守卫
       if (error !== 'cancel') {
-        ElMessage.error(error.message || '执行失败')
+        const errMsg = error instanceof Error ? error.message : String(error)
+        ElMessage.error(errMsg || '执行失败')
       }
     }
   }
@@ -73,9 +78,11 @@ export function useScProc(refresh: RefreshCallbacks) {
       await deleteSalesContract(row.id)
       ElMessage.success('删除成功')
       await refresh.getList()
-    } catch (error: any) {
+    } catch (error: unknown) {
+      // v11 批次 174 P2-1 修复：catch (error: any) 改为 unknown + 类型守卫
       if (error !== 'cancel') {
-        ElMessage.error(error.message || '删除失败')
+        const errMsg = error instanceof Error ? error.message : String(error)
+        ElMessage.error(errMsg || '删除失败')
       }
     }
   }
@@ -112,7 +119,8 @@ export function useScProc(refresh: RefreshCallbacks) {
     }
     const rows = list
       .map(
-        (item: any) => `
+        // v11 批次 174 P2-1 修复：(item: any) 改为 (item: SalesContract)
+        (item: SalesContract) => `
       <tr>
         <td>${escapeHtml(item.contract_no)}</td>
         <td>${escapeHtml(item.contract_name)}</td>
@@ -153,7 +161,8 @@ export function useScProc(refresh: RefreshCallbacks) {
     const list = Array.isArray(contractList) ? contractList : contractList.value
     const csvContent = [
       ['合同编号', '合同名称', '客户', '金额', '签订日期', '状态'],
-      ...list.map((item: any) => [
+      // v11 批次 174 P2-1 修复：(item: any) 改为 (item: SalesContract)
+      ...list.map((item: SalesContract) => [
         item.contract_no,
         item.contract_name,
         item.customer_name,
@@ -162,7 +171,8 @@ export function useScProc(refresh: RefreshCallbacks) {
         getStatusLabel(item.status),
       ]),
     ]
-      .map((row: any[]) => row.map((cell: any) => `"${cell}"`).join(','))
+      // v11 批次 174 P2-1 修复：(row: any[]) 和 (cell: any) 改为 unknown 类型
+      .map((row: unknown[]) => row.map((cell: unknown) => `"${String(cell ?? '')}"`).join(','))
       .join('\n')
     const blob = new Blob(['\ufeff' + csvContent], { type: 'text/csv;charset=utf-8;' })
     const link = document.createElement('a')

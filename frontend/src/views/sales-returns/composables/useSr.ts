@@ -16,7 +16,8 @@ import { productApi } from '@/api/product'
 import logger from '@/utils/logger'
 
 // v11 批次 163 P2-1 修复：定义具体类型替代 any
-interface SalesOrderOption {
+// v11 批次 174 P2-1 修复：导出接口供 ReturnEditDialog 使用
+export interface SalesOrderOption {
   id: number
   order_no: string
   customer_id: number
@@ -29,19 +30,19 @@ interface SalesOrderOption {
   }>
 }
 
-interface CustomerOption {
+export interface CustomerOption {
   id: number
   name: string
   [key: string]: unknown
 }
 
-interface ProductOption {
+export interface ProductOption {
   id: number
   name: string
   [key: string]: unknown
 }
 
-interface ReturnFormItem {
+export interface ReturnFormItem {
   id: number | null
   productId: number | null
   productName: string
@@ -52,7 +53,7 @@ interface ReturnFormItem {
   reason: string
 }
 
-interface ReturnForm {
+export interface ReturnForm {
   id: number | null
   salesOrderId: number | null
   salesOrderNo: string
