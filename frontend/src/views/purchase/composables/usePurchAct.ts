@@ -68,9 +68,9 @@ export function usePurchAct(
     printJS({
       printable: printData,
       properties: Object.keys(printData[0] || {}),
-      // v11 批次 177 P2-1 修复：print-js 的 PrintTypes 类型定义不完整（未声明 'table'），但库实际支持表格打印
-      // 使用 as unknown as never 绕过类型检查（never 可赋值给 PrintTypes | undefined），避免使用 any
-      type: 'table' as unknown as never,
+      // v11 批次 181 P2-1 修复：print-js 的 PrintTypes 类型定义不完整（未声明 'table'）
+      // 通过 src/types/print-js.d.ts 扩展 Configuration.type 支持 'table'，无需类型断言
+      type: 'table',
       header: '采购订单列表',
       style: 'padding: 20px; font-size: 14px;',
       headerStyle: 'font-size: 18px; font-weight: bold; margin-bottom: 20px;',

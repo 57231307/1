@@ -78,8 +78,10 @@ export function useSchM() {
       taskList.value = res.data!.list
       total.value = res.data!.total
       updateStats()
-    } catch (error: any) {
-      ElMessage.error(error.message || '获取排程任务失败')
+    } catch (error: unknown) {
+      // v11 批次 181 P2-1 修复：catch (error: any) 改为 catch (error: unknown) + 类型守卫
+      const errMsg = error instanceof Error ? error.message : String(error)
+      ElMessage.error(errMsg || '获取排程任务失败')
       taskList.value = []
       total.value = 0
     } finally {
@@ -102,8 +104,10 @@ export function useSchM() {
       const res = await schedulingApi.detectConflicts()
       conflictList.value = res.data!
       stats.value.conflicts = conflictList.value.length
-    } catch (error: any) {
-      ElMessage.error(error.message || '获取冲突列表失败')
+    } catch (error: unknown) {
+      // v11 批次 181 P2-1 修复：catch (error: any) 改为 catch (error: unknown) + 类型守卫
+      const errMsg = error instanceof Error ? error.message : String(error)
+      ElMessage.error(errMsg || '获取冲突列表失败')
       conflictList.value = []
     } finally {
       conflictLoading.value = false
@@ -133,8 +137,10 @@ export function useSchM() {
       adjustDialogVisible.value = false
       await fetchTasks()
       return true
-    } catch (error: any) {
-      ElMessage.error(error.message || '排程调整失败')
+    } catch (error: unknown) {
+      // v11 批次 181 P2-1 修复：catch (error: any) 改为 catch (error: unknown) + 类型守卫
+      const errMsg = error instanceof Error ? error.message : String(error)
+      ElMessage.error(errMsg || '排程调整失败')
       return false
     } finally {
       adjusting.value = false

@@ -6,27 +6,19 @@
  */
 import { reactive, ref } from 'vue'
 import { ElMessage } from 'element-plus'
-import { schedulingApi, type SchedulingParams } from '@/api/scheduling'
+import { schedulingApi, type SchedulingParams, type ConflictItem } from '@/api/scheduling'
 
 // v11 批次 181 P2-1 修复：定义 deps 类型替代 any
-// 注：deps 字段来自 useSchG 返回的 reactive 对象（ref 被解包），
-// 但原代码以 .value 访问，保持行为一致使用 unknown + 类型断言
-interface SchGConflictItem {
-  work_center_name: string
-  order_no_1: string
-  order_no_2: string
-  overlap_start: string
-  overlap_end: string
-  severity: string
-  suggestion: string
-}
-
+// 注：useSchG 返回 reactive 对象，字段会被自动解包
+// - 对象类型（scheduleForm）传入解包后的引用，修改字段可反映到原对象
+// - 需要重新赋值的字段（conflictList, conflictDialogVisible, autoScheduleDialogVisible）
+//   使用 setter 函数，确保修改反映到原 reactive 对象
 interface SchGDeps {
   fetchGanttData: () => Promise<void>
-  conflictList: unknown
-  conflictDialogVisible: unknown
-  scheduleForm: unknown
-  autoScheduleDialogVisible: unknown
+  scheduleForm: SchedulingParams
+  setAutoScheduleDialogVisible: (v: boolean) => void
+  setConflictList: (v: ConflictItem[]) => void
+  setConflictDialogVisible: (v: boolean) => void
 }
 
 /**
@@ -41,15 +33,16 @@ export function useSchGProc(deps: SchGDeps) {
   const confirmAutoSchedule = async () => {
     scheduling.value = true
     try {
-      const res = await schedulingApi.autoSchedule(deps.scheduleForm as SchedulingParams)
+      const res = await schedulingApi.autoSchedule(deps.scheduleForm)
       const result = res.data!
       ElMessage.success(
         `排程完成: ${result.scheduled_count} 个任务已排程, ${result.conflict_count} 个冲突`
       )
-      ;(deps.autoScheduleDialogVisible as { value: boolean }).value = false
+      // v11 批次 181 P2-1 修复：使用 setter 函数正确更新 reactive 对象的字段
+      deps.setAutoScheduleDialogVisible(false)
       if (result.conflict_count > 0) {
-        ;(deps.conflictList as { value: SchGConflictItem[] }).value = result.conflicts
-        ;(deps.conflictDialogVisible as { value: boolean }).value = true
+        deps.setConflictList(result.conflicts)
+        deps.setConflictDialogVisible(true)
       }
       await deps.fetchGanttData()
     } catch (error: unknown) {

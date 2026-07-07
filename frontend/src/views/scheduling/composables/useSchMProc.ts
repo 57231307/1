@@ -4,11 +4,15 @@
  * 提供排产自动排程的执行流程（参数构造 + API 调用 + 冲突更新）
  * 行为完全保持一致（仅结构重构）
  */
-import { reactive, ref, type Ref } from 'vue'
+import { reactive, ref } from 'vue'
 import { ElMessage } from 'element-plus'
 import { schedulingApi, type ConflictItem, type SchedulingParams } from '@/api/scheduling'
 
 // v11 批次 181 P2-1 修复：定义 deps 类型替代 any
+// 注：useSchM 返回 reactive 对象，字段会被自动解包
+// - 对象/数组类型（scheduleParams, stats）传入解包后的引用，修改字段可反映到原对象
+// - 值类型（dateRange）传入解包后的值，仅用于读取
+// - 需要重新赋值的字段（conflictList）使用 setter 函数，确保修改反映到原 reactive 对象
 interface SchMStats {
   pending: number
   scheduled: number
@@ -18,10 +22,10 @@ interface SchMStats {
 
 interface SchMDeps {
   fetchTasks: () => Promise<void>
-  dateRange: Ref<[Date, Date] | null>
-  scheduleParams: Ref<SchedulingParams>
-  conflictList: Ref<ConflictItem[]>
-  stats: Ref<SchMStats>
+  dateRange: [Date, Date] | null
+  scheduleParams: SchedulingParams
+  setConflictList: (v: ConflictItem[]) => void
+  stats: SchMStats
 }
 
 /**
@@ -33,15 +37,15 @@ export function useSchMProc(deps: SchMDeps) {
 
   /** 准备排程参数（基于日期范围或默认 +30 天） */
   const prepareScheduleParams = () => {
-    if (deps.dateRange.value && deps.dateRange.value.length === 2) {
-      deps.scheduleParams.value.start_date = deps.dateRange.value[0].toISOString().split('T')[0]
-      deps.scheduleParams.value.end_date = deps.dateRange.value[1].toISOString().split('T')[0]
+    if (deps.dateRange && deps.dateRange.length === 2) {
+      deps.scheduleParams.start_date = deps.dateRange[0].toISOString().split('T')[0]
+      deps.scheduleParams.end_date = deps.dateRange[1].toISOString().split('T')[0]
     } else {
       const today = new Date()
       const end = new Date()
       end.setDate(end.getDate() + 30)
-      deps.scheduleParams.value.start_date = today.toISOString().split('T')[0]
-      deps.scheduleParams.value.end_date = end.toISOString().split('T')[0]
+      deps.scheduleParams.start_date = today.toISOString().split('T')[0]
+      deps.scheduleParams.end_date = end.toISOString().split('T')[0]
     }
   }
 
@@ -50,12 +54,13 @@ export function useSchMProc(deps: SchMDeps) {
     scheduling.value = true
     try {
       prepareScheduleParams()
-      const res = await schedulingApi.autoSchedule(deps.scheduleParams.value)
+      const res = await schedulingApi.autoSchedule(deps.scheduleParams)
       const result = res.data!
       ElMessage.success(`排程完成: ${result.scheduled_count} 个任务, ${result.conflict_count} 个冲突`)
       if (result.conflict_count > 0) {
-        deps.conflictList.value = result.conflicts
-        deps.stats.value.conflicts = result.conflict_count
+        // v11 批次 181 P2-1 修复：使用 setter 函数正确更新 reactive 对象的 conflictList
+        deps.setConflictList(result.conflicts)
+        deps.stats.conflicts = result.conflict_count
       }
       await deps.fetchTasks()
     } catch (error: unknown) {

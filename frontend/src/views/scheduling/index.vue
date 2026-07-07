@@ -78,7 +78,7 @@ const schMProc = useSchMProc({
   fetchTasks: schM.fetchTasks,
   dateRange: schM.dateRange,
   scheduleParams: schM.scheduleParams,
-  conflictList: schM.conflictList,
+  setConflictList: (v) => { schM.conflictList = v },
   stats: schM.stats,
 })
 

@@ -246,13 +246,33 @@ export interface CustomOrderProcessNode {
   notes?: string
 }
 
-/** 定制订单详情（对齐后端 CustomOrderDetailResponse，含 notes + process_nodes） */
+/** 质量异常信息（对齐后端 QualityIssueResponse，详情接口返回 quality_issues 字段元素类型） */
+export interface QualityIssue {
+  id: number
+  custom_order_id?: number
+  process_node_id?: number
+  issue_type: string
+  severity: string
+  description?: string
+  color_delta_e?: number
+  color_fastness_grade?: number
+  status: string
+  resolution?: string
+  discovered_at?: string
+  created_at?: string
+  updated_at?: string
+}
+
+/** 定制订单详情（对齐后端 CustomOrderDetailResponse，含 notes + process_nodes + quality_issues + after_sales） */
 export interface CustomOrderDetail extends CustomOrderListItem {
   yarn_spec?: string
   dye_method?: string
   finishing_method?: string
   updated_at: string
   process_nodes: CustomOrderProcessNode[]
+  // v11 批次 181 P2-1 修复：详情接口返回的关联字段，之前未声明导致前端用 unknown[] 绕过
+  quality_issues?: QualityIssue[]
+  after_sales?: AfterSales[]
 }
 
 // v3 复审 P2-5：时间线相关类型，供 tracking.vue 替代 any

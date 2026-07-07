@@ -64,10 +64,10 @@ const router = useRouter()
 const schG = useSchG()
 const schGProc = useSchGProc({
   fetchGanttData: schG.fetchGanttData,
-  conflictList: schG.conflictList,
-  conflictDialogVisible: schG.conflictDialogVisible,
   scheduleForm: schG.scheduleForm,
-  autoScheduleDialogVisible: schG.autoScheduleDialogVisible,
+  setAutoScheduleDialogVisible: (v) => { schG.autoScheduleDialogVisible = v },
+  setConflictList: (v) => { schG.conflictList = v },
+  setConflictDialogVisible: (v) => { schG.conflictDialogVisible = v },
 })
 
 /** 返回排程管理 */

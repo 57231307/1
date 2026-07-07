@@ -8,7 +8,7 @@
  */
 import { ref, computed, reactive } from 'vue'
 import { ElMessage } from 'element-plus'
-import { schedulingApi, type GanttData, type ScheduleTask, type SchedulingParams } from '@/api/scheduling'
+import { schedulingApi, type GanttData, type ScheduleTask, type SchedulingParams, type ConflictItem } from '@/api/scheduling'
 
 /**
  * 排产甘特图 composable
@@ -50,16 +50,8 @@ export function useSchG() {
     optimization_target: 'balance_load',
   })
 
-  // 冲突列表
-  const conflictList = ref<Array<{
-    work_center_name: string
-    order_no_1: string
-    order_no_2: string
-    overlap_start: string
-    overlap_end: string
-    severity: string
-    suggestion: string
-  }>>([])
+  // 冲突列表（v11 批次 181 P2-1 修复：统一使用 API 的 ConflictItem 类型，替代本地不完整接口）
+  const conflictList = ref<ConflictItem[]>([])
 
   // 日期范围文本
   const dateRangeText = computed(() => {
@@ -83,9 +75,17 @@ export function useSchG() {
       }
       const res = await schedulingApi.getGanttData(params)
       ganttData.value = res.data!
-    } catch (error: any) {
-      ElMessage.error(error.message || '获取甘特图数据失败')
-      ganttData.value = null as any
+    } catch (error: unknown) {
+      // v11 批次 181 P2-1 修复：catch (error: any) 改为 catch (error: unknown) + 类型守卫
+      const errMsg = error instanceof Error ? error.message : String(error)
+      ElMessage.error(errMsg || '获取甘特图数据失败')
+      // v11 批次 181 P2-1 修复：null as any 改为具体类型的空对象
+      ganttData.value = {
+        work_centers: [],
+        date_range: { start: '', end: '' },
+        total_tasks: 0,
+        conflict_count: 0,
+      }
     } finally {
       loading.value = false
     }
@@ -114,8 +114,10 @@ export function useSchG() {
       ElMessage.success('排程调整成功')
       adjustDialogVisible.value = false
       await fetchGanttData()
-    } catch (error: any) {
-      ElMessage.error(error.message || '排程调整失败')
+    } catch (error: unknown) {
+      // v11 批次 181 P2-1 修复：catch (error: any) 改为 catch (error: unknown) + 类型守卫
+      const errMsg = error instanceof Error ? error.message : String(error)
+      ElMessage.error(errMsg || '排程调整失败')
     } finally {
       adjusting.value = false
     }

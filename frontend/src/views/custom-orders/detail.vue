@@ -97,33 +97,18 @@ import {
   CUSTOM_ORDER_STATUS as STATUS_LABELS,
   CUSTOM_ORDER_STATUS_COLORS as STATUS_COLORS,
 } from '@/api/custom-order'
-import type { CustomOrderDetail, AfterSales } from '@/api/custom-order'
+import type { CustomOrderDetail } from '@/api/custom-order'
 import ProcessFlow from '@/components/ProcessFlow.vue'
 import QualityCheck from '@/components/QualityCheck.vue'
 import logger from '@/utils/logger'
 import AfterSalesPanel from '@/components/AfterSalesPanel.vue'
 
-// P2-5：详情页 order 类型，扩展模板使用但 CustomOrderDetail 未声明的关联字段
-// v11 批次 180 P2-1 修复：quality_issues 类型从 unknown[] 改为具体接口，与 QualityCheck.vue 的 QualityIssue 结构兼容
-interface QualityIssueItem {
-  id: number
-  issue_type: string
-  severity: string
-  description?: string
-  discovered_at?: string | number | Date
-  status: string
-  resolution?: string
-  [key: string]: unknown
-}
-
-type CustomOrderDetailWithRelations = CustomOrderDetail & {
-  quality_issues?: QualityIssueItem[]
-  after_sales?: AfterSales[]
-}
+// v11 批次 181 P2-1 修复：CustomOrderDetail 已声明 quality_issues 和 after_sales 字段
+// 不再需要本地扩展类型，直接使用 CustomOrderDetail
 
 const route = useRoute()
 const loading = ref(false)
-const order = ref<CustomOrderDetailWithRelations | null>(null)
+const order = ref<CustomOrderDetail | null>(null)
 const activeTab = ref('info')
 
 async function loadData() {
@@ -132,7 +117,7 @@ async function loadData() {
   loading.value = true
   try {
     const res = await getCustomOrder(id)
-    order.value = (res.data || res) as unknown as CustomOrderDetailWithRelations
+    order.value = (res.data || res) as unknown as CustomOrderDetail
   } catch (e) {
     logger.error('加载订单失败', e)
     ElMessage.error('加载订单失败')

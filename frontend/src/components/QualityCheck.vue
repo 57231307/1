@@ -116,19 +116,10 @@ import {
   resolveQualityIssue,
   ISSUE_SEVERITY,
   ISSUE_SEVERITY_COLORS,
+  type QualityIssue,
 } from '@/api/custom-order'
 
-// v11 批次 180 P2-1 修复：定义质量异常本地类型，替代 any
-interface QualityIssue {
-  id: number
-  issue_type: string
-  severity: string
-  description?: string
-  discovered_at?: string | number | Date
-  status: 'open' | 'investigating' | 'resolved' | string
-  resolution?: string
-  [key: string]: unknown
-}
+// v11 批次 181 P2-1 修复：使用 API 导出的 QualityIssue 类型，替代本地定义
 
 const props = defineProps<{
   orderId: number
@@ -159,7 +150,7 @@ const reportRules = {
   description: [{ required: true, message: '描述必填', trigger: 'blur' }],
 }
 
-function formatDate(d: string | number | Date | undefined) {
+function formatDate(d: string | undefined) {
   if (!d) return '-'
   return new Date(d).toLocaleString('zh-CN')
 }

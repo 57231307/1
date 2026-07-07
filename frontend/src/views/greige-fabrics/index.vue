@@ -6,22 +6,23 @@
     </div>
 
     <el-table v-loading="loading" :data="greigeList" border>
-      <el-table-column prop="batchNo" label="坯布批号" />
-      <el-table-column prop="productId" label="产品 ID" />
-      <el-table-column prop="quantity" label="数量" />
-      <el-table-column prop="unit" label="单位" />
-      <el-table-column prop="warehouseId" label="仓库 ID" />
-      <el-table-column prop="status" label="状态">
+      <el-table-column prop="fabric_code" label="面料编码" min-width="120" />
+      <el-table-column prop="fabric_name" label="面料名称" min-width="120" />
+      <el-table-column prop="fabric_type" label="面料类型" width="100" />
+      <el-table-column prop="supplier_name" label="供应商" width="120" />
+      <el-table-column prop="quantity" label="数量" width="100" align="right" />
+      <el-table-column prop="unit" label="单位" width="80" />
+      <el-table-column prop="status" label="状态" width="100">
         <template #default="{ row }">
-          <el-tag :type="row.status === 'available' ? 'success' : 'warning'">
-            {{ row.status === 'available' ? '可用' : '已占用' }}
+          <el-tag :type="row.status === 'active' ? 'success' : 'info'">
+            {{ row.status === 'active' ? '启用' : '停用' }}
           </el-tag>
         </template>
       </el-table-column>
       <el-table-column label="操作" width="200">
         <template #default="{ row }">
-          <el-button size="small" @click="handleEdit(row as GreigeFabricRow)">编辑</el-button>
-          <el-button size="small" type="danger" @click="handleDelete(row as GreigeFabricRow)">删除</el-button>
+          <el-button size="small" @click="handleEdit(row)">编辑</el-button>
+          <el-button size="small" type="danger" @click="handleDelete(row)">删除</el-button>
         </template>
       </el-table-column>
     </el-table>
@@ -34,23 +35,40 @@
       @close="handleDialogClose"
     >
       <el-form ref="formRef" :model="formData" :rules="formRules" label-width="100px">
-        <el-form-item label="坯布批号" prop="batchNo">
-          <el-input v-model="formData.batchNo" placeholder="请输入坯布批号" />
+        <el-form-item label="面料编码" prop="fabric_code">
+          <el-input v-model="formData.fabric_code" placeholder="请输入面料编码" />
         </el-form-item>
-        <el-form-item label="产品 ID" prop="productId">
+        <el-form-item label="面料名称" prop="fabric_name">
+          <el-input v-model="formData.fabric_name" placeholder="请输入面料名称" />
+        </el-form-item>
+        <el-form-item label="面料类型" prop="fabric_type">
+          <el-input v-model="formData.fabric_type" placeholder="请输入面料类型" />
+        </el-form-item>
+        <el-form-item label="供应商" prop="supplier_id">
+          <el-select v-model="formData.supplier_id" placeholder="请选择供应商" filterable>
+            <el-option
+              v-for="s in supplierList"
+              :key="s.id"
+              :label="s.supplier_name"
+              :value="s.id"
+            />
+          </el-select>
+        </el-form-item>
+        <el-form-item label="宽度" prop="width">
           <el-input-number
-            v-model="formData.productId"
-            :min="1"
-            placeholder="请输入产品 ID"
+            v-model="formData.width"
+            :min="0"
+            :precision="2"
+            placeholder="请输入宽度"
             style="width: 100%"
           />
         </el-form-item>
-        <el-form-item label="数量" prop="quantity">
+        <el-form-item label="克重" prop="weight">
           <el-input-number
-            v-model="formData.quantity"
+            v-model="formData.weight"
             :min="0"
             :precision="2"
-            placeholder="请输入数量"
+            placeholder="请输入克重"
             style="width: 100%"
           />
         </el-form-item>
@@ -61,16 +79,35 @@
             <el-option label="千克" value="kg" />
           </el-select>
         </el-form-item>
-        <el-form-item label="仓库" prop="warehouseId">
-          <el-select v-model="formData.warehouseId" placeholder="请选择仓库">
-            <el-option v-for="wh in warehouseList" :key="wh.id" :label="wh.name" :value="wh.id" />
-          </el-select>
+        <el-form-item label="成分" prop="composition">
+          <el-input v-model="formData.composition" placeholder="请输入成分" />
+        </el-form-item>
+        <el-form-item label="数量" prop="quantity">
+          <el-input-number
+            v-model="formData.quantity"
+            :min="0"
+            :precision="2"
+            placeholder="请输入数量"
+            style="width: 100%"
+          />
+        </el-form-item>
+        <el-form-item label="最小起订量" prop="min_order_quantity">
+          <el-input-number
+            v-model="formData.min_order_quantity"
+            :min="0"
+            :precision="2"
+            placeholder="请输入最小起订量"
+            style="width: 100%"
+          />
         </el-form-item>
         <el-form-item label="状态" prop="status">
           <el-select v-model="formData.status" placeholder="请选择状态">
-            <el-option label="可用" value="available" />
-            <el-option label="已占用" value="occupied" />
+            <el-option label="启用" value="active" />
+            <el-option label="停用" value="inactive" />
           </el-select>
+        </el-form-item>
+        <el-form-item label="描述" prop="description">
+          <el-input v-model="formData.description" type="textarea" :rows="2" />
         </el-form-item>
       </el-form>
 
@@ -91,60 +128,61 @@ import {
   createGreigeFabric,
   updateGreigeFabric,
   deleteGreigeFabric,
+  type GreigeFabric,
 } from '@/api/greige-fabric'
-import { warehouseApi } from '@/api/warehouse'
+import { listSuppliers, type Supplier } from '@/api/supplier'
 import { loadIfNot, createLazyLoader } from '@/utils/lazy-loader'
-
-// v11 批次 179 P2-1 修复：定义本地行类型，替代 any
-interface GreigeFabricRow {
-  id: number
-  batchNo: string
-  productId: number | null
-  quantity: number
-  unit: string
-  warehouseId: number | null
-  status: 'available' | 'occupied'
-}
-
-interface WarehouseOption {
-  id: number
-  name: string
-}
-
-interface GreigeFabricForm {
-  id: number | null
-  batchNo: string
-  productId: number | null
-  quantity: number
-  unit: string
-  warehouseId: number | null
-  status: 'available' | 'occupied'
-}
 
 const loading = ref(false)
 const submitLoading = ref(false)
 const dialogVisible = ref(false)
 const dialogMode = ref<'create' | 'edit'>('create')
 const formRef = ref<FormInstance>()
-const greigeList = ref<GreigeFabricRow[]>([])
-const warehouseList = ref<WarehouseOption[]>([])
+// v11 批次 181 P2-1 修复：使用 API 的 GreigeFabric 类型，替代本地 GreigeFabricRow
+const greigeList = ref<GreigeFabric[]>([])
+// v11 批次 181 P2-1 修复：使用 Supplier 类型，替代本地 WarehouseOption
+const supplierList = ref<Supplier[]>([])
+
+// 表单数据类型，与 GreigeFabric 对齐（id 创建时为空，编辑时由后端返回）
+interface GreigeFabricForm {
+  id?: number
+  fabric_code: string
+  fabric_name: string
+  fabric_type: string
+  supplier_id: number
+  supplier_name: string
+  width: number
+  weight: number
+  unit: string
+  composition: string
+  quantity: number
+  min_order_quantity: number
+  status: 'active' | 'inactive'
+  description: string
+}
 
 const formData = reactive<GreigeFabricForm>({
-  id: null,
-  batchNo: '',
-  productId: null,
-  quantity: 0,
+  fabric_code: '',
+  fabric_name: '',
+  fabric_type: '',
+  supplier_id: 0,
+  supplier_name: '',
+  width: 0,
+  weight: 0,
   unit: 'm',
-  warehouseId: null,
-  status: 'available',
+  composition: '',
+  quantity: 0,
+  min_order_quantity: 0,
+  status: 'active',
+  description: '',
 })
 
 const formRules: FormRules = {
-  batchNo: [{ required: true, message: '请输入坯布批号', trigger: 'blur' }],
-  productId: [{ required: true, message: '请输入产品 ID', trigger: 'blur' }],
-  quantity: [{ required: true, message: '请输入数量', trigger: 'blur' }],
+  fabric_code: [{ required: true, message: '请输入面料编码', trigger: 'blur' }],
+  fabric_name: [{ required: true, message: '请输入面料名称', trigger: 'blur' }],
+  fabric_type: [{ required: true, message: '请输入面料类型', trigger: 'blur' }],
+  supplier_id: [{ required: true, message: '请选择供应商', trigger: 'change' }],
   unit: [{ required: true, message: '请选择单位', trigger: 'change' }],
-  warehouseId: [{ required: true, message: '请选择仓库', trigger: 'change' }],
   status: [{ required: true, message: '请选择状态', trigger: 'change' }],
 }
 
@@ -152,10 +190,8 @@ const loadGreigeFabrics = async () => {
   loading.value = true
   try {
     const res = await listGreigeFabrics()
-    // v11 批次 179 P2-1 修复：API 返回 GreigeFabric[]（snake_case 字段），
-    // 前端展示用 GreigeFabricRow（camelCase 字段），存在已知字段不匹配问题
-    // 使用 as unknown as 保持原行为，字段映射问题留待后续功能修复批次
-    greigeList.value = (res.data || []) as unknown as GreigeFabricRow[]
+    // v11 批次 181 P2-1 修复：API 返回 GreigeFabric[]，前端直接使用，无需类型转换
+    greigeList.value = res.data || []
   } catch (error) {
     ElMessage.error('加载坯布列表失败')
   } finally {
@@ -163,55 +199,71 @@ const loadGreigeFabrics = async () => {
   }
 }
 
-const loadWarehouses = async () => {
+const loadSuppliers = async () => {
   try {
-    // v11 批次 179 P2-1 修复：res.data as any 改为类型守卫
-    const res = await warehouseApi.list()
-    // API 返回 { list: Warehouse[]; total: number }，前端用 WarehouseOption（id+name）
-    // 使用 as unknown as 绕过字段不匹配（warehouse_name → name 映射问题）
-    const d = res.data as unknown as { list?: WarehouseOption[] } | WarehouseOption[] | undefined
-    if (Array.isArray(d)) {
-      warehouseList.value = d
-    } else if (d && typeof d === 'object') {
-      warehouseList.value = d.list || []
+    // v11 批次 181 P2-1 修复：使用 supplier API 替代 warehouse API
+    // listSuppliers 返回 { list: Supplier[]; total: number }，提取 list 字段
+    const res = await listSuppliers()
+    const d = res.data
+    if (d && typeof d === 'object' && 'list' in d) {
+      supplierList.value = d.list || []
     } else {
-      warehouseList.value = []
+      supplierList.value = []
     }
   } catch (error) {
-    ElMessage.error('加载仓库列表失败')
+    ElMessage.error('加载供应商列表失败')
   }
+}
+
+const resetForm = () => {
+  Object.assign(formData, {
+    id: undefined,
+    fabric_code: '',
+    fabric_name: '',
+    fabric_type: '',
+    supplier_id: 0,
+    supplier_name: '',
+    width: 0,
+    weight: 0,
+    unit: 'm',
+    composition: '',
+    quantity: 0,
+    min_order_quantity: 0,
+    status: 'active',
+    description: '',
+  })
 }
 
 const handleCreate = () => {
   dialogMode.value = 'create'
-  Object.assign(formData, {
-    id: null,
-    batchNo: '',
-    productId: null,
-    quantity: 0,
-    unit: 'm',
-    warehouseId: null,
-    status: 'available',
-  })
+  resetForm()
   dialogVisible.value = true
 }
 
-// v11 批次 179 P2-1 修复：(row: any) 改为 (row: GreigeFabricRow)
-const handleEdit = (row: GreigeFabricRow) => {
+const handleEdit = (row: GreigeFabric) => {
   dialogMode.value = 'edit'
+  // 同步供应商名称展示
+  const supplier = supplierList.value.find(s => s.id === row.supplier_id)
   Object.assign(formData, {
     id: row.id,
-    batchNo: row.batchNo,
-    productId: row.productId,
-    quantity: row.quantity,
+    fabric_code: row.fabric_code,
+    fabric_name: row.fabric_name,
+    fabric_type: row.fabric_type,
+    supplier_id: row.supplier_id,
+    supplier_name: supplier?.supplier_name || row.supplier_name || '',
+    width: row.width,
+    weight: row.weight,
     unit: row.unit,
-    warehouseId: row.warehouseId,
+    composition: row.composition,
+    quantity: row.quantity,
+    min_order_quantity: row.min_order_quantity,
     status: row.status,
+    description: row.description,
   })
   dialogVisible.value = true
 }
 
-const handleDelete = async (row: GreigeFabricRow) => {
+const handleDelete = async (row: GreigeFabric) => {
   if (!row.id) return
 
   try {
@@ -231,13 +283,19 @@ const handleSubmit = async () => {
 
     submitLoading.value = true
     try {
+      // 同步 supplier_name 到表单数据
+      const supplier = supplierList.value.find(s => s.id === formData.supplier_id)
+      if (supplier) {
+        formData.supplier_name = supplier.supplier_name
+      }
+
       if (dialogMode.value === 'create') {
-        // v11 批次 179 P2-1 修复：GreigeFabricForm 与 Partial<GreigeFabric> 字段不匹配，使用 as unknown as
-        await createGreigeFabric(formData as unknown as Partial<import('@/api/greige-fabric').GreigeFabric>)
+        // v11 批次 181 P2-1 修复：GreigeFabricForm 与 Partial<GreigeFabric> 字段一致，直接传入
+        await createGreigeFabric(formData)
         ElMessage.success('创建成功')
       } else {
-        // edit 模式下 formData.id 由 handleEdit 从 row.id 赋值，确保非 null
-        await updateGreigeFabric(formData.id!, formData as unknown as Partial<import('@/api/greige-fabric').GreigeFabric>)
+        // edit 模式下 formData.id 由 handleEdit 从 row.id 赋值
+        await updateGreigeFabric(formData.id!, formData)
         ElMessage.success('更新成功')
       }
       dialogVisible.value = false
@@ -258,7 +316,7 @@ const hasLoaded = createLazyLoader()
 
 onMounted(() => {
   loadGreigeFabrics()
-  loadIfNot('warehouses', loadWarehouses, hasLoaded)
+  loadIfNot('suppliers', loadSuppliers, hasLoaded)
 })
 </script>
 
