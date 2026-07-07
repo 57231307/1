@@ -8,7 +8,7 @@
     <el-table v-loading="loading" :data="orders" stripe>
       <el-table-column prop="order_no" label="订单号" width="160" fixed>
         <template #default="{ row }">
-          <el-link type="primary" @click="onView(row as any)">{{ row.order_no }}</el-link>
+          <el-link type="primary" @click="onView(row as PurchaseOrder)">{{ row.order_no }}</el-link>
         </template>
       </el-table-column>
       <el-table-column prop="supplier_name" label="供应商" width="180" fixed />
@@ -41,7 +41,7 @@
       <el-table-column prop="creator_name" label="创建人" width="100" />
       <el-table-column label="操作" width="200" fixed="right">
         <template #default="{ row }">
-          <el-button type="primary" link size="small" @click="onView(row as any)"
+          <el-button type="primary" link size="small" @click="onView(row as PurchaseOrder)"
             >详情</el-button
           >
           <el-button
@@ -49,7 +49,7 @@
             type="warning"
             link
             size="small"
-            @click="onReceive(row as any)"
+            @click="onReceive(row as PurchaseOrder)"
             >收货</el-button
           >
           <el-button
@@ -57,7 +57,7 @@
             type="success"
             link
             size="small"
-            @click="onApprove(row as any)"
+            @click="onApprove(row as PurchaseOrder)"
             >审批</el-button
           >
         </template>

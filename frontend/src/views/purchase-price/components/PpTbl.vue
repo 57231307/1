@@ -36,7 +36,7 @@
       </el-table-column>
       <el-table-column label="操作" width="200" align="center" fixed="right">
         <template #default="{ row }">
-          <el-button type="primary" link size="small" @click="emit('view', row as any)"
+          <el-button type="primary" link size="small" @click="emit('view', row as PurchasePrice)"
             >查看</el-button
           >
           <!-- P2-17 修复（批次 86 v2 复审）：编辑按钮补齐 v-permission -->
@@ -46,7 +46,7 @@
             type="primary"
             link
             size="small"
-            @click="emit('edit', row as any)"
+            @click="emit('edit', row as PurchasePrice)"
             >编辑</el-button
           >
           <el-button
@@ -54,10 +54,10 @@
             type="warning"
             link
             size="small"
-            @click="emit('disable', row as any)"
+            @click="emit('disable', row as PurchasePrice)"
             >停用</el-button
           >
-          <el-button type="info" link size="small" @click="emit('history', row as any)"
+          <el-button type="info" link size="small" @click="emit('history', row as PurchasePrice)"
             >历史</el-button
           >
         </template>

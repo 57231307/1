@@ -118,6 +118,7 @@ import {
   deleteNotification,
   getUnreadCount,
   type Notification,
+  type NotificationQueryParams,
 } from '@/api/notification'
 
 const notificationList = ref<Notification[]>([])
@@ -135,14 +136,16 @@ const currentNotification = ref<Notification | null>(null)
 
 const fetchNotifications = async () => {
   try {
-    const res: any = await listNotifications({
+    // 显式声明查询参数类型，避免 as any 双重断言
+    const params: NotificationQueryParams = {
       page: pagination.page,
       page_size: pagination.page_size,
       status: statusFilter.value || undefined,
-    } as any)
+    }
+    const res = await listNotifications(params)
     if (res.data) {
-      notificationList.value = res.data!.list || res.data! || []
-      pagination.total = res.data!.total || res.data?.length || 0
+      notificationList.value = res.data.list || []
+      pagination.total = res.data.total || 0
     }
   } catch (e) {
     ElMessage.error('获取通知列表失败')
@@ -151,9 +154,9 @@ const fetchNotifications = async () => {
 
 const fetchUnreadCount = async () => {
   try {
-    const res: any = await getUnreadCount()
+    const res = await getUnreadCount()
     if (res.data !== undefined) {
-      unreadCount.value = res.data!
+      unreadCount.value = res.data
     }
   } catch (e) {
     // 忽略错误
@@ -164,9 +167,9 @@ const handleView = async (item: Notification) => {
   if (!item.id) return
 
   try {
-    const res: any = await getNotification(item.id)
+    const res = await getNotification(item.id)
     if (res.data) {
-      currentNotification.value = res.data!
+      currentNotification.value = res.data
       detailDialogVisible.value = true
       fetchNotifications()
       fetchUnreadCount()

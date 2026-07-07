@@ -11,6 +11,7 @@ import {
   purchaseReturnApi,
   type PurchaseReturn,
   type PurchaseReturnItem,
+  type PurchaseReturnQueryParams,
 } from '@/api/purchase-return'
 import { loadIfNot, createLazyLoader } from '@/utils/lazy-loader'
 import { logger } from '@/utils/logger'
@@ -80,7 +81,10 @@ export function usePrRtn() {
   const fetchData = async () => {
     loading.value = true
     try {
-      const params: any = { ...queryParams }
+      // queryParams 字段名（camelCase）与 PurchaseReturnQueryParams 一致，可直接展开
+      const params: PurchaseReturnQueryParams & { startDate?: string; endDate?: string } = {
+        ...queryParams,
+      }
       if (dateRange.value) {
         params.startDate = dateRange.value[0].toISOString()
         params.endDate = dateRange.value[1].toISOString()
@@ -202,7 +206,7 @@ export function usePrRtn() {
   }
 
   /** 产品变化（联动单价/名称） */
-  const handleProductChange = (row: any, productId: number) => {
+  const handleProductChange = (row: Partial<PurchaseReturnItem>, productId: number) => {
     const product = products.value.find(p => p.id === productId)
     if (product) {
       row.productName = product.name
@@ -213,11 +217,20 @@ export function usePrRtn() {
   /** 提交表单（新建/编辑） */
   const handleFormSubmit = async (isEdit: boolean): Promise<boolean> => {
     try {
+      // 显式字段映射（避免 as unknown as 双重断言）；items 单重 as：Partial<T>[] → T[] 合法
+      const submitData: Partial<PurchaseReturn> = {
+        id: formData.id,
+        purchaseOrderId: formData.purchaseOrderId,
+        returnDate: formData.returnDate,
+        reason: formData.reason,
+        remarks: formData.remarks,
+        items: formData.items as PurchaseReturnItem[],
+      }
       if (isEdit && formData.id) {
-        await purchaseReturnApi.update(formData.id, formData as any)
+        await purchaseReturnApi.update(formData.id, submitData)
         ElMessage.success('更新成功')
       } else {
-        await purchaseReturnApi.create(formData as any)
+        await purchaseReturnApi.create(submitData)
         ElMessage.success('创建成功')
       }
       fetchData()
