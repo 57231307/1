@@ -37,16 +37,17 @@
 </template>
 
 <script setup lang="ts">
+import type { SalesReturn } from '@/api/sales-return'
 import { getStatusType, getStatusLabel } from '../composables/srFmts'
 
 defineProps<{
-  list: any[]
+  list: SalesReturn[]
   loading: boolean
 }>()
 
 const emit = defineEmits<{
-  (e: 'view', row: any): void
-  (e: 'edit', row: any): void
-  (e: 'approve', row: any): void
+  (e: 'view', row: SalesReturn): void
+  (e: 'edit', row: SalesReturn): void
+  (e: 'approve', row: SalesReturn): void
 }>()
 </script>

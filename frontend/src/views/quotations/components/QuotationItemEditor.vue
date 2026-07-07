@@ -120,10 +120,14 @@
 import { ref, onMounted, watch } from 'vue'
 import { Plus } from '@element-plus/icons-vue'
 import { productApi } from '@/api/product'
+import type { ProductColor } from '@/api/product'
 import type { CreateQuotationItemDto } from '@/api/quotation'
 
-interface QuotationItemRow extends CreateQuotationItemDto {
+// QuotationItemRow 覆盖 product_id 为可选（创建空明细时 product_id 为 undefined，用户选择后才有值）
+interface QuotationItemRow extends Omit<CreateQuotationItemDto, 'product_id'> {
+  product_id?: number
   _colors?: Array<{ id: number; color_code?: string; color_name?: string }>
+  amount?: number
 }
 
 const props = defineProps<{
@@ -139,7 +143,7 @@ const products = ref<Array<{ id: number; product_name?: string; name?: string }>
 /** 创建一行空明细 */
 function createBlankItem(): QuotationItemRow {
   return {
-    product_id: undefined as any,
+    product_id: undefined,
     color_id: undefined,
     unit: '米',
     quantity: 0,
@@ -170,7 +174,7 @@ async function handleProductChange(row: QuotationItemRow, productId: number | un
   if (!productId) return
   try {
     const res = await productApi.getColors(productId)
-    const data = (res.data as any) || []
+    const data: ProductColor[] = res.data || []
     // 直接修改 row（因为是父组件 v-model 持有的对象引用）
     row._colors = data
     // 强制响应式：发出新数组
@@ -193,7 +197,7 @@ function recalcTax(row: QuotationItemRow, unitPrice: number | undefined) {
 watch(
   () => props.modelValue.map(i => [i.quantity, i.unit_price]),
   () => {
-    props.modelValue.forEach((i: any) => {
+    props.modelValue.forEach((i: QuotationItemRow) => {
       i.amount = (i.quantity || 0) * (i.unit_price || 0)
     })
   },
@@ -212,8 +216,12 @@ function formatAmount(value?: number): string {
 onMounted(async () => {
   try {
     const res = await productApi.list({ page: 1, page_size: 1000, is_active: true })
-    const data = (res.data as any) || {}
-    products.value = data.list || data.items || []
+    const data = res.data
+    if (data && typeof data === 'object' && 'list' in data) {
+      products.value = data.list || []
+    } else {
+      products.value = []
+    }
   } catch {
     products.value = []
   }

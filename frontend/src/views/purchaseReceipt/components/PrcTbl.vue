@@ -33,14 +33,14 @@
     <el-table-column prop="created_at" label="创建时间" width="150" />
     <el-table-column label="操作" width="250" align="center">
       <template #default="scope">
-        <el-button size="small" @click="emit('view', scope.row as any)">
+        <el-button size="small" @click="emit('view', scope.row as PurchaseReceiptEntity)">
           <el-icon><View /></el-icon>
         </el-button>
         <el-button
           v-if="scope.row.status === 'draft'"
           size="small"
           type="primary"
-          @click="emit('edit', scope.row as any)"
+          @click="emit('edit', scope.row as PurchaseReceiptEntity)"
         >
           <el-icon><Edit /></el-icon>
         </el-button>
@@ -48,7 +48,7 @@
           v-if="scope.row.status === 'draft'"
           size="small"
           type="warning"
-          @click="emit('approve', scope.row as any)"
+          @click="emit('approve', scope.row as PurchaseReceiptEntity)"
         >
           <el-icon><Check /></el-icon> 审核
         </el-button>
@@ -56,7 +56,7 @@
           v-if="scope.row.status === 'draft'"
           size="small"
           type="danger"
-          @click="emit('delete', scope.row as any)"
+          @click="emit('delete', scope.row as PurchaseReceiptEntity)"
         >
           <el-icon><Delete /></el-icon>
         </el-button>

@@ -74,6 +74,9 @@
 
 | 批次 | main commit | 内容 |
 |------|-------------|------|
+| 183-ci-v3 | `c1f9b708` | v11 前端 P2-1 SchGChart 真正接入 ECharts 5 官方类型（ECElementEvent/CustomSeriesRenderItemParams/CustomSeriesRenderItemAPI 从 'echarts' 导入，CallbackDataParams 从 'echarts/types/dist/shared' 导入；处理 size() 可选方法+联合类型；定义 CartesianCoordSys 接口补充 ECharts 类型定义不完整；CI 11/12 核心 success）|
+| 183-ci-v2 | `c714a8e9` | v11 前端 P2-1 SchGChart 使用 ECharts 官方类型替代自定义接口（CI 失败：CallbackDataParams 不从主包导出 + size() 可选 + coordSys 类型不完整，被 v3 替代）|
+| 183 | `4dedb8c1` | v11 前端 P2-1 any 清理（16 处 → 0 处，4 文件；SchGChart 自定义接口违规，被 ci-v2/v3 替代）|
 | 181-ci-v3 | `e87577a9` | v11 前端 P2-1 真正修复 printJS 类型问题（删除错误的 print-js.d.ts + 5 文件 type:'table'→'json' + inventory/ap InvoiceTab as unknown as 清理；CI 11/12 核心 success，E2E 因 secrets 缺失 cancelled 不阻塞）|
 | 181-ci-v2 | `8644118e` | v11 前端 P2-1 真正修复违规问题（scheduling setter 函数模式 + greige-fabrics 完全重写 + QualityIssue 接口 + print-js.d.ts；CI 前端类型检查 6 处 TS2349 失败，由 181-ci-v3 替代）|
 | 181-ci | `56663940` | v11 前端 P2-1 批次 176-180 类型修复（违规使用 as unknown as，已废弃）|
