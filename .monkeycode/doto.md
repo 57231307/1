@@ -5,7 +5,7 @@
 
 ---
 
-## 🔄 当前任务：v11 复审 P1 dead_code 全量真实接入（批次 158 CI 验证中）
+## 🔄 当前任务：v11 前端 P2 修复（批次 159 已完成，P1 全部完成）
 
 > 用户最高优先级规则（2026-07-04/06 追加）已固化到 [MEMORY.md 一、规则 0-4](file:///workspace/.monkeycode/MEMORY.md)。
 > 本文件仅记录任务进度，规则不在此重复。
@@ -20,26 +20,31 @@
 
 - ✅ 批次 143-145：P0 三项全部完成
 
-### v11 P1 修复（进行中）
+### v11 P1 修复（全部完成）
 
-- ✅ 批次 158：全项目项级 dead_code 按规则 0/1/2 真实接入（CI 验证中）
+- ✅ 批次 158：全项目项级 dead_code 按规则 0/1/2 真实接入（CI 12/12 全绿）
   - 类 A 真死代码删除（4 条）✅
   - 类 B 误判死代码移除标注（16 条）✅
   - 类 C 真实接入业务（19 条）✅
   - 类 D SeaORM 模型例外（10 条）保留不动
+  - 4 轮 CI 修复：b7b2baa→a502bc7→9ff0e21→f9796cb（最终全绿）
+- ✅ 批次 159：前端 P1-1 RecordTab handleView 占位 stub 真实接入 + P2-4 过时 TODO 清理（CI 11/12 全绿，E2E 非阻塞）
+  - RecordTab.vue handleView 从 ElMessage.info 占位改为接入 openRecordDialog(row) 显示详情
+  - renderCell 传入 row 参数，onClick 改为 () => handleView(row)
+  - budget.ts approveBudget 移除过时 TODO(tech-debt) 注释（已被 BudgetListTab.vue 接入）
+  - cost.ts deleteCollection/auditCollection 移除过时 TODO(tech-debt) 注释（已被 CostCollectionTab.vue 接入）
 
 ### v11 剩余任务
 
-- ⏳ 批次 158 CI 12/12 全绿验证
-- ⏳ v11 前端 P1-6 i18n 接入
-- ⏳ v11 前端 P2 次要（7 类）
+- ⏳ v11 前端 P2 其余项（7 类，P2-4 已完成）
 - ⏳ v12 全项目复审（v11 全部修复完成后）
 
 ### 已完成批次（最近 5 个）
 
 | 批次 | main commit | 内容 |
 |------|-------------|------|
-| 158 | `b7b2baa` | v11 P1 全项目项级 dead_code 按规则 0/1/2 真实接入（4 删 + 16 移除标注 + 19 接入业务 + 10 SeaORM 例外保留；16 文件 +313 -46 行，CI 验证中）|
+| 159 | `9eb589c` | v11 前端 P1-1 RecordTab handleView 占位 stub 真实接入 openRecordDialog + P2-4 budget.ts/cost.ts 过时 TODO(tech-debt) 注释清理（3 文件 +8 -8 行，CI 11/12 全绿，E2E 非阻塞）|
+| 158 | `f9796cb` | v11 P1 全项目项级 dead_code 按规则 0/1/2 真实接入（4 删 + 16 移除标注 + 19 接入业务 + 10 SeaORM 例外保留；4 轮 CI 修复后全绿；含 so_status unused import 修复 + baseline 补充 8/7）|
 | 157 | `7dfc2ef` | v11 复审报告生成（后端 47 项 + 前端 16 类）|
 | 143-145 | - | v11 P0 三项修复完成 |
 | 131 | `b141c66` | v9 P0 purchase_inspection 4 个明细 CRUD 真实接入（migration m0042 + entity + service 4 方法 + 2 DTO + handler 真实调用；11 文件 +376 -26 行，CI 一次通过）|

@@ -46,19 +46,21 @@
 
 <script setup lang="ts">
 import { Plus } from '@element-plus/icons-vue'
+// v11 批次 160 P2-7 修复：导入 InventoryTransfer 接口替代 any[]
+import type { InventoryTransfer } from '@/api/inventory'
 
 defineProps<{
-  transfers: any[]
+  transfers: InventoryTransfer[]
 }>()
 
 defineEmits<{
   'new-transfer': []
-  'view-transfer': [row: any]
-  'approve-transfer': [row: any]
+  'view-transfer': [row: InventoryTransfer]
+  'approve-transfer': [row: InventoryTransfer]
 }>()
 
 const getTransferStatusType = (status: string) => {
-  const typeMap: Record<string, any> = {
+  const typeMap: Record<string, 'warning' | 'success' | 'primary' | 'info' | 'danger'> = {
     pending: 'warning',
     approved: 'success',
     executed: 'primary',

@@ -35,12 +35,15 @@
 </template>
 
 <script setup lang="ts">
+// v11 批次 160 P2-7 修复：导入 StockAlert 接口替代 any[]
+import type { StockAlert } from '@/api/inventory'
+
 defineProps<{
-  alerts: any[]
+  alerts: StockAlert[]
 }>()
 
 defineEmits<{
-  purchase: [row: any]
+  purchase: [row: StockAlert]
 }>()
 </script>
 

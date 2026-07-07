@@ -6,11 +6,37 @@
 
 ---
 
-## 2026-07-07 (批次 158 v11 复审 P1 dead_code 全量真实接入完成)
+## 2026-07-07 (批次 159 v11 前端 P1-1 占位 stub 真实接入 + P2-4 过时 TODO 清理，CI 11/12 全绿)
+
+### 批次 159：v11 前端 P1-1 RecordTab handleView 占位 stub 真实接入 + P2-4 过时 TODO 清理
+
+**main commit `9eb589c`（CI 一次通过 11/12 全绿，E2E 非阻塞），3 文件 +8 -8 行**
+
+按 v11 前端复审报告 P1-1（30+ 处占位 stub）和 P2-4（tech-debt TODO），完成 P1 全部修复。
+
+| 修改 | 文件 | 内容 |
+|------|------|------|
+| P1-1 | `frontend/src/views/quality/tabs/RecordTab.vue` | handleView 从 ElMessage.info('查看检验记录') 占位改为接入 actions.openRecordDialog(row) 显示检验记录详情对话框；renderCell 传入 row 参数，onClick 改为 () => handleView(row) |
+| P2-4 | `frontend/src/api/budget.ts` | approveBudget 上方过时 `// TODO(tech-debt): 前端接入后移除` 注释清理（已被 BudgetListTab.vue 接入使用） |
+| P2-4 | `frontend/src/api/cost.ts` | deleteCollection / auditCollection 上方过时 TODO(tech-debt) 注释清理（已被 CostCollectionTab.vue 接入使用） |
+
+**v11 前端 P1 修复总结 ✅（全部完成）**：
+- P1-1（30+ 处占位 stub）：✅ 全部完成（批次 159 修复最后一处 RecordTab.vue handleView）
+- P1-2（死代码文件删除）：✅ 已完成
+- P1-3（omniAudit/barcodeScanner 响应结构）：✅ 已完成（批次 146）
+- P1-4（arReconciliation 绕过 API 层）：✅ 已完成（批次 146）
+- P1-5（dataPermission 硬编码兜底）：✅ 已完成
+- P1-6（currency setBase）：✅ 已完成（批次 157d-1）
+
+**v11 剩余任务**：前端 P2 其余项（P2-1 any 类型清理 / P2-2 i18n 接入 / P2-3 菜单硬编码 / P2-5 quality 分页 / P2-6 custom-order target_status / P2-7 inventory any[] 状态）→ v12 全项目复审
+
+---
+
+## 2026-07-07 (批次 158 v11 复审 P1 dead_code 全量真实接入完成，CI 12/12 全绿)
 
 ### 批次 158：v11 复审 P1 修复 — 全项目项级 dead_code 按规则 0/1/2 真实接入
 
-**main commit `b7b2baa`，16 文件 +313 -46 行，CI 验证中**
+**main commit `f9796cb`（4 轮 CI 修复后全绿），16 文件 +313 -46 行**
 
 撤回上一会话错误的 `#[allow(dead_code)]` 修复方式，对全项目所有 58 处项级 `#[allow(dead_code)]` 标注按规则 0/1/2 进行真实实现或删除。
 

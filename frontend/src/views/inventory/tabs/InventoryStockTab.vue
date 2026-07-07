@@ -64,7 +64,7 @@
         :total="total"
         :page="localQuery.page"
         :page-size="localQuery.page_size"
-        @row-click="(row: any) => emit('view', row)"
+        @row-click="(row: InventoryStock) => emit('view', row)"
         @page-change="handlePageChange"
         @size-change="handleSizeChange"
       />
@@ -77,6 +77,9 @@ import { reactive, watch } from 'vue'
 import { Search, Refresh } from '@element-plus/icons-vue'
 import V2Table from '@/components/V2Table/index.vue'
 import { useTableColumns } from '@/composables/useTableColumns'
+// v11 批次 160 P2-7 修复：导入具体接口类型替代 any[]
+import type { InventoryStock } from '@/api/inventory'
+import type { Warehouse } from '@/api/warehouse'
 
 export interface StockQuery {
   page: number
@@ -87,15 +90,15 @@ export interface StockQuery {
 }
 
 const props = defineProps<{
-  stocks: any[]
+  stocks: InventoryStock[]
   total: number
   loading: boolean
   queryParams: StockQuery
-  warehouses: any[]
+  warehouses: Warehouse[]
 }>()
 
 const emit = defineEmits<{
-  view: [row: any]
+  view: [row: InventoryStock]
   query: []
   reset: []
   'update:queryParams': [value: StockQuery]
@@ -131,14 +134,14 @@ const { columns: stockColumns } = useTableColumns([
     title: '库存数量',
     width: 120,
     align: 'right',
-    formatter: (row: any) => (row.quantity != null ? row.quantity.toLocaleString() : '-'),
+    formatter: (row: InventoryStock) => (row.quantity != null ? row.quantity.toLocaleString() : '-'),
   },
   {
     key: 'status',
     title: '状态',
     width: 100,
     align: 'center',
-    formatter: (row: any) => getStatusText(row.status),
+    formatter: (row: InventoryStock) => getStatusText(row.status),
   },
   { key: 'location', title: '库位', width: 100 },
 ])

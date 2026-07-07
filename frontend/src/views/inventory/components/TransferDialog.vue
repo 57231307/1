@@ -88,11 +88,13 @@
 import { Delete, Plus } from '@element-plus/icons-vue'
 import { reactive, watch } from 'vue'
 import { getWarehouseLabel } from '../composables/invFmts'
+// v11 批次 160 P2-7 修复：导入 Warehouse 接口替代 any[]
+import type { Warehouse } from '@/api/warehouse'
 
 const props = defineProps<{
   visible: boolean
   initialForm: any
-  warehouses: any[]
+  warehouses: Warehouse[]
 }>()
 
 const emit = defineEmits<{

@@ -68,17 +68,6 @@ pub struct UpdateCustomOrderDto {
     pub notes: Option<String>,
 }
 
-/// 状态推进 DTO
-#[derive(Debug, Deserialize, Serialize, Clone)]
-pub struct AdvanceStatusDto {
-    /// 目标状态
-    pub target_status: String,
-    /// 操作人 ID
-    pub operator_id: i64,
-    /// 备注
-    pub notes: Option<String>,
-}
-
 /// 取消定制订单 DTO
 #[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct CancelCustomOrderDto {

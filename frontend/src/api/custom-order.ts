@@ -109,11 +109,10 @@ export interface CustomOrderUpdateDto {
   notes?: string
 }
 
-/** 推进订单状态请求（对齐后端 AdvanceStatusDto）
- * TODO(tech-debt): 后端 target_status 为必填，但现有调用方未传，
- * 待 custom-orders 视图接入状态选择器后改为必填 */
+/** 推进订单状态请求（对齐后端 AdvanceRequest）
+ * v11 批次 160 P2-6 修复：后端 handler 实际使用 AdvanceRequest（不含 target_status），
+ * service.advance 自动判断下一状态；AdvanceStatusDto 死代码已从后端删除 */
 export interface CustomOrderAdvanceDto {
-  target_status?: string
   operator_id: number
   notes?: string
 }

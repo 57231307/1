@@ -92,6 +92,9 @@ import printJS from 'print-js'
 import { useRouter } from 'vue-router'
 import { loadIfNot, createLazyLoader } from '@/utils/lazy-loader'
 import { exportToExcel } from '@/utils/export'
+// v11 批次 160 P2-7 修复：导入具体接口类型替代 any[]
+import type { InventoryStock, StockAlert, InventoryTransfer } from '@/api/inventory'
+import type { Warehouse } from '@/api/warehouse'
 import InventoryStockTab, { type StockQuery } from './tabs/InventoryStockTab.vue'
 import InventoryAlertTab from './tabs/InventoryAlertTab.vue'
 import InventoryTransferTab from './tabs/InventoryTransferTab.vue'
@@ -104,10 +107,11 @@ const router = useRouter()
 
 const loading = ref(false)
 const activeTab = ref('stock')
-const stocks = ref<any[]>([])
-const alerts = ref<any[]>([])
-const transfers = ref<any[]>([])
-const warehouses = ref<any[]>([])
+// v11 批次 160 P2-7 修复：4 个核心状态从 any[] 改为具体接口类型，恢复类型保护
+const stocks = ref<InventoryStock[]>([])
+const alerts = ref<StockAlert[]>([])
+const transfers = ref<InventoryTransfer[]>([])
+const warehouses = ref<Warehouse[]>([])
 const total = ref(0)
 
 const stats = ref({
@@ -305,7 +309,7 @@ const onSubmitTransfer = async (form: any) => {
 
 const handleNewTransfer = () => handleTransfer()
 // 批次 157a P1-1 修复：调拨单详情无独立 API，直接展示列表行数据
-const handleViewTransfer = (row: any) => {
+const handleViewTransfer = (row: InventoryTransfer) => {
   const lines = [
     `调拨单号：${row.transfer_no}`,
     `转出仓库：${row.from_warehouse_name || '-'}`,
@@ -318,7 +322,7 @@ const handleViewTransfer = (row: any) => {
   ElMessageBox.alert(lines.join('\n'), '调拨单详情', { confirmButtonText: '关闭' })
 }
 // 批次 157a P1-1 修复：接入 approveTransfer API 完成调拨审批
-const handleApproveTransfer = async (row: any) => {
+const handleApproveTransfer = async (row: InventoryTransfer) => {
   try {
     await ElMessageBox.confirm(
       `确定审批通过调拨单 ${row.transfer_no} 吗？`,
@@ -339,7 +343,7 @@ const handleApproveTransfer = async (row: any) => {
   }
 }
 // 批次 157a P1-1 修复：接入 getStockById API 展示库存详情
-const handleView = async (row: any) => {
+const handleView = async (row: InventoryStock) => {
   try {
     const { inventoryApi } = await import('@/api/inventory')
     const res = await inventoryApi.getStockById(row.id)
@@ -369,7 +373,7 @@ const handleView = async (row: any) => {
   }
 }
 // 批次 157b P1-1 修复：采购按钮跳转到采购页面
-const handlePurchase = (row: any) => {
+const handlePurchase = (row: StockAlert) => {
   router.push({ name: 'Purchase', query: { product_name: row.product_name || '' } })
 }
 const handlePrint = () => {
