@@ -52,5 +52,6 @@ pub mod notification_type {
     pub const EMAIL: &str = "email";
     pub const INTERNAL: &str = "internal";
     pub const BOTH: &str = "both";
+    #[allow(dead_code)] // TODO(tech-debt): 通知类型 NONE 接入后移除（批次 161 CI2）
     pub const NONE: &str = "none";
 }

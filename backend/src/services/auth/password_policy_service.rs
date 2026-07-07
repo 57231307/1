@@ -64,10 +64,13 @@ pub struct PasswordPolicyService {
     /// 密码历史容量
     pub history_capacity: usize,
     /// 锁定阈值
+    #[allow(dead_code)] // TODO(tech-debt): 账户锁定功能接入登录流程后移除（批次 161 CI2）
     pub lockout_threshold: u32,
     /// 锁定时长
+    #[allow(dead_code)] // TODO(tech-debt): 账户锁定功能接入登录流程后移除（批次 161 CI2）
     pub lockout_duration_minutes: i64,
     /// 密码有效期（天），None = 永不过期
+    #[allow(dead_code)] // TODO(tech-debt): 密码过期功能接入登录流程后移除（批次 161 CI2）
     pub max_age_days: Option<i64>,
 }
 
@@ -113,6 +116,7 @@ impl PasswordPolicyService {
     }
 
     /// 检查是否被锁定
+    #[allow(dead_code)] // TODO(tech-debt): 账户锁定功能接入登录流程后移除（批次 161 CI2）
     pub fn is_locked(&self, info: &LockoutInfo) -> bool {
         if let Some(until) = info.locked_until {
             chrono::Utc::now() < until
@@ -122,6 +126,7 @@ impl PasswordPolicyService {
     }
 
     /// 记录登录失败
+    #[allow(dead_code)] // TODO(tech-debt): 账户锁定功能接入登录流程后移除（批次 161 CI2）
     pub fn record_failure(&self, info: &mut LockoutInfo) {
         info.failed_attempts += 1;
         if info.failed_attempts >= self.lockout_threshold {
@@ -133,12 +138,14 @@ impl PasswordPolicyService {
     }
 
     /// 登录成功重置
+    #[allow(dead_code)] // TODO(tech-debt): 账户锁定功能接入登录流程后移除（批次 161 CI2）
     pub fn record_success(&self, info: &mut LockoutInfo) {
         info.failed_attempts = 0;
         info.locked_until = None;
     }
 
     /// 检查密码是否过期
+    #[allow(dead_code)] // TODO(tech-debt): 密码过期功能接入登录流程后移除（批次 161 CI2）
     pub fn is_expired(&self, last_changed: chrono::DateTime<chrono::Utc>) -> bool {
         match self.max_age_days {
             None => false,
@@ -196,6 +203,7 @@ impl PasswordPolicyService {
     /// 统计用户密码历史记录数（批次 158 v11 真实接入）
     ///
     /// 用于运维监控和定期清理判断。
+    #[allow(dead_code)] // TODO(tech-debt): 运维监控接口接入后移除（批次 161 CI2）
     pub async fn count_history(
         &self,
         db: &DatabaseConnection,

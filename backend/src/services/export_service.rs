@@ -1,19 +1,10 @@
 //! 导出服务
 //!
-//! 提供PDF、Excel、CSV等格式的导出功能
+//! 提供PDF、Excel格式的导出功能（v11 批次 161 CI2：移除 CSV 导出，规则 3 要求 xlsx 交付）
 
 use crate::utils::error::AppError;
 use crate::utils::xlsx_export::{build_xlsx, XlsxTable};
 use serde::{Deserialize, Serialize};
-
-/// 导出格式
-#[allow(clippy::upper_case_acronyms)]
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub enum ExportFormat {
-    PDF,
-    Excel,
-    CSV,
-}
 
 /// 导出数据
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -28,37 +19,6 @@ pub struct ExportData {
 pub struct ExportService;
 
 impl ExportService {
-    /// 导出为CSV格式（内部调试用，面向用户的导出已升级为 export_excel）
-    pub fn export_csv(data: &ExportData) -> Result<Vec<u8>, AppError> {
-        let mut wtr = csv::WriterBuilder::new().from_writer(vec![]);
-
-        // 写入标题行
-        wtr.write_record(&data.headers)
-            .map_err(|e| AppError::validation(format!("CSV写入错误: {}", e)))?;
-
-        // 写入数据行
-        for row in &data.rows {
-            wtr.write_record(row)
-                .map_err(|e| AppError::validation(format!("CSV写入错误: {}", e)))?;
-        }
-
-        // 写入汇总
-        if let Some(summary) = &data.summary {
-            wtr.write_record(Vec::<String>::new())
-                .map_err(|e| AppError::validation(format!("CSV写入错误: {}", e)))?;
-            for (key, value) in summary {
-                wtr.write_record(vec![key.clone(), value.clone()])
-                    .map_err(|e| AppError::validation(format!("CSV写入错误: {}", e)))?;
-            }
-        }
-
-        let bytes = wtr
-            .into_inner()
-            .map_err(|e| AppError::validation(format!("CSV序列化错误: {}", e)))?;
-
-        Ok(bytes)
-    }
-
     /// 导出为 Excel 格式（xlsx）
     pub fn export_excel(data: &ExportData) -> Result<Vec<u8>, AppError> {
         // 规则 3：使用 rust_xlsxwriter 构建真正的 xlsx 文件
@@ -122,15 +82,6 @@ impl ExportService {
         ));
 
         Ok(content.into_bytes())
-    }
-
-    /// 根据格式导出
-    pub fn export(data: &ExportData, format: &ExportFormat) -> Result<Vec<u8>, AppError> {
-        match format {
-            ExportFormat::PDF => Self::export_pdf(data),
-            ExportFormat::Excel => Self::export_excel(data),
-            ExportFormat::CSV => Self::export_csv(data),
-        }
     }
 
     /// 生成对账单PDF

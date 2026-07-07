@@ -153,16 +153,19 @@ pub mod purchase_order {
     /// 待审批
     pub const PENDING_APPROVAL: &str = "PENDING_APPROVAL";
     /// 已提交
+    #[allow(dead_code)] // TODO(tech-debt): 采购订单业务接入后移除（批次 161 CI2）
     pub const SUBMITTED: &str = "SUBMITTED";
     /// 已审批
     pub const APPROVED: &str = "APPROVED";
     /// 已拒绝
     pub const REJECTED: &str = "REJECTED";
     /// 已收货
+    #[allow(dead_code)] // TODO(tech-debt): 采购订单业务接入后移除（批次 161 CI2）
     pub const RECEIVED: &str = "RECEIVED";
     /// 已关闭
     pub const CLOSED: &str = "CLOSED";
     /// 已取消
+    #[allow(dead_code)] // TODO(tech-debt): 采购订单业务接入后移除（批次 161 CI2）
     pub const CANCELLED: &str = "CANCELLED";
     /// 已完成
     pub const COMPLETED: &str = "COMPLETED";
@@ -211,6 +214,7 @@ pub mod inventory_reservation {
     /// 待处理（已创建预留，等待发货扣减）
     pub const PENDING: &str = "pending";
     /// 已完成（发货已扣减库存）
+    #[allow(dead_code)] // TODO(tech-debt): 库存预留完成状态接入后移除（批次 161 CI2）
     pub const FULFILLED: &str = "fulfilled";
     /// 已取消（订单取消或库存不足释放）
     pub const CANCELLED: &str = "cancelled";
@@ -224,5 +228,6 @@ pub mod sales_delivery {
     /// 已发货
     pub const SHIPPED: &str = "shipped";
     /// 已取消
+    #[allow(dead_code)] // TODO(tech-debt): 销售发货取消状态接入后移除（批次 161 CI2）
     pub const CANCELLED: &str = "cancelled";
 }
