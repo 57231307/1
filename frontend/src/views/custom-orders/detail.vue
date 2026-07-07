@@ -97,7 +97,7 @@ import {
   CUSTOM_ORDER_STATUS as STATUS_LABELS,
   CUSTOM_ORDER_STATUS_COLORS as STATUS_COLORS,
 } from '@/api/custom-order'
-import type { CustomOrderDetail } from '@/api/custom-order'
+import type { CustomOrderDetail, AfterSales } from '@/api/custom-order'
 import ProcessFlow from '@/components/ProcessFlow.vue'
 import QualityCheck from '@/components/QualityCheck.vue'
 import logger from '@/utils/logger'
@@ -106,7 +106,7 @@ import AfterSalesPanel from '@/components/AfterSalesPanel.vue'
 // P2-5：详情页 order 类型，扩展模板使用但 CustomOrderDetail 未声明的关联字段
 type CustomOrderDetailWithRelations = CustomOrderDetail & {
   quality_issues?: unknown[]
-  after_sales?: unknown[]
+  after_sales?: AfterSales[]
 }
 
 const route = useRoute()

@@ -126,11 +126,12 @@ import {
   updateAfterSales,
   AFTER_SALES_TYPE,
   AFTER_SALES_STATUS,
+  type AfterSales,
 } from '@/api/custom-order'
 
 const props = defineProps<{
   orderId: number
-  afterSales: any[]
+  afterSales: AfterSales[]
 }>()
 
 const emit = defineEmits<{ (e: 'refresh'): void }>()
@@ -139,7 +140,7 @@ const createVisible = ref(false)
 const resolveVisible = ref(false)
 const submitting = ref(false)
 const formRef = ref()
-const currentRecord = ref<any>(null)
+const currentRecord = ref<AfterSales | null>(null)
 
 const form = ref({
   issue_type: 'complaint',
@@ -156,7 +157,8 @@ const rules = {
   description: [{ required: true, message: '描述必填', trigger: 'blur' }],
   refund_amount: [
     {
-      validator: (_: any, val: any, cb: any) => {
+      // v11 批次 167 P2-1 修复：validator 参数类型化
+      validator: (_rule: unknown, val: unknown, cb: (error?: Error) => void) => {
         if (form.value.issue_type === 'refund' && (val === undefined || val === null)) {
           cb(new Error('退款类型必须填写金额'))
         } else {
@@ -168,8 +170,11 @@ const rules = {
   ],
 }
 
-function getStatusType(s: string) {
-  const map: Record<string, any> = {
+// v11 批次 167 P2-1 修复：Record<string, any> 改为联合字面量类型
+type TagType = 'success' | 'warning' | 'info' | 'primary' | 'danger'
+
+function getStatusType(s: string): TagType {
+  const map: Record<string, TagType> = {
     opened: 'warning',
     processing: 'primary',
     resolved: 'success',
@@ -179,7 +184,7 @@ function getStatusType(s: string) {
   return map[s] || 'info'
 }
 
-function formatDate(d: any) {
+function formatDate(d: string | undefined) {
   if (!d) return '-'
   return new Date(d).toLocaleString('zh-CN')
 }
@@ -207,24 +212,26 @@ async function handleCreateSubmit() {
     ElMessage.success('创建成功')
     createVisible.value = false
     emit('refresh')
-  } catch (e: any) {
-    ElMessage.error(e?.message || '创建失败')
+  } catch (e: unknown) {
+    // v11 批次 167 P2-1 修复：catch (e: any) 改为 unknown + 类型守卫
+    ElMessage.error((e instanceof Error ? e.message : String(e)) || '创建失败')
   } finally {
     submitting.value = false
   }
 }
 
-async function handleUpdate(row: any, status: string) {
+async function handleUpdate(row: AfterSales, status: string) {
   try {
     await updateAfterSales(row.id, { status, resolution: row.resolution })
     ElMessage.success('状态已更新')
     emit('refresh')
-  } catch (e: any) {
-    ElMessage.error(e?.message || '更新失败')
+  } catch (e: unknown) {
+    // v11 批次 167 P2-1 修复：catch (e: any) 改为 unknown + 类型守卫
+    ElMessage.error((e instanceof Error ? e.message : String(e)) || '更新失败')
   }
 }
 
-function showResolveDialog(row: any) {
+function showResolveDialog(row: AfterSales) {
   currentRecord.value = row
   resolveForm.value = { resolution: '' }
   resolveVisible.value = true
@@ -244,8 +251,9 @@ async function handleResolveSubmit() {
     ElMessage.success('解决成功')
     resolveVisible.value = false
     emit('refresh')
-  } catch (e: any) {
-    ElMessage.error(e?.message || '解决失败')
+  } catch (e: unknown) {
+    // v11 批次 167 P2-1 修复：catch (e: any) 改为 unknown + 类型守卫
+    ElMessage.error((e instanceof Error ? e.message : String(e)) || '解决失败')
   } finally {
     submitting.value = false
   }

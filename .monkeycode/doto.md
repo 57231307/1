@@ -5,7 +5,7 @@
 
 ---
 
-## 🔄 当前任务：v11 前端 P2 修复（批次 161 已完成，P2-5 quality 分页接入完成）
+## 🔄 当前任务：v11 前端 P2 修复（批次 166 已完成，P2-1 已清理 62 处 any）
 
 > 用户最高优先级规则（2026-07-04/06 追加）已固化到 [MEMORY.md 一、规则 0-4](file:///workspace/.monkeycode/MEMORY.md)。
 > 本文件仅记录任务进度，规则不在此重复。
@@ -41,19 +41,45 @@
   - CI1 修复：PageResult 添加可选 items 字段（对齐后端 PaginatedResponse 实际返回结构）
   - CI2 修复：8 个新 clippy 死代码警告（export_csv/export 删除 + 5 常量 + 3 字段 + 5 方法 allow）
   - 2 轮 CI 修复：751491c→e5ad56c→35532c3（最终全绿）
+- ✅ 批次 162：P2-1 bpm/index.vue any 清理（20 处 → 0 处，CI 11/12 全绿）
+  - 4 个 ref<any[]> 改为 ref<BPMTask[]>/ref<BPMInstance[]>
+  - 2 个 Record<string, any> 改为 Record<string, TagType>
+  - 7 个 row: any 改为 row: BPMTask/BPMInstance/BPMTask | BPMInstance
+  - 8 个模板 row as any 改为 row as BPMTask/BPMInstance
+  - 新增 type TagType 联合字面量类型（el-tag type）
+- ✅ 批次 163：P2-1 quotations/create.vue + sales-returns/useSr.ts any 清理（25 处 → 0 处，CI 11/12 全绿，1 轮 CI 修复）
+  - quotations/create.vue（13 处）：undefined as any → undefined as unknown as number；validator 参数类型化；res.data as any → QuotationResponseDto.id
+  - sales-returns/useSr.ts（12 处）：移除文件级 eslint-disable；ref<any[]> → ref<SalesReturn[]>；reactive<any> → reactive<ReturnForm>；catch (error: any) → catch (error: unknown)（6 处）；新增 SalesOrderOption/CustomerOption/ProductOption/ReturnFormItem/ReturnForm 接口
+  - CI1 修复：submitData 使用 as unknown as Partial<SalesReturn> 类型转换
+- ✅ 批次 164：P2-1 inventory/index.vue any 清理（3 处 → 0 处，CI 11/12 全绿）
+  - form: any 改为 typeof adjustmentForm.value/typeof transferForm.value
+  - form as any 改为 as unknown as InventoryTransfer
+  - 'table' as any 改为 'json'（print-js 标准 type 值）
+- ✅ 批次 165：P2-1 system/tabs/RoleTab.vue any 清理（6 处 → 0 处，CI 11/12 全绿）
+  - res.data as any 改为运行时安全访问
+  - buildPermissionTree 返回 any[] 改为 PermissionTreeNode[]，新增 PermissionTreeNode extends Permission 接口
+  - handlePermissionCheck 参数 _: any, { checkedKeys }: any 改为具体类型
+  - 3 处模板 row as any 改为 row as Role
+- ✅ 批次 166：P2-1 system/tabs/UserTab.vue any 清理（8 处 → 0 处，CI 12/12 全绿）
+  - 模板 2 处 row as any 改为 row as User
+  - 3 个 validator 函数参数类型化（_: any, v: string, cb: any）→ (_rule: unknown, v: string, cb: (error?: Error) => void)
 
 ### v11 剩余任务
 
-- ⏳ v11 前端 P2 其余项（3 类：P2-1 any 清理 / P2-2 i18n / P2-3 菜单硬编码推迟 P3）
+- 🔄 v11 前端 P2-1：any 类型清理（已清理 62 处，剩余 ~428 处，下一批次：AfterSalesPanel.vue 11 处已修改待提交）
+- ⏳ v11 前端 P2-2：i18n 接入（仅 Login.vue，其余 ~150 个 .vue 文件硬编码中文）
 - ⏳ v12 全项目复审（v11 全部修复完成后）
 
 ### 已完成批次（最近 5 个）
 
 | 批次 | main commit | 内容 |
 |------|-------------|------|
+| 166 | `2704cb8` | v11 前端 P2-1 system/tabs/UserTab.vue any 清理（8 处 → 0 处，1 文件 +7 -5 行，CI 12/12 全绿）|
+| 165 | `40f3665` | v11 前端 P2-1 system/tabs/RoleTab.vue any 清理（6 处 → 0 处，1 文件 +9 -8 行，CI 11/12 全绿）|
+| 164 | `3b3bcf3` | v11 前端 P2-1 inventory/index.vue any 清理（3 处 → 0 处，1 文件 +7 -6 行，CI 11/12 全绿）|
+| 163 | `0bd6e8f` | v11 前端 P2-1 quotations/create.vue + sales-returns/useSr.ts any 清理（25 处 → 0 处，2 文件 +109 -46 行，1 轮 CI 修复后全绿）|
+| 162 | `74971ed` | v11 前端 P2-1 bpm/index.vue any 清理（20 处 → 0 处，1 文件 +32 -26 行，CI 11/12 全绿）|
 | 161 | `35532c3` | v11 前端 P2-5 quality 分页接入 + 8 个 clippy 死代码修复（4 文件 +15 -50 行，2 轮 CI 修复后全绿；含 PageResult items 字段 + export_csv 删除）|
-| 160 | `1bc06a5` | v11 前端 P2-6 custom-order AdvanceStatusDto 死代码清理 + P2-7 inventory any[] 类型化（10 文件 +82 -47 行，2 轮 CI 修复后全绿；含 InventoryStockTab.vue wh.name 兜底删除）|
-| 159 | `9eb589c` | v11 前端 P1-1 RecordTab handleView 占位 stub 真实接入 openRecordDialog + P2-4 budget.ts/cost.ts 过时 TODO(tech-debt) 注释清理（3 文件 +8 -8 行，CI 11/12 全绿，E2E 非阻塞）|
 | 158 | `f9796cb` | v11 P1 全项目项级 dead_code 按规则 0/1/2 真实接入（4 删 + 16 移除标注 + 19 接入业务 + 10 SeaORM 例外保留；4 轮 CI 修复后全绿；含 so_status unused import 修复 + baseline 补充 8/7）|
 | 157 | `7dfc2ef` | v11 复审报告生成（后端 47 项 + 前端 16 类）|
 | 143-145 | - | v11 P0 三项修复完成 |

@@ -173,6 +173,18 @@ export interface QualityIssueQueryParams {
   severity?: string
 }
 
+/** 售后工单信息（对齐后端 AfterSalesInfo） */
+export interface AfterSales {
+  id: number
+  issue_type: string
+  description: string
+  status: string
+  opened_at: string
+  closed_at?: string
+  resolution?: string
+  refund_amount?: number
+}
+
 /** 创建售后工单请求（对齐后端 CreateAfterSalesDto）
  * 注意：custom_order_id 通过 URL 路径参数传递，请求体中可选 */
 export interface AfterSalesCreateDto {
