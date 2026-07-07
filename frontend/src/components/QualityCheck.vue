@@ -118,9 +118,21 @@ import {
   ISSUE_SEVERITY_COLORS,
 } from '@/api/custom-order'
 
+// v11 批次 180 P2-1 修复：定义质量异常本地类型，替代 any
+interface QualityIssue {
+  id: number
+  issue_type: string
+  severity: string
+  description?: string
+  discovered_at?: string | number | Date
+  status: 'open' | 'investigating' | 'resolved' | string
+  resolution?: string
+  [key: string]: unknown
+}
+
 const props = defineProps<{
   orderId: number
-  issues: any[]
+  issues: QualityIssue[]
 }>()
 
 const emit = defineEmits<{ (e: 'refresh'): void }>()
@@ -129,7 +141,7 @@ const reportVisible = ref(false)
 const resolveVisible = ref(false)
 const submitting = ref(false)
 const reportFormRef = ref()
-const currentIssue = ref<any>(null)
+const currentIssue = ref<QualityIssue | null>(null)
 
 const reportForm = ref({
   issue_type: '',
@@ -147,7 +159,7 @@ const reportRules = {
   description: [{ required: true, message: '描述必填', trigger: 'blur' }],
 }
 
-function formatDate(d: any) {
+function formatDate(d: string | number | Date | undefined) {
   if (!d) return '-'
   return new Date(d).toLocaleString('zh-CN')
 }
@@ -176,14 +188,16 @@ async function handleReportSubmit() {
     ElMessage.success('上报成功')
     reportVisible.value = false
     emit('refresh')
-  } catch (e: any) {
-    ElMessage.error(e?.message || '上报失败')
+  } catch (e: unknown) {
+    // v11 批次 180 P2-1 修复：catch (e: any) 改为 catch (e: unknown) + 类型守卫
+    const errMsg = e instanceof Error ? e.message : String(e)
+    ElMessage.error(errMsg || '上报失败')
   } finally {
     submitting.value = false
   }
 }
 
-function handleResolve(row: any) {
+function handleResolve(row: QualityIssue) {
   currentIssue.value = row
   resolveForm.value = { resolution: '' }
   resolveVisible.value = true
@@ -203,8 +217,10 @@ async function handleResolveSubmit() {
     ElMessage.success('解决成功')
     resolveVisible.value = false
     emit('refresh')
-  } catch (e: any) {
-    ElMessage.error(e?.message || '解决失败')
+  } catch (e: unknown) {
+    // v11 批次 180 P2-1 修复：catch (e: any) 改为 catch (e: unknown) + 类型守卫
+    const errMsg = e instanceof Error ? e.message : String(e)
+    ElMessage.error(errMsg || '解决失败')
   } finally {
     submitting.value = false
   }

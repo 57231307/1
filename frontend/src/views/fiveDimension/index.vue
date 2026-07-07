@@ -71,16 +71,17 @@ const searchTypeOptions = [
 const loadData = async () => {
   loading.value = true
   try {
-    const res: any = await listFiveDimensionStats({
+    // v11 批次 179 P2-1 修复：res: any 改为具体类型
+    const res = (await listFiveDimensionStats({
       page: pagination.value.page - 1,
       page_size: pagination.value.pageSize,
       product_id: searchForm.value.product_id ? Number(searchForm.value.product_id) : undefined,
       batch_no: searchForm.value.batch_no || undefined,
       color_no: searchForm.value.color_no || undefined,
       grade: searchForm.value.grade || undefined,
-    })
-    tableData.value = res.data!.items
-    total.value = res.data!.total
+    })) as { data?: { items?: FiveDimensionStatsResponse[]; total?: number } }
+    tableData.value = res.data?.items || []
+    total.value = res.data?.total || 0
   } catch (error) {
     ElMessage.error('加载失败')
   } finally {
@@ -115,8 +116,11 @@ const handlePageSizeChange = (pageSize: number) => {
 
 const openViewDialog = async (item: FiveDimensionStatsResponse) => {
   try {
-    const res: any = await getStatsByFiveDimensionId(item.dimension.five_dimension_id!)
-    viewData.value = res.data!
+    // v11 批次 179 P2-1 修复：res: any 改为具体类型
+    const res = (await getStatsByFiveDimensionId(
+      item.dimension.five_dimension_id!
+    )) as { data?: FiveDimensionStatsResponse }
+    viewData.value = res.data || null
     viewDialogVisible.value = true
   } catch (error) {
     ElMessage.error('获取详情失败')
@@ -129,13 +133,16 @@ const handleParse = async () => {
     return
   }
   try {
-    const res: any = await parseFiveDimensionId(parseInput.value)
-    if (res.data.success) {
-      parseResult.value = res.data.dimension
+    // v11 批次 179 P2-1 修复：res: any 改为具体类型
+    const res = (await parseFiveDimensionId(parseInput.value)) as {
+      data?: { success?: boolean; dimension?: FiveDimensionItem; error?: string }
+    }
+    if (res.data?.success) {
+      parseResult.value = res.data.dimension || null
       parseError.value = ''
     } else {
       parseResult.value = null
-      parseError.value = res.data.error || '解析失败'
+      parseError.value = res.data?.error || '解析失败'
     }
   } catch (error) {
     parseError.value = '解析失败'
@@ -149,13 +156,14 @@ const handleQuickSearch = async () => {
     return
   }
   try {
-    const res: any = await searchFiveDimension({
+    // v11 批次 179 P2-1 修复：res: any 改为具体类型
+    const res = (await searchFiveDimension({
       keyword: searchKeyword.value,
       search_type: searchType.value,
       page: 0,
       page_size: 50,
-    })
-    searchResults.value = res.data!.items
+    })) as { data?: { items?: FiveDimensionItem[] } }
+    searchResults.value = res.data?.items || []
   } catch (error) {
     ElMessage.error('搜索失败')
   }
@@ -274,7 +282,7 @@ loadData()
       <ElTableColumn prop="dimension.five_dimension_id" label="五维ID" />
       <ElTableColumn label="操作" width="100" align="center">
         <template #default="scope">
-          <ElButton size="small" @click="openViewDialog(scope.row as any)">
+          <ElButton size="small" @click="openViewDialog(scope.row as FiveDimensionStatsResponse)">
             <View />
           </ElButton>
         </template>
@@ -365,7 +373,7 @@ loadData()
           <ElTableColumn prop="grade" label="等级" width="80" />
           <ElTableColumn label="操作" width="80">
             <template #default="scope">
-              <ElButton size="small" type="primary" @click="selectFromSearch(scope.row as any)"
+              <ElButton size="small" type="primary" @click="selectFromSearch(scope.row as FiveDimensionItem)"
                 >选择</ElButton
               >
             </template>

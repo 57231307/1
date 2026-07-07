@@ -30,7 +30,7 @@
             <el-table-column prop="createdAt" label="创建时间" />
             <el-table-column label="操作" fixed="right" width="200">
               <template #default="{ row }">
-                <el-button link type="primary" @click="handleViewRecord(row as any)"
+                <el-button link type="primary" @click="handleViewRecord(row as EvaluationRecord)"
                   >查看</el-button
                 >
               </template>
@@ -142,13 +142,15 @@ import {
   createEvaluationRecord,
   getSupplierRankings,
   type EvaluationRecord,
+  type SupplierScore,
+  type CreateEvaluationRequest,
 } from '@/api/supplier-evaluation'
 import { supplierApi, type Supplier } from '@/api/supplier'
 import { logger } from '@/utils/logger'
 
 const activeTab = ref('records')
 const recordList = ref<EvaluationRecord[]>([])
-const rankingList = ref<any[]>([])
+const rankingList = ref<SupplierScore[]>([])
 const supplierList = ref<Supplier[]>([])
 
 const recordPagination = reactive({
@@ -186,13 +188,14 @@ const fetchSuppliers = async () => {
 
 const fetchRecords = async () => {
   try {
-    const res: any = await listEvaluationRecords({
+    // v11 批次 176 P2-1 修复：res: any 改为直接使用 API 返回类型
+    const res = await listEvaluationRecords({
       page: recordPagination.page,
       pageSize: recordPagination.pageSize,
     })
     if (res.data) {
-      recordList.value = res.data!.list || res.data! || []
-      recordPagination.total = res.data!.total || res.data?.length || 0
+      recordList.value = res.data.list || []
+      recordPagination.total = res.data.total || 0
     }
   } catch (e) {
     ElMessage.error('获取评估记录失败')
@@ -201,9 +204,10 @@ const fetchRecords = async () => {
 
 const fetchRankings = async () => {
   try {
-    const res: any = await getSupplierRankings({ limit: 20 })
+    // v11 批次 176 P2-1 修复：res: any 改为直接使用 API 返回类型
+    const res = await getSupplierRankings({ limit: 20 })
     if (res.data) {
-      rankingList.value = (res.data! || []).map((item: any, index: number) => ({
+      rankingList.value = (res.data || []).map((item: SupplierScore, index: number) => ({
         ...item,
         rank: index + 1,
       }))
@@ -232,12 +236,14 @@ const handleSaveRecord = async () => {
 
     submitLoading.value = true
     try {
-      await createEvaluationRecord(recordForm as any)
+      // v11 批次 176 P2-1 修复：recordForm as any 改为 as CreateEvaluationRequest
+      await createEvaluationRecord(recordForm as CreateEvaluationRequest)
       ElMessage.success('保存成功')
       recordDialogVisible.value = false
       fetchRecords()
-    } catch (e: any) {
-      ElMessage.error(e.message || '保存失败')
+    } catch (e: unknown) {
+      const errMsg = e instanceof Error ? e.message : String(e)
+      ElMessage.error(errMsg || '保存失败')
     } finally {
       submitLoading.value = false
     }

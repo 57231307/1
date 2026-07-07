@@ -5,14 +5,20 @@
  * 包含：报表模板列表、执行报表、导出报表、报表结果展示弹窗
  * 数据与函数全部由父组件通过 props 传入
  */
+// v11 批次 180 P2-1 修复：从 useRpt 导入具体类型替代 any
+import type {
+  ReportTemplate,
+  ReportColumn,
+} from '../composables/useRpt'
+
 interface Props {
-  reportTemplates: any[]
+  reportTemplates: ReportTemplate[]
   reportLoading: boolean
   reportResultVisible: boolean
-  reportData: any[]
-  reportColumns: any[]
-  executeReport: (row: any) => Promise<void>
-  exportReport: (row: any, format: string) => Promise<void>
+  reportData: unknown[]
+  reportColumns: ReportColumn[]
+  executeReport: (row: ReportTemplate) => Promise<void>
+  exportReport: (row: ReportTemplate, format: string) => Promise<void>
 }
 
 defineProps<Props>()
@@ -40,7 +46,7 @@ const closeReportResult = () => emit('update:report-result-visible', false)
       <el-table-column prop="created_at" label="创建时间" width="160" />
       <el-table-column label="操作" width="200" fixed="right">
         <template #default="{ row }">
-          <el-button type="primary" link size="small" @click="executeReport(row as any)"
+          <el-button type="primary" link size="small" @click="executeReport(row as ReportTemplate)"
             >执行</el-button
           >
           <el-button type="success" link size="small" @click="exportReport(row, 'excel')"

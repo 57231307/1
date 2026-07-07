@@ -20,19 +20,19 @@
       <el-table-column prop="expected_arrival" label="预计到达" min-width="120" />
       <el-table-column prop="status" label="状态" width="100" align="center">
         <template #default="{ row }">
-          <el-tag :type="(getStatusTypeFmt(row.status) as any)">
+          <el-tag :type="(getStatusTypeFmt(row.status) as TagType)">
             {{ getStatusTextFmt(row.status) }}
           </el-tag>
         </template>
       </el-table-column>
       <el-table-column label="操作" width="250" fixed="right">
         <template #default="{ row }">
-          <el-button size="small" @click="emit('view', row as any)">查看</el-button>
+          <el-button size="small" @click="emit('view', row as LogisticsWaybill)">查看</el-button>
           <el-button
             v-if="row.status === 'pending'"
             size="small"
             type="primary"
-            @click="emit('edit', row as any)"
+            @click="emit('edit', row as LogisticsWaybill)"
           >
             编辑
           </el-button>
@@ -40,7 +40,7 @@
             v-if="row.status === 'pending'"
             size="small"
             type="success"
-            @click="emit('ship', row as any)"
+            @click="emit('ship', row as LogisticsWaybill)"
           >
             发货
           </el-button>
@@ -48,7 +48,7 @@
             v-if="row.status === 'shipped' || row.status === 'in_transit'"
             size="small"
             type="warning"
-            @click="emit('update-status', row as any)"
+            @click="emit('update-status', row as LogisticsWaybill)"
           >
             更新状态
           </el-button>
@@ -56,7 +56,7 @@
             v-if="row.status === 'pending'"
             size="small"
             type="danger"
-            @click="emit('delete', row as any)"
+            @click="emit('delete', row as LogisticsWaybill)"
           >
             删除
           </el-button>
@@ -79,6 +79,9 @@
 <script setup lang="ts">
 import type { LogisticsWaybill } from '@/api/logistics'
 import { getStatusType, getStatusText } from '../composables/lgsFmts'
+
+// v11 批次 178 P2-1 修复：el-tag type 字面量类型
+type TagType = 'success' | 'warning' | 'info' | 'primary' | 'danger'
 
 // 查询参数类型
 interface QryParams {

@@ -20,8 +20,8 @@
       </el-table-column>
       <el-table-column label="操作" width="200">
         <template #default="{ row }">
-          <el-button size="small" @click="handleEdit(row as any)">编辑</el-button>
-          <el-button size="small" type="danger" @click="handleDelete(row as any)">删除</el-button>
+          <el-button size="small" @click="handleEdit(row as GreigeFabricRow)">编辑</el-button>
+          <el-button size="small" type="danger" @click="handleDelete(row as GreigeFabricRow)">删除</el-button>
         </template>
       </el-table-column>
     </el-table>
@@ -95,15 +95,42 @@ import {
 import { warehouseApi } from '@/api/warehouse'
 import { loadIfNot, createLazyLoader } from '@/utils/lazy-loader'
 
+// v11 批次 179 P2-1 修复：定义本地行类型，替代 any
+interface GreigeFabricRow {
+  id: number
+  batchNo: string
+  productId: number | null
+  quantity: number
+  unit: string
+  warehouseId: number | null
+  status: 'available' | 'occupied'
+}
+
+interface WarehouseOption {
+  id: number
+  name: string
+}
+
+interface GreigeFabricForm {
+  id: number | null
+  batchNo: string
+  productId: number | null
+  quantity: number
+  unit: string
+  warehouseId: number | null
+  status: 'available' | 'occupied'
+}
+
 const loading = ref(false)
 const submitLoading = ref(false)
 const dialogVisible = ref(false)
 const dialogMode = ref<'create' | 'edit'>('create')
 const formRef = ref<FormInstance>()
-const greigeList = ref<any[]>([])
-const warehouseList = ref<any[]>([])
+const greigeList = ref<GreigeFabricRow[]>([])
+const warehouseList = ref<WarehouseOption[]>([])
 
-const formData = reactive<any>({
+const formData = reactive<GreigeFabricForm>({
+  id: null,
   batchNo: '',
   productId: null,
   quantity: 0,
@@ -135,8 +162,16 @@ const loadGreigeFabrics = async () => {
 
 const loadWarehouses = async () => {
   try {
+    // v11 批次 179 P2-1 修复：res.data as any 改为类型守卫
     const res = await warehouseApi.list()
-    warehouseList.value = (res.data as any).list || []
+    const d = res.data as { list?: WarehouseOption[] } | WarehouseOption[] | undefined
+    if (Array.isArray(d)) {
+      warehouseList.value = d
+    } else if (d && typeof d === 'object') {
+      warehouseList.value = d.list || []
+    } else {
+      warehouseList.value = []
+    }
   } catch (error) {
     ElMessage.error('加载仓库列表失败')
   }
@@ -156,7 +191,8 @@ const handleCreate = () => {
   dialogVisible.value = true
 }
 
-const handleEdit = (row: any) => {
+// v11 批次 179 P2-1 修复：(row: any) 改为 (row: GreigeFabricRow)
+const handleEdit = (row: GreigeFabricRow) => {
   dialogMode.value = 'edit'
   Object.assign(formData, {
     id: row.id,
@@ -170,7 +206,7 @@ const handleEdit = (row: any) => {
   dialogVisible.value = true
 }
 
-const handleDelete = async (row: any) => {
+const handleDelete = async (row: GreigeFabricRow) => {
   if (!row.id) return
 
   try {

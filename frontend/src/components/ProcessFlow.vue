@@ -80,8 +80,20 @@ import {
   NODE_STATUS_COLORS,
 } from '@/api/custom-order'
 
+// v11 批次 180 P2-1 修复：定义工艺节点本地类型，替代 any
+interface ProcessNode {
+  id: number
+  node_name: string
+  status: 'pending' | 'in_progress' | 'completed' | 'blocked' | string
+  planned_start_date?: string | number | Date
+  actual_start_date?: string | number | Date
+  actual_end_date?: string | number | Date
+  operator_id?: number
+  [key: string]: unknown
+}
+
 const props = defineProps<{
-  nodes: any[]
+  nodes: ProcessNode[]
   orderId?: number
 }>()
 
@@ -90,9 +102,9 @@ const emit = defineEmits<{ (e: 'refresh'): void }>()
 const activeIndex = computed(() => {
   if (!props.nodes) return 0
   // 找到第一个 in_progress 或最后一个未完成
-  const idx = props.nodes.findIndex((n: any) => n.status === 'in_progress')
+  const idx = props.nodes.findIndex((n: ProcessNode) => n.status === 'in_progress')
   if (idx >= 0) return idx
-  const lastCompleted = props.nodes.map((n: any) => n.status).lastIndexOf('completed')
+  const lastCompleted = props.nodes.map((n: ProcessNode) => n.status).lastIndexOf('completed')
   return lastCompleted + 1
 })
 
@@ -103,14 +115,14 @@ function getStatus(s: string): 'process' | 'finish' | 'error' | 'wait' {
   return 'wait'
 }
 
-function getDescription(node: any) {
+function getDescription(node: ProcessNode) {
   if (node.actual_end_date) return `完成于 ${new Date(node.actual_end_date).toLocaleDateString()}`
   if (node.actual_start_date) return `开始于 ${new Date(node.actual_start_date).toLocaleDateString()}`
   if (node.planned_start_date) return `计划 ${new Date(node.planned_start_date).toLocaleDateString()}`
   return '待开始'
 }
 
-async function handleAction(node: any, action: string) {
+async function handleAction(node: ProcessNode, action: string) {
   try {
     if (action === 'block') {
       const { value: reason } = await ElMessageBox.prompt('请输入阻塞原因', '阻塞节点', {
@@ -130,8 +142,12 @@ async function handleAction(node: any, action: string) {
     }
     ElMessage.success('操作成功')
     emit('refresh')
-  } catch (e: any) {
-    if (e !== 'cancel') ElMessage.error(e?.message || '操作失败')
+  } catch (e: unknown) {
+    // v11 批次 180 P2-1 修复：catch (e: any) 改为 catch (e: unknown) + 类型守卫
+    if (e !== 'cancel') {
+      const errMsg = e instanceof Error ? e.message : String(e)
+      ElMessage.error(errMsg || '操作失败')
+    }
   }
 }
 </script>

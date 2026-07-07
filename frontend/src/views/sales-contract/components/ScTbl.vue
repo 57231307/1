@@ -30,7 +30,7 @@
       </el-table-column>
       <el-table-column label="操作" width="250" align="center" fixed="right">
         <template #default="{ row }">
-          <el-button type="primary" link size="small" @click="emit('view', row as any)"
+          <el-button type="primary" link size="small" @click="emit('view', row as SalesContract)"
             >查看</el-button
           >
           <!-- P2-17 修复（批次 86 v2 复审）：编辑/删除按钮补齐 v-permission -->
@@ -40,7 +40,7 @@
             type="primary"
             link
             size="small"
-            @click="emit('edit', row as any)"
+            @click="emit('edit', row as SalesContract)"
             >编辑</el-button
           >
           <el-button
@@ -48,7 +48,7 @@
             type="success"
             link
             size="small"
-            @click="emit('submit-approval', row as any)"
+            @click="emit('submit-approval', row as SalesContract)"
             >提交</el-button
           >
           <el-button
@@ -56,7 +56,7 @@
             type="success"
             link
             size="small"
-            @click="emit('approve', row as any)"
+            @click="emit('approve', row as SalesContract)"
             >审批</el-button
           >
           <el-button
@@ -64,7 +64,7 @@
             type="warning"
             link
             size="small"
-            @click="emit('execute', row as any)"
+            @click="emit('execute', row as SalesContract)"
             >执行</el-button
           >
           <el-button
@@ -73,7 +73,7 @@
             type="danger"
             link
             size="small"
-            @click="emit('delete', row as any)"
+            @click="emit('delete', row as SalesContract)"
             >删除</el-button
           >
         </template>

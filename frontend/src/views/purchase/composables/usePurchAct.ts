@@ -18,7 +18,7 @@ export function usePurchAct(
 ) {
   // 查看对话框
   const viewDialogVisible = ref(false)
-  const viewData = ref<any>({})
+  const viewData = ref<PurchaseOrder | null>(null)
 
   /**
    * 查看采购单详情
@@ -44,9 +44,10 @@ export function usePurchAct(
       await purchaseApi.approveOrder(row.id)
       ElMessage.success(`采购单 ${row.order_no} 审批成功`)
       onRefresh()
-    } catch (error: any) {
+    } catch (error: unknown) {
       if (error !== 'cancel') {
-        ElMessage.error(error.message || '审批失败')
+        const errMsg = error instanceof Error ? error.message : String(error)
+        ElMessage.error(errMsg || '审批失败')
       }
     }
   }
@@ -55,7 +56,8 @@ export function usePurchAct(
    * 打印采购订单列表
    */
   const handlePrint = () => {
-    const printData = orders().map((item: any, index: number) => ({
+    // v11 批次 177 P2-1 修复：(item: any) 改为 (item: PurchaseOrder)
+    const printData = orders().map((item: PurchaseOrder, index: number) => ({
       序号: index + 1,
       订单号: item.order_no,
       供应商: item.supplier_name,
@@ -66,7 +68,8 @@ export function usePurchAct(
     printJS({
       printable: printData,
       properties: Object.keys(printData[0] || {}),
-      type: 'table' as any,
+      // v11 批次 177 P2-1 修复：'table' as any 改为字面量断言
+      type: 'table' as 'table',
       header: '采购订单列表',
       style: 'padding: 20px; font-size: 14px;',
       headerStyle: 'font-size: 18px; font-weight: bold; margin-bottom: 20px;',
@@ -79,9 +82,10 @@ export function usePurchAct(
    * 导出采购订单列表为 CSV
    */
   const handleExport = () => {
+    // v11 批次 177 P2-1 修复：(item: any) 改为 (item: PurchaseOrder)，row/cell 改为 unknown
     const csvContent = [
       ['订单号', '供应商', '金额', '状态', '创建时间'],
-      ...orders().map((item: any) => [
+      ...orders().map((item: PurchaseOrder) => [
         item.order_no,
         item.supplier_name,
         item.total_amount,
@@ -89,7 +93,7 @@ export function usePurchAct(
         item.created_at,
       ]),
     ]
-      .map((row: any[]) => row.map((cell: any) => `"${cell}"`).join(','))
+      .map((row: unknown[]) => row.map((cell: unknown) => `"${String(cell ?? '')}"`).join(','))
       .join('\n')
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' })
     const link = document.createElement('a')

@@ -75,7 +75,7 @@
         <el-table-column prop="color_id" label="色号" width="100" />
         <el-table-column label="客户等级" width="100">
           <template #default="{ row }">
-            <el-tag v-if="row.customer_level" :type="getLevelColor(row.customer_level) as any">
+            <el-tag v-if="row.customer_level" :type="getLevelColor(row.customer_level) as TagType">
               {{ getLevelLabel(row.customer_level) }}
             </el-tag>
             <span v-else>-</span>
@@ -83,7 +83,7 @@
         </el-table-column>
         <el-table-column label="季节" width="100">
           <template #default="{ row }">
-            <el-tag v-if="row.season" :type="getSeasonColor(row.season) as any">
+            <el-tag v-if="row.season" :type="getSeasonColor(row.season) as TagType">
               {{ getSeasonLabel(row.season) }}
             </el-tag>
             <span v-else>-</span>
@@ -95,7 +95,7 @@
         <el-table-column label="币种" width="80" prop="currency" />
         <el-table-column label="审批状态" width="100">
           <template #default="{ row }">
-            <el-tag :type="getApprovalColor(row.approval_status) as any">
+            <el-tag :type="getApprovalColor(row.approval_status) as TagType">
               {{ getApprovalLabel(row.approval_status) }}
             </el-tag>
           </template>
@@ -103,7 +103,7 @@
         <el-table-column label="生效日期" width="120" prop="effective_from" />
         <el-table-column label="状态" width="80">
           <template #default="{ row }">
-            <el-tag :type="row.is_active ? 'success' : 'info' as any">
+            <el-tag :type="row.is_active ? 'success' : 'info' as TagType">
               {{ row.is_active ? '启用' : '禁用' }}
             </el-tag>
           </template>
@@ -151,6 +151,9 @@ import {
   type ListColorPricesQuery,
 } from '@/api/color-price'
 
+// v11 批次 180 P2-1 修复：el-tag type 字面量类型
+type TagType = 'success' | 'warning' | 'info' | 'primary' | 'danger'
+
 const router = useRouter()
 const loading = ref(false)
 const tableData = ref<ColorPriceListItem[]>([])
@@ -168,8 +171,10 @@ const loadData = async () => {
     const res = await listColorPrices(filterForm)
     tableData.value = res.items
     total.value = res.total
-  } catch (e: any) {
-    ElMessage.error('加载失败：' + (e?.message || '未知错误'))
+  } catch (e: unknown) {
+    // v11 批次 180 P2-1 修复：catch (e: any) 改为 catch (e: unknown) + 类型守卫
+    const errMsg = e instanceof Error ? e.message : String(e)
+    ElMessage.error('加载失败：' + (errMsg || '未知错误'))
   } finally {
     loading.value = false
   }
@@ -209,9 +214,11 @@ const handleDelete = async (row: ColorPriceListItem) => {
     await deleteColorPrice(row.id)
     ElMessage.success('删除成功')
     loadData()
-  } catch (e: any) {
+  } catch (e: unknown) {
     if (e === 'cancel') return
-    ElMessage.error('删除失败：' + (e?.message || '未知错误'))
+    // v11 批次 180 P2-1 修复：catch (e: any) 改为 catch (e: unknown) + 类型守卫
+    const errMsg = e instanceof Error ? e.message : String(e)
+    ElMessage.error('删除失败：' + (errMsg || '未知错误'))
   }
 }
 

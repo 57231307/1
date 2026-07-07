@@ -82,23 +82,25 @@
 
 <script setup lang="ts">
 import { reactive, watch } from 'vue'
+// v11 批次 176 P2-1 修复：引入 Supplier 和 SupplierQueryParams 替代 any
+import type { Supplier, SupplierQueryParams } from '@/api/supplier'
 
 const props = defineProps<{
-  suppliers: any[]
+  suppliers: Supplier[]
   total: number
   loading: boolean
-  queryParams: any
+  queryParams: SupplierQueryParams
   dialogMode: 'list' | 'view' | 'add' | 'edit'
 }>()
 
 const emit = defineEmits<{
   search: []
   reset: []
-  'update:queryParams': [value: any]
+  'update:queryParams': [value: SupplierQueryParams]
   add: []
-  view: [row: any]
-  edit: [row: any]
-  delete: [row: any]
+  view: [row: Supplier]
+  edit: [row: Supplier]
+  delete: [row: Supplier]
 }>()
 
 const localQuery = reactive({ ...props.queryParams })
