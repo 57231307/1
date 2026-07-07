@@ -66,9 +66,19 @@ const getBusinessTypeLabel = (value: string) => {
 
 const loadDimensions = async () => {
   try {
-    const res: any = await listAssistDimensions()
-    const d = res.data as any
-    dimensions.value = d?.data || d?.items || d || []
+    // v11 批次 175 P2-1 修复：res: any 和 res.data as any 改为具体类型
+    const res = (await listAssistDimensions()) as {
+      data?: AssistDimensionResponse[] | { data?: AssistDimensionResponse[]; items?: AssistDimensionResponse[] }
+    }
+    const d = res.data
+    if (Array.isArray(d)) {
+      dimensions.value = d
+    } else if (d && typeof d === 'object') {
+      const obj = d as { data?: AssistDimensionResponse[]; items?: AssistDimensionResponse[] }
+      dimensions.value = obj?.data || obj?.items || []
+    } else {
+      dimensions.value = []
+    }
   } catch (error) {
     ElMessage.error('加载维度失败')
   }
@@ -77,7 +87,8 @@ const loadDimensions = async () => {
 const loadRecords = async () => {
   loading.value = true
   try {
-    const res: any = await queryAssistRecords({
+    // v11 批次 175 P2-1 修复：res: any 改为具体类型
+    const res = (await queryAssistRecords({
       accounting_period: searchForm.value.accounting_period || undefined,
       dimension_code: searchForm.value.dimension_code || undefined,
       business_type: searchForm.value.business_type || undefined,
@@ -86,10 +97,9 @@ const loadRecords = async () => {
         : undefined,
       page: pagination.value.page - 1,
       page_size: pagination.value.pageSize,
-    })
-    tableData.value = res.data.records
-    const d = res.data as any
-    total.value = d?.total || 0
+    })) as { data?: { records?: AssistRecordResponse[]; total?: number } }
+    tableData.value = res.data?.records || []
+    total.value = res.data?.total || 0
   } catch (error) {
     ElMessage.error('加载记录失败')
   } finally {
@@ -101,12 +111,22 @@ const loadSummary = async () => {
   loading.value = true
   try {
     const period = searchForm.value.accounting_period || new Date().toISOString().slice(0, 7)
-    const res: any = await getAssistSummary({
+    // v11 批次 175 P2-1 修复：res: any 和 res.data as any 改为具体类型
+    const res = (await getAssistSummary({
       accounting_period: period,
       dimension_code: searchForm.value.dimension_code || undefined,
-    })
-    const d = res.data as any
-    summaryData.value = d?.data || d?.items || d || []
+    })) as {
+      data?: AssistSummaryResponse[] | { data?: AssistSummaryResponse[]; items?: AssistSummaryResponse[] }
+    }
+    const d = res.data
+    if (Array.isArray(d)) {
+      summaryData.value = d
+    } else if (d && typeof d === 'object') {
+      const obj = d as { data?: AssistSummaryResponse[]; items?: AssistSummaryResponse[] }
+      summaryData.value = obj?.data || obj?.items || []
+    } else {
+      summaryData.value = []
+    }
   } catch (error) {
     ElMessage.error('加载汇总失败')
   } finally {
@@ -235,7 +255,7 @@ loadRecords()
           <ElTableColumn prop="created_at" label="创建时间" width="150" />
           <ElTableColumn label="操作" width="100" align="center">
             <template #default="scope">
-              <ElButton size="small" @click="openViewDialog(scope.row as any)">
+              <ElButton size="small" @click="openViewDialog(scope.row as AssistRecordResponse)">
                 <View />
               </ElButton>
             </template>

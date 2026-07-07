@@ -78,13 +78,14 @@ const getStatusClass = (value: string) => {
 const loadData = async () => {
   loading.value = true
   try {
-    const res: any = await listArReconciliations({
+    // v11 批次 175 P2-1 修复：res: any 改为具体类型
+    const res = (await listArReconciliations({
       page: pagination.value.page,
       page_size: pagination.value.pageSize,
       ...searchForm.value,
-    })
-    tableData.value = res.data!.list
-    total.value = res.data!.total
+    })) as { data?: { list?: ArReconciliationEntity[]; total?: number } }
+    tableData.value = res.data?.list || []
+    total.value = res.data?.total || 0
   } catch (error) {
     ElMessage.error('加载失败')
   } finally {
@@ -147,10 +148,13 @@ const openEditDialog = (row: ArReconciliationEntity) => {
 
 const openViewDialog = async (row: ArReconciliationEntity) => {
   try {
-    const res: any = await getArReconciliation(row.id!)
+    // v11 批次 175 P2-1 修复：res: any 改为具体类型
+    const res = (await getArReconciliation(row.id!)) as { data?: ArReconciliationEntity }
     viewData.value = res.data!
-    const detailRes: any = await getReconciliationDetails(row.id!)
-    detailData.value = detailRes.data
+    const detailRes = (await getReconciliationDetails(row.id!)) as {
+      data?: ReconciliationDetail[]
+    }
+    detailData.value = detailRes.data || []
     viewDialogVisible.value = true
   } catch (error) {
     ElMessage.error('获取详情失败')
@@ -284,14 +288,14 @@ loadCustomers()
       <ElTableColumn prop="created_at" label="创建时间" width="150" />
       <ElTableColumn label="操作" width="250" align="center">
         <template #default="scope">
-          <ElButton size="small" @click="openViewDialog(scope.row as any)">
+          <ElButton size="small" @click="openViewDialog(scope.row as ArReconciliationEntity)">
             <View />
           </ElButton>
           <ElButton
             v-if="scope.row.status === 'draft'"
             size="small"
             type="primary"
-            @click="openEditDialog(scope.row as any)"
+            @click="openEditDialog(scope.row as ArReconciliationEntity)"
           >
             <Edit />
           </ElButton>
@@ -299,7 +303,7 @@ loadCustomers()
             v-if="scope.row.status === 'draft'"
             size="small"
             type="warning"
-            @click="handleConfirm(scope.row as any)"
+            @click="handleConfirm(scope.row as ArReconciliationEntity)"
           >
             <Check /> 确认
           </ElButton>
@@ -307,7 +311,7 @@ loadCustomers()
             v-if="scope.row.status === 'draft'"
             size="small"
             type="danger"
-            @click="handleDelete(scope.row as any)"
+            @click="handleDelete(scope.row as ArReconciliationEntity)"
           >
             <Delete />
           </ElButton>
