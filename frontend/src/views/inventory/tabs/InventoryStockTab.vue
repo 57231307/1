@@ -25,7 +25,7 @@
             <el-option
               v-for="wh in warehouses"
               :key="wh.id"
-              :label="wh.warehouse_name || wh.name"
+              :label="wh.warehouse_name"
               :value="wh.id"
             />
           </el-select>
