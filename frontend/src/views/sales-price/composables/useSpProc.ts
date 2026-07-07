@@ -114,7 +114,7 @@ export function useSpProc(refresh: RefreshCallbacks) {
         item.currency,
         item.unit,
         item.min_order_qty || '',
-        getPriceTypeLabel(item.price_type),
+        getPriceTypeLabel(item.price_type || ''),
         item.price_level || '',
         item.effective_date || '',
         item.expiry_date || '',

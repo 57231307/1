@@ -221,7 +221,10 @@ const localFormData = reactive<Partial<ReturnForm>>({})
 watch(
   () => props.formData,
   newVal => {
-    Object.keys(localFormData).forEach(k => delete localFormData[k])
+    // v11 批次 174 P2-1 修复：使用 keyof ReturnForm 断言避免 string 索引错误
+    Object.keys(localFormData).forEach(k => {
+      delete (localFormData as Record<string, unknown>)[k]
+    })
     Object.assign(localFormData, JSON.parse(JSON.stringify(newVal)))
   },
   { immediate: true, deep: true }
