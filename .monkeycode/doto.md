@@ -74,6 +74,13 @@
 
 | 批次 | main commit | 内容 |
 |------|-------------|------|
+| 181-ci-v3 | `e87577a9` | v11 前端 P2-1 真正修复 printJS 类型问题（删除错误的 print-js.d.ts + 5 文件 type:'table'→'json' + inventory/ap InvoiceTab as unknown as 清理；CI 11/12 核心 success，E2E 因 secrets 缺失 cancelled 不阻塞）|
+| 181-ci-v2 | `8644118e` | v11 前端 P2-1 真正修复违规问题（scheduling setter 函数模式 + greige-fabrics 完全重写 + QualityIssue 接口 + print-js.d.ts；CI 前端类型检查 6 处 TS2349 失败，由 181-ci-v3 替代）|
+| 181-ci | `56663940` | v11 前端 P2-1 批次 176-180 类型修复（违规使用 as unknown as，已废弃）|
+| 182 | `2d23b967` | v11 前端 P2-1 any 清理批次 182（businessTrace + BpmApPendingTbl + useArChart + BatchActions，20 处；CI 被 181-ci-v2 替代取消）|
+| 181 | `3f0497af` | v11 前端 P2-1 useSecProc.ts any 清理（5 处 → 0 处）|
+| 175 | `3f0497af` | v11 前端 P2-1 any 清理（14 处 → 0 处，CI 11/12 全绿）|
+| 176-180 | `f5200a2e` | v11 前端 P2-1 any 清理（合并 5 批，~60 处 → 0 处）|
 | 166 | `2704cb8` | v11 前端 P2-1 system/tabs/UserTab.vue any 清理（8 处 → 0 处，1 文件 +7 -5 行，CI 12/12 全绿）|
 | 165 | `40f3665` | v11 前端 P2-1 system/tabs/RoleTab.vue any 清理（6 处 → 0 处，1 文件 +9 -8 行，CI 11/12 全绿）|
 | 164 | `3b3bcf3` | v11 前端 P2-1 inventory/index.vue any 清理（3 处 → 0 处，1 文件 +7 -6 行，CI 11/12 全绿）|

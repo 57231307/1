@@ -27,6 +27,37 @@ import type { ECharts } from 'echarts'
 import type { GanttData, ScheduleTask } from '@/api/scheduling'
 import { statusColorMap, statusLabelMap, formatTime } from '../composables/schGFmts'
 
+/// 甘特图自定义 series 数据项
+interface GanttSeriesItem {
+  name: string
+  value: [number, number, number, number]
+  itemStyle: { color: string }
+  taskData: ScheduleTask
+}
+
+/// ECharts tooltip formatter 参数（仅声明使用到的字段）
+interface TooltipFormatterParams {
+  data: GanttSeriesItem
+}
+
+/// ECharts renderItem 参数（仅声明使用到的字段）
+interface RenderItemParams {
+  coordSys: { x: number; y: number; width: number; height: number }
+}
+
+/// ECharts renderItem API（仅声明使用到的字段）
+interface RenderItemApi {
+  value: (idx: number) => number
+  coord: (point: [number, number]) => [number, number]
+  size: (size: [number, number]) => [number, number]
+  style: () => unknown
+}
+
+/// ECharts 点击事件参数（仅声明使用到的字段）
+interface ChartClickParams {
+  data?: GanttSeriesItem
+}
+
 // 排产甘特图容器属性
 const props = defineProps<{
   // 甘特图数据
@@ -66,7 +97,7 @@ const renderChart = (data: GanttData) => {
 
   const categories = data.work_centers.map(wc => wc.name)
 
-  const seriesData: any[] = []
+  const seriesData: GanttSeriesItem[] = []
   data.work_centers.forEach(wc => {
     wc.tasks.forEach(task => {
       const start = new Date(task.start_time).getTime()
@@ -83,7 +114,7 @@ const renderChart = (data: GanttData) => {
 
   const option = {
     tooltip: {
-      formatter: (params: any) => {
+      formatter: (params: TooltipFormatterParams) => {
         const t = params.data.taskData
         return `
           <div style="padding: 8px">
@@ -120,7 +151,7 @@ const renderChart = (data: GanttData) => {
     series: [
       {
         type: 'custom',
-        renderItem: (params: any, api: any) => {
+        renderItem: (params: RenderItemParams, api: RenderItemApi) => {
           const catIndex = api.value(0)
           const start = api.coord([api.value(1), catIndex])
           const end = api.coord([api.value(2), catIndex])
@@ -160,7 +191,7 @@ const renderChart = (data: GanttData) => {
 
   chart.setOption(option, true)
 
-  chart.on('click', (params: any) => {
+  chart.on('click', (params: ChartClickParams) => {
     if (params.data?.taskData) {
       emit('task-click', params.data.taskData)
     }

@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
 /**
  * useSrProc.ts - 销售退货业务流程 composable
  * 任务编号: P14 批 2 I-3 第 7 批（拆分原 sales-returns/index.vue）
@@ -8,7 +7,7 @@
  */
 import { ref } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { salesReturnApi } from '@/api/sales-return'
+import { salesReturnApi, type SalesReturn } from '@/api/sales-return'
 
 /**
  * 销售退货业务流程 composable
@@ -21,7 +20,7 @@ export function useSrProc(sr: ReturnType<typeof import('./useSr').useSr>) {
   /**
    * 触发查看详情：拷贝行数据到 currentReturn，打开弹窗
    */
-  const handleView = (row: any) => {
+  const handleView = (row: SalesReturn) => {
     sr.currentReturn.value = { ...row }
     viewDialogVisible.value = true
   }
@@ -36,7 +35,7 @@ export function useSrProc(sr: ReturnType<typeof import('./useSr').useSr>) {
   /**
    * 进入编辑模式
    */
-  const handleEdit = (row: any) => {
+  const handleEdit = (row: SalesReturn) => {
     sr.fillFormForEdit(row)
   }
 
@@ -50,7 +49,7 @@ export function useSrProc(sr: ReturnType<typeof import('./useSr').useSr>) {
   /**
    * 审核通过退货单
    */
-  const handleApprove = async (row: any) => {
+  const handleApprove = async (row: SalesReturn) => {
     if (!row.id) return
 
     try {
@@ -60,9 +59,10 @@ export function useSrProc(sr: ReturnType<typeof import('./useSr').useSr>) {
       await salesReturnApi.approve(row.id)
       ElMessage.success('审核成功')
       await sr.loadReturns()
-    } catch (error: any) {
+    } catch (error: unknown) {
       if (error !== 'cancel') {
-        ElMessage.error(error.message || '审核失败')
+        const errMsg = error instanceof Error ? error.message : String(error)
+        ElMessage.error(errMsg || '审核失败')
       }
     }
   }

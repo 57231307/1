@@ -66,6 +66,7 @@
 
 <script setup lang="ts">
 import { reactive, watch } from 'vue'
+import type { SystemBackup } from '@/api/system-update'
 
 export interface BackupQuery {
   page: number
@@ -73,7 +74,7 @@ export interface BackupQuery {
 }
 
 const props = defineProps<{
-  backups: any[]
+  backups: SystemBackup[]
   loading: boolean
   total: number
   queryParams: BackupQuery
@@ -84,9 +85,9 @@ const props = defineProps<{
 }>()
 
 const emit = defineEmits<{
-  download: [row: any]
-  restore: [row: any]
-  delete: [row: any]
+  download: [row: SystemBackup]
+  restore: [row: SystemBackup]
+  delete: [row: SystemBackup]
   fetch: []
   'update:queryParams': [value: BackupQuery]
 }>()

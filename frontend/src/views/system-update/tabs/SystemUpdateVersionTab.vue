@@ -67,6 +67,7 @@
 
 <script setup lang="ts">
 import { reactive, watch } from 'vue'
+import type { SystemVersion } from '@/api/system-update'
 
 export interface VersionQuery {
   page: number
@@ -74,7 +75,7 @@ export interface VersionQuery {
 }
 
 const props = defineProps<{
-  versions: any[]
+  versions: SystemVersion[]
   loading: boolean
   total: number
   queryParams: VersionQuery
@@ -84,9 +85,9 @@ const props = defineProps<{
 }>()
 
 const emit = defineEmits<{
-  download: [row: any]
-  install: [row: any]
-  'view-detail': [row: any]
+  download: [row: SystemVersion]
+  install: [row: SystemVersion]
+  'view-detail': [row: SystemVersion]
   fetch: []
   'update:queryParams': [value: VersionQuery]
 }>()
