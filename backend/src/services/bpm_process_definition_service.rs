@@ -318,10 +318,13 @@ impl BpmService {
 
     /// 从模板创建流程定义
     ///
-    /// 复制模板为新 definition（category 设为默认值 "general"），状态为 DRAFT
+    /// 批次 199 P1-6 修复：原签名仅接收 template_id，handler 传入的请求体被完全丢弃，
+    /// 客户端无法自定义新流程定义的字段。现扩展为接收 req 参数，客户端字段优先，
+    /// 未提供时回退到模板字段，再回退到默认值。
     pub async fn create_from_template(
         &self,
         template_id: i32,
+        req: CreateProcessDefinitionRequest,
     ) -> Result<bpm_process_definition::Model, AppError> {
         let template = bpm_process_definition::Entity::find_by_id(template_id)
             .one(&*self.db)
@@ -333,18 +336,39 @@ impl BpmService {
             return Err(AppError::validation("指定的记录不是模板"));
         }
 
-        let now = chrono::Utc::now();
-        // 新 code 加时间戳后缀避免重复
-        let new_code = format!("{}-{}", template.code, now.timestamp());
+        // 校验新 code 唯一性（与 create_process_definition 一致）
+        let existing = bpm_process_definition::Entity::find()
+            .filter(bpm_process_definition::Column::Code.eq(&req.code))
+            .filter(
+                Condition::any()
+                    .add(bpm_process_definition::Column::Category.is_null())
+                    .add(bpm_process_definition::Column::Category.ne(TEMPLATE_CATEGORY)),
+            )
+            .one(&*self.db)
+            .await?;
+        if existing.is_some() {
+            return Err(AppError::validation(format!(
+                "流程编码已存在: {}",
+                req.code
+            )));
+        }
 
+        let now = chrono::Utc::now();
         let active_model = bpm_process_definition::ActiveModel {
-            name: Set(format!("{}-副本", template.name)),
-            code: Set(new_code),
-            description: Set(template.description),
-            category: Set(Some("general".to_string())),
-            version: Set(Some("v1".to_string())),
-            config: Set(template.config),
-            status: Set("DRAFT".to_string()),
+            // 客户端提供的 name 直接使用，避免丢失语义
+            name: Set(req.name),
+            // 客户端提供的 code 经唯一性校验后使用
+            code: Set(req.code),
+            // 客户端未提供时回退到模板描述
+            description: Set(req.description.or(template.description)),
+            // 客户端未提供时回退到默认分类 general
+            category: Set(Some(req.category.unwrap_or_else(|| "general".to_string()))),
+            // 客户端未提供时回退到默认版本 v1
+            version: Set(Some(req.version.unwrap_or_else(|| "v1".to_string()))),
+            // 客户端未提供时回退到模板 config（保留流程节点定义）
+            config: Set(req.config.or(template.config)),
+            // 客户端未提供时默认 DRAFT，避免直接激活未审阅的流程
+            status: Set(req.status.unwrap_or_else(|| "DRAFT".to_string())),
             created_at: Set(now),
             updated_at: Set(now),
             ..Default::default()

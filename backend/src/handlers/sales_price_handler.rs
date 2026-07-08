@@ -86,13 +86,22 @@ pub async fn approve_price(
     State(state): State<AppState>,
     Path(id): Path<i32>,
     auth: AuthContext,
-    Json(_req): Json<ApprovePriceRequest>,
+    Json(req): Json<ApprovePriceRequest>,
 ) -> Result<Json<ApiResponse<()>>, AppError> {
-    info!("用户 {} 正在批准销售价格，ID: {}", auth.user_id, id);
+    // 批次 199 P1-6：真实接入请求体，原 stub 丢弃 _req 导致 approved=false 仍执行批准
+    if !req.approved {
+        return Err(AppError::validation(
+            "审批拒绝请使用专用拒绝接口，本接口仅处理批准操作",
+        ));
+    }
+    info!(
+        "用户 {} 正在批准销售价格，ID: {}，备注: {:?}",
+        auth.user_id, id, req.remark
+    );
 
     let service = SalesPriceService::new(state.db.clone());
     service.approve_price(id, auth.user_id).await?;
-    info!("销售价格批准成功，ID: {}", id);
+    info!("销售价格批准成功，ID: {}，备注: {:?}", id, req.remark);
 
     Ok(Json(ApiResponse::success(())))
 }

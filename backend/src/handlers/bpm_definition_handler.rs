@@ -203,12 +203,16 @@ pub async fn list_templates(
 }
 
 /// 从模板创建流程定义
+///
+/// 批次 199 P1-6 修复：原 handler 接收 `Json(_req)` 完全丢弃请求体，
+/// 客户端无法自定义新流程定义的 name/code/config 等字段。现真实接入 req，
+/// 由 service 层用 req 字段覆盖模板默认值（req 字段优先，未提供时回退模板值）。
 pub async fn create_from_template(
     State(state): State<AppState>,
     Path(template_id): Path<i32>,
-    Json(_req): Json<CreateProcessDefinitionRequest>,
+    Json(req): Json<CreateProcessDefinitionRequest>,
 ) -> Result<Json<ApiResponse<Value>>, AppError> {
     let service = BpmService::new(state.db.clone());
-    let res = service.create_from_template(template_id).await?;
+    let res = service.create_from_template(template_id, req).await?;
     Ok(Json(ApiResponse::success(model_to_frontend_json(res))))
 }

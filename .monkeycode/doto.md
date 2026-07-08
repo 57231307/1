@@ -5,7 +5,7 @@
 
 ---
 
-## 🔄 当前任务：v12 全项目复审 P0/P1 修复（批次 197 已完成 P0-1，进行中 P0-2）
+## 🔄 当前任务：v12 全项目复审 P0/P1 修复（批次 199 已完成 P1-6 handler 丢弃请求体修复，待 CI 验证，继续 P1-1 死代码清理）
 
 > 用户最高优先级规则（2026-07-04/06/08 追加）已固化到 [MEMORY.md 一、规则 0-12](file:///workspace/.monkeycode/MEMORY.md)。
 > 本文件仅记录任务进度，规则不在此重复。
@@ -106,6 +106,8 @@
 
 | 批次 | main commit | 内容 |
 |------|-------------|------|
+| 199 | 待提交 | v12 P1-6 修复 4 个 handler 丢弃请求体欺骗性 stub（sales_price/purchase_price approve_price 检查 req.approved + ar_reconciliation confirm_reconciliation 注释说明 + bpm_definition create_from_template service 签名扩展接收 req 字段覆盖模板默认值；6 文件 +69 -21 行）|
+| 198 | `89ecba9` | v12 P0-2 密码过期策略接入登录流程（migration m0045 + user model + password_policy_service 死代码清理 + auth_handler LoginResponse.password_expired + change_password/reset_password/create_user 更新 password_changed_at + 前端 Login.vue 引导改密 UI；CI 核心 12/12 全绿）|
 | 197 | `42e9479` | v12 P0-1 修复 warehouse_handler update_location 欺骗性 stub（UpdateLocationRequest 字段对齐 warehouse_locations 表 + 真实 update 实现 + 前端 WarehouseLocation 接口对齐；2 文件 +50 -17 行，CI 核心 12/12 全绿）|
 | 196-ci | `3d7c7c9` | v11 前端 P2-1 ReturnDetailDialog optional 字段类型修复（3 个 TS2345 错误，1 文件 +3 -3 行）|
 | 196 | `a568a90` | v11 前端 P2-1 清理剩余 4 个文件 5 处 any（ApiLogTab + ReturnDetailDialog + ViewDlg + bpm/templates，4 文件 +83 -74 行）|

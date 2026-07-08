@@ -480,7 +480,8 @@ pub async fn confirm_reconciliation(
     State(state): State<AppState>,
     auth: AuthContext,
     Path(id): Path<i32>,
-    Json(_req): Json<ConfirmRequest>,
+    // 批次 199 P1-6：ConfirmRequest 为空结构体，仅用于强制客户端发送 JSON body
+    Json(_): Json<ConfirmRequest>,
 ) -> Result<Json<ApiResponse<JsonValue>>, AppError> {
     info!("用户 {} 确认对账单 ID: {}", auth.username, id);
 
