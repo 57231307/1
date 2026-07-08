@@ -38,6 +38,8 @@ pub struct ServerConfig {
 
 #[derive(Debug, Clone, Deserialize)]
 pub struct DatabaseConfig {
+    /// 数据库连接字符串，可留空；留空时由 host/port/name/username/password 自动拼接
+    #[serde(default)]
     pub connection_string: String,
     pub host: String,
     pub port: u16,

@@ -7,7 +7,7 @@
  * 1. 自动重连（指数退避：1s → 2s → 4s → 8s → 16s → 30s 上限）
  * 2. 心跳（30s ping）
  * 3. 事件分发（EventTarget）
- * 4. JWT 鉴权（URL query token）
+ * 4. 一次性票据鉴权（v12 P1-4：替代 URL query JWT）
  * 5. TypeScript 严格类型
  */
 
@@ -53,6 +53,9 @@ export interface WebSocketEventMap {
   mark_as_read: CustomEvent<{ type: 'mark_as_read'; id: number }>;
 }
 
+/** 票据获取函数类型 */
+export type TicketFetcher = () => Promise<string>;
+
 // ==================== 常量 ====================
 
 /** 心跳间隔（毫秒） */
@@ -72,9 +75,15 @@ const MAX_RECONNECT_ATTEMPTS = 10;
 /**
  * WebSocket 客户端
  *
+ * v12 P1-4 修复：改用一次性短时票据鉴权，不再通过 URL query 传递 JWT。
+ * 浏览器 WebSocket API 不支持自定义 header，原方案 `?token=<JWT>` 会导致
+ * JWT 泄露到浏览器历史、服务器 access log。新方案在连接前通过 HTTP POST
+ * 获取一次性票据（30 秒有效），票据消费后即失效，即使泄露也无法复用。
+ *
  * 用法：
  * ```typescript
- * const ws = new WebSocketClient('/api/v1/erp/ws/notifications', token);
+ * import { fetchWsTicket } from '@/api/notification';
+ * const ws = new WebSocketClient('/api/v1/erp/ws/notifications', fetchWsTicket);
  * ws.connect();
  * ws.addEventListener('notification', (event) => {
  *   console.log('收到通知:', event.detail.data);
@@ -83,8 +92,7 @@ const MAX_RECONNECT_ATTEMPTS = 10;
  */
 export class WebSocketClient extends EventTarget {
   private baseUrl: string;
-  private token: string;
-  private url: string;
+  private ticketFetcher: TicketFetcher;
   private ws: WebSocket | null = null;
   private reconnectAttempts = 0;
   private heartbeatTimer: number | null = null;
@@ -95,20 +103,21 @@ export class WebSocketClient extends EventTarget {
   /**
    * 构造 WebSocket 客户端
    * @param baseUrl WebSocket 服务端地址（如 /api/v1/erp/ws/notifications）
-   * @param token JWT token
+   * @param ticketFetcher 票据获取函数（返回一次性短时票据字符串）
    */
-  constructor(baseUrl: string, token: string) {
+  constructor(baseUrl: string, ticketFetcher: TicketFetcher) {
     super();
     this.baseUrl = baseUrl;
-    this.token = token;
-    // URL 中携带 token（与浏览器 WebSocket API 一致，浏览器不支持自定义 header）
-    this.url = `${this.baseUrl}?token=${encodeURIComponent(this.token)}`;
+    this.ticketFetcher = ticketFetcher;
   }
 
   /**
    * 建立 WebSocket 连接
+   *
+   * 先调用 ticketFetcher 获取一次性票据，再用票据建立 WebSocket 连接。
+   * 票据 30 秒过期，每次连接（含重连）都重新获取新票据。
    */
-  connect(): void {
+  async connect(): Promise<void> {
     if (this.isConnecting || (this.ws && this.ws.readyState === WebSocket.OPEN)) {
       return;
     }
@@ -116,7 +125,11 @@ export class WebSocketClient extends EventTarget {
     this.isConnecting = true;
 
     try {
-      this.ws = new WebSocket(this.url);
+      // v12 P1-4：获取一次性票据
+      const ticket = await this.ticketFetcher();
+      const url = `${this.baseUrl}?ticket=${encodeURIComponent(ticket)}`;
+
+      this.ws = new WebSocket(url);
 
       this.ws.onopen = () => {
         this.isConnecting = false;
@@ -241,7 +254,7 @@ export class WebSocketClient extends EventTarget {
 
     this.reconnectTimer = window.setTimeout(() => {
       this.reconnectTimer = null;
-      this.connect();
+      void this.connect();
     }, delay);
 
     this.dispatchEvent(

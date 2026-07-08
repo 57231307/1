@@ -1,14 +1,19 @@
 //! 通知模块 WebSocket handler
 //!
-//! 路径：`/api/v1/erp/ws/notifications?token=<JWT>`
+//! 路径：`/api/v1/erp/ws/notifications?ticket=<一次性短时票据>`
 //!
 //! 核心功能：
-//! 1. 握手时验证 JWT（提取 user_id）
-//! 2. 升级到 WebSocket 协议
-//! 3. 注册连接到 ConnectionManager（按 user_id 分组）
-//! 4. 接收客户端消息（ping / mark_as_read）
-//! 5. 接收服务端广播（来自 notification_service.send()）
-//! 6. 断开时自动清理
+//! 1. 客户端先调 `POST /api/v1/erp/ws/ticket`（携带 httpOnly Cookie JWT）获取短时票据
+//! 2. 握手时验证票据（一次性消费，30 秒过期），提取 user_id
+//! 3. 升级到 WebSocket 协议
+//! 4. 注册连接到 ConnectionManager（按 user_id 分组）
+//! 5. 接收客户端消息（ping / mark_as_read）
+//! 6. 接收服务端广播（来自 notification_service.send()）
+//! 7. 断开时自动清理
+//!
+//! 安全设计（v12 P1-4 修复）：原方案通过 URL query 传递 JWT（`?token=<JWT>`），
+//! JWT 会泄露到浏览器历史、服务器 access log、中间代理日志。改用一次性短时票据后，
+//! 即使票据泄露也已在握手时被消费，且票据本身不是 JWT，无法用于其他 API。
 
 use axum::extract::ws::{Message, WebSocket, WebSocketUpgrade};
 use axum::extract::Query;
@@ -19,9 +24,10 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::panic::AssertUnwindSafe;
 use std::sync::{Arc, OnceLock};
+use std::time::{Duration, Instant};
 use tokio::sync::broadcast;
 
-use crate::services::auth_service::AuthService;
+use crate::middleware::auth_context::AuthContext;
 
 /// WebSocket 消息类型
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -157,71 +163,180 @@ pub fn get_notification_broadcaster() -> &'static NotificationBroadcaster {
     NOTIFICATION_BROADCASTER.get_or_init(NotificationBroadcaster::new)
 }
 
+// ==================== WebSocket 票据管理器（v12 P1-4 修复） ====================
+
+/// 票据有效期（30 秒）
+const WS_TICKET_TTL: Duration = Duration::from_secs(30);
+
+/// 票据条目
+struct WsTicketEntry {
+    user_id: i64,
+    expires_at: Instant,
+}
+
+/// WebSocket 票据管理器（全局单例）
+///
+/// v12 P1-4 修复：替代 URL query 传递 JWT 的方案。
+/// 客户端通过 HTTP POST（携带 httpOnly Cookie JWT）获取一次性短时票据，
+/// 再用票据建立 WebSocket 连接。票据 30 秒过期、一次性消费，
+/// 即使泄露也无法复用。
+pub struct WsTicketManager {
+    tickets: Arc<DashMap<String, WsTicketEntry>>,
+    /// 签发计数器，用于触发懒清理
+    issue_count: Arc<std::sync::atomic::AtomicU64>,
+}
+
+/// 懒清理触发阈值（每签发 128 张票据清理一次过期票据）
+const LAZY_CLEANUP_THRESHOLD: u64 = 128;
+
+impl WsTicketManager {
+    /// 创建新票据管理器
+    ///
+    /// 注意：此构造函数不启动后台清理任务，清理通过 `issue_ticket` 懒触发。
+    /// 生产环境通过 `get_ticket_manager()` 单例使用，测试中可直接 `new()` 使用。
+    pub fn new() -> Self {
+        Self {
+            tickets: Arc::new(DashMap::new()),
+            issue_count: Arc::new(std::sync::atomic::AtomicU64::new(0)),
+        }
+    }
+
+    /// 签发新票据
+    ///
+    /// 生成 32 字节随机票据（UUID v4 两次拼接 = 256 bit 随机量），
+    /// 存入 DashMap 并设置 30 秒过期时间。每签发 128 张票据触发一次懒清理。
+    pub fn issue_ticket(&self, user_id: i64) -> String {
+        // UUID v4 内部使用 getrandom（CSPRNG），128 bit 随机量
+        // 两次拼接 = 256 bit，足够防止爆破
+        let ticket = format!(
+            "{}{}",
+            uuid::Uuid::new_v4().simple(),
+            uuid::Uuid::new_v4().simple()
+        );
+
+        self.tickets.insert(
+            ticket.clone(),
+            WsTicketEntry {
+                user_id,
+                expires_at: Instant::now() + WS_TICKET_TTL,
+            },
+        );
+
+        // 懒清理：每 LAZY_CLEANUP_THRESHOLD 次签发清理一次过期票据
+        let count = self
+            .issue_count
+            .fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+        if count % LAZY_CLEANUP_THRESHOLD == 0 {
+            self.cleanup_expired();
+        }
+
+        tracing::debug!(user_id, "签发 WebSocket 票据");
+        ticket
+    }
+
+    /// 验证并消费票据（一次性使用）
+    ///
+    /// 返回 Some(user_id) 表示票据有效，返回 None 表示票据不存在或已过期。
+    /// 验证后立即从 DashMap 移除，防止重放。
+    pub fn validate_and_consume(&self, ticket: &str) -> Option<i64> {
+        if ticket.is_empty() || ticket.len() < 32 {
+            return None;
+        }
+
+        // remove 返回被删除的值，实现一次性消费
+        let entry = self.tickets.remove(ticket)?;
+
+        if entry.1.expires_at < Instant::now() {
+            tracing::debug!(user_id = entry.1.user_id, "WebSocket 票据已过期");
+            return None;
+        }
+
+        Some(entry.1.user_id)
+    }
+
+    /// 清理过期票据
+    fn cleanup_expired(&self) {
+        let now = Instant::now();
+        let before = self.tickets.len();
+        self.tickets.retain(|_, entry| entry.expires_at > now);
+        let removed = before - self.tickets.len();
+        if removed > 0 {
+            tracing::debug!(removed, "清理过期 WebSocket 票据");
+        }
+    }
+}
+
+impl Default for WsTicketManager {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+/// 全局 WsTicketManager 单例
+static WS_TICKET_MANAGER: OnceLock<WsTicketManager> = OnceLock::new();
+
+/// 获取全局 WsTicketManager 单例
+pub fn get_ticket_manager() -> &'static WsTicketManager {
+    WS_TICKET_MANAGER.get_or_init(WsTicketManager::new)
+}
+
+/// 签发 WebSocket 票据的 HTTP 端点
+///
+/// 路径：`POST /api/v1/erp/ws/ticket`
+///
+/// 要求请求通过 auth_middleware（携带 httpOnly Cookie 中的有效 JWT）。
+/// 返回一次性短时票据（30 秒有效），客户端用该票据建立 WebSocket 连接。
+pub async fn issue_ws_ticket_handler(auth: AuthContext) -> impl IntoResponse {
+    let user_id = auth.user_id as i64;
+    let ticket = get_ticket_manager().issue_ticket(user_id);
+
+    tracing::info!(user_id, "签发 WebSocket 票据");
+
+    axum::Json(serde_json::json!({
+        "ticket": ticket,
+        "expires_in": WS_TICKET_TTL.as_secs(),
+    }))
+}
+
 /// WebSocket 升级端点
 ///
-/// 路径：`/api/v1/erp/ws/notifications?token=<JWT>`
+/// 路径：`/api/v1/erp/ws/notifications?ticket=<一次性票据>`
 ///
 /// 流程：
-/// 1. 提取 URL query 中的 token
-/// 2. 验证 JWT（提取 user_id）
+/// 1. 提取 URL query 中的 ticket
+/// 2. 验证并消费票据（一次性，30 秒过期）
 /// 3. 升级 HTTP 到 WebSocket
 /// 4. 进入 handle_socket() 处理消息
 pub async fn ws_notifications_handler(
     ws: WebSocketUpgrade,
     Query(params): Query<HashMap<String, String>>,
 ) -> impl IntoResponse {
-    // 1. 提取 token
-    let token = match params.get("token") {
+    // 1. 提取票据
+    let ticket = match params.get("ticket") {
         Some(t) if !t.is_empty() => t.clone(),
         _ => {
             return Err((
                 axum::http::StatusCode::UNAUTHORIZED,
-                String::from("缺少 token 参数"),
+                String::from("缺少 ticket 参数"),
             ));
         }
     };
 
-    // 2. 验证 JWT（简化版：实际接入主项目 auth 中间件）
-    let auth = match verify_jwt_token(&token) {
-        Ok(a) => a,
-        Err(e) => {
+    // 2. 验证并消费票据（一次性使用）
+    let user_id = match get_ticket_manager().validate_and_consume(&ticket) {
+        Some(uid) => uid,
+        None => {
             return Err((
                 axum::http::StatusCode::UNAUTHORIZED,
-                format!("JWT 验证失败: {}", e),
+                String::from("票据无效或已过期"),
             ));
         }
     };
+
+    let auth = AuthInfo { user_id };
 
     // 3. 升级到 WebSocket
     Ok(ws.on_upgrade(move |socket| handle_socket(socket, auth)))
-}
-
-/// 简化的 JWT 验证（占位实现）
-///
-/// 修复 bug.md #2 WebSocket 认证绕过：
-/// - 之前实现未做 JWT 签名验证，存在认证绕过风险
-/// - 当前实现复用 `AuthService::validate_token_static()` 进行真实 JWT 签名验证
-pub fn verify_jwt_token(token: &str) -> Result<AuthInfo, String> {
-    // 防御性检查：拒绝空 token 与过短 token（避免 jsonwebtoken panic）
-    if token.is_empty() || token.len() < 16 {
-        return Err("token 长度无效".to_string());
-    }
-
-    // 从环境变量获取 JWT 密钥
-    let secret = std::env::var("JWT_SECRET")
-        .map_err(|_| "JWT_SECRET 环境变量未配置".to_string())?;
-
-    // 调用真实的 JWT 验证逻辑（auth_service.rs）
-    let claims = AuthService::validate_token_static(token, &secret)
-        .map_err(|e| format!("JWT 验证失败: {}", e))?;
-
-    let user_id = claims.sub as i64;
-
-    if user_id <= 0 {
-        return Err("user_id 无效".to_string());
-    }
-
-    Ok(AuthInfo { user_id })
 }
 
 /// 处理 WebSocket 连接
@@ -347,31 +462,44 @@ async fn handle_socket(socket: WebSocket, auth: AuthInfo) {
 mod tests {
     use super::*;
 
-    /// 测试无效 token 场景：旧版 `"tenant:user"` 格式不再被接受
-    ///
-    /// 修复 bug.md #2：原占位实现接受 `"1:100"` 等格式字符串冒充任意用户
-    /// 当前实现复用 `AuthService::validate_token_static()`，需要真实签名
+    /// 测试票据签发与消费（正常流程）
     #[test]
-    fn test_jwt_token_rejects_legacy_format() {
-        // 旧版格式应被拒绝
-        assert!(verify_jwt_token("1:100").is_err());
-        assert!(verify_jwt_token("0:0").is_err());
+    fn test_ticket_issue_and_consume() {
+        let manager = WsTicketManager::new();
+        let ticket = manager.issue_ticket(42);
+        // 票据长度 = UUID v4 simple(32) × 2 = 64 字符
+        assert_eq!(ticket.len(), 64);
+
+        // 首次消费应成功
+        let user_id = manager.validate_and_consume(&ticket);
+        assert_eq!(user_id, Some(42));
     }
 
-    /// 测试无效 token 场景：空 / 过短 / 无效签名
+    /// 测试票据一次性消费：第二次消费应失败
     #[test]
-    fn test_jwt_token_invalid() {
-        // 空 token
-        assert!(verify_jwt_token("").is_err());
-        // 过短 token
-        assert!(verify_jwt_token("short").is_err());
-        // 任意字符串（应被 JWT 签名验证拒绝）
-        // 注：需要 JWT_SECRET 环境变量，否则返回"JWT_SECRET 未配置"
-        std::env::set_var("JWT_SECRET", "test-secret-key-for-unit-test");
-        assert!(verify_jwt_token(
-            "eyJhbGciOiJIUzI1NiJ9.invalid.signature"
-        )
-        .is_err());
+    fn test_ticket_one_time_use() {
+        let manager = WsTicketManager::new();
+        let ticket = manager.issue_ticket(99);
+
+        // 首次消费成功
+        assert_eq!(manager.validate_and_consume(&ticket), Some(99));
+        // 第二次消费失败（已消费）
+        assert_eq!(manager.validate_and_consume(&ticket), None);
+    }
+
+    /// 测试无效票据：空、过短、不存在
+    #[test]
+    fn test_ticket_invalid() {
+        let manager = WsTicketManager::new();
+        // 空票据
+        assert_eq!(manager.validate_and_consume(""), None);
+        // 过短票据
+        assert_eq!(manager.validate_and_consume("short"), None);
+        // 不存在的票据
+        assert_eq!(
+            manager.validate_and_consume(&"a".repeat(64)),
+            None
+        );
     }
 
     #[test]

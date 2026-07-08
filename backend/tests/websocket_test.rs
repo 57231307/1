@@ -9,28 +9,41 @@
 mod tests {
     use bingxi_backend::websocket::notifications::*;
 
-    /// 单元测试：JWT token 解析（占位测试，实际 JWT 验证需完整 token）
+    /// 单元测试：票据签发与消费（正常流程）
     #[test]
-    fn test_jwt_token_parse_valid() {
-        // 注意：verify_jwt_token 当前要求合法 JWT，简短 token 会失败
-        // 此测试仅验证函数可调用性，不验证具体解析（完整 JWT 测试需集成环境）
-        assert!(verify_jwt_token("1:100").is_err()); // 简短 token 应被拒绝
+    fn test_ticket_issue_and_consume() {
+        let manager = WsTicketManager::new();
+        let ticket = manager.issue_ticket(42);
+        // 票据长度 = UUID v4 simple(32) × 2 = 64 字符
+        assert_eq!(ticket.len(), 64);
+
+        // 首次消费应成功
+        let user_id = manager.validate_and_consume(&ticket);
+        assert_eq!(user_id, Some(42));
     }
 
-    /// 单元测试：JWT token 格式错误
+    /// 单元测试：票据一次性消费
     #[test]
-    fn test_jwt_token_invalid_format() {
-        assert!(verify_jwt_token("invalid").is_err());
-        assert!(verify_jwt_token("1:2:3").is_err());
-        assert!(verify_jwt_token("").is_err());
+    fn test_ticket_one_time_use() {
+        let manager = WsTicketManager::new();
+        let ticket = manager.issue_ticket(99);
+
+        // 首次消费成功
+        assert_eq!(manager.validate_and_consume(&ticket), Some(99));
+        // 第二次消费失败（已消费）
+        assert_eq!(manager.validate_and_consume(&ticket), None);
     }
 
-    /// 单元测试：JWT token 值无效
+    /// 单元测试：无效票据
     #[test]
-    fn test_jwt_token_invalid_value() {
-        assert!(verify_jwt_token("0:0").is_err());
-        assert!(verify_jwt_token("-1:100").is_err());
-        assert!(verify_jwt_token("abc:def").is_err());
+    fn test_ticket_invalid() {
+        let manager = WsTicketManager::new();
+        // 空票据
+        assert_eq!(manager.validate_and_consume(""), None);
+        // 过短票据
+        assert_eq!(manager.validate_and_consume("short"), None);
+        // 不存在的票据
+        assert_eq!(manager.validate_and_consume(&"a".repeat(64)), None);
     }
 
     /// 单元测试：WebSocket 消息序列化
@@ -85,10 +98,11 @@ mod tests {
     async fn test_websocket_connect_ping_disconnect_e2e() {
         // 注：完整端到端测试需要：
         // 1. 启动 axum server（in-process）
-        // 2. tokio-tungstenite 客户端连接 /ws/notifications?token=1:100
-        // 3. 发送 ping，等待 pong
-        // 4. 接收服务端广播（模拟 notification_service 触发）
-        // 5. 主动断开 + 验证服务端清理
+        // 2. 调 POST /ws/ticket 获取一次性票据
+        // 3. tokio-tungstenite 客户端连接 /ws/notifications?ticket=<票据>
+        // 4. 发送 ping，等待 pong
+        // 5. 接收服务端广播（模拟 notification_service 触发）
+        // 6. 主动断开 + 验证服务端清理
         // 沙箱 OOM 限制下仅保留 stub，CI 完整实现
     }
 }

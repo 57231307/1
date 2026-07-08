@@ -24,15 +24,17 @@ use crate::websocket;
 /// WebSocket 路由（path 前缀 /ws）
 ///
 /// 关键路径：通知模块 WebSocket
-/// - `/ws/notifications`：通知实时推送（鉴权通过 URL query token）
+/// - `POST /ws/ticket`：签发一次性短时票据（需 JWT 认证，v12 P1-4 修复）
+/// - `GET /ws/notifications`：通知实时推送（鉴权通过一次性票据）
 pub fn ws() -> Router<AppState> {
     Router::new()
         .route(
             "/ws/notifications",
-            // 修复：原 `websocket::ws_notifications_handler` 启动时 panic（不存在），
-            // 实际路径为 `websocket::notifications::ws_notifications_handler`
-            // （backend/src/websocket/mod.rs:6 已声明 `pub mod notifications;`）
             get(websocket::notifications::ws_notifications_handler),
+        )
+        .route(
+            "/ws/ticket",
+            post(websocket::notifications::issue_ws_ticket_handler),
         )
 }
 
