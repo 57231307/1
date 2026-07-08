@@ -12,11 +12,11 @@
         <el-descriptions-item label="客户名称">{{ currentReturn.customerName }}</el-descriptions-item>
         <el-descriptions-item label="退货日期">{{ currentReturn.returnDate }}</el-descriptions-item>
         <el-descriptions-item label="退货金额"
-          >{{ formatAmount(currentReturn.totalAmount) }}</el-descriptions-item
+          >{{ formatAmount(currentReturn.totalAmount ?? 0) }}</el-descriptions-item
         >
         <el-descriptions-item label="状态">
-          <el-tag :type="getStatusType(currentReturn.status)">
-            {{ getStatusLabel(currentReturn.status) }}
+          <el-tag :type="getStatusType(currentReturn.status ?? '')">
+            {{ getStatusLabel(currentReturn.status ?? '') }}
           </el-tag>
         </el-descriptions-item>
         <el-descriptions-item label="退货原因" :span="2">{{ currentReturn.reason }}</el-descriptions-item>
