@@ -1161,6 +1161,7 @@ jobs:
       DATABASE__PASSWORD: bingxi_test
       DATABASE__MAX_CONNECTIONS: "10"
       LOG__LEVEL: info
+      LOG__DIR: /tmp/e2e-logs
       SLOW_QUERY__ENABLED: "false"
     steps:
       - name: 检出代码

@@ -5,7 +5,7 @@
 
 ---
 
-## 🔄 当前任务：v12 全项目复审 P0/P1 修复（批次 199 已完成 P1-6 handler 丢弃请求体修复，待 CI 验证，继续 P1-1 死代码清理）
+## 🔄 当前任务：v12 全项目复审 P0/P1 修复（批次 203 P1-4 + P1-5 N+1 INSERT 优化已实现，待 CI 验证批次 202 后提交）
 
 > 用户最高优先级规则（2026-07-04/06/08 追加）已固化到 [MEMORY.md 一、规则 0-12](file:///workspace/.monkeycode/MEMORY.md)。
 > 本文件仅记录任务进度，规则不在此重复。
@@ -106,7 +106,11 @@
 
 | 批次 | main commit | 内容 |
 |------|-------------|------|
-| 199 | 待提交 | v12 P1-6 修复 4 个 handler 丢弃请求体欺骗性 stub（sales_price/purchase_price approve_price 检查 req.approved + ar_reconciliation confirm_reconciliation 注释说明 + bpm_definition create_from_template service 签名扩展接收 req 字段覆盖模板默认值；6 文件 +69 -21 行）|
+| 203 | 待提交 | v12 P1-4 + P1-5 N+1 INSERT 优化（bom_service.rs create 添加事务+insert_many + update 事务扩大+insert_many；quotation_service.rs create_draft + update 4 处 insert_many；2 文件）|
+| 202 | `202d41a` | v12 P1-2 + P1-3 + E2E 迁移修复（audit_alert_rule 模型+m0046 迁移删除 + dto/mod.rs 文件级 #![allow(dead_code)] 移除 + crm_dto.rs 2 死代码删除 + tenant_plans 外键依赖完整修复；CI 验证中）|
+| 201 | `b82b530` | v12 P1-1 4 个审批模型死代码清理（approval_node/template/instance/log 模型删除 + models/mod.rs 注册移除；CI 核心 12/12 全绿）|
+| 200 | `405c3bf` | E2E 迁移修复 tenant_subscriptions 外键依赖（调整删除顺序，被 202 取代）|
+| 199 | `5405edb` | v12 P1-6 修复 4 个 handler 丢弃请求体欺骗性 stub（sales_price/purchase_price approve_price 检查 req.approved + ar_reconciliation confirm_reconciliation 注释说明 + bpm_definition create_from_template service 签名扩展接收 req 字段覆盖模板默认值；6 文件 +69 -21 行）|
 | 198 | `89ecba9` | v12 P0-2 密码过期策略接入登录流程（migration m0045 + user model + password_policy_service 死代码清理 + auth_handler LoginResponse.password_expired + change_password/reset_password/create_user 更新 password_changed_at + 前端 Login.vue 引导改密 UI；CI 核心 12/12 全绿）|
 | 197 | `42e9479` | v12 P0-1 修复 warehouse_handler update_location 欺骗性 stub（UpdateLocationRequest 字段对齐 warehouse_locations 表 + 真实 update 实现 + 前端 WarehouseLocation 接口对齐；2 文件 +50 -17 行，CI 核心 12/12 全绿）|
 | 196-ci | `3d7c7c9` | v11 前端 P2-1 ReturnDetailDialog optional 字段类型修复（3 个 TS2345 错误，1 文件 +3 -3 行）|
