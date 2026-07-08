@@ -38,18 +38,13 @@
 <script setup lang="ts">
 import { ref, watch, nextTick } from 'vue'
 import { getStatusType, getStatusText } from '../composables/lgsFmts'
+import type { WaybillStatus } from '@/api/logistics'
+import type { LgsStatusForm } from '../composables/useLgsProc'
 
 // 状态选项类型
 interface StatusOption {
   label: string
-  value: string
-}
-
-// 表单字段类型
-interface LgsStatusForm {
-  id: number
-  currentStatus: string
-  newStatus: string
+  value: WaybillStatus
 }
 
 /**

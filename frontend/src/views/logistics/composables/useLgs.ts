@@ -12,6 +12,7 @@
 import { ref, reactive } from 'vue'
 import { logisticsApi, type LogisticsWaybill } from '@/api/logistics'
 import { logger } from '@/utils/logger'
+import type { LgsStatusForm } from './useLgsProc'
 
 /**
  * 订单表单字段类型
@@ -86,7 +87,7 @@ export function useLgs() {
 
   // 状态更新对话框
   const statusDialogVisible = ref(false)
-  const statusForm = reactive({
+  const statusForm = reactive<LgsStatusForm>({
     id: 0,
     currentStatus: '',
     newStatus: '',

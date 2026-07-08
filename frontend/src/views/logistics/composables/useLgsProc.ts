@@ -30,7 +30,7 @@ interface LgsFormData {
 /**
  * 状态表单字段类型
  */
-interface LgsStatusForm {
+export interface LgsStatusForm {
   id: number
   currentStatus: WaybillStatus | ''
   newStatus: WaybillStatus | ''
@@ -179,7 +179,7 @@ export function useLgsProc(cb: LgsCallbacks) {
 
   /** 可选新状态映射（根据当前状态） */
   const availableStatuses = computed(() => {
-    const map: Record<string, { label: string; value: string }[]> = {
+    const map: Record<string, { label: string; value: WaybillStatus }[]> = {
       shipped: [
         { label: '运输中', value: 'in_transit' },
         { label: '已签收', value: 'delivered' },
