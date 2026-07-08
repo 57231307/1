@@ -1,4 +1,6 @@
 use crate::models::sales_contract;
+// 批次 210 P2-5 修复（v12 复审）：合同状态字符串替换为 contract 常量
+use crate::models::status::contract;
 use crate::utils::error::AppError;
 use crate::utils::sql_escape::safe_like_pattern;
 use chrono::NaiveDate;

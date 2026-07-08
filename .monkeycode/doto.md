@@ -5,7 +5,7 @@
 
 ---
 
-## 🔄 当前任务：v12 全项目复审 P2 修复（批次 206 P2-2 report/ds.rs 桩代码补全 + P2-6 类型修复已提交 de51fc4，CI 验证中）
+## 🔄 当前任务：v12 全项目复审 P2 修复（批次 208 P2-5 主数据状态常量替换已提交 a2d29b7，CI 12/12 核心全绿，E2E 连续失败待排查）
 
 > 用户最高优先级规则（2026-07-04/06/08 追加）已固化到 [MEMORY.md 一、规则 0-12](file:///workspace/.monkeycode/MEMORY.md)。
 > 本文件仅记录任务进度，规则不在此重复。
@@ -31,10 +31,10 @@
 
 - ✅ P2-6：supplier_service 事务保护缺失（批次 205 → fb05961，CI 类型错误 → 批次 206 修复）
 - ✅ P2-2：report/ds.rs 桩代码补全（批次 206，aggregate_purchase_data / aggregate_finance_data / query_purchase_report）
-- ⏳ P2-1：6 项级 #[allow(dead_code)] 状态常量接入业务
+- ✅ P2-4：unwrap/expect 加固（批次 207，5 处非测试代码：4 处加不变量注释 + 1 处改 fail-secure 模式 + Clippy unused imports 修复）
+- 🔄 P2-5：40+ 处硬编码状态字符串替换为 status::* 常量（批次 208 完成 4 个主数据 service：supplier/customer/customer_credit_limit/fixed_asset，共 18 处替换 + status.rs 新增 master_data 子模块；剩余约 24 个 service 文件待分批处理）
+- ⏳ P2-1：6 项级 #[allow(dead_code)] 状态常量接入业务（批次 208 已移除 SUBMITTED 的 allow 标注，剩余 RECEIVED/CANCELLED 等）
 - ⏳ P2-3：N+1 写（与 P2-6 同处，已修复）
-- ⏳ P2-4：unwrap/expect（5 处非测试，3 处安全，2 处建议加固）
-- ⏳ P2-5：40+ 处硬编码状态字符串替换为 status::* 常量
 - ⏳ P2-7：API 一致性（98.7% 使用 ApiResponse，可接受）
 - ⏳ P2-8：测试覆盖（~97 service 无测试）
 - ⏳ 前端 P2 复审：尚未启动
@@ -134,6 +134,9 @@
 
 | 批次 | main commit | 内容 |
 |------|-------------|------|
+| 208 | `a2d29b7` | v12 P2-5 主数据状态常量替换（status.rs 新增 master_data 子模块 ACTIVE/INACTIVE 小写常量 + 移除 purchase_order::SUBMITTED 的 #[allow(dead_code)]；4 个 service 文件 18 处替换：supplier_service 6 处 + customer_service 3 处 + customer_credit_limit 5 处 + fixed_asset_service 4 处；5 文件 +38 -19 行；CI 12/12 核心全绿，E2E 失败"启动后端服务"步骤）|
+| 207 | `56b954d` | v12 P2-4 unwrap/expect 加固（tracking_handler/tracking_service and_hms_opt unwrap 加不变量注释 + email_service HMAC expect 改不变量说明 + hash_password.rs Params::new expect 改中文不变量 + hash_password expect 改 fail-secure match+eprintln+exit(1) + websocket/mod.rs 移除未使用 pub use re-export；5 文件；CI 12/12 核心全绿，E2E 失败"启动后端服务"步骤）|
+| 206-ci | `c4e6b3c` | v12 P2-6 CI 修复 Clippy unused variable user_id 警告（supplier_service create_supplier_contact 的 user_id 改为 _user_id + 注释说明保留原因）|
 | 206 | `de51fc4` | v12 P2-2 report/ds.rs 桩代码补全（aggregate_purchase_data 真实接入 purchase_orders 按 supplier/month 聚合 + aggregate_finance_data 真实接入 finance_payments 按 month/payment_method 聚合 + query_purchase_report 真实查询 purchase_order_item 明细按日期范围过滤）+ P2-6 类型修复（supplier_service now 从 DateTimeUtc 改为 DateTimeWithTimeZone）；2 文件 +231 -12 行|
 | 205-ci | `4e77793` | v12 P1-4 CI 修复 Clippy manual_is_multiple_of 警告（notifications.rs count % N == 0 → count.is_multiple_of(N)）|
 | 205 | `f1d75d4` | v12 前端 P1-4 WebSocket token 安全修复（WsTicketManager 一次性短时票据机制替代 URL query JWT + issue_ws_ticket_handler HTTP 端点 + ws_notifications_handler 改用 ticket 验证 + 前端 WebSocketClient 改用 TicketFetcher 回调 connect() 改为 async + fetchWsTicket API + DatabaseConfig.connection_string 添加 #[serde(default)] 修复 E2E 启动失败）|

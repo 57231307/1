@@ -262,3 +262,19 @@ pub mod budget {
     /// 执行中：预算方案已激活，预算项目处于活跃状态
     pub const ACTIVE: &str = "active";
 }
+
+/// 合同状态常量（小写值）
+///
+/// 批次 210 P2-5 修复（v12 复审）：
+/// sales_contract.status 与 purchase_contract.status 使用小写状态值，
+/// 状态机：draft → active → cancelled
+pub mod contract {
+    /// 草稿：合同初始状态，可编辑
+    pub const DRAFT: &str = "draft";
+
+    /// 活跃：合同已激活，可执行
+    pub const ACTIVE: &str = "active";
+
+    /// 已取消：合同作废
+    pub const CANCELLED: &str = "cancelled";
+}
