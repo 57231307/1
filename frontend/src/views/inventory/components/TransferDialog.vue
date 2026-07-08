@@ -91,21 +91,40 @@ import { getWarehouseLabel } from '../composables/invFmts'
 // v11 批次 160 P2-7 修复：导入 Warehouse 接口替代 any[]
 import type { Warehouse } from '@/api/warehouse'
 
+/** 调拨单明细行 */
+interface TransferFormItem {
+  product_id: number | null
+  quantity: number
+}
+
+/** 调拨单表单数据 */
+interface TransferForm {
+  from_warehouse_id: number | null
+  to_warehouse_id: number | null
+  items: TransferFormItem[]
+  remark: string
+}
+
 const props = defineProps<{
   visible: boolean
-  initialForm: any
+  initialForm: TransferForm
   warehouses: Warehouse[]
 }>()
 
 const emit = defineEmits<{
   (e: 'update:visible', val: boolean): void
-  (e: 'submit', data: any): void
+  (e: 'submit', data: TransferForm): void
   (e: 'addItem'): void
   (e: 'removeItem', index: number): void
 }>()
 
 // 浅拷贝 initialForm 同步初始值（不直接突变 prop）
-const localForm = reactive<Record<string, any>>({ items: [] as any[] })
+const localForm = reactive<TransferForm>({
+  from_warehouse_id: null,
+  to_warehouse_id: null,
+  items: [],
+  remark: '',
+})
 watch(
   () => props.initialForm,
   newVal => {

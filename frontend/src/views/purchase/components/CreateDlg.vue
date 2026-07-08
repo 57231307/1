@@ -124,9 +124,10 @@
 
 <script setup lang="ts">
 import { ref, watch, nextTick } from 'vue'
+import type { FormRules, FormInstance } from 'element-plus'
 import type { Supplier } from '@/api/supplier'
 import type { Product } from '@/api/product'
-import type { CreateFormData } from '../composables/useCreate'
+import type { CreateFormData, CreateItem } from '../composables/useCreate'
 
 const props = defineProps<{
   // 对话框可见性
@@ -134,13 +135,13 @@ const props = defineProps<{
   // 表单数据（由父组件管理，子组件通过 emit('update:form') 回写）
   form: CreateFormData
   // 校验规则
-  rules: any
+  rules: FormRules
   // 供应商列表
   suppliers: Supplier[]
   // 产品列表
   products: Product[]
   // 表单 ref
-  formRef: any
+  formRef: FormInstance | undefined
   // 提交
   onSubmit: () => void
   // 取消
@@ -152,7 +153,7 @@ const props = defineProps<{
   // 选择产品
   onProductSelect: (index: number) => void
   // 重算小计
-  onCalculateSubtotal: (item: any) => void
+  onCalculateSubtotal: (item: CreateItem) => void
   // 计算总金额
   calculateTotal: () => number
 }>()

@@ -3,7 +3,7 @@
  * 任务编号: P13 批 1 B3 I-1（拆分 purchase/index.vue 新建采购单对话框）
  */
 import { ref } from 'vue'
-import { ElMessage } from 'element-plus'
+import { ElMessage, type FormInstance, type FormRules } from 'element-plus'
 import { purchaseApi } from '@/api/purchase'
 import type { Product } from '@/api/product'
 
@@ -47,8 +47,8 @@ export function useCreate(
   onSuccess: () => void
 ) {
   const createDialogVisible = ref(false)
-  const createFormRef = ref()
-  const createFormRules = {
+  const createFormRef = ref<FormInstance>()
+  const createFormRules: FormRules = {
     supplier_id: [{ required: true, message: '请选择供应商', trigger: 'change' }],
     order_date: [{ required: true, message: '请选择订单日期', trigger: 'change' }],
   }
