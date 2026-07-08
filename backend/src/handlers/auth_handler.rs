@@ -61,6 +61,8 @@ pub struct LoginResponse {
     pub user: UserInfo,
     /// 资源标识符列表（`"{resource}:{action}"` 格式）
     pub permissions: Vec<String>,
+    /// 密码是否过期（批次 198 P0-2：true 表示超过 90 天未修改，前端引导改密）
+    pub password_expired: bool,
 }
 
 #[derive(Debug, Serialize, ToSchema)]
@@ -503,10 +505,26 @@ pub async fn login(
             // - access_token 已在 httpOnly Cookie 写入
             // - refresh_token 已在 httpOnly Cookie 写入
             // 仅保留 csrf_token（前端 form header 需要）+ user + permissions
+            // 批次 198 P0-2：检查密码是否过期（password_changed_at 为 None 时不强制过期，兼容存量用户）
+            let policy_svc =
+                crate::services::auth::password_policy_service::PasswordPolicyService::new();
+            let password_expired = user
+                .password_changed_at
+                .map(|t| policy_svc.is_expired(t))
+                .unwrap_or(false);
+            if password_expired {
+                tracing::info!(
+                    user_id = user.id,
+                    username = %payload.username,
+                    "[SECURITY] 用户密码已过期（超过 {} 天未修改），前端将引导改密",
+                    policy_svc.max_age_days.unwrap_or(0)
+                );
+            }
             let response = LoginResponse {
                 csrf_token: csrf_token.clone(),
                 user: user_info,
                 permissions,
+                password_expired,
             };
 
             // 创建 HttpOnly Cookie

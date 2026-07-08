@@ -25,6 +25,8 @@ pub struct Model {
     pub totp_recovery_codes: Option<String>,
 
     pub last_login_at: Option<DateTime<Utc>>,
+    /// 密码最后修改时间（批次 198 P0-2：密码过期策略锚点）
+    pub password_changed_at: Option<DateTime<Utc>>,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
 }

@@ -63,6 +63,8 @@ pub mod m0042_create_purchase_inspection_items;
 pub mod m0043_add_scan_type_and_industry_columns;
 // 批次 190 迁移整合：执行所有未被 Rust 模块引用的 SQL 迁移（31 个目录）
 pub mod m0044_integrate_unreferenced_migrations;
+// 批次 198 P0-2：users 表添加 password_changed_at 列（密码过期策略锚点）
+pub mod m0045_add_password_changed_at_to_users;
 
 pub struct Migrator;
 
@@ -116,6 +118,7 @@ impl MigratorTrait for Migrator {
             Box::new(m0041_create_import_tasks::Migration),
             Box::new(m0042_create_purchase_inspection_items::Migration),
             Box::new(m0043_add_scan_type_and_industry_columns::Migration),
+            Box::new(m0045_add_password_changed_at_to_users::Migration),
         ]
     }
 }

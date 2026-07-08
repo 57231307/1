@@ -609,6 +609,8 @@ pub async fn change_password(
     let mut user_model: crate::models::user::ActiveModel = user.into();
     user_model.password_hash = sea_orm::Set(new_password_hash);
     user_model.updated_at = sea_orm::Set(chrono::Utc::now());
+    // 批次 198 P0-2：同步更新 password_changed_at，作为密码过期策略锚点
+    user_model.password_changed_at = sea_orm::Set(Some(chrono::Utc::now()));
 
     user_model.update(state.db.as_ref()).await?;
 

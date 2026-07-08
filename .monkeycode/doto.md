@@ -5,7 +5,7 @@
 
 ---
 
-## 🔄 当前任务：v11 前端 P2-1 any 类型清理（批次 196 已完成，真实 any 已全部清理）
+## 🔄 当前任务：v12 全项目复审 P0/P1 修复（批次 197 已完成 P0-1，进行中 P0-2）
 
 > 用户最高优先级规则（2026-07-04/06/08 追加）已固化到 [MEMORY.md 一、规则 0-12](file:///workspace/.monkeycode/MEMORY.md)。
 > 本文件仅记录任务进度，规则不在此重复。
@@ -106,6 +106,7 @@
 
 | 批次 | main commit | 内容 |
 |------|-------------|------|
+| 197 | `42e9479` | v12 P0-1 修复 warehouse_handler update_location 欺骗性 stub（UpdateLocationRequest 字段对齐 warehouse_locations 表 + 真实 update 实现 + 前端 WarehouseLocation 接口对齐；2 文件 +50 -17 行，CI 核心 12/12 全绿）|
 | 196-ci | `3d7c7c9` | v11 前端 P2-1 ReturnDetailDialog optional 字段类型修复（3 个 TS2345 错误，1 文件 +3 -3 行）|
 | 196 | `a568a90` | v11 前端 P2-1 清理剩余 4 个文件 5 处 any（ApiLogTab + ReturnDetailDialog + ViewDlg + bpm/templates，4 文件 +83 -74 行）|
 | 195 | `16393df` | v11 前端 P2-1 inventory AdjustmentDialog 类型错误修复（3 个 TS 错误：TS7053 索引签名 + TS2322 类型推断 ×2，2 文件 +12 -9 行）|

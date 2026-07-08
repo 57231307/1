@@ -578,6 +578,8 @@ impl InitService {
         let mut user_model: user::ActiveModel = user.into();
         user_model.password_hash = Set(password_hash);
         user_model.updated_at = Set(chrono::Utc::now());
+        // 批次 198 P0-2：重置密码时同步更新 password_changed_at，作为密码过期策略锚点
+        user_model.password_changed_at = Set(Some(chrono::Utc::now()));
 
         user_model
             .update(self.db.as_ref())
