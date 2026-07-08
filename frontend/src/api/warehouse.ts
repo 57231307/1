@@ -20,13 +20,13 @@ export interface WarehouseLocation {
   id: number
   warehouse_id: number
   location_code: string
-  location_name: string
-  zone?: string
-  aisle?: string
-  rack?: string
-  shelf?: string
-  position?: string
-  status: string
+  location_type?: string
+  max_weight?: number
+  max_height?: number
+  is_batch_managed?: boolean
+  is_color_managed?: boolean
+  created_at?: string
+  updated_at?: string
 }
 
 export interface WarehouseQueryParams {

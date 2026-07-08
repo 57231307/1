@@ -3,6 +3,7 @@ use axum::{
     extract::{Path, Query, State},
     Json,
 };
+use chrono::Utc;
 use sea_orm::{ActiveModelTrait, ColumnTrait, EntityTrait, PaginatorTrait, QueryFilter};
 use serde::Deserialize;
 use validator::Validate;
@@ -83,14 +84,23 @@ pub struct CreateLocationRequest {
     pub max_height: Option<f64>,
 }
 
-/// 更新库位请求
-#[derive(Debug, Deserialize)]
+/// 更新库位请求（字段对齐 warehouse_locations 表结构）
+#[derive(Debug, Deserialize, Validate)]
 pub struct UpdateLocationRequest {
-    pub location_name: Option<String>,
+    /// 库位编码
+    #[validate(length(min = 1, max = 50, message = "库位编码不能为空且最长50字符"))]
+    pub location_code: Option<String>,
+    /// 库位类型
+    #[validate(length(max = 20, message = "库位类型最长20字符"))]
     pub location_type: Option<String>,
-    pub zone: Option<String>,
-    pub capacity: Option<f64>,
-    pub status: Option<String>,
+    /// 最大承重
+    pub max_weight: Option<f64>,
+    /// 最大高度
+    pub max_height: Option<f64>,
+    /// 是否启用批次管理
+    pub is_batch_managed: Option<bool>,
+    /// 是否启用色号管理
+    pub is_color_managed: Option<bool>,
 }
 
 /// 获取库位列表
@@ -179,19 +189,42 @@ pub async fn get_location(
     Ok(Json(ApiResponse::success(location_json)))
 }
 
-/// 更新库位
+/// 更新库位（批次 197 P0-1：真实接入字段更新逻辑，原 stub 仅返回原记录）
 pub async fn update_location(
     State(state): State<AppState>,
     _auth: AuthContext,
     Path(id): Path<i32>,
-    Json(_req): Json<UpdateLocationRequest>,
+    Json(req): Json<UpdateLocationRequest>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
-    // 待实现(v1.1): 增加具体的库位(Location)分配与更新逻辑
+    req.validate()?;
     let location = LocationEntity::find_by_id(id)
         .one(&*state.db)
         .await?
         .ok_or_else(|| AppError::not_found("库位不存在"))?;
-    let location_json = serde_json::to_value(location)
+    let mut active: location_model::ActiveModel = location.into();
+
+    if let Some(c) = req.location_code {
+        active.location_code = sea_orm::ActiveValue::Set(c);
+    }
+    if let Some(t) = req.location_type {
+        active.location_type = sea_orm::ActiveValue::Set(Some(t));
+    }
+    if let Some(w) = req.max_weight {
+        active.max_weight = sea_orm::ActiveValue::Set(rust_decimal::Decimal::from_f64_retain(w));
+    }
+    if let Some(h) = req.max_height {
+        active.max_height = sea_orm::ActiveValue::Set(rust_decimal::Decimal::from_f64_retain(h));
+    }
+    if let Some(b) = req.is_batch_managed {
+        active.is_batch_managed = sea_orm::ActiveValue::Set(Some(b));
+    }
+    if let Some(c) = req.is_color_managed {
+        active.is_color_managed = sea_orm::ActiveValue::Set(Some(c));
+    }
+    active.updated_at = sea_orm::ActiveValue::Set(Utc::now());
+
+    let updated = active.update(&*state.db).await?;
+    let location_json = serde_json::to_value(updated)
         .map_err(|e| AppError::internal(format!("序列化失败: {}", e)))?;
     Ok(Json(ApiResponse::success_with_message(
         location_json,
