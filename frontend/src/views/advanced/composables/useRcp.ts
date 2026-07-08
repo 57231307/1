@@ -4,7 +4,8 @@
  */
 import { ref } from 'vue'
 import { ElMessage } from 'element-plus'
-import { optimizeRecipe } from '@/api/advanced'
+import { optimizeRecipe, type RecipeOptParams } from '@/api/advanced'
+import type { ApiResponse } from '@/types/api'
 
 /**
  * 配方表单数据结构
@@ -30,7 +31,7 @@ export function useRcp() {
     k: 5,
   })
   const recipeLoading = ref(false)
-  const recipeResult = ref<any>(null)
+  const recipeResult = ref<unknown>(null)
 
   /**
    * 执行工艺优化推荐
@@ -46,7 +47,7 @@ export function useRcp() {
     }
     recipeLoading.value = true
     try {
-      const payload: any = {
+      const payload: RecipeOptParams = {
         color_no: recipeForm.value.color_no.trim(),
         fabric_type: recipeForm.value.fabric_type,
         k: recipeForm.value.k,
@@ -57,11 +58,11 @@ export function useRcp() {
       if (recipeForm.value.color_name && recipeForm.value.color_name.trim()) {
         payload.color_name = recipeForm.value.color_name.trim()
       }
-      const res: any = await optimizeRecipe(payload)
+      const res = await optimizeRecipe(payload) as ApiResponse<unknown>
       recipeResult.value = res.data!
       ElMessage.success('推荐生成完成')
-    } catch (e: any) {
-      ElMessage.error(e.message || '推荐失败')
+    } catch (e: unknown) {
+      ElMessage.error((e instanceof Error ? e.message : '') || '推荐失败')
     } finally {
       recipeLoading.value = false
     }

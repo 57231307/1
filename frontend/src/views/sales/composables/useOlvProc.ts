@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
 /**
  * useOlvProc.ts - 销售订单列表流程操作 composable
  * 任务编号: P14 批 2 I-3 第 3 批（拆分原 sales/views/OrderListView.vue）
@@ -6,7 +5,7 @@
  * 行为完全保持一致（仅结构重构）
  */
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { salesApi, type SalesOrder } from '@/api/sales'
+import { salesApi, type SalesOrder, type SalesDelivery } from '@/api/sales'
 import { logger } from '@/utils/logger'
 
 /** 刷新回调 */
@@ -49,7 +48,7 @@ export function useOlvProc(refresh: RefreshCallbacks) {
   }
 
   /** 提交订单表单 */
-  const handleFormSubmit = async (data: any) => {
+  const handleFormSubmit = async (data: Partial<SalesOrder>) => {
     try {
       if (data.id) {
         await salesApi.updateOrder(data.id, data as unknown as Partial<SalesOrder>)
@@ -68,9 +67,9 @@ export function useOlvProc(refresh: RefreshCallbacks) {
   }
 
   /** 提交发货（DeliveryDialog 调用） */
-  const handleDeliverySubmit = async (form: any) => {
+  const handleDeliverySubmit = async (form: Partial<SalesDelivery> & { order_id: number }) => {
     try {
-      await salesApi.createDelivery(form.order_id, form as any)
+      await salesApi.createDelivery(form.order_id, form as Partial<SalesDelivery>)
       ElMessage.success('发货成功')
       await refresh.refresh()
       return true

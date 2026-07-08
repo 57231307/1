@@ -4,7 +4,8 @@
  */
 import { ref } from 'vue'
 import { ElMessage } from 'element-plus'
-import { predictQuality } from '@/api/advanced'
+import { predictQuality, type QualityPredParams } from '@/api/advanced'
+import type { ApiResponse } from '@/types/api'
 
 /**
  * 质量预测表单数据结构
@@ -26,7 +27,7 @@ export function useQlt() {
     window_days: 90,
   })
   const qualityLoading = ref(false)
-  const qualityResult = ref<any>(null)
+  const qualityResult = ref<unknown>(null)
 
   /**
    * 执行质量预测
@@ -34,7 +35,7 @@ export function useQlt() {
   const runQualityPrediction = async () => {
     qualityLoading.value = true
     try {
-      const payload: any = {
+      const payload: QualityPredParams = {
         window_days: qualityForm.value.window_days,
       }
       if (qualityForm.value.product_id !== null && qualityForm.value.product_id !== undefined) {
@@ -43,11 +44,11 @@ export function useQlt() {
       if (qualityForm.value.inspection_type && qualityForm.value.inspection_type.trim()) {
         payload.inspection_type = qualityForm.value.inspection_type.trim()
       }
-      const res: any = await predictQuality(payload)
+      const res = await predictQuality(payload) as ApiResponse<unknown>
       qualityResult.value = res.data!
       ElMessage.success('预测完成')
-    } catch (e: any) {
-      ElMessage.error(e.message || '预测失败')
+    } catch (e: unknown) {
+      ElMessage.error((e instanceof Error ? e.message : '') || '预测失败')
     } finally {
       qualityLoading.value = false
     }

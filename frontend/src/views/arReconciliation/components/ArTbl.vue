@@ -46,17 +46,17 @@
       <el-table-column prop="created_at" label="创建时间" width="160" />
       <el-table-column label="操作" width="240" align="center">
         <template #default="scope">
-          <el-button size="small" @click="emit('view-detail', scope.row as any)">
+          <el-button size="small" @click="emit('view-detail', scope.row as AutoReconciliationResult)">
             <el-icon><View /></el-icon> 明细
           </el-button>
           <el-button
             size="small"
             type="primary"
-            @click="emit('send-confirmation', scope.row as any)"
+            @click="emit('send-confirmation', scope.row as AutoReconciliationResult)"
           >
             <el-icon><Promotion /></el-icon> 确认
           </el-button>
-          <el-button size="small" type="danger" @click="emit('open-dispute', scope.row as any)">
+          <el-button size="small" type="danger" @click="emit('open-dispute', scope.row as AutoReconciliationResult)">
             <el-icon><CircleClose /></el-icon> 争议
           </el-button>
         </template>

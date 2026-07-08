@@ -89,6 +89,7 @@
 <script setup lang="ts">
 import { reactive, watch } from 'vue'
 import { Search, Plus } from '@element-plus/icons-vue'
+import type { ApiEndpoint } from '@/api/api-gateway'
 
 export interface EndpointQuery {
   page: number
@@ -99,7 +100,7 @@ export interface EndpointQuery {
 }
 
 const props = defineProps<{
-  endpoints: any[]
+  endpoints: ApiEndpoint[]
   loading: boolean
   total: number
   queryParams: EndpointQuery
@@ -111,8 +112,8 @@ const props = defineProps<{
 const emit = defineEmits<{
   fetch: []
   'new-endpoint': []
-  'edit-endpoint': [row: any]
-  'delete-endpoint': [row: any]
+  'edit-endpoint': [row: ApiEndpoint]
+  'delete-endpoint': [row: ApiEndpoint]
   'update:queryParams': [value: EndpointQuery]
 }>()
 

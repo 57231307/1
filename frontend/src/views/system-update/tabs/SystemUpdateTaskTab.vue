@@ -80,6 +80,7 @@
 
 <script setup lang="ts">
 import { reactive, watch } from 'vue'
+import { type UpdateTask } from '@/api/system-update'
 
 export interface TaskQuery {
   page: number
@@ -87,7 +88,7 @@ export interface TaskQuery {
 }
 
 const props = defineProps<{
-  tasks: any[]
+  tasks: UpdateTask[]
   loading: boolean
   total: number
   queryParams: TaskQuery
@@ -96,8 +97,8 @@ const props = defineProps<{
 }>()
 
 const emit = defineEmits<{
-  rollback: [row: any]
-  cancel: [row: any]
+  rollback: [row: UpdateTask]
+  cancel: [row: UpdateTask]
   fetch: []
   'update:queryParams': [value: TaskQuery]
 }>()

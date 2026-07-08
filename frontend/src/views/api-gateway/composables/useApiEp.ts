@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
 /**
  * useApiEp.ts - API 网关接口管理 composable
  * 任务编号: P14 批 1 B3 I-2
@@ -63,8 +62,8 @@ export function useApiEp() {
       const res = await listApiEndpoints(endpointQuery)
       endpoints.value = res.data || []
       endpointTotal.value = res.total || 0
-    } catch (error: any) {
-      ElMessage.error(error.message || '获取接口失败')
+    } catch (error: unknown) {
+      ElMessage.error((error instanceof Error ? error.message : '') || '获取接口失败')
     } finally {
       endpointLoading.value = false
     }
@@ -132,8 +131,8 @@ export function useApiEp() {
         ElMessage.success('操作成功')
         endpointDialogVisible.value = false
         await fetchEndpoints()
-      } catch (error: any) {
-        ElMessage.error(error.message || '操作失败')
+      } catch (error: unknown) {
+        ElMessage.error((error instanceof Error ? error.message : '') || '操作失败')
       } finally {
         endpointSubmitLoading.value = false
       }
@@ -146,8 +145,8 @@ export function useApiEp() {
       await deleteApiEndpoint(row.id)
       ElMessage.success('删除成功')
       await fetchEndpoints()
-    } catch (error: any) {
-      if (error !== 'cancel') ElMessage.error(error.message || '删除失败')
+    } catch (error: unknown) {
+      if (error !== 'cancel') ElMessage.error((error instanceof Error ? error.message : '') || '删除失败')
     }
   }
 

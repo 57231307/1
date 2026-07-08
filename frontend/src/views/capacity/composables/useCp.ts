@@ -34,8 +34,8 @@ export const useCp = () => {
     try {
       const res = await capacityApi.getSummary()
       summary.value = res.data!
-    } catch (error: any) {
-      ElMessage.error(error.message || '获取产能概览失败')
+    } catch (error: unknown) {
+      ElMessage.error((error instanceof Error ? error.message : '') || '获取产能概览失败')
       summary.value = {} as CapacitySummary
     }
   }
@@ -48,8 +48,8 @@ export const useCp = () => {
         work_center_id: selectedWorkCenter.value,
       })
       trendData.value = res.data!
-    } catch (error: any) {
-      ElMessage.error(error.message || '获取产能趋势失败')
+    } catch (error: unknown) {
+      ElMessage.error((error instanceof Error ? error.message : '') || '获取产能趋势失败')
     }
   }
 
@@ -63,8 +63,8 @@ export const useCp = () => {
       })
       workCenters.value = res.data!.list
       total.value = res.data!.total
-    } catch (error: any) {
-      ElMessage.error(error.message || '获取工作中心列表失败')
+    } catch (error: unknown) {
+      ElMessage.error((error instanceof Error ? error.message : '') || '获取工作中心列表失败')
       workCenters.value = []
       total.value = 0
     } finally {
@@ -78,8 +78,8 @@ export const useCp = () => {
     try {
       const res = await capacityApi.getBottlenecks()
       bottlenecks.value = res.data!
-    } catch (error: any) {
-      ElMessage.error(error.message || '获取瓶颈分析失败')
+    } catch (error: unknown) {
+      ElMessage.error((error instanceof Error ? error.message : '') || '获取瓶颈分析失败')
       bottlenecks.value = []
     } finally {
       bottleneckLoading.value = false

@@ -76,7 +76,7 @@
             <el-table-column prop="customer_id" label="客户 ID" width="100" />
             <el-table-column label="状态" width="100">
               <template #default="{ row }">
-                <el-tag :type="(BORROW_STATUS_COLORS[row.status] as any)">
+                <el-tag :type="(BORROW_STATUS_COLORS[row.status] as 'success' | 'warning' | 'danger' | 'info')">
                   {{ BORROW_STATUS[row.status as keyof typeof BORROW_STATUS] || row.status }}
                 </el-tag>
               </template>
@@ -199,12 +199,12 @@ const lostForm = reactive({ compensation_amount: 0, notes: '' })
 const damagedForm = reactive({ compensation_amount: 0, notes: '' })
 
 const loadCards = async () => {
-  const res: any = await listColorCards({ status: 'active', page_size: 200 })
+  const res = await listColorCards({ status: 'active', page_size: 200 })
   availableCards.value = res.data?.items || []
 }
 
 const loadRecords = async () => {
-  const res: any = await listBorrowRecords({ page_size: 100 })
+  const res = await listBorrowRecords({ page_size: 100 })
   borrowRecords.value = res.data?.items || []
 }
 

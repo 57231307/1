@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
 /**
  * useArRec.ts - AR 对账核心 composable
  * 任务编号: P14 批 1 B3 I-2
@@ -51,7 +50,7 @@ export function useArRec() {
   const loadData = async () => {
     loading.value = true
     try {
-      const res: any = await getAutoReconciliationResults({
+      const res = await getAutoReconciliationResults({
         page: pagination.value.page,
         page_size: pagination.value.pageSize,
         customer_name: searchForm.value.customer_name || undefined,
@@ -96,7 +95,7 @@ export function useArRec() {
   /** 查看对账明细 */
   const handleViewDetail = async (row: AutoReconciliationResult) => {
     try {
-      const res: any = await getReconciliationDetailItems(row.id)
+      const res = await getReconciliationDetailItems(row.id)
       detailData.value = res.data || []
       currentReconciliation.value = row
       detailDialogVisible.value = true
@@ -122,7 +121,7 @@ export function useArRec() {
   /** 加载客户确认记录 */
   const handleViewConfirmations = async () => {
     try {
-      const res: any = await getCustomerConfirmations({
+      const res = await getCustomerConfirmations({
         page: 1,
         page_size: 20,
       })

@@ -44,10 +44,10 @@
             </el-table-column>
             <el-table-column label="操作" width="150">
               <template #default="{ row }">
-                <el-button v-permission="'data_permission:update'" link type="primary" @click="handleEditPermission(row as any)"
+                <el-button v-permission="'data_permission:update'" link type="primary" @click="handleEditPermission(row as DataPermissionRole)"
                   >编辑</el-button
                 >
-                <el-button v-permission="'data_permission:delete'" link type="danger" @click="handleDeletePermission(row as any)"
+                <el-button v-permission="'data_permission:delete'" link type="danger" @click="handleDeletePermission(row as DataPermissionRole)"
                   >删除</el-button
                 >
               </template>
@@ -199,7 +199,7 @@ const currentRoleName = computed(() => {
 
 const fetchPermissions = async () => {
   try {
-    const res: any = await listRoleDataPermissions(parseInt(selectedRoleId.value))
+    const res = await listRoleDataPermissions(parseInt(selectedRoleId.value))
     if (res.data) {
       permissionList.value = res.data! || []
     }

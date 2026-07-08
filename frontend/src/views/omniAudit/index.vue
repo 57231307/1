@@ -19,6 +19,7 @@ import {
 } from 'element-plus'
 import { PieChart, Clock, AlarmClock } from '@element-plus/icons-vue'
 import { getDashboardStats, searchLogs, type AuditStats, type AuditLog } from '@/api/omniAudit'
+import type { ApiResponse } from '@/types/api'
 
 const activeTab = ref('dashboard')
 const stats = ref<AuditStats | null>(null)
@@ -64,7 +65,7 @@ const loadStats = async () => {
     // v11 批次 146 P1-3 修复：拦截器已返回 ApiResponse 完整对象，
     // res.data 即业务数据（AuditStats），无需 res.data!.data 双层访问
     const res = await getDashboardStats()
-    stats.value = (res as any)?.data ?? null
+    stats.value = (res as ApiResponse<AuditStats> | undefined)?.data ?? null
   } catch (error) {
     ElMessage.error('加载统计数据失败')
   } finally {
@@ -88,7 +89,7 @@ const loadLogs = async () => {
       page: pagination.value.page - 1,
       page_size: pagination.value.pageSize,
     })
-    const data = (res as any)?.data ?? {}
+    const data = (res as ApiResponse<{ items: AuditLog[]; total: number }> | undefined)?.data ?? {}
     logs.value = data.items || []
     total.value = data.total || 0
   } catch (error) {
@@ -287,7 +288,7 @@ loadLogs()
           <ElTableColumn prop="created_at" label="时间" width="180" />
           <ElTableColumn label="操作" width="100" align="center">
             <template #default="scope">
-              <ElButton size="small" @click="openViewDialog(scope.row as any)">详情</ElButton>
+              <ElButton size="small" @click="openViewDialog(scope.row as AuditLog)">详情</ElButton>
             </template>
           </ElTableColumn>
         </ElTable>

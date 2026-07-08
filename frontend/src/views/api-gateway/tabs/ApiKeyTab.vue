@@ -82,6 +82,7 @@
 <script setup lang="ts">
 import { reactive, watch } from 'vue'
 import { Search, Plus } from '@element-plus/icons-vue'
+import type { ApiKey } from '@/api/api-gateway'
 
 export interface ApiKeyQuery {
   page: number
@@ -91,7 +92,7 @@ export interface ApiKeyQuery {
 }
 
 const props = defineProps<{
-  apiKeys: any[]
+  apiKeys: ApiKey[]
   loading: boolean
   total: number
   queryParams: ApiKeyQuery
@@ -100,9 +101,9 @@ const props = defineProps<{
 const emit = defineEmits<{
   fetch: []
   'new-key': []
-  'view-key': [row: any]
-  'toggle-key': [row: any]
-  'delete-key': [row: any]
+  'view-key': [row: ApiKey]
+  'toggle-key': [row: ApiKey]
+  'delete-key': [row: ApiKey]
   'update:queryParams': [value: ApiKeyQuery]
 }>()
 

@@ -25,6 +25,7 @@ import {
   type ScanData,
   type ScanHistory,
 } from '@/api/barcode-scanner'
+import type { ApiResponse } from '@/types/api'
 
 const activeTab = ref('scan')
 const barcodeInput = ref('')
@@ -66,7 +67,7 @@ const handleScan = async () => {
     // v11 批次 146 P1-3 修复：拦截器已返回 ApiResponse 完整对象，
     // res.data 即业务数据（ScanResult/ScanData），无需 res.data!.data 双层访问
     const res = await scanInventory(barcodeInput.value)
-    const data = (res as any)?.data
+    const data = (res as ApiResponse<ScanData> | undefined)?.data
     scanResult.value = data ?? null
     scanSuccess.value = true
     scanMessage.value = '扫码成功'
@@ -97,7 +98,7 @@ const handleScanToShip = async () => {
       barcode: barcodeInput.value,
       order_id: Number(orderId.value),
     })
-    const data = (res as any)?.data
+    const data = (res as ApiResponse<{ message?: string }> | undefined)?.data
     scanSuccess.value = true
     scanMessage.value = data?.message || '发货成功'
     scanResult.value = null
@@ -114,7 +115,7 @@ const handleScanToShip = async () => {
 const loadHistory = async () => {
   loading.value = true
   try {
-    const res: any = await getScanHistory(pagination.value.page - 1, pagination.value.pageSize)
+    const res = (await getScanHistory(pagination.value.page - 1, pagination.value.pageSize)) as ApiResponse<{ items: ScanHistory[]; total: number }>
     historyData.value = res.data!.items
     total.value = res.data!.total
   } catch (error) {

@@ -24,7 +24,7 @@
           @new-endpoint="ep.openEndpointDialog()"
           @edit-endpoint="ep.openEndpointDialog"
           @delete-endpoint="ep.handleDeleteEndpoint"
-          @update:query-params="(v: any) => Object.assign(ep.endpointQuery, v)"
+          @update:query-params="(v: EndpointQuery) => Object.assign(ep.endpointQuery, v)"
         />
       </el-tab-pane>
 
@@ -39,7 +39,7 @@
           @view-key="key.viewKeyDetail"
           @toggle-key="key.handleToggleKey"
           @delete-key="key.handleDeleteKey"
-          @update:query-params="(v: any) => Object.assign(key.keyQuery, v)"
+          @update:query-params="(v: ApiKeyQuery) => Object.assign(key.keyQuery, v)"
         />
       </el-tab-pane>
 
@@ -52,7 +52,7 @@
           :method-type-map="log.methodTypeMap"
           @fetch="log.fetchLogs"
           @view-log="log.viewLogDetail"
-          @update:query-params="(v: any) => Object.assign(log.logQuery, v)"
+          @update:query-params="(v: LogQuery) => Object.assign(log.logQuery, v)"
         />
       </el-tab-pane>
     </el-tabs>
@@ -100,9 +100,9 @@ import { useApiLog } from './composables/useApiLog'
 import EpForm from './components/EpForm.vue'
 import KeyForm from './components/KeyForm.vue'
 import LogDetail from './components/LogDetail.vue'
-import ApiEndpointTab from './tabs/ApiEndpointTab.vue'
-import ApiKeyTab from './tabs/ApiKeyTab.vue'
-import ApiLogTab from './tabs/ApiLogTab.vue'
+import ApiEndpointTab, { type EndpointQuery } from './tabs/ApiEndpointTab.vue'
+import ApiKeyTab, { type ApiKeyQuery } from './tabs/ApiKeyTab.vue'
+import ApiLogTab, { type LogQuery } from './tabs/ApiLogTab.vue'
 
 const activeTab = ref('endpoints')
 
