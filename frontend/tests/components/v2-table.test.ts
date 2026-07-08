@@ -57,13 +57,22 @@ describe('V2Table', () => {
     const wrapper = mount(V2Table, {
       props: { data: singleRow, columns: nameColumns },
     })
-    const tableV2 = wrapper.findComponent({ name: 'ElTableV2' })
+    /// ElTableV2 嵌套在 ElAutoResizer 的 slot 中，使用 findAllComponents 获取
+    const tables = wrapper.findAllComponents({ name: 'ElTableV2' })
+    expect(tables.length).toBeGreaterThanOrEqual(1)
+    const tableV2 = tables[0]
     /// el-table-v2 通过 rowEventHandlers prop 接入行点击，验证 prop 已透传
-    expect(tableV2.props('rowEventHandlers')).toBeTruthy()
-    expect(typeof tableV2.props('rowEventHandlers').onClick).toBe('function')
+    const handlers = tableV2.props('rowEventHandlers')
+    expect(handlers).toBeTruthy()
+    expect(typeof handlers.onClick).toBe('function')
     /// 模拟点击：直接调用 onClick 回调（el-table-v2 内部会传入 RowEventHandlerParams）
     const row = singleRow[0]
-    tableV2.props('rowEventHandlers').onClick({ rowData: row, rowIndex: 0, event: new MouseEvent('click') })
+    handlers.onClick({
+      rowData: row,
+      rowIndex: 0,
+      rowKey: 'id',
+      event: new MouseEvent('click'),
+    })
     expect(wrapper.emitted('row-click')).toBeTruthy()
     /// row-click 仅传 rowData（P2-1 风格）
     expect(wrapper.emitted('row-click')![0]).toEqual([row])
@@ -73,7 +82,10 @@ describe('V2Table', () => {
     const wrapper = mount(V2Table, {
       props: { data: singleRow, columns: formatterColumns },
     })
-    const tableV2 = wrapper.findComponent({ name: 'ElTableV2' })
+    /// ElTableV2 嵌套在 ElAutoResizer 的 slot 中，使用 findAllComponents 获取
+    const tables = wrapper.findAllComponents({ name: 'ElTableV2' })
+    expect(tables.length).toBeGreaterThanOrEqual(1)
+    const tableV2 = tables[0]
     /// formatter 列应生成 cellRenderer 函数
     expect(typeof tableV2.props('columns')[0].cellRenderer).toBe('function')
   })
