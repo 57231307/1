@@ -20,14 +20,13 @@ interface RefreshTokenResponse {
   expires_in?: number
 }
 
-export function login(data: LoginRequest): Promise<LoginResponse> {
-  return request.post<LoginResponseWithCsrf>('/auth/login', data).then(res => {
-    // Wave B-3：不再写 localStorage。Cookie 由后端 Set-Cookie 自动写入。
-    // 转换为标准 LoginResponse（去除 csrf_token 字段）
-    const { csrf_token: _csrf, ...payload } = res
-    void _csrf
-    return payload
-  })
+export async function login(data: LoginRequest): Promise<LoginResponse> {
+  const res = await request.post<LoginResponseWithCsrf>('/auth/login', data)
+  // Wave B-3：不再写 localStorage。Cookie 由后端 Set-Cookie 自动写入。
+  // 转换为标准 LoginResponse（去除 csrf_token 字段）
+  const { csrf_token: _csrf, ...payload } = res
+  void _csrf
+  return payload
 }
 
 export function logout(): Promise<void> {
@@ -44,11 +43,10 @@ export function logout(): Promise<void> {
  * 批次 29 v7 P0-2 修复：返回类型移除 token 字段，对齐后端 RefreshTokenResponse。
  * access_token 通过 httpOnly Cookie 传递，前端不可读也不应读。
  */
-export function refreshToken(_refreshToken: string): Promise<{ csrf_token?: string; expires_in?: number }> {
-  return request.post<RefreshTokenResponse>('/auth/refresh', {}).then(res => {
-    // Cookie 已由后端 Set-Cookie 写入，前端无需再保存
-    return res
-  })
+export async function refreshToken(_refreshToken: string): Promise<{ csrf_token?: string; expires_in?: number }> {
+  const res = await request.post<RefreshTokenResponse>('/auth/refresh', {})
+  // Cookie 已由后端 Set-Cookie 写入，前端无需再保存
+  return res
 }
 
 export function getUserInfo(): Promise<UserInfo> {

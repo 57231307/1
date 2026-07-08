@@ -76,17 +76,17 @@ interface ApiResponse<T> {
 /**
  * 分页查询审计日志
  */
-export function listAuditLogs(params: AuditLogListParams = {}): Promise<AuditLogListResponse> {
-  return request.get<ApiResponse<AuditLogListResponse>>('/audit-logs', { params }).then(
-    (res) => res.data,
-  )
+export async function listAuditLogs(params: AuditLogListParams = {}): Promise<AuditLogListResponse> {
+  const res = await request.get<ApiResponse<AuditLogListResponse>>('/audit-logs', { params })
+  return res.data
 }
 
 /**
  * 获取审计日志详情
  */
-export function getAuditLog(id: number): Promise<AuditLogDetail> {
-  return request.get<ApiResponse<AuditLogDetail>>(`/audit-logs/${id}`).then((res) => res.data)
+export async function getAuditLog(id: number): Promise<AuditLogDetail> {
+  const res = await request.get<ApiResponse<AuditLogDetail>>(`/audit-logs/${id}`)
+  return res.data
 }
 
 /**
