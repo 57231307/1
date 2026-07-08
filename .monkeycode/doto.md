@@ -77,12 +77,16 @@
 
 **任务清单**：
 1. ✅ 更新 MEMORY.md 新增规则 5
-2. 🔄 提交 V2Table FixedDir enum 修复（上一批次遗留）+ 新规则
-3. ⏳ push 触发 CI，监控 ci-e2e job 完整跑完
-4. ⏳ 下载 playwright-report artifact
-5. ⏳ 生成 E2E 测试报告文档（通过/失败用例、失败原因、修复优先级）
-6. ⏳ 根据报告按规则 0/2 修复 E2E 失败问题
-7. ⏳ 更新 CHANGELOG.md
+2. ✅ 更新 MEMORY.md 新增规则 6（测试 mock 数据禁止硬编码）
+3. ✅ 提交规则更新（commit baa8a0f）
+4. ✅ 监控 CI run 28912297000 ci-e2e job（超时 cancelled，95 测试全失败）
+5. ✅ 分析 E2E 日志，生成批次 190 E2E 测试报告文档
+6. ✅ 修复 playwright.config.ts（reporter:html + timeout 60s）
+7. ✅ 修复 ci-cd.yml ci-e2e job（PostgreSQL + 后端 + 迁移 + 初始化 + 移除 continue-on-error）
+8. ✅ 提取 mock 数据到 e2e/fixtures/auth.ts（规则 6）
+9. ✅ 修复前端测试 tests/components/v2-table.test.ts（规则 6 fixtures）
+10. 🔄 提交 + push 触发 CI 验证
+11. ⏳ 根据新 CI 结果继续修复 E2E 失败问题
 
 ### 已完成批次（最近 5 个）
 

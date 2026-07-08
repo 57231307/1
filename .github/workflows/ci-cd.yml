@@ -1107,24 +1107,75 @@ jobs:
 
 # ==============================================================================
 # Job 8.5: 前端 E2E 测试（Playwright）
+# 批次 190 规则 5 修复（2026-07-08）：
+# - 移除 continue-on-error（违反规则 5"E2E 必须完整跑完"）
+# - 添加 PostgreSQL service container + Rust 工具链（真实后端依赖）
+# - 下载 ci-build-rust 产物 backend-binary（避免重复编译）
+# - 运行数据库迁移 + 系统初始化（创建 E2E 测试用户）
+# - 启动后端 server 进程（vite proxy target :8082）
+# - 注入 TEST_USERNAME/TEST_PASSWORD 环境变量（fail-secure 登录）
+# - reporter 改为 html（playwright.config.ts）生成可下载报告
 # ==============================================================================
   ci-e2e:
     name: 🎭 前端 E2E 测试
     runs-on: ubuntu-latest
-    timeout-minutes: 30
-    needs: [ci-info, ci-build-fe]
-    # v5 批次 21 修复（2026-06-28 11-P0-2）：渐进式严格化策略
-    # v5 审计 P0-2 要求 E2E 测试在 CI 中"运行起来"（不再被跳过），已通过新增本 job 实现。
-    # 但 69 个测试用例本身存在设计缺陷（依赖后端 API + DB 数据 + 伪测试），
-    # 这些是 v5 报告 P0-3/P1 的修复范围（批次 23 的真实测试改造）。
-    # 采用与 ci-lint-rust 一致的渐进式严格化策略：让 E2E 运行但失败不阻塞 CI，
-    # 测试结果仍会在 step summary 和 artifact 中可见，便于运维监控。
-    # TODO(tech-debt): 批次 23 完成真实测试改造后移除 continue-on-error，
-    # 让 E2E 测试失败阻塞 CI（与单元测试一致）。
-    continue-on-error: true
+    timeout-minutes: 60
+    needs: [ci-info, ci-build-fe, ci-build-rust]
+    # 真实 E2E：PostgreSQL + 后端 + 前端 dev server + Playwright
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: bingxi
+          POSTGRES_PASSWORD: bingxi_test
+          POSTGRES_DB: bingxi_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    env:
+      DATABASE_URL: postgres://bingxi:bingxi_test@localhost:5432/bingxi_test
+      # CI 测试用密钥（32 字节，仅测试用途，禁止用于生产）
+      JWT_SECRET: ci-test-jwt-secret-32bytes-do-not-use-prod-abc
+      COOKIE_SECRET: ci-test-cookie-secret-32bytes-do-not-use-prod-xyz
+      WEBHOOK_SECRET: ci-test-webhook-secret-32bytes-do-not-use-prod-q
+      AUDIT_SECRET_KEY: test-only-audit-secret-do-not-use-in-production-32b
+      INIT_TOKEN: ci-test-init-token-for-e2e-seeding-only-32bytes!
+      TEST_USERNAME: e2e_admin
+      TEST_PASSWORD: E2e@TestPassword2026!
+      APP_ENV: development
+      ENV: development
+      KAFKA_ENABLED: "false"
+      ELASTICSEARCH_URL: ""
+      CACHE_ENABLED: "false"
+      # 后端服务监听配置（config crate separator="__"，覆盖 config.yaml）
+      SERVER__HOST: 127.0.0.1
+      SERVER__PORT: "8082"
+      DATABASE__HOST: localhost
+      DATABASE__PORT: "5432"
+      DATABASE__NAME: bingxi_test
+      DATABASE__USERNAME: bingxi
+      DATABASE__PASSWORD: bingxi_test
+      DATABASE__MAX_CONNECTIONS: "10"
+      LOG__LEVEL: info
+      SLOW_QUERY__ENABLED: "false"
     steps:
       - name: 检出代码
         uses: actions/checkout@v5
+
+      - name: 下载后端二进制产物
+        uses: actions/download-artifact@v4
+        with:
+          name: backend-binary
+          path: backend/target/release
+
+      - name: 赋予后端二进制可执行权限
+        run: |
+          chmod +x backend/target/release/server
+          chmod +x backend/target/release/bingxi
 
       - name: 安装 Node.js
         uses: actions/setup-node@v4
@@ -1149,12 +1200,63 @@ jobs:
         working-directory: frontend
         run: npx playwright install chromium
 
+      - name: 运行数据库迁移
+        working-directory: backend
+        run: |
+          ./target/release/bingxi migrate run
+
+      - name: 启动后端服务
+        working-directory: backend
+        run: |
+          mkdir -p /tmp/e2e-logs
+          # 后台启动后端，端口 8082（vite proxy target）
+          ./target/release/server > /tmp/e2e-logs/backend.log 2>&1 &
+          BACKEND_PID=$!
+          echo "BACKEND_PID=$BACKEND_PID" > /tmp/e2e-logs/pid.env
+          # 等待后端端口就绪（最长 30s，health 端点为顶层 /health）
+          for i in $(seq 1 60); do
+            if curl -s http://localhost:8082/health > /dev/null 2>&1; then
+              echo "后端就绪（第 ${i} 次尝试）"
+              break
+            fi
+            sleep 0.5
+          done
+          if ! curl -s http://localhost:8082/health > /dev/null 2>&1; then
+            echo "后端启动失败，日志："
+            cat /tmp/e2e-logs/backend.log
+            exit 1
+          fi
+
+      - name: 初始化系统（创建 E2E 测试管理员）
+        working-directory: backend
+        run: |
+          set +e
+          curl -s -X POST http://localhost:8082/api/v1/erp/init/initialize \
+            -H "Content-Type: application/json" \
+            -H "X-Init-Token: ${INIT_TOKEN}" \
+            -d "{\"admin_username\":\"${TEST_USERNAME}\",\"admin_password\":\"${TEST_PASSWORD}\"}" \
+            > /tmp/init-response.json 2>&1
+          INIT_EXIT=$?
+          cat /tmp/init-response.json
+          # 系统可能已初始化（idempotent），状态码 200/400 均视为成功
+          if grep -q '"code":200' /tmp/init-response.json; then
+            echo "初始化成功"
+            exit 0
+          fi
+          if grep -q '已初始化\|already' /tmp/init-response.json; then
+            echo "系统已初始化（幂等），跳过"
+            exit 0
+          fi
+          echo "初始化失败，退出码 $INIT_EXIT"
+          exit 1
+
       - name: 运行 E2E 测试
         working-directory: frontend
         run: |
           mkdir -p reports
           set +e
           # Playwright 通过 playwright.config.ts 中的 webServer 配置自动启动 vite dev server
+          # 后端已在上一步独立启动进程（localhost:8082）
           npx playwright test 2>&1 | tee reports/playwright-output.txt
           EXIT_CODE=$?
           set -e
@@ -1164,29 +1266,17 @@ jobs:
             echo ""
             echo "**生成时间**: $(date -u +'%Y-%m-%dT%H:%M:%SZ')  "
             echo "**退出码**: $EXIT_CODE  "
-            echo "**模式**: 渐进式严格化（continue-on-error: true，不阻塞 CI）"
+            echo "**模式**: 真实 E2E（PostgreSQL + 后端 + 前端，规则 5 严格化）"
             echo ""
             if [ "$EXIT_CODE" -eq "0" ]; then
               echo "## ✅ 所有 E2E 测试通过"
             else
-              echo "## ⚠️ 部分 E2E 测试失败（渐进式，不阻塞 CI）"
+              echo "## ❌ 部分 E2E 测试失败（阻塞 CI，规则 5）"
               echo ""
-              echo "### 失败原因分析"
-              echo ""
-              echo "E2E 测试套件存在已知设计缺陷（v5 报告 11-P0-3/P1）："
-              echo "- 69 个测试用例依赖后端 API + DB 数据，但 CI 中未启动后端服务"
-              echo "- 80+ 伪测试（测试玩具模型而非生产代码）"
-              echo "- 测试覆盖率仅 38%"
-              echo ""
-              echo "### 修复计划"
-              echo ""
-              echo "- 批次 23（v5 P0-3）：补真实测试（生产订单/采购收货/销售发货/付款等关键路径）"
-              echo "- 批次 23（v5 P1）：清理伪测试，提升测试覆盖率到 60%+"
-              echo ""
-              echo "### 输出内容（前 100 行）"
+              echo "### 输出内容（前 200 行）"
               echo ""
               echo '```'
-              head -100 reports/playwright-output.txt
+              head -200 reports/playwright-output.txt
               echo '```'
             fi
           } > reports/e2e-report.md
@@ -1197,14 +1287,19 @@ jobs:
             if [ "$EXIT_CODE" -eq "0" ]; then
               echo "✅ 全部通过"
             else
-              echo "⚠️  部分失败（渐进式，不阻塞 CI，详见 artifacts）"
-              echo ""
-              echo "已知设计缺陷（v5 P0-3/P1），批次 23 修复"
+              echo "❌ 部分失败（阻塞 CI，详见 artifacts）"
             fi
           } >> "$GITHUB_STEP_SUMMARY"
 
-          # 渐进式：E2E 失败不阻塞 CI
-          exit 0
+          exit $EXIT_CODE
+
+      - name: 收集后端日志
+        if: always()
+        run: |
+          if [ -f /tmp/e2e-logs/backend.log ]; then
+            mkdir -p frontend/reports
+            cp /tmp/e2e-logs/backend.log frontend/reports/backend.log
+          fi
 
       - name: 上传测试报告
         if: always()
@@ -1214,6 +1309,8 @@ jobs:
           path: |
             frontend/playwright-report/
             frontend/reports/e2e-report.md
+            frontend/reports/backend.log
+            frontend/test-results/
           retention-days: 7
 
 # ==============================================================================
