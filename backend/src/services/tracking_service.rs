@@ -391,7 +391,7 @@ fn parse_date(s: &Option<String>) -> Result<Option<DateTime<Utc>>, AppError> {
                 .parse::<DateTime<Utc>>()
                 .or_else(|_| {
                     NaiveDate::parse_from_str(s, "%Y-%m-%d")
-                        .map(|d| d.and_hms_opt(0, 0, 0).unwrap().and_utc())
+                        .map(|d| d.and_hms_opt(0, 0, 0).unwrap(/* 不变量：0,0,0 永远合法 */).and_utc())
                 })
                 .map_err(|e| AppError::validation(format!("日期格式错误：{}", e)))?;
             Ok(Some(dt))

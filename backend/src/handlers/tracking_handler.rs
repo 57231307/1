@@ -192,7 +192,7 @@ fn parse_date_param(s: &Option<String>) -> Result<Option<chrono::DateTime<chrono
                 .parse::<chrono::DateTime<chrono::Utc>>()
                 .or_else(|_| {
                     chrono::NaiveDate::parse_from_str(s, "%Y-%m-%d")
-                        .map(|d| d.and_hms_opt(0, 0, 0).unwrap().and_utc())
+                        .map(|d| d.and_hms_opt(0, 0, 0).unwrap(/* 不变量：0,0,0 永远合法 */).and_utc())
                 })
                 .map_err(|e| AppError::validation(format!("日期格式错误：{}", e)))?;
             Ok(Some(dt))

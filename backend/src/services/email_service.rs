@@ -688,7 +688,8 @@ impl EmailService {
 
 /// 计算 HMAC-SHA256，返回字节数组
 fn hmac_sha256_bytes(key: &[u8], data: &[u8]) -> Vec<u8> {
-    let mut mac = HmacSha256::new_from_slice(key).expect("HMAC-SHA256 key 长度错误");
+    let mut mac = HmacSha256::new_from_slice(key)
+        .expect("不变量：HMAC-SHA256 接受任意长度密钥，new_from_slice 永远返回 Ok");
     mac.update(data);
     mac.finalize().into_bytes().to_vec()
 }

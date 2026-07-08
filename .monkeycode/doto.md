@@ -5,11 +5,39 @@
 
 ---
 
-## 🔄 当前任务：v12 全项目复审 P0/P1 修复（批次 203 P1-4 + P1-5 N+1 INSERT 优化已实现，待 CI 验证批次 202 后提交）
+## 🔄 当前任务：v12 全项目复审 P2 修复（批次 206 P2-2 report/ds.rs 桩代码补全 + P2-6 类型修复已提交 de51fc4，CI 验证中）
 
 > 用户最高优先级规则（2026-07-04/06/08 追加）已固化到 [MEMORY.md 一、规则 0-12](file:///workspace/.monkeycode/MEMORY.md)。
 > 本文件仅记录任务进度，规则不在此重复。
 > 规则 10 梳理时间：2026-07-08（批次 195 = 13×15 触发）
+
+### v12 复审 P0/P1 修复进度（全部完成）
+
+- ✅ P0-1：warehouse_handler update_location 欺骗性 stub（批次 197）
+- ✅ P0-2：password_policy_service 安全功能未接入登录流程（批次 198）
+- ✅ P1-1：4 个审批模型死代码清理（批次 201）
+- ✅ P1-2：audit_alert_rule 模型死代码清理（批次 202）
+- ✅ P1-3：dto/mod.rs 文件级 #![allow(dead_code)] 违规（批次 202）
+- ✅ P1-4：BOM 创建 N+1 INSERT（批次 203）
+- ✅ P1-5：报价单创建 N+1 INSERT（批次 203）
+- ✅ P1-6：4 个 handler 丢弃请求体（批次 199）
+- ✅ 前端 P1-1：CSV 导出违规（批次 204）
+- ✅ 前端 P1-2：useApiLog any（批次 204）
+- ✅ 前端 P1-3：Promise rejection（批次 204-ci）
+- ✅ 前端 P1-4：WebSocket token 安全修复（批次 205）
+- ✅ 前端 P1-5：搜索 Bug（批次 204）
+
+### v12 复审 P2 修复进度（进行中）
+
+- ✅ P2-6：supplier_service 事务保护缺失（批次 205 → fb05961，CI 类型错误 → 批次 206 修复）
+- ✅ P2-2：report/ds.rs 桩代码补全（批次 206，aggregate_purchase_data / aggregate_finance_data / query_purchase_report）
+- ⏳ P2-1：6 项级 #[allow(dead_code)] 状态常量接入业务
+- ⏳ P2-3：N+1 写（与 P2-6 同处，已修复）
+- ⏳ P2-4：unwrap/expect（5 处非测试，3 处安全，2 处建议加固）
+- ⏳ P2-5：40+ 处硬编码状态字符串替换为 status::* 常量
+- ⏳ P2-7：API 一致性（98.7% 使用 ApiResponse，可接受）
+- ⏳ P2-8：测试覆盖（~97 service 无测试）
+- ⏳ 前端 P2 复审：尚未启动
 
 ### v11 复审结果
 
@@ -106,11 +134,12 @@
 
 | 批次 | main commit | 内容 |
 |------|-------------|------|
-| 203 | 待提交 | v12 P1-4 + P1-5 N+1 INSERT 优化（bom_service.rs create 添加事务+insert_many + update 事务扩大+insert_many；quotation_service.rs create_draft + update 4 处 insert_many；2 文件）|
-| 202 | `202d41a` | v12 P1-2 + P1-3 + E2E 迁移修复（audit_alert_rule 模型+m0046 迁移删除 + dto/mod.rs 文件级 #![allow(dead_code)] 移除 + crm_dto.rs 2 死代码删除 + tenant_plans 外键依赖完整修复；CI 验证中）|
-| 201 | `b82b530` | v12 P1-1 4 个审批模型死代码清理（approval_node/template/instance/log 模型删除 + models/mod.rs 注册移除；CI 核心 12/12 全绿）|
-| 200 | `405c3bf` | E2E 迁移修复 tenant_subscriptions 外键依赖（调整删除顺序，被 202 取代）|
-| 199 | `5405edb` | v12 P1-6 修复 4 个 handler 丢弃请求体欺骗性 stub（sales_price/purchase_price approve_price 检查 req.approved + ar_reconciliation confirm_reconciliation 注释说明 + bpm_definition create_from_template service 签名扩展接收 req 字段覆盖模板默认值；6 文件 +69 -21 行）|
+| 206 | `de51fc4` | v12 P2-2 report/ds.rs 桩代码补全（aggregate_purchase_data 真实接入 purchase_orders 按 supplier/month 聚合 + aggregate_finance_data 真实接入 finance_payments 按 month/payment_method 聚合 + query_purchase_report 真实查询 purchase_order_item 明细按日期范围过滤）+ P2-6 类型修复（supplier_service now 从 DateTimeUtc 改为 DateTimeWithTimeZone）；2 文件 +231 -12 行|
+| 205-ci | `4e77793` | v12 P1-4 CI 修复 Clippy manual_is_multiple_of 警告（notifications.rs count % N == 0 → count.is_multiple_of(N)）|
+| 205 | `f1d75d4` | v12 前端 P1-4 WebSocket token 安全修复（WsTicketManager 一次性短时票据机制替代 URL query JWT + issue_ws_ticket_handler HTTP 端点 + ws_notifications_handler 改用 ticket 验证 + 前端 WebSocketClient 改用 TicketFetcher 回调 connect() 改为 async + fetchWsTicket API + DatabaseConfig.connection_string 添加 #[serde(default)] 修复 E2E 启动失败）|
+| 204-ci | `275d768` | v12 前端 P1-3 Promise rejection 修复 + audit-log 测试适配|
+| 204 | `0df4930` | v12 前端 P1-1 CSV 导出改 xlsx + P1-2 useApiLog any 清理 + P1-5 搜索 Bug 修复|
+| 203 | `5de7129` | v12 P1-4 + P1-5 N+1 INSERT 优化（bom_service.rs create 添加事务+insert_many + update 事务扩大+insert_many；quotation_service.rs create_draft + update 4 处 insert_many；2 文件）|
 | 198 | `89ecba9` | v12 P0-2 密码过期策略接入登录流程（migration m0045 + user model + password_policy_service 死代码清理 + auth_handler LoginResponse.password_expired + change_password/reset_password/create_user 更新 password_changed_at + 前端 Login.vue 引导改密 UI；CI 核心 12/12 全绿）|
 | 197 | `42e9479` | v12 P0-1 修复 warehouse_handler update_location 欺骗性 stub（UpdateLocationRequest 字段对齐 warehouse_locations 表 + 真实 update 实现 + 前端 WarehouseLocation 接口对齐；2 文件 +50 -17 行，CI 核心 12/12 全绿）|
 | 196-ci | `3d7c7c9` | v11 前端 P2-1 ReturnDetailDialog optional 字段类型修复（3 个 TS2345 错误，1 文件 +3 -3 行）|

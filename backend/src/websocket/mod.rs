@@ -16,5 +16,3 @@
 //! - 鉴权（一次性短时票据，v12 P1-4 修复：替代 URL query JWT）
 
 pub mod notifications;
-
-pub use notifications::{ConnectionManager, NotificationBroadcaster, WsMessage, WsTicketManager};
