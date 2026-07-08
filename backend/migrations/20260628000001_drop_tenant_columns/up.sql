@@ -191,7 +191,7 @@ ALTER TABLE "slow_query_log" DROP COLUMN IF EXISTS "tenant_id";
 -- 故障转移事件
 ALTER TABLE "failover_event" DROP COLUMN IF EXISTS "tenant_id";
 -- CRM 商机
-ALTER TABLE "crm_opportunities" DROP COLUMN IF EXISTS "tenant_id";
+ALTER TABLE "crm_opportunity" DROP COLUMN IF EXISTS "tenant_id";
 -- 分配历史
 ALTER TABLE "assignment_histories" DROP COLUMN IF EXISTS "tenant_id";
 
