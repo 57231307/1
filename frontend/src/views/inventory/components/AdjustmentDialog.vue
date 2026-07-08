@@ -57,7 +57,10 @@
 import { reactive, watch } from 'vue'
 
 // 库存调整表单数据结构（字段与 inventory 父组件 initialForm 保持一致）
-interface AdjustmentForm {
+export interface AdjustmentForm {
+  stock_id: number | null
+  product_id: number | null
+  warehouse_id: number | null
   product_name?: string
   warehouse_name?: string
   current_quantity?: number
@@ -81,7 +84,7 @@ const localForm = reactive<AdjustmentForm>({} as AdjustmentForm)
 watch(
   () => props.initialForm,
   newVal => {
-    Object.keys(localForm).forEach(k => delete localForm[k])
+    // AdjustmentForm 字段固定，直接 Object.assign 覆盖即可（无需逐键 delete）
     Object.assign(localForm, JSON.parse(JSON.stringify(newVal)))
   },
   { immediate: true, deep: true }

@@ -99,7 +99,7 @@ import InventoryStockTab, { type StockQuery } from './tabs/InventoryStockTab.vue
 import InventoryAlertTab from './tabs/InventoryAlertTab.vue'
 import InventoryTransferTab from './tabs/InventoryTransferTab.vue'
 import StatCards from './components/StatCards.vue'
-import AdjustmentDialog from './components/AdjustmentDialog.vue'
+import AdjustmentDialog, { type AdjustmentForm } from './components/AdjustmentDialog.vue'
 import TransferDialog from './components/TransferDialog.vue'
 
 const hasLoaded = createLazyLoader()
@@ -208,10 +208,10 @@ const handleTabChange = (tabName: string) => {
 }
 
 const adjustmentDialogVisible = ref(false)
-const adjustmentForm = ref({
-  stock_id: null as number | null,
-  product_id: null as number | null,
-  warehouse_id: null as number | null,
+const adjustmentForm = ref<AdjustmentForm>({
+  stock_id: null,
+  product_id: null,
+  warehouse_id: null,
   product_name: '',
   warehouse_name: '',
   current_quantity: 0,
@@ -244,7 +244,7 @@ const handleAdjustment = () => {
 }
 
 // v11 批次 164 P2-1 修复：form: any 改为具体类型
-const onSubmitAdjustment = async (form: typeof adjustmentForm.value) => {
+const onSubmitAdjustment = async (form: AdjustmentForm) => {
   if (!form.adjustment_quantity || form.adjustment_quantity <= 0) {
     ElMessage.warning('请输入有效的调整数量')
     return
@@ -258,7 +258,7 @@ const onSubmitAdjustment = async (form: typeof adjustmentForm.value) => {
     await inventoryApi.createStockAdjustment({
       warehouse_id: form.warehouse_id!,
       product_id: form.product_id!,
-      adjustment_type: form.adjustment_type as 'increase' | 'decrease',
+      adjustment_type: form.adjustment_type,
       adjustment_quantity: form.adjustment_quantity,
       reason: form.reason,
     })
