@@ -4,7 +4,7 @@
  * 规则 6：mock 数据统一从 fixtures/v2-table.ts 引用，禁止内联硬编码
  */
 import { describe, it, expect } from 'vitest'
-import { mount } from '@vue/test-utils'
+import { mount, shallowMount } from '@vue/test-utils'
 import V2Table from '@/components/V2Table/index.vue'
 import {
   singleRow,
@@ -54,17 +54,36 @@ describe('V2Table', () => {
   })
 
   it('通过 rowEventHandlers 接入行点击事件（仅透传 rowData）', async () => {
-    /// 使用 attachTo 确保 ElAutoResizer 能计算尺寸并渲染 ElTableV2
-    const div = document.createElement('div')
-    div.style.width = '800px'
-    div.style.height = '600px'
-    document.body.appendChild(div)
-    const wrapper = mount(V2Table, {
+    /// 使用 shallowMount stub 掉 ElAutoResizer/ElTableV2，直接验证 prop 透传
+    const wrapper = shallowMount(V2Table, {
       props: { data: singleRow, columns: nameColumns },
-      attachTo: div,
+      global: {
+        stubs: {
+          ElAutoResizer: {
+            name: 'ElAutoResizer',
+            template: '<div><slot :height="600" :width="800" /></div>',
+          },
+          ElTableV2: {
+            name: 'ElTableV2',
+            template: '<div />',
+            props: [
+              'columns',
+              'data',
+              'width',
+              'height',
+              'rowKey',
+              'loading',
+              'emptyText',
+              'estimatedRowHeight',
+              'headerHeight',
+              'rowEventHandlers',
+              'fixed',
+            ],
+          },
+        },
+      },
     })
     await wrapper.vm.$nextTick()
-    /// ElTableV2 嵌套在 ElAutoResizer 的 slot 中，使用 findComponent 获取
     const tableV2 = wrapper.findComponent({ name: 'ElTableV2' })
     expect(tableV2.exists()).toBe(true)
     /// el-table-v2 通过 rowEventHandlers prop 接入行点击，验证 prop 已透传
@@ -82,18 +101,37 @@ describe('V2Table', () => {
     expect(wrapper.emitted('row-click')).toBeTruthy()
     /// row-click 仅传 rowData（P2-1 风格）
     expect(wrapper.emitted('row-click')![0]).toEqual([row])
-    wrapper.unmount()
   })
 
   it('formatter 列定义正确生成 cellRenderer', async () => {
-    /// 使用 attachTo 确保 ElAutoResizer 能计算尺寸并渲染 ElTableV2
-    const div = document.createElement('div')
-    div.style.width = '800px'
-    div.style.height = '600px'
-    document.body.appendChild(div)
-    const wrapper = mount(V2Table, {
+    /// 使用 shallowMount stub 掉 ElAutoResizer/ElTableV2，直接验证 prop 透传
+    const wrapper = shallowMount(V2Table, {
       props: { data: singleRow, columns: formatterColumns },
-      attachTo: div,
+      global: {
+        stubs: {
+          ElAutoResizer: {
+            name: 'ElAutoResizer',
+            template: '<div><slot :height="600" :width="800" /></div>',
+          },
+          ElTableV2: {
+            name: 'ElTableV2',
+            template: '<div />',
+            props: [
+              'columns',
+              'data',
+              'width',
+              'height',
+              'rowKey',
+              'loading',
+              'emptyText',
+              'estimatedRowHeight',
+              'headerHeight',
+              'rowEventHandlers',
+              'fixed',
+            ],
+          },
+        },
+      },
     })
     await wrapper.vm.$nextTick()
     const tableV2 = wrapper.findComponent({ name: 'ElTableV2' })
@@ -102,7 +140,6 @@ describe('V2Table', () => {
     const cols = tableV2.props('columns')
     expect(cols.length).toBeGreaterThanOrEqual(1)
     expect(typeof cols[0].cellRenderer).toBe('function')
-    wrapper.unmount()
   })
 
   it('未传 total 时不渲染分页', () => {
