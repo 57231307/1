@@ -1,13 +1,11 @@
 <!--
   V2Table - 基于 el-table-v2 的通用虚拟滚动表格组件
 
-  设计要点（Wave 4 P2-3 重做）：
-  - 对齐 P2-1（test 分支）API：title/width?/formatter(row) → string/renderCell(row) 钩子
-  - 保留 P2-3 性能价值：
-    · WeakMap 缓存（cellCache + getCachedCell）避免 cellRenderer 重复计算
-    · renderCell 计数器（暴露到 window.__renderCellTotal 供性能测试采集）
-    · estimatedRowHeight prop（页面级行高调优，inventory=40/sales=56/production=48/quality=44）
-  - 新增 P2-1 特性：内置分页（page/pageSize/total/pageSizes + @page-change/@size-change）
+  设计要点：
+  - 对齐友好 API：title/width?/formatter(row) → string/renderCell(row) 钩子
+  - 内置分页（page/pageSize/total/pageSizes + @page-change/@size-change）
+  - 行点击事件通过 el-table-v2 官方 rowEventHandlers prop 接入（非 @row-click）
+  - 列定义通过 ColumnDef<T> 泛型由调用方显式指定行数据类型
 -->
 <template>
   <div
@@ -26,8 +24,8 @@
           :empty-text="emptyText"
           :estimated-row-height="estimatedRowHeight"
           :header-height="48"
+          :row-event-handlers="rowEventHandlers"
           fixed
-          @row-click="handleRowClick"
         />
       </template>
     </ElAutoResizer>
@@ -50,8 +48,9 @@
  * V2Table 组件
  * 包装 el-table-v2，统一列定义 / 虚拟滚动 / 分页 / 事件接口
  */
-import { computed, h, ref, type VNode } from 'vue'
+import { computed, h } from 'vue'
 import { ElAutoResizer, ElTableV2, ElPagination } from 'element-plus'
+import type { Column, RowEventHandlerParams } from 'element-plus'
 import type { ColumnDef, SortOrder } from './types'
 
 const props = withDefaults(
@@ -66,7 +65,7 @@ const props = withDefaults(
     height?: number | string
     rowKey?: string
     emptyText?: string
-    /** P2-3 价值：页面级行高调优（默认 48） */
+    /// 页面级行高调优（默认 48）
     estimatedRowHeight?: number
   }>(),
   {
@@ -87,59 +86,47 @@ const emit = defineEmits<{
   refresh: []
 }>()
 
-/// renderCell 计数器（暴露到 window 供性能测试采集，类型声明见 src/types/window.d.ts）
-const renderCellCount = ref(0)
-if (typeof window !== 'undefined') {
-  window.__renderCellTotal = renderCellCount
-}
-
-/// renderCell WeakMap 缓存：cellCache[row][col.key] → 已渲染的 VNode
-const cellCache = new WeakMap<object, Map<string, VNode>>()
-
-/// 获取单行单列的缓存 VNode，未命中则计算并写入
-function getCachedCell(row: T, col: ColumnDef<T>): VNode {
-  let rowCache = cellCache.get(row as object)
-  if (!rowCache) {
-    rowCache = new Map()
-    cellCache.set(row as object, rowCache)
-  }
-  if (rowCache.has(col.key)) {
-    return rowCache.get(col.key)!
-  }
-  // 未命中：递增计数 + 计算 + 缓存
-  renderCellCount.value++
-  let vnode: VNode
-  if (col.renderCell) {
-    vnode = col.renderCell(row)
-  } else if (col.formatter) {
-    const text = col.formatter(row)
-    vnode = h('span', text)
-  } else {
-    // 兜底：直接显示值（T 无索引签名，通过断言访问字段）
-    const v = (row as Record<string, unknown>)[col.key]
-    vnode = h('span', v !== null && v !== undefined ? String(v) : '')
-  }
-  rowCache.set(col.key, vnode)
-  return vnode
-}
-
-/// 将 ColumnDef 转换为 el-table-v2 接受的列配置
-const v2Columns = computed(() =>
+/// 将 ColumnDef 转换为 el-table-v2 官方 Column 配置（cellRenderer 参数类型由官方自动推导）
+const v2Columns = computed<Column<T>[]>(() =>
   props.columns
     .filter(col => !col.hidden)
-    .map(col => ({
-      key: col.key,
-      title: col.title,
-      dataKey: col.key,
-      width: col.width ?? 150,
-      minWidth: col.minWidth,
-      fixed: col.fixed,
-      sortable: col.sortable,
-      align: col.align ?? 'left',
-      cellRenderer: (params: { rowData: T; rowIndex: number }) =>
-        getCachedCell(params.rowData, col),
-    }))
+    .map((col): Column<T> => {
+      const column: Column<T> = {
+        key: col.key,
+        title: col.title,
+        dataKey: col.key,
+        width: col.width ?? 150,
+        minWidth: col.minWidth,
+        fixed: col.fixed,
+        sortable: col.sortable,
+        align: col.align ?? 'left',
+      }
+      /// 有自定义渲染或格式化时，提供 cellRenderer；否则由 el-table-v2 用 dataKey 自动渲染
+      if (col.renderCell || col.formatter) {
+        column.cellRenderer = (params) => {
+          /// 官方 RowCommonParams.rowData 为 any，收窄为 T（element-plus 类型系统设计）
+          const row: T = params.rowData
+          if (col.renderCell) {
+            return col.renderCell(row)
+          }
+          if (col.formatter) {
+            return h('span', col.formatter(row))
+          }
+          return h('span', '')
+        }
+      }
+      return column
+    })
 )
+
+/// 行事件处理器：通过 el-table-v2 官方 rowEventHandlers prop 接入点击事件
+const rowEventHandlers = {
+  onClick: (params: RowEventHandlerParams) => {
+    /// 官方 RowCommonParams.rowData 为 any，收窄为 T
+    const row: T = params.rowData
+    emit('row-click', row)
+  },
+}
 
 const handlePageChange = (newPage: number) => {
   emit('page-change', newPage)
@@ -147,10 +134,6 @@ const handlePageChange = (newPage: number) => {
 
 const handleSizeChange = (newSize: number) => {
   emit('size-change', newSize)
-}
-
-const handleRowClick = (params: { rowData: T }) => {
-  emit('row-click', params.rowData)
 }
 </script>
 

@@ -5,8 +5,11 @@
  * 行为完全保持一致（仅结构重构）
  */
 
+/** el-tag 类型联合（与 element-plus TagType 对齐） */
+type TagType = 'success' | 'warning' | 'info' | 'primary' | 'danger'
+
 /** 状态 → el-tag 类型 */
-const STATUS_TYPE_MAP: Record<string, string> = {
+const STATUS_TYPE_MAP: Record<string, TagType> = {
   pending: 'warning',
   approved: 'primary',
   shipped: 'success',
@@ -24,7 +27,7 @@ const STATUS_TEXT_MAP: Record<string, string> = {
 }
 
 /** 获取销售订单状态 el-tag 类型 */
-export const getStatusType = (status: string) => STATUS_TYPE_MAP[status] || 'info'
+export const getStatusType = (status: string): TagType => STATUS_TYPE_MAP[status] || 'info'
 
 /** 获取销售订单状态中文标签 */
 export const getStatusText = (status: string) => STATUS_TEXT_MAP[status] || status

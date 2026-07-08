@@ -151,14 +151,14 @@ const loading = ref(false)
 const data = ref<SlowQueryItem[]>([])
 
 // 表格列定义
-const columns: ColumnDef[] = [
+const columns: ColumnDef<SlowQueryItem>[] = [
   { key: 'id', title: 'ID', width: 70 },
-  { key: 'captured_at', title: '采集时间', width: 170, formatter: (row: Record<string, unknown>) => formatDateTime(row.captured_at as string | null | undefined) },
+  { key: 'captured_at', title: '采集时间', width: 170, formatter: (row) => formatDateTime(row.captured_at) },
   {
     key: 'execution_time_ms',
     title: '平均耗时',
     width: 120,
-    renderCell: (row: Record<string, unknown>) => {
+    renderCell: (row) => {
       const ms = Number(row.execution_time_ms ?? 0)
       return h(
         ElTag,
@@ -173,10 +173,10 @@ const columns: ColumnDef[] = [
     key: 'query_text',
     title: 'SQL 文本',
     minWidth: 360,
-    formatter: (row: Record<string, unknown>) => truncate(String(row.query_text ?? ''), 100),
+    formatter: (row) => truncate(String(row.query_text ?? ''), 100),
   },
   { key: 'database_name', title: '数据库', width: 120 },
-] as unknown as ColumnDef[]
+]
 
 /**
  * 根据执行时间返回 el-tag 颜色（绿色 < 200ms / 黄色 < 500ms / 红色 >= 500ms）

@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
 /**
  * useOlv.ts - 销售订单列表主业务 composable
  * 任务编号: P14 批 2 I-3 第 3 批（拆分原 sales/views/OrderListView.vue）
@@ -10,7 +9,7 @@ import { ref, reactive, watch, h } from 'vue'
 import { ElTag } from 'element-plus'
 import { useTableApi } from '@/composables/useTableApi'
 import type { ColumnDef } from '@/components/V2Table/types'
-import { type SalesOrder } from '@/api/sales'
+import { type SalesOrder, type SalesOrderItem } from '@/api/sales'
 import { request } from '@/api/request'
 import type { Customer } from '@/api/customer'
 import type { Product } from '@/api/product'
@@ -155,7 +154,7 @@ export function useOlv() {
    * - 状态 el-tag：5 种 type 映射
    * 父组件在 OlvTbl 内部追加操作列（查看 / 审批 / 发货 / 取消）
    */
-  const columns: ColumnDef[] = [
+  const columns: ColumnDef<SalesOrder>[] = [
     { key: 'order_no', title: '订单号', width: 140, fixed: 'left' },
     { key: 'customer_name', title: '客户', minWidth: 150 },
     { key: 'order_date', title: '订单日期', width: 120 },
@@ -173,7 +172,7 @@ export function useOlv() {
       width: 100,
       align: 'center',
       renderCell: (row: SalesOrder) =>
-        h(ElTag, { type: getStatusType(row.status) as any, size: 'small' }, () =>
+        h(ElTag, { type: getStatusType(row.status), size: 'small' }, () =>
           getStatusText(row.status)
         ),
     },
@@ -317,7 +316,7 @@ export function useOlv() {
       contact_phone: row.contact_phone || '',
       delivery_address: row.delivery_address || '',
       remark: row.remark || '',
-      items: row.items?.map((it: any) => ({
+      items: row.items?.map((it: SalesOrderItem) => ({
         id: it.id || Date.now(),
         product_id: it.product_id,
         product_name: it.product_name,

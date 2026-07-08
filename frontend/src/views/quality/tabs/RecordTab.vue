@@ -83,7 +83,7 @@ const resultMap: Record<string, string> = { pass: '合格', fail: '不合格', p
  * - 结果列：使用 el-tag 三色映射（pass→success, fail→danger, 其他→warning）
  * - 操作列：查看按钮（fixed right）
  */
-const columns: ColumnDef[] = [
+const columns: ColumnDef<QualityRecord>[] = [
   { key: 'record_no', title: '记录编号', width: 140, fixed: 'left' },
   { key: 'inspection_type', title: '检验类型', width: 120 },
   { key: 'product_name', title: '产品', width: 150 },

@@ -77,7 +77,7 @@ const emit = defineEmits<{
  * - 状态：使用 PRODUCTION_ORDER_STATUS 嵌套映射 {label, type}
  * - 操作列：按 status 条件渲染不同按钮组
  */
-const columns: ColumnDef[] = [
+const columns: ColumnDef<ProductionOrder>[] = [
   { key: 'order_no', title: '订单编号', width: 160, fixed: 'left' },
   { key: 'product_name', title: '产品名称', minWidth: 160 },
   { key: 'planned_quantity', title: '计划数量', width: 120, align: 'right' },

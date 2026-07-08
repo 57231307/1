@@ -123,7 +123,7 @@ const getStatusText = (status: string) => {
   return textMap[status] || status
 }
 
-const { columns: stockColumns } = useTableColumns([
+const { columns: stockColumns } = useTableColumns<InventoryStock>([
   { key: 'product_code', title: '产品编码', width: 140, sortable: true },
   { key: 'product_name', title: '产品名称', width: 200 },
   { key: 'warehouse_name', title: '仓库', width: 120 },

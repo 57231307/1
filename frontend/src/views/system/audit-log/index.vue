@@ -254,28 +254,28 @@ const detailLoading = ref(false)
 const currentDetail = ref<AuditLogDetail | null>(null)
 
 // 表格列定义
-const columns: ColumnDef[] = [
+const columns: ColumnDef<AuditLogItem>[] = [
   { key: 'id', title: 'ID', width: 70 },
-  { key: 'created_at', title: '操作时间', width: 170, formatter: (row: Record<string, unknown>) => formatDateTime(row.created_at as string | null | undefined) },
+  { key: 'created_at', title: '操作时间', width: 170, formatter: (row) => formatDateTime(row.created_at) },
   {
     key: 'operation_type',
     title: '操作类型',
     width: 100,
-    renderCell: (row: Record<string, unknown>) =>
+    renderCell: (row) =>
       h(
         ElTag,
-        { type: OP_TYPE_TAG[row.operation_type as string] ?? 'info', size: 'small' },
-        () => OP_TYPE_LABELS[row.operation_type as string] ?? row.operation_type ?? '-',
+        { type: OP_TYPE_TAG[row.operation_type ?? ''] ?? 'info', size: 'small' },
+        () => OP_TYPE_LABELS[row.operation_type ?? ''] ?? row.operation_type ?? '-',
       ),
   },
   {
     key: 'severity',
     title: '级别',
     width: 80,
-    renderCell: (row: Record<string, unknown>) =>
+    renderCell: (row) =>
       h(
         ElTag,
-        { type: SEVERITY_TAG[row.severity as string] ?? 'info', size: 'small' },
+        { type: SEVERITY_TAG[row.severity ?? ''] ?? 'info', size: 'small' },
         () => row.severity ?? '-',
       ),
   },
@@ -290,7 +290,7 @@ const columns: ColumnDef[] = [
     title: '操作',
     width: 80,
     fixed: 'right',
-    renderCell: (row: Record<string, unknown>) =>
+    renderCell: (row) =>
       h(
         ElButton,
         {
@@ -299,13 +299,13 @@ const columns: ColumnDef[] = [
           link: true,
           onClick: (e: Event) => {
             e.stopPropagation()
-            handleViewDetail(row as unknown as AuditLogItem)
+            handleViewDetail(row)
           },
         },
         () => '详情',
       ),
   },
-] as unknown as ColumnDef[]
+]
 
 /**
  * 列表查询（统一在此构造查询参数）

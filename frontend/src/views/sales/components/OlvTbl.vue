@@ -33,7 +33,7 @@ import type { SalesOrder } from '@/api/sales'
  */
 const props = defineProps<{
   // 列定义（不含操作列）
-  columns: ColumnDef[]
+  columns: ColumnDef<SalesOrder>[]
   // 列表数据
   data: SalesOrder[]
   // 加载状态
@@ -56,7 +56,7 @@ const emit = defineEmits<{
 }>()
 
 /** 组装完整列定义：父列 + 操作列 */
-const fullColumns = computed<ColumnDef[]>(() => [
+const fullColumns = computed<ColumnDef<SalesOrder>[]>(() => [
   ...props.columns,
   {
     key: '__actions__',
