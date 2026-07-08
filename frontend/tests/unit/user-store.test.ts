@@ -24,6 +24,7 @@ vi.mock('pinia', async (importOriginal) => {
 import { setActivePinia, createPinia } from 'pinia'
 import { useUserStore } from '@/store/user'
 import * as authApi from '@/api/auth'
+import type { LoginResponse, UserInfo } from '@/types/api'
 
 describe('User Store 测试（Wave B-3 Cookie 模式）', () => {
   beforeEach(() => {
@@ -38,21 +39,17 @@ describe('User Store 测试（Wave B-3 Cookie 模式）', () => {
   })
 
   it('login 应该调用 API 并设置 userInfo（不再操作 localStorage）', async () => {
-    const mockResponse = {
-      data: {
-        user: { id: 1, username: 'admin', role: 'admin' },
-        permissions: [],
-      },
+    const mockResponse: LoginResponse = {
+      user: { id: 1, username: 'admin', role: 'admin' } as UserInfo,
+      permissions: [],
     }
-    vi.mocked(authApi.login).mockResolvedValue(mockResponse as any)
+    vi.mocked(authApi.login).mockResolvedValue(mockResponse)
 
     const store = useUserStore()
     const result = await store.login({ username: 'admin', password: 'password' })
 
     expect(authApi.login).toHaveBeenCalledWith({ username: 'admin', password: 'password' })
-    // FE-P-2/FE-P-3 修复（2026-06-26 第二次审计第二优先级）：
-    // userStore.login() 现在将 LoginResponse.permissions 合并到 userInfo，
-    // 使 v-permission 指令可从 userStore.userInfo.permissions 读取权限码。
+    // FE-P-2/FE-P-3 修复：userStore.login() 将 LoginResponse.permissions 合并到 userInfo
     expect(store.userInfo).toEqual({
       id: 1,
       username: 'admin',
@@ -65,10 +62,10 @@ describe('User Store 测试（Wave B-3 Cookie 模式）', () => {
   })
 
   it('logout 应该调用 API 并清除状态（不再操作 localStorage）', async () => {
-    vi.mocked(authApi.logout).mockResolvedValue(undefined as any)
+    vi.mocked(authApi.logout).mockResolvedValue(undefined)
 
     const store = useUserStore()
-    store.userInfo = { id: 1, username: 'admin', role: 'admin' } as any
+    store.userInfo = { id: 1, username: 'admin', role: 'admin' } as UserInfo
 
     await store.logout()
 
@@ -84,10 +81,9 @@ describe('User Store 测试（Wave B-3 Cookie 模式）', () => {
     })
 
     const store = useUserStore()
-    store.userInfo = { id: 1, username: 'admin', role: 'admin' } as any
+    store.userInfo = { id: 1, username: 'admin', role: 'admin' } as UserInfo
 
-    // The store uses try/finally, so state should be cleared even on error
-    // But the error will propagate, so we need to catch it
+    // store 使用 try/finally，即使 API 失败也会清除状态
     await expect(store.logout()).rejects.toThrow('Network error')
 
     expect(store.token).toBeNull()
@@ -96,7 +92,7 @@ describe('User Store 测试（Wave B-3 Cookie 模式）', () => {
 
   it('setUserInfo 应该更新用户信息', () => {
     const store = useUserStore()
-    const userInfo = { id: 1, username: 'test', role: 'user' } as any
+    const userInfo = { id: 1, username: 'test', role: 'user' } as UserInfo
 
     store.setUserInfo(userInfo)
     expect(store.userInfo).toEqual(userInfo)
