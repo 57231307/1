@@ -1,6 +1,8 @@
 use crate::models::{budget_execution, budget_management, budget_plan};
 // 批次 158 v11 真实接入：审批状态常量替代字符串字面量
 use crate::models::status::approval;
+// 批次 209 P2-5 修复（v12 复审）：预算方案/项目状态字符串替换为 budget 常量
+use crate::models::status::budget;
 use crate::utils::error::AppError;
 use chrono::NaiveDate;
 use rust_decimal::Decimal;
@@ -158,7 +160,7 @@ impl BudgetManagementService {
             item_name: Set(req.item_name),
             item_type: Set(req.item_type.unwrap_or_else(|| "expense".to_string())),
             parent_id: Set(req.parent_id),
-            status: Set("active".to_string()),
+            status: Set(budget::ACTIVE.to_string()),
             // v11 批次 145 P1-8：接入扩展字段（此前被丢弃，造成数据丢失）
             budget_year: Set(req.budget_year),
             planned_amount: Set(req.planned_amount),
@@ -294,7 +296,7 @@ impl BudgetManagementService {
             budget_type: Set(req.budget_type.clone()),
             department_id: Set(Some(req.department_id)),
             total_amount: Set(req.total_amount),
-            status: Set(Some("draft".to_string())), // 草稿状态
+            status: Set(Some(budget::DRAFT.to_string())), // 草稿状态
             remark: Set(req.remark),
             prepared_by: Set(Some(user_id)),
             ..Default::default()
@@ -338,12 +340,12 @@ impl BudgetManagementService {
             .await?
             .ok_or_else(|| AppError::not_found(format!("预算方案不存在：{}", plan_id)))?;
 
-        if plan.status.as_deref() != Some("draft") && plan.status.as_deref() != Some("rejected") {
+        if plan.status.as_deref() != Some(budget::DRAFT) && plan.status.as_deref() != Some(budget::REJECTED) {
             return Err(AppError::validation("预算方案状态不允许审批".to_string()));
         }
 
         let mut plan_active: budget_plan::ActiveModel = plan.into();
-        plan_active.status = Set(Some("approved".to_string()));
+        plan_active.status = Set(Some(budget::APPROVED.to_string()));
         plan_active.save(&txn).await?;
         txn.commit().await?;
 
@@ -382,7 +384,7 @@ impl BudgetManagementService {
             .await?
             .ok_or_else(|| AppError::not_found(format!("预算方案不存在：{}", req.plan_id)))?;
 
-        if plan.status.as_deref() != Some("approved") {
+        if plan.status.as_deref() != Some(budget::APPROVED) {
             return Err(AppError::validation("预算方案未审批，无法执行".to_string()));
         }
 
@@ -409,7 +411,7 @@ impl BudgetManagementService {
 
         // plan 状态变更为 "active"（执行中）
         let mut plan_active: budget_plan::ActiveModel = plan.into();
-        plan_active.status = Set(Some("active".to_string()));
+        plan_active.status = Set(Some(budget::ACTIVE.to_string()));
         plan_active.save(&txn).await?;
 
         txn.commit().await?;
@@ -625,7 +627,7 @@ impl BudgetManagementService {
         }
 
         // 验证方案状态
-        if plan.status.as_deref() != Some("approved") && plan.status.as_deref() != Some("active") {
+        if plan.status.as_deref() != Some(budget::APPROVED) && plan.status.as_deref() != Some(budget::ACTIVE) {
             return Err(AppError::validation("预算方案未审批或未激活".to_string()));
         }
 
@@ -749,7 +751,7 @@ impl BudgetManagementService {
 
         let plan = budget_plan::Entity::find()
             .filter(budget_plan::Column::DepartmentId.eq(Some(department_id)))
-            .filter(budget_plan::Column::Status.eq("approved"))
+            .filter(budget_plan::Column::Status.eq(budget::APPROVED))
             .order_by(budget_plan::Column::CreatedAt, Order::Desc)
             .one(&*self.db)
             .await?;

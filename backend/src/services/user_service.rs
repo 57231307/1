@@ -14,6 +14,8 @@
 
 
 use crate::models::user;
+// 批次 209 P2-5 修复（v12 复审）：硬编码 "active" 替换为 master_data 常量
+use crate::models::status::master_data;
 use crate::utils::error::AppError;
 use crate::utils::pagination::paginate_with_total;
 use sea_orm::DatabaseConnection;
@@ -217,7 +219,7 @@ impl UserService {
         }
         if let Some(status_val) = status {
             // 将 status 字符串转换为 is_active 布尔值
-            let becoming_active = status_val == "active";
+            let becoming_active = status_val == master_data::ACTIVE;
             user.is_active = Set(becoming_active);
 
             // v11 批次 145 P1-7：用户状态恢复为 active 时清除吊销标记

@@ -11,6 +11,8 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use crate::models::{inventory_stock, product, sales_order, warehouse};
+// 批次 209 P2-5 修复（v12 复审）：硬编码 "active" 替换为 master_data 常量
+use crate::models::status::master_data;
 use crate::utils::cache::{AppCache, Cache};
 use crate::utils::error::AppError;
 
@@ -188,7 +190,7 @@ impl DashboardService {
                 Expr::col(inventory_stock::Column::QuantityMeters)
                     .lt(Expr::col(inventory_stock::Column::ReorderPoint)),
             )
-            .filter(inventory_stock::Column::StockStatus.eq("active"))
+            .filter(inventory_stock::Column::StockStatus.eq(master_data::ACTIVE))
             .count(db);
         let monthly_sales_fut = sales_order::Entity::find()
             .filter(sales_order::Column::OrderDate.gte(start_of_month))
@@ -490,7 +492,7 @@ impl DashboardService {
 
         // 总库存数量查询
         let total_quantity_fut = inventory_stock::Entity::find()
-            .filter(inventory_stock::Column::StockStatus.eq("active"))
+            .filter(inventory_stock::Column::StockStatus.eq(master_data::ACTIVE))
             .select_only()
             .column_as(
                 Expr::col(inventory_stock::Column::QuantityMeters).sum(),
@@ -505,18 +507,18 @@ impl DashboardService {
                 Expr::col(inventory_stock::Column::QuantityMeters)
                     .lt(Expr::col(inventory_stock::Column::ReorderPoint)),
             )
-            .filter(inventory_stock::Column::StockStatus.eq("active"))
+            .filter(inventory_stock::Column::StockStatus.eq(master_data::ACTIVE))
             .count(db);
 
         // 零库存产品数查询
         let zero_stock_count_fut = inventory_stock::Entity::find()
             .filter(inventory_stock::Column::QuantityMeters.eq(Decimal::ZERO))
-            .filter(inventory_stock::Column::StockStatus.eq("active"))
+            .filter(inventory_stock::Column::StockStatus.eq(master_data::ACTIVE))
             .count(db);
 
         // 仓库分布统计查询（含价值，按库存数量 * 产品成本价汇总）
         let warehouse_distribution_fut = inventory_stock::Entity::find()
-            .filter(inventory_stock::Column::StockStatus.eq("active"))
+            .filter(inventory_stock::Column::StockStatus.eq(master_data::ACTIVE))
             .select_only()
             .column(inventory_stock::Column::WarehouseId)
             .column_as(
@@ -792,7 +794,7 @@ impl DashboardService {
                 Expr::col(inventory_stock::Column::QuantityMeters)
                     .lt(Expr::col(inventory_stock::Column::ReorderPoint)),
             )
-            .filter(inventory_stock::Column::StockStatus.eq("active"))
+            .filter(inventory_stock::Column::StockStatus.eq(master_data::ACTIVE))
             .all(&*self.db)
             .await?;
 

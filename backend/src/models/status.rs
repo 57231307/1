@@ -243,3 +243,22 @@ pub mod master_data {
     /// 停用：主数据不可用状态
     pub const INACTIVE: &str = "inactive";
 }
+
+/// 预算管理状态常量（小写值）
+///
+/// 批次 209 P2-5 修复（v12 复审）：
+/// budget_plan.status 与 budget_management.status（预算项目）使用小写状态值，
+/// 状态机：draft → rejected / approved → active
+pub mod budget {
+    /// 草稿：预算方案初始状态，可编辑
+    pub const DRAFT: &str = "draft";
+
+    /// 已拒绝：审批未通过
+    pub const REJECTED: &str = "rejected";
+
+    /// 已审批：审批通过，等待执行
+    pub const APPROVED: &str = "approved";
+
+    /// 执行中：预算方案已激活，预算项目处于活跃状态
+    pub const ACTIVE: &str = "active";
+}
