@@ -49,7 +49,7 @@
  * 包装 el-table-v2，统一列定义 / 虚拟滚动 / 分页 / 事件接口
  */
 import { computed, h } from 'vue'
-import { ElAutoResizer, ElTableV2, ElPagination } from 'element-plus'
+import { ElAutoResizer, ElTableV2, ElPagination, TableV2FixedDir } from 'element-plus'
 import type { Column, RowEventHandlerParams } from 'element-plus'
 import type { ColumnDef, SortOrder } from './types'
 
@@ -97,7 +97,8 @@ const v2Columns = computed<Column<T>[]>(() =>
         dataKey: col.key,
         width: col.width ?? 150,
         minWidth: col.minWidth,
-        fixed: col.fixed,
+        /// fixed 字段：element-plus 官方 FixedDir 是 enum（非字符串字面量），需映射
+        fixed: col.fixed === 'left' ? TableV2FixedDir.LEFT : col.fixed === 'right' ? TableV2FixedDir.RIGHT : undefined,
         sortable: col.sortable,
         align: col.align ?? 'left',
       }
