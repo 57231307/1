@@ -1,5 +1,7 @@
 use crate::models::fund_management;
 use crate::models::fund_transfer_record;
+// 批次 210 P2-5 修复（v12 复审）：资金账户状态字符串替换为 master_data 常量
+use crate::models::status::master_data;
 use crate::utils::error::AppError;
 use rust_decimal::Decimal;
 use sea_orm::{
@@ -94,7 +96,7 @@ impl FundManagementService {
             balance: Set(Decimal::ZERO),
             available_balance: Set(Decimal::ZERO),
             frozen_balance: Set(Decimal::ZERO),
-            status: Set("active".to_string()),
+            status: Set(master_data::ACTIVE.to_string()),
             opened_date: Set(req.opened_date),
             remark: Set(req.remark),
             ..Default::default()
@@ -170,7 +172,7 @@ impl FundManagementService {
 
         let account = self.get_account_by_id(account_id).await?;
 
-        if account.status != "active" {
+        if account.status != master_data::ACTIVE {
             return Err(AppError::validation("账户状态非活跃"));
         }
 
@@ -210,7 +212,7 @@ impl FundManagementService {
 
         let account = self.get_account_by_id(account_id).await?;
 
-        if account.status != "active" {
+        if account.status != master_data::ACTIVE {
             return Err(AppError::validation("账户状态非活跃"));
         }
 

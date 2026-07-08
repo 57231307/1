@@ -158,7 +158,7 @@ impl SalesContractService {
             .ok_or_else(|| AppError::not_found(format!("销售合同 {}", contract_id)))?;
 
         // 检查合同状态
-        if contract.status != "active" {
+        if contract.status != contract::ACTIVE {
             return Err(AppError::validation(
                 "只有活跃状态的合同才能执行".to_string(),
             ));
@@ -218,7 +218,7 @@ impl SalesContractService {
             .await?
             .ok_or_else(|| AppError::not_found(format!("销售合同 {}", contract_id)))?;
 
-        if contract.status != "draft" {
+        if contract.status != contract::DRAFT {
             return Err(AppError::business(format!(
                 "合同状态为{}，不可审核（仅草稿状态可审核）",
                 contract.status
@@ -226,7 +226,7 @@ impl SalesContractService {
         }
 
         let mut contract_active: sales_contract::ActiveModel = contract.into();
-        contract_active.status = Set("active".to_string());
+        contract_active.status = Set(contract::ACTIVE.to_string());
         contract_active.updated_at = Set(chrono::Utc::now());
 
         // 走 update_with_audit 保留审计追溯
@@ -272,7 +272,7 @@ impl SalesContractService {
             .await?
             .ok_or_else(|| AppError::not_found(format!("销售合同 {}", contract_id)))?;
 
-        if contract.status != "active" && contract.status != "draft" {
+        if contract.status != contract::ACTIVE && contract.status != contract::DRAFT {
             return Err(AppError::business(format!(
                 "合同状态为{}，不可取消（仅活跃或草稿状态可取消）",
                 contract.status
@@ -280,7 +280,7 @@ impl SalesContractService {
         }
 
         let mut contract_active: sales_contract::ActiveModel = contract.into();
-        contract_active.status = Set("cancelled".to_string());
+        contract_active.status = Set(contract::CANCELLED.to_string());
         contract_active.updated_at = Set(chrono::Utc::now());
 
         // 走 update_with_audit 保留审计追溯

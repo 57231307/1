@@ -1,4 +1,6 @@
 use crate::models::purchase_contract;
+// 批次 210 P2-5 修复（v12 复审）：合同状态字符串替换为 contract 常量
+use crate::models::status::contract;
 use crate::utils::error::AppError;
 use crate::utils::sql_escape::safe_like_pattern;
 use chrono::NaiveDate;
@@ -153,7 +155,7 @@ impl PurchaseContractService {
             .ok_or_else(|| AppError::not_found(format!("采购合同不存在：{}", contract_id)))?;
 
         // 检查合同状态
-        if contract.status != "active" {
+        if contract.status != contract::ACTIVE {
             return Err(AppError::validation(
                 "只有活跃状态的合同才能执行".to_string(),
             ));
@@ -242,7 +244,7 @@ impl PurchaseContractService {
             .ok_or_else(|| AppError::not_found(format!("采购合同不存在：{}", contract_id)))?;
 
         // 2. 检查状态
-        if contract.status != "draft" {
+        if contract.status != contract::DRAFT {
             return Err(AppError::validation(
                 "只有草稿状态的合同才能审核".to_string(),
             ));
@@ -250,7 +252,7 @@ impl PurchaseContractService {
 
         // 3. 更新状态 + 审计日志（事务内原子提交）
         let mut contract_active: purchase_contract::ActiveModel = contract.into();
-        contract_active.status = Set("active".to_string());
+        contract_active.status = Set(contract::ACTIVE.to_string());
         contract_active.updated_at = Set(chrono::Utc::now());
 
         crate::services::audit_log_service::AuditLogService::update_with_audit(
@@ -291,7 +293,7 @@ impl PurchaseContractService {
             .ok_or_else(|| AppError::not_found(format!("采购合同不存在：{}", contract_id)))?;
 
         // 2. 检查状态
-        if contract.status != "active" && contract.status != "draft" {
+        if contract.status != contract::ACTIVE && contract.status != contract::DRAFT {
             return Err(AppError::validation(
                 "只能取消活跃或草稿状态的合同".to_string(),
             ));
@@ -299,7 +301,7 @@ impl PurchaseContractService {
 
         // 3. 更新状态 + 审计日志（事务内原子提交）
         let mut contract_active: purchase_contract::ActiveModel = contract.into();
-        contract_active.status = Set("cancelled".to_string());
+        contract_active.status = Set(contract::CANCELLED.to_string());
         contract_active.updated_at = Set(chrono::Utc::now());
 
         crate::services::audit_log_service::AuditLogService::update_with_audit(

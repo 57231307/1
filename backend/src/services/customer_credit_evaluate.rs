@@ -1,4 +1,6 @@
 use crate::models::customer_credit;
+// 批次 210 P2-5 修复（v12 复审）：测试中硬编码 "active" 替换为 master_data 常量
+use crate::models::status::master_data;
 use crate::utils::error::AppError;
 use chrono::NaiveDate;
 use rust_decimal::Decimal;
@@ -507,11 +509,11 @@ mod tests {
 
     #[test]
     fn test_credit_model_fields() {
-        let model = create_test_credit_model(1, "AA", "active");
+        let model = create_test_credit_model(1, "AA", master_data::ACTIVE);
 
         assert_eq!(model.customer_id, 1);
         assert_eq!(model.credit_level, Some("AA".to_string()));
-        assert_eq!(model.status, "active");
+        assert_eq!(model.status, master_data::ACTIVE);
         assert_eq!(model.credit_limit, Decimal::from(100000));
         assert_eq!(model.used_credit, Decimal::from(0));
         assert_eq!(model.available_credit, Decimal::from(100000));
@@ -519,7 +521,7 @@ mod tests {
 
     #[test]
     fn test_credit_utilization() {
-        let model = create_test_credit_model(1, "AA", "active");
+        let model = create_test_credit_model(1, "AA", master_data::ACTIVE);
 
         // 使用率 = 已用额度 / 总额度
         let utilization = model.used_credit / model.credit_limit;
