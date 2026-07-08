@@ -54,13 +54,19 @@ describe('V2Table', () => {
   })
 
   it('通过 rowEventHandlers 接入行点击事件（仅透传 rowData）', async () => {
+    /// 使用 attachTo 确保 ElAutoResizer 能计算尺寸并渲染 ElTableV2
+    const div = document.createElement('div')
+    div.style.width = '800px'
+    div.style.height = '600px'
+    document.body.appendChild(div)
     const wrapper = mount(V2Table, {
       props: { data: singleRow, columns: nameColumns },
+      attachTo: div,
     })
-    /// ElTableV2 嵌套在 ElAutoResizer 的 slot 中，使用 findAllComponents 获取
-    const tables = wrapper.findAllComponents({ name: 'ElTableV2' })
-    expect(tables.length).toBeGreaterThanOrEqual(1)
-    const tableV2 = tables[0]
+    await wrapper.vm.$nextTick()
+    /// ElTableV2 嵌套在 ElAutoResizer 的 slot 中，使用 findComponent 获取
+    const tableV2 = wrapper.findComponent({ name: 'ElTableV2' })
+    expect(tableV2.exists()).toBe(true)
     /// el-table-v2 通过 rowEventHandlers prop 接入行点击，验证 prop 已透传
     const handlers = tableV2.props('rowEventHandlers')
     expect(handlers).toBeTruthy()
@@ -76,18 +82,27 @@ describe('V2Table', () => {
     expect(wrapper.emitted('row-click')).toBeTruthy()
     /// row-click 仅传 rowData（P2-1 风格）
     expect(wrapper.emitted('row-click')![0]).toEqual([row])
+    wrapper.unmount()
   })
 
-  it('formatter 列定义正确生成 cellRenderer', () => {
+  it('formatter 列定义正确生成 cellRenderer', async () => {
+    /// 使用 attachTo 确保 ElAutoResizer 能计算尺寸并渲染 ElTableV2
+    const div = document.createElement('div')
+    div.style.width = '800px'
+    div.style.height = '600px'
+    document.body.appendChild(div)
     const wrapper = mount(V2Table, {
       props: { data: singleRow, columns: formatterColumns },
+      attachTo: div,
     })
-    /// ElTableV2 嵌套在 ElAutoResizer 的 slot 中，使用 findAllComponents 获取
-    const tables = wrapper.findAllComponents({ name: 'ElTableV2' })
-    expect(tables.length).toBeGreaterThanOrEqual(1)
-    const tableV2 = tables[0]
+    await wrapper.vm.$nextTick()
+    const tableV2 = wrapper.findComponent({ name: 'ElTableV2' })
+    expect(tableV2.exists()).toBe(true)
     /// formatter 列应生成 cellRenderer 函数
-    expect(typeof tableV2.props('columns')[0].cellRenderer).toBe('function')
+    const cols = tableV2.props('columns')
+    expect(cols.length).toBeGreaterThanOrEqual(1)
+    expect(typeof cols[0].cellRenderer).toBe('function')
+    wrapper.unmount()
   })
 
   it('未传 total 时不渲染分页', () => {
