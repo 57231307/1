@@ -1,6 +1,9 @@
 import { request } from './request'
 import type { ApiResponse } from '@/types/api'
 
+/** 运单状态联合类型 */
+export type WaybillStatus = 'pending' | 'shipped' | 'in_transit' | 'delivered' | 'cancelled'
+
 export interface LogisticsWaybill {
   id?: number
   waybill_no: string
@@ -13,7 +16,7 @@ export interface LogisticsWaybill {
   freight_fee?: number
   expected_arrival?: string
   actual_arrival?: string
-  status: 'pending' | 'shipped' | 'in_transit' | 'delivered' | 'cancelled'
+  status: WaybillStatus
   notes?: string
   created_at?: string
   updated_at?: string

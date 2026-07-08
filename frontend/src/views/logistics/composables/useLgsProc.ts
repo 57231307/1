@@ -9,7 +9,7 @@
  */
 import { reactive, computed } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { logisticsApi, type LogisticsWaybill } from '@/api/logistics'
+import { logisticsApi, type LogisticsWaybill, type WaybillStatus } from '@/api/logistics'
 import { logger } from '@/utils/logger'
 
 /**
@@ -32,8 +32,8 @@ interface LgsFormData {
  */
 interface LgsStatusForm {
   id: number
-  currentStatus: string
-  newStatus: string
+  currentStatus: WaybillStatus | ''
+  newStatus: WaybillStatus | ''
 }
 
 /**
@@ -154,7 +154,7 @@ export function useLgsProc(cb: LgsCallbacks) {
   /** 提交状态更新 */
   const handleStatusSubmit = async () => {
     try {
-      await logisticsApi.update(cb.statusForm.id, { status: cb.statusForm.newStatus as any })
+      await logisticsApi.update(cb.statusForm.id, { status: cb.statusForm.newStatus as WaybillStatus })
       ElMessage.success('状态更新成功')
       cb.statusDialogVisible = false
       await cb.fetchData()
