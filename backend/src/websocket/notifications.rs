@@ -226,7 +226,7 @@ impl WsTicketManager {
         let count = self
             .issue_count
             .fetch_add(1, std::sync::atomic::Ordering::Relaxed);
-        if count % LAZY_CLEANUP_THRESHOLD == 0 {
+        if count.is_multiple_of(LAZY_CLEANUP_THRESHOLD) {
             self.cleanup_expired();
         }
 
