@@ -12,8 +12,8 @@ import type { VNode } from 'vue'
 /** 排序列方向 */
 export type SortOrder = 'asc' | 'desc'
 
-/** 列定义（ColumnDef） */
-export interface ColumnDef {
+/// 列定义（泛型 T 为行数据类型，由调用方通过 data prop 自动推导）
+export interface ColumnDef<T = Record<string, unknown>> {
   /** 数据字段名 */
   key: string
   /** 列标题 */
@@ -28,24 +28,20 @@ export interface ColumnDef {
   sortable?: boolean
   /** 对齐方式 */
   align?: 'left' | 'center' | 'right'
-  /**
-   * 格式化函数（接收整行 row，返回字符串用于显示）
-   * 签名遵循 P2-1：formatter(row) → string
-   * 注：与 P2-3 旧签名 formatter(value, row) 不兼容，迁移时需调整
-   */
-  formatter?: (row: any) => string
-  /** 自定义渲染（返回 VNode，优先级高于 formatter） */
-  renderCell?: (row: any) => VNode
+  /// 格式化函数（接收整行 row，返回字符串用于显示）
+  formatter?: (row: T) => string
+  /// 自定义渲染（返回 VNode，优先级高于 formatter）
+  renderCell?: (row: T) => VNode
   /** 是否隐藏 */
   hidden?: boolean
 }
 
-/** V2Table 组件 Props */
-export interface V2TableProps {
+/// V2Table 组件 Props（泛型 T 为行数据类型）
+export interface V2TableProps<T = Record<string, unknown>> {
   /** 列定义 */
-  columns: ColumnDef[]
+  columns: ColumnDef<T>[]
   /** 表格数据 */
-  data: any[]
+  data: T[]
   /** 加载状态 */
   loading?: boolean
   /** 总数（用于内置分页，未传则不渲染分页） */
@@ -62,10 +58,6 @@ export interface V2TableProps {
   rowKey?: string
   /** 空数据文案 */
   emptyText?: string
-  /**
-   * 估算行高（像素），P2-3 价值保留
-   * 4 页面按业务调优：inventory=40, sales=56, production=48, quality=44
-   * 默认 48
-   */
+  /// 估算行高（像素），P2-3 价值保留，默认 48
   estimatedRowHeight?: number
 }

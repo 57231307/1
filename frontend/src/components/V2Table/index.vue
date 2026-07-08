@@ -45,19 +45,19 @@
   </div>
 </template>
 
-<script setup lang="ts">
+<script setup lang="ts" generic="T extends Record<string, unknown>">
 /**
  * V2Table 组件
  * 包装 el-table-v2，统一列定义 / 虚拟滚动 / 分页 / 事件接口
  */
-import { computed, ref } from 'vue'
+import { computed, ref, type Ref, type VNode } from 'vue'
 import { ElAutoResizer, ElTableV2, ElPagination } from 'element-plus'
 import type { ColumnDef, SortOrder } from './types'
 
 const props = withDefaults(
   defineProps<{
-    columns: ColumnDef[]
-    data: any[]
+    columns: ColumnDef<T>[]
+    data: T[]
     loading?: boolean
     total?: number
     page?: number
@@ -83,46 +83,42 @@ const emit = defineEmits<{
   'page-change': [page: number]
   'size-change': [size: number]
   'sort-change': [key: string, order: SortOrder]
-  'row-click': [row: any]
+  'row-click': [row: T]
   refresh: []
 }>()
 
-/**
- * renderCell 计数器（暴露到 window 供性能测试采集）
- * 来源：P2-3 价值保留（b1ae10f perf(V2Table): renderCell 计数器暴露 window 供性能测试）
- */
-const renderCellCount = ref(0)
-if (typeof window !== 'undefined') {
-  ;(window as any).__renderCellTotal = renderCellCount
+/// 扩展 Window 接口，声明性能测试采集字段
+declare global {
+  interface Window {
+    __renderCellTotal?: Ref<number>
+  }
 }
 
-/**
- * renderCell WeakMap 缓存
- * 缓存结构：cellCache[row][col.key] → 已渲染的 VNode/string
- * 来源：P2-3 价值保留（8aebbb4 perf(V2Table): renderCell WeakMap 缓存避免重复计算）
- */
-const cellCache = new WeakMap<object, Map<string, any>>()
+/// renderCell 计数器（暴露到 window 供性能测试采集）
+const renderCellCount = ref(0)
+if (typeof window !== 'undefined') {
+  window.__renderCellTotal = renderCellCount
+}
 
-/**
- * 获取单行单列的缓存值，未命中则计算并写入
- */
-function getCachedCell(row: any, col: ColumnDef): any {
-  let rowCache = cellCache.get(row)
+/// renderCell WeakMap 缓存：cellCache[row][col.key] → 已渲染的 VNode/string
+const cellCache = new WeakMap<object, Map<string, VNode | string>>()
+
+/// 获取单行单列的缓存值，未命中则计算并写入
+function getCachedCell(row: T, col: ColumnDef<T>): VNode | string {
+  let rowCache = cellCache.get(row as object)
   if (!rowCache) {
     rowCache = new Map()
-    cellCache.set(row, rowCache)
+    cellCache.set(row as object, rowCache)
   }
   if (rowCache.has(col.key)) {
-    return rowCache.get(col.key)
+    return rowCache.get(col.key)!
   }
   // 未命中：递增计数 + 计算 + 缓存
   renderCellCount.value++
-  let value: any
+  let value: VNode | string
   if (col.renderCell) {
-    // renderCell 优先级最高：返回 VNode
     value = col.renderCell(row)
   } else if (col.formatter) {
-    // formatter(row) 签名（P2-1 风格）
     value = col.formatter(row)
   } else {
     // 兜底：直接显示值
@@ -133,27 +129,22 @@ function getCachedCell(row: any, col: ColumnDef): any {
   return value
 }
 
-/**
- * 将 ColumnDef 转换为 el-table-v2 接受的列配置
- * 关键差异：title 来源于 col.title（非旧 label）、width 可选（默认 150）
- * 注：el-table-v2 的 fixed 字段是 `true | FixedDir` (const enum)，与 string literal 不直接兼容
- */
-const v2Columns = computed(
-  () =>
-    props.columns
-      .filter(col => !col.hidden)
-      .map(col => ({
-        key: col.key,
-        title: col.title,
-        dataKey: col.key,
-        width: col.width ?? 150,
-        minWidth: col.minWidth,
-        fixed: col.fixed,
-        sortable: col.sortable,
-        align: col.align ?? 'left',
-        cellRenderer: (params: { rowData: any; rowIndex: number }) =>
-          getCachedCell(params.rowData, col),
-      })) as any
+/// 将 ColumnDef 转换为 el-table-v2 接受的列配置
+const v2Columns = computed(() =>
+  props.columns
+    .filter(col => !col.hidden)
+    .map(col => ({
+      key: col.key,
+      title: col.title,
+      dataKey: col.key,
+      width: col.width ?? 150,
+      minWidth: col.minWidth,
+      fixed: col.fixed,
+      sortable: col.sortable,
+      align: col.align ?? 'left',
+      cellRenderer: (params: { rowData: T; rowIndex: number }) =>
+        getCachedCell(params.rowData, col),
+    }))
 )
 
 const handlePageChange = (newPage: number) => {
@@ -164,8 +155,8 @@ const handleSizeChange = (newSize: number) => {
   emit('size-change', newSize)
 }
 
-const handleRowClick = ({ rowData }: { rowData: any }) => {
-  emit('row-click', rowData)
+const handleRowClick = (params: { rowData: T }) => {
+  emit('row-click', params.rowData)
 }
 </script>
 
