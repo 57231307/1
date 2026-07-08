@@ -19,7 +19,7 @@ export interface LoginRequest {
 export interface LoginResponse {
   /**
    * 批次 24 v6 P0-1 修复：移除 token / refresh_token / expires_in 字段。
-   * 后端 LoginResponse 仅返回 { csrf_token, user, permissions }，
+   * 后端 LoginResponse 仅返回 { csrf_token, user, permissions, password_expired }，
    * access_token / refresh_token 通过 httpOnly Cookie 写入，前端不可读。
    * 原 token 字段是死代码（store/user.ts 中 if (responseData.token) 永远为 false）。
    */
@@ -37,6 +37,10 @@ export interface LoginResponse {
    */
   readonly permissions?: readonly string[]
   csrf_token?: string
+  /**
+   * 密码是否过期（批次 198 P0-2：true 表示超过 90 天未修改，前端应引导用户修改密码）
+   */
+  password_expired?: boolean
 }
 
 export interface UserInfo {

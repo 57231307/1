@@ -706,6 +706,7 @@ mod tests {
                 "user.list:write".to_string(),
                 "order:read".to_string(),
             ],
+            password_expired: false,
         }
     }
 

@@ -519,6 +519,8 @@ impl InitService {
             // v11 批次 141：2FA 恢复码字段（初始为 None）
             totp_recovery_codes: Set(None),
             last_login_at: Set(None),
+            // 批次 198 P0-2：初始化 password_changed_at，作为密码过期策略锚点
+            password_changed_at: Set(Some(chrono::Utc::now())),
             created_at: Set(chrono::Utc::now()),
             updated_at: Set(chrono::Utc::now()),
         };

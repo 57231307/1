@@ -82,7 +82,7 @@
 import { reactive, ref, onUnmounted } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { useI18n } from 'vue-i18n'
-import { ElMessage, type FormInstance, type FormRules } from 'element-plus'
+import { ElMessage, ElMessageBox, type FormInstance, type FormRules } from 'element-plus'
 import { useUserStore } from '@/store/user'
 import { securityApi } from '@/api/security'
 import { logger } from '@/utils/logger'
@@ -243,7 +243,7 @@ async function handleLogin() {
 
     loading.value = true
     try {
-      await userStore.login(loginForm)
+      const loginResult = await userStore.login(loginForm)
 
       // FE-P-2 修复（2026-06-26 第二次审计第二优先级）：
       // permissions 已在 userStore.login() 中合并到 userInfo，
@@ -253,6 +253,28 @@ async function handleLogin() {
       // 登录成功清空锁定提示
       clearLockInfo()
       ElMessage.success(t('login.success'))
+
+      // 批次 198 P0-2：密码过期引导改密（后端 password_expired=true 表示超过 90 天未修改）
+      if (loginResult?.password_expired) {
+        ElMessageBox.confirm(
+          '您的密码已超过 90 天未修改，为保障账户安全，请立即修改密码。',
+          '密码过期提醒',
+          {
+            confirmButtonText: '立即修改',
+            cancelButtonText: '稍后提醒',
+            type: 'warning',
+          },
+        )
+          .then(() => {
+            router.push({ path: '/system/security' })
+          })
+          .catch(() => {
+            // 用户选择稍后提醒，仍允许进入系统（不阻塞业务），但日志已记录
+            const redirect = safeRedirect(route.query.redirect)
+            router.push(redirect)
+          })
+        return
+      }
 
       // 批次 22 v5 P0-2：使用 safeRedirect 校验跳转目标，防止 Open Redirect
       const redirect = safeRedirect(route.query.redirect)
