@@ -46,6 +46,7 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
 import type { FormRules } from 'element-plus'
+import type { SalesReturn } from '@/api/sales-return'
 import { useSr } from './composables/useSr'
 import { useSrProc } from './composables/useSrProc'
 import ReturnsTable from './components/ReturnsTable.vue'
@@ -72,7 +73,7 @@ const onCreate = () => {
   editDialogVisible.value = true
 }
 
-const onEdit = (row: any) => {
+const onEdit = (row: SalesReturn) => {
   dialogMode.value = 'edit'
   srProc.handleEdit(row)
   editDialogVisible.value = true

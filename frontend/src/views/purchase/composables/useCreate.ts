@@ -134,8 +134,8 @@ export function useCreate(
       ElMessage.success('采购单创建成功')
       createDialogVisible.value = false
       onSuccess()
-    } catch (error: any) {
-      ElMessage.error(error.message || '创建失败')
+    } catch (error: unknown) {
+      ElMessage.error((error instanceof Error ? error.message : '') || '创建失败')
     }
   }
 

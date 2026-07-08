@@ -124,7 +124,7 @@ const filterForm = reactive({
 const loadData = async () => {
   loading.value = true
   try {
-    const res: any = await listColorCards(filterForm)
+    const res: Awaited<ReturnType<typeof listColorCards>> = await listColorCards(filterForm)
     tableData.value = res.data.items || []
     total.value = res.data.total || 0
   } finally {

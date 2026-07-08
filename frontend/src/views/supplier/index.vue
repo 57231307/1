@@ -41,7 +41,7 @@
       :dialog-mode="dialogMode"
       @search="fetchData"
       @reset="handleReset"
-      @update:query-params="(v: any) => Object.assign(queryParams, v)"
+      @update:query-params="(v: SupplierQueryParams) => Object.assign(queryParams, v)"
       @add="handleAdd"
       @view="handleView"
       @edit="handleEdit"
@@ -69,7 +69,7 @@ import SupplierDialog from './SupplierDialog.vue'
 import { ref, reactive, onMounted, computed } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Plus, Download, Printer } from '@element-plus/icons-vue'
-import { supplierApi, type Supplier } from '@/api/supplier'
+import { supplierApi, type Supplier, type SupplierQueryParams } from '@/api/supplier'
 import { exportData } from '@/utils/export'
 import { printData } from '@/utils/print'
 

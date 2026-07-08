@@ -9,7 +9,7 @@ export interface ReportTemplate {
   category: 'sales' | 'inventory' | 'finance' | 'production' | 'custom'
   format: 'pdf' | 'excel' | 'word' | 'html'
   content: string
-  parameters: Record<string, any>
+  parameters: Record<string, unknown>
   is_system: boolean
   status: 'active' | 'inactive'
   created_by: number
@@ -61,7 +61,7 @@ export function previewReportTemplate(
   return request.get(`/report-templates/${id}/preview`, { params })
 }
 
-export function generateReport(id: number, params: Record<string, any>): Promise<Blob> {
+export function generateReport(id: number, params: Record<string, unknown>): Promise<Blob> {
   return request.post(`/report-templates/${id}/generate`, params, {
     responseType: 'blob',
   })

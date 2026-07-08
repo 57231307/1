@@ -49,7 +49,7 @@ export interface SendEmailRequest {
   html_content?: string
   text_content?: string
   template_id?: number
-  template_params?: Record<string, any>
+  template_params?: Record<string, unknown>
 }
 
 export const emailApi = {

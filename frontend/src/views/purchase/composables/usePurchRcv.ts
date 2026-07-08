@@ -50,7 +50,7 @@ export function usePurchRcv(onSuccess: () => void) {
       supplier_name: row.supplier_name,
       receive_date: new Date().toISOString().split('T')[0],
       warehouse_id: undefined,
-      items: (row.items || []).map((item: any) => ({
+      items: (row.items || []).map((item: PurchaseOrderItem) => ({
         ...item,
         receive_quantity: 0,
         remarks: '',
@@ -86,8 +86,8 @@ export function usePurchRcv(onSuccess: () => void) {
       ElMessage.success('收货成功')
       receiveDialogVisible.value = false
       onSuccess()
-    } catch (error: any) {
-      ElMessage.error(error.message || '收货失败')
+    } catch (error: unknown) {
+      ElMessage.error((error instanceof Error ? error.message : '') || '收货失败')
     }
   }
 

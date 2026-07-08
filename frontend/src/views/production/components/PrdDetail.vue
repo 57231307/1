@@ -38,7 +38,7 @@
           order.actual_end_date?.substring(0, 10) || '-'
         }}</el-descriptions-item>
         <el-descriptions-item label="状态">
-          <el-tag :type="(statusTagType as any)">{{ getStatusLabelFmt(order.status) }}</el-tag>
+          <el-tag :type="statusTagType">{{ getStatusLabelFmt(order.status) }}</el-tag>
         </el-descriptions-item>
         <el-descriptions-item label="优先级">{{ order.priority }}</el-descriptions-item>
         <el-descriptions-item label="创建时间" :span="2">
@@ -75,15 +75,31 @@ const emit = defineEmits<{
 // 透传格式化函数
 const getStatusLabelFmt = getStatusLabel
 
+// el-tag 组件支持的 type 联合类型（element-plus 规范）
+type TagType = '' | 'success' | 'warning' | 'info' | 'danger'
+
+// 合法 TagType 集合，用于过滤运行时字符串
+const VALID_TAG_TYPES: ReadonlySet<TagType> = new Set(['', 'success', 'warning', 'info', 'danger'])
+
+/**
+ * 将任意字符串安全转换为 el-tag 合法 TagType
+ * 非法值（如 'primary'）统一回退为 ''（默认主题色，等价于 primary）
+ */
+const toTagType = (s: string): TagType =>
+  VALID_TAG_TYPES.has(s as TagType) ? (s as TagType) : ''
+
+// 状态字符串到 el-tag type 的原始映射（值可能含 'primary'，需经 toTagType 过滤）
+const statusTagTypeMap: Record<string, string> = {
+  draft: 'info',
+  planned: 'primary',
+  in_progress: 'warning',
+  completed: 'success',
+  cancelled: 'danger',
+}
+
 // 状态对应的 el-tag type
-const statusTagType = computed(() => {
-  const map: Record<string, string> = {
-    draft: 'info',
-    planned: 'primary',
-    in_progress: 'warning',
-    completed: 'success',
-    cancelled: 'danger',
-  }
-  return map[props.order?.status || ''] || 'info'
+const statusTagType = computed<TagType>(() => {
+  const status = props.order?.status || ''
+  return toTagType(statusTagTypeMap[status] || 'info')
 })
 </script>

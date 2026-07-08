@@ -17,9 +17,13 @@ import { logger } from '@/utils/logger'
 /**
  * 订单状态/付款状态对应的 el-tag 类型与文本
  */
-const statusTypeMap: Record<string, any> = {
+// el-tag 组件支持的 type 联合类型（element-plus 规范）
+type TagType = '' | 'success' | 'warning' | 'info' | 'danger'
+
+const statusTypeMap: Record<string, TagType> = {
   pending: 'warning',
-  approved: 'primary',
+  // 原值为 'primary'，不在 TagType 联合范围内，改为 ''（默认主题色，等价于 primary）
+  approved: '',
   partial: 'info',
   completed: 'success',
   cancelled: 'danger',
@@ -33,7 +37,7 @@ const statusTextMap: Record<string, string> = {
   cancelled: '已取消',
 }
 
-const paymentTypeMap: Record<string, any> = { unpaid: 'danger', partial: 'warning', paid: 'success' }
+const paymentTypeMap: Record<string, TagType> = { unpaid: 'danger', partial: 'warning', paid: 'success' }
 const paymentTextMap: Record<string, string> = {
   unpaid: '未付款',
   partial: '部分付款',
@@ -81,8 +85,9 @@ export function usePurchList() {
 
   /**
    * 订单状态对应的 el-tag 类型
+   * 使用 ?? 而非 ||，避免空字符串（合法 TagType，等价于默认主题色）被错误 fallback 到 'info'
    */
-  const getStatusType = (status: string) => statusTypeMap[status] || 'info'
+  const getStatusType = (status: string): TagType => statusTypeMap[status] ?? 'info'
 
   /**
    * 订单状态显示文本
@@ -92,7 +97,7 @@ export function usePurchList() {
   /**
    * 付款状态对应的 el-tag 类型
    */
-  const getPaymentStatusType = (status: string) => paymentTypeMap[status] || 'info'
+  const getPaymentStatusType = (status: string): TagType => paymentTypeMap[status] ?? 'info'
 
   /**
    * 付款状态显示文本
@@ -113,8 +118,8 @@ export function usePurchList() {
       stats.value.monthOrders = total.value
       stats.value.monthAmount = orders.value.reduce((sum, o) => sum + (o.total_amount || 0), 0)
       stats.value.pendingReceipt = orders.value.filter(o => o.status === 'approved').length
-    } catch (error: any) {
-      ElMessage.error(error.message || '获取采购单列表失败')
+    } catch (error: unknown) {
+      ElMessage.error((error instanceof Error ? error.message : '') || '获取采购单列表失败')
       orders.value = []
       total.value = 0
     } finally {

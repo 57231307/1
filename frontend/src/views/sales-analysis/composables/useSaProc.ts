@@ -5,6 +5,7 @@
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { salesAnalysisApi } from '@/api/sales-analysis'
 import { logger } from '@/utils/logger'
+import { useSa } from './useSa'
 
 /** 销售分析业务流程 composable（编辑目标 + 导出报表 + 排名类型切换） */
 export const useSaProc = () => {
@@ -59,13 +60,13 @@ export const useSaProc = () => {
   }
 
   // 产品排名类型切换：更新 productRankType + 重新拉取数据
-  const handleProductRankTypeChange = (v: string, sa: any) => {
+  const handleProductRankTypeChange = (v: string, sa: ReturnType<typeof useSa>) => {
     sa.productRankType = v
     sa.getProductRanking()
   }
 
   // 客户排名类型切换：更新 customerRankType + 重新拉取数据
-  const handleCustomerRankTypeChange = (v: string, sa: any) => {
+  const handleCustomerRankTypeChange = (v: string, sa: ReturnType<typeof useSa>) => {
     sa.customerRankType = v
     sa.getCustomerRanking()
   }

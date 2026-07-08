@@ -85,17 +85,20 @@ import { ref, computed, onMounted, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { getTimeline, CUSTOM_ORDER_STATUS as STATUS_LABELS, CUSTOM_ORDER_STATUS_COLORS as STATUS_COLORS } from '@/api/custom-order'
-import type { TimelineProcessNode, NodeLog, CustomOrderProcessNode } from '@/api/custom-order'
+import type { TimelineProcessNode, NodeLog, CustomOrderProcessNode, OrderTimeline } from '@/api/custom-order'
 import logger from '@/utils/logger'
 
 const route = useRoute()
 const loading = ref(false)
-const timeline = ref<any>(null)
+// 时间线响应数据（getTimeline 返回的 res.data 结构）
+const timeline = ref<OrderTimeline | null>(null)
 const orderId = computed(() => Number(route.params.id))
 
 const allLogs = computed(() => {
-  if (!timeline.value?.nodes) return []
-  return timeline.value.nodes
+  // 提取到局部变量以便 TypeScript 正确进行 null 收窄
+  const tl = timeline.value
+  if (!tl?.nodes) return []
+  return tl.nodes
     .flatMap((n: TimelineProcessNode) => (n.logs || []).map((l: NodeLog) => ({ ...l, node_name: n.node_name })))
     .sort((a: NodeLog, b: NodeLog) => new Date(b.log_time).getTime() - new Date(a.log_time).getTime())
 })
@@ -145,7 +148,7 @@ async function loadData() {
   loading.value = true
   try {
     const res = await getTimeline(id)
-    timeline.value = res.data || res
+    timeline.value = res.data || null
   } catch (e) {
     logger.error('加载时间线失败', e)
     ElMessage.error('加载时间线失败')

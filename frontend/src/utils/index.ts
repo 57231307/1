@@ -30,7 +30,7 @@ export function formatDate(date: Date): string {
  * @param delay 延迟毫秒数
  * @returns 防抖后的函数
  */
-export function debounce<T extends (...args: any[]) => any>(
+export function debounce<T extends (...args: unknown[]) => unknown>(
   fn: T,
   delay: number
 ): (...args: Parameters<T>) => void {

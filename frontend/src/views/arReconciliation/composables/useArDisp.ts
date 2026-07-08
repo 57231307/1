@@ -42,7 +42,7 @@ export function useArDisp(loadData: () => Promise<void>) {
     }
     disputes.value = []
     try {
-      const res: any = await getDisputes({ page: 1, page_size: 10 })
+      const res: Awaited<ReturnType<typeof getDisputes>> = await getDisputes({ page: 1, page_size: 10 })
       disputes.value = res.data?.list || []
       disputesTotal.value = res.data?.total || 0
     } catch {
@@ -77,7 +77,7 @@ export function useArDisp(loadData: () => Promise<void>) {
       await resolveDispute(row.id, { resolution: value })
       ElMessage.success('争议已解决')
       await openDisputeDialog({ id: row.reconciliation_id } as AutoReconciliationResult)
-    } catch (error: any) {
+    } catch (error: unknown) {
       if (error !== 'cancel') {
         ElMessage.error('解决争议失败')
       }

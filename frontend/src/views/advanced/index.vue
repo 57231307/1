@@ -1,6 +1,6 @@
 <template>
   <div class="advanced-page">
-    <el-tabs v-model="activeTab" @tab-change="(tab: any) => loadTab(tab)">
+    <el-tabs v-model="activeTab" @tab-change="(tab: string | number) => loadTab(tab)">
       <el-tab-pane label="AI 分析" name="ai">
         <AiPanel
           :forecast-period="ai.forecastPeriod.value"
@@ -89,14 +89,15 @@ const tabLoaders: Record<string, () => void> = {
   quality: () => {},
 }
 
-const loadTab = (tabName: string) => {
-  if (tabLoaders[tabName]) {
-    loadIfNot(tabName, tabLoaders[tabName], hasLoaded)
+const loadTab = (tabName: string | number) => {
+  const key = String(tabName)
+  if (tabLoaders[key]) {
+    loadIfNot(key, tabLoaders[key], hasLoaded)
   }
 }
 
 const initPage = () => {
-  loadTab(activeTab.value as string)
+  loadTab(activeTab.value)
 }
 
 onMounted(() => {

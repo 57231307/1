@@ -143,7 +143,7 @@
 import { ref, reactive, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
-import type { FormInstance, FormRules, UploadFile } from 'element-plus'
+import type { FormInstance, FormRules, FormItemRule, UploadFile } from 'element-plus'
 import { Plus } from '@element-plus/icons-vue'
 import {
   getUserProfile,
@@ -209,13 +209,13 @@ const passwordRules: FormRules = {
   confirm_password: [
     { required: true, message: '请再次输入新密码', trigger: 'blur' },
     {
-      validator: (_rule: any, value: string, callback: any) => {
+      validator: ((_rule: unknown, value: string, callback: (error?: Error) => void) => {
         if (value !== passwordForm.new_password) {
           callback(new Error('两次输入的密码不一致'))
         } else {
           callback()
         }
-      },
+      }) as FormItemRule['validator'],
       trigger: 'blur',
     },
   ],

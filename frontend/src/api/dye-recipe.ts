@@ -11,7 +11,7 @@ export interface DyeRecipe {
   version: number
   status: 'draft' | 'approved' | 'obsolete'
   recipe_items: RecipeItem[]
-  process_parameters: Record<string, any>
+  process_parameters: Record<string, unknown>
   created_by: number
   created_by_name: string
   approved_by: number

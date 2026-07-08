@@ -92,7 +92,7 @@ export interface UpdateSubscriptionRequest {
 }
 
 export function listReportTemplates(
-  params?: Record<string, any>
+  params?: Record<string, unknown>
 ): Promise<ApiResponse<PageResult<ReportTemplate>>> {
   return request.get('/reports/enhanced/templates', { params })
 }
@@ -154,7 +154,7 @@ export function previewReport(
 }
 
 export function listSubscriptions(
-  params?: Record<string, any>
+  params?: Record<string, unknown>
 ): Promise<ApiResponse<PageResult<ReportSubscription>>> {
   return request.get('/reports/enhanced/subscriptions', { params })
 }

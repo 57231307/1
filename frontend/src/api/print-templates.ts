@@ -12,7 +12,7 @@ export interface PrintTemplate {
   orientation: 'portrait' | 'landscape'
   content: string
   css_styles: string
-  variables: Record<string, any>
+  variables: Record<string, unknown>
   status: 'active' | 'inactive'
   is_default: boolean
   created_by: number
@@ -62,7 +62,7 @@ export function previewPrintTemplate(
   return request.post(`/print-templates/${id}/preview`, data)
 }
 
-export function printTemplate(id: number, data: Record<string, any>): Promise<void> {
+export function printTemplate(id: number, data: Record<string, unknown>): Promise<void> {
   return request.post(`/print-templates/${id}/print`, data)
 }
 

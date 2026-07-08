@@ -12,8 +12,8 @@ export interface ApiEndpoint {
   timeout: number
   authentication: boolean
   authorization: string[]
-  request_schema: Record<string, any>
-  response_schema: Record<string, any>
+  request_schema: Record<string, unknown>
+  response_schema: Record<string, unknown>
   created_at: string
   updated_at: string
 }

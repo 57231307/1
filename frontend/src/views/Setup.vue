@@ -150,6 +150,7 @@ import { ref, computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { CircleCheckFilled, CircleCloseFilled } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
+import type { FormItemRule } from 'element-plus'
 import { logger } from '@/utils/logger'
 
 const router = useRouter()
@@ -208,13 +209,13 @@ const adminRules = {
   confirmPassword: [
     { required: true, message: '请确认密码', trigger: 'blur' },
     {
-      validator: (_: any, value: string, callback: any) => {
+      validator: ((_rule: unknown, value: string, callback: (error?: Error) => void) => {
         if (value !== adminConfig.value.password) {
           callback(new Error('两次输入的密码不一致'))
         } else {
           callback()
         }
-      },
+      }) as FormItemRule['validator'],
       trigger: 'blur',
     },
   ],

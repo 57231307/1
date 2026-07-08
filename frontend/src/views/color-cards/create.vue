@@ -88,7 +88,7 @@ const handleSubmit = async () => {
     if (!valid) return
     submitting.value = true
     try {
-      const res: any = await createColorCard({
+      const res: Awaited<ReturnType<typeof createColorCard>> = await createColorCard({
         card_no: form.card_no,
         card_name: form.card_name,
         card_type: form.card_type,

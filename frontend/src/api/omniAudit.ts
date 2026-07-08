@@ -5,7 +5,7 @@ export interface TrackEventRequest {
   event_name: string
   resource: string
   action: string
-  payload?: Record<string, any>
+  payload?: Record<string, unknown>
   duration_ms?: number
   status?: string
 }
@@ -28,7 +28,7 @@ export interface AuditLog {
   event_name: string
   resource: string
   action: string
-  payload?: Record<string, any>
+  payload?: Record<string, unknown>
   ip_address?: string
   user_agent?: string
   duration_ms: number
