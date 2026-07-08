@@ -80,12 +80,11 @@ impl BomService {
 
     /// 创建BOM（含明细）
     ///
-    /// 批次 203 P1-4 修复：原实现存在两个缺陷——
-    /// 1) 整个方法无事务保护，主表插入、默认取消、明细插入分散执行，
-    ///    若明细插入失败会留下无明细的脏 BOM；
-    /// 2) 明细采用循环内逐条 `insert(&*self.db)`，N 条明细 = N 次 INSERT（N+1 写）。
-    /// 现用事务包裹"取消旧默认 + 创建主表 + 批量插入明细"，明细改用 `insert_many` 单次 INSERT，
-    /// 并在事务内回查明细以构造 BomDetail 返回。
+    /// 批次 203 P1-4 修复：原实现存在两个缺陷——整个方法无事务保护（主表插入、
+    /// 默认取消、明细插入分散执行，若明细插入失败会留下无明细的脏 BOM）；
+    /// 明细采用循环内逐条 `insert(&*self.db)`，N 条明细 = N 次 INSERT（N+1 写）。
+    /// 现用事务包裹"取消旧默认 + 创建主表 + 批量插入明细"，明细改用 `insert_many`
+    /// 单次 INSERT，并在事务内回查明细以构造 BomDetail 返回。
     pub async fn create(&self, req: CreateBomRequest) -> Result<BomDetail, AppError> {
         let txn = self.db.begin().await?;
 
@@ -213,11 +212,10 @@ impl BomService {
 
     /// 更新BOM
     ///
-    /// 批次 203 P1-4 修复：原实现存在两个缺陷——
-    /// 1) 事务仅包裹"删除旧明细 + 创建新明细"，主表 update 在事务外，
-    ///    若明细插入失败，主表 update 不会回滚；
-    /// 2) 明细采用循环内逐条 `insert(&txn)`，N 条明细 = N 次 INSERT（N+1 写）。
-    /// 现将事务范围扩大到包含主表 update，明细改用 `insert_many` 单次 INSERT。
+    /// 批次 203 P1-4 修复：原实现存在两个缺陷——事务仅包裹"删除旧明细 + 创建新明细"
+    /// （主表 update 在事务外，若明细插入失败，主表 update 不会回滚）；明细采用循环内
+    /// 逐条 `insert(&txn)`，N 条明细 = N 次 INSERT（N+1 写）。现将事务范围扩大到包含
+    /// 主表 update，明细改用 `insert_many` 单次 INSERT。
     pub async fn update(&self, id: i32, req: UpdateBomRequest) -> Result<BomDetail, AppError> {
         let txn = self.db.begin().await?;
 
