@@ -175,6 +175,7 @@
 
 <script setup lang="ts">
 import { ref, reactive, onMounted } from 'vue'
+import type { Component } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import {
   MoreFilled,
@@ -213,8 +214,8 @@ const getCategoryText = (category: string) => {
   return map[category] || category
 }
 
-const getCategoryIcon = (category: string) => {
-  const map: Record<string, any> = {
+const getCategoryIcon = (category: string): Component => {
+  const map: Record<string, Component> = {
     sales: TrendCharts,
     purchase: ShoppingBag,
     finance: Money,

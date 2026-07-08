@@ -79,6 +79,7 @@
 <script setup lang="ts">
 import { reactive, watch } from 'vue'
 import { Search } from '@element-plus/icons-vue'
+import type { ApiLog } from '@/api/api-gateway'
 
 export interface LogQuery {
   page: number
@@ -89,7 +90,7 @@ export interface LogQuery {
 }
 
 const props = defineProps<{
-  logs: any[]
+  logs: ApiLog[]
   loading: boolean
   total: number
   queryParams: LogQuery
@@ -98,7 +99,7 @@ const props = defineProps<{
 
 const emit = defineEmits<{
   fetch: []
-  'view-log': [row: any]
+  'view-log': [row: ApiLog]
   'update:queryParams': [value: LogQuery]
 }>()
 
