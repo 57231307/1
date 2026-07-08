@@ -55,9 +55,9 @@ export function listCustomers(
  * @returns 客户下拉选项数组（label=客户名称, value=客户ID）
  */
 export async function listCustomersForSelect(): Promise<{ label: string; value: number }[]> {
-  const res = await request.get('/customers/select')
-  const data = (res as any)?.data
-  const list: Customer[] = data?.list ?? data ?? []
+  const res = await request.get<ApiResponse<{ list: Customer[]; total: number } | Customer[]>>('/customers/select')
+  const data = res?.data
+  const list: Customer[] = (Array.isArray(data) ? data : data?.list) ?? []
   return list.map(c => ({ label: c.customer_name, value: c.id }))
 }
 

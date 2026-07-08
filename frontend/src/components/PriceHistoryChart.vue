@@ -41,6 +41,16 @@ const props = defineProps<{
 const chartRef = ref<HTMLDivElement>()
 let chartInstance: echarts.ECharts | null = null
 
+/** ECharts axis tooltip 回调参数（描述实际使用字段） */
+interface AxisTooltipParam {
+  name: string
+  value: (string | number)[]
+  data: {
+    changePercent?: string
+    changeType?: string
+  }
+}
+
 const renderChart = () => {
   if (!chartRef.value) return
   if (!chartInstance) {
@@ -63,7 +73,7 @@ const renderChart = () => {
     },
     tooltip: {
       trigger: 'axis',
-      formatter: (params: any) => {
+      formatter: (params: AxisTooltipParam[]) => {
         const p = params[0]
         const v = formatPrice(p.value[1], currency)
         const cp = p.data.changePercent

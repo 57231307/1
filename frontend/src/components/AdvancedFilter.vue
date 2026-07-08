@@ -135,11 +135,14 @@ import { ref, computed } from 'vue'
 import { ElMessage } from 'element-plus'
 import { Plus, Delete, Folder, Download, ArrowDown } from '@element-plus/icons-vue'
 
+/** 过滤值类型（支持文本、数字、布尔、空值） */
+export type FilterValue = string | number | boolean | null
+
 export interface FilterField {
   key: string
   label: string
   type?: 'text' | 'number' | 'date' | 'select' | 'boolean'
-  options?: { label: string; value: any }[]
+  options?: { label: string; value: string | number | boolean }[]
 }
 
 export interface FilterOperator {
@@ -151,7 +154,7 @@ export interface FilterOperator {
 export interface FilterCondition {
   field: string
   operator: string
-  value: any
+  value: FilterValue
 }
 
 export interface FilterGroup {
