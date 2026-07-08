@@ -61,6 +61,8 @@ pub mod m0041_create_import_tasks;
 pub mod m0042_create_purchase_inspection_items;
 // v11 批次 153 P2-A：inventory_piece.scan_type + crm_lead.industry 列迁移
 pub mod m0043_add_scan_type_and_industry_columns;
+// 批次 190 迁移整合：执行所有未被 Rust 模块引用的 SQL 迁移（31 个目录）
+pub mod m0044_integrate_unreferenced_migrations;
 
 pub struct Migrator;
 
@@ -96,6 +98,9 @@ impl MigratorTrait for Migrator {
             Box::new(m0026_extend_audit_log::Migration),
             Box::new(m0027_enable_pg_stat_statements::Migration),
             Box::new(m0028_create_slow_query_log::Migration),
+            // 批次 190：整合迁移必须在 m0029_drop_tenant_columns 之前执行，
+            // 确保 custom_orders/process_nodes/color_cards 等表已创建
+            Box::new(m0044_integrate_unreferenced_migrations::Migration),
             Box::new(m0029_drop_tenant_columns::Migration),
             Box::new(m0030_create_crm_recycle_rules::Migration),
             Box::new(m0031_add_signature_to_omni_audit_logs::Migration),
