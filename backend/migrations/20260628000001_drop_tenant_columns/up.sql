@@ -203,12 +203,12 @@ ALTER TABLE "assignment_histories" DROP COLUMN IF EXISTS "tenant_id";
 DROP TABLE IF EXISTS "tenant_users";
 -- 租户配置（子表）
 DROP TABLE IF EXISTS "tenant_configs";
--- 租户订阅（子表）
+-- 租户发票（子表，FK 指向 tenant_subscriptions，必须先于 subscriptions 删除）
+DROP TABLE IF EXISTS "tenant_invoices";
+-- 租户订阅（子表，被 tenant_invoices 引用）
 DROP TABLE IF EXISTS "tenant_subscriptions";
 -- 租户用量（子表）
 DROP TABLE IF EXISTS "tenant_usage";
--- 租户发票（子表）
-DROP TABLE IF EXISTS "tenant_invoices";
 -- 租户套餐（被 tenants 引用）
 DROP TABLE IF EXISTS "tenant_plans";
 -- 租户主表
