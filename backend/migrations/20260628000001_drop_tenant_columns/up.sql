@@ -198,18 +198,28 @@ ALTER TABLE "assignment_histories" DROP COLUMN IF EXISTS "tenant_id";
 -- =====================================================================
 -- 第三部分：删除租户管理表（先删子表，再删主表）
 -- =====================================================================
+-- 外键依赖关系（m0005 定义）：
+--   tenant_invoices.subscription_id → tenant_subscriptions.id
+--   tenant_invoices.tenant_id → tenants.id
+--   tenant_subscriptions.tenant_id → tenants.id
+--   tenant_subscriptions.plan_id → tenant_plans.id
+--   tenant_usage.tenant_id → tenants.id
+--   tenant_users.tenant_id → tenants.id
+--   tenant_configs.tenant_id → tenants.id
+--   tenants.plan_id → tenant_plans.id
+-- 删除顺序：先删最深层子表，tenants 先于 tenant_plans 删除
 
--- 租户用户（子表，FK 指向 tenants）
-DROP TABLE IF EXISTS "tenant_users";
--- 租户配置（子表）
-DROP TABLE IF EXISTS "tenant_configs";
--- 租户发票（子表，FK 指向 tenant_subscriptions，必须先于 subscriptions 删除）
+-- 租户发票（依赖 tenant_subscriptions + tenants，最深子表）
 DROP TABLE IF EXISTS "tenant_invoices";
--- 租户订阅（子表，被 tenant_invoices 引用）
+-- 租户订阅（被 tenant_invoices 引用，依赖 tenants + tenant_plans）
 DROP TABLE IF EXISTS "tenant_subscriptions";
--- 租户用量（子表）
+-- 租户用量（依赖 tenants）
 DROP TABLE IF EXISTS "tenant_usage";
--- 租户套餐（被 tenants 引用）
-DROP TABLE IF EXISTS "tenant_plans";
--- 租户主表
+-- 租户用户（依赖 tenants）
+DROP TABLE IF EXISTS "tenant_users";
+-- 租户配置（依赖 tenants）
+DROP TABLE IF EXISTS "tenant_configs";
+-- 租户主表（依赖 tenant_plans，必须先于 tenant_plans 删除）
 DROP TABLE IF EXISTS "tenants";
+-- 租户套餐（被 tenants 引用，最后删除）
+DROP TABLE IF EXISTS "tenant_plans";

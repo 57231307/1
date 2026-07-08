@@ -14,48 +14,6 @@ pub struct FollowUpRequest {
     pub next_follow_date: Option<String>,
 }
 
-/// RFM 评分响应
-#[derive(Debug, Serialize, Clone)]
-pub struct RfmScoreResponse {
-    /// 最近一次订单距今天数
-    pub recency: i32,
-    /// 订单频次
-    pub frequency: i32,
-    /// 累计消费金额
-    pub monetary: Decimal,
-    /// 客户等级：A/B/C/D/E
-    pub level: char,
-    /// 等级标签
-    pub label: String,
-}
-
-/// 客户增强信息更新请求
-#[derive(Debug, Deserialize, Default)]
-pub struct UpdateCustomerEnhancedRequest {
-    pub customer_name: Option<String>,
-    pub contact_person: Option<String>,
-    pub contact_phone: Option<String>,
-    pub contact_email: Option<String>,
-    pub address: Option<String>,
-    pub city: Option<String>,
-    pub province: Option<String>,
-    pub country: Option<String>,
-    pub postal_code: Option<String>,
-    pub credit_limit: Option<Decimal>,
-    pub payment_terms: Option<i32>,
-    pub tax_id: Option<String>,
-    pub bank_name: Option<String>,
-    pub bank_account: Option<String>,
-    pub status: Option<String>,
-    pub customer_type: Option<String>,
-    pub notes: Option<String>,
-    pub customer_industry: Option<String>,
-    pub main_products: Option<String>,
-    pub annual_purchase: Option<Decimal>,
-    pub quality_requirement: Option<String>,
-    pub inspection_standard: Option<String>,
-}
-
 /// 批量领取公海客户请求
 #[derive(Debug, Deserialize)]
 pub struct BatchClaimRequest {

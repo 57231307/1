@@ -150,7 +150,6 @@ pub mod budget_execution;
 // 业务追溯模块
 pub mod business_trace;
 // 审计模块
-pub mod audit_alert_rule;
 pub mod audit_log;
 // CRM 公海回收规则模块（批次 23 v5 P0-4：内存存储迁移至数据库）
 pub mod crm_recycle_rule;

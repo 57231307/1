@@ -66,6 +66,9 @@ pub mod m0044_integrate_unreferenced_migrations;
 // 批次 198 P0-2：users 表添加 password_changed_at 列（密码过期策略锚点）
 pub mod m0045_add_password_changed_at_to_users;
 
+// 批次 202 P1-2：删除 audit_alert_rules 表（遗留死代码，模型无业务引用）
+pub mod m0046_drop_audit_alert_rules;
+
 pub struct Migrator;
 
 #[async_trait::async_trait]
@@ -119,6 +122,7 @@ impl MigratorTrait for Migrator {
             Box::new(m0042_create_purchase_inspection_items::Migration),
             Box::new(m0043_add_scan_type_and_industry_columns::Migration),
             Box::new(m0045_add_password_changed_at_to_users::Migration),
+            Box::new(m0046_drop_audit_alert_rules::Migration),
         ]
     }
 }
