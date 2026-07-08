@@ -149,11 +149,7 @@ pub mod budget_adjustment;
 pub mod budget_execution;
 // 业务追溯模块
 pub mod business_trace;
-// CRM模块
-pub mod approval_instance;
-pub mod approval_log;
-pub mod approval_node;
-pub mod approval_template;
+// 审计模块
 pub mod audit_alert_rule;
 pub mod audit_log;
 // CRM 公海回收规则模块（批次 23 v5 P0-4：内存存储迁移至数据库）
