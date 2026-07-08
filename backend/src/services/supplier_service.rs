@@ -453,18 +453,23 @@ impl SupplierService {
     }
 
     /// 创建供应商联系人
+    ///
+    /// P2-6 修复（v12 复审）：clear_primary_contacts + insert 包入同一事务，
+    /// 保证"取消旧主联系人 + 新建联系人"原子性，避免中途失败留下脏数据。
     pub async fn create_supplier_contact(
         &self,
         supplier_id: i32,
         req: CreateContactRequest,
         user_id: i32,
     ) -> Result<supplier_contact::Model, AppError> {
+        let txn = (*self.db).begin().await?;
+
         // 如果设置为主要联系人，先将其他联系人取消主要联系人状态
-        // 批次 94 P2-10：透传 user_id 用于审计日志
         if req.is_primary {
-            self.clear_primary_contacts(supplier_id, user_id).await?;
+            self.clear_primary_contacts_txn(supplier_id, &txn).await?;
         }
 
+        let now: sea_orm::prelude::DateTimeUtc = Utc::now().into();
         let contact = supplier_contact::ActiveModel {
             supplier_id: Set(supplier_id),
             contact_name: Set(req.contact_name),
@@ -477,29 +482,40 @@ impl SupplierService {
             qq: Set(req.qq),
             is_primary: Set(req.is_primary),
             remarks: Set(req.remarks),
+            created_at: Set(now),
+            updated_at: Set(now),
             ..Default::default()
         }
-        .insert(&*self.db)
+        .insert(&txn)
         .await?;
 
+        txn.commit().await?;
         Ok(contact)
     }
 
     /// 更新供应商联系人
+    ///
+    /// P2-6 修复（v12 复审）：clear_primary_contacts + update 包入同一事务，
+    /// 保证"取消旧主联系人 + 更新联系人"原子性。
     pub async fn update_supplier_contact(
         &self,
         contact_id: i32,
         req: UpdateContactRequest,
         user_id: i32,
     ) -> Result<supplier_contact::Model, AppError> {
-        let contact = self.get_contact(contact_id).await?;
+        let txn = (*self.db).begin().await?;
+
+        let contact = supplier_contact::Entity::find_by_id(contact_id)
+            .one(&txn)
+            .await?
+            .ok_or_else(|| AppError::not_found(format!("联系人 {} 不存在", contact_id)))?;
+
         let supplier_id = contact.supplier_id;
         let mut contact_active: supplier_contact::ActiveModel = contact.into();
 
         // 如果设置为主要联系人，先将其他联系人取消主要联系人状态
-        // 批次 94 P2-10：透传 user_id 用于审计日志
         if let Some(true) = req.is_primary {
-            self.clear_primary_contacts(supplier_id, user_id).await?;
+            self.clear_primary_contacts_txn(supplier_id, &txn).await?;
         }
 
         if let Some(name) = req.contact_name {
@@ -532,15 +548,17 @@ impl SupplierService {
         if let Some(remarks) = req.remarks {
             contact_active.remarks = Set(Some(remarks));
         }
+        contact_active.updated_at = Set(Utc::now().into());
 
         let updated = crate::services::audit_log_service::AuditLogService::update_with_audit(
-            &*self.db,
+            &txn,
             "auto_audit",
             contact_active,
-            // P1 1-1 修复（批次 59b）：原 Some(0) 占位符改为真实操作人 user_id
             Some(user_id),
         )
         .await?;
+
+        txn.commit().await?;
         Ok(updated)
     }
 
@@ -578,33 +596,30 @@ impl SupplierService {
         Ok(())
     }
 
-    /// 获取联系人详情
-    async fn get_contact(&self, contact_id: i32) -> Result<supplier_contact::Model, AppError> {
-        supplier_contact::Entity::find_by_id(contact_id)
-            .one(&*self.db)
-            .await?
-            .ok_or_else(|| AppError::not_found(format!("联系人 {} 不存在", contact_id)))
-    }
-
-    /// 取消所有主要联系人
-    async fn clear_primary_contacts(&self, supplier_id: i32, user_id: i32) -> Result<(), AppError> {
-        let contacts = supplier_contact::Entity::find()
+    /// 取消指定供应商的所有主联系人状态（事务内）
+    ///
+    /// P2-6 修复（v12 复审）：
+    /// - 原 `clear_primary_contacts` 使用 `&*self.db`（非事务连接），
+    ///   且循环内调用 `update_with_audit`（每次 = 1 UPDATE + 1 audit INSERT = 2N 次写）。
+    /// - 新 `clear_primary_contacts_txn` 接受 `txn` 参数，循环内仅 `update(txn)`，
+    ///   防止审计日志膨胀（参照 customer_service::clear_primary_contacts_txn）。
+    async fn clear_primary_contacts_txn(
+        &self,
+        supplier_id: i32,
+        txn: &sea_orm::DatabaseTransaction,
+    ) -> Result<(), AppError> {
+        let primary_contacts = supplier_contact::Entity::find()
             .filter(supplier_contact::Column::SupplierId.eq(supplier_id))
             .filter(supplier_contact::Column::IsPrimary.eq(true))
-            .all(&*self.db)
+            .all(txn)
             .await?;
 
-        for contact in contacts {
-            let mut contact_active: supplier_contact::ActiveModel = contact.into();
-            contact_active.is_primary = Set(false);
-            // 批次 94 P2-10：原 Some(0) 占位改为真实操作人 user_id，便于审计追踪
-            crate::services::audit_log_service::AuditLogService::update_with_audit(
-                &*self.db,
-                "auto_audit",
-                contact_active,
-                Some(user_id),
-            )
-            .await?;
+        for contact in primary_contacts {
+            let mut active: supplier_contact::ActiveModel = contact.into();
+            active.is_primary = Set(false);
+            active.updated_at = Set(Utc::now().into());
+            // 取消主联系人状态属内部状态调整，不走 update_with_audit 防止审计日志膨胀
+            active.update(txn).await?;
         }
 
         Ok(())
