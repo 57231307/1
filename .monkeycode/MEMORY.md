@@ -178,9 +178,32 @@
 
 ---
 
-## 二、当前任务状态（2026-07-05 批次 131 完成 - v9 复审 P0 全部完成 2/2，进行 P1 修复）
+## 二、当前任务状态（2026-07-08 批次 196 完成 - v11 前端 P2-1 any 类型清理全部完成，核心 12/12 全绿）
 
-> 用户最高优先级规则已在「一、规则 0」固化，本节仅记录修复进度。
+> 用户最高优先级规则已在「一、规则 0-12」固化，本节仅记录修复进度。
+> 规则 10 梳理时间：2026-07-08（批次 195 = 13×15 触发）
+
+### v11 前端 P2-1 any 类型清理（已完成 ✅）
+
+- **批次 191-196**：frontend/src 中无真实 any 类型残留，剩余 any 均为已修复注释
+- **关键修复模式**：
+  - `as any` → 具体类型断言（Warehouse/Department/LockedAccount/ApiLog/PurchaseOrder/SalesReturn）
+  - `Record<string, any>` → `Record<string, Component/TagType/unknown>`
+  - `[key: string]: any` → `[key: string]: unknown`
+  - el-tag `:type` 的 `as any` → 新建 TagType 联合类型 + tagType() 函数
+  - `any[]` → 具体接口数组（ApiLog[]/SalesReturn[]/PurchaseOrder[]）
+  - optional 字段传给非 optional 参数 → 加 `?? 0` / `?? ''` / `|| ''` 默认值
+  - Vue ref 解包：`:form-ref="someRef"` → `:form-ref="someRef.value"`
+  - Object.keys 逐键 delete → Object.assign 覆盖（修复 TS7053 索引签名错误）
+- **CI 验证**：commit 3d7c7c9 核心 12/12 全绿（E2E failure 非阻塞）
+
+### v11 剩余任务
+
+- ⏳ v11 前端 P2-2：i18n 接入（仅 Login.vue，其余 ~150 个 .vue 文件硬编码中文）
+- ⏳ v12 全项目复审（v11 全部修复完成后）
+- ⏳ 批次 200：E2E 加强测试 + 报告（规则 5）
+- ⏳ E2E 测试用例修复：移除 mockBusinessApi，让业务 API 走真实后端
+- ⏳ 迁移文件进一步整合（用户要求减少迁移文件数量）
 
 ### v9 复审结果（2 个并行子代理扫描）
 

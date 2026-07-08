@@ -5,10 +5,11 @@
 
 ---
 
-## 🔄 当前任务：v11 前端 P2 修复（批次 166 已完成，P2-1 已清理 62 处 any）
+## 🔄 当前任务：v11 前端 P2-1 any 类型清理（批次 196 已完成，真实 any 已全部清理）
 
-> 用户最高优先级规则（2026-07-04/06 追加）已固化到 [MEMORY.md 一、规则 0-4](file:///workspace/.monkeycode/MEMORY.md)。
+> 用户最高优先级规则（2026-07-04/06/08 追加）已固化到 [MEMORY.md 一、规则 0-12](file:///workspace/.monkeycode/MEMORY.md)。
 > 本文件仅记录任务进度，规则不在此重复。
+> 规则 10 梳理时间：2026-07-08（批次 195 = 13×15 触发）
 
 ### v11 复审结果
 
@@ -64,11 +65,24 @@
   - 模板 2 处 row as any 改为 row as User
   - 3 个 validator 函数参数类型化（_: any, v: string, cb: any）→ (_rule: unknown, v: string, cb: (error?: Error) => void)
 
+### v11 前端 P2-1 any 清理收尾（批次 191-196）
+
+- ✅ 批次 191：quotations/detail.vue 5 处 any + 3 个 CI 阻塞类型错误修复
+- ✅ 批次 192：quotations/list.vue 3 处 + CreateDlg.vue 3 处 + TransferDialog.vue 3 处
+- ✅ 批次 193：Charts 4 文件 10 处 any + 2 个 CI 阻塞类型错误修复
+- ✅ 批次 194：warehouse 2 处 + DepartmentTab 2 处 + SecLockTbl 2 处
+- ✅ 批次 195：BorrowRecordTimeline + logistics × 3 + scheduling × 2 + RcpPanel + QltPanel + useRcp/useQlt 类型同步 + inventory AdjustmentDialog CI 类型错误修复（3 个 TS 错误）
+- ✅ 批次 196：ApiLogTab 2 处 + ReturnDetailDialog 1 处 + ViewDlg 1 处 + bpm/templates 1 处 + CI 修复 ReturnDetailDialog optional 字段类型（3 个 TS2345 错误）
+- **结论**：frontend/src 中无真实 any 类型残留，剩余 any 均为已修复注释（批次 98/160-182 各批次修复记录）
+
 ### v11 剩余任务
 
-- 🔄 v11 前端 P2-1：any 类型清理（已清理 62 处，剩余 ~428 处，下一批次：AfterSalesPanel.vue 11 处已修改待提交）
+- ✅ v11 前端 P2-1：any 类型清理（批次 196 已完成，frontend/src 中无真实 any 残留，剩余 any 均为已修复注释）
 - ⏳ v11 前端 P2-2：i18n 接入（仅 Login.vue，其余 ~150 个 .vue 文件硬编码中文）
 - ⏳ v12 全项目复审（v11 全部修复完成后）
+- ⏳ 批次 200：E2E 加强测试 + 报告（规则 5，每 10 批次一次）
+- ⏳ E2E 测试用例修复：移除 mockBusinessApi，让业务 API 走真实后端
+- ⏳ 迁移文件进一步整合（用户要求减少迁移文件数量）
 
 ### 批次 190：E2E 加强测试（规则 5 首次执行，进行中）
 
@@ -92,6 +106,13 @@
 
 | 批次 | main commit | 内容 |
 |------|-------------|------|
+| 196-ci | `3d7c7c9` | v11 前端 P2-1 ReturnDetailDialog optional 字段类型修复（3 个 TS2345 错误，1 文件 +3 -3 行）|
+| 196 | `a568a90` | v11 前端 P2-1 清理剩余 4 个文件 5 处 any（ApiLogTab + ReturnDetailDialog + ViewDlg + bpm/templates，4 文件 +83 -74 行）|
+| 195 | `16393df` | v11 前端 P2-1 inventory AdjustmentDialog 类型错误修复（3 个 TS 错误：TS7053 索引签名 + TS2322 类型推断 ×2，2 文件 +12 -9 行）|
+| 194 | `c70cf5b` | v11 前端 P2-1 any 清理（6 处 → 0 处，3 文件：warehouse + DepartmentTab + SecLockTbl）|
+| 193 | `7a74479` | v11 前端 P2-1 Charts 4 文件 any 清理 + 2 个 CI 类型错误修复（TransferDialog 索引签名 + purchase ref 解包）|
+| 192 | `3aa61ac` | v11 前端 P2-1 any 清理（9 处 → 0 处，3 文件：quotations/list + CreateDlg + TransferDialog）|
+| 191 | `8eefc1b` | v11 前端 P2-1 quotations/list.vue any 清理 + useOlv 导出冲突修复|
 | 184 | `42deb8cd` | v11 前端 P2-1 any 清理（16 处 → 0 处，4 文件：ReturnsTable + SpTbl + QuotationItemEditor + PrcTbl；CI 11/12 核心 success）|
 | 183-ci-v3 | `c1f9b708` | v11 前端 P2-1 SchGChart 真正接入 ECharts 5 官方类型（ECElementEvent/CustomSeriesRenderItemParams/CustomSeriesRenderItemAPI 从 'echarts' 导入，CallbackDataParams 从 'echarts/types/dist/shared' 导入；处理 size() 可选方法+联合类型；定义 CartesianCoordSys 接口补充 ECharts 类型定义不完整；CI 11/12 核心 success）|
 | 183-ci-v2 | `c714a8e9` | v11 前端 P2-1 SchGChart 使用 ECharts 官方类型替代自定义接口（CI 失败：CallbackDataParams 不从主包导出 + size() 可选 + coordSys 类型不完整，被 v3 替代）|
