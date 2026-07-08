@@ -66,28 +66,25 @@ interface ApiResponse<T> {
 /**
  * 分页查询慢查询日志
  */
-export function listSlowQueries(
+export async function listSlowQueries(
   params: SlowQueryListParams = {},
 ): Promise<SlowQueryListResponse> {
-  return request
-    .get<ApiResponse<SlowQueryListResponse>>('/slow-queries', { params })
-    .then((res) => res.data)
+  const res = await request.get<ApiResponse<SlowQueryListResponse>>('/slow-queries', { params })
+  return res.data
 }
 
 /**
  * 获取慢查询聚合统计（TOP 10 + 总数）
  */
-export function getSlowQueryStats(): Promise<SlowQueryStatsResponse> {
-  return request
-    .get<ApiResponse<SlowQueryStatsResponse>>('/slow-queries/stats')
-    .then((res) => res.data)
+export async function getSlowQueryStats(): Promise<SlowQueryStatsResponse> {
+  const res = await request.get<ApiResponse<SlowQueryStatsResponse>>('/slow-queries/stats')
+  return res.data
 }
 
 /**
  * 手动触发一次慢查询采集
  */
-export function refreshSlowQueries(): Promise<SlowQueryRefreshResponse> {
-  return request
-    .post<ApiResponse<SlowQueryRefreshResponse>>('/slow-queries/refresh')
-    .then((res) => res.data)
+export async function refreshSlowQueries(): Promise<SlowQueryRefreshResponse> {
+  const res = await request.post<ApiResponse<SlowQueryRefreshResponse>>('/slow-queries/refresh')
+  return res.data
 }

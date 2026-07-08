@@ -10,12 +10,16 @@ import { nextTick, ref } from 'vue'
 // 模块级 refs：跨测试共享 mock 状态
 const mockListAuditLogs = vi.fn()
 const mockGetAuditLog = vi.fn()
-const mockExportAuditLogs = vi.fn()
+const mockExportToExcel = vi.fn()
 
 vi.mock('@/api/audit', () => ({
   listAuditLogs: (...args: unknown[]) => mockListAuditLogs(...args),
   getAuditLog: (...args: unknown[]) => mockGetAuditLog(...args),
-  exportAuditLogs: (...args: unknown[]) => mockExportAuditLogs(...args),
+}))
+
+// 批次 204：audit-log 导出从前端 exportToExcel 改为 Excel 格式（规则 3 禁止 CSV）
+vi.mock('@/utils/export', () => ({
+  exportToExcel: (...args: unknown[]) => mockExportToExcel(...args),
 }))
 
 // 局部 mock element-plus：保留真实 export（避免 ElMessage 等子组件的运行时错误）
@@ -77,7 +81,7 @@ describe('AuditLogView（P13 批 1 P3-2）', () => {
   beforeEach(() => {
     mockListAuditLogs.mockReset()
     mockGetAuditLog.mockReset()
-    mockExportAuditLogs.mockReset()
+    mockExportToExcel.mockReset()
 
     mockListAuditLogs.mockResolvedValue({
       items: sampleLogs,
@@ -90,7 +94,7 @@ describe('AuditLogView（P13 批 1 P3-2）', () => {
       before_snapshot: { amount: 100 },
       after_snapshot: { amount: 200 },
     })
-    mockExportAuditLogs.mockResolvedValue(new Blob(['id,name\n1,test'], { type: 'text/csv' }))
+    mockExportToExcel.mockImplementation(() => {})
   })
 
   afterEach(() => {
@@ -151,27 +155,8 @@ describe('AuditLogView（P13 批 1 P3-2）', () => {
     expect(vm.detailVisible).toBe(true)
   })
 
-  /** 点击导出按钮：调用 exportAuditLogs 并触发浏览器下载 */
-  it('点击导出按钮调用 exportAuditLogs 并触发下载', async () => {
-    // mock DOM 操作
-    const createUrlSpy = vi.fn().mockReturnValue('blob:mock-url')
-    const revokeUrlSpy = vi.fn()
-    const clickSpy = vi.fn()
-    const originalCreate = URL.createObjectURL
-    const originalRevoke = URL.revokeObjectURL
-    URL.createObjectURL = createUrlSpy as any
-    URL.revokeObjectURL = revokeUrlSpy as any
-
-    // mock 临时 a 元素的 click
-    const origCreateElement = document.createElement.bind(document)
-    const createElementSpy = vi.spyOn(document, 'createElement').mockImplementation(((tag: string) => {
-      const el = origCreateElement(tag)
-      if (tag === 'a') {
-        el.click = clickSpy
-      }
-      return el
-    }) as any)
-
+  /** 点击导出按钮：调用 exportToExcel 并触发 Excel 下载 */
+  it('点击导出按钮调用 exportToExcel 并触发下载', async () => {
     const wrapper = mount(AuditLogView)
     await flushPromises()
 
@@ -179,15 +164,7 @@ describe('AuditLogView（P13 批 1 P3-2）', () => {
     await vm.handleExport()
     await flushPromises()
 
-    expect(mockExportAuditLogs).toHaveBeenCalledTimes(1)
-    expect(createUrlSpy).toHaveBeenCalled()
-    expect(clickSpy).toHaveBeenCalled()
-    expect(revokeUrlSpy).toHaveBeenCalled()
-
-    // 清理 mock
-    URL.createObjectURL = originalCreate
-    URL.revokeObjectURL = originalRevoke
-    createElementSpy.mockRestore()
+    expect(mockExportToExcel).toHaveBeenCalledTimes(1)
   })
 
   /** 分页变化：将 page 传给 API */
