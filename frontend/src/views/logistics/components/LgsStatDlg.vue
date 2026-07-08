@@ -13,7 +13,7 @@
   >
     <el-form :model="localForm" label-width="80px">
       <el-form-item label="当前状态">
-        <el-tag :type="(getStatusTypeFmt(localForm.currentStatus) as any)">
+        <el-tag :type="getStatusTypeFmt(localForm.currentStatus)">
           {{ getStatusTextFmt(localForm.currentStatus) }}
         </el-tag>
       </el-form-item>

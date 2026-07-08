@@ -20,7 +20,7 @@
       <el-table-column prop="expected_arrival" label="预计到达" min-width="120" />
       <el-table-column prop="status" label="状态" width="100" align="center">
         <template #default="{ row }">
-          <el-tag :type="(getStatusTypeFmt(row.status) as TagType)">
+          <el-tag :type="getStatusTypeFmt(row.status)">
             {{ getStatusTextFmt(row.status) }}
           </el-tag>
         </template>
@@ -79,9 +79,6 @@
 <script setup lang="ts">
 import type { LogisticsWaybill } from '@/api/logistics'
 import { getStatusType, getStatusText } from '../composables/lgsFmts'
-
-// v11 批次 178 P2-1 修复：el-tag type 字面量类型
-type TagType = 'success' | 'warning' | 'info' | 'primary' | 'danger'
 
 // 查询参数类型
 interface QryParams {

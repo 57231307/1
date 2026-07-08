@@ -18,6 +18,21 @@ export interface RecipeFormData {
   k: number
 }
 
+/** 工艺推荐结果（与后端 AI 推荐响应结构对齐） */
+export interface RecipeResult {
+  recommended_params: {
+    temperature: number
+    time_minutes: number
+    ph_value: number
+    liquor_ratio: number
+  }
+  confidence: number
+  similar_cases: number
+  source: string
+  reason: string
+  candidates?: Array<Record<string, unknown>>
+}
+
 /**
  * 工艺优化 tab 业务逻辑封装
  * 染色工艺参数智能推荐（A2-1）
@@ -31,7 +46,7 @@ export function useRcp() {
     k: 5,
   })
   const recipeLoading = ref(false)
-  const recipeResult = ref<unknown>(null)
+  const recipeResult = ref<RecipeResult | null>(null)
 
   /**
    * 执行工艺优化推荐
@@ -58,7 +73,7 @@ export function useRcp() {
       if (recipeForm.value.color_name && recipeForm.value.color_name.trim()) {
         payload.color_name = recipeForm.value.color_name.trim()
       }
-      const res = await optimizeRecipe(payload) as ApiResponse<unknown>
+      const res = await optimizeRecipe(payload) as ApiResponse<RecipeResult>
       recipeResult.value = res.data!
       ElMessage.success('推荐生成完成')
     } catch (e: unknown) {

@@ -5,13 +5,16 @@
  * 行为完全保持一致（仅结构重构）
  */
 
+/** el-tag 类型联合（与 element-plus TagProps.type 对齐） */
+type TagType = '' | 'success' | 'warning' | 'info' | 'danger'
+
 /**
  * 状态对应的 el-tag 类型
  */
-const STATUS_TYPE_MAP: Record<string, string> = {
+const STATUS_TYPE_MAP: Record<string, TagType> = {
   pending: 'info',
   shipped: 'warning',
-  in_transit: 'primary',
+  in_transit: '', // primary 不在 el-tag type 联合中，用空字符串作为默认
   delivered: 'success',
   cancelled: 'danger',
 }
@@ -19,7 +22,7 @@ const STATUS_TYPE_MAP: Record<string, string> = {
 /**
  * 获取运单状态 el-tag 类型
  */
-export const getStatusType = (status: string): string => {
+export const getStatusType = (status: string): TagType => {
   return STATUS_TYPE_MAP[status] || 'info'
 }
 

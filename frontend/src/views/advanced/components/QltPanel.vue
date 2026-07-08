@@ -7,18 +7,13 @@
  * P9-3 批次 F 重构：移除 vue/no-mutating-props 抑制，改用本地 ref 镜像 + watch 防循环
  */
 import { ref, watch, nextTick } from 'vue'
-
-interface QualityFormData {
-  product_id: number | null
-  inspection_type: string
-  window_days: number
-}
+import type { QualityFormData, QualityResult } from '../composables/useQlt'
 
 const props = defineProps<{
   // 质量预测表单（由父组件管理，子组件通过 emit('update:qualityForm') 回写）
   qualityForm: QualityFormData
   qualityLoading: boolean
-  qualityResult: any
+  qualityResult: QualityResult | null
   runQualityPrediction: () => Promise<void>
 }>()
 

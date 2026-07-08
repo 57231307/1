@@ -60,7 +60,7 @@ interface WorkCenter {
 // 调整任务类型（所有字段可选，兼容空对象）
 interface AdjustTask {
   order_no?: string
-  [key: string]: any
+  [key: string]: unknown
 }
 
 // 调整表单类型

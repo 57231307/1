@@ -16,6 +16,29 @@ export interface QualityFormData {
   window_days: number
 }
 
+/** 质量预测结果（与后端响应结构对齐） */
+export interface QualityResult {
+  total_inspections: number
+  avg_qualification_rate: number
+  trend: string
+  trend_rate: number
+  risk_level: string
+  risk_score: number
+  confidence: number
+  top_issues: Array<{
+    issue_type: string
+    occurrences: number
+    percentage: number
+  }>
+  recommendations: string[]
+  period_breakdown: Array<{
+    period: string
+    inspections: number
+    avg_qualification_rate: number
+  }>
+  source: string
+}
+
 /**
  * 质量预测 tab 业务逻辑封装
  * 质量预测（A2-2）
@@ -27,7 +50,7 @@ export function useQlt() {
     window_days: 90,
   })
   const qualityLoading = ref(false)
-  const qualityResult = ref<unknown>(null)
+  const qualityResult = ref<QualityResult | null>(null)
 
   /**
    * 执行质量预测
@@ -44,7 +67,7 @@ export function useQlt() {
       if (qualityForm.value.inspection_type && qualityForm.value.inspection_type.trim()) {
         payload.inspection_type = qualityForm.value.inspection_type.trim()
       }
-      const res = await predictQuality(payload) as ApiResponse<unknown>
+      const res = await predictQuality(payload) as ApiResponse<QualityResult>
       qualityResult.value = res.data!
       ElMessage.success('预测完成')
     } catch (e: unknown) {

@@ -19,7 +19,7 @@
       <el-descriptions-item label="司机电话">{{ detail.driver_phone || '-' }}</el-descriptions-item>
       <el-descriptions-item label="运费">¥{{ detail.freight_fee || 0 }}</el-descriptions-item>
       <el-descriptions-item label="状态">
-        <el-tag :type="(getStatusTypeFmt(detail.status) as any)">
+        <el-tag :type="getStatusTypeFmt(detail.status)">
           {{ getStatusTextFmt(detail.status) }}
         </el-tag>
       </el-descriptions-item>

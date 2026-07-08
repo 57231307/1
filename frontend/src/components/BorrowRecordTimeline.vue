@@ -13,7 +13,7 @@
           <div class="record-header">
             <div>
               <strong>色卡 #{{ record.color_card_id }}</strong>
-              <el-tag size="small" :type="(BORROW_STATUS_COLORS[record.status] as any)" style="margin-left: 8px">
+              <el-tag size="small" :type="tagType(record.status)" style="margin-left: 8px">
                 {{ BORROW_STATUS[record.status as keyof typeof BORROW_STATUS] || record.status }}
               </el-tag>
             </div>
@@ -59,6 +59,13 @@ import { BORROW_STATUS, BORROW_STATUS_COLORS, type BorrowRecordInfo } from '@/ap
 defineProps<{ records: BorrowRecordInfo[] }>()
 
 const formatDate = (s?: string) => (s ? new Date(s).toLocaleString('zh-CN') : '-')
+
+/** el-tag 类型联合（与 element-plus TagProps.type 对齐） */
+type TagType = '' | 'success' | 'warning' | 'info' | 'danger'
+
+/** 借出状态对应的 el-tag 类型 */
+const tagType = (status: string): TagType =>
+  (BORROW_STATUS_COLORS[status] || '') as TagType
 
 const timelineType = (status: string): 'primary' | 'success' | 'warning' | 'danger' => {
   switch (status) {

@@ -7,20 +7,13 @@
  * P9-3 批次 F 重构：移除 vue/no-mutating-props 抑制，改用本地 ref 镜像 + watch 防循环
  */
 import { ref, watch, nextTick } from 'vue'
-
-interface RecipeFormData {
-  color_no: string
-  fabric_type: string
-  dye_type: string
-  color_name: string
-  k: number
-}
+import type { RecipeFormData, RecipeResult } from '../composables/useRcp'
 
 const props = defineProps<{
   // 工艺推荐表单（由父组件管理，子组件通过 emit('update:recipeForm') 回写）
   recipeForm: RecipeFormData
   recipeLoading: boolean
-  recipeResult: any
+  recipeResult: RecipeResult | null
   runRecipeOptimization: () => Promise<void>
 }>()
 
