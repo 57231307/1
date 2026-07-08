@@ -3,28 +3,11 @@ import { defineConfig, devices } from '@playwright/test'
 /**
  * Playwright 配置 - E2E 业务流程测试套件
  *
- * TS-T-4 修复（2026-06-26 第二次审计第二优先级）：
- * 原 testDir 指向 './tests/views'（仅 5 个冒烟测试），但 17 个完整业务流程
- * E2E spec 位于 './e2e/' 目录下，导致这些 spec 完全无法被发现和运行。
- * 改为 testDir: './e2e'，让 Playwright 扫描真正的 E2E 套件目录。
- *
- * v5 批次 21 修复（2026-06-28 11-P0-2）：
- * 新增 webServer 配置，让 Playwright 自动启动 vite dev server 并等待端口就绪。
- * 原配置无 webServer，CI 中无人预先启动 dev server，导致所有 E2E 测试
- * 因 net::ERR_CONNECTION_REFUSED 而失败。本地开发者通常已手动启动 dev server，
- * 但 CI 环境必须由 Playwright 自动托管。
- *
- * 说明：
- * - testDir: ./e2e（业务流程 E2E 测试套件）
- * - baseURL: 沙箱 dev server 使用 vite.config.ts 的 port: 3000
- * - timeout: 单测试 30s（API mock 响应 + 页面渲染）
- * - retries: 0（冒烟测试需要一次性通过，避免无意义重试）
- * - workers: 1（共享一个 dev server，避免并发）
- * - use.headless: true（沙箱无 X server）
- * - webServer: CI 中自动启动 dev server（reuseExistingServer: !CI）
- *
- * 注：5 个冒烟测试（inventory/production/quality/quotation/sales）位于 e2e/smoke/
- * 子目录，由 Playwright 统一发现和运行（testDir: './e2e' 递归扫描）。
+ * 批次 190 规则 5 修复（2026-07-08）：
+ * 移除"前端独立冒烟测试"占位符策略，改为真实 E2E 测试。
+ * - reporter: [['html'], ['line']] 生成可下载的 HTML 报告（规则 5）
+ * - timeout: 60_000 增加单测试超时（真实后端 API 响应）
+ * - webServer: 仅启动前端 dev server（后端由 CI 独立启动进程）
  */
 export default defineConfig({
   testDir: './e2e',
@@ -32,23 +15,18 @@ export default defineConfig({
   forbidOnly: !!process.env.CI,
   retries: 0,
   workers: 1,
-  reporter: 'line',
-  timeout: 30_000,
+  /// 同时生成 HTML 报告（可下载 artifact）和命令行输出
+  reporter: [['html'], ['line']],
+  /// 单测试 60s（真实后端 API 响应 + 页面渲染）
+  timeout: 60_000,
   use: {
     baseURL: 'http://localhost:3000',
     headless: true,
-    trace: 'off',
+    trace: 'on-first-retry',
     screenshot: 'only-on-failure',
   },
-  // P3-6 修复（批次 84 v1 复审）：文档化"前端独立冒烟测试"策略
-  // 本配置仅启动前端 vite dev server，不启动后端服务，原因：
-  // 1. E2E 测试套件存在已知设计缺陷（v5 报告 11-P0-3/P1），大部分测试依赖后端 API + DB 数据
-  // 2. CI 中启动后端需要 PostgreSQL + 迁移，成本高且与单元测试重叠
-  // 3. 当前 E2E 定位为"前端独立冒烟测试"（页面渲染/路由守卫/表单交互），不覆盖业务流程
-  // TODO(tech-debt): 批次 23 真实测试改造后，改为 webServer 数组同时启动前端 + 后端
-  // 自动启动 vite dev server 并等待端口就绪
-  // CI 中 reuseExistingServer: false 确保使用全新实例
-  // 本地开发时 reuseExistingServer: true 复用已启动的 dev server
+  /// CI 中自动启动前端 dev server（后端由 CI job 独立启动进程）
+  /// 本地开发时 reuseExistingServer: true 复用已启动的 dev server
   webServer: {
     command: 'npm run dev',
     url: 'http://localhost:3000',
