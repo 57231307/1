@@ -19,7 +19,7 @@
       <el-table-column prop="unlock_at" label="解锁时间" width="180" align="center" />
       <el-table-column label="操作" width="120" align="center">
         <template #default="{ row }">
-          <el-button type="primary" link size="small" @click="emit('unlock', row as any)">解锁</el-button>
+          <el-button type="primary" link size="small" @click="emit('unlock', row as LockedAccount)">解锁</el-button>
         </template>
       </el-table-column>
     </el-table>
@@ -30,7 +30,7 @@
 import type { LockedAccount } from '@/api/security'
 
 defineProps<{ data: LockedAccount[]; loading: boolean }>()
-const emit = defineEmits<{ unlock: [row: any] }>()
+const emit = defineEmits<{ unlock: [row: LockedAccount] }>()
 </script>
 
 <style scoped>

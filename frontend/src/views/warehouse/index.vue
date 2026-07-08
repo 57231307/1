@@ -85,10 +85,10 @@
         </el-table-column>
         <el-table-column label="操作" width="180" fixed="right">
           <template #default="{ row }">
-            <el-button v-permission="'warehouse:update'" type="primary" link size="small" @click="handleEdit(row as any)"
+            <el-button v-permission="'warehouse:update'" type="primary" link size="small" @click="handleEdit(row as Warehouse)"
               >编辑</el-button
             >
-            <el-button v-permission="'warehouse:delete'" type="danger" link size="small" @click="handleDelete(row as any)"
+            <el-button v-permission="'warehouse:delete'" type="danger" link size="small" @click="handleDelete(row as Warehouse)"
               >删除</el-button
             >
           </template>
