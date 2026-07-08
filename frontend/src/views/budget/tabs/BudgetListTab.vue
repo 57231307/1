@@ -133,6 +133,7 @@ import {
   type Budget,
 } from '@/api/budget'
 import { logger } from '@/utils/logger'
+import { exportToExcel } from '@/utils/export'
 
 // 批次 34 v9 P1：接入 i18n，替换硬编码中文 ElMessage
 const { t } = useI18n({ useScope: 'global' })
@@ -292,26 +293,36 @@ const handleDelete = async (row: Budget) => {
 }
 
 const handleExport = () => {
-  const csvContent = [
-    ['预算编号', '预算名称', '期间', '部门', '预算总额', '状态', '备注'],
-    ...budgetList.value.map(b => [
-      b.budget_no,
-      b.name,
-      b.period,
-      b.department_name || '-',
-      b.total_amount.toFixed(2),
-      getStatusLabel(b.status),
-      b.remark || '-',
-    ]),
-  ]
-    .map(row => row.map(cell => `"${cell}"`).join(','))
-    .join('\n')
-  const blob = new Blob(['\uFEFF' + csvContent], { type: 'text/csv;charset=utf-8;' })
-  const link = document.createElement('a')
-  link.href = URL.createObjectURL(blob)
-  link.download = `预算列表_${new Date().toISOString().split('T')[0]}.csv`
-  link.click()
-  ElMessage.success(t('message.exportSuccess'))
+  exportToExcel({
+    filename: '预算列表',
+    format: 'excel',
+    data: budgetList.value.map((b): Record<string, unknown> => ({ ...b })),
+    columns: [
+      { key: 'budget_no', title: '预算编号' },
+      { key: 'name', title: '预算名称' },
+      { key: 'period', title: '期间' },
+      {
+        key: 'department_name',
+        title: '部门',
+        formatter: (value: unknown) => (value ? String(value) : '-'),
+      },
+      {
+        key: 'total_amount',
+        title: '预算总额',
+        formatter: (value: unknown) => Number(value).toFixed(2),
+      },
+      {
+        key: 'status',
+        title: '状态',
+        formatter: (value: unknown) => getStatusLabel(value as Budget['status']),
+      },
+      {
+        key: 'remark',
+        title: '备注',
+        formatter: (value: unknown) => (value ? String(value) : '-'),
+      },
+    ],
+  })
   logger.info('预算列表已导出')
 }
 

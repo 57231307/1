@@ -14,6 +14,7 @@ import {
   type PricingStrategy,
 } from '@/api/sales-price'
 import { getPriceTypeLabel, getStatusLabel } from './spFmts'
+import { exportToExcel } from '@/utils/export'
 
 /** 刷新回调 */
 interface RefreshCallbacks {
@@ -89,47 +90,43 @@ export function useSpProc(refresh: RefreshCallbacks) {
     }
   }
 
-  /** 导出 CSV */
+  /** 导出 Excel（规则 3：禁止 CSV 作为最终交付格式） */
   const handleExport = (priceList: { value: SalesPrice[] } | SalesPrice[]) => {
     const list = Array.isArray(priceList) ? priceList : priceList.value
-    const csvContent = [
-      [
-        '产品名称',
-        '客户',
-        '价格',
-        '币种',
-        '单位',
-        '最小订购量',
-        '价格类型',
-        '价格等级',
-        '生效日期',
-        '到期日期',
-        '状态',
+    exportToExcel({
+      filename: '销售价格',
+      format: 'excel',
+      data: list.map((item): Record<string, unknown> => ({ ...item })),
+      columns: [
+        { key: 'product_name', title: '产品名称' },
+        { key: 'customer_name', title: '客户' },
+        { key: 'price', title: '价格' },
+        { key: 'currency', title: '币种' },
+        { key: 'unit', title: '单位' },
+        {
+          key: 'min_order_qty',
+          title: '最小订购量',
+          formatter: (value: unknown) => (value ? String(value) : ''),
+        },
+        {
+          key: 'price_type',
+          title: '价格类型',
+          formatter: (value: unknown) => getPriceTypeLabel(value ? String(value) : ''),
+        },
+        {
+          key: 'price_level',
+          title: '价格等级',
+          formatter: (value: unknown) => (value ? String(value) : ''),
+        },
+        { key: 'effective_date', title: '生效日期' },
+        { key: 'expiry_date', title: '到期日期' },
+        {
+          key: 'status',
+          title: '状态',
+          formatter: (value: unknown) => getStatusLabel(value as SalesPrice['status']),
+        },
       ],
-      // v11 批次 174 P2-1 修复：(item: any) 改为 (item: SalesPrice)
-      ...list.map((item: SalesPrice) => [
-        item.product_name,
-        item.customer_name || '',
-        item.price,
-        item.currency,
-        item.unit,
-        item.min_order_qty || '',
-        getPriceTypeLabel(item.price_type || ''),
-        item.price_level || '',
-        item.effective_date || '',
-        item.expiry_date || '',
-        getStatusLabel(item.status),
-      ]),
-    ]
-      // v11 批次 174 P2-1 修复：(row: any[]) 和 (cell: any) 改为 unknown 类型
-      .map((row: unknown[]) => row.map((cell: unknown) => `"${String(cell ?? '')}"`).join(','))
-      .join('\n')
-    const blob = new Blob(['\ufeff' + csvContent], { type: 'text/csv;charset=utf-8;' })
-    const link = document.createElement('a')
-    link.href = URL.createObjectURL(blob)
-    link.download = `销售价格_${new Date().toISOString().split('T')[0]}.csv`
-    link.click()
-    ElMessage.success('导出成功')
+    })
   }
 
   // 使用 reactive 包装，访问字段时自动解包 ref

@@ -15,6 +15,7 @@ import {
   type VoucherEntity,
 } from '@/api/voucher'
 import { getStatusLabel, getTypeLabel } from './vchrLstFmts'
+import { exportToExcel } from '@/utils/export'
 
 /** 接收的列表数据（支持 ref 和 plain value） */
 type ContractListLike = { value: VoucherEntity[] } | VoucherEntity[]
@@ -58,29 +59,35 @@ export function useVchrLstProc(
     } as never)
   }
 
-  /** 导出 CSV */
+  /** 导出 Excel（规则 3：禁止 CSV 作为最终交付格式） */
   const handleExport = () => {
     const list = getList()
-    const csvContent = [
-      ['凭证号', '日期', '类型', '摘要', '借方金额', '贷方金额', '状态'],
-      ...list.map(item => [
-        item.voucher_no,
-        item.voucher_date,
-        getTypeLabel(item.type),
-        item.description || '-',
-        item.total_debit,
-        item.total_credit,
-        getStatusLabel(item.status),
-      ]),
-    ]
-      .map(row => row.map(cell => `"${cell}"`).join(','))
-      .join('\n')
-    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' })
-    const link = document.createElement('a')
-    link.href = URL.createObjectURL(blob)
-    link.download = `会计凭证_${new Date().toISOString().split('T')[0]}.csv`
-    link.click()
-    ElMessage.success('导出成功')
+    exportToExcel({
+      filename: '会计凭证',
+      format: 'excel',
+      data: list.map((item): Record<string, unknown> => ({ ...item })),
+      columns: [
+        { key: 'voucher_no', title: '凭证号' },
+        { key: 'voucher_date', title: '日期' },
+        {
+          key: 'type',
+          title: '类型',
+          formatter: (value: unknown) => getTypeLabel(value as VoucherEntity['type']),
+        },
+        {
+          key: 'description',
+          title: '摘要',
+          formatter: (value: unknown) => (value ? String(value) : '-'),
+        },
+        { key: 'total_debit', title: '借方金额' },
+        { key: 'total_credit', title: '贷方金额' },
+        {
+          key: 'status',
+          title: '状态',
+          formatter: (value: unknown) => getStatusLabel(value as VoucherEntity['status']),
+        },
+      ],
+    })
   }
 
   /** 删除凭证 */

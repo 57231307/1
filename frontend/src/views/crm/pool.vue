@@ -40,6 +40,7 @@
             placeholder="客户名称/联系人/电话"
             clearable
             @clear="handleQuery"
+            @keyup.enter="handleQuery"
           />
         </el-form-item>
         <el-form-item label="客户类型">

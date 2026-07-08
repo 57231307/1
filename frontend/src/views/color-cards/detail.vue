@@ -16,7 +16,7 @@
             </div>
           </div>
           <div>
-            <el-button :icon="Download" @click="handleExport">导出 CSV</el-button>
+            <el-button :icon="Download" @click="handleExport">导出 Excel</el-button>
             <el-button type="primary" :icon="Plus" @click="showAddItemDialog = true">添加色号</el-button>
             <el-button :icon="Box" @click="showImportDialog = true">批量导入</el-button>
           </div>

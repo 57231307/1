@@ -276,6 +276,7 @@ import {
 } from '@/api/asset'
 import { useUserStore } from '@/store/user'
 import { logger } from '@/utils/logger'
+import { exportToExcel } from '@/utils/export'
 
 const loading = ref(false)
 const submitLoading = ref(false)
@@ -578,26 +579,40 @@ const handleDepreciateAll = async () => {
 }
 
 const handleExport = () => {
-  const csvContent = [
-    ['资产编码', '资产名称', '类别', '原值', '累计折旧', '净值', '状态'],
-    ...assetList.value.map(a => [
-      a.asset_code,
-      a.asset_name,
-      getCategoryLabel(a.category),
-      a.purchase_amount.toFixed(2),
-      a.accumulated_depreciation.toFixed(2),
-      a.net_value.toFixed(2),
-      getStatusLabel(a.status),
-    ]),
-  ]
-    .map(row => row.map(cell => `"${cell}"`).join(','))
-    .join('\n')
-  const blob = new Blob(['\uFEFF' + csvContent], { type: 'text/csv;charset=utf-8;' })
-  const link = document.createElement('a')
-  link.href = URL.createObjectURL(blob)
-  link.download = `固定资产_${new Date().toISOString().split('T')[0]}.csv`
-  link.click()
-  ElMessage.success('导出成功')
+  exportToExcel({
+    filename: '固定资产',
+    format: 'excel',
+    data: assetList.value.map((a): Record<string, unknown> => ({ ...a })),
+    columns: [
+      { key: 'asset_code', title: '资产编码' },
+      { key: 'asset_name', title: '资产名称' },
+      {
+        key: 'category',
+        title: '类别',
+        formatter: (value: unknown) => getCategoryLabel(String(value)),
+      },
+      {
+        key: 'purchase_amount',
+        title: '原值',
+        formatter: (value: unknown) => Number(value).toFixed(2),
+      },
+      {
+        key: 'accumulated_depreciation',
+        title: '累计折旧',
+        formatter: (value: unknown) => Number(value).toFixed(2),
+      },
+      {
+        key: 'net_value',
+        title: '净值',
+        formatter: (value: unknown) => Number(value).toFixed(2),
+      },
+      {
+        key: 'status',
+        title: '状态',
+        formatter: (value: unknown) => getStatusLabel(String(value)),
+      },
+    ],
+  })
   logger.info('固定资产列表已导出')
 }
 

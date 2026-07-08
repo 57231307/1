@@ -140,6 +140,7 @@ import {
   type AccountSubjectEntity,
 } from '@/api/account-subject'
 import { logger } from '@/utils/logger'
+import { exportToExcel } from '@/utils/export'
 
 const loading = ref(false)
 const submitLoading = ref(false)
@@ -293,25 +294,35 @@ const handleExport = () => {
     }, [])
   }
   const flat = flatten(subjectList.value as SubjectWithChildren[])
-  const csvContent = [
-    ['科目编码', '科目名称', '科目类别', '余额方向', '级次', '状态'],
-    ...flat.map(s => [
-      s.code,
-      s.name,
-      getCategoryLabel(s.category),
-      s.balance_type === 'debit' ? '借方' : '贷方',
-      `L${s.level}`,
-      s.is_enabled ? '启用' : '禁用',
-    ]),
-  ]
-    .map(row => row.map(cell => `"${cell}"`).join(','))
-    .join('\n')
-  const blob = new Blob(['\uFEFF' + csvContent], { type: 'text/csv;charset=utf-8;' })
-  const link = document.createElement('a')
-  link.href = URL.createObjectURL(blob)
-  link.download = `会计科目表_${new Date().toISOString().split('T')[0]}.csv`
-  link.click()
-  ElMessage.success('导出成功')
+  exportToExcel({
+    filename: '会计科目表',
+    format: 'excel',
+    data: flat.map((s): Record<string, unknown> => ({ ...s })),
+    columns: [
+      { key: 'code', title: '科目编码' },
+      { key: 'name', title: '科目名称' },
+      {
+        key: 'category',
+        title: '科目类别',
+        formatter: (value: unknown) => getCategoryLabel(String(value)),
+      },
+      {
+        key: 'balance_type',
+        title: '余额方向',
+        formatter: (value: unknown) => (value === 'debit' ? '借方' : '贷方'),
+      },
+      {
+        key: 'level',
+        title: '级次',
+        formatter: (value: unknown) => `L${value}`,
+      },
+      {
+        key: 'is_enabled',
+        title: '状态',
+        formatter: (value: unknown) => (value ? '启用' : '禁用'),
+      },
+    ],
+  })
   logger.info('会计科目表已导出')
 }
 

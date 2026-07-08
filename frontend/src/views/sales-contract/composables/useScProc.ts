@@ -13,6 +13,7 @@ import {
 } from '@/api/sales-contract'
 import { formatCurrency, getStatusLabel } from './scFmts'
 import { escapeHtml } from '@/utils/print'
+import { exportToExcel } from '@/utils/export'
 
 /** 刷新回调 */
 interface RefreshCallbacks {
@@ -156,30 +157,27 @@ export function useScProc(refresh: RefreshCallbacks) {
     printWindow.onload = () => printWindow.print()
   }
 
-  /** 导出 CSV */
+  /** 导出 Excel（规则 3：禁止 CSV 作为最终交付格式） */
   const handleExport = (contractList: { value: SalesContract[] } | SalesContract[]) => {
     const list = Array.isArray(contractList) ? contractList : contractList.value
-    const csvContent = [
-      ['合同编号', '合同名称', '客户', '金额', '签订日期', '状态'],
-      // v11 批次 174 P2-1 修复：(item: any) 改为 (item: SalesContract)
-      ...list.map((item: SalesContract) => [
-        item.contract_no,
-        item.contract_name,
-        item.customer_name,
-        item.total_amount,
-        item.signed_date || '',
-        getStatusLabel(item.status),
-      ]),
-    ]
-      // v11 批次 174 P2-1 修复：(row: any[]) 和 (cell: any) 改为 unknown 类型
-      .map((row: unknown[]) => row.map((cell: unknown) => `"${String(cell ?? '')}"`).join(','))
-      .join('\n')
-    const blob = new Blob(['\ufeff' + csvContent], { type: 'text/csv;charset=utf-8;' })
-    const link = document.createElement('a')
-    link.href = URL.createObjectURL(blob)
-    link.download = `销售合同_${new Date().toISOString().split('T')[0]}.csv`
-    link.click()
-    ElMessage.success('导出成功')
+    exportToExcel({
+      filename: '销售合同',
+      format: 'excel',
+      data: list.map((item): Record<string, unknown> => ({ ...item })),
+      columns: [
+        { key: 'contract_no', title: '合同编号' },
+        { key: 'contract_name', title: '合同名称' },
+        { key: 'customer_name', title: '客户' },
+        { key: 'total_amount', title: '金额' },
+        { key: 'signed_date', title: '签订日期' },
+        {
+          key: 'status',
+          title: '状态',
+          formatter: (_v: unknown, row: Record<string, unknown>) =>
+            getStatusLabel(row.status as SalesContract['status']),
+        },
+      ],
+    })
   }
 
   return {

@@ -14,6 +14,7 @@ import {
 } from '@/api/finance'
 import { formatMoney, getVchrStatusLabel } from './vchrFmts'
 import { escapeHtml } from '@/utils/print'
+import { exportToExcel } from '@/utils/export'
 
 /**
  * 创建凭证流程操作方法集合
@@ -71,29 +72,27 @@ export function useVchrProc(
     }
   }
 
-  /** 导出 CSV */
+  /** 导出 Excel（规则 3：禁止 CSV 作为最终交付格式） */
   const handleExportVouchers = () => {
-    const csvContent = [
-      ['凭证号', '凭证日期', '凭证类型', '借方金额', '贷方金额', '状态', '制单人', '创建时间'],
-      ...vouchers.value.map(item => [
-        item.voucher_no,
-        item.voucher_date,
-        item.voucher_type,
-        item.total_debit,
-        item.total_credit,
-        getVchrStatusLabel(item.status),
-        item.created_by_name,
-        item.created_at,
-      ]),
-    ]
-      .map(row => row.map(cell => `"${cell ?? ''}"`).join(','))
-      .join('\n')
-    const blob = new Blob(['\uFEFF' + csvContent], { type: 'text/csv;charset=utf-8;' })
-    const link = document.createElement('a')
-    link.href = URL.createObjectURL(blob)
-    link.download = `凭证列表_${new Date().toISOString().split('T')[0]}.csv`
-    link.click()
-    ElMessage.success('导出成功')
+    exportToExcel({
+      filename: '凭证列表',
+      format: 'excel',
+      data: vouchers.value.map((item): Record<string, unknown> => ({ ...item })),
+      columns: [
+        { key: 'voucher_no', title: '凭证号' },
+        { key: 'voucher_date', title: '凭证日期' },
+        { key: 'voucher_type', title: '凭证类型' },
+        { key: 'total_debit', title: '借方金额' },
+        { key: 'total_credit', title: '贷方金额' },
+        {
+          key: 'status',
+          title: '状态',
+          formatter: (value: unknown) => getVchrStatusLabel(value as Voucher['status']),
+        },
+        { key: 'created_by_name', title: '制单人' },
+        { key: 'created_at', title: '创建时间' },
+      ],
+    })
   }
 
   /** 打印当前凭证列表 */

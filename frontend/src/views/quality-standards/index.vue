@@ -173,6 +173,7 @@ import {
   archiveQualityStandard,
   type QualityStandard,
 } from '@/api/quality-standards'
+import { exportToExcel } from '@/utils/export'
 
 const list = ref<QualityStandard[]>([])
 const total = ref(0)
@@ -344,25 +345,36 @@ const handleArchive = async (row: QualityStandard) => {
 }
 
 const handleExport = () => {
-  const headers = ['标准编号,标准名称,类型,版本,状态,创建人,审批人']
-  const rows = list.value.map(item =>
-    [
-      item.standard_code,
-      item.standard_name,
-      typeMap[item.type] || item.type,
-      item.version,
-      statusMap[item.status] || item.status,
-      item.created_by_name || '-',
-      item.approved_by_name || '-',
-    ].join(',')
-  )
-  const csv = [...headers, ...rows].join('\n')
-  const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' })
-  const link = document.createElement('a')
-  link.href = URL.createObjectURL(blob)
-  link.download = `质量标准_${new Date().toISOString().split('T')[0]}.csv`
-  link.click()
-  ElMessage.success('导出成功')
+  exportToExcel({
+    filename: '质量标准',
+    format: 'excel',
+    data: list.value.map((item): Record<string, unknown> => ({ ...item })),
+    columns: [
+      { key: 'standard_code', title: '标准编号' },
+      { key: 'standard_name', title: '标准名称' },
+      {
+        key: 'type',
+        title: '类型',
+        formatter: (value: unknown) => typeMap[value as string] || String(value),
+      },
+      { key: 'version', title: '版本' },
+      {
+        key: 'status',
+        title: '状态',
+        formatter: (value: unknown) => statusMap[value as string] || String(value),
+      },
+      {
+        key: 'created_by_name',
+        title: '创建人',
+        formatter: (value: unknown) => (value ? String(value) : '-'),
+      },
+      {
+        key: 'approved_by_name',
+        title: '审批人',
+        formatter: (value: unknown) => (value ? String(value) : '-'),
+      },
+    ],
+  })
 }
 
 onMounted(() => {

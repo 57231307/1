@@ -12,33 +12,8 @@ export interface ExportOptions<T extends Record<string, unknown> = Record<string
   filename: string
   columns: ExportColumn<T>[]
   data: T[]
-  format?: 'csv' | 'excel'
-}
-
-function escapeCSV(value: string): string {
-  if (value === null || value === undefined) return ''
-  const str = String(value)
-  if (str.includes(',') || str.includes('"') || str.includes('\n')) {
-    return `"${str.replace(/"/g, '""')}"`
-  }
-  return str
-}
-
-function generateCSV<T extends Record<string, unknown>>(
-  columns: ExportColumn<T>[],
-  data: T[]
-): string {
-  const headers = columns.map(col => escapeCSV(col.title)).join(',')
-  const rows = data.map(row =>
-    columns
-      .map(col => {
-        const value = row[col.key]
-        const formatted = col.formatter ? col.formatter(value, row) : String(value ?? '')
-        return escapeCSV(formatted)
-      })
-      .join(',')
-  )
-  return [headers, ...rows].join('\n')
+  /** 导出格式，默认 excel（规则 3：禁止 CSV 作为最终交付） */
+  format?: 'excel'
 }
 
 function generateExcelHTML<T extends Record<string, unknown>>(
@@ -101,18 +76,6 @@ function downloadFile(content: string, filename: string, mimeType: string) {
   URL.revokeObjectURL(link.href)
 }
 
-export function exportToCSV<T extends Record<string, unknown>>(options: ExportOptions<T>) {
-  const { filename, columns, data } = options
-  if (!data || data.length === 0) {
-    ElMessage.warning('没有可导出的数据')
-    return
-  }
-  const csvContent = generateCSV(columns, data)
-  const date = new Date().toISOString().split('T')[0]
-  downloadFile(csvContent, `${filename}_${date}.csv`, 'text/csv;charset=utf-8;')
-  ElMessage.success('导出成功')
-}
-
 export function exportToExcel<T extends Record<string, unknown>>(options: ExportOptions<T>) {
   const { filename, columns, data } = options
   if (!data || data.length === 0) {
@@ -126,10 +89,5 @@ export function exportToExcel<T extends Record<string, unknown>>(options: Export
 }
 
 export function exportData<T extends Record<string, unknown>>(options: ExportOptions<T>) {
-  const format = options.format || 'csv'
-  if (format === 'excel') {
-    exportToExcel(options)
-  } else {
-    exportToCSV(options)
-  }
+  exportToExcel(options)
 }

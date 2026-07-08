@@ -17,6 +17,7 @@ import {
 } from '@/api/production'
 import { getStatusLabel } from './prdFmts'
 import { escapeHtml } from '@/utils/print'
+import { exportToExcel } from '@/utils/export'
 
 /**
  * 流程回调（接收 usePrd 返回的状态，自动解包后的值类型）
@@ -72,29 +73,39 @@ export function usePrdProc(cb: PrdCallbacks) {
     }
   }
 
-  /** 导出 CSV */
+  /** 导出 Excel（规则 3：禁止 CSV 作为最终交付格式） */
   const handleExport = () => {
-    const csvContent = [
-      ['订单编号', '产品名称', '计划数量', '实际数量', '计划开始', '计划结束', '状态', '优先级'],
-      ...cb.data.map((item: ProductionOrder) => [
-        item.order_no,
-        item.product_name,
-        item.planned_quantity,
-        item.actual_quantity || '-',
-        item.scheduled_start_date?.substring(0, 10) || '-',
-        item.scheduled_end_date?.substring(0, 10) || '-',
-        getStatusLabel(item.status),
-        item.priority,
-      ]),
-    ]
-      .map(row => row.map(cell => `"${cell ?? ''}"`).join(','))
-      .join('\n')
-    const blob = new Blob(['\uFEFF' + csvContent], { type: 'text/csv;charset=utf-8;' })
-    const link = document.createElement('a')
-    link.href = URL.createObjectURL(blob)
-    link.download = `生产订单_${new Date().toISOString().split('T')[0]}.csv`
-    link.click()
-    ElMessage.success('导出成功')
+    exportToExcel({
+      filename: '生产订单',
+      format: 'excel',
+      data: cb.data.map((item): Record<string, unknown> => ({ ...item })),
+      columns: [
+        { key: 'order_no', title: '订单编号' },
+        { key: 'product_name', title: '产品名称' },
+        { key: 'planned_quantity', title: '计划数量' },
+        {
+          key: 'actual_quantity',
+          title: '实际数量',
+          formatter: (value: unknown) => (value ? String(value) : '-'),
+        },
+        {
+          key: 'scheduled_start_date',
+          title: '计划开始',
+          formatter: (value: unknown) => (value ? String(value).substring(0, 10) : '-'),
+        },
+        {
+          key: 'scheduled_end_date',
+          title: '计划结束',
+          formatter: (value: unknown) => (value ? String(value).substring(0, 10) : '-'),
+        },
+        {
+          key: 'status',
+          title: '状态',
+          formatter: (value: unknown) => getStatusLabel(value as ProductionOrder['status']),
+        },
+        { key: 'priority', title: '优先级' },
+      ],
+    })
   }
 
   /** 打印 */

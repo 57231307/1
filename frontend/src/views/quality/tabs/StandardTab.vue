@@ -102,6 +102,7 @@ import { Plus, Download, Printer } from '@element-plus/icons-vue'
 import { getQualityStandard, publishQualityStandard, type QualityStandard } from '@/api/quality'
 import { logger } from '@/utils/logger'
 import { escapeHtml } from '@/utils/print'
+import { exportToExcel } from '@/utils/export'
 
 const emit = defineEmits<{
   openApprove: [row: QualityStandard]
@@ -184,25 +185,38 @@ const handlePublish = async (row: QualityStandard) => {
 }
 
 const handleExport = () => {
-  const headers = ['标准编号,标准名称,类型,版本,状态,创建人,审批人']
-  const rows = standards.value.map(item =>
-    [
-      item.standard_code,
-      item.standard_name,
-      item.type === 'product' ? '产品标准' : '工艺标准',
-      item.version,
-      getStatusLabel(item.status),
-      item.created_by_name || '-',
-      item.approved_by_name || '-',
-    ].join(',')
-  )
-  const csv = [...headers, ...rows].join('\n')
-  const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' })
-  const link = document.createElement('a')
-  link.href = URL.createObjectURL(blob)
-  link.download = `质量标准_${new Date().toISOString().split('T')[0]}.csv`
-  link.click()
-  ElMessage.success('导出成功')
+  exportToExcel({
+    filename: '质量标准',
+    format: 'excel',
+    data: standards.value.map((item): Record<string, unknown> => ({ ...item })),
+    columns: [
+      { key: 'standard_code', title: '标准编号' },
+      { key: 'standard_name', title: '标准名称' },
+      {
+        key: 'type',
+        title: '类型',
+        formatter: (value: unknown) =>
+          value === 'product' ? '产品标准' : '工艺标准',
+      },
+      { key: 'version', title: '版本' },
+      {
+        key: 'status',
+        title: '状态',
+        formatter: (value: unknown) =>
+          getStatusLabel(value as QualityStandard['status']),
+      },
+      {
+        key: 'created_by_name',
+        title: '创建人',
+        formatter: (value: unknown) => (value ? String(value) : '-'),
+      },
+      {
+        key: 'approved_by_name',
+        title: '审批人',
+        formatter: (value: unknown) => (value ? String(value) : '-'),
+      },
+    ],
+  })
   logger.info('质量标准列表已导出')
 }
 

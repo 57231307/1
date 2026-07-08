@@ -42,6 +42,7 @@
             placeholder="线索编号/公司名称/联系人"
             clearable
             @clear="handleQuery"
+            @keyup.enter="handleQuery"
           />
         </el-form-item>
         <el-form-item label="线索来源">

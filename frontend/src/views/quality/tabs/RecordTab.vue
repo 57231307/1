@@ -65,6 +65,7 @@ import type { ColumnDef } from '@/components/V2Table/types'
 import { type QualityRecord } from '@/api/quality'
 import { logger } from '@/utils/logger'
 import { escapeHtml } from '@/utils/print'
+import { exportToExcel } from '@/utils/export'
 
 // 父组件注入：openRecordDialog(row | null)
 const actions = inject<{
@@ -134,27 +135,27 @@ const handleView = (row: QualityRecord) => {
   actions?.openRecordDialog(row)
 }
 
-// 导出 CSV
+// 导出 Excel（规则 3：禁止 CSV 作为最终交付格式）
 const handleExport = () => {
-  const headers = ['记录编号,检验类型,产品,批次号,检验日期,检验员,结果']
-  const rows = data.value.map(item =>
-    [
-      item.record_no,
-      item.inspection_type,
-      item.product_name,
-      item.batch_no,
-      item.inspection_date,
-      item.inspector,
-      resultMap[item.result] || item.result,
-    ].join(',')
-  )
-  const csv = [...headers, ...rows].join('\n')
-  const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' })
-  const link = document.createElement('a')
-  link.href = URL.createObjectURL(blob)
-  link.download = `检验记录_${new Date().toISOString().split('T')[0]}.csv`
-  link.click()
-  ElMessage.success('导出成功')
+  exportToExcel({
+    filename: '检验记录',
+    format: 'excel',
+    data: data.value.map((item): Record<string, unknown> => ({ ...item })),
+    columns: [
+      { key: 'record_no', title: '记录编号' },
+      { key: 'inspection_type', title: '检验类型' },
+      { key: 'product_name', title: '产品' },
+      { key: 'batch_no', title: '批次号' },
+      { key: 'inspection_date', title: '检验日期' },
+      { key: 'inspector', title: '检验员' },
+      {
+        key: 'result',
+        title: '结果',
+        formatter: (value: unknown) =>
+          resultMap[value as string] || String(value),
+      },
+    ],
+  })
   logger.info('检验记录已导出')
 }
 

@@ -77,6 +77,7 @@
                   placeholder="客户名称/联系人"
                   clearable
                   @clear="fetchAssignableCustomers"
+                  @keyup.enter="fetchAssignableCustomers"
                 />
               </el-form-item>
               <el-form-item>

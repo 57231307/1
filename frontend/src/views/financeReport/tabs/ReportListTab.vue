@@ -103,6 +103,7 @@ import {
   type ReportData,
 } from '@/api/financeReport'
 import { logger } from '@/utils/logger'
+import { exportToExcel } from '@/utils/export'
 
 const loading = ref(false)
 const reportData = ref<ReportData | null>(null)
@@ -278,20 +279,15 @@ const handleExport = () => {
   }
   const items = reportData.value.items
   const cols = reportColumns.value
-  const csvContent = [
-    cols.map(c => c.label),
-    ...items.map((item: ReportData['items'][number]) =>
-      cols.map(c => (item as unknown as Record<string, unknown>)[c.key] ?? '')
-    ),
-  ]
-    .map(row => row.map(cell => `"${cell}"`).join(','))
-    .join('\n')
-  const blob = new Blob(['\uFEFF' + csvContent], { type: 'text/csv;charset=utf-8;' })
-  const link = document.createElement('a')
-  link.href = URL.createObjectURL(blob)
-  link.download = `${getReportTypeLabel(queryForm.report_type)}_${queryForm.period}.csv`
-  link.click()
-  ElMessage.success('导出成功')
+  exportToExcel({
+    filename: `${getReportTypeLabel(queryForm.report_type)}_${queryForm.period}`,
+    format: 'excel',
+    data: items.map((item): Record<string, unknown> => ({ ...(item as Record<string, unknown>) })),
+    columns: cols.map(c => ({
+      key: c.key,
+      title: c.label,
+    })),
+  })
 }
 </script>
 

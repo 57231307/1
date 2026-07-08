@@ -41,7 +41,7 @@
     <el-card shadow="hover" class="filter-card">
       <el-form :inline="true" :model="queryParams" class="filter-form">
         <el-form-item label="关键词">
-          <el-input v-model="queryParams.keyword" placeholder="客户编码/名称/联系人" clearable />
+          <el-input v-model="queryParams.keyword" placeholder="客户编码/名称/联系人" clearable @clear="handleQuery" @keyup.enter="handleQuery" />
         </el-form-item>
         <el-form-item label="客户类型">
           <el-select v-model="queryParams.customer_type" placeholder="选择类型" clearable>

@@ -179,12 +179,12 @@ import type { ColumnDef } from '@/components/V2Table/types'
 import {
   listAuditLogs,
   getAuditLog,
-  exportAuditLogs,
   type AuditLogItem,
   type AuditLogDetail,
   type OperationType,
   type Severity,
 } from '@/api/audit'
+import { exportToExcel } from '@/utils/export'
 
 // 操作类型下拉选项（与后端 OperationType 枚举同步）
 const OP_TYPE_OPTIONS: { value: OperationType; label: string }[] = [
@@ -406,35 +406,39 @@ const handleViewDetail = async (row: AuditLogItem) => {
 }
 
 /**
- * 导出 CSV：触发浏览器下载
+ * 导出 Excel：触发浏览器下载（规则 3：禁止 CSV 作为最终交付格式）
  */
-const handleExport = async () => {
-  try {
-    const params: Record<string, unknown> = {}
-    if (filterForm.dateRange && filterForm.dateRange.length === 2) {
-      params.start_time = filterForm.dateRange[0]
-      params.end_time = filterForm.dateRange[1]
-    }
-    if (filterForm.operation_type) params.operation_type = filterForm.operation_type
-    if (filterForm.severity) params.severity = filterForm.severity
-    if (filterForm.resource_type.trim()) params.resource_type = filterForm.resource_type.trim()
-    if (filterForm.request_id.trim()) params.request_id = filterForm.request_id.trim()
-    if (filterForm.keyword.trim()) params.keyword = filterForm.keyword.trim()
-
-    const blob = await exportAuditLogs(params)
-    const url = URL.createObjectURL(blob)
-    const link = document.createElement('a')
-    const filename = `audit_logs_${new Date().toISOString().replace(/[:.]/g, '-')}.csv`
-    link.href = url
-    link.download = filename
-    document.body.appendChild(link)
-    link.click()
-    document.body.removeChild(link)
-    URL.revokeObjectURL(url)
-    ElMessage.success('审计日志导出已开始下载')
-  } catch (err) {
-    ElMessage.error('导出审计日志失败')
-  }
+const handleExport = () => {
+  exportToExcel({
+    filename: '审计日志',
+    format: 'excel',
+    data: data.value.map((item): Record<string, unknown> => ({ ...item })),
+    columns: [
+      { key: 'id', title: 'ID' },
+      {
+        key: 'created_at',
+        title: '操作时间',
+        formatter: (value: unknown) => formatDateTime(value as string | null),
+      },
+      {
+        key: 'operation_type',
+        title: '操作类型',
+        formatter: (value: unknown) =>
+          OP_TYPE_LABELS[value as string] ?? (value ? String(value) : '-'),
+      },
+      {
+        key: 'severity',
+        title: '级别',
+        formatter: (value: unknown) => (value ? String(value) : '-'),
+      },
+      { key: 'username', title: '操作人' },
+      { key: 'resource_type', title: '资源类型' },
+      { key: 'resource_id', title: '资源 ID' },
+      { key: 'ip_address', title: '客户端 IP' },
+      { key: 'request_id', title: '请求追踪' },
+      { key: 'description', title: '描述' },
+    ],
+  })
 }
 
 /**

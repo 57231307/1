@@ -206,6 +206,7 @@ import {
 } from '@/api/ar'
 import type { Customer } from '@/api/customer'
 import { logger } from '@/utils/logger'
+import { exportToExcel } from '@/utils/export'
 
 const invoices = ref<ARInvoice[]>([])
 const customers = ref<Customer[]>([])
@@ -395,25 +396,23 @@ const handlePrintInvoices = () => {
 }
 
 const handleExportInvoices = () => {
-  const csvContent = [
-    ['发票号', '客户', '发票金额', '税额', '状态', '发票日期'],
-    ...invoices.value.map(item => [
-      item.invoice_no,
-      item.customer_name,
-      item.invoice_amount,
-      item.tax_amount,
-      getInvoiceStatusLabel(item.status),
-      item.invoice_date,
-    ]),
-  ]
-    .map(row => row.map(cell => `"${cell}"`).join(','))
-    .join('\n')
-  const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' })
-  const link = document.createElement('a')
-  link.href = URL.createObjectURL(blob)
-  link.download = `应收发票_${new Date().toISOString().split('T')[0]}.csv`
-  link.click()
-  ElMessage.success('导出成功')
+  exportToExcel({
+    filename: '应收发票',
+    format: 'excel',
+    data: invoices.value.map((item): Record<string, unknown> => ({ ...item })),
+    columns: [
+      { key: 'invoice_no', title: '发票号' },
+      { key: 'customer_name', title: '客户' },
+      { key: 'invoice_amount', title: '发票金额' },
+      { key: 'tax_amount', title: '税额' },
+      {
+        key: 'status',
+        title: '状态',
+        formatter: (value: unknown) => getInvoiceStatusLabel(String(value)),
+      },
+      { key: 'invoice_date', title: '发票日期' },
+    ],
+  })
   logger.info('应收发票列表已导出')
 }
 

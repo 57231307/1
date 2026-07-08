@@ -39,6 +39,7 @@
             placeholder="商机编号/商机名称/客户名称"
             clearable
             @clear="handleQuery"
+            @keyup.enter="handleQuery"
           />
         </el-form-item>
         <el-form-item label="商机阶段">

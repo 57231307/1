@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
 /**
  * useApiLog.ts - API 网关调用日志 composable
  * 任务编号: P14 批 1 B3 I-2
@@ -8,10 +7,18 @@
 import { ref, reactive } from 'vue'
 import { ElMessage } from 'element-plus'
 import { listApiLogs, type ApiLog } from '@/api/api-gateway'
+import type { QueryParams } from '@/types/api'
 
-// 完整的日志查询参数（包含 method/status_code/status/date_range 等，
-// listApiLogs 接受泛型 QueryParams，但实际后端接口支持这些额外字段）
-type LogQueryParams = any
+// API 日志查询参数（扩展通用 QueryParams，增加 method/status_code 专属字段）
+interface LogQueryParams {
+  page: number
+  page_size: number
+  keyword: string
+  method: string
+  status_code: string
+  status: string
+  date_range: [Date, Date] | null
+}
 
 /**
  * 调用日志 composable
@@ -20,7 +27,7 @@ export function useApiLog() {
   const logs = ref<ApiLog[]>([])
   const logTotal = ref(0)
   const logLoading = ref(false)
-  const logQuery = reactive({
+  const logQuery = reactive<LogQueryParams>({
     page: 1,
     page_size: 20,
     keyword: '',
@@ -37,7 +44,9 @@ export function useApiLog() {
   const fetchLogs = async () => {
     logLoading.value = true
     try {
-      const res = await listApiLogs(logQuery as LogQueryParams)
+      // date_range 为 [Date, Date] | null，与 QueryParams.date_range(string[]) 类型不兼容，
+      // axios 会自动序列化 Date 为 ISO 字符串，运行时无差异，故用 unknown 中转做安全断言
+      const res = await listApiLogs(logQuery as unknown as QueryParams)
       logs.value = res.data || []
       logTotal.value = res.total || 0
     } catch (error: unknown) {

@@ -209,6 +209,7 @@ import {
   type CostCollection,
 } from '@/api/cost'
 import { logger } from '@/utils/logger'
+import { exportToExcel } from '@/utils/export'
 
 // 批次 34 v9 P1：接入 i18n，替换硬编码中文 ElMessage
 const { t } = useI18n({ useScope: 'global' })
@@ -390,28 +391,50 @@ const auditCollection = async (row: CostCollection, approved: boolean) => {
 }
 
 const handleExport = () => {
-  const csvContent = [
-    ['归集单号', '归集日期', '批号', '色号', '直接材料', '直接人工', '制造费用', '总成本', '状态'],
-    ...collectionList.value.map(c => [
-      c.collection_no,
-      c.collection_date,
-      c.batch_no || '-',
-      c.color_no || '-',
-      (c.direct_material || 0).toFixed(2),
-      (c.direct_labor || 0).toFixed(2),
-      (c.manufacturing_overhead || 0).toFixed(2),
-      (c.total_cost || 0).toFixed(2),
-      getStatusLabel(c.status),
-    ]),
-  ]
-    .map(row => row.map(cell => `"${cell}"`).join(','))
-    .join('\n')
-  const blob = new Blob(['\uFEFF' + csvContent], { type: 'text/csv;charset=utf-8;' })
-  const link = document.createElement('a')
-  link.href = URL.createObjectURL(blob)
-  link.download = `成本归集_${new Date().toISOString().split('T')[0]}.csv`
-  link.click()
-  ElMessage.success(t('message.exportSuccess'))
+  exportToExcel({
+    filename: '成本归集',
+    format: 'excel',
+    data: collectionList.value.map((c): Record<string, unknown> => ({ ...c })),
+    columns: [
+      { key: 'collection_no', title: '归集单号' },
+      { key: 'collection_date', title: '归集日期' },
+      {
+        key: 'batch_no',
+        title: '批号',
+        formatter: (value: unknown) => (value ? String(value) : '-'),
+      },
+      {
+        key: 'color_no',
+        title: '色号',
+        formatter: (value: unknown) => (value ? String(value) : '-'),
+      },
+      {
+        key: 'direct_material',
+        title: '直接材料',
+        formatter: (value: unknown) => Number(value || 0).toFixed(2),
+      },
+      {
+        key: 'direct_labor',
+        title: '直接人工',
+        formatter: (value: unknown) => Number(value || 0).toFixed(2),
+      },
+      {
+        key: 'manufacturing_overhead',
+        title: '制造费用',
+        formatter: (value: unknown) => Number(value || 0).toFixed(2),
+      },
+      {
+        key: 'total_cost',
+        title: '总成本',
+        formatter: (value: unknown) => Number(value || 0).toFixed(2),
+      },
+      {
+        key: 'status',
+        title: '状态',
+        formatter: (value: unknown) => getStatusLabel(String(value)),
+      },
+    ],
+  })
   logger.info('成本归集列表已导出')
 }
 

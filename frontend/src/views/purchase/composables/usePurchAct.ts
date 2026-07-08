@@ -7,6 +7,7 @@ import { ref } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import printJS from 'print-js'
 import { purchaseApi, type PurchaseOrder } from '@/api/purchase'
+import { exportToExcel } from '@/utils/export'
 
 /**
  * 采购单业务操作 composable
@@ -78,28 +79,25 @@ export function usePurchAct(
   }
 
   /**
-   * 导出采购订单列表为 CSV
+   * 导出采购订单列表为 Excel（规则 3：禁止 CSV 作为最终交付格式）
    */
   const handleExport = () => {
-    // v11 批次 177 P2-1 修复：(item: any) 改为 (item: PurchaseOrder)，row/cell 改为 unknown
-    const csvContent = [
-      ['订单号', '供应商', '金额', '状态', '创建时间'],
-      ...orders().map((item: PurchaseOrder) => [
-        item.order_no,
-        item.supplier_name,
-        item.total_amount,
-        getStatusText(item.status),
-        item.created_at,
-      ]),
-    ]
-      .map((row: unknown[]) => row.map((cell: unknown) => `"${String(cell ?? '')}"`).join(','))
-      .join('\n')
-    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' })
-    const link = document.createElement('a')
-    link.href = URL.createObjectURL(blob)
-    link.download = `采购订单_${new Date().toISOString().split('T')[0]}.csv`
-    link.click()
-    ElMessage.success('导出成功')
+    exportToExcel({
+      filename: '采购订单',
+      format: 'excel',
+      data: orders().map((item): Record<string, unknown> => ({ ...item })),
+      columns: [
+        { key: 'order_no', title: '订单号' },
+        { key: 'supplier_name', title: '供应商' },
+        { key: 'total_amount', title: '金额' },
+        {
+          key: 'status',
+          title: '状态',
+          formatter: (value: unknown) => getStatusText(String(value)),
+        },
+        { key: 'created_at', title: '创建时间' },
+      ],
+    })
   }
 
   return {
