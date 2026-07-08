@@ -469,7 +469,7 @@ impl SupplierService {
             self.clear_primary_contacts_txn(supplier_id, &txn).await?;
         }
 
-        let now: sea_orm::prelude::DateTimeUtc = Utc::now().into();
+        let now: sea_orm::prelude::DateTimeWithTimeZone = Utc::now().into();
         let contact = supplier_contact::ActiveModel {
             supplier_id: Set(supplier_id),
             contact_name: Set(req.contact_name),

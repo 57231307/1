@@ -15,7 +15,10 @@ use std::collections::HashMap;
 use std::time::Instant;
 use tracing::info;
 
+use crate::models::finance_payment::Entity as FinancePaymentEntity;
 use crate::models::inventory_stock::Entity as InventoryStockEntity;
+use crate::models::purchase_order::Entity as PurchaseOrderEntity;
+use crate::models::purchase_order_item::Entity as PurchaseOrderItemEntity;
 use crate::models::sales_order::Entity as SalesOrderEntity;
 use crate::models::sales_order_item::Entity as SalesOrderItemEntity;
 use crate::utils::error::AppError;
@@ -127,12 +130,90 @@ impl ReportEngineService {
     }
 
     /// 采购数据聚合
+    ///
+    /// P2-2 修复（v12 复审）：原实现返回 `Ok(Vec::new())` 桩代码，
+    /// 现真实接入 purchase_orders 表，按 supplier/month 分组聚合 total_amount 与 order_count。
     pub async fn aggregate_purchase_data(
         &self,
-        _req: AggregateRequest,
+        req: AggregateRequest,
     ) -> Result<Vec<AggregateResult>, AppError> {
-        // 简化实现: 返回空结果
-        Ok(Vec::new())
+        let mut select = PurchaseOrderEntity::find();
+
+        if let Some(date_range) = &req.date_range {
+            select = select.filter(
+                crate::models::purchase_order::Column::OrderDate
+                    .between(date_range.start, date_range.end),
+            );
+        }
+
+        let orders = select.all(&*self.db).await?;
+
+        let mut results = Vec::new();
+        let mut aggregation: HashMap<String, HashMap<String, rust_decimal::Decimal>> =
+            HashMap::new();
+
+        for order in &orders {
+            // 分组键：按 supplier/month 维度，与 aggregate_sales_data 保持一致
+            let group_key = match req.aggregation_type {
+                AggregationType::GroupBy => {
+                    if req.group_by.iter().any(|g| g == "supplier") {
+                        format!("supplier_{}", order.supplier_id)
+                    } else if req.group_by.iter().any(|g| g == "month") {
+                        format!("month_{}", order.order_date.format("%Y-%m"))
+                    } else {
+                        "total".to_string()
+                    }
+                }
+                _ => "total".to_string(),
+            };
+
+            let entry = aggregation.entry(group_key).or_default();
+            *entry
+                .entry("total_amount".to_string())
+                .or_insert(rust_decimal::Decimal::ZERO) += order.total_amount;
+            *entry
+                .entry("order_count".to_string())
+                .or_insert(rust_decimal::Decimal::ZERO) += rust_decimal::Decimal::ONE;
+        }
+
+        for (group_key, values) in aggregation {
+            let groups = if group_key.contains('_') {
+                let parts: Vec<&str> = group_key.splitn(2, '_').collect();
+                vec![(
+                    parts[0].to_string(),
+                    serde_json::Value::String(parts[1].to_string()),
+                )]
+            } else {
+                vec![(
+                    group_key.clone(),
+                    serde_json::Value::String(group_key.clone()),
+                )]
+            };
+
+            let aggregations: Vec<(String, serde_json::Value)> = values
+                .iter()
+                .map(|(k, v)| (k.clone(), serde_json::json!(v.to_string())))
+                .collect();
+
+            // 同时构造 columns/rows/total_count 给 handler 使用
+            let mut columns = vec!["group".to_string()];
+            let mut row_values = vec![group_key.clone()];
+            for (k, v) in &values {
+                columns.push(k.clone());
+                row_values.push(v.to_string());
+            }
+
+            results.push(AggregateResult {
+                columns,
+                rows: vec![row_values],
+                total_count: 1,
+                groups,
+                aggregations,
+                count: 1,
+            });
+        }
+
+        Ok(results)
     }
 
     /// 库存数据聚合
@@ -188,12 +269,105 @@ impl ReportEngineService {
     }
 
     /// 财务数据聚合
+    ///
+    /// P2-2 修复（v12 复审）：原实现返回 `Ok(Vec::new())` 桩代码，
+    /// 现真实接入 finance_payments 表，按 month/payment_method 分组聚合 amount 与 payment_count。
     pub async fn aggregate_finance_data(
         &self,
-        _req: AggregateRequest,
+        req: AggregateRequest,
     ) -> Result<Vec<AggregateResult>, AppError> {
-        // 简化实现: 返回空结果
-        Ok(Vec::new())
+        let mut select = FinancePaymentEntity::find();
+
+        if let Some(date_range) = &req.date_range {
+            // finance_payments.payment_date 为 DateTime<Utc>，需将 NaiveDate 转换为 DateTime
+            let start = date_range
+                .start
+                .and_hms_opt(0, 0, 0)
+                .ok_or_else(|| AppError::internal("报表日期范围起始时分秒非法"))?
+                .and_utc();
+            let end = date_range
+                .end
+                .and_hms_opt(23, 59, 59)
+                .ok_or_else(|| AppError::internal("报表日期范围结束时分秒非法"))?
+                .and_utc();
+            select = select.filter(
+                crate::models::finance_payment::Column::PaymentDate.between(start, end),
+            );
+        }
+
+        let payments = select.all(&*self.db).await?;
+
+        let mut results = Vec::new();
+        let mut aggregation: HashMap<String, HashMap<String, rust_decimal::Decimal>> =
+            HashMap::new();
+
+        for payment in &payments {
+            // 分组键：按 month/payment_method 维度
+            let group_key = match req.aggregation_type {
+                AggregationType::GroupBy => {
+                    if req.group_by.iter().any(|g| g == "month") {
+                        format!("month_{}", payment.payment_date.format("%Y-%m"))
+                    } else if req.group_by.iter().any(|g| g == "payment_method") {
+                        format!(
+                            "payment_method_{}",
+                            payment
+                                .payment_method
+                                .clone()
+                                .unwrap_or_else(|| "unknown".to_string())
+                        )
+                    } else {
+                        "total".to_string()
+                    }
+                }
+                _ => "total".to_string(),
+            };
+
+            let entry = aggregation.entry(group_key).or_default();
+            *entry
+                .entry("total_amount".to_string())
+                .or_insert(rust_decimal::Decimal::ZERO) += payment.amount;
+            *entry
+                .entry("payment_count".to_string())
+                .or_insert(rust_decimal::Decimal::ZERO) += rust_decimal::Decimal::ONE;
+        }
+
+        for (group_key, values) in aggregation {
+            let groups = if group_key.contains('_') {
+                let parts: Vec<&str> = group_key.splitn(2, '_').collect();
+                vec![(
+                    parts[0].to_string(),
+                    serde_json::Value::String(parts[1].to_string()),
+                )]
+            } else {
+                vec![(
+                    group_key.clone(),
+                    serde_json::Value::String(group_key.clone()),
+                )]
+            };
+
+            let aggregations: Vec<(String, serde_json::Value)> = values
+                .iter()
+                .map(|(k, v)| (k.clone(), serde_json::json!(v.to_string())))
+                .collect();
+
+            let mut columns = vec!["group".to_string()];
+            let mut row_values = vec![group_key.clone()];
+            for (k, v) in &values {
+                columns.push(k.clone());
+                row_values.push(v.to_string());
+            }
+
+            results.push(AggregateResult {
+                columns,
+                rows: vec![row_values],
+                total_count: 1,
+                groups,
+                aggregations,
+                count: 1,
+            });
+        }
+
+        Ok(results)
     }
 
     /// 执行报表（统一入口：缓存 + 数据加载 + 元数据）
@@ -348,23 +522,68 @@ impl ReportEngineService {
     }
 
     /// 查询采购报表
+    ///
+    /// P2-2 修复（v12 复审）：原实现返回空数据桩代码，
+    /// 现真实查询 purchase_order_item 明细，按日期范围过滤，返回订单明细行。
     pub async fn query_purchase_report(
         &self,
         template: &super::ReportTemplate,
-        _req: &ExecuteReportRequest,
+        req: &ExecuteReportRequest,
     ) -> Result<ReportData, AppError> {
-        // 简化实现: 返回空数据
+        let mut select = PurchaseOrderItemEntity::find();
+
+        if let Some(date_range) = &req.date_range {
+            select = select.filter(
+                crate::models::purchase_order_item::Column::CreatedAt.gte(
+                    date_range
+                        .start
+                        .and_hms_opt(0, 0, 0)
+                        .ok_or_else(|| AppError::internal("报表日期范围起始时分秒非法"))?
+                        .and_utc(),
+                ),
+            );
+            select = select.filter(
+                crate::models::purchase_order_item::Column::CreatedAt.lte(
+                    date_range
+                        .end
+                        .and_hms_opt(23, 59, 59)
+                        .ok_or_else(|| AppError::internal("报表日期范围结束时分秒非法"))?
+                        .and_utc(),
+                ),
+            );
+        }
+
+        let items = select.all(&*self.db).await?;
+
+        // 转换为报表行
+        let rows: Vec<serde_json::Value> = items
+            .iter()
+            .map(|item| {
+                serde_json::json!({
+                    "order_id": item.order_id,
+                    "product_id": item.product_id,
+                    "quantity": item.quantity.to_string(),
+                    "unit_price": item.unit_price.to_string(),
+                    "amount": item.total_amount.to_string(),
+                    "subtotal": item.subtotal.to_string(),
+                    "tax_amount": item.tax_amount.to_string(),
+                    "discount_amount": item.discount_amount.to_string(),
+                    "created_at": item.created_at.to_rfc3339(),
+                })
+            })
+            .collect();
+
         Ok(ReportData {
             columns: template.columns.clone(),
-            total_rows: 0,
-            rows: Vec::new(),
+            total_rows: rows.len() as u64,
+            rows,
             generated_at: Utc::now(),
             summary: None,
             metadata: ReportMetadata {
                 data_source: template.data_source.clone(),
                 query_time_ms: 0,
                 cache_hit: false,
-                parameters: None,
+                parameters: req.parameters.clone(),
             },
         })
     }
