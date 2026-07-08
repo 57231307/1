@@ -89,7 +89,11 @@ const loadLogs = async () => {
       page: pagination.value.page - 1,
       page_size: pagination.value.pageSize,
     })
-    const data = (res as ApiResponse<{ items: AuditLog[]; total: number }> | undefined)?.data ?? {}
+    const data =
+      (res as ApiResponse<{ items: AuditLog[]; total: number }> | undefined)?.data ?? {
+        items: [],
+        total: 0,
+      }
     logs.value = data.items || []
     total.value = data.total || 0
   } catch (error) {

@@ -6,6 +6,7 @@
  */
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { salesApi, type SalesOrder, type SalesDelivery } from '@/api/sales'
+import type { OrderForm } from './useOlv'
 import { logger } from '@/utils/logger'
 
 /** 刷新回调 */
@@ -48,7 +49,7 @@ export function useOlvProc(refresh: RefreshCallbacks) {
   }
 
   /** 提交订单表单 */
-  const handleFormSubmit = async (data: Partial<SalesOrder>) => {
+  const handleFormSubmit = async (data: OrderForm) => {
     try {
       if (data.id) {
         await salesApi.updateOrder(data.id, data as unknown as Partial<SalesOrder>)

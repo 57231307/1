@@ -55,7 +55,7 @@
           {{ quotation.lead_time_days ?? '-' }} 天
         </el-descriptions-item>
         <el-descriptions-item label="状态" :span="3">
-          <el-tag :type="tagType(quotation.status) as any">
+          <el-tag :type="tagType(quotation.status)">
             {{ statusLabel(quotation.status) }}
           </el-tag>
           <span v-if="quotation.approved_at" class="approved-info">
@@ -165,7 +165,12 @@ import {
   type QuotationResponseDto,
   type QuotationStatus,
   type TermType,
+  type QuotationTermResponseDto,
+  type ConvertResponse,
 } from '@/api/quotation'
+
+/** el-tag 类型联合（与 element-plus TagProps.type 对齐） */
+type TagType = '' | 'success' | 'warning' | 'info' | 'danger'
 
 const route = useRoute()
 const router = useRouter()
@@ -206,13 +211,13 @@ const canCancel = computed(
 
 /** 贸易条款按类型分组 */
 const groupedTerms = computed(() => {
-  if (!quotation.value?.terms) return {} as Record<TermType, any[]>
-  const groups: Record<string, any[]> = {}
+  if (!quotation.value?.terms) return {} as Record<TermType, QuotationTermResponseDto[]>
+  const groups: Record<string, QuotationTermResponseDto[]> = {}
   for (const t of quotation.value.terms) {
     if (!groups[t.term_type]) groups[t.term_type] = []
     groups[t.term_type].push(t)
   }
-  return groups as Record<TermType, any[]>
+  return groups as Record<TermType, QuotationTermResponseDto[]>
 })
 
 const hasTerms = computed(() => quotation.value?.terms && quotation.value.terms.length > 0)
@@ -221,8 +226,8 @@ function statusLabel(s: QuotationStatus): string {
   return QUOTATION_STATUS_LABELS[s] || s
 }
 
-function tagType(s: QuotationStatus): string {
-  return QUOTATION_STATUS_TAG_TYPES[s] || ''
+function tagType(s: QuotationStatus): TagType {
+  return (QUOTATION_STATUS_TAG_TYPES[s] || '') as TagType
 }
 
 function termTypeLabel(type: TermType): string {
@@ -289,7 +294,7 @@ async function handleConvert() {
     return
   }
   const res = await convertQuotation(quotation.value.id)
-  const order = res.data as any
+  const order: ConvertResponse | undefined = res.data
   ElMessage.success(`转订单成功，销售订单 ID：${order?.id}`)
   if (order?.id) {
     router.push(`/sales/orders/${order.id}`)

@@ -16,7 +16,7 @@ import type { Product } from '@/api/product'
 import { getStatusType, getStatusText, formatAmount } from './olvFmts'
 
 /** 销售订单明细行表单类型 */
-interface OrderItemForm {
+export interface OrderItemForm {
   id: number
   product_id: number | undefined
   product_name: string
@@ -28,7 +28,7 @@ interface OrderItemForm {
 }
 
 /** 销售订单表单类型 */
-interface OrderForm {
+export interface OrderForm {
   id?: number
   customer_id: number | undefined
   customer_name: string
