@@ -112,9 +112,10 @@ impl QuotationService {
         };
         let result = active.insert(&txn).await?;
 
-        // 6. 插入明细
+        // 6. 插入明细：改用 insert_many 批量 INSERT（原为循环内逐条 insert 导致 N 条=N 次 INSERT）
+        let mut item_active_models: Vec<ItemActive> = Vec::with_capacity(dto.items.len());
         for (idx, item_dto) in dto.items.iter().enumerate() {
-            let item = ItemActive {
+            item_active_models.push(ItemActive {
                 id: Default::default(),
                 quotation_id: Set(result.id),
                 product_id: Set(item_dto.product_id),
@@ -142,22 +143,31 @@ impl QuotationService {
                 })),
                 notes: Set(item_dto.notes.clone()),
                 sequence: Set(idx as i32),
-            };
-            item.insert(&txn).await?;
+            });
+        }
+        if !item_active_models.is_empty() {
+            ItemEntity::insert_many(item_active_models)
+                .exec(&txn)
+                .await?;
         }
 
-        // 7. 插入贸易条款
+        // 7. 插入贸易条款：改用 insert_many 批量 INSERT（原为循环内逐条 insert）
         if let Some(terms) = dto.terms {
-            for term in terms {
-                let term_active = TermActive {
-                    id: Default::default(),
-                    quotation_id: Set(result.id),
-                    term_type: Set(term.term_type),
-                    term_key: Set(term.term_key),
-                    term_value: Set(term.term_value),
-                    sequence: Set(term.sequence),
-                };
-                term_active.insert(&txn).await?;
+            if !terms.is_empty() {
+                let term_active_models: Vec<TermActive> = terms
+                    .into_iter()
+                    .map(|term| TermActive {
+                        id: Default::default(),
+                        quotation_id: Set(result.id),
+                        term_type: Set(term.term_type),
+                        term_key: Set(term.term_key),
+                        term_value: Set(term.term_value),
+                        sequence: Set(term.sequence),
+                    })
+                    .collect();
+                TermEntity::insert_many(term_active_models)
+                    .exec(&txn)
+                    .await?;
             }
         }
 
@@ -302,7 +312,7 @@ impl QuotationService {
         )
         .await?;
 
-        // 如果 dto.items 存在，全量替换明细
+        // 如果 dto.items 存在，全量替换明细：改用 insert_many 批量 INSERT（原为循环内逐条 insert）
         if let Some(items) = dto.items {
             // 校验：非空
             if items.is_empty() {
@@ -313,9 +323,10 @@ impl QuotationService {
                 .filter(sales_quotation_item::Column::QuotationId.eq(id))
                 .exec(&txn)
                 .await?;
-            // 插入新明细
+            // 插入新明细：批量插入
+            let mut item_active_models: Vec<ItemActive> = Vec::with_capacity(items.len());
             for (idx, item_dto) in items.iter().enumerate() {
-                let item_active = ItemActive {
+                item_active_models.push(ItemActive {
                     id: Default::default(),
                     quotation_id: Set(id),
                     product_id: Set(item_dto.product_id),
@@ -344,27 +355,38 @@ impl QuotationService {
                     })),
                     notes: Set(item_dto.notes.clone()),
                     sequence: Set(idx as i32),
-                };
-                item_active.insert(&txn).await?;
+                });
+            }
+            if !item_active_models.is_empty() {
+                ItemEntity::insert_many(item_active_models)
+                    .exec(&txn)
+                    .await?;
             }
         }
 
-        // 如果 dto.terms 存在，全量替换条款
+        // 如果 dto.terms 存在，全量替换条款：改用 insert_many 批量 INSERT（原为循环内逐条 insert）
         if let Some(terms) = dto.terms {
+            // 删除旧条款
             TermEntity::delete_many()
                 .filter(sales_quotation_term::Column::QuotationId.eq(id))
                 .exec(&txn)
                 .await?;
-            for term in terms {
-                let term_active = TermActive {
-                    id: Default::default(),
-                    quotation_id: Set(id),
-                    term_type: Set(term.term_type),
-                    term_key: Set(term.term_key),
-                    term_value: Set(term.term_value),
-                    sequence: Set(term.sequence),
-                };
-                term_active.insert(&txn).await?;
+            // 插入新条款：批量插入
+            if !terms.is_empty() {
+                let term_active_models: Vec<TermActive> = terms
+                    .into_iter()
+                    .map(|term| TermActive {
+                        id: Default::default(),
+                        quotation_id: Set(id),
+                        term_type: Set(term.term_type),
+                        term_key: Set(term.term_key),
+                        term_value: Set(term.term_value),
+                        sequence: Set(term.sequence),
+                    })
+                    .collect();
+                TermEntity::insert_many(term_active_models)
+                    .exec(&txn)
+                    .await?;
             }
         }
 

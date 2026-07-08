@@ -79,7 +79,16 @@ impl BomService {
     }
 
     /// 创建BOM（含明细）
+    ///
+    /// 批次 203 P1-4 修复：原实现存在两个缺陷——
+    /// 1) 整个方法无事务保护，主表插入、默认取消、明细插入分散执行，
+    ///    若明细插入失败会留下无明细的脏 BOM；
+    /// 2) 明细采用循环内逐条 `insert(&*self.db)`，N 条明细 = N 次 INSERT（N+1 写）。
+    /// 现用事务包裹"取消旧默认 + 创建主表 + 批量插入明细"，明细改用 `insert_many` 单次 INSERT，
+    /// 并在事务内回查明细以构造 BomDetail 返回。
     pub async fn create(&self, req: CreateBomRequest) -> Result<BomDetail, AppError> {
+        let txn = self.db.begin().await?;
+
         // 计算版本号
         let version = if let Some(v) = req.version {
             v
@@ -99,7 +108,7 @@ impl BomService {
                     updated_at: Set(Utc::now()),
                     ..Default::default()
                 })
-                .exec(&*self.db)
+                .exec(&txn)
                 .await?;
         }
 
@@ -116,12 +125,13 @@ impl BomService {
             ..Default::default()
         };
 
-        let bom_model = bom_active_model.insert(&*self.db).await?;
+        let bom_model = bom_active_model.insert(&txn).await?;
 
-        // 创建BOM明细
-        let mut items = Vec::new();
+        // 创建BOM明细：改用 insert_many 批量 INSERT（原为循环内逐条 insert 导致 N 条=N 次 INSERT）
+        let mut item_active_models: Vec<BomItemActiveModel> =
+            Vec::with_capacity(req.items.len());
         for (index, item_req) in req.items.iter().enumerate() {
-            let item_active_model = BomItemActiveModel {
+            item_active_models.push(BomItemActiveModel {
                 bom_id: Set(bom_model.id),
                 material_id: Set(item_req.material_id),
                 quantity: Set(item_req.quantity),
@@ -131,12 +141,23 @@ impl BomService {
                 created_at: Set(Utc::now()),
                 updated_at: Set(Utc::now()),
                 ..Default::default()
-            };
-
-            let item_model = item_active_model.insert(&*self.db).await?;
-
-            items.push(item_model);
+            });
         }
+
+        if !item_active_models.is_empty() {
+            BomItemEntity::insert_many(item_active_models)
+                .exec(&txn)
+                .await?;
+        }
+
+        // insert_many 不返回每条 Model，需在事务内回查明细以构造 BomDetail
+        let items = BomItemEntity::find()
+            .filter(BomItemColumn::BomId.eq(bom_model.id))
+            .order_by_asc(BomItemColumn::SortOrder)
+            .all(&txn)
+            .await?;
+
+        txn.commit().await?;
 
         Ok(BomDetail {
             bom: bom_model,
@@ -191,9 +212,17 @@ impl BomService {
     }
 
     /// 更新BOM
+    ///
+    /// 批次 203 P1-4 修复：原实现存在两个缺陷——
+    /// 1) 事务仅包裹"删除旧明细 + 创建新明细"，主表 update 在事务外，
+    ///    若明细插入失败，主表 update 不会回滚；
+    /// 2) 明细采用循环内逐条 `insert(&txn)`，N 条明细 = N 次 INSERT（N+1 写）。
+    /// 现将事务范围扩大到包含主表 update，明细改用 `insert_many` 单次 INSERT。
     pub async fn update(&self, id: i32, req: UpdateBomRequest) -> Result<BomDetail, AppError> {
+        let txn = self.db.begin().await?;
+
         let bom_model = BomEntity::find_by_id(id)
-            .one(&*self.db)
+            .one(&txn)
             .await?
             .ok_or_else(|| AppError::not_found("BOM不存在"))?;
 
@@ -210,22 +239,21 @@ impl BomService {
         }
         bom_active.updated_at = Set(Utc::now());
 
-        let _updated_bom = bom_active.update(&*self.db).await?;
+        bom_active.update(&txn).await?;
 
-        // 如果提供了新的明细，替换所有明细
+        // 如果提供了新的明细，替换所有明细：改用 insert_many 批量 INSERT（原为循环内逐条 insert）
         if let Some(items_req) = req.items {
-            // 使用事务保护删除和创建操作
-            let txn = self.db.begin().await?;
-
             // 删除旧明细
             BomItemEntity::delete_many()
                 .filter(BomItemColumn::BomId.eq(id))
                 .exec(&txn)
                 .await?;
 
-            // 创建新明细
+            // 创建新明细：批量插入
+            let mut item_active_models: Vec<BomItemActiveModel> =
+                Vec::with_capacity(items_req.len());
             for (index, item_req) in items_req.iter().enumerate() {
-                let item_active_model = BomItemActiveModel {
+                item_active_models.push(BomItemActiveModel {
                     bom_id: Set(id),
                     material_id: Set(item_req.material_id),
                     quantity: Set(item_req.quantity),
@@ -235,13 +263,17 @@ impl BomService {
                     created_at: Set(Utc::now()),
                     updated_at: Set(Utc::now()),
                     ..Default::default()
-                };
-
-                item_active_model.insert(&txn).await?;
+                });
             }
 
-            txn.commit().await?;
+            if !item_active_models.is_empty() {
+                BomItemEntity::insert_many(item_active_models)
+                    .exec(&txn)
+                    .await?;
+            }
         }
+
+        txn.commit().await?;
 
         // 返回更新后的详情
         self.get_by_id(id)
