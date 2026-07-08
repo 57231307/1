@@ -56,18 +56,28 @@
 <script setup lang="ts">
 import { reactive, watch } from 'vue'
 
+// 库存调整表单数据结构（字段与 inventory 父组件 initialForm 保持一致）
+interface AdjustmentForm {
+  product_name?: string
+  warehouse_name?: string
+  current_quantity?: number
+  adjustment_type: 'increase' | 'decrease'
+  adjustment_quantity: number
+  reason: string
+}
+
 const props = defineProps<{
   visible: boolean
-  initialForm: any
+  initialForm: AdjustmentForm
 }>()
 
 const emit = defineEmits<{
   (e: 'update:visible', val: boolean): void
-  (e: 'submit', data: any): void
+  (e: 'submit', data: AdjustmentForm): void
 }>()
 
 // 浅拷贝 initialForm 同步初始值（不直接突变 prop）
-const localForm = reactive<Record<string, any>>({})
+const localForm = reactive<AdjustmentForm>({} as AdjustmentForm)
 watch(
   () => props.initialForm,
   newVal => {

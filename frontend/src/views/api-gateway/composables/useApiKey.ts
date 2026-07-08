@@ -143,7 +143,7 @@ export function useApiKey() {
   /** 查看密钥详情 */
   const viewKeyDetail = (row: ApiKey) => {
     ElMessageBox.alert(
-      `应用 ID: ${row.key_name}\n密钥值: ${(row as any).api_key || '（已隐藏）'}\n过期时间: ${row.expires_at || '永久'}`,
+      `应用 ID: ${row.key_name}\n密钥值: ${row.api_key || '（已隐藏）'}\n过期时间: ${row.expires_at || '永久'}`,
       '密钥详情',
       { type: 'info' }
     )

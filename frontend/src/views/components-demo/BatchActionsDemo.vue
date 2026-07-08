@@ -39,9 +39,17 @@
 import { ref } from 'vue'
 import BatchActions from '@/components/BatchActions.vue'
 
-const selectedRows = ref<any[]>([])
+// Demo 演示用的订单行数据结构
+interface DemoOrder {
+  id: number
+  name: string
+  status: string
+  date: string
+}
 
-const tableData = ref([
+const selectedRows = ref<DemoOrder[]>([])
+
+const tableData = ref<DemoOrder[]>([
   { id: 1, name: '订单 #1001', status: 'pending', date: '2026-01-15' },
   { id: 2, name: '订单 #1002', status: 'pending', date: '2026-01-16' },
   { id: 3, name: '订单 #1003', status: 'approved', date: '2026-01-17' },
@@ -50,7 +58,7 @@ const tableData = ref([
   { id: 6, name: '订单 #1006', status: 'approved', date: '2026-01-20' },
 ])
 
-const handleSelectionChange = (selection: any[]) => {
+const handleSelectionChange = (selection: DemoOrder[]) => {
   selectedRows.value = selection
 }
 

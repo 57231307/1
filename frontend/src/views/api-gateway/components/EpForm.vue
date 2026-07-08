@@ -12,7 +12,7 @@
     @update:model-value="(v: boolean) => emit('update:visible', v)"
   >
     <el-form
-      :ref="(el: any) => (formRefValue = el as FormInstance)"
+      :ref="(el: unknown) => (formRefValue = el as FormInstance)"
       :model="localForm"
       :rules="rules"
       label-width="100px"

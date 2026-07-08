@@ -82,7 +82,7 @@ const pcProc = usePcProc({
 // 对话框可见性本地 ref
 const dialogVisible = ref(false)
 const detailDialogVisible = ref(false)
-const viewData = ref<any>({})
+const viewData = ref<Partial<PurchaseContract>>({})
 
 /** 新建合同 */
 const onCreate = () => {
@@ -97,7 +97,7 @@ const onEdit = (row: PurchaseContract) => {
 }
 
 /** 查看详情 */
-const onView = (row: any) => {
+const onView = (row: PurchaseContract) => {
   viewData.value = row
   detailDialogVisible.value = true
 }

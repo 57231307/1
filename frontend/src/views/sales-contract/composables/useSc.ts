@@ -88,8 +88,10 @@ export function useSc() {
       const res = await listSalesContracts(queryParams)
       contractList.value = res.data?.list || []
       total.value = res.data?.total || 0
-    } catch (error: any) {
-      ElMessage.error(error.message || '获取销售合同列表失败')
+    } catch (error: unknown) {
+      // 使用类型守卫安全提取错误信息
+      const errMsg = error instanceof Error ? error.message : ''
+      ElMessage.error(errMsg || '获取销售合同列表失败')
     } finally {
       loading.value = false
     }
@@ -160,8 +162,9 @@ export function useSc() {
       ElMessage.success('保存成功')
       await getList()
       return true
-    } catch (error: any) {
-      if (error.message) {
+    } catch (error: unknown) {
+      // 使用类型守卫安全提取错误信息
+      if (error instanceof Error && error.message) {
         ElMessage.error(error.message || '操作失败')
       }
       return false

@@ -21,7 +21,7 @@ interface RefreshCallbacks {
 export function usePpProc(refresh: RefreshCallbacks) {
   // 查看详情对话框状态
   const viewDialogVisible = ref(false)
-  const viewData = ref<any>({})
+  const viewData = ref<Partial<PurchasePrice>>({})
 
   // 历史记录对话框状态
   const historyVisible = ref(false)
@@ -40,7 +40,7 @@ export function usePpProc(refresh: RefreshCallbacks) {
   }
 
   /** 查看详情（弹出对话框） */
-  const handleView = (row: any) => {
+  const handleView = (row: PurchasePrice) => {
     viewData.value = row
     viewDialogVisible.value = true
   }

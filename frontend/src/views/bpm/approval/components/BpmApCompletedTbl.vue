@@ -26,7 +26,7 @@
       />
       <el-table-column label="操作" width="120">
         <template #default="{ row }">
-          <el-button type="info" link size="small" @click="emit('view-chain', row as any)"
+          <el-button type="info" link size="small" @click="emit('view-chain', row as ApprovalTask)"
             >审批链</el-button
           >
         </template>

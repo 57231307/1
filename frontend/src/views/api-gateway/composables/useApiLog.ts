@@ -40,8 +40,10 @@ export function useApiLog() {
       const res = await listApiLogs(logQuery as LogQueryParams)
       logs.value = res.data || []
       logTotal.value = res.total || 0
-    } catch (error: any) {
-      ElMessage.error(error.message || '获取日志失败')
+    } catch (error: unknown) {
+      // 使用类型守卫安全提取错误信息
+      const errMsg = error instanceof Error ? error.message : ''
+      ElMessage.error(errMsg || '获取日志失败')
     } finally {
       logLoading.value = false
     }

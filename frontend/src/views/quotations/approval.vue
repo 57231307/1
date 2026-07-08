@@ -185,7 +185,8 @@ async function handleConvert() {
   submitting.value = true
   try {
     const res = await convertQuotation(quotation.value.id)
-    const order = res.data as any
+    // convertQuotation 返回 ApiResponse<ConvertResponse>，res.data 即 ConvertResponse
+    const order = res.data
     ElMessage.success(`转订单成功，销售订单 ID：${order?.id}`)
     if (order?.id) {
       router.push(`/sales/orders/${order.id}`)

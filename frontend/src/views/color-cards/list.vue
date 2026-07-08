@@ -59,7 +59,7 @@
         <el-table-column prop="total_colors" label="色号数" width="80" align="center" />
         <el-table-column label="状态" width="100">
           <template #default="{ row }">
-            <el-tag :type="COLOR_CARD_STATUS_COLORS[row.status] as any">
+            <el-tag :type="tagType(row.status)">
               {{ COLOR_CARD_STATUS[row.status as keyof typeof COLOR_CARD_STATUS] || row.status }}
             </el-tag>
           </template>
@@ -172,6 +172,13 @@ const formatDate = (s: string) => {
   if (!s) return '-'
   return new Date(s).toLocaleString('zh-CN')
 }
+
+/** el-tag 类型联合（与 element-plus TagProps.type 对齐） */
+type TagType = '' | 'success' | 'warning' | 'info' | 'danger'
+
+/** 根据色卡状态返回对应的 el-tag 类型 */
+const tagType = (status: string): TagType =>
+  (COLOR_CARD_STATUS_COLORS[status] || '') as TagType
 
 onMounted(loadData)
 </script>

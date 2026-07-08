@@ -146,7 +146,7 @@ const router = useRouter()
 // 批次 94 P2-12 修复：获取用户 store 以读取当前登录用户 ID
 const userStore = useUserStore()
 const loading = ref(false)
-const orders = ref<any[]>([])
+const orders = ref<CustomOrderListItem[]>([])
 const pagination = ref({ page: 1, page_size: 20, total: 0 })
 const filters = ref({ status: '', keyword: '' })
 
