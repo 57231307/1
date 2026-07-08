@@ -45,12 +45,12 @@
   </div>
 </template>
 
-<script setup lang="ts" generic="T extends Record<string, unknown>">
+<script setup lang="ts" generic="T">
 /**
  * V2Table 组件
  * 包装 el-table-v2，统一列定义 / 虚拟滚动 / 分页 / 事件接口
  */
-import { computed, ref, type Ref, type VNode } from 'vue'
+import { computed, h, ref, type VNode } from 'vue'
 import { ElAutoResizer, ElTableV2, ElPagination } from 'element-plus'
 import type { ColumnDef, SortOrder } from './types'
 
@@ -87,24 +87,17 @@ const emit = defineEmits<{
   refresh: []
 }>()
 
-/// 扩展 Window 接口，声明性能测试采集字段
-declare global {
-  interface Window {
-    __renderCellTotal?: Ref<number>
-  }
-}
-
-/// renderCell 计数器（暴露到 window 供性能测试采集）
+/// renderCell 计数器（暴露到 window 供性能测试采集，类型声明见 src/types/window.d.ts）
 const renderCellCount = ref(0)
 if (typeof window !== 'undefined') {
   window.__renderCellTotal = renderCellCount
 }
 
-/// renderCell WeakMap 缓存：cellCache[row][col.key] → 已渲染的 VNode/string
-const cellCache = new WeakMap<object, Map<string, VNode | string>>()
+/// renderCell WeakMap 缓存：cellCache[row][col.key] → 已渲染的 VNode
+const cellCache = new WeakMap<object, Map<string, VNode>>()
 
-/// 获取单行单列的缓存值，未命中则计算并写入
-function getCachedCell(row: T, col: ColumnDef<T>): VNode | string {
+/// 获取单行单列的缓存 VNode，未命中则计算并写入
+function getCachedCell(row: T, col: ColumnDef<T>): VNode {
   let rowCache = cellCache.get(row as object)
   if (!rowCache) {
     rowCache = new Map()
@@ -115,18 +108,19 @@ function getCachedCell(row: T, col: ColumnDef<T>): VNode | string {
   }
   // 未命中：递增计数 + 计算 + 缓存
   renderCellCount.value++
-  let value: VNode | string
+  let vnode: VNode
   if (col.renderCell) {
-    value = col.renderCell(row)
+    vnode = col.renderCell(row)
   } else if (col.formatter) {
-    value = col.formatter(row)
+    const text = col.formatter(row)
+    vnode = h('span', text)
   } else {
-    // 兜底：直接显示值
-    const v = row[col.key]
-    value = v !== null && v !== undefined ? String(v) : ''
+    // 兜底：直接显示值（T 无索引签名，通过断言访问字段）
+    const v = (row as Record<string, unknown>)[col.key]
+    vnode = h('span', v !== null && v !== undefined ? String(v) : '')
   }
-  rowCache.set(col.key, value)
-  return value
+  rowCache.set(col.key, vnode)
+  return vnode
 }
 
 /// 将 ColumnDef 转换为 el-table-v2 接受的列配置

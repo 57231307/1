@@ -13,7 +13,7 @@ import type { VNode } from 'vue'
 export type SortOrder = 'asc' | 'desc'
 
 /// 列定义（泛型 T 为行数据类型，由调用方通过 data prop 自动推导）
-export interface ColumnDef<T = Record<string, unknown>> {
+export interface ColumnDef<T = unknown> {
   /** 数据字段名 */
   key: string
   /** 列标题 */
@@ -37,7 +37,7 @@ export interface ColumnDef<T = Record<string, unknown>> {
 }
 
 /// V2Table 组件 Props（泛型 T 为行数据类型）
-export interface V2TableProps<T = Record<string, unknown>> {
+export interface V2TableProps<T = unknown> {
   /** 列定义 */
   columns: ColumnDef<T>[]
   /** 表格数据 */
