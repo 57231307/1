@@ -19,13 +19,13 @@
               <span v-if="price">{{ formatPrice(price.base_price, price.currency) }}</span>
             </el-descriptions-item>
             <el-descriptions-item label="客户等级">
-              <el-tag v-if="price?.customer_level" :type="getLevelColor(price.customer_level) as TagType">
+              <el-tag v-if="price?.customer_level" :type="getLevelColor(price.customer_level)">
                 {{ getLevelLabel(price.customer_level) }}
               </el-tag>
               <span v-else>-</span>
             </el-descriptions-item>
             <el-descriptions-item label="季节">
-              <el-tag v-if="price?.season" :type="getSeasonColor(price.season) as TagType">
+              <el-tag v-if="price?.season" :type="getSeasonColor(price.season)">
                 {{ getSeasonLabel(price.season) }}
               </el-tag>
               <span v-else>-</span>
@@ -35,12 +35,12 @@
               {{ price?.effective_from }} ~ {{ price?.effective_to || '长期' }}
             </el-descriptions-item>
             <el-descriptions-item label="状态">
-              <el-tag :type="price?.is_active ? 'success' : 'info' as TagType">
+              <el-tag :type="price?.is_active ? 'success' : 'info'">
                 {{ price?.is_active ? '启用' : '禁用' }}
               </el-tag>
             </el-descriptions-item>
             <el-descriptions-item label="审批状态" :span="2">
-              <el-tag :type="getApprovalColor(price?.approval_status || '') as TagType">
+              <el-tag :type="getApprovalColor(price?.approval_status || '')">
                 {{ getApprovalLabel(price?.approval_status || '') }}
               </el-tag>
             </el-descriptions-item>
@@ -78,7 +78,7 @@
         <el-table-column prop="tier_price" label="阶梯价" width="120" />
         <el-table-column label="客户等级" width="120">
           <template #default="{ row }">
-            <el-tag v-if="row.customer_level" :type="getLevelColor(row.customer_level) as TagType">
+            <el-tag v-if="row.customer_level" :type="getLevelColor(row.customer_level)">
               {{ getLevelLabel(row.customer_level) }}
             </el-tag>
             <span v-else>通用</span>
@@ -148,9 +148,6 @@ import {
   type CreatePriceTierDto,
 } from '@/api/color-price'
 import PriceHistoryChart from '@/components/PriceHistoryChart.vue'
-
-// v11 批次 174 P2-1 修复：el-tag type 类型
-type TagType = 'success' | 'warning' | 'info' | 'primary' | 'danger'
 
 const route = useRoute()
 const loading = ref(false)

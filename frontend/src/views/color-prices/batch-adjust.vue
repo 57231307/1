@@ -40,7 +40,7 @@
             <el-table-column prop="color_id" label="色号" width="100" />
             <el-table-column label="客户等级" width="100">
               <template #default="{ row }">
-                <el-tag v-if="row.customer_level" :type="getLevelColor(row.customer_level) as any">
+                <el-tag v-if="row.customer_level" :type="getLevelColor(row.customer_level)">
                   {{ getLevelLabel(row.customer_level) }}
                 </el-tag>
                 <span v-else>-</span>
@@ -157,8 +157,8 @@ const loadPrices = async () => {
     if (ids.length > 0) {
       selectedRows.value = res.items.filter((p) => ids.includes(p.id))
     }
-  } catch (e: any) {
-    ElMessage.error('加载失败：' + (e?.message || '未知错误'))
+  } catch (e: unknown) {
+    ElMessage.error('加载失败：' + (e instanceof Error ? e.message : '未知错误'))
   } finally {
     loading.value = false
   }
@@ -186,8 +186,8 @@ const handleSubmit = async () => {
     })
     result.value = r
     ElMessage.success(`调价提交完成：自动通过 ${r.auto_approved.length}，待审批 ${r.pending_approval.length}`)
-  } catch (e: any) {
-    ElMessage.error('提交失败：' + (e?.message || '未知错误'))
+  } catch (e: unknown) {
+    ElMessage.error('提交失败：' + (e instanceof Error ? e.message : '未知错误'))
   } finally {
     submitting.value = false
   }
@@ -211,8 +211,8 @@ const handleCalculate = async () => {
     ElMessage.success(
       `价格计算：基础价 ${r.base_price} → 最终价 ${formatPrice(r.final_price, r.currency)}（${r.applied_rule}）`,
     )
-  } catch (e: any) {
-    ElMessage.error('计算失败：' + (e?.message || '未知错误'))
+  } catch (e: unknown) {
+    ElMessage.error('计算失败：' + (e instanceof Error ? e.message : '未知错误'))
   }
 }
 

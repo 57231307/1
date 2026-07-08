@@ -75,7 +75,7 @@
         <el-table-column prop="color_id" label="色号" width="100" />
         <el-table-column label="客户等级" width="100">
           <template #default="{ row }">
-            <el-tag v-if="row.customer_level" :type="getLevelColor(row.customer_level) as TagType">
+            <el-tag v-if="row.customer_level" :type="getLevelColor(row.customer_level)">
               {{ getLevelLabel(row.customer_level) }}
             </el-tag>
             <span v-else>-</span>
@@ -83,7 +83,7 @@
         </el-table-column>
         <el-table-column label="季节" width="100">
           <template #default="{ row }">
-            <el-tag v-if="row.season" :type="getSeasonColor(row.season) as TagType">
+            <el-tag v-if="row.season" :type="getSeasonColor(row.season)">
               {{ getSeasonLabel(row.season) }}
             </el-tag>
             <span v-else>-</span>
@@ -95,7 +95,7 @@
         <el-table-column label="币种" width="80" prop="currency" />
         <el-table-column label="审批状态" width="100">
           <template #default="{ row }">
-            <el-tag :type="getApprovalColor(row.approval_status) as TagType">
+            <el-tag :type="getApprovalColor(row.approval_status)">
               {{ getApprovalLabel(row.approval_status) }}
             </el-tag>
           </template>
@@ -103,7 +103,7 @@
         <el-table-column label="生效日期" width="120" prop="effective_from" />
         <el-table-column label="状态" width="80">
           <template #default="{ row }">
-            <el-tag :type="row.is_active ? 'success' : 'info' as TagType">
+            <el-tag :type="row.is_active ? 'success' : 'info'">
               {{ row.is_active ? '启用' : '禁用' }}
             </el-tag>
           </template>
@@ -150,9 +150,6 @@ import {
   type ColorPriceListItem,
   type ListColorPricesQuery,
 } from '@/api/color-price'
-
-// v11 批次 180 P2-1 修复：el-tag type 字面量类型
-type TagType = 'success' | 'warning' | 'info' | 'primary' | 'danger'
 
 const router = useRouter()
 const loading = ref(false)

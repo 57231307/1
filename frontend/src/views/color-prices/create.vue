@@ -168,8 +168,8 @@ const handleSubmit = async () => {
       await createColorPrice(payload)
       ElMessage.success('创建成功')
       router.push('/color-prices/list')
-    } catch (e: any) {
-      ElMessage.error('创建失败：' + (e?.message || '未知错误'))
+    } catch (e: unknown) {
+      ElMessage.error('创建失败：' + (e instanceof Error ? e.message : '未知错误'))
     } finally {
       submitting.value = false
     }

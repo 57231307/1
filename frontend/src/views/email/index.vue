@@ -4,7 +4,7 @@
       <h2>邮件管理</h2>
     </div>
 
-    <el-tabs v-model="activeTab" type="border-card" @tab-change="(tab: any) => loadTab(tab)">
+    <el-tabs v-model="activeTab" type="border-card" @tab-change="handleTabChange">
       <!-- 邮件模板 Tab -->
       <el-tab-pane label="邮件模板" name="templates">
         <div class="tab-header">
@@ -32,8 +32,8 @@
           </el-table-column>
           <el-table-column label="操作" width="200" fixed="right">
             <template #default="{ row }">
-              <el-button v-permission="'email_template:update'" size="small" @click="handleEditTemplate(row as any)">编辑</el-button>
-              <el-button v-permission="'email_template:delete'" size="small" type="danger" @click="handleDeleteTemplate(row as any)"
+              <el-button v-permission="'email_template:update'" size="small" @click="handleEditTemplate(row)">编辑</el-button>
+              <el-button v-permission="'email_template:delete'" size="small" type="danger" @click="handleDeleteTemplate(row)"
                 >删除</el-button
               >
             </template>
@@ -202,9 +202,9 @@
 
 <script setup lang="ts">
 import { ref, reactive, onMounted } from 'vue'
-import { ElMessage, ElMessageBox } from 'element-plus'
+import { ElMessage, ElMessageBox, type TabsPaneContext } from 'element-plus'
 import { Plus } from '@element-plus/icons-vue'
-import { emailApi, type EmailTemplate, type EmailLog, type EmailStatistics } from '@/api/email'
+import { emailApi, type EmailTemplate, type EmailLog, type EmailStatistics, type EmailQueryParams } from '@/api/email'
 import { loadIfNot, createLazyLoader } from '@/utils/lazy-loader'
 import { logger } from '@/utils/logger'
 
@@ -255,6 +255,11 @@ onMounted(() => {
   initPage()
 })
 
+/// 处理 tab 切换事件（element-plus TabsPaneContext 类型）
+const handleTabChange = (tab: TabsPaneContext) => {
+  loadTab(tab.paneName as string)
+}
+
 const loadTab = (tabName: string) => {
   const tabLoaders: Record<string, () => void> = {
     templates: fetchTemplates,
@@ -267,7 +272,7 @@ const loadTab = (tabName: string) => {
 }
 
 const initPage = () => {
-  loadTab(activeTab.value as string)
+  loadTab(activeTab.value)
 }
 
 const fetchTemplates = async () => {
@@ -286,7 +291,7 @@ const fetchTemplates = async () => {
 const fetchRecords = async () => {
   recordsLoading.value = true
   try {
-    const params: any = { ...recordQuery }
+    const params: EmailQueryParams = { ...recordQuery }
     if (recordDateRange.value) {
       params.start_date = recordDateRange.value[0].toISOString()
       params.end_date = recordDateRange.value[1].toISOString()

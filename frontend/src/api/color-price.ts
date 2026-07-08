@@ -376,17 +376,20 @@ export function getLevelLabel(level: string | null | undefined): string {
   }
 }
 
+// el-tag type 合法值联合类型
+export type TagType = 'success' | 'warning' | 'info' | 'primary' | 'danger'
+
 /** 获取客户等级标签颜色 */
-export function getLevelColor(level: string | null | undefined): string {
+export function getLevelColor(level: string | null | undefined): TagType {
   switch (level) {
     case 'VIP':
-      return 'red'
+      return 'danger'
     case 'GOLD':
-      return 'orange'
+      return 'warning'
     case 'SILVER':
-      return 'gold'
+      return 'info'
     default:
-      return 'blue'
+      return 'primary'
   }
 }
 
@@ -405,16 +408,16 @@ export function getSeasonLabel(season: string | null | undefined): string {
 }
 
 /** 获取季节颜色 */
-export function getSeasonColor(season: string | null | undefined): string {
+export function getSeasonColor(season: string | null | undefined): TagType {
   switch (season) {
     case 'SS':
-      return 'green'
+      return 'success'
     case 'AW':
-      return 'orange'
+      return 'warning'
     case 'HOLIDAY':
-      return 'red'
+      return 'danger'
     default:
-      return 'default'
+      return 'info'
   }
 }
 
@@ -433,15 +436,15 @@ export function getApprovalLabel(status: string): string {
 }
 
 /** 获取审批状态颜色 */
-export function getApprovalColor(status: string): string {
+export function getApprovalColor(status: string): TagType {
   switch (status) {
     case 'PENDING':
-      return 'orange'
+      return 'warning'
     case 'APPROVED':
-      return 'green'
+      return 'success'
     case 'REJECTED':
-      return 'red'
+      return 'danger'
     default:
-      return 'default'
+      return 'info'
   }
 }
