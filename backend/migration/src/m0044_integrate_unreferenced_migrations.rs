@@ -114,6 +114,39 @@ const UNREFERENCED_MIGRATIONS: &[(&str, &str)] = &[
     )),
 ];
 
+/// 修复 SQL 中 BIGINT 外键类型不匹配问题
+///
+/// 引用 SERIAL (INTEGER) id 列的 BIGINT 外键会导致 PostgreSQL 报错。
+/// 这些表由 m0001/m0002/m0003 等 Rust 迁移创建，id 类型为 SERIAL (INTEGER)。
+/// 引用 BIGSERIAL (BIGINT) id 列的 BIGINT 外键无需修改。
+fn fix_fk_types(sql: &str) -> String {
+    // id 类型为 SERIAL (INTEGER) 的表
+    const INTEGER_ID_TABLES: &[&str] = &[
+        "users",
+        "products",
+        "customers",
+        "dye_recipe",
+        "sales_orders",
+        "product_categories",
+        "warehouses",
+        "suppliers",
+        "product_colors",
+        "fixed_assets",
+    ];
+    let mut result = sql.to_string();
+    for table in INTEGER_ID_TABLES {
+        // BIGINT NOT NULL REFERENCES "table"("id") → INTEGER NOT NULL REFERENCES
+        let bigint_nn = format!("BIGINT NOT NULL REFERENCES \"{}\"(\"id\")", table);
+        let integer_nn = format!("INTEGER NOT NULL REFERENCES \"{}\"(\"id\")", table);
+        result = result.replace(&bigint_nn, &integer_nn);
+        // BIGINT REFERENCES "table"("id") → INTEGER REFERENCES
+        let bigint = format!("BIGINT REFERENCES \"{}\"(\"id\")", table);
+        let integer = format!("INTEGER REFERENCES \"{}\"(\"id\")", table);
+        result = result.replace(&bigint, &integer);
+    }
+    result
+}
+
 #[derive(DeriveMigrationName)]
 pub struct Migration;
 
@@ -123,7 +156,9 @@ impl MigrationTrait for Migration {
         let db = manager.get_connection();
         for (name, sql) in UNREFERENCED_MIGRATIONS {
             if !sql.trim().is_empty() {
-                db.execute_unprepared(sql).await.map_err(|e| {
+                // 修复 BIGINT 外键类型不匹配后再执行
+                let fixed_sql = fix_fk_types(sql);
+                db.execute_unprepared(&fixed_sql).await.map_err(|e| {
                     DbErr::Custom(format!("执行整合迁移 {} 失败: {}", name, e))
                 })?;
             }

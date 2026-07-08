@@ -52,7 +52,7 @@ pub struct ColorItemDto {
     pub hex_value: String,
 
     /// 关联染色配方 ID
-    pub dye_recipe_id: Option<i64>,
+    pub dye_recipe_id: Option<i32>,
 
     /// 关联色号价格 ID
     pub product_color_price_id: Option<i64>,

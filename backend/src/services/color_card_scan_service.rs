@@ -49,10 +49,7 @@ impl ColorCardScanService {
 
         // 3. 加载配方（如有）
         let recipe_summary = if let Some(recipe_id) = item.dye_recipe_id {
-            // dye_recipe.id 是 i32，color_card_item.dye_recipe_id 是 Option<i64>，用 try_from 安全转换
-            let recipe = crate::models::dye_recipe::Entity::find_by_id(i32::try_from(recipe_id).map_err(|e| {
-                AppError::validation(format!("配方 ID 超出 i32 范围: {}", e))
-            })?)
+            let recipe = crate::models::dye_recipe::Entity::find_by_id(recipe_id)
                 .one(&*self.db)
                 .await
                 .map_err(|e| AppError::database(e.to_string()))?;

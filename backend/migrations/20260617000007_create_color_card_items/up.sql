@@ -22,7 +22,7 @@ CREATE TABLE IF NOT EXISTS "color_card_items" (
     "cncs_code" VARCHAR(50),
     "custom_code" VARCHAR(50),
     "hex_value" VARCHAR(7) NOT NULL,
-    "dye_recipe_id" BIGINT REFERENCES "dye_recipes"("id"),
+    "dye_recipe_id" INTEGER REFERENCES "dye_recipe"("id"),
     "product_color_price_id" BIGINT REFERENCES "product_color_prices"("id"),
     "swatch_image_url" TEXT,
     "sequence" INT NOT NULL DEFAULT 0,

@@ -68,7 +68,7 @@ pub struct ColorItemInfo {
     pub cncs_code: Option<String>,
     pub custom_code: Option<String>,
     pub hex_value: String,
-    pub dye_recipe_id: Option<i64>,
+    pub dye_recipe_id: Option<i32>,
     pub product_color_price_id: Option<i64>,
     pub swatch_image_url: Option<String>,
     pub sequence: i32,
