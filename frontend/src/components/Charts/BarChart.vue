@@ -12,7 +12,7 @@
 
 <script setup lang="ts">
 import { computed, ref } from 'vue'
-import type { EChartsOption } from 'echarts'
+import type { EChartsOption, ECharts } from 'echarts'
 import BaseChart from './BaseChart.vue'
 
 interface BarData {
@@ -20,7 +20,7 @@ interface BarData {
   data: (number | null)[]
   stack?: string
   barWidth?: string | number
-  [key: string]: any
+  [key: string]: unknown
 }
 
 interface Props {
@@ -46,8 +46,8 @@ const props = withDefaults(defineProps<Props>(), {
 })
 
 const emit = defineEmits<{
-  ready: [instance: any]
-  click: [params: any]
+  ready: [instance: ECharts]
+  click: [params: Record<string, unknown>]
 }>()
 
 const chartRef = ref()

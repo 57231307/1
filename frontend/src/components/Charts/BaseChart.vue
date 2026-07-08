@@ -22,7 +22,7 @@ const props = withDefaults(defineProps<Props>(), {
 
 const emit = defineEmits<{
   ready: [instance: echarts.ECharts]
-  click: [params: any]
+  click: [params: Record<string, unknown>]
 }>()
 
 const chartRef = ref<HTMLDivElement>()

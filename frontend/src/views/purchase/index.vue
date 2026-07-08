@@ -39,7 +39,7 @@
       :rules="create.createFormRules"
       :suppliers="list.suppliers.value"
       :products="list.products.value"
-      :form-ref="create.createFormRef"
+      :form-ref="create.createFormRef.value"
       :on-submit="create.submitCreate"
       :on-cancel="() => (create.createDialogVisible.value = false)"
       :on-add-item="create.addItem"

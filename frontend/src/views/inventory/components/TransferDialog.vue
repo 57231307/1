@@ -128,7 +128,7 @@ const localForm = reactive<TransferForm>({
 watch(
   () => props.initialForm,
   newVal => {
-    Object.keys(localForm).forEach(k => delete localForm[k])
+    // TransferForm 字段固定，直接 Object.assign 覆盖即可（无需逐键 delete）
     Object.assign(localForm, JSON.parse(JSON.stringify(newVal)))
   },
   { immediate: true, deep: true }
