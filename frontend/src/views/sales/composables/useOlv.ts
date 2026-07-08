@@ -412,5 +412,3 @@ export function useOlv() {
     initLoad,
   })
 }
-
-export type { OrderForm, OrderItemForm }

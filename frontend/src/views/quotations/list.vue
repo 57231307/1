@@ -78,7 +78,7 @@
         </el-table-column>
         <el-table-column label="状态" width="100" align="center">
           <template #default="{ row }">
-            <el-tag :type="QUOTATION_STATUS_TAG_TYPES[row.status as QuotationStatus] as any">
+            <el-tag :type="tagType(row.status as QuotationStatus)">
               {{ QUOTATION_STATUS_LABELS[row.status as QuotationStatus] || row.status }}
             </el-tag>
           </template>
@@ -139,8 +139,20 @@ import {
   QUOTATION_STATUS_TAG_TYPES,
   type QuotationResponseDto,
   type QuotationStatus,
+  type ListResponse,
 } from '@/api/quotation'
 import { listCustomers } from '@/api/customer'
+
+/** el-tag 类型联合（与 element-plus TagProps.type 对齐） */
+type TagType = '' | 'success' | 'warning' | 'info' | 'danger'
+
+/** 报价单列表后端兼容结构（list 或 items 字段） */
+type QuotationListObj = Partial<ListResponse> & { list?: QuotationResponseDto[] }
+
+/** 计算状态对应的 el-tag 类型 */
+function tagType(s: QuotationStatus): TagType {
+  return (QUOTATION_STATUS_TAG_TYPES[s] || '') as TagType
+}
 
 const router = useRouter()
 const loading = ref(false)
@@ -170,7 +182,7 @@ async function loadData() {
       quotations.value = data
       pagination.total = data.length
     } else if (data && typeof data === 'object') {
-      const obj = data as any
+      const obj = data as QuotationListObj
       quotations.value = obj.list || obj.items || []
       pagination.total = obj.total ?? quotations.value.length
     } else {
@@ -190,8 +202,9 @@ async function loadData() {
 async function loadCustomers() {
   try {
     const res = await listCustomers({ page: 1, page_size: 1000 })
-    const data = res.data as any
-    customers.value = data?.list || data?.items || []
+    // listCustomers 返回 ApiResponse<{ list: Customer[]; total: number }>，
+    // res.data.list 即客户数组，无需 as any
+    customers.value = res.data?.list || []
   } catch {
     customers.value = []
   }
