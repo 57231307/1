@@ -460,7 +460,9 @@ impl SupplierService {
         &self,
         supplier_id: i32,
         req: CreateContactRequest,
-        user_id: i32,
+        // P2-6 修复后 user_id 不再用于 clear_primary_contacts_txn（防审计日志膨胀）；
+        // supplier_contact 模型无 created_by 字段，参数保留以维持 API 签名兼容。
+        _user_id: i32,
     ) -> Result<supplier_contact::Model, AppError> {
         let txn = (*self.db).begin().await?;
 
