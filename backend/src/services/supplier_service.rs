@@ -377,13 +377,14 @@ impl SupplierService {
     pub async fn can_delete_supplier(&self, id: i32) -> Result<bool, AppError> {
         // 检查是否有未完成的采购订单
         use crate::models::purchase_order;
+        use crate::models::status::purchase_order as po_status;
         let has_active_orders = purchase_order::Entity::find()
             .filter(purchase_order::Column::SupplierId.eq(id))
             .filter(purchase_order::Column::OrderStatus.is_in(vec![
-                "DRAFT",
-                "SUBMITTED",
-                "APPROVED",
-                "PARTIAL_RECEIVED",
+                po_status::DRAFT,
+                po_status::SUBMITTED,
+                po_status::APPROVED,
+                po_status::PARTIAL_RECEIVED,
             ]))
             .count(&*self.db)
             .await?;
@@ -418,9 +419,9 @@ impl SupplierService {
 
         supplier_active.is_enabled = Set(Some(enable));
         supplier_active.status = Set(Some(if enable {
-            "active".to_string()
+            crate::models::status::master_data::ACTIVE.to_string()
         } else {
-            "inactive".to_string()
+            crate::models::status::master_data::INACTIVE.to_string()
         }));
         supplier_active.updated_by = Set(Some(user_id));
         supplier_active.updated_at = Set(Utc::now().into());

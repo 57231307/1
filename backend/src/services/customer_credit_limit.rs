@@ -1,4 +1,6 @@
 use crate::models::customer_credit;
+// 批次 208 P2-5 修复（v12 复审）：硬编码 "active"/"inactive" 替换为 master_data 常量
+use crate::models::status::master_data;
 use crate::utils::error::AppError;
 use rust_decimal::Decimal;
 use sea_orm::{
@@ -56,7 +58,7 @@ impl CustomerCreditService {
                     available_credit: Set(req.credit_limit),
                     credit_limit: Set(req.credit_limit),
                     credit_days: Set(req.credit_days.or(Some(30))),
-                    status: Set("active".to_string()),
+                    status: Set(master_data::ACTIVE.to_string()),
                     ..Default::default()
                 };
                 active_credit.insert(&*self.db).await?
@@ -92,7 +94,7 @@ impl CustomerCreditService {
             .await?
             .ok_or_else(|| AppError::not_found(format!("客户 {} 的信用评级不存在", customer_id)))?;
 
-        if credit.status != "active" {
+        if credit.status != master_data::ACTIVE {
             txn.rollback().await?;
             return Err(AppError::validation("客户信用状态非活跃"));
         }
@@ -232,7 +234,7 @@ impl CustomerCreditService {
             None => return Ok(true),
         };
 
-        if credit.status != "active" {
+        if credit.status != master_data::ACTIVE {
             return Ok(false);
         }
 
@@ -255,7 +257,7 @@ impl CustomerCreditService {
             None => return Ok(true),
         };
 
-        if credit.status != "active" {
+        if credit.status != master_data::ACTIVE {
             return Ok(false);
         }
 
@@ -319,7 +321,7 @@ impl CustomerCreditService {
         }
 
         let mut credit_active: customer_credit::ActiveModel = credit.into();
-        credit_active.status = Set("inactive".to_string());
+        credit_active.status = Set(master_data::INACTIVE.to_string());
         // 注意：customer_credit 模型没有 updated_by 字段
 
         credit_active.save(&txn).await?;

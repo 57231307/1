@@ -10,6 +10,8 @@ use std::sync::Arc;
 
 use crate::models::customer::{self, Entity as CustomerEntity};
 use crate::models::dto::PageRequest;
+// 批次 208 P2-5 修复（v12 复审）：硬编码 "active"/"inactive" 替换为 master_data 常量
+use crate::models::status::master_data;
 use crate::search::{CustomerDoc, SearchClient, SearchSyncer};
 use crate::utils::data_permission::{DataPermissionFilter, CUSTOMER_ALL_FIELDS};
 use crate::utils::error::AppError;
@@ -192,7 +194,7 @@ impl CustomerService {
             tax_id: sea_orm::ActiveValue::Set(tax_id),
             bank_name: sea_orm::ActiveValue::Set(bank_name),
             bank_account: sea_orm::ActiveValue::Set(bank_account),
-            status: sea_orm::ActiveValue::Set("active".to_string()),
+            status: sea_orm::ActiveValue::Set(master_data::ACTIVE.to_string()),
             customer_type: sea_orm::ActiveValue::Set(customer_type),
             notes: sea_orm::ActiveValue::Set(notes),
             created_by: sea_orm::ActiveValue::Set(created_by),
@@ -531,7 +533,7 @@ impl CustomerService {
             .ok_or_else(|| AppError::not_found(format!("客户 {} 未找到", customer_id)))?;
 
         // 状态门：已 inactive 的客户拒绝重复软删除
-        if customer.status == "inactive" {
+        if customer.status == master_data::INACTIVE {
             return Err(AppError::business(format!(
                 "客户 {} 已删除，无需重复操作",
                 customer_id
@@ -539,7 +541,7 @@ impl CustomerService {
         }
 
         let mut customer_update: customer::ActiveModel = customer.into();
-        customer_update.status = sea_orm::ActiveValue::Set("inactive".to_string());
+        customer_update.status = sea_orm::ActiveValue::Set(master_data::INACTIVE.to_string());
         customer_update.updated_at = sea_orm::ActiveValue::Set(Utc::now());
 
         // 事务内 update_with_audit，原子写入软删除 + 审计日志

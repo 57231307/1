@@ -153,7 +153,6 @@ pub mod purchase_order {
     /// 待审批
     pub const PENDING_APPROVAL: &str = "PENDING_APPROVAL";
     /// 已提交
-    #[allow(dead_code)] // TODO(tech-debt): 采购订单业务接入后移除（批次 161 CI2）
     pub const SUBMITTED: &str = "SUBMITTED";
     /// 已审批
     pub const APPROVED: &str = "APPROVED";
@@ -230,4 +229,17 @@ pub mod sales_delivery {
     /// 已取消
     #[allow(dead_code)] // TODO(tech-debt): 销售发货取消状态接入后移除（批次 161 CI2）
     pub const CANCELLED: &str = "cancelled";
+}
+
+/// 主数据启用/停用状态（小写值）
+///
+/// 批次 208 P2-5 修复（v12 复审）：
+/// supplier/customer/fixed_asset 等主数据的 status 字段使用小写 "active"/"inactive"，
+/// 与 common::STATUS_ACTIVE（大写 "ACTIVE"）不同，单独定义避免大小写混淆。
+pub mod master_data {
+    /// 启用：主数据可用状态
+    pub const ACTIVE: &str = "active";
+
+    /// 停用：主数据不可用状态
+    pub const INACTIVE: &str = "inactive";
 }

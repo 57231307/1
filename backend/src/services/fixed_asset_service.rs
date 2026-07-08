@@ -1,4 +1,6 @@
 use crate::models::fixed_asset;
+// 批次 208 P2-5 修复（v12 复审）：硬编码 "active"/"inactive" 替换为 master_data 常量
+use crate::models::status::master_data;
 use crate::utils::error::AppError;
 use crate::utils::sql_escape::safe_like_pattern;
 use chrono::NaiveDate;
@@ -94,7 +96,7 @@ impl FixedAssetService {
                     .unwrap_or_else(|| chrono::Utc::now().date_naive()),
             )),
             supplier_id: Set(req.supplier_id),
-            status: Set("active".to_string()),
+            status: Set(master_data::ACTIVE.to_string()),
             created_by: Set(user_id),
             ..Default::default()
         };
@@ -220,7 +222,7 @@ impl FixedAssetService {
             .ok_or_else(|| AppError::not_found(format!("固定资产不存在：{}", asset_id)))?;
 
         // 检查资产状态
-        if asset.status != "active" {
+        if asset.status != master_data::ACTIVE {
             return Err(AppError::validation(
                 "只有活跃状态的资产才能计提折旧".to_string(),
             ));
@@ -352,7 +354,7 @@ impl FixedAssetService {
             .ok_or_else(|| AppError::not_found(format!("固定资产不存在：{}", asset_id)))?;
 
         // 检查资产状态
-        if asset.status != "active" {
+        if asset.status != master_data::ACTIVE {
             return Err(AppError::validation(
                 "只有活跃状态的资产才能处置".to_string(),
             ));
@@ -451,7 +453,7 @@ impl FixedAssetService {
             .await?
             .ok_or_else(|| AppError::not_found(format!("固定资产不存在：{}", asset_id)))?;
 
-        if asset.status != "inactive" {
+        if asset.status != master_data::INACTIVE {
             return Err(AppError::validation("只能删除未使用状态的资产".to_string()));
         }
 
