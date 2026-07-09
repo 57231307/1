@@ -6,6 +6,30 @@
 
 ---
 
+## 2026-07-10 (批次 250 v14 中风险简化阉割修复 — budget_management 审批流完整化，CI 12/12 核心全绿)
+
+### 批次 250：v14 中风险简化阉割修复 — budget_management adjust_budget 审批流跳过改为完整审批闭环
+
+**修复内容**：bug.md 中风险简化阉割问题 — `budget_management_service.rs` 的 `adjust_budget` 方法硬编码 `approval_status: APPROVED` 并立即应用金额变更（注释自述"简化：直接批准"），完全跳过审批环节。预算金额调整属高风险财务操作，应经审批人审核。
+
+**修改文件**（4 文件 +207 -9 行）：
+- `backend/src/services/budget_management_service.rs`：修改 `adjust_budget` + 新增 `approve_adjustment`/`reject_adjustment`/`reject_plan` 方法
+- `backend/src/handlers/budget_management_handler.rs`：新增 3 个 handler 函数
+- `backend/src/routes/finance.rs`：新增 3 条路由
+- `frontend/src/api/asset.ts`：新增 3 个前端 API 函数
+
+**技术要点**：
+- `adjust_budget`：创建调整单改为 PENDING 状态（原 APPROVED），不再立即应用金额变更
+- `approve_adjustment`：PENDING → APPROVED，事务内对调整单和预算方案双重 `lock_exclusive`，审批通过后实际应用金额变更
+- `reject_adjustment`：PENDING → REJECTED，不应用金额变更
+- `reject_plan`：DRAFT → REJECTED，补全预算方案审批闭环
+- 新增路由：`POST /budgets/adjust/:id/approve`、`POST /budgets/adjust/:id/reject`、`POST /budgets/plans/:id/reject`
+- 审批状态机：DRAFT → PENDING → APPROVED（应用金额变更）/ REJECTED（不应用）
+
+**CI 验证**：CI run #29044585502，12/12 核心 job 全绿，PR #427 squash merge 到 main（commit b2520cd）。
+
+---
+
 ## 2026-07-10 (批次 249 v14 中风险简化阉割修复 — capacity_service 硬编码置信度动态化，CI 12/12 核心全绿)
 
 ### 批次 249：v14 中风险简化阉割修复 — capacity_service forecast_capacity 硬编码置信度 0.8 改为动态计算
