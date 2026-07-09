@@ -39,19 +39,15 @@ impl ApReportService {
             end_date.into(),
             "CANCELLED".into(),
         ];
-        let supplier_param_idx = if supplier_id.is_some() {
-            let idx = params.len() + 1;
-            params.push(supplier_id.unwrap().into());
-            Some(idx)
-        } else {
-            None
-        };
+        // 规则 12 合规：supplier_id 使用 $N 参数化绑定（i32 为 Copy，可直接 map）
+        let supplier_filter = supplier_id
+            .map(|sid| {
+                params.push(sid.into());
+                format!(" AND supplier_id = ${}", params.len())
+            })
+            .unwrap_or_default();
         let today_idx = params.len() + 1;
         params.push(today.into());
-
-        let supplier_filter = supplier_param_idx
-            .map(|idx| format!(" AND supplier_id = ${idx}"))
-            .unwrap_or_default();
 
         let main_sql = format!(
             r#"
@@ -102,10 +98,10 @@ impl ApReportService {
 
         // by_status 子查询：GROUP BY invoice_status
         let mut status_params: Vec<sea_orm::Value> = vec![start_date.into(), end_date.into(), "CANCELLED".into()];
-        let status_supplier_filter = supplier_param_idx
-            .map(|idx| {
-                status_params.push(supplier_id.unwrap().into());
-                format!(" AND supplier_id = ${idx}")
+        let status_supplier_filter = supplier_id
+            .map(|sid| {
+                status_params.push(sid.into());
+                format!(" AND supplier_id = ${}", status_params.len())
             })
             .unwrap_or_default();
         let status_sql = format!(
@@ -137,10 +133,10 @@ impl ApReportService {
 
         // by_type 子查询：GROUP BY invoice_type
         let mut type_params: Vec<sea_orm::Value> = vec![start_date.into(), end_date.into(), "CANCELLED".into()];
-        let type_supplier_filter = supplier_param_idx
-            .map(|idx| {
-                type_params.push(supplier_id.unwrap().into());
-                format!(" AND supplier_id = ${idx}")
+        let type_supplier_filter = supplier_id
+            .map(|sid| {
+                type_params.push(sid.into());
+                format!(" AND supplier_id = ${}", type_params.len())
             })
             .unwrap_or_default();
         let type_sql = format!(
