@@ -1,4 +1,6 @@
 use crate::models::sales_analysis;
+// 批次 212 P2-5 修复（v12 复审）：硬编码 "active" 替换为 master_data 常量
+use crate::models::status::master_data;
 use crate::utils::error::AppError;
 use rust_decimal::Decimal;
 use sea_orm::{
@@ -400,7 +402,7 @@ impl SalesAnalysisService {
             .await?;
 
         let target_amount = req.target_amount.unwrap_or(Decimal::ZERO);
-        let status = req.status.unwrap_or_else(|| "active".to_string());
+        let status = req.status.unwrap_or_else(|| master_data::ACTIVE.to_string());
 
         let updated = if let Some(existing_model) = existing {
             let mut active: sales_analysis::ActiveModel = existing_model.clone().into();

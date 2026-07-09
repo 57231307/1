@@ -13,6 +13,8 @@ use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 
 use crate::models::bom::{Entity as BomEntity, Model as BomModel};
+// 批次 212 P2-5 修复（v12 复审）：硬编码 "active" 替换为 master_data 常量
+use crate::models::status::master_data;
 use crate::models::bom_item::Entity as BomItemEntity;
 use crate::models::inventory_stock::Entity as InventoryStockEntity;
 use crate::models::mrp_result::{
@@ -741,7 +743,7 @@ impl MrpEngineService {
     ) -> Result<Vec<crate::models::product::Model>, AppError> {
         let mut query = ProductEntity::find()
             .filter(crate::models::product::Column::IsDeleted.eq(false))
-            .filter(crate::models::product::Column::Status.eq("active"));
+            .filter(crate::models::product::Column::Status.eq(master_data::ACTIVE));
 
         if let Some(kw) = keyword {
             let trimmed = kw.trim();

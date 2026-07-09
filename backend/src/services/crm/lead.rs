@@ -4,6 +4,8 @@
 //! 拆分自原 `crm_service.rs`。
 
 use crate::models::{crm_lead, crm_opportunity, customer};
+// 批次 212 P2-5 修复（v12 复审）：硬编码 "active" 替换为 master_data 常量
+use crate::models::status::master_data;
 use crate::utils::error::AppError;
 use crate::utils::xlsx_export::XlsxTable;
 use sea_orm::{
@@ -481,7 +483,7 @@ impl CrmService {
             tax_id: Set(None),
             bank_name: Set(None),
             bank_account: Set(None),
-            status: Set("active".to_string()),
+            status: Set(master_data::ACTIVE.to_string()),
             customer_type: Set(customer_type),
             notes: Set(req.notes.clone().or(lead.requirement_desc.clone())),
             created_by: Set(Some(user_id)),

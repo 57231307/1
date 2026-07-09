@@ -1,6 +1,8 @@
 use crate::models::quality_inspection;
 use crate::models::quality_inspection_record;
 use crate::models::unqualified_product;
+// 批次 212 P2-5 修复（v12 复审）：硬编码 "active" 替换为 master_data 常量
+use crate::models::status::master_data;
 use crate::utils::error::AppError;
 use chrono::NaiveDate;
 use rust_decimal::Decimal;
@@ -117,7 +119,7 @@ impl QualityInspectionService {
             sampling_method: Set(req.sampling_method),
             sampling_rate: Set(req.sampling_rate),
             acceptance_criteria: Set(req.acceptance_criteria),
-            status: Set("active".to_string()),
+            status: Set(master_data::ACTIVE.to_string()),
             ..Default::default()
         };
 

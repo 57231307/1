@@ -1,4 +1,6 @@
 use crate::models::sales_price;
+// 批次 212 P2-5 修复（v12 复审）：硬编码 "active" 替换为 master_data 常量
+use crate::models::status::master_data;
 use crate::utils::error::AppError;
 use rust_decimal::Decimal;
 use sea_orm::{
@@ -261,7 +263,7 @@ impl SalesPriceService {
         );
 
         let paginator = sales_price::Entity::find()
-            .filter(sales_price::Column::Status.eq("active".to_string()))
+            .filter(sales_price::Column::Status.eq(master_data::ACTIVE.to_string()))
             .order_by(sales_price::Column::Id, Order::Desc)
             .paginate(&*self.db, page_size);
 

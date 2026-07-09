@@ -1,4 +1,6 @@
 use crate::models::quality_standard;
+// 批次 212 P2-5 修复（v12 复审）：硬编码 "active" 替换为 master_data 常量
+use crate::models::status::master_data;
 use crate::utils::error::AppError;
 use chrono::NaiveDate;
 use sea_orm::{
@@ -328,7 +330,7 @@ impl QualityStandardService {
         }
 
         let mut standard_active: quality_standard::ActiveModel = standard.into();
-        standard_active.status = Set("active".to_string());
+        standard_active.status = Set(master_data::ACTIVE.to_string());
         crate::services::audit_log_service::AuditLogService::update_with_audit(
             &txn,
             "auto_audit",

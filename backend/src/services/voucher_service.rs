@@ -13,6 +13,8 @@ use tracing::{info, warn};
 
 use crate::models::voucher_item as vi;
 use crate::models::{account_subject, voucher, voucher_item};
+// 批次 212 P2-5 修复（v12 复审）：硬编码 "active" 替换为 master_data 常量
+use crate::models::status::master_data;
 use crate::utils::error::AppError;
 use rust_decimal::Decimal;
 
@@ -200,7 +202,7 @@ impl VoucherService {
                 account_subject::Column::Code
                     .is_in(subject_codes.iter().cloned().collect::<Vec<_>>()),
             )
-            .filter(account_subject::Column::Status.eq("active"))
+            .filter(account_subject::Column::Status.eq(master_data::ACTIVE))
             .all(txn)
             .await
             .map_err(|e| {

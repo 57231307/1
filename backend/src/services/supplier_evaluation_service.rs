@@ -1,5 +1,7 @@
 use crate::models::supplier_evaluation;
 use crate::models::supplier_evaluation_record;
+// 批次 212 P2-5 修复（v12 复审）：硬编码 "active" 替换为 master_data 常量
+use crate::models::status::master_data;
 use crate::utils::error::AppError;
 use chrono::{DateTime, Utc};
 use rust_decimal::Decimal;
@@ -115,7 +117,7 @@ impl SupplierEvaluationService {
             weight: Set(req.weight),
             max_score: Set(req.max_score),
             evaluation_method: Set(req.evaluation_method),
-            status: Set("active".to_string()),
+            status: Set(master_data::ACTIVE.to_string()),
             ..Default::default()
         };
 

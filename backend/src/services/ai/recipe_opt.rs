@@ -21,6 +21,8 @@ use sea_orm::{ColumnTrait, EntityTrait, QueryFilter};
 use serde::{Deserialize, Serialize};
 
 use crate::models::dye_recipe::{Entity as DyeRecipeEntity, Model as DyeRecipeModel};
+// 批次 212 P2-5 修复（v12 复审）：硬编码 "active" 替换为 master_data 常量
+use crate::models::status::master_data;
 use crate::utils::error::AppError;
 
 use super::AiAnalysisService;
@@ -433,7 +435,7 @@ mod tests {
             formula: None,
             temperature: Some(Decimal::try_from(temperature).unwrap_or(Decimal::ZERO)),
             time_minutes: Some(time_minutes),
-            status: Some("active".to_string()),
+            status: Some(master_data::ACTIVE.to_string()),
             is_deleted: Some(false),
             created_at: chrono::Utc::now().into(),
             updated_at: chrono::Utc::now().into(),

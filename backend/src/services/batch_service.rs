@@ -3,6 +3,8 @@
 
 use crate::models::audit_log::{OperationType, Severity};
 use crate::models::product;
+// 批次 212 P2-5 修复（v12 复审）：硬编码 "active" 替换为 master_data 常量
+use crate::models::status::master_data;
 use crate::services::audit_log_service::{AuditEvent, AuditLogService};
 use crate::utils::error::AppError;
 use sea_orm::DatabaseConnection;
@@ -117,7 +119,7 @@ impl BatchService {
                 standard_price: Set(standard_price),
                 cost_price: Set(cost_price),
                 description: Set(req.description.clone()),
-                status: Set("active".to_string()),
+                status: Set(master_data::ACTIVE.to_string()),
                 is_deleted: Set(false),
                 created_at: Set(chrono::Utc::now()),
                 updated_at: Set(chrono::Utc::now()),
