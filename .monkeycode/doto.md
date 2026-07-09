@@ -5,7 +5,10 @@
 
 ---
 
-## 🔄 当前任务：v13 复审 P1-1 硬编码状态字符串替换（批次 229-234 已完成，CI 全绿，继续 v13 P1-2/P1-3）
+## 🔄 当前任务：v13 复审修复（P0/P1 全部完成 ✅，待用户指令继续 P2/前端 P2）
+
+> **批次 236 已完成**（v13 P1-3 N+1 查询/写入重构，CI 12/12 核心全绿，已 squash merge 到 main，分支已清理）。
+> v13 后端 P0/P1 全部修复完成，等待用户下一步指令（P2 后端 / 前端 P2 / E2E 排查 / 规则 10 梳理 等）。
 
 > 用户最高优先级规则（2026-07-04/06/08 追加）已固化到 [MEMORY.md 一、规则 0-12](file:///workspace/.monkeycode/MEMORY.md)。
 > 本文件仅记录任务进度，规则不在此重复。
@@ -87,6 +90,27 @@
 - ✅ FE-P2-5：深拷贝工具（批次 218 utils/index.ts deepClone + 12 文件 28 处替换）
 - ⏳ FE-P2-3：i18n 覆盖率（200+ 视图硬编码中文，巨大工作量，后续迭代）
 - ⏳ FE-P2-6：大列表虚拟化（966 处 el-table，巨大工作量，后续迭代）
+
+### v13 复审修复进度（后端 P0/P1 全部完成 ✅）
+
+- ✅ P0-1：warehouse_handler update_location 欺骗性 stub（批次 229）
+- ✅ P1-1：硬编码状态字符串替换（批次 231-234，25 个业务域全覆盖）
+  - 批次 231：5 个核心业务域（ar/ap/inventory/po/so）状态常量提取 + 替换
+  - 批次 232：5 个业务域（sales/purchase/inventory_movement/production/warehouse）替换
+  - 批次 233：8 个业务域（customer/supplier/product/bom/quality/contract/budget/cost）替换
+  - 批次 234：7 个业务域（payment/ar_recon/accounting/fixed_asset/tax/payroll/crm）替换 + CI 修复
+- ✅ P1-2：inventory_piece 状态字段约定定义 + RESERVED 常量补全（批次 235，含 barcode_scanner_handler Expr::cust 借用修复）
+- ✅ P1-3：N+1 查询/写入重构（批次 236，4 处 INSERT 批量化）
+  - `backend/src/services/ar_service.rs` auto_verify：明细 INSERT 批量化（N×M → 1）+ 发票 UPDATE 去重推迟（N×M → N×唯一发票数）
+  - `backend/src/services/ar/vfy.rs` auto_match：8 个 INSERT 点批量化（N×M → 1）
+  - `backend/src/services/so/delivery.rs` ship_order：发货明细 INSERT 批量化（N → 1）
+  - `backend/src/services/so/delivery.rs` lock_inventory：预留记录 INSERT 批量化（N → 1）
+  - 评估后保持现状：`po/receipt.rs` receive_order（乐观锁语义无法批量化）、`so/delivery.rs` cancel_delivery（每个明细 product_id 不同，需 CASE WHEN）
+  - CI run #29019444093：12/12 核心 job 全绿（Clippy 通过是关键信号），E2E queued 不阻塞
+  - PR #413 squash merge 到 main（commit eaa5c9b3），分支 fix/batch236-v13-p1-3-n1-refactor 已删除
+- ⏳ P2-1/2/3：后端 P2 修复（待用户指令）
+- ⏳ FE-P2-1/2/3：前端 P2 修复（待用户指令）
+- ⏳ E2E 失败排查：连续多次"启动后端服务"失败（已知问题，非代码质量）
 
 ### v11 复审结果
 
@@ -183,6 +207,14 @@
 
 | 批次 | main commit | 内容 |
 |------|-------------|------|
+| 236 | `eaa5c9b` | v13 P1-3 N+1 查询/写入重构（4 处 INSERT 批量化）：ar_service.rs auto_verify 明细 INSERT 批量化+发票 UPDATE 去重推迟；ar/vfy.rs auto_match 8 个 INSERT 点批量化；so/delivery.rs ship_order 发货明细+lock_inventory 预留 INSERT 批量化；3 文件 +94 -57 行；CI run #29019444093 12/12 核心全绿（Clippy 通过），E2E queued 不阻塞；评估后保持现状：po/receipt.rs receive_order（乐观锁语义）+ so/delivery.rs cancel_delivery（每明细 product_id 不同需 CASE WHEN）|
+| 235 | `00b38d8` | v13 P1-2 inventory_piece 状态字段约定定义 + RESERVED 常量补全 + barcode_scanner_handler Expr::cust 移除多余 & 借用修复；CI 12/12 核心全绿 |
+| 234 | - | v13 P1-1 硬编码状态字符串替换（7 个业务域：payment/ar_recon/accounting/fixed_asset/tax/payroll/crm）+ CI 修复 |
+| 233 | - | v13 P1-1 硬编码状态字符串替换（8 个业务域：customer/supplier/product/bom/quality/contract/budget/cost） |
+| 232 | - | v13 P1-1 硬编码状态字符串替换（5 个业务域：sales/purchase/inventory_movement/production/warehouse） |
+| 231 | - | v13 P1-1 硬编码状态字符串替换（5 个核心业务域：ar/ap/inventory/po/so 状态常量提取 + 替换） |
+| 230 | - | v13 前端 FE-P1-1 修复 |
+| 229 | - | v13 P0-1 warehouse_handler update_location 欺骗性 stub 修复 |
 | 216 | `ecb841b` | v12 P2-1 销售发货 cancel_delivery 功能实现：so/delivery.rs cancel_delivery+restore_inventory 方法（库存对称恢复+预留恢复+订单状态回退）；sales_order_handler.rs cancel_delivery handler+CancelDeliveryRequest DTO；routes/sales.rs POST /orders/:id/deliveries/:delivery_id/cancel；status.rs 移除 sales_delivery::CANCELLED 的 #[allow(dead_code)]；CI 12/12 核心全绿，E2E 失败 |
 | 215 | `e0f6590` | v12 P2-1 采购订单 cancel_order 功能实现：po/contract.rs cancel_order+release_budget_occupation 方法（事务内预算冲销）；purchase_order_handler.rs cancel_order handler+CancelOrderRequest DTO；routes/purchase.rs POST /orders/:id/cancel；status.rs 移除 purchase_order::CANCELLED 的 #[allow(dead_code)]；CI 被批次 216 取消（concurrency），核心 job 在 216 验证通过 |
 | 214 | `7a8ae40`+`afca76f` | v12 P2-1 死代码常量接入业务：status.rs 删除 RECEIVED + FULFILLED→CONSUMED 值修正 + 新增 LOCKED/RELEASED + 新增 purchase_receipt 子模块；6 文件 18 处硬编码替换（inventory_reservation_service 6 + so/delivery 1 + po/order 1 + po/receipt 2 + purchase_receipt_service 8）；CI 被批次 215 取消（concurrency），核心 job 在 216 验证通过 |

@@ -178,10 +178,12 @@
 
 ---
 
-## 二、当前任务状态（2026-07-09 批次 228 完成 - v12 P2-8 测试覆盖补测 14 个高优先级 service 342 个测试，核心 12/12 全绿）
+## 二、当前任务状态（2026-07-09 批次 236 完成 - v13 后端 P0/P1 全部修复完成，CI 12/12 核心全绿，待用户指令）
 
 > 用户最高优先级规则已在「一、规则 0-12」固化，本节仅记录修复进度。
 > 规则 10 梳理时间：2026-07-09（批次 228 = 15×15+3 触发，上次梳理批次 195）
+> **批次 236 已完成**：v13 P1-3 N+1 查询/写入重构（4 处 INSERT 批量化），PR #413 squash merge 到 main（commit eaa5c9b3），分支已清理。
+> **v13 后端 P0/P1 全部完成**：P0-1（批次 229）+ P1-1（批次 231-234）+ P1-2（批次 235）+ P1-3（批次 236）。等待用户下一步指令。
 
 ### v12 全项目复审 P2 修复（进行中 🔄）
 
@@ -208,11 +210,13 @@
 - ⏳ ar/vfy.rs 状态常量不一致修复（reconciliation_status 小写 vs status::ar 大写）→ ✅ 批次 231 已修复
 - ⏳ P2-8 剩余 143 个无测试 service（非高优先级，后续迭代）
 
-### v13 复审 P1-1 进度（硬编码状态字符串替换，规则 0/8）
+### v13 复审修复进度（后端 P0/P1 全部完成 ✅，待用户指令继续 P2/前端 P2）
 
-**已完成批次**：
-- 批次 229：P0 修复 logistics_handler 状态大小写不匹配 ✅
+**P0 修复**：
+- 批次 229：P0-1 warehouse_handler update_location 欺骗性 stub 修复 ✅
 - 批次 230：FE-P1-1 request.ts 401 刷新失败排队请求泄漏修复 ✅
+
+**P1-1 硬编码状态字符串替换（25 个业务域全覆盖）**：
 - 批次 231：ar 模块状态常量统一小写 + P0 查询大小写 Bug 修复 ✅
 - 批次 232：新增 accounting_period/logistics_waybill/sales_return 状态子模块 ✅
 - 批次 233：Clippy 修复（4 个新警告抑制：PageRequest/LOCKED/RELEASED/TemplateQuery.category）✅
@@ -221,13 +225,28 @@
   - 涉及文件：scheduling_query/ap_reconciliation_service/inv/inventory_move/inventory_count_service/purchase_return_service/purchase_inspection_service/quotation_service/custom_order_crud_service/custom_order_state_service/inventory_adjustment_service/finance_invoice_service/finance_payment_service
 - 扫描确认：bpm_service/mrp_engine_service/import_export_service 业务代码已使用 status 模块常量，无需修改 ✅
 
-**v13 P1-1 状态**：硬编码状态字符串替换基本完成（25 个业务域全覆盖）
+**P1-2 inventory_piece 状态字段约定定义**：
+- 批次 235：inventory_piece 状态字段约定定义 + RESERVED 常量补全 + barcode_scanner_handler Expr::cust 移除多余 & 借用修复 ✅（CI 12/12 核心全绿，commit 00b38d8）
 
-**v13 剩余 P1/P2 任务**：
-- ⏳ v13 P1-2：inventory_piece 状态字段约定定义
-- ⏳ v13 P1-3：6 处 N+1 查询/写入重构
+**P1-3 N+1 查询/写入重构（4 处 INSERT 批量化）**：
+- 批次 236：v13 P1-3 N+1 查询/写入重构 ✅（CI 12/12 核心全绿，PR #413 squash merge 到 main commit eaa5c9b3，分支已清理）
+  - `backend/src/services/ar_service.rs` auto_verify：明细 INSERT 批量化（N×M → 1）+ 发票 UPDATE 去重推迟（N×M → N×唯一发票数）
+  - `backend/src/services/ar/vfy.rs` auto_match：8 个 INSERT 点批量化（N×M → 1）
+  - `backend/src/services/so/delivery.rs` ship_order：发货明细 INSERT 批量化（N → 1）
+  - `backend/src/services/so/delivery.rs` lock_inventory：预留记录 INSERT 批量化（N → 1）
+  - 评估后保持现状：`po/receipt.rs` receive_order（乐观锁语义无法批量化）、`so/delivery.rs` cancel_delivery（每个明细 product_id 不同，需 CASE WHEN）
+  - CI run #29019444093：12/12 核心 job 全绿（Clippy 通过是关键信号），E2E queued 不阻塞
+  - N+1 修复模式参考：
+    - 读 N+1：循环外批量 `IN (?)` 查询 + HashMap 索引
+    - 写 N+1 INSERT：循环内构建 `Vec<ActiveModel>`，循环外 `Entity::insert_many(models).exec(&txn).await?`
+    - 写 N+1 UPDATE：按维度聚合后批量 `update_many`，或分批更新
+    - 乐观锁/防御性 WHERE 保持逐条：`rows_affected` 检查语义无法批量化
+
+**v13 剩余任务（待用户指令）**：
 - ⏳ v13 前端 P2：FE-P2-1（deepClone 接入）、FE-P2-2（删死代码）、FE-P2-3（非空断言）
 - ⏳ v13 后端 P2：P2-1/2/3
+- ⏳ E2E 失败排查：连续多次"启动后端服务"失败（已知问题，非代码质量）
+- ⏳ 规则 10 触发：批次 240（=16×15）需梳理记忆文件
 
 ### v9 复审结果（2 个并行子代理扫描）
 

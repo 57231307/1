@@ -6,6 +6,33 @@
 
 ---
 
+## 2026-07-09 (批次 236 v13 P1-3 N+1 查询/写入重构，CI 12/12 核心全绿，v13 后端 P0/P1 全部完成)
+
+### 批次 236：v13 P1-3 N+1 查询/写入重构（4 处 INSERT 批量化）
+
+**修改文件**（3 文件 +94 -57 行）：
+- `backend/src/services/ar_service.rs`：auto_verify 明细 INSERT 批量化（N×M → 1）+ 发票 UPDATE 去重推迟（N×M → N×唯一发票数）
+- `backend/src/services/ar/vfy.rs`：auto_match 8 个 INSERT 点批量化（N×M → 1）
+- `backend/src/services/so/delivery.rs`：ship_order 发货明细 INSERT 批量化（N → 1）+ lock_inventory 预留记录 INSERT 批量化（N → 1）
+
+**评估后保持现状**：
+- `backend/src/services/po/receipt.rs` receive_order：库存操作有乐观锁（`update_stock_quantity_with_optimistic_lock_txn`），批量化风险高于收益
+- `backend/src/services/so/delivery.rs` cancel_delivery：三个 UPDATE 操作每个明细 product_id 不同，批量化需要 CASE WHEN 或 raw SQL
+
+**N+1 修复模式**：
+- 读 N+1：循环外批量 `IN (?)` 查询 + HashMap 索引
+- 写 N+1 INSERT：循环内构建 `Vec<ActiveModel>`，循环外 `Entity::insert_many(models).exec(&txn).await?`
+- 写 N+1 UPDATE：按维度聚合后批量 `update_many`，或分批更新
+- 乐观锁/防御性 WHERE 保持逐条：`rows_affected` 检查语义无法批量化
+
+**CI 验证**：
+- CI run #29019444093：12/12 核心 job 全绿（Clippy 通过是关键信号），E2E queued 不阻塞
+- PR #413 squash merge 到 main（commit eaa5c9b3），分支 fix/batch236-v13-p1-3-n1-refactor 已删除
+
+**里程碑**：v13 后端 P0/P1 全部修复完成（P0-1 批次 229 + P1-1 批次 231-234 + P1-2 批次 235 + P1-3 批次 236），等待用户下一步指令。
+
+---
+
 ## 2026-07-07 (批次 161 v11 前端 P2-5 quality 分页接入 + 8 clippy 死代码修复，CI 11/12 全绿)
 
 ### 批次 161：v11 前端 P2-5 quality 分页接入 + clippy 死代码修复
