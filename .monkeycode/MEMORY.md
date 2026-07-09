@@ -204,23 +204,34 @@
    - 实际修复：新增 verify_password_async / hash_password_async 异步方法，7 处生产调用点全部改用异步版本（auth_service authenticate + user_handler 4 处 + init_service 2 处），同步版本保留供测试夹具使用
    - CI run #29023784549：12/12 核心 job 全绿（Clippy + 单元测试 + 后端构建均通过），PR #414 squash merge 到 main（commit 7585097f）
 
-2. **性能-全表扫描 P0-2**（1 处高，ar_service.rs:1274-1321 get_aging_report）
+2. **性能-全表扫描 P0-2**（1 处高，ar_service.rs:1274-1321 get_aging_report）✅ 批次 238 完成
    - 无日期范围 + 无 LIMIT 全表扫描，数据量增长后可能 OOM
    - 修复方案：SQL 层聚合（CASE WHEN + SUM GROUP BY bucket）或加默认近 1 年日期范围 + LIMIT 上限
+   - 实际修复：单条 SQL CASE WHEN + SUM + COUNT 在数据库层完成分桶聚合，应用层只接收 1 行聚合结果，O(N) 内存 → O(1) 内存
+   - 规则 12 合规：customer_id 参数化绑定，禁止字符串拼接
+   - CI 修复：1 轮（Values 类型冲突 + query_one 调用方式 + try_get_by_index turbofish），CI run #29025818891 12/12 核心全绿，PR #415 squash merge 到 main（commit 775f7761）
 
-3. **空实现-业务失效 P0-3**（2 处高，前端查看按钮 handler 空）
+3. **空实现-业务失效 P0-3**（2 处高，前端查看按钮 handler 空）✅ 批次 239 完成
    - `frontend/src/views/dye-batch/index.vue:341` handleView
    - `frontend/src/views/dye-recipe/index.vue:318` handleView
    - 修复方案：实现查看逻辑（打开详情对话框或路由跳转）
+   - 实际修复：新增 isView 只读模式标志，复用现有对话框实现查看功能（el-form :disabled + footer 按钮调整），两个文件一致
+   - CI run #29026950380：12/12 核心 job 全绿，PR #416 squash merge 到 main（commit 743a9595）
 
-4. **测试覆盖-安全核心 P0-4**（1 处高，permission.rs 全文件零测试）
+4. **测试覆盖-安全核心 P0-4**（1 处高，permission.rs 全文件零测试）✅ 批次 240 完成
    - `backend/src/middleware/permission.rs` 权限校验零测试，越权风险
    - 修复方案：新增 `#[cfg(test)] mod tests`，覆盖管理员短路/缓存命中/过期/resource_id 精确匹配/`*` 通配符/嵌套路径
+   - 实际修复：提取 matches_permission 纯函数 + 23 个单元测试（extract_resource_info 8 + method_to_action 6 + CacheEntry 2 + matches_permission 9 含垂直越权防护）
+   - CI run #29028249081：12/12 核心 job 全绿，PR #417 squash merge 到 main（commit c72982b9）
 
-5. **API 文档缺失 P0-5**（2 处高，openapi.rs 仅覆盖 8/115 handlers 7%）
-   - `backend/src/openapi.rs:10-74` paths 仅注册 8 个 handler
-   - `backend/src/openapi.rs:76-95` schemas 仅注册 5 个
-   - 修复方案：按业务域分批补全 paths/schemas 注册，优先 quotations/custom_orders/color_card/color_price/crm
+5. **API 文档缺失 P0-5**（2 处高，openapi.rs 仅覆盖 8/115 handlers 7%）✅ 批次 241 完成
+   - `backend/src/openapi.rs` 是未注册的幽灵文件（无 mod 声明），编译器看不到
+   - `backend/src/docs.rs` 是占位文件（ApiDoc 已删除），导致 `#[cfg(feature = "swagger")]` 编译失败
+   - `backend/src/routes/mod.rs:319-322` 引用 `crate::docs::ApiDoc::openapi()`，但 ApiDoc 不存在
+   - 仅 2 个 handler 有 `#[utoipa::path]` 注解：auth_handler::login + health_handler::health_check
+   - 修复方案：恢复 docs.rs ApiDoc（只注册有注解的 2 个 handler + 5 个 schema）+ 删除 openapi.rs 死文件
+   - 实际修复：docs.rs 恢复 ApiDoc struct + impl Default + TODO 注释（后续迭代补全 handler 注解）
+   - CI 待验证，PR 待创建
 
 6. **简化阉割-永久 P0-6**（1 处高，crm/cust.rs:265-275 get_rfm_distribution）
    - 返回全 0 占位 JSON，RFM 分布功能形同虚设
