@@ -238,20 +238,48 @@ fn dec_to_f64(d: Option<Decimal>) -> f64 {
 /// - region: 客户所在省份
 /// - category: 产品品类名称
 /// - time: 订单月份（YYYY-MM 格式）
-fn dim_to_expr(dim: &str) -> (&'static str, &'static str) {
+///
+/// 批次 252 修复：原 `_ => unreachable!()` 在非法维度时 panic 崩溃，
+/// 改为返回 AppError::validation 错误，防御性处理非法输入。
+fn dim_to_expr(dim: &str) -> Result<(&'static str, &'static str), AppError> {
     match dim {
-        "customer" => ("c.id::text", "COALESCE(c.customer_name, '未知客户')"),
-        "product" => ("p.id::text", "COALESCE(p.name, '未知产品')"),
-        "region" => ("COALESCE(c.province, '未知')", "COALESCE(c.province, '未知')"),
-        "category" => (
+        "customer" => Ok(("c.id::text", "COALESCE(c.customer_name, '未知客户')")),
+        "product" => Ok(("p.id::text", "COALESCE(p.name, '未知产品')")),
+        "region" => Ok(("COALESCE(c.province, '未知')", "COALESCE(c.province, '未知')")),
+        "category" => Ok((
             "COALESCE(pc.name, '未分类')",
             "COALESCE(pc.name, '未分类')",
-        ),
-        "time" => (
+        )),
+        "time" => Ok((
             "to_char(s.order_date, 'YYYY-MM')",
             "to_char(s.order_date, 'YYYY-MM')",
+        )),
+        _ => Err(AppError::validation(format!("不支持的维度: {}", dim))),
+    }
+}
+
+/// 度量聚合表达式生成（批次 252 修复：提取为独立函数，消除 unreachable! panic）
+///
+/// 根据 item_level 选择项级或订单级聚合的 SQL 表达式：
+/// - item_level=true：关联 sales_order_items 表进行项级聚合
+/// - item_level=false：订单级聚合，避免 total_amount 重复计算
+fn measure_to_expr(measure: &str, item_level: bool) -> Result<&'static str, AppError> {
+    match (measure, item_level) {
+        ("total_amount", true) => Ok("COALESCE(SUM(si.total_amount), 0)"),
+        ("order_count", true) => Ok("COUNT(DISTINCT s.id)::numeric"),
+        ("quantity", true) => Ok("COALESCE(SUM(si.quantity), 0)"),
+        ("profit_amount", true) => Ok(
+            "COALESCE(SUM(si.total_amount), 0) - COALESCE(SUM(si.quantity * COALESCE(p.cost_price, 0)), 0)",
         ),
-        _ => unreachable!(),
+        ("total_amount", false) => Ok("COALESCE(SUM(s.total_amount), 0)"),
+        ("order_count", false) => Ok("COUNT(*)::numeric"),
+        ("quantity", false) => Ok(
+            "COALESCE(SUM((SELECT SUM(si.quantity) FROM sales_order_items si WHERE si.order_id = s.id)), 0)",
+        ),
+        ("profit_amount", false) => Ok(
+            "COALESCE(SUM(s.total_amount), 0) - COALESCE(SUM((SELECT SUM(si.quantity * COALESCE(p.cost_price, 0)) FROM sales_order_items si LEFT JOIN products p ON p.id = si.product_id WHERE si.order_id = s.id)), 0)",
+        ),
+        _ => Err(AppError::validation(format!("不支持的度量: {}", measure))),
     }
 }
 
@@ -1164,13 +1192,14 @@ impl BiAnalysisService {
             )));
         }
 
-        let (row_key_expr, row_label_expr) = dim_to_expr(row_dim);
-        let (col_key_expr, col_label_expr) = dim_to_expr(col_dim);
+        let (row_key_expr, row_label_expr) = dim_to_expr(row_dim)?;
+        let (col_key_expr, col_label_expr) = dim_to_expr(col_dim)?;
 
         // 判断是否需要关联 sales_order_items（当任一维度为 product/category 时）
         let needs_items =
             matches!(row_dim, "product" | "category") || matches!(col_dim, "product" | "category");
 
+        // 批次 252 修复：measure_to_expr 替代原内联 match + unreachable!()
         let (joins, measure_expr) = if needs_items {
             // 项级聚合：关联 sales_order_items / products / product_categories
             let joins = r#"
@@ -1178,30 +1207,12 @@ impl BiAnalysisService {
                 LEFT JOIN products p ON p.id = si.product_id
                 LEFT JOIN product_categories pc ON pc.id = p.category_id
             "#;
-            let measure_expr = match measure {
-                "total_amount" => "COALESCE(SUM(si.total_amount), 0)",
-                "order_count" => "COUNT(DISTINCT s.id)::numeric",
-                "quantity" => "COALESCE(SUM(si.quantity), 0)",
-                "profit_amount" => {
-                    "COALESCE(SUM(si.total_amount), 0) - COALESCE(SUM(si.quantity * COALESCE(p.cost_price, 0)), 0)"
-                }
-                _ => unreachable!(),
-            };
+            let measure_expr = measure_to_expr(measure, true)?;
             (joins, measure_expr)
         } else {
             // 订单级聚合：不关联 sales_order_items，避免 total_amount 重复计算
             let joins = "";
-            let measure_expr = match measure {
-                "total_amount" => "COALESCE(SUM(s.total_amount), 0)",
-                "order_count" => "COUNT(*)::numeric",
-                "quantity" => {
-                    "COALESCE(SUM((SELECT SUM(si.quantity) FROM sales_order_items si WHERE si.order_id = s.id)), 0)"
-                }
-                "profit_amount" => {
-                    "COALESCE(SUM(s.total_amount), 0) - COALESCE(SUM((SELECT SUM(si.quantity * COALESCE(p.cost_price, 0)) FROM sales_order_items si LEFT JOIN products p ON p.id = si.product_id WHERE si.order_id = s.id)), 0)"
-                }
-                _ => unreachable!(),
-            };
+            let measure_expr = measure_to_expr(measure, false)?;
             (joins, measure_expr)
         };
 
@@ -1389,5 +1400,62 @@ mod tests {
                 .await;
             assert!(result.is_err());
         }
+    }
+
+    // ==================== 批次 252：dim_to_expr / measure_to_expr 单元测试 ====================
+    // 验证原 unreachable!() 分支现在返回错误而非 panic 崩溃
+
+    /// 测试 dim_to_expr 对所有合法维度返回 Ok
+    #[test]
+    fn test_dim_to_expr_valid_dims() {
+        let valid_dims = ["customer", "product", "region", "category", "time"];
+        for dim in valid_dims {
+            assert!(dim_to_expr(dim).is_ok(), "维度 {} 应返回 Ok", dim);
+        }
+    }
+
+    /// 测试 dim_to_expr 对非法维度返回 Err（原 unreachable!() 会 panic）
+    #[test]
+    fn test_dim_to_expr_invalid_dim_returns_error() {
+        let result = dim_to_expr("invalid_dim");
+        assert!(result.is_err(), "非法维度应返回错误而非 panic");
+    }
+
+    /// 测试 dim_to_expr 对空字符串返回 Err
+    #[test]
+    fn test_dim_to_expr_empty_string_returns_error() {
+        let result = dim_to_expr("");
+        assert!(result.is_err(), "空字符串维度应返回错误而非 panic");
+    }
+
+    /// 测试 measure_to_expr 对所有合法度量在项级和订单级均返回 Ok
+    #[test]
+    fn test_measure_to_expr_valid_measures() {
+        let valid_measures = ["total_amount", "order_count", "quantity", "profit_amount"];
+        for measure in valid_measures {
+            assert!(
+                measure_to_expr(measure, true).is_ok(),
+                "度量 {} 项级聚合应返回 Ok",
+                measure
+            );
+            assert!(
+                measure_to_expr(measure, false).is_ok(),
+                "度量 {} 订单级聚合应返回 Ok",
+                measure
+            );
+        }
+    }
+
+    /// 测试 measure_to_expr 对非法度量返回 Err（原 unreachable!() 会 panic）
+    #[test]
+    fn test_measure_to_expr_invalid_measure_returns_error() {
+        assert!(
+            measure_to_expr("invalid_measure", true).is_err(),
+            "非法度量项级聚合应返回错误而非 panic"
+        );
+        assert!(
+            measure_to_expr("invalid_measure", false).is_err(),
+            "非法度量订单级聚合应返回错误而非 panic"
+        );
     }
 }
