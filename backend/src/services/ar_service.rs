@@ -1115,30 +1115,23 @@ impl ArService {
         // 规则 12 合规：全部参数使用参数化绑定，禁止字符串拼接
         let today = Utc::now().date_naive();
         let mut params: Vec<sea_orm::Value> = vec![];
-        let mut param_idx = 1;
-        let mut where_clauses = vec![
-            format!("status <> ${}", param_idx),
-        ];
+        let mut where_clauses = vec![format!("status <> ${}", params.len() + 1)];
         params.push(crate::models::status::common::STATUS_CANCELLED.into());
-        param_idx += 1;
 
         if let Some(cid) = customer_id {
-            where_clauses.push(format!("customer_id = ${}", param_idx));
+            where_clauses.push(format!("customer_id = ${}", params.len() + 1));
             params.push(cid.into());
-            param_idx += 1;
         }
         if let Some(sd) = start_date {
-            where_clauses.push(format!("invoice_date >= ${}", param_idx));
+            where_clauses.push(format!("invoice_date >= ${}", params.len() + 1));
             params.push(sd.into());
-            param_idx += 1;
         }
         if let Some(ed) = end_date {
-            where_clauses.push(format!("invoice_date <= ${}", param_idx));
+            where_clauses.push(format!("invoice_date <= ${}", params.len() + 1));
             params.push(ed.into());
-            param_idx += 1;
         }
         // today 用于逾期条件
-        let today_param_idx = param_idx;
+        let today_param_idx = params.len() + 1;
         params.push(today.into());
 
         let sql = format!(
@@ -1208,25 +1201,20 @@ impl ArService {
     ) -> Result<serde_json::Value, AppError> {
         // 规则 12 合规：全部参数使用参数化绑定
         let mut params: Vec<sea_orm::Value> = vec![];
-        let mut param_idx = 1;
-        let mut where_clauses = vec![format!("status <> ${}", param_idx)];
+        let mut where_clauses = vec![format!("status <> ${}", params.len() + 1)];
         params.push(crate::models::status::common::STATUS_CANCELLED.into());
-        param_idx += 1;
 
         if let Some(cid) = customer_id {
-            where_clauses.push(format!("customer_id = ${}", param_idx));
+            where_clauses.push(format!("customer_id = ${}", params.len() + 1));
             params.push(cid.into());
-            param_idx += 1;
         }
         if let Some(sd) = start_date {
-            where_clauses.push(format!("invoice_date >= ${}", param_idx));
+            where_clauses.push(format!("invoice_date >= ${}", params.len() + 1));
             params.push(sd.into());
-            param_idx += 1;
         }
         if let Some(ed) = end_date {
-            where_clauses.push(format!("invoice_date <= ${}", param_idx));
+            where_clauses.push(format!("invoice_date <= ${}", params.len() + 1));
             params.push(ed.into());
-            param_idx += 1;
         }
 
         let sql = format!(
@@ -1289,25 +1277,20 @@ impl ArService {
     ) -> Result<serde_json::Value, AppError> {
         // 规则 12 合规：全部参数使用参数化绑定
         let mut params: Vec<sea_orm::Value> = vec![];
-        let mut param_idx = 1;
-        let mut where_clauses = vec![format!("status <> ${}", param_idx)];
+        let mut where_clauses = vec![format!("status <> ${}", params.len() + 1)];
         params.push(crate::models::status::common::STATUS_CANCELLED.into());
-        param_idx += 1;
 
         if let Some(cid) = customer_id {
-            where_clauses.push(format!("customer_id = ${}", param_idx));
+            where_clauses.push(format!("customer_id = ${}", params.len() + 1));
             params.push(cid.into());
-            param_idx += 1;
         }
         if let Some(sd) = start_date {
-            where_clauses.push(format!("invoice_date >= ${}", param_idx));
+            where_clauses.push(format!("invoice_date >= ${}", params.len() + 1));
             params.push(sd.into());
-            param_idx += 1;
         }
         if let Some(ed) = end_date {
-            where_clauses.push(format!("invoice_date <= ${}", param_idx));
+            where_clauses.push(format!("invoice_date <= ${}", params.len() + 1));
             params.push(ed.into());
-            param_idx += 1;
         }
 
         let sql = format!(
