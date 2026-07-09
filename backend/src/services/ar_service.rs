@@ -1105,39 +1105,70 @@ impl ArService {
     // ========== 报表管理 ==========
 
     /// 获取统计报表
+    /// v14 中风险性能修复（批次 244）：SQL 层聚合，避免全量加载发票到内存
     pub async fn get_statistics_report(
         &self,
         start_date: Option<NaiveDate>,
         end_date: Option<NaiveDate>,
         customer_id: Option<i32>,
     ) -> Result<serde_json::Value, AppError> {
-        let mut q = ar_invoice::Entity::find()
-            .filter(ar_invoice::Column::Status.ne(crate::models::status::common::STATUS_CANCELLED));
+        // 规则 12 合规：全部参数使用参数化绑定，禁止字符串拼接
+        let today = Utc::now().date_naive();
+        let mut params: Vec<sea_orm::Value> = vec![];
+        let mut where_clauses = vec![format!("status <> ${}", params.len() + 1)];
+        params.push(crate::models::status::common::STATUS_CANCELLED.into());
 
         if let Some(cid) = customer_id {
-            q = q.filter(ar_invoice::Column::CustomerId.eq(cid));
+            where_clauses.push(format!("customer_id = ${}", params.len() + 1));
+            params.push(cid.into());
         }
         if let Some(sd) = start_date {
-            q = q.filter(ar_invoice::Column::InvoiceDate.gte(sd));
+            where_clauses.push(format!("invoice_date >= ${}", params.len() + 1));
+            params.push(sd.into());
         }
         if let Some(ed) = end_date {
-            q = q.filter(ar_invoice::Column::InvoiceDate.lte(ed));
+            where_clauses.push(format!("invoice_date <= ${}", params.len() + 1));
+            params.push(ed.into());
         }
+        // today 用于逾期条件
+        let today_param_idx = params.len() + 1;
+        params.push(today.into());
 
-        let invoices = q.all(&*self.db).await?;
+        let sql = format!(
+            r#"
+            SELECT
+                COUNT(*) AS total_invoices,
+                COALESCE(SUM(invoice_amount), 0) AS total_amount,
+                COALESCE(SUM(received_amount), 0) AS paid_amount,
+                COALESCE(SUM(unpaid_amount), 0) AS unpaid_amount,
+                COUNT(CASE WHEN due_date < ${today_idx} AND unpaid_amount > 0 THEN 1 END) AS overdue_count,
+                COALESCE(SUM(CASE WHEN due_date < ${today_idx} AND unpaid_amount > 0 THEN unpaid_amount ELSE 0 END), 0) AS overdue_amount
+            FROM ar_invoice
+            WHERE {where}
+            "#,
+            today_idx = today_param_idx,
+            where = where_clauses.join(" AND ")
+        );
 
-        let total_invoices = invoices.len() as i64;
-        let total_amount: Decimal = invoices.iter().map(|i| i.invoice_amount).sum();
-        let paid_amount: Decimal = invoices.iter().map(|i| i.received_amount).sum();
-        let unpaid_amount: Decimal = invoices.iter().map(|i| i.unpaid_amount).sum();
+        let row: Option<sea_orm::QueryResult> = self
+            .db
+            .query_one(sea_orm::Statement::from_sql_and_values(
+                sea_orm::DatabaseBackend::Postgres,
+                sql,
+                params,
+            ))
+            .await
+            .map_err(|e| AppError::internal(format!("统计报表聚合查询失败: {}", e)))?;
 
-        let today = Utc::now().date_naive();
-        let overdue: Vec<&ar_invoice::Model> = invoices
-            .iter()
-            .filter(|i| i.due_date < today && i.unpaid_amount > Decimal::ZERO)
-            .collect();
-        let overdue_count = overdue.len() as i64;
-        let overdue_amount: Decimal = overdue.iter().map(|i| i.unpaid_amount).sum();
+        let row = row
+            .ok_or_else(|| AppError::internal("统计报表聚合查询无结果".to_string()))?;
+
+        let total_invoices: i64 = row.try_get_by_index::<i64>(0).unwrap_or(0);
+        let total_amount: Decimal = row.try_get_by_index::<Decimal>(1).unwrap_or(Decimal::ZERO);
+        let paid_amount: Decimal = row.try_get_by_index::<Decimal>(2).unwrap_or(Decimal::ZERO);
+        let unpaid_amount: Decimal = row.try_get_by_index::<Decimal>(3).unwrap_or(Decimal::ZERO);
+        let overdue_count: i64 = row.try_get_by_index::<i64>(4).unwrap_or(0);
+        let overdue_amount: Decimal = row.try_get_by_index::<Decimal>(5).unwrap_or(Decimal::ZERO);
 
         let collection_rate = if total_amount > Decimal::ZERO {
             (paid_amount / total_amount)
@@ -1161,110 +1192,153 @@ impl ArService {
 
     /// 获取日报表
     /// 按 invoice_date 聚合每日发票金额、已收、未收
+    /// v14 中风险性能修复（批次 244）：SQL GROUP BY 聚合，避免全量加载到内存
     pub async fn get_daily_report(
         &self,
         start_date: Option<NaiveDate>,
         end_date: Option<NaiveDate>,
         customer_id: Option<i32>,
     ) -> Result<serde_json::Value, AppError> {
-        let mut q = ar_invoice::Entity::find()
-            .filter(ar_invoice::Column::Status.ne(crate::models::status::common::STATUS_CANCELLED));
+        // 规则 12 合规：全部参数使用参数化绑定
+        let mut params: Vec<sea_orm::Value> = vec![];
+        let mut where_clauses = vec![format!("status <> ${}", params.len() + 1)];
+        params.push(crate::models::status::common::STATUS_CANCELLED.into());
 
         if let Some(cid) = customer_id {
-            q = q.filter(ar_invoice::Column::CustomerId.eq(cid));
+            where_clauses.push(format!("customer_id = ${}", params.len() + 1));
+            params.push(cid.into());
         }
         if let Some(sd) = start_date {
-            q = q.filter(ar_invoice::Column::InvoiceDate.gte(sd));
+            where_clauses.push(format!("invoice_date >= ${}", params.len() + 1));
+            params.push(sd.into());
         }
         if let Some(ed) = end_date {
-            q = q.filter(ar_invoice::Column::InvoiceDate.lte(ed));
+            where_clauses.push(format!("invoice_date <= ${}", params.len() + 1));
+            params.push(ed.into());
         }
 
-        let invoices = q.all(&*self.db).await?;
+        let sql = format!(
+            r#"
+            SELECT
+                invoice_date,
+                COUNT(*) AS invoice_count,
+                COALESCE(SUM(invoice_amount), 0) AS invoice_amount,
+                COALESCE(SUM(received_amount), 0) AS paid_amount,
+                COALESCE(SUM(unpaid_amount), 0) AS unpaid_amount
+            FROM ar_invoice
+            WHERE {where}
+            GROUP BY invoice_date
+            ORDER BY invoice_date ASC
+            "#,
+            where = where_clauses.join(" AND ")
+        );
 
-        let mut daily_map: std::collections::HashMap<NaiveDate, DailyAgg> =
-            std::collections::HashMap::new();
-        for inv in invoices {
-            let agg = daily_map.entry(inv.invoice_date).or_default();
-            agg.invoice_count += 1;
-            agg.invoice_amount += inv.invoice_amount;
-            agg.paid_amount += inv.received_amount;
-            agg.unpaid_amount += inv.unpaid_amount;
-        }
+        let rows: Vec<sea_orm::QueryResult> = self
+            .db
+            .query_all(sea_orm::Statement::from_sql_and_values(
+                sea_orm::DatabaseBackend::Postgres,
+                sql,
+                params,
+            ))
+            .await
+            .map_err(|e| AppError::internal(format!("日报表聚合查询失败: {}", e)))?;
 
-        let mut result: Vec<serde_json::Value> = daily_map
+        let result: Vec<serde_json::Value> = rows
             .into_iter()
-            .map(|(date, agg)| {
+            .map(|row| {
+                let date: NaiveDate = row.try_get_by_index::<NaiveDate>(0).unwrap_or_default();
+                let invoice_count: i64 = row.try_get_by_index::<i64>(1).unwrap_or(0);
+                let invoice_amount: Decimal =
+                    row.try_get_by_index::<Decimal>(2).unwrap_or(Decimal::ZERO);
+                let paid_amount: Decimal =
+                    row.try_get_by_index::<Decimal>(3).unwrap_or(Decimal::ZERO);
+                let unpaid_amount: Decimal =
+                    row.try_get_by_index::<Decimal>(4).unwrap_or(Decimal::ZERO);
                 json!({
                     "date": date.to_string(),
-                    "invoice_count": agg.invoice_count,
-                    "invoice_amount": agg.invoice_amount.to_string(),
-                    "paid_amount": agg.paid_amount.to_string(),
-                    "unpaid_amount": agg.unpaid_amount.to_string(),
+                    "invoice_count": invoice_count,
+                    "invoice_amount": invoice_amount.to_string(),
+                    "paid_amount": paid_amount.to_string(),
+                    "unpaid_amount": unpaid_amount.to_string(),
                 })
             })
             .collect();
-        result.sort_by(|a, b| {
-            a["date"]
-                .as_str()
-                .unwrap_or("")
-                .cmp(b["date"].as_str().unwrap_or(""))
-        });
 
         Ok(json!(result))
     }
 
     /// 获取月报表
+    /// v14 中风险性能修复（批次 244）：SQL GROUP BY to_char 月份聚合，避免全量加载到内存
     pub async fn get_monthly_report(
         &self,
         start_date: Option<NaiveDate>,
         end_date: Option<NaiveDate>,
         customer_id: Option<i32>,
     ) -> Result<serde_json::Value, AppError> {
-        let mut q = ar_invoice::Entity::find()
-            .filter(ar_invoice::Column::Status.ne(crate::models::status::common::STATUS_CANCELLED));
+        // 规则 12 合规：全部参数使用参数化绑定
+        let mut params: Vec<sea_orm::Value> = vec![];
+        let mut where_clauses = vec![format!("status <> ${}", params.len() + 1)];
+        params.push(crate::models::status::common::STATUS_CANCELLED.into());
 
         if let Some(cid) = customer_id {
-            q = q.filter(ar_invoice::Column::CustomerId.eq(cid));
+            where_clauses.push(format!("customer_id = ${}", params.len() + 1));
+            params.push(cid.into());
         }
         if let Some(sd) = start_date {
-            q = q.filter(ar_invoice::Column::InvoiceDate.gte(sd));
+            where_clauses.push(format!("invoice_date >= ${}", params.len() + 1));
+            params.push(sd.into());
         }
         if let Some(ed) = end_date {
-            q = q.filter(ar_invoice::Column::InvoiceDate.lte(ed));
+            where_clauses.push(format!("invoice_date <= ${}", params.len() + 1));
+            params.push(ed.into());
         }
 
-        let invoices = q.all(&*self.db).await?;
+        let sql = format!(
+            r#"
+            SELECT
+                to_char(invoice_date, 'YYYY-MM') AS month,
+                COUNT(*) AS invoice_count,
+                COALESCE(SUM(invoice_amount), 0) AS invoice_amount,
+                COALESCE(SUM(received_amount), 0) AS paid_amount,
+                COALESCE(SUM(unpaid_amount), 0) AS unpaid_amount
+            FROM ar_invoice
+            WHERE {where}
+            GROUP BY to_char(invoice_date, 'YYYY-MM')
+            ORDER BY to_char(invoice_date, 'YYYY-MM') ASC
+            "#,
+            where = where_clauses.join(" AND ")
+        );
 
-        let mut monthly_map: std::collections::HashMap<String, MonthlyAgg> =
-            std::collections::HashMap::new();
-        for inv in invoices {
-            let key = format!("{:04}-{:02}", inv.invoice_date.year(), inv.invoice_date.month());
-            let agg = monthly_map.entry(key).or_default();
-            agg.invoice_count += 1;
-            agg.invoice_amount += inv.invoice_amount;
-            agg.paid_amount += inv.received_amount;
-            agg.unpaid_amount += inv.unpaid_amount;
-        }
+        let rows: Vec<sea_orm::QueryResult> = self
+            .db
+            .query_all(sea_orm::Statement::from_sql_and_values(
+                sea_orm::DatabaseBackend::Postgres,
+                sql,
+                params,
+            ))
+            .await
+            .map_err(|e| AppError::internal(format!("月报表聚合查询失败: {}", e)))?;
 
-        let mut result: Vec<serde_json::Value> = monthly_map
+        let result: Vec<serde_json::Value> = rows
             .into_iter()
-            .map(|(month, agg)| {
+            .map(|row| {
+                let month: String = row.try_get_by_index::<String>(0).unwrap_or_default();
+                let invoice_count: i64 = row.try_get_by_index::<i64>(1).unwrap_or(0);
+                let invoice_amount: Decimal =
+                    row.try_get_by_index::<Decimal>(2).unwrap_or(Decimal::ZERO);
+                let paid_amount: Decimal =
+                    row.try_get_by_index::<Decimal>(3).unwrap_or(Decimal::ZERO);
+                let unpaid_amount: Decimal =
+                    row.try_get_by_index::<Decimal>(4).unwrap_or(Decimal::ZERO);
                 json!({
                     "month": month,
-                    "invoice_count": agg.invoice_count,
-                    "invoice_amount": agg.invoice_amount.to_string(),
-                    "paid_amount": agg.paid_amount.to_string(),
-                    "unpaid_amount": agg.unpaid_amount.to_string(),
+                    "invoice_count": invoice_count,
+                    "invoice_amount": invoice_amount.to_string(),
+                    "paid_amount": paid_amount.to_string(),
+                    "unpaid_amount": unpaid_amount.to_string(),
                 })
             })
             .collect();
-        result.sort_by(|a, b| {
-            a["month"]
-                .as_str()
-                .unwrap_or("")
-                .cmp(b["month"].as_str().unwrap_or(""))
-        });
 
         Ok(json!(result))
     }
@@ -1454,18 +1528,5 @@ fn reconciliation_item_to_json(i: ar_reconciliation_item::Model) -> serde_json::
 // 内部聚合辅助结构
 // =====================================================
 
-#[derive(Default)]
-struct DailyAgg {
-    invoice_count: i64,
-    invoice_amount: Decimal,
-    paid_amount: Decimal,
-    unpaid_amount: Decimal,
-}
-
-#[derive(Default)]
-struct MonthlyAgg {
-    invoice_count: i64,
-    invoice_amount: Decimal,
-    paid_amount: Decimal,
-    unpaid_amount: Decimal,
-}
+// v14 中风险性能修复（批次 244）：DailyAgg / MonthlyAgg 已删除
+// 原内存聚合逻辑改为 SQL GROUP BY 聚合，这两个 struct 不再需要
