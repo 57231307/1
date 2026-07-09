@@ -10,14 +10,25 @@ import { refreshToken as refreshApi } from './auth'
 import type { ApiResponse } from '@/types/api'
 
 let isRefreshing = false
-let refreshSubscribers: ((token: string) => void)[] = []
+// FE-P1-1 修复（v13 前端审计）：排队请求同时持有 resolve 和 reject 回调，
+// 刷新失败时能通知排队请求 reject，避免 Promise 永不 settle 导致 loading 状态/闭包泄漏
+let refreshSubscribers: Array<{ resolve: (token: string) => void; reject: (error: unknown) => void }> = []
 
-function subscribeTokenRefresh(cb: (token: string) => void) {
-  refreshSubscribers.push(cb)
+function subscribeTokenRefresh(
+  resolve: (token: string) => void,
+  reject: (error: unknown) => void,
+) {
+  refreshSubscribers.push({ resolve, reject })
 }
 
 function onTokenRefreshed(token: string) {
-  refreshSubscribers.forEach(cb => cb(token))
+  refreshSubscribers.forEach(({ resolve }) => resolve(token))
+  refreshSubscribers = []
+}
+
+// FE-P1-1 修复：刷新失败时通知所有排队请求 reject，避免 Promise 永不 settle
+function onTokenRefreshFailed(error: unknown) {
+  refreshSubscribers.forEach(({ reject }) => reject(error))
   refreshSubscribers = []
 }
 
@@ -137,10 +148,13 @@ class Request {
         // - 重放时不需要重新注入 Authorization 头（Cookie 自动随 withCredentials=true 发送）
         if (error.response?.status === 401 && !originalRequest?._retry) {
           if (isRefreshing) {
-            return new Promise(resolve => {
-              subscribeTokenRefresh(() => {
-                resolve(this.instance(originalRequest))
-              })
+            // FE-P1-1 修复：排队请求同时持有 resolve/reject，
+            // 刷新成功走 resolve 重放，刷新失败走 reject 让 Promise settle
+            return new Promise((resolve, reject) => {
+              subscribeTokenRefresh(
+                () => resolve(this.instance(originalRequest)),
+                reject,
+              )
             })
           }
 
@@ -154,6 +168,8 @@ class Request {
             onTokenRefreshed('')
             return this.instance(originalRequest)
           } catch (refreshError) {
+            // FE-P1-1 修复：刷新失败时通知所有排队请求 reject，避免 Promise 永不 settle
+            onTokenRefreshFailed(refreshError)
             router.push('/login')
             return Promise.reject(refreshError)
           } finally {
