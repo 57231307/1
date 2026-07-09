@@ -5,7 +5,8 @@
 use chrono::{NaiveDate, Utc};
 use rust_decimal::Decimal;
 use sea_orm::{
-    ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter, QueryOrder, Set,
+    ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, PaginatorTrait, QueryFilter,
+    QueryOrder, Set,
 };
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
@@ -456,10 +457,24 @@ impl CapacityService {
             .map(|i| i.load_rate)
             .unwrap_or(Decimal::ZERO);
 
+        // 查询该工作中心已完成的历史订单数量，用于评估预测置信度
+        let historical_order_count = ProductionOrderEntity::find()
+            .filter(ProductionOrderColumn::WorkCenterId.eq(work_center_id))
+            .filter(ProductionOrderColumn::Status.eq("COMPLETED"))
+            .count(&*self.db)
+            .await?;
+
         // 预测未来产能
         let forecasted_capacity = daily_capacity * Decimal::from(days);
         let predicted_demand = forecasted_capacity * (current_load / Decimal::from(100));
         let predicted_available = forecasted_capacity - predicted_demand;
+
+        // 基于历史数据量和预测期限动态计算置信度
+        let confidence = Self::calculate_forecast_confidence(
+            historical_order_count,
+            days,
+            !load_items.is_empty(),
+        );
 
         Ok(CapacityForecast {
             work_center_id,
@@ -470,8 +485,41 @@ impl CapacityService {
             predicted_demand,
             predicted_available,
             predicted_load_rate: current_load,
-            confidence: 0.8, // 简化的置信度
+            confidence,
         })
+    }
+
+    /// 基于历史数据量和预测期限动态计算预测置信度
+    /// 历史订单越多、预测期限越短，置信度越高
+    fn calculate_forecast_confidence(
+        historical_order_count: u64,
+        days: i32,
+        has_current_load: bool,
+    ) -> f64 {
+        // 基础置信度：基于历史已完成订单数量
+        let base_confidence: f64 = match historical_order_count {
+            0 => 0.30, // 无历史数据，仅基于当前产能估算
+            1..=5 => 0.50,   // 历史数据较少
+            6..=20 => 0.70,  // 历史数据适中
+            21..=50 => 0.80, // 历史数据充足
+            _ => 0.85,       // 历史数据丰富
+        };
+
+        // 当前负荷数据加成：有当前排产数据则提升置信度，否则降低
+        let load_adjustment: f64 = if has_current_load { 0.05 } else { -0.10 };
+
+        // 预测期限衰减因子：短期预测置信度高于长期
+        let horizon_factor: f64 = match days {
+            1..=7 => 1.00,    // 一周内：高置信度
+            8..=30 => 0.92,   // 一月内：较高
+            31..=90 => 0.78,  // 三月内：中等
+            91..=180 => 0.62, // 半年内：较低
+            _ => 0.45,        // 半年以上：低
+        };
+
+        let confidence = (base_confidence + load_adjustment) * horizon_factor;
+        // 限制在 [0.10, 0.95] 区间，避免极端值
+        confidence.clamp(0.10, 0.95)
     }
 
     /// 获取指定时间段内的可用产能
@@ -605,4 +653,63 @@ pub struct UpdateWorkCenterInput {
     pub capacity_unit: Option<String>,
     pub status: Option<String>,
     pub remarks: Option<String>,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::CapacityService;
+
+    /// 无历史数据时置信度应较低
+    #[test]
+    fn test_confidence_no_history() {
+        let confidence = CapacityService::calculate_forecast_confidence(0, 30, true);
+        // 基础 0.30 + 当前负荷 0.05 = 0.35，期限因子 0.92 → 0.322
+        assert!(confidence < 0.40, "无历史数据置信度应低于 0.40，实际: {}", confidence);
+    }
+
+    /// 历史数据丰富且短期预测时置信度应较高
+    #[test]
+    fn test_confidence_rich_history_short_horizon() {
+        let confidence = CapacityService::calculate_forecast_confidence(100, 7, true);
+        // 基础 0.85 + 当前负荷 0.05 = 0.90，期限因子 1.00 → 0.90
+        assert!(confidence >= 0.85, "丰富历史+短期预测置信度应 >= 0.85，实际: {}", confidence);
+    }
+
+    /// 长期预测置信度应低于短期预测
+    #[test]
+    fn test_confidence_long_horizon_lower() {
+        let short_confidence = CapacityService::calculate_forecast_confidence(30, 7, true);
+        let long_confidence = CapacityService::calculate_forecast_confidence(30, 365, true);
+        assert!(
+            long_confidence < short_confidence,
+            "长期预测置信度 ({}) 应低于短期 ({})",
+            long_confidence,
+            short_confidence
+        );
+    }
+
+    /// 有当前负荷数据时置信度应高于无负荷数据
+    #[test]
+    fn test_confidence_current_load_bonus() {
+        let with_load = CapacityService::calculate_forecast_confidence(10, 30, true);
+        let without_load = CapacityService::calculate_forecast_confidence(10, 30, false);
+        assert!(
+            with_load > without_load,
+            "有当前负荷数据置信度 ({}) 应高于无负荷 ({})",
+            with_load,
+            without_load
+        );
+    }
+
+    /// 置信度应始终在 [0.10, 0.95] 区间内
+    #[test]
+    fn test_confidence_within_bounds() {
+        // 最差情况：无历史 + 无负荷 + 超长期
+        let min_confidence = CapacityService::calculate_forecast_confidence(0, 365, false);
+        assert!(min_confidence >= 0.10, "置信度下限应 >= 0.10，实际: {}", min_confidence);
+
+        // 最好情况：丰富历史 + 有负荷 + 短期
+        let max_confidence = CapacityService::calculate_forecast_confidence(1000, 1, true);
+        assert!(max_confidence <= 0.95, "置信度上限应 <= 0.95，实际: {}", max_confidence);
+    }
 }
