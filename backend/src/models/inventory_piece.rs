@@ -42,7 +42,8 @@ pub struct Model {
     /// 重量（千克）
     pub weight: Option<Decimal>,
 
-    /// 状态：AVAILABLE=可用，RESERVED=预留， defect=次品
+    /// 状态：参考 crate::models::status::inventory_piece 模块常量
+    /// AVAILABLE=可用，RESERVED=已预留，SHIPPED=已发货，DEFECT=缺陷，UNAVAILABLE=不可用
     pub status: String,
 
     /// 备注

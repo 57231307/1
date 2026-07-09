@@ -200,19 +200,31 @@ pub async fn scan_statistics(
     let row = inventory_piece::Entity::find()
         .select_only()
         .column_as(
-            Expr::cust("COUNT(*) FILTER (WHERE status = 'AVAILABLE')"),
+            Expr::cust(&format!(
+                "COUNT(*) FILTER (WHERE status = '{}')",
+                piece_status::AVAILABLE
+            )),
             "available_count",
         )
         .column_as(
-            Expr::cust("COUNT(*) FILTER (WHERE status = 'SHIPPED')"),
+            Expr::cust(&format!(
+                "COUNT(*) FILTER (WHERE status = '{}')",
+                piece_status::SHIPPED
+            )),
             "shipped_count",
         )
         .column_as(
-            Expr::cust("COUNT(*) FILTER (WHERE status = 'DEFECT')"),
+            Expr::cust(&format!(
+                "COUNT(*) FILTER (WHERE status = '{}')",
+                piece_status::DEFECT
+            )),
             "defect_count",
         )
         .column_as(
-            Expr::cust("COUNT(*) FILTER (WHERE status = 'RESERVED')"),
+            Expr::cust(&format!(
+                "COUNT(*) FILTER (WHERE status = '{}')",
+                piece_status::RESERVED
+            )),
             "reserved_count",
         )
         .column_as(Expr::cust("COUNT(*)"), "total_count")

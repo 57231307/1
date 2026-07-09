@@ -604,6 +604,9 @@ pub mod inventory_piece {
 
     /// 不可用：裁片不可用
     pub const UNAVAILABLE: &str = "UNAVAILABLE";
+
+    /// 已预留：裁片已为订单预留
+    pub const RESERVED: &str = "RESERVED";
 }
 
 /// 登录日志状态（log_login.status，大写值）

@@ -205,8 +205,29 @@
 - ⏳ FE-P2-3：i18n 覆盖率（200+ 视图硬编码中文，巨大工作量）
 - ⏳ FE-P2-6：大列表虚拟化（966 处 el-table，巨大工作量）
 - ⏳ E2E 失败排查（连续多次"启动后端服务"失败，待规则 5 节点统一处理）
-- ⏳ ar/vfy.rs 状态常量不一致修复（reconciliation_status 小写 vs status::ar 大写）
+- ⏳ ar/vfy.rs 状态常量不一致修复（reconciliation_status 小写 vs status::ar 大写）→ ✅ 批次 231 已修复
 - ⏳ P2-8 剩余 143 个无测试 service（非高优先级，后续迭代）
+
+### v13 复审 P1-1 进度（硬编码状态字符串替换，规则 0/8）
+
+**已完成批次**：
+- 批次 229：P0 修复 logistics_handler 状态大小写不匹配 ✅
+- 批次 230：FE-P1-1 request.ts 401 刷新失败排队请求泄漏修复 ✅
+- 批次 231：ar 模块状态常量统一小写 + P0 查询大小写 Bug 修复 ✅
+- 批次 232：新增 accounting_period/logistics_waybill/sales_return 状态子模块 ✅
+- 批次 233：Clippy 修复（4 个新警告抑制：PageRequest/LOCKED/RELEASED/TemplateQuery.category）✅
+- 批次 234：新增 12 个 status 子模块并替换 67 处硬编码状态字符串 ✅
+  - 新增子模块：scheduling/ap_reconciliation/inventory_transfer/inventory_count/purchase_return/purchase_inspection/quotation/custom_order/process_node/inventory_adjustment/finance_invoice/finance_payment
+  - 涉及文件：scheduling_query/ap_reconciliation_service/inv/inventory_move/inventory_count_service/purchase_return_service/purchase_inspection_service/quotation_service/custom_order_crud_service/custom_order_state_service/inventory_adjustment_service/finance_invoice_service/finance_payment_service
+- 扫描确认：bpm_service/mrp_engine_service/import_export_service 业务代码已使用 status 模块常量，无需修改 ✅
+
+**v13 P1-1 状态**：硬编码状态字符串替换基本完成（25 个业务域全覆盖）
+
+**v13 剩余 P1/P2 任务**：
+- ⏳ v13 P1-2：inventory_piece 状态字段约定定义
+- ⏳ v13 P1-3：6 处 N+1 查询/写入重构
+- ⏳ v13 前端 P2：FE-P2-1（deepClone 接入）、FE-P2-2（删死代码）、FE-P2-3（非空断言）
+- ⏳ v13 后端 P2：P2-1/2/3
 
 ### v9 复审结果（2 个并行子代理扫描）
 
