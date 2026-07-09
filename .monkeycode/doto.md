@@ -5,7 +5,7 @@
 
 ---
 
-## 🔄 当前任务：v12 全项目复审 P2 修复（批次 214-216 P2-1 死代码常量接入全部完成已推送 CI，下一步 P2-7/P2-8 或前端 P2 复审）
+## 🔄 当前任务：v12 全项目复审 P2 修复（批次 221 P2-8 测试覆盖补测启动 customer_credit_limit 19 个测试 CI 运行中）
 
 > 用户最高优先级规则（2026-07-04/06/08 追加）已固化到 [MEMORY.md 一、规则 0-12](file:///workspace/.monkeycode/MEMORY.md)。
 > 本文件仅记录任务进度，规则不在此重复。
@@ -57,9 +57,26 @@
     - sales_order_handler.rs cancel_delivery handler + CancelDeliveryRequest DTO
     - routes/sales.rs POST /orders/:id/deliveries/:delivery_id/cancel
 - ⏳ P2-3：N+1 写（与 P2-6 同处，已修复）
-- ⏳ P2-7：API 一致性（98.7% 使用 ApiResponse，可接受）
-- ⏳ P2-8：测试覆盖（~97 service 无测试）
-- ⏳ 前端 P2 复审：尚未启动
+- ✅ P2-7：API 一致性 100% 完成（批次 217 改造 failover_handler.rs get_failover_status，CI 12/12 核心全绿）
+  - 审计结果：~420 个 handler 中仅 1 个未用 ApiResponse，20 个合理例外（文件下载 13 + 健康检查 3 + Prometheus 1 + Auth Cookie 3 语义已包装）
+- 🔄 P2-8：测试覆盖审计完成（181 个 service 文件，36 个有测试，143 个无测试，覆盖率 19.9%）
+  - 高优先级 Top 15：po/order.rs、so/order.rs、inv/stock.rs、inv/adjust.rs、inventory_reservation_service.rs、mrp_engine_service.rs、voucher_service.rs、ar/recon.rs、ar/vfy.rs、ap_reconciliation_service.rs、accounting_period_service.rs、customer_credit_limit.rs、production_order_service.rs、bom_service.rs、so/order_workflow.rs
+  - 5 个模块 0% 覆盖：po/、crm/、inv/、report/
+- 🔄 前端 P2 复审完成（6 个高优先级修复项）：
+  - FE-P2-1：全局错误处理缺失（main.ts 未注册 errorHandler + unhandledrejection）
+  - FE-P2-2：非空断言滥用（66 处 res.data! 分布在 32 文件）
+  - FE-P2-3：i18n 覆盖率极低（200+ 视图硬编码中文，仅 12 文件接入 $t）
+  - FE-P2-4：敏感信息存 localStorage（CompanyTab.vue 企业税号/银行账号）
+  - FE-P2-5：深拷贝代码重复（9 文件 JSON.parse(JSON.stringify(...))）✅ 批次 218 修复
+  - FE-P2-6：大列表未虚拟化（966 处 el-table 仅 1 处用 V2Table）
+
+### 前端 P2 修复进度
+- ✅ FE-P2-1：全局错误处理（批次 218 main.ts 注册 errorHandler + unhandledrejection）
+- ✅ FE-P2-2：非空断言（批次 219-220，store 15 + composables/views 45 = 60 处全部修复）
+- ✅ FE-P2-4：敏感信息 localStorage（批次 218 CompanyTab.vue 过滤敏感字段）
+- ✅ FE-P2-5：深拷贝工具（批次 218 utils/index.ts deepClone + 12 文件 28 处替换）
+- ⏳ FE-P2-3：i18n 覆盖率（200+ 视图硬编码中文，巨大工作量，后续迭代）
+- ⏳ FE-P2-6：大列表虚拟化（966 处 el-table，巨大工作量，后续迭代）
 
 ### v11 复审结果
 
