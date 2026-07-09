@@ -52,6 +52,10 @@ pub fn sales() -> Router<AppState> {
                 .post(sales_order_handler::create_delivery),
         )
         .route(
+            "/orders/:id/deliveries/:delivery_id/cancel",
+            post(sales_order_handler::cancel_delivery),
+        )
+        .route(
             "/orders/statistics",
             get(sales_order_handler::get_order_statistics),
         )

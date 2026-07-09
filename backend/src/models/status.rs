@@ -238,8 +238,7 @@ pub mod sales_delivery {
     pub const PENDING: &str = "pending";
     /// 已发货
     pub const SHIPPED: &str = "shipped";
-    /// 已取消
-    #[allow(dead_code)] // TODO(tech-debt): 销售发货取消状态接入后移除（批次 161 CI2）
+    /// 已取消（批次 216 真实接入：cancel_delivery 方法使用）
     pub const CANCELLED: &str = "cancelled";
 }
 

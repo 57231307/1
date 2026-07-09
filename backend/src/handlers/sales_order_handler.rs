@@ -556,6 +556,40 @@ pub async fn create_delivery(
     Ok(Json(ApiResponse::success(delivery_json)))
 }
 
+/// 取消发货单
+/// 批次 216 P2-1 修复（v12 复审）：实现销售发货取消功能
+/// POST /api/v1/erp/sales/orders/:id/deliveries/:delivery_id/cancel
+pub async fn cancel_delivery(
+    auth: AuthContext,
+    State(state): State<AppState>,
+    Path((_order_id, delivery_id)): Path<(i32, i32)>,
+    Json(req): Json<CancelDeliveryRequest>,
+) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
+    req.validate()
+        .map_err(|e| AppError::validation(e.to_string()))?;
+
+    let sales_service = SalesService::new(state.db.clone(), state.search_client.clone());
+
+    let delivery = sales_service
+        .cancel_delivery(delivery_id, req.reason.clone(), auth.user_id)
+        .await
+        .map_err(|e| AppError::internal(format!("取消发货单失败: {}", e)))?;
+
+    let delivery_json = serde_json::to_value(delivery)
+        .map_err(|e| AppError::internal(format!("序列化失败: {}", e)))?;
+    Ok(Json(ApiResponse::success_with_message(
+        delivery_json,
+        "发货单已取消",
+    )))
+}
+
+/// 取消发货单请求 DTO（批次 216 P2-1）
+#[derive(Debug, Deserialize, Validate)]
+pub struct CancelDeliveryRequest {
+    #[validate(length(min = 1, max = 500, message = "取消原因不能为空且最长500字符"))]
+    pub reason: String,
+}
+
 // ========== 统计接口 ==========
 
 /// 获取订单统计
