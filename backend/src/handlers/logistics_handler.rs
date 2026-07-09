@@ -9,6 +9,7 @@ use serde::Deserialize;
 
 use crate::models::logistics_waybill;
 use crate::models::sales_order;
+use crate::models::status::sales_order as so_status;
 use crate::middleware::auth_context::AuthContext;
 use crate::utils::app_state::AppState;
 use crate::utils::error::AppError;
@@ -61,10 +62,10 @@ pub async fn create_waybill(
 
     let inserted = new_waybill.insert(&txn).await?;
 
-    // Update order status to DELIVERING / SHIPPED if not already
-    if order.status != "SHIPPED" {
+    // 更新订单状态为已发货（小写常量，与 sales_order 状态机一致）
+    if order.status != so_status::SHIPPED {
         let mut active_order: sales_order::ActiveModel = order.into();
-        active_order.status = Set("SHIPPED".to_string());
+        active_order.status = Set(so_status::SHIPPED.to_string());
         active_order.update(&txn).await?;
     }
 
