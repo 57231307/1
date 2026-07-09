@@ -6,6 +6,26 @@
 
 ---
 
+## 2026-07-10 (批次 247 v14 中风险硬编码 URL 修复 — CLI 健康检查，CI 12/12 核心全绿)
+
+### 批次 247：v14 中风险硬编码 URL 修复 — CLI 健康检查
+
+**修复内容**：bug.md 中风险漏洞 #17 — `backend/src/cli/util/service.rs:191` 硬编码 `http://127.0.0.1:8082/health`，部署到非 8082 端口环境时健康检查失效。
+
+**修改文件**（1 文件 +25 -6 行）：
+- `backend/src/cli/util/service.rs`：
+  1. 新增 `backend_host()` / `backend_port()` / `backend_health_url()` 辅助函数，从环境变量 `SERVER__HOST` / `SERVER__PORT` 读取（默认 `127.0.0.1` / `8082`）
+  2. `cmd_health`：健康检查 URL 改为 `backend_health_url()` 动态拼接
+  3. `cmd_status`：端口监听检查也改为从 `backend_port()` 读取端口
+
+**技术要点**：
+- 与 config crate 的 `SERVER__HOST` / `SERVER__PORT` 环境变量约定一致
+- 使用 `std::env::var` + `unwrap_or_else` 提供合理默认值（非 `require_env` 退出模式）
+
+**CI 验证**：CI run #29038390548，12/12 核心 job 全绿，PR #424 squash merge 到 main（commit 47d86d86）。
+
+---
+
 ## 2026-07-10 (批次 246 v14 中风险空实现修复 — dye-recipe handleViewVersion，CI 12/12 核心全绿)
 
 ### 批次 246：v14 中风险空实现修复 — dye-recipe handleViewVersion
