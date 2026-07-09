@@ -6,6 +6,27 @@
 
 ---
 
+## 2026-07-10 (批次 252 v14 中风险空实现修复 — unreachable! panic 改为返回错误，CI 12/12 核心全绿)
+
+### 批次 252：v14 中风险空实现修复 — bi_analysis + dual_unit_converter unreachable! 改为防御性错误处理
+
+**修复内容**：bug.md 中风险空实现问题 — `bi_analysis_service.rs` 三处 `unreachable!()` 宏调用（`dim_to_expr` 函数第 254 行 dimension 维度匹配 `_` 分支 + 第 1188 行 item 级 measure 匹配 `_` 分支 + 第 1203 行 order 级 measure 匹配 `_` 分支），用户可控的 dim/measure 参数若绕过校验将触发 panic 导致进程崩溃；`dual_unit_converter_handler.rs` 第 116 行 `unreachable!()` 在校验逻辑被重构后可能 panic 崩溃。
+
+**修改文件**（2 文件 +101 -31 行）：
+- `backend/src/services/bi_analysis_service.rs`：`dim_to_expr` 返回类型改为 `Result`，`_` 分支返回 `AppError::validation`；提取 `measure_to_expr` 独立函数替代原内联 match + `unreachable!()`；新增 6 个单元测试
+- `backend/src/handlers/dual_unit_converter_handler.rs`：`_` 分支改为 `return Err(AppError::bad_request)`
+
+**技术要点**：
+- `dim_to_expr`：返回类型从 `(&'static str, &'static str)` 改为 `Result<(&'static str, &'static str), AppError>`，`_` 分支返回 `AppError::validation(format!("不支持的维度: {}", dim))`
+- 提取 `measure_to_expr(measure, item_level)` 独立函数，用 `(measure, item_level)` 元组 match 替代原两处内联 match，`_` 分支返回 `AppError::validation`
+- `pivot` 方法调用处加 `?` 传播错误
+- `dual_unit_converter_handler.rs`：`_ => unreachable!(...)` 改为 `_ => return Err(AppError::bad_request("无效的单位..."))`，防御性返回错误
+- 新增 6 个单元测试：验证所有合法维度/度量返回 Ok，非法维度/度量/空字符串返回 Err（而非 panic）
+
+**CI 验证**：CI run #29046877533，12/12 核心 job 全绿（Clippy 一次通过），E2E 失败为已知问题不阻塞。PR #429 squash merge 到 main（commit faa9749）。
+
+---
+
 ## 2026-07-10 (批次 251 v14 中风险简化阉割修复 — webhook retry payload 持久化，CI 12/12 核心全绿)
 
 ### 批次 251：v14 中风险简化阉割修复 — webhook retry 从假 payload 改为重投持久化原始数据
