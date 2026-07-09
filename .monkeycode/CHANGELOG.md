@@ -6,6 +6,29 @@
 
 ---
 
+## 2026-07-10 (批次 249 v14 中风险简化阉割修复 — capacity_service 硬编码置信度动态化，CI 12/12 核心全绿)
+
+### 批次 249：v14 中风险简化阉割修复 — capacity_service forecast_capacity 硬编码置信度 0.8 改为动态计算
+
+**修复内容**：bug.md 中风险简化阉割问题 — `capacity_service.rs` 的 `forecast_capacity` 方法硬编码 `confidence: 0.8`，无法反映历史数据量和预测期限对预测可信度的影响。
+
+**修改文件**（1 文件 +109 -2 行）：
+- `backend/src/services/capacity_service.rs`：`forecast_capacity` 方法 + 新增 `calculate_forecast_confidence` 辅助方法 + 5 个单元测试
+
+**技术要点**：
+- 查询工作中心已完成历史订单数量（`ProductionOrderEntity::find().filter(Status.eq("COMPLETED")).count()`）
+- 置信度三维动态计算：
+  1. 基础置信度（历史订单数量）：0→0.30, 1-5→0.50, 6-20→0.70, 21-50→0.80, 50+→0.85
+  2. 当前负荷加成：有排产数据 +0.05，无排产数据 -0.10
+  3. 预测期限衰减因子：7天内×1.0, 30天内×0.92, 90天内×0.78, 180天内×0.62, 更长×0.45
+- 最终置信度限制在 [0.10, 0.95] 区间，避免极端值
+- 新增 `PaginatorTrait` 导入用于 `count()` 方法
+- CI 修复：1 轮（`f64` 类型标注消除 `clamp` 方法歧义 `error[E0689]: can't call method clamp on ambiguous numeric type {float}`）
+
+**CI 验证**：CI run #29043478176，12/12 核心 job 全绿（Clippy + 单元测试 + 后端构建均通过），PR #426 squash merge 到 main（commit 82269a4）。
+
+---
+
 ## 2026-07-10 (批次 248 v14 中风险缓存未利用修复 — AR/AP 报表接入 CacheService，CI 12/12 核心全绿)
 
 ### 批次 248：v14 中风险缓存未利用修复 — AR/AP 报表 8 端点接入 CacheService
