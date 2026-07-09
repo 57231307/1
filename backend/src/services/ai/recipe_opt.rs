@@ -21,8 +21,6 @@ use sea_orm::{ColumnTrait, EntityTrait, QueryFilter};
 use serde::{Deserialize, Serialize};
 
 use crate::models::dye_recipe::{Entity as DyeRecipeEntity, Model as DyeRecipeModel};
-// 批次 212 P2-5 修复（v12 复审）：硬编码 "active" 替换为 master_data 常量
-use crate::models::status::master_data;
 use crate::utils::error::AppError;
 
 use super::AiAnalysisService;
@@ -413,6 +411,8 @@ impl AiAnalysisService {
 mod tests {
     use super::*;
     use crate::models::dye_recipe::AuxiliariesItem;
+    // 批次 212 P2-5 修复：master_data 仅测试使用，移入 #[cfg(test)] 避免 Clippy unused import
+    use crate::models::status::master_data;
     use rust_decimal::Decimal;
 
     /// 构造一条 `DyeRecipeModel` 测试夹具
