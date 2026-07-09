@@ -158,18 +158,28 @@ pub mod purchase_order {
     pub const APPROVED: &str = "APPROVED";
     /// 已拒绝
     pub const REJECTED: &str = "REJECTED";
-    /// 已收货
-    #[allow(dead_code)] // TODO(tech-debt): 采购订单业务接入后移除（批次 161 CI2）
-    pub const RECEIVED: &str = "RECEIVED";
     /// 已关闭
     pub const CLOSED: &str = "CLOSED";
     /// 已取消
-    #[allow(dead_code)] // TODO(tech-debt): 采购订单业务接入后移除（批次 161 CI2）
+    #[allow(dead_code)] // TODO(tech-debt): 批次 215 实现采购订单 cancel_order 功能后移除
     pub const CANCELLED: &str = "CANCELLED";
     /// 已完成
     pub const COMPLETED: &str = "COMPLETED";
     /// 部分收货
     pub const PARTIAL_RECEIVED: &str = "PARTIAL_RECEIVED";
+}
+
+/// 采购收货单状态常量（purchase_receipt.receipt_status，大写值）
+///
+/// 批次 214 P2-1 修复（v12 复审）：抽取 purchase_receipt_service.rs 和 po/receipt.rs 中的硬编码状态字符串
+/// 状态机：DRAFT → CONFIRMED → COMPLETED
+pub mod purchase_receipt {
+    /// 草稿：收货单初始状态，可编辑
+    pub const DRAFT: &str = "DRAFT";
+    /// 已确认：收货已确认，等待入库
+    pub const CONFIRMED: &str = "CONFIRMED";
+    /// 已完成：收货入库流程完成（幂等键）
+    pub const COMPLETED: &str = "COMPLETED";
 }
 
 // 销售订单状态
@@ -212,9 +222,12 @@ pub mod approval {
 pub mod inventory_reservation {
     /// 待处理（已创建预留，等待发货扣减）
     pub const PENDING: &str = "pending";
-    /// 已完成（发货已扣减库存）
-    #[allow(dead_code)] // TODO(tech-debt): 库存预留完成状态接入后移除（批次 161 CI2）
-    pub const FULFILLED: &str = "fulfilled";
+    /// 已锁定（库存已锁定，等待发货扣减）
+    pub const LOCKED: &str = "locked";
+    /// 已消耗（发货已扣减库存，原 FULFILLED 值修正为 consumed 与业务代码一致）
+    pub const CONSUMED: &str = "consumed";
+    /// 已释放（订单取消或库存不足释放）
+    pub const RELEASED: &str = "released";
     /// 已取消（订单取消或库存不足释放）
     pub const CANCELLED: &str = "cancelled";
 }

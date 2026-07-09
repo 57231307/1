@@ -6,6 +6,7 @@ use sea_orm::{
 use std::sync::Arc;
 
 use crate::models::inventory_reservation::{self, Entity as InventoryReservationEntity};
+use crate::models::status::inventory_reservation as reservation_status;
 use crate::utils::error::AppError;
 
 /// 库存预留服务
@@ -34,7 +35,7 @@ impl InventoryReservationService {
             product_id: sea_orm::ActiveValue::Set(product_id),
             warehouse_id: sea_orm::ActiveValue::Set(warehouse_id),
             quantity: sea_orm::ActiveValue::Set(quantity),
-            status: sea_orm::ActiveValue::Set("pending".to_string()),
+            status: sea_orm::ActiveValue::Set(reservation_status::PENDING.to_string()),
             reserved_at: sea_orm::ActiveValue::Set(Utc::now()),
             released_at: sea_orm::ActiveValue::NotSet,
             notes: sea_orm::ActiveValue::Set(notes),
@@ -62,7 +63,7 @@ impl InventoryReservationService {
             .await?
             .ok_or_else(|| AppError::not_found(format!("库存预留 {} 未找到", reservation_id)))?;
 
-        if reservation.status != "pending" {
+        if reservation.status != reservation_status::PENDING {
             return Err(AppError::business(format!(
                 "预留状态为{}，只有待处理状态的预留可以锁定",
                 reservation.status
@@ -70,7 +71,7 @@ impl InventoryReservationService {
         }
 
         let mut reservation_update: inventory_reservation::ActiveModel = reservation.into();
-        reservation_update.status = sea_orm::ActiveValue::Set("locked".to_string());
+        reservation_update.status = sea_orm::ActiveValue::Set(reservation_status::LOCKED.to_string());
         reservation_update.updated_at = sea_orm::ActiveValue::Set(Utc::now());
 
         let result = reservation_update
@@ -98,7 +99,7 @@ impl InventoryReservationService {
             .await?
             .ok_or_else(|| AppError::not_found(format!("库存预留 {} 未找到", reservation_id)))?;
 
-        if reservation.status != "locked" && reservation.status != "pending" {
+        if reservation.status != reservation_status::LOCKED && reservation.status != reservation_status::PENDING {
             return Err(AppError::business(format!(
                 "预留状态为{}，只有已锁定或待处理状态的预留可以释放",
                 reservation.status
@@ -106,7 +107,7 @@ impl InventoryReservationService {
         }
 
         let mut reservation_update: inventory_reservation::ActiveModel = reservation.into();
-        reservation_update.status = sea_orm::ActiveValue::Set("released".to_string());
+        reservation_update.status = sea_orm::ActiveValue::Set(reservation_status::RELEASED.to_string());
         reservation_update.released_at = sea_orm::ActiveValue::Set(Some(Utc::now()));
         reservation_update.updated_at = sea_orm::ActiveValue::Set(Utc::now());
 
@@ -167,7 +168,7 @@ impl InventoryReservationService {
             .ok_or_else(|| AppError::not_found(format!("库存预留 {} 未找到", reservation_id)))?;
 
         // 只有 pending 状态的预留可以删除
-        if reservation.status != "pending" {
+        if reservation.status != reservation_status::PENDING {
             return Err(AppError::business(format!(
                 "预留状态为{}，只有待处理状态的预留可以删除",
                 reservation.status

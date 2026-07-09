@@ -235,7 +235,7 @@ impl PurchaseOrderService {
             purchaser_id: Set(user_id),
             currency: Set(req.currency.clone().unwrap_or_else(|| crate::constants::DEFAULT_CURRENCY.to_string())),
             exchange_rate: Set(req.exchange_rate.unwrap_or(Decimal::new(1, 0))),
-            order_status: Set("DRAFT".to_string()),
+            order_status: Set(status::purchase_order::DRAFT.to_string()),
             payment_terms: Set(req.payment_terms.clone()),
             shipping_terms: Set(req.shipping_terms.clone()),
             notes: Set(req.notes.clone()),

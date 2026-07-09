@@ -5,7 +5,7 @@
 
 ---
 
-## 🔄 当前任务：v12 全项目复审 P2 修复（批次 208 P2-5 主数据状态常量替换已提交 a2d29b7，CI 12/12 核心全绿，E2E 连续失败待排查）
+## 🔄 当前任务：v12 全项目复审 P2 修复（批次 213 P2-5 已完成 CI 12/12 核心全绿，P2-5 后端全面完成，下一步 P2-1 死代码常量接入）
 
 > 用户最高优先级规则（2026-07-04/06/08 追加）已固化到 [MEMORY.md 一、规则 0-12](file:///workspace/.monkeycode/MEMORY.md)。
 > 本文件仅记录任务进度，规则不在此重复。
@@ -32,7 +32,15 @@
 - ✅ P2-6：supplier_service 事务保护缺失（批次 205 → fb05961，CI 类型错误 → 批次 206 修复）
 - ✅ P2-2：report/ds.rs 桩代码补全（批次 206，aggregate_purchase_data / aggregate_finance_data / query_purchase_report）
 - ✅ P2-4：unwrap/expect 加固（批次 207，5 处非测试代码：4 处加不变量注释 + 1 处改 fail-secure 模式 + Clippy unused imports 修复）
-- 🔄 P2-5：40+ 处硬编码状态字符串替换为 status::* 常量（批次 208 完成 4 个主数据 service：supplier/customer/customer_credit_limit/fixed_asset，共 18 处替换 + status.rs 新增 master_data 子模块；剩余约 24 个 service 文件待分批处理）
+- ✅ P2-5：硬编码状态字符串替换为 status::* 常量（批次 208-212 全部完成，services 目录无残留硬编码 "active"/"inactive"）
+  - 批次 208：4 个主数据 service 18 处 + master_data 子模块 ✅
+  - 批次 209：3 个 service 15 处 + budget 子模块 ✅
+  - 批次 210：4 个 service 16 处 + contract 子模块 ✅
+  - 批次 210-ci：Clippy 修复 ✅
+  - 批次 211：6 个 service 12 处 ✅ CI 12/12 核心全绿
+  - 批次 212：11 个 service 11 处 ✅ CI Clippy 失败 → 212-ci 修复（recipe_opt.rs master_data 移入 #[cfg(test)]）✅
+  - 批次 213：3 个 handler 10 处（product_handler + inventory_stock_handler + api_gateway_handler 8 处）✅ CI 12/12 核心全绿
+  - **P2-5 后端全面完成**：services 22 个文件 + handlers 3 个文件，共 82 处替换 + 3 个新子模块（master_data/budget/contract）
 - ⏳ P2-1：6 项级 #[allow(dead_code)] 状态常量接入业务（批次 208 已移除 SUBMITTED 的 allow 标注，剩余 RECEIVED/CANCELLED 等）
 - ⏳ P2-3：N+1 写（与 P2-6 同处，已修复）
 - ⏳ P2-7：API 一致性（98.7% 使用 ApiResponse，可接受）
@@ -134,11 +142,11 @@
 
 | 批次 | main commit | 内容 |
 |------|-------------|------|
-| 208 | `a2d29b7` | v12 P2-5 主数据状态常量替换（status.rs 新增 master_data 子模块 ACTIVE/INACTIVE 小写常量 + 移除 purchase_order::SUBMITTED 的 #[allow(dead_code)]；4 个 service 文件 18 处替换：supplier_service 6 处 + customer_service 3 处 + customer_credit_limit 5 处 + fixed_asset_service 4 处；5 文件 +38 -19 行；CI 12/12 核心全绿，E2E 失败"启动后端服务"步骤）|
-| 207 | `56b954d` | v12 P2-4 unwrap/expect 加固（tracking_handler/tracking_service and_hms_opt unwrap 加不变量注释 + email_service HMAC expect 改不变量说明 + hash_password.rs Params::new expect 改中文不变量 + hash_password expect 改 fail-secure match+eprintln+exit(1) + websocket/mod.rs 移除未使用 pub use re-export；5 文件；CI 12/12 核心全绿，E2E 失败"启动后端服务"步骤）|
-| 206-ci | `c4e6b3c` | v12 P2-6 CI 修复 Clippy unused variable user_id 警告（supplier_service create_supplier_contact 的 user_id 改为 _user_id + 注释说明保留原因）|
-| 206 | `de51fc4` | v12 P2-2 report/ds.rs 桩代码补全（aggregate_purchase_data 真实接入 purchase_orders 按 supplier/month 聚合 + aggregate_finance_data 真实接入 finance_payments 按 month/payment_method 聚合 + query_purchase_report 真实查询 purchase_order_item 明细按日期范围过滤）+ P2-6 类型修复（supplier_service now 从 DateTimeUtc 改为 DateTimeWithTimeZone）；2 文件 +231 -12 行|
-| 205-ci | `4e77793` | v12 P1-4 CI 修复 Clippy manual_is_multiple_of 警告（notifications.rs count % N == 0 → count.is_multiple_of(N)）|
+| 211 | `dc908fe` | v12 P2-5 状态字符串替换续（6 个 service 12 处：warehouse_service 2 处 + product_service 2 处 + po/price.rs 2 处供应商过滤 + financial_analysis_service 2 处 + color_card_item_service 2 处 + color_card_crud_service 2 处；6 文件 +24 -12 行；CI 12/12 核心全绿，E2E 失败）|
+| 210-ci | `4177593` | v12 P2-5 CI 修复 Clippy unused import（customer_credit_evaluate.rs master_data 导入从文件外层移入 #[cfg(test)] mod tests 内部）|
+| 210 | `6d9843c` | v12 P2-5 合同/资金/信用评估状态字符串替换（status.rs 新增 contract 子模块 DRAFT/ACTIVE/CANCELLED；4 个 service 16 处：sales_contract_service 5 处 + purchase_contract_service 5 处 + fund_management_service 3 处 + customer_credit_evaluate 3 处测试；CI 12/12 核心全绿，E2E 失败）|
+| 209 | `544c981` | v12 P2-5 状态字符串替换续（status.rs 新增 budget 子模块 DRAFT/REJECTED/APPROVED/ACTIVE；3 个 service 15 处：dashboard_service 6 处 + budget_management_service 8 处 + user_service 1 处；CI 12/12 核心全绿，E2E 失败）|
+| 208 | `a2d29b7` | v12 P2-5 主数据状态常量替换（status.rs 新增 master_data 子模块 + 移除 purchase_order::SUBMITTED 的 #[allow(dead_code)]；4 个 service 18 处；CI 12/12 核心全绿，E2E 失败）|
 | 205 | `f1d75d4` | v12 前端 P1-4 WebSocket token 安全修复（WsTicketManager 一次性短时票据机制替代 URL query JWT + issue_ws_ticket_handler HTTP 端点 + ws_notifications_handler 改用 ticket 验证 + 前端 WebSocketClient 改用 TicketFetcher 回调 connect() 改为 async + fetchWsTicket API + DatabaseConfig.connection_string 添加 #[serde(default)] 修复 E2E 启动失败）|
 | 204-ci | `275d768` | v12 前端 P1-3 Promise rejection 修复 + audit-log 测试适配|
 | 204 | `0df4930` | v12 前端 P1-1 CSV 导出改 xlsx + P1-2 useApiLog any 清理 + P1-5 搜索 Bug 修复|
