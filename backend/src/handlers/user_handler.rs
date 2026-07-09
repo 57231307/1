@@ -193,7 +193,9 @@ pub async fn create_user(
 
     let user_service = UserService::new(state.db.clone());
 
-    let password_hash = AuthService::hash_password(&payload.password)
+    // v14 P0-1 修复：使用 spawn_blocking 包装 Argon2id 哈希计算，避免阻塞 tokio worker
+    let password_hash = AuthService::hash_password_async(payload.password.clone())
+        .await
         .map_err(|e| AppError::internal(e.to_string()))?;
 
     let user = user_service
@@ -535,8 +537,11 @@ pub async fn change_password(
     };
 
     // 验证原密码
-    let is_valid = AuthService::verify_password(&req.old_password, &user.password_hash)
-        .map_err(|e| AppError::internal(e.to_string()))?;
+    // v14 P0-1 修复：使用 spawn_blocking 包装 Argon2id 哈希计算，避免阻塞 tokio worker
+    let is_valid =
+        AuthService::verify_password_async(req.old_password.clone(), user.password_hash.clone())
+            .await
+            .map_err(|e| AppError::internal(e.to_string()))?;
 
     if !is_valid {
         // 记录审计：原密码错误
@@ -560,8 +565,11 @@ pub async fn change_password(
     }
 
     // 检查新密码不能与原密码相同
-    let is_same = AuthService::verify_password(&req.new_password, &user.password_hash)
-        .map_err(|e| AppError::internal(e.to_string()))?;
+    // v14 P0-1 修复：使用 spawn_blocking 包装 Argon2id 哈希计算，避免阻塞 tokio worker
+    let is_same =
+        AuthService::verify_password_async(req.new_password.clone(), user.password_hash.clone())
+            .await
+            .map_err(|e| AppError::internal(e.to_string()))?;
 
     if is_same {
         return Err(AppError::bad_request("新密码不能与原密码相同"));
@@ -575,7 +583,9 @@ pub async fn change_password(
     }
 
     // 哈希新密码
-    let new_password_hash = AuthService::hash_password(&req.new_password)
+    // v14 P0-1 修复：使用 spawn_blocking 包装 Argon2id 哈希计算，避免阻塞 tokio worker
+    let new_password_hash = AuthService::hash_password_async(req.new_password.clone())
+        .await
         .map_err(|e| AppError::internal(e.to_string()))?;
 
     // 批次 158 v11 真实接入：PasswordPolicyService 密码历史校验
