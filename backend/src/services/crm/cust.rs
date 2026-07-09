@@ -273,17 +273,23 @@ impl CrmService {
         use sea_orm::sea_query::Expr;
         use std::collections::HashMap;
 
+        // 订单聚合行：(customer_id, order_count, last_order_at, total_amount)
+        // 提取 type 别名避免 clippy type_complexity 警告
+        type OrderAggRow = (
+            i32,
+            i64,
+            Option<chrono::DateTime<chrono::Utc>>,
+            Option<rust_decimal::Decimal>,
+        );
+        // 客户订单统计：(order_count, last_order_at, total_amount_f64)
+        type CustomerOrderStats = (i64, Option<chrono::DateTime<chrono::Utc>>, f64);
+
         // 1. 查询所有客户 ID（含无订单客户，评分 = 1.0）
         let customers: Vec<customer::Model> = CustomerEntity::find().all(&*self.db).await?;
         let customer_ids: Vec<i32> = customers.iter().map(|c| c.id).collect();
 
         // 2. 查询所有客户的订单聚合（按 customer_id 分组：订单数 + 最近订单时间 + 总金额）
-        let order_aggs: Vec<(
-            i32,
-            i64,
-            Option<chrono::DateTime<chrono::Utc>>,
-            Option<rust_decimal::Decimal>,
-        )> = SalesOrderEntity::find()
+        let order_aggs: Vec<OrderAggRow> = SalesOrderEntity::find()
             .select_only()
             .column(SalesOrderColumn::CustomerId)
             .column_as(Expr::col(SalesOrderColumn::Id).count(), "order_count")
@@ -300,17 +306,14 @@ impl CrmService {
             .all(&*self.db)
             .await?;
 
-        // 3. 构建 customer_id -> (order_count, last_order_at, total_amount_f64) 映射
-        let order_map: HashMap<i32, (i64, Option<chrono::DateTime<chrono::Utc>>, f64)> =
-            order_aggs
-                .into_iter()
-                .map(|(cid, count, last_order, total)| {
-                    let total_f64 = total
-                        .and_then(|d| d.to_f64())
-                        .unwrap_or(0.0);
-                    (cid, (count, last_order, total_f64))
-                })
-                .collect();
+        // 3. 构建 customer_id -> CustomerOrderStats 映射
+        let order_map: HashMap<i32, CustomerOrderStats> = order_aggs
+            .into_iter()
+            .map(|(cid, count, last_order, total)| {
+                let total_f64 = total.and_then(|d| d.to_f64()).unwrap_or(0.0);
+                (cid, (count, last_order, total_f64))
+            })
+            .collect();
 
         // 4. 计算每个客户的 RFM 评分并分桶（评分规则与 compute_rfm_score 完全一致）
         let mut vip_count = 0u64;
