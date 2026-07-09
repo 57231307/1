@@ -181,7 +181,9 @@
 ## 二、当前任务状态（2026-07-09 批次 236 完成 - v13 后端 P0/P1 全部修复完成，CI 12/12 核心全绿，待用户指令）
 
 > 用户最高优先级规则已在「一、规则 0-12」固化，本节仅记录修复进度。
-> 规则 10 梳理时间：2026-07-09（批次 228 = 15×15+3 触发，上次梳理批次 195）
+> **规则 10 梳理记录**：
+> - 2026-07-09 批次 236 梳理（本次，提前于批次 240 触发，因用户明确要求"梳理项目的所有记忆"）
+> - 2026-07-09 批次 228 梳理（15×15+3 触发，上次梳理批次 195）
 > **批次 236 已完成**：v13 P1-3 N+1 查询/写入重构（4 处 INSERT 批量化），PR #413 squash merge 到 main（commit eaa5c9b3），分支已清理。
 > **v13 后端 P0/P1 全部完成**：P0-1（批次 229）+ P1-1（批次 231-234）+ P1-2（批次 235）+ P1-3（批次 236）。等待用户下一步指令。
 
@@ -248,255 +250,26 @@
 - ⏳ E2E 失败排查：连续多次"启动后端服务"失败（已知问题，非代码质量）
 - ⏳ 规则 10 触发：批次 240（=16×15）需梳理记忆文件
 
-### v9 复审结果（2 个并行子代理扫描）
+### 历史复审进度摘要（v7-v9，已全部完成 ✅，详细记录见 doto.md / CHANGELOG.md）
 
-- **P0 阻塞（2 项，全部修复 ✅）**：
-  1. `bi_analysis_service.rs` 16 个方法全部返回硬编码 mock 数据 ← **批次 130 已修复 ✅**
-  2. `purchase_inspection_handler.rs` 4 个明细 CRUD 端点全部占位 ← **批次 131 已修复 ✅**
-- **P1 重要（4 项，待修复）**：
-  1. `production_order_handler.rs:417-429` get_production_order_logs 固定空列表 ← 批次 132（进行中）
-  2. `ap_invoice_handler.rs:301-314` get_statistics "统计报表功能开发中" 占位 ← 批次 133
-  3. `dashboard_service.rs:267-271` get_sales_statistics 5 字段 vec![] 占位 ← 批次 134
-  4. `dashboard_service.rs:377,379-380` get_inventory_statistics 3 字段硬编码占位 ← 批次 135
+> 本节为历史归档摘要，详细修复明细已迁移至 doto.md 历史批次表和 CHANGELOG.md。
 
-### v7 复审 P1 修复进度（批次 110-117 已完成，P1 全部修复 ✅）
+**v7 复审**（批次 110-120，全部完成 ✅）：
+- P0：webhook callback PUBLIC_PATHS + message_type/title + payload 接入业务（批次 110）
+- P1（10 项，批次 111-117）：incoterms 接入、api_keys created_by 持久化、webhook PUT 语义、占位符、let _ = 检查、通知 warn 日志化、expect 安全化、failover 模块删除、cache 模块删除、audit 日期过滤
+- P2（13 项，批次 118-120）：supplier 资质端点、cost_collection 删除、cleanup_expired_cache 删除、calculate_monthly_depreciation 删除、connection_count 删除、token_bucket 删除、data_permission 删除、create_assist_record 删除、initialize_dimensions 真实接入、EventBackend trait 删除、cache/redis_client 删除、failover 删除
 
-| 批次 | PR | main commit | 修复项 | 状态 |
-|------|-----|-------------|--------|------|
-| 110 | #354 | `20a8c11` | P0-1/P0-2/P0-3 webhook callback PUBLIC_PATHS + message_type/title + payload 接入业务 | ✅ |
-| 111 | #355 + 621cb0a | `20a8ce7` | P1-2 incoterms 接入 quotation_service + P1-10 audit 日期过滤 + crm keyword/source | ✅ |
-| 112 | #356 | `6052810` | P1-9 api_keys 表 created_by 列持久化（migration m0039 + model + service + handler 透传） | ✅ |
-| 113 | #357 | `9d65a72` | P1-1 webhook PUT 语义修复 + P1-7 占位符 2 处 + P1-8 let _ = 检查存在性 5 处 | ✅ |
-| 114 | #358 | `36a9730` | P1-6 通知路径 warn 日志化（10 处）+ P1-5 启动期 expect 安全化（3 处中风险） | ✅ |
-| 115 | #359 | `e9f3996` | P1-3 删除未接入业务的 failover 抽象模块（4 文件 1015 行 + 2 集成测试） | ✅ |
-| 116 | #360 | `5e00b04` | P1-4 删除未接入业务的 Redis 缓存层模块（2 文件 504 行 + 清理 user/product service cache 代码 105 行） | ✅ |
-| 117 | #361 | `dd19874` | P1-5 剩余 4 处生产代码 .unwrap()/.expect() 安全化（webhook_signature 返回 Result + date_utils/timeout expect 加不变量注释） | ✅ |
+**v8 复审**（批次 121-129，全部完成 ✅）：
+- P1（5 项，批次 121-125）：event_kafka KafkaEventEnvelope 删除、crm 标签真实接入、ElasticClient::real() 真实实现、SearchSyncer 接入 customer_service、SearchSyncer 接入 sales_order_service + product_service
+- P2（5 项，批次 126-129）：print_handler 静态配置化、inventory_stock_query alert_type 派生计算、import_export_handler 接入 import_tasks 表、report_enhanced_handler 字段定义静态配置化、financial_analysis_handler execute_report 真实执行
 
-### v7 复审 P1 修复总结
+**v9 复审**（批次 130-131，全部完成 ✅）：
+- P0（2 项）：bi_analysis_service 16 个方法真实接入数据库查询（批次 130）、purchase_inspection 4 个明细 CRUD 真实接入（批次 131）
+- P1（4 项，批次 132-135）：production_order_handler logs、ap_invoice_handler statistics、dashboard_service sales/inventory statistics
 
-P1 项全部修复完成（P1-1 ~ P1-10）：
-- P1-1 webhook PUT 语义 ✅（批次 113）
-- P1-2 incoterms 接入 ✅（批次 111）
-- P1-3 failover 模块删除 ✅（批次 115）
-- P1-4 cache 模块删除 ✅（批次 116）
-- P1-5 .unwrap()/.expect() 安全化 ✅（批次 114 中风险 + 批次 117 低风险）
-- P1-6 通知路径 warn 日志化 ✅（批次 114）
-- P1-7 占位符 ✅（批次 113）
-- P1-8 let _ = 检查存在性 ✅（批次 113）
-- P1-9 api_keys created_by 持久化 ✅（批次 112）
-- P1-10 audit 日期过滤 ✅（批次 111）
+**关键 CI 教训**（批次 121）：跨文件 impl 块需谨慎评估，误删 report/ds.rs + report/job.rs 导致 CI 失败，根因是 ds.rs 包含 `impl ReportEngineService` 跨文件 impl 块。
 
-### v7 复审 P2 修复进度（批次 118-120 全部完成 ✅，13/13 项）
-
-| 批次 | PR | main commit | 修复项 | 状态 |
-|------|-----|-------------|--------|------|
-| 118 | #362 | `01c4475` | P2-9 supplier_handler 资质端点真实接入 + P2-6 cost_collection 3 函数删除 + P2-4 report/ds cleanup_expired_cache 删除 + P2-8 fixed_asset calculate_monthly_depreciation 删除 + P2-13 websocket connection_count 删除 | ✅ |
-| 119 | #363 | `fd4faf7` | P2-2 删除 token_bucket.rs 整个文件 + P2-5 删除 data_permission check_data_permission + 4 scope 常量 + P2-7 删除 assist_accounting create_assist_record | ✅ |
-| 120 | #364 | `4842e97` | P2-7 initialize_dimensions 真实接入 main.rs 启动 + P2-10 删除 EventBackend trait + BroadcastBackend + BridgeStream + EventBackendType + backend_type | ✅ |
-
-**批次 120 修复明细**：
-- P2-7 真实接入：assist_accounting_service.rs initialize_dimensions 移除 `#[allow(dead_code)]`，main.rs 启动时调用一次（init_event_bus_with_kafka_config 之后），初始化 8 个辅助核算维度（批次/色号/缸号/等级/车间/仓库/客户/供应商），幂等实现，tracing::warn! 降级不阻塞启动
-- P2-10 删除：event_bus.rs 删除 EventBackend trait + BroadcastBackend struct + impl + BridgeStream struct + impl + EventStream/SubscribeFuture 类型别名 + EventBusState.broadcast 字段 + backend_type() 方法 + EventBackendType 枚举；删除 tests/test_event_bus.rs（依赖被删除类型）
-- clippy 修复：模块文档注释行首 `+ ` 被误判为 Markdown 列表项标记（doc_lazy_continuation lint），改为顿号分隔
-
-**P2 项状态总览**（v7 复审报告 P2 + batch103-placeholder-impl-plan.md P2 合并，全部完成 ✅）：
-- P2-1 incoterms 接入 ✅（批次 111，归入 P1-2）
-- P2-2 token_bucket 限流算法 ✅（批次 119 删除）
-- P2-3 admin_checker 缓存清理 ✅（批次 103）
-- P2-4 report/ds cleanup_expired_cache ✅（批次 118）
-- P2-5 data_permission check_data_permission + 4 scope 常量 ✅（批次 119 删除）
-- P2-6 cost_collection 3 函数 ✅（批次 118）
-- P2-7 assist_accounting create_assist_record ✅（批次 119 删除）；initialize_dimensions ✅（批次 120 真实接入 main.rs 启动）
-- P2-8 fixed_asset calculate_monthly_depreciation ✅（批次 118）
-- P2-9 supplier 资质端点真实接入 ✅（批次 118）
-- P2-10 event_bus EventBackend trait ✅（批次 120 删除）
-- P2-11 cache/redis_client ✅（批次 116 删除）
-- P2-12 failover ✅（批次 115 删除）
-- P2-13 websocket connection_count ✅（批次 118）
-
-### v8 全项目复审修复进度（批次 121+ 进行中）
-
-v7 复审 P0/P1/P2 项全部修复完成（P0 4 项 + P1 10 项 + P2 13 项 = 27 项）后，启动 v8 全项目复审扫描。
-
-**v8 复审结果**（Task 子代理扫描 + 人工验证）：
-- P0 项：color_card_scan_service（**误报**，scan_export.rs 调用）
-- P1 真实项：crm_customer_handler list_tags 硬编码标签、search/elastic.rs stub 实现、event_kafka KafkaEventEnvelope（已处理）
-- P1 误报：stock_alert（sensitive_action_alert 使用）、config/failover（failover_service 使用）、sales_analysis_service（handler 使用）
-- P2 项：print_handler 空列表占位、import_export_handler 空列表占位、report_enhanced_handler 硬编码字段定义、financial_analysis_handler 假执行状态、inventory_stock_query alert_type 硬编码
-
-| 批次 | PR | main commit | 修复项 | 状态 |
-|------|-----|-------------|--------|------|
-| 121 | #365 | `71b9bfb` | v8 死代码清理：删除 event_kafka KafkaEventEnvelope struct + from_event + into_event（零业务调用方），保留 event_type_name 标记 #[cfg(test)] | ✅ |
-| 122 | #366 | `f181e1b` | v8 P1 crm 标签真实接入：新增 crm_tag 表 + list_tags/create_tag/delete_tag 真实持久化 + 路由路径 /crm-tags → /crm/tags 修复前端 404 | ✅ |
-| 123 | #367 | `a819ab4` | v8 P1 ElasticClient::real() 真实实现：ClientInner enum 双模式（Mock/Real）+ reqwest 直连 ES REST API + ensure_indices 启动时索引初始化 | ✅ |
-| 124 | #368 | `bbdf267` | v8 P1 SearchSyncer 接入 customer_service：PG→ES 写入同步（create/update/delete 事务提交后调用 sync_customer，最终一致性策略） | ✅ |
-| 125 | #369 | `c4a269f` | v8 P1 SearchSyncer 接入 sales_order_service + product_service：PG→ES 写入同步（含 Decimal→f64 转换 + 硬删除 ES 文档删除 + start_event_listener 签名扩展） | ✅ |
-| 126 | #370 | `2674df1` | v8 P2 print_handler 静态配置化（6 种内置打印模板）+ inventory_stock_query alert_type 派生计算（discrepancy/out_of_stock/low_stock/expiring/normal） | ✅ |
-| 127 | #371 | `66cbe81` | v8 P2 import_export_handler 接入 import_tasks 表：list_import_tasks 真实查询 + import_csv/import_excel 创建+更新任务记录 | ✅ |
-| 128 | #372 | `09601cb` | v8 P2 report_enhanced_handler 字段定义静态配置化：ReportFieldDefinition struct + available_fields_for_type 静态方法替代硬编码 serde_json::json! | ✅ |
-| 129 | #373 | `8bd404b` | v8 P2 financial_analysis_handler execute_report 真实执行：调用 calculate_indicators 真实计算财务指标 + ExecuteReportParams 可选 period 参数 + 透明响应 completed/no_data | ✅ |
-
-**批次 121 修复明细**：
-- 删除 event_kafka.rs 中 KafkaEventEnvelope struct + from_event + into_event（74 行，零业务调用方）
-- 保留 event_type_name 供测试断言使用，标记 #[cfg(test)] 避免非测试编译时 dead_code
-- **CI 失败教训**：首次误删 report/ds.rs + report/job.rs（v8 子代理误报为死代码），CI 报 `no method named 'execute_report' found for struct 'ReportEngineService'`。根因：ds.rs 包含 `impl ReportEngineService { pub async fn execute_report ... }` 跨文件 impl 块，被 report_engine_handler 等调用。修复：从 HEAD~1 恢复 ds.rs + job.rs + mod.rs，仅保留 KafkaEventEnvelope 删除，force push 后 CI 全绿
-
-**批次 122 修复明细**：
-- 新增 migration m0040 + SQL：创建 crm_tag 表（id/name/color/category/created_by/created_at/updated_at），初始化 5 个预定义标签（VIP/重点客户/潜在客户/新客户/流失客户）保证向后兼容
-- 新增 crm_tag entity 模型并在 models/mod.rs 注册
-- list_tags：原返回硬编码 5 个标签，改为查 crm_tag 表真实数据
-- create_tag：原用时间戳生成假 id 不持久化，改为 INSERT 到 crm_tag 表；CreateTagDto 增加 category 字段
-- delete_tag：原直接返回 {deleted: true} 空操作，改为 DELETE FROM crm_tag，不存在时返回 404
-- **路由路径修复**：/crm-tags 改为 /crm/tags 匹配前端 crm-enhanced.ts 调用（原前端 404 bug）
-- 返回结构含 id/name/color/category/created_at 完整字段，匹配前端 CustomerTag interface
-
-**批次 123 修复明细**：
-- `elastic.rs`：新增 `ClientInner` enum 双模式（Mock 内存 HashMap / Real reqwest::Client），`ElasticClient` 改持有 `inner: ClientInner`
-- `ElasticClient::real(url)` 从 stub（返回 mock storage）改为真实创建 reqwest::Client（30s timeout），消除"日志显示真实但实际 mock"的误导
-- 4 个 SearchClient trait 方法全部支持 Real 模式：
-  - `index_doc`: PUT /{index}/_doc/{id}
-  - `search`: POST /{index}/_search，构建 ES Query DSL（multi_match + term filter + highlight）
-  - `delete_doc`: DELETE /{index}/_doc/{id}（404 视为幂等成功）
-  - `bulk_index`: POST /_bulk NDJSON 格式（action_header\n + source\n）
-- 新增 `ensure_indices(base_url)` async 函数 + 3 个索引 mapping 定义（sales_orders/customers/products）
-  - 索引幂等创建：PUT /{index} 返回 200（创建成功）或 400（已存在），均视为成功
-- `main.rs`：在 `initialize_dimensions` 之后调用 `ensure_indices()`（仅当 ELASTICSEARCH_URL 配置时，错误降级 tracing::warn! 不阻塞启动）
-- `search/mod.rs`：导出 `ensure_indices` 供 main.rs 调用
-- `app_state.rs`：更新 `init_search_client()` 注释说明 real() 已真实实现
-- **CI clippy 修复**（首次推送 3 项新警告）：bulk_index Mock 分支 storage 改为 _、search Real 分支 filter_map 改为 map、barcode_scanner_handler ScanHistoryQuery.scan_type 加 #[allow(dead_code)] + TODO
-- **架构说明**：本批次仅完成 ES 客户端基础设施 + 索引初始化，SearchSyncer 接入 PG→ES 写入同步留待后续批次
-
-**批次 124 修复明细**：
-- `customer_service.rs`：CustomerService 注入 `search_syncer: Arc<SearchSyncer>` 字段，构造函数签名改为 `new(db, search_client: Arc<dyn SearchClient>)`
-- 新增 `build_customer_doc(model: &customer::Model) -> CustomerDoc` 字段映射工具函数
-  - tier 映射 customer_type（retail/wholesale/vip，更接近"等级"语义）
-  - 其余字段直接从 Model 取值（id/code/name/contact_person/phone/email/address）
-- 新增 `sync_customer_to_es(model, operation)` 私有方法（最终一致性策略，ES 失败仅 tracing::warn! 不回滚 PG）
-- `create_customer` / `update_customer` / `delete_customer` 事务提交后调用 `sync_customer_to_es`
-  - 软删除不删除 ES 文档，保留便于搜索历史客户（status 字段已同步）
-- `elastic.rs`：移除 `SearchSyncer` struct 级别 `#[allow(dead_code)]`（已接入 customer_service）
-- `elastic.rs`：`sync_sales_order` / `sync_product` 保留方法级 `#[allow(dead_code)]`（批次 125 接入）
-- `search/mod.rs`：新增导出 `SearchSyncer` 供 customer_service 注入
-- `customer_handler.rs`（5 处）+ `crm_customer_handler.rs`（4 处）：调用点改为 `CustomerService::new(state.db.clone(), state.search_client.clone())`
-- **设计决策**：
-  - ES 同步失败仅记录日志，不回滚 PG 事务（最终一致性，PG 是主数据源，ES 是搜索副本）
-  - 同步时机：事务提交后同步（避免 PG 回滚后 ES 残留脏数据）
-  - 软删除保留 ES 文档（status=inactive 同步，便于搜索历史客户）
-  - mock 模式（CI 环境）下同步到内存 HashMap，real 模式同步到真实 ES
-
-**批次 125 修复明细**：
-- `services/so/order.rs`：SalesService struct 注入 `search_syncer: Arc<SearchSyncer>` 字段，`new()` 签名改为 `new(db, search_client: Arc<dyn SearchClient>)`
-- `services/so/order_crud.rs`：新增 `decimal_to_f64` 工具函数（Decimal→f64，使用 `to_string().parse()` 避免精度损失），新增 `build_sales_order_doc` 静态方法（SalesOrderDetail→SalesOrderDoc，items.color_no 空串→None），新增 `sync_sales_order_to_es` 私有方法
-- `create_order` / `update_order`：事务提交后调用 `get_order_detail` 取最新数据 → `sync_sales_order_to_es`（最终一致性策略）
-- `delete_order`：删除前保存 `order_no_for_es`，事务提交后调用 `search_syncer.delete_sales_order(order_no)`（硬删除 ES 文档）
-- `services/product_service.rs`：ProductService struct 注入 `search_syncer: Arc<SearchSyncer>`，`new()` 签名改为 `new(db, search_client: Arc<dyn SearchClient>)`，新增 `build_product_doc`（product::Model→ProductDoc，category/color_no/pantone_code 暂设 None，后续迭代 join 关联表）+ `sync_product_to_es`
-- `create_product`：insert 后 `sync_product_to_es("create")`
-- `update_product`：update_with_audit 后 `sync_product_to_es("update")`
-- `delete_product`：delete_with_audit 后 `search_syncer.delete_product(id)`（硬删除 ES 文档）
-- `search/elastic.rs`：移除 `sync_sales_order` / `sync_product` 的 `#[allow(dead_code)]`（已真实接入），新增 `delete_sales_order(order_no)` 和 `delete_product(product_id)` 方法（调用 `client.delete_doc`）
-- `search/mod.rs`：新增导出 `SalesOrderItemDoc` 供 `order_crud.build_sales_order_doc` 使用
-- `handlers/sales_order_handler.rs`（16 处）+ `handlers/product_handler.rs`（12 处）：调用点改为 `XxxService::new(state.db.clone(), state.search_client.clone())`
-- `services/event_bus.rs`：`start_event_listener` 签名扩展为 `(db, search_client: Arc<dyn SearchClient>)`，2 处闭包内 `SalesService::new(db.clone())` 改为 `SalesService::new(db.clone(), search_client.clone())`
-- `main.rs`：`start_event_listener` 调用点更新传入 `app_state.search_client.clone()`
-- **CI 修复**：首次推送 Rust 后端构建失败 `error[E0432]: unresolved import crate::search::SalesOrderItemDoc`，根因 `search/mod.rs` 的 `pub use` 列表遗漏 `SalesOrderItemDoc` 导出，补导出后 CI 全绿
-- **设计决策**：
-  - 硬删除 vs 软删除：销售订单/产品硬删除需调用 ES delete_doc；客户软删除保留 ES 文档（批次 124 实现）
-  - Decimal→f64 转换：使用 `to_string().parse()` 避免 `Decimal::to_f64` 边界值精度损失
-  - 字段映射：SalesOrderDoc.items.color_no 空字符串→None；ProductDoc.category/color_no 暂设 None（后续迭代 join product_category/product_color 表）
-
-**批次 126 修复明细**：
-- `handlers/print_handler.rs`：新增 `builtin_print_templates()` 静态函数返回 6 种内置打印模板
-  - 对应 PrintService 支持的 6 种单据类型：sales_order/sales_contract/purchase_order/purchase_receipt/inventory_transfer/voucher
-  - `list_print_templates`: 从原 `vec![]` 占位改为返回 `builtin_print_templates()`
-  - `get_print_template`: 从原硬编码 `Err(not_found)` 改为从内置列表按 id 查找，找不到时返回 404
-- `services/stock_alert.rs`：重写 AlertType 枚举
-  - 删除死代码 AlertLevel 枚举（sensitive_action_alert.rs 有独立 AlertLevel，本模块零业务调用方）
-  - AlertType 接入 inventory_stock_query.compute_alert_type 业务，移除 dead_code 标注
-  - 新增 OutOfStock 变体（缺货）+ code() 方法返回前端约定的稳定字符串
-  - 新增 ALERT_TYPE_NORMAL 常量 + EXPIRING_THRESHOLD_DAYS 常量（默认 30 天）
-- `services/inventory_stock_query.rs`：
-  - 新增 `compute_alert_type(s: &inventory_stock::Model) -> &'static str` 私有函数
-    判定优先级：discrepancy（状态异常）> out_of_stock（缺货）> low_stock（低于下限）> expiring（即将过期）> normal
-  - `get_stock_alerts`: alert_type 字段从硬编码 "normal" 改为 `compute_alert_type(&s)` 派生计算
-  - 返回字段新增 reorder_point / expiry_date / stock_status，便于前端展示阈值上下文
-- **设计说明**：
-  - 打印模板为系统内置，不需要动态 CRUD 管理（实际渲染逻辑在 PrintService.generate_pdf）
-  - alert_type 派生计算基于库存数量/补货点/过期日期/库存状态
-  - TODO(tech-debt): OverStock（高于上限）和 SlowMoving（滞销）暂未实现，因 inventory_stocks 表无 max_stock_point / last_movement_date 阈值字段，后续迭代补充字段后再接入
-
-**批次 127 修复明细**：
-- 新增 migration `m0041_create_import_tasks` + SQL：创建 import_tasks 表（id/import_type/status/total_rows/imported_rows/failed_rows/user_id/created_at/updated_at）+ 2 个索引（created_at DESC / user_id）
-- 新增 `models/import_task.rs` SeaORM entity model，在 `models/mod.rs` 注册
-- `services/import_export_service.rs`：ImportExportService 新增 3 个 task 管理方法
-  - `create_import_task(import_type, total_rows, user_id) -> i32`：导入前创建任务记录（status=running）
-  - `update_import_task(task_id, &ImportResult)`：导入完成更新 imported_rows/failed_rows/status（success/failed/partial）
-  - `list_import_tasks() -> Vec<import_task::Model>`：按 created_at DESC 倒序返回最近 100 条
-- `handlers/import_export_handler.rs`（3 处修改）：
-  - `import_csv`：解析 CSV 后 create_import_task，验证失败/导入完成两条路径均 update_import_task（tracing::warn! 降级不阻断）
-  - `import_excel`：同 import_csv 模式
-  - `list_import_tasks`：从 `vec![]` 占位改为调用 service.list_import_tasks() 真实查询 + Model→ImportTaskItem DTO 映射（i64→u64 安全转换，DateTime→RFC3339）
-- **状态判定规则**：failed==0→success；imported==0→failed；其他→partial
-- **CI 修复**：首次推送 3 个错误
-  - E0433: list_import_tasks 签名使用 import_task::Model 但 use 在函数体内 → 改用全路径 `crate::models::import_task::Model`
-  - E0282: handler 中 tasks 类型推导失败（级联错误）→ 修复 E0433 后自动解决
-  - E0599: `.limit(100)` 方法未找到 → 函数体内 `use sea_orm::{QueryOrder, QuerySelect}`
-- **设计决策**：
-  - task 创建时机：解析 CSV/Excel 后、验证前（确保验证失败也落库一条记录）
-  - task 更新失败不阻断主流程（仅 tracing::warn!），保证用户得到原始导入响应
-  - total_rows = 解析后的实际行数（不含表头），imported_rows/failed_rows 由 ImportResult 提供
-  - 限制 100 条记录避免列表过大（按 created_at DESC 倒序）
-
-**批次 128 修复明细**：
-- `services/report_template_service.rs`：新增 `ReportFieldDefinition` struct（field/title/data_type，&'static str）+ `available_fields_for_type(template_type: &str) -> Vec<ReportFieldDefinition>` 静态方法
-  - 集中管理 5 种模板类型 + 通配符的字段定义：sales/purchase/inventory/financial/custom
-  - 类型化 struct 替代 `serde_json::json!` 宏，编译时检查
-  - `&'static str` 避免运行时 String 分配，零成本抽象
-- `handlers/report_enhanced_handler.rs`：`get_available_fields` 从 38 行硬编码 match + `serde_json::json!` 块改为调用 `ReportTemplateService::available_fields_for_type(&template_type)`
-  - 返回 JSON 结构完全向后兼容（field/title/data_type 三字段不变）
-- **设计决策**：
-  - 字段元数据绑定 DB schema（sales_orders 表有 order_no 列等），不宜放数据库动态管理
-  - 采用静态配置化模式，与 print_handler 批次 126 一致
-  - 已存在 `report_definition` 表但零业务引用（死表），本批次未复活该表（字段定义与报表定义是不同概念，前者是 schema 元数据，后者是用户自定义报表模板）
-
-**批次 129 修复明细**：
-- `handlers/financial_analysis_handler.rs`：重写 `execute_report` handler，从假执行状态改为调用 `calculate_indicators` 真实计算
-  - 新增 `ExecuteReportParams` struct（可选 `period` 参数，格式 YYYY-MM，缺失时默认当前年月）
-  - 验证指标存在（`financial_analysis::Entity::find_by_id`）
-  - 调用 `service.calculate_indicators(&period, auth.user_id)` 真实计算所有预定义财务指标
-    - 读取指定期间的科目余额（account_balance）
-    - 按科目代码前缀分类汇总（1xxx 资产 / 2xxx 负债 / 6xxx 损益）
-    - 计算流动比率/速动比率/资产负债率/应收账款周转率/应付账款周转率
-    - 落库到 financial_analysis_results 表
-  - 从计算结果中筛选当前指标 `all_results.iter().find(|r| r.indicator_id == id)`
-  - 透明响应：有结果返回 `completed` + 计算值；无结果返回 `no_data` + 说明（可能缺少科目余额或指标未在预定义列表中）
-  - 返回字段新增 `period` 和 `total_indicators_computed`，便于前端展示执行上下文
-- 移除未使用的 `use sea_orm::QueryOrder` 和 `financial_analysis_result` 模型导入
-- **设计决策**：
-  - 财务指标相互关联（流动比率需要流动资产 + 流动负债），无法孤立计算单个指标，因此 `calculate_indicators` 会计算所有预定义指标，本接口从中筛选当前指标返回
-  - `calculate_indicators` 是幂等的：每次执行会重新读取科目余额并落库新结果（不删除旧记录，保留历史趋势数据）
-  - 透明响应 `no_data` 状态：当指标不在预定义列表（CURRENT_RATIO/QUICK_RATIO/DEBT_ASSET_RATIO/AR_TURNOVER/AP_TURNOVER）中时，例如自定义指标，会返回 `no_data` 而非 `completed`，避免误导用户
-
-### v8 复审 P2 修复总结
-
-P2 项全部修复完成（5/5）：
-- ✅ P2：print_handler 空列表占位（批次 126，静态配置化 6 种内置打印模板）
-- ✅ P2：inventory_stock_query alert_type 硬编码（批次 126，派生计算 discrepancy/out_of_stock/low_stock/expiring/normal）
-- ✅ P2：import_export_handler list_import_tasks 空列表占位（批次 127，新建 import_tasks 表 + handler 真实接入）
-- ✅ P2：report_enhanced_handler 硬编码字段定义（批次 128，静态配置化 ReportFieldDefinition struct）
-- ✅ P2：financial_analysis_handler 假执行状态（批次 129，调用 calculate_indicators 真实计算）
-
-### 下一步：启动 v9 全项目复审
-
-v8 复审 P0/P1/P2 项全部修复完成（P1 5 项 + P2 5 项 = 10 项）。启动 v9 全项目复审，循环直到复审没有问题。
-
-v9 复审维度（沿用 v8）：
-1. 死代码扫描（`#[allow(dead_code)]` + TODO 标记的预留 API/功能）
-2. 占位符 TODO 扫描（stub / placeholder / `let _ =` 占位）
-3. 未接入功能扫描（路由 → handler → service → model → DB 全链路检查）
-4. 硬编码假数据扫描（`vec![]` / `serde_json::json!` / 硬编码字符串状态）
-5. unwrap/expect 残留扫描（生产代码中的 panic 风险）
-
-### v11 复审 P1 dead_code 全量真实接入（批次 158，CI 验证中）
+### v11 复审 P1 dead_code 全量真实接入（批次 158，CI 12/12 全绿 ✅）
 
 **用户关键反馈**（2026-07-07）：
 - "为什么不按规则进行实现而是预留api?"
@@ -518,14 +291,23 @@ v9 复审维度（沿用 v8）：
   - status::approval 模块接入 color_price/budget_adjustment/ar_invoice（11 处字符串替换为常量，删除未使用的 DRAFT/CANCELLED）
 - 类 D SeaORM 模型例外（10 条）：models/ 下文件级 #![allow(dead_code)] 保留
 
-**main commit `b7b2baa`，16 文件 +313 -46 行**
+**main commit `b7b2baa` → `f9796cb`（4 轮 CI 修复后全绿），16 文件 +313 -46 行**
 
-### v11 剩余任务
+### v11 复审总结（全部完成 ✅）
 
-- ⏳ 批次 158 CI 12/12 全绿验证
-- ⏳ v11 前端 P1-6 i18n 接入
-- ⏳ v11 前端 P2 次要（7 类）
-- ⏳ v12 全项目复审
+v11 复审 P0/P1/P2 全部修复完成（批次 143-196），包括：
+- P0 三项修复（批次 143-145）
+- P1 dead_code 全量真实接入（批次 158）
+- 前端 P2-1 any 类型清理（批次 160-196，frontend/src 无真实 any 残留）
+- 前端 P2-5 quality 分页接入（批次 161）
+- 前端 P2-6 死代码清理 + P2-7 inventory any[] 类型化（批次 160）
+
+### v11 剩余任务（已迁移到 v12/v13）
+
+- ✅ v11 前端 P2-1：any 类型清理（批次 196 已完成）
+- ⏳ v11 前端 P2-2：i18n 接入（仅 Login.vue，其余 ~150 个 .vue 文件硬编码中文）→ 合并到 v13 FE-P2-3
+- ✅ v12 全项目复审（已完成，见上方 v12 章节）
+- ✅ v13 全项目复审（后端 P0/P1 已完成，进行中）
 
 ### 历史批次索引
 
