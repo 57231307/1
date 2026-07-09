@@ -499,3 +499,67 @@ pub mod finance_payment {
     /// 待处理：付款单初始状态
     pub const PENDING: &str = "pending";
 }
+
+/// BPM 流程实例状态（bpm_process_instance.status，大写值）
+/// 批次 235 v13 真实接入：bpm_service.rs 中流程实例状态字符串字面量统一引用此模块（规则 0）
+pub mod bpm_instance {
+    /// 处理中：流程实例运行中
+    pub const PROCESSING: &str = "PROCESSING";
+
+    /// 已完成：流程实例正常结束
+    pub const COMPLETED: &str = "COMPLETED";
+
+    /// 已终止：流程实例被异常终止
+    pub const TERMINATED: &str = "TERMINATED";
+
+    /// 已取消：流程实例被取消
+    pub const CANCELLED: &str = "CANCELLED";
+}
+
+/// BPM 任务状态（bpm_task.status，小写值）
+/// 批次 235 v13 真实接入：bpm_service.rs 中任务状态字符串字面量统一引用此模块（规则 0）
+pub mod bpm_task {
+    /// 待处理：任务待办理
+    pub const PENDING: &str = "pending";
+
+    /// 已完成：任务已办理完成
+    pub const COMPLETED: &str = "completed";
+
+    /// 已拒绝：任务被拒绝
+    pub const REJECTED: &str = "rejected";
+
+    /// 已取消：任务被取消
+    pub const CANCELLED: &str = "cancelled";
+}
+
+/// MRP 结果状态（mrp_result.status，大写值）
+/// 批次 235 v13 真实接入：mrp_engine_service.rs 中 MRP 结果状态字符串字面量统一引用此模块（规则 0）
+pub mod mrp {
+    /// 已计划：MRP 计划生成，待发布
+    pub const PLANNED: &str = "PLANNED";
+
+    /// 已发布：MRP 计划已发布为生产订单
+    pub const RELEASED: &str = "RELEASED";
+
+    /// 已确认：MRP 计划已确认（采购订单类型）
+    pub const CONFIRMED: &str = "CONFIRMED";
+
+    /// 已取消：MRP 计划已取消
+    pub const CANCELLED: &str = "CANCELLED";
+}
+
+/// 导入任务状态（import_task.status，小写值）
+/// 批次 235 v13 真实接入：import_export_service.rs 中导入任务状态字符串字面量统一引用此模块（规则 0）
+pub mod import_task {
+    /// 运行中：导入任务正在执行
+    pub const RUNNING: &str = "running";
+
+    /// 成功：导入任务全部成功
+    pub const SUCCESS: &str = "success";
+
+    /// 失败：导入任务全部失败
+    pub const FAILED: &str = "failed";
+
+    /// 部分成功：导入任务部分成功部分失败
+    pub const PARTIAL: &str = "partial";
+}

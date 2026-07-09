@@ -4,6 +4,8 @@ use crate::models::dto::bpm_dto::{
     UpdateProcessDefinitionRequest,
 };
 use crate::models::dto::PageResponse;
+use crate::models::status::bpm_instance as instance_status;
+use crate::models::status::bpm_task as task_status;
 use crate::models::{bpm_process_definition, bpm_process_instance, bpm_task};
 use crate::services::bpm_service_dto::{
     ApprovalChainNode, BpmBusinessRelation, ProcessInstanceDetail, ProcessMonitorStats,
@@ -123,7 +125,7 @@ impl BpmService {
             title: Set(format!("流程审批-{}", req.business_id)),
             initiator_id: Set(req.initiator_id),
             initiator_name: Set("".to_string()),
-            status: Set(Some("PROCESSING".to_string())),
+            status: Set(Some(instance_status::PROCESSING.to_string())),
             variables: Set(req.variables),
             started_at: Set(Some(chrono::Utc::now())),
             ..Default::default()
@@ -195,7 +197,7 @@ impl BpmService {
                             .get("assignee_value")
                             .and_then(|a| a.as_str())
                             .and_then(|s| s.parse::<i32>().ok())),
-                        status: Set(Some("pending".to_string())),
+                        status: Set(Some(task_status::PENDING.to_string())),
                         created_at: Set(Some(chrono::Utc::now())),
                         updated_at: Set(Some(chrono::Utc::now())),
                         ..Default::default()
@@ -206,7 +208,7 @@ impl BpmService {
                     // No task found, auto complete
                     let mut instance_active: bpm_process_instance::ActiveModel =
                         instance.clone().into();
-                    instance_active.status = Set(Some("COMPLETED".to_string()));
+                    instance_active.status = Set(Some(instance_status::COMPLETED.to_string()));
                     instance_active.completed_at = Set(Some(chrono::Utc::now()));
                     instance_active.update(&txn).await?;
 
@@ -255,7 +257,7 @@ impl BpmService {
             .await?
             .ok_or_else(|| AppError::not_found("Task not found"))?;
 
-        if task.status.as_deref() != Some("pending") {
+        if task.status.as_deref() != Some(task_status::PENDING) {
             return Err(AppError::validation("Task is not pending"));
         }
 
@@ -273,9 +275,9 @@ impl BpmService {
         // 1. Update current task status
         let mut task_active: bpm_task::ActiveModel = task.clone().into();
         task_active.status = Set(Some(if req.action == "approve" {
-            "completed".to_string()
+            task_status::COMPLETED.to_string()
         } else {
-            "rejected".to_string()
+            task_status::REJECTED.to_string()
         }));
         task_active.actual_handler_id = Set(Some(req.handler_id));
         task_active.approval_opinion = Set(req.approval_opinion);
@@ -296,7 +298,7 @@ impl BpmService {
         if req.action == "reject" {
             // End instance if rejected
             let mut instance_active: bpm_process_instance::ActiveModel = instance.clone().into();
-            instance_active.status = Set(Some("TERMINATED".to_string()));
+            instance_active.status = Set(Some(instance_status::TERMINATED.to_string()));
             instance_active.completed_at = Set(Some(chrono::Utc::now()));
             instance_active.updated_at = Set(Some(chrono::Utc::now()));
             // P0 8-4 修复：instance 终止状态变更纳入审计
@@ -389,7 +391,7 @@ impl BpmService {
                                         .get("assignee_value")
                                         .and_then(|a| a.as_str())
                                         .and_then(|s| s.parse::<i32>().ok())),
-                                    status: Set(Some("pending".to_string())),
+                                    status: Set(Some(task_status::PENDING.to_string())),
                                     created_at: Set(Some(chrono::Utc::now())),
                                     updated_at: Set(Some(chrono::Utc::now())),
                                     ..Default::default()
@@ -408,7 +410,7 @@ impl BpmService {
                 // No more user tasks, instance is completed
                 let mut instance_active: bpm_process_instance::ActiveModel =
                     instance.clone().into();
-                instance_active.status = Set(Some("COMPLETED".to_string()));
+                instance_active.status = Set(Some(instance_status::COMPLETED.to_string()));
                 instance_active.completed_at = Set(Some(chrono::Utc::now()));
                 // P0 8-4 修复：instance 完成状态变更纳入审计
                 // P2-3 修复（批次 84 v1 复审）：有意忽略返回的 ActiveModel（字段已通过 Set 表达更新意图），仅传播错误
@@ -466,7 +468,7 @@ impl BpmService {
 
         // 仅允许未结束的实例撤回
         let cur_status = instance.status.as_deref().unwrap_or("");
-        if cur_status == "COMPLETED" || cur_status == "TERMINATED" || cur_status == "CANCELLED" {
+        if cur_status == instance_status::COMPLETED || cur_status == instance_status::TERMINATED || cur_status == instance_status::CANCELLED {
             return Err(AppError::validation("流程已结束，无法撤回"));
         }
 
@@ -477,13 +479,13 @@ impl BpmService {
         // 取消所有待处理任务（每次循环 clone reason 以移交所有权给 Set）
         let pending_tasks = bpm_task::Entity::find()
             .filter(bpm_task::Column::InstanceId.eq(instance_id))
-            .filter(bpm_task::Column::Status.eq("pending"))
+            .filter(bpm_task::Column::Status.eq(task_status::PENDING))
             .all(&txn)
             .await?;
 
         for task in pending_tasks {
             let mut task_active: bpm_task::ActiveModel = task.into();
-            task_active.status = Set(Some("cancelled".to_string()));
+            task_active.status = Set(Some(task_status::CANCELLED.to_string()));
             task_active.approval_opinion = Set(cancel_reason.clone());
             task_active.handled_at = Set(Some(chrono::Utc::now()));
             task_active.updated_at = Set(Some(chrono::Utc::now()));
@@ -498,7 +500,7 @@ impl BpmService {
 
         // 更新实例状态为 CANCELLED
         let mut instance_active: bpm_process_instance::ActiveModel = instance.into();
-        instance_active.status = Set(Some("CANCELLED".to_string()));
+        instance_active.status = Set(Some(instance_status::CANCELLED.to_string()));
         instance_active.completed_at = Set(Some(chrono::Utc::now()));
         instance_active.updated_at = Set(Some(chrono::Utc::now()));
         instance_active.remarks = Set(cancel_reason);
@@ -588,11 +590,11 @@ impl BpmService {
                 task_count: tasks.len() as i32,
                 completed_tasks: tasks
                     .iter()
-                    .filter(|t| t.status.as_deref() == Some("completed"))
+                    .filter(|t| t.status.as_deref() == Some(task_status::COMPLETED))
                     .count() as i32,
                 pending_tasks: tasks
                     .iter()
-                    .filter(|t| t.status.as_deref() == Some("pending"))
+                    .filter(|t| t.status.as_deref() == Some(task_status::PENDING))
                     .count() as i32,
             })
         } else {
@@ -680,7 +682,7 @@ impl BpmService {
                         assignee_name: None, // 可以通过关联查询获取用户名
                         status: task
                             .map(|t| t.status.clone())
-                            .unwrap_or_else(|| Some("pending".to_string()))
+                            .unwrap_or_else(|| Some(task_status::PENDING.to_string()))
                             .unwrap_or_default(),
                         comment: task.and_then(|t| t.approval_opinion.clone()),
                         completed_at: task.and_then(|t| t.handled_at),
@@ -734,17 +736,17 @@ impl BpmService {
             .await?;
 
         let processing_instances = bpm_process_instance::Entity::find()
-            .filter(bpm_process_instance::Column::Status.eq("PROCESSING"))
+            .filter(bpm_process_instance::Column::Status.eq(instance_status::PROCESSING))
             .count(&*self.db)
             .await?;
 
         let completed_instances = bpm_process_instance::Entity::find()
-            .filter(bpm_process_instance::Column::Status.eq("COMPLETED"))
+            .filter(bpm_process_instance::Column::Status.eq(instance_status::COMPLETED))
             .count(&*self.db)
             .await?;
 
         let terminated_instances = bpm_process_instance::Entity::find()
-            .filter(bpm_process_instance::Column::Status.eq("TERMINATED"))
+            .filter(bpm_process_instance::Column::Status.eq(instance_status::TERMINATED))
             .count(&*self.db)
             .await?;
 
@@ -753,23 +755,23 @@ impl BpmService {
         let pending_tasks = bpm_task::Entity::find()
             // P0 3-4 修复：任务状态写入为小写（pending/completed/rejected），
             // 查询需用小写匹配，原大写导致统计永远返回 0
-            .filter(bpm_task::Column::Status.eq("pending"))
+            .filter(bpm_task::Column::Status.eq(task_status::PENDING))
             .count(&*self.db)
             .await?;
 
         let completed_tasks = bpm_task::Entity::find()
-            .filter(bpm_task::Column::Status.eq("completed"))
+            .filter(bpm_task::Column::Status.eq(task_status::COMPLETED))
             .count(&*self.db)
             .await?;
 
         let rejected_tasks = bpm_task::Entity::find()
-            .filter(bpm_task::Column::Status.eq("rejected"))
+            .filter(bpm_task::Column::Status.eq(task_status::REJECTED))
             .count(&*self.db)
             .await?;
 
         // 计算平均流程处理时长（分钟）
         let avg_duration = bpm_process_instance::Entity::find()
-            .filter(bpm_process_instance::Column::Status.eq("COMPLETED"))
+            .filter(bpm_process_instance::Column::Status.eq(instance_status::COMPLETED))
             .filter(bpm_process_instance::Column::CompletedAt.is_not_null())
             .select_only()
             .column_as(
@@ -803,7 +805,7 @@ impl BpmService {
         page_size: u64,
     ) -> Result<PageResponse<bpm_task::Model>, AppError> {
         // P0 3-4 修复：任务状态写入为小写，查询用小写匹配
-        let stmt = bpm_task::Entity::find().filter(bpm_task::Column::Status.eq("pending"));
+        let stmt = bpm_task::Entity::find().filter(bpm_task::Column::Status.eq(task_status::PENDING));
 
         let paginator = stmt.paginate(&*self.db, page_size);
         let total = paginator.num_items().await?;
@@ -870,7 +872,7 @@ impl BpmService {
             .await?
             .ok_or_else(|| AppError::not_found("任务不存在"))?;
 
-        if task.status.as_deref() != Some("pending") {
+        if task.status.as_deref() != Some(task_status::PENDING) {
             return Err(AppError::validation("只能转办待处理任务"));
         }
 
@@ -891,7 +893,7 @@ impl BpmService {
             .await?
             .ok_or_else(|| AppError::not_found("任务不存在"))?;
 
-        if task.status.as_deref() != Some("pending") {
+        if task.status.as_deref() != Some(task_status::PENDING) {
             return Err(AppError::validation("只能催办待处理任务"));
         }
 

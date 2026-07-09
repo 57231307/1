@@ -15,6 +15,8 @@ use std::sync::Arc;
 use crate::models::bom::{Entity as BomEntity, Model as BomModel};
 // 批次 212 P2-5 修复（v12 复审）：硬编码 "active" 替换为 master_data 常量
 use crate::models::status::master_data;
+// 批次 235 v13 P1-1：MRP 结果状态常量接入（规则 0）
+use crate::models::status::mrp as mrp_status;
 use crate::models::bom_item::Entity as BomItemEntity;
 use crate::models::inventory_stock::Entity as InventoryStockEntity;
 use crate::models::mrp_result::{
@@ -286,7 +288,7 @@ impl MrpEngineService {
         let bom = BomEntity::find()
             .filter(crate::models::bom::Column::ProductId.eq(product_id))
             .filter(crate::models::bom::Column::IsDefault.eq(true))
-            .filter(crate::models::bom::Column::Status.eq("ACTIVE"))
+            .filter(crate::models::bom::Column::Status.eq(crate::models::status::common::STATUS_ACTIVE))
             .one(&*self.db)
             .await?;
 
@@ -452,7 +454,7 @@ impl MrpEngineService {
             source_id: Set(main_req.source_id),
             planned_order_quantity: Set(Some(main_req.shortage_quantity)),
             planned_order_date: Set(Some(main_req.required_date - Duration::days(14))),
-            status: Set("PLANNED".to_string()),
+            status: Set(mrp_status::PLANNED.to_string()),
             remarks: Set(Some(format!(
                 "BOM Level: 0, On Hand: {}, Shortage: {}",
                 main_req.on_hand_quantity, main_req.shortage_quantity
@@ -490,7 +492,7 @@ impl MrpEngineService {
                 planned_order_date: Set(Some(
                     req.required_date - Duration::days(7 * req.bom_level as i64),
                 )),
-                status: Set("PLANNED".to_string()),
+                status: Set(mrp_status::PLANNED.to_string()),
                 remarks: Set(Some(format!(
                     "BOM Level: {}, On Hand: {}, In Transit: {}, Shortage: {}",
                     req.bom_level,
@@ -622,7 +624,7 @@ impl MrpEngineService {
         only_shortage: bool,
     ) -> Result<Vec<MaterialRequirement>, AppError> {
         let mut select =
-            MrpResultEntity::find().filter(crate::models::mrp_result::Column::Status.eq("PLANNED"));
+            MrpResultEntity::find().filter(crate::models::mrp_result::Column::Status.eq(mrp_status::PLANNED));
 
         if let Some(pid) = product_id {
             select = select.filter(crate::models::mrp_result::Column::ProductId.eq(pid));
@@ -696,8 +698,8 @@ impl MrpEngineService {
 
         // 先确定新状态（与原逻辑一致：无效订单类型提前返回）
         let new_status = match order_type.as_str() {
-            "PURCHASE" => "CONFIRMED",
-            "PRODUCTION" => "RELEASED",
+            "PURCHASE" => mrp_status::CONFIRMED,
+            "PRODUCTION" => mrp_status::RELEASED,
             _ => return Err(AppError::validation("无效的订单类型")),
         };
 
@@ -716,7 +718,7 @@ impl MrpEngineService {
                 .remove(&id)
                 .ok_or_else(|| AppError::not_found(format!("MRP结果 {} 不存在", id)))?;
 
-            if result.status != "PLANNED" {
+            if result.status != mrp_status::PLANNED {
                 return Err(AppError::validation(format!(
                     "MRP结果 {} 状态不是PLANNED，无法转换",
                     id
@@ -782,12 +784,12 @@ impl MrpEngineService {
             .await?
             .ok_or_else(|| AppError::not_found("MRP结果不存在"))?;
 
-        if result.status == "CANCELLED" {
+        if result.status == mrp_status::CANCELLED {
             return Ok(result);
         }
 
         let mut active_model: MrpResultActiveModel = result.into();
-        active_model.status = Set("CANCELLED".to_string());
+        active_model.status = Set(mrp_status::CANCELLED.to_string());
         active_model.updated_at = Set(Utc::now());
         let updated = active_model.update(&txn).await?;
 

@@ -6,6 +6,8 @@ use sea_orm::{ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, Qu
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 
+use crate::models::status::import_task as import_status;
+use crate::models::status::master_data;
 use crate::utils::error::AppError;
 use crate::utils::sql_escape::safe_like_pattern;
 use crate::utils::xlsx_export::{build_xlsx, XlsxTable};
@@ -404,7 +406,7 @@ impl ImportExportService {
         let now = Utc::now();
         let active_model = ActiveModel {
             import_type: Set(import_type.to_string()),
-            status: Set("running".to_string()),
+            status: Set(import_status::RUNNING.to_string()),
             total_rows: Set(total_rows as i64),
             imported_rows: Set(0),
             failed_rows: Set(0),
@@ -436,11 +438,11 @@ impl ImportExportService {
         use chrono::Utc;
 
         let status = if result.failed == 0 {
-            "success"
+            import_status::SUCCESS
         } else if result.imported == 0 {
-            "failed"
+            import_status::FAILED
         } else {
-            "partial"
+            import_status::PARTIAL
         };
 
         let active_model = ActiveModel {
@@ -542,7 +544,7 @@ impl ImportExportService {
             )),
             cost_price: Set(None),
             description: Set(None),
-            status: Set("ACTIVE".to_string()),
+            status: Set(master_data::ACTIVE.to_string()),
             is_deleted: Set(false),
             created_at: Set(now),
             updated_at: Set(now),
@@ -614,7 +616,7 @@ impl ImportExportService {
             tax_id: Set(None),
             bank_name: Set(None),
             bank_account: Set(None),
-            status: Set("ACTIVE".to_string()),
+            status: Set(master_data::ACTIVE.to_string()),
             customer_type: Set("RETAIL".to_string()),
             notes: Set(None),
             created_by: Set(Some(user_id)),
