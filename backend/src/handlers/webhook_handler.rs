@@ -136,32 +136,34 @@ pub async fn test_webhook(
 
 /// 重试 Webhook（POST /webhooks/:id/retry）
 ///
-/// 对上一次失败的 webhook 调用进行重试。当前未持久化历史 payload，
-/// 简化方案：触发一次 retry 事件，由 webhook 接收方按 retry 事件处理。
-/// 若 webhook 配置的事件列表不包含 retry 或 *，会返回事件不匹配的业务错误。
+/// 对上一次失败的 webhook 调用进行重试。批次 251 修复：
+/// 使用持久化的 last_payload + last_event 重投原始业务数据，而非构造假 payload。
 pub async fn retry_webhook(
     State(state): State<AppState>,
     _auth: AuthContext,
     Path(id): Path<i32>,
 ) -> Result<Json<ApiResponse<WebhookDeliveryResult>>, AppError> {
-    let service = WebhookService::new(state.db);
+    let service = WebhookService::new(state.db.clone());
 
-    // retry 事件 payload：包含 webhook_id 便于接收方识别重试来源
-    let retry_payload = serde_json::json!({
-        "webhook_id": id,
-        "retry": true,
-        "message": "Webhook 重试触发"
-    })
-    .to_string();
+    // 读取持久化的原始 payload 和事件类型
+    let webhook = service.get_webhook(id).await?;
 
-    match service.trigger_webhook(id, "retry", &retry_payload).await {
+    let last_payload = webhook
+        .last_payload
+        .as_ref()
+        .ok_or_else(|| AppError::business("无上次发送记录，无法重试（请先触发一次 webhook）"))?;
+
+    let last_event = webhook.last_event.as_deref().unwrap_or("retry");
+
+    // 使用原始 payload 和事件类型重投
+    match service.trigger_webhook(id, last_event, last_payload).await {
         Ok(mut result) => {
             // SSRF 缓解：重试接口同样不回显目标响应体
             result.response_body = Some("出于安全原因，已隐藏响应内容".to_string());
             if result.success {
                 Ok(Json(ApiResponse::success_with_message(
                     result,
-                    "Webhook 重试成功",
+                    "Webhook 重试成功（已重投原始 payload）",
                 )))
             } else {
                 Ok(Json(ApiResponse::success_with_message(

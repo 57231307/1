@@ -108,10 +108,12 @@ impl WebhookService {
             )));
         }
 
-        // 更新状态为发送中
+        // 更新状态为发送中，并持久化 payload + event（批次 251 修复：支持 retry 重投原始数据）
         let mut active_model: WebhookActiveModel = webhook.clone().into();
         active_model.last_triggered_at = Set(Some(Utc::now()));
         active_model.last_status = Set(Some("SENDING".to_string()));
+        active_model.last_payload = Set(Some(payload.to_string()));
+        active_model.last_event = Set(Some(event.to_string()));
         active_model.updated_at = Set(Utc::now());
         active_model.update(self.db.as_ref()).await?;
 
@@ -141,40 +143,43 @@ impl WebhookService {
             .send_http_request(&webhook.url, &body, webhook.secret.as_deref())
             .await;
 
-        // 更新最终状态
+        // 更新最终状态（批次 251 修复：retry_count 对 HTTP 业务失败也计数，成功时重置为 0）
+        let current_retry_count = webhook.retry_count;
         let mut final_model: WebhookActiveModel = webhook.into();
         final_model.updated_at = Set(Utc::now());
         match &result {
             Ok(delivery) => {
-                final_model.last_status = Set(Some(
-                    if delivery.success {
-                        "SUCCESS"
+                if delivery.success {
+                    // 发送成功：重置 retry_count 为 0
+                    final_model.last_status = Set(Some("SUCCESS".to_string()));
+                    final_model.retry_count = Set(0);
+                } else {
+                    // HTTP 业务失败（4xx/5xx）：递增 retry_count
+                    final_model.last_status = Set(Some("FAILED".to_string()));
+                    if current_retry_count >= MAX_RETRY_COUNT {
+                        error!(
+                            current_count = current_retry_count,
+                            max = MAX_RETRY_COUNT,
+                            "Webhook 已达最大重试次数上限，标记为永久失败"
+                        );
+                        final_model.last_status = Set(Some("FAILED_PERMANENT".to_string()));
                     } else {
-                        "FAILED"
+                        final_model.retry_count = Set(current_retry_count + 1);
                     }
-                    .to_string(),
-                ));
+                }
             }
             Err(_) => {
+                // 网络层/SSRF/构造异常：递增 retry_count
                 final_model.last_status = Set(Some("ERROR".to_string()));
-                // 获取当前 retry_count 值并判断是否已达上限
-                let current_count: i32 =
-                    if let sea_orm::ActiveValue::Set(v) = &final_model.retry_count {
-                        *v
-                    } else {
-                        0
-                    };
-                // 重试上限保护：超过 MAX_RETRY_COUNT 后停止递增并标记永久失败，
-                // 防止 retry_count 无上限增长导致 DB 字段溢出或被攻击者放大重试流量
-                if current_count >= MAX_RETRY_COUNT {
+                if current_retry_count >= MAX_RETRY_COUNT {
                     error!(
-                        current_count,
+                        current_count = current_retry_count,
                         max = MAX_RETRY_COUNT,
                         "Webhook 已达最大重试次数上限，标记为永久失败"
                     );
                     final_model.last_status = Set(Some("FAILED_PERMANENT".to_string()));
                 } else {
-                    final_model.retry_count = Set(current_count + 1);
+                    final_model.retry_count = Set(current_retry_count + 1);
                 }
             }
         }
