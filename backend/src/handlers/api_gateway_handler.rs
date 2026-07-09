@@ -20,6 +20,8 @@ use sea_orm::{ActiveModelTrait, ColumnTrait, EntityTrait, PaginatorTrait, QueryF
 
 use crate::middleware::auth_context::AuthContext;
 use crate::models::{api_endpoint, log_api_access};
+// 批次 213 P2-5 修复（v12 复审）：硬编码 "active"/"inactive" 替换为 master_data 常量
+use crate::models::status::master_data;
 use crate::services::api_key_service::ApiKeyService;
 use crate::utils::app_state::AppState;
 use crate::utils::error::AppError;
@@ -132,7 +134,7 @@ fn key_to_json(m: &crate::models::api_key::Model) -> Value {
         .unwrap_or_else(|| json!([]));
 
     let status = if !m.is_active {
-        "inactive"
+        master_data::INACTIVE
     } else if m
         .expires_at
         .as_ref()
@@ -141,7 +143,7 @@ fn key_to_json(m: &crate::models::api_key::Model) -> Value {
     {
         "expired"
     } else {
-        "active"
+        master_data::ACTIVE
     };
 
     json!({
@@ -249,7 +251,7 @@ pub async fn create_api_endpoint(
         method: sea_orm::Set(method),
         description: sea_orm::Set(req.description),
         module: sea_orm::Set(req.module),
-        status: sea_orm::Set(req.status.unwrap_or_else(|| "active".to_string())),
+        status: sea_orm::Set(req.status.unwrap_or_else(|| master_data::ACTIVE.to_string())),
         rate_limit: sea_orm::Set(req.rate_limit.unwrap_or(0)),
         timeout: sea_orm::Set(req.timeout.unwrap_or(30000)),
         authentication: sea_orm::Set(req.authentication.unwrap_or(true)),
@@ -423,11 +425,11 @@ pub async fn get_api_stats(
 ) -> Result<Json<ApiResponse<Value>>, AppError> {
     let total_endpoints = api_endpoint::Entity::find().count(&*state.db).await?;
     let active_endpoints = api_endpoint::Entity::find()
-        .filter(api_endpoint::Column::Status.eq("active"))
+        .filter(api_endpoint::Column::Status.eq(master_data::ACTIVE))
         .count(&*state.db)
         .await?;
     let inactive_endpoints = api_endpoint::Entity::find()
-        .filter(api_endpoint::Column::Status.eq("inactive"))
+        .filter(api_endpoint::Column::Status.eq(master_data::INACTIVE))
         .count(&*state.db)
         .await?;
 
@@ -492,10 +494,10 @@ pub async fn list_api_keys(
     // status 参数：active/inactive
     if let Some(ref status) = query.status {
         match status.as_str() {
-            "active" => {
+            master_data::ACTIVE => {
                 sel = sel.filter(crate::models::api_key::Column::IsActive.eq(true));
             }
-            "inactive" => {
+            master_data::INACTIVE => {
                 sel = sel.filter(crate::models::api_key::Column::IsActive.eq(false));
             }
             _ => {}
@@ -597,7 +599,7 @@ pub async fn update_api_key(
     let permissions = req.permissions.map(|p| serde_json::to_string(&p).unwrap_or_default());
 
     // status → is_active
-    let is_active = req.status.as_deref().map(|s| s == "active");
+    let is_active = req.status.as_deref().map(|s| s == master_data::ACTIVE);
 
     // expires_at: ISO 字符串 → DateTime
     let expires_at = req.expires_at.as_ref().map(|s| {

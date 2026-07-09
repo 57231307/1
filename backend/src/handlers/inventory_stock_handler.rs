@@ -1,6 +1,8 @@
 
 use crate::middleware::auth_context::AuthContext;
 use crate::models::product;
+// 批次 213 P2-5 修复（v12 复审）：硬编码 "active" 替换为 master_data 常量
+use crate::models::status::master_data;
 use crate::services::inventory_stock_service::InventoryStockService;
 use crate::utils::app_state::AppState;
 use crate::utils::error::AppError;
@@ -94,7 +96,7 @@ pub async fn create_stock(
             payload.dye_lot_no,
             payload.gram_weight,
             payload.width,
-            "active".to_string(),
+            master_data::ACTIVE.to_string(),
             "qualified".to_string(),
         )
         .await

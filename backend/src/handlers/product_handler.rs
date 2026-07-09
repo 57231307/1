@@ -9,6 +9,8 @@ use validator::Validate;
 use crate::middleware::auth_context::AuthContext;
 use crate::models::product;
 use crate::models::product_color;
+// 批次 213 P2-5 修复（v12 复审）：硬编码 "active" 替换为 master_data 常量
+use crate::models::status::master_data;
 use crate::services::product_service::ProductService;
 use crate::utils::error::AppError;
 use crate::utils::response::{ApiResponse, PaginatedResponse};
@@ -225,7 +227,7 @@ pub async fn create_product(
             req.standard_price,
             req.cost_price,
             req.description,
-            req.status.unwrap_or_else(|| "active".to_string()),
+            req.status.unwrap_or_else(|| master_data::ACTIVE.to_string()),
             req.product_type.unwrap_or_else(|| "成品".to_string()),
             req.fabric_composition,
             req.yarn_count,
