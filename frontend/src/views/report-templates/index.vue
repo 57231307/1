@@ -184,6 +184,9 @@ import { ElMessage, ElMessageBox, type FormInstance, type FormRules } from 'elem
 import { Plus, Search } from '@element-plus/icons-vue'
 // Wave B-2 修复（B3-1）：引入 DOMPurify 用于净化后端返回的 HTML 模板，防止 XSS
 import DOMPurify from 'dompurify'
+// v14 中风险安全修复（批次 243）：引入 escapeHtml 对单元格值做 HTML 转义，
+// 防止后端数据中包含的恶意 HTML/脚本经 v-html 渲染后误导用户（DOMPurify 默认允许 <img>/<a> 等标签）
+import { escapeHtml } from '@/utils/print'
 import {
   listReportTemplates,
   createReportTemplate,
@@ -343,9 +346,11 @@ const handlePreview = async (row: ReportTemplate) => {
     // P2-16 修复回归（批次 86）：res.data 是 ReportTemplatePreviewResult（结构化），
     // 渲染为 HTML 表格字符串供 v-html + DOMPurify 使用
     if (res.data && res.data.fields && res.data.rows) {
-      const headerHtml = res.data.fields.map(f => `<th>${f}</th>`).join('')
+      // v14 中风险安全修复（批次 243）：表头与单元格值均经 escapeHtml 转义，
+      // 防止后端返回的字段名/数据中包含 <img onerror> 等危险标签误导用户
+      const headerHtml = res.data.fields.map(f => `<th>${escapeHtml(f)}</th>`).join('')
       const bodyHtml = res.data.rows
-        .map((r: Record<string, unknown>) => `<tr>${(res.data?.fields ?? []).map(f => `<td>${String(r[f] ?? '')}</td>`).join('')}</tr>`)
+        .map((r: Record<string, unknown>) => `<tr>${(res.data?.fields ?? []).map(f => `<td>${escapeHtml(r[f])}</td>`).join('')}</tr>`)
         .join('')
       previewData.value = `<table border="1" cellpadding="4" cellspacing="0" style="border-collapse:collapse;width:100%"><thead><tr>${headerHtml}</tr></thead><tbody>${bodyHtml}</tbody></table>`
     } else {

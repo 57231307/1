@@ -23,15 +23,24 @@ use axum::{
     Json,
 };
 use serde::{Deserialize, Serialize};
+use validator::Validate;
 
 /// 页面访问记录请求体
-#[derive(Debug, Deserialize)]
+///
+/// v14 中风险安全修复：添加输入长度约束，防止超大 path/字段触发 DoS
+#[derive(Debug, Deserialize, Validate)]
 pub struct PageViewRequest {
+    #[validate(length(max = 2048, message = "path 长度不能超过 2048 个字符"))]
     pub path: String,
+    #[validate(length(max = 64, message = "timestamp 长度不能超过 64 个字符"))]
     pub timestamp: String,
+    #[validate(length(max = 128, message = "session_id 长度不能超过 128 个字符"))]
     pub session_id: Option<String>,
+    #[validate(length(max = 2048, message = "referrer 长度不能超过 2048 个字符"))]
     pub referrer: Option<String>,
+    #[validate(length(max = 512, message = "user_agent 长度不能超过 512 个字符"))]
     pub user_agent: Option<String>,
+    #[validate(length(max = 64, message = "ip_address 长度不能超过 64 个字符"))]
     pub ip_address: Option<String>,
 }
 
@@ -42,13 +51,22 @@ pub struct PageViewResponse {
 }
 
 /// 用户行为记录请求体
-#[derive(Debug, Deserialize)]
+///
+/// v14 中风险安全修复：添加输入长度约束，防止超大 event_type/event_data 触发 DoS
+#[derive(Debug, Deserialize, Validate)]
 pub struct BehaviorRequest {
+    #[validate(length(max = 128, message = "event_type 长度不能超过 128 个字符"))]
     pub event_type: String,
+    #[validate(length(max = 2048, message = "event_target 长度不能超过 2048 个字符"))]
     pub event_target: Option<String>,
+    /// event_data 限制为 JSON 值，validator 无法直接约束嵌套深度，
+    /// 通过 service 层序列化后检查字节数（见 tracking_service::record_behavior）
     pub event_data: Option<serde_json::Value>,
+    #[validate(length(max = 2048, message = "path 长度不能超过 2048 个字符"))]
     pub path: Option<String>,
+    #[validate(length(max = 128, message = "session_id 长度不能超过 128 个字符"))]
     pub session_id: Option<String>,
+    #[validate(length(max = 64, message = "ip_address 长度不能超过 64 个字符"))]
     pub ip_address: Option<String>,
 }
 
@@ -66,6 +84,9 @@ pub async fn track_page_view(
     State(state): State<AppState>,
     Json(req): Json<PageViewRequest>,
 ) -> Result<Json<ApiResponse<PageViewResponse>>, AppError> {
+    // v14 中风险安全修复：输入长度校验，防止超大字段触发 DoS
+    req.validate()
+        .map_err(|e| AppError::validation(format!("参数校验失败: {}", e)))?;
     let service = TrackingService::new(state.db.clone());
     let input = PageViewInput {
         path: req.path,
@@ -138,6 +159,9 @@ pub async fn record_behavior(
     State(state): State<AppState>,
     Json(req): Json<BehaviorRequest>,
 ) -> Result<Json<ApiResponse<PageViewResponse>>, AppError> {
+    // v14 中风险安全修复：输入长度校验，防止超大字段触发 DoS
+    req.validate()
+        .map_err(|e| AppError::validation(format!("参数校验失败: {}", e)))?;
     let service = TrackingService::new(state.db.clone());
     let input = BehaviorInput {
         event_type: req.event_type,
