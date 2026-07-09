@@ -17,6 +17,8 @@ use crate::models::color_card::{self, ActiveModel as ColorCardActive, Entity as 
 use crate::models::color_card_create_dto::{
     ArchiveColorCardDto, CreateColorCardDto, UpdateColorCardDto,
 };
+// 批次 211 P2-5 修复（v12 复审）：硬编码 "active" 替换为 master_data 常量
+use crate::models::status::master_data;
 use crate::utils::app_state::AppState;
 use crate::utils::sql_escape::safe_like_pattern;
 
@@ -72,7 +74,7 @@ impl ColorCardCrudService {
             season: Set(dto.season),
             brand: Set(dto.brand),
             total_colors: Set(0),
-            status: Set("active".to_string()),
+            status: Set(master_data::ACTIVE.to_string()),
             description: Set(dto.description),
             cover_image_url: Set(dto.cover_image_url),
             created_at: Set(now),
@@ -152,7 +154,7 @@ impl ColorCardCrudService {
             .one(&txn)
             .await?
             .ok_or(CrudError::NotFound)?;
-        if existing.status != "active" {
+        if existing.status != master_data::ACTIVE {
             return Err(CrudError::InvalidState);
         }
 

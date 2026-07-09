@@ -19,6 +19,8 @@ use crate::models::color_card_item::{self, ActiveModel as ItemActive, Entity as 
 use crate::models::color_card_item_dto::{
     BatchImportError, BatchImportResponse, ColorItemDto,
 };
+// 批次 211 P2-5 修复（v12 复审）：硬编码 "active" 替换为 master_data 常量
+use crate::models::status::master_data;
 use crate::utils::app_state::AppState;
 use crate::utils::color_space_converter;
 
@@ -99,7 +101,7 @@ impl ColorCardItemService {
             .await?
             .ok_or(ItemError::ColorCardNotFound)?;
 
-        if card.status != "active" {
+        if card.status != master_data::ACTIVE {
             return Err(ItemError::InvalidState);
         }
 
@@ -258,7 +260,7 @@ impl ColorCardItemService {
             .await?
             .ok_or(ItemError::ColorCardNotFound)?;
 
-        if card.status != "active" {
+        if card.status != master_data::ACTIVE {
             return Err(ItemError::InvalidState);
         }
 

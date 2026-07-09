@@ -4,6 +4,8 @@
 //! 拆分自原 `purchase_order_service.rs`。
 
 use crate::models::{product, purchase_order, purchase_order_item, supplier, warehouse};
+// 批次 211 P2-5 修复（v12 复审）：硬编码 "active" 替换为 master_data 常量
+use crate::models::status::master_data;
 use crate::utils::error::AppError;
 use chrono::Utc;
 use rust_decimal::Decimal;
@@ -128,7 +130,7 @@ impl PurchaseOrderService {
 
         // 2. 查找默认供应商
         let supplier = supplier::Entity::find()
-            .filter(supplier::Column::Status.eq("active"))
+            .filter(supplier::Column::Status.eq(master_data::ACTIVE))
             .one(&txn)
             .await?
             .ok_or_else(|| AppError::not_found("没有可用的活跃供应商"))?;
@@ -246,7 +248,7 @@ impl PurchaseOrderService {
 
         // 3. 查找默认供应商（这里简化处理，实际可能需要更复杂的供应商选择逻辑）
         let supplier = supplier::Entity::find()
-            .filter(supplier::Column::Status.eq("active"))
+            .filter(supplier::Column::Status.eq(master_data::ACTIVE))
             .one(&txn)
             .await?
             .ok_or_else(|| AppError::not_found("没有可用的活跃供应商"))?;

@@ -5,6 +5,8 @@ use sea_orm::{
 };
 
 use crate::models::warehouse::{self, Entity as WarehouseEntity};
+// 批次 211 P2-5 修复（v12 复审）：硬编码 "active" 替换为 master_data 常量
+use crate::models::status::master_data;
 use crate::utils::error::AppError;
 use crate::utils::sql_escape::safe_like_pattern;
 
@@ -20,7 +22,7 @@ impl WarehouseService {
 
         // 应用过滤条件
         if let Some(s) = query.status {
-            q = q.filter(warehouse::Column::IsActive.eq(s == "active"));
+            q = q.filter(warehouse::Column::IsActive.eq(s == master_data::ACTIVE));
         }
 
         if let Some(keyword) = query.search {
@@ -150,7 +152,7 @@ impl WarehouseService {
             wh.phone = Set(Some(p));
         }
         if let Some(s) = req.status {
-            wh.is_active = Set(s == "active");
+            wh.is_active = Set(s == master_data::ACTIVE);
         }
         // 批次 158 v11 真实接入：capacity 字段持久化（原 #[allow(dead_code)] 移除）
         if let Some(c) = req.capacity {

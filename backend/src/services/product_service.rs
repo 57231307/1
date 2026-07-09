@@ -10,6 +10,8 @@ use std::sync::Arc;
 
 use crate::models::product::{self, Entity as ProductEntity};
 use crate::models::product_color::{self, Entity as ProductColorEntity};
+// 批次 211 P2-5 修复（v12 复审）：硬编码 "active" 替换为 master_data 常量
+use crate::models::status::master_data;
 use crate::search::{ProductDoc, SearchClient, SearchSyncer};
 use crate::utils::error::AppError;
 use crate::utils::sql_escape::safe_like_pattern;
@@ -633,7 +635,7 @@ impl ProductService {
         example.insert("后整理".to_string(), "防水".to_string());
         example.insert("最小起订量".to_string(), "1000".to_string());
         example.insert("交货期".to_string(), "15".to_string());
-        example.insert("状态".to_string(), "active".to_string());
+        example.insert("状态".to_string(), master_data::ACTIVE.to_string());
         example.insert("产品描述".to_string(), "高品质纯棉坯布".to_string());
 
         crate::utils::import_export::CsvImporter::generate_template(&headers, Some(&[example]))
@@ -798,7 +800,7 @@ impl ProductService {
                 .get("状态")
                 .filter(|v| !v.is_empty())
                 .map(|v| v.to_string())
-                .unwrap_or_else(|| "active".to_string());
+                .unwrap_or_else(|| master_data::ACTIVE.to_string());
 
             match self
                 .create_product(

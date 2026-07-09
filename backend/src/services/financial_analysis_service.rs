@@ -1,5 +1,7 @@
 use crate::models::financial_analysis;
 use crate::models::financial_analysis_result;
+// 批次 211 P2-5 修复（v12 复审）：硬编码 "active" 替换为 master_data 常量
+use crate::models::status::master_data;
 use crate::utils::error::AppError;
 use chrono::{NaiveDate, Utc};
 use rust_decimal::Decimal;
@@ -88,7 +90,7 @@ impl FinancialAnalysisService {
             indicator_type: Set(req.indicator_type),
             formula: Set(req.formula),
             unit: Set(req.unit),
-            status: Set("active".to_string()),
+            status: Set(master_data::ACTIVE.to_string()),
             remark: Set(req.remark),
             ..Default::default()
         };
@@ -507,7 +509,7 @@ impl FinancialAnalysisService {
                         indicator_type: Set(type_.to_string()),
                         formula: Set(Some(formula.to_string())),
                         unit: Set(Some(unit.to_string())),
-                        status: Set("active".to_string()),
+                        status: Set(master_data::ACTIVE.to_string()),
                         remark: Set(None),
                         ..Default::default()
                     };
