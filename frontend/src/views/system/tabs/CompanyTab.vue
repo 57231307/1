@@ -151,7 +151,21 @@ const saveCompanyInfo = async () => {
   }
   companySubmitLoading.value = true
   try {
-    localStorage.setItem('company_info', JSON.stringify(companyForm))
+    // FE-P2-4 修复（v12 前端复审）：过滤敏感字段，仅缓存非敏感信息到 localStorage
+    // 敏感字段（credit_code/legal_representative/bank_name/bank_account/tax_registration_number 等）
+    // 不写入 localStorage，防止 XSS 攻击读取企业敏感信息
+    const nonSensitiveFields: Partial<CompanyForm> = {
+      company_name: companyForm.company_name,
+      company_short_name: companyForm.company_short_name,
+      phone: companyForm.phone,
+      fax: companyForm.fax,
+      email: companyForm.email,
+      website: companyForm.website,
+      address: companyForm.address,
+      logo: companyForm.logo,
+      remarks: companyForm.remarks,
+    }
+    localStorage.setItem('company_info', JSON.stringify(nonSensitiveFields))
     ElMessage.success('保存成功')
   } catch (e) {
     const err = e as { message?: string }

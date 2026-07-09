@@ -41,6 +41,24 @@ export function debounce<T extends (...args: unknown[]) => unknown>(
   }
 }
 
+/**
+ * 深拷贝工具函数
+ * FE-P2-5 修复（v12 前端复审）：统一深拷贝实现，替换 9 个文件中的 JSON.parse(JSON.stringify(...)) 重复代码
+ * 优先使用 structuredClone（支持 Date/Map/Set/循环引用），回退到 JSON 方式
+ * @param value 需要深拷贝的值
+ * @returns 深拷贝后的值
+ */
+export function deepClone<T>(value: T): T {
+  if (typeof structuredClone === 'function') {
+    try {
+      return structuredClone(value)
+    } catch {
+      // structuredClone 不支持函数/Symbol 等，回退到 JSON
+    }
+  }
+  return JSON.parse(JSON.stringify(value))
+}
+
 export * from './storage'
 export * from './export'
 export * from './print'

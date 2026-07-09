@@ -114,6 +114,7 @@
 </template>
 
 <script setup lang="ts">
+import { deepClone } from '@/utils'
 import { ref, watch, nextTick } from 'vue'
 import type { FormInstance, FormRules } from 'element-plus'
 import type { AccountSubject } from '@/api/finance'
@@ -182,7 +183,7 @@ watch(
 
 // 本地镜像：避免直接修改 prop 触发 vue/no-mutating-props
 // 注意：表单内有 entries 数组，需要深拷贝以保证本地修改与父组件解耦
-const localVoucherForm = ref<VoucherForm>(JSON.parse(JSON.stringify(props.voucherForm)))
+const localVoucherForm = ref<VoucherForm>(deepClone(props.voucherForm))
 
 // 同步标志位：防止 prop → local 与 local → emit 形成循环
 let syncing = false
@@ -193,7 +194,7 @@ watch(
   (newForm) => {
     if (syncing) return
     syncing = true
-    localVoucherForm.value = JSON.parse(JSON.stringify(newForm))
+    localVoucherForm.value = deepClone(newForm)
     nextTick(() => {
       syncing = false
     })
@@ -207,7 +208,7 @@ watch(
   (newForm) => {
     if (syncing) return
     syncing = true
-    emit('update:voucherForm', JSON.parse(JSON.stringify(newForm)))
+    emit('update:voucherForm', deepClone(newForm))
     nextTick(() => {
       syncing = false
     })

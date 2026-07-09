@@ -85,6 +85,7 @@
 </template>
 
 <script setup lang="ts">
+import { deepClone } from '@/utils'
 import { Delete, Plus } from '@element-plus/icons-vue'
 import { reactive, watch } from 'vue'
 import { getWarehouseLabel } from '../composables/invFmts'
@@ -129,7 +130,7 @@ watch(
   () => props.initialForm,
   newVal => {
     // TransferForm 字段固定，直接 Object.assign 覆盖即可（无需逐键 delete）
-    Object.assign(localForm, JSON.parse(JSON.stringify(newVal)))
+    Object.assign(localForm, deepClone(newVal))
   },
   { immediate: true, deep: true }
 )
@@ -139,6 +140,6 @@ const onClose = (val: boolean) => {
 }
 
 const onSubmit = () => {
-  emit('submit', JSON.parse(JSON.stringify(localForm)))
+  emit('submit', deepClone(localForm))
 }
 </script>

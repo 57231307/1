@@ -54,6 +54,7 @@
 </template>
 
 <script setup lang="ts">
+import { deepClone } from '@/utils'
 import { reactive, watch } from 'vue'
 
 // 库存调整表单数据结构（字段与 inventory 父组件 initialForm 保持一致）
@@ -85,7 +86,7 @@ watch(
   () => props.initialForm,
   newVal => {
     // AdjustmentForm 字段固定，直接 Object.assign 覆盖即可（无需逐键 delete）
-    Object.assign(localForm, JSON.parse(JSON.stringify(newVal)))
+    Object.assign(localForm, deepClone(newVal))
   },
   { immediate: true, deep: true }
 )
@@ -95,6 +96,6 @@ const onClose = (val: boolean) => {
 }
 
 const onSubmit = () => {
-  emit('submit', JSON.parse(JSON.stringify(localForm)))
+  emit('submit', deepClone(localForm))
 }
 </script>

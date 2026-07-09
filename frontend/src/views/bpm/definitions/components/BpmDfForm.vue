@@ -140,6 +140,7 @@
 </template>
 
 <script setup lang="ts">
+import { deepClone } from '@/utils'
 import { ref, watch, nextTick } from 'vue'
 import { type FormInstance, type FormRules } from 'element-plus'
 import { Plus } from '@element-plus/icons-vue'
@@ -188,7 +189,7 @@ const formRef = ref<FormInstance>()
 
 // 本地镜像：避免直接修改 prop 触发 vue/no-mutating-props
 // 注意：formData 含 nodes 数组，需要深拷贝以保证本地修改与父组件解耦
-const localFormData = ref<BpmDfFormData>(JSON.parse(JSON.stringify(props.formData)))
+const localFormData = ref<BpmDfFormData>(deepClone(props.formData))
 
 // 同步标志位：防止 prop → local 与 local → emit 形成循环
 let syncing = false
@@ -199,7 +200,7 @@ watch(
   (newData) => {
     if (syncing) return
     syncing = true
-    localFormData.value = JSON.parse(JSON.stringify(newData))
+    localFormData.value = deepClone(newData)
     nextTick(() => {
       syncing = false
     })
@@ -213,7 +214,7 @@ watch(
   (newData) => {
     if (syncing) return
     syncing = true
-    emit('update:formData', JSON.parse(JSON.stringify(newData)))
+    emit('update:formData', deepClone(newData))
     nextTick(() => {
       syncing = false
     })

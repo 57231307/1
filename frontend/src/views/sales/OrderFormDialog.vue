@@ -162,6 +162,7 @@
 </template>
 
 <script setup lang="ts">
+import { deepClone } from '@/utils'
 import { ref, reactive, watch } from 'vue'
 import { ElMessage } from 'element-plus'
 import { Plus } from '@element-plus/icons-vue'
@@ -229,7 +230,7 @@ const localData = reactive<OrderForm>({
 watch(
   () => props.formData,
   newData => {
-    Object.assign(localData, JSON.parse(JSON.stringify(newData)))
+    Object.assign(localData, deepClone(newData))
   },
   { deep: true, immediate: true }
 )

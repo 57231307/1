@@ -85,6 +85,7 @@
 </template>
 
 <script setup lang="ts">
+import { deepClone } from '@/utils'
 import { ref, watch, nextTick } from 'vue'
 import type { Warehouse } from '@/api/warehouse'
 import type { ReceiveFormData } from '../composables/usePurchRcv'
@@ -110,7 +111,7 @@ const emit = defineEmits<{
 
 // 本地镜像：避免直接修改 prop 触发 vue/no-mutating-props
 // 注意：表单内有 items 数组，需要深拷贝以保证本地修改与父组件解耦
-const localForm = ref<ReceiveFormData>(JSON.parse(JSON.stringify(props.form)))
+const localForm = ref<ReceiveFormData>(deepClone(props.form))
 
 // 同步标志位：防止 prop → local 与 local → emit 形成循环
 let syncing = false
@@ -121,7 +122,7 @@ watch(
   (newForm) => {
     if (syncing) return
     syncing = true
-    localForm.value = JSON.parse(JSON.stringify(newForm))
+    localForm.value = deepClone(newForm)
     nextTick(() => {
       syncing = false
     })
@@ -135,7 +136,7 @@ watch(
   (newForm) => {
     if (syncing) return
     syncing = true
-    emit('update:form', JSON.parse(JSON.stringify(newForm)))
+    emit('update:form', deepClone(newForm))
     nextTick(() => {
       syncing = false
     })

@@ -11,6 +11,15 @@ import { permission, role } from './directives/permission'
 
 const app = createApp(App)
 
+// FE-P2-1 修复（v12 前端复审）：注册全局错误处理，防止组件渲染异常和未捕获 Promise rejection 静默丢失
+app.config.errorHandler = (err, _instance, info) => {
+  console.error('[Vue 错误]', err, info)
+}
+
+window.addEventListener('unhandledrejection', (event) => {
+  console.error('[未捕获 Promise]', event.reason)
+})
+
 app.use(createPinia())
 app.use(router)
 app.use(i18n)

@@ -182,6 +182,7 @@
 </template>
 
 <script setup lang="ts">
+import { deepClone } from '@/utils'
 import { ref, watch, reactive } from 'vue'
 import type { FormInstance, FormRules } from 'element-plus'
 // v11 批次 174 P2-1 修复：从 useSr 导入具体类型替代 any
@@ -225,7 +226,7 @@ watch(
     Object.keys(localFormData).forEach(k => {
       delete (localFormData as Record<string, unknown>)[k]
     })
-    Object.assign(localFormData, JSON.parse(JSON.stringify(newVal)))
+    Object.assign(localFormData, deepClone(newVal))
   },
   { immediate: true, deep: true }
 )
