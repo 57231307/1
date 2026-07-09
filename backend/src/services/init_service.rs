@@ -167,7 +167,9 @@ impl InitService {
         // Run migrations before creating roles
         self.run_migrations().await?;
 
-        let password_hash = AuthService::hash_password(admin_password)
+        // v14 P0-1 修复：使用 spawn_blocking 包装 Argon2id 哈希计算，避免阻塞 tokio worker
+        let password_hash = AuthService::hash_password_async(admin_password.to_string())
+            .await
             .map_err(|e| InitError::HashError(e.to_string()))?;
 
         // 验证生成的密码哈希长度，确保符合预期
@@ -571,7 +573,9 @@ impl InitService {
         })?;
 
         // 3) Argon2id 哈希
-        let password_hash = AuthService::hash_password(new_password)
+        // v14 P0-1 修复：使用 spawn_blocking 包装 Argon2id 哈希计算，避免阻塞 tokio worker
+        let password_hash = AuthService::hash_password_async(new_password.to_string())
+            .await
             .map_err(|e| InitError::HashError(e.to_string()))?;
 
         // 4) 更新密码 + 写日志（service 层不持有 actor 信息，handler 层已记录 actor+target 全量审计）

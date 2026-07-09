@@ -104,7 +104,9 @@ impl AuthService {
             .find_by_username(username)
             .await?;
 
-        let is_valid = Self::verify_password(password, &user.password_hash)?;
+        // v14 P0-1 修复：使用 spawn_blocking 包装 Argon2id 哈希计算，避免阻塞 tokio worker
+        let is_valid =
+            Self::verify_password_async(password.to_string(), user.password_hash.clone()).await?;
         if !is_valid {
             return Err(AuthError::InvalidPassword("密码错误".to_string()));
         }
@@ -257,6 +259,19 @@ impl AuthService {
         }
     }
 
+    /// 异步验证密码（v14 P0-1 修复：用 spawn_blocking 包装 Argon2id 哈希计算，避免阻塞 tokio worker）
+    ///
+    /// Argon2id（m=64MB, t=3, p=4）单次哈希耗时 50-100ms，同步调用会阻塞 async runtime。
+    /// 生产 async 上下文必须使用此异步版本；测试夹具可继续使用同步版本。
+    pub async fn verify_password_async(
+        password: String,
+        hash: String,
+    ) -> Result<bool, AuthError> {
+        tokio::task::spawn_blocking(move || Self::verify_password(&password, &hash))
+            .await
+            .map_err(|e| AuthError::HashingError(format!("spawn_blocking join 失败: {}", e)))?
+    }
+
     /// 哈希密码
     ///
     /// 使用 Argon2id 算法对明文密码进行哈希处理
@@ -288,6 +303,16 @@ impl AuthService {
             .hash_password(password.as_bytes(), &salt)
             .map(|hash| hash.to_string())
             .map_err(|e| AuthError::HashingError(e.to_string()))
+    }
+
+    /// 异步哈希密码（v14 P0-1 修复：用 spawn_blocking 包装 Argon2id 哈希计算，避免阻塞 tokio worker）
+    ///
+    /// Argon2id（m=64MB, t=3, p=4）单次哈希耗时 50-100ms，同步调用会阻塞 async runtime。
+    /// 生产 async 上下文必须使用此异步版本；测试夹具可继续使用同步版本。
+    pub async fn hash_password_async(password: String) -> Result<String, AuthError> {
+        tokio::task::spawn_blocking(move || Self::hash_password(&password))
+            .await
+            .map_err(|e| AuthError::HashingError(format!("spawn_blocking join 失败: {}", e)))?
     }
 }
 
