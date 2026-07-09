@@ -5,7 +5,7 @@
 
 ---
 
-## 🔄 当前任务：v14 深度调研报告修复（高风险 6 项全部完成，启动中风险 25 项）
+## 🔄 当前任务：v14 深度调研报告修复（高风险 6 项全部完成，中风险 25 项进行中，已完成 1/25）
 
 > **v14 深度调研报告已生成**（2026-07-09，[bug.md](file:///workspace/.monkeycode/bug.md)）：12 维度全量扫描，15 高/25 中/74 低风险，共 114 个问题。
 > v13 后端 P0/P1 全部完成（批次 229-236），v13 剩余 P2 任务合并到 v14 队列。
@@ -16,7 +16,8 @@
 > **批次 240 已完成**：v14 P0-4 测试覆盖-安全核心修复（permission.rs 提取 matches_permission 纯函数 + 23 个单元测试），PR #417 squash merge 到 main（commit c72982b9），分支已清理。CI 12/12 核心全绿。
 > **批次 241 已完成**：v14 P0-5 API 文档缺失修复（恢复 docs.rs ApiDoc + 删除 openapi.rs 死文件），PR #418 squash merge 到 main（commit de1437f0），分支已清理。CI 12/12 核心全绿（E2E 失败为已知问题不阻塞）。
 > **批次 242 已完成**：v14 P0-6 RFM 分布简化阉割永久修复（真实批量计算所有客户 RFM 评分），PR #419 squash merge 到 main（commit 146251d9），分支已清理。CI 12/12 核心全绿（1 轮 CI 修复：type_complexity 警告提取 type 别名）。
-> **v14 高风险 6 项全部完成**（P0-1 到 P0-6），准备启动中风险 25 项修复队列。
+> **v14 高风险 6 项全部完成**（P0-1 到 P0-6）。
+> **批次 243 已完成**：v14 中风险安全漏洞修复（report-templates XSS + tracking_handler 输入验证），PR #420 squash merge 到 main（commit 0810fe3），分支已清理。CI 12/12 核心全绿（E2E 失败为已知问题不阻塞）。中风险 25 项已完成 1 项（安全漏洞 2 项）。
 
 > 用户最高优先级规则（2026-07-04/06/08 追加）已固化到 [MEMORY.md 一、规则 0-12](file:///workspace/.monkeycode/MEMORY.md)。
 > 本文件仅记录任务进度，规则不在此重复。
@@ -44,7 +45,7 @@
 - **重复实现（2 项）**：20 个 service 分页逻辑重复（应接入 paginate_with_total）、30+ view 表格逻辑重复（应接入 useTableApi）
 - **项目规则符合性（1 项）**：cli/util/service.rs 硬编码健康检查 URL
 - **性能问题（5 项）**：ar 报表 4 处未分页 + ap_report_service 4 方法未分页 + 缓存未利用
-- **安全漏洞（2 项）**：report-templates XSS 潜在、tracking_handler 输入验证缺失
+- **安全漏洞（2 项）**：report-templates XSS 潜在、tracking_handler 输入验证缺失 ✅ 批次 243 完成（PR #420, commit 0810fe3, CI 12/12 核心全绿）
 
 #### 🟢 低风险修复队列（74 项，后续迭代）
 

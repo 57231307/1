@@ -6,6 +6,27 @@
 
 ---
 
+## 2026-07-09 (批次 243 v14 中风险安全漏洞修复，CI 12/12 核心全绿，中风险 1/25 完成)
+
+### 批次 243：v14 中风险安全漏洞修复（XSS 防护 + 输入验证）
+
+**修复内容**：bug.md 深度调研报告中风险安全漏洞 — 2 个问题：
+1. report-templates/index.vue XSS 潜在风险：报表预览单元格值直接拼接 HTML，DOMPurify 默认允许 `<img>`/`<a>` 标签
+2. tracking_handler.rs 输入验证缺失：path/event_type/event_data 等字段无长度约束，超大字段可触发 DoS
+
+**修改文件**（2 文件 +33 -4 行）：
+- `frontend/src/views/report-templates/index.vue`：引入 escapeHtml（@/utils/print），报表预览表头字段名与单元格值均经 HTML 转义后再拼接，形成双层防护（escapeHtml 转义 + DOMPurify 净化）
+- `backend/src/handlers/tracking_handler.rs`：PageViewRequest + BehaviorRequest 添加 `#[derive(Validate)]` + 各字段 `#[validate(length(max=N))]` 约束，handler 中调用 `req.validate()` 校验
+
+**技术要点**：
+- 复用项目已有的 escapeHtml 工具函数（@/utils/print），避免重复实现
+- validator crate 的 Validate derive 实现 Rust 输入校验，与 serde Deserialize 协同工作
+- 安全收益：消除 XSS 潜在风险（防止后端数据含恶意 `<img onerror>` 误导用户）+ 防止超大字段 DoS
+
+**CI 验证**：CI run #29032882693，12/12 核心 job 全绿（Rust Clippy + 单元测试 + 后端构建、前端 ESLint/类型检查/构建/测试均通过），E2E 失败为已知问题不阻塞。PR #420 squash merge 到 main（commit 0810fe3）。
+
+---
+
 ## 2026-07-09 (批次 242 v14 P0-6 RFM 分布简化阉割永久修复，CI 12/12 核心全绿，v14 高风险全部完成)
 
 ### 批次 242：v14 P0-6 RFM 分布简化阉割永久修复（真实批量计算所有客户 RFM 评分）

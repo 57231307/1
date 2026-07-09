@@ -239,7 +239,7 @@
    - 实际修复：一次性查询所有客户 ID + 订单聚合（GROUP BY customer_id），内存计算 RFM 评分，分桶聚合（VIP>=4.5/重要>=3.5/一般>=2.5/低价值<2.5），提取 OrderAggRow/CustomerOrderStats type 别名避免 clippy type_complexity 警告
    - CI run #29031527941：12/12 核心 job 全绿（1 轮 CI 修复：type_complexity），PR #419 squash merge 到 main（commit 146251d9）
 
-**v14 中风险问题修复队列（25 项，待高风险完成后启动）**：
+**v14 中风险问题修复队列（25 项，进行中 🔄）**：
 - 测试覆盖（7 项）：handlers 100+ 文件覆盖率 10%、services 107 个无测试、frontend api 4.4%、ai 算法零测试等
 - 空实现（4 项）：dye-recipe handleViewVersion、AdvancedFilter handleLogicChange、bi_analysis unreachable! 等
 - 简化阉割（3 项）：capacity_service 硬编码置信度 0.8、budget_management 跳过审批流、webhook retry 未持久化 payload
@@ -247,7 +247,11 @@
 - 重复实现（2 项）：20 个 service 分页逻辑重复、30+ view 表格逻辑重复
 - 项目规则符合性（1 项）：cli/util/service.rs 硬编码健康检查 URL
 - 性能问题（5 项）：ar/ap 报表未分页查询 5 处、缓存未利用
-- 安全漏洞（2 项）：report-templates XSS 潜在、tracking_handler 输入验证缺失
+- 安全漏洞（2 项）：report-templates XSS 潜在、tracking_handler 输入验证缺失 ✅ 批次 243 完成
+  - 修复内容：
+    1. report-templates/index.vue：引入 escapeHtml（@/utils/print），报表预览表头与单元格值均经 HTML 转义后再拼接（原 String(r[f] ?? '') 直接拼接，DOMPurify 默认允许 <img>/<a> 标签）
+    2. tracking_handler.rs：PageViewRequest + BehaviorRequest 添加 #[derive(Validate)] + 各字段 #[validate(length(max=N))]，handler 中 req.validate() 校验
+  - CI run #29032882693：12/12 核心 job 全绿（E2E 失败为已知问题不阻塞），PR #420 squash merge 到 main（commit 0810fe3）
 - API 契约（0 项高风险，2 项低风险）
 
 **v14 低风险问题修复队列（74 项，后续迭代）**：
