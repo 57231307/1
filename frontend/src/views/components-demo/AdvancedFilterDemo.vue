@@ -10,6 +10,7 @@
         @reset="handleReset"
         @scheme-saved="handleSchemeSaved"
         @scheme-loaded="handleSchemeLoaded"
+        @logic-change="handleLogicChange"
       />
 
       <el-card v-if="filterResult" class="result-card">
@@ -83,6 +84,19 @@ const handleSchemeSaved = (scheme: SavedScheme) => {
 
 const handleSchemeLoaded = (_scheme: SavedScheme) => {
   // 方案加载完成
+}
+
+/// 条件组逻辑切换处理（批次 253：演示 logicChange 事件的真实接入）
+///
+/// 父组件可在此处实现自动重新查询或更新筛选预览。
+/// 当前演示：更新筛选结果以反映新的逻辑关系。
+const handleLogicChange = (
+  _groupIndex: number,
+  _logic: 'AND' | 'OR',
+  filters: FilterGroup[]
+) => {
+  // 自动应用筛选以反映新的逻辑关系（演示逻辑切换的实时效果）
+  filterResult.value = filters
 }
 </script>
 
