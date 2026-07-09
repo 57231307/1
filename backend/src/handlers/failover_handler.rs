@@ -30,7 +30,7 @@ pub struct StatusResponse {
 /// 获取主备状态
 pub async fn get_failover_status(
     State(state): State<AppState>,
-) -> Result<Json<StatusResponse>, AppError> {
+) -> Result<Json<ApiResponse<StatusResponse>>, AppError> {
     let service = build_service(&state)?;
 
     let statuses = service
@@ -42,7 +42,7 @@ pub async fn get_failover_status(
         .await
         .map_err(AppError::internal)?;
 
-    Ok(Json(StatusResponse { statuses, events }))
+    Ok(Json(ApiResponse::success(StatusResponse { statuses, events })))
 }
 
 /// 获取 Prometheus 指标
