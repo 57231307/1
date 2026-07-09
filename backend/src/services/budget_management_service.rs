@@ -567,7 +567,7 @@ impl BudgetManagementService {
             .await?
             .ok_or_else(|| AppError::not_found("预算方案不存在"))?;
 
-        // 记录调整单
+        // 记录调整单（审批流修复：创建为 PENDING 状态，待审批通过后才生效）
         let adjust_no = format!("BA{}", chrono::Local::now().format("%Y%m%d%H%M%S"));
         let adjustment = crate::models::budget_adjustment::ActiveModel {
             adjustment_no: sea_orm::Set(adjust_no),
@@ -582,22 +582,152 @@ impl BudgetManagementService {
             budget_before: sea_orm::Set(plan.total_amount),
             budget_after: sea_orm::Set(plan.total_amount + req.adjust_amount),
             reason: sea_orm::Set(req.reason.unwrap_or_default()),
-            approval_status: sea_orm::Set(approval::APPROVED.to_string()),
+            approval_status: sea_orm::Set(approval::PENDING.to_string()),
             created_by: sea_orm::Set(user_id),
             ..Default::default()
         }
         .insert(&txn)
         .await?;
 
-        // 简化：直接批准，更新 plan 金额
-        let mut plan_active: crate::models::budget_plan::ActiveModel = plan.clone().into();
-        let current_amount = plan.total_amount;
-        plan_active.total_amount = sea_orm::Set(current_amount + req.adjust_amount);
-        // 批次 113 P1-8：移除 `let _ =` 显式丢弃，直接表达式语句执行 update
+        txn.commit().await?;
+        info!(
+            "预算调整申请已创建（待审批）：方案 ID={}，调整金额={}",
+            req.item_id, req.adjust_amount
+        );
+        Ok(adjustment)
+    }
+
+    /// 审批通过预算调整
+    /// 将 PENDING 状态的调整单审批通过，并实际应用金额变更到预算方案
+    pub async fn approve_adjustment(
+        &self,
+        adjustment_id: i32,
+        user_id: i32,
+    ) -> Result<crate::models::budget_adjustment::Model, AppError> {
+        use sea_orm::TransactionTrait;
+        info!(
+            "用户 {} 正在审批预算调整：调整单 ID={}",
+            user_id, adjustment_id
+        );
+
+        let txn = self.db.begin().await?;
+
+        // 串行化并发审批：对调整单加行锁
+        let adjustment = crate::models::budget_adjustment::Entity::find_by_id(adjustment_id)
+            .lock_exclusive()
+            .one(&txn)
+            .await?
+            .ok_or_else(|| AppError::not_found(format!("预算调整单不存在：{}", adjustment_id)))?;
+
+        if adjustment.approval_status != approval::PENDING {
+            return Err(AppError::validation(
+                "预算调整单状态不允许审批（仅待审批状态可审批）".to_string(),
+            ));
+        }
+
+        // 对预算方案加行锁，串行化金额变更
+        let plan = crate::models::budget_plan::Entity::find_by_id(adjustment.budget_id)
+            .lock_exclusive()
+            .one(&txn)
+            .await?
+            .ok_or_else(|| AppError::not_found("预算方案不存在"))?;
+
+        // 应用金额变更
+        let adjust_amount = if adjustment.adjustment_type == "DECREASE" {
+            -adjustment.amount
+        } else {
+            adjustment.amount
+        };
+        let new_total = plan.total_amount + adjust_amount;
+
+        let mut plan_active: crate::models::budget_plan::ActiveModel = plan.into();
+        plan_active.total_amount = sea_orm::Set(new_total);
         plan_active.update(&txn).await?;
 
+        // 更新调整单状态为已审批
+        let mut adj_active: crate::models::budget_adjustment::ActiveModel =
+            adjustment.clone().into();
+        adj_active.approval_status = sea_orm::Set(approval::APPROVED.to_string());
+        let updated = adj_active.update(&txn).await?;
+
         txn.commit().await?;
-        Ok(adjustment)
+        info!(
+            "预算调整审批通过：调整单 ID={}，新预算总额={}",
+            adjustment_id, new_total
+        );
+        Ok(updated)
+    }
+
+    /// 驳回预算调整
+    /// 将 PENDING 状态的调整单驳回，不应用金额变更
+    pub async fn reject_adjustment(
+        &self,
+        adjustment_id: i32,
+        user_id: i32,
+    ) -> Result<crate::models::budget_adjustment::Model, AppError> {
+        use sea_orm::TransactionTrait;
+        info!(
+            "用户 {} 正在驳回预算调整：调整单 ID={}",
+            user_id, adjustment_id
+        );
+
+        let txn = self.db.begin().await?;
+
+        let adjustment = crate::models::budget_adjustment::Entity::find_by_id(adjustment_id)
+            .lock_exclusive()
+            .one(&txn)
+            .await?
+            .ok_or_else(|| AppError::not_found(format!("预算调整单不存在：{}", adjustment_id)))?;
+
+        if adjustment.approval_status != approval::PENDING {
+            return Err(AppError::validation(
+                "预算调整单状态不允许驳回（仅待审批状态可驳回）".to_string(),
+            ));
+        }
+
+        let mut adj_active: crate::models::budget_adjustment::ActiveModel =
+            adjustment.clone().into();
+        adj_active.approval_status = sea_orm::Set(approval::REJECTED.to_string());
+        let updated = adj_active.update(&txn).await?;
+
+        txn.commit().await?;
+        info!("预算调整已驳回：调整单 ID={}", adjustment_id);
+        Ok(updated)
+    }
+
+    /// 驳回预算方案
+    /// 将 DRAFT 状态的预算方案驳回为 REJECTED
+    pub async fn reject_plan(
+        &self,
+        plan_id: i32,
+        user_id: i32,
+        _reject_comment: Option<String>,
+    ) -> Result<(), AppError> {
+        info!(
+            "用户 {} 正在驳回预算方案：{}",
+            user_id, plan_id
+        );
+
+        let txn = (*self.db).begin().await?;
+        let plan = budget_plan::Entity::find_by_id(plan_id)
+            .lock_exclusive()
+            .one(&txn)
+            .await?
+            .ok_or_else(|| AppError::not_found(format!("预算方案不存在：{}", plan_id)))?;
+
+        if plan.status.as_deref() != Some(budget::DRAFT) {
+            return Err(AppError::validation(
+                "预算方案状态不允许驳回（仅草稿状态可驳回）".to_string(),
+            ));
+        }
+
+        let mut plan_active: budget_plan::ActiveModel = plan.into();
+        plan_active.status = Set(Some(budget::REJECTED.to_string()));
+        plan_active.save(&txn).await?;
+        txn.commit().await?;
+
+        info!("预算方案已驳回：{}", plan_id);
+        Ok(())
     }
 
     /// 检查预算是否可用
