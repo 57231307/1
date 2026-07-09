@@ -345,7 +345,7 @@ const handlePreview = async (row: ReportTemplate) => {
     if (res.data && res.data.fields && res.data.rows) {
       const headerHtml = res.data.fields.map(f => `<th>${f}</th>`).join('')
       const bodyHtml = res.data.rows
-        .map((r: Record<string, unknown>) => `<tr>${res.data!.fields.map(f => `<td>${String(r[f] ?? '')}</td>`).join('')}</tr>`)
+        .map((r: Record<string, unknown>) => `<tr>${(res.data?.fields ?? []).map(f => `<td>${String(r[f] ?? '')}</td>`).join('')}</tr>`)
         .join('')
       previewData.value = `<table border="1" cellpadding="4" cellspacing="0" style="border-collapse:collapse;width:100%"><thead><tr>${headerHtml}</tr></thead><tbody>${bodyHtml}</tbody></table>`
     } else {

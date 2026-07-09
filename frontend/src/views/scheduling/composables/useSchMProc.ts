@@ -55,7 +55,9 @@ export function useSchMProc(deps: SchMDeps) {
     try {
       prepareScheduleParams()
       const res = await schedulingApi.autoSchedule(deps.scheduleParams)
-      const result = res.data!
+      const result = res.data
+      // 安全检查：防止后端返回 data 为 null 时崩溃
+      if (!result) return
       ElMessage.success(`排程完成: ${result.scheduled_count} 个任务, ${result.conflict_count} 个冲突`)
       if (result.conflict_count > 0) {
         // v11 批次 181 P2-1 修复：使用 setter 函数正确更新 reactive 对象的 conflictList

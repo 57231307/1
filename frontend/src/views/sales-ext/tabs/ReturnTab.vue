@@ -306,7 +306,8 @@ const returnRules: FormRules = {
 const openReturnDialog = async (row?: SalesReturn) => {
   if (row) {
     const res = await salesReturnApi.getById(row.id!)
-    Object.assign(returnForm, res.data!)
+    // 安全检查：防止后端返回 data 为 null 时崩溃
+    if (res.data) Object.assign(returnForm, res.data)
   } else {
     Object.assign(returnForm, {
       id: 0,

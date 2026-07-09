@@ -116,8 +116,11 @@ const loadHistory = async () => {
   loading.value = true
   try {
     const res = (await getScanHistory(pagination.value.page - 1, pagination.value.pageSize)) as ApiResponse<{ items: ScanHistory[]; total: number }>
-    historyData.value = res.data!.items
-    total.value = res.data!.total
+    // 安全检查：防止后端返回 data 为 null 时崩溃
+    if (res.data) {
+      historyData.value = res.data.items
+      total.value = res.data.total
+    }
   } catch (error) {
     ElMessage.error('加载历史失败')
   } finally {

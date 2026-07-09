@@ -201,7 +201,8 @@ const fetchPermissions = async () => {
   try {
     const res = await listRoleDataPermissions(parseInt(selectedRoleId.value))
     if (res.data) {
-      permissionList.value = res.data! || []
+      // 安全检查：防止后端返回 data 为 null 时崩溃
+      permissionList.value = res.data || []
     }
   } catch (e) {
     ElMessage.error('获取权限列表失败')

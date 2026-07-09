@@ -111,7 +111,8 @@ export function usePurchList() {
     loading.value = true
     try {
       const res = await purchaseApi.getOrderList(queryParams)
-      orders.value = res.data!.list || []
+      // 安全检查：防止后端返回 data 为 null 时崩溃
+      if (res.data) orders.value = res.data.list || []
       total.value = res.data?.total || 0
 
       // 计算统计数据
@@ -133,7 +134,8 @@ export function usePurchList() {
   const fetchSuppliers = async () => {
     try {
       const res = await supplierApi.list({ page_size: 1000 })
-      suppliers.value = res.data!.list || []
+      // 安全检查：防止后端返回 data 为 null 时崩溃
+      if (res.data) suppliers.value = res.data.list || []
       stats.value.supplierCount = suppliers.value.length
     } catch (error) {
       logger.error('获取供应商列表失败:', error)
@@ -146,7 +148,8 @@ export function usePurchList() {
   const fetchProducts = async () => {
     try {
       const res = await productApi.list({ page_size: 1000 })
-      products.value = res.data!.list || []
+      // 安全检查：防止后端返回 data 为 null 时崩溃
+      if (res.data) products.value = res.data.list || []
     } catch (error) {
       logger.error('获取产品列表失败:', error)
     }
@@ -158,7 +161,8 @@ export function usePurchList() {
   const fetchWarehouses = async () => {
     try {
       const res = await warehouseApi.list({ page_size: 1000 })
-      warehouses.value = res.data!.list || []
+      // 安全检查：防止后端返回 data 为 null 时崩溃
+      if (res.data) warehouses.value = res.data.list || []
     } catch (error) {
       logger.error('获取仓库列表失败:', error)
     }

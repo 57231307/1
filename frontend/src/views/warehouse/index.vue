@@ -268,7 +268,8 @@ const fetchData = async () => {
   loading.value = true
   try {
     const res = await warehouseApi.list(queryParams)
-    warehouses.value = res.data!.list || []
+    // 安全检查：防止后端返回 data 为 null 时崩溃
+    if (res.data) warehouses.value = res.data.list || []
     total.value = res.data?.total || 0
   } catch (error: unknown) {
     // 批次 98 P2-D 修复（v5 复审）：原 catch (error: any) 改为 unknown + 类型守卫

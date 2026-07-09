@@ -75,8 +75,11 @@ export function useSchM() {
         params.status = filterStatus.value
       }
       const res = await schedulingApi.getScheduleTasks(params)
-      taskList.value = res.data!.list
-      total.value = res.data!.total
+      // 安全检查：防止后端返回 data 为 null 时崩溃
+      if (res.data) {
+        taskList.value = res.data.list
+        total.value = res.data.total
+      }
       updateStats()
     } catch (error: unknown) {
       // v11 批次 181 P2-1 修复：catch (error: any) 改为 catch (error: unknown) + 类型守卫
@@ -102,7 +105,8 @@ export function useSchM() {
     conflictLoading.value = true
     try {
       const res = await schedulingApi.detectConflicts()
-      conflictList.value = res.data!
+      // 安全检查：防止后端返回 data 为 null 时崩溃
+      if (res.data) conflictList.value = res.data
       stats.value.conflicts = conflictList.value.length
     } catch (error: unknown) {
       // v11 批次 181 P2-1 修复：catch (error: any) 改为 catch (error: unknown) + 类型守卫

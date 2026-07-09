@@ -239,7 +239,8 @@ const priceRules: FormRules = {
 const openPriceDialog = async (row?: SalesPrice) => {
   if (row) {
     const res = await getSalesPrice(row.id)
-    Object.assign(priceForm, res.data!)
+    // 安全检查：防止后端返回 data 为 null 时崩溃
+    if (res.data) Object.assign(priceForm, res.data)
   } else {
     Object.assign(priceForm, {
       id: 0,

@@ -64,7 +64,8 @@ const handleFiveDimensionTrace = async () => {
   try {
     // v11 批次 182 P2-1 修复：const res: any 改为 as 具体类型
     const res = (await getTraceByFiveDimension(fiveDimensionId.value)) as { data?: FullTraceChainResponse }
-    traceResult.value = res.data!
+    // 安全检查：防止后端返回 data 为 null 时崩溃
+    if (res.data) traceResult.value = res.data
     snapshotMessage.value = ''
   } catch (error) {
     ElMessage.error('追溯失败')
@@ -122,7 +123,8 @@ const handleCreateSnapshot = async () => {
   try {
     // v11 批次 182 P2-1 修复：const res: any 改为 as 具体类型
     const res = (await createTraceSnapshot(traceResult.value.trace_chain_id)) as { data?: string }
-    snapshotMessage.value = res.data!
+    // 安全检查：防止后端返回 data 为 null 时崩溃
+    if (res.data) snapshotMessage.value = res.data
     ElMessage.success('快照创建成功')
   } catch (error) {
     ElMessage.error('创建快照失败')

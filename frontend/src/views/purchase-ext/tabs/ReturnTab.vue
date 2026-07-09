@@ -309,7 +309,8 @@ const returnRules: FormRules = {
 const openReturnDialog = async (row?: PurchaseReturn) => {
   if (row) {
     const res = await purchaseReturnApi.getById(row.id!)
-    Object.assign(returnForm, res.data!)
+    // 安全检查：防止后端返回 data 为 null 时崩溃
+    if (res.data) Object.assign(returnForm, res.data)
   } else {
     Object.assign(returnForm, {
       id: 0,
@@ -369,7 +370,8 @@ const currentReturn = ref<PurchaseReturn | null>(null)
 
 const viewReturn = async (row: PurchaseReturn) => {
   const res = await purchaseReturnApi.getById(row.id!)
-  currentReturn.value = res.data!
+  // 安全检查：防止后端返回 data 为 null 时崩溃
+  if (res.data) currentReturn.value = res.data
   returnViewVisible.value = true
 }
 

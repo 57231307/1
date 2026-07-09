@@ -106,8 +106,11 @@ export function usePrc() {
         } as unknown as Record<string, unknown>)) as {
           data: { list: PurchaseReceiptEntity[]; total: number } | null
         }
-      tableData.value = res.data!.list
-      total.value = res.data!.total
+      // 安全检查：防止后端返回 data 为 null 时崩溃
+      if (res.data) {
+        tableData.value = res.data.list
+        total.value = res.data.total
+      }
     } catch (error) {
       logger.error('加载失败:', error)
       ElMessage.error('加载失败')
@@ -122,7 +125,8 @@ export function usePrc() {
       const res: { data: { label: string; value: number }[] | null } = (await request.get(
         '/suppliers/select'
       )) as { data: { label: string; value: number }[] | null }
-      supplierOptions.value = res.data!
+      // 安全检查：防止后端返回 data 为 null 时崩溃
+      if (res.data) supplierOptions.value = res.data
     } catch (error) {
       logger.warn('加载供应商失败:', error)
     }
@@ -134,7 +138,8 @@ export function usePrc() {
       const res: { data: { label: string; value: number }[] | null } = (await request.get(
         '/warehouses/select'
       )) as { data: { label: string; value: number }[] | null }
-      warehouseOptions.value = res.data!
+      // 安全检查：防止后端返回 data 为 null 时崩溃
+      if (res.data) warehouseOptions.value = res.data
     } catch (error) {
       logger.warn('加载仓库失败:', error)
     }
@@ -146,7 +151,8 @@ export function usePrc() {
       const res: { data: { label: string; value: number }[] | null } = (await request.get(
         '/products/select'
       )) as { data: { label: string; value: number }[] | null }
-      productOptions.value = res.data!
+      // 安全检查：防止后端返回 data 为 null 时崩溃
+      if (res.data) productOptions.value = res.data
     } catch (error) {
       logger.warn('加载产品失败:', error)
     }

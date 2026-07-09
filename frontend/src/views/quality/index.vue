@@ -236,7 +236,8 @@ const fetchStandards = async () => {
   try {
     // v11 批次 173 P2-1 修复：const res: any 改为直接使用 API 返回类型
     const res = await listQualityStandards()
-    standards.value = res.data! || []
+    // 安全检查：防止后端返回 data 为 null 时崩溃
+    standards.value = res.data || []
   } finally {
     standardLoading.value = false
   }
@@ -259,7 +260,8 @@ const fetchDefects = async () => {
   try {
     // v11 批次 173 P2-1 修复：const res: any 改为直接使用 API 返回类型
     const res = await listDefects()
-    defects.value = res.data! || []
+    // 安全检查：防止后端返回 data 为 null 时崩溃
+    defects.value = res.data || []
   } finally {
     defectLoading.value = false
   }
@@ -427,7 +429,8 @@ const viewVersionHistory = async (row: QualityStandard) => {
   try {
     // v11 批次 173 P2-1 修复：const res: any 改为直接使用 API 返回类型
     const res = await getQualityStandardVersions(row.id)
-    versionHistoryList.value = res.data! || []
+    // 安全检查：防止后端返回 data 为 null 时崩溃
+    versionHistoryList.value = res.data || []
     versionHistoryVisible.value = true
   } catch (e: unknown) {
     // 批次 98 P2-D 修复（v5 复审）：原 catch (e: any) 改为 unknown + 类型守卫

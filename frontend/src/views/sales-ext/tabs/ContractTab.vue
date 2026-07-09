@@ -354,7 +354,8 @@ const contractRules: FormRules = {
 const openContractDialog = async (row?: SalesContract) => {
   if (row) {
     const res = await getSalesContract(row.id)
-    Object.assign(contractForm, res.data!)
+    // 安全检查：防止后端返回 data 为 null 时崩溃
+    if (res.data) Object.assign(contractForm, res.data)
   } else {
     Object.assign(contractForm, {
       id: 0,
@@ -415,7 +416,8 @@ const currentContract = ref<SalesContract | null>(null)
 
 const viewContract = async (row: SalesContract) => {
   const res = await getSalesContract(row.id)
-  currentContract.value = res.data!
+  // 安全检查：防止后端返回 data 为 null 时崩溃
+  if (res.data) currentContract.value = res.data
   contractViewVisible.value = true
 }
 

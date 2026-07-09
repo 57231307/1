@@ -150,7 +150,8 @@ const openViewDialog = async (row: ArReconciliationEntity) => {
   try {
     // v11 批次 175 P2-1 修复：res: any 改为具体类型
     const res = (await getArReconciliation(row.id!)) as { data?: ArReconciliationEntity }
-    viewData.value = res.data!
+    // 安全检查：防止后端返回 data 为 null 时崩溃
+    if (res.data) viewData.value = res.data
     const detailRes = (await getReconciliationDetails(row.id!)) as {
       data?: ReconciliationDetail[]
     }

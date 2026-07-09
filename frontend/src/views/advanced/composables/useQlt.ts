@@ -68,7 +68,8 @@ export function useQlt() {
         payload.inspection_type = qualityForm.value.inspection_type.trim()
       }
       const res = await predictQuality(payload) as ApiResponse<QualityResult>
-      qualityResult.value = res.data!
+      // 安全检查：防止后端返回 data 为 null 时崩溃
+      if (res.data) qualityResult.value = res.data
       ElMessage.success('预测完成')
     } catch (e: unknown) {
       ElMessage.error((e instanceof Error ? e.message : '') || '预测失败')

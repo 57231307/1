@@ -29,7 +29,8 @@ export const useDb = () => {
   const fetchDashboardData = async () => {
     try {
       const res = await dashboardApi.getOverview()
-      stats.value = res.data! || {}
+      // 安全检查：防止后端返回 data 为 null 时崩溃
+      stats.value = res.data || {}
     } catch (error: unknown) {
       // 批次 98 P2-D 修复（v5 复审）：原 catch (error: any) 改为 unknown + 类型守卫
       ElMessage.error((error instanceof Error ? error.message : String(error)) || '获取仪表盘数据失败')

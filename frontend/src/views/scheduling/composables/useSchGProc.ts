@@ -34,7 +34,9 @@ export function useSchGProc(deps: SchGDeps) {
     scheduling.value = true
     try {
       const res = await schedulingApi.autoSchedule(deps.scheduleForm)
-      const result = res.data!
+      const result = res.data
+      // 安全检查：防止后端返回 data 为 null 时崩溃
+      if (!result) return
       ElMessage.success(
         `排程完成: ${result.scheduled_count} 个任务已排程, ${result.conflict_count} 个冲突`
       )

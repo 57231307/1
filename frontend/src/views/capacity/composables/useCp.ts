@@ -33,7 +33,8 @@ export const useCp = () => {
   const fetchSummary = async () => {
     try {
       const res = await capacityApi.getSummary()
-      summary.value = res.data!
+      // 安全检查：防止后端返回 data 为 null 时崩溃
+      if (res.data) summary.value = res.data
     } catch (error: unknown) {
       ElMessage.error((error instanceof Error ? error.message : '') || '获取产能概览失败')
       summary.value = {} as CapacitySummary
@@ -47,7 +48,8 @@ export const useCp = () => {
         days: trendDays.value,
         work_center_id: selectedWorkCenter.value,
       })
-      trendData.value = res.data!
+      // 安全检查：防止后端返回 data 为 null 时崩溃
+      if (res.data) trendData.value = res.data
     } catch (error: unknown) {
       ElMessage.error((error instanceof Error ? error.message : '') || '获取产能趋势失败')
     }
@@ -61,8 +63,11 @@ export const useCp = () => {
         page: currentPage.value,
         page_size: pageSize.value,
       })
-      workCenters.value = res.data!.list
-      total.value = res.data!.total
+      // 安全检查：防止后端返回 data 为 null 时崩溃
+      if (res.data) {
+        workCenters.value = res.data.list
+        total.value = res.data.total
+      }
     } catch (error: unknown) {
       ElMessage.error((error instanceof Error ? error.message : '') || '获取工作中心列表失败')
       workCenters.value = []
@@ -77,7 +82,8 @@ export const useCp = () => {
     bottleneckLoading.value = true
     try {
       const res = await capacityApi.getBottlenecks()
-      bottlenecks.value = res.data!
+      // 安全检查：防止后端返回 data 为 null 时崩溃
+      if (res.data) bottlenecks.value = res.data
     } catch (error: unknown) {
       ElMessage.error((error instanceof Error ? error.message : '') || '获取瓶颈分析失败')
       bottlenecks.value = []

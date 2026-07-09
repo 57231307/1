@@ -74,7 +74,8 @@ export function useSchG() {
         params.end_date = dateRange.value[1].toISOString().split('T')[0]
       }
       const res = await schedulingApi.getGanttData(params)
-      ganttData.value = res.data!
+      // 安全检查：防止后端返回 data 为 null 时崩溃
+      if (res.data) ganttData.value = res.data
     } catch (error: unknown) {
       // v11 批次 181 P2-1 修复：catch (error: any) 改为 catch (error: unknown) + 类型守卫
       const errMsg = error instanceof Error ? error.message : String(error)

@@ -220,7 +220,8 @@ export function useVchrLst() {
   const openViewDialog = async (row: VoucherEntity) => {
     try {
       const res = await getVoucher(row.id!)
-      viewDataRef.value = res.data!
+      // 安全检查：防止后端返回 data 为 null 时崩溃
+      if (res.data) viewDataRef.value = res.data
     } catch (error) {
       logger.error('获取详情失败', error)
       ElMessage.error('获取详情失败')
