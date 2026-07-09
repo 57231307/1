@@ -5,14 +5,57 @@
 
 ---
 
-## 🔄 当前任务：v13 复审修复（P0/P1 全部完成 ✅，待用户指令继续 P2/前端 P2）
+## 🔄 当前任务：v14 深度调研报告修复（批次 237+，P0-1 已完成，继续 P0-2）
 
-> **批次 236 已完成**（v13 P1-3 N+1 查询/写入重构，CI 12/12 核心全绿，已 squash merge 到 main，分支已清理）。
-> v13 后端 P0/P1 全部修复完成，等待用户下一步指令（P2 后端 / 前端 P2 / E2E 排查 / 规则 10 梳理 等）。
+> **v14 深度调研报告已生成**（2026-07-09，[bug.md](file:///workspace/.monkeycode/bug.md)）：12 维度全量扫描，15 高/25 中/74 低风险，共 114 个问题。
+> v13 后端 P0/P1 全部完成（批次 229-236），v13 剩余 P2 任务合并到 v14 队列。
+> 用户指令启动 v14 修复流程，按优先级（高→中→低）+ 影响范围（核心路径→边缘功能）排序。
+> **批次 237 已完成**：v14 P0-1 并发 async 阻塞修复（spawn_blocking 包装 Argon2id 哈希），PR #414 squash merge 到 main（commit 7585097f），分支已清理。CI 12/12 核心全绿。
 
 > 用户最高优先级规则（2026-07-04/06/08 追加）已固化到 [MEMORY.md 一、规则 0-12](file:///workspace/.monkeycode/MEMORY.md)。
 > 本文件仅记录任务进度，规则不在此重复。
 > 规则 10 梳理时间：2026-07-09（批次 236 提前触发，用户明确要求"梳理项目的所有记忆"）
+
+### v14 修复任务队列（按优先级排序）
+
+#### 🔴 高风险修复队列（15 项，批次 237+ 优先处理）
+
+| 批次 | 编号 | 问题 | 文件 | 修复方案 | 状态 |
+|------|------|------|------|----------|------|
+| 237 | P0-1 | 并发-async 阻塞（4 处高，最高优先级） | auth_service.rs:107/243/277 + user_handler.rs:196/538/563/578 | spawn_blocking 包装 Argon2id 哈希 | ✅ 已完成（PR #414, commit 7585097f, CI 12/12 核心全绿） |
+| - | P0-2 | 性能-全表扫描（1 处高） | ar_service.rs:1274-1321 get_aging_report | SQL 聚合 + 日期范围 + LIMIT | ⏳ 待处理 |
+| - | P0-3 | 空实现-业务失效（2 处高） | dye-batch/index.vue:341 + dye-recipe/index.vue:318 handleView | 实现查看逻辑 | ⏳ 待处理 |
+| - | P0-4 | 测试覆盖-安全核心（1 处高） | middleware/permission.rs 全文件零测试 | 新增测试模块 | ⏳ 待处理 |
+| - | P0-5 | API 文档缺失（2 处高） | openapi.rs:10-95 仅覆盖 7% | 按业务域补全 paths/schemas | ⏳ 待处理 |
+| - | P0-6 | 简化阉割-永久（1 处高） | crm/cust.rs:265-275 get_rfm_distribution | 真实计算 RFM 分布 | ⏳ 待处理 |
+
+#### 🟡 中风险修复队列（25 项，高风险完成后启动）
+
+- **测试覆盖（7 项）**：handlers 100+ 文件覆盖率 10%、services 107 个无测试、frontend api 4.4%、ai 算法（pred/detect/rec）零测试、frontend store 多数无测试、middleware 多个零测试
+- **空实现（4 项）**：dye-recipe handleViewVersion、AdvancedFilter handleLogicChange、bi_analysis unreachable! panic、dual_unit_converter unreachable
+- **简化阉割（3 项）**：capacity_service 硬编码置信度 0.8、budget_management 跳过审批流、webhook retry 未持久化 payload
+- **死代码（1 项）**：14 个 composable 文件 eslint-disable any
+- **重复实现（2 项）**：20 个 service 分页逻辑重复（应接入 paginate_with_total）、30+ view 表格逻辑重复（应接入 useTableApi）
+- **项目规则符合性（1 项）**：cli/util/service.rs 硬编码健康检查 URL
+- **性能问题（5 项）**：ar 报表 4 处未分页 + ap_report_service 4 方法未分页 + 缓存未利用
+- **安全漏洞（2 项）**：report-templates XSS 潜在、tracking_handler 输入验证缺失
+
+#### 🟢 低风险修复队列（74 项，后续迭代）
+
+- 占位符/Mock 存根（21 项，全部合理设计或测试夹具，多数无需修复）
+- 项目规则符合性（11 项，多为配置层默认值或 best-effort 合理模式）
+- 死代码（8 项，均合规标注）
+- 其他（34 项）
+
+#### 📋 合并到 v14 的历史遗留任务
+
+- ⏳ v13 前端 P2：FE-P2-1（deepClone 接入）、FE-P2-2（删死代码）、FE-P2-3（非空断言）→ 合并到中风险
+- ⏳ v13 后端 P2：P2-1/2/3 → 合并到中风险
+- ⏳ FE-P2-3：i18n 覆盖率（200+ 视图硬编码中文，巨大工作量，后续迭代）
+- ⏳ FE-P2-6：大列表虚拟化（966 处 el-table，巨大工作量，后续迭代）
+- ⏳ P2-8 剩余 143 个无测试 service（非高优先级，后续迭代）
+- ⏳ E2E 失败排查（连续多次"启动后端服务"失败，已知问题，待规则 5 节点）
+- ⏳ 规则 10 触发：批次 240（=16×15）需梳理记忆文件
 
 ### v12 复审 P0/P1 修复进度（全部完成）
 

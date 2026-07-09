@@ -6,6 +6,23 @@
 
 ---
 
+## 2026-07-09 (批次 237 v14 P0-1 并发 async 阻塞修复，CI 12/12 核心全绿，v14 修复流程启动)
+
+### 批次 237：v14 P0-1 并发 async 阻塞修复（spawn_blocking 包装 Argon2id 哈希）
+
+**修复内容**：bug.md 深度调研报告最高优先级高风险问题 — Argon2id 密码哈希在 async 上下文直接调用未用 spawn_blocking 包装，登录/创建用户/修改密码阻塞 tokio worker 50-100ms。
+
+**修改文件**（3 文件 +48 -9 行）：
+- `backend/src/services/auth_service.rs`：新增 verify_password_async / hash_password_async 异步方法（spawn_blocking 包装），authenticate 改用异步版本
+- `backend/src/handlers/user_handler.rs`：4 处调用点改用异步版本（create_user hash + change_password verify×2 + hash）
+- `backend/src/services/init_service.rs`：2 处调用点改用异步版本（initialize hash + reset_password hash）
+
+**CI 验证**：CI run #29023784593：12/12 核心 job 全绿（Clippy + 单元测试 + 后端构建均通过），E2E 失败为已知问题不阻塞，PR #414 squash merge 到 main（commit 7585097f）
+
+**影响范围**：登录、创建用户、修改密码、初始化管理员、重置密码 5 个核心路径。
+
+---
+
 ## 2026-07-09 (批次 236 v13 P1-3 N+1 查询/写入重构，CI 12/12 核心全绿，v13 后端 P0/P1 全部完成)
 
 ### 批次 236：v13 P1-3 N+1 查询/写入重构（4 处 INSERT 批量化）
