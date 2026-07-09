@@ -129,10 +129,11 @@ impl SalesService {
         };
         let delivery = delivery.insert(&txn).await?;
 
-        // 创建发货单明细并扣减库存
+        // 创建发货单明细并扣减库存（v13 P1-3：发货明细批量 INSERT，库存扣减与订单明细更新保持逐条以确保乐观锁语义）
+        let mut delivery_items_to_insert: Vec<sales_delivery_item::ActiveModel> = Vec::new();
         for item in request.items {
-            // 创建发货明细
-            let delivery_item = sales_delivery_item::ActiveModel {
+            // 收集发货明细（不立即 INSERT）
+            delivery_items_to_insert.push(sales_delivery_item::ActiveModel {
                 id: Default::default(),
                 delivery_id: Set(delivery.id),
                 product_id: Set(item.product_id),
@@ -143,8 +144,7 @@ impl SalesService {
                 unit_price: Set(Decimal::ZERO),
                 amount: Set(Decimal::ZERO),
                 created_at: Set(chrono::Utc::now()),
-            };
-            delivery_item.insert(&txn).await?;
+            });
 
             // 扣减库存
             self.reduce_inventory(
@@ -169,6 +169,13 @@ impl SalesService {
                     sales_order_item::Column::UpdatedAt,
                     sea_orm::sea_query::Expr::val(chrono::Utc::now()).into(),
                 )
+                .exec(&txn)
+                .await?;
+        }
+
+        // 批量 INSERT 发货明细，替代逐条 INSERT
+        if !delivery_items_to_insert.is_empty() {
+            sales_delivery_item::Entity::insert_many(delivery_items_to_insert)
                 .exec(&txn)
                 .await?;
         }
@@ -436,6 +443,8 @@ impl SalesService {
                     .collect()
             };
 
+        // v13 P1-3：预留记录批量 INSERT，库存 update_many 保持逐条以确保防御性 WHERE 语义
+        let mut reservations_to_insert: Vec<inventory_reservation::ActiveModel> = Vec::new();
         for item in items {
             if existing_reservation_ids.contains(&item.product_id) {
                 tracing::info!("产品 {} 已存在预留记录，跳过创建", item.product_id);
@@ -453,7 +462,8 @@ impl SalesService {
                     )));
                 }
 
-                let reservation = inventory_reservation::ActiveModel {
+                // 收集预留记录（不立即 INSERT）
+                reservations_to_insert.push(inventory_reservation::ActiveModel {
                     id: Default::default(),
                     order_id: Set(order_id),
                     product_id: Set(item.product_id),
@@ -466,8 +476,7 @@ impl SalesService {
                     created_by: Set(Some(user_id)),
                     created_at: Set(chrono::Utc::now()),
                     updated_at: Set(chrono::Utc::now()),
-                };
-                reservation.insert(txn).await?;
+                });
 
                 // 批次 9（2026-06-28）：UPDATE 加防御性 WHERE 条件 quantity_available >= quantity，
                 // 即使并发绕过 SELECT FOR UPDATE（理论上不会发生），也能阻止超扣
@@ -498,6 +507,12 @@ impl SalesService {
                     item.product_id
                 )));
             }
+        }
+        // 批量 INSERT 预留记录，替代逐条 INSERT
+        if !reservations_to_insert.is_empty() {
+            inventory_reservation::Entity::insert_many(reservations_to_insert)
+                .exec(txn)
+                .await?;
         }
         Ok(())
     }

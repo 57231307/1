@@ -110,6 +110,9 @@ impl ArReconciliationService {
         };
 
         let mut results = Vec::new();
+        // v13 P1-3：N+1 重构，收集所有明细 ActiveModel，循环结束后批量 INSERT
+        let mut all_items_to_insert: Vec<crate::models::ar_reconciliation_item::ActiveModel> =
+            Vec::new();
 
         for cust in customers {
             // 从批量预加载结果中取本客户的发票，按 InvoiceDate 分桶：
@@ -185,8 +188,8 @@ impl ArReconciliationService {
                     if let Some(idx) = exact_match {
                         let coll = unmatched_collections.remove(idx);
 
-                        // 创建发票明细
-                        let inv_item = crate::models::ar_reconciliation_item::ActiveModel {
+                        // 创建发票明细（收集不立即 INSERT）
+                        all_items_to_insert.push(crate::models::ar_reconciliation_item::ActiveModel {
                             id: Default::default(),
                             reconciliation_id: Set(rec_model.id),
                             item_type: Set("INVOICE".to_string()),
@@ -201,11 +204,10 @@ impl ArReconciliationService {
                             remarks: Set(None),
                             created_at: Set(Utc::now()),
                             updated_at: Set(Utc::now()),
-                        };
-                        inv_item.insert(&txn).await?;
+                        });
 
-                        // 创建收款明细
-                        let col_item = crate::models::ar_reconciliation_item::ActiveModel {
+                        // 创建收款明细（收集不立即 INSERT）
+                        all_items_to_insert.push(crate::models::ar_reconciliation_item::ActiveModel {
                             id: Default::default(),
                             reconciliation_id: Set(rec_model.id),
                             item_type: Set("RECEIPT".to_string()),
@@ -220,8 +222,7 @@ impl ArReconciliationService {
                             remarks: Set(None),
                             created_at: Set(Utc::now()),
                             updated_at: Set(Utc::now()),
-                        };
-                        col_item.insert(&txn).await?;
+                        });
 
                         matched_count += 1;
                     } else {
@@ -246,7 +247,7 @@ impl ArReconciliationService {
                         let coll = remaining_collections.remove(idx);
                         let matched = std::cmp::min(inv.invoice_amount, coll.collection_amount);
 
-                        let inv_item = crate::models::ar_reconciliation_item::ActiveModel {
+                        all_items_to_insert.push(crate::models::ar_reconciliation_item::ActiveModel {
                             id: Default::default(),
                             reconciliation_id: Set(rec_model.id),
                             item_type: Set("INVOICE".to_string()),
@@ -265,10 +266,9 @@ impl ArReconciliationService {
                             remarks: Set(None),
                             created_at: Set(Utc::now()),
                             updated_at: Set(Utc::now()),
-                        };
-                        inv_item.insert(&txn).await?;
+                        });
 
-                        let col_item = crate::models::ar_reconciliation_item::ActiveModel {
+                        all_items_to_insert.push(crate::models::ar_reconciliation_item::ActiveModel {
                             id: Default::default(),
                             reconciliation_id: Set(rec_model.id),
                             item_type: Set("RECEIPT".to_string()),
@@ -287,13 +287,12 @@ impl ArReconciliationService {
                             remarks: Set(None),
                             created_at: Set(Utc::now()),
                             updated_at: Set(Utc::now()),
-                        };
-                        col_item.insert(&txn).await?;
+                        });
 
                         matched_count += 1;
                     } else {
-                        // 未匹配发票
-                        let inv_item = crate::models::ar_reconciliation_item::ActiveModel {
+                        // 未匹配发票（收集不立即 INSERT）
+                        all_items_to_insert.push(crate::models::ar_reconciliation_item::ActiveModel {
                             id: Default::default(),
                             reconciliation_id: Set(rec_model.id),
                             item_type: Set("INVOICE".to_string()),
@@ -308,14 +307,13 @@ impl ArReconciliationService {
                             remarks: Set(None),
                             created_at: Set(Utc::now()),
                             updated_at: Set(Utc::now()),
-                        };
-                        inv_item.insert(&txn).await?;
+                        });
                     }
                 }
 
-                // 剩余未匹配收款
+                // 剩余未匹配收款（收集不立即 INSERT）
                 for coll in remaining_collections {
-                    let col_item = crate::models::ar_reconciliation_item::ActiveModel {
+                    all_items_to_insert.push(crate::models::ar_reconciliation_item::ActiveModel {
                         id: Default::default(),
                         reconciliation_id: Set(rec_model.id),
                         item_type: Set("RECEIPT".to_string()),
@@ -330,13 +328,12 @@ impl ArReconciliationService {
                         remarks: Set(None),
                         created_at: Set(Utc::now()),
                         updated_at: Set(Utc::now()),
-                    };
-                    col_item.insert(&txn).await?;
+                    });
                 }
             } else {
-                // 跳过日期顺序匹配：所有未精确匹配的发票与收款直接落库为 UNMATCHED
+                // 跳过日期顺序匹配：所有未精确匹配的发票与收款直接收集为 UNMATCHED
                 for inv in unmatched_invoices {
-                    let inv_item = crate::models::ar_reconciliation_item::ActiveModel {
+                    all_items_to_insert.push(crate::models::ar_reconciliation_item::ActiveModel {
                         id: Default::default(),
                         reconciliation_id: Set(rec_model.id),
                         item_type: Set("INVOICE".to_string()),
@@ -351,11 +348,10 @@ impl ArReconciliationService {
                         remarks: Set(None),
                         created_at: Set(Utc::now()),
                         updated_at: Set(Utc::now()),
-                    };
-                    inv_item.insert(&txn).await?;
+                    });
                 }
                 for coll in &unmatched_collections {
-                    let col_item = crate::models::ar_reconciliation_item::ActiveModel {
+                    all_items_to_insert.push(crate::models::ar_reconciliation_item::ActiveModel {
                         id: Default::default(),
                         reconciliation_id: Set(rec_model.id),
                         item_type: Set("RECEIPT".to_string()),
@@ -370,8 +366,7 @@ impl ArReconciliationService {
                         remarks: Set(None),
                         created_at: Set(Utc::now()),
                         updated_at: Set(Utc::now()),
-                    };
-                    col_item.insert(&txn).await?;
+                    });
                 }
             }
 
@@ -388,6 +383,13 @@ impl ArReconciliationService {
                 unmatched_count,
                 status: ar_status::RECONCILIATION_DRAFT.to_string(),
             });
+        }
+
+        // 批量 INSERT 所有对账明细，替代逐条 INSERT（v13 P1-3：N+1 重构）
+        if !all_items_to_insert.is_empty() {
+            crate::models::ar_reconciliation_item::Entity::insert_many(all_items_to_insert)
+                .exec(&txn)
+                .await?;
         }
 
         txn.commit().await?;
