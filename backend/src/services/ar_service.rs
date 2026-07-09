@@ -1280,7 +1280,7 @@ impl ArService {
         // 规则 12 合规：customer_id 使用参数化绑定，禁止字符串拼接
         let today = Utc::now().date_naive();
 
-        let (sql, values): (String, sea_orm::Values) = if let Some(cid) = customer_id {
+        let (sql, params): (&str, Vec<sea_orm::Value>) = if let Some(cid) = customer_id {
             (
                 r#"
                 SELECT
@@ -1294,14 +1294,12 @@ impl ArService {
                 WHERE status <> $2
                   AND unpaid_amount > 0
                   AND customer_id = $3
-                "#
-                .to_string(),
-                [
+                "#,
+                vec![
                     today.into(),
                     crate::models::status::common::STATUS_CANCELLED.into(),
                     cid.into(),
-                ]
-                .into(),
+                ],
             )
         } else {
             (
@@ -1316,34 +1314,34 @@ impl ArService {
                 FROM ar_invoice
                 WHERE status <> $2
                   AND unpaid_amount > 0
-                "#
-                .to_string(),
-                [
+                "#,
+                vec![
                     today.into(),
                     crate::models::status::common::STATUS_CANCELLED.into(),
-                ]
-                .into(),
+                ],
             )
         };
 
-        let stmt = sea_orm::Statement::from_sql_and_values(
-            sea_orm::DatabaseBackend::Postgres,
-            &sql,
-            values,
-        );
-
-        let row = self
+        let result: Option<sea_orm::QueryResult> = self
             .db
-            .query_one(&stmt)
-            .await?
+            .query_one(sea_orm::Statement::from_sql_and_values(
+                sea_orm::DatabaseBackend::Postgres,
+                sql,
+                params,
+            ))
+            .await
+            .map_err(|e| AppError::internal(format!("账龄报表聚合查询失败: {}", e)))?;
+
+        let row = result
             .ok_or_else(|| AppError::internal("账龄报表聚合查询无结果".to_string()))?;
 
-        let not_due: Decimal = row.try_get("", "not_due")?;
-        let bucket_0_30: Decimal = row.try_get("", "bucket_0_30")?;
-        let bucket_31_60: Decimal = row.try_get("", "bucket_31_60")?;
-        let bucket_61_90: Decimal = row.try_get("", "bucket_61_90")?;
-        let bucket_90_plus: Decimal = row.try_get("", "bucket_90_plus")?;
-        let invoice_count: i64 = row.try_get("", "invoice_count")?;
+        // 按索引读取聚合字段（与 purchase_delivery_calculator.rs 一致的项目风格）
+        let not_due: Decimal = row.try_get_by_index::<Decimal>(0).unwrap_or(Decimal::ZERO);
+        let bucket_0_30: Decimal = row.try_get_by_index::<Decimal>(1).unwrap_or(Decimal::ZERO);
+        let bucket_31_60: Decimal = row.try_get_by_index::<Decimal>(2).unwrap_or(Decimal::ZERO);
+        let bucket_61_90: Decimal = row.try_get_by_index::<Decimal>(3).unwrap_or(Decimal::ZERO);
+        let bucket_90_plus: Decimal = row.try_get_by_index::<Decimal>(4).unwrap_or(Decimal::ZERO);
+        let invoice_count: i64 = row.try_get_by_index::<i64>(5).unwrap_or(0);
 
         let total_overdue =
             bucket_0_30 + bucket_31_60 + bucket_61_90 + bucket_90_plus;
