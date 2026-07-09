@@ -302,3 +302,48 @@ pub mod contract {
     /// 已取消：合同作废
     pub const CANCELLED: &str = "cancelled";
 }
+
+/// 会计期间状态常量（大写值）
+///
+/// 批次 232 v13 P1-1 修复：accounting_period.status 字段状态常量化
+/// 状态机：OPEN（开放）→ CLOSED（已关账）
+pub mod accounting_period {
+    /// 开放：期间可进行凭证录入
+    pub const OPEN: &str = "OPEN";
+
+    /// 已关账：期间已结账，不可再录入凭证
+    pub const CLOSED: &str = "CLOSED";
+}
+
+/// 运单状态常量（大写值）
+///
+/// 批次 232 v13 P1-1 修复：logistics_waybill.status 字段状态常量化
+/// 状态机：IN_TRANSIT（运输中）→ DELIVERED（已送达）
+pub mod logistics_waybill {
+    /// 运输中：运单已创建，货物在途
+    pub const IN_TRANSIT: &str = "IN_TRANSIT";
+
+    /// 已送达：货物已送达目的地
+    pub const DELIVERED: &str = "DELIVERED";
+}
+
+/// 销售退货状态常量（大写值）
+///
+/// 批次 232 v13 P1-1 修复：sales_return.status 字段状态常量化
+/// 状态机：DRAFT → SUBMITTED → APPROVED → COMPLETED / REJECTED
+pub mod sales_return {
+    /// 草稿：退货单初始状态，可编辑
+    pub const DRAFT: &str = "DRAFT";
+
+    /// 已提交：等待审批
+    pub const SUBMITTED: &str = "SUBMITTED";
+
+    /// 已审批：审批通过，可执行退货
+    pub const APPROVED: &str = "APPROVED";
+
+    /// 已拒绝：审批未通过
+    pub const REJECTED: &str = "REJECTED";
+
+    /// 已完成：退货流程完结
+    pub const COMPLETED: &str = "COMPLETED";
+}

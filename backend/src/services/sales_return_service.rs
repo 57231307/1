@@ -3,6 +3,7 @@
 //! 销售退货服务层，负责销售退货的核心业务逻辑
 
 use crate::models::{inventory_stock, product, sales_return, sales_return_item};
+use crate::models::status::sales_return as sr_status;
 use crate::utils::error::AppError;
 use crate::utils::pagination::paginate_with_total;
 use chrono::Utc;
@@ -135,7 +136,7 @@ impl SalesReturnService {
             return_date: Set(req.return_date),
             warehouse_id: Set(req.warehouse_id),
             reason: Set(reason),
-            status: Set("DRAFT".to_string()),
+            status: Set(sr_status::DRAFT.to_string()),
             total_amount: Set(Decimal::ZERO),
             remarks: Set(req.notes),
             created_by: Set(user_id),
@@ -169,7 +170,7 @@ impl SalesReturnService {
             .await?
             .ok_or_else(|| AppError::not_found(format!("销售退货单 {}", return_id)))?;
 
-        if return_order.status != "DRAFT" {
+        if return_order.status != sr_status::DRAFT {
             return Err(AppError::business(format!(
                 "退货单状态不允许添加明细，当前状态：{}",
                 return_order.status
@@ -215,7 +216,7 @@ impl SalesReturnService {
             .await?
             .ok_or_else(|| AppError::not_found(format!("销售退货单 {}", return_id)))?;
 
-        if return_order.status != "DRAFT" {
+        if return_order.status != sr_status::DRAFT {
             return Err(AppError::business(format!(
                 "退货单状态不允许修改，当前状态：{}",
                 return_order.status
@@ -281,7 +282,7 @@ impl SalesReturnService {
             .await?
             .ok_or_else(|| AppError::not_found(format!("销售退货单 {}", return_id)))?;
 
-        if return_order.status != "DRAFT" {
+        if return_order.status != sr_status::DRAFT {
             return Err(AppError::business(format!(
                 "退货单状态不允许提交，当前状态：{}",
                 return_order.status
@@ -311,7 +312,7 @@ impl SalesReturnService {
             .ok_or_else(|| AppError::not_found(format!("销售退货单 {}", return_id)))?;
 
         let mut active_model: sales_return::ActiveModel = return_order.into();
-        active_model.status = Set("SUBMITTED".to_string());
+        active_model.status = Set(sr_status::SUBMITTED.to_string());
         active_model.updated_at = Set(Utc::now());
 
         let return_order = crate::services::audit_log_service::AuditLogService::update_with_audit(
@@ -383,7 +384,7 @@ impl SalesReturnService {
             .await?
             .ok_or_else(|| AppError::not_found(format!("销售退货单 {}", return_id)))?;
 
-        if return_order.status != "SUBMITTED" {
+        if return_order.status != sr_status::SUBMITTED {
             return Err(AppError::business(format!(
                 "退货单状态不允许审批，当前状态：{}",
                 return_order.status
@@ -513,7 +514,7 @@ impl SalesReturnService {
         user_id: i32,
     ) -> Result<sales_return::Model, AppError> {
         let mut active_model: sales_return::ActiveModel = return_order.into();
-        active_model.status = Set("APPROVED".to_string());
+        active_model.status = Set(sr_status::APPROVED.to_string());
         active_model.approved_by = Set(Some(user_id));
         active_model.approved_at = Set(Some(Utc::now()));
         active_model.updated_at = Set(Utc::now());
@@ -587,7 +588,7 @@ impl SalesReturnService {
             .ok_or_else(|| AppError::not_found(format!("销售退货单 {}", return_id)))?;
 
         // 状态门在 txn 内，基于 lock_exclusive 读出的 model
-        if return_order.status != "DRAFT" {
+        if return_order.status != sr_status::DRAFT {
             return Err(AppError::business(format!(
                 "退货单状态不允许删除，当前状态：{}",
                 return_order.status
@@ -628,7 +629,7 @@ impl SalesReturnService {
             .await?
             .ok_or_else(|| AppError::not_found(format!("销售退货单 {}", return_id)))?;
 
-        if return_order.status != "SUBMITTED" {
+        if return_order.status != sr_status::SUBMITTED {
             return Err(AppError::business(format!(
                 "退货单状态不允许拒绝，当前状态：{}",
                 return_order.status
@@ -636,7 +637,7 @@ impl SalesReturnService {
         }
 
         let mut active_model: sales_return::ActiveModel = return_order.into();
-        active_model.status = Set("REJECTED".to_string());
+        active_model.status = Set(sr_status::REJECTED.to_string());
         active_model.rejected_reason = Set(Some(reason));
         active_model.updated_at = Set(Utc::now());
 
@@ -670,7 +671,7 @@ impl SalesReturnService {
             .await?
             .ok_or_else(|| AppError::not_found(format!("销售退货单 {}", return_id)))?;
 
-        if return_order.status != "APPROVED" {
+        if return_order.status != sr_status::APPROVED {
             return Err(AppError::business(format!(
                 "退货单状态不允许执行，当前状态：{}",
                 return_order.status
@@ -678,7 +679,7 @@ impl SalesReturnService {
         }
 
         let mut active_model: sales_return::ActiveModel = return_order.into();
-        active_model.status = Set("COMPLETED".to_string());
+        active_model.status = Set(sr_status::COMPLETED.to_string());
         active_model.updated_at = Set(Utc::now());
 
         let return_order = crate::services::audit_log_service::AuditLogService::update_with_audit(

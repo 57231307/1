@@ -9,6 +9,7 @@ use serde::Deserialize;
 
 use crate::models::logistics_waybill;
 use crate::models::sales_order;
+use crate::models::status::logistics_waybill as waybill_status;
 use crate::models::status::sales_order as so_status;
 use crate::middleware::auth_context::AuthContext;
 use crate::utils::app_state::AppState;
@@ -52,7 +53,7 @@ pub async fn create_waybill(
         driver_name: Set(req.driver_name),
         driver_phone: Set(req.driver_phone),
         freight_fee: Set(freight),
-        status: Set(Some("IN_TRANSIT".to_string())),
+        status: Set(Some(waybill_status::IN_TRANSIT.to_string())),
         expected_arrival: Set(req.expected_arrival),
         actual_arrival: Set(None),
         notes: Set(req.notes),
@@ -103,7 +104,7 @@ pub async fn update_waybill_status(
     let mut active_waybill: logistics_waybill::ActiveModel = waybill.into();
     active_waybill.status = Set(Some(req.status.clone()));
 
-    if req.status == "DELIVERED" {
+    if req.status == waybill_status::DELIVERED {
         active_waybill.actual_arrival = Set(Some(Utc::now()));
     }
 
@@ -136,8 +137,8 @@ pub async fn delete_waybill(
         .ok_or_else(|| AppError::not_found("运单不存在"))?;
 
     // 检查是否可以删除（例如：未发货的运单才能删除）
-    if waybill.status == Some("IN_TRANSIT".to_string())
-        || waybill.status == Some("DELIVERED".to_string())
+    if waybill.status == Some(waybill_status::IN_TRANSIT.to_string())
+        || waybill.status == Some(waybill_status::DELIVERED.to_string())
     {
         return Err(AppError::bad_request(
             "运输中或已送达的运单不能删除".to_string(),

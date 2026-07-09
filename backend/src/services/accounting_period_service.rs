@@ -1,4 +1,5 @@
 use crate::models::accounting_period;
+use crate::models::status::accounting_period as period_status;
 use crate::utils::error::AppError;
 use chrono::{TimeZone, Utc};
 use sea_orm::{
@@ -12,7 +13,7 @@ impl AccountingPeriodService {
     /// 获取当前开放的会计期间
     pub async fn get_current_period(&self) -> Result<Option<accounting_period::Model>, AppError> {
         let period = accounting_period::Entity::find()
-            .filter(accounting_period::Column::Status.eq("OPEN"))
+            .filter(accounting_period::Column::Status.eq(period_status::OPEN))
             .order_by_desc(accounting_period::Column::Year)
             .order_by_desc(accounting_period::Column::Period)
             .one(self.db.as_ref())
@@ -57,7 +58,7 @@ impl AccountingPeriodService {
             period_name: Set(format!("{} 年 {:02} 月", year, month)),
             start_date: Set(start_date),
             end_date: Set(end_date),
-            status: Set("OPEN".to_string()),
+            status: Set(period_status::OPEN.to_string()),
             created_at: Set(Utc::now()),
             ..Default::default()
         };
@@ -83,7 +84,7 @@ impl AccountingPeriodService {
                 AppError::not_found(format!("Accounting period {} not found", period_id))
             })?;
 
-        if period.status == "CLOSED" {
+        if period.status == period_status::CLOSED {
             return Err(AppError::business("期间已经结账，不能重复结账".to_string()));
         }
 
@@ -107,7 +108,7 @@ impl AccountingPeriodService {
 
         // 1. 将当前期间设置为 CLOSED（事务内更新并写入审计日志）
         let mut active_period: accounting_period::ActiveModel = period.clone().into();
-        active_period.status = Set("CLOSED".to_string());
+        active_period.status = Set(period_status::CLOSED.to_string());
         active_period.closed_at = Set(Some(Utc::now()));
         active_period.closed_by = Set(Some(user_id));
         let closed_period = crate::services::audit_log_service::AuditLogService::update_with_audit(
@@ -151,7 +152,7 @@ impl AccountingPeriodService {
             .await?;
 
         if let Some(p) = period {
-            if p.status == "CLOSED" {
+            if p.status == period_status::CLOSED {
                 return Err(AppError::business(format!(
                     "日期 {} 属于已结账的财务期间 ({})，该期间的数据已被锁定，不可修改或新增。",
                     date.format("%Y-%m-%d"),
@@ -192,7 +193,7 @@ impl AccountingPeriodService {
             .await?;
 
         if let Some(p) = period {
-            if p.status == "CLOSED" {
+            if p.status == period_status::CLOSED {
                 return Err(AppError::business(format!(
                     "日期 {} 属于已结账的财务期间 ({})，该期间的数据已被锁定，不可修改或新增。",
                     date.format("%Y-%m-%d"),
@@ -220,10 +221,9 @@ mod tests {
     use std::str::FromStr;
     use std::sync::Arc;
 
-    // 会计期间状态常量（accounting_period 模型定义的状态值）
-    // 注：status.rs 未定义会计期间的 OPEN 常量，此处局部定义以避免硬编码字符串字面量
-    const PERIOD_STATUS_OPEN: &str = "OPEN";
-    const PERIOD_STATUS_CLOSED: &str = "CLOSED";
+    // 会计期间状态常量（引用 status::accounting_period 模块，批次 232 v13 P1-1）
+    const PERIOD_STATUS_OPEN: &str = period_status::OPEN;
+    const PERIOD_STATUS_CLOSED: &str = period_status::CLOSED;
 
     /// 测试夹具：计算下个月月份
     /// 复现 init_first_period 与 close_period 中的纯算法逻辑：
