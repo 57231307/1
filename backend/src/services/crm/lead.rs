@@ -6,6 +6,8 @@
 use crate::models::{crm_lead, crm_opportunity, customer};
 // 批次 212 P2-5 修复（v12 复审）：硬编码 "active" 替换为 master_data 常量
 use crate::models::status::master_data;
+// 批次 236 v13 P1-1：线索状态常量接入（规则 0）
+use crate::models::status::crm_lead as lead_status;
 use crate::utils::error::AppError;
 use crate::utils::xlsx_export::XlsxTable;
 use sea_orm::{
@@ -449,7 +451,7 @@ impl CrmService {
         // 1. 查询线索
         let lead = self.get_lead(lead_id).await?;
 
-        if lead.lead_status.as_deref() == Some("converted") {
+        if lead.lead_status.as_deref() == Some(lead_status::CONVERTED) {
             return Err(AppError::business("线索已转换为客户".to_string()));
         }
 
@@ -500,7 +502,7 @@ impl CrmService {
 
         // 3. 更新线索状态
         let mut lead_active: crm_lead::ActiveModel = lead.clone().into();
-        lead_active.lead_status = Set(Some("converted".to_string()));
+        lead_active.lead_status = Set(Some(lead_status::CONVERTED.to_string()));
         lead_active.converted_customer_id = Set(Some(new_customer.id));
         lead_active.converted_at = Set(Some(chrono::Utc::now()));
         lead_active.updated_at = Set(Some(chrono::Utc::now()));

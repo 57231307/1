@@ -5,6 +5,8 @@
 //! 拆分自原 `crm_service.rs`。
 
 use crate::models::crm_lead;
+// 批次 236 v13 P1-1：线索状态常量接入（规则 0）
+use crate::models::status::crm_lead as lead_status;
 use crate::utils::error::AppError;
 use sea_orm::{ColumnTrait, EntityTrait, QueryFilter, Set};
 
@@ -42,7 +44,7 @@ impl CrmService {
                 }
             };
 
-            if lead.lead_status.as_deref() != Some("pool") {
+            if lead.lead_status.as_deref() != Some(lead_status::POOL) {
                 tracing::warn!("线索 {} 不在公海中", lid);
                 continue;
             }
@@ -50,7 +52,7 @@ impl CrmService {
             // 领取：更新状态为 new，并更新 owner_id
             // 注：update_with_audit 需逐条执行以生成审计日志，此处保留循环
             let mut lead_active: crm_lead::ActiveModel = lead.into();
-            lead_active.lead_status = Set(Some("new".to_string()));
+            lead_active.lead_status = Set(Some(lead_status::NEW.to_string()));
             lead_active.owner_id = Set(user_id);
             lead_active.owner_name = Set(format!("用户{}", user_id));
             lead_active.updated_at = Set(Some(chrono::Utc::now()));

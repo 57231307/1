@@ -13,6 +13,8 @@ use std::sync::Arc;
 use sea_orm::DatabaseConnection;
 
 use crate::models::email_log::{ActiveModel, Entity as EmailLogEntity, Model as EmailLogModel};
+// 批次 236 v13 P1-1：邮件日志状态常量接入（规则 0）
+use crate::models::status::email_log;
 use crate::utils::error::AppError;
 
 /// 创建邮件发送记录请求
@@ -61,7 +63,7 @@ impl EmailLogService {
             subject: Set(req.subject),
             body: Set(req.body),
             template_id: Set(req.template_id),
-            status: Set("PENDING".to_string()),
+            status: Set(email_log::PENDING.to_string()),
             error_message: Set(None),
             external_message_id: Set(None),
             sent_at: Set(None),
@@ -94,7 +96,7 @@ impl EmailLogService {
         active_model.external_message_id = Set(external_message_id);
         active_model.updated_at = Set(Utc::now());
 
-        if status == "SENT" {
+        if status == email_log::SENT {
             active_model.sent_at = Set(Some(Utc::now()));
         }
 
@@ -113,7 +115,7 @@ impl EmailLogService {
         let retry_count = model.retry_count + 1;
         let mut active_model: ActiveModel = model.into();
         active_model.retry_count = Set(retry_count);
-        active_model.status = Set("PENDING".to_string());
+        active_model.status = Set(email_log::PENDING.to_string());
         active_model.updated_at = Set(Utc::now());
 
         active_model.update(&*self.db).await?;
@@ -168,17 +170,17 @@ impl EmailLogService {
             .await?;
 
         let sent = EmailLogEntity::find()
-            .filter(crate::models::email_log::Column::Status.eq("SENT"))
+            .filter(crate::models::email_log::Column::Status.eq(email_log::SENT))
             .count(&*self.db)
             .await?;
 
         let failed = EmailLogEntity::find()
-            .filter(crate::models::email_log::Column::Status.eq("FAILED"))
+            .filter(crate::models::email_log::Column::Status.eq(email_log::FAILED))
             .count(&*self.db)
             .await?;
 
         let pending = EmailLogEntity::find()
-            .filter(crate::models::email_log::Column::Status.eq("PENDING"))
+            .filter(crate::models::email_log::Column::Status.eq(email_log::PENDING))
             .count(&*self.db)
             .await?;
 

@@ -10,6 +10,8 @@ use tracing::info;
 
 use crate::middleware::auth_context::AuthContext;
 use crate::models::inventory_piece;
+// 批次 236 v13 P1-1：库存裁片状态常量接入（规则 0）
+use crate::models::status::inventory_piece as piece_status;
 use crate::utils::app_state::AppState;
 use crate::utils::error::AppError;
 use crate::utils::response::ApiResponse;
@@ -86,12 +88,12 @@ async fn scan_to_ship_impl(
         .await?
         .ok_or_else(|| AppError::not_found("未找到该条码对应的布卷"))?;
 
-    if piece.status == "SHIPPED" {
+    if piece.status == piece_status::SHIPPED {
         return Err(AppError::bad_request("该布卷已发货"));
     }
 
     let mut active_piece: inventory_piece::ActiveModel = piece.clone().into();
-    active_piece.status = Set("SHIPPED".to_string());
+    active_piece.status = Set(piece_status::SHIPPED.to_string());
     active_piece.updated_at = Set(Utc::now());
     active_piece.update(&txn).await?;
 
@@ -155,10 +157,10 @@ pub async fn scan_history(
     if let Some(result) = &params.result {
         match result.as_str() {
             "SUCCESS" => {
-                query = query.filter(inventory_piece::Column::Status.eq("SHIPPED"));
+                query = query.filter(inventory_piece::Column::Status.eq(piece_status::SHIPPED));
             }
             "FAILED" => {
-                query = query.filter(inventory_piece::Column::Status.eq("DEFECT"));
+                query = query.filter(inventory_piece::Column::Status.eq(piece_status::DEFECT));
             }
             _ => {}
         }

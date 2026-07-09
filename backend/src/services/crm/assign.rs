@@ -16,6 +16,8 @@ use std::sync::Arc;
 use tracing::info;
 
 use crate::models::{crm_lead, user};
+// 批次 236 v13 P1-1：线索状态常量接入（规则 0）
+use crate::models::status::crm_lead as lead_status;
 use crate::services::assignment_history_service::{
     AssignmentHistoryService, CreateAssignmentHistoryRequest,
 };
@@ -137,7 +139,7 @@ impl CrmAssignService {
 
         // 查询待分配线索（lead_status='new'，按 id ASC 排序）
         let pending_leads: Vec<crm_lead::Model> = crm_lead::Entity::find()
-            .filter(crm_lead::Column::LeadStatus.eq("new"))
+            .filter(crm_lead::Column::LeadStatus.eq(lead_status::NEW))
             .order_by(crm_lead::Column::Id, sea_orm::Order::Asc)
             .limit(limit)
             .all(&*self.db)
@@ -257,7 +259,7 @@ impl CrmAssignService {
             .await?
             .ok_or_else(|| AppError::not_found(format!("线索 {} 不存在", req.lead_id)))?;
 
-        if lead.lead_status.as_deref() == Some("converted") {
+        if lead.lead_status.as_deref() == Some(lead_status::CONVERTED) {
             return Err(AppError::validation(format!(
                 "线索 {} 已转化为客户，无法转移",
                 req.lead_id
@@ -363,8 +365,8 @@ impl CrmAssignService {
                 .filter(crm_lead::Column::LeadStatus.is_not_null())
                 .filter(
                     crm_lead::Column::LeadStatus
-                        .ne("converted")
-                        .and(crm_lead::Column::LeadStatus.ne("lost")),
+                        .ne(lead_status::CONVERTED)
+                        .and(crm_lead::Column::LeadStatus.ne(lead_status::LOST)),
                 )
                 .count(&*self.db)
                 .await?;
@@ -420,7 +422,7 @@ impl CrmAssignService {
         } else {
             // 自动选取最早入库的未分配线索（FIFO）
             crm_lead::Entity::find()
-                .filter(crm_lead::Column::LeadStatus.eq("new"))
+                .filter(crm_lead::Column::LeadStatus.eq(lead_status::NEW))
                 .order_by(crm_lead::Column::Id, sea_orm::Order::Asc)
                 .limit(1)
                 .all(&*self.db)
@@ -433,7 +435,7 @@ impl CrmAssignService {
         };
 
         // 校验线索状态
-        if lead.lead_status.as_deref() != Some("new") {
+        if lead.lead_status.as_deref() != Some(lead_status::NEW) {
             return Err(AppError::validation(format!(
                 "线索 {} 当前状态为 {:?}，非 'new' 状态无法认领",
                 lead.id, lead.lead_status

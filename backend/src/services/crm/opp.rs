@@ -4,6 +4,8 @@
 //! 拆分自原 `crm_service.rs`。
 
 use crate::models::{crm_opportunity, customer, sales_order};
+// 批次 236 v13 P1-1：商机状态常量接入（规则 0）
+use crate::models::status::crm_opportunity as opp_status;
 use crate::utils::error::AppError;
 use crate::utils::xlsx_export::XlsxTable;
 use sea_orm::{
@@ -192,7 +194,7 @@ impl CrmService {
             "QUALIFICATION" => vec!["NEEDS_ANALYSIS", "PROPOSAL"],
             "NEEDS_ANALYSIS" => vec!["PROPOSAL", "QUALIFICATION"],
             "PROPOSAL" => vec!["NEGOTIATION", "NEEDS_ANALYSIS"],
-            "NEGOTIATION" => vec!["CLOSED_WON", "CLOSED_LOST", "PROPOSAL"],
+            "NEGOTIATION" => vec![opp_status::CLOSED_WON, opp_status::CLOSED_LOST, "PROPOSAL"],
             _ => vec![],
         };
 
@@ -216,7 +218,7 @@ impl CrmService {
 
         // 关闭后的商机不能修改
         if let Some(status) = &opportunity.opportunity_status {
-            if status == "CLOSED_WON" || status == "CLOSED_LOST" {
+            if status == opp_status::CLOSED_WON || status == opp_status::CLOSED_LOST {
                 return Err(AppError::business("已关闭的商机不能修改".to_string()));
             }
         }
@@ -302,7 +304,7 @@ impl CrmService {
         let opportunity = self.get_opportunity(opportunity_id).await?;
 
         if let Some(status) = &opportunity.opportunity_status {
-            if status == "CLOSED_WON" {
+            if status == opp_status::CLOSED_WON {
                 return Err(AppError::business("已赢单的商机不能删除".to_string()));
             }
         }
@@ -325,7 +327,7 @@ impl CrmService {
         let opportunity = self.get_opportunity(opportunity_id).await?;
 
         if let Some(status) = &opportunity.opportunity_status {
-            if status == "CLOSED_WON" {
+            if status == opp_status::CLOSED_WON {
                 return Err(AppError::business("商机已赢单".to_string()));
             }
         }
@@ -373,8 +375,8 @@ impl CrmService {
 
         // 2. 更新商机状态
         let mut opp_active: crm_opportunity::ActiveModel = opportunity.into();
-        opp_active.opportunity_status = Set(Some("CLOSED_WON".to_string()));
-        opp_active.opportunity_stage = Set(Some("CLOSED_WON".to_string()));
+        opp_active.opportunity_status = Set(Some(opp_status::CLOSED_WON.to_string()));
+        opp_active.opportunity_stage = Set(Some(opp_status::CLOSED_WON.to_string()));
         // 估算金额 -> 实际金额：解包 ActiveValue
         let estimated: Option<rust_decimal::Decimal> = match opp_active.estimated_amount {
             sea_orm::ActiveValue::Set(v) => v,

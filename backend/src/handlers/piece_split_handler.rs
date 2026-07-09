@@ -5,6 +5,8 @@ use sea_orm::{ActiveModelTrait, EntityTrait, Set, TransactionTrait};
 use serde::{Deserialize, Serialize};
 
 use crate::models::inventory_piece;
+// 批次 236 v13 P1-1：库存裁片状态常量接入（规则 0）
+use crate::models::status::inventory_piece as piece_status;
 use crate::utils::app_state::AppState;
 use crate::utils::error::AppError;
 use crate::utils::response::ApiResponse;
@@ -41,7 +43,7 @@ pub async fn split_fabric_piece(
         .ok_or_else(|| AppError::not_found("未找到母卷(原始布卷)"))?;
 
     // 状态检查
-    if parent.status == "SHIPPED" || parent.status == "UNAVAILABLE" {
+    if parent.status == piece_status::SHIPPED || parent.status == piece_status::UNAVAILABLE {
         return Err(AppError::bad_request(
             "当前布卷已发货或不可用，无法进行剪裁拆分".to_string(),
         ));
@@ -93,7 +95,7 @@ pub async fn split_fabric_piece(
         parent_piece_id: Set(Some(parent.id)), // 关联母卷
         length: Set(req.cut_length),
         weight: Set(req.cut_weight),
-        status: Set("AVAILABLE".to_string()),
+        status: Set(piece_status::AVAILABLE.to_string()),
         remarks: Set(Some(format!("从布卷 {} 剪裁拆分而来", parent.piece_no))),
         scan_type: Set(None), // v11 批次 153 P2-A：拆分产生的新布卷无扫码类型
         created_at: Set(Utc::now()),

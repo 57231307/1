@@ -563,3 +563,268 @@ pub mod import_task {
     /// 部分成功：导入任务部分成功部分失败
     pub const PARTIAL: &str = "partial";
 }
+
+/// CRM 线索状态（crm_lead.lead_status，小写值）
+/// 批次 236 v13 真实接入：crm/assign.rs、crm/lead.rs、crm/pool.rs 等线索状态字符串字面量统一引用此模块（规则 0）
+pub mod crm_lead {
+    /// 新线索：刚创建的线索
+    pub const NEW: &str = "new";
+
+    /// 已转化：线索已转化为商机
+    pub const CONVERTED: &str = "converted";
+
+    /// 客户池：线索已进入客户池
+    pub const POOL: &str = "pool";
+
+    /// 已流失：线索已丢失
+    pub const LOST: &str = "lost";
+}
+
+/// CRM 商机状态（opportunity.status，大写值）
+/// 批次 236 v13 真实接入：crm/opp.rs 中商机状态字符串字面量统一引用此模块（规则 0）
+pub mod crm_opportunity {
+    /// 赢单：商机已赢
+    pub const CLOSED_WON: &str = "CLOSED_WON";
+
+    /// 输单：商机已输
+    pub const CLOSED_LOST: &str = "CLOSED_LOST";
+}
+
+/// 库存裁片状态（inventory_piece.status，大写值）
+/// 批次 236 v13 真实接入：barcode_scanner_handler.rs、piece_split_handler.rs 中裁片状态字符串字面量统一引用此模块（规则 0）
+pub mod inventory_piece {
+    /// 已发货：裁片已发货
+    pub const SHIPPED: &str = "SHIPPED";
+
+    /// 缺陷：裁片有缺陷
+    pub const DEFECT: &str = "DEFECT";
+
+    /// 可用：裁片可用
+    pub const AVAILABLE: &str = "AVAILABLE";
+
+    /// 不可用：裁片不可用
+    pub const UNAVAILABLE: &str = "UNAVAILABLE";
+}
+
+/// 登录日志状态（log_login.status，大写值）
+/// 批次 236 v13 真实接入：login_security_handler.rs、auth_handler.rs 中登录日志状态字符串字面量统一引用此模块（规则 0）
+pub mod login_log {
+    /// 成功：登录成功
+    pub const SUCCESS: &str = "SUCCESS";
+
+    /// 失败：登录失败
+    pub const FAILED: &str = "FAILED";
+}
+
+/// 邮件日志状态（email_log.status，大写值）
+/// 批次 236 v13 真实接入：email_log_service.rs 中邮件日志状态字符串字面量统一引用此模块（规则 0）
+pub mod email_log {
+    /// 待发送：邮件待发送
+    pub const PENDING: &str = "PENDING";
+
+    /// 已发送：邮件已发送
+    pub const SENT: &str = "SENT";
+
+    /// 发送失败：邮件发送失败
+    pub const FAILED: &str = "FAILED";
+}
+
+/// 启用/停用状态（通用，大写值 ACTIVE/INACTIVE）
+/// 批次 236 v13 真实接入：email_template/report_subscription/report_template/bom_process_definition 等启用停用状态
+/// 注意：与 master_data 模块（小写 active/inactive）区分，本模块用于大写 ACTIVE/INACTIVE 场景
+pub mod active_status {
+    /// 启用
+    pub const ACTIVE: &str = "ACTIVE";
+
+    /// 停用
+    pub const INACTIVE: &str = "INACTIVE";
+}
+
+/// 工作中心状态（work_center.status，大写值，复用 active_status）
+/// 产能负载项状态（capacity_load_item.status，大写值）
+/// 批次 236 v13 真实接入：capacity_service.rs、scheduling_auto.rs 等
+pub mod work_center {
+    /// 空闲：产能负载项空闲
+    pub const LOAD_IDLE: &str = "IDLE";
+
+    /// 过载：产能负载项过载
+    pub const LOAD_OVERLOADED: &str = "OVERLOADED";
+}
+
+/// 合同状态（sales_contract.status / purchase_contract.status，小写值）
+/// 批次 236 v13 真实接入：sales_contract_service.rs、purchase_contract_service.rs 等
+pub mod contract_status {
+    /// 草稿：合同初始状态
+    pub const DRAFT: &str = "draft";
+
+    /// 已取消：合同已取消
+    pub const CANCELLED: &str = "cancelled";
+}
+
+/// 报价单状态（sales_quotation.status，小写值，补充批次 234 的 quotation 模块）
+/// 批次 236 v13 真实接入：quotation_approval_service.rs、quotation_convert_service.rs 等
+/// 注意：quotation 模块（批次 234）已定义 DRAFT/APPROVED/REJECTED/CANCELLED，
+/// 本模块补充审批/转换流程专属状态
+pub mod quotation_ext {
+    /// 待审批：报价单已提交审批
+    pub const PENDING_APPROVAL: &str = "pending_approval";
+
+    /// 已过期：报价单已过期
+    pub const EXPIRED: &str = "expired";
+
+    /// 已转化：报价单已转化为销售订单
+    pub const CONVERTED: &str = "converted";
+}
+
+/// 价格审批状态（sales_price.status / purchase_price.status，小写值）
+/// 批次 236 v13 真实接入：sales_price_service.rs、purchase_price_service.rs
+pub mod price_approval {
+    /// 待审批：价格待审批
+    pub const PENDING: &str = "pending";
+
+    /// 已审批：价格已审批
+    pub const APPROVED: &str = "approved";
+}
+
+/// 质量标准状态（quality_standard.status，小写值）
+/// 批次 236 v13 真实接入：quality_standard_service.rs
+pub mod quality_standard {
+    /// 草稿：质量标准初始状态
+    pub const DRAFT: &str = "draft";
+
+    /// 已审批：质量标准已审批
+    pub const APPROVED: &str = "approved";
+
+    /// 已拒绝：质量标准被拒绝
+    pub const REJECTED: &str = "rejected";
+}
+
+/// 质量检验处理状态（quality_inspection_unqualified.handling_status，小写值）
+/// 批次 236 v13 真实接入：quality_inspection_service.rs
+pub mod quality_handling {
+    /// 待处理：不合格品待处理
+    pub const PENDING: &str = "pending";
+}
+
+/// 应付核销状态（ap_verification.verification_status，大写值）
+/// 批次 236 v13 真实接入：ap_verification_service.rs
+pub mod ap_verification {
+    /// 已完成：核销完成
+    pub const COMPLETED: &str = "COMPLETED";
+
+    /// 已取消：核销已取消
+    pub const CANCELLED: &str = "CANCELLED";
+}
+
+/// 固定资产状态（fixed_asset.status / fixed_asset_depreciation.status）
+/// 批次 236 v13 真实接入：fixed_asset_service.rs
+pub mod fixed_asset {
+    /// 已处置：固定资产已处置（小写）
+    pub const DISPOSED: &str = "disposed";
+
+    /// 已完成：折旧已完成（大写）
+    pub const DEPRECIATION_COMPLETED: &str = "COMPLETED";
+}
+
+/// 审计消息状态（omni_audit_message.status，大写值）
+/// 批次 236 v13 真实接入：omni_audit_service.rs
+pub mod audit_message {
+    /// 失败：审计消息失败
+    pub const FAILED: &str = "FAILED";
+
+    /// 拒绝：审计消息被拒绝
+    pub const DENIED: &str = "DENIED";
+}
+
+/// 色卡状态（color_card.status，小写值）
+/// 批次 236 v13 真实接入：color_card_crud_service.rs
+pub mod color_card {
+    /// 已归档：色卡已归档
+    pub const ARCHIVED: &str = "archived";
+
+    /// 已丢失：色卡已丢失
+    pub const LOST: &str = "lost";
+}
+
+/// 成本归集状态（cost_collection.status，小写值）
+/// 批次 236 v13 真实接入：cost_collection_service.rs
+pub mod cost_collection {
+    /// 草稿：成本归集初始状态
+    pub const DRAFT: &str = "draft";
+}
+
+/// 定制订单售后/质量/工序状态（小写值）
+/// 批次 236 v13 真实接入：custom_order_quality_service.rs、custom_order_aftersales_service.rs、custom_order_process_service.rs
+pub mod custom_order_ext {
+    /// 质量问题-开启
+    pub const QUALITY_OPEN: &str = "open";
+
+    /// 质量问题-关闭
+    pub const QUALITY_CLOSED: &str = "closed";
+
+    /// 质量问题-已解决
+    pub const QUALITY_RESOLVED: &str = "resolved";
+
+    /// 售后-已开启
+    pub const AFTERSALES_OPENED: &str = "opened";
+
+    /// 售后-已拒绝
+    pub const AFTERSALES_REJECTED: &str = "rejected";
+
+    /// 工序-待处理
+    pub const PROCESS_PENDING: &str = "pending";
+}
+
+/// 采购收货检验状态（purchase_receipt.inspection_status，大写值）
+/// 批次 236 v13 真实接入：purchase_receipt_service.rs
+pub mod purchase_receipt_inspection {
+    /// 待检验
+    pub const PENDING: &str = "PENDING";
+}
+
+/// 会计期间补充状态（accounting_period.status，大写值，补充批次 232 的 OPEN/CLOSED）
+/// 批次 236 v13 真实接入：missing_handlers.rs
+pub mod accounting_period_closing {
+    /// 关账中：会计期间正在关账
+    pub const CLOSING: &str = "CLOSING";
+}
+
+/// 健康检查状态（health_check.status，小写值）
+/// 批次 236 v13 真实接入：health_handler.rs
+pub mod health_check {
+    /// 健康
+    pub const HEALTHY: &str = "healthy";
+
+    /// 不健康
+    pub const UNHEALTHY: &str = "unhealthy";
+
+    /// 降级
+    pub const DEGRADED: &str = "degraded";
+}
+
+/// 销售面料订单状态（sales_fabric_order.status，小写值）
+/// 批次 236 v13 真实接入：sales_fabric_order_handler.rs
+pub mod sales_fabric_order {
+    /// 待处理
+    pub const PENDING: &str = "pending";
+
+    /// 已审批
+    pub const APPROVED: &str = "approved";
+}
+
+/// 对账结果状态（reconcile_result.status，大写值）
+/// 批次 236 v13 真实接入：ap_reconciliation_handler.rs
+pub mod reconcile_result {
+    /// 失败
+    pub const FAILED: &str = "FAILED";
+}
+
+/// 故障切换状态（failover current_state，小写值）
+/// 批次 236 v13 真实接入：failover_service.rs
+pub mod failover {
+    /// 主节点
+    pub const PRIMARY: &str = "primary";
+
+    /// 备节点
+    pub const BACKUP: &str = "backup";
+}
