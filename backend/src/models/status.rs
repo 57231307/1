@@ -160,8 +160,7 @@ pub mod purchase_order {
     pub const REJECTED: &str = "REJECTED";
     /// 已关闭
     pub const CLOSED: &str = "CLOSED";
-    /// 已取消
-    #[allow(dead_code)] // TODO(tech-debt): 批次 215 实现采购订单 cancel_order 功能后移除
+    /// 已取消（批次 215 真实接入：cancel_order 方法使用）
     pub const CANCELLED: &str = "CANCELLED";
     /// 已完成
     pub const COMPLETED: &str = "COMPLETED";

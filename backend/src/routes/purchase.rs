@@ -46,6 +46,10 @@ pub fn purchases() -> Router<AppState> {
             "/orders/:id/close",
             post(purchase_order_handler::close_order),
         )
+        .route(
+            "/orders/:id/cancel",
+            post(purchase_order_handler::cancel_order),
+        )
         .route("/orders/export", get(purchase_order_handler::export_orders))
         .route(
             "/orders/generate-no",

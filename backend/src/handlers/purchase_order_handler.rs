@@ -310,6 +310,27 @@ pub async fn close_order(
     )))
 }
 
+/// 取消采购订单
+/// 批次 215 P2-1 修复（v12 复审）：实现采购订单取消功能
+pub async fn cancel_order(
+    auth: AuthContext,
+    Path(id): Path<i32>,
+    State(state): State<AppState>,
+    Json(req): Json<CancelOrderRequest>,
+) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
+    let service = PurchaseOrderService::new(state.db.clone());
+    let user_id = auth.user_id;
+
+    let order = service
+        .cancel_order(id, req.reason.clone(), user_id)
+        .await?;
+
+    Ok(Json(ApiResponse::success_with_message(
+        serde_json::to_value(order)?,
+        "采购订单已取消",
+    )))
+}
+
 /// 获取订单明细列表
 pub async fn list_order_items(
     _auth: AuthContext,
@@ -456,6 +477,13 @@ pub struct OrderQueryParams {
 #[derive(Debug, Deserialize, Validate)]
 pub struct RejectOrderRequest {
     #[validate(length(min = 1, max = 500, message = "拒绝原因不能为空且最长500字符"))]
+    pub reason: String,
+}
+
+/// 取消采购订单请求（批次 215 P2-1）
+#[derive(Debug, Deserialize, Validate)]
+pub struct CancelOrderRequest {
+    #[validate(length(min = 1, max = 500, message = "取消原因不能为空且最长500字符"))]
     pub reason: String,
 }
 

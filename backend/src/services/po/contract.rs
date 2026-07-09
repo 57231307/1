@@ -206,4 +206,157 @@ impl PurchaseOrderService {
 
         Ok(order)
     }
+
+    /// 取消采购订单
+    ///
+    /// 批次 215 P2-1 修复（v12 复审）：实现采购订单 cancel_order 功能，
+    /// 移除 purchase_order::CANCELLED 的 #[allow(dead_code)] 标注。
+    ///
+    /// 业务规则：
+    /// - 允许取消状态：DRAFT / PENDING_APPROVAL / APPROVED / PARTIAL_RECEIVED
+    ///   （已收货部分通过采购退货流程处理，取消仅作用于未收货部分）
+    /// - 禁止取消状态：REJECTED（终态）/ CLOSED（终态）/ COMPLETED（终态）/ CANCELLED（终态）
+    /// - 取消时释放已占用的预算（若创建时预算占用成功，插入反向冲销记录）
+    /// - 取消原因记录到 rejected_reason 字段（语义扩展为"拒绝/取消原因"，避免新增字段）
+    pub async fn cancel_order(
+        &self,
+        order_id: i32,
+        reason: String,
+        user_id: i32,
+    ) -> Result<purchase_order::Model, AppError> {
+        let txn = (*self.db).begin().await?;
+
+        // 1. 查询订单（加 lock_exclusive 串行化并发取消）
+        let order = purchase_order::Entity::find_by_id(order_id)
+            .lock_exclusive()
+            .one(&txn)
+            .await?
+            .ok_or_else(|| AppError::not_found(format!("采购订单 {}", order_id)))?;
+
+        // 2. 检查状态 - 只有未完成终态的订单才能取消
+        if ![
+            status::purchase_order::DRAFT,
+            status::purchase_order::PENDING_APPROVAL,
+            status::purchase_order::APPROVED,
+            status::purchase_order::PARTIAL_RECEIVED,
+        ]
+        .contains(&order.order_status.as_str())
+        {
+            return Err(AppError::business(format!(
+                "订单状态不允许取消，当前状态：{}，允许取消状态：DRAFT/PENDING_APPROVAL/APPROVED/PARTIAL_RECEIVED",
+                order.order_status
+            )));
+        }
+
+        // 3. 释放已占用的预算（非阻断，失败仅 warn 不阻断取消主流程）
+        //    查询 budget_execution 表中该订单的"使用"类型记录，若存在则插入反向"调整"冲销
+        self.release_budget_occupation(&order, &txn).await;
+
+        // 4. 更新状态为 CANCELLED，记录取消原因
+        let now = chrono::Utc::now();
+        let mut order_active: purchase_order::ActiveModel = order.into();
+        order_active.order_status = Set(status::purchase_order::CANCELLED.to_string());
+        order_active.rejected_reason = Set(Some(reason));
+        order_active.updated_by = Set(Some(user_id));
+        order_active.updated_at = Set(now);
+
+        let order = crate::services::audit_log_service::AuditLogService::update_with_audit(
+            &txn,
+            "auto_audit",
+            order_active,
+            Some(user_id),
+        )
+        .await?;
+
+        txn.commit().await?;
+
+        Ok(order)
+    }
+
+    /// 释放采购订单已占用的预算（内部辅助方法，事务内原子操作）
+    ///
+    /// 查询 budget_execution 表中 related_document_type='purchase_order'
+    /// 且 related_document_id=order_id 且 execution_type='使用' 的记录，
+    /// 若存在则插入反向"调整"冲销记录（金额为负），抵消原占用。
+    async fn release_budget_occupation(
+        &self,
+        order: &purchase_order::Model,
+        txn: &sea_orm::DatabaseTransaction,
+    ) {
+        use crate::models::budget_execution;
+        use sea_orm::ColumnTrait;
+        use sea_orm::EntityTrait;
+        use sea_orm::QueryFilter;
+
+        // 查询该订单的预算占用记录
+        let occupations = budget_execution::Entity::find()
+            .filter(budget_execution::Column::RelatedDocumentType.eq("purchase_order"))
+            .filter(budget_execution::Column::RelatedDocumentId.eq(order.id))
+            .filter(budget_execution::Column::ExecutionType.eq("使用"))
+            .all(txn)
+            .await;
+
+        let occupations = match occupations {
+            Ok(records) => records,
+            Err(e) => {
+                tracing::warn!(
+                    error = %e,
+                    order_id = order.id,
+                    "查询采购订单预算占用记录失败，跳过预算释放（不阻断取消主流程）"
+                );
+                return;
+            }
+        };
+
+        if occupations.is_empty() {
+            tracing::info!(
+                order_id = order.id,
+                "采购订单无预算占用记录，无需释放预算"
+            );
+            return;
+        }
+
+        // 在同一事务内插入反向"调整"冲销记录，保证原子性
+        let now = chrono::Utc::now();
+        for occupation in &occupations {
+            let release_active = budget_execution::ActiveModel {
+                plan_id: Set(occupation.plan_id),
+                execution_type: Set("调整".to_string()),
+                amount: Set(-occupation.amount),
+                expense_type: Set(Some("采购订单取消释放".to_string())),
+                expense_date: Set(now.date_naive()),
+                related_document_type: Set(Some("purchase_order".to_string())),
+                related_document_id: Set(Some(order.id)),
+                remark: Set(Some(format!(
+                    "采购订单取消冲销预算占用，订单 {}，原执行ID: {}",
+                    order.order_no, occupation.id
+                ))),
+                created_by: Set(Some(order.created_by)),
+                ..Default::default()
+            };
+
+            match budget_execution::Entity::insert(release_active)
+                .exec(txn)
+                .await
+            {
+                Ok(insert_result) => {
+                    tracing::info!(
+                        order_id = order.id,
+                        original_execution_id = occupation.id,
+                        release_execution_id = insert_result.last_insert_id,
+                        amount = %occupation.amount,
+                        "采购订单预算释放成功"
+                    );
+                }
+                Err(e) => {
+                    tracing::warn!(
+                        error = %e,
+                        order_id = order.id,
+                        original_execution_id = occupation.id,
+                        "采购订单预算释放记录插入失败（不阻断取消主流程）"
+                    );
+                }
+            }
+        }
+    }
 }
