@@ -169,6 +169,18 @@ export function adjustBudget(data: {
   return request.post('/budgets/adjust', data)
 }
 
+export function approveBudgetAdjustment(id: number): Promise<ApiResponse<void>> {
+  return request.post(`/budgets/adjust/${id}/approve`)
+}
+
+export function rejectBudgetAdjustment(id: number): Promise<ApiResponse<void>> {
+  return request.post(`/budgets/adjust/${id}/reject`)
+}
+
+export function rejectBudgetPlan(id: number, approvalComment?: string): Promise<ApiResponse<void>> {
+  return request.post(`/budgets/plans/${id}/reject`, { approval_comment: approvalComment })
+}
+
 export function listBudgetItems(params?: QueryParams): Promise<ApiResponse<BudgetItem[]>> {
   return request.get('/budgets/items', { params })
 }

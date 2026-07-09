@@ -214,6 +214,14 @@ pub fn budgets() -> Router<AppState> {
             post(budget_management_handler::adjust_budget),
         )
         .route(
+            "/budgets/adjust/:id/approve",
+            post(budget_management_handler::approve_adjustment),
+        )
+        .route(
+            "/budgets/adjust/:id/reject",
+            post(budget_management_handler::reject_adjustment),
+        )
+        .route(
             "/budgets/items",
             get(budget_management_handler::list_budget_items),
         )
@@ -245,6 +253,10 @@ pub fn budgets() -> Router<AppState> {
         .route(
             "/budgets/plans/:id/approve",
             post(budget_management_handler::approve_plan),
+        )
+        .route(
+            "/budgets/plans/:id/reject",
+            post(budget_management_handler::reject_plan),
         )
         .route(
             "/budgets/plans/:id/execute",

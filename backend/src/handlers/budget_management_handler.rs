@@ -620,7 +620,51 @@ pub async fn adjust_budget(
     info!("用户 {} 正在发起预算调整", auth.username);
     let service = BudgetManagementService::new(state.db.clone());
     let res = service.adjust_budget(req, auth.user_id).await?;
-    Ok(Json(ApiResponse::success(
+    Ok(Json(ApiResponse::success_with_message(
         serde_json::to_value(res).map_err(|e| AppError::internal(format!("序列化失败: {}", e)))?,
+        "预算调整申请已创建，待审批",
     )))
+}
+
+/// POST /api/v1/erp/budgets/adjust/:id/approve - 审批通过预算调整
+pub async fn approve_adjustment(
+    Path(id): Path<i32>,
+    State(state): State<AppState>,
+    auth: AuthContext,
+) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
+    info!("用户 {} 审批通过预算调整: ID={}", auth.username, id);
+    let service = BudgetManagementService::new(state.db.clone());
+    let res = service.approve_adjustment(id, auth.user_id).await?;
+    Ok(Json(ApiResponse::success_with_message(
+        serde_json::to_value(res).map_err(|e| AppError::internal(format!("序列化失败: {}", e)))?,
+        "预算调整审批通过",
+    )))
+}
+
+/// POST /api/v1/erp/budgets/adjust/:id/reject - 驳回预算调整
+pub async fn reject_adjustment(
+    Path(id): Path<i32>,
+    State(state): State<AppState>,
+    auth: AuthContext,
+) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
+    info!("用户 {} 驳回预算调整: ID={}", auth.username, id);
+    let service = BudgetManagementService::new(state.db.clone());
+    let res = service.reject_adjustment(id, auth.user_id).await?;
+    Ok(Json(ApiResponse::success_with_message(
+        serde_json::to_value(res).map_err(|e| AppError::internal(format!("序列化失败: {}", e)))?,
+        "预算调整已驳回",
+    )))
+}
+
+/// POST /api/v1/erp/budgets/plans/:id/reject - 驳回预算方案
+pub async fn reject_plan(
+    Path(id): Path<i32>,
+    State(state): State<AppState>,
+    auth: AuthContext,
+    Json(req): Json<BudgetApproveRequest>,
+) -> Result<Json<ApiResponse<String>>, AppError> {
+    info!("用户 {} 驳回预算方案: ID={}", auth.username, id);
+    let service = BudgetManagementService::new(state.db.clone());
+    service.reject_plan(id, auth.user_id, req.approval_comment).await?;
+    Ok(Json(ApiResponse::success("预算方案已驳回".to_string())))
 }
