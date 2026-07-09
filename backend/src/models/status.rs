@@ -235,10 +235,12 @@ pub mod inventory_reservation {
     /// 待处理（已创建预留，等待发货扣减）
     pub const PENDING: &str = "pending";
     /// 已锁定（库存已锁定，等待发货扣减）
+    #[allow(dead_code)] // TODO(tech-debt): lock_reservation 方法尚未接入路由，接入后移除
     pub const LOCKED: &str = "locked";
     /// 已消耗（发货已扣减库存，原 FULFILLED 值修正为 consumed 与业务代码一致）
     pub const CONSUMED: &str = "consumed";
     /// 已释放（订单取消或库存不足释放）
+    #[allow(dead_code)] // TODO(tech-debt): release_reservation 方法尚未接入路由，接入后移除
     pub const RELEASED: &str = "released";
     /// 已取消（订单取消或库存不足释放）
     pub const CANCELLED: &str = "cancelled";
