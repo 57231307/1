@@ -209,19 +209,224 @@ async fn check_permission(
 
     // 检查是否有匹配的权限
     // M-6 修复：resource_id 精确匹配，action 支持 "*" 通配符
-    // 原逻辑 p.resource_id.is_none() 会匹配任意 resource_id，
-    // 导致拥有 resource_id=None 权限的用户可操作该类型所有资源（垂直越权）。
-    // 修复后：
-    // - resource_id 精确匹配（None 匹配 None，Some(id) 匹配 Some(id)）
-    // - action 支持 "*" 通配符（表示该资源类型的所有操作）
-    // - 全局权限（可操作该类型所有资源）通过 action="*" 明确授予
     permissions.iter().any(|p| {
-        p.resource_type == resource_type
-            && (p.action == action || p.action == "*")
-            && match (p.resource_id, resource_id) {
-                (None, None) => true,
-                (Some(pid), Some(rid)) => pid == rid,
-                _ => false,
-            }
+        matches_permission(p, resource_type, resource_id, action)
     })
+}
+
+/// 权限匹配纯函数（v14 P0-4 修复：提取为纯函数便于单元测试）
+///
+/// 匹配规则：
+/// - resource_type 必须完全匹配
+/// - action 支持精确匹配或 "*" 通配符
+/// - resource_id 精确匹配（None 匹配 None，Some(id) 匹配 Some(id)），防止垂直越权
+fn matches_permission(
+    p: &role_permission::Model,
+    resource_type: &str,
+    resource_id: Option<i32>,
+    action: &str,
+) -> bool {
+    p.resource_type == resource_type
+        && (p.action == action || p.action == "*")
+        && match (p.resource_id, resource_id) {
+            (None, None) => true,
+            (Some(pid), Some(rid)) => pid == rid,
+            _ => false,
+        }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// 构造测试用权限模型
+    fn make_permission(
+        resource_type: &str,
+        resource_id: Option<i32>,
+        action: &str,
+    ) -> role_permission::Model {
+        role_permission::Model {
+            id: 1,
+            role_id: 1,
+            resource_type: resource_type.to_string(),
+            resource_id,
+            action: action.to_string(),
+            allowed: true,
+            created_at: Utc::now(),
+            updated_at: Utc::now(),
+        }
+    }
+
+    // ===== extract_resource_info 测试 =====
+
+    #[test]
+    fn test_extract_resource_info_标准路径无ID() {
+        let (rt, rid) = extract_resource_info("/api/v1/erp/users");
+        assert_eq!(rt, "users");
+        assert_eq!(rid, None);
+    }
+
+    #[test]
+    fn test_extract_resource_info_标准路径带ID() {
+        let (rt, rid) = extract_resource_info("/api/v1/erp/users/123");
+        assert_eq!(rt, "users");
+        assert_eq!(rid, Some(123));
+    }
+
+    #[test]
+    fn test_extract_resource_info_模块前缀路径无ID() {
+        let (rt, rid) = extract_resource_info("/api/v1/erp/sales/orders");
+        assert_eq!(rt, "orders");
+        assert_eq!(rid, None);
+    }
+
+    #[test]
+    fn test_extract_resource_info_模块前缀路径带ID() {
+        let (rt, rid) = extract_resource_info("/api/v1/erp/sales/orders/456");
+        assert_eq!(rt, "orders");
+        assert_eq!(rid, Some(456));
+    }
+
+    #[test]
+    fn test_extract_resource_info_嵌套路径带ID和动作() {
+        let (rt, rid) = extract_resource_info("/api/v1/erp/sales/orders/123/approve");
+        assert_eq!(rt, "orders");
+        assert_eq!(rid, Some(123));
+    }
+
+    #[test]
+    fn test_extract_resource_info_非API路径() {
+        let (rt, rid) = extract_resource_info("/health");
+        assert_eq!(rt, "unknown");
+        assert_eq!(rid, None);
+    }
+
+    #[test]
+    fn test_extract_resource_info_短路径() {
+        let (rt, rid) = extract_resource_info("/api/v1");
+        assert_eq!(rt, "unknown");
+        assert_eq!(rid, None);
+    }
+
+    #[test]
+    fn test_extract_resource_info_空路径() {
+        let (rt, rid) = extract_resource_info("/");
+        assert_eq!(rt, "unknown");
+        assert_eq!(rid, None);
+    }
+
+    // ===== method_to_action 测试 =====
+
+    #[test]
+    fn test_method_to_action_GET映射read() {
+        assert_eq!(method_to_action(&Method::GET), "read");
+    }
+
+    #[test]
+    fn test_method_to_action_POST映射create() {
+        assert_eq!(method_to_action(&Method::POST), "create");
+    }
+
+    #[test]
+    fn test_method_to_action_PUT映射update() {
+        assert_eq!(method_to_action(&Method::PUT), "update");
+    }
+
+    #[test]
+    fn test_method_to_action_PATCH映射update() {
+        assert_eq!(method_to_action(&Method::PATCH), "update");
+    }
+
+    #[test]
+    fn test_method_to_action_DELETE映射delete() {
+        assert_eq!(method_to_action(&Method::DELETE), "delete");
+    }
+
+    #[test]
+    fn test_method_to_action_未知方法映射read() {
+        // OPTIONS 等未明确映射的方法默认为 read
+        assert_eq!(method_to_action(&Method::OPTIONS), "read");
+    }
+
+    // ===== CacheEntry 测试 =====
+
+    #[test]
+    fn test_cache_entry_新建未过期() {
+        let entry = CacheEntry::new(true, Duration::minutes(5));
+        assert!(!entry.is_expired());
+        assert!(entry.data);
+    }
+
+    #[test]
+    fn test_cache_entry_已过期() {
+        // 构造一个已过期的缓存项（过期时间为当前时间减 1 分钟）
+        let entry = CacheEntry {
+            data: false,
+            expires_at: Utc::now() - Duration::minutes(1),
+        };
+        assert!(entry.is_expired());
+    }
+
+    // ===== matches_permission 测试（安全核心）=====
+
+    #[test]
+    fn test_matches_permission_类型不匹配返回false() {
+        let p = make_permission("users", None, "read");
+        assert!(!matches_permission(&p, "orders", None, "read"));
+    }
+
+    #[test]
+    fn test_matches_permission_全部匹配无ID() {
+        let p = make_permission("users", None, "read");
+        assert!(matches_permission(&p, "users", None, "read"));
+    }
+
+    #[test]
+    fn test_matches_permission_action通配符匹配() {
+        let p = make_permission("users", None, "*");
+        assert!(matches_permission(&p, "users", None, "read"));
+        assert!(matches_permission(&p, "users", None, "create"));
+        assert!(matches_permission(&p, "users", None, "delete"));
+    }
+
+    #[test]
+    fn test_matches_permission_ID精确匹配相等() {
+        let p = make_permission("users", Some(100), "read");
+        assert!(matches_permission(&p, "users", Some(100), "read"));
+    }
+
+    #[test]
+    fn test_matches_permission_ID精确匹配不等返回false() {
+        // 垂直越权防护：权限 ID=100 不能访问 ID=200
+        let p = make_permission("users", Some(100), "read");
+        assert!(!matches_permission(&p, "users", Some(200), "read"));
+    }
+
+    #[test]
+    fn test_matches_permission_权限无ID请求有ID返回false() {
+        // M-6 修复点：权限 resource_id=None 不能匹配请求 resource_id=Some
+        // 防止拥有全局权限的用户操作特定资源（应通过 action="*" 明确授予）
+        let p = make_permission("users", None, "read");
+        assert!(!matches_permission(&p, "users", Some(100), "read"));
+    }
+
+    #[test]
+    fn test_matches_permission_权限有ID请求无ID返回false() {
+        let p = make_permission("users", Some(100), "read");
+        assert!(!matches_permission(&p, "users", None, "read"));
+    }
+
+    #[test]
+    fn test_matches_permission_action不匹配且非通配符返回false() {
+        let p = make_permission("users", None, "read");
+        assert!(!matches_permission(&p, "users", None, "delete"));
+    }
+
+    #[test]
+    fn test_matches_permission_通配符加ID精确匹配() {
+        // action="*" + resource_id 精确匹配的组合
+        let p = make_permission("users", Some(100), "*");
+        assert!(matches_permission(&p, "users", Some(100), "update"));
+        assert!(!matches_permission(&p, "users", Some(200), "update"));
+    }
 }
