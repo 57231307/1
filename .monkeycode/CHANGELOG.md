@@ -6,6 +6,28 @@
 
 ---
 
+## 2026-07-10 (批次 248 v14 中风险缓存未利用修复 — AR/AP 报表接入 CacheService，CI 12/12 核心全绿)
+
+### 批次 248：v14 中风险缓存未利用修复 — AR/AP 报表 8 端点接入 CacheService
+
+**修复内容**：bug.md 中风险性能问题 — `cache_service.rs` 已实现并注入 AppState，但零业务调用（命中率统计永远为 0）。AR/AP 报表 8 个端点每次请求都执行 SQL 聚合查询，重复查询浪费数据库资源。
+
+**修改文件**（2 文件 +158 -8 行）：
+- `backend/src/handlers/ar_report_handler.rs`：4 个端点（statistics/daily/monthly/aging）接入 CacheService
+- `backend/src/handlers/ap_report_handler.rs`：4 个端点（statistics/daily/monthly/aging）接入 CacheService
+
+**技术要点**：
+- 缓存 key 命名遵循 `module:` 前缀规范（`ar:report:xxx` / `ap:report:xxx`）
+- TTL 60 秒，平衡新鲜度与数据库负载
+- 缓存仅作加速层，`CACHE_ENABLED=false` 时自动短路返回 None
+- 命中缓存时直接反序列化返回，跳过 service 调用
+- 未命中时执行查询并写入缓存
+- CI 修复：1 轮（`Option<i32>`/`Option<NaiveDate>` 未实现 Display，缓存 key 拼接改用 `{:?}`）
+
+**CI 验证**：CI run #29041889011，12/12 核心 job 全绿，PR #425 squash merge 到 main（commit 53ce6b53）。
+
+---
+
 ## 2026-07-10 (批次 247 v14 中风险硬编码 URL 修复 — CLI 健康检查，CI 12/12 核心全绿)
 
 ### 批次 247：v14 中风险硬编码 URL 修复 — CLI 健康检查

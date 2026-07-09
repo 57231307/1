@@ -5,7 +5,7 @@
 
 ---
 
-## 🔄 当前任务：v14 深度调研报告修复（高风险 6 项全部完成，中风险 25 项进行中，已完成 5/25）
+## 🔄 当前任务：v14 深度调研报告修复（高风险 6 项全部完成，中风险 25 项进行中，已完成 6/25）
 
 > **v14 深度调研报告已生成**（2026-07-09，[bug.md](file:///workspace/.monkeycode/bug.md)）：12 维度全量扫描，15 高/25 中/74 低风险，共 114 个问题。
 > v13 后端 P0/P1 全部完成（批次 229-236），v13 剩余 P2 任务合并到 v14 队列。
@@ -22,6 +22,7 @@
 > **批次 245 已完成**：v14 中风险性能修复 — ap_report_service 4 方法 SQL 聚合（get_statistics_report + get_daily_report + get_monthly_report + get_aging_report），PR #422 squash merge 到 main（commit ae7d4619），分支已清理。CI 12/12 核心全绿（1 轮 CI 修复：clippy supplier_id.unwrap 警告 → 改用 supplier_id.map(|sid|) 模式）。中风险 25 项已完成 3 项（安全漏洞 2 项 + ar/ap 报表性能 7 处）。
 > **批次 246 已完成**：v14 中风险空实现修复 — dye-recipe handleViewVersion（原空实现，复用主对话框只读模式展示版本详情），PR #423 squash merge 到 main（commit 16754cf7），分支已清理。CI 12/12 核心全绿。中风险 25 项已完成 4 项。
 > **批次 247 已完成**：v14 中风险硬编码 URL 修复 — CLI 健康检查（cli/util/service.rs 从环境变量 SERVER__HOST/SERVER__PORT 读取，默认 127.0.0.1:8082），PR #424 squash merge 到 main（commit 47d86d86），分支已清理。CI 12/12 核心全绿。中风险 25 项已完成 5 项。
+> **批次 248 已完成**：v14 中风险缓存未利用修复 — AR/AP 报表 8 端点接入 CacheService（TTL 60s，命中缓存跳过 SQL 查询），PR #425 squash merge 到 main（commit 53ce6b53），分支已清理。CI 12/12 核心全绿（1 轮 CI 修复：Option 类型用 {:?} 格式化）。中风险 25 项已完成 6 项。
 
 > 用户最高优先级规则（2026-07-04/06/08 追加）已固化到 [MEMORY.md 一、规则 0-12](file:///workspace/.monkeycode/MEMORY.md)。
 > 本文件仅记录任务进度，规则不在此重复。
@@ -48,9 +49,10 @@
 - **死代码（1 项）**：14 个 composable 文件 eslint-disable any
 - **重复实现（2 项）**：20 个 service 分页逻辑重复（应接入 paginate_with_total）、30+ view 表格逻辑重复（应接入 useTableApi）
 - **项目规则符合性（1 项）**：cli/util/service.rs 硬编码健康检查 URL ✅ 批次 247 完成（PR #424, commit 47d86d86, CI 12/12 核心全绿）
-- **性能问题（5 项）**：ar 报表 4 处未分页（3 处已修复）+ ap_report_service 4 方法未分页（已修复）+ 缓存未利用
+- **性能问题（5 项）**：ar 报表 4 处未分页（3 处已修复）+ ap_report_service 4 方法未分页（已修复）+ 缓存未利用（已修复）
   - ✅ 批次 244：ar_service get_statistics_report + get_daily_report + get_monthly_report SQL 聚合（PR #421, commit dcd8488d, CI 12/12 核心全绿）
   - ✅ 批次 245：ap_report_service 4 方法 SQL 聚合（PR #422, commit ae7d4619, CI 12/12 核心全绿）
+  - ✅ 批次 248：AR/AP 报表 8 端点接入 CacheService 缓存（PR #425, commit 53ce6b53, CI 12/12 核心全绿）
 - **安全漏洞（2 项）**：report-templates XSS 潜在、tracking_handler 输入验证缺失 ✅ 批次 243 完成（PR #420, commit 0810fe3, CI 12/12 核心全绿）
 
 #### 🟢 低风险修复队列（74 项，后续迭代）
