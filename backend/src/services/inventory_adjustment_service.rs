@@ -1,3 +1,4 @@
+use crate::models::status::inventory_adjustment as adjustment_status;
 use crate::models::{inventory_adjustment, inventory_adjustment_item, inventory_stock};
 use crate::services::event_bus::{BusinessEvent, EVENT_BUS};
 use crate::utils::error::AppError;
@@ -91,7 +92,7 @@ impl InventoryAdjustmentService {
             created_by: Set(request.created_by),
             approved_by: Set(None),
             approved_at: Set(None),
-            status: Set("pending".to_string()),
+            status: Set(adjustment_status::PENDING.to_string()),
             created_at: Set(Utc::now()),
             updated_at: Set(Utc::now()),
         };
@@ -171,7 +172,7 @@ impl InventoryAdjustmentService {
             .ok_or_else(|| AppError::not_found(format!("调整单 {} 不存在", adjustment_id)))?;
 
         // 检查状态
-        if adjustment_model.status != "pending" {
+        if adjustment_model.status != adjustment_status::PENDING {
             return Err(AppError::business(
                 "只有待审核状态的调整单可以审核".to_string(),
             ));
@@ -181,7 +182,7 @@ impl InventoryAdjustmentService {
         let mut adjustment: inventory_adjustment::ActiveModel = adjustment_model.into();
 
         // 更新状态
-        adjustment.status = Set("approved".to_string());
+        adjustment.status = Set(adjustment_status::APPROVED.to_string());
         adjustment.approved_by = Set(Some(approved_by));
         adjustment.approved_at = Set(Some(Utc::now()));
         adjustment.updated_at = Set(Utc::now());
@@ -321,7 +322,7 @@ impl InventoryAdjustmentService {
             .ok_or_else(|| AppError::not_found(format!("调整单 {} 不存在", adjustment_id)))?;
 
         // 检查状态
-        if adjustment_model.status != "pending" {
+        if adjustment_model.status != adjustment_status::PENDING {
             return Err(AppError::business(
                 "只有待审核状态的调整单可以驳回".to_string(),
             ));
@@ -329,7 +330,7 @@ impl InventoryAdjustmentService {
 
         let mut adjustment: inventory_adjustment::ActiveModel = adjustment_model.into();
 
-        adjustment.status = Set("rejected".to_string());
+        adjustment.status = Set(adjustment_status::REJECTED.to_string());
         adjustment.updated_at = Set(Utc::now());
 
         let updated = adjustment.update(&txn).await.map_err(AppError::from)?;
@@ -396,7 +397,7 @@ impl InventoryAdjustmentService {
             .await?
             .ok_or_else(|| AppError::not_found(format!("调整单 {} 不存在", adjustment_id)))?;
 
-        if adjustment_model.status != "pending" {
+        if adjustment_model.status != adjustment_status::PENDING {
             return Err(AppError::business(
                 "只有待审核状态的调整单可以更新".to_string(),
             ));
@@ -446,7 +447,7 @@ impl InventoryAdjustmentService {
             .await?
             .ok_or_else(|| AppError::not_found(format!("调整单 {} 不存在", adjustment_id)))?;
 
-        if adjustment_model.status != "pending" {
+        if adjustment_model.status != adjustment_status::PENDING {
             return Err(AppError::business(
                 "只有待审核状态的调整单可以删除".to_string(),
             ));
@@ -496,7 +497,7 @@ impl InventoryAdjustmentService {
     ) -> Result<inventory_adjustment_item::Model, AppError> {
         let detail = self.get_adjustment(adjustment_id).await?;
 
-        if detail.adjustment.status != "pending" {
+        if detail.adjustment.status != adjustment_status::PENDING {
             return Err(AppError::business(
                 "只有待审核状态的调整单可以添加明细".to_string(),
             ));
@@ -564,7 +565,7 @@ impl InventoryAdjustmentService {
             .ok_or_else(|| AppError::not_found(format!("调整单明细 {} 不存在", item_id)))?;
 
         let detail = self.get_adjustment(item_model.adjustment_id).await?;
-        if detail.adjustment.status != "pending" {
+        if detail.adjustment.status != adjustment_status::PENDING {
             return Err(AppError::business(
                 "只有待审核状态的调整单可以修改明细".to_string(),
             ));
@@ -621,7 +622,7 @@ impl InventoryAdjustmentService {
                 AppError::not_found(format!("调整单 {} 不存在", item_model.adjustment_id))
             })?;
 
-        if adjustment_model.status != "pending" {
+        if adjustment_model.status != adjustment_status::PENDING {
             return Err(AppError::business(
                 "只有待审核状态的调整单可以删除明细".to_string(),
             ));

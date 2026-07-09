@@ -11,7 +11,9 @@
 use super::scheduling_service::SchedulingService;
 use crate::models::production_order::Entity as ProductionOrderEntity;
 use crate::models::scheduling_result::{ActiveModel as SchedulingActiveModel, Entity as SchedulingResultEntity};
-use crate::models::work_center::{Entity as WorkCenterEntity, Model as WorkCenterModel};
+use crate::models::status::common;
+use crate::models::status::production;
+use crate::models::status::scheduling as scheduling_status;
 use crate::utils::error::AppError;
 use crate::services::scheduling_service::{
     DateRange, GanttData, GanttItemDto, ScheduleDetail, ScheduledOrder,
@@ -239,7 +241,7 @@ impl SchedulingService {
             .await?
             .ok_or_else(|| AppError::not_found("排程结果不存在"))?;
 
-        if model.status != "DRAFT" {
+        if model.status != scheduling_status::DRAFT {
             return Err(AppError::business(
                 "只有草稿状态的排程结果可以确认".to_string(),
             ));
@@ -275,8 +277,8 @@ impl SchedulingService {
                             // v12 批次 39 修复：原代码用 `if let ActiveValue::Set(s)` 判断状态，
                             // 但 order.clone().into() 会将所有字段设为 ActiveValue::Unchanged（非 Set），
                             // 导致 DRAFT 订单永远不会被升级为 SCHEDULED。改为直接读取 order.status 判断。
-                            if order.status == "DRAFT" {
-                                active.status = Set("SCHEDULED".to_string());
+                            if order.status == common::STATUS_DRAFT {
+                                active.status = Set(production::PRODUCTION_SCHEDULED.to_string());
                             }
                             active.updated_at = Set(Utc::now());
                             active.update(&txn).await?;
@@ -287,7 +289,7 @@ impl SchedulingService {
         }
 
         let mut active_model: SchedulingActiveModel = model.into();
-        active_model.status = Set("CONFIRMED".to_string());
+        active_model.status = Set(scheduling_status::CONFIRMED.to_string());
         active_model.updated_at = Set(Utc::now());
 
         let updated = active_model.update(&txn).await?;
@@ -309,9 +311,9 @@ impl SchedulingService {
                 let end = d.end_date.unwrap_or(d.planned_end);
                 let duration = (end - start).num_days() + 1;
                 let progress = match d.status.as_deref().unwrap_or("") {
-                    "COMPLETED" => 100.0,
-                    "IN_PROGRESS" => 50.0,
-                    "SCHEDULED" => 0.0,
+                    common::STATUS_COMPLETED => 100.0,
+                    production::PRODUCTION_IN_PROGRESS => 50.0,
+                    production::PRODUCTION_SCHEDULED => 0.0,
                     _ => 0.0,
                 };
 

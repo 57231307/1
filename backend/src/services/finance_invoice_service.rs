@@ -3,6 +3,7 @@
 
 use crate::models::finance_invoice::Model as InvoiceModel;
 use crate::models::finance_invoice::{self, ActiveModel, Entity as FinanceInvoice};
+use crate::models::status::finance_invoice as invoice_status;
 use crate::utils::error::AppError;
 use chrono::Utc;
 use rust_decimal::Decimal;
@@ -48,7 +49,7 @@ impl FinanceInvoiceService {
             amount: Set(amount),
             tax_amount: Set(tax_amount),
             total_amount: Set(total_amount),
-            status: Set("pending".to_string()),
+            status: Set(invoice_status::PENDING.to_string()),
             paid_date: Set(None),
             payment_method: Set(None),
             notes: Set(None),
@@ -120,7 +121,7 @@ impl FinanceInvoiceService {
 
         let result = if let Some(invoice) = invoice {
             // 状态门：仅 "pending" 状态可审批，防止已审批/已核销等状态被重复审批
-            if invoice.status != "pending" {
+            if invoice.status != invoice_status::PENDING {
                 return Err(AppError::bad_request(format!(
                     "只能审批待审批状态的财务发票，当前状态：{}",
                     invoice.status
@@ -128,7 +129,7 @@ impl FinanceInvoiceService {
             }
 
             let mut active_model: ActiveModel = invoice.into();
-            active_model.status = Set("approved".to_string());
+            active_model.status = Set(invoice_status::APPROVED.to_string());
             active_model.updated_at = Set(Utc::now());
 
             // 批次 94 P2-10：原 Some(0) 占位改为真实操作人 user_id，便于审计追踪

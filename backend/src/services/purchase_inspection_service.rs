@@ -4,6 +4,7 @@
 
 use crate::models::purchase_inspection;
 use crate::models::purchase_inspection_item;
+use crate::models::status::purchase_inspection as pis_status;
 use crate::utils::error::AppError;
 use chrono::Utc;
 use rust_decimal::Decimal;
@@ -61,7 +62,7 @@ impl PurchaseInspectionService {
             defect_count: Set(Some(0)),
             pass_quantity: Set(None),
             reject_quantity: Set(None),
-            inspection_status: Set(Some("pending".to_string())),
+            inspection_status: Set(Some(pis_status::PENDING.to_string())),
             inspection_result: Set(None),
             quality_score: Set(None),
             defect_description: Set(None),
@@ -90,7 +91,7 @@ impl PurchaseInspectionService {
             .await?
             .ok_or_else(|| AppError::not_found(format!("采购质检单 {}", inspection_id)))?;
 
-        if inspection.inspection_status.as_deref() != Some("pending") {
+        if inspection.inspection_status.as_deref() != Some(pis_status::PENDING) {
             return Err(AppError::business(format!(
                 "质检单状态不允许修改，当前状态：{:?}",
                 inspection.inspection_status
@@ -138,7 +139,7 @@ impl PurchaseInspectionService {
             .await?
             .ok_or_else(|| AppError::not_found(format!("采购质检单 {}", inspection_id)))?;
 
-        if inspection.inspection_status.as_deref() != Some("pending") {
+        if inspection.inspection_status.as_deref() != Some(pis_status::PENDING) {
             return Err(AppError::business(format!(
                 "质检单状态不允许完成，当前状态：{:?}",
                 inspection.inspection_status
@@ -154,7 +155,7 @@ impl PurchaseInspectionService {
         inspection_active.pass_quantity = Set(Some(req.pass_quantity));
         inspection_active.reject_quantity = Set(Some(req.reject_quantity));
         inspection_active.inspection_result = Set(Some(req.inspection_result));
-        inspection_active.inspection_status = Set(Some("completed".to_string()));
+        inspection_active.inspection_status = Set(Some(pis_status::COMPLETED.to_string()));
         inspection_active.quality_score = Set(Some(quality_score));
         inspection_active.updated_at = Set(Utc::now());
 

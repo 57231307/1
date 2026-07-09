@@ -349,3 +349,153 @@ pub mod sales_return {
     /// 已完成：退货流程完结
     pub const COMPLETED: &str = "COMPLETED";
 }
+
+/// 排程结果状态（scheduling_result.status，大写值）
+/// 批次 234 v13 真实接入：scheduling_query.rs 中排程结果状态字符串字面量统一引用此模块（规则 0）
+pub mod scheduling {
+    /// 草稿：排程结果初始状态，可确认
+    pub const DRAFT: &str = "DRAFT";
+
+    /// 已确认：排程结果已确认，已应用到生产订单
+    pub const CONFIRMED: &str = "CONFIRMED";
+}
+
+/// 应付对账状态（ap_reconciliation.reconciliation_status，大写值）
+/// 批次 234 v13 真实接入：ap_reconciliation_service.rs 中对账状态字符串字面量统一引用此模块（规则 0）
+pub mod ap_reconciliation {
+    /// 待处理：对账单初始状态，可执行对账
+    pub const PENDING: &str = "PENDING";
+
+    /// 已确认：对账完成，已锁定
+    pub const CONFIRMED: &str = "CONFIRMED";
+
+    /// 有争议：对账结果存在异议，需复核
+    pub const DISPUTED: &str = "DISPUTED";
+}
+
+/// 库存调拨状态（inventory_transfer.status，小写值）
+/// 批次 234 v13 真实接入：inv/inventory_move.rs 中调拨状态字符串字面量统一引用此模块（规则 0）
+pub mod inventory_transfer {
+    /// 待处理：调拨单初始状态，可审批
+    pub const PENDING: &str = "pending";
+
+    /// 已审批：审批通过，可发货
+    pub const APPROVED: &str = "approved";
+
+    /// 已拒绝：审批未通过
+    pub const REJECTED: &str = "rejected";
+
+    /// 已发货：调拨已发出，待接收
+    pub const SHIPPED: &str = "shipped";
+
+    /// 已完成：调拨流程完结
+    pub const COMPLETED: &str = "completed";
+}
+
+/// 库存盘点状态（inventory_count.status，小写值）
+/// 批次 234 v13 真实接入：inventory_count_service.rs 中盘点状态字符串字面量统一引用此模块（规则 0）
+pub mod inventory_count {
+    /// 待处理：盘点单初始状态，可执行盘点
+    pub const PENDING: &str = "pending";
+
+    /// 已完成：盘点流程完结
+    pub const COMPLETED: &str = "completed";
+}
+
+/// 采购退货状态（purchase_return.return_status，小写值）
+/// 批次 234 v13 真实接入：purchase_return_service.rs 中退货状态字符串字面量统一引用此模块（规则 0）
+pub mod purchase_return {
+    /// 草稿：退货单初始状态，可编辑
+    pub const DRAFT: &str = "draft";
+
+    /// 已提交：等待审批
+    pub const SUBMITTED: &str = "submitted";
+
+    /// 已审批：审批通过，可执行退货
+    pub const APPROVED: &str = "approved";
+
+    /// 已拒绝：审批未通过
+    pub const REJECTED: &str = "rejected";
+}
+
+/// 采购检验状态（purchase_inspection.inspection_status，小写值）
+/// 批次 234 v13 真实接入：purchase_inspection_service.rs 中检验状态字符串字面量统一引用此模块（规则 0）
+pub mod purchase_inspection {
+    /// 待处理：检验单初始状态，可执行检验
+    pub const PENDING: &str = "pending";
+
+    /// 已完成：检验流程完结
+    pub const COMPLETED: &str = "completed";
+}
+
+/// 报价单状态（quotation.status，小写值）
+/// 批次 234 v13 真实接入：quotation_service.rs 中报价状态字符串字面量统一引用此模块（规则 0）
+pub mod quotation {
+    /// 草稿：报价单初始状态，可编辑
+    pub const DRAFT: &str = "draft";
+
+    /// 已审批：审批通过
+    pub const APPROVED: &str = "approved";
+
+    /// 已拒绝：审批未通过
+    pub const REJECTED: &str = "rejected";
+
+    /// 已取消：报价单作废
+    pub const CANCELLED: &str = "cancelled";
+}
+
+/// 定制订单状态（custom_order.status，小写值）
+/// 批次 234 v13 真实接入：custom_order_crud_service.rs 中订单状态字符串字面量统一引用此模块（规则 0）
+pub mod custom_order {
+    /// 草稿：订单初始状态，可编辑
+    pub const DRAFT: &str = "draft";
+
+    /// 待处理：等待排产
+    pub const PENDING: &str = "pending";
+
+    /// 已完成：订单流程完结
+    pub const COMPLETED: &str = "completed";
+
+    /// 已取消：订单作废
+    pub const CANCELLED: &str = "cancelled";
+}
+
+/// 定制订单流程节点状态（process_node.status，小写值）
+/// 批次 234 v13 真实接入：custom_order_state_service.rs 中节点状态字符串字面量统一引用此模块（规则 0）
+pub mod process_node {
+    /// 进行中：节点正在执行
+    pub const IN_PROGRESS: &str = "in_progress";
+
+    /// 已完成：节点执行完毕
+    pub const COMPLETED: &str = "completed";
+}
+
+/// 库存调整状态（inventory_adjustment.status，小写值）
+/// 批次 234 v13 真实接入：inventory_adjustment_service.rs 中调整状态字符串字面量统一引用此模块（规则 0）
+pub mod inventory_adjustment {
+    /// 待处理：调整单初始状态，可审批
+    pub const PENDING: &str = "pending";
+
+    /// 已审批：审批通过，已应用调整
+    pub const APPROVED: &str = "approved";
+
+    /// 已拒绝：审批未通过
+    pub const REJECTED: &str = "rejected";
+}
+
+/// 财务发票状态（finance_invoice.status，小写值）
+/// 批次 234 v13 真实接入：finance_invoice_service.rs 中发票状态字符串字面量统一引用此模块（规则 0）
+pub mod finance_invoice {
+    /// 待处理：发票初始状态，可审批
+    pub const PENDING: &str = "pending";
+
+    /// 已审批：审批通过
+    pub const APPROVED: &str = "approved";
+}
+
+/// 财务付款状态（finance_payment.status，小写值）
+/// 批次 234 v13 真实接入：finance_payment_service.rs 中付款状态字符串字面量统一引用此模块（规则 0）
+pub mod finance_payment {
+    /// 待处理：付款单初始状态
+    pub const PENDING: &str = "pending";
+}

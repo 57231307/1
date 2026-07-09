@@ -12,6 +12,7 @@ use thiserror::Error;
 use crate::models::custom_order::{self, ActiveModel, Entity};
 use crate::models::process_log::{self, ActiveModel as LogActive, Entity as LogEntity};
 use crate::models::process_node::{self, Entity as NodeEntity};
+use crate::models::status::process_node as node_status;
 use crate::utils::app_state::AppState;
 use crate::utils::process_state_machine::{
     can_transition, next_status, CustomOrderStatus, StateMachineError,
@@ -77,14 +78,14 @@ impl CustomOrderStateService {
         // 更新对应工艺节点状态
         let node = NodeEntity::find()
             .filter(process_node::Column::CustomOrderId.eq(order_id))
-            .filter(process_node::Column::Status.eq("in_progress"))
+            .filter(process_node::Column::Status.eq(node_status::IN_PROGRESS))
             .one(&*self.db)
             .await?;
 
         if let Some(n) = node {
             // 当前 in_progress 节点标记为 completed
             let mut n_active: process_node::ActiveModel = n.clone().into();
-            n_active.status = Set("completed".to_string());
+            n_active.status = Set(node_status::COMPLETED.to_string());
             n_active.actual_end_date = Set(Some(Utc::now()));
             n_active.updated_at = Set(Utc::now());
             n_active.update(&*self.db).await?;
@@ -95,8 +96,8 @@ impl CustomOrderStateService {
                 process_node_id: Set(n.id),
                 action: Set("complete".to_string()),
                 operator_id: Set(Some(operator_id)),
-                before_status: Set(Some("in_progress".to_string())),
-                after_status: Set(Some("completed".to_string())),
+                before_status: Set(Some(node_status::IN_PROGRESS.to_string())),
+                after_status: Set(Some(node_status::COMPLETED.to_string())),
                 log_time: Set(Utc::now()),
                 log_content: Set(notes.clone()),
                 attachments: Set(serde_json::json!([])),
@@ -113,7 +114,7 @@ impl CustomOrderStateService {
 
         if let Some(n) = next_node {
             let mut n_active: process_node::ActiveModel = n.into();
-            n_active.status = Set("in_progress".to_string());
+            n_active.status = Set(node_status::IN_PROGRESS.to_string());
             n_active.actual_start_date = Set(Some(Utc::now()));
             n_active.operator_id = Set(Some(operator_id));
             n_active.updated_at = Set(Utc::now());

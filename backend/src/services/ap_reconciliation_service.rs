@@ -4,6 +4,8 @@
 //! 包含生成对账单、确认对账、争议处理等管理
 
 use crate::models::{ap_invoice, ap_payment, ap_reconciliation};
+use crate::models::status::ap_reconciliation as reconciliation_status;
+use crate::models::status::payment;
 use crate::utils::error::AppError;
 use chrono::{NaiveDate, Utc};
 use futures::stream::{self, StreamExt};
@@ -60,7 +62,7 @@ impl ApReconciliationService {
         // 3. 查询该供应商在对账期间内的付款单
         let payments = ap_payment::Entity::find()
             .filter(ap_payment::Column::SupplierId.eq(req.supplier_id))
-            .filter(ap_payment::Column::PaymentStatus.eq("CONFIRMED"))
+            .filter(ap_payment::Column::PaymentStatus.eq(payment::PAYMENT_CONFIRMED))
             .filter(ap_payment::Column::PaymentDate.gte(req.start_date))
             .filter(ap_payment::Column::PaymentDate.lte(req.end_date))
             .all(&txn)
@@ -96,7 +98,7 @@ impl ApReconciliationService {
             total_invoice: Set(total_invoice),
             total_payment: Set(total_payment),
             closing_balance: Set(closing_balance),
-            reconciliation_status: Set("PENDING".to_string()),
+            reconciliation_status: Set(reconciliation_status::PENDING.to_string()),
             notes: Set(req.notes),
             created_by: Set(user_id),
             ..Default::default()
@@ -129,7 +131,7 @@ impl ApReconciliationService {
             .ok_or_else(|| AppError::not_found(format!("对账单 {}", id)))?;
 
         // 2. 检查状态
-        if reconciliation.reconciliation_status != "PENDING" {
+        if reconciliation.reconciliation_status != reconciliation_status::PENDING {
             return Err(AppError::business(format!(
                 "对账单状态为{}，不可确认",
                 reconciliation.reconciliation_status
@@ -139,7 +141,7 @@ impl ApReconciliationService {
         // 3. 确认对账单
         let now = Utc::now();
         let mut reconciliation_active: ap_reconciliation::ActiveModel = reconciliation.into();
-        reconciliation_active.reconciliation_status = Set("CONFIRMED".to_string());
+        reconciliation_active.reconciliation_status = Set(reconciliation_status::CONFIRMED.to_string());
         reconciliation_active.confirmed_by = Set(Some(user_id));
         reconciliation_active.confirmed_at = Set(Some(now));
 
@@ -178,14 +180,14 @@ impl ApReconciliationService {
             .ok_or_else(|| AppError::not_found(format!("对账单 {}", id)))?;
 
         // 2. 检查状态
-        if reconciliation.reconciliation_status == "CONFIRMED" {
+        if reconciliation.reconciliation_status == reconciliation_status::CONFIRMED {
             return Err(AppError::business("对账单已确认，不可提出争议".to_string()));
         }
 
         // 3. 提出争议
         let now = Utc::now();
         let mut reconciliation_active: ap_reconciliation::ActiveModel = reconciliation.into();
-        reconciliation_active.reconciliation_status = Set("DISPUTED".to_string());
+        reconciliation_active.reconciliation_status = Set(reconciliation_status::DISPUTED.to_string());
         reconciliation_active.disputed_by = Set(Some(user_id));
         reconciliation_active.disputed_at = Set(Some(now));
         reconciliation_active.disputed_reason = Set(Some(reason));

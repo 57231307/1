@@ -1,5 +1,6 @@
 
 use crate::models::finance_payment;
+use crate::models::status::finance_payment as payment_status;
 use crate::utils::error::AppError;
 use chrono::{DateTime, Utc};
 use rust_decimal::Decimal;
@@ -76,7 +77,7 @@ impl FinancePaymentService {
             payment_date: Set(payment_date),
             payment_method: Set(payment_method),
             notes: Set(notes),
-            status: Set("pending".to_string()),
+            status: Set(payment_status::PENDING.to_string()),
             created_by: Set(created_by),
             created_at: Set(Utc::now()),
             updated_at: Set(Utc::now()),

@@ -15,6 +15,7 @@ use thiserror::Error;
 use crate::models::custom_order::{self, ActiveModel as CustomOrderActive, Entity as CustomOrderEntity};
 use crate::models::custom_order_create_dto::{CancelCustomOrderDto, CreateCustomOrderDto, UpdateCustomOrderDto};
 use crate::models::process_node::{self, ActiveModel as NodeActive, Entity as NodeEntity};
+use crate::models::status::custom_order as co_status;
 use crate::utils::app_state::AppState;
 use crate::utils::process_state_machine::default_process_nodes;
 
@@ -83,7 +84,7 @@ impl CustomOrderCrudService {
             yarn_spec: Set(dto.yarn_spec),
             dye_method: Set(dto.dye_method),
             finishing_method: Set(dto.finishing_method),
-            status: Set("draft".to_string()),
+            status: Set(co_status::DRAFT.to_string()),
             expected_delivery_date: Set(dto.expected_delivery_date),
             actual_delivery_date: Set(None),
             sales_order_id: Set(dto.sales_order_id),
@@ -105,7 +106,7 @@ impl CustomOrderCrudService {
                 node_type: Set(node_type.to_string()),
                 node_name: Set(node_name.to_string()),
                 sequence: Set(sequence),
-                status: Set("pending".to_string()),
+                status: Set(co_status::PENDING.to_string()),
                 planned_start_date: Set(None),
                 planned_end_date: Set(None),
                 actual_start_date: Set(None),
@@ -185,7 +186,7 @@ impl CustomOrderCrudService {
             .await?
             .ok_or(CrudError::NotFound)?;
 
-        if existing.status != "draft" {
+        if existing.status != co_status::DRAFT {
             return Err(CrudError::InvalidState);
         }
 
@@ -245,13 +246,13 @@ impl CustomOrderCrudService {
             .await?
             .ok_or(CrudError::NotFound)?;
 
-        if existing.status == "completed" || existing.status == "cancelled" {
+        if existing.status == co_status::COMPLETED || existing.status == co_status::CANCELLED {
             return Err(CrudError::InvalidState);
         }
 
         let existing_notes = existing.notes.clone();
         let mut active: CustomOrderActive = existing.into();
-        active.status = Set("cancelled".to_string());
+        active.status = Set(co_status::CANCELLED.to_string());
         active.updated_at = Set(Utc::now());
         // 批次 94 P2-14 修复：将 dto.reason 记录到 notes 字段（原 let _ = dto.reason 占位丢弃）
         // 追加取消原因到现有 notes（保留原有备注，避免覆盖）

@@ -6,6 +6,7 @@
 // Some(0) 占位符改为真实 user_id，调用方 create_item / update_item / delete_item / delete
 // 同步添加 user_id 参数透传（P2-3 / P2-4 / P2-5）。
 
+use crate::models::status::purchase_return as pr_status;
 use crate::models::{inventory_stock, product, purchase_return, purchase_return_item};
 use crate::services::event_bus::{BusinessEvent, EVENT_BUS};
 use crate::utils::error::AppError;
@@ -59,7 +60,7 @@ impl PurchaseReturnService {
             department_id: Set(req.department_id),
             reason_type: Set(Some(req.reason_type)),
             reason_detail: Set(req.reason_detail),
-            return_status: Set(Some("draft".to_string())),
+            return_status: Set(Some(pr_status::DRAFT.to_string())),
             total_quantity: Set(None),
             total_quantity_alt: Set(None),
             total_amount: Set(None),
@@ -92,7 +93,7 @@ impl PurchaseReturnService {
             .await?
             .ok_or_else(|| AppError::not_found(format!("采购退货单 {}", return_id)))?;
 
-        if return_order.return_status.as_deref() != Some("draft") {
+        if return_order.return_status.as_deref() != Some(pr_status::DRAFT) {
             return Err(AppError::business(format!(
                 "退货单状态不允许修改，当前状态：{:?}",
                 return_order.return_status
@@ -142,7 +143,7 @@ impl PurchaseReturnService {
             .ok_or_else(|| AppError::not_found(format!("采购退货单 {}", return_id)))?;
 
         // 2. 检查状态
-        if return_order.return_status.as_deref() != Some("draft") {
+        if return_order.return_status.as_deref() != Some(pr_status::DRAFT) {
             return Err(AppError::business(format!(
                 "退货单状态不允许提交，当前状态：{:?}",
                 return_order.return_status
@@ -151,7 +152,7 @@ impl PurchaseReturnService {
 
         // 3. 更新状态 + 审计日志（事务内原子提交）
         let mut return_active: purchase_return::ActiveModel = return_order.into();
-        return_active.return_status = Set(Some("submitted".to_string()));
+        return_active.return_status = Set(Some(pr_status::SUBMITTED.to_string()));
         return_active.updated_at = Set(Utc::now());
 
         // 批次 103 P0-4 修复：删除过时 TODO 注释（submit_return 已在批次 59b 透传 user_id）
@@ -191,7 +192,7 @@ impl PurchaseReturnService {
             .await?
             .ok_or_else(|| AppError::not_found(format!("采购退货单 {}", return_id)))?;
 
-        if return_order.return_status.as_deref() != Some("submitted") {
+        if return_order.return_status.as_deref() != Some(pr_status::SUBMITTED) {
             return Err(AppError::business(format!(
                 "退货单状态不允许审批，当前状态：{:?}",
                 return_order.return_status
@@ -211,7 +212,7 @@ impl PurchaseReturnService {
         }
 
         let mut return_active: purchase_return::ActiveModel = return_order.into();
-        return_active.return_status = Set(Some("approved".to_string()));
+        return_active.return_status = Set(Some(pr_status::APPROVED.to_string()));
         return_active.approved_by = Set(Some(user_id));
         return_active.approved_at = Set(Some(Utc::now()));
         return_active.updated_at = Set(Utc::now());
@@ -361,7 +362,7 @@ impl PurchaseReturnService {
             .ok_or_else(|| AppError::not_found(format!("采购退货单 {}", return_id)))?;
 
         // 2. 检查状态
-        if return_order.return_status.as_deref() != Some("submitted") {
+        if return_order.return_status.as_deref() != Some(pr_status::SUBMITTED) {
             return Err(AppError::business(format!(
                 "退货单状态不允许拒绝，当前状态：{:?}",
                 return_order.return_status
@@ -370,7 +371,7 @@ impl PurchaseReturnService {
 
         // 3. 更新状态 + 审计日志（事务内原子提交）
         let mut return_active: purchase_return::ActiveModel = return_order.into();
-        return_active.return_status = Set(Some("rejected".to_string()));
+        return_active.return_status = Set(Some(pr_status::REJECTED.to_string()));
         return_active.reason_detail = Set(Some(reason));
         return_active.updated_at = Set(Utc::now());
 
@@ -553,7 +554,7 @@ impl PurchaseReturnService {
             .await?
             .ok_or_else(|| AppError::not_found(format!("退货单 {}", return_id)))?;
 
-        if return_record.return_status.as_deref() != Some("draft") {
+        if return_record.return_status.as_deref() != Some(pr_status::DRAFT) {
             return Err(AppError::business(
                 "只有草稿状态的退货单可以修改明细".to_string(),
             ));
@@ -621,7 +622,7 @@ impl PurchaseReturnService {
             .await?
             .ok_or_else(|| AppError::not_found(format!("退货单 {}", item.return_id)))?;
 
-        if return_record.return_status.as_deref() != Some("draft") {
+        if return_record.return_status.as_deref() != Some(pr_status::DRAFT) {
             return Err(AppError::business(
                 "只有草稿状态的退货单可以修改明细".to_string(),
             ));
@@ -698,7 +699,7 @@ impl PurchaseReturnService {
             .await?
             .ok_or_else(|| AppError::not_found(format!("退货单 {}", item.return_id)))?;
 
-        if return_record.return_status.as_deref() != Some("draft") {
+        if return_record.return_status.as_deref() != Some(pr_status::DRAFT) {
             return Err(AppError::business(
                 "只有草稿状态的退货单可以修改明细".to_string(),
             ));
@@ -726,7 +727,7 @@ impl PurchaseReturnService {
             .one(&txn)
             .await?
             .ok_or_else(|| AppError::not_found("Return not found"))?;
-        if ret.return_status.as_deref() != Some("draft") {
+        if ret.return_status.as_deref() != Some(pr_status::DRAFT) {
             return Err(AppError::business(
                 "Only DRAFT returns can be deleted".to_string(),
             ));

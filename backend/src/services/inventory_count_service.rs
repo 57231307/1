@@ -10,6 +10,7 @@
 //! v11 批次 143 P1-1：v8 删除的占位 handler 已真实实现，
 //! 模型 inventory_count / inventory_count_item 已通过迁移对齐 schema。
 
+use crate::models::status::inventory_count as count_status;
 use crate::models::{inventory_count, inventory_count_item, inventory_stock};
 use crate::services::audit_log_service::AuditLogService;
 use crate::utils::error::AppError;
@@ -107,7 +108,7 @@ impl InventoryCountService {
             count_no: Set(count_no.clone()),
             warehouse_id: Set(req.warehouse_id),
             count_date: Set(req.count_date),
-            status: Set("pending".to_string()),
+            status: Set(count_status::PENDING.to_string()),
             total_items: Set(total_items),
             counted_items: Set(0),
             variance_items: Set(0),
@@ -199,7 +200,7 @@ impl InventoryCountService {
             .one(&txn)
             .await?
             .ok_or_else(|| AppError::not_found(format!("盘点单 {} 不存在", count_id)))?;
-        if count_model.status != "pending" {
+        if count_model.status != count_status::PENDING {
             return Err(AppError::business(
                 "只有待盘点状态的盘点单可以更新".to_string(),
             ));
@@ -229,7 +230,7 @@ impl InventoryCountService {
             .one(&txn)
             .await?
             .ok_or_else(|| AppError::not_found(format!("盘点单 {} 不存在", count_id)))?;
-        if count_model.status != "pending" {
+        if count_model.status != count_status::PENDING {
             return Err(AppError::business(
                 "只有待盘点状态的盘点单可以删除".to_string(),
             ));
@@ -260,7 +261,7 @@ impl InventoryCountService {
             .one(&txn)
             .await?
             .ok_or_else(|| AppError::not_found(format!("盘点单 {} 不存在", count_id)))?;
-        if count_model.status != "pending" {
+        if count_model.status != count_status::PENDING {
             return Err(AppError::business(
                 "只有待盘点状态的盘点单可以录入实盘数量".to_string(),
             ));
@@ -328,7 +329,7 @@ impl InventoryCountService {
             .one(&txn)
             .await?
             .ok_or_else(|| AppError::not_found(format!("盘点单 {} 不存在", count_id)))?;
-        if count_model.status != "pending" {
+        if count_model.status != count_status::PENDING {
             return Err(AppError::business("只有待盘点状态的盘点单可以提交审批".to_string()));
         }
         if count_model.counted_items == 0 {
@@ -425,7 +426,7 @@ impl InventoryCountService {
 
         // 盘点单状态：approved → completed（审批后立即完成，简化流程）
         let mut active: inventory_count::ActiveModel = count_model.into();
-        active.status = Set("completed".to_string());
+        active.status = Set(count_status::COMPLETED.to_string());
         active.approved_by = Set(Some(approver_id));
         active.approved_at = Set(Some(Utc::now()));
         active.completed_at = Set(Some(Utc::now()));
@@ -455,7 +456,7 @@ impl InventoryCountService {
             return Err(AppError::business("只有待审批状态的盘点单可以驳回".to_string()));
         }
         let mut active: inventory_count::ActiveModel = count_model.into();
-        active.status = Set("pending".to_string());
+        active.status = Set(count_status::PENDING.to_string());
         active.updated_at = Set(Utc::now());
         let updated = active.update(&txn).await?;
         txn.commit().await?;

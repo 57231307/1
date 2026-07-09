@@ -17,6 +17,7 @@ use sea_orm::{
 use crate::models::dto::PageRequest;
 use crate::models::inventory_transfer::{self, Entity as InventoryTransferEntity};
 use crate::models::inventory_transfer_item::{self, Entity as InventoryTransferItemEntity};
+use crate::models::status::inventory_transfer as transfer_status;
 use crate::utils::error::AppError;
 use crate::utils::pagination::paginate_with_total;
 use crate::utils::PaginatedResponse;
@@ -188,7 +189,7 @@ impl InventoryTransferService {
                 request.transfer_date.unwrap_or_else(chrono::Utc::now),
             ),
             status: sea_orm::ActiveValue::Set(
-                request.status.unwrap_or_else(|| "pending".to_string()),
+                request.status.unwrap_or_else(|| transfer_status::PENDING.to_string()),
             ),
             total_quantity: sea_orm::ActiveValue::Set(rust_decimal::Decimal::ZERO),
             notes: sea_orm::ActiveValue::Set(request.notes),
@@ -272,7 +273,7 @@ impl InventoryTransferService {
             .ok_or_else(|| AppError::not_found(format!("库存调拨单 {} 未找到", transfer_id)))?;
 
         // 检查状态，已完成的调拨单不允许修改
-        if transfer.status == "completed" {
+        if transfer.status == transfer_status::COMPLETED {
             return Err(AppError::business("调拨单已完成，不允许修改".to_string()));
         }
 
@@ -379,7 +380,7 @@ impl InventoryTransferService {
             .ok_or_else(|| AppError::not_found(format!("库存调拨单 {} 未找到", transfer_id)))?;
 
         // 检查状态，只有待审核的调拨单可以审核
-        if transfer.status != "pending" {
+        if transfer.status != transfer_status::PENDING {
             return Err(AppError::business(
                 "只有待审核状态的调拨单可以审核".to_string(),
             ));
@@ -388,11 +389,11 @@ impl InventoryTransferService {
         // 更新调拨单状态
         let mut transfer_update: inventory_transfer::ActiveModel = transfer.into();
         if approved {
-            transfer_update.status = sea_orm::ActiveValue::Set("approved".to_string());
+            transfer_update.status = sea_orm::ActiveValue::Set(transfer_status::APPROVED.to_string());
             transfer_update.approved_by = sea_orm::ActiveValue::NotSet; // 实际应从认证信息获取
             transfer_update.approved_at = sea_orm::ActiveValue::Set(Some(chrono::Utc::now()));
         } else {
-            transfer_update.status = sea_orm::ActiveValue::Set("rejected".to_string());
+            transfer_update.status = sea_orm::ActiveValue::Set(transfer_status::REJECTED.to_string());
         }
         if let Some(n) = notes {
             transfer_update.notes = sea_orm::ActiveValue::Set(Some(n));
@@ -434,9 +435,9 @@ impl InventoryTransferService {
             .await?
             .ok_or_else(|| AppError::not_found(format!("库存调拨单 {} 未找到", transfer_id)))?;
 
-        if transfer.status == "approved"
-            || transfer.status == "shipped"
-            || transfer.status == "completed"
+        if transfer.status == transfer_status::APPROVED
+            || transfer.status == transfer_status::SHIPPED
+            || transfer.status == transfer_status::COMPLETED
         {
             return Err(AppError::business(format!(
                 "调拨单状态 {} 不允许删除",

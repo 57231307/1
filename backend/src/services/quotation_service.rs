@@ -23,6 +23,7 @@ use crate::models::sales_quotation_item::{
 use crate::models::sales_quotation_term::{
     self, ActiveModel as TermActive, Entity as TermEntity,
 };
+use crate::models::status::quotation as quotation_status;
 use crate::utils::app_state::AppState;
 use crate::utils::error::AppError;
 
@@ -98,7 +99,7 @@ impl QuotationService {
             subtotal: Set(subtotal),
             tax_amount: Set(tax_amount),
             total_amount: Set(total_amount),
-            status: Set("draft".to_string()),
+            status: Set(quotation_status::DRAFT.to_string()),
             approval_instance_id: Set(None),
             approved_by: Set(None),
             approved_at: Set(None),
@@ -241,7 +242,7 @@ impl QuotationService {
             .one(&txn)
             .await?
             .ok_or_else(|| AppError::not_found("报价单不存在"))?;
-        if !["draft", "rejected"].contains(&existing.status.as_str()) {
+        if ![quotation_status::DRAFT, quotation_status::REJECTED].contains(&existing.status.as_str()) {
             return Err(AppError::validation("当前状态不允许此操作".to_string()));
         }
 
@@ -436,12 +437,12 @@ impl QuotationService {
         if existing.status == "converted" {
             return Err(AppError::validation("当前状态不允许此操作".to_string()));
         }
-        if existing.status == "cancelled" {
+        if existing.status == quotation_status::CANCELLED {
             return Ok(existing);
         }
 
         let mut active: QuotationActive = existing.into();
-        active.status = Set("cancelled".to_string());
+        active.status = Set(quotation_status::CANCELLED.to_string());
         active.updated_at = Set(Utc::now());
         // 批次 94 P2-13 修复：用 update_with_audit 记录审计日志（原 active.update 无审计，user_id 仅占位丢弃）
         let updated = crate::services::audit_log_service::AuditLogService::update_with_audit(
