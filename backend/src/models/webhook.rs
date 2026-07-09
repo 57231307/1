@@ -18,6 +18,10 @@ pub struct Model {
     pub last_triggered_at: Option<DateTime<Utc>>,
     pub last_status: Option<String>,
     pub retry_count: i32,
+    /// 最后一次发送的原始业务负载（批次 251 修复：retry 重投原始数据用）
+    pub last_payload: Option<String>,
+    /// 最后一次发送的事件类型（批次 251 修复：retry 重投原始事件用）
+    pub last_event: Option<String>,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
 }
