@@ -15,8 +15,8 @@
 use chrono::{Datelike, NaiveDate, Utc};
 use rust_decimal::Decimal;
 use sea_orm::{
-    ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, Order, PaginatorTrait,
-    QueryFilter, QueryOrder, QuerySelect, Set, TransactionTrait,
+    ActiveModelTrait, ColumnTrait, ConnectionTrait, DatabaseConnection, EntityTrait, Order,
+    PaginatorTrait, QueryFilter, QueryOrder, QuerySelect, Set, TransactionTrait,
 };
 use serde_json::json;
 use std::sync::Arc;
@@ -1269,42 +1269,81 @@ impl ArService {
         Ok(json!(result))
     }
 
-    /// 获取账龄报表
-    /// 按 due_date 计算 0-30/31-60/61-90/90+ 分桶
+    /// 获取账龄报表（v14 P0-2 修复：SQL 层聚合，避免全表数据加载到应用层）
+    /// 按 due_date 计算 0-30/31-60/61-90/90+ 分桶，数据库层完成 SUM/COUNT 聚合
     pub async fn get_aging_report(
         &self,
         customer_id: Option<i32>,
     ) -> Result<serde_json::Value, AppError> {
-        let mut q = ar_invoice::Entity::find()
-            .filter(ar_invoice::Column::Status.ne(crate::models::status::common::STATUS_CANCELLED))
-            .filter(ar_invoice::Column::UnpaidAmount.gt(Decimal::ZERO));
-
-        if let Some(cid) = customer_id {
-            q = q.filter(ar_invoice::Column::CustomerId.eq(cid));
-        }
-
-        let invoices = q.all(&*self.db).await?;
+        // v14 P0-2 修复：使用 SQL CASE WHEN + SUM + COUNT 在数据库层完成分桶聚合
+        // 避免全表数据加载到应用层导致内存溢出风险（原实现 .all() 加载全部发票到内存）
+        // 规则 12 合规：customer_id 使用参数化绑定，禁止字符串拼接
         let today = Utc::now().date_naive();
 
-        let mut bucket_0_30 = Decimal::ZERO;
-        let mut bucket_31_60 = Decimal::ZERO;
-        let mut bucket_61_90 = Decimal::ZERO;
-        let mut bucket_90_plus = Decimal::ZERO;
-        let mut not_due = Decimal::ZERO;
+        let (sql, values): (String, sea_orm::Values) = if let Some(cid) = customer_id {
+            (
+                r#"
+                SELECT
+                    COALESCE(SUM(CASE WHEN due_date >= $1 THEN unpaid_amount ELSE 0 END), 0) AS not_due,
+                    COALESCE(SUM(CASE WHEN due_date < $1 AND (CURRENT_DATE - due_date) <= 30 THEN unpaid_amount ELSE 0 END), 0) AS bucket_0_30,
+                    COALESCE(SUM(CASE WHEN (CURRENT_DATE - due_date) BETWEEN 31 AND 60 THEN unpaid_amount ELSE 0 END), 0) AS bucket_31_60,
+                    COALESCE(SUM(CASE WHEN (CURRENT_DATE - due_date) BETWEEN 61 AND 90 THEN unpaid_amount ELSE 0 END), 0) AS bucket_61_90,
+                    COALESCE(SUM(CASE WHEN (CURRENT_DATE - due_date) > 90 THEN unpaid_amount ELSE 0 END), 0) AS bucket_90_plus,
+                    COUNT(*) AS invoice_count
+                FROM ar_invoice
+                WHERE status <> $2
+                  AND unpaid_amount > 0
+                  AND customer_id = $3
+                "#
+                .to_string(),
+                [
+                    today.into(),
+                    crate::models::status::common::STATUS_CANCELLED.into(),
+                    cid.into(),
+                ]
+                .into(),
+            )
+        } else {
+            (
+                r#"
+                SELECT
+                    COALESCE(SUM(CASE WHEN due_date >= $1 THEN unpaid_amount ELSE 0 END), 0) AS not_due,
+                    COALESCE(SUM(CASE WHEN due_date < $1 AND (CURRENT_DATE - due_date) <= 30 THEN unpaid_amount ELSE 0 END), 0) AS bucket_0_30,
+                    COALESCE(SUM(CASE WHEN (CURRENT_DATE - due_date) BETWEEN 31 AND 60 THEN unpaid_amount ELSE 0 END), 0) AS bucket_31_60,
+                    COALESCE(SUM(CASE WHEN (CURRENT_DATE - due_date) BETWEEN 61 AND 90 THEN unpaid_amount ELSE 0 END), 0) AS bucket_61_90,
+                    COALESCE(SUM(CASE WHEN (CURRENT_DATE - due_date) > 90 THEN unpaid_amount ELSE 0 END), 0) AS bucket_90_plus,
+                    COUNT(*) AS invoice_count
+                FROM ar_invoice
+                WHERE status <> $2
+                  AND unpaid_amount > 0
+                "#
+                .to_string(),
+                [
+                    today.into(),
+                    crate::models::status::common::STATUS_CANCELLED.into(),
+                ]
+                .into(),
+            )
+        };
 
-        for inv in &invoices {
-            if inv.due_date >= today {
-                not_due += inv.unpaid_amount;
-                continue;
-            }
-            let days = (today - inv.due_date).num_days();
-            match days {
-                0..=30 => bucket_0_30 += inv.unpaid_amount,
-                31..=60 => bucket_31_60 += inv.unpaid_amount,
-                61..=90 => bucket_61_90 += inv.unpaid_amount,
-                _ => bucket_90_plus += inv.unpaid_amount,
-            }
-        }
+        let stmt = sea_orm::Statement::from_sql_and_values(
+            sea_orm::DatabaseBackend::Postgres,
+            &sql,
+            values,
+        );
+
+        let row = self
+            .db
+            .query_one(&stmt)
+            .await?
+            .ok_or_else(|| AppError::internal("账龄报表聚合查询无结果".to_string()))?;
+
+        let not_due: Decimal = row.try_get("", "not_due")?;
+        let bucket_0_30: Decimal = row.try_get("", "bucket_0_30")?;
+        let bucket_31_60: Decimal = row.try_get("", "bucket_31_60")?;
+        let bucket_61_90: Decimal = row.try_get("", "bucket_61_90")?;
+        let bucket_90_plus: Decimal = row.try_get("", "bucket_90_plus")?;
+        let invoice_count: i64 = row.try_get("", "invoice_count")?;
 
         let total_overdue =
             bucket_0_30 + bucket_31_60 + bucket_61_90 + bucket_90_plus;
@@ -1316,7 +1355,7 @@ impl ArService {
             "bucket_61_90": bucket_61_90.to_string(),
             "bucket_90_plus": bucket_90_plus.to_string(),
             "total_overdue": total_overdue.to_string(),
-            "invoice_count": invoices.len(),
+            "invoice_count": invoice_count,
         }))
     }
 }
