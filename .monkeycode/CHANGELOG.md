@@ -6,6 +6,31 @@
 
 ---
 
+## 2026-07-10 (批次 251 v14 中风险简化阉割修复 — webhook retry payload 持久化，CI 12/12 核心全绿)
+
+### 批次 251：v14 中风险简化阉割修复 — webhook retry 从假 payload 改为重投持久化原始数据
+
+**修复内容**：bug.md 中风险简化阉割问题 — `webhook_service.rs` 的 webhook 发送时 payload 仅存内存，发送后丢弃；`retry_webhook` 构造假 payload `{"webhook_id","retry":true}`，接收方拿不到原始业务上下文；retry_count 仅在网络层异常时递增（HTTP 业务失败 4xx/5xx 不计数）；原代码用 `if let ActiveValue::Set(v) = &final_model.retry_count` 取值，但 `webhook.into()` 生成 `Unchanged` 值，导致模式匹配永远不命中，retry_count 永远读 0。
+
+**修改文件**（7 文件 +95 -33 行）：
+- `backend/migration/src/m0047_add_last_payload_to_webhooks.rs`：新增迁移模块
+- `backend/migrations/20260710000001_add_last_payload_to_webhooks/up.sql` + `down.sql`：webhooks 表添加 last_payload + last_event 列
+- `backend/migration/src/lib.rs`：注册 m0047 迁移
+- `backend/src/models/webhook.rs`：新增 last_payload + last_event 字段
+- `backend/src/services/webhook_service.rs`：trigger_webhook 发送前持久化 payload + event；retry_count 修复（HTTP 业务失败也递增，成功重置 0，修复 ActiveValue 值提取 bug）
+- `backend/src/handlers/webhook_handler.rs`：retry_webhook 从持久化存储读取原始 payload + event 重投
+
+**技术要点**：
+- 新增迁移 m0047：webhooks 表添加 `last_payload TEXT` + `last_event VARCHAR(100)` 列
+- `trigger_webhook`：发送前将 `last_payload = Set(Some(payload.to_string()))` + `last_event = Set(Some(event.to_string()))` 持久化
+- retry_count 修复：在 `webhook.into()` 之前从 Model 直接读取 `let current_retry_count = webhook.retry_count;`（非 ActiveValue），HTTP 业务失败（Ok(delivery) 但 delivery.success=false）也递增计数，成功时重置为 0
+- `retry_webhook` handler：从 `webhook.last_payload` + `webhook.last_event` 读取持久化数据，调用 `trigger_webhook` 重投原始业务数据
+- 修复 retry_count 值提取 bug：原 `if let ActiveValue::Set(v) = &final_model.retry_count` 永远不匹配（`webhook.into()` 生成 Unchanged 而非 Set）
+
+**CI 验证**：CI run #29045660807，12/12 核心 job 全绿（Clippy 一次通过），E2E 失败为已知问题不阻塞。PR #428 squash merge 到 main（commit 226af53）。
+
+---
+
 ## 2026-07-10 (批次 250 v14 中风险简化阉割修复 — budget_management 审批流完整化，CI 12/12 核心全绿)
 
 ### 批次 250：v14 中风险简化阉割修复 — budget_management adjust_budget 审批流跳过改为完整审批闭环

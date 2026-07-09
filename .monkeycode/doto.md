@@ -5,7 +5,7 @@
 
 ---
 
-## 🔄 当前任务：v14 深度调研报告修复（高风险 6 项全部完成，中风险 25 项进行中，已完成 8/25）
+## 🔄 当前任务：v14 深度调研报告修复（高风险 6 项全部完成，中风险 25 项进行中，已完成 9/25）
 
 > **v14 深度调研报告已生成**（2026-07-09，[bug.md](file:///workspace/.monkeycode/bug.md)）：12 维度全量扫描，15 高/25 中/74 低风险，共 114 个问题。
 > v13 后端 P0/P1 全部完成（批次 229-236），v13 剩余 P2 任务合并到 v14 队列。
@@ -25,6 +25,7 @@
 > **批次 248 已完成**：v14 中风险缓存未利用修复 — AR/AP 报表 8 端点接入 CacheService（TTL 60s，命中缓存跳过 SQL 查询），PR #425 squash merge 到 main（commit 53ce6b53），分支已清理。CI 12/12 核心全绿（1 轮 CI 修复：Option 类型用 {:?} 格式化）。中风险 25 项已完成 6 项。
 > **批次 249 已完成**：v14 中风险简化阉割修复 — capacity_service forecast_capacity 硬编码 confidence: 0.8 改为动态计算（基于历史订单数量+当前负荷数据+预测期限三维），PR #426 squash merge 到 main（commit 82269a4），分支已清理。CI 12/12 核心全绿（1 轮 CI 修复：f64 类型标注消除 clamp 歧义）。中风险 25 项已完成 7 项。
 > **批次 250 已完成**：v14 中风险简化阉割修复 — budget_management adjust_budget 硬编码 APPROVED 改为完整审批闭环（PENDING→APPROVED/REJECTED），新增 approve_adjustment/reject_adjustment/reject_plan 方法 + 3 条路由 + 前端 API，PR #427 squash merge 到 main（commit b2520cd），分支已清理。CI 12/12 核心全绿。中风险 25 项已完成 8 项。
+> **批次 251 已完成**：v14 中风险简化阉割修复 — webhook retry 未持久化 payload（原 retry 构造假 payload + retry_count 值提取 bug 永远读 0），新增迁移 m0047（webhooks 表加 last_payload + last_event 列）+ trigger_webhook 发送前持久化原始 payload/event + retry_webhook 从持久化存储重投 + retry_count 对 HTTP 业务失败也计数/成功重置 0，PR #428 squash merge 到 main（commit 226af53），分支已清理。CI 12/12 核心全绿（Clippy 一次通过）。中风险 25 项已完成 9 项（简化阉割 3 项全部完成）。
 
 > 用户最高优先级规则（2026-07-04/06/08 追加）已固化到 [MEMORY.md 一、规则 0-12](file:///workspace/.monkeycode/MEMORY.md)。
 > 本文件仅记录任务进度，规则不在此重复。
@@ -47,7 +48,7 @@
 
 - **测试覆盖（7 项）**：handlers 100+ 文件覆盖率 10%、services 107 个无测试、frontend api 4.4%、ai 算法（pred/detect/rec）零测试、frontend store 多数无测试、middleware 多个零测试
 - **空实现（4 项）**：dye-recipe handleViewVersion、AdvancedFilter handleLogicChange、bi_analysis unreachable! panic、dual_unit_converter unreachable
-- **简化阉割（3 项）**：✅ capacity_service 硬编码置信度 0.8（批次 249 完成）、✅ budget_management 跳过审批流（批次 250 完成）、webhook retry 未持久化 payload
+- **简化阉割（3 项，全部完成 ✅）**：✅ capacity_service 硬编码置信度 0.8（批次 249 完成）、✅ budget_management 跳过审批流（批次 250 完成）、✅ webhook retry 未持久化 payload（批次 251 完成）
 - **死代码（1 项）**：14 个 composable 文件 eslint-disable any
 - **重复实现（2 项）**：20 个 service 分页逻辑重复（应接入 paginate_with_total）、30+ view 表格逻辑重复（应接入 useTableApi）
 - **项目规则符合性（1 项）**：cli/util/service.rs 硬编码健康检查 URL ✅ 批次 247 完成（PR #424, commit 47d86d86, CI 12/12 核心全绿）
