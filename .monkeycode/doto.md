@@ -5,7 +5,7 @@
 
 ---
 
-## 🔄 当前任务：v14 深度调研报告修复（高风险 6 项全部完成，中风险 25 项进行中，已完成 10/25）
+## 🔄 当前任务：v14 深度调研报告修复（高风险 6 项全部完成，中风险 25 项进行中，已完成 11/25）
 
 > **v14 深度调研报告已生成**（2026-07-09，[bug.md](file:///workspace/.monkeycode/bug.md)）：12 维度全量扫描，15 高/25 中/74 低风险，共 114 个问题。
 > v13 后端 P0/P1 全部完成（批次 229-236），v13 剩余 P2 任务合并到 v14 队列。
@@ -27,6 +27,7 @@
 > **批次 250 已完成**：v14 中风险简化阉割修复 — budget_management adjust_budget 硬编码 APPROVED 改为完整审批闭环（PENDING→APPROVED/REJECTED），新增 approve_adjustment/reject_adjustment/reject_plan 方法 + 3 条路由 + 前端 API，PR #427 squash merge 到 main（commit b2520cd），分支已清理。CI 12/12 核心全绿。中风险 25 项已完成 8 项。
 > **批次 251 已完成**：v14 中风险简化阉割修复 — webhook retry 未持久化 payload（原 retry 构造假 payload + retry_count 值提取 bug 永远读 0），新增迁移 m0047（webhooks 表加 last_payload + last_event 列）+ trigger_webhook 发送前持久化原始 payload/event + retry_webhook 从持久化存储重投 + retry_count 对 HTTP 业务失败也计数/成功重置 0，PR #428 squash merge 到 main（commit 226af53），分支已清理。CI 12/12 核心全绿（Clippy 一次通过）。中风险 25 项已完成 9 项（简化阉割 3 项全部完成）。
 > **批次 252 已完成**：v14 中风险空实现修复 — bi_analysis_service 3 处 unreachable!() + dual_unit_converter_handler 1 处 unreachable!() 改为返回 AppError 错误（dim_to_expr 返回 Result + 提取 measure_to_expr 独立函数 + handler 改 return Err），新增 6 个单元测试验证非法输入返回错误而非 panic，PR #429 squash merge 到 main（commit faa9749），分支已清理。CI 12/12 核心全绿（Clippy 一次通过）。中风险 25 项已完成 10 项。
+> **批次 253 已完成**：v14 中风险空实现修复 — AdvancedFilter.vue handleLogicChange 空函数改为真实实现（新增 logicChange emit 事件 + 接收 groupIndex 参数 emit 事件让父组件可响应 + 显示轻量级提示 + Demo 页面演示真实接入），PR #430 squash merge 到 main（commit da659f7），分支已清理。CI 12/12 核心全绿。中风险 25 项已完成 11 项（空实现 4 项全部完成）。
 
 > 用户最高优先级规则（2026-07-04/06/08 追加）已固化到 [MEMORY.md 一、规则 0-12](file:///workspace/.monkeycode/MEMORY.md)。
 > 本文件仅记录任务进度，规则不在此重复。
@@ -48,7 +49,7 @@
 #### 🟡 中风险修复队列（25 项，高风险完成后启动）
 
 - **测试覆盖（7 项）**：handlers 100+ 文件覆盖率 10%、services 107 个无测试、frontend api 4.4%、ai 算法（pred/detect/rec）零测试、frontend store 多数无测试、middleware 多个零测试
-- **空实现（4 项，已完成 2 项）**：✅ dye-recipe handleViewVersion（批次 246 完成）、✅ bi_analysis unreachable! panic + dual_unit_converter unreachable（批次 252 完成，4 处 unreachable! 全部改为返回 AppError 错误）、AdvancedFilter handleLogicChange（剩余）
+- **空实现（4 项，全部完成 ✅）**：✅ dye-recipe handleViewVersion（批次 246 完成）、✅ bi_analysis unreachable! panic + dual_unit_converter unreachable（批次 252 完成，4 处 unreachable! 全部改为返回 AppError 错误）、✅ AdvancedFilter handleLogicChange（批次 253 完成，新增 logicChange emit 事件）
 - **简化阉割（3 项，全部完成 ✅）**：✅ capacity_service 硬编码置信度 0.8（批次 249 完成）、✅ budget_management 跳过审批流（批次 250 完成）、✅ webhook retry 未持久化 payload（批次 251 完成）
 - **死代码（1 项）**：14 个 composable 文件 eslint-disable any
 - **重复实现（2 项）**：20 个 service 分页逻辑重复（应接入 paginate_with_total）、30+ view 表格逻辑重复（应接入 useTableApi）

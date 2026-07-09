@@ -6,6 +6,27 @@
 
 ---
 
+## 2026-07-10 (批次 253 v14 中风险空实现修复 — AdvancedFilter handleLogicChange 真实实现，CI 12/12 核心全绿)
+
+### 批次 253：v14 中风险空实现修复 — AdvancedFilter handleLogicChange 空函数改为真实实现
+
+**修复内容**：bug.md 中风险空实现问题 — `AdvancedFilter.vue` 第 249 行 `handleLogicChange` 为空函数 `() => {}`，绑定在第 36 行的条件组 AND/OR 逻辑切换下拉框 `@change`。用户切换条件组逻辑运算符时无任何响应，多条件组合查询能力失效。
+
+**修改文件**（2 文件 +31 -2 行）：
+- `frontend/src/components/AdvancedFilter.vue`：新增 `logicChange` emit 事件 + `handleLogicChange` 接收 `groupIndex` 参数实现真实逻辑
+- `frontend/src/views/components-demo/AdvancedFilterDemo.vue`：演示 `logicChange` 事件真实接入（自动更新筛选结果）
+
+**技术要点**：
+- 新增 `logicChange: [groupIndex: number, logic: 'AND' | 'OR', filters: FilterGroup[]]` emit 事件
+- `handleLogicChange` 接收 `groupIndex` 参数，emit 事件让父组件可响应（如自动重新查询或更新预览）
+- 显示轻量级 `ElMessage.info` 提示让用户知道逻辑已切换（duration: 1500ms）
+- 模板 `@change` 改为 `() => handleLogicChange(groupIndex)` 传递循环索引
+- Demo 页面 `handleLogicChange` 演示：自动更新 `filterResult` 以反映新的逻辑关系
+
+**CI 验证**：CI run #29058007479，12/12 核心 job 全绿，E2E 失败为已知问题不阻塞。PR #430 squash merge 到 main（commit da659f7）。
+
+---
+
 ## 2026-07-10 (批次 252 v14 中风险空实现修复 — unreachable! panic 改为返回错误，CI 12/12 核心全绿)
 
 ### 批次 252：v14 中风险空实现修复 — bi_analysis + dual_unit_converter unreachable! 改为防御性错误处理
