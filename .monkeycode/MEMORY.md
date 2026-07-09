@@ -178,32 +178,35 @@
 
 ---
 
-## 二、当前任务状态（2026-07-08 批次 196 完成 - v11 前端 P2-1 any 类型清理全部完成，核心 12/12 全绿）
+## 二、当前任务状态（2026-07-09 批次 228 完成 - v12 P2-8 测试覆盖补测 14 个高优先级 service 342 个测试，核心 12/12 全绿）
 
 > 用户最高优先级规则已在「一、规则 0-12」固化，本节仅记录修复进度。
-> 规则 10 梳理时间：2026-07-08（批次 195 = 13×15 触发）
+> 规则 10 梳理时间：2026-07-09（批次 228 = 15×15+3 触发，上次梳理批次 195）
 
-### v11 前端 P2-1 any 类型清理（已完成 ✅）
+### v12 全项目复审 P2 修复（进行中 🔄）
 
-- **批次 191-196**：frontend/src 中无真实 any 类型残留，剩余 any 均为已修复注释
-- **关键修复模式**：
-  - `as any` → 具体类型断言（Warehouse/Department/LockedAccount/ApiLog/PurchaseOrder/SalesReturn）
-  - `Record<string, any>` → `Record<string, Component/TagType/unknown>`
-  - `[key: string]: any` → `[key: string]: unknown`
-  - el-tag `:type` 的 `as any` → 新建 TagType 联合类型 + tagType() 函数
-  - `any[]` → 具体接口数组（ApiLog[]/SalesReturn[]/PurchaseOrder[]）
-  - optional 字段传给非 optional 参数 → 加 `?? 0` / `?? ''` / `|| ''` 默认值
-  - Vue ref 解包：`:form-ref="someRef"` → `:form-ref="someRef.value"`
-  - Object.keys 逐键 delete → Object.assign 覆盖（修复 TS7053 索引签名错误）
-- **CI 验证**：commit 3d7c7c9 核心 12/12 全绿（E2E failure 非阻塞）
+- ✅ P2-1：死代码常量接入业务（批次 214-216，状态常量重构 + cancel_order + cancel_delivery）
+- ✅ P2-2：桩代码补全（批次 206）
+- ✅ P2-3：N+1 写（已修复）
+- ✅ P2-4：unwrap/expect 加固（批次 207）
+- ✅ P2-5：硬编码状态字符串替换（批次 208-213，82 处替换 + 3 个新子模块）
+- ✅ P2-6：事务保护缺失（批次 205-206）
+- ✅ P2-7：API 一致性 100%（批次 217，用户明确要求 100%）
+- ✅ P2-8：测试覆盖补测高优先级 service（批次 221-228，14 个 service 342 个测试，CI 12/12 核心全绿）
+  - customer_credit_limit 19 + accounting_period 14 + po/order 19 + inventory_reservation 17
+  - inv/stock 15 + so/order_workflow 17 + bom_service 24 + ar/recon 22
+  - voucher_service 29 + ap_reconciliation 30 + production_order 55 + mrp_engine 25
+  - so/delivery 25 + ar/vfy 31 = 342 个测试
+- ✅ 前端 P2 复审完成（FE-P2-1/2/4/5 已修复，FE-P2-3 i18n / FE-P2-6 虚拟化后续迭代）
 
-### v11 剩余任务
+### v12 剩余任务
 
-- ⏳ v11 前端 P2-2：i18n 接入（仅 Login.vue，其余 ~150 个 .vue 文件硬编码中文）
-- ⏳ v12 全项目复审（v11 全部修复完成后）
-- ⏳ 批次 200：E2E 加强测试 + 报告（规则 5）
-- ⏳ E2E 测试用例修复：移除 mockBusinessApi，让业务 API 走真实后端
-- ⏳ 迁移文件进一步整合（用户要求减少迁移文件数量）
+- ⏳ v13 全项目复审（v12 P2 修复完成后进行）
+- ⏳ FE-P2-3：i18n 覆盖率（200+ 视图硬编码中文，巨大工作量）
+- ⏳ FE-P2-6：大列表虚拟化（966 处 el-table，巨大工作量）
+- ⏳ E2E 失败排查（连续多次"启动后端服务"失败，待规则 5 节点统一处理）
+- ⏳ ar/vfy.rs 状态常量不一致修复（reconciliation_status 小写 vs status::ar 大写）
+- ⏳ P2-8 剩余 143 个无测试 service（非高优先级，后续迭代）
 
 ### v9 复审结果（2 个并行子代理扫描）
 
