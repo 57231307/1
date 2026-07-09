@@ -6,6 +6,27 @@
 
 ---
 
+## 2026-07-09 (批次 241 v14 P0-5 API 文档缺失修复，CI 待验证)
+
+### 批次 241：v14 P0-5 API 文档缺失修复（恢复 docs.rs ApiDoc + 删除 openapi.rs 死文件）
+
+**修复内容**：bug.md 深度调研报告高风险问题 — openapi.rs 是未注册的幽灵文件（无 mod 声明），docs.rs 是占位文件（ApiDoc 已删除），导致 `#[cfg(feature = "swagger")]` feature 启用时编译失败，API 文档功能形同虚设。
+
+**修改文件**（2 文件，1 改 1 删）：
+- `backend/src/docs.rs`：恢复 ApiDoc struct（注册 auth_handler::login + health_handler::health_check 2 个有 utoipa::path 注解的 handler + 5 个 schema），新增 impl Default，添加 TODO 注释说明后续迭代补全 handler 注解
+- `backend/src/openapi.rs`：删除（未注册的幽灵文件，编译器看不到，违反项目组织规范）
+
+**关键发现**：
+- openapi.rs 虽然注册了 33 个 paths，但大部分 handler 无 `#[utoipa::path]` 注解，直接迁移会导致 swagger feature 编译失败
+- 仅 2 个 handler 有注解：auth_handler::login（path = "/api/v1/erp/auth/login"）+ health_handler::health_check（path = "/api/v1/erp/init/health"）
+- routes/mod.rs:321 引用 `crate::docs::ApiDoc::openapi()`，恢复 docs.rs 后 swagger feature 可正常编译
+
+**CI 验证**：待推送验证
+
+**影响范围**：API 文档功能（swagger feature），CI 默认不启用此 feature，但启用时不再编译失败
+
+---
+
 ## 2026-07-09 (批次 237 v14 P0-1 并发 async 阻塞修复，CI 12/12 核心全绿，v14 修复流程启动)
 
 ### 批次 237：v14 P0-1 并发 async 阻塞修复（spawn_blocking 包装 Argon2id 哈希）
