@@ -7,6 +7,21 @@ use super::{
     SERVICE_NAME,
 };
 
+/// 读取后端服务监听主机（环境变量 SERVER__HOST，默认 127.0.0.1）
+fn backend_host() -> String {
+    std::env::var("SERVER__HOST").unwrap_or_else(|_| "127.0.0.1".to_string())
+}
+
+/// 读取后端服务监听端口（环境变量 SERVER__PORT，默认 8082）
+fn backend_port() -> String {
+    std::env::var("SERVER__PORT").unwrap_or_else(|_| "8082".to_string())
+}
+
+/// 拼接后端健康检查 URL
+fn backend_health_url() -> String {
+    format!("http://{}:{}/health", backend_host(), backend_port())
+}
+
 pub(super) fn cmd_status() {
     println!("=== Bingxi ERP 服务状态 ===\n");
 
@@ -19,15 +34,18 @@ pub(super) fn cmd_status() {
     println!("{} Nginx 服务", status_icon(nginx_ok));
 
     // 端口监听
+    let port = backend_port();
+    let port_pattern = format!(":{}", port);
     println!("\n--- 端口监听 ---");
     if let Ok(ss) = run_cmd("ss", &["-tlnp"]) {
         println!(
-            "{} 端口 8082 (后端)",
-            if ss.contains(":8082") {
+            "{} 端口 {} (后端)",
+            if ss.contains(&port_pattern) {
                 "[OK]"
             } else {
                 "[STOPPED]"
-            }
+            },
+            port
         );
         println!(
             "{} 端口 80 (HTTP)",
@@ -177,9 +195,10 @@ pub(super) fn cmd_health() {
 
     // HTTP 检查
     // 批次 28 v7 P0-5 修复：健康检查端点从 /api/v1/erp/health 改为 /health。
+    // 批次 247 v14 中风险修复：URL 从环境变量 SERVER__HOST/SERVER__PORT 读取，默认 127.0.0.1:8082。
     // 实际路由注册在 routes/mod.rs:359 和 routes/system.rs:196，均为顶层 /health。
-    // 原 /api/v1/erp/health 已不在路由表（仅 public_routes 白名单保留以兼容旧探针）。
-    println!("\n检查 HTTP 接口...");
+    let health_url = backend_health_url();
+    println!("\n检查 HTTP 接口 ({})...", health_url);
     match run_cmd(
         "curl",
         &[
@@ -188,7 +207,7 @@ pub(super) fn cmd_health() {
             "/dev/null",
             "-w",
             "%{http_code}",
-            "http://127.0.0.1:8082/health",
+            &health_url,
         ],
     ) {
         Ok(code) => println!(
