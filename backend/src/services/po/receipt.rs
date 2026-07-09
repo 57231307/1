@@ -42,7 +42,7 @@ impl PurchaseOrderService {
                 .one(&txn)
                 .await?
                 .ok_or_else(|| AppError::not_found(format!("入库单 {}", rid)))?;
-            if receipt.receipt_status == "COMPLETED" {
+            if receipt.receipt_status == status::purchase_receipt::COMPLETED {
                 tracing::info!(
                     "入库单 {} 已 COMPLETED，跳过重复入库（幂等返回），订单 {}",
                     rid,
@@ -272,7 +272,7 @@ impl PurchaseOrderService {
             // 使用结构体初始化器语法（避免 clippy::field_reassign_with_default）
             let receipt_active = purchase_receipt::ActiveModel {
                 id: Set(rid),
-                receipt_status: Set("COMPLETED".to_string()),
+                receipt_status: Set(status::purchase_receipt::COMPLETED.to_string()),
                 updated_at: Set(now),
                 ..Default::default()
             };

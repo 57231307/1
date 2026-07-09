@@ -6,7 +6,7 @@
 // 批次 101 v6 复审 P2 修复：calculate_receipt_total_txn / calculate_receipt_total
 // 审计操作人 Some(0) 占位符改为真实 user_id，三处内部调用方同步透传 user_id（P2-6）。
 
-use crate::models::{purchase_receipt, purchase_receipt_item};
+use crate::models::{purchase_receipt, purchase_receipt_item, status};
 use crate::services::event_bus::EVENT_BUS;
 use crate::services::purchase_receipt_dto::{
     CreatePurchaseReceiptRequest, CreateReceiptItemRequest, UpdatePurchaseReceiptRequest,
@@ -83,7 +83,7 @@ impl PurchaseReceiptService {
             receiver_id: Set(Some(user_id)),
             inspector_id: Set(req.inspector_id),
             inspection_status: Set("PENDING".to_string()),
-            receipt_status: Set("DRAFT".to_string()),
+            receipt_status: Set(status::purchase_receipt::DRAFT.to_string()),
             notes: Set(req.notes),
             attachment_urls: Set(req.attachment_urls),
             created_by: Set(user_id),
@@ -164,7 +164,7 @@ impl PurchaseReceiptService {
             .ok_or_else(|| AppError::not_found(format!("采购入库单 {}", receipt_id)))?;
 
         // 2. 检查状态
-        if receipt.receipt_status != "DRAFT" {
+        if receipt.receipt_status != status::purchase_receipt::DRAFT {
             return Err(AppError::business(format!(
                 "入库单状态不允许修改，当前状态：{}",
                 receipt.receipt_status
@@ -230,7 +230,7 @@ impl PurchaseReceiptService {
             .ok_or_else(|| AppError::not_found(format!("采购入库单 {}", receipt_id)))?;
 
         // 2. 检查状态
-        if receipt.receipt_status != "DRAFT" {
+        if receipt.receipt_status != status::purchase_receipt::DRAFT {
             return Err(AppError::business(format!(
                 "入库单状态不允许删除，当前状态：{}",
                 receipt.receipt_status
@@ -282,7 +282,7 @@ impl PurchaseReceiptService {
             .ok_or_else(|| AppError::not_found(format!("采购入库单 {}", receipt_id)))?;
 
         // 2. 检查状态
-        if receipt.receipt_status != "DRAFT" {
+        if receipt.receipt_status != status::purchase_receipt::DRAFT {
             return Err(AppError::business(format!(
                 "入库单状态不允许确认，当前状态：{}",
                 receipt.receipt_status
@@ -310,7 +310,7 @@ impl PurchaseReceiptService {
         // 5. 更新状态
         let now = chrono::Utc::now();
         let mut receipt_active: purchase_receipt::ActiveModel = receipt.into();
-        receipt_active.receipt_status = Set("CONFIRMED".to_string());
+        receipt_active.receipt_status = Set(status::purchase_receipt::CONFIRMED.to_string());
         receipt_active.confirmed_at = Set(Some(now));
         receipt_active.confirmed_by = Set(Some(user_id));
         receipt_active.updated_by = Set(Some(user_id));
@@ -380,7 +380,7 @@ impl PurchaseReceiptService {
             .ok_or_else(|| AppError::not_found(format!("采购入库单 {}", receipt_id)))?;
 
         // 2. 检查状态
-        if receipt.receipt_status != "DRAFT" {
+        if receipt.receipt_status != status::purchase_receipt::DRAFT {
             return Err(AppError::business(format!(
                 "入库单状态不允许添加明细，当前状态：{}",
                 receipt.receipt_status
@@ -445,7 +445,7 @@ impl PurchaseReceiptService {
             .ok_or_else(|| AppError::not_found(format!("采购入库单 {}", item.receipt_id)))?;
 
         // 3. 检查状态
-        if receipt.receipt_status != "DRAFT" {
+        if receipt.receipt_status != status::purchase_receipt::DRAFT {
             return Err(AppError::business(format!(
                 "入库单状态不允许修改明细，当前状态：{}",
                 receipt.receipt_status
@@ -514,7 +514,7 @@ impl PurchaseReceiptService {
             .ok_or_else(|| AppError::not_found(format!("采购入库单 {}", item.receipt_id)))?;
 
         // 3. 检查状态
-        if receipt.receipt_status != "DRAFT" {
+        if receipt.receipt_status != status::purchase_receipt::DRAFT {
             return Err(AppError::business(format!(
                 "入库单状态不允许删除明细，当前状态：{}",
                 receipt.receipt_status
