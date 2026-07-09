@@ -6,6 +6,28 @@
 
 ---
 
+## 2026-07-09 (批次 245 v14 中风险性能修复 — ap_report_service 报表 SQL 聚合，CI 12/12 核心全绿)
+
+### 批次 245：v14 中风险性能修复 — ap_report_service 4 个报表方法 SQL 层聚合
+
+**修复内容**：bug.md 中风险性能问题 — ap_report_service.rs 4 个报表方法全量加载发票到内存做聚合，宽日期范围查询可能导致 OOM。
+
+**修改文件**（1 文件 +424 -219 行）：
+- `backend/src/services/ap_report_service.rs`：
+  1. `get_statistics_report`：原 `.all()` 加载全部发票后内存 COUNT/SUM/过滤逾期 → 主聚合 SQL（COUNT/SUM/CASE WHEN overdue）+ by_status GROUP BY + by_type GROUP BY
+  2. `get_daily_report`：原 3 次 `.all()` 全量加载 → 3 个 `query_one` 聚合查询（新增/到期/付款）
+  3. `get_monthly_report`：原 2 次 `.all()` 全量加载做余额计算 → 2 个 `query_one` 聚合查询（月初/月末余额）
+  4. `get_aging_report`：原全量加载未付清发票内存分桶 → SQL CASE WHEN + SUM + COUNT 分桶聚合 + 未到期单独查询
+
+**技术要点**：
+- 规则 12 合规：全部参数（start_date/end_date/status/supplier_id/today）使用 `$N` 参数化绑定
+- CI 修复：1 轮（clippy `supplier_id.unwrap()` after `is_some()` 警告 → 改用 `supplier_id.map(|sid|)` 模式，i32 为 Copy 可直接多次 map；消除 `supplier_param_idx` 中间变量，每个子查询独立计算参数索引）
+- 性能收益：O(N) 内存 → O(1) 内存（统计/日/月报表）/ O(分组数) 内存（by_status/by_type）
+
+**CI 验证**：CI run #29036375275，12/12 核心 job 全绿，PR #422 squash merge 到 main（commit ae7d4619）。
+
+---
+
 ## 2026-07-09 (批次 244 v14 中风险性能修复 — ar_service 报表 SQL 聚合，CI 12/12 核心全绿)
 
 ### 批次 244：v14 中风险性能修复 — ar_service 3 个报表方法 SQL 层聚合

@@ -252,7 +252,11 @@
     - 删除 DailyAgg / MonthlyAgg 死代码 struct
     - CI 修复：1 轮（clippy param_idx 未使用赋值警告 → 改用 params.len() + 1 模式）
     - CI run #29034578201：12/12 核心 job 全绿，PR #421 squash merge 到 main（commit dcd8488d）
-  - ap_report_service 4 方法 + 缓存未利用 ⏳ 待修复
+  - ap_report_service 4 方法 SQL 聚合 ✅ 批次 245 完成
+    - 修复内容：get_statistics_report（主聚合 + by_status GROUP BY + by_type GROUP BY）/ get_daily_report（3 个 query_one 聚合）/ get_monthly_report（2 个 query_one 聚合）/ get_aging_report（CASE WHEN + SUM + COUNT 分桶聚合）
+    - CI 修复：1 轮（clippy supplier_id.unwrap 警告 → 改用 supplier_id.map(|sid|) 模式，i32 为 Copy 可直接多次 map）
+    - CI run #29036375275：12/12 核心 job 全绿，PR #422 squash merge 到 main（commit ae7d4619）
+  - 缓存未利用 ⏳ 待修复
 - 安全漏洞（2 项）：report-templates XSS 潜在、tracking_handler 输入验证缺失 ✅ 批次 243 完成
   - 修复内容：
     1. report-templates/index.vue：引入 escapeHtml（@/utils/print），报表预览表头与单元格值均经 HTML 转义后再拼接（原 String(r[f] ?? '') 直接拼接，DOMPurify 默认允许 <img>/<a> 标签）
