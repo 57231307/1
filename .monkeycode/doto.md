@@ -14,7 +14,7 @@
 > **批次 238 已完成**：v14 P0-2 性能-全表扫描修复（ar_service get_aging_report SQL 聚合），PR #415 squash merge 到 main（commit 775f7761），分支已清理。CI 12/12 核心全绿（1 轮 CI 修复：Values 类型冲突 + try_get_by_index turbofish）。
 > **批次 239 已完成**：v14 P0-3 空实现-业务失效修复（dye-batch/dye-recipe handleView isView 只读模式），PR #416 squash merge 到 main（commit 743a9595），分支已清理。CI 12/12 核心全绿。
 > **批次 240 已完成**：v14 P0-4 测试覆盖-安全核心修复（permission.rs 提取 matches_permission 纯函数 + 23 个单元测试），PR #417 squash merge 到 main（commit c72982b9），分支已清理。CI 12/12 核心全绿。
-> **批次 241 已完成**：v14 P0-5 API 文档缺失修复（恢复 docs.rs ApiDoc + 删除 openapi.rs 死文件），PR 待创建。CI 待验证。
+> **批次 241 已完成**：v14 P0-5 API 文档缺失修复（恢复 docs.rs ApiDoc + 删除 openapi.rs 死文件），PR #418 squash merge 到 main（commit de1437f0），分支已清理。CI 12/12 核心全绿（E2E 失败为已知问题不阻塞）。
 
 > 用户最高优先级规则（2026-07-04/06/08 追加）已固化到 [MEMORY.md 一、规则 0-12](file:///workspace/.monkeycode/MEMORY.md)。
 > 本文件仅记录任务进度，规则不在此重复。
@@ -30,7 +30,7 @@
 | 238 | P0-2 | 性能-全表扫描（1 处高） | ar_service.rs:1274-1321 get_aging_report | SQL CASE WHEN + SUM + COUNT 聚合 | ✅ 已完成（PR #415, commit 775f7761, CI 12/12 核心全绿, 1 轮 CI 修复） |
 | 239 | P0-3 | 空实现-业务失效（2 处高） | dye-batch/index.vue:341 + dye-recipe/index.vue:318 handleView | 新增 isView 只读模式，复用对话框 | ✅ 已完成（PR #416, commit 743a9595, CI 12/12 核心全绿） |
 | 240 | P0-4 | 测试覆盖-安全核心（1 处高） | middleware/permission.rs 全文件零测试 | 提取 matches_permission + 23 个测试 | ✅ 已完成（PR #417, commit c72982b9, CI 12/12 核心全绿） |
-| 241 | P0-5 | API 文档缺失（2 处高） | openapi.rs 死文件 + docs.rs 占位文件 | 恢复 docs.rs ApiDoc + 删除 openapi.rs 死文件 | ✅ 已完成（PR 待创建, CI 待验证） |
+| 241 | P0-5 | API 文档缺失（2 处高） | openapi.rs 死文件 + docs.rs 占位文件 | 恢复 docs.rs ApiDoc + 删除 openapi.rs 死文件 | ✅ 已完成（PR #418, commit de1437f0, CI 12/12 核心全绿） |
 | - | P0-6 | 简化阉割-永久（1 处高） | crm/cust.rs:265-275 get_rfm_distribution | 真实计算 RFM 分布 | ⏳ 待处理 |
 
 #### 🟡 中风险修复队列（25 项，高风险完成后启动）

@@ -6,7 +6,7 @@
 
 ---
 
-## 2026-07-09 (批次 241 v14 P0-5 API 文档缺失修复，CI 待验证)
+## 2026-07-09 (批次 241 v14 P0-5 API 文档缺失修复，CI 12/12 核心全绿)
 
 ### 批次 241：v14 P0-5 API 文档缺失修复（恢复 docs.rs ApiDoc + 删除 openapi.rs 死文件）
 
@@ -21,7 +21,7 @@
 - 仅 2 个 handler 有注解：auth_handler::login（path = "/api/v1/erp/auth/login"）+ health_handler::health_check（path = "/api/v1/erp/init/health"）
 - routes/mod.rs:321 引用 `crate::docs::ApiDoc::openapi()`，恢复 docs.rs 后 swagger feature 可正常编译
 
-**CI 验证**：待推送验证
+**CI 验证**：CI run #29029806479：12/12 核心 job 全绿（Rust Clippy + 单元测试 + 后端构建 + 前端全部通过，E2E 失败为已知问题不阻塞），PR #418 squash merge 到 main（commit de1437f0）
 
 **影响范围**：API 文档功能（swagger feature），CI 默认不启用此 feature，但启用时不再编译失败
 

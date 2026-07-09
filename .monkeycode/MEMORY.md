@@ -231,7 +231,7 @@
    - 仅 2 个 handler 有 `#[utoipa::path]` 注解：auth_handler::login + health_handler::health_check
    - 修复方案：恢复 docs.rs ApiDoc（只注册有注解的 2 个 handler + 5 个 schema）+ 删除 openapi.rs 死文件
    - 实际修复：docs.rs 恢复 ApiDoc struct + impl Default + TODO 注释（后续迭代补全 handler 注解）
-   - CI 待验证，PR 待创建
+   - CI run #29029806479：12/12 核心 job 全绿（E2E 失败为已知问题不阻塞），PR #418 squash merge 到 main（commit de1437f0）
 
 6. **简化阉割-永久 P0-6**（1 处高，crm/cust.rs:265-275 get_rfm_distribution）
    - 返回全 0 占位 JSON，RFM 分布功能形同虚设
