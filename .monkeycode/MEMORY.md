@@ -233,9 +233,11 @@
    - 实际修复：docs.rs 恢复 ApiDoc struct + impl Default + TODO 注释（后续迭代补全 handler 注解）
    - CI run #29029806479：12/12 核心 job 全绿（E2E 失败为已知问题不阻塞），PR #418 squash merge 到 main（commit de1437f0）
 
-6. **简化阉割-永久 P0-6**（1 处高，crm/cust.rs:265-275 get_rfm_distribution）
+6. **简化阉割-永久 P0-6**（1 处高，crm/cust.rs:265-275 get_rfm_distribution）✅ 批次 242 完成
    - 返回全 0 占位 JSON，RFM 分布功能形同虚设
    - 修复方案：真实批量计算所有客户 RFM 评分并聚合分布
+   - 实际修复：一次性查询所有客户 ID + 订单聚合（GROUP BY customer_id），内存计算 RFM 评分，分桶聚合（VIP>=4.5/重要>=3.5/一般>=2.5/低价值<2.5），提取 OrderAggRow/CustomerOrderStats type 别名避免 clippy type_complexity 警告
+   - CI run #29031527941：12/12 核心 job 全绿（1 轮 CI 修复：type_complexity），PR #419 squash merge 到 main（commit 146251d9）
 
 **v14 中风险问题修复队列（25 项，待高风险完成后启动）**：
 - 测试覆盖（7 项）：handlers 100+ 文件覆盖率 10%、services 107 个无测试、frontend api 4.4%、ai 算法零测试等

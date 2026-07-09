@@ -6,6 +6,33 @@
 
 ---
 
+## 2026-07-09 (批次 242 v14 P0-6 RFM 分布简化阉割永久修复，CI 12/12 核心全绿，v14 高风险全部完成)
+
+### 批次 242：v14 P0-6 RFM 分布简化阉割永久修复（真实批量计算所有客户 RFM 评分）
+
+**修复内容**：bug.md 深度调研报告高风险问题 — crm/cust.rs get_rfm_distribution 返回全 0 占位 JSON，RFM 分布功能形同虚设。
+
+**修改文件**（1 文件 +114 -7 行）：
+- `backend/src/services/crm/cust.rs`：get_rfm_distribution 从全 0 占位 JSON 改为真实批量计算
+  - 一次性查询所有客户 ID + 订单聚合数据（GROUP BY customer_id，避免 N+1 查询）
+  - 在内存中按 compute_rfm_score 相同规则计算每个客户的 RFM 评分
+  - 按评分分桶聚合：VIP(>=4.5) / 重要(>=3.5) / 一般(>=2.5) / 低价值(<2.5)
+  - 提取 OrderAggRow / CustomerOrderStats type 别名避免 clippy type_complexity 警告
+
+**技术要点**：
+- 使用 SeaORM select_only + column_as + group_by + into_tuple 实现单次聚合查询
+- 构建 HashMap<customer_id, CustomerOrderStats> 映射，O(1) 查找
+- 评分规则与 compute_rfm_score 完全一致（R/F/M 各 1-5 分，平均分）
+- SQL 查询使用 SeaORM 查询构建器（参数化查询，符合规则 12 安全标准）
+
+**CI 验证**：CI run #29031527941：12/12 核心 job 全绿（1 轮 CI 修复：type_complexity 警告提取 type 别名），PR #419 squash merge 到 main（commit 146251d9）
+
+**影响范围**：CRM 客户 RFM 分析功能（前端客户分析仪表盘）
+
+**里程碑**：v14 高风险 6 项全部完成（P0-1 到 P0-6），准备启动中风险 25 项修复队列
+
+---
+
 ## 2026-07-09 (批次 241 v14 P0-5 API 文档缺失修复，CI 12/12 核心全绿)
 
 ### 批次 241：v14 P0-5 API 文档缺失修复（恢复 docs.rs ApiDoc + 删除 openapi.rs 死文件）
