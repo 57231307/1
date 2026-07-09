@@ -629,8 +629,7 @@ impl ArService {
                 .insert(&txn)
                 .await?;
 
-                // 创建明细 + 更新发票
-                // 批量查询并锁定所有相关发票
+                // 批量查询并锁定所有相关发票（v13 P1-3：N+1 重构，明细批量 INSERT + 发票批量 UPDATE）
                 let inv_ids: Vec<i32> = matched_items.iter().map(|(id, _)| *id).collect();
                 let mut inv_map: std::collections::HashMap<i32, ar_invoice::Model> =
                     ar_invoice::Entity::find()
@@ -642,12 +641,18 @@ impl ArService {
                         .map(|inv| (inv.id, inv))
                         .collect();
 
+                // 收集所有明细 ActiveModel，循环结束后批量 INSERT
+                let mut items_to_insert: Vec<ar_reconciliation_item::ActiveModel> = Vec::new();
+                // 记录本收款涉及的发票 ID，用于内层循环结束后批量 UPDATE
+                let mut touched_invoice_ids: Vec<i32> = Vec::new();
+
                 for (inv_id, verify_amount) in matched_items {
-                    // INVOICE 明细（正金额）
                     let inv = inv_map.get(&inv_id).ok_or_else(|| {
                         AppError::not_found(format!("应收单 {}", inv_id))
                     })?;
-                    ar_reconciliation_item::ActiveModel {
+
+                    // INVOICE 明细（正金额，收集不立即 INSERT）
+                    items_to_insert.push(ar_reconciliation_item::ActiveModel {
                         reconciliation_id: Set(reconciliation.id),
                         item_type: Set("INVOICE".to_string()),
                         document_type: Set(Some("SALES_INVOICE".to_string())),
@@ -662,12 +667,10 @@ impl ArService {
                         created_at: Set(now),
                         updated_at: Set(now),
                         ..Default::default()
-                    }
-                    .insert(&txn)
-                    .await?;
+                    });
 
-                    // RECEIPT 明细（负金额，按惯例收款为负）
-                    ar_reconciliation_item::ActiveModel {
+                    // RECEIPT 明细（负金额，按惯例收款为负，收集不立即 INSERT）
+                    items_to_insert.push(ar_reconciliation_item::ActiveModel {
                         reconciliation_id: Set(reconciliation.id),
                         item_type: Set("RECEIPT".to_string()),
                         document_type: Set(Some("AR_COLLECTION".to_string())),
@@ -682,11 +685,9 @@ impl ArService {
                         created_at: Set(now),
                         updated_at: Set(now),
                         ..Default::default()
-                    }
-                    .insert(&txn)
-                    .await?;
+                    });
 
-                    // 更新发票 received_amount/unpaid_amount/status
+                    // 内存中累计发票状态变更（不立即 UPDATE）
                     let invoice = inv_map.get_mut(&inv_id).ok_or_else(|| {
                         AppError::not_found(format!("应收单 {}", inv_id))
                     })?;
@@ -698,16 +699,35 @@ impl ArService {
                     } else {
                         invoice.status = crate::models::status::payment::PAYMENT_PARTIAL_PAID.to_string();
                     }
-                    let inv_active: ar_invoice::ActiveModel = invoice.clone().into();
-                    crate::services::audit_log_service::AuditLogService::update_with_audit::<
-                        ar_invoice::Entity,
-                        _,
-                        _,
-                    >(&txn, "ar_invoice", inv_active, Some(user_id))
-                    .await?;
+                    touched_invoice_ids.push(inv_id);
 
                     total_verified_count += 1;
                     total_verified_amount += verify_amount;
+                }
+
+                // 批量 INSERT 所有明细（INVOICE + RECEIPT），替代逐条 INSERT
+                if !items_to_insert.is_empty() {
+                    ar_reconciliation_item::Entity::insert_many(items_to_insert)
+                        .exec(&txn)
+                        .await?;
+                }
+
+                // 批量 UPDATE 本收款涉及的发票（去重后逐个 update_with_audit）
+                // 同一发票在同一收款内可能被多次匹配，内存中已累计最终状态
+                let mut seen: std::collections::HashSet<i32> = std::collections::HashSet::new();
+                for inv_id in touched_invoice_ids {
+                    if !seen.insert(inv_id) {
+                        continue; // 跳过已处理的发票
+                    }
+                    if let Some(invoice) = inv_map.remove(&inv_id) {
+                        let inv_active: ar_invoice::ActiveModel = invoice.into();
+                        crate::services::audit_log_service::AuditLogService::update_with_audit::<
+                            ar_invoice::Entity,
+                            _,
+                            _,
+                        >(&txn, "ar_invoice", inv_active, Some(user_id))
+                        .await?;
+                    }
                 }
             }
         }
