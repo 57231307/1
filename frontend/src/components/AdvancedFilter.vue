@@ -33,7 +33,7 @@
               v-model="group.logic"
               size="small"
               style="width: 100px"
-              @change="handleLogicChange"
+              @change="() => handleLogicChange(groupIndex)"
             >
               <el-option label="AND" value="AND" />
               <el-option label="OR" value="OR" />
@@ -199,6 +199,8 @@ const emit = defineEmits<{
   reset: []
   schemeSaved: [scheme: SavedScheme]
   schemeLoaded: [scheme: SavedScheme]
+  /** 条件组逻辑运算符切换（批次 253 修复：原 handleLogicChange 为空函数） */
+  logicChange: [groupIndex: number, logic: 'AND' | 'OR', filters: FilterGroup[]]
 }>()
 
 const defaultOperators: FilterOperator[] = [
@@ -246,7 +248,20 @@ const handleFieldChange = (condition: FilterCondition) => {
   condition.value = ''
 }
 
-const handleLogicChange = () => {}
+/// 条件组逻辑运算符切换处理（批次 253 修复：原为空函数，逻辑切换无响应）
+///
+/// 用户切换条件组的 AND/OR 逻辑时：
+/// 1. emit logicChange 事件让父组件可响应（如自动重新查询或更新预览）
+/// 2. 显示轻量级提示让用户知道逻辑已切换
+const handleLogicChange = (groupIndex: number) => {
+  const group = conditions.value[groupIndex]
+  if (!group) return
+  emit('logicChange', groupIndex, group.logic, conditions.value)
+  ElMessage.info({
+    message: `条件组 ${groupIndex + 1} 逻辑已切换为 ${group.logic}`,
+    duration: 1500,
+  })
+}
 
 const getValueInput = (condition: FilterCondition) => {
   if (['null', 'notNull'].includes(condition.operator)) {
