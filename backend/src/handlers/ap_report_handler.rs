@@ -40,7 +40,7 @@ pub async fn get_statistics_report(
     );
 
     let cache_key = format!(
-        "ap:report:statistics:{}:{}:{}",
+        "ap:report:statistics:{:?}:{}:{}",
         params.supplier_id, params.start_date, params.end_date
     );
     if let Some(cached) = state.cache_service.get(&cache_key).await {
@@ -87,7 +87,7 @@ pub async fn get_daily_report(
     );
 
     let cache_key = format!(
-        "ap:report:daily:{}:{}",
+        "ap:report:daily:{:?}:{}",
         params.supplier_id, params.report_date
     );
     if let Some(cached) = state.cache_service.get(&cache_key).await {
@@ -135,7 +135,7 @@ pub async fn get_monthly_report(
     );
 
     let cache_key = format!(
-        "ap:report:monthly:{}:{}:{}",
+        "ap:report:monthly:{:?}:{}:{}",
         params.supplier_id, params.year, params.month
     );
     if let Some(cached) = state.cache_service.get(&cache_key).await {
@@ -180,7 +180,7 @@ pub async fn get_aging_report(
         auth.username, params.supplier_id
     );
 
-    let cache_key = format!("ap:report:aging:{}", params.supplier_id);
+    let cache_key = format!("ap:report:aging:{:?}", params.supplier_id);
     if let Some(cached) = state.cache_service.get(&cache_key).await {
         if let Ok(value) = serde_json::from_slice::<serde_json::Value>(&cached) {
             return Ok(Json(ApiResponse::success(value)));
