@@ -18,8 +18,11 @@ export const useInventoryStore = defineStore('inventory', () => {
     loading.value = true
     try {
       const res = await inventoryApi.getStockList(params)
-      stocks.value = res.data!.list
-      total.value = res.data!.total
+      // 仅在后端返回有效数据时更新，防止 data 为 null 时崩溃
+      if (res.data) {
+        stocks.value = res.data.list
+        total.value = res.data.total
+      }
     } catch (error) {
       logger.error('获取库存列表失败:', error)
     } finally {
@@ -30,7 +33,8 @@ export const useInventoryStore = defineStore('inventory', () => {
   const fetchAlerts = async () => {
     try {
       const res = await inventoryApi.getStockAlerts()
-      alerts.value = res.data!
+      // 仅在后端返回有效数据时更新，防止 data 为 null 时崩溃
+      if (res.data) alerts.value = res.data
     } catch (error) {
       logger.error('获取库存预警失败:', error)
     }

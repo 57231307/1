@@ -13,8 +13,11 @@ export const useSalesStore = defineStore('sales', () => {
     loading.value = true
     try {
       const res = await salesApi.getOrderList(params)
-      orders.value = res.data!.list
-      total.value = res.data!.total
+      // 仅在后端返回有效数据时更新，防止 data 为 null 时崩溃
+      if (res.data) {
+        orders.value = res.data.list
+        total.value = res.data.total
+      }
     } catch (error) {
       logger.error('获取订单列表失败:', error)
     } finally {
@@ -25,8 +28,12 @@ export const useSalesStore = defineStore('sales', () => {
   const getOrderById = async (id: number) => {
     try {
       const res = await salesApi.getOrderById(id)
-      currentOrder.value = res.data!
-      return res.data!
+      // 仅在后端返回有效数据时更新并返回，data 为 null 时返回 null
+      if (res.data) {
+        currentOrder.value = res.data
+        return res.data
+      }
+      return null
     } catch (error) {
       logger.error('获取订单详情失败:', error)
       return null

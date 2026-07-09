@@ -15,8 +15,11 @@ export const useFabricStore = defineStore('fabric', () => {
     loading.value = true
     try {
       const res = await fabricApi.list(params)
-      fabrics.value = res.data!.list
-      total.value = res.data!.total
+      // 仅在后端返回有效数据时更新，防止 data 为 null 时崩溃
+      if (res.data) {
+        fabrics.value = res.data.list
+        total.value = res.data.total
+      }
     } catch (error) {
       logger.error('获取面料列表失败:', error)
     } finally {
@@ -27,7 +30,8 @@ export const useFabricStore = defineStore('fabric', () => {
   const fetchCategories = async () => {
     try {
       const res = await fabricApi.getCategories()
-      categories.value = res.data!
+      // 仅在后端返回有效数据时更新，防止 data 为 null 时崩溃
+      if (res.data) categories.value = res.data
     } catch (error) {
       logger.error('获取面料分类失败:', error)
     }
@@ -36,8 +40,12 @@ export const useFabricStore = defineStore('fabric', () => {
   const getFabricById = async (id: number) => {
     try {
       const res = await fabricApi.getById(id)
-      currentFabric.value = res.data!
-      return res.data!
+      // 仅在后端返回有效数据时更新并返回，data 为 null 时返回 null
+      if (res.data) {
+        currentFabric.value = res.data
+        return res.data
+      }
+      return null
     } catch (error) {
       logger.error('获取面料详情失败:', error)
       return null

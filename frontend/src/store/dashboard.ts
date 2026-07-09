@@ -29,7 +29,8 @@ export const useDashboardStore = defineStore('dashboard', () => {
     loading.value = true
     try {
       const res = await dashboardApi.getOverview()
-      stats.value = res.data!
+      // 仅在后端返回有效数据时更新，防止 data 为 null 时崩溃
+      if (res.data) stats.value = res.data
     } catch (error) {
       logger.error('获取仪表盘概览失败:', error)
     } finally {
@@ -40,7 +41,8 @@ export const useDashboardStore = defineStore('dashboard', () => {
   const fetchSalesStats = async () => {
     try {
       const res = await dashboardApi.getSalesStats()
-      salesStatistics.value = res.data!
+      // 仅在后端返回有效数据时更新，防止 data 为 null 时崩溃
+      if (res.data) salesStatistics.value = res.data
     } catch (error) {
       logger.error('获取销售统计失败:', error)
     }
@@ -49,7 +51,8 @@ export const useDashboardStore = defineStore('dashboard', () => {
   const fetchInventoryStats = async () => {
     try {
       const res = await dashboardApi.getInventoryStats()
-      inventoryStatistics.value = res.data!
+      // 仅在后端返回有效数据时更新，防止 data 为 null 时崩溃
+      if (res.data) inventoryStatistics.value = res.data
     } catch (error) {
       logger.error('获取库存统计失败:', error)
     }
