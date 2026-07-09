@@ -6,6 +6,28 @@
 
 ---
 
+## 2026-07-09 (批次 244 v14 中风险性能修复 — ar_service 报表 SQL 聚合，CI 12/12 核心全绿)
+
+### 批次 244：v14 中风险性能修复 — ar_service 3 个报表方法 SQL 层聚合
+
+**修复内容**：bug.md 中风险性能问题 — ar_service.rs 3 个报表方法全量加载发票到内存做聚合，宽日期范围查询可能导致 OOM。
+
+**修改文件**（1 文件 +148 -87 行）：
+- `backend/src/services/ar_service.rs`：
+  1. `get_statistics_report`：原 `.all()` 加载全部发票后内存 COUNT/SUM/过滤逾期 → SQL `COUNT(*) + COALESCE(SUM) + COUNT(CASE WHEN overdue)` 单行聚合
+  2. `get_daily_report`：原 `.all()` 加载后 HashMap 按日聚合 + 内存排序 → SQL `GROUP BY invoice_date + ORDER BY`
+  3. `get_monthly_report`：原 `.all()` 加载后 HashMap 按月份聚合 + 内存排序 → SQL `GROUP BY to_char(invoice_date, 'YYYY-MM') + ORDER BY`
+  4. 删除 `DailyAgg` / `MonthlyAgg` 死代码 struct（原内存聚合辅助结构）
+
+**技术要点**：
+- 规则 12 合规：全部参数（status/customer_id/start_date/end_date/today）使用 `$N` 参数化绑定
+- CI 修复：1 轮（clippy `param_idx` 未使用赋值警告 → 改用 `params.len() + 1` 模式消除手动递增变量）
+- 性能收益：O(N) 内存 → O(1) 内存（统计报表）/ O(分组数) 内存（日/月报表）
+
+**CI 验证**：CI run #29034578201，12/12 核心 job 全绿，PR #421 squash merge 到 main（commit dcd8488d）。
+
+---
+
 ## 2026-07-09 (批次 243 v14 中风险安全漏洞修复，CI 12/12 核心全绿，中风险 1/25 完成)
 
 ### 批次 243：v14 中风险安全漏洞修复（XSS 防护 + 输入验证）

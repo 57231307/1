@@ -247,6 +247,12 @@
 - 重复实现（2 项）：20 个 service 分页逻辑重复、30+ view 表格逻辑重复
 - 项目规则符合性（1 项）：cli/util/service.rs 硬编码健康检查 URL
 - 性能问题（5 项）：ar/ap 报表未分页查询 5 处、缓存未利用
+  - ar_service 3 个报表方法（get_statistics_report + get_daily_report + get_monthly_report）✅ 批次 244 完成
+    - 修复内容：全量加载发票到内存做聚合 → SQL 层聚合（COUNT/SUM/GROUP BY/to_char）
+    - 删除 DailyAgg / MonthlyAgg 死代码 struct
+    - CI 修复：1 轮（clippy param_idx 未使用赋值警告 → 改用 params.len() + 1 模式）
+    - CI run #29034578201：12/12 核心 job 全绿，PR #421 squash merge 到 main（commit dcd8488d）
+  - ap_report_service 4 方法 + 缓存未利用 ⏳ 待修复
 - 安全漏洞（2 项）：report-templates XSS 潜在、tracking_handler 输入验证缺失 ✅ 批次 243 完成
   - 修复内容：
     1. report-templates/index.vue：引入 escapeHtml（@/utils/print），报表预览表头与单元格值均经 HTML 转义后再拼接（原 String(r[f] ?? '') 直接拼接，DOMPurify 默认允许 <img>/<a> 标签）
