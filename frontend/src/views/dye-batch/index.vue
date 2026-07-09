@@ -152,7 +152,7 @@
       width="700px"
       :close-on-click-modal="false"
     >
-      <el-form ref="formRef" :model="formData" :rules="formRules" label-width="100px">
+      <el-form ref="formRef" :model="formData" :rules="formRules" :disabled="isView" label-width="100px">
         <el-row :gutter="20">
           <el-col :span="12">
             <el-form-item label="缸号" prop="batch_no">
@@ -211,8 +211,8 @@
         </el-form-item>
       </el-form>
       <template #footer>
-        <el-button @click="dialogVisible = false">取消</el-button>
-        <el-button type="primary" @click="handleSubmitForm">确定</el-button>
+        <el-button @click="dialogVisible = false">{{ isView ? '关闭' : '取消' }}</el-button>
+        <el-button v-if="!isView" type="primary" @click="handleSubmitForm">确定</el-button>
       </template>
     </el-dialog>
   </div>
@@ -259,6 +259,7 @@ const products = ref<Product[]>([])
 const dialogVisible = ref(false)
 const dialogTitle = ref('')
 const formRef = ref()
+const isView = ref(false)
 
 // 表单数据
 const formData = reactive({
@@ -324,6 +325,7 @@ const handleReset = () => {
 // 新建
 const handleCreate = () => {
   dialogTitle.value = '新建缸号'
+  isView.value = false
   Object.assign(formData, {
     id: undefined,
     batch_no: '',
@@ -337,12 +339,18 @@ const handleCreate = () => {
   dialogVisible.value = true
 }
 
-// 查看
-const handleView = (_row: DyeBatch) => {}
+// 查看（v14 P0-3 修复：实现只读查看功能，原 handler 为空导致业务失效）
+const handleView = (row: DyeBatch) => {
+  dialogTitle.value = '查看缸号'
+  isView.value = true
+  Object.assign(formData, row)
+  dialogVisible.value = true
+}
 
 // 编辑
 const handleEdit = (row: DyeBatch) => {
   dialogTitle.value = '编辑缸号'
+  isView.value = false
   Object.assign(formData, row)
   dialogVisible.value = true
 }
