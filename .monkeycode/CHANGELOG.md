@@ -6,6 +6,19 @@
 
 ---
 
+## 2026-07-10 (批次 246 v14 中风险空实现修复 — dye-recipe handleViewVersion，CI 12/12 核心全绿)
+
+### 批次 246：v14 中风险空实现修复 — dye-recipe handleViewVersion
+
+**修复内容**：bug.md 中风险空实现漏洞 #18 — `frontend/src/views/dye-recipe/index.vue` 的 `handleViewVersion` 原为空实现（`(_row: DyeRecipe) => {}`），用户在版本历史对话框中点击"查看"按钮无任何响应。
+
+**修改文件**（1 文件 +8 -2 行）：
+- `frontend/src/views/dye-recipe/index.vue`：handleViewVersion 从空实现改为复用主对话框只读模式展示版本详情（关闭版本历史对话框 → 设置标题 `查看版本详情 - v{版本号}` → `isView = true` → `Object.assign(formData, row)` → 打开主对话框），与批次 239 P0-3 `handleView` 修复采用相同模式。
+
+**CI 验证**：CI run #29037444886，12/12 核心 job 全绿，PR #423 squash merge 到 main（commit 16754cf7）。
+
+---
+
 ## 2026-07-09 (批次 245 v14 中风险性能修复 — ap_report_service 报表 SQL 聚合，CI 12/12 核心全绿)
 
 ### 批次 245：v14 中风险性能修复 — ap_report_service 4 个报表方法 SQL 层聚合

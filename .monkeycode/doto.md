@@ -5,7 +5,7 @@
 
 ---
 
-## 🔄 当前任务：v14 深度调研报告修复（高风险 6 项全部完成，中风险 25 项进行中，已完成 3/25）
+## 🔄 当前任务：v14 深度调研报告修复（高风险 6 项全部完成，中风险 25 项进行中，已完成 4/25）
 
 > **v14 深度调研报告已生成**（2026-07-09，[bug.md](file:///workspace/.monkeycode/bug.md)）：12 维度全量扫描，15 高/25 中/74 低风险，共 114 个问题。
 > v13 后端 P0/P1 全部完成（批次 229-236），v13 剩余 P2 任务合并到 v14 队列。
@@ -20,6 +20,7 @@
 > **批次 243 已完成**：v14 中风险安全漏洞修复（report-templates XSS + tracking_handler 输入验证），PR #420 squash merge 到 main（commit 0810fe3），分支已清理。CI 12/12 核心全绿（E2E 失败为已知问题不阻塞）。中风险 25 项已完成 1 项（安全漏洞 2 项）。
 > **批次 244 已完成**：v14 中风险性能修复 — ar_service 3 个报表 SQL 聚合（get_statistics_report + get_daily_report + get_monthly_report），PR #421 squash merge 到 main（commit dcd8488d），分支已清理。CI 12/12 核心全绿（1 轮 CI 修复：clippy param_idx 未使用赋值警告）。中风险 25 项已完成 2 项（安全漏洞 2 项 + ar 报表性能 3 处）。
 > **批次 245 已完成**：v14 中风险性能修复 — ap_report_service 4 方法 SQL 聚合（get_statistics_report + get_daily_report + get_monthly_report + get_aging_report），PR #422 squash merge 到 main（commit ae7d4619），分支已清理。CI 12/12 核心全绿（1 轮 CI 修复：clippy supplier_id.unwrap 警告 → 改用 supplier_id.map(|sid|) 模式）。中风险 25 项已完成 3 项（安全漏洞 2 项 + ar/ap 报表性能 7 处）。
+> **批次 246 已完成**：v14 中风险空实现修复 — dye-recipe handleViewVersion（原空实现，复用主对话框只读模式展示版本详情），PR #423 squash merge 到 main（commit 16754cf7），分支已清理。CI 12/12 核心全绿。中风险 25 项已完成 4 项。
 
 > 用户最高优先级规则（2026-07-04/06/08 追加）已固化到 [MEMORY.md 一、规则 0-12](file:///workspace/.monkeycode/MEMORY.md)。
 > 本文件仅记录任务进度，规则不在此重复。
