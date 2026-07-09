@@ -141,7 +141,7 @@
       width="800px"
       :close-on-click-modal="false"
     >
-      <el-form ref="formRef" :model="formData" :rules="formRules" label-width="100px">
+      <el-form ref="formRef" :model="formData" :rules="formRules" :disabled="isView" label-width="100px">
         <el-row :gutter="20">
           <el-col :span="12">
             <el-form-item label="配方编号" prop="recipe_no">
@@ -179,8 +179,8 @@
         </el-form-item>
       </el-form>
       <template #footer>
-        <el-button @click="dialogVisible = false">取消</el-button>
-        <el-button type="primary" @click="handleSubmitForm">确定</el-button>
+        <el-button @click="dialogVisible = false">{{ isView ? '关闭' : '取消' }}</el-button>
+        <el-button v-if="!isView" type="primary" @click="handleSubmitForm">确定</el-button>
       </template>
     </el-dialog>
 
@@ -246,6 +246,7 @@ const total = ref(0)
 const dialogVisible = ref(false)
 const dialogTitle = ref('')
 const formRef = ref()
+const isView = ref(false)
 
 // 版本历史
 const versionVisible = ref(false)
@@ -302,6 +303,7 @@ const handleReset = () => {
 // 新建
 const handleCreate = () => {
   dialogTitle.value = '新建染色配方'
+  isView.value = false
   Object.assign(formData, {
     id: undefined,
     recipe_no: '',
@@ -314,12 +316,18 @@ const handleCreate = () => {
   dialogVisible.value = true
 }
 
-// 查看
-const handleView = (_row: DyeRecipe) => {}
+// 查看（v14 P0-3 修复：实现只读查看功能，原 handler 为空导致业务失效）
+const handleView = (row: DyeRecipe) => {
+  dialogTitle.value = '查看染色配方'
+  isView.value = true
+  Object.assign(formData, row)
+  dialogVisible.value = true
+}
 
 // 编辑
 const handleEdit = (row: DyeRecipe) => {
   dialogTitle.value = '编辑染色配方'
+  isView.value = false
   Object.assign(formData, row)
   dialogVisible.value = true
 }
