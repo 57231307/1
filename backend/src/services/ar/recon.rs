@@ -17,6 +17,7 @@ use crate::models::ar_reconciliation::{
     ActiveModel, Entity as ReconciliationEntity, Model as ReconciliationModel,
 };
 use crate::models::ar_reconciliation_item;
+use crate::models::status::ar as ar_status;
 use crate::utils::error::AppError;
 
 use super::{
@@ -47,7 +48,7 @@ impl ArReconciliationService {
             total_invoices: Set(req.total_invoices),
             total_collections: Set(req.total_collections),
             closing_balance: Set(closing_balance),
-            reconciliation_status: Set(Some("draft".to_string())),
+            reconciliation_status: Set(Some(ar_status::RECONCILIATION_DRAFT.to_string())),
             confirmed_by_customer: Set(None),
             dispute_reason: Set(None),
             confirmed_by: Set(None),
@@ -180,7 +181,7 @@ impl ArReconciliationService {
             .ok_or_else(|| AppError::not_found("对账单不存在"))?;
 
         // 只有草稿状态的对账单可以删除（状态门在 txn 内，基于 lock_exclusive 读出的 model）
-        if model.reconciliation_status.as_deref() != Some("draft") {
+        if model.reconciliation_status.as_deref() != Some(ar_status::RECONCILIATION_DRAFT) {
             return Err(AppError::business(
                 "只有草稿状态的对账单可以删除".to_string(),
             ));
@@ -210,14 +211,14 @@ impl ArReconciliationService {
             .await?
             .ok_or_else(|| AppError::not_found("对账单不存在"))?;
 
-        if model.reconciliation_status.as_deref() != Some("draft") {
+        if model.reconciliation_status.as_deref() != Some(ar_status::RECONCILIATION_DRAFT) {
             return Err(AppError::business(
                 "只有草稿状态的对账单可以发送".to_string(),
             ));
         }
 
         let mut active_model: ActiveModel = model.into();
-        active_model.reconciliation_status = Set(Some("sent".to_string()));
+        active_model.reconciliation_status = Set(Some(ar_status::RECONCILIATION_SENT.to_string()));
         active_model.updated_at = Set(Utc::now());
 
         // 批次 92 P3-9：user_id 从 handler AuthContext 注入
@@ -248,15 +249,15 @@ impl ArReconciliationService {
             .await?
             .ok_or_else(|| AppError::not_found("对账单不存在"))?;
 
-        let status = model.reconciliation_status.as_deref().unwrap_or("draft");
-        if status != "confirmed" && status != "disputed" {
+        let status = model.reconciliation_status.as_deref().unwrap_or(ar_status::RECONCILIATION_DRAFT);
+        if status != ar_status::RECONCILIATION_CONFIRMED && status != ar_status::RECONCILIATION_DISPUTED {
             return Err(AppError::business(
                 "只有已确认或有争议的对账单可以关闭".to_string(),
             ));
         }
 
         let mut active_model: ActiveModel = model.into();
-        active_model.reconciliation_status = Set(Some("closed".to_string()));
+        active_model.reconciliation_status = Set(Some(ar_status::RECONCILIATION_CLOSED.to_string()));
         active_model.updated_at = Set(Utc::now());
 
         // 批次 92 P3-9：user_id 从 handler AuthContext 注入
@@ -296,7 +297,14 @@ impl ArReconciliationService {
             .ok_or_else(|| AppError::not_found("对账单不存在"))?;
 
         // 状态白名单：仅允许合法的状态值
-        let allowed_statuses = ["draft", "sent", "confirmed", "disputed", "closed"];
+        let allowed_statuses = [
+            ar_status::RECONCILIATION_DRAFT,
+            ar_status::RECONCILIATION_SENT,
+            ar_status::RECONCILIATION_CONFIRMED,
+            ar_status::RECONCILIATION_DISPUTED,
+            ar_status::RECONCILIATION_CLOSED,
+            ar_status::RECONCILIATION_CANCELLED,
+        ];
         if !allowed_statuses.contains(&status) {
             return Err(AppError::business(format!(
                 "非法的对账单状态：{}，允许的状态：{:?}",
@@ -380,10 +388,9 @@ mod tests {
     use std::str::FromStr;
     use std::sync::Arc;
 
-    /// 对账单状态值（小写，与 recon.rs 业务代码保持一致）
+    /// 对账单状态值（小写，与 recon.rs 业务代码及 status::ar 模块保持一致）
     ///
-    /// 注意：status::ar 模块中 RECONCILIATION_COMPLETED/CANCELLED 使用大写值，
-    /// 但 recon.rs 业务代码实际使用小写 draft/sent/confirmed/disputed/closed，
+    /// 批次 231 v13 P1-1 修复：status::ar 模块已统一为小写，
     /// 此处常量镜像业务代码实际值，用于状态门控与状态机测试。
     mod recon_status {
         /// 草稿：初始状态，可编辑/删除/发送
@@ -446,22 +453,22 @@ mod tests {
 
     // ===== 状态常量值正确性测试 =====
 
-    /// 测试_对账状态常量_completed值正确
+    /// 测试_对账状态常量_closed值正确
     ///
-    /// 验证 status::ar::RECONCILIATION_COMPLETED 常量值为 "COMPLETED"（大写），
+    /// 验证 status::ar::RECONCILIATION_CLOSED 常量值为 "closed"（小写），
     /// 该常量用于 ar_reconciliation.reconciliation_status 字段
     #[test]
-    fn 测试_对账状态常量_completed值正确() {
-        assert_eq!(status_ar::RECONCILIATION_COMPLETED, "COMPLETED");
+    fn 测试_对账状态常量_closed值正确() {
+        assert_eq!(status_ar::RECONCILIATION_CLOSED, "closed");
     }
 
     /// 测试_对账状态常量_cancelled值正确
     ///
-    /// 验证 status::ar::RECONCILIATION_CANCELLED 常量值为 "CANCELLED"（大写），
+    /// 验证 status::ar::RECONCILIATION_CANCELLED 常量值为 "cancelled"（小写），
     /// 该常量用于 ar_reconciliation.reconciliation_status 字段
     #[test]
     fn 测试_对账状态常量_cancelled值正确() {
-        assert_eq!(status_ar::RECONCILIATION_CANCELLED, "CANCELLED");
+        assert_eq!(status_ar::RECONCILIATION_CANCELLED, "cancelled");
     }
 
     /// 测试_对账状态常量_matched值正确

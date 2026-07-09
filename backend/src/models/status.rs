@@ -64,12 +64,12 @@ pub mod payment {
     pub const PAYMENT_PARTIAL_PAID: &str = "PARTIAL_PAID";
 }
 
-/// 应收账款专属状态常量（批次 102 v6 P3-1 修复）
+/// 应收账款专属状态常量（批次 102 v6 P3-1 修复，批次 231 v13 P1-1 统一小写）
 ///
-/// ar_service.rs 中三类模型的状态字段值：
+/// 三类模型的状态字段值（批次 231 统一为小写，修复 ar_service.rs 大写与 ar/recon.rs 小写不一致的 P0 数据问题）：
 /// - ar_collection.status：小写（pending/confirmed/cancelled）
-/// - ar_reconciliation.reconciliation_status：大写（COMPLETED/CANCELLED）
-/// - ar_reconciliation_item.match_status：大写（MATCHED）
+/// - ar_reconciliation.reconciliation_status：小写（draft/sent/confirmed/disputed/closed/cancelled）
+/// - ar_reconciliation_item.match_status：大写（MATCHED/UNMATCHED）
 ///
 /// ar_invoice.status 复用 common::STATUS_* 与 payment::PAYMENT_*（与 ar_invoice_service.rs 保持一致）
 pub mod ar {
@@ -80,18 +80,31 @@ pub mod ar {
     pub const COLLECTION_CONFIRMED: &str = "confirmed";
 
     /// 收款单已取消（ar_collection.status，小写值）
-    ///
-    /// 批次 158 v11 真实接入：ar_service.rs cancel_collection 方法使用此常量将收款状态置为 cancelled
     pub const COLLECTION_CANCELLED: &str = "cancelled";
 
-    /// 核销单已完成（ar_reconciliation.reconciliation_status，大写值）
-    pub const RECONCILIATION_COMPLETED: &str = "COMPLETED";
+    /// 对账单草稿（ar_reconciliation.reconciliation_status，小写值）
+    pub const RECONCILIATION_DRAFT: &str = "draft";
 
-    /// 核销单已取消（ar_reconciliation.reconciliation_status，大写值）
-    pub const RECONCILIATION_CANCELLED: &str = "CANCELLED";
+    /// 对账单已发送（ar_reconciliation.reconciliation_status，小写值）
+    pub const RECONCILIATION_SENT: &str = "sent";
+
+    /// 对账单已确认（ar_reconciliation.reconciliation_status，小写值）
+    pub const RECONCILIATION_CONFIRMED: &str = "confirmed";
+
+    /// 对账单有争议（ar_reconciliation.reconciliation_status，小写值）
+    pub const RECONCILIATION_DISPUTED: &str = "disputed";
+
+    /// 对账单已关闭（ar_reconciliation.reconciliation_status，小写值）
+    pub const RECONCILIATION_CLOSED: &str = "closed";
+
+    /// 对账单已取消（ar_reconciliation.reconciliation_status，小写值）
+    pub const RECONCILIATION_CANCELLED: &str = "cancelled";
 
     /// 核销明细已匹配（ar_reconciliation_item.match_status，大写值）
     pub const MATCH_MATCHED: &str = "MATCHED";
+
+    /// 核销明细未匹配（ar_reconciliation_item.match_status，大写值）
+    pub const MATCH_UNMATCHED: &str = "UNMATCHED";
 }
 
 /// 应付发票专属状态常量（批次 102 v6 P3-2 修复）

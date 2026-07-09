@@ -24,7 +24,8 @@ use crate::models::ar_reconciliation::{
     Entity as ReconciliationEntity, Model as ReconciliationModel,
 };
 // 批次 158 v11 真实接入：审批状态常量替代字符串字面量
-use crate::models::status::{approval, common};
+// 批次 231 v13 P1-1：新增 ar 模块导入，对账单状态常量替代字符串字面量
+use crate::models::status::{approval, ar as ar_status, common};
 use crate::models::ar_reconciliation_item::{
     Entity as ReconciliationItemEntity, Model as ReconciliationItemModel,
 };
@@ -89,7 +90,7 @@ impl ArReconciliationService {
             reconciliation
                 .reconciliation_status
                 .as_deref()
-                .unwrap_or("draft"),
+                .unwrap_or(ar_status::RECONCILIATION_DRAFT),
             pdf_items,
             &reconciliation.closing_balance.to_string(),
         )

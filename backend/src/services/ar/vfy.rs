@@ -19,6 +19,7 @@ use crate::models::ar_collection;
 use crate::models::ar_invoice;
 use crate::models::ar_reconciliation::{ActiveModel, Entity as ReconciliationEntity};
 use crate::models::customer;
+use crate::models::status::ar as ar_status;
 use crate::utils::error::AppError;
 
 use super::{
@@ -93,7 +94,7 @@ impl ArReconciliationService {
         } else {
             ar_collection::Entity::find()
                 .filter(ar_collection::Column::CustomerId.is_in(customer_ids))
-                .filter(ar_collection::Column::Status.eq("CONFIRMED"))
+                .filter(ar_collection::Column::Status.eq(ar_status::COLLECTION_CONFIRMED))
                 .filter(ar_collection::Column::CollectionDate.gte(req.start_date))
                 .filter(ar_collection::Column::CollectionDate.lte(req.end_date))
                 .all(&txn)
@@ -155,7 +156,7 @@ impl ArReconciliationService {
                 total_invoices: Set(total_invoices),
                 total_collections: Set(total_collections),
                 closing_balance: Set(closing_balance),
-                reconciliation_status: Set(Some("draft".to_string())),
+                reconciliation_status: Set(Some(ar_status::RECONCILIATION_DRAFT.to_string())),
                 confirmed_by_customer: Set(None),
                 dispute_reason: Set(None),
                 confirmed_by: Set(None),
@@ -302,7 +303,7 @@ impl ArReconciliationService {
                             document_date: Set(Some(inv.invoice_date)),
                             amount: Set(inv.invoice_amount),
                             matched_amount: Set(None),
-                            match_status: Set("UNMATCHED".to_string()),
+                            match_status: Set(ar_status::MATCH_UNMATCHED.to_string()),
                             matched_item_id: Set(None),
                             remarks: Set(None),
                             created_at: Set(Utc::now()),
@@ -324,7 +325,7 @@ impl ArReconciliationService {
                         document_date: Set(Some(coll.collection_date)),
                         amount: Set(-coll.collection_amount),
                         matched_amount: Set(None),
-                        match_status: Set("UNMATCHED".to_string()),
+                        match_status: Set(ar_status::MATCH_UNMATCHED.to_string()),
                         matched_item_id: Set(None),
                         remarks: Set(None),
                         created_at: Set(Utc::now()),
@@ -345,7 +346,7 @@ impl ArReconciliationService {
                         document_date: Set(Some(inv.invoice_date)),
                         amount: Set(inv.invoice_amount),
                         matched_amount: Set(None),
-                        match_status: Set("UNMATCHED".to_string()),
+                        match_status: Set(ar_status::MATCH_UNMATCHED.to_string()),
                         matched_item_id: Set(None),
                         remarks: Set(None),
                         created_at: Set(Utc::now()),
@@ -364,7 +365,7 @@ impl ArReconciliationService {
                         document_date: Set(Some(coll.collection_date)),
                         amount: Set(-coll.collection_amount),
                         matched_amount: Set(None),
-                        match_status: Set("UNMATCHED".to_string()),
+                        match_status: Set(ar_status::MATCH_UNMATCHED.to_string()),
                         matched_item_id: Set(None),
                         remarks: Set(None),
                         created_at: Set(Utc::now()),
@@ -385,7 +386,7 @@ impl ArReconciliationService {
                 total_collections,
                 matched_count,
                 unmatched_count,
-                status: "draft".to_string(),
+                status: ar_status::RECONCILIATION_DRAFT.to_string(),
             });
         }
 
@@ -578,7 +579,7 @@ impl ArReconciliationService {
 
         let collections = ar_collection::Entity::find()
             .filter(ar_collection::Column::CustomerId.eq(req.customer_id))
-            .filter(ar_collection::Column::Status.eq("CONFIRMED"))
+            .filter(ar_collection::Column::Status.eq(ar_status::COLLECTION_CONFIRMED))
             .filter(ar_collection::Column::CollectionDate.gte(req.start_date))
             .filter(ar_collection::Column::CollectionDate.lte(req.end_date))
             .all(&txn)
@@ -610,7 +611,7 @@ impl ArReconciliationService {
             total_invoices: Set(total_invoices),
             total_collections: Set(total_collections),
             closing_balance: Set(closing_balance),
-            reconciliation_status: Set(Some("draft".to_string())),
+            reconciliation_status: Set(Some(ar_status::RECONCILIATION_DRAFT.to_string())),
             confirmed_by_customer: Set(None),
             dispute_reason: Set(None),
             confirmed_by: Set(None),
@@ -636,7 +637,7 @@ impl ArReconciliationService {
                 document_date: Set(Some(inv.invoice_date)),
                 amount: Set(inv.invoice_amount),
                 matched_amount: Set(None),
-                match_status: Set("UNMATCHED".to_string()),
+                match_status: Set(ar_status::MATCH_UNMATCHED.to_string()),
                 matched_item_id: Set(None),
                 remarks: Set(None),
                 created_at: Set(Utc::now()),
@@ -657,7 +658,7 @@ impl ArReconciliationService {
                 document_date: Set(Some(coll.collection_date)),
                 amount: Set(-coll.collection_amount),
                 matched_amount: Set(None),
-                match_status: Set("UNMATCHED".to_string()),
+                match_status: Set(ar_status::MATCH_UNMATCHED.to_string()),
                 matched_item_id: Set(None),
                 remarks: Set(None),
                 created_at: Set(Utc::now()),
@@ -695,18 +696,18 @@ impl ArReconciliationService {
             .await?
             .ok_or_else(|| AppError::not_found("对账单不存在"))?;
 
-        let status = model.reconciliation_status.as_deref().unwrap_or("draft");
-        if status == "confirmed" {
+        let status = model.reconciliation_status.as_deref().unwrap_or(ar_status::RECONCILIATION_DRAFT);
+        if status == ar_status::RECONCILIATION_CONFIRMED {
             return Err(AppError::business("对账单已确认，不可重复确认".to_string()));
         }
-        if status == "disputed" {
+        if status == ar_status::RECONCILIATION_DISPUTED {
             return Err(AppError::business(
                 "对账单存在争议，请先解决争议后再确认".to_string(),
             ));
         }
 
         let mut active_model: ActiveModel = model.into();
-        active_model.reconciliation_status = Set(Some("confirmed".to_string()));
+        active_model.reconciliation_status = Set(Some(ar_status::RECONCILIATION_CONFIRMED.to_string()));
         active_model.confirmed_by_customer = Set(Some(true));
         active_model.confirmed_by = Set(Some(user_id));
         active_model.confirmed_at = Set(Some(Utc::now()));
@@ -745,16 +746,16 @@ impl ArReconciliationService {
             .await?
             .ok_or_else(|| AppError::not_found("对账单不存在"))?;
 
-        let status = model.reconciliation_status.as_deref().unwrap_or("draft");
-        if status == "confirmed" {
+        let status = model.reconciliation_status.as_deref().unwrap_or(ar_status::RECONCILIATION_DRAFT);
+        if status == ar_status::RECONCILIATION_CONFIRMED {
             return Err(AppError::business("对账单已确认，不可提出争议".to_string()));
         }
-        if status == "closed" {
+        if status == ar_status::RECONCILIATION_CLOSED {
             return Err(AppError::business("对账单已关闭，不可提出争议".to_string()));
         }
 
         let mut active_model: ActiveModel = model.into();
-        active_model.reconciliation_status = Set(Some("disputed".to_string()));
+        active_model.reconciliation_status = Set(Some(ar_status::RECONCILIATION_DISPUTED.to_string()));
         active_model.dispute_reason = Set(Some(reason.clone()));
         active_model.updated_at = Set(Utc::now());
 
@@ -825,19 +826,16 @@ mod tests {
     /// 返回 Err 时错误消息与 customer_confirm 第 700-705 行保持一致：
     /// - "confirmed" → "对账单已确认，不可重复确认"
     /// - "disputed"  → "对账单存在争议，请先解决争议后再确认"
-    ///
-    /// 注：vfy.rs 中 reconciliation_status 使用小写值（draft/confirmed/disputed/closed），
-    /// status::ar 模块仅有大写常量（COMPLETED/CANCELLED），此处沿用 vfy.rs 实际小写行为。
     fn validate_customer_confirm(status: &str) -> Result<&'static str, AppError> {
-        if status == "confirmed" {
+        if status == ar_status::RECONCILIATION_CONFIRMED {
             return Err(AppError::business("对账单已确认，不可重复确认".to_string()));
         }
-        if status == "disputed" {
+        if status == ar_status::RECONCILIATION_DISPUTED {
             return Err(AppError::business(
                 "对账单存在争议，请先解决争议后再确认".to_string(),
             ));
         }
-        Ok("confirmed")
+        Ok(ar_status::RECONCILIATION_CONFIRMED)
     }
 
     /// 复现 vfy.rs customer_dispute 中的状态校验逻辑（纯算法，DB 调用之前）
@@ -846,13 +844,13 @@ mod tests {
     /// - "confirmed" → "对账单已确认，不可提出争议"
     /// - "closed"    → "对账单已关闭，不可提出争议"
     fn validate_customer_dispute(status: &str) -> Result<&'static str, AppError> {
-        if status == "confirmed" {
+        if status == ar_status::RECONCILIATION_CONFIRMED {
             return Err(AppError::business("对账单已确认，不可提出争议".to_string()));
         }
-        if status == "closed" {
+        if status == ar_status::RECONCILIATION_CLOSED {
             return Err(AppError::business("对账单已关闭，不可提出争议".to_string()));
         }
-        Ok("disputed")
+        Ok(ar_status::RECONCILIATION_DISPUTED)
     }
 
     /// 测试 SQLite 内存数据库连接夹具
@@ -868,22 +866,22 @@ mod tests {
     // 1. 核销相关状态常量值正确性
     // =====================================================
 
-    /// 测试_核销状态常量_已完成值正确
+    /// 测试_核销状态常量_已关闭值正确
     ///
-    /// 验证 ar::RECONCILIATION_COMPLETED 常量值为 "COMPLETED"（大写），
+    /// 验证 ar::RECONCILIATION_CLOSED 常量值为 "closed"（小写），
     /// 与 ar_reconciliation.reconciliation_status 字段语义一致。
     #[test]
-    fn 测试_核销状态常量_已完成值正确() {
-        assert_eq!(ar::RECONCILIATION_COMPLETED, "COMPLETED");
+    fn 测试_核销状态常量_已关闭值正确() {
+        assert_eq!(ar::RECONCILIATION_CLOSED, "closed");
     }
 
     /// 测试_核销状态常量_已取消值正确
     ///
-    /// 验证 ar::RECONCILIATION_CANCELLED 常量值为 "CANCELLED"（大写），
+    /// 验证 ar::RECONCILIATION_CANCELLED 常量值为 "cancelled"（小写），
     /// 与 ar_reconciliation.reconciliation_status 字段语义一致。
     #[test]
     fn 测试_核销状态常量_已取消值正确() {
-        assert_eq!(ar::RECONCILIATION_CANCELLED, "CANCELLED");
+        assert_eq!(ar::RECONCILIATION_CANCELLED, "cancelled");
     }
 
     /// 测试_匹配状态常量_已匹配值正确
@@ -1132,7 +1130,7 @@ mod tests {
 
     /// 测试_客户确认状态机_已确认拒绝
     ///
-    /// 验证 customer_confirm 中 status == "confirmed" 时应拒绝（不可重复确认），
+    /// 验证 customer_confirm 中 status == ar_status::RECONCILIATION_CONFIRMED 时应拒绝（不可重复确认），
     /// 返回 BusinessError 且消息包含 "对账单已确认，不可重复确认"。
     #[test]
     fn 测试_客户确认状态机_已确认拒绝() {
@@ -1145,7 +1143,7 @@ mod tests {
 
     /// 测试_客户确认状态机_争议中拒绝
     ///
-    /// 验证 customer_confirm 中 status == "disputed" 时应拒绝（需先解决争议），
+    /// 验证 customer_confirm 中 status == ar_status::RECONCILIATION_DISPUTED 时应拒绝（需先解决争议），
     /// 返回 BusinessError 且消息包含 "对账单存在争议"。
     #[test]
     fn 测试_客户确认状态机_争议中拒绝() {
@@ -1169,7 +1167,7 @@ mod tests {
 
     /// 测试_客户争议状态机_已确认拒绝
     ///
-    /// 验证 customer_dispute 中 status == "confirmed" 时应拒绝（已确认不可提争议），
+    /// 验证 customer_dispute 中 status == ar_status::RECONCILIATION_CONFIRMED 时应拒绝（已确认不可提争议），
     /// 返回 BusinessError 且消息包含 "对账单已确认，不可提出争议"。
     #[test]
     fn 测试_客户争议状态机_已确认拒绝() {
@@ -1182,7 +1180,7 @@ mod tests {
 
     /// 测试_客户争议状态机_已关闭拒绝
     ///
-    /// 验证 customer_dispute 中 status == "closed" 时应拒绝（已关闭不可提争议），
+    /// 验证 customer_dispute 中 status == ar_status::RECONCILIATION_CLOSED 时应拒绝（已关闭不可提争议），
     /// 返回 BusinessError 且消息包含 "对账单已关闭，不可提出争议"。
     #[test]
     fn 测试_客户争议状态机_已关闭拒绝() {

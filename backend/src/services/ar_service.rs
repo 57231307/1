@@ -618,7 +618,7 @@ impl ArService {
                     total_invoices: Set(matched_items.iter().map(|(_, a)| *a).sum()),
                     total_collections: Set(matched_items.iter().map(|(_, a)| *a).sum()),
                     closing_balance: Set(Decimal::ZERO),
-                    reconciliation_status: Set(Some(crate::models::status::ar::RECONCILIATION_COMPLETED.to_string())),
+                    reconciliation_status: Set(Some(crate::models::status::ar::RECONCILIATION_CLOSED.to_string())),
                     confirmed_by: Set(Some(user_id)),
                     confirmed_at: Set(Some(now)),
                     created_by: Set(Some(user_id)),
@@ -818,7 +818,7 @@ impl ArService {
             total_invoices: Set(amount),
             total_collections: Set(amount),
             closing_balance: Set(Decimal::ZERO),
-            reconciliation_status: Set(Some(crate::models::status::ar::RECONCILIATION_COMPLETED.to_string())),
+            reconciliation_status: Set(Some(crate::models::status::ar::RECONCILIATION_CLOSED.to_string())),
             confirmed_by: Set(Some(user_id)),
             confirmed_at: Set(Some(now)),
             created_by: Set(Some(user_id)),
@@ -903,7 +903,7 @@ impl ArService {
             "invoice_id": invoice_id,
             "payment_id": payment_id,
             "amount": amount.to_string(),
-            "status": crate::models::status::ar::RECONCILIATION_COMPLETED,
+            "status": crate::models::status::ar::RECONCILIATION_CLOSED,
             "verified_by": user_id,
             "verified_at": now,
             "invoice_status": new_status,
@@ -926,9 +926,9 @@ impl ArService {
             .await?
             .ok_or_else(|| AppError::not_found(format!("核销单 {} 不存在", verification_id)))?;
 
-        if reconciliation.reconciliation_status.as_deref() != Some(crate::models::status::ar::RECONCILIATION_COMPLETED) {
+        if reconciliation.reconciliation_status.as_deref() != Some(crate::models::status::ar::RECONCILIATION_CLOSED) {
             return Err(AppError::bad_request(format!(
-                "核销单状态为 {:?}，仅 COMPLETED 状态可取消",
+                "核销单状态为 {:?}，仅 closed 状态可取消",
                 reconciliation.reconciliation_status
             )));
         }
