@@ -5,7 +5,7 @@
 
 ---
 
-## 🔄 当前任务：v12 全项目复审 P2 修复（批次 213 P2-5 已完成 CI 12/12 核心全绿，P2-5 后端全面完成，下一步 P2-1 死代码常量接入）
+## 🔄 当前任务：v12 全项目复审 P2 修复（批次 214 P2-1 死代码常量接入已提交 CI 运行中，下一步批次 215 实现 cancel_order）
 
 > 用户最高优先级规则（2026-07-04/06/08 追加）已固化到 [MEMORY.md 一、规则 0-12](file:///workspace/.monkeycode/MEMORY.md)。
 > 本文件仅记录任务进度，规则不在此重复。
@@ -41,7 +41,17 @@
   - 批次 212：11 个 service 11 处 ✅ CI Clippy 失败 → 212-ci 修复（recipe_opt.rs master_data 移入 #[cfg(test)]）✅
   - 批次 213：3 个 handler 10 处（product_handler + inventory_stock_handler + api_gateway_handler 8 处）✅ CI 12/12 核心全绿
   - **P2-5 后端全面完成**：services 22 个文件 + handlers 3 个文件，共 82 处替换 + 3 个新子模块（master_data/budget/contract）
-- ⏳ P2-1：6 项级 #[allow(dead_code)] 状态常量接入业务（批次 208 已移除 SUBMITTED 的 allow 标注，剩余 RECEIVED/CANCELLED 等）
+- 🔄 P2-1：6 项级 #[allow(dead_code)] 状态常量接入业务（批次 214 进行中）
+  - 批次 208 已移除 SUBMITTED 的 allow 标注 ✅
+  - 批次 214：删除 RECEIVED（冗余）+ FULFILLED→CONSUMED（值修正）+ 新增 LOCKED/RELEASED + 新增 purchase_receipt 子模块 + 10 处硬编码替换 ✅ 已提交 CI 运行中
+    - status.rs：删除 RECEIVED、FULFILLED→CONSUMED、新增 LOCKED/RELEASED、新增 purchase_receipt 子模块（DRAFT/CONFIRMED/COMPLETED）
+    - inventory_reservation_service.rs：6 处 pending/locked/released 替换为 reservation_status 常量
+    - so/delivery.rs：1 处 consumed 替换为 reservation_status::CONSUMED
+    - po/order.rs：1 处 DRAFT 替换为 status::purchase_order::DRAFT
+    - po/receipt.rs：2 处 COMPLETED 替换为 status::purchase_receipt::COMPLETED
+    - purchase_receipt_service.rs：8 处 DRAFT/CONFIRMED 替换为 status::purchase_receipt 常量
+  - 批次 215：实现采购订单 cancel_order 功能（移除 purchase_order::CANCELLED 的 #[allow(dead_code)]）⏳
+  - 批次 216：实现销售发货 cancel_delivery 功能（移除 sales_delivery::CANCELLED 的 #[allow(dead_code)]）⏳
 - ⏳ P2-3：N+1 写（与 P2-6 同处，已修复）
 - ⏳ P2-7：API 一致性（98.7% 使用 ApiResponse，可接受）
 - ⏳ P2-8：测试覆盖（~97 service 无测试）
@@ -142,6 +152,7 @@
 
 | 批次 | main commit | 内容 |
 |------|-------------|------|
+| 214 | `7a8ae40`+`afca76f` | v12 P2-1 死代码常量接入业务：status.rs 删除 RECEIVED + FULFILLED→CONSUMED 值修正 + 新增 LOCKED/RELEASED + 新增 purchase_receipt 子模块；6 文件 18 处硬编码替换（inventory_reservation_service 6 + so/delivery 1 + po/order 1 + po/receipt 2 + purchase_receipt_service 8）；CI 运行中）|
 | 211 | `dc908fe` | v12 P2-5 状态字符串替换续（6 个 service 12 处：warehouse_service 2 处 + product_service 2 处 + po/price.rs 2 处供应商过滤 + financial_analysis_service 2 处 + color_card_item_service 2 处 + color_card_crud_service 2 处；6 文件 +24 -12 行；CI 12/12 核心全绿，E2E 失败）|
 | 210-ci | `4177593` | v12 P2-5 CI 修复 Clippy unused import（customer_credit_evaluate.rs master_data 导入从文件外层移入 #[cfg(test)] mod tests 内部）|
 | 210 | `6d9843c` | v12 P2-5 合同/资金/信用评估状态字符串替换（status.rs 新增 contract 子模块 DRAFT/ACTIVE/CANCELLED；4 个 service 16 处：sales_contract_service 5 处 + purchase_contract_service 5 处 + fund_management_service 3 处 + customer_credit_evaluate 3 处测试；CI 12/12 核心全绿，E2E 失败）|
