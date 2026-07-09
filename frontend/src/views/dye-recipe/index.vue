@@ -367,8 +367,14 @@ const handleVersion = async (row: DyeRecipe) => {
   }
 }
 
-// 查看版本
-const handleViewVersion = (_row: DyeRecipe) => {}
+// 查看版本（v14 中风险修复：实现版本详情查看逻辑，原 handler 为空导致功能失效）
+const handleViewVersion = (row: DyeRecipe) => {
+  versionVisible.value = false
+  dialogTitle.value = `查看版本详情 - v${row.version}`
+  isView.value = true
+  Object.assign(formData, row)
+  dialogVisible.value = true
+}
 
 // 导出
 const handleExport = async () => {
