@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
 /**
  * useSp.ts - 销售价格核心 composable
  * 任务编号: P14 批 2 I-3 第 3 批（拆分原 sales-price/index.vue）

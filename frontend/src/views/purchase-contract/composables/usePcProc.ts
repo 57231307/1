@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
 /**
  * usePcProc.ts - 采购合同流程操作 composable
  * 任务编号: P14 批 2 I-3 第 3 批（拆分原 purchase-contract/index.vue）

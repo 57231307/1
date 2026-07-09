@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
 /**
  * useVchrLst.ts - 凭证列表核心 composable
  * 任务编号: P14 批 2 I-3 第 1 批（拆分原 VoucherListTab.vue）

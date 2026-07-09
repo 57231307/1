@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
 /**
  * useVchr.ts - 凭证管理核心 composable
  * 任务编号: P14 批 1 B3 I-2（拆分原 VoucherTab.vue）
