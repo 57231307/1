@@ -113,7 +113,9 @@ pub async fn convert_dual_unit(
                 .unwrap_or(rust_decimal::Decimal::ZERO),
             }
         }
-        _ => unreachable!("已通过单位参数校验，此处不可能到达"),
+        // 批次 252 修复：原 unreachable!() 在校验逻辑被重构后可能 panic 崩溃，
+        // 改为防御性返回 bad_request 错误
+        _ => return Err(AppError::bad_request("无效的单位，必须是 'meters' 或 'kg'")),
     };
 
     Ok(Json(ApiResponse::success(result)))
