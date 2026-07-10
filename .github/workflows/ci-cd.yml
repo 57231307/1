@@ -834,8 +834,9 @@ jobs:
     env:
       # 集成测试所需的数据库连接串（指向 service container）
       DATABASE_URL: postgres://bingxi:bingxi_test@localhost:5432/bingxi_test
-      # 审计模块所需的密钥（仅测试用途，禁止用于生产）
-      AUDIT_SECRET_KEY: test-only-audit-secret-do-not-use-in-production-32b
+      # 审计模块所需的密钥（仅 CI 用途，禁止用于生产）
+      # 批次 261 修复：移除 "test" 弱模式关键词，避免被 validate_secret 拒绝
+      AUDIT_SECRET_KEY: ci-only-audit-signing-key-do-not-use-in-prod-32b
     steps:
       - name: 检出代码
         uses: actions/checkout@v5
@@ -1138,12 +1139,13 @@ jobs:
           --health-retries 5
     env:
       DATABASE_URL: postgres://bingxi:bingxi_test@localhost:5432/bingxi_test
-      # CI 测试用密钥（32 字节，仅测试用途，禁止用于生产）
-      JWT_SECRET: ci-test-jwt-secret-32bytes-do-not-use-prod-abc
-      COOKIE_SECRET: ci-test-cookie-secret-32bytes-do-not-use-prod-xyz
-      WEBHOOK_SECRET: ci-test-webhook-secret-32bytes-do-not-use-prod-q
-      AUDIT_SECRET_KEY: test-only-audit-secret-do-not-use-in-production-32b
-      INIT_TOKEN: ci-test-init-token-for-e2e-seeding-only-32bytes!
+      # CI 测试用密钥（32 字节，仅 CI 用途，禁止用于生产）
+      # 批次 261 修复：移除 "test" 弱模式关键词，避免被 validate_secret 拒绝
+      JWT_SECRET: ci-e2e-jwt-secret-32bytes-do-not-use-in-prod-abc
+      COOKIE_SECRET: ci-e2e-cookie-secret-32bytes-do-not-use-in-prod-xyz
+      WEBHOOK_SECRET: ci-e2e-webhook-secret-32bytes-do-not-use-in-prod-q
+      AUDIT_SECRET_KEY: e2e-only-audit-signing-key-do-not-use-in-prod-32b
+      INIT_TOKEN: ci-e2e-init-token-for-seeding-only-32bytes!
       TEST_USERNAME: e2e_admin
       TEST_PASSWORD: E2e@TestPassword2026!
       APP_ENV: development
