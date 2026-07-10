@@ -12,6 +12,7 @@ use crate::models::exchange_rate::{
     ActiveModel as RateActiveModel, Entity as RateEntity, Model as RateModel,
 };
 use crate::utils::error::AppError;
+use crate::utils::pagination::paginate_with_total;
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct ExchangeRateHistoryModel {
@@ -113,13 +114,12 @@ impl CurrencyService {
             select = select.filter(crate::models::exchange_rate::Column::FromCurrency.eq(from));
         }
 
-        let total = select.clone().count(&*self.db).await?;
-
+        // 批次 257 修复：接入 paginate_with_total 统一分页逻辑（内部已处理 saturating_sub(1) 偏移）
         let paginator = select
             .order_by_desc(crate::models::exchange_rate::Column::EffectiveDate)
             .paginate(&*self.db, page_size);
 
-        let models = paginator.fetch_page(page.saturating_sub(1)).await?;
+        let (models, total) = paginate_with_total(paginator, page.clamp(1, 1000)).await?;
 
         Ok((models, total))
     }
@@ -191,13 +191,12 @@ impl CurrencyService {
             select = select.filter(crate::models::exchange_rate::Column::EffectiveDate.lte(end));
         }
 
-        let total = select.clone().count(&*self.db).await?;
-
+        // 批次 257 修复：接入 paginate_with_total 统一分页逻辑（内部已处理 saturating_sub(1) 偏移）
         let paginator = select
             .order_by_desc(crate::models::exchange_rate::Column::EffectiveDate)
             .paginate(&*self.db, page_size);
 
-        let models = paginator.fetch_page(page.saturating_sub(1)).await?;
+        let (models, total) = paginate_with_total(paginator, page.clamp(1, 1000)).await?;
 
         let history: Vec<ExchangeRateHistoryModel> = models
             .into_iter()

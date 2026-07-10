@@ -16,6 +16,7 @@ use crate::models::status::production;
 use crate::models::status::scheduling as scheduling_status;
 use crate::models::work_center::{Entity as WorkCenterEntity, Model as WorkCenterModel};
 use crate::utils::error::AppError;
+use crate::utils::pagination::paginate_with_total;
 use crate::services::scheduling_service::{
     DateRange, GanttData, GanttItemDto, ScheduleDetail, ScheduledOrder,
     ScheduledOrderQuery, WorkCenterInfo,
@@ -146,13 +147,12 @@ impl SchedulingService {
                 .filter(crate::models::production_order::Column::PlannedStartDate.lte(date_to));
         }
 
-        let total = select.clone().count(&*self.db).await?;
-
-        let orders = select
+        // 批次 257 修复：接入 paginate_with_total 统一分页逻辑（内部已处理 saturating_sub(1) 偏移）
+        let paginator = select
             .order_by_asc(crate::models::production_order::Column::Priority)
-            .paginate(&*self.db, query.page_size)
-            .fetch_page(query.page.saturating_sub(1))
-            .await?;
+            .paginate(&*self.db, query.page_size);
+
+        let (orders, total) = paginate_with_total(paginator, query.page.clamp(1, 1000)).await?;
 
         let mut results: Vec<ScheduledOrder> = Vec::new();
 
@@ -205,16 +205,12 @@ impl SchedulingService {
         page: u64,
         page_size: u64,
     ) -> Result<(Vec<crate::models::scheduling_result::Model>, u64), AppError> {
-        use sea_orm::PaginatorTrait;
-
+        // 批次 257 修复：接入 paginate_with_total 统一分页逻辑（内部已处理 saturating_sub(1) 偏移）
         let paginator = SchedulingResultEntity::find()
             .order_by_desc(crate::models::scheduling_result::Column::CreatedAt)
             .paginate(&*self.db, page_size);
 
-        let total = paginator.num_items().await?;
-
-        // 批次 98 P2-A 修复（v5 复审）：page clamp 防 DoS
-        let items = paginator.fetch_page(page.clamp(1, 1000).saturating_sub(1)).await?;
+        let (items, total) = paginate_with_total(paginator, page.clamp(1, 1000)).await?;
 
         Ok((items, total))
     }
