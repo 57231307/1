@@ -18,6 +18,15 @@ pub const PUBLIC_PATHS: &[&str] = &[
     // 安全等价：handle_generic_callback 内部通过 HMAC-SHA256 签名验证替代认证
     // （X-Webhook-Signature 头 + webhook_secret 密钥校验）
     "/api/v1/erp/webhooks/integrations/callback",
+    // 批次 261 修复：初始化高危接口放行 JWT 认证，由 init_token_middleware
+    // 用 X-Init-Token（恒定时间比较）替代认证。
+    // 设计意图：系统首次部署时数据库无 users 表，无法登录获取 JWT，
+    // 需用 X-Init-Token 替代。只放行 initialize 系列（高危接口已受
+    // init_token_middleware 保护），只读接口（status/test-database/
+    // task-status）仍需 JWT 认证。
+    "/api/v1/erp/init/initialize",
+    "/api/v1/erp/init/initialize-with-db",
+    "/api/v1/erp/init/initialize-with-db-async",
 ];
 
 /// 公开路径白名单（跳过 JWT 认证）
@@ -59,6 +68,10 @@ mod tests {
         assert!(is_public_path(
             "/api/v1/erp/webhooks/integrations/callback"
         ));
+        // 批次 261 修复：initialize 系列高危接口放行 JWT 认证（由 init_token_middleware 认证）
+        assert!(is_public_path("/api/v1/erp/init/initialize"));
+        assert!(is_public_path("/api/v1/erp/init/initialize-with-db"));
+        assert!(is_public_path("/api/v1/erp/init/initialize-with-db-async"));
     }
 
     #[test]
@@ -68,9 +81,13 @@ mod tests {
         assert!(!is_public_path("/api/v1/erp/sales/orders"));
         assert!(!is_public_path("/api/v1/erp/inventory/stocks"));
         assert!(!is_public_path("/api/v1/erp/crm/customers"));
-        // init / tracking / logout 均需认证
+        // init 根路径 / tracking / logout 均需认证（initialize 系列除外，由 init_token_middleware 认证）
         assert!(!is_public_path("/init"));
         assert!(!is_public_path("/api/v1/erp/init"));
+        // 只读 init 接口仍需 JWT 认证（test-database/task-status 有 admin 二次校验）
+        assert!(!is_public_path("/api/v1/erp/init/status"));
+        assert!(!is_public_path("/api/v1/erp/init/test-database"));
+        assert!(!is_public_path("/api/v1/erp/init/task-status"));
         assert!(!is_public_path("/api/tracking/page-view"));
         assert!(!is_public_path("/api/v1/erp/auth/logout"));
     }
