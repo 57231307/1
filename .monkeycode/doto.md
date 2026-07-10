@@ -5,7 +5,7 @@
 
 ---
 
-## 🔄 当前任务：v14 深度调研报告修复（高风险 6/6 完成，中风险 18/25 完成）
+## 🔄 当前任务：v14 深度调研报告修复（高风险 6/6 完成，中风险 19/25 完成）
 
 > **v14 深度调研报告**（2026-07-09，[bug.md](file:///workspace/.monkeycode/bug.md)）：12 维度全量扫描，15 高/25 中/74 低风险，共 114 个问题。
 > v13 后端 P0/P1 全部完成（批次 229-236），v13 剩余 P2 任务合并到 v14 队列。
@@ -24,7 +24,7 @@
 | 241 | P0-5 | API 文档缺失（恢复 docs.rs + 删 openapi.rs） | ✅ PR #418 |
 | 242 | P0-6 | 简化阉割-RFM 分布真实计算 | ✅ PR #419 |
 
-#### 🟡 中风险修复队列（25 项，已完成 18/25 🔄）
+#### 🟡 中风险修复队列（25 项，已完成 19/25 🔄）
 
 **待修复项（8 项 ⏳）**：
 
@@ -148,7 +148,7 @@ Ok((items, total))
 - 项目规则符合性（1 项 ✅）：批次 247 CLI 硬编码 URL
 - 性能问题（5 项 ✅）：批次 244 ar 报表 + 批次 245 ap 报表 + 批次 248 缓存接入
 - 安全漏洞（2 项 ✅）：批次 243 XSS + 输入验证
-- E2E 失败排查（1 项 🔄）：批次 260 规则 5 检查发现 auth 配置缺失根因，批次 261 修复中
+- E2E 失败排查（1 项 ✅）：批次 260 规则 5 检查发现 auth 配置缺失根因，批次 261 修复（AuthConfig serde(default) + PUBLIC_PATHS + CSRF 头），初始化步骤首次通过
 
 #### 🟢 低风险修复队列（74 项 ⏳ 后续迭代）
 
@@ -196,37 +196,16 @@ Ok((items, total))
 
 ## 🔄 进行中批次
 
-### 批次 261：修复 E2E 配置问题 — AuthConfig 添加 serde(default)（待启动 ⏳）
-
-**问题描述**：批次 260 规则 5 E2E 检查发现后端启动失败 — `Error: missing field 'auth'`。
-
-**根因分析**：
-- CI E2E job 设置了 `JWT_SECRET`（无前缀），但 config crate 使用 `__` 分隔符需要 `AUTH__JWT_SECRET`
-- `load_sensitive_from_env()` 能从 `JWT_SECRET` 填充 `auth.jwt_secret`，但在反序列化阶段就因缺少 `auth` 段而失败
-- `load_sensitive_from_env()` 在反序列化成功后才执行，无法解决反序列化阶段的缺失
-
-**修复方案**：
-- 在 `AuthConfig` 的 `jwt_secret` 字段添加 `#[serde(default)]`
-- 反序列化时 `jwt_secret` 默认为空字符串，不因缺少 `auth` 段而失败
-- `load_sensitive_from_env()` 从 `JWT_SECRET` 环境变量填充真实值
-- `validate_secret()` 验证密钥强度（空字符串会被拒绝，确保安全）
-
-**修改文件**：
-- `backend/src/config/settings.rs`：AuthConfig.jwt_secret 添加 `#[serde(default)]`
-
-**待办**：
-- [ ] 创建修复分支 `fix/batch261-e2e-auth-config`
-- [ ] 修改 AuthConfig 添加 `#[serde(default)]`
-- [ ] 提交并推送
-- [ ] 创建 PR
-- [ ] 监控 CI（重点关注 E2E job 是否通过）
-- [ ] CI 全绿（含 E2E）后 squash merge 到 main
-- [ ] 删除本地和远程修复分支
-- [ ] 更新记忆文件
+### 批次 263：待启动（v14 中风险剩余 6 项 ⏳）
 
 ---
 
 ## 规则节点提醒
 
-- **规则 5（每 10 批次 E2E）**：批次 260 触发（上次批次 250）— 需完整跑完 CI 中的 `ci-e2e` job，下载 playwright-report 生成报告
+- **规则 5（E2E 独立工作流，每 30 批次）**：批次 270 触发（上次批次 240 → 独立工作流 e2e-batch.yml）
+  - 批次 N（30 倍数）：触发 e2e-batch.yml workflow_dispatch
+  - 批次 N+20：第 1 次监控（GitHub API 查询 run 状态）
+  - 批次 N+28：第 2 次监控（若 N+20 未完成）
+  - 批次 N+29：最后监控，未完成则跳过 N+30 的 E2E 周期
+  - **注意**：E2E 已从 ci-cd.yml 独立到 e2e-batch.yml，不阻塞主 CI
 - **规则 10（每 15 批次记忆整理）**：批次 270 触发（上次批次 255）— 需整理、归档、排序所有记忆文件，确保高效简洁

@@ -8,6 +8,12 @@ import { defineConfig, devices } from '@playwright/test'
  * - reporter: [['html'], ['line']] 生成可下载的 HTML 报告（规则 5）
  * - timeout: 60_000 增加单测试超时（真实后端 API 响应）
  * - webServer: 仅启动前端 dev server（后端由 CI 独立启动进程）
+ *
+ * 批次 262 增强（2026-07-10）：多浏览器支持
+ * - 新增 firefox + webkit 项目（本地运行覆盖跨浏览器兼容性）
+ * - CI 仅安装 chromium，通过 --project=chromium 限定单浏览器运行（控制 CI 时长）
+ * - 本地 `npx playwright test` 默认运行所有浏览器项目
+ * - 多上下文隔离 / 网络拦截 / RPA 工具见 e2e/fixtures/
  */
 export default defineConfig({
   testDir: './e2e',
@@ -36,9 +42,19 @@ export default defineConfig({
     stderr: 'pipe',
   },
   projects: [
+    // 主浏览器：chromium（CI 默认运行）
     {
       name: 'chromium',
       use: { ...devices['Desktop Chrome'] },
+    },
+    // 批次 262：跨浏览器兼容性测试（本地运行，CI 通过 --project 限定）
+    {
+      name: 'firefox',
+      use: { ...devices['Desktop Firefox'] },
+    },
+    {
+      name: 'webkit',
+      use: { ...devices['Desktop Safari'] },
     },
   ],
 })
