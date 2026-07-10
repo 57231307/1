@@ -2,18 +2,29 @@
  * AuditLog 视图单元测试（P13 批 1 P3-2）
  * 覆盖：筛选交互 / 详情打开 / 导出触发 / 表格分页
  * 注意：本地不允许 npm run test:run，所有测试通过 git push 触发 CI 验证
+ *
+ * 批次 267：view 接入 useTableApi 后，mock 从 @/api/audit 改为 @/api/request
+ * （useTableApi 内部调用 request.get(url, {params})）
  */
 import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest'
 import { mount, flushPromises } from '@vue/test-utils'
-import { nextTick, ref } from 'vue'
+import { nextTick } from 'vue'
 
 // 模块级 refs：跨测试共享 mock 状态
-const mockListAuditLogs = vi.fn()
+const mockRequestGet = vi.fn()
 const mockGetAuditLog = vi.fn()
 const mockExportToExcel = vi.fn()
 
+// 批次 267：mock @/api/request（useTableApi 内部调用 request.get）
+// 返回 ApiResponse 包装结构 { code, message, data: { items, total } }
+vi.mock('@/api/request', () => ({
+  request: {
+    get: (...args: unknown[]) => mockRequestGet(...args),
+  },
+}))
+
+// 保留 getAuditLog mock（详情接口仍由 @/api/audit 提供）
 vi.mock('@/api/audit', () => ({
-  listAuditLogs: (...args: unknown[]) => mockListAuditLogs(...args),
   getAuditLog: (...args: unknown[]) => mockGetAuditLog(...args),
 }))
 
@@ -79,16 +90,21 @@ const sampleLogs = [
 
 describe('AuditLogView（P13 批 1 P3-2）', () => {
   beforeEach(() => {
-    mockListAuditLogs.mockReset()
+    mockRequestGet.mockReset()
     mockGetAuditLog.mockReset()
     mockExportToExcel.mockReset()
 
-    mockListAuditLogs.mockResolvedValue({
-      items: sampleLogs,
-      total: 2,
-      page: 1,
-      page_size: 20,
-    } as any)
+    // 批次 267：mock request.get 返回 ApiResponse 包装结构
+    mockRequestGet.mockResolvedValue({
+      code: 200,
+      message: 'success',
+      data: {
+        items: sampleLogs,
+        total: 2,
+        page: 1,
+        page_size: 20,
+      },
+    })
     mockGetAuditLog.mockResolvedValue({
       ...sampleLogs[0],
       before_snapshot: { amount: 100 },
@@ -105,10 +121,11 @@ describe('AuditLogView（P13 批 1 P3-2）', () => {
   it('挂载时自动加载首屏数据并发送分页参数', async () => {
     const wrapper = mount(AuditLogView)
     await flushPromises()
-    expect(mockListAuditLogs).toHaveBeenCalledTimes(1)
-    const args = mockListAuditLogs.mock.calls[0][0]
-    expect(args.page).toBe(1)
-    expect(args.page_size).toBe(20)
+    expect(mockRequestGet).toHaveBeenCalledTimes(1)
+    // request.get(url, { params }) 第二参数的 params 含 page/page_size
+    const params = mockRequestGet.mock.calls[0][1].params
+    expect(params.page).toBe(1)
+    expect(params.page_size).toBe(20)
     expect(wrapper.find('.audit-log-view').exists()).toBe(true)
   })
 
@@ -116,7 +133,7 @@ describe('AuditLogView（P13 批 1 P3-2）', () => {
   it('点击查询按钮会把筛选条件传入 API', async () => {
     const wrapper = mount(AuditLogView)
     await flushPromises()
-    mockListAuditLogs.mockClear()
+    mockRequestGet.mockClear()
 
     // 模拟设置筛选值
     const vm = wrapper.vm as any
@@ -131,8 +148,8 @@ describe('AuditLogView（P13 批 1 P3-2）', () => {
     await vm.handleQuery()
     await flushPromises()
 
-    expect(mockListAuditLogs).toHaveBeenCalledTimes(1)
-    const params = mockListAuditLogs.mock.calls[0][0]
+    expect(mockRequestGet).toHaveBeenCalledTimes(1)
+    const params = mockRequestGet.mock.calls[0][1].params
     expect(params.operation_type).toBe('UPDATE')
     expect(params.severity).toBe('WARN')
     expect(params.resource_type).toBe('user')
@@ -171,16 +188,16 @@ describe('AuditLogView（P13 批 1 P3-2）', () => {
   it('分页变化时把 page / page_size 传给 API', async () => {
     const wrapper = mount(AuditLogView)
     await flushPromises()
-    mockListAuditLogs.mockClear()
+    mockRequestGet.mockClear()
 
     const vm = wrapper.vm as any
     await vm.handlePageChange(3)
     await flushPromises()
-    expect(mockListAuditLogs.mock.calls[0][0].page).toBe(3)
+    expect(mockRequestGet.mock.calls[0][1].params.page).toBe(3)
 
     await vm.handleSizeChange(50)
     await flushPromises()
-    expect(mockListAuditLogs.mock.calls[1][0].page_size).toBe(50)
-    expect(mockListAuditLogs.mock.calls[1][0].page).toBe(1)
+    expect(mockRequestGet.mock.calls[1][1].params.page_size).toBe(50)
+    expect(mockRequestGet.mock.calls[1][1].params.page).toBe(1)
   })
 })

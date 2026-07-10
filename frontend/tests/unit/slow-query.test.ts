@@ -2,18 +2,29 @@
  * SlowQueryView 单元测试（P13 批 1 B-慢查询审计）
  * 覆盖：挂载首屏加载 / 筛选 / 刷新触发
  * 注意：本地不允许 npm run test:run，所有测试通过 git push 触发 CI 验证
+ *
+ * 批次 267：view 接入 useTableApi 后，list mock 从 @/api/slow-query 改为 @/api/request
+ * （useTableApi 内部调用 request.get(url, {params})）
+ * getSlowQueryStats / refreshSlowQueries 仍由 @/api/slow-query 提供
  */
 import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest'
 import { mount, flushPromises } from '@vue/test-utils'
 import { nextTick } from 'vue'
 
 // 模块级 mock：跨测试共享
-const mockListSlowQueries = vi.fn()
+const mockRequestGet = vi.fn()
 const mockGetSlowQueryStats = vi.fn()
 const mockRefreshSlowQueries = vi.fn()
 
+// 批次 267：mock @/api/request（useTableApi 内部调用 request.get）
+vi.mock('@/api/request', () => ({
+  request: {
+    get: (...args: unknown[]) => mockRequestGet(...args),
+  },
+}))
+
+// 保留 getSlowQueryStats / refreshSlowQueries mock（仍由 @/api/slow-query 提供）
 vi.mock('@/api/slow-query', () => ({
-  listSlowQueries: (...args: unknown[]) => mockListSlowQueries(...args),
   getSlowQueryStats: (...args: unknown[]) => mockGetSlowQueryStats(...args),
   refreshSlowQueries: (...args: unknown[]) => mockRefreshSlowQueries(...args),
 }))
@@ -80,16 +91,21 @@ const sampleStats = {
 
 describe('SlowQueryView（P13 批 1 B-慢查询审计）', () => {
   beforeEach(() => {
-    mockListSlowQueries.mockReset()
+    mockRequestGet.mockReset()
     mockGetSlowQueryStats.mockReset()
     mockRefreshSlowQueries.mockReset()
 
-    mockListSlowQueries.mockResolvedValue({
-      items: sampleItems,
-      total: 2,
-      page: 1,
-      page_size: 20,
-    } as any)
+    // 批次 267：mock request.get 返回 ApiResponse 包装结构
+    mockRequestGet.mockResolvedValue({
+      code: 200,
+      message: 'success',
+      data: {
+        items: sampleItems,
+        total: 2,
+        page: 1,
+        page_size: 20,
+      },
+    })
     mockGetSlowQueryStats.mockResolvedValue(sampleStats as any)
     mockRefreshSlowQueries.mockResolvedValue({
       inserted: 3,
@@ -101,15 +117,16 @@ describe('SlowQueryView（P13 批 1 B-慢查询审计）', () => {
     vi.restoreAllMocks()
   })
 
-  /** 挂载即触发首屏加载（同时调用 list + stats） */
+  /** 挂载即触发首屏加载（useTableApi 自动加载 list + onMounted 加载 stats） */
   it('挂载时自动加载首屏数据并发送分页参数', async () => {
     const wrapper = mount(SlowQueryView)
     await flushPromises()
-    expect(mockListSlowQueries).toHaveBeenCalledTimes(1)
+    // useTableApi 自动调用 request.get
+    expect(mockRequestGet).toHaveBeenCalledTimes(1)
     expect(mockGetSlowQueryStats).toHaveBeenCalledTimes(1)
-    const args = mockListSlowQueries.mock.calls[0][0]
-    expect(args.page).toBe(1)
-    expect(args.page_size).toBe(20)
+    const params = mockRequestGet.mock.calls[0][1].params
+    expect(params.page).toBe(1)
+    expect(params.page_size).toBe(20)
     expect(wrapper.find('.slow-query-view').exists()).toBe(true)
   })
 
@@ -117,7 +134,7 @@ describe('SlowQueryView（P13 批 1 B-慢查询审计）', () => {
   it('点击查询按钮会把筛选条件传入 API', async () => {
     const wrapper = mount(SlowQueryView)
     await flushPromises()
-    mockListSlowQueries.mockClear()
+    mockRequestGet.mockClear()
 
     const vm = wrapper.vm as any
     vm.filterForm.min_duration = 200
@@ -128,8 +145,8 @@ describe('SlowQueryView（P13 批 1 B-慢查询审计）', () => {
     await vm.handleQuery()
     await flushPromises()
 
-    expect(mockListSlowQueries).toHaveBeenCalledTimes(1)
-    const params = mockListSlowQueries.mock.calls[0][0]
+    expect(mockRequestGet).toHaveBeenCalledTimes(1)
+    const params = mockRequestGet.mock.calls[0][1].params
     expect(params.min_duration).toBe(200)
     expect(params.keyword).toBe('users')
     expect(params.start_time).toBe('2026-06-18T00:00:00Z')
@@ -142,7 +159,7 @@ describe('SlowQueryView（P13 批 1 B-慢查询审计）', () => {
     const wrapper = mount(SlowQueryView)
     await flushPromises()
     // 清掉首屏调用计数，便于精确断言后续调用
-    mockListSlowQueries.mockClear()
+    mockRequestGet.mockClear()
     mockGetSlowQueryStats.mockClear()
     mockRefreshSlowQueries.mockClear()
 
@@ -152,8 +169,8 @@ describe('SlowQueryView（P13 批 1 B-慢查询审计）', () => {
 
     // refresh 调用一次
     expect(mockRefreshSlowQueries).toHaveBeenCalledTimes(1)
-    // refresh 后会重新加载 list + stats
-    expect(mockListSlowQueries).toHaveBeenCalledTimes(1)
+    // refresh 后会重新加载 list（request.get）+ stats
+    expect(mockRequestGet).toHaveBeenCalledTimes(1)
     expect(mockGetSlowQueryStats).toHaveBeenCalledTimes(1)
   })
 })
