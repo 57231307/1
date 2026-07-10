@@ -5,7 +5,29 @@
 
 ---
 
-## 📝 已完成批次详细记录（v14 阶段，批次 237-264）
+## 📝 已完成批次详细记录（v14 阶段，批次 237-266）
+
+### 批次 266：3 个 service 分页接入 paginate_with_total 第十批（PR #444）
+
+**修复内容**：bug.md 中风险重复实现问题 — 继批次 265 后，第十批处理 3 个 service 的分页逻辑接入，含聚合查询 + 标准分页两类场景。**至此 service 分页重复实现全部清零（35/35 完成）**。
+
+**修改文件**（3 文件 +21 -27 行）：
+- `backend/src/services/inventory_stock_query.rs`：`get_inventory_summary` 接入（聚合查询 `into_model::<InventorySummaryQueryResult>` 场景）+ 补 `page.clamp(1,1000)` 防 DoS
+- `backend/src/services/fixed_asset_service.rs`：`get_list` 接入 + 补 `page_size.clamp(1,100)` 防 DoS（原实现仅 clamp page，page_size 无上限保护）
+- `backend/src/services/fund_management_service.rs`：`get_accounts_list` 接入 + 移除 unused `QuerySelect` import（删除 offset/limit 后无其他调用）
+
+**技术要点**：
+- `get_inventory_summary` 聚合查询使用 `into_model::<InventorySummaryQueryResult>`，该类型派生 `FromQueryResult`，满足 `paginate_with_total` 泛型约束 `M: FromQueryResult`
+- `fixed_asset` / `fund_management` 的 page/page_size 为 `i64` 类型，需 `as u64` 转换
+- SeaORM 1.1.20 的 `.paginate()` page_size 参数为 `u64`（非 usize），首次提交误用 `as usize` 导致 E0308 编译失败
+- 移除 `QuerySelect` import 避免 `unused_imports` CI 失败（clippy -D warnings）
+- `PaginatorTrait` 保留（`.paginate()` 方法需要）
+
+**CI 验证**：首次 CI run #29095103574 失败（Rust 后端构建 E0308：page_size 类型 usize≠u64），修复后第二次 CI run #29095444818，10/10 核心 job 全绿。PR #444 squash merge 到 main（commit 1a58ebb）。
+
+**里程碑**：v14 中风险"重复实现 service 分页"问题（35 项）全部清零。剩余中风险为 view 表格逻辑（30+ 文件）+ 测试覆盖（7 项）。
+
+---
 
 ### 批次 264：4 个 service 分页接入 paginate_with_total 第八批（PR #442）
 
