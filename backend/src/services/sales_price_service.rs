@@ -2,6 +2,7 @@ use crate::models::sales_price;
 // 批次 212 P2-5 修复（v12 复审）：硬编码 "active" 替换为 master_data 常量
 use crate::models::status::master_data;
 use crate::utils::error::AppError;
+use crate::utils::pagination::paginate_with_total;
 use rust_decimal::Decimal;
 use sea_orm::{
     ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, IntoActiveModel,
@@ -267,8 +268,8 @@ impl SalesPriceService {
             .order_by(sales_price::Column::Id, Order::Desc)
             .paginate(&*self.db, page_size);
 
-        let total = paginator.num_items().await?;
-        let strategies = paginator.fetch_page(page.saturating_sub(1)).await?;
+        // 批次 255 修复：接入 paginate_with_total 统一分页逻辑（内部已处理 saturating_sub(1) 偏移）
+        let (strategies, total) = paginate_with_total(paginator, page.clamp(1, 1000)).await?;
 
         Ok((strategies, total))
     }
