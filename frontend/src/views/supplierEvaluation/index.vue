@@ -38,11 +38,11 @@
           </el-table>
 
           <el-pagination
-            v-model:current-page="recordPagination.page"
-            v-model:page-size="recordPagination.pageSize"
-            :total="recordPagination.total"
+            v-model:current-page="recordPage"
+            v-model:page-size="recordPageSize"
+            :total="recordTotal"
             layout="total, prev, pager, next, jumper"
-            @current-change="fetchRecords"
+            @current-change="onRecordPageChange"
           />
         </el-tab-pane>
 
@@ -137,8 +137,8 @@
 import { ref, reactive, onMounted } from 'vue'
 import { loadIfNot, createLazyLoader } from '@/utils/lazy-loader'
 import { ElMessage } from 'element-plus'
+import { useTableApi } from '@/composables/useTableApi'
 import {
-  listEvaluationRecords,
   createEvaluationRecord,
   getSupplierRankings,
   type EvaluationRecord,
@@ -149,14 +149,22 @@ import { supplierApi, type Supplier } from '@/api/supplier'
 import { logger } from '@/utils/logger'
 
 const activeTab = ref('records')
-const recordList = ref<EvaluationRecord[]>([])
 const rankingList = ref<SupplierScore[]>([])
 const supplierList = ref<Supplier[]>([])
 
-const recordPagination = reactive({
-  page: 1,
-  pageSize: 20,
-  total: 0,
+// 批次 268：接入 useTableApi，消除手写 recordPagination + fetchRecords 重复
+// API 参数用驼峰 pageSize，配置 pageSizeKey: 'pageSize'
+// API 返回 res.data.list，useTableApi 默认 listKey='list' 兼容
+const {
+  data: recordList,
+  page: recordPage,
+  pageSize: recordPageSize,
+  total: recordTotal,
+  refresh: fetchRecords,
+} = useTableApi<EvaluationRecord>({
+  url: '/purchase/supplier-evaluations/records',
+  pageSizeKey: 'pageSize',
+  onError: () => ElMessage.error('获取评估记录失败'),
 })
 
 const recordDialogVisible = ref(false)
@@ -183,22 +191,6 @@ const fetchSuppliers = async () => {
     supplierList.value = res.data?.list || []
   } catch (e) {
     logger.error('获取供应商列表失败', String(e))
-  }
-}
-
-const fetchRecords = async () => {
-  try {
-    // v11 批次 176 P2-1 修复：res: any 改为直接使用 API 返回类型
-    const res = await listEvaluationRecords({
-      page: recordPagination.page,
-      pageSize: recordPagination.pageSize,
-    })
-    if (res.data) {
-      recordList.value = res.data.list || []
-      recordPagination.total = res.data.total || 0
-    }
-  } catch (e) {
-    ElMessage.error('获取评估记录失败')
   }
 }
 
@@ -250,10 +242,15 @@ const handleSaveRecord = async () => {
   })
 }
 
+// 批次 268：分页变化（useTableApi 自动 watch 重载，此处无需手动调用）
+const onRecordPageChange = (_p: number) => {
+  // useTableApi watch page 自动触发 refresh
+}
+
 const hasLoaded = createLazyLoader()
 
+// 批次 268：useTableApi 构造时自动初始加载列表，onMounted 仅加载排名 + 供应商下拉
 onMounted(() => {
-  fetchRecords()
   loadIfNot('rankings', fetchRankings, hasLoaded)
   loadIfNot('suppliers', fetchSuppliers, hasLoaded)
 })
