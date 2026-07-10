@@ -71,7 +71,7 @@ impl FundManagementService {
         // 补 page_size.clamp(1, 100) 防 DoS（原实现仅 clamp page，page_size 无上限保护）
         let paginator = query
             .order_by(fund_management::Column::Id, Order::Desc)
-            .paginate(&*self.db, params.page_size.clamp(1, 100) as usize);
+            .paginate(&*self.db, params.page_size.clamp(1, 100) as u64);
         let (accounts, total) =
             paginate_with_total(paginator, params.page.clamp(1, 1000) as u64).await?;
 
