@@ -123,8 +123,8 @@ import { ElMessage, ElTag } from 'element-plus'
 import { Search, Refresh } from '@element-plus/icons-vue'
 import V2Table from '@/components/V2Table/index.vue'
 import type { ColumnDef } from '@/components/V2Table/types'
+import { useTableApi } from '@/composables/useTableApi'
 import {
-  listSlowQueries,
   getSlowQueryStats,
   refreshSlowQueries,
   type SlowQueryItem,
@@ -143,12 +143,21 @@ const filterForm = reactive({
   keyword: '',
 })
 
-// 分页状态
-const page = ref(1)
-const pageSize = ref(20)
-const total = ref(0)
-const loading = ref(false)
-const data = ref<SlowQueryItem[]>([])
+// 批次 267：接入 useTableApi，消除手写 page/pageSize/total/loading + loadData 重复
+// API 返回 { items, total }，配置 listKey: 'items' 让 useTableApi 正确探测
+const {
+  data,
+  loading,
+  page,
+  pageSize,
+  total,
+  refresh,
+  setQueryParam,
+} = useTableApi<SlowQueryItem>({
+  url: '/slow-queries',
+  listKey: 'items',
+  onError: () => ElMessage.error('加载慢查询失败'),
+})
 
 // 表格列定义
 const columns: ColumnDef<SlowQueryItem>[] = [
@@ -196,42 +205,28 @@ const truncate = (s: string, max: number): string => {
 }
 
 /**
- * 列表查询（统一在此构造查询参数）
+ * 批次 267：同步筛选条件到 useTableApi.queryParams
+ * useTableApi 自动 watch page/pageSize 变化触发重载，无需手动 loadData
  */
-const buildListParams = () => {
-  const params: Record<string, unknown> = {
-    page: page.value,
-    page_size: pageSize.value,
-  }
+const syncQueryParams = () => {
+  // 先清空旧筛选，再写入新值（避免上次筛选残留）
+  setQueryParam('start_time', undefined)
+  setQueryParam('end_time', undefined)
+  setQueryParam('min_duration', undefined)
+  setQueryParam('keyword', undefined)
+
   if (filterForm.dateRange && filterForm.dateRange.length === 2) {
-    params.start_time = filterForm.dateRange[0]
-    params.end_time = filterForm.dateRange[1]
+    setQueryParam('start_time', filterForm.dateRange[0])
+    setQueryParam('end_time', filterForm.dateRange[1])
   }
   if (filterForm.min_duration !== undefined && filterForm.min_duration !== null) {
-    params.min_duration = filterForm.min_duration
+    setQueryParam('min_duration', filterForm.min_duration)
   }
-  if (filterForm.keyword.trim()) params.keyword = filterForm.keyword.trim()
-  return params
+  if (filterForm.keyword.trim()) setQueryParam('keyword', filterForm.keyword.trim())
 }
 
 /**
- * 加载列表数据
- */
-const loadData = async () => {
-  loading.value = true
-  try {
-    const res = await listSlowQueries(buildListParams())
-    data.value = res.items
-    total.value = res.total
-  } catch (err) {
-    ElMessage.error('加载慢查询失败')
-  } finally {
-    loading.value = false
-  }
-}
-
-/**
- * 加载 TOP 10 统计
+ * 加载 TOP 10 统计（独立于 useTableApi，保留原 request 调用）
  */
 const loadStats = async () => {
   statsLoading.value = true
@@ -252,8 +247,8 @@ const handleRefresh = async () => {
   try {
     const res = await refreshSlowQueries()
     ElMessage.success(res.message)
-    // 刷新完成后重新加载数据
-    await Promise.all([loadData(), loadStats()])
+    // 刷新完成后重新加载列表（useTableApi.refresh）+ 统计
+    await Promise.all([refresh(), loadStats()])
   } catch (err) {
     ElMessage.error('手动刷新失败')
   } finally {
@@ -262,11 +257,12 @@ const handleRefresh = async () => {
 }
 
 /**
- * 查询按钮：重置到第一页
+ * 查询按钮：同步筛选 + 重置到第一页 + 刷新
  */
 const handleQuery = () => {
+  syncQueryParams()
   page.value = 1
-  loadData()
+  refresh()
 }
 
 /**
@@ -276,25 +272,24 @@ const handleReset = () => {
   filterForm.dateRange = []
   filterForm.min_duration = undefined
   filterForm.keyword = ''
+  syncQueryParams()
   page.value = 1
-  loadData()
+  refresh()
 }
 
 /**
- * 分页变化
+ * 分页变化（useTableApi 自动 watch 重载，此处仅更新 page 值）
  */
 const handlePageChange = (p: number) => {
   page.value = p
-  loadData()
 }
 
 /**
- * 每页大小变化
+ * 每页大小变化（useTableApi 自动 watch 重载，切回第一页）
  */
 const handleSizeChange = (s: number) => {
   pageSize.value = s
   page.value = 1
-  loadData()
 }
 
 /**
@@ -308,8 +303,8 @@ const formatDateTime = (v: string | null | undefined): string => {
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`
 }
 
+// 批次 267：useTableApi 构造时自动初始加载列表，onMounted 仅加载统计
 onMounted(() => {
-  loadData()
   loadStats()
 })
 </script>

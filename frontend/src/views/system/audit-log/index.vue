@@ -171,13 +171,13 @@
  * 审计日志查看页（P13 批 1 P3-2）
  * - 后端路由：/api/v1/erp/audit-logs（list / detail / export）
  */
-import { ref, reactive, onMounted, h } from 'vue'
+import { ref, reactive, h } from 'vue'
 import { ElMessage, ElTag, ElButton } from 'element-plus'
 import { Search, Refresh, Download } from '@element-plus/icons-vue'
 import V2Table from '@/components/V2Table/index.vue'
 import type { ColumnDef } from '@/components/V2Table/types'
+import { useTableApi } from '@/composables/useTableApi'
 import {
-  listAuditLogs,
   getAuditLog,
   type AuditLogItem,
   type AuditLogDetail,
@@ -241,12 +241,21 @@ const filterForm = reactive({
   keyword: '',
 })
 
-// 分页状态
-const page = ref(1)
-const pageSize = ref(20)
-const total = ref(0)
-const loading = ref(false)
-const data = ref<AuditLogItem[]>([])
+// 批次 267：接入 useTableApi，消除手写 page/pageSize/total/loading + loadData 重复
+// API 返回 { items, total }，配置 listKey: 'items' 让 useTableApi 正确探测
+const {
+  data,
+  loading,
+  page,
+  pageSize,
+  total,
+  refresh,
+  setQueryParam,
+} = useTableApi<AuditLogItem>({
+  url: '/audit-logs',
+  listKey: 'items',
+  onError: () => ElMessage.error('加载审计日志失败'),
+})
 
 // 详情抽屉
 const detailVisible = ref(false)
@@ -308,47 +317,37 @@ const columns: ColumnDef<AuditLogItem>[] = [
 ]
 
 /**
- * 列表查询（统一在此构造查询参数）
+ * 批次 267：同步筛选条件到 useTableApi.queryParams 并刷新
+ * useTableApi 自动 watch page/pageSize 变化触发重载，无需手动 loadData
  */
-const buildListParams = () => {
-  const params: Record<string, unknown> = {
-    page: page.value,
-    page_size: pageSize.value,
-  }
+const syncQueryParams = () => {
+  // 先清空旧筛选，再写入新值（避免上次筛选残留）
+  setQueryParam('start_time', undefined)
+  setQueryParam('end_time', undefined)
+  setQueryParam('operation_type', undefined)
+  setQueryParam('severity', undefined)
+  setQueryParam('resource_type', undefined)
+  setQueryParam('request_id', undefined)
+  setQueryParam('keyword', undefined)
+
   if (filterForm.dateRange && filterForm.dateRange.length === 2) {
-    params.start_time = filterForm.dateRange[0]
-    params.end_time = filterForm.dateRange[1]
+    setQueryParam('start_time', filterForm.dateRange[0])
+    setQueryParam('end_time', filterForm.dateRange[1])
   }
-  if (filterForm.operation_type) params.operation_type = filterForm.operation_type
-  if (filterForm.severity) params.severity = filterForm.severity
-  if (filterForm.resource_type.trim()) params.resource_type = filterForm.resource_type.trim()
-  if (filterForm.request_id.trim()) params.request_id = filterForm.request_id.trim()
-  if (filterForm.keyword.trim()) params.keyword = filterForm.keyword.trim()
-  return params
+  if (filterForm.operation_type) setQueryParam('operation_type', filterForm.operation_type)
+  if (filterForm.severity) setQueryParam('severity', filterForm.severity)
+  if (filterForm.resource_type.trim()) setQueryParam('resource_type', filterForm.resource_type.trim())
+  if (filterForm.request_id.trim()) setQueryParam('request_id', filterForm.request_id.trim())
+  if (filterForm.keyword.trim()) setQueryParam('keyword', filterForm.keyword.trim())
 }
 
 /**
- * 加载列表数据
- */
-const loadData = async () => {
-  loading.value = true
-  try {
-    const res = await listAuditLogs(buildListParams())
-    data.value = res.items
-    total.value = res.total
-  } catch (err) {
-    ElMessage.error('加载审计日志失败')
-  } finally {
-    loading.value = false
-  }
-}
-
-/**
- * 查询按钮：重置到第一页
+ * 查询按钮：同步筛选 + 重置到第一页 + 刷新
  */
 const handleQuery = () => {
+  syncQueryParams()
   page.value = 1
-  loadData()
+  refresh()
 }
 
 /**
@@ -361,25 +360,24 @@ const handleReset = () => {
   filterForm.resource_type = ''
   filterForm.request_id = ''
   filterForm.keyword = ''
+  syncQueryParams()
   page.value = 1
-  loadData()
+  refresh()
 }
 
 /**
- * 分页变化
+ * 分页变化（useTableApi 自动 watch 重载，此处仅更新 page 值）
  */
 const handlePageChange = (p: number) => {
   page.value = p
-  loadData()
 }
 
 /**
- * 每页大小变化
+ * 每页大小变化（useTableApi 自动 watch 重载，切回第一页）
  */
 const handleSizeChange = (s: number) => {
   pageSize.value = s
   page.value = 1
-  loadData()
 }
 
 /**
@@ -464,9 +462,7 @@ const formatDateTime = (v: string | null | undefined): string => {
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`
 }
 
-onMounted(() => {
-  loadData()
-})
+// 批次 267：useTableApi 构造时自动初始加载，无需 onMounted
 </script>
 
 <style scoped>
