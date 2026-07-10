@@ -143,8 +143,8 @@
 
       <div class="pagination-container">
         <el-pagination
-          v-model:current-page="queryParams.page"
-          v-model:page-size="queryParams.page_size"
+          v-model:current-page="page"
+          v-model:page-size="pageSize"
           :page-sizes="[10, 20, 50, 100]"
           :total="total"
           layout="total, sizes, prev, pager, next, jumper"
@@ -186,7 +186,8 @@ import { Plus, Back, Search, Refresh } from '@element-plus/icons-vue'
 import { listUsers, type User } from '@/api/user'
 import { loadIfNot, createLazyLoader } from '@/utils/lazy-loader'
 import { logger } from '@/utils/logger'
-import { crmEnhancedApi, type PoolCustomer } from '@/api/crm-enhanced'
+import { type PoolCustomer } from '@/api/crm-enhanced'
+import { useTableApi } from '@/composables/useTableApi'
 import ClaimDialogTab from './tabs/ClaimDialogTab.vue'
 import TransferDialogTab from './tabs/TransferDialogTab.vue'
 import ReleaseDialogTab from './tabs/ReleaseDialogTab.vue'
@@ -195,16 +196,25 @@ const hasLoaded = createLazyLoader()
 
 const router = useRouter()
 const queryParams = reactive({
-  page: 1,
-  page_size: 20,
   keyword: '',
   customer_type: '',
   daysInPool: '',
 })
 
-const loading = ref(false)
-const poolList = ref<unknown[]>([])
-const total = ref(0)
+// 批次 269：接入 useTableApi，消除手写分页重复 + 修复原硬编码参数 bug
+const {
+  data: poolList,
+  loading,
+  page,
+  pageSize,
+  total,
+  refresh: getList,
+  setQueryParam,
+} = useTableApi<PoolCustomer>({
+  url: '/crm/pool',
+  onError: (e: unknown) => logger.warn('加载公海池列表失败', String(e)),
+})
+
 const users = ref<User[]>([])
 
 const claimDialogVisible = ref(false)
@@ -212,21 +222,6 @@ const transferDialogVisible = ref(false)
 const releaseDialogVisible = ref(false)
 const currentCustomerId = ref<number | null>(null)
 const currentCustomerName = ref('')
-
-const getList = async () => {
-  loading.value = true
-  try {
-    // P1-5：调用真实 API 获取公海池列表
-    const res = await crmEnhancedApi.getPoolList({ page: 1, page_size: 50 })
-    poolList.value = (res.data?.list ?? res.data) as PoolCustomer[]
-    total.value = res.data?.total ?? poolList.value.length
-  } catch (error) {
-    const err = error as Error
-    logger.warn('获取公海池列表失败', err.message)
-  } finally {
-    loading.value = false
-  }
-}
 
 const fetchUsers = async () => {
   try {
@@ -238,7 +233,9 @@ const fetchUsers = async () => {
 }
 
 const handleQuery = () => {
-  queryParams.page = 1
+  setQueryParam('keyword', queryParams.keyword || undefined)
+  setQueryParam('customer_type', queryParams.customer_type || undefined)
+  page.value = 1
   getList()
 }
 
@@ -276,13 +273,12 @@ const handleSelectionChange = () => {
 }
 
 const handleSizeChange = (val: number) => {
-  queryParams.page_size = val
-  getList()
+  pageSize.value = val
+  page.value = 1
 }
 
 const handleCurrentChange = (val: number) => {
-  queryParams.page = val
-  getList()
+  page.value = val
 }
 
 const getCustomerTypeLabel = (type: string) => {
@@ -306,7 +302,6 @@ const getDaysTag = (days: number) => {
 }
 
 onMounted(() => {
-  getList()
   loadIfNot('users', fetchUsers, hasLoaded)
 })
 </script>

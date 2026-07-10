@@ -166,8 +166,8 @@
 
       <div class="pagination-container">
         <el-pagination
-          v-model:current-page="queryParams.page"
-          v-model:page-size="queryParams.page_size"
+          v-model:current-page="page"
+          v-model:page-size="pageSize"
           :page-sizes="[10, 20, 50, 100]"
           :total="total"
           layout="total, sizes, prev, pager, next, jumper"
@@ -246,16 +246,15 @@ import { ref, reactive, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Plus, Download, Search, Refresh } from '@element-plus/icons-vue'
 import {
-  listOpportunities,
   updateOpportunity,
   exportOpportunities,
   type Opportunity,
 } from '@/api/crm'
 import { listUsers, type User } from '@/api/user'
 import { customerApi, type Customer } from '@/api/customer'
-import type { ApiResponse, PageResult } from '@/types/api'
 import { loadIfNot, createLazyLoader } from '@/utils/lazy-loader'
 import { logger } from '@/utils/logger'
+import { useTableApi } from '@/composables/useTableApi'
 import OpportunityFormTab from './tabs/OpportunityFormTab.vue'
 import OpportunityFollowTab from './tabs/OpportunityFollowTab.vue'
 
@@ -273,17 +272,26 @@ interface OpportunityRow extends Opportunity {
 }
 
 const queryParams = reactive({
-  page: 1,
-  page_size: 20,
   keyword: '',
   opportunity_stage: '',
   owner_id: '',
   priority: '',
 })
 
-const loading = ref(false)
-const opportunityList = ref<OpportunityRow[]>([])
-const total = ref(0)
+// 批次 269：接入 useTableApi，消除手写分页重复
+const {
+  data: opportunityList,
+  loading,
+  page,
+  pageSize,
+  total,
+  refresh: getList,
+  setQueryParam,
+} = useTableApi<OpportunityRow>({
+  url: '/crm/opportunities',
+  onError: (e: unknown) => logger.warn('加载商机列表失败', String(e)),
+})
+
 const users = ref<User[]>([])
 const customers = ref<Customer[]>([])
 
@@ -296,23 +304,6 @@ const currentFollowId = ref<number | null>(null)
 // 查看详情对话框状态（批次 95 P3-19 修复）
 const viewDialogVisible = ref(false)
 const viewData = ref<OpportunityRow | null>(null)
-
-const getList = async () => {
-  loading.value = true
-  try {
-    // 后端 listOpportunities 实际返回 PageResult<T> 包装，但类型定义为 ApiResponse<Opportunity[]>，此处显式声明
-    const res = (await listOpportunities(queryParams)) as unknown as ApiResponse<
-      PageResult<OpportunityRow>
-    >
-    opportunityList.value = res.data?.list || []
-    total.value = res.data?.total || 0
-  } catch (error) {
-    const err = error as Error
-    logger.warn('获取商机列表失败', err.message)
-  } finally {
-    loading.value = false
-  }
-}
 
 const fetchUsers = async () => {
   try {
@@ -333,7 +324,11 @@ const fetchCustomers = async () => {
 }
 
 const handleQuery = () => {
-  queryParams.page = 1
+  setQueryParam('keyword', queryParams.keyword || undefined)
+  setQueryParam('opportunity_stage', queryParams.opportunity_stage || undefined)
+  setQueryParam('owner_id', queryParams.owner_id || undefined)
+  setQueryParam('priority', queryParams.priority || undefined)
+  page.value = 1
   getList()
 }
 
@@ -429,13 +424,12 @@ const handleExport = async () => {
 }
 
 const handleSizeChange = (val: number) => {
-  queryParams.page_size = val
-  getList()
+  pageSize.value = val
+  page.value = 1
 }
 
 const handleCurrentChange = (val: number) => {
-  queryParams.page = val
-  getList()
+  page.value = val
 }
 
 const formatCurrency = (value: number) => {
@@ -467,7 +461,7 @@ const getStageLabel = (stage: string) => {
 }
 
 onMounted(() => {
-  getList()
+  // useTableApi 已自动初始加载，此处仅懒加载用户/客户下拉数据
   loadIfNot('users', fetchUsers, hasLoaded)
   loadIfNot('customers', fetchCustomers, hasLoaded)
 })
