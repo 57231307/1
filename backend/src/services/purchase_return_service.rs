@@ -10,6 +10,8 @@ use crate::models::status::purchase_return as pr_status;
 use crate::models::{inventory_stock, product, purchase_return, purchase_return_item};
 use crate::services::event_bus::{BusinessEvent, EVENT_BUS};
 use crate::utils::error::AppError;
+// 批次 258 修复：接入 paginate_with_total 统一分页逻辑
+use crate::utils::pagination::paginate_with_total;
 use chrono::Utc;
 use rust_decimal::Decimal;
 use sea_orm::{
@@ -409,13 +411,12 @@ impl PurchaseReturnService {
             query = query.filter(purchase_return::Column::SupplierId.eq(supplier_id));
         }
 
+        // 批次 258 修复：接入 paginate_with_total 统一分页逻辑（内部已处理 saturating_sub(1) 偏移）
         let paginator = query
             .order_by(purchase_return::Column::CreatedAt, Order::Desc)
             .paginate(&*self.db, page_size);
 
-        let total = paginator.num_items().await?;
-        // 批次 98 P2-A 修复（v5 复审）：page clamp 防 DoS
-        let items = paginator.fetch_page(page.clamp(1, 1000).saturating_sub(1)).await?;
+        let (items, total) = paginate_with_total(paginator, page.clamp(1, 1000)).await?;
 
         Ok((items, total))
     }
