@@ -5,7 +5,7 @@
 
 ---
 
-## 🔄 当前任务：v14 深度调研报告修复（高风险 6/6 完成，中风险 19/25 完成）
+## 🔄 当前任务：v14 深度调研报告修复（高风险 6/6 完成，中风险 20/25 完成）
 
 > **v14 深度调研报告**（2026-07-09，[bug.md](file:///workspace/.monkeycode/bug.md)）：12 维度全量扫描，15 高/25 中/74 低风险，共 114 个问题。
 > v13 后端 P0/P1 全部完成（批次 229-236），v13 剩余 P2 任务合并到 v14 队列。
@@ -67,26 +67,25 @@
 
 **问题背景**：bug.md 中风险重复实现问题 — 项目中存在大量重复代码，违反 DRY 原则，维护成本高，修改时容易遗漏同步更新。
 
-**子任务 2.1：service 分页逻辑接入 paginate_with_total（累计 24/35 完成，剩余 11/35 ⏳）**
+**子任务 2.1：service 分页逻辑接入 paginate_with_total（累计 30/35 完成，剩余 5/35 ⏳）**
 
 **问题描述**：35 个 service 文件手写 `num_items + fetch_page` 分页逻辑，与已封装的 `paginate_with_total` 工具函数（`backend/src/utils/pagination.rs`）重复。手写逻辑存在不一致实现（部分未做 `saturating_sub(1)` 偏移、部分未做 `clamp` 防 DoS），且修改分页逻辑需逐个文件修改。
 
-**已修复文件（24 个 ✅）**：
+**已修复文件（30 个 ✅）**：
 - 批次 255：`sales_price_service.rs` / `ap_invoice_service.rs` / `role_service.rs`（修复偏移 bug）/ `supplier_service.rs`
 - 批次 256：`email_log_service.rs` / `email_template_service.rs` / `report_subscription_service.rs` / `report_template_service.rs`
 - 批次 257：`currency_service.rs`（2 处）/ `mrp_engine_service.rs` / `production_order_service.rs` / `scheduling_query.rs`
 - 批次 258：`purchase_receipt_service.rs` / `purchase_inspection_service.rs` / `purchase_return_service.rs` / `supplier_evaluation_service.rs`
 - 批次 259：`ap_payment_request_service.rs` / `ap_payment_service.rs` / `ap_reconciliation_service.rs` / `ap_verification_service.rs`
 - 批次 260：`po/order.rs` / `inventory_count_service.rs` / `inventory_adjustment_service.rs` / `finance_payment_service.rs`
+- 批次 263：`inventory_stock_query.rs`（list_transactions + get_stock_by_product）/ `inventory_stock_service.rs`（list_stock）/ `custom_order_aftersales_service.rs` / `custom_order_crud_service.rs` / `custom_order_quality_service.rs`
 
-**待修复文件（11 个 ⏳）**：
-- `quotation_service.rs`（需解决 ServiceError 转换，跳过）
-- `inventory_reservation_service.rs`（total 转 i64 + page 无偏移，需特殊处理）
-- `inventory_stock_query.rs`（3 处分页：try_join + 无 total + 无偏移，需特殊处理）
-- `inventory_stock_service.rs` / `fixed_asset_service.rs`（流式拉取非列表分页，需评估）
-- `fund_management_service.rs`（无 total 返回，需评估）
-- `custom_order_aftersales_service.rs` / `custom_order_crud_service.rs` / `custom_order_quality_service.rs`
-- `color_price_crud_service.rs` / `color_price_history_service.rs` / `color_price_seasonal_service.rs`
+**待修复文件（5 个 ⏳）**：
+- `quotation_service.rs`（需解决 ServiceError 转换）
+- `inventory_reservation_service.rs`（total 转 i64 + page 无偏移）
+- `inventory_stock_query.rs` get_inventory_summary（聚合查询 + into_model + 结果映射，需特殊处理）
+- `color_price_crud_service.rs` / `color_price_history_service.rs` / `color_price_seasonal_service.rs`（需错误转换 From<AppError>）
+- `fixed_asset_service.rs` / `fund_management_service.rs`（流式拉取/无 total 返回，需评估是否适合接入）
 
 **修复模式**（统一标准）：
 ```rust
@@ -144,7 +143,7 @@ Ok((items, total))
 - 空实现（4 项 ✅）：批次 246 handleViewVersion + 批次 252 bi_analysis unreachable! + 批次 253 AdvancedFilter handleLogicChange
 - 简化阉割（3 项 ✅）：批次 249 capacity + 批次 250 budget + 批次 251 webhook retry
 - 死代码（1 项 ✅）：批次 254 composable eslint-disable any 清理
-- 重复实现 service 分页（1 项 ✅）：批次 255-260（累计 24/35）
+- 重复实现 service 分页（1 项 ✅）：批次 255-263（累计 30/35）
 - 项目规则符合性（1 项 ✅）：批次 247 CLI 硬编码 URL
 - 性能问题（5 项 ✅）：批次 244 ar 报表 + 批次 245 ap 报表 + 批次 248 缓存接入
 - 安全漏洞（2 项 ✅）：批次 243 XSS + 输入验证
@@ -196,7 +195,7 @@ Ok((items, total))
 
 ## 🔄 进行中批次
 
-### 批次 263：待启动（v14 中风险剩余 6 项 ⏳）
+### 批次 264：待启动（service 分页剩余 5 个特殊处理文件 + 测试覆盖 ⏳）
 
 ---
 

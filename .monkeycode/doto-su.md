@@ -5,7 +5,31 @@
 
 ---
 
-## 📝 已完成批次详细记录（v14 阶段，批次 237-262）
+## 📝 已完成批次详细记录（v14 阶段，批次 237-263）
+
+### 批次 263：5 个 service 分页接入 paginate_with_total 第七批（PR #440）
+
+**修复内容**：bug.md 中风险重复实现问题 — 继批次 255-260 后，第七批处理 5 个 service 的分页逻辑接入，含 3 个 inventory 相关 + 3 个 custom_order 相关文件（6 处分页）。
+
+**修改文件**（6 文件 +54 -21 行）：
+- `backend/src/services/inventory_stock_query.rs`：list_transactions 接入（try_join→顺序）+ get_stock_by_product 接入（修复偏移 bug）+ 补 clamp
+- `backend/src/services/inventory_stock_service.rs`：list_stock 接入（保留 SlowQueryRecorder）+ 补 clamp
+- `backend/src/services/custom_order_aftersales_service.rs`：list_by_order 接入 + AfterSalesError 新增 App(From<AppError>)
+- `backend/src/services/custom_order_crud_service.rs`：list 接入 + CrudError 新增 App(From<AppError>)
+- `backend/src/services/custom_order_quality_service.rs`：list_by_order 接入 + QualityError 新增 App(From<AppError>)
+- `backend/src/handlers/custom_order_handler.rs`：3 个错误转换函数补 App(e) => e 分支
+
+**技术要点**：
+- paginate_with_total 内部已做 page.saturating_sub(1) 偏移，调用方不可再减 1
+- 修复 get_stock_by_product 偏移 bug（原 fetch_page(page) 跳过第一页，page 为 1-based）
+- 3 个 custom_order service 新增 From<AppError> 错误转换（paginate_with_total 返回 AppError）
+- custom_order_handler.rs 的 crud_err/quality_err/aftersales_err 补 App(e) => e 分支
+- 统一补充 page.clamp(1, 1000) 防 DoS
+- PaginatorTrait 导入保留（.paginate() 方法需要）
+
+**CI 验证**：首次 CI 构建失败（E0004 non-exhaustive patterns：3 个错误转换函数缺 App 分支），修复后 CI run #29089528250，10/10 核心 job 全绿。PR #440 squash merge 到 main（commit e01efdc）。
+
+---
 
 ### 批次 262：Playwright E2E 测试增强 + E2E 独立工作流（PR #439）
 
