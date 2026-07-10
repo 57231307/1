@@ -9,6 +9,7 @@
 
 | 批次 | PR | 一句话总结 |
 |------|-----|-----------|
+| 265 | #443 | quotation_service 分页接入 paginate_with_total 第九批（ServiceError 错误转换 + handler match 穷尽） |
 | 264 | #442 | 4 个 service 分页接入 paginate_with_total 第八批（inventory_reservation 修复偏移 bug + color_price crud/history/seasonal 错误转换） |
 | 263 | #440 | 5 个 service 分页接入 paginate_with_total 第七批（inventory_stock_query 2处 + inventory_stock_service + custom_order 3文件，修复 get_stock_by_product 偏移 bug） |
 | 262 | #439 | Playwright E2E 增强：网络拦截/Mock/弱网/多浏览器/多上下文/多角色/RPA 工具集 + E2E 从 ci-cd.yml 独立到 e2e-batch.yml（每 30 批次运行 + 20/28/29 监控） |
