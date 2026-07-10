@@ -16,6 +16,7 @@ use crate::models::report_template::{
     ActiveModel, Entity as ReportTemplateEntity, Model as ReportTemplateModel,
 };
 use crate::utils::error::AppError;
+use crate::utils::pagination::paginate_with_total;
 
 /// 创建报表模板请求
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -353,13 +354,12 @@ impl ReportTemplateService {
             );
         }
 
-        let total = select.clone().count(&*self.db).await?;
-
-        let items = select
+        // 批次 256 修复：接入 paginate_with_total 统一分页逻辑（内部已处理 saturating_sub(1) 偏移）
+        let paginator = select
             .order_by_desc(crate::models::report_template::Column::CreatedAt)
-            .paginate(&*self.db, page_size)
-            .fetch_page(page.saturating_sub(1))
-            .await?;
+            .paginate(&*self.db, page_size);
+
+        let (items, total) = paginate_with_total(paginator, page.clamp(1, 1000)).await?;
 
         Ok((items, total))
     }

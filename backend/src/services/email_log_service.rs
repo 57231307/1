@@ -16,6 +16,7 @@ use crate::models::email_log::{ActiveModel, Entity as EmailLogEntity, Model as E
 // 批次 236 v13 P1-1：邮件日志状态常量接入（规则 0）
 use crate::models::status::email_log;
 use crate::utils::error::AppError;
+use crate::utils::pagination::paginate_with_total;
 
 /// 创建邮件发送记录请求
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -152,13 +153,12 @@ impl EmailLogService {
             );
         }
 
-        let total = select.clone().count(&*self.db).await?;
-
-        let items = select
+        // 批次 256 修复：接入 paginate_with_total 统一分页逻辑（内部已处理 saturating_sub(1) 偏移）
+        let paginator = select
             .order_by_desc(crate::models::email_log::Column::CreatedAt)
-            .paginate(&*self.db, page_size)
-            .fetch_page(page.saturating_sub(1))
-            .await?;
+            .paginate(&*self.db, page_size);
+
+        let (items, total) = paginate_with_total(paginator, page.clamp(1, 1000)).await?;
 
         Ok((items, total))
     }

@@ -12,6 +12,8 @@ use validator::Validate;
 
 use sea_orm::DatabaseConnection;
 
+use crate::utils::pagination::paginate_with_total;
+
 use crate::models::report_subscription::{
     ActiveModel, Entity as ReportSubscriptionEntity, Model as ReportSubscriptionModel,
 };
@@ -230,13 +232,13 @@ impl ReportSubscriptionService {
                 select.filter(crate::models::report_subscription::Column::IsEnabled.eq(is_enabled));
         }
 
-        let total = select.clone().count(&*self.db).await?;
-
-        let items = select
+        // 批次 256 修复：接入 paginate_with_total 统一分页逻辑（内部已处理 saturating_sub(1) 偏移）
+        // 删除独立 count 查询，复用 paginator 的 num_items()，补充 page.clamp(1, 1000) 防 DoS
+        let paginator = select
             .order_by_desc(crate::models::report_subscription::Column::CreatedAt)
-            .paginate(&*self.db, page_size)
-            .fetch_page(page.saturating_sub(1))
-            .await?;
+            .paginate(&*self.db, page_size);
+
+        let (items, total) = paginate_with_total(paginator, page.clamp(1, 1000)).await?;
 
         Ok((items, total))
     }
