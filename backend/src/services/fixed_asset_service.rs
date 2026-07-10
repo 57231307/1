@@ -2,6 +2,7 @@ use crate::models::fixed_asset;
 // 批次 208 P2-5 修复（v12 复审）：硬编码 "active"/"inactive" 替换为 master_data 常量
 use crate::models::status::master_data;
 use crate::utils::error::AppError;
+use crate::utils::pagination::paginate_with_total;
 use crate::utils::sql_escape::safe_like_pattern;
 use chrono::NaiveDate;
 use rust_decimal::Decimal;
@@ -133,17 +134,13 @@ impl FixedAssetService {
             query = query.filter(fixed_asset::Column::AssetCategory.eq(category));
         }
 
-        // 获取总数
-        let total = query.clone().count(&*self.db).await?;
-
-        // 分页和排序
-        let assets = query
+        // 批次 266：接入 paginate_with_total，消除手写 count + offset/limit 重复
+        // 补 page_size.clamp(1, 100) 防 DoS（原实现仅 clamp page，page_size 无上限保护）
+        let paginator = query
             .order_by(fixed_asset::Column::Id, Order::Desc)
-            // 批次 98 P2-A 修复（v5 复审）：page clamp 防 DoS
-            .offset((params.page.clamp(1, 1000).saturating_sub(1) * params.page_size) as u64)
-            .limit(params.page_size as u64)
-            .all(&*self.db)
-            .await?;
+            .paginate(&*self.db, params.page_size.clamp(1, 100) as usize);
+        let (assets, total) =
+            paginate_with_total(paginator, params.page.clamp(1, 1000) as u64).await?;
 
         Ok((assets, total))
     }

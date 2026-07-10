@@ -282,15 +282,13 @@ impl InventoryStockService {
             .filter(inventory_stock::Column::StockStatus.eq("正常"))
             .filter(inventory_stock::Column::QualityStatus.eq("合格"));
 
-        // 查询总记录数
-        let total = query.clone().count(&*self.db).await?;
-
-        // 查询分页数据
-        let result = query
+        // 批次 266：接入 paginate_with_total，消除手写 count + fetch_page 重复
+        // 聚合查询使用 into_model::<InventorySummaryQueryResult>，泛型 M = InventorySummaryQueryResult
+        let paginator = query
             .into_model::<InventorySummaryQueryResult>()
-            .paginate(&*self.db, page_size)
-            .fetch_page(page.saturating_sub(1))
-            .await?;
+            .paginate(&*self.db, page_size);
+        let (result, total) =
+            paginate_with_total(paginator, page.clamp(1, 1000)).await?;
 
         let items = result
             .into_iter()

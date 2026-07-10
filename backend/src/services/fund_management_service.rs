@@ -3,10 +3,11 @@ use crate::models::fund_transfer_record;
 // 批次 210 P2-5 修复（v12 复审）：资金账户状态字符串替换为 master_data 常量
 use crate::models::status::master_data;
 use crate::utils::error::AppError;
+use crate::utils::pagination::paginate_with_total;
 use rust_decimal::Decimal;
 use sea_orm::{
     ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, IntoActiveModel, Order,
-    PaginatorTrait, QueryFilter, QueryOrder, QuerySelect, Set,
+    PaginatorTrait, QueryFilter, QueryOrder, Set,
 };
 use std::sync::Arc;
 use tracing::info;
@@ -66,15 +67,13 @@ impl FundManagementService {
             query = query.filter(fund_management::Column::Status.eq(status));
         }
 
-        let total = query.clone().count(&*self.db).await?;
-
-        let accounts = query
+        // 批次 266：接入 paginate_with_total，消除手写 count + offset/limit 重复
+        // 补 page_size.clamp(1, 100) 防 DoS（原实现仅 clamp page，page_size 无上限保护）
+        let paginator = query
             .order_by(fund_management::Column::Id, Order::Desc)
-            // 批次 98 P2-A 修复（v5 复审）：page clamp 防 DoS
-            .offset((params.page.clamp(1, 1000).saturating_sub(1) * params.page_size) as u64)
-            .limit(params.page_size as u64)
-            .all(&*self.db)
-            .await?;
+            .paginate(&*self.db, params.page_size.clamp(1, 100) as usize);
+        let (accounts, total) =
+            paginate_with_total(paginator, params.page.clamp(1, 1000) as u64).await?;
 
         Ok((accounts, total))
     }
