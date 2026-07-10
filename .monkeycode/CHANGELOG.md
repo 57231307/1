@@ -6,6 +6,28 @@
 
 ---
 
+## 2026-07-10 (批次 256 v14 中风险重复实现修复 — service 分页逻辑接入 paginate_with_total 第二批，CI 12/12 核心全绿)
+
+### 批次 256：v14 中风险重复实现修复 — 4 个 service 分页逻辑接入 paginate_with_total 第二批
+
+**修复内容**：bug.md 中风险重复实现问题 — 继批次 255 首批 4 文件后，第二批处理 4 个 service 的 list 方法手写 num_items + fetch_page 分页逻辑，与已封装的 paginate_with_total 工具函数重复，违反 DRY 原则。
+
+**修改文件**（4 文件 +26 -25 行）：
+- `backend/src/services/email_log_service.rs`：list 标准替换 + 补 clamp 防 DoS
+- `backend/src/services/email_template_service.rs`：list 标准替换（原有 clamp 语义保留）
+- `backend/src/services/report_subscription_service.rs`：list 标准替换 + 补 clamp 防 DoS
+- `backend/src/services/report_template_service.rs`：list 标准替换 + 补 clamp 防 DoS
+
+**技术要点**：
+- paginate_with_total 内部已做 page.saturating_sub(1) 偏移，调用方不可再减 1
+- 删除独立 select.clone().count() 查询，复用 paginator 的 num_items()
+- 统一补充 page.clamp(1, 1000) 防 DoS
+- PaginatorTrait 导入保留（.paginate() 方法需要）
+
+**CI 验证**：CI run #29060776609，12/12 核心 job 全绿（Clippy 一次通过），E2E 失败为已知问题不阻塞。PR #433 squash merge 到 main（commit 4f83af05）。
+
+---
+
 ## 2026-07-10 (批次 255 v14 中风险重复实现修复 — service 分页逻辑接入 paginate_with_total 首批，CI 12/12 核心全绿)
 
 ### 批次 255：v14 中风险重复实现修复 — 4 个 service 分页逻辑接入 paginate_with_total

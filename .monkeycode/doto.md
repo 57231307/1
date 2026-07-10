@@ -29,7 +29,7 @@
 - **空实现（4 项，全部完成 ✅）**：批次 246 handleViewVersion + 批次 252 bi_analysis unreachable! + 批次 253 AdvancedFilter handleLogicChange
 - **简化阉割（3 项，全部完成 ✅）**：批次 249 capacity + 批次 250 budget + 批次 251 webhook retry
 - **死代码（1 项，全部完成 ✅）**：批次 254 composable eslint-disable any 清理
-- **重复实现（2 项，进行中 🔄）**：service 分页接入 paginate_with_total（首批 4/35 完成于批次 255，第二批 4/35 进行中于批次 256）+ 30+ view 表格接入 useTableApi（⏳ 待修复）
+- **重复实现（2 项，进行中 🔄）**：service 分页接入 paginate_with_total（首批 4/35 完成于批次 255，第二批 4/35 完成于批次 256，累计 8/35）+ 30+ view 表格接入 useTableApi（⏳ 待修复）
 - **项目规则符合性（1 项，全部完成 ✅）**：批次 247 CLI 硬编码 URL
 - **性能问题（5 项，全部完成 ✅）**：批次 244 ar 报表 + 批次 245 ap 报表 + 批次 248 缓存接入
 - **安全漏洞（2 项，全部完成 ✅）**：批次 243 XSS + 输入验证
@@ -51,7 +51,7 @@
 
 | 批次 | PR | 内容 |
 |------|-----|------|
-| 256 | 进行中 | 4 个 service 分页接入 paginate_with_total 第二批（report_subscription/report_template/email_template/email_log） |
+| 256 | #433 | 4 个 service 分页接入 paginate_with_total 第二批（report_subscription/report_template/email_template/email_log），CI 12/12 核心全绿 |
 | 255 | #432 | 4 个 service 分页接入 paginate_with_total 首批（sales_price/ap_invoice/role/supplier），修复 role_service 偏移 bug |
 | 254 | #431 | 14 个 composable eslint-disable any 清理 |
 | 253 | #430 | AdvancedFilter handleLogicChange 空函数真实实现 |
