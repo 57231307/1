@@ -1250,13 +1250,17 @@ jobs:
           echo "=== 响应体: ==="
           echo "$RESPONSE_BODY"
           echo "$RESPONSE_BODY" > /tmp/init-response.json
-          # 系统可能已初始化（idempotent），状态码 200/400 均视为成功
+          # 检查初始化结果：
+          # - 成功：HTTP 200 + "code":200
+          # - 已初始化（幂等）：HTTP 400 + "code":"BUSINESS_ERROR"
+          #   AppError::BusinessError 的 public_message 返回脱敏文案"业务处理失败"，
+          #   不包含"已初始化"原文，因此用 error_code 字符串匹配
           if echo "$RESPONSE_BODY" | grep -q '"code":200'; then
             echo "初始化成功"
             exit 0
           fi
-          if echo "$RESPONSE_BODY" | grep -q '已初始化\|already'; then
-            echo "系统已初始化（幂等），跳过"
+          if [ "$STATUS_CODE" = "400" ] && echo "$RESPONSE_BODY" | grep -q '"code":"BUSINESS_ERROR"'; then
+            echo "系统已初始化（幂等，BUSINESS_ERROR），跳过"
             exit 0
           fi
           echo "=== 初始化失败，退出码 $INIT_EXIT, HTTP $STATUS_CODE ==="
