@@ -111,13 +111,13 @@
       </el-table>
 
       <el-pagination
-        v-model:current-page="pagination.page"
-        v-model:page-size="pagination.pageSize"
+        v-model:current-page="page"
+        v-model:page-size="pageSize"
         :page-sizes="[10, 20, 50, 100]"
-        :total="pagination.total"
+        :total="total"
         layout="total, sizes, prev, pager, next, jumper"
-        @current-change="loadData"
-        @size-change="loadData"
+        @current-change="onPageChange"
+        @size-change="onSizeChange"
       />
     </el-card>
   </div>
@@ -131,23 +131,19 @@ import { ref, reactive, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Plus } from '@element-plus/icons-vue'
+import { useTableApi } from '@/composables/useTableApi'
 import {
-  listQuotations,
   cancelQuotation,
   convertQuotation,
   QUOTATION_STATUS_LABELS,
   QUOTATION_STATUS_TAG_TYPES,
   type QuotationResponseDto,
   type QuotationStatus,
-  type ListResponse,
 } from '@/api/quotation'
 import { listCustomers } from '@/api/customer'
 
 /** el-tag 类型联合（与 element-plus TagProps.type 对齐） */
 type TagType = '' | 'success' | 'warning' | 'info' | 'danger'
-
-/** 报价单列表后端兼容结构（list 或 items 字段） */
-type QuotationListObj = Partial<ListResponse> & { list?: QuotationResponseDto[] }
 
 /** 计算状态对应的 el-tag 类型 */
 function tagType(s: QuotationStatus): TagType {
@@ -155,8 +151,6 @@ function tagType(s: QuotationStatus): TagType {
 }
 
 const router = useRouter()
-const loading = ref(false)
-const quotations = ref<QuotationResponseDto[]>([])
 const customers = ref<Array<{ id: number; customer_name?: string; name?: string }>>([])
 
 const filters = reactive({
@@ -164,38 +158,26 @@ const filters = reactive({
   status: undefined as QuotationStatus | undefined,
 })
 
-const pagination = reactive({ page: 1, pageSize: 20, total: 0 })
+// 批次 268：接入 useTableApi，消除手写 pagination + loadData 重复
+// API 返回兼容数组或 { list/items, total }，useTableApi detectList 自动探测
+const {
+  data: quotations,
+  loading,
+  page,
+  pageSize,
+  total,
+  refresh: loadData,
+  setQueryParam,
+} = useTableApi<QuotationResponseDto>({
+  url: '/quotations',
+  onError: (e: unknown) =>
+    ElMessage.error((e instanceof Error ? e.message : String(e)) || '加载报价单列表失败'),
+})
 
-/** 加载报价单列表 */
-async function loadData() {
-  loading.value = true
-  try {
-    const res = await listQuotations({
-      page: pagination.page,
-      page_size: pagination.pageSize,
-      customer_id: filters.customer_id,
-      status: filters.status,
-    })
-    const data = res.data
-    // 后端可能返回 list/total 结构或纯数组
-    if (Array.isArray(data)) {
-      quotations.value = data
-      pagination.total = data.length
-    } else if (data && typeof data === 'object') {
-      const obj = data as QuotationListObj
-      quotations.value = obj.list || obj.items || []
-      pagination.total = obj.total ?? quotations.value.length
-    } else {
-      quotations.value = []
-      pagination.total = 0
-    }
-  } catch (e: unknown) {
-    // 批次 98 P2-D 修复（v5 复审）：原 catch (e: any) 改为 unknown + 类型守卫
-    ElMessage.error((e instanceof Error ? e.message : String(e)) || '加载报价单列表失败')
-    quotations.value = []
-  } finally {
-    loading.value = false
-  }
+/** 同步筛选条件到 useTableApi.queryParams */
+function syncQueryParams() {
+  setQueryParam('customer_id', filters.customer_id)
+  setQueryParam('status', filters.status)
 }
 
 /** 加载客户下拉 */
@@ -211,7 +193,8 @@ async function loadCustomers() {
 }
 
 function handleSearch() {
-  pagination.page = 1
+  syncQueryParams()
+  page.value = 1
   loadData()
 }
 
@@ -219,6 +202,16 @@ function handleReset() {
   filters.customer_id = undefined
   filters.status = undefined
   handleSearch()
+}
+
+// 批次 268：分页变化（useTableApi 自动 watch 重载，此处无需手动调用）
+function onPageChange(_p: number) {
+  // useTableApi watch page 自动触发 refresh
+}
+
+function onSizeChange(s: number) {
+  pageSize.value = s
+  page.value = 1
 }
 
 function goDetail(row: QuotationResponseDto) {
@@ -271,9 +264,9 @@ function formatAmount(value?: number): string {
   })
 }
 
+// 批次 268：useTableApi 构造时自动初始加载列表，onMounted 仅加载客户下拉
 onMounted(() => {
   loadCustomers()
-  loadData()
 })
 </script>
 
