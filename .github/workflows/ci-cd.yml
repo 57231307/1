@@ -1241,6 +1241,7 @@ jobs:
           HTTP_CODE=$(curl -s -w "\n%{http_code}" -X POST http://localhost:8082/api/v1/erp/init/initialize \
             -H "Content-Type: application/json" \
             -H "X-Init-Token: ${INIT_TOKEN}" \
+            -H "X-Requested-With: XMLHttpRequest" \
             -d "{\"admin_username\":\"${TEST_USERNAME}\",\"admin_password\":\"${TEST_PASSWORD}\"}")
           INIT_EXIT=$?
           # 分离响应体和 HTTP 状态码
