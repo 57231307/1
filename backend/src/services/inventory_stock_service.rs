@@ -2,6 +2,7 @@ use crate::models::inventory_stock;
 use crate::services::event_bus::{BusinessEvent, EVENT_BUS};
 use crate::utils::dual_unit_converter::DualUnitConverter;
 use crate::utils::error::AppError;
+use crate::utils::pagination::paginate_with_total;
 use chrono::Utc;
 use rust_decimal::Decimal;
 use sea_orm::DatabaseConnection;
@@ -149,19 +150,18 @@ impl InventoryStockService {
             query = query.filter(inventory_stock::Column::ProductId.eq(pid));
         }
 
-        // 并行执行分页查询：同时获取总数和当前页数据，提升性能
-        // page 语义为 1-based，fetch_page 接收 0-based，需做转换
         // 批次 97 P1-15 修复（v5 复审）：接入 SlowQueryRecorder 真实使用，
         // 慢查询（>100ms）将记录到 tracing::warn! 与 Prometheus 指标。
+        // 批次 263 修复：接入 paginate_with_total 工具函数，消除手写 num_items + fetch_page 重复。
+        // paginate_with_total 内部已做 page.saturating_sub(1) 偏移，调用方不可再减 1。
+        // 补 clamp(1, 1000) 防 DoS（恶意请求 page=999999 不会导致超大偏移查询）。
         let rec = crate::middleware::slow_query::SlowQueryRecorder::start(
             "inventory_stock_list",
             None,
         );
         let paginator = query.paginate(&*self.db, page_size);
-        let (total, stock_list) = tokio::try_join!(
-            paginator.num_items(),
-            paginator.fetch_page(page.saturating_sub(1))
-        )?;
+        let (stock_list, total) =
+            paginate_with_total(paginator, page.clamp(1, 1000)).await?;
         rec.finish();
 
         Ok((stock_list, total))

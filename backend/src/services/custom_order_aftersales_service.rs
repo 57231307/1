@@ -13,6 +13,8 @@ use thiserror::Error;
 
 use crate::models::after_sales::{self, ActiveModel, Entity};
 use crate::utils::app_state::AppState;
+use crate::utils::error::AppError;
+use crate::utils::pagination::paginate_with_total;
 
 /// 创建售后工单 DTO
 #[derive(Debug, Deserialize, Serialize, Clone)]
@@ -44,6 +46,9 @@ pub enum AfterSalesError {
     Validation(String),
     #[error("数据库错误: {0}")]
     Database(#[from] sea_orm::DbErr),
+    /// 批次 263：接入 paginate_with_total（返回 AppError）所需的错误转换
+    #[error("应用错误: {0}")]
+    App(#[from] AppError),
 }
 
 /// 售后服务
@@ -142,6 +147,11 @@ impl CustomOrderAfterSalesService {
     }
 
     /// 列出订单的售后工单
+    /// 按订单查询售后工单列表（分页）
+    ///
+    /// 批次 263 修复：接入 paginate_with_total 工具函数，消除手写 num_items + fetch_page 重复。
+    /// paginate_with_total 内部已做 page.saturating_sub(1) 偏移，调用方不可再减 1。
+    /// 补 clamp(1, 1000) 防 DoS（恶意请求 page=999999 不会导致超大偏移查询）。
     pub async fn list_by_order(
         &self,
         order_id: i64,
@@ -155,8 +165,7 @@ impl CustomOrderAfterSalesService {
             .order_by_desc(after_sales::Column::OpenedAt)
             .paginate(&*self.db, page_size);
 
-        let total = paginator.num_items().await?;
-        let items = paginator.fetch_page(page.saturating_sub(1)).await?;
+        let (items, total) = paginate_with_total(paginator, page.clamp(1, 1000)).await?;
         Ok((items, total))
     }
 

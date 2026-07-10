@@ -15,6 +15,7 @@ use crate::services::stock_alert::{
     AlertType, ALERT_TYPE_NORMAL, EXPIRING_THRESHOLD_DAYS, SLOW_MOVING_THRESHOLD_DAYS,
 };
 use crate::utils::error::AppError;
+use crate::utils::pagination::paginate_with_total;
 
 /// 根据库存 Model 派生计算 alert_type 字符串
 ///
@@ -192,13 +193,12 @@ impl InventoryStockService {
             query = query.filter(inventory_transaction::Column::CreatedAt.lte(end_date));
         }
 
-        // 并行执行分页查询：同时获取总数和当前页数据，提升性能
-        // page 语义为 1-based，fetch_page 接收 0-based，需做转换
+        // 批次 263 修复：接入 paginate_with_total 工具函数，消除手写 num_items + fetch_page 重复。
+        // paginate_with_total 内部已做 page.saturating_sub(1) 偏移，调用方不可再减 1。
+        // 补 clamp(1, 1000) 防 DoS（恶意请求 page=999999 不会导致超大偏移查询）。
         let paginator = query.paginate(&*self.db, page_size);
-        let (total, transactions) = tokio::try_join!(
-            paginator.num_items(),
-            paginator.fetch_page(page.saturating_sub(1))
-        )?;
+        let (transactions, total) =
+            paginate_with_total(paginator, page.clamp(1, 1000)).await?;
 
         Ok((transactions, total))
     }
@@ -310,6 +310,10 @@ impl InventoryStockService {
     }
 
     /// 按产品查询库存
+    ///
+    /// 批次 263 修复：接入 paginate_with_total 工具函数，修复原 fetch_page(page) 未做
+    /// saturating_sub(1) 偏移的 bug（page 为 1-based，fetch_page 接收 0-based，原实现跳过第一页）。
+    /// 补 clamp(1, 1000) 防 DoS。
     pub async fn get_stock_by_product(
         &self,
         product_id: i32,
@@ -321,8 +325,7 @@ impl InventoryStockService {
             .order_by_asc(inventory_stock::Column::Id)
             .paginate(&*self.db, page_size);
 
-        let total = paginator.num_items().await?;
-        let stocks = paginator.fetch_page(page).await?;
+        let (stocks, total) = paginate_with_total(paginator, page.clamp(1, 1000)).await?;
 
         Ok((stocks, total))
     }
