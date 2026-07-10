@@ -5,7 +5,7 @@
 
 ---
 
-## 🔄 当前任务：v14 深度调研报告修复（高风险 6/6 完成，中风险 15/25 完成）
+## 🔄 当前任务：v14 深度调研报告修复（高风险 6/6 完成，中风险 17/25 完成）
 
 > **v14 深度调研报告**（2026-07-09，[bug.md](file:///workspace/.monkeycode/bug.md)）：12 维度全量扫描，15 高/25 中/74 低风险，共 114 个问题。
 > v13 后端 P0/P1 全部完成（批次 229-236），v13 剩余 P2 任务合并到 v14 队列。
@@ -24,9 +24,9 @@
 | 241 | P0-5 | API 文档缺失（恢复 docs.rs + 删 openapi.rs） | ✅ PR #418 |
 | 242 | P0-6 | 简化阉割-RFM 分布真实计算 | ✅ PR #419 |
 
-#### 🟡 中风险修复队列（25 项，已完成 15/25 🔄）
+#### 🟡 中风险修复队列（25 项，已完成 17/25 🔄）
 
-**待修复项（11 项 ⏳）**：
+**待修复项（9 项 ⏳）**：
 
 ##### 1. 测试覆盖（7 项 ⏳ 待修复）
 
@@ -67,18 +67,23 @@
 
 **问题背景**：bug.md 中风险重复实现问题 — 项目中存在大量重复代码，违反 DRY 原则，维护成本高，修改时容易遗漏同步更新。
 
-**子任务 2.1：service 分页逻辑接入 paginate_with_total（累计 12/35 完成，剩余 23/35 ⏳）**
+**子任务 2.1：service 分页逻辑接入 paginate_with_total（累计 20/35 完成，剩余 15/35 ⏳）**
 
 **问题描述**：35 个 service 文件手写 `num_items + fetch_page` 分页逻辑，与已封装的 `paginate_with_total` 工具函数（`backend/src/utils/pagination.rs`）重复。手写逻辑存在不一致实现（部分未做 `saturating_sub(1)` 偏移、部分未做 `clamp` 防 DoS），且修改分页逻辑需逐个文件修改。
 
-**已修复文件（12 个 ✅）**：
+**已修复文件（20 个 ✅）**：
 - 批次 255：`sales_price_service.rs` / `ap_invoice_service.rs` / `role_service.rs`（修复偏移 bug）/ `supplier_service.rs`
 - 批次 256：`email_log_service.rs` / `email_template_service.rs` / `report_subscription_service.rs` / `report_template_service.rs`
 - 批次 257：`currency_service.rs`（2 处）/ `mrp_engine_service.rs` / `production_order_service.rs` / `scheduling_query.rs`
+- 批次 258：`purchase_receipt_service.rs` / `purchase_inspection_service.rs` / `purchase_return_service.rs` / `supplier_evaluation_service.rs`
+- 批次 259：`ap_payment_request_service.rs` / `ap_payment_service.rs` / `ap_reconciliation_service.rs` / `ap_verification_service.rs`
 
-**待修复文件（23 个 ⏳）**：
-- 批次 258 候选（4 个）：`quotation_service.rs`（需解决 ServiceError 转换）/ `inventory_service.rs` / `sales_order_service.rs` / `purchase_order_service.rs`
-- 剩余 19 个待识别：需扫描 `backend/src/services/` 下所有使用 `fetch_page` + `num_items` 的文件
+**待修复文件（15 个 ⏳）**：
+- `quotation_service.rs`（需解决 ServiceError 转换，跳过）
+- `po/order.rs` / `inventory_count_service.rs` / `inventory_reservation_service.rs` / `inventory_stock_query.rs` / `inventory_stock_service.rs`
+- `fixed_asset_service.rs` / `fund_management_service.rs` / `inventory_adjustment_service.rs` / `finance_payment_service.rs`
+- `custom_order_aftersales_service.rs` / `custom_order_crud_service.rs` / `custom_order_quality_service.rs`
+- `color_price_crud_service.rs` / `color_price_history_service.rs` / `color_price_seasonal_service.rs`
 
 **修复模式**（统一标准）：
 ```rust
@@ -132,11 +137,11 @@ Ok((items, total))
 - 接入时需保留 view 特有的查询参数构建逻辑（如日期范围/多字段搜索）
 - 部分 view 有自定义列配置/导出功能，需评估是否纳入 composable
 
-**已完成项（13 项 ✅）**：
+**已完成项（15 项 ✅）**：
 - 空实现（4 项 ✅）：批次 246 handleViewVersion + 批次 252 bi_analysis unreachable! + 批次 253 AdvancedFilter handleLogicChange
 - 简化阉割（3 项 ✅）：批次 249 capacity + 批次 250 budget + 批次 251 webhook retry
 - 死代码（1 项 ✅）：批次 254 composable eslint-disable any 清理
-- 重复实现 service 分页首批（1 项 ✅）：批次 255 + 批次 256（累计 8/35）
+- 重复实现 service 分页（1 项 ✅）：批次 255-259（累计 20/35）
 - 项目规则符合性（1 项 ✅）：批次 247 CLI 硬编码 URL
 - 性能问题（5 项 ✅）：批次 244 ar 报表 + 批次 245 ap 报表 + 批次 248 缓存接入
 - 安全漏洞（2 项 ✅）：批次 243 XSS + 输入验证
@@ -187,33 +192,39 @@ Ok((items, total))
 
 ## 🔄 进行中批次
 
-### 批次 258：4 个 service 分页逻辑接入 paginate_with_total 第四批（待启动 ⏳）
+### 批次 260：service 分页逻辑接入 paginate_with_total 第六批 + 规则 5 E2E 检查（待启动 ⏳）
 
-**问题描述**：继批次 257 后，第四批处理 4 个 service 的分页逻辑接入。
+**问题描述**：继批次 259 后，第六批处理 4 个 service 的分页逻辑接入。同时批次 260 是规则 5 触发点（每 10 批次 E2E），需额外执行 E2E 检查。
 
-**候选文件**（从剩余 23/35 中选取 4 个）：
-- `backend/src/services/quotation_service.rs`（需解决 ServiceError 转换）— 报价单列表分页，返回类型是 `ServiceError` 而非 `AppError`
-- `backend/src/services/inventory_service.rs` — 库存列表分页
-- `backend/src/services/sales_order_service.rs` — 销售订单列表分页
-- `backend/src/services/purchase_order_service.rs` — 采购订单列表分页
+**候选文件**（从剩余 15/35 中选取 4 个，排除 quotation_service.rs 的 ServiceError 问题）：
+- `backend/src/services/po/order.rs` — 采购订单列表分页
+- `backend/src/services/inventory_count_service.rs` — 库存盘点列表分页
+- `backend/src/services/inventory_reservation_service.rs` — 库存预留列表分页
+- `backend/src/services/inventory_stock_query.rs` — 库存查询列表分页
 
 **特殊处理**：
-- `quotation_service.rs`：返回类型是 `ServiceError`，需添加 `From<AppError> for ServiceError` 转换或改用 `AppError`
-- 需先扫描确认这些文件确实使用手写分页逻辑
+- `quotation_service.rs`：返回类型是 `ServiceError`，跳过
+- 需先扫描确认候选文件返回 `AppError` 且使用手写分页逻辑
 
-**修复模式**：与批次 255/256/257 一致
+**修复模式**：与批次 255-259 一致
+
+**规则 5 E2E 检查**（批次 260 触发点）：
+- 下载 CI 中 `ci-e2e` job 的 playwright-report
+- 分析 E2E 失败用例，按规则 0/2 真实修复
+- 生成 E2E 报告
 
 **待办**：
-- [ ] 扫描确认 4 个候选文件确实使用手写分页逻辑
-- [ ] 创建修复分支 `fix/batch258-v14-pagination-part4`
+- [ ] 扫描确认 4 个候选文件确实使用手写分页逻辑且返回 AppError
+- [ ] 创建修复分支 `fix/batch260-v14-pagination-part6`
 - [ ] 实现修复
 - [ ] 提交并推送
 - [ ] 创建 PR
-- [ ] 监控 CI
-- [ ] CI 12/12 核心全绿后 squash merge 到 main
+- [ ] 监控 CI（重点关注 E2E job）
+- [ ] CI 核心全绿后 squash merge 到 main
 - [ ] 删除本地和远程修复分支
-- [ ] 更新 doto-su.md 记录批次 258 完成
-- [ ] 更新 CHANGELOG.md 添加批次 258 一句话总结
+- [ ] 执行规则 5 E2E 检查（下载 playwright-report + 分析失败用例）
+- [ ] 更新 doto-su.md 记录批次 260 完成
+- [ ] 更新 CHANGELOG.md 添加批次 260 一句话总结
 
 ---
 

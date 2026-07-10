@@ -9,6 +9,8 @@
 
 | 批次 | PR | 一句话总结 |
 |------|-----|-----------|
+| 259 | #436 | 4 个 AP service 分页接入 paginate_with_total 第五批（ap_payment_request/ap_payment/ap_reconciliation/ap_verification） |
+| 258 | #435 | 4 个 service 分页接入 paginate_with_total 第四批（purchase_receipt/purchase_inspection/purchase_return/supplier_evaluation） |
 | 257 | #434 | 4 个 service 分页接入 paginate_with_total 第三批（currency/mrp_engine/production_order/scheduling_query） |
 | 256 | #433 | 4 个 service 分页接入 paginate_with_total 第二批（report_subscription/report_template/email_template/email_log） |
 | 255 | #432 | 4 个 service 分页接入 paginate_with_total 首批（sales_price/ap_invoice/role/supplier），修复 role_service 偏移 bug |

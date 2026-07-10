@@ -5,7 +5,47 @@
 
 ---
 
-## 📝 已完成批次详细记录（v14 阶段，批次 237-257）
+## 📝 已完成批次详细记录（v14 阶段，批次 237-259）
+
+### 批次 259：4 个 AP service 分页逻辑接入 paginate_with_total 第五批（PR #436）
+
+**修复内容**：bug.md 中风险重复实现问题 — 继批次 255/256/257/258 后，第五批处理 4 个应付账款相关 service 的分页逻辑接入。
+
+**修改文件**（4 文件 +16 -21 行）：
+- `backend/src/services/ap_payment_request_service.rs`：list_payment_requests 分页接入 + 补 clamp 防 DoS
+- `backend/src/services/ap_payment_service.rs`：list_payments 分页接入（原有 clamp 保留，移除冗余 saturating_sub）
+- `backend/src/services/ap_reconciliation_service.rs`：list_reconciliations 分页接入 + 补 clamp 防 DoS
+- `backend/src/services/ap_verification_service.rs`：list_verifications 分页接入 + 补 clamp 防 DoS
+
+**技术要点**：
+- paginate_with_total 内部已做 page.saturating_sub(1) 偏移，调用方不可再减 1
+- 删除独立 num_items + fetch_page 手写分页，统一接入工具函数
+- 统一补充 page.clamp(1, 1000) 防 DoS（ap_payment 原有，其余 3 个新增）
+- PaginatorTrait 导入保留（.paginate() 方法需要）
+
+**CI 验证**：CI run #29063579663，12/12 核心 job 全绿（Clippy + 单元测试 + 后端构建均通过），E2E 失败为已知问题不阻塞。PR #436 squash merge 到 main（commit 766603a）。
+
+---
+
+### 批次 258：4 个 service 分页逻辑接入 paginate_with_total 第四批（PR #435）
+
+**修复内容**：bug.md 中风险重复实现问题 — 继批次 255/256/257 后，第四批处理 4 个采购/供应商相关 service 的分页逻辑接入。
+
+**修改文件**（4 文件 +16 -12 行）：
+- `backend/src/services/purchase_receipt_service.rs`：list_receipts 分页接入 + 补 clamp 防 DoS
+- `backend/src/services/purchase_inspection_service.rs`：list_inspections 分页接入 + 补 clamp 防 DoS
+- `backend/src/services/purchase_return_service.rs`：list_returns 分页接入（原有 clamp 保留，移除冗余 saturating_sub）
+- `backend/src/services/supplier_evaluation_service.rs`：list_ratings 分页接入（原有 clamp 保留，移除冗余 saturating_sub）
+
+**技术要点**：
+- paginate_with_total 内部已做 page.saturating_sub(1) 偏移，调用方不可再减 1
+- 删除独立 num_items + fetch_page 手写分页，统一接入工具函数
+- 统一补充 page.clamp(1, 1000) 防 DoS（purchase_return/supplier_evaluation 原有，其余 2 个新增）
+- PaginatorTrait 导入保留（.paginate() 方法需要）
+
+**CI 验证**：CI run #29062816980，12/12 核心 job 全绿（Clippy + 单元测试 + 后端构建均通过），E2E 失败为已知问题不阻塞。PR #435 squash merge 到 main（commit 24b0c87）。
+
+---
 
 ### 批次 257：4 个 service 分页逻辑接入 paginate_with_total 第三批（PR #434）
 
