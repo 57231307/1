@@ -1276,7 +1276,9 @@ jobs:
           set +e
           # Playwright 通过 playwright.config.ts 中的 webServer 配置自动启动 vite dev server
           # 后端已在上一步独立启动进程（localhost:8082）
-          npx playwright test 2>&1 | tee reports/playwright-output.txt
+          # 批次 262：CI 仅安装 chromium，通过 --project=chromium 限定单浏览器运行
+          # （firefox/webkit 项目仅供本地跨浏览器兼容性测试）
+          npx playwright test --project=chromium 2>&1 | tee reports/playwright-output.txt
           EXIT_CODE=$?
           set -e
 

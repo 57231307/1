@@ -9,6 +9,7 @@
 
 | 批次 | PR | 一句话总结 |
 |------|-----|-----------|
+| 261 | #438 | E2E 后端启动修复：AuthConfig serde(default) + initialize 系列加入 PUBLIC_PATHS + CSRF X-Requested-With 头（初始化步骤首次通过） |
 | 260 | #437 | 4 个 service 分页接入 paginate_with_total 第六批（po/order/inventory_count/inventory_adjustment/finance_payment）+ 规则 5 E2E 检查（发现 auth 配置缺失问题） |
 | 259 | #436 | 4 个 AP service 分页接入 paginate_with_total 第五批（ap_payment_request/ap_payment/ap_reconciliation/ap_verification） |
 | 258 | #435 | 4 个 service 分页接入 paginate_with_total 第四批（purchase_receipt/purchase_inspection/purchase_return/supplier_evaluation） |
