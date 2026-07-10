@@ -17,6 +17,7 @@ use crate::models::email_template::{
     ActiveModel, Entity as EmailTemplateEntity, Model as EmailTemplateModel,
 };
 use crate::utils::error::AppError;
+use crate::utils::pagination::paginate_with_total;
 
 /// 创建邮件模板请求
 #[derive(Debug, Clone, Serialize, Deserialize, Validate)]
@@ -197,14 +198,12 @@ impl EmailTemplateService {
             );
         }
 
-        let total = select.clone().count(&*self.db).await?;
-
-        let items = select
+        // 批次 256 修复：接入 paginate_with_total 统一分页逻辑（内部已处理 saturating_sub(1) 偏移）
+        let paginator = select
             .order_by_desc(crate::models::email_template::Column::CreatedAt)
-            .paginate(&*self.db, page_size)
-            // 批次 98 P2-A 修复（v5 复审）：page clamp 防 DoS
-            .fetch_page(page.clamp(1, 1000).saturating_sub(1))
-            .await?;
+            .paginate(&*self.db, page_size);
+
+        let (items, total) = paginate_with_total(paginator, page.clamp(1, 1000)).await?;
 
         Ok((items, total))
     }
