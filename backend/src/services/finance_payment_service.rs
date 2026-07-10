@@ -2,6 +2,8 @@
 use crate::models::finance_payment;
 use crate::models::status::finance_payment as payment_status;
 use crate::utils::error::AppError;
+// 批次 260 修复：接入 paginate_with_total 统一分页逻辑
+use crate::utils::pagination::paginate_with_total;
 use chrono::{DateTime, Utc};
 use rust_decimal::Decimal;
 use sea_orm::DatabaseConnection;
@@ -105,10 +107,9 @@ impl FinancePaymentService {
             query = query.filter(finance_payment::Column::Status.eq(s));
         }
 
+        // 批次 260 修复：接入 paginate_with_total 统一分页逻辑（内部已处理 saturating_sub(1) 偏移）
         let paginator = query.paginate(&*self.db, page_size);
-        let total = paginator.num_items().await?;
-        // SeaORM fetch_page 为 0-indexed，HTTP 层 page 为 1-indexed，需减 1 对齐
-        let payments = paginator.fetch_page(page.saturating_sub(1)).await?;
+        let (payments, total) = paginate_with_total(paginator, page.clamp(1, 1000)).await?;
 
         Ok((payments, total))
     }

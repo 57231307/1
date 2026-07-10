@@ -2,6 +2,8 @@ use crate::models::status::inventory_adjustment as adjustment_status;
 use crate::models::{inventory_adjustment, inventory_adjustment_item, inventory_stock};
 use crate::services::event_bus::{BusinessEvent, EVENT_BUS};
 use crate::utils::error::AppError;
+// 批次 260 修复：接入 paginate_with_total 统一分页逻辑
+use crate::utils::pagination::paginate_with_total;
 use chrono::{DateTime, Utc};
 use rust_decimal::Decimal;
 use sea_orm::DatabaseConnection;
@@ -344,16 +346,12 @@ impl InventoryAdjustmentService {
         page: u64,
         page_size: u64,
     ) -> Result<(Vec<inventory_adjustment::Model>, u64), AppError> {
+        // 批次 260 修复：接入 paginate_with_total 统一分页逻辑（内部已处理 saturating_sub(1) 偏移）
         let paginator = inventory_adjustment::Entity::find()
             .order_by(inventory_adjustment::Column::CreatedAt, Order::Desc)
             .paginate(&*self.db, page_size);
 
-        let total = paginator.num_items().await?;
-        // 批次 24 v6 P1-3 修复：分页偏移 off-by-one。
-        // SeaORM paginator.fetch_page 是 0-indexed，传入 page=1 实际查询第二页。
-        // 改为 page.saturating_sub(1)，与 ap_reconciliation_service.rs:411 写法一致。
-        let adjustments = paginator.fetch_page(page.saturating_sub(1)).await?;
-
+        let (adjustments, total) = paginate_with_total(paginator, page.clamp(1, 1000)).await?;
         Ok((adjustments, total))
     }
 

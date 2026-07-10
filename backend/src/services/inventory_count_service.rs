@@ -14,6 +14,8 @@ use crate::models::status::inventory_count as count_status;
 use crate::models::{inventory_count, inventory_count_item, inventory_stock};
 use crate::services::audit_log_service::AuditLogService;
 use crate::utils::error::AppError;
+// 批次 260 修复：接入 paginate_with_total 统一分页逻辑
+use crate::utils::pagination::paginate_with_total;
 use chrono::{DateTime, Utc};
 use rust_decimal::Decimal;
 use sea_orm::sea_query::Expr;
@@ -166,11 +168,11 @@ impl InventoryCountService {
         if let Some(s) = status {
             query = query.filter(inventory_count::Column::Status.eq(s));
         }
+        // 批次 260 修复：接入 paginate_with_total 统一分页逻辑（内部已处理 saturating_sub(1) 偏移）
         let paginator = query
             .order_by(inventory_count::Column::CreatedAt, Order::Desc)
             .paginate(&*self.db, page_size);
-        let total = paginator.num_items().await?;
-        let counts = paginator.fetch_page(page.saturating_sub(1)).await?;
+        let (counts, total) = paginate_with_total(paginator, page.clamp(1, 1000)).await?;
         Ok((counts, total))
     }
 
