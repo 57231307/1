@@ -1,0 +1,337 @@
+# ==============================================================================
+# Bingxi ERP E2E 批次测试工作流（独立于主 CI/CD）
+#
+# 设计目标：
+#   1. E2E 测试从主 CI/CD（ci-cd.yml）独立出来，不阻塞主 CI
+#   2. 每 30 批次运行一次（由开发者/agent 手动触发，批次号通过输入参数指定）
+#   3. 不需要实时监控（E2E 运行时间长，60 分钟 timeout）
+#   4. 监控节奏：启动后第 20 批次检查一次 → 第 28 批次检查 → 第 29 批次检查
+#   5. 如果第 29 批次还没完成，跳过下一个 E2E 周期
+#
+# 触发方式：
+#   - workflow_dispatch（手动触发，由开发者/agent 在批次 N（30 的倍数）时触发）
+#   - 工作流运行完成后，状态可通过 GitHub API 查询（供批次 N+20/N+28/N+29 监控）
+#
+# 监控机制（由 agent 在批次节奏中执行，不在工作流内实现）：
+#   - 批次 N（30 的倍数）：触发本工作流（action: create）
+#   - 批次 N+20：查询本工作流最近的 run 状态（action: get）
+#   - 批次 N+28：再次查询（若 N+20 未完成）
+#   - 批次 N+29：最后一次查询，未完成则跳过 N+30 的 E2E 周期
+#
+# 技术说明：
+#   - 独立编译后端（不依赖 ci-cd.yml 的 artifact，确保工作流完全独立）
+#   - PostgreSQL service container + 后端 + 前端 dev server + Playwright
+#   - 仅运行 chromium 项目（控制 CI 时长）
+# ==============================================================================
+
+name: E2E 批次测试（每 30 批次）
+
+on:
+  workflow_dispatch:
+    inputs:
+      batch_number:
+        description: '批次编号（如 270、300、330，30 的倍数）'
+        required: true
+        type: string
+      skip_reason:
+        description: '跳过原因（可选，如"上一周期 E2E 未完成，跳过本周期"）'
+        required: false
+        type: string
+        default: ''
+
+concurrency:
+  group: e2e-batch-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+  RUST_VERSION: 1.94.1
+  RUST_BACKTRACE: full
+  CARGO_TERM_COLOR: always
+  CARGO_TERM_PROGRESS_WHEN: never
+  NODE_VERSION: 22
+  NPM_CONFIG_AUDIT: false
+  NPM_CONFIG_FUND: false
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  # ==============================================================================
+  # Job 1: E2E 测试（完整业务流程）
+  # ==============================================================================
+  e2e-test:
+    name: 🎭 E2E 测试（批次 ${{ inputs.batch_number }}）
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    if: ${{ inputs.skip_reason == '' }}
+    # 真实 E2E：PostgreSQL + 后端 + 前端 dev server + Playwright
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: bingxi
+          POSTGRES_PASSWORD: bingxi_test
+          POSTGRES_DB: bingxi_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    env:
+      DATABASE_URL: postgres://bingxi:bingxi_test@localhost:5432/bingxi_test
+      # CI 测试用密钥（32 字节，仅 CI 用途，禁止用于生产）
+      # 批次 261 修复：移除 "test" 弱模式关键词，避免被 validate_secret 拒绝
+      JWT_SECRET: ci-e2e-jwt-secret-32bytes-do-not-use-in-prod-abc
+      COOKIE_SECRET: ci-e2e-cookie-secret-32bytes-do-not-use-in-prod-xyz
+      WEBHOOK_SECRET: ci-e2e-webhook-secret-32bytes-do-not-use-in-prod-q
+      AUDIT_SECRET_KEY: e2e-only-audit-signing-key-do-not-use-in-prod-32b
+      INIT_TOKEN: ci-e2e-init-token-for-seeding-only-32bytes!
+      TEST_USERNAME: e2e_admin
+      TEST_PASSWORD: E2e@TestPassword2026!
+      APP_ENV: development
+      ENV: development
+      KAFKA_ENABLED: "false"
+      ELASTICSEARCH_URL: ""
+      CACHE_ENABLED: "false"
+      # 后端服务监听配置（config crate separator="__"，覆盖 config.yaml）
+      SERVER__HOST: 127.0.0.1
+      SERVER__PORT: "8082"
+      DATABASE__HOST: localhost
+      DATABASE__PORT: "5432"
+      DATABASE__NAME: bingxi_test
+      DATABASE__USERNAME: bingxi
+      DATABASE__PASSWORD: bingxi_test
+      DATABASE__MAX_CONNECTIONS: "10"
+      LOG__LEVEL: info
+      LOG__DIR: /tmp/e2e-logs
+      SLOW_QUERY__ENABLED: "false"
+      # 批次编号（写入报告供监控查询）
+      E2E_BATCH_NUMBER: ${{ inputs.batch_number }}
+    steps:
+      - name: 检出代码
+        uses: actions/checkout@v5
+
+      - name: 记录批次信息
+        run: |
+          echo "# E2E 批次测试" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "**批次编号**: ${{ inputs.batch_number }}" >> "$GITHUB_STEP_SUMMARY"
+          echo "**触发时间**: $(date -u +'%Y-%m-%dT%H:%M:%SZ')" >> "$GITHUB_STEP_SUMMARY"
+          echo "**模式**: 独立 E2E 工作流（每 30 批次运行）" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: 缓存 Rustup
+        uses: actions/cache@v5
+        with:
+          path: ~/.rustup
+          key: e2e-rustup-${{ env.RUST_VERSION }}
+
+      - name: 安装 Rust 工具链
+        uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: ${{ env.RUST_VERSION }}
+
+      - name: 缓存 Cargo
+        uses: actions/cache@v5
+        with:
+          path: |
+            ~/.cargo/bin
+            ~/.cargo/registry
+            ~/.cargo/git
+            backend/target
+          key: e2e-cargo-${{ env.RUST_VERSION }}-${{ hashFiles('backend/Cargo.lock') }}
+          restore-keys: |
+            e2e-cargo-${{ env.RUST_VERSION }}-
+
+      - name: 安装系统依赖
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y pkg-config libssl-dev protobuf-compiler
+
+      - name: 编译后端（release 模式）
+        working-directory: backend
+        run: |
+          cargo build --release --bin server --bin bingxi 2>&1 | tee /tmp/cargo-build.log
+          echo "后端编译完成"
+
+      - name: 赋予后端二进制可执行权限
+        run: |
+          chmod +x backend/target/release/server
+          chmod +x backend/target/release/bingxi
+
+      - name: 安装 Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: 缓存 npm
+        uses: actions/cache@v5
+        with:
+          path: |
+            frontend/node_modules
+            ~/.npm
+          key: e2e-npm-${{ hashFiles('frontend/package-lock.json') }}
+          restore-keys: |
+            e2e-npm-
+
+      - name: 安装前端依赖
+        working-directory: frontend
+        run: npm ci --prefer-offline --no-audit
+
+      - name: 安装 Playwright 浏览器
+        working-directory: frontend
+        run: npx playwright install chromium
+
+      - name: 运行数据库迁移
+        working-directory: backend
+        run: |
+          ./target/release/bingxi migrate run
+
+      - name: 启动后端服务
+        working-directory: backend
+        run: |
+          mkdir -p /tmp/e2e-logs
+          # 后台启动后端，端口 8082（vite proxy target）
+          ./target/release/server > /tmp/e2e-logs/backend.log 2>&1 &
+          BACKEND_PID=$!
+          echo "BACKEND_PID=$BACKEND_PID" > /tmp/e2e-logs/pid.env
+          # 等待后端端口就绪（最长 30s，health 端点为顶层 /health）
+          for i in $(seq 1 60); do
+            if curl -s http://localhost:8082/health > /dev/null 2>&1; then
+              echo "后端就绪（第 ${i} 次尝试）"
+              break
+            fi
+            sleep 0.5
+          done
+          if ! curl -s http://localhost:8082/health > /dev/null 2>&1; then
+            echo "后端启动失败，日志："
+            cat /tmp/e2e-logs/backend.log
+            exit 1
+          fi
+
+      - name: 初始化系统（创建 E2E 测试管理员）
+        working-directory: backend
+        run: |
+          set +e
+          echo "=== 初始化请求 ==="
+          echo "INIT_TOKEN 长度: ${#INIT_TOKEN}"
+          echo "TEST_USERNAME: ${TEST_USERNAME}"
+          echo "TEST_PASSWORD 长度: ${#TEST_PASSWORD}"
+          HTTP_CODE=$(curl -s -w "\n%{http_code}" -X POST http://localhost:8082/api/v1/erp/init/initialize \
+            -H "Content-Type: application/json" \
+            -H "X-Init-Token: ${INIT_TOKEN}" \
+            -H "X-Requested-With: XMLHttpRequest" \
+            -d "{\"admin_username\":\"${TEST_USERNAME}\",\"admin_password\":\"${TEST_PASSWORD}\"}")
+          INIT_EXIT=$?
+          # 分离响应体和 HTTP 状态码
+          RESPONSE_BODY=$(echo "$HTTP_CODE" | head -n -1)
+          STATUS_CODE=$(echo "$HTTP_CODE" | tail -n 1)
+          echo "=== HTTP 状态码: $STATUS_CODE ==="
+          echo "=== 响应体: ==="
+          echo "$RESPONSE_BODY"
+          echo "$RESPONSE_BODY" > /tmp/init-response.json
+          # 检查初始化结果：
+          # - 成功：HTTP 200 + "code":200
+          # - 已初始化（幂等）：HTTP 400 + "code":"BUSINESS_ERROR"
+          #   AppError::BusinessError 的 public_message 返回脱敏文案"业务处理失败"，
+          #   不包含"已初始化"原文，因此用 error_code 字符串匹配
+          if echo "$RESPONSE_BODY" | grep -q '"code":200'; then
+            echo "初始化成功"
+            exit 0
+          fi
+          if [ "$STATUS_CODE" = "400" ] && echo "$RESPONSE_BODY" | grep -q '"code":"BUSINESS_ERROR"'; then
+            echo "系统已初始化（幂等，BUSINESS_ERROR），跳过"
+            exit 0
+          fi
+          echo "=== 初始化失败，退出码 $INIT_EXIT, HTTP $STATUS_CODE ==="
+          echo "=== 后端日志最后 50 行: ==="
+          tail -n 50 /tmp/e2e-logs/backend.log 2>/dev/null || echo "(无后端日志)"
+          exit 1
+
+      - name: 运行 E2E 测试
+        working-directory: frontend
+        run: |
+          mkdir -p reports
+          set +e
+          # Playwright 通过 playwright.config.ts 中的 webServer 配置自动启动 vite dev server
+          # 后端已在上一步独立启动进程（localhost:8082）
+          # 批次 262：CI 仅安装 chromium，通过 --project=chromium 限定单浏览器运行
+          # （firefox/webkit 项目仅供本地跨浏览器兼容性测试）
+          npx playwright test --project=chromium 2>&1 | tee reports/playwright-output.txt
+          EXIT_CODE=$?
+          set -e
+
+          {
+            echo "# 前端 E2E 测试报告（批次 ${{ inputs.batch_number }}）"
+            echo ""
+            echo "**生成时间**: $(date -u +'%Y-%m-%dT%H:%M:%SZ')  "
+            echo "**退出码**: $EXIT_CODE  "
+            echo "**模式**: 独立 E2E 工作流（PostgreSQL + 后端 + 前端）"
+            echo ""
+            if [ "$EXIT_CODE" -eq "0" ]; then
+              echo "## ✅ 所有 E2E 测试通过"
+            else
+              echo "## ❌ 部分 E2E 测试失败"
+              echo ""
+              echo "### 输出内容（前 200 行）"
+              echo ""
+              echo '```'
+              head -200 reports/playwright-output.txt
+              echo '```'
+            fi
+          } > reports/e2e-report.md
+
+          {
+            echo "## 前端 E2E 测试（批次 ${{ inputs.batch_number }}）"
+            echo ""
+            if [ "$EXIT_CODE" -eq "0" ]; then
+              echo "✅ 全部通过"
+            else
+              echo "❌ 部分失败（详见 artifacts）"
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
+
+          exit $EXIT_CODE
+
+      - name: 收集后端日志
+        if: always()
+        run: |
+          if [ -f /tmp/e2e-logs/backend.log ]; then
+            mkdir -p frontend/reports
+            cp /tmp/e2e-logs/backend.log frontend/reports/backend.log
+          fi
+
+      - name: 上传测试报告
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-report-batch-${{ inputs.batch_number }}
+          path: |
+            frontend/playwright-report/
+            frontend/reports/e2e-report.md
+            frontend/reports/backend.log
+            frontend/test-results/
+          retention-days: 30
+
+  # ==============================================================================
+  # Job 2: 跳过标记（当 skip_reason 非空时运行，仅记录跳过原因）
+  # ==============================================================================
+  e2e-skipped:
+    name: ⏭️ E2E 跳过（批次 ${{ inputs.batch_number }}）
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    if: ${{ inputs.skip_reason != '' }}
+    steps:
+      - name: 记录跳过原因
+        run: |
+          echo "# E2E 批次测试 - 跳过" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "**批次编号**: ${{ inputs.batch_number }}" >> "$GITHUB_STEP_SUMMARY"
+          echo "**状态**: ⏭️ 跳过" >> "$GITHUB_STEP_SUMMARY"
+          echo "**跳过原因**: ${{ inputs.skip_reason }}" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "本周期 E2E 已跳过，下一周期将在批次 $(( ${{ inputs.batch_number }} + 30 )) 恢复。" >> "$GITHUB_STEP_SUMMARY"
