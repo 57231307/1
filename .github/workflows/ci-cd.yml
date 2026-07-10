@@ -1234,23 +1234,34 @@ jobs:
         working-directory: backend
         run: |
           set +e
-          curl -s -X POST http://localhost:8082/api/v1/erp/init/initialize \
+          echo "=== 初始化请求 ==="
+          echo "INIT_TOKEN 长度: ${#INIT_TOKEN}"
+          echo "TEST_USERNAME: ${TEST_USERNAME}"
+          echo "TEST_PASSWORD 长度: ${#TEST_PASSWORD}"
+          HTTP_CODE=$(curl -s -w "\n%{http_code}" -X POST http://localhost:8082/api/v1/erp/init/initialize \
             -H "Content-Type: application/json" \
             -H "X-Init-Token: ${INIT_TOKEN}" \
-            -d "{\"admin_username\":\"${TEST_USERNAME}\",\"admin_password\":\"${TEST_PASSWORD}\"}" \
-            > /tmp/init-response.json 2>&1
+            -d "{\"admin_username\":\"${TEST_USERNAME}\",\"admin_password\":\"${TEST_PASSWORD}\"}")
           INIT_EXIT=$?
-          cat /tmp/init-response.json
+          # 分离响应体和 HTTP 状态码
+          RESPONSE_BODY=$(echo "$HTTP_CODE" | head -n -1)
+          STATUS_CODE=$(echo "$HTTP_CODE" | tail -n 1)
+          echo "=== HTTP 状态码: $STATUS_CODE ==="
+          echo "=== 响应体: ==="
+          echo "$RESPONSE_BODY"
+          echo "$RESPONSE_BODY" > /tmp/init-response.json
           # 系统可能已初始化（idempotent），状态码 200/400 均视为成功
-          if grep -q '"code":200' /tmp/init-response.json; then
+          if echo "$RESPONSE_BODY" | grep -q '"code":200'; then
             echo "初始化成功"
             exit 0
           fi
-          if grep -q '已初始化\|already' /tmp/init-response.json; then
+          if echo "$RESPONSE_BODY" | grep -q '已初始化\|already'; then
             echo "系统已初始化（幂等），跳过"
             exit 0
           fi
-          echo "初始化失败，退出码 $INIT_EXIT"
+          echo "=== 初始化失败，退出码 $INIT_EXIT, HTTP $STATUS_CODE ==="
+          echo "=== 后端日志最后 50 行: ==="
+          tail -n 50 /tmp/e2e-logs/backend.log 2>/dev/null || echo "(无后端日志)"
           exit 1
 
       - name: 运行 E2E 测试
