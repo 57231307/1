@@ -1,6 +1,7 @@
 use crate::models::{supplier, supplier_contact, supplier_qualification};
 use crate::utils::error::AppError;
 use crate::utils::number_generator::DocumentNumberGenerator;
+use crate::utils::pagination::paginate_with_total;
 use crate::utils::response::PaginatedResponse;
 use chrono::{NaiveDate, Utc};
 use rust_decimal::Decimal;
@@ -215,9 +216,9 @@ impl SupplierService {
         let page_size = params.page_size.unwrap_or(20).clamp(1, 100);
 
         let paginator = query.paginate(&*self.db, page_size);
-        let total = paginator.num_items().await?;
-        // 批次 98 P2-A 修复（v5 复审）：page clamp 防 DoS
-        let data = paginator.fetch_page(page.clamp(1, 1000).saturating_sub(1)).await?;
+        // 批次 255 修复：接入 paginate_with_total 统一分页逻辑（内部已处理 saturating_sub(1) 偏移）
+        // 保留 page.clamp(1, 1000) 防 DoS（批次 98 P2-A 修复）
+        let (data, total) = paginate_with_total(paginator, page.clamp(1, 1000)).await?;
 
         Ok(PaginatedResponse::new(data, total, page, page_size))
     }

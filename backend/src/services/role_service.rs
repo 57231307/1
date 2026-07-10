@@ -1,5 +1,6 @@
 use crate::models::role;
 use crate::utils::error::AppError;
+use crate::utils::pagination::paginate_with_total;
 use chrono::Utc;
 use sea_orm::DatabaseConnection;
 use sea_orm::{
@@ -142,8 +143,10 @@ impl RoleService {
     ) -> Result<(Vec<role::Model>, u64), AppError> {
         let paginator = role::Entity::find().paginate(&*self.db, page_size);
 
-        let total = paginator.num_items().await?;
-        let roles = paginator.fetch_page(page).await?;
+        // 批次 255 修复：接入 paginate_with_total 统一分页逻辑
+        // 修复原 bug：fetch_page(page) 未做 saturating_sub(1) 偏移，导致第一页跳到第二页
+        // 补充 page.clamp(1, 1000) 防 DoS
+        let (roles, total) = paginate_with_total(paginator, page.clamp(1, 1000)).await?;
 
         Ok((roles, total))
     }

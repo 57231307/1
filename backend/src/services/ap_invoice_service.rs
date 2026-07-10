@@ -5,6 +5,7 @@
 
 use crate::models::{ap_invoice, purchase_receipt, purchase_return};
 use crate::utils::error::AppError;
+use crate::utils::pagination::paginate_with_total;
 use chrono::{Duration, NaiveDate, Utc};
 use rust_decimal::Decimal;
 use sea_orm::{
@@ -567,9 +568,8 @@ impl ApInvoiceService {
             .order_by(ap_invoice::Column::CreatedAt, Order::Desc)
             .paginate(&*self.db, page_size);
 
-        let total = paginator.num_items().await?;
-        // SeaORM fetch_page 为 0-indexed，HTTP 层 page 为 1-indexed，需减 1 对齐
-        let items = paginator.fetch_page(page.saturating_sub(1)).await?;
+        // 批次 255 修复：接入 paginate_with_total 统一分页逻辑（内部已处理 0-indexed 偏移）
+        let (items, total) = paginate_with_total(paginator, page.clamp(1, 1000)).await?;
 
         Ok((items, total))
     }
