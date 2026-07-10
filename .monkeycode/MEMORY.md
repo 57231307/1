@@ -182,11 +182,13 @@
 
 > 用户最高优先级规则已在「一、规则 0-12」固化，本节仅记录修复进度。
 > **规则 10 梳理记录**：
+> - 2026-07-10 批次 255 梳理（=17×15 触发，上次梳理批次 236 提前触发）
 > - 2026-07-09 批次 236 梳理（提前于批次 240 触发，因用户明确要求"梳理项目的所有记忆"）
 > - 2026-07-09 批次 228 梳理（15×15+3 触发，上次梳理批次 195）
-> **批次 236 已完成**：v13 P1-3 N+1 查询/写入重构（4 处 INSERT 批量化），PR #413 squash merge 到 main（commit eaa5c9b3），分支已清理。
-> **v13 后端 P0/P1 全部完成**：P0-1（批次 229）+ P1-1（批次 231-234）+ P1-2（批次 235）+ P1-3（批次 236）。
-> **v14 深度调研报告已生成**（2026-07-09，[bug.md](file:///workspace/.monkeycode/bug.md)）：12 维度全量扫描，15 高/25 中/74 低风险，共 114 个问题。用户指令启动 v14 修复流程，从并发 async 阻塞开始（影响登录/用户管理核心路径）。
+> **批次 243-255 已完成**：v14 中风险 13 项（安全漏洞 + 性能 + 空实现 + 简化阉割 + 死代码 + 重复实现首批 + 项目规则符合性），详见 doto.md 批次明细表。
+> **v14 高风险 6 项全部完成**（批次 237-242，P0-1 到 P0-6）。
+> **v13 后端 P0/P1 全部完成**（批次 229-236）。
+> **v14 深度调研报告**（2026-07-09，[bug.md](file:///workspace/.monkeycode/bug.md)）：12 维度全量扫描，15 高/25 中/74 低风险，共 114 个问题。修复进度：高风险 6/6 完成，中风险 13/25 完成（剩余 12 项：测试覆盖 7 + 重复实现 service 分页 31/35 + view 表格 30+）。
 
 ### v14 深度调研报告修复（进行中 🔄，批次 237+）
 
@@ -239,30 +241,27 @@
    - 实际修复：一次性查询所有客户 ID + 订单聚合（GROUP BY customer_id），内存计算 RFM 评分，分桶聚合（VIP>=4.5/重要>=3.5/一般>=2.5/低价值<2.5），提取 OrderAggRow/CustomerOrderStats type 别名避免 clippy type_complexity 警告
    - CI run #29031527941：12/12 核心 job 全绿（1 轮 CI 修复：type_complexity），PR #419 squash merge 到 main（commit 146251d9）
 
-**v14 中风险问题修复队列（25 项，进行中 🔄）**：
-- 测试覆盖（7 项）：handlers 100+ 文件覆盖率 10%、services 107 个无测试、frontend api 4.4%、ai 算法零测试等
-- 空实现（4 项）：dye-recipe handleViewVersion、AdvancedFilter handleLogicChange、bi_analysis unreachable! 等
-- 简化阉割（3 项）：capacity_service 硬编码置信度 0.8、budget_management 跳过审批流、webhook retry 未持久化 payload
-- 死代码（1 项）：14 个 composable 文件 eslint-disable any
-- 重复实现（2 项）：20 个 service 分页逻辑重复、30+ view 表格逻辑重复
-- 项目规则符合性（1 项）：cli/util/service.rs 硬编码健康检查 URL
-- 性能问题（5 项）：ar/ap 报表未分页查询 5 处、缓存未利用
-  - ar_service 3 个报表方法（get_statistics_report + get_daily_report + get_monthly_report）✅ 批次 244 完成
-    - 修复内容：全量加载发票到内存做聚合 → SQL 层聚合（COUNT/SUM/GROUP BY/to_char）
-    - 删除 DailyAgg / MonthlyAgg 死代码 struct
-    - CI 修复：1 轮（clippy param_idx 未使用赋值警告 → 改用 params.len() + 1 模式）
-    - CI run #29034578201：12/12 核心 job 全绿，PR #421 squash merge 到 main（commit dcd8488d）
-  - ap_report_service 4 方法 SQL 聚合 ✅ 批次 245 完成
-    - 修复内容：get_statistics_report（主聚合 + by_status GROUP BY + by_type GROUP BY）/ get_daily_report（3 个 query_one 聚合）/ get_monthly_report（2 个 query_one 聚合）/ get_aging_report（CASE WHEN + SUM + COUNT 分桶聚合）
-    - CI 修复：1 轮（clippy supplier_id.unwrap 警告 → 改用 supplier_id.map(|sid|) 模式，i32 为 Copy 可直接多次 map）
-    - CI run #29036375275：12/12 核心 job 全绿，PR #422 squash merge 到 main（commit ae7d4619）
-  - 缓存未利用 ⏳ 待修复
-- 安全漏洞（2 项）：report-templates XSS 潜在、tracking_handler 输入验证缺失 ✅ 批次 243 完成
-  - 修复内容：
-    1. report-templates/index.vue：引入 escapeHtml（@/utils/print），报表预览表头与单元格值均经 HTML 转义后再拼接（原 String(r[f] ?? '') 直接拼接，DOMPurify 默认允许 <img>/<a> 标签）
-    2. tracking_handler.rs：PageViewRequest + BehaviorRequest 添加 #[derive(Validate)] + 各字段 #[validate(length(max=N))]，handler 中 req.validate() 校验
-  - CI run #29032882693：12/12 核心 job 全绿（E2E 失败为已知问题不阻塞），PR #420 squash merge 到 main（commit 0810fe3）
-- API 契约（0 项高风险，2 项低风险）
+**v14 中风险问题修复队列（25 项，已完成 13/25 🔄）**：
+- 测试覆盖（7 项，⏳ 待修复）：handlers 100+ 文件覆盖率 10%、services 107 个无测试、frontend api 4.4%、ai 算法零测试等
+- 空实现（4 项，全部完成 ✅）：
+  - ✅ 批次 246：dye-recipe handleViewVersion（复用主对话框只读模式，PR #423 commit 16754cf7）
+  - ✅ 批次 252：bi_analysis_service 3 处 unreachable!() + dual_unit_converter_handler 1 处 unreachable!() 改为返回 AppError 错误，新增 6 个单元测试（PR #429 commit faa9749）
+  - ✅ 批次 253：AdvancedFilter handleLogicChange 空函数改为真实实现，新增 logicChange emit 事件（PR #430 commit da659f7）
+- 简化阉割（3 项，全部完成 ✅）：
+  - ✅ 批次 249：capacity_service 硬编码置信度 0.8 改为动态计算（PR #426 commit 82269a4）
+  - ✅ 批次 250：budget_management 跳过审批流改为完整审批闭环（PR #427 commit b2520cd）
+  - ✅ 批次 251：webhook retry 未持久化 payload（新增迁移 m0047 + 持久化 + retry_count 修复，PR #428 commit 226af53）
+- 死代码（1 项，全部完成 ✅）：✅ 批次 254：14 个 composable 文件 eslint-disable any 清理（PR #431 commit d2abb55）
+- 重复实现（2 项，进行中 🔄）：
+  - service 分页逻辑接入 paginate_with_total（首批 4/35 完成于批次 255，剩余 31/35）✅ 批次 255：sales_price/ap_invoice/role/supplier 接入，修复 role_service fetch_page 偏移 bug（PR #432 commit 026fcc3）
+  - 30+ view 表格逻辑重复接入 useTableApi ⏳ 待修复
+- 项目规则符合性（1 项，全部完成 ✅）：✅ 批次 247：cli/util/service.rs 硬编码健康检查 URL 改为环境变量读取（PR #424 commit 47d86d86）
+- 性能问题（5 项，全部完成 ✅）：
+  - ✅ 批次 244：ar_service 3 报表 SQL 聚合（PR #421 commit dcd8488d）
+  - ✅ 批次 245：ap_report_service 4 方法 SQL 聚合（PR #422 commit ae7d4619）
+  - ✅ 批次 248：AR/AP 报表 8 端点接入 CacheService 缓存（PR #425 commit 53ce6b53）
+- 安全漏洞（2 项，全部完成 ✅）：✅ 批次 243：report-templates XSS + tracking_handler 输入验证（PR #420 commit 0810fe3）
+- API 契约（0 项高风险，2 项低风险，后续迭代）
 
 **v14 低风险问题修复队列（74 项，后续迭代）**：
 - 占位符/Mock 存根（21 项，全部合理设计或测试夹具，多数无需修复）
@@ -331,7 +330,6 @@
 - ⏳ v13 前端 P2：FE-P2-1（deepClone 接入）、FE-P2-2（删死代码）、FE-P2-3（非空断言）→ 合并到 v14 中风险队列
 - ⏳ v13 后端 P2：P2-1/2/3 → 合并到 v14 中风险队列
 - ⏳ E2E 失败排查：连续多次"启动后端服务"失败（已知问题，非代码质量，待规则 5 节点）
-- ⏳ 规则 10 触发：批次 240（=16×15）需梳理记忆文件
 - ⏳ FE-P2-3：i18n 覆盖率（200+ 视图硬编码中文，巨大工作量，后续迭代）
 - ⏳ FE-P2-6：大列表虚拟化（966 处 el-table，巨大工作量，后续迭代）
 - ⏳ P2-8 剩余 143 个无测试 service（非高优先级，后续迭代）
