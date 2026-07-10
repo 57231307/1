@@ -5,7 +5,33 @@
 
 ---
 
-## 📝 已完成批次详细记录（v14 阶段，批次 237-259）
+## 📝 已完成批次详细记录（v14 阶段，批次 237-260）
+
+### 批次 260：4 个 service 分页逻辑接入 paginate_with_total 第六批 + 规则 5 E2E 检查（PR #437）
+
+**修复内容**：bug.md 中风险重复实现问题 — 继批次 255-259 后，第六批处理 4 个 service 的分页逻辑接入。同时执行规则 5 E2E 检查。
+
+**修改文件**（4 文件 +16 -15 行）：
+- `backend/src/services/po/order.rs`：list_orders 分页接入 + 补 clamp 防 DoS（使用 into_model::<PurchaseOrderDto>）
+- `backend/src/services/inventory_count_service.rs`：list_counts 分页接入 + 补 clamp 防 DoS
+- `backend/src/services/inventory_adjustment_service.rs`：list_adjustments 分页接入 + 补 clamp 防 DoS
+- `backend/src/services/finance_payment_service.rs`：list_payments 分页接入 + 补 clamp 防 DoS
+
+**技术要点**：
+- paginate_with_total 内部已做 page.saturating_sub(1) 偏移，调用方不可再减 1
+- po/order.rs 使用 into_model::<PurchaseOrderDto>()，paginate_with_total 泛型 M = PurchaseOrderDto 兼容
+- 统一补充 page.clamp(1, 1000) 防 DoS（4 个文件均新增）
+- PaginatorTrait 导入保留（.paginate() 方法需要）
+
+**CI 验证**：CI run #29064396959，12/12 核心 job 全绿，E2E 失败为已知问题。PR #437 squash merge 到 main（commit 4081afa）。
+
+**规则 5 E2E 检查结果**：
+- 下载 E2E job（ID 86274022211）日志分析
+- 失败根因：`Error: missing field 'auth'` — 后端启动时 config crate 反序列化 AppSettings 缺少 `auth` 段
+- 原因分析：CI E2E job 设置了 `JWT_SECRET`（无前缀），但 config crate 使用 `__` 分隔符需要 `AUTH__JWT_SECRET`。`load_sensitive_from_env()` 能从 `JWT_SECRET` 填充，但反序列化阶段就失败了
+- 修复方案：批次 261 在 AuthConfig.jwt_secret 添加 `#[serde(default)]`，让反序列化通过，再由 load_sensitive_from_env() 填充
+
+---
 
 ### 批次 259：4 个 AP service 分页逻辑接入 paginate_with_total 第五批（PR #436）
 
