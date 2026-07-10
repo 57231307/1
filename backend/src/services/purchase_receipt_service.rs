@@ -13,6 +13,8 @@ use crate::services::purchase_receipt_dto::{
     UpdateReceiptItemRequest,
 };
 use crate::utils::error::AppError;
+// 批次 258 修复：接入 paginate_with_total 统一分页逻辑
+use crate::utils::pagination::paginate_with_total;
 use rust_decimal::Decimal;
 use sea_orm::{
     ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, Order, PaginatorTrait,
@@ -639,12 +641,12 @@ impl PurchaseReceiptService {
         }
 
         // 分页查询
+        // 批次 258 修复：接入 paginate_with_total 统一分页逻辑（内部已处理 saturating_sub(1) 偏移）
         let paginator = query
             .order_by(purchase_receipt::Column::CreatedAt, Order::Desc)
             .paginate(&*self.db, page_size);
 
-        let total = paginator.num_items().await?;
-        let items = paginator.fetch_page(page.saturating_sub(1)).await?;
+        let (items, total) = paginate_with_total(paginator, page.clamp(1, 1000)).await?;
 
         Ok((items, total))
     }

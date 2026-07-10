@@ -3,6 +3,8 @@ use crate::models::supplier_evaluation_record;
 // 批次 212 P2-5 修复（v12 复审）：硬编码 "active" 替换为 master_data 常量
 use crate::models::status::master_data;
 use crate::utils::error::AppError;
+// 批次 258 修复：接入 paginate_with_total 统一分页逻辑
+use crate::utils::pagination::paginate_with_total;
 use chrono::{DateTime, Utc};
 use rust_decimal::Decimal;
 use sea_orm::{
@@ -282,15 +284,12 @@ impl SupplierEvaluationService {
         page_size: u64,
     ) -> Result<(Vec<supplier_evaluation::Model>, u64), AppError> {
         info!("查询供应商评级列表，页码：{}，每页：{}", page, page_size);
+        // 批次 258 修复：接入 paginate_with_total 统一分页逻辑（内部已处理 saturating_sub(1) 偏移）
         let paginator = supplier_evaluation::Entity::find()
             .order_by(supplier_evaluation::Column::Id, Order::Desc)
             .paginate(&*self.db, page_size);
 
-        let total = paginator.num_items().await?;
-        // 批次 98 P2-A 修复（v5 复审）：page clamp 防 DoS（深度分页 offset 溢出）
-        let items = paginator
-            .fetch_page(page.clamp(1, 1000).saturating_sub(1))
-            .await?;
+        let (items, total) = paginate_with_total(paginator, page.clamp(1, 1000)).await?;
         Ok((items, total))
     }
 
