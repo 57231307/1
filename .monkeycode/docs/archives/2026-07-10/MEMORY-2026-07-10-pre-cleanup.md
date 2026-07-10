@@ -272,20 +272,139 @@
 - 死代码（8 项，均合规标注）
 - 其他（34 项）
 
-### 历史复审进度摘要（v7-v13，已全部完成 ✅）
+### v12 全项目复审 P2 修复（进行中 🔄）
 
-> 详细修复明细已归档到 [docs/archives/2026-07-10/](file:///workspace/.monkeycode/docs/archives/2026-07-10/)。
+- ✅ P2-1：死代码常量接入业务（批次 214-216，状态常量重构 + cancel_order + cancel_delivery）
+- ✅ P2-2：桩代码补全（批次 206）
+- ✅ P2-3：N+1 写（已修复）
+- ✅ P2-4：unwrap/expect 加固（批次 207）
+- ✅ P2-5：硬编码状态字符串替换（批次 208-213，82 处替换 + 3 个新子模块）
+- ✅ P2-6：事务保护缺失（批次 205-206）
+- ✅ P2-7：API 一致性 100%（批次 217，用户明确要求 100%）
+- ✅ P2-8：测试覆盖补测高优先级 service（批次 221-228，14 个 service 342 个测试，CI 12/12 核心全绿）
+  - customer_credit_limit 19 + accounting_period 14 + po/order 19 + inventory_reservation 17
+  - inv/stock 15 + so/order_workflow 17 + bom_service 24 + ar/recon 22
+  - voucher_service 29 + ap_reconciliation 30 + production_order 55 + mrp_engine 25
+  - so/delivery 25 + ar/vfy 31 = 342 个测试
+- ✅ 前端 P2 复审完成（FE-P2-1/2/4/5 已修复，FE-P2-3 i18n / FE-P2-6 虚拟化后续迭代）
 
-- **v7 复审**（批次 103-120）：webhook 真实接入 + 占位符清理 + failover/cache 模块删除
-- **v8 复审**（批次 121-129）：event_kafka 删除 + ElasticClient 真实实现 + SearchSyncer 接入
-- **v9 复审**（批次 130-135）：bi_analysis 16 方法真实接入 + purchase_inspection 4 明细 CRUD
-- **v11 复审**（批次 143-196）：P0 三项 + P1 dead_code 58 处真实接入 + 前端 any 清理
-- **v12 复审**（批次 197-228）：P0/P1 全部 + P2 状态字符串 82 处替换 + 342 个测试补测
-- **v13 复审**（批次 229-236）：P0/P1 全部（warehouse stub + 状态常量 25 域 + N+1 重构）
+### v12 剩余任务（已合并到 v14 队列）
 
-**关键经验**：
-- N+1 修复模式：读用批量 IN + HashMap，写用 insert_many，乐观锁保持逐条
-- 跨文件 impl 块需谨慎评估（批次 121 教训：误删 report/ds.rs 导致 CI 失败）
+- ✅ v13 全项目复审（v13 后端 P0/P1 已完成，v13 P2 合并到 v14）
+- ⏳ FE-P2-3：i18n 覆盖率（200+ 视图硬编码中文，巨大工作量）→ 合并到 v14 后续迭代
+- ⏳ FE-P2-6：大列表虚拟化（966 处 el-table，巨大工作量）→ 合并到 v14 后续迭代
+- ⏳ E2E 失败排查（连续多次"启动后端服务"失败，待规则 5 节点统一处理）
+- ✅ ar/vfy.rs 状态常量不一致修复 → 批次 231 已修复
+- ⏳ P2-8 剩余 143 个无测试 service（非高优先级，后续迭代）→ 合并到 v14 中风险测试覆盖队列
+
+### v13 复审修复进度（后端 P0/P1 全部完成 ✅，待用户指令继续 P2/前端 P2）
+
+**P0 修复**：
+- 批次 229：P0-1 warehouse_handler update_location 欺骗性 stub 修复 ✅
+- 批次 230：FE-P1-1 request.ts 401 刷新失败排队请求泄漏修复 ✅
+
+**P1-1 硬编码状态字符串替换（25 个业务域全覆盖）**：
+- 批次 231：ar 模块状态常量统一小写 + P0 查询大小写 Bug 修复 ✅
+- 批次 232：新增 accounting_period/logistics_waybill/sales_return 状态子模块 ✅
+- 批次 233：Clippy 修复（4 个新警告抑制：PageRequest/LOCKED/RELEASED/TemplateQuery.category）✅
+- 批次 234：新增 12 个 status 子模块并替换 67 处硬编码状态字符串 ✅
+  - 新增子模块：scheduling/ap_reconciliation/inventory_transfer/inventory_count/purchase_return/purchase_inspection/quotation/custom_order/process_node/inventory_adjustment/finance_invoice/finance_payment
+  - 涉及文件：scheduling_query/ap_reconciliation_service/inv/inventory_move/inventory_count_service/purchase_return_service/purchase_inspection_service/quotation_service/custom_order_crud_service/custom_order_state_service/inventory_adjustment_service/finance_invoice_service/finance_payment_service
+- 扫描确认：bpm_service/mrp_engine_service/import_export_service 业务代码已使用 status 模块常量，无需修改 ✅
+
+**P1-2 inventory_piece 状态字段约定定义**：
+- 批次 235：inventory_piece 状态字段约定定义 + RESERVED 常量补全 + barcode_scanner_handler Expr::cust 移除多余 & 借用修复 ✅（CI 12/12 核心全绿，commit 00b38d8）
+
+**P1-3 N+1 查询/写入重构（4 处 INSERT 批量化）**：
+- 批次 236：v13 P1-3 N+1 查询/写入重构 ✅（CI 12/12 核心全绿，PR #413 squash merge 到 main commit eaa5c9b3，分支已清理）
+  - `backend/src/services/ar_service.rs` auto_verify：明细 INSERT 批量化（N×M → 1）+ 发票 UPDATE 去重推迟（N×M → N×唯一发票数）
+  - `backend/src/services/ar/vfy.rs` auto_match：8 个 INSERT 点批量化（N×M → 1）
+  - `backend/src/services/so/delivery.rs` ship_order：发货明细 INSERT 批量化（N → 1）
+  - `backend/src/services/so/delivery.rs` lock_inventory：预留记录 INSERT 批量化（N → 1）
+  - 评估后保持现状：`po/receipt.rs` receive_order（乐观锁语义无法批量化）、`so/delivery.rs` cancel_delivery（每个明细 product_id 不同，需 CASE WHEN）
+  - CI run #29019444093：12/12 核心 job 全绿（Clippy 通过是关键信号），E2E queued 不阻塞
+  - N+1 修复模式参考：
+    - 读 N+1：循环外批量 `IN (?)` 查询 + HashMap 索引
+    - 写 N+1 INSERT：循环内构建 `Vec<ActiveModel>`，循环外 `Entity::insert_many(models).exec(&txn).await?`
+    - 写 N+1 UPDATE：按维度聚合后批量 `update_many`，或分批更新
+    - 乐观锁/防御性 WHERE 保持逐条：`rows_affected` 检查语义无法批量化
+
+**v13 剩余任务（合并到 v14 队列）**：
+- ⏳ v13 前端 P2：FE-P2-1（deepClone 接入）、FE-P2-2（删死代码）、FE-P2-3（非空断言）→ 合并到 v14 中风险队列
+- ⏳ v13 后端 P2：P2-1/2/3 → 合并到 v14 中风险队列
+- ⏳ E2E 失败排查：连续多次"启动后端服务"失败（已知问题，非代码质量，待规则 5 节点）
+- ⏳ FE-P2-3：i18n 覆盖率（200+ 视图硬编码中文，巨大工作量，后续迭代）
+- ⏳ FE-P2-6：大列表虚拟化（966 处 el-table，巨大工作量，后续迭代）
+- ⏳ P2-8 剩余 143 个无测试 service（非高优先级，后续迭代）
+
+### 历史复审进度摘要（v7-v9，已全部完成 ✅，详细记录见 doto.md / CHANGELOG.md）
+
+> 本节为历史归档摘要，详细修复明细已迁移至 doto.md 历史批次表和 CHANGELOG.md。
+
+**v7 复审**（批次 110-120，全部完成 ✅）：
+- P0：webhook callback PUBLIC_PATHS + message_type/title + payload 接入业务（批次 110）
+- P1（10 项，批次 111-117）：incoterms 接入、api_keys created_by 持久化、webhook PUT 语义、占位符、let _ = 检查、通知 warn 日志化、expect 安全化、failover 模块删除、cache 模块删除、audit 日期过滤
+- P2（13 项，批次 118-120）：supplier 资质端点、cost_collection 删除、cleanup_expired_cache 删除、calculate_monthly_depreciation 删除、connection_count 删除、token_bucket 删除、data_permission 删除、create_assist_record 删除、initialize_dimensions 真实接入、EventBackend trait 删除、cache/redis_client 删除、failover 删除
+
+**v8 复审**（批次 121-129，全部完成 ✅）：
+- P1（5 项，批次 121-125）：event_kafka KafkaEventEnvelope 删除、crm 标签真实接入、ElasticClient::real() 真实实现、SearchSyncer 接入 customer_service、SearchSyncer 接入 sales_order_service + product_service
+- P2（5 项，批次 126-129）：print_handler 静态配置化、inventory_stock_query alert_type 派生计算、import_export_handler 接入 import_tasks 表、report_enhanced_handler 字段定义静态配置化、financial_analysis_handler execute_report 真实执行
+
+**v9 复审**（批次 130-131，全部完成 ✅）：
+- P0（2 项）：bi_analysis_service 16 个方法真实接入数据库查询（批次 130）、purchase_inspection 4 个明细 CRUD 真实接入（批次 131）
+- P1（4 项，批次 132-135）：production_order_handler logs、ap_invoice_handler statistics、dashboard_service sales/inventory statistics
+
+**关键 CI 教训**（批次 121）：跨文件 impl 块需谨慎评估，误删 report/ds.rs + report/job.rs 导致 CI 失败，根因是 ds.rs 包含 `impl ReportEngineService` 跨文件 impl 块。
+
+### v11 复审 P1 dead_code 全量真实接入（批次 158，CI 12/12 全绿 ✅）
+
+**用户关键反馈**（2026-07-07）：
+- "为什么不按规则进行实现而是预留api?"
+- "为啥不按规则进行真实实现？"
+
+**修复方式**：撤回上一会话错误的 `#[allow(dead_code)]` 预留 API 方式，按规则 0/1/2 真实实现。
+
+**批次 158 修复分类（58 处项级 allow 标注）**：
+- 类 A 真死代码删除（4 条）：report/mod.rs ReportSubscription、report/job.rs infer_frequency、import_export_service.rs generate_csv
+- 类 B 误判死代码移除标注（16 条）：report/ds.rs 10 方法、websocket notifications、audit_log_service、export_service 等
+- 类 C 真实接入业务（19 条）：
+  - ar_service cancel_collection 方法 + POST /ar/payments/:id/cancel 路由
+  - ar/vfy.rs match_strategy 策略分支（exact/date_order/all）
+  - so/ 子模块状态常量接入 + 新增 inventory_reservation/sales_delivery 模块
+  - warehouse capacity 字段持久化（migration m0044）
+  - api_key description 字段持久化（migration m0044）
+  - password_policy_service 真实接入 change_password 流程（migration m0045 password_histories 表 + 密码历史校验 + build_password_blacklist 接入）
+  - cache.rs CachedValue.created_at 接入 evict_oldest LRU 淘汰策略
+  - status::approval 模块接入 color_price/budget_adjustment/ar_invoice（11 处字符串替换为常量，删除未使用的 DRAFT/CANCELLED）
+- 类 D SeaORM 模型例外（10 条）：models/ 下文件级 #![allow(dead_code)] 保留
+
+**main commit `b7b2baa` → `f9796cb`（4 轮 CI 修复后全绿），16 文件 +313 -46 行**
+
+### v11 复审总结（全部完成 ✅）
+
+v11 复审 P0/P1/P2 全部修复完成（批次 143-196），包括：
+- P0 三项修复（批次 143-145）
+- P1 dead_code 全量真实接入（批次 158）
+- 前端 P2-1 any 类型清理（批次 160-196，frontend/src 无真实 any 残留）
+- 前端 P2-5 quality 分页接入（批次 161）
+- 前端 P2-6 死代码清理 + P2-7 inventory any[] 类型化（批次 160）
+
+### v11 剩余任务（已迁移到 v12/v13）
+
+- ✅ v11 前端 P2-1：any 类型清理（批次 196 已完成）
+- ⏳ v11 前端 P2-2：i18n 接入（仅 Login.vue，其余 ~150 个 .vue 文件硬编码中文）→ 合并到 v13 FE-P2-3
+- ✅ v12 全项目复审（已完成，见上方 v12 章节）
+- ✅ v13 全项目复审（后端 P0/P1 已完成，进行中）
+
+### 历史批次索引
+
+| 批次范围 | 主要内容 | 状态 |
+|---------|----------|------|
+| 103-109 | v7 复审启动：search_api 真实接入/cache_service 接入 AppState/messaging 删除/webhook 真实接入 | ✅ |
+| 96-102 | v5/v6 复审 P0/P1/P2/P3 修复（ArService 真实实现 + 状态机 lock_exclusive + 状态字符串常量化） | ✅ |
+| 85-95 | v2/v3/v4 复审 P0-P3 修复（事务边界 + spawn panic 隔离 + FOR UPDATE） | ✅ |
+| 49-84 | v19 P0/P1/P2/P3 修复（早期审计修复） | ✅ |
+| 1-48 | 早期修复（前端权限/路由/API 断链/安全漏洞） | ✅ |
 
 详细历史：见 [CHANGELOG.md](file:///workspace/.monkeycode/CHANGELOG.md) 与 [docs/archives/](file:///workspace/.monkeycode/docs/archives/)
 
@@ -663,11 +782,15 @@
 
 ## 十三、归档索引
 
-完整历史内容（整理前的详细记录）：
+完整历史内容（优化前的详细记录）：
 
-- 完整 MEMORY/doto/CHANGELOG（2026-07-10 整理前）：`.monkeycode/docs/archives/2026-07-10/`
-- 完整 MEMORY/doto/CHANGELOG（2026-07-05 优化前）：`.monkeycode/docs/archives/2026-07-05/`
-- 完整 MEMORY/CHANGELOG（2026-06-24 优化前）：`.monkeycode/docs/archives/`
+- 完整 MEMORY（2026-07-05 优化前）：`.monkeycode/docs/archives/2026-07-05/MEMORY-2026-07-05-pre-optimization.md`
+- 完整 CHANGELOG（2026-07-05 优化前）：`.monkeycode/docs/archives/2026-07-05/CHANGELOG-2026-07-05-pre-optimization.md`
+- 完整 doto（2026-07-05 优化前）：`.monkeycode/docs/archives/2026-07-05/doto-2026-07-05-pre-optimization.md`
+- 完整 MEMORY（2026-06-24 优化前）：`.monkeycode/docs/archives/MEMORY-2026-06-24-pre-optimization.md`
+- 完整 CHANGELOG（2026-06-24 优化前）：`.monkeycode/docs/archives/CHANGELOG-2026-06-24-pre-optimization.md`
 
 历史审计报告：
-- `.monkeycode/docs/audits/` 目录下保存历次复审报告（v5/v6/v7 等）
+- `.monkeycode/docs/audits/2026-06-29-strict-reaudit-v7.md` —— v7 第七轮全项目复审
+- `.monkeycode/docs/audits/2026-06-28-strict-reaudit-v5.md` —— v5 第五轮复审
+- `.monkeycode/docs/audits/2026-06-28-strict-reaudit-v6.md` —— v6 第六轮复审
