@@ -194,8 +194,8 @@
 
       <div class="pagination-container">
         <el-pagination
-          v-model:current-page="queryParams.page"
-          v-model:page-size="queryParams.page_size"
+          v-model:current-page="page"
+          v-model:page-size="pageSize"
           :page-sizes="[10, 20, 50, 100]"
           :total="total"
           layout="total, sizes, prev, pager, next, jumper"
@@ -220,7 +220,6 @@ import { ref, reactive, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Plus, Upload, Download, Search, Refresh } from '@element-plus/icons-vue'
 import {
-  listLeads,
   exportLeads,
   importLeads,
   updateLeadStatus,
@@ -229,7 +228,7 @@ import {
   type Lead,
 } from '@/api/crm'
 import { listUsers, type User } from '@/api/user'
-import type { ApiResponse, PageResult } from '@/types/api'
+import { useTableApi } from '@/composables/useTableApi'
 import { logger } from '@/utils/logger'
 import LeadFormTab from './tabs/LeadFormTab.vue'
 
@@ -249,8 +248,6 @@ interface LeadRow extends Lead {
 }
 
 const queryParams = reactive({
-  page: 1,
-  page_size: 20,
   keyword: '',
   lead_source: '',
   lead_status: '',
@@ -258,29 +255,25 @@ const queryParams = reactive({
   priority: '',
 })
 
-const loading = ref(false)
-const leadList = ref<LeadRow[]>([])
-const total = ref(0)
+// 批次 269：接入 useTableApi，消除手写分页重复
+const {
+  data: leadList,
+  loading,
+  page,
+  pageSize,
+  total,
+  refresh: getList,
+  setQueryParam,
+} = useTableApi<LeadRow>({
+  url: '/crm/leads',
+  onError: (e: unknown) => logger.warn('加载线索列表失败', String(e)),
+})
+
 const users = ref<User[]>([])
 
 const formDialogVisible = ref(false)
 const formDialogTitle = ref('新建线索')
 const currentRow = ref<LeadRow | null>(null)
-
-const getList = async () => {
-  loading.value = true
-  try {
-    // 后端 listLeads 实际返回 PageResult<T> 包装，但类型定义为 ApiResponse<Lead[]>，此处显式声明
-    const res = (await listLeads(queryParams)) as unknown as ApiResponse<PageResult<LeadRow>>
-    leadList.value = res.data?.list || []
-    total.value = res.data?.total || 0
-  } catch (error) {
-    const err = error as Error
-    logger.warn('获取线索列表失败', err.message)
-  } finally {
-    loading.value = false
-  }
-}
 
 const fetchUsers = async () => {
   try {
@@ -292,7 +285,13 @@ const fetchUsers = async () => {
 }
 
 const handleQuery = () => {
-  queryParams.page = 1
+  // 同步筛选条件到 useTableApi
+  setQueryParam('keyword', queryParams.keyword || undefined)
+  setQueryParam('lead_source', queryParams.lead_source || undefined)
+  setQueryParam('lead_status', queryParams.lead_status || undefined)
+  setQueryParam('owner_id', queryParams.owner_id || undefined)
+  setQueryParam('priority', queryParams.priority || undefined)
+  page.value = 1
   getList()
 }
 
@@ -458,13 +457,12 @@ const handleSelectionChange = (selection: LeadRow[]) => {
 }
 
 const handleSizeChange = (val: number) => {
-  queryParams.page_size = val
-  getList()
+  pageSize.value = val
+  page.value = 1
 }
 
 const handleCurrentChange = (val: number) => {
-  queryParams.page = val
-  getList()
+  page.value = val
 }
 
 const getSourceLabel = (source: string) => {
@@ -521,7 +519,6 @@ const getPriorityLabel = (priority: string) => {
 }
 
 onMounted(() => {
-  getList()
   fetchUsers()
 })
 </script>
