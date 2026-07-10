@@ -7,7 +7,7 @@
 
 ## 📝 已完成批次详细记录（v14 阶段，批次 237-262）
 
-### 批次 262：Playwright E2E 测试增强 + E2E 独立工作流（PR 待定）
+### 批次 262：Playwright E2E 测试增强 + E2E 独立工作流（PR #439）
 
 **修复内容**：用户需求 — 针对 Playwright E2E 测试增强，提供网络拦截/Mock/弱网/多浏览器/多上下文隔离/多角色协作/RPA 全栈自动化能力。同时将 E2E 测试从 ci-cd.yml 独立到 e2e-batch.yml，每 30 批次运行一次，不阻塞主 CI。
 
@@ -66,7 +66,7 @@
   - CI 仅安装 chromium，通过 `--project=chromium` 限定单浏览器（控制 CI 时长）
   - 本地 `npx playwright test` 默认运行所有浏览器项目
 
-**CI 验证**：待推送后验证。
+**CI 验证**：CI run #29087907228，10/10 核心 job 全绿（前端 ESLint/类型检查/格式检查/测试 + Rust Clippy/格式/单元测试/构建 + 依赖审计/依赖图），打包发布/GitHub Release skipped（PR 非 push 到 main）。PR #439 squash merge 到 main（commit b26c53e）。
 
 ---
 
