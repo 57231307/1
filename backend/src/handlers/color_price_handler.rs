@@ -46,6 +46,8 @@ fn crud_err(e: CrudError) -> AppError {
         CrudError::InvalidState => AppError::business("当前状态不允许此操作"),
         CrudError::Validation(msg) => AppError::validation(msg),
         CrudError::Database(e) => AppError::database(e.to_string()),
+        // 批次 263：paginate_with_total 返回的 AppError 直接透传
+        CrudError::App(e) => e,
     }
 }
 
@@ -71,6 +73,8 @@ fn seasonal_err(e: SeasonalError) -> AppError {
         SeasonalError::NotFound => AppError::not_found("季节规则不存在"),
         SeasonalError::Validation(msg) => AppError::validation(msg),
         SeasonalError::Database(e) => AppError::database(e.to_string()),
+        // 批次 263：paginate_with_total 返回的 AppError 直接透传
+        SeasonalError::App(e) => e,
     }
 }
 

@@ -134,6 +134,7 @@ impl InventoryReservationService {
         status: Option<String>,
     ) -> Result<(Vec<inventory_reservation::Model>, u64), AppError> {
         use crate::utils::pagination::paginate_with_total;
+        use sea_orm::PaginatorTrait;
 
         let mut query = InventoryReservationEntity::find();
 
