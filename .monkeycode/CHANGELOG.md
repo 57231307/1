@@ -6,6 +6,33 @@
 
 ---
 
+## 2026-07-10 (批次 254 v14 中风险死代码修复 — composable eslint-disable any 清理，CI 12/12 核心全绿)
+
+### 批次 254：v14 中风险死代码修复 — 14 个 composable 文件 eslint-disable any 指令清理
+
+**修复内容**：bug.md 中风险死代码问题 — 14 个 composable 文件首行均有 `/* eslint-disable @typescript-eslint/no-explicit-any */`，但经审计这些文件中真实的 any 类型使用为 0（已在早期批次中替换为 `unknown` + 类型守卫或具体业务类型）。这些 eslint-disable 指令是 P14 批次拆分 Vue 重构时为快速通过 lint 而添加的残留，现已成为 any 类型的"避风港"，与 v11 前端 P2-1 any 类型清理成果相矛盾。
+
+**修改文件**（14 文件 +0 -14 行）：
+- `frontend/src/views/voucher/tabs/composables/useVchrLst.ts` + `useVchrLstProc.ts`
+- `frontend/src/views/system-update/composables/useSysUpd.ts` + `useSysUpdProc.ts`
+- `frontend/src/views/sales-price/composables/useSp.ts`
+- `frontend/src/views/sales-contract/composables/useSc.ts`
+- `frontend/src/views/purchase-price/composables/usePp.ts` + `usePpProc.ts`
+- `frontend/src/views/purchase-contract/composables/usePc.ts` + `usePcProc.ts`
+- `frontend/src/views/finance/tabs/composables/useVchr.ts` + `useVchrProc.ts`
+- `frontend/src/views/arReconciliation/composables/useArDisp.ts`
+- `frontend/src/views/api-gateway/composables/useApiKey.ts`
+
+**技术要点**：
+- 审计结果：14 个文件共 2836 行，any 匹配行 31 行（全部为指令 + 注释），真实 any 类型使用 0 处
+- 所有文件的 catch 均已使用 `catch (error: unknown)` + `error instanceof Error` 类型守卫
+- ref/参数/返回值均使用具体业务实体类型（VoucherEntity/SalesPrice/PurchaseContract 等）
+- 删除 eslint-disable 指令后 ESLint + 类型检查一次通过，确认无遗漏的 any 使用
+
+**CI 验证**：CI run #29058822394，12/12 核心 job 全绿（ESLint + 类型检查一次通过），E2E 失败为已知问题不阻塞。PR #431 squash merge 到 main（commit d2abb55）。
+
+---
+
 ## 2026-07-10 (批次 253 v14 中风险空实现修复 — AdvancedFilter handleLogicChange 真实实现，CI 12/12 核心全绿)
 
 ### 批次 253：v14 中风险空实现修复 — AdvancedFilter handleLogicChange 空函数改为真实实现

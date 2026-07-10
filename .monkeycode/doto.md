@@ -5,7 +5,7 @@
 
 ---
 
-## 🔄 当前任务：v14 深度调研报告修复（高风险 6 项全部完成，中风险 25 项进行中，已完成 11/25）
+## 🔄 当前任务：v14 深度调研报告修复（高风险 6 项全部完成，中风险 25 项进行中，已完成 12/25）
 
 > **v14 深度调研报告已生成**（2026-07-09，[bug.md](file:///workspace/.monkeycode/bug.md)）：12 维度全量扫描，15 高/25 中/74 低风险，共 114 个问题。
 > v13 后端 P0/P1 全部完成（批次 229-236），v13 剩余 P2 任务合并到 v14 队列。
@@ -28,6 +28,7 @@
 > **批次 251 已完成**：v14 中风险简化阉割修复 — webhook retry 未持久化 payload（原 retry 构造假 payload + retry_count 值提取 bug 永远读 0），新增迁移 m0047（webhooks 表加 last_payload + last_event 列）+ trigger_webhook 发送前持久化原始 payload/event + retry_webhook 从持久化存储重投 + retry_count 对 HTTP 业务失败也计数/成功重置 0，PR #428 squash merge 到 main（commit 226af53），分支已清理。CI 12/12 核心全绿（Clippy 一次通过）。中风险 25 项已完成 9 项（简化阉割 3 项全部完成）。
 > **批次 252 已完成**：v14 中风险空实现修复 — bi_analysis_service 3 处 unreachable!() + dual_unit_converter_handler 1 处 unreachable!() 改为返回 AppError 错误（dim_to_expr 返回 Result + 提取 measure_to_expr 独立函数 + handler 改 return Err），新增 6 个单元测试验证非法输入返回错误而非 panic，PR #429 squash merge 到 main（commit faa9749），分支已清理。CI 12/12 核心全绿（Clippy 一次通过）。中风险 25 项已完成 10 项。
 > **批次 253 已完成**：v14 中风险空实现修复 — AdvancedFilter.vue handleLogicChange 空函数改为真实实现（新增 logicChange emit 事件 + 接收 groupIndex 参数 emit 事件让父组件可响应 + 显示轻量级提示 + Demo 页面演示真实接入），PR #430 squash merge 到 main（commit da659f7），分支已清理。CI 12/12 核心全绿。中风险 25 项已完成 11 项（空实现 4 项全部完成）。
+> **批次 254 已完成**：v14 中风险死代码修复 — 14 个 composable 文件首行已失效的 eslint-disable any 指令清理（经审计真实 any 使用为 0，全部是早期批次替换为 unknown + 类型守卫后的指令残留），PR #431 squash merge 到 main（commit d2abb55），分支已清理。CI 12/12 核心全绿（ESLint + 类型检查一次通过）。中风险 25 项已完成 12 项（死代码 1 项全部完成）。
 
 > 用户最高优先级规则（2026-07-04/06/08 追加）已固化到 [MEMORY.md 一、规则 0-12](file:///workspace/.monkeycode/MEMORY.md)。
 > 本文件仅记录任务进度，规则不在此重复。
@@ -51,7 +52,7 @@
 - **测试覆盖（7 项）**：handlers 100+ 文件覆盖率 10%、services 107 个无测试、frontend api 4.4%、ai 算法（pred/detect/rec）零测试、frontend store 多数无测试、middleware 多个零测试
 - **空实现（4 项，全部完成 ✅）**：✅ dye-recipe handleViewVersion（批次 246 完成）、✅ bi_analysis unreachable! panic + dual_unit_converter unreachable（批次 252 完成，4 处 unreachable! 全部改为返回 AppError 错误）、✅ AdvancedFilter handleLogicChange（批次 253 完成，新增 logicChange emit 事件）
 - **简化阉割（3 项，全部完成 ✅）**：✅ capacity_service 硬编码置信度 0.8（批次 249 完成）、✅ budget_management 跳过审批流（批次 250 完成）、✅ webhook retry 未持久化 payload（批次 251 完成）
-- **死代码（1 项）**：14 个 composable 文件 eslint-disable any
+- **死代码（1 项，全部完成 ✅）**：✅ 14 个 composable 文件 eslint-disable any（批次 254 完成，经审计真实 any 使用为 0，全部是早期批次替换后的指令残留）
 - **重复实现（2 项）**：20 个 service 分页逻辑重复（应接入 paginate_with_total）、30+ view 表格逻辑重复（应接入 useTableApi）
 - **项目规则符合性（1 项）**：cli/util/service.rs 硬编码健康检查 URL ✅ 批次 247 完成（PR #424, commit 47d86d86, CI 12/12 核心全绿）
 - **性能问题（5 项）**：ar 报表 4 处未分页（3 处已修复）+ ap_report_service 4 方法未分页（已修复）+ 缓存未利用（已修复）
