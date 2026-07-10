@@ -8,9 +8,11 @@
 #
 # 工作流拓扑：
 #   ci-info → [ci-fmt-rust, ci-fmt-fe, ci-lint-rust, ci-lint-fe, ci-type-check,
-#              ci-test-rust, ci-test-fe, ci-e2e, ci-audit, ci-deps,
+#              ci-test-rust, ci-test-fe, ci-audit, ci-deps,
 #              ci-build-rust, ci-build-fe] → [package-release] → [github-release]
 #                                                                 → [notify]
+#
+# 注意：E2E 测试已独立到 .github/workflows/e2e-batch.yml（每 30 批次运行，不阻塞主 CI）
 # ==============================================================================
 
 name: CI/CD Pipeline - 严格构建验证 + 全面日志
@@ -1805,7 +1807,6 @@ jobs:
       ci-type-check,
       ci-test-rust,
       ci-test-fe,
-      ci-e2e,
       ci-build-rust,
       ci-build-fe
     ]
@@ -2035,7 +2036,6 @@ jobs:
       ci-type-check,
       ci-test-rust,
       ci-test-fe,
-      ci-e2e,
       ci-audit,
       ci-deps,
       ci-build-rust,
@@ -2063,7 +2063,6 @@ jobs:
           echo "🔬  前端类型检查:    ${{ needs.ci-type-check.result }}"
           echo "🧪  Rust 测试:       ${{ needs.ci-test-rust.result }}"
           echo "🧪  前端测试:        ${{ needs.ci-test-fe.result }}"
-          echo "🎭  前端 E2E 测试:   ${{ needs.ci-e2e.result }}"
           echo "🛡️  依赖审计:        ${{ needs.ci-audit.result }}"
           echo "📦  依赖图:          ${{ needs.ci-deps.result }}"
           echo "🏗️  Rust 后端构建:   ${{ needs.ci-build-rust.result }}"
@@ -2081,7 +2080,6 @@ jobs:
             [ci-type-check]="${{ needs.ci-type-check.result }}"
             [ci-test-rust]="${{ needs.ci-test-rust.result }}"
             [ci-test-fe]="${{ needs.ci-test-fe.result }}"
-            [ci-e2e]="${{ needs.ci-e2e.result }}"
             [ci-build-rust]="${{ needs.ci-build-rust.result }}"
             [ci-build-fe]="${{ needs.ci-build-fe.result }}"
           )
@@ -2112,7 +2110,6 @@ jobs:
           echo "  - frontend-type-check-report  vue-tsc 报告"
           echo "  - backend-test-report   cargo test 报告"
           echo "  - frontend-test-report  vitest 报告"
-          echo "  - playwright-report     Playwright E2E 报告（7 天保留）"
           echo "  - backend-build-log     cargo build 详细日志"
           echo "  - frontend-build-log    vite build 详细日志"
           echo "  - dependency-audit-reports  cargo audit + npm audit"
