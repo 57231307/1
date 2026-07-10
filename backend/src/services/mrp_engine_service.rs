@@ -24,6 +24,7 @@ use crate::models::mrp_result::{
 };
 use crate::models::product::Entity as ProductEntity;
 use crate::utils::error::AppError;
+use crate::utils::pagination::paginate_with_total;
 use crate::utils::sql_escape::safe_like_pattern;
 use crate::utils::xlsx_export::XlsxTable;
 
@@ -604,13 +605,12 @@ impl MrpEngineService {
             select = select.filter(crate::models::mrp_result::Column::Status.eq(st));
         }
 
-        let total = select.clone().count(&*self.db).await?;
-
-        let results = select
+        // 批次 257 修复：接入 paginate_with_total 统一分页逻辑（内部已处理 saturating_sub(1) 偏移）
+        let paginator = select
             .order_by_desc(crate::models::mrp_result::Column::CreatedAt)
-            .paginate(&*self.db, page_size)
-            .fetch_page(page.saturating_sub(1))
-            .await?;
+            .paginate(&*self.db, page_size);
+
+        let (results, total) = paginate_with_total(paginator, page.clamp(1, 1000)).await?;
 
         Ok((results, total))
     }

@@ -18,6 +18,7 @@ use crate::models::production_order::{
 };
 use crate::services::event_bus::{BusinessEvent, EVENT_BUS};
 use crate::utils::error::AppError;
+use crate::utils::pagination::paginate_with_total;
 
 use crate::models::bom::{Column as BomColumn, Entity as BomEntity};
 use crate::models::bom_item::{Column as BomItemColumn, Entity as BomItemEntity};
@@ -318,13 +319,12 @@ impl ProductionOrderService {
                 select.filter(crate::models::production_order::Column::ProductId.eq(product_id));
         }
 
-        let total = select.clone().count(&*self.db).await?;
-
+        // 批次 257 修复：接入 paginate_with_total 统一分页逻辑（内部已处理 saturating_sub(1) 偏移）
         let paginator = select
             .order_by_desc(crate::models::production_order::Column::CreatedAt)
             .paginate(&*self.db, query.page_size);
 
-        let models = paginator.fetch_page(query.page.saturating_sub(1)).await?;
+        let (models, total) = paginate_with_total(paginator, query.page.clamp(1, 1000)).await?;
 
         Ok((models, total))
     }
