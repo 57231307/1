@@ -6,6 +6,12 @@ use tracing::{error, warn};
 pub struct AppSettings {
     pub server: ServerConfig,
     pub database: DatabaseConfig,
+    /// 认证配置。
+    ///
+    /// 批次 261 修复（E2E 配置兼容性）：添加 `#[serde(default)]` 允许 `auth` 段
+    /// 完全缺失时反序列化通过（使用 `AuthConfig::default()`），由
+    /// `load_sensitive_from_env()` 从 `JWT_SECRET` 等环境变量填充。
+    #[serde(default)]
     pub auth: AuthConfig,
     pub log: LogConfig,
     /// CORS 配置：使用字段级 `#[serde(default)]`，当 `cors` 段或任意
@@ -49,8 +55,18 @@ pub struct DatabaseConfig {
     pub max_connections: u32,
 }
 
-#[derive(Debug, Clone, Deserialize)]
+/// 认证配置。
+///
+/// 批次 261 修复：派生 `Default` 以支持 `AppSettings.auth` 的 `#[serde(default)]`。
+/// 默认值 `jwt_secret=""` 会被 `validate_secret()` 拒绝，确保未配置时 fail-fast。
+#[derive(Debug, Clone, Default, Deserialize)]
 pub struct AuthConfig {
+    /// JWT 密钥。
+    ///
+    /// 批次 261 修复（E2E 配置兼容性）：添加 `#[serde(default)]` 允许反序列化时
+    /// `auth` 段缺失（jwt_secret 默认为空字符串），由 `load_sensitive_from_env()`
+    /// 从 `JWT_SECRET` 环境变量填充。空字符串会被 `validate_secret()` 拒绝，确保安全。
+    #[serde(default)]
     pub jwt_secret: String,
     pub previous_jwt_secret: Option<String>,
     pub cookie_secret: Option<String>,

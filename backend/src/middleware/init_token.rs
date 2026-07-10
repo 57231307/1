@@ -1,8 +1,9 @@
 //! 初始化接口 Token 校验中间件（bug.md #3 修复）
 //!
 //! 防御 init 子系统的"窗口期攻击"：在系统首次部署（数据库无 users 表）时，
-//! `/api/v1/erp/init/initialize` 等接口因 `PUBLIC_PATHS` 包含 `/api/v1/erp/init`
-//! 前缀而被 `auth_middleware` 短路跳过 JWT 验证。攻击者可抢先初始化。
+//! `/api/v1/erp/init/initialize` 等接口无法通过 JWT 认证（无用户可登录）。
+//! 批次 261 修复：将 initialize 系列加入 `PUBLIC_PATHS`，让 `auth_middleware`
+//! 跳过 JWT 验证，由本中间件用 `X-Init-Token`（恒定时间比较）替代认证。
 //!
 //! 修复方案：
 //! 1. 部署时在环境变量 `INIT_TOKEN` 配置一个长随机字符串

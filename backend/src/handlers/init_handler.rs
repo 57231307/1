@@ -57,11 +57,10 @@ pub async fn get_init_status(State(state): State<AppState>) -> Json<ApiResponse<
 /// 5. **错误消息脱敏**：不透传底层 DbErr 原文，避免泄露内网服务信息
 /// 6. 审计日志记录"谁在什么时间测试了什么数据库连接"（不记录明文密码）
 ///
-/// 注意：当前 `auth_middleware` 在 `/api/v1/erp/init/*` 路径下因
-/// `PUBLIC_PATHS` 包含 `/api/v1/erp/init` 前缀而短路跳过 JWT 验证，
-/// 因此本 handler 的 `auth: AuthContext` 提取器在未登录时也会返回 401。
-/// 这是 init 子系统整体的鉴权设计权衡（PR #240 的 `reset_admin_password`
-/// 同样受影响），本任务不在职责范围内修复。
+/// 注意：批次 261 修复后，仅 `initialize` 系列（initialize/initialize-with-db/
+/// initialize-with-db-async）在 `PUBLIC_PATHS` 中（由 `init_token_middleware`
+/// 认证）。本接口（test-database）不在 `PUBLIC_PATHS` 中，`auth_middleware`
+/// 要求 JWT 认证，`auth: AuthContext` 提取器在未登录时返回 401。
 pub async fn test_database_connection(
     State(state): State<AppState>,
     auth: AuthContext,
@@ -308,12 +307,11 @@ pub async fn initialize_system_with_db_async(
 /// 初始化子系统处理器内部的 admin 角色二次校验
 ///
 /// 设计原因：
-/// 1. `permission_middleware` 不覆盖 init 路径（因 `/init` 在 PUBLIC_PATHS 中短路），
-///    必须在 handler 层补一道 admin 防线；
-/// 2. `auth_middleware` 在 `/api/v1/erp/init/*` 路径下被 `PUBLIC_PATHS` 短路跳过 JWT 验证，
-///    因此本函数实际触达场景是"调用方绕过了 auth_middleware 但仍注入了 AuthContext"
-///    （例如 init 模式下的 fallback router）。`auth: AuthContext` 提取器自身
-///    会在缺 AuthContext 时直接返回 401，所以缺角色/缺认证两种情况都已被覆盖。
+/// 1. `permission_middleware` 不覆盖 init 路径，必须在 handler 层补一道 admin 防线；
+/// 2. 批次 261 修复后，仅 `initialize` 系列在 `PUBLIC_PATHS` 中（跳过 JWT 验证，
+///    由 `init_token_middleware` 认证）。本函数保护的只读接口（test-database/
+///    task-status）不在 `PUBLIC_PATHS` 中，`auth_middleware` 要求 JWT 认证，
+///    `auth: AuthContext` 提取器在缺认证时直接返回 401。
 /// 3. 与 `user_handler::require_admin_role` 实现保持一致，便于未来统一抽到 utils。
 async fn require_admin_role(state: &AppState, auth: &AuthContext) -> Result<(), AppError> {
     let role_id = auth
@@ -342,10 +340,9 @@ async fn require_admin_role(state: &AppState, auth: &AuthContext) -> Result<(), 
 ///
 /// 安全约束：
 /// 1. 必须登录并具备 admin 角色（handler 层强制拦截）
-/// 2. 注意：`/api/v1/erp/init/*` 在 `PUBLIC_PATHS` 中，`auth_middleware` 会短路跳过 JWT 验证，
-///    因此 `auth: AuthContext` 提取器在未登录时也会返回 401（fail-secure）。
-///    这是 init 子系统整体的鉴权设计权衡（PR #240 的 `reset_admin_password` 同样受影响），
-///    本任务不在职责范围内修复。
+/// 2. 批次 261 修复后，仅 `initialize` 系列在 `PUBLIC_PATHS` 中。本接口
+///    （task-status）不在 `PUBLIC_PATHS` 中，`auth_middleware` 要求 JWT 认证，
+///    `auth: AuthContext` 提取器在未登录时返回 401（fail-secure）。
 pub async fn get_task_status(
     State(state): State<AppState>,
     auth: AuthContext,
