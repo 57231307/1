@@ -187,67 +187,11 @@ Ok((items, total))
 
 ## 🔄 进行中批次
 
-### 批次 257：4 个 service 分页逻辑接入 paginate_with_total 第三批（PR #434，CI 进行中 🔄）
-
-**状态**：代码已提交推送（分支 `fix/batch257-v14-pagination-part3`，commit 54f1947），PR #434 已创建，CI run #29062023389 进行中（11/12 完成，Rust 后端构建进行中）。
-
-**问题描述**：继批次 255/256 后，第三批处理 4 个 service 的 list 方法手写 `num_items + fetch_page` 分页逻辑，与已封装的 `paginate_with_total` 工具函数重复，违反 DRY 原则。
-
-**待修复文件**（4 个 service）：
-- `backend/src/services/customer_service.rs`：list 方法 — 客户列表分页查询
-- `backend/src/services/supplier_contact_service.rs`：list 方法 — 供应商联系人列表分页查询
-- `backend/src/services/user_service.rs`：list_users 方法 — 用户列表分页查询
-- `backend/src/services/notification_service.rs`：list 方法 — 通知列表分页查询
-
-**修复内容**（每个文件统一模式）：
-1. 新增导入 `use crate::utils::pagination::paginate_with_total;`
-2. 删除独立 `select.clone().count(&*self.db).await?` 查询
-3. 将 `fetch_page(page.saturating_sub(1))` 替换为 `paginate_with_total(paginator, page.clamp(1, 1000))`
-4. 保留 `PaginatorTrait` 导入（`.paginate()` 方法需要）
-
-**修复模式**（与批次 255/256 一致）：
-```rust
-// 修复前
-let total = select.clone().count(&*self.db).await?;
-let items = select
-    .order_by_desc(Entity::Column::CreatedAt)
-    .paginate(&*self.db, page_size)
-    .fetch_page(page.saturating_sub(1))
-    .await?;
-Ok((items, total))
-
-// 修复后
-let paginator = select
-    .order_by_desc(Entity::Column::CreatedAt)
-    .paginate(&*self.db, page_size);
-let (items, total) = paginate_with_total(paginator, page.clamp(1, 1000)).await?;
-Ok((items, total))
-```
-
-**技术要点**：
-- `paginate_with_total` 内部已做 `page.saturating_sub(1)` 偏移，调用方不可再减 1
-- 删除独立 `select.clone().count()` 查询，复用 paginator 的 `num_items()`（减少一次 DB 查询）
-- 统一补充 `page.clamp(1, 1000)` 防 DoS
-- `PaginatorTrait` 导入保留
-
-**CI 验证**：CI run #29062023389，当前 11/12 job 完成（Clippy + 单元测试 + 前端全绿），Rust 后端构建进行中。
-
-**待办**：
-- [ ] 等待 Rust 后端构建完成
-- [ ] CI 12/12 核心全绿后 squash merge PR #434 到 main
-- [ ] 删除本地和远程修复分支
-- [ ] 更新 doto-su.md 记录批次 257 完成
-- [ ] 更新 CHANGELOG.md 添加批次 257 一句话总结
-
----
-
-## 📋 下一个批次计划
-
-### 批次 258（待启动）：4 个 service 分页逻辑接入 paginate_with_total 第四批
+### 批次 258：4 个 service 分页逻辑接入 paginate_with_total 第四批（待启动 ⏳）
 
 **问题描述**：继批次 257 后，第四批处理 4 个 service 的分页逻辑接入。
 
-**候选文件**（从剩余 27/35 中选取 4 个）：
+**候选文件**（从剩余 23/35 中选取 4 个）：
 - `backend/src/services/quotation_service.rs`（需解决 ServiceError 转换）— 报价单列表分页，返回类型是 `ServiceError` 而非 `AppError`
 - `backend/src/services/inventory_service.rs` — 库存列表分页
 - `backend/src/services/sales_order_service.rs` — 销售订单列表分页
@@ -259,7 +203,17 @@ Ok((items, total))
 
 **修复模式**：与批次 255/256/257 一致
 
-**启动条件**：批次 257 CI 全绿并合并到 main 后启动
+**待办**：
+- [ ] 扫描确认 4 个候选文件确实使用手写分页逻辑
+- [ ] 创建修复分支 `fix/batch258-v14-pagination-part4`
+- [ ] 实现修复
+- [ ] 提交并推送
+- [ ] 创建 PR
+- [ ] 监控 CI
+- [ ] CI 12/12 核心全绿后 squash merge 到 main
+- [ ] 删除本地和远程修复分支
+- [ ] 更新 doto-su.md 记录批次 258 完成
+- [ ] 更新 CHANGELOG.md 添加批次 258 一句话总结
 
 ---
 
