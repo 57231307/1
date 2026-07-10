@@ -5,7 +5,28 @@
 
 ---
 
-## 📝 已完成批次详细记录（v14 阶段，批次 237-263）
+## 📝 已完成批次详细记录（v14 阶段，批次 237-264）
+
+### 批次 264：4 个 service 分页接入 paginate_with_total 第八批（PR #442）
+
+**修复内容**：bug.md 中风险重复实现问题 — 继批次 263 后，第八批处理 4 个 service 的分页逻辑接入，含 inventory_reservation + 3 个 color_price 文件。
+
+**修改文件**（5 文件 +41 -10 行）：
+- `backend/src/services/inventory_reservation_service.rs`：list_reservations 接入 + 修复 fetch_page(page) 未做 saturating_sub(1) 偏移的 bug + total 类型 i64→u64 + 补 clamp(1, 1000) 防 DoS
+- `backend/src/services/color_price_crud_service.rs`：list 接入 + CrudError 添加 App(#[from] AppError) 变体 + 补 page.clamp(1, 1000) 防 DoS
+- `backend/src/services/color_price_history_service.rs`：list_by_price 接入 + HistoryError 添加 App(#[from] AppError) 变体 + 补 page.clamp(1, 1000) + page_size.clamp(1, 100) 防 DoS（原实现无任何 clamp 保护）
+- `backend/src/services/color_price_seasonal_service.rs`：list 接入 + SeasonalError 添加 App(#[from] AppError) 变体 + 补 page.clamp(1, 1000) 防 DoS
+- `backend/src/handlers/color_price_handler.rs`：crud_err + seasonal_err 函数添加 App(e) => e 透传分支
+
+**技术要点**：
+- 各业务错误枚举添加 App(#[from] AppError) 变体解决类型不匹配（AppError 与 DbErr 两条 From 路径无歧义，? 运算符只做一步转换）
+- inventory_reservation 修复偏移 bug：原 fetch_page(page) 传入 1-based 页码，应为 fetch_page(page.saturating_sub(1))，接入后自动修复
+- color_price_history 补 page_size.clamp(1, 100) 防 DoS（原实现无任何 clamp 保护，唯一安全缺口）
+- handler 中的 match 需添加 App(e) => e 分支以覆盖新变体
+
+**CI 验证**：CI run #29092924392，10/10 核心 job 全绿（首次提交因 PaginatorTrait 缺失 + match 穷尽失败，修复后第二次提交全绿）。PR #442 squash merge 到 main（commit 3e32d3d）。
+
+---
 
 ### 批次 263：5 个 service 分页接入 paginate_with_total 第七批（PR #440）
 
