@@ -124,8 +124,9 @@ impl InventoryReservationService {
     /// 获取预留列表
     ///
     /// 批次 264 修复：接入 paginate_with_total 工具函数，修复两个 bug：
-    /// 1. 原 `fetch_page(page)` 未做 `saturating_sub(1)` 偏移（page 为 1-based，fetch_page 接收 0-based，原实现跳过第一页）
-    /// 2. 原 `total as i64` 类型不一致（paginate_with_total 返回 u64，统一为 u64）
+    /// - 原 `fetch_page(page)` 未做 `saturating_sub(1)` 偏移（page 为 1-based，fetch_page 接收 0-based，原实现跳过第一页）
+    /// - 原 `total as i64` 类型不一致（paginate_with_total 返回 u64，统一为 u64）
+    ///
     /// 补 clamp(1, 1000) + clamp(1, 100) 防 DoS。
     pub async fn list_reservations(
         &self,
