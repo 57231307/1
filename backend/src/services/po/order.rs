@@ -8,6 +8,8 @@ use crate::models::{
 };
 use crate::services::po::UpdatePurchaseOrderRequest;
 use crate::utils::error::AppError;
+// 批次 260 修复：接入 paginate_with_total 统一分页逻辑
+use crate::utils::pagination::paginate_with_total;
 use crate::utils::number_generator::DocumentNumberGenerator;
 use chrono::Utc;
 use rust_decimal::Decimal;
@@ -537,15 +539,13 @@ impl PurchaseOrderService {
             query = query.filter(purchase_order::Column::SupplierId.eq(supplier_id));
         }
 
-        // 分页查询
+        // 批次 260 修复：接入 paginate_with_total 统一分页逻辑（内部已处理 saturating_sub(1) 偏移）
         let paginator = query
             .order_by(purchase_order::Column::CreatedAt, sea_orm::Order::Desc)
             .into_model::<PurchaseOrderDto>()
             .paginate(&*self.db, page_size);
 
-        let total = paginator.num_items().await?;
-        let items = paginator.fetch_page(page.saturating_sub(1)).await?;
-
+        let (items, total) = paginate_with_total(paginator, page.clamp(1, 1000)).await?;
         Ok((items, total))
     }
 
