@@ -16,6 +16,7 @@ use crate::models::seasonal_price_rule_dto::{
     CreateSeasonalRuleDto, ListSeasonalRulesQuery, UpdateSeasonalRuleDto,
 };
 use crate::utils::error::AppError;
+use crate::utils::pagination::paginate_with_total;
 
 /// 业务错误
 #[derive(Debug, Error)]
@@ -26,6 +27,9 @@ pub enum SeasonalError {
     Validation(String),
     #[error("数据库错误: {0}")]
     Database(#[from] sea_orm::DbErr),
+    /// 批次 263：接入 paginate_with_total（返回 AppError）所需的错误转换
+    #[error("应用错误: {0}")]
+    App(#[from] AppError),
 }
 
 /// 季节调价服务
@@ -44,6 +48,10 @@ impl ColorPriceSeasonalService {
     }
 
     /// 列表查询
+    ///
+    /// 批次 263 修复：接入 paginate_with_total 工具函数，消除手写 num_items + fetch_page 重复。
+    /// paginate_with_total 内部已做 page.saturating_sub(1) 偏移，调用方不可再减 1。
+    /// 补 page.clamp(1, 1000) 防 DoS（page_size 已有 clamp(1,100)）。
     pub async fn list(
         &self,
         query: &ListSeasonalRulesQuery,
@@ -66,8 +74,7 @@ impl ColorPriceSeasonalService {
         let paginator = q
             .order_by_desc(seasonal_price_rule::Column::CreatedAt)
             .paginate(&*self.db, page_size);
-        let total = paginator.num_items().await?;
-        let items = paginator.fetch_page(page.saturating_sub(1)).await?;
+        let (items, total) = paginate_with_total(paginator, page.clamp(1, 1000)).await?;
         Ok((items, total))
     }
 

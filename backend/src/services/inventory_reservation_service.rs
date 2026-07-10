@@ -121,6 +121,10 @@ impl InventoryReservationService {
     }
 
     /// 获取预留列表
+    ///
+    /// 批次 263 修复：接入 paginate_with_total 工具函数，修复原 fetch_page(page) 未做
+    /// saturating_sub(1) 偏移的 bug（page 为 1-based，fetch_page 接收 0-based，原实现跳过第一页）。
+    /// 补 clamp(1, 1000) 防 DoS。返回类型 total 从 i64 改为 u64（与项目其他分页函数一致）。
     pub async fn list_reservations(
         &self,
         page: u64,
@@ -128,8 +132,8 @@ impl InventoryReservationService {
         product_id: Option<i32>,
         warehouse_id: Option<i32>,
         status: Option<String>,
-    ) -> Result<(Vec<inventory_reservation::Model>, i64), AppError> {
-        use sea_orm::PaginatorTrait;
+    ) -> Result<(Vec<inventory_reservation::Model>, u64), AppError> {
+        use crate::utils::pagination::paginate_with_total;
 
         let mut query = InventoryReservationEntity::find();
 
@@ -144,8 +148,7 @@ impl InventoryReservationService {
         }
 
         let paginator = query.paginate(&*self.db, page_size);
-        let total = paginator.num_items().await? as i64;
-        let reservations = paginator.fetch_page(page).await?;
+        let (reservations, total) = paginate_with_total(paginator, page.clamp(1, 1000)).await?;
 
         Ok((reservations, total))
     }
