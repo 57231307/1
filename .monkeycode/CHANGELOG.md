@@ -6,6 +6,28 @@
 
 ---
 
+## 2026-07-10 (批次 255 v14 中风险重复实现修复 — service 分页逻辑接入 paginate_with_total 首批，CI 12/12 核心全绿)
+
+### 批次 255：v14 中风险重复实现修复 — 4 个 service 分页逻辑接入 paginate_with_total
+
+**修复内容**：bug.md 中风险重复实现问题 — 35 个 service 文件手写 `num_items + fetch_page` 分页逻辑，与已封装的 `paginate_with_total` 工具函数重复，违反 DRY 原则。首批处理 4 个文件。
+
+**修改文件**（4 文件 +15 -10 行）：
+- `backend/src/services/sales_price_service.rs`：`list_strategies` 标准替换 + 补 clamp 防 DoS
+- `backend/src/services/ap_invoice_service.rs`：`get_list` 标准替换 + 补 clamp 防 DoS
+- `backend/src/services/role_service.rs`：`list_roles` 修复 fetch_page(page) 未做 saturating_sub(1) 偏移的 bug + 补 clamp
+- `backend/src/services/supplier_service.rs`：`list_suppliers` 保留原有 clamp，移除冗余 saturating_sub
+
+**技术要点**：
+- `paginate_with_total` 内部已做 `page.saturating_sub(1)` 偏移，调用方不可再减 1
+- `role_service.rs` 修复现存 bug：原 `fetch_page(page)` 直接传 1-indexed 页码，未做偏移，导致第一页数据跳到第二页
+- 统一补充 `page.clamp(1, 1000)` 防 DoS（supplier_service 原有，其余 3 个新增）
+- `PaginatorTrait` 导入保留（`.paginate()` 方法需要）
+
+**CI 验证**：CI run #29059632346，12/12 核心 job 全绿（Clippy 一次通过），E2E 失败为已知问题不阻塞。PR #432 squash merge 到 main（commit 026fcc3）。
+
+---
+
 ## 2026-07-10 (批次 254 v14 中风险死代码修复 — composable eslint-disable any 清理，CI 12/12 核心全绿)
 
 ### 批次 254：v14 中风险死代码修复 — 14 个 composable 文件 eslint-disable any 指令清理
