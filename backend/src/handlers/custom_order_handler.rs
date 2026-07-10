@@ -64,6 +64,8 @@ fn crud_err(e: crate::services::custom_order_crud_service::CrudError) -> AppErro
         InvalidState => AppError::business("当前状态不允许此操作"),
         Validation(msg) => AppError::validation(msg),
         Database(e) => AppError::database(e.to_string()),
+        // 批次 263：paginate_with_total 返回的 AppError 直接透传
+        App(e) => e,
     }
 }
 
@@ -93,6 +95,8 @@ fn quality_err(e: crate::services::custom_order_quality_service::QualityError) -
         InvalidState(msg) => AppError::business(msg),
         Validation(msg) => AppError::validation(msg),
         Database(e) => AppError::database(e.to_string()),
+        // 批次 263：paginate_with_total 返回的 AppError 直接透传
+        App(e) => e,
     }
 }
 
@@ -103,6 +107,8 @@ fn aftersales_err(e: crate::services::custom_order_aftersales_service::AfterSale
         InvalidState(msg) => AppError::business(msg),
         Validation(msg) => AppError::validation(msg),
         Database(e) => AppError::database(e.to_string()),
+        // 批次 263：paginate_with_total 返回的 AppError 直接透传
+        App(e) => e,
     }
 }
 
