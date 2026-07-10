@@ -5,7 +5,27 @@
 
 ---
 
-## 📝 已完成批次详细记录（v14 阶段，批次 237-256）
+## 📝 已完成批次详细记录（v14 阶段，批次 237-257）
+
+### 批次 257：4 个 service 分页逻辑接入 paginate_with_total 第三批（PR #434）
+
+**修复内容**：bug.md 中风险重复实现问题 — 继批次 255/256 后，第三批处理 4 个 service 的分页逻辑接入 paginate_with_total。
+
+**修改文件**（4 文件 +22 -27 行）：
+- `backend/src/services/currency_service.rs`：2 处分页接入（list + get_history）
+- `backend/src/services/mrp_engine_service.rs`：分页接入
+- `backend/src/services/production_order_service.rs`：分页接入
+- `backend/src/services/scheduling_query.rs`：分页接入
+
+**技术要点**：
+- paginate_with_total 内部已做 page.saturating_sub(1) 偏移，调用方不可再减 1
+- 删除独立 select.clone().count() 查询，复用 paginator 的 num_items()
+- 统一补充 page.clamp(1, 1000) 防 DoS
+- currency_service.rs 有 2 处分页（list + get_history），均接入
+
+**CI 验证**：CI run #29062023389，12/12 核心 job 全绿（Clippy + 单元测试 + 后端构建均通过），E2E 失败为已知问题不阻塞（"启动后端服务"步骤失败）。PR #434 squash merge 到 main（commit 1865525）。
+
+---
 
 ### 批次 256：4 个 service 分页逻辑接入 paginate_with_total 第二批（PR #433）
 

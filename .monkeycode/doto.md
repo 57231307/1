@@ -5,7 +5,7 @@
 
 ---
 
-## 🔄 当前任务：v14 深度调研报告修复（高风险 6/6 完成，中风险 14/25 完成）
+## 🔄 当前任务：v14 深度调研报告修复（高风险 6/6 完成，中风险 15/25 完成）
 
 > **v14 深度调研报告**（2026-07-09，[bug.md](file:///workspace/.monkeycode/bug.md)）：12 维度全量扫描，15 高/25 中/74 低风险，共 114 个问题。
 > v13 后端 P0/P1 全部完成（批次 229-236），v13 剩余 P2 任务合并到 v14 队列。
@@ -24,7 +24,7 @@
 | 241 | P0-5 | API 文档缺失（恢复 docs.rs + 删 openapi.rs） | ✅ PR #418 |
 | 242 | P0-6 | 简化阉割-RFM 分布真实计算 | ✅ PR #419 |
 
-#### 🟡 中风险修复队列（25 项，已完成 14/25 🔄）
+#### 🟡 中风险修复队列（25 项，已完成 15/25 🔄）
 
 **待修复项（11 项 ⏳）**：
 
@@ -67,16 +67,16 @@
 
 **问题背景**：bug.md 中风险重复实现问题 — 项目中存在大量重复代码，违反 DRY 原则，维护成本高，修改时容易遗漏同步更新。
 
-**子任务 2.1：service 分页逻辑接入 paginate_with_total（累计 8/35 完成，剩余 27/35 ⏳）**
+**子任务 2.1：service 分页逻辑接入 paginate_with_total（累计 12/35 完成，剩余 23/35 ⏳）**
 
 **问题描述**：35 个 service 文件手写 `num_items + fetch_page` 分页逻辑，与已封装的 `paginate_with_total` 工具函数（`backend/src/utils/pagination.rs`）重复。手写逻辑存在不一致实现（部分未做 `saturating_sub(1)` 偏移、部分未做 `clamp` 防 DoS），且修改分页逻辑需逐个文件修改。
 
-**已修复文件（8 个 ✅）**：
+**已修复文件（12 个 ✅）**：
 - 批次 255：`sales_price_service.rs` / `ap_invoice_service.rs` / `role_service.rs`（修复偏移 bug）/ `supplier_service.rs`
 - 批次 256：`email_log_service.rs` / `email_template_service.rs` / `report_subscription_service.rs` / `report_template_service.rs`
+- 批次 257：`currency_service.rs`（2 处）/ `mrp_engine_service.rs` / `production_order_service.rs` / `scheduling_query.rs`
 
-**待修复文件（27 个 ⏳）**：
-- 批次 257 进行中（4 个）：`customer_service.rs` / `supplier_contact_service.rs` / `user_service.rs` / `notification_service.rs`
+**待修复文件（23 个 ⏳）**：
 - 批次 258 候选（4 个）：`quotation_service.rs`（需解决 ServiceError 转换）/ `inventory_service.rs` / `sales_order_service.rs` / `purchase_order_service.rs`
 - 剩余 19 个待识别：需扫描 `backend/src/services/` 下所有使用 `fetch_page` + `num_items` 的文件
 
