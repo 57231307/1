@@ -8,6 +8,7 @@ use std::sync::Arc;
 use crate::models::inventory_reservation::{self, Entity as InventoryReservationEntity};
 use crate::models::status::inventory_reservation as reservation_status;
 use crate::utils::error::AppError;
+use crate::utils::pagination::paginate_with_total;
 
 /// 库存预留服务
 pub struct InventoryReservationService {
@@ -121,6 +122,11 @@ impl InventoryReservationService {
     }
 
     /// 获取预留列表
+    ///
+    /// 批次 264 修复：接入 paginate_with_total 工具函数，修复两个 bug：
+    /// 1. 原 `fetch_page(page)` 未做 `saturating_sub(1)` 偏移（page 为 1-based，fetch_page 接收 0-based，原实现跳过第一页）
+    /// 2. 原 `total as i64` 类型不一致（paginate_with_total 返回 u64，统一为 u64）
+    /// 补 clamp(1, 1000) + clamp(1, 100) 防 DoS。
     pub async fn list_reservations(
         &self,
         page: u64,
@@ -128,9 +134,7 @@ impl InventoryReservationService {
         product_id: Option<i32>,
         warehouse_id: Option<i32>,
         status: Option<String>,
-    ) -> Result<(Vec<inventory_reservation::Model>, i64), AppError> {
-        use sea_orm::PaginatorTrait;
-
+    ) -> Result<(Vec<inventory_reservation::Model>, u64), AppError> {
         let mut query = InventoryReservationEntity::find();
 
         if let Some(pid) = product_id {
@@ -143,9 +147,8 @@ impl InventoryReservationService {
             query = query.filter(inventory_reservation::Column::Status.eq(s));
         }
 
-        let paginator = query.paginate(&*self.db, page_size);
-        let total = paginator.num_items().await? as i64;
-        let reservations = paginator.fetch_page(page).await?;
+        let paginator = query.paginate(&*self.db, page_size.clamp(1, 100));
+        let (reservations, total) = paginate_with_total(paginator, page.clamp(1, 1000)).await?;
 
         Ok((reservations, total))
     }

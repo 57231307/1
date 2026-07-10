@@ -29,7 +29,7 @@ use crate::models::seasonal_price_rule_dto::{
 };
 use crate::services::color_price_batch_service::{BatchError, ColorPriceBatchService};
 use crate::services::color_price_crud_service::{ColorPriceCrudService, CrudError};
-use crate::services::color_price_history_service::ColorPriceHistoryService;
+use crate::services::color_price_history_service::{ColorPriceHistoryService, HistoryError};
 use crate::services::color_price_seasonal_service::{ColorPriceSeasonalService, SeasonalError};
 use crate::services::color_price_tier_service::{ColorPriceTierService, TierError};
 use crate::utils::app_state::AppState;
@@ -46,6 +46,8 @@ fn crud_err(e: CrudError) -> AppError {
         CrudError::InvalidState => AppError::business("当前状态不允许此操作"),
         CrudError::Validation(msg) => AppError::validation(msg),
         CrudError::Database(e) => AppError::database(e.to_string()),
+        // 批次 264：paginate_with_total 返回的 AppError 直接透传
+        CrudError::App(e) => e,
     }
 }
 
@@ -71,6 +73,17 @@ fn seasonal_err(e: SeasonalError) -> AppError {
         SeasonalError::NotFound => AppError::not_found("季节规则不存在"),
         SeasonalError::Validation(msg) => AppError::validation(msg),
         SeasonalError::Database(e) => AppError::database(e.to_string()),
+        // 批次 264：paginate_with_total 返回的 AppError 直接透传
+        SeasonalError::App(e) => e,
+    }
+}
+
+/// 批次 264：HistoryError 错误转换（原使用 map_err 闭包，新增 App 变体后需区分透传）
+fn history_err(e: HistoryError) -> AppError {
+    match e {
+        HistoryError::Database(e) => AppError::database(e.to_string()),
+        // paginate_with_total 返回的 AppError 直接透传
+        HistoryError::App(e) => e,
     }
 }
 
@@ -250,8 +263,7 @@ pub async fn get_color_price_history(
 ) -> Result<Json<ApiResponse<PagedResponse<PriceHistoryItem>>>, AppError> {
     let service = ColorPriceHistoryService::from_state(&state);
 
-    let (items, total) = service.list_by_price(id, 1, 100).await
-        .map_err(|e| AppError::database(e.to_string()))?;
+    let (items, total) = service.list_by_price(id, 1, 100).await.map_err(history_err)?;
     let page_items: Vec<PriceHistoryItem> = items
         .into_iter()
         .map(|m| PriceHistoryItem {

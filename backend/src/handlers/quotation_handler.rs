@@ -549,6 +549,8 @@ impl From<ServiceError> for AppError {
             }
             ServiceError::Validation(msg) => AppError::validation(msg),
             ServiceError::Database(db_err) => AppError::internal(db_err.to_string()),
+            // 批次 264：paginate_with_total 返回的 AppError 直接透传
+            ServiceError::App(e) => e,
         }
     }
 }
