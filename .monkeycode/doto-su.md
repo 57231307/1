@@ -5,7 +5,75 @@
 
 ---
 
-## 📝 已完成批次详细记录（v14 阶段，批次 237-266）
+## 📝 已完成批次详细记录（v14 阶段，批次 237-269）
+
+### 批次 269：3 个 CRM view 接入 useTableApi 第三批 + 修复 pool 分页 bug（PR #447）
+
+**修复内容**：bug.md 中风险重复实现问题 — 继批次 267/268 后，第三批处理 CRM 模块 3 个文件，顺带修复 pool.vue 的硬编码分页 bug。
+
+**修改文件**（3 文件 +77 -91 行）：
+- `frontend/src/views/crm/leads/index.vue`：接入 useTableApi，移除 listLeads 调用 + `as unknown as ApiResponse<PageResult<T>>` 类型 hack
+- `frontend/src/views/crm/opportunities/index.vue`：接入 useTableApi，移除 listOpportunities 调用 + 类型 hack
+- `frontend/src/views/crm/pool.vue`：接入 useTableApi + **修复硬编码 `{page:1, page_size:50}` bug**（原分页/筛选完全失效）+ poolList 类型 `unknown[]` 修复为 `PoolCustomer[]`
+
+**技术要点**：
+- 三文件结构同构：queryParams reactive（含 page/page_size）+ 独立 ref（loading/list/total）+ getList 函数，统一替换为 useTableApi
+- leads/opportunities 移除 `as unknown as ApiResponse<PageResult<T>>` 类型 hack（useTableApi detectList 自动探测 list/total）
+- **pool.vue 严重 bug 修复**：原 `crmEnhancedApi.getPoolList({ page: 1, page_size: 50 })` 硬编码参数导致 queryParams 中的 page/page_size/keyword/customer_type 全部失效，分页 UI 形同虚设。接入 useTableApi 后自动传入真实参数
+- 移除未使用的 `ApiResponse`/`PageResult` 类型导入（避免 CI unused_imports 失败）
+- pool.vue 移除 `crmEnhancedApi` import（仅 getList 使用，对话框组件经独立路径 import）
+- useTableApi 的 refresh 别名为 getList，保持模板中 `@submitted="getList"` 等业务调用不变
+
+**CI 验证**：CI run #29100268463，10/10 核心 job 全绿（一次通过，无需修复）。PR #447 squash merge 到 main（commit f32811）。
+
+**view 表格逻辑接入进度**：7/56 完成（system 2 + supplierEvaluation + quotations + CRM 3）。剩余 49 文件待处理。
+
+---
+
+### 批次 268：2 个 view 接入 useTableApi 第二批（PR #446）
+
+**修复内容**：bug.md 中风险重复实现问题 — 继批次 267 后，第二批处理 2 个使用 el-table + el-pagination 模式的 view 文件。
+
+**修改文件**（2 文件 +62 -72 行）：
+- `frontend/src/views/supplierEvaluation/index.vue`：接入 useTableApi，配置 `pageSizeKey: 'pageSize'` 适配驼峰参数，URL `/purchase/supplier-evaluations/records`
+- `frontend/src/views/quotations/list.vue`：接入 useTableApi，移除 `QuotationListObj` 兼容类型（useTableApi detectList 自动探测数组/对象），URL `/quotations`
+
+**技术要点**：
+- supplierEvaluation 使用驼峰参数 `pageSize`，需配置 `pageSizeKey: 'pageSize'`（默认是下划线 `page_size`）
+- quotations API 返回 `ApiResponse<QuotationResponseDto[]>`（数组），useTableApi detectList 支持 `Array.isArray(payload)` 分支
+- refresh 别名保留：supplierEvaluation 的 `refresh: fetchRecords`、quotations 的 `refresh: loadData`，保持 handleSaveRecord/handleCancel/handleConvert 调用不变
+- supplierEvaluation 的 `onRecordPageChange` 和 quotations 的 `onPageChange` 为空函数（useTableApi 自动 watch page 重载）
+- 无对应测试文件，CI 前端测试不受影响
+
+**CI 验证**：CI run #29099024281，10/10 核心 job 全绿（一次通过，无需修复）。PR #446 squash merge 到 main（commit 8cf8352）。
+
+**view 表格逻辑接入进度**：4/56 完成（system 2 + supplierEvaluation + quotations）。剩余 52 文件待处理。
+
+---
+
+### 批次 267：2 个 view 接入 useTableApi 首批（PR #445）
+
+**修复内容**：bug.md 中风险重复实现问题 — 继 service 分页全部清零后，开始处理 view 表格逻辑接入 useTableApi。首批处理 system 模块 2 个文件。
+
+**修改文件**（4 文件 +160 -135 行）：
+- `frontend/src/views/system/audit-log/index.vue`：接入 useTableApi，移除手写 page/pageSize/total/loading + loadData + buildListParams + handlePageChange/handleSizeChange
+- `frontend/src/views/system/slow-query/index.vue`：同构接入，保留 TOP10 统计和手动刷新业务逻辑
+- `frontend/tests/unit/audit-log.test.ts`：mock 从 @/api/audit 改为 @/api/request（useTableApi 内部调用 request.get）
+- `frontend/tests/unit/slow-query.test.ts`：同构改造，保留 getSlowQueryStats/refreshSlowQueries mock
+
+**技术要点**：
+- useTableApi 配置 `listKey: 'items'` 适配 API 返回 `{ items, total }` 结构
+- 移除 `listAuditLogs` / `listSlowQueries` API 函数调用，改用 useTableApi 内部 `request.get(url)`
+- useTableApi 自动 watch page/pageSize 变化触发重载，handlePageChange/handleSizeChange 简化为仅更新值
+- handleQuery/handleReset 改用 syncQueryParams + refresh 模式（先清空旧筛选再写入新值）
+- audit-log 移除 onMounted（useTableApi 自动初始加载）；slow-query 保留 onMounted 仅加载统计
+- 测试 mock 关键点：mockRequestGet 返回 `{ code, message, data: { items, total } }`（ApiResponse 包装结构），断言 `mock.calls[0][1].params`（request.get 第二参数的 params）
+
+**CI 验证**：首次 CI run #29097575159 失败（前端测试 2 个文件报 `Cannot read properties of undefined (reading 'beforeEach')`，因 mock 的 listAuditLogs/listSlowQueries 已从 view 移除），修复 mock 后第二次 CI run #29097914672，10/10 核心 job 全绿。PR #445 squash merge 到 main（commit 698ea5e）。
+
+**view 表格逻辑接入进度**：2/56 完成（system 模块 audit-log + slow-query）。剩余 54 文件待处理。
+
+---
 
 ### 批次 266：3 个 service 分页接入 paginate_with_total 第十批（PR #444）
 

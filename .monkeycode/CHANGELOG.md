@@ -9,6 +9,9 @@
 
 | 批次 | PR | 一句话总结 |
 |------|-----|-----------|
+| 269 | #447 | 3 个 CRM view 接入 useTableApi 第三批（leads + opportunities + pool，修复 pool 硬编码分页 bug + poolList 类型修复） |
+| 268 | #446 | 2 个 view 接入 useTableApi 第二批（supplierEvaluation 配 pageSizeKey + quotations 移除兼容类型） |
+| 267 | #445 | 2 个 view 接入 useTableApi 首批（audit-log + slow-query，测试 mock 适配 @/api/request） |
 | 266 | #444 | 3 个 service 分页接入 paginate_with_total 第十批（inventory_stock_query 聚合查询 + fixed_asset + fund_management，service 分页重复实现全部清零） |
 | 265 | #443 | quotation_service 分页接入 paginate_with_total 第九批（ServiceError 错误转换 + handler match 穷尽） |
 | 264 | #442 | 4 个 service 分页接入 paginate_with_total 第八批（inventory_reservation 修复偏移 bug + color_price crud/history/seasonal 错误转换） |
