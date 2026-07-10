@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
 /**
  * useSysUpdProc.ts - 系统更新流程操作 composable
  * 任务编号: P14 批 2 I-3 第 1 批（拆分原 system-update/index.vue）

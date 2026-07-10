@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
 /**
  * usePpProc.ts - 采购价格流程操作 composable
  * 任务编号: P14 批 2 I-3 第 3 批（拆分原 purchase-price/index.vue）

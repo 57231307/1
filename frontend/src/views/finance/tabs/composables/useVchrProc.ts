@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
 /**
  * useVchrProc.ts - 凭证流程操作 composable
  * 任务编号: P14 批 1 B3 I-2

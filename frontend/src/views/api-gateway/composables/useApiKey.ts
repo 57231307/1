@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
 /**
  * useApiKey.ts - API 网关密钥管理 composable
  * 任务编号: P14 批 1 B3 I-2
