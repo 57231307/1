@@ -6,6 +6,8 @@
 use crate::models::{ap_invoice, ap_payment_request, ap_payment_request_item};
 use crate::utils::admin_checker::{ADMIN_ROLE_CODE, MANAGER_ROLE_CODE};
 use crate::utils::error::AppError;
+// 批次 259 修复：接入 paginate_with_total 统一分页逻辑
+use crate::utils::pagination::paginate_with_total;
 use chrono::{NaiveDate, Utc};
 use rust_decimal::Decimal;
 use sea_orm::{
@@ -438,15 +440,12 @@ impl ApPaymentRequestService {
             query = query.filter(ap_payment_request::Column::RequestDate.lte(ed));
         }
 
-        // 分页
+        // 批次 259 修复：接入 paginate_with_total 统一分页逻辑（内部已处理 saturating_sub(1) 偏移）
         let paginator = query
             .order_by(ap_payment_request::Column::CreatedAt, Order::Desc)
             .paginate(&*self.db, page_size);
 
-        let total = paginator.num_items().await?;
-        // SeaORM fetch_page 为 0-indexed，HTTP 层 page 为 1-indexed，需减 1 对齐
-        let items = paginator.fetch_page(page.saturating_sub(1)).await?;
-
+        let (items, total) = paginate_with_total(paginator, page.clamp(1, 1000)).await?;
         Ok((items, total))
     }
 
