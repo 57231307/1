@@ -181,19 +181,129 @@
 
 ---
 
-## 二、文件定义
+## 二、当前任务状态（2026-07-09 批次 237 启动 - v14 深度调研报告修复，从并发 async 阻塞开始）
+
+> 用户最高优先级规则已在「一、规则 0-12」固化，本节仅记录修复进度。
+> **规则 10 梳理记录**：
+> - 2026-07-10 批次 255 梳理（=17×15 触发，上次梳理批次 236 提前触发）
+> - 2026-07-09 批次 236 梳理（提前于批次 240 触发，因用户明确要求"梳理项目的所有记忆"）
+> - 2026-07-09 批次 228 梳理（15×15+3 触发，上次梳理批次 195）
+> **批次 243-255 已完成**：v14 中风险 13 项（安全漏洞 + 性能 + 空实现 + 简化阉割 + 死代码 + 重复实现首批 + 项目规则符合性），详见 doto.md 批次明细表。
+> **v14 高风险 6 项全部完成**（批次 237-242，P0-1 到 P0-6）。
+> **v13 后端 P0/P1 全部完成**（批次 229-236）。
+> **v14 深度调研报告**（2026-07-09，[bug.md](file:///workspace/.monkeycode/bug.md)）：12 维度全量扫描，15 高/25 中/74 低风险，共 114 个问题。修复进度：高风险 6/6 完成，中风险 13/25 完成（剩余 12 项：测试覆盖 7 + 重复实现 service 分页 31/35 + view 表格 30+）。
+
+### v14 深度调研报告修复（进行中 🔄，批次 237+）
+
+> 报告位置：[bug.md](file:///workspace/.monkeycode/bug.md)（2026-07-09 12 维度全量扫描）
+> 修复策略：按风险等级（高→中→低）+ 影响范围（核心路径→边缘功能）排序，每批 1 commit，CI 全绿后合并 main。
+
+**v14 高风险问题修复队列（15 项，按优先级排序）**：
+
+1. **并发-async 阻塞 P0-1**（4 处高，最高优先级，影响登录核心路径）✅ 批次 237 完成
+   - `backend/src/services/auth_service.rs:107` authenticate
+   - `backend/src/services/auth_service.rs:243` verify_password
+   - `backend/src/services/auth_service.rs:277` hash_password
+   - `backend/src/handlers/user_handler.rs:196/538/563/578` create_user/change_password
+   - 修复方案：`tokio::task::spawn_blocking(move || ...).await??` 包装 Argon2id 哈希计算
+   - 实际修复：新增 verify_password_async / hash_password_async 异步方法，7 处生产调用点全部改用异步版本（auth_service authenticate + user_handler 4 处 + init_service 2 处），同步版本保留供测试夹具使用
+   - CI run #29023784549：12/12 核心 job 全绿（Clippy + 单元测试 + 后端构建均通过），PR #414 squash merge 到 main（commit 7585097f）
+
+2. **性能-全表扫描 P0-2**（1 处高，ar_service.rs:1274-1321 get_aging_report）✅ 批次 238 完成
+   - 无日期范围 + 无 LIMIT 全表扫描，数据量增长后可能 OOM
+   - 修复方案：SQL 层聚合（CASE WHEN + SUM GROUP BY bucket）或加默认近 1 年日期范围 + LIMIT 上限
+   - 实际修复：单条 SQL CASE WHEN + SUM + COUNT 在数据库层完成分桶聚合，应用层只接收 1 行聚合结果，O(N) 内存 → O(1) 内存
+   - 规则 12 合规：customer_id 参数化绑定，禁止字符串拼接
+   - CI 修复：1 轮（Values 类型冲突 + query_one 调用方式 + try_get_by_index turbofish），CI run #29025818891 12/12 核心全绿，PR #415 squash merge 到 main（commit 775f7761）
+
+3. **空实现-业务失效 P0-3**（2 处高，前端查看按钮 handler 空）✅ 批次 239 完成
+   - `frontend/src/views/dye-batch/index.vue:341` handleView
+   - `frontend/src/views/dye-recipe/index.vue:318` handleView
+   - 修复方案：实现查看逻辑（打开详情对话框或路由跳转）
+   - 实际修复：新增 isView 只读模式标志，复用现有对话框实现查看功能（el-form :disabled + footer 按钮调整），两个文件一致
+   - CI run #29026950380：12/12 核心 job 全绿，PR #416 squash merge 到 main（commit 743a9595）
+
+4. **测试覆盖-安全核心 P0-4**（1 处高，permission.rs 全文件零测试）✅ 批次 240 完成
+   - `backend/src/middleware/permission.rs` 权限校验零测试，越权风险
+   - 修复方案：新增 `#[cfg(test)] mod tests`，覆盖管理员短路/缓存命中/过期/resource_id 精确匹配/`*` 通配符/嵌套路径
+   - 实际修复：提取 matches_permission 纯函数 + 23 个单元测试（extract_resource_info 8 + method_to_action 6 + CacheEntry 2 + matches_permission 9 含垂直越权防护）
+   - CI run #29028249081：12/12 核心 job 全绿，PR #417 squash merge 到 main（commit c72982b9）
+
+5. **API 文档缺失 P0-5**（2 处高，openapi.rs 仅覆盖 8/115 handlers 7%）✅ 批次 241 完成
+   - `backend/src/openapi.rs` 是未注册的幽灵文件（无 mod 声明），编译器看不到
+   - `backend/src/docs.rs` 是占位文件（ApiDoc 已删除），导致 `#[cfg(feature = "swagger")]` 编译失败
+   - `backend/src/routes/mod.rs:319-322` 引用 `crate::docs::ApiDoc::openapi()`，但 ApiDoc 不存在
+   - 仅 2 个 handler 有 `#[utoipa::path]` 注解：auth_handler::login + health_handler::health_check
+   - 修复方案：恢复 docs.rs ApiDoc（只注册有注解的 2 个 handler + 5 个 schema）+ 删除 openapi.rs 死文件
+   - 实际修复：docs.rs 恢复 ApiDoc struct + impl Default + TODO 注释（后续迭代补全 handler 注解）
+   - CI run #29029806479：12/12 核心 job 全绿（E2E 失败为已知问题不阻塞），PR #418 squash merge 到 main（commit de1437f0）
+
+6. **简化阉割-永久 P0-6**（1 处高，crm/cust.rs:265-275 get_rfm_distribution）✅ 批次 242 完成
+   - 返回全 0 占位 JSON，RFM 分布功能形同虚设
+   - 修复方案：真实批量计算所有客户 RFM 评分并聚合分布
+   - 实际修复：一次性查询所有客户 ID + 订单聚合（GROUP BY customer_id），内存计算 RFM 评分，分桶聚合（VIP>=4.5/重要>=3.5/一般>=2.5/低价值<2.5），提取 OrderAggRow/CustomerOrderStats type 别名避免 clippy type_complexity 警告
+   - CI run #29031527941：12/12 核心 job 全绿（1 轮 CI 修复：type_complexity），PR #419 squash merge 到 main（commit 146251d9）
+
+**v14 中风险问题修复队列（25 项，已完成 13/25 🔄）**：
+- 测试覆盖（7 项，⏳ 待修复）：handlers 100+ 文件覆盖率 10%、services 107 个无测试、frontend api 4.4%、ai 算法零测试等
+- 空实现（4 项，全部完成 ✅）：
+  - ✅ 批次 246：dye-recipe handleViewVersion（复用主对话框只读模式，PR #423 commit 16754cf7）
+  - ✅ 批次 252：bi_analysis_service 3 处 unreachable!() + dual_unit_converter_handler 1 处 unreachable!() 改为返回 AppError 错误，新增 6 个单元测试（PR #429 commit faa9749）
+  - ✅ 批次 253：AdvancedFilter handleLogicChange 空函数改为真实实现，新增 logicChange emit 事件（PR #430 commit da659f7）
+- 简化阉割（3 项，全部完成 ✅）：
+  - ✅ 批次 249：capacity_service 硬编码置信度 0.8 改为动态计算（PR #426 commit 82269a4）
+  - ✅ 批次 250：budget_management 跳过审批流改为完整审批闭环（PR #427 commit b2520cd）
+  - ✅ 批次 251：webhook retry 未持久化 payload（新增迁移 m0047 + 持久化 + retry_count 修复，PR #428 commit 226af53）
+- 死代码（1 项，全部完成 ✅）：✅ 批次 254：14 个 composable 文件 eslint-disable any 清理（PR #431 commit d2abb55）
+- 重复实现（2 项，进行中 🔄）：
+  - service 分页逻辑接入 paginate_with_total（首批 4/35 完成于批次 255，剩余 31/35）✅ 批次 255：sales_price/ap_invoice/role/supplier 接入，修复 role_service fetch_page 偏移 bug（PR #432 commit 026fcc3）
+  - 30+ view 表格逻辑重复接入 useTableApi ⏳ 待修复
+- 项目规则符合性（1 项，全部完成 ✅）：✅ 批次 247：cli/util/service.rs 硬编码健康检查 URL 改为环境变量读取（PR #424 commit 47d86d86）
+- 性能问题（5 项，全部完成 ✅）：
+  - ✅ 批次 244：ar_service 3 报表 SQL 聚合（PR #421 commit dcd8488d）
+  - ✅ 批次 245：ap_report_service 4 方法 SQL 聚合（PR #422 commit ae7d4619）
+  - ✅ 批次 248：AR/AP 报表 8 端点接入 CacheService 缓存（PR #425 commit 53ce6b53）
+- 安全漏洞（2 项，全部完成 ✅）：✅ 批次 243：report-templates XSS + tracking_handler 输入验证（PR #420 commit 0810fe3）
+- API 契约（0 项高风险，2 项低风险，后续迭代）
+
+**v14 低风险问题修复队列（74 项，后续迭代）**：
+- 占位符/Mock 存根（21 项，全部合理设计或测试夹具，多数无需修复）
+- 项目规则符合性（11 项，多为配置层默认值或 best-effort 合理模式）
+- 死代码（8 项，均合规标注）
+- 其他（34 项）
+
+### 历史复审进度摘要（v7-v13，已全部完成 ✅）
+
+> 详细修复明细已归档到 [docs/archives/2026-07-10/](file:///workspace/.monkeycode/docs/archives/2026-07-10/)。
+
+- **v7 复审**（批次 103-120）：webhook 真实接入 + 占位符清理 + failover/cache 模块删除
+- **v8 复审**（批次 121-129）：event_kafka 删除 + ElasticClient 真实实现 + SearchSyncer 接入
+- **v9 复审**（批次 130-135）：bi_analysis 16 方法真实接入 + purchase_inspection 4 明细 CRUD
+- **v11 复审**（批次 143-196）：P0 三项 + P1 dead_code 58 处真实接入 + 前端 any 清理
+- **v12 复审**（批次 197-228）：P0/P1 全部 + P2 状态字符串 82 处替换 + 342 个测试补测
+- **v13 复审**（批次 229-236）：P0/P1 全部（warehouse stub + 状态常量 25 域 + N+1 重构）
+
+**关键经验**：
+- N+1 修复模式：读用批量 IN + HashMap，写用 insert_many，乐观锁保持逐条
+- 跨文件 impl 块需谨慎评估（批次 121 教训：误删 report/ds.rs 导致 CI 失败）
+
+详细历史：见 [CHANGELOG.md](file:///workspace/.monkeycode/CHANGELOG.md) 与 [docs/archives/](file:///workspace/.monkeycode/docs/archives/)
+
+---
+
+## 三、文件定义
 
 | 文件 | 用途 | 说明 |
 |------|------|------|
-| `MEMORY.md` | 项目规则记忆 | **只记录规则、规范、关键经验**，禁止写入任务相关内容 |
-| `doto.md` | 详细任务内容 | **只记录任务及任务历史**（详细修改内容、技术要点、CI 验证等） |
-| `CHANGELOG.md` | 任务一句话总结 | **每个任务一句话摘要**，禁止写入详细任务内容 |
+| `MEMORY.md` | 项目规则记忆 | 规则、规范、关键经验（必须遵守） |
+| `doto.md` | 任务与历史 | 当前任务 + 历史归档索引（实时更新） |
+| `CHANGELOG.md` | 任务精简总结 | 任务一句话摘要列表（PR 完成后更新） |
 | `bug.md` | 漏洞登记 | 实时检测与修复（修复后删除条目） |
 | `docs/archives/` | 历史归档 | 已优化前的完整内容（按日期保留） |
 
 ---
 
-## 三、基础规范
+## 四、基础规范
 
 ### 沟通语言
 - 使用中文进行回复和沟通
@@ -215,10 +325,7 @@
 
 ### 记忆管理
 - 实时查看和更新 `MEMORY.md` 规则记忆文档
-- **三文件职责分工**（2026-07-10 用户明确修正）：
-  - `MEMORY.md` = 项目规则，**禁止写入任务相关内容**（规则、规范、关键经验）
-  - `doto.md` = 详细任务内容，**只记录任务及任务历史**（修改内容、技术要点、CI 验证等详细信息）
-  - `CHANGELOG.md` = 任务一句话总结，**禁止写入详细任务内容**（每个任务仅一行摘要）
+- 关键内容存储在 `MEMORY.md`，变更记录到 `CHANGELOG.md`
 - **路径策略（2026-06-19 确认）**：test 分支合并入 main 时 `-X theirs` 会覆盖 `.monkeycode/`，必须以 main 版本为准
 
 ### 死代码与未使用文件处理
@@ -247,7 +354,7 @@
 
 ---
 
-## 四、安全规范
+## 五、安全规范
 
 ### 敏感信息保护
 - 禁止硬编码敏感信息（密码、密钥、令牌等）
@@ -260,7 +367,7 @@
 
 ---
 
-## 五、CI/CD 强制
+## 六、CI/CD 强制
 
 ### 本地编译禁止
 - **禁止**本地编译验证（`cargo build` / `cargo check` / `cargo test` / `cargo fmt -- --check` / `cargo clippy` / `npm run build` / `vue-tsc` / `pnpm typecheck` 等）
@@ -289,7 +396,7 @@
 
 ---
 
-## 六、核心经验（关键排错与开发经验）
+## 七、核心经验（关键排错与开发经验）
 
 ### 集成测试跨 crate 调用私有函数
 - `tests/` 目录下的集成测试编译为**独立二进制 crate**，`fn foo()` 对集成测试 crate 不可见
@@ -396,7 +503,7 @@
 
 ---
 
-## 七、工作流协作
+## 八、工作流协作
 
 ### 工作角色定位
 - 主代理角色：总控（项目经理/架构师）
@@ -425,7 +532,7 @@
 
 ---
 
-## 八、代码规范
+## 九、代码规范
 
 ### 命名约定
 - 使用有意义、描述性的名称
@@ -455,7 +562,7 @@
 
 ---
 
-## 九、性能与错误处理
+## 十、性能与错误处理
 
 ### 数据库查询
 - 优化查询，避免 N+1
@@ -479,7 +586,7 @@
 
 ---
 
-## 十、文档与持续改进
+## 十一、文档与持续改进
 
 ### API 文档
 - 所有 API 接口必须有文档：接口路径、请求参数、响应格式、示例
@@ -496,7 +603,7 @@
 
 ---
 
-## 十一、用户习惯与协作偏好（2026-07-05 整理）
+## 十二、用户习惯与协作偏好（2026-07-05 整理）
 
 > 本章固化用户在历次会话中明确表达的工作习惯与协作偏好，作为代理行为的强制约束。
 
@@ -535,12 +642,9 @@
 ### 记忆管理偏好
 
 - `.monkeycode/` 文件夹定期整理优化（用户 2026-07-05 明确要求）
-- **三文件职责严格分工**（2026-07-10 用户明确修正）：
-  - `MEMORY.md` 只记录规则，禁止写入任务相关内容
-  - `doto.md` 只记录任务及任务历史（详细内容）
-  - `CHANGELOG.md` 只记录任务一句话总结，禁止写入详细任务内容
-- 早期内容归档到 `docs/archives/YYYY-MM-DD/`
+- 主文件（MEMORY/doto/CHANGELOG）保持精简，早期内容归档到 `docs/archives/YYYY-MM-DD/`
 - 用户习惯和新规则必须写入项目规则文件（MEMORY.md 一、章节），不能只留在对话上下文
+- 关键变更必须实时记录到 CHANGELOG.md
 
 ### CI 验证偏好
 
@@ -557,7 +661,7 @@
 
 ---
 
-## 十二、归档索引
+## 十三、归档索引
 
 完整历史内容（整理前的详细记录）：
 

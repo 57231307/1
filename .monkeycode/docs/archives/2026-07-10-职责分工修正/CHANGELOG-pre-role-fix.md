@@ -1,58 +1,14 @@
-# 详细任务内容与任务历史
+# 任务精简总结
 
-> 本文件记录**当前任务**与**已完成批次的详细内容**（修改内容、技术要点、CI 验证）。
-> 一句话摘要见 [CHANGELOG.md](file:///workspace/.monkeycode/CHANGELOG.md)，规则见 [MEMORY.md](file:///workspace/.monkeycode/MEMORY.md)。
-
----
-
-## 🔄 当前任务：v14 深度调研报告修复（高风险 6/6 完成，中风险 14/25 完成）
-
-> **v14 深度调研报告**（2026-07-09，[bug.md](file:///workspace/.monkeycode/bug.md)）：12 维度全量扫描，15 高/25 中/74 低风险，共 114 个问题。
-> v13 后端 P0/P1 全部完成（批次 229-236），v13 剩余 P2 任务合并到 v14 队列。
-> 修复策略：按优先级（高→中→低）+ 影响范围（核心路径→边缘功能）排序，每批 1 commit，CI 全绿后合并 main。
-
-### v14 修复任务队列
-
-#### 🔴 高风险修复队列（6 项，全部完成 ✅）
-
-| 批次 | 编号 | 问题 | 状态 |
-|------|------|------|------|
-| 237 | P0-1 | 并发-async 阻塞（spawn_blocking 包装 Argon2id） | ✅ PR #414 |
-| 238 | P0-2 | 性能-全表扫描（ar_service SQL 聚合） | ✅ PR #415 |
-| 239 | P0-3 | 空实现-业务失效（handleView 只读模式） | ✅ PR #416 |
-| 240 | P0-4 | 测试覆盖-安全核心（permission.rs 23 测试） | ✅ PR #417 |
-| 241 | P0-5 | API 文档缺失（恢复 docs.rs + 删 openapi.rs） | ✅ PR #418 |
-| 242 | P0-6 | 简化阉割-RFM 分布真实计算 | ✅ PR #419 |
-
-#### 🟡 中风险修复队列（25 项，已完成 14/25 🔄）
-
-- **测试覆盖（7 项，⏳ 待修复）**：handlers/services/frontend api/ai 算法/store/middleware
-- **空实现（4 项，全部完成 ✅）**：批次 246 handleViewVersion + 批次 252 bi_analysis unreachable! + 批次 253 AdvancedFilter handleLogicChange
-- **简化阉割（3 项，全部完成 ✅）**：批次 249 capacity + 批次 250 budget + 批次 251 webhook retry
-- **死代码（1 项，全部完成 ✅）**：批次 254 composable eslint-disable any 清理
-- **重复实现（2 项，进行中 🔄）**：service 分页接入 paginate_with_total（首批 4/35 完成于批次 255，第二批 4/35 完成于批次 256，累计 8/35；批次 257 第三批进行中）+ 30+ view 表格接入 useTableApi（⏳ 待修复）
-- **项目规则符合性（1 项，全部完成 ✅）**：批次 247 CLI 硬编码 URL
-- **性能问题（5 项，全部完成 ✅）**：批次 244 ar 报表 + 批次 245 ap 报表 + 批次 248 缓存接入
-- **安全漏洞（2 项，全部完成 ✅）**：批次 243 XSS + 输入验证
-
-#### 🟢 低风险修复队列（74 项，后续迭代）
-
-- 占位符/Mock 存根（21 项）/ 项目规则符合性（11 项）/ 死代码（8 项）/ 其他（34 项）
-
-#### 📋 合并到 v14 的历史遗留任务
-
-- ⏳ v13 前端 P2：FE-P2-1/2/3 → 合并到中风险
-- ⏳ v13 后端 P2：P2-1/2/3 → 合并到中风险
-- ⏳ FE-P2-3：i18n 覆盖率（200+ 视图，后续迭代）
-- ⏳ FE-P2-6：大列表虚拟化（966 处 el-table，后续迭代）
-- ⏳ P2-8 剩余 143 个无测试 service（后续迭代）
-- ⏳ E2E 失败排查（已知问题，待规则 5 节点）
+> 重要变更一句话摘要列表。详细历史请查阅 [`.monkeycode/docs/archives/`](file:///workspace/.monkeycode/docs/archives/)。
+>
+> 本文件保留批次 243+ 的详细记录（v14 修复阶段），批次 1-242 的详细记录已归档到 `docs/archives/2026-07-10/CHANGELOG-2026-07-10-pre-cleanup.md`。
 
 ---
 
-## 📝 已完成批次详细记录（v14 阶段，批次 237-256）
+## 2026-07-10 (批次 256 v14 中风险重复实现修复 — service 分页逻辑接入 paginate_with_total 第二批，CI 12/12 核心全绿)
 
-### 批次 256：4 个 service 分页逻辑接入 paginate_with_total 第二批（PR #433）
+### 批次 256：v14 中风险重复实现修复 — 4 个 service 分页逻辑接入 paginate_with_total 第二批
 
 **修复内容**：bug.md 中风险重复实现问题 — 继批次 255 首批 4 文件后，第二批处理 4 个 service 的 list 方法手写 num_items + fetch_page 分页逻辑，与已封装的 paginate_with_total 工具函数重复，违反 DRY 原则。
 
@@ -72,7 +28,9 @@
 
 ---
 
-### 批次 255：4 个 service 分页逻辑接入 paginate_with_total 首批（PR #432）
+## 2026-07-10 (批次 255 v14 中风险重复实现修复 — service 分页逻辑接入 paginate_with_total 首批，CI 12/12 核心全绿)
+
+### 批次 255：v14 中风险重复实现修复 — 4 个 service 分页逻辑接入 paginate_with_total
 
 **修复内容**：bug.md 中风险重复实现问题 — 35 个 service 文件手写 `num_items + fetch_page` 分页逻辑，与已封装的 `paginate_with_total` 工具函数重复，违反 DRY 原则。首批处理 4 个文件。
 
@@ -92,9 +50,11 @@
 
 ---
 
-### 批次 254：14 个 composable 文件 eslint-disable any 指令清理（PR #431）
+## 2026-07-10 (批次 254 v14 中风险死代码修复 — composable eslint-disable any 清理，CI 12/12 核心全绿)
 
-**修复内容**：bug.md 中风险死代码问题 — 14 个 composable 文件首行均有 `/* eslint-disable @typescript-eslint/no-explicit-any */`，但经审计这些文件中真实的 any 类型使用为 0。这些 eslint-disable 指令是 P14 批次拆分 Vue 重构时为快速通过 lint 而添加的残留，现已成为 any 类型的"避风港"。
+### 批次 254：v14 中风险死代码修复 — 14 个 composable 文件 eslint-disable any 指令清理
+
+**修复内容**：bug.md 中风险死代码问题 — 14 个 composable 文件首行均有 `/* eslint-disable @typescript-eslint/no-explicit-any */`，但经审计这些文件中真实的 any 类型使用为 0（已在早期批次中替换为 `unknown` + 类型守卫或具体业务类型）。这些 eslint-disable 指令是 P14 批次拆分 Vue 重构时为快速通过 lint 而添加的残留，现已成为 any 类型的"避风港"，与 v11 前端 P2-1 any 类型清理成果相矛盾。
 
 **修改文件**（14 文件 +0 -14 行）：
 - `frontend/src/views/voucher/tabs/composables/useVchrLst.ts` + `useVchrLstProc.ts`
@@ -111,32 +71,38 @@
 - 审计结果：14 个文件共 2836 行，any 匹配行 31 行（全部为指令 + 注释），真实 any 类型使用 0 处
 - 所有文件的 catch 块已使用 `catch (error: unknown)` + `error instanceof Error` 类型守卫
 - ref/参数/返回值均使用具体业务实体类型（VoucherEntity/SalesPrice/PurchaseContract 等）
+- 删除 eslint-disable 指令后 ESLint + 类型检查一次通过，确认无遗漏的 any 使用
 
 **CI 验证**：CI run #29058822394，12/12 核心 job 全绿（ESLint + 类型检查一次通过），E2E 失败为已知问题不阻塞。PR #431 squash merge 到 main（commit d2abb55）。
 
 ---
 
-### 批次 253：AdvancedFilter handleLogicChange 空函数改为真实实现（PR #430）
+## 2026-07-10 (批次 253 v14 中风险空实现修复 — AdvancedFilter handleLogicChange 真实实现，CI 12/12 核心全绿)
 
-**修复内容**：bug.md 中风险空实现问题 — `AdvancedFilter.vue` 第 249 行 `handleLogicChange` 为空函数 `() => {}`，用户切换条件组逻辑运算符时无任何响应。
+### 批次 253：v14 中风险空实现修复 — AdvancedFilter handleLogicChange 空函数改为真实实现
+
+**修复内容**：bug.md 中风险空实现问题 — `AdvancedFilter.vue` 第 249 行 `handleLogicChange` 为空函数 `() => {}`，绑定在第 36 行的条件组 AND/OR 逻辑切换下拉框 `@change`。用户切换条件组逻辑运算符时无任何响应，多条件组合查询能力失效。
 
 **修改文件**（2 文件 +31 -2 行）：
 - `frontend/src/components/AdvancedFilter.vue`：新增 `logicChange` emit 事件 + `handleLogicChange` 接收 `groupIndex` 参数实现真实逻辑
-- `frontend/src/views/components-demo/AdvancedFilterDemo.vue`：演示 `logicChange` 事件真实接入
+- `frontend/src/views/components-demo/AdvancedFilterDemo.vue`：演示 `logicChange` 事件真实接入（自动更新筛选结果）
 
 **技术要点**：
 - 新增 `logicChange: [groupIndex: number, logic: 'AND' | 'OR', filters: FilterGroup[]]` emit 事件
-- `handleLogicChange` 接收 `groupIndex` 参数，emit 事件让父组件可响应
+- `handleLogicChange` 接收 `groupIndex` 参数，emit 事件让父组件可响应（如自动重新查询或更新预览）
 - 显示轻量级 `ElMessage.info` 提示让用户知道逻辑已切换（duration: 1500ms）
 - 模板 `@change` 改为 `() => handleLogicChange(groupIndex)` 传递循环索引
+- Demo 页面 `handleLogicChange` 演示：自动更新 `filterResult` 以反映新的逻辑关系
 
 **CI 验证**：CI run #29058007479，12/12 核心 job 全绿，E2E 失败为已知问题不阻塞。PR #430 squash merge 到 main（commit da659f7）。
 
 ---
 
-### 批次 252：bi_analysis + dual_unit_converter unreachable!() 改为返回错误（PR #429）
+## 2026-07-10 (批次 252 v14 中风险空实现修复 — unreachable! panic 改为返回错误，CI 12/12 核心全绿)
 
-**修复内容**：bug.md 中风险空实现问题 — `bi_analysis_service.rs` 三处 `unreachable!()` 宏调用，用户可控的 dim/measure 参数若绕过校验将触发 panic 导致进程崩溃；`dual_unit_converter_handler.rs` 第 116 行 `unreachable!()` 在校验逻辑被重构后可能 panic 崩溃。
+### 批次 252：v14 中风险空实现修复 — bi_analysis + dual_unit_converter unreachable! 改为防御性错误处理
+
+**修复内容**：bug.md 中风险空实现问题 — `bi_analysis_service.rs` 三处 `unreachable!()` 宏调用（`dim_to_expr` 函数第 254 行 dimension 维度匹配 `_` 分支 + 第 1188 行 item 级 measure 匹配 `_` 分支 + 第 1203 行 order 级 measure 匹配 `_` 分支），用户可控的 dim/measure 参数若绕过校验将触发 panic 导致进程崩溃；`dual_unit_converter_handler.rs` 第 116 行 `unreachable!()` 在校验逻辑被重构后可能 panic 崩溃。
 
 **修改文件**（2 文件 +101 -31 行）：
 - `backend/src/services/bi_analysis_service.rs`：`dim_to_expr` 返回类型改为 `Result`，`_` 分支返回 `AppError::validation`；提取 `measure_to_expr` 独立函数替代原内联 match + `unreachable!()`；新增 6 个单元测试
@@ -146,16 +112,18 @@
 - `dim_to_expr`：返回类型从 `(&'static str, &'static str)` 改为 `Result<(&'static str, &'static str), AppError>`，`_` 分支返回 `AppError::validation(format!("不支持的维度: {}", dim))`
 - 提取 `measure_to_expr(measure, item_level)` 独立函数，用 `(measure, item_level)` 元组 match 替代原两处内联 match，`_` 分支返回 `AppError::validation`
 - `pivot` 方法调用处加 `?` 传播错误
-- `dual_unit_converter_handler.rs`：`_ => unreachable!(...)` 改为 `_ => return Err(AppError::bad_request("无效的单位..."))`
+- `dual_unit_converter_handler.rs`：`_ => unreachable!(...)` 改为 `_ => return Err(AppError::bad_request("无效的单位..."))`，防御性返回错误
 - 新增 6 个单元测试：验证所有合法维度/度量返回 Ok，非法维度/度量/空字符串返回 Err（而非 panic）
 
 **CI 验证**：CI run #29046877533，12/12 核心 job 全绿（Clippy 一次通过），E2E 失败为已知问题不阻塞。PR #429 squash merge 到 main（commit faa9749）。
 
 ---
 
-### 批次 251：webhook retry 持久化 payload + retry_count 修复（PR #428）
+## 2026-07-10 (批次 251 v14 中风险简化阉割修复 — webhook retry payload 持久化，CI 12/12 核心全绿)
 
-**修复内容**：bug.md 中风险简化阉割问题 — `webhook_service.rs` 的 webhook 发送时 payload 仅存内存，发送后丢弃；`retry_webhook` 构造假 payload；retry_count 仅在网络层异常时递增；原代码用 `if let ActiveValue::Set(v) = &final_model.retry_count` 取值，但 `webhook.into()` 生成 `Unchanged` 值，导致模式匹配永远不命中，retry_count 永远读 0。
+### 批次 251：v14 中风险简化阉割修复 — webhook retry 从假 payload 改为重投持久化原始数据
+
+**修复内容**：bug.md 中风险简化阉割问题 — `webhook_service.rs` 的 webhook 发送时 payload 仅存内存，发送后丢弃；`retry_webhook` 构造假 payload `{"webhook_id","retry":true}`，接收方拿不到原始业务上下文；retry_count 仅在网络层异常时递增（HTTP 业务失败 4xx/5xx 不计数）；原代码用 `if let ActiveValue::Set(v) = &final_model.retry_count` 取值，但 `webhook.into()` 生成 `Unchanged` 值，导致模式匹配永远不命中，retry_count 永远读 0。
 
 **修改文件**（7 文件 +95 -33 行）：
 - `backend/migration/src/m0047_add_last_payload_to_webhooks.rs`：新增迁移模块
@@ -176,9 +144,11 @@
 
 ---
 
-### 批次 250：budget_management 审批流完整化（PR #427）
+## 2026-07-10 (批次 250 v14 中风险简化阉割修复 — budget_management 审批流完整化，CI 12/12 核心全绿)
 
-**修复内容**：bug.md 中风险简化阉割问题 — `budget_management_service.rs` 的 `adjust_budget` 方法硬编码 `approval_status: APPROVED` 并立即应用金额变更（注释自述"简化：直接批准"），完全跳过审批环节。
+### 批次 250：v14 中风险简化阉割修复 — budget_management adjust_budget 审批流跳过改为完整审批闭环
+
+**修复内容**：bug.md 中风险简化阉割问题 — `budget_management_service.rs` 的 `adjust_budget` 方法硬编码 `approval_status: APPROVED` 并立即应用金额变更（注释自述"简化：直接批准"），完全跳过审批环节。预算金额调整属高风险财务操作，应经审批人审核。
 
 **修改文件**（4 文件 +207 -9 行）：
 - `backend/src/services/budget_management_service.rs`：修改 `adjust_budget` + 新增 `approve_adjustment`/`reject_adjustment`/`reject_plan` 方法
@@ -198,7 +168,9 @@
 
 ---
 
-### 批次 249：capacity_service 硬编码置信度动态化（PR #426）
+## 2026-07-10 (批次 249 v14 中风险简化阉割修复 — capacity_service 硬编码置信度动态化，CI 12/12 核心全绿)
+
+### 批次 249：v14 中风险简化阉割修复 — capacity_service forecast_capacity 硬编码置信度 0.8 改为动态计算
 
 **修复内容**：bug.md 中风险简化阉割问题 — `capacity_service.rs` 的 `forecast_capacity` 方法硬编码 `confidence: 0.8`，无法反映历史数据量和预测期限对预测可信度的影响。
 
@@ -219,9 +191,11 @@
 
 ---
 
-### 批次 248：AR/AP 报表接入 CacheService 缓存（PR #425）
+## 2026-07-10 (批次 248 v14 中风险缓存未利用修复 — AR/AP 报表接入 CacheService，CI 12/12 核心全绿)
 
-**修复内容**：bug.md 中风险性能问题 — `cache_service.rs` 已实现并注入 AppState，但零业务调用（命中率统计永远为 0）。AR/AP 报表 8 个端点每次请求都执行 SQL 聚合查询。
+### 批次 248：v14 中风险缓存未利用修复 — AR/AP 报表 8 端点接入 CacheService
+
+**修复内容**：bug.md 中风险性能问题 — `cache_service.rs` 已实现并注入 AppState，但零业务调用（命中率统计永远为 0）。AR/AP 报表 8 个端点每次请求都执行 SQL 聚合查询，重复查询浪费数据库资源。
 
 **修改文件**（2 文件 +158 -8 行）：
 - `backend/src/handlers/ar_report_handler.rs`：4 个端点（statistics/daily/monthly/aging）接入 CacheService
@@ -239,7 +213,9 @@
 
 ---
 
-### 批次 247：CLI 健康检查硬编码 URL 改为环境变量读取（PR #424）
+## 2026-07-10 (批次 247 v14 中风险硬编码 URL 修复 — CLI 健康检查，CI 12/12 核心全绿)
+
+### 批次 247：v14 中风险硬编码 URL 修复 — CLI 健康检查
 
 **修复内容**：bug.md 中风险漏洞 #17 — `backend/src/cli/util/service.rs:191` 硬编码 `http://127.0.0.1:8082/health`，部署到非 8082 端口环境时健康检查失效。
 
@@ -257,7 +233,9 @@
 
 ---
 
-### 批次 246：dye-recipe handleViewVersion 空实现修复（PR #423）
+## 2026-07-10 (批次 246 v14 中风险空实现修复 — dye-recipe handleViewVersion，CI 12/12 核心全绿)
+
+### 批次 246：v14 中风险空实现修复 — dye-recipe handleViewVersion
 
 **修复内容**：bug.md 中风险空实现漏洞 #18 — `frontend/src/views/dye-recipe/index.vue` 的 `handleViewVersion` 原为空实现（`(_row: DyeRecipe) => {}`），用户在版本历史对话框中点击"查看"按钮无任何响应。
 
@@ -268,7 +246,9 @@
 
 ---
 
-### 批次 245：ap_report_service 4 个报表方法 SQL 层聚合（PR #422）
+## 2026-07-09 (批次 245 v14 中风险性能修复 — ap_report_service 报表 SQL 聚合，CI 12/12 核心全绿)
+
+### 批次 245：v14 中风险性能修复 — ap_report_service 4 个报表方法 SQL 层聚合
 
 **修复内容**：bug.md 中风险性能问题 — ap_report_service.rs 4 个报表方法全量加载发票到内存做聚合，宽日期范围查询可能导致 OOM。
 
@@ -288,7 +268,9 @@
 
 ---
 
-### 批次 244：ar_service 3 个报表方法 SQL 层聚合（PR #421）
+## 2026-07-09 (批次 244 v14 中风险性能修复 — ar_service 报表 SQL 聚合，CI 12/12 核心全绿)
+
+### 批次 244：v14 中风险性能修复 — ar_service 3 个报表方法 SQL 层聚合
 
 **修复内容**：bug.md 中风险性能问题 — ar_service.rs 3 个报表方法全量加载发票到内存做聚合，宽日期范围查询可能导致 OOM。
 
@@ -308,7 +290,9 @@
 
 ---
 
-### 批次 243：report-templates XSS + tracking_handler 输入验证（PR #420）
+## 2026-07-09 (批次 243 v14 中风险安全漏洞修复，CI 12/12 核心全绿，中风险 1/25 完成)
+
+### 批次 243：v14 中风险安全漏洞修复（XSS 防护 + 输入验证）
 
 **修复内容**：bug.md 深度调研报告中风险安全漏洞 — 2 个问题：
 1. report-templates/index.vue XSS 潜在风险：报表预览单元格值直接拼接 HTML，DOMPurify 默认允许 `<img>`/`<a>` 标签
@@ -327,105 +311,7 @@
 
 ---
 
-### 批次 242：crm/cust get_rfm_distribution 真实计算（PR #419）
+## 历史归档
 
-**修复内容**：bug.md 高风险简化阉割问题 — `crm/cust.rs:265-275 get_rfm_distribution` 返回全 0 占位 JSON，RFM 分布功能形同虚设。
-
-**修改文件**：`backend/src/services/crm/cust.rs`
-
-**技术要点**：
-- 一次性查询所有客户 ID + 订单聚合（GROUP BY customer_id），内存计算 RFM 评分
-- 分桶聚合（VIP>=4.5/重要>=3.5/一般>=2.5/低价值<2.5）
-- 提取 OrderAggRow/CustomerOrderStats type 别名避免 clippy type_complexity 警告
-
-**CI 验证**：CI run #29031527941，12/12 核心 job 全绿（1 轮 CI 修复：type_complexity），PR #419 squash merge 到 main（commit 146251d9）。
-
----
-
-### 批次 241：恢复 docs.rs ApiDoc + 删除 openapi.rs 死文件（PR #418）
-
-**修复内容**：bug.md 高风险 API 文档缺失 — `backend/src/openapi.rs` 是未注册的幽灵文件（无 mod 声明），`backend/src/docs.rs` 是占位文件（ApiDoc 已删除），导致 `#[cfg(feature = "swagger")]` 编译失败。仅 2 个 handler 有 `#[utoipa::path]` 注解。
-
-**修改文件**：`backend/src/docs.rs`（恢复 ApiDoc struct + impl Default + TODO 注释）
-
-**技术要点**：
-- 恢复 docs.rs ApiDoc（只注册有注解的 2 个 handler + 5 个 schema）
-- 删除 openapi.rs 死文件
-- `backend/src/routes/mod.rs:319-322` 引用 `crate::docs::ApiDoc::openapi()` 恢复正常
-
-**CI 验证**：CI run #29029806479，12/12 核心 job 全绿（E2E 失败为已知问题不阻塞），PR #418 squash merge 到 main（commit de1437f0）。
-
----
-
-### 批次 240：permission.rs 权限校验新增 23 个单元测试（PR #417）
-
-**修复内容**：bug.md 高风险测试覆盖 — `backend/src/middleware/permission.rs` 权限校验零测试，越权风险。
-
-**修改文件**：`backend/src/middleware/permission.rs`
-
-**技术要点**：
-- 提取 matches_permission 纯函数
-- 新增 23 个单元测试（extract_resource_info 8 + method_to_action 6 + CacheEntry 2 + matches_permission 9 含垂直越权防护）
-- 覆盖管理员短路/缓存命中/过期/resource_id 精确匹配/`*` 通配符/嵌套路径
-
-**CI 验证**：CI run #29028249081，12/12 核心 job 全绿，PR #417 squash merge 到 main（commit c72982b9）。
-
----
-
-### 批次 239：dye-batch/dye-recipe handleView 空实现修复（PR #416）
-
-**修复内容**：bug.md 高风险空实现 — `frontend/src/views/dye-batch/index.vue:341` handleView + `frontend/src/views/dye-recipe/index.vue:318` handleView 均为空函数。
-
-**修改文件**（2 文件）：dye-batch/index.vue + dye-recipe/index.vue
-
-**技术要点**：
-- 新增 isView 只读模式标志
-- 复用现有对话框实现查看功能（el-form :disabled + footer 按钮调整）
-
-**CI 验证**：CI run #29026950380，12/12 核心 job 全绿，PR #416 squash merge 到 main（commit 743a9595）。
-
----
-
-### 批次 238：ar_service get_aging_report 全表扫描改为 SQL 聚合（PR #415）
-
-**修复内容**：bug.md 高风险性能 — `ar_service.rs:1274-1321 get_aging_report` 无日期范围 + 无 LIMIT 全表扫描，数据量增长后可能 OOM。
-
-**修改文件**：`backend/src/services/ar_service.rs`
-
-**技术要点**：
-- 单条 SQL CASE WHEN + SUM + COUNT 在数据库层完成分桶聚合
-- 应用层只接收 1 行聚合结果，O(N) 内存 → O(1) 内存
-- 规则 12 合规：customer_id 参数化绑定
-- CI 修复：1 轮（Values 类型冲突 + query_one 调用方式 + try_get_by_index turbofish）
-
-**CI 验证**：CI run #29025818891 12/12 核心全绿，PR #415 squash merge 到 main（commit 775f7761）。
-
----
-
-### 批次 237：auth_service/user_handler Argon2id 异步化（PR #414）
-
-**修复内容**：bug.md 高风险并发-async 阻塞 — 4 处 Argon2id 哈希计算阻塞 async runtime，影响登录核心路径。
-
-**修改文件**：`backend/src/services/auth_service.rs` + `backend/src/handlers/user_handler.rs`
-
-**技术要点**：
-- 新增 verify_password_async / hash_password_async 异步方法
-- 使用 `tokio::task::spawn_blocking(move || ...).await??` 包装 Argon2id 哈希计算
-- 7 处生产调用点全部改用异步版本（auth_service authenticate + user_handler 4 处 + init_service 2 处）
-- 同步版本保留供测试夹具使用
-
-**CI 验证**：CI run #29023784549，12/12 核心 job 全绿（Clippy + 单元测试 + 后端构建均通过），PR #414 squash merge 到 main（commit 7585097f）。
-
----
-
-## 历史归档索引
-
-| 归档日期 | 内容 | 路径 |
-|----------|------|------|
-| 2026-07-10 | 职责分工修正前完整内容（MEMORY/doto/CHANGELOG） | `docs/archives/2026-07-10-职责分工修正/` |
-| 2026-07-10 | doto/MEMORY/CHANGELOG 整理前完整内容 | `docs/archives/2026-07-10/` |
-| 2026-07-05 | MEMORY/CHANGELOG/doto 优化前完整内容 | `docs/archives/2026-07-05/` |
-| 2026-06-24 | MEMORY/CHANGELOG 优化前完整内容 | `docs/archives/` |
-
-> 批次 1-236 的详细记录见归档文件和 [CHANGELOG.md](file:///workspace/.monkeycode/CHANGELOG.md) 历史归档章节。
-> 历次复审报告见 `docs/audits/` 目录。
+> 批次 1-242 的详细记录已归档到 [docs/archives/2026-07-10/CHANGELOG-2026-07-10-pre-cleanup.md](file:///workspace/.monkeycode/docs/archives/2026-07-10/CHANGELOG-2026-07-10-pre-cleanup.md)。
+> 批次 1-99 的更早记录见 [docs/archives/2026-07-05/](file:///workspace/.monkeycode/docs/archives/2026-07-05/)。
