@@ -2,11 +2,10 @@
 /**
  * P2-4 质量预测列表 + 创建
  */
-import { onMounted, reactive, ref, computed } from 'vue'
+import { reactive, ref, computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import {
-  listQualityPredictions,
   createQualityPrediction,
   acknowledgeQualityPrediction,
   deleteQualityPrediction,
@@ -18,21 +17,32 @@ import {
   type QualityPredRequest,
 } from '@/api/ai-extend'
 import AIPredictionChart from '@/components/ai/AIPredictionChart.vue'
+// 批次 280：接入 useTableApi，消除手写 items/loading/total/page/pageSize/load 重复
+import { useTableApi } from '@/composables/useTableApi'
 
 // 批次 34 v9 P1：接入 i18n，替换硬编码中文 ElMessage
 const { t } = useI18n({ useScope: 'global' })
-
-const loading = ref(false)
-const items = ref<AiQualityPrediction[]>([])
-const total = ref(0)
-const page = ref(1)
-const pageSize = ref(20)
 
 const queryFilter = reactive({
   product_id: undefined as number | undefined,
   inspection_type: undefined as string | undefined,
   risk_level: undefined as string | undefined,
   is_acknowledged: undefined as boolean | undefined,
+})
+
+// 批次 280：useTableApi 自动管理分页状态、数据加载，自动 watch page/pageSize 变化触发重载
+// listQualityPredictions 返回 PageResult<T>（{ items, total }），useTableApi detectList 会取 obj.items
+const {
+  data: items,
+  loading,
+  page,
+  pageSize,
+  total,
+  refresh: load,
+  setQueryParam,
+} = useTableApi<AiQualityPrediction>({
+  url: '/ai/quality-predictions',
+  onError: () => ElMessage.error(t('aiExtend.qualityPrediction.loadListFailed')),
 })
 
 // 派生下拉选项（从 LABEL 字典生成 OPTIONS 数组，供 el-select 使用）
@@ -54,24 +64,18 @@ const submitting = ref(false)
 const detailVisible = ref(false)
 const detailModel = ref<AiQualityPrediction | null>(null)
 
-async function load() {
-  loading.value = true
-  try {
-    const res = await listQualityPredictions({
-      page: page.value,
-      page_size: pageSize.value,
-      product_id: queryFilter.product_id,
-      inspection_type: queryFilter.inspection_type,
-      risk_level: queryFilter.risk_level,
-      is_acknowledged: queryFilter.is_acknowledged,
-    })
-    items.value = res.items
-    total.value = res.total
-  } catch (e) {
-    ElMessage.error(t('aiExtend.qualityPrediction.loadListFailed'))
-  } finally {
-    loading.value = false
-  }
+// 批次 280：同步筛选条件到 useTableApi.queryParams 并刷新
+function syncQueryParams() {
+  setQueryParam('product_id', queryFilter.product_id)
+  setQueryParam('inspection_type', queryFilter.inspection_type)
+  setQueryParam('risk_level', queryFilter.risk_level)
+  setQueryParam('is_acknowledged', queryFilter.is_acknowledged)
+}
+
+function handleSearch() {
+  syncQueryParams()
+  page.value = 1
+  load()
 }
 
 function openCreate() {
@@ -134,6 +138,7 @@ function resetFilter() {
   queryFilter.inspection_type = undefined
   queryFilter.risk_level = undefined
   queryFilter.is_acknowledged = undefined
+  syncQueryParams()
   page.value = 1
   load()
 }
@@ -164,8 +169,6 @@ const detailRecommendations = computed(() => {
   if (Array.isArray(json)) return json as string[]
   return []
 })
-
-onMounted(load)
 </script>
 
 <template>
@@ -198,7 +201,7 @@ onMounted(load)
           </el-select>
         </el-form-item>
         <el-form-item>
-          <el-button type="primary" @click="() => { page = 1; load() }">查询</el-button>
+          <el-button type="primary" @click="handleSearch">查询</el-button>
           <el-button @click="resetFilter">重置</el-button>
         </el-form-item>
       </el-form>
@@ -257,8 +260,6 @@ onMounted(load)
         :total="total"
         :page-sizes="[10, 20, 50, 100]"
         layout="total, sizes, prev, pager, next, jumper"
-        @current-change="load"
-        @size-change="() => { page = 1; load() }"
         style="margin-top: 16px; justify-content: flex-end"
       />
     </el-card>

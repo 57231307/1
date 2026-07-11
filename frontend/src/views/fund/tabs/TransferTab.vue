@@ -44,13 +44,11 @@
 
       <div class="pagination-container">
         <el-pagination
-          v-model:current-page="transferQueryForm.page"
-          v-model:page-size="transferQueryForm.page_size"
+          v-model:current-page="page"
+          v-model:page-size="pageSize"
           :page-sizes="[10, 20, 50, 100]"
           :total="transferTotal"
           layout="total, sizes, prev, pager, next, jumper"
-          @size-change="fetchTransfers"
-          @current-change="fetchTransfers"
         />
       </div>
     </el-card>
@@ -141,24 +139,32 @@ import { ElMessage, ElMessageBox, type FormInstance, type FormRules } from 'elem
 import { Money } from '@element-plus/icons-vue'
 import {
   listFundAccounts,
-  listFundTransfers,
   getFundTransfer,
   transferFund,
   type FundAccount,
   type FundTransferRecord,
 } from '@/api/fund'
+// 批次 280：接入 useTableApi，消除手写 transferList/transferLoading/transferTotal/fetchTransfers 重复
+import { useTableApi } from '@/composables/useTableApi'
 
-const transferLoading = ref(false)
 const transferSubmitLoading = ref(false)
 const transferVisible = ref(false)
 const accountList = ref<FundAccount[]>([])
-const transferList = ref<FundTransferRecord[]>([])
 const transferFormRef = ref<FormInstance>()
-const transferTotal = ref(0)
 
-const transferQueryForm = reactive({
-  page: 1,
-  page_size: 20,
+// 批次 280：useTableApi 自动管理分页状态、数据加载，自动 watch page/pageSize 变化触发重载
+// listFundTransfers 返回 ApiResponse<FundTransferRecord[]>（{ data: T[] }），useTableApi detectList 会 fallback 到 obj.data
+const {
+  data: transferList,
+  loading: transferLoading,
+  page,
+  pageSize,
+  total: transferTotal,
+  refresh: fetchTransfers,
+} = useTableApi<FundTransferRecord>({
+  url: '/fund-management/transfers',
+  onError: (err: unknown) =>
+    ElMessage.error((err instanceof Error ? err.message : String(err)) || '获取转账记录失败'),
 })
 
 const transferForm = reactive({
@@ -208,23 +214,6 @@ const availableBalance = computed(() => {
         0
     : 999999999
 })
-
-const fetchTransfers = async () => {
-  transferLoading.value = true
-  try {
-    const res = await listFundTransfers(transferQueryForm)
-    const d = res.data as
-      | { list?: FundTransferRecord[]; items?: FundTransferRecord[]; data?: FundTransferRecord[] }
-      | FundTransferRecord[]
-    transferList.value = Array.isArray(d) ? d : d?.list || d?.items || []
-    transferTotal.value = Array.isArray(d) ? d.length : d?.list?.length || 0
-  } catch (e) {
-    const err = e as Error
-    ElMessage.error(err.message || '获取转账记录失败')
-  } finally {
-    transferLoading.value = false
-  }
-}
 
 const fetchAccounts = async () => {
   try {
@@ -326,6 +315,5 @@ const getTransferStatusLabel = (status: string) => {
 
 onMounted(() => {
   fetchAccounts()
-  fetchTransfers()
 })
 </script>
