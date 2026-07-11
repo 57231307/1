@@ -97,13 +97,13 @@
 
       <div class="pagination-container">
         <el-pagination
-          v-model:current-page="queryForm.page"
-          v-model:page-size="queryForm.page_size"
+          v-model:current-page="page"
+          v-model:page-size="pageSize"
           :page-sizes="[10, 20, 50, 100]"
           :total="total"
           layout="total, sizes, prev, pager, next, jumper"
-          @size-change="fetchAccounts"
-          @current-change="fetchAccounts"
+          @size-change="handleSizeChange"
+          @current-change="handlePageChange"
         />
       </div>
     </el-card>
@@ -262,11 +262,10 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, onMounted } from 'vue'
+import { ref, reactive } from 'vue'
 import { ElMessage, ElMessageBox, type FormInstance, type FormRules } from 'element-plus'
 import { Plus, Money } from '@element-plus/icons-vue'
 import {
-  listFundAccounts,
   createFundAccount,
   updateFundAccount,
   depositFund,
@@ -274,24 +273,47 @@ import {
   FUND_ACCOUNT_STATUS,
   type FundAccount,
 } from '@/api/fund'
+// 批次 278：迁移到 useTableApi composable，自动管理分页与 loading
+import { useTableApi } from '@/composables/useTableApi'
 
-const loading = ref(false)
 const submitLoading = ref(false)
 const dialogVisible = ref(false)
 const detailVisible = ref(false)
 const operationVisible = ref(false)
 const dialogType = ref<'create' | 'edit'>('create')
 const operationType = ref<'deposit' | 'withdraw'>('deposit')
-const accountList = ref<FundAccount[]>([])
 const currentAccount = ref<FundAccount | null>(null)
 const accountFormRef = ref<FormInstance>()
 const operationFormRef = ref<FormInstance>()
-const total = ref(0)
 
-const queryForm = reactive({
-  page: 1,
-  page_size: 20,
+// 批次 278：使用 useTableApi 管理账户列表分页
+const {
+  data: accountList,
+  total,
+  loading,
+  page,
+  pageSize,
+  refresh: fetchAccounts,
+} = useTableApi<FundAccount>({
+  url: '/fund-management/accounts',
+  defaultPageSize: 20,
+  onError: (err: unknown) => {
+    if (err instanceof Error) {
+      ElMessage.error(err.message || '获取账户列表失败')
+    } else {
+      ElMessage.error('获取账户列表失败')
+    }
+  },
 })
+
+// 批次 278：分页变化处理函数
+const handlePageChange = (_p: number) => {
+  // useTableApi 内部 watch page 自动触发刷新
+}
+const handleSizeChange = (_s: number) => {
+  // useTableApi 内部 watch pageSize 自动触发刷新
+  page.value = 1
+}
 
 const accountForm = reactive<Partial<FundAccount>>({
   account_no: '',
@@ -320,28 +342,6 @@ const accountRules: FormRules = {
 
 const operationRules: FormRules = {
   amount: [{ required: true, message: '请输入金额', trigger: 'blur' }],
-}
-
-const fetchAccounts = async () => {
-  loading.value = true
-  try {
-    const res = await listFundAccounts(queryForm)
-    const d = res.data as
-      | { list?: FundAccount[]; items?: FundAccount[]; data?: FundAccount[]; total?: number }
-      | FundAccount[]
-    if (Array.isArray(d)) {
-      accountList.value = d
-      total.value = d.length
-    } else {
-      accountList.value = d?.list || d?.items || []
-      total.value = d?.total || accountList.value.length
-    }
-  } catch (e) {
-    const err = e as Error
-    ElMessage.error(err.message || '获取账户列表失败')
-  } finally {
-    loading.value = false
-  }
 }
 
 const openDialog = (type: 'create' | 'edit', row?: FundAccount) => {
@@ -462,8 +462,4 @@ const handleDelete = async (row: FundAccount) => {
     }
   }
 }
-
-onMounted(() => {
-  fetchAccounts()
-})
 </script>

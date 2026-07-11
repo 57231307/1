@@ -96,13 +96,13 @@
 
       <div class="pagination-wrapper">
         <el-pagination
-          v-model:current-page="queryForm.page"
-          v-model:page-size="queryForm.page_size"
+          v-model:current-page="page"
+          v-model:page-size="pageSize"
           :page-sizes="[10, 20, 50, 100]"
           :total="total"
           layout="total, sizes, prev, pager, next, jumper"
-          @size-change="handleSearch"
-          @current-change="handleSearch"
+          @size-change="handleSizeChange"
+          @current-change="handlePageChange"
         />
       </div>
     </el-card>
@@ -258,11 +258,10 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, onMounted } from 'vue'
+import { ref, reactive } from 'vue'
 import { ElMessage, ElMessageBox, type FormInstance, type FormRules } from 'element-plus'
 import { Plus, Refresh, Download } from '@element-plus/icons-vue'
 import {
-  listAssets,
   createAsset,
   updateAsset,
   deleteAsset as deleteAssetApi,
@@ -277,12 +276,11 @@ import {
 import { useUserStore } from '@/store/user'
 import { logger } from '@/utils/logger'
 import { exportToExcel } from '@/utils/export'
+// 批次 278：迁移到 useTableApi composable，自动管理分页与 loading
+import { useTableApi } from '@/composables/useTableApi'
 
-const loading = ref(false)
 const submitLoading = ref(false)
 const dialogVisible = ref(false)
-const assetList = ref<FixedAsset[]>([])
-const total = ref(0)
 const formRef = ref<FormInstance>()
 
 // v3 复审 P1-2：资产处置对话框相关状态
@@ -305,14 +303,51 @@ const disposalRules: FormRules = {
   reason: [{ required: true, message: '请输入处置原因', trigger: 'blur' }],
 }
 
+// 批次 278：筛选条件（仅保留业务字段，page/page_size 由 useTableApi 管理）
 const queryForm = reactive({
   asset_code: '',
   asset_name: '',
   category: '',
   status: '',
-  page: 1,
-  page_size: 20,
 })
+
+// 批次 278：使用 useTableApi 管理资产列表分页
+const {
+  data: assetList,
+  total,
+  loading,
+  page,
+  pageSize,
+  setQueryParam,
+  refresh: fetchAssets,
+} = useTableApi<FixedAsset>({
+  url: '/fixed-assets',
+  defaultPageSize: 20,
+  onError: (err: unknown) => {
+    if (err instanceof Error) {
+      ElMessage.error(err.message || '获取资产列表失败')
+    } else {
+      ElMessage.error('获取资产列表失败')
+    }
+  },
+})
+
+// 批次 278：将筛选字段同步到 queryParams
+const syncQueryParams = () => {
+  setQueryParam('asset_code', queryForm.asset_code)
+  setQueryParam('asset_name', queryForm.asset_name)
+  setQueryParam('category', queryForm.category)
+  setQueryParam('status', queryForm.status)
+}
+
+// 批次 278：分页变化处理函数
+const handlePageChange = (_p: number) => {
+  // useTableApi 内部 watch page 自动触发刷新
+}
+const handleSizeChange = (_s: number) => {
+  // useTableApi 内部 watch pageSize 自动触发刷新
+  page.value = 1
+}
 
 const form = reactive<FixedAssetCreateRequest & { id?: number }>({
   id: undefined,
@@ -367,30 +402,10 @@ const getStatusType = (status: string) => {
   return map[status] || 'info'
 }
 
-const fetchAssets = async () => {
-  loading.value = true
-  try {
-    const res = await listAssets(queryForm)
-    const d = res.data as
-      | { list?: FixedAsset[]; items?: FixedAsset[]; data?: FixedAsset[]; total?: number }
-      | FixedAsset[]
-    if (Array.isArray(d)) {
-      assetList.value = d
-      total.value = d.length
-    } else {
-      assetList.value = d?.list || d?.items || []
-      total.value = d?.total || assetList.value.length
-    }
-  } catch (e) {
-    const err = e as Error
-    ElMessage.error(err.message || '获取资产列表失败')
-  } finally {
-    loading.value = false
-  }
-}
-
 const handleSearch = () => {
-  queryForm.page = 1
+  // 批次 278：同步筛选条件并重置到第一页
+  syncQueryParams()
+  page.value = 1
   fetchAssets()
 }
 
@@ -615,8 +630,4 @@ const handleExport = () => {
   })
   logger.info('固定资产列表已导出')
 }
-
-onMounted(() => {
-  fetchAssets()
-})
 </script>
