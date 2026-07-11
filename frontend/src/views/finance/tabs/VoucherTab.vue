@@ -3,6 +3,7 @@
   任务编号: P14 批 1 B3 I-2
   拆分：567 行 → ~95 行 + 4 子组件 + 2 composable + 1 工具
   行为完全保持一致（仅结构重构）
+  批次 289：适配 useTableApi（v-model:page/page-size, queryParams, 移除 onMounted fetchVouchers）
 -->
 <template>
   <div class="voucher-tab">
@@ -25,17 +26,17 @@
     </div>
 
     <VchrFilter
-      :voucher-query="vchr.voucherQuery"
-      @search="vchr.fetchVouchers"
-      @reset="vchr.resetVoucherQuery"
-      @update:voucher-query="(v) => Object.assign(vchr.voucherQuery, v)"
+      :query-params="vchr.queryParams"
+      @fetch="vchr.handleSearch"
+      @update:query-params="(v) => Object.assign(vchr.queryParams, v)"
     />
 
     <VchrTbl
-      :vouchers="vchr.vouchers.value"
-      :voucher-loading="vchr.voucherLoading.value"
-      :voucher-total="vchr.voucherTotal.value"
-      :voucher-query-params="vchr.voucherQueryParams"
+      :vouchers="vchr.vouchers"
+      :voucher-loading="vchr.voucherLoading"
+      :voucher-total="vchr.voucherTotal"
+      v-model:page="vchr.page"
+      v-model:page-size="vchr.pageSize"
       :format-money="vchr.formatMoney"
       :get-voucher-status-label="vchr.getVchrStatusLabel"
       :get-voucher-status-type="vchr.getVchrStatusType"
@@ -43,19 +44,18 @@
       @submit="vchrProc.submitVoucher"
       @review="vchrProc.reviewVoucher"
       @post="vchrProc.postVoucher"
-      @page-change="vchr.fetchVouchers"
     />
 
     <VchrForm
       v-model:visible="voucherDialogVisible"
-      :voucher-form-ref="vchr.voucherFormRef"
+      :voucher-form-ref="voucherFormRefObj"
       :voucher-form="vchr.voucherForm"
-      :voucher-submit-loading="vchr.voucherSubmitLoading.value"
+      :voucher-submit-loading="vchr.voucherSubmitLoading"
       :voucher-rules="vchr.voucherRules"
-      :leaf-subjects="vchr.leafSubjects.value"
-      :total-debit="vchr.totalDebit.value"
-      :total-credit="vchr.totalCredit.value"
-      :is-balanced="vchr.isBalanced.value"
+      :leaf-subjects="vchr.leafSubjects"
+      :total-debit="vchr.totalDebit"
+      :total-credit="vchr.totalCredit"
+      :is-balanced="vchr.isBalanced"
       :format-money="vchr.formatMoney"
       @add-entry="vchr.addEntry"
       @remove-entry="vchr.removeEntry"
@@ -65,7 +65,7 @@
 
     <VchrDetail
       v-model:visible="voucherViewVisible"
-      :current-voucher="vchr.currentVoucher.value"
+      :current-voucher="vchr.currentVoucher"
       :format-money="vchr.formatMoney"
       :get-voucher-status-label="vchr.getVchrStatusLabel"
       :get-voucher-status-type="vchr.getVchrStatusType"
@@ -74,7 +74,8 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, toRef } from 'vue'
+import type { FormInstance } from 'element-plus'
 import { Plus, Printer, Download } from '@element-plus/icons-vue'
 import { useVchr } from './composables/useVchr'
 import { useVchrProc } from './composables/useVchrProc'
@@ -85,13 +86,25 @@ import VchrDetail from './components/VchrDetail.vue'
 import type { Voucher } from '@/api/finance'
 
 const vchr = useVchr()
-const vchrProc = useVchrProc(vchr.vouchers, vchr.fetchVouchers)
+// 使用 toRef 包装 reactive 属性为 ref，保持 useVchrProc 内部能读取最新 vouchers
+const vchrProc = useVchrProc(toRef(vchr, 'vouchers'), vchr.fetchVouchers)
+// VchrForm 需要 ref-like 的 voucherFormRef（{ value: FormInstance | undefined }），
+// reactive 会自动解包 ref，top-level ref 在模板中也会被解包，
+// 因此用 getter/setter 对象代理访问，避免被 vue-tsc 自动解包
+const voucherFormRefObj: { value: FormInstance | undefined } = {
+  get value() {
+    return vchr.voucherFormRef
+  },
+  set value(v: FormInstance | undefined) {
+    vchr.voucherFormRef = v
+  },
+}
 
 const voucherDialogVisible = ref(false)
 const voucherViewVisible = ref(false)
 
 const openVoucherDialog = () => {
-  vchr.voucherFormRef.value?.resetFields()
+  vchr.voucherFormRef?.resetFields()
   vchr.voucherForm.voucher_date = new Date().toISOString().split('T')[0]
   vchr.voucherForm.voucher_type = 'JZ'
   vchr.voucherForm.entries = [
@@ -111,8 +124,8 @@ const onView = (row: Voucher) => {
   voucherViewVisible.value = true
 }
 
+// 列表由 useTableApi setup 自动加载，onMounted 仅加载辅助数据
 onMounted(() => {
   vchr.fetchSubjects()
-  vchr.fetchVouchers()
 })
 </script>
