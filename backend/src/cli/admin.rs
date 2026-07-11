@@ -5,8 +5,6 @@
 
 use clap::Subcommand;
 
-use crate::cli::util::run_cmd;
-
 /// 管理员子命令枚举
 #[derive(Subcommand, Debug)]
 pub enum AdminCommand {
@@ -29,28 +27,53 @@ pub async fn run(cmd: AdminCommand) -> Result<(), Box<dyn std::error::Error>> {
 fn cmd_hash_password(password: &str) {
     println!("=== 生成密码哈希 ===\n");
 
-    // 使用 Python 生成哈希
-    let escaped_password = password.replace('"', "\\\"");
-    let python_code = format!(
-        r#"
-import hashlib
-import base64
-import os
+    // M3 修复（v8 复审）：通过 stdin 传递密码，避免命令行参数泄露（ps 可见）和字符串拼接注入
+    let python_code = r#"
+import sys, hashlib, base64, os
+password = sys.stdin.read()
 try:
     from argon2 import PasswordHasher
     ph = PasswordHasher()
-    hash = ph.hash("{}")
+    hash = ph.hash(password)
     print("Argon2 哈希:", hash)
 except ImportError:
     salt = os.urandom(32)
-    hash = hashlib.pbkdf2_hmac('sha256', '{}'.encode(), salt, 100000)
+    hash = hashlib.pbkdf2_hmac('sha256', password.encode(), salt, 100000)
     print("PBKDF2 哈希:", base64.b64encode(salt + hash).decode())
-"#,
-        escaped_password, escaped_password
-    );
+"#;
 
-    match run_cmd("python3", &["-c", &python_code]) {
-        Ok(hash) => println!("{}", hash),
-        Err(e) => println!("[ERROR] 生成失败: {}", e),
+    use std::io::Write;
+    use std::process::{Command, Stdio};
+
+    let mut child = match Command::new("python3")
+        .arg("-c")
+        .arg(python_code)
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+    {
+        Ok(child) => child,
+        Err(e) => {
+            println!("[ERROR] 启动 python3 失败: {}", e);
+            return;
+        }
+    };
+
+    if let Some(mut stdin) = child.stdin.take() {
+        let _ = stdin.write_all(password.as_bytes());
+    }
+
+    match child.wait_with_output() {
+        Ok(output) if output.status.success() => {
+            println!("{}", String::from_utf8_lossy(&output.stdout));
+        }
+        Ok(output) => {
+            println!(
+                "[ERROR] 生成失败: {}",
+                String::from_utf8_lossy(&output.stderr)
+            );
+        }
+        Err(e) => println!("[ERROR] 等待进程失败: {}", e),
     }
 }
