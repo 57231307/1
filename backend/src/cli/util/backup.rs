@@ -140,7 +140,13 @@ pub(super) fn cmd_restore(file: &str) {
         return;
     }
 
-    let temp_dir = "/tmp/bingxi_restore";
+    // 生成随机临时目录名，防止符号链接竞争攻击（TOCTOU）
+    let temp_dir_owned = format!(
+        "{}/bingxi_restore_{}",
+        std::env::temp_dir().to_string_lossy(),
+        uuid::Uuid::new_v4()
+    );
+    let temp_dir = temp_dir_owned.as_str();
     // 清理旧临时目录（非关键路径）
     if let Err(e) = run_cmd("rm", &["-rf", temp_dir]) {
         println!("[WARN] 清理旧临时目录失败（可忽略）: {}", e);
