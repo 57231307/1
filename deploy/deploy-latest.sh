@@ -188,6 +188,9 @@ deploy_remote() {
             DB_PASS=\${DATABASE__PASSWORD:?必须设置 DATABASE__PASSWORD}
             JWT=\${JWT_SECRET:?必须设置 JWT_SECRET}
             COOKIE=\${COOKIE_SECRET:?必须设置 COOKIE_SECRET}
+            # 批次 273 修复：强制要求 AUDIT_SECRET_KEY（后端 settings.rs:355 校验，
+            # 缺失或弱密钥会导致 systemd 启动失败）
+            AUDIT=\${AUDIT_SECRET_KEY:?必须设置 AUDIT_SECRET_KEY}
             # 批次 24 v6 P0-3 修复：数据库连接强制 SSL（原 sslmode=disable 明文传输）。
             # 生产环境数据库流量含密码和业务数据，必须加密防止中间人嗅探。
             CONN_STR=\"postgres://\${DB_USER}:\${DB_PASS}@\${DB_HOST}:\${DB_PORT}/\${DB_NAME}?sslmode=require\"
