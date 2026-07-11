@@ -113,13 +113,13 @@
 
       <div class="pagination-wrapper">
         <el-pagination
-          v-model:current-page="queryParams.page"
-          v-model:page-size="queryParams.page_size"
+          v-model:current-page="page"
+          v-model:page-size="pageSize"
           :page-sizes="[10, 20, 50, 100]"
           :total="total"
           layout="total, sizes, prev, pager, next, jumper"
-          @size-change="handleQuery"
-          @current-change="handleQuery"
+          @size-change="handleSizeChange"
+          @current-change="handlePageChange"
         />
       </div>
     </el-card>
@@ -134,30 +134,73 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, onMounted } from 'vue'
+import { ref, reactive } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Plus, Download, Printer } from '@element-plus/icons-vue'
 import { customerApi, type Customer } from '@/api/customer'
 import { exportData } from '@/utils/export'
 import { printData } from '@/utils/print'
 import { logger } from '@/utils/logger'
+import { useTableApi } from '@/composables/useTableApi'
 import CustomerFormTab from './tabs/CustomerFormTab.vue'
-
-const loading = ref(false)
-const customers = ref<Customer[]>([])
-const total = ref(0)
 
 const formDialogVisible = ref(false)
 const formDialogTitle = ref('新建客户')
 const currentRow = ref<Customer | null>(null)
 
 const queryParams = reactive({
-  page: 1,
-  page_size: 20,
   keyword: '',
   customer_type: '',
   status: '',
 })
+
+// 批次 276：接入 useTableApi，消除手写 customers/total/loading/fetchData 重复
+// useTableApi 自动管理分页状态、数据加载，自动 watch page/pageSize 变化触发重载
+const {
+  data: customers,
+  loading,
+  page,
+  pageSize,
+  total,
+  refresh: fetchData,
+  setQueryParam,
+} = useTableApi<Customer>({
+  url: '/crm/customers',
+  onError: (err: unknown) =>
+    ElMessage.error((err instanceof Error ? err.message : String(err)) || '获取客户列表失败'),
+})
+
+// 批次 276：同步筛选条件到 useTableApi.queryParams 并刷新
+const syncQueryParams = () => {
+  setQueryParam('keyword', queryParams.keyword || undefined)
+  setQueryParam('customer_type', queryParams.customer_type || undefined)
+  setQueryParam('status', queryParams.status || undefined)
+}
+
+const handleQuery = () => {
+  syncQueryParams()
+  page.value = 1
+  fetchData()
+}
+
+const handleReset = () => {
+  queryParams.keyword = ''
+  queryParams.customer_type = ''
+  queryParams.status = ''
+  syncQueryParams()
+  page.value = 1
+  fetchData()
+}
+
+// 分页（useTableApi 自动 watch page/pageSize 变化触发重载）
+const handlePageChange = (p: number) => {
+  page.value = p
+}
+
+const handleSizeChange = (s: number) => {
+  pageSize.value = s
+  page.value = 1
+}
 
 const formatCurrency = (amount: number) => `¥${(amount || 0).toFixed(2)}`
 
@@ -177,34 +220,6 @@ const getCustomerTypeTag = (type: string) => {
     wholesale: 'success',
   }
   return typeMap[type] || ''
-}
-
-const fetchData = async () => {
-  loading.value = true
-  try {
-    const res = await customerApi.list(queryParams)
-    customers.value = res.data?.list || []
-    total.value = res.data?.total || 0
-  } catch (error) {
-    const err = error as Error
-    ElMessage.error(err.message || '获取客户列表失败')
-    customers.value = []
-    total.value = 0
-  } finally {
-    loading.value = false
-  }
-}
-
-const handleQuery = () => {
-  queryParams.page = 1
-  fetchData()
-}
-
-const handleReset = () => {
-  queryParams.keyword = ''
-  queryParams.customer_type = ''
-  queryParams.status = ''
-  handleQuery()
 }
 
 const openCreateDialog = () => {
@@ -258,7 +273,7 @@ const handleExport = () => {
       },
       { key: 'status', title: '状态', formatter: v => (v === 'active' ? '启用' : '禁用') },
     ],
-    data: customers.value,
+    data: customers.value as unknown as Record<string, unknown>[],
   })
 }
 
@@ -283,14 +298,10 @@ const handlePrint = () => {
         formatter: v => (v === 'active' ? '启用' : '禁用'),
       },
     ],
-    data: customers.value,
+    data: customers.value as unknown as Record<string, unknown>[],
   })
   logger.info('客户列表打印任务已生成')
 }
-
-onMounted(() => {
-  fetchData()
-})
 </script>
 
 <style scoped>
