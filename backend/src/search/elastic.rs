@@ -273,13 +273,18 @@ impl ElasticClient {
     /// 运维配置 ELASTICSEARCH_URL 后日志显示"使用真实客户端"但实际仍是 mock，具有误导性。
     /// 现真实实现：用 reqwest 直连 ES REST API，支持 index_doc/search/delete_doc/bulk_index。
     pub fn real(url: String) -> Self {
+        let http = reqwest::Client::builder()
+            .timeout(std::time::Duration::from_secs(30))
+            .redirect(reqwest::redirect::Policy::none()) // SSRF 防护：禁止跟随重定向
+            .build()
+            .unwrap_or_else(|e| {
+                eprintln!("Elasticsearch HTTP 客户端构建失败: {}，服务无法启动", e);
+                std::process::exit(1);
+            });
         Self {
             inner: ClientInner::Real {
                 base_url: url.trim_end_matches('/').to_string(),
-                http: reqwest::Client::builder()
-                    .timeout(std::time::Duration::from_secs(30))
-                    .build()
-                    .unwrap_or_else(|_| reqwest::Client::new()),
+                http,
             },
         }
     }
@@ -630,6 +635,7 @@ pub async fn ensure_indices(base_url: &str) -> Result<(), SearchError> {
     let base_url = base_url.trim_end_matches('/');
     let http = reqwest::Client::builder()
         .timeout(std::time::Duration::from_secs(30))
+        .redirect(reqwest::redirect::Policy::none()) // SSRF 防护：禁止跟随重定向
         .build()
         .map_err(|e| SearchError::Connection(format!("reqwest 客户端创建失败: {}", e)))?;
 
