@@ -47,7 +47,7 @@ const {
 } = useTableApi<FiveDimensionStatsResponse>({
   url: '/crm/five-dimension/stats',
   listKey: 'items',
-  onError: (e: unknown) => ElMessage.error('加载失败'),
+  onError: () => ElMessage.error('加载失败'),
 })
 
 const viewDialogVisible = ref(false)

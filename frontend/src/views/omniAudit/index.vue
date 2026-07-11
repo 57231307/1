@@ -51,7 +51,7 @@ const {
 } = useTableApi<AuditLog>({
   url: '/finance/audit/search',
   listKey: 'items',
-  onError: (e: unknown) => ElMessage.error('加载日志失败'),
+  onError: () => ElMessage.error('加载日志失败'),
 })
 
 const viewDialogVisible = ref(false)
