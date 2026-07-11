@@ -66,7 +66,7 @@
 
     <EpForm
       v-model:visible="ep.endpointDialogVisible"
-      :form-ref="ep.endpointFormRef"
+      v-model:form-ref="ep.endpointFormRef"
       :form="ep.endpointForm"
       :submit-loading="ep.endpointSubmitLoading"
       :rules="ep.endpointRules"
@@ -79,7 +79,7 @@
 
     <KeyForm
       v-model:visible="key.keyDialogVisible"
-      :form-ref="key.keyFormRef"
+      v-model:form-ref="key.keyFormRef"
       :form="key.keyForm"
       :submit-loading="key.keySubmitLoading"
       :rules="key.keyRules"

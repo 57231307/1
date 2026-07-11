@@ -93,7 +93,8 @@ const props = defineProps<{
   total: number
   page: number
   pageSize: number
-  queryParams: LogQuery
+  // 批次 281：queryParams 类型放宽为 Record<string, unknown>，兼容 useTableApi 的 queryParams
+  queryParams: Record<string, unknown>
   methodTypeMap: Record<string, string>
 }>()
 
@@ -105,7 +106,12 @@ const emit = defineEmits<{
   'update:queryParams': [value: LogQuery]
 }>()
 
-const localQuery = reactive<LogQuery>({ ...props.queryParams })
+const localQuery = reactive<LogQuery>({
+  keyword: '',
+  status: '',
+  date_range: null,
+  ...(props.queryParams as Partial<LogQuery>),
+})
 
 watch(
   () => props.queryParams,

@@ -95,7 +95,8 @@ const props = defineProps<{
   total: number
   page: number
   pageSize: number
-  queryParams: ApiKeyQuery
+  // 批次 281：queryParams 类型放宽为 Record<string, unknown>，兼容 useTableApi 的 queryParams
+  queryParams: Record<string, unknown>
 }>()
 
 const emit = defineEmits<{
@@ -109,7 +110,11 @@ const emit = defineEmits<{
   'update:queryParams': [value: ApiKeyQuery]
 }>()
 
-const localQuery = reactive<ApiKeyQuery>({ ...props.queryParams })
+const localQuery = reactive<ApiKeyQuery>({
+  keyword: '',
+  status: '',
+  ...(props.queryParams as Partial<ApiKeyQuery>),
+})
 
 watch(
   () => props.queryParams,

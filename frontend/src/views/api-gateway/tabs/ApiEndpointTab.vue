@@ -103,7 +103,8 @@ const props = defineProps<{
   total: number
   page: number
   pageSize: number
-  queryParams: EndpointQuery
+  // 批次 281：queryParams 类型放宽为 Record<string, unknown>，兼容 useTableApi 的 queryParams
+  queryParams: Record<string, unknown>
   methodTypeMap: Record<string, string>
   statusTypeMap: Record<string, string>
   statusMap: Record<string, string>
@@ -119,7 +120,12 @@ const emit = defineEmits<{
   'update:queryParams': [value: EndpointQuery]
 }>()
 
-const localQuery = reactive<EndpointQuery>({ ...props.queryParams })
+const localQuery = reactive<EndpointQuery>({
+  keyword: '',
+  method: '',
+  status: '',
+  ...(props.queryParams as Partial<EndpointQuery>),
+})
 
 watch(
   () => props.queryParams,
