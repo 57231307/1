@@ -96,13 +96,13 @@
 
       <div class="pagination-wrapper">
         <el-pagination
-          v-model:current-page="queryForm.page"
-          v-model:page-size="queryForm.page_size"
+          v-model:current-page="page"
+          v-model:page-size="pageSize"
           :page-sizes="[10, 20, 50, 100]"
           :total="total"
           layout="total, sizes, prev, pager, next, jumper"
-          @size-change="handleSearch"
-          @current-change="handleSearch"
+          @size-change="handleSizeChange"
+          @current-change="handlePageChange"
         />
       </div>
     </el-card>
@@ -195,12 +195,11 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, computed, onMounted } from 'vue'
+import { ref, reactive, computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { ElMessage, ElMessageBox, type FormInstance, type FormRules } from 'element-plus'
 import { Plus, Download } from '@element-plus/icons-vue'
 import {
-  listCostCollections,
   createCostCollection,
   updateCostCollection,
   deleteCollection as deleteCollectionApi,
@@ -210,24 +209,59 @@ import {
 } from '@/api/cost'
 import { logger } from '@/utils/logger'
 import { exportToExcel } from '@/utils/export'
+// 批次 278：迁移到 useTableApi composable，自动管理分页与 loading
+import { useTableApi } from '@/composables/useTableApi'
 
 // 批次 34 v9 P1：接入 i18n，替换硬编码中文 ElMessage
 const { t } = useI18n({ useScope: 'global' })
 
-const loading = ref(false)
 const submitLoading = ref(false)
 const dialogVisible = ref(false)
-const collectionList = ref<CostCollection[]>([])
-const total = ref(0)
 const formRef = ref<FormInstance>()
 
+// 批次 278：筛选条件（仅保留业务字段，page/page_size 由 useTableApi 管理）
 const queryForm = reactive({
   collection_no: '',
   batch_no: '',
   status: '',
-  page: 1,
-  page_size: 20,
 })
+
+// 批次 278：使用 useTableApi 管理成本归集列表分页
+const {
+  data: collectionList,
+  total,
+  loading,
+  page,
+  pageSize,
+  setQueryParam,
+  refresh: fetchCollections,
+} = useTableApi<CostCollection>({
+  url: '/production/cost-collections',
+  defaultPageSize: 20,
+  onError: (err: unknown) => {
+    if (err instanceof Error) {
+      ElMessage.error(err.message || '获取成本归集列表失败')
+    } else {
+      ElMessage.error('获取成本归集列表失败')
+    }
+  },
+})
+
+// 批次 278：将筛选字段同步到 queryParams
+const syncQueryParams = () => {
+  setQueryParam('collection_no', queryForm.collection_no)
+  setQueryParam('batch_no', queryForm.batch_no)
+  setQueryParam('status', queryForm.status)
+}
+
+// 批次 278：分页变化处理函数
+const handlePageChange = (_p: number) => {
+  // useTableApi 内部 watch page 自动触发刷新
+}
+const handleSizeChange = (_s: number) => {
+  // useTableApi 内部 watch pageSize 自动触发刷新
+  page.value = 1
+}
 
 const form = reactive<Partial<CostCollection>>({
   id: undefined,
@@ -272,35 +306,10 @@ const getStatusType = (status: string) => {
   return map[status] || 'info'
 }
 
-const fetchCollections = async () => {
-  loading.value = true
-  try {
-    const res = await listCostCollections(queryForm)
-    const d = (res as { data?: unknown }).data as
-      | {
-          list?: CostCollection[]
-          items?: CostCollection[]
-          data?: CostCollection[]
-          total?: number
-        }
-      | CostCollection[]
-    if (Array.isArray(d)) {
-      collectionList.value = d
-      total.value = d.length
-    } else {
-      collectionList.value = d?.list || d?.items || []
-      total.value = d?.total || collectionList.value.length
-    }
-  } catch (e) {
-    const err = e as Error
-    ElMessage.error(err.message || '获取成本归集列表失败')
-  } finally {
-    loading.value = false
-  }
-}
-
 const handleSearch = () => {
-  queryForm.page = 1
+  // 批次 278：同步筛选条件并重置到第一页
+  syncQueryParams()
+  page.value = 1
   fetchCollections()
 }
 
@@ -437,8 +446,4 @@ const handleExport = () => {
   })
   logger.info('成本归集列表已导出')
 }
-
-onMounted(() => {
-  fetchCollections()
-})
 </script>
