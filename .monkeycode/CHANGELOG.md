@@ -9,6 +9,7 @@
 
 | 批次 | PR | 一句话总结 |
 |------|-----|-----------|
+| 289 | #469 | finance/voucher + data-import composable 接入 useTableApi（9 文件，useVchr reactive 包装 + handleSearch/handleReset + VchrFilter localQuery + VchrTbl page/pageSize props + useDi 双表 useTableApi 实例 + DiTplTbl/DiTaskTbl localQuery + useDiProc 简化 DiCallbacks + voucherFormRef getter/setter 代理避免 vue-tsc 自动解包） |
 | 288 | #468 | scheduling + material-shortage + capacity composable 接入 useTableApi（9 文件，filterStatus 独立 ref + syncFilterToQuery + watch 自动同步 stats + useMsProc 适配 syncFilterToQuery + capacity initOnMount 仅加载辅助数据） |
 | 287 | #467 | logistics + voucher composable 接入 useTableApi（8 文件，useLgs dateRange 独立 ref + syncDateRangeToQuery + watch 自动同步 stats + VoucherListTab toRef 保持 proc 响应性 + 移除 useLgs 未使用 logisticsApi import） |
 | 286 | #466 | purchase-return + purchase-inspection composable 接入 useTableApi（9 文件，dateRange 独立 ref + syncDateRangeToQuery + watch 自动同步 stats + usePiProc queryParams 放宽为 Record） |

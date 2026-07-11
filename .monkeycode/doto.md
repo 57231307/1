@@ -292,6 +292,13 @@ Ok((items, total))
 - CI 一次通过（13 success + 2 skipped）
 - view 表格进度：39/56 → 42/56（3 个模块 9 文件）
 
+### 批次 289：finance/voucher + data-import composable 迁移 — ✅ 完成（PR #469 合并，sha: 878652e）
+
+- finance/voucher 模块 4 文件：useVchr vouchers 接入 useTableApi（URL: /vouchers）+ 返回 reactive 包装 + handleSearch/handleReset + fetchVouchers 别名保留 + VchrFilter 改造为 localQuery + handleSearch 模式（date_range 深拷贝）+ VchrTbl 分页改为 page/pageSize props + update:page/update:page-size emits + VoucherTab toRef 保持 proc 响应性 + voucherFormRef getter/setter 代理避免 vue-tsc 自动解包 + 移除 onMounted fetchVouchers
+- data-import 模块 5 文件：useDi templates 和 tasks 分别接入 useTableApi（两个实例，URL: /data-import/templates + /data-import/tasks）+ 移除 TplQuery/TaskQuery 类型导出 + handleTemplateSearch/handleTaskSearch + DiTplTbl/DiTaskTbl 改造为 localQuery + handleSearch 模式 + page/pageSize props + index.vue 适配新 props/events + useDiProc 简化 DiCallbacks 接口（仅保留 fetchTemplates/fetchTasks/activeTab）
+- CI 修复：voucherFormRef toRef 在模板中被 vue-tsc 自动解包导致类型错误，改用 getter/setter 对象代理
+- view 表格进度：42/56 → 46/56（2 个模块 9 文件）
+
 ---
 
 ## 规则节点提醒
