@@ -9,6 +9,7 @@
 
 | 批次 | PR | 一句话总结 |
 |------|-----|-----------|
+| 304 | #484 | 修复 v8-M4 后置校验 TOCTOU 风险（先 tar -tf 列出内容逐文件校验路径再解压，防止恶意文件在校验前写入磁盘，解压后保留 canonicalize 二次校验双重防护） |
 | 303 | #483 | 修复 v8-M3 Python 密码拼接注入风险（admin.rs 密码从字符串拼接改为 stdin pipe 传递，避免 ps 泄露和注入风险，移除 run_cmd 依赖） |
 | 302 | #482 | 修复 v8-M2 ES 客户端缺少 SSRF 重定向限制（elastic.rs 两处添加 redirect(Policy::none())，real() 的 unwrap_or_else 改为 eprintln+exit 合规处理） |
 | 301 | #481 | 修复 v8-M1 download_update 缺少 resolve_to_addrs（复用 ssrf_guard::validate_url_and_resolve + resolve_to_addrs 固定 IP，消除 DNS Rebinding TOCTOU） |
