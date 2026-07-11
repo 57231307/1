@@ -7,7 +7,7 @@ use std::sync::LazyLock;
 use std::time::Duration;
 
 use crate::middleware::auth_context::AuthContext;
-use crate::middleware::rate_limit::MemoryRateLimiter;
+use crate::middleware::rate_limit::{check_rate_limit, MemoryRateLimiter};
 use crate::services::webhook_service::{WebhookDeliveryResult, WebhookService};
 use crate::utils::app_state::AppState;
 use crate::utils::error::AppError;
@@ -15,6 +15,9 @@ use crate::utils::response::ApiResponse;
 
 /// Webhook 测试端点专用限流器（10 次/分钟/用户）
 /// 规则 12 合规：防止攻击者频繁调用 test_webhook 探测内网服务
+///
+/// M6 修复（v8 复审）：限流器作为内存回退后端，实际检查通过 check_rate_limit
+/// （Redis 分布式优先 + 内存回退），多实例部署下共享计数
 static WEBHOOK_TEST_LIMITER: LazyLock<MemoryRateLimiter> =
     LazyLock::new(|| MemoryRateLimiter::new(10, Duration::from_secs(60)));
 
@@ -125,8 +128,17 @@ pub async fn test_webhook(
     Path(id): Path<i32>,
 ) -> Result<Json<ApiResponse<WebhookDeliveryResult>>, AppError> {
     // 规则 12 合规：速率限制，防止攻击者频繁调用 test_webhook 探测内网服务
+    // M6 修复（v8 复审）：改用 check_rate_limit（Redis 分布式优先 + 内存回退），
+    // 多实例部署下共享计数，避免单实例内存限流被绕过
     let rate_key = format!("webhook_test:{}", auth.user_id);
-    if !WEBHOOK_TEST_LIMITER.check(&rate_key) {
+    if !check_rate_limit(
+        &rate_key,
+        10,
+        Duration::from_secs(60),
+        &WEBHOOK_TEST_LIMITER,
+    )
+    .await
+    {
         return Err(AppError::TooManyRequests {
             retry_after: Some(60),
             message: "Webhook 测试请求过于频繁，每分钟最多 10 次".to_string(),
