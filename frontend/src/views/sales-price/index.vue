@@ -2,7 +2,7 @@
   sales-price/index.vue - 销售价格管理（拆分重构版）
   任务编号: P14 批 2 I-3 第 3 批
   拆分：677 行 → ~150 行 + 5 子组件 + 2 composable + 1 工具
-  行为完全保持一致（仅结构重构）
+  批次 284：SpFilter/SpTbl 接入 useTableApi（v-model:page/page-size + @fetch + @update:queryParams）
 -->
 <template>
   <div class="sales-price-page">
@@ -35,22 +35,20 @@
       :query-params="sp.queryParams"
       :customers="sp.customers"
       :products="sp.products"
-      @query="sp.handleQuery"
-      @reset="sp.handleReset"
+      @fetch="sp.handleQuery"
       @update:query-params="(v) => Object.assign(sp.queryParams, v)"
     />
 
     <SpTbl
+      v-model:page="sp.page"
+      v-model:page-size="sp.pageSize"
       :price-list="sp.priceList"
       :loading="sp.loading"
       :total="sp.total"
-      :query-params="sp.queryParams"
       @view="spProc.handleView"
       @edit="onEdit"
       @approve="spProc.handleApprove"
       @history="spProc.handleHistory"
-      @size-change="sp.handleSizeChange"
-      @current-change="sp.handleCurrentChange"
     />
 
     <SpForm
@@ -146,8 +144,10 @@ const onExport = () => {
   spProc.handleExport(sp.priceList)
 }
 
+// 列表由 useTableApi setup 自动加载，onMounted 仅加载辅助数据
 onMounted(() => {
-  sp.initLoad()
+  sp.getCustomers()
+  sp.getProducts()
 })
 </script>
 

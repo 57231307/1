@@ -2,7 +2,7 @@
   sales-contract/index.vue - 销售合同管理（拆分重构版）
   任务编号: P14 批 2 I-3 第 1 批
   拆分：717 行 → ~150 行 + 4 子组件 + 2 composable + 1 工具
-  行为完全保持一致（仅结构重构）
+  批次 284：ScFilter/ScTbl 接入 useTableApi（v-model:page/page-size + @fetch + @update:queryParams）
 -->
 <template>
   <div class="sales-contract-page">
@@ -28,25 +28,23 @@
       :query-params="sc.queryParams"
       :customers="sc.customers"
       :date-range="sc.dateRange"
+      @fetch="sc.handleQuery"
       @update:query-params="(v) => Object.assign(sc.queryParams, v)"
-      @query="sc.handleQuery"
-      @reset="sc.handleReset"
       @date-change="onDateChange"
     />
 
     <ScTbl
+      v-model:page="sc.page"
+      v-model:page-size="sc.pageSize"
       :contract-list="sc.contractList"
       :loading="sc.loading"
       :total="sc.total"
-      :query-params="sc.queryParams"
       @view="scProc.handleView"
       @edit="onEdit"
       @submit-approval="scProc.handleSubmitForApproval"
       @approve="scProc.handleApprove"
       @execute="scProc.handleExecute"
       @delete="scProc.handleDelete"
-      @size-change="sc.handleSizeChange"
-      @current-change="sc.handleCurrentChange"
     />
 
     <ScForm
@@ -102,8 +100,9 @@ const onDateChange = (v: [Date, Date] | null) => {
   sc.handleDateChange()
 }
 
+// 列表由 useTableApi setup 自动加载，onMounted 仅加载辅助数据
 onMounted(() => {
-  sc.initLoad()
+  sc.getCustomers()
 })
 </script>
 

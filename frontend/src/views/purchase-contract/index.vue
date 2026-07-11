@@ -2,7 +2,7 @@
   purchase-contract/index.vue - 采购合同管理（拆分重构版）
   任务编号: P14 批 2 I-3 第 3 批
   拆分：644 行 → ~150 行 + 4 子组件 + 2 composable + 1 工具
-  行为完全保持一致（仅结构重构）
+  批次 284：PcFilter/PcTbl 接入 useTableApi（v-model:page/page-size + @fetch + @update:queryParams）
 -->
 <template>
   <div class="purchase-contract-page">
@@ -30,24 +30,22 @@
     <PcFilter
       :query-params="pc.queryParams"
       :suppliers="pc.suppliers"
-      @query="pc.handleQuery"
-      @reset="pc.handleReset"
+      @fetch="pc.handleQuery"
       @update:query-params="(v) => Object.assign(pc.queryParams, v)"
     />
 
     <PcTbl
+      v-model:page="pc.page"
+      v-model:page-size="pc.pageSize"
       :contract-list="pc.contractList"
       :loading="pc.loading"
       :total="pc.total"
-      :query-params="pc.queryParams"
       @view="onView"
       @edit="onEdit"
       @submit="pcProc.handleSubmit"
       @approve="pcProc.handleApprove"
       @execute="pcProc.handleExecute"
       @delete="pcProc.handleDelete"
-      @size-change="pc.handleSizeChange"
-      @current-change="pc.handleCurrentChange"
     />
 
     <PcForm
@@ -108,8 +106,9 @@ const onSubmitForm = async () => {
   if (ok) dialogVisible.value = false
 }
 
+// 列表由 useTableApi setup 自动加载，onMounted 仅加载辅助数据
 onMounted(() => {
-  pc.initLoad()
+  pc.getSuppliers()
 })
 </script>
 

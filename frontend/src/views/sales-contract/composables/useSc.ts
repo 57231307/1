@@ -3,12 +3,11 @@
  * 任务编号: P14 批 2 I-3 第 1 批（拆分原 sales-contract/index.vue）
  * 提供销售合同列表查询、表单管理、客户加载、CRUD 等核心方法
  * 业务流程（提交审批/审批/执行/打印/导出）由 useScProc 提供
- * 行为完全保持一致（仅结构重构）
+ * 批次 284：contractList 接入 useTableApi，移除手写分页/加载逻辑
  */
 import { ref, reactive } from 'vue'
 import { ElMessage } from 'element-plus'
 import {
-  listSalesContracts,
   createSalesContract,
   updateSalesContract,
   type SalesContract,
@@ -16,6 +15,7 @@ import {
 import { customerApi, type Customer } from '@/api/customer'
 import { loadIfNot, createLazyLoader } from '@/utils/lazy-loader'
 import { logger } from '@/utils/logger'
+import { useTableApi } from '@/composables/useTableApi'
 
 /**
  * 销售合同 composable
@@ -23,23 +23,35 @@ import { logger } from '@/utils/logger'
  * 对话框可见性由父组件本地 ref 管理
  */
 export function useSc() {
-  // 查询参数
-  const queryParams = reactive({
-    page: 1,
-    page_size: 20,
-    keyword: '',
-    customer_id: undefined as number | undefined,
-    status: '',
-    signed_date_from: '',
-    signed_date_to: '',
+  // 列表 - 接入 useTableApi（批次 284）
+  const {
+    data: contractList,
+    total,
+    loading,
+    page,
+    pageSize,
+    queryParams,
+    setQueryParam,
+    refresh: getList,
+  } = useTableApi<SalesContract>({
+    url: '/sales/sales-contracts',
+    defaultPageSize: 20,
+    defaultParams: {
+      keyword: '',
+      customer_id: undefined as number | undefined,
+      status: '',
+      signed_date_from: '',
+      signed_date_to: '',
+    },
+    onError: (err: unknown) => {
+      // 使用类型守卫安全提取错误信息
+      const errMsg = err instanceof Error ? err.message : ''
+      ElMessage.error(errMsg || '获取销售合同列表失败')
+    },
   })
 
+  // 日期范围（ScFilter 通过 date-change emit 回传，保留特殊处理）
   const dateRange = ref<[Date, Date] | null>(null)
-
-  // 列表数据
-  const loading = ref(false)
-  const contractList = ref<SalesContract[]>([])
-  const total = ref(0)
 
   // 客户列表
   const customers = ref<Customer[]>([])
@@ -68,32 +80,17 @@ export function useSc() {
   // 懒加载标记
   const hasLoaded = createLazyLoader()
 
-  /** 处理日期范围变化 */
+  /** 处理日期范围变化（批次 284：改为 setQueryParam + page=1 + refresh） */
   const handleDateChange = () => {
     if (dateRange.value) {
-      queryParams.signed_date_from = dateRange.value[0].toISOString().split('T')[0]
-      queryParams.signed_date_to = dateRange.value[1].toISOString().split('T')[0]
+      setQueryParam('signed_date_from', dateRange.value[0].toISOString().split('T')[0])
+      setQueryParam('signed_date_to', dateRange.value[1].toISOString().split('T')[0])
     } else {
-      queryParams.signed_date_from = ''
-      queryParams.signed_date_to = ''
+      setQueryParam('signed_date_from', '')
+      setQueryParam('signed_date_to', '')
     }
-    handleQuery()
-  }
-
-  /** 获取列表 */
-  const getList = async () => {
-    loading.value = true
-    try {
-      const res = await listSalesContracts(queryParams)
-      contractList.value = res.data?.list || []
-      total.value = res.data?.total || 0
-    } catch (error: unknown) {
-      // 使用类型守卫安全提取错误信息
-      const errMsg = error instanceof Error ? error.message : ''
-      ElMessage.error(errMsg || '获取销售合同列表失败')
-    } finally {
-      loading.value = false
-    }
+    page.value = 1
+    getList()
   }
 
   /** 获取客户列表 */
@@ -108,19 +105,22 @@ export function useSc() {
 
   /** 查询 */
   const handleQuery = () => {
-    queryParams.page = 1
+    page.value = 1
     getList()
   }
 
   /** 重置 */
   const handleReset = () => {
-    queryParams.keyword = ''
-    queryParams.customer_id = undefined
-    queryParams.status = ''
+    queryParams.value = {
+      keyword: '',
+      customer_id: undefined,
+      status: '',
+      signed_date_from: '',
+      signed_date_to: '',
+    }
     dateRange.value = null
-    queryParams.signed_date_from = ''
-    queryParams.signed_date_to = ''
-    handleQuery()
+    page.value = 1
+    getList()
   }
 
   /** 准备新建表单（父组件需自行打开对话框） */
@@ -170,38 +170,26 @@ export function useSc() {
     }
   }
 
-  /** 分页 - 每页大小 */
-  const handleSizeChange = (val: number) => {
-    queryParams.page_size = val
-    getList()
-  }
-
-  /** 分页 - 当前页 */
-  const handleCurrentChange = (val: number) => {
-    queryParams.page = val
-    getList()
-  }
-
-  /** 初始化加载（懒加载客户） */
+  /** 初始化加载辅助数据（懒加载客户，列表由 useTableApi setup 自动加载） */
   const initLoad = () => {
-    getList()
     loadIfNot('customers', getCustomers, hasLoaded)
   }
 
   // 使用 reactive 包装，访问字段时自动解包 ref
   return reactive({
-    // 查询与列表
+    // 查询与列表（useTableApi 管理）
     queryParams,
-    dateRange,
-    handleDateChange,
+    page,
+    pageSize,
     loading,
     contractList,
     total,
     getList,
     handleQuery,
     handleReset,
-    handleSizeChange,
-    handleCurrentChange,
+    // 日期范围
+    dateRange,
+    handleDateChange,
     // 客户
     customers,
     getCustomers,

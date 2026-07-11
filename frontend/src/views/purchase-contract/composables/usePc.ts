@@ -3,13 +3,12 @@
  * 任务编号: P14 批 2 I-3 第 3 批（拆分原 purchase-contract/index.vue）
  * 提供采购合同列表查询、表单管理、供应商加载、CRUD 等核心方法
  * 业务流程（提交/审批/执行/删除/导出）由 usePcProc 提供
- * 行为完全保持一致（仅结构重构）
+ * 批次 284：contractList 接入 useTableApi，移除手写分页/加载逻辑
  */
 import { ref, reactive } from 'vue'
 import { ElMessage } from 'element-plus'
 import { FormInstance } from 'element-plus'
 import {
-  listPurchaseContracts,
   createPurchaseContract,
   updatePurchaseContract,
   type PurchaseContract,
@@ -17,6 +16,7 @@ import {
 import { supplierApi, type Supplier } from '@/api/supplier'
 import { loadIfNot, createLazyLoader } from '@/utils/lazy-loader'
 import { logger } from '@/utils/logger'
+import { useTableApi } from '@/composables/useTableApi'
 
 /**
  * 采购合同 composable
@@ -24,20 +24,28 @@ import { logger } from '@/utils/logger'
  * 对话框可见性由父组件本地 ref 管理
  */
 export function usePc() {
-  // 查询参数
-  const queryParams = reactive({
-    page: 1,
-    page_size: 20,
-    keyword: '',
-    supplier_id: undefined as number | undefined,
-    status: '',
-    date_range: [] as string[],
+  // 列表 - 接入 useTableApi（批次 284）
+  const {
+    data: contractList,
+    total,
+    loading,
+    page,
+    pageSize,
+    queryParams,
+    refresh: getList,
+  } = useTableApi<PurchaseContract>({
+    url: '/purchase/purchase-contracts',
+    defaultPageSize: 20,
+    defaultParams: {
+      keyword: '',
+      supplier_id: undefined as number | undefined,
+      status: '',
+      date_range: [] as string[],
+    },
+    onError: (err: unknown) => {
+      logger.error('获取采购合同列表失败:', err)
+    },
   })
-
-  // 列表数据
-  const loading = ref(false)
-  const contractList = ref<PurchaseContract[]>([])
-  const total = ref(0)
 
   // 供应商列表
   const suppliers = ref<Supplier[]>([])
@@ -74,20 +82,6 @@ export function usePc() {
   // 懒加载标记
   const hasLoaded = createLazyLoader()
 
-  /** 获取列表数据 */
-  const getList = async () => {
-    loading.value = true
-    try {
-      const res = await listPurchaseContracts(queryParams)
-      contractList.value = res.data?.list || []
-      total.value = res.data?.total || 0
-    } catch (error) {
-      logger.error('获取采购合同列表失败:', error)
-    } finally {
-      loading.value = false
-    }
-  }
-
   /** 获取供应商列表 */
   const getSuppliers = async () => {
     try {
@@ -100,17 +94,20 @@ export function usePc() {
 
   /** 查询 */
   const handleQuery = () => {
-    queryParams.page = 1
+    page.value = 1
     getList()
   }
 
   /** 重置 */
   const handleReset = () => {
-    queryParams.keyword = ''
-    queryParams.supplier_id = undefined
-    queryParams.status = ''
-    queryParams.date_range = []
-    handleQuery()
+    queryParams.value = {
+      keyword: '',
+      supplier_id: undefined,
+      status: '',
+      date_range: [],
+    }
+    page.value = 1
+    getList()
   }
 
   /** 准备新建表单（父组件需自行打开对话框） */
@@ -158,38 +155,26 @@ export function usePc() {
     }
   }
 
-  /** 分页 - 每页大小 */
-  const handleSizeChange = (val: number) => {
-    queryParams.page_size = val
-    getList()
-  }
-
-  /** 分页 - 当前页 */
-  const handleCurrentChange = (val: number) => {
-    queryParams.page = val
-    getList()
-  }
-
-  /** 初始化加载（懒加载供应商） */
+  /** 初始化加载辅助数据（懒加载供应商，列表由 useTableApi setup 自动加载） */
   const initLoad = () => {
-    getList()
     loadIfNot('suppliers', getSuppliers, hasLoaded)
   }
 
   // 使用 reactive 包装，访问字段时自动解包 ref
   return reactive({
-    // 查询与列表
+    // 查询与列表（useTableApi 管理）
     queryParams,
+    page,
+    pageSize,
     loading,
     contractList,
     total,
     getList,
     handleQuery,
     handleReset,
-    handleSizeChange,
-    handleCurrentChange,
     // 供应商
     suppliers,
+    getSuppliers,
     // 对话框与表单
     dialogTitle,
     formRef,

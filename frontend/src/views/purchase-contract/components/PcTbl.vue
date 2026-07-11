@@ -1,7 +1,7 @@
 <!--
   PcTbl.vue - 采购合同列表表格
   拆分自 purchase-contract/index.vue（P14 批 2 I-3 第 3 批）
-  行为完全保持一致（仅结构重构）
+  批次 284：接入 useTableApi 模式（page/pageSize props + v-model 绑定分页）
 -->
 <template>
   <el-card shadow="hover" class="table-card">
@@ -82,13 +82,13 @@
 
     <div class="pagination-container">
       <el-pagination
-        :current-page="queryParams.page"
-        :page-size="queryParams.page_size"
+        :current-page="page"
+        :page-size="pageSize"
         :page-sizes="[10, 20, 50, 100]"
         :total="total"
         layout="total, sizes, prev, pager, next, jumper"
-        @size-change="emit('size-change', $event as number)"
-        @current-change="emit('current-change', $event as number)"
+        @update:current-page="(v: number) => emit('update:page', v)"
+        @update:page-size="(v: number) => emit('update:page-size', v)"
       />
     </div>
   </el-card>
@@ -98,14 +98,8 @@
 import type { PurchaseContract } from '@/api/purchase-contract'
 import { formatCurrency, getStatusType, getStatusLabel } from '../composables/pcFmts'
 
-// 采购合同查询参数（分页字段）
-interface PcQueryParams {
-  page: number
-  page_size: number
-}
-
 /**
- * 采购合同列表表格组件
+ * 采购合同列表表格组件（批次 284：page/pageSize props + v-model 绑定分页）
  */
 defineProps<{
   // 列表数据
@@ -114,8 +108,10 @@ defineProps<{
   loading: boolean
   // 总数
   total: number
-  // 查询参数（用于分页）
-  queryParams: PcQueryParams
+  // 当前页
+  page: number
+  // 每页条数
+  pageSize: number
 }>()
 
 const emit = defineEmits<{
@@ -125,8 +121,8 @@ const emit = defineEmits<{
   approve: [row: PurchaseContract]
   execute: [row: PurchaseContract]
   delete: [row: PurchaseContract]
-  'size-change': [val: number]
-  'current-change': [val: number]
+  'update:page': [v: number]
+  'update:page-size': [v: number]
 }>()
 </script>
 

@@ -1,26 +1,25 @@
 <!--
   ScFilter.vue - 销售合同过滤栏
   拆分自 sales-contract/index.vue（P14 批 2 I-3 第 1 批）
-  行为完全保持一致（仅结构重构）
-  P9-3 批次 F 重构：移除 vue/no-mutating-props 抑制，改用本地 ref 镜像 + watch 防循环
+  批次 284：接入 useTableApi 模式（localQuery + handleSearch/handleReset，保留 dateRange/date-change）
 -->
 <template>
   <el-card shadow="hover" class="filter-card">
-    <el-form :inline="true" :model="localQueryParams" class="filter-form">
+    <el-form :inline="true" :model="localQuery" class="filter-form">
       <el-form-item label="关键词">
         <el-input
-          v-model="localQueryParams.keyword"
+          v-model="localQuery.keyword"
           placeholder="合同编号/合同名称"
           clearable
-          @clear="emit('query')"
+          @clear="handleSearch"
         />
       </el-form-item>
       <el-form-item label="客户">
         <el-select
-          v-model="localQueryParams.customer_id"
+          v-model="localQuery.customer_id"
           placeholder="选择客户"
           clearable
-          @change="emit('query')"
+          @change="handleSearch"
         >
           <el-option
             v-for="c in customers"
@@ -32,10 +31,10 @@
       </el-form-item>
       <el-form-item label="合同状态">
         <el-select
-          v-model="localQueryParams.status"
+          v-model="localQuery.status"
           placeholder="选择状态"
           clearable
-          @change="emit('query')"
+          @change="handleSearch"
         >
           <el-option label="草稿" value="draft" />
           <el-option label="待审批" value="pending" />
@@ -55,11 +54,11 @@
         />
       </el-form-item>
       <el-form-item>
-        <el-button type="primary" @click="emit('query')">
+        <el-button type="primary" @click="handleSearch">
           <el-icon><Search /></el-icon>
           查询
         </el-button>
-        <el-button @click="emit('reset')">
+        <el-button @click="handleReset">
           <el-icon><Refresh /></el-icon>
           重置
         </el-button>
@@ -69,76 +68,54 @@
 </template>
 
 <script setup lang="ts">
-import { ref, watch, nextTick } from 'vue'
+import { reactive } from 'vue'
 import { Search, Refresh } from '@element-plus/icons-vue'
 import type { Customer } from '@/api/customer'
 
-interface ScQueryParams {
-  keyword: string
-  customer_id: number | undefined
-  status: string
-  signed_date_from: string
-  signed_date_to: string
-  page: number
-  page_size: number
-}
-
 /**
- * 销售合同过滤栏组件
+ * 销售合同过滤栏组件（批次 284：localQuery + handleSearch/handleReset 模式，保留 dateRange/date-change）
  */
 const props = defineProps<{
   // 查询参数（由父组件管理，子组件通过 emit('update:queryParams') 回写）
-  queryParams: ScQueryParams
+  queryParams: Record<string, unknown>
   // 客户列表
   customers: Customer[]
-  // 日期范围
+  // 日期范围（特殊处理：日期范围需转换为 signed_date_from/signed_date_to）
   dateRange: [Date, Date] | null
 }>()
 
 const emit = defineEmits<{
-  // 查询
-  query: []
-  // 重置
-  reset: []
-  // 日期变化
-  'date-change': [v: [Date, Date] | null]
+  // 触发加载
+  fetch: []
   // 整体回写查询参数
-  'update:queryParams': [queryParams: ScQueryParams]
+  'update:queryParams': [value: Record<string, unknown>]
+  // 日期变化（特殊处理：由父组件转换为 signed_date_from/signed_date_to）
+  'date-change': [v: [Date, Date] | null]
 }>()
 
-// 本地镜像：避免直接修改 prop 触发 vue/no-mutating-props
-const localQueryParams = ref<ScQueryParams>({ ...props.queryParams })
+// 本地查询条件（筛选字段，不含分页参数）
+const localQuery = reactive<{ keyword: string; customer_id: number | undefined; status: string }>({
+  keyword: (props.queryParams.keyword as string) ?? '',
+  customer_id: props.queryParams.customer_id as number | undefined,
+  status: (props.queryParams.status as string) ?? '',
+})
 
-// 同步标志位：防止 prop → local 与 local → emit 形成循环
-let syncing = false
+/** 搜索：先同步筛选条件到父组件，再触发加载 */
+const handleSearch = () => {
+  emit('update:queryParams', { ...localQuery })
+  emit('fetch')
+}
 
-// 外部 prop 变化时同步到 local
-watch(
-  () => props.queryParams,
-  (newParams) => {
-    if (syncing) return
-    syncing = true
-    localQueryParams.value = { ...newParams }
-    nextTick(() => {
-      syncing = false
-    })
-  },
-  { deep: true },
-)
-
-// 本地变化时通知父组件
-watch(
-  localQueryParams,
-  (newParams) => {
-    if (syncing) return
-    syncing = true
-    emit('update:queryParams', { ...newParams })
-    nextTick(() => {
-      syncing = false
-    })
-  },
-  { deep: true },
-)
+/** 重置：清空筛选条件 + 通知父组件清空日期范围 + 同步 + 触发加载 */
+const handleReset = () => {
+  localQuery.keyword = ''
+  localQuery.customer_id = undefined
+  localQuery.status = ''
+  emit('update:queryParams', { ...localQuery })
+  // 日期范围特殊处理：重置时通知父组件清空 dateRange
+  emit('date-change', null)
+  emit('fetch')
+}
 </script>
 
 <style scoped>
