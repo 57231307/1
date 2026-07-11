@@ -215,7 +215,10 @@ async fn check_redis_rate_limit(
 }
 
 /// 通用限流检查：优先 Redis 分布式，回退到内存
-async fn check_rate_limit(
+///
+/// M6 修复（v8 复审）：改为 pub(crate) 以供 webhook_handler 等模块复用，
+/// 统一分布式限流策略（Redis 优先 + 内存回退），避免各处自行实现内存限流
+pub(crate) async fn check_rate_limit(
     key: &str,
     max_requests: usize,
     window: Duration,
