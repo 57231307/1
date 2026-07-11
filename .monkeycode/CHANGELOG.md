@@ -9,6 +9,7 @@
 
 | 批次 | PR | 一句话总结 |
 |------|-----|-----------|
+| 306 | #486 | 修复 v8-M6 webhook 测试端点限流器改分布式（rate_limit.rs check_rate_limit 改 pub(crate)，webhook_handler.rs test_webhook 改用 check_rate_limit Redis 优先 + 内存回退，多实例共享计数） |
 | 305 | #485 | 修复 v8-M5+M7 硬编码系统路径和 API URL（backup.rs /etc/bingxi/.env 和 /etc/systemd/system 改 BINGXI_ENV_FILE/BINGXI_SYSTEMD_DIR 环境变量，currency_service.rs API URL 改 EXCHANGE_RATE_API_URL 环境变量，.env.example 声明 3 个新变量） |
 | 304 | #484 | 修复 v8-M4 后置校验 TOCTOU 风险（先 tar -tf 列出内容逐文件校验路径再解压，防止恶意文件在校验前写入磁盘，解压后保留 canonicalize 二次校验双重防护） |
 | 303 | #483 | 修复 v8-M3 Python 密码拼接注入风险（admin.rs 密码从字符串拼接改为 stdin pipe 传递，避免 ps 泄露和注入风险，移除 run_cmd 依赖） |
