@@ -129,15 +129,14 @@ Ok((items, total))
 - 接入 `useTableApi` composable，删除重复的表格逻辑代码
 - 保持 view 的业务逻辑不变，只替换通用表格逻辑
 
-**待修复文件清单**（剩余 31 个 ⏳）：
+**待修复文件清单**（剩余 23 个 ⏳）：
 - `frontend/src/views/voucher/*`（凭证模块）
 - `frontend/src/views/scheduling/*`（排产模块）
-- `frontend/src/views/sales-contract/*`（销售合同）
-- `frontend/src/views/sales-price/*`（销售价格）
 - `frontend/src/views/purchaseReceipt/*`（采购收货）
 - inventory/tabs/InventoryStockTab（1-based 分页）
 - barcodeScanner / assistAccounting（使用 0-based 分页需特殊处理）
 - composable 管理分页的 view：useSysUpd（3 表）、useBpmAp（2 表）— ✅ 批次 283 已完成
+- sales-contract / sales-price / purchase-contract — ✅ 批次 284 已完成
 
 **技术要点**：
 - `useTableApi` 已封装：分页参数管理 / 数据加载 / loading 状态 / 错误处理
@@ -248,6 +247,16 @@ Ok((items, total))
 - bpm/approval 模块 4 文件：useBpmAp 2 表（pending/completed）接入 useTableApi + stats 通过 watch 自动更新 + 2 个表组件改为 page/pageSize/total props + index.vue v-model 绑定
 - CI 15 项全绿（12 成功 + 0 skipped，Rust 后端构建最后完成）
 - view 表格进度：25/56 → 30/56
+
+### 批次 284：sales-contract + sales-price + purchase-contract composable 迁移 — ✅ 完成（PR #464 合并，sha: cd538d7）
+
+- sales-contract 模块 4 文件：useSc contractList 接入 useTableApi + ScTbl/ScFilter 改造 + index.vue 适配（保留 dateRange/date-change 特殊处理）
+- sales-price 模块 4 文件：useSp priceList 接入 useTableApi + SpTbl/SpFilter 改造 + index.vue 适配
+- purchase-contract 模块 4 文件：usePc contractList 接入 useTableApi + PcTbl/PcFilter 改造（date_range 作为 localQuery 字段）+ index.vue 适配
+- 修复 CI 类型错误：reactive 返回对象遗漏 getCustomers/getProducts/getSuppliers（TS2551）
+- 更新 clippy baseline：加入 33 个预存 dead_code 警告（CI 缓存差异暴露，main 分支缓存命中只有 298 警告，全新编译有 1064 警告）
+- CI 15 项全绿（13 成功 + 2 skipped 打包/Release）
+- view 表格进度：30/56 → 33/56（3 个模块 12 文件）
 
 ---
 
