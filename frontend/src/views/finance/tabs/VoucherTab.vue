@@ -48,7 +48,7 @@
 
     <VchrForm
       v-model:visible="voucherDialogVisible"
-      :voucher-form-ref="voucherFormRef"
+      :voucher-form-ref="voucherFormRefObj"
       :voucher-form="vchr.voucherForm"
       :voucher-submit-loading="vchr.voucherSubmitLoading"
       :voucher-rules="vchr.voucherRules"
@@ -75,6 +75,7 @@
 
 <script setup lang="ts">
 import { ref, onMounted, toRef } from 'vue'
+import type { FormInstance } from 'element-plus'
 import { Plus, Printer, Download } from '@element-plus/icons-vue'
 import { useVchr } from './composables/useVchr'
 import { useVchrProc } from './composables/useVchrProc'
@@ -88,8 +89,16 @@ const vchr = useVchr()
 // 使用 toRef 包装 reactive 属性为 ref，保持 useVchrProc 内部能读取最新 vouchers
 const vchrProc = useVchrProc(toRef(vchr, 'vouchers'), vchr.fetchVouchers)
 // VchrForm 需要 ref-like 的 voucherFormRef（{ value: FormInstance | undefined }），
-// reactive 会自动解包 ref，因此用 toRef 还原为 ref 传入
-const voucherFormRef = toRef(vchr, 'voucherFormRef')
+// reactive 会自动解包 ref，top-level ref 在模板中也会被解包，
+// 因此用 getter/setter 对象代理访问，避免被 vue-tsc 自动解包
+const voucherFormRefObj: { value: FormInstance | undefined } = {
+  get value() {
+    return vchr.voucherFormRef
+  },
+  set value(v: FormInstance | undefined) {
+    vchr.voucherFormRef = v
+  },
+}
 
 const voucherDialogVisible = ref(false)
 const voucherViewVisible = ref(false)
