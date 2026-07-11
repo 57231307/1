@@ -395,7 +395,7 @@ const handleExport = () => {
       { key: 'capacity', title: '容量(m³)' },
       { key: 'status', title: '状态', formatter: v => (v === 'active' ? '启用' : '禁用') },
     ],
-    data: warehouses.value,
+    data: warehouses.value as unknown as Record<string, unknown>[],
   })
 }
 
@@ -420,7 +420,7 @@ const handlePrint = () => {
         formatter: v => (v === 'active' ? '启用' : '禁用'),
       },
     ],
-    data: warehouses.value,
+    data: warehouses.value as unknown as Record<string, unknown>[],
   })
 }
 
