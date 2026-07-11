@@ -9,6 +9,7 @@
 
 | 批次 | PR | 一句话总结 |
 |------|-----|-----------|
+| 270 | - | 规则 5 E2E 触发（403 token 权限不足，需用户手动触发 e2e-batch.yml）+ 规则 10 记忆整理（doto.md 更新到准确状态：中风险 22/25、service 分页 35/35 清零、view 表格 7/56） |
 | 269 | #447 | 3 个 CRM view 接入 useTableApi 第三批（leads + opportunities + pool，修复 pool 硬编码分页 bug + poolList 类型修复） |
 | 268 | #446 | 2 个 view 接入 useTableApi 第二批（supplierEvaluation 配 pageSizeKey + quotations 移除兼容类型） |
 | 267 | #445 | 2 个 view 接入 useTableApi 首批（audit-log + slow-query，测试 mock 适配 @/api/request） |

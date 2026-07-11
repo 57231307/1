@@ -5,7 +5,7 @@
 
 ---
 
-## 🔄 当前任务：v14 深度调研报告修复（高风险 6/6 完成，中风险 20/25 完成）
+## 🔄 当前任务：v14 深度调研报告修复（高风险 6/6 完成，中风险 22/25 完成）
 
 > **v14 深度调研报告**（2026-07-09，[bug.md](file:///workspace/.monkeycode/bug.md)）：12 维度全量扫描，15 高/25 中/74 低风险，共 114 个问题。
 > v13 后端 P0/P1 全部完成（批次 229-236），v13 剩余 P2 任务合并到 v14 队列。
@@ -24,9 +24,9 @@
 | 241 | P0-5 | API 文档缺失（恢复 docs.rs + 删 openapi.rs） | ✅ PR #418 |
 | 242 | P0-6 | 简化阉割-RFM 分布真实计算 | ✅ PR #419 |
 
-#### 🟡 中风险修复队列（25 项，已完成 19/25 🔄）
+#### 🟡 中风险修复队列（25 项，已完成 22/25 🔄）
 
-**待修复项（8 项 ⏳）**：
+**待修复项（3 项 ⏳）**：
 
 ##### 1. 测试覆盖（7 项 ⏳ 待修复）
 
@@ -67,11 +67,11 @@
 
 **问题背景**：bug.md 中风险重复实现问题 — 项目中存在大量重复代码，违反 DRY 原则，维护成本高，修改时容易遗漏同步更新。
 
-**子任务 2.1：service 分页逻辑接入 paginate_with_total（累计 30/35 完成，剩余 5/35 ⏳）**
+**子任务 2.1：service 分页逻辑接入 paginate_with_total（35/35 全部清零 ✅）**
 
 **问题描述**：35 个 service 文件手写 `num_items + fetch_page` 分页逻辑，与已封装的 `paginate_with_total` 工具函数（`backend/src/utils/pagination.rs`）重复。手写逻辑存在不一致实现（部分未做 `saturating_sub(1)` 偏移、部分未做 `clamp` 防 DoS），且修改分页逻辑需逐个文件修改。
 
-**已修复文件（30 个 ✅）**：
+**已修复文件（35 个 ✅，全部清零）**：
 - 批次 255：`sales_price_service.rs` / `ap_invoice_service.rs` / `role_service.rs`（修复偏移 bug）/ `supplier_service.rs`
 - 批次 256：`email_log_service.rs` / `email_template_service.rs` / `report_subscription_service.rs` / `report_template_service.rs`
 - 批次 257：`currency_service.rs`（2 处）/ `mrp_engine_service.rs` / `production_order_service.rs` / `scheduling_query.rs`
@@ -79,13 +79,7 @@
 - 批次 259：`ap_payment_request_service.rs` / `ap_payment_service.rs` / `ap_reconciliation_service.rs` / `ap_verification_service.rs`
 - 批次 260：`po/order.rs` / `inventory_count_service.rs` / `inventory_adjustment_service.rs` / `finance_payment_service.rs`
 - 批次 263：`inventory_stock_query.rs`（list_transactions + get_stock_by_product）/ `inventory_stock_service.rs`（list_stock）/ `custom_order_aftersales_service.rs` / `custom_order_crud_service.rs` / `custom_order_quality_service.rs`
-
-**待修复文件（5 个 ⏳）**：
-- `quotation_service.rs`（需解决 ServiceError 转换）
-- `inventory_reservation_service.rs`（total 转 i64 + page 无偏移）
-- `inventory_stock_query.rs` get_inventory_summary（聚合查询 + into_model + 结果映射，需特殊处理）
-- `color_price_crud_service.rs` / `color_price_history_service.rs` / `color_price_seasonal_service.rs`（需错误转换 From<AppError>）
-- `fixed_asset_service.rs` / `fund_management_service.rs`（流式拉取/无 total 返回，需评估是否适合接入）
+- 批次 266：`quotation_service.rs`（ServiceError 转换已解决）/ `inventory_reservation_service.rs` / `color_price_crud_service.rs` / `color_price_history_service.rs` / `color_price_seasonal_service.rs` / `fixed_asset_service.rs` / `fund_management_service.rs` / `inventory_stock_query.rs` get_inventory_summary
 
 **修复模式**（统一标准）：
 ```rust
@@ -114,11 +108,16 @@ Ok((items, total))
 - `PaginatorTrait` 导入保留（`.paginate()` 方法需要）
 - `quotation_service.rs` 特殊处理：返回类型是 `ServiceError` 而非 `AppError`，需添加 `From<AppError> for ServiceError` 转换或改用 `AppError`
 
-**子任务 2.2：30+ view 表格逻辑接入 useTableApi（⏳ 待修复）**
+**子任务 2.2：view 表格逻辑接入 useTableApi（7/56 完成 🔄）**
 
-**问题描述**：30+ 前端 view 文件各自实现表格加载/分页/排序/查询逻辑，与已封装的 `useTableApi` composable 重复。每个 view 重复编写 `loadData` / `handlePageChange` / `handleSortChange` / `handleSearch` 等函数，代码冗余严重。
+**问题描述**：56 个前端 view 文件各自实现表格加载/分页/排序/查询逻辑，与已封装的 `useTableApi` composable 重复。每个 view 重复编写 `loadData` / `handlePageChange` / `handleSortChange` / `handleSearch` 等函数，代码冗余严重。
 
-**影响范围**：30+ view 文件，涉及所有业务模块（销售/采购/库存/财务/CRM 等）
+**影响范围**：56 个 view 文件，涉及所有业务模块（销售/采购/库存/财务/CRM 等）
+
+**已修复文件（7 个 ✅）**：
+- 批次 267：`system/audit-log/index.vue`（V2Table，listKey: 'items'） / `system/slow-query/index.vue`（保留 loadStats）
+- 批次 268：`supplierEvaluation/index.vue`（pageSizeKey: 'pageSize' 驼峰适配） / `quotations/list.vue`（移除 QuotationListObj 兼容类型）
+- 批次 269：`crm/leads/index.vue`（移除类型 hack） / `crm/opportunities/index.vue` / `crm/pool.vue`（修复硬编码分页 bug + poolList 类型修复）
 
 **修复方案**：
 - 扫描所有使用 `el-table` + 分页的 view 文件
@@ -126,24 +125,26 @@ Ok((items, total))
 - 接入 `useTableApi` composable，删除重复的表格逻辑代码
 - 保持 view 的业务逻辑不变，只替换通用表格逻辑
 
-**待修复文件清单**（需扫描识别，预计 30+ 文件）：
-- `frontend/src/views/sales-*/index.vue`
-- `frontend/src/views/purchase-*/index.vue`
-- `frontend/src/views/inventory-*/index.vue`
-- `frontend/src/views/finance-*/index.vue`
-- `frontend/src/views/crm-*/index.vue`
-- 其他使用 el-table + 分页的 view
+**待修复文件清单**（剩余 49 个 ⏳，优先级排序）：
+- `frontend/src/views/voucher/*`（凭证模块）
+- `frontend/src/views/scheduling/*`（排产模块）
+- `frontend/src/views/security/*`（安全模块）
+- `frontend/src/views/sales-contract/*`（销售合同）
+- `frontend/src/views/sales-price/*`（销售价格）
+- `frontend/src/views/purchaseReceipt/*`（采购收货）
+- 其他使用 el-table + 分页的 view（详见扫描结果）
 
 **技术要点**：
 - `useTableApi` 已封装：分页参数管理 / 数据加载 / loading 状态 / 错误处理
 - 接入时需保留 view 特有的查询参数构建逻辑（如日期范围/多字段搜索）
 - 部分 view 有自定义列配置/导出功能，需评估是否纳入 composable
+- **测试 mock 适配**：view 接入后不再 import `listXxx`，测试 mock 需从 `@/api/xxx` 改为 `@/api/request`，mock 返回 `{ code, message, data: { items/list, total } }`，断言 `mock.calls[0][1].params`
 
-**已完成项（16 项 ✅）**：
+**已完成项（22 项 ✅）**：
 - 空实现（4 项 ✅）：批次 246 handleViewVersion + 批次 252 bi_analysis unreachable! + 批次 253 AdvancedFilter handleLogicChange
 - 简化阉割（3 项 ✅）：批次 249 capacity + 批次 250 budget + 批次 251 webhook retry
 - 死代码（1 项 ✅）：批次 254 composable eslint-disable any 清理
-- 重复实现 service 分页（1 项 ✅）：批次 255-263（累计 30/35）
+- 重复实现 service 分页（1 项 ✅）：批次 255-266（35/35 全部清零）
 - 项目规则符合性（1 项 ✅）：批次 247 CLI 硬编码 URL
 - 性能问题（5 项 ✅）：批次 244 ar 报表 + 批次 245 ap 报表 + 批次 248 缓存接入
 - 安全漏洞（2 项 ✅）：批次 243 XSS + 输入验证
@@ -195,16 +196,27 @@ Ok((items, total))
 
 ## 🔄 进行中批次
 
-### 批次 264：待启动（service 分页剩余 5 个特殊处理文件 + 测试覆盖 ⏳）
+### 批次 270：规则 5 E2E 触发（每 30 批次）+ 规则 10 记忆整理（每 15 批次）— 进行中
+
+- **规则 5（E2E 触发）**：批次 270 = 30×9，触发 e2e-batch.yml workflow_dispatch
+  - 状态：GitHub API 调用返回 403（token `ghu_...` 无 workflow_dispatch 权限）
+  - 处理：需用户手动在 GitHub Actions 页面触发 e2e-batch.yml（E2E 已独立，不阻塞主 CI）
+  - 监控节奏：批次 290（N+20）第 1 次监控 / 批次 298（N+28）第 2 次 / 批次 299（N+29）最后
+- **规则 10（记忆整理）**：批次 270 = 15×18，整理 doto.md 到准确状态（22/25、service 35/35、view 7/56）
+
+### 批次 271：view 表格逻辑接入 useTableApi 第四批（待启动）
+
+- 优先模块：voucher / scheduling / security / sales-contract / sales-price / purchaseReceipt
+- 剩余 49 个 view 文件，每批 2-3 个
 
 ---
 
 ## 规则节点提醒
 
-- **规则 5（E2E 独立工作流，每 30 批次）**：批次 270 触发（上次批次 240 → 独立工作流 e2e-batch.yml）
+- **规则 5（E2E 独立工作流，每 30 批次）**：批次 270 触发（403 权限不足，需用户手动触发）
   - 批次 N（30 倍数）：触发 e2e-batch.yml workflow_dispatch
   - 批次 N+20：第 1 次监控（GitHub API 查询 run 状态）
   - 批次 N+28：第 2 次监控（若 N+20 未完成）
   - 批次 N+29：最后监控，未完成则跳过 N+30 的 E2E 周期
   - **注意**：E2E 已从 ci-cd.yml 独立到 e2e-batch.yml，不阻塞主 CI
-- **规则 10（每 15 批次记忆整理）**：批次 270 触发（上次批次 255）— 需整理、归档、排序所有记忆文件，确保高效简洁
+- **规则 10（每 15 批次记忆整理）**：批次 270 已触发（上次批次 255）— 已整理 doto.md 到准确状态
