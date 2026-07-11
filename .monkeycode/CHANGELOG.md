@@ -9,6 +9,7 @@
 
 | 批次 | PR | 一句话总结 |
 |------|-----|-----------|
+| 274 | #452 | 3 个 view 接入 useTableApi 第七批（color-cards + custom-orders + mrp/history，移除 listColorCards/listCustomOrders/getMrpHistory + 手写分页，修复 mrp/history fetchHistory 未使用错误） |
 | 273 | #451 | 2 个 view 接入 useTableApi 第六批（fiveDimension + omniAudit，修复 0-based 分页 bug + dashboard 误用 pagination + logs 缺失 pagination）+ .env.example 变量名统一（AUDIT__SECRET_KEY→AUDIT_SECRET_KEY）+ 规则 13 修复流程写入 MEMORY.md |
 | 部署 | #450 | 修复部署配置路径与用户不一致导致后端无法启动（EnvironmentFile /etc/bingxi-erp/.env→/etc/bingxi/.env + 补建 bingxi 用户 + nginx 前端路径 /opt/bingxi-erp→/opt/bingxi，2 处） |
 | 272 | #449 | 2 个 view 接入 useTableApi 第五批（customerCredit + arReconciliation，refresh 别名保留兼容事件绑定，修复 loading 未解构引用错误） |
