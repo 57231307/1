@@ -103,6 +103,16 @@ pub(super) fn cmd_backup(backup_type: &str) {
         &["-czf", &tar_file, "-C", &get_backup_dir(), &ts.to_string()],
     ) {
         println!("[ERROR] 压缩失败: {}", e);
+    } else {
+        // 规则 12 合规：设置备份文件权限为 0o600（仅所有者可读），
+        // 防止备份中的 .env（含数据库密码等敏感信息）被其他用户读取
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            if let Err(e) = fs::set_permissions(&tar_file, fs::Permissions::from_mode(0o600)) {
+                println!("[WARN] 设置备份文件权限失败（可忽略）: {}", e);
+            }
+        }
     }
     // 清理临时目录（非关键路径，失败仅告警）
     if let Err(e) = run_cmd("rm", &["-rf", &backup_dir]) {
