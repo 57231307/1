@@ -108,16 +108,17 @@ Ok((items, total))
 - `PaginatorTrait` 导入保留（`.paginate()` 方法需要）
 - `quotation_service.rs` 特殊处理：返回类型是 `ServiceError` 而非 `AppError`，需添加 `From<AppError> for ServiceError` 转换或改用 `AppError`
 
-**子任务 2.2：view 表格逻辑接入 useTableApi（7/56 完成 🔄）**
+**子任务 2.2：view 表格逻辑接入 useTableApi（9/56 完成 🔄）**
 
 **问题描述**：56 个前端 view 文件各自实现表格加载/分页/排序/查询逻辑，与已封装的 `useTableApi` composable 重复。每个 view 重复编写 `loadData` / `handlePageChange` / `handleSortChange` / `handleSearch` 等函数，代码冗余严重。
 
 **影响范围**：56 个 view 文件，涉及所有业务模块（销售/采购/库存/财务/CRM 等）
 
-**已修复文件（7 个 ✅）**：
+**已修复文件（9 个 ✅）**：
 - 批次 267：`system/audit-log/index.vue`（V2Table，listKey: 'items'） / `system/slow-query/index.vue`（保留 loadStats）
 - 批次 268：`supplierEvaluation/index.vue`（pageSizeKey: 'pageSize' 驼峰适配） / `quotations/list.vue`（移除 QuotationListObj 兼容类型）
 - 批次 269：`crm/leads/index.vue`（移除类型 hack） / `crm/opportunities/index.vue` / `crm/pool.vue`（修复硬编码分页 bug + poolList 类型修复）
+- 批次 271：`dye-batch/index.vue`（refresh 替换 7 处 getList） / `dye-recipe/index.vue`（refresh 替换 6 处 getList + 移除空 onMounted）
 
 **修复方案**：
 - 扫描所有使用 `el-table` + 分页的 view 文件
@@ -125,14 +126,15 @@ Ok((items, total))
 - 接入 `useTableApi` composable，删除重复的表格逻辑代码
 - 保持 view 的业务逻辑不变，只替换通用表格逻辑
 
-**待修复文件清单**（剩余 49 个 ⏳，优先级排序）：
+**待修复文件清单**（剩余 47 个 ⏳，优先级排序）：
 - `frontend/src/views/voucher/*`（凭证模块）
 - `frontend/src/views/scheduling/*`（排产模块）
 - `frontend/src/views/security/*`（安全模块）
 - `frontend/src/views/sales-contract/*`（销售合同）
 - `frontend/src/views/sales-price/*`（销售价格）
 - `frontend/src/views/purchaseReceipt/*`（采购收货）
-- 其他使用 el-table + 分页的 view（详见扫描结果）
+- 其他直接手写分页的 view：omniAudit / fiveDimension / inventory/tabs/InventoryStockTab / customerCredit / barcodeScanner / arReconciliation / assistAccounting（批次 272 候选）
+- composable 管理分页的 view（104 个总计，后续迭代）
 
 **技术要点**：
 - `useTableApi` 已封装：分页参数管理 / 数据加载 / loading 状态 / 错误处理
@@ -196,18 +198,20 @@ Ok((items, total))
 
 ## 🔄 进行中批次
 
-### 批次 270：规则 5 E2E 触发（每 30 批次）+ 规则 10 记忆整理（每 15 批次）— 进行中
+### 批次 270：规则 5 E2E 触发 + 规则 10 记忆整理 — ✅ 完成
 
-- **规则 5（E2E 触发）**：批次 270 = 30×9，触发 e2e-batch.yml workflow_dispatch
-  - 状态：GitHub API 调用返回 403（token `ghu_...` 无 workflow_dispatch 权限）
-  - 处理：需用户手动在 GitHub Actions 页面触发 e2e-batch.yml（E2E 已独立，不阻塞主 CI）
-  - 监控节奏：批次 290（N+20）第 1 次监控 / 批次 298（N+28）第 2 次 / 批次 299（N+29）最后
-- **规则 10（记忆整理）**：批次 270 = 15×18，整理 doto.md 到准确状态（22/25、service 35/35、view 7/56）
+- **规则 5（E2E 触发）**：403 权限不足，需用户手动触发 e2e-batch.yml
+- **规则 10（记忆整理）**：doto.md 已更新到准确状态
 
-### 批次 271：view 表格逻辑接入 useTableApi 第四批（待启动）
+### 批次 271：view 表格逻辑接入 useTableApi 第四批 — ✅ 完成（PR #448 合并）
 
-- 优先模块：voucher / scheduling / security / sales-contract / sales-price / purchaseReceipt
-- 剩余 49 个 view 文件，每批 2-3 个
+- dye-batch/index.vue + dye-recipe/index.vue，CI 15 项全绿（13 成功 + 2 skipped）
+- view 表格进度：7/56 → 9/56
+
+### 批次 272：view 表格逻辑接入 useTableApi 第五批（待启动）
+
+- 候选文件：omniAudit / fiveDimension / barcodeScanner / customerCredit / arReconciliation / assistAccounting（直接手写分页模式）
+- 每批 2-3 个
 
 ---
 
