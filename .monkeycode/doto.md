@@ -108,7 +108,7 @@ Ok((items, total))
 - `PaginatorTrait` 导入保留（`.paginate()` 方法需要）
 - `quotation_service.rs` 特殊处理：返回类型是 `ServiceError` 而非 `AppError`，需添加 `From<AppError> for ServiceError` 转换或改用 `AppError`
 
-**子任务 2.2：view 表格逻辑接入 useTableApi（16/56 完成 🔄）**
+**子任务 2.2：view 表格逻辑接入 useTableApi（25/56 完成 🔄）**
 
 **问题描述**：56 个前端 view 文件各自实现表格加载/分页/排序/查询逻辑，与已封装的 `useTableApi` composable 重复。每个 view 重复编写 `loadData` / `handlePageChange` / `handleSortChange` / `handleSearch` 等函数，代码冗余严重。
 
@@ -129,23 +129,15 @@ Ok((items, total))
 - 接入 `useTableApi` composable，删除重复的表格逻辑代码
 - 保持 view 的业务逻辑不变，只替换通用表格逻辑
 
-**待修复文件清单**（剩余 40 个 ⏳，优先级排序，批次 275 候选：notification/index.vue + warehouse/index.vue + bom/index.vue）：
-- `frontend/src/views/notification/index.vue`（中等，listKey: list，批次 275 候选）
-- `frontend/src/views/warehouse/index.vue`（中等，listKey: list，批次 275 候选）
-- `frontend/src/views/bom/index.vue`（中等，listKey: list，批次 275 候选）
-- `frontend/src/views/customer/index.vue`（中等，listKey: list，有 @submitted 事件）
-- `frontend/src/views/system/tabs/UserTab.vue`（中等，listKey: list，有 defineExpose refresh）
-- `frontend/src/views/inventoryBatch/tabs/BatchListTab.vue`（中等，listKey: list，pageSize 非标准）
-- `frontend/src/views/inventoryCount/tabs/CountListTab.vue`（中等，listKey: list，有 defineExpose）
+**待修复文件清单**（剩余 31 个 ⏳）：
 - `frontend/src/views/voucher/*`（凭证模块）
 - `frontend/src/views/scheduling/*`（排产模块）
-- `frontend/src/views/security/*`（安全模块）
 - `frontend/src/views/sales-contract/*`（销售合同）
 - `frontend/src/views/sales-price/*`（销售价格）
 - `frontend/src/views/purchaseReceipt/*`（采购收货）
 - inventory/tabs/InventoryStockTab（1-based 分页）
 - barcodeScanner / assistAccounting（使用 0-based 分页需特殊处理）
-- composable 管理分页的 view（后续迭代）
+- composable 管理分页的 view：useSysUpd（3 表）、useBpmAp（2 表）— 批次 283 候选
 
 **技术要点**：
 - `useTableApi` 已封装：分页参数管理 / 数据加载 / loading 状态 / 错误处理
