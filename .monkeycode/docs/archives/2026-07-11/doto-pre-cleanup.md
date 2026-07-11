@@ -1,0 +1,312 @@
+# 未完成任务（详细）
+
+> 本文件**详细**记录未完成的任务（问题描述、影响范围、修复方案、技术要点），禁止简化。
+> 已完成任务见 [doto-su.md](file:///workspace/.monkeycode/doto-su.md)，一句话总结见 [CHANGELOG.md](file:///workspace/.monkeycode/CHANGELOG.md)，规则见 [MEMORY.md](file:///workspace/.monkeycode/MEMORY.md)。
+
+---
+
+## 🔄 当前任务：v14 深度调研报告修复（高风险 6/6 完成，中风险 22/25 完成）
+
+> **v14 深度调研报告**（2026-07-09，[bug.md](file:///workspace/.monkeycode/bug.md)）：12 维度全量扫描，15 高/25 中/74 低风险，共 114 个问题。
+> v13 后端 P0/P1 全部完成（批次 229-236），v13 剩余 P2 任务合并到 v14 队列。
+> 修复策略：按优先级（高→中→低）+ 影响范围（核心路径→边缘功能）排序，每批 1 commit，CI 全绿后合并 main。
+
+### v14 修复任务队列
+
+#### 🔴 高风险修复队列（6 项，全部完成 ✅）
+
+| 批次 | 编号 | 问题 | 状态 |
+|------|------|------|------|
+| 237 | P0-1 | 并发-async 阻塞（spawn_blocking 包装 Argon2id） | ✅ PR #414 |
+| 238 | P0-2 | 性能-全表扫描（ar_service SQL 聚合） | ✅ PR #415 |
+| 239 | P0-3 | 空实现-业务失效（handleView 只读模式） | ✅ PR #416 |
+| 240 | P0-4 | 测试覆盖-安全核心（permission.rs 23 测试） | ✅ PR #417 |
+| 241 | P0-5 | API 文档缺失（恢复 docs.rs + 删 openapi.rs） | ✅ PR #418 |
+| 242 | P0-6 | 简化阉割-RFM 分布真实计算 | ✅ PR #419 |
+
+#### 🟡 中风险修复队列（25 项，已完成 22/25 🔄）
+
+**待修复项（3 项 ⏳）**：
+
+##### 1. 测试覆盖（7 项 ⏳ 待修复）
+
+**问题背景**：bug.md 中风险测试覆盖问题 — 项目测试覆盖率严重不足，关键模块零测试或低覆盖，无法保证代码质量和重构安全性。
+
+**影响范围**：
+- **handlers 层**：100+ 文件覆盖率仅 10%，大部分 handler 无单元测试，API 行为变更无法被测试捕获
+- **services 层**：107 个 service 无任何测试，业务逻辑错误只能在运行时发现
+- **frontend api 层**：覆盖率 4.4%，前端 API 调用逻辑无测试保障
+- **ai 算法层**：零测试，AI 相关算法（RFM 评分、预测、推荐等）的正确性无验证
+- **store 层**：覆盖率低，状态管理逻辑无测试
+- **middleware 层**：覆盖率低（permission.rs 已在批次 240 补测 23 个，其余 middleware 仍无测试）
+- **其他模块**：utils/handlers/services 子模块等需补测
+
+**修复方案**：
+- 按模块优先级分批补测：先补核心业务 service（auth/user/order/inventory），再补 handler，最后补前端
+- 每个 service 至少覆盖：正常路径 + 边界条件 + 错误处理
+- 测试 mock 数据遵循规则 6（禁止硬编码，使用 fixtures 工厂函数）
+- 使用 `tokio::test` + `testcontainers` 或内存数据库进行 service 集成测试
+
+**技术要点**：
+- service 测试需 mock DatabaseConnection（使用 `sea-orm-mock` 或自建 trait + mock 实现）
+- handler 测试使用 `axum::test::TestServer` + 内存路由
+- 前端测试使用 `vitest` + `@testing-library/vue`
+- AI 算法测试使用固定输入 + 期望输出对比（Golden Master 模式）
+
+**待修复文件清单**（部分示例，完整清单见 bug.md）：
+- `backend/src/services/auth_service.rs`（核心，高优先级）
+- `backend/src/services/user_service.rs`（核心，高优先级）
+- `backend/src/services/order_service.rs`（核心业务）
+- `backend/src/services/inventory_service.rs`（核心业务）
+- `backend/src/services/ai/*.rs`（AI 算法，零测试）
+- `backend/src/handlers/*.rs`（100+ 文件）
+- `frontend/src/api/*.ts`（前端 API 层）
+- `frontend/src/stores/*.ts`（状态管理）
+
+##### 2. 重复实现（2 项 🔄 进行中）
+
+**问题背景**：bug.md 中风险重复实现问题 — 项目中存在大量重复代码，违反 DRY 原则，维护成本高，修改时容易遗漏同步更新。
+
+**子任务 2.1：service 分页逻辑接入 paginate_with_total（35/35 全部清零 ✅）**
+
+**问题描述**：35 个 service 文件手写 `num_items + fetch_page` 分页逻辑，与已封装的 `paginate_with_total` 工具函数（`backend/src/utils/pagination.rs`）重复。手写逻辑存在不一致实现（部分未做 `saturating_sub(1)` 偏移、部分未做 `clamp` 防 DoS），且修改分页逻辑需逐个文件修改。
+
+**已修复文件（35 个 ✅，全部清零）**：
+- 批次 255：`sales_price_service.rs` / `ap_invoice_service.rs` / `role_service.rs`（修复偏移 bug）/ `supplier_service.rs`
+- 批次 256：`email_log_service.rs` / `email_template_service.rs` / `report_subscription_service.rs` / `report_template_service.rs`
+- 批次 257：`currency_service.rs`（2 处）/ `mrp_engine_service.rs` / `production_order_service.rs` / `scheduling_query.rs`
+- 批次 258：`purchase_receipt_service.rs` / `purchase_inspection_service.rs` / `purchase_return_service.rs` / `supplier_evaluation_service.rs`
+- 批次 259：`ap_payment_request_service.rs` / `ap_payment_service.rs` / `ap_reconciliation_service.rs` / `ap_verification_service.rs`
+- 批次 260：`po/order.rs` / `inventory_count_service.rs` / `inventory_adjustment_service.rs` / `finance_payment_service.rs`
+- 批次 263：`inventory_stock_query.rs`（list_transactions + get_stock_by_product）/ `inventory_stock_service.rs`（list_stock）/ `custom_order_aftersales_service.rs` / `custom_order_crud_service.rs` / `custom_order_quality_service.rs`
+- 批次 266：`quotation_service.rs`（ServiceError 转换已解决）/ `inventory_reservation_service.rs` / `color_price_crud_service.rs` / `color_price_history_service.rs` / `color_price_seasonal_service.rs` / `fixed_asset_service.rs` / `fund_management_service.rs` / `inventory_stock_query.rs` get_inventory_summary
+
+**修复模式**（统一标准）：
+```rust
+// 修复前（手写分页）
+let total = select.clone().count(&*self.db).await?;
+let items = select
+    .order_by_desc(Entity::Column::CreatedAt)
+    .paginate(&*self.db, page_size)
+    .fetch_page(page.saturating_sub(1))  // 部分文件遗漏此偏移
+    .await?;
+Ok((items, total))
+
+// 修复后（接入 paginate_with_total）
+use crate::utils::pagination::paginate_with_total;
+let paginator = select
+    .order_by_desc(Entity::Column::CreatedAt)
+    .paginate(&*self.db, page_size);
+let (items, total) = paginate_with_total(paginator, page.clamp(1, 1000)).await?;
+Ok((items, total))
+```
+
+**技术要点**：
+- `paginate_with_total` 内部已做 `page.saturating_sub(1)` 偏移，调用方不可再减 1
+- 删除独立 `select.clone().count()` 查询，复用 paginator 的 `num_items()`（减少一次 DB 查询）
+- 统一补充 `page.clamp(1, 1000)` 防 DoS（恶意请求 page=999999 不会导致超大偏移查询）
+- `PaginatorTrait` 导入保留（`.paginate()` 方法需要）
+- `quotation_service.rs` 特殊处理：返回类型是 `ServiceError` 而非 `AppError`，需添加 `From<AppError> for ServiceError` 转换或改用 `AppError`
+
+**子任务 2.2：view 表格逻辑接入 useTableApi（42/56 完成 🔄）**
+
+**问题描述**：56 个前端 view 文件各自实现表格加载/分页/排序/查询逻辑，与已封装的 `useTableApi` composable 重复。每个 view 重复编写 `loadData` / `handlePageChange` / `handleSortChange` / `handleSearch` 等函数，代码冗余严重。
+
+**影响范围**：56 个 view 文件，涉及所有业务模块（销售/采购/库存/财务/CRM 等）
+
+**已修复文件（16 个 ✅）**：
+- 批次 267：`system/audit-log/index.vue`（V2Table，listKey: 'items'） / `system/slow-query/index.vue`（保留 loadStats）
+- 批次 268：`supplierEvaluation/index.vue`（pageSizeKey: 'pageSize' 驼峰适配） / `quotations/list.vue`（移除 QuotationListObj 兼容类型）
+- 批次 269：`crm/leads/index.vue`（移除类型 hack） / `crm/opportunities/index.vue` / `crm/pool.vue`（修复硬编码分页 bug + poolList 类型修复）
+- 批次 271：`dye-batch/index.vue`（refresh 替换 7 处 getList） / `dye-recipe/index.vue`（refresh 替换 6 处 getList + 移除空 onMounted）
+- 批次 272：`customerCredit/index.vue`（refresh 别名 fetchCredits 保留 3 处 @submitted 绑定） / `arReconciliation/index.vue`（refresh 别名 loadData 保留 5 处调用 + 修复 loading 未解构）
+- 批次 273：`fiveDimension/index.vue`（修复 0-based 分页 bug + listKey: 'items'） / `omniAudit/index.vue`（修复 0-based 分页 bug + dashboard 误用 pagination + logs tab 缺失 pagination + statsLoading 独立）
+- 批次 274：`color-cards/list.vue`（移除 listColorCards + 手写分页，listKey: 'items'） / `custom-orders/list.vue`（移除 listCustomOrders + pagination ref，listKey: 'items'） / `mrp/history.vue`（移除 getMrpHistory + queryForm，listKey: 'list'，refresh 不别名 fetchHistory 无外部调用）
+
+**修复方案**：
+- 扫描所有使用 `el-table` + 分页的 view 文件
+- 评估每个 view 的特殊逻辑（如有自定义排序/筛选需保留）
+- 接入 `useTableApi` composable，删除重复的表格逻辑代码
+- 保持 view 的业务逻辑不变，只替换通用表格逻辑
+
+**待修复文件清单**（剩余 14 个 ⏳）：
+- `frontend/src/views/finance/voucher/*`（财务凭证模块）
+- `frontend/src/views/data-import/*`（数据导入模块）
+- inventory/tabs/InventoryStockTab（1-based 分页）
+- inventoryAdjustment/AdjustmentListTab / inventoryTransfer/TransferListTab
+- barcodeScanner / assistAccounting（使用 0-based 分页需特殊处理）
+- composable 管理分页的 view：useSysUpd（3 表）、useBpmAp（2 表）— ✅ 批次 283 已完成
+- sales-contract / sales-price / purchase-contract — ✅ 批次 284 已完成
+- purchaseReceipt / purchase-price — ✅ 批次 285 已完成
+- purchase-return / purchase-inspection — ✅ 批次 286 已完成
+- logistics / voucher — ✅ 批次 287 已完成
+- scheduling / material-shortage / capacity — ✅ 批次 288 已完成
+
+**技术要点**：
+- `useTableApi` 已封装：分页参数管理 / 数据加载 / loading 状态 / 错误处理
+- 接入时需保留 view 特有的查询参数构建逻辑（如日期范围/多字段搜索）
+- 部分 view 有自定义列配置/导出功能，需评估是否纳入 composable
+- **测试 mock 适配**：view 接入后不再 import `listXxx`，测试 mock 需从 `@/api/xxx` 改为 `@/api/request`，mock 返回 `{ code, message, data: { items/list, total } }`，断言 `mock.calls[0][1].params`
+
+**已完成项（22 项 ✅）**：
+- 空实现（4 项 ✅）：批次 246 handleViewVersion + 批次 252 bi_analysis unreachable! + 批次 253 AdvancedFilter handleLogicChange
+- 简化阉割（3 项 ✅）：批次 249 capacity + 批次 250 budget + 批次 251 webhook retry
+- 死代码（1 项 ✅）：批次 254 composable eslint-disable any 清理
+- 重复实现 service 分页（1 项 ✅）：批次 255-266（35/35 全部清零）
+- 项目规则符合性（1 项 ✅）：批次 247 CLI 硬编码 URL
+- 性能问题（5 项 ✅）：批次 244 ar 报表 + 批次 245 ap 报表 + 批次 248 缓存接入
+- 安全漏洞（2 项 ✅）：批次 243 XSS + 输入验证
+- E2E 失败排查（1 项 ✅）：批次 260 规则 5 检查发现 auth 配置缺失根因，批次 261 修复（AuthConfig serde(default) + PUBLIC_PATHS + CSRF 头），初始化步骤首次通过
+
+#### 🟢 低风险修复队列（74 项 ⏳ 后续迭代）
+
+**占位符/Mock 存根（21 项）**：
+- 问题描述：21 处占位符或 Mock 存根，多数为测试夹具或合理设计
+- 修复方案：逐个评估，合理保留的加注释说明，不合理的真实实现
+- 影响范围：测试夹具 / 开发占位 / 配置默认值
+- 优先级：低（多数无需修复）
+
+**项目规则符合性（11 项）**：
+- 问题描述：11 处配置层默认值或 best-effort 合理模式
+- 修复方案：评估是否符合规则 0-12，不符合的修正
+- 影响范围：配置文件 / 环境变量默认值
+- 优先级：低
+
+**死代码（8 项）**：
+- 问题描述：8 处合规标注的死代码（`#[allow(dead_code)]` + TODO）
+- 修复方案：逐个评估是否接入业务或删除
+- 影响范围：utils / models / services 子模块
+- 优先级：低
+
+**其他（34 项）**：
+- 问题描述：34 处其他低风险问题（命名规范/注释完善/代码风格等）
+- 修复方案：后续迭代统一处理
+- 优先级：低
+
+#### 📋 合并到 v14 的历史遗留任务（⏳ 待修复）
+
+**v13 前端 P2（3 项 ⏳）**：
+- FE-P2-1：前端类型定义完善（any 类型清理已完成，剩余 unknown 类型细化）
+- FE-P2-2：前端组件 props 类型强化
+- FE-P2-3：i18n 覆盖率（200+ 视图，后续迭代）— 问题描述：大量 view 未接入 i18n，硬编码中文文本；修复方案：逐个 view 提取文本到 i18n locale 文件
+
+**v13 后端 P2（3 项 ⏳）**：
+- P2-1：后端错误处理统一（部分 handler 仍直接返回字符串而非 AppError）
+- P2-2：后端日志规范（部分模块日志级别不当）
+- P2-3：后端配置项完善
+
+**其他遗留（3 项 ⏳）**：
+- FE-P2-6：大列表虚拟化（966 处 el-table，后续迭代）— 问题描述：大量 el-table 未使用虚拟滚动，大数据量时性能差；修复方案：引入 `el-table-v2` 或 `vue-virtual-scroller`
+- P2-8：剩余 143 个无测试 service（后续迭代）— 问题描述：143 个 service 无单元测试；修复方案：分批补测
+- E2E 失败排查（已知问题，待规则 5 节点）— 问题描述：CI 中 E2E 测试持续失败；修复方案：下载 playwright-report 分析失败用例，按规则 0/2 真实修复
+
+---
+
+## 🔄 进行中批次
+
+### 批次 270：规则 5 E2E 触发 + 规则 10 记忆整理 — ✅ 完成
+
+- **规则 5（E2E 触发）**：403 权限不足，需用户手动触发 e2e-batch.yml
+- **规则 10（记忆整理）**：doto.md 已更新到准确状态
+
+### 批次 271：view 表格逻辑接入 useTableApi 第四批 — ✅ 完成（PR #448 合并）
+
+- dye-batch/index.vue + dye-recipe/index.vue，CI 15 项全绿（13 成功 + 2 skipped）
+- view 表格进度：7/56 → 9/56
+
+### 批次 272：view 表格逻辑接入 useTableApi 第五批 — ✅ 完成（PR #449 合并）
+
+- customerCredit/index.vue + arReconciliation/index.vue，CI 15 项全绿（13 成功 + 2 skipped）
+- view 表格进度：9/56 → 11/56
+- 修复 arReconciliation 模板 `:loading="loading"` 引用错误（loading 未从 useTableApi 解构）
+
+### 批次 273：view 表格逻辑接入 useTableApi 第六批 — ✅ 完成（PR #451 合并）
+
+- fiveDimension/index.vue + omniAudit/index.vue，CI 15 项全绿
+- 修复 0-based 分页 bug + dashboard 误用 pagination + logs tab 缺失 pagination
+- view 表格进度：11/56 → 13/56
+- 同时修复 .env.example 变量名（AUDIT__SECRET_KEY→AUDIT_SECRET_KEY）+ 规则 13 写入 MEMORY.md
+
+### 批次 274：view 表格逻辑接入 useTableApi 第七批 — ✅ 完成（PR #452 合并，sha: 33632f6）
+
+- color-cards/list.vue + custom-orders/list.vue + mrp/history.vue，CI 15 项全绿
+- 修复 mrp/history fetchHistory 未使用错误（refresh 不别名，因无外部调用）
+- view 表格进度：13/56 → 16/56
+
+### 批次 281：api-gateway composable + AuditTab 8 文件 — ✅ 完成（PR #461 合并，sha: 2140c1e）
+
+- composable 迁移模式：composable 内部使用 useTableApi，返回 reactive 包装
+- 子组件通过 v-model:page/page-size 绑定分页
+- proc composable 适配：Context/Callbacks 接口 queryParams 放宽为 Record<string, unknown>
+
+### 批次 282：security + bpm/definitions composable 9 文件 — ✅ 完成（PR #462 合并，sha: 0ef12ce）
+
+- security 模块 4 文件：useSec loginLogs 接入 useTableApi + useSecProc 适配 + SecLogTbl 改造 + index.vue 适配
+- bpm/definitions 模块 5 文件：useBpmDf definitions 接入 useTableApi + useBpmDfProc 适配 + BpmDfFilter/BpmDfTbl 改造 + definitions.vue 适配
+- 修复 CI 类型错误：proc queryParams 类型放宽为 Record<string, unknown>
+
+### 批次 283：useSysUpd 3 表 + useBpmAp 2 表 composable 迁移 — ✅ 完成（PR #463 合并，sha: f369877）
+
+- system-update 模块 5 文件：useSysUpd 3 表（versions/tasks/backups）接入 useTableApi + index.vue 改为 upd.xxx 访问 + 3 个 Tab 改为 page/pageSize props
+- bpm/approval 模块 4 文件：useBpmAp 2 表（pending/completed）接入 useTableApi + stats 通过 watch 自动更新 + 2 个表组件改为 page/pageSize/total props + index.vue v-model 绑定
+- CI 15 项全绿（12 成功 + 0 skipped，Rust 后端构建最后完成）
+- view 表格进度：25/56 → 30/56
+
+### 批次 284：sales-contract + sales-price + purchase-contract composable 迁移 — ✅ 完成（PR #464 合并，sha: cd538d7）
+
+- sales-contract 模块 4 文件：useSc contractList 接入 useTableApi + ScTbl/ScFilter 改造 + index.vue 适配（保留 dateRange/date-change 特殊处理）
+- sales-price 模块 4 文件：useSp priceList 接入 useTableApi + SpTbl/SpFilter 改造 + index.vue 适配
+- purchase-contract 模块 4 文件：usePc contractList 接入 useTableApi + PcTbl/PcFilter 改造（date_range 作为 localQuery 字段）+ index.vue 适配
+- 修复 CI 类型错误：reactive 返回对象遗漏 getCustomers/getProducts/getSuppliers（TS2551）
+- 更新 clippy baseline：加入 33 个预存 dead_code 警告（CI 缓存差异暴露，main 分支缓存命中只有 298 警告，全新编译有 1064 警告）
+- CI 15 项全绿（13 成功 + 2 skipped 打包/Release）
+- view 表格进度：30/56 → 33/56（3 个模块 12 文件）
+
+### 批次 285：purchaseReceipt + purchase-price composable 迁移 — ✅ 完成（PR #465 合并，sha: c7d84fd）
+
+- purchaseReceipt 模块 5 文件：usePrc tableData 接入 useTableApi（URL: /purchase/receipts）+ usePrcProc 适配（queryParams 放宽 + page 独立字段 + 移除 handlePageChange/handlePageSizeChange）+ PrcFilter/PrcTbl 改造 + index.vue 适配
+- purchase-price 模块 4 文件：usePp priceList 接入 useTableApi（URL: /purchase/purchase-prices）+ PpFilter/PpTbl 改造 + index.vue 适配
+- CI 15 项全绿（13 成功 + 2 skipped 打包/Release）
+- view 表格进度：33/56 → 35/56（2 个模块 9 文件）
+
+### 批次 286：purchase-return + purchase-inspection composable 迁移 — ✅ 完成（PR #466 合并，sha: ada50bf）
+
+- purchase-return 模块 5 文件：usePrRtn tableData 接入 useTableApi（URL: /purchase/returns，pageSizeKey='pageSize' camelCase 适配）+ dateRange 独立 ref + syncDateRangeToQuery 同步到 queryParams.startDate/endDate + watch 自动同步 stats（保持原行为）+ PrRtnFilter/PrRtnTbl 改造 + index.vue 适配
+- purchase-inspection 模块 5 文件：usePi tableData 接入 useTableApi（URL: /purchase/inspections，snake_case page/page_size 匹配默认）+ dateRange 独立 ref + syncDateRangeToQuery 同步到 queryParams.inspection_date_from/to + watch 自动同步 stats + usePiProc 适配（queryParams 放宽为 Record + page/pageSize 独立字段 + syncDateRangeToQuery 回调）+ PiFilter/PiTbl 改造 + index.vue 适配
+- CI 15 项全绿（13 成功 + 2 skipped 打包/Release）
+- view 表格进度：35/56 → 37/56（2 个模块 9 文件）
+
+### 批次 287：logistics + voucher composable 迁移 — ✅ 完成（PR #467 合并，sha: abe7408）
+
+- logistics 模块 4 文件：useLgs tableData 接入 useTableApi（URL: /inventory/logistics，snake_case page/page_size）+ dateRange 独立 ref + syncDateRangeToQuery 同步到 queryParams.start_date/end_date + watch 自动同步 stats + LgsFilter 改造（localQuery + handleSearch/handleReset）+ LgsTbl 改造（page/pageSize props + v-model）+ index.vue 适配
+- voucher 模块 4 文件：useVchrLst tableData 接入 useTableApi（URL: /vouchers，snake_case page/page_size）+ 移除手写 tableDataRef/totalRef/loadingRef + searchForm + paginationRef + loadData + handlePageChange/handlePageSizeChange + VchrLstFilter 改造（localQuery + handleSearch/handleReset，保留 add/print/export emits）+ VchrLstTbl 改造（page/pageSize props + v-model）+ VoucherListTab 适配（toRef(vchr, 'tableData') 保持 useVchrLstProc 内 getList() 响应性）
+- CI 修复 1 次：useLgs.ts 移除未使用的 logisticsApi import（TS6133）
+- CI 15 项全绿（13 成功 + 2 skipped 打包/Release）
+- view 表格进度：37/56 → 39/56（2 个模块 8 文件）
+
+### 批次 288：scheduling + material-shortage + capacity composable 迁移 — ✅ 完成（PR #468 合并，sha: 74f6fe0）
+
+- scheduling 模块 3 文件：useSchM taskList 接入 useTableApi（URL: /scheduling/tasks）+ filterStatus 独立 ref + syncFilterToQuery 同步到 queryParams.status + watch([taskList, conflictList]) 自动同步 stats + SchMTbl 分页改为 update:currentPage/update:pageSize emits + index.vue v-model 绑定分页 + handleFilterChange 替代直接 fetchTasks
+- material-shortage 模块 4 文件：useMs shortageList 接入 useTableApi（URL: /material-shortage/list）+ filterSeverity/filterStatus 独立 ref + syncFilterToQuery + useMsProc handleFilterChange 适配（syncFilterToQuery + page=1 + fetchShortages）+ MsTbl 移除分页触发 filter-change 的冗余事件 + index.vue onMounted 移除 fetchShortages
+- capacity 模块 2 文件：useCp workCenters 接入 useTableApi（URL: /capacity/work-centers）+ initOnMount 仅加载辅助数据（summary/trend/bottlenecks）+ index.vue 分页简化为更新页码（useTableApi watch 自动加载）
+- CI 一次通过（13 success + 2 skipped）
+- view 表格进度：39/56 → 42/56（3 个模块 9 文件）
+
+### 批次 289：finance/voucher + data-import composable 迁移 — ✅ 完成（PR #469 合并，sha: 878652e）
+
+- finance/voucher 模块 4 文件：useVchr vouchers 接入 useTableApi（URL: /vouchers）+ 返回 reactive 包装 + handleSearch/handleReset + fetchVouchers 别名保留 + VchrFilter 改造为 localQuery + handleSearch 模式（date_range 深拷贝）+ VchrTbl 分页改为 page/pageSize props + update:page/update:page-size emits + VoucherTab toRef 保持 proc 响应性 + voucherFormRef getter/setter 代理避免 vue-tsc 自动解包 + 移除 onMounted fetchVouchers
+- data-import 模块 5 文件：useDi templates 和 tasks 分别接入 useTableApi（两个实例，URL: /data-import/templates + /data-import/tasks）+ 移除 TplQuery/TaskQuery 类型导出 + handleTemplateSearch/handleTaskSearch + DiTplTbl/DiTaskTbl 改造为 localQuery + handleSearch 模式 + page/pageSize props + index.vue 适配新 props/events + useDiProc 简化 DiCallbacks 接口（仅保留 fetchTemplates/fetchTasks/activeTab）
+- CI 修复：voucherFormRef toRef 在模板中被 vue-tsc 自动解包导致类型错误，改用 getter/setter 对象代理
+- view 表格进度：42/56 → 46/56（2 个模块 9 文件）
+
+---
+
+## 规则节点提醒
+
+- **规则 5（E2E 独立工作流，每 30 批次）**：批次 270 触发（403 权限不足，需用户手动触发）
+  - 批次 N（30 倍数）：触发 e2e-batch.yml workflow_dispatch
+  - 批次 N+20：第 1 次监控（GitHub API 查询 run 状态）
+  - 批次 N+28：第 2 次监控（若 N+20 未完成）
+  - 批次 N+29：最后监控，未完成则跳过 N+30 的 E2E 周期
+  - **注意**：E2E 已从 ci-cd.yml 独立到 e2e-batch.yml，不阻塞主 CI
+- **规则 10（每 15 批次记忆整理）**：批次 270 已触发（上次批次 255）— 已整理 doto.md 到准确状态

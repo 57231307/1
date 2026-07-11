@@ -176,11 +176,6 @@
 - 梳理后需在 MEMORY.md 中记录整理时间和批次范围
 - 与规则 5（每 30 批次 E2E 独立工作流）配合：批次 270 同时触发 E2E 报告 + 记忆整理
 
-**整理记录**：
-- 2026-07-11（批次 289 后）：归档 270-289 详细记录到 doto-su.md + 清理 bug.md 已修复条目（3.1 请求体限制）+ 精简 doto.md 只保留未完成任务 + 下次整理批次 300
-- 2026-07-10（批次 270）：职责分工修正 + doto.md 更新到准确状态
-- 2026-07-05：早期内容归档到 docs/archives/2026-07-05/
-
 ### 🔴 规则 11（最高优先级，2026-07-08 追加）：法律合规标准
 
 > 项目需要符合法律合规标准。
@@ -632,7 +627,6 @@
 
 完整历史内容（整理前的详细记录）：
 
-- 完整 MEMORY/doto/CHANGELOG/doto-su/bug（2026-07-11 整理前）：`.monkeycode/docs/archives/2026-07-11/`
 - 完整 MEMORY/doto/CHANGELOG（2026-07-10 整理前）：`.monkeycode/docs/archives/2026-07-10/`
 - 完整 MEMORY/doto/CHANGELOG（2026-07-05 优化前）：`.monkeycode/docs/archives/2026-07-05/`
 - 完整 MEMORY/CHANGELOG（2026-06-24 优化前）：`.monkeycode/docs/archives/`

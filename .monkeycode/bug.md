@@ -1,297 +1,137 @@
-# 安全审计漏洞报告
+# 安全审计漏洞登记
 
-## 审计日期
-2026-06-27
+> 实时检测与修复（修复后删除条目）。所有漏洞修复完成后保留本文件为空。
+> 最近一次整理：2026-07-11（批次 289 后规则 10 整理），已删除已修复的 3.1 请求体限制条目。
 
-## 审计范围
-- 认证与访问控制
-- 注入向量（SQL、命令、路径）
-- 外部交互（Webhook、出站请求）
-- 敏感数据处理
+## 审计来源
+
+- 2026-06-27 安全审计报告（剩余 7 项未修复）
+- v14 深度调研报告（2026-07-09，114 个问题，大部分已在批次 237-289 修复，剩余待修复项见 [doto.md](file:///workspace/.monkeycode/doto.md)）
 
 ---
 
-## 一、高危漏洞
+## 一、高危漏洞（3 项 ⏳ 未修复）
 
 ### 1.1 SQL 注入风险 - tracking_service.rs LIMIT 未参数化
 
-**严重度**: 高危
+**严重度**：高危
+**状态**：⏳ 未修复
+**位置**：[tracking_service.rs:258-259](file:///workspace/backend/src/services/tracking_service.rs#L258-L259)
 
-**位置**: `/workspace/backend/src/services/tracking_service.rs:258-259`
+**问题**：`limit` 参数直接拼接到 SQL 字符串，攻击者可通过 `/api/v1/erp/analytics/popular-pages?limit=` 注入 SQL。
 
-**代码路径**:
-```rust
-sql.push_str(" GROUP BY path ORDER BY view_count DESC LIMIT ");
-sql.push_str(&limit.to_string());
-```
-
-**攻击者画像**: 已认证用户
-
-**可控输入向量**: 通过 `/api/v1/erp/analytics/popular-pages` 端点的 `limit` 查询参数
-
-**利用路径**:
-1. 用户发送请求 `GET /api/v1/erp/analytics/popular-pages?limit=1%20%3B%20DROP%20TABLE%20page_views--`
-2. `tracking_handler.rs:147` 对 limit 进行 clamp(1, 100)，但没有验证是否包含 SQL 注入字符
-3. `tracking_service.rs:259` 将 limit 直接拼接到 SQL 字符串中
-4. 构造的恶意 SQL 被执行
-
-**影响**: 数据库表删除、数据泄露、数据篡改
-
-**修复建议**:
-将 LIMIT 也改为参数化绑定：
-```rust
-sql.push_str(" GROUP BY path ORDER BY view_count DESC LIMIT $1");
-params.push(limit.into());
-```
+**修复方案**：改为参数化绑定 `LIMIT $1` + `params.push(limit.into())`。
 
 ---
 
 ### 1.2 命令注入风险 - backup.rs cmd_restore
 
-**严重度**: 高危
+**严重度**：高危
+**状态**：⏳ 未修复
+**位置**：[backup.rs:149](file:///workspace/backend/src/cli/util/backup.rs#L149)
 
-**位置**: `/workspace/backend/src/cli/util/backup.rs:149`
+**问题**：`cmd_restore` 解压后直接 `cp`，未校验文件路径范围，恶意备份文件可覆盖系统文件。
 
-**代码路径**:
-```rust
-run_cmd("cp", &[&src, &dst])
-```
-
-**攻击者画像**: 本地用户（具有执行 CLI 权限）
-
-**可控输入向量**: 通过 CLI 参数 `bingxi restore --file=恶意路径`
-
-**利用路径**:
-1. 攻击者构造恶意备份文件，包含路径如 `../../../etc/passwd`
-2. 执行 `bingxi restore --file=malicious_backup.tar.gz`
-3. `cmd_restore` 解压文件后，将其中的文件复制到目标路径
-4. 如果备份文件中包含指向敏感文件的路径，可能覆盖系统文件
-
-**影响**: 系统文件覆盖、权限提升、数据泄露
-
-**修复建议**:
-在解压后验证所有文件路径是否在允许的目录范围内，使用 `canonicalize` 和 `starts_with` 检查。
+**修复方案**：解压后用 `canonicalize` + `starts_with` 校验所有文件路径在允许目录范围内。
 
 ---
 
 ### 1.3 SSRF 防护不完整 - currency_service.rs
 
-**严重度**: 高危
+**严重度**：高危
+**状态**：⏳ 未修复
+**位置**：[currency_service.rs:301-305](file:///workspace/backend/src/services/currency_service.rs#L301-L305)
 
-**位置**: `/workspace/backend/src/services/currency_service.rs:301-305`
+**问题**：仅禁止重定向，未使用 `resolve_to_addrs` 固定 IP，存在 DNS Rebinding 攻击风险。
 
-**代码路径**:
-```rust
-let client = reqwest::Client::builder()
-    .redirect(reqwest::redirect::Policy::none())
-    .timeout(std::time::Duration::from_secs(10))
-    .build()?;
-```
-
-**攻击者画像**: 已认证用户
-
-**可控输入向量**: 通过 `/api/v1/erp/currency/sync` 端点的币种参数
-
-**利用路径**:
-1. 虽然代码中有 `validate_currency_code` 校验，但如果验证不充分
-2. 攻击者可能通过 DNS Rebinding 攻击，使域名在验证时解析为公网 IP
-3. 实际请求时解析为内网 IP（如 192.168.1.1）
-4. 绕过 SSRF 防护，访问内网服务
-
-**影响**: 访问内网服务、云元数据泄露
-
-**修复建议**:
-使用 `ssrf_guard::validate_url_and_resolve` 获取安全 IP 列表，然后用 `resolve_to_addrs` 固定连接：
-```rust
-let (host, safe_addrs) = validate_url_and_resolve(&url)?;
-let client = reqwest::Client::builder()
-    .redirect(reqwest::redirect::Policy::none())
-    .resolve_to_addrs(&host, &safe_addrs)
-    .build()?;
-```
+**修复方案**：使用 `ssrf_guard::validate_url_and_resolve` 获取安全 IP 列表，用 `resolve_to_addrs` 固定连接。
 
 ---
 
-## 二、中危漏洞
+## 二、中危漏洞（3 项 ⏳ 未修复）
 
 ### 2.1 日志信息泄露 - webhook_service.rs
 
-**严重度**: 中危
+**严重度**：中危
+**状态**：⏳ 未修复
+**位置**：[webhook_service.rs:235](file:///workspace/backend/src/services/webhook_service.rs#L235)
 
-**位置**: `/workspace/backend/src/services/webhook_service.rs:235`
+**问题**：签名计算失败时日志记录完整 webhook URL，可能泄露 URL 中的敏感参数。
 
-**代码路径**:
-```rust
-tracing::warn!(error = %e, webhook_url = %url, "Webhook 签名计算失败，跳过签名头");
-```
-
-**攻击者画像**: 已认证用户（创建 Webhook 的用户）
-
-**可控输入向量**: 创建 Webhook 时的 URL 参数
-
-**利用路径**:
-1. 用户创建 Webhook 时设置包含敏感信息的 URL，如 `https://example.com/webhook?secret=abc123`
-2. 如果签名计算失败，完整 URL 会被记录到日志中
-3. 日志可能被攻击者获取，泄露敏感参数
-
-**影响**: 敏感信息泄露
-
-**修复建议**:
-日志中不记录完整 URL，只记录主机名：
-```rust
-tracing::warn!(error = %e, webhook_host = %host, "Webhook 签名计算失败，跳过签名头");
-```
+**修复方案**：日志只记录主机名，不记录完整 URL。
 
 ---
 
 ### 2.2 缺少速率限制 - Webhook 测试端点
 
-**严重度**: 中危
+**严重度**：中危
+**状态**：⏳ 未修复
+**位置**：[webhook_handler.rs:114-135](file:///workspace/backend/src/handlers/webhook_handler.rs#L114-L135)
 
-**位置**: `/workspace/backend/src/handlers/webhook_handler.rs:114-135`
+**问题**：`test_webhook` 端点无速率限制，攻击者可频繁调用探测内网服务。
 
-**代码路径**:
-```rust
-pub async fn test_webhook(
-    State(state): State<AppState>,
-    _auth: AuthContext,
-    Path(id): Path<i32>,
-) -> Result<Json<ApiResponse<WebhookDeliveryResult>>, AppError> {
-    // 无速率限制
-}
-```
-
-**攻击者画像**: 已认证用户
-
-**可控输入向量**: 重复调用 `/api/v1/erp/webhooks/:id/test`
-
-**利用路径**:
-1. 攻击者创建指向内网服务的 Webhook（虽然有 SSRF 防护，但可用于探测）
-2. 频繁调用测试端点，获取响应状态码
-3. 推断内网服务是否存在、服务状态等信息
-
-**影响**: 信息泄露、资源消耗
-
-**修复建议**:
-添加速率限制中间件，限制单个用户每分钟最多调用 10 次。
+**修复方案**：添加速率限制中间件，限制单个用户每分钟最多 10 次。
 
 ---
 
 ### 2.3 文件权限安全 - system_update_service.rs
 
-**严重度**: 中危
+**严重度**：中危
+**状态**：⏳ 未修复
+**位置**：[system_update_service.rs:438](file:///workspace/backend/src/services/system_update_service.rs#L438)
 
-**位置**: `/workspace/backend/src/services/system_update_service.rs:436-448`
+**问题**：解压时保留原始 `unix_mode`，恶意更新包可设置 SUID/SGID 位导致权限提升。
 
-**代码路径**:
-```rust
-if let Some(mode) = file.unix_mode() {
-    if let Ok(metadata) = fs::metadata(&outpath) {
-        let mut perms = metadata.permissions();
-        perms.set_mode(mode);
-        if let Err(e) = fs::set_permissions(&outpath, perms) {
-            tracing::warn!("设置文件权限失败 {:?}: {}", outpath, e);
-        }
-    }
-}
-```
-
-**攻击者画像**: 更新包提供者（如果更新源被劫持）
-
-**可控输入向量**: 更新包中的文件权限位
-
-**利用路径**:
-1. 更新包中包含设置了 SUID/SGID 位的恶意文件
-2. 更新服务解压时保留原始权限
-3. 恶意文件获得特殊权限，可能导致权限提升
-
-**影响**: 权限提升、代码执行
-
-**修复建议**:
-解压时重置文件权限，不允许 SUID/SGID 位：
-```rust
-let mut perms = fs::Permissions::default();
-#[cfg(unix)]
-{
-    use std::os::unix::fs::PermissionsExt;
-    let safe_mode = mode & 0o755; // 移除 SUID/SGID/粘性位
-    perms.set_mode(safe_mode);
-}
-```
+**修复方案**：解压时重置权限 `mode & 0o755`，移除 SUID/SGID/粘性位。
 
 ---
 
-## 三、低危漏洞
+## 三、低危漏洞（1 项 ⏳ 未修复）
 
-### 3.1 缺少全局请求体大小限制
+### 3.1 ~~缺少全局请求体大小限制~~ ✅ 已修复（2026-07-11 确认）
 
-**严重度**: 低危
+**状态**：✅ 已修复
+**位置**：[main.rs:556](file:///workspace/backend/src/main.rs#L556)
 
-**位置**: 全局配置
-
-**问题描述**:
-虽然 `crm_handler.rs` 的 `import_leads` 有 10MB 文件大小限制，但缺少全局的请求体大小限制。
-
-**影响**: 潜在的资源耗尽攻击
-
-**修复建议**:
-在 axum 应用配置中设置全局请求体大小限制：
-```rust
-Router::new()
-    .layer(axum::extract::DefaultBodyLimit::max(10 * 1024 * 1024))
-```
+**说明**：已在 main.rs 中配置 `DefaultBodyLimit::max(MAX_HTTP_BODY_BYTES)`，全局请求体大小限制已生效。本条目已从待修复队列删除。
 
 ---
 
 ### 3.2 备份文件权限
 
-**严重度**: 低危
+**严重度**：低危
+**状态**：⏳ 未修复
+**位置**：[backup.rs:54-62](file:///workspace/backend/src/cli/util/backup.rs#L54-L62)
 
-**位置**: `/workspace/backend/src/cli/util/backup.rs:54-62`
+**问题**：备份文件包含 `.env`（可能含数据库密码），但未设置安全文件权限。
 
-**代码路径**:
-```rust
-run_cmd("cp", &["-r", &config_dir, &backup_dir])
-run_cmd("cp", &["-r", env_file, &backup_dir])
-run_cmd("cp", &["-r", &service_file, &backup_dir])
-```
-
-**问题描述**:
-备份文件包含 `.env`（可能包含数据库密码），但没有设置安全的文件权限。
-
-**影响**: 敏感信息可能被其他用户读取
-
-**修复建议**:
-备份完成后设置文件权限为 0o600（仅所有者可读）：
-```rust
-run_cmd("chmod", &["-R", "600", &backup_dir])
-```
+**修复方案**：备份完成后设置文件权限为 `0o600`（仅所有者可读）。
 
 ---
 
 ## 四、已确认的安全实践（通过审计）
 
-### 4.1 认证与访问控制
+### 认证与访问控制
 - ✅ JWT 验证使用 HS256 算法，包含过期时间检查
-- ✅ 密码使用 Argon2id 哈希（64MB内存，3次迭代）
+- ✅ 密码使用 Argon2id 哈希（64MB 内存，3 次迭代）
 - ✅ 角色权限校验在 middleware 层实现
 - ✅ CSRF 防护包含 token 验证和 IP 绑定
 
-### 4.2 SQL 注入防护
+### SQL 注入防护
 - ✅ 大部分 SQL 查询使用参数化绑定
 - ✅ LIKE 模式使用 `escape_like_pattern` 转义特殊字符
 - ✅ 分页参数使用 clamp 限制范围
 
-### 4.3 SSRF 防护
+### SSRF 防护
 - ✅ Webhook URL 验证包含：协议白名单、主机名黑名单、IP 范围检查
 - ✅ 使用 `resolve_to_addrs` 消除 DNS Rebinding TOCTOU 漏洞
 - ✅ 禁止跟随重定向
 
-### 4.4 路径遍历防护
+### 路径遍历防护
 - ✅ 静态文件服务使用 `sanitize_static_path` 过滤路径
 - ✅ 使用 `canonicalize` 解析符号链接，防止逃逸
 
-### 4.5 Webhook 安全
+### Webhook 安全
 - ✅ 出站签名使用 HMAC-SHA256
 - ✅ 测试接口不回显响应内容，防止 SSRF 信息泄露
 - ✅ 重试次数限制（MAX_RETRY_COUNT=5）
@@ -300,13 +140,12 @@ run_cmd("chmod", &["-R", "600", &backup_dir])
 
 ## 五、修复优先级建议
 
-| 优先级 | 漏洞 | 预计修复时间 |
-|--------|------|-------------|
-| P0 | 1.1 SQL注入 (LIMIT) | 1小时 |
-| P0 | 1.2 命令注入 (backup) | 2小时 |
-| P0 | 1.3 SSRF (currency) | 1小时 |
-| P1 | 2.1 日志泄露 | 30分钟 |
-| P1 | 2.2 速率限制 | 1小时 |
-| P1 | 2.3 文件权限 | 1小时 |
-| P2 | 3.1 请求体限制 | 30分钟 |
-| P2 | 3.2 备份权限 | 30分钟 |
+| 优先级 | 漏洞 | 状态 |
+|--------|------|------|
+| P0 | 1.1 SQL 注入 (LIMIT) | ⏳ 未修复 |
+| P0 | 1.2 命令注入 (backup) | ⏳ 未修复 |
+| P0 | 1.3 SSRF (currency) | ⏳ 未修复 |
+| P1 | 2.1 日志泄露 | ⏳ 未修复 |
+| P1 | 2.2 速率限制 | ⏳ 未修复 |
+| P1 | 2.3 文件权限 | ⏳ 未修复 |
+| P2 | 3.2 备份权限 | ⏳ 未修复 |
