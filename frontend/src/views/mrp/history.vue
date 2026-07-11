@@ -52,13 +52,13 @@
       <!-- 分页 -->
       <div class="pagination-container">
         <el-pagination
-          v-model:current-page="queryForm.page"
-          v-model:page-size="queryForm.page_size"
+          v-model:current-page="page"
+          v-model:page-size="pageSize"
           :page-sizes="[10, 20, 50, 100]"
           :total="total"
           layout="total, sizes, prev, pager, next, jumper"
-          @size-change="fetchHistory"
-          @current-change="fetchHistory"
+          @size-change="handleSizeChange"
+          @current-change="handleCurrentChange"
         />
       </div>
     </el-card>
@@ -130,14 +130,14 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, onMounted } from 'vue'
+import { ref } from 'vue'
 import { ElMessage } from 'element-plus'
 import {
-  getMrpHistory,
   getMrpResult,
   type MrpHistoryRecord,
   type MrpCalculationResult,
 } from '../../api/mrp'
+import { useTableApi } from '@/composables/useTableApi'
 
 const STATUS_MAP = {
   pending: { label: '待计算', type: 'info' },
@@ -146,29 +146,34 @@ const STATUS_MAP = {
   failed: { label: '计算失败', type: 'danger' },
 }
 
-const loading = ref(false)
-const historyList = ref<MrpHistoryRecord[]>([])
-const total = ref(0)
 const resultVisible = ref(false)
 const currentResult = ref<MrpCalculationResult | null>(null)
 
-const queryForm = reactive({
-  page: 1,
-  page_size: 20,
-})
-
-const fetchHistory = async () => {
-  loading.value = true
-  try {
-    const res = await getMrpHistory(queryForm)
-    historyList.value = res.data?.list || []
-    total.value = res.data?.total || 0
-  } catch (e: unknown) {
+// 批次 274：接入 useTableApi，消除手写 historyList/total/loading/queryForm.page/page_size + fetchHistory 重复
+// useTableApi 自动管理分页状态、数据加载，自动 watch page/pageSize 变化触发重载
+const {
+  data: historyList,
+  loading,
+  page,
+  pageSize,
+  total,
+} = useTableApi<MrpHistoryRecord>({
+  url: '/production/mrp-history',
+  listKey: 'list',
+  onError: (e: unknown) => {
     // 批次 98 P2-D 修复（v5 复审）：原 catch (e: any) 改为 unknown + 类型守卫
     ElMessage.error((e instanceof Error ? e.message : String(e)) || '获取历史记录失败')
-  } finally {
-    loading.value = false
-  }
+  },
+})
+
+// 分页（useTableApi 自动 watch page/pageSize 变化触发重载）
+const handleSizeChange = (s: number) => {
+  pageSize.value = s
+  page.value = 1
+}
+
+const handleCurrentChange = (p: number) => {
+  page.value = p
 }
 
 const viewResult = async (row: MrpHistoryRecord) => {
@@ -182,9 +187,7 @@ const viewResult = async (row: MrpHistoryRecord) => {
   }
 }
 
-onMounted(() => {
-  fetchHistory()
-})
+// 批次 274：useTableApi 构造时自动初始加载，无需 onMounted 调用 fetchHistory
 </script>
 
 <style scoped>

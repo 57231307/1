@@ -79,13 +79,13 @@
       <!-- 分页 -->
       <div class="pagination-wrapper">
         <el-pagination
-          v-model:current-page="filterForm.page"
-          v-model:page-size="filterForm.page_size"
+          v-model:current-page="page"
+          v-model:page-size="pageSize"
           :total="total"
           :page-sizes="[10, 20, 50, 100]"
           layout="total, sizes, prev, pager, next, jumper"
-          @size-change="loadData"
-          @current-change="loadData"
+          @size-change="handleSizeChange"
+          @current-change="handleCurrentChange"
         />
       </div>
     </el-card>
@@ -93,12 +93,11 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, reactive } from 'vue'
+import { reactive } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Plus, Search, Refresh, Box } from '@element-plus/icons-vue'
 import {
-  listColorCards,
   archiveColorCard,
   COLOR_CARD_TYPE_LABELS,
   COLOR_CARD_STATUS,
@@ -106,34 +105,45 @@ import {
   SEASON_LABELS,
   type ColorCardListItem,
 } from '@/api/color-card'
+import { useTableApi } from '@/composables/useTableApi'
 
 const router = useRouter()
-const loading = ref(false)
-const tableData = ref<ColorCardListItem[]>([])
-const total = ref(0)
+
+// 批次 274：接入 useTableApi，消除手写 tableData/total/loading/filterForm.page/page_size + loadData 重复
+// useTableApi 自动管理分页状态、数据加载，自动 watch page/pageSize 变化触发重载
+const {
+  data: tableData,
+  loading,
+  page,
+  pageSize,
+  total,
+  refresh: loadData,
+  setQueryParam,
+} = useTableApi<ColorCardListItem>({
+  url: '/color-cards',
+  listKey: 'items',
+  onError: () => ElMessage.error('加载色卡列表失败'),
+})
 
 const filterForm = reactive({
-  page: 1,
-  page_size: 20,
   card_type: '',
   season: '',
   status: '',
   keyword: '',
 })
 
-const loadData = async () => {
-  loading.value = true
-  try {
-    const res: Awaited<ReturnType<typeof listColorCards>> = await listColorCards(filterForm)
-    tableData.value = res.data.items || []
-    total.value = res.data.total || 0
-  } finally {
-    loading.value = false
-  }
+// 批次 274：同步筛选条件到 useTableApi.queryParams 并刷新
+// useTableApi 自动 watch page/pageSize 变化触发重载，无需手动 loadData
+const syncQueryParams = () => {
+  setQueryParam('card_type', filterForm.card_type || undefined)
+  setQueryParam('season', filterForm.season || undefined)
+  setQueryParam('status', filterForm.status || undefined)
+  setQueryParam('keyword', filterForm.keyword || undefined)
 }
 
 const handleSearch = () => {
-  filterForm.page = 1
+  syncQueryParams()
+  page.value = 1
   loadData()
 }
 
@@ -142,8 +152,19 @@ const handleReset = () => {
   filterForm.season = ''
   filterForm.status = ''
   filterForm.keyword = ''
-  filterForm.page = 1
+  syncQueryParams()
+  page.value = 1
   loadData()
+}
+
+// 分页（useTableApi 自动 watch page/pageSize 变化触发重载）
+const handleSizeChange = (s: number) => {
+  pageSize.value = s
+  page.value = 1
+}
+
+const handleCurrentChange = (p: number) => {
+  page.value = p
 }
 
 const handleView = (row: ColorCardListItem) => {
@@ -180,7 +201,7 @@ type TagType = '' | 'success' | 'warning' | 'info' | 'danger'
 const tagType = (status: string): TagType =>
   (COLOR_CARD_STATUS_COLORS[status] || '') as TagType
 
-onMounted(loadData)
+// 批次 274：useTableApi 构造时自动初始加载，无需 onMounted 调用 loadData
 </script>
 
 <style scoped>

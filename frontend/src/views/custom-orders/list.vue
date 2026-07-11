@@ -112,13 +112,13 @@
 
       <!-- 分页 -->
       <el-pagination
-        v-model:current-page="pagination.page"
-        v-model:page-size="pagination.page_size"
-        :total="pagination.total"
+        v-model:current-page="page"
+        v-model:page-size="pageSize"
+        :total="total"
         :page-sizes="[10, 20, 50, 100]"
         layout="total, sizes, prev, pager, next, jumper"
-        @current-change="loadData"
-        @size-change="loadData"
+        @current-change="handleCurrentChange"
+        @size-change="handleSizeChange"
         style="margin-top: 16px; text-align: right"
       />
     </el-card>
@@ -126,12 +126,11 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+import { ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Plus } from '@element-plus/icons-vue'
 import {
-  listCustomOrders,
   advanceCustomOrder,
   cancelCustomOrder,
   CUSTOM_ORDER_STATUS as STATUS_LABELS,
@@ -141,53 +140,65 @@ import type { CustomOrderListItem } from '@/api/custom-order'
 // 批次 94 P2-12 修复：导入 useUserStore 用于获取真实操作人 ID（原硬编码为 1）
 import { useUserStore } from '@/store/user'
 import logger from '@/utils/logger'
+import { useTableApi } from '@/composables/useTableApi'
 
 const router = useRouter()
 // 批次 94 P2-12 修复：获取用户 store 以读取当前登录用户 ID
 const userStore = useUserStore()
-const loading = ref(false)
-const orders = ref<CustomOrderListItem[]>([])
-const pagination = ref({ page: 1, page_size: 20, total: 0 })
 const filters = ref({ status: '', keyword: '' })
+
+// 批次 274：接入 useTableApi，消除手写 orders/loading/pagination.total + loadData 重复
+// useTableApi 自动管理分页状态、数据加载，自动 watch page/pageSize 变化触发重载
+const {
+  data: orders,
+  loading,
+  page,
+  pageSize,
+  total,
+  refresh: loadData,
+  setQueryParam,
+} = useTableApi<CustomOrderListItem>({
+  url: '/custom-orders',
+  listKey: 'items',
+  onError: () => {
+    logger.error('加载定制订单失败')
+    ElMessage.error('加载定制订单失败')
+  },
+})
 
 function formatAmount(val: number | string | null | undefined) {
   if (val === null || val === undefined) return '0.00'
   return Number(val).toFixed(2)
 }
 
-async function loadData() {
-  loading.value = true
-  try {
-    const res = await listCustomOrders({
-      page: pagination.value.page,
-      page_size: pagination.value.page_size,
-      ...filters.value,
-    })
-    // P2-5：后端列表返回分页结构 { data: { items, total } }，与 API 声明简化为数组存在差异，断言兼容历史取值逻辑
-    const payload = res as unknown as {
-      data?: { items?: CustomOrderListItem[]; total?: number }
-      items?: CustomOrderListItem[]
-      total?: number
-    }
-    orders.value = payload.data?.items || payload.items || []
-    pagination.value.total = payload.data?.total || payload.total || 0
-  } catch (e) {
-    logger.error('加载定制订单失败', e)
-    ElMessage.error('加载定制订单失败')
-  } finally {
-    loading.value = false
-  }
+// 批次 274：同步筛选条件到 useTableApi.queryParams 并刷新
+// useTableApi 自动 watch page/pageSize 变化触发重载，无需手动 loadData
+function syncQueryParams() {
+  setQueryParam('status', filters.value.status || undefined)
+  setQueryParam('keyword', filters.value.keyword || undefined)
 }
 
 function handleSearch() {
-  pagination.value.page = 1
+  syncQueryParams()
+  page.value = 1
   loadData()
 }
 
 function handleReset() {
   filters.value = { status: '', keyword: '' }
-  pagination.value.page = 1
+  syncQueryParams()
+  page.value = 1
   loadData()
+}
+
+// 分页（useTableApi 自动 watch page/pageSize 变化触发重载）
+function handleSizeChange(s: number) {
+  pageSize.value = s
+  page.value = 1
+}
+
+function handleCurrentChange(p: number) {
+  page.value = p
 }
 
 function goDetail(id: number) {
@@ -239,9 +250,7 @@ async function handleCancel(row: CustomOrderListItem) {
   }
 }
 
-onMounted(() => {
-  loadData()
-})
+// 批次 274：useTableApi 构造时自动初始加载，无需 onMounted 调用 loadData
 </script>
 
 <style scoped>
