@@ -3,6 +3,7 @@
  * 任务编号: P14 批 2 I-3 第 5 批（拆分原 purchase-inspection/index.vue）
  * 封装查询 / 重置 / 创建 / 编辑 / 查看 / 提交 / 完成等流程性方法
  * 行为完全保持一致（仅结构重构）
+ * 批次 286：适配 useTableApi（queryParams 放宽为 Record<string, unknown>，page 独立字段）
  *
  * 设计说明：通过 callbacks 接收 usePi 的状态引用（Reactive 包装层）
  */
@@ -23,15 +24,11 @@ interface PiCallbacks {
   loading: boolean
   total: number
   dateRange: [Date, Date] | null
-  // 查询参数
-  queryParams: {
-    page: number
-    page_size: number
-    keyword: string
-    supplier_id?: number
-    status: string
-    result: string
-  }
+  // 查询参数（放宽为 Record 兼容 useTableApi 的 queryParams 类型）
+  queryParams: Record<string, unknown>
+  // 分页（useTableApi 独立字段）
+  page: number
+  pageSize: number
   // 选项
   suppliers: { id: number; name: string }[]
   receipts: { id: number; receipt_no: string }[]
@@ -52,26 +49,33 @@ interface PiCallbacks {
   // 方法
   fetchData: () => Promise<void>
   handleReceiptChange: (receiptId: number) => Promise<void>
+  syncDateRangeToQuery: () => void
 }
 
 /**
  * 采购验货流程操作方法集合
  */
 export function usePiProc(cb: PiCallbacks) {
-  /** 查询 */
+  /** 查询：先同步日期范围，重置页码，触发加载 */
   const handleQuery = () => {
-    cb.queryParams.page = 1
+    cb.syncDateRangeToQuery()
+    cb.page = 1
     cb.fetchData()
   }
 
-  /** 重置 */
+  /** 重置：清空筛选条件 + 日期 + 重置页码，触发加载 */
   const handleReset = () => {
-    cb.queryParams.keyword = ''
-    cb.queryParams.supplier_id = undefined
-    cb.queryParams.status = ''
-    cb.queryParams.result = ''
+    cb.queryParams = {
+      ...cb.queryParams,
+      keyword: '',
+      supplier_id: undefined,
+      status: '',
+      result: '',
+      inspection_date_from: '',
+      inspection_date_to: '',
+    }
     cb.dateRange = null
-    cb.queryParams.page = 1
+    cb.page = 1
     cb.fetchData()
   }
 

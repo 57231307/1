@@ -1,6 +1,7 @@
 <!--
   PiTbl.vue - 采购验货列表
   拆分自 purchase-inspection/index.vue（P14 批 2 I-3 第 5 批）
+  批次 286：page/pageSize props + v-model 绑定分页
   行为完全保持一致（仅结构重构）
 -->
 <template>
@@ -29,12 +30,12 @@
       <el-table-column prop="remark" label="备注" min-width="150" show-overflow-tooltip />
       <el-table-column label="操作" width="200" fixed="right">
         <template #default="{ row }">
-          <el-button size="small" @click="emit('view', row)">查看</el-button>
+          <el-button size="small" @click="emit('view', row as PurchaseInspection)">查看</el-button>
           <el-button
             v-if="row.status === 'draft' || row.status === 'pending'"
             size="small"
             type="primary"
-            @click="emit('edit', row)"
+            @click="emit('edit', row as PurchaseInspection)"
           >
             编辑
           </el-button>
@@ -42,7 +43,7 @@
             v-if="row.status === 'pending'"
             size="small"
             type="success"
-            @click="emit('complete', row)"
+            @click="emit('complete', row as PurchaseInspection)"
           >
             完成
           </el-button>
@@ -51,15 +52,13 @@
     </el-table>
 
     <el-pagination
-      :current-page="pagination.page"
-      :page-size="pagination.page_size"
+      :current-page="page"
+      :page-size="pageSize"
       :total="total"
       :page-sizes="[10, 20, 50, 100]"
       layout="total, sizes, prev, pager, next, jumper"
       @update:current-page="(v: number) => emit('update:page', v)"
-      @update:page-size="(v: number) => emit('update:size', v)"
-      @size-change="emit('reload')"
-      @current-change="emit('reload')"
+      @update:page-size="(v: number) => emit('update:page-size', v)"
     />
   </el-card>
 </template>
@@ -68,13 +67,8 @@
 import { getStatusType, getStatusText, getResultType, getResultText } from '../composables/piFmts'
 import type { PurchaseInspection } from '@/api/purchase-inspection'
 
-interface Pagination {
-  page: number
-  page_size: number
-}
-
 /**
- * 列表组件
+ * 列表组件（批次 286：page/pageSize props + v-model 绑定分页）
  */
 defineProps<{
   // 列表数据
@@ -83,17 +77,18 @@ defineProps<{
   total: number
   // 加载状态
   loading: boolean
-  // 分页
-  pagination: Pagination
+  // 当前页
+  page: number
+  // 每页条数
+  pageSize: number
 }>()
 
 const emit = defineEmits<{
   view: [row: PurchaseInspection]
   edit: [row: PurchaseInspection]
   complete: [row: PurchaseInspection]
-  reload: []
   'update:page': [v: number]
-  'update:size': [v: number]
+  'update:page-size': [v: number]
 }>()
 </script>
 

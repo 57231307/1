@@ -54,24 +54,22 @@
       :query-params="prRtn.queryParams"
       :suppliers="prRtn.suppliers"
       :date-range="prRtn.dateRange"
-      @query="prRtn.handleQuery"
-      @reset="prRtn.handleReset"
-      @date-change="onDateChange"
+      @fetch="prRtn.handleQuery"
+      @date-change="prRtn.handleDateChange"
       @update:query-params="(v) => Object.assign(prRtn.queryParams, v)"
     />
 
     <PrRtnTbl
+      v-model:page="prRtn.page"
+      v-model:page-size="prRtn.pageSize"
       :table-data="prRtn.tableData"
       :loading="prRtn.loading"
       :total="prRtn.total"
-      :query-params="prRtn.queryParams"
       @view="onView"
       @edit="onEdit"
       @submit="prRtnProc.handleSubmit"
       @approve="prRtnProc.openApprove"
       @delete="prRtnProc.handleDelete"
-      @size-change="prRtn.handleSizeChange"
-      @current-change="prRtn.handleCurrentChange"
     />
 
     <PrRtnForm
@@ -152,12 +150,7 @@ const onView = async (row: PurchaseReturn) => {
   detailDialogVisible.value = true
 }
 
-/** 日期范围变化 */
-const onDateChange = (v: [Date, Date] | null) => {
-  prRtn.dateRange = v
-  prRtn.handleQuery()
-}
-
+// 列表由 useTableApi setup 自动加载，onMounted 仅加载辅助数据（供应商/采购单/产品）
 onMounted(() => {
   prRtn.initLoad()
 })

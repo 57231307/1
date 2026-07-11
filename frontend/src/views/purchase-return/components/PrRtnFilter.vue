@@ -1,25 +1,26 @@
 <!--
   PrRtnFilter.vue - 采购退货过滤栏
   任务编号: P14 批 2 I-3 第 2 批（拆分原 purchase-return/index.vue）
-  P9-3 批次 F Pattern A 重构：本地 ref 镜像 + watch 防循环 + emit 整体覆盖父组件
+  批次 286：接入 useTableApi 模式（localQuery + handleSearch/handleReset）
 -->
 <template>
   <el-card class="filter-card">
-    <el-form :inline="true" :model="localQueryParams">
+    <el-form :inline="true" :model="localQuery">
       <el-form-item label="退货单号">
         <el-input
-          v-model="localQueryParams.keyword"
+          v-model="localQuery.keyword"
           placeholder="请输入退货单号"
           clearable
-          @keyup.enter="emit('query')"
+          @keyup.enter="handleSearch"
         />
       </el-form-item>
       <el-form-item label="供应商">
         <el-select
-          v-model="localQueryParams.supplierId"
+          v-model="localQuery.supplierId"
           placeholder="选择供应商"
           clearable
           filterable
+          @change="handleSearch"
         >
           <el-option
             v-for="supplier in suppliers"
@@ -30,7 +31,12 @@
         </el-select>
       </el-form-item>
       <el-form-item label="状态">
-        <el-select v-model="localQueryParams.status" placeholder="选择状态" clearable>
+        <el-select
+          v-model="localQuery.status"
+          placeholder="选择状态"
+          clearable
+          @change="handleSearch"
+        >
           <el-option label="草稿" value="draft" />
           <el-option label="待审批" value="pending" />
           <el-option label="已审批" value="approved" />
@@ -40,7 +46,7 @@
       </el-form-item>
       <el-form-item label="退货日期">
         <el-date-picker
-          :model-value="dateRange"
+          v-model="localDateRange"
           type="daterange"
           range-separator="至"
           start-placeholder="开始日期"
@@ -49,24 +55,15 @@
         />
       </el-form-item>
       <el-form-item>
-        <el-button type="primary" @click="emit('query')">查询</el-button>
-        <el-button @click="emit('reset')">重置</el-button>
+        <el-button type="primary" @click="handleSearch">查询</el-button>
+        <el-button @click="handleReset">重置</el-button>
       </el-form-item>
     </el-form>
   </el-card>
 </template>
 
 <script setup lang="ts">
-import { ref, watch, nextTick } from 'vue'
-
-// 过滤栏查询参数
-interface QueryParams {
-  page: number
-  pageSize: number
-  keyword: string
-  supplierId: number | undefined
-  status: string
-}
+import { reactive, ref } from 'vue'
 
 // 供应商数据结构
 interface Supplier {
@@ -76,62 +73,57 @@ interface Supplier {
 
 const props = defineProps<{
   // 查询参数（由父组件管理，子组件通过 emit('update:queryParams') 回写）
-  queryParams: QueryParams
+  queryParams: Record<string, unknown>
   // 供应商列表
   suppliers: Supplier[]
-  // 日期范围
+  // 日期范围（由父组件管理，子组件通过 emit('date-change') 回写）
   dateRange: [Date, Date] | null
 }>()
 
-// 定义事件
 const emit = defineEmits<{
-  // 查询事件
-  (e: 'query'): void
-  // 重置事件
-  (e: 'reset'): void
+  // 触发加载
+  fetch: []
+  // 整体回写查询参数
+  'update:queryParams': [value: Record<string, unknown>]
   // 日期变化事件
-  (e: 'date-change', value: [Date, Date] | null): void
-  // 整体回写查询参数（父组件监听此事件并 Object.assign 到自己的 queryParams）
-  (e: 'update:queryParams', queryParams: QueryParams): void
+  'date-change': [value: [Date, Date] | null]
 }>()
 
-// 本地镜像：避免直接修改 prop 触发 vue/no-mutating-props
-const localQueryParams = ref<QueryParams>({ ...props.queryParams })
+// 本地查询条件（筛选字段，不含分页参数）
+const localQuery = reactive<{
+  keyword: string
+  supplierId: number | undefined
+  status: string
+}>({
+  keyword: (props.queryParams.keyword as string) ?? '',
+  supplierId: props.queryParams.supplierId as number | undefined,
+  status: (props.queryParams.status as string) ?? '',
+})
 
-// 同步标志位：防止 prop → local 与 local → emit 形成循环
-let syncing = false
+// 本地日期范围镜像（避免直接修改 prop）
+const localDateRange = ref<[Date, Date] | null>(props.dateRange)
 
-// 外部 prop 变化时同步到 local（如父组件重置）
-watch(
-  () => props.queryParams,
-  (newParams) => {
-    if (syncing) return
-    syncing = true
-    localQueryParams.value = { ...newParams }
-    nextTick(() => {
-      syncing = false
-    })
-  },
-  { deep: true },
-)
-
-// 本地变化时通知父组件（用户输入）
-watch(
-  localQueryParams,
-  (newParams) => {
-    if (syncing) return
-    syncing = true
-    emit('update:queryParams', { ...newParams })
-    nextTick(() => {
-      syncing = false
-    })
-  },
-  { deep: true },
-)
-
-/** 日期范围变化 */
+/** 日期范围变化：同步本地镜像 + emit 通知父组件 */
 const onDateChange = (v: [Date, Date] | null) => {
+  localDateRange.value = v
   emit('date-change', v)
+}
+
+/** 搜索：先同步筛选条件到父组件，再触发加载 */
+const handleSearch = () => {
+  emit('update:queryParams', { ...localQuery })
+  emit('fetch')
+}
+
+/** 重置：清空筛选条件 + 同步 + 触发加载 */
+const handleReset = () => {
+  localQuery.keyword = ''
+  localQuery.supplierId = undefined
+  localQuery.status = ''
+  localDateRange.value = null
+  emit('date-change', null)
+  emit('update:queryParams', { ...localQuery })
+  emit('fetch')
 }
 </script>
 
