@@ -9,6 +9,7 @@
 
 | 批次 | PR | 一句话总结 |
 |------|-----|-----------|
+| 291 | #471 | 修复 backup cmd_restore 命令注入/Tar Slip 漏洞（新增 validate_extracted_paths 递归校验 + canonicalize 解析符号链接，规则 12 合规） |
 | 290 | #470 | 修复 tracking_service get_popular_pages LIMIT SQL 注入漏洞（字符串拼接改参数化绑定 `LIMIT $N`，规则 12 合规） |
 | 289 | #469 | finance/voucher + data-import composable 接入 useTableApi（9 文件，useVchr reactive 包装 + handleSearch/handleReset + VchrFilter localQuery + VchrTbl page/pageSize props + useDi 双表 useTableApi 实例 + DiTplTbl/DiTaskTbl localQuery + useDiProc 简化 DiCallbacks + voucherFormRef getter/setter 代理避免 vue-tsc 自动解包） |
 | 288 | #468 | scheduling + material-shortage + capacity composable 接入 useTableApi（9 文件，filterStatus 独立 ref + syncFilterToQuery + watch 自动同步 stats + useMsProc 适配 syncFilterToQuery + capacity initOnMount 仅加载辅助数据） |

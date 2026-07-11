@@ -10,7 +10,7 @@
 
 ---
 
-## 一、高危漏洞（2 项 ⏳ 未修复）
+## 一、高危漏洞（1 项 ⏳ 未修复）
 
 ### 1.1 ~~SQL 注入风险 - tracking_service.rs LIMIT 未参数化~~ ✅ 已修复（批次 290，PR #470）
 
@@ -21,15 +21,12 @@
 
 ---
 
-### 1.2 命令注入风险 - backup.rs cmd_restore
+### 1.2 ~~命令注入风险 - backup.rs cmd_restore~~ ✅ 已修复（批次 291，PR #471）
 
-**严重度**：高危
-**状态**：⏳ 未修复
-**位置**：[backup.rs:149](file:///workspace/backend/src/cli/util/backup.rs#L149)
+**状态**：✅ 已修复（2026-07-11，sha: d3cf0da）
+**位置**：[backup.rs:141-147](file:///workspace/backend/src/cli/util/backup.rs#L141-L147)
 
-**问题**：`cmd_restore` 解压后直接 `cp`，未校验文件路径范围，恶意备份文件可覆盖系统文件。
-
-**修复方案**：解压后用 `canonicalize` + `starts_with` 校验所有文件路径在允许目录范围内。
+**说明**：新增 `validate_extracted_paths` 递归校验函数，解压后校验所有文件路径在安全目录范围内，使用 `canonicalize` 解析符号链接，防止 Tar Slip 路径穿越攻击。本条目已从待修复队列删除。
 
 ---
 
