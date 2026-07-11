@@ -42,6 +42,7 @@ const searchForm = ref({
 // useTableApi 自动管理分页状态、数据加载，自动 watch page/pageSize 变化触发重载
 const {
   data: tableData,
+  loading,
   page,
   pageSize,
   total,
