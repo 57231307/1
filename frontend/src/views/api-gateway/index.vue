@@ -3,6 +3,7 @@
   任务编号: P14 批 1 B3 I-2
   拆分：835 行 → ~115 行 + 3 composable + 1 工具 + 8 子组件
   行为完全保持一致（仅结构重构）
+  批次 281：3 个 composable 接入 useTableApi，父组件去掉 .value + 移除 onMounted fetch
 -->
 <template>
   <div class="api-gateway-page">
@@ -13,9 +14,11 @@
     <el-tabs v-model="activeTab">
       <el-tab-pane label="接口管理" name="endpoints">
         <ApiEndpointTab
-          :endpoints="ep.endpoints.value"
-          :loading="ep.endpointLoading.value"
-          :total="ep.endpointTotal.value"
+          v-model:page="ep.page"
+          v-model:page-size="ep.pageSize"
+          :endpoints="ep.endpoints"
+          :loading="ep.endpointLoading"
+          :total="ep.endpointTotal"
           :query-params="ep.endpointQuery"
           :method-type-map="ep.methodTypeMap"
           :status-type-map="ep.endpointStatusTypeMap"
@@ -30,9 +33,11 @@
 
       <el-tab-pane label="API 密钥" name="keys">
         <ApiKeyTab
-          :api-keys="key.keys.value"
-          :loading="key.keyLoading.value"
-          :total="key.keyTotal.value"
+          v-model:page="key.page"
+          v-model:page-size="key.pageSize"
+          :api-keys="key.keys"
+          :loading="key.keyLoading"
+          :total="key.keyTotal"
           :query-params="key.keyQuery"
           @fetch="key.fetchKeys"
           @new-key="key.openKeyDialog()"
@@ -45,9 +50,11 @@
 
       <el-tab-pane label="调用日志" name="logs">
         <ApiLogTab
-          :logs="log.logs.value"
-          :loading="log.logLoading.value"
-          :total="log.logTotal.value"
+          v-model:page="log.page"
+          v-model:page-size="log.pageSize"
+          :logs="log.logs"
+          :loading="log.logLoading"
+          :total="log.logTotal"
           :query-params="log.logQuery"
           :method-type-map="log.methodTypeMap"
           @fetch="log.fetchLogs"
@@ -58,42 +65,41 @@
     </el-tabs>
 
     <EpForm
-      v-model:visible="ep.endpointDialogVisible.value"
-      :form-ref="ep.endpointFormRef"
+      v-model:visible="ep.endpointDialogVisible"
+      v-model:form-ref="ep.endpointFormRef"
       :form="ep.endpointForm"
-      :submit-loading="ep.endpointSubmitLoading.value"
+      :submit-loading="ep.endpointSubmitLoading"
       :rules="ep.endpointRules"
-      v-model:authorization-text="ep.authorizationText.value"
-      v-model:request-schema-text="ep.requestSchemaText.value"
-      v-model:response-schema-text="ep.responseSchemaText.value"
+      v-model:authorization-text="ep.authorizationText"
+      v-model:request-schema-text="ep.requestSchemaText"
+      v-model:response-schema-text="ep.responseSchemaText"
       @submit="ep.handleEndpointSubmit"
       @update:form="(v) => Object.assign(ep.endpointForm, v)"
     />
 
     <KeyForm
-      v-model:visible="key.keyDialogVisible.value"
-      :form-ref="key.keyFormRef"
+      v-model:visible="key.keyDialogVisible"
+      v-model:form-ref="key.keyFormRef"
       :form="key.keyForm"
-      :submit-loading="key.keySubmitLoading.value"
+      :submit-loading="key.keySubmitLoading"
       :rules="key.keyRules"
-      v-model:permissions-text="key.permissionsText.value"
+      v-model:permissions-text="key.permissionsText"
       @submit="key.handleKeySubmit"
       @update:form="(v) => Object.assign(key.keyForm, v)"
     />
 
     <LogDetail
-      v-model:visible="log.logDetailVisible.value"
-      :current-log="log.currentLog.value"
+      v-model:visible="log.logDetailVisible"
+      :current-log="log.currentLog"
     />
   </div>
 </template>
 
 <script setup lang="ts">
 // 此文件为 API 网关页面入口，组合 useApiEp/useApiKey/useApiLog 三个 composable。
-// 历史版本在此处保留了重复实现，已在前次拆分中迁移到 composables 与子组件，
-// 旧实现作为死代码（v-html/不引用）已删除。后续若需扩展请直接修改 composables。
+// 批次 281：3 个 composable 已接入 useTableApi，自动管理分页和数据加载，无需 onMounted 调用 fetch。
 
-import { ref, onMounted } from 'vue'
+import { ref } from 'vue'
 import { useApiEp } from './composables/useApiEp'
 import { useApiKey } from './composables/useApiKey'
 import { useApiLog } from './composables/useApiLog'
@@ -109,12 +115,6 @@ const activeTab = ref('endpoints')
 const ep = useApiEp()
 const key = useApiKey()
 const log = useApiLog()
-
-onMounted(() => {
-  ep.fetchEndpoints()
-  key.fetchKeys()
-  log.fetchLogs()
-})
 </script>
 
 <style scoped>

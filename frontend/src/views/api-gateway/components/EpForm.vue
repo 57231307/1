@@ -140,8 +140,8 @@ import type { ApiEndpoint } from '@/api/api-gateway'
 const props = defineProps<{
   // 对话框可见性
   visible: boolean
-  // 表单实例 ref（父组件持有的 FormInstance 引用包装对象）
-  formRef: { value: FormInstance | undefined }
+  // 表单实例（批次 281：改为可选，通过 v-model:formRef 双向同步）
+  formRef?: FormInstance | undefined
   // 表单数据（由父组件管理，子组件通过 emit 回写）
   form?: Partial<ApiEndpoint>
   // 提交中状态
@@ -158,6 +158,8 @@ const props = defineProps<{
 
 const emit = defineEmits<{
   'update:visible': [v: boolean]
+  // 批次 281：通过 emit 通知父组件 formRef 变化（替代原 props.formRef.value 写回）
+  'update:formRef': [value: FormInstance | undefined]
   'update:authorizationText': [v: string]
   'update:requestSchemaText': [v: string]
   'update:responseSchemaText': [v: string]
@@ -200,12 +202,12 @@ watch(
   { deep: true }
 )
 
-// 将 el-form 的 ref 实例同步到父组件传入的 formRef.value
+// 批次 281：将 el-form 的 ref 实例通过 emit 通知父组件（替代原 props.formRef.value 写回）
 const formRefValue = ref<FormInstance | undefined>(undefined)
 watch(
   formRefValue,
   val => {
-    if (val) props.formRef.value = val
+    if (val) emit('update:formRef', val)
   },
   { immediate: true, flush: 'post' }
 )
