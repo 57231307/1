@@ -17,8 +17,8 @@
           placeholder="搜索模板编号/名称"
           style="width: 200px"
           clearable
-          @clear="fetchData"
-          @keyup.enter="fetchData"
+          @clear="handleSearch"
+          @keyup.enter="handleSearch"
         />
         <el-select v-model="listQuery.module" placeholder="模块" clearable style="width: 120px">
           <el-option label="销售" value="sales" />
@@ -40,13 +40,13 @@
           <el-option label="启用" value="active" />
           <el-option label="停用" value="inactive" />
         </el-select>
-        <el-button type="primary" @click="fetchData">
+        <el-button type="primary" @click="handleSearch">
           <el-icon><Search /></el-icon>
           搜索
         </el-button>
       </div>
 
-      <el-table v-loading="listLoading" :data="list" stripe>
+      <el-table v-loading="loading" :data="list" stripe>
         <el-table-column prop="template_code" label="模板编号" width="140" />
         <el-table-column prop="template_name" label="模板名称" min-width="180" />
         <el-table-column prop="module" label="模块" width="80">
@@ -99,13 +99,13 @@
 
       <div class="pagination-container">
         <el-pagination
-          v-model:current-page="listQuery.page"
-          v-model:page-size="listQuery.page_size"
+          v-model:current-page="page"
+          v-model:page-size="pageSize"
           :page-sizes="[10, 20, 50, 100]"
           :total="total"
           layout="total, sizes, prev, pager, next, jumper"
-          @size-change="fetchData"
-          @current-change="fetchData"
+          @size-change="handleSizeChange"
+          @current-change="handlePageChange"
         />
       </div>
     </el-card>
@@ -222,13 +222,12 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, onMounted, computed } from 'vue'
+import { ref, reactive, computed } from 'vue'
 import { ElMessage, ElMessageBox, type FormInstance, type FormRules } from 'element-plus'
 import { Plus, Search } from '@element-plus/icons-vue'
 // Wave B-2 修复（B3-2）：引入 DOMPurify 用于净化后端返回的 HTML 模板，防止 XSS
 import DOMPurify from 'dompurify'
 import {
-  listPrintTemplates,
   createPrintTemplate,
   updatePrintTemplate,
   deletePrintTemplate,
@@ -238,13 +237,29 @@ import {
   printTemplate,
   type PrintTemplate,
 } from '@/api/print-templates'
+// 批次 277：接入 useTableApi，消除手写 list/total/listLoading/fetchData 重复
+import { useTableApi } from '@/composables/useTableApi'
 
-const list = ref<PrintTemplate[]>([])
-const total = ref(0)
-const listLoading = ref(false)
+// 批次 277：useTableApi 自动管理分页状态、数据加载，自动 watch page/pageSize 变化触发重载
+// listPrintTemplates 返回 ApiResponse<PrintTemplate[]>（{ data: T[], total: number }），
+// useTableApi detectList 会 fallback 到 obj.data 取裸数组，detectTotal 取外层 total
+const {
+  data: list,
+  loading,
+  total,
+  page,
+  pageSize,
+  refresh: fetchData,
+  setQueryParam,
+} = useTableApi<PrintTemplate>({
+  url: '/print-templates',
+  onError: (err: unknown) =>
+    // 批次 98 P2-D 修复（v5 复审）：unknown + 类型守卫
+    ElMessage.error((err instanceof Error ? err.message : String(err)) || '获取数据失败'),
+})
+
+// 批次 277：listQuery 仅保留筛选字段用于表单 v-model 绑定，分页字段由 useTableApi 管理
 const listQuery = reactive({
-  page: 1,
-  page_size: 20,
   keyword: '',
   module: '',
   type: '',
@@ -267,20 +282,6 @@ const typeMap: Record<string, string> = {
   label: '标签',
   report: '报表',
   custom: '自定义',
-}
-
-const fetchData = async () => {
-  listLoading.value = true
-  try {
-    const res = await listPrintTemplates(listQuery)
-    list.value = res.data || []
-    total.value = res.total || 0
-  } catch (error: unknown) {
-    // 批次 98 P2-D 修复（v5 复审）：原 catch (error: any) 改为 unknown + 类型守卫
-    ElMessage.error((error instanceof Error ? error.message : String(error)) || '获取数据失败')
-  } finally {
-    listLoading.value = false
-  }
 }
 
 const dialogVisible = ref(false)
@@ -451,9 +452,32 @@ const handleCopy = async (row: PrintTemplate) => {
   }
 }
 
-onMounted(() => {
+// 批次 277：同步筛选条件到 useTableApi.queryParams，再触发刷新
+const syncQueryParams = () => {
+  setQueryParam('keyword', listQuery.keyword || undefined)
+  setQueryParam('module', listQuery.module || undefined)
+  setQueryParam('type', listQuery.type || undefined)
+  setQueryParam('status', listQuery.status || undefined)
+}
+
+// 批次 277：搜索前先同步筛选条件，重置到首页再加载
+const handleSearch = () => {
+  syncQueryParams()
+  page.value = 1
   fetchData()
-})
+}
+
+// 批次 277：分页（useTableApi 自动 watch page/pageSize 变化触发重载）
+const handlePageChange = (p: number) => {
+  page.value = p
+}
+
+const handleSizeChange = (s: number) => {
+  pageSize.value = s
+  page.value = 1
+}
+
+// 批次 277：useTableApi 构造时自动初始加载，无需 onMounted 调用 fetchData
 </script>
 
 <style scoped>

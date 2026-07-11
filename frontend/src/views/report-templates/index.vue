@@ -13,31 +13,31 @@
     <el-card shadow="hover">
       <div class="filter-container">
         <el-input
-          v-model="listQuery.keyword"
+          v-model="queryParams.keyword"
           placeholder="搜索模板编号/名称"
           style="width: 200px"
           clearable
-          @clear="fetchData"
-          @keyup.enter="fetchData"
+          @clear="handleSearch"
+          @keyup.enter="handleSearch"
         />
-        <el-select v-model="listQuery.category" placeholder="分类" clearable style="width: 120px">
+        <el-select v-model="queryParams.category" placeholder="分类" clearable style="width: 120px">
           <el-option label="销售" value="sales" />
           <el-option label="库存" value="inventory" />
           <el-option label="财务" value="finance" />
           <el-option label="生产" value="production" />
           <el-option label="自定义" value="custom" />
         </el-select>
-        <el-select v-model="listQuery.status" placeholder="状态" clearable style="width: 120px">
+        <el-select v-model="queryParams.status" placeholder="状态" clearable style="width: 120px">
           <el-option label="启用" value="active" />
           <el-option label="停用" value="inactive" />
         </el-select>
-        <el-button type="primary" @click="fetchData">
+        <el-button type="primary" @click="handleSearch">
           <el-icon><Search /></el-icon>
           搜索
         </el-button>
       </div>
 
-      <el-table v-loading="listLoading" :data="list" stripe>
+      <el-table v-loading="loading" :data="list" stripe>
         <el-table-column prop="template_code" label="模板编号" width="140" />
         <el-table-column prop="template_name" label="模板名称" min-width="180" />
         <el-table-column prop="category" label="分类" width="100">
@@ -87,13 +87,13 @@
 
       <div class="pagination-container">
         <el-pagination
-          v-model:current-page="listQuery.page"
-          v-model:page-size="listQuery.page_size"
+          v-model:current-page="page"
+          v-model:page-size="pageSize"
           :page-sizes="[10, 20, 50, 100]"
           :total="total"
           layout="total, sizes, prev, pager, next, jumper"
-          @size-change="fetchData"
-          @current-change="fetchData"
+          @size-change="handleSizeChange"
+          @current-change="handlePageChange"
         />
       </div>
     </el-card>
@@ -179,7 +179,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, onMounted, computed } from 'vue'
+import { ref, reactive, computed } from 'vue'
 import { ElMessage, ElMessageBox, type FormInstance, type FormRules } from 'element-plus'
 import { Plus, Search } from '@element-plus/icons-vue'
 // Wave B-2 修复（B3-1）：引入 DOMPurify 用于净化后端返回的 HTML 模板，防止 XSS
@@ -188,7 +188,6 @@ import DOMPurify from 'dompurify'
 // 防止后端数据中包含的恶意 HTML/脚本经 v-html 渲染后误导用户（DOMPurify 默认允许 <img>/<a> 等标签）
 import { escapeHtml } from '@/utils/print'
 import {
-  listReportTemplates,
   createReportTemplate,
   updateReportTemplate,
   deleteReportTemplate,
@@ -196,17 +195,38 @@ import {
   generateReport,
   type ReportTemplate,
 } from '@/api/report-templates'
+// 批次 277：接入 useTableApi composable，统一表格分页/加载/查询逻辑
+import { useTableApi } from '@/composables/useTableApi'
 
-const list = ref<ReportTemplate[]>([])
-const total = ref(0)
-const listLoading = ref(false)
-const listQuery = reactive({
-  page: 1,
-  page_size: 20,
+const queryParams = reactive({
   keyword: '',
   category: '',
   status: '',
 })
+
+// 批次 277：接入 useTableApi，消除手写 list/total/listLoading/fetchData 重复
+// useTableApi 自动管理分页状态、数据加载，自动 watch page/pageSize 变化触发重载
+const {
+  data: list,
+  loading,
+  page,
+  pageSize,
+  total,
+  refresh: fetchData,
+  setQueryParam,
+} = useTableApi<ReportTemplate>({
+  url: '/report-templates',
+  onError: (err: unknown) =>
+    // 批次 98 P2-D 修复（v5 复审）：类型守卫提取错误信息
+    ElMessage.error((err instanceof Error ? err.message : String(err)) || '获取数据失败'),
+})
+
+// 批次 277：同步筛选条件到 useTableApi.queryParams 并刷新
+const syncQueryParams = () => {
+  setQueryParam('keyword', queryParams.keyword || undefined)
+  setQueryParam('category', queryParams.category || undefined)
+  setQueryParam('status', queryParams.status || undefined)
+}
 
 const categoryMap: Record<string, string> = {
   sales: '销售',
@@ -214,20 +234,6 @@ const categoryMap: Record<string, string> = {
   finance: '财务',
   production: '生产',
   custom: '自定义',
-}
-
-const fetchData = async () => {
-  listLoading.value = true
-  try {
-    const res = await listReportTemplates(listQuery)
-    list.value = res.data || []
-    total.value = res.total || 0
-  } catch (error: unknown) {
-    // 批次 98 P2-D 修复（v5 复审）：原 catch (error: any) 改为 unknown + 类型守卫
-    ElMessage.error((error instanceof Error ? error.message : String(error)) || '获取数据失败')
-  } finally {
-    listLoading.value = false
-  }
 }
 
 const dialogVisible = ref(false)
@@ -379,9 +385,22 @@ const handleGenerate = async (row: ReportTemplate) => {
   }
 }
 
-onMounted(() => {
+// 批次 277：搜索/重置（同步筛选条件到 useTableApi 后重置到第一页并刷新）
+const handleSearch = () => {
+  syncQueryParams()
+  page.value = 1
   fetchData()
-})
+}
+
+// 批次 277：分页（useTableApi 自动 watch page/pageSize 变化触发重载）
+const handlePageChange = (p: number) => {
+  page.value = p
+}
+
+const handleSizeChange = (s: number) => {
+  pageSize.value = s
+  page.value = 1
+}
 </script>
 
 <style scoped>

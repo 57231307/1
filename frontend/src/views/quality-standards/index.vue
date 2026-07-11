@@ -21,8 +21,8 @@
           placeholder="搜索标准编号/名称"
           style="width: 200px"
           clearable
-          @clear="fetchData"
-          @keyup.enter="fetchData"
+          @clear="handleSearch"
+          @keyup.enter="handleSearch"
         />
         <el-select v-model="listQuery.status" placeholder="状态" clearable style="width: 120px">
           <el-option label="草稿" value="draft" />
@@ -36,13 +36,13 @@
           <el-option label="安全标准" value="safety" />
           <el-option label="环保标准" value="environmental" />
         </el-select>
-        <el-button type="primary" @click="fetchData">
+        <el-button type="primary" @click="handleSearch">
           <el-icon><Search /></el-icon>
           搜索
         </el-button>
       </div>
 
-      <el-table v-loading="listLoading" :data="list" stripe>
+      <el-table v-loading="loading" :data="list" stripe>
         <el-table-column prop="standard_code" label="标准编号" width="140" />
         <el-table-column prop="standard_name" label="标准名称" min-width="180" />
         <el-table-column prop="type" label="类型" width="100">
@@ -106,13 +106,13 @@
 
       <div class="pagination-container">
         <el-pagination
-          v-model:current-page="listQuery.page"
-          v-model:page-size="listQuery.page_size"
+          v-model:current-page="page"
+          v-model:page-size="pageSize"
           :page-sizes="[10, 20, 50, 100]"
           :total="total"
           layout="total, sizes, prev, pager, next, jumper"
-          @size-change="fetchData"
-          @current-change="fetchData"
+          @size-change="handleSizeChange"
+          @current-change="handlePageChange"
         />
       </div>
     </el-card>
@@ -160,11 +160,10 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, onMounted } from 'vue'
+import { ref, reactive } from 'vue'
 import { ElMessage, ElMessageBox, type FormInstance, type FormRules } from 'element-plus'
 import { Plus, Download, Search } from '@element-plus/icons-vue'
 import {
-  listQualityStandards,
   createQualityStandard,
   updateQualityStandard,
   deleteQualityStandard,
@@ -174,17 +173,57 @@ import {
   type QualityStandard,
 } from '@/api/quality-standards'
 import { exportToExcel } from '@/utils/export'
+import { useTableApi } from '@/composables/useTableApi'
 
-const list = ref<QualityStandard[]>([])
-const total = ref(0)
-const listLoading = ref(false)
+// 批次 277：listQuery 仅保留筛选字段，page/page_size 交给 useTableApi 管理
 const listQuery = reactive({
-  page: 1,
-  page_size: 20,
   keyword: '',
   status: '',
   type: '',
 })
+
+// 批次 277：接入 useTableApi，消除手写 list/total/listLoading/fetchData 重复
+// useTableApi 自动管理分页状态、数据加载，自动 watch page/pageSize 变化触发重载
+// listQualityStandards 返回 ApiResponse<QualityStandard[]>（{ data: T[], total: number }），
+// useTableApi detectList 支持 data 字段、detectTotal 支持 res 外层 total，已兼容
+const {
+  data: list,
+  total,
+  loading,
+  page,
+  pageSize,
+  refresh: fetchData,
+  setQueryParam,
+} = useTableApi<QualityStandard>({
+  url: '/quality-standards',
+  onError: (err: unknown) =>
+    // 批次 98 P2-D 修复（v5 复审）：unknown 类型守卫
+    ElMessage.error((err instanceof Error ? err.message : String(err)) || '获取数据失败'),
+})
+
+// 批次 277：同步 listQuery 筛选条件到 useTableApi.queryParams
+const syncQueryParams = () => {
+  setQueryParam('keyword', listQuery.keyword || undefined)
+  setQueryParam('status', listQuery.status || undefined)
+  setQueryParam('type', listQuery.type || undefined)
+}
+
+// 批次 277：搜索/重置统一入口：同步筛选条件 + 回到首页 + 拉取
+const handleSearch = () => {
+  syncQueryParams()
+  page.value = 1
+  fetchData()
+}
+
+// 批次 277：分页（useTableApi 自动 watch page/pageSize 变化触发重载）
+const handlePageChange = (p: number) => {
+  page.value = p
+}
+
+const handleSizeChange = (s: number) => {
+  pageSize.value = s
+  page.value = 1
+}
 
 const typeMap: Record<string, string> = {
   product: '产品标准',
@@ -205,20 +244,6 @@ const statusTypeMap: Record<string, string> = {
   approved: 'warning',
   published: 'success',
   archived: 'info',
-}
-
-const fetchData = async () => {
-  listLoading.value = true
-  try {
-    const res = await listQualityStandards(listQuery)
-    list.value = res.data || []
-    total.value = res.total || 0
-  } catch (error: unknown) {
-    // 批次 98 P2-D 修复（v5 复审）：原 catch (error: any) 改为 unknown + 类型守卫
-    ElMessage.error((error instanceof Error ? error.message : String(error)) || '获取数据失败')
-  } finally {
-    listLoading.value = false
-  }
 }
 
 const dialogVisible = ref(false)
@@ -376,10 +401,6 @@ const handleExport = () => {
     ],
   })
 }
-
-onMounted(() => {
-  fetchData()
-})
 </script>
 
 <style scoped>

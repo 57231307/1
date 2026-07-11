@@ -39,9 +39,9 @@
       :loading="loading"
       :query-params="queryParams"
       :dialog-mode="dialogMode"
-      @search="fetchData"
+      @search="handleSearch"
       @reset="handleReset"
-      @update:query-params="(v: SupplierQueryParams) => Object.assign(queryParams, v)"
+      @update:query-params="handleQueryParamsUpdate"
       @add="handleAdd"
       @view="handleView"
       @edit="handleEdit"
@@ -66,17 +66,15 @@
 <script setup lang="ts">
 import SupplierList from './SupplierList.vue'
 import SupplierDialog from './SupplierDialog.vue'
-import { ref, reactive, onMounted, computed } from 'vue'
+import { ref, reactive, computed } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Plus, Download, Printer } from '@element-plus/icons-vue'
 import { supplierApi, type Supplier, type SupplierQueryParams } from '@/api/supplier'
 import { exportData } from '@/utils/export'
 import { printData } from '@/utils/print'
+import { useTableApi } from '@/composables/useTableApi'
 
-const loading = ref(false)
 const submitLoading = ref(false)
-const suppliers = ref<Supplier[]>([])
-const total = ref(0)
 const dialogVisible = ref(false)
 const isEdit = ref(false)
 const dialogRef = ref<InstanceType<typeof SupplierDialog>>()
@@ -84,12 +82,48 @@ const dialogRef = ref<InstanceType<typeof SupplierDialog>>()
 const dialogMode = ref<'add' | 'edit' | 'view'>('add')
 
 const queryParams = reactive({
-  page: 1,
-  page_size: 20,
   keyword: '',
   grade: '',
   status: '',
 })
+
+// 批次 277：接入 useTableApi，消除手写 suppliers/total/loading/fetchData 重复
+// useTableApi 自动管理分页状态、数据加载，自动 watch page/pageSize 变化触发重载
+const {
+  data: suppliers,
+  loading,
+  total,
+  page,
+  pageSize,
+  refresh: fetchData,
+  setQueryParam,
+} = useTableApi<Supplier>({
+  url: '/purchase/suppliers',
+  onError: (err: unknown) =>
+    ElMessage.error((err instanceof Error ? err.message : String(err)) || '获取供应商列表失败'),
+})
+
+// 批次 277：同步筛选条件到 useTableApi.queryParams 并刷新（SupplierList 仍通过 props 接收 queryParams）
+const syncQueryParams = () => {
+  setQueryParam('keyword', queryParams.keyword || undefined)
+  setQueryParam('grade', queryParams.grade || undefined)
+  setQueryParam('status', queryParams.status || undefined)
+}
+
+// 批次 277：搜索时先同步筛选条件再刷新
+const handleSearch = () => {
+  syncQueryParams()
+  page.value = 1
+  fetchData()
+}
+
+// 批次 277：SupplierList 子组件分页变化时同步到 useTableApi 的 page/pageSize
+// SupplierList 通过 update:query-params emit 包含 page/page_size 的 queryParams
+const handleQueryParamsUpdate = (v: SupplierQueryParams) => {
+  Object.assign(queryParams, v)
+  if (v.page) page.value = v.page
+  if (v.page_size) pageSize.value = v.page_size
+}
 
 // 表单数据由父组件维护（避免 SupplierDialog 子组件直接 mutation prop）
 // SupplierDialog 接收 formData prop + 通过 ref.resetForm() 同步
@@ -119,33 +153,13 @@ const formData = reactive({
 
 const dialogTitle = computed(() => (isEdit.value ? '编辑供应商' : '新建供应商'))
 
-const fetchData = async () => {
-  loading.value = true
-  try {
-    const res = await supplierApi.list(queryParams)
-    // 安全检查：防止后端返回 data 为 null 时崩溃
-    if (res.data) suppliers.value = res.data.list || []
-    total.value = res.data?.total || 0
-  } catch (error: unknown) {
-    // 批次 98 P2-D 修复（v5 复审）：原 catch (error: any) 改为 unknown + 类型守卫
-    ElMessage.error((error instanceof Error ? error.message : String(error)) || '获取供应商列表失败')
-    suppliers.value = []
-    total.value = 0
-  } finally {
-    loading.value = false
-  }
-}
-
-const handleQuery = () => {
-  queryParams.page = 1
-  fetchData()
-}
-
 const handleReset = () => {
   queryParams.keyword = ''
   queryParams.grade = ''
   queryParams.status = ''
-  handleQuery()
+  syncQueryParams()
+  page.value = 1
+  fetchData()
 }
 
 /** 重置表单（通过 ref 调用 SupplierDialog.resetForm） */
@@ -189,7 +203,6 @@ const handleDelete = async (row: Supplier) => {
     ElMessage.success('删除成功')
     fetchData()
   } catch (error: unknown) {
-    // 批次 98 P2-D 修复（v5 复审）：原 catch (error: any) 改为 unknown + 类型守卫
     if (error !== 'cancel') {
       ElMessage.error((error instanceof Error ? error.message : String(error)) || '删除失败')
     }
@@ -209,7 +222,6 @@ const handleSubmit = async () => {
     dialogVisible.value = false
     fetchData()
   } catch (error: unknown) {
-    // 批次 98 P2-D 修复（v5 复审）：原 catch (error: any) 改为 unknown + 类型守卫
     ElMessage.error((error instanceof Error ? error.message : String(error)) || '操作失败')
   } finally {
     submitLoading.value = false
@@ -229,7 +241,7 @@ const handleExport = () => {
       { key: 'supplier_type', title: '类型' },
       { key: 'status', title: '状态', formatter: v => (v === 'active' ? '启用' : '禁用') },
     ],
-    data: suppliers.value,
+    data: suppliers.value as unknown as Record<string, unknown>[],
   })
 }
 
@@ -249,13 +261,9 @@ const handlePrint = () => {
         formatter: v => (v === 'active' ? '启用' : '禁用'),
       },
     ],
-    data: suppliers.value,
+    data: suppliers.value as unknown as Record<string, unknown>[],
   })
 }
-
-onMounted(() => {
-  fetchData()
-})
 </script>
 
 <style scoped>

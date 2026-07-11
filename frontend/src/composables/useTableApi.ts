@@ -127,8 +127,13 @@ export function useTableApi<T = unknown>(
         { params }
       )
       // 兼容三种返回：ApiResponse 包装 / 裸 list / 裸对象
+      // 批次 277：当 res.data 是裸数组（如 `{ data: T[], total: number }`）时，
+      // 需要把 res 外层的 total/count 保留到 payload，否则 detectTotal 会丢失总数。
+      const resObj = res as ListResponsePayload
       const raw: ListResponsePayload | T[] = (res as { data?: unknown })?.data ?? (res as ListResponsePayload | T[])
-      const payload: ListResponsePayload = Array.isArray(raw) ? { data: raw } : (raw ?? {})
+      const payload: ListResponsePayload = Array.isArray(raw)
+        ? { data: raw, total: resObj?.total, count: resObj?.count }
+        : (raw ?? {})
       data.value = detectList(payload) as T[]
       total.value = detectTotal(payload)
     } catch (err) {
