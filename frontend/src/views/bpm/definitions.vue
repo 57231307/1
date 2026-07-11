@@ -2,7 +2,7 @@
   bpm/definitions.vue - BPM 流程定义管理（拆分重构版）
   任务编号: P14 批 2 I-3 第 5 批
   拆分：579 行 → ~130 行 + 5 子组件 + 2 composable + 1 工具
-  行为完全保持一致（仅结构重构）
+  批次 282：BpmDfFilter/BpmDfTbl 接入 useTableApi（v-model:page/page-size + @fetch + @update:queryParams）
 -->
 <template>
   <div class="bpm-definitions">
@@ -15,24 +15,21 @@
     </div>
 
     <BpmDfFilter
-      :params="bpmDf.queryParams"
-      @search="bpmDfProc.handleSearch"
-      @reset="bpmDfProc.handleReset"
-      @update:params="(v) => Object.assign(bpmDf.queryParams, v)"
+      :query-params="bpmDf.queryParams"
+      @fetch="bpmDfProc.handleSearch"
+      @update:query-params="(v) => Object.assign(bpmDf.queryParams, v)"
     />
 
     <BpmDfTbl
+      v-model:page="bpmDf.page"
+      v-model:page-size="bpmDf.pageSize"
       :data="bpmDf.definitions"
       :loading="bpmDf.loading"
       :total="bpmDf.total"
-      :pagination="bpmDf.queryParams"
       @edit="bpmDfProc.handleEdit"
       @versions="bpmDfProc.handleOpenVersions"
       @save-as-template="bpmDfProc.handleOpenSaveAsTemplate"
       @delete="bpmDfProc.handleDelete"
-      @reload="bpmDf.fetchDefinitions"
-      @update:page="(v: number) => (bpmDf.queryParams.page = v)"
-      @update:size="(v: number) => (bpmDf.queryParams.page_size = v)"
     />
 
     <BpmDfForm
@@ -68,7 +65,7 @@
 </template>
 
 <script setup lang="ts">
-import { onMounted, reactive } from 'vue'
+import { reactive } from 'vue'
 import { type FormRules } from 'element-plus'
 import { Plus } from '@element-plus/icons-vue'
 import { useBpmDf } from './definitions/composables/useBpmDf'
@@ -85,6 +82,7 @@ const bpmDfProc = useBpmDfProc({
   definitions: bpmDf.definitions,
   loading: bpmDf.loading,
   total: bpmDf.total,
+  page: bpmDf.page,
   queryParams: bpmDf.queryParams,
   dialogVisible: bpmDf.dialogVisible,
   isEdit: bpmDf.isEdit,
@@ -129,10 +127,6 @@ const handleAddNode = () => {
 const handleRemoveNode = (index: number) => {
   bpmDf.formData.nodes.splice(index, 1)
 }
-
-onMounted(() => {
-  bpmDf.fetchDefinitions()
-})
 </script>
 
 <style scoped>

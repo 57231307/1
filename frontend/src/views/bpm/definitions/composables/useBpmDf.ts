@@ -3,7 +3,7 @@
  * 任务编号: P14 批 2 I-3 第 5 批（拆分原 bpm/definitions.vue）
  * 提供流程定义列表 / 分页 / 过滤 / 节点列表等核心方法
  * 业务流程（创建/编辑/删除/版本/创建版本/激活/保存为模板）由 useBpmDfProc 提供
- * 行为完全保持一致（仅结构重构）
+ * 批次 282：definitions 接入 useTableApi，移除手写分页/加载逻辑
  *
  * 注意：返回值使用 reactive({...}) 包装，父组件可直接访问字段（自动解包 ref）
  */
@@ -16,23 +16,27 @@ import {
   type ProcessVersion,
 } from '@/api/bpm-enhanced'
 import { logger } from '@/utils/logger'
+import { useTableApi } from '@/composables/useTableApi'
 
-/**
- * BPM 流程定义主业务 composable
- * 集中管理列表、分页、过滤、节点、版本
- */
+/** BPM 流程定义主业务 composable（集中管理列表、分页、过滤、节点、版本） */
 export function useBpmDf() {
-  // 列表
-  const definitions = ref<ProcessDefinition[]>([])
-  const loading = ref(false)
-  const total = ref(0)
-
-  // 过滤
-  const queryParams = reactive({
-    page: 1,
-    page_size: 20,
-    keyword: '',
-    category: '',
+  // 列表 - 接入 useTableApi（批次 282）
+  const {
+    data: definitions,
+    total,
+    loading,
+    page,
+    pageSize,
+    queryParams,
+    refresh: fetchDefinitions,
+  } = useTableApi<ProcessDefinition>({
+    url: '/bpm/definitions',
+    defaultParams: { keyword: '', category: '' },
+    onError: (err: unknown) => {
+      const msg = err instanceof Error ? err.message : '获取流程定义列表失败'
+      logger.error(msg)
+      ElMessage.error(msg)
+    },
   })
 
   // 表单对话框
@@ -74,27 +78,7 @@ export function useBpmDf() {
     description: '',
   })
 
-  /**
-   * 加载列表
-   */
-  const fetchDefinitions = async () => {
-    loading.value = true
-    try {
-      const res = await bpmEnhancedApi.listDefinitions(queryParams as never)
-      definitions.value = (res.data?.list || []) as ProcessDefinition[]
-      total.value = (res.data?.total || 0) as number
-    } catch (error) {
-      const msg = error instanceof Error ? error.message : '获取流程定义列表失败'
-      logger.error(msg)
-      ElMessage.error(msg)
-    } finally {
-      loading.value = false
-    }
-  }
-
-  /**
-   * 加载版本
-   */
+  /** 加载版本 */
   const fetchVersions = async (definitionId: number) => {
     versionLoading.value = true
     try {
@@ -111,12 +95,14 @@ export function useBpmDf() {
 
   // 使用 reactive 包装，父组件可直接访问字段
   return reactive({
-    // 列表
+    // 列表（useTableApi 管理）
     definitions,
-    loading,
     total,
-    // 过滤
+    loading,
+    page,
+    pageSize,
     queryParams,
+    fetchDefinitions,
     // 表单对话框
     dialogVisible,
     isEdit,
@@ -132,7 +118,6 @@ export function useBpmDf() {
     templateLoading,
     templateForm,
     // 方法
-    fetchDefinitions,
     fetchVersions,
   })
 }
