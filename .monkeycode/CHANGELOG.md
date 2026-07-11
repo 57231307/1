@@ -9,6 +9,8 @@
 
 | 批次 | PR | 一句话总结 |
 |------|-----|-----------|
+| 281 | #461 | api-gateway 3 composable + AuditTab 接入 useTableApi（reactive 包装返回 + EpForm/KeyForm formRef 改为 v-model:formRef + 子组件 queryParams 类型放宽 + page/pageSize props + handleSearch 同步筛选条件） |
+| 280 | #460 | 6 个 view 接入 useTableApi 第十一批（CountListTab + TransferTab + color-prices + process-optimization + quality-prediction + email 双表） |
 | 279 | #459 | deploy.sh config.yaml auth 段注入 webhook_secret 字段（旧版部署脚本未同步批次 277 修复，导致后端 fail-fast 退出）+ 规则 00 关联影响评估强制写入 MEMORY.md |
 | 278 | #458 | 4 个 view 接入 useTableApi 第十批（fund/Account + fixed-assets/AssetList + cost/CostCollection + budget/BudgetList） |
 | 276 | #455 | 3 个 view 接入 useTableApi 第九批（customer + UserTab + BatchListTab） |
