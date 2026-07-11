@@ -60,13 +60,13 @@
     </el-table>
     <div class="pagination-wrapper">
       <el-pagination
-        :current-page="voucherQueryParams.page"
-        :page-size="voucherQueryParams.page_size"
+        :current-page="page"
+        :page-size="pageSize"
         :page-sizes="[10, 20, 50, 100]"
         :total="voucherTotal"
         layout="total, sizes, prev, pager, next, jumper"
-        @size-change="emit('page-change')"
-        @current-change="emit('page-change')"
+        @update:current-page="(v: number) => emit('update:page', v)"
+        @update:page-size="(v: number) => emit('update:page-size', v)"
       />
     </div>
   </el-card>
@@ -78,24 +78,27 @@ import type { Voucher } from '@/api/finance'
 /**
  * 凭证列表表格组件
  * 仅做展示，行内操作通过 emit 通知父组件
+ * 批次 289：分页改为 v-model:page/page-size 绑定（由 useTableApi watch 自动加载）
  */
 const props = defineProps<{
   vouchers: Voucher[]
   voucherLoading: boolean
   voucherTotal: number
-  voucherQueryParams: { page: number; page_size: number }
+  page: number
+  pageSize: number
   formatMoney: (amount: number) => string
   getVoucherStatusLabel: (status?: string) => string
   getVoucherStatusType: (status?: string) => string
 }>()
 
-// 查看凭证 / 提交凭证 / 审核凭证 / 过账凭证 / 分页变化（触发 fetchVouchers）
+// 查看凭证 / 提交凭证 / 审核凭证 / 过账凭证 / 分页变化（由 useTableApi watch 自动加载）
 const emit = defineEmits<{
   view: [row: Voucher]
   submit: [row: Voucher]
   review: [row: Voucher]
   post: [row: Voucher]
-  'page-change': []
+  'update:page': [page: number]
+  'update:page-size': [pageSize: number]
 }>()
 
 void props

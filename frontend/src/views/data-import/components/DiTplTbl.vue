@@ -1,27 +1,24 @@
 <!--
   DiTplTbl.vue - 数据导入模板列表 + 过滤栏
   拆分自 data-import/index.vue（P14 批 2 I-3 第 5 批）
-  P9-3 批次 F Pattern A 重构：本地 reactive 镜像 + watch 同步 + emit 整体覆盖父组件
+  批次 289：改造为 localQuery + handleSearch 模式，接入 useTableApi queryParams
   行为完全保持一致（仅结构重构）
 -->
 <template>
   <el-card shadow="hover">
     <div class="filter-container">
       <el-input
-        :model-value="localParams.keyword"
+        v-model="localQuery.keyword"
         placeholder="搜索模板编号/名称"
         style="width: 200px"
         clearable
-        @update:model-value="(v: string) => { localParams.keyword = v; syncToParent() }"
-        @clear="emit('search')"
-        @keyup.enter="emit('search')"
+        @keyup.enter="handleSearch"
       />
       <el-select
-        :model-value="localParams.module"
+        v-model="localQuery.module"
         placeholder="模块"
         clearable
         style="width: 120px"
-        @update:model-value="(v: string) => { localParams.module = v; syncToParent() }"
       >
         <el-option label="客户" value="customer" />
         <el-option label="供应商" value="supplier" />
@@ -31,7 +28,7 @@
         <el-option label="采购" value="purchase" />
         <el-option label="财务" value="finance" />
       </el-select>
-      <el-button type="primary" @click="emit('search')">
+      <el-button type="primary" @click="handleSearch">
         <el-icon><Search /></el-icon>
         搜索
       </el-button>
@@ -74,37 +71,28 @@
 
     <div class="pagination-container">
       <el-pagination
-        :current-page="localParams.page"
-        :page-size="localParams.page_size"
+        :current-page="page"
+        :page-size="pageSize"
         :page-sizes="[10, 20, 50, 100]"
         :total="total"
         layout="total, sizes, prev, pager, next, jumper"
-        @update:current-page="onPageChange"
-        @update:page-size="onSizeChange"
-        @size-change="emit('search')"
-        @current-change="emit('search')"
+        @update:current-page="(v: number) => emit('update:page', v)"
+        @update:page-size="(v: number) => emit('update:page-size', v)"
       />
     </div>
   </el-card>
 </template>
 
 <script setup lang="ts">
-import { reactive, watch } from 'vue'
+import { reactive } from 'vue'
 import { Search } from '@element-plus/icons-vue'
 import type { ImportTemplate } from '@/api/data-import'
 import { MODULE_MAP } from '../composables/diFmts'
-import type { TplQuery } from '../composables/useDi'
-
-// 查询参数默认值（父组件未传入时使用）
-const DEFAULT_PARAMS: TplQuery = {
-  page: 1,
-  page_size: 20,
-  keyword: '',
-  module: '',
-}
 
 /**
  * 模板列表组件（含过滤栏）
+ * 接收父组件传入的 queryParams + page/pageSize，通过 emit 同步变更
+ * 查询时先同步 queryParams 再触发 fetch
  */
 const props = defineProps<{
   // 模板数据
@@ -113,49 +101,38 @@ const props = defineProps<{
   total: number
   // 加载状态
   loading: boolean
-  // 查询参数（由父组件管理，子组件通过 emit('update:params') 整体回写）
-  params?: TplQuery
+  // 查询条件（由父组件 useTableApi 管理，类型放宽为 Record 兼容 useTableApi）
+  queryParams: Record<string, unknown>
+  // 当前页码
+  page: number
+  // 每页大小
+  pageSize: number
 }>()
 
 const emit = defineEmits<{
-  search: []
   edit: [row: ImportTemplate]
   delete: [row: ImportTemplate]
   download: [row: ImportTemplate]
   upload: [row: ImportTemplate]
-  // 整体回写查询参数（父组件监听后 Object.assign 到自己的 params）
-  'update:params': [params: TplQuery]
+  // 触发查询（父组件监听后调用 handleTemplateSearch 重置页码并加载）
+  fetch: []
+  // 同步查询条件到父组件
+  'update:queryParams': [params: Record<string, unknown>]
+  // 分页变化（由 useTableApi watch 自动加载）
+  'update:page': [page: number]
+  'update:page-size': [pageSize: number]
 }>()
 
 // 本地镜像：避免直接修改 prop 触发 vue/no-mutating-props
-const localParams = reactive<TplQuery>({
-  ...(props.params ?? DEFAULT_PARAMS),
+const localQuery = reactive({
+  keyword: (props.queryParams.keyword as string) ?? '',
+  module: (props.queryParams.module as string) ?? '',
 })
 
-// 父组件传参变化时同步到本地（如父组件重置分页/过滤条件）
-watch(
-  () => props.params,
-  newParams => {
-    if (newParams) Object.assign(localParams, newParams)
-  },
-  { deep: true },
-)
-
-/** 同步本地到父组件（深拷贝避免外部引用被意外修改） */
-const syncToParent = () => {
-  emit('update:params', { ...localParams })
-}
-
-/** 页码变更 */
-const onPageChange = (page: number) => {
-  localParams.page = page
-  syncToParent()
-}
-
-/** 每页大小变更 */
-const onSizeChange = (size: number) => {
-  localParams.page_size = size
-  syncToParent()
+/** 查询：先同步筛选条件到父组件，再触发 fetch */
+const handleSearch = () => {
+  emit('update:queryParams', { ...localQuery })
+  emit('fetch')
 }
 </script>
 

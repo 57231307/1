@@ -5,7 +5,7 @@
  * 行为完全保持一致（仅结构重构）
  *
  * 设计说明：通过 callbacks 接收 useDi 的状态引用（Reactive 包装层）；
- * 由于 useDi 返回 reactive({...})，父组件传入 di.templateQuery 等会自动解包为值
+ * 由于 useDi 返回 reactive({...})，父组件传入 di.fetchTemplates 等会自动解包为值
  */
 import { ref, reactive } from 'vue'
 import { ElMessage, ElMessageBox, type FormInstance, type FormRules } from 'element-plus'
@@ -41,19 +41,12 @@ export interface DiTplForm {
 
 /**
  * 流程回调（接收 useDi 返回的状态，自动解包后的值类型）
+ * 批次 289：简化为仅包含实际使用的字段（fetchTemplates/fetchTasks/activeTab）
  */
 interface DiCallbacks {
-  // 模板
-  templates: ImportTemplate[]
-  templateTotal: number
-  templateLoading: boolean
-  templateQuery: { page: number; page_size: number; keyword: string; module: string }
+  // 模板列表刷新
   fetchTemplates: () => Promise<void>
-  // 任务
-  tasks: ImportTask[]
-  taskTotal: number
-  taskLoading: boolean
-  taskQuery: { page: number; page_size: number; status: string }
+  // 任务列表刷新
   fetchTasks: () => Promise<void>
   // 当前激活 Tab
   activeTab: string

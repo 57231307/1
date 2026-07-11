@@ -4,17 +4,18 @@
  * 提供凭证列表查询、表单管理、科目加载等核心方法
  * 流程操作（提交/审核/过账/导出/打印）由 useVchrProc 提供
  * 行为完全保持一致（仅结构重构）
+ * 批次 289：vouchers 接入 useTableApi，移除手写分页逻辑，返回 reactive 包装
  */
 import { ref, reactive, computed } from 'vue'
 import { ElMessage } from 'element-plus'
 import type { FormInstance, FormRules } from 'element-plus'
 import {
   getSubjectTree,
-  listVouchers,
   createVoucher,
   type AccountSubject,
   type Voucher,
 } from '@/api/finance'
+import { useTableApi } from '@/composables/useTableApi'
 import { logger } from '@/utils/logger'
 import { formatMoney, getVchrStatusLabel, getVchrStatusType } from './vchrFmts'
 
@@ -23,24 +24,32 @@ import { formatMoney, getVchrStatusLabel, getVchrStatusType } from './vchrFmts'
  * 集中管理凭证列表、表单、科目等业务状态
  */
 export function useVchr() {
-  // 列表数据
-  const vouchers = ref<Voucher[]>([])
+  // 列表数据接入 useTableApi
+  // 凭证 API 返回 ApiResponse<Voucher[]>，data 为裸数组；useTableApi detectList 兼容裸数组
+  // 分页参数使用 snake_case（page/page_size），匹配 useTableApi 默认配置
+  const {
+    data: vouchers,
+    total: voucherTotal,
+    loading: voucherLoading,
+    page,
+    pageSize,
+    queryParams,
+    refresh: fetchVouchers,
+  } = useTableApi<Voucher>({
+    url: '/vouchers',
+    defaultPageSize: 20,
+    defaultParams: {
+      voucher_no: '',
+      date_range: [] as string[],
+      status: '',
+    },
+    onError: (err: unknown) => {
+      logger.error('获取凭证列表失败', err)
+      ElMessage.error('获取凭证列表失败')
+    },
+  })
+
   const subjects = ref<AccountSubject[]>([])
-  const voucherLoading = ref(false)
-  const voucherTotal = ref(0)
-
-  // 列表查询条件
-  const voucherQuery = reactive({
-    voucher_no: '',
-    date_range: [] as string[],
-    status: '',
-  })
-
-  // 列表分页参数
-  const voucherQueryParams = reactive({
-    page: 1,
-    page_size: 20,
-  })
 
   // 表单相关
   const voucherFormRef = ref<FormInstance>()
@@ -91,38 +100,21 @@ export function useVchr() {
     }
   }
 
-  // 凭证列表
-  const fetchVouchers = async () => {
-    voucherLoading.value = true
-    try {
-      const params = {
-        ...voucherQuery,
-        page: voucherQueryParams.page,
-        page_size: voucherQueryParams.page_size,
-      }
-      const res = await listVouchers(params)
-      const d = (res as { data?: unknown }).data as
-        | Voucher[]
-        | { items?: Voucher[]; data?: Voucher[]; list?: Voucher[] }
-      if (Array.isArray(d)) {
-        vouchers.value = d
-      } else {
-        vouchers.value = d?.items || d?.data || d?.list || []
-      }
-      const totalRaw = (res as { total?: number }).total
-      voucherTotal.value = totalRaw || (Array.isArray(d) ? d.length : 0)
-    } catch (error) {
-      const err = error as Error
-      ElMessage.error(err.message || '获取凭证列表失败')
-    } finally {
-      voucherLoading.value = false
-    }
+  /** 查询：重置页码，触发加载（筛选条件已由父组件同步到 queryParams） */
+  const handleSearch = () => {
+    page.value = 1
+    fetchVouchers()
   }
 
-  const resetVoucherQuery = () => {
-    voucherQuery.voucher_no = ''
-    voucherQuery.date_range = []
-    voucherQuery.status = ''
+  /** 重置过滤：清空筛选条件 + 重置页码，触发加载 */
+  const handleReset = () => {
+    queryParams.value = {
+      ...queryParams.value,
+      voucher_no: '',
+      date_range: [],
+      status: '',
+    }
+    page.value = 1
     fetchVouchers()
   }
 
@@ -180,15 +172,19 @@ export function useVchr() {
     currentVoucher.value = row
   }
 
-  return {
+  // 使用 reactive 包装所有 ref 字段，访问 reactive 字段时 Vue 自动解包 ref，
+  // 父组件通过 vchr.vouchers 即可直接获得 Voucher[] 类型的值
+  return reactive({
     // 列表
     vouchers,
     voucherLoading,
     voucherTotal,
-    voucherQuery,
-    voucherQueryParams,
+    page,
+    pageSize,
+    queryParams,
     fetchVouchers,
-    resetVoucherQuery,
+    handleSearch,
+    handleReset,
     // 科目
     subjects,
     leafSubjects,
@@ -211,5 +207,5 @@ export function useVchr() {
     totalDebit,
     totalCredit,
     isBalanced,
-  }
+  })
 }
