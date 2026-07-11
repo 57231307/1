@@ -108,7 +108,7 @@ Ok((items, total))
 - `PaginatorTrait` 导入保留（`.paginate()` 方法需要）
 - `quotation_service.rs` 特殊处理：返回类型是 `ServiceError` 而非 `AppError`，需添加 `From<AppError> for ServiceError` 转换或改用 `AppError`
 
-**子任务 2.2：view 表格逻辑接入 useTableApi（25/56 完成 🔄）**
+**子任务 2.2：view 表格逻辑接入 useTableApi（30/56 完成 🔄）**
 
 **问题描述**：56 个前端 view 文件各自实现表格加载/分页/排序/查询逻辑，与已封装的 `useTableApi` composable 重复。每个 view 重复编写 `loadData` / `handlePageChange` / `handleSortChange` / `handleSearch` 等函数，代码冗余严重。
 
@@ -137,7 +137,7 @@ Ok((items, total))
 - `frontend/src/views/purchaseReceipt/*`（采购收货）
 - inventory/tabs/InventoryStockTab（1-based 分页）
 - barcodeScanner / assistAccounting（使用 0-based 分页需特殊处理）
-- composable 管理分页的 view：useSysUpd（3 表）、useBpmAp（2 表）— 批次 283 候选
+- composable 管理分页的 view：useSysUpd（3 表）、useBpmAp（2 表）— ✅ 批次 283 已完成
 
 **技术要点**：
 - `useTableApi` 已封装：分页参数管理 / 数据加载 / loading 状态 / 错误处理
@@ -229,6 +229,25 @@ Ok((items, total))
 - color-cards/list.vue + custom-orders/list.vue + mrp/history.vue，CI 15 项全绿
 - 修复 mrp/history fetchHistory 未使用错误（refresh 不别名，因无外部调用）
 - view 表格进度：13/56 → 16/56
+
+### 批次 281：api-gateway composable + AuditTab 8 文件 — ✅ 完成（PR #461 合并，sha: 2140c1e）
+
+- composable 迁移模式：composable 内部使用 useTableApi，返回 reactive 包装
+- 子组件通过 v-model:page/page-size 绑定分页
+- proc composable 适配：Context/Callbacks 接口 queryParams 放宽为 Record<string, unknown>
+
+### 批次 282：security + bpm/definitions composable 9 文件 — ✅ 完成（PR #462 合并，sha: 0ef12ce）
+
+- security 模块 4 文件：useSec loginLogs 接入 useTableApi + useSecProc 适配 + SecLogTbl 改造 + index.vue 适配
+- bpm/definitions 模块 5 文件：useBpmDf definitions 接入 useTableApi + useBpmDfProc 适配 + BpmDfFilter/BpmDfTbl 改造 + definitions.vue 适配
+- 修复 CI 类型错误：proc queryParams 类型放宽为 Record<string, unknown>
+
+### 批次 283：useSysUpd 3 表 + useBpmAp 2 表 composable 迁移 — ✅ 完成（PR #463 合并，sha: f369877）
+
+- system-update 模块 5 文件：useSysUpd 3 表（versions/tasks/backups）接入 useTableApi + index.vue 改为 upd.xxx 访问 + 3 个 Tab 改为 page/pageSize props
+- bpm/approval 模块 4 文件：useBpmAp 2 表（pending/completed）接入 useTableApi + stats 通过 watch 自动更新 + 2 个表组件改为 page/pageSize/total props + index.vue v-model 绑定
+- CI 15 项全绿（12 成功 + 0 skipped，Rust 后端构建最后完成）
+- view 表格进度：25/56 → 30/56
 
 ---
 

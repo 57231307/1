@@ -9,6 +9,7 @@
 
 | 批次 | PR | 一句话总结 |
 |------|-----|-----------|
+| 283 | #463 | useSysUpd 3 表 + useBpmAp 2 表 composable 接入 useTableApi（reactive 包装返回 + watch 自动更新 stats + 子组件 page/pageSize/total props + v-model 绑定分页 + 移除 onMounted fetch） |
 | 282 | #462 | security + bpm/definitions composable 接入 useTableApi（useSec loginLogs + useBpmDf definitions，子组件 page/pageSize props + handleSearch，proc queryParams 类型放宽为 Record<string, unknown>） |
 | 281 | #461 | api-gateway 3 composable + AuditTab 接入 useTableApi（reactive 包装返回 + EpForm/KeyForm formRef 改为 v-model:formRef + 子组件 queryParams 类型放宽 + page/pageSize props + handleSearch 同步筛选条件） |
 | 280 | #460 | 6 个 view 接入 useTableApi 第十一批（CountListTab + TransferTab + color-prices + process-optimization + quality-prediction + email 双表） |
