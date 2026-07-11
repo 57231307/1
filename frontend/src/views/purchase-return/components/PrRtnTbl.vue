@@ -1,6 +1,7 @@
 <!--
   PrRtnTbl.vue - 采购退货列表表格
   任务编号: P14 批 2 I-3 第 2 批（拆分原 purchase-return/index.vue）
+  批次 286：page/pageSize props + v-model 绑定分页
 -->
 <template>
   <el-card class="table-card">
@@ -24,12 +25,12 @@
       <el-table-column prop="reason" label="退货原因" min-width="150" show-overflow-tooltip />
       <el-table-column label="操作" width="250" fixed="right">
         <template #default="{ row }">
-          <el-button size="small" @click="emit('view', row)">查看</el-button>
+          <el-button size="small" @click="emit('view', row as PurchaseReturn)">查看</el-button>
           <el-button
             v-if="row.status === 'draft'"
             size="small"
             type="primary"
-            @click="emit('edit', row)"
+            @click="emit('edit', row as PurchaseReturn)"
           >
             编辑
           </el-button>
@@ -37,7 +38,7 @@
             v-if="row.status === 'draft'"
             size="small"
             type="warning"
-            @click="emit('submit', row)"
+            @click="emit('submit', row as PurchaseReturn)"
           >
             提交
           </el-button>
@@ -45,7 +46,7 @@
             v-if="row.status === 'pending'"
             size="small"
             type="success"
-            @click="emit('approve', row)"
+            @click="emit('approve', row as PurchaseReturn)"
           >
             审批
           </el-button>
@@ -53,7 +54,7 @@
             v-if="row.status === 'draft'"
             size="small"
             type="danger"
-            @click="emit('delete', row)"
+            @click="emit('delete', row as PurchaseReturn)"
           >
             删除
           </el-button>
@@ -62,13 +63,13 @@
     </el-table>
 
     <el-pagination
-      v-model:current-page="queryParams.page"
-      v-model:page-size="queryParams.pageSize"
+      :current-page="page"
+      :page-size="pageSize"
       :total="total"
       :page-sizes="[10, 20, 50, 100]"
       layout="total, sizes, prev, pager, next, jumper"
-      @size-change="emit('size-change')"
-      @current-change="emit('current-change')"
+      @update:current-page="(v: number) => emit('update:page', v)"
+      @update:page-size="(v: number) => emit('update:page-size', v)"
     />
   </el-card>
 </template>
@@ -77,16 +78,9 @@
 import type { PurchaseReturn } from '@/api/purchase-return'
 import { getStatusType, getStatusText } from '../composables/prRtnFmts'
 
-// 采购退货查询参数
-interface QueryParams {
-  page: number
-  pageSize: number
-  keyword: string
-  supplierId: number | undefined
-  status: string
-}
-
-// 采购退货列表表格属性
+/**
+ * 采购退货列表表格组件（批次 286：page/pageSize props + v-model 绑定分页）
+ */
 defineProps<{
   // 表格数据
   tableData: PurchaseReturn[]
@@ -94,26 +88,20 @@ defineProps<{
   loading: boolean
   // 总数
   total: number
-  // 查询参数（用于分页）
-  queryParams: QueryParams
+  // 当前页
+  page: number
+  // 每页条数
+  pageSize: number
 }>()
 
-// 定义事件
 const emit = defineEmits<{
-  // 查看
-  (e: 'view', row: PurchaseReturn): void
-  // 编辑
-  (e: 'edit', row: PurchaseReturn): void
-  // 提交
-  (e: 'submit', row: PurchaseReturn): void
-  // 审批
-  (e: 'approve', row: PurchaseReturn): void
-  // 删除
-  (e: 'delete', row: PurchaseReturn): void
-  // 分页 - 每页大小
-  (e: 'size-change'): void
-  // 分页 - 当前页
-  (e: 'current-change'): void
+  view: [row: PurchaseReturn]
+  edit: [row: PurchaseReturn]
+  submit: [row: PurchaseReturn]
+  approve: [row: PurchaseReturn]
+  delete: [row: PurchaseReturn]
+  'update:page': [v: number]
+  'update:page-size': [v: number]
 }>()
 </script>
 

@@ -17,26 +17,23 @@
     <PiStat :stats="pi.stats" />
 
     <PiFilter
-      :params="pi.queryParams"
+      :query-params="pi.queryParams"
       :date-range="pi.dateRange"
       :suppliers="pi.suppliers"
-      @query="piProc.handleQuery"
-      @reset="piProc.handleReset"
+      @fetch="piProc.handleQuery"
       @date-change="(v: [Date, Date] | null) => (pi.dateRange = v)"
-      @update:params="(v) => Object.assign(pi.queryParams, v)"
+      @update:query-params="(v) => Object.assign(pi.queryParams, v)"
     />
 
     <PiTbl
+      v-model:page="pi.page"
+      v-model:page-size="pi.pageSize"
       :data="pi.tableData"
       :loading="pi.loading"
       :total="pi.total"
-      :pagination="pi.queryParams"
       @view="piProc.handleView"
       @edit="piProc.handleEdit"
       @complete="piProc.handleComplete"
-      @reload="pi.fetchData"
-      @update:page="(v: number) => (pi.queryParams.page = v)"
-      @update:size="(v: number) => (pi.queryParams.page_size = v)"
     />
 
     <PiForm
@@ -78,6 +75,8 @@ const piProc = usePiProc({
   total: pi.total,
   dateRange: pi.dateRange,
   queryParams: pi.queryParams,
+  page: pi.page,
+  pageSize: pi.pageSize,
   suppliers: pi.suppliers,
   receipts: pi.receipts,
   dialogVisible: pi.dialogVisible,
@@ -88,10 +87,11 @@ const piProc = usePiProc({
   detailData: pi.detailData,
   fetchData: pi.fetchData,
   handleReceiptChange: pi.handleReceiptChange,
+  syncDateRangeToQuery: pi.syncDateRangeToQuery,
 })
 
+// 列表由 useTableApi setup 自动加载，onMounted 仅加载辅助数据（供应商/入库单）
 onMounted(() => {
-  pi.fetchData()
   loadIfNot('suppliers', pi.fetchSuppliers, pi.hasLoaded)
   loadIfNot('receipts', pi.fetchReceipts, pi.hasLoaded)
 })

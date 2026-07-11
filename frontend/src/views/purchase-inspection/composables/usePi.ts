@@ -4,15 +4,17 @@
  * 提供检验单列表 / 统计 / 分页 / 过滤 / 表单 / 详情 / 选项加载等核心方法
  * 业务流程（查询 / 重置 / 创建 / 编辑 / 查看 / 提交 / 完成）由 usePiProc 提供
  * 行为完全保持一致（仅结构重构）
+ * 批次 286：tableData 接入 useTableApi，移除手写分页逻辑
  *
  * 注意：返回值使用 reactive({...}) 包装，父组件可直接访问字段（自动解包 ref）
  * 子组件通过 :model-value/@update:model-value 模式传入；不会修改 prop
  */
-import { ref, reactive } from 'vue'
+import { ref, reactive, watch } from 'vue'
 import { ElMessage } from 'element-plus'
 import { loadIfNot, createLazyLoader } from '@/utils/lazy-loader'
-import { purchaseInspectionApi, type PurchaseInspection, type PurchaseInspectionItem } from '@/api/purchase-inspection'
+import { type PurchaseInspection, type PurchaseInspectionItem } from '@/api/purchase-inspection'
 import { getReceiptItems, type ReceiptItem } from '@/api/purchaseReceipt'
+import { useTableApi } from '@/composables/useTableApi'
 import { logger } from '@/utils/logger'
 
 /**
@@ -20,7 +22,7 @@ import { logger } from '@/utils/logger'
  * 集中管理列表、统计、过滤、表单、详情、选项加载
  */
 export function usePi() {
-  // 统计数据
+  // 统计数据（依据列表数据动态计算）
   const stats = reactive({
     total: 0,
     pending: 0,
@@ -28,21 +30,46 @@ export function usePi() {
     failed: 0,
   })
 
-  // 列表
-  const tableData = ref<PurchaseInspection[]>([])
-  const loading = ref(false)
-  const total = ref(0)
+  // 日期范围（独立 ref，便于 PiFilter 双向绑定；fetch 前注入 queryParams.inspection_date_from/to）
   const dateRange = ref<[Date, Date] | null>(null)
 
-  // 查询参数
-  const queryParams = reactive({
-    page: 1,
-    page_size: 20,
-    keyword: '',
-    supplier_id: undefined as number | undefined,
-    status: '',
-    result: '',
+  // 列表数据接入 useTableApi
+  // 采购验货 API 使用 snake_case 分页参数（page/page_size），匹配 useTableApi 默认配置
+  const {
+    data: tableData,
+    total,
+    loading,
+    page,
+    pageSize,
+    queryParams,
+    refresh: fetchData,
+  } = useTableApi<PurchaseInspection>({
+    url: '/purchase/inspections',
+    defaultPageSize: 20,
+    defaultParams: {
+      keyword: '',
+      supplier_id: undefined as number | undefined,
+      status: '',
+      result: '',
+      inspection_date_from: '',
+      inspection_date_to: '',
+    },
+    onError: (err: unknown) => {
+      logger.error('获取数据失败:', err)
+    },
   })
+
+  // 监听列表/总数变化，同步统计字段（保持原 fetchData 中 stats 更新行为）
+  watch(
+    [tableData, total],
+    () => {
+      stats.total = total.value
+      stats.pending = tableData.value.filter(i => i.status === 'pending').length
+      stats.passed = tableData.value.filter(i => i.result === 'pass').length
+      stats.failed = tableData.value.filter(i => i.result === 'fail').length
+    },
+    { deep: false },
+  )
 
   // 选项
   const suppliers = ref<{ id: number; name: string }[]>([])
@@ -78,30 +105,20 @@ export function usePi() {
   // 入库单明细加载状态
   const receiptItemsLoading = ref(false)
 
-  /**
-   * 加载列表数据
-   */
-  const fetchData = async () => {
-    loading.value = true
-    try {
-      const params: Record<string, unknown> = { ...queryParams }
-      if (dateRange.value) {
-        params.inspection_date_from = dateRange.value[0].toISOString()
-        params.inspection_date_to = dateRange.value[1].toISOString()
+  /** 同步 dateRange 到 queryParams.inspection_date_from/to */
+  const syncDateRangeToQuery = () => {
+    if (dateRange.value) {
+      queryParams.value = {
+        ...queryParams.value,
+        inspection_date_from: dateRange.value[0].toISOString(),
+        inspection_date_to: dateRange.value[1].toISOString(),
       }
-      const res = await purchaseInspectionApi.list(params as never)
-      tableData.value = res.data?.list || []
-      total.value = res.data?.total || 0
-
-      // 更新统计
-      stats.total = total.value
-      stats.pending = tableData.value.filter(i => i.status === 'pending').length
-      stats.passed = tableData.value.filter(i => i.result === 'pass').length
-      stats.failed = tableData.value.filter(i => i.result === 'fail').length
-    } catch (error) {
-      logger.error('获取数据失败:', error)
-    } finally {
-      loading.value = false
+    } else {
+      queryParams.value = {
+        ...queryParams.value,
+        inspection_date_from: '',
+        inspection_date_to: '',
+      }
     }
   }
 
@@ -175,7 +192,8 @@ export function usePi() {
     loading,
     total,
     dateRange,
-    // 查询
+    page,
+    pageSize,
     queryParams,
     // 选项
     suppliers,
@@ -196,6 +214,7 @@ export function usePi() {
     fetchSuppliers,
     fetchReceipts,
     handleReceiptChange,
+    syncDateRangeToQuery,
     // 懒加载标记
     hasLoaded,
     // 兼容旧名（loadIfNot 接受字符串 key）
