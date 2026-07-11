@@ -18,26 +18,36 @@ import {
 } from 'element-plus'
 import { Search, View, Refresh, Key } from '@element-plus/icons-vue'
 import {
-  listFiveDimensionStats,
   getStatsByFiveDimensionId,
   parseFiveDimensionId,
   searchFiveDimension,
   type FiveDimensionStatsResponse,
   type FiveDimensionItem,
 } from '@/api/five-dimension'
+import { useTableApi } from '@/composables/useTableApi'
 
-const tableData = ref<FiveDimensionStatsResponse[]>([])
-const total = ref(0)
-const loading = ref(false)
 const searchForm = ref({
   product_id: '',
   batch_no: '',
   color_no: '',
   grade: '',
 })
-const pagination = ref({
-  page: 1,
-  pageSize: 20,
+
+// 批次 273：接入 useTableApi，消除手写 tableData/total/loading/pagination/loadData 重复
+// 修复 0-based 分页 bug：原 page-1 传 0 被后端 max(1) 修正为 1，page=2 时传 1 offset=0，分页错乱
+// useTableApi 使用 1-based 分页，与后端 page.unwrap_or(1).max(1) + (page-1)*page_size 一致
+const {
+  data: tableData,
+  loading,
+  page,
+  pageSize,
+  total,
+  refresh: loadData,
+  setQueryParam,
+} = useTableApi<FiveDimensionStatsResponse>({
+  url: '/crm/five-dimension/stats',
+  listKey: 'items',
+  onError: () => ElMessage.error('加载失败'),
 })
 
 const viewDialogVisible = ref(false)
@@ -68,29 +78,18 @@ const searchTypeOptions = [
   { label: '等级', value: 'grade' },
 ]
 
-const loadData = async () => {
-  loading.value = true
-  try {
-    // v11 批次 179 P2-1 修复：res: any 改为具体类型
-    const res = (await listFiveDimensionStats({
-      page: pagination.value.page - 1,
-      page_size: pagination.value.pageSize,
-      product_id: searchForm.value.product_id ? Number(searchForm.value.product_id) : undefined,
-      batch_no: searchForm.value.batch_no || undefined,
-      color_no: searchForm.value.color_no || undefined,
-      grade: searchForm.value.grade || undefined,
-    })) as { data?: { items?: FiveDimensionStatsResponse[]; total?: number } }
-    tableData.value = res.data?.items || []
-    total.value = res.data?.total || 0
-  } catch (error) {
-    ElMessage.error('加载失败')
-  } finally {
-    loading.value = false
-  }
+// 批次 273：同步筛选条件到 useTableApi.queryParams 并刷新
+// useTableApi 自动 watch page/pageSize 变化触发重载，无需手动 loadData
+const syncQueryParams = () => {
+  setQueryParam('product_id', searchForm.value.product_id ? Number(searchForm.value.product_id) : undefined)
+  setQueryParam('batch_no', searchForm.value.batch_no || undefined)
+  setQueryParam('color_no', searchForm.value.color_no || undefined)
+  setQueryParam('grade', searchForm.value.grade || undefined)
 }
 
 const handleSearch = () => {
-  pagination.value.page = 1
+  syncQueryParams()
+  page.value = 1
   loadData()
 }
 
@@ -101,17 +100,19 @@ const handleReset = () => {
     color_no: '',
     grade: '',
   }
-  handleSearch()
-}
-
-const handlePageChange = (page: number) => {
-  pagination.value.page = page
+  syncQueryParams()
+  page.value = 1
   loadData()
 }
 
-const handlePageSizeChange = (pageSize: number) => {
-  pagination.value.pageSize = pageSize
-  loadData()
+// 分页（useTableApi 自动 watch page/pageSize 变化触发重载）
+const handlePageChange = (p: number) => {
+  page.value = p
+}
+
+const handlePageSizeChange = (s: number) => {
+  pageSize.value = s
+  page.value = 1
 }
 
 const openViewDialog = async (item: FiveDimensionStatsResponse) => {
@@ -177,7 +178,7 @@ const selectFromSearch = (item: FiveDimensionItem) => {
   handleSearch()
 }
 
-loadData()
+// 批次 273：useTableApi 构造时自动初始加载，无需 setup 顶层调用 loadData
 </script>
 
 <template>
@@ -291,8 +292,8 @@ loadData()
 
     <div class="pagination-wrapper" style="margin-top: 16px; text-align: right">
       <ElPagination
-        v-model:current-page="pagination.page"
-        v-model:page-size="pagination.pageSize"
+        v-model:current-page="page"
+        v-model:page-size="pageSize"
         :page-sizes="[10, 20, 50, 100]"
         :total="total"
         layout="total, sizes, prev, pager, next, jumper"
