@@ -9,6 +9,7 @@
 
 | 批次 | PR | 一句话总结 |
 |------|-----|-----------|
+| 296 | #476 | 修复备份文件权限安全漏洞（压缩成功后设置 0o600 仅所有者可读，防止 .env 敏感信息泄露，bug.md 全部清零） |
 | 295 | #475 | 修复 system_update_service 文件权限安全漏洞（unix_mode 改为 mode & 0o755 重置权限掩码，移除 SUID/SGID/粘性位） |
 | 294 | #474 | 修复 webhook 测试端点缺少速率限制漏洞（test_webhook 添加 WEBHOOK_TEST_LIMITER 10次/分钟/用户，LazyLock<MemoryRateLimiter> + TooManyRequests 429） |
 | 293 | #473 | 修复 webhook_service 日志信息泄露漏洞（webhook_url 完整 URL 改为 webhook_host 只记录主机名，url::Url::parse 提取 host_str） |
