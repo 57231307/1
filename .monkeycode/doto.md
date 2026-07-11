@@ -142,7 +142,7 @@
 
 | 优先级 | 漏洞 | 位置 | 状态 |
 |--------|------|------|------|
-| P0 | 1.1 SQL 注入 (LIMIT) | tracking_service.rs:258-259 | ⏳ 未修复 |
+| P0 | 1.1 SQL 注入 (LIMIT) | tracking_service.rs:258-259 | ✅ 已修复（批次 290，PR #470） |
 | P0 | 1.2 命令注入 (backup) | backup.rs:149 | ⏳ 未修复 |
 | P0 | 1.3 SSRF (currency) | currency_service.rs:301-305 | ⏳ 未修复 |
 | P1 | 2.1 日志泄露 | webhook_service.rs:235 | ⏳ 未修复 |

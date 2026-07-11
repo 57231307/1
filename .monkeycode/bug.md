@@ -10,17 +10,14 @@
 
 ---
 
-## 一、高危漏洞（3 项 ⏳ 未修复）
+## 一、高危漏洞（2 项 ⏳ 未修复）
 
-### 1.1 SQL 注入风险 - tracking_service.rs LIMIT 未参数化
+### 1.1 ~~SQL 注入风险 - tracking_service.rs LIMIT 未参数化~~ ✅ 已修复（批次 290，PR #470）
 
-**严重度**：高危
-**状态**：⏳ 未修复
-**位置**：[tracking_service.rs:258-259](file:///workspace/backend/src/services/tracking_service.rs#L258-L259)
+**状态**：✅ 已修复（2026-07-11，sha: 4879939）
+**位置**：[tracking_service.rs:258-263](file:///workspace/backend/src/services/tracking_service.rs#L258-L263)
 
-**问题**：`limit` 参数直接拼接到 SQL 字符串，攻击者可通过 `/api/v1/erp/analytics/popular-pages?limit=` 注入 SQL。
-
-**修复方案**：改为参数化绑定 `LIMIT $1` + `params.push(limit.into())`。
+**说明**：LIMIT 参数已改为参数化绑定 `LIMIT $N` + `params.push(limit.into())`，本条目已从待修复队列删除。
 
 ---
 
