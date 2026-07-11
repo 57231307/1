@@ -108,13 +108,13 @@ Ok((items, total))
 - `PaginatorTrait` 导入保留（`.paginate()` 方法需要）
 - `quotation_service.rs` 特殊处理：返回类型是 `ServiceError` 而非 `AppError`，需添加 `From<AppError> for ServiceError` 转换或改用 `AppError`
 
-**子任务 2.2：view 表格逻辑接入 useTableApi（16/56 完成 🔄）**
+**子任务 2.2：view 表格逻辑接入 useTableApi（22/56 完成 🔄）**
 
 **问题描述**：56 个前端 view 文件各自实现表格加载/分页/排序/查询逻辑，与已封装的 `useTableApi` composable 重复。每个 view 重复编写 `loadData` / `handlePageChange` / `handleSortChange` / `handleSearch` 等函数，代码冗余严重。
 
 **影响范围**：56 个 view 文件，涉及所有业务模块（销售/采购/库存/财务/CRM 等）
 
-**已修复文件（16 个 ✅）**：
+**已修复文件（19 个 ✅）**：
 - 批次 267：`system/audit-log/index.vue`（V2Table，listKey: 'items'） / `system/slow-query/index.vue`（保留 loadStats）
 - 批次 268：`supplierEvaluation/index.vue`（pageSizeKey: 'pageSize' 驼峰适配） / `quotations/list.vue`（移除 QuotationListObj 兼容类型）
 - 批次 269：`crm/leads/index.vue`（移除类型 hack） / `crm/opportunities/index.vue` / `crm/pool.vue`（修复硬编码分页 bug + poolList 类型修复）
@@ -122,6 +122,8 @@ Ok((items, total))
 - 批次 272：`customerCredit/index.vue`（refresh 别名 fetchCredits 保留 3 处 @submitted 绑定） / `arReconciliation/index.vue`（refresh 别名 loadData 保留 5 处调用 + 修复 loading 未解构）
 - 批次 273：`fiveDimension/index.vue`（修复 0-based 分页 bug + listKey: 'items'） / `omniAudit/index.vue`（修复 0-based 分页 bug + dashboard 误用 pagination + logs tab 缺失 pagination + statsLoading 独立）
 - 批次 274：`color-cards/list.vue`（移除 listColorCards + 手写分页，listKey: 'items'） / `custom-orders/list.vue`（移除 listCustomOrders + pagination ref，listKey: 'items'） / `mrp/history.vue`（移除 getMrpHistory + queryForm，listKey: 'list'，refresh 不别名 fetchHistory 无外部调用）
+- 批次 275：`notification/index.vue`（移除 listNotifications + pagination ref，onMounted 仅保留 fetchUnreadCount） / `warehouse/index.vue`（移除手写 warehouses/total/loading + 修复翻页 bug + Warehouse[] 类型断言） / `bom/index.vue`（移除手写 boms/total/loading）
+- 批次 276：`customer/index.vue`（移除手写 customers/total/loading + 修复翻页 bug + 类型断言） / `system/tabs/UserTab.vue`（移除手写 users/userTotal/userLoading + 修复翻页 bug，refresh 别名 fetchUsers 保留 defineExpose） / `inventoryBatch/tabs/BatchListTab.vue`（移除手写 batchList/loading/pagination，refresh 别名 fetchBatches 保留 defineExpose）
 
 **修复方案**：
 - 扫描所有使用 `el-table` + 分页的 view 文件
@@ -129,13 +131,7 @@ Ok((items, total))
 - 接入 `useTableApi` composable，删除重复的表格逻辑代码
 - 保持 view 的业务逻辑不变，只替换通用表格逻辑
 
-**待修复文件清单**（剩余 40 个 ⏳，优先级排序，批次 275 候选：notification/index.vue + warehouse/index.vue + bom/index.vue）：
-- `frontend/src/views/notification/index.vue`（中等，listKey: list，批次 275 候选）
-- `frontend/src/views/warehouse/index.vue`（中等，listKey: list，批次 275 候选）
-- `frontend/src/views/bom/index.vue`（中等，listKey: list，批次 275 候选）
-- `frontend/src/views/customer/index.vue`（中等，listKey: list，有 @submitted 事件）
-- `frontend/src/views/system/tabs/UserTab.vue`（中等，listKey: list，有 defineExpose refresh）
-- `frontend/src/views/inventoryBatch/tabs/BatchListTab.vue`（中等，listKey: list，pageSize 非标准）
+**待修复文件清单**（剩余 34 个 ⏳，优先级排序，批次 277 候选：inventoryCount/tabs/CountListTab.vue + sales-contract + sales-price）：
 - `frontend/src/views/inventoryCount/tabs/CountListTab.vue`（中等，listKey: list，有 defineExpose）
 - `frontend/src/views/voucher/*`（凭证模块）
 - `frontend/src/views/scheduling/*`（排产模块）

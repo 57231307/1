@@ -9,6 +9,8 @@
 
 | 批次 | PR | 一句话总结 |
 |------|-----|-----------|
+| 276 | #455 | 3 个 view 接入 useTableApi 第九批（customer + UserTab + BatchListTab，移除手写分页，修复翻页 bug，refresh 别名保留 defineExpose 兼容） |
+| 275 | #454 | 3 个 view 接入 useTableApi 第八批（notification + warehouse + bom，移除手写分页，修复 warehouse 翻页 bug + Warehouse[] 类型断言）+ 部署修复 validate_secret 熵比阈值 0.3→0.15（openssl rand -hex 32 生成的 hex 密钥熵比 0.25 被误拒） |
 | 274 | #452 | 3 个 view 接入 useTableApi 第七批（color-cards + custom-orders + mrp/history，移除 listColorCards/listCustomOrders/getMrpHistory + 手写分页，修复 mrp/history fetchHistory 未使用错误） |
 | 273 | #451 | 2 个 view 接入 useTableApi 第六批（fiveDimension + omniAudit，修复 0-based 分页 bug + dashboard 误用 pagination + logs 缺失 pagination）+ .env.example 变量名统一（AUDIT__SECRET_KEY→AUDIT_SECRET_KEY）+ 规则 13 修复流程写入 MEMORY.md |
 | 部署 | #450 | 修复部署配置路径与用户不一致导致后端无法启动（EnvironmentFile /etc/bingxi-erp/.env→/etc/bingxi/.env + 补建 bingxi 用户 + nginx 前端路径 /opt/bingxi-erp→/opt/bingxi，2 处） |

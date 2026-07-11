@@ -126,13 +126,13 @@
 
       <div class="pagination-wrapper">
         <el-pagination
-          v-model:current-page="queryParams.page"
-          v-model:page-size="queryParams.page_size"
+          v-model:current-page="page"
+          v-model:page-size="pageSize"
           :page-sizes="[10, 20, 50, 100]"
           :total="total"
           layout="total, sizes, prev, pager, next, jumper"
-          @size-change="handleQuery"
-          @current-change="handleQuery"
+          @size-change="handleSizeChange"
+          @current-change="handlePageChange"
         />
       </div>
     </el-card>
@@ -140,23 +140,19 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, onMounted, defineEmits } from 'vue'
+import { reactive, watch, defineEmits } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Document, Clock, CircleCheck, DataAnalysis, Plus } from '@element-plus/icons-vue'
 import {
-  listInventoryCounts,
   completeInventoryCount,
   type InventoryCountEntity,
 } from '@/api/inventoryCount'
+import { useTableApi } from '@/composables/useTableApi'
 
 const emit = defineEmits<{
   openForm: [mode: 'create' | 'edit' | 'view', row: InventoryCountEntity | null]
   openDetail: [row: InventoryCountEntity]
 }>()
-
-const counts = ref<InventoryCountEntity[]>([])
-const loading = ref(false)
-const total = ref(0)
 
 const stats = reactive({
   total: 0,
@@ -166,11 +162,62 @@ const stats = reactive({
 })
 
 const queryParams = reactive({
-  page: 1,
-  page_size: 20,
   count_no: '',
   status: '',
 })
+
+// 批次 277：接入 useTableApi，消除手写 counts/loading/total/fetchCounts 重复
+// useTableApi 自动管理分页状态、数据加载，自动 watch page/pageSize 变化触发重载
+const {
+  data: counts,
+  loading,
+  page,
+  pageSize,
+  total,
+  refresh: fetchCounts,
+  setQueryParam,
+} = useTableApi<InventoryCountEntity>({
+  url: '/inventory/counts',
+  onError: (err: unknown) =>
+    ElMessage.error((err instanceof Error ? err.message : String(err)) || '获取盘点单失败'),
+})
+
+// 批次 277：watch counts 自动更新 stats（原 fetchCounts 内的统计逻辑）
+watch(counts, () => {
+  stats.total = total.value
+  stats.inProgress = counts.value.filter(c => c.status === 'in_progress').length
+  stats.completed = counts.value.filter(c => c.status === 'completed').length
+  stats.difference = 0 // 实际差异数需在 details 弹窗中累加
+})
+
+// 批次 277：同步筛选条件到 useTableApi.queryParams 并刷新
+const syncQueryParams = () => {
+  setQueryParam('count_no', queryParams.count_no || undefined)
+  setQueryParam('status', queryParams.status || undefined)
+}
+
+const handleQuery = () => {
+  syncQueryParams()
+  page.value = 1
+  fetchCounts()
+}
+const handleReset = () => {
+  queryParams.count_no = ''
+  queryParams.status = ''
+  syncQueryParams()
+  page.value = 1
+  fetchCounts()
+}
+
+// 分页（useTableApi 自动 watch page/pageSize 变化触发重载）
+const handlePageChange = (p: number) => {
+  page.value = p
+}
+
+const handleSizeChange = (s: number) => {
+  pageSize.value = s
+  page.value = 1
+}
 
 const getStatusLabel = (status: string) => {
   const map: Record<string, string> = {
@@ -185,38 +232,6 @@ const getStatusType = (status: string) => {
     completed: 'success',
   }
   return map[status] || 'info'
-}
-
-const fetchCounts = async () => {
-  loading.value = true
-  try {
-    const res = (await listInventoryCounts(queryParams)) as unknown as {
-      data?: { list?: InventoryCountEntity[]; total?: number }
-    }
-    const d = res.data
-    counts.value = d?.list || []
-    total.value = d?.total || 0
-    stats.total = total.value
-    stats.inProgress = counts.value.filter(c => c.status === 'in_progress').length
-    stats.completed = counts.value.filter(c => c.status === 'completed').length
-    stats.difference = 0 // 实际差异数需在 details 弹窗中累加
-  } catch (error) {
-    ElMessage.error((error as Error).message || '获取盘点单失败')
-    counts.value = []
-    total.value = 0
-  } finally {
-    loading.value = false
-  }
-}
-
-const handleQuery = () => {
-  queryParams.page = 1
-  fetchCounts()
-}
-const handleReset = () => {
-  queryParams.count_no = ''
-  queryParams.status = ''
-  handleQuery()
 }
 
 const handleComplete = async (row: InventoryCountEntity) => {
@@ -235,7 +250,6 @@ const handleComplete = async (row: InventoryCountEntity) => {
 }
 
 defineExpose({ fetchCounts })
-onMounted(() => fetchCounts())
 </script>
 
 <style scoped>
