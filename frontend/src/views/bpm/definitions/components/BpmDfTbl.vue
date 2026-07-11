@@ -1,7 +1,7 @@
 <!--
   BpmDfTbl.vue - BPM 流程定义列表
   拆分自 bpm/definitions.vue（P14 批 2 I-3 第 5 批）
-  行为完全保持一致（仅结构重构）
+  批次 282：接入 useTableApi 模式（page/pageSize props + v-model 绑定分页）
 -->
 <template>
   <el-card class="table-card">
@@ -36,15 +36,13 @@
     </el-table>
 
     <el-pagination
-      :current-page="pagination.page"
-      :page-size="pagination.page_size"
+      :current-page="page"
+      :page-size="pageSize"
       :total="total"
       :page-sizes="[10, 20, 50, 100]"
       layout="total, sizes, prev, pager, next, jumper"
       @update:current-page="(v: number) => emit('update:page', v)"
-      @update:page-size="(v: number) => emit('update:size', v)"
-      @size-change="emit('reload')"
-      @current-change="emit('reload')"
+      @update:page-size="(v: number) => emit('update:page-size', v)"
     />
   </el-card>
 </template>
@@ -53,14 +51,7 @@
 import { getCategoryText, getStatusType, getStatusText } from '../composables/bpmDfFmts'
 import type { ProcessDefinition } from '@/api/bpm-enhanced'
 
-interface Pagination {
-  page: number
-  page_size: number
-}
-
-/**
- * 列表组件
- */
+/** 列表组件（批次 282：page/pageSize props + v-model 绑定分页） */
 defineProps<{
   // 列表数据
   data: ProcessDefinition[]
@@ -69,7 +60,8 @@ defineProps<{
   // 加载状态
   loading: boolean
   // 分页
-  pagination: Pagination
+  page: number
+  pageSize: number
 }>()
 
 const emit = defineEmits<{
@@ -77,9 +69,8 @@ const emit = defineEmits<{
   versions: [row: ProcessDefinition]
   'save-as-template': [row: ProcessDefinition]
   delete: [row: ProcessDefinition]
-  reload: []
   'update:page': [v: number]
-  'update:size': [v: number]
+  'update:page-size': [v: number]
 }>()
 </script>
 

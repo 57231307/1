@@ -2,7 +2,7 @@
   security/index.vue - 登录安全（拆分重构版）
   任务编号: P14 批 2 I-3 第 6 批
   拆分：547 行 → ~100 行 + 4 子组件 + 2 composable + 1 工具
-  行为完全保持一致（仅结构重构）
+  批次 282：SecLogTbl 接入 useTableApi（v-model:page/page-size + @fetch + @update:queryParams）
 -->
 <template>
   <div class="security-page">
@@ -26,13 +26,14 @@
     <SecStat :stats="sec.stats" />
 
     <SecLogTbl
+      v-model:page="sec.page"
+      v-model:page-size="sec.pageSize"
       :data="sec.loginLogs"
       :loading="sec.loading"
       :total="sec.total"
       :query-params="sec.queryParams"
+      @fetch="secProc.handleQuery(sec)"
       @update:query-params="(v) => Object.assign(sec.queryParams, v)"
-      @query="secProc.handleQuery(sec)"
-      @size-or-current="(val, type) => type === 'size' ? secProc.handleSizeChange(val, sec) : secProc.handleCurrentChange(val, sec)"
     />
 
     <SecLockTbl
@@ -59,9 +60,9 @@ import SecAlertTbl from './components/SecAlertTbl.vue'
 const sec = useSec()
 const secProc = useSecProc()
 
+// 批次 282：移除 getLoginLogs（useTableApi setup 自动加载），保留其他 3 个非分页 fetch
 onMounted(() => {
   sec.getStats()
-  sec.getLoginLogs()
   sec.getLockedAccounts()
   sec.getSecurityAlerts()
 })

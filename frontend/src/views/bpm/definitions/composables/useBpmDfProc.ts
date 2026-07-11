@@ -17,14 +17,17 @@ import { logger } from '@/utils/logger'
 
 /**
  * 流程回调（接收 useBpmDf 返回的状态，自动解包后的值类型）
+ * 批次 282：适配 useTableApi（page 独立 ref，queryParams 不含 page/page_size）
  */
 interface BpmDfCallbacks {
   // 列表
   definitions: ProcessDefinition[]
   loading: boolean
   total: number
-  // 过滤
-  queryParams: { page: number; page_size: number; keyword: string; category: string }
+  // 分页（useTableApi 独立 ref）
+  page: number
+  // 过滤（批次 282：useTableApi queryParams 为 Record<string, unknown>）
+  queryParams: Record<string, unknown>
   // 表单
   dialogVisible: boolean
   isEdit: boolean
@@ -88,17 +91,17 @@ function getAssigneeTypeName(type?: string): string {
  * BPM 流程定义流程操作方法集合
  */
 export function useBpmDfProc(cb: BpmDfCallbacks) {
-  /** 搜索 */
+  /** 搜索（批次 282：page 独立 ref，refresh 别名 fetchDefinitions） */
   const handleSearch = () => {
-    cb.queryParams.page = 1
+    cb.page = 1
     cb.fetchDefinitions()
   }
 
-  /** 重置 */
+  /** 重置（批次 282：page 独立 ref，queryParams 为 Record<string, unknown>） */
   const handleReset = () => {
     cb.queryParams.keyword = ''
     cb.queryParams.category = ''
-    cb.queryParams.page = 1
+    cb.page = 1
     cb.fetchDefinitions()
   }
 

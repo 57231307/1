@@ -2,21 +2,21 @@
   BpmDfFilter.vue - BPM 流程定义过滤栏
   拆分自 bpm/definitions.vue（P14 批 2 I-3 第 5 批）
   P9-3 批次 F Pattern A 重构：本地 ref 镜像 + watch 防循环 + emit 整体覆盖父组件
-  行为完全保持一致（仅结构重构）
+  批次 282：接入 useTableApi 模式（handleSearch 同步筛选条件 + emit fetch）
 -->
 <template>
   <el-card class="filter-card">
-    <el-form :inline="true" :model="localParams">
+    <el-form :inline="true" :model="localQuery">
       <el-form-item label="流程名称">
         <el-input
-          v-model="localParams.keyword"
+          v-model="localQuery.keyword"
           placeholder="请输入流程名称"
           clearable
         />
       </el-form-item>
       <el-form-item label="流程分类">
         <el-select
-          v-model="localParams.category"
+          v-model="localQuery.category"
           placeholder="选择分类"
           clearable
         >
@@ -30,72 +30,45 @@
         </el-select>
       </el-form-item>
       <el-form-item>
-        <el-button type="primary" @click="emit('search')">查询</el-button>
-        <el-button @click="emit('reset')">重置</el-button>
+        <el-button type="primary" @click="handleSearch">查询</el-button>
+        <el-button @click="handleReset">重置</el-button>
       </el-form-item>
     </el-form>
   </el-card>
 </template>
 
 <script setup lang="ts">
-import { ref, watch, nextTick } from 'vue'
+import { reactive } from 'vue'
 
-// 查询参数类型
-interface QryParams {
-  page: number
-  page_size: number
-  keyword: string
-  category: string
-}
-
-/**
- * 过滤栏组件
- */
+// 批次 282：queryParams 类型放宽为 Record<string, unknown>（兼容 useTableApi）
 const props = defineProps<{
-  // 查询参数（由父组件管理，子组件通过 emit 回写）
-  params: QryParams
+  queryParams: Record<string, unknown>
 }>()
 
 const emit = defineEmits<{
-  search: []
-  reset: []
-  // 整体回写查询参数（父组件监听此事件并 Object.assign 到自己的 params）
-  'update:params': [v: QryParams]
+  fetch: []
+  'update:queryParams': [value: Record<string, unknown>]
 }>()
 
-// 本地镜像：避免直接修改 prop 触发 vue/no-mutating-props
-const localParams = ref<QryParams>({ ...props.params })
+// 本地查询条件（筛选字段，不含分页参数）
+const localQuery = reactive<{ keyword: string; category: string }>({
+  keyword: (props.queryParams.keyword as string) ?? '',
+  category: (props.queryParams.category as string) ?? '',
+})
 
-// 同步标志位：防止 prop → local 与 local → emit 形成循环
-let syncing = false
+/** 搜索：先同步筛选条件到父组件，再触发加载 */
+const handleSearch = () => {
+  emit('update:queryParams', { ...localQuery })
+  emit('fetch')
+}
 
-// 外部 prop 变化时同步到 local（如父组件重置）
-watch(
-  () => props.params,
-  (newParams) => {
-    if (syncing) return
-    syncing = true
-    localParams.value = { ...newParams }
-    nextTick(() => {
-      syncing = false
-    })
-  },
-  { deep: true },
-)
-
-// 本地变化时通知父组件（用户输入）
-watch(
-  localParams,
-  (newParams) => {
-    if (syncing) return
-    syncing = true
-    emit('update:params', { ...newParams })
-    nextTick(() => {
-      syncing = false
-    })
-  },
-  { deep: true },
-)
+/** 重置：清空筛选条件 + 同步 + 触发加载 */
+const handleReset = () => {
+  localQuery.keyword = ''
+  localQuery.category = ''
+  emit('update:queryParams', { ...localQuery })
+  emit('fetch')
+}
 </script>
 
 <style scoped>
