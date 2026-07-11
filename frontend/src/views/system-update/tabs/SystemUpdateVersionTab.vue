@@ -2,6 +2,7 @@
   SystemUpdateVersionTab.vue - 系统更新版本列表 Tab
   来源：原 system-update/index.vue 中 versions tab
   拆分日期：2026-06-17 P1-3-Batch-5
+  批次 283：接入 useTableApi 模式（page/pageSize props + v-model 绑定分页）
 -->
 <template>
   <el-card shadow="hover">
@@ -53,32 +54,27 @@
 
     <div class="pagination-container">
       <el-pagination
-        v-model:current-page="localQuery.page"
-        v-model:page-size="localQuery.page_size"
+        :current-page="page"
+        :page-size="pageSize"
         :page-sizes="[10, 20, 50]"
         :total="total"
         layout="total, sizes, prev, pager, next, jumper"
-        @size-change="emit('fetch')"
-        @current-change="emit('fetch')"
+        @update:current-page="(v: number) => emit('update:page', v)"
+        @update:page-size="(v: number) => emit('update:page-size', v)"
       />
     </div>
   </el-card>
 </template>
 
 <script setup lang="ts">
-import { reactive, watch } from 'vue'
 import type { SystemVersion } from '@/api/system-update'
 
-export interface VersionQuery {
-  page: number
-  page_size: number
-}
-
-const props = defineProps<{
+defineProps<{
   versions: SystemVersion[]
   loading: boolean
   total: number
-  queryParams: VersionQuery
+  page: number
+  pageSize: number
   versionStatusTypeMap: Record<string, string>
   versionStatusMap: Record<string, string>
   formatFileSize: (size: number) => string
@@ -88,19 +84,9 @@ const emit = defineEmits<{
   download: [row: SystemVersion]
   install: [row: SystemVersion]
   'view-detail': [row: SystemVersion]
-  fetch: []
-  'update:queryParams': [value: VersionQuery]
+  'update:page': [v: number]
+  'update:page-size': [v: number]
 }>()
-
-const localQuery = reactive<VersionQuery>({ ...props.queryParams })
-
-watch(
-  () => props.queryParams,
-  newQuery => {
-    Object.assign(localQuery, newQuery)
-  },
-  { deep: true }
-)
 </script>
 
 <style scoped>
