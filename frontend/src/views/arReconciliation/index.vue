@@ -18,7 +18,6 @@ import {
 } from 'element-plus'
 import { Plus, Edit, Delete, View, Check } from '@element-plus/icons-vue'
 import {
-  listArReconciliations,
   getArReconciliation,
   createArReconciliation,
   updateArReconciliation,
@@ -30,19 +29,30 @@ import {
 } from '@/api/ar-reconciliation'
 import { listCustomersForSelect } from '@/api/customer'
 import { logger } from '@/utils/logger'
+import { useTableApi } from '@/composables/useTableApi'
 
-const tableData = ref<ArReconciliationEntity[]>([])
-const total = ref(0)
-const loading = ref(false)
 const searchForm = ref({
   customer_name: '',
   status: '',
   start_date: '',
   end_date: '',
 })
-const pagination = ref({
-  page: 1,
-  pageSize: 20,
+
+// 批次 272：接入 useTableApi，消除手写 pagination/tableData/total/loading + loadData 重复
+// useTableApi 自动管理分页状态、数据加载，自动 watch page/pageSize 变化触发重载
+const {
+  data: tableData,
+  page,
+  pageSize,
+  total,
+  refresh: loadData,
+  setQueryParam,
+} = useTableApi<ArReconciliationEntity>({
+  url: '/ar-reconciliations',
+  onError: (e: unknown) => {
+    ElMessage.error('加载失败')
+    logger.warn('加载对账列表失败', String(e))
+  },
 })
 
 const dialogVisible = ref(false)
@@ -75,22 +85,13 @@ const getStatusClass = (value: string) => {
   return value === 'draft' ? 'status-draft' : 'status-confirmed'
 }
 
-const loadData = async () => {
-  loading.value = true
-  try {
-    // v11 批次 175 P2-1 修复：res: any 改为具体类型
-    const res = (await listArReconciliations({
-      page: pagination.value.page,
-      page_size: pagination.value.pageSize,
-      ...searchForm.value,
-    })) as { data?: { list?: ArReconciliationEntity[]; total?: number } }
-    tableData.value = res.data?.list || []
-    total.value = res.data?.total || 0
-  } catch (error) {
-    ElMessage.error('加载失败')
-  } finally {
-    loading.value = false
-  }
+// 批次 272：同步筛选条件到 useTableApi.queryParams 并刷新
+// useTableApi 自动 watch page/pageSize 变化触发重载，无需手动 loadData
+const syncQueryParams = () => {
+  setQueryParam('customer_name', searchForm.value.customer_name || undefined)
+  setQueryParam('status', searchForm.value.status || undefined)
+  setQueryParam('start_date', searchForm.value.start_date || undefined)
+  setQueryParam('end_date', searchForm.value.end_date || undefined)
 }
 
 const loadCustomers = async () => {
@@ -104,7 +105,8 @@ const loadCustomers = async () => {
 }
 
 const handleSearch = () => {
-  pagination.value.page = 1
+  syncQueryParams()
+  page.value = 1
   loadData()
 }
 
@@ -115,17 +117,19 @@ const handleReset = () => {
     start_date: '',
     end_date: '',
   }
-  handleSearch()
-}
-
-const handlePageChange = (page: number) => {
-  pagination.value.page = page
+  syncQueryParams()
+  page.value = 1
   loadData()
 }
 
-const handlePageSizeChange = (pageSize: number) => {
-  pagination.value.pageSize = pageSize
-  loadData()
+// 分页（useTableApi 自动 watch page/pageSize 变化触发重载）
+const handlePageChange = (val: number) => {
+  page.value = val
+}
+
+const handlePageSizeChange = (val: number) => {
+  pageSize.value = val
+  page.value = 1
 }
 
 const openAddDialog = () => {
@@ -212,7 +216,7 @@ const handleConfirm = async (row: ArReconciliationEntity) => {
   }
 }
 
-loadData()
+// 批次 272：useTableApi 构造时自动初始加载，无需 setup 顶层调用 loadData
 loadCustomers()
 </script>
 
@@ -322,8 +326,8 @@ loadCustomers()
 
     <div class="pagination-wrapper" style="margin-top: 16px; text-align: right">
       <ElPagination
-        v-model:current-page="pagination.page"
-        v-model:page-size="pagination.pageSize"
+        v-model:current-page="page"
+        v-model:page-size="pageSize"
         :page-sizes="[10, 20, 50, 100]"
         :total="total"
         layout="total, sizes, prev, pager, next, jumper"

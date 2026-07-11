@@ -71,12 +71,11 @@
       </el-table>
 
       <el-pagination
-        v-model:current-page="pagination.page"
-        v-model:page-size="pagination.page_size"
-        :total="pagination.total"
+        v-model:current-page="page"
+        v-model:page-size="pageSize"
+        :total="total"
         :page-sizes="[10, 20, 50, 100]"
         layout="total, sizes, prev, pager, next, jumper"
-        @current-change="fetchCredits"
         @size-change="handleSizeChange"
       />
     </el-card>
@@ -103,25 +102,35 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, onMounted } from 'vue'
+import { ref, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { listCredits, deactivateCredit, type CustomerCredit } from '@/api/customer-credit'
+import { deactivateCredit, type CustomerCredit } from '@/api/customer-credit'
 import { customerApi, type Customer } from '@/api/customer'
 import { loadIfNot, createLazyLoader } from '@/utils/lazy-loader'
 import { logger } from '@/utils/logger'
+import { useTableApi } from '@/composables/useTableApi'
 import RatingDialogTab from './tabs/RatingDialogTab.vue'
 import AdjustDialogTab from './tabs/AdjustDialogTab.vue'
 import AmountDialogTab from './tabs/AmountDialogTab.vue'
 
 const hasLoaded = createLazyLoader()
 
-const creditList = ref<CustomerCredit[]>([])
 const customerOptions = ref<Customer[]>([])
 
-const pagination = reactive({
-  page: 1,
-  page_size: 20,
-  total: 0,
+// 批次 272：接入 useTableApi，消除手写 pagination/creditList/total + fetchCredits 重复
+// useTableApi 自动管理分页状态、数据加载，自动 watch page/pageSize 变化触发重载
+const {
+  data: creditList,
+  page,
+  pageSize,
+  total,
+  refresh: fetchCredits,
+} = useTableApi<CustomerCredit>({
+  url: '/crm/customer-credits',
+  onError: (e: unknown) => {
+    ElMessage.error('获取信用列表失败')
+    logger.warn('获取信用列表失败', String(e))
+  },
 })
 
 const ratingDialogVisible = ref(false)
@@ -130,22 +139,7 @@ const amountDialogVisible = ref(false)
 const amountOperationType = ref<'occupy' | 'release'>('occupy')
 const currentCustomerId = ref<number | null>(null)
 
-const fetchCredits = async () => {
-  try {
-    const res = (await listCredits({
-      page: pagination.page,
-      page_size: pagination.page_size,
-    })) as { data?: { list: CustomerCredit[]; total: number } }
-    if (res.data) {
-      creditList.value = res.data.list || []
-      pagination.total = res.data.total || 0
-    }
-  } catch (error) {
-    const err = error as Error
-    ElMessage.error('获取信用列表失败')
-    logger.warn('获取信用列表失败', err.message)
-  }
-}
+// fetchCredits 由 useTableApi 的 refresh 提供（批次 272）
 
 const fetchCustomers = async () => {
   try {
@@ -156,9 +150,9 @@ const fetchCustomers = async () => {
   }
 }
 
+// 分页（useTableApi 自动 watch page/pageSize 变化触发重载）
 const handleSizeChange = () => {
-  pagination.page = 1
-  fetchCredits()
+  page.value = 1
 }
 
 const openRatingDialog = () => {
@@ -206,8 +200,8 @@ const handleDeactivate = async (row: CustomerCredit) => {
   }
 }
 
+// 批次 272：useTableApi 构造时自动初始加载，无需 onMounted 调用 fetchCredits
 onMounted(() => {
-  loadIfNot('fetchCredits', fetchCredits, hasLoaded)
   loadIfNot('fetchCustomers', fetchCustomers, hasLoaded)
 })
 </script>
