@@ -157,16 +157,45 @@ pub(super) fn cmd_restore(file: &str) {
         return;
     }
 
+    // M4 修复（v8 复审）：先列出 tar 内容并校验路径，再解压，防止恶意文件在校验前已写入磁盘
+    println!("校验备份文件内容...");
+    let tar_list = match run_cmd("tar", &["-tf", file]) {
+        Ok(list) => list,
+        Err(e) => {
+            println!("[ERROR] 列出备份文件内容失败: {}", e);
+            let _ = run_cmd("rm", &["-rf", temp_dir]);
+            return;
+        }
+    };
+
+    // 解压前校验：检查每个路径不包含 .. 和不以 / 开头（防止 Tar Slip 路径穿越）
+    for line in tar_list.lines() {
+        let path = line.trim();
+        if path.is_empty() || path == "./" {
+            continue;
+        }
+        if path.contains("..") {
+            println!("[ERROR] 检测到路径穿越攻击：文件 {} 包含 ..", path);
+            let _ = run_cmd("rm", &["-rf", temp_dir]);
+            return;
+        }
+        if path.starts_with('/') {
+            println!("[ERROR] 检测到绝对路径：文件 {}", path);
+            let _ = run_cmd("rm", &["-rf", temp_dir]);
+            return;
+        }
+    }
+
     println!("解压备份...");
     if let Err(e) = run_cmd("tar", &["-xzf", file, "-C", temp_dir]) {
         println!("[ERROR] 解压失败: {}", e);
+        let _ = run_cmd("rm", &["-rf", temp_dir]);
         return;
     }
 
-    // 规则 12 合规：解压后校验所有文件路径在安全目录范围内，防止 Tar Slip 路径穿越攻击
+    // 规则 12 合规：解压后二次校验（canonicalize 解析符号链接），双重防护
     if let Err(e) = validate_extracted_paths(temp_dir) {
         println!("[ERROR] 安全校验失败，终止恢复: {}", e);
-        // 清理可能包含恶意文件的临时目录
         let _ = run_cmd("rm", &["-rf", temp_dir]);
         return;
     }
