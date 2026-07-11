@@ -1,6 +1,7 @@
 <!--
   VchrLstTbl.vue - 凭证列表表格
   拆分自 voucher/tabs/VoucherListTab.vue（P14 批 2 I-3 第 1 批）
+  批次 287：改造为 page/pageSize props + update:page/update:page-size emits
   行为完全保持一致（仅结构重构）
 -->
 <template>
@@ -86,13 +87,13 @@
 
   <div class="pagination-wrapper">
     <ElPagination
-      :current-page="pagination.page"
-      :page-size="pagination.pageSize"
+      :current-page="page"
+      :page-size="pageSize"
       :page-sizes="[10, 20, 50, 100]"
       :total="total"
       layout="total, sizes, prev, pager, next, jumper"
-      @size-change="emit('page-size-change', $event as number)"
-      @current-change="emit('page-change', $event as number)"
+      @update:current-page="emit('update:page', $event as number)"
+      @update:page-size="emit('update:page-size', $event as number)"
     />
   </div>
 </template>
@@ -102,14 +103,10 @@ import { Edit, Delete, View, Refresh, Check } from '@element-plus/icons-vue'
 import type { VoucherEntity } from '@/api/voucher'
 import { getStatusLabel, getStatusClass, getTypeLabel, formatAmount } from '../composables/vchrLstFmts'
 
-interface VoucherPagination {
-  page: number
-  pageSize: number
-}
-
 /**
  * 凭证列表表格组件
  * 仅做展示，行内操作通过 emit 通知父组件
+ * 分页通过 v-model:page / v-model:page-size 与父组件双向绑定
  */
 const props = defineProps<{
   // 列表数据
@@ -118,8 +115,10 @@ const props = defineProps<{
   loading: boolean
   // 总数
   total: number
-  // 分页
-  pagination: VoucherPagination
+  // 当前页码
+  page: number
+  // 每页大小
+  pageSize: number
 }>()
 
 const emit = defineEmits<{
@@ -136,9 +135,9 @@ const emit = defineEmits<{
   // 删除
   delete: [row: VoucherEntity]
   // 翻页
-  'page-change': [page: number]
+  'update:page': [page: number]
   // 每页大小
-  'page-size-change': [size: number]
+  'update:page-size': [size: number]
 }>()
 
 void props
