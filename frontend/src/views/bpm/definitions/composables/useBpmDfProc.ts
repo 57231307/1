@@ -26,8 +26,8 @@ interface BpmDfCallbacks {
   total: number
   // 分页（useTableApi 独立 ref）
   page: number
-  // 过滤（useTableApi queryParams，不含分页参数）
-  queryParams: { keyword: string; category: string }
+  // 过滤（批次 282：useTableApi queryParams 为 Record<string, unknown>）
+  queryParams: Record<string, unknown>
   // 表单
   dialogVisible: boolean
   isEdit: boolean
@@ -97,7 +97,7 @@ export function useBpmDfProc(cb: BpmDfCallbacks) {
     cb.fetchDefinitions()
   }
 
-  /** 重置（批次 282：page 独立 ref） */
+  /** 重置（批次 282：page 独立 ref，queryParams 为 Record<string, unknown>） */
   const handleReset = () => {
     cb.queryParams.keyword = ''
     cb.queryParams.category = ''
