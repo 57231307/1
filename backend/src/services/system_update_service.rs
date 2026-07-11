@@ -731,10 +731,17 @@ impl SystemUpdateService {
         // TS-S-7 安全加固（2026-06-26）：校验下载域名，防止 SSRF / 中间人攻击
         validate_download_url(&asset.browser_download_url)?;
 
+        // M1 修复（v8 复审）：DNS Rebinding 防御，用 resolve_to_addrs 固定连接到已校验 IP
+        let (dl_host, dl_safe_addrs) = crate::utils::ssrf_guard::validate_url_and_resolve(
+            &asset.browser_download_url,
+        )
+        .map_err(|e| UpdateError::NetworkError(format!("下载 URL SSRF 校验失败: {}", e)))?;
+
         // TS-S-7：限制重定向次数并校验最终 URL 域名
         let client = reqwest::Client::builder()
             .user_agent("BingxiERP/1.0")
             .redirect(reqwest::redirect::Policy::limited(3))
+            .resolve_to_addrs(&dl_host, &dl_safe_addrs)
             .build()
             .map_err(|e| UpdateError::NetworkError(e.to_string()))?;
 
