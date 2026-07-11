@@ -157,7 +157,6 @@ const {
   page,
   pageSize,
   total,
-  refresh: fetchHistory,
 } = useTableApi<MrpHistoryRecord>({
   url: '/production/mrp-history',
   listKey: 'list',
