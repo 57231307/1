@@ -214,7 +214,7 @@ impl WebhookService {
             .redirect(reqwest::redirect::Policy::none()) // SSRF 缓解：禁止跟随重定向
             .resolve_to_addrs(&host, &safe_addrs) // TOCTOU 修复：固定连接到已校验 IP
             .build()
-            .unwrap_or_default();
+            .map_err(|e| AppError::internal(format!("HTTP 客户端构建失败: {}", e)))?;
 
         let mut request = client
             .post(url)
