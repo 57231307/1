@@ -3,6 +3,7 @@
   任务编号: P14 批 2 I-3 第 1 批
   拆分：870 行 → ~150 行 + 4 子组件 + 2 composable + 1 工具
   行为完全保持一致（仅结构重构）
+  批次 287：适配 useTableApi（v-model:page/page-size, queryParams, 移除 onMounted loadData）
 -->
 <template>
   <div class="voucher-list-tab">
@@ -11,28 +12,26 @@
     </div>
 
     <VchrLstFilter
-      :search-form="vchr.searchForm"
-      @search="vchr.handleSearch"
-      @reset="vchr.handleReset"
+      :query-params="vchr.queryParams"
+      @fetch="vchr.handleSearch"
       @add="onAdd"
       @print="vchrProc.handlePrint"
       @export="vchrProc.handleExport"
-      @update:search-form="(v) => Object.assign(vchr.searchForm, v)"
+      @update:query-params="(v) => Object.assign(vchr.queryParams, v)"
     />
 
     <VchrLstTbl
       :table-data="vchr.tableData"
       :loading="vchr.loading"
       :total="vchr.total"
-      :pagination="vchr.pagination"
+      v-model:page="vchr.page"
+      v-model:page-size="vchr.pageSize"
       @view="onView"
       @edit="onEdit"
       @approve="vchrProc.handleApprove"
       @post="vchrProc.handlePost"
       @unpost="vchrProc.handleUnpost"
       @delete="vchrProc.handleDelete"
-      @page-change="vchr.handlePageChange"
-      @page-size-change="vchr.handlePageSizeChange"
     />
 
     <VchrLstForm
@@ -55,7 +54,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, toRef } from 'vue'
 import type { VoucherEntity } from '@/api/voucher'
 import { useVchrLst } from './composables/useVchrLst'
 import { useVchrLstProc } from './composables/useVchrLstProc'
@@ -65,7 +64,9 @@ import VchrLstForm from './components/VchrLstForm.vue'
 import VchrLstDetail from './components/VchrLstDetail.vue'
 
 const vchr = useVchrLst()
-const vchrProc = useVchrLstProc(vchr.tableData, vchr.loadData)
+// 使用 toRef 包装 reactive 属性为 ref，保持 useVchrLstProc 内 getList() 能读取最新 tableData
+// （reactive 自动解包 ref，直接传 vchr.tableData 会丢失响应性引用）
+const vchrProc = useVchrLstProc(toRef(vchr, 'tableData'), vchr.loadData)
 
 // 对话框可见性本地 ref
 const dialogVisible = ref(false)
@@ -94,8 +95,8 @@ const onSubmitForm = async () => {
   if (ok) dialogVisible.value = false
 }
 
+// 列表由 useTableApi setup 自动加载，onMounted 仅加载辅助数据
 onMounted(() => {
-  vchr.loadData()
   vchr.loadVoucherTypes()
   vchr.loadAccountSubjects()
 })

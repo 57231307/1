@@ -17,25 +17,24 @@
     <LgsStat :stats="lgs.stats" />
 
     <LgsFilter
-      :params="lgs.queryParams"
+      :query-params="lgs.queryParams"
       :date-range="lgs.dateRange"
-      @search="lgs.handleQuery"
-      @reset="lgs.handleReset"
-      @date-change="onDateChange"
+      @fetch="lgs.handleQuery"
+      @date-change="lgs.handleDateChange"
+      @update:query-params="(v) => Object.assign(lgs.queryParams, v)"
     />
 
     <LgsTbl
+      v-model:page="lgs.page"
+      v-model:page-size="lgs.pageSize"
       :data="lgs.tableData"
       :loading="lgs.loading"
       :total="lgs.total"
-      :query-params="lgs.queryParams"
       @view="lgsProc.handleView"
       @edit="lgsProc.handleEdit"
       @ship="lgsProc.handleShip"
       @update-status="lgsProc.handleUpdateStatus"
       @delete="lgsProc.handleDelete"
-      @size-change="lgs.fetchData"
-      @current-change="lgs.fetchData"
     />
 
     <LgsForm
@@ -91,18 +90,11 @@ const lgsProc = useLgsProc({
   fetchData: lgs.fetchData,
 })
 
-/**
- * 日期范围变化（由 LgsFilter 发出，父组件更新 lgs.dateRange）
- */
-const onDateChange = (v: [Date, Date] | null) => {
-  lgs.dateRange = v
-}
-
 // 懒加载标记
 const hasLoaded = createLazyLoader()
 
+// 列表由 useTableApi setup 自动加载，onMounted 仅加载辅助数据（关联订单）
 onMounted(() => {
-  lgs.fetchData()
   loadIfNot('orders', lgs.fetchOrders, hasLoaded)
 })
 </script>

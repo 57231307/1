@@ -1,6 +1,7 @@
 <!--
   LgsTbl.vue - 物流管理运单表
   拆分自 logistics/index.vue（P14 批 2 I-3 第 4 批）
+  批次 287：page/pageSize props + v-model 绑定分页
   行为完全保持一致（仅结构重构）
 -->
 <template>
@@ -65,13 +66,13 @@
     </el-table>
 
     <el-pagination
-      v-model:current-page="queryParams.page"
-      v-model:page-size="queryParams.page_size"
+      :current-page="page"
+      :page-size="pageSize"
       :total="total"
       :page-sizes="[10, 20, 50, 100]"
       layout="total, sizes, prev, pager, next, jumper"
-      @size-change="emit('size-change')"
-      @current-change="emit('current-change')"
+      @update:current-page="(v: number) => emit('update:page', v)"
+      @update:page-size="(v: number) => emit('update:page-size', v)"
     />
   </el-card>
 </template>
@@ -80,17 +81,8 @@
 import type { LogisticsWaybill } from '@/api/logistics'
 import { getStatusType, getStatusText } from '../composables/lgsFmts'
 
-// 查询参数类型
-interface QryParams {
-  keyword: string
-  logistics_company: string
-  status: string
-  page: number
-  page_size: number
-}
-
 /**
- * 物流运单列表组件
+ * 物流运单列表组件（批次 287：page/pageSize props + v-model 绑定分页）
  */
 defineProps<{
   // 列表数据
@@ -99,8 +91,10 @@ defineProps<{
   loading: boolean
   // 总数
   total: number
-  // 查询参数（用于分页）
-  queryParams: QryParams
+  // 当前页
+  page: number
+  // 每页条数
+  pageSize: number
 }>()
 
 const emit = defineEmits<{
@@ -109,8 +103,8 @@ const emit = defineEmits<{
   ship: [row: LogisticsWaybill]
   'update-status': [row: LogisticsWaybill]
   delete: [row: LogisticsWaybill]
-  'size-change': []
-  'current-change': []
+  'update:page': [v: number]
+  'update:page-size': [v: number]
 }>()
 
 // 透传格式化函数

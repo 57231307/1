@@ -4,13 +4,15 @@
  * 提供运单列表查询 / 统计 / 关联订单加载 / 过滤表单 / 订单表单状态
  * 业务流程（创建 / 编辑 / 查看 / 发货 / 更新状态 / 删除）由 useLgsProc 提供
  * 行为完全保持一致（仅结构重构）
+ * 批次 287：tableData 接入 useTableApi，移除手写分页逻辑
  *
  * 设计说明：返回 reactive({...})，父组件可直接访问字段；
  * 子组件通过 :model-value/@update:model-value 模式传入；不会修改 prop
  * （日期范围由 LgsFilter 发出事件，父组件更新自身 dateRange）
  */
-import { ref, reactive } from 'vue'
+import { ref, reactive, watch } from 'vue'
 import { logisticsApi, type LogisticsWaybill } from '@/api/logistics'
+import { useTableApi } from '@/composables/useTableApi'
 import { logger } from '@/utils/logger'
 import type { LgsStatusForm } from './useLgsProc'
 
@@ -35,7 +37,7 @@ export interface LgsFormData {
  * 对话框可见性由父组件本地 ref 管理
  */
 export function useLgs() {
-  // 统计数据
+  // 统计数据（依据列表数据动态计算）
   const stats = reactive({
     total: 0,
     pending: 0,
@@ -43,20 +45,45 @@ export function useLgs() {
     delivered: 0,
   })
 
-  // 表格数据
-  const tableData = ref<LogisticsWaybill[]>([])
-  const loading = ref(false)
-  const total = ref(0)
+  // 日期范围（独立 ref，便于 LgsFilter 双向绑定；fetch 前注入 queryParams.start_date/end_date）
   const dateRange = ref<[Date, Date] | null>(null)
 
-  // 查询参数
-  const queryParams = reactive({
-    page: 1,
-    page_size: 20,
-    keyword: '',
-    logistics_company: '',
-    status: '',
+  // 列表数据接入 useTableApi
+  // 物流 API 使用 snake_case 分页参数（page/page_size），匹配 useTableApi 默认配置
+  const {
+    data: tableData,
+    total,
+    loading,
+    page,
+    pageSize,
+    queryParams,
+    refresh: fetchData,
+  } = useTableApi<LogisticsWaybill>({
+    url: '/inventory/logistics',
+    defaultPageSize: 20,
+    defaultParams: {
+      keyword: '',
+      logistics_company: '',
+      status: '',
+      start_date: '',
+      end_date: '',
+    },
+    onError: (err: unknown) => {
+      logger.error('获取数据失败:', err)
+    },
   })
+
+  // 监听列表/总数变化，同步统计字段（保持原 fetchData 中 stats 更新行为）
+  watch(
+    [tableData, total],
+    () => {
+      stats.total = total.value
+      stats.pending = tableData.value.filter(i => i.status === 'pending').length
+      stats.inTransit = tableData.value.filter(i => i.status === 'in_transit').length
+      stats.delivered = tableData.value.filter(i => i.status === 'delivered').length
+    },
+    { deep: false },
+  )
 
   // 关联订单列表
   const orders = ref<{ id: number; order_no: string }[]>([])
@@ -93,30 +120,20 @@ export function useLgs() {
     newStatus: '',
   })
 
-  /**
-   * 拉取运单列表 + 更新统计
-   */
-  const fetchData = async () => {
-    loading.value = true
-    try {
-      const params: Record<string, unknown> = { ...queryParams }
-      if (dateRange.value) {
-        params.start_date = dateRange.value[0].toISOString()
-        params.end_date = dateRange.value[1].toISOString()
+  /** 同步 dateRange 到 queryParams.start_date/end_date */
+  const syncDateRangeToQuery = () => {
+    if (dateRange.value) {
+      queryParams.value = {
+        ...queryParams.value,
+        start_date: dateRange.value[0].toISOString(),
+        end_date: dateRange.value[1].toISOString(),
       }
-      const res = await logisticsApi.list(params as Record<string, unknown>)
-      tableData.value = res.data?.list || []
-      total.value = res.data?.total || 0
-
-      // 更新统计
-      stats.total = total.value
-      stats.pending = tableData.value.filter(i => i.status === 'pending').length
-      stats.inTransit = tableData.value.filter(i => i.status === 'in_transit').length
-      stats.delivered = tableData.value.filter(i => i.status === 'delivered').length
-    } catch (error) {
-      logger.error('获取数据失败:', error)
-    } finally {
-      loading.value = false
+    } else {
+      queryParams.value = {
+        ...queryParams.value,
+        start_date: '',
+        end_date: '',
+      }
     }
   }
 
@@ -130,20 +147,32 @@ export function useLgs() {
     ]
   }
 
-  /** 查询 */
+  /** 查询：先同步日期范围，重置页码，触发加载 */
   const handleQuery = () => {
-    queryParams.page = 1
+    syncDateRangeToQuery()
+    page.value = 1
     fetchData()
   }
 
-  /** 重置查询 */
+  /** 重置：清空筛选条件 + 日期 + 重置页码，触发加载 */
   const handleReset = () => {
-    queryParams.keyword = ''
-    queryParams.logistics_company = ''
-    queryParams.status = ''
+    queryParams.value = {
+      ...queryParams.value,
+      keyword: '',
+      logistics_company: '',
+      status: '',
+      start_date: '',
+      end_date: '',
+    }
     dateRange.value = null
-    queryParams.page = 1
+    page.value = 1
     fetchData()
+  }
+
+  /** 日期范围变化：同步 dateRange 后立即查询 */
+  const handleDateChange = (v: [Date, Date] | null) => {
+    dateRange.value = v
+    handleQuery()
   }
 
   // 使用 reactive 包装，访问字段时自动解包 ref
@@ -155,10 +184,14 @@ export function useLgs() {
     loading,
     total,
     dateRange,
-    // 查询
+    page,
+    pageSize,
     queryParams,
+    // 查询
     handleQuery,
     handleReset,
+    handleDateChange,
+    syncDateRangeToQuery,
     // 关联订单
     orders,
     fetchOrders,
