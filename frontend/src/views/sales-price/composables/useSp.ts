@@ -192,6 +192,8 @@ export function useSp() {
     // 客户与产品
     customers,
     products,
+    getCustomers,
+    getProducts,
     // 对话框与表单
     dialogTitle,
     formRef,

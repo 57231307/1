@@ -174,6 +174,7 @@ export function usePc() {
     handleReset,
     // 供应商
     suppliers,
+    getSuppliers,
     // 对话框与表单
     dialogTitle,
     formRef,
