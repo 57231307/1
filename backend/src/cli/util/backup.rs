@@ -4,15 +4,24 @@ use super::{get_backup_dir, get_install_dir, require_env, run_cmd, timestamp};
 use std::fs;
 use std::path::Path;
 
+/// 递归深度上限，防止恶意 tar 包含数千层嵌套目录导致栈溢出
+const MAX_RECURSION_DEPTH: usize = 100;
+
 /// 校验解压后的所有文件路径都在指定目录范围内，防止 Tar Slip 路径穿越攻击
 fn validate_extracted_paths(base_dir: &str) -> Result<(), String> {
     let base_canonical = fs::canonicalize(base_dir)
         .map_err(|e| format!("无法解析基准目录 {}: {}", base_dir, e))?;
-    validate_dir_recursive(&base_canonical, &base_canonical)
+    validate_dir_recursive(&base_canonical, &base_canonical, 0)
 }
 
 /// 递归校验目录下所有文件路径都在基准目录范围内
-fn validate_dir_recursive(dir: &Path, base: &Path) -> Result<(), String> {
+fn validate_dir_recursive(dir: &Path, base: &Path, depth: usize) -> Result<(), String> {
+    if depth >= MAX_RECURSION_DEPTH {
+        return Err(format!(
+            "递归深度超过上限 {}，可能存在恶意嵌套目录",
+            MAX_RECURSION_DEPTH
+        ));
+    }
     for entry in fs::read_dir(dir).map_err(|e| format!("读取目录失败: {}", e))? {
         let entry = entry.map_err(|e| format!("读取目录项失败: {}", e))?;
         let path = entry.path();
@@ -25,9 +34,9 @@ fn validate_dir_recursive(dir: &Path, base: &Path) -> Result<(), String> {
                 canonical
             ));
         }
-        // 如果是目录，递归校验
+        // 如果是目录，递归校验（深度 +1）
         if canonical.is_dir() {
-            validate_dir_recursive(&canonical, base)?;
+            validate_dir_recursive(&canonical, base, depth + 1)?;
         }
     }
     Ok(())
