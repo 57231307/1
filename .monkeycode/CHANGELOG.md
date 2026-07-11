@@ -9,6 +9,7 @@
 
 | 批次 | PR | 一句话总结 |
 |------|-----|-----------|
+| 286 | #466 | purchase-return + purchase-inspection composable 接入 useTableApi（9 文件，dateRange 独立 ref + syncDateRangeToQuery + watch 自动同步 stats + usePiProc queryParams 放宽为 Record） |
 | 285 | #465 | purchaseReceipt + purchase-price composable 接入 useTableApi（9 文件，usePrcProc 适配 queryParams 放宽 + page 独立字段 + 移除 handlePageChange/handlePageSizeChange） |
 | 284 | #464 | sales-contract + sales-price + purchase-contract composable 接入 useTableApi（12 文件，localQuery + handleSearch 模式，date_range 特殊处理，更新 clippy baseline 加入 33 个预存 dead_code 警告） |
 | 283 | #463 | useSysUpd 3 表 + useBpmAp 2 表 composable 接入 useTableApi（reactive 包装返回 + watch 自动更新 stats + 子组件 page/pageSize/total props + v-model 绑定分页 + 移除 onMounted fetch） |

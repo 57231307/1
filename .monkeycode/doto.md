@@ -108,7 +108,7 @@ Ok((items, total))
 - `PaginatorTrait` 导入保留（`.paginate()` 方法需要）
 - `quotation_service.rs` 特殊处理：返回类型是 `ServiceError` 而非 `AppError`，需添加 `From<AppError> for ServiceError` 转换或改用 `AppError`
 
-**子任务 2.2：view 表格逻辑接入 useTableApi（30/56 完成 🔄）**
+**子任务 2.2：view 表格逻辑接入 useTableApi（37/56 完成 🔄）**
 
 **问题描述**：56 个前端 view 文件各自实现表格加载/分页/排序/查询逻辑，与已封装的 `useTableApi` composable 重复。每个 view 重复编写 `loadData` / `handlePageChange` / `handleSortChange` / `handleSearch` 等函数，代码冗余严重。
 
@@ -129,14 +129,21 @@ Ok((items, total))
 - 接入 `useTableApi` composable，删除重复的表格逻辑代码
 - 保持 view 的业务逻辑不变，只替换通用表格逻辑
 
-**待修复文件清单**（剩余 21 个 ⏳）：
+**待修复文件清单**（剩余 19 个 ⏳）：
 - `frontend/src/views/voucher/*`（凭证模块）
 - `frontend/src/views/scheduling/*`（排产模块）
+- `frontend/src/views/logistics/*`（物流模块）
+- `frontend/src/views/material-shortage/*`（物料短缺模块）
+- `frontend/src/views/capacity/*`（产能模块）
+- `frontend/src/views/finance/voucher/*`（财务凭证模块）
+- `frontend/src/views/data-import/*`（数据导入模块）
 - inventory/tabs/InventoryStockTab（1-based 分页）
+- inventoryAdjustment/AdjustmentListTab / inventoryTransfer/TransferListTab
 - barcodeScanner / assistAccounting（使用 0-based 分页需特殊处理）
 - composable 管理分页的 view：useSysUpd（3 表）、useBpmAp（2 表）— ✅ 批次 283 已完成
 - sales-contract / sales-price / purchase-contract — ✅ 批次 284 已完成
 - purchaseReceipt / purchase-price — ✅ 批次 285 已完成
+- purchase-return / purchase-inspection — ✅ 批次 286 已完成
 
 **技术要点**：
 - `useTableApi` 已封装：分页参数管理 / 数据加载 / loading 状态 / 错误处理
@@ -264,6 +271,13 @@ Ok((items, total))
 - purchase-price 模块 4 文件：usePp priceList 接入 useTableApi（URL: /purchase/purchase-prices）+ PpFilter/PpTbl 改造 + index.vue 适配
 - CI 15 项全绿（13 成功 + 2 skipped 打包/Release）
 - view 表格进度：33/56 → 35/56（2 个模块 9 文件）
+
+### 批次 286：purchase-return + purchase-inspection composable 迁移 — ✅ 完成（PR #466 合并，sha: ada50bf）
+
+- purchase-return 模块 5 文件：usePrRtn tableData 接入 useTableApi（URL: /purchase/returns，pageSizeKey='pageSize' camelCase 适配）+ dateRange 独立 ref + syncDateRangeToQuery 同步到 queryParams.startDate/endDate + watch 自动同步 stats（保持原行为）+ PrRtnFilter/PrRtnTbl 改造 + index.vue 适配
+- purchase-inspection 模块 5 文件：usePi tableData 接入 useTableApi（URL: /purchase/inspections，snake_case page/page_size 匹配默认）+ dateRange 独立 ref + syncDateRangeToQuery 同步到 queryParams.inspection_date_from/to + watch 自动同步 stats + usePiProc 适配（queryParams 放宽为 Record + page/pageSize 独立字段 + syncDateRangeToQuery 回调）+ PiFilter/PiTbl 改造 + index.vue 适配
+- CI 15 项全绿（13 成功 + 2 skipped 打包/Release）
+- view 表格进度：35/56 → 37/56（2 个模块 9 文件）
 
 ---
 
