@@ -18,14 +18,14 @@ import {
   ElDescriptions,
 } from 'element-plus'
 import { PieChart, Clock, AlarmClock } from '@element-plus/icons-vue'
-import { getDashboardStats, searchLogs, type AuditStats, type AuditLog } from '@/api/omniAudit'
+import { getDashboardStats, type AuditStats, type AuditLog } from '@/api/omniAudit'
 import type { ApiResponse } from '@/types/api'
+import { useTableApi } from '@/composables/useTableApi'
 
 const activeTab = ref('dashboard')
 const stats = ref<AuditStats | null>(null)
-const logs = ref<AuditLog[]>([])
-const total = ref(0)
-const loading = ref(false)
+// stats 独立加载状态（与 logs 的 useTableApi.loading 分离，避免双 tab 切换时互相干扰）
+const statsLoading = ref(false)
 
 const searchForm = ref({
   user_id: '',
@@ -37,9 +37,21 @@ const searchForm = ref({
   end_time: '',
 })
 
-const pagination = ref({
-  page: 1,
-  pageSize: 20,
+// 批次 273：接入 useTableApi，消除手写 logs/total/loading/pagination/loadLogs 重复
+// 修复 0-based 分页 bug：原 page-1 传 0 被后端 clamp(1,1000) 修正为 1，page=2 时传 1 offset=0，分页错乱
+// useTableApi 使用 1-based 分页，与后端 page.unwrap_or(1).clamp(1,1000) + page.saturating_sub(1)*page_size 一致
+const {
+  data: logs,
+  loading,
+  page,
+  pageSize,
+  total,
+  refresh: loadLogs,
+  setQueryParam,
+} = useTableApi<AuditLog>({
+  url: '/finance/audit/search',
+  listKey: 'items',
+  onError: (e: unknown) => ElMessage.error('加载日志失败'),
 })
 
 const viewDialogVisible = ref(false)
@@ -60,7 +72,7 @@ const getStatusClass = (value: string) => {
 }
 
 const loadStats = async () => {
-  loading.value = true
+  statsLoading.value = true
   try {
     // v11 批次 146 P1-3 修复：拦截器已返回 ApiResponse 完整对象，
     // res.data 即业务数据（AuditStats），无需 res.data!.data 双层访问
@@ -69,42 +81,25 @@ const loadStats = async () => {
   } catch (error) {
     ElMessage.error('加载统计数据失败')
   } finally {
-    loading.value = false
+    statsLoading.value = false
   }
 }
 
-const loadLogs = async () => {
-  loading.value = true
-  try {
-    // v11 批次 146 P1-3 修复：拦截器已返回 ApiResponse 完整对象，
-    // res.data 即业务数据（含 items/total），无需 res.data!.data 双层访问
-    const res = await searchLogs({
-      user_id: searchForm.value.user_id ? Number(searchForm.value.user_id) : undefined,
-      event_type: searchForm.value.event_type || undefined,
-      resource: searchForm.value.resource || undefined,
-      action: searchForm.value.action || undefined,
-      status: searchForm.value.status || undefined,
-      start_time: searchForm.value.start_time || undefined,
-      end_time: searchForm.value.end_time || undefined,
-      page: pagination.value.page - 1,
-      page_size: pagination.value.pageSize,
-    })
-    const data =
-      (res as ApiResponse<{ items: AuditLog[]; total: number }> | undefined)?.data ?? {
-        items: [],
-        total: 0,
-      }
-    logs.value = data.items || []
-    total.value = data.total || 0
-  } catch (error) {
-    ElMessage.error('加载日志失败')
-  } finally {
-    loading.value = false
-  }
+// 批次 273：同步筛选条件到 useTableApi.queryParams 并刷新
+// useTableApi 自动 watch page/pageSize 变化触发重载，无需手动 loadLogs
+const syncQueryParams = () => {
+  setQueryParam('user_id', searchForm.value.user_id ? Number(searchForm.value.user_id) : undefined)
+  setQueryParam('event_type', searchForm.value.event_type || undefined)
+  setQueryParam('resource', searchForm.value.resource || undefined)
+  setQueryParam('action', searchForm.value.action || undefined)
+  setQueryParam('status', searchForm.value.status || undefined)
+  setQueryParam('start_time', searchForm.value.start_time || undefined)
+  setQueryParam('end_time', searchForm.value.end_time || undefined)
 }
 
 const handleSearch = () => {
-  pagination.value.page = 1
+  syncQueryParams()
+  page.value = 1
   loadLogs()
 }
 
@@ -118,17 +113,19 @@ const handleReset = () => {
     start_time: '',
     end_time: '',
   }
-  handleSearch()
-}
-
-const handlePageChange = (page: number) => {
-  pagination.value.page = page
+  syncQueryParams()
+  page.value = 1
   loadLogs()
 }
 
-const handlePageSizeChange = (pageSize: number) => {
-  pagination.value.pageSize = pageSize
-  loadLogs()
+// 分页（useTableApi 自动 watch page/pageSize 变化触发重载）
+const handlePageChange = (p: number) => {
+  page.value = p
+}
+
+const handlePageSizeChange = (s: number) => {
+  pageSize.value = s
+  page.value = 1
 }
 
 const openViewDialog = (row: AuditLog) => {
@@ -137,7 +134,7 @@ const openViewDialog = (row: AuditLog) => {
 }
 
 loadStats()
-loadLogs()
+// 批次 273：useTableApi 构造时自动初始加载 logs，无需 setup 顶层调用 loadLogs
 </script>
 
 <template>
@@ -178,18 +175,6 @@ loadLogs()
                 <ElTableColumn prop="name" label="资源名称" />
                 <ElTableColumn prop="count" label="访问次数" align="right" />
               </ElTable>
-
-              <div class="pagination-wrapper" style="margin-top: 16px; text-align: right">
-                <ElPagination
-                  v-model:current-page="pagination.page"
-                  v-model:page-size="pagination.pageSize"
-                  :page-sizes="[10, 20, 50, 100]"
-                  :total="total"
-                  layout="total, sizes, prev, pager, next, jumper"
-                  @size-change="handlePageSizeChange"
-                  @current-change="handlePageChange"
-                />
-              </div>
             </ElCard>
           </ElCol>
           <ElCol :span="12">
@@ -296,6 +281,18 @@ loadLogs()
             </template>
           </ElTableColumn>
         </ElTable>
+
+        <div class="pagination-wrapper" style="margin-top: 16px; text-align: right">
+          <ElPagination
+            v-model:current-page="page"
+            v-model:page-size="pageSize"
+            :page-sizes="[10, 20, 50, 100]"
+            :total="total"
+            layout="total, sizes, prev, pager, next, jumper"
+            @size-change="handlePageSizeChange"
+            @current-change="handlePageChange"
+          />
+        </div>
       </ElTabPane>
     </ElTabs>
 
