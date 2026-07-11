@@ -10,7 +10,7 @@
 
 ---
 
-## 一、高危漏洞（1 项 ⏳ 未修复）
+## 一、高危漏洞（0 项 ⏳ 未修复，3 项全部已修复 ✅）
 
 ### 1.1 ~~SQL 注入风险 - tracking_service.rs LIMIT 未参数化~~ ✅ 已修复（批次 290，PR #470）
 
@@ -30,15 +30,12 @@
 
 ---
 
-### 1.3 SSRF 防护不完整 - currency_service.rs
+### 1.3 ~~SSRF 防护不完整 - currency_service.rs~~ ✅ 已修复（批次 292，PR #472）
 
-**严重度**：高危
-**状态**：⏳ 未修复
-**位置**：[currency_service.rs:301-305](file:///workspace/backend/src/services/currency_service.rs#L301-L305)
+**状态**：✅ 已修复（2026-07-11，sha: 0e060f3）
+**位置**：[currency_service.rs:300-310](file:///workspace/backend/src/services/currency_service.rs#L300-L310)
 
-**问题**：仅禁止重定向，未使用 `resolve_to_addrs` 固定 IP，存在 DNS Rebinding 攻击风险。
-
-**修复方案**：使用 `ssrf_guard::validate_url_and_resolve` 获取安全 IP 列表，用 `resolve_to_addrs` 固定连接。
+**说明**：复用 `ssrf_guard::validate_url_and_resolve` 校验 URL 并返回安全 IP 列表，用 `resolve_to_addrs` 固定连接 IP，消除 DNS Rebinding TOCTOU 漏洞。与 webhook_service.rs 使用相同的 SSRF 防护模式。本条目已从待修复队列删除。
 
 ---
 
