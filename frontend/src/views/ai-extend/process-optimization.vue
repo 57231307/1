@@ -2,34 +2,46 @@
 /**
  * P2-4 工艺优化列表 + 创建
  */
-import { onMounted, reactive, ref, computed } from 'vue'
+import { reactive, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import {
-  listProcessOptimizations,
   createProcessOptimization,
   deleteProcessOptimization,
   SOURCE_LABELS,
   type AiProcessOptimization,
   type ProcessOptRequest,
 } from '@/api/ai-extend'
+// 批次 280：接入 useTableApi，消除手写 items/loading/total/page/pageSize/load 重复
+import { useTableApi } from '@/composables/useTableApi'
 
 // 批次 34 v9 P1：接入 i18n，替换硬编码中文 ElMessage
 const { t } = useI18n({ useScope: 'global' })
 
 const router = useRouter()
-const loading = ref(false)
-const items = ref<AiProcessOptimization[]>([])
-const total = ref(0)
-const page = ref(1)
-const pageSize = ref(20)
 
+// 批次 280：filter 仅保留筛选字段，分页字段由 useTableApi 管理
 const filter = reactive({
   color_no: '',
   fabric_type: '',
   is_applied: undefined as boolean | undefined,
   source: undefined as string | undefined,
+})
+
+// 批次 280：useTableApi 自动管理分页状态、数据加载，自动 watch page/pageSize 变化触发重载
+// listProcessOptimizations 返回 PageResult<T>（{ items, total }），useTableApi detectList 会取 obj.items
+const {
+  data: items,
+  loading,
+  page,
+  pageSize,
+  total,
+  refresh: load,
+  setQueryParam,
+} = useTableApi<AiProcessOptimization>({
+  url: '/ai/process-optimizations',
+  onError: () => ElMessage.error(t('message.loadFailed')),
 })
 
 const dialogVisible = ref(false)
@@ -42,24 +54,19 @@ const form = reactive<ProcessOptRequest>({
 })
 const submitting = ref(false)
 
-async function load() {
-  loading.value = true
-  try {
-    const res = await listProcessOptimizations({
-      page: page.value,
-      page_size: pageSize.value,
-      color_no: filter.color_no || undefined,
-      fabric_type: filter.fabric_type || undefined,
-      is_applied: filter.is_applied,
-      source: filter.source,
-    })
-    items.value = res.items
-    total.value = res.total
-  } catch (e) {
-    ElMessage.error(t('message.loadFailed'))
-  } finally {
-    loading.value = false
-  }
+// 批次 280：同步筛选条件到 useTableApi.queryParams 并刷新
+function syncQueryParams() {
+  setQueryParam('color_no', filter.color_no || undefined)
+  setQueryParam('fabric_type', filter.fabric_type || undefined)
+  setQueryParam('is_applied', filter.is_applied)
+  setQueryParam('source', filter.source)
+}
+
+// 批次 280：查询时先同步筛选条件再刷新
+function handleSearch() {
+  syncQueryParams()
+  page.value = 1
+  load()
 }
 
 function openCreate() {
@@ -115,6 +122,7 @@ function resetFilter() {
   filter.fabric_type = ''
   filter.is_applied = undefined
   filter.source = undefined
+  syncQueryParams()
   page.value = 1
   load()
 }
@@ -129,14 +137,6 @@ const appliedOptions = [
   { value: true, label: '已应用' },
   { value: false, label: '未应用' },
 ]
-
-const pageInfo = computed(() => ({
-  total: total.value,
-  page: page.value,
-  page_size: pageSize.value,
-}))
-
-onMounted(load)
 </script>
 
 <template>
@@ -167,7 +167,7 @@ onMounted(load)
           </el-select>
         </el-form-item>
         <el-form-item>
-          <el-button type="primary" @click="() => { page = 1; load() }">查询</el-button>
+          <el-button type="primary" @click="handleSearch">查询</el-button>
           <el-button @click="resetFilter">重置</el-button>
         </el-form-item>
       </el-form>
@@ -221,11 +221,9 @@ onMounted(load)
       <el-pagination
         v-model:current-page="page"
         v-model:page-size="pageSize"
-        :total="pageInfo.total"
+        :total="total"
         :page-sizes="[10, 20, 50, 100]"
         layout="total, sizes, prev, pager, next, jumper"
-        @current-change="load"
-        @size-change="() => { page = 1; load() }"
         style="margin-top: 16px; justify-content: flex-end"
       />
     </el-card>

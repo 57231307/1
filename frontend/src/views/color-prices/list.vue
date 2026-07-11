@@ -119,13 +119,11 @@
 
       <div class="pagination-wrapper">
         <el-pagination
-          v-model:current-page="filterForm.page"
-          v-model:page-size="filterForm.page_size"
+          v-model:current-page="page"
+          v-model:page-size="pageSize"
           :total="total"
           :page-sizes="[10, 20, 50, 100]"
           layout="total, sizes, prev, pager, next, jumper"
-          @size-change="loadData"
-          @current-change="loadData"
         />
       </div>
     </el-card>
@@ -133,12 +131,11 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, reactive } from 'vue'
+import { ref, reactive } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Plus, Search, Refresh, Edit } from '@element-plus/icons-vue'
 import {
-  listColorPrices,
   deleteColorPrice,
   formatPrice,
   getLevelLabel,
@@ -148,53 +145,69 @@ import {
   getApprovalLabel,
   getApprovalColor,
   type ColorPriceListItem,
-  type ListColorPricesQuery,
 } from '@/api/color-price'
+// 批次 280：接入 useTableApi，消除手写 tableData/loading/total/loadData 重复
+import { useTableApi } from '@/composables/useTableApi'
 
 const router = useRouter()
-const loading = ref(false)
-const tableData = ref<ColorPriceListItem[]>([])
-const total = ref(0)
 const selectedRows = ref<ColorPriceListItem[]>([])
 
-const filterForm = reactive<ListColorPricesQuery>({
-  page: 1,
-  page_size: 20,
+// 批次 280：filterForm 仅保留筛选字段，分页字段由 useTableApi 管理
+const filterForm = reactive({
+  product_id: undefined as number | undefined,
+  color_id: undefined as number | undefined,
+  customer_level: undefined as string | undefined,
+  season: undefined as string | undefined,
+  currency: undefined as string | undefined,
+  is_active: undefined as boolean | undefined,
+  approval_status: undefined as string | undefined,
 })
 
-const loadData = async () => {
-  loading.value = true
-  try {
-    const res = await listColorPrices(filterForm)
-    tableData.value = res.items
-    total.value = res.total
-  } catch (e: unknown) {
-    // v11 批次 180 P2-1 修复：catch (e: any) 改为 catch (e: unknown) + 类型守卫
-    const errMsg = e instanceof Error ? e.message : String(e)
+// 批次 280：useTableApi 自动管理分页状态、数据加载，自动 watch page/pageSize 变化触发重载
+// listColorPrices 返回 PagedResponse<T>（{ items, total }），useTableApi detectList 会取 obj.items
+const {
+  data: tableData,
+  loading,
+  page,
+  pageSize,
+  total,
+  refresh: loadData,
+  setQueryParam,
+} = useTableApi<ColorPriceListItem>({
+  url: '/color-prices',
+  onError: (err: unknown) => {
+    // v11 批次 180 P2-1 修复：unknown + 类型守卫
+    const errMsg = err instanceof Error ? err.message : String(err)
     ElMessage.error('加载失败：' + (errMsg || '未知错误'))
-  } finally {
-    loading.value = false
-  }
+  },
+})
+
+// 批次 280：同步筛选条件到 useTableApi.queryParams 并刷新
+const syncQueryParams = () => {
+  setQueryParam('product_id', filterForm.product_id || undefined)
+  setQueryParam('color_id', filterForm.color_id || undefined)
+  setQueryParam('customer_level', filterForm.customer_level || undefined)
+  setQueryParam('season', filterForm.season || undefined)
+  setQueryParam('currency', filterForm.currency || undefined)
+  setQueryParam('is_active', filterForm.is_active)
+  setQueryParam('approval_status', filterForm.approval_status || undefined)
 }
 
 const handleSearch = () => {
-  filterForm.page = 1
+  syncQueryParams()
+  page.value = 1
   loadData()
 }
 
 const handleReset = () => {
-  filterForm.page = 1
-  filterForm.page_size = 20
   filterForm.product_id = undefined
   filterForm.color_id = undefined
-  filterForm.customer_id = undefined
   filterForm.customer_level = undefined
   filterForm.season = undefined
   filterForm.currency = undefined
   filterForm.is_active = undefined
   filterForm.approval_status = undefined
-  filterForm.keyword = undefined
-  loadData()
+  handleSearch()
 }
 
 const handleView = (row: ColorPriceListItem) => {
@@ -222,10 +235,6 @@ const handleDelete = async (row: ColorPriceListItem) => {
 const handleSelectionChange = (rows: ColorPriceListItem[]) => {
   selectedRows.value = rows
 }
-
-onMounted(() => {
-  loadData()
-})
 </script>
 
 <style scoped>

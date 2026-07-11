@@ -41,22 +41,20 @@
         </el-table>
 
         <el-pagination
-          v-model:current-page="templateQuery.page"
-          v-model:page-size="templateQuery.page_size"
+          v-model:current-page="templatePage"
+          v-model:page-size="templatePageSize"
           :total="templateTotal"
           :page-sizes="[10, 20, 50, 100]"
           layout="total, sizes, prev, pager, next, jumper"
-          @size-change="fetchTemplates"
-          @current-change="fetchTemplates"
         />
       </el-tab-pane>
 
       <!-- 发送记录 Tab -->
       <el-tab-pane label="发送记录" name="records">
         <div class="tab-header">
-          <el-form :inline="true" :model="recordQuery">
+          <el-form :inline="true" :model="recordStatus">
             <el-form-item label="状态">
-              <el-select v-model="recordQuery.status" clearable placeholder="选择状态">
+              <el-select v-model="recordStatus" clearable placeholder="选择状态">
                 <el-option label="成功" value="sent" />
                 <el-option label="失败" value="failed" />
                 <el-option label="待发送" value="pending" />
@@ -72,7 +70,7 @@
               />
             </el-form-item>
             <el-form-item>
-              <el-button type="primary" @click="fetchRecords">查询</el-button>
+              <el-button type="primary" @click="handleSearchRecords">查询</el-button>
               <el-button @click="handleResetRecordQuery">重置</el-button>
             </el-form-item>
           </el-form>
@@ -98,13 +96,11 @@
         </el-table>
 
         <el-pagination
-          v-model:current-page="recordQuery.page"
-          v-model:page-size="recordQuery.page_size"
+          v-model:current-page="recordPage"
+          v-model:page-size="recordPageSize"
           :total="recordTotal"
           :page-sizes="[10, 20, 50, 100]"
           layout="total, sizes, prev, pager, next, jumper"
-          @size-change="fetchRecords"
-          @current-change="fetchRecords"
         />
       </el-tab-pane>
 
@@ -201,21 +197,31 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, onMounted } from 'vue'
+import { ref, reactive } from 'vue'
 import { ElMessage, ElMessageBox, type TabsPaneContext } from 'element-plus'
 import { Plus } from '@element-plus/icons-vue'
-import { emailApi, type EmailTemplate, type EmailLog, type EmailStatistics, type EmailQueryParams } from '@/api/email'
+import { emailApi, type EmailTemplate, type EmailLog, type EmailStatistics } from '@/api/email'
 import { loadIfNot, createLazyLoader } from '@/utils/lazy-loader'
 import { logger } from '@/utils/logger'
+// 批次 280：接入 useTableApi，消除手写 templates/records 分页重复
+import { useTableApi } from '@/composables/useTableApi'
 
 const activeTab = ref('templates')
 const hasLoaded = createLazyLoader()
 
-// 模板相关
-const templates = ref<EmailTemplate[]>([])
-const templatesLoading = ref(false)
-const templateTotal = ref(0)
-const templateQuery = reactive({ page: 1, page_size: 20 })
+// 批次 280：模板表格 useTableApi（emailApi.getTemplates 返回 { data: { list, total } }）
+const {
+  data: templates,
+  loading: templatesLoading,
+  page: templatePage,
+  pageSize: templatePageSize,
+  total: templateTotal,
+  refresh: fetchTemplates,
+} = useTableApi<EmailTemplate>({
+  url: '/email-templates',
+  onError: (err: unknown) => logger.error('获取模板列表失败:', err),
+})
+
 const templateDialogVisible = ref(false)
 const isEditTemplate = ref(false)
 const submitLoading = ref(false)
@@ -236,11 +242,22 @@ const templateRules = {
   template_type: [{ required: true, message: '请选择模板类型', trigger: 'change' }],
 }
 
-// 记录相关
-const records = ref<EmailLog[]>([])
-const recordsLoading = ref(false)
-const recordTotal = ref(0)
-const recordQuery = reactive({ page: 1, page_size: 20, status: '' })
+// 批次 280：记录表格 useTableApi（emailApi.getRecords 返回 { data: { list, total } }）
+const {
+  data: records,
+  loading: recordsLoading,
+  page: recordPage,
+  pageSize: recordPageSize,
+  total: recordTotal,
+  refresh: fetchRecords,
+  setQueryParam: setRecordQueryParam,
+} = useTableApi<EmailLog>({
+  url: '/email-records',
+  onError: (err: unknown) => logger.error('获取发送记录失败:', err),
+})
+
+// 批次 280：记录筛选状态 + 日期范围（分页由 useTableApi 管理）
+const recordStatus = ref('')
 const recordDateRange = ref<[Date, Date] | null>(null)
 
 // 统计相关
@@ -249,10 +266,6 @@ const statistics = ref<EmailStatistics>({
   total_failed: 0,
   today_sent: 0,
   success_rate: 0,
-})
-
-onMounted(() => {
-  initPage()
 })
 
 /// 处理 tab 切换事件（element-plus TabsPaneContext 类型）
@@ -275,36 +288,9 @@ const initPage = () => {
   loadTab(activeTab.value)
 }
 
-const fetchTemplates = async () => {
-  templatesLoading.value = true
-  try {
-    const res = await emailApi.getTemplates(templateQuery)
-    templates.value = res.data?.list || []
-    templateTotal.value = res.data?.total || 0
-  } catch (error) {
-    logger.error('获取模板列表失败:', error)
-  } finally {
-    templatesLoading.value = false
-  }
-}
-
-const fetchRecords = async () => {
-  recordsLoading.value = true
-  try {
-    const params: EmailQueryParams = { ...recordQuery }
-    if (recordDateRange.value) {
-      params.start_date = recordDateRange.value[0].toISOString()
-      params.end_date = recordDateRange.value[1].toISOString()
-    }
-    const res = await emailApi.getRecords(params)
-    records.value = res.data?.list || []
-    recordTotal.value = res.data?.total || 0
-  } catch (error) {
-    logger.error('获取发送记录失败:', error)
-  } finally {
-    recordsLoading.value = false
-  }
-}
+// 批次 280：组件 setup 阶段 useTableApi 已自动加载，但 email 页用 lazy-loader 按 tab 加载
+// 需要在首次进入 tab 时触发加载（lazy-loader 的 loadIfNot 会调用 fetchTemplates/fetchRecords）
+initPage()
 
 const fetchStatistics = async () => {
   try {
@@ -370,11 +356,24 @@ const handleDeleteTemplate = async (row: EmailTemplate) => {
   }
 }
 
-const handleResetRecordQuery = () => {
-  recordQuery.status = ''
-  recordDateRange.value = null
-  recordQuery.page = 1
+// 批次 280：记录查询时同步筛选条件到 useTableApi.queryParams
+const handleSearchRecords = () => {
+  setRecordQueryParam('status', recordStatus.value || undefined)
+  if (recordDateRange.value) {
+    setRecordQueryParam('start_date', recordDateRange.value[0].toISOString())
+    setRecordQueryParam('end_date', recordDateRange.value[1].toISOString())
+  } else {
+    setRecordQueryParam('start_date', undefined)
+    setRecordQueryParam('end_date', undefined)
+  }
+  recordPage.value = 1
   fetchRecords()
+}
+
+const handleResetRecordQuery = () => {
+  recordStatus.value = ''
+  recordDateRange.value = null
+  handleSearchRecords()
 }
 
 const getStatusType = (status: string) => {
