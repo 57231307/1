@@ -23,12 +23,13 @@ import type { PrcForm } from './usePrc'
 
 /**
  * 流程回调（接收 usePrc 返回的状态，自动解包后的值类型）
+ * 批次 285：queryParams 放宽为 Record<string, unknown>，page 改为独立字段
  */
 interface PrcCallbacks {
-  // 搜索表单
-  searchForm: { receipt_no: string; supplier_id: string; warehouse_id: string; status: string }
-  // 分页
-  pagination: { page: number; pageSize: number }
+  // 查询参数（放宽为 Record<string, unknown>，兼容 useTableApi）
+  queryParams: Record<string, unknown>
+  // 当前页（独立字段，不在 queryParams 内）
+  page: number
   // 表单
   dialogVisible: boolean
   dialogTitle: string
@@ -47,31 +48,19 @@ interface PrcCallbacks {
 export function usePrcProc(cb: PrcCallbacks) {
   /** 查询 */
   const handleSearch = () => {
-    cb.pagination.page = 1
+    cb.page = 1
     cb.loadData()
   }
 
   /** 重置 */
   const handleReset = () => {
-    cb.searchForm = {
+    cb.queryParams = {
       receipt_no: '',
       supplier_id: '',
       warehouse_id: '',
       status: '',
     }
-    cb.pagination.page = 1
-    cb.loadData()
-  }
-
-  /** 翻页 */
-  const handlePageChange = (page: number) => {
-    cb.pagination.page = page
-    cb.loadData()
-  }
-
-  /** 调整每页大小 */
-  const handlePageSizeChange = (pageSize: number) => {
-    cb.pagination.pageSize = pageSize
+    cb.page = 1
     cb.loadData()
   }
 
@@ -189,8 +178,6 @@ export function usePrcProc(cb: PrcCallbacks) {
   return reactive({
     handleSearch,
     handleReset,
-    handlePageChange,
-    handlePageSizeChange,
     openAddDialog,
     openEditDialog,
     openViewDialog,

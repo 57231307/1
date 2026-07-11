@@ -1,27 +1,25 @@
 <!--
   PrcFilter.vue - 采购入库过滤栏
   拆分自 purchaseReceipt/index.vue（P14 批 2 I-3 第 4 批）
-  P9-3 批次 F Pattern A 重构：本地 ref 镜像 + watch 防循环 + emit 整体覆盖父组件
-  行为完全保持一致（仅结构重构）
+  批次 285：接入 useTableApi 模式（localQuery + handleSearch/handleReset）
 -->
 <template>
   <div class="filter-container">
     <el-row :gutter="20">
       <el-col :span="6">
         <el-input
-          :model-value="localForm.receipt_no"
+          v-model="localQuery.receipt_no"
           placeholder="入库单号"
           class="filter-item"
-          @update:model-value="(v: string) => (localForm.receipt_no = v)"
-          @keyup.enter="emit('search')"
+          @keyup.enter="handleSearch"
         />
       </el-col>
       <el-col :span="6">
         <el-select
-          :model-value="localForm.supplier_id"
+          v-model="localQuery.supplier_id"
           placeholder="选择供应商"
           class="filter-item"
-          @update:model-value="(v: string) => (localForm.supplier_id = v)"
+          @change="handleSearch"
         >
           <el-option label="全部" value="" />
           <el-option
@@ -34,10 +32,10 @@
       </el-col>
       <el-col :span="6">
         <el-select
-          :model-value="localForm.warehouse_id"
+          v-model="localQuery.warehouse_id"
           placeholder="选择仓库"
           class="filter-item"
-          @update:model-value="(v: string) => (localForm.warehouse_id = v)"
+          @change="handleSearch"
         >
           <el-option label="全部" value="" />
           <el-option
@@ -50,10 +48,10 @@
       </el-col>
       <el-col :span="6">
         <el-select
-          :model-value="localForm.status"
+          v-model="localQuery.status"
           placeholder="状态"
           class="filter-item"
-          @update:model-value="(v: string) => (localForm.status = v)"
+          @change="handleSearch"
         >
           <el-option
             v-for="s in statusOptions"
@@ -65,8 +63,8 @@
       </el-col>
     </el-row>
     <div class="filter-actions">
-      <el-button type="primary" @click="emit('search')">查询</el-button>
-      <el-button @click="emit('reset')">重置</el-button>
+      <el-button type="primary" @click="handleSearch">查询</el-button>
+      <el-button @click="handleReset">重置</el-button>
       <el-button type="success" @click="emit('add')">
         <el-icon><Plus /></el-icon>
         新增入库单
@@ -76,16 +74,8 @@
 </template>
 
 <script setup lang="ts">
-import { ref, watch, nextTick } from 'vue'
+import { reactive } from 'vue'
 import { Plus } from '@element-plus/icons-vue'
-
-// 搜索表单类型
-interface SearchForm {
-  receipt_no: string
-  supplier_id: string
-  warehouse_id: string
-  status: string
-}
 
 // 选项类型
 interface OptItem {
@@ -99,9 +89,12 @@ interface StatusOptItem {
   value: string
 }
 
+/**
+ * 采购入库过滤栏组件（批次 285：localQuery + handleSearch/handleReset 模式）
+ */
 const props = defineProps<{
-  // 搜索表单（由父组件管理，子组件通过 emit('update:form') 回写）
-  form: SearchForm
+  // 查询参数（由父组件管理，子组件通过 emit('update:queryParams') 回写）
+  queryParams: Record<string, unknown>
   // 供应商选项
   suppliers: OptItem[]
   // 仓库选项
@@ -111,46 +104,42 @@ const props = defineProps<{
 }>()
 
 const emit = defineEmits<{
-  (e: 'search'): void
-  (e: 'reset'): void
-  (e: 'add'): void
-  // 整体回写表单（父组件监听此事件并回写到自己的 form）
-  (e: 'update:form', form: SearchForm): void
+  // 触发加载
+  fetch: []
+  // 整体回写查询参数
+  'update:queryParams': [value: Record<string, unknown>]
+  // 新增
+  add: []
 }>()
 
-// 本地镜像：避免直接修改 prop 触发 vue/no-mutating-props
-const localForm = ref<SearchForm>({ ...props.form })
+// 本地查询条件（筛选字段，不含分页参数）
+const localQuery = reactive<{
+  receipt_no: string
+  supplier_id: string
+  warehouse_id: string
+  status: string
+}>({
+  receipt_no: (props.queryParams.receipt_no as string) ?? '',
+  supplier_id: (props.queryParams.supplier_id as string) ?? '',
+  warehouse_id: (props.queryParams.warehouse_id as string) ?? '',
+  status: (props.queryParams.status as string) ?? '',
+})
 
-// 同步标志位：防止 prop → local 与 local → emit 形成循环
-let syncing = false
+/** 搜索：先同步筛选条件到父组件，再触发加载 */
+const handleSearch = () => {
+  emit('update:queryParams', { ...localQuery })
+  emit('fetch')
+}
 
-// 外部 prop 变化时同步到 local（如父组件重置）
-watch(
-  () => props.form,
-  (newForm) => {
-    if (syncing) return
-    syncing = true
-    localForm.value = { ...newForm }
-    nextTick(() => {
-      syncing = false
-    })
-  },
-  { deep: true },
-)
-
-// 本地变化时通知父组件（用户输入）
-watch(
-  localForm,
-  (newForm) => {
-    if (syncing) return
-    syncing = true
-    emit('update:form', { ...newForm })
-    nextTick(() => {
-      syncing = false
-    })
-  },
-  { deep: true },
-)
+/** 重置：清空筛选条件 + 同步 + 触发加载 */
+const handleReset = () => {
+  localQuery.receipt_no = ''
+  localQuery.supplier_id = ''
+  localQuery.warehouse_id = ''
+  localQuery.status = ''
+  emit('update:queryParams', { ...localQuery })
+  emit('fetch')
+}
 </script>
 
 <style scoped>
