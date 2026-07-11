@@ -7,6 +7,16 @@ use std::path::Path;
 /// 递归深度上限，防止恶意 tar 包含数千层嵌套目录导致栈溢出
 const MAX_RECURSION_DEPTH: usize = 100;
 
+/// 获取 .env 文件路径（可通过 BINGXI_ENV_FILE 环境变量配置）
+fn get_env_file_path() -> String {
+    std::env::var("BINGXI_ENV_FILE").unwrap_or_else(|_| "/etc/bingxi/.env".to_string())
+}
+
+/// 获取 systemd 服务目录（可通过 BINGXI_SYSTEMD_DIR 环境变量配置）
+fn get_systemd_dir() -> String {
+    std::env::var("BINGXI_SYSTEMD_DIR").unwrap_or_else(|_| "/etc/systemd/system".to_string())
+}
+
 /// 校验解压后的所有文件路径都在指定目录范围内，防止 Tar Slip 路径穿越攻击
 fn validate_extracted_paths(base_dir: &str) -> Result<(), String> {
     let base_canonical = fs::canonicalize(base_dir)
@@ -87,14 +97,14 @@ pub(super) fn cmd_backup(backup_type: &str) {
     if backup_type == "files" || backup_type == "all" {
         println!("\n备份配置文件...");
         let config_dir = format!("{}/backend/config.yaml", get_install_dir());
-        let env_file = "/etc/bingxi/.env";
-        let service_file = format!("/etc/systemd/system/{}.service", super::SERVICE_NAME);
+        let env_file = get_env_file_path();
+        let service_file = format!("{}/{}.service", get_systemd_dir(), super::SERVICE_NAME);
 
         // 批次 92 P3-8：cp 失败应记录错误（不中止，尽量备份剩余文件）
         if let Err(e) = run_cmd("cp", &["-r", &config_dir, &backup_dir]) {
             println!("[ERROR] 备份 config.yaml 失败: {}", e);
         }
-        if let Err(e) = run_cmd("cp", &["-r", env_file, &backup_dir]) {
+        if let Err(e) = run_cmd("cp", &["-r", &env_file, &backup_dir]) {
             println!("[ERROR] 备份 .env 失败: {}", e);
         }
         if let Err(e) = run_cmd("cp", &["-r", &service_file, &backup_dir]) {
@@ -234,7 +244,7 @@ pub(super) fn cmd_restore(file: &str) {
         let src = format!("{}/{}", temp_dir, name);
         if std::path::Path::new(&src).exists() {
             let dst = if *name == ".env" {
-                "/etc/bingxi/.env".to_string()
+                get_env_file_path()
             } else {
                 format!("{}/backend/{}", get_install_dir(), name)
             };

@@ -289,11 +289,10 @@ impl CurrencyService {
         validate_currency_code(from_currency)?;
         validate_currency_code(to_currency)?;
 
-        // 使用免费的汇率API
-        let url = format!(
-            "https://api.exchangerate-api.com/v4/latest/{}",
-            from_currency
-        );
+        // M7 修复（v8 复审）：API URL 从环境变量读取，避免硬编码
+        let api_base = std::env::var("EXCHANGE_RATE_API_URL")
+            .unwrap_or_else(|_| "https://api.exchangerate-api.com/v4/latest".to_string());
+        let url = format!("{}/{}", api_base, from_currency);
 
         tracing::info!("调用外部汇率API: {} -> {}", from_currency, to_currency);
 
