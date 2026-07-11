@@ -436,9 +436,12 @@ impl SystemUpdateService {
                 {
                     use std::os::unix::fs::PermissionsExt;
                     if let Some(mode) = file.unix_mode() {
+                        // 规则 12 合规：重置权限掩码，移除 SUID/SGID/粘性位，
+                        // 防止恶意更新包设置特殊权限位导致权限提升
+                        let safe_mode = mode & 0o755;
                         if let Ok(metadata) = fs::metadata(&outpath) {
                             let mut perms = metadata.permissions();
-                            perms.set_mode(mode);
+                            perms.set_mode(safe_mode);
                             // 批次 98 P2-C 修复（v5 复审）：吞错改日志记录，权限设置失败不阻塞解压
                             if let Err(e) = fs::set_permissions(&outpath, perms) {
                                 tracing::warn!("设置文件权限失败 {:?}: {}", outpath, e);
