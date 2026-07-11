@@ -2,7 +2,7 @@
   purchase-price/index.vue - 采购价格管理（拆分重构版）
   任务编号: P14 批 2 I-3 第 3 批
   拆分：622 行 → ~150 行 + 5 子组件 + 2 composable + 1 工具
-  行为完全保持一致（仅结构重构）
+  批次 285：PpFilter/PpTbl 接入 useTableApi（v-model:page/page-size + @fetch + @update:queryParams）
 -->
 <template>
   <div class="purchase-price-page">
@@ -31,22 +31,20 @@
       :query-params="pp.queryParams"
       :suppliers="pp.suppliers"
       :products="pp.products"
-      @query="pp.handleQuery"
-      @reset="pp.handleReset"
+      @fetch="pp.handleQuery"
       @update:query-params="(v) => Object.assign(pp.queryParams, v)"
     />
 
     <PpTbl
+      v-model:page="pp.page"
+      v-model:page-size="pp.pageSize"
       :price-list="pp.priceList"
       :loading="pp.loading"
       :total="pp.total"
-      :query-params="pp.queryParams"
       @view="ppProc.handleView"
       @edit="onEdit"
       @disable="ppProc.handleDisable"
       @history="ppProc.handleHistory"
-      @size-change="pp.handleSizeChange"
-      @current-change="pp.handleCurrentChange"
     />
 
     <PpForm
@@ -103,6 +101,7 @@ const onSubmitForm = async () => {
   if (ok) dialogVisible.value = false
 }
 
+// 列表由 useTableApi setup 自动加载，onMounted 仅加载辅助数据
 onMounted(() => {
   pp.initLoad()
 })

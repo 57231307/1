@@ -2,32 +2,30 @@
   purchaseReceipt/index.vue - 采购入库管理（拆分重构版）
   任务编号: P14 批 2 I-3 第 4 批
   拆分：598 行 → ~150 行 + 4 子组件 + 2 composable + 1 工具
-  行为完全保持一致（仅结构重构）
+  批次 285：PrcFilter/PrcTbl 接入 useTableApi（v-model:page/page-size + @fetch + @update:queryParams）
 -->
 <template>
   <div class="app-container">
     <PrcFilter
-      :form="prc.searchForm"
+      :query-params="prc.queryParams"
       :suppliers="prc.supplierOptions"
       :warehouses="prc.warehouseOptions"
       :status-options="statusOptions"
-      @search="prcProc.handleSearch"
-      @reset="prcProc.handleReset"
+      @fetch="prcProc.handleSearch"
+      @update:query-params="(v) => Object.assign(prc.queryParams, v)"
       @add="prcProc.openAddDialog"
-      @update:form="(v) => (prc.searchForm = v)"
     />
 
     <PrcTbl
+      v-model:page="prc.page"
+      v-model:page-size="prc.pageSize"
       :data="prc.tableData"
       :loading="prc.loading"
       :total="prc.total"
-      :pagination="prc.pagination"
       @view="prcProc.openViewDialog"
       @edit="prcProc.openEditDialog"
       @approve="prcProc.handleApprove"
       @delete="prcProc.handleDelete"
-      @size-change="prcProc.handlePageSizeChange"
-      @current-change="prcProc.handlePageChange"
     />
 
     <PrcForm
@@ -67,8 +65,8 @@ import PrcDetail from './components/PrcDetail.vue'
 // 业务状态
 const prc = usePrc()
 const prcProc = usePrcProc({
-  searchForm: prc.searchForm,
-  pagination: prc.pagination,
+  queryParams: prc.queryParams,
+  page: prc.page,
   dialogVisible: prc.dialogVisible,
   dialogTitle: prc.dialogTitle,
   form: prc.form,
@@ -84,8 +82,8 @@ const statusOptions = STATUS_OPTIONS
 // 懒加载标记
 const hasLoaded = createLazyLoader()
 
+// 列表由 useTableApi setup 自动加载，onMounted 仅加载辅助数据
 onMounted(() => {
-  prc.loadData()
   loadIfNot('suppliers', prc.loadSuppliers, hasLoaded)
   loadIfNot('warehouses', prc.loadWarehouses, hasLoaded)
   loadIfNot('products', prc.loadProducts, hasLoaded)

@@ -66,13 +66,13 @@
 
     <div class="pagination-container">
       <el-pagination
-        :current-page="queryParams.page"
-        :page-size="queryParams.page_size"
+        :current-page="page"
+        :page-size="pageSize"
         :page-sizes="[10, 20, 50, 100]"
         :total="total"
         layout="total, sizes, prev, pager, next, jumper"
-        @size-change="emit('size-change', $event as number)"
-        @current-change="emit('current-change', $event as number)"
+        @update:current-page="(v: number) => emit('update:page', v)"
+        @update:page-size="(v: number) => emit('update:page-size', v)"
       />
     </div>
   </el-card>
@@ -82,14 +82,8 @@
 import type { PurchasePrice } from '@/api/purchase-price'
 import { formatCurrency, getPriceTypeLabel, getStatusType, getStatusLabel } from '../composables/ppFmts'
 
-// 采购价格查询参数（分页字段）
-interface PpQueryParams {
-  page: number
-  page_size: number
-}
-
 /**
- * 采购价格列表表格组件
+ * 采购价格列表表格组件（批次 285：page/pageSize props + v-model 绑定分页）
  */
 defineProps<{
   // 列表数据
@@ -98,8 +92,10 @@ defineProps<{
   loading: boolean
   // 总数
   total: number
-  // 查询参数（用于分页）
-  queryParams: PpQueryParams
+  // 当前页
+  page: number
+  // 每页条数
+  pageSize: number
 }>()
 
 const emit = defineEmits<{
@@ -107,8 +103,8 @@ const emit = defineEmits<{
   edit: [row: PurchasePrice]
   disable: [row: PurchasePrice]
   history: [row: PurchasePrice]
-  'size-change': [val: number]
-  'current-change': [val: number]
+  'update:page': [v: number]
+  'update:page-size': [v: number]
 }>()
 </script>
 

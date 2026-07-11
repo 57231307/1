@@ -3,20 +3,20 @@
  * 任务编号: P14 批 2 I-3 第 4 批（拆分原 purchaseReceipt/index.vue）
  * 提供列表查询 / 表单 / 选项加载 / 详情等核心方法
  * 业务流程（提交 / 删除 / 审核）由 usePrcProc 提供
- * 行为完全保持一致（仅结构重构）
  *
  * 注意：返回值使用 reactive({...}) 包装，父组件可直接访问字段（自动解包 ref）
  * 子组件通过 :model-value/@update:model-value 模式传入；不会修改 prop
+ * 批次 285：tableData 接入 useTableApi，移除手写分页/加载逻辑
  */
 import { ref, reactive } from 'vue'
 import { ElMessage } from 'element-plus'
 import { request } from '@/api/request'
 import {
-  listPurchaseReceipts,
   type PurchaseReceiptEntity,
   type ReceiptItem,
 } from '@/api/purchaseReceipt'
 import { logger } from '@/utils/logger'
+import { useTableApi } from '@/composables/useTableApi'
 
 /**
  * 入库表单字段类型（所有字段可选，兼容 Partial<PurchaseReceiptEntity>）
@@ -37,23 +37,29 @@ export interface PrcForm {
  * 集中管理列表、分页、搜索表单、入库表单、选项加载、详情
  */
 export function usePrc() {
-  // 列表
-  const tableData = ref<PurchaseReceiptEntity[]>([])
-  const total = ref(0)
-  const loading = ref(false)
-
-  // 搜索表单
-  const searchForm = ref({
-    receipt_no: '',
-    supplier_id: '',
-    warehouse_id: '',
-    status: '',
-  })
-
-  // 分页
-  const pagination = ref({
-    page: 1,
-    pageSize: 20,
+  // 列表 - 接入 useTableApi（批次 285）
+  const {
+    data: tableData,
+    total,
+    loading,
+    page,
+    pageSize,
+    queryParams,
+    refresh: loadData,
+  } = useTableApi<PurchaseReceiptEntity>({
+    url: '/purchase/receipts',
+    defaultPageSize: 20,
+    defaultParams: {
+      receipt_no: '',
+      supplier_id: '' as string | undefined,
+      warehouse_id: '' as string | undefined,
+      status: '',
+    },
+    onError: (err: unknown) => {
+      // 使用类型守卫安全提取错误信息
+      const errMsg = err instanceof Error ? err.message : ''
+      ElMessage.error(errMsg || '加载失败')
+    },
   })
 
   // 入库表单对话框
@@ -84,40 +90,6 @@ export function usePrc() {
   const supplierOptions = ref<{ label: string; value: number }[]>([])
   const warehouseOptions = ref<{ label: string; value: number }[]>([])
   const productOptions = ref<{ label: string; value: number }[]>([])
-
-  /**
-   * 加载列表数据
-   */
-  const loadData = async () => {
-    loading.value = true
-    try {
-      const res: { data: { list: PurchaseReceiptEntity[]; total: number } | null } =
-        (await listPurchaseReceipts({
-          page: pagination.value.page,
-          pageSize: pagination.value.pageSize,
-          receipt_no: searchForm.value.receipt_no,
-          supplier_id: searchForm.value.supplier_id
-            ? Number(searchForm.value.supplier_id)
-            : undefined,
-          warehouse_id: searchForm.value.warehouse_id
-            ? Number(searchForm.value.warehouse_id)
-            : undefined,
-          status: searchForm.value.status,
-        } as unknown as Record<string, unknown>)) as {
-          data: { list: PurchaseReceiptEntity[]; total: number } | null
-        }
-      // 安全检查：防止后端返回 data 为 null 时崩溃
-      if (res.data) {
-        tableData.value = res.data.list
-        total.value = res.data.total
-      }
-    } catch (error) {
-      logger.error('加载失败:', error)
-      ElMessage.error('加载失败')
-    } finally {
-      loading.value = false
-    }
-  }
 
   /** 加载供应商 */
   const loadSuppliers = async () => {
@@ -160,14 +132,14 @@ export function usePrc() {
 
   // 使用 reactive 包装，父组件可直接访问字段
   return reactive({
-    // 列表
+    // 列表（useTableApi 管理）
     tableData,
     total,
     loading,
-    // 搜索表单
-    searchForm,
-    // 分页
-    pagination,
+    page,
+    pageSize,
+    queryParams,
+    loadData,
     // 入库表单
     dialogVisible,
     dialogTitle,
@@ -182,7 +154,6 @@ export function usePrc() {
     warehouseOptions,
     productOptions,
     // 加载方法
-    loadData,
     loadSuppliers,
     loadWarehouses,
     loadProducts,

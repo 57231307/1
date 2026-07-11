@@ -66,13 +66,13 @@
 
   <div class="pagination-container">
     <el-pagination
-      :current-page="pagination.page"
-      :page-size="pagination.pageSize"
+      :current-page="page"
+      :page-size="pageSize"
       :page-sizes="[10, 20, 50, 100]"
       :total="total"
       layout="total, sizes, prev, pager, next, jumper"
-      @size-change="emit('size-change', $event as number)"
-      @current-change="emit('current-change', $event as number)"
+      @update:current-page="(v: number) => emit('update:page', v)"
+      @update:page-size="(v: number) => emit('update:page-size', v)"
     />
   </div>
 </template>
@@ -82,14 +82,8 @@ import { View, Edit, Delete, Check } from '@element-plus/icons-vue'
 import type { PurchaseReceiptEntity } from '@/api/purchaseReceipt'
 import { getStatusClass, getStatusLabel } from '../composables/prcFmts'
 
-// 分页类型
-interface Pgn {
-  page: number
-  pageSize: number
-}
-
 /**
- * 采购入库列表组件
+ * 采购入库列表组件（批次 285：page/pageSize props + v-model 绑定分页）
  */
 defineProps<{
   // 列表数据
@@ -98,8 +92,10 @@ defineProps<{
   loading: boolean
   // 总数
   total: number
-  // 分页
-  pagination: Pgn
+  // 当前页
+  page: number
+  // 每页条数
+  pageSize: number
 }>()
 
 const emit = defineEmits<{
@@ -107,8 +103,8 @@ const emit = defineEmits<{
   edit: [row: PurchaseReceiptEntity]
   approve: [row: PurchaseReceiptEntity]
   delete: [row: PurchaseReceiptEntity]
-  'size-change': [val: number]
-  'current-change': [val: number]
+  'update:page': [v: number]
+  'update:page-size': [v: number]
 }>()
 
 // 透传格式化函数

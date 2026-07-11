@@ -3,13 +3,12 @@
  * 任务编号: P14 批 2 I-3 第 3 批（拆分原 purchase-price/index.vue）
  * 提供采购价格列表查询、表单管理、供应商/产品加载、CRUD 等核心方法
  * 业务流程（停用/导出/查看/历史）由 usePpProc 提供
- * 行为完全保持一致（仅结构重构）
+ * 批次 285：priceList 接入 useTableApi，移除手写分页/加载逻辑
  */
 import { ref, reactive } from 'vue'
 import { ElMessage } from 'element-plus'
 import { FormInstance } from 'element-plus'
 import {
-  listPurchasePrices,
   createPurchasePrice,
   updatePurchasePrice,
   type PurchasePrice,
@@ -18,6 +17,7 @@ import { supplierApi, type Supplier } from '@/api/supplier'
 import { productApi, type Product } from '@/api/product'
 import { loadIfNot, createLazyLoader } from '@/utils/lazy-loader'
 import { logger } from '@/utils/logger'
+import { useTableApi } from '@/composables/useTableApi'
 
 /**
  * 采购价格 composable
@@ -25,20 +25,30 @@ import { logger } from '@/utils/logger'
  * 对话框可见性由父组件本地 ref 管理
  */
 export function usePp() {
-  // 查询参数
-  const queryParams = reactive({
-    page: 1,
-    page_size: 20,
-    keyword: '',
-    supplier_id: undefined as number | undefined,
-    product_id: undefined as number | undefined,
-    status: '',
+  // 列表 - 接入 useTableApi（批次 285）
+  const {
+    data: priceList,
+    total,
+    loading,
+    page,
+    pageSize,
+    queryParams,
+    refresh: getList,
+  } = useTableApi<PurchasePrice>({
+    url: '/purchase/purchase-prices',
+    defaultPageSize: 20,
+    defaultParams: {
+      keyword: '',
+      supplier_id: undefined as number | undefined,
+      product_id: undefined as number | undefined,
+      status: '',
+    },
+    onError: (err: unknown) => {
+      // 使用类型守卫安全提取错误信息
+      const errMsg = err instanceof Error ? err.message : ''
+      ElMessage.error(errMsg || '获取采购价格列表失败')
+    },
   })
-
-  // 列表数据
-  const loading = ref(false)
-  const priceList = ref<PurchasePrice[]>([])
-  const total = ref(0)
 
   // 供应商和产品列表
   const suppliers = ref<Supplier[]>([])
@@ -76,20 +86,6 @@ export function usePp() {
   // 懒加载标记
   const hasLoaded = createLazyLoader()
 
-  /** 获取列表数据 */
-  const getList = async () => {
-    loading.value = true
-    try {
-      const res = await listPurchasePrices(queryParams)
-      priceList.value = res.data?.list || []
-      total.value = res.data?.total || 0
-    } catch (error) {
-      logger.error('获取采购价格列表失败:', error)
-    } finally {
-      loading.value = false
-    }
-  }
-
   /** 获取供应商列表 */
   const getSuppliers = async () => {
     try {
@@ -112,17 +108,20 @@ export function usePp() {
 
   /** 查询 */
   const handleQuery = () => {
-    queryParams.page = 1
+    page.value = 1
     getList()
   }
 
   /** 重置 */
   const handleReset = () => {
-    queryParams.keyword = ''
-    queryParams.supplier_id = undefined
-    queryParams.product_id = undefined
-    queryParams.status = ''
-    handleQuery()
+    queryParams.value = {
+      keyword: '',
+      supplier_id: undefined,
+      product_id: undefined,
+      status: '',
+    }
+    page.value = 1
+    getList()
   }
 
   /** 准备新建表单（父组件需自行打开对话框） */
@@ -161,46 +160,38 @@ export function usePp() {
       ElMessage.success('保存成功')
       await getList()
       return true
-    } catch (error) {
-      logger.error('表单验证失败:', error)
+    } catch (error: unknown) {
+      // 使用类型守卫安全提取错误信息
+      if (error instanceof Error && error.message) {
+        ElMessage.error(error.message || '操作失败')
+      }
       return false
     }
   }
 
-  /** 分页 - 每页大小 */
-  const handleSizeChange = (val: number) => {
-    queryParams.page_size = val
-    getList()
-  }
-
-  /** 分页 - 当前页 */
-  const handleCurrentChange = (val: number) => {
-    queryParams.page = val
-    getList()
-  }
-
-  /** 初始化加载（懒加载供应商/产品） */
+  /** 初始化加载辅助数据（懒加载供应商/产品，列表由 useTableApi setup 自动加载） */
   const initLoad = () => {
-    getList()
     loadIfNot('suppliers', getSuppliers, hasLoaded)
     loadIfNot('products', getProducts, hasLoaded)
   }
 
   // 使用 reactive 包装，访问字段时自动解包 ref
   return reactive({
-    // 查询与列表
+    // 查询与列表（useTableApi 管理）
     queryParams,
+    page,
+    pageSize,
     loading,
     priceList,
     total,
     getList,
     handleQuery,
     handleReset,
-    handleSizeChange,
-    handleCurrentChange,
     // 供应商与产品
     suppliers,
     products,
+    getSuppliers,
+    getProducts,
     // 对话框与表单
     dialogTitle,
     formRef,
