@@ -48,8 +48,8 @@
           :page="cp.currentPage"
           :page-size="cp.pageSize"
           @refresh="cp.fetchWorkCenters"
-          @update:page="(v: number) => ((cp.currentPage = v), cp.fetchWorkCenters())"
-          @update:size="(v: number) => ((cp.pageSize = v), cp.fetchWorkCenters())"
+          @update:page="(v: number) => (cp.currentPage = v)"
+          @update:size="(v: number) => (cp.pageSize = v)"
         />
       </el-col>
       <el-col :xs="24" :lg="8">

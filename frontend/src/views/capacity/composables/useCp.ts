@@ -2,10 +2,13 @@
 // 拆分自 capacity/index.vue（P14 批 2 I-3 第 6 批）
 // 业务领域：产能管理（summary/trend/workCenters/bottlenecks + 分页 + 过滤）
 // 行为完全保持一致（仅结构重构）
+// 批次 288：workCenters 接入 useTableApi，移除手写分页逻辑
 import { reactive, ref } from 'vue'
 import { ElMessage } from 'element-plus'
 import { capacityApi } from '@/api/capacity'
 import type { CapacitySummary, WorkCenter, CapacityTrend } from '@/api/capacity'
+import { useTableApi } from '@/composables/useTableApi'
+import { logger } from '@/utils/logger'
 
 /** capacity 主业务 composable（返回 reactive 包装的字段，父组件可直接 .字段 解包） */
 export const useCp = () => {
@@ -14,16 +17,29 @@ export const useCp = () => {
   const trendDays = ref(7)
   const selectedWorkCenter = ref<number | undefined>(undefined)
 
-  // 分页
-  const currentPage = ref(1)
-  const pageSize = ref(10)
-  const total = ref(0)
+  // 列表数据接入 useTableApi
+  // 工作中心 API 返回 ApiResponse<PageResult<WorkCenter>>，
+  // PageResult 包含 list + total 字段，useTableApi detectList 检测 list（默认 listKey='list'）
+  const {
+    data: workCenters,
+    total,
+    loading: tableLoading,
+    page: currentPage,
+    pageSize,
+    queryParams,
+    refresh: fetchWorkCenters,
+  } = useTableApi<WorkCenter>({
+    url: '/capacity/work-centers',
+    defaultPageSize: 10,
+    onError: (err: unknown) => {
+      logger.error('获取工作中心列表失败:', err)
+      ElMessage.error('获取工作中心列表失败')
+    },
+  })
 
   // 业务数据
   const summary = ref<CapacitySummary>({} as CapacitySummary)
-  const workCenters = ref<WorkCenter[]>([])
   const bottlenecks = ref<WorkCenter[]>([])
-  const tableLoading = ref(false)
   const bottleneckLoading = ref(false)
 
   // 趋势数据（传给 CpTrend 用于渲染 ECharts）
@@ -52,28 +68,6 @@ export const useCp = () => {
       if (res.data) trendData.value = res.data
     } catch (error: unknown) {
       ElMessage.error((error instanceof Error ? error.message : '') || '获取产能趋势失败')
-    }
-  }
-
-  // 获取工作中心列表
-  const fetchWorkCenters = async () => {
-    tableLoading.value = true
-    try {
-      const res = await capacityApi.listWorkCenters({
-        page: currentPage.value,
-        page_size: pageSize.value,
-      })
-      // 安全检查：防止后端返回 data 为 null 时崩溃
-      if (res.data) {
-        workCenters.value = res.data.list
-        total.value = res.data.total
-      }
-    } catch (error: unknown) {
-      ElMessage.error((error instanceof Error ? error.message : '') || '获取工作中心列表失败')
-      workCenters.value = []
-      total.value = 0
-    } finally {
-      tableLoading.value = false
     }
   }
 
@@ -107,9 +101,9 @@ export const useCp = () => {
     fetchTrendData()
   }
 
-  // 初始化挂载：拉取全部数据
+  // 初始化挂载：工作中心列表由 useTableApi setup 自动加载，此处仅拉取辅助数据
   const initOnMount = async () => {
-    await Promise.all([fetchSummary(), fetchTrendData(), fetchWorkCenters(), fetchBottlenecks()])
+    await Promise.all([fetchSummary(), fetchTrendData(), fetchBottlenecks()])
   }
 
   return reactive({
@@ -119,6 +113,7 @@ export const useCp = () => {
     currentPage,
     pageSize,
     total,
+    queryParams,
     summary,
     workCenters,
     bottlenecks,

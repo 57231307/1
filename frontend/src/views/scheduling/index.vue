@@ -19,16 +19,14 @@
           :task-list="schM.taskList"
           :task-loading="schM.taskLoading"
           :total="schM.total"
-          :current-page="schM.currentPage"
-          :page-size="schM.pageSize"
+          v-model:current-page="schM.currentPage"
+          v-model:page-size="schM.pageSize"
           :filter-status="schM.filterStatus"
           @update:filter-status="(v) => (schM.filterStatus = v)"
-          @update:current-page="(v) => (schM.currentPage = v)"
-          @update:page-size="(v) => (schM.pageSize = v)"
           @adjust="(row) => schM.handleAdjust(row)"
           @conflict-detail="(row) => schM.showConflictDetail(row)"
           @refresh="schM.fetchTasks"
-          @filter-change="schM.fetchTasks"
+          @filter-change="schM.handleFilterChange"
         />
       </el-col>
 

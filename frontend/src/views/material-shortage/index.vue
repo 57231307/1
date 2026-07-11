@@ -32,6 +32,7 @@
       @update:filter-severity="(v: string) => (ms.filterSeverity = v)"
       @update:filter-status="(v: string) => (ms.filterStatus = v)"
     />
+
   </div>
 </template>
 
@@ -57,11 +58,12 @@ const msProc = useMsProc({
   shortageList: ms.shortageList,
   fetchSummary: ms.fetchSummary,
   fetchShortages: ms.fetchShortages,
+  syncFilterToQuery: ms.syncFilterToQuery,
 })
 
+// 列表由 useTableApi setup 自动加载，onMounted 仅加载汇总
 onMounted(() => {
   ms.fetchSummary()
-  ms.fetchShortages()
 })
 </script>
 

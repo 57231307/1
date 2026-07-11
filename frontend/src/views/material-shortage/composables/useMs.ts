@@ -4,6 +4,7 @@
  * 提供汇总 / 列表 / 分页 / 过滤等核心方法
  * 业务流程（触发检查 / 通知 / 解决 / 筛选）由 useMsProc 提供
  * 行为完全保持一致（仅结构重构）
+ * 批次 288：shortageList 接入 useTableApi，移除手写分页逻辑
  *
  * 注意：返回值使用 reactive({...}) 包装，父组件可直接访问字段（自动解包 ref）
  */
@@ -15,6 +16,7 @@ import {
   type MaterialShortageSummary,
   type MaterialShortage,
 } from '@/api/material-shortage'
+import { useTableApi } from '@/composables/useTableApi'
 import { logger } from '@/utils/logger'
 
 /**
@@ -22,22 +24,39 @@ import { logger } from '@/utils/logger'
  * 集中管理汇总、列表、分页、过滤
  */
 export function useMs() {
-  // 分页
-  const currentPage = ref(1)
-  const pageSize = ref(10)
-  const total = ref(0)
-
   // 过滤
   const filterSeverity = ref('')
   const filterStatus = ref('')
 
   // 加载状态
-  const tableLoading = ref(false)
   const checking = ref(false)
+
+  // 列表数据接入 useTableApi
+  // 缺料列表 API 返回 ApiResponse<PageResult<MaterialShortage>>，
+  // PageResult 包含 list + total 字段，useTableApi detectList 检测 list（默认 listKey='list'）
+  const {
+    data: shortageList,
+    total,
+    loading: tableLoading,
+    page: currentPage,
+    pageSize,
+    queryParams,
+    refresh: fetchShortages,
+  } = useTableApi<MaterialShortage>({
+    url: '/material-shortage/list',
+    defaultPageSize: 10,
+    defaultParams: {
+      severity: '',
+      status: '',
+    },
+    onError: (err: unknown) => {
+      logger.error('获取缺料列表失败', err)
+      ElMessage.error('获取缺料列表失败')
+    },
+  })
 
   // 数据
   const summary = ref<MaterialShortageSummary>({} as MaterialShortageSummary)
-  const shortageList = ref<MaterialShortage[]>([])
 
   /**
    * 加载汇总
@@ -54,30 +73,12 @@ export function useMs() {
     }
   }
 
-  /**
-   * 加载缺料列表
-   */
-  const fetchShortages = async () => {
-    tableLoading.value = true
-    try {
-      const params: Record<string, unknown> = {
-        page: currentPage.value,
-        page_size: pageSize.value,
-      }
-      if (filterSeverity.value) params.severity = filterSeverity.value
-      if (filterStatus.value) params.status = filterStatus.value
-      const res = await materialShortageApi.listShortages(params)
-      const data = res.data
-      shortageList.value = data ? data.list : []
-      total.value = data ? data.total : 0
-    } catch (error) {
-      const msg = error instanceof Error ? error.message : '获取缺料列表失败'
-      logger.error(msg)
-      ElMessage.error(msg)
-      shortageList.value = []
-      total.value = 0
-    } finally {
-      tableLoading.value = false
+  /** 同步 filterSeverity/filterStatus 到 queryParams */
+  const syncFilterToQuery = () => {
+    queryParams.value = {
+      ...queryParams.value,
+      severity: filterSeverity.value,
+      status: filterStatus.value,
     }
   }
 
@@ -93,6 +94,7 @@ export function useMs() {
     // 过滤
     filterSeverity,
     filterStatus,
+    queryParams,
     // 加载状态
     tableLoading,
     checking,
@@ -102,6 +104,7 @@ export function useMs() {
     // 加载方法
     fetchSummary,
     fetchShortages,
+    syncFilterToQuery,
     // 懒加载标记
     hasLoaded,
     // 兼容旧名
