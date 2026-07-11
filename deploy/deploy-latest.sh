@@ -191,6 +191,9 @@ deploy_remote() {
             # 批次 273 修复：强制要求 AUDIT_SECRET_KEY（后端 settings.rs:355 校验，
             # 缺失或弱密钥会导致 systemd 启动失败）
             AUDIT=\${AUDIT_SECRET_KEY:?必须设置 AUDIT_SECRET_KEY}
+            # 批次 277 修复：强制要求 WEBHOOK_SECRET（后端 main.rs:411-419 校验，
+            # 缺失时直接 exit(1)；app_state.rs:154 校验与 JWT_SECRET 互不相同）
+            WEBHOOK=\${WEBHOOK_SECRET:?必须设置 WEBHOOK_SECRET}
             # 批次 24 v6 P0-3 修复：数据库连接强制 SSL（原 sslmode=disable 明文传输）。
             # 生产环境数据库流量含密码和业务数据，必须加密防止中间人嗅探。
             CONN_STR=\"postgres://\${DB_USER}:\${DB_PASS}@\${DB_HOST}:\${DB_PORT}/\${DB_NAME}?sslmode=require\"
@@ -215,6 +218,8 @@ database:
 auth:
   jwt_secret: \"\${JWT}\"
   cookie_secret: \"\${COOKIE}\"
+  # 批次 277 修复：注入 webhook_secret（main.rs:411-419 强制要求显式配置）
+  webhook_secret: \"\${WEBHOOK}\"
   token_expiry_hours: 24
 
 grpc:
