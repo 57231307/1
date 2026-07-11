@@ -102,8 +102,6 @@
         layout="total, sizes, prev, pager, next, jumper"
         @update:current-page="(v: number) => emit('update:page', v)"
         @update:page-size="(v: number) => emit('update:size', v)"
-        @size-change="emit('filter-change')"
-        @current-change="emit('filter-change')"
       />
     </div>
   </el-card>

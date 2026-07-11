@@ -30,6 +30,7 @@ interface MsCallbacks {
   // 方法
   fetchSummary: () => Promise<void>
   fetchShortages: () => Promise<void>
+  syncFilterToQuery: () => void
 }
 
 /**
@@ -89,9 +90,10 @@ export function useMsProc(cb: MsCallbacks) {
   }
 
   /**
-   * 过滤变化
+   * 过滤变化：同步筛选条件，重置页码，触发加载
    */
   const handleFilterChange = () => {
+    cb.syncFilterToQuery()
     cb.currentPage = 1
     cb.fetchShortages()
   }

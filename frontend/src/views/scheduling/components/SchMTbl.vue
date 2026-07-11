@@ -76,10 +76,8 @@
       :page-sizes="[10, 20, 50]"
       layout="total, sizes, prev, pager, next"
       class="pagination"
-      @update:current-page="onPageChange"
-      @update:page-size="onSizeChange"
-      @size-change="onSizeChange"
-      @current-change="onPageChange"
+      @update:current-page="(v: number) => emit('update:currentPage', v)"
+      @update:page-size="(v: number) => emit('update:pageSize', v)"
     />
   </el-card>
 </template>
@@ -126,16 +124,6 @@ const emit = defineEmits<{
 /** 筛选值变化 */
 const onFilterChange = (v: string) => {
   emit('update:filterStatus', v)
-}
-
-/** 当前页变化 */
-const onPageChange = (v: number) => {
-  emit('update:currentPage', v)
-}
-
-/** 每页大小变化 */
-const onSizeChange = (v: number) => {
-  emit('update:pageSize', v)
 }
 </script>
 
