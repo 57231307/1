@@ -9,7 +9,7 @@ Type=simple
 User=bingxi
 Group=bingxi
 WorkingDirectory=/opt/bingxi-erp/backend
-EnvironmentFile=/etc/bingxi-erp/.env
+EnvironmentFile=/etc/bingxi/.env
 Environment=CONFIG_FILE=/opt/bingxi-erp/backend/config.yaml
 ExecStart=/opt/bingxi-erp/backend/server
 Restart=always

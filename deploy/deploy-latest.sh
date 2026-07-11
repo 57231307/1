@@ -159,6 +159,12 @@ deploy_remote() {
         mkdir -p /opt/bingxi/frontend/dist
         mkdir -p /etc/bingxi
 
+        # 创建系统用户和组（修复 bingxi 用户不存在导致服务无法启动）
+        if ! id bingxi &>/dev/null; then
+            groupadd -r bingxi
+            useradd -r -g bingxi -s /bin/false -d /opt/bingxi-erp bingxi
+        fi
+
         # 部署后端
         cp /tmp/bingxi-deploy/backend/server /opt/bingxi-erp/backend/
         cp /tmp/bingxi-deploy/backend/bingxi /opt/bingxi-erp/backend/ 2>/dev/null || true
@@ -241,6 +247,12 @@ EOF
         cp /tmp/bingxi-deploy/deploy/bingxi-backend.service /etc/systemd/system/
         systemctl daemon-reload
         systemctl enable bingxi-backend
+
+        # 设置目录权限（bingxi 用户需要读取 .env 和写入日志）
+        chown -R bingxi:bingxi /opt/bingxi-erp
+        chown -R bingxi:bingxi /etc/bingxi
+        chmod 750 /opt/bingxi-erp/backend
+        chmod 640 /etc/bingxi/.env 2>/dev/null || true
 
         # 配置 Nginx
         cp /tmp/bingxi-deploy/deploy/nginx.conf /etc/nginx/sites-available/bingxi-erp
