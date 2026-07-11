@@ -128,13 +128,13 @@
 
       <div class="pagination-wrapper">
         <el-pagination
-          v-model:current-page="queryParams.page"
-          v-model:page-size="queryParams.page_size"
+          v-model:current-page="page"
+          v-model:page-size="pageSize"
           :page-sizes="[10, 20, 50, 100]"
           :total="total"
           layout="total, sizes, prev, pager, next, jumper"
-          @size-change="handleQuery"
-          @current-change="handleQuery"
+          @size-change="handleSizeChange"
+          @current-change="handlePageChange"
         />
       </div>
     </el-card>
@@ -142,19 +142,16 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, onMounted, defineEmits } from 'vue'
+import { reactive, watch, defineEmits } from 'vue'
 import { ElMessage } from 'element-plus'
 import { Document, Clock, CircleCheck, Money, Plus } from '@element-plus/icons-vue'
-import { listInventoryAdjustments, type InventoryAdjustmentEntity } from '@/api/inventoryAdjustment'
+import { type InventoryAdjustmentEntity } from '@/api/inventoryAdjustment'
+import { useTableApi } from '@/composables/useTableApi'
 
 const emit = defineEmits<{
   openForm: [mode: 'create' | 'edit' | 'view', row: InventoryAdjustmentEntity | null]
   openApprove: [row: InventoryAdjustmentEntity]
 }>()
-
-const adjustments = ref<InventoryAdjustmentEntity[]>([])
-const loading = ref(false)
-const total = ref(0)
 
 const stats = reactive({
   total: 0,
@@ -164,11 +161,59 @@ const stats = reactive({
 })
 
 const queryParams = reactive({
-  page: 1,
-  page_size: 20,
   adjust_no: '',
   status: '',
 })
+
+// 批次 277：接入 useTableApi，消除手写 adjustments/loading/total/fetchAdjustments 重复
+const {
+  data: adjustments,
+  loading,
+  page,
+  pageSize,
+  total,
+  refresh: fetchAdjustments,
+  setQueryParam,
+} = useTableApi<InventoryAdjustmentEntity>({
+  url: '/inventory/adjustments',
+  onError: (err: unknown) =>
+    ElMessage.error((err instanceof Error ? err.message : String(err)) || '获取调整单失败'),
+})
+
+// 批次 277：watch adjustments 自动更新 stats
+watch(adjustments, () => {
+  stats.total = total.value
+  stats.pending = adjustments.value.filter(a => a.status === 'pending').length
+  stats.approved = adjustments.value.filter(a => a.status === 'approved').length
+  stats.totalAmount = adjustments.value.reduce((sum, a) => sum + (a.total_amount || 0), 0)
+})
+
+const syncQueryParams = () => {
+  setQueryParam('adjust_no', queryParams.adjust_no || undefined)
+  setQueryParam('status', queryParams.status || undefined)
+}
+
+const handleQuery = () => {
+  syncQueryParams()
+  page.value = 1
+  fetchAdjustments()
+}
+const handleReset = () => {
+  queryParams.adjust_no = ''
+  queryParams.status = ''
+  syncQueryParams()
+  page.value = 1
+  fetchAdjustments()
+}
+
+const handlePageChange = (p: number) => {
+  page.value = p
+}
+
+const handleSizeChange = (s: number) => {
+  pageSize.value = s
+  page.value = 1
+}
 
 const getStatusLabel = (status: string) => {
   const map: Record<string, string> = {
@@ -188,40 +233,7 @@ const getStatusType = (status: string) => {
 }
 const formatCurrency = (amount: number) => `¥${(amount || 0).toFixed(2)}`
 
-const fetchAdjustments = async () => {
-  loading.value = true
-  try {
-    const res = (await listInventoryAdjustments(queryParams)) as unknown as {
-      data?: { list?: InventoryAdjustmentEntity[]; total?: number }
-    }
-    const d = res.data
-    adjustments.value = d?.list || []
-    total.value = d?.total || 0
-    stats.total = total.value
-    stats.pending = adjustments.value.filter(a => a.status === 'pending').length
-    stats.approved = adjustments.value.filter(a => a.status === 'approved').length
-    stats.totalAmount = adjustments.value.reduce((sum, a) => sum + (a.total_amount || 0), 0)
-  } catch (error) {
-    ElMessage.error((error as Error).message || '获取调整单失败')
-    adjustments.value = []
-    total.value = 0
-  } finally {
-    loading.value = false
-  }
-}
-
-const handleQuery = () => {
-  queryParams.page = 1
-  fetchAdjustments()
-}
-const handleReset = () => {
-  queryParams.adjust_no = ''
-  queryParams.status = ''
-  handleQuery()
-}
-
 defineExpose({ fetchAdjustments })
-onMounted(() => fetchAdjustments())
 </script>
 
 <style scoped>
