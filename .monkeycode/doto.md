@@ -108,7 +108,7 @@ Ok((items, total))
 - `PaginatorTrait` 导入保留（`.paginate()` 方法需要）
 - `quotation_service.rs` 特殊处理：返回类型是 `ServiceError` 而非 `AppError`，需添加 `From<AppError> for ServiceError` 转换或改用 `AppError`
 
-**子任务 2.2：view 表格逻辑接入 useTableApi（39/56 完成 🔄）**
+**子任务 2.2：view 表格逻辑接入 useTableApi（42/56 完成 🔄）**
 
 **问题描述**：56 个前端 view 文件各自实现表格加载/分页/排序/查询逻辑，与已封装的 `useTableApi` composable 重复。每个 view 重复编写 `loadData` / `handlePageChange` / `handleSortChange` / `handleSearch` 等函数，代码冗余严重。
 
@@ -129,10 +129,7 @@ Ok((items, total))
 - 接入 `useTableApi` composable，删除重复的表格逻辑代码
 - 保持 view 的业务逻辑不变，只替换通用表格逻辑
 
-**待修复文件清单**（剩余 17 个 ⏳）：
-- `frontend/src/views/scheduling/*`（排产模块）
-- `frontend/src/views/material-shortage/*`（物料短缺模块）
-- `frontend/src/views/capacity/*`（产能模块）
+**待修复文件清单**（剩余 14 个 ⏳）：
 - `frontend/src/views/finance/voucher/*`（财务凭证模块）
 - `frontend/src/views/data-import/*`（数据导入模块）
 - inventory/tabs/InventoryStockTab（1-based 分页）
@@ -143,6 +140,7 @@ Ok((items, total))
 - purchaseReceipt / purchase-price — ✅ 批次 285 已完成
 - purchase-return / purchase-inspection — ✅ 批次 286 已完成
 - logistics / voucher — ✅ 批次 287 已完成
+- scheduling / material-shortage / capacity — ✅ 批次 288 已完成
 
 **技术要点**：
 - `useTableApi` 已封装：分页参数管理 / 数据加载 / loading 状态 / 错误处理
@@ -285,6 +283,14 @@ Ok((items, total))
 - CI 修复 1 次：useLgs.ts 移除未使用的 logisticsApi import（TS6133）
 - CI 15 项全绿（13 成功 + 2 skipped 打包/Release）
 - view 表格进度：37/56 → 39/56（2 个模块 8 文件）
+
+### 批次 288：scheduling + material-shortage + capacity composable 迁移 — ✅ 完成（PR #468 合并，sha: 74f6fe0）
+
+- scheduling 模块 3 文件：useSchM taskList 接入 useTableApi（URL: /scheduling/tasks）+ filterStatus 独立 ref + syncFilterToQuery 同步到 queryParams.status + watch([taskList, conflictList]) 自动同步 stats + SchMTbl 分页改为 update:currentPage/update:pageSize emits + index.vue v-model 绑定分页 + handleFilterChange 替代直接 fetchTasks
+- material-shortage 模块 4 文件：useMs shortageList 接入 useTableApi（URL: /material-shortage/list）+ filterSeverity/filterStatus 独立 ref + syncFilterToQuery + useMsProc handleFilterChange 适配（syncFilterToQuery + page=1 + fetchShortages）+ MsTbl 移除分页触发 filter-change 的冗余事件 + index.vue onMounted 移除 fetchShortages
+- capacity 模块 2 文件：useCp workCenters 接入 useTableApi（URL: /capacity/work-centers）+ initOnMount 仅加载辅助数据（summary/trend/bottlenecks）+ index.vue 分页简化为更新页码（useTableApi watch 自动加载）
+- CI 一次通过（13 success + 2 skipped）
+- view 表格进度：39/56 → 42/56（3 个模块 9 文件）
 
 ---
 

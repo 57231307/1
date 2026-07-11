@@ -9,6 +9,7 @@
 
 | 批次 | PR | 一句话总结 |
 |------|-----|-----------|
+| 288 | #468 | scheduling + material-shortage + capacity composable 接入 useTableApi（9 文件，filterStatus 独立 ref + syncFilterToQuery + watch 自动同步 stats + useMsProc 适配 syncFilterToQuery + capacity initOnMount 仅加载辅助数据） |
 | 287 | #467 | logistics + voucher composable 接入 useTableApi（8 文件，useLgs dateRange 独立 ref + syncDateRangeToQuery + watch 自动同步 stats + VoucherListTab toRef 保持 proc 响应性 + 移除 useLgs 未使用 logisticsApi import） |
 | 286 | #466 | purchase-return + purchase-inspection composable 接入 useTableApi（9 文件，dateRange 独立 ref + syncDateRangeToQuery + watch 自动同步 stats + usePiProc queryParams 放宽为 Record） |
 | 285 | #465 | purchaseReceipt + purchase-price composable 接入 useTableApi（9 文件，usePrcProc 适配 queryParams 放宽 + page 独立字段 + 移除 handlePageChange/handlePageSizeChange） |
