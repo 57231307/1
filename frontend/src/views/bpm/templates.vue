@@ -89,15 +89,15 @@
 
     <el-empty v-if="!loading && templates.length === 0" description="暂无模板数据" />
 
-    <div v-if="pagination.total > 0" class="pagination-wrapper">
+    <div v-if="total > 0" class="pagination-wrapper">
       <el-pagination
-        v-model:current-page="pagination.page"
-        v-model:page-size="pagination.page_size"
-        :total="pagination.total"
+        v-model:current-page="page"
+        v-model:page-size="pageSize"
+        :total="total"
         :page-sizes="[8, 16, 32]"
         layout="total, sizes, prev, pager, next"
-        @size-change="fetchData"
-        @current-change="fetchData"
+        @size-change="handleSizeChange"
+        @current-change="handlePageChange"
       />
     </div>
 
@@ -174,7 +174,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, onMounted } from 'vue'
+import { ref, reactive } from 'vue'
 import type { Component } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import {
@@ -189,14 +189,12 @@ import {
 import { bpmEnhancedApi } from '@/api/bpm-enhanced'
 import type { ProcessTemplate } from '@/api/bpm-enhanced'
 import { logger } from '@/utils/logger'
+import { useTableApi } from '@/composables/useTableApi'
 
-const loading = ref(false)
 const submitLoading = ref(false)
-const templates = ref<ProcessTemplate[]>([])
 const currentTemplate = ref<ProcessTemplate | null>(null)
 
 const filterForm = reactive({ category: '' })
-const pagination = reactive({ page: 1, page_size: 12, total: 0 })
 
 const detailDialogVisible = ref(false)
 const createDialogVisible = ref(false)
@@ -247,31 +245,48 @@ const getAssigneeTypeText = (type: string) => {
   return map[type] || type
 }
 
-const fetchData = async () => {
-  loading.value = true
-  try {
-    const res = await bpmEnhancedApi.listTemplates({
-      page: pagination.page,
-      page_size: pagination.page_size,
-      category: filterForm.category || undefined,
-    })
-    templates.value = res.data.list
-    pagination.total = res.data.total
-  } catch (e) {
-    logger.error(String(e))
-  } finally {
-    loading.value = false
-  }
+// 批次 277：接入 useTableApi，消除手写 templates/total/loading/fetchData 重复
+// useTableApi 自动管理分页状态、数据加载，自动 watch page/pageSize 变化触发重载
+const {
+  data: templates,
+  loading,
+  page,
+  pageSize,
+  total,
+  refresh: fetchData,
+  setQueryParam,
+} = useTableApi<ProcessTemplate>({
+  url: '/bpm/templates',
+  defaultPageSize: 12,
+  onError: (err: unknown) => logger.error(String(err)),
+})
+
+// 批次 277：同步筛选条件到 useTableApi.queryParams 并刷新
+const syncQueryParams = () => {
+  setQueryParam('category', filterForm.category || undefined)
 }
 
 const handleSearch = () => {
-  pagination.page = 1
+  syncQueryParams()
+  page.value = 1
   fetchData()
 }
 
 const handleResetFilter = () => {
   filterForm.category = ''
-  handleSearch()
+  syncQueryParams()
+  page.value = 1
+  fetchData()
+}
+
+// 分页（useTableApi 自动 watch page/pageSize 变化触发重载）
+const handlePageChange = (p: number) => {
+  page.value = p
+}
+
+const handleSizeChange = (s: number) => {
+  pageSize.value = s
+  page.value = 1
 }
 
 const handleViewDetail = (row: ProcessTemplate) => {
@@ -318,10 +333,6 @@ const handleDeleteTemplate = async (row: ProcessTemplate) => {
     if (e !== 'cancel') logger.error(String(e))
   }
 }
-
-onMounted(() => {
-  fetchData()
-})
 </script>
 
 <style scoped>

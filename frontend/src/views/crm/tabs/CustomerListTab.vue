@@ -127,13 +127,13 @@
 
       <div class="pagination-wrapper">
         <el-pagination
-          v-model:current-page="queryParams.page"
-          v-model:page-size="queryParams.page_size"
+          v-model:current-page="page"
+          v-model:page-size="pageSize"
           :page-sizes="[10, 20, 50, 100]"
           :total="total"
           layout="total, sizes, prev, pager, next, jumper"
-          @size-change="handleQuery"
-          @current-change="handleQuery"
+          @size-change="handleSizeChange"
+          @current-change="handlePageChange"
         />
       </div>
     </el-card>
@@ -245,6 +245,7 @@ import { ElMessage, ElMessageBox } from 'element-plus'
 import type { FormInstance, FormRules } from 'element-plus'
 import { Plus, Coin, Share, Download, Printer } from '@element-plus/icons-vue'
 import crmEnhancedApi, { type CustomerTag, type CustomerWithTags } from '@/api/crm-enhanced'
+import { useTableApi } from '@/composables/useTableApi'
 import { exportData } from '@/utils/export'
 import { loadIfNot, createLazyLoader } from '@/utils/lazy-loader'
 import { logger } from '@/utils/logger'
@@ -253,23 +254,43 @@ import { escapeHtml } from '@/utils/print'
 const hasLoaded = createLazyLoader()
 
 const router = useRouter()
-const loading = ref(false)
 const submitLoading = ref(false)
-const customers = ref<CustomerWithTags[]>([])
-const total = ref(0)
 const dialogVisible = ref(false)
 const isEdit = ref(false)
 const formRef = ref<FormInstance>()
 const tags = ref<CustomerTag[]>([])
 
+// 筛选条件（仅筛选字段，分页由 useTableApi 管理）
 const queryParams = reactive({
-  page: 1,
-  page_size: 20,
   keyword: '',
   customer_type: '',
   status: '',
   tag_id: undefined as number | undefined,
 })
+
+// 批次 277：接入 useTableApi，消除手写 customers/total/loading/fetchCustomerList 重复
+// useTableApi 自动管理分页状态、数据加载，自动 watch page/pageSize 变化触发重载
+const {
+  data: customers,
+  loading,
+  page,
+  pageSize,
+  total,
+  refresh: fetchCustomerList,
+  setQueryParam,
+} = useTableApi<CustomerWithTags>({
+  url: '/crm/customers/enhanced',
+  onError: (err: unknown) =>
+    ElMessage.error((err instanceof Error ? err.message : String(err)) || '获取客户列表失败'),
+})
+
+// 批次 277：同步筛选条件到 useTableApi.queryParams 并刷新
+const syncQueryParams = () => {
+  setQueryParam('keyword', queryParams.keyword || undefined)
+  setQueryParam('customer_type', queryParams.customer_type || undefined)
+  setQueryParam('status', queryParams.status || undefined)
+  setQueryParam('tag_id', queryParams.tag_id)
+}
 
 const formData = reactive({
   id: undefined as number | undefined,
@@ -319,22 +340,6 @@ const getCustomerTypeTag = (type: string) => {
   return typeMap[type] || ''
 }
 
-const fetchCustomerList = async () => {
-  loading.value = true
-  try {
-    const res = await crmEnhancedApi.getCustomerList(queryParams)
-    customers.value = res.data?.list || []
-    total.value = res.data?.total || 0
-  } catch (error) {
-    const err = error as Error
-    ElMessage.error(err.message || '获取客户列表失败')
-    customers.value = []
-    total.value = 0
-  } finally {
-    loading.value = false
-  }
-}
-
 const fetchTags = async () => {
   try {
     const res = await crmEnhancedApi.getTags()
@@ -344,17 +349,32 @@ const fetchTags = async () => {
   }
 }
 
+// 批次 277：查询 - 同步筛选条件并回到首页重载
 const handleQuery = () => {
-  queryParams.page = 1
+  syncQueryParams()
+  page.value = 1
   fetchCustomerList()
 }
 
+// 批次 277：重置 - 清空筛选并回到首页重载
 const handleReset = () => {
   queryParams.keyword = ''
   queryParams.customer_type = ''
   queryParams.status = ''
   queryParams.tag_id = undefined
-  handleQuery()
+  syncQueryParams()
+  page.value = 1
+  fetchCustomerList()
+}
+
+// 批次 277：分页（useTableApi 自动 watch page/pageSize 变化触发重载）
+const handlePageChange = (p: number) => {
+  page.value = p
+}
+
+const handleSizeChange = (s: number) => {
+  pageSize.value = s
+  page.value = 1
 }
 
 const resetForm = () => {
@@ -446,7 +466,7 @@ const handleExport = () => {
       { key: 'total_amount', title: '累计金额' },
       { key: 'status', title: '状态', formatter: v => (v === 'active' ? '启用' : '禁用') },
     ],
-    data: customers.value,
+    data: customers.value as unknown as Record<string, unknown>[],
   })
 }
 
@@ -499,6 +519,6 @@ const handlePrint = () => {
 
 onMounted(() => {
   loadIfNot('fetchTags', fetchTags, hasLoaded)
-  loadIfNot('fetchCustomerList', fetchCustomerList, hasLoaded)
+  // 批次 277：客户列表由 useTableApi 在 setup 阶段自动加载，无需在此手动调用
 })
 </script>
