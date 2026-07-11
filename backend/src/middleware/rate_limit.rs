@@ -155,7 +155,8 @@ async fn init_redis_rate_limiter() -> Option<Arc<tokio::sync::Mutex<ConnectionMa
     match redis::Client::open(url.as_str()) {
         Ok(client) => match ConnectionManager::new(client).await {
             Ok(conn) => {
-                tracing::info!("分布式限流已启用 (RATE_LIMIT_REDIS_URL={})", url);
+                // 规则 12 合规：不记录完整 URL，防止 URL 中的 user:password@host 凭据泄露
+                tracing::info!("分布式限流已启用（RATE_LIMIT_REDIS_URL 已配置）");
                 Some(Arc::new(tokio::sync::Mutex::new(conn)))
             }
             Err(e) => {

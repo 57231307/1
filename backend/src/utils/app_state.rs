@@ -329,7 +329,8 @@ fn init_search_client() -> Arc<dyn SearchClient> {
         tracing::info!("ELASTICSEARCH_URL 未配置，使用 mock 搜索客户端（内存存储）");
         Arc::new(crate::search::ElasticClient::mock())
     } else {
-        tracing::info!("ELASTICSEARCH_URL 已配置（{}），使用真实 Elasticsearch 客户端", es_url);
+        // 规则 12 合规：不记录完整 URL，防止 URL 中的 user:password@host 凭据泄露
+        tracing::info!("ELASTICSEARCH_URL 已配置，使用真实 Elasticsearch 客户端");
         Arc::new(crate::search::ElasticClient::real(es_url))
     }
 }
