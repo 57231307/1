@@ -3,30 +3,35 @@
  * 任务编号: P14 批 1 B3 I-2
  * 提供接口列表查询、新建、编辑、删除等业务方法
  * 行为完全保持一致（仅结构重构）
+ * 批次 281：接入 useTableApi，移除手写 endpoints/endpointTotal/endpointLoading/endpointQuery + fetchEndpoints
  */
 import { ref, reactive } from 'vue'
 import { ElMessage, ElMessageBox, type FormInstance, type FormRules } from 'element-plus'
 import {
-  listApiEndpoints,
   createApiEndpoint,
   updateApiEndpoint,
   deleteApiEndpoint,
   type ApiEndpoint,
 } from '@/api/api-gateway'
+import { useTableApi } from '@/composables/useTableApi'
 
 /**
  * 接口管理 composable
+ * 批次 281：返回 reactive 包装，父组件可直接 .字段 访问（无需 .value）
  */
 export function useApiEp() {
-  const endpoints = ref<ApiEndpoint[]>([])
-  const endpointTotal = ref(0)
-  const endpointLoading = ref(false)
-  const endpointQuery = reactive({
-    page: 1,
-    page_size: 20,
-    keyword: '',
-    method: '',
-    status: '',
+  const {
+    data: endpoints,
+    total: endpointTotal,
+    loading: endpointLoading,
+    page,
+    pageSize,
+    queryParams: endpointQuery,
+    refresh: fetchEndpoints,
+  } = useTableApi<ApiEndpoint>({
+    url: '/api-gateway/endpoints',
+    onError: (err: unknown) =>
+      ElMessage.error((err instanceof Error ? err.message : String(err)) || '获取接口失败'),
   })
 
   const endpointDialogVisible = ref(false)
@@ -54,19 +59,6 @@ export function useApiEp() {
     path: [{ required: true, message: '请输入接口路径', trigger: 'blur' }],
     method: [{ required: true, message: '请选择请求方法', trigger: 'change' }],
     description: [{ required: true, message: '请输入描述', trigger: 'blur' }],
-  }
-
-  const fetchEndpoints = async () => {
-    endpointLoading.value = true
-    try {
-      const res = await listApiEndpoints(endpointQuery)
-      endpoints.value = res.data || []
-      endpointTotal.value = res.total || 0
-    } catch (error: unknown) {
-      ElMessage.error((error instanceof Error ? error.message : '') || '获取接口失败')
-    } finally {
-      endpointLoading.value = false
-    }
   }
 
   const openEndpointDialog = (row?: ApiEndpoint) => {
@@ -110,7 +102,7 @@ export function useApiEp() {
         if (requestSchemaText.value) {
           try {
             endpointForm.request_schema = JSON.parse(requestSchemaText.value)
-          } catch (e) {
+          } catch (_e) {
             ElMessage.error('请求Schema格式错误')
             return
           }
@@ -118,7 +110,7 @@ export function useApiEp() {
         if (responseSchemaText.value) {
           try {
             endpointForm.response_schema = JSON.parse(responseSchemaText.value)
-          } catch (e) {
+          } catch (_e) {
             ElMessage.error('响应Schema格式错误')
             return
           }
@@ -132,7 +124,7 @@ export function useApiEp() {
         endpointDialogVisible.value = false
         await fetchEndpoints()
       } catch (error: unknown) {
-        ElMessage.error((error instanceof Error ? error.message : '') || '操作失败')
+        ElMessage.error((error instanceof Error ? error.message : String(error)) || '操作失败')
       } finally {
         endpointSubmitLoading.value = false
       }
@@ -146,15 +138,18 @@ export function useApiEp() {
       ElMessage.success('删除成功')
       await fetchEndpoints()
     } catch (error: unknown) {
-      if (error !== 'cancel') ElMessage.error((error instanceof Error ? error.message : '') || '删除失败')
+      if (error !== 'cancel')
+        ElMessage.error((error instanceof Error ? error.message : String(error)) || '删除失败')
     }
   }
 
-  return {
+  return reactive({
     endpoints,
     endpointTotal,
     endpointLoading,
     endpointQuery,
+    page,
+    pageSize,
     methodTypeMap: {
       GET: 'primary',
       POST: 'success',
@@ -182,5 +177,5 @@ export function useApiEp() {
     openEndpointDialog,
     handleEndpointSubmit,
     handleDeleteEndpoint,
-  }
+  })
 }

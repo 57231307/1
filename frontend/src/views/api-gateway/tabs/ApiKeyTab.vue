@@ -11,14 +11,14 @@
         placeholder="搜索密钥名称"
         style="width: 200px"
         clearable
-        @clear="emit('fetch')"
-        @keyup.enter="emit('fetch')"
+        @clear="handleSearch"
+        @keyup.enter="handleSearch"
       />
       <el-select v-model="localQuery.status" placeholder="状态" clearable style="width: 120px">
         <el-option label="启用" value="active" />
         <el-option label="停用" value="inactive" />
       </el-select>
-      <el-button type="primary" @click="emit('fetch')">
+      <el-button type="primary" @click="handleSearch">
         <el-icon><Search /></el-icon>
         搜索
       </el-button>
@@ -67,13 +67,13 @@
 
     <div class="pagination-container">
       <el-pagination
-        v-model:current-page="localQuery.page"
-        v-model:page-size="localQuery.page_size"
+        :current-page="page"
+        :page-size="pageSize"
         :page-sizes="[10, 20, 50]"
         :total="total"
         layout="total, sizes, prev, pager, next, jumper"
-        @size-change="emit('fetch')"
-        @current-change="emit('fetch')"
+        @current-change="(v: number) => emit('update:page', v)"
+        @size-change="(v: number) => emit('update:page-size', v)"
       />
     </div>
   </el-card>
@@ -85,8 +85,6 @@ import { Search, Plus } from '@element-plus/icons-vue'
 import type { ApiKey } from '@/api/api-gateway'
 
 export interface ApiKeyQuery {
-  page: number
-  page_size: number
   keyword: string
   status: string
 }
@@ -95,11 +93,15 @@ const props = defineProps<{
   apiKeys: ApiKey[]
   loading: boolean
   total: number
+  page: number
+  pageSize: number
   queryParams: ApiKeyQuery
 }>()
 
 const emit = defineEmits<{
   fetch: []
+  'update:page': [value: number]
+  'update:page-size': [value: number]
   'new-key': []
   'view-key': [row: ApiKey]
   'toggle-key': [row: ApiKey]
@@ -114,6 +116,12 @@ watch(
   newQuery => Object.assign(localQuery, newQuery),
   { deep: true }
 )
+
+// 批次 281：搜索时先同步筛选条件到父组件 queryParams，再触发 fetch 刷新
+const handleSearch = () => {
+  emit('update:queryParams', { ...localQuery })
+  emit('fetch')
+}
 
 const maskKey = (key: string) => {
   if (!key) return ''

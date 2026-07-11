@@ -3,30 +3,36 @@
  * 任务编号: P14 批 1 B3 I-2
  * 提供 API 密钥列表查询、新建、编辑、删除、重新生成等业务方法
  * 行为完全保持一致（仅结构重构）
+ * 批次 281：接入 useTableApi，移除手写 keys/keyTotal/keyLoading/keyQuery + fetchKeys
  */
 import { ref, reactive } from 'vue'
 import { ElMessage, ElMessageBox, type FormInstance, type FormRules } from 'element-plus'
 import {
-  listApiKeys,
   createApiKey,
   updateApiKey,
   deleteApiKey,
   regenerateApiKey,
   type ApiKey,
 } from '@/api/api-gateway'
+import { useTableApi } from '@/composables/useTableApi'
 
 /**
  * 密钥管理 composable
+ * 批次 281：返回 reactive 包装，父组件可直接 .字段 访问（无需 .value）
  */
 export function useApiKey() {
-  const keys = ref<ApiKey[]>([])
-  const keyTotal = ref(0)
-  const keyLoading = ref(false)
-  const keyQuery = reactive({
-    page: 1,
-    page_size: 20,
-    keyword: '',
-    status: '',
+  const {
+    data: keys,
+    total: keyTotal,
+    loading: keyLoading,
+    page,
+    pageSize,
+    queryParams: keyQuery,
+    refresh: fetchKeys,
+  } = useTableApi<ApiKey>({
+    url: '/api-gateway/keys',
+    onError: (err: unknown) =>
+      ElMessage.error((err instanceof Error ? err.message : String(err)) || '获取密钥失败'),
   })
 
   const showKeyMap = ref<Record<number, boolean>>({})
@@ -47,20 +53,6 @@ export function useApiKey() {
 
   const keyRules: FormRules = {
     key_name: [{ required: true, message: '请输入密钥名称', trigger: 'blur' }],
-  }
-
-  const fetchKeys = async () => {
-    keyLoading.value = true
-    try {
-      const res = await listApiKeys(keyQuery)
-      keys.value = res.data || []
-      keyTotal.value = res.total || 0
-    } catch (error: unknown) {
-      // 批次 98 P2-D 修复（v5 复审）：原 catch (error: any) 改为 unknown + 类型守卫
-      ElMessage.error((error instanceof Error ? error.message : String(error)) || '获取密钥失败')
-    } finally {
-      keyLoading.value = false
-    }
   }
 
   const toggleShowKey = (id: number) => {
@@ -105,7 +97,6 @@ export function useApiKey() {
         keyDialogVisible.value = false
         await fetchKeys()
       } catch (error: unknown) {
-        // 批次 98 P2-D 修复（v5 复审）：原 catch (error: any) 改为 unknown + 类型守卫
         ElMessage.error((error instanceof Error ? error.message : String(error)) || '操作失败')
       } finally {
         keySubmitLoading.value = false
@@ -120,8 +111,8 @@ export function useApiKey() {
       ElMessage.success('删除成功')
       await fetchKeys()
     } catch (error: unknown) {
-      // 批次 98 P2-D 修复（v5 复审）：原 catch (error: any) 改为 unknown + 类型守卫
-      if (error !== 'cancel') ElMessage.error((error instanceof Error ? error.message : String(error)) || '删除失败')
+      if (error !== 'cancel')
+        ElMessage.error((error instanceof Error ? error.message : String(error)) || '删除失败')
     }
   }
 
@@ -134,8 +125,8 @@ export function useApiKey() {
       ElMessage.success('重新生成成功')
       await fetchKeys()
     } catch (error: unknown) {
-      // 批次 98 P2-D 修复（v5 复审）：原 catch (error: any) 改为 unknown + 类型守卫
-      if (error !== 'cancel') ElMessage.error((error instanceof Error ? error.message : String(error)) || '重新生成失败')
+      if (error !== 'cancel')
+        ElMessage.error((error instanceof Error ? error.message : String(error)) || '重新生成失败')
     }
   }
 
@@ -161,16 +152,18 @@ export function useApiKey() {
       ElMessage.success('操作成功')
       await fetchKeys()
     } catch (error: unknown) {
-      // 批次 98 P2-D 修复（v5 复审）：原 catch (error: any) 改为 unknown + 类型守卫
-      if (error !== 'cancel') ElMessage.error((error instanceof Error ? error.message : String(error)) || '操作失败')
+      if (error !== 'cancel')
+        ElMessage.error((error instanceof Error ? error.message : String(error)) || '操作失败')
     }
   }
 
-  return {
+  return reactive({
     keys,
     keyTotal,
     keyLoading,
     keyQuery,
+    page,
+    pageSize,
     fetchKeys,
     showKeyMap,
     toggleShowKey,
@@ -186,5 +179,5 @@ export function useApiKey() {
     handleRegenerateKey,
     viewKeyDetail,
     handleToggleKey,
-  }
+  })
 }

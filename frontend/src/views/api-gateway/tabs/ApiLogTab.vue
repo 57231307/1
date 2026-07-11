@@ -11,8 +11,8 @@
         placeholder="搜索路径/客户端"
         style="width: 200px"
         clearable
-        @clear="emit('fetch')"
-        @keyup.enter="emit('fetch')"
+        @clear="handleSearch"
+        @keyup.enter="handleSearch"
       />
       <el-select v-model="localQuery.status" placeholder="状态码" clearable style="width: 120px">
         <el-option label="2xx 成功" value="2xx" />
@@ -27,7 +27,7 @@
         end-placeholder="结束日期"
         style="width: 260px"
       />
-      <el-button type="primary" @click="emit('fetch')">
+      <el-button type="primary" @click="handleSearch">
         <el-icon><Search /></el-icon>
         搜索
       </el-button>
@@ -64,13 +64,13 @@
 
     <div class="pagination-container">
       <el-pagination
-        v-model:current-page="localQuery.page"
-        v-model:page-size="localQuery.page_size"
+        :current-page="page"
+        :page-size="pageSize"
         :page-sizes="[10, 20, 50, 100]"
         :total="total"
         layout="total, sizes, prev, pager, next, jumper"
-        @size-change="emit('fetch')"
-        @current-change="emit('fetch')"
+        @current-change="(v: number) => emit('update:page', v)"
+        @size-change="(v: number) => emit('update:page-size', v)"
       />
     </div>
   </el-card>
@@ -82,8 +82,6 @@ import { Search } from '@element-plus/icons-vue'
 import type { ApiLog } from '@/api/api-gateway'
 
 export interface LogQuery {
-  page: number
-  page_size: number
   keyword: string
   status: string
   date_range: [Date, Date] | null
@@ -93,12 +91,16 @@ const props = defineProps<{
   logs: ApiLog[]
   loading: boolean
   total: number
+  page: number
+  pageSize: number
   queryParams: LogQuery
   methodTypeMap: Record<string, string>
 }>()
 
 const emit = defineEmits<{
   fetch: []
+  'update:page': [value: number]
+  'update:page-size': [value: number]
   'view-log': [row: ApiLog]
   'update:queryParams': [value: LogQuery]
 }>()
@@ -110,6 +112,12 @@ watch(
   newQuery => Object.assign(localQuery, newQuery),
   { deep: true }
 )
+
+// 批次 281：搜索时先同步筛选条件到父组件 queryParams，再触发 fetch 刷新
+const handleSearch = () => {
+  emit('update:queryParams', { ...localQuery })
+  emit('fetch')
+}
 
 const getStatusType = (code: number) => {
   if (code >= 200 && code < 300) return 'success'
