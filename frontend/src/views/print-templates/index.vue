@@ -467,17 +467,6 @@ const handleSearch = () => {
   fetchData()
 }
 
-// 批次 277：重置筛选条件后重新搜索
-const handleReset = () => {
-  listQuery.keyword = ''
-  listQuery.module = ''
-  listQuery.type = ''
-  listQuery.status = ''
-  syncQueryParams()
-  page.value = 1
-  fetchData()
-}
-
 // 批次 277：分页（useTableApi 自动 watch page/pageSize 变化触发重载）
 const handlePageChange = (p: number) => {
   page.value = p

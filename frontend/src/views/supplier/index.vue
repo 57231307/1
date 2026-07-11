@@ -39,9 +39,9 @@
       :loading="loading"
       :query-params="queryParams"
       :dialog-mode="dialogMode"
-      @search="fetchData"
+      @search="handleSearch"
       @reset="handleReset"
-      @update:query-params="(v: SupplierQueryParams) => Object.assign(queryParams, v)"
+      @update:query-params="handleQueryParamsUpdate"
       @add="handleAdd"
       @view="handleView"
       @edit="handleEdit"
@@ -110,6 +110,21 @@ const syncQueryParams = () => {
   setQueryParam('status', queryParams.status || undefined)
 }
 
+// 批次 277：搜索时先同步筛选条件再刷新
+const handleSearch = () => {
+  syncQueryParams()
+  page.value = 1
+  fetchData()
+}
+
+// 批次 277：SupplierList 子组件分页变化时同步到 useTableApi 的 page/pageSize
+// SupplierList 通过 update:query-params emit 包含 page/page_size 的 queryParams
+const handleQueryParamsUpdate = (v: SupplierQueryParams) => {
+  Object.assign(queryParams, v)
+  if (v.page) page.value = v.page
+  if (v.page_size) pageSize.value = v.page_size
+}
+
 // 表单数据由父组件维护（避免 SupplierDialog 子组件直接 mutation prop）
 // SupplierDialog 接收 formData prop + 通过 ref.resetForm() 同步
 const formData = reactive({
@@ -137,12 +152,6 @@ const formData = reactive({
 })
 
 const dialogTitle = computed(() => (isEdit.value ? '编辑供应商' : '新建供应商'))
-
-const handleQuery = () => {
-  syncQueryParams()
-  page.value = 1
-  fetchData()
-}
 
 const handleReset = () => {
   queryParams.keyword = ''

@@ -392,15 +392,6 @@ const handleSearch = () => {
   fetchData()
 }
 
-const handleReset = () => {
-  queryParams.keyword = ''
-  queryParams.category = ''
-  queryParams.status = ''
-  syncQueryParams()
-  page.value = 1
-  fetchData()
-}
-
 // 批次 277：分页（useTableApi 自动 watch page/pageSize 变化触发重载）
 const handlePageChange = (p: number) => {
   page.value = p
