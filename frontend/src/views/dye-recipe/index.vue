@@ -123,8 +123,8 @@
 
       <div class="pagination-container">
         <el-pagination
-          v-model:current-page="queryParams.page"
-          v-model:page-size="queryParams.page_size"
+          v-model:current-page="page"
+          v-model:page-size="pageSize"
           :page-sizes="[10, 20, 50, 100]"
           :total="total"
           layout="total, sizes, prev, pager, next, jumper"
@@ -213,11 +213,10 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, onMounted } from 'vue'
+import { ref, reactive } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Plus, Download, Search, Refresh } from '@element-plus/icons-vue'
 import {
-  listDyeRecipes,
   createDyeRecipe,
   updateDyeRecipe,
   approveDyeRecipe,
@@ -227,20 +226,29 @@ import {
 } from '@/api/dye-recipe'
 import type { DyeRecipe } from '@/api/dye-recipe'
 import { logger } from '@/utils/logger'
+import { useTableApi } from '@/composables/useTableApi'
 
-// 查询参数
+// 查询参数（筛选条件，分页由 useTableApi 管理）
 const queryParams = reactive({
-  page: 1,
-  page_size: 20,
   keyword: '',
   color_no: '',
   status: '',
 })
 
-// 列表数据
-const loading = ref(false)
-const recipeList = ref<DyeRecipe[]>([])
-const total = ref(0)
+// 批次 271：接入 useTableApi，消除手写 page/pageSize/total/loading + getList 重复
+// useTableApi 自动管理分页状态、loading、数据加载，自动 watch page/pageSize 变化触发重载
+const {
+  data: recipeList,
+  loading,
+  page,
+  pageSize,
+  total,
+  refresh,
+  setQueryParam,
+} = useTableApi<DyeRecipe>({
+  url: '/production/dye-recipes',
+  onError: (e: unknown) => logger.error('获取染色配方列表失败:', String(e)),
+})
 
 // 对话框
 const dialogVisible = ref(false)
@@ -272,24 +280,19 @@ const formRules = {
   content: [{ required: true, message: '请输入配方内容', trigger: 'blur' }],
 }
 
-// 获取列表数据
-const getList = async () => {
-  loading.value = true
-  try {
-    const res = await listDyeRecipes(queryParams)
-    recipeList.value = res.data || []
-    total.value = res.total || 0
-  } catch (error) {
-    logger.error('获取染色配方列表失败:', error)
-  } finally {
-    loading.value = false
-  }
+// 批次 271：同步筛选条件到 useTableApi.queryParams 并刷新
+// useTableApi 自动 watch page/pageSize 变化触发重载，无需手动 getList
+const syncQueryParams = () => {
+  setQueryParam('keyword', queryParams.keyword || undefined)
+  setQueryParam('color_no', queryParams.color_no || undefined)
+  setQueryParam('status', queryParams.status || undefined)
 }
 
 // 查询
 const handleQuery = () => {
-  queryParams.page = 1
-  getList()
+  syncQueryParams()
+  page.value = 1
+  refresh()
 }
 
 // 重置
@@ -297,7 +300,9 @@ const handleReset = () => {
   queryParams.keyword = ''
   queryParams.color_no = ''
   queryParams.status = ''
-  handleQuery()
+  syncQueryParams()
+  page.value = 1
+  refresh()
 }
 
 // 新建
@@ -338,7 +343,7 @@ const handleSubmit = async (row: DyeRecipe) => {
     await ElMessageBox.confirm('确认提交该配方审批？', '提示', { type: 'warning' })
     await submitDyeRecipe(row.id)
     ElMessage.success('提交成功')
-    getList()
+    refresh()
   } catch (error) {
     logger.error('提交失败:', error)
   }
@@ -350,7 +355,7 @@ const handleApprove = async (row: DyeRecipe) => {
     await ElMessageBox.confirm('确认审批通过该配方？', '提示', { type: 'warning' })
     await approveDyeRecipe(row.id)
     ElMessage.success('审批成功')
-    getList()
+    refresh()
   } catch (error) {
     logger.error('审批失败:', error)
   }
@@ -405,21 +410,20 @@ const handleSubmitForm = async () => {
     }
     ElMessage.success('保存成功')
     dialogVisible.value = false
-    getList()
+    refresh()
   } catch (error) {
     logger.error('表单验证失败:', error)
   }
 }
 
-// 分页
+// 分页（useTableApi 自动 watch page/pageSize 变化触发重载）
 const handleSizeChange = (val: number) => {
-  queryParams.page_size = val
-  getList()
+  pageSize.value = val
+  page.value = 1
 }
 
 const handleCurrentChange = (val: number) => {
-  queryParams.page = val
-  getList()
+  page.value = val
 }
 
 // 获取状态类型
@@ -444,9 +448,7 @@ const getStatusLabel = (status: string) => {
   return map[status] || status
 }
 
-onMounted(() => {
-  getList()
-})
+// 批次 271：useTableApi 构造时自动初始加载，无需 onMounted 调用 getList
 </script>
 
 <style scoped>
