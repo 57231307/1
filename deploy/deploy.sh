@@ -320,6 +320,12 @@ database:
 auth:
   jwt_secret: "${JWT}"
   cookie_secret: "${COOKIE}"
+  # 批次 279 修复：注入 webhook_secret（main.rs:411-419 强制要求显式配置）
+  # 原因：deploy.sh 的 generate_config 虽然会自动生成 WEBHOOK_SECRET 到 .env，
+  # 但 config.yaml 模板缺少 webhook_secret 字段注入，导致后端读取 settings.auth.webhook_secret
+  # 为 None，触发 main.rs:411-419 的 fail-fast 退出。
+  # 同步 deploy-latest.sh 批次 277 修复。
+  webhook_secret: "${WEBHOOK}"
   token_expiry_hours: 24
 
 grpc:
