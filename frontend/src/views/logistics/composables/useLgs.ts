@@ -11,7 +11,7 @@
  * （日期范围由 LgsFilter 发出事件，父组件更新自身 dateRange）
  */
 import { ref, reactive, watch } from 'vue'
-import { logisticsApi, type LogisticsWaybill } from '@/api/logistics'
+import { type LogisticsWaybill } from '@/api/logistics'
 import { useTableApi } from '@/composables/useTableApi'
 import { logger } from '@/utils/logger'
 import type { LgsStatusForm } from './useLgsProc'
