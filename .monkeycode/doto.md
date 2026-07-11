@@ -152,6 +152,48 @@
 
 ---
 
+## 🔍 v8 全项目复审发现（2026-07-11，批次 290-296 复审）
+
+> 详见 [v8-review-2026-07-11.md](file:///workspace/.monkeycode/docs/audits/v8-review-2026-07-11.md)。复审发现 21 个问题（4 高 + 8 中 + 9 低），按规则 13 继续修复。
+
+### 🔴 高风险（4 项，必须修复）
+
+| 编号 | 问题 | 位置 | 状态 |
+|------|------|------|------|
+| H1 | unwrap_or_default() 静默丢弃 SSRF 防护 | webhook_service.rs:217 | ⏳ 待修复 |
+| H2 | validate_dir_recursive 缺少递归深度限制 | backup.rs:15-34 | ⏳ 待修复 |
+| H3 | 临时目录硬编码且可预测（符号链接竞争） | backup.rs:134 | ⏳ 待修复 |
+| H4 | 日志泄露完整数据库/缓存 URL（含凭据） | app_state.rs:332 + rate_limit.rs:158 | ⏳ 待修复 |
+
+### 🟡 中风险（8 项，应修复）
+
+| 编号 | 问题 | 位置 | 状态 |
+|------|------|------|------|
+| M1 | download_update 缺少 resolve_to_addrs（DNS Rebinding） | system_update_service.rs:735-739 | ⏳ 待修复 |
+| M2 | Elasticsearch 客户端无 SSRF 防护 | elastic.rs:279-282 + 631-634 | ⏳ 待修复 |
+| M3 | Python 代码拼接密码 | admin.rs:33-52 | ⏳ 待修复 |
+| M4 | 后置校验存在 TOCTOU 风险 | backup.rs:146-157 | ⏳ 待修复 |
+| M5 | 硬编码系统路径 | backup.rs:81-82 | ⏳ 待修复 |
+| M6 | 限流器不支持分布式部署 | webhook_handler.rs:18-19 | ⏳ 待修复 |
+| M7 | 硬编码 API URL | currency_service.rs:293-296 | ⏳ 待修复 |
+| M8 | 6 个修改文件全部无单元测试 | 6 个文件 | ⏳ 待修复 |
+
+### 🟢 低风险（9 项，后续迭代）
+
+| 编号 | 问题 | 位置 |
+|------|------|------|
+| L1 | fetch_latest_release 无重定向限制 | system_update_service.rs:630 |
+| L2 | format! 拼接 SQL（数值类型） | slow_query_collector.rs:47-56 |
+| L3 | deploy_release 解压后无路径校验 | upgrade.rs:179 |
+| L4 | 函数返回 ()，错误无法传播 | backup.rs:36,125 |
+| L5 | 币种码校验不完整 | currency_service.rs:416-428 |
+| L6 | SQL 参数索引构造不一致 | tracking_service.rs:251 |
+| L7 | 权限掩码 0o755 对文件过于宽松 | system_update_service.rs:441 |
+| L8 | WebhookPayload 过度暴露为 pub | webhook_service.rs:19 |
+| L9 | rollback 方法过度暴露为 pub | system_update_service.rs:533 |
+
+---
+
 ## 规则节点提醒
 
 - **规则 5（E2E 独立工作流，每 30 批次）**：批次 270 触发（403 权限不足，需用户手动触发）
