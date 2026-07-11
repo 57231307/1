@@ -129,14 +129,14 @@ Ok((items, total))
 - 接入 `useTableApi` composable，删除重复的表格逻辑代码
 - 保持 view 的业务逻辑不变，只替换通用表格逻辑
 
-**待修复文件清单**（剩余 23 个 ⏳）：
+**待修复文件清单**（剩余 21 个 ⏳）：
 - `frontend/src/views/voucher/*`（凭证模块）
 - `frontend/src/views/scheduling/*`（排产模块）
-- `frontend/src/views/purchaseReceipt/*`（采购收货）
 - inventory/tabs/InventoryStockTab（1-based 分页）
 - barcodeScanner / assistAccounting（使用 0-based 分页需特殊处理）
 - composable 管理分页的 view：useSysUpd（3 表）、useBpmAp（2 表）— ✅ 批次 283 已完成
 - sales-contract / sales-price / purchase-contract — ✅ 批次 284 已完成
+- purchaseReceipt / purchase-price — ✅ 批次 285 已完成
 
 **技术要点**：
 - `useTableApi` 已封装：分页参数管理 / 数据加载 / loading 状态 / 错误处理
@@ -257,6 +257,13 @@ Ok((items, total))
 - 更新 clippy baseline：加入 33 个预存 dead_code 警告（CI 缓存差异暴露，main 分支缓存命中只有 298 警告，全新编译有 1064 警告）
 - CI 15 项全绿（13 成功 + 2 skipped 打包/Release）
 - view 表格进度：30/56 → 33/56（3 个模块 12 文件）
+
+### 批次 285：purchaseReceipt + purchase-price composable 迁移 — ✅ 完成（PR #465 合并，sha: c7d84fd）
+
+- purchaseReceipt 模块 5 文件：usePrc tableData 接入 useTableApi（URL: /purchase/receipts）+ usePrcProc 适配（queryParams 放宽 + page 独立字段 + 移除 handlePageChange/handlePageSizeChange）+ PrcFilter/PrcTbl 改造 + index.vue 适配
+- purchase-price 模块 4 文件：usePp priceList 接入 useTableApi（URL: /purchase/purchase-prices）+ PpFilter/PpTbl 改造 + index.vue 适配
+- CI 15 项全绿（13 成功 + 2 skipped 打包/Release）
+- view 表格进度：33/56 → 35/56（2 个模块 9 文件）
 
 ---
 
