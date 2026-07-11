@@ -1,6 +1,37 @@
 //! 备份与恢复子命令实现：Backup / Restore
 
 use super::{get_backup_dir, get_install_dir, require_env, run_cmd, timestamp};
+use std::fs;
+use std::path::Path;
+
+/// 校验解压后的所有文件路径都在指定目录范围内，防止 Tar Slip 路径穿越攻击
+fn validate_extracted_paths(base_dir: &str) -> Result<(), String> {
+    let base_canonical = fs::canonicalize(base_dir)
+        .map_err(|e| format!("无法解析基准目录 {}: {}", base_dir, e))?;
+    validate_dir_recursive(&base_canonical, &base_canonical)
+}
+
+/// 递归校验目录下所有文件路径都在基准目录范围内
+fn validate_dir_recursive(dir: &Path, base: &Path) -> Result<(), String> {
+    for entry in fs::read_dir(dir).map_err(|e| format!("读取目录失败: {}", e))? {
+        let entry = entry.map_err(|e| format!("读取目录项失败: {}", e))?;
+        let path = entry.path();
+        // canonicalize 解析符号链接，防止通过符号链接逃逸
+        let canonical = fs::canonicalize(&path)
+            .map_err(|e| format!("解析路径失败 {:?}: {}", path, e))?;
+        if !canonical.starts_with(base) {
+            return Err(format!(
+                "检测到路径穿越攻击：文件 {:?} 不在安全目录范围内",
+                canonical
+            ));
+        }
+        // 如果是目录，递归校验
+        if canonical.is_dir() {
+            validate_dir_recursive(&canonical, base)?;
+        }
+    }
+    Ok(())
+}
 
 pub(super) fn cmd_backup(backup_type: &str) {
     let ts = timestamp();
@@ -104,6 +135,14 @@ pub(super) fn cmd_restore(file: &str) {
     println!("解压备份...");
     if let Err(e) = run_cmd("tar", &["-xzf", file, "-C", temp_dir]) {
         println!("[ERROR] 解压失败: {}", e);
+        return;
+    }
+
+    // 规则 12 合规：解压后校验所有文件路径在安全目录范围内，防止 Tar Slip 路径穿越攻击
+    if let Err(e) = validate_extracted_paths(temp_dir) {
+        println!("[ERROR] 安全校验失败，终止恢复: {}", e);
+        // 清理可能包含恶意文件的临时目录
+        let _ = run_cmd("rm", &["-rf", temp_dir]);
         return;
     }
 
