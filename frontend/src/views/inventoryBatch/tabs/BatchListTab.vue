@@ -43,7 +43,7 @@
             </el-select>
           </el-form-item>
           <el-form-item>
-            <el-button type="primary" @click="fetchBatches">查询</el-button>
+            <el-button type="primary" @click="handleQuery">查询</el-button>
             <el-button @click="handleReset">重置</el-button>
           </el-form-item>
         </el-form>
@@ -96,11 +96,11 @@
       </el-table>
 
       <el-pagination
-        v-model:current-page="pagination.page"
-        v-model:page-size="pagination.pageSize"
-        :total="pagination.total"
+        v-model:current-page="page"
+        v-model:page-size="pageSize"
+        :total="total"
         layout="total, prev, pager, next, jumper"
-        @current-change="fetchBatches"
+        @current-change="handlePageChange"
       />
     </el-card>
 
@@ -139,21 +139,18 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, onMounted } from 'vue'
+import { ref, reactive } from 'vue'
 import { ElMessage, ElMessageBox, type FormInstance, type FormRules } from 'element-plus'
 import {
-  listBatches,
   deleteBatch,
   transferBatch,
   type InventoryBatch,
   type TransferBatchRequest,
 } from '@/api/inventoryBatch'
 import { warehouseApi, type Warehouse } from '@/api/warehouse'
+import { useTableApi } from '@/composables/useTableApi'
 
 const emit = defineEmits<{ openForm: [row: InventoryBatch | null] }>()
-
-const batchList = ref<InventoryBatch[]>([])
-const loading = ref(false)
 
 const queryParams = reactive({
   batchNo: '',
@@ -161,34 +158,47 @@ const queryParams = reactive({
   grade: '',
 })
 
-const pagination = reactive({ page: 1, pageSize: 20, total: 0 })
+// 批次 276：接入 useTableApi，消除手写 batchList/loading/pagination/fetchBatches 重复
+// useTableApi 自动管理分页状态、数据加载，自动 watch page/pageSize 变化触发重载
+const {
+  data: batchList,
+  loading,
+  page,
+  pageSize,
+  total,
+  refresh: fetchBatches,
+  setQueryParam,
+} = useTableApi<InventoryBatch>({
+  url: '/inventory/batches',
+  onError: (err: unknown) =>
+    ElMessage.error((err instanceof Error ? err.message : String(err)) || '获取批次列表失败'),
+})
 
-const fetchBatches = async () => {
-  loading.value = true
-  try {
-    const res = (await listBatches({
-      page: pagination.page,
-      page_size: pagination.pageSize,
-      ...queryParams,
-    })) as unknown as { data?: { list?: InventoryBatch[]; total?: number } }
-    const d = res.data
-    batchList.value = d?.list || []
-    pagination.total = d?.total || 0
-  } catch (error) {
-    ElMessage.error((error as Error).message || '获取批次列表失败')
-    batchList.value = []
-    pagination.total = 0
-  } finally {
-    loading.value = false
-  }
+// 批次 276：同步筛选条件到 useTableApi.queryParams 并刷新
+const syncQueryParams = () => {
+  setQueryParam('batchNo', queryParams.batchNo || undefined)
+  setQueryParam('colorNo', queryParams.colorNo || undefined)
+  setQueryParam('grade', queryParams.grade || undefined)
+}
+
+const handleQuery = () => {
+  syncQueryParams()
+  page.value = 1
+  fetchBatches()
 }
 
 const handleReset = () => {
   queryParams.batchNo = ''
   queryParams.colorNo = ''
   queryParams.grade = ''
-  pagination.page = 1
+  syncQueryParams()
+  page.value = 1
   fetchBatches()
+}
+
+// 分页（useTableApi 自动 watch page/pageSize 变化触发重载）
+const handlePageChange = (p: number) => {
+  page.value = p
 }
 
 const handleCreate = () => emit('openForm', null)
@@ -288,7 +298,6 @@ const handleDelete = async (row: InventoryBatch) => {
 }
 
 defineExpose({ fetchBatches })
-onMounted(() => fetchBatches())
 </script>
 
 <style scoped>

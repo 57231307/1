@@ -29,13 +29,13 @@
           </el-select>
         </el-form-item>
         <el-form-item>
-          <el-button type="primary" @click="fetchUsers">查询</el-button>
+          <el-button type="primary" @click="handleQuery">查询</el-button>
           <el-button @click="resetUserQuery">重置</el-button>
         </el-form-item>
       </el-form>
     </el-card>
     <el-card shadow="hover">
-      <el-table v-loading="userLoading" :data="users" stripe>
+      <el-table v-loading="loading" :data="users" stripe>
         <el-table-column prop="username" label="用户名" width="120" />
         <el-table-column prop="real_name" label="姓名" width="100" />
         <el-table-column prop="phone" label="手机号" width="130" />
@@ -71,13 +71,13 @@
         </el-table-column>
       </el-table>
       <el-pagination
-        v-model:current-page="userQuery.page"
-        v-model:page-size="userQuery.page_size"
-        :total="userTotal"
+        v-model:current-page="page"
+        v-model:page-size="pageSize"
+        :total="total"
         layout="total, sizes, prev, pager, next, jumper"
         style="margin-top: 16px; justify-content: flex-end"
-        @current-change="fetchUsers"
-        @size-change="fetchUsers"
+        @current-change="handlePageChange"
+        @size-change="handleSizeChange"
       />
     </el-card>
 
@@ -116,54 +116,75 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, onMounted } from 'vue'
+import { ref, reactive } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Plus } from '@element-plus/icons-vue'
 import type { FormInstance, FormRules } from 'element-plus'
 import {
-  listUsers,
   createUser,
   updateUser,
   deleteUser as deleteUserApi,
   type User,
 } from '@/api/user'
+import { useTableApi } from '@/composables/useTableApi'
 
 // 批次 32 v7 P0-2：接入 i18n，替换硬编码中文 ElMessage
 const { t } = useI18n({ useScope: 'global' })
 
-const users = ref<User[]>([])
-const userTotal = ref(0)
-const userLoading = ref(false)
 const userQuery = reactive({
   keyword: '',
   status: undefined as number | undefined,
-  page: 1,
-  page_size: 10,
 })
 
-const fetchUsers = async () => {
-  userLoading.value = true
-  try {
-    const res = await listUsers(userQuery)
-    users.value = res.data?.list || []
-    userTotal.value = res.data?.total || 0
-  } catch (e: unknown) {
-    // 批次 98 P2-D 修复（v5 复审）：原 catch (e: any) 改为 unknown + 类型守卫
-    ElMessage.error((e instanceof Error ? e.message : String(e)) || '获取用户列表失败')
-  } finally {
-    userLoading.value = false
-  }
+// 批次 276：接入 useTableApi，消除手写 users/userTotal/userLoading/fetchUsers 重复
+// useTableApi 自动管理分页状态、数据加载，自动 watch page/pageSize 变化触发重载
+const {
+  data: users,
+  loading,
+  page,
+  pageSize,
+  total,
+  refresh: fetchUsers,
+  setQueryParam,
+} = useTableApi<User>({
+  url: '/users',
+  defaultPageSize: 10,
+  onError: (err: unknown) =>
+    ElMessage.error((err instanceof Error ? err.message : String(err)) || '获取用户列表失败'),
+})
+
+// 批次 276：同步筛选条件到 useTableApi.queryParams 并刷新
+const syncQueryParams = () => {
+  setQueryParam('keyword', userQuery.keyword || undefined)
+  setQueryParam('status', userQuery.status)
 }
 
-defineExpose({ refresh: fetchUsers })
+const handleQuery = () => {
+  syncQueryParams()
+  page.value = 1
+  fetchUsers()
+}
 
 const resetUserQuery = () => {
   userQuery.keyword = ''
   userQuery.status = undefined
-  userQuery.page = 1
+  syncQueryParams()
+  page.value = 1
   fetchUsers()
 }
+
+// 分页（useTableApi 自动 watch page/pageSize 变化触发重载）
+const handlePageChange = (p: number) => {
+  page.value = p
+}
+
+const handleSizeChange = (s: number) => {
+  pageSize.value = s
+  page.value = 1
+}
+
+defineExpose({ refresh: fetchUsers })
 
 const userDialogVisible = ref(false)
 const userFormRef = ref<FormInstance>()
@@ -282,8 +303,4 @@ const deleteUser = async (row: User) => {
     if (e !== 'cancel') ElMessage.error((e instanceof Error ? e.message : String(e)) || '删除失败')
   }
 }
-
-onMounted(() => {
-  fetchUsers()
-})
 </script>
