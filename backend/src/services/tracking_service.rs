@@ -255,8 +255,12 @@ impl TrackingService {
             sql.push_str(&format!(" AND viewed_at < ${}", params.len() + 1));
             params.push(to.into());
         }
-        sql.push_str(" GROUP BY path ORDER BY view_count DESC LIMIT ");
-        sql.push_str(&limit.to_string());
+        // 规则 12 合规：LIMIT 参数化绑定，防止 SQL 注入
+        sql.push_str(&format!(
+            " GROUP BY path ORDER BY view_count DESC LIMIT ${}",
+            params.len() + 1
+        ));
+        params.push(limit.into());
 
         let pages = PopularPage::find_by_statement(Statement::from_sql_and_values(
             DatabaseBackend::Postgres,
