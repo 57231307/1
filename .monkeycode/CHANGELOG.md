@@ -9,6 +9,7 @@
 
 | 批次 | PR | 一句话总结 |
 |------|-----|-----------|
+| 294 | #474 | 修复 webhook 测试端点缺少速率限制漏洞（test_webhook 添加 WEBHOOK_TEST_LIMITER 10次/分钟/用户，LazyLock<MemoryRateLimiter> + TooManyRequests 429） |
 | 293 | #473 | 修复 webhook_service 日志信息泄露漏洞（webhook_url 完整 URL 改为 webhook_host 只记录主机名，url::Url::parse 提取 host_str） |
 | 292 | #472 | 修复 currency_service SSRF 防护不完整漏洞（复用 ssrf_guard::validate_url_and_resolve + resolve_to_addrs 固定 IP，消除 DNS Rebinding TOCTOU） |
 | 291 | #471 | 修复 backup cmd_restore 命令注入/Tar Slip 漏洞（新增 validate_extracted_paths 递归校验 + canonicalize 解析符号链接，规则 12 合规） |
