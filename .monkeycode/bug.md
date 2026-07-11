@@ -39,17 +39,14 @@
 
 ---
 
-## 二、中危漏洞（3 项 ⏳ 未修复）
+## 二、中危漏洞（2 项 ⏳ 未修复）
 
-### 2.1 日志信息泄露 - webhook_service.rs
+### 2.1 ~~日志信息泄露 - webhook_service.rs~~ ✅ 已修复（批次 293，PR #473）
 
-**严重度**：中危
-**状态**：⏳ 未修复
-**位置**：[webhook_service.rs:235](file:///workspace/backend/src/services/webhook_service.rs#L235)
+**状态**：✅ 已修复（2026-07-11，sha: e686d6a）
+**位置**：[webhook_service.rs:234-241](file:///workspace/backend/src/services/webhook_service.rs#L234-L241)
 
-**问题**：签名计算失败时日志记录完整 webhook URL，可能泄露 URL 中的敏感参数。
-
-**修复方案**：日志只记录主机名，不记录完整 URL。
+**说明**：签名计算失败时日志原记录完整 webhook URL，修复为只记录主机名（`webhook_host`），使用 `url::Url::parse` 提取 host_str，防止 URL 中的敏感参数泄露。本条目已从待修复队列删除。
 
 ---
 
