@@ -9,7 +9,8 @@
 
 | 批次 | PR | 一句话总结 |
 |------|-----|-----------|
-| 277 | #457 | 8 个 view 批量迁移 useTableApi（bpm/templates + crm/CustomerListTab + print-templates + ProductListTab + quality-standards + report-templates + supplier/index + useTableApi 增强裸数组 data+外层 total）+ WEBHOOK_SECRET 部署修复（.env.example + deploy-latest.sh 强制校验 + config.yaml 注入） |
+| 279 | #459 | deploy.sh config.yaml auth 段注入 webhook_secret 字段（旧版部署脚本未同步批次 277 修复，导致后端 fail-fast 退出）+ 规则 00 关联影响评估强制写入 MEMORY.md |
+| 278 | #458 | 4 个 view 接入 useTableApi 第十批（fund/Account + fixed-assets/AssetList + cost/CostCollection + budget/BudgetList） |
 | 276 | #455 | 3 个 view 接入 useTableApi 第九批（customer + UserTab + BatchListTab） |
 | 275 | #454 | 3 个 view 接入 useTableApi 第八批（notification + warehouse + bom）+ validate_secret 熵比阈值 0.3→0.15 修复（openssl rand -hex 32 生成的 hex 密钥 16/64=0.25 被误拒） |
 | 274 | #452 | 3 个 view 接入 useTableApi 第七批（color-cards + custom-orders + mrp/history，移除 listColorCards/listCustomOrders/getMrpHistory + 手写分页，修复 mrp/history fetchHistory 未使用错误） |
