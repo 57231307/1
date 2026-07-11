@@ -1,7 +1,7 @@
 <!--
   ScTbl.vue - 销售合同列表表格
   拆分自 sales-contract/index.vue（P14 批 2 I-3 第 1 批）
-  行为完全保持一致（仅结构重构）
+  批次 284：接入 useTableApi 模式（page/pageSize props + v-model 绑定分页）
 -->
 <template>
   <el-card shadow="hover" class="table-card">
@@ -82,13 +82,13 @@
 
     <div class="pagination-container">
       <el-pagination
-        :current-page="queryParams.page"
-        :page-size="queryParams.page_size"
+        :current-page="page"
+        :page-size="pageSize"
         :page-sizes="[10, 20, 50, 100]"
         :total="total"
         layout="total, sizes, prev, pager, next, jumper"
-        @size-change="emit('size-change', $event as number)"
-        @current-change="emit('current-change', $event as number)"
+        @update:current-page="(v: number) => emit('update:page', v)"
+        @update:page-size="(v: number) => emit('update:page-size', v)"
       />
     </div>
   </el-card>
@@ -98,19 +98,20 @@
 import type { SalesContract } from '@/api/sales-contract'
 import { formatCurrency, getStatusType, getStatusLabel } from '../composables/scFmts'
 
-interface ScQueryParams {
-  page: number
-  page_size: number
-}
-
 /**
- * 销售合同列表表格组件
+ * 销售合同列表表格组件（批次 284：page/pageSize props + v-model 绑定分页）
  */
-const props = defineProps<{
+defineProps<{
+  // 列表数据
   contractList: SalesContract[]
+  // 加载状态
   loading: boolean
+  // 总数
   total: number
-  queryParams: ScQueryParams
+  // 当前页
+  page: number
+  // 每页条数
+  pageSize: number
 }>()
 
 const emit = defineEmits<{
@@ -120,11 +121,9 @@ const emit = defineEmits<{
   approve: [row: SalesContract]
   execute: [row: SalesContract]
   delete: [row: SalesContract]
-  'size-change': [val: number]
-  'current-change': [val: number]
+  'update:page': [v: number]
+  'update:page-size': [v: number]
 }>()
-
-void props
 </script>
 
 <style scoped>
