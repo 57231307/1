@@ -108,17 +108,18 @@ Ok((items, total))
 - `PaginatorTrait` 导入保留（`.paginate()` 方法需要）
 - `quotation_service.rs` 特殊处理：返回类型是 `ServiceError` 而非 `AppError`，需添加 `From<AppError> for ServiceError` 转换或改用 `AppError`
 
-**子任务 2.2：view 表格逻辑接入 useTableApi（9/56 完成 🔄）**
+**子任务 2.2：view 表格逻辑接入 useTableApi（11/56 完成 🔄）**
 
 **问题描述**：56 个前端 view 文件各自实现表格加载/分页/排序/查询逻辑，与已封装的 `useTableApi` composable 重复。每个 view 重复编写 `loadData` / `handlePageChange` / `handleSortChange` / `handleSearch` 等函数，代码冗余严重。
 
 **影响范围**：56 个 view 文件，涉及所有业务模块（销售/采购/库存/财务/CRM 等）
 
-**已修复文件（9 个 ✅）**：
+**已修复文件（11 个 ✅）**：
 - 批次 267：`system/audit-log/index.vue`（V2Table，listKey: 'items'） / `system/slow-query/index.vue`（保留 loadStats）
 - 批次 268：`supplierEvaluation/index.vue`（pageSizeKey: 'pageSize' 驼峰适配） / `quotations/list.vue`（移除 QuotationListObj 兼容类型）
 - 批次 269：`crm/leads/index.vue`（移除类型 hack） / `crm/opportunities/index.vue` / `crm/pool.vue`（修复硬编码分页 bug + poolList 类型修复）
 - 批次 271：`dye-batch/index.vue`（refresh 替换 7 处 getList） / `dye-recipe/index.vue`（refresh 替换 6 处 getList + 移除空 onMounted）
+- 批次 272：`customerCredit/index.vue`（refresh 别名 fetchCredits 保留 3 处 @submitted 绑定） / `arReconciliation/index.vue`（refresh 别名 loadData 保留 5 处调用 + 修复 loading 未解构）
 
 **修复方案**：
 - 扫描所有使用 `el-table` + 分页的 view 文件
@@ -126,14 +127,14 @@ Ok((items, total))
 - 接入 `useTableApi` composable，删除重复的表格逻辑代码
 - 保持 view 的业务逻辑不变，只替换通用表格逻辑
 
-**待修复文件清单**（剩余 47 个 ⏳，优先级排序）：
+**待修复文件清单**（剩余 45 个 ⏳，优先级排序）：
 - `frontend/src/views/voucher/*`（凭证模块）
 - `frontend/src/views/scheduling/*`（排产模块）
 - `frontend/src/views/security/*`（安全模块）
 - `frontend/src/views/sales-contract/*`（销售合同）
 - `frontend/src/views/sales-price/*`（销售价格）
 - `frontend/src/views/purchaseReceipt/*`（采购收货）
-- 其他直接手写分页的 view：omniAudit / fiveDimension / inventory/tabs/InventoryStockTab / customerCredit / barcodeScanner / arReconciliation / assistAccounting（批次 272 候选）
+- 其他直接手写分页的 view：omniAudit / fiveDimension / inventory/tabs/InventoryStockTab / barcodeScanner / assistAccounting（批次 273 候选，barcodeScanner/assistAccounting 使用 0-based 分页需特殊处理）
 - composable 管理分页的 view（104 个总计，后续迭代）
 
 **技术要点**：
@@ -208,10 +209,16 @@ Ok((items, total))
 - dye-batch/index.vue + dye-recipe/index.vue，CI 15 项全绿（13 成功 + 2 skipped）
 - view 表格进度：7/56 → 9/56
 
-### 批次 272：view 表格逻辑接入 useTableApi 第五批（待启动）
+### 批次 272：view 表格逻辑接入 useTableApi 第五批 — ✅ 完成（PR #449 合并）
 
-- 候选文件：omniAudit / fiveDimension / barcodeScanner / customerCredit / arReconciliation / assistAccounting（直接手写分页模式）
-- 每批 2-3 个
+- customerCredit/index.vue + arReconciliation/index.vue，CI 15 项全绿（13 成功 + 2 skipped）
+- view 表格进度：9/56 → 11/56
+- 修复 arReconciliation 模板 `:loading="loading"` 引用错误（loading 未从 useTableApi 解构）
+
+### 批次 273：view 表格逻辑接入 useTableApi 第六批（待启动）
+
+- 候选文件：omniAudit / fiveDimension / inventory/tabs/InventoryStockTab（1-based 分页）
+- barcodeScanner / assistAccounting 使用 0-based 分页（page-1 偏移），不兼容 useTableApi，需跳过或特殊处理
 
 ---
 
