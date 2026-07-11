@@ -9,6 +9,7 @@
 
 | 批次 | PR | 一句话总结 |
 |------|-----|-----------|
+| 部署 | #450 | 修复部署配置路径与用户不一致导致后端无法启动（EnvironmentFile /etc/bingxi-erp/.env→/etc/bingxi/.env + 补建 bingxi 用户 + nginx 前端路径 /opt/bingxi-erp→/opt/bingxi，2 处） |
 | 272 | #449 | 2 个 view 接入 useTableApi 第五批（customerCredit + arReconciliation，refresh 别名保留兼容事件绑定，修复 loading 未解构引用错误） |
 | 271 | #448 | 2 个 view 接入 useTableApi 第四批（dye-batch + dye-recipe，移除 listDyeBatches/listDyeRecipes + 手写分页，refresh 替换 13 处 getList 调用） |
 | 270 | - | 规则 5 E2E 触发（403 token 权限不足，需用户手动触发 e2e-batch.yml）+ 规则 10 记忆整理（doto.md 更新到准确状态：中风险 22/25、service 分页 35/35 清零、view 表格 7/56） |
