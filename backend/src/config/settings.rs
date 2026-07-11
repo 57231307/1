@@ -426,8 +426,13 @@ impl AppSettings {
             }
         }
 
+        // 熵比校验：唯一字符数 / 总长度
+        // 阈值 0.15（部署修复）：原阈值 0.3 过高，导致 `openssl rand -hex 32` 生成的
+        // 64 字符 hex 密钥（仅 16 种字符 0-9,a-f，熵比 = 16/64 = 0.25）被误拒。
+        // 0.15 阈值仍能拦截全同字符密钥（1/32 = 0.03）和极度重复模式，
+        // 同时放行 hex/base64 等标准编码的合法强密钥。
         let unique_chars: std::collections::HashSet<char> = secret.chars().collect();
         let entropy_ratio = unique_chars.len() as f64 / secret.len() as f64;
-        entropy_ratio > 0.3
+        entropy_ratio > 0.15
     }
 }
