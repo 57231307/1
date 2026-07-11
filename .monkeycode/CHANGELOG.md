@@ -9,6 +9,7 @@
 
 | 批次 | PR | 一句话总结 |
 |------|-----|-----------|
+| 302 | #482 | 修复 v8-M2 ES 客户端缺少 SSRF 重定向限制（elastic.rs 两处添加 redirect(Policy::none())，real() 的 unwrap_or_else 改为 eprintln+exit 合规处理） |
 | 301 | #481 | 修复 v8-M1 download_update 缺少 resolve_to_addrs（复用 ssrf_guard::validate_url_and_resolve + resolve_to_addrs 固定 IP，消除 DNS Rebinding TOCTOU） |
 | 300 | #480 | 修复 v8-H4 日志泄露完整 URL 凭据（app_state.rs ELASTICSEARCH_URL + rate_limit.rs RATE_LIMIT_REDIS_URL 改为只记录"已配置"，防止 user:password@host 凭据泄露） |
 | 299 | #479 | 修复 v8-H3 临时目录硬编码且可预测（/tmp/bingxi_restore 固定路径改 uuid::Uuid::new_v4() 随机生成，消除符号链接竞争 TOCTOU 攻击） |
