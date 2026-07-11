@@ -9,6 +9,7 @@
 
 | 批次 | PR | 一句话总结 |
 |------|-----|-----------|
+| 300 | #480 | 修复 v8-H4 日志泄露完整 URL 凭据（app_state.rs ELASTICSEARCH_URL + rate_limit.rs RATE_LIMIT_REDIS_URL 改为只记录"已配置"，防止 user:password@host 凭据泄露） |
 | 299 | #479 | 修复 v8-H3 临时目录硬编码且可预测（/tmp/bingxi_restore 固定路径改 uuid::Uuid::new_v4() 随机生成，消除符号链接竞争 TOCTOU 攻击） |
 | 298 | #478 | 修复 v8-H2 validate_dir_recursive 缺少递归深度限制（添加 MAX_RECURSION_DEPTH=100 常量和 depth 参数，防止恶意 tar 千层嵌套导致栈溢出 DoS） |
 | 297 | #477 | 修复 v8-H1 SSRF 防护被 unwrap_or_default 静默绕过（webhook_service.rs:217 build().unwrap_or_default() 改为 map_err 错误传播，build 失败直接返回错误不创建客户端） |
