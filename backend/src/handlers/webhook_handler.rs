@@ -3,12 +3,20 @@ use axum::{
     Json,
 };
 use serde::{Deserialize, Serialize};
+use std::sync::LazyLock;
+use std::time::Duration;
 
 use crate::middleware::auth_context::AuthContext;
+use crate::middleware::rate_limit::MemoryRateLimiter;
 use crate::services::webhook_service::{WebhookDeliveryResult, WebhookService};
 use crate::utils::app_state::AppState;
 use crate::utils::error::AppError;
 use crate::utils::response::ApiResponse;
+
+/// Webhook 测试端点专用限流器（10 次/分钟/用户）
+/// 规则 12 合规：防止攻击者频繁调用 test_webhook 探测内网服务
+static WEBHOOK_TEST_LIMITER: LazyLock<MemoryRateLimiter> =
+    LazyLock::new(|| MemoryRateLimiter::new(10, Duration::from_secs(60)));
 
 #[derive(Debug, Deserialize)]
 pub struct CreateWebhookRequest {
@@ -113,9 +121,18 @@ pub async fn delete_webhook(
 /// 出于 SSRF 安全考虑，响应中不回显目标 URL 返回的内容。
 pub async fn test_webhook(
     State(state): State<AppState>,
-    _auth: AuthContext,
+    auth: AuthContext,
     Path(id): Path<i32>,
 ) -> Result<Json<ApiResponse<WebhookDeliveryResult>>, AppError> {
+    // 规则 12 合规：速率限制，防止攻击者频繁调用 test_webhook 探测内网服务
+    let rate_key = format!("webhook_test:{}", auth.user_id);
+    if !WEBHOOK_TEST_LIMITER.check(&rate_key) {
+        return Err(AppError::TooManyRequests {
+            retry_after: Some(60),
+            message: "Webhook 测试请求过于频繁，每分钟最多 10 次".to_string(),
+        });
+    }
+
     let service = WebhookService::new(state.db);
 
     match service.test_webhook(id).await {
