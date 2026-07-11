@@ -1296,12 +1296,44 @@ warning: associated items `new`, `is_locked`, `record_failure`, `record_success`
 warning: associated items `new`, `sync_sales_order`, and `sync_customer` are never used
 warning: associated items `new`, `try_acquire`, `refill`, and `available` are never used
 warning: associated items `start` and `finish` are never used
+warning: constant `ACTIVE` is never used
+warning: constant `AFTERSALES_OPENED` is never used
+warning: constant `AFTERSALES_REJECTED` is never used
+warning: constant `APPROVED` is never used
+warning: constant `ARCHIVED` is never used
+warning: constant `BACKUP` is never used
+warning: constant `CANCELLED` is never used
+warning: constant `CLOSING` is never used
+warning: constant `COMPLETED` is never used
+warning: constant `CONVERTED` is never used
 warning: constant `CSP_POLICY` is never used
+warning: constant `DEGRADED` is never used
+warning: constant `DENIED` is never used
+warning: constant `DEPRECIATION_COMPLETED` is never used
+warning: constant `DISPOSED` is never used
+warning: constant `DRAFT` is never used
+warning: constant `EXPIRED` is never used
+warning: constant `FAILED` is never used
+warning: constant `HEALTHY` is never used
+warning: constant `INACTIVE` is never used
+warning: constant `LOAD_IDLE` is never used
+warning: constant `LOAD_OVERLOADED` is never used
+warning: constant `LOST` is never used
 warning: constant `P92_AUTO_MODULE` is never used
 warning: constant `P92_CRUD_MODULE` is never used
 warning: constant `P92_LEDGER_MODULE` is never used
 warning: constant `P92_MANUAL_MODULE` is never used
 warning: constant `P92_QRY_MODULE` is never used
+warning: constant `PENDING` is never used
+warning: constant `PENDING_APPROVAL` is never used
+warning: constant `PRIMARY` is never used
+warning: constant `PROCESS_PENDING` is never used
+warning: constant `QUALITY_CLOSED` is never used
+warning: constant `QUALITY_OPEN` is never used
+warning: constant `QUALITY_RESOLVED` is never used
+warning: constant `REJECTED` is never used
+warning: constant `SUCCESS` is never used
+warning: constant `UNHEALTHY` is never used
 warning: enum `AdjustType` is never used
 warning: enum `ExportFormat` is never used
 warning: enum `MovementType` is never used
@@ -1396,6 +1428,7 @@ warning: name `NORMAL` contains a capitalized acronym
 warning: name `VIP` contains a capitalized acronym
 warning: struct `AdvanceNodeRequest` is never constructed
 warning: struct `AdvanceStatusDto` is never constructed
+warning: struct `ApiDoc` is never constructed
 warning: struct `ArCollectionService` is never constructed
 warning: struct `AvgLeadTimeResult` is never constructed
 warning: struct `ConvertToOrderDto` is never constructed
