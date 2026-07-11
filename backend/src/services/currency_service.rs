@@ -297,9 +297,14 @@ impl CurrencyService {
 
         tracing::info!("调用外部汇率API: {} -> {}", from_currency, to_currency);
 
-        // TS-S-6：禁止重定向，防止 SSRF
+        // 规则 12 合规：SSRF 防护 - validate_url_and_resolve 校验 URL 并返回安全 IP 列表，
+        // resolve_to_addrs 固定连接 IP，消除 DNS Rebinding TOCTOU 漏洞
+        let (host, safe_addrs) = crate::utils::ssrf_guard::validate_url_and_resolve(&url)?;
+
+        // 禁止重定向 + 固定 IP 连接，防止 SSRF
         let client = reqwest::Client::builder()
             .redirect(reqwest::redirect::Policy::none())
+            .resolve_to_addrs(&host, &safe_addrs)
             .timeout(std::time::Duration::from_secs(10))
             .build()
             .map_err(|e| AppError::business(format!("HTTP 客户端构建失败: {}", e)))?;
