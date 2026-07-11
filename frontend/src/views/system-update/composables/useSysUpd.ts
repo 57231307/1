@@ -3,28 +3,22 @@
  * 任务编号: P14 批 2 I-3 第 1 批（拆分原 system-update/index.vue）
  * 提供当前版本、版本列表、更新任务、系统备份等业务状态与加载方法
  * 业务流程（确认对话框的下载/安装/回滚/恢复等）由 useSysUpdProc 提供
- * 行为完全保持一致（仅结构重构）
+ * 批次 283：3 个表格接入 useTableApi，返回改为 reactive 包装
  */
 import { ref, computed, reactive } from 'vue'
 import { ElMessage } from 'element-plus'
 import {
   getCurrentVersion,
   checkForUpdates,
-  listSystemVersions,
-  listUpdateTasks,
-  listSystemBackups,
   createSystemBackup,
   type SystemVersion,
   type UpdateTask,
   type SystemBackup,
 } from '@/api/system-update'
 import { logger } from '@/utils/logger'
+import { useTableApi } from '@/composables/useTableApi'
 
-/**
- * 系统更新 composable
- * 集中管理 3 个 tab + 表单 + 详情的业务状态
- * 对话框可见性由父组件本地 ref 管理
- */
+/** 系统更新 composable（集中管理 3 个 tab + 表单 + 详情的业务状态） */
 export function useSysUpd() {
   // 当前/最新版本
   const currentVersion = ref<{ version: string; build_date: string } | null>(null)
@@ -34,31 +28,46 @@ export function useSysUpd() {
     return currentVersion.value.version !== latestVersion.value.version
   })
 
-  // 版本列表
-  const versions = ref<SystemVersion[]>([])
-  const versionTotal = ref(0)
-  const versionLoading = ref(false)
-  const versionQuery = reactive({
-    page: 1,
-    page_size: 20,
+  // 版本列表 - 接入 useTableApi（批次 283）
+  const {
+    data: versions,
+    total: versionTotal,
+    loading: versionLoading,
+    page: versionPage,
+    pageSize: versionPageSize,
+    refresh: fetchVersions,
+  } = useTableApi<SystemVersion>({
+    url: '/system-update/versions',
+    onError: (err: unknown) =>
+      ElMessage.error((err instanceof Error ? err.message : String(err)) || '获取版本列表失败'),
   })
 
-  // 更新任务
-  const tasks = ref<UpdateTask[]>([])
-  const taskTotal = ref(0)
-  const taskLoading = ref(false)
-  const taskQuery = reactive({
-    page: 1,
-    page_size: 20,
+  // 更新任务 - 接入 useTableApi（批次 283）
+  const {
+    data: tasks,
+    total: taskTotal,
+    loading: taskLoading,
+    page: taskPage,
+    pageSize: taskPageSize,
+    refresh: fetchTasks,
+  } = useTableApi<UpdateTask>({
+    url: '/system-update/tasks',
+    onError: (err: unknown) =>
+      ElMessage.error((err instanceof Error ? err.message : String(err)) || '获取任务列表失败'),
   })
 
-  // 系统备份
-  const backups = ref<SystemBackup[]>([])
-  const backupTotal = ref(0)
-  const backupLoading = ref(false)
-  const backupQuery = reactive({
-    page: 1,
-    page_size: 20,
+  // 系统备份 - 接入 useTableApi（批次 283）
+  const {
+    data: backups,
+    total: backupTotal,
+    loading: backupLoading,
+    page: backupPage,
+    pageSize: backupPageSize,
+    refresh: fetchBackups,
+  } = useTableApi<SystemBackup>({
+    url: '/system-update/backups',
+    onError: (err: unknown) =>
+      ElMessage.error((err instanceof Error ? err.message : String(err)) || '获取备份列表失败'),
   })
 
   // 备份表单
@@ -77,7 +86,6 @@ export function useSysUpd() {
       const res = await getCurrentVersion()
       currentVersion.value = res.data
     } catch (error: unknown) {
-      // 批次 98 P2-D 修复（v5 复审）：原 catch (error: any) 改为 unknown + 类型守卫
       logger.error('获取当前版本失败:', error)
     }
   }
@@ -93,53 +101,7 @@ export function useSysUpd() {
         ElMessage.info('当前已是最新版本')
       }
     } catch (error: unknown) {
-      // 批次 98 P2-D 修复（v5 复审）：原 catch (error: any) 改为 unknown + 类型守卫
       ElMessage.error((error instanceof Error ? error.message : String(error)) || '检查更新失败')
-    }
-  }
-
-  /** 加载版本列表 */
-  const fetchVersions = async () => {
-    versionLoading.value = true
-    try {
-      const res = await listSystemVersions(versionQuery)
-      versions.value = res.data || []
-      versionTotal.value = res.total || 0
-    } catch (error: unknown) {
-      // 批次 98 P2-D 修复（v5 复审）：原 catch (error: any) 改为 unknown + 类型守卫
-      ElMessage.error((error instanceof Error ? error.message : String(error)) || '获取版本列表失败')
-    } finally {
-      versionLoading.value = false
-    }
-  }
-
-  /** 加载更新任务 */
-  const fetchTasks = async () => {
-    taskLoading.value = true
-    try {
-      const res = await listUpdateTasks(taskQuery)
-      tasks.value = res.data || []
-      taskTotal.value = res.total || 0
-    } catch (error: unknown) {
-      // 批次 98 P2-D 修复（v5 复审）：原 catch (error: any) 改为 unknown + 类型守卫
-      ElMessage.error((error instanceof Error ? error.message : String(error)) || '获取任务列表失败')
-    } finally {
-      taskLoading.value = false
-    }
-  }
-
-  /** 加载系统备份 */
-  const fetchBackups = async () => {
-    backupLoading.value = true
-    try {
-      const res = await listSystemBackups(backupQuery)
-      backups.value = res.data || []
-      backupTotal.value = res.total || 0
-    } catch (error: unknown) {
-      // 批次 98 P2-D 修复（v5 复审）：原 catch (error: any) 改为 unknown + 类型守卫
-      ElMessage.error((error instanceof Error ? error.message : String(error)) || '获取备份列表失败')
-    } finally {
-      backupLoading.value = false
     }
   }
 
@@ -158,7 +120,6 @@ export function useSysUpd() {
       await fetchBackups()
       return true
     } catch (error: unknown) {
-      // 批次 98 P2-D 修复（v5 复审）：原 catch (error: any) 改为 unknown + 类型守卫
       ElMessage.error((error instanceof Error ? error.message : String(error)) || '创建备份失败')
       return false
     } finally {
@@ -171,32 +132,34 @@ export function useSysUpd() {
     currentVersionDetail.value = row
   }
 
-  // 直接返回 ref/function/computed 集合（不再用 reactive 包装），方便父组件解构到顶层
-  // 这样 template 里可以直接用 `versions` 而不用 `upd.versions`
-  return {
+  // 批次 283：返回 reactive 包装（父组件通过 upd.xxx 访问）
+  return reactive({
     // 当前版本
     currentVersion,
     latestVersion,
     hasUpdate,
     fetchCurrentVersion,
     handleCheckUpdate,
-    // 版本列表
+    // 版本列表（useTableApi 管理）
     versions,
     versionTotal,
     versionLoading,
-    versionQuery,
+    versionPage,
+    versionPageSize,
     fetchVersions,
-    // 更新任务
+    // 更新任务（useTableApi 管理）
     tasks,
     taskTotal,
     taskLoading,
-    taskQuery,
+    taskPage,
+    taskPageSize,
     fetchTasks,
-    // 系统备份
+    // 系统备份（useTableApi 管理）
     backups,
     backupTotal,
     backupLoading,
-    backupQuery,
+    backupPage,
+    backupPageSize,
     fetchBackups,
     // 备份表单
     backupForm,
@@ -206,5 +169,5 @@ export function useSysUpd() {
     // 版本详情
     currentVersionDetail,
     viewVersionDetail,
-  }
+  })
 }

@@ -3,11 +3,12 @@
  * 任务编号: P14 批 2 I-3 第 4 批（拆分原 bpm/approval.vue）
  * 提供待办/已办任务列表查询、分页、统计等核心方法
  * 业务流程（审批 / 转交 / 审批链）由 useBpmApProc 提供
- * 行为完全保持一致（仅结构重构）
+ * 批次 283：pending/completed 2 个表格接入 useTableApi，stats 通过 watch 自动更新
  */
-import { ref, reactive } from 'vue'
-import { bpmEnhancedApi, type ApprovalTask } from '@/api/bpm-enhanced'
+import { reactive, watch } from 'vue'
+import { type ApprovalTask } from '@/api/bpm-enhanced'
 import { logger } from '@/utils/logger'
+import { useTableApi } from '@/composables/useTableApi'
 import { isOverdue } from './bpmApFmts'
 
 /**
@@ -19,68 +20,64 @@ export function useBpmAp() {
   // 统计
   const stats = reactive({ pending: 0, completed: 0, urgent: 0, avgTime: 0 })
 
-  // 待办任务
-  const pendingLoading = ref(false)
-  const pendingTasks = ref<ApprovalTask[]>([])
-  const pendingPagination = reactive({ page: 1, page_size: 10, total: 0 })
+  // 待办任务 - 接入 useTableApi（批次 283）
+  const {
+    data: pendingTasks,
+    total: pendingTotal,
+    loading: pendingLoading,
+    page: pendingPage,
+    pageSize: pendingPageSize,
+    refresh: fetchPendingTasks,
+  } = useTableApi<ApprovalTask>({
+    url: '/bpm/tasks/pending',
+    defaultPageSize: 10,
+    onError: (err: unknown) => logger.error(String(err)),
+  })
 
-  // 已办任务
-  const completedLoading = ref(false)
-  const completedTasks = ref<ApprovalTask[]>([])
-  const completedPagination = reactive({ page: 1, page_size: 10, total: 0 })
+  // 已办任务 - 接入 useTableApi（批次 283）
+  const {
+    data: completedTasks,
+    total: completedTotal,
+    loading: completedLoading,
+    page: completedPage,
+    pageSize: completedPageSize,
+    refresh: fetchCompletedTasks,
+  } = useTableApi<ApprovalTask>({
+    url: '/bpm/tasks/completed',
+    defaultPageSize: 10,
+    onError: (err: unknown) => logger.error(String(err)),
+  })
 
-  /** 获取待办任务 */
-  const fetchPendingTasks = async () => {
-    pendingLoading.value = true
-    try {
-      const res = await bpmEnhancedApi.getPendingTasks({
-        page: pendingPagination.page,
-        page_size: pendingPagination.page_size,
-      })
-      pendingTasks.value = res.data.list
-      pendingPagination.total = res.data.total
-      stats.pending = res.data.total
-      stats.urgent = res.data.list.filter(
-        t => t.priority === 'high' && !isOverdue(t.due_date || '')
-      ).length
-    } catch (e) {
-      logger.error(String(e))
-    } finally {
-      pendingLoading.value = false
-    }
-  }
+  // 批次 283：监听待办数据变化更新统计（pending 总数 + urgent 紧急数）
+  watch([pendingTasks, pendingTotal], () => {
+    stats.pending = pendingTotal.value
+    stats.urgent = pendingTasks.value.filter(
+      t => t.priority === 'high' && !isOverdue(t.due_date || '')
+    ).length
+  })
 
-  /** 获取已办任务 */
-  const fetchCompletedTasks = async () => {
-    completedLoading.value = true
-    try {
-      const res = await bpmEnhancedApi.getCompletedTasks({
-        page: completedPagination.page,
-        page_size: completedPagination.page_size,
-      })
-      completedTasks.value = res.data.list
-      completedPagination.total = res.data.total
-      stats.completed = res.data.total
-    } catch (e) {
-      logger.error(String(e))
-    } finally {
-      completedLoading.value = false
-    }
-  }
+  // 批次 283：监听已办数据变化更新统计（completed 总数）
+  watch([completedTasks, completedTotal], () => {
+    stats.completed = completedTotal.value
+  })
 
   // 使用 reactive 包装，访问字段时自动解包 ref
   return reactive({
     // 统计
     stats,
-    // 待办
-    pendingLoading,
+    // 待办（useTableApi 管理）
     pendingTasks,
-    pendingPagination,
+    pendingLoading,
+    pendingTotal,
+    pendingPage,
+    pendingPageSize,
     fetchPendingTasks,
-    // 已办
-    completedLoading,
+    // 已办（useTableApi 管理）
     completedTasks,
-    completedPagination,
+    completedLoading,
+    completedTotal,
+    completedPage,
+    completedPageSize,
     fetchCompletedTasks,
   })
 }

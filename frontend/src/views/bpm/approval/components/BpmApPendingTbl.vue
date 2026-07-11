@@ -1,7 +1,7 @@
 <!--
   BpmApPendingTbl.vue - BPM 审批待办任务表
   拆分自 bpm/approval.vue（P14 批 2 I-3 第 4 批）
-  行为完全保持一致（仅结构重构）
+  批次 283：接入 useTableApi 模式（page/pageSize props + v-model 绑定分页）
 -->
 <template>
   <el-card shadow="hover" class="table-card">
@@ -45,13 +45,13 @@
     </el-table>
     <div class="pagination-wrapper">
       <el-pagination
-        v-model:current-page="pagination.page"
-        v-model:page-size="pagination.page_size"
-        :total="pagination.total"
+        :current-page="page"
+        :page-size="pageSize"
+        :total="total"
         :page-sizes="[10, 20, 50]"
         layout="total, sizes, prev, pager, next"
-        @size-change="emit('size-change')"
-        @current-change="emit('current-change')"
+        @update:current-page="(v: number) => emit('update:page', v)"
+        @update:page-size="(v: number) => emit('update:page-size', v)"
       />
     </div>
   </el-card>
@@ -64,13 +64,6 @@ import { isOverdue, getPriorityType, getPriorityText } from '../composables/bpmA
 // v11 批次 182 P2-1 修复：定义 TagType 替代 any
 type TagType = 'success' | 'warning' | 'info' | 'primary' | 'danger'
 
-// 分页字段类型
-interface Pgn {
-  page: number
-  page_size: number
-  total: number
-}
-
 /**
  * 审批待办任务表组件
  */
@@ -79,8 +72,12 @@ defineProps<{
   tasks: ApprovalTask[]
   // 加载状态
   loading: boolean
-  // 分页信息
-  pagination: Pgn
+  // 总数
+  total: number
+  // 当前页
+  page: number
+  // 每页条数
+  pageSize: number
 }>()
 
 const emit = defineEmits<{
@@ -88,8 +85,8 @@ const emit = defineEmits<{
   reject: [row: ApprovalTask]
   transfer: [row: ApprovalTask]
   'view-chain': [row: ApprovalTask]
-  'size-change': []
-  'current-change': []
+  'update:page': [v: number]
+  'update:page-size': [v: number]
 }>()
 
 // 透传格式化函数（带 Fmt 后缀以避免与局部命名冲突）

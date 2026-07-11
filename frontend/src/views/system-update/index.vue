@@ -2,14 +2,14 @@
   system-update/index.vue - 系统更新管理（拆分重构版）
   任务编号: P14 批 2 I-3 第 1 批
   拆分：725 行 → ~150 行 + 6 子组件 + 2 composable + 1 工具
-  行为完全保持一致（仅结构重构）
+  批次 283：useSysUpd 返回改为 reactive 包装，父组件改为 upd.xxx 访问 + v-model:page/page-size
 -->
 <template>
   <div class="system-update-page">
     <div class="page-header">
       <h2 class="page-title">系统更新</h2>
       <div class="header-actions">
-        <el-button type="primary" @click="handleCheckUpdate">
+        <el-button type="primary" @click="upd.handleCheckUpdate">
           <el-icon><Refresh /></el-icon>
           检查更新
         </el-button>
@@ -21,70 +21,70 @@
     </div>
 
     <SuInfoCards
-      :current-version="currentVersion"
-      :latest-version="latestVersion"
-      :has-update="hasUpdate"
+      :current-version="upd.currentVersion"
+      :latest-version="upd.latestVersion"
+      :has-update="upd.hasUpdate"
     />
 
     <el-tabs v-model="activeTab">
       <el-tab-pane label="版本列表" name="versions">
         <SystemUpdateVersionTab
-          :versions="versions"
-          :loading="versionLoading"
-          :total="versionTotal"
-          :query-params="versionQuery"
+          v-model:page="upd.versionPage"
+          v-model:page-size="upd.versionPageSize"
+          :versions="upd.versions"
+          :loading="upd.versionLoading"
+          :total="upd.versionTotal"
           :version-status-type-map="versionStatusTypeMap"
           :version-status-map="versionStatusMap"
           :format-file-size="formatFileSize"
-          @download="handleDownload"
-          @install="handleInstall"
-          @view-detail="viewVersionDetail"
-          @fetch="fetchVersions"
+          @download="proc.handleDownload"
+          @install="proc.handleInstall"
+          @view-detail="upd.viewVersionDetail"
         />
       </el-tab-pane>
 
       <el-tab-pane label="更新任务" name="tasks">
         <SystemUpdateTaskTab
-          :tasks="tasks"
-          :loading="taskLoading"
-          :total="taskTotal"
-          :query-params="taskQuery"
+          v-model:page="upd.taskPage"
+          v-model:page-size="upd.taskPageSize"
+          :tasks="upd.tasks"
+          :loading="upd.taskLoading"
+          :total="upd.taskTotal"
           :task-status-type-map="taskStatusTypeMap"
           :task-status-map="taskStatusMap"
-          @rollback="handleRollback"
-          @cancel="handleCancelTask"
-          @fetch="fetchTasks"
+          @rollback="proc.handleRollback"
+          @cancel="proc.handleCancelTask"
         />
       </el-tab-pane>
 
       <el-tab-pane label="系统备份" name="backups">
         <SystemUpdateBackupTab
-          :backups="backups"
-          :loading="backupLoading"
-          :total="backupTotal"
-          :query-params="backupQuery"
+          v-model:page="upd.backupPage"
+          v-model:page-size="upd.backupPageSize"
+          :backups="upd.backups"
+          :loading="upd.backupLoading"
+          :total="upd.backupTotal"
           :backup-type-map="backupTypeMap"
           :backup-status-type-map="backupStatusTypeMap"
           :backup-status-map="backupStatusMap"
           :format-file-size="formatFileSize"
-          @download="handleDownloadBackup"
-          @restore="handleRestore"
-          @delete="handleDeleteBackup"
-          @fetch="fetchBackups"
+          @download="proc.handleDownloadBackup"
+          @restore="proc.handleRestore"
+          @delete="proc.handleDeleteBackup"
         />
       </el-tab-pane>
     </el-tabs>
 
     <SuVerDetail
       v-model:visible="versionDetailVisible"
-      :current-version-detail="currentVersionDetail"
+      :current-version-detail="upd.currentVersionDetail"
     />
 
     <SuBkpForm
       v-model:visible="backupDialogVisible"
-      :form="backupForm"
-      :submit-loading="backupSubmitLoading"
-      @update:form="(v) => Object.assign(backupForm, v)"
+      :form="upd.backupForm"
+      :submit-loading="upd.backupSubmitLoading"
+      @update:form="(v) => Object.assign(upd.backupForm, v)"
       @submit="onBackupSubmit"
     />
   </div>
@@ -105,51 +105,15 @@ import SuBkpForm from './components/SuBkpForm.vue'
 
 const activeTab = ref('versions')
 
-// 解构 useSysUpd 到顶层（useSysUpd 直接返回 ref/function 集合，不包装 reactive）
-const {
-  currentVersion,
-  latestVersion,
-  hasUpdate,
-  fetchCurrentVersion,
-  handleCheckUpdate,
-  versions,
-  versionTotal,
-  versionLoading,
-  versionQuery,
-  fetchVersions,
-  tasks,
-  taskTotal,
-  taskLoading,
-  taskQuery,
-  fetchTasks,
-  backups,
-  backupTotal,
-  backupLoading,
-  backupQuery,
-  fetchBackups,
-  backupForm,
-  backupSubmitLoading,
-  resetBackupForm,
-  handleBackupSubmit,
-  currentVersionDetail,
-  viewVersionDetail,
-} = useSysUpd()
+// 批次 283：useSysUpd 返回 reactive 包装，改为 upd.xxx 访问
+const upd = useSysUpd()
 
 // 流程性方法（下载/安装/回滚/取消/恢复/下载备份/删除）
 const proc = useSysUpdProc({
-  fetchVersions,
-  fetchTasks,
-  fetchBackups,
+  fetchVersions: upd.fetchVersions,
+  fetchTasks: upd.fetchTasks,
+  fetchBackups: upd.fetchBackups,
 })
-const {
-  handleDownload,
-  handleInstall,
-  handleRollback,
-  handleCancelTask,
-  handleDownloadBackup,
-  handleRestore,
-  handleDeleteBackup,
-} = proc
 
 // 状态映射 + 文件大小格式化（来自 sysUpdFmts 工具）
 const {
@@ -178,21 +142,19 @@ const backupDialogVisible = ref(false)
 
 /** 打开创建备份对话框 */
 const onOpenBackupDialog = () => {
-  resetBackupForm()
+  upd.resetBackupForm()
   backupDialogVisible.value = true
 }
 
 /** 提交备份表单 */
 const onBackupSubmit = async () => {
-  const ok = await handleBackupSubmit()
+  const ok = await upd.handleBackupSubmit()
   if (ok) backupDialogVisible.value = false
 }
 
+// 批次 283：移除 3 个 fetch（useTableApi setup 自动加载），保留 fetchCurrentVersion
 onMounted(() => {
-  fetchCurrentVersion()
-  fetchVersions()
-  fetchTasks()
-  fetchBackups()
+  upd.fetchCurrentVersion()
 })
 </script>
 

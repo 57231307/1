@@ -24,13 +24,13 @@
         <BpmApPendingTbl
           :tasks="bpmAp.pendingTasks"
           :loading="bpmAp.pendingLoading"
-          :pagination="bpmAp.pendingPagination"
+          :total="bpmAp.pendingTotal"
+          v-model:page="bpmAp.pendingPage"
+          v-model:page-size="bpmAp.pendingPageSize"
           @approve="bpmApProc.handleApprove"
           @reject="bpmApProc.handleReject"
           @transfer="bpmApProc.handleTransfer"
           @view-chain="bpmApProc.handleViewChain"
-          @size-change="bpmAp.fetchPendingTasks"
-          @current-change="bpmAp.fetchPendingTasks"
         />
       </el-tab-pane>
 
@@ -38,10 +38,10 @@
         <BpmApCompletedTbl
           :tasks="bpmAp.completedTasks"
           :loading="bpmAp.completedLoading"
-          :pagination="bpmAp.completedPagination"
+          :total="bpmAp.completedTotal"
+          v-model:page="bpmAp.completedPage"
+          v-model:page-size="bpmAp.completedPageSize"
           @view-chain="bpmApProc.handleViewChain"
-          @size-change="bpmAp.fetchCompletedTasks"
-          @current-change="bpmAp.fetchCompletedTasks"
         />
       </el-tab-pane>
     </el-tabs>
@@ -74,7 +74,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+import { ref } from 'vue'
 import { useBpmAp } from './composables/useBpmAp'
 import { useBpmApProc } from './composables/useBpmApProc'
 import BpmApStat from './components/BpmApStat.vue'
@@ -98,10 +98,6 @@ const handleTabChange = (tab: string | number) => {
   if (tab === 'pending') bpmAp.fetchPendingTasks()
   else if (tab === 'completed') bpmAp.fetchCompletedTasks()
 }
-
-onMounted(() => {
-  bpmAp.fetchPendingTasks()
-})
 </script>
 
 <style scoped>
