@@ -100,13 +100,13 @@
 
       <div class="pagination-wrapper">
         <el-pagination
-          v-model:current-page="queryParams.page"
-          v-model:page-size="queryParams.page_size"
+          v-model:current-page="page"
+          v-model:page-size="pageSize"
           :page-sizes="[10, 20, 50, 100]"
           :total="total"
           layout="total, sizes, prev, pager, next, jumper"
-          @size-change="handleQuery"
-          @current-change="handleQuery"
+          @size-change="handleSizeChange"
+          @current-change="handleCurrentChange"
         />
       </div>
     </el-card>
@@ -131,22 +131,37 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, onMounted, computed } from 'vue'
+import { ref, reactive, computed } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Plus } from '@element-plus/icons-vue'
 import { bomApi, type Bom } from '@/api/bom'
+import { useTableApi } from '@/composables/useTableApi'
 import BomForm from './BomForm.vue'
 
-const loading = ref(false)
-const boms = ref<Bom[]>([])
-const total = ref(0)
 const dialogVisible = ref(false)
 const dialogMode = ref<'create' | 'edit'>('create')
 const bomFormRef = ref<InstanceType<typeof BomForm>>()
 
+// 批次 275：接入 useTableApi，消除手写 boms/total/loading/queryParams.page/page_size + fetchData 重复
+// useTableApi 自动管理分页状态、数据加载，自动 watch page/pageSize 变化触发重载
+const {
+  data: boms,
+  loading,
+  page,
+  pageSize,
+  total,
+  refresh: fetchData,
+  setQueryParam,
+} = useTableApi<Bom>({
+  url: '/boms',
+  listKey: 'list',
+  onError: (error: unknown) => {
+    // 批次 98 P2-D 修复（v5 复审）：原 catch (error: any) 改为 unknown + 类型守卫
+    ElMessage.error((error instanceof Error ? error.message : String(error)) || '获取 BOM 列表失败')
+  },
+})
+
 const queryParams = reactive({
-  page: 1,
-  page_size: 20,
   product_name: '',
   status: '',
 })
@@ -189,32 +204,35 @@ const getStatusLabel = (status: string) => {
   return labels[status] || status
 }
 
-const fetchData = async () => {
-  loading.value = true
-  try {
-    const res = await bomApi.list(queryParams)
-    // 安全检查：防止后端返回 data 为 null 时崩溃
-    if (res.data) boms.value = res.data.list || []
-    total.value = res.data?.total || 0
-  } catch (error: unknown) {
-    // 批次 98 P2-D 修复（v5 复审）：原 catch (error: any) 改为 unknown + 类型守卫
-    ElMessage.error((error instanceof Error ? error.message : String(error)) || '获取 BOM 列表失败')
-    boms.value = []
-    total.value = 0
-  } finally {
-    loading.value = false
-  }
+// 批次 275：同步筛选条件到 useTableApi.queryParams 并刷新
+// useTableApi 自动 watch page/pageSize 变化触发重载，无需手动 fetchData
+const syncQueryParams = () => {
+  setQueryParam('product_name', queryParams.product_name || undefined)
+  setQueryParam('status', queryParams.status || undefined)
 }
 
 const handleQuery = () => {
-  queryParams.page = 1
+  syncQueryParams()
+  page.value = 1
   fetchData()
 }
 
 const handleReset = () => {
   queryParams.product_name = ''
   queryParams.status = ''
-  handleQuery()
+  syncQueryParams()
+  page.value = 1
+  fetchData()
+}
+
+// 分页（useTableApi 自动 watch page/pageSize 变化触发重载）
+const handleSizeChange = (s: number) => {
+  pageSize.value = s
+  page.value = 1
+}
+
+const handleCurrentChange = (p: number) => {
+  page.value = p
 }
 
 const resetForm = () => {
@@ -320,9 +338,7 @@ const handleSubmit = async (data: Partial<Bom>) => {
   }
 }
 
-onMounted(() => {
-  fetchData()
-})
+// 批次 275：useTableApi 构造时自动初始加载，无需 onMounted 调用 fetchData
 </script>
 
 <style scoped>

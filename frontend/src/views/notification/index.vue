@@ -13,14 +13,14 @@
       </template>
 
       <div class="toolbar">
-        <el-radio-group v-model="statusFilter" @change="fetchNotifications">
+        <el-radio-group v-model="statusFilter" @change="handleStatusFilterChange">
           <el-radio-button value="">全部</el-radio-button>
           <el-radio-button value="UNREAD">未读</el-radio-button>
           <el-radio-button value="READ">已读</el-radio-button>
         </el-radio-group>
       </div>
 
-      <div class="notification-list">
+      <div class="notification-list" v-loading="loading">
         <div
           v-for="item in notificationList"
           :key="item.id"
@@ -63,11 +63,10 @@
       </div>
 
       <el-pagination
-        v-model:current-page="pagination.page"
-        v-model:page-size="pagination.page_size"
-        :total="pagination.total"
+        v-model:current-page="page"
+        v-model:page-size="pageSize"
+        :total="total"
         layout="total, prev, pager, next, jumper"
-        @current-change="fetchNotifications"
       />
     </el-card>
 
@@ -107,49 +106,46 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, onMounted } from 'vue'
+import { ref, onMounted } from 'vue'
 import { loadIfNot, createLazyLoader } from '@/utils/lazy-loader'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import {
-  listNotifications,
   getNotification,
   markAsRead,
   markAllAsRead,
   deleteNotification,
   getUnreadCount,
   type Notification,
-  type NotificationQueryParams,
 } from '@/api/notification'
+import { useTableApi } from '@/composables/useTableApi'
 
-const notificationList = ref<Notification[]>([])
 const unreadCount = ref(0)
 const statusFilter = ref('')
 
-const pagination = reactive({
-  page: 1,
-  page_size: 20,
-  total: 0,
+// 批次 275：接入 useTableApi，消除手写 notificationList/pagination + fetchNotifications 重复
+// useTableApi 自动管理分页状态、数据加载，自动 watch page/pageSize 变化触发重载
+const {
+  data: notificationList,
+  loading,
+  page,
+  pageSize,
+  total,
+  refresh: fetchNotifications,
+  setQueryParam,
+} = useTableApi<Notification>({
+  url: '/notifications/',
+  listKey: 'list',
+  onError: () => ElMessage.error('获取通知列表失败'),
 })
 
 const detailDialogVisible = ref(false)
 const currentNotification = ref<Notification | null>(null)
 
-const fetchNotifications = async () => {
-  try {
-    // 显式声明查询参数类型，避免 as any 双重断言
-    const params: NotificationQueryParams = {
-      page: pagination.page,
-      page_size: pagination.page_size,
-      status: statusFilter.value || undefined,
-    }
-    const res = await listNotifications(params)
-    if (res.data) {
-      notificationList.value = res.data.list || []
-      pagination.total = res.data.total || 0
-    }
-  } catch (e) {
-    ElMessage.error('获取通知列表失败')
-  }
+// 批次 275：状态筛选变化时同步 queryParams 并重置分页
+const handleStatusFilterChange = () => {
+  setQueryParam('status', statusFilter.value || undefined)
+  page.value = 1
+  fetchNotifications()
 }
 
 const fetchUnreadCount = async () => {
@@ -230,7 +226,7 @@ const handleDelete = async (item: Notification) => {
 const hasLoaded = createLazyLoader()
 
 onMounted(() => {
-  fetchNotifications()
+  // 批次 275：useTableApi 构造时自动初始加载列表，仅需懒加载 unreadCount
   loadIfNot('unreadCount', fetchUnreadCount, hasLoaded)
 })
 </script>
