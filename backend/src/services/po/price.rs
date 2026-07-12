@@ -13,6 +13,30 @@ use sea_orm::{ActiveModelTrait, ColumnTrait, EntityTrait, QueryFilter, Set, Tran
 
 use super::order::PurchaseOrderService;
 
+/// 缺料预警参数对象
+///
+/// 批次 333 v10 复审 P3 修复：引入参数对象消除 create_purchase_suggestion_from_shortage
+/// 的 too_many_arguments 警告。聚合缺料预警所需的全部字段，避免函数签名携带 8 个参数。
+#[derive(Debug, Clone)]
+pub struct ShortageAlertParams {
+    /// 物料 ID
+    pub material_id: i32,
+    /// 物料名称
+    pub material_name: String,
+    /// 物料编码
+    pub material_code: String,
+    /// 需求数量
+    pub required_quantity: Decimal,
+    /// 可用数量
+    pub available_quantity: Decimal,
+    /// 缺口数量
+    pub shortage_quantity: Decimal,
+    /// 缺料级别（Critical / Severe / Warning）
+    pub shortage_level: String,
+    /// 受影响订单数
+    pub affected_orders_count: i32,
+}
+
 impl PurchaseOrderService {
     /// 检查并占用预算（非阻断）
     pub(crate) async fn check_and_occupy_budget(
@@ -107,18 +131,25 @@ impl PurchaseOrderService {
     }
 
     /// 根据缺料预警创建采购建议
-    #[allow(clippy::too_many_arguments)]
+    ///
+    /// 批次 333 v10 复审 P3 修复：签名从 8 参数改为单一参数对象 `ShortageAlertParams`，
+    /// 消除 `clippy::too_many_arguments` 警告。
     pub async fn create_purchase_suggestion_from_shortage(
         &self,
-        material_id: i32,
-        material_name: String,
-        material_code: String,
-        required_quantity: Decimal,
-        available_quantity: Decimal,
-        shortage_quantity: Decimal,
-        shortage_level: String,
-        affected_orders_count: i32,
+        params: ShortageAlertParams,
     ) -> Result<purchase_order::Model, AppError> {
+        // 解构参数对象，便于函数体内按字段名访问
+        let ShortageAlertParams {
+            material_id,
+            material_name,
+            material_code,
+            required_quantity,
+            available_quantity,
+            shortage_quantity,
+            shortage_level,
+            affected_orders_count,
+        } = params;
+
         // 开启事务
         let txn = (*self.db).begin().await?;
 
