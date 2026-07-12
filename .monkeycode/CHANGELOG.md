@@ -9,6 +9,7 @@
 
 | 批次 | PR | 一句话总结 |
 |------|-----|-----------|
+| 324 | #496 | sea-orm 版本调研+修正误导性注释（2.0 仍 RC rc.42 项目用 1.1.20 稳定版正确，修正 rust-toolchain.toml+Cargo.toml 注释，新增规则 14 移除警告抑制） |
 | 323 | #495 | 修复 v9 低危代码味道问题 3 项（1. extract_update_package 60+行拆分为 prepare_extract_dir+extract_zip_entry 2. cmd_backup 95行拆分为 backup_database+backup_config_files+compress_backup 3. cmd_restore 128行拆分为 validate_tar_contents+restore_database+restore_config_files，附编译错误修复+collapsible_if 消除） |
 | 322 | #494 | 修复 v9 低危代码质量问题 3 项（1. 抽取 backup.rs+upgrade.rs 重复路径校验到 utils/path_validator 共享模块+4 个单元测试 2. 抽取 system_update_service.rs compare_versions+compare_versions_for_sort 重复 parse_version 为共享函数+3 个单元测试 3. WebhookDeliveryResult 保持 pub 并补充可见性说明） |
 | 321 | #493 | 修复 v9-M5 中危问题 1 项（elastic.rs ElasticClient::real + ensure_indices 添加 ssrf_guard::validate_url_and_resolve 校验 + resolve_to_addrs 固定 IP 防 DNS Rebinding TOCTOU，新增 try_real 返回 Result 便于测试，13 个单元测试覆盖 SSRF 拦截逻辑） |

@@ -238,6 +238,32 @@
 - 测试失败：分析失败用例 → 修复代码或测试 → 重新 push
 - 禁止 `|| true` / `unwrap_or_default()` 掩盖错误（违反规则 0）
 
+### 🔴 规则 14（最高优先级，2026-07-12 追加）：移除所有警告抑制，所有警告视为错误
+
+> 移除所有的警告抑制，所有的警告视为错误，需要进行修复。不允许通过 `#[allow(...)]` 抑制警告来绕过修复。
+
+**强制执行要求**：
+- **禁止新增警告抑制**：新代码不允许使用 `#[allow(...)]` 抑制 clippy / rustc 警告
+  - 禁止：`#[allow(dead_code)]`、`#[allow(unused_imports)]`、`#[allow(unused_variables)]`、`#![allow(...)]` 文件级抑制
+  - 唯一例外：`backend/src/models/` 下 SeaORM 自动生成模型可保留 `#![allow(dead_code)]`（见项目规则第六章）
+- **现有警告抑制清理**：现有 `#[allow(...)]` 标注需逐个评估并移除
+  - 评估流程：检查被抑制的警告是否已消除 → 移除 `#[allow(...)]` → 验证 CI 全绿
+  - 如果警告仍然存在：修复根本原因（删除死代码 / 接入业务 / 修复类型）而非抑制
+- **clippy baseline 渐进清理**：现有 baseline 警告需逐步清理
+  - 每批次修复至少清理 5 个 baseline 警告
+  - 新增警告 = CI 失败（已有机制，baseline 严格化）
+  - 目标：baseline 警告数归零，最终移除 baseline 机制改为 `cargo clippy -- -D warnings`
+- **CI 强制**：
+  - `.github/workflows/ci-cd.yml` 的 clippy 检查使用 baseline 机制判定新警告
+  - `backend/.clippy.toml` 开启 `dead_code`/`unused_imports`/`unused_variables` 等警告
+  - 任何新增警告或 `#[allow(...)]` 抑制都会让 CI 失败，必须立即修复
+
+**修复模式参考**：
+- `#[allow(dead_code)]` + 未使用函数 → 删除函数 或 接入业务调用
+- `#[allow(unused_imports)]` → 删除未使用的 import
+- `#[allow(unused_variables)]` → 使用变量 或 删除变量 或 前缀 `_`
+- `#![allow(dead_code)]` 文件级 → 逐项评估，移除或接入业务（models/ 例外）
+
 ### 规则 1-9（常规规则）
 
 1. **CI/CD Only 验证**：禁止本地编译/构建。所有验证必须通过 CI/CD pipeline。

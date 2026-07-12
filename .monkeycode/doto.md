@@ -66,10 +66,28 @@
 
 v9 复审发现的 2 P0 + 2 高危 + 5 中危 + 7 低危共 16 个问题已全部修复（批次 317-323）。
 
+### ✅ sea-orm 版本调研完成（批次 324，PR #496）
+
+**调研结论**：
+- sea-orm 2.0 仍是 RC 版本（最新 rc.42，2026-07-04），未发布稳定版
+- 项目使用 sea-orm 1.1.20 + sqlx 0.8（稳定版），适合生产环境，选择正确
+- rust-toolchain.toml / Cargo.toml 注释已修正（原注释误导：声称"锁定 2.0 要求的 rustc"但实际用 1.x）
+- rustc 1.94.1 为未来升级 2.0 预留
+
+**2.0 breaking changes**：sqlx 0.9 / ExprTrait import / insert_many 重构 / ConnectionTrait API / UpdateOne validate
+**迁移量**：13 处 insert/update/save + 710 处需加 ExprTrait import（机械修改）
+**建议**：等 2.0 稳定版发布后再升级
+
+### ✅ 新增规则 14：移除所有警告抑制（2026-07-12）
+
+规则 14 已写入 MEMORY.md：
+- 禁止新增 `#[allow(...)]` 警告抑制（models/ SeaORM 自动生成例外）
+- 现有 `#[allow(...)]` 需逐个评估并移除
+- clippy baseline 渐进清理（每批次至少 5 个）
+- 目标：baseline 归零后改为 `cargo clippy -- -D warnings`
+
 下一步：
-1. 调研 sea-orm 1.120 vs 2.0.0-rc.40 版本差异及升级可行性
-2. 新增项目规则：移除所有警告抑制，所有警告视为错误需修复
-3. v10 复审
+1. v10 复审（含规则 14 合规检查：扫描所有 `#[allow(...)]` 抑制）
 
 ---
 
