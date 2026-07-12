@@ -9,6 +9,7 @@
 
 | 批次 | PR | 一句话总结 |
 |------|-----|-----------|
+| 308-316 | #488 | 修复 v8-L1~L9 低风险全部 9 项（L1 重定向限制 + L2 SQL 参数化 + L3 解压路径校验 + L4 函数返回 bool + L5 币种码白名单 + L6 SQL 参数索引统一 + L7 文件权限 0o600 + L8 WebhookPayload 降 pub(crate) + L9 rollback 降私有） |
 | 307 | #487 | 修复 v8-M8 补充 5 个修改文件单元测试（currency_service/tracking_service/backup/webhook_service/system_update_service 共 23 个单元测试，覆盖安全校验和核心工具函数） |
 | 306 | #486 | 修复 v8-M6 webhook 测试端点限流器改分布式（rate_limit.rs check_rate_limit 改 pub(crate)，webhook_handler.rs test_webhook 改用 check_rate_limit Redis 优先 + 内存回退，多实例共享计数） |
 | 305 | #485 | 修复 v8-M5+M7 硬编码系统路径和 API URL（backup.rs /etc/bingxi/.env 和 /etc/systemd/system 改 BINGXI_ENV_FILE/BINGXI_SYSTEMD_DIR 环境变量，currency_service.rs API URL 改 EXCHANGE_RATE_API_URL 环境变量，.env.example 声明 3 个新变量） |
