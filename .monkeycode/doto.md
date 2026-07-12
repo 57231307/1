@@ -146,22 +146,36 @@
 
 ---
 
-## 🔥 当前任务：v11 复审问题修复（P0 1/1 ✅，P1 4/8 ✅，P2 9/10 ✅，P3 8/8 ✅）
+## 🔥 当前任务：v11 复审问题修复（P0 1/1 ✅，P1 5/8 ✅，P2 9/10 ✅，P3 8/8 ✅）
 
 > **v11 复审报告**（2026-07-12，批次 339 合并后 Task 工具扫描）：v10 复审全部完成后复审，扫描所有剩余 `#[allow(...)]` 警告抑制（非 models/ SeaORM 例外）。
 > 发现 27 个抑制标注：1 P0 + 8 P1 + 10 P2（带 TODO 保留）+ 8 P3（合理保留）。
 > 修复策略：按规则 13+14 连续执行，P0 → P1 → P2 → P3，每批 5-6 个文件，CI 全绿后合并 main。
-> **批次 343 已完成**：P3 8/8 ✅ 全部完成（7 个测试模块 unused_imports + 1 个 event_bus unreachable_patterns）
+> **批次 344 已完成**：P1-8 FromStr trait 迁移 + 接入 lock/release 预留接口（规则 0 合规）
 
 ### 进度总览
 
 | 优先级 | 总数 | 已完成 | 剩余 | 状态 |
 |--------|------|--------|------|------|
 | 🔴 P0 文件级抑制超出例外 | 1 | 1 | 0 | ✅ 全部完成（批次 340） |
-| 🟠 P1 clippy 警告抑制 | 8 | 4 | 4 | ✅ 可修复项全部完成（批次 340，剩余 4 项为合理保留/TODO） |
+| 🟠 P1 clippy 警告抑制 | 8 | 5 | 3 | ✅ 可修复项全部完成（批次 340+344，剩余 3 项为宏内合理保留） |
 | 🟡 P2 带 TODO 的 dead_code | 10 | 9 | 1 | 🔄 进行中（批次 342 修复 2 项，剩余 1 项 app_state.rs 待评估） |
 | 🟢 P3 测试代码/防御性抑制 | 8 | 8 | 0 | ✅ 全部完成（批次 342+343） |
-| **合计** | **27** | **22** | **5** | 🔄 进行中（剩余 5 项为合理保留/TODO/待评估） |
+| **合计** | **27** | **23** | **4** | 🔄 进行中（剩余 4 项为合理保留/TODO/待评估） |
+
+### ✅ 已完成（批次 344）
+
+**批次 344（PR #516）**：v11 复审 P1-8 FromStr trait 迁移 + 接入 lock/release 预留接口（4 文件）
+- P1-8：`color_card_borrow_service.rs` from_str 方法迁移到 `std::str::FromStr` trait，消除 `clippy::should_implement_trait` 警告
+  - 新增 `BorrowStatusParseError` 错误类型（实现 Display + Error）
+  - 3 个调用点从 `.ok_or_else(...)` 改为 `.map_err(|_| ...)`
+  - `color_card_borrow_test.rs` 测试用例适配 Result 返回值
+- CI 修复（规则 0 合规）：`inventory_reservation_handler.rs` 新增 `lock_reservation`/`release_reservation` handler
+  - `routes/inventory.rs` 新增 `POST /reservations/:id/lock` 和 `POST /reservations/:id/release` 路由
+  - 根因：批次 341 移除 status.rs `LOCKED`/`RELEASED` 的 `#[allow(dead_code)]` 后，clippy 报这两个常量 never used
+  - 深度调查发现 `lock_reservation`/`release_reservation` service 方法仅在测试中调用，未接入 handler 路由（规则 0 违规）
+  - 本次新增 handler + 路由真实接入，使 clippy 能追踪到常量通过 handler → service 链路被使用
+  - CI 13 success + 2 skipped 全绿
 
 ### ✅ 已完成（批次 343）
 
@@ -206,12 +220,11 @@
 
 v11 复审 P0 已在批次 340 全部修复完成。
 
-### 🟠 P1 剩余项（4 项，合理保留/TODO）
+### 🟠 P1 剩余项（3 项，宏内合理保留）
 
 **P1-6：crud_macro.rs:35 default_constructed_unit_structs** — 宏内 SeaORM Entity 构造（合理保留，宏 metavariable 必须 ::default()）
 **P1-7：crud_macro.rs:47 default_constructed_unit_structs** — 宏内 SeaORM Entity 构造（合理保留，同 P1-6）
-**P1-8：color_card_borrow_service.rs:61 should_implement_trait** — from_str 方法 + TODO 迁移到 std::str::FromStr trait（在 baseline 中，长期重构）
-**P1-备注**：P1-1~P1-5 已在批次 340 修复完成
+**P1-备注**：P1-1~P1-5 已在批次 340 修复完成，P1-8 已在批次 344 修复完成
 
 ### 🟡 P2 剩余项（1 项，待评估）
 
