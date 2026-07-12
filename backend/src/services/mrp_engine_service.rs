@@ -248,45 +248,41 @@ impl MrpEngineService {
     }
 
     /// v16 批次 43 修复：基于已知 StockInfo 计算物料需求（避免重复查询库存）
+    ///
+    /// 批次 352 v12 复审 P1-1 修复：签名从 10 参数改为参数对象 `RequirementCalcParams` + `&StockInfo`，
+    /// 消除 `clippy::too_many_arguments` 警告。与 `calculate_requirement` 共用同一参数对象。
     fn calculate_requirement_with_stock(
         &self,
-        product_id: i32,
-        required_quantity: Decimal,
-        required_date: NaiveDate,
-        source_type: String,
-        source_id: Option<i32>,
-        consider_safety_stock: bool,
-        consider_in_transit: bool,
-        bom_level: i32,
+        params: RequirementCalcParams,
         stock_info: &StockInfo,
     ) -> MaterialRequirement {
         let mut available = stock_info.available;
-        if consider_in_transit {
+        if params.consider_in_transit {
             available += stock_info.in_transit;
         }
 
-        let shortage = if required_quantity > available {
-            required_quantity - available
+        let shortage = if params.required_quantity > available {
+            params.required_quantity - available
         } else {
             Decimal::ZERO
         };
 
         MaterialRequirement {
-            product_id,
-            required_quantity,
-            required_date,
+            product_id: params.product_id,
+            required_quantity: params.required_quantity,
+            required_date: params.required_date,
             on_hand_quantity: stock_info.on_hand,
             in_transit_quantity: stock_info.in_transit,
-            safety_stock: if consider_safety_stock {
+            safety_stock: if params.consider_safety_stock {
                 stock_info.safety_stock
             } else {
                 Decimal::ZERO
             },
             available_quantity: available,
             shortage_quantity: shortage,
-            source_type,
-            source_id,
-            bom_level,
+            source_type: params.source_type,
+            source_id: params.source_id,
+            bom_level: params.bom_level,
         }
     }
 
@@ -414,14 +410,16 @@ impl MrpEngineService {
                 .get_stock_info_cached(item.material_id, stock_cache)
                 .await?;
             let requirement = self.calculate_requirement_with_stock(
-                item.material_id,
-                quantity_with_scrap,
-                material_date,
-                source_type.to_string(),
-                source_id,
-                consider_safety_stock,
-                consider_in_transit,
-                current_level,
+                RequirementCalcParams {
+                    product_id: item.material_id,
+                    required_quantity: quantity_with_scrap,
+                    required_date: material_date,
+                    source_type: source_type.to_string(),
+                    source_id,
+                    consider_safety_stock,
+                    consider_in_transit,
+                    bom_level: current_level,
+                },
                 &stock_info,
             );
 
@@ -620,14 +618,16 @@ impl MrpEngineService {
                     available: Decimal::ZERO,
                 });
             let requirement = self.calculate_requirement_with_stock(
-                item.product_id,
-                item.required_quantity,
-                item.required_date,
-                request.source_type.clone(),
-                request.source_id,
-                request.consider_safety_stock,
-                request.consider_in_transit,
-                0,
+                RequirementCalcParams {
+                    product_id: item.product_id,
+                    required_quantity: item.required_quantity,
+                    required_date: item.required_date,
+                    source_type: request.source_type.clone(),
+                    source_id: request.source_id,
+                    consider_safety_stock: request.consider_safety_stock,
+                    consider_in_transit: request.consider_in_transit,
+                    bom_level: 0,
+                },
                 &stock_info,
             );
 
@@ -1072,14 +1072,16 @@ mod tests {
         let stock = make_stock_info(decs!("100"), decs!("0"), decs!("0"));
 
         let req = service.calculate_requirement_with_stock(
-            1,
-            decs!("30"),
-            ymd!(2026, 7, 9),
-            "MANUAL".to_string(),
-            None,
-            false,
-            false,
-            0,
+            RequirementCalcParams {
+                product_id: 1,
+                required_quantity: decs!("30"),
+                required_date: ymd!(2026, 7, 9),
+                source_type: "MANUAL".to_string(),
+                source_id: None,
+                consider_safety_stock: false,
+                consider_in_transit: false,
+                bom_level: 0,
+            },
             &stock,
         );
 
@@ -1099,14 +1101,16 @@ mod tests {
         let stock = make_stock_info(decs!("30"), decs!("0"), decs!("0"));
 
         let req = service.calculate_requirement_with_stock(
-            1,
-            decs!("100"),
-            ymd!(2026, 7, 9),
-            "MANUAL".to_string(),
-            None,
-            false,
-            false,
-            0,
+            RequirementCalcParams {
+                product_id: 1,
+                required_quantity: decs!("100"),
+                required_date: ymd!(2026, 7, 9),
+                source_type: "MANUAL".to_string(),
+                source_id: None,
+                consider_safety_stock: false,
+                consider_in_transit: false,
+                bom_level: 0,
+            },
             &stock,
         );
 
@@ -1124,14 +1128,16 @@ mod tests {
         let stock = make_stock_info(decs!("50"), decs!("0"), decs!("0"));
 
         let req = service.calculate_requirement_with_stock(
-            1,
-            decs!("50"),
-            ymd!(2026, 7, 9),
-            "MANUAL".to_string(),
-            None,
-            false,
-            false,
-            0,
+            RequirementCalcParams {
+                product_id: 1,
+                required_quantity: decs!("50"),
+                required_date: ymd!(2026, 7, 9),
+                source_type: "MANUAL".to_string(),
+                source_id: None,
+                consider_safety_stock: false,
+                consider_in_transit: false,
+                bom_level: 0,
+            },
             &stock,
         );
 
@@ -1150,14 +1156,16 @@ mod tests {
 
         // 不考虑在途：available=50，需求80 -> shortage=30
         let req_no = service.calculate_requirement_with_stock(
-            1,
-            decs!("80"),
-            ymd!(2026, 7, 9),
-            "MANUAL".to_string(),
-            None,
-            false,
-            false,
-            0,
+            RequirementCalcParams {
+                product_id: 1,
+                required_quantity: decs!("80"),
+                required_date: ymd!(2026, 7, 9),
+                source_type: "MANUAL".to_string(),
+                source_id: None,
+                consider_safety_stock: false,
+                consider_in_transit: false,
+                bom_level: 0,
+            },
             &stock,
         );
         assert_eq!(req_no.available_quantity, decs!("50"));
@@ -1165,14 +1173,16 @@ mod tests {
 
         // 考虑在途：available=50+30=80，需求80 -> shortage=0
         let req_with = service.calculate_requirement_with_stock(
-            1,
-            decs!("80"),
-            ymd!(2026, 7, 9),
-            "MANUAL".to_string(),
-            None,
-            false,
-            true,
-            0,
+            RequirementCalcParams {
+                product_id: 1,
+                required_quantity: decs!("80"),
+                required_date: ymd!(2026, 7, 9),
+                source_type: "MANUAL".to_string(),
+                source_id: None,
+                consider_safety_stock: false,
+                consider_in_transit: true,
+                bom_level: 0,
+            },
             &stock,
         );
         assert_eq!(req_with.available_quantity, decs!("80"));
@@ -1190,14 +1200,16 @@ mod tests {
         let stock = make_stock_info(decs!("100"), decs!("0"), decs!("20"));
 
         let req = service.calculate_requirement_with_stock(
-            1,
-            decs!("50"),
-            ymd!(2026, 7, 9),
-            "MANUAL".to_string(),
-            None,
-            true,
-            false,
-            0,
+            RequirementCalcParams {
+                product_id: 1,
+                required_quantity: decs!("50"),
+                required_date: ymd!(2026, 7, 9),
+                source_type: "MANUAL".to_string(),
+                source_id: None,
+                consider_safety_stock: true,
+                consider_in_transit: false,
+                bom_level: 0,
+            },
             &stock,
         );
         assert_eq!(req.safety_stock, decs!("20"));
@@ -1215,14 +1227,16 @@ mod tests {
         let stock = make_stock_info(decs!("100"), decs!("0"), decs!("20"));
 
         let req = service.calculate_requirement_with_stock(
-            1,
-            decs!("50"),
-            ymd!(2026, 7, 9),
-            "MANUAL".to_string(),
-            None,
-            false,
-            false,
-            0,
+            RequirementCalcParams {
+                product_id: 1,
+                required_quantity: decs!("50"),
+                required_date: ymd!(2026, 7, 9),
+                source_type: "MANUAL".to_string(),
+                source_id: None,
+                consider_safety_stock: false,
+                consider_in_transit: false,
+                bom_level: 0,
+            },
             &stock,
         );
         assert_eq!(req.safety_stock, Decimal::ZERO);

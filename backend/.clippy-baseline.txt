@@ -494,8 +494,6 @@
   --> src/services/color_card_scan_service.rs:10:33
   --> src/services/color_price_batch_service.rs:41:12
   --> src/services/color_price_crud_service.rs:43:12
-  --> src/services/color_price_history_service.rs:30:12
-  --> src/services/color_price_history_service.rs:58:5
   --> src/services/color_price_tier_service.rs:21:5
   --> src/services/color_price_tier_service.rs:33:12
   --> src/services/custom_order_crud_service.rs:78:38
@@ -913,7 +911,6 @@
 23 | pub const CSP_POLICY: &str = "default-src 'self'; \
 233 |     pub fn date(value: &str, field_name: &str) -> Result<chrono::NaiveDate, String> {
 239 |     pub fn boolean(value: &str, field_name: &str) -> Result<bool, String> {
-24 |     pub async fn record_change(
 24 |     pub color_no: Option<String>,
 247 |           let reasons = vec![
 247 |         let webhook = Webhook::find_by_id(webhook_id)
@@ -1158,8 +1155,6 @@
 57 |     pub fn new(db: Arc<DatabaseConnection>) -> Self {
 57 |     pub reason: String,
 570 |     pub async fn create_supplier_qualification(
-58 |     pub async fn record_change(
-58 | /     pub async fn record_change(
 59 | |         &self,
 6 | use chrono::{DateTime, Utc};
 6 | use serde::{Deserialize, Serialize};
@@ -1191,7 +1186,6 @@
 69 |     pub fn from_env() -> Self {
 69 |     pub from_warehouse_id: i32,
 69 | pub struct AutoMatchRequest {
-69 | |     ) -> Result<color_price_history::Model, HistoryError> {
 7 |     ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, ModelTrait, Order,
 7 |     ActiveModelTrait, ColumnTrait, EntityTrait, QueryFilter, Set, UpdateMany,
 7 | use sea_orm::{ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter};
@@ -1273,7 +1267,6 @@ warning: associated items `generate_unique_id` and `from_unique_id` are never us
 warning: associated items `mock` and `doc_count` are never used
 warning: associated items `new` and `broadcast_notification` are never used
 warning: associated items `new` and `push` are never used
-warning: associated items `new` and `record_change` are never used
 warning: associated items `new` and `update` are never used
 warning: associated items `new`, `check`, and `remaining` are never used
 warning: associated items `new`, `is_locked`, `record_failure`, `record_success`, and `is_expired` are never used
