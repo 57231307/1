@@ -111,17 +111,18 @@ pub async fn create_payment(
     payload.validate()?;
     let service = crate::services::ar_service::ArService::new(state.db.clone());
 
+    // 批次 329 v10 复审 P3 修复：使用参数对象替代多参数
+    let params = crate::services::ar_service::CreateArPaymentParams {
+        customer_id: payload.customer_id,
+        amount: payload.amount,
+        payment_method: payload.payment_method,
+        payment_date: payload.payment_date,
+        bank_account: payload.bank_account,
+        remark: payload.remark,
+        invoice_ids: payload.invoice_ids,
+    };
     let payment = service
-        .create_payment(
-            payload.customer_id,
-            payload.amount,
-            payload.payment_method,
-            payload.payment_date,
-            payload.bank_account,
-            payload.remark,
-            payload.invoice_ids,
-            auth.user_id,
-        )
+        .create_payment(params, auth.user_id)
         .await
         .map_err(|e| AppError::internal(format!("创建收款失败: {}", e)))?;
 

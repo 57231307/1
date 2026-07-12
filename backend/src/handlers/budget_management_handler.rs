@@ -420,19 +420,18 @@ pub async fn create_execution(
         .map_err(|e| AppError::validation(format!("日期格式错误：{}", e)))?;
 
     let service = BudgetManagementService::new(state.db.clone());
-    let execution = service
-        .create_execution(
-            id,
-            req.execution_type,
-            req.amount,
-            expense_date,
-            req.expense_type,
-            req.related_document_type,
-            req.related_document_id,
-            req.remark,
-            auth.user_id,
-        )
-        .await?;
+    // 批次 329 v10 复审 P3 修复：使用参数对象替代多参数
+    let params = crate::services::budget_management_service::CreateBudgetExecutionParams {
+        plan_id: id,
+        execution_type: req.execution_type,
+        amount: req.amount,
+        expense_date,
+        expense_type: req.expense_type,
+        related_document_type: req.related_document_type,
+        related_document_id: req.related_document_id,
+        remark: req.remark,
+    };
+    let execution = service.create_execution(params, auth.user_id).await?;
 
     info!("预算执行明细创建成功：ID={}", execution.id);
     Ok(Json(ApiResponse::success(execution)))
