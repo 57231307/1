@@ -9,6 +9,7 @@
 
 | 批次 | PR | 一句话总结 |
 |------|-----|-----------|
+| 320 | #492 | 修复 v9-M3+M4 中危问题 2 项（M-3 retry_webhook 新增 WEBHOOK_RETRY_LIMITER 限流防 SSRF 放大 + M-4 迁移 m0048 新增 user_id 列+verify_ownership 所有权校验防 IDOR，webhook_handler+webhook_integration_handler 全部端点传递 auth.user_id，新增 5 个单元测试） |
 | 319 | #491 | 修复 v9-M1+M2 中危问题 2 项（M-1 fetch_latest_release 添加 resolve_to_addrs 防 DNS Rebinding + M-2 新增 validate_asset_name 校验 asset.name 防路径穿越，新增 3 个单元测试） |
 | 318 | #490 | 修复 v9-H1+H2 高危问题 2 项（H-1 upgrade Tar Slip 改 UUID 随机目录+先 tar -tf 校验再解压+二次校验 + H-2 admin 密码移除 --password 改 --password-stdin+BINGXI_ADMIN_PASSWORD 环境变量，新增 read_password + 4 个单元测试） |
 | 317 | #489 | 修复 v9-P0+P1 严重问题 3 项（P0-1 backup pg_dump 失败未 return false + P0-2 system_update 目录权限掩码未应用 is_dir 永假 + P1 backup psql 失败未 return false，新增 set_safe_permissions 辅助函数 + 2 个权限掩码单元测试） |

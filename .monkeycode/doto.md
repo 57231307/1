@@ -6,7 +6,7 @@
 
 ---
 
-## 🔥 当前任务：v9 复审问题修复（P0 2/2 ✅，高危 2/2 ✅，中危 2/5 🔄）
+## 🔥 当前任务：v9 复审问题修复（P0 2/2 ✅，高危 2/2 ✅，中危 4/5 🔄）
 
 > **v9 全项目复审报告**（2026-07-12，[v9-review-2026-07-12.md](file:///workspace/.monkeycode/docs/audits/v9-review-2026-07-12.md)）：v8 修复后复审发现 2 P0 + 2 高危 + 5 中危 + 多个低危。
 > 修复策略：按规则 13 连续执行，P0 → 高危 → 中危 → 低危，每批 1 commit，CI 全绿后合并 main，全部完成后进入 v10 复审。
@@ -17,11 +17,27 @@
 |--------|------|--------|------|------|
 | 🔴 P0 严重 | 2 | 2 | 0 | ✅ 全部完成（批次 317） |
 | 🟠 高危 | 2 | 2 | 0 | ✅ 全部完成（批次 318） |
-| 🟡 中危 | 5 | 2 | 3 | 🔄 批次 320-321 |
+| 🟡 中危 | 5 | 4 | 1 | 🔄 批次 321 |
 | 🟢 低危 | 多项 | 0 | 多项 | ⏳ 批次 322+ |
-| **合计** | **9+** | **6** | **3+** | — |
+| **合计** | **9+** | **8** | **1+** | — |
 
-### ✅ 已完成（批次 317-319）
+### ✅ 已完成（批次 317-320）
+
+**批次 320（PR #492）**：中危修复 M-3 + M-4
+- M-3：retry_webhook 新增 WEBHOOK_RETRY_LIMITER 限流（10 次/分钟/用户）
+- M-4：迁移 m0048 webhooks 表新增 user_id 列 + verify_ownership 所有权校验防 IDOR
+- webhook_handler + webhook_integration_handler 全部端点传递 auth.user_id
+- 新增 5 个单元测试
+
+**批次 319（PR #491）**：中危修复 M-1 + M-2
+- M-1：fetch_latest_release 添加 resolve_to_addrs 防 DNS Rebinding
+- M-2：新增 validate_asset_name 校验 asset.name 防路径穿越
+- 新增 3 个 validate_asset_name 单元测试
+
+**批次 318（PR #490）**：高危修复
+- H-1：upgrade.rs Tar Slip 路径穿越（UUID 随机目录 + 先 tar -tf 校验再解压 + 二次校验）
+- H-2：admin.rs 密码泄露（移除 --password，改 --password-stdin + 环境变量）
+- 新增 read_password 辅助函数 + 4 个单元测试
 
 **批次 317（PR #489）**：P0+P1 严重修复
 - P0-1：backup.rs cmd_backup pg_dump 失败不返回 false
@@ -29,33 +45,9 @@
 - P1：backup.rs cmd_restore psql 失败不返回 false
 - 新增 set_safe_permissions 辅助函数 + 2 个单元测试
 
-**批次 318（PR #490）**：高危修复
-- H-1：upgrade.rs Tar Slip 路径穿越（UUID 随机目录 + 先 tar -tf 校验再解压 + 二次校验）
-- H-2：admin.rs 密码泄露（移除 --password，改 --password-stdin + 环境变量）
-- 新增 read_password 辅助函数 + 4 个单元测试
-
-**批次 319（PR #491）**：中危修复 M-1 + M-2
-- M-1：fetch_latest_release 添加 resolve_to_addrs 防 DNS Rebinding
-- M-2：新增 validate_asset_name 校验 asset.name 防路径穿越
-- 新增 3 个 validate_asset_name 单元测试
-
 ### ⏳ 待修复项
 
-#### 中危（5 项，批次 319-321）
-
-**M-1**：system_update_service.rs fetch_latest_release 未用 resolve_to_addrs（批次 319）
-- 文件：[backend/src/services/system_update_service.rs](file:///workspace/backend/src/services/system_update_service.rs#L634-L663)
-- 修复方案：对齐 download_update 的 SSRF 防护（validate_url_and_resolve + resolve_to_addrs）
-
-**M-2**：system_update_service.rs download_path 未校验 asset.name（批次 319）
-- 文件：[backend/src/services/system_update_service.rs](file:///workspace/backend/src/services/system_update_service.rs#L738)
-- 修复方案：校验 asset.name 只包含安全字符（字母数字.-_），拒绝 `/`、`..`、绝对路径
-
-**M-3**：webhook_handler.rs retry_webhook 缺失限流（批次 320）
-- 修复方案：retry_webhook 接入 check_rate_limit
-
-**M-4**：webhook_handler.rs 所有 webhook 端点 IDOR，无所有权校验（批次 320）
-- 修复方案：所有 webhook 操作前校验 webhook.user_id == auth.user_id
+#### 中危（剩余 1 项，批次 321）
 
 **M-5**：elastic.rs ES base_url 未做 SSRF 校验（批次 321）
 - 修复方案：对齐 validate_url_and_resolve 校验 base_url
