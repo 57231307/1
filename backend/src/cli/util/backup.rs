@@ -33,12 +33,10 @@ pub(super) fn cmd_backup(backup_type: &str) -> bool {
         return false;
     }
 
-    // 备份数据库
-    if backup_type == "database" || backup_type == "all" {
-        if !backup_database(&backup_dir) {
-            let _ = run_cmd("rm", &["-rf", &backup_dir]);
-            return false;
-        }
+    // 备份数据库（批次 323 修复：合并嵌套 if 消除 collapsible_if 警告）
+    if (backup_type == "database" || backup_type == "all") && !backup_database(&backup_dir) {
+        let _ = run_cmd("rm", &["-rf", &backup_dir]);
+        return false;
     }
 
     // 备份文件
@@ -190,13 +188,11 @@ pub(super) fn cmd_restore(file: &str) -> bool {
         return false;
     }
 
-    // 恢复数据库
+    // 恢复数据库（批次 323 修复：合并嵌套 if 消除 collapsible_if 警告）
     let db_file = format!("{}/database.sql", temp_dir);
-    if std::path::Path::new(&db_file).exists() {
-        if !restore_database(&db_file) {
-            let _ = run_cmd("rm", &["-rf", temp_dir]);
-            return false;
-        }
+    if std::path::Path::new(&db_file).exists() && !restore_database(&db_file) {
+        let _ = run_cmd("rm", &["-rf", temp_dir]);
+        return false;
     }
 
     // 恢复配置
