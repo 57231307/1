@@ -9,6 +9,7 @@
 
 | 批次 | PR | 一句话总结 |
 |------|-----|-----------|
+| 329 | #501 | v10 复审 P3 too_many_arguments 参数对象重构 2 项（ar_service create_payment 8→2 参数引入 CreateArPaymentParams + budget_management_service create_execution 9→2 参数引入 CreateBudgetExecutionParams，handler+service 内部调用方同步修改） |
 | 328 | #500 | v10 复审 P3 误报 too_many_arguments 抑制移除 9 项（clippy 阈值 7 即 >7 才警告，9 个函数参数 ≤7 均为误报：1 参数 list_records + 5 参数 manual_verify/make_record + 6 参数 borrow + 7 参数 get_list×3/create_payment/tencent_sign/notify_multiple_users） |
 | 327 | #499 | v10 复审 P3 too_many_arguments 抑制移除 3 项（import_export_service 误报 3 参数删除 + cache.rs 误报 5 参数删除 + user_notification_setting_service 引入 UpdateNotificationSettingParams 参数对象聚合 8 参数） |
 | 326 | #498 | v10 复审 P2 clippy 警告抑制移除 2 项（sales_analysis_service needless_late_init 声明赋值合并 + material_shortage_service type_complexity 提取类型别名 MaterialReq，pred.rs 2 项 needless_range_loop 已在 main 5291e773 修复） |
