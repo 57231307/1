@@ -9,6 +9,7 @@
 
 | 批次 | PR | 一句话总结 |
 |------|-----|-----------|
+| 336 | #508 | v10 复审 P3 too_many_arguments DTO 重构 1 项（mrp_engine_service.rs calculate_requirement 8→1 参数引入 RequirementCalcParams 参数对象，run_mrp_calculation 内部调用方同步修改 bom_level=0，calculate_requirement_with_stock 和 explode_bom_recursive 保留 allow 因含借用参数需单独评估） |
 | 335 | #507 | v10 复审 P3 too_many_arguments DTO 重构 1 项（inventory_stock_query.rs list_transactions 9→1 参数引入 ListTransactionsQuery 参数对象，service 层独立定义与 handler 层 ListTransactionParams 分离，inventory_stock_handler_query.rs 调用方同步修改，query 变量重命名为 q 避免冲突） |
 | 334 | #506 | v10 复审 P3 too_many_arguments DTO 重构 1 项（inventory_finance_bridge_service.rs make_voucher_item 9→1 参数引入 VoucherItemArgs<'a> 参数对象使用 &str 生命周期借用 subject_code/subject_name，12 个内部调用点同步修改 采购入库/销售出库/库存调整盘盈盘亏/生产入库/生产领料） |
 | 333 | #505 | v10 复审 P3 too_many_arguments DTO 重构 1 项（po/price.rs create_purchase_suggestion_from_shortage 8→1 参数引入 ShortageAlertParams 参数对象，event_bus.rs BusinessEvent::MaterialShortageAlert 处理分支同步修改） |
