@@ -723,7 +723,8 @@ pub async fn start_event_listener(db: Arc<DatabaseConnection>, search_client: Ar
                         }
                     }
                 }
-                #[allow(unreachable_patterns)]
+                // 批次 342 v11 复审 P3 修复：移除过时的 #[allow(unreachable_patterns)]，
+                // InventoryTransactionCreated 变体未在此 match 中处理，`_` 分支是可达的
                 _ => {}
             }
             });  // 批次 7：AssertUnwindSafe(async { ... }) 闭合
