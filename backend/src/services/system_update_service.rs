@@ -1018,4 +1018,29 @@ mod tests {
         assert!(validate_asset_name("file|evil.zip").is_err()); // 管道符
         assert!(validate_asset_name("").is_err()); // 空
     }
+
+    // ============ 批次 322 v9 复审低危修复：parse_version 单元测试 ============
+
+    /// 测试 parse_version 正确解析标准语义版本号
+    #[test]
+    fn test_parse_version_standard() {
+        assert_eq!(parse_version("1.2.3"), vec![1, 2, 3]);
+        assert_eq!(parse_version("2.0"), vec![2, 0]);
+        assert_eq!(parse_version("2026.7.12"), vec![2026, 7, 12]);
+    }
+
+    /// 测试 parse_version 解析带预发布标签的版本号（非数字部分被忽略）
+    #[test]
+    fn test_parse_version_pre_release() {
+        assert_eq!(parse_version("1.0.0-beta"), vec![1, 0, 0]);
+        assert_eq!(parse_version("2.0.0-rc.1"), vec![2, 0, 0]);
+    }
+
+    /// 测试 parse_version 解析空字符串和无效输入
+    #[test]
+    fn test_parse_version_invalid() {
+        assert!(parse_version("").is_empty());
+        assert!(parse_version("abc").is_empty());
+        assert_eq!(parse_version("1.a.3"), vec![1, 3]);
+    }
 }

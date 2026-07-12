@@ -24,6 +24,11 @@ pub(crate) struct WebhookPayload {
 }
 
 /// Webhook发送结果
+///
+/// 批次 322 v9 复审低危修复说明：v9 复审报告曾建议将本结构体降为 `pub(crate)`，
+/// 但经分析 `WebhookDeliveryResult` 作为 `Json<ApiResponse<WebhookDeliveryResult>>`
+/// 的泛型参数出现在 API 响应体中（test_webhook / retry_webhook 端点），
+/// 序列化器需要 `pub` 可见性，降级会导致编译错误。因此保持 `pub`，此处注释说明保留理由。
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct WebhookDeliveryResult {
     pub success: bool,
