@@ -3,16 +3,13 @@
 //! 价格历史记录与查询
 //! 创建时间: 2026-06-18
 
-use chrono::Utc;
-use rust_decimal::Decimal;
 use sea_orm::{
-    ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, PaginatorTrait, QueryFilter,
-    QueryOrder, Set,
+    ColumnTrait, DatabaseConnection, EntityTrait, PaginatorTrait, QueryFilter, QueryOrder,
 };
 use std::sync::Arc;
 use thiserror::Error;
 
-use crate::models::color_price_history::{self, ActiveModel as HistoryActive};
+use crate::models::color_price_history;
 use crate::utils::error::AppError;
 use crate::utils::pagination::paginate_with_total;
 
@@ -60,37 +57,5 @@ impl ColorPriceHistoryService {
 
         let (items, total) = paginate_with_total(paginator, page.clamp(1, 1000)).await?;
         Ok((items, total))
-    }
-
-    /// 记录价格变更（供其他 service 调用）
-    pub async fn record_change(
-        &self,
-        price_id: i64,
-        old_price: Decimal,
-        new_price: Decimal,
-        currency: String,
-        change_type: String,
-        change_reason: Option<String>,
-        change_percent: Option<Decimal>,
-        quantity: Option<Decimal>,
-        operated_by: i64,
-    ) -> Result<color_price_history::Model, HistoryError> {
-        let history = HistoryActive {
-            id: Default::default(),
-            product_color_price_id: Set(price_id),
-            old_price: Set(old_price),
-            new_price: Set(new_price),
-            currency: Set(currency),
-            change_type: Set(change_type),
-            change_reason: Set(change_reason),
-            change_percent: Set(change_percent),
-            quantity: Set(quantity),
-            operated_by: Set(operated_by),
-            operated_at: Set(Utc::now()),
-            approved_by: Set(None),
-            approved_at: Set(None),
-        };
-        let result = history.insert(&*self.db).await?;
-        Ok(result)
     }
 }
