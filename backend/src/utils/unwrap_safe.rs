@@ -58,31 +58,6 @@ macro_rules! s {
     };
 }
 
-/// 业务 helper：把 Option<T> 在业务已知非空的场景下取值，失败时记录中文日志
-///
-/// 仅适用于"业务上不可能为空"的字段（如配置加载后的全局变量、初始化后必填）。
-/// 关键路径（请求处理、数据库事务）必须显式 match，不允许使用本函数。
-pub fn must_some<T>(opt: Option<T>, ctx: &str) -> T {
-    match opt {
-        Some(v) => v,
-        None => {
-            tracing::error!(ctx = %ctx, "P9-1: 业务必填项为空");
-            panic!("P9-1: 业务必填项为空: {ctx}")
-        }
-    }
-}
-
-/// 业务 helper：Result 在已知成功的场景下取值，失败时记录中文日志
-pub fn must_ok<T, E: std::fmt::Display>(r: Result<T, E>, ctx: &str) -> T {
-    match r {
-        Ok(v) => v,
-        Err(e) => {
-            tracing::error!(ctx = %ctx, error = %e, "P9-1: 业务操作预期成功但失败");
-            panic!("P9-1: {ctx}: {e}")
-        }
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -104,29 +79,5 @@ mod tests {
     fn test_s_macro() {
         let v: String = s!("hello-p9-1");
         assert_eq!(v, "hello-p9-1");
-    }
-
-    #[test]
-    fn test_must_some_ok() {
-        let v = must_some(Some(1), "test ctx");
-        assert_eq!(v, 1);
-    }
-
-    #[test]
-    #[should_panic(expected = "P9-1")]
-    fn test_must_some_panic() {
-        let _: i32 = must_some(None, "test");
-    }
-
-    #[test]
-    fn test_must_ok_ok() {
-        let v: i32 = must_ok::<_, &str>(Ok(7), "test");
-        assert_eq!(v, 7);
-    }
-
-    #[test]
-    #[should_panic(expected = "P9-1")]
-    fn test_must_ok_panic() {
-        let _: i32 = must_ok::<_, &str>(Err("bad"), "test");
     }
 }

@@ -46,22 +46,3 @@ pub fn hmac_sha256_hex(key: &[u8], data: &[u8]) -> Result<String, String> {
     let result = mac.finalize().into_bytes();
     Ok(hex::encode(result))
 }
-
-/// 计算多段数据拼接后的 SHA256 摘要并以小写 hex 字符串返回
-///
-/// 与 `sha256_hex` 等价，但支持按顺序拼接多段数据后统一摘要。
-/// 常用于 `SHA256(a || b || c ...)` 这类组合摘要场景。
-///
-/// # 参数
-/// - `parts`: 按顺序拼接的字节切片集合
-///
-/// # 返回
-/// - 长度为 64 的小写 hex 字符串
-pub fn sha256_hex_multi(parts: &[&[u8]]) -> String {
-    let mut hasher = Sha256::new();
-    for part in parts {
-        hasher.update(part);
-    }
-    let result = hasher.finalize();
-    hex::encode(result)
-}
