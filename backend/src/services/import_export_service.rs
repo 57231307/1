@@ -290,17 +290,10 @@ impl ImportExportService {
 
     /// 执行数据导入
     ///
-    /// 防御性 `#[allow]`：
-    /// - `clippy::too_many_arguments`：3 个参数（import_type, data, user_id），接近 clippy 上限；
-    ///   未来若加 trace_id 可能突破，预先抑制。
-    /// - `clippy::needless_pass_by_value`：handler 调用模式 `&req.import_type, &rows, auth.user_id`
-    ///   触发的链式引用检测；保持签名稳定便于未来重命名参数。
-    /// - `clippy::redundant_clone`：防御 import_type 在 match 内的潜在 clone 误报。
-    #[allow(
-        clippy::too_many_arguments,
-        clippy::needless_pass_by_value,
-        clippy::redundant_clone
-    )]
+    /// 批次 327 v10 复审 P3 修复：移除误报的 #[allow]
+    /// - too_many_arguments：仅 3 参数（import_type, data, user_id），远低于阈值 7
+    /// - needless_pass_by_value：参数均为引用或 Copy 类型，不会触发
+    /// - redundant_clone：签名层面无 clone 操作，不会触发
     pub async fn import_data(
         &self,
         import_type: &str,

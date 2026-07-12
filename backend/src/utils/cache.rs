@@ -400,11 +400,9 @@ impl AppCache {
     /// - `ip_address`: 客户端 IP（来自 [AuditContext::ip_address]）
     /// - `user_id`: 用户 ID（用于反向索引）
     /// - `ttl`: 过期时长；`None` 时使用 [CSRF_TOKEN_DEFAULT_TTL_SECS]
-    // 防御性 allow：
-    // - too_many_arguments：5 个参数与 csrf token 三元组语义强绑定，拆分会增加调用复杂度。
-    // - needless_pass_by_value：owned String 来自上游调用方（auth_handler 持有 session_id），
-    //   改为 &str 会引入生命周期参数污染公开 API，保留 owned 形式更稳。
-    #[allow(clippy::too_many_arguments, clippy::needless_pass_by_value)]
+    // 批次 327 v10 复审 P3 修复：移除误报的 #[allow]
+    // - too_many_arguments：仅 5 参数（token, session_id, ip_address, user_id, ttl），低于阈值 7
+    // - needless_pass_by_value：owned String 来自上游调用方，保留 owned 形式避免生命周期污染
     pub fn set_csrf_token(
         &self,
         token: String,
