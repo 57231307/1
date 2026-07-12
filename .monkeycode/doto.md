@@ -56,25 +56,43 @@
 | 🟢 P3 测试代码/防御性抑制 | 8 | 8 | ✅ 全部完成（批次 342+343） |
 | **合计** | **27** | **27** | ✅ v11 复审全部完成 |
 
-### ✅ 已完成（批次 346，v11 收官）
+> 批次 340-346 详细记录已归档到 [doto-su.md](file:///workspace/.monkeycode/doto-su.md)。
 
-**批次 346（PR #518）**：v11 复审 P1-6+P1-7 crud_macro 宏 metavariable 修复（1 文件，v11 收官）
-- `utils/crud_macro.rs` `impl_generate_no!` 宏 `$entity` 从 `ty` 改为 `path` metavariable
-- `<$entity>::default()` 改为 `$entity`（Entity unit struct 直接作为值）
-- 移除 2 处 `#[allow(clippy::default_constructed_unit_structs)]`
-- 兼容性：14 个调用点均为 `xxx::Entity` 路径格式，`generate_no` 签名 `_entity: E` 泛型兼容
-- 规则 14 合规，CI 13 success + 2 skipped 全绿
-- **v11 复审 27/27 全部完成**
+---
 
-### ✅ 已完成（批次 340-345，归档摘要）
+## 🔥 当前任务：v12 复审问题修复（P2 死代码 4/8 🔄）
 
-批次 340-345 详细记录已归档到 [doto-su.md](file:///workspace/.monkeycode/doto-su.md)。
-- **批次 340（PR #512）**：P0+P1 警告抑制移除 5 项
-- **批次 341（PR #513）**：P2 过时警告抑制移除 3 项
-- **批次 342（PR #514）**：P2+P3 警告抑制移除 5 项
-- **批次 343（PR #515）**：P3 测试模块 unused_imports 抑制移除 7 项，P3 8/8 全部完成
-- **批次 344（PR #516）**：P1-8 FromStr trait 迁移 + 接入 lock/release 预留接口（规则 0 合规）
-- **批次 345（PR #517）**：P2-8 app_state.rs Default 实现重构，P2 10/10 全部完成
+> **v12 复审报告**（2026-07-12，批次 346 合并后 Task 工具扫描）：v11 复审全部完成后复审，扫描死代码、unwrap/expect/panic 使用、baseline 渐进清理。
+> 发现 15 个问题：0 P0 + 4 P1 + 8 P2 + 3 P3。
+> 关键结论：`#[allow]` 抑制彻底清除 ✅；生产代码无 panic 风险 ✅；baseline 部分过时（5 项已接入业务但 baseline 未更新）。
+> 修复策略：按规则 13+14 连续执行，P2 → P1 → P3，每批 5-6 个文件，CI 全绿后合并 main。
+
+### 进度总览
+
+| 优先级 | 总数 | 已完成 | 剩余 | 状态 |
+|--------|------|--------|------|------|
+| 🟡 P2 死代码 | 8 | 4 | 4 | 🔄 进行中（批次 347 清理 4 项 utils/ 函数） |
+| 🟠 P1 clippy baseline 风格警告 | 4 | 0 | 4 | ⏳ 待处理（需重新运行 clippy 定位） |
+| 🟢 P3 测试代码/业务术语 | 3 | 0 | 3 | ⏳ 待处理（Incoterms 业务术语） |
+| **合计** | **15** | **4** | **11** | 🔄 进行中 |
+
+### ✅ 已完成（批次 347）
+
+**批次 347（PR #519）**：v12 复审 P2 死代码清理 4 项（4 文件，utils/ 函数级删除）
+- `unwrap_safe.rs`：删除 `must_some` + `must_ok` 函数及 4 个对应测试（pub 函数仅自身测试调用）
+- `hash.rs`：删除 `sha256_hex_multi` 函数（整个项目无调用）
+- `color_space_converter.rs`：删除 `rgb_to_hex` + `delta_e_76` 函数及对应测试，新增 `test_delta_e_is_acceptable` 替代
+- `process_state_machine.rs`：删除 `node_type_to_status` 函数及对应测试
+- 规则 0+14 合规：删除死代码而非抑制，CI 13 success + 2 skipped 全绿
+
+### 🟡 P2 剩余项（4 项，需深入评估）
+
+| ID | 文件 | 标识符 | 类型 | 评估 |
+|----|------|--------|------|------|
+| P2-1 | `services/ar_collection_service.rs` | `ArCollectionService` | struct | 整文件未接入 handler，需评估是否预留功能 |
+| P2-2 | `services/five_dimension_query_service.rs` | `FiveDimensionQueryService` | struct | handler 使用 FiveDimensionService（不同 service），可能重复/废弃 |
+| P2-3 | `services/auth_service.rs:548` | `cleanup_expired_jti` | function | 仅测试调用，可能预留定时任务 |
+| P2-4 | baseline 中 5 项已接入业务但 baseline 未更新 | — | — | 需更新 baseline（需 CI 重新生成） |
 
 ### 🔴 P0 待修复项（0 项 ✅ 全部完成）
 
