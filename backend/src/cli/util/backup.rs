@@ -20,7 +20,8 @@ fn get_systemd_dir() -> String {
 /// L4 修复（v8 复审）：函数返回 bool 表示是否成功，便于调用方（如 upgrade）根据结果决定后续流程
 /// 返回 true 表示备份成功，false 表示备份失败（错误已在函数内打印）
 pub(super) fn cmd_backup(backup_type: &str) -> bool {
-    let ts = timestamp();
+    // 批次 323 修复：timestamp() 返回 u64，转为 String 以便传给 compress_backup(&str)
+    let ts = timestamp().to_string();
     let backup_dir = format!("{}/{}", get_backup_dir(), ts);
 
     println!("=== 开始备份 ===\n");

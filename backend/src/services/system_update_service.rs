@@ -797,7 +797,7 @@ fn parse_version(v: &str) -> Vec<u32> {
 /// - 路径校验：`enclosed_name` + `starts_with` 双重防护 Tar Slip 路径穿越
 /// - 权限掩码：`set_safe_permissions` 重置 SUID/SGID/sticky bit（P0-2 修复）
 fn extract_zip_entry(
-    zip_entry: &mut zip::ZipFile,
+    zip_entry: &mut zip::read::ZipFile,
     extract_dir: &Path,
 ) -> Result<(), UpdateError> {
     let filepath = zip_entry.enclosed_name().ok_or_else(|| {
