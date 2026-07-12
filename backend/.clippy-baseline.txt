@@ -1418,6 +1418,7 @@ warning: methods `get_abc_classification` and `get_inventory_turnover` are never
 warning: methods `is_empty` and `desc` are never used
 warning: methods `lock_reservation` and `release_reservation` are never used
 warning: methods `record_change` and `record_order_created` are never used
+warning: struct `OrderChangeRecord` is never constructed
 warning: methods `record_primary`, `record_primary_failed`, `record_backup`, and `set_circuit_state` are never used
 warning: methods `update`, `delete`, `confirm`, `dispute`, and `close` are never used
 warning: multiple associated items are never used
