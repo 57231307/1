@@ -81,6 +81,30 @@ struct StockInfo {
     available: Decimal,
 }
 
+/// 物料需求计算参数对象
+///
+/// 批次 336 v10 复审 P3 修复：引入参数对象消除 calculate_requirement 的 too_many_arguments 警告。
+/// 聚合物料需求计算所需的全部参数，避免函数签名携带 8 个参数。
+#[derive(Debug, Clone)]
+pub struct RequirementCalcParams {
+    /// 产品 ID
+    pub product_id: i32,
+    /// 需求数量
+    pub required_quantity: Decimal,
+    /// 需求日期
+    pub required_date: NaiveDate,
+    /// 来源类型（如订单/生产计划）
+    pub source_type: String,
+    /// 来源 ID（可选）
+    pub source_id: Option<i32>,
+    /// 是否考虑安全库存
+    pub consider_safety_stock: bool,
+    /// 是否考虑在途库存
+    pub consider_in_transit: bool,
+    /// BOM 层级（顶层为 0）
+    pub bom_level: i32,
+}
+
 /// MRP计算引擎
 pub struct MrpEngineService {
     db: Arc<DatabaseConnection>,
@@ -240,18 +264,25 @@ impl MrpEngineService {
     }
 
     /// 计算单个物料需求
-    #[allow(clippy::too_many_arguments)]
+    ///
+    /// 批次 336 v10 复审 P3 修复：签名从 8 参数改为单一参数对象 `RequirementCalcParams`，
+    /// 消除 `clippy::too_many_arguments` 警告。
     pub async fn calculate_requirement(
         &self,
-        product_id: i32,
-        required_quantity: Decimal,
-        required_date: NaiveDate,
-        source_type: String,
-        source_id: Option<i32>,
-        consider_safety_stock: bool,
-        consider_in_transit: bool,
-        bom_level: i32,
+        params: RequirementCalcParams,
     ) -> Result<MaterialRequirement, AppError> {
+        // 解构参数对象，便于函数体内按字段名访问
+        let RequirementCalcParams {
+            product_id,
+            required_quantity,
+            required_date,
+            source_type,
+            source_id,
+            consider_safety_stock,
+            consider_in_transit,
+            bom_level,
+        } = params;
+
         let stock_info = self.get_stock_info(product_id).await?;
 
         let mut available = stock_info.available;
@@ -432,16 +463,16 @@ impl MrpEngineService {
         let calculation_no = format!("MRP{}", Utc::now().timestamp_millis());
 
         let main_req = self
-            .calculate_requirement(
+            .calculate_requirement(RequirementCalcParams {
                 product_id,
                 required_quantity,
                 required_date,
-                source_type.clone(),
+                source_type: source_type.clone(),
                 source_id,
                 consider_safety_stock,
                 consider_in_transit,
-                0,
-            )
+                bom_level: 0,
+            })
             .await?;
 
         let main_active_model = MrpResultActiveModel {
