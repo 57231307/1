@@ -91,7 +91,6 @@ impl ColorCardBorrowService {
     }
 
     /// 创建借出记录
-    #[allow(clippy::too_many_arguments)]
     pub async fn borrow(
         &self,
         color_card_id: i64,
@@ -292,7 +291,6 @@ impl ColorCardBorrowService {
     }
 
     /// 列表查询（分页 + 多条件）
-    #[allow(clippy::too_many_arguments)]
     pub async fn list_records(
         &self,
         query: ListBorrowRecordsQuery,
