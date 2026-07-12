@@ -202,11 +202,9 @@ impl MaterialShortageService {
         };
 
         // material_id -> (total_required, unit, [(product_id, qty_per_unit)])
-        #[allow(clippy::type_complexity)]
-        let mut material_requirements: HashMap<
-            i32,
-            (Decimal, Option<String>, Vec<(i32, Decimal)>),
-        > = HashMap::new();
+        // 批次 326 v10 复审 P2 修复：提取类型别名消除 type_complexity 警告
+        type MaterialReq = (Decimal, Option<String>, Vec<(i32, Decimal)>);
+        let mut material_requirements: HashMap<i32, MaterialReq> = HashMap::new();
 
         for item in &bom_items {
             // 找到使用此 BOM 的产品

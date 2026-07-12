@@ -225,7 +225,6 @@ impl SalesAnalysisService {
     }
 
     /// 获取销售概览统计
-    #[allow(clippy::needless_late_init)]
     pub async fn get_overview_stats(&self) -> Result<SalesOverviewStats, AppError> {
         info!("获取销售概览统计");
 
@@ -242,7 +241,6 @@ impl SalesAnalysisService {
         let mut total_profit = Decimal::ZERO;
         let mut total_amount = Decimal::ZERO;
         let mut gross_profit_rate = Decimal::ZERO;
-        let active_customers: i64;
 
         for s in &stats {
             if s.statistic_type == "order" {
@@ -267,7 +265,7 @@ impl SalesAnalysisService {
                 }
             }
         }
-        active_customers = customer_ids.len() as i64;
+        let active_customers: i64 = customer_ids.len() as i64;
 
         Ok(SalesOverviewStats {
             month_orders,
