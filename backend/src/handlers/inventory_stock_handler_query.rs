@@ -30,17 +30,17 @@ pub async fn list_transactions(
     let page_size = params.page_size.unwrap_or(20).clamp(1, 100);
 
     let (transactions, total) = service
-        .list_transactions(
+        .list_transactions(crate::services::inventory_stock_query::ListTransactionsQuery {
             page,
             page_size,
-            params.batch_no,
-            params.color_no,
-            params.product_id,
-            params.warehouse_id,
-            params.transaction_type,
-            params.start_date,
-            params.end_date,
-        )
+            batch_no: params.batch_no,
+            color_no: params.color_no,
+            product_id: params.product_id,
+            warehouse_id: params.warehouse_id,
+            transaction_type: params.transaction_type,
+            start_date: params.start_date,
+            end_date: params.end_date,
+        })
         .await?;
 
     let transaction_responses: Vec<TransactionResponse> = transactions
