@@ -69,7 +69,9 @@ impl InventoryCountService {
     }
 
     /// 创建盘点单（事务内生成单号 + 主表 + 明细快照）
-    #[allow(clippy::default_constructed_unit_structs)]
+    ///
+    /// 批次 340 v11 复审 P1 修复：移除 `#[allow(clippy::default_constructed_unit_structs)]` 抑制，
+    /// SeaORM unit struct `Entity` 直接作为值传递，无需 `::default()` 构造。
     pub async fn create_count(&self, req: CreateCountRequest) -> Result<CountDetail, AppError> {
         let txn = (*self.db).begin().await?;
 
@@ -77,7 +79,7 @@ impl InventoryCountService {
         let count_no = crate::utils::number_generator::DocumentNumberGenerator::generate_no_with_txn(
             &txn,
             "IC",
-            inventory_count::Entity::default(),
+            inventory_count::Entity,
             inventory_count::Column::CountNo,
         )
         .await?;

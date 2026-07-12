@@ -29,9 +29,8 @@ pub struct RefreshTokenResponse {
 // P3 7-17 修复：已删除 CsrfTokenResponse（仅被 get_csrf_token 使用，一并清理）
 
 // Wave 3 安全漏洞 #7 修复：CSRF IP 绑定 + 强制轮换。
-// 仅抑制 `clippy::redundant_clone`：`token.clone()` / `csrf_token.clone()`
-// 用于 Cookie 构建 + 缓存写入，clone 都是必要消费。
-#[allow(clippy::redundant_clone)]
+// 批次 340 v11 复审 P1 修复：移除 `#[allow(clippy::redundant_clone)]` 抑制，
+// baseline 无此警告。若 CI 报 redundant_clone 则需重构 clone 为引用传递。
 pub async fn refresh_token(
     State(state): State<AppState>,
     headers: HeaderMap,

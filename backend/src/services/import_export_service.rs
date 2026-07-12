@@ -205,10 +205,9 @@ impl ImportExportService {
 
     /// 解析CSV内容
     ///
-    /// 防御性 `#[allow(clippy::needless_pass_by_value)]`：
-    /// `content: &str` 已是最优签名，但 clippy 1.94 偶发对纯字面量
-    /// `&str` 参数误报；保持 API 稳定便于直接传 `String::as_str()`。
-    #[allow(clippy::needless_pass_by_value)]
+    /// 批次 340 v11 复审 P1 修复：移除防御性 `#[allow(clippy::needless_pass_by_value)]`，
+    /// `content: &str` 是引用类型，clippy 不会对引用类型触发 needless_pass_by_value，
+    /// 原标注为历史遗留误报防御。
     pub fn parse_csv(content: &str) -> Result<Vec<Vec<String>>, AppError> {
         let mut reader = csv::ReaderBuilder::new()
             .has_headers(true)
@@ -236,10 +235,8 @@ impl ImportExportService {
 
     /// 验证导入数据
     ///
-    /// 防御性 `#[allow(clippy::needless_pass_by_value)]`：
-    /// `&[Vec<String>]` + `&ImportTemplate` 已是最优签名，
-    /// 但 clippy 1.94 对模板引用参数偶发误报。
-    #[allow(clippy::needless_pass_by_value)]
+    /// 批次 340 v11 复审 P1 修复：移除防御性 `#[allow(clippy::needless_pass_by_value)]`，
+    /// `&[Vec<String>]` 和 `&ImportTemplate` 都是引用类型，不会触发 needless_pass_by_value。
     pub fn validate_import_data(
         data: &[Vec<String>],
         template: &ImportTemplate,
