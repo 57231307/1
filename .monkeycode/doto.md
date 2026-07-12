@@ -2,7 +2,7 @@
 
 > 本文件**详细**记录未完成的任务（问题描述、影响范围、修复方案、技术要点），禁止简化。
 > 已完成任务见 [doto-su.md](file:///workspace/.monkeycode/doto-su.md)，一句话总结见 [CHANGELOG.md](file:///workspace/.monkeycode/CHANGELOG.md)，规则见 [MEMORY.md](file:///workspace/.monkeycode/MEMORY.md)。
-> 最近一次整理：2026-07-12（批次 330 规则 10 整理，已完成批次 290-329 迁移到 doto-su.md）。
+> 最近一次整理：2026-07-12（批次 345 规则 10 整理，已完成批次 330-344 迁移到 doto-su.md）。
 
 ---
 
@@ -15,206 +15,69 @@
 
 ---
 
-## 🔥 当前任务：v10 复审问题修复（P0 1/1 ✅，P1 5/5 ✅，P2 4/4 ✅，P3 43/43 ✅ 全部完成）
+## ✅ 历史任务：v10 复审问题修复（P0 1/1 ✅，P1 5/5 ✅，P2 4/4 ✅，P3 43/43 ✅ 全部完成）
 
 > **v10 复审报告**（2026-07-12，Task 工具扫描）：v9 + sea-orm 调研 + 规则 14 新增后复审，扫描所有 `#[allow(...)]` 警告抑制。
 > 发现 180 个抑制标注（108 例外 models/ + 72 非例外），非例外分类：1 P0 + 5 P1 + 4 P2 + ~43 P3。
-> 修复策略：按规则 13+14 连续执行，P0 → P1 → P2 → P3，每批 1 commit，CI 全绿后合并 main。
-> **批次文件数量策略**：每批次处理 5-6 个文件（用户最新要求，原为 8-10）。
-> **v10 复审全部完成**（2026-07-12，批次 339 合并）：所有 `#[allow(clippy::too_many_arguments)]` 抑制已全部移除，规则 14 合规。
+> **v10 复审全部完成**（批次 325-339）：所有 `#[allow(clippy::too_many_arguments)]` 抑制已全部移除，规则 14 合规。
+> 批次 325-344 详细记录已归档到 [doto-su.md](file:///workspace/.monkeycode/doto-su.md)，一句话总结见 [CHANGELOG.md](file:///workspace/.monkeycode/CHANGELOG.md)。
 
 ### 进度总览
 
-| 优先级 | 总数 | 已完成 | 剩余 | 状态 |
-|--------|------|--------|------|------|
-| 🔴 P0 死代码 | 1 | 1 | 0 | ✅ 全部完成（批次 325） |
-| 🟠 P1 文件级抑制过宽+未使用重导出 | 5 | 5 | 0 | ✅ 全部完成（批次 325） |
-| 🟡 P2 clippy 代码味道 | 4 | 4 | 0 | ✅ 全部完成（批次 326，pred.rs 2 项已在 main 修复） |
-| 🟢 P3 too_many_arguments | 43 | 43 | 0 | ✅ 全部完成（批次 327-339，含 9 项误报删除） |
-| **合计** | **~53** | **53** | **0** | ✅ v10 复审全部完成 |
+| 优先级 | 总数 | 已完成 | 状态 |
+|--------|------|--------|------|
+| 🔴 P0 死代码 | 1 | 1 | ✅ 全部完成（批次 325） |
+| 🟠 P1 文件级抑制过宽+未使用重导出 | 5 | 5 | ✅ 全部完成（批次 325） |
+| 🟡 P2 clippy 代码味道 | 4 | 4 | ✅ 全部完成（批次 326） |
+| 🟢 P3 too_many_arguments | 43 | 43 | ✅ 全部完成（批次 327-339，含 9 项误报删除） |
 
-### ✅ 已完成（批次 325-339）
+### 修复方案与技术要点
 
-**批次 339（PR #511）**：v10 复审 P3 too_many_arguments DTO 重构剩余 3 项（v10 复审收官）
-- `product_service.rs create_product`：19 参数 → 1 参数对象 `CreateProductArgs`（19 字段，含面料行业字段）
-- `product_service.rs update_product`：19 参数 → 1 参数对象 `UpdateProductArgs`（19 字段，所有业务字段均为 Option）
-- `mrp_engine_service.rs explode_bom_recursive`：11 参数（含 &self + &mut Vec + &mut HashMap）→ 4 参数（&self + `ExplodeBomArgs<'a>` + &mut Vec + &mut HashMap），9 个标量参数聚合为参数对象，借用参数 results/stock_cache 保留在签名中
-- 调用方同步修改：product_handler.rs（create_product + update_product）+ product_service.rs import_products_from_csv 内部调用方 + mrp_engine_service.rs 递归调用方 + explode_bom 入口调用方
-- **v10 复审 P3 too_many_arguments 全部 43 项完成，所有 #[allow(clippy::too_many_arguments)] 抑制全部移除，规则 14 合规**
-
-**批次 338（PR #510）**：v10 复审 P3 too_many_arguments DTO 重构 8 项（5 核心 service + 8 调用方）
-- `ai/recipe_opt.rs make_recipe`：8 参数 → 1 参数对象 `RecipeFixture<'a>`（测试夹具，7 个调用点同步修改）
-- `inventory_stock_query.rs record_transaction`：18 参数 → 1 参数对象 `RecordTransactionArgs`（sales_return_service.rs 调用方同步修改）
-- `inventory_stock_service.rs create_stock`：12 参数 → 1 参数对象 `CreateStockArgs` + `create_stock_fabric`：13 参数 → 1 参数对象 `CreateStockFabricArgs`（2 个 handler 调用方同步修改）
-- `inventory_stock_txn.rs create_stock_fabric_txn`：14 参数 → 2 参数（txn + CreateStockFabricArgs 复用）+ `record_transaction_txn`：19 参数 → 2 参数（txn + RecordTransactionArgs 复用）（4 个 service 调用方共 9 个调用点同步修改）
-- `customer_service.rs create_customer`：18 参数 → 1 参数对象 `CreateCustomerArgs` + `update_customer`：18 参数 → 1 参数对象 `UpdateCustomerArgs`（customer_handler.rs 调用方同步修改）
-
-**批次 337（PR #509）**：v10 复审 P3 too_many_arguments DTO 重构 6 项
-- `inventory_finance_bridge_service.rs` 6 个函数统一引入 `VoucherCreateArgs<'a>` 参数对象：
-  - 5 个 `create_*_voucher` 私有函数（create_purchase_receipt_voucher/create_sales_delivery_voucher/create_inventory_adjustment_voucher/create_production_receipt_voucher/create_production_issue_voucher）：10 参数 → 1 参数对象
-  - `handle_inventory_transaction`：12 参数 → 3 参数（_transaction_id + transaction_type + VoucherCreateArgs）
-- 使用生命周期 `&'a str` 借用 source_bill_type/source_bill_no/batch_no/color_no，避免调用方不必要的 to_string()
-- 事件监听器 `start_listener` 同步构造 `VoucherCreateArgs` 并传递给 `handle_inventory_transaction`
-- **CI 修复**：补充 `OrderChangeRecord` dead code 警告到 clippy baseline（批次 332 引入的 struct 唯一构造点在 dead code `record_order_created` 内部，编译器推断 never constructed，属预存技术债务传播）
-
-**批次 336（PR #508）**：v10 复审 P3 too_many_arguments DTO 重构 1 项
-- `mrp_engine_service.rs calculate_requirement`：8 参数 → 1 参数，引入 `RequirementCalcParams` 参数对象（product_id/required_quantity/required_date/source_type/source_id/consider_safety_stock/consider_in_transit/bom_level）
-- 同步更新 `run_mrp_calculation` 内部调用方构造 `RequirementCalcParams`（bom_level=0 表示顶层）
-- 注：`calculate_requirement_with_stock`（10 参数含 &self + &StockInfo）和 `explode_bom_recursive`（11 参数含 &self + &mut Vec + &mut HashMap）仍保留 #[allow]，因含借用参数需单独评估
-
-**批次 335（PR #507）**：v10 复审 P3 too_many_arguments DTO 重构 1 项
-- `inventory_stock_query.rs list_transactions`：9 参数 → 1 参数，引入 `ListTransactionsQuery` 参数对象（page/page_size/batch_no/color_no/product_id/warehouse_id/transaction_type/start_date/end_date）
-- 在 service 层定义独立 `ListTransactionsQuery`，与 handler 层 `ListTransactionParams` 分离（service 不依赖 axum Deserialize）
-- 同步更新 `inventory_stock_handler_query.rs` 调用方构造 `ListTransactionsQuery`，函数体内 `query` 变量重命名为 `q` 避免与参数名冲突
-
-**批次 334（PR #506）**：v10 复审 P3 too_many_arguments DTO 重构 1 项
-- `inventory_finance_bridge_service.rs make_voucher_item`：9 参数 → 1 参数，引入 `VoucherItemArgs<'a>` 参数对象（line_no/subject_code/subject_name/debit/credit/summary/quantity_meters/quantity_kg/unit_price）
-- 使用生命周期 `&'a str` 借用 subject_code/subject_name，避免调用方不必要的 to_string()
-- 同步更新 12 个内部调用点（采购入库/销售出库/库存调整盘盈盘亏/生产入库/生产领料 各 2 个分录）
-- make_voucher_item 是私有函数（fn 不是 pub fn），所有调用均在 crate 内
-
-**批次 333（PR #505）**：v10 复审 P3 too_many_arguments DTO 重构 1 项
-- `po/price.rs create_purchase_suggestion_from_shortage`：8 参数 → 1 参数，引入 `ShortageAlertParams` 参数对象（material_id/material_name/material_code/required_quantity/available_quantity/shortage_quantity/shortage_level/affected_orders_count）
-- 调用方：`event_bus.rs` 的 BusinessEvent::MaterialShortageAlert 处理分支同步构造 `ShortageAlertParams` 参数对象
-
-**批次 332（PR #504）**：v10 复审 P3 too_many_arguments DTO 重构 1 项
-- `order_change_history_service.rs record_change`：9 参数（含 &self，8 参数不含 self >7）→ 1 参数，引入 `OrderChangeRecord` 参数对象（order_id/change_type/field_name/old_value/new_value/changed_by/change_reason/ip_address/user_agent），内部调用方 record_order_created 同步修改
-- 调用链分析：record_change 仅被内部 record_order_created 调用，record_order_created 虽 pub 但 crate 内无外部调用（business_metrics/metrics_service 的 record_order_created 是不同 service 的方法）
-
-**批次 331（PR #503）**：v10 复审 P3 too_many_arguments DTO 重构 1 项
-- `utils/app_state.rs with_secrets_and_cors`：8 参数 → 1 参数，引入 `AppStateParams` 参数对象（db/omni_audit/audit_cleanup/jwt_secret/previous_jwt_secret/cookie_secret/webhook_secret/allowed_origins），main.rs 调用方同步修改
-- 附：补充 clippy baseline 3 项（path_validator 模块的 validate_extracted_paths/validate_dir_recursive/MAX_RECURSION_DEPTH 被编译器判定为 dead code，疑似 pub(super) 可见性导致 reachability 分析未追踪到 cli::util::run 调用链，属预存技术债务）
-
-**批次 330（PR #502）**：v10 复审 P3 误报删除 5 项 + DTO 重构 1 项
-- 误报删除 5 项（clippy::too_many_arguments 不计算 &self，阈值 7，参数 ≤7 均为误报）：
-  - `product_service.rs create_product_color`：7 参数（不含 &self），删除误报 #[allow]
-  - `inventory_stock_query.rs get_inventory_summary`：7 参数（不含 &self），删除误报 #[allow]
-  - `mrp_engine_service.rs explode_bom`：7 参数（不含 &self），删除误报 #[allow]
-  - `mrp_engine_service.rs run_mrp_calculation`：7 参数（不含 &self），删除误报 #[allow]
-  - `ar/inv.rs create_receivable`：6 参数（不含 &self），删除误报 #[allow]
-- DTO 重构 1 项：`product_service.rs update_product_color` 8 参数 → 1 参数，引入 `UpdateProductColorParams` 参数对象（id/color_name/pantone_code/color_type/dye_formula/extra_cost/is_active/user_id），handler 调用方同步修改
-- 附：规则 10 每 15 批次记忆整理（迁移批次 290-329 归档摘要到 doto-su.md）
-
-**批次 329（PR #501）**：v10 复审 P3 too_many_arguments 参数对象重构 2 项
-- `ar_service.rs create_payment`：8 参数 → 2 参数，引入 `CreateArPaymentParams` 参数对象（customer_id/amount/payment_method/payment_date/bank_account/remark/invoice_ids），handler 同步修改
-- `budget_management_service.rs create_execution`：9 参数 → 2 参数，引入 `CreateBudgetExecutionParams` 参数对象（plan_id/execution_type/amount/expense_date/expense_type/related_document_type/related_document_id/remark），handler + service 内部 2 处调用方（occupy_budget/verify_budget）同步修改
-
-**批次 328（PR #500）**：v10 复审 P3 误报 too_many_arguments 抑制移除 9 项
-- clippy too_many_arguments 默认阈值 7（参数 >7 才警告），9 个函数参数 ≤7 均为误报
-- 1 参数：`color_card_borrow_service.rs list_records`
-- 5 参数：`ar_service.rs manual_verify` + `ai/quality_pred.rs make_record`（测试夹具）
-- 6 参数：`color_card_borrow_service.rs borrow`
-- 7 参数：`ap_payment_service.rs get_list` + `ap_payment_request_service.rs get_list` + `ap_invoice_service.rs get_list` + `finance_payment_service.rs create_payment` + `email_service.rs tencent_sign` + `event_notification_service.rs notify_multiple_users`
-
-**批次 327（PR #499）**：v10 复审 P3 too_many_arguments 抑制移除 3 项
-- `import_export_service.rs:299`：移除误报 `#[allow]`（import_data 仅 3 参数，远低于阈值 7）
-- `cache.rs:407`：移除误报 `#[allow]`（set_csrf_token 仅 5 参数，低于阈值 7）
-- `user_notification_setting_service.rs:50`：引入 `UpdateNotificationSettingParams` 参数对象聚合 8 个独立参数，handler 同步修改
-
-**批次 326（PR #498）**：v10 复审 P2 clippy 警告抑制移除 2 项
-- `sales_analysis_service.rs:228`：移除 `#[allow(clippy::needless_late_init)]`，active_customers 声明与赋值合并
-- `material_shortage_service.rs:205`：移除 `#[allow(clippy::type_complexity)]`，提取类型别名 `MaterialReq`
-- 注：`ai/pred.rs:90,101` 的 2 项 needless_range_loop 已在 main（5291e773）中修复，无需重复
-
-**批次 325（PR #497）**：v10 复审 P0+P1 警告抑制移除 6 项
-- P0：删除 `import_export_service.rs` 死代码 `ExportFormatType` enum（无任何业务引用）
-- P1：删除 `enhanced_logger.rs` 文件级 `#![allow(clippy::too_many_arguments)]`（函数仅 1 参数）
-- P1：删除 `sensitive_action_alert.rs` 文件级 `#![allow(clippy::too_many_arguments)]`（最多 5 参数）
-- P1：删除 `so/mod.rs` 2 个未使用 `pub use` + `#[allow(unused_imports)]`
-- P1：删除 `po/mod.rs` 1 个未使用 `pub use` + `#[allow(unused_imports)]`
-
-### 🟢 P3 too_many_arguments（43/43 ✅ 全部完成）
-
-**问题描述**：43 处 `#[allow(clippy::too_many_arguments)]` 抑制，函数参数过多（>7）。
-
-**修复结果**（批次 327-339）：
-- 9 项误报删除（参数 ≤7，clippy 阈值 7 不计 &self）：批次 327（2 项）+ 328（9 项，注：实际 9 项误报）
-- 34 项 DTO 重构（引入参数对象 Parameter Object 模式）：批次 329-339
-- **所有 `#[allow(clippy::too_many_arguments)]` 抑制已全部移除**（2026-07-12 批次 339 合并确认）
-
-**修复方案**：
-- 引入参数对象（Parameter Object）重构模式
-- 将相关参数分组为 struct，按职责聚合
-- 每批次处理 5-6 个文件，避免单批次过大
-- 优先处理 service 层（业务逻辑核心），再处理 handler 层
-
-**技术要点**：
-- 参数对象需实现 `Clone`/`Debug` 便于测试
-- handler 层参数对象可考虑 `From<Request>` 提取器
-- service 层参数对象可考虑 Builder 模式（可选参数多时）
-- 含借用参数（&mut Vec / &mut HashMap / &str）的函数：标量参数聚合为参数对象，借用参数保留在签名中（如 explode_bom_recursive）
+- 引入参数对象（Parameter Object）重构模式，将相关参数分组为 struct
+- 含借用参数（&mut Vec / &mut HashMap / &str）的函数：标量参数聚合为参数对象，借用参数保留在签名中
+- 每批次处理 5-6 个文件，优先处理 service 层（业务逻辑核心），再处理 handler 层
 
 ---
 
-## 🔥 当前任务：v11 复审问题修复（P0 1/1 ✅，P1 5/8 ✅，P2 9/10 ✅，P3 8/8 ✅）
+## 🔥 当前任务：v11 复审问题修复（P0 1/1 ✅，P1 5/8 ✅，P2 10/10 ✅，P3 8/8 ✅）
 
 > **v11 复审报告**（2026-07-12，批次 339 合并后 Task 工具扫描）：v10 复审全部完成后复审，扫描所有剩余 `#[allow(...)]` 警告抑制（非 models/ SeaORM 例外）。
 > 发现 27 个抑制标注：1 P0 + 8 P1 + 10 P2（带 TODO 保留）+ 8 P3（合理保留）。
 > 修复策略：按规则 13+14 连续执行，P0 → P1 → P2 → P3，每批 5-6 个文件，CI 全绿后合并 main。
-> **批次 344 已完成**：P1-8 FromStr trait 迁移 + 接入 lock/release 预留接口（规则 0 合规）
+> **批次 345 已完成**：P2-8 app_state.rs Default 实现重构（P2 全部完成）
+> **v11 复审可修复项全部完成**：剩余 3 项 P1 为宏内合理保留（P1-6/P1-7 crud_macro.rs）
 
 ### 进度总览
 
 | 优先级 | 总数 | 已完成 | 剩余 | 状态 |
 |--------|------|--------|------|------|
 | 🔴 P0 文件级抑制超出例外 | 1 | 1 | 0 | ✅ 全部完成（批次 340） |
-| 🟠 P1 clippy 警告抑制 | 8 | 5 | 3 | ✅ 可修复项全部完成（批次 340+344，剩余 3 项为宏内合理保留） |
-| 🟡 P2 带 TODO 的 dead_code | 10 | 9 | 1 | 🔄 进行中（批次 342 修复 2 项，剩余 1 项 app_state.rs 待评估） |
+| 🟠 P1 clippy 警告抑制 | 8 | 5 | 3 | ✅ 可修复项全部完成（剩余 3 项为宏内合理保留） |
+| 🟡 P2 带 TODO 的 dead_code | 10 | 10 | 0 | ✅ 全部完成（批次 345 P2-8 修复收官） |
 | 🟢 P3 测试代码/防御性抑制 | 8 | 8 | 0 | ✅ 全部完成（批次 342+343） |
-| **合计** | **27** | **23** | **4** | 🔄 进行中（剩余 4 项为合理保留/TODO/待评估） |
+| **合计** | **27** | **24** | **3** | ✅ 可修复项全部完成（剩余 3 项为宏内合理保留） |
 
-### ✅ 已完成（批次 344）
+### ✅ 已完成（批次 345）
 
-**批次 344（PR #516）**：v11 复审 P1-8 FromStr trait 迁移 + 接入 lock/release 预留接口（4 文件）
-- P1-8：`color_card_borrow_service.rs` from_str 方法迁移到 `std::str::FromStr` trait，消除 `clippy::should_implement_trait` 警告
-  - 新增 `BorrowStatusParseError` 错误类型（实现 Display + Error）
-  - 3 个调用点从 `.ok_or_else(...)` 改为 `.map_err(|_| ...)`
-  - `color_card_borrow_test.rs` 测试用例适配 Result 返回值
-- CI 修复（规则 0 合规）：`inventory_reservation_handler.rs` 新增 `lock_reservation`/`release_reservation` handler
-  - `routes/inventory.rs` 新增 `POST /reservations/:id/lock` 和 `POST /reservations/:id/release` 路由
-  - 根因：批次 341 移除 status.rs `LOCKED`/`RELEASED` 的 `#[allow(dead_code)]` 后，clippy 报这两个常量 never used
-  - 深度调查发现 `lock_reservation`/`release_reservation` service 方法仅在测试中调用，未接入 handler 路由（规则 0 违规）
-  - 本次新增 handler + 路由真实接入，使 clippy 能追踪到常量通过 handler → service 链路被使用
-  - CI 13 success + 2 skipped 全绿
+**批次 345（PR #517）**：v11 复审 P2-8 app_state.rs Default 实现重构（1 文件，P2 收官）
+- P2-8：`utils/app_state.rs` 重构 `impl Default for AppState` 的 `default()` 方法，移除 `#[allow(dead_code, unused_variables)]` 抑制
+- 原问题：`jwt_secret` 字段初始化器中通过 `#[cfg(not(test))]` 调用 `std::process::exit(1)`，导致后续字段初始化代码在非测试构建中被判定为不可达，触发 `dead_code` + `unreachable_code` 警告，需要 `#[allow]` 抑制掩盖
+- 修复方案：
+  - 将 `#[cfg(not(test))]` 的 fail-fast `panic!` 提前到函数体最开头（`panic!` 返回 `!` 类型可 coerce 到 `Self`）
+  - 测试构建（`#[cfg(test)]`）中所有局部变量均被字段初始化器使用，消除 `unused_variables`
+  - `jwt_secret` 字段直接使用固定测试密钥，无需内联 cfg 分支
+- 规则 14 合规：移除所有警告抑制
+- CI 13 success + 2 skipped 全绿
+- **P2 全部 10 项完成，v11 复审可修复项全部完成**
 
-### ✅ 已完成（批次 343）
+### ✅ 已完成（批次 340-344，归档摘要）
 
-**批次 343（PR #515）**：v11 复审 P3 测试模块 unused_imports 抑制移除 7 项（7 文件）
-- P3-1：`inventory_unit_tests.rs` 移除 `use crate::decs` 的 `#[allow(unused_imports)]`
-- P3-2：`sales_unit_tests.rs` 移除 `use crate::decs` 的 `#[allow(unused_imports)]`
-- P3-3：`purchase_unit_tests.rs` 移除 `use crate::decs` 的 `#[allow(unused_imports)]`
-- P3-4：`bi_unit_tests.rs` 移除 `use crate::decs` 的 `#[allow(unused_imports)]`
-- P3-5：`dual_unit_converter_handler.rs` 移除 `use crate::decs` 的 `#[allow(unused_imports)]`
-- P3-6：`cache.rs` 移除 `mod csrf_token_tests` 的 `#[allow(unused_imports)]`（use super::*）
-- P3-7：`dual_unit_converter.rs` 移除 `use crate::dec` 的 `#[allow(unused_imports)]`
-- 原因：`dec!`/`decs!` 宏已在测试代码中广泛使用（共 58 个调用点），`use super::*` 已在 csrf_token_tests 中使用，`#[allow(unused_imports)]` 属编译器误报抑制
-- CI 验证：Rust Clippy 通过，说明移除抑制后无新警告（编译器误报已修复或宏使用被正确识别）
-
-### ✅ 已完成（批次 342）
-
-**批次 342（PR #514）**：v11 复审 P2+P3 警告抑制移除 5 项（5 文件）
-- P2-1：`bpm_dto.rs` 删除 TemplateQuery.category 占位符字段及 `#[allow(dead_code)]`，模板子分类功能未实现，按规则 0 删除占位符字段
-- P2-9：`user_notification_setting.rs` 移除 NONE 常量的 `#[allow(dead_code)]`，已在 service 层显式检查
-- P2-1 配套：`bpm_process_definition_service.rs` list_templates 方法 `_query` → `query`，更新文档注释
-- P3-8：`event_bus.rs` 移除 catch-all 分支的 `#[allow(unreachable_patterns)]`，InventoryTransactionCreated 变体未在 match 中处理，`_` 分支可达
-- P3-9（新增）：`user_notification_setting_service.rs` should_send_email/should_send_internal 添加 NONE 类型显式检查，通知类型为 none 时不发送任何通知
-
-### ✅ 已完成（批次 341）
-
-**批次 341（PR #513）**：v11 复审 P2 过时警告抑制移除 3 项（3 文件，原计划 5 文件因 CI 失败调整）
-- P2-2~P2-5：`dto/mod.rs` 删除 PageRequest 四个未使用方法（new/page_clamped/offset/limit），项目已统一接入 paginate_with_total（批次 260），这些历史方法无任何调用点
-- P2-10：`crm/mod.rs` 删除 CrmService 未使用重导出，crm_handler.rs 直接使用 `crate::services::crm::cust::CrmService` 路径导入
-- P2-6+P2-7：`status.rs` 移除 LOCKED/RELEASED 常量的过时 `#[allow(dead_code)]`，这两个常量已被 inventory_reservation_service.rs 和测试代码广泛使用
-- CI 失败修复：app_state.rs 和 cache.rs 的 `#[allow]` 抑制恢复保留，因 CI clippy 失败（移除后产生新警告），待后续批次单独评估
-
-### ✅ 已完成（批次 340）
-
-**批次 340（PR #512）**：v11 复审 P0+P1 警告抑制移除 5 项（5 文件）
-- P0-1：`business_trace_snapshot.rs` 文件级抑制从 `#![allow(dead_code, unused_imports, unused_variables)]` 收窄为 `#![allow(dead_code)]`，符合项目规则例外
-- P1-3+P1-4：`import_export_service.rs` 移除 `needless_pass_by_value` 误报抑制（`&str` 和 `&T` 引用类型不触发此 lint）
-- P1-1：`auth_handler.rs` 移除 `redundant_clone` 抑制（baseline 无此警告）
-- P1-2：`auth_handler_misc.rs` 移除 `redundant_clone` 抑制
-- P1-5：`inventory_count_service.rs` 移除 `default_constructed_unit_structs` 抑制，`Entity::default()` 改为 `Entity`（unit struct 无需 default 构造）
+批次 340-344 详细记录已归档到 [doto-su.md](file:///workspace/.monkeycode/doto-su.md)。
+- **批次 340（PR #512）**：P0+P1 警告抑制移除 5 项（business_trace_snapshot 文件级抑制收窄 + import_export_service needless_pass_by_value 误报 + auth_handler redundant_clone + inventory_count_service Entity::default()→Entity）
+- **批次 341（PR #513）**：P2 过时警告抑制移除 3 项（dto/mod.rs PageRequest 四方法 + crm/mod.rs 未使用重导出 + status.rs LOCKED/RELEASED）
+- **批次 342（PR #514）**：P2+P3 警告抑制移除 5 项（bpm_dto.rs 占位符字段 + user_notification_setting NONE 常量 + event_bus unreachable_patterns）
+- **批次 343（PR #515）**：P3 测试模块 unused_imports 抑制移除 7 项（dec!/decs! 宏 58 调用点属编译器误报），P3 8/8 全部完成
+- **批次 344（PR #516）**：P1-8 FromStr trait 迁移 + 接入 lock/release 预留接口（规则 0 合规）
 
 ### 🔴 P0 待修复项（0 项 ✅ 全部完成）
 
@@ -226,9 +89,9 @@ v11 复审 P0 已在批次 340 全部修复完成。
 **P1-7：crud_macro.rs:47 default_constructed_unit_structs** — 宏内 SeaORM Entity 构造（合理保留，同 P1-6）
 **P1-备注**：P1-1~P1-5 已在批次 340 修复完成，P1-8 已在批次 344 修复完成
 
-### 🟡 P2 剩余项（1 项，待评估）
+### 🟡 P2 剩余项（0 项 ✅ 全部完成）
 
-- P2-8：app_state.rs:254 AppState::default dead_code + unused_variables（CI clippy 失败，待单独评估 baseline 影响）
+P2 全部 10 项已完成：批次 340（P2-2~P2-5 dto/mod.rs + P2-10 crm/mod.rs）、批次 341（P2-6+P2-7 status.rs）、批次 342（P2-1 bpm_dto.rs + P2-9 user_notification_setting.rs）、批次 345（P2-8 app_state.rs Default 重构）。
 
 ### 🟢 P3 剩余项（0 项 ✅ 全部完成）
 
@@ -397,5 +260,5 @@ P3 全部 8 项已在批次 342（event_bus.rs unreachable_patterns）+ 批次 3
   - 批次 N+29：最后监控，未完成则跳过 N+30 的 E2E 周期
   - **注意**：E2E 已从 ci-cd.yml 独立到 e2e-batch.yml，不阻塞主 CI
   - **下次触发**：批次 330（已到期，需触发）
-- **规则 10（每 15 批次记忆整理）**：批次 330 已执行（迁移批次 290-329 到 doto-su.md）
-  - 下次整理：批次 345
+- **规则 10（每 15 批次记忆整理）**：批次 345 已执行（迁移批次 330-344 到 doto-su.md）
+  - 下次整理：批次 360

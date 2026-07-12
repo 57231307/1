@@ -1000,3 +1000,31 @@
 - **批次 327（PR #499）**：v10 P3 too_many_arguments 3 项（2 误报删除 + 1 DTO 聚合 UpdateNotificationSettingParams）
 - **批次 328（PR #500）**：v10 P3 误报 too_many_arguments 抑制移除 9 项（clippy 阈值 7，参数 ≤7 均为误报）
 - **批次 329（PR #501）**：v10 P3 DTO 重构 2 项（ar_service create_payment 8→2 参数 + budget_management_service create_execution 9→2 参数）
+
+---
+
+## 📝 已完成批次归档摘要（v10/v11 阶段，批次 330-344）
+
+> 本节为批次 330-344 的归档摘要（规则 10 整理节点：批次 345，2026-07-12）。
+> 每个批次的一句话总结见 [CHANGELOG.md](file:///workspace/.monkeycode/CHANGELOG.md)。
+
+### v10 复审修复阶段（批次 330-339，全部完成 ✅）
+
+- **批次 330（PR #502）**：v10 P3 误报删除 5 项 + DTO 重构 1 项（update_product_color 8→1 参数），规则 10 整理批次 290-329 归档
+- **批次 331（PR #503）**：v10 P3 DTO 重构 1 项（app_state.rs with_secrets_and_cors 8→1 参数引入 AppStateParams），补充 clippy baseline 3 项 path_validator
+- **批次 332（PR #504）**：v10 P3 DTO 重构 1 项（order_change_history_service record_change 9→1 参数引入 OrderChangeRecord）
+- **批次 333（PR #505）**：v10 P3 DTO 重构 1 项（po/price.rs create_purchase_suggestion_from_shortage 8→1 参数引入 ShortageAlertParams）
+- **批次 334（PR #506）**：v10 P3 DTO 重构 1 项（inventory_finance_bridge_service make_voucher_item 9→1 参数引入 VoucherItemArgs<'a>，12 个内部调用点同步）
+- **批次 335（PR #507）**：v10 P3 DTO 重构 1 项（inventory_stock_query list_transactions 9→1 参数引入 ListTransactionsQuery）
+- **批次 336（PR #508）**：v10 P3 DTO 重构 1 项（mrp_engine_service calculate_requirement 8→1 参数引入 RequirementCalcParams）
+- **批次 337（PR #509）**：v10 P3 DTO 重构 6 项（inventory_finance_bridge_service 5 个 create_*_voucher 10→1 + handle_inventory_transaction 12→3，引入 VoucherCreateArgs<'a>）
+- **批次 338（PR #510）**：v10 P3 DTO 重构 8 项（ai/recipe_opt + inventory_stock_query + inventory_stock_service + inventory_stock_txn + customer_service 共 5 核心 service + 8 调用方）
+- **批次 339（PR #511）**：v10 P3 DTO 重构剩余 3 项收官（product_service create_product/update_product 19→1 + mrp_engine_service explode_bom_recursive 11→4），v10 复审 P3 43/43 全部完成
+
+### v11 复审修复阶段（批次 340-344，可修复项全部完成 ✅）
+
+- **批次 340（PR #512）**：v11 P0+P1 警告抑制移除 5 项（business_trace_snapshot 文件级抑制收窄 + import_export_service needless_pass_by_value 误报 + auth_handler/auth_handler_misc redundant_clone + inventory_count_service Entity::default()→Entity）
+- **批次 341（PR #513）**：v11 P2 过时警告抑制移除 3 项（dto/mod.rs PageRequest 四方法删除 + crm/mod.rs 未使用重导出删除 + status.rs LOCKED/RELEASED 移除 #[allow(dead_code)]）
+- **批次 342（PR #514）**：v11 P2+P3 警告抑制移除 5 项（bpm_dto.rs 占位符字段删除 + user_notification_setting.rs NONE 常量 + event_bus.rs unreachable_patterns + user_notification_setting_service NONE 显式检查）
+- **批次 343（PR #515）**：v11 P3 测试模块 unused_imports 抑制移除 7 项（dec!/decs! 宏 58 调用点属编译器误报），P3 8/8 全部完成
+- **批次 344（PR #516）**：v11 P1-8 FromStr trait 迁移 + 接入 lock/release 预留接口（color_card_borrow_service from_str→std::str::FromStr + inventory_reservation_handler 新增 lock/release handler 规则 0 合规）
