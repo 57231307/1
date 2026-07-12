@@ -6,7 +6,7 @@ mod tests {
     use std::collections::HashMap;
     use std::str::FromStr;
     // P9-1: 引入 decs! 宏统一测试夹具
-    #[allow(unused_imports)]
+    // 批次 343 v11 复审 P3 修复：移除 #[allow(unused_imports)]，decs! 宏已被广泛使用
     use crate::decs;
 
     /* 库存行 */

@@ -12,7 +12,7 @@ mod tests {
     use rust_decimal::prelude::*;
     use std::str::FromStr;
     // P9-1: 引入 decs! 宏统一测试夹具
-    #[allow(unused_imports)]
+    // 批次 343 v11 复审 P3 修复：移除 #[allow(unused_imports)]，decs! 宏已被广泛使用
     use crate::decs;
 
     /* SalesOverview 统计结构 - 业务模型 */

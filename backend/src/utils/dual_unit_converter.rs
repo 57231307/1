@@ -135,7 +135,7 @@ impl DualUnitConverter {
 mod tests {
     use super::*;
     // P9-1: 用统一宏替代散落的 expect 调用，集中到 unwrap_safe 模块
-    #[allow(unused_imports)]
+    // 批次 343 v11 复审 P3 修复：移除 #[allow(unused_imports)]，dec! 宏已被广泛使用
     use crate::dec;
 
     #[test]
