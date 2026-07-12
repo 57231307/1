@@ -9,6 +9,7 @@
 
 | 批次 | PR | 一句话总结 |
 |------|-----|-----------|
+| 334 | #506 | v10 复审 P3 too_many_arguments DTO 重构 1 项（inventory_finance_bridge_service.rs make_voucher_item 9→1 参数引入 VoucherItemArgs<'a> 参数对象使用 &str 生命周期借用 subject_code/subject_name，12 个内部调用点同步修改 采购入库/销售出库/库存调整盘盈盘亏/生产入库/生产领料） |
 | 333 | #505 | v10 复审 P3 too_many_arguments DTO 重构 1 项（po/price.rs create_purchase_suggestion_from_shortage 8→1 参数引入 ShortageAlertParams 参数对象，event_bus.rs BusinessEvent::MaterialShortageAlert 处理分支同步修改） |
 | 332 | #504 | v10 复审 P3 too_many_arguments DTO 重构 1 项（order_change_history_service.rs record_change 9 参数含 &self→1 参数对象 OrderChangeRecord，record_order_created 内部调用方同步修改，record_change 调用链分析仅内部使用） |
 | 331 | #503 | v10 复审 P3 too_many_arguments DTO 重构 1 项（utils/app_state.rs with_secrets_and_cors 8→1 参数引入 AppStateParams 参数对象，main.rs 调用方同步修改，补充 clippy baseline 3 项 path_validator dead code 预存技术债务） |
