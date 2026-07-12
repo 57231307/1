@@ -105,7 +105,58 @@
 
 ---
 
-## 五、已确认的安全实践（通过审计）
+## 五、2026-07-12 周期性安全审计结果
+
+### 审计范围
+- 认证与访问控制（JWT 验证、密码哈希、CSRF 防护、会话管理）
+- 注入向量（动态 SQL 构建、Shell 命令执行、路径遍历防护）
+- 外部交互（Webhook SSRF 防护、汇率 API、Elasticsearch、邮件服务）
+- 敏感数据处理（日志脱敏、备份文件权限、密钥管理）
+
+### 审计结论
+
+**未发现中等或更高严重度的已确认漏洞**
+
+代码库安全状态保持良好，所有安全机制运行正常：
+
+#### 认证与访问控制
+- ✅ JWT 验证使用 HS256 算法，包含过期时间检查（leeway=5秒）
+- ✅ 密码使用 Argon2id 哈希（64MB内存，3次迭代，4并发度）
+- ✅ CSRF 防护包含 token 验证和 IP 绑定（一次性使用 rotation）
+- ✅ 用户级 Token 吊销表（进程内内存表）
+- ✅ 用户 is_active 状态缓存检查（5分钟 TTL）
+- ✅ 分布式 JTI 黑名单（Redis 后端 + 内存回退）
+
+#### SQL 注入防护
+- ✅ tracking_service.rs LIMIT 参数化绑定（`LIMIT $N` + `params.push(limit.into())`）
+- ✅ omni_audit_handler.rs 动态 SQL 使用参数绑定（param_idx + where_params）
+- ✅ LIKE 模式使用 safe_like_pattern 转义特殊字符
+- ✅ 分页参数使用 clamp 限制范围
+
+#### SSRF 防护
+- ✅ Webhook URL 验证包含协议白名单、主机名黑名单、IP 范围检查
+- ✅ 使用 resolve_to_addrs 消除 DNS Rebinding TOCTOU 漏洞
+- ✅ 汇率 API、Elasticsearch、系统更新均使用 validate_url_and_resolve 校验
+- ✅ 禁止跟随重定向
+
+#### 路径遍历防护
+- ✅ 备份/恢复使用 validate_extracted_paths 校验（canonicalize 解析符号链接）
+- ✅ 解压前校验 tar 内容（检查 `..` 和绝对路径）
+- ✅ 备份文件权限设置为 0o600
+
+#### 日志安全
+- ✅ Authorization 头脱敏（仅显示前12字符 + 长度）
+- ✅ 用户名 PII 脱敏（保留前2字符 + ***）
+- ✅ Webhook URL 日志只记录主机名
+
+#### 密钥管理
+- ✅ JWT_SECRET / COOKIE_SECRET / WEBHOOK_SECRET 独立配置
+- ✅ 密钥强度校验（最小32字节 + 弱模式黑名单）
+- ✅ 密钥轮换支持（previous_jwt_secret）
+
+---
+
+## 六、已确认的安全实践（通过审计）
 
 ### 认证与访问控制
 - ✅ JWT 验证使用 HS256 算法，包含过期时间检查（leeway=5秒）
