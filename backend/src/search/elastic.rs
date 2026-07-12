@@ -29,6 +29,11 @@ use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::sync::Mutex;
 
+// 批次 321 v9 复审 M-5 修复：导入 SSRF 防护守卫，对 ES base_url 做协议白名单 +
+// 主机名黑名单 + IP 黑名单 + DNS 解析校验，并配合 resolve_to_addrs 固定连接 IP，
+// 消除"校验时解析为公网 IP、reqwest 内部再次解析为内网 IP"的 TOCTOU 漏洞（DNS Rebinding）。
+use crate::utils::ssrf_guard;
+
 /// 3 个核心索引
 ///
 /// 批次 104 P0-1 修复：已接入 search_api.rs，移除 dead_code 标注
@@ -272,21 +277,46 @@ impl ElasticClient {
     /// 批次 123 v8 复审 P1 修复：原 real() 为 stub（返回 mock storage），
     /// 运维配置 ELASTICSEARCH_URL 后日志显示"使用真实客户端"但实际仍是 mock，具有误导性。
     /// 现真实实现：用 reqwest 直连 ES REST API，支持 index_doc/search/delete_doc/bulk_index。
+    ///
+    /// 批次 321 v9 复审 M-5 修复：添加 SSRF 校验（[`ssrf_guard::validate_url_and_resolve`]），
+    /// 禁止 base_url 指向内网/loopback/云元数据服务，并通过 `resolve_to_addrs` 固定连接 IP，
+    /// 消除 DNS Rebinding TOCTOU 漏洞。校验失败时 fail-fast 退出（与 reqwest::Client 构建失败一致）。
     pub fn real(url: String) -> Self {
+        Self::try_real(url).unwrap_or_else(|e| {
+            eprintln!(
+                "Elasticsearch URL SSRF 校验失败: {}，服务无法启动",
+                e
+            );
+            std::process::exit(1);
+        })
+    }
+
+    /// 创建真实客户端（可失败版本，用于测试和精细化错误处理）
+    ///
+    /// 批次 321 v9 复审 M-5 修复：与 [`real`] 的区别在于返回 `Result`，
+    /// 调用方可校验 URL 是否通过 SSRF 防护。生产代码使用 [`real`] fail-fast，
+    /// 单元测试使用本方法验证 SSRF 拦截逻辑。
+    pub fn try_real(url: String) -> Result<Self, crate::utils::error::AppError> {
+        // SSRF 校验：解析 URL → 协议白名单 → 主机名黑名单 → IP 黑名单 → DNS 解析 + IP 校验
+        // 返回 (host, safe_addrs)，调用方使用 resolve_to_addrs 固定连接 IP
+        let (host, safe_addrs) = ssrf_guard::validate_url_and_resolve(&url)?;
         let http = reqwest::Client::builder()
             .timeout(std::time::Duration::from_secs(30))
             .redirect(reqwest::redirect::Policy::none()) // SSRF 防护：禁止跟随重定向
+            .resolve_to_addrs(&host, &safe_addrs) // SSRF 防护：固定连接 IP，消除 DNS Rebinding
             .build()
-            .unwrap_or_else(|e| {
-                eprintln!("Elasticsearch HTTP 客户端构建失败: {}，服务无法启动", e);
-                std::process::exit(1);
-            });
-        Self {
+            .map_err(|e| {
+                crate::utils::error::AppError::internal(format!(
+                    "Elasticsearch HTTP 客户端构建失败: {}",
+                    e
+                ))
+            })?;
+        Ok(Self {
             inner: ClientInner::Real {
                 base_url: url.trim_end_matches('/').to_string(),
                 http,
             },
-        }
+        })
     }
 
     /// 已索引文档数（v11 批次 156 P2-D：接入 SearchClient trait + search_api::list_doc_types）
@@ -631,11 +661,23 @@ impl SearchClient for ElasticClient {
 /// 批次 123 v8 复审 P1 修复：启动时调用，PUT 3 个索引的 mapping。
 /// ES 返回 400 表示索引已存在，视为成功（幂等）。
 /// 独立 async 函数接受 base_url 参数，在 main.rs async 上下文中调用。
+///
+/// 批次 321 v9 复审 M-5 修复：添加 SSRF 校验（[`ssrf_guard::validate_url_and_resolve`]），
+/// 禁止 base_url 指向内网/loopback/云元数据服务，并通过 `resolve_to_addrs` 固定连接 IP，
+/// 消除 DNS Rebinding TOCTOU 漏洞。
 pub async fn ensure_indices(base_url: &str) -> Result<(), SearchError> {
     let base_url = base_url.trim_end_matches('/');
+
+    // SSRF 校验：解析 URL → 协议白名单 → 主机名黑名单 → IP 黑名单 → DNS 解析 + IP 校验
+    // 返回 (host, safe_addrs)，调用方使用 resolve_to_addrs 固定连接 IP
+    let (host, safe_addrs) = ssrf_guard::validate_url_and_resolve(base_url).map_err(|e| {
+        SearchError::Connection(format!("ES base_url SSRF 校验失败: {}", e))
+    })?;
+
     let http = reqwest::Client::builder()
         .timeout(std::time::Duration::from_secs(30))
         .redirect(reqwest::redirect::Policy::none()) // SSRF 防护：禁止跟随重定向
+        .resolve_to_addrs(&host, &safe_addrs) // SSRF 防护：固定连接 IP，消除 DNS Rebinding
         .build()
         .map_err(|e| SearchError::Connection(format!("reqwest 客户端创建失败: {}", e)))?;
 
@@ -1023,5 +1065,166 @@ mod tests {
         };
         syncer.sync_customer(&customer).await.unwrap();
         assert_eq!(client.doc_count(indices::CUSTOMERS).await, 1);
+    }
+
+    // ============ 批次 321 v9 复审 M-5 修复：SSRF 校验测试 ============
+
+    /// 测试 try_real 拒绝 loopback IP（127.0.0.1）
+    #[test]
+    fn test_try_real_reject_loopback_ip() {
+        let result = ElasticClient::try_real("http://127.0.0.1:9200".to_string());
+        assert!(
+            result.is_err(),
+            "try_real 必须拒绝 loopback IP（127.0.0.1）"
+        );
+    }
+
+    /// 测试 try_real 拒绝 localhost 主机名
+    #[test]
+    fn test_try_real_reject_localhost() {
+        let result = ElasticClient::try_real("http://localhost:9200".to_string());
+        assert!(
+            result.is_err(),
+            "try_real 必须拒绝 localhost 主机名"
+        );
+    }
+
+    /// 测试 try_real 拒绝 RFC1918 私有网络 IP
+    #[test]
+    fn test_try_real_reject_rfc1918() {
+        assert!(
+            ElasticClient::try_real("http://10.0.0.1:9200".to_string()).is_err(),
+            "try_real 必须拒绝 10.0.0.0/8"
+        );
+        assert!(
+            ElasticClient::try_real("http://172.16.0.1:9200".to_string()).is_err(),
+            "try_real 必须拒绝 172.16.0.0/12"
+        );
+        assert!(
+            ElasticClient::try_real("http://192.168.1.1:9200".to_string()).is_err(),
+            "try_real 必须拒绝 192.168.0.0/16"
+        );
+    }
+
+    /// 测试 try_real 拒绝云元数据服务 IP（169.254.169.254）
+    #[test]
+    fn test_try_real_reject_metadata_service() {
+        let result = ElasticClient::try_real("http://169.254.169.254:9200".to_string());
+        assert!(
+            result.is_err(),
+            "try_real 必须拒绝云元数据服务 IP（169.254.169.254）"
+        );
+    }
+
+    /// 测试 try_real 拒绝非 http/https 协议（file://、gopher://）
+    #[test]
+    fn test_try_real_reject_disallowed_scheme() {
+        assert!(
+            ElasticClient::try_real("file:///etc/passwd".to_string()).is_err(),
+            "try_real 必须拒绝 file:// 协议"
+        );
+        assert!(
+            ElasticClient::try_real("gopher://example.com:9200".to_string()).is_err(),
+            "try_real 必须拒绝 gopher:// 协议"
+        );
+    }
+
+    /// 测试 try_real 拒绝格式无效的 URL
+    #[test]
+    fn test_try_real_reject_invalid_url() {
+        let result = ElasticClient::try_real("not-a-url".to_string());
+        assert!(
+            result.is_err(),
+            "try_real 必须拒绝格式无效的 URL"
+        );
+    }
+
+    /// 测试 try_real 拒绝 IPv6 loopback（::1）
+    #[test]
+    fn test_try_real_reject_ipv6_loopback() {
+        let result = ElasticClient::try_real("http://[::1]:9200".to_string());
+        assert!(
+            result.is_err(),
+            "try_real 必须拒绝 IPv6 loopback（::1）"
+        );
+    }
+
+    /// 测试 try_real 拒绝 .local 后缀主机名（mDNS）
+    #[test]
+    fn test_try_real_reject_local_suffix() {
+        let result = ElasticClient::try_real("http://es.local:9200".to_string());
+        assert!(
+            result.is_err(),
+            "try_real 必须拒绝 .local 后缀主机名"
+        );
+    }
+
+    /// 测试 ensure_indices 拒绝 loopback IP
+    #[tokio::test]
+    async fn test_ensure_indices_reject_loopback_ip() {
+        let result = ensure_indices("http://127.0.0.1:9200").await;
+        assert!(
+            result.is_err(),
+            "ensure_indices 必须拒绝 loopback IP（127.0.0.1）"
+        );
+        // 验证错误类型为 Connection（SSRF 校验失败）
+        let err = result.unwrap_err();
+        assert!(
+            matches!(err, SearchError::Connection(_)),
+            "SSRF 校验失败应返回 Connection 错误，实际: {:?}",
+            err
+        );
+    }
+
+    /// 测试 ensure_indices 拒绝 localhost 主机名
+    #[tokio::test]
+    async fn test_ensure_indices_reject_localhost() {
+        let result = ensure_indices("http://localhost:9200").await;
+        assert!(
+            result.is_err(),
+            "ensure_indices 必须拒绝 localhost 主机名"
+        );
+    }
+
+    /// 测试 ensure_indices 拒绝 RFC1918 私有网络 IP
+    #[tokio::test]
+    async fn test_ensure_indices_reject_rfc1918() {
+        assert!(
+            ensure_indices("http://10.0.0.1:9200").await.is_err(),
+            "ensure_indices 必须拒绝 10.0.0.0/8"
+        );
+        assert!(
+            ensure_indices("http://192.168.1.1:9200").await.is_err(),
+            "ensure_indices 必须拒绝 192.168.0.0/16"
+        );
+    }
+
+    /// 测试 ensure_indices 拒绝云元数据服务 IP
+    #[tokio::test]
+    async fn test_ensure_indices_reject_metadata_service() {
+        let result = ensure_indices("http://169.254.169.254:9200").await;
+        assert!(
+            result.is_err(),
+            "ensure_indices 必须拒绝云元数据服务 IP（169.254.169.254）"
+        );
+    }
+
+    /// 测试 ensure_indices 拒绝非 http/https 协议
+    #[tokio::test]
+    async fn test_ensure_indices_reject_disallowed_scheme() {
+        assert!(
+            ensure_indices("file:///etc/passwd").await.is_err(),
+            "ensure_indices 必须拒绝 file:// 协议"
+        );
+    }
+
+    /// 测试 ensure_indices 拒绝格式无效的 URL
+    #[tokio::test]
+    async fn test_ensure_indices_reject_invalid_url() {
+        let result = ensure_indices("not-a-url").await;
+        assert!(
+            result.is_err(),
+            "ensure_indices 必须拒绝格式无效的 URL"
+        );
     }
 }
