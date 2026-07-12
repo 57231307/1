@@ -486,6 +486,20 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 info!("admin 角色缓存清理任务已启动（间隔 600 秒）");
             }
 
+            // 批次 349 v12 复审 P2-3：启动 JTI 黑名单内存降级路径清理任务
+            // Redis 后端下 TTL 自动清理过期条目（noop）；内存降级路径下手动清理避免 HashMap 无限增长
+            // 设计文档（auth_service.rs:541）建议每小时调用一次
+            {
+                tokio::spawn(async move {
+                    let interval = std::time::Duration::from_secs(3600);
+                    loop {
+                        tokio::time::sleep(interval).await;
+                        crate::services::auth_service::cleanup_expired_jti(0).await;
+                    }
+                });
+                info!("JTI 黑名单清理任务已启动（间隔 3600 秒，Redis 模式下为 noop）");
+            }
+
             // 批次 331 v10 复审 P3 修复：使用 AppStateParams 参数对象替代多参数
             let app_state_params = crate::utils::app_state::AppStateParams {
                 db,

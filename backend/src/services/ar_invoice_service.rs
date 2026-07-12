@@ -432,7 +432,7 @@ impl ArInvoiceService {
 
         let mut active_invoice: ar_invoice::ActiveModel = invoice.clone().into();
         // P0 3-2 修复（2026-07-01 八维度审计）：mark_as_paid 仅负责状态变更，
-        // 不再覆盖 received_amount/unpaid_amount。金额累加由 ar_collection_service.confirm 完成。
+        // 不再覆盖 received_amount/unpaid_amount。金额累加由 ar_service.confirm_payment 完成。
         // 原实现直接 Set received_amount = invoice_amount 覆盖部分收款记录，
         // 丢失本次收款金额审计信息，且误调用会掩盖资金缺口。
         // 根据 received_amount vs invoice_amount 判断最终状态：
