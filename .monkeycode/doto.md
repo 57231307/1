@@ -150,6 +150,56 @@ P3 全部 8 项已在批次 342（event_bus.rs unreachable_patterns）+ 批次 3
 
 ---
 
+## 🔄 当前任务：v13 复审 + 运行逻辑环流程闭环（2026-07-13 启动）
+
+> **v13 复审报告**（2026-07-13，规则 15 启动）：v12 复审全部完成后启动，新增"运行逻辑环流程闭环"复审维度。
+> **核心目标**：baseline 213 条摘要行（~993 个警告）全部清零 + 运行逻辑闭环问题修复。
+> **执行策略**：规则 13+14+15 联动，复审完成后自动连续修复，每批 5-6 文件，CI 全绿后自动进入下一批，无需用户确认。
+
+### 进度总览
+
+| 维度 | 总数 | 已完成 | 剩余 | 状态 |
+|------|------|--------|------|------|
+| 🟢 baseline 警告清零 | 213 摘要 / ~993 警告 | 0 | 213 | ⏳ 待修复 |
+| 🟢 运行逻辑环流程闭环 | 待扫描 | 0 | 待扫描 | ⏳ 待复审 |
+| 🟢 异常路径闭环 | 待扫描 | 0 | 待扫描 | ⏳ 待复审 |
+| 🟢 状态机闭环 | 待扫描 | 0 | 待扫描 | ⏳ 待复审 |
+| 🟢 资源生命周期闭环 | 待扫描 | 0 | 待扫描 | ⏳ 待复审 |
+| 🟢 配置依赖闭环 | 待扫描 | 0 | 待扫描 | ⏳ 待复审 |
+
+### baseline 警告分类（v13 复审扫描结果）
+
+| 类型 | 数量 | 说明 |
+|------|------|------|
+| dead_code | ~193 | associated function/struct/enum/variant/field never used/read/constructed |
+| unused_import | 15 | 未使用的导入 |
+| needless_borrow/asref | 1 | 不必要的借用/引用 |
+| too_many_arguments (8/7) | 1 | 函数参数过多 |
+| unreachable_code | 1 | 不可达代码 |
+| unused_variable | 1 | 未使用的变量 |
+| unused_mut | 1 | 不需要的 mut |
+
+### 警告最多的文件（按 `-->` 位置行统计，253 条位置行，135 个文件）
+
+| 文件 | 警告数 |
+|------|--------|
+| tests/bi_analysis_test.rs | 18 |
+| src/services/bi_analysis_service.rs | 11 |
+| src/services/auth/password_policy_service.rs | 5 |
+| src/utils/incoterms.rs | 5 |
+| src/observability/config.rs | 4 |
+| src/services/ar/mod.rs | 4 |
+| src/services/p9_5_inventory_extra_tests.rs | 4 |
+| src/handlers/sales_fabric_order_handler.rs | 4 |
+| src/handlers/warehouse_handler.rs | 4 |
+| src/middleware/slow_query.rs | 4 |
+
+### 修复批次记录
+
+（待填充，按规则 13 连续执行）
+
+---
+
 ## 🔄 历史任务：v14 深度调研报告修复（高风险 6/6 ✅，中风险 22/25 🔄）
 
 > **v14 深度调研报告**（2026-07-09，[bug.md](file:///workspace/.monkeycode/bug.md)）：12 维度全量扫描，15 高/25 中/74 低风险，共 114 个问题。
