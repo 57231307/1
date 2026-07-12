@@ -6,7 +6,7 @@
 
 ---
 
-## 🔥 当前任务：v9 复审问题修复（P0 2/2 ✅，高危 2/2 ✅，中危 4/5 🔄）
+## 🔥 当前任务：v9 复审问题修复（P0 2/2 ✅，高危 2/2 ✅，中危 5/5 ✅）
 
 > **v9 全项目复审报告**（2026-07-12，[v9-review-2026-07-12.md](file:///workspace/.monkeycode/docs/audits/v9-review-2026-07-12.md)）：v8 修复后复审发现 2 P0 + 2 高危 + 5 中危 + 多个低危。
 > 修复策略：按规则 13 连续执行，P0 → 高危 → 中危 → 低危，每批 1 commit，CI 全绿后合并 main，全部完成后进入 v10 复审。
@@ -17,11 +17,17 @@
 |--------|------|--------|------|------|
 | 🔴 P0 严重 | 2 | 2 | 0 | ✅ 全部完成（批次 317） |
 | 🟠 高危 | 2 | 2 | 0 | ✅ 全部完成（批次 318） |
-| 🟡 中危 | 5 | 4 | 1 | 🔄 批次 321 |
+| 🟡 中危 | 5 | 5 | 0 | ✅ 全部完成（批次 319-321） |
 | 🟢 低危 | 多项 | 0 | 多项 | ⏳ 批次 322+ |
-| **合计** | **9+** | **8** | **1+** | — |
+| **合计** | **9+** | **9** | **多项** | — |
 
-### ✅ 已完成（批次 317-320）
+### ✅ 已完成（批次 317-321）
+
+**批次 321（PR #TBD）**：中危修复 M-5
+- M-5：elastic.rs ElasticClient::real + ensure_indices 添加 SSRF 校验
+- 新增 try_real 方法返回 Result，便于单元测试覆盖 SSRF 拦截逻辑
+- 使用 validate_url_and_resolve 校验 + resolve_to_addrs 固定 IP 防 DNS Rebinding TOCTOU
+- 新增 13 个单元测试覆盖：loopback IP / localhost / RFC1918 / 云元数据 / 协议白名单 / 无效 URL / IPv6 loopback / .local 后缀
 
 **批次 320（PR #492）**：中危修复 M-3 + M-4
 - M-3：retry_webhook 新增 WEBHOOK_RETRY_LIMITER 限流（10 次/分钟/用户）
@@ -46,11 +52,6 @@
 - 新增 set_safe_permissions 辅助函数 + 2 个单元测试
 
 ### ⏳ 待修复项
-
-#### 中危（剩余 1 项，批次 321）
-
-**M-5**：elastic.rs ES base_url 未做 SSRF 校验（批次 321）
-- 修复方案：对齐 validate_url_and_resolve 校验 base_url
 
 #### 低危（多项，批次 322+）
 
