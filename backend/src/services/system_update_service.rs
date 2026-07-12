@@ -628,10 +628,16 @@ impl SystemUpdateService {
     async fn fetch_latest_release(&self) -> Result<GitHubRelease, UpdateError> {
         let url = format!("{}/repos/{}/releases/latest", GITHUB_API_URL, GITHUB_REPO);
 
-        // L1 修复（v8 复审）：添加重定向限制，防止 SSRF
+        // M-1 修复（v9 复审）：对齐 download_update 的 SSRF 防护
+        // 原 L1 修复仅添加重定向限制，未用 resolve_to_addrs 防 DNS Rebinding
+        // 攻击者可在 DNS 解析后修改记录指向内网 IP（DNS Rebinding TOCTOU）
+        let (api_host, api_safe_addrs) = crate::utils::ssrf_guard::validate_url_and_resolve(&url)
+            .map_err(|e| UpdateError::NetworkError(format!("GitHub API URL SSRF 校验失败: {}", e)))?;
+
         let client = reqwest::Client::builder()
             .user_agent("BingxiERP/1.0")
             .redirect(reqwest::redirect::Policy::limited(3))
+            .resolve_to_addrs(&api_host, &api_safe_addrs)
             .build()
             .map_err(|e| UpdateError::NetworkError(e.to_string()))?;
 
@@ -723,6 +729,11 @@ impl SystemUpdateService {
         };
 
         self.log_update(&format!("开始下载更新包: {}", asset.name));
+
+        // M-2 修复（v9 复审）：校验 asset.name 防止路径穿越
+        // asset.name 来自 GitHub API，若账号被入侵可设置为 "../../../etc/cron.d/evil"
+        // 导致 download_path.join(&asset.name) 写入任意路径
+        validate_asset_name(&asset.name)?;
 
         let download_dir = self.app_dir.join("downloads");
         if !download_dir.exists() {
@@ -838,6 +849,34 @@ fn validate_download_url(url_str: &str) -> Result<(), UpdateError> {
     Ok(())
 }
 
+/// M-2 修复（v9 复审）：校验 asset.name 防止路径穿越
+/// asset.name 来自 GitHub API，若账号被入侵可设置为恶意路径
+/// 仅允许字母、数字、点、下划线、连字符，拒绝路径分隔符和特殊字符
+fn validate_asset_name(name: &str) -> Result<(), UpdateError> {
+    if name.is_empty() {
+        return Err(UpdateError::ValidationError("asset.name 为空".to_string()));
+    }
+
+    // 拒绝路径穿越和绝对路径
+    if name.contains('/') || name.contains('\\') || name.contains("..") || name.starts_with('.') {
+        return Err(UpdateError::ValidationError(format!(
+            "asset.name 包含不安全字符: {name}"
+        )));
+    }
+
+    // 仅允许字母、数字、点、下划线、连字符
+    if !name
+        .chars()
+        .all(|c| c.is_alphanumeric() || c == '.' || c == '_' || c == '-')
+    {
+        return Err(UpdateError::ValidationError(format!(
+            "asset.name 包含非法字符: {name}"
+        )));
+    }
+
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -936,5 +975,32 @@ mod tests {
         // 0o7777 & 0o755 = 0o755
         assert_eq!(mode & 0o7777, 0o755, "目录权限应为 0o755，实际 {:#o}", mode);
         let _ = std::fs::remove_dir(&temp);
+    }
+
+    /// M-2 测试（v9 复审）：合法 asset.name 通过校验
+    #[test]
+    fn test_validate_asset_name_valid() {
+        assert!(validate_asset_name("bingxi-erp-1.0.0.zip").is_ok());
+        assert!(validate_asset_name("release-2026.7.12.tar.gz").is_ok());
+        assert!(validate_asset_name("update_v2.tar.gz").is_ok());
+    }
+
+    /// M-2 测试（v9 复审）：路径穿越 asset.name 被拒绝
+    #[test]
+    fn test_validate_asset_name_path_traversal() {
+        assert!(validate_asset_name("../../../etc/cron.d/evil").is_err());
+        assert!(validate_asset_name("..\\..\\windows\\evil").is_err());
+        assert!(validate_asset_name("/etc/passwd").is_err());
+        assert!(validate_asset_name(".hidden").is_err());
+        assert!(validate_asset_name("..").is_err());
+    }
+
+    /// M-2 测试（v9 复审）：特殊字符 asset.name 被拒绝
+    #[test]
+    fn test_validate_asset_name_special_chars() {
+        assert!(validate_asset_name("file name.zip").is_err()); // 空格
+        assert!(validate_asset_name("file;evil.zip").is_err()); // 分号
+        assert!(validate_asset_name("file|evil.zip").is_err()); // 管道符
+        assert!(validate_asset_name("").is_err()); // 空
     }
 }
