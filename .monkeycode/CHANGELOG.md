@@ -9,6 +9,7 @@
 
 | 批次 | PR | 一句话总结 |
 |------|-----|-----------|
+| 342 | #514 | v11 复审 P2+P3 警告抑制移除 5 项（bpm_dto.rs 删除 TemplateQuery.category 占位符字段及 #[allow(dead_code)] 模板子分类未实现按规则 0 删除 + bpm_process_definition_service list_templates _query→query + user_notification_setting.rs 移除 NONE 常量 #[allow(dead_code)] 已在 service 显式检查 + user_notification_setting_service should_send_email/should_send_internal 添加 NONE 显式检查 + event_bus.rs 移除 #[allow(unreachable_patterns)] InventoryTransactionCreated 未处理 _ 分支可达，v11 进度 12/27→15/27） |
 | 341 | #513 | v11 复审 P2 过时警告抑制移除 3 项（dto/mod.rs 删除 PageRequest 四个未使用方法 new/page_clamped/offset/limit + crm/mod.rs 删除 CrmService 未使用重导出 + status.rs 移除 LOCKED/RELEASED 过时 #[allow(dead_code)] 常量已被广泛使用，app_state.rs+cache.rs 恢复保留 #[allow] 因 CI clippy 失败待后续评估） |
 | 340 | #512 | v11 复审 P0+P1 警告抑制移除 5 项（business_trace_snapshot 文件级抑制收窄 dead_code+unused_imports+unused_variables→dead_code + import_export_service 移除 needless_pass_by_value 误报抑制 2 处 + auth_handler/auth_handler_misc 移除 redundant_clone 抑制 2 处 + inventory_count_service Entity::default()→Entity 移除 default_constructed_unit_structs，baseline 核实无对应警告 CI 全绿） |
 | 339 | #511 | v10 复审 P3 too_many_arguments DTO 重构剩余 3 项收官（product_service create_product 19→1 CreateProductArgs + update_product 19→1 UpdateProductArgs + mrp_engine_service explode_bom_recursive 11→4 引入 ExplodeBomArgs<'a> 聚合 9 标量参数借用 results/stock_cache 保留签名，product_handler + import_products_from_csv 调用方同步修改，所有 #[allow(clippy::too_many_arguments)] 全部移除 v10 复审 P3 43/43 全部完成） |

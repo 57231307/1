@@ -146,12 +146,12 @@
 
 ---
 
-## 🔥 当前任务：v11 复审问题修复（P0 1/1 ✅，P1 4/8 ✅，P2 7/10 ✅，P3 0/8 保留）
+## 🔥 当前任务：v11 复审问题修复（P0 1/1 ✅，P1 4/8 ✅，P2 9/10 ✅，P3 1/8 🔄）
 
 > **v11 复审报告**（2026-07-12，批次 339 合并后 Task 工具扫描）：v10 复审全部完成后复审，扫描所有剩余 `#[allow(...)]` 警告抑制（非 models/ SeaORM 例外）。
 > 发现 27 个抑制标注：1 P0 + 8 P1 + 10 P2（带 TODO 保留）+ 8 P3（合理保留）。
-> 修复策略：按规则 13+14 连续执行，P0 → P1 → P2，每批 5-6 个文件，CI 全绿后合并 main。
-> **批次 341 已完成**：P2 7/10 ✅（dto/mod.rs 4 方法 + crm/mod.rs 1 重导出 + status.rs 2 常量），app_state.rs+cache.rs 恢复保留 #[allow]（CI clippy 失败待后续评估）
+> 修复策略：按规则 13+14 连续执行，P0 → P1 → P2 → P3，每批 5-6 个文件，CI 全绿后合并 main。
+> **批次 342 已完成**：P2 9/10 ✅ + P3 1/8 ✅（bpm_dto.rs 删除 category + user_notification_setting.rs NONE 常量 + event_bus.rs unreachable_patterns）
 
 ### 进度总览
 
@@ -159,9 +159,18 @@
 |--------|------|--------|------|------|
 | 🔴 P0 文件级抑制超出例外 | 1 | 1 | 0 | ✅ 全部完成（批次 340） |
 | 🟠 P1 clippy 警告抑制 | 8 | 4 | 4 | ✅ 可修复项全部完成（批次 340，剩余 4 项为合理保留/TODO） |
-| 🟡 P2 带 TODO 的 dead_code | 10 | 7 | 3 | 🔄 进行中（批次 341 修复 7 项，剩余 3 项待评估） |
-| 🟢 P3 测试代码/防御性抑制 | 8 | 0 | 8 | ⏸️ 合理保留 |
-| **合计** | **27** | **12** | **15** | 🔄 进行中 |
+| 🟡 P2 带 TODO 的 dead_code | 10 | 9 | 1 | 🔄 进行中（批次 342 修复 2 项，剩余 1 项 app_state.rs 待评估） |
+| 🟢 P3 测试代码/防御性抑制 | 8 | 1 | 7 | 🔄 进行中（批次 342 修复 1 项 event_bus.rs） |
+| **合计** | **27** | **15** | **12** | 🔄 进行中 |
+
+### ✅ 已完成（批次 342）
+
+**批次 342（PR #514）**：v11 复审 P2+P3 警告抑制移除 5 项（5 文件）
+- P2-1：`bpm_dto.rs` 删除 TemplateQuery.category 占位符字段及 `#[allow(dead_code)]`，模板子分类功能未实现，按规则 0 删除占位符字段
+- P2-9：`user_notification_setting.rs` 移除 NONE 常量的 `#[allow(dead_code)]`，已在 service 层显式检查
+- P2-1 配套：`bpm_process_definition_service.rs` list_templates 方法 `_query` → `query`，更新文档注释
+- P3-8：`event_bus.rs` 移除 catch-all 分支的 `#[allow(unreachable_patterns)]`，InventoryTransactionCreated 变体未在 match 中处理，`_` 分支可达
+- P3-9（新增）：`user_notification_setting_service.rs` should_send_email/should_send_internal 添加 NONE 类型显式检查，通知类型为 none 时不发送任何通知
 
 ### ✅ 已完成（批次 341）
 
@@ -191,18 +200,15 @@ v11 复审 P0 已在批次 340 全部修复完成。
 **P1-8：color_card_borrow_service.rs:61 should_implement_trait** — from_str 方法 + TODO 迁移到 std::str::FromStr trait（在 baseline 中，长期重构）
 **P1-备注**：P1-1~P1-5 已在批次 340 修复完成
 
-### 🟡 P2 剩余项（3 项，待评估）
+### 🟡 P2 剩余项（1 项，待评估）
 
-- P2-1：bpm_dto.rs:48 TemplateQuery.category 字段（待模板子分类功能真实接入）
 - P2-8：app_state.rs:254 AppState::default dead_code + unused_variables（CI clippy 失败，待单独评估 baseline 影响）
-- P2-9：user_notification_setting.rs:55 notification_type::NONE 常量（待接入业务或删除评估）
 
-### 🟢 P3 合理保留项（8 项）
+### 🟢 P3 剩余项（7 项，合理保留）
 
 - P3-1~P3-5：测试模块中 decs! 宏导入 unused_imports（inventory_unit_tests/sales_unit_tests/purchase_unit_tests/bi_unit_tests/dual_unit_converter_handler）
 - P3-6：cache.rs:564 csrf_token_tests 模块 use super::*（防御性 allow）
 - P3-7：dual_unit_converter.rs:138 测试模块 use crate::dec（防御性 allow）
-- P3-8：event_bus.rs:726 catch_unwind 防御性 match unreachable_patterns（防御性 match-all）
 
 ---
 
