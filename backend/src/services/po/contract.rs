@@ -11,6 +11,10 @@ use sea_orm::{
 };
 
 use super::order::PurchaseOrderService;
+// 批次 358 v13 复审 B-P1-5 修复：导入 BusinessEvent 和 EVENT_BUS，
+// 在 approve_order commit 成功后发布 PurchaseOrderApproved 事件，
+// 触发库存财务桥接等下游订阅方生成采购入库相关凭证
+use crate::services::event_bus::{BusinessEvent, EVENT_BUS};
 
 impl PurchaseOrderService {
     /// 提交采购订单
@@ -152,6 +156,15 @@ impl PurchaseOrderService {
         .await?;
 
         txn.commit().await?;
+
+        // 批次 358 v13 复审 B-P1-5 修复：commit 成功后发布 PurchaseOrderApproved 事件
+        // 原实现仅更新订单状态，未通知下游订阅方（库存财务桥接、BPM 流程等），
+        // 导致采购审批 → 入库 → 凭证生成的业务闭环断裂。
+        // 事件在 commit 后发布，避免事务回滚时已发布事件造成的幻事件。
+        EVENT_BUS.publish(BusinessEvent::PurchaseOrderApproved {
+            order_id: order.id,
+            supplier_id: order.supplier_id,
+        });
 
         Ok(order)
     }

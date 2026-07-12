@@ -18,6 +18,8 @@ use std::sync::Arc;
 use super::ar_invoice_service::{ArInvoiceService, CreateArInvoiceRequest};
 use super::inventory_stock_query::RecordTransactionArgs;
 use super::inventory_stock_service::InventoryStockService;
+// 批次 358 v13 复审 B-P1-1 修复：导入 BusinessEvent 和 EVENT_BUS 用于事务安全的事件发布
+use crate::services::event_bus::{BusinessEvent, EVENT_BUS};
 
 /// 创建销售退货请求
 #[derive(Deserialize)]
@@ -350,7 +352,9 @@ impl SalesReturnService {
         self.update_return_totals(return_id, &txn, user_id).await?;
 
         // 3. 批量库存入库
-        self.apply_stock_inbound_txn(&txn, &return_order, &items, user_id)
+        // 批次 358 v13 复审 B-P1-1 修复：接收待发布事件列表，commit 成功后统一 publish
+        let pending_inventory_events = self
+            .apply_stock_inbound_txn(&txn, &return_order, &items, user_id)
             .await?;
 
         // 4. 状态变更（APPROVED）
@@ -363,6 +367,12 @@ impl SalesReturnService {
         Self::generate_red_ar_txn(&self.db, &txn, &return_order, user_id).await?;
 
         txn.commit().await?;
+
+        // 批次 358 v13 复审 B-P1-1 修复：commit 成功后统一 publish 库存流水事件，
+        // 避免事务回滚时已发布事件造成的幻事件（订阅方库存财务桥接会基于不存在的流水生成凭证）
+        for event in pending_inventory_events {
+            EVENT_BUS.publish(event);
+        }
 
         tracing::info!(
             "成功自动生成红字应收单 (退货单 {})",
@@ -404,16 +414,24 @@ impl SalesReturnService {
     /// P2 1-5 修复：批量库存入库（从 approve_return 抽取）
     ///
     /// 批量获取商品信息和库存记录（优化 N+1 查询），循环更新或创建库存记录并记录 SALES_RETURN 流水
+    ///
+    /// 批次 358 v13 复审 B-P1-1 修复：原实现使用 `stock_service.record_transaction(...)`（非事务版本），
+    /// 该方法内部使用 `self.db` 而非传入的 `txn`，且函数内立即 `EVENT_BUS.publish(event)`，
+    /// 存在双重风险：
+    /// 1. 事务边界泄漏：库存流水写入与退货主事务不在同一事务，commit 失败时流水残留；
+    /// 2. 幻事件风险：commit 失败时事件已发布，订阅方（库存财务桥接）会基于不存在的流水生成凭证。
+    /// 改用 `InventoryStockService::record_transaction_txn(txn, ...)` 关联函数：
+    /// - 流水写入与主事务同生共死；
+    /// - 事件由调用方在 commit 成功后统一 publish。
     async fn apply_stock_inbound_txn(
         &self,
         txn: &sea_orm::DatabaseTransaction,
         return_order: &sales_return::Model,
         items: &[sales_return_item::Model],
         user_id: i32,
-    ) -> Result<(), AppError> {
-        // 保留原行为：record_transaction 内部使用 self.db（非 txn 路径）
-        // 注：这是批次 27 v7 P1 修复中提及的遗留事务边界问题，本次 1-5 拆分不改变语义
-        let stock_service = InventoryStockService::new(self.db.clone());
+    ) -> Result<Vec<BusinessEvent>, AppError> {
+        // 收集待发布事件，由调用方在 commit 成功后统一 publish
+        let mut pending_events: Vec<BusinessEvent> = Vec::new();
 
         // 批量获取商品信息和库存记录（优化N+1查询）
         let product_ids: Vec<i32> = items.iter().map(|item| item.product_id).collect();
@@ -482,8 +500,11 @@ impl SalesReturnService {
 
             // 增加库存交易记录
             // 批次 338 v10 复审 P3 修复：使用 RecordTransactionArgs 参数对象替代多参数
-            stock_service
-                .record_transaction(RecordTransactionArgs {
+            // 批次 358 v13 复审 B-P1-1 修复：改用 record_transaction_txn 关联函数，
+            // 流水写入与主事务同生共死，事件返回由调用方在 commit 后统一 publish
+            let (_, txn_event) = InventoryStockService::record_transaction_txn(
+                txn,
+                RecordTransactionArgs {
                     transaction_type: "SALES_RETURN".to_string(),
                     product_id: item.product_id,
                     warehouse_id: return_order.warehouse_id,
@@ -502,11 +523,15 @@ impl SalesReturnService {
                     quantity_after_kg: None,
                     notes: Some("销售退货入库".to_string()),
                     created_by: Some(user_id),
-                })
-                .await?;
+                },
+            )
+            .await?;
+            if let Some(ev) = txn_event {
+                pending_events.push(ev);
+            }
         }
 
-        Ok(())
+        Ok(pending_events)
     }
 
     /// P2 1-5 修复：状态变更（APPROVED）（从 approve_return 抽取）
