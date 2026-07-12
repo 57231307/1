@@ -5,7 +5,7 @@
 //! - `recon` 对账单主流程（CRUD / 状态机：draft → sent → confirmed/disputed → closed）
 //! - `vfy`   核销：自动对账算法、账龄分桶、自动生成对账单、客户确认/争议
 //! - `inv`   发票 PDF 导出（含明细拼装与 ExportService 协作）
-//! - `pay`   付款：占位模块，实际收款业务由 `services/ar_collection_service.rs` 提供
+//! - `pay`   付款：占位模块，实际收款业务由 `services/ar_service.rs`（ArService）提供
 //!
 //! 兼容说明：原 `crate::services::ar::*` 路径需要由上层
 //! `services/mod.rs` 通过 `pub use super::ar::*;` 重新导出以保持向后兼容。

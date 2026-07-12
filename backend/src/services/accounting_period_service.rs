@@ -171,10 +171,11 @@ impl AccountingPeriodService {
 
     /// P2 3-22 修复：事务内校验指定日期是否在已结账的期间内，避免 TOCTOU
     ///
-    /// 原 check_date_locked 在 ar_collection_service 等调用方的事务外执行，
+    /// 原 check_date_locked 在 ar_service 等调用方的事务外执行，
     /// 并发场景下可能在检查后、commit 前期间被关闭，导致历史数据被篡改。
     /// 新增 _txn 变体，在调用方事务内执行校验。
-    // v11 批次 148 P2-A：移除失效的 dead_code 标注（被 ar_service.rs:120 和 ar_collection_service.rs:42 真实调用）
+    // v11 批次 148 P2-A：移除失效的 dead_code 标注（被 ar_service.rs:120 真实调用）
+    // 批次 349 v12 复审 P2-1：ar_collection_service 已删除（死代码），注释引用修正为 ar_service
     pub async fn check_date_locked_txn(
         &self,
         txn: &sea_orm::DatabaseTransaction,
