@@ -9,8 +9,8 @@
 #[cfg(test)]
 mod tests {
     use rust_decimal::Decimal;
-    use rust_decimal::prelude::*;
     use std::str::FromStr;
+    // 批次 351 v12 复审 P1-3：移除未使用的 rust_decimal::prelude::*（测试代码使用全路径）
     // P9-1: 引入 decs! 宏统一测试夹具
     // 批次 343 v11 复审 P3 修复：移除 #[allow(unused_imports)]，decs! 宏已被广泛使用
     use crate::decs;
