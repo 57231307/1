@@ -9,7 +9,8 @@
 
 | 批次 | PR | 一句话总结 |
 |------|-----|-----------|
-| 322 | #TBD | 修复 v9 低危代码质量问题 3 项（1. 抽取 backup.rs+upgrade.rs 重复路径校验到 utils/path_validator 共享模块+4 个单元测试 2. 抽取 system_update_service.rs compare_versions+compare_versions_for_sort 重复 parse_version 为共享函数+3 个单元测试 3. WebhookDeliveryResult 保持 pub 并补充可见性说明） |
+| 323 | #TBD | 修复 v9 低危代码味道问题 3 项（1. extract_update_package 60+行拆分为 prepare_extract_dir+extract_zip_entry 2. cmd_backup 95行拆分为 backup_database+backup_config_files+compress_backup 3. cmd_restore 128行拆分为 validate_tar_contents+restore_database+restore_config_files） |
+| 322 | #494 | 修复 v9 低危代码质量问题 3 项（1. 抽取 backup.rs+upgrade.rs 重复路径校验到 utils/path_validator 共享模块+4 个单元测试 2. 抽取 system_update_service.rs compare_versions+compare_versions_for_sort 重复 parse_version 为共享函数+3 个单元测试 3. WebhookDeliveryResult 保持 pub 并补充可见性说明） |
 | 321 | #493 | 修复 v9-M5 中危问题 1 项（elastic.rs ElasticClient::real + ensure_indices 添加 ssrf_guard::validate_url_and_resolve 校验 + resolve_to_addrs 固定 IP 防 DNS Rebinding TOCTOU，新增 try_real 返回 Result 便于测试，13 个单元测试覆盖 SSRF 拦截逻辑） |
 | 320 | #492 | 修复 v9-M3+M4 中危问题 2 项（M-3 retry_webhook 新增 WEBHOOK_RETRY_LIMITER 限流防 SSRF 放大 + M-4 迁移 m0048 新增 user_id 列+verify_ownership 所有权校验防 IDOR，webhook_handler+webhook_integration_handler 全部端点传递 auth.user_id，新增 5 个单元测试） |
 | 319 | #491 | 修复 v9-M1+M2 中危问题 2 项（M-1 fetch_latest_release 添加 resolve_to_addrs 防 DNS Rebinding + M-2 新增 validate_asset_name 校验 asset.name 防路径穿越，新增 3 个单元测试） |
