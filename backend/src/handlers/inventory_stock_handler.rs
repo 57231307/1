@@ -14,7 +14,7 @@ use axum::{
 use chrono::Utc;
 use rust_decimal::Decimal;
 use sea_orm::{ColumnTrait, EntityTrait, QueryFilter};
-use serde::{Deserialize, Serialize};
+// 批次 357 v13 复审 baseline 清零：移除 unused import（Deserialize, Serialize 编译器报未使用）
 use validator::Validate as _; // 仅用于 `ListStockParams::validate()` 方法解析
 
 use super::inventory_stock_handler_dto::{

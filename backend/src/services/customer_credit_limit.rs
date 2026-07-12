@@ -6,7 +6,7 @@ use rust_decimal::Decimal;
 use sea_orm::{
     ActiveModelTrait, ColumnTrait, EntityTrait, QueryFilter, QuerySelect, Set, TransactionTrait,
 };
-use std::sync::Arc;
+// 批次 357 v13 复审 baseline 清零：移除 unused import std::sync::Arc
 use tracing::info;
 
 use super::customer_credit_service::{

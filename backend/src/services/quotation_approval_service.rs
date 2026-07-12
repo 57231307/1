@@ -14,7 +14,8 @@
 use chrono::Utc;
 use rust_decimal::Decimal;
 use sea_orm::{
-    ActiveModelTrait, DatabaseConnection, EntityTrait, QuerySelect, Set, TransactionTrait,
+    // 批次 357 v13 复审 baseline 清零：移除 unused import ActiveModelTrait
+    DatabaseConnection, EntityTrait, QuerySelect, Set, TransactionTrait,
 };
 use std::sync::Arc;
 
