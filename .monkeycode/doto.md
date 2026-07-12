@@ -23,7 +23,7 @@
 
 ### ✅ 已完成（批次 317-321）
 
-**批次 321（PR #TBD）**：中危修复 M-5
+**批次 321（PR #493）**：中危修复 M-5
 - M-5：elastic.rs ElasticClient::real + ensure_indices 添加 SSRF 校验
 - 新增 try_real 方法返回 Result，便于单元测试覆盖 SSRF 拦截逻辑
 - 使用 validate_url_and_resolve 校验 + resolve_to_addrs 固定 IP 防 DNS Rebinding TOCTOU

@@ -4,6 +4,8 @@ pub mod cache;
 pub mod data_permission;
 pub mod date_utils;
 pub mod path_utils;
+// 批次 322 v9 复审低危修复：抽取 backup.rs 和 upgrade.rs 重复的路径校验逻辑到共享模块
+pub mod path_validator;
 pub mod request_ext;
 
 pub mod config; // Wave 4 漏洞 #12：统一 is_production 配置来源（APP_ENV）

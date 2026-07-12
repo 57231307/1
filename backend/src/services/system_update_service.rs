@@ -663,9 +663,8 @@ impl SystemUpdateService {
     }
 
     fn compare_versions(&self, current: &str, latest: &str) -> bool {
-        let parse_version =
-            |v: &str| -> Vec<u32> { v.split('.').filter_map(|s| s.parse().ok()).collect() };
-
+        // 批次 322 v9 复审低危修复：parse_version 抽取为共享函数，消除与
+        // compare_versions_for_sort 的逻辑重复
         let current_parts = parse_version(current);
         let latest_parts = parse_version(latest);
 
@@ -684,9 +683,8 @@ impl SystemUpdateService {
     }
 
     fn compare_versions_for_sort(&self, a: &str, b: &str) -> std::cmp::Ordering {
-        let parse_version =
-            |v: &str| -> Vec<u32> { v.split('.').filter_map(|s| s.parse().ok()).collect() };
-
+        // 批次 322 v9 复审低危修复：parse_version 抽取为共享函数，消除与
+        // compare_versions 的逻辑重复
         let a_parts = parse_version(a);
         let b_parts = parse_version(b);
 
@@ -800,6 +798,23 @@ impl Default for SystemUpdateService {
     fn default() -> Self {
         Self::new()
     }
+}
+
+// =====================================================
+// 批次 322 v9 复审低危修复：版本号解析共享函数
+// =====================================================
+
+/// 解析语义版本号字符串为数字数组
+///
+/// 批次 322 v9 复审低危修复：抽取 `compare_versions` 和 `compare_versions_for_sort`
+/// 中重复的版本号解析逻辑为共享函数，遵循 DRY 原则。
+///
+/// # 示例
+/// - "1.2.3" → [1, 2, 3]
+/// - "2.0" → [2, 0]
+/// - "1.0.0-beta" → [1, 0, 0]（非数字部分被 filter_map 忽略）
+fn parse_version(v: &str) -> Vec<u32> {
+    v.split('.').filter_map(|s| s.parse().ok()).collect()
 }
 
 // =====================================================

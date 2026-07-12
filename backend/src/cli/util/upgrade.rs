@@ -13,6 +13,10 @@ use super::{
     is_service_active, parse_json_field, run_cmd, timestamp, GITHUB_REPO,
 };
 
+// 批次 322 v9 复审低危修复：路径校验逻辑已抽取到共享模块 `utils::path_validator`，
+// 此处复用，避免与 backup.rs 重复维护。测试覆盖见 path_validator 模块。
+use crate::utils::path_validator::validate_extracted_paths;
+
 pub(super) fn cmd_upgrade(version: Option<String>, no_backup: bool) {
     println!("=== 系统升级 ===\n");
 
@@ -171,38 +175,8 @@ fn get_latest_version() -> Option<String> {
     None
 }
 
-/// L3 修复（v8 复审）：校验解压后的文件路径都在指定目录范围内
-/// 防止 Tar Slip 路径穿越攻击（符号链接逃逸）
-fn validate_extracted_path(base_dir: &str) -> Result<(), String> {
-    let base_canonical = std::fs::canonicalize(base_dir)
-        .map_err(|e| format!("无法解析基准目录 {}: {}", base_dir, e))?;
-
-    fn validate_recursive(dir: &std::path::Path, base: &std::path::Path, depth: usize) -> Result<(), String> {
-        // 递归深度上限，防止恶意嵌套目录导致栈溢出
-        if depth >= 100 {
-            return Err("递归深度超过上限，可能存在恶意嵌套目录".to_string());
-        }
-        for entry in std::fs::read_dir(dir).map_err(|e| format!("读取目录失败: {}", e))? {
-            let entry = entry.map_err(|e| format!("读取目录项失败: {}", e))?;
-            let path = entry.path();
-            // canonicalize 解析符号链接，防止通过符号链接逃逸
-            let canonical = std::fs::canonicalize(&path)
-                .map_err(|e| format!("解析路径失败 {:?}: {}", path, e))?;
-            if !canonical.starts_with(base) {
-                return Err(format!(
-                    "检测到路径穿越攻击：文件 {:?} 不在安全目录范围内",
-                    canonical
-                ));
-            }
-            if canonical.is_dir() {
-                validate_recursive(&canonical, base, depth + 1)?;
-            }
-        }
-        Ok(())
-    }
-
-    validate_recursive(&base_canonical, &base_canonical, 0)
-}
+// 批次 322 v9 复审低危修复：`validate_extracted_path` 已抽取到共享模块
+// `utils::path_validator::validate_extracted_paths`，此处不再重复维护。
 
 /// 部署发布包
 fn deploy_release(package: &str) {
@@ -268,8 +242,9 @@ fn deploy_release(package: &str) {
     }
 
     // 3. 解压后二次校验（canonicalize 解析符号链接），双重防护
+    // 批次 322 v9 复审低危修复：改用共享模块 utils::path_validator::validate_extracted_paths
     let extract_dir = format!("{}/bingxi-erp", temp_dir);
-    if let Err(e) = validate_extracted_path(&extract_dir) {
+    if let Err(e) = validate_extracted_paths(&extract_dir) {
         println!("[ERROR] 安全校验失败，终止部署: {}", e);
         let _ = run_cmd("rm", &["-rf", temp_dir]);
         return;
