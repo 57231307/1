@@ -146,6 +146,61 @@
 
 ---
 
+## 🔥 当前任务：v11 复审问题修复（P0 0/1，P1 0/8，P2 0/10 保留，P3 0/8 保留）
+
+> **v11 复审报告**（2026-07-12，批次 339 合并后 Task 工具扫描）：v10 复审全部完成后复审，扫描所有剩余 `#[allow(...)]` 警告抑制（非 models/ SeaORM 例外）。
+> 发现 27 个抑制标注：1 P0 + 8 P1 + 10 P2（带 TODO 保留）+ 8 P3（合理保留）。
+> 修复策略：按规则 13+14 连续执行，P0 → P1，每批 5-6 个文件，CI 全绿后合并 main。
+> P2 项均带 TODO(tech-debt) 标注，待业务接入后移除；P3 项为测试代码防御性抑制，合理保留。
+
+### 进度总览
+
+| 优先级 | 总数 | 已完成 | 剩余 | 状态 |
+|--------|------|--------|------|------|
+| 🔴 P0 文件级抑制超出例外 | 1 | 0 | 1 | ⏳ 待修复 |
+| 🟠 P1 clippy 警告抑制 | 8 | 0 | 8 | ⏳ 待修复 |
+| 🟡 P2 带 TODO 的 dead_code | 10 | 0 | 10 | ⏸️ 保留（待业务接入） |
+| 🟢 P3 测试代码/防御性抑制 | 8 | 0 | 8 | ⏸️ 合理保留 |
+| **合计** | **27** | **0** | **27** | 🔄 进行中 |
+
+### 🔴 P0 待修复项（1 项）
+
+**P0-1：business_trace_snapshot.rs 文件级抑制超出例外范围**
+- 文件：`/workspace/backend/src/models/business_trace_snapshot.rs:1`
+- 抑制：`#![allow(dead_code, unused_imports, unused_variables)]`
+- 问题：项目规则仅允许 models/ 下 SeaORM 自动生成模型保留 `#![allow(dead_code)]`，该文件额外抑制了 `unused_imports` 和 `unused_variables``，超出例外范围
+- 修复：收窄为 `#![allow(dead_code)]`，清理真实的未使用导入与变量
+
+### 🟠 P1 待修复项（8 项）
+
+**P1-1：auth_handler.rs:205 redundant_clone** — login 函数 audit_ctx.clone() + csrf_token.clone()
+**P1-2：auth_handler_misc.rs:34 redundant_clone** — refresh_token 函数 token.clone() + csrf_token.clone()
+**P1-3：import_export_service.rs:211 needless_pass_by_value** — parse_csv content: &str 参数
+**P1-4：import_export_service.rs:242 needless_pass_by_value** — validate_import_data data: &[Vec<String>] + template: &ImportTemplate
+**P1-5：inventory_count_service.rs:72 default_constructed_unit_structs** — SeaORM Entity::default() 模式
+**P1-6：crud_macro.rs:35 default_constructed_unit_structs** — 宏内 SeaORM Entity 构造（合理保留）
+**P1-7：crud_macro.rs:47 default_constructed_unit_structs** — 宏内 SeaORM Entity 构造（合理保留）
+**P1-8：color_card_borrow_service.rs:61 should_implement_trait** — from_str 方法 + TODO 迁移到 FromStr trait
+
+### 🟡 P2 保留项（10 项，带 TODO(tech-debt)）
+
+- P2-1：bpm_dto.rs:48 TemplateQuery.category 字段（待模板子分类功能）
+- P2-2~P2-5：dto/mod.rs:32,39,45,51 PageRequest 四个分页工具方法（待 paginate_with_total 统一接入）
+- P2-6：status.rs:238 inventory_reservation::LOCKED 常量（待 lock_reservation 路由接入）
+- P2-7：status.rs:243 inventory_reservation::RELEASED 常量（待 release_reservation 路由接入）
+- P2-8：app_state.rs:254 AppState::default dead_code + unused_variables（待重构为 for_test() 构造器）
+- P2-9：user_notification_setting.rs:55 notification_type::NONE 常量（待通知类型 NONE 接入）
+- P2-10：crm/mod.rs:68 CrmService 重导出 unused_imports（待业务接入评估）
+
+### 🟢 P3 合理保留项（8 项）
+
+- P3-1~P3-5：测试模块中 decs! 宏导入 unused_imports（inventory_unit_tests/sales_unit_tests/purchase_unit_tests/bi_unit_tests/dual_unit_converter_handler）
+- P3-6：cache.rs:564 csrf_token_tests 模块 use super::*（防御性 allow）
+- P3-7：dual_unit_converter.rs:138 测试模块 use crate::dec（防御性 allow）
+- P3-8：event_bus.rs:726 catch_unwind 防御性 match unreachable_patterns（防御性 match-all）
+
+---
+
 ## 🔄 历史任务：v14 深度调研报告修复（高风险 6/6 ✅，中风险 22/25 🔄）
 
 > **v14 深度调研报告**（2026-07-09，[bug.md](file:///workspace/.monkeycode/bug.md)）：12 维度全量扫描，15 高/25 中/74 低风险，共 114 个问题。

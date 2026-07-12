@@ -199,10 +199,8 @@ impl UserInfo {
 //   短期作为中间值使用，未来若拆分到 helper 函数时可能暂时未消费，保留标注。
 // - needless_pass_by_value：axum Json 提取器要求 owned LoginRequest，无法改为引用。
 // login 函数
-// 保留 `clippy::redundant_clone` 抑制：
-// `audit_ctx.clone()` 与 `csrf_token.clone()` 用于
-// Option<Extension<T>> 的 Option::map 闭包 + Cookie 构建。
-#[allow(clippy::redundant_clone)]
+// 批次 340 v11 复审 P1 修复：移除 `#[allow(clippy::redundant_clone)]` 抑制，
+// baseline 无此警告，原标注为防御性抑制。若 CI 报 redundant_clone 则需重构 clone 为引用传递。
 pub async fn login(
     State(state): State<AppState>,
     audit_ctx: Option<Extension<AuditContext>>,
