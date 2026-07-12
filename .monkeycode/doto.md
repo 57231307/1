@@ -32,7 +32,7 @@
 
 | 维度 | 总数 | 已完成 | 剩余 | 状态 |
 |------|------|--------|------|------|
-| 🟢 baseline 警告清零 | 213 摘要 / 89 位置 / 135 文件 | 0 | 213 | ⏳ 待修复（批次 357 启动 11 项 unused import） |
+| 🟢 baseline 警告清零 | 213 摘要 / 89 位置 / 135 文件 | 11 | 202 | 🔄 批次 357 完成 11 项 unused import |
 | 🟢 业务场景闭环 | 21 | 6 | 15 | 🔄 P0 6 项已完成（批次 356） |
 | 🟢 财务场景闭环 | 16 | 2 | 14 | 🔄 P0 2 项已完成（批次 356） |
 | 🟢 运行逻辑环流程闭环（5 子维度） | 45 | 0 | 45 | ⏳ 待修复 |
@@ -144,6 +144,24 @@
 **CI 记录**：3 次 CI 运行（#2503 失败→#2505 失败→#2506 全绿），修复 `STATUS_ACTIVE`→`IsActive.eq(true)`、`batch_no` 类型不匹配、`borrow after move` 三处编译错误
 
 **遗留**：11 个 unused import warning（release 构建报出，clippy baseline 已包含）放入批次 357 baseline 清零处理
+
+#### 批次 357（PR #529，已合并 2026-07-13）✅ v13 复审 baseline 清零 - 11 项 unused import
+
+**修改文件（10 个）**：
+1. `handlers/inventory_stock_handler.rs`：移除 unused Deserialize, Serialize
+2. `routes/quotations.rs`：移除 unused put
+3. `routes/custom_order.rs`：移除 unused delete
+4. `routes/color_card.rs`：移除 unused delete
+5. `routes/color_price.rs`：移除 unused put
+6. `services/customer_credit_limit.rs`：移除 unused std::sync::Arc
+7. `services/event_kafka.rs`：移除 unused Deserialize, Serialize
+8. `services/import_export_service.rs`：移除 2 处 unused self
+9. `services/quotation_approval_service.rs`：移除 unused ActiveModelTrait
+10. `services/report/ds.rs`：移除 unused ActiveModelTrait
+
+**CI 记录**：1 次 CI 运行（#2509 全绿），clippy baseline 机制正常（已修复警告不阻塞 CI）
+
+**遗留**：clippy baseline 中对应条目将在后续批次同步清理
 
 ---
 
