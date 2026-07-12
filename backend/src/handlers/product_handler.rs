@@ -11,7 +11,7 @@ use crate::models::product;
 use crate::models::product_color;
 // 批次 213 P2-5 修复（v12 复审）：硬编码 "active" 替换为 master_data 常量
 use crate::models::status::master_data;
-use crate::services::product_service::ProductService;
+use crate::services::product_service::{CreateProductArgs, ProductService, UpdateProductArgs};
 use crate::utils::error::AppError;
 use crate::utils::response::{ApiResponse, PaginatedResponse};
 
@@ -217,28 +217,28 @@ pub async fn create_product(
     };
 
     let product = product_service
-        .create_product(
-            req.name
+        .create_product(CreateProductArgs {
+            name: req.name
                 .unwrap_or_else(|| format!("产品_{}", chrono::Utc::now().timestamp())),
             code,
-            req.category_id,
-            req.specification,
-            req.unit.unwrap_or_else(|| "个".to_string()),
-            req.standard_price,
-            req.cost_price,
-            req.description,
-            req.status.unwrap_or_else(|| master_data::ACTIVE.to_string()),
-            req.product_type.unwrap_or_else(|| "成品".to_string()),
-            req.fabric_composition,
-            req.yarn_count,
-            req.density,
-            req.width,
-            req.gram_weight,
-            req.structure,
-            req.finish,
-            req.min_order_quantity,
-            req.lead_time,
-        )
+            category_id: req.category_id,
+            specification: req.specification,
+            unit: req.unit.unwrap_or_else(|| "个".to_string()),
+            standard_price: req.standard_price,
+            cost_price: req.cost_price,
+            description: req.description,
+            status: req.status.unwrap_or_else(|| master_data::ACTIVE.to_string()),
+            product_type: req.product_type.unwrap_or_else(|| "成品".to_string()),
+            fabric_composition: req.fabric_composition,
+            yarn_count: req.yarn_count,
+            density: req.density,
+            width: req.width,
+            gram_weight: req.gram_weight,
+            structure: req.structure,
+            finish: req.finish,
+            min_order_quantity: req.min_order_quantity,
+            lead_time: req.lead_time,
+        })
         .await?;
 
     Ok(Json(ApiResponse::success_with_message(
@@ -262,28 +262,28 @@ pub async fn update_product(
     let product_service = ProductService::new(state.db.clone(), state.search_client.clone());
 
     let product = product_service
-        .update_product(
+        .update_product(UpdateProductArgs {
             id,
-            req.name,
-            req.specification,
-            req.unit,
-            req.standard_price,
-            req.cost_price,
-            req.description,
-            req.status,
-            req.product_type,
-            req.fabric_composition,
-            req.yarn_count,
-            req.density,
-            req.width,
-            req.gram_weight,
-            req.structure,
-            req.finish,
-            req.min_order_quantity,
-            req.lead_time,
+            name: req.name,
+            specification: req.specification,
+            unit: req.unit,
+            standard_price: req.standard_price,
+            cost_price: req.cost_price,
+            description: req.description,
+            status: req.status,
+            product_type: req.product_type,
+            fabric_composition: req.fabric_composition,
+            yarn_count: req.yarn_count,
+            density: req.density,
+            width: req.width,
+            gram_weight: req.gram_weight,
+            structure: req.structure,
+            finish: req.finish,
+            min_order_quantity: req.min_order_quantity,
+            lead_time: req.lead_time,
             // 批次 94 P2-10：注入真实操作人 user_id 用于审计日志
-            auth.user_id,
-        )
+            user_id: auth.user_id,
+        })
         .await?;
 
     Ok(Json(ApiResponse::success_with_message(

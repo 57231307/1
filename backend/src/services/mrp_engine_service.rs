@@ -105,6 +105,33 @@ pub struct RequirementCalcParams {
     pub bom_level: i32,
 }
 
+/// BOM 递归展开参数对象
+///
+/// 批次 339 v10 复审 P3 修复：引入参数对象消除 explode_bom_recursive 的 too_many_arguments 警告。
+/// 聚合递归展开 BOM 所需的标量参数，&mut 借用参数（results / stock_cache）保留为独立参数。
+/// 使用生命周期 `&'a str` 借用 source_type，避免递归调用中的不必要的 to_string()。
+#[derive(Debug, Clone)]
+pub struct ExplodeBomArgs<'a> {
+    /// 产品 ID
+    pub product_id: i32,
+    /// 父级需求数量
+    pub parent_quantity: Decimal,
+    /// 需求日期
+    pub required_date: NaiveDate,
+    /// 来源类型
+    pub source_type: &'a str,
+    /// 来源 ID
+    pub source_id: Option<i32>,
+    /// 当前 BOM 层级
+    pub current_level: i32,
+    /// 最大 BOM 层级
+    pub max_level: i32,
+    /// 是否考虑安全库存
+    pub consider_safety_stock: bool,
+    /// 是否考虑在途库存
+    pub consider_in_transit: bool,
+}
+
 /// MRP计算引擎
 pub struct MrpEngineService {
     db: Arc<DatabaseConnection>,
@@ -328,22 +355,28 @@ impl MrpEngineService {
     }
 
     /// 递归展开BOM
-    #[allow(clippy::too_many_arguments)]
+    ///
+    /// 批次 339 v10 复审 P3 修复：签名从 11 参数改为 4 参数（&self + args + results + stock_cache），
+    /// 将 9 个标量参数聚合为 `ExplodeBomArgs<'a>` 参数对象，&mut 借用参数保留为独立参数，
+    /// 消除 `clippy::too_many_arguments` 警告。
     async fn explode_bom_recursive(
         &self,
-        product_id: i32,
-        parent_quantity: Decimal,
-        required_date: NaiveDate,
-        source_type: &str,
-        source_id: Option<i32>,
-        current_level: i32,
-        max_level: i32,
-        consider_safety_stock: bool,
-        consider_in_transit: bool,
+        args: ExplodeBomArgs<'_>,
         results: &mut Vec<MaterialRequirement>,
         // v16 批次 43 修复：传入共享库存缓存，避免递归中重复查询同一产品的库存
         stock_cache: &mut std::collections::HashMap<i32, StockInfo>,
     ) -> Result<(), AppError> {
+        let ExplodeBomArgs {
+            product_id,
+            parent_quantity,
+            required_date,
+            source_type,
+            source_id,
+            current_level,
+            max_level,
+            consider_safety_stock,
+            consider_in_transit,
+        } = args;
         if current_level > max_level {
             return Ok(());
         }
@@ -395,15 +428,17 @@ impl MrpEngineService {
             results.push(requirement);
 
             Box::pin(self.explode_bom_recursive(
-                item.material_id,
-                quantity_with_scrap,
-                material_date,
-                source_type,
-                source_id,
-                current_level + 1,
-                max_level,
-                consider_safety_stock,
-                consider_in_transit,
+                ExplodeBomArgs {
+                    product_id: item.material_id,
+                    parent_quantity: quantity_with_scrap,
+                    required_date: material_date,
+                    source_type,
+                    source_id,
+                    current_level: current_level + 1,
+                    max_level,
+                    consider_safety_stock,
+                    consider_in_transit,
+                },
                 results,
                 stock_cache,
             ))
@@ -431,15 +466,17 @@ impl MrpEngineService {
             std::collections::HashMap::new();
 
         self.explode_bom_recursive(
-            product_id,
-            parent_quantity,
-            required_date,
-            &source_type,
-            source_id,
-            1,
-            10,
-            consider_safety_stock,
-            consider_in_transit,
+            ExplodeBomArgs {
+                product_id,
+                parent_quantity,
+                required_date,
+                source_type: &source_type,
+                source_id,
+                current_level: 1,
+                max_level: 10,
+                consider_safety_stock,
+                consider_in_transit,
+            },
             &mut requirements,
             &mut stock_cache,
         )
