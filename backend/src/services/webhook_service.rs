@@ -41,9 +41,39 @@ impl WebhookService {
         Self { db }
     }
 
+    /// M-4 修复（v9 复审）：校验 webhook 所有权
+    /// - user_id 为 None 的系统级 webhook，所有认证用户可访问（向后兼容）
+    /// - user_id 为 Some(uid) 的用户私有 webhook，仅所有者可操作
+    /// 返回 webhook 模型，校验失败返回 PermissionDenied
+    async fn verify_ownership(
+        &self,
+        user_id: i32,
+        webhook_id: i32,
+    ) -> Result<webhook::Model, AppError> {
+        let webhook = Webhook::find_by_id(webhook_id)
+            .one(self.db.as_ref())
+            .await?
+            .ok_or_else(|| AppError::not_found("Webhook 不存在"))?;
+
+        // 系统级 webhook（user_id 为 NULL）允许所有认证用户访问
+        // 用户私有 webhook 仅所有者可操作
+        if let Some(owner_id) = webhook.user_id {
+            if owner_id != user_id {
+                return Err(AppError::permission_denied(format!(
+                    "无权操作此 Webhook（webhook_id={}, owner={}, requester={})",
+                    webhook_id, owner_id, user_id
+                )));
+            }
+        }
+
+        Ok(webhook)
+    }
+
     /// 创建 Webhook
+    /// M-4 修复（v9 复审）：新增 user_id 参数，记录 webhook 所有者
     pub async fn create_webhook(
         &self,
+        user_id: i32,
         name: &str,
         url: &str,
         events: &[&str],
@@ -62,6 +92,8 @@ impl WebhookService {
             last_triggered_at: Set(None),
             last_status: Set(None),
             retry_count: Set(0),
+            // M-4 修复：记录创建者 user_id，用于后续所有权校验
+            user_id: Set(Some(user_id)),
             created_at: Set(now),
             updated_at: Set(now),
             ..Default::default()
@@ -74,25 +106,31 @@ impl WebhookService {
     }
 
     /// 获取所有 Webhook
-    pub async fn list_webhooks(&self) -> Result<Vec<webhook::Model>, AppError> {
+    /// M-4 修复（v9 复审）：新增 user_id 参数，仅返回用户私有 + 系统级 webhook
+    pub async fn list_webhooks(&self, user_id: i32) -> Result<Vec<webhook::Model>, AppError> {
+        // M-4 修复：使用 OR 条件查询 — user_id IS NULL（系统级）OR user_id = 当前用户
+        let ownership_condition = Condition::any()
+            .add(webhook::Column::UserId.is_null())
+            .add(webhook::Column::UserId.eq(user_id));
+
         Webhook::find()
             .filter(webhook::Column::IsActive.eq(true))
+            .filter(ownership_condition)
             .all(self.db.as_ref())
             .await
             .map_err(AppError::from)
     }
 
     /// 触发 Webhook（实际发送HTTP请求）
+    /// M-4 修复（v9 复审）：新增 user_id 参数，触发前校验所有权
     pub async fn trigger_webhook(
         &self,
+        user_id: i32,
         webhook_id: i32,
         event: &str,
         payload: &str,
     ) -> Result<WebhookDeliveryResult, AppError> {
-        let webhook = Webhook::find_by_id(webhook_id)
-            .one(self.db.as_ref())
-            .await?
-            .ok_or_else(|| AppError::business("Webhook 不存在"))?;
+        let webhook = self.verify_ownership(user_id, webhook_id).await?;
 
         if !webhook.is_active {
             // 批次 109 P1-2：webhook 已禁用属于客户端配置错误，应返回 4xx 而非 200+success=false
@@ -274,16 +312,15 @@ impl WebhookService {
     /// 测试 Webhook（批次 108 P1-8：已通过 POST /webhooks/:id/test 接入业务）
     ///
     /// 触发一次 test 事件，验证 webhook 配置正确性。
+    /// M-4 修复（v9 复审）：新增 user_id 参数，测试前校验所有权
     pub async fn test_webhook(
         &self,
+        user_id: i32,
         webhook_id: i32,
     ) -> Result<WebhookDeliveryResult, AppError> {
-        // 批次 113 P1-8：移除 `let _ =` 显式丢弃，直接表达式语句校验存在性
-        // 错误通过 `?` 传播，成功值（Model）作为表达式语句的副作用被丢弃
-        Webhook::find_by_id(webhook_id)
-            .one(self.db.as_ref())
-            .await?
-            .ok_or_else(|| AppError::business("Webhook 不存在"))?;
+        // M-4 修复：通过 verify_ownership 校验所有权（trigger_webhook 内部也会校验，
+        // 但提前校验可对"webhook 不存在"返回 NotFound 而非 BusinessError）
+        self.verify_ownership(user_id, webhook_id).await?;
 
         let test_payload = serde_json::json!({
             "message": "This is a test webhook delivery",
@@ -291,7 +328,7 @@ impl WebhookService {
         })
         .to_string();
 
-        self.trigger_webhook(webhook_id, "test", &test_payload)
+        self.trigger_webhook(user_id, webhook_id, "test", &test_payload)
             .await
     }
 
@@ -299,19 +336,23 @@ impl WebhookService {
     ///
     /// 返回 webhooks 表中的执行状态字段（last_triggered_at / last_status / retry_count）。
     /// 当前未独立持久化调用日志（无 webhook_logs 表），返回 webhook 自身的执行状态汇总。
-    pub async fn get_webhook(&self, id: i32) -> Result<webhook::Model, AppError> {
-        Webhook::find_by_id(id)
-            .one(self.db.as_ref())
-            .await?
-            .ok_or_else(|| AppError::business("Webhook 不存在"))
+    /// M-4 修复（v9 复审）：新增 user_id 参数，获取前校验所有权
+    pub async fn get_webhook(
+        &self,
+        user_id: i32,
+        id: i32,
+    ) -> Result<webhook::Model, AppError> {
+        self.verify_ownership(user_id, id).await
     }
 
     /// 删除 Webhook
-    pub async fn delete_webhook(&self, id: i32) -> Result<(), AppError> {
-        let webhook = Webhook::find_by_id(id)
-            .one(self.db.as_ref())
-            .await?
-            .ok_or_else(|| AppError::business("Webhook 不存在"))?;
+    /// M-4 修复（v9 复审）：新增 user_id 参数，删除前校验所有权
+    pub async fn delete_webhook(
+        &self,
+        user_id: i32,
+        id: i32,
+    ) -> Result<(), AppError> {
+        let webhook = self.verify_ownership(user_id, id).await?;
 
         let mut active_model: WebhookActiveModel = webhook.into();
         active_model.is_active = Set(false);

@@ -81,13 +81,19 @@ pub struct WebhookCallbackResult {
 
 pub async fn list_integrations(
     State(state): State<AppState>,
-    _auth: AuthContext,
+    auth: AuthContext,
 ) -> Result<Json<ApiResponse<Vec<WebhookIntegrationItem>>>, AppError> {
     use crate::models::webhook;
-    use sea_orm::{ColumnTrait, EntityTrait, QueryFilter};
+    use sea_orm::{ColumnTrait, Condition, EntityTrait, QueryFilter};
+
+    // M-4 修复（v9 复审）：仅返回当前用户私有 + 系统级 webhook
+    let ownership_condition = Condition::any()
+        .add(webhook::Column::UserId.is_null())
+        .add(webhook::Column::UserId.eq(auth.user_id));
 
     let webhooks = webhook::Entity::find()
         .filter(webhook::Column::IsActive.eq(true))
+        .filter(ownership_condition)
         .all(state.db.as_ref())
         .await?;
 
@@ -110,7 +116,7 @@ pub async fn list_integrations(
 
 pub async fn create_integration(
     State(state): State<AppState>,
-    _auth: AuthContext,
+    auth: AuthContext,
     Json(req): Json<CreateWebhookIntegrationRequest>,
 ) -> Result<Json<ApiResponse<WebhookIntegrationItem>>, AppError> {
     use crate::models::webhook;
@@ -127,6 +133,8 @@ pub async fn create_integration(
         last_triggered_at: Set(None),
         last_status: Set(None),
         retry_count: Set(0),
+        // M-4 修复（v9 复审）：记录创建者 user_id
+        user_id: Set(Some(auth.user_id)),
         created_at: Set(now),
         updated_at: Set(now),
         ..Default::default()
@@ -151,12 +159,12 @@ pub async fn create_integration(
 
 pub async fn delete_integration(
     State(state): State<AppState>,
-    _auth: AuthContext,
+    auth: AuthContext,
     Path(id): Path<i32>,
 ) -> Result<Json<ApiResponse<()>>, AppError> {
-    // 推荐使用服务层处理删除逻辑（它已经包含了权限检查）
+    // M-4 修复（v9 复审）：通过服务层校验所有权后删除
     let service = crate::services::webhook_service::WebhookService::new(state.db.clone());
-    service.delete_webhook(id).await?;
+    service.delete_webhook(auth.user_id, id).await?;
 
     Ok(Json(ApiResponse::success_with_message(
         (),
@@ -175,7 +183,7 @@ pub async fn delete_integration(
 /// - `POST /test-integration/:id` → `test_integration`（保留，作为唯一测试入口）
 pub async fn update_integration(
     State(state): State<AppState>,
-    _auth: AuthContext,
+    auth: AuthContext,
     Path(id): Path<i32>,
     Json(req): Json<UpdateWebhookIntegrationRequest>,
 ) -> Result<Json<ApiResponse<WebhookIntegrationItem>>, AppError> {
@@ -188,6 +196,17 @@ pub async fn update_integration(
         .one(state.db.as_ref())
         .await?
         .ok_or_else(|| AppError::not_found(format!("Webhook 集成 {} 不存在", id)))?;
+
+    // M-4 修复（v9 复审）：所有权校验 — 系统级 webhook（user_id 为 NULL）允许所有认证用户修改，
+    // 用户私有 webhook 仅所有者可修改
+    if let Some(owner_id) = existing.user_id {
+        if owner_id != auth.user_id {
+            return Err(AppError::permission_denied(format!(
+                "无权修改此 Webhook 集成（owner={}, requester={})",
+                owner_id, auth.user_id
+            )));
+        }
+    }
 
     let mut active: webhook::ActiveModel = existing.into();
     if let Some(name) = req.name {
@@ -225,7 +244,7 @@ pub async fn update_integration(
 
 pub async fn send_wechat_message(
     State(state): State<AppState>,
-    _auth: AuthContext,
+    auth: AuthContext,
     Json(req): Json<SendWebhookMessageRequest>,
 ) -> Result<Json<ApiResponse<WebhookSendResult>>, AppError> {
     if req.content.is_empty() {
@@ -259,8 +278,9 @@ pub async fn send_wechat_message(
     use crate::services::webhook_service::WebhookService;
     let service = WebhookService::new(state.db.clone());
 
+    // M-4 修复（v9 复审）：trigger_webhook 内部校验所有权
     let delivery = service
-        .trigger_webhook(req.integration_id, "wechat_message", &payload.to_string())
+        .trigger_webhook(auth.user_id, req.integration_id, "wechat_message", &payload.to_string())
         .await?;
 
     let result = WebhookSendResult {
@@ -284,7 +304,7 @@ pub async fn send_wechat_message(
 
 pub async fn send_dingtalk_message(
     State(state): State<AppState>,
-    _auth: AuthContext,
+    auth: AuthContext,
     Json(req): Json<SendWebhookMessageRequest>,
 ) -> Result<Json<ApiResponse<WebhookSendResult>>, AppError> {
     if req.content.is_empty() {
@@ -324,7 +344,7 @@ pub async fn send_dingtalk_message(
     let service = WebhookService::new(state.db.clone());
 
     let delivery = service
-        .trigger_webhook(req.integration_id, "dingtalk_message", &payload.to_string())
+        .trigger_webhook(auth.user_id, req.integration_id, "dingtalk_message", &payload.to_string())
         .await?;
 
     let result = WebhookSendResult {
@@ -403,14 +423,15 @@ pub async fn handle_generic_callback(
 
 pub async fn test_integration(
     State(state): State<AppState>,
-    _auth: AuthContext,
+    auth: AuthContext,
     Path(id): Path<i32>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     use crate::services::webhook_service::WebhookService;
 
     let service = WebhookService::new(state.db.clone());
 
-    let mut result = service.test_webhook(id).await?;
+    // M-4 修复（v9 复审）：test_webhook 内部校验所有权
+    let mut result = service.test_webhook(auth.user_id, id).await?;
 
     // SSRF 缓解：测试接口不回显目标响应体，防止攻击者读取内网数据
     result.response_body = Some("出于安全原因，已隐藏响应内容".to_string());
