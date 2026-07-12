@@ -41,6 +41,37 @@ pub struct VoucherItemArgs<'a> {
     pub unit_price: Option<Decimal>,
 }
 
+/// 库存事件生成凭证参数对象
+///
+/// 批次 337 v10 复审 P3 修复：引入参数对象消除 5 个 create_*_voucher 私有函数的 too_many_arguments 警告。
+/// 5 个函数（create_purchase_receipt_voucher / create_sales_delivery_voucher /
+/// create_inventory_adjustment_voucher / create_production_receipt_voucher /
+/// create_production_issue_voucher）参数完全一致，统一聚合为单一参数对象。
+/// 使用生命周期 `'_` 借用 source_bill_type / source_bill_no / batch_no / color_no，
+/// 避免调用方不必要的 to_string()。
+pub struct VoucherCreateArgs<'a> {
+    /// 产品 ID
+    pub product_id: i32,
+    /// 仓库 ID
+    pub warehouse_id: i32,
+    /// 数量（米）
+    pub quantity_meters: Decimal,
+    /// 数量（公斤）
+    pub quantity_kg: Decimal,
+    /// 来源单据类型（可选）
+    pub source_bill_type: Option<&'a str>,
+    /// 来源单据号（可选）
+    pub source_bill_no: Option<&'a str>,
+    /// 来源单据 ID（可选）
+    pub source_bill_id: Option<i32>,
+    /// 批次号
+    pub batch_no: &'a str,
+    /// 色号
+    pub color_no: &'a str,
+    /// 创建人 ID（可选，系统自动生成时为 None）
+    pub created_by: Option<i32>,
+}
+
 impl InventoryFinanceBridgeService {
     pub fn new(db: Arc<DatabaseConnection>) -> Self {
         Self { db }
@@ -256,20 +287,24 @@ impl InventoryFinanceBridgeService {
     /// 创建采购入库凭证
     /// 借：库存商品
     /// 贷：应付账款
-    #[allow(clippy::too_many_arguments)]
+    /// 批次 337 v10 复审 P3 修复：签名从 10 参数改为单一参数对象 `VoucherCreateArgs`，
+    /// 消除 `clippy::too_many_arguments` 警告。
     async fn create_purchase_receipt_voucher(
         &self,
-        product_id: i32,
-        warehouse_id: i32,
-        quantity_meters: Decimal,
-        quantity_kg: Decimal,
-        source_bill_type: Option<&str>,
-        source_bill_no: Option<&str>,
-        source_bill_id: Option<i32>,
-        batch_no: &str,
-        color_no: &str,
-        created_by: Option<i32>,
+        args: VoucherCreateArgs<'_>,
     ) -> Result<(), AppError> {
+        let VoucherCreateArgs {
+            product_id,
+            warehouse_id,
+            quantity_meters,
+            quantity_kg,
+            source_bill_type,
+            source_bill_no,
+            source_bill_id,
+            batch_no,
+            color_no,
+            created_by,
+        } = args;
         // P0 5-4 修复：除零保护，quantity_meters 为 0 时拒绝生成凭证，
         // 避免 amount / quantity_meters 裸除法触发 panic 导致监听器任务异常
         if quantity_meters.is_zero() {
@@ -350,20 +385,24 @@ impl InventoryFinanceBridgeService {
     /// 创建销售出库凭证
     /// 借：主营业务成本
     /// 贷：库存商品
-    #[allow(clippy::too_many_arguments)]
+    /// 批次 337 v10 复审 P3 修复：签名从 10 参数改为单一参数对象 `VoucherCreateArgs`，
+    /// 消除 `clippy::too_many_arguments` 警告。
     async fn create_sales_delivery_voucher(
         &self,
-        product_id: i32,
-        warehouse_id: i32,
-        quantity_meters: Decimal,
-        quantity_kg: Decimal,
-        source_bill_type: Option<&str>,
-        source_bill_no: Option<&str>,
-        source_bill_id: Option<i32>,
-        batch_no: &str,
-        color_no: &str,
-        created_by: Option<i32>,
+        args: VoucherCreateArgs<'_>,
     ) -> Result<(), AppError> {
+        let VoucherCreateArgs {
+            product_id,
+            warehouse_id,
+            quantity_meters,
+            quantity_kg,
+            source_bill_type,
+            source_bill_no,
+            source_bill_id,
+            batch_no,
+            color_no,
+            created_by,
+        } = args;
         // P0 5-4 修复：除零保护，quantity_meters 为 0 时拒绝生成凭证，
         // 避免 amount / quantity_meters 裸除法触发 panic 导致监听器任务异常
         if quantity_meters.is_zero() {
