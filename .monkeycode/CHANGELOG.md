@@ -9,6 +9,7 @@
 
 | 批次 | PR | 一句话总结 |
 |------|-----|-----------|
+| 341 | #513 | v11 复审 P2 过时警告抑制移除 3 项（dto/mod.rs 删除 PageRequest 四个未使用方法 new/page_clamped/offset/limit + crm/mod.rs 删除 CrmService 未使用重导出 + status.rs 移除 LOCKED/RELEASED 过时 #[allow(dead_code)] 常量已被广泛使用，app_state.rs+cache.rs 恢复保留 #[allow] 因 CI clippy 失败待后续评估） |
 | 340 | #512 | v11 复审 P0+P1 警告抑制移除 5 项（business_trace_snapshot 文件级抑制收窄 dead_code+unused_imports+unused_variables→dead_code + import_export_service 移除 needless_pass_by_value 误报抑制 2 处 + auth_handler/auth_handler_misc 移除 redundant_clone 抑制 2 处 + inventory_count_service Entity::default()→Entity 移除 default_constructed_unit_structs，baseline 核实无对应警告 CI 全绿） |
 | 339 | #511 | v10 复审 P3 too_many_arguments DTO 重构剩余 3 项收官（product_service create_product 19→1 CreateProductArgs + update_product 19→1 UpdateProductArgs + mrp_engine_service explode_bom_recursive 11→4 引入 ExplodeBomArgs<'a> 聚合 9 标量参数借用 results/stock_cache 保留签名，product_handler + import_products_from_csv 调用方同步修改，所有 #[allow(clippy::too_many_arguments)] 全部移除 v10 复审 P3 43/43 全部完成） |
 | 338 | #510 | v10 复审 P3 too_many_arguments DTO 重构 8 项（5 核心 service + 8 调用方：ai/recipe_opt make_recipe 8→1 RecipeFixture + inventory_stock_query record_transaction 18→1 RecordTransactionArgs + inventory_stock_service create_stock 12→1 CreateStockArgs + create_stock_fabric 13→1 CreateStockFabricArgs + inventory_stock_txn create_stock_fabric_txn 14→2 + record_transaction_txn 19→2 复用已有参数对象 + customer_service create_customer 18→1 CreateCustomerArgs + update_customer 18→1 UpdateCustomerArgs，共 20+ 调用点同步修改） |

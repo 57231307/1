@@ -146,13 +146,12 @@
 
 ---
 
-## 🔥 当前任务：v11 复审问题修复（P0 1/1 ✅，P1 4/8 ✅，P2 0/10 保留，P3 0/8 保留）
+## 🔥 当前任务：v11 复审问题修复（P0 1/1 ✅，P1 4/8 ✅，P2 7/10 ✅，P3 0/8 保留）
 
 > **v11 复审报告**（2026-07-12，批次 339 合并后 Task 工具扫描）：v10 复审全部完成后复审，扫描所有剩余 `#[allow(...)]` 警告抑制（非 models/ SeaORM 例外）。
 > 发现 27 个抑制标注：1 P0 + 8 P1 + 10 P2（带 TODO 保留）+ 8 P3（合理保留）。
-> 修复策略：按规则 13+14 连续执行，P0 → P1，每批 5-6 个文件，CI 全绿后合并 main。
-> P2 项均带 TODO(tech-debt) 标注，待业务接入后移除；P3 项为测试代码防御性抑制，合理保留。
-> **批次 340 已完成**：P0 1/1 ✅ + P1 4/8 ✅（剩余 4 项为宏内合理保留 2 项 + baseline TODO 1 项 + should_implement_trait TODO 1 项）
+> 修复策略：按规则 13+14 连续执行，P0 → P1 → P2，每批 5-6 个文件，CI 全绿后合并 main。
+> **批次 341 已完成**：P2 7/10 ✅（dto/mod.rs 4 方法 + crm/mod.rs 1 重导出 + status.rs 2 常量），app_state.rs+cache.rs 恢复保留 #[allow]（CI clippy 失败待后续评估）
 
 ### 进度总览
 
@@ -160,9 +159,17 @@
 |--------|------|--------|------|------|
 | 🔴 P0 文件级抑制超出例外 | 1 | 1 | 0 | ✅ 全部完成（批次 340） |
 | 🟠 P1 clippy 警告抑制 | 8 | 4 | 4 | ✅ 可修复项全部完成（批次 340，剩余 4 项为合理保留/TODO） |
-| 🟡 P2 带 TODO 的 dead_code | 10 | 0 | 10 | ⏸️ 保留（待业务接入） |
+| 🟡 P2 带 TODO 的 dead_code | 10 | 7 | 3 | 🔄 进行中（批次 341 修复 7 项，剩余 3 项待评估） |
 | 🟢 P3 测试代码/防御性抑制 | 8 | 0 | 8 | ⏸️ 合理保留 |
-| **合计** | **27** | **5** | **22** | ✅ 可修复项全部完成 |
+| **合计** | **27** | **12** | **15** | 🔄 进行中 |
+
+### ✅ 已完成（批次 341）
+
+**批次 341（PR #513）**：v11 复审 P2 过时警告抑制移除 3 项（3 文件，原计划 5 文件因 CI 失败调整）
+- P2-2~P2-5：`dto/mod.rs` 删除 PageRequest 四个未使用方法（new/page_clamped/offset/limit），项目已统一接入 paginate_with_total（批次 260），这些历史方法无任何调用点
+- P2-10：`crm/mod.rs` 删除 CrmService 未使用重导出，crm_handler.rs 直接使用 `crate::services::crm::cust::CrmService` 路径导入
+- P2-6+P2-7：`status.rs` 移除 LOCKED/RELEASED 常量的过时 `#[allow(dead_code)]`，这两个常量已被 inventory_reservation_service.rs 和测试代码广泛使用
+- CI 失败修复：app_state.rs 和 cache.rs 的 `#[allow]` 抑制恢复保留，因 CI clippy 失败（移除后产生新警告），待后续批次单独评估
 
 ### ✅ 已完成（批次 340）
 
@@ -184,15 +191,11 @@ v11 复审 P0 已在批次 340 全部修复完成。
 **P1-8：color_card_borrow_service.rs:61 should_implement_trait** — from_str 方法 + TODO 迁移到 std::str::FromStr trait（在 baseline 中，长期重构）
 **P1-备注**：P1-1~P1-5 已在批次 340 修复完成
 
-### 🟡 P2 保留项（10 项，带 TODO(tech-debt)）
+### 🟡 P2 剩余项（3 项，待评估）
 
-- P2-1：bpm_dto.rs:48 TemplateQuery.category 字段（待模板子分类功能）
-- P2-2~P2-5：dto/mod.rs:32,39,45,51 PageRequest 四个分页工具方法（待 paginate_with_total 统一接入）
-- P2-6：status.rs:238 inventory_reservation::LOCKED 常量（待 lock_reservation 路由接入）
-- P2-7：status.rs:243 inventory_reservation::RELEASED 常量（待 release_reservation 路由接入）
-- P2-8：app_state.rs:254 AppState::default dead_code + unused_variables（待重构为 for_test() 构造器）
-- P2-9：user_notification_setting.rs:55 notification_type::NONE 常量（待通知类型 NONE 接入）
-- P2-10：crm/mod.rs:68 CrmService 重导出 unused_imports（待业务接入评估）
+- P2-1：bpm_dto.rs:48 TemplateQuery.category 字段（待模板子分类功能真实接入）
+- P2-8：app_state.rs:254 AppState::default dead_code + unused_variables（CI clippy 失败，待单独评估 baseline 影响）
+- P2-9：user_notification_setting.rs:55 notification_type::NONE 常量（待接入业务或删除评估）
 
 ### 🟢 P3 合理保留项（8 项）
 
