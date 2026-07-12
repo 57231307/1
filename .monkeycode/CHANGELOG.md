@@ -9,6 +9,7 @@
 
 | 批次 | PR | 一句话总结 |
 |------|-----|-----------|
+| 343 | #515 | v11 复审 P3 测试模块 unused_imports 抑制移除 7 项（dual_unit_converter.rs use crate::dec + inventory_unit_tests/sales_unit_tests/purchase_unit_tests/bi_unit_tests/dual_unit_converter_handler use crate::decs + cache.rs mod csrf_token_tests use super::*，dec!/decs! 宏已在测试代码中广泛使用共 58 个调用点属编译器误报抑制，Rust Clippy 通过确认无新警告，P3 8/8 全部完成 v11 进度 15/27→22/27） |
 | 342 | #514 | v11 复审 P2+P3 警告抑制移除 5 项（bpm_dto.rs 删除 TemplateQuery.category 占位符字段及 #[allow(dead_code)] 模板子分类未实现按规则 0 删除 + bpm_process_definition_service list_templates _query→query + user_notification_setting.rs 移除 NONE 常量 #[allow(dead_code)] 已在 service 显式检查 + user_notification_setting_service should_send_email/should_send_internal 添加 NONE 显式检查 + event_bus.rs 移除 #[allow(unreachable_patterns)] InventoryTransactionCreated 未处理 _ 分支可达，v11 进度 12/27→15/27） |
 | 341 | #513 | v11 复审 P2 过时警告抑制移除 3 项（dto/mod.rs 删除 PageRequest 四个未使用方法 new/page_clamped/offset/limit + crm/mod.rs 删除 CrmService 未使用重导出 + status.rs 移除 LOCKED/RELEASED 过时 #[allow(dead_code)] 常量已被广泛使用，app_state.rs+cache.rs 恢复保留 #[allow] 因 CI clippy 失败待后续评估） |
 | 340 | #512 | v11 复审 P0+P1 警告抑制移除 5 项（business_trace_snapshot 文件级抑制收窄 dead_code+unused_imports+unused_variables→dead_code + import_export_service 移除 needless_pass_by_value 误报抑制 2 处 + auth_handler/auth_handler_misc 移除 redundant_clone 抑制 2 处 + inventory_count_service Entity::default()→Entity 移除 default_constructed_unit_structs，baseline 核实无对应警告 CI 全绿） |

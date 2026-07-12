@@ -146,12 +146,12 @@
 
 ---
 
-## 🔥 当前任务：v11 复审问题修复（P0 1/1 ✅，P1 4/8 ✅，P2 9/10 ✅，P3 1/8 🔄）
+## 🔥 当前任务：v11 复审问题修复（P0 1/1 ✅，P1 4/8 ✅，P2 9/10 ✅，P3 8/8 ✅）
 
 > **v11 复审报告**（2026-07-12，批次 339 合并后 Task 工具扫描）：v10 复审全部完成后复审，扫描所有剩余 `#[allow(...)]` 警告抑制（非 models/ SeaORM 例外）。
 > 发现 27 个抑制标注：1 P0 + 8 P1 + 10 P2（带 TODO 保留）+ 8 P3（合理保留）。
 > 修复策略：按规则 13+14 连续执行，P0 → P1 → P2 → P3，每批 5-6 个文件，CI 全绿后合并 main。
-> **批次 342 已完成**：P2 9/10 ✅ + P3 1/8 ✅（bpm_dto.rs 删除 category + user_notification_setting.rs NONE 常量 + event_bus.rs unreachable_patterns）
+> **批次 343 已完成**：P3 8/8 ✅ 全部完成（7 个测试模块 unused_imports + 1 个 event_bus unreachable_patterns）
 
 ### 进度总览
 
@@ -160,8 +160,21 @@
 | 🔴 P0 文件级抑制超出例外 | 1 | 1 | 0 | ✅ 全部完成（批次 340） |
 | 🟠 P1 clippy 警告抑制 | 8 | 4 | 4 | ✅ 可修复项全部完成（批次 340，剩余 4 项为合理保留/TODO） |
 | 🟡 P2 带 TODO 的 dead_code | 10 | 9 | 1 | 🔄 进行中（批次 342 修复 2 项，剩余 1 项 app_state.rs 待评估） |
-| 🟢 P3 测试代码/防御性抑制 | 8 | 1 | 7 | 🔄 进行中（批次 342 修复 1 项 event_bus.rs） |
-| **合计** | **27** | **15** | **12** | 🔄 进行中 |
+| 🟢 P3 测试代码/防御性抑制 | 8 | 8 | 0 | ✅ 全部完成（批次 342+343） |
+| **合计** | **27** | **22** | **5** | 🔄 进行中（剩余 5 项为合理保留/TODO/待评估） |
+
+### ✅ 已完成（批次 343）
+
+**批次 343（PR #515）**：v11 复审 P3 测试模块 unused_imports 抑制移除 7 项（7 文件）
+- P3-1：`inventory_unit_tests.rs` 移除 `use crate::decs` 的 `#[allow(unused_imports)]`
+- P3-2：`sales_unit_tests.rs` 移除 `use crate::decs` 的 `#[allow(unused_imports)]`
+- P3-3：`purchase_unit_tests.rs` 移除 `use crate::decs` 的 `#[allow(unused_imports)]`
+- P3-4：`bi_unit_tests.rs` 移除 `use crate::decs` 的 `#[allow(unused_imports)]`
+- P3-5：`dual_unit_converter_handler.rs` 移除 `use crate::decs` 的 `#[allow(unused_imports)]`
+- P3-6：`cache.rs` 移除 `mod csrf_token_tests` 的 `#[allow(unused_imports)]`（use super::*）
+- P3-7：`dual_unit_converter.rs` 移除 `use crate::dec` 的 `#[allow(unused_imports)]`
+- 原因：`dec!`/`decs!` 宏已在测试代码中广泛使用（共 58 个调用点），`use super::*` 已在 csrf_token_tests 中使用，`#[allow(unused_imports)]` 属编译器误报抑制
+- CI 验证：Rust Clippy 通过，说明移除抑制后无新警告（编译器误报已修复或宏使用被正确识别）
 
 ### ✅ 已完成（批次 342）
 
@@ -204,11 +217,9 @@ v11 复审 P0 已在批次 340 全部修复完成。
 
 - P2-8：app_state.rs:254 AppState::default dead_code + unused_variables（CI clippy 失败，待单独评估 baseline 影响）
 
-### 🟢 P3 剩余项（7 项，合理保留）
+### 🟢 P3 剩余项（0 项 ✅ 全部完成）
 
-- P3-1~P3-5：测试模块中 decs! 宏导入 unused_imports（inventory_unit_tests/sales_unit_tests/purchase_unit_tests/bi_unit_tests/dual_unit_converter_handler）
-- P3-6：cache.rs:564 csrf_token_tests 模块 use super::*（防御性 allow）
-- P3-7：dual_unit_converter.rs:138 测试模块 use crate::dec（防御性 allow）
+P3 全部 8 项已在批次 342（event_bus.rs unreachable_patterns）+ 批次 343（7 个测试模块 unused_imports）修复完成。
 
 ---
 
