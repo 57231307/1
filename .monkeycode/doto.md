@@ -15,7 +15,7 @@
 
 ---
 
-## 🔥 当前任务：v10 复审问题修复（P0 1/1 ✅，P1 5/5 ✅，P2 4/4 ✅，P3 20/~42 ⏳）
+## 🔥 当前任务：v10 复审问题修复（P0 1/1 ✅，P1 5/5 ✅，P2 4/4 ✅，P3 21/~42 ⏳）
 
 > **v10 复审报告**（2026-07-12，Task 工具扫描）：v9 + sea-orm 调研 + 规则 14 新增后复审，扫描所有 `#[allow(...)]` 警告抑制。
 > 发现 180 个抑制标注（108 例外 models/ + 72 非例外），非例外分类：1 P0 + 5 P1 + 4 P2 + ~42 P3。
@@ -28,10 +28,14 @@
 | 🔴 P0 死代码 | 1 | 1 | 0 | ✅ 全部完成（批次 325） |
 | 🟠 P1 文件级抑制过宽+未使用重导出 | 5 | 5 | 0 | ✅ 全部完成（批次 325） |
 | 🟡 P2 clippy 代码味道 | 4 | 4 | 0 | ✅ 全部完成（批次 326，pred.rs 2 项已在 main 修复） |
-| 🟢 P3 too_many_arguments | ~42 | 20 | ~22 | ⏳ 长期重构（批次 327+） |
-| **合计** | **~52** | **30** | **~22** | 🔄 进行中 |
+| 🟢 P3 too_many_arguments | ~42 | 21 | ~21 | ⏳ 长期重构（批次 327+） |
+| **合计** | **~52** | **31** | **~21** | 🔄 进行中 |
 
-### ✅ 已完成（批次 325-330）
+### ✅ 已完成（批次 325-331）
+
+**批次 331（PR #503）**：v10 复审 P3 too_many_arguments DTO 重构 1 项
+- `utils/app_state.rs with_secrets_and_cors`：8 参数 → 1 参数，引入 `AppStateParams` 参数对象（db/omni_audit/audit_cleanup/jwt_secret/previous_jwt_secret/cookie_secret/webhook_secret/allowed_origins），main.rs 调用方同步修改
+- 附：补充 clippy baseline 3 项（path_validator 模块的 validate_extracted_paths/validate_dir_recursive/MAX_RECURSION_DEPTH 被编译器判定为 dead code，疑似 pub(super) 可见性导致 reachability 分析未追踪到 cli::util::run 调用链，属预存技术债务）
 
 **批次 330（PR #502）**：v10 复审 P3 误报删除 5 项 + DTO 重构 1 项
 - 误报删除 5 项（clippy::too_many_arguments 不计算 &self，阈值 7，参数 ≤7 均为误报）：
