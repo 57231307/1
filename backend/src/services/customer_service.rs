@@ -82,6 +82,94 @@ pub struct CustomerService {
     search_syncer: Arc<SearchSyncer>,
 }
 
+/// 创建客户参数对象
+///
+/// 批次 338 v10 复审 P3 修复：引入参数对象消除 create_customer 的 too_many_arguments 警告。
+/// 聚合创建客户所需的全部字段，避免函数签名携带 18 个参数。
+#[derive(Debug, Clone)]
+pub struct CreateCustomerArgs {
+    /// 客户编码
+    pub customer_code: String,
+    /// 客户名称
+    pub customer_name: String,
+    /// 联系人
+    pub contact_person: Option<String>,
+    /// 联系电话
+    pub contact_phone: Option<String>,
+    /// 联系邮箱
+    pub contact_email: Option<String>,
+    /// 地址
+    pub address: Option<String>,
+    /// 城市
+    pub city: Option<String>,
+    /// 省份
+    pub province: Option<String>,
+    /// 国家
+    pub country: Option<String>,
+    /// 邮编
+    pub postal_code: Option<String>,
+    /// 信用额度
+    pub credit_limit: rust_decimal::Decimal,
+    /// 付款条件（天数）
+    pub payment_terms: i32,
+    /// 税号
+    pub tax_id: Option<String>,
+    /// 开户行
+    pub bank_name: Option<String>,
+    /// 银行账号
+    pub bank_account: Option<String>,
+    /// 客户类型
+    pub customer_type: String,
+    /// 备注
+    pub notes: Option<String>,
+    /// 创建人 ID
+    pub created_by: Option<i32>,
+}
+
+/// 更新客户参数对象
+///
+/// 批次 338 v10 复审 P3 修复：引入参数对象消除 update_customer 的 too_many_arguments 警告。
+/// 聚合更新客户所需的全部字段，避免函数签名携带 18 个参数。
+#[derive(Debug, Clone)]
+pub struct UpdateCustomerArgs {
+    /// 客户 ID
+    pub customer_id: i32,
+    /// 客户名称
+    pub customer_name: Option<String>,
+    /// 联系人
+    pub contact_person: Option<String>,
+    /// 联系电话
+    pub contact_phone: Option<String>,
+    /// 联系邮箱
+    pub contact_email: Option<String>,
+    /// 地址
+    pub address: Option<String>,
+    /// 城市
+    pub city: Option<String>,
+    /// 省份
+    pub province: Option<String>,
+    /// 邮编
+    pub postal_code: Option<String>,
+    /// 信用额度
+    pub credit_limit: Option<rust_decimal::Decimal>,
+    /// 付款条件（天数）
+    pub payment_terms: Option<i32>,
+    /// 税号
+    pub tax_id: Option<String>,
+    /// 开户行
+    pub bank_name: Option<String>,
+    /// 银行账号
+    pub bank_account: Option<String>,
+    /// 客户类型
+    pub customer_type: Option<String>,
+    /// 状态
+    pub status: Option<String>,
+    /// 备注
+    pub notes: Option<String>,
+    /// 操作人 ID
+    pub user_id: i32,
+}
+
 impl CustomerService {
     pub fn new(db: Arc<DatabaseConnection>, search_client: Arc<dyn SearchClient>) -> Self {
         Self {
@@ -142,28 +230,33 @@ impl CustomerService {
     ///
     /// 批次 85 v2 复审 P1-6 修复：检查编码存在 + insert 移入单一事务 + lock_exclusive 串行化
     /// 原实现检查编码和 insert 在 self.db 上分别执行，无 txn 无 lock，并发创建相同编码的客户会通过检查后重复插入
-    #[allow(clippy::too_many_arguments)]
+    ///
+    /// 批次 338 v10 复审 P3 修复：签名从 18 参数改为单一参数对象 `CreateCustomerArgs`，
+    /// 消除 `clippy::too_many_arguments` 警告。
     pub async fn create_customer(
         &self,
-        customer_code: String,
-        customer_name: String,
-        contact_person: Option<String>,
-        contact_phone: Option<String>,
-        contact_email: Option<String>,
-        address: Option<String>,
-        city: Option<String>,
-        province: Option<String>,
-        country: Option<String>,
-        postal_code: Option<String>,
-        credit_limit: rust_decimal::Decimal,
-        payment_terms: i32,
-        tax_id: Option<String>,
-        bank_name: Option<String>,
-        bank_account: Option<String>,
-        customer_type: String,
-        notes: Option<String>,
-        created_by: Option<i32>,
+        args: CreateCustomerArgs,
     ) -> Result<customer::Model, AppError> {
+        let CreateCustomerArgs {
+            customer_code,
+            customer_name,
+            contact_person,
+            contact_phone,
+            contact_email,
+            address,
+            city,
+            province,
+            country,
+            postal_code,
+            credit_limit,
+            payment_terms,
+            tax_id,
+            bank_name,
+            bank_account,
+            customer_type,
+            notes,
+            created_by,
+        } = args;
         let txn = (*self.db).begin().await?;
 
         // 检查客户编码是否已存在（加 lock_exclusive 防止并发创建相同编码）
@@ -411,28 +504,33 @@ impl CustomerService {
     /// 批次 101 v6 复审 P2-1 修复：原实现裸查询 + 裸更新无事务、无 lock_exclusive、无审计日志，
     /// 并发更新会基于过期状态写入，且无审计追溯。改为事务内 lock_exclusive 串行化 +
     /// update_with_audit 落审计日志。
-    #[allow(clippy::too_many_arguments)]
+    ///
+    /// 批次 338 v10 复审 P3 修复：签名从 18 参数改为单一参数对象 `UpdateCustomerArgs`，
+    /// 消除 `clippy::too_many_arguments` 警告。
     pub async fn update_customer(
         &self,
-        customer_id: i32,
-        customer_name: Option<String>,
-        contact_person: Option<String>,
-        contact_phone: Option<String>,
-        contact_email: Option<String>,
-        address: Option<String>,
-        city: Option<String>,
-        province: Option<String>,
-        postal_code: Option<String>,
-        credit_limit: Option<rust_decimal::Decimal>,
-        payment_terms: Option<i32>,
-        tax_id: Option<String>,
-        bank_name: Option<String>,
-        bank_account: Option<String>,
-        customer_type: Option<String>,
-        status: Option<String>,
-        notes: Option<String>,
-        user_id: i32,
+        args: UpdateCustomerArgs,
     ) -> Result<customer::Model, AppError> {
+        let UpdateCustomerArgs {
+            customer_id,
+            customer_name,
+            contact_person,
+            contact_phone,
+            contact_email,
+            address,
+            city,
+            province,
+            postal_code,
+            credit_limit,
+            payment_terms,
+            tax_id,
+            bank_name,
+            bank_account,
+            customer_type,
+            status,
+            notes,
+            user_id,
+        } = args;
         let txn = (*self.db).begin().await?;
 
         // 加 lock_exclusive 串行化并发更新，防止 TOCTOU

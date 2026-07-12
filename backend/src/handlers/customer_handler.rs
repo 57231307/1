@@ -9,7 +9,7 @@ use validator::Validate;
 
 use crate::middleware::auth_context::AuthContext;
 use crate::models::dto::PageRequest;
-use crate::services::customer_service::CustomerService;
+use crate::services::customer_service::{CreateCustomerArgs, CustomerService, UpdateCustomerArgs};
 use crate::utils::app_state::AppState;
 use crate::utils::data_permission::{DataPermissionFilter, DEFAULT_HIDDEN_FIELDS};
 use crate::utils::error::AppError;
@@ -179,26 +179,26 @@ pub async fn create_customer(
     };
 
     let customer = customer_service
-        .create_customer(
+        .create_customer(CreateCustomerArgs {
             customer_code,
-            payload.customer_name,
-            payload.contact_person,
-            payload.contact_phone,
-            payload.contact_email,
-            payload.address,
-            payload.city,
-            payload.province,
-            Some("中国".to_string()),
-            payload.postal_code,
+            customer_name: payload.customer_name,
+            contact_person: payload.contact_person,
+            contact_phone: payload.contact_phone,
+            contact_email: payload.contact_email,
+            address: payload.address,
+            city: payload.city,
+            province: payload.province,
+            country: Some("中国".to_string()),
+            postal_code: payload.postal_code,
             credit_limit,
-            payload.payment_terms.unwrap_or(crate::constants::DEFAULT_PAYMENT_TERMS_DAYS),
-            payload.tax_id,
-            payload.bank_name,
-            payload.bank_account,
+            payment_terms: payload.payment_terms.unwrap_or(crate::constants::DEFAULT_PAYMENT_TERMS_DAYS),
+            tax_id: payload.tax_id,
+            bank_name: payload.bank_name,
+            bank_account: payload.bank_account,
             customer_type,
-            payload.notes,
-            Some(auth.user_id),
-        )
+            notes: payload.notes,
+            created_by: Some(auth.user_id),
+        })
         .await?;
 
     let customer_json = serde_json::to_value(customer)
@@ -236,27 +236,27 @@ pub async fn update_customer(
         .and_then(|s| s.parse::<rust_decimal::Decimal>().ok());
 
     let customer = customer_service
-        .update_customer(
-            id,
-            payload.customer_name,
-            payload.contact_person,
-            payload.contact_phone,
-            payload.contact_email,
-            payload.address,
-            payload.city,
-            payload.province,
-            payload.postal_code,
+        .update_customer(UpdateCustomerArgs {
+            customer_id: id,
+            customer_name: payload.customer_name,
+            contact_person: payload.contact_person,
+            contact_phone: payload.contact_phone,
+            contact_email: payload.contact_email,
+            address: payload.address,
+            city: payload.city,
+            province: payload.province,
+            postal_code: payload.postal_code,
             credit_limit,
-            payload.payment_terms,
-            payload.tax_id,
-            payload.bank_name,
-            payload.bank_account,
-            payload.customer_type,
-            payload.status,
-            payload.notes,
+            payment_terms: payload.payment_terms,
+            tax_id: payload.tax_id,
+            bank_name: payload.bank_name,
+            bank_account: payload.bank_account,
+            customer_type: payload.customer_type,
+            status: payload.status,
+            notes: payload.notes,
             // 批次 101 v6 复审 P2-1：透传操作人 user_id 用于审计日志
-            auth.user_id,
-        )
+            user_id: auth.user_id,
+        })
         .await?;
 
     let customer_json = serde_json::to_value(customer)

@@ -49,6 +49,72 @@ pub struct InventoryStockService {
     pub db: Arc<DatabaseConnection>,
 }
 
+/// 创建库存参数对象
+///
+/// 批次 338 v10 复审 P3 修复：引入参数对象消除 create_stock 的 too_many_arguments 警告。
+/// 聚合创建库存记录所需的全部字段，避免函数签名携带 12 个参数。
+#[derive(Debug, Clone)]
+pub struct CreateStockArgs {
+    /// 仓库 ID
+    pub warehouse_id: i32,
+    /// 产品 ID
+    pub product_id: i32,
+    /// 批次号
+    pub batch_no: String,
+    /// 色号
+    pub color_no: String,
+    /// 数量（米）
+    pub quantity_meters: Decimal,
+    /// 数量（公斤）
+    pub quantity_kg: Decimal,
+    /// 等级
+    pub grade: String,
+    /// 染缸批号（可选）
+    pub dye_lot_no: Option<String>,
+    /// 克重（可选）
+    pub gram_weight: Option<Decimal>,
+    /// 幅宽（可选）
+    pub width: Option<Decimal>,
+    /// 库存状态
+    pub stock_status: String,
+    /// 质量状态
+    pub quality_status: String,
+}
+
+/// 创建面料库存参数对象
+///
+/// 批次 338 v10 复审 P3 修复：引入参数对象消除 create_stock_fabric 的 too_many_arguments 警告。
+/// 聚合创建面料库存记录所需的全部字段，避免函数签名携带 13 个参数。
+#[derive(Debug, Clone)]
+pub struct CreateStockFabricArgs {
+    /// 仓库 ID
+    pub warehouse_id: i32,
+    /// 产品 ID
+    pub product_id: i32,
+    /// 批次号
+    pub batch_no: String,
+    /// 色号
+    pub color_no: String,
+    /// 染缸批号（可选）
+    pub dye_lot_no: Option<String>,
+    /// 等级
+    pub grade: String,
+    /// 数量（米）
+    pub quantity_meters: Decimal,
+    /// 数量（公斤）
+    pub quantity_kg: Decimal,
+    /// 克重（可选）
+    pub gram_weight: Option<Decimal>,
+    /// 幅宽（可选）
+    pub width: Option<Decimal>,
+    /// 库位 ID（可选）
+    pub location_id: Option<i32>,
+    /// 货架号（可选）
+    pub shelf_no: Option<String>,
+    /// 层号（可选）
+    pub layer_no: Option<String>,
+}
+
 impl InventoryStockService {
     pub fn new(db: Arc<DatabaseConnection>) -> Self {
         Self { db }
@@ -61,22 +127,28 @@ impl InventoryStockService {
             .ok_or_else(|| AppError::not_found(format!("库存记录 ID {} 不存在", id)))
     }
 
-    #[allow(clippy::too_many_arguments)]
+    /// 创建库存
+    ///
+    /// 批次 338 v10 复审 P3 修复：签名从 12 参数改为单一参数对象 `CreateStockArgs`，
+    /// 消除 `clippy::too_many_arguments` 警告。
     pub async fn create_stock(
         &self,
-        warehouse_id: i32,
-        product_id: i32,
-        batch_no: String,
-        color_no: String,
-        quantity_meters: Decimal,
-        quantity_kg: Decimal,
-        grade: String,
-        dye_lot_no: Option<String>,
-        gram_weight: Option<Decimal>,
-        width: Option<Decimal>,
-        stock_status: String,
-        quality_status: String,
+        args: CreateStockArgs,
     ) -> Result<inventory_stock::Model, AppError> {
+        let CreateStockArgs {
+            warehouse_id,
+            product_id,
+            batch_no,
+            color_no,
+            quantity_meters,
+            quantity_kg,
+            grade,
+            dye_lot_no,
+            gram_weight,
+            width,
+            stock_status,
+            quality_status,
+        } = args;
         // P2 5-23 修复：service 层校验仓库/产品存在性，外键完整性不再仅依赖数据库
         use crate::models::{product, warehouse};
         use sea_orm::EntityTrait;
@@ -300,23 +372,28 @@ impl InventoryStockService {
     }
 
     /// 创建库存（面料行业版）
-    #[allow(clippy::too_many_arguments)]
+    ///
+    /// 批次 338 v10 复审 P3 修复：签名从 13 参数改为单一参数对象 `CreateStockFabricArgs`，
+    /// 消除 `clippy::too_many_arguments` 警告。
     pub async fn create_stock_fabric(
         &self,
-        warehouse_id: i32,
-        product_id: i32,
-        batch_no: String,
-        color_no: String,
-        dye_lot_no: Option<String>,
-        grade: String,
-        quantity_meters: Decimal,
-        quantity_kg: Decimal,
-        gram_weight: Option<Decimal>,
-        width: Option<Decimal>,
-        location_id: Option<i32>,
-        shelf_no: Option<String>,
-        layer_no: Option<String>,
+        args: CreateStockFabricArgs,
     ) -> Result<inventory_stock::Model, AppError> {
+        let CreateStockFabricArgs {
+            warehouse_id,
+            product_id,
+            batch_no,
+            color_no,
+            dye_lot_no,
+            grade,
+            quantity_meters,
+            quantity_kg,
+            gram_weight,
+            width,
+            location_id,
+            shelf_no,
+            layer_no,
+        } = args;
         // P2 5-23 修复：service 层校验仓库/产品存在性，外键完整性不再仅依赖数据库
         use crate::models::{product, warehouse};
         use sea_orm::EntityTrait;

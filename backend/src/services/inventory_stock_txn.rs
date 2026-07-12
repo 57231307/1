@@ -13,7 +13,8 @@ use crate::models::inventory_transaction;
 use crate::services::event_bus::BusinessEvent;
 use crate::utils::error::AppError;
 
-use super::inventory_stock_service::InventoryStockService;
+use super::inventory_stock_query::RecordTransactionArgs;
+use super::inventory_stock_service::{CreateStockFabricArgs, InventoryStockService};
 
 impl InventoryStockService {
     pub async fn update_stock_quantity_with_optimistic_lock_txn(
@@ -67,23 +68,28 @@ impl InventoryStockService {
     }
 
     /// 创建面料库存记录（事务版本）
-    #[allow(clippy::too_many_arguments)]
+    ///
+    /// 批次 338 v10 复审 P3 修复：签名从 14 参数改为 2 参数（txn + args），
+    /// 复用 `CreateStockFabricArgs` 参数对象，消除 `clippy::too_many_arguments` 警告。
     pub async fn create_stock_fabric_txn(
         txn: &sea_orm::DatabaseTransaction,
-        warehouse_id: i32,
-        product_id: i32,
-        batch_no: String,
-        color_no: String,
-        dye_lot_no: Option<String>,
-        grade: String,
-        quantity_meters: Decimal,
-        quantity_kg: Decimal,
-        gram_weight: Option<Decimal>,
-        width: Option<Decimal>,
-        location_id: Option<i32>,
-        shelf_no: Option<String>,
-        layer_no: Option<String>,
+        args: CreateStockFabricArgs,
     ) -> Result<inventory_stock::Model, AppError> {
+        let CreateStockFabricArgs {
+            warehouse_id,
+            product_id,
+            batch_no,
+            color_no,
+            dye_lot_no,
+            grade,
+            quantity_meters,
+            quantity_kg,
+            gram_weight,
+            width,
+            location_id,
+            shelf_no,
+            layer_no,
+        } = args;
         let _final_quantity_kg =
             Self::calculate_quantity_kg(quantity_meters, gram_weight, width, quantity_kg);
 
@@ -126,28 +132,33 @@ impl InventoryStockService {
     }
 
     /// 记录库存流水（事务版本）
-    #[allow(clippy::too_many_arguments)]
+    ///
+    /// 批次 338 v10 复审 P3 修复：签名从 19 参数改为 2 参数（txn + args），
+    /// 复用 `RecordTransactionArgs` 参数对象，消除 `clippy::too_many_arguments` 警告。
     pub async fn record_transaction_txn(
         txn: &sea_orm::DatabaseTransaction,
-        transaction_type: String,
-        product_id: i32,
-        warehouse_id: i32,
-        batch_no: String,
-        color_no: String,
-        dye_lot_no: Option<String>,
-        grade: String,
-        quantity_meters: Decimal,
-        quantity_kg: Decimal,
-        source_bill_type: Option<String>,
-        source_bill_no: Option<String>,
-        source_bill_id: Option<i32>,
-        quantity_before_meters: Option<Decimal>,
-        quantity_before_kg: Option<Decimal>,
-        quantity_after_meters: Option<Decimal>,
-        quantity_after_kg: Option<Decimal>,
-        notes: Option<String>,
-        created_by: Option<i32>,
+        args: RecordTransactionArgs,
     ) -> Result<(inventory_transaction::Model, Option<BusinessEvent>), AppError> {
+        let RecordTransactionArgs {
+            transaction_type,
+            product_id,
+            warehouse_id,
+            batch_no,
+            color_no,
+            dye_lot_no,
+            grade,
+            quantity_meters,
+            quantity_kg,
+            source_bill_type,
+            source_bill_no,
+            source_bill_id,
+            quantity_before_meters,
+            quantity_before_kg,
+            quantity_after_meters,
+            quantity_after_kg,
+            notes,
+            created_by,
+        } = args;
         let active_transaction = inventory_transaction::ActiveModel {
             id: Default::default(),
             transaction_type: Set(transaction_type),

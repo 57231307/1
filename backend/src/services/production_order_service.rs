@@ -596,6 +596,7 @@ impl ProductionOrderService {
         default_warehouse: &crate::models::warehouse::Model,
         production_qty: Decimal,
     ) -> Result<Vec<BusinessEvent>, AppError> {
+        use crate::services::inventory_stock_query::RecordTransactionArgs;
         use crate::services::inventory_stock_service::InventoryStockService;
 
         let mut pending_events: Vec<BusinessEvent> = Vec::new();
@@ -687,26 +688,29 @@ impl ProductionOrderService {
                 // 记录库存流水：生产消耗
                 // P0 5-2 修复：record_transaction_txn 不再在函数内 publish 事件，
                 // 改为返回 (Model, Option<BusinessEvent>)，由本函数收集后交给调用方在 commit 后统一 publish
+                // 批次 338 v10 复审 P3 修复：使用参数对象替代多参数
                 let (_, txn_event) = InventoryStockService::record_transaction_txn(
                     txn,
-                    "PRODUCTION_CONSUMPTION".to_string(),
-                    bom_item.material_id,
-                    default_warehouse.id,
-                    stock_record.batch_no.clone(),
-                    stock_record.color_no.clone(),
-                    stock_record.dye_lot_no.clone(),
-                    stock_record.grade.clone(),
-                    consumption_qty,
-                    Decimal::ZERO,
-                    Some("production_order".to_string()),
-                    Some(order.order_no.clone()),
-                    Some(order.id),
-                    Some(qty_before_meters),
-                    Some(qty_before_kg),
-                    Some(qty_after_meters),
-                    Some(qty_after_kg),
-                    Some(format!("生产消耗 - 订单 {}", order.order_no)),
-                    Some(order.created_by),
+                    RecordTransactionArgs {
+                        transaction_type: "PRODUCTION_CONSUMPTION".to_string(),
+                        product_id: bom_item.material_id,
+                        warehouse_id: default_warehouse.id,
+                        batch_no: stock_record.batch_no.clone(),
+                        color_no: stock_record.color_no.clone(),
+                        dye_lot_no: stock_record.dye_lot_no.clone(),
+                        grade: stock_record.grade.clone(),
+                        quantity_meters: consumption_qty,
+                        quantity_kg: Decimal::ZERO,
+                        source_bill_type: Some("production_order".to_string()),
+                        source_bill_no: Some(order.order_no.clone()),
+                        source_bill_id: Some(order.id),
+                        quantity_before_meters: Some(qty_before_meters),
+                        quantity_before_kg: Some(qty_before_kg),
+                        quantity_after_meters: Some(qty_after_meters),
+                        quantity_after_kg: Some(qty_after_kg),
+                        notes: Some(format!("生产消耗 - 订单 {}", order.order_no)),
+                        created_by: Some(order.created_by),
+                    },
                 )
                 .await?;
                 if let Some(ev) = txn_event {
@@ -728,7 +732,8 @@ impl ProductionOrderService {
         default_warehouse: &crate::models::warehouse::Model,
         production_qty: Decimal,
     ) -> Result<Vec<BusinessEvent>, AppError> {
-        use crate::services::inventory_stock_service::InventoryStockService;
+        use crate::services::inventory_stock_query::RecordTransactionArgs;
+        use crate::services::inventory_stock_service::{CreateStockFabricArgs, InventoryStockService};
 
         let mut pending_events: Vec<BusinessEvent> = Vec::new();
 
@@ -774,26 +779,29 @@ impl ProductionOrderService {
                 // 记录库存流水：生产入库
                 // P0 5-2 修复：record_transaction_txn 不再在函数内 publish 事件，
                 // 改为返回 (Model, Option<BusinessEvent>)，由本函数收集后交给调用方在 commit 后统一 publish
+                // 批次 338 v10 复审 P3 修复：使用参数对象替代多参数
                 let (_, txn_event) = InventoryStockService::record_transaction_txn(
                     txn,
-                    "PRODUCTION_OUTPUT".to_string(),
-                    order.product_id,
-                    default_warehouse.id,
-                    stock_record.batch_no.clone(),
-                    stock_record.color_no.clone(),
-                    stock_record.dye_lot_no.clone(),
-                    stock_record.grade.clone(),
-                    production_qty,
-                    added_kg,
-                    Some("production_order".to_string()),
-                    Some(order.order_no.clone()),
-                    Some(order.id),
-                    Some(qty_before_meters),
-                    Some(qty_before_kg),
-                    Some(qty_after_meters),
-                    Some(qty_after_kg),
-                    Some(format!("生产入库 - 订单 {}", order.order_no)),
-                    Some(order.created_by),
+                    RecordTransactionArgs {
+                        transaction_type: "PRODUCTION_OUTPUT".to_string(),
+                        product_id: order.product_id,
+                        warehouse_id: default_warehouse.id,
+                        batch_no: stock_record.batch_no.clone(),
+                        color_no: stock_record.color_no.clone(),
+                        dye_lot_no: stock_record.dye_lot_no.clone(),
+                        grade: stock_record.grade.clone(),
+                        quantity_meters: production_qty,
+                        quantity_kg: added_kg,
+                        source_bill_type: Some("production_order".to_string()),
+                        source_bill_no: Some(order.order_no.clone()),
+                        source_bill_id: Some(order.id),
+                        quantity_before_meters: Some(qty_before_meters),
+                        quantity_before_kg: Some(qty_before_kg),
+                        quantity_after_meters: Some(qty_after_meters),
+                        quantity_after_kg: Some(qty_after_kg),
+                        notes: Some(format!("生产入库 - 订单 {}", order.order_no)),
+                        created_by: Some(order.created_by),
+                    },
                 )
                 .await?;
                 if let Some(ev) = txn_event {
@@ -808,47 +816,53 @@ impl ProductionOrderService {
                     Decimal::ZERO
                 };
 
+                // 批次 338 v10 复审 P3 修复：使用参数对象替代多参数
                 let new_stock = InventoryStockService::create_stock_fabric_txn(
                     txn,
-                    default_warehouse.id,
-                    order.product_id,
-                    order.order_no.clone(),
-                    "DEFAULT".to_string(),
-                    None,
-                    "一等品".to_string(),
-                    production_qty,
-                    kg,
-                    product.gram_weight,
-                    product.width,
-                    None,
-                    None,
-                    None,
+                    CreateStockFabricArgs {
+                        warehouse_id: default_warehouse.id,
+                        product_id: order.product_id,
+                        batch_no: order.order_no.clone(),
+                        color_no: "DEFAULT".to_string(),
+                        dye_lot_no: None,
+                        grade: "一等品".to_string(),
+                        quantity_meters: production_qty,
+                        quantity_kg: kg,
+                        gram_weight: product.gram_weight,
+                        width: product.width,
+                        location_id: None,
+                        shelf_no: None,
+                        layer_no: None,
+                    },
                 )
                 .await?;
 
                 // 记录库存流水：生产入库
                 // P0 5-2 修复：record_transaction_txn 不再在函数内 publish 事件，
                 // 改为返回 (Model, Option<BusinessEvent>)，由本函数收集后交给调用方在 commit 后统一 publish
+                // 批次 338 v10 复审 P3 修复：使用参数对象替代多参数
                 let (_, txn_event) = InventoryStockService::record_transaction_txn(
                     txn,
-                    "PRODUCTION_OUTPUT".to_string(),
-                    order.product_id,
-                    default_warehouse.id,
-                    new_stock.batch_no.clone(),
-                    new_stock.color_no.clone(),
-                    new_stock.dye_lot_no.clone(),
-                    new_stock.grade.clone(),
-                    production_qty,
-                    kg,
-                    Some("production_order".to_string()),
-                    Some(order.order_no.clone()),
-                    Some(order.id),
-                    Some(Decimal::ZERO),
-                    Some(Decimal::ZERO),
-                    Some(production_qty),
-                    Some(kg),
-                    Some(format!("生产入库 - 订单 {}", order.order_no)),
-                    Some(order.created_by),
+                    RecordTransactionArgs {
+                        transaction_type: "PRODUCTION_OUTPUT".to_string(),
+                        product_id: order.product_id,
+                        warehouse_id: default_warehouse.id,
+                        batch_no: new_stock.batch_no.clone(),
+                        color_no: new_stock.color_no.clone(),
+                        dye_lot_no: new_stock.dye_lot_no.clone(),
+                        grade: new_stock.grade.clone(),
+                        quantity_meters: production_qty,
+                        quantity_kg: kg,
+                        source_bill_type: Some("production_order".to_string()),
+                        source_bill_no: Some(order.order_no.clone()),
+                        source_bill_id: Some(order.id),
+                        quantity_before_meters: Some(Decimal::ZERO),
+                        quantity_before_kg: Some(Decimal::ZERO),
+                        quantity_after_meters: Some(production_qty),
+                        quantity_after_kg: Some(kg),
+                        notes: Some(format!("生产入库 - 订单 {}", order.order_no)),
+                        created_by: Some(order.created_by),
+                    },
                 )
                 .await?;
                 if let Some(ev) = txn_event {

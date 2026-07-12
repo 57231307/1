@@ -5,6 +5,8 @@
 
 use crate::models::{inventory_stock, product, purchase_order, purchase_order_item, status};
 use crate::services::event_bus::{BusinessEvent, EVENT_BUS};
+use crate::services::inventory_stock_query::RecordTransactionArgs;
+use crate::services::inventory_stock_service::CreateStockFabricArgs;
 use crate::services::po::CreateOrderItemRequest;
 use crate::services::po::UpdateOrderItemRequest;
 use crate::utils::error::AppError;
@@ -158,21 +160,24 @@ impl PurchaseOrderService {
                         before_quantity_kg = Decimal::ZERO;
 
                         // 创建新库存记录（使用事务版本）
+                        // 批次 338 v10 复审 P3 修复：使用参数对象替代多参数
                         crate::services::inventory_stock_service::InventoryStockService::create_stock_fabric_txn(
                             &txn,
-                            order.warehouse_id,
-                            item.product_id,
-                            "DEFAULT".to_string(),
-                            "DEFAULT".to_string(),
-                            None,
-                            "A".to_string(),
-                            receive_quantity_meters,
-                            receive_quantity_alt,
-                            product.gram_weight,
-                            product.width,
-                            None,
-                            None,
-                            None,
+                            CreateStockFabricArgs {
+                                warehouse_id: order.warehouse_id,
+                                product_id: item.product_id,
+                                batch_no: "DEFAULT".to_string(),
+                                color_no: "DEFAULT".to_string(),
+                                dye_lot_no: None,
+                                grade: "A".to_string(),
+                                quantity_meters: receive_quantity_meters,
+                                quantity_kg: receive_quantity_alt,
+                                gram_weight: product.gram_weight,
+                                width: product.width,
+                                location_id: None,
+                                shelf_no: None,
+                                layer_no: None,
+                            },
                         )
                         .await
                         .map_err(|e| {
@@ -185,26 +190,29 @@ impl PurchaseOrderService {
                 // 记录库存流水（使用事务版本，正确的前后数量）
                 // P0 5-2 修复：record_transaction_txn 不再在函数内 publish 事件，
                 // 改为返回 (Model, Option<BusinessEvent>)，由调用方在 commit 后统一 publish
+                // 批次 338 v10 复审 P3 修复：使用参数对象替代多参数
                 let (_, txn_event) = crate::services::inventory_stock_service::InventoryStockService::record_transaction_txn(
                     &txn,
-                    "PURCHASE_RECEIPT".to_string(),
-                    item.product_id,
-                    order.warehouse_id,
-                    "DEFAULT".to_string(),
-                    "DEFAULT".to_string(),
-                    None,
-                    "A".to_string(),
-                    receive_quantity_meters,
-                    receive_quantity_alt,
-                    Some("purchase_order".to_string()),
-                    Some(order.order_no.clone()),
-                    Some(order.id),
-                    Some(before_quantity_meters),
-                    Some(before_quantity_kg),
-                    Some(before_quantity_meters + receive_quantity_meters),
-                    Some(before_quantity_kg + receive_quantity_alt),
-                    Some(format!("采购入库 - 订单 {}", order.order_no)),
-                    None,
+                    RecordTransactionArgs {
+                        transaction_type: "PURCHASE_RECEIPT".to_string(),
+                        product_id: item.product_id,
+                        warehouse_id: order.warehouse_id,
+                        batch_no: "DEFAULT".to_string(),
+                        color_no: "DEFAULT".to_string(),
+                        dye_lot_no: None,
+                        grade: "A".to_string(),
+                        quantity_meters: receive_quantity_meters,
+                        quantity_kg: receive_quantity_alt,
+                        source_bill_type: Some("purchase_order".to_string()),
+                        source_bill_no: Some(order.order_no.clone()),
+                        source_bill_id: Some(order.id),
+                        quantity_before_meters: Some(before_quantity_meters),
+                        quantity_before_kg: Some(before_quantity_kg),
+                        quantity_after_meters: Some(before_quantity_meters + receive_quantity_meters),
+                        quantity_after_kg: Some(before_quantity_kg + receive_quantity_alt),
+                        notes: Some(format!("采购入库 - 订单 {}", order.order_no)),
+                        created_by: None,
+                    },
                 )
                 .await
                 .map_err(|e| {

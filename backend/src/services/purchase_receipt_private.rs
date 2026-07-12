@@ -129,7 +129,8 @@ impl PurchaseReceiptService {
         receipt: &purchase_receipt::Model,
         txn: &sea_orm::DatabaseTransaction,
     ) -> Result<Vec<BusinessEvent>, AppError> {
-        use crate::services::inventory_stock_service::InventoryStockService;
+        use crate::services::inventory_stock_query::RecordTransactionArgs;
+        use crate::services::inventory_stock_service::{CreateStockFabricArgs, InventoryStockService};
 
         // P0 5-2 修复：本函数不 commit 事务（由调用方 confirm_receipt commit），
         // 收集 record_transaction_txn 返回的库存流水事件交给调用方，
@@ -182,47 +183,53 @@ impl PurchaseReceiptService {
 
                 stock
             } else {
+                // 批次 338 v10 复审 P3 修复：使用参数对象替代多参数
                 InventoryStockService::create_stock_fabric_txn(
                     txn,
-                    receipt.warehouse_id,
-                    item.product_id,
-                    batch_no.clone(),
-                    color_no.clone(),
-                    item.lot_no.clone(),
-                    grade.clone(),
-                    item.quantity,
-                    item.quantity_alt.unwrap_or(Decimal::new(0, 0)),
-                    item.gram_weight,
-                    item.width,
-                    None,
-                    None,
-                    None,
+                    CreateStockFabricArgs {
+                        warehouse_id: receipt.warehouse_id,
+                        product_id: item.product_id,
+                        batch_no: batch_no.clone(),
+                        color_no: color_no.clone(),
+                        dye_lot_no: item.lot_no.clone(),
+                        grade: grade.clone(),
+                        quantity_meters: item.quantity,
+                        quantity_kg: item.quantity_alt.unwrap_or(Decimal::new(0, 0)),
+                        gram_weight: item.gram_weight,
+                        width: item.width,
+                        location_id: None,
+                        shelf_no: None,
+                        layer_no: None,
+                    },
                 )
                 .await?
             };
 
             // P0 5-2 修复：record_transaction_txn 不再在函数内 publish 事件，
             // 改为返回 (Model, Option<BusinessEvent>)，由本函数收集后交给调用方在 commit 后统一 publish
+            // 批次 338 v10 复审 P3 修复：使用参数对象替代多参数
             let (_, txn_event) = InventoryStockService::record_transaction_txn(
                 txn,
-                "PURCHASE_RECEIPT".to_string(),
-                item.product_id,
-                receipt.warehouse_id,
-                batch_no,
-                color_no,
-                item.lot_no,
-                grade,
-                item.quantity,
-                item.quantity_alt.unwrap_or(Decimal::new(0, 0)),
-                Some("PURCHASE_RECEIPT".to_string()),
-                Some(receipt.receipt_no.clone()),
-                Some(receipt.id),
-                Some(stock_model.quantity_meters),
-                Some(stock_model.quantity_kg),
-                Some(stock_model.quantity_meters + item.quantity),
-                Some(stock_model.quantity_kg + item.quantity_alt.unwrap_or(Decimal::new(0, 0))),
-                Some("入库自动增加库存".to_string()),
-                Some(receipt.created_by),
+                RecordTransactionArgs {
+                    transaction_type: "PURCHASE_RECEIPT".to_string(),
+                    product_id: item.product_id,
+                    warehouse_id: receipt.warehouse_id,
+                    batch_no,
+                    color_no,
+                    dye_lot_no: item.lot_no,
+                    grade,
+                    quantity_meters: item.quantity,
+                    quantity_kg: item.quantity_alt.unwrap_or(Decimal::new(0, 0)),
+                    source_bill_type: Some("PURCHASE_RECEIPT".to_string()),
+                    source_bill_no: Some(receipt.receipt_no.clone()),
+                    source_bill_id: Some(receipt.id),
+                    quantity_before_meters: Some(stock_model.quantity_meters),
+                    quantity_before_kg: Some(stock_model.quantity_kg),
+                    quantity_after_meters: Some(stock_model.quantity_meters + item.quantity),
+                    quantity_after_kg: Some(stock_model.quantity_kg + item.quantity_alt.unwrap_or(Decimal::new(0, 0))),
+                    notes: Some("入库自动增加库存".to_string()),
+                    created_by: Some(receipt.created_by),
+                },
             )
             .await?;
             if let Some(ev) = txn_event {

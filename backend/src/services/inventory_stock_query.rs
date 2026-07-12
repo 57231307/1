@@ -105,30 +105,79 @@ pub struct ListTransactionsQuery {
     pub end_date: Option<chrono::NaiveDateTime>,
 }
 
+/// 库存流水记录参数对象
+///
+/// 批次 338 v10 复审 P3 修复：引入参数对象消除 record_transaction 的 too_many_arguments 警告。
+/// 聚合库存流水记录所需的全部字段，避免函数签名携带 18 个参数。
+#[derive(Debug, Clone)]
+pub struct RecordTransactionArgs {
+    /// 交易类型
+    pub transaction_type: String,
+    /// 产品 ID
+    pub product_id: i32,
+    /// 仓库 ID
+    pub warehouse_id: i32,
+    /// 批次号
+    pub batch_no: String,
+    /// 色号
+    pub color_no: String,
+    /// 染缸批号（可选）
+    pub dye_lot_no: Option<String>,
+    /// 等级
+    pub grade: String,
+    /// 数量（米）
+    pub quantity_meters: Decimal,
+    /// 数量（公斤）
+    pub quantity_kg: Decimal,
+    /// 来源单据类型（可选）
+    pub source_bill_type: Option<String>,
+    /// 来源单据号（可选）
+    pub source_bill_no: Option<String>,
+    /// 来源单据 ID（可选）
+    pub source_bill_id: Option<i32>,
+    /// 变更前数量（米，可选）
+    pub quantity_before_meters: Option<Decimal>,
+    /// 变更前数量（公斤，可选）
+    pub quantity_before_kg: Option<Decimal>,
+    /// 变更后数量（米，可选）
+    pub quantity_after_meters: Option<Decimal>,
+    /// 变更后数量（公斤，可选）
+    pub quantity_after_kg: Option<Decimal>,
+    /// 备注（可选）
+    pub notes: Option<String>,
+    /// 创建人 ID（可选）
+    pub created_by: Option<i32>,
+}
+
 impl InventoryStockService {
-    // TODO(tech-debt): 库存流水记录字段较多，后续可通过 DTO 聚合参数以收敛签名长度，移除此标注。
-    #[allow(clippy::too_many_arguments)]
+    /// 记录库存交易流水
+    ///
+    /// 批次 338 v10 复审 P3 修复：签名从 18 参数改为单一参数对象 `RecordTransactionArgs`，
+    /// 消除 `clippy::too_many_arguments` 警告。
     pub async fn record_transaction(
         &self,
-        transaction_type: String,
-        product_id: i32,
-        warehouse_id: i32,
-        batch_no: String,
-        color_no: String,
-        dye_lot_no: Option<String>,
-        grade: String,
-        quantity_meters: Decimal,
-        quantity_kg: Decimal,
-        source_bill_type: Option<String>,
-        source_bill_no: Option<String>,
-        source_bill_id: Option<i32>,
-        quantity_before_meters: Option<Decimal>,
-        quantity_before_kg: Option<Decimal>,
-        quantity_after_meters: Option<Decimal>,
-        quantity_after_kg: Option<Decimal>,
-        notes: Option<String>,
-        created_by: Option<i32>,
+        args: RecordTransactionArgs,
     ) -> Result<inventory_transaction::Model, AppError> {
+        let RecordTransactionArgs {
+            transaction_type,
+            product_id,
+            warehouse_id,
+            batch_no,
+            color_no,
+            dye_lot_no,
+            grade,
+            quantity_meters,
+            quantity_kg,
+            source_bill_type,
+            source_bill_no,
+            source_bill_id,
+            quantity_before_meters,
+            quantity_before_kg,
+            quantity_after_meters,
+            quantity_after_kg,
+            notes,
+            created_by,
+        } = args;
         let active_transaction = inventory_transaction::ActiveModel {
             id: Default::default(),
             transaction_type: Set(transaction_type),

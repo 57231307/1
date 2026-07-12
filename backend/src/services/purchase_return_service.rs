@@ -9,6 +9,7 @@
 use crate::models::status::purchase_return as pr_status;
 use crate::models::{inventory_stock, product, purchase_return, purchase_return_item};
 use crate::services::event_bus::{BusinessEvent, EVENT_BUS};
+use crate::services::inventory_stock_query::RecordTransactionArgs;
 use crate::utils::error::AppError;
 // 批次 258 修复：接入 paginate_with_total 统一分页逻辑
 use crate::utils::pagination::paginate_with_total;
@@ -285,26 +286,29 @@ impl PurchaseReturnService {
 
                 // P0 5-2 修复：record_transaction_txn 不再在函数内 publish 事件，
                 // 改为返回 (Model, Option<BusinessEvent>)，由调用方在 commit 后统一 publish
+                // 批次 338 v10 复审 P3 修复：使用参数对象替代多参数
                 let (_, txn_event) = crate::services::inventory_stock_service::InventoryStockService::record_transaction_txn(
                     &txn,
-                    "PURCHASE_RETURN".to_string(),
-                    item.product_id,
-                    warehouse_id,
-                    s.batch_no.clone(),
-                    s.color_no.clone(),
-                    s.dye_lot_no.clone(),
-                    s.grade.clone(),
-                    -item.quantity,
-                    -item.quantity_alt,
-                    Some("purchase_return".to_string()),
-                    Some(return_order.return_no.clone()),
-                    Some(return_order.id),
-                    Some(s.quantity_meters),
-                    Some(s.quantity_kg),
-                    Some(new_quantity_meters),
-                    Some(new_quantity_kg),
-                    Some("采购退货扣减库存".to_string()),
-                    Some(user_id),
+                    RecordTransactionArgs {
+                        transaction_type: "PURCHASE_RETURN".to_string(),
+                        product_id: item.product_id,
+                        warehouse_id,
+                        batch_no: s.batch_no.clone(),
+                        color_no: s.color_no.clone(),
+                        dye_lot_no: s.dye_lot_no.clone(),
+                        grade: s.grade.clone(),
+                        quantity_meters: -item.quantity,
+                        quantity_kg: -item.quantity_alt,
+                        source_bill_type: Some("purchase_return".to_string()),
+                        source_bill_no: Some(return_order.return_no.clone()),
+                        source_bill_id: Some(return_order.id),
+                        quantity_before_meters: Some(s.quantity_meters),
+                        quantity_before_kg: Some(s.quantity_kg),
+                        quantity_after_meters: Some(new_quantity_meters),
+                        quantity_after_kg: Some(new_quantity_kg),
+                        notes: Some("采购退货扣减库存".to_string()),
+                        created_by: Some(user_id),
+                    },
                 ).await?;
                 if let Some(ev) = txn_event {
                     pending_events.push(ev);

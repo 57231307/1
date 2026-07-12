@@ -3,7 +3,7 @@
 //! 拆分自 inventory_stock_handler.rs：原 2 个面料 fn 独立成文件。
 
 use crate::middleware::auth_context::AuthContext;
-use crate::services::inventory_stock_service::InventoryStockService;
+use crate::services::inventory_stock_service::{CreateStockFabricArgs, InventoryStockService};
 use crate::utils::app_state::AppState;
 use crate::utils::dual_unit_converter::DualUnitConverter;
 use crate::utils::error::AppError;
@@ -84,21 +84,21 @@ pub async fn create_stock_fabric(
     };
 
     let stock = service
-        .create_stock_fabric(
-            payload.warehouse_id,
-            payload.product_id,
-            payload.batch_no,
-            payload.color_no,
-            payload.dye_lot_no,
-            payload.grade,
-            payload.quantity_meters,
+        .create_stock_fabric(CreateStockFabricArgs {
+            warehouse_id: payload.warehouse_id,
+            product_id: payload.product_id,
+            batch_no: payload.batch_no,
+            color_no: payload.color_no,
+            dye_lot_no: payload.dye_lot_no,
+            grade: payload.grade,
+            quantity_meters: payload.quantity_meters,
             quantity_kg,
-            payload.gram_weight,
-            payload.width,
-            payload.location_id,
-            payload.shelf_no,
-            payload.layer_no,
-        )
+            gram_weight: payload.gram_weight,
+            width: payload.width,
+            location_id: payload.location_id,
+            shelf_no: payload.shelf_no,
+            layer_no: payload.layer_no,
+        })
         .await
         .map_err(|e| AppError::internal(e.to_string()))?;
 
