@@ -87,10 +87,9 @@ impl AiAnalysisService {
         let mut level = values[0];
         let mut trend = if n > 1 { values[1] - values[0] } else { 0.0 };
 
-        #[allow(clippy::needless_range_loop)]
-        for i in 1..n {
+        for &v in values.iter().skip(1) {
             let prev_level = level;
-            level = alpha * values[i] + (1.0 - alpha) * (level + trend);
+            level = alpha * v + (1.0 - alpha) * (level + trend);
             trend = beta * (level - prev_level) + (1.0 - beta) * trend;
         }
 
@@ -98,13 +97,12 @@ impl AiAnalysisService {
         let mut residuals = Vec::new();
         let mut fit_level = values[0];
         let mut fit_trend = if n > 1 { values[1] - values[0] } else { 0.0 };
-        #[allow(clippy::needless_range_loop)]
-        for i in 0..n {
+        for (i, &v) in values.iter().enumerate() {
             let predicted = fit_level + fit_trend;
-            residuals.push(values[i] - predicted);
+            residuals.push(v - predicted);
             if i < n - 1 {
                 let prev = fit_level;
-                fit_level = alpha * values[i] + (1.0 - alpha) * (fit_level + fit_trend);
+                fit_level = alpha * v + (1.0 - alpha) * (fit_level + fit_trend);
                 fit_trend = beta * (fit_level - prev) + (1.0 - beta) * fit_trend;
             }
         }
