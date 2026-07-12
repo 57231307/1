@@ -16,6 +16,7 @@ use serde::Deserialize;
 use std::sync::Arc;
 
 use super::ar_invoice_service::{ArInvoiceService, CreateArInvoiceRequest};
+use super::inventory_stock_query::RecordTransactionArgs;
 use super::inventory_stock_service::InventoryStockService;
 
 /// 创建销售退货请求
@@ -480,27 +481,28 @@ impl SalesReturnService {
             }
 
             // 增加库存交易记录
+            // 批次 338 v10 复审 P3 修复：使用 RecordTransactionArgs 参数对象替代多参数
             stock_service
-                .record_transaction(
-                    "SALES_RETURN".to_string(),
-                    item.product_id,
-                    return_order.warehouse_id,
-                    batch_no.clone(),
-                    color_no.clone(),
-                    Some(batch_no.clone()), // dye_lot_no
-                    grade.clone(),
-                    item.quantity, // 正数，表示入库
-                    item.quantity_alt,
-                    Some("SALES_RETURN".to_string()),
-                    Some(return_order.return_no.clone()),
-                    Some(return_order.id),
-                    None,
-                    None,
-                    None,
-                    None,
-                    Some("销售退货入库".to_string()),
-                    Some(user_id),
-                )
+                .record_transaction(RecordTransactionArgs {
+                    transaction_type: "SALES_RETURN".to_string(),
+                    product_id: item.product_id,
+                    warehouse_id: return_order.warehouse_id,
+                    batch_no: batch_no.clone(),
+                    color_no: color_no.clone(),
+                    dye_lot_no: Some(batch_no.clone()), // dye_lot_no
+                    grade: grade.clone(),
+                    quantity_meters: item.quantity, // 正数，表示入库
+                    quantity_kg: item.quantity_alt,
+                    source_bill_type: Some("SALES_RETURN".to_string()),
+                    source_bill_no: Some(return_order.return_no.clone()),
+                    source_bill_id: Some(return_order.id),
+                    quantity_before_meters: None,
+                    quantity_before_kg: None,
+                    quantity_after_meters: None,
+                    quantity_after_kg: None,
+                    notes: Some("销售退货入库".to_string()),
+                    created_by: Some(user_id),
+                })
                 .await?;
         }
 

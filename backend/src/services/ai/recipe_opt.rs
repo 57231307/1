@@ -415,18 +415,36 @@ mod tests {
     use crate::models::status::master_data;
     use rust_decimal::Decimal;
 
-    /// 构造一条 `DyeRecipeModel` 测试夹具
-    #[allow(clippy::too_many_arguments)]
-    fn make_recipe(
-        recipe_no: &str,
-        color_no: &str,
-        fabric_type: &str,
-        dye_type: &str,
+    /// 染色配方测试夹具参数对象
+    ///
+    /// 批次 338 v10 复审 P3 修复：引入参数对象消除 make_recipe 测试夹具的 too_many_arguments 警告。
+    /// 聚合染色配方构造所需的全部字段，使用生命周期 `&'a str` 借用避免不必要的 to_string()。
+    struct RecipeFixture<'a> {
+        recipe_no: &'a str,
+        color_no: &'a str,
+        fabric_type: &'a str,
+        dye_type: &'a str,
         temperature: f64,
         time_minutes: i32,
         ph: f64,
         liquor: f64,
-    ) -> DyeRecipeModel {
+    }
+
+    /// 构造一条 `DyeRecipeModel` 测试夹具
+    ///
+    /// 批次 338 v10 复审 P3 修复：签名从 8 参数改为单一参数对象 `RecipeFixture`，
+    /// 消除 `clippy::too_many_arguments` 警告。
+    fn make_recipe(fixture: RecipeFixture<'_>) -> DyeRecipeModel {
+        let RecipeFixture {
+            recipe_no,
+            color_no,
+            fabric_type,
+            dye_type,
+            temperature,
+            time_minutes,
+            ph,
+            liquor,
+        } = fixture;
         DyeRecipeModel {
             id: 0,
             recipe_no: recipe_no.to_string(),
@@ -517,16 +535,16 @@ mod tests {
         // 5 条全匹配：颜色 BL-301 + 棉 + 活性染料 → 相似度 1.3
         let history: Vec<DyeRecipeModel> = (0..5)
             .map(|i| {
-                make_recipe(
-                    &format!("R-BL301-{}", i),
-                    "BL-301",
-                    "棉",
-                    "活性染料",
-                    60.0 + i as f64,        // 60, 61, 62, 63, 64
-                    40 + i * 2,             // 40, 42, 44, 46, 48
-                    6.0 + (i as f64) * 0.1, // 6.0, 6.1, 6.2, 6.3, 6.4
-                    10.0,
-                )
+                make_recipe(RecipeFixture {
+                    recipe_no: &format!("R-BL301-{}", i),
+                    color_no: "BL-301",
+                    fabric_type: "棉",
+                    dye_type: "活性染料",
+                    temperature: 60.0 + i as f64,        // 60, 61, 62, 63, 64
+                    time_minutes: 40 + i * 2,             // 40, 42, 44, 46, 48
+                    ph: 6.0 + (i as f64) * 0.1, // 6.0, 6.1, 6.2, 6.3, 6.4
+                    liquor: 10.0,
+                })
             })
             .collect();
 
@@ -589,9 +607,9 @@ mod tests {
     #[test]
     fn test_temperature_recommendation() {
         // 3 条历史：50 / 60 / 70，权重 1.0 / 1.3 / 0.5
-        let r1 = make_recipe("R-1", "BL-301", "棉", "活性染料", 50.0, 30, 7.0, 10.0);
-        let r2 = make_recipe("R-2", "BL-301", "棉", "活性染料", 60.0, 40, 7.0, 10.0);
-        let r3 = make_recipe("R-3", "BL-301", "棉", "活性染料", 70.0, 50, 7.0, 10.0);
+        let r1 = make_recipe(RecipeFixture { recipe_no: "R-1", color_no: "BL-301", fabric_type: "棉", dye_type: "活性染料", temperature: 50.0, time_minutes: 30, ph: 7.0, liquor: 10.0 });
+        let r2 = make_recipe(RecipeFixture { recipe_no: "R-2", color_no: "BL-301", fabric_type: "棉", dye_type: "活性染料", temperature: 60.0, time_minutes: 40, ph: 7.0, liquor: 10.0 });
+        let r3 = make_recipe(RecipeFixture { recipe_no: "R-3", color_no: "BL-301", fabric_type: "棉", dye_type: "活性染料", temperature: 70.0, time_minutes: 50, ph: 7.0, liquor: 10.0 });
         let hits: Vec<(f64, &DyeRecipeModel)> = vec![(1.0, &r1), (1.3, &r2), (0.5, &r3)];
 
         let agg = weighted_average_params(&hits).expect("应当能聚合");
@@ -654,18 +672,18 @@ mod tests {
         assert!(should_use_knn(3), "3 条应走 k-NN");
 
         // 4.3 输入异常（color_no 全空字符串）
-        let r = make_recipe("R-1", "", "棉", "活性染料", 60.0, 45, 7.0, 10.0);
+        let r = make_recipe(RecipeFixture { recipe_no: "R-1", color_no: "", fabric_type: "棉", dye_type: "活性染料", temperature: 60.0, time_minutes: 45, ph: 7.0, liquor: 10.0 });
         let s = compute_similarity("BL-301", "棉", Some("活性染料"), &r);
         assert!((s - 0.0).abs() < 0.001, "候选 color 为空时相似度应为 0.0");
 
         // 4.4 完全不同 color_no → 相似度为 0
-        let r2 = make_recipe("R-2", "RD-999", "涤纶", "分散染料", 130.0, 30, 5.5, 8.0);
+        let r2 = make_recipe(RecipeFixture { recipe_no: "R-2", color_no: "RD-999", fabric_type: "涤纶", dye_type: "分散染料", temperature: 130.0, time_minutes: 30, ph: 5.5, liquor: 8.0 });
         let s2 = compute_similarity("BL-301", "棉", Some("活性染料"), &r2);
         assert!((s2 - 0.0).abs() < 0.001, "完全无关候选相似度应为 0.0");
 
         // 4.5 颜色前缀 3 位匹配 → 0.7
         //   标准化后 "BL301" 与 "BL310" 前 3 位均为 "BL3"，触发 0.7 分
-        let r3 = make_recipe("R-3", "BL-310", "棉", "活性染料", 60.0, 45, 7.0, 10.0);
+        let r3 = make_recipe(RecipeFixture { recipe_no: "R-3", color_no: "BL-310", fabric_type: "棉", dye_type: "活性染料", temperature: 60.0, time_minutes: 45, ph: 7.0, liquor: 10.0 });
         let s3 = compute_similarity("BL-301", "棉", Some("活性染料"), &r3);
         // 0.7 (color 前缀) + 0.2 (fabric) + 0.1 (dye) = 1.0
         assert!((s3 - 1.0).abs() < 0.001, "BL 前缀匹配应为 1.0，实际 {}", s3);

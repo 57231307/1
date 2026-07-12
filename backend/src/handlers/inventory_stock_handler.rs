@@ -3,7 +3,7 @@ use crate::middleware::auth_context::AuthContext;
 use crate::models::product;
 // 批次 213 P2-5 修复（v12 复审）：硬编码 "active" 替换为 master_data 常量
 use crate::models::status::master_data;
-use crate::services::inventory_stock_service::InventoryStockService;
+use crate::services::inventory_stock_service::{CreateStockArgs, InventoryStockService};
 use crate::utils::app_state::AppState;
 use crate::utils::error::AppError;
 use crate::utils::response::{ApiResponse, PaginatedResponse};
@@ -85,20 +85,20 @@ pub async fn create_stock(
     let service = InventoryStockService::new(state.db.clone());
 
     let stock = service
-        .create_stock(
-            payload.warehouse_id,
-            payload.product_id,
-            payload.batch_no,
-            payload.color_no,
-            payload.quantity_meters,
-            payload.quantity_kg.unwrap_or(Decimal::ZERO),
-            payload.grade,
-            payload.dye_lot_no,
-            payload.gram_weight,
-            payload.width,
-            master_data::ACTIVE.to_string(),
-            "qualified".to_string(),
-        )
+        .create_stock(CreateStockArgs {
+            warehouse_id: payload.warehouse_id,
+            product_id: payload.product_id,
+            batch_no: payload.batch_no,
+            color_no: payload.color_no,
+            quantity_meters: payload.quantity_meters,
+            quantity_kg: payload.quantity_kg.unwrap_or(Decimal::ZERO),
+            grade: payload.grade,
+            dye_lot_no: payload.dye_lot_no,
+            gram_weight: payload.gram_weight,
+            width: payload.width,
+            stock_status: master_data::ACTIVE.to_string(),
+            quality_status: "qualified".to_string(),
+        })
         .await
         .map_err(|e| AppError::internal(e.to_string()))?;
 
