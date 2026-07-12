@@ -72,6 +72,9 @@ pub mod m0046_drop_audit_alert_rules;
 // 批次 251 v14 中风险：webhooks 表添加 last_payload + last_event 列（retry 重投原始数据）
 pub mod m0047_add_last_payload_to_webhooks;
 
+// 批次 320 v9 中风险 M-4：webhooks 表添加 user_id 列（IDOR 防护）
+pub mod m0048_add_user_id_to_webhooks;
+
 pub struct Migrator;
 
 #[async_trait::async_trait]
@@ -127,6 +130,7 @@ impl MigratorTrait for Migrator {
             Box::new(m0045_add_password_changed_at_to_users::Migration),
             Box::new(m0046_drop_audit_alert_rules::Migration),
             Box::new(m0047_add_last_payload_to_webhooks::Migration),
+            Box::new(m0048_add_user_id_to_webhooks::Migration),
         ]
     }
 }

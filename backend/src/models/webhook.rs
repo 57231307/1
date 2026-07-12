@@ -22,6 +22,10 @@ pub struct Model {
     pub last_payload: Option<String>,
     /// 最后一次发送的事件类型（批次 251 修复：retry 重投原始事件用）
     pub last_event: Option<String>,
+    /// Webhook 所有者用户 ID（批次 320 M-4 修复：IDOR 防护）
+    /// - NULL：系统级 webhook（历史数据，所有认证用户可访问，向后兼容）
+    /// - 非 NULL：用户私有 webhook，仅所有者可操作
+    pub user_id: Option<i32>,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
 }
