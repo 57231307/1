@@ -970,3 +970,33 @@
 
 > 批次 1-236 的详细记录见归档文件和 [CHANGELOG.md](file:///workspace/.monkeycode/CHANGELOG.md) 历史归档章节。
 > 历次复审报告见 `docs/audits/` 目录。
+
+---
+
+## 📝 已完成批次归档摘要（v8/v9/v10 阶段，批次 290-329）
+
+> 本节为批次 290-329 的归档摘要（规则 10 整理节点：批次 330，2026-07-12）。
+> 每个批次的一句话总结见 [CHANGELOG.md](file:///workspace/.monkeycode/CHANGELOG.md)。
+> 详细技术要点已在 PR 描述中记录，此处仅保留修复范围摘要。
+
+### v8 复审修复阶段（批次 290-308，全部完成 ✅）
+
+- **批次 290-296（PR #470-476）**：bug.md 7 项安全漏洞修复（3 P0 SQL/命令/SSRF 注入 + 3 P1 日志泄露/限流/文件权限 + 1 P2 备份权限）
+- **批次 297-307（PR #477-487）**：v8 复审 21 项问题修复（4 高 + 8 中 + 9 低），含 SSRF 防护、TOCTOU 修复、硬编码路径/URL 改环境变量、单元测试补充
+- **批次 308（PR #488）**：v8-L1~L9 低风险全部 9 项（重定向限制 + SQL 参数化 + 解压路径校验 + 函数返回 bool + 币种码白名单 + SQL 参数索引统一 + 文件权限 0o600 + WebhookPayload 降 pub(crate) + rollback 降私有）
+
+### v9 复审修复阶段（批次 317-323，全部完成 ✅）
+
+- **批次 317（PR #489）**：v9-P0+P1 严重修复 3 项（backup pg_dump/psql 失败未 return false + system_update 目录权限掩码未应用）
+- **批次 318（PR #490）**：v9-H1+H2 高危 2 项（upgrade Tar Slip 改 UUID 随机目录 + admin 密码改 --password-stdin + 环境变量）
+- **批次 319-321（PR #491-493）**：v9 中危 5 项（M-1/M-2 DNS Rebinding + 路径穿越 + M-3 webhook 限流 + M-4 user_id IDOR 防护 + M-5 elastic SSRF）
+- **批次 322-323（PR #494-495）**：v9 低危 6 项（路径校验抽取共享模块 + 版本比较去重 + extract/backup/restore 大函数拆分）
+
+### v10 复审修复阶段（批次 325-329，进行中 🔄）
+
+- **批次 324（PR #496）**：sea-orm 版本调研 + 修正误导性注释 + 新增规则 14（移除所有警告抑制）
+- **批次 325（PR #497）**：v10 P0+P1 警告抑制移除 6 项（1 P0 死代码 ExportFormatType + 2 P1 文件级 #![allow] + 3 P1 未使用 pub use）
+- **批次 326（PR #498）**：v10 P2 clippy 警告抑制移除 2 项（needless_late_init + type_complexity）
+- **批次 327（PR #499）**：v10 P3 too_many_arguments 3 项（2 误报删除 + 1 DTO 聚合 UpdateNotificationSettingParams）
+- **批次 328（PR #500）**：v10 P3 误报 too_many_arguments 抑制移除 9 项（clippy 阈值 7，参数 ≤7 均为误报）
+- **批次 329（PR #501）**：v10 P3 DTO 重构 2 项（ar_service create_payment 8→2 参数 + budget_management_service create_execution 9→2 参数）
