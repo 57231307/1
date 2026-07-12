@@ -6,7 +6,7 @@
 
 ---
 
-## 🔥 当前任务：v9 复审问题修复（P0 2/2 ✅，高危 0/2 ⏳，中危 0/5 ⏳）
+## 🔥 当前任务：v9 复审问题修复（P0 2/2 ✅，高危 2/2 ✅，中危 0/5 ⏳）
 
 > **v9 全项目复审报告**（2026-07-12，[v9-review-2026-07-12.md](file:///workspace/.monkeycode/docs/audits/v9-review-2026-07-12.md)）：v8 修复后复审发现 2 P0 + 2 高危 + 5 中危 + 多个低危。
 > 修复策略：按规则 13 连续执行，P0 → 高危 → 中危 → 低危，每批 1 commit，CI 全绿后合并 main，全部完成后进入 v10 复审。
@@ -16,31 +16,25 @@
 | 优先级 | 总数 | 已完成 | 剩余 | 状态 |
 |--------|------|--------|------|------|
 | 🔴 P0 严重 | 2 | 2 | 0 | ✅ 全部完成（批次 317） |
-| 🟠 高危 | 2 | 0 | 2 | ⏳ 批次 318 |
+| 🟠 高危 | 2 | 2 | 0 | ✅ 全部完成（批次 318） |
 | 🟡 中危 | 5 | 0 | 5 | ⏳ 批次 319-321 |
 | 🟢 低危 | 多项 | 0 | 多项 | ⏳ 批次 322+ |
-| **合计** | **9+** | **2** | **7+** | — |
+| **合计** | **9+** | **4** | **5+** | — |
 
-### ✅ 已完成（批次 317，PR #489）
+### ✅ 已完成（批次 317-318）
 
+**批次 317（PR #489）**：
 - **P0-1**：backup.rs cmd_backup pg_dump 失败不返回 false（导致 upgrade 备份检查失效）
 - **P0-2**：system_update_service.rs L7 目录权限掩码未应用（is_dir() 在文件分支内永假，目录权限未设置）
 - **P1**：backup.rs cmd_restore psql 失败不返回 false（同类问题）
 - 新增 set_safe_permissions 辅助函数 + 2 个权限掩码单元测试
 
+**批次 318（PR #490）**：
+- **H-1**：upgrade.rs Tar Slip 路径穿越（改 UUID 随机目录 + 先 tar -tf 校验再解压 + 二次校验）
+- **H-2**：admin.rs bingxi 自身命令行密码泄露（移除 --password，改 --password-stdin + BINGXI_ADMIN_PASSWORD 环境变量）
+- 新增 read_password 辅助函数 + 4 个单元测试
+
 ### ⏳ 待修复项
-
-#### 高危（2 项，批次 318）
-
-**H-1**：upgrade.rs Tar Slip 路径穿越（固定路径 + 校验范围不足 + 先解压后校验）
-- 文件：[backend/src/cli/util/upgrade.rs](file:///workspace/backend/src/cli/util/upgrade.rs#L216-L227)
-- 问题：解压到固定路径 `/tmp`，校验仅覆盖 `/tmp/bingxi-erp` 子目录，先解压后校验
-- 修复方案：对齐 backup.rs M4 方案 — UUID 随机目录 + 先 `tar -tf` 校验再解压 + 解压后 canonicalize 二次校验
-
-**H-2**：admin.rs bingxi 自身命令行仍暴露密码
-- 文件：[backend/src/cli/util/admin.rs](file:///workspace/backend/src/cli/util/admin.rs)
-- 问题：v8 H4 修复仅解决 python 子进程层面，bingxi 自身命令行仍通过 clap 参数接收密码
-- 修复方案：密码参数改为 `--password-stdin`（从 stdin 读取）或 `BINGXI_ADMIN_PASSWORD` 环境变量
 
 #### 中危（5 项，批次 319-321）
 
