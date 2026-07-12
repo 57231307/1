@@ -15,7 +15,7 @@
 
 ---
 
-## 🔥 当前任务：v10 复审问题修复（P0 1/1 ✅，P1 5/5 ✅，P2 4/4 ✅，P3 21/~42 ⏳）
+## 🔥 当前任务：v10 复审问题修复（P0 1/1 ✅，P1 5/5 ✅，P2 4/4 ✅，P3 22/~42 ⏳）
 
 > **v10 复审报告**（2026-07-12，Task 工具扫描）：v9 + sea-orm 调研 + 规则 14 新增后复审，扫描所有 `#[allow(...)]` 警告抑制。
 > 发现 180 个抑制标注（108 例外 models/ + 72 非例外），非例外分类：1 P0 + 5 P1 + 4 P2 + ~42 P3。
@@ -28,10 +28,14 @@
 | 🔴 P0 死代码 | 1 | 1 | 0 | ✅ 全部完成（批次 325） |
 | 🟠 P1 文件级抑制过宽+未使用重导出 | 5 | 5 | 0 | ✅ 全部完成（批次 325） |
 | 🟡 P2 clippy 代码味道 | 4 | 4 | 0 | ✅ 全部完成（批次 326，pred.rs 2 项已在 main 修复） |
-| 🟢 P3 too_many_arguments | ~42 | 21 | ~21 | ⏳ 长期重构（批次 327+） |
-| **合计** | **~52** | **31** | **~21** | 🔄 进行中 |
+| 🟢 P3 too_many_arguments | ~42 | 22 | ~20 | ⏳ 长期重构（批次 327+） |
+| **合计** | **~52** | **32** | **~20** | 🔄 进行中 |
 
-### ✅ 已完成（批次 325-331）
+### ✅ 已完成（批次 325-332）
+
+**批次 332（PR #504）**：v10 复审 P3 too_many_arguments DTO 重构 1 项
+- `order_change_history_service.rs record_change`：9 参数（含 &self，8 参数不含 self >7）→ 1 参数，引入 `OrderChangeRecord` 参数对象（order_id/change_type/field_name/old_value/new_value/changed_by/change_reason/ip_address/user_agent），内部调用方 record_order_created 同步修改
+- 调用链分析：record_change 仅被内部 record_order_created 调用，record_order_created 虽 pub 但 crate 内无外部调用（business_metrics/metrics_service 的 record_order_created 是不同 service 的方法）
 
 **批次 331（PR #503）**：v10 复审 P3 too_many_arguments DTO 重构 1 项
 - `utils/app_state.rs with_secrets_and_cors`：8 参数 → 1 参数，引入 `AppStateParams` 参数对象（db/omni_audit/audit_cleanup/jwt_secret/previous_jwt_secret/cookie_secret/webhook_secret/allowed_origins），main.rs 调用方同步修改
