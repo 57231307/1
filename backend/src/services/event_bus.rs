@@ -690,17 +690,20 @@ pub async fn start_event_listener(db: Arc<DatabaseConnection>, search_client: Ar
                     );
                     let po_service =
                         crate::services::po::order::PurchaseOrderService::new(db.clone());
-                    match po_service
-                        .create_purchase_suggestion_from_shortage(
+                    // 批次 333 v10 复审 P3 修复：使用 ShortageAlertParams 参数对象替代多参数
+                    let shortage_params =
+                        crate::services::po::price::ShortageAlertParams {
                             material_id,
-                            material_name.clone(),
-                            material_code.clone(),
+                            material_name: material_name.clone(),
+                            material_code: material_code.clone(),
                             required_quantity,
                             available_quantity,
                             shortage_quantity,
-                            shortage_level.clone(),
+                            shortage_level: shortage_level.clone(),
                             affected_orders_count,
-                        )
+                        };
+                    match po_service
+                        .create_purchase_suggestion_from_shortage(shortage_params)
                         .await
                     {
                         Ok(order) => {
