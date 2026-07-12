@@ -9,6 +9,7 @@
 
 | 批次 | PR | 一句话总结 |
 |------|-----|-----------|
+| 317 | #489 | 修复 v9-P0+P1 严重问题 3 项（P0-1 backup pg_dump 失败未 return false + P0-2 system_update 目录权限掩码未应用 is_dir 永假 + P1 backup psql 失败未 return false，新增 set_safe_permissions 辅助函数 + 2 个权限掩码单元测试） |
 | 308-316 | #488 | 修复 v8-L1~L9 低风险全部 9 项（L1 重定向限制 + L2 SQL 参数化 + L3 解压路径校验 + L4 函数返回 bool + L5 币种码白名单 + L6 SQL 参数索引统一 + L7 文件权限 0o600 + L8 WebhookPayload 降 pub(crate) + L9 rollback 降私有） |
 | 307 | #487 | 修复 v8-M8 补充 5 个修改文件单元测试（currency_service/tracking_service/backup/webhook_service/system_update_service 共 23 个单元测试，覆盖安全校验和核心工具函数） |
 | 306 | #486 | 修复 v8-M6 webhook 测试端点限流器改分布式（rate_limit.rs check_rate_limit 改 pub(crate)，webhook_handler.rs test_webhook 改用 check_rate_limit Redis 优先 + 内存回退，多实例共享计数） |

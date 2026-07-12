@@ -6,7 +6,70 @@
 
 ---
 
-## 🔄 当前任务：v14 深度调研报告修复（高风险 6/6 ✅，中风险 22/25 🔄）
+## 🔥 当前任务：v9 复审问题修复（P0 2/2 ✅，高危 0/2 ⏳，中危 0/5 ⏳）
+
+> **v9 全项目复审报告**（2026-07-12，[v9-review-2026-07-12.md](file:///workspace/.monkeycode/docs/audits/v9-review-2026-07-12.md)）：v8 修复后复审发现 2 P0 + 2 高危 + 5 中危 + 多个低危。
+> 修复策略：按规则 13 连续执行，P0 → 高危 → 中危 → 低危，每批 1 commit，CI 全绿后合并 main，全部完成后进入 v10 复审。
+
+### 进度总览
+
+| 优先级 | 总数 | 已完成 | 剩余 | 状态 |
+|--------|------|--------|------|------|
+| 🔴 P0 严重 | 2 | 2 | 0 | ✅ 全部完成（批次 317） |
+| 🟠 高危 | 2 | 0 | 2 | ⏳ 批次 318 |
+| 🟡 中危 | 5 | 0 | 5 | ⏳ 批次 319-321 |
+| 🟢 低危 | 多项 | 0 | 多项 | ⏳ 批次 322+ |
+| **合计** | **9+** | **2** | **7+** | — |
+
+### ✅ 已完成（批次 317，PR #489）
+
+- **P0-1**：backup.rs cmd_backup pg_dump 失败不返回 false（导致 upgrade 备份检查失效）
+- **P0-2**：system_update_service.rs L7 目录权限掩码未应用（is_dir() 在文件分支内永假，目录权限未设置）
+- **P1**：backup.rs cmd_restore psql 失败不返回 false（同类问题）
+- 新增 set_safe_permissions 辅助函数 + 2 个权限掩码单元测试
+
+### ⏳ 待修复项
+
+#### 高危（2 项，批次 318）
+
+**H-1**：upgrade.rs Tar Slip 路径穿越（固定路径 + 校验范围不足 + 先解压后校验）
+- 文件：[backend/src/cli/util/upgrade.rs](file:///workspace/backend/src/cli/util/upgrade.rs#L216-L227)
+- 问题：解压到固定路径 `/tmp`，校验仅覆盖 `/tmp/bingxi-erp` 子目录，先解压后校验
+- 修复方案：对齐 backup.rs M4 方案 — UUID 随机目录 + 先 `tar -tf` 校验再解压 + 解压后 canonicalize 二次校验
+
+**H-2**：admin.rs bingxi 自身命令行仍暴露密码
+- 文件：[backend/src/cli/util/admin.rs](file:///workspace/backend/src/cli/util/admin.rs)
+- 问题：v8 H4 修复仅解决 python 子进程层面，bingxi 自身命令行仍通过 clap 参数接收密码
+- 修复方案：密码参数改为 `--password-stdin`（从 stdin 读取）或 `BINGXI_ADMIN_PASSWORD` 环境变量
+
+#### 中危（5 项，批次 319-321）
+
+**M-1**：system_update_service.rs fetch_latest_release 未用 resolve_to_addrs（批次 319）
+- 文件：[backend/src/services/system_update_service.rs](file:///workspace/backend/src/services/system_update_service.rs#L634-L663)
+- 修复方案：对齐 download_update 的 SSRF 防护（validate_url_and_resolve + resolve_to_addrs）
+
+**M-2**：system_update_service.rs download_path 未校验 asset.name（批次 319）
+- 文件：[backend/src/services/system_update_service.rs](file:///workspace/backend/src/services/system_update_service.rs#L738)
+- 修复方案：校验 asset.name 只包含安全字符（字母数字.-_），拒绝 `/`、`..`、绝对路径
+
+**M-3**：webhook_handler.rs retry_webhook 缺失限流（批次 320）
+- 修复方案：retry_webhook 接入 check_rate_limit
+
+**M-4**：webhook_handler.rs 所有 webhook 端点 IDOR，无所有权校验（批次 320）
+- 修复方案：所有 webhook 操作前校验 webhook.user_id == auth.user_id
+
+**M-5**：elastic.rs ES base_url 未做 SSRF 校验（批次 321）
+- 修复方案：对齐 validate_url_and_resolve 校验 base_url
+
+#### 低危（多项，批次 322+）
+
+- 代码重复：backup.rs 与 upgrade.rs 的 validate_extracted_path 逻辑重复
+- 测试覆盖：upgrade.rs/admin.rs/elastic.rs/webhook_handler.rs 缺少单元测试
+- 代码味道：extract_update_package/cmd_backup/cmd_restore 函数过长
+
+---
+
+## 🔄 历史任务：v14 深度调研报告修复（高风险 6/6 ✅，中风险 22/25 🔄）
 
 > **v14 深度调研报告**（2026-07-09，[bug.md](file:///workspace/.monkeycode/bug.md)）：12 维度全量扫描，15 高/25 中/74 低风险，共 114 个问题。
 > v13 后端 P0/P1 全部完成（批次 229-236），v13 剩余 P2 任务合并到 v14 队列。
