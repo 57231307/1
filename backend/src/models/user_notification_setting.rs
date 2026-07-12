@@ -52,6 +52,6 @@ pub mod notification_type {
     pub const EMAIL: &str = "email";
     pub const INTERNAL: &str = "internal";
     pub const BOTH: &str = "both";
-    #[allow(dead_code)] // TODO(tech-debt): 通知类型 NONE 接入后移除（批次 161 CI2）
+    /// 批次 342 v11 复审 P2 修复：NONE 常量已在 should_send_email/should_send_internal 中显式检查
     pub const NONE: &str = "none";
 }

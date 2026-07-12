@@ -131,6 +131,11 @@ impl UserNotificationSettingService {
             _ => notification_type::BOTH,
         };
 
+        // 批次 342 v11 复审 P2 修复：显式检查 NONE 类型，通知类型为 none 时不发送任何通知
+        if notification_type_str == notification_type::NONE {
+            return Ok(false);
+        }
+
         Ok(notification_type_str == notification_type::EMAIL
             || notification_type_str == notification_type::BOTH)
     }
@@ -156,6 +161,11 @@ impl UserNotificationSettingService {
             "SYSTEM" => &setting.system_notification_type,
             _ => notification_type::BOTH,
         };
+
+        // 批次 342 v11 复审 P2 修复：显式检查 NONE 类型，通知类型为 none 时不发送任何通知
+        if notification_type_str == notification_type::NONE {
+            return Ok(false);
+        }
 
         Ok(notification_type_str == notification_type::INTERNAL
             || notification_type_str == notification_type::BOTH)

@@ -44,9 +44,6 @@ pub struct CreateBpmTemplateRequest {
 
 #[derive(Debug, Deserialize)]
 pub struct TemplateQuery {
-    /// 模板分类二次筛选（暂未使用：模板 category 均为 __TEMPLATE__，需引入子分类后接入）
-    #[allow(dead_code)] // TODO(tech-debt): 模板子分类功能实现后移除
-    pub category: Option<String>,
     pub page: Option<u64>,
     pub page_size: Option<u64>,
 }

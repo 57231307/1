@@ -286,13 +286,15 @@ impl BpmService {
 
     /// 获取模板列表（分页）
     ///
-    /// 查询 category = __TEMPLATE__ 的记录，支持 category 二次筛选（暂未使用）
+    /// 查询 category = __TEMPLATE__ 的记录
+    /// 批次 342 v11 复审 P2 修复：删除未使用的 category 二次筛选字段（TemplateQuery.category），
+    /// 模板子分类功能未实现，按规则 0 删除占位符字段
     pub async fn list_templates(
         &self,
-        _query: TemplateQuery,
+        query: TemplateQuery,
     ) -> Result<PageResponse<bpm_process_definition::Model>, AppError> {
-        let page = _query.page.unwrap_or(1);
-        let page_size = _query.page_size.unwrap_or(10).clamp(1, 100);
+        let page = query.page.unwrap_or(1);
+        let page_size = query.page_size.unwrap_or(10).clamp(1, 100);
 
         let stmt = bpm_process_definition::Entity::find()
             .filter(bpm_process_definition::Column::Category.eq(TEMPLATE_CATEGORY))
