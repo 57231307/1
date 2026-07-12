@@ -481,8 +481,6 @@
   --> src/services/ar/mod.rs:46:9
   --> src/services/ar/mod.rs:51:12
   --> src/services/ar/mod.rs:73:9
-  --> src/services/ar_collection_service.rs:12:12
-  --> src/services/ar_collection_service.rs:17:12
   --> src/services/ar_unit_tests.rs:12:13
   --> src/services/ar_unit_tests.rs:48:13
   --> src/services/auth/password_policy_service.rs:29:12
@@ -507,7 +505,6 @@
   --> src/services/event_kafka.rs:97:12
   --> src/services/export_service.rs:11:10
   --> src/services/failover_service.rs:28:9
-  --> src/services/five_dimension_query_service.rs:16:12
   --> src/services/inventory_count_service.rs:41:5
   --> src/services/inventory_reservation_service.rs:47:18
   --> src/services/inventory_stock_service.rs:15:12
@@ -569,8 +566,6 @@
   --> src/utils/admin_checker.rs:44:8
   --> src/utils/color_space_converter.rs:20:5
   --> src/utils/color_space_converter.rs:55:8
-  --> src/utils/fabric_five_dimension.rs:14:12
-  --> src/utils/fabric_five_dimension.rs:30:12
   --> src/utils/failover/cache.rs:25:12
   --> src/utils/failover/circuit_breaker.rs:80:12
   --> src/utils/failover/mod.rs:35:5
@@ -621,7 +616,6 @@
  --> src/services/audit_cleanup_service.rs:2:52
  --> src/services/bpm_service.rs:2:25
  --> src/services/customer_credit_limit.rs:7:5
- --> src/services/five_dimension_query_service.rs:6:12
  --> src/services/inventory_stock_txn.rs:7:67
  --> src/services/material_shortage_service.rs:5:25
  --> src/services/material_shortage_service.rs:7:15
@@ -814,8 +808,6 @@
 14 |     enum PurchaseStatus {
 14 |     pub cache: CacheFailoverConfig,
 14 |     struct StockRow {
-14 | impl FiveDimensionQueryService {
-14 | pub struct FabricFiveDimension {
 140 +                 quantity: Decimal::from(3),
 140 | impl KafkaBackend {
 141 +                 unit_price: Decimal::from(100),
@@ -906,8 +898,6 @@
 203 |     pub async fn sales_by_product(
 208 | impl FieldValidator {
 21 |     PriceNotFound,
-21 |     pub async fn create_collection(
-21 |     pub fn generate_five_dimension_id(
 21 | pub enum AdjustType {
 21 | pub struct FabricOrderQuery {
 215 |     pub async fn close(&self, id: i32) -> Result<ReconciliationModel, AppError> {
@@ -969,7 +959,6 @@
 27 |     pub batch_no: Option<String>,
 27 |     pub remark: Option<String>,
 27 |     pub start_date: Option<DateTime<Utc>>,
-27 | impl FabricFiveDimension {
 27 | impl PasswordHistory {
 27 | pub fn slow_query_threshold() -> Duration {
 27 | pub struct ApprovePriceRequest {
@@ -1041,7 +1030,6 @@
 35 | |             "draft" => Some(Self::Draft),
 36 |     pub circuit_state: IntGaugeVec,
 36 |     pub fn hit_ratio(&self) -> f64 {
-36 |     pub fn parse_five_dimension_id(five_dim_id: &str) -> Option<FabricFiveDimension> {
 36 |     pub phone: Option<String>,
 36 |     pub warehouse_id: i32,
 36 | pub struct SlowQueryRecorder {
@@ -1146,7 +1134,6 @@
 49 | pub struct TimeSlot {
 5 | use chrono::{NaiveDate, Utc};
 50 |     CircuitOpen,
-501 | pub async fn cleanup_expired_jti(_max_age_secs: i64) {
 51 |     struct SalesOrder {
 51 | pub struct AuthConfig {
 51 | pub struct UpdateReconciliationRequest {
@@ -1174,7 +1161,6 @@
 58 |     pub async fn record_change(
 58 | /     pub async fn record_change(
 59 | |         &self,
-6 | pub struct FiveDimensionQueryService;
 6 | use chrono::{DateTime, Utc};
 6 | use serde::{Deserialize, Serialize};
 60 |         VIP,
@@ -1282,12 +1268,10 @@ warning: associated function `new` is never used
 warning: associated function `with_cache` is never used
 warning: associated functions `from_claims` and `empty` are never used
 warning: associated functions `integer`, `decimal`, `date`, and `boolean` are never used
-warning: associated functions `new`, `generate_five_dimension_id`, and `parse_five_dimension_id` are never used
 warning: associated items `calculate_next_run` and `parse_cron_field` are never used
 warning: associated items `generate_unique_id` and `from_unique_id` are never used
 warning: associated items `mock` and `doc_count` are never used
 warning: associated items `new` and `broadcast_notification` are never used
-warning: associated items `new` and `create_collection` are never used
 warning: associated items `new` and `push` are never used
 warning: associated items `new` and `record_change` are never used
 warning: associated items `new` and `update` are never used
@@ -1375,7 +1359,6 @@ warning: fields `related_bill_type` and `related_bill_id` are never read
 warning: fields `supplier_id` and `on_time_rate` are never read
 warning: fields `total_sales` and `cumulative_ratio` are never read
 warning: function `cleanup_expired_admin_cache` is never used
-warning: function `cleanup_expired_jti` is never used
 warning: function `clear_admin_role_cache` is never used
 warning: function `contains_username_fragment` is never used
 warning: function `csp_middleware` is never used
@@ -1437,9 +1420,7 @@ warning: struct `ArCollectionService` is never constructed
 warning: struct `AvgLeadTimeResult` is never constructed
 warning: struct `ConvertToOrderDto` is never constructed
 warning: struct `CustomerColorPriceInfo` is never constructed
-warning: struct `FabricFiveDimension` is never constructed
 warning: struct `FailoverCache` is never constructed
-warning: struct `FiveDimensionQueryService` is never constructed
 warning: struct `InventorySummaryItem` is never constructed
 warning: struct `InventoryTurnover` is never constructed
 warning: struct `LockoutInfo` is never constructed
