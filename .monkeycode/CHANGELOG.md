@@ -9,6 +9,7 @@
 
 | 批次 | PR | 一句话总结 |
 |------|-----|-----------|
+| 356 | #528 | v13 复审 P0 业务/财务场景闭环修复（voucher_service create_and_post 科目余额回写+自动过账 + inventory_finance_bridge_service 采购退货/销售退货/生产领退料凭证生成 + delivery.rs SALES_DELIVERY 库存流水 + order_workflow 审批后库存预留 + production_order 成本核算闭环，3 次 CI 修复编译错误，8 项 P0 完成，11 个 unused import warning 遗留批次 357） |
 | 355 | #527 | v12 复审 P1-4 baseline 清理 + P3 upper_case_acronyms 修复收官（baseline 删 25 行 + utils/incoterms.rs Incoterms2020 枚举 FOB→Fob/CIF→Cif/EXW→Exw/DDP→Ddp/DAP→Dap + quotation_pricing_service CustomerLevel VIP→Vip/NORMAL→Normal + 2 测试文件同步 + #[serde(rename_all="UPPERCASE")] 保持 API 契约 + CI 初次失败恢复 6 条误删 baseline 历史摘要行 + CI 13+2 全绿 v12 复审 15/15 全部完成） |
 | 354 | #526 | v12 复审 P1-3 unused_imports 清理 5 项（inventory_stock_handler_query 测试模块 use super::* + 4 文件 AuthContext/rust_decimal::prelude::*/tracing::info/custom_order_crud_service useless_asref 修复 as_ref().map().unwrap_or→clone().unwrap_or） |
 | 353 | #525 | v12 复审 P1-3 unused_imports 清理 6 项（bpm_service 5 个 DTO 导入 + dual_unit_converter_handler/sales_unit_tests/assist_accounting_service 各 1 项 unused import 清理） |

@@ -32,14 +32,14 @@
 
 | 维度 | 总数 | 已完成 | 剩余 | 状态 |
 |------|------|--------|------|------|
-| 🟢 baseline 警告清零 | 213 摘要 / 89 位置 / 135 文件 | 0 | 213 | ⏳ 待修复 |
-| 🟢 业务场景闭环 | 21 | 0 | 21 | ⏳ 待修复 |
-| 🟢 财务场景闭环 | 16 | 0 | 16 | ⏳ 待修复 |
+| 🟢 baseline 警告清零 | 213 摘要 / 89 位置 / 135 文件 | 0 | 213 | ⏳ 待修复（批次 357 启动 11 项 unused import） |
+| 🟢 业务场景闭环 | 21 | 6 | 15 | 🔄 P0 6 项已完成（批次 356） |
+| 🟢 财务场景闭环 | 16 | 2 | 14 | 🔄 P0 2 项已完成（批次 356） |
 | 🟢 运行逻辑环流程闭环（5 子维度） | 45 | 0 | 45 | ⏳ 待修复 |
 | 🟢 v14 中风险遗留（测试覆盖 + useTableApi） | 3 大类 | 0 | 3 大类 | ⏳ 待修复 |
 | 🟢 v14 低风险遗留 | 74 | 0 | 74 | ⏳ 后续迭代 |
 | 🟢 v13 前端 P2 + 后端 P2 + 其他遗留 | 9 | 0 | 9 | ⏳ 待修复 |
-| **合计** | **~378** | **0** | **~378** | — |
+| **合计** | **~378** | **8** | **~370** | — |
 
 ### v13 复审修复队列（按优先级排序，详见复审报告）
 
@@ -128,7 +128,22 @@
 
 ### 修复批次记录
 
-（待填充，按规则 13 连续执行）
+#### 批次 356（PR #528，已合并 2026-07-13）✅ v13 复审 P0 业务/财务场景闭环修复
+
+**修改文件（5 个）**：
+1. `backend/src/services/voucher_service.rs`：新增 `create_and_post` 方法（F-P0-1 科目余额回写 + F-P0-2 自动过账）
+2. `backend/src/services/inventory_finance_bridge_service.rs`：扩展凭证生成覆盖（B-P0-4/5/6 采购退货/销售退货/生产领退料兼容 + create→create_and_post）
+3. `backend/src/services/so/delivery.rs`：销售出库生成库存流水（B-P0-2 SALES_DELIVERY + batch_no 类型修复 + borrow after move 修复）
+4. `backend/src/services/so/order_workflow.rs`：销售订单审批后库存预留（B-P0-1）
+5. `backend/src/services/production_order_service.rs`：生产订单成本核算闭环（B-P0-3）
+
+**完成的 P0 项（8 项）**：
+- 业务场景 P0：B-P0-1（订单审批→库存预留）、B-P0-2（销售出库→库存流水）、B-P0-3（生产订单→成本核算）、B-P0-4（采购退货凭证）、B-P0-5（销售退货凭证）、B-P0-6（生产领退料凭证兼容）
+- 财务场景 P0：F-P0-1（科目余额回写）、F-P0-2（库存桥接凭证自动过账）
+
+**CI 记录**：3 次 CI 运行（#2503 失败→#2505 失败→#2506 全绿），修复 `STATUS_ACTIVE`→`IsActive.eq(true)`、`batch_no` 类型不匹配、`borrow after move` 三处编译错误
+
+**遗留**：11 个 unused import warning（release 构建报出，clippy baseline 已包含）放入批次 357 baseline 清零处理
 
 ---
 
