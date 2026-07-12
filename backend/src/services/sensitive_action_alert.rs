@@ -1,5 +1,3 @@
-#![allow(clippy::too_many_arguments)]
-
 use serde::{Deserialize, Serialize};
 
 /// 敏感操作类型
