@@ -20,7 +20,7 @@ use crate::models::status::sales_order as so_status;
 // 批次 212 P2-5 修复（v12 复审）：硬编码 "active" 替换为 master_data 常量
 use crate::models::status::master_data;
 use crate::utils::error::AppError;
-use sea_orm::{ActiveModelTrait, EntityTrait, QueryFilter, QuerySelect, TransactionTrait};
+use sea_orm::{EntityTrait, QuerySelect, TransactionTrait};
 
 impl SalesService {
     // cancel_order / submit_order / approve_order / complete_order
