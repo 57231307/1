@@ -44,6 +44,7 @@ impl WebhookService {
     /// M-4 修复（v9 复审）：校验 webhook 所有权
     /// - user_id 为 None 的系统级 webhook，所有认证用户可访问（向后兼容）
     /// - user_id 为 Some(uid) 的用户私有 webhook，仅所有者可操作
+    ///
     /// 返回 webhook 模型，校验失败返回 PermissionDenied
     async fn verify_ownership(
         &self,
