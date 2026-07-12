@@ -205,7 +205,7 @@ mod tests {
     use super::*;
     use rust_decimal::prelude::*;
     // P9-1: 引入 decs! 宏替代 .from_str().unwrap()
-    #[allow(unused_imports)]
+    // 批次 343 v11 复审 P3 修复：移除 #[allow(unused_imports)]，decs! 宏已被广泛使用
     use crate::decs;
 
     #[test]

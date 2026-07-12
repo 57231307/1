@@ -558,10 +558,8 @@ impl AppCache {
 }
 
 /// 写入 CSRF Token 单元测试（不经过 AppState，AppCache::new() 即用）
-// 防御性 allow：clippy 1.94 对 cfg(test) 模块的 import 严格，
-// `use super::*` 在某些分支裁剪下可能被误判，预先抑制避免 CI 抖动。
+// 批次 343 v11 复审 P3 修复：移除 #[allow(unused_imports)]，use super::* 已在测试中使用
 #[cfg(test)]
-#[allow(unused_imports)]
 mod csrf_token_tests {
     use super::*;
 
