@@ -94,6 +94,29 @@ pub struct BudgetExecuteRequest {
     pub remark: Option<String>,
 }
 
+/// 创建预算执行明细参数对象
+///
+/// 批次 329 v10 复审 P3 修复：引入参数对象消除 too_many_arguments 警告
+#[derive(Debug)]
+pub struct CreateBudgetExecutionParams {
+    /// 预算方案 ID
+    pub plan_id: i32,
+    /// 执行类型（下达/调整/使用）
+    pub execution_type: String,
+    /// 金额
+    pub amount: Decimal,
+    /// 费用日期
+    pub expense_date: NaiveDate,
+    /// 费用类型
+    pub expense_type: Option<String>,
+    /// 关联单据类型
+    pub related_document_type: Option<String>,
+    /// 关联单据 ID
+    pub related_document_id: Option<i32>,
+    /// 备注
+    pub remark: Option<String>,
+}
+
 pub struct BudgetManagementService {
     db: Arc<DatabaseConnection>,
 }
@@ -433,19 +456,22 @@ impl BudgetManagementService {
 
     /// 创建预算执行明细
     /// 用于记录预算的下达、调整和使用
-    #[allow(clippy::too_many_arguments)]
+    ///
+    /// 批次 329 v10 复审 P3 修复：使用 CreateBudgetExecutionParams 参数对象替代 8 个独立参数
     pub async fn create_execution(
         &self,
-        plan_id: i32,
-        execution_type: String,
-        amount: Decimal,
-        expense_date: NaiveDate,
-        expense_type: Option<String>,
-        related_document_type: Option<String>,
-        related_document_id: Option<i32>,
-        remark: Option<String>,
+        params: CreateBudgetExecutionParams,
         user_id: i32,
     ) -> Result<budget_execution::Model, AppError> {
+        let plan_id = params.plan_id;
+        let execution_type = params.execution_type;
+        let amount = params.amount;
+        let expense_date = params.expense_date;
+        let expense_type = params.expense_type;
+        let related_document_type = params.related_document_type;
+        let related_document_id = params.related_document_id;
+        let remark = params.remark;
+
         info!(
             "用户 {} 正在创建预算执行明细，方案ID：{}，类型：{}，金额：{}",
             user_id, plan_id, execution_type, amount
@@ -819,14 +845,16 @@ impl BudgetManagementService {
         // 创建预算执行记录
         let execution = self
             .create_execution(
-                plan_id,
-                "使用".to_string(),
-                amount,
-                chrono::Utc::now().date_naive(),
-                Some("采购订单".to_string()),
-                Some(document_type),
-                Some(document_id),
-                Some(format!("采购订单占用预算，单据ID: {}", document_id)),
+                CreateBudgetExecutionParams {
+                    plan_id,
+                    execution_type: "使用".to_string(),
+                    amount,
+                    expense_date: chrono::Utc::now().date_naive(),
+                    expense_type: Some("采购订单".to_string()),
+                    related_document_type: Some(document_type),
+                    related_document_id: Some(document_id),
+                    remark: Some(format!("采购订单占用预算，单据ID: {}", document_id)),
+                },
                 user_id,
             )
             .await?;
@@ -856,14 +884,16 @@ impl BudgetManagementService {
         // 创建核销记录
         let execution = self
             .create_execution(
-                plan_id,
-                "使用".to_string(),
-                amount,
-                chrono::Utc::now().date_naive(),
-                Some("付款核销".to_string()),
-                Some(document_type),
-                Some(document_id),
-                Some(format!("付款确认核销预算，单据ID: {}", document_id)),
+                CreateBudgetExecutionParams {
+                    plan_id,
+                    execution_type: "使用".to_string(),
+                    amount,
+                    expense_date: chrono::Utc::now().date_naive(),
+                    expense_type: Some("付款核销".to_string()),
+                    related_document_type: Some(document_type),
+                    related_document_id: Some(document_id),
+                    remark: Some(format!("付款确认核销预算，单据ID: {}", document_id)),
+                },
                 user_id,
             )
             .await?;

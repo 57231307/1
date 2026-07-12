@@ -31,6 +31,27 @@ use crate::utils::error::AppError;
 // - ar_reconciliation_item.match_status（大写 MATCHED）→ ar::MATCH_MATCHED
 // - ar_invoice.status（大写）→ 复用 common::STATUS_* / payment::PAYMENT_*（与 ar_invoice_service.rs 一致）
 
+/// 创建收款参数对象
+///
+/// 批次 329 v10 复审 P3 修复：引入参数对象消除 too_many_arguments 警告
+#[derive(Debug)]
+pub struct CreateArPaymentParams {
+    /// 客户 ID
+    pub customer_id: i32,
+    /// 收款金额
+    pub amount: Decimal,
+    /// 收款方式
+    pub payment_method: String,
+    /// 收款日期
+    pub payment_date: NaiveDate,
+    /// 银行账号
+    pub bank_account: Option<String>,
+    /// 备注（ar_collections 表暂无 remark 列，schema 扩展后接入）
+    pub remark: Option<String>,
+    /// 关联发票 ID 列表
+    pub invoice_ids: Option<Vec<i32>>,
+}
+
 /// 应收账款服务
 pub struct ArService {
     db: Arc<DatabaseConnection>,
@@ -89,19 +110,22 @@ impl ArService {
     /// 创建收款
     /// 在事务内：期间锁定检查 → 客户存在性校验 → 单号生成 → 插入收款单 →
     /// 关联多张发票（更新 received_amount/unpaid_amount/status）→ 事件发布
-    #[allow(clippy::too_many_arguments)]
+    ///
+    /// 批次 329 v10 复审 P3 修复：使用 CreateArPaymentParams 参数对象替代 8 个独立参数
     pub async fn create_payment(
         &self,
-        customer_id: i32,
-        amount: Decimal,
-        payment_method: String,
-        payment_date: NaiveDate,
-        bank_account: Option<String>,
-        // 批次 96 CI 修复：ar_collections 表无 remark 列，备注暂不持久化（schema 扩展后接入）
-        _remark: Option<String>,
-        invoice_ids: Option<Vec<i32>>,
+        params: CreateArPaymentParams,
         user_id: i32,
     ) -> Result<serde_json::Value, AppError> {
+        let customer_id = params.customer_id;
+        let amount = params.amount;
+        let payment_method = params.payment_method;
+        let payment_date = params.payment_date;
+        let bank_account = params.bank_account;
+        // 批次 96 CI 修复：ar_collections 表无 remark 列，备注暂不持久化（schema 扩展后接入）
+        let _remark = params.remark;
+        let invoice_ids = params.invoice_ids;
+
         // 金额校验
         if amount <= Decimal::ZERO {
             return Err(AppError::validation("收款金额必须大于零"));
