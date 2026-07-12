@@ -12,7 +12,7 @@ pub mod config; // Wave 4 漏洞 #12：统一 is_production 配置来源（APP_E
 pub mod di_container;
 pub mod dual_unit_converter;
 pub mod error;
-pub mod fabric_five_dimension;
+// 批次 348 v12 复审 P2-2：fabric_five_dimension 模块已删除（死代码，仅被已删除的 five_dimension_query_service 引用）
 pub mod incoterms;
 pub mod password_validator;
 pub mod response;

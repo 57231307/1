@@ -29,7 +29,6 @@ pub mod department_service;
 pub mod finance_invoice_service;
 pub mod finance_payment_service;
 pub mod finance_report_service;
-pub mod five_dimension_query_service;
 pub mod five_dimension_service;
 pub mod init_service;
 pub mod inv;
@@ -67,7 +66,7 @@ pub mod ap_reconciliation_service;
 pub mod ap_report_service;
 pub mod ap_verification_service;
 // 应收管理模块
-pub mod ar_collection_service;
+// 批次 348 v12 复审 P2-1：ar_collection_service 模块已删除（死代码，功能被 ar_service 完全覆盖）
 pub mod ar_invoice_service;
 pub mod ar_service;
 // 总账管理模块
