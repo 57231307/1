@@ -15,7 +15,7 @@
 
 ---
 
-## 🔥 当前任务：v10 复审问题修复（P0 1/1 ✅，P1 5/5 ✅，P2 4/4 ✅，P3 25/~42 ⏳）
+## 🔥 当前任务：v10 复审问题修复（P0 1/1 ✅，P1 5/5 ✅，P2 4/4 ✅，P3 26/~42 ⏳）
 
 > **v10 复审报告**（2026-07-12，Task 工具扫描）：v9 + sea-orm 调研 + 规则 14 新增后复审，扫描所有 `#[allow(...)]` 警告抑制。
 > 发现 180 个抑制标注（108 例外 models/ + 72 非例外），非例外分类：1 P0 + 5 P1 + 4 P2 + ~42 P3。
@@ -28,10 +28,15 @@
 | 🔴 P0 死代码 | 1 | 1 | 0 | ✅ 全部完成（批次 325） |
 | 🟠 P1 文件级抑制过宽+未使用重导出 | 5 | 5 | 0 | ✅ 全部完成（批次 325） |
 | 🟡 P2 clippy 代码味道 | 4 | 4 | 0 | ✅ 全部完成（批次 326，pred.rs 2 项已在 main 修复） |
-| 🟢 P3 too_many_arguments | ~42 | 25 | ~17 | ⏳ 长期重构（批次 327+） |
-| **合计** | **~52** | **35** | **~17** | 🔄 进行中 |
+| 🟢 P3 too_many_arguments | ~42 | 26 | ~16 | ⏳ 长期重构（批次 327+） |
+| **合计** | **~52** | **36** | **~16** | 🔄 进行中 |
 
-### ✅ 已完成（批次 325-335）
+### ✅ 已完成（批次 325-336）
+
+**批次 336（PR #508）**：v10 复审 P3 too_many_arguments DTO 重构 1 项
+- `mrp_engine_service.rs calculate_requirement`：8 参数 → 1 参数，引入 `RequirementCalcParams` 参数对象（product_id/required_quantity/required_date/source_type/source_id/consider_safety_stock/consider_in_transit/bom_level）
+- 同步更新 `run_mrp_calculation` 内部调用方构造 `RequirementCalcParams`（bom_level=0 表示顶层）
+- 注：`calculate_requirement_with_stock`（10 参数含 &self + &StockInfo）和 `explode_bom_recursive`（11 参数含 &self + &mut Vec + &mut HashMap）仍保留 #[allow]，因含借用参数需单独评估
 
 **批次 335（PR #507）**：v10 复审 P3 too_many_arguments DTO 重构 1 项
 - `inventory_stock_query.rs list_transactions`：9 参数 → 1 参数，引入 `ListTransactionsQuery` 参数对象（page/page_size/batch_no/color_no/product_id/warehouse_id/transaction_type/start_date/end_date）
