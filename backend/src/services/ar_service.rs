@@ -747,7 +747,6 @@ impl ArService {
 
     /// 手动核销
     /// 指定一张发票 + 一张收款单 + 金额，创建核销记录
-    #[allow(clippy::too_many_arguments)]
     pub async fn manual_verify(
         &self,
         invoice_id: i32,

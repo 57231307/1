@@ -495,7 +495,6 @@ mod tests {
     use rust_decimal::Decimal;
 
     /// 构造一条 `QualityInspectionModel` 测试夹具
-    #[allow(clippy::too_many_arguments)]
     fn make_record(
         product_id: i32,
         inspection_type: &str,
