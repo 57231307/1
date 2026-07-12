@@ -81,6 +81,29 @@ pub struct AppState {
     pub cache_service: Arc<CacheService>,
 }
 
+/// 应用状态构造参数对象
+///
+/// 批次 331 v10 复审 P3 修复：引入参数对象消除 with_secrets_and_cors 的 too_many_arguments 警告
+/// （8 个独立参数 >7 触发 clippy 警告，聚合为单一 struct 便于扩展和维护）
+pub struct AppStateParams {
+    /// 数据库连接
+    pub db: Arc<DatabaseConnection>,
+    /// 全量审计引擎
+    pub omni_audit: Arc<OmniAuditEngine>,
+    /// 审计清理服务
+    pub audit_cleanup: Arc<AuditCleanupService>,
+    /// JWT 主密钥
+    pub jwt_secret: String,
+    /// JWT 轮换期间的旧密钥（可选）
+    pub previous_jwt_secret: Option<String>,
+    /// Cookie 签名密钥
+    pub cookie_secret: String,
+    /// Webhook HMAC 签名密钥
+    pub webhook_secret: String,
+    /// CORS 允许的源列表
+    pub allowed_origins: Vec<String>,
+}
+
 impl FromRef<AppState> for Key {
     fn from_ref(state: &AppState) -> Self {
         state.cookie_key.clone()
@@ -95,17 +118,18 @@ impl FromRef<AppState> for Arc<MetricsService> {
 
 impl AppState {
     /// 创建应用全局状态，构造失败时返回错误（例如指标注册冲突）
-    #[allow(clippy::too_many_arguments)] // TODO(tech-debt): 构造全局状态需要注入多个依赖；后续考虑 Builder 模式收敛参数
-    pub fn with_secrets_and_cors(
-        db: Arc<DatabaseConnection>,
-        omni_audit: Arc<OmniAuditEngine>,
-        audit_cleanup: Arc<AuditCleanupService>,
-        jwt_secret: String,
-        previous_jwt_secret: Option<String>,
-        cookie_secret: String,
-        webhook_secret: String,
-        allowed_origins: Vec<String>,
-    ) -> Result<Self, String> {
+    ///
+    /// 批次 331 v10 复审 P3 修复：使用 AppStateParams 参数对象替代 8 个独立参数
+    pub fn with_secrets_and_cors(params: AppStateParams) -> Result<Self, String> {
+        let db = params.db;
+        let omni_audit = params.omni_audit;
+        let audit_cleanup = params.audit_cleanup;
+        let jwt_secret = params.jwt_secret;
+        let previous_jwt_secret = params.previous_jwt_secret;
+        let cookie_secret = params.cookie_secret;
+        let webhook_secret = params.webhook_secret;
+        let allowed_origins = params.allowed_origins;
+
         // 启动审计日志清理任务（后台任务，失败不阻塞启动）
         let cleanup_clone = audit_cleanup.clone();
         tokio::spawn(async move {

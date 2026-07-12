@@ -486,16 +486,18 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 info!("admin 角色缓存清理任务已启动（间隔 600 秒）");
             }
 
-            let app_state = match crate::utils::app_state::AppState::with_secrets_and_cors(
+            // 批次 331 v10 复审 P3 修复：使用 AppStateParams 参数对象替代多参数
+            let app_state_params = crate::utils::app_state::AppStateParams {
                 db,
                 omni_audit,
                 audit_cleanup,
-                settings.auth.jwt_secret.clone(),
-                settings.auth.previous_jwt_secret.clone(),
+                jwt_secret: settings.auth.jwt_secret.clone(),
+                previous_jwt_secret: settings.auth.previous_jwt_secret.clone(),
                 cookie_secret,
                 webhook_secret,
-                settings.cors.allowed_origins.clone(),
-            ) {
+                allowed_origins: settings.cors.allowed_origins.clone(),
+            };
+            let app_state = match crate::utils::app_state::AppState::with_secrets_and_cors(app_state_params) {
                 Ok(state) => state,
                 Err(e) => {
                     return Err(format!("初始化应用全局状态失败: {}", e).into());

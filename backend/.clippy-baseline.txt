@@ -1319,6 +1319,7 @@ warning: constant `INACTIVE` is never used
 warning: constant `LOAD_IDLE` is never used
 warning: constant `LOAD_OVERLOADED` is never used
 warning: constant `LOST` is never used
+warning: constant `MAX_RECURSION_DEPTH` is never used
 warning: constant `P92_AUTO_MODULE` is never used
 warning: constant `P92_CRUD_MODULE` is never used
 warning: constant `P92_LEDGER_MODULE` is never used
@@ -1387,6 +1388,8 @@ warning: function `must_some` is never used
 warning: function `node_type_to_status` is never used
 warning: function `rgb_to_hex` is never used
 warning: function `save_as_template` is never used
+warning: function `validate_dir_recursive` is never used
+warning: function `validate_extracted_paths` is never used
 warning: function `sha256_hex_multi` is never used
 warning: function `slow_query_threshold` is never used
 warning: method `calculate_order_total` is never used
