@@ -15,31 +15,49 @@ pub struct InventoryFinanceBridgeService {
     db: Arc<DatabaseConnection>,
 }
 
+/// 凭证分录构造参数对象
+///
+/// 批次 334 v10 复审 P3 修复：引入参数对象消除 make_voucher_item 的 too_many_arguments 警告。
+/// 聚合凭证分录所需的全部字段，避免函数签名携带 9 个参数。
+/// 使用生命周期 `'_` 借用 subject_code / subject_name，避免调用方不必要的 to_string()。
+pub struct VoucherItemArgs<'a> {
+    /// 行号
+    pub line_no: i32,
+    /// 科目编码
+    pub subject_code: &'a str,
+    /// 科目名称
+    pub subject_name: &'a str,
+    /// 借方金额
+    pub debit: Decimal,
+    /// 贷方金额
+    pub credit: Decimal,
+    /// 摘要
+    pub summary: Option<String>,
+    /// 数量（米）
+    pub quantity_meters: Option<Decimal>,
+    /// 数量（公斤）
+    pub quantity_kg: Option<Decimal>,
+    /// 单价
+    pub unit_price: Option<Decimal>,
+}
+
 impl InventoryFinanceBridgeService {
     pub fn new(db: Arc<DatabaseConnection>) -> Self {
         Self { db }
     }
 
     /// 创建默认凭证分录（填充所有必填字段）
-    #[allow(clippy::too_many_arguments)]
-    fn make_voucher_item(
-        line_no: i32,
-        subject_code: &str,
-        subject_name: &str,
-        debit: Decimal,
-        credit: Decimal,
-        summary: Option<String>,
-        quantity_meters: Option<Decimal>,
-        quantity_kg: Option<Decimal>,
-        unit_price: Option<Decimal>,
-    ) -> VoucherItemRequest {
+    ///
+    /// 批次 334 v10 复审 P3 修复：签名从 9 参数改为单一参数对象 `VoucherItemArgs`，
+    /// 消除 `clippy::too_many_arguments` 警告。
+    fn make_voucher_item(args: VoucherItemArgs<'_>) -> VoucherItemRequest {
         VoucherItemRequest {
-            line_no: Some(line_no),
-            subject_code: Some(subject_code.to_string()),
-            subject_name: Some(subject_name.to_string()),
-            debit,
-            credit,
-            summary,
+            line_no: Some(args.line_no),
+            subject_code: Some(args.subject_code.to_string()),
+            subject_name: Some(args.subject_name.to_string()),
+            debit: args.debit,
+            credit: args.credit,
+            summary: args.summary,
             assist_customer_id: None,
             assist_supplier_id: None,
             assist_department_id: None,
@@ -50,9 +68,9 @@ impl InventoryFinanceBridgeService {
             assist_dye_lot_id: None,
             assist_grade: None,
             assist_workshop_id: None,
-            quantity_meters,
-            quantity_kg,
-            unit_price,
+            quantity_meters: args.quantity_meters,
+            quantity_kg: args.quantity_kg,
+            unit_price: args.unit_price,
         }
     }
 
@@ -288,30 +306,30 @@ impl InventoryFinanceBridgeService {
             color_no: Some(color_no.to_string()),
             items: vec![
                 // 借：库存商品
-                Self::make_voucher_item(
-                    1,
-                    "1405",
-                    "库存商品",
-                    amount,
-                    Decimal::ZERO,
-                    Some(summary.clone()),
-                    Some(quantity_meters),
-                    Some(quantity_kg),
+                Self::make_voucher_item(VoucherItemArgs {
+                    line_no: 1,
+                    subject_code: "1405",
+                    subject_name: "库存商品",
+                    debit: amount,
+                    credit: Decimal::ZERO,
+                    summary: Some(summary.clone()),
+                    quantity_meters: Some(quantity_meters),
+                    quantity_kg: Some(quantity_kg),
                     // P3 维度 4 修复（批次 87）：单价计算补 round_dp(2)
-                    Some((amount / quantity_meters).round_dp(2)),
-                ),
+                    unit_price: Some((amount / quantity_meters).round_dp(2)),
+                }),
                 // 贷：应付账款
-                Self::make_voucher_item(
-                    2,
-                    "2202",
-                    "应付账款",
-                    Decimal::ZERO,
-                    amount,
-                    Some(summary.clone()),
-                    None,
-                    None,
-                    None,
-                ),
+                Self::make_voucher_item(VoucherItemArgs {
+                    line_no: 2,
+                    subject_code: "2202",
+                    subject_name: "应付账款",
+                    debit: Decimal::ZERO,
+                    credit: amount,
+                    summary: Some(summary.clone()),
+                    quantity_meters: None,
+                    quantity_kg: None,
+                    unit_price: None,
+                }),
             ],
         };
 
@@ -382,31 +400,31 @@ impl InventoryFinanceBridgeService {
             color_no: Some(color_no.to_string()),
             items: vec![
                 // 借：主营业务成本
-                Self::make_voucher_item(
-                    1,
-                    "6401",
-                    "主营业务成本",
-                    amount,
-                    Decimal::ZERO,
-                    Some(summary.clone()),
-                    Some(quantity_meters),
-                    Some(quantity_kg),
+                Self::make_voucher_item(VoucherItemArgs {
+                    line_no: 1,
+                    subject_code: "6401",
+                    subject_name: "主营业务成本",
+                    debit: amount,
+                    credit: Decimal::ZERO,
+                    summary: Some(summary.clone()),
+                    quantity_meters: Some(quantity_meters),
+                    quantity_kg: Some(quantity_kg),
                     // P3 维度 4 修复（批次 87）：单价计算补 round_dp(2)
-                    Some((amount / quantity_meters).round_dp(2)),
-                ),
+                    unit_price: Some((amount / quantity_meters).round_dp(2)),
+                }),
                 // 贷：库存商品
-                Self::make_voucher_item(
-                    2,
-                    "1405",
-                    "库存商品",
-                    Decimal::ZERO,
-                    amount,
-                    Some(summary.clone()),
-                    Some(quantity_meters),
-                    Some(quantity_kg),
+                Self::make_voucher_item(VoucherItemArgs {
+                    line_no: 2,
+                    subject_code: "1405",
+                    subject_name: "库存商品",
+                    debit: Decimal::ZERO,
+                    credit: amount,
+                    summary: Some(summary.clone()),
+                    quantity_meters: Some(quantity_meters),
+                    quantity_kg: Some(quantity_kg),
                     // P3 维度 4 修复（批次 87）：单价计算补 round_dp(2)
-                    Some((amount / quantity_meters).round_dp(2)),
-                ),
+                    unit_price: Some((amount / quantity_meters).round_dp(2)),
+                }),
             ],
         };
 
@@ -478,29 +496,29 @@ impl InventoryFinanceBridgeService {
                 batch_no: Some(batch_no.to_string()),
                 color_no: Some(color_no.to_string()),
                 items: vec![
-                    Self::make_voucher_item(
-                        1,
-                        "1405",
-                        "库存商品",
-                        amount,
-                        Decimal::ZERO,
-                        Some(summary.clone()),
-                        Some(quantity_meters),
-                        Some(quantity_kg),
+                    Self::make_voucher_item(VoucherItemArgs {
+                        line_no: 1,
+                        subject_code: "1405",
+                        subject_name: "库存商品",
+                        debit: amount,
+                        credit: Decimal::ZERO,
+                        summary: Some(summary.clone()),
+                        quantity_meters: Some(quantity_meters),
+                        quantity_kg: Some(quantity_kg),
                         // P3 维度 4 修复（批次 87）：单价计算补 round_dp(2)
-                    Some((amount / quantity_meters).round_dp(2)),
-                    ),
-                    Self::make_voucher_item(
-                        2,
-                        "1901",
-                        "待处理财产损溢",
-                        Decimal::ZERO,
-                        amount,
-                        Some(summary.clone()),
-                        None,
-                        None,
-                        None,
-                    ),
+                        unit_price: Some((amount / quantity_meters).round_dp(2)),
+                    }),
+                    Self::make_voucher_item(VoucherItemArgs {
+                        line_no: 2,
+                        subject_code: "1901",
+                        subject_name: "待处理财产损溢",
+                        debit: Decimal::ZERO,
+                        credit: amount,
+                        summary: Some(summary.clone()),
+                        quantity_meters: None,
+                        quantity_kg: None,
+                        unit_price: None,
+                    }),
                 ],
             }
         } else {
@@ -515,29 +533,29 @@ impl InventoryFinanceBridgeService {
                 batch_no: Some(batch_no.to_string()),
                 color_no: Some(color_no.to_string()),
                 items: vec![
-                    Self::make_voucher_item(
-                        1,
-                        "1901",
-                        "待处理财产损溢",
-                        amount,
-                        Decimal::ZERO,
-                        Some(summary.clone()),
-                        None,
-                        None,
-                        None,
-                    ),
-                    Self::make_voucher_item(
-                        2,
-                        "1405",
-                        "库存商品",
-                        Decimal::ZERO,
-                        amount,
-                        Some(summary.clone()),
-                        Some(-quantity_meters),
-                        Some(-quantity_kg),
+                    Self::make_voucher_item(VoucherItemArgs {
+                        line_no: 1,
+                        subject_code: "1901",
+                        subject_name: "待处理财产损溢",
+                        debit: amount,
+                        credit: Decimal::ZERO,
+                        summary: Some(summary.clone()),
+                        quantity_meters: None,
+                        quantity_kg: None,
+                        unit_price: None,
+                    }),
+                    Self::make_voucher_item(VoucherItemArgs {
+                        line_no: 2,
+                        subject_code: "1405",
+                        subject_name: "库存商品",
+                        debit: Decimal::ZERO,
+                        credit: amount,
+                        summary: Some(summary.clone()),
+                        quantity_meters: Some(-quantity_meters),
+                        quantity_kg: Some(-quantity_kg),
                         // P3 维度 4 修复（批次 87）：单价计算补 round_dp(2)
-                        Some((amount / (-quantity_meters)).round_dp(2)),
-                    ),
+                        unit_price: Some((amount / (-quantity_meters)).round_dp(2)),
+                    }),
                 ],
             }
         };
@@ -608,30 +626,30 @@ impl InventoryFinanceBridgeService {
             color_no: Some(color_no.to_string()),
             items: vec![
                 // 借：库存商品
-                Self::make_voucher_item(
-                    1,
-                    "1405",
-                    "库存商品",
-                    amount,
-                    Decimal::ZERO,
-                    Some(summary.clone()),
-                    Some(quantity_meters),
-                    Some(quantity_kg),
+                Self::make_voucher_item(VoucherItemArgs {
+                    line_no: 1,
+                    subject_code: "1405",
+                    subject_name: "库存商品",
+                    debit: amount,
+                    credit: Decimal::ZERO,
+                    summary: Some(summary.clone()),
+                    quantity_meters: Some(quantity_meters),
+                    quantity_kg: Some(quantity_kg),
                     // P3 维度 4 修复（批次 87）：单价计算补 round_dp(2)
-                    Some((amount / quantity_meters).round_dp(2)),
-                ),
+                    unit_price: Some((amount / quantity_meters).round_dp(2)),
+                }),
                 // 贷：生产成本
-                Self::make_voucher_item(
-                    2,
-                    "5001",
-                    "生产成本",
-                    Decimal::ZERO,
-                    amount,
-                    Some(summary.clone()),
-                    None,
-                    None,
-                    None,
-                ),
+                Self::make_voucher_item(VoucherItemArgs {
+                    line_no: 2,
+                    subject_code: "5001",
+                    subject_name: "生产成本",
+                    debit: Decimal::ZERO,
+                    credit: amount,
+                    summary: Some(summary.clone()),
+                    quantity_meters: None,
+                    quantity_kg: None,
+                    unit_price: None,
+                }),
             ],
         };
 
@@ -701,31 +719,31 @@ impl InventoryFinanceBridgeService {
             color_no: Some(color_no.to_string()),
             items: vec![
                 // 借：生产成本
-                Self::make_voucher_item(
-                    1,
-                    "5001",
-                    "生产成本",
-                    amount,
-                    Decimal::ZERO,
-                    Some(summary.clone()),
-                    Some(quantity_meters),
-                    Some(quantity_kg),
+                Self::make_voucher_item(VoucherItemArgs {
+                    line_no: 1,
+                    subject_code: "5001",
+                    subject_name: "生产成本",
+                    debit: amount,
+                    credit: Decimal::ZERO,
+                    summary: Some(summary.clone()),
+                    quantity_meters: Some(quantity_meters),
+                    quantity_kg: Some(quantity_kg),
                     // P3 维度 4 修复（批次 87）：单价计算补 round_dp(2)
-                    Some((amount / quantity_meters).round_dp(2)),
-                ),
+                    unit_price: Some((amount / quantity_meters).round_dp(2)),
+                }),
                 // 贷：库存商品
-                Self::make_voucher_item(
-                    2,
-                    "1405",
-                    "库存商品",
-                    Decimal::ZERO,
-                    amount,
-                    Some(summary.clone()),
-                    Some(quantity_meters),
-                    Some(quantity_kg),
+                Self::make_voucher_item(VoucherItemArgs {
+                    line_no: 2,
+                    subject_code: "1405",
+                    subject_name: "库存商品",
+                    debit: Decimal::ZERO,
+                    credit: amount,
+                    summary: Some(summary.clone()),
+                    quantity_meters: Some(quantity_meters),
+                    quantity_kg: Some(quantity_kg),
                     // P3 维度 4 修复（批次 87）：单价计算补 round_dp(2)
-                    Some((amount / quantity_meters).round_dp(2)),
-                ),
+                    unit_price: Some((amount / quantity_meters).round_dp(2)),
+                }),
             ],
         };
 
