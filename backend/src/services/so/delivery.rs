@@ -140,7 +140,8 @@ impl SalesService {
                 delivery_id: Set(delivery.id),
                 product_id: Set(item.product_id),
                 quantity: Set(item.quantity),
-                batch_no: Set(item.batch_no),
+                // 批次 356 v13 复审修复：clone 避免 move，下方 record_transaction_txn 仍需访问 item.batch_no
+                batch_no: Set(item.batch_no.clone()),
                 color_no: Set(None),
                 remarks: Set(None),
                 unit_price: Set(Decimal::ZERO),
