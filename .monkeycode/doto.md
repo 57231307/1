@@ -6,7 +6,7 @@
 
 ---
 
-## 🔥 当前任务：v9 复审问题修复（P0 2/2 ✅，高危 2/2 ✅，中危 0/5 ⏳）
+## 🔥 当前任务：v9 复审问题修复（P0 2/2 ✅，高危 2/2 ✅，中危 2/5 🔄）
 
 > **v9 全项目复审报告**（2026-07-12，[v9-review-2026-07-12.md](file:///workspace/.monkeycode/docs/audits/v9-review-2026-07-12.md)）：v8 修复后复审发现 2 P0 + 2 高危 + 5 中危 + 多个低危。
 > 修复策略：按规则 13 连续执行，P0 → 高危 → 中危 → 低危，每批 1 commit，CI 全绿后合并 main，全部完成后进入 v10 复审。
@@ -17,22 +17,27 @@
 |--------|------|--------|------|------|
 | 🔴 P0 严重 | 2 | 2 | 0 | ✅ 全部完成（批次 317） |
 | 🟠 高危 | 2 | 2 | 0 | ✅ 全部完成（批次 318） |
-| 🟡 中危 | 5 | 0 | 5 | ⏳ 批次 319-321 |
+| 🟡 中危 | 5 | 2 | 3 | 🔄 批次 320-321 |
 | 🟢 低危 | 多项 | 0 | 多项 | ⏳ 批次 322+ |
-| **合计** | **9+** | **4** | **5+** | — |
+| **合计** | **9+** | **6** | **3+** | — |
 
-### ✅ 已完成（批次 317-318）
+### ✅ 已完成（批次 317-319）
 
-**批次 317（PR #489）**：
-- **P0-1**：backup.rs cmd_backup pg_dump 失败不返回 false（导致 upgrade 备份检查失效）
-- **P0-2**：system_update_service.rs L7 目录权限掩码未应用（is_dir() 在文件分支内永假，目录权限未设置）
-- **P1**：backup.rs cmd_restore psql 失败不返回 false（同类问题）
-- 新增 set_safe_permissions 辅助函数 + 2 个权限掩码单元测试
+**批次 317（PR #489）**：P0+P1 严重修复
+- P0-1：backup.rs cmd_backup pg_dump 失败不返回 false
+- P0-2：system_update_service.rs L7 目录权限掩码未应用
+- P1：backup.rs cmd_restore psql 失败不返回 false
+- 新增 set_safe_permissions 辅助函数 + 2 个单元测试
 
-**批次 318（PR #490）**：
-- **H-1**：upgrade.rs Tar Slip 路径穿越（改 UUID 随机目录 + 先 tar -tf 校验再解压 + 二次校验）
-- **H-2**：admin.rs bingxi 自身命令行密码泄露（移除 --password，改 --password-stdin + BINGXI_ADMIN_PASSWORD 环境变量）
+**批次 318（PR #490）**：高危修复
+- H-1：upgrade.rs Tar Slip 路径穿越（UUID 随机目录 + 先 tar -tf 校验再解压 + 二次校验）
+- H-2：admin.rs 密码泄露（移除 --password，改 --password-stdin + 环境变量）
 - 新增 read_password 辅助函数 + 4 个单元测试
+
+**批次 319（PR #491）**：中危修复 M-1 + M-2
+- M-1：fetch_latest_release 添加 resolve_to_addrs 防 DNS Rebinding
+- M-2：新增 validate_asset_name 校验 asset.name 防路径穿越
+- 新增 3 个 validate_asset_name 单元测试
 
 ### ⏳ 待修复项
 
