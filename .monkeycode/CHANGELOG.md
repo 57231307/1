@@ -9,6 +9,7 @@
 
 | 批次 | PR | 一句话总结 |
 |------|-----|-----------|
+| 328 | #500 | v10 复审 P3 误报 too_many_arguments 抑制移除 9 项（clippy 阈值 7 即 >7 才警告，9 个函数参数 ≤7 均为误报：1 参数 list_records + 5 参数 manual_verify/make_record + 6 参数 borrow + 7 参数 get_list×3/create_payment/tencent_sign/notify_multiple_users） |
 | 327 | #499 | v10 复审 P3 too_many_arguments 抑制移除 3 项（import_export_service 误报 3 参数删除 + cache.rs 误报 5 参数删除 + user_notification_setting_service 引入 UpdateNotificationSettingParams 参数对象聚合 8 参数） |
 | 326 | #498 | v10 复审 P2 clippy 警告抑制移除 2 项（sales_analysis_service needless_late_init 声明赋值合并 + material_shortage_service type_complexity 提取类型别名 MaterialReq，pred.rs 2 项 needless_range_loop 已在 main 5291e773 修复） |
 | 325 | #497 | v10 复审 P0+P1 警告抑制移除 6 项（1 P0 死代码 ExportFormatType enum 删除 + 2 P1 文件级 #![allow(clippy::too_many_arguments)] 删除 enhanced_logger/sensitive_action_alert + 3 P1 未使用 pub use + #[allow(unused_imports)] 删除 so/mod+po/mod，规则 14 合规首战） |
