@@ -18,11 +18,13 @@ mod tests {
 
     #[test]
     fn test_borrow_status_from_str() {
-        assert_eq!(BorrowStatus::from_str("borrowed"), Some(BorrowStatus::Borrowed));
-        assert_eq!(BorrowStatus::from_str("returned"), Some(BorrowStatus::Returned));
-        assert_eq!(BorrowStatus::from_str("lost"), Some(BorrowStatus::Lost));
-        assert_eq!(BorrowStatus::from_str("damaged"), Some(BorrowStatus::Damaged));
-        assert_eq!(BorrowStatus::from_str("invalid"), None);
+        // 批次 344 v11 复审 P1 修复：from_str 迁移到 std::str::FromStr trait，返回 Result
+        use std::str::FromStr;
+        assert_eq!(BorrowStatus::from_str("borrowed").unwrap(), BorrowStatus::Borrowed);
+        assert_eq!(BorrowStatus::from_str("returned").unwrap(), BorrowStatus::Returned);
+        assert_eq!(BorrowStatus::from_str("lost").unwrap(), BorrowStatus::Lost);
+        assert_eq!(BorrowStatus::from_str("damaged").unwrap(), BorrowStatus::Damaged);
+        assert!(BorrowStatus::from_str("invalid").is_err());
     }
 
     #[test]

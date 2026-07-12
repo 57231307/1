@@ -148,6 +148,14 @@ pub fn inventory() -> Router<AppState> {
             "/reservations/:id",
             delete(inventory_reservation_handler::delete_reservation),
         )
+        .route(
+            "/reservations/:id/lock",
+            post(inventory_reservation_handler::lock_reservation),
+        )
+        .route(
+            "/reservations/:id/release",
+            post(inventory_reservation_handler::release_reservation),
+        )
         // v11 批次 143 P1-1：库存盘点路由
         .route(
             "/counts",

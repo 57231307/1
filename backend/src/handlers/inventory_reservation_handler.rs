@@ -134,3 +134,61 @@ pub async fn delete_reservation(
         "message": "预留已删除"
     }))))
 }
+
+/// 锁定预留（从 pending 到 locked）
+/// POST /api/v1/erp/inventory/reservations/:id/lock
+pub async fn lock_reservation(
+    _auth: AuthContext,
+    State(state): State<AppState>,
+    Path(id): Path<i32>,
+) -> Result<Json<ApiResponse<ReservationResponse>>, AppError> {
+    let service = crate::services::inventory_reservation_service::InventoryReservationService::new(
+        state.db.clone(),
+    );
+
+    let reservation = service
+        .lock_reservation(id)
+        .await
+        .map_err(|e| AppError::internal(format!("锁定预留失败: {}", e)))?;
+
+    Ok(Json(ApiResponse::success(ReservationResponse {
+        id: reservation.id,
+        order_id: reservation.order_id,
+        product_id: reservation.product_id,
+        warehouse_id: reservation.warehouse_id,
+        quantity: reservation.quantity,
+        status: reservation.status,
+        notes: reservation.notes,
+        created_at: reservation.created_at,
+        updated_at: reservation.updated_at,
+    })))
+}
+
+/// 释放预留（从 locked/pending 到 released）
+/// POST /api/v1/erp/inventory/reservations/:id/release
+pub async fn release_reservation(
+    _auth: AuthContext,
+    State(state): State<AppState>,
+    Path(id): Path<i32>,
+) -> Result<Json<ApiResponse<ReservationResponse>>, AppError> {
+    let service = crate::services::inventory_reservation_service::InventoryReservationService::new(
+        state.db.clone(),
+    );
+
+    let reservation = service
+        .release_reservation(id)
+        .await
+        .map_err(|e| AppError::internal(format!("释放预留失败: {}", e)))?;
+
+    Ok(Json(ApiResponse::success(ReservationResponse {
+        id: reservation.id,
+        order_id: reservation.order_id,
+        product_id: reservation.product_id,
+        warehouse_id: reservation.warehouse_id,
+        quantity: reservation.quantity,
+        status: reservation.status,
+        notes: reservation.notes,
+        created_at: reservation.created_at,
+        updated_at: reservation.updated_at,
+    })))
+}
