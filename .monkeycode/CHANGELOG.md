@@ -9,6 +9,7 @@
 
 | 批次 | PR | 一句话总结 |
 |------|-----|-----------|
+| 326 | #498 | v10 复审 P2 clippy 警告抑制移除 2 项（sales_analysis_service needless_late_init 声明赋值合并 + material_shortage_service type_complexity 提取类型别名 MaterialReq，pred.rs 2 项 needless_range_loop 已在 main 5291e773 修复） |
 | 325 | #497 | v10 复审 P0+P1 警告抑制移除 6 项（1 P0 死代码 ExportFormatType enum 删除 + 2 P1 文件级 #![allow(clippy::too_many_arguments)] 删除 enhanced_logger/sensitive_action_alert + 3 P1 未使用 pub use + #[allow(unused_imports)] 删除 so/mod+po/mod，规则 14 合规首战） |
 | 324 | #496 | sea-orm 版本调研+修正误导性注释（2.0 仍 RC rc.42 项目用 1.1.20 稳定版正确，修正 rust-toolchain.toml+Cargo.toml 注释，新增规则 14 移除警告抑制） |
 | 323 | #495 | 修复 v9 低危代码味道问题 3 项（1. extract_update_package 60+行拆分为 prepare_extract_dir+extract_zip_entry 2. cmd_backup 95行拆分为 backup_database+backup_config_files+compress_backup 3. cmd_restore 128行拆分为 validate_tar_contents+restore_database+restore_config_files，附编译错误修复+collapsible_if 消除） |
