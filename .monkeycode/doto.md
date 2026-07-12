@@ -15,7 +15,7 @@
 
 ---
 
-## 🔥 当前任务：v10 复审问题修复（P0 1/1 ✅，P1 5/5 ✅，P2 4/4 ✅，P3 14/~42 ⏳）
+## 🔥 当前任务：v10 复审问题修复（P0 1/1 ✅，P1 5/5 ✅，P2 4/4 ✅，P3 20/~42 ⏳）
 
 > **v10 复审报告**（2026-07-12，Task 工具扫描）：v9 + sea-orm 调研 + 规则 14 新增后复审，扫描所有 `#[allow(...)]` 警告抑制。
 > 发现 180 个抑制标注（108 例外 models/ + 72 非例外），非例外分类：1 P0 + 5 P1 + 4 P2 + ~42 P3。
@@ -28,10 +28,20 @@
 | 🔴 P0 死代码 | 1 | 1 | 0 | ✅ 全部完成（批次 325） |
 | 🟠 P1 文件级抑制过宽+未使用重导出 | 5 | 5 | 0 | ✅ 全部完成（批次 325） |
 | 🟡 P2 clippy 代码味道 | 4 | 4 | 0 | ✅ 全部完成（批次 326，pred.rs 2 项已在 main 修复） |
-| 🟢 P3 too_many_arguments | ~42 | 14 | ~28 | ⏳ 长期重构（批次 327+） |
-| **合计** | **~52** | **24** | **~28** | 🔄 进行中 |
+| 🟢 P3 too_many_arguments | ~42 | 20 | ~22 | ⏳ 长期重构（批次 327+） |
+| **合计** | **~52** | **30** | **~22** | 🔄 进行中 |
 
-### ✅ 已完成（批次 325-329）
+### ✅ 已完成（批次 325-330）
+
+**批次 330（PR #502）**：v10 复审 P3 误报删除 5 项 + DTO 重构 1 项
+- 误报删除 5 项（clippy::too_many_arguments 不计算 &self，阈值 7，参数 ≤7 均为误报）：
+  - `product_service.rs create_product_color`：7 参数（不含 &self），删除误报 #[allow]
+  - `inventory_stock_query.rs get_inventory_summary`：7 参数（不含 &self），删除误报 #[allow]
+  - `mrp_engine_service.rs explode_bom`：7 参数（不含 &self），删除误报 #[allow]
+  - `mrp_engine_service.rs run_mrp_calculation`：7 参数（不含 &self），删除误报 #[allow]
+  - `ar/inv.rs create_receivable`：6 参数（不含 &self），删除误报 #[allow]
+- DTO 重构 1 项：`product_service.rs update_product_color` 8 参数 → 1 参数，引入 `UpdateProductColorParams` 参数对象（id/color_name/pantone_code/color_type/dye_formula/extra_cost/is_active/user_id），handler 调用方同步修改
+- 附：规则 10 每 15 批次记忆整理（迁移批次 290-329 归档摘要到 doto-su.md）
 
 **批次 329（PR #501）**：v10 复审 P3 too_many_arguments 参数对象重构 2 项
 - `ar_service.rs create_payment`：8 参数 → 2 参数，引入 `CreateArPaymentParams` 参数对象（customer_id/amount/payment_method/payment_date/bank_account/remark/invoice_ids），handler 同步修改

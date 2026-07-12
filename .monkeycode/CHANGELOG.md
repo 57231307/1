@@ -9,6 +9,7 @@
 
 | 批次 | PR | 一句话总结 |
 |------|-----|-----------|
+| 330 | #502 | v10 复审 P3 误报 too_many_arguments 删除 5 项 + DTO 重构 1 项（5 误报：create_product_color/get_inventory_summary/explode_bom/run_mrp_calculation 各 7 参数 + create_receivable 6 参数，clippy 不计 &self 阈值 7；1 DTO：update_product_color 8→1 参数引入 UpdateProductColorParams，规则 10 记忆整理批次 290-329 归档） |
 | 329 | #501 | v10 复审 P3 too_many_arguments 参数对象重构 2 项（ar_service create_payment 8→2 参数引入 CreateArPaymentParams + budget_management_service create_execution 9→2 参数引入 CreateBudgetExecutionParams，handler+service 内部调用方同步修改） |
 | 328 | #500 | v10 复审 P3 误报 too_many_arguments 抑制移除 9 项（clippy 阈值 7 即 >7 才警告，9 个函数参数 ≤7 均为误报：1 参数 list_records + 5 参数 manual_verify/make_record + 6 参数 borrow + 7 参数 get_list×3/create_payment/tencent_sign/notify_multiple_users） |
 | 327 | #499 | v10 复审 P3 too_many_arguments 抑制移除 3 项（import_export_service 误报 3 参数删除 + cache.rs 误报 5 参数删除 + user_notification_setting_service 引入 UpdateNotificationSettingParams 参数对象聚合 8 参数） |
