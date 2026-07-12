@@ -65,5 +65,7 @@ pub struct CustomerRelationSummary {
 // 统一对外导出
 // =====================================================
 
-#[allow(unused_imports)] // TODO(tech-debt): 公共 API 重导出，业务接入后评估是否保留
-pub use cust::CrmService;
+// 批次 341 v11 复审 P2 修复：删除 CrmService 未使用重导出。
+// crm_handler.rs 直接使用 crate::services::crm::cust::CrmService 路径导入，
+// 此处重导出无任何调用点，属于历史遗留的预留 API。
+

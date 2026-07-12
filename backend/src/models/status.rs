@@ -231,16 +231,16 @@ pub mod approval {
 
 // 库存预留状态（inventory_reservation.status，小写值）
 // 批次 158 v11 真实接入：so/delivery.rs 中库存预留状态字符串字面量统一引用此模块（规则 0）
+// 批次 341 v11 复审 P2 修复：LOCKED/RELEASED 常量已被 inventory_reservation_service.rs 和测试代码广泛使用，
+// 移除过时的 #[allow(dead_code)] 抑制（lock_reservation/release_reservation 方法已真实实现）。
 pub mod inventory_reservation {
     /// 待处理（已创建预留，等待发货扣减）
     pub const PENDING: &str = "pending";
     /// 已锁定（库存已锁定，等待发货扣减）
-    #[allow(dead_code)] // TODO(tech-debt): lock_reservation 方法尚未接入路由，接入后移除
     pub const LOCKED: &str = "locked";
     /// 已消耗（发货已扣减库存，原 FULFILLED 值修正为 consumed 与业务代码一致）
     pub const CONSUMED: &str = "consumed";
     /// 已释放（订单取消或库存不足释放）
-    #[allow(dead_code)] // TODO(tech-debt): release_reservation 方法尚未接入路由，接入后移除
     pub const RELEASED: &str = "released";
     /// 已取消（订单取消或库存不足释放）
     pub const CANCELLED: &str = "cancelled";

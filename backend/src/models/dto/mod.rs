@@ -28,30 +28,9 @@ impl Default for PageRequest {
 }
 
 impl PageRequest {
-    /// 创建分页请求
-    #[allow(dead_code)] // TODO(tech-debt): 分页工具方法，待统一接入 paginate_with_total 后移除
-    pub fn new(page: u64, page_size: u64) -> Self {
-        Self { page, page_size }
-    }
-
-    /// 批次 98 P2 修复（v5 复审）：获取经 clamp 的页码
-    /// 上限 1000 防止深度分页 DoS（page=u64::MAX 触发 offset 溢出导致 DB 全表扫描）
-    #[allow(dead_code)] // TODO(tech-debt): 分页工具方法，待统一接入 paginate_with_total 后移除
-    pub fn page_clamped(&self) -> u64 {
-        self.page.clamp(1, 1000)
-    }
-
-    /// 获取偏移量（基于 clamp 后的页码计算）
-    #[allow(dead_code)] // TODO(tech-debt): 分页工具方法，待统一接入 paginate_with_total 后移除
-    pub fn offset(&self) -> u64 {
-        (self.page_clamped().saturating_sub(1)) * self.limit()
-    }
-
-    /// 获取每页数量（限制最大 100）
-    #[allow(dead_code)] // TODO(tech-debt): 分页工具方法，待统一接入 paginate_with_total 后移除
-    pub fn limit(&self) -> u64 {
-        self.page_size.clamp(1, 100)
-    }
+    // 批次 341 v11 复审 P2 修复：删除四个未使用的分页工具方法。
+    // 项目已统一接入 paginate_with_total（批次 260），这些历史方法无任何调用点。
+    // page_clamped/limit 的 clamp 逻辑已由 paginate_with_total 内部实现覆盖。
 }
 
 /// 分页响应结构
