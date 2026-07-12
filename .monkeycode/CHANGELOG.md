@@ -9,6 +9,15 @@
 
 | 批次 | PR | 一句话总结 |
 |------|-----|-----------|
+| 355 | #527 | v12 复审 P1-4 baseline 清理 + P3 upper_case_acronyms 修复收官（baseline 删 25 行 + utils/incoterms.rs Incoterms2020 枚举 FOB→Fob/CIF→Cif/EXW→Exw/DDP→Ddp/DAP→Dap + quotation_pricing_service CustomerLevel VIP→Vip/NORMAL→Normal + 2 测试文件同步 + #[serde(rename_all="UPPERCASE")] 保持 API 契约 + CI 初次失败恢复 6 条误删 baseline 历史摘要行 + CI 13+2 全绿 v12 复审 15/15 全部完成） |
+| 354 | #526 | v12 复审 P1-3 unused_imports 清理 5 项（inventory_stock_handler_query 测试模块 use super::* + 4 文件 AuthContext/rust_decimal::prelude::*/tracing::info/custom_order_crud_service useless_asref 修复 as_ref().map().unwrap_or→clone().unwrap_or） |
+| 353 | #525 | v12 复审 P1-3 unused_imports 清理 6 项（bpm_service 5 个 DTO 导入 + dual_unit_converter_handler/sales_unit_tests/assist_accounting_service 各 1 项 unused import 清理） |
+| 352 | #524 | v12 复审 P1-1 too_many_arguments 修复（mrp_engine_service calculate_requirement_with_stock 10→3 参数复用 RequirementCalcParams + color_price_history_service record_change 死代码删除+PriceChangeRecord 删除 + baseline 删 7 行） |
+| 351 | #523 | v12 复审 P1-2 useless_asref + P1-3 unused_imports 首批（custom_order_crud_service useless_asref 修复 + bpm_service 5 DTO + 3 文件 unused import 清理） |
+| 350 | #522 | v12 复审 P2-4 baseline 过时条目清理（删 19 行 1508→1489，P2 8/8 全部完成） |
+| 349 | #521 | v12 复审 P2-3 cleanup_expired_jti 接入定时任务（main.rs tokio::spawn 间隔 3600 秒 + 3 文件注释修正） |
+| 348 | #520 | v12 复审 P2-1+P2-2 死代码删除（3 文件删除 ar_collection_service+five_dimension_query_service+fabric_five_dimension + 2 mod.rs 修改） |
+| 347 | #519 | v12 复审 P2 死代码清理 4 项（unwrap_safe must_some/must_ok + hash sha256_hex_multi + color_space_converter rgb_to_hex/delta_e_76 + process_state_machine node_type_to_status） |
 | 346 | #518 | v11 复审 P1-6+P1-7 crud_macro 宏 metavariable 修复收官（impl_generate_no! 宏 $entity 从 ty 改为 path metavariable 可直接作为路径表达式使用 + <$entity>::default() 改为 $entity Entity unit struct 直接作为值 + 移除 2 处 #[allow(clippy::default_constructed_unit_structs)] + 14 个调用点均为 xxx::Entity 路径格式兼容 + generate_no 签名 _entity: E 泛型兼容，规则 14 合规 CI 13+2 全绿 v11 复审 27/27 全部完成） |
 | 345 | #517 | v11 复审 P2-8 app_state.rs Default 实现重构收官（impl Default for AppState default 方法移除 #[allow(dead_code, unused_variables)] 原问题 jwt_secret 字段初始化器 #[cfg(not(test))] 调用 std::process::exit(1) 导致后续字段不可达触发 dead_code+unreachable_code 修复方案 #[cfg(not(test))] panic! 提前到函数体开头返回 ! coerce 到 Self + #[cfg(test)] 所有局部变量被字段初始化器使用消除 unused_variables + jwt_secret 直接固定测试密钥无需内联 cfg 规则 14 合规 CI 13+2 全绿 P2 10/10 全部完成 v11 进度 24/27 剩余 3 项为宏内合理保留） |
 | 344 | #516 | v11 复审 P1 FromStr trait 迁移 + 接入 lock/release 预留接口（color_card_borrow_service from_str→std::str::FromStr trait 消除 should_implement_trait 警告 + 新增 BorrowStatusParseError + inventory_reservation_handler 新增 lock_reservation/release_reservation handler 真实接入 service 方法 + routes/inventory 新增 POST /reservations/:id/lock 和 /reservations/:id/release 路由，修复批次 341 移除 #[allow(dead_code)] 后 clippy 报 LOCKED/RELEASED never used 根因是方法未接入 handler 规则 0 违规，CI 13+2 全绿） |
