@@ -727,8 +727,6 @@ impl BpmService {
 
     /// 获取流程监控统计
     pub async fn get_monitor_stats(&self) -> Result<ProcessMonitorStats, AppError> {
-        use sea_orm::QuerySelect;
-
         let total_instances = bpm_process_instance::Entity::find()
             .count(&*self.db)
             .await?;

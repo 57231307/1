@@ -1,7 +1,7 @@
 use crate::models::role;
 use chrono::{DateTime, Duration, Utc};
 use dashmap::DashMap;
-use sea_orm::{ActiveModelTrait, DatabaseConnection, EntityTrait};
+use sea_orm::{DatabaseConnection, EntityTrait};
 use std::sync::LazyLock;
 use tracing::warn;
 
