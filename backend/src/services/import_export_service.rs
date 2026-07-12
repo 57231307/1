@@ -59,14 +59,6 @@ pub struct ImportError {
     pub message: String,
 }
 
-/// 导出格式
-#[allow(dead_code, clippy::upper_case_acronyms)]
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub enum ExportFormatType {
-    CSV,
-    Excel,
-}
-
 /// 导入模板定义
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ImportTemplate {

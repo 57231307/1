@@ -1,5 +1,3 @@
-#![allow(clippy::too_many_arguments)]
-
 use serde::{Deserialize, Serialize};
 
 /// 增强日志服务 - 提供详细的业务日志记录
