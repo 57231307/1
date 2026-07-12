@@ -84,15 +84,21 @@ pub(super) fn cmd_backup(backup_type: &str) -> bool {
             "请设置数据库名称，例如 export DATABASE__NAME=bingxi_erp",
         );
 
-        match run_cmd(
+        // P0-1 修复（v9 复审）：数据库是核心数据，pg_dump 失败必须中止备份
+        // 原 L4 修复仅改返回类型为 bool，但 pg_dump 失败时未 return false，
+        // 导致 upgrade 拿到"备份成功"假象继续部署，数据丢失风险
+        if let Err(e) = run_cmd(
             "pg_dump",
             &[
                 "-h", &db_host, "-U", &db_user, "-d", &db_name, "-f", &db_file,
             ],
         ) {
-            Ok(_) => println!("[OK] 数据库备份完成"),
-            Err(e) => println!("[ERROR] 数据库备份失败: {}", e),
+            println!("[ERROR] 数据库备份失败，终止备份: {}", e);
+            // 清理临时备份目录（非关键路径）
+            let _ = run_cmd("rm", &["-rf", &backup_dir]);
+            return false;
         }
+        println!("[OK] 数据库备份完成");
     }
 
     // 备份文件
@@ -232,15 +238,20 @@ pub(super) fn cmd_restore(file: &str) -> bool {
             "请设置数据库名称，例如 export DATABASE__NAME=bingxi_erp",
         );
 
-        match run_cmd(
+        // P1 修复（v9 复审）：数据库是核心数据，psql 恢复失败必须中止
+        // 原 L4 修复仅改返回类型为 bool，但 psql 失败时未 return false，
+        // 调用方拿到"恢复成功"假象，可能基于不完整数据继续操作
+        if let Err(e) = run_cmd(
             "psql",
             &[
                 "-h", &db_host, "-U", &db_user, "-d", &db_name, "-f", &db_file,
             ],
         ) {
-            Ok(_) => println!("[OK] 数据库恢复完成"),
-            Err(e) => println!("[ERROR] 数据库恢复失败: {}", e),
+            println!("[ERROR] 数据库恢复失败，终止恢复: {}", e);
+            let _ = run_cmd("rm", &["-rf", temp_dir]);
+            return false;
         }
+        println!("[OK] 数据库恢复完成");
     }
 
     // 恢复配置
