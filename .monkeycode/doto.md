@@ -60,7 +60,7 @@
 
 ---
 
-## 🔥 当前任务：v12 复审问题修复（P2 死代码 4/8 🔄）
+## 🔥 当前任务：v12 复审问题修复（P2 死代码 8/8 ✅，P1 0/4 🔄）
 
 > **v12 复审报告**（2026-07-12，批次 346 合并后 Task 工具扫描）：v11 复审全部完成后复审，扫描死代码、unwrap/expect/panic 使用、baseline 渐进清理。
 > 发现 15 个问题：0 P0 + 4 P1 + 8 P2 + 3 P3。
@@ -71,12 +71,12 @@
 
 | 优先级 | 总数 | 已完成 | 剩余 | 状态 |
 |--------|------|--------|------|------|
-| 🟡 P2 死代码 | 8 | 4 | 4 | 🔄 进行中（批次 347 清理 4 项 utils/ 函数） |
-| 🟠 P1 clippy baseline 风格警告 | 4 | 0 | 4 | ⏳ 待处理（需重新运行 clippy 定位） |
+| 🟡 P2 死代码 | 8 | 8 | 0 | ✅ 全部完成（批次 347-350） |
+| 🟠 P1 clippy baseline 风格警告 | 4 | 0 | 4 | 🔄 进行中（2 too_many_arguments + 1 useless_asref + 23 unused_imports） |
 | 🟢 P3 测试代码/业务术语 | 3 | 0 | 3 | ⏳ 待处理（Incoterms 业务术语） |
-| **合计** | **15** | **4** | **11** | 🔄 进行中 |
+| **合计** | **15** | **8** | **7** | 🔄 进行中 |
 
-### ✅ 已完成（批次 347）
+### ✅ 已完成（批次 347-350）
 
 **批次 347（PR #519）**：v12 复审 P2 死代码清理 4 项（4 文件，utils/ 函数级删除）
 - `unwrap_safe.rs`：删除 `must_some` + `must_ok` 函数及 4 个对应测试（pub 函数仅自身测试调用）
@@ -85,14 +85,35 @@
 - `process_state_machine.rs`：删除 `node_type_to_status` 函数及对应测试
 - 规则 0+14 合规：删除死代码而非抑制，CI 13 success + 2 skipped 全绿
 
-### 🟡 P2 剩余项（4 项，需深入评估）
+**批次 348（PR #520，commit 8aeeb231）**：v12 复审 P2-1+P2-2 死代码删除（5 文件，3 删 + 2 改）
+- `services/ar_collection_service.rs`：删除（零外部引用，功能被 ArService 完全覆盖）
+- `services/five_dimension_query_service.rs`：删除（零外部引用，功能被 FiveDimensionService 内联覆盖）
+- `utils/fabric_five_dimension.rs`：连带删除（仅被已删除的 FiveDimensionQueryService 引用）
+- `services/mod.rs` + `utils/mod.rs`：删除 3 个 pub mod 声明
+- CI 13 success + 2 skipped 全绿
 
-| ID | 文件 | 标识符 | 类型 | 评估 |
-|----|------|--------|------|------|
-| P2-1 | `services/ar_collection_service.rs` | `ArCollectionService` | struct | 整文件未接入 handler，需评估是否预留功能 |
-| P2-2 | `services/five_dimension_query_service.rs` | `FiveDimensionQueryService` | struct | handler 使用 FiveDimensionService（不同 service），可能重复/废弃 |
-| P2-3 | `services/auth_service.rs:548` | `cleanup_expired_jti` | function | 仅测试调用，可能预留定时任务 |
-| P2-4 | baseline 中 5 项已接入业务但 baseline 未更新 | — | — | 需更新 baseline（需 CI 重新生成） |
+**批次 349（PR #521，commit d3ada6b8）**：v12 复审 P2-3 cleanup_expired_jti 接入定时任务（4 文件）
+- `main.rs`：参照 cleanup_expired_admin_cache 模式接入 tokio::spawn 定时任务（间隔 3600 秒）
+- `services/ar/mod.rs`：修正过时注释（ar_collection_service → ar_service）
+- `services/ar_invoice_service.rs`：修正错误注释（ar_collection_service.confirm → ar_service.confirm_payment）
+- `services/accounting_period_service.rs`：移除对已删除 ar_collection_service.rs:42 的引用
+- CI 13 success + 2 skipped 全绿
+
+**批次 350（PR #522，commit bfb2321d）**：v12 复审 P2-4 baseline 过时条目清理（1 文件，删 19 行）
+- `backend/.clippy-baseline.txt`：删除 5 条摘要行 + 14 条非摘要行（对应 P2-1/P2-2/P2-3 已修复项）
+- baseline 行数：1508 → 1489
+- CI 13 success + 2 skipped 全绿，v12 复审 P2 全部完成（8/8）
+
+### 🟠 P1 剩余项（4 项，需通过 CI 日志定位文件）
+
+| ID | 警告类型 | 数量 | 评估 |
+|----|----------|------|------|
+| P1-1 | `clippy::too_many_arguments` | 2 | baseline 中 "this function has too many arguments (10/7)" + "(8/7)"，需定位具体函数 |
+| P1-2 | `clippy::useless_asref` | 1 | baseline 中记录，需定位具体位置 |
+| P1-3 | `unused_imports` | 23 | baseline 中 23 条 unused import 警告，需逐个定位删除 |
+| P1-4 | baseline 过时条目清理 | — | P1 修复后同步清理 baseline |
+
+**注意**：P1 警告在 baseline 中有摘要行，直接修复代码后 current 中对应警告消失，baseline 中需同步删除摘要行，否则不会产生新警告但 baseline 会保留过时条目。
 
 ### 🔴 P0 待修复项（0 项 ✅ 全部完成）
 
