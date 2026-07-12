@@ -4,7 +4,7 @@
 
 use rust_decimal::Decimal;
 use sea_orm::{
-    ActiveModelTrait, ColumnTrait, EntityTrait, QueryFilter, Set, UpdateMany,
+    ActiveModelTrait, ColumnTrait, EntityTrait, QueryFilter, Set,
 };
 use chrono::Utc;
 
