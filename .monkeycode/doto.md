@@ -15,7 +15,7 @@
 
 ---
 
-## 🔥 当前任务：v10 复审问题修复（P0 1/1 ✅，P1 5/5 ✅，P2 4/4 ✅，P3 26/~42 ⏳）
+## 🔥 当前任务：v10 复审问题修复（P0 1/1 ✅，P1 5/5 ✅，P2 4/4 ✅，P3 40/~43 ⏳）
 
 > **v10 复审报告**（2026-07-12，Task 工具扫描）：v9 + sea-orm 调研 + 规则 14 新增后复审，扫描所有 `#[allow(...)]` 警告抑制。
 > 发现 180 个抑制标注（108 例外 models/ + 72 非例外），非例外分类：1 P0 + 5 P1 + 4 P2 + ~42 P3。
@@ -28,10 +28,25 @@
 | 🔴 P0 死代码 | 1 | 1 | 0 | ✅ 全部完成（批次 325） |
 | 🟠 P1 文件级抑制过宽+未使用重导出 | 5 | 5 | 0 | ✅ 全部完成（批次 325） |
 | 🟡 P2 clippy 代码味道 | 4 | 4 | 0 | ✅ 全部完成（批次 326，pred.rs 2 项已在 main 修复） |
-| 🟢 P3 too_many_arguments | ~42 | 26 | ~16 | ⏳ 长期重构（批次 327+） |
-| **合计** | **~52** | **36** | **~16** | 🔄 进行中 |
+| 🟢 P3 too_many_arguments | ~43 | 40 | ~3 | ⏳ 长期重构（批次 327+） |
+| **合计** | **~53** | **50** | **~3** | 🔄 进行中 |
 
-### ✅ 已完成（批次 325-336）
+### ✅ 已完成（批次 325-338）
+
+**批次 338（PR #510）**：v10 复审 P3 too_many_arguments DTO 重构 8 项（5 核心 service + 8 调用方）
+- `ai/recipe_opt.rs make_recipe`：8 参数 → 1 参数对象 `RecipeFixture<'a>`（测试夹具，7 个调用点同步修改）
+- `inventory_stock_query.rs record_transaction`：18 参数 → 1 参数对象 `RecordTransactionArgs`（sales_return_service.rs 调用方同步修改）
+- `inventory_stock_service.rs create_stock`：12 参数 → 1 参数对象 `CreateStockArgs` + `create_stock_fabric`：13 参数 → 1 参数对象 `CreateStockFabricArgs`（2 个 handler 调用方同步修改）
+- `inventory_stock_txn.rs create_stock_fabric_txn`：14 参数 → 2 参数（txn + CreateStockFabricArgs 复用）+ `record_transaction_txn`：19 参数 → 2 参数（txn + RecordTransactionArgs 复用）（4 个 service 调用方共 9 个调用点同步修改）
+- `customer_service.rs create_customer`：18 参数 → 1 参数对象 `CreateCustomerArgs` + `update_customer`：18 参数 → 1 参数对象 `UpdateCustomerArgs`（customer_handler.rs 调用方同步修改）
+
+**批次 337（PR #509）**：v10 复审 P3 too_many_arguments DTO 重构 6 项
+- `inventory_finance_bridge_service.rs` 6 个函数统一引入 `VoucherCreateArgs<'a>` 参数对象：
+  - 5 个 `create_*_voucher` 私有函数（create_purchase_receipt_voucher/create_sales_delivery_voucher/create_inventory_adjustment_voucher/create_production_receipt_voucher/create_production_issue_voucher）：10 参数 → 1 参数对象
+  - `handle_inventory_transaction`：12 参数 → 3 参数（_transaction_id + transaction_type + VoucherCreateArgs）
+- 使用生命周期 `&'a str` 借用 source_bill_type/source_bill_no/batch_no/color_no，避免调用方不必要的 to_string()
+- 事件监听器 `start_listener` 同步构造 `VoucherCreateArgs` 并传递给 `handle_inventory_transaction`
+- **CI 修复**：补充 `OrderChangeRecord` dead code 警告到 clippy baseline（批次 332 引入的 struct 唯一构造点在 dead code `record_order_created` 内部，编译器推断 never constructed，属预存技术债务传播）
 
 **批次 336（PR #508）**：v10 复审 P3 too_many_arguments DTO 重构 1 项
 - `mrp_engine_service.rs calculate_requirement`：8 参数 → 1 参数，引入 `RequirementCalcParams` 参数对象（product_id/required_quantity/required_date/source_type/source_id/consider_safety_stock/consider_in_transit/bom_level）

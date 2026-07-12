@@ -61,6 +61,98 @@ pub struct ProductService {
     search_syncer: Arc<SearchSyncer>,
 }
 
+/// 创建产品参数对象
+///
+/// 批次 339 v10 复审 P3 修复：引入参数对象消除 create_product 的 too_many_arguments 警告。
+/// 聚合创建产品所需的全部字段（含面料行业字段），避免函数签名携带 19 个参数。
+#[derive(Debug, Clone)]
+pub struct CreateProductArgs {
+    /// 产品名称
+    pub name: String,
+    /// 产品编码
+    pub code: String,
+    /// 分类 ID
+    pub category_id: Option<i32>,
+    /// 规格
+    pub specification: Option<String>,
+    /// 单位
+    pub unit: String,
+    /// 标准价
+    pub standard_price: Option<f64>,
+    /// 成本价
+    pub cost_price: Option<f64>,
+    /// 描述
+    pub description: Option<String>,
+    /// 状态
+    pub status: String,
+    /// 产品类型（面料行业字段）
+    pub product_type: String,
+    /// 面料成分
+    pub fabric_composition: Option<String>,
+    /// 纱支
+    pub yarn_count: Option<String>,
+    /// 密度
+    pub density: Option<String>,
+    /// 幅宽
+    pub width: Option<f64>,
+    /// 克重
+    pub gram_weight: Option<f64>,
+    /// 组织
+    pub structure: Option<String>,
+    /// 后整理
+    pub finish: Option<String>,
+    /// 最小起订量
+    pub min_order_quantity: Option<f64>,
+    /// 交期（天）
+    pub lead_time: Option<i32>,
+}
+
+/// 更新产品参数对象
+///
+/// 批次 339 v10 复审 P3 修复：引入参数对象消除 update_product 的 too_many_arguments 警告。
+/// 聚合更新产品所需的全部字段（含面料行业字段），避免函数签名携带 19 个参数。
+#[derive(Debug, Clone)]
+pub struct UpdateProductArgs {
+    /// 产品 ID
+    pub id: i32,
+    /// 产品名称
+    pub name: Option<String>,
+    /// 规格
+    pub specification: Option<String>,
+    /// 单位
+    pub unit: Option<String>,
+    /// 标准价
+    pub standard_price: Option<f64>,
+    /// 成本价
+    pub cost_price: Option<f64>,
+    /// 描述
+    pub description: Option<String>,
+    /// 状态
+    pub status: Option<String>,
+    /// 产品类型
+    pub product_type: Option<String>,
+    /// 面料成分
+    pub fabric_composition: Option<String>,
+    /// 纱支
+    pub yarn_count: Option<String>,
+    /// 密度
+    pub density: Option<String>,
+    /// 幅宽
+    pub width: Option<f64>,
+    /// 克重
+    pub gram_weight: Option<f64>,
+    /// 组织
+    pub structure: Option<String>,
+    /// 后整理
+    pub finish: Option<String>,
+    /// 最小起订量
+    pub min_order_quantity: Option<f64>,
+    /// 交期（天）
+    pub lead_time: Option<i32>,
+    /// 操作人 ID
+    pub user_id: i32,
+}
+
 impl ProductService {
     pub fn new(db: Arc<DatabaseConnection>, search_client: Arc<dyn SearchClient>) -> Self {
         Self {
@@ -192,30 +284,34 @@ impl ProductService {
     }
 
     /// 创建产品（面料行业版）
-    #[allow(clippy::too_many_arguments)]
+    ///
+    /// 批次 339 v10 复审 P3 修复：签名从 19 参数改为单一参数对象 `CreateProductArgs`，
+    /// 消除 `clippy::too_many_arguments` 警告。
     pub async fn create_product(
         &self,
-        name: String,
-        code: String,
-        category_id: Option<i32>,
-        specification: Option<String>,
-        unit: String,
-        standard_price: Option<f64>,
-        cost_price: Option<f64>,
-        description: Option<String>,
-        status: String,
-        // 面料行业字段
-        product_type: String,
-        fabric_composition: Option<String>,
-        yarn_count: Option<String>,
-        density: Option<String>,
-        width: Option<f64>,
-        gram_weight: Option<f64>,
-        structure: Option<String>,
-        finish: Option<String>,
-        min_order_quantity: Option<f64>,
-        lead_time: Option<i32>,
+        args: CreateProductArgs,
     ) -> Result<product::Model, AppError> {
+        let CreateProductArgs {
+            name,
+            code,
+            category_id,
+            specification,
+            unit,
+            standard_price,
+            cost_price,
+            description,
+            status,
+            product_type,
+            fabric_composition,
+            yarn_count,
+            density,
+            width,
+            gram_weight,
+            structure,
+            finish,
+            min_order_quantity,
+            lead_time,
+        } = args;
         let active_model = product::ActiveModel {
             id: NotSet,
             name: Set(name),
@@ -288,30 +384,34 @@ impl ProductService {
     }
 
     /// 更新产品（面料行业版）
-    #[allow(clippy::too_many_arguments)]
+    ///
+    /// 批次 339 v10 复审 P3 修复：签名从 19 参数改为单一参数对象 `UpdateProductArgs`，
+    /// 消除 `clippy::too_many_arguments` 警告。
     pub async fn update_product(
         &self,
-        id: i32,
-        name: Option<String>,
-        specification: Option<String>,
-        unit: Option<String>,
-        standard_price: Option<f64>,
-        cost_price: Option<f64>,
-        description: Option<String>,
-        status: Option<String>,
-        // 面料行业字段
-        product_type: Option<String>,
-        fabric_composition: Option<String>,
-        yarn_count: Option<String>,
-        density: Option<String>,
-        width: Option<f64>,
-        gram_weight: Option<f64>,
-        structure: Option<String>,
-        finish: Option<String>,
-        min_order_quantity: Option<f64>,
-        lead_time: Option<i32>,
-        user_id: i32,
+        args: UpdateProductArgs,
     ) -> Result<product::Model, AppError> {
+        let UpdateProductArgs {
+            id,
+            name,
+            specification,
+            unit,
+            standard_price,
+            cost_price,
+            description,
+            status,
+            product_type,
+            fabric_composition,
+            yarn_count,
+            density,
+            width,
+            gram_weight,
+            structure,
+            finish,
+            min_order_quantity,
+            lead_time,
+            user_id,
+        } = args;
         let mut product: product::ActiveModel = ProductEntity::find_by_id(id)
             .one(&*self.db)
             .await?
@@ -828,17 +928,17 @@ impl ProductService {
                 .unwrap_or_else(|| master_data::ACTIVE.to_string());
 
             match self
-                .create_product(
-                    name.clone(),
-                    code.clone(),
+                .create_product(CreateProductArgs {
+                    name: name.clone(),
+                    code: code.clone(),
                     category_id,
                     specification,
-                    unit.clone(),
+                    unit: unit.clone(),
                     standard_price,
                     cost_price,
                     description,
                     status,
-                    product_type.clone(),
+                    product_type: product_type.clone(),
                     fabric_composition,
                     yarn_count,
                     density,
@@ -848,7 +948,7 @@ impl ProductService {
                     finish,
                     min_order_quantity,
                     lead_time,
-                )
+                })
                 .await
             {
                 Ok(_) => result.add_success(),
