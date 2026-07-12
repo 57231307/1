@@ -816,3 +816,74 @@ fn validate_download_url(url_str: &str) -> Result<(), UpdateError> {
 
     Ok(())
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// M8 测试：validate_download_url 合法 GitHub URL 通过
+    #[test]
+    fn test_validate_download_url_valid() {
+        assert!(validate_download_url("https://github.com/57231307/1/releases/download/v1.0.0/pkg.zip").is_ok());
+        assert!(validate_download_url("https://objects.githubusercontent.com/assets/123").is_ok());
+    }
+
+    /// M8 测试：validate_download_url 非 HTTPS 被拒绝
+    #[test]
+    fn test_validate_download_url_not_https() {
+        assert!(validate_download_url("http://github.com/repo/releases").is_err());
+    }
+
+    /// M8 测试：validate_download_url 非允许域名被拒绝
+    #[test]
+    fn test_validate_download_url_invalid_host() {
+        assert!(validate_download_url("https://evil.com/exploit").is_err());
+        assert!(validate_download_url("https://169.254.169.254/metadata").is_err());
+    }
+
+    /// M8 测试：validate_download_url 无效 URL 被拒绝
+    #[test]
+    fn test_validate_download_url_invalid_url() {
+        assert!(validate_download_url("not-a-url").is_err());
+        assert!(validate_download_url("").is_err());
+    }
+
+    /// M8 测试：compare_versions 新版本大于旧版本返回 true
+    #[test]
+    fn test_compare_versions_newer() {
+        let svc = SystemUpdateService::new();
+        assert!(svc.compare_versions("1.0.0", "1.0.1"));
+        assert!(svc.compare_versions("1.0.0", "2.0.0"));
+        assert!(svc.compare_versions("2026.7.1", "2026.7.2"));
+    }
+
+    /// M8 测试：compare_versions 旧版本大于等于新版本返回 false
+    #[test]
+    fn test_compare_versions_older_or_equal() {
+        let svc = SystemUpdateService::new();
+        assert!(!svc.compare_versions("1.0.1", "1.0.0"));
+        assert!(!svc.compare_versions("1.0.0", "1.0.0"));
+    }
+
+    /// M8 测试：extract_version_from_filename 正确提取版本号
+    #[test]
+    fn test_extract_version_from_filename() {
+        let svc = SystemUpdateService::new();
+        assert_eq!(
+            svc.extract_version_from_filename("bingxi-erp-1.0.0.zip"),
+            Some("1.0.0".to_string())
+        );
+        assert_eq!(
+            svc.extract_version_from_filename("bingxi-erp-2026.7.12.zip"),
+            Some("2026.7.12".to_string())
+        );
+    }
+
+    /// M8 测试：extract_version_from_filename 无效文件名返回 None
+    #[test]
+    fn test_extract_version_from_filename_invalid() {
+        let svc = SystemUpdateService::new();
+        assert_eq!(svc.extract_version_from_filename("invalid.zip"), None);
+        assert_eq!(svc.extract_version_from_filename("bingxi-erp-.zip"), None);
+    }
+}

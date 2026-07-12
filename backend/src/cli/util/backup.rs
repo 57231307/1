@@ -264,3 +264,60 @@ pub(super) fn cmd_restore(file: &str) {
 
     println!("\n[OK] 恢复完成，请重启服务: bingxi restart");
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// M8 测试：get_env_file_path 默认返回 /etc/bingxi/.env
+    #[test]
+    fn test_get_env_file_path_default() {
+        std::env::remove_var("BINGXI_ENV_FILE");
+        assert_eq!(get_env_file_path(), "/etc/bingxi/.env");
+    }
+
+    /// M8 测试：get_env_file_path 从环境变量读取
+    #[test]
+    fn test_get_env_file_path_from_env() {
+        std::env::set_var("BINGXI_ENV_FILE", "/custom/path/.env");
+        assert_eq!(get_env_file_path(), "/custom/path/.env");
+        std::env::remove_var("BINGXI_ENV_FILE");
+    }
+
+    /// M8 测试：get_systemd_dir 默认返回 /etc/systemd/system
+    #[test]
+    fn test_get_systemd_dir_default() {
+        std::env::remove_var("BINGXI_SYSTEMD_DIR");
+        assert_eq!(get_systemd_dir(), "/etc/systemd/system");
+    }
+
+    /// M8 测试：get_systemd_dir 从环境变量读取
+    #[test]
+    fn test_get_systemd_dir_from_env() {
+        std::env::set_var("BINGXI_SYSTEMD_DIR", "/custom/systemd");
+        assert_eq!(get_systemd_dir(), "/custom/systemd");
+        std::env::remove_var("BINGXI_SYSTEMD_DIR");
+    }
+
+    /// M8 测试：validate_dir_recursive 超过深度上限时返回错误
+    #[test]
+    fn test_validate_dir_recursive_depth_limit() {
+        // 创建一个临时目录用于测试
+        let temp = std::env::temp_dir().join("bingxi_test_depth_limit");
+        let _ = std::fs::create_dir(&temp);
+
+        // depth 已达上限时应直接返回错误
+        let result = validate_dir_recursive(&temp, &temp, MAX_RECURSION_DEPTH);
+        assert!(result.is_err());
+        assert!(result.unwrap_err().contains("递归深度超过上限"));
+
+        let _ = std::fs::remove_dir(&temp);
+    }
+
+    /// M8 测试：validate_extracted_paths 不存在的目录返回错误
+    #[test]
+    fn test_validate_extracted_paths_nonexistent() {
+        let result = validate_extracted_paths("/nonexistent/path/that/should/not/exist");
+        assert!(result.is_err());
+    }
+}
